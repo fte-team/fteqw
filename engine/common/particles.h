@@ -53,6 +53,7 @@ typedef struct particle_s
 	float		color;
 	vec3_t		rgb;
 	float		alpha;
+	float		angle;
 
 // drivers never touch the following fields
 	vec3_t		vel;

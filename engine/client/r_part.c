@@ -130,6 +130,7 @@ typedef struct {
 	vec3_t rgb;
 	float alpha;
 	float scale;
+	float rotation;
 } ramp_t;
 
 typedef struct part_type_s {
@@ -2159,13 +2160,8 @@ float pframetime;
 #ifdef RGLQUAKE
 void GL_DrawTexturedParticle(particle_t *p, part_type_t *type)
 {
+	float x,y;
 	float scale;
-	 float texrot[7][2] ={
-		{0, 0},
-		{1, 0},
-		{1, 1},
-		{0, 1}
-	};
 
 	if (lasttype != type)
 	{
@@ -2203,14 +2199,24 @@ void GL_DrawTexturedParticle(particle_t *p, part_type_t *type)
 				p->rgb[2],
 				p->alpha);
 
-	glTexCoord2fv (texrot[((int)p/sizeof(*p))&3]);
-	glVertex3f (p->org[0] - pright[0]*scale - pup[0]*scale, p->org[1] - pright[1]*scale - pup[1]*scale, p->org[2] - pright[2]*scale - pup[2]*scale);
-	glTexCoord2fv (texrot[((int)p/sizeof(*p)+1)&3]);	//bottom left
-	glVertex3f (p->org[0] - pright[0]*scale + pup[0]*scale, p->org[1] - pright[1]*scale + pup[1]*scale, p->org[2] - pright[2]*scale + pup[2]*scale);
-	glTexCoord2fv (texrot[((int)p/sizeof(*p)+2)&3]);	//bottom right
-	glVertex3f (p->org[0] + pright[0]*scale + pup[0]*scale, p->org[1] + pright[1]*scale + pup[1]*scale, p->org[2] + pright[2]*scale + pup[2]*scale);
-	glTexCoord2fv (texrot[((int)p/sizeof(*p)+3)&3]);	//top right
-	glVertex3f (p->org[0] + pright[0]*scale - pup[0]*scale, p->org[1] + pright[1]*scale - pup[1]*scale, p->org[2] + pright[2]*scale - pup[2]*scale);
+	if (p->angle)
+	{
+		x = sin(p->angle)*scale;
+		y = cos(p->angle)*scale;
+	}
+	else
+	{
+		x = 0;
+		y = scale;
+	}
+	glTexCoord2f(0,0);
+	glVertex3f (p->org[0] - x*pright[0] - y*pup[0], p->org[1] - x*pright[1] - y*pup[1], p->org[2] - x*pright[2] - y*pup[2]);
+	glTexCoord2f(0,1);
+	glVertex3f (p->org[0] - y*pright[0] + x*pup[0], p->org[1] - y*pright[1] + x*pup[1], p->org[2] - y*pright[2] + x*pup[2]);
+	glTexCoord2f(1,1);
+	glVertex3f (p->org[0] + x*pright[0] + y*pup[0], p->org[1] + x*pright[1] + y*pup[1], p->org[2] + x*pright[2] + y*pup[2]);
+	glTexCoord2f(1,0);
+	glVertex3f (p->org[0] + y*pright[0] - x*pup[0], p->org[1] + y*pright[1] - x*pup[1], p->org[2] + y*pright[2] - x*pup[2]);
 }
 
 void GL_DrawTrifanParticle(particle_t *p, part_type_t *type)
@@ -2353,7 +2359,7 @@ void SWD_DrawParticleBlob(particle_t *p, part_type_t *type)
 	D_DrawParticleTrans(p);
 }
 #endif
-void DrawParticleTypes (void texturedparticles(void*,void*), void sparkparticles(void*,void*))
+void DrawParticleTypes (void texturedparticles(particle_t *,part_type_t*), void sparkparticles(particle_t*,part_type_t*))
 {
 	qboolean (*tr) (vec3_t start, vec3_t end, vec3_t impact, vec3_t normal);
 
@@ -2400,9 +2406,9 @@ void DrawParticleTypes (void texturedparticles(void*,void*), void sparkparticles
 			while ((p=type->particles))
 			{
 				if (*type->texname)
-					RQ_AddDistReorder(texturedparticles, p, type, p->org);
+					RQ_AddDistReorder((void*)texturedparticles, p, type, p->org);
 				else
-					RQ_AddDistReorder(sparkparticles, p, type, p->org);
+					RQ_AddDistReorder((void*)sparkparticles, p, type, p->org);
 
 				type->particles = p->next;
 				p->next = free_particles;
@@ -2532,9 +2538,9 @@ void DrawParticleTypes (void texturedparticles(void*,void*), void sparkparticles
 			}
 
 			if (*type->texname)
-				RQ_AddDistReorder(texturedparticles, p, type, p->org);
+				RQ_AddDistReorder((void*)texturedparticles, p, type, p->org);
 			else
-				RQ_AddDistReorder(sparkparticles, p, type, p->org);
+				RQ_AddDistReorder((void*)sparkparticles, p, type, p->org);
 		}
 	}
 

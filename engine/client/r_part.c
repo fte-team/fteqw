@@ -1508,10 +1508,10 @@ int R_RunParticleEffectType (vec3_t org, vec3_t dir, float count, int typenum)
 				p->scale = ptype->scale+ptype->randscale*frandom();
 				p->alpha = ptype->alpha-p->die*(ptype->alpha/ptype->die)*ptype->alphachange;
 				p->color = 0;
-				p->u.p.nextemit = particletime + ptype->emitstart - p->die;
+				p->nextemit = particletime + ptype->emitstart - p->die;
 
-				p->u.p.rotationspeed = ptype->rotationmin + frandom()*ptype->rotationrand;
-				p->u.p.angle = ptype->rotationstartmin + frandom()*ptype->rotationstartrand;
+				p->rotationspeed = ptype->rotationmin + frandom()*ptype->rotationrand;
+				p->angle = ptype->rotationstartmin + frandom()*ptype->rotationstartrand;
 
 				if (ptype->colorindex >= 0)
 				{
@@ -1542,21 +1542,21 @@ int R_RunParticleEffectType (vec3_t org, vec3_t dir, float count, int typenum)
 				p->org[1] = crandom();
 				p->org[2] = crandom();
 
-				p->u.p.vel[0] = crandom()*ptype->randomvel;
-				p->u.p.vel[1] = crandom()*ptype->randomvel;
-				p->u.p.vel[2] = crandom()*ptype->randomvelvert;
+				p->vel[0] = crandom()*ptype->randomvel;
+				p->vel[1] = crandom()*ptype->randomvel;
+				p->vel[2] = crandom()*ptype->randomvelvert;
 
 				if (dir)
 				{
-					p->u.p.vel[0] += dir[0]*ptype->veladd+p->org[0]*ptype->offsetspread;
-					p->u.p.vel[1] += dir[1]*ptype->veladd+p->org[1]*ptype->offsetspread;
-					p->u.p.vel[2] += dir[2]*ptype->veladd+p->org[2]*ptype->offsetspreadvert;
+					p->vel[0] += dir[0]*ptype->veladd+p->org[0]*ptype->offsetspread;
+					p->vel[1] += dir[1]*ptype->veladd+p->org[1]*ptype->offsetspread;
+					p->vel[2] += dir[2]*ptype->veladd+p->org[2]*ptype->offsetspreadvert;
 				}
 				else
 				{
-					p->u.p.vel[0] += p->org[0]*ptype->offsetspread;
-					p->u.p.vel[1] += p->org[1]*ptype->offsetspread;
-					p->u.p.vel[2] += p->org[2]*ptype->offsetspreadvert - ptype->veladd;
+					p->vel[0] += p->org[0]*ptype->offsetspread;
+					p->vel[1] += p->org[1]*ptype->offsetspread;
+					p->vel[2] += p->org[2]*ptype->offsetspreadvert - ptype->veladd;
 				}
 				p->org[0] = org[0] + p->org[0]*ptype->areaspread;
 				p->org[1] = org[1] + p->org[1]*ptype->areaspread;
@@ -1582,10 +1582,10 @@ int R_RunParticleEffectType (vec3_t org, vec3_t dir, float count, int typenum)
 				p->scale = ptype->scale+ptype->randscale*frandom();
 				p->alpha = ptype->alpha-p->die*(ptype->alpha/ptype->die)*ptype->alphachange;
 				p->color = 0;
-				p->u.p.nextemit = particletime + ptype->emitstart - p->die;
+				p->nextemit = particletime + ptype->emitstart - p->die;
 
-				p->u.p.rotationspeed = ptype->rotationmin + frandom()*ptype->rotationrand;
-				p->u.p.angle = ptype->rotationstartmin + frandom()*ptype->rotationstartrand;
+				p->rotationspeed = ptype->rotationmin + frandom()*ptype->rotationrand;
+				p->angle = ptype->rotationstartmin + frandom()*ptype->rotationstartrand;
 
 				if (ptype->colorindex >= 0)
 				{
@@ -1612,9 +1612,9 @@ int R_RunParticleEffectType (vec3_t org, vec3_t dir, float count, int typenum)
 				p->rgb[1] += p->org[1]*ptype->rgbrand[1] + ptype->rgbchange[1]*p->die;
 				p->rgb[2] += p->org[2]*ptype->rgbrand[2] + ptype->rgbchange[2]*p->die;
 
-				p->u.p.vel[0] = crandom()*ptype->randomvel;
-				p->u.p.vel[1] = crandom()*ptype->randomvel;
-				p->u.p.vel[2] = crandom()*ptype->randomvelvert;
+				p->vel[0] = crandom()*ptype->randomvel;
+				p->vel[1] = crandom()*ptype->randomvel;
+				p->vel[2] = crandom()*ptype->randomvelvert;
 
 				// use org to store temp for particle dir
 				p->org[0] = k;
@@ -1625,15 +1625,15 @@ int R_RunParticleEffectType (vec3_t org, vec3_t dir, float count, int typenum)
 
 				if (dir)
 				{
-					p->u.p.vel[0] += dir[0]*ptype->veladd+p->org[0]*ptype->offsetspread;
-					p->u.p.vel[1] += dir[1]*ptype->veladd+p->org[1]*ptype->offsetspread;
-					p->u.p.vel[2] += dir[2]*ptype->veladd+p->org[2]*ptype->offsetspreadvert;
+					p->vel[0] += dir[0]*ptype->veladd+p->org[0]*ptype->offsetspread;
+					p->vel[1] += dir[1]*ptype->veladd+p->org[1]*ptype->offsetspread;
+					p->vel[2] += dir[2]*ptype->veladd+p->org[2]*ptype->offsetspreadvert;
 				}
 				else
 				{
-					p->u.p.vel[0] += p->org[0]*ptype->offsetspread;
-					p->u.p.vel[1] += p->org[1]*ptype->offsetspread;
-					p->u.p.vel[2] += p->org[2]*ptype->offsetspreadvert - ptype->veladd;
+					p->vel[0] += p->org[0]*ptype->offsetspread;
+					p->vel[1] += p->org[1]*ptype->offsetspread;
+					p->vel[2] += p->org[2]*ptype->offsetspreadvert - ptype->veladd;
 				}
 
 				// org is just like the original
@@ -1675,10 +1675,10 @@ int R_RunParticleEffectType (vec3_t org, vec3_t dir, float count, int typenum)
 				p->scale = ptype->scale+ptype->randscale*frandom();
 				p->alpha = ptype->alpha-p->die*(ptype->alpha/ptype->die)*ptype->alphachange;
 				p->color = 0;
-				p->u.p.nextemit = particletime + ptype->emitstart - p->die;
+				p->nextemit = particletime + ptype->emitstart - p->die;
 
-				p->u.p.rotationspeed = ptype->rotationmin + frandom()*ptype->rotationrand;
-				p->u.p.angle = ptype->rotationstartmin + frandom()*ptype->rotationstartrand;
+				p->rotationspeed = ptype->rotationmin + frandom()*ptype->rotationrand;
+				p->angle = ptype->rotationstartmin + frandom()*ptype->rotationstartrand;
 
 				if (ptype->colorindex >= 0)
 				{
@@ -1705,9 +1705,9 @@ int R_RunParticleEffectType (vec3_t org, vec3_t dir, float count, int typenum)
 				p->rgb[1] += p->org[1]*ptype->rgbrand[1] + ptype->rgbchange[1]*p->die;
 				p->rgb[2] += p->org[2]*ptype->rgbrand[2] + ptype->rgbchange[2]*p->die;
 
-				p->u.p.vel[0] = crandom()*ptype->randomvel;
-				p->u.p.vel[1] = crandom()*ptype->randomvel;
-				p->u.p.vel[2] = crandom()*ptype->randomvelvert;
+				p->vel[0] = crandom()*ptype->randomvel;
+				p->vel[1] = crandom()*ptype->randomvel;
+				p->vel[2] = crandom()*ptype->randomvelvert;
 
 				// calc directions, org with temp vector
 				{
@@ -1727,15 +1727,15 @@ int R_RunParticleEffectType (vec3_t org, vec3_t dir, float count, int typenum)
 
 					if (dir)
 					{
-						p->u.p.vel[0] += dir[0]*ptype->veladd+temp[0]*ptype->offsetspread;
-						p->u.p.vel[1] += dir[1]*ptype->veladd+temp[1]*ptype->offsetspread;
-						p->u.p.vel[2] += dir[2]*ptype->veladd+temp[2]*ptype->offsetspreadvert;
+						p->vel[0] += dir[0]*ptype->veladd+temp[0]*ptype->offsetspread;
+						p->vel[1] += dir[1]*ptype->veladd+temp[1]*ptype->offsetspread;
+						p->vel[2] += dir[2]*ptype->veladd+temp[2]*ptype->offsetspreadvert;
 					}
 					else
 					{
-						p->u.p.vel[0] += temp[0]*ptype->offsetspread;
-						p->u.p.vel[1] += temp[1]*ptype->offsetspread;
-						p->u.p.vel[2] += temp[2]*ptype->offsetspreadvert - ptype->veladd;
+						p->vel[0] += temp[0]*ptype->offsetspread;
+						p->vel[1] += temp[1]*ptype->offsetspread;
+						p->vel[2] += temp[2]*ptype->offsetspreadvert - ptype->veladd;
 					}
 
 				}
@@ -1767,10 +1767,10 @@ int R_RunParticleEffectType (vec3_t org, vec3_t dir, float count, int typenum)
 				p->scale = ptype->scale+ptype->randscale*frandom();
 				p->alpha = ptype->alpha-p->die*(ptype->alpha/ptype->die)*ptype->alphachange;
 				p->color = 0;
-				p->u.p.nextemit = particletime + ptype->emitstart - p->die;
+				p->nextemit = particletime + ptype->emitstart - p->die;
 
-				p->u.p.rotationspeed = ptype->rotationmin + frandom()*ptype->rotationrand;
-				p->u.p.angle = ptype->rotationstartmin + frandom()*ptype->rotationstartrand;
+				p->rotationspeed = ptype->rotationmin + frandom()*ptype->rotationrand;
+				p->angle = ptype->rotationstartmin + frandom()*ptype->rotationstartrand;
 
 				if (ptype->colorindex >= 0)
 				{
@@ -1808,21 +1808,21 @@ int R_RunParticleEffectType (vec3_t org, vec3_t dir, float count, int typenum)
 				if (ptype->spawnmode != SM_CIRCLE)
 					VectorScale(p->org, frandom(), p->org);
 
-				p->u.p.vel[0] = crandom()*ptype->randomvel;
-				p->u.p.vel[1] = crandom()*ptype->randomvel;
-				p->u.p.vel[2] = crandom()*ptype->randomvelvert;
+				p->vel[0] = crandom()*ptype->randomvel;
+				p->vel[1] = crandom()*ptype->randomvel;
+				p->vel[2] = crandom()*ptype->randomvelvert;
 
 				if (dir)
 				{
-					p->u.p.vel[0] += dir[0]*ptype->veladd+org[0]*ptype->offsetspread;
-					p->u.p.vel[1] += dir[1]*ptype->veladd+org[1]*ptype->offsetspread;
-					p->u.p.vel[2] += dir[2]*ptype->veladd+org[2]*ptype->offsetspreadvert;
+					p->vel[0] += dir[0]*ptype->veladd+org[0]*ptype->offsetspread;
+					p->vel[1] += dir[1]*ptype->veladd+org[1]*ptype->offsetspread;
+					p->vel[2] += dir[2]*ptype->veladd+org[2]*ptype->offsetspreadvert;
 				}
 				else
 				{
-					p->u.p.vel[0] += p->org[0]*ptype->offsetspread;
-					p->u.p.vel[1] += p->org[1]*ptype->offsetspread;
-					p->u.p.vel[2] += p->org[2]*ptype->offsetspreadvert - ptype->veladd;
+					p->vel[0] += p->org[0]*ptype->offsetspread;
+					p->vel[1] += p->org[1]*ptype->offsetspread;
+					p->vel[2] += p->org[2]*ptype->offsetspreadvert - ptype->veladd;
 
 				}
 				p->org[0] = org[0] + p->org[0]*ptype->areaspread;
@@ -2172,33 +2172,33 @@ void R_RocketTrail (vec3_t start, vec3_t end, int type, trailstate_t *ts)
 		p->rgb[1] += p->org[1]*ptype->rgbrand[1] + ptype->rgbchange[1]*p->die;
 		p->rgb[2] += p->org[2]*ptype->rgbrand[2] + ptype->rgbchange[2]*p->die;
 
-		VectorCopy (vec3_origin, p->u.p.vel);
-		p->u.p.nextemit = particletime + ptype->emitstart - p->die;
+		VectorCopy (vec3_origin, p->vel);
+		p->nextemit = particletime + ptype->emitstart - p->die;
 
-		p->u.p.rotationspeed = ptype->rotationmin + frandom()*ptype->rotationrand;
-		p->u.p.angle = ptype->rotationstartmin + frandom()*ptype->rotationstartrand;
+		p->rotationspeed = ptype->rotationmin + frandom()*ptype->rotationrand;
+		p->angle = ptype->rotationstartmin + frandom()*ptype->rotationstartrand;
 
 		switch(ptype->spawnmode)
 		{
 		case SM_TRACER:
 			if (tcount & 1)
 			{
-				p->u.p.vel[0] = vec[1]*ptype->offsetspread;
-				p->u.p.vel[1] = -vec[0]*ptype->offsetspread;
+				p->vel[0] = vec[1]*ptype->offsetspread;
+				p->vel[1] = -vec[0]*ptype->offsetspread;
 				p->org[0] = vec[1]*ptype->areaspread;
 				p->org[1] = -vec[0]*ptype->areaspread;
 			}
 			else
 			{
-				p->u.p.vel[0] = -vec[1]*ptype->offsetspread;
-				p->u.p.vel[1] = vec[0]*ptype->offsetspread;
+				p->vel[0] = -vec[1]*ptype->offsetspread;
+				p->vel[1] = vec[0]*ptype->offsetspread;
 				p->org[0] = -vec[1]*ptype->areaspread;
 				p->org[1] = vec[0]*ptype->areaspread;
 			}
 
-			p->u.p.vel[0] += vec[0]*veladd+crandom()*randvel;
-			p->u.p.vel[1] += vec[1]*veladd+crandom()*randvel;
-			p->u.p.vel[2] = vec[2]*veladd+crandom()*randvel;
+			p->vel[0] += vec[0]*veladd+crandom()*randvel;
+			p->vel[1] += vec[1]*veladd+crandom()*randvel;
+			p->vel[2] = vec[2]*veladd+crandom()*randvel;
 
 			p->org[0] += start[0];
 			p->org[1] += start[1];
@@ -2218,9 +2218,9 @@ void R_RocketTrail (vec3_t start, vec3_t end, int type, trailstate_t *ts)
 				tcos = cos(len/50)*ptype->offsetspread;
 				tsin = sin(len/50)*ptype->offsetspread;
 
-				p->u.p.vel[0] = vec[0]*veladd+crandom()*randvel + right[0]*tcos + up[0]*tsin;
-				p->u.p.vel[1] = vec[1]*veladd+crandom()*randvel + right[1]*tcos + up[1]*tsin;
-				p->u.p.vel[2] = vec[2]*veladd+crandom()*randvel + right[2]*tcos + up[2]*tsin;
+				p->vel[0] = vec[0]*veladd+crandom()*randvel + right[0]*tcos + up[0]*tsin;
+				p->vel[1] = vec[1]*veladd+crandom()*randvel + right[1]*tcos + up[1]*tsin;
+				p->vel[2] = vec[2]*veladd+crandom()*randvel + right[2]*tcos + up[2]*tsin;
 			}
 			break;
 		default:
@@ -2228,9 +2228,9 @@ void R_RocketTrail (vec3_t start, vec3_t end, int type, trailstate_t *ts)
 			p->org[1] = crandom();
 			p->org[2] = crandom();
 
-			p->u.p.vel[0] = vec[0]*veladd+crandom()*randvel + p->org[0]*ptype->offsetspread;
-			p->u.p.vel[1] = vec[1]*veladd+crandom()*randvel + p->org[1]*ptype->offsetspread;
-			p->u.p.vel[2] = vec[2]*veladd+crandom()*randvel + p->org[2]*ptype->offsetspreadvert;
+			p->vel[0] = vec[0]*veladd+crandom()*randvel + p->org[0]*ptype->offsetspread;
+			p->vel[1] = vec[1]*veladd+crandom()*randvel + p->org[1]*ptype->offsetspread;
+			p->vel[2] = vec[2]*veladd+crandom()*randvel + p->org[2]*ptype->offsetspreadvert;
 
 			p->org[0] = p->org[0]*ptype->areaspread + start[0];
 			p->org[1] = p->org[1]*ptype->areaspread + start[1];
@@ -2455,10 +2455,10 @@ void GL_DrawTexturedParticle(particle_t *p, part_type_t *type)
 				p->rgb[2],
 				p->alpha);
 
-	if (p->u.p.angle)
+	if (p->angle)
 	{
-		x = sin(p->u.p.angle)*scale;
-		y = cos(p->u.p.angle)*scale;
+		x = sin(p->angle)*scale;
+		y = cos(p->angle)*scale;
 	}
 	else
 	{
@@ -2520,9 +2520,9 @@ void GL_DrawTrifanParticle(particle_t *p, part_type_t *type)
 				0);
 	for (i=7 ; i>=0 ; i--)
 	{
-		v[0] = p->org[0] - p->u.p.vel[0]*scale + vright[0]*cost[i%7]*p->scale + vup[0]*sint[i%7]*p->scale;
-		v[1] = p->org[1] - p->u.p.vel[1]*scale + vright[1]*cost[i%7]*p->scale + vup[1]*sint[i%7]*p->scale;
-		v[2] = p->org[2] - p->u.p.vel[2]*scale + vright[2]*cost[i%7]*p->scale + vup[2]*sint[i%7]*p->scale;
+		v[0] = p->org[0] - p->vel[0]*scale + vright[0]*cost[i%7]*p->scale + vup[0]*sint[i%7]*p->scale;
+		v[1] = p->org[1] - p->vel[1]*scale + vright[1]*cost[i%7]*p->scale + vup[1]*sint[i%7]*p->scale;
+		v[2] = p->org[2] - p->vel[2]*scale + vright[2]*cost[i%7]*p->scale + vup[2]*sint[i%7]*p->scale;
 		glVertex3fv (v);
 	}
 	glEnd ();
@@ -2557,7 +2557,7 @@ void GL_DrawSparkedParticle(particle_t *p, part_type_t *type)
 				p->rgb[1],
 				p->rgb[2],
 				0);
-	glVertex3f (p->org[0]-p->u.p.vel[0]/10, p->org[1]-p->u.p.vel[1]/10, p->org[2]-p->u.p.vel[2]/10);
+	glVertex3f (p->org[0]-p->vel[0]/10, p->org[1]-p->vel[1]/10, p->org[2]-p->vel[2]/10);
 
 }
 
@@ -2899,15 +2899,15 @@ void DrawParticleTypes (void texturedparticles(particle_t *,part_type_t*), void 
 				break;
 			}
 			VectorCopy(p->org, oldorg);
-			p->org[0] += p->u.p.vel[0]*pframetime;
-			p->org[1] += p->u.p.vel[1]*pframetime;
-			p->org[2] += p->u.p.vel[2]*pframetime;
-			p->u.p.vel[0] -= friction[0]*p->u.p.vel[0];
-			p->u.p.vel[1] -= friction[1]*p->u.p.vel[1];
-			p->u.p.vel[2] -= friction[2]*p->u.p.vel[2];
-			p->u.p.vel[2] -= grav;
+			p->org[0] += p->vel[0]*pframetime;
+			p->org[1] += p->vel[1]*pframetime;
+			p->org[2] += p->vel[2]*pframetime;
+			p->vel[0] -= friction[0]*p->vel[0];
+			p->vel[1] -= friction[1]*p->vel[1];
+			p->vel[2] -= friction[2]*p->vel[2];
+			p->vel[2] -= grav;
 
-			p->u.p.angle += p->u.p.rotationspeed*pframetime;
+			p->angle += p->rotationspeed*pframetime;
 
 			switch (type->rampmode)
 			{
@@ -2938,10 +2938,10 @@ void DrawParticleTypes (void texturedparticles(particle_t *,part_type_t*), void 
 			{
 				if (type->emittime < 0)
 					R_RocketTrail(oldorg, p->org, type->emit, 0);
-				else if (p->u.p.nextemit < particletime)
+				else if (p->nextemit < particletime)
 				{
-					p->u.p.nextemit = particletime + type->emittime + frandom()*type->emitrand;
-					R_RunParticleEffectType(p->org, p->u.p.vel, 1, type->emit);
+					p->nextemit = particletime + type->emittime + frandom()*type->emitrand;
+					R_RunParticleEffectType(p->org, p->vel, 1, type->emit);
 				}
 			}
 
@@ -2957,22 +2957,22 @@ void DrawParticleTypes (void texturedparticles(particle_t *,part_type_t*), void 
 
 					if (type->cliptype == i)
 					{	//bounce
-						dist = DotProduct(p->u.p.vel, normal) * (-1-(rand()/(float)0x7fff)/2);
+						dist = DotProduct(p->vel, normal) * (-1-(rand()/(float)0x7fff)/2);
 				
-						VectorMA(p->u.p.vel, dist, normal, p->u.p.vel);
+						VectorMA(p->vel, dist, normal, p->vel);
 						VectorCopy(stop, p->org);
-						p->u.p.vel[0] *= 0.8;
-						p->u.p.vel[1] *= 0.8;
-						p->u.p.vel[2] *= 0.8;
+						p->vel[0] *= 0.8;
+						p->vel[1] *= 0.8;
+						p->vel[2] *= 0.8;
 
-						if (!*type->texname && Length(p->u.p.vel)<1000*pframetime)
+						if (!*type->texname && Length(p->vel)<1000*pframetime)
 							p->die = -1;
 					}
 					else
 					{
 						p->die = -1;
-						VectorNormalize(p->u.p.vel);
-						R_RunParticleEffectType(stop, p->u.p.vel, type->clipcount/part_type[type->cliptype].count, type->cliptype);
+						VectorNormalize(p->vel);
+						R_RunParticleEffectType(stop, p->vel, type->clipcount/part_type[type->cliptype].count, type->cliptype);
 					}
 
 					continue;

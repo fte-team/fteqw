@@ -752,7 +752,7 @@ void D_DrawSparkTrans32 (particle_t *pparticle)	//draw a line in 3d space
 	if (pparticle->alpha <= 0.0)
 		return;
 
-	speed = Length(pparticle->u.p.vel);	
+	speed = Length(pparticle->vel);	
 	if ((speed) < 1)
 	{
 		D_2dPos(pparticle->org, &u1, &v1, &z1);
@@ -762,9 +762,9 @@ void D_DrawSparkTrans32 (particle_t *pparticle)	//draw a line in 3d space
 	{	//causes flickers with lower vels (due to bouncing in physics)
 		if (speed < 50)
 			speed *= 50/speed;
-		VectorMA(pparticle->org, 5/(speed), pparticle->u.p.vel, delta);
+		VectorMA(pparticle->org, 5/(speed), pparticle->vel, delta);
 		D_2dPos(delta, &u1, &v1, &z1);
-		VectorMA(pparticle->org, -5/(speed), pparticle->u.p.vel, delta);
+		VectorMA(pparticle->org, -5/(speed), pparticle->vel, delta);
 		D_2dPos(delta, &u2, &v2, &z2);
 	}
 
@@ -851,7 +851,7 @@ void D_DrawSparkTrans16 (particle_t *pparticle)	//draw a line in 3d space, 8bpp
 	if (pparticle->alpha <= 0.0)
 		return;
 
-	speed = Length(pparticle->u.p.vel);	
+	speed = Length(pparticle->vel);	
 	if ((speed) < 1)
 	{
 		D_2dPos(pparticle->org, &u1, &v1, &z1);
@@ -861,9 +861,9 @@ void D_DrawSparkTrans16 (particle_t *pparticle)	//draw a line in 3d space, 8bpp
 	{	//causes flickers with lower vels (due to bouncing in physics)
 		if (speed < 50)
 			speed *= 50/speed;
-		VectorMA(pparticle->org, 2.5/(speed), pparticle->u.p.vel, delta);
+		VectorMA(pparticle->org, 2.5/(speed), pparticle->vel, delta);
 		D_2dPos(delta, &u1, &v1, &z1);
-		VectorMA(pparticle->org, -2.5/(speed), pparticle->u.p.vel, delta);
+		VectorMA(pparticle->org, -2.5/(speed), pparticle->vel, delta);
 		D_2dPos(delta, &u2, &v2, &z2);
 	}
 
@@ -955,7 +955,7 @@ void D_DrawSparkTrans (particle_t *pparticle)	//draw a line in 3d space, 8bpp
 	if (t_state & TT_ZERO)
 		return;
 
-	speed = Length(pparticle->u.p.vel);	
+	speed = Length(pparticle->vel);	
 	if ((speed) < 1)
 	{
 		D_2dPos(pparticle->org, &u1, &v1, &z1);
@@ -965,9 +965,9 @@ void D_DrawSparkTrans (particle_t *pparticle)	//draw a line in 3d space, 8bpp
 	{	//causes flickers with lower vels (due to bouncing in physics)
 		if (speed < 50)
 			speed *= 50/speed;
-		VectorMA(pparticle->org, 2.5/(speed), pparticle->u.p.vel, delta);
+		VectorMA(pparticle->org, 2.5/(speed), pparticle->vel, delta);
 		D_2dPos(delta, &u1, &v1, &z1);
-		VectorMA(pparticle->org, -2.5/(speed), pparticle->u.p.vel, delta);
+		VectorMA(pparticle->org, -2.5/(speed), pparticle->vel, delta);
 		D_2dPos(delta, &u2, &v2, &z2);
 	}
 

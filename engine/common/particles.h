@@ -55,19 +55,10 @@ typedef struct particle_s
 	float		alpha;
 	float		scale;
 
-	union {
-		struct {
-			vec3_t		vel;
-			float		angle;
-			float		rotationspeed;
-			float		nextemit;
-		} p;	//point blob
-/*		struct {
-			vec3_t		org2;
-			vec3_t		lastdir;
-		} b;
-		*/
-	} u;
+	vec3_t		vel;
+	float		angle;
+	float		rotationspeed;
+	float		nextemit;
 
 // drivers never touch the following fields
 

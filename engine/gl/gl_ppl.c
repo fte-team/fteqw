@@ -2194,6 +2194,8 @@ void PPL_AddLight(dlight_t *dl)
 		glClear(GL_STENCIL_BUFFER_BIT);
 		glDisable(GL_CULL_FACE);
 
+		glEnable(GL_STENCIL_TEST_TWO_SIDE_EXT);
+
 		glCullFace(GL_BACK);
 		qglActiveStencilFaceEXT(GL_BACK);
 		glStencilOp(GL_KEEP, sincrw, GL_KEEP);
@@ -2209,6 +2211,8 @@ void PPL_AddLight(dlight_t *dl)
 
 		qglActiveStencilFaceEXT(GL_FRONT);
 		glStencilOp(GL_KEEP, GL_KEEP, GL_KEEP);
+
+		glDisable(GL_STENCIL_TEST_TWO_SIDE_EXT);
 
 		glEnable(GL_CULL_FACE);
 

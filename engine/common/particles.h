@@ -57,6 +57,7 @@ typedef struct particle_s
 
 // drivers never touch the following fields
 	vec3_t		vel;
+	float		rotationspeed;
 	struct particle_s	*next;
 	float		nextemit;
 	float		die;

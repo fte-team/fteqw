@@ -338,6 +338,8 @@ static void PPL_BaseChain_NoBump_2TMU(msurface_t *s, texture_t *tex)
 			PPL_FlushArrays();
 			vi = s->lightmaptexturenum;
 
+			if (vi>=0)
+			{
 			GL_BindType(GL_TEXTURE_2D, lightmap_textures[vi] );
 			if (lightmap[vi]->modified)
 			{
@@ -350,6 +352,7 @@ static void PPL_BaseChain_NoBump_2TMU(msurface_t *s, texture_t *tex)
 				theRect->t = LMBLOCK_HEIGHT;
 				theRect->h = 0;
 				theRect->w = 0;
+			}
 			}
 		}
 
@@ -584,6 +587,8 @@ static void PPL_BaseChain_Bump_4TMU(msurface_t *s, texture_t *tex)
 
 #ifdef SPECULAR
 //Draw a texture chain with specular exponant 1.
+//erm...
+//this uses the wrong stuff to work on gf4tis.
 /*
 static void PPL_BaseChain_Specular_4TMU(msurface_t *first, texture_t *tex)
 {
@@ -827,7 +832,7 @@ void PPL_LoadSpecularFragmentProgram(void)
 	//we have diffuse and specular - wahoo
 	//combine then halve.
 	"ADD diff.rgb, diff, spec;\n"
-	"MUL diff.rgb, diff, half;\n"
+	//"MUL diff.rgb, diff, half;\n"
 
 
 	//multiply by inverse lm and output the result.

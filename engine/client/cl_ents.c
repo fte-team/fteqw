@@ -577,6 +577,8 @@ entity_state_t *CL_FindOldPacketEntity(int num)
 	int					pnum;
 	entity_state_t		*s1;
 	packet_entities_t	*pack;
+	if (!cls.netchan.incoming_sequence)
+		return NULL;
 	pack = &cl.frames[(cls.netchan.incoming_sequence-1)&UPDATE_MASK].packet_entities;
 
 	for (pnum=0 ; pnum<pack->num_entities ; pnum++)

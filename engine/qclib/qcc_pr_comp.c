@@ -5920,7 +5920,8 @@ void QCC_PR_ArrayRecurseDivideRegular(QCC_def_t *array, QCC_def_t *index, int mi
 	QCC_def_t *eq;
 	if (min == max || min+1 == max)
 	{
-		eq = QCC_PR_Statement(pr_opcodes+OP_EQ_F, index, QCC_MakeFloatDef((float)min), NULL);
+		eq = QCC_PR_Statement(pr_opcodes+OP_LT, index, QCC_MakeFloatDef(min+0.5f), NULL);
+		QCC_UnFreeTemp(index);
 		QCC_FreeTemp(QCC_PR_Statement(pr_opcodes+OP_IFNOT, eq, 0, &st));
 		st->b = 2;
 		QCC_PR_Statement(pr_opcodes+OP_RETURN, 0, 0, &st);
@@ -5932,7 +5933,8 @@ void QCC_PR_ArrayRecurseDivideRegular(QCC_def_t *array, QCC_def_t *index, int mi
 
 		if (max-min>4)
 		{
-			eq = QCC_PR_Statement(pr_opcodes+OP_LT, index, QCC_MakeFloatDef((float)mid), NULL);
+			eq = QCC_PR_Statement(pr_opcodes+OP_LT, index, QCC_MakeFloatDef(mid+0.5f), NULL);
+			QCC_UnFreeTemp(index);
 			QCC_FreeTemp(QCC_PR_Statement(pr_opcodes+OP_IFNOT, eq, 0, &st));
 		}
 		else
@@ -5952,7 +5954,8 @@ void QCC_PR_ArrayRecurseDivideUsingVectors(QCC_def_t *array, QCC_def_t *index, i
 	QCC_def_t *eq;
 	if (min == max || min+1 == max)
 	{
-		eq = QCC_PR_Statement(pr_opcodes+OP_EQ_F, index, QCC_MakeFloatDef((float)min), NULL);
+		eq = QCC_PR_Statement(pr_opcodes+OP_LT, index, QCC_MakeFloatDef(min+0.5f), NULL);
+		QCC_UnFreeTemp(index);
 		QCC_FreeTemp(QCC_PR_Statement(pr_opcodes+OP_IFNOT, eq, 0, &st));
 		st->b = 2;
 		QCC_PR_Statement(pr_opcodes+OP_RETURN, 0, 0, &st);
@@ -5964,7 +5967,8 @@ void QCC_PR_ArrayRecurseDivideUsingVectors(QCC_def_t *array, QCC_def_t *index, i
 
 		if (max-min>4)
 		{
-			eq = QCC_PR_Statement(pr_opcodes+OP_LT, index, QCC_MakeFloatDef((float)mid), NULL);
+			eq = QCC_PR_Statement(pr_opcodes+OP_LT, index, QCC_MakeFloatDef(mid+0.5f), NULL);
+			QCC_UnFreeTemp(index);
 			QCC_FreeTemp(QCC_PR_Statement(pr_opcodes+OP_IFNOT, eq, 0, &st));
 		}
 		else
@@ -6048,16 +6052,24 @@ void QCC_PR_EmitArrayGetFunction(QCC_def_t *scope, char *arrayname)
 
 	if (vectortrick)
 	{
-		QCC_def_t *div3, *ret;
+		QCC_def_t *div3, *intdiv3, *ret;
+
+		//okay, we've got a function to retrieve the var as part of a vector.
+		//we need to work out which part, x/y/z that it's stored in.
+		//0,1,2 = i - ((int)i/3 *) 3;
+
+		div3 = QCC_PR_GetDef(type_float, "div3___", def, true, 1);
+		intdiv3 = QCC_PR_GetDef(type_float, "intdiv3___", def, true, 1);
 
 		eq = QCC_PR_Statement(pr_opcodes+OP_GE, index, QCC_MakeFloatDef((float)def->arraysize), NULL);	//escape clause - should call some sort of error function instead.. that'd rule!
 		QCC_FreeTemp(QCC_PR_Statement(pr_opcodes+OP_IFNOT, eq, 0, &st));
 		st->b = 2;
 		QCC_PR_Statement(pr_opcodes+OP_RETURN, QCC_MakeFloatDef(0), 0, &st);
 
+		div3->references++;
 		QCC_PR_Statement3(pr_opcodes+OP_BITAND, index, index, index);
-		div3 = QCC_PR_Statement(pr_opcodes+OP_DIV_F, index, QCC_MakeFloatDef(3), NULL);
-		QCC_PR_Statement3(pr_opcodes+OP_BITAND, div3, div3, div3);
+		QCC_PR_Statement3(pr_opcodes+OP_DIV_F, index, QCC_MakeFloatDef(3), div3);
+		QCC_PR_Statement3(pr_opcodes+OP_BITAND, div3, div3, intdiv3);
 
 		QCC_PR_Statement3(pr_opcodes+OP_STORE_F, index, &def_parms[0], NULL);
 		QCC_PR_Statement3(pr_opcodes+OP_CALL1, vectortrick, NULL, NULL);
@@ -6066,23 +6078,23 @@ void QCC_PR_EmitArrayGetFunction(QCC_def_t *scope, char *arrayname)
 		ret->references+=4;
 		QCC_PR_Statement3(pr_opcodes+OP_STORE_V, &def_ret, ret, NULL);
 
-		div3 = QCC_PR_Statement(pr_opcodes+OP_MUL_F, div3, QCC_MakeFloatDef(3), NULL);
+		div3 = QCC_PR_Statement(pr_opcodes+OP_MUL_F, intdiv3, QCC_MakeFloatDef(3), NULL);
 		QCC_PR_Statement3(pr_opcodes+OP_SUB_F, index, div3, index);
 		QCC_FreeTemp(div3);
 
-		eq = QCC_PR_Statement(pr_opcodes+OP_EQ_F, index, QCC_MakeFloatDef(0), NULL);
+		eq = QCC_PR_Statement(pr_opcodes+OP_LT, index, QCC_MakeFloatDef(0+0.5f), NULL);
 		QCC_FreeTemp(QCC_PR_Statement(pr_opcodes+OP_IFNOT, eq, 0, &st));
 		st->b = 2;
 		QCC_PR_Statement(pr_opcodes+OP_RETURN, 0, 0, &st);
 		st->a = ret->ofs + 0;
 
-		eq = QCC_PR_Statement(pr_opcodes+OP_EQ_F, index, QCC_MakeFloatDef(1), NULL);
+		eq = QCC_PR_Statement(pr_opcodes+OP_LT, index, QCC_MakeFloatDef(1+0.5f), NULL);
 		QCC_FreeTemp(QCC_PR_Statement(pr_opcodes+OP_IFNOT, eq, 0, &st));
 		st->b = 2;
 		QCC_PR_Statement(pr_opcodes+OP_RETURN, 0, 0, &st);
 		st->a = ret->ofs + 1;
 
-		eq = QCC_PR_Statement(pr_opcodes+OP_EQ_F, index, QCC_MakeFloatDef(2), NULL);
+		eq = QCC_PR_Statement(pr_opcodes+OP_LT, index, QCC_MakeFloatDef(2+0.5), NULL);
 		QCC_FreeTemp(QCC_PR_Statement(pr_opcodes+OP_IFNOT, eq, 0, &st));
 		st->b = 2;
 		QCC_PR_Statement(pr_opcodes+OP_RETURN, 0, 0, &st);
@@ -6116,6 +6128,7 @@ void QCC_PR_ArraySetRecurseDivide(QCC_def_t *array, QCC_def_t *index, QCC_def_t 
 	if (min == max || min+1 == max)
 	{
 		eq = QCC_PR_Statement(pr_opcodes+OP_EQ_F, index, QCC_MakeFloatDef((float)min), NULL);
+		QCC_UnFreeTemp(index);
 		QCC_FreeTemp(QCC_PR_Statement(pr_opcodes+OP_IFNOT, eq, 0, &st));
 		st->b = 3;
 		if (array->type->size == 3)
@@ -6132,6 +6145,7 @@ void QCC_PR_ArraySetRecurseDivide(QCC_def_t *array, QCC_def_t *index, QCC_def_t 
 		if (max-min>4)
 		{
 			eq = QCC_PR_Statement(pr_opcodes+OP_LT, index, QCC_MakeFloatDef((float)mid), NULL);
+			QCC_UnFreeTemp(index);
 			QCC_FreeTemp(QCC_PR_Statement(pr_opcodes+OP_IFNOT, eq, 0, &st));
 		}
 		else
@@ -6893,10 +6907,15 @@ void QCC_PR_ParseDefs (char *classname)
 		if (type->type == ev_function && (pr_scope || !constant))
 		{
 			if ( QCC_PR_Check ("=") )
+			{
+				if (def->arraysize>1)
+					goto lazyfunctiondeclaration;
 				QCC_PR_ParseError (ERR_INITIALISEDLOCALFUNCTION, "local functions may only be used as pointers");
+			}
 
+			arraysize = def->arraysize;
 			d = def;	//apply to ALL elements
-			while(d)
+			while(arraysize--)
 			{
 				d->initialized = 1;	//fake function
 				G_FUNCTION(d->ofs) = 0;
@@ -6979,6 +6998,7 @@ void QCC_PR_ParseDefs (char *classname)
 	
 			else if (type->type == ev_function)
 			{
+lazyfunctiondeclaration:
 				def->constant = constant;
 				if (QCC_PR_Check("0"))
 				{
@@ -7000,14 +7020,27 @@ void QCC_PR_ParseDefs (char *classname)
 
 						d = QCC_PR_GetDef (NULL, name, pr_scope, false, 0);
 						if (!d)
-							QCC_PR_ParseError(ERR_NOTDEFINED, "%s was not defined\n", name);
+							QCC_PR_ParseError(ERR_NOTDEFINED, "%s was not defined", name);
 						else
+						{
+							if (!d->initialized)
+								QCC_PR_ParseWarning(WARN_NOTDEFINED, "initialisation of function arrays must be placed after the body of all functions used (%s)", name);
 							G_FUNCTION(def->ofs+i) = G_FUNCTION(d->ofs);
+						}
 
 						i++;
 					} while(QCC_PR_Check(","));
+
+					arraysize = def->arraysize;
+					d = def;	//apply to ALL elements
+					while(arraysize--)
+					{
+						d->initialized = 1;	//fake function
+						d = d->next;
+					}
+
 					QCC_PR_Expect("}");
-					if (i > arraysize)
+					if (i > def->arraysize)
 						QCC_PR_ParseError(ERR_TOOMANYINITIALISERS, "Too many initializers");
 					continue;
 				}

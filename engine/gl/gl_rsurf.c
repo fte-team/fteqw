@@ -1731,7 +1731,7 @@ void GL_SelectTexture (GLenum target);
 void GL_DisableMultitexture(void) 
 {
 	if (mtexenabled) {
-		glDisable(GL_TEXTURE_2D);
+		qglDisable(GL_TEXTURE_2D);
 		GL_SelectTexture(mtexid0);
 		mtexenabled = false;
 	}
@@ -1741,7 +1741,7 @@ void GL_EnableMultitexture(void)
 {
 	if (gl_mtexable) {
 		GL_SelectTexture(mtexid1);
-		glEnable(GL_TEXTURE_2D);
+		qglEnable(GL_TEXTURE_2D);
 		mtexenabled = true;
 	}
 }
@@ -1761,19 +1761,19 @@ static void DrawGLWaterPoly (glpoly_t *p)
 
 	GL_DisableMultitexture();
 
-	glBegin (GL_TRIANGLE_FAN);
+	qglBegin (GL_TRIANGLE_FAN);
 	v = p->verts[0];
 	for (i=0 ; i<p->numverts ; i++, v+= VERTEXSIZE)
 	{
-		glTexCoord2f (v[3], v[4]);
+		qglTexCoord2f (v[3], v[4]);
 
 		nv[0] = v[0] + 8*sin(v[1]*0.05+realtime)*sin(v[2]*0.05+realtime);
 		nv[1] = v[1] + 8*sin(v[0]*0.05+realtime)*sin(v[2]*0.05+realtime);
 		nv[2] = v[2];
 
-		glVertex3fv (nv);
+		qglVertex3fv (nv);
 	}
-	glEnd ();
+	qglEnd ();
 }
 #if 0
 static void DrawGLWaterPolyLightmap (glpoly_t *p)
@@ -1811,14 +1811,14 @@ static void DrawGLPoly (glpoly_t *p)
 
 	while(p)
 	{
-		glBegin (GL_POLYGON);
+		qglBegin (GL_POLYGON);
 		v = p->verts[0];
 		for (i=0 ; i<p->numverts ; i++, v+= VERTEXSIZE)
 		{
-			glTexCoord2f (v[3], v[4]);
-			glVertex3fv (v);
+			qglTexCoord2f (v[3], v[4]);
+			qglVertex3fv (v);
 		}
-		glEnd ();
+		qglEnd ();
 		p=p->next;
 	}
 }
@@ -1945,7 +1945,7 @@ void R_RenderBrushPoly (msurface_t *fa)
 	if (fa->flags & SURF_DRAWTURB)
 	{	// warp texture, no lightmaps
 		EmitWaterPolys (fa, r_wateralphaval);
-		glDisable(GL_BLEND);	//to ensure.
+		qglDisable(GL_BLEND);	//to ensure.
 		return;
 	}
 
@@ -2101,21 +2101,21 @@ void GLR_DrawWaterSurfaces (void)
 	// go back to the world matrix
 	//
 
-    glLoadMatrixf (r_world_matrix);
+    qglLoadMatrixf (r_world_matrix);
 
 	if (r_wateralphaval < 1.0) {
-		glEnable (GL_BLEND);
-		glDisable (GL_ALPHA_TEST);
-		glColor4f (1,1,1,r_wateralphaval);
+		qglEnable (GL_BLEND);
+		qglDisable (GL_ALPHA_TEST);
+		qglColor4f (1,1,1,r_wateralphaval);
 		GL_TexEnv(GL_MODULATE);
 	}
 
 	if (gl_waterripples.value)
 	{
-		glTexGeni(GL_S, GL_TEXTURE_GEN_MODE, GL_SPHERE_MAP);
-		glTexGeni(GL_T, GL_TEXTURE_GEN_MODE, GL_SPHERE_MAP);
-		glEnable(GL_TEXTURE_GEN_S);
-		glEnable(GL_TEXTURE_GEN_T);
+		qglTexGeni(GL_S, GL_TEXTURE_GEN_MODE, GL_SPHERE_MAP);
+		qglTexGeni(GL_T, GL_TEXTURE_GEN_MODE, GL_SPHERE_MAP);
+		qglEnable(GL_TEXTURE_GEN_S);
+		qglEnable(GL_TEXTURE_GEN_T);
 	}
 
 	for (i=0 ; i<cl.worldmodel->numtextures ; i++)
@@ -2140,19 +2140,19 @@ void GLR_DrawWaterSurfaces (void)
 	if (r_wateralphaval < 1.0) {
 		GL_TexEnv(GL_REPLACE);
 
-		glColor4f (1,1,1,1);
-		glDisable (GL_BLEND);
+		qglColor4f (1,1,1,1);
+		qglDisable (GL_BLEND);
 	}
 
-	glDisable(GL_TEXTURE_GEN_S);
-	glDisable(GL_TEXTURE_GEN_T);
+	qglDisable(GL_TEXTURE_GEN_S);
+	qglDisable(GL_TEXTURE_GEN_T);
 
 }
 
 
 static void GLR_DrawAlphaSurface(msurface_t	*s)
 {
-	glPushMatrix();
+	qglPushMatrix();
 	R_RotateForEntity(s->ownerent);
 #ifdef Q3SHADERS
 	if (s->texinfo->texture->shader)
@@ -2173,21 +2173,21 @@ static void GLR_DrawAlphaSurface(msurface_t	*s)
 			R_RenderMeshBuffer ( &mb, false );
 		}
 
-		glPopMatrix();
+		qglPopMatrix();
 		return;
 	}
 #endif
 	GL_Bind(s->texinfo->texture->gl_texturenum);
 
 	if (s->texinfo->flags & SURF_TRANS33)
-		glColor4f (1,1,1,0.33);
+		qglColor4f (1,1,1,0.33);
 	else if (s->texinfo->flags & SURF_TRANS66)
-		glColor4f (1,1,1,0.66);
+		qglColor4f (1,1,1,0.66);
 	else
 	{
 		if (s->flags & SURF_DRAWTURB)
 		{
-			glColor4f (1,1,1,1);
+			qglColor4f (1,1,1,1);
 			EmitWaterPolys (s, r_wateralphaval);
 		}
 		else
@@ -2203,18 +2203,18 @@ static void GLR_DrawAlphaSurface(msurface_t	*s)
 				GL_TexEnv(GL_BLEND);
 				p = s->polys;
 
-				glColor4f (1,1,1,1);
+				qglColor4f (1,1,1,1);
 				while(p)
 				{
-					glBegin (GL_POLYGON);
+					qglBegin (GL_POLYGON);
 					v = p->verts[0];
 					for (i=0 ; i<p->numverts ; i++, v+= VERTEXSIZE)
 					{
 						qglMTexCoord2fSGIS (mtexid0, v[3], v[4]);
 						qglMTexCoord2fSGIS (mtexid1, v[5], v[6]);
-						glVertex3fv (v);
+						qglVertex3fv (v);
 					}
-					glEnd ();
+					qglEnd ();
 					p=p->next;
 				}
 				GL_DisableMultitexture();
@@ -2222,14 +2222,14 @@ static void GLR_DrawAlphaSurface(msurface_t	*s)
 			else
 			{
 				if (s->samples)	//could do true vertex lighting... ?
-					glColor4ub (*s->samples,*s->samples,*s->samples,255);
+					qglColor4ub (*s->samples,*s->samples,*s->samples,255);
 				else
-					glColor4f (1,1,1,1);
+					qglColor4f (1,1,1,1);
 				DrawGLPoly (s->polys);
 			}
 		}
 
-		glPopMatrix();
+		qglPopMatrix();
 		return;
 	}
 
@@ -2240,7 +2240,7 @@ static void GLR_DrawAlphaSurface(msurface_t	*s)
 	else
 		DrawGLPoly (s->polys);
 
-	glPopMatrix();
+	qglPopMatrix();
 }
 
 void GLR_DrawAlphaSurfaces (void)
@@ -2252,19 +2252,19 @@ void GLR_DrawAlphaSurfaces (void)
 	// go back to the world matrix
 	//
 
-    glLoadMatrixf (r_world_matrix);
+    qglLoadMatrixf (r_world_matrix);
 	GL_TexEnv(GL_MODULATE);
 	
-	glEnable(GL_ALPHA_TEST);
-	glDisable(GL_BLEND);
+	qglEnable(GL_ALPHA_TEST);
+	qglDisable(GL_BLEND);
 	if (cl.worldmodel && (cl.worldmodel->fromgame == fg_quake2))
 	{	//this is a mahoosive hack.
-		glDepthMask(0);	//this makes no difference to the cheating.
+		qglDepthMask(0);	//this makes no difference to the cheating.
 
-		glDisable(GL_ALPHA_TEST);
-		glEnable(GL_BLEND);
+		qglDisable(GL_ALPHA_TEST);
+		qglEnable(GL_BLEND);
 	}
-	glColor4f (1,1,1,1);
+	qglColor4f (1,1,1,1);
 	for (s=r_alpha_surfaces ; s ; s=s->nextalphasurface)
 	{
 		if (s->flags&0x80000)
@@ -2279,8 +2279,8 @@ void GLR_DrawAlphaSurfaces (void)
 			if (s->ownerent != currententity)
 			{
 				currententity = s->ownerent;
-				glPopMatrix();
-				glPushMatrix();
+				qglPopMatrix();
+				qglPushMatrix();
 				R_RotateForEntity(currententity);
 			}
 
@@ -2299,15 +2299,15 @@ void GLR_DrawAlphaSurfaces (void)
 
 				while(p)
 				{
-					glBegin (GL_POLYGON);
+					qglBegin (GL_POLYGON);
 					v = p->verts[0];
 					for (i=0 ; i<p->numverts ; i++, v+= VERTEXSIZE)
 					{
 						qglMTexCoord2fSGIS (mtexid0, v[3], v[4]);
 						qglMTexCoord2fSGIS (mtexid1, v[5], v[6]);
-						glVertex3fv (v);
+						qglVertex3fv (v);
 					}
-					glEnd ();
+					qglEnd ();
 					p=p->next;
 				}
 				GL_DisableMultitexture();
@@ -2315,11 +2315,11 @@ void GLR_DrawAlphaSurfaces (void)
 			else
 			{
 				if (s->samples)	//could do true vertex lighting... ?
-					glColor4ub (*s->samples,*s->samples,*s->samples,255);
+					qglColor4ub (*s->samples,*s->samples,*s->samples,255);
 				else
-					glColor4f (1,1,1,1);
+					qglColor4f (1,1,1,1);
 				DrawGLPoly (s->polys);
-				glColor4f (1,1,1,1);
+				qglColor4f (1,1,1,1);
 			}
 			continue;
 		}
@@ -2335,16 +2335,16 @@ void GLR_DrawAlphaSurfaces (void)
 		s->flags &= ~0x80000;
 	}
 	RQ_RenderDistAndClear();
-	glDepthMask(1);
+	qglDepthMask(1);
 
 	GL_TexEnv(GL_REPLACE);
 
-	glColor4f (1,1,1,1);
-	glDisable (GL_BLEND);
+	qglColor4f (1,1,1,1);
+	qglDisable (GL_BLEND);
 
 	r_alpha_surfaces = NULL;
 
-	glBlendFunc (GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+	qglBlendFunc (GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
 }
 
 #if 0
@@ -3199,7 +3199,7 @@ void R_DrawWorld (void)
 	else
 #endif
 	{
-		glColor3f (1,1,1);
+		qglColor3f (1,1,1);
 	//#ifdef QUAKE2
 		R_ClearSkyBox ();
 	//#endif
@@ -3241,7 +3241,7 @@ void R_DrawWorld (void)
 //		else
 //			DrawTextureChains (cl.worldmodel, 1, r_refdef.vieworg);
 
-glTexEnvf(GL_TEXTURE_ENV, GL_TEXTURE_ENV_MODE, GL_MODULATE);
+qglTexEnvf(GL_TEXTURE_ENV, GL_TEXTURE_ENV_MODE, GL_MODULATE);
 
 		GLR_LessenStains();
 	}
@@ -3559,8 +3559,85 @@ void BuildSurfaceDisplayList (msurface_t *fa)
 	lnumverts = fa->numedges;
 	vertpage = 0;
 
-	if (!currentmodel->surfedges)
+	if (lnumverts<3)
 		return;	//q3 map.
+#ifdef Q3SHADERS
+	if (fa->texinfo->texture->shader)
+	{	//build a nice mesh instead of a poly.
+		int size = sizeof(mesh_t) + sizeof(index_t)*(lnumverts-2)*3 + (sizeof(vec4_t) + sizeof(vec3_t) + 2*sizeof(vec2_t) + sizeof(byte_vec4_t))*lnumverts;
+		mesh_t *mesh;
+
+		fa->mesh = mesh = Hunk_Alloc(size);
+		mesh->xyz_array = (vec4_t*)(mesh + 1);
+		mesh->normals_array = (vec3_t*)(mesh->xyz_array + lnumverts);
+		mesh->st_array = (vec2_t*)(mesh->normals_array + lnumverts);
+		mesh->lmst_array = (vec2_t*)(mesh->st_array + lnumverts);
+		mesh->colors_array = (byte_vec4_t*)(mesh->lmst_array + lnumverts);
+		mesh->indexes = (index_t*)(mesh->colors_array + lnumverts);
+
+		mesh->numindexes = (lnumverts-2)*3;
+		mesh->numvertexes = lnumverts;
+		mesh->patchWidth = mesh->patchHeight = 1;
+
+		for (i=0 ; i<lnumverts-2 ; i++)
+		{
+			mesh->indexes[i*3] = 0;
+			mesh->indexes[i*3+1] = i+1;
+			mesh->indexes[i*3+2] = i+2;
+		}
+
+		for (i=0 ; i<lnumverts ; i++)
+		{
+			lindex = currentmodel->surfedges[fa->firstedge + i];
+
+			if (lindex > 0)
+			{
+				r_pedge = &pedges[lindex];
+				vec = r_pcurrentvertbase[r_pedge->v[0]].position;
+			}
+			else
+			{
+				r_pedge = &pedges[-lindex];
+				vec = r_pcurrentvertbase[r_pedge->v[1]].position;
+			}
+
+			s = DotProduct (vec, fa->texinfo->vecs[0]) + fa->texinfo->vecs[0][3];
+			t = DotProduct (vec, fa->texinfo->vecs[1]) + fa->texinfo->vecs[1][3];
+
+			VectorCopy (vec, mesh->xyz_array[i]);
+			mesh->xyz_array[i][3] = 1;
+			mesh->st_array[i][0] = s/fa->texinfo->texture->width;
+			mesh->st_array[i][1] = t/fa->texinfo->texture->height;
+
+			s -= fa->texturemins[0];
+			lm = s*fa->light_t;
+			s += fa->light_s*16;
+			s += 8;
+			s /= LMBLOCK_WIDTH*16;
+
+			t -= fa->texturemins[1];
+			lm += t;
+			t += fa->light_t*16;
+			t += 8;
+			t /= LMBLOCK_HEIGHT*16;
+
+			mesh->lmst_array[i][0] = s;
+			mesh->lmst_array[i][1] = t;
+
+			if (fa->flags & SURF_PLANEBACK)
+				VectorNegate(fa->plane->normal, mesh->normals_array[i]);
+			else
+				VectorCopy(fa->plane->normal, mesh->normals_array[i]);
+
+			mesh->colors_array[i][0] = 255;
+			mesh->colors_array[i][1] = 255;
+			mesh->colors_array[i][2] = 255;
+			mesh->colors_array[i][3] = 255;
+		}
+
+		return;
+	}
+#endif
 	//
 	// draw texture
 	//
@@ -3604,13 +3681,13 @@ void BuildSurfaceDisplayList (msurface_t *fa)
 		lm = s*fa->light_t;
 		s += fa->light_s*16;
 		s += 8;
-		s /= LMBLOCK_WIDTH*16; //fa->texinfo->texture->width;
+		s /= LMBLOCK_WIDTH*16;
 
 		t -= fa->texturemins[1];
 		lm += t;
 		t += fa->light_t*16;
 		t += 8;
-		t /= LMBLOCK_HEIGHT*16; //fa->texinfo->texture->height;
+		t /= LMBLOCK_HEIGHT*16;
 
 		poly->verts[i][5] = s;
 		poly->verts[i][6] = t;
@@ -3889,13 +3966,8 @@ void GL_BuildLightmaps (void)
 
 			GL_CreateSurfaceLightmap (m->surfaces + i);
 			R_EmitSkyEffectTris(m, &m->surfaces[i]);
-			if ( m->surfaces[i].flags & SURF_DRAWTURB )
+			if (m->surfaces[i].polys)	//there are some surfaces that have a display list already (the subdivided ones)
 				continue;
-			if ( m->surfaces[i].flags & SURF_DRAWSKY )
-			{
-				if (currentmodel->fromgame != fg_quake2)
-					continue;
-			}
 			BuildSurfaceDisplayList (m->surfaces + i);
 		}
 	}
@@ -3913,9 +3985,9 @@ void GL_BuildLightmaps (void)
 		lightmap[i]->rectchange.w = 0;
 		lightmap[i]->rectchange.h = 0;
 		GL_Bind(lightmap_textures[i]);
-		glTexParameterf(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
-		glTexParameterf(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
-		glTexImage2D (GL_TEXTURE_2D, 0, lightmap_bytes
+		qglTexParameterf(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+		qglTexParameterf(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+		qglTexImage2D (GL_TEXTURE_2D, 0, lightmap_bytes
 		, LMBLOCK_WIDTH, LMBLOCK_HEIGHT, 0, 
 		gl_lightmap_format, GL_UNSIGNED_BYTE, lightmap[i]->lightmaps);
 
@@ -3925,9 +3997,9 @@ void GL_BuildLightmaps (void)
 		lightmap[i]->deluxrectchange.w = 0;
 		lightmap[i]->deluxrectchange.h = 0;
 		GL_Bind(deluxmap_textures[i]);
-		glTexParameterf(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
-		glTexParameterf(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
-		glTexImage2D (GL_TEXTURE_2D, 0, 3
+		qglTexParameterf(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+		qglTexParameterf(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+		qglTexImage2D (GL_TEXTURE_2D, 0, 3
 		, LMBLOCK_WIDTH, LMBLOCK_HEIGHT, 0, 
 		GL_RGB, GL_UNSIGNED_BYTE, lightmap[i]->deluxmaps);
 	}

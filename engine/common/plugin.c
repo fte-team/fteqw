@@ -453,23 +453,22 @@ int Plug_Draw_Image(void *offset, unsigned int mask, const long *arg)
 	else
 		pic = Draw_CachePic(pluginimagearray[i].name);
 
+#ifdef RGLQUAKE
 	switch (qrenderer)
 	{
-#ifdef RGLQUAKE
 	case QR_OPENGL:
 		glEnable(GL_BLEND);
 		glDisable(GL_DEPTH_TEST);
 		glDisable(GL_ALPHA_TEST);
 		GLDraw_Image(VM_FLOAT(arg[0]), VM_FLOAT(arg[1]), VM_FLOAT(arg[2]), VM_FLOAT(arg[3]), VM_FLOAT(arg[4]), VM_FLOAT(arg[5]), VM_FLOAT(arg[6]), VM_FLOAT(arg[7]), pic);
 		break;
+	}
 #endif
-#ifdef SWQUAKE
-	case QR_SOFTWARE:
-		SWDraw_Image(VM_FLOAT(arg[0]), VM_FLOAT(arg[1]), VM_FLOAT(arg[2]), VM_FLOAT(arg[3]), VM_FLOAT(arg[4]), VM_FLOAT(arg[5]), VM_FLOAT(arg[6]), VM_FLOAT(arg[7]), pic);
-		break;
-#endif
-	default:
-		break;
+
+	if (Draw_Image)
+	{
+		Draw_Image(VM_FLOAT(arg[0]), VM_FLOAT(arg[1]), VM_FLOAT(arg[2]), VM_FLOAT(arg[3]), VM_FLOAT(arg[4]), VM_FLOAT(arg[5]), VM_FLOAT(arg[6]), VM_FLOAT(arg[7]), pic);
+		return 1;
 	}
 
 	return 1;
@@ -514,61 +513,31 @@ int Plug_Draw_ColourP(void *offset, unsigned int mask, const long *arg)
 	if (arg[0]<0 || arg[0]>255)
 		return false;
 
-	switch(qrenderer)
+	if (Draw_ImageColours)
 	{
-#ifdef RGLQUAKE
-	case QR_OPENGL:
-		glColor3f(pal[0]/255.0f, pal[1]/255.0f, pal[2]/255.0f);
-		break;
-#endif
-#ifdef SWQUAKE
-	case QR_SOFTWARE:
-		SWDraw_ImageColours(pal[0]/255.0f, pal[1]/255.0f, pal[2]/255.0f, 1);
-		break;
-#endif
-	default:
-		return 0;
+		Draw_ImageColours(pal[0]/255.0f, pal[1]/255.0f, pal[2]/255.0f, 1);
+		return 1;
 	}
-	return 1;
+	return 0;
 }
 
 int Plug_Draw_Colour3f(void *offset, unsigned int mask, const long *arg)
 {
-	switch(qrenderer)
+	if (Draw_ImageColours)
 	{
-#ifdef RGLQUAKE
-	case QR_OPENGL:
-		glColor3f(VM_FLOAT(arg[0]), VM_FLOAT(arg[1]), VM_FLOAT(arg[2]));
-		break;
-#endif
-#ifdef SWQUAKE
-	case QR_SOFTWARE:
-		SWDraw_ImageColours(VM_FLOAT(arg[0]), VM_FLOAT(arg[1]), VM_FLOAT(arg[2]), 1);
-		break;
-#endif
-	default:
-		return 0;
+		Draw_ImageColours(VM_FLOAT(arg[0]), VM_FLOAT(arg[1]), VM_FLOAT(arg[2]), 1);
+		return 1;
 	}
-	return 1;
+	return 0;
 }
 int Plug_Draw_Colour4f(void *offset, unsigned int mask, const long *arg)
 {
-	switch(qrenderer)
+	if (Draw_ImageColours)
 	{
-#ifdef RGLQUAKE
-	case QR_OPENGL:
-		glColor4f(VM_FLOAT(arg[0]), VM_FLOAT(arg[1]), VM_FLOAT(arg[2]), VM_FLOAT(arg[3]));
-		break;
-#endif
-#ifdef SWQUAKE
-	case QR_SOFTWARE:
-		SWDraw_ImageColours(VM_FLOAT(arg[0]), VM_FLOAT(arg[1]), VM_FLOAT(arg[2]), VM_FLOAT(arg[3]));
-		break;
-#endif
-	default:
-		return 0;
+		Draw_ImageColours(VM_FLOAT(arg[0]), VM_FLOAT(arg[1]), VM_FLOAT(arg[2]), VM_FLOAT(arg[3]));
+		return 1;
 	}
-	return 1;
+	return 0;
 }
 
 int Plug_Key_GetKeyCode(void *offset, unsigned int mask, const long *arg)

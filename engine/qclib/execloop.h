@@ -484,10 +484,10 @@ reeval:
 		else
 			pr_argc = st->op - OP_CALL0;
 		fnum = OPA->function;
-		if ((fnum & ~0xff000000)<=0)
+		if ((fnum & ~0xff000000)==0)
 		{
 			pr_trace++;
-			printf("NULL function from qc.\n");			
+			printf("NULL function from qc (%s).\n", pr_xfunction->s_name);			
 #ifndef DEBUGABLE
 			goto cont;
 #endif

@@ -79,3 +79,11 @@ void SCR_DrawFPS (void);
 void SCR_DrawTurtle (void);
 void SCR_DrawPause (void);
 void SCR_VRectForPlayer(vrect_t *vrect, int pnum);	//returns a region for the player's view
+
+//TEI_SHOWLMP2 stuff
+void SCR_ShowPics_Draw(void);
+void SCR_ShowPic_Create(void);
+void SCR_ShowPic_Hide(void);
+void SCR_ShowPic_Move(void);
+void SCR_ShowPic_Update(void);
+void SCR_ShowPic_Clear(void);

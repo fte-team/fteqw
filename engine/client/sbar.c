@@ -1772,9 +1772,11 @@ void Sbar_DeathmatchOverlay (int start)
 	scr_copyeverything = 1;
 	scr_fullupdate = 0;
 
-	if (!start) {
-		pic = Draw_CachePic ("gfx/ranking.lmp");
-		Draw_Pic ((vid.width - 320)/2 + 160-pic->width/2, 0, pic);
+	if (!start)
+	{
+		pic = Draw_SafeCachePic ("gfx/ranking.lmp");
+		if (pic)
+			Draw_Pic ((vid.width - 320)/2 + 160-pic->width/2, 0, pic);
 	}
 
 // scores	

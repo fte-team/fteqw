@@ -163,7 +163,7 @@ static void VARGS PFQ2_error (char *fmt, ...)
 	vsprintf (msg, fmt, argptr);
 	va_end (argptr);
 
-	Sys_Error ("Game Error: %s", msg);
+	SV_Error("Game Error: %s", msg);
 }
 
 /*
@@ -214,7 +214,7 @@ static void PFQ2_Configstring (int i, char *val)
 	}
 	else if (i == Q2CS_NAME)
 	{
-		Q_strncpyz(sv.name, val, sizeof(sv.name));
+		Q_strncpyz(sv.mapname, val, sizeof(sv.name));
 	}
 	else
 	{

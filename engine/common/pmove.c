@@ -168,6 +168,15 @@ int PM_SlideMove (void)
 //
 		for (i=0 ; i<numplanes ; i++)
 		{
+			if (movevars.walljump && planes[i][2] != 1	//not on floors
+				&& Length(pmove.velocity)>200 && pmove.cmd.buttons & 2 && !pmove.jump_held)
+			{
+				PM_ClipVelocity (original_velocity, planes[i], pmove.velocity, 2);
+				pmove.velocity[2] = 270;
+				pmove.jump_msec = pmove.cmd.msec;
+				pmove.jump_held = true;
+				return 0;
+			}
 			PM_ClipVelocity (original_velocity, planes[i], pmove.velocity, 1);
 			for (j=0 ; j<numplanes ; j++)
 				if (j != i)

@@ -702,7 +702,7 @@ long UI_SystemCallsEx(void *offset, unsigned int mask, int fn, const long *arg)
 
 	case UI_DRAW_IMAGE:
 		if (Draw_Image)
-			Draw_Image(VM_FLOAT(arg[0]), VM_FLOAT(arg[1]), VM_FLOAT(arg[2]), VM_FLOAT(arg[3]), VM_FLOAT(arg[4]), VM_FLOAT(arg[5]), VM_FLOAT(arg[6]), VM_FLOAT(arg[7]), (qpic_t *)VM_LONG(arg[8]));
+			Draw_Image(VM_FLOAT(arg[0]), VM_FLOAT(arg[1]), VM_FLOAT(arg[2]), VM_FLOAT(arg[3]), VM_FLOAT(arg[4]), VM_FLOAT(arg[5]), VM_FLOAT(arg[6]), VM_FLOAT(arg[7]), (mpic_t *)VM_LONG(arg[8]));
 		break;
 
 	case UI_LERP_TAG:	//Lerp tag...

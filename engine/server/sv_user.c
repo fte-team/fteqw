@@ -68,6 +68,7 @@ extern cvar_t	pm_bunnyspeedcap;
 extern cvar_t	pm_ktjump;
 extern cvar_t	pm_slidefix;
 extern cvar_t	pm_airstep;
+extern cvar_t	pm_walljump;
 
 char sv_votinggroup[] = "server voting";
 
@@ -1011,7 +1012,7 @@ void SV_PreSpawn_f (void)
 	}
 }
 
-static void SetUpClientEdict (client_t *cl, edict_t *ent);
+void SetUpClientEdict (client_t *cl, edict_t *ent);
 /*
 ==================
 SV_Spawn_f
@@ -2491,7 +2492,7 @@ void Cmd_SetPos_f(void)
 }
 
 void ED_ClearEdict (progfuncs_t *progfuncs, edict_t *e);
-static void SetUpClientEdict (client_t *cl, edict_t *ent)
+void SetUpClientEdict (client_t *cl, edict_t *ent)
 {
 	extern int pr_teamfield;
 	ED_ClearEdict(svprogfuncs, ent);
@@ -2528,23 +2529,27 @@ void Cmd_Join_f (void)
 	if (!host_client->spectator)
 		return;		// already a player
 
-	if (!(host_client->zquake_extensions & Z_EXT_JOIN_OBSERVE)) {
+	if (!(host_client->zquake_extensions & Z_EXT_JOIN_OBSERVE))
+	{
 		Con_Printf ("Your QW client doesn't support this command\n");
 		return;
 	}
 
-	if (password.string[0] && stricmp(password.string, "none")) {
+	if (password.string[0] && stricmp(password.string, "none"))
+	{
 		Con_Printf ("This server requires a %s password. Please disconnect, set the password and reconnect as %s.\n", "player", "player");
 		return;
 	}
 
 	// count players already on server
 	numclients = 0;
-	for (i=0,cl=svs.clients ; i<sv.allocated_client_slots ; i++,cl++) {
+	for (i=0,cl=svs.clients ; i<sv.allocated_client_slots ; i++,cl++)
+	{
 		if (cl->state != cs_free && !cl->spectator)
 			numclients++;
 	}
-	if (numclients >= maxclients.value) {
+	if (numclients >= maxclients.value)
+	{
 		Con_Printf ("Can't join, all player slots full\n");
 		return;
 	}
@@ -3772,6 +3777,7 @@ void SV_RunCmd (usercmd_t *ucmd, qboolean recurse)
 	movevars.ktjump = pm_ktjump.value;
 	movevars.slidefix = (pm_slidefix.value != 0);
 	movevars.airstep = (pm_airstep.value != 0);
+	movevars.walljump = (pm_walljump.value != 0);
 
 	if (sv_player->v.hasted)
 		movevars.maxspeed*=sv_player->v.hasted;

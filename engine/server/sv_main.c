@@ -2628,6 +2628,8 @@ void SVQ2_ClearEvents(void)
 #endif
 
 
+void SetUpClientEdict (client_t *cl, edict_t *ent);
+
 /*
 ==================
 SV_Impulse_f
@@ -2654,7 +2656,7 @@ void SV_Impulse_f (void)
 
 	pr_global_struct->time = sv.time;
 
-	memset (&svs.clients[i].edict->v, 0, pr_edict_size-svprogparms.edictsize);
+	SetUpClientEdict(&svs.clients[i], svs.clients[i].edict);
 
 	svs.clients[i].edict->v.netname = PR_SetString(svprogfuncs, "Console");
 
@@ -2665,18 +2667,19 @@ void SV_Impulse_f (void)
 	pr_global_struct->self = EDICT_TO_PROG(svprogfuncs, svs.clients[i].edict);			
 	PR_ExecuteProgram (svprogfuncs, pr_global_struct->PutClientInServer);
 
+	pr_global_struct->self = EDICT_TO_PROG(svprogfuncs, svs.clients[i].edict);
+	PR_ExecuteProgram (svprogfuncs, pr_global_struct->PlayerPreThink);
+	pr_global_struct->self = EDICT_TO_PROG(svprogfuncs, svs.clients[i].edict);
+	PR_ExecuteProgram (svprogfuncs, svs.clients[i].edict->v.think);
+	pr_global_struct->self = EDICT_TO_PROG(svprogfuncs, svs.clients[i].edict);
+	PR_ExecuteProgram (svprogfuncs, pr_global_struct->PlayerPostThink);
+
 	svs.clients[i].edict->v.impulse = atoi(Cmd_Argv(1));
 
 	pr_global_struct->self = EDICT_TO_PROG(svprogfuncs, svs.clients[i].edict);
 	PR_ExecuteProgram (svprogfuncs, pr_global_struct->PlayerPreThink);
-
 	pr_global_struct->self = EDICT_TO_PROG(svprogfuncs, svs.clients[i].edict);
 	PR_ExecuteProgram (svprogfuncs, svs.clients[i].edict->v.think);
-	{
-		char buffer[256] = "self.ishuman";
-		pr_global_struct->self = EDICT_TO_PROG(svprogfuncs, svs.clients[i].edict);
-		Con_Printf("Result: %s\n", svprogfuncs->EvaluateDebugString(svprogfuncs, buffer));
-	}
 	pr_global_struct->self = EDICT_TO_PROG(svprogfuncs, svs.clients[i].edict);
 	PR_ExecuteProgram (svprogfuncs, pr_global_struct->PlayerPostThink);
 
@@ -2848,6 +2851,7 @@ void SV_InitLocal (void)
 	extern	cvar_t	pm_ktjump;
 	extern	cvar_t	pm_slidefix;
 	extern	cvar_t	pm_airstep;
+	extern	cvar_t	pm_walljump;
 
 	SV_InitOperatorCommands	();
 	SV_UserInit ();
@@ -2911,6 +2915,7 @@ void SV_InitLocal (void)
 	Cvar_Register (&pm_ktjump,				cvargroup_serverphysics);
 	Cvar_Register (&pm_slidefix,			cvargroup_serverphysics);
 	Cvar_Register (&pm_airstep,				cvargroup_serverphysics);
+	Cvar_Register (&pm_walljump,			cvargroup_serverphysics);
 
 	Cvar_Register (&sv_compatablehulls,		cvargroup_serverphysics);
 

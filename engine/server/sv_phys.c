@@ -57,6 +57,7 @@ cvar_t	pm_ktjump			 = {"pm_ktjump", "", NULL, CVAR_SERVERINFO};
 cvar_t	pm_bunnyspeedcap	 = {"pm_bunnyspeedcap", "", NULL, CVAR_SERVERINFO};
 cvar_t	pm_slidefix			 = {"pm_slidefix", "", NULL, CVAR_SERVERINFO};
 cvar_t	pm_airstep			 = {"pm_airstep", "", NULL, CVAR_SERVERINFO}; 
+cvar_t	pm_walljump			 = {"pm_walljump", "", NULL, CVAR_SERVERINFO}; 
 
 extern cvar_t sv_nomsec;
 
@@ -405,7 +406,7 @@ SV_AddGravity
 */
 void SV_AddGravity (edict_t *ent, float scale)
 {
-	ent->v.velocity[2] -= scale * movevars.gravity * host_frametime;
+	ent->v.velocity[2] -= scale * sv_gravity.value/*movevars.gravity*/ * host_frametime;
 }
 
 /*

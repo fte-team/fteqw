@@ -123,6 +123,7 @@ typedef struct {
 	float	ktjump;
 	qboolean	slidefix;
 	qboolean	airstep;
+	qboolean	walljump;
 } movevars_t;
 
 

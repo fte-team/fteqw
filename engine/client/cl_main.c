@@ -1118,6 +1118,7 @@ void CL_CheckServerInfo(void)
 	cl.bunnyspeedcap = Q_atof(Info_ValueForKey(cl.serverinfo, "pm_bunnyspeedcap"));
 	movevars.slidefix = (Q_atof(Info_ValueForKey(cl.serverinfo, "pm_slidefix")) != 0);
 	movevars.airstep = (Q_atof(Info_ValueForKey(cl.serverinfo, "pm_airstep")) != 0);
+	movevars.walljump = (Q_atof(Info_ValueForKey(cl.serverinfo, "pm_walljump")) != 0);
 	movevars.ktjump = Q_atof(Info_ValueForKey(cl.serverinfo, "pm_ktjump"));
 
 	// Initialize cl.maxpitch & cl.minpitch

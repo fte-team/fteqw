@@ -293,7 +293,6 @@ typedef struct glRect_s {
 } glRect_t;
 typedef char stmap;
 typedef struct {
-	glpoly_t *polys;
 	qboolean	modified;
 	qboolean	deluxmodified;
 	glRect_t	rectchange;

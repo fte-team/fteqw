@@ -793,6 +793,10 @@ int Plug_Con_RenameSub(void *offset, unsigned int mask, const long *arg)
 #define EADDRNOTAVAIL	WSAEADDRNOTAVAIL
 
 #define qerrno WSAGetLastError()
+
+#ifdef IPPROTO_IPV6
+#include <ws2tcpip.h>
+#endif
 #else
 
 

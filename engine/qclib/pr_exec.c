@@ -559,7 +559,7 @@ int PR_ToggleBreakpoint(progfuncs_t *progfuncs, char *filename, int linenum, int
 
 			for (f = pr_progstate[pn].functions, fl = 0; fl < pr_progstate[pn].progs->numfunctions; f++, fl++)
 			{
-				if (!strcmp(f->s_file, filename))
+				if (!stricmp(f->s_file, filename))
 				{
 					for (i = f->first_statement; ; i++)
 					{
@@ -778,7 +778,16 @@ void PR_ExecuteCode (progfuncs_t *progfuncs, int s)
 	prinst->continuestatement = -1;
 
 #define PRBOUNDSCHECK
-#define RUNAWAYCHECK() if (!--runaway) { pr_xstatement = st-pr_statements; PR_StackTrace(progfuncs); printf ("runaway loop error"); pr_depth = prinst->exitdepth;return;}
+#define RUNAWAYCHECK()							\
+	if (!--runaway)								\
+	{											\
+		pr_xstatement = st-pr_statements;		\
+		PR_StackTrace(progfuncs);				\
+		printf ("runaway loop error");			\
+		while(pr_depth > prinst->exitdepth)		\
+			PR_LeaveFunction(progfuncs);		\
+		return;									\
+	}
 
 #define OPA ((eval_t *)&glob[st->a])
 #define OPB ((eval_t *)&glob[st->b])

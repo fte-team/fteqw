@@ -48,11 +48,21 @@ int SV_ModelIndex (char *name)
 	if (!name || !name[0])
 		return 0;
 
-	for (i=0 ; i<MAX_MODELS && sv.model_precache[i] ; i++)
+	for (i=1 ; i<MAX_MODELS && sv.model_precache[i] ; i++)
 		if (!strcmp(sv.model_precache[i], name))
 			return i;
 	if (i==MAX_MODELS || !sv.model_precache[i])
-		SV_Error ("SV_ModelIndex: model %s not precached", name);
+	{
+		if (i!=MAX_MODELS && sv.state == ss_loading)
+		{
+			Q_strncpyz(sv.model_precache[i], name, sizeof(sv.model_precache[i]));
+			if (!strcmp(name + strlen(name) - 4, ".bsp"))
+				sv.models[i] = Mod_FindName(sv.model_precache[i]);
+			Con_Printf("WARNING: SV_ModelIndex: model %s not precached", name);
+		}
+		else
+			SV_Error ("SV_ModelIndex: model %s not precached", name);
+	}
 	return i;
 }
 
@@ -890,13 +900,6 @@ void SV_SpawnServer (char *server, char *startspot, qboolean noents, qboolean us
 	// look up some model indexes for specialized message compression
 	SV_FindModelNumbers ();
 
-	// all spawning is completed, any further precache statements
-	// or prog writes to the signon message are errors
-	if (usecinematic)
-		sv.state = ss_cinematic;
-	else
-		sv.state = ss_active;
-
 #ifndef SERVERONLY
 	current_loading_size+=10;
 	SCR_BeginLoadingPlaque();
@@ -924,6 +927,13 @@ void SV_SpawnServer (char *server, char *startspot, qboolean noents, qboolean us
 //	SV_CreateBaseline ();
 	SVNQ_CreateBaseline();
 	sv.signon_buffer_size[sv.num_signon_buffers-1] = sv.signon.cursize;
+
+	// all spawning is completed, any further precache statements
+	// or prog writes to the signon message are errors
+	if (usecinematic)
+		sv.state = ss_cinematic;
+	else
+		sv.state = ss_active;
 
 	SV_GibFilterInit();
 	SV_FilterImpulseInit();

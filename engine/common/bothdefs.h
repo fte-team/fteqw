@@ -22,8 +22,11 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 #define __BOTHDEFS_H
 
 
-#ifdef __MINGW32_VERSION
+#if defined(__MINGW32_VERSION) || defined(__MINGW__)
 	#define MINGW
+#endif
+#if !defined(MINGW) && defined(__GNUC__) && defined(_WIN32)
+	#define MINGW	//Erm, why is this happening?
 #endif
 
 #ifdef HAVE_CONFIG_H	//if it was configured properly, then we have a more correct list of features we want to use.

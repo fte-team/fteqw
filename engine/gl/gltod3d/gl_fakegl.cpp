@@ -24,10 +24,9 @@ This would probably be faster if it wasn't written in cpp.
 the fact that it uses wrapper functions to call methods in a class could be a reasonable hit in speed.
 */
 
+#include "bothdefs.h"	//our always-present config file
+
 #ifdef AVAIL_DX7
-
-
-//#define BUGGYMULTITEXTURE //FIXME: we get wierd effects. LM texture coords appear to be set to Normal Texture
 
 
 #define WIN32_LEAN_AND_MEAN
@@ -1444,8 +1443,9 @@ private:
 	{
 		char errStr[100];
 		qD3DXGetErrorString(hr, 100, errStr );
-		MessageBox(NULL,errStr,"D3DX Error",MB_OK);
-		LocalDebugBreak();
+		Con_Printf("%s\n", errStr);
+//		MessageBox(NULL,errStr,"D3DX Error",MB_OK);
+//		LocalDebugBreak();
 	}
 
 #ifdef USE_D3DFRAME
@@ -1734,10 +1734,6 @@ public:
 				// than we need.
 				int maxStages = deviceCaps.wMaxTextureBlendStages;
 
-#ifdef BUGGYMULTITEXTURE
-				maxStages=1;
-#endif
-
 				if ( maxStages > 2 ){
 					maxStages = 2;
 				}
@@ -1779,11 +1775,13 @@ public:
 
 	void glBegin (GLenum mode){
 		if ( m_needBeginScene ){
-			m_needBeginScene = false;
 			HRESULT hr = m_pD3DDev->BeginScene();
 			if ( FAILED(hr) ) {
 				InterpretError(hr);
+				return;
 			}
+			else
+				m_needBeginScene = false;
 		}
 
 #if 0

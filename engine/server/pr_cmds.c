@@ -126,16 +126,18 @@ int COM_FileSize(char *path);
 pbool QC_WriteFile(char *name, void *data, int len)
 {
 	char buffer[256];
-	sprintf(buffer, "src/%s", name);
+	sprintf(buffer, "%s", name);
 	COM_WriteFile(buffer, data, len);
 	return true;
 }
 
 void ED_Spawned (struct edict_s *ent)
 {
-	ent->v.dimension_mask = 255;
+	ent->v.dimension_see = 255;
+	ent->v.dimension_seen = 255;
 	ent->v.dimension_ghost = 0;
-	ent->v.dimension_physics = 255;
+	ent->v.dimension_solid = 255;
+	ent->v.dimension_hit = 255;
 }
 
 pbool ED_CanFree (edict_t *ed)
@@ -442,9 +444,10 @@ void PR_LoadGlabalStruct(void)
 
 	if (!((nqglobalvars_t*)pr_globals)->dimension_send)
 	{
-		dimension_send_default = 255;
 		((nqglobalvars_t*)pr_globals)->dimension_send = &dimension_send_default;
 	}
+
+	pr_global_struct->dimension_send = 255;
 
 	pr_teamfield = 0;
 	
@@ -1623,16 +1626,27 @@ void PF_setmodel (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 	else
 	{
 		for (i=1; *sv.model_precache[i] ; i++)
+		{
 			if (!strcmp(sv.model_precache[i], m))
 			{
 				m = sv.model_precache[i];
 				break;
 			}
-
-		if (!*sv.model_precache[i])
-		{		
-			PR_BIError ("no precache: %s\n", m);
-			return;
+		}
+		if (i==MAX_MODELS || !*sv.model_precache[i])
+		{
+			if (i!=MAX_MODELS && sv.state == ss_loading)
+			{
+				Q_strncpyz(sv.model_precache[i], m, sizeof(sv.model_precache[i]));
+				if (!strcmp(m + strlen(m) - 4, ".bsp"))
+					sv.models[i] = Mod_FindName(sv.model_precache[i]);
+				Con_Printf("WARNING: SV_ModelIndex: model %s not precached", m);
+			}
+			else
+			{
+				PR_BIError ("no precache: %s\n", m);
+				return;
+			}
 		}
 	}
 		
@@ -2863,7 +2877,10 @@ void PF_registercvar (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 	{
 		name = BZ_Malloc(strlen(value)+1);
 		strcpy(name, value);
-		value = PR_GetStringOfs(prinst, OFS_PARM1);
+		if (*prinst->callargc > 1)
+			value = PR_GetStringOfs(prinst, OFS_PARM1);
+		else
+			value = "";
 
 	// archive?
 		if (Cvar_Get(name, value, CVAR_USERCREATED, "QC created vars"))
@@ -5044,7 +5061,10 @@ lh_extension_t QSG_Extensions[] = {
 	{"ZQ_MOVETYPE_FLY"},
 	{"ZQ_MOVETYPE_NONE"},
 
-	{"QSG_DIMENSION_PLANES",			1,	NULL, {"bitshift"}},
+	{"EXT_DIMENSION_VISIBILITY"},
+	{"EXT_DIMENSION_PHYSICS"},
+	{"EXT_DIMENSION_GHOST"},
+	{"EXT_BITSHIFT",					1,	NULL, {"bitshift"}},
 
 	{"FTE_FORCEINFOKEY",				1,	NULL, {"forceinfokey"}},
 	{"FTE_MULTITHREADED",				3,	NULL, {"sleep", "fork", "abort"}},
@@ -6438,7 +6458,7 @@ void PF_Fork(progfuncs_t *prinst, struct globalvars_s *pr_globals)
 
 //QSG_DIMENSION_PLANES 
 //helper function
-//void(float number, float quantity) bitshift = #218;
+//float(float number, float quantity) bitshift = #218;
 void PF_bitshift(progfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
 	int bitmask;
@@ -6955,8 +6975,8 @@ BuiltinList_t BuiltinList[] = {				//nq	qw		h2		ebfs
 //mvd command
 	{"teamfield",		PF_teamfield,		0,		0,		0,		87},
 	{"substr",			PF_substr,			0,		0,		0,		88},
-	{"strcat",			PF_strcat,			0,		0,		0,		89},
-	{"strlen",			PF_strlen,			0,		0,		0,		90},
+	{"mvdstrcat",			PF_strcat,			0,		0,		0,		89},
+	{"mvdstrlen",			PF_strlen,			0,		0,		0,		90},
 	{"str2byte",		PF_str2byte,		0,		0,		0,		91},
 	{"str2short",		PF_str2short,		0,		0,		0,		92},
 	{"newstr",			PF_newstring,		0,		0,		0,		93},
@@ -7224,8 +7244,8 @@ void PR_ResetBuiltins(progstype_t type)	//fix all nulls to PF_FIXME and add any 
 	{
 		PR_EnableEBFSBuiltin("teamfield");
 		PR_EnableEBFSBuiltin("substr");
-		PR_EnableEBFSBuiltin("strcat");
-		PR_EnableEBFSBuiltin("strlen");
+		PR_EnableEBFSBuiltin("mvdstrcat");
+		PR_EnableEBFSBuiltin("mvdstrlen");
 		PR_EnableEBFSBuiltin("str2byte");
 		PR_EnableEBFSBuiltin("str2short");
 		PR_EnableEBFSBuiltin("newstr");
@@ -7247,7 +7267,7 @@ int pr_numbuiltins = sizeof(pr_builtin)/sizeof(pr_builtin[0]);
 
 
 void PR_RegisterSVBuiltins(void)
-{
+{/*
 	PR_RegisterBuiltin(svprogfuncs, "getmodelindex", &PF_WeapIndex);
 	PR_RegisterBuiltin(svprogfuncs, "tracebox", &PF_traceline);
 #ifdef Q2BSPS
@@ -7284,7 +7304,7 @@ void PR_RegisterSVBuiltins(void)
 //these are for nq progs
 	PR_RegisterBuiltin(svprogfuncs, "logfrag", &PF_logfrag);
 	PR_RegisterBuiltin(svprogfuncs, "infokey", &PF_infokey);
-	PR_RegisterBuiltin(svprogfuncs, "stof", &PF_stof);
+	PR_RegisterBuiltin(svprogfuncs, "stof", &PF_stof);*/
 }
 
 void PR_RegisterFields(void)	//it's just easier to do it this way.
@@ -7339,6 +7359,12 @@ void PR_RegisterFields(void)	//it's just easier to do it this way.
 	fieldfloat(button0);
 	fieldfloat(button1);
 	fieldfloat(button2);
+	fieldfloat(button3);
+	fieldfloat(button4);
+	fieldfloat(button5);
+	fieldfloat(button6);
+	fieldfloat(button7);
+	fieldfloat(button8);
 	fieldfloat(impulse);
 	fieldfloat(fixangle);
 	fieldvector(v_angle);
@@ -7463,9 +7489,12 @@ void PR_RegisterFields(void)	//it's just easier to do it this way.
 	fieldfunction(chainmoved);
 
 	//QSG_DIMENSION_PLANES
-	fieldfloat(dimension_mask);
+	fieldfloat(dimension_see);
+	fieldfloat(dimension_seen);
 	fieldfloat(dimension_ghost);
-	fieldfloat(dimension_physics);
+	fieldfloat(dimension_ghost_alpha);
+	fieldfloat(dimension_solid);
+	fieldfloat(dimension_hit);
 
 	if (pr_fixbrokenqccarrays.value)
 		QC_RegisterFieldVar(svprogfuncs, 0, NULL, 0,0);

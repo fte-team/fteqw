@@ -2479,6 +2479,8 @@ void COM_WriteFile (char *filename, void *data, int len)
 	char	name[MAX_OSPATH];
 	
 	sprintf (name, "%s/%s", com_gamedir, filename);
+
+	COM_CreatePath(name);
 	
 	f = fopen (name, "wb");
 	if (!f)
@@ -2497,6 +2499,20 @@ void COM_WriteFile (char *filename, void *data, int len)
 	fclose (f);
 
 	com_fschanged=true;
+}
+
+FILE *COM_WriteFileOpen (char *filename)	//like fopen, but based around quake's paths.
+{
+	FILE	*f;
+	char	name[MAX_OSPATH];
+	
+	sprintf (name, "%s/%s", com_gamedir, filename);
+
+	COM_CreatePath(name);
+	
+	f = fopen (name, "wb");
+
+	return f;
 }
 
 

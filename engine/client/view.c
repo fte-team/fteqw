@@ -441,7 +441,6 @@ V_cshift_f
 */
 void V_cshift_f (void)
 {
-	static serverpercent;
 	if (Cmd_FromServer())
 	{
 		cl.cshifts[CSHIFT_SERVER].destcolor[0] = atoi(Cmd_Argv(1));

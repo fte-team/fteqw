@@ -940,6 +940,82 @@ static void R_DrawShadowVolume(mesh_t *mesh)
 	glEnd();
 }
 
+void GL_DrawAliasMesh_Sketch (mesh_t *mesh, int texnum)
+{
+	int i;
+	extern int gldepthfunc;
+#ifdef Q3SHADERS
+	R_UnlockArrays();
+#endif
+
+	glDepthFunc(gldepthfunc);
+	glDepthMask(1);
+
+	if (gldepthmin == 0.5) 
+		qglCullFace ( GL_BACK );
+	else
+		qglCullFace ( GL_FRONT );
+
+	GL_TexEnv(GL_MODULATE);
+
+	glDisable(GL_TEXTURE_2D);
+
+	glVertexPointer(3, GL_FLOAT, 16, mesh->xyz_array);
+	glEnableClientState( GL_VERTEX_ARRAY );
+
+	if (mesh->normals_array && glNormalPointer)	//d3d wrapper doesn't support normals, and this is only really needed for truform
+	{
+		glNormalPointer(GL_FLOAT, 0, mesh->normals_array);
+		glEnableClientState( GL_NORMAL_ARRAY );
+	}
+
+	if (mesh->colors_array)
+	{
+		glColorPointer(4, GL_UNSIGNED_BYTE, 0, mesh->colors_array);
+		glEnableClientState( GL_COLOR_ARRAY );
+	}
+	else
+		glDisableClientState( GL_COLOR_ARRAY );
+
+	glEnableClientState( GL_TEXTURE_COORD_ARRAY );
+	glTexCoordPointer(2, GL_FLOAT, 0, mesh->st_array);
+
+	glDrawElements(GL_TRIANGLES, mesh->numindexes, GL_UNSIGNED_INT, mesh->indexes);
+
+	glDisableClientState( GL_VERTEX_ARRAY );
+	glDisableClientState( GL_COLOR_ARRAY );
+	glDisableClientState( GL_NORMAL_ARRAY );
+	glDisableClientState( GL_TEXTURE_COORD_ARRAY );
+
+	glColor3f(0, 0, 0);
+	glBegin(GL_LINES);
+	for (i = 0; i < mesh->numindexes; i+=3)
+	{
+		float *v1, *v2, *v3;
+		int n;
+		v1 = mesh->xyz_array[mesh->indexes[i+0]];
+		v2 = mesh->xyz_array[mesh->indexes[i+1]];
+		v3 = mesh->xyz_array[mesh->indexes[i+2]];
+		for (n = 0; n < 3; n++)	//rember we do this triangle AND the neighbours
+		{
+			glVertex3f(	v1[0]+0.5*(rand()/(float)RAND_MAX-0.5),
+						v1[1]+0.5*(rand()/(float)RAND_MAX-0.5),
+						v1[2]+0.5*(rand()/(float)RAND_MAX-0.5));
+			glVertex3f(	v2[0]+0.5*(rand()/(float)RAND_MAX-0.5),
+						v2[1]+0.5*(rand()/(float)RAND_MAX-0.5),
+						v2[2]+0.5*(rand()/(float)RAND_MAX-0.5));
+			glVertex3f(	v3[0]+0.5*(rand()/(float)RAND_MAX-0.5),
+						v3[1]+0.5*(rand()/(float)RAND_MAX-0.5),
+						v3[2]+0.5*(rand()/(float)RAND_MAX-0.5));
+		}
+	}
+	glEnd();
+
+#ifdef Q3SHADERS
+	R_IBrokeTheArrays();
+#endif
+}
+
 void GL_DrawAliasMesh (mesh_t *mesh, int texnum)
 {
 	extern int gldepthfunc;
@@ -992,6 +1068,7 @@ void GL_DrawAliasMesh (mesh_t *mesh, int texnum)
 
 void R_DrawGAliasModel (entity_t *e)
 {
+	extern cvar_t r_drawflat;
 	model_t *clmodel;
 	vec3_t mins, maxs;
 	vec3_t dist;
@@ -1316,10 +1393,12 @@ void R_DrawGAliasModel (entity_t *e)
 		skin = GL_ChooseSkin(inf, clmodel->name, e);
 		c_alias_polys += mesh.numindexes/3;
 
-		if (!skin)
+		if (r_drawflat.value == 2)
+			GL_DrawAliasMesh_Sketch(&mesh, skin->base);
+		else if (!skin)
 		{
 			glEnable(GL_TEXTURE_2D);
-			GL_DrawAliasMesh(&mesh, 1);
+			GL_DrawAliasMesh_Sketch(&mesh, 1);
 		}
 #ifdef Q3SHADERS
 		else if (skin->shader)

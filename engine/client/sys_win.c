@@ -123,8 +123,9 @@ LRESULT CALLBACK LowLevelKeyboardProc (INT nCode, WPARAM wParam, LPARAM lParam)
 			}
 
 		// Disable CTRL+ESC
-			if (pkbhs->vkCode == VK_ESCAPE && GetAsyncKeyState (VK_CONTROL) >> ((sizeof(SHORT) * 8) - 1))
-				return 1;
+			//this works, but we've got to give some way to tab out...
+//			if (pkbhs->vkCode == VK_ESCAPE && GetAsyncKeyState (VK_CONTROL) >> ((sizeof(SHORT) * 8) - 1))
+//				return 1;
 		// Disable ATL+TAB
 			if (pkbhs->vkCode == VK_TAB && pkbhs->flags & LLKHF_ALTDOWN)
 				return 1;

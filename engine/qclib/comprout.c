@@ -52,12 +52,14 @@ void PostCompile(void)
 		asmfile = NULL;
 	}	
 }
-void PreCompile(void)
+pbool PreCompile(void)
 {
 	qccClearHunk();
 	strcpy(qcc_gamedir, "");
 	qcchunk = malloc(qcchunksize=16*1024*1024);
 	qccalloced=0;
+
+	return !!qcchunk;
 }
 
 void QCC_main (int argc, char **argv);
@@ -85,7 +87,8 @@ pbool CompileParams(progfuncs_t *progfuncs, int doall, int nump, char **parms)
 		return false;
 	}
 
-	PreCompile();
+	if (!PreCompile())
+		return false;
 	QCC_main(nump, parms);
 
 	while(qcc_compileactive)
@@ -109,7 +112,8 @@ int Comp_Begin(progfuncs_t *progfuncs, int nump, char **parms)
 		return false;
 	}
 
-	PreCompile();
+	if (!PreCompile())
+		return false;
 	QCC_main(nump, parms);
 
 	return true;

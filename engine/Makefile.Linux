@@ -15,6 +15,7 @@ SNDCODEC_DIR=$(BASE_DIR)/sndcodec
 DEBUG_DIR=$(BASE_DIR)/debug
 MP3_DIR=$(BASE_DIR)/../mp3/libmad
 RELEASE_DIR=$(BASE_DIR)/release
+QUX_DIR=$(BASE_DIR)/qux
 
 DO_CC=$(CC) $(CFLAGS) -o $@ -c $<
 DO_AS=$(CC) $(CFLAGS) -x assembler-with-cpp -DELF -o $@ -c $<
@@ -25,7 +26,7 @@ XLDFLAGS=-L/usr/X11R6/lib -lX11 -lXext -lpng -ljpeg
 SLDFLAGS=-lvga
 
 
-BASE_CFLAGS=-Wall -Dstrnicmp=strncasecmp -Dstricmp=strcasecmp -I$(CLIENT_DIR) -I$(SERVER_DIR) -I$(COMMON_DIR) -I$(GL_DIR) -I$(PROGS_DIR) -I$(LIBS_DIR) -I/usr/X11R6/include -D_vsnprintf=vsnprintf -D_snprintf=snprintf
+BASE_CFLAGS=-Wall -Dstrnicmp=strncasecmp -Dstricmp=strcasecmp -I$(CLIENT_DIR) -I$(SERVER_DIR) -I$(COMMON_DIR) -I$(GL_DIR) -I$(PROGS_DIR) -I$(LIBS_DIR) -I$(QUX_DIR) -I/usr/X11R6/include -D_vsnprintf=vsnprintf -D_snprintf=snprintf
 CLIENT_ONLY_CFLAGS=$(BASE_CFLAGS) -DCLIENTONLY
 SERVER_ONLY_CFLAGS=$(BASE_CFLAGS) -DSERVERONLY
 JOINT_CFLAGS=$(BASE_CFLAGS)
@@ -198,7 +199,7 @@ PROGS_OBJS = \
 	$(OUT_DIR)/pr_exec.o \
 	$(OUT_DIR)/pr_multi.o \
 	$(OUT_DIR)/qcc_cmdlib.o \
-	$(OUT_DIR)/QccMain.o \
+	$(OUT_DIR)/qccmain.o \
 	$(OUT_DIR)/qcc_pr_comp.o \
 	$(OUT_DIR)/qcc_pr_lex.o \
 	$(OUT_DIR)/qcdecomp.o \
@@ -241,7 +242,7 @@ SERVER_OBJS = \
 
 SERVERONLY_OBJS = \
 	$(OUT_DIR)/svmodel.o \
-	$(OUT_DIR)/sys_unix.o
+	$(OUT_DIR)/sv_sys_unix.o
 
 COMMON_OBJS = \
 	$(OUT_DIR)/common.o 	\
@@ -406,7 +407,7 @@ $(OUT_DIR)/pr_multi.o : $(PROGS_DIR)/pr_multi.c
 $(OUT_DIR)/qcc_cmdlib.o : $(PROGS_DIR)/qcc_cmdlib.c
 	$(DO_CC)
 
-$(OUT_DIR)/QccMain.o : $(PROGS_DIR)/QccMain.c
+$(OUT_DIR)/qccmain.o : $(PROGS_DIR)/qccmain.c
 	$(DO_CC)
 
 $(OUT_DIR)/qcc_pr_comp.o : $(PROGS_DIR)/qcc_pr_comp.c
@@ -576,10 +577,10 @@ $(OUT_DIR)/savegame.o :         $(SERVER_DIR)/savegame.c
 $(OUT_DIR)/sv_demo.o :         $(SERVER_DIR)/sv_demo.c
 	$(DO_CC)
 
-$(OUT_DIR)/svmodel.o :         $(SERVER_DIR)/model.c
+$(OUT_DIR)/svmodel.o :         $(SERVER_DIR)/svmodel.c
 	$(DO_CC)
 
-$(OUT_DIR)/sys_unix.o :         $(SERVER_DIR)/sys_unix.c
+$(OUT_DIR)/sv_sys_unix.o :         $(SERVER_DIR)/sv_sys_unix.c
 	$(DO_CC)
 
 $(OUT_DIR)/translate.o :         $(COMMON_DIR)/translate.c

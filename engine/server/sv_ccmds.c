@@ -501,7 +501,7 @@ void SV_Map_f (void)
 
 #ifndef SERVERONLY
 	if (!isDedicated)	//otherwise, info used on map loading isn't present
-		Cmd_ExecuteString(va("fullserverinfo \"%s\"\n", svs.info), RESTRICT_LOCAL);
+		Cmd_ExecuteString(va("fullserverinfo \"%s\"\n", svs.info), RESTRICT_SERVER);
 
 	if (!sv.state && cls.state)
 		CL_Disconnect();

@@ -166,7 +166,7 @@ void NetadrToSockadr (netadr_t *a, struct sockaddr_qstorage *s)
 		memset (s, 0, sizeof(struct sockaddr_in));
 		((struct sockaddr_in6*)s)->sin6_family = AF_INET6;
 
-		memcpy(&((struct sockaddr_in6*)s)->sin6_addr, &in6addr_any, sizeof(in6addr_any));
+		memcpy(&((struct sockaddr_in6*)s)->sin6_addr, 0, sizeof(struct in6_addr));
 		((struct sockaddr_in6*)s)->sin6_port = a->port;
 		break;
 #endif
@@ -867,7 +867,7 @@ int maxport = port + 100;
 ///		Con_TPrintf(TL_NETBINDINTERFACE,
 //				inet_ntoa(address.sin6_addr));
 //	} else
-		memcpy(&address.sin6_addr, &in6addr_any, sizeof(in6addr_any));
+		memset(&address.sin6_addr, 0, sizeof(struct in6_addr));
 
 	for(;;)
 	{

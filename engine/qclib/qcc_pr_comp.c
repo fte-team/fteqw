@@ -4913,9 +4913,9 @@ void QCC_PR_ParseStatement (void)
 		if (e == &def_ret)
 		{	//copy it out, so our hack just below doesn't crash us
 			if (e->type->type == ev_vector)
-				e = QCC_PR_Statement(pr_opcodes+OP_STORE_V, QCC_GetTemp(type_vector), e, NULL);
+				e = QCC_PR_Statement(pr_opcodes+OP_STORE_V, e, QCC_GetTemp(type_vector), NULL);
 			else
-				e = QCC_PR_Statement(pr_opcodes+OP_STORE_F, QCC_GetTemp(type_float), e, NULL);
+				e = QCC_PR_Statement(pr_opcodes+OP_STORE_F, e, QCC_GetTemp(type_float), NULL);
 		}
 		et = e->temp;
 		e->temp = NULL;	//so noone frees it until we finish this loop
@@ -5029,6 +5029,9 @@ void QCC_PR_ParseStatement (void)
 					else
 					{
 						QCC_def_t *e3;
+
+						if (e->type->type != ev_float)
+							QCC_PR_ParseWarning(WARN_SWITCHTYPEMISMATCH, "switch caserange MUST be a float");
 						e2 = QCC_PR_Statement (&pr_opcodes[OP_GE], e, pr_casesdef[i], NULL);
 						e3 = QCC_PR_Statement (&pr_opcodes[OP_LE], e, pr_casesdef2[i], NULL);
 						e2 = QCC_PR_Statement (&pr_opcodes[OP_AND], e2, e3, NULL);

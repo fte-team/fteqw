@@ -548,11 +548,20 @@ static void Shaderpass_Map ( shader_t *shader, shaderpass_t *pass, char **ptr )
 	char *token;
 
 	token = Shader_ParseString ( ptr );
-	if ( !Q_stricmp (token, "$lightmap") ) {
+	if ( !Q_stricmp (token, "$lightmap") )
+	{
 		pass->tcgen = TC_GEN_LIGHTMAP;
 		pass->flags |= SHADER_PASS_LIGHTMAP;
 		pass->anim_frames[0] = 0;
-	} else {
+	}
+	else if ( !Q_stricmp (token, "$deluxmap") )
+	{
+		pass->tcgen = TC_GEN_LIGHTMAP;
+		pass->flags |= SHADER_PASS_DELUXMAP;
+		pass->anim_frames[0] = 0;
+	}
+	else
+	{
 		flags = Shader_SetImageFlags ( shader );
 
 		pass->tcgen = TC_GEN_BASE;
@@ -608,8 +617,8 @@ static void Shaderpass_ClampMap ( shader_t *shader, shaderpass_t *pass, char **p
 	pass->tcgen = TC_GEN_BASE;
 	pass->anim_frames[0] = Shader_FindImage ( token, flags | IT_CLAMP );
 
-	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP);
-	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP);
+	qglTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP);
+	qglTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP);
 
 	if ( !pass->anim_frames[0] ) {
 		pass->anim_frames[0] = 0;//fizme:r_notexture;

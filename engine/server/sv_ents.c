@@ -919,10 +919,18 @@ void SV_AddEffect(client_t *to, edict_t *ent, int seefno)
 	ef->efnum = 1<<seefno;
 	ef->entnum = en;
 	ef->colour = ent->v.seefcolour;
+	if (!ef->colour)
+		ef->colour = 111;
 	ef->offset = ent->v.seefoffset;
 	ef->size[0] = ent->v.seefsizex;
+	if (!ef->size[0])
+		ef->offset = 64;
 	ef->size[1] = ent->v.seefsizey;
+	if (!ef->size[1])
+		ef->offset = 64;
 	ef->size[2] = ent->v.seefsizez;
+	if (!ef->size[2])
+		ef->offset = 64;
 
 	ClientReliableWrite_Begin(to, svc_temp_entity, 20);
 	ClientReliableWrite_Byte(to, TE_SEEF_BRIGHTFIELD+seefno);

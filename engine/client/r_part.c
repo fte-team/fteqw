@@ -181,7 +181,7 @@ typedef struct part_type_s {
 
 	float offsetup; // make this into a vec3_t later with dir, possibly for mdls
 
-	enum {SM_BOX, SM_CIRCLE, SM_BALL, SM_SPIRAL, SM_TRACER, SM_TELEBOX, SM_LAVASPLASH, SM_UNICIRCLE} spawnmode;	
+	enum {SM_BOX, SM_CIRCLE, SM_BALL, SM_SPIRAL, SM_TRACER, SM_TELEBOX, SM_LAVASPLASH, SM_UNICIRCLE, SM_FIELD} spawnmode;	
 	//box = even spread within the area
 	//circle = around edge of a circle
 	//ball = filled sphere
@@ -190,6 +190,7 @@ typedef struct part_type_s {
 	//telebox = q1-style telebox
 	//lavasplash = q1-style lavasplash
 	//unicircle = uniform circle
+	//field = synced field (brightfield, etc)
 
 	float gravity;
 	vec3_t friction;
@@ -530,6 +531,8 @@ void R_ParticleEffect_f(void)
 				ptype->spawnmode = SM_LAVASPLASH;
 			else if (!strcmp(value, "uniformcircle"))
 				ptype->spawnmode = SM_UNICIRCLE;
+			else if (!strcmp(value, "syncfield"))
+				ptype->spawnmode = SM_FIELD;
 			else
 				ptype->spawnmode = SM_BOX;
 
@@ -1340,54 +1343,19 @@ R_EntityParticles
 float	r_avertexnormals[NUMVERTEXNORMALS][3] = {
 #include "anorms.h"
 };
-vec3_t	avelocities[NUMVERTEXNORMALS];
-float	beamlength = 16;
-vec3_t	avelocity = {23, 7, 3};
-float	partstep = 0.01;
-float	timescale = 0.01;
+vec2_t	avelocities[NUMVERTEXNORMALS];
+#define BEAMLENGTH 16
+// vec3_t	avelocity = {23, 7, 3};
+// float	partstep = 0.01;
+// float	timescale = 0.01;
 
 void R_EntityParticles (float *org, qbyte colour, float *radius)
 {
-	int			count;
-	int			i;
-	float		angle;
-	float		sr, sp, sy, cr, cp, cy;
-	vec3_t		forward, norg;
-	
-	count = 50;
+	part_type[pt_entityparticles].areaspread = radius[0]*0.5 + radius[1]*0.5;
+	part_type[pt_entityparticles].areaspreadvert = radius[2];
+	part_type[pt_entityparticles].colorindex = colour;
 
-if (!avelocities[0][0])
-{
-for (i=0 ; i<NUMVERTEXNORMALS*3 ; i++)
-avelocities[0][i] = (rand()&255) * 0.01;
-}
-
-
-	for (i=0 ; i<NUMVERTEXNORMALS ; i++)	//fixme: make selectable spawnmode.
-	{
-		if (!free_particles)
-			return;
-
-		angle = cl.time * avelocities[i][0];
-		sy = sin(angle);
-		cy = cos(angle);
-		angle = cl.time * avelocities[i][1];
-		sp = sin(angle);
-		cp = cos(angle);
-		angle = cl.time * avelocities[i][2];
-		sr = sin(angle);
-		cr = cos(angle);
-
-		forward[0] = cp*cy;
-		forward[1] = cp*sy;
-		forward[2] = -sp;
-		
-		norg[0] = org[0] + r_avertexnormals[i][0]*radius[0] + forward[0]*beamlength;
-		norg[1] = org[1] + r_avertexnormals[i][1]*radius[1] + forward[1]*beamlength;
-		norg[2] = org[2] + r_avertexnormals[i][2]*radius[2] + forward[2]*beamlength;
-
-		R_RunParticleEffectType(norg, forward, 1, pt_entityparticles);
-	}
+	R_RunParticleEffectType(org, NULL, 1, pt_entityparticles);
 }
 
 /*
@@ -1524,6 +1492,16 @@ int R_RunParticleEffectType (vec3_t org, vec3_t dir, float count, int typenum)
 			l = -ptype->areaspreadvert;
 		case SM_LAVASPLASH:
 			j = k = -ptype->areaspread;
+			break;
+		case SM_FIELD:
+			if (!avelocities[0][0])
+			{
+				for (j=0 ; j<NUMVERTEXNORMALS*2 ; j++)
+					avelocities[0][j] = (rand()&255) * 0.01;
+			}
+
+			j = 0;
+			m = 0;
 			break;
 		}
 		
@@ -1666,6 +1644,28 @@ int R_RunParticleEffectType (vec3_t org, vec3_t dir, float count, int typenum)
 				ofsvec[2] = 0;
 				VectorScale(ofsvec, ptype->areaspread, arsvec);
 				break;
+			case SM_FIELD:
+				arsvec[0] = cl.time * (avelocities[i][0] + m);
+				arsvec[1] = cl.time * (avelocities[i][1] + m);
+				arsvec[2] = cos(arsvec[1]);
+
+				ofsvec[0] = arsvec[2]*cos(arsvec[0]);
+				ofsvec[1] = arsvec[2]*sin(arsvec[0]);
+				ofsvec[2] = -sin(arsvec[1]);
+				
+				arsvec[0] = r_avertexnormals[j][0]*ptype->areaspread + ofsvec[0]*BEAMLENGTH;
+				arsvec[1] = r_avertexnormals[j][1]*ptype->areaspread + ofsvec[1]*BEAMLENGTH;
+				arsvec[2] = r_avertexnormals[j][2]*ptype->areaspreadvert + ofsvec[2]*BEAMLENGTH;
+
+				VectorNormalize(ofsvec);
+
+				j++;
+				if (j >= NUMVERTEXNORMALS)
+				{
+					j = 0;
+					m += 0.1762891; // some BS number to try to "randomize" things
+				}
+				break;
 			default: // SM_BALL, SM_CIRCLE
 				ofsvec[0] = hrandom();
 				ofsvec[1] = hrandom();
@@ -1795,11 +1795,21 @@ void R_RunParticleEffect2 (vec3_t org, vec3_t dmin, vec3_t dmax, int color, int 
 {
 	int			i, j;
 	float		num;
+	float invcount;
 	vec3_t	nvel;
 
 	int ptype = FindParticleType(va("pe2_%i_%i", effect, color));
 	if (ptype < 0)
-		return;
+	{
+		ptype = FindParticleType(va("pe2_%i", effect));
+		if (ptype < 0)
+			ptype = pe_default;
+
+		part_type[ptype].colorindex = color;
+	}
+
+	invcount = 1/part_type[ptype].count; // using this to get R_RPET to always spawn 1
+	count = count * part_type[ptype].count;
 
 	for (i=0 ; i<count ; i++)
 	{
@@ -1811,7 +1821,7 @@ void R_RunParticleEffect2 (vec3_t org, vec3_t dmin, vec3_t dmax, int color, int 
 			num = rand() / (float)RAND_MAX;
 			nvel[j] = dmin[j] + ((dmax[j] - dmin[j]) * num);
 		}
-		R_RunParticleEffectType(org, nvel, 1, ptype);
+		R_RunParticleEffectType(org, nvel, invcount, ptype);
 
 	}
 }
@@ -1828,10 +1838,20 @@ void R_RunParticleEffect3 (vec3_t org, vec3_t box, int color, int effect, int co
 	int			i, j;
 	vec3_t	nvel;
 	float		num;
+	float invcount;
 
 	int ptype = FindParticleType(va("pe3_%i_%i", effect, color));
 	if (ptype < 0)
-		return;
+	{
+		ptype = FindParticleType(va("pe3_%i", effect));
+		if (ptype < 0)
+			ptype = pe_default;
+
+		part_type[ptype].colorindex = color;
+	}
+
+	invcount = 1/part_type[ptype].count; // using this to get R_RPET to always spawn 1
+	count = count * part_type[ptype].count;
 
 	for (i=0 ; i<count ; i++)
 	{
@@ -1844,7 +1864,7 @@ void R_RunParticleEffect3 (vec3_t org, vec3_t box, int color, int effect, int co
 			nvel[j] = (box[j] * num * 2) - box[j];
 		}
 
-		R_RunParticleEffectType(org, nvel, 1, ptype);
+		R_RunParticleEffectType(org, nvel, invcount, ptype);
 	}
 }
 
@@ -1860,10 +1880,20 @@ void R_RunParticleEffect4 (vec3_t org, float radius, int color, int effect, int 
 	int			i, j;
 	vec3_t	nvel;
 	float		num;
+	float invcount;
 
 	int ptype = FindParticleType(va("pe4_%i_%i", effect, color));
 	if (ptype < 0)
-		return;
+	{
+		ptype = FindParticleType(va("pe4_%i", effect));
+		if (ptype < 0)
+			ptype = pe_default;
+
+		part_type[ptype].colorindex = color;
+	}
+
+	invcount = 1/part_type[ptype].count; // using this to get R_RPET to always spawn 1
+	count = count * part_type[ptype].count;
 
 	for (i=0 ; i<count ; i++)
 	{
@@ -1875,7 +1905,7 @@ void R_RunParticleEffect4 (vec3_t org, float radius, int color, int effect, int 
 			num = rand() / (float)RAND_MAX;
 			nvel[j] = (radius * num * 2) - radius;
 		}
-		R_RunParticleEffectType(org, nvel, 1, ptype);
+		R_RunParticleEffectType(org, nvel, invcount, ptype);
 	}
 }
 

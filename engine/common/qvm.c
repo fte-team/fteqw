@@ -37,7 +37,7 @@ Also, can efficiency be improved much?
 
 #ifdef VM_ANY
 
-#if _WIN32 && !defined(MINGW)	//fix this please
+#ifdef _MSC_VER	//fix this please
 #define inline _inline
 #endif
 

@@ -26,6 +26,10 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 #ifdef RGLQUAKE
 #include "glquake.h"
 
+#ifdef Q3SHADERS
+#include "shader.h"
+#endif
+
 extern int gl_bumpmappingpossible;
 qboolean isnotmap = true;	//used to not warp ammo models.
 
@@ -898,6 +902,7 @@ Mod_LoadTextures
 */
 void GLMod_LoadTextures (lump_t *l)
 {
+	extern cvar_t gl_shadeq1, gl_shadeq1_name;
 	extern int gl_bumpmappingpossible;
 	int		i, j, pixels, num, max, altmax;
 	miptex_t	*mt;
@@ -1052,6 +1057,25 @@ TRACE(("dbg: GLMod_LoadTextures: inittexturedescs\n"));
 				}
 			}
 		}
+#ifdef Q3SHADERS	//load q3 syntax shader last, after the textures inside the bsp have been loaded and stuff.
+		if (gl_shadeq1.value && *gl_shadeq1_name.string)
+		{
+			char *star;
+			//find the *
+			if (!strcmp(gl_shadeq1_name.string, "*"))
+				tx->shader = R_RegisterShader(mt->name);	//just load the regular name.
+			else if (!(star = strchr(gl_shadeq1_name.string, '*')) || (strlen(gl_shadeq1_name.string)+strlen(mt->name)+1>=sizeof(altname)))	//it's got to fit.
+				tx->shader = R_RegisterShader(gl_shadeq1_name.string);
+			else
+			{
+				strncpy(altname, gl_shadeq1_name.string, star-gl_shadeq1_name.string);	//copy the left
+				altname[star-gl_shadeq1_name.string] = '\0';
+				strcat(altname, mt->name);	//insert the *
+				strcat(altname, star+1);	//add any final text.
+				tx->shader = R_RegisterShader(altname);
+			}
+		}
+#endif
 	}
 //
 // sequence the animations

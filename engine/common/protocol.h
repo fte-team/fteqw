@@ -709,6 +709,7 @@ typedef struct
 
 typedef struct usercmd_s
 {
+	//the first members of this structure MUST match the q2 version
 	qbyte	msec;
 	qbyte	buttons;
 	short	angles[3];
@@ -718,6 +719,16 @@ typedef struct usercmd_s
 	qbyte weapon;
 	int servertime;
 } usercmd_t;
+
+typedef struct q2usercmd_s
+{
+	qbyte	msec;
+	qbyte	buttons;
+	short	angles[3];
+	short	forwardmove, sidemove, upmove;
+	qbyte	impulse;
+	qbyte lightlevel;
+} q2usercmd_t;
 
 typedef struct q1usercmd_s
 {

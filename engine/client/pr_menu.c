@@ -281,8 +281,8 @@ int search_enumerate(char *name, int fsize, void *parm)
 void PF_search_begin (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 {	//< 0 for error, > 0 for handle.
 	char *pattern = PR_GetStringOfs(prinst, OFS_PARM0);
-	qboolean caseinsensative = G_FLOAT(OFS_PARM1);
-	qboolean quiet = G_FLOAT(OFS_PARM2);
+//	qboolean caseinsensative = G_FLOAT(OFS_PARM1);
+//	qboolean quiet = G_FLOAT(OFS_PARM2);
 	prvmsearch_t *s;
 
 	s = BZ_Malloc(sizeof(*s));
@@ -473,9 +473,6 @@ void PF_clientstate (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 //too specific to the prinst's builtins.
 static void PF_Fixme (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
-	progfuncs_t *progfuncs = prinst;
-	qboolean printedheader = false;
-
 	Con_Printf("\n");
 
 	prinst->PR_RunError(prinst, "\nBuiltin %i not implemented.\nMenu is not compatable.", prinst->lastcalledbuiltinnumber);
@@ -542,7 +539,7 @@ void PF_CL_drawcharacter (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 	float *size = G_VECTOR(OFS_PARM2);
 	float *rgb = G_VECTOR(OFS_PARM3);
 	float alpha = G_FLOAT(OFS_PARM4);
-	float flag = G_FLOAT(OFS_PARM5);
+//	float flag = G_FLOAT(OFS_PARM5);
 
 	const float fsize = 0.0625;
 	float frow, fcol;
@@ -596,7 +593,7 @@ void PF_CL_drawpic (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 	float *size = G_VECTOR(OFS_PARM2);
 	float *rgb = G_VECTOR(OFS_PARM3);
 	float alpha = G_FLOAT(OFS_PARM4);
-	float flag = G_FLOAT(OFS_PARM5);
+//	float flag = G_FLOAT(OFS_PARM5);
 
 	if (Draw_ImageColours)
 		Draw_ImageColours(rgb[0], rgb[1], rgb[2], alpha);
@@ -1495,7 +1492,7 @@ void MP_Keydown(int key)
 
 	if (key == 'c')
 	{
-		extern keydown[];
+		extern int keydown[];
 		if (keydown[K_CTRL])
 		{
 			MP_Shutdown();

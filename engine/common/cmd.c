@@ -2194,7 +2194,7 @@ void Cmd_set_f(void)
 		if (var->flags & CVAR_NOTFROMSERVER && Cmd_FromServer())
 		{
 			Con_Printf ("Server tried setting %s cvar\n", var->name);
-			return true;
+			return;
 		}
 
 		text = If_Token(text, &end);
@@ -2243,7 +2243,7 @@ void Cvar_Inc_f (void)
 	if (var->flags & CVAR_NOTFROMSERVER && Cmd_FromServer())
 	{
 		Con_Printf ("Server tried setting %s cvar\n", var->name);
-		return true;
+		return;
 	}
 
 
@@ -2578,6 +2578,11 @@ void Cmd_WriteConfig_f(void)
 	Key_WriteBindings (f);
 #else
 	fprintf(f, "// Dedicated Server config\n\n");
+#endif
+#ifdef CLIENTONLY
+	fprintf(f, "// no local/server infos\n\n");
+#else
+	SV_SaveInfos(f);
 #endif
 	Alias_WriteAliases (f);
 	Cvar_WriteVariables (f, true);

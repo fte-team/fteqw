@@ -76,7 +76,7 @@ qboolean Q1BSP_RecursiveHullCheck (hull_t *hull, int num, float p1f, float p2f, 
 	}
 
 	if (num < hull->firstclipnode || num > hull->lastclipnode)
-		Host_Error ("Q1BSP_RecursiveHullCheck: bad node number");
+		Sys_Error ("Q1BSP_RecursiveHullCheck: bad node number");
 
 //
 // find the point distances

@@ -637,6 +637,9 @@ void GLV_UpdatePalette (void)
 	float	r,g,b,a;
 	int		ir, ig, ib;
 	qboolean force;
+	extern cvar_t vid_hardwaregamma;
+
+	float hwg;
 
 	V_CalcPowerupCshift ();
 
@@ -668,6 +671,14 @@ void GLV_UpdatePalette (void)
 	}
 
 	force = V_CheckGamma ();
+
+	hwg = vid_hardwaregamma.value;
+	if (vid_hardwaregamma.modified && !hwg)
+	{
+		vid_hardwaregamma.value = hwg;
+		force = true;
+	}
+
 	if (!new && !force)
 		return;
 
@@ -700,6 +711,7 @@ void GLV_UpdatePalette (void)
 
 	ogw = gammaworks;
 	VID_ShiftPalette (NULL);
+	vid_hardwaregamma.value = hwg;
 	if (ogw != gammaworks)
 	{
 		Con_DPrintf("Gamma working state %i\n", gammaworks);
@@ -874,6 +886,11 @@ void CalcGunAngle (int pnum)
 
 	cl.viewent[pnum].angles[YAW] = r_refdef.viewangles[YAW] + yaw;
 	cl.viewent[pnum].angles[PITCH] = - (r_refdef.viewangles[PITCH] + pitch);
+
+	cl.viewent[pnum].angles[PITCH]*=-1;
+	AngleVectors(cl.viewent[pnum].angles, cl.viewent[pnum].axis[0], cl.viewent[pnum].axis[1], cl.viewent[pnum].axis[2]);
+	VectorInverse(cl.viewent[pnum].axis[1]);
+	cl.viewent[pnum].angles[PITCH]*=-1;
 }
 
 /*
@@ -1208,88 +1225,41 @@ void SCR_VRectForPlayer(vrect_t *vrect, int pnum)
 	r_refdef.fov_y = CalcFov(r_refdef.fov_x, vrect->width, vrect->height);
 }
 
-void V_RenderView (void)
+void V_RenderPlayerViews(int plnum)
 {
 	int viewnum;
-#ifdef SIDEVIEWS
-	float vsecwidth=0;
-	int vsecheight;
-#endif
-#ifdef PEXT_BULLETENS
-	//avoid redoing the bulleten boards for rear view as well.
-	static qboolean alreadyrendering = false;
-#endif
+	SCR_VRectForPlayer(&r_refdef.vrect, plnum);
+	view_message = &view_frame->playerstate[cl.playernum[plnum]];
 
-	R_LessenStains();
-
-	if (cls.state != ca_active)
-		return;
-
-	view_frame = &cl.frames[cls.netchan.incoming_sequence & UPDATE_MASK];
-
-	R_PushDlights ();
+	cl.simangles[plnum][ROLL] = 0;	// FIXME @@@ 
 
 
-#ifdef PEXT_BULLETENS
-	if (!alreadyrendering)
-		R_SetupBulleten ();
-	alreadyrendering=true;
-#endif
-
-	if (cl.splitclients>1)
-		gl_ztrickdisabled|=8;
+	DropPunchAngle (plnum);
+	if (cl.intermission)
+	{	// intermission / finale rendering
+		V_CalcIntermissionRefdef (plnum);	
+	}
 	else
-		gl_ztrickdisabled&=~8;
-
-	for (viewnum = 0; viewnum < cl.splitclients; viewnum++)
 	{
-		SCR_VRectForPlayer(&r_refdef.vrect, viewnum);
-		view_message = &view_frame->playerstate[cl.playernum[viewnum]];
-
-		cl.simangles[viewnum][ROLL] = 0;	// FIXME @@@ 
-
-
-		DropPunchAngle (viewnum);
-		if (cl.intermission)
-		{	// intermission / finale rendering
-			V_CalcIntermissionRefdef (viewnum);	
-		}
-		else
-		{
-			V_CalcRefdef (viewnum);
-		}
+		V_CalcRefdef (plnum);
+	}
 
 #ifdef SWQUAKE
-			r_viewchanged = true;
+		r_viewchanged = true;
 #endif
 
-	#if defined(FISH) && defined(SWQUAKE)
-		if (ffov.value && cls.allow_fish && qrenderer == QR_SOFTWARE)
-			R_RenderView_fisheye();
-		else
-	#endif
-			R_RenderView ();
-		
-		r_secondaryview = 2;
-	}
-
-	r_refdef.vrect.width = scr_vrect.width;
-	r_refdef.vrect.height = scr_vrect.height;
-	r_refdef.vrect.x = scr_vrect.x;
-	r_refdef.vrect.y = scr_vrect.y;
-
-	r_secondaryview = false;
-
-#ifdef SIDEVIEWS
-	for (viewnum = 0; viewnum < SIDEVIEWS; viewnum++)
-	{
-		if (vsec_enabled[viewnum].value && vsec_x[viewnum].value == vsecwidth && vsec_y[viewnum].value==0)
-		{
-			vsecwidth += vsec_scalex[viewnum].value;
-			vsecheight = vsec_scaley[viewnum].value*r_refdef.vrect.height;
-		}
-	}
+#if defined(FISH) && defined(SWQUAKE)
+	if (ffov.value && cls.allow_fish && qrenderer == QR_SOFTWARE)
+		R_RenderView_fisheye();
+	else
 #endif
+		R_RenderView ();
+	
+	r_secondaryview = 2;
+
+
+
+
 
 #ifdef SIDEVIEWS
 /*	//adjust main view height to strip off the rearviews at the top
@@ -1303,7 +1273,7 @@ void V_RenderView (void)
 	gl_ztrickdisabled&=~1;
 #endif
 	for (viewnum = 0; viewnum < SIDEVIEWS; viewnum++)
-	if (vsec_enabled[viewnum].value && vsec_scalex[viewnum].value>0&&vsec_scaley[viewnum].value>0 && (cls.allow_rearview||(cl.stats[0][STAT_VIEW2]&&viewnum==0)))	//will the server allow us to?
+	if (vsec_enabled[viewnum].value && vsec_scalex[viewnum].value>0&&vsec_scaley[viewnum].value>0 && (cls.allow_rearview||(cl.stats[plnum][STAT_VIEW2]&&viewnum==0)))	//will the server allow us to?
 	{
 		vrect_t oldrect;
 		vec3_t oldangles;
@@ -1317,6 +1287,7 @@ void V_RenderView (void)
 #ifdef SWQUAKE
 		r_viewchanged = true;
 #endif
+		vid.recalc_refdef=true;
 
 		r_secondaryview = true;
 
@@ -1343,9 +1314,9 @@ void V_RenderView (void)
 #ifdef PEXT_VIEW2
 			//secondary view entity.
 		e=NULL;
-		if (viewnum==0&&cl.stats[0][STAT_VIEW2])
+		if (viewnum==0&&cl.stats[plnum][STAT_VIEW2])
 		{
-			e = CL_EntityNum (cl.stats[0][STAT_VIEW2]);
+			e = CL_EntityNum (cl.stats[plnum][STAT_VIEW2]);
 		}
 		if (e)
 		{
@@ -1393,10 +1364,44 @@ void V_RenderView (void)
 		r_viewchanged = true;
 #endif
 		vid.recalc_refdef=true;
-
-		r_secondaryview = false;
 	}
 #endif
+}
+
+void V_RenderView (void)
+{
+	int viewnum;
+#ifdef PEXT_BULLETENS
+	//avoid redoing the bulleten boards for rear view as well.
+	static qboolean alreadyrendering = false;
+#endif
+
+	R_LessenStains();
+
+	if (cls.state != ca_active)
+		return;
+
+	view_frame = &cl.frames[cls.netchan.incoming_sequence & UPDATE_MASK];
+
+	R_PushDlights ();
+
+
+#ifdef PEXT_BULLETENS
+	if (!alreadyrendering)
+		R_SetupBulleten ();
+	alreadyrendering=true;
+#endif
+
+	if (cl.splitclients>1)
+		gl_ztrickdisabled|=8;
+	else
+		gl_ztrickdisabled&=~8;
+
+	r_secondaryview = 0;
+	for (viewnum = 0; viewnum < cl.splitclients; viewnum++)
+	{
+		V_RenderPlayerViews(viewnum);
+	}
 		
 #ifdef PEXT_BULLETENS
 	alreadyrendering=false;

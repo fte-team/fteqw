@@ -6,6 +6,9 @@
 
 #ifdef PLUGINS
 
+cvar_t plug_sbar = {"plug_sbar", "1"};
+cvar_t plug_loaddefault = {"plug_loaddefault", "1"};
+
 #include "glquake.h"
 
 typedef struct plugin_s {
@@ -390,6 +393,9 @@ int Plug_Draw_LoadImage(void *offset, unsigned int mask, const long *arg)
 		pluginimagearray = BZ_Realloc(pluginimagearray, pluginimagearraylen*sizeof(pluginimagearray_t));
 	}
 
+	if (pluginimagearray[i].pic)
+		return i;	//already loaded.
+
 	if (qrenderer)
 	{
 		if (fromwad)
@@ -420,7 +426,10 @@ void Plug_DrawReloadImages(void)
 	for (i = 0; i < pluginimagearraylen; i++)
 	{
 		if (!pluginimagearray[i].plugin)
+		{
+			pluginimagearray[i].pic = NULL;
 			continue;
+		}
 
 		if (pluginimagearray[i].picfromwad)
 			pluginimagearray[i].pic = Draw_SafePicFromWad(pluginimagearray[i].name);
@@ -430,6 +439,20 @@ void Plug_DrawReloadImages(void)
 #endif
 		else
 			pluginimagearray[i].pic = NULL;
+	}
+}
+
+void Plug_FreePlugImages(plugin_t *plug)
+{
+	int i;
+	for (i = 0; i < pluginimagearraylen; i++)
+	{
+		if (pluginimagearray[i].plugin == plug)
+		{
+			pluginimagearray[i].plugin = 0;
+			pluginimagearray[i].pic = NULL;
+			pluginimagearray[i].name[0] = '\0';
+		}
 	}
 }
 
@@ -614,6 +637,75 @@ int Plug_Cmd_AddText(void *offset, unsigned int mask, const long *arg)
 	return 1;
 }
 
+int plugincommandarraylen;
+typedef struct {
+	plugin_t *plugin;
+	char command[64];
+} plugincommand_t;
+plugincommand_t *plugincommandarray;
+void Plug_Command_f(void)
+{
+	int i;
+	char *cmd = Cmd_Argv(0);
+	plugin_t *oldplug = currentplug;
+	for (i = 0; i < plugincommandarraylen; i++)
+	{
+		if (!plugincommandarray[i].plugin)
+			continue;	//don't check commands who's owners died.
+
+		if (stricmp(plugincommandarray[i].command, cmd))	//not the right command
+			continue;
+
+		currentplug = plugincommandarray[i].plugin;
+
+		if (currentplug->executestring)
+			VM_Call(currentplug->vm, currentplug->executestring, 0);
+		break;
+	}
+
+	currentplug = oldplug;
+	return false;
+}
+
+int Plug_Cmd_AddCommand(void *offset, unsigned int mask, const long *arg)
+{
+	int i;
+	char *name = VM_POINTER(arg[0]);
+	for (i = 0; i < plugincommandarraylen; i++)
+	{
+		if (!plugincommandarray[i].plugin)
+			break;
+		if (plugincommandarray[i].plugin == currentplug)
+		{
+			if (!strcmp(name, plugincommandarray[i].command))
+				break;
+		}
+	}
+	if (i == plugincommandarraylen)
+	{
+		plugincommandarraylen++;
+		plugincommandarray = BZ_Realloc(plugincommandarray, plugincommandarraylen*sizeof(plugincommand_t));
+	}
+
+	Q_strncpyz(plugincommandarray[i].command, name, sizeof(plugincommandarray[i].command));
+	if (!Cmd_AddRemCommand(plugincommandarray[i].command, Plug_Command_f))
+		return false;
+	plugincommandarray[i].plugin = currentplug;	//worked
+	return true;
+}
+void Plug_FreeConCommands(plugin_t *plug)
+{
+	int i;
+	for (i = 0; i < plugincommandarraylen; i++)
+	{
+		if (plugincommandarray[i].plugin == plug)
+		{
+			plugincommandarray[i].plugin = NULL;
+			Cmd_RemoveCommand(plugincommandarray[i].command);
+		}
+	}
+}
+
 int Plug_CL_GetStats(void *offset, unsigned int mask, const long *arg)
 {
 	int i;
@@ -666,14 +758,26 @@ int Plug_Con_RenameSub(void *offset, unsigned int mask, const long *arg)
 	return 1;
 }
 
+void Plug_CloseAll_f(void);
+void Plug_Load_f(void)
+{
+	Plug_Load(Cmd_Argv(1));
+}
+
 void Plug_Init(void)
 {
+	Cvar_Register(&plug_sbar, "plugins");
+	Cvar_Register(&plug_loaddefault, "plugins");
+	Cmd_AddCommand("plug_closeall", Plug_CloseAll_f);
+	Cmd_AddCommand("plug_load", Plug_Load_f);
+
 	Plug_RegisterBuiltin("Plug_GetEngineFunction",	Plug_FindBuiltin, 0);//plugin wishes to find a builtin number.
 	Plug_RegisterBuiltin("Plug_ExportToEngine",		Plug_ExportToEngine, 0);	//plugin has a call back that we might be interested in.
 	Plug_RegisterBuiltin("Con_Print",				Plug_Con_Print, 0);	//printf is not possible - qvm floats are never doubles, vararg floats in a cdecl call are always converted to doubles.
 	Plug_RegisterBuiltin("Sys_Error",				Plug_Sys_Error, 0);
 	Plug_RegisterBuiltin("Com_Error",				Plug_Sys_Error, 0);	//make zquake programmers happy.
 
+	Plug_RegisterBuiltin("Cmd_AddCommand",			Plug_Cmd_AddCommand, 0);
 	Plug_RegisterBuiltin("Cmd_Args",				Plug_Cmd_Args, 0);
 	Plug_RegisterBuiltin("Cmd_Argc",				Plug_Cmd_Argc, 0);
 	Plug_RegisterBuiltin("Cmd_Argv",				Plug_Cmd_Argv, 0);
@@ -711,15 +815,15 @@ void Plug_Init(void)
 
 void Plug_Tick(void)
 {
-	plugin_t *plug;
-	for (plug = plugs; plug; plug = plug->next)
+	plugin_t *oldplug = currentplug;
+	for (currentplug = plugs; currentplug; currentplug = currentplug->next)
 	{
-		if (plug->tick)
+		if (currentplug->tick)
 		{
-			currentplug = plug;
-			VM_Call(plug->vm, plug->tick, (int)(realtime*1000));
+			VM_Call(currentplug->vm, currentplug->tick, (int)(realtime*1000));
 		}
 	}
+	currentplug = oldplug;
 }
 
 void Plug_ResChanged(void)
@@ -735,19 +839,19 @@ void Plug_ResChanged(void)
 
 qboolean Plugin_ExecuteString(void)
 {
-	plugin_t *plug;
+	plugin_t *oldplug = currentplug;
 	if (Cmd_Argc()>0)
 	{
-		for (plug = plugs; plug; plug = plug->next)
+		for (currentplug = plugs; currentplug; currentplug = currentplug->next)
 		{
-			if (plug->executestring)
+			if (currentplug->executestring)
 			{
-				currentplug = plug;
-				if (VM_Call(plug->vm, plug->executestring, 0))
+				if (VM_Call(currentplug->vm, currentplug->executestring, 0))
 					return true;
 			}
 		}
 	}
+	currentplug = oldplug;
 	return false;
 }
 
@@ -767,21 +871,27 @@ void Plug_SBar(void)
 	int cp;
 	vrect_t rect;
 
-	for (currentplug = plugs; currentplug; currentplug = currentplug->next)
+	if (!plug_sbar.value)
+		currentplug = NULL;
+	else
 	{
-		if (currentplug->sbarlevel[0])
+		for (currentplug = plugs; currentplug; currentplug = currentplug->next)
 		{
-			for (cp = 0; cp < cl.splitclients; cp++)
-			{	//if you don't use splitscreen, use a full videosize rect.
-				SCR_VRectForPlayer(&rect, cp);
-				VM_Call(currentplug->vm, currentplug->sbarlevel[0], cp, rect.x, rect.y, rect.width, rect.height);
+			if (currentplug->sbarlevel[0])
+			{
+				for (cp = 0; cp < cl.splitclients; cp++)
+				{	//if you don't use splitscreen, use a full videosize rect.
+					SCR_VRectForPlayer(&rect, cp);
+					VM_Call(currentplug->vm, currentplug->sbarlevel[0], cp, rect.x, rect.y, rect.width, rect.height);
+				}
+				break;
 			}
-			break;
 		}
 	}
 	if (!currentplug)
 	{
 		Sbar_Draw();
+		currentplug = oc;
 		return;	//our current sbar draws a scoreboard too. We don't want that bug to be quite so apparent.
 				//please don't implement this identical hack in your engines...
 	}
@@ -832,11 +942,30 @@ void Plug_Close(plugin_t *plug)
 	}
 
 	VM_Destroy(plug->vm);
+
+	Plug_FreePlugImages(plug);
+	Plug_FreeConCommands(plug);
+
+	if (currentplug == plug)
+		currentplug = NULL;
+}
+
+void Plug_CloseAll_f(void)
+{
+	if (currentplug)
+		Sys_Error("Plug_CloseAll_f called inside a plugin!\n");
+	while(plugs)
+	{
+		Plug_Close(plugs);
+	}
 }
 
 void Plug_Shutdown(void)
 {
-
+	while(plugs)
+	{
+		Plug_Close(plugs);
+	}
 }
 
 #endif

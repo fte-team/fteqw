@@ -680,15 +680,49 @@ void MSG_WriteString (sizebuf_t *sb, char *s)
 		SZ_Write (sb, s, Q_strlen(s)+1);
 }
 
+typedef union {
+	char b[4];
+	short b2;
+	int b4;
+	float f;
+} coorddata;
+int sizeofcoord=2;
+float MSG_FromCoord(coorddata c, int bytes)
+{
+	switch(bytes)
+	{
+	case 2:	//encode 1/8th precision, giving -4096 to 4096 map sizes
+		return c.b2/8.0f;
+	case 4:
+		return c.f;
+	default:
+		Sys_Error("MSG_ToCoord: not a sane coordsize");
+		return 0;
+	}
+}
+coorddata MSG_ToCoord(float f, int bytes)	//return value should be treated as (char*)&ret;
+{
+	coorddata r;
+	switch(bytes)
+	{
+	case 2:
+		r.b2 = f*8;
+		break;
+	case 4:
+		r.f = f;
+		break;
+	default:
+		Sys_Error("MSG_ToCoord: not a sane coordsize");
+		r.b4 = 0;
+	}
+
+	return r;
+}
+
 void MSG_WriteCoord (sizebuf_t *sb, float f)
 {
-	MSG_WriteShort (sb, (int)(f*8));
-}
-void MSG_WriteBigCoord (sizebuf_t *sb, float f)
-{
-	int o = f*8;
-	MSG_WriteShort (sb, o&0xffff);
-	MSG_WriteByte (sb, (o&0xff0000)>>16);
+	coorddata i = MSG_ToCoord(f, sizeofcoord);
+	SZ_Write (sb, (void*)&i, sizeofcoord);
 }
 
 void MSG_WriteAngle (sizebuf_t *sb, float f)
@@ -955,7 +989,9 @@ char *MSG_ReadStringLine (void)
 
 float MSG_ReadCoord (void)
 {
-	return MSG_ReadShort() * (1.0/8);
+	coorddata c;
+	MSG_ReadData(&c, sizeofcoord);
+	return MSG_FromCoord(c, sizeofcoord);
 }
 
 void MSG_ReadPos (vec3_t pos)
@@ -3853,6 +3889,40 @@ char *COM_NextPath (char *prevpath)
 
 	return NULL;
 }
+
+#ifndef CLIENTONLY
+char *COM_GetPathInfo (int i, int *crc)
+{
+#ifdef WEBSERVER
+	extern cvar_t httpserver;
+#endif
+
+	searchpath_t	*s;
+	static char name[MAX_OSPATH];
+	char			*protocol;
+
+	for (s=com_searchpaths ; s ; s=s->next)
+	{
+		i--;
+		if (!i)
+			break;
+	}
+	if (i)	//too high.
+		return NULL;
+
+#ifdef WEBSERVER
+	if (httpserver.value)
+		protocol = va("http://%s/", NET_AdrToString (net_local_ipadr));
+	else
+#endif
+		protocol = "qw://";
+
+	*crc = 0;//s->crc;
+	Q_strncpyz(name, va("%s%s", protocol, COM_SkipPath(s->filename)), sizeof(name));
+	return name;
+}
+#endif
+
 
 /*
 ================

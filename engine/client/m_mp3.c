@@ -1354,7 +1354,7 @@ skipframe:
 	glColor4f(1, 0, 0, sin(realtime*4)/4+0.75);
 	glEnable(GL_BLEND);
 	glDisable(GL_ALPHA_TEST);
-	glTexEnvf(GL_TEXTURE_ENV, GL_TEXTURE_ENV_MODE, GL_MODULATE);
+	GL_TexEnv(GL_MODULATE);
 	glBlendFunc (GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
 	Draw_String((strlen(capturemessage.string)+1)*8, y, "RECORDING");
 }

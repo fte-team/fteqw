@@ -512,7 +512,6 @@ void QCC_UnmarshalLocals(void)
 		printf("Total of %i marshalled globals\n", maxo-ofs);
 }
 
-
 CompilerConstant_t *QCC_PR_CheckCompConstDefined(char *def);
 void QCC_WriteData (int crc)
 {
@@ -535,17 +534,6 @@ void QCC_WriteData (int crc)
 		QCC_Error(ERR_TOOMANYSTRINGS, "Too many strings - %i\nAdd \"MAX_STRINGS\" \"%i\" to qcc.cfg", strofs, (strofs+32768)&~32767);
 
 	QCC_UnmarshalLocals();
-
-	if (QCC_PR_CheckCompConstDefined("DEBUG"))	//debug forces it if standard
-	{
-		if (!qcc_targetformat)
-		{
-			printf("Forcing target due to debugging\n");
-			qcc_targetformat = QCF_FTEDEBUG;
-		}
-		else if (qcc_targetformat != QCF_FTE && qcc_targetformat != QCF_FTEDEBUG)
-			printf("Target does not support debugging info\n");
-	}
 
 	switch (qcc_targetformat)
 	{
@@ -1124,11 +1112,13 @@ strofs = (strofs+3)&~3;
 		else
 		{
 			unsigned int lnotype = *(unsigned int*)"LNOF";
-			COM_StripExtension(destfile);
-			COM_DefaultExtension(destfile, ".lno");
+			unsigned int version = 1;
+			StripExtension(destfile);
+			strcat(destfile, ".lno");
 			printf("Writing %s\n", destfile);
 			h = SafeOpenWrite (destfile, 2*1024*1024);
 			SafeWrite (h, &lnotype, sizeof(int));
+			SafeWrite (h, &version, sizeof(int));
 			SafeWrite (h, &numglobaldefs, sizeof(int));
 			SafeWrite (h, &numpr_globals, sizeof(int));
 			SafeWrite (h, &numfielddefs, sizeof(int));

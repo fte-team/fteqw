@@ -85,7 +85,7 @@ typedef struct {
 typedef struct
 {
 	vec3_t	origin;
-	qbyte	angles[3];
+	char	angles[3];
 	qbyte	modelindex;
 	qbyte	frame;
 	qbyte	colormap;
@@ -94,7 +94,7 @@ typedef struct
 
 	qbyte	scale;
 	qbyte	trans;
-	qbyte	fatness;
+	char	fatness;
 } mvdentity_state_t;
 
 typedef struct

@@ -1659,7 +1659,7 @@ void SV_SendMVDMessage(void)
 	qbyte		buf[MAX_DATAGRAM];
 	sizebuf_t	msg;
 	edict_t		*ent;
-	int			stats[MAX_CL_STATS];
+	int			stats[MAX_QW_STATS];
 	float		min_fps;
 	extern		cvar_t sv_demofps;
 	extern		cvar_t sv_demoPings;
@@ -1731,7 +1731,7 @@ void SV_SendMVDMessage(void)
 		// stuff the sigil bits into the high bits of items for sbar
 		stats[STAT_ITEMS] = (int)ent->v.items | ((int)pr_global_struct->serverflags << 28);
 
-		for (j=0 ; j<MAX_CL_STATS ; j++)
+		for (j=0 ; j<MAX_QW_STATS ; j++)
 			if (stats[j] != demo.stats[i][j])
 			{
 				demo.stats[i][j] = stats[j];

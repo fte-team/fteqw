@@ -1129,22 +1129,6 @@ void SV_WritePlayersToClient (client_t *client, edict_t *clent, qbyte *pvs, size
 
 	for (j=0,cl=svs.clients ; j<sv.allocated_client_slots ; j++,cl++)
 	{
-		isbot = !cl->state && cl->name[0];
-		if (!sv.demostatevalid)
-			if (cl->state != cs_spawned)	//this includes bots
-				if (!isbot || progstype != PROG_NQ)	//unless they're NQ bots...
-					continue;
-
-		ent = cl->edict;
-		if (cl->viewent && ent == clent)
-		{
-			vent = EDICT_NUM(svprogfuncs, cl->viewent);
-			if (!vent)
-				vent = ent;
-		}
-		else
-			vent = ent;
-
 		if (sv.demostatevalid)	//this is a demo
 		{
 				// ZOID visibility tracking
@@ -1164,7 +1148,7 @@ void SV_WritePlayersToClient (client_t *client, edict_t *clent, qbyte *pvs, size
 				}
 			}
 */
-			if (ent == clent)
+			if (cl->edict == clent && svs.clients[j].spec_track>0)
 				i = svs.clients[j].spec_track-1;
 			else
 				i = j;
@@ -1205,7 +1189,7 @@ void SV_WritePlayersToClient (client_t *client, edict_t *clent, qbyte *pvs, size
 				ang[1] = sv.demostate[i+1].angles[1]*360.0f/256+ (realtime - sv.recordedplayer[i].updatetime)*sv.recordedplayer[i].avelocity[1];
 				ang[2] = sv.demostate[i+1].angles[2]*360.0f/256+ (realtime - sv.recordedplayer[i].updatetime)*sv.recordedplayer[i].avelocity[2];
 
-				VectorMA(sv.demostate[i+1].origin, realtime - sv.recordedplayer[i].updatetime, sv.recordedplayer[i].velocity, org);
+				VectorMA(sv.demostate[i+1].origin, (realtime - sv.recordedplayer[i].updatetime), sv.recordedplayer[i].velocity, org);
 				ang[0] *= -3;
 
 //				ang[0] = ang[1] = ang[2] = 0;
@@ -1237,15 +1221,37 @@ void SV_WritePlayersToClient (client_t *client, edict_t *clent, qbyte *pvs, size
 				client_t *s;
 				for (s = cl; s; s = s->controlled, splitnum++)
 				{
-					if (s->edict == ent)
+					if (s->edict == cl->edict)
 						break;
 				}
 				if (!s)
 					continue;
 			}
-			else if (ent != clent)
+			else if (cl->edict != clent)
 				continue;
 		}
+		
+		
+		
+		isbot = !cl->state && cl->name[0];
+		if (cl->state != cs_spawned)	//this includes bots
+			if (!isbot || progstype != PROG_NQ)	//unless they're NQ bots...
+				continue;
+
+		ent = cl->edict;
+		if (cl->viewent && ent == clent)
+		{
+			vent = EDICT_NUM(svprogfuncs, cl->viewent);
+			if (!vent)
+				vent = ent;
+		}
+		else
+			vent = ent;
+		
+		
+		
+		
+		
 
 		if (progstype != PROG_QW)
 		{

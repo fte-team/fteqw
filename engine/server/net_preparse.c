@@ -1554,7 +1554,7 @@ void NPP_MVDFlush(void)
 			for (j=0 ; j<3 ; j++)
 				if (flags & (DF_ORIGIN << j))
 				{
-					ents->origin[j] = (int)(buffer[i] + (buffer[i+1]<<8))/8.0f;
+					ents->origin[j] = (signed short)(buffer[i] + (buffer[i+1]<<8))/8.0f;
 					i+=2;
 				}
 			VectorSubtract(ents->origin, oldorg, sv.recordedplayer[playernum].velocity);
@@ -1565,11 +1565,11 @@ void NPP_MVDFlush(void)
 				if (flags & (DF_ANGLES << j))
 				{
 					//FIXME: angle truncation here.
-					ents->angles[j] = (int)(buffer[i] + (buffer[i+1]<<8))/256;
+					ents->angles[j] = (char)((int)(buffer[i] + (buffer[i+1]<<8))/256.0f);
 					i+=2;
 				}
 
-			if (flags & (DF_ANGLES << 0))	//stupid quake bug I believe is the correct quote...
+			if (flags & (DF_ANGLES << 0))	//'stupid quake bug' I believe is the correct quote...
 				ents->angles[0] = ents->angles[0]*-1/3.0f; //also scale pitch down as well as invert
 
 			VectorSubtract(ents->angles, oldang, sv.recordedplayer[playernum].avelocity);

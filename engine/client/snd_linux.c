@@ -89,17 +89,33 @@ int SNDDMA_Init(soundcardinfo_t *sc)
 
 // open the sound device, confirm capability to mmap, and get size of dma buffer
 
-	Q_strncpyz(sc->name, snddev, sizeof(sc->name));
 	printf("Initing sound device %s\n", snddev);
 
-	sc->audio_fd = open(snddev, O_RDWR);
+	sc->audio_fd = open(snddev, O_RDWR | O_NONBLOCK);	//try the primary device
 	if (sc->audio_fd < 0)
 	{
 		perror(snddev);
 		Con_Printf("Could not open %s\n", snddev);
-		SNDDMA_Shutdown(sc);
-		return 0;
+		
+		devname = Cvar_Get("snd_devicename2", "", 0, "Sound controls");
+		snddev = devname->string;
+		if (*snddev)	//try a secondary if they named one
+		{
+			printf("Initing sound device %s\n", snddev);
+			sc->audio_fd = open(snddev, O_RDWR | O_NONBLOCK);
+			
+			if (sc->audio_fd < 0)
+				Con_Printf("Could not open %s\n", snddev);
+		}
+		
+		if (sc->audio_fd < 0)
+		{
+			Con_Printf("Running without sound\n");
+			SNDDMA_Shutdown(sc);
+			return 0;
+		}
 	}
+	Q_strncpyz(sc->name, snddev, sizeof(sc->name));
 
 	rc = ioctl(sc->audio_fd, SNDCTL_DSP_RESET, 0);
 	if (rc < 0)
@@ -151,7 +167,8 @@ int SNDDMA_Init(soundcardinfo_t *sc)
 	}
 
 	s = getenv("QUAKE_SOUND_SPEED");
-	if (s) sc->sn.speed = atoi(s);
+	if (s)
+		sc->sn.speed = atoi(s);
 	else if ((i = COM_CheckParm("-sndspeed")) != 0)
 		sc->sn.speed = atoi(com_argv[i+1]);
 	else

@@ -240,7 +240,10 @@ void SV_New_f (void)
 
 	// send server info string
 	MSG_WriteByte (&host_client->netchan.message, svc_stufftext);
-	MSG_WriteString (&host_client->netchan.message, va("fullserverinfo \"%s\"\n", svs.info) );
+	if (svs.demostatevalid)
+		MSG_WriteString (&host_client->netchan.message, va("fullserverinfo \"%s\"\n", sv.demoinfo));
+	else
+		MSG_WriteString (&host_client->netchan.message, va("fullserverinfo \"%s\"\n", svs.info) );
 
 	// send music
 	MSG_WriteByte (&host_client->netchan.message, svc_cdtrack);

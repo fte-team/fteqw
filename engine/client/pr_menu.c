@@ -800,6 +800,70 @@ void PF_CL_precache_file (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 	G_INT(OFS_RETURN) = G_INT(OFS_PARM0);
 }
 
+//entity	findchainstring(.string _field, string match) = #26;
+void PF_menu_findchain (progfuncs_t *prinst, struct globalvars_s *pr_globals)
+{
+	int i, f;
+	char *s, *t;
+	edict_t *ent, *chain;	//note, all edicts share the common header, but don't use it's fields!
+	eval_t *val;
+
+	chain = (edict_t *) *prinst->parms->sv_edicts;
+
+	f = G_INT(OFS_PARM0)+prinst->fieldadjust;
+	f += prinst->parms->edictsize/4;
+	s = PR_GetStringOfs(prinst, OFS_PARM1);
+
+	for (i = 1; i < *prinst->parms->sv_num_edicts; i++)
+	{
+		ent = EDICT_NUM(prinst, i);
+		if (ent->isfree)
+			continue;
+		t = *(string_t *)&((float*)ent)[f] + prinst->stringtable;
+		if (!t)
+			continue;
+		if (strcmp(t, s))
+			continue;
+
+		val = prinst->GetEdictFieldValue(prinst, ent, "chain", NULL);
+		if (val)
+			val->edict = EDICT_TO_PROG(prinst, chain);
+		chain = ent;
+	}
+
+	RETURN_EDICT(prinst, chain);
+}
+//entity	findchainfloat(.float _field, float match) = #27;
+void PF_menu_findchainfloat (progfuncs_t *prinst, struct globalvars_s *pr_globals)
+{
+	int i, f;
+	float s;
+	edict_t	*ent, *chain;	//note, all edicts share the common header, but don't use it's fields!
+	eval_t *val;
+
+	chain = (edict_t *) *prinst->parms->sv_edicts;
+
+	f = G_INT(OFS_PARM0)+prinst->fieldadjust;
+	f += prinst->parms->edictsize/4;
+	s = G_FLOAT(OFS_PARM1);
+
+	for (i = 1; i < *prinst->parms->sv_num_edicts; i++)
+	{
+		ent = EDICT_NUM(prinst, i);
+		if (ent->isfree)
+			continue;
+		if (((float *)ent)[f] != s)
+			continue;
+
+		val = prinst->GetEdictFieldValue(prinst, ent, "chain", NULL);
+		if (val)
+			val->edict = EDICT_TO_PROG(prinst, chain);
+		chain = ent;
+	}
+
+	RETURN_EDICT(prinst, chain);
+}
+
 builtin_t menu_builtins[] = {
 //0
 	PF_Fixme,
@@ -830,8 +894,8 @@ builtin_t menu_builtins[] = {
 	PF_Remove_,//23
 	PF_FindString,//24
 	PF_FindFloat,//25
-	PF_findchain,//26			//entity	findchainstring(.string _field, string match) = #26;
-	PF_findchainfloat,//27		//entity	findchainfloat(.float _field, float match) = #27;
+	PF_menu_findchain,//26			//entity	findchainstring(.string _field, string match) = #26;
+	PF_menu_findchainfloat,//27		//entity	findchainfloat(.float _field, float match) = #27;
 	PF_CL_precache_file,//28
 	PF_CL_precache_sound,//29
 

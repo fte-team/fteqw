@@ -365,6 +365,7 @@ typedef struct {
 //
 typedef struct
 {
+	int			fpd;
 	int			servercount;	// server identification for prespawns
 
 	char		serverinfo[MAX_SERVERINFO_STRING];
@@ -501,6 +502,15 @@ typedef struct
 	int teamplay;
 	int deathmatch;
 } client_state_t;
+
+extern int		cl_teamtopcolor;
+extern int		cl_teambottomcolor;
+extern int		cl_enemytopcolor;
+extern int		cl_enemybottomcolor;
+
+//FPD values
+//(commented out ones are ones that we don't support)
+#define FPD_NO_FORCE_COLOR	512
 
 
 //

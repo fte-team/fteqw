@@ -1312,9 +1312,9 @@ char *TP_MapName (void)
 */
 
 int		cl_teamtopcolor = -1;
-int		cl_teambottomcolor;
+int		cl_teambottomcolor = -1;
 int		cl_enemytopcolor = -1;
-int		cl_enemybottomcolor;
+int		cl_enemybottomcolor = -1;
 
 void TP_TeamColor_f (void)
 {
@@ -1335,8 +1335,10 @@ void TP_TeamColor_f (void)
 	if (!strcmp(Cmd_Argv(1), "off"))
 	{
 		cl_teamtopcolor = -1;
-		for (i = 0; i < MAX_CLIENTS; i++)
-			CL_NewTranslation(i);
+		cl_teambottomcolor = -1;
+		if (qrenderer)	//make sure we have the renderer initialised...
+			for (i = 0; i < MAX_CLIENTS; i++)
+				CL_NewTranslation(i);
 		return;
 	}
 
@@ -1359,8 +1361,9 @@ void TP_TeamColor_f (void)
 		cl_teamtopcolor = top;
 		cl_teambottomcolor = bottom;
 
-		for (i = 0; i < MAX_CLIENTS; i++)
-			CL_NewTranslation(i);
+		if (qrenderer)	//make sure we have the renderer initialised...
+			for (i = 0; i < MAX_CLIENTS; i++)
+				CL_NewTranslation(i);
 	}
 }
 
@@ -1383,8 +1386,10 @@ void TP_EnemyColor_f (void)
 	if (!strcmp(Cmd_Argv(1), "off"))
 	{
 		cl_enemytopcolor = -1;
-		for (i = 0; i < MAX_CLIENTS; i++)
-			CL_NewTranslation(i);
+		cl_enemybottomcolor = -1;
+		if (qrenderer)	//make sure we have the renderer initialised...
+			for (i = 0; i < MAX_CLIENTS; i++)
+				CL_NewTranslation(i);
 		return;
 	}
 
@@ -1407,8 +1412,9 @@ void TP_EnemyColor_f (void)
 		cl_enemytopcolor = top;
 		cl_enemybottomcolor = bottom;
 
-		for (i = 0; i < MAX_CLIENTS; i++)
-			CL_NewTranslation(i);
+		if (qrenderer)	//make sure we have the renderer initialised...
+			for (i = 0; i < MAX_CLIENTS; i++)
+				CL_NewTranslation(i);
 	}
 }
 

@@ -11,6 +11,7 @@ typedef struct plugin_s {
 	vm_t *vm;
 	int tick;
 	int executestring;
+	int menufunction;
 
 	struct plugin_s *next;
 } plugin_t;
@@ -31,6 +32,7 @@ void Plug_Shutdown(void);
 
 
 static plugin_t *plugs;
+static plugin_t *menuplug;	//plugin that has the current menu
 
 
 typedef struct {
@@ -89,7 +91,7 @@ int Plug_FindBuiltin(void *offset, unsigned int mask, const long *args)
 	int i;
 	for (i = 0; i < numplugbuiltins; i++)
 		if (plugbuiltins[i].name)
-			if (!strcmp(plugbuiltins[i].name, (char *)offset+args[0]))
+			if (!strcmp(plugbuiltins[i].name, (char *)VM_POINTER(args[0])))
 				return -i;
 
 	return 0;
@@ -190,7 +192,7 @@ int Plug_Emumerated (char *name, int size, void *param)
 
 int Plug_Con_Print(void *offset, unsigned int mask, const long *arg)
 {
-	Con_Print((char*)offset+arg[0]);
+	Con_Print((char*)VM_POINTER(arg[0]));
 	return 0;
 }
 int Plug_Sys_Error(void *offset, unsigned int mask, const long *arg)
@@ -200,11 +202,13 @@ int Plug_Sys_Error(void *offset, unsigned int mask, const long *arg)
 }
 int Plug_ExportToEngine(void *offset, unsigned int mask, const long *arg)
 {
-	char *name = (char*)offset+arg[0];
+	char *name = (char*)VM_POINTER(arg[0]);
 	if (!strcmp(name, "Tick"))
 		currentplug->tick = arg[1];
 	else if (!strcmp(name, "ExecuteCommand"))
 		currentplug->executestring = arg[1];
+	else if (!strcmp(name, "MenuEvent"))
+		currentplug->menufunction = arg[1];
 	else
 		return 0;
 	return 1;
@@ -212,7 +216,7 @@ int Plug_ExportToEngine(void *offset, unsigned int mask, const long *arg)
 //void(char *buffer, int buffersize)
 int Plug_Cmd_Args(void *offset, unsigned int mask, const long *arg)
 {
-	char *buffer = (char*)offset+arg[0];
+	char *buffer = (char*)VM_POINTER(arg[0]);
 	char *args;
 	args = Cmd_Args();
 	if (strlen(args)+1>arg[1])
@@ -223,7 +227,7 @@ int Plug_Cmd_Args(void *offset, unsigned int mask, const long *arg)
 //void(int num, char *buffer, int buffersize)
 int Plug_Cmd_Argv(void *offset, unsigned int mask, const long *arg)
 {
-	char *buffer = (char*)offset+arg[1];
+	char *buffer = (char*)VM_POINTER(arg[1]);
 	char *args;
 	args = Cmd_Argv(arg[0]);
 	if (strlen(args)+1>arg[2])
@@ -236,6 +240,24 @@ int Plug_Cmd_Argc(void *offset, unsigned int mask, const long *arg)
 {
 	return Cmd_Argc();
 }
+
+int Plug_Menu_Control(void *offset, unsigned int mask, const long *arg)
+{
+	switch(VM_LONG(arg[0]))
+	{
+	case 0: //weather it's us or not.
+		return currentplug == menuplug && m_state == m_plugin;
+	case 1:	//weather a menu is active
+		return key_dest == key_menu;
+	case 2:	//give us menu control
+		menuplug = currentplug;
+		key_dest = key_menu;
+		return 1;
+	default:
+		return 0;
+	}
+}
+
 void Plug_Init(void)
 {
 	Plug_RegisterBuiltin("Plug_GetEngineFunction", Plug_FindBuiltin, 0);//plugin wishes to find a builtin number.
@@ -248,7 +270,7 @@ void Plug_Init(void)
 	Plug_RegisterBuiltin("Cmd_Argc", Plug_Cmd_Argc, 0);
 	Plug_RegisterBuiltin("Cmd_Argv", Plug_Cmd_Argv, 0);
 
-	
+	Plug_RegisterBuiltin("Menu_Control", Plug_Menu_Control, 0);
 
 #ifdef _WIN32
 	COM_EnumerateFiles("plugins/*x86.dll", Plug_Emumerated, "x86.dll");
@@ -287,6 +309,14 @@ qboolean Plugin_ExecuteString(void)
 		}
 	}
 	return false;
+}
+
+qboolean Plug_Menu_Event(int eventtype, int param)	//eventtype = draw/keydown/keyup, param = time/key
+{
+	if (!menuplug)
+		return false;
+
+	return VM_Call(menuplug->vm, menuplug->menufunction, eventtype, param);
 }
 
 void Plug_Close(plugin_t *plug)

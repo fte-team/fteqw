@@ -824,14 +824,14 @@ void R_InitParticles (void)
 	pt_gunshot			= AllocateParticleType("te_gunshot");
 	pt_lavasplash		= AllocateParticleType("te_lavasplash");
 	pt_teleportsplash	= AllocateParticleType("te_teleportsplash");
-	rt_blastertrail		= AllocateParticleType("te_blastertrail");
+	rt_blastertrail		= AllocateParticleType("t_blastertrail");
 	pt_blasterparticles = AllocateParticleType("te_blasterparticles");
 	pt_wizspike			= AllocateParticleType("te_wizspike");
 	pt_knightspike		= AllocateParticleType("te_knightspike");
 	pt_spike			= AllocateParticleType("te_spike");
 	pt_superspike		= AllocateParticleType("te_superspike");
-	rt_railtrail		= AllocateParticleType("te_railtrail");
-	rt_bubbletrail		= AllocateParticleType("te_bubbletrail");
+	rt_railtrail		= AllocateParticleType("t_railtrail");
+	rt_bubbletrail		= AllocateParticleType("t_bubbletrail");
 	rt_rocket			= AllocateParticleType("t_rocket");
 
 	pt_superbullet		= AllocateParticleType("te_superbullet");

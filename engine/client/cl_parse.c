@@ -2252,19 +2252,40 @@ void CL_NewTranslation (int slot)
 		if (player->skin && !stricmp(s, player->skin->name))
 			player->skin = NULL;
 
-		if (player->_topcolor != player->topcolor ||
-			player->_bottomcolor != player->bottomcolor || !player->skin) {
-			player->_topcolor = player->topcolor;
-			player->_bottomcolor = player->bottomcolor;
+		top = player->topcolor;
+		bottom = player->bottomcolor;
+		if (!cl.splitclients && !(cl.fpd & FPD_NO_FORCE_COLOR))	//no colour/skin forcing in splitscreen.
+		{
+			if (cl.teamplay && !strcmp(player->team, cl.players[cl.playernum[0]].team))
+			{
+				if (cl_teamtopcolor>=0)
+					top = cl_teamtopcolor;
+				if (cl_teambottomcolor>=0)
+					bottom = cl_teambottomcolor;
+			}
+			else
+			{
+				if (cl_enemytopcolor>=0)
+					top = cl_enemytopcolor;
+				if (cl_enemybottomcolor>=0)
+					bottom = cl_enemybottomcolor;
+			}
+		}
+
+
+		if (player->_topcolor != top ||
+			player->_bottomcolor != bottom || !player->skin) {
+			player->_topcolor = top;
+			player->_bottomcolor = bottom;
 
 			dest = player->translations;
 			source = vid.colormap;
 			memcpy (dest, vid.colormap, sizeof(player->translations));
-			top = player->topcolor;
+//			top = player->topcolor;
 			if (top > 13 || top < 0)
 				top = 13;
 			top *= 16;
-			bottom = player->bottomcolor;
+//			bottom = player->bottomcolor;
 			if (bottom > 13 || bottom < 0)
 				bottom = 13;
 			bottom *= 16;

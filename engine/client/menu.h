@@ -50,7 +50,7 @@ void XWindows_Init(void);
 
 
 
-typedef enum {m_none, m_complex, m_help, m_keys, m_slist, m_media, m_xwindows} m_state_t;
+typedef enum {m_none, m_complex, m_help, m_keys, m_slist, m_media, m_xwindows, m_plugin} m_state_t;
 extern m_state_t m_state;
 
 typedef enum {mt_childwindow, mt_button, mt_buttonbigfont, mt_box, mt_colouredbox, mt_line, mt_edit, mt_text, mt_slider, mt_combo, mt_bind, mt_checkbox, mt_picture, mt_menudot, mt_custom} menutype_t;

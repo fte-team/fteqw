@@ -909,6 +909,10 @@ void M_Draw (int uimenu)
 	case m_complex:
 		M_Complex_Draw ();
 		break;
+
+	case m_plugin:
+		Plug_Menu_Event (0, (int)(realtime*1000));
+		break;
 	}
 
 	if (m_entersound)
@@ -954,6 +958,10 @@ void M_Keydown (int key)
 	case m_complex:
 		M_Complex_Key (key);
 		return;
+
+	case m_plugin:
+		Plug_Menu_Event (1, key);
+		return;
 	}
 }
 
@@ -964,6 +972,9 @@ void M_Keyup (int key)
 	{
 	case m_xwindows:
 		XWindows_Keyup(key);
+		return;
+	case m_plugin:
+		Plug_Menu_Event (2, key);
 		return;
 	default:
 		break;

@@ -441,6 +441,25 @@ static galiastexnum_t *GL_ChooseSkin(galiasinfo_t *inf, char *modelname, entity_
 			Skin_Find(e->scoreboard);
 		tc = e->scoreboard->topcolor;
 		bc = e->scoreboard->bottomcolor;
+
+		//colour forcing
+		if (!cl.splitclients && !(cl.fpd & FPD_NO_FORCE_COLOR))	//no colour/skin forcing in splitscreen.
+		{
+			if (cl.teamplay && !strcmp(e->scoreboard->team, cl.players[cl.playernum[0]].team))
+			{
+				if (cl_teamtopcolor>=0)
+					tc = cl_teamtopcolor;
+				if (cl_teambottomcolor>=0)
+					bc = cl_teambottomcolor;
+			}
+			else
+			{
+				if (cl_enemytopcolor>=0)
+					tc = cl_enemytopcolor;
+				if (cl_enemybottomcolor>=0)
+					bc = cl_enemybottomcolor;
+			}
+		}
 	}
 	else
 	{

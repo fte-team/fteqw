@@ -300,6 +300,7 @@ static qboolean InitFlyby(int pnum, player_state_t *self, player_state_t *player
 //		Cam_Unlock();
 		return false;
 	}
+
 	locked[pnum] = true;
 	VectorCopy(vec, desired_position[pnum]); 
 	return true;
@@ -363,7 +364,7 @@ void Cam_Track(int pnum, usercmd_t *cmd)
 	player = frame->playerstate + spec_track[pnum];
 	self = frame->playerstate + cl.playernum[pnum];
 
-	if (locked[pnum] || !Cam_IsVisible(player, desired_position[pnum]))
+	if (/*locked[pnum] ||*/ !Cam_IsVisible(player, desired_position[pnum]))
 	{
 		if (!locked[pnum] || realtime - cam_lastviewtime[pnum] > 0.1)
 		{

@@ -3480,8 +3480,6 @@ void PF_walkmove (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 		if (SV_TestEntityPosition(ent))
 			Con_Printf("Entity became stuck\n");
 	}
-	else
-		Con_Printf("Ent is stuck - sorry\n");
 	
 	
 // restore program state
@@ -5161,10 +5159,10 @@ void PF_strconv (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 	int ccase = G_FLOAT(OFS_PARM0);	//0 same, 1 lower, 2 upper
 	int redalpha = G_FLOAT(OFS_PARM1);	//0 same, 1 white, 2 red
 	int redchars = G_FLOAT(OFS_PARM2);	//0 same, 1 white, 2 red, 3 redspecial, 4 whitespecial
-	char *string = PF_VarString(prinst, 3, pr_globals);
+	unsigned char *string = PF_VarString(prinst, 3, pr_globals);
 	int len = strlen(string);
 	int i;
-	char *result = PF_TempStr();
+	unsigned char *result = PF_TempStr();
 	
 	if (len >= MAXTEMPBUFFERLEN)
 		len = MAXTEMPBUFFERLEN-1;
@@ -5191,7 +5189,7 @@ void PF_strconv (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 		else if (*string >= 'A'+128 && *string <= 'Z'+128)	//normal numbers...
 			*result = chrchar_alpha(*string, 128, 'A', ccase, redchars);
 
-		else if (*string & 127 < 16 || !redalpha)	//special chars..
+		else if ((*string & 127) < 16 || !redalpha)	//special chars..
 			*result = *string;
 		else if (*string < 128)
 			*result = chrconv_punct(*string, 0, redalpha);
@@ -5209,7 +5207,7 @@ void PF_infoadd (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 	char *temp;
 
 	temp = PF_TempStr();
-	Q_strncpyz(temp, value, MAXTEMPBUFFERLEN);
+	Q_strncpyz(temp, info, MAXTEMPBUFFERLEN);
 
 	Info_SetValueForStarKey(temp, key, value, MAXTEMPBUFFERLEN);
 
@@ -7435,7 +7433,6 @@ void PF_ShowPic(progfuncs_t *prinst, struct globalvars_s *pr_globals)
 void PF_HidePic(progfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
 	client_t *cl;
-	progfuncs_t *progfuncs = prinst;
 	char *slot	= PR_GetStringOfs(prinst, OFS_PARM0);
 	int entnum;
 
@@ -7465,7 +7462,6 @@ void PF_HidePic(progfuncs_t *prinst, struct globalvars_s *pr_globals)
 
 void PF_MovePic(progfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
-	progfuncs_t *progfuncs = prinst;
 	char *slot	= PR_GetStringOfs(prinst, OFS_PARM0);
 	float x		= G_FLOAT(OFS_PARM1);
 	float y		= G_FLOAT(OFS_PARM2);
@@ -7503,7 +7499,6 @@ void PF_MovePic(progfuncs_t *prinst, struct globalvars_s *pr_globals)
 
 void PF_ChangePic(progfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
-	progfuncs_t *progfuncs = prinst;
 	char *slot	= PR_GetStringOfs(prinst, OFS_PARM0);
 	char *newpic= PR_GetStringOfs(prinst, OFS_PARM1);
 	int entnum;

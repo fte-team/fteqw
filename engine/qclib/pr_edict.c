@@ -1036,7 +1036,7 @@ pbool	ED_ParseEpair (progfuncs_t *progfuncs, void *base, ddefXX_t *key, char *s,
 			printf ("Can't find field %s\n", s);
 			return false;
 		}
-		*(int *)d = G_INT(def->ofs);
+		*(int *)d = def->ofs;
 		break;
 
 	case ev_function:

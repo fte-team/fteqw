@@ -146,7 +146,7 @@ void *Sys_GetGameAPI (void *parms)
 
 
 #define MINIMUM_WIN_MEMORY	0x0800000
-#define MAXIMUM_WIN_MEMORY	0x1000000
+#define MAXIMUM_WIN_MEMORY	0x4000000
 
 #define PAUSE_SLEEP		50				// sleep time on pause or minimization
 #define NOT_FOCUS_SLEEP	20				// sleep time when not focus
@@ -1053,8 +1053,8 @@ int WINAPI WinMain (HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLin
 	if (parms.memsize < (lpBuffer.dwTotalPhys >> 1))
 		parms.memsize = lpBuffer.dwTotalPhys >> 1;
 
-//	if (parms.memsize > MAXIMUM_WIN_MEMORY)
-//		parms.memsize = MAXIMUM_WIN_MEMORY;
+	if (parms.memsize > MAXIMUM_WIN_MEMORY)
+		parms.memsize = MAXIMUM_WIN_MEMORY;
 
 	if (COM_CheckParm ("-heapsize"))
 	{

@@ -113,7 +113,7 @@ void Mod_LoadHLModel (model_t *mod, void *buffer)
 
 		if (cls.state >= ca_connected)
 		{
-			CL_SendClientCommand("setinfo %s %d", 
+			CL_SendClientCommand(true, "setinfo %s %d", 
 				!strcmp(mod->name, "progs/player.mdl") ? pmodel_name : emodel_name,
 				(int)crc);
 		}

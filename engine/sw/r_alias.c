@@ -270,6 +270,7 @@ qboolean R_AliasCheckBBox (void)
 	{
 		if (minz > (r_aliastransition + (pmdl->size * r_resfudge)))
 		{
+			Con_Printf("Trivial accept 2 on %s\n", currententity->model->name);
 			currententity->trivial_accept |= 2;
 		}
 	}
@@ -612,7 +613,7 @@ void R_AliasPrepareUnclippedPoints (void)
 
 	if (r_pixbytes == 4)
 		D_PolysetDraw32 ();
-#if id386
+#if 0//id386
 	else if (t_state & TT_ONE)
 		D_PolysetDrawAsm ();
 #endif
@@ -790,7 +791,6 @@ void R_AliasSetupFrame (void)
 		r_abacklerp[i] = paliashdr->frames[oframe].scale[i]*bl;
 		r_afrntlerp[i] = paliashdr->frames[frame].scale[i]*fl;
 		r_amovelerp[i] = paliashdr->frames[frame].scale_origin[i]*fl + paliashdr->frames[oframe].scale_origin[i]*bl;
-
 	}
 
 	if (paliashdr->frames[frame].type == ALIAS_SINGLE)
@@ -901,14 +901,6 @@ void R_AliasDrawModel (alight_t *plighting)
 			r_recursiveaffinetriangles;
 
 	r_affinetridesc.pstverts = (mstvert_t *)((qbyte *)paliashdr + paliashdr->stverts);
-/*	{
-	int i;
-	for (i = 0; i < pmdl->numstverts; i++)
-	{
-		r_affinetridesc.pstverts[i].s = rand()<<8;
-		r_affinetridesc.pstverts[i].t = rand()<<8;
-	}
-	}*/
 
 	if (r_affinetridesc.drawtype)
 	{

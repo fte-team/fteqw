@@ -2662,7 +2662,7 @@ static void CL_Say (qboolean team, char *extra)
 		return;
 	}
 #endif
-	CL_SendClientCommand("%s \"%s%s\"", team ? "say_team " : "say ", extra?extra:"", sendtext);
+	CL_SendClientCommand(true, "%s \"%s%s\"", team ? "say_team " : "say ", extra?extra:"", sendtext);
 }
 
 

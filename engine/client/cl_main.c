@@ -1301,7 +1301,7 @@ void CL_FullServerinfo_f (void)
 	{
 		unsigned int chksum = strtoul(p, NULL, 0);
 		if (CSQC_Init(chksum))
-			CL_SendClientCommand("enablecsqc");
+			CL_SendClientCommand(true, "enablecsqc");
 	}
 #endif
 }
@@ -1624,7 +1624,7 @@ void CL_Reconnect_f (void)
 	if (cls.state == ca_connected)
 	{
 		Con_TPrintf (TLC_RECONNECTING);
-		CL_SendClientCommand("new");
+		CL_SendClientCommand(true, "new");
 		return;
 	}
 
@@ -1840,7 +1840,7 @@ client_connect:	//fixme: make function
 		cls.netchan.qsocket = cls.netcon;
 #endif
 		if (cls.q2server < 2)
-			CL_SendClientCommand("new");
+			CL_SendClientCommand(true, "new");
 		cls.state = ca_connected;
 		Con_TPrintf (TLC_CONNECTED);
 		allowremotecmd = false; // localid required now for remote cmds

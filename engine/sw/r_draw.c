@@ -198,8 +198,6 @@ void R_InitSkyBox (void)
 	model_t *wm;
 
 	wm = cl.worldmodel;
-
-	Hunk_Check();
 	
 	if (wm->numsurfaces+6 > MAX_MAP_FACES
 		|| wm->numvertexes+8 > MAX_MAP_VERTS
@@ -214,12 +212,9 @@ void R_InitSkyBox (void)
 //	wm->numedges += 12;
 	r_skysurfedges = wm->surfedges + wm->numsurfedges;
 //	wm->numsurfedges += 24;
-		
-		Hunk_Check();
 
 	memset (r_skyfaces, 0, 6*sizeof(*r_skyfaces));
-	
-	Hunk_Check();
+
 	for (i=0 ; i<6 ; i++)
 	{
 		r_skyplanes[i].normal[skybox_planes[i*2]] = 1;
@@ -238,15 +233,12 @@ void R_InitSkyBox (void)
 		r_skyfaces[i].extents[0] = 256;
 		r_skyfaces[i].extents[1] = 256;
 	}
-	Hunk_Check();
 
 	for (i=0 ; i<24 ; i++)
 		if (box_surfedges[i] > 0)
 			r_skysurfedges[i] = wm->numedges-12 + box_surfedges[i];
 		else
 			r_skysurfedges[i] = - (wm->numedges-12 + -box_surfedges[i]);
-			
-			Hunk_Check();
 
 	for(i=0 ; i<12 ; i++)
 	{
@@ -254,6 +246,7 @@ void R_InitSkyBox (void)
 		r_skyedges[i].v[1] = wm->numvertexes-8+box_edges[i*2+1];
 		r_skyedges[i].cachededgeoffset = 0;
 	}
+
 	Hunk_Check();
 }
 

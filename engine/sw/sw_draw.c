@@ -96,9 +96,13 @@ mpic_t	*SWDraw_SafeCachePic (char *extpath)
 		qbyte *file, *image;
 		int width;
 		int height;
-		_snprintf(alternatename, MAX_QPATH-1,"%s.pcx", path);
-
+		_snprintf(alternatename, MAX_QPATH-1,"pics/%s.pcx", path);
 		file = COM_LoadMallocFile(alternatename);
+		if (!file)
+		{
+			_snprintf(alternatename, MAX_QPATH-1,"%s.pcx", path);
+			file = COM_LoadMallocFile(alternatename);
+		}
 		if (file)
 		{
 			image = ReadPCXFile(file, com_filesize, &width, &height);

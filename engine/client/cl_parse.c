@@ -315,7 +315,7 @@ void CL_SendDownloadRequest(char *filename)
 	COM_StripExtension (cls.downloadname, cls.downloadtempname);
 	strcat (cls.downloadtempname, ".tmp");
 
-	CL_SendClientCommand("download %s", cls.downloadname);
+	CL_SendClientCommand(true, "download %s", cls.downloadname);
 
 	//prevent ftp/http from changing stuff
 	cls.downloadmethod = DL_QWPENDING;
@@ -596,7 +596,7 @@ void Model_NextDownload (void)
 	{
 	// done with modellist, request first of static signon messages
 //		CL_SendClientCommand("prespawn %i 0 %i", cl.servercount, cl.worldmodel->checksum2);
-		CL_SendClientCommand(prespawn_name, cl.servercount, cl.worldmodel->checksum2);
+		CL_SendClientCommand(true, prespawn_name, cl.servercount, cl.worldmodel->checksum2);
 	}
 }
 
@@ -661,7 +661,7 @@ void Sound_NextDownload (void)
 #endif
 	{
 //		CL_SendClientCommand ("modellist %i 0", cl.servercount);
-		CL_SendClientCommand (modellist_name, cl.servercount, 0);
+		CL_SendClientCommand (true, modellist_name, cl.servercount, 0);
 	}
 }
 
@@ -723,7 +723,7 @@ void CL_SendDownloadReq(sizebuf_t *msg)
 		}
 		else
 		{
-			CL_SendClientCommand("nextdl %i\n", i);
+			CL_SendClientCommand(false, "nextdl %i\n", i);
 		}
 		return;
 	}
@@ -1048,7 +1048,7 @@ void CL_ParseDownload (void)
 		// request next block
 		cls.downloadpercent = percent;
 
-		CL_SendClientCommand("nextdl");
+		CL_SendClientCommand(true, "nextdl");
 	}
 	else
 	{
@@ -1321,7 +1321,7 @@ void CL_ParseServerData (void)
 	{
 		// ask for the sound list next
 //		CL_SendClientCommand ("soundlist %i 0", cl.servercount);
-		CL_SendClientCommand (soundlist_name, cl.servercount, 0);
+		CL_SendClientCommand (true, soundlist_name, cl.servercount, 0);
 	}
 
 	// now waiting for downloads, etc
@@ -1568,20 +1568,20 @@ Con_DPrintf ("CL_SignonReply: %i\n", cls.signon);
 	switch (cls.signon)
 	{
 	case 1:
-		CL_SendClientCommand("prespawn");
+		CL_SendClientCommand(true, "prespawn");
 		break;
 
 	case 2:		
-		CL_SendClientCommand("name \"%s\"\n", name.string);
+		CL_SendClientCommand(true, "name \"%s\"\n", name.string);
 		name.modified = false;
 	
-		CL_SendClientCommand("color %i %i\n", (int)topcolor.value, (int)bottomcolor.value);
+		CL_SendClientCommand(true, "color %i %i\n", (int)topcolor.value, (int)bottomcolor.value);
 	
-		CL_SendClientCommand("spawn %s", "");
+		CL_SendClientCommand(true, "spawn %s", "");
 		break;
 		
 	case 3:	
-		CL_SendClientCommand("begin");
+		CL_SendClientCommand(true, "begin");
 		Cache_Report ();		// print remaining memory
 #ifdef VM_CG
 		CG_Start();
@@ -1774,7 +1774,7 @@ void CL_ParseSoundlist (void)
 	if (n)
 	{
 //		CL_SendClientCommand("soundlist %i %i", cl.servercount, n);
-		CL_SendClientCommand(soundlist_name, cl.servercount, n);
+		CL_SendClientCommand(true, soundlist_name, cl.servercount, n);
 		return;
 	}
 
@@ -1845,7 +1845,7 @@ void CL_ParseModellist (qboolean lots)
 	if (n)
 	{
 //		CL_SendClientCommand("modellist %i %i", cl.servercount, n);
-		CL_SendClientCommand(modellist_name, cl.servercount, (nummodels&0xff00) + n);
+		CL_SendClientCommand(true, modellist_name, cl.servercount, (nummodels&0xff00) + n);
 		return;
 	}
 
@@ -3588,7 +3588,7 @@ void CLQ2_ParseServerMessage (void)
 			return;
 		case svcq2_reconnect:	//8
 			Con_TPrintf (TLC_RECONNECTING);
-			CL_SendClientCommand("new");
+			CL_SendClientCommand(true, "new");
 			break;
 		case svcq2_sound:		//9			// <see code>
 			CLQ2_ParseStartSoundPacket();

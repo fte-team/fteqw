@@ -381,7 +381,7 @@ model_t *SWMod_LoadModel (model_t *mod, qboolean crash)
 	case MD3_IDENT:
 		SWMod_LoadAlias3Model (mod, buf);
 		break;
-		
+
 	case IDSPRITEHEADER:
 		SWMod_LoadSpriteModel (mod, buf);
 		break;
@@ -2053,7 +2053,7 @@ void * SWMod_LoadAliasFrame (void * pin, int *pframeindex, int numv,
 
 	for (i=0 ; i<3 ; i++)
 	{
-	// these are qbyte values, so we don't have to worry about
+	// these are byte values, so we don't have to worry about
 	// endianness
 		pbboxmin->v[i] = pdaliasframe->bboxmin.v[i];
 		pbboxmax->v[i] = pdaliasframe->bboxmax.v[i];
@@ -2068,7 +2068,7 @@ void * SWMod_LoadAliasFrame (void * pin, int *pframeindex, int numv,
 	{
 		int		k;
 
-	// these are all qbyte values, so no need to deal with endianness
+	// these are all byte values, so no need to deal with endianness
 		pframe[j].lightnormalindex = pinframe[j].lightnormalindex;
 
 		for (k=0 ; k<3 ; k++)
@@ -2109,7 +2109,7 @@ void * SWMod_LoadAliasGroup (void * pin, int *pframeindex, int numv,
 
 	for (i=0 ; i<3 ; i++)
 	{
-	// these are qbyte values, so we don't have to worry about endianness
+	// these are byte values, so we don't have to worry about endianness
 		pbboxmin->v[i] = pingroup->bboxmin.v[i];
 		pbboxmax->v[i] = pingroup->bboxmax.v[i];
 	}
@@ -2290,7 +2290,7 @@ void SWMod_LoadAliasModel (model_t *mod, void *buffer)
 
 		if (cls.state >= ca_connected)
 		{
-			CL_SendClientCommand("setinfo %s %d", 
+			CL_SendClientCommand(true, "setinfo %s %d", 
 				!strcmp(loadmodel->name, "progs/player.mdl") ? pmodel_name : emodel_name,
 				(int)crc);
 		}
@@ -2508,6 +2508,8 @@ void SWMod_LoadAliasModel (model_t *mod, void *buffer)
 //	
 	end = Hunk_LowMark ();
 	total = end - start;
+
+	Hunk_Check();
 	
 	Cache_Alloc (&mod->cache, total, loadname);
 	if (!mod->cache.data)
@@ -2567,7 +2569,7 @@ void SWMod_LoadAlias2Model (model_t *mod, void *buffer)
 
 		if (cls.state >= ca_connected)
 		{
-			CL_SendClientCommand("setinfo %s %d", 
+			CL_SendClientCommand(true, "setinfo %s %d", 
 				!strcmp(loadmodel->name, "progs/player.mdl") ? pmodel_name : emodel_name,
 				(int)crc);
 		}
@@ -2900,6 +2902,22 @@ typedef struct {
 	float ang[3][3];
 } md3tag_t;
 
+qbyte *LoadTextureFile(char *texturename)
+{
+	qbyte *tex;
+	if ((tex = COM_LoadMallocFile(texturename)))
+		return tex;
+	if ((tex = COM_LoadMallocFile(va("textures/%s.tga", texturename))))
+		return tex;
+	if ((tex = COM_LoadMallocFile(va("textures/%s.jpg", texturename))))
+		return tex;
+	if ((tex = COM_LoadMallocFile(va("%s.tga", texturename))))
+		return tex;
+	if ((tex = COM_LoadMallocFile(va("%s.jpg", texturename))))
+		return tex;
+
+	return NULL;
+}
 
 void SWMod_LoadAlias3Model (model_t *mod, void *buffer)
 {
@@ -2944,7 +2962,7 @@ void SWMod_LoadAlias3Model (model_t *mod, void *buffer)
 
 		if (cls.state >= ca_connected)
 		{
-			CL_SendClientCommand("setinfo %s %d", 
+			CL_SendClientCommand(true, "setinfo %s %d", 
 				!strcmp(loadmodel->name, "progs/player.mdl") ? pmodel_name : emodel_name,
 				(int)crc);
 		}
@@ -3041,13 +3059,13 @@ void SWMod_LoadAlias3Model (model_t *mod, void *buffer)
 
 		for (i=0 ; i<numskins ; i++, pinskin++)
 		{
-			buffer = COM_LoadMallocFile(pinskin->name);
+			buffer = LoadTextureFile(pinskin->name);
 			if (!buffer)
 			{
 				char altname[256];
 				strcpy(altname, mod->name);	//backup
 				strcpy(COM_SkipPath(altname), COM_SkipPath(pinskin->name));
-				buffer = COM_LoadMallocFile(altname);
+				buffer = LoadTextureFile(altname);
 			}
 
 			if (!buffer)

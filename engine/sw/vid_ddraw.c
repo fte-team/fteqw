@@ -292,6 +292,9 @@ qboolean DDRAW_Init(rendererstate_t *info, unsigned char **ppbuffer, int *ppitch
 	ddsd.dwFlags = /*DDSD_CAPS |*/ DDSD_BACKBUFFERCOUNT;
 	ddsd.ddsCaps.dwCaps = DDSCAPS_PRIMARYSURFACE | DDSCAPS_COMPLEX;
 	ddsd.dwBackBufferCount = 1;
+	ddsd.dwRefreshRate = info->rate;
+	if (ddsd.dwRefreshRate)
+		ddsd.dwFlags |= DDSD_REFRESHRATE;
 
 	Con_SafePrintf( "...creating front buffer: ");
 	if ( ( ddrval = lpDirectDraw->lpVtbl->CreateSurface( lpDirectDraw, &ddsd, &lpddsFrontBuffer, NULL ) ) != DD_OK )

@@ -750,7 +750,7 @@ void CLNQ_SendCmd(void)
 	if (name.modified)
 	{
 		name.modified = false;
-		CL_SendClientCommand("name \"%s\"\n", name.string);
+		CL_SendClientCommand(true, "name \"%s\"\n", name.string);
 	}
 
 	if (nq_dp_protocol > 0)
@@ -840,10 +840,11 @@ qboolean allowindepphys;
 typedef struct clcmdbuf_s {
 	struct clcmdbuf_s *next;
 	int len;
+	qboolean reliable;
 	char command[4];	//this is dynamically allocated, so this is variably sized.
 } clcmdbuf_t;
 clcmdbuf_t *clientcmdlist;
-void VARGS CL_SendClientCommand(char *format, ...)
+void VARGS CL_SendClientCommand(qboolean reliable, char *format, ...)
 {
 	qboolean oldallow;
 	va_list		argptr;
@@ -871,6 +872,7 @@ void VARGS CL_SendClientCommand(char *format, ...)
 	buf = Z_Malloc(sizeof(*buf)+strlen(string));
 	strcpy(buf->command, string);
 	buf->len = strlen(buf->command);
+	buf->reliable = reliable;
 
 	//add to end of the list so that the first of the list is the first to be sent.
 	if (!clientcmdlist)
@@ -1032,19 +1034,6 @@ void CL_SendCmd (float frametime)
 	}
 #endif
 
-	{
-		clcmdbuf_t *next;
-		while (clientcmdlist)
-		{
-			next = clientcmdlist->next;
-			MSG_WriteByte (&cls.netchan.message, clc_stringcmd);
-			MSG_WriteString (&cls.netchan.message, clientcmdlist->command);
-//			Con_Printf("Sending stringcmd %s\n", clientcmdlist->command);
-			Z_Free(clientcmdlist);
-			clientcmdlist = next;
-		}
-	}
-
 	if (cls.demoplayback != DPB_NONE)
 	{
 		if (cls.demoplayback == DPB_MVD)
@@ -1076,6 +1065,31 @@ void CL_SendCmd (float frametime)
 		}
 
 		return; // sendcmds come from the demo
+	}
+
+	buf.maxsize = sizeof(data);
+	buf.cursize = 0;
+	buf.data = data;
+	CL_SendDownloadReq(&buf);
+	{
+		clcmdbuf_t *next;
+		while (clientcmdlist)
+		{
+			next = clientcmdlist->next;
+			if (clientcmdlist->reliable)
+			{
+				MSG_WriteByte (&cls.netchan.message, clc_stringcmd);
+				MSG_WriteString (&cls.netchan.message, clientcmdlist->command);
+			}
+			else
+			{
+				MSG_WriteByte (&buf, clc_stringcmd);
+				MSG_WriteString (&buf, clientcmdlist->command);
+			}
+//			Con_Printf("Sending stringcmd %s\n", clientcmdlist->command);
+			Z_Free(clientcmdlist);
+			clientcmdlist = next;
+		}
 	}
 
 #ifdef NQPROT
@@ -1154,12 +1168,7 @@ void CL_SendCmd (float frametime)
 
 // send this and the previous cmds in the message, so
 // if the last packet was dropped, it can be recovered
-	buf.maxsize = sizeof(data);
-	buf.cursize = 0;
-	buf.data = data;
 	clientcount = cl.splitclients;
-
-	CL_SendDownloadReq(&buf);
 
 	if (!clientcount)
 		clientcount = 1;

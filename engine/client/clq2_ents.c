@@ -1622,11 +1622,14 @@ void CLQ2_AddPacketEntities (q2frame_t *frame)
 			ent.fatness = 1;
 #ifdef Q3SHADERS	//fixme: do better.
 			//fixme: this is woefully gl specific. :(
-			ent.shaderRGBA[0] = (!!(renderfx & Q2RF_SHELL_RED)) * 255;
-			ent.shaderRGBA[1] = (!!(renderfx & Q2RF_SHELL_GREEN)) * 255;
-			ent.shaderRGBA[2] = (!!(renderfx & Q2RF_SHELL_BLUE)) * 255;
-			ent.shaderRGBA[3] = ent.alpha*255;
-			ent.forcedshader = R_RegisterCustom("q2/shell", Shader_DefaultSkinShell);
+			if (qrenderer == QR_OPENGL)
+			{
+				ent.shaderRGBA[0] = (!!(renderfx & Q2RF_SHELL_RED)) * 255;
+				ent.shaderRGBA[1] = (!!(renderfx & Q2RF_SHELL_GREEN)) * 255;
+				ent.shaderRGBA[2] = (!!(renderfx & Q2RF_SHELL_BLUE)) * 255;
+				ent.shaderRGBA[3] = ent.alpha*255;
+				ent.forcedshader = R_RegisterCustom("q2/shell", Shader_DefaultSkinShell);
+			}
 #endif
 			V_AddLerpEntity (&ent);
 		}

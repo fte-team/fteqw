@@ -637,6 +637,25 @@ void SWR_MarkLeaves (void)
 	}
 }
 
+//temporary
+void SWR_DrawBeam(entity_t *e)
+{
+	particle_t p;
+	vec3_t o1, o2;
+	vec3_t dir;
+	int len;
+	VectorSubtract(e->origin, e->oldorigin, dir);
+	VectorCopy(e->oldorigin, o1);
+	len = VectorNormalize(dir);
+	p.alpha = 1;
+	p.color = 15;
+	for (; len>=0; len--)
+	{
+		VectorAdd(o1, dir, o2);
+		D_DrawSparkTrans (&p, o1, o2);
+		VectorCopy(o2, o1);
+	}
+}
 
 /*
 =============
@@ -660,14 +679,29 @@ void SWR_DrawEntitiesOnList (void)
 	for (i=0 ; i<cl_numvisedicts ; i++)
 	{
 		currententity = &cl_visedicts[i];
-		if (cl.viewentity[r_refdef.currentplayernum] && currententity->keynum == cl.viewentity[r_refdef.currentplayernum])
-			continue;
-		if (currententity->flags & 2)
-			continue;
 
-		if (!Cam_DrawPlayer(0, currententity->keynum-1))
-			continue;
+		{
+			j = currententity->keynum;
+			while(j)
+			{
+				if (j == (cl.viewentity[r_refdef.currentplayernum]?cl.viewentity[r_refdef.currentplayernum]:(cl.playernum[r_refdef.currentplayernum]+1)))
+					break;
+				j = cl.lerpents[j].tagent;
+			}
+			if (j)
+				continue;
 
+			if (cl.viewentity[r_refdef.currentplayernum] && currententity->keynum == cl.viewentity[r_refdef.currentplayernum])
+				continue;
+			if (!Cam_DrawPlayer(0, currententity->keynum-1))
+				continue;
+		}
+
+		if (currententity->flags & Q2RF_BEAM)
+		{
+			SWR_DrawBeam(currententity);
+			continue;
+		}
 		if (!currententity->model)
 			continue;
 
@@ -1057,6 +1091,8 @@ void R_DrawBEntitiesOnList (void)
 		currententity = &cl_visedicts[i];
 
 		if (!currententity->model)
+			continue;
+		if (currententity->flags & Q2RF_BEAM)
 			continue;
 
 		switch (currententity->model->type)

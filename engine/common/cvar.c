@@ -249,7 +249,7 @@ cvar_t *Cvar_SetCore (cvar_t *var, char *value, qboolean force)
 			else
 #endif
 			{
-				CL_SendClientCommand("setinfo \"%s\" \"%s\"\n", var->name, value);
+				CL_SendClientCommand(true, "setinfo \"%s\" \"%s\"\n", var->name, value);
 			}
 		}
 	}
@@ -581,7 +581,7 @@ qboolean	Cvar_Command (int level)
 #ifndef SERVERONLY
 	if (Cmd_ExecLevel > RESTRICT_SERVER)
 	{	//directed at a secondary player.
-		CL_SendClientCommand("%i setinfo %s \"%s\"", Cmd_ExecLevel - RESTRICT_SERVER-1, v->name, str);
+		CL_SendClientCommand(true, "%i setinfo %s \"%s\"", Cmd_ExecLevel - RESTRICT_SERVER-1, v->name, str);
 		return true;
 	}
 

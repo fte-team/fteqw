@@ -504,7 +504,7 @@ void Skin_NextDownload (void)
 
 	if (cls.state != ca_active)
 	{	// get next signon phase
-		CL_SendClientCommand("begin %i", cl.servercount);
+		CL_SendClientCommand(true, "begin %i", cl.servercount);
 		Cache_Report ();		// print remaining memory
 	}
 }

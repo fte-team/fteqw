@@ -91,7 +91,7 @@ void CIN_FinishCinematic (void)
 	// tell the server to advance to the next map / cinematic
 	if (cls.state == ca_active)
 	{
-		CL_SendClientCommand("nextserver %i", cl.servercount);
+		CL_SendClientCommand(true, "nextserver %i", cl.servercount);
 	}
 }
 

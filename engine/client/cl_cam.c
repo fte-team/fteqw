@@ -123,7 +123,7 @@ void Cam_Unlock(int pnum)
 {
 	if (autocam[pnum])
 	{
-		CL_SendClientCommand("ptrack");
+		CL_SendClientCommand(true, "ptrack");
 		autocam[pnum] = CAM_NONE;
 		locked[pnum] = false;
 		Sbar_Changed();
@@ -135,7 +135,7 @@ void Cam_Lock(int pnum, int playernum)
 
 	cam_lastviewtime[pnum] = -1000;
 
-	CL_SendClientCommand("ptrack %i", playernum);
+	CL_SendClientCommand(true, "ptrack %i", playernum);
 
 	spec_track[pnum] = playernum;
 	locked[pnum] = false;

@@ -1414,6 +1414,8 @@ qboolean R_ApplyRenderer (rendererstate_t *newr)
 
 		if (host_basepal)
 			BZ_Free(host_basepal);
+		if (host_colormap)
+			BZ_Free(host_colormap);
 		host_basepal = (qbyte *)COM_LoadMallocFile ("gfx/palette.lmp");
 		if (!host_basepal)
 		{
@@ -1424,9 +1426,13 @@ qboolean R_ApplyRenderer (rendererstate_t *newr)
 			{
 				memcpy(host_basepal, default_quakepal, 768);
 			}
+			else
+			{
+				host_colormap = BZ_Malloc(256*VID_GRADES);
+				if (ReadPCXData(pcx, com_filesize, 256, VID_GRADES, host_colormap))
+					goto q2colormap;	//skip the colormap.lmp file as we already read it
+			}
 		}
-		if (host_colormap)
-			BZ_Free(host_colormap);
 		host_colormap = (qbyte *)COM_LoadMallocFile ("gfx/colormap.lmp");
 		if (!host_colormap)
 		{
@@ -1465,6 +1471,8 @@ qboolean R_ApplyRenderer (rendererstate_t *newr)
 
 		if (vid.fullbright < 2)
 			vid.fullbright = 0;	//transparent colour doesn't count.
+
+q2colormap:
 
 TRACE(("dbg: R_ApplyRenderer: Palette loaded\n"));
 
@@ -1544,18 +1552,19 @@ TRACE(("dbg: R_ApplyRenderer: loaded\n"));
 TRACE(("dbg: R_ApplyRenderer: doing that funky phs thang\n"));
 		SV_CalcPHS ();
 
-		for (i = 0; i < MAX_MODELS; i++)
-		{
-			if (*sv.model_precache[i] && (!strcmp(sv.model_precache[i] + strlen(sv.model_precache[i]) - 4, ".bsp") || i-1 < sv.worldmodel->numsubmodels))
-				sv.models[i] = Mod_FindName(sv.model_precache[i]);
-			else
-				sv.models[i] = NULL;
-		}
 TRACE(("dbg: R_ApplyRenderer: clearing world\n"));
 		SV_ClearWorld ();
 
-		if (svprogfuncs)
+		if (svs.gametype == GT_PROGS)
 		{
+			for (i = 0; i < MAX_MODELS; i++)
+			{
+				if (*sv.model_precache[i] && (!strcmp(sv.model_precache[i] + strlen(sv.model_precache[i]) - 4, ".bsp") || i-1 < sv.worldmodel->numsubmodels))
+					sv.models[i] = Mod_FindName(sv.model_precache[i]);
+				else
+					sv.models[i] = NULL;
+			}
+
 			ent = sv.edicts;
 			ent->v.model = PR_SetString(svprogfuncs, sv.worldmodel->name);	//FIXME: is this a problem for normal ents?
 			for (i=0 ; i<sv.num_edicts ; i++)
@@ -1574,7 +1583,7 @@ TRACE(("dbg: R_ApplyRenderer: clearing world\n"));
 			}
 		}
 #ifdef Q2SERVER
-		else if (ge && ge->edicts)
+		else if (svs.gametype == GT_QUAKE2)
 		{
 			q2ent = ge->edicts;
 			
@@ -1592,6 +1601,8 @@ TRACE(("dbg: R_ApplyRenderer: clearing world\n"));
 				}
 			}
 		}
+		else
+			SV_UnspawnServer();
 #endif
 	}
 #endif
@@ -1609,7 +1620,10 @@ TRACE(("dbg: R_ApplyRenderer: starting on client state\n"));
 			staticmodelindex[i] = 0;
 			for (j = 1; j < MAX_MODELS; j++)
 				if (cl_static_entities[i].model == cl.model_precache[j])
+				{
 					staticmodelindex[i] = j;
+					break;
+				}
 		}
 
 		cl.worldmodel = NULL;
@@ -1656,6 +1670,7 @@ TRACE(("dbg: R_ApplyRenderer: efrags\n"));
 		for (i = 0; i < cl.num_statics; i++)	//make the static entities reappear.
 		{
 			cl_static_entities[i].model = cl.model_precache[staticmodelindex[i]];
+			cl_static_entities[i].colormap = vid.colormap;
 			if (staticmodelindex[i])	//make sure it's worthwhile.
 			{
 				R_AddEfrags(&cl_static_entities[i]);

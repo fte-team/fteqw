@@ -192,7 +192,7 @@ typedef struct quakeparms_s
 	int		argc;
 	char	**argv;
 	void	*membase;
-	int		memsize;
+	unsigned int		memsize;
 } quakeparms_t;
 
 

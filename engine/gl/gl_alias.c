@@ -2170,7 +2170,7 @@ void GL_LoadQ1Model (model_t *mod, void *buffer)
 
 		if (cls.state >= ca_connected)
 		{
-			CL_SendClientCommand("setinfo %s %d", 
+			CL_SendClientCommand(true, "setinfo %s %d", 
 				!strcmp(loadmodel->name, "progs/player.mdl") ? pmodel_name : emodel_name,
 				(int)crc);
 		}

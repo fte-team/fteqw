@@ -1102,6 +1102,7 @@ void WritePCXfile (char *filename, qbyte *data, int width, int height,
 LoadPCX
 ============
 */
+//fixme: endian issues?
 qbyte *ReadPCXFile(qbyte *buf, int length, int *width, int *height)
 {
 	pcx_t	*pcx;
@@ -1175,6 +1176,72 @@ qbyte *ReadPCXFile(qbyte *buf, int length, int *width, int *height)
 	return pcx_rgb;
 }
 
+//fixme: endian issues?
+qbyte *ReadPCXData(qbyte *buf, int length, int width, int height, qbyte *result)
+{
+	pcx_t	*pcx;
+//	pcx_t pcxbuf;
+	qbyte	*palette;
+	qbyte	*pix;
+	int		x, y;
+	int		dataByte, runLength;
+	int		count;
+	qbyte *data;
+
+//
+// parse the PCX file
+//	
+
+	pcx = (pcx_t *)buf;
+
+	if (pcx->manufacturer != 0x0a
+		|| pcx->version != 5
+		|| pcx->encoding != 1
+		|| pcx->bits_per_pixel != 8)
+	{		
+		return NULL;
+	}
+
+	if (width != pcx->xmax-pcx->xmin+1 ||
+		height > pcx->ymax-pcx->ymin+1)
+		return NULL;
+
+
+	palette = buf + length-768;
+
+	data = (char *)(pcx+1);
+
+	count = (pcx->xmax+1) * (pcx->ymax+1);
+
+	for (y=0 ; y<height ; y++)
+	{
+		pix = result + y*(pcx->xmax+1);
+		for (x=0 ; x<=pcx->xmax ; )
+		{
+			dataByte = *data;
+			data++;
+
+			if((dataByte & 0xC0) == 0xC0)
+			{
+				runLength = dataByte & 0x3F;
+				dataByte = *data;
+				data++;
+			}
+			else
+				runLength = 1;
+
+			while(runLength-- > 0)
+			{
+				*pix++ = dataByte;
+				x++;
+			}
+		}
+	}
+
+	return result;
+}
+
+//fixme: endian issues?
 qbyte *ReadPCXPalette(qbyte *buf, int len, qbyte *out)
 {
 	pcx_t	*pcx;

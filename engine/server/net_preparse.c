@@ -27,6 +27,9 @@ static qboolean ignoreprotocol;
 //I wanna knick thier mods.
 #define svcdp_skybox	37
 
+#define	svcdp_showlmp			35		// [string] slotname [string] lmpfilename [short] x [short] y
+#define	svcdp_hidelmp			36		// [string] slotname
+
 
 #define	TE_EXPLOSION3_NEH		16 // [vector] origin [coord] red [coord] green [coord] blue	(fixme: ignored)
 #define TE_LIGHTNING4_NEH		17 // [string] model [entity] entity [vector] start [vector] end
@@ -135,6 +138,12 @@ void NPP_Flush(void)
 		}
 		bufferlen = 0;
 		break;
+	case svcdp_showlmp:
+	case svcdp_hidelmp:
+		ignoreprotocol = true;
+		Con_Printf ("Ignoring svc_showlmp\n");
+		break;
+
 	case svc_temp_entity:
 		switch (buffer[1])
 		{
@@ -259,6 +268,9 @@ void NPP_NQWriteByte(int dest, qbyte data)	//replacement write func (nq to qw)
 	{		
 		switch(data)
 		{
+		case svcdp_showlmp:
+		case svcdp_hidelmp:
+			break;
 		case svc_temp_entity:			
 			break;
 		case svc_setangle:
@@ -437,11 +449,21 @@ void NPP_NQWriteByte(int dest, qbyte data)	//replacement write func (nq to qw)
 	{
 		switch(majortype)
 		{
+		case svcdp_hidelmp:
 		case svc_setname:
 		case svc_stufftext:
 		case svc_centerprint:
 			if (!data)
 				protocollen = bufferlen;
+			break;
+		case svcdp_showlmp:			// [string] slotname [string] lmpfilename [short] x [short] y
+			if (!data)
+			{	//second string, plus 4 bytes.
+				int i;
+				for (i = 0; i < bufferlen; i++)
+					if (!buffer[i])
+						protocollen = bufferlen+4;
+			}
 			break;
 		}
 	}

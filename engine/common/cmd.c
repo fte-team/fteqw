@@ -1563,9 +1563,9 @@ void Cmd_ForwardToServer (void)
 #endif
 
 	if (Cmd_Argc() > 1)
-		CL_SendClientCommand("%s %s", Cmd_Argv(0), Cmd_Args());
+		CL_SendClientCommand(true, "%s %s", Cmd_Argv(0), Cmd_Args());
 	else
-		CL_SendClientCommand("%s", Cmd_Argv(0));
+		CL_SendClientCommand(true, "%s", Cmd_Argv(0));
 }
 
 // don't forward the first argument
@@ -1586,7 +1586,7 @@ void Cmd_ForwardToServer_f (void)
 		return;		// not really connected
 
 	if (Cmd_Argc() > 1)
-		CL_SendClientCommand("%s", Cmd_Args());
+		CL_SendClientCommand(true, "%s", Cmd_Args());
 }
 #else
 void Cmd_ForwardToServer (void)

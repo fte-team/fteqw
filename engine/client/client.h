@@ -656,7 +656,7 @@ float CL_KeyState (kbutton_t *key, int pnum);
 char *Key_KeynumToString (int keynum);
 int Key_StringToKeynum (char *str, int *modifier);
 
-void VARGS CL_SendClientCommand(char *format, ...);
+void VARGS CL_SendClientCommand(qboolean reliable, char *format, ...);
 void CL_AllowIndependantSendCmd(qboolean allow);
 
 //

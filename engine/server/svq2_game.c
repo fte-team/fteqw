@@ -169,7 +169,6 @@ PF_Configstring
 */
 static void VARGS PFQ2_Configstring (int i, char *val)
 {
-	int j;
 	if (i < 0 || i >= Q2MAX_CONFIGSTRINGS)
 		Sys_Error ("configstring: bad index %i\n", i);
 

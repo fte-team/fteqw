@@ -1969,10 +1969,6 @@ void PPL_BaseEntTextures(void)
 		}
 		else
 		{
-#if 0
-			if (currententity->keynum == r_refdef.currentplayernum+1)
-				continue;
-#else
 			j = currententity->keynum;
 			while(j)
 			{
@@ -1984,7 +1980,7 @@ void PPL_BaseEntTextures(void)
 			}
 			if (j)
 				continue;
-#endif
+
 			if (cl.viewentity[r_refdef.currentplayernum] && currententity->keynum == cl.viewentity[r_refdef.currentplayernum])
 				continue;
 			if (!Cam_DrawPlayer(0, currententity->keynum-1))

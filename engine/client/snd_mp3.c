@@ -47,7 +47,13 @@
  *
  */
 
-# include "../../mp3/libmad/mad.h"
+# include "libmad/mad.h"
+#define USE_MADLIB
+#include "mymad.c"
+
+#ifdef _MSC_VER
+#pragma comment (lib, "../libs/libmad/msvc++/release/libmad.lib")
+#endif
 
 
 /*
@@ -85,12 +91,12 @@ typedef struct {
 int mymad_run(struct mad_decoder *decoder);
 int mymad_reset(struct mad_decoder *decoder);
 void mymad_finish(struct mad_decoder *decoder);
-int startdecode(unsigned char *start, unsigned long length, decoderbuffer_t *buffer);
+static int startdecode(unsigned char *start, unsigned long length, decoderbuffer_t *buffer);
 
 #define BUFFERSIZEINC (2*1024*1024)
 
 int DecodeSomeMP3(sfx_t *s, int minlength);
-byte *COM_LoadFile (char *path, int usehunk);
+qbyte *COM_LoadFile (char *path, int usehunk);
 int MP3_decode(unsigned char *start, unsigned long length, decoderbuffer_t *buffer);
 void CancelDecoder(sfx_t *s);
 sfxcache_t *S_LoadMP3Sound (sfx_t *s)

@@ -692,7 +692,7 @@ void CL_Record_f (void)
 		}
 	}
 
-	while(p = strstr(fname, ".."))
+	while((p = strstr(fname, "..")))
 	{
 		p[0] = '_';
 		p[1] = '_';

@@ -1875,6 +1875,8 @@ int LoadEnts(progfuncs_t *progfuncs, char *file, float killonspawnflags)
 				}
 				else
 				{
+					eval_t *selfvar;
+
 					//added by request of Mercury.
 					if (fulldata)	//this is a vital part of HL map support!!!
 					{	//essentually, it passes the ent's spawn info to the ent.
@@ -1889,12 +1891,12 @@ int LoadEnts(progfuncs_t *progfuncs, char *file, float killonspawnflags)
 						fulldata->string = spawndata - progfuncs->stringtable;
 					}
 
+					selfvar = (eval_t *)((int *)pr_globals + ED_FindGlobalOfs(progfuncs, "self"));
+					selfvar->edict = EDICT_TO_PROG(ed);
+
 					f = PR_FindFunc(progfuncs, var->string+progfuncs->stringtable, -2);
 					if (f)
 					{
-						eval_t *selfvar;
-						selfvar = (eval_t *)((int *)pr_globals + ED_FindGlobalOfs(progfuncs, "self"));
-						selfvar->edict = EDICT_TO_PROG(ed);
 						if (CheckSpawn)
 						{
 							G_INT(OFS_PARM0) = f;

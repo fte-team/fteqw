@@ -156,6 +156,9 @@ typedef struct part_type_s {
 	float randscale;
 	enum {BM_MERGE, BM_ADD, BM_SUBTRACT} blendmode;
 
+	float rotationstartmin, rotationstartmax;
+	float rotationmin, rotationmax;
+
 	float scaledelta;
 	float count;
 	int texturenum;
@@ -331,6 +334,10 @@ void R_ParticleEffect_f(void)
 	ptype->alpha = 1;
 	ptype->alphachange = 1;
 	ptype->colorindex = -1;
+	ptype->rotationstartmin = -M_PI;	//start with a random angle
+	ptype->rotationstartmax = M_PI;
+	ptype->rotationmin = 0;				//but don't spin
+	ptype->rotationmax = 0;
 
 	while(1)
 	{
@@ -351,6 +358,23 @@ void R_ParticleEffect_f(void)
 
 		if (!strcmp(var, "texture"))
 			Q_strncpyz(ptype->texname, value, sizeof(ptype->texname));
+
+		else if (!strcmp(var, "rotationstart"))
+		{
+			ptype->rotationstartmin = atof(value);
+			if (Cmd_Argc()>2)
+				ptype->rotationstartmax = atof(Cmd_Argv(2));
+			else
+				ptype->rotationstartmax = ptype->rotationstartmin;
+		}
+		else if (!strcmp(var, "rotationspeed"))
+		{
+			ptype->rotationmin = atof(value);
+			if (Cmd_Argc()>2)
+				ptype->rotationmax = atof(Cmd_Argv(2));
+			else
+				ptype->rotationmax = ptype->rotationmin;
+		}
 
 		else if (!strcmp(var, "scale"))
 			ptype->scale = atof(value);
@@ -2458,6 +2482,8 @@ void DrawParticleTypes (void texturedparticles(particle_t *,part_type_t*), void 
 			p->vel[1] -= friction[1]*p->vel[1];
 			p->vel[2] -= friction[2]*p->vel[2];
 			p->vel[2] -= grav;
+
+			p->angle += p->rotationspeed*pframetime;
 
 			switch (type->rampmode)
 			{

@@ -136,7 +136,7 @@ extern int t_state;
 // cvar defines for transtable
 extern cvar_t r_transtablewrite;
 extern cvar_t r_transtables;
-extern cvar_t r_transtablefull;
+extern cvar_t r_transtablehalf;
 
 void D_InitTrans(void);
 #define Trans(p, p2)	(t_curlookupp[p][p2])

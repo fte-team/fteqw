@@ -5984,6 +5984,7 @@ void PF_calltimeofday (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
 	date_t date;
 	func_t f;
+	char *ret = PF_TempStr();
 
 	f = PR_FindFunction(svprogfuncs, "timeofday", PR_ANY);
 	if (f)
@@ -5996,7 +5997,8 @@ void PF_calltimeofday (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 		G_FLOAT(OFS_PARM3) = (float)date.day;
 		G_FLOAT(OFS_PARM4) = (float)date.mon;
 		G_FLOAT(OFS_PARM5) = (float)date.year;
-		G_INT(OFS_PARM6) = (int)PR_SetString(prinst, date.str);
+		strcpy(ret, date.str);
+		G_INT(OFS_PARM6) = (int)PR_SetString(prinst, ret);
 
 		PR_ExecuteProgram(prinst, f);
 	}

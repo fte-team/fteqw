@@ -696,7 +696,8 @@ unsigned long __stdcall IN_SerialMSIntelliRun(void *param)
 			mouse->delta[0] +=	(signed char)(((code[0] & 0x03) << 6) | (code[1]/* & 0x3F*/));
 			mouse->delta[1] +=	(signed char)(((code[0] & 0x0C) << 4) | (code[2]/* & 0x3F*/));
 
-			mouse->wheeldelta += (signed char)((code[3] & 0x0f)<<4)/16;
+			if (m_forcewheel.value)
+				mouse->wheeldelta += (signed char)((code[3] & 0x0f)<<4)/16;
 
 			total=0;
 		}

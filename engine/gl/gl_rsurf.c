@@ -881,15 +881,27 @@ void GLR_BuildLightMap (msurface_t *surf, qbyte *dest, qbyte *deluxdest, stmap *
 					surf->cached_light[maps] = scale;	// 8.8 fraction
 					surf->cached_colour[maps] = cl_lightstyle[surf->styles[maps]].colour;
 
-					if (cl_lightstyle[surf->styles[maps]].colour & 1)
+					if (cl_lightstyle[surf->styles[maps]].colour == 7)	//hopefully a faster alternative.
+					{
 						for (i=0 ; i<size ; i++)
-							blocklights[i] += lightmap[i] * scale;
-					if (cl_lightstyle[surf->styles[maps]].colour & 2)
-						for (i=0 ; i<size ; i++)
-							greenblklights[i] += lightmap[i] * scale;
-					if (cl_lightstyle[surf->styles[maps]].colour & 4)
-						for (i=0 ; i<size ; i++)
-							blueblklights[i] += lightmap[i] * scale;
+						{
+							blocklights[i]		+= lightmap[i] * scale;
+							greenblklights[i]	+= lightmap[i] * scale;
+							blueblklights[i]	+= lightmap[i] * scale;
+						}
+					}
+					else
+					{
+						if (cl_lightstyle[surf->styles[maps]].colour & 1)
+							for (i=0 ; i<size ; i++)
+								blocklights[i] += lightmap[i] * scale;
+						if (cl_lightstyle[surf->styles[maps]].colour & 2)
+							for (i=0 ; i<size ; i++)
+								greenblklights[i] += lightmap[i] * scale;
+						if (cl_lightstyle[surf->styles[maps]].colour & 4)
+							for (i=0 ; i<size ; i++)
+								blueblklights[i] += lightmap[i] * scale;
+					}
 					lightmap += size;	// skip to next lightmap
 				}
 		}

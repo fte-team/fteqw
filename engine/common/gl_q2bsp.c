@@ -2296,6 +2296,10 @@ void CModQ3_LoadRFaces (lump_t *l)
 	int fv;
 
 	mesh_t *mesh;
+
+	extern cvar_t gl_shaders;
+
+	int shaders = 1;//0;//gl_shaders.value;
 	
 
 	in = (void *)(mod_base + l->fileofs);
@@ -2344,7 +2348,7 @@ continue;
 			out->flags |= SURF_DRAWSKY;
 
 #ifdef Q3SHADERS
-		if (!out->texinfo->texture->shader)
+		if (!out->texinfo->texture->shader && shaders)
 		{
 			extern cvar_t r_vertexlight;
 			if (in->facetype == MST_FLARE)
@@ -2370,9 +2374,13 @@ continue;
 		else if (in->facetype == MST_PATCH)
 		{
 			out->mesh = GL_CreateMeshForPatch(loadmodel, in);
-#ifndef Q3SHADERS
-			out->polys = GL_MeshToGLPoly(out->mesh);
-			out->mesh = NULL;
+
+#ifdef Q3SHADERS
+			if (!out->texinfo->texture->shader)
+			{
+				out->polys = GL_MeshToGLPoly(out->mesh);
+				out->mesh = NULL;
+			}
 #endif
 		}
 		else if (in->facetype == MST_PLANAR || in->facetype == MST_TRIANGLE_SOUP)
@@ -2417,6 +2425,14 @@ continue;
 				p->numverts = 3;
 				out->polys = p;
 				p = (glpoly_t *)((char *)p + polysize);
+			}
+#endif
+
+#ifdef Q3SHADERS
+			if (!out->texinfo->texture->shader)
+			{
+				out->polys = GL_MeshToGLPoly(out->mesh);
+				out->mesh = NULL;
 			}
 #endif
 		}
@@ -4428,7 +4444,9 @@ trace_t		CM_BoxTrace (vec3_t start, vec3_t end,
 						  int headnode, int brushmask)
 {
 	int		i;
+#if ADJ
 	int moved;
+#endif
 	vec3_t point;
 
 
@@ -4470,6 +4488,21 @@ trace_t		CM_BoxTrace (vec3_t start, vec3_t end,
 		int		i, numleafs;
 		vec3_t	c1, c2;
 		int		topnode;
+#if ADJ
+		if (-mins[2] != maxs[2])	//be prepared to move the thing up to counter the different min/max
+		{
+			moved = (trace_maxs[2] - trace_mins[2])/2;
+			trace_mins[2] = -moved;
+			trace_maxs[2] = moved;
+			trace_extents[2] = -trace_mins[2] > trace_maxs[2] ? -trace_mins[2] : trace_maxs[2];
+			moved = (maxs[2] - trace_maxs[2]);
+		}
+
+		trace_start[2]+=moved;
+		trace_end[2]+=moved;
+#endif
+
+
 
 		VectorAdd (start, mins, c1);
 		VectorAdd (start, maxs, c2);
@@ -4479,7 +4512,7 @@ trace_t		CM_BoxTrace (vec3_t start, vec3_t end,
 			c2[i] += 1;
 		}
 
-		numleafs = CM_BoxLeafnums_headnode (c1, c2, leafs, 1024, headnode, &topnode);
+		numleafs = CM_BoxLeafnums_headnode (c1, c2, leafs, sizeof(leafs)/sizeof(leafs[0]), headnode, &topnode);
 		for (i=0 ; i<numleafs ; i++)
 		{
 			CM_TestInLeaf (leafs[i]);
@@ -4487,12 +4520,14 @@ trace_t		CM_BoxTrace (vec3_t start, vec3_t end,
 				break;
 		}
 		VectorCopy (start, trace_trace.endpos);
-
+#if ADJ
+		trace_trace.endpos[2] -= moved;
+#endif
 		return trace_trace;
 	}
-
+#if ADJ
 	moved = 0;
-
+#endif
 	//
 	// check for point special case
 	//
@@ -4508,7 +4543,7 @@ trace_t		CM_BoxTrace (vec3_t start, vec3_t end,
 		trace_extents[0] = -trace_mins[0] > trace_maxs[0] ? -trace_mins[0] : trace_maxs[0];
 		trace_extents[1] = -trace_mins[1] > trace_maxs[1] ? -trace_mins[1] : trace_maxs[1];
 		trace_extents[2] = -trace_mins[2] > trace_maxs[2] ? -trace_mins[2] : trace_maxs[2];
-
+#if ADJ
 		if (-mins[2] != maxs[2])	//be prepared to move the thing up to counter the different min/max
 		{
 			moved = (trace_maxs[2] - trace_mins[2])/2;
@@ -4520,6 +4555,7 @@ trace_t		CM_BoxTrace (vec3_t start, vec3_t end,
 
 		trace_start[2]+=moved;
 		trace_end[2]+=moved;
+#endif
 	}
 
 	//
@@ -4536,8 +4572,9 @@ trace_t		CM_BoxTrace (vec3_t start, vec3_t end,
 		for (i=0 ; i<3 ; i++)
 			trace_trace.endpos[i] = trace_start[i] + trace_trace.fraction * (trace_end[i] - trace_start[i]);
 	}
-
+#if ADJ
 	trace_trace.endpos[2] -= moved;
+#endif
 	return trace_trace;
 }
 

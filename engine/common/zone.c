@@ -690,6 +690,7 @@ void Hunk_Print (qboolean all)
 		{
 			Con_Printf ("-------------------------\n");
 			Con_Printf ("          :%8i REMAINING\n", hunk_size - hunk_low_used - hunk_high_used);
+			Con_Printf ("               :%8i USED\n", hunk_low_used + hunk_high_used);
 			Con_Printf ("-------------------------\n");
 			h = starthigh;
 		}

@@ -952,9 +952,13 @@ PR_RunError(progfuncs, "Extra opcode not implemented\n");
 			st = &pr_statements[s];	//let the user move execution
 			pr_xstatement = s = st-pr_statements;
 
+#if 0	//fakeop stuff - not practical, the rest of the code is more optimised, st needs to point at the correct statement
 			memcpy(&fakeop, st, sizeof(dstatement_t));	//don't hit the new statement as a break point, cos it's probably the same one.
 			fakeop.op &= ~0x8000;
 			st = &fakeop;	//a little remapping...
+#else
+			st->op &= ~0x8000;
+#endif
 
 			goto reeval;	//reexecute
 		}

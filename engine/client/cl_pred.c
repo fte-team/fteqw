@@ -586,13 +586,10 @@ void CL_PredictMovePNum (int pnum)
 
 	if (cls.state == ca_onserver)
 	{	// first update is the final signon stage
-		char		text[1024];
-
 		cls.state = ca_active;
-		sprintf (text, "FTE QuakeWorld: %s", cls.servername);
-#ifdef _WIN32
-		SetWindowText (mainwindow, text);
-#endif
+		if (VID_SetWindowCaption)
+			VID_SetWindowCaption(va("FTE QuakeWorld: %s", cls.servername));
+
 		SCR_EndLoadingPlaque();
 	}
 

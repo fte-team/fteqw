@@ -40,9 +40,9 @@ cvar_t	saved4 = {"saved4", "0", NULL, CVAR_ARCHIVE};
 cvar_t	temp1 = {"temp1", "0", NULL, CVAR_ARCHIVE};
 cvar_t	noexit = {"noexit", "0", NULL};
 
-cvar_t	pr_maxedicts = {"pr_maxedicts", "512", NULL, CVAR_LATCH};
+cvar_t	pr_maxedicts = {"pr_maxedicts", "600", NULL, CVAR_LATCH};
 cvar_t	pr_imitatemvdsv = {"pr_imitatemvdsv", "0", NULL, CVAR_LATCH};
-cvar_t	pr_fixbrokenqccarrays = {"pr_fixbrokenqccarrays", "0", NULL, CVAR_LATCH};
+cvar_t	pr_fixbrokenqccarrays = {"pr_fixbrokenqccarrays", "1", NULL, CVAR_LATCH};
 
 cvar_t	progs = {"progs", "", NULL, CVAR_ARCHIVE | CVAR_SERVERINFO | CVAR_NOTFROMSERVER};
 cvar_t	qc_nonetaccess = {"qc_nonetaccess", "0"};	//prevent write_... builtins from doing anything. This means we can run any mod, specific to any engine, on the condition that it also has a qw or nq crc.
@@ -2743,7 +2743,10 @@ void PF_stuffcmd (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 		if (!strncmp(str, "color ", 6))	//okay, so this is a hack, but it fixes the qw scoreboard
 		{
 			expectingcolour = true;
-			return;
+			if (!strcmp(str, "color "))
+				return;
+			else
+				str += 6;
 		}
 		if (expectingcolour)
 		{

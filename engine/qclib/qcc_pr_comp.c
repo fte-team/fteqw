@@ -4794,7 +4794,7 @@ void QCC_PR_ParseStatement (void)
 	}
 	if (QCC_PR_Check(";"))
 	{
-		QCC_PR_ParseWarning(WARN_POINTLESSSTATEMENT, "Effectless statement");
+		QCC_PR_ParseWarning(WARN_POINTLESSSTATEMENT, "Hanging ';'");
 		return;
 	}
 
@@ -6338,8 +6338,20 @@ void QCC_PR_ParseDefs (char *classname)
 			if (QCC_PR_Check("="))
 			{
 				if (pr_token_type != tt_immediate && pr_immediate_type->type != ev_float)
-					QCC_PR_ParseError(ERR_NOTANUMBER, "enum - not a number");
-				v = pr_immediate._float;
+				{
+					def = QCC_PR_GetDef(NULL, name, NULL, false, 0);
+					if (def)
+					{
+						if (!def->constant)
+							QCC_PR_ParseError(ERR_NOTANUMBER, "enum - %s is not a constant", name);
+						else
+							v = G_FLOAT(def->ofs);
+					}
+					else
+						QCC_PR_ParseError(ERR_NOTANUMBER, "enum - not a number");
+				}
+				else
+					v = pr_immediate._float;
 				QCC_PR_Lex();
 			}
 			def = QCC_PR_GetDef(type_float, name, pr_scope, true, 1);
@@ -6367,8 +6379,21 @@ void QCC_PR_ParseDefs (char *classname)
 			if (QCC_PR_Check("="))
 			{
 				if (pr_token_type != tt_immediate && pr_immediate_type->type != ev_float)
-					QCC_PR_ParseError(ERR_NOTANUMBER, "enumflags - not a number");
-				v = pr_immediate._float;
+				{
+					def = QCC_PR_GetDef(NULL, name, NULL, false, 0);
+					if (def)
+					{
+						if (!def->constant)
+							QCC_PR_ParseError(ERR_NOTANUMBER, "enumflags - %s is not a constant", name);
+						else
+							v = G_FLOAT(def->ofs);
+					}
+					else
+						QCC_PR_ParseError(ERR_NOTANUMBER, "enumflags - not a number");
+				}
+				else
+					v = pr_immediate._float;
+
 				bits = 0;
 				i = (int)v;
 				if (i != v)

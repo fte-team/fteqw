@@ -1640,7 +1640,17 @@ void QCC_PR_ConditionCompilation(void)
 	while(1)
 	{
 		if (*s == '\r' || *s == '\n' || *s == '\0')
-			break;
+		{
+			if (s[-1] == '\\')
+			{
+			}
+			else if (s[-2] == '\\' && s[-1] == '\r' && s[-1] == '\n')
+			{
+			}
+			else
+				break;
+		}
+
 		if (!quote && s[0]=='/'&&(s[1]=='/'||s[1]=='*'))
 			break;
 		if (*s == '\"')

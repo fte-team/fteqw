@@ -47,7 +47,7 @@ void Skin_Find (player_info_t *sc)
 	model_t		*model;
 
 	mn = Info_ValueForKey (sc->userinfo, "model");
-	while(s = strchr(mn, '/'))
+	while((s = strchr(mn, '/')))
 		*mn = '\0';
 
 	if (allskins[0])

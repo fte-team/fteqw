@@ -164,6 +164,7 @@ int Huff_PreferedCompressionCRC (void);
 qboolean Huff_CompressionCRC(int crc);
 void Huff_CompressPacket(sizebuf_t *msg, int offset);
 void Huff_DecompressPacket(sizebuf_t *msg, int offset);
+int Huff_GetByte(qbyte *buffer, int *count);
 #endif
 
 #ifdef NQPROT

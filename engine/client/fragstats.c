@@ -74,6 +74,10 @@ typedef struct {
 
 static fragstats_t fragstats;
 
+void Stats_Message(char *msg, ...)
+{
+}
+
 void Stats_Evaluate(fragfilemsgtypes_t mt, int wid, int p1, int p2)
 {
 	qboolean u1;
@@ -138,14 +142,32 @@ void Stats_Evaluate(fragfilemsgtypes_t mt, int wid, int p1, int p2)
 	case ff_flagtouch:
 		fragstats.clienttotals[p1].grabs++;
 		fragstats.totaltouches++;
+
+		if (u1)
+		{
+			Stats_Message("You grabbed the flag\n");
+			Stats_Message("flag grabs: %i (%i)\n", fragstats.clienttotals[p1].grabs, fragstats.totaltouches);
+		}
 		break;
 	case ff_flagcaps:
 		fragstats.clienttotals[p1].caps++;
 		fragstats.totalcaps++;
+
+		if (u1)
+		{
+			Stats_Message("You captured the flag\n");
+			Stats_Message("flag captures: %i (%i)\n", fragstats.clienttotals[p1].caps, fragstats.totalcaps);
+		}
 		break;
 	case ff_flagdrops:
 		fragstats.clienttotals[p1].drops++;
 		fragstats.totaldrops++;
+
+		if (u1)
+		{
+			Stats_Message("You dropped the flag\n");
+			Stats_Message("flag drops: %i (%i)\n", fragstats.clienttotals[p1].drops, fragstats.totaldrops);
+		}
 		break;
 
 	//p1 died, p2 killed
@@ -153,15 +175,23 @@ void Stats_Evaluate(fragfilemsgtypes_t mt, int wid, int p1, int p2)
 	case ff_fragedby:
 		fragstats.weapontotals[wid].kills++;
 
-		if (u1)
-			fragstats.weapontotals[wid].owndeaths++;
 		fragstats.clienttotals[p1].deaths++;
 		fragstats.totaldeaths++;
+		if (u1)
+		{
+			fragstats.weapontotals[wid].owndeaths++;
+			Stats_Message("%s killed you\n", cl.players[p2].name);
+			Stats_Message("%s deaths: %i (%i/%i)\n", fragstats.weapontotals[wid].fullname, fragstats.clienttotals[p2].kills, fragstats.weapontotals[wid].kills);
+		}
 
-		if (u2)
-			fragstats.weapontotals[wid].ownkills++;
 		fragstats.clienttotals[p2].kills++;
 		fragstats.totalkills++;
+		if (u2)
+		{
+			fragstats.weapontotals[wid].ownkills++;
+			Stats_Message("You killed %s\n", cl.players[p1].name);
+			Stats_Message("%s kills: %i (%i/%i)\n", fragstats.weapontotals[wid].fullname, fragstats.clienttotals[p2].kills, fragstats.weapontotals[wid].kills);
+		}
 		break;
 	case ff_tkills:
 	case ff_tkilledby:

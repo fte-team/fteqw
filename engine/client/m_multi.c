@@ -13,8 +13,6 @@ void M_Menu_MultiPlayer_f (void)
 	qpic_t *p;
 
 	p = Draw_SafeCachePic("gfx/mp_menu.lmp");
-	if (!p)
-		return;	//go q2.
 
 	key_dest = key_menu;
 	m_state = m_complex;
@@ -22,27 +20,28 @@ void M_Menu_MultiPlayer_f (void)
 
 	menu = M_CreateMenu(0);
 	
-	MC_AddPicture(menu, 16, 4, "gfx/qplaque.lmp");
-	MC_AddCenterPicture(menu, 4, "gfx/p_multi.lmp");
-
-
-	MC_AddPicture(menu, 72, 32, "gfx/mp_menu.lmp");
+	if (p)
+	{
+		MC_AddPicture(menu, 16, 4, "gfx/qplaque.lmp");
+		MC_AddCenterPicture(menu, 4, "gfx/p_multi.lmp");
+		MC_AddPicture(menu, 72, 32, "gfx/mp_menu.lmp");
+	}
 
 	b = MC_AddConsoleCommand(menu, 72, 32, "", "menu_slist\n");
 	menu->selecteditem = (menuoption_t*)b;
 	b->common.height = 20;
-	b->common.width = p->width;
+	b->common.width = p?p->width:320;
 	b = MC_AddConsoleCommand(menu, 72, 52, "", "menu_newmulti\n");
 	b->common.height = 20;
-	b->common.width = p->width;
+	b->common.width = p?p->width:320;
 	b = MC_AddConsoleCommand(menu, 72, 72, "", "menu_setup\n");
 	b->common.height = 20;
-	b->common.width = p->width;
+	b->common.width = p?p->width:320;
 
 	b = MC_AddConsoleCommand(menu, 72, 92, "", "menu_demo\n");
 	MC_AddWhiteText(menu, 72, 92+20/2-6, "Demos", false);
 	b->common.height = 20/2+2;
-	b->common.width = p->width;
+	b->common.width = p?p->width:320;
 
 	menu->cursoritem = (menuoption_t*)MC_AddCursor(menu, 54, 32);
 }

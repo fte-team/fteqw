@@ -64,10 +64,11 @@ qterm_t *activeqterm;
 float		con_cursorspeed = 4;
 
 
+cvar_t		con_numnotifylines = {"con_notifylines","4"};		//max lines to show
 cvar_t		con_notifytime = {"con_notifytime","3"};		//seconds
 cvar_t		con_displaypossabilities = {"con_displaypossabilities", "1"};
 
-#define	NUM_CON_TIMES 16
+#define	NUM_CON_TIMES 24
 float		con_times[NUM_CON_TIMES];	// realtime time the line was generated
 								// for transparent notify lines
 
@@ -464,6 +465,7 @@ void Con_Init (void)
 // register our commands
 //
 	Cvar_Register (&con_notifytime, "Console controls");
+	Cvar_Register (&con_numnotifylines, "Console controls");
 	Cvar_Register (&con_displaypossabilities, "Console controls");
 
 	Cmd_AddCommand ("toggleconsole", Con_ToggleConsole_f);
@@ -938,6 +940,7 @@ void Con_DrawNotify (void)
 	float	time;
 	char	*s;
 	int		skip;
+	int maxlines;
 
 	console_t *con = &con_main;	//notify text should never use a chat console
 
@@ -946,9 +949,14 @@ void Con_DrawNotify (void)
 		QT_Update();
 #endif
 
+	maxlines = con_numnotifylines.value;
+	if (maxlines < 0)
+		maxlines = 0;
+	if (maxlines > NUM_CON_TIMES)
+		maxlines = NUM_CON_TIMES;
 
 	v = 0;
-	for (i= con->current-NUM_CON_TIMES+1 ; i<=con->current ; i++)
+	for (i= con->current-maxlines+1 ; i<=con->current ; i++)
 	{
 		if (i < 0)
 			continue;

@@ -47,9 +47,7 @@ Also, can efficiency be improved much?
 typedef enum vm_type_e
 {
 	VM_NONE,
-#ifdef _WIN32
 	VM_NATIVE,
-#endif
 	VM_BYTECODE
 } vm_type_t;
 
@@ -133,7 +131,69 @@ void Sys_UnloadDLL(void *handle)
 			Sys_Error("Sys_UnloadDLL FreeLibrary failed");
 	}
 }
+#else
+#include <dlfcn.h>
+void *Sys_LoadDLL(const char *name, void **vmMain, int (EXPORT_FN *syscall)(int arg, ... ))
+{
+	void (*dllEntry)(int (EXPORT_FN *)(int arg,...));
+	char dllname[MAX_OSPATH];
+	void *hVM;
 
+	sprintf(dllname, "%sx86.so", name);
+
+	hVM=NULL;
+	{
+		char name[MAX_OSPATH];
+		char *gpath;
+		// run through the search paths
+		gpath = NULL;
+		while (1)
+		{
+			gpath = COM_NextPath (gpath);
+			if (!gpath)
+				return NULL;		// couldn't find one anywhere
+			_snprintf (name, sizeof(name), "%s/%s", gpath, dllname);
+			hVM = dlopen (name, RTLD_NOW);
+			if (hVM)
+			{
+				Con_DPrintf ("dlopen (%s)\n",name);
+				break;
+			}
+		}
+	}
+
+	if(!hVM) return NULL;
+
+	dllEntry=(void *)dlsym(hVM, "dllEntry");
+	if(!dllEntry)
+	{
+		dlclose(hVM);
+		return NULL;
+	}
+
+	dllEntry(syscall);
+
+	*vmMain=(void *)dlsym(hVM, "vmMain");
+	if(!*vmMain)
+	{
+		dlclose(hVM);
+		return NULL;
+	}
+
+	return hVM;
+}
+
+/*
+** Sys_UnloadDLL
+*/
+void Sys_UnloadDLL(void *handle)
+{
+	if(handle)
+	{
+		if(dlclose(handle))
+			Sys_Error("Sys_UnloadDLL FreeLibrary failed");
+	}
+}
 #endif
 
 
@@ -859,11 +919,10 @@ void VM_PrintInfo(vm_t *vm)
 
 	switch(vm->type)
 	{
-#ifdef _WIN32
 	case VM_NATIVE:
 		Con_Printf("native\n");
 		break;
-#endif
+
 	case VM_BYTECODE:
 		Con_Printf("interpreted\n");
 		if((qvm=vm->hInst))
@@ -873,6 +932,7 @@ void VM_PrintInfo(vm_t *vm)
 			Con_Printf("  stack length: %d\n", qvm->len_ss);
 		}
 		break;
+
 	default:
 		Con_Printf("unknown\n");
 		break;
@@ -897,8 +957,8 @@ vm_t *VM_Create(vm_t *vm, const char *name, sys_call_t syscall, sys_callex_t sys
 	vm->syscallex=syscallex;
 
 
-#ifdef _WIN32
-	if (COM_CheckParm("-dllforqvm"))
+
+	if (COM_CheckParm("-dllforqvm") || COM_CheckParm("-soforqvm"))	//:)
 	{
 		if((vm->hInst=Sys_LoadDLL(name, (void**)&vm->vmMain, syscall)))
 		{
@@ -907,7 +967,7 @@ vm_t *VM_Create(vm_t *vm, const char *name, sys_call_t syscall, sys_callex_t sys
 			return vm;
 		}
 	}
-#endif
+
 
 	if((vm->hInst=QVM_Load(name, syscallex)))
 	{
@@ -929,14 +989,14 @@ void VM_Destroy(vm_t *vm)
 
 	switch(vm->type)
 	{
-#ifdef _WIN32
 	case VM_NATIVE:
 		if(vm->hInst) Sys_UnloadDLL(vm->hInst);
 		break;
-#endif
+
 	case VM_BYTECODE:
 		if(vm->hInst) QVM_UnLoad(vm->hInst);
 		break;
+
 	case VM_NONE:
 		break;
 	}
@@ -963,15 +1023,14 @@ qboolean VM_Restart(vm_t *vm)
 // restart
 	switch(vm->type)
 	{
-
-#ifdef _WIN32
 	case VM_NATIVE:
 		if(vm->hInst) Sys_UnloadDLL(vm->hInst);
 		break;
-#endif
+
 	case VM_BYTECODE:
 		if(vm->hInst) QVM_UnLoad(vm->hInst);
 		break;
+
 	case VM_NONE:
 		break;
 	}
@@ -1002,12 +1061,12 @@ int VARGS VM_Call(vm_t *vm, int instruction, ...)
 
 	switch(vm->type)
 	{
-#ifdef _WIN32
 	case VM_NATIVE:
 		return vm->vmMain(instruction, arg0, arg1, arg2, arg3, arg4, arg5, arg6);
-#endif
+
 	case VM_BYTECODE:
 		return QVM_Exec(vm->hInst, instruction, arg0, arg1, arg2, arg3, arg4, arg5, arg6, arg7);
+
 	case VM_NONE:
 		return 0;
 	}

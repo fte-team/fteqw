@@ -781,48 +781,69 @@ entity_state_t *CL_FindPacketEntity(int num)
 }
 #endif
 
-void CL_RotateAroundTag(entity_t *ent, int num)
+void CL_RotateAroundTag(entity_t *ent, int num, int tagent)
 {
 	entity_state_t *ps;
 	float *org=NULL, *ang=NULL;
+	vec3_t axis[3];
+	vec3_t temp[3];
+	int model;
+	int frame;
 
-	ps = CL_FindPacketEntity(cl.lerpents[num].tagent);
+	float *tagorg=NULL, *tagaxis;
+
+	ps = CL_FindPacketEntity(tagent);
 	if (ps)
 	{
 		org = ps->origin;
 		ang = ps->angles;
+		model = ps->modelindex;
+		frame = ps->frame;
 	}
 	else
 	{
 		extern int parsecountmod;
-		if (cl.lerpents[num].tagent <= MAX_CLIENTS && cl.lerpents[num].tagent > 0)
+		if (tagent <= MAX_CLIENTS && tagent > 0)
 		{
-			if (cl.lerpents[num].tagent-1 == cl.playernum[0])
+			if (tagent-1 == cl.playernum[0])
 			{
 				org = cl.simorg[0];
 				ang = cl.simangles[0];
 			}
 			else
 			{
-				org = cl.frames[parsecountmod].playerstate[cl.lerpents[num].tagent-1].origin;
-				ang = cl.frames[parsecountmod].playerstate[cl.lerpents[num].tagent-1].viewangles;
+				org = cl.frames[parsecountmod].playerstate[tagent-1].origin;
+				ang = cl.frames[parsecountmod].playerstate[tagent-1].viewangles;
 			}
+			model = cl.frames[parsecountmod].playerstate[tagent-1].modelindex;
+			frame = cl.frames[parsecountmod].playerstate[tagent-1].frame;
 		}
+	}
+
+	if (ang)
+	{
+		AngleVectors(ang, axis[0], axis[1], axis[2]);
+		VectorInverse(axis[1]);
+
+		Mod_GetTag(cl.model_precache[model], cl.lerpents[tagent].tagindex, frame, &tagorg, &tagaxis);
+		if (tagaxis)
+		{
+			Matrix3_Multiply(ent->axis, tagaxis, temp);
+		}
+		else	//hrm.
+			memcpy(temp, ent->axis, sizeof(temp));
+		Matrix3_Multiply(axis, temp, ent->axis);
 	}
 
 	if (org)
 		VectorAdd(ent->origin, org, ent->origin);
-	if (ang)
-	{
-		if (ps)
-			ent->angles[0]+=ang[0];
-		else
-			ent->angles[0]+=-ang[0]/3;
-		ent->angles[1]+=ang[1];
-		ent->angles[2]+=ang[2];
-	}
+	if (tagorg)
+		VectorAdd(ent->origin, tagorg, ent->origin);
 
-	ent->keynum = cl.lerpents[num].tagent;
+	ent->keynum = tagent;
+
+	if (cl.lerpents[tagent].tagent)
+		CL_RotateAroundTag(ent, num, cl.lerpents[tagent].tagent);
 }
 /*
 ===============
@@ -843,6 +864,7 @@ void CL_LinkPacketEntities (void)
 	int					i;
 	int					pnum, spnum;
 	dlight_t			*dl;
+	vec3_t				angles;
 
 	pack = &cl.frames[cls.netchan.incoming_sequence&UPDATE_MASK].packet_entities;
 
@@ -1023,9 +1045,9 @@ void CL_LinkPacketEntities (void)
 		// rotate binary objects locally
 		if (model && model->flags & EF_ROTATE)
 		{
-			ent->angles[0] = 0;
-			ent->angles[1] = autorotate;
-			ent->angles[2] = 0;
+			angles[0] = 0;
+			angles[1] = autorotate;
+			angles[2] = 0;
 
 			if (cl_item_bobbing.value)
 				ent->origin[2] += 5+sin(cl.time*3)*5;	//don't let it into the ground
@@ -1042,13 +1064,19 @@ void CL_LinkPacketEntities (void)
 					a1 -= 360;
 				if (a1 - a2 < -180)
 					a1 += 360;
-				ent->angles[i] = a2 + f * (a1 - a2);
+				angles[i] = a2 + f * (a1 - a2);
 			}
 		}
 
+		VectorCopy(angles, ent->angles);
+		angles[0]*=-1;
+		AngleVectors(angles, ent->axis[0], ent->axis[1], ent->axis[2]);
+		VectorInverse(ent->axis[1]);
+
+
 		if (cl.lerpents[s1->number].tagent)
 		{	//ent is attached to a tag, rotate this ent accordingly.
-			CL_RotateAroundTag(ent, s1->number);
+			CL_RotateAroundTag(ent, s1->number, cl.lerpents[s1->number].tagent);
 		}
 
 		// add automatic particle trails
@@ -1562,6 +1590,7 @@ void CL_AddFlagModels (entity_t *ent, int team)
 	float	f;
 	vec3_t	v_forward, v_right, v_up;
 	entity_t	*newent;
+	vec3_t	angles;
 
 	if (cl_flagindex == -1)
 		return;
@@ -1602,11 +1631,17 @@ void CL_AddFlagModels (entity_t *ent, int team)
 
 	VectorCopy (ent->angles, newent->angles)
 	newent->angles[2] -= 45;
+
+	VectorCopy(newent->angles, angles);
+	angles[0]*=-1;
+	AngleVectors(angles, newent->axis[0], newent->axis[1], newent->axis[2]);
+	VectorInverse(newent->axis[1]);
 }
 
 void CL_AddVWeapModel(entity_t *player, int model)
 {
 	entity_t	*newent;
+	vec3_t	angles;
 	newent = CL_NewTempEntity ();
 
 	VectorCopy(player->origin, newent->origin);
@@ -1614,6 +1649,11 @@ void CL_AddVWeapModel(entity_t *player, int model)
 	newent->skinnum = player->skinnum;
 	newent->model = cl.model_precache[model];
 	newent->frame = player->frame;
+
+	VectorCopy(newent->angles, angles);
+	angles[0]*=-1;
+	AngleVectors(angles, newent->axis[0], newent->axis[1], newent->axis[2]);
+	VectorInverse(newent->axis[1]);
 }
 
 void CL_ParseAttachment(void)
@@ -1645,6 +1685,7 @@ void CL_LinkPlayers (void)
 	int				msec;
 	frame_t			*frame;
 	int				oldphysent;
+	vec3_t			angles;
 
 	playertime = realtime - cls.latency + 0.02;
 	if (playertime > realtime)
@@ -1721,10 +1762,10 @@ void CL_LinkPlayers (void)
 		//
 		// angles
 		//
-		ent->angles[PITCH] = -state->viewangles[PITCH]/3;
-		ent->angles[YAW] = state->viewangles[YAW];
-		ent->angles[ROLL] = 0;
-		ent->angles[ROLL] = V_CalcRoll (ent->angles, state->velocity)*4;
+		angles[PITCH] = -state->viewangles[PITCH]/3;
+		angles[YAW] = state->viewangles[YAW];
+		angles[ROLL] = 0;
+		angles[ROLL] = V_CalcRoll (angles, state->velocity)*4;
 
 		// the player object gets added with flags | 2
 		for (pnum = 0; pnum < cl.splitclients; pnum++)
@@ -1736,9 +1777,9 @@ void CL_LinkPlayers (void)
 					cl_numvisedicts--;
 					continue;
 				}
-				ent->angles[0] = -1*cl.viewangles[pnum][0] / 3;
-				ent->angles[1] = cl.viewangles[pnum][1];
-				ent->angles[2] = cl.viewangles[pnum][2];
+				angles[0] = -1*cl.viewangles[pnum][0] / 3;
+				angles[1] = cl.viewangles[pnum][1];
+				angles[2] = cl.viewangles[pnum][2];
 				ent->origin[0] = cl.simorg[pnum][0];
 				ent->origin[1] = cl.simorg[pnum][1];
 				ent->origin[2] = cl.simorg[pnum][2]+cl.crouch[pnum];
@@ -1746,6 +1787,11 @@ void CL_LinkPlayers (void)
 				break;
 			}
 		}
+
+		VectorCopy(angles, ent->angles);
+		angles[0]*=-1;
+		AngleVectors(angles, ent->axis[0], ent->axis[1], ent->axis[2]);
+		VectorInverse(ent->axis[1]);
 
 		// only predict half the move to minimize overruns
 		msec = 500*(playertime - state->state_time);

@@ -248,7 +248,10 @@ void QT_Create(char *command)
 
 void Con_QTerm_f(void)
 {
-	QT_Create(Cmd_Args());
+	if(Cmd_FromServer())
+		Con_Printf("Server tried stuffcmding a restricted commandqterm %s\n", Cmd_Args());
+	else
+		QT_Create(Cmd_Args());
 }
 #endif
 

@@ -205,11 +205,11 @@ typedef struct
 //
 // client_state_t should hold all pieces of the client state
 //
-#define	MAX_DLIGHTS		32
+#define	MAX_DLIGHTS		256
 typedef struct dlight_s
 {
 	int		key;				// so entities can reuse same entry
-	qboolean	noppl;
+	qboolean	noppl, nodynamic, noflash, isstatic;
 	vec3_t	origin;
 	float	radius;
 	float	die;				// stop lighting after this time
@@ -217,6 +217,8 @@ typedef struct dlight_s
 	float	minlight;			// don't add when contributing less
 	float   color[3];
 	float	channelfade[3];
+
+	struct	shadowmesh_s *worldshadowmesh;
 } dlight_t;
 
 typedef struct

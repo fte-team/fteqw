@@ -1231,6 +1231,9 @@ void V_RenderPlayerViews(int plnum)
 	SCR_VRectForPlayer(&r_refdef.vrect, plnum);
 	view_message = &view_frame->playerstate[cl.playernum[plnum]];
 
+	if (cls.netcon)
+		view_message->weaponframe = cl.stats[0][STAT_WEAPONFRAME];
+
 	cl.simangles[plnum][ROLL] = 0;	// FIXME @@@ 
 
 

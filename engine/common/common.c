@@ -681,6 +681,7 @@ void MSG_WriteString (sizebuf_t *sb, char *s)
 }
 
 int sizeofcoord=2;
+int sizeofangle=1;
 float MSG_FromCoord(coorddata c, int bytes)
 {
 	switch(bytes)
@@ -719,14 +720,17 @@ void MSG_WriteCoord (sizebuf_t *sb, float f)
 	SZ_Write (sb, (void*)&i, sizeofcoord);
 }
 
-void MSG_WriteAngle (sizebuf_t *sb, float f)
-{
-	MSG_WriteByte (sb, (int)(f*256/360) & 255);
-}
-
 void MSG_WriteAngle16 (sizebuf_t *sb, float f)
 {
 	MSG_WriteShort (sb, (int)(f*65536/360) & 65535);
+}
+
+void MSG_WriteAngle (sizebuf_t *sb, float f)
+{
+	if (sizeofangle==2)
+		MSG_WriteAngle16(sb, f);
+	else
+		MSG_WriteByte (sb, (int)(f*256/360) & 255);
 }
 
 void MSG_WriteDeltaUsercmd (sizebuf_t *buf, usercmd_t *from, usercmd_t *cmd)
@@ -990,9 +994,9 @@ float MSG_ReadCoord (void)
 
 void MSG_ReadPos (vec3_t pos)
 {
-	pos[0] = MSG_ReadShort() * (1.0/8);
-	pos[1] = MSG_ReadShort() * (1.0/8);
-	pos[2] = MSG_ReadShort() * (1.0/8);
+	pos[0] = MSG_ReadCoord();
+	pos[1] = MSG_ReadCoord();
+	pos[2] = MSG_ReadCoord();
 }
 
 #define Q2NUMVERTEXNORMALS	162
@@ -1035,14 +1039,16 @@ void MSG_WriteDir (sizebuf_t *sb, vec3_t dir)
 	}
 	MSG_WriteByte (sb, best);
 }
-float MSG_ReadAngle (void)
-{
-	return MSG_ReadChar() * (360.0/256);
-}
 
 float MSG_ReadAngle16 (void)
 {
 	return MSG_ReadShort() * (360.0/65536);
+}
+float MSG_ReadAngle (void)
+{
+	if (sizeofangle==2)
+		return MSG_ReadAngle16();
+	return MSG_ReadChar() * (360.0/256);
 }
 
 void MSG_ReadDeltaUsercmd (usercmd_t *from, usercmd_t *move)
@@ -2200,7 +2206,7 @@ void COM_WriteFile (char *filename, void *data, int len)
 		f = fopen (name, "wb");
 		if (!f)
 		{
-			Con_Printf("Error opening %s\n", filename);
+			Con_Printf("Error opening %s for writing\n", filename);
 			return;
 		}
 	}
@@ -2301,17 +2307,11 @@ int FS_RebuildOSFSHash(char *filename, int filesize, void *data)
 	return true;
 }
 
-void FS_RebuildFSHash(void)
+void FS_FlushFSHash(void)
 {
-	int i;
-	searchpath_t	*search;
-	if (!filesystemhash.numbuckets)
+	if (filesystemhash.numbuckets)
 	{
-		filesystemhash.numbuckets = 1024;
-		filesystemhash.bucket = BZ_Malloc(Hash_BytesForBuckets(filesystemhash.numbuckets));
-	}
-	else
-	{
+		int i;
 		bucket_t *bucket, *next;
 		
 		for (i = 0; i < filesystemhash.numbuckets; i++)
@@ -2326,6 +2326,23 @@ void FS_RebuildFSHash(void)
 				bucket = next;
 			}
 		}
+	}
+
+	com_fschanged = true;
+}
+
+void FS_RebuildFSHash(void)
+{
+	int i;
+	searchpath_t	*search;
+	if (!filesystemhash.numbuckets)
+	{
+		filesystemhash.numbuckets = 1024;
+		filesystemhash.bucket = BZ_Malloc(Hash_BytesForBuckets(filesystemhash.numbuckets));
+	}
+	else
+	{
+		FS_FlushFSHash();
 	}
 	Hash_InitTable(&filesystemhash, filesystemhash.numbuckets, filesystemhash.bucket);
 
@@ -3951,6 +3968,8 @@ void COM_Gamedir (char *dir)
 #ifndef SERVERONLY
 	cl.gamedirchanged = true;
 #endif
+
+	FS_FlushFSHash();
 
 	//
 	// free up any current game dir info

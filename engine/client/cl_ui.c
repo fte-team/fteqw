@@ -1278,8 +1278,8 @@ void UI_Start (void)
 		return;
 
 	uivm = VM_Create(NULL, "vm/qwui", UI_SystemCalls, UI_SystemCallsEx);
-//	if (!uivm)	//broken currently, I believe.
-//		uivm = VM_Create(NULL, "vm/ui", UI_SystemCalls, UI_SystemCallsEx);
+	if (!uivm)	//broken currently, I believe.
+		uivm = VM_Create(NULL, "vm/ui", UI_SystemCalls, UI_SystemCallsEx);
 	if (uivm)
 	{
 		apiversion = VM_Call(uivm, UI_GETAPIVERSION, UI_API_VERSION);

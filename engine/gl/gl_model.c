@@ -420,8 +420,15 @@ void GLMod_Think (void)
 		if (relitsurface >= lightmodel->numsurfaces)
 		{
 			char filename[MAX_QPATH];
+			char *f;
 			Con_Printf("Finished lighting level\n");
-			
+
+
+			strcpy(filename, lightmodel->name);
+			f = COM_SkipPath(filename);
+			*f = '\0';
+			Sys_mkdir(va("%s/%s", com_gamedir, filename));
+
 			if (lightmodel->deluxdata)
 			{
 				COM_StripExtension(lightmodel->name, filename);

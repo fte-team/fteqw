@@ -157,7 +157,7 @@ void R_RenderDlights (void)
 	l = cl_dlights;
 	for (i=0 ; i<MAX_DLIGHTS ; i++, l++)
 	{
-		if (l->die < cl.time || !l->radius)
+		if (!l->radius || l->noflash)
 			continue;
 		R_RenderDlight (l);
 	}
@@ -349,7 +349,7 @@ void GLR_PushDlights (void)
 	l = cl_dlights;
 	for (i=0 ; i<MAX_DLIGHTS ; i++, l++)
 	{
-		if (l->die < cl.time || !l->radius)
+		if (!l->radius || l->nodynamic)
 			continue;
 		cl.worldmodel->funcs.MarkLights( l, 1<<i, cl.worldmodel->nodes );
 	}

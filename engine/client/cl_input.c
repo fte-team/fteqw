@@ -617,6 +617,7 @@ void CLNQ_SendMove (usercmd_t		*cmd, int pnum)
 }
 void CLNQ_SendCmd(void)
 {
+	extern int cl_latestframenum, nq_dp_protocol;
 	usercmd_t		cmd;
 
 	if (cls.state <= ca_connected)
@@ -641,6 +642,13 @@ void CLNQ_SendCmd(void)
 		MSG_WriteByte(&cls.netchan.message, clc_stringcmd);
 		MSG_WriteString(&cls.netchan.message, va("name \"%s\"\n", name.string));
 	}
+
+	if (nq_dp_protocol > 0)
+	{
+		MSG_WriteByte(&cls.netchan.message, 50);
+		MSG_WriteLong(&cls.netchan.message, cl_latestframenum);
+	}
+
 	
 // send the reliable message
 	if (!cls.netchan.message.cursize)

@@ -827,6 +827,67 @@ void R_TranslatePlayerSkin (int playernum)
 	}
 }
 
+
+void R_LoadRTLights(void)
+{
+	dlight_t *dl;
+	char fname[MAX_QPATH];
+	char *file;
+	char *end;
+
+	vec3_t org;
+	float radius;
+	vec3_t rgb;
+
+	COM_StripExtension(cl.worldmodel->name, fname);
+	strncat(fname, ".rtlights", MAX_QPATH-1);
+
+	file = COM_LoadTempFile(fname);
+	if (!file)
+		return;
+	while(1)
+	{
+		end = strchr(file, '\n');
+		if (!end)
+			end = file + strlen(file);
+		if (end == file)
+			break;
+		*end = '\0';
+
+		file = COM_Parse(file);
+		org[0] = atof(com_token);
+		file = COM_Parse(file);
+		org[1] = atof(com_token);
+		file = COM_Parse(file);
+		org[2] = atof(com_token);
+
+		file = COM_Parse(file);
+		radius = atof(com_token);
+
+		file = COM_Parse(file);
+		rgb[0] = atof(com_token);
+		file = COM_Parse(file);
+		rgb[1] = atof(com_token);
+		file = COM_Parse(file);
+		rgb[2] = atof(com_token);
+
+		if (!file)
+			break;
+
+		dl = CL_AllocDlight(0);
+		VectorCopy(org, dl->origin);
+		dl->radius = radius;
+		VectorCopy(rgb, dl->color);
+		dl->die = cl.time + 0x7fffffff;
+		dl->isstatic = true;
+
+		dl->nodynamic = true;
+		dl->noflash = true;
+
+		file = end+1;
+	}
+}
+
 /*
 ===============
 R_NewMap
@@ -899,6 +960,12 @@ TRACE(("dbg: GLR_NewMap: ui\n"));
 	UI_Reset();
 TRACE(("dbg: GLR_NewMap: tp\n"));
 	TP_NewMap();
+
+
+	if (r_shadows.value)
+	{
+		R_LoadRTLights();
+	}
 }
 
 void GLR_PreNewMap(void)

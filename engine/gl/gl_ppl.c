@@ -19,6 +19,7 @@ extern cvar_t		gl_part_flame;
 
 extern cvar_t		gl_part_flame;
 extern cvar_t		gl_maxshadowlights;
+extern cvar_t		r_shadow_realtime_world;
 extern int		detailtexture;
 //end header confict
 
@@ -38,6 +39,13 @@ int shadowlightfaces;
 int ppl_specular_fragmentprogram;
 
 //#define glBegin glEnd
+
+
+typedef struct shadowmesh_s {
+	int numindicies;
+	int *indicies;
+	vec3_t *verts;
+} shadowmesh_t;
 
 
 #define	Q2RF_WEAPONMODEL		4		// only draw through eyes
@@ -837,7 +845,60 @@ void PPL_LoadSpecularFragmentProgram(void)
 	"MUL_SAT ocol.rgb, diff, lm;\n"
 	//that's all folks.
 	"END";
+/*
+	//okay, the NV fallback
+	char *nvfp = "!!FP1.0\n"
 
+	"PARAM       half  = { 0.5, 0.5, 0.5, 0.5 };\n"
+	"PARAM       negone  = { -1,-1,-1,-1 };\n"
+
+	"ATTRIB   tm_tc  = fragment.texcoord[0];\n"
+	"ATTRIB   lm_tc  = fragment.texcoord[1];\n"
+	"ATTRIB   cm_tc  = fragment.texcoord[2];\n"
+
+
+
+	"TEMP diff, spec, nm, ld, cm, gm, lm, dm;\n"
+
+
+	"TEX nm.rgb, tm_tc, f[TEX1], 2D;\n"	//normalmap
+	"TEX ld.rgb, lm_tc, f[TEX3], 2D;\n"	//
+	"TEX dm.rgb, tm_tc, f[TEX0], 2D;\n"	//deluxmap
+	"TEX gm.rgb, tm_tc, f[TEX4], 2D;\n"	//glossmap
+	"TEX lm.rgb, lm_tc, f[TEX2], 2D;\n"	//lightmap
+	"TEX cm.rgb, cm_tc, f[TEX5], CUBE;\n"	//cubemap
+
+	//textures loaded - get diffuse
+	"MAD nm.rgb, nm, 2, negone;\n"
+	"MAD ld.rgb, ld, 2, negone;\n"
+	"DP3 diff.rgb, nm, ld;\n"
+	"MUL diff.rgb, diff, dm;\n"
+	//diff now contains the entire diffuse part of the equation.
+
+	//l 19
+	"MAD cm.rgb, cm, 2, negone;\n"
+	"DP3 spec.rgb, nm, cm;\n"
+
+	"MUL spec.rgb, spec, spec;\n"
+	"MUL spec.rgb, spec, spec;\n"
+	"MUL spec.rgb, spec, spec;\n"
+
+	"MUL spec.rgb, spec, gm;\n"
+	//that's the specular part done.
+
+	//we have diffuse and specular - wahoo
+	//combine then halve.
+	"ADD diff.rgb, diff, spec;\n"
+	//"MUL diff.rgb, diff, half;\n"
+
+
+	//multiply by inverse lm and output the result.
+//	"SUB lm.rgb, 1, lm;\n"
+	"MUL_SAT o[COLR].rgb, diff, lm;\n"
+	""
+
+	"END";
+*/
 	ppl_specular_fragmentprogram = 0;
 
 	for (i = 0; i < MAXARRAYVERTS; i++)
@@ -1755,6 +1816,7 @@ void PPL_LightTextures(model_t *model, vec3_t modelorigin, dlight_t *light)
 			{
 				GL_TexEnv(GL_MODULATE);
 				glDisable(GL_TEXTURE_2D);
+
 				GL_SelectTexture(GL_TEXTURE1_ARB);
 				GL_TexEnv(GL_MODULATE);
 				glDisableClientState(GL_TEXTURE_COORD_ARRAY);
@@ -1763,6 +1825,7 @@ void PPL_LightTextures(model_t *model, vec3_t modelorigin, dlight_t *light)
 				GL_SelectTexture(GL_TEXTURE0_ARB);
 				glEnableClientState(GL_TEXTURE_COORD_ARRAY);
 				glTexCoordPointer(2, GL_FLOAT, sizeof(surfvertexarray_t), varray_v->stw);
+				glDisable(GL_TEXTURE_2D);
 			}
 
 			for (; s; s=s->texturechain)
@@ -2669,6 +2732,14 @@ void PPL_RecursiveWorldNode (dlight_t *dl)
 	float *v1, *v2;
 	vec3_t v3, v4;
 
+	if (dl->worldshadowmesh)
+	{
+		glEnableClientState(GL_VERTEX_ARRAY);
+		glVertexPointer(3, GL_FLOAT, sizeof(vec3_t), dl->worldshadowmesh->verts);
+		glDrawElements(GL_TRIANGLES, dl->worldshadowmesh->numindicies, GL_UNSIGNED_INT, dl->worldshadowmesh->indicies);
+		return;
+	}
+
 	lightradius = dl->radius;
 
 	lightorg[0] = dl->origin[0]+0.5;
@@ -2989,7 +3060,7 @@ void PPL_UpdateNodeShadowFrames(qbyte	*lvis)
 		}
 	}
 }
-/*
+
 #if 1 //DP's stolen code
 static void GL_Scissor (int x, int y, int width, int height)
 {
@@ -3048,7 +3119,10 @@ qboolean PPL_ScissorForBox(vec3_t mins, vec3_t maxs)
 			v[1] = (i & 2) ? mins[1] : maxs[1];
 			v[2] = (i & 4) ? mins[2] : maxs[2];
 			v[3] = 1.0f;
-			GL_TransformToScreen(v, v2);
+			ML_Project(v, v2, r_refdef.viewangles, r_refdef.vieworg, vid.width/vid.height, r_refdef.fov_y);
+			v2[0]*=r_view_width;
+			v2[1]*=r_view_height;
+//			GL_TransformToScreen(v, v2);
 			//Con_Printf("%.3f %.3f %.3f %.3f transformed to %.3f %.3f %.3f %.3f\n", v[0], v[1], v[2], v[3], v2[0], v2[1], v2[2], v2[3]);
 			x = v2[0];
 			y = v2[1];
@@ -3115,7 +3189,10 @@ qboolean PPL_ScissorForBox(vec3_t mins, vec3_t maxs)
 			v[1] = v2[0] * vright[1] + v2[1] * vup[1] + v2[2] * vpn[1] + r_refdef.vieworg[1];
 			v[2] = v2[0] * vright[2] + v2[1] * vup[2] + v2[2] * vpn[2] + r_refdef.vieworg[2];
 			v[3] = 1.0f;
-			GL_TransformToScreen(v, v2);
+			ML_Project(v, v2, r_refdef.viewangles, r_refdef.vieworg, vid.width/vid.height, r_refdef.fov_y);
+			v2[0]*=r_view_width;
+			v2[1]*=r_view_height;
+//			GL_TransformToScreen(v, v2);
 			//Con_Printf("%.3f %.3f %.3f %.3f transformed to %.3f %.3f %.3f %.3f\n", v[0], v[1], v[2], v[3], v2[0], v2[1], v2[2], v2[3]);
 			x = v2[0];
 			y = v2[1];
@@ -3143,6 +3220,8 @@ qboolean PPL_ScissorForBox(vec3_t mins, vec3_t maxs)
 			v[2] = (i & 4) ? mins[2] : maxs[2];
 			v[3] = 1.0f;
 			GL_TransformToScreen(v, v2);
+			v2[0]*=r_view_width;
+			v2[1]*=r_view_height;
 			//Con_Printf("%.3f %.3f %.3f %.3f transformed to %.3f %.3f %.3f %.3f\n", v[0], v[1], v[2], v[3], v2[0], v2[1], v2[2], v2[3]);
 			if (v2[2] > 0)
 			{
@@ -3174,7 +3253,7 @@ qboolean PPL_ScissorForBox(vec3_t mins, vec3_t maxs)
 	return false;
 }
 #endif
-*/
+
 void CL_NewDlight (int key, float x, float y, float z, float radius, float time,
 				   int type);
 //generates stencil shadows of the world geometry.
@@ -3205,8 +3284,8 @@ void PPL_AddLight(dlight_t *dl)
 	if (R_CullBox(mins, maxs))
 		return;
 
-//	if (PPL_ScissorForBox(mins, maxs))
-//		return;	//was culled.
+	if (PPL_ScissorForBox(mins, maxs))
+		return;	//was culled.
 
 	if (cl.worldmodel->fromgame == fg_quake2 || cl.worldmodel->fromgame == fg_quake3)
 		i = cl.worldmodel->funcs.LeafForPoint(r_refdef.vieworg, cl.worldmodel);
@@ -3222,7 +3301,7 @@ void PPL_AddLight(dlight_t *dl)
 	if (!PPL_VisOverlaps(lvis, vvis))	//The two viewing areas do not intersect.
 		return;
 
-//	glEnable(GL_SCISSOR_TEST);
+	glEnable(GL_SCISSOR_TEST);
 
 
 	glDisable(GL_BLEND);
@@ -3410,12 +3489,16 @@ void PPL_DrawWorld (void)
 		{
 			for (l = cl_dlights, i=0 ; i<MAX_DLIGHTS ; i++, l++)
 			{
-				if (l->die < cl.time || !l->radius || l->noppl)
+				if (!l->radius || l->noppl)
 					continue;
 				if (l->color[0]<0)
 					continue;	//quick check for darklight
-				if (!maxshadowlights--)
-					break;
+
+				if (l->isstatic)
+				{
+					if (!r_shadow_realtime_world.value)
+						continue;
+				}
 
 				mins[0] = l->origin[0] - l->radius;
 				mins[1] = l->origin[1] - l->radius;
@@ -3428,15 +3511,23 @@ void PPL_DrawWorld (void)
 				if (R_CullSphere(l->origin, l->radius))
 					continue;
 
+				if (!maxshadowlights--)
+					break;
+
+				if(!l->isstatic)
+				{
 				l->color[0]*=2.5;
 				l->color[1]*=2.5;
 				l->color[2]*=2.5;
-
+				}
 				TRACE(("dbg: calling PPL_AddLight\n"));
 				PPL_AddLight(l);
+				if(!l->isstatic)
+				{
 				l->color[0]/=2.5;
 				l->color[1]/=2.5;
 				l->color[2]/=2.5;
+				}
 			}
 			glEnable(GL_TEXTURE_2D);
 		}

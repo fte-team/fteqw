@@ -6210,6 +6210,7 @@ void PF_findchain (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 	chain = (edict_t *) *prinst->parms->sv_edicts;
 
 	f = G_INT(OFS_PARM0)+prinst->fieldadjust;
+	f += prinst->parms->edictsize/4;
 	s = PR_GetStringOfs(prinst, OFS_PARM1);
 
 	for (i = 1; i < *prinst->parms->sv_num_edicts; i++)
@@ -6217,7 +6218,7 @@ void PF_findchain (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 		ent = EDICT_NUM(prinst, i);
 		if (ent->isfree)
 			continue;
-		t = *(string_t *)&((float*)&ent->v)[f] + prinst->stringtable;
+		t = *(string_t *)&((float*)ent)[f] + prinst->stringtable;
 		if (!t)
 			continue;
 		if (strcmp(t, s))

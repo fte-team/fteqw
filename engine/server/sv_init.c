@@ -545,6 +545,8 @@ void SV_SpawnServer (char *server, char *startspot, qboolean noents, qboolean us
 	else
 		sizeofcoord = 2;
 
+	sizeofangle = 1;
+
 	VoteFlushAll();
 #ifndef SERVERONLY
 	D_FlushCaches();

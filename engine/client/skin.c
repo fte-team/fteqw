@@ -43,23 +43,43 @@ void Skin_Find (player_info_t *sc)
 {
 	skin_t		*skin;
 	int			i;
-	char		name[128], *s;
+	char		name[128], *s, *mn;
+	model_t		*model;
+
+	mn = Info_ValueForKey (sc->userinfo, "model");
+	while(s = strchr(mn, '/'))
+		*mn = '\0';
 
 	if (allskins[0])
-		strcpy (name, allskins);
+		s = allskins;
 	else
 	{
 		s = Info_ValueForKey (sc->userinfo, "skin");
-		if (s && s[0])
-			strcpy (name, s);
-		else
-			strcpy (name, baseskin.string);
+		if (!s[0])
+			s = baseskin.string;
 	}
 
-	if (strstr (name, "..") || *name == '.')
-		strcpy (name, "base");
+	if (*mn)
+		mn = va("%s/%s", mn, s);
 
-	COM_StripExtension (name, name);
+	if (strstr (mn, "..") || *mn == '.')
+		mn = "base";
+
+	COM_StripExtension (mn, name);
+
+	s = strchr(name, '/');
+	if (s)
+	{
+		*s = '\0';
+		model = Mod_ForName(va("models/players/%s.mdl", name), false);
+		if (model->type == mod_dummy)
+			model = NULL;
+		*s = '/';
+	}
+	else
+		model = NULL;
+
+	sc->model = model;
 
 	for (i=0 ; i<numskins ; i++)
 	{

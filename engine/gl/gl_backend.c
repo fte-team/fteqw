@@ -61,12 +61,10 @@ void GL_BindType (int type, int texnum)
 
 void GL_TexEnv( GLenum mode )
 {
-	static int lastmodes[MAX_TEXTURE_UNITS] = { -1, -1 };
-
-	if ( mode != lastmodes[gl_state.currenttmu] )
+	if ( mode != gl_state.texenvmode[gl_state.currenttmu] )
 	{
 		qglTexEnvf( GL_TEXTURE_ENV, GL_TEXTURE_ENV_MODE, mode );
-		lastmodes[gl_state.currenttmu] = mode;
+		gl_state.texenvmode[gl_state.currenttmu] = mode;
 	}
 }
 

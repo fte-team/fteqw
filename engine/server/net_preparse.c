@@ -404,6 +404,12 @@ void NPP_NQWriteByte(int dest, qbyte data)	//replacement write func (nq to qw)
 				multicasttype=MULTICAST_PHS;
 				break;
 
+			case 74:	//TE_FLAMEJET
+				protocollen = sizeofcoord*6 +sizeof(qbyte)*3;
+				multicastpos = 2;
+				multicasttype=MULTICAST_PVS;
+				break;
+
 			case 76:
 				protocollen = sizeofcoord*9+sizeof(qbyte)*2;
 				multicastpos = 2;

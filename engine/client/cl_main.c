@@ -2548,7 +2548,6 @@ CL_RequestNextDownload();
 	if (cls.state == ca_active)
 	{
 		S_Update (r_origin, vpn, vright, vup);
-		CL_DecayLights ();
 	}
 	else
 		S_Update (vec3_origin, vec3_origin, vec3_origin, vec3_origin);

@@ -147,6 +147,7 @@ cvar_t		gl_specular = {"gl_specular", "0"};
 cvar_t		gl_waterripples = {"gl_waterripples", "0"};
 cvar_t		gl_detail = {"gl_detail", "0", NULL, CVAR_ARCHIVE};
 cvar_t		r_shadows = {"r_shadows", "0", NULL, CVAR_ARCHIVE|CVAR_RENDERERLATCH};
+cvar_t		r_shadow_realtime_world = {"r_shadow_realtime_world", "0", NULL, CVAR_CHEAT};
 cvar_t		r_noaliasshadows = {"r_noaliasshadows", "0", NULL, CVAR_ARCHIVE};
 cvar_t		gl_maxshadowlights = {"gl_maxshadowlights", "2", NULL, CVAR_ARCHIVE};
 cvar_t		gl_bump = {"gl_bump", "0", NULL, CVAR_ARCHIVE|CVAR_RENDERERLATCH};
@@ -156,7 +157,7 @@ cvar_t		gl_ati_truform = {"gl_ati_truform", "0"};
 cvar_t		gl_ati_truform_type = {"gl_ati_truform_type", "1"};
 cvar_t		gl_ati_truform_tesselation = {"gl_ati_truform_tesselation", "3"};
 
-cvar_t		gl_lateswap = {"gl_lateswap", "1"};
+cvar_t		gl_lateswap = {"gl_lateswap", "0"};
 
 cvar_t			scr_sshot_type = {"scr_sshot_type", "jpg"};
 
@@ -252,6 +253,8 @@ void GLRenderer_Init(void)
 	Cvar_Register (&r_mirroralpha, GLRENDEREROPTIONS);
 	Cvar_Register (&r_lightmap, GLRENDEREROPTIONS);
 	Cvar_Register (&r_norefresh, GLRENDEREROPTIONS);
+
+	Cvar_Register (&r_shadow_realtime_world, GLRENDEREROPTIONS);
 
 	Cvar_Register (&gl_clear, GLRENDEREROPTIONS);
  

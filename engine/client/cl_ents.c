@@ -72,7 +72,7 @@ dlight_t *CL_AllocDlight (int key)
 	dl = cl_dlights;
 	for (i=0 ; i<MAX_DLIGHTS ; i++, dl++)
 	{
-		if (dl->die < cl.time)
+		if (!dl->radius)
 		{
 			memset (dl, 0, sizeof(*dl));
 			dl->key = key;
@@ -101,7 +101,7 @@ dlight_t *CL_NewDlight (int key, float x, float y, float z, float radius, float 
 	dl->origin[1] = y;
 	dl->origin[2] = z;
 	dl->radius = radius;
-	dl->die = cl.time + time;
+	dl->die = (float)cl.time + time;
 	if (type == 0) {
 		dl->color[0] = 0.2;
 		dl->color[1] = 0.1;
@@ -156,9 +156,15 @@ void CL_DecayLights (void)
 	dl = cl_dlights;
 	for (i=0 ; i<MAX_DLIGHTS ; i++, dl++)
 	{
-		if (dl->die < cl.time || !dl->radius)
+		if (!dl->radius)
 			continue;
-		
+
+		if (dl->die < (float)cl.time)
+		{
+			dl->radius = 0;
+			continue;
+		}
+	
 		dl->radius -= host_frametime*dl->decay;
 		if (dl->radius < 0)
 			dl->radius = 0;
@@ -591,6 +597,324 @@ entity_state_t *CL_FindOldPacketEntity(int num)
 	}
 	return NULL;
 }
+// reset all entity fields (typically used if status changed)
+#define E5_FULLUPDATE (1<<0)
+// E5_ORIGIN32=0: short[3] = s->origin[0] * 8, s->origin[1] * 8, s->origin[2] * 8
+// E5_ORIGIN32=1: float[3] = s->origin[0], s->origin[1], s->origin[2]
+#define E5_ORIGIN (1<<1)
+// E5_ANGLES16=0: byte[3] = s->angle[0] * 256 / 360, s->angle[1] * 256 / 360, s->angle[2] * 256 / 360
+// E5_ANGLES16=1: short[3] = s->angle[0] * 65536 / 360, s->angle[1] * 65536 / 360, s->angle[2] * 65536 / 360
+#define E5_ANGLES (1<<2)
+// E5_MODEL16=0: byte = s->modelindex
+// E5_MODEL16=1: short = s->modelindex
+#define E5_MODEL (1<<3)
+// E5_FRAME16=0: byte = s->frame
+// E5_FRAME16=1: short = s->frame
+#define E5_FRAME (1<<4)
+// byte = s->skin
+#define E5_SKIN (1<<5)
+// E5_EFFECTS16=0 && E5_EFFECTS32=0: byte = s->effects
+// E5_EFFECTS16=1 && E5_EFFECTS32=0: short = s->effects
+// E5_EFFECTS16=0 && E5_EFFECTS32=1: int = s->effects
+// E5_EFFECTS16=1 && E5_EFFECTS32=1: int = s->effects
+#define E5_EFFECTS (1<<6)
+// bits >= (1<<8)
+#define E5_EXTEND1 (1<<7)
+
+// byte = s->renderflags
+#define E5_FLAGS (1<<8)
+// byte = bound(0, s->alpha * 255, 255)
+#define E5_ALPHA (1<<9)
+// byte = bound(0, s->scale * 16, 255)
+#define E5_SCALE (1<<10)
+// flag
+#define E5_ORIGIN32 (1<<11) 
+// flag
+#define E5_ANGLES16 (1<<12)
+// flag
+#define E5_MODEL16 (1<<13)
+// byte = s->colormap
+#define E5_COLORMAP (1<<14)
+// bits >= (1<<16)
+#define E5_EXTEND2 (1<<15)
+
+// short = s->tagentity
+// byte = s->tagindex
+#define E5_ATTACHMENT (1<<16)
+// short[4] = s->light[0], s->light[1], s->light[2], s->light[3]
+// byte = s->lightstyle
+// byte = s->lightpflags
+#define E5_LIGHT (1<<17)
+// byte = s->glowsize
+// byte = s->glowcolor
+#define E5_GLOW (1<<18)
+// short = s->effects
+#define E5_EFFECTS16 (1<<19)
+// int = s->effects
+#define E5_EFFECTS32 (1<<20)
+// flag
+#define E5_FRAME16 (1<<21)
+// unused
+#define E5_UNUSED22 (1<<22)
+// bits >= (1<<24)
+#define E5_EXTEND3 (1<<23)
+
+// unused
+#define E5_UNUSED24 (1<<24)
+// unused
+#define E5_UNUSED25 (1<<25)
+// unused
+#define E5_UNUSED26 (1<<26)
+// unused
+#define E5_UNUSED27 (1<<27)
+// unused
+#define E5_UNUSED28 (1<<28)
+// unused
+#define E5_UNUSED29 (1<<29)
+// unused
+#define E5_UNUSED30 (1<<30)
+// bits2 > 0
+#define E5_EXTEND4 (1<<31)
+
+	static entity_state_t defaultstate;
+void DP5_ParseDelta(entity_state_t *s)
+{
+	int bits;
+	bits = MSG_ReadByte();
+	if (bits & E5_EXTEND1)
+	{
+		bits |= MSG_ReadByte() << 8;
+		if (bits & E5_EXTEND2)
+		{
+			bits |= MSG_ReadByte() << 16;
+			if (bits & E5_EXTEND3)
+				bits |= MSG_ReadByte() << 24;
+		}
+	}
+	if (bits & E5_FULLUPDATE)
+	{
+		*s = defaultstate;
+//		s->active = true;
+	}
+	if (bits & E5_FLAGS)
+		s->flags = MSG_ReadByte();
+	if (bits & E5_ORIGIN)
+	{
+		if (bits & E5_ORIGIN32)
+		{
+			s->origin[0] = MSG_ReadFloat();
+			s->origin[1] = MSG_ReadFloat();
+			s->origin[2] = MSG_ReadFloat();
+		}
+		else
+		{
+			s->origin[0] = MSG_ReadShort()*(1/8.0f);
+			s->origin[1] = MSG_ReadShort()*(1/8.0f);
+			s->origin[2] = MSG_ReadShort()*(1/8.0f);
+		}
+	}
+	if (bits & E5_ANGLES)
+	{
+		if (bits & E5_ANGLES16)
+		{
+			s->angles[0] = MSG_ReadAngle16(); 
+			s->angles[1] = MSG_ReadAngle16(); 
+			s->angles[2] = MSG_ReadAngle16(); 
+		}
+		else
+		{
+			s->angles[0] = MSG_ReadChar() * (360.0/256);
+			s->angles[1] = MSG_ReadChar() * (360.0/256);
+			s->angles[2] = MSG_ReadChar() * (360.0/256);
+		}
+	}
+	if (bits & E5_MODEL)
+	{
+		if (bits & E5_MODEL16)
+			s->modelindex = (unsigned short) MSG_ReadShort();
+		else
+			s->modelindex = MSG_ReadByte();
+	}
+	if (bits & E5_FRAME)
+	{
+		if (bits & E5_FRAME16)
+			s->frame = (unsigned short) MSG_ReadShort();
+		else
+			s->frame = MSG_ReadByte();
+	}
+	if (bits & E5_SKIN)
+		s->skinnum = MSG_ReadByte();
+	if (bits & E5_EFFECTS)
+	{
+		if (bits & E5_EFFECTS32)
+			s->effects = (unsigned int) MSG_ReadLong();
+		else if (bits & E5_EFFECTS16)
+			s->effects = (unsigned short) MSG_ReadShort();
+		else
+			s->effects = MSG_ReadByte();
+	}
+	if (bits & E5_ALPHA)
+		s->trans = MSG_ReadByte()/255.0f;
+	if (bits & E5_SCALE)
+		s->scale = MSG_ReadByte()/255.0f;
+	if (bits & E5_COLORMAP)
+		s->colormap = MSG_ReadByte();
+	if (bits & E5_ATTACHMENT)
+	{
+		MSG_ReadShort();
+		MSG_ReadByte();
+//		s->tagentity = (unsigned short) MSG_ReadShort();
+//		s->tagindex = MSG_ReadByte();
+	}
+	if (bits & E5_LIGHT)
+	{
+		MSG_ReadShort();
+		MSG_ReadShort();
+		MSG_ReadShort();
+		MSG_ReadShort();
+		MSG_ReadByte();
+		MSG_ReadByte();
+//		s->light[0] = (unsigned short) MSG_ReadShort();
+//		s->light[1] = (unsigned short) MSG_ReadShort();
+//		s->light[2] = (unsigned short) MSG_ReadShort();
+//		s->light[3] = (unsigned short) MSG_ReadShort();
+//		s->lightstyle = MSG_ReadByte();
+//		s->lightpflags = MSG_ReadByte();
+	}
+	if (bits & E5_GLOW)
+	{
+		MSG_ReadByte();
+		MSG_ReadByte();
+//		s->glowsize = MSG_ReadByte();
+//		s->glowcolor = MSG_ReadByte();
+	}
+}
+
+int cl_latestframenum;
+void CLNQ_ParseDarkPlaces5Entities(void)	//the things I do.. :o(
+{
+	//the incoming entities do not come in in any order. :(
+	//well, they come in in order of priorities, but that's not useful to us.
+	//I guess this means we'll have to go slowly.
+
+	packet_entities_t	*pack, *oldpack;
+
+	entity_state_t		*to, *from;	
+	unsigned short read;
+	int oldi;
+	qboolean remove;
+
+	cls.netchan.incoming_sequence++;
+
+	cl.validsequence=1;
+
+	cl_latestframenum = MSG_ReadLong();
+
+	pack = &cl.frames[(cls.netchan.incoming_sequence)&UPDATE_MASK].packet_entities;
+	oldpack = &cl.frames[(cls.netchan.incoming_sequence-1)&UPDATE_MASK].packet_entities;
+
+	from = oldpack->entities;
+	oldi = 0;
+	pack->num_entities = 0;
+
+	for (oldi = 0; oldi < oldpack->num_entities; oldi++)
+	{
+		from = &oldpack->entities[oldi];
+		from->flags &= ~0x80000000;
+	}
+
+	for (read = MSG_ReadShort(); read!=0x8000; read = MSG_ReadShort())
+	{
+		if (msg_badread)
+			Host_EndGame("Corrupt entitiy message packet\n");
+		remove = !!(read&0x8000);
+		read&=~0x8000;
+
+		from = &defaultstate;
+
+		for (oldi=0 ; oldi<oldpack->num_entities ; oldi++)
+		{
+			if (read == oldpack->entities[oldi].number)
+			{
+				from = &oldpack->entities[oldi];
+				break;
+			}
+		}
+
+		from->flags = 0x80000000;
+		if (remove)
+		{
+			continue;
+		}
+
+
+		if (pack->num_entities==pack->max_entities)
+		{
+			pack->max_entities = pack->num_entities+16;
+			pack->entities = BZ_Realloc(pack->entities, sizeof(entity_state_t)*pack->max_entities);
+		}
+
+		to = &pack->entities[pack->num_entities];
+		pack->num_entities++;
+		memcpy(to, from, sizeof(*to));
+		DP5_ParseDelta(to);
+
+		to->number = read;
+
+		if (!from || to->modelindex != from->modelindex || to->number != from->number)	//model changed... or entity changed...
+			cl.lerpents[to->number].lerptime = -10;
+		else if (to->frame != from->frame || to->origin[0] != from->origin[0] || to->origin[1] != from->origin[1] || to->origin[2] != from->origin[2])
+		{
+			cl.lerpents[to->number].origin[0] = from->origin[0];
+			cl.lerpents[to->number].origin[1] = from->origin[1];
+			cl.lerpents[to->number].origin[2] = from->origin[2];
+
+			cl.lerpents[to->number].angles[0] = from->angles[0];
+			cl.lerpents[to->number].angles[1] = from->angles[1];
+			cl.lerpents[to->number].angles[2] = from->angles[2];
+	//we have three sorts of movement.
+	//1: stepping monsters. These have frames and tick at 10fps.
+	//2: physics. Objects moving acording to gravity.
+	//3: both. This is really awkward. And I'm really lazy.
+			cl.lerpents[to->number].lerprate = cl.time-cl.lerpents[to->number].lerptime;	//time per update
+			cl.lerpents[to->number].frame = from->frame;
+			cl.lerpents[to->number].lerptime = cl.time;
+
+			if (cl.lerpents[to->number].lerprate>0.5)
+				cl.lerpents[to->number].lerprate=0.1;
+
+			//store this off for new ents to use.
+	//		if (new)
+	//			cl.lerpents[state->number].lerptime = newlerprate;
+	//		else
+			if (to->frame == from->frame)
+				newlerprate = cl.time-cl.lerpents[to->number].lerptime;
+		}
+
+		to->flags &= ~0x80000000;
+	}
+
+	//the pack has all the new ones in it, now copy the old ones in that wern't removed (or changed).
+	for (oldi = 0; oldi < oldpack->num_entities; oldi++)
+	{
+		from = &oldpack->entities[oldi];
+		if (from->flags & 0x80000000)
+			continue;
+
+		if (pack->num_entities==pack->max_entities)
+		{
+			pack->max_entities = pack->num_entities+16;
+			pack->entities = BZ_Realloc(pack->entities, sizeof(entity_state_t)*pack->max_entities);
+		}
+
+		to = &pack->entities[pack->num_entities];
+		pack->num_entities++;
+
+		from = &oldpack->entities[oldi];
+
+		memcpy(to, from, sizeof(*to));
+	}
+}
 
 void CLNQ_ParseEntity(unsigned int bits)
 {
@@ -688,7 +1012,7 @@ void CLNQ_ParseEntity(unsigned int bits)
 		state = &pack->entities[pack->num_entities++];
 	}
 
-	from = CL_FindOldPacketEntity(num);
+	from = CL_FindOldPacketEntity(num);	//this could be optimised.
 
 	base = &cl_baselines[num];
 
@@ -902,7 +1226,8 @@ void CL_LinkPacketEntities (void)
 	vec3_t				old_origin;
 	float				autorotate;
 	int					i;
-	int					pnum, spnum;
+	int					pnum;
+	//, spnum;
 	dlight_t			*dl;
 	vec3_t				angles;
 
@@ -916,20 +1241,20 @@ void CL_LinkPacketEntities (void)
 
 		// spawn light flashes, even ones coming from invisible objects
 		if ((s1->effects & (EF_BLUE | EF_RED)) == (EF_BLUE | EF_RED))
-			CL_NewDlight (s1->number, s1->origin[0], s1->origin[1], s1->origin[2], 200 + (rand()&31), 0.1, 3);
+			CL_NewDlight (s1->number, s1->origin[0], s1->origin[1], s1->origin[2], 200 + (rand()&31), 0, 3);
 		else if (s1->effects & EF_BLUE)
-			CL_NewDlight (s1->number, s1->origin[0], s1->origin[1], s1->origin[2], 200 + (rand()&31), 0.1, 1);
+			CL_NewDlight (s1->number, s1->origin[0], s1->origin[1], s1->origin[2], 200 + (rand()&31), 0, 1);
 		else if (s1->effects & EF_RED)
-			CL_NewDlight (s1->number, s1->origin[0], s1->origin[1], s1->origin[2], 200 + (rand()&31), 0.1, 2);
+			CL_NewDlight (s1->number, s1->origin[0], s1->origin[1], s1->origin[2], 200 + (rand()&31), 0, 2);
 		else if (s1->effects & EF_BRIGHTLIGHT)
-			CL_NewDlight (s1->number, s1->origin[0], s1->origin[1], s1->origin[2] + 16, 400 + (rand()&31), 0.1, 0);
+			CL_NewDlight (s1->number, s1->origin[0], s1->origin[1], s1->origin[2] + 16, 400 + (rand()&31), 0, 0);
 		else if (s1->effects & EF_DIMLIGHT)
-			CL_NewDlight (s1->number, s1->origin[0], s1->origin[1], s1->origin[2], 200 + (rand()&31), 0.1, 0);
+			CL_NewDlight (s1->number, s1->origin[0], s1->origin[1], s1->origin[2], 200 + (rand()&31), 0, 0);
 
 		// if set to invisible, skip
-		if (!s1->modelindex)
+		if (s1->modelindex<0)
 			continue;
-
+#if 0
 		for (spnum = 0; spnum < cl.splitclients; spnum++)
 		{
 			if (s1->number == cl.viewentity[spnum])
@@ -973,7 +1298,7 @@ void CL_LinkPacketEntities (void)
 				}*/
 			}
 		}
-
+#endif
 		// create a new entity
 		if (cl_numvisedicts == MAX_VISEDICTS)
 			break;		// object list is full
@@ -1023,7 +1348,7 @@ void CL_LinkPacketEntities (void)
 
 		// set colormap
 		if (s1->colormap && (s1->colormap <= MAX_CLIENTS) 
-			&& (gl_nocolors.value == -1 || (ent->model && s1->modelindex == cl_playerindex)))
+			&& (gl_nocolors.value == -1 || (ent->model/* && s1->modelindex == cl_playerindex*/)))
 		{
 			ent->colormap = cl.players[s1->colormap-1].translations;
 			ent->scoreboard = &cl.players[s1->colormap-1];
@@ -1167,7 +1492,7 @@ void CL_LinkPacketEntities (void)
 				dl = CL_AllocDlight (s1->number);
 				VectorCopy (ent->origin, dl->origin);
 				dl->radius = 200;
-				dl->die = cl.time + 0.1;
+				dl->die = (float)cl.time;
 				dl->color[0] = 0.20;
 				dl->color[1] = 0.1;
 				dl->color[2] = 0.05;
@@ -1178,21 +1503,21 @@ void CL_LinkPacketEntities (void)
 			dl = CL_AllocDlight (i);
 			VectorCopy (ent->origin, dl->origin);
 			dl->radius = 120 - (rand() % 20);
-			dl->die = cl.time + 0.01;
+			dl->die = (float)cl.time;
 		}
 		else if (model->flags & EF_ACIDBALL)
 		{
 			dl = CL_AllocDlight (i);
 			VectorCopy (ent->origin, dl->origin);
 			dl->radius = 120 - (rand() % 20);
-			dl->die = cl.time + 0.01;
+			dl->die = (float)cl.time;
 		}
 		else if (model->flags & EF_SPIT)
 		{
 			dl = CL_AllocDlight (i);
 			VectorCopy (ent->origin, dl->origin);
 			dl->radius = -120 - (rand() % 20);
-			dl->die = cl.time + 0.05;
+			dl->die = (float)cl.time;
 		}
 	}
 }
@@ -1898,7 +2223,7 @@ void CL_SetSolidEntities (void)
 	{
 		state = &pak->entities[i];
 
-		if (!state->modelindex)
+		if (state->modelindex<0)
 			continue;
 		if (!cl.model_precache[state->modelindex])
 			continue;
@@ -2077,6 +2402,9 @@ void CL_EmitEntities (void)
 {
 	if (cls.state != ca_active)
 		return;
+
+	CL_DecayLights ();
+
 #ifdef Q2CLIENT
 	if (cls.q2server)
 	{

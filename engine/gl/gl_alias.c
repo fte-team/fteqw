@@ -351,7 +351,7 @@ static void R_GAliasAddDlights(mesh_t *mesh, vec3_t org, vec3_t angles)
 	AngleVectors(angles, axis[0], axis[1], axis[2]);
 	for (l=0 ; l<MAX_DLIGHTS ; l++)
 	{
-		if (cl_dlights[l].die >= cl.time)
+		if (cl_dlights[l].radius)
 		{
 			VectorSubtract (cl_dlights[l].origin,
 							org,
@@ -623,7 +623,7 @@ static galiastexnum_t *GL_ChooseSkin(galiasinfo_t *inf, char *modelname, entity_
 		galiascolourmapped_t *cm;
 		cc = (tc<<4)|bc;
 
-		if (!strstr(modelname, "player"))
+		if (!strstr(modelname, "progs/player.mdl"))
 			skinname = modelname;
 		else
 		{
@@ -661,17 +661,17 @@ static galiastexnum_t *GL_ChooseSkin(galiasinfo_t *inf, char *modelname, entity_
 		cm->texnum.fullbright = 0;
 		cm->texnum.base = 0;
 		cm->texnum.bump = texnums[cm->skinnum].bump;	//can't colour bumpmapping
-		if (skins->ofstexels)
-		{
-			original = (qbyte *)skins + skins->ofstexels;
-			inwidth = skins->skinwidth;
-			inheight = skins->skinheight;
-		}
-		else if (skinname!=modelname && e->scoreboard && e->scoreboard->skin)
+		if (skinname!=modelname && e->scoreboard && e->scoreboard->skin)
 		{
 			original = Skin_Cache8(e->scoreboard->skin);
 			inwidth = e->scoreboard->skin->width;
 			inheight = e->scoreboard->skin->height;
+		}
+		else if (skins->ofstexels)
+		{
+			original = (qbyte *)skins + skins->ofstexels;
+			inwidth = skins->skinwidth;
+			inheight = skins->skinheight;
 		}
 		else
 		{
@@ -971,7 +971,7 @@ void GL_DrawAliasMesh (mesh_t *mesh, int texnum)
 
 void R_DrawGAliasModel (entity_t *e)
 {
-	model_t *clmodel = e->model;
+	model_t *clmodel;
 	vec3_t mins, maxs;
 	vec3_t dist;
 	vec_t add;
@@ -988,6 +988,18 @@ void R_DrawGAliasModel (entity_t *e)
 
 	if (e->flags & Q2RF_VIEWERMODEL && e->keynum == cl.playernum[r_refdef.currentplayernum]+1)
 		return;
+
+	{
+		extern int cl_playerindex;
+	if (e->scoreboard && e->model == cl.model_precache[cl_playerindex])
+	{
+		clmodel = e->scoreboard->model;
+		if (!clmodel || clmodel->type != mod_alias)
+			clmodel = e->model;
+	}
+	else
+		clmodel = e->model;
+	}
 
 	VectorAdd (e->origin, clmodel->mins, mins);
 	VectorAdd (e->origin, clmodel->maxs, maxs);
@@ -1012,7 +1024,7 @@ void R_DrawGAliasModel (entity_t *e)
 	{
 		for (i=0 ; i<MAX_DLIGHTS ; i++)
 		{
-			if (cl_dlights[i].die >= cl.time)
+			if (cl_dlights[i].radius)
 			{
 				VectorSubtract (e->origin,
 								cl_dlights[i].origin,
@@ -1452,7 +1464,7 @@ void R_DrawGAliasModelLighting (entity_t *e)
 
 	for (i=0 ; i<MAX_DLIGHTS ; i++)
 	{
-		if (cl_dlights[i].die >= cl.time)
+		if (cl_dlights[i].radius)
 		{
 			VectorSubtract (e->origin,
 							cl_dlights[i].origin,

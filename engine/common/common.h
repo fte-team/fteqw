@@ -112,6 +112,7 @@ typedef union {	//note: reading from packets can be misaligned
 	float f;
 } coorddata;
 extern int sizeofcoord;
+extern int sizeofangle;
 float MSG_FromCoord(coorddata c, int bytes);
 coorddata MSG_ToCoord(float f, int bytes);
 

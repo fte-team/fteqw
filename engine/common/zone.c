@@ -34,7 +34,7 @@ void Cache_FreeLow (int new_low_hunk);
 void Cache_FreeHigh (int new_high_hunk);
 
 #ifdef _DEBUG
-#define MEMDEBUG	8192 //Debugging adds sentinels (the number is the size - I have the ram) 
+//#define MEMDEBUG	8192 //Debugging adds sentinels (the number is the size - I have the ram) 
 #endif
 
 #ifndef MEMDEBUG

@@ -3306,6 +3306,7 @@ reloop:
 					if (def_ret.temp->used && ao != &def_ret)
 						QCC_PR_ParseWarning(0, "RETURN VALUE ALREADY IN USE");
 
+					def_parms[0].type = type_float;
 					QCC_FreeTemp(QCC_PR_Statement (&pr_opcodes[OP_STORE_F], ao, &def_parms[0], NULL));
 
 					if (QCC_PR_Check("="))
@@ -4646,6 +4647,7 @@ void QCC_PR_ParseStatement (void)
 			}
 			else
 			{
+//				QCC_PR_ParseWarning(0, "using the else");
 				QCC_FreeTemp(QCC_PR_Statement (&pr_opcodes[OP_GOTO], 0, 0, &patch2));
 				patch1->b = &statements[numstatements] - patch1;
 				QCC_PR_ParseStatement ();
@@ -4675,6 +4677,13 @@ void QCC_PR_ParseStatement (void)
 		e = QCC_PR_Expression (TOP_PRIORITY);
 		conditional = false;
 
+		if (e == &def_ret)
+		{	//copy it out, so our hack just below doesn't crash us
+			if (e->type->type == ev_vector)
+				e = QCC_PR_Statement(pr_opcodes+OP_STORE_V, QCC_GetTemp(type_vector), e, NULL);
+			else
+				e = QCC_PR_Statement(pr_opcodes+OP_STORE_F, QCC_GetTemp(type_float), e, NULL);
+		}
 		et = e->temp;
 		e->temp = NULL;	//so noone frees it until we finish this loop
 
@@ -4745,11 +4754,18 @@ void QCC_PR_ParseStatement (void)
 		oldst = numstatements;
 		QCC_PR_ParseStatement ();
 
-	/*	if (oldst != numstatements && QCC_PR_)
+		//this is so that a missing goto at the end of your switch doesn't end up in the jumptable again
+		if (oldst == numstatements || (QCC_AStatementJumpsTo(numstatements-1, oldst, numstatements-1)))
 		{
-		}
-		else*/
 			QCC_FreeTemp(QCC_PR_Statement (&pr_opcodes[OP_GOTO], 0, 0, &patch2));	//the P1 statement/the theyforgotthebreak statement.
+//			QCC_PR_ParseWarning(0, "emitted goto");
+		}
+		else
+		{
+			patch2 = NULL;
+//			QCC_PR_ParseWarning(0, "No goto");
+		}
+
 		if (hcstyle)
 			patch1->b = &statements[numstatements] - patch1;	//the goto start part
 		else
@@ -4850,7 +4866,8 @@ void QCC_PR_ParseStatement (void)
 
 
 		patch3 = &statements[numstatements];
-		patch2->a = patch3 - patch2;	//set P1 jump
+		if (patch2)
+			patch2->a = patch3 - patch2;	//set P1 jump
 
 		if (breaks != num_breaks)
 		{
@@ -5494,8 +5511,11 @@ void QCC_CheckForDeadAndMissingReturns(int first, int last, int rettype)
 	if (rettype != ev_void)
 		if (statements[last-1].op != OP_RETURN)
 		{
-			QCC_PR_ParseWarning(WARN_MISSINGRETURN, "%s: not all control paths return a value", pr_scope->name );
-			return;
+			if (statements[last-1].op != OP_GOTO || (signed)statements[last-1].a > 0)
+			{
+				QCC_PR_ParseWarning(WARN_MISSINGRETURN, "%s: not all control paths return a value", pr_scope->name );
+				return;
+			}
 		}
 
 	for (st = first; st < last; st++)
@@ -5578,7 +5598,7 @@ int QCC_AStatementJumpsTo(int targ, int first, int last)
 	{
 		if (pr_opcodes[statements[st].op].type_a == NULL)
 		{
-			if (st + (signed)statements[st].a == targ)
+			if (st + (signed)statements[st].a == targ && statements[st].a)
 			{
 				return true;
 			}

@@ -533,6 +533,7 @@ void CL_PredictMovePNum (int pnum)
 	float		f;
 	frame_t		*from, *to = NULL;
 	int			oldphysent;
+	vec3_t lrp;
 
 	//these are to make svc_viewentity work better
 	float *vel;
@@ -609,17 +610,36 @@ void CL_PredictMovePNum (int pnum)
 #ifdef PEXT_SETVIEW
 	if (cl.viewentity[pnum])
 	{
+		entity_state_t *CL_FindOldPacketEntity(int num);
 		entity_state_t *CL_FindPacketEntity(int num);
-		entity_state_t *state;
+		entity_state_t *state, *old;
 		state = CL_FindPacketEntity (cl.viewentity[pnum]);
+		old = CL_FindOldPacketEntity (cl.viewentity[pnum]);
 		if (state)
 		{
-			org = state->origin;
+			if (old)
+			{
+				float f = (cl.time-cl.lerpents[cl.viewentity[pnum]].lerptime)/cl.lerpents[cl.viewentity[pnum]].lerprate;
+				f=1-f;
+				if (f<0)f=0;
+				if (f>1)f=1;
+
+				for (i=0 ; i<3 ; i++)
+					lrp[i] = state->origin[i] + 
+							f * (old->origin[i] - state->origin[i]);
+
+				org = lrp;
+			}
+			else
+				org = state->origin;
+
+			goto fixedorg;
 		}
 	}
 #endif
 	if ((cl_nopred.value|| cl.fixangle))
 	{
+fixedorg:
 		VectorCopy (vel, cl.simvel[pnum]);
 		VectorCopy (org, cl.simorg[pnum]);
 

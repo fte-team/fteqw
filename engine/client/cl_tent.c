@@ -794,6 +794,99 @@ void CL_ParseTEnt (void)
 		CL_ParseStream (type);
 		break;
 
+	case 50:	//TE_BLOOD
+		pos[0] = MSG_ReadCoord ();
+		pos[1] = MSG_ReadCoord ();
+		pos[2] = MSG_ReadCoord ();
+
+		pos2[0] = MSG_ReadChar ();
+		pos2[1] = MSG_ReadChar ();
+		pos2[2] = MSG_ReadChar ();
+
+		cnt = MSG_ReadByte ();
+		{
+			extern int pt_spark;
+			R_RunParticleEffectType(pos, pos2, cnt, pt_blood);
+		}
+		break;
+
+	case 51://TE_SPARK
+		pos[0] = MSG_ReadCoord ();
+		pos[1] = MSG_ReadCoord ();
+		pos[2] = MSG_ReadCoord ();
+
+		pos2[0] = MSG_ReadChar ();
+		pos2[1] = MSG_ReadChar ();
+		pos2[2] = MSG_ReadChar ();
+
+		cnt = MSG_ReadByte ();
+		{
+			extern int pt_spark;
+			R_RunParticleEffectType(pos, pos2, cnt, pt_spark);
+		}
+		break;
+
+	case 72://TE_SMALLFLASH
+		pos[0] = MSG_ReadCoord ();
+		pos[1] = MSG_ReadCoord ();
+		pos[2] = MSG_ReadCoord ();
+		break;
+
+	case 73://TE_CUSTOMFLASH
+		pos[0] = MSG_ReadCoord ();
+		pos[1] = MSG_ReadCoord ();
+		pos[2] = MSG_ReadCoord ();
+
+			// light
+		dl = CL_AllocDlight (0);
+		VectorCopy (pos, dl->origin);
+		dl->radius = MSG_ReadByte()*8;
+		pos2[0] = (MSG_ReadByte() + 1) * (1.0 / 256.0);
+		dl->die = cl.time + pos2[0];
+		dl->decay = dl->radius / pos2[0];
+		
+		dl->color[0] = MSG_ReadByte()/255.0f;
+		dl->color[1] = MSG_ReadByte()/255.0f;
+		dl->color[2] = MSG_ReadByte()/255.0f;
+
+		break;
+
+	case 76:
+#pragma message("CL_ParseTEnt: effect 76 not implemented")
+pos[0] = MSG_ReadCoord ();
+pos[1] = MSG_ReadCoord ();
+pos[2] = MSG_ReadCoord ();
+
+pos2[0] = MSG_ReadCoord ();
+pos2[1] = MSG_ReadCoord ();
+pos2[2] = MSG_ReadCoord ();
+
+//sigh...
+MSG_ReadCoord ();
+MSG_ReadCoord ();
+MSG_ReadCoord ();
+
+CLQ2_RailTrail (pos, pos2);
+		break;
+
+	case 79:
+#pragma message("CL_ParseTEnt: effect 79 not implemented")
+pos[0] = MSG_ReadCoord ();
+pos[1] = MSG_ReadCoord ();
+pos[2] = MSG_ReadCoord ();
+
+//dir
+pos2[0] = MSG_ReadCoord ();
+pos2[1] = MSG_ReadCoord ();
+pos2[2] = MSG_ReadCoord ();
+cnt = MSG_ReadByte ();
+
+{
+	extern int pt_plasma;
+	R_RunParticleEffectType(pos, pos2, cnt, pt_plasma);
+}
+		break;
+
 	default:		
 		Host_EndGame ("CL_ParseTEnt: bad type - %i", type);
 	}
@@ -1011,6 +1104,48 @@ void R_ParseParticleEffect4 (void)
 	effect = MSG_ReadByte ();
 
 	R_RunParticleEffect4 (org, radius, color, effect, msgcount);
+}
+
+
+// [vector] org [byte] modelindex [byte] startframe [byte] framecount [byte] framerate
+// [vector] org [short] modelindex [short] startframe [byte] framecount [byte] framerate
+void CL_ParseEffect (qboolean effect2)
+{
+	explosion_t	*ex;
+	vec3_t org;
+	int modelindex;
+	int startframe;
+	int framecount;
+	int framerate;
+
+	org[0] = MSG_ReadCoord();
+	org[1] = MSG_ReadCoord();
+	org[2] = MSG_ReadCoord();
+
+	if (effect2)
+		modelindex = MSG_ReadShort();
+	else
+		modelindex = MSG_ReadByte();
+
+	if (effect2)
+		startframe = MSG_ReadShort();
+	else
+		startframe = MSG_ReadByte();
+
+	framecount = MSG_ReadByte();
+	framerate = MSG_ReadByte();
+
+
+	ex = CL_AllocExplosion ();
+	VectorCopy (org, ex->origin);
+	ex->start = cl.time;
+	ex->model = cl.model_precache[modelindex];
+	ex->firstframe = startframe;
+	ex->numframes = framecount;
+
+	ex->angles[0] = 0;
+	ex->angles[1] = 0;
+	ex->angles[2] = 0;
 }
 
 #ifdef Q2CLIENT

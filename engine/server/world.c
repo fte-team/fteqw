@@ -631,7 +631,7 @@ void SV_LinkEdict (edict_t *ent, qboolean touch_triggers)
 	
 // link it in	
 
-	if (ent->v.solid == SOLID_TRIGGER || (progstype != PROG_H2 && ent->v.solid == SOLID_LADDERQ1) || ent->v.solid == SOLID_LADDER)
+	if (ent->v.solid == SOLID_TRIGGER || ent->v.solid == SOLID_LADDER)
 		InsertLinkBefore (&ent->area, &node->trigger_edicts);
 	else
 		InsertLinkBefore (&ent->area, &node->solid_edicts);
@@ -1455,6 +1455,13 @@ void SV_ClipMoveToEntities ( moveclip_t *clip )
 		if (clip->type & MOVE_NOMONSTERS && touch->v.solid != SOLID_BSP)
 			continue;
 
+		// don't clip corpse against character
+		if (clip->passedict->v.solid == SOLID_CORPSE && (touch->v.solid == SOLID_SLIDEBOX || touch->v.solid == SOLID_CORPSE))
+			continue;
+		// don't clip character against corpse
+		if (clip->passedict->v.solid == SOLID_SLIDEBOX && touch->v.solid == SOLID_CORPSE)
+			continue;
+
 		if (!((int)clip->passedict->v.dimension_hit & (int)touch->v.dimension_solid))
 			continue;
 
@@ -1586,10 +1593,17 @@ void SV_ClipToLinks ( areanode_t *node, moveclip_t *clip )
 			continue;
 		if (touch == clip->passedict)
 			continue;
-		if (touch->v.solid == SOLID_TRIGGER || (progstype != PROG_H2 && touch->v.solid == SOLID_LADDERQ1) || touch->v.solid == SOLID_LADDER)
+		if (touch->v.solid == SOLID_TRIGGER || touch->v.solid == SOLID_LADDER)
 			SV_Error ("Trigger in clipping list");
 
 		if (clip->type & MOVE_NOMONSTERS && touch->v.solid != SOLID_BSP)
+			continue;
+
+		// don't clip corpse against character
+		if (clip->passedict->v.solid == SOLID_CORPSE && (touch->v.solid == SOLID_SLIDEBOX || touch->v.solid == SOLID_CORPSE))
+			continue;
+		// don't clip character against corpse
+		if (clip->passedict->v.solid == SOLID_SLIDEBOX && touch->v.solid == SOLID_CORPSE)
 			continue;
 
 		if (clip->boxmins[0] > touch->v.absmax[0]

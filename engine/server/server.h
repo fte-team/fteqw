@@ -655,7 +655,7 @@ typedef struct
 #define	SOLID_SLIDEBOX			3		// touch on edge, but not an onground
 #define	SOLID_BSP				4		// bsp clip, touch on edge, block
 #define	SOLID_PHASEH2			5
-#define	SOLID_LADDERQ1			5
+#define	SOLID_CORPSE			5
 #define SOLID_LADDER			20		//dmw. touch on edge, not blocking. Touching players have different physics. Otherwise a SOLID_TRIGGER
 
 // edict->deadflag values

@@ -3377,7 +3377,7 @@ vec3_t offset;
 
 		if (check->v.owner == pl)
 			continue;		// player's own missile
-		if ((progstype != PROG_H2 && check->v.solid == SOLID_LADDERQ1) || check->v.solid == SOLID_LADDER)
+		if (check->v.solid == SOLID_LADDER)
 		{
 			for (i=0 ; i<3 ; i++)
 				if (check->v.absmin[i] > pmove_maxs[i]

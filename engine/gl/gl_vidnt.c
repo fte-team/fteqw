@@ -665,8 +665,6 @@ void VID_UpdateWindowStatus (void)
 	window_center_y = (window_rect.top + window_rect.bottom) / 2;
 
 	IN_UpdateClipCursor ();
-
-	gl_2dscale.modified = true;
 }
 
 
@@ -981,7 +979,6 @@ void GLAppActivate(BOOL fActive, BOOL minimize)
 								// Fix for alt-tab bug in NVidia drivers
 				MoveWindow (mainwindow, 0, 0, gdevmode.dmPelsWidth, gdevmode.dmPelsHeight, false);
 			}
-			gl_2dscale.modified = true;
 		}
 		else if ((modestate == MS_WINDOWED) && _windowed_mouse.value && (key_dest == key_game || key_dest == key_menu))
 		{
@@ -1120,7 +1117,10 @@ LONG WINAPI GLMainWndProc (
 				WindowRect.right = ((short*)&lParam)[0] - WindowRect.left;
 				WindowRect.bottom = ((short*)&lParam)[1] - WindowRect.top;
 
-				gl_2dscale.modified = true;
+				if (modestate != MS_FULLDIB)	//fullscreen doesn't have the RIGHT to respond to this. Apply to the Court of M$ if you want this changed...
+				{
+					gl_2dscale.modified = true;
+				}
 			}
             break;
 

@@ -580,14 +580,15 @@ void GL_BeginRendering (int *x, int *y, int *width, int *height)
 //    if (!wglMakeCurrent( maindc, baseRC ))
 //		Sys_Error ("wglMakeCurrent failed");
 
-//	glViewport (*x, *y, *width, *height);
+//	qglViewport (*x, *y, *width, *height);
 }
 
 
 void GL_EndRendering (void)
 {
 //return;
-	glFlush();
+//we don't need the flush, XSawpBuffers does it for us.
+//chances are, it's version is more suitable anyway. At least there's the chance that it might be.
 	qglXSwapBuffers(vid_dpy, vid_window);
 }
 

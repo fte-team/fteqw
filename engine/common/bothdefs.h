@@ -92,7 +92,6 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 		#define WEBCLIENT		//http/ftp clients.
 		#define EMAILSERVER		//smtp/pop3 server should you feel a need
 		#define EMAILCLIENT		//smtp/pop3 clients (email notifications)
-		#define IRCCLIENT		//connects to irc servers.
 		#define RUNTIMELIGHTING	//calculate lit/lux files the first time the map is loaded and doesn't have a loadable lit.
 		#define QTERM			//qterm... adds a console command that allows running programs from within quake - bit like xterm.
 		#define CL_MASTER		//query master servers and stuff for a dynamic server listing.
@@ -102,6 +101,9 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 		#define TEXTEDITOR
 
 //		#define VOICECHAT	//experimental
+
+//these things were moved to plugins.
+//#define IRCCLIENT		//connects to irc servers.
 
 	#endif
 

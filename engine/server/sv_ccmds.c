@@ -1476,7 +1476,7 @@ void SV_SetTimer_f(void)
 
 	if (Cmd_Argc() < 2)
 	{
-		Con_Printf("%s count interval command\n", Cmd_Argv(0));
+		Con_Printf("%s <count> <interval> <command>\n", Cmd_Argv(0));
 		return;
 	}
 

@@ -278,7 +278,7 @@ static qboolean SV_AddCSQCUpdate (client_t *client, edict_t *ent)
 #ifndef PEXT_CSQC
 	return false;
 #else
-	if (!(client->fteprotocolextensions & PEXT_CSQC))
+	if (!(client->csqcactive))
 		return false;
 
 	if (!ent->v.SendEntity)
@@ -304,7 +304,7 @@ void SV_EmitCSQCUpdate(client_t *client, sizebuf_t *msg)
 //	if (!csqcnuments)
 //		return;
 
-	if (!(client->fteprotocolextensions & PEXT_CSQC))
+	if (!(client->csqcactive))
 		return;
 
 	//FIXME: prioritise the list of csqc ents somehow
@@ -406,15 +406,19 @@ void SV_EmitCSQCUpdate(client_t *client, sizebuf_t *msg)
 #endif
 }
 
+#ifdef PEXT_CSQC
 void SV_CSQC_DroppedPacket(client_t *client, int sequence)
 {
-#ifdef PEXT_CSQC
 	int i;
+
+	if (!(client->csqcactive))	//we don't need this, but it might be a little faster.
+		return;
+
 	for (i = 0; i < sv.num_edicts; i++)
 		if (client->csqcentsequence[i] == sequence)
 			client->csqcentversions[i]--;	//do that update thang (but later).
-#endif
 }
+#endif
 
 //=============================================================================
 

@@ -742,7 +742,7 @@ void GLR_DrawEntitiesOnList (void)
 				{
 					if (gl_part_flame.value)
 					{
-						R_TorchEffect(currententity->origin, currententity->model->particleeffect);
+						P_TorchEffect(currententity->origin, currententity->model->particleeffect);
 						currententity->model = NULL;
 						continue;
 					}
@@ -751,7 +751,7 @@ void GLR_DrawEntitiesOnList (void)
 				{
 					if (gl_part_torch.value)
 					{
-						R_TorchEffect(currententity->origin, currententity->model->particleeffect);
+						P_TorchEffect(currententity->origin, currententity->model->particleeffect);
 					}
 				}
 			}
@@ -875,7 +875,7 @@ void GLR_DrawViewModel (void)
 			{
 				if (gl_part_flame.value)
 				{
-					R_TorchEffect(currententity->origin, currententity->model->particleeffect);
+					P_TorchEffect(currententity->origin, currententity->model->particleeffect);
 					currententity->model = NULL;
 					return;
 				}
@@ -884,7 +884,7 @@ void GLR_DrawViewModel (void)
 			{
 				if (gl_part_torch.value)
 				{
-					R_TorchEffect(currententity->origin, currententity->model->particleeffect);
+					P_TorchEffect(currententity->origin, currententity->model->particleeffect);
 				}
 			}
 		}
@@ -1461,7 +1461,7 @@ void R_RenderScene (void)
 	if (cl.worldmodel)
 	{
 		TRACE(("dbg: calling R_DrawParticles\n"));
-		R_DrawParticles ();
+		P_DrawParticles ();
 	}
 
 #ifdef GLTEST

@@ -3965,7 +3965,7 @@ void GL_BuildLightmaps (void)
 			}
 
 			GL_CreateSurfaceLightmap (m->surfaces + i);
-			R_EmitSkyEffectTris(m, &m->surfaces[i]);
+			P_EmitSkyEffectTris(m, &m->surfaces[i]);
 			if (m->surfaces[i].polys)	//there are some surfaces that have a display list already (the subdivided ones)
 				continue;
 			BuildSurfaceDisplayList (m->surfaces + i);

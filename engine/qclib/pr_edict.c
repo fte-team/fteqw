@@ -2287,7 +2287,7 @@ retry:
 	}
 
 //progs contains enough info for use to recompile it.
-	if (trysleft && externs->autocompile == PR_COMPILECHANGED && pr_progs->version == PROG_EXTENDEDVERSION)
+	if (trysleft && (externs->autocompile == PR_COMPILECHANGED  || externs->autocompile == PR_COMPILEEXISTANDCHANGED) && pr_progs->version == PROG_EXTENDEDVERSION)
 	{
 		if (PR_TestRecompile(progfuncs))
 		{

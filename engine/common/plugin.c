@@ -24,6 +24,8 @@ typedef struct plugin_s {
 	struct plugin_s *next;
 } plugin_t;
 
+void Plug_SubConsoleCommand(console_t *con, char *line);
+
 plugin_t *currentplug;
 
 //custom plugin builtins.
@@ -756,6 +758,12 @@ int Plug_Con_SubPrint(void *offset, unsigned int mask, const long *arg)
 	{
 		con = Con_Create(name);
 		Con_SetVisible(con);
+
+		if (currentplug->conexecutecommand)
+		{
+			con->userdata = currentplug;
+			con->linebuffered = Plug_SubConsoleCommand;
+		}
 	}
 
 	Con_PrintCon(con, text);
@@ -1178,6 +1186,18 @@ qboolean Plugin_ExecuteString(void)
 	}
 	currentplug = oldplug;
 	return false;
+}
+
+void Plug_SubConsoleCommand(console_t *con, char *line)
+{
+	char buffer[2048];
+	plugin_t *oldplug = currentplug;	//shouldn't really be needed, but oh well
+	currentplug = con->userdata;
+
+	Q_strncpyz(buffer, va("%s %s", con->name, line), sizeof(buffer));
+	Cmd_TokenizeString(buffer, false, false);
+	VM_Call(currentplug->vm, currentplug->conexecutecommand, 0);
+	currentplug = oldplug;
 }
 
 qboolean Plug_Menu_Event(int eventtype, int param)	//eventtype = draw/keydown/keyup, param = time/key

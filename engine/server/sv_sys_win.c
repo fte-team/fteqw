@@ -513,12 +513,12 @@ void Sys_HideConsole(void)
 	if (!consolewindowhandle)
 	{
 		char old[512];
-#define STRING	"Trying to hide"
+#define STRINGH	"Trying to hide"	//msvc sucks
 		GetConsoleTitle(old, sizeof(old));
-		SetConsoleTitle(STRING);
-		consolewindowhandle = FindWindow(NULL, STRING);
+		SetConsoleTitle(STRINGH);
+		consolewindowhandle = FindWindow(NULL, STRINGH);
 		SetConsoleTitle(old);
-#undef STRING
+#undef STRINGH
 	}
 
 	if (consolewindowhandle)
@@ -585,12 +585,12 @@ void Sys_ServerActivity(void)
 	if (!wnd)
 	{
 		char old[512];
-#define STRING	"About To Flash"
+#define STRINGF	"About To Flash"	//msvc sucks
 		GetConsoleTitle(old, sizeof(old));
-		SetConsoleTitle(STRING);
-		wnd = FindWindow(NULL, STRING);
+		SetConsoleTitle(STRINGF);
+		wnd = FindWindow(NULL, STRINGF);
 		SetConsoleTitle(old);
-#undef STRING
+#undef STRINGF
 	}
 
 	if (wnd)

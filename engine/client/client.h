@@ -19,6 +19,8 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 */
 // client.h
 
+#include "particles.h"
+
 
 typedef struct
 {
@@ -609,7 +611,7 @@ qboolean CL_DemoBehind(void);
 void CL_BeginServerConnect(void);
 void CLNQ_BeginServerConnect(void);
 
-#define			MAX_VISEDICTS	256
+#define			MAX_VISEDICTS	1024
 extern	int				cl_numvisedicts, cl_oldnumvisedicts;
 extern	entity_t		*cl_visedicts, *cl_oldvisedicts;
 extern	entity_t		cl_visedicts_list[2][MAX_VISEDICTS];
@@ -716,6 +718,11 @@ void CL_ClearCustomTEnts(void);
 void CL_ParseCustomTEnt(void);
 void CL_ParseEffect (qboolean effect2);
 
+void CLNQ_ParseParticleEffect (void);
+void CL_ParseParticleEffect2 (void);
+void CL_ParseParticleEffect3 (void);
+void CL_ParseParticleEffect4 (void);
+
 //
 // cl_ents.c
 //
@@ -754,7 +761,7 @@ void CG_Restart_f(void);
 //pr_csqc.c
 //
 #ifdef CSQC_DAT
-void CSQC_Init (void);
+qboolean CSQC_Init (unsigned int checksum);
 qboolean CSQC_DrawView(void);
 void CSQC_Shutdown(void);
 qboolean CSQC_StuffCmd(char *cmd);
@@ -868,7 +875,7 @@ void CLNQ_ParseEntity(unsigned int bits);
 int CLQ2_RegisterTEntModels (void);
 #endif
 
-void NQ_R_ParseParticleEffect (void);
+void NQ_P_ParseParticleEffect (void);
 void CLNQ_SignonReply (void);
 void NQ_BeginConnect(char *to);
 void NQ_ContinueConnect(char *to);

@@ -8,36 +8,53 @@
 
 progfuncs_t *csqcprogs;
 
+unsigned int csqcchecksum;
+
+#define csqcglobals	\
+	globalfunction(init_function,		"CSQC_Init");	\
+	globalfunction(shutdown_function,	"CSQC_Shutdown");	\
+	globalfunction(draw_function,		"CSQC_UpdateView");	\
+	globalfunction(keydown_function,	"CSQC_KeyDown");	\
+	globalfunction(keyup_function,		"CSQC_KeyUp");	\
+	globalfunction(parse_stuffcmd,		"CSQC_Parse_StuffCmd");	\
+	globalfunction(parse_centerprint,	"CSQC_Parse_CenterPrint");	\
+	\
+	globalfunction(ent_update,			"CSQC_Ent_Update");	\
+	globalfunction(ent_remove,			"CSQC_Ent_Remove");	\
+	\
+	/*These are pointers to the csqc's globals.*/	\
+	globalfloat(time,					"time");				/*float		Written before entering most qc functions*/	\
+	globalentity(self,					"self");				/*entity	Written before entering most qc functions*/	\
+	\
+	globalvector(forward,				"v_forward");			/*vector	written by anglevectors*/	\
+	globalvector(right,					"v_right");				/*vector	written by anglevectors*/	\
+	globalvector(up,					"v_up");				/*vector	written by anglevectors*/	\
+	\
+	globalfloat(trace_allsolid,			"trace_allsolid");		/*bool		written by traceline*/	\
+	globalfloat(trace_startsolid,		"trace_startsolid");	/*bool		written by traceline*/	\
+	globalfloat(trace_fraction,			"trace_fraction");		/*float		written by traceline*/	\
+	globalfloat(trace_inwater,			"trace_inwater");		/*bool		written by traceline*/	\
+	globalfloat(trace_inopen,			"trace_inopen");		/*bool		written by traceline*/	\
+	globalvector(trace_endpos,			"trace_endpos");		/*vector	written by traceline*/	\
+	globalvector(trace_plane_normal,	"trace_plane_normal");	/*vector	written by traceline*/	\
+	globalfloat(trace_plane_dist,		"trace_plane_dist");	/*float		written by traceline*/	\
+	globalentity(trace_ent,				"trace_ent");			/*entity	written by traceline*/	\
+
 typedef struct {
+#define globalfloat(name,qcname) float *name
+#define globalvector(name,qcname) float *name
+#define globalentity(name,qcname) int *name
+#define globalstring(name,qcname) string_t *name
+#define globalfunction(name,qcname) func_t name
 //These are the functions the engine will call to, found by name.
-	func_t init_function;
-	func_t shutdown_function;
-	func_t draw_function;
-	func_t keydown_function;
-	func_t keyup_function;
-	func_t parse_stuffcmd;
-	func_t parse_centerprint;
 
-	func_t ent_update;
-	func_t ent_remove;
+	csqcglobals
 
-//These are pointers to the csqc's globals.
-	float *time;				//float		Written before entering most qc functions
-	int	*self;					//entity	Written before entering most qc functions
-
-	float *forward;				//vector	written by anglevectors
-	float *right;				//vector	written by anglevectors
-	float *up;					//vector	written by anglevectors
-
-	float *trace_allsolid;		//bool		written by traceline
-	float *trace_startsolid;	//bool		written by traceline
-	float *trace_fraction;		//float		written by traceline
-	float *trace_inwater;		//bool		written by traceline
-	float *trace_inopen;		//bool		written by traceline
-	float *trace_endpos;		//vector	written by traceline
-	float *trace_plane_normal;	//vector	written by traceline
-	float *trace_plane_dist;	//float		written by traceline
-	int *trace_ent;				//entity	written by traceline
+#undef globalfloat
+#undef globalvector
+#undef globalentity
+#undef globalstring
+#undef globalfunction
 } csqcglobals_t;
 static csqcglobals_t csqcg;
 
@@ -45,29 +62,21 @@ static csqcglobals_t csqcg;
 
 void CSQC_FindGlobals(void)
 {
-	csqcg.time = (float*)PR_FindGlobal(csqcprogs, "time", 0);
+#define globalfloat(name,qcname) csqcg.name = (float*)PR_FindGlobal(csqcprogs, qcname, 0);
+#define globalvector(name,qcname) csqcg.name = (float*)PR_FindGlobal(csqcprogs, qcname, 0);
+#define globalentity(name,qcname) csqcg.name = (int*)PR_FindGlobal(csqcprogs, qcname, 0);
+#define globalstring(name,qcname) csqcg.name = (string_t*)PR_FindGlobal(csqcprogs, qcname, 0);
+#define globalfunction(name,qcname) csqcg.name = PR_FindFunction(csqcprogs,qcname,PR_ANY);
+
+	csqcglobals
+
+#undef globalfloat
+#undef globalvector
+#undef globalentity
+#undef globalstring
+#undef globalfunction
 	if (csqcg.time)
 		*csqcg.time = Sys_DoubleTime();
-
-	csqcg.self = (int*)PR_FindGlobal(csqcprogs, "self", 0);
-
-
-	csqcg.forward = (float*)PR_FindGlobal(csqcprogs, "v_forward", 0);
-	csqcg.right = (float*)PR_FindGlobal(csqcprogs, "v_right", 0);
-	csqcg.up = (float*)PR_FindGlobal(csqcprogs, "v_up", 0);
-
-
-	csqcg.init_function	= PR_FindFunction(csqcprogs, "CSQC_Init",	PR_ANY);
-	csqcg.shutdown_function	= PR_FindFunction(csqcprogs, "CSQC_Shutdown",	PR_ANY);
-	csqcg.draw_function	= PR_FindFunction(csqcprogs, "CSQC_UpdateView",	PR_ANY);
-	csqcg.keydown_function	= PR_FindFunction(csqcprogs, "CSQC_KeyDown",	PR_ANY);
-	csqcg.keyup_function	= PR_FindFunction(csqcprogs, "CSQC_KeyUp",	PR_ANY);
-
-	csqcg.parse_stuffcmd	= PR_FindFunction(csqcprogs, "CSQC_Parse_StuffCmd",	PR_ANY);
-	csqcg.parse_centerprint	= PR_FindFunction(csqcprogs, "CSQC_Parse_CenterPrint",	PR_ANY);
-
-	csqcg.ent_update	= PR_FindFunction(csqcprogs, "CSQC_Ent_Update",	PR_ANY);
-	csqcg.ent_remove	= PR_FindFunction(csqcprogs, "CSQC_Ent_Remove",	PR_ANY);
 }
 
 
@@ -611,6 +620,17 @@ static void PF_CSQC_SetOrigin(progfuncs_t *prinst, struct globalvars_s *pr_globa
 	//fixme: add some sort of fast area grid
 }
 
+static void PF_CSQC_SetSize(progfuncs_t *prinst, struct globalvars_s *pr_globals)
+{
+	csqcedict_t *ent = (void*)G_EDICT(prinst, OFS_PARM0);
+	float *mins = G_VECTOR(OFS_PARM1);
+	float *maxs = G_VECTOR(OFS_PARM1);
+
+	//fixme: set the size. :p
+
+	//fixme: add some sort of fast area grid
+}
+
 //FIXME: Not fully functional
 static void PF_CSQC_traceline(progfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
@@ -857,6 +877,28 @@ static void PF_cs_setsensativityscaler (progfuncs_t *prinst, struct globalvars_s
 	in_sensitivityscale = G_FLOAT(OFS_PARM0);
 }
 
+static void PF_cs_pointparticles (progfuncs_t *prinst, struct globalvars_s *pr_globals)
+{
+	char *effectname = PR_GetStringOfs(prinst, OFS_PARM0);
+	float *org = G_VECTOR(OFS_PARM1);
+	float *vel = G_VECTOR(OFS_PARM2);
+	float count = G_FLOAT(OFS_PARM3);
+	int effectnum = P_AllocateParticleType(effectname);
+
+	if (*prinst->callargc < 3)
+		vel = vec3_origin;
+	if (*prinst->callargc < 4)
+		count = 1;
+
+	P_RunParticleEffectType(org, vel, count, effectnum);
+}
+
+static void PF_cs_particlesloaded (progfuncs_t *prinst, struct globalvars_s *pr_globals)
+{
+	char *effectname = PR_GetStringOfs(prinst, OFS_PARM0);
+	G_FLOAT(OFS_RETURN) = P_DescriptionIsLoaded(effectname);
+}
+
 #define PF_FixTen PF_Fixme,PF_Fixme,PF_Fixme,PF_Fixme,PF_Fixme,PF_Fixme,PF_Fixme,PF_Fixme,PF_Fixme,PF_Fixme
 
 //warning: functions that depend on globals are bad, mkay?
@@ -866,7 +908,7 @@ builtin_t csqc_builtins[] = {
 	PF_makevectors,
 	PF_CSQC_SetOrigin, //PF_setorigin
 	PF_CSQC_SetModel, //PF_setmodel
-	PF_Fixme, //PF_setsize
+	PF_CSQC_SetSize, //PF_setsize
 	PF_Fixme,
 	PF_Fixme, //PF_break,
 	PF_random,
@@ -1053,8 +1095,8 @@ PF_CSQC_ModelnameForIndex,
 PF_cs_setsensativityscaler,
 PF_csqc_centerprint,
 PF_print,
-PF_Fixme,
-PF_Fixme,
+PF_cs_pointparticles,
+PF_cs_particlesloaded,
 
 //160
 PF_FixTen,
@@ -1094,8 +1136,6 @@ PF_FixTen,
 PF_FixTen,
 
 //250
-PF_FixTen,
-
 PF_FixTen,
 
 //260
@@ -1217,21 +1257,37 @@ void CSQC_Shutdown(void)
 	in_sensitivityscale = 1;
 }
 
-double  csqctime;
-void CSQC_Init (void)
+//when the qclib needs a file, it calls out to this function.
+qbyte *CSQC_PRLoadFile (char *path, void *buffer, int bufsize)
 {
+	qbyte *file;
+	//pretend it doesn't 
+	file = COM_LoadStackFile(path, buffer, bufsize);
+
+	if (!strcmp(path, "csprogs.dat"))	//Fail to load any csprogs who's checksum doesn't match.
+		if (Com_BlockChecksum(buffer, com_filesize) != csqcchecksum)
+			return NULL;
+
+	return file;
+}
+
+double  csqctime;
+qboolean CSQC_Init (unsigned int checksum)
+{
+	csqcchecksum = checksum;
+
 	CSQC_Shutdown();
 
 	if (!qrenderer)
 	{
-		return;
+		return false;
 	}
 
 	memset(cl.model_csqcname, 0, sizeof(cl.model_csqcname));
 	memset(cl.model_csqcprecache, 0, sizeof(cl.model_csqcprecache));
 
 	csqcprogparms.progsversion = PROGSTRUCT_VERSION;
-	csqcprogparms.ReadFile = COM_LoadStackFile;//char *(*ReadFile) (char *fname, void *buffer, int *len);
+	csqcprogparms.ReadFile = CSQC_PRLoadFile;//char *(*ReadFile) (char *fname, void *buffer, int *len);
 	csqcprogparms.FileSize = COM_FileSize;//int (*FileSize) (char *fname);	//-1 if file does not exist
 	csqcprogparms.WriteFile = QC_WriteFile;//bool (*WriteFile) (char *name, void *data, int len);
 	csqcprogparms.printf = (void *)Con_Printf;//Con_Printf;//void (*printf) (char *, ...);
@@ -1279,12 +1335,12 @@ void CSQC_Init (void)
 		{
 			CSQC_Shutdown();
 			//failed to load or something
-			return;
+			return false;
 		}
 		if (setjmp(csqc_abort))
 		{
 			CSQC_Shutdown();
-			return;
+			return false;
 		}
 
 		memset(csqcent, 0, sizeof(csqcent));
@@ -1303,11 +1359,13 @@ void CSQC_Init (void)
 
 		Con_Printf("Loaded csqc\n");
 	}
+
+	return true; //success!
 }
 
 qboolean CSQC_DrawView(void)
 {
-	if (!csqcg.draw_function || !csqcprogs)
+	if (!csqcg.draw_function || !csqcprogs || !cl.worldmodel)
 		return false;
 
 	r_secondaryview = 0;

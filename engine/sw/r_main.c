@@ -228,7 +228,6 @@ void SWR_Init (void)
 	R_InitTurb ();
 	
 	Cmd_AddRemCommand ("timerefresh", SWR_TimeRefresh_f);	
-	Cmd_AddRemCommand ("pointfile", R_ReadPointFile_f);	
 
 	Cvar_SetValue (&r_maxedges, (float)NUMSTACKEDGES);
 	Cvar_SetValue (&r_maxsurfs, (float)NUMSTACKSURFACES);
@@ -273,7 +272,7 @@ void SWR_NewMap (void)
 		cl.worldmodel->leafs[i].efrags = NULL;
 		 	
 	r_viewleaf = NULL;
-	R_ClearParticles ();
+	P_ClearParticles ();
 
 	r_cnumsurfs = r_maxsurfs.value;
 
@@ -678,7 +677,7 @@ void SWR_DrawEntitiesOnList (void)
 				{
 					if (gl_part_flame.value)
 					{
-						R_TorchEffect(currententity->origin, currententity->model->particleeffect);
+						P_TorchEffect(currententity->origin, currententity->model->particleeffect);
 						continue;
 					}
 				}
@@ -686,7 +685,7 @@ void SWR_DrawEntitiesOnList (void)
 				{
 					if (gl_part_torch.value)
 					{
-						R_TorchEffect(currententity->origin, currententity->model->particleeffect);
+						P_TorchEffect(currententity->origin, currententity->model->particleeffect);
 					}
 				}
 			}
@@ -1413,7 +1412,7 @@ SetVisibilityByPassages ();
 		dp_time1 = Sys_DoubleTime ();
 	}
 
-	R_DrawParticles ();
+	P_DrawParticles ();
 
 	if (r_dspeeds.value)
 		dp_time2 = Sys_DoubleTime ();

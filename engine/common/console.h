@@ -67,7 +67,9 @@ typedef struct console_s
 	int		linewidth;
 	int		totallines;
 	int		vislines;
-	void	(*redirect) (struct console_s *con, int key);
+	int		commandcompletion;	//allows tab completion of quake console commands
+	void	(*linebuffered) (struct console_s *con, char *line);	//if present, called on enter, causes the standard console input to appear.
+	void	(*redirect) (struct console_s *con, int key);	//if present, called every characture.
 	void	*userdata;
 	struct console_s *next;
 } console_t;
@@ -98,6 +100,8 @@ void Con_Clear_f (void);
 void Con_DrawNotify (void);
 void Con_ClearNotify (void);
 void Con_ToggleConsole_f (void);
+
+void Con_ExecuteLine(console_t *con, char *line);	//takes normal console commands
 
 
 void Con_CycleConsole (void);

@@ -157,7 +157,7 @@ typedef struct progexterns_s {
 	builtin_t *globalbuiltins;	//these are available to all progs
 	int numglobalbuiltins;
 
-	enum {PR_NOCOMPILE, PR_COMPILENEXIST, PR_COMPILECHANGED, PR_COMPILEALWAYS, PR_COMPILEIGNORE} autocompile;
+	enum {PR_NOCOMPILE, PR_COMPILENEXIST, PR_COMPILEEXISTANDCHANGED, PR_COMPILECHANGED, PR_COMPILEALWAYS, PR_COMPILEIGNORE} autocompile;
 
 	double *gametime;
 

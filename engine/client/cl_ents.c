@@ -1520,7 +1520,7 @@ void CL_LinkPacketEntities (void)
 			}
 
 		if (model->particletrail>=0)
-			R_RocketTrail (old_origin, ent->origin, model->particletrail, &cl.lerpents[s1->number].trailstate);
+			P_ParticleTrail (old_origin, ent->origin, model->particletrail, &cl.lerpents[s1->number].trailstate);
 
 		//dlights are not so customisable.
 		if (r_rocketlight.value)

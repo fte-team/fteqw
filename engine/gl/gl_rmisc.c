@@ -650,7 +650,6 @@ void GLR_Init (void)
 {	
 	Cmd_AddRemCommand ("timerefresh", GLR_TimeRefresh_f);
 	Cmd_AddRemCommand ("envmap", R_Envmap_f);
-	Cmd_AddRemCommand ("pointfile", R_ReadPointFile_f);
 
 //	Cmd_AddRemCommand ("makewad", R_MakeTexWad_f);
 
@@ -977,7 +976,7 @@ void GLR_NewMap (void)
 	r_oldviewcluster = 0;
 	r_viewcluster2 = -1;
 TRACE(("dbg: GLR_NewMap: clear particles\n"));
-	R_ClearParticles ();
+	P_ClearParticles ();
 TRACE(("dbg: GLR_NewMap: wiping them stains (getting the cloth out)\n"));
 	GLR_WipeStains();
 TRACE(("dbg: GLR_NewMap: building lightmaps\n"));

@@ -538,7 +538,7 @@ void Renderer_Init(void)
 
 	Cmd_AddCommand("bul_make",	R_BulletenForce_f);	
 
-	R_InitParticles();
+	P_InitParticles();
 	R_InitTextures();
 	RQ_Init();
 }

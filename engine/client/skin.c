@@ -491,9 +491,6 @@ void Skin_NextDownload (void)
 
 	if (cls.state != ca_active)
 	{	// get next signon phase
-#ifdef CSQC_DAT
-		CSQC_Init();
-#endif
 		CL_SendClientCommand("begin %i", cl.servercount);
 		Cache_Report ();		// print remaining memory
 	}

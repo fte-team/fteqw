@@ -1386,7 +1386,7 @@ void MP_Init (void)
 	menuprogparms.globalbuiltins = menu_builtins;//builtin_t *globalbuiltins;	//these are available to all progs
 	menuprogparms.numglobalbuiltins = menu_numbuiltins;
 
-	menuprogparms.autocompile = PR_COMPILECHANGED;//enum {PR_NOCOMPILE, PR_COMPILENEXIST, PR_COMPILECHANGED, PR_COMPILEALWAYS} autocompile;
+	menuprogparms.autocompile = PR_COMPILEEXISTANDCHANGED;//enum {PR_NOCOMPILE, PR_COMPILENEXIST, PR_COMPILECHANGED, PR_COMPILEALWAYS} autocompile;
 
 	menuprogparms.gametime = &menutime;
 

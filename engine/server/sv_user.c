@@ -245,6 +245,8 @@ void SV_New_f (void)
 	else
 		MSG_WriteString (&host_client->netchan.message, va("fullserverinfo \"%s\"\n", svs.info) );
 
+	host_client->csqcactive = false;
+
 	// send music
 	MSG_WriteByte (&host_client->netchan.message, svc_cdtrack);
 	if (svprogfuncs)
@@ -1333,7 +1335,7 @@ void SV_NextChunkedDownload(int chunknum)
 {
 #define CHUNKSIZE 1024
 	char buffer[1024];
-	if (host_client->datagram.cursize + CHUNKSIZE+5 > host_client->datagram.maxsize)
+	if (host_client->datagram.cursize + CHUNKSIZE+5+50 > host_client->datagram.maxsize)
 		return;	//choked!
 	fseek (host_client->download, chunknum*CHUNKSIZE, SEEK_SET);
 	fread (buffer, 1, CHUNKSIZE, host_client->download);
@@ -2770,6 +2772,11 @@ void Cmd_Observe_f (void)
 	host_client->sendinfo = true;
 }
 
+void SV_EnableClientsCSQC(void)
+{
+	host_client->csqcactive = true;
+}
+
 void SV_MVDList_f (void);
 void SV_MVDInfo_f (void);
 typedef struct
@@ -2814,6 +2821,7 @@ ucmd_t ucmds[] =
 	{"nextdl", SV_NextDownload_f},
 
 	{"ptrack", SV_PTrack_f}, //ZOID - used with autocam
+	{"enablecsqc", SV_EnableClientsCSQC},
 
 	{"snap", SV_NoSnap_f},
 	{"vote", SV_Vote_f},
@@ -4112,10 +4120,10 @@ void SV_ExecuteClientMessage (client_t *cl)
 
 		if (cl->lastsequence_acknoledged + UPDATE_BACKUP > cl->netchan.incoming_acknowledged)
 			frame->ping_time = realtime - frame->senttime;	//no more phenomanally low pings please
-
+#ifdef PEXT_CSQC
 		for (i = cl->lastsequence_acknoledged+1; i < cl->netchan.incoming_acknowledged; i++)
 			SV_CSQC_DroppedPacket(cl, i);
-
+#endif
 		cl->lastsequence_acknoledged = cl->netchan.incoming_acknowledged;
 	}
 	else

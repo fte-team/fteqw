@@ -530,8 +530,8 @@ void CL_ParseTEnt (void)
 
 		R_AddStain(pos, -10, 0, -10, 20);
 
-		if (R_RunParticleEffectType(pos, NULL, 1, pt_wizspike))
-			R_RunParticleEffect (pos, vec3_origin, 20, 30);
+		if (P_RunParticleEffectType(pos, NULL, 1, pt_wizspike))
+			P_RunParticleEffect (pos, vec3_origin, 20, 30);
 
 		S_StartSound (-2, 0, cl_sfx_wizhit, pos, 1, 1);
 		break;
@@ -543,8 +543,8 @@ void CL_ParseTEnt (void)
 
 		R_AddStain(pos, -10, -10, -10, 20);
 
-		if (R_RunParticleEffectType(pos, NULL, 1, pt_knightspike))
-			R_RunParticleEffect (pos, vec3_origin, 226, 20);
+		if (P_RunParticleEffectType(pos, NULL, 1, pt_knightspike))
+			P_RunParticleEffect (pos, vec3_origin, 226, 20);
 
 		S_StartSound (-2, 0, cl_sfx_knighthit, pos, 1, 1);
 		break;
@@ -557,9 +557,9 @@ void CL_ParseTEnt (void)
 		R_AddStain(pos, -10, -10, -10, 20);
 		R_AddDecals(pos);
 
-		if (R_RunParticleEffectType(pos, NULL, 1, pt_spike))
-			if (R_RunParticleEffectType(pos, NULL, 10, pt_gunshot))
-				R_RunParticleEffect (pos, vec3_origin, 0, 10);
+		if (P_RunParticleEffectType(pos, NULL, 1, pt_spike))
+			if (P_RunParticleEffectType(pos, NULL, 10, pt_gunshot))
+				P_RunParticleEffect (pos, vec3_origin, 0, 10);
 
 		if ( rand() % 5 )
 			S_StartSound (-2, 0, cl_sfx_tink1, pos, 1, 1);
@@ -582,10 +582,10 @@ void CL_ParseTEnt (void)
 		R_AddStain(pos, -10, -10, -10, 20);
 		R_AddDecals(pos);
 
-		if (R_RunParticleEffectType(pos, NULL, 1, pt_superspike))
-			if (R_RunParticleEffectType(pos, NULL, 2, pt_spike))
-				if (R_RunParticleEffectType(pos, NULL, 20, pt_gunshot))
-					R_RunParticleEffect (pos, vec3_origin, 0, 20);
+		if (P_RunParticleEffectType(pos, NULL, 1, pt_superspike))
+			if (P_RunParticleEffectType(pos, NULL, 2, pt_spike))
+				if (P_RunParticleEffectType(pos, NULL, 20, pt_gunshot))
+					P_RunParticleEffect (pos, vec3_origin, 0, 20);
 
 		if ( rand() % 5 )
 			S_StartSound (-2, 0, cl_sfx_tink1, pos, 1, 1);
@@ -612,9 +612,9 @@ void CL_ParseTEnt (void)
 		R_AddStain(pos, -10, -10, -10, 20);
 		R_AddDecals(pos);
 
-		if (R_RunParticleEffectType(pos, NULL, 1, pt_bullet))
-			if (R_RunParticleEffectType(pos, NULL, 10, pt_gunshot))
-				R_RunParticleEffect (pos, vec3_origin, 0, 10);
+		if (P_RunParticleEffectType(pos, NULL, 1, pt_bullet))
+			if (P_RunParticleEffectType(pos, NULL, 10, pt_gunshot))
+				P_RunParticleEffect (pos, vec3_origin, 0, 10);
 
 		if ( rand() % 5 )
 			S_StartSound (-2, 0, cl_sfx_tink1, pos, 1, 1);
@@ -637,10 +637,10 @@ void CL_ParseTEnt (void)
 		R_AddStain(pos, -10, -10, -10, 20);
 		R_AddDecals(pos);
 
-		if (R_RunParticleEffectType(pos, NULL, 1, pt_superbullet))
-			if (R_RunParticleEffectType(pos, NULL, 2, pt_bullet))
-				if (R_RunParticleEffectType(pos, NULL, 20, pt_gunshot))
-					R_RunParticleEffect (pos, vec3_origin, 0, 20);
+		if (P_RunParticleEffectType(pos, NULL, 1, pt_superbullet))
+			if (P_RunParticleEffectType(pos, NULL, 2, pt_bullet))
+				if (P_RunParticleEffectType(pos, NULL, 20, pt_gunshot))
+					P_RunParticleEffect (pos, vec3_origin, 0, 20);
 
 		if ( rand() % 5 )
 			S_StartSound (-2, 0, cl_sfx_tink1, pos, 1, 1);
@@ -662,7 +662,7 @@ void CL_ParseTEnt (void)
 		pos[0] = MSG_ReadCoord ();
 		pos[1] = MSG_ReadCoord ();
 		pos[2] = MSG_ReadCoord ();
-		R_ParticleExplosion (pos);
+		P_ParticleExplosion (pos);
 		
 	// light
 		dl = CL_AllocDlight (0);
@@ -697,7 +697,7 @@ void CL_ParseTEnt (void)
 		pos[0] = MSG_ReadCoord ();
 		pos[1] = MSG_ReadCoord ();
 		pos[2] = MSG_ReadCoord ();
-		R_BlobExplosion (pos);
+		P_BlobExplosion (pos);
 
 		S_StartSound (-2, 0, cl_sfx_r_exp3, pos, 1, 1);
 		break;
@@ -714,14 +714,14 @@ void CL_ParseTEnt (void)
 		pos[0] = MSG_ReadCoord ();
 		pos[1] = MSG_ReadCoord ();
 		pos[2] = MSG_ReadCoord ();
-		R_LavaSplash (pos);
+		P_LavaSplash (pos);
 		break;
 	
 	case TE_TELEPORT:
 		pos[0] = MSG_ReadCoord ();
 		pos[1] = MSG_ReadCoord ();
 		pos[2] = MSG_ReadCoord ();
-		R_TeleportSplash (pos);
+		P_TeleportSplash (pos);
 		break;
 
 	case TE_GUNSHOT:			// bullet hitting wall
@@ -735,8 +735,8 @@ void CL_ParseTEnt (void)
 
 		R_AddStain(pos, -10, -10, -10, 20);
 
-		if (R_RunParticleEffectType(pos, NULL, cnt, pt_gunshot))
-			R_RunParticleEffect (pos, vec3_origin, 0, 20*cnt);
+		if (P_RunParticleEffectType(pos, NULL, cnt, pt_gunshot))
+			P_RunParticleEffect (pos, vec3_origin, 0, 20*cnt);
 
 		break;
 		
@@ -748,8 +748,8 @@ void CL_ParseTEnt (void)
 
 		R_AddStain(pos, 0, -10, -10, 40);
 
-		if (R_RunParticleEffectType(pos, NULL, cnt, pt_blood))
-			R_RunParticleEffect (pos, vec3_origin, 73, 20*cnt);
+		if (P_RunParticleEffectType(pos, NULL, cnt, pt_blood))
+			P_RunParticleEffect (pos, vec3_origin, 73, 20*cnt);
 
 		break;
 
@@ -760,8 +760,8 @@ void CL_ParseTEnt (void)
 
 		R_AddStain(pos, 1, -10, -10, 20);
 
-		if (R_RunParticleEffectType(pos, NULL, 1, pt_lightningblood))
-			R_RunParticleEffect (pos, vec3_origin, 225, 50);
+		if (P_RunParticleEffectType(pos, NULL, 1, pt_lightningblood))
+			P_RunParticleEffect (pos, vec3_origin, 225, 50);
 
 		break;
 
@@ -806,7 +806,7 @@ void CL_ParseTEnt (void)
 		cnt = MSG_ReadByte ();
 		{
 			extern int pt_spark;
-			R_RunParticleEffectType(pos, pos2, cnt, pt_blood);
+			P_RunParticleEffectType(pos, pos2, cnt, pt_blood);
 		}
 		break;
 
@@ -822,7 +822,7 @@ void CL_ParseTEnt (void)
 		cnt = MSG_ReadByte ();
 		{
 			extern int pt_spark;
-			R_RunParticleEffectType(pos, pos2, cnt, pt_spark);
+			P_RunParticleEffectType(pos, pos2, cnt, pt_spark);
 		}
 		break;
 
@@ -862,7 +862,7 @@ pos2[1] = MSG_ReadCoord ();
 pos2[2] = MSG_ReadCoord ();
 cnt = MSG_ReadByte ();
 
-R_ParticleExplosion (pos);
+P_ParticleExplosion (pos);
 		break;
 
 		case 75://TE_PLASMABURN
@@ -871,7 +871,7 @@ pos[0] = MSG_ReadCoord ();
 pos[1] = MSG_ReadCoord ();
 pos[2] = MSG_ReadCoord ();
 
-R_ParticleExplosion (pos);
+P_ParticleExplosion (pos);
 		break;
 
 	case 76:
@@ -906,7 +906,7 @@ cnt = MSG_ReadByte ();
 
 {
 	extern int pt_plasma;
-	R_RunParticleEffectType(pos, pos2, cnt, pt_plasma);
+	P_RunParticleEffectType(pos, pos2, cnt, pt_plasma);
 }
 		break;
 
@@ -955,7 +955,7 @@ void CL_ParseCustomTEnt(void)
 
 		t->netstyle = MSG_ReadByte();
 		str = MSG_ReadString();
-		t->particleeffecttype = AllocateParticleType(str);
+		t->particleeffecttype = P_AllocateParticleType(str);
 
 		if (t->netstyle & CTE_STAINS)
 		{
@@ -993,7 +993,7 @@ void CL_ParseCustomTEnt(void)
 	{
 		MSG_ReadPos (pos);
 		MSG_ReadPos (pos2);
-		R_RocketTrail(pos, pos2, t->particleeffecttype, NULL);
+		P_ParticleTrail(pos, pos2, t->particleeffecttype, NULL);
 	}
 	else
 	{
@@ -1008,9 +1008,9 @@ void CL_ParseCustomTEnt(void)
 		if (t->netstyle & CTE_CUSTOMDIRECTION)
 		{
 			MSG_ReadDir (dir);
-			R_RunParticleEffectType(pos, dir, 1, t->particleeffecttype);
+			P_RunParticleEffectType(pos, dir, 1, t->particleeffecttype);
 		}
-		else R_RunParticleEffectType(pos, NULL, 1, t->particleeffecttype);
+		else P_RunParticleEffectType(pos, NULL, 1, t->particleeffecttype);
 	}
 
 	if (t->netstyle & CTE_STAINS)
@@ -1062,7 +1062,7 @@ void CL_ClearCustomTEnts(void)
 		customtenttype[i].particleeffecttype = -1;
 }
 
-void NQ_R_ParseParticleEffect (void)
+void CLNQ_ParseParticleEffect (void)
 {
 	vec3_t		org, dir;
 	int			i, count, msgcount, color;
@@ -1079,9 +1079,9 @@ void NQ_R_ParseParticleEffect (void)
 	else
 		count = msgcount;
 	
-	R_RunParticleEffect (org, dir, color, count);
+	P_RunParticleEffect (org, dir, color, count);
 }
-void R_ParseParticleEffect2 (void)
+void CL_ParseParticleEffect2 (void)
 {
 	vec3_t		org, dmin, dmax;
 	int			i, msgcount, color, effect;
@@ -1096,9 +1096,9 @@ void R_ParseParticleEffect2 (void)
 	msgcount = MSG_ReadByte ();
 	effect = MSG_ReadByte ();
 
-	R_RunParticleEffect2 (org, dmin, dmax, color, effect, msgcount);
+	P_RunParticleEffect2 (org, dmin, dmax, color, effect, msgcount);
 }
-void R_ParseParticleEffect3 (void)
+void CL_ParseParticleEffect3 (void)
 {
 	vec3_t		org, box;
 	int			i, msgcount, color, effect;
@@ -1111,9 +1111,9 @@ void R_ParseParticleEffect3 (void)
 	msgcount = MSG_ReadByte ();
 	effect = MSG_ReadByte ();
 
-	R_RunParticleEffect3 (org, box, color, effect, msgcount);
+	P_RunParticleEffect3 (org, box, color, effect, msgcount);
 }
-void R_ParseParticleEffect4 (void)
+void CL_ParseParticleEffect4 (void)
 {
 	vec3_t		org;
 	int			i, msgcount, color, effect;
@@ -1126,7 +1126,7 @@ void R_ParseParticleEffect4 (void)
 	msgcount = MSG_ReadByte ();
 	effect = MSG_ReadByte ();
 
-	R_RunParticleEffect4 (org, radius, color, effect, msgcount);
+	P_RunParticleEffect4 (org, radius, color, effect, msgcount);
 }
 
 
@@ -1220,7 +1220,7 @@ void CLQ2_ParseTEnt (void)
 	case Q2TE_BLOOD:			// bullet hitting flesh
 		MSG_ReadPos (pos);
 		MSG_ReadDir (dir);
-		R_RunParticleEffectType(pos, dir, 1, pt_blood);
+		P_RunParticleEffectType(pos, dir, 1, pt_blood);
 		R_AddStain(pos, 0, -10, -10, 40);
 		break;
 
@@ -1230,9 +1230,9 @@ void CLQ2_ParseTEnt (void)
 		MSG_ReadPos (pos);
 		MSG_ReadDir (dir);
 		if (type == Q2TE_GUNSHOT)
-			R_RunParticleEffect (pos, dir, 0, 40);
+			P_RunParticleEffect (pos, dir, 0, 40);
 		else
-			R_RunParticleEffect (pos, dir, 0xe0, 6);
+			P_RunParticleEffect (pos, dir, 0xe0, 6);
 
 		R_AddStain(pos, -10, -10, -10, 20);
 
@@ -1257,9 +1257,9 @@ void CLQ2_ParseTEnt (void)
 		MSG_ReadPos (pos);
 		MSG_ReadDir (dir);
 		if (type == Q2TE_SCREEN_SPARKS)
-			R_RunParticleEffect (pos, dir, 0xd0, 40);
+			P_RunParticleEffect (pos, dir, 0xd0, 40);
 		else
-			R_RunParticleEffect (pos, dir, 0xb0, 40);
+			P_RunParticleEffect (pos, dir, 0xb0, 40);
 		//FIXME : replace or remove this sound
 //		Q2S_StartSound (pos, 0, 0, q2cl_sfx_lashit, 1, ATTN_NORM, 0);
 		break;
@@ -1267,7 +1267,7 @@ void CLQ2_ParseTEnt (void)
 	case Q2TE_SHOTGUN:			// bullet hitting wall
 		MSG_ReadPos (pos);
 		MSG_ReadDir (dir);
-		R_RunParticleEffect (pos, dir, 0, 20);
+		P_RunParticleEffect (pos, dir, 0, 20);
 //		CL_SmokeAndFlash(pos);
 		R_AddStain(pos, -10, -10, -10, 20);
 		break;
@@ -1281,7 +1281,7 @@ void CLQ2_ParseTEnt (void)
 			color = 0x00;
 		else
 			color = splash_color[r];
-		R_RunParticleEffect (pos, dir, color, cnt);
+		P_RunParticleEffect (pos, dir, color, cnt);
 
 		if (r == Q2SPLASH_SPARKS)
 		{
@@ -1300,21 +1300,21 @@ void CLQ2_ParseTEnt (void)
 		MSG_ReadPos (pos);
 		MSG_ReadDir (dir);
 		color = MSG_ReadByte ();
-		R_RunParticleEffect (pos, dir, color, cnt);
+		P_RunParticleEffect (pos, dir, color, cnt);
 		break;
 
 	// RAFAEL
 	case Q2TE_BLUEHYPERBLASTER:
 		MSG_ReadPos (pos);
 		MSG_ReadPos (dir);
-		R_BlasterParticles (pos, dir);
+		P_BlasterParticles (pos, dir);
 		break;
 
 	case Q2TE_BLASTER:			// blaster hitting wall
 		MSG_ReadPos (pos);
 		MSG_ReadDir (dir);
 
-		R_BlasterParticles (pos, dir);
+		P_BlasterParticles (pos, dir);
 		R_AddStain(pos, 0, -5, -10, 20);
 
 		ex = CL_AllocExplosion ();
@@ -1349,7 +1349,7 @@ void CLQ2_ParseTEnt (void)
 	case Q2TE_GRENADE_EXPLOSION_WATER:
 		MSG_ReadPos (pos);
 
-		R_ParticleExplosion (pos);
+		P_ParticleExplosion (pos);
 				
 	// light
 		{
@@ -1430,7 +1430,7 @@ void CLQ2_ParseTEnt (void)
 	case Q2TE_EXPLOSION1_NP:						// PMM
 		MSG_ReadPos (pos);
 
-		R_ParticleExplosion (pos);
+		P_ParticleExplosion (pos);
 
 	// light
 		{
@@ -1911,7 +1911,7 @@ void CL_UpdateBeams (void)
 		}
 */
 //		if (part_type[rt_lightning1].loaded)
-		if (!R_RocketTrail(b->start, b->end, rt_lightning1, NULL))
+		if (!P_ParticleTrail(b->start, b->end, rt_lightning1, NULL))
 			continue;
 
 	// add new entities for the lightning
@@ -2005,8 +2005,6 @@ void CL_UpdateExplosions (void)
 	}
 }
 
-void R_DarkFieldParticles (float *org, qbyte colour);
-void R_EntityParticles (float *org, qbyte colour, float *radius);
 entity_state_t *CL_FindPacketEntity(int num);
 void CL_UpdateSEEFs(void)
 {
@@ -2048,12 +2046,12 @@ void CL_UpdateSEEFs(void)
 				org[0] = eorg[0];
 				org[1] = eorg[1];
 				org[2] = eorg[2] + cl_seef[i].offset;
-				R_EntityParticles(org, cl_seef[i].colour, cl_seef[i].efsize);
+				P_EntityParticles(org, cl_seef[i].colour, cl_seef[i].efsize);
 			}
 			break;
 		case TE_SEEF_DARKFIELD:
 			if (!cl.paused)
-				R_DarkFieldParticles(eorg, cl_seef[i].colour);
+				P_DarkFieldParticles(eorg, cl_seef[i].colour);
 			break;
 		case TE_SEEF_DARKLIGHT:
 			dl = CL_AllocDlight (cl_seef[i].entnum);

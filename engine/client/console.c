@@ -493,6 +493,8 @@ void Con_Init (void)
 #endif
 
 	con_current = &con_main;
+	con_main.linebuffered = Con_ExecuteLine;
+	con_main.commandcompletion = true;
 	con_main.linewidth = -1;
 	Con_CheckResize ();
 	
@@ -834,8 +836,9 @@ void Con_DrawInput (void)
 	int p;
 	unsigned char	*text, *fname;
 	extern int con_commandmatch;
+	unsigned short maskedtext[MAXCMDLINE];
 
-	int mask=CON_WHITEMASK;
+	unsigned short mask=CON_WHITEMASK;
 	int maskstack[4];
 	int maskstackdepth = 0;
 
@@ -846,16 +849,113 @@ void Con_DrawInput (void)
 	if (key_dest != key_console && cls.state == ca_active)
 		return;		// don't draw anything (allways draw if not active)
 
-	if (con_current != &con_main)
-		return;
+	if (!con_current->linebuffered)
+		return;	//fixme: draw any unfinished lines of the current console instead.
 
-	
 	text = key_lines[edit_line];
+
+	//copy it to an alternate buffer and fill in text colouration escape codes.
+	//if it's recognised as a command, colour it yellow.
+	//if it's not a command, and the cursor is at the end of the line, leave it as is,
+	//	but add to the end to show what the compleation will be.
+
+	for (i = 0; text[i]; i++)
+	{
+		if (text[i] == '^')	//is this an escape code?
+		{
+			if (text[i+1]>='0' && text[i+1]<'8')
+				mask = (text[i+1]-'0')*256 + (mask&~CON_COLOURMASK);	//change colour only.
+			else if (text[i+1] == 'b')
+				mask = (mask & ~CON_BLINKTEXT) + (CON_BLINKTEXT - (mask & CON_BLINKTEXT));
+			else if (text[i+1] == 'a')	//alternate
+				mask = (mask & ~CON_2NDCHARSETTEXT) + (CON_2NDCHARSETTEXT - (mask & CON_2NDCHARSETTEXT));
+			else if (text[i+1] == 's')	//store on stack (it's great for names)
+			{
+				if (maskstackdepth < sizeof(maskstack)/sizeof(maskstack[0]))
+				{
+					maskstack[maskstackdepth] = mask;
+					maskstackdepth++;
+				}
+			}
+			else if (text[i+1] == 'r')	//restore from stack (it's great for names)
+			{
+				if (maskstackdepth)
+				{
+					maskstackdepth--;
+					mask = maskstack[maskstackdepth];
+				}
+			}
+			else if (text[i+1] == '^')//next does nothing either
+			{
+				maskedtext[i] = (unsigned char)text[i] | mask;
+				i++;
+			}
+		}
+
+		maskedtext[i] = (unsigned char)text[i] | mask;
+	}	//that's the default compleation applied
+
+	maskedtext[i] = '\0';
+	maskedtext[i+1] = '\0';	//just in case
+
+	if (con_current->commandcompletion)
+	{
+		if (text[1] == '/' || IsCommand(text+1))
+		{	//color the first token yellow, it's a valid command
+			for (p = 1; (maskedtext[p]&255)>' '; p++)
+				maskedtext[p] = (maskedtext[p]&255) | (COLOR_YELLOW<<8);
+		}
+		if (key_linepos == i)	//cursor is at end
+		{
+			x = text[1] == '/'?2:1;
+			fname = Cmd_CompleteCommand(text+x, true, con_commandmatch);
+			if (fname)	//we can compleate it to:
+			{
+				for (p = i-x; fname[p]>' '; p++)
+					maskedtext[p+x] = (unsigned char)fname[p] | (COLOR_GREEN<<8);
+				maskedtext[p+x] = '\0';
+			}
+		}
+	}
+
+	if (((int)(realtime*con_cursorspeed)&1))
+	{
+		maskedtext[key_linepos] = 11|CON_WHITEMASK;	//make it blink
+	}
+
+	if (i >= con_current->linewidth)	//work out the start point
+		si = i - con_current->linewidth;
+	else
+		si = 0;
+
+	y = con_current->vislines-22;
+
+	for (i=0,p=0,x=8; x<=con_current->linewidth*8 ; p++)	//draw it
+	{
+		if (!maskedtext[p])
+			break;
+		if (si <= i)
+		{
+			Draw_ColouredCharacter ( x, con_current->vislines - 22, maskedtext[p]);
+			x+=8;
+		}
+		i++;
+	}
+
+
+
+	/*
+
 
 	x = 1;
 	if (text[1] == '/')
 		x = 2;
-	fname = Cmd_CompleteCommand(text+x, true, con_commandmatch);
+	if (con_current->commandcompletion)
+	{
+		fname = Cmd_CompleteCommand(text+x, true, con_commandmatch);
+	}
+	else
+		fname = NULL;
 	oc = text[key_linepos];
 	if (!oc)
 		text[key_linepos+1] = 0;
@@ -928,6 +1028,7 @@ void Con_DrawInput (void)
 	}
 
 	text[key_linepos] = oc;
+	*/
 }
 
 /*

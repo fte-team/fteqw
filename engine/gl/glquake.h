@@ -48,7 +48,6 @@ void GL_InitFogTexture(void);
 void GL_BeginRendering (int *x, int *y, int *width, int *height);
 void GL_EndRendering (void);
 
-void R_EmitSkyEffectTris(model_t *mod, msurface_t 	*fa);
 void GLR_BrightenScreen (void);
 void GLR_NetGraph (void);
 void GLR_DrawAlphaSurfaces (void);
@@ -154,7 +153,6 @@ extern	int glx, gly, glwidth, glheight;
 
 
 void R_TimeRefresh_f (void);
-void R_ReadPointFile_f (void);
 texture_t *SWR_TextureAnimation (texture_t *base);
 texture_t *GLR_TextureAnimation (texture_t *base);
 

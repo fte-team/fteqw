@@ -548,7 +548,7 @@ model_t *GLMod_LoadModel (model_t *mod, qboolean crash)
 	{
 		Mod_LoadQ2BrushModel (mod, buf);
 		mod->needload = false;
-		R_DefaultTrail(mod);
+		P_DefaultTrail(mod);
 		return mod;
 	}
 #endif
@@ -582,7 +582,7 @@ model_t *GLMod_LoadModel (model_t *mod, qboolean crash)
 			{
 				mod->needload = false;
 				GLMod_LoadDoomSprite(mod);
-				R_DefaultTrail(mod);
+				P_DefaultTrail(mod);
 				return mod;
 			}
 #endif
@@ -600,7 +600,7 @@ couldntload:
 			mod->maxs[1] = 16;
 			mod->maxs[2] = 16;
 			mod->needload = true;
-			R_DefaultTrail(mod);
+			P_DefaultTrail(mod);
 			return mod;
 			return NULL;
 		}
@@ -682,7 +682,7 @@ couldntload:
 		goto couldntload;
 	}
 
-	R_DefaultTrail(mod);
+	P_DefaultTrail(mod);
 
 	return mod;
 }
@@ -966,7 +966,7 @@ TRACE(("dbg: GLMod_LoadTextures: inittexturedescs\n"));
 		tx->width = mt->width;
 		tx->height = mt->height;
 
-		tx->parttype = ParticleTypeForName(va("tex_%s", tx->name));
+		tx->parttype = P_ParticleTypeForName(va("tex_%s", tx->name));
 
 		if (!mt->offsets[0])	//this is a hl external style texture, load it a little later (from a wad)
 		{
@@ -2685,7 +2685,7 @@ void GLMod_LoadBrushModel (model_t *mod, void *buffer)
 			strcpy (loadmodel->name, name);
 			mod = loadmodel;
 
-			R_DefaultTrail(mod);
+			P_DefaultTrail(mod);
 		}
 	}
 #ifdef RUNTIMELIGHTING

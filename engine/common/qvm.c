@@ -1047,6 +1047,8 @@ void *VM_MemoryBase(vm_t *vm)
 		return NULL;
 	case VM_BYTECODE:
 		return ((qvm_t*)vm->hInst)->ds;
+	default:
+		return NULL;
 	}
 }
 

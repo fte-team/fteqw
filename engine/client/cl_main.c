@@ -1241,7 +1241,7 @@ void CL_CheckServerInfo(void)
 ==================
 CL_FullServerinfo_f
 
-Sent by server when serverinfo changes
+Sent by server just after the svc_serverdata
 ==================
 */
 void CL_FullServerinfo_f (void)
@@ -1272,6 +1272,16 @@ void CL_FullServerinfo_f (void)
 		}
 	}
 	CL_CheckServerInfo();
+
+#ifdef CSQC_DAT
+	p = Info_ValueForKey(cl.serverinfo, "*csprogs");
+	if (*p)	//only allow csqc if the server says so, and the 'checksum' matches.
+	{
+		unsigned int chksum = strtoul(p, NULL, 0);
+		if (CSQC_Init(chksum))
+			CL_SendClientCommand("enablecsqc");
+	}
+#endif
 }
 
 /*

@@ -7254,7 +7254,7 @@ void QCC_PR_ParseDefs (char *classname)
 			extern int ForcedCRC;
 			if (ForcedCRC)
 				QCC_PR_ParseError(ERR_BADEXTENSION, "progs crc was already specified - only one is allowed");
-			ForcedCRC = pr_immediate._float;
+			ForcedCRC = (int)pr_immediate._float;
 			QCC_PR_Lex();
 			QCC_PR_Expect(";");
 			return;

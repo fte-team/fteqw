@@ -18,6 +18,13 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 
 */
 
+/*
+The aim of this particle system is to have as much as possible configurable.
+Some parts still fail here, and are marked FIXME
+Effects are flushed on new maps.
+The engine has a few builtins.
+*/
+
 #include "quakedef.h"
 #ifdef SWQUAKE
 #include "r_local.h"
@@ -67,16 +74,13 @@ int rt_blastertrail,
 static double sint[7] = {0.000000, 0.781832,  0.974928,  0.433884, -0.433884, -0.974928, -0.781832};
 static double cost[7] = {1.000000, 0.623490, -0.222521, -0.900969, -0.900969, -0.222521,  0.623490};
 
-void R_RunParticleEffect2 (vec3_t org, vec3_t dmin, vec3_t dmax, int color, int effect, int count);
-void R_RunParticleEffect3 (vec3_t org, vec3_t box, int color, int effect, int count);
-void R_RunParticleEffect4 (vec3_t org, float radius, int color, int effect, int count);
-
-int R_RunParticleEffectType (vec3_t org, vec3_t dir, float count, int typenum);
 
 #define crand() (rand()%32767/16383.5f-1)
 
 void D_DrawParticleTrans (particle_t *pparticle);
 void D_DrawSparkTrans (particle_t *pparticle, vec3_t src, vec3_t dest);
+
+void P_ReadPointFile_f (void);
 
 #define MAX_BEAMS                2048   // default max # of beam segments
 #define MAX_PARTICLES			32768	// default max # of particles at one
@@ -212,7 +216,7 @@ typedef struct part_type_s {
 int numparticletypes;
 part_type_t *part_type;
 
-part_type_t *GetParticleType(char *name)
+static part_type_t *P_GetParticleType(char *name)
 {
 	int i;
 	part_type_t *ptype;
@@ -238,16 +242,16 @@ part_type_t *GetParticleType(char *name)
 	return ptype;
 }
 
-int AllocateParticleType(char *name)
+int P_AllocateParticleType(char *name)	//guarentees that the particle type exists, returning it's index.
 {
-	return GetParticleType(name) - part_type;
+	return P_GetParticleType(name) - part_type;
 }
 
-int ParticleTypeForName(char *name)
+int P_ParticleTypeForName(char *name)
 {
 	int to;
 
-	to = GetParticleType(name) - part_type;
+	to = P_GetParticleType(name) - part_type;
 	if (to < 0 || to >= numparticletypes)
 	{
 		return -1;
@@ -256,7 +260,7 @@ int ParticleTypeForName(char *name)
 	return to;
 }
 
-int FindParticleType(char *name)
+static int P_FindParticleType(char *name)	//checks if particle description 'name' exists, returns -1 if not.
 {
 	int i;
 	for (i = 0; i < numparticletypes; i++)
@@ -268,7 +272,17 @@ int FindParticleType(char *name)
 	return -1;
 }
 
-static void R_Part_Modified(void)
+qboolean P_DescriptionIsLoaded(char *name)
+{
+	int i = P_FindParticleType(name);
+	part_type_t *ptype;
+	if (i < 0)
+		return false;
+	ptype = &part_type[i];
+	return ptype->loaded;
+}
+
+static void P_SetModified(void)	//called when the particle system changes (from console).
 {
 	if (Cmd_FromServer())
 		return;	//server stuffed particle descriptions don't count.
@@ -281,11 +295,11 @@ static void R_Part_Modified(void)
 		Cbuf_AddText("say particles description has changed\n", RESTRICT_LOCAL);
 	}
 }
-int CheckAssosiation(char *name, int from)
+static int CheckAssosiation(char *name, int from)
 {
 	int to, orig;
 
-	orig = to = FindParticleType(name);
+	orig = to = P_FindParticleType(name);
 	if (to < 0)
 	{
 		return -1;
@@ -303,7 +317,9 @@ int CheckAssosiation(char *name, int from)
 	return orig;
 }
 
-void R_ParticleEffect_f(void)
+//Uses FTE's multiline console stuff.
+//This is the function that loads the effect descriptions (via console).
+void P_ParticleEffect_f(void)
 {
 	char *var, *value;
 	char *buf;
@@ -330,14 +346,14 @@ void R_ParticleEffect_f(void)
 		return;
 	}
 
-	ptype = GetParticleType(Cmd_Argv(1));
+	ptype = P_GetParticleType(Cmd_Argv(1));
 	if (!ptype)
 	{
 		Con_Printf("Bad name\n");
 		return;
 	}
 
-	R_Part_Modified();
+	P_SetModified();
 
 	pnum = ptype-part_type;
 
@@ -567,7 +583,7 @@ void R_ParticleEffect_f(void)
 
 		else if (!strcmp(var, "cliptype"))
 		{
-			assoc = ParticleTypeForName(value);//careful - this can realloc all the particle types
+			assoc = P_ParticleTypeForName(value);//careful - this can realloc all the particle types
 			ptype = &part_type[pnum];
 			ptype->cliptype = assoc;
 		}
@@ -576,7 +592,7 @@ void R_ParticleEffect_f(void)
 
 		else if (!strcmp(var, "emit"))
 		{
-			assoc = ParticleTypeForName(value);//careful - this can realloc all the particle types
+			assoc = P_ParticleTypeForName(value);//careful - this can realloc all the particle types
 			ptype = &part_type[pnum];
 			ptype->emit = assoc;
 		}
@@ -714,7 +730,10 @@ void R_ParticleEffect_f(void)
 #endif
 }
 
-void R_AssosiateEffect_f (void)
+//assosiate a point effect with a model.
+//the effect will be spawned every frame with count*frametime
+//has the capability to hide models.
+void P_AssosiateEffect_f (void)
 {
 	char *modelname = Cmd_Argv(1);
 	char *effectname = Cmd_Argv(2);
@@ -739,14 +758,16 @@ void R_AssosiateEffect_f (void)
 		Con_Printf("Sorry: You may not assosiate effects with item model \"%s\"\n", modelname);
 		return;
 	}
-	effectnum = AllocateParticleType(effectname);
+	effectnum = P_AllocateParticleType(effectname);
 	model->particleeffect = effectnum;
 	model->particleengulphs = atoi(Cmd_Argv(3));
 
-	R_Part_Modified();
+	P_SetModified();	//make it appear in f_modified.
 }
 
-void R_AssosiateTrail_f (void)
+//assosiate a particle trail with a model.
+//the effect will be spawned between two points when an entity with the model moves.
+void P_AssosiateTrail_f (void)
 {
 	char *modelname = Cmd_Argv(1);
 	char *effectname = Cmd_Argv(2);
@@ -764,14 +785,14 @@ void R_AssosiateTrail_f (void)
 	}
 
 	model = Mod_FindName(modelname);
-	effectnum = AllocateParticleType(effectname);
+	effectnum = P_AllocateParticleType(effectname);
 	model->particletrail = effectnum;
 	model->nodefaulttrail = true;	//we could have assigned the trail to a model that wasn't loaded.
 
-	R_Part_Modified();
+	P_SetModified();	//make it appear in f_modified.
 }
 
-void R_DefaultTrail (model_t *model)
+void P_DefaultTrail (model_t *model)
 {
 	if (model->nodefaulttrail == true)
 		return;
@@ -781,82 +802,82 @@ void R_DefaultTrail (model_t *model)
 		switch((int)r_rockettrail.value)
 		{
 		case 0:
-			model->particletrail = AllocateParticleType("t_null");
+			model->particletrail = P_AllocateParticleType("t_null");
 			break;
 		case 1:
 		default:
 			model->particletrail = rt_rocket;//q2 models do this without flags.
 			break;
 		case 2:
-			model->particletrail = AllocateParticleType("t_grenade");
+			model->particletrail = P_AllocateParticleType("t_grenade");
 			break;
 		case 3:
-			model->particletrail = AllocateParticleType("t_altrocket");
+			model->particletrail = P_AllocateParticleType("t_altrocket");
 			break;
 		case 4:
-			model->particletrail = AllocateParticleType("t_gib");
+			model->particletrail = P_AllocateParticleType("t_gib");
 			break;
 		case 5:
-			model->particletrail = AllocateParticleType("t_zomgib");
+			model->particletrail = P_AllocateParticleType("t_zomgib");
 			break;
 		case 6:
-			model->particletrail = AllocateParticleType("t_tracer");
+			model->particletrail = P_AllocateParticleType("t_tracer");
 			break;
 		case 7:
-			model->particletrail = AllocateParticleType("t_tracer2");
+			model->particletrail = P_AllocateParticleType("t_tracer2");
 			break;
 		case 8:
-			model->particletrail = AllocateParticleType("t_tracer3");
+			model->particletrail = P_AllocateParticleType("t_tracer3");
 			break;
 		}
 	}
 	else if (model->flags & EF_GRENADE)
 	{
 		if (r_grenadetrail.value)
-			model->particletrail = AllocateParticleType("t_grenade");
+			model->particletrail = P_AllocateParticleType("t_grenade");
 		else
-			model->particletrail = AllocateParticleType("t_null");
+			model->particletrail = P_AllocateParticleType("t_null");
 	}
 	else if (model->flags & EF_GIB)
-		model->particletrail = AllocateParticleType("t_gib");
+		model->particletrail = P_AllocateParticleType("t_gib");
 	else if (model->flags & EF_TRACER)
-		model->particletrail = AllocateParticleType("t_tracer");
+		model->particletrail = P_AllocateParticleType("t_tracer");
 	else if (model->flags & EF_ZOMGIB)
-		model->particletrail = AllocateParticleType("t_zomgib");
+		model->particletrail = P_AllocateParticleType("t_zomgib");
 	else if (model->flags & EF_TRACER2)
-		model->particletrail = AllocateParticleType("t_tracer2");
+		model->particletrail = P_AllocateParticleType("t_tracer2");
 	else if (model->flags & EF_TRACER3)
-		model->particletrail = AllocateParticleType("t_tracer3");
+		model->particletrail = P_AllocateParticleType("t_tracer3");
 
 	else if (model->flags & EF_BLOODSHOT)	//these are the hexen2 ones.
-		model->particletrail = AllocateParticleType("t_bloodshot");
+		model->particletrail = P_AllocateParticleType("t_bloodshot");
 	else if (model->flags & EF_FIREBALL)
-		model->particletrail = AllocateParticleType("t_fireball");
+		model->particletrail = P_AllocateParticleType("t_fireball");
 	else if (model->flags & EF_ACIDBALL)
-		model->particletrail = AllocateParticleType("t_acidball");
+		model->particletrail = P_AllocateParticleType("t_acidball");
 	else if (model->flags & EF_ICE)
-		model->particletrail = AllocateParticleType("t_ice");
+		model->particletrail = P_AllocateParticleType("t_ice");
 	else if (model->flags & EF_SPIT)
-		model->particletrail = AllocateParticleType("t_spit");
+		model->particletrail = P_AllocateParticleType("t_spit");
 	else if (model->flags & EF_SPELL)
-		model->particletrail = AllocateParticleType("t_spell");
+		model->particletrail = P_AllocateParticleType("t_spell");
 	else if (model->flags & EF_VORP_MISSILE)
-		model->particletrail = AllocateParticleType("t_vorpmissile");
+		model->particletrail = P_AllocateParticleType("t_vorpmissile");
 	else if (model->flags & EF_SET_STAFF)
-		model->particletrail = AllocateParticleType("t_setstaff");
+		model->particletrail = P_AllocateParticleType("t_setstaff");
 	else if (model->flags & EF_MAGICMISSILE)
-		model->particletrail = AllocateParticleType("t_magicmissile");
+		model->particletrail = P_AllocateParticleType("t_magicmissile");
 	else if (model->flags & EF_BONESHARD)
-		model->particletrail = AllocateParticleType("t_boneshard");
+		model->particletrail = P_AllocateParticleType("t_boneshard");
 	else if (model->flags & EF_SCARAB)
-		model->particletrail = AllocateParticleType("t_scarab");
+		model->particletrail = P_AllocateParticleType("t_scarab");
 	else
 		model->particletrail = -1;
 }
 
 #if _DEBUG
 // R_BeamInfo_f - debug junk
-void R_BeamInfo_f (void)
+void P_BeamInfo_f (void)
 {
 	beamseg_t *bs;
 	int i, j, k, l, m;
@@ -890,7 +911,7 @@ void R_BeamInfo_f (void)
 	}
 }
 
-void R_PartInfo_f (void)
+void P_PartInfo_f (void)
 {
 	particle_t *p;
 
@@ -920,7 +941,7 @@ void R_PartInfo_f (void)
 R_InitParticles
 ===============
 */
-void R_InitParticles (void)
+void P_InitParticles (void)
 {
 	char *particlecvargroupname = "Particle effects";
 	int		i;
@@ -947,13 +968,15 @@ void R_InitParticles (void)
 	beams = (beamseg_t *)
 			Hunk_AllocName (r_numbeams * sizeof(beamseg_t), "beams");
 	
-	Cmd_AddCommand("r_part", R_ParticleEffect_f);
-	Cmd_AddCommand("r_effect", R_AssosiateEffect_f);
-	Cmd_AddCommand("r_trail", R_AssosiateTrail_f);
+	Cmd_AddCommand("pointfile", P_ReadPointFile_f);	//load the leak info produced from qbsp into the particle system to show a line. :)
+
+	Cmd_AddCommand("r_part", P_ParticleEffect_f);
+	Cmd_AddCommand("r_effect", P_AssosiateEffect_f);
+	Cmd_AddCommand("r_trail", P_AssosiateTrail_f);
 
 #if _DEBUG
-	Cmd_AddCommand("r_partinfo", R_PartInfo_f);
-	Cmd_AddCommand("r_beaminfo", R_BeamInfo_f);
+	Cmd_AddCommand("r_partinfo", P_PartInfo_f);
+	Cmd_AddCommand("r_beaminfo", P_BeamInfo_f);
 #endif
 
 	//particles
@@ -969,49 +992,49 @@ void R_InitParticles (void)
 	Cvar_Register(&r_rockettrail, particlecvargroupname);
 	Cvar_Register(&r_grenadetrail, particlecvargroupname);
 
-	pt_explosion		= AllocateParticleType("te_explosion");
-	pt_emp				= AllocateParticleType("te_emp");
-	pt_pointfile		= AllocateParticleType("te_pointfile");
-	pt_entityparticles	= AllocateParticleType("ef_entityparticles");
-	pt_darkfield		= AllocateParticleType("ef_darkfield");
-	pt_blob				= AllocateParticleType("te_blob");
+	pt_explosion		= P_AllocateParticleType("te_explosion");
+	pt_emp				= P_AllocateParticleType("te_emp");
+	pt_pointfile		= P_AllocateParticleType("te_pointfile");
+	pt_entityparticles	= P_AllocateParticleType("ef_entityparticles");
+	pt_darkfield		= P_AllocateParticleType("ef_darkfield");
+	pt_blob				= P_AllocateParticleType("te_blob");
 
-	pt_blood			= AllocateParticleType("te_blood");
-	pt_lightningblood	= AllocateParticleType("te_lightningblood");
-	pt_gunshot			= AllocateParticleType("te_gunshot");
-	pt_lavasplash		= AllocateParticleType("te_lavasplash");
-	pt_teleportsplash	= AllocateParticleType("te_teleportsplash");
-	rt_blastertrail		= AllocateParticleType("t_blastertrail");
-	pt_blasterparticles = AllocateParticleType("te_blasterparticles");
-	pt_wizspike			= AllocateParticleType("te_wizspike");
-	pt_knightspike		= AllocateParticleType("te_knightspike");
-	pt_spike			= AllocateParticleType("te_spike");
-	pt_superspike		= AllocateParticleType("te_superspike");
-	rt_railtrail		= AllocateParticleType("t_railtrail");
-	rt_bubbletrail		= AllocateParticleType("t_bubbletrail");
-	rt_rocket			= AllocateParticleType("t_rocket");
+	pt_blood			= P_AllocateParticleType("te_blood");
+	pt_lightningblood	= P_AllocateParticleType("te_lightningblood");
+	pt_gunshot			= P_AllocateParticleType("te_gunshot");
+	pt_lavasplash		= P_AllocateParticleType("te_lavasplash");
+	pt_teleportsplash	= P_AllocateParticleType("te_teleportsplash");
+	rt_blastertrail		= P_AllocateParticleType("t_blastertrail");
+	pt_blasterparticles = P_AllocateParticleType("te_blasterparticles");
+	pt_wizspike			= P_AllocateParticleType("te_wizspike");
+	pt_knightspike		= P_AllocateParticleType("te_knightspike");
+	pt_spike			= P_AllocateParticleType("te_spike");
+	pt_superspike		= P_AllocateParticleType("te_superspike");
+	rt_railtrail		= P_AllocateParticleType("t_railtrail");
+	rt_bubbletrail		= P_AllocateParticleType("t_bubbletrail");
+	rt_rocket			= P_AllocateParticleType("t_rocket");
 
-	rt_lightning1		= AllocateParticleType("t_lightning1");
-	rt_lightning2		= AllocateParticleType("t_lightning2");
-	rt_lightning3		= AllocateParticleType("t_lightning3");
+	rt_lightning1		= P_AllocateParticleType("t_lightning1");
+	rt_lightning2		= P_AllocateParticleType("t_lightning2");
+	rt_lightning3		= P_AllocateParticleType("t_lightning3");
 
-	pt_superbullet		= AllocateParticleType("te_superbullet");
-	pt_bullet			= AllocateParticleType("te_bullet");
-	pe_default			= AllocateParticleType("pe_default");
-	pe_size2			= AllocateParticleType("pe_size2");
-	pe_size3			= AllocateParticleType("pe_size3");
+	pt_superbullet		= P_AllocateParticleType("te_superbullet");
+	pt_bullet			= P_AllocateParticleType("te_bullet");
+	pe_default			= P_AllocateParticleType("pe_default");
+	pe_size2			= P_AllocateParticleType("pe_size2");
+	pe_size3			= P_AllocateParticleType("pe_size3");
 
-	pt_spark			= AllocateParticleType("pe_spark");
-	pt_plasma			= AllocateParticleType("pe_plasma");
+	pt_spark			= P_AllocateParticleType("pe_spark");
+	pt_plasma			= P_AllocateParticleType("pe_plasma");
 }
 
 
 /*
 ===============
-R_ClearParticles
+P_ClearParticles
 ===============
 */
-void R_ClearParticles (void)
+void P_ClearParticles (void)
 {
 	int		i;
 	
@@ -1056,7 +1079,7 @@ void R_ClearParticles (void)
 	}
 }
 
-void R_Part_NewServer(void)
+void P_NewServer(void)
 {
 	extern model_t	mod_known[];
 	extern int		mod_numknown;
@@ -1080,7 +1103,7 @@ void R_Part_NewServer(void)
 		mod->particletrail = -1;
 		mod->nodefaulttrail = false;
 
-		R_DefaultTrail(mod);
+		P_DefaultTrail(mod);
 	}
 
 	f_modified_particles = false;
@@ -1139,7 +1162,7 @@ void R_Part_NewServer(void)
 	}
 }
 
-void R_ReadPointFile_f (void)
+void P_ReadPointFile_f (void)
 {
 	FILE	*f;
 	vec3_t	org;
@@ -1157,7 +1180,7 @@ void R_ReadPointFile_f (void)
 		return;
 	}
 
-	R_ClearParticles();
+	P_ClearParticles();	//so overflows arn't as bad.
 	
 	Con_Printf ("Reading %s...\n", name);
 	c = 0;
@@ -1176,14 +1199,14 @@ void R_ReadPointFile_f (void)
 			Con_Printf ("Not enough free particles\n");
 			break;
 		}
-		R_RunParticleEffectType(org, NULL, 1, pt_pointfile);
+		P_RunParticleEffectType(org, NULL, 1, pt_pointfile);
 	}
 
 	fclose (f);
 	Con_Printf ("%i points read\n", c);
 }
 
-void R_AddRainParticles(void)
+void P_AddRainParticles(void)
 {
 	float x;
 	float y;
@@ -1290,10 +1313,10 @@ glEnable(GL_DEPTH_TEST);
 						vdist[0] = -st->face->plane->normal[0];
 						vdist[1] = -st->face->plane->normal[1];
 						vdist[2] = -st->face->plane->normal[2];
-						R_RunParticleEffectType(org, vdist, 1, ptype);
+						P_RunParticleEffectType(org, vdist, 1, ptype);
 					}
 					else
-						R_RunParticleEffectType(org, st->face->plane->normal, 1, ptype);
+						P_RunParticleEffectType(org, st->face->plane->normal, 1, ptype);
 				}
 			}
 		}
@@ -1341,7 +1364,7 @@ void R_Part_SkyTri(float *v1, float *v2, float *v3, msurface_t *surf)
 
 
 
-void R_EmitSkyEffectTris(model_t *mod, msurface_t 	*fa)
+void P_EmitSkyEffectTris(model_t *mod, msurface_t 	*fa)
 {
 	vec3_t		verts[64];
 	int v1;
@@ -1383,7 +1406,8 @@ void R_EmitSkyEffectTris(model_t *mod, msurface_t 	*fa)
 	}
 }
 
-void R_DarkFieldParticles (float *org, qbyte colour)
+//FIXME!
+void P_DarkFieldParticles (float *org, qbyte colour)
 {
 	int			i, j, k;
 	vec3_t		dir, norg;
@@ -1403,7 +1427,7 @@ void R_DarkFieldParticles (float *org, qbyte colour)
 				dir[1] = i;
 				dir[2] = k;
 
-				R_RunParticleEffectType(norg, dir, 1, pt_darkfield);
+				P_RunParticleEffectType(norg, dir, 1, pt_darkfield);
 			}
 }
 
@@ -1423,13 +1447,13 @@ vec2_t	avelocities[NUMVERTEXNORMALS];
 // float	partstep = 0.01;
 // float	timescale = 0.01;
 
-void R_EntityParticles (float *org, qbyte colour, float *radius)
+void P_EntityParticles (float *org, qbyte colour, float *radius)
 {
 	part_type[pt_entityparticles].areaspread = radius[0]*0.5 + radius[1]*0.5;
 	part_type[pt_entityparticles].areaspreadvert = radius[2];
 	part_type[pt_entityparticles].colorindex = colour;
 
-	R_RunParticleEffectType(org, NULL, 1, pt_entityparticles);
+	P_RunParticleEffectType(org, NULL, 1, pt_entityparticles);
 }
 
 /*
@@ -1438,12 +1462,12 @@ R_ParticleExplosion
 
 ===============
 */
-void R_ParticleExplosion (vec3_t org)
+void P_ParticleExplosion (vec3_t org)
 {
 //	int			i, j;
 //	particle_t	*p;
 
-	R_RunParticleEffectType(org, NULL, 1, pt_explosion);
+	P_RunParticleEffectType(org, NULL, 1, pt_explosion);
 
 	R_AddStain(org, -1, -1, -1, 100);
 /*
@@ -1522,12 +1546,12 @@ R_BlobExplosion
 
 ===============
 */
-void R_BlobExplosion (vec3_t org)
+void P_BlobExplosion (vec3_t org)
 {
-	R_RunParticleEffectType(org, NULL, 1, pt_blob);
+	P_RunParticleEffectType(org, NULL, 1, pt_blob);
 }
 
-int R_RunParticleEffectType (vec3_t org, vec3_t dir, float count, int typenum)
+int P_RunParticleEffectType (vec3_t org, vec3_t dir, float count, int typenum)
 {
 	part_type_t *ptype = &part_type[typenum];
 	int i, j, k, l;
@@ -1821,65 +1845,65 @@ R_RunParticleEffect
 
 ===============
 */
-void R_RunParticleEffect (vec3_t org, vec3_t dir, int color, int count)
+void P_RunParticleEffect (vec3_t org, vec3_t dir, int color, int count)
 {
 	int ptype;
 
 #if 0
 	if (color == 73)
 	{	//blood
-		R_RunParticleEffectType(org, dir, count, pt_blood);
+		P_RunParticleEffectType(org, dir, count, pt_blood);
 		return;
 	}
 	if (color == 225)
 	{	//lightning blood	//a brighter red...
-		R_RunParticleEffectType(org, dir, count, pt_lightningblood);
+		P_RunParticleEffectType(org, dir, count, pt_lightningblood);
 		return;
 	}
 
 	if (color == 0)
 	{	//lightning blood
-		R_RunParticleEffectType(org, dir, count, pt_gunshot);
+		P_RunParticleEffectType(org, dir, count, pt_gunshot);
 		return;
 	}
 #endif
 
-	ptype = FindParticleType(va("pe_%i", color));
-	if (R_RunParticleEffectType(org, dir, count, ptype))
+	ptype = P_FindParticleType(va("pe_%i", color));
+	if (P_RunParticleEffectType(org, dir, count, ptype))
 	{
 		if (count > 130 && part_type[pe_size3].loaded)
 		{
 			part_type[pe_size3].colorindex = color & ~0x7;
 			part_type[pe_size3].colorrand = 8;
-			R_RunParticleEffectType(org, dir, count, pe_size3);
+			P_RunParticleEffectType(org, dir, count, pe_size3);
 			return;
 		}
 		if (count > 20 && part_type[pe_size2].loaded)
 		{
 			part_type[pe_size2].colorindex = color & ~0x7;
 			part_type[pe_size2].colorrand = 8;
-			R_RunParticleEffectType(org, dir, count, pe_size2);
+			P_RunParticleEffectType(org, dir, count, pe_size2);
 			return;
 		}
 		part_type[pe_default].colorindex = color & ~0x7;
 		part_type[pe_default].colorrand = 8;
-		R_RunParticleEffectType(org, dir, count, pe_default);
+		P_RunParticleEffectType(org, dir, count, pe_default);
 		return;
 	}
 }
 
 //h2 stylie
-void R_RunParticleEffect2 (vec3_t org, vec3_t dmin, vec3_t dmax, int color, int effect, int count)
+void P_RunParticleEffect2 (vec3_t org, vec3_t dmin, vec3_t dmax, int color, int effect, int count)
 {
 	int			i, j;
 	float		num;
 	float invcount;
 	vec3_t	nvel;
 
-	int ptype = FindParticleType(va("pe2_%i_%i", effect, color));
+	int ptype = P_FindParticleType(va("pe2_%i_%i", effect, color));
 	if (ptype < 0)
 	{
-		ptype = FindParticleType(va("pe2_%i", effect));
+		ptype = P_FindParticleType(va("pe2_%i", effect));
 		if (ptype < 0)
 			ptype = pe_default;
 
@@ -1899,7 +1923,7 @@ void R_RunParticleEffect2 (vec3_t org, vec3_t dmin, vec3_t dmax, int color, int 
 			num = rand() / (float)RAND_MAX;
 			nvel[j] = dmin[j] + ((dmax[j] - dmin[j]) * num);
 		}
-		R_RunParticleEffectType(org, nvel, invcount, ptype);
+		P_RunParticleEffectType(org, nvel, invcount, ptype);
 
 	}
 }
@@ -1911,17 +1935,17 @@ R_RunParticleEffect3
 ===============
 */
 //h2 stylie
-void R_RunParticleEffect3 (vec3_t org, vec3_t box, int color, int effect, int count)
+void P_RunParticleEffect3 (vec3_t org, vec3_t box, int color, int effect, int count)
 {
 	int			i, j;
 	vec3_t	nvel;
 	float		num;
 	float invcount;
 
-	int ptype = FindParticleType(va("pe3_%i_%i", effect, color));
+	int ptype = P_FindParticleType(va("pe3_%i_%i", effect, color));
 	if (ptype < 0)
 	{
-		ptype = FindParticleType(va("pe3_%i", effect));
+		ptype = P_FindParticleType(va("pe3_%i", effect));
 		if (ptype < 0)
 			ptype = pe_default;
 
@@ -1942,7 +1966,7 @@ void R_RunParticleEffect3 (vec3_t org, vec3_t box, int color, int effect, int co
 			nvel[j] = (box[j] * num * 2) - box[j];
 		}
 
-		R_RunParticleEffectType(org, nvel, invcount, ptype);
+		P_RunParticleEffectType(org, nvel, invcount, ptype);
 	}
 }
 
@@ -1953,17 +1977,17 @@ R_RunParticleEffect4
 ===============
 */
 //h2 stylie
-void R_RunParticleEffect4 (vec3_t org, float radius, int color, int effect, int count)
+void P_RunParticleEffect4 (vec3_t org, float radius, int color, int effect, int count)
 {
 	int			i, j;
 	vec3_t	nvel;
 	float		num;
 	float invcount;
 
-	int ptype = FindParticleType(va("pe4_%i_%i", effect, color));
+	int ptype = P_FindParticleType(va("pe4_%i_%i", effect, color));
 	if (ptype < 0)
 	{
-		ptype = FindParticleType(va("pe4_%i", effect));
+		ptype = P_FindParticleType(va("pe4_%i", effect));
 		if (ptype < 0)
 			ptype = pe_default;
 
@@ -1983,7 +2007,7 @@ void R_RunParticleEffect4 (vec3_t org, float radius, int color, int effect, int 
 			num = rand() / (float)RAND_MAX;
 			nvel[j] = (radius * num * 2) - radius;
 		}
-		R_RunParticleEffectType(org, nvel, invcount, ptype);
+		P_RunParticleEffectType(org, nvel, invcount, ptype);
 	}
 }
 
@@ -1997,9 +2021,9 @@ R_LavaSplash
 
 ===============
 */
-void R_LavaSplash (vec3_t org)
+void P_LavaSplash (vec3_t org)
 {
-	R_RunParticleEffectType(org, NULL, 1, pt_lavasplash);
+	P_RunParticleEffectType(org, NULL, 1, pt_lavasplash);
 }
 
 /*
@@ -2008,18 +2032,18 @@ R_TeleportSplash
 
 ===============
 */
-void R_TeleportSplash (vec3_t org)
+void P_TeleportSplash (vec3_t org)
 {
-	R_RunParticleEffectType(org, NULL, 1, pt_teleportsplash);
+	P_RunParticleEffectType(org, NULL, 1, pt_teleportsplash);
 }
 
 void CLQ2_BlasterTrail (vec3_t start, vec3_t end)
 {
-	R_RocketTrail(start, end, rt_blastertrail, NULL);
+	P_ParticleTrail(start, end, rt_blastertrail, NULL);
 }
-void R_BlasterParticles (vec3_t start, vec3_t dir)
+void P_BlasterParticles (vec3_t start, vec3_t dir)
 {
-	R_RunParticleEffectType(start, dir, 1, pt_blasterparticles);
+	P_RunParticleEffectType(start, dir, 1, pt_blasterparticles);
 }
 
 void MakeNormalVectors (vec3_t forward, vec3_t right, vec3_t up)
@@ -2040,10 +2064,10 @@ void MakeNormalVectors (vec3_t forward, vec3_t right, vec3_t up)
 
 void CLQ2_RailTrail (vec3_t start, vec3_t end)
 {
-	R_RocketTrail(start, end, rt_railtrail, NULL);
+	P_ParticleTrail(start, end, rt_railtrail, NULL);
 }
 
-int R_RocketTrail (vec3_t start, vec3_t end, int type, trailstate_t *ts)
+int P_ParticleTrail (vec3_t start, vec3_t end, int type, trailstate_t *ts)
 {
 	vec3_t	vec, right, up;
 	float	len;
@@ -2068,10 +2092,10 @@ int R_RocketTrail (vec3_t start, vec3_t end, int type, trailstate_t *ts)
 		{
 			trailstate_t nts;
 			memcpy(&nts, ts, sizeof(nts));
-			R_RocketTrail(vec, end, ptype->assoc, &nts);
+			P_ParticleTrail(vec, end, ptype->assoc, &nts);
 		}
 		else
-			R_RocketTrail(vec, end, ptype->assoc, NULL);
+			P_ParticleTrail(vec, end, ptype->assoc, NULL);
 	} 
 	else if (!ptype->die)
 		ts = NULL;
@@ -2321,7 +2345,7 @@ int R_RocketTrail (vec3_t start, vec3_t end, int type, trailstate_t *ts)
 	return 0;
 }
 
-void R_TorchEffect (vec3_t pos, int type)
+void P_TorchEffect (vec3_t pos, int type)
 {
 #ifdef SIDEVIEWS
 	if (r_secondaryview)	//this is called when the models are actually drawn.
@@ -2330,12 +2354,12 @@ void R_TorchEffect (vec3_t pos, int type)
 	if (cl.paused)
 		return;
 
- 	R_RunParticleEffectType(pos, NULL, host_frametime, type);
+ 	P_RunParticleEffectType(pos, NULL, host_frametime, type);
 }
 
 void CLQ2_BubbleTrail (vec3_t start, vec3_t end)
 {
-	R_RocketTrail(start, end, rt_bubbletrail, NULL);
+	P_ParticleTrail(start, end, rt_bubbletrail, NULL);
 }
 
 #ifdef Q2BSPS
@@ -3162,11 +3186,11 @@ void DrawParticleTypes (void texturedparticles(particle_t *,part_type_t*), void 
 			if (type->emit >= 0)
 			{
 				if (type->emittime < 0)
-					R_RocketTrail(oldorg, p->org, type->emit, NULL);
+					P_ParticleTrail(oldorg, p->org, type->emit, NULL);
 				else if (p->nextemit < particletime)
 				{
 					p->nextemit = particletime + type->emittime + frandom()*type->emitrand;
-					R_RunParticleEffectType(p->org, p->vel, 1, type->emit);
+					P_RunParticleEffectType(p->org, p->vel, 1, type->emit);
 				}
 			}
 
@@ -3197,7 +3221,7 @@ void DrawParticleTypes (void texturedparticles(particle_t *,part_type_t*), void 
 					{
 						p->die = -1;
 						VectorNormalize(p->vel);
-						R_RunParticleEffectType(stop, p->vel, type->clipcount/part_type[type->cliptype].count, type->cliptype);
+						P_RunParticleEffectType(stop, p->vel, type->clipcount/part_type[type->cliptype].count, type->cliptype);
 					}
 
 					continue;
@@ -3330,9 +3354,9 @@ void DrawParticleTypes (void texturedparticles(particle_t *,part_type_t*), void 
 R_DrawParticles
 ===============
 */
-void R_DrawParticles (void)
+void P_DrawParticles (void)
 {
-	R_AddRainParticles();
+	P_AddRainParticles();
 #if defined(RGLQUAKE)
 	if (qrenderer == QR_OPENGL)
 	{

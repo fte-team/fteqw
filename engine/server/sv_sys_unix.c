@@ -309,7 +309,13 @@ int main(int argc, char *argv[])
 	oldtime = Sys_DoubleTime () - 0.1;
 	while (1)
 	{
-		stdin_ready = NET_Sleep(100, true);
+		if (do_stdin)
+			stdin_ready = NET_Sleep(100, true);
+		else
+		{	
+			NET_Sleep(100, false);
+			stdin_ready = false;
+		}
 
 	// find time passed since last cycle
 		newtime = Sys_DoubleTime ();

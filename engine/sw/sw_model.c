@@ -302,7 +302,7 @@ model_t *SWMod_LoadModel (model_t *mod, qboolean crash)
 		loadmodel = mod;
 		mod->needload = false;
 		Mod_LoadQ2BrushModel(mod, NULL);
-		R_DefaultTrail(mod);
+		P_DefaultTrail(mod);
 		return mod;
 	}
 #endif
@@ -344,6 +344,7 @@ model_t *SWMod_LoadModel (model_t *mod, qboolean crash)
 			mod->maxs[1] = 16;
 			mod->maxs[2] = 16;
 			mod->needload = true;
+			P_DefaultTrail(mod);
 			return mod;
 			return NULL;
 		}
@@ -412,10 +413,11 @@ model_t *SWMod_LoadModel (model_t *mod, qboolean crash)
 		mod->maxs[1] = 16;
 		mod->maxs[2] = 16;
 		mod->needload = true;
+		P_DefaultTrail(mod);
 		return mod;
 	}
 
-	R_DefaultTrail(mod);
+	P_DefaultTrail(mod);
 
 	return mod;
 }
@@ -2020,7 +2022,7 @@ void SWMod_LoadBrushModel (model_t *mod, void *buffer)
 			strcpy (loadmodel->name, name);
 			mod = loadmodel;
 
-			R_DefaultTrail(mod);
+			P_DefaultTrail(mod);
 		}
 	}
 }

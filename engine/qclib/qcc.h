@@ -867,6 +867,7 @@ void inline QCC_PR_Expect (char *string)
 void editbadfile(char *fname, int line);
 char *TypeName(QCC_type_t *type);
 void QCC_PR_IncludeChunk (char *data, pbool duplicate, char *filename);
+pbool QCC_PR_UnInclude(void);
 extern void *(*pHash_Get)(hashtable_t *table, char *name);
 extern void *(*pHash_GetNext)(hashtable_t *table, char *name, void *old);
 extern void *(*pHash_Add)(hashtable_t *table, char *name, void *data, bucket_t *);

@@ -446,14 +446,24 @@ void SWDraw_Init (void)
 				int width;
 				int height;
 				qbyte *image;
+				qbyte *src, *dest;
 				extern qbyte default_conchar[11356];
 
 				image = ReadTargaFile(default_conchar, sizeof(default_conchar), &width, &height, false);
+				COM_WriteFile("test.dat", image, 256*256*4);
 
-				draw_chars = BZ_Malloc(256*256);
+				draw_chars = BZ_Malloc(128*128);
+			
+				//downsample the 256 image to quake's 128 wide.
+				for (i = 0; i < 128;i++)
+				{
+					src = image+i*8*16*16;
+					dest = draw_chars + i*16*8;
+					for (x = 0; x < 128; x++)
+						dest[x] = src[(x*2)*4]?15:0;//GetPalette(image[i*4], image[i*4+1], image[i*4+2]);
+				}
 
-				for (i = 0; i < 256*256; i++)
-					draw_chars[i] = image[i*4]?15:0;//GetPalette(image[i*4], image[i*4+1], image[i*4+2]);
+				COM_WriteFile("test2.dat", draw_chars, 128*128);
 
 				BZ_Free(image);
 			}

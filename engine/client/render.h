@@ -199,29 +199,6 @@ void MediaSW_ShowFrame8bit(qbyte *framedata, int inwidth, int inheight, qbyte *p
 void MediaSW_ShowFrameRGBA_32(qbyte *framedata, int inwidth, int inheight);	//top down
 void MediaSW_ShowFrameBGR_24_Flip(qbyte *framedata, int inwidth, int inheight);	//input is bottom up...
 #endif
-void R_ParseParticleEffect (void);
-void R_RunParticleEffect (vec3_t org, vec3_t dir, int color, int count);
-
-typedef struct {
-	float lastdist;
-	struct beamseg_s *lastbeam; // last beam point
-} trailstate_t;
-int R_RocketTrail (vec3_t start, vec3_t end, int type, trailstate_t *oldpoint);
-int R_RunParticleEffectType(vec3_t org, vec3_t dir, float count, int type);
-void R_RunParticleEffect2 (vec3_t org, vec3_t dmin, vec3_t dmax, int color, int effect, int count);
-void R_RunParticleEffect3 (vec3_t org, vec3_t box, int color, int effect, int count);
-void R_RunParticleEffect4 (vec3_t org, float radius, int color, int effect, int count);
-int AllocateParticleType(char *name);
-
-void R_DefaultTrail (struct model_s *model);
-void R_TorchEffect (vec3_t pos, int type);
-
-void R_EntityParticles (float *org, qbyte colour, float *radius);
-void R_BlobExplosion (vec3_t org);
-qboolean R_EMPExplosion (vec3_t org);
-void R_ParticleExplosion (vec3_t org);
-void R_LavaSplash (vec3_t org);
-void R_TeleportSplash (vec3_t org);
 
 void R_AddEfrags (entity_t *ent);
 void R_RemoveEfrags (entity_t *ent);
@@ -284,15 +261,9 @@ void Media_CaptureDemoEnd(void);
 void Media_RecordAudioFrame (short *sample_buffer, int samples);
 void Media_RecordFrame (void);
 
-void R_Part_SkyTri(float *v1, float *v2, float *v3, struct msurface_s *surf);
-void R_ClearParticles (void);
-void R_Part_NewServer(void);
-int ParticleTypeForName(char *name);
 void R_SetRenderer(int wanted);
-void R_DrawParticles (void);
-void R_InitParticles (void);
 void RQ_Init(void);
-void R_BlasterParticles (vec3_t org, vec3_t dir);
+
 void CLQ2_RailTrail (vec3_t start, vec3_t end);
 void CLQ2_BubbleTrail (vec3_t start, vec3_t end);
 void CLQ2_EntityEvent(entity_state_t *es);

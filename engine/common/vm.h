@@ -27,6 +27,7 @@ vm_t *VM_Create(vm_t *vm, const char *name, sys_call_t syscall, sys_callex_t sys
 void VM_Destroy(vm_t *vm);
 qboolean VM_Restart(vm_t *vm);
 int VARGS VM_Call(vm_t *vm, int instruction, ...);
+void *VM_MemoryBase(vm_t *vm);
 
 
 

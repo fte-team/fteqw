@@ -3431,7 +3431,7 @@ q2cmodel_t *CM_LoadMap (char *name, char *filein, qboolean clientload, unsigned 
 #ifndef SERVERONLY
 			mod->radius = RadiusFromBounds (mod->mins, mod->maxs);
 
-			R_DefaultTrail(mod);
+			P_DefaultTrail(mod);
 #endif
 		}
 	}

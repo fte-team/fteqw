@@ -98,7 +98,7 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 		#define EMAILSERVER		//smtp/pop3 server should you feel a need
 		#define EMAILCLIENT		//smtp/pop3 clients (email notifications)
 		#define RUNTIMELIGHTING	//calculate lit/lux files the first time the map is loaded and doesn't have a loadable lit.
-		#define QTERM			//qterm... adds a console command that allows running programs from within quake - bit like xterm.
+//		#define QTERM			//qterm... adds a console command that allows running programs from within quake - bit like xterm.
 		#define CL_MASTER		//query master servers and stuff for a dynamic server listing.
 		#define SERIALMOUSE		//means that the engine talks to a serial mouse directly via the com/serial port. Thus allowing duel mice with seperate inputs.
 		#define R_XFLIP			//allow view to be flipped horizontally
@@ -108,9 +108,7 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 
 		#define PLUGINS
 
-#ifdef _DEBUG
 		#define CSQC_DAT	//support for csqc
-#endif
 		#define MENU_DAT	//support for menu.dat
 
 		#define Q3SHADERS

@@ -472,10 +472,11 @@ typedef struct client_s
 	double			stats_started;
 #endif
 
+	qboolean		csqcactive;
 #ifdef PROTOCOL_VERSION_FTE
-	unsigned long fteprotocolextensions;
+	unsigned long	fteprotocolextensions;
 #endif
-	unsigned long zquake_extensions;
+	unsigned long	zquake_extensions;
 	int isq2client;	//contains protocol version too.
 
 //speed cheat testing
@@ -502,6 +503,7 @@ typedef struct client_s
 
 	struct client_s *controller;
 	struct client_s *controlled;
+
 
 	int rate;
 	int drate;
@@ -973,6 +975,8 @@ int SV_HullNumForPlayer(int h2hull, float *mins, float *maxs);
 void SV_GibFilterInit(void);
 void SV_CleanupEnts(void);
 
+void SV_CSQC_DroppedPacket(client_t *client, int sequence);
+
 //
 // sv_nchan.c
 //
@@ -1118,6 +1122,7 @@ extern cvar_t	sv_demoMaxSize;
 extern cvar_t	sv_demoMaxDirSize;
 
 void SV_MVDInit(void);
+char *SV_MVDNum(int num);	//filename for demonum
 void SV_SendMVDMessage(void);
 qboolean SV_ReadMVD (void);
 void SV_FlushDemoSignon (void);

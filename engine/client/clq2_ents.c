@@ -107,7 +107,7 @@ void CLQ2_BlasterTrail2(vec3_t oldorg, vec3_t neworg){};
 void CLQ2_RocketTrail(vec3_t oldorg, vec3_t neworg, q2centity_t *ent)
 {
 	extern int rt_rocket;
-	R_RocketTrail(oldorg, neworg, rt_rocket, &ent->trailstate);
+	P_ParticleTrail(oldorg, neworg, rt_rocket, &ent->trailstate);
 };
 
 

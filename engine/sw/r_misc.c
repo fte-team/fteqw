@@ -369,7 +369,7 @@ void TransformVector (vec3_t in, vec3_t out)
 {
 	out[0] = DotProduct(in,vright);
 	out[1] = DotProduct(in,vup);
-	out[2] = DotProduct(in,vpn);		
+	out[2] = DotProduct(in,vpn);
 }
 
 #endif

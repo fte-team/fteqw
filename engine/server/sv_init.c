@@ -695,6 +695,18 @@ void SV_SpawnServer (char *server, char *startspot, qboolean noents, qboolean us
 		Info_SetValueForStarKey(svs.info, "*cheats", "", MAX_SERVERINFO_STRING);
 	}
 
+	//do we allow csprogs?
+#ifdef PEXT_CSQC
+	file = COM_LoadTempFile("csprogs.dat");
+	if (file)
+	{
+		char text[64];
+		sprintf(text, "0x%x", Com_BlockChecksum(file, com_filesize));
+		Info_SetValueForStarKey(svs.info, "*csprogs", text, MAX_SERVERINFO_STRING);
+	}
+	else
+		Info_SetValueForStarKey(svs.info, "*csprogs", "", MAX_SERVERINFO_STRING);
+#endif
 	if (svprogfuncs)	//we don't want the q1 stuff anymore.
 	{
 		CloseProgs(svprogfuncs);

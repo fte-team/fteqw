@@ -212,16 +212,16 @@ keyname_t keynames[] =
 ==============================================================================
 */
 
-qboolean CheckForCommand (void)
+qboolean IsCommand (char *line)
 {
 	char	command[128];
 	char	*cmd, *s;
 	int		i;
 
-	s = key_lines[edit_line]+1;
+	s = line;
 
 	for (i=0 ; i<127 ; i++)
-		if (s[i] <= ' ')
+		if (s[i] <= ' ' || s[i] == ';')
 			break;
 		else
 			command[i] = s[i];
@@ -326,20 +326,57 @@ void CompleteCommand (qboolean force)
 	cmd = Cmd_CompleteCommand (s, false, 0);
 	if (cmd)
 	{
-		key_lines[edit_line][1] = '/';
-		Q_strcpy (key_lines[edit_line]+2, cmd);
-		key_linepos = Q_strlen(cmd)+2;
+		i = key_lines[edit_line][1] == '/'?2:1;
+		if (i != 2 || strcmp(key_lines[edit_line]+i, cmd))
+		{	//if changed, compleate it
+			key_lines[edit_line][1] = '/';
+			Q_strcpy (key_lines[edit_line]+2, cmd);
+			key_linepos = Q_strlen(cmd)+2;
 
-		s = key_lines[edit_line]+1;	//readjust to cope with the insertion of a /
-		if (*s == '\\' || *s == '/')
-			s++;
+			s = key_lines[edit_line]+1;	//readjust to cope with the insertion of a /
+			if (*s == '\\' || *s == '/')
+				s++;
 
-		key_lines[edit_line][key_linepos] = 0;
+			key_lines[edit_line][key_linepos] = 0;
+
+			return;	//don't alter con_commandmatch if we compleated a tiny bit more
+		}
 	}
 
 	con_commandmatch++;
 	if (!Cmd_CompleteCommand(s, true, con_commandmatch))
 		con_commandmatch = 1;
+}
+
+//lines typed at the main console enter here
+void Con_ExecuteLine(console_t *con, char *line)
+{
+	con_commandmatch=1;
+	if (line[0] == '\\' || line[0] == '/')
+		Cbuf_AddText (line+1, RESTRICT_LOCAL);	// skip the >
+	else if (IsCommand(line))
+		Cbuf_AddText (line, RESTRICT_LOCAL);	// valid command
+#ifdef Q2CLIENT
+	else if (cls.q2server)
+		Cbuf_AddText (line, RESTRICT_LOCAL);	// send the command to the server, and let the server convert to chat
+#endif
+	else
+	{	// convert to a chat message
+		if (cls.state >= ca_connected && (strncmp(line, "say ", 4)))
+		{
+			if (keydown[K_CTRL])
+				Cbuf_AddText ("say_team ", RESTRICT_LOCAL);
+			else
+				Cbuf_AddText ("say ", RESTRICT_LOCAL);
+		}
+		Cbuf_AddText (line, RESTRICT_LOCAL);	// skip the >
+	}
+
+	Cbuf_AddText ("\n", RESTRICT_LOCAL);
+	Con_Printf ("]%s\n",line);
+	if (cls.state == ca_disconnected)
+		SCR_UpdateScreen ();	// force an update, because the command
+									// may take some time
 }
 
 /*
@@ -372,46 +409,20 @@ void Key_Console (int key)
 	
 	if (key == K_ENTER)
 	{	// backslash text are commands, else chat
-		con_commandmatch=1;
-		if (key_lines[edit_line][1] == '\\')//irc
-		{
-			Cbuf_AddText ("irc ", RESTRICT_LOCAL);
-			Cbuf_AddText (key_lines[edit_line]+2, RESTRICT_LOCAL);	// skip the >						//irc
-		}
-		else if (key_lines[edit_line][1] == '\\' || key_lines[edit_line][1] == '/')
-			Cbuf_AddText (key_lines[edit_line]+2, RESTRICT_LOCAL);	// skip the >
-		else if (CheckForCommand())
-			Cbuf_AddText (key_lines[edit_line]+1, RESTRICT_LOCAL);	// valid command
-#ifdef Q2CLIENT
-		else if (cls.q2server)
-			Cbuf_AddText (key_lines[edit_line]+1, RESTRICT_LOCAL);	// valid command
-#endif
-		else
-		{	// convert to a chat message
-			if (cls.state >= ca_connected && (strncmp(key_lines[edit_line]+1, "say ", 4)))
-			{
-				if (keydown[K_CTRL])
-					Cbuf_AddText ("say_team ", RESTRICT_LOCAL);
-				else
-					Cbuf_AddText ("say ", RESTRICT_LOCAL);
-			}
-			Cbuf_AddText (key_lines[edit_line]+1, RESTRICT_LOCAL);	// skip the >
-		}
-
-		Cbuf_AddText ("\n", RESTRICT_LOCAL);
-		Con_Printf ("%s\n",key_lines[edit_line]);
+		int oldl = edit_line;
 		edit_line = (edit_line + 1) & 31;
 		history_line = edit_line;
 		key_lines[edit_line][0] = ']';
 		key_lines[edit_line][1] = '\0';
 		key_linepos = 1;
-		if (cls.state == ca_disconnected)
-			SCR_UpdateScreen ();	// force an update, because the command
-									// may take some time
+
+		if (con_current->linebuffered)
+			con_current->linebuffered(con_current, key_lines[oldl]+1);
+
 		return;
 	}
 
-	if (key == K_SPACE)
+	if (key == K_SPACE && con_current->commandcompletion)
 	{
 		if (keydown[K_SHIFT] && /*key_lines[edit_line][1] == '/' &&*/ !strchr(key_lines[edit_line], ' '))
 		{
@@ -428,7 +439,8 @@ void Key_Console (int key)
 			return;
 		}
 
-		CompleteCommand (false);
+		if (con_current->commandcompletion)
+			CompleteCommand (false);
 		return;
 	}
 	if (key != K_SHIFT)
@@ -543,7 +555,7 @@ void Key_Console (int key)
 	}
 	
 #ifdef _WIN32
-	if ((key=='V' || key=='v') && keydown[K_CTRL])
+	if (((key=='V' || key=='v') && keydown[K_CTRL]) || keydown[K_SHIFT] && key == K_INS)
 	{
 		if (OpenClipboard(NULL))
 		{

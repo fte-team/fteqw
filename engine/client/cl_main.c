@@ -759,9 +759,8 @@ void CL_Disconnect (void)
 
 	Cvar_ApplyLatches(CVAR_SERVEROVERRIDE);
 
-#ifdef _WIN32
-	SetWindowText (mainwindow, "FTE QuakeWorld: disconnected");
-#endif
+	if (VID_SetWindowCaption)
+		VID_SetWindowCaption("FTE QuakeWorld: disconnected");
 
 // stop sounds (especially looping!)
 	S_StopAllSounds (true);
@@ -1978,7 +1977,13 @@ void CL_Download_f (void)
 CL_Minimize_f
 =================
 */
-void CL_Windows_f (void) {
+void CL_Windows_f (void)
+{
+	if (!mainwindow)
+	{
+		Con_Printf("Cannot comply\n");
+		return;
+	}
 //	if (modestate == MS_WINDOWED)
 //		ShowWindow(mainwindow, SW_MINIMIZE);
 //	else

@@ -777,7 +777,7 @@ qboolean VID_AttachGL (rendererstate_t *info)
 	}
 	_vid_wait_override.modified = false;
 	TRACE(("dbg: VID_AttachGL: qSwapBuffers\n"));
-	glClearColor(0, 1, 0, 0);
+	glClearColor(0, 0, 0, 0);
 	glClear(GL_COLOR_BUFFER_BIT);
 	qSwapBuffers(maindc);
 

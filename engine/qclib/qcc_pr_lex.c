@@ -1696,6 +1696,7 @@ char *monthnames[] =
 int QCC_PR_CheakCompConst(void)
 {
 	char		*oldpr_file_p = pr_file_p;
+	int whitestart;
 
 	CompilerConstant_t *c;
 
@@ -1780,9 +1781,9 @@ int QCC_PR_CheakCompConst(void)
 
 				oldpr_file_p = pr_file_p;
 				pr_file_p = c->value;
-				do
+				for(;;)
 				{
-					p = strlen(buffer);
+					whitestart = p = strlen(buffer);
 					while(*pr_file_p <= ' ')	//copy across whitespace
 					{
 						if (!*pr_file_p)
@@ -1790,6 +1791,40 @@ int QCC_PR_CheakCompConst(void)
 						buffer[p++] = *pr_file_p++;
 					}
 					buffer[p] = 0;
+
+					if (*pr_file_p == '#')	//if you ask for #a##b you will be shot. use #a #b instead.
+					{
+						if (pr_file_p[1] == '#')
+						{	//concatinate (srip out whitespace)
+							buffer[whitestart] = '\0';
+							pr_file_p+=2;
+						}
+						else
+						{	//stringify
+							pr_file_p++;
+							pr_file_p = QCC_COM_Parse(pr_file_p);
+							if (!pr_file_p)
+								break;
+
+							for (p = 0; p < param; p++)
+							{
+								if (!STRCMP(qcc_token, c->params[p]))
+								{
+									strcat(buffer, "\"");
+									strcat(buffer, paramoffset[p]);
+									strcat(buffer, "\"");
+									break;
+								}
+							}
+							if (p == param)
+							{
+								strcat(buffer, "#");
+								strcat(buffer, qcc_token);
+								QCC_PR_ParseWarning(0, "Stingification ignored");
+							}
+							continue;	//already did this one
+						}
+					}
 
 					pr_file_p = QCC_COM_Parse(pr_file_p);
 					if (!pr_file_p)
@@ -1805,7 +1840,7 @@ int QCC_PR_CheakCompConst(void)
 					}
 					if (p == param)
 						strcat(buffer, qcc_token);
-				} while(1);
+				}
 
 				for (p = 0; p < param-1; p++)
 					paramoffset[p][strlen(paramoffset[p])] = ',';

@@ -3206,11 +3206,13 @@ vec3_t offset;
 					break;
 			if (i != 3)
 				continue;
-			if (!((int)sv_player->v.dimension_physics & (int)check->v.dimension_physics))
-				continue;
+
 			if (pmove.numphysent == MAX_PHYSENTS)
 				break;
 			pe = &pmove.physents[pmove.numphysent];
+			pe->notouch = !((int)sv_player->v.dimension_solid & (int)check->v.dimension_hit);
+			if (!((int)sv_player->v.dimension_hit & (int)check->v.dimension_solid))
+				continue;
 			pmove.numphysent++;
 
 			VectorCopy (check->v.origin, pe->origin);
@@ -3243,10 +3245,9 @@ vec3_t offset;
 			if (i != 3)
 				continue;
 
-			if (!((int)sv_player->v.dimension_physics & (int)check->v.dimension_physics))
+			if (!((int)sv_player->v.dimension_hit & (int)check->v.dimension_solid))
 				continue;
 
-//			sv_player->v.origin
 //			check->v.model = "a";
 			os = check->v.solid;
 			omt = check->v.movetype;
@@ -3457,9 +3458,16 @@ void SV_RunCmd (usercmd_t *ucmd, qboolean recurse)
 		sv_player->v.light_level = 128;	//hmm... HACK!!!
 
 	sv_player->v.button0 = ucmd->buttons & 1;
-	sv_player->v.button2 = (ucmd->buttons & 2)>>1;
+	sv_player->v.button2 = (ucmd->buttons >> 1) & 1;
 	if (pr_allowbutton1.value)	//many mods use button1 - it's just a wasted field to many mods. So only work it if the cvar allows.
-		sv_player->v.button1 = (ucmd->buttons & 4) >> 2;
+		sv_player->v.button1 = ((ucmd->buttons >> 2) & 1);
+// DP_INPUTBUTTONS
+	sv_player->v.button3 = ((ucmd->buttons >> 2) & 1);
+	sv_player->v.button4 = ((ucmd->buttons >> 3) & 1);
+	sv_player->v.button5 = ((ucmd->buttons >> 4) & 1);
+	sv_player->v.button6 = ((ucmd->buttons >> 5) & 1);
+	sv_player->v.button7 = ((ucmd->buttons >> 6) & 1);
+	sv_player->v.button8 = ((ucmd->buttons >> 7) & 1);
 	if (ucmd->impulse && SV_FiltureImpulse(ucmd->impulse, host_client->trustlevel))
 		sv_player->v.impulse = ucmd->impulse;
 
@@ -3656,13 +3664,21 @@ if (sv_player->v.health > 0 && before && !after )
 		// link into place and touch triggers
 		SV_LinkEdict (sv_player, true);
 
+/*		for (i = 0; i < pmove.numphysent; i++)
+		{
+
+		}
+*/
 		// touch other objects
 		for (i=0 ; i<pmove.numtouch ; i++)
 		{
+			if (pmove.physents[pmove.touchindex[i]].notouch)
+				continue;
 			n = pmove.physents[pmove.touchindex[i]].info;
 			ent = EDICT_NUM(svprogfuncs, n);
 			if (!ent->v.touch || (playertouch[n/8]&(1<<(n%8))))
 				continue;
+
 			pr_global_struct->self = EDICT_TO_PROG(svprogfuncs, ent);
 			pr_global_struct->other = EDICT_TO_PROG(svprogfuncs, sv_player);
 			PR_ExecuteProgram (svprogfuncs, ent->v.touch);
@@ -3761,6 +3777,7 @@ void SV_ExecuteClientMessage (client_t *cl)
 		}	
 
 		c = MSG_ReadByte ();
+haveannothergo:
 		if (c == -1)
 			break;
 
@@ -3800,94 +3817,107 @@ void SV_ExecuteClientMessage (client_t *cl)
 				MSG_ReadDeltaUsercmd (&oldest, &oldcmd);
 				MSG_ReadDeltaUsercmd (&oldcmd, &newcmd);
 
-				if ( cl->state != cs_spawned )
-					continue;
-
-				if (split == cl)
+				if ( cl->state == cs_spawned )
 				{
-					// if the checksum fails, ignore the rest of the packet
-					calculatedChecksum = COM_BlockSequenceCRCByte(
-						net_message.data + checksumIndex + 1,
-						MSG_GetReadCount() - checksumIndex - 1,
-						seq_hash);
-
-					if (calculatedChecksum != checksum)
+					if (split == cl)
 					{
-						Con_DPrintf ("Failed command checksum for %s(%d) (%d != %d)\n", 
-							cl->name, cl->netchan.incoming_sequence, checksum, calculatedChecksum);
+						// if the checksum fails, ignore the rest of the packet
+						calculatedChecksum = COM_BlockSequenceCRCByte(
+							net_message.data + checksumIndex + 1,
+							MSG_GetReadCount() - checksumIndex - 1,
+							seq_hash);
 
-						for (; cl; cl = cl->controlled)	//FIXME
+						if (calculatedChecksum != checksum)
 						{
-							MSG_ReadDeltaUsercmd (&nullcmd, &oldest);
-							MSG_ReadDeltaUsercmd (&oldest, &oldcmd);
-							MSG_ReadDeltaUsercmd (&oldcmd, &newcmd);
+							Con_DPrintf ("Failed command checksum for %s(%d) (%d != %d)\n", 
+								cl->name, cl->netchan.incoming_sequence, checksum, calculatedChecksum);
+
+							for (; cl; cl = cl->controlled)	//FIXME
+							{
+								MSG_ReadDeltaUsercmd (&nullcmd, &oldest);
+								MSG_ReadDeltaUsercmd (&oldest, &oldcmd);
+								MSG_ReadDeltaUsercmd (&oldcmd, &newcmd);
+							}
+							break;;
 						}
-						break;;
 					}
+
+					if (cl->iscrippled)
+					{
+						cl->lastcmd.forwardmove = 0;	//hmmm.... does this work well enough?
+						oldest.forwardmove = 0;
+						newcmd.forwardmove = 0;
+
+						cl->lastcmd.sidemove = 0;
+						oldest.sidemove = 0;
+						newcmd.sidemove = 0;
+
+						cl->lastcmd.upmove = 0;
+						oldest.upmove = 0;
+						newcmd.upmove = 0;
+					}
+
+
+					if (!sv.paused)
+					{
+						if (sv_nomsec.value || SV_PlayerPhysicsQC)
+						{
+							if (!sv_player->v.fixangle)
+							{
+								sv_player->v.v_angle[0] = newcmd.angles[0]* (360.0/65536);
+								sv_player->v.v_angle[1] = newcmd.angles[1]* (360.0/65536);
+								sv_player->v.v_angle[2] = newcmd.angles[2]* (360.0/65536);
+							}
+
+							if (newcmd.impulse)// && SV_FiltureImpulse(newcmd.impulse, host_client->trustlevel))
+								sv_player->v.impulse = newcmd.impulse;
+							sv_player->v.button0 = newcmd.buttons & 1;
+							sv_player->v.button2 = (newcmd.buttons & 2)>>1;
+
+							cmd = newcmd;
+							SV_ClientThink ();
+
+							cl->lastcmd = newcmd;
+							cl->lastcmd.buttons = 0; // avoid multiple fires on lag
+							continue;
+						}
+						SV_PreRunCmd();
+
+						if (net_drop < 20)
+						{
+							while (net_drop > 2)
+							{
+								SV_RunCmd (&cl->lastcmd, false);
+								net_drop--;
+							}
+							if (net_drop > 1)
+								SV_RunCmd (&oldest, false);
+							if (net_drop > 0)
+								SV_RunCmd (&oldcmd, false);
+						}
+						SV_RunCmd (&newcmd, false);
+
+						SV_PostRunCmd();
+					}
+
+					cl->lastcmd = newcmd;
+					cl->lastcmd.buttons = 0; // avoid multiple fires on lag
 				}
 
-				if (cl->iscrippled)
+				if (msg_badread)
 				{
-					cl->lastcmd.forwardmove = 0;	//hmmm.... does this work well enough?
-					oldest.forwardmove = 0;
-					newcmd.forwardmove = 0;
+					Con_Printf ("SV_ReadClientMessage: badread\n");
+					SV_DropClient (cl);
+					return;
+				}	
 
-					cl->lastcmd.sidemove = 0;
-					oldest.sidemove = 0;
-					newcmd.sidemove = 0;
-
-					cl->lastcmd.upmove = 0;
-					oldest.upmove = 0;
-					newcmd.upmove = 0;
-				}
-
-
-				if (!sv.paused)
+				c = MSG_ReadByte ();
+				if (c != clc_move)
 				{
-					if (sv_nomsec.value || SV_PlayerPhysicsQC)
-					{
-						if (!sv_player->v.fixangle)
-						{
-							sv_player->v.v_angle[0] = newcmd.angles[0]* (360.0/65536);
-							sv_player->v.v_angle[1] = newcmd.angles[1]* (360.0/65536);
-							sv_player->v.v_angle[2] = newcmd.angles[2]* (360.0/65536);
-						}
-
-						if (newcmd.impulse)// && SV_FiltureImpulse(newcmd.impulse, host_client->trustlevel))
-							sv_player->v.impulse = newcmd.impulse;
-						sv_player->v.button0 = newcmd.buttons & 1;
-						sv_player->v.button2 = (newcmd.buttons & 2)>>1;
-
-						cmd = newcmd;
-						SV_ClientThink ();
-
-						cl->lastcmd = newcmd;
-						cl->lastcmd.buttons = 0; // avoid multiple fires on lag
-						continue;
-					}
-					SV_PreRunCmd();
-
-					if (net_drop < 20)
-					{
-						while (net_drop > 2)
-						{
-							SV_RunCmd (&cl->lastcmd, false);
-							net_drop--;
-						}
-						if (net_drop > 1)
-							SV_RunCmd (&oldest, false);
-						if (net_drop > 0)
-							SV_RunCmd (&oldcmd, false);
-					}
-					SV_RunCmd (&newcmd, false);
-
-					SV_PostRunCmd();
+					host_client = cl = split;
+					sv_player = cl->edict;
+					goto haveannothergo;
 				}
-
-				cl->lastcmd = newcmd;
-				cl->lastcmd.buttons = 0; // avoid multiple fires on lag
-
-
 			}
 			host_client = cl = split;
 			sv_player = cl->edict;

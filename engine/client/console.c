@@ -523,6 +523,9 @@ void Con_PrintCon (char *txt, console_t *con)
 	static int	cr;
 	int		mask;
 
+	int maskstack[4];
+	int maskstackdepth = 0;
+
 	if (txt[0] == 1 || txt[0] == 2)
 	{
 		mask = CON_STANDARDMASK|CON_WHITEMASK;		// go to colored text
@@ -548,9 +551,29 @@ void Con_PrintCon (char *txt, console_t *con)
 				txt+=2;
 				continue;
 			}
-			if (txt[1] == 's')
+			if (txt[1] == 'a')
 			{
 				mask = (mask & ~CON_2NDCHARSETTEXT) + (CON_2NDCHARSETTEXT - (mask & CON_2NDCHARSETTEXT));
+				txt+=2;
+				continue;
+			}
+			if (txt[1] == 's')
+			{
+				if (maskstackdepth < sizeof(maskstack)/sizeof(maskstack[0]))
+				{
+					maskstack[maskstackdepth] = mask;
+					maskstackdepth++;
+				}
+				txt+=2;
+				continue;
+			}
+			if (txt[1] == 'r')
+			{
+				if (maskstackdepth)
+				{
+					maskstackdepth--;
+					mask = maskstack[maskstackdepth];
+				}
 				txt+=2;
 				continue;
 			}
@@ -558,41 +581,6 @@ void Con_PrintCon (char *txt, console_t *con)
 		if (c=='\t')
 			c = ' ';
 
-		/*
-		if (c == INVIS_CHAR1 || c == INVIS_CHAR2 || c == INVIS_CHAR3)
-		{
-			int col=0;
-			if (c == INVIS_CHAR1)
-				col=1;
-			else if (c == INVIS_CHAR2)
-				col=2;
-			else if (c == INVIS_CHAR3)
-				col=4;
-
-			if (col)
-			{
-				if (txt[1] == INVIS_CHAR1)
-				{
-					col|=1;
-					txt++;
-				}
-				else if (txt[1] == INVIS_CHAR2)
-				{
-					col|=2;
-					txt++;
-				}
-				else if (txt[1] == INVIS_CHAR3)
-				{
-					col|=4;
-					txt++;
-				}
-
-				mask = c*256;
-				txt+=1;
-				continue;
-			}
-		}
-*/
 	// count word length
 		for (l=0 ; l< con->linewidth ; l++)
 			if ( txt[l] <= ' ')
@@ -624,10 +612,10 @@ void Con_PrintCon (char *txt, console_t *con)
 			con->x = 0;
 			break;
 
-/*		case '\r':
+		case '\r':
 			con->x = 0;
 			cr = 1;
-			break;*/
+			break;
 
 		default:	// display character and advance
 			y = con->current % con->totallines;
@@ -832,6 +820,9 @@ void Con_DrawInput (void)
 	unsigned char	*text, *fname;
 	extern int con_commandmatch;
 
+	int maskstack[4];
+	int maskstackdepth = 0;
+
 	int oc;
 
 	int si, x;
@@ -859,13 +850,13 @@ void Con_DrawInput (void)
 		if ((int)(realtime*con_cursorspeed)&1)
 		{
 			text[key_linepos] = 11;
-			strcat(text, "^2");
+			mask = COLOR_GREEN<<8;
 			if (*(fname+si))	//make sure we arn't skipping a null char
 				strcat(text, fname+si+1);
 		}
 		else
 		{
-			strcat(text, "^2");
+			mask = COLOR_GREEN<<8;
 			strcat(text, fname+si);
 		}
 	}
@@ -874,22 +865,7 @@ void Con_DrawInput (void)
 	else if (!text[key_linepos])
 		text[key_linepos] = 10;
 
-	for (i=0,p=0; ;p++)	//work out exactly how many charactures there really are. //FIXME: cache this
-	{
-		if (text[p] == '^')
-		{
-			if (text[p+1]>='0' && text[p+1]<='9')
-			{				
-				p++;
-				continue;
-			}
-			else if (text[p+1] == '^')
-				p++;
-		}
-		if (!text[p])
-			break;
-		i++;
-	}
+	i = strlen(text);
 
 	if (i >= con->linewidth)	//work out the start point
 		si = i - con->linewidth;
@@ -903,13 +879,27 @@ void Con_DrawInput (void)
 		if (text[p] == '^')
 		{
 			if (text[p+1]>='0' && text[p+1]<'8')
+				mask = (text[p+1]-'0')*256 + (mask&~CON_COLOURMASK);	//change colour only.
+			else if (text[p+1] == 'b')
+				mask = (mask & ~CON_BLINKTEXT) + (CON_BLINKTEXT - (mask & CON_BLINKTEXT));
+			else if (text[p+1] == 'a')	//alternate
+				mask = (mask & ~CON_2NDCHARSETTEXT) + (CON_2NDCHARSETTEXT - (mask & CON_2NDCHARSETTEXT));
+			else if (text[p+1] == 's')	//store on stack (it's great for names)
 			{
-				mask = (text[p+1]-'0')*256;
-				p++;
-				continue;
+				if (maskstackdepth < sizeof(maskstack)/sizeof(maskstack[0]))
+				{
+					maskstack[maskstackdepth] = mask;
+					maskstackdepth++;
+				}
 			}
-			else if (text[p+1] == '^')
-				p++;
+			else if (text[p+1] == 'r')	//restore from stack (it's great for names)
+			{
+				if (maskstackdepth)
+				{
+					maskstackdepth--;
+					mask = maskstack[maskstackdepth];
+				}
+			}
 		}
 		if (!text[p])
 			break;

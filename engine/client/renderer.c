@@ -1075,6 +1075,7 @@ qboolean R_ApplyRenderer (rendererstate_t *newr)
 		host_colormap = (qbyte *)COM_LoadMallocFile ("gfx/colormap.lmp");
 		if (!host_colormap)
 		{
+#ifdef SWQUAKE
 			float f;
 			vid.fullbright = 0;
 			data = host_colormap = BZ_Malloc(256*VID_GRADES+sizeof(int));
@@ -1090,6 +1091,9 @@ qboolean R_ApplyRenderer (rendererstate_t *newr)
 					data[i] = i;
 				data+=256;
 			}
+#else
+			Sys_Error ("Couldn't load gfx/colormap.lmp");
+#endif
 		}
 		else
 		{

@@ -30,6 +30,38 @@ cvar_t	r_waterlayers = {"r_waterlayers","3"};
 
 extern void R_InitBubble();
 
+#ifndef SWQUAKE
+//SW rendering has a faster method, which takes more memory and stuff.
+//We need this for minor things though, so we'll just use the slow accurate method.
+//this is unlikly to be called very often.			
+qbyte GetPalette(int red, int green, int blue)
+{
+	//slow, horrible method.
+	{
+		int i, best=15;
+		int bestdif=256*256*256, curdif;
+		extern qbyte *host_basepal;
+		qbyte *pa;
+
+	#define _abs(x) ((x)*(x))
+
+		pa = host_basepal;
+		for (i = 0; i < 256; i++, pa+=3)
+		{
+			curdif = _abs(red - pa[0]) + _abs(green - pa[1]) + _abs(blue - pa[2]);
+			if (curdif < bestdif)
+			{
+				if (curdif<1)
+					return i;
+				bestdif = curdif;
+				best = i;
+			}
+		}
+		return best;
+	}
+}
+#endif
+
 /*
 ==================
 R_InitTextures
@@ -114,12 +146,12 @@ void R_InitParticleTexture (void)
 			data[y*8+x][3] = dottexture[x][y]*255;
 		}
 	}
-	glTexImage2D (GL_TEXTURE_2D, 0, gl_alpha_format, 8, 8, 0, GL_RGBA, GL_UNSIGNED_BYTE, data);
+	qglTexImage2D (GL_TEXTURE_2D, 0, gl_alpha_format, 8, 8, 0, GL_RGBA, GL_UNSIGNED_BYTE, data);
 
-	glTexEnvf(GL_TEXTURE_ENV, GL_TEXTURE_ENV_MODE, GL_MODULATE);
+	qglTexEnvf(GL_TEXTURE_ENV, GL_TEXTURE_ENV_MODE, GL_MODULATE);
 
-	glTexParameterf(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
-	glTexParameterf(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+	qglTexParameterf(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+	qglTexParameterf(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
 
 
 
@@ -137,12 +169,12 @@ void R_InitParticleTexture (void)
 			data[y*16+x][3] = exptexture[x][y]*255/9.0;
 		}
 	}
-	glTexImage2D (GL_TEXTURE_2D, 0, gl_alpha_format, 16, 16, 0, GL_RGBA, GL_UNSIGNED_BYTE, data);
+	qglTexImage2D (GL_TEXTURE_2D, 0, gl_alpha_format, 16, 16, 0, GL_RGBA, GL_UNSIGNED_BYTE, data);
 
-	glTexEnvf(GL_TEXTURE_ENV, GL_TEXTURE_ENV_MODE, GL_MODULATE);
+	qglTexEnvf(GL_TEXTURE_ENV, GL_TEXTURE_ENV_MODE, GL_MODULATE);
 
-	glTexParameterf(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
-	glTexParameterf(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+	qglTexParameterf(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+	qglTexParameterf(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
 }
 
 /*
@@ -156,8 +188,8 @@ void R_Envmap_f (void)
 {
 	qbyte	buffer[256*256*4];
 
-	glDrawBuffer  (GL_FRONT);
-	glReadBuffer  (GL_FRONT);
+	qglDrawBuffer  (GL_FRONT);
+	qglReadBuffer  (GL_FRONT);
 	envmap = true;
 
 	r_refdef.vrect.x = 0;
@@ -170,44 +202,44 @@ void R_Envmap_f (void)
 	r_refdef.viewangles[2] = 0;
 	GL_BeginRendering (&glx, &gly, &glwidth, &glheight);
 	R_RenderView ();
-	glReadPixels (0, 0, 256, 256, GL_RGBA, GL_UNSIGNED_BYTE, buffer);
+	qglReadPixels (0, 0, 256, 256, GL_RGBA, GL_UNSIGNED_BYTE, buffer);
 	COM_WriteFile ("env0.rgb", buffer, sizeof(buffer));		
 
 	r_refdef.viewangles[1] = 90;
 	GL_BeginRendering (&glx, &gly, &glwidth, &glheight);
 	R_RenderView ();
-	glReadPixels (0, 0, 256, 256, GL_RGBA, GL_UNSIGNED_BYTE, buffer);
+	qglReadPixels (0, 0, 256, 256, GL_RGBA, GL_UNSIGNED_BYTE, buffer);
 	COM_WriteFile ("env1.rgb", buffer, sizeof(buffer));		
 
 	r_refdef.viewangles[1] = 180;
 	GL_BeginRendering (&glx, &gly, &glwidth, &glheight);
 	R_RenderView ();
-	glReadPixels (0, 0, 256, 256, GL_RGBA, GL_UNSIGNED_BYTE, buffer);
+	qglReadPixels (0, 0, 256, 256, GL_RGBA, GL_UNSIGNED_BYTE, buffer);
 	COM_WriteFile ("env2.rgb", buffer, sizeof(buffer));		
 
 	r_refdef.viewangles[1] = 270;
 	GL_BeginRendering (&glx, &gly, &glwidth, &glheight);
 	R_RenderView ();
-	glReadPixels (0, 0, 256, 256, GL_RGBA, GL_UNSIGNED_BYTE, buffer);
+	qglReadPixels (0, 0, 256, 256, GL_RGBA, GL_UNSIGNED_BYTE, buffer);
 	COM_WriteFile ("env3.rgb", buffer, sizeof(buffer));		
 
 	r_refdef.viewangles[0] = -90;
 	r_refdef.viewangles[1] = 0;
 	GL_BeginRendering (&glx, &gly, &glwidth, &glheight);
 	R_RenderView ();
-	glReadPixels (0, 0, 256, 256, GL_RGBA, GL_UNSIGNED_BYTE, buffer);
+	qglReadPixels (0, 0, 256, 256, GL_RGBA, GL_UNSIGNED_BYTE, buffer);
 	COM_WriteFile ("env4.rgb", buffer, sizeof(buffer));		
 
 	r_refdef.viewangles[0] = 90;
 	r_refdef.viewangles[1] = 0;
 	GL_BeginRendering (&glx, &gly, &glwidth, &glheight);
 	R_RenderView ();
-	glReadPixels (0, 0, 256, 256, GL_RGBA, GL_UNSIGNED_BYTE, buffer);
+	qglReadPixels (0, 0, 256, 256, GL_RGBA, GL_UNSIGNED_BYTE, buffer);
 	COM_WriteFile ("env5.rgb", buffer, sizeof(buffer));		
 
 	envmap = false;
-	glDrawBuffer  (GL_BACK);
-	glReadBuffer  (GL_BACK);
+	qglDrawBuffer  (GL_BACK);
+	qglReadBuffer  (GL_BACK);
 	GL_EndRendering ();
 	GL_DoSwap();
 }
@@ -256,7 +288,7 @@ qboolean GenerateNormalisationCubeMap()
 			bytePtr+=3;
 		}
 	}
-	glTexImage2D(	GL_TEXTURE_CUBE_MAP_POSITIVE_X_ARB,
+	qglTexImage2D(	GL_TEXTURE_CUBE_MAP_POSITIVE_X_ARB,
 					0, GL_RGBA8, 32, 32, 0, GL_RGB, GL_UNSIGNED_BYTE, data);
 
 	//negative x
@@ -279,7 +311,7 @@ qboolean GenerateNormalisationCubeMap()
 			bytePtr+=3;
 		}
 	}
-	glTexImage2D(	GL_TEXTURE_CUBE_MAP_NEGATIVE_X_ARB,
+	qglTexImage2D(	GL_TEXTURE_CUBE_MAP_NEGATIVE_X_ARB,
 					0, GL_RGBA8, 32, 32, 0, GL_RGB, GL_UNSIGNED_BYTE, data);
 
 	//positive y
@@ -302,7 +334,7 @@ qboolean GenerateNormalisationCubeMap()
 			bytePtr+=3;
 		}
 	}
-	glTexImage2D(	GL_TEXTURE_CUBE_MAP_POSITIVE_Y_ARB,
+	qglTexImage2D(	GL_TEXTURE_CUBE_MAP_POSITIVE_Y_ARB,
 					0, GL_RGBA8, 32, 32, 0, GL_RGB, GL_UNSIGNED_BYTE, data);
 
 	//negative y
@@ -325,7 +357,7 @@ qboolean GenerateNormalisationCubeMap()
 			bytePtr+=3;
 		}
 	}
-	glTexImage2D(	GL_TEXTURE_CUBE_MAP_NEGATIVE_Y_ARB,
+	qglTexImage2D(	GL_TEXTURE_CUBE_MAP_NEGATIVE_Y_ARB,
 					0, GL_RGBA8, 32, 32, 0, GL_RGB, GL_UNSIGNED_BYTE, data);
 
 	//positive z
@@ -348,7 +380,7 @@ qboolean GenerateNormalisationCubeMap()
 			bytePtr+=3;
 		}
 	}
-	glTexImage2D(	GL_TEXTURE_CUBE_MAP_POSITIVE_Z_ARB,
+	qglTexImage2D(	GL_TEXTURE_CUBE_MAP_POSITIVE_Z_ARB,
 					0, GL_RGBA8, 32, 32, 0, GL_RGB, GL_UNSIGNED_BYTE, data);
 
 	//negative z
@@ -371,7 +403,7 @@ qboolean GenerateNormalisationCubeMap()
 			bytePtr+=3;
 		}
 	}
-	glTexImage2D(	GL_TEXTURE_CUBE_MAP_NEGATIVE_Z_ARB,
+	qglTexImage2D(	GL_TEXTURE_CUBE_MAP_NEGATIVE_Z_ARB,
 					0, GL_RGBA8, 32, 32, 0, GL_RGB, GL_UNSIGNED_BYTE, data);	
 
 	return true;
@@ -405,11 +437,11 @@ void GLR_ReInit (void)
 		normalisationCubeMap = texture_extension_number++;
 		GL_BindType(GL_TEXTURE_CUBE_MAP_ARB, normalisationCubeMap);
 		GenerateNormalisationCubeMap();
-		glTexParameteri(GL_TEXTURE_CUBE_MAP_ARB, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
-		glTexParameteri(GL_TEXTURE_CUBE_MAP_ARB, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
-		glTexParameteri(GL_TEXTURE_CUBE_MAP_ARB, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
-		glTexParameteri(GL_TEXTURE_CUBE_MAP_ARB, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
-		glTexParameteri(GL_TEXTURE_CUBE_MAP_ARB, GL_TEXTURE_WRAP_R, GL_CLAMP_TO_EDGE);
+		qglTexParameteri(GL_TEXTURE_CUBE_MAP_ARB, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+		qglTexParameteri(GL_TEXTURE_CUBE_MAP_ARB, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+		qglTexParameteri(GL_TEXTURE_CUBE_MAP_ARB, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
+		qglTexParameteri(GL_TEXTURE_CUBE_MAP_ARB, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
+		qglTexParameteri(GL_TEXTURE_CUBE_MAP_ARB, GL_TEXTURE_WRAP_R, GL_CLAMP_TO_EDGE);
 	}
 	else
 		normalisationCubeMap = 0;
@@ -1000,8 +1032,8 @@ void GLR_TimeRefresh_f (void)
 	int			i;
 	float		start, stop, time;
 
-	glDrawBuffer  (GL_FRONT);
-	glFinish ();
+	qglDrawBuffer  (GL_FRONT);
+	qglFinish ();
 
 	start = Sys_DoubleTime ();
 	for (i=0 ; i<128 ; i++)
@@ -1010,12 +1042,12 @@ void GLR_TimeRefresh_f (void)
 		R_RenderView ();
 	}
 
-	glFinish ();
+	qglFinish ();
 	stop = Sys_DoubleTime ();
 	time = stop-start;
 	Con_Printf ("%f seconds (%f fps)\n", time, 128/time);
 
-	glDrawBuffer  (GL_BACK);
+	qglDrawBuffer  (GL_BACK);
 	GL_EndRendering ();
 	GL_DoSwap();
 }

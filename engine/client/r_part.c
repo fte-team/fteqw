@@ -153,8 +153,8 @@ typedef struct part_type_s {
 	float randscale;
 	enum {BM_MERGE, BM_ADD, BM_SUBTRACT} blendmode;
 
-	float rotationstartmin, rotationstartmax;
-	float rotationmin, rotationmax;
+	float rotationstartmin, rotationstartrand;
+	float rotationmin, rotationrand;
 
 	float scaledelta;
 	float count;
@@ -336,9 +336,9 @@ void R_ParticleEffect_f(void)
 	ptype->alphachange = 1;
 	ptype->colorindex = -1;
 	ptype->rotationstartmin = -M_PI;	//start with a random angle
-	ptype->rotationstartmax = M_PI;
+	ptype->rotationstartrand = M_PI-ptype->rotationstartmin;
 	ptype->rotationmin = 0;				//but don't spin
-	ptype->rotationmax = 0;
+	ptype->rotationrand = 0-ptype->rotationmin;
 
 	while(1)
 	{
@@ -362,19 +362,19 @@ void R_ParticleEffect_f(void)
 
 		else if (!strcmp(var, "rotationstart"))
 		{
-			ptype->rotationstartmin = atof(value);
+			ptype->rotationstartmin = atof(value)*M_PI/180;
 			if (Cmd_Argc()>2)
-				ptype->rotationstartmax = atof(Cmd_Argv(2));
+				ptype->rotationstartrand = atof(Cmd_Argv(2))*M_PI/180-ptype->rotationstartmin;
 			else
-				ptype->rotationstartmax = ptype->rotationstartmin;
+				ptype->rotationstartrand = 0;
 		}
 		else if (!strcmp(var, "rotationspeed"))
 		{
-			ptype->rotationmin = atof(value);
+			ptype->rotationmin = atof(value)*M_PI/180;
 			if (Cmd_Argc()>2)
-				ptype->rotationmax = atof(Cmd_Argv(2));
+				ptype->rotationrand = atof(Cmd_Argv(2))*M_PI/180-ptype->rotationmin;
 			else
-				ptype->rotationmax = ptype->rotationmin;
+				ptype->rotationrand = 0;
 		}
 
 		else if (!strcmp(var, "scale"))
@@ -1418,6 +1418,9 @@ int R_RunParticleEffectType (vec3_t org, vec3_t dir, float count, int typenum)
 				p->color = 0;
 				p->nextemit = particletime + ptype->emitstart - p->die;
 
+				p->rotationspeed = ptype->rotationmin + frandom()*ptype->rotationrand;
+				p->alpha = ptype->rotationstartmin + frandom()*ptype->rotationstartrand;
+
 				if (ptype->colorindex >= 0)
 				{
 					int cidx;
@@ -1488,6 +1491,9 @@ int R_RunParticleEffectType (vec3_t org, vec3_t dir, float count, int typenum)
 				p->alpha = ptype->alpha-p->die*(ptype->alpha/ptype->die)*ptype->alphachange;
 				p->color = 0;
 				p->nextemit = particletime + ptype->emitstart - p->die;
+
+				p->rotationspeed = ptype->rotationmin + frandom()*ptype->rotationrand;
+				p->alpha = ptype->rotationstartmin + frandom()*ptype->rotationstartrand;
 
 				if (ptype->colorindex >= 0)
 				{
@@ -1579,6 +1585,9 @@ int R_RunParticleEffectType (vec3_t org, vec3_t dir, float count, int typenum)
 				p->color = 0;
 				p->nextemit = particletime + ptype->emitstart - p->die;
 
+				p->rotationspeed = ptype->rotationmin + frandom()*ptype->rotationrand;
+				p->alpha = ptype->rotationstartmin + frandom()*ptype->rotationstartrand;
+
 				if (ptype->colorindex >= 0)
 				{
 					int cidx;
@@ -1667,6 +1676,9 @@ int R_RunParticleEffectType (vec3_t org, vec3_t dir, float count, int typenum)
 				p->alpha = ptype->alpha-p->die*(ptype->alpha/ptype->die)*ptype->alphachange;
 				p->color = 0;
 				p->nextemit = particletime + ptype->emitstart - p->die;
+
+				p->rotationspeed = ptype->rotationmin + frandom()*ptype->rotationrand;
+				p->alpha = ptype->rotationstartmin + frandom()*ptype->rotationstartrand;
 
 				if (ptype->colorindex >= 0)
 				{
@@ -2005,6 +2017,9 @@ float R_RocketTrail (vec3_t start, vec3_t end, int type, float lastdistance)
 		p->alpha = ptype->alpha-p->die*(ptype->alpha/ptype->die)*ptype->alphachange;
 		p->color = 0;
 		p->nextemit = particletime + ptype->emitstart - p->die;
+
+		p->rotationspeed = ptype->rotationmin + frandom()*ptype->rotationrand;
+		p->alpha = ptype->rotationstartmin + frandom()*ptype->rotationstartrand;
 
 		if (ptype->spawnmode == SM_TRACER)
 			tcount = (int)(len * ptype->count);

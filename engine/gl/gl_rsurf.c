@@ -1977,7 +1977,7 @@ void R_RenderDynamicLightmaps (msurface_t *fa)
 //	lightmap[fa->lightmaptexturenum]->polys = fa->polys;
 
 	// check for lightmap modification
-	if (cl.worldmodel->fromgame != fg_quake3)	//no lightstyles on q3 maps
+//	if (cl.worldmodel->fromgame != fg_quake3)	//no lightstyles on q3 maps
 	{
 		for (maps = 0 ; maps < MAXLIGHTMAPS && fa->styles[maps] != 255 ;
 			 maps++)

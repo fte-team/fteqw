@@ -172,12 +172,39 @@ qboolean R_CullSphere (vec3_t org, float radius)
 
 void R_RotateForEntity (entity_t *e)
 {
-    glTranslatef (e->origin[0],  e->origin[1],  e->origin[2]);
+	float m[16];
+	m[0] = e->axis[0][0];
+	m[1] = e->axis[0][1];
+	m[2] = e->axis[0][2];
+	m[3] = 0;
 
+	m[4] = e->axis[1][0];
+	m[5] = e->axis[1][1];
+	m[6] = e->axis[1][2];
+	m[7] = 0;
+
+	m[8] = e->axis[2][0];
+	m[9] = e->axis[2][1];
+	m[10] = e->axis[2][2];
+	m[11] = 0;
+
+	m[12] = e->origin[0];
+	m[13] = e->origin[1];
+	m[14] = e->origin[2];
+	m[15] = 1;
+
+
+
+#if 1
+	glMultMatrixf(m);
+
+#else
+	glTranslatef (e->origin[0],  e->origin[1],  e->origin[2]);
     glRotatef (e->angles[1],  0, 0, 1);
     glRotatef (-e->angles[0],  0, 1, 0);
 	//ZOID: fixed z angle
     glRotatef (e->angles[2],  1, 0, 0);
+#endif
 }
 
 /*

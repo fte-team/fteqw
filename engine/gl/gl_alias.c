@@ -78,6 +78,10 @@ typedef struct {
 	int groupofs;
 
 	int nextsurf;
+
+
+	int numtags;
+	int ofstags;
 } galiasinfo_t;
 
 //frame is an index into this
@@ -2316,11 +2320,35 @@ void GL_LoadQ2Model (model_t *mod, void *buffer)
 
 
 
+typedef struct {
+	char name[MAX_QPATH];
+	vec3_t org;
+	float ang[3][3];
+} md3tag_t;
 
 
 
 
+void Mod_GetTag(model_t *model, int tagnum, int frame, float **org, float **axis)
+{
+	galiasinfo_t *inf;
+	md3tag_t *t;
 
+	*org = NULL;
+	*axis = NULL;
+	if (!model || model->type != mod_alias)
+		return;
+
+	inf = Mod_Extradata(model);
+	t = (md3tag_t*)((char*)inf + inf->ofstags);
+	if (tagnum <= 0 || tagnum > inf->numtags)
+		return;
+	tagnum--;	//tagnum 0 is 'use my angles/org'
+
+	t += tagnum;
+	*org = t->org;
+	*axis = (float*)t->ang;
+}
 
 
 
@@ -2403,13 +2431,6 @@ typedef struct {
 	int				shaderIndex;
 } md3Shader_t;
 //End of Tenebrae 'assistance'
-
-typedef struct {
-	char name[MAX_QPATH];
-	vec3_t org;
-	float ang[3][3];
-} md3tag_t;
-
 
 void GL_LoadQ3Model(model_t *mod, void *buffer)
 {
@@ -2644,9 +2665,13 @@ void GL_LoadQ3Model(model_t *mod, void *buffer)
 		surf = (md3Surface_t *)((qbyte *)surf + surf->ofsEnd);
 	}
 
+	root->numtags = header->numTags;
+	root->ofstags = (char*)Hunk_Alloc(header->numTags*sizeof(md3tag_t)*header->numFrames) - (char*)root;
+	memcpy((char*)root+root->ofstags, (char*)header+header->ofsTags, header->numTags*sizeof(md3tag_t)*header->numFrames);
+
 //
 // move the complete, relocatable alias model to the cache
-//	
+//
 
 	hunkend = Hunk_LowMark ();
 

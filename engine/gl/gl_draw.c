@@ -727,7 +727,10 @@ TRACE(("dbg: GLDraw_ReInit: Allocating upload buffers\n"));
 		if (!draw_chars)	//or low res.
 		{
 			if (!(char_texture=Mod_LoadHiResTexture("pics/conchars.pcx", false, true, false)))	//try low res q2 path
+			if (!(char_texture=Mod_LoadHiResTexture("gfx/2d/bigchars.tga", false, true, false)))	//try low res q2 path
 			{
+
+				//gulp... so it's come to this has it? rework the hexen2 conchars into the q1 system.
 				char *tempchars = COM_LoadMallocFile("gfx/menu/conchars.lmp");
 				char *in, *out;
 				if (!tempchars)
@@ -951,7 +954,8 @@ TRACE(("dbg: GLDraw_ReInit: Allocating upload buffers\n"));
 		{
 			if (!(gl->texnum=Mod_LoadHiResTexture("pics/conback.pcx", false, true, false)))
 				if (!(gl->texnum=Mod_LoadReplacementTexture("gfx/menu/conback.lmp", false, true, false)))
-					Sys_Error ("Couldn't load gfx/conback.lmp");	//that's messed it up, hasn't it?...
+					if (!(gl->texnum=Mod_LoadReplacementTexture("textures/sfx/logo512.jpg", false, false, false)))
+						Sys_Error ("Couldn't load gfx/conback.lmp");	//that's messed it up, hasn't it?...
 		}
 		else
 		{
@@ -1342,7 +1346,7 @@ void GLDraw_Pic (int x, int y, qpic_t *pic)
 #endif
 }
 
-void GLDraw_LevelPic (qpic_t *pic)	//Fullscreen and stuff
+void GLDraw_ScalePic (int x, int y, int width, int height, qpic_t *pic)
 {
 	glpic_t			*gl;
 
@@ -1356,13 +1360,13 @@ void GLDraw_LevelPic (qpic_t *pic)	//Fullscreen and stuff
 	GL_Bind (gl->texnum);
 	glBegin (GL_QUADS);
 	glTexCoord2f (gl->sl, gl->tl);
-	glVertex2f (0, 0);
+	glVertex2f (x, y);
 	glTexCoord2f (gl->sh, gl->tl);
-	glVertex2f (vid.conwidth, 0);
+	glVertex2f (x+width, y);
 	glTexCoord2f (gl->sh, gl->th);
-	glVertex2f (vid.conwidth, vid.conheight);
+	glVertex2f (x+width, y+height);
 	glTexCoord2f (gl->sl, gl->th);
-	glVertex2f (0, vid.conheight);
+	glVertex2f (x, y+height);
 	glEnd ();
 }
 

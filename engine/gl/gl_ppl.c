@@ -1277,6 +1277,7 @@ static void PPL_BaseTextureChain(msurface_t *first)
 					s->ownerent = &r_worldentity;
 					continue;
 				}
+
 				if (s->mesh)
 				{
 					redraw = mb.fog != s->fog || mb.infokey != vi|| mb.shader->flags&SHADER_DEFORMV_BULGE;

@@ -852,6 +852,8 @@ void GLR_NewMap (void)
 		d_lightstylevalue[i] = 264;		// normal light value
 
 	memset (&r_worldentity, 0, sizeof(r_worldentity));
+	AngleVectors(r_worldentity.angles, r_worldentity.axis[0], r_worldentity.axis[1], r_worldentity.axis[2]);
+	VectorInverse(r_worldentity.axis[1]);
 	r_worldentity.model = cl.worldmodel;
 
 	Cvar_Set(&host_mapname, cl.worldmodel->name);

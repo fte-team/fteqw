@@ -30,6 +30,7 @@ void GLDraw_ColouredCharacter (int x, int y, unsigned int num);
 void GLDraw_DebugChar (qbyte num);
 void GLDraw_SubPic(int x, int y, qpic_t *pic, int srcx, int srcy, int width, int height);
 void GLDraw_Pic (int x, int y, qpic_t *pic);
+void GLDraw_ScalePic (int x, int y, int width, int height, qpic_t *pic);
 void GLDraw_TransPic (int x, int y, qpic_t *pic);
 void GLDraw_TransPicTranslate (int x, int y, qpic_t *pic, qbyte *translation);
 void GLDraw_ConsoleBackground (int lines);

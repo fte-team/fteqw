@@ -21,6 +21,7 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 
 #include "quakedef.h"
 #include "glquake.h"
+#include <ctype.h>
 
 extern	model_t	*loadmodel;
 
@@ -403,7 +404,6 @@ void R_DrawSkyChain (msurface_t *s)
 	{
 		int fc;
 		qbyte *pal;
-		extern unsigned char	vid_curpal[256*3];
 		fc = r_fastskycolour.value;
 		if (fc > 255)
 			fc = 255;

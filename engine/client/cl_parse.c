@@ -831,7 +831,7 @@ void Model_NextDownload (void)
 			cl.model_precache[i] = NULL;
 			cl.model_precache[i] = Mod_ForName (cl.model_name[i], false);
 
-			if (!cl.model_precache[i] || (i == 1 && cl.model_precache[i]->type == mod_dummy))
+			if (!cl.model_precache[i] || (i == 1 && (cl.model_precache[i]->type == mod_dummy || cl.model_precache[i]->needload)))
 			{
 				Con_TPrintf (TL_FILE_X_MISSING, cl.model_name[i]);
 				Con_TPrintf (TL_GETACLIENTPACK, gamedirfile);

@@ -40,10 +40,11 @@ void Cache_FreeHigh (int new_high_hunk);
 //#define MEMDEBUG	8192 //Debugging adds sentinels (the number is the size - I have the ram) 
 #endif
 
-#define TEMPDEBUG 2
-#define ZONEDEBUG 2
-#define HUNKDEBUG 2
-#define CACHEDEBUG 2
+//must be multiple of 4.
+#define TEMPDEBUG 4
+#define ZONEDEBUG 4
+#define HUNKDEBUG 4
+#define CACHEDEBUG 4
 
 //these need to be defined because it makes some bits of code simpler
 #ifndef HUNKDEBUG

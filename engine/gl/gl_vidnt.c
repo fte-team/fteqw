@@ -404,8 +404,8 @@ qboolean VID_SetFullDIBMode (rendererstate_t *info)
 	int				lastmodestate, wwidth, wheight;
 	RECT			rect;
 
-	if (leavecurrentmode)	//make windows change res.
-	{
+	if (leavecurrentmode && Q_strcasecmp(info->glrenderer, "D3D"))	//don't do this with d3d - d3d should set it's own video mode.
+	{	//make windows change res.
 		gdevmode.dmFields = DM_PELSWIDTH | DM_PELSHEIGHT;
 		if (info->bpp)
 			gdevmode.dmFields |= DM_BITSPERPEL;
@@ -681,7 +681,7 @@ qboolean VID_AttachGL (rendererstate_t *info)
 			{
 				zbpp = Q_atoi(com_argv[COM_CheckParm("-zbpp")+1]);
 			}
-			d3dSetMode(vid_isfullscreen, info->width, info->height, info->bpp, zbpp);	//d3d cheats to get it's dimensions and stuff... One that we can currently live with though.
+			d3dSetMode(info->fullscreen, info->width, info->height, info->bpp, zbpp);	//d3d cheats to get it's dimensions and stuff... One that we can currently live with though.
 
 			gl_ztrickdisabled |= 2;	//ztrick does funny things.
 			Cvar_Set(&gl_ztrick, "0");

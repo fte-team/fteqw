@@ -189,6 +189,7 @@ void SWSCR_UpdateScreen (void)
 		SCR_DrawTurtle ();
 		SCR_DrawPause ();
 		SCR_DrawFPS ();
+		SCR_DrawUPS ();
 		Plug_SBar ();
 		SCR_ShowPics_Draw();
 		SCR_CheckDrawCenterString ();

@@ -1375,6 +1375,7 @@ called before compiling a batch of files, clears the pr struct
 */
 void	QCC_PR_BeginCompilation (void *memory, int memsize)
 {
+	extern int recursivefunctiontype;
 	extern struct freeoffset_s *freeofs;
 	int		i;
 	char name[16];
@@ -1436,6 +1437,7 @@ void	QCC_PR_BeginCompilation (void *memory, int memsize)
 	pr.types = NULL;
 //	type_function->next = NULL;
 	pr_error_count = 0;
+	recursivefunctiontype = 0;
 
 	freeofs = NULL;
 }
@@ -1478,7 +1480,7 @@ int QCC_PR_FinishCompilation (void)
 				}
 				else
 				{
-					QCC_PR_Warning(WARN_NOTDEFINED, strings + d->s_file, d->s_line, "function %s was not defined\n",d->name);
+					QCC_PR_Warning(WARN_NOTDEFINED, strings + d->s_file, d->s_line, "function %s was not defined",d->name);
 					bodylessfuncs = true;
 				}
 //				errors = true;

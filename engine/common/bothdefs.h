@@ -67,8 +67,9 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 
 		#define MD3MODELS		//we DO want to use quake3 alias models. This might be a minimal build, but we still want this.
 
+#ifndef SERVERONLY	//don't be stupid, stupid.
 		#define CLIENTONLY
-
+#endif
 	#else
 
 		#define SIDEVIEWS	4	//enable secondary/reverse views.

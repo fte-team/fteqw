@@ -2456,6 +2456,7 @@ int qcc_compileactive = false;
 char *origionalqccmsrc;	//for autoprototype.
 void QCC_main (int argc, char **argv)	//as part of the quake engine
 {
+	extern int			pr_bracelevel;
 	extern int ForcedCRC;
 
 	int		p;
@@ -2590,6 +2591,8 @@ void QCC_main (int argc, char **argv)	//as part of the quake engine
 
 	functions = (void *)qccHunkAlloc(sizeof(QCC_dfunction_t) * MAX_FUNCTIONS);
 	numfunctions=0;
+
+	pr_bracelevel = 0;
 
 	qcc_pr_globals = (void *)qccHunkAlloc(sizeof(float) * MAX_REGS);
 	numpr_globals=0;

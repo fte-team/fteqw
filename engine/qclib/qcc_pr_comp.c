@@ -674,6 +674,7 @@ pbool QCC_OPCodeValid(QCC_opcode_t *op)
 }
 
 QCC_def_t *QCC_PR_Expression (int priority);
+int QCC_AStatementJumpsTo(int targ, int first, int last);
 
 QCC_def_t	junkdef;
 
@@ -4231,7 +4232,12 @@ void QCC_PR_ParseStatement (void)
 		junkdef.type = type_float;
 		QCC_FreeTemp(QCC_PR_Statement (&pr_opcodes[OP_GOTO], &junkdef, 0, (QCC_dstatement_t **)0xffffffff));
 		if (patch1)
-			patch1->b = &statements[numstatements] - patch1;
+		{
+			if (patch1->op == OP_GOTO)
+				patch1->a = &statements[numstatements] - patch1;
+			else
+				patch1->b = &statements[numstatements] - patch1;
+		}
 
 		if (breaks != num_breaks)
 		{
@@ -4258,8 +4264,8 @@ void QCC_PR_ParseStatement (void)
 		int old_numstatements;
 		int numtemp, i;
 
-		QCC_dstatement_t		temp[32];
 		int					linenum[32];
+		QCC_dstatement_t		temp[sizeof(linenum)/sizeof(linenum[0])];
 
 		continues = num_continues;
 		breaks = num_breaks;
@@ -4272,26 +4278,39 @@ void QCC_PR_ParseStatement (void)
 		}
 
 		patch2 = &statements[numstatements];
-		conditional = true;
-		e = QCC_PR_Expression(TOP_PRIORITY);
-		conditional = false;
-		QCC_PR_Expect(";");
-
-		old_numstatements = numstatements;
-		QCC_FreeTemp(QCC_PR_Expression(TOP_PRIORITY));
-		numtemp = numstatements - old_numstatements;
-		if (numtemp > 32)
-			QCC_PR_ParseError(ERR_TOOCOMPLEX, "Update expression too large");
-		numstatements = old_numstatements;
-		for (i = 0 ; i < numtemp ; i++)
+		if (!QCC_PR_Check(";"))
 		{
-			linenum[i] = statement_linenums[numstatements + i];
-			temp[i] = statements[numstatements + i];
+			conditional = true;
+			e = QCC_PR_Expression(TOP_PRIORITY);
+			conditional = false;
+			QCC_PR_Expect(";");
 		}
+		else
+			e = NULL;
 
-		QCC_PR_Expect(")");
-		QCC_FreeTemp(QCC_PR_Statement(&pr_opcodes[OP_IFNOT], e, 0, NULL));
-		patch1 = &statements[numstatements-1];
+		if (!QCC_PR_Check(")"))
+		{
+			old_numstatements = numstatements;
+			QCC_FreeTemp(QCC_PR_Expression(TOP_PRIORITY));
+			numtemp = numstatements - old_numstatements;
+			if (numtemp > sizeof(linenum)/sizeof(linenum[0]))
+				QCC_PR_ParseError(ERR_TOOCOMPLEX, "Update expression too large");
+			numstatements = old_numstatements;
+			for (i = 0 ; i < numtemp ; i++)
+			{
+				linenum[i] = statement_linenums[numstatements + i];
+				temp[i] = statements[numstatements + i];
+			}
+
+			QCC_PR_Expect(")");
+		}
+		else
+			numtemp = 0;
+
+		if (e)
+			QCC_FreeTemp(QCC_PR_Statement(&pr_opcodes[OP_IFNOT], e, 0, &patch1));
+		else
+			patch1 = NULL;
 		QCC_PR_ParseStatement();
 		patch3 = &statements[numstatements];
 		for (i = 0 ; i < numtemp ; i++)
@@ -4300,7 +4319,8 @@ void QCC_PR_ParseStatement (void)
 			statements[numstatements++] = temp[i];
 		}
 		QCC_PR_SimpleStatement(OP_GOTO, patch2 - &statements[numstatements], 0, 0);
-		patch1->b = &statements[numstatements] - patch1;
+		if (patch1)
+			patch1->b = &statements[numstatements] - patch1;
 
 		if (breaks != num_breaks)
 		{
@@ -4429,17 +4449,20 @@ void QCC_PR_ParseStatement (void)
 		}
 
 		QCC_PR_Expect (")");	//close bracket is after we save the statement to mem (so debugger does not show the if statement as being on the line after
-		
+
 		QCC_PR_ParseStatement ();
-		
+
 		if (QCC_PR_Check ("else"))
 		{
 			int lastwasreturn;
-			lastwasreturn = 0;//statements[numstatements-1].op == OP_RETURN || statements[numstatements-1].op == OP_DONE;
+			lastwasreturn = statements[numstatements-1].op == OP_RETURN || statements[numstatements-1].op == OP_DONE;
 
-			if (lastwasreturn && opt_compound_jumps)
+			//nothing jumped to it, so it's not a problem!
+			if (lastwasreturn && opt_compound_jumps && !QCC_AStatementJumpsTo(numstatements, patch1-statements, numstatements))
 			{
+//				QCC_PR_ParseWarning(0, "optimised the else");
 				optres_compound_jumps++;
+				patch1->b = &statements[numstatements] - patch1;
 				QCC_PR_ParseStatement ();
 			}
 			else
@@ -5188,6 +5211,7 @@ void QCC_CompoundJumps(int first, int last)
 	//jumps to jumps are reordered so they become jumps to the final target.
 	int statement;
 	int st;
+	int infloop;
 	for (st = first; st < last; st++)
 	{
 		if (pr_opcodes[statements[st].op].type_a == NULL)
@@ -5201,8 +5225,14 @@ void QCC_CompoundJumps(int first, int last)
 				statements[st].c = statements[statement].c;
 				optres_compound_jumps++;
 			}
+			infloop = 1000;
 			while (statements[statement].op == OP_GOTO)
 			{
+				if (!infloop--)
+				{
+					QCC_PR_ParseWarning(0, "Infinate loop detected");
+					break;
+				}
 				statements[st].a = (statement+statements[statement].a - st);
 				statement = st + (signed)statements[st].a;
 				optres_compound_jumps++;
@@ -5211,8 +5241,14 @@ void QCC_CompoundJumps(int first, int last)
 		if (pr_opcodes[statements[st].op].type_b == NULL)
 		{
 			statement = st + (signed)statements[st].b;
+			infloop = 1000;
 			while (statements[statement].op == OP_GOTO)
 			{
+				if (!infloop--)
+				{
+					QCC_PR_ParseWarning(0, "Infinate loop detected");
+					break;
+				}
 				statements[st].b = (statement+statements[statement].a - st);
 				statement = st + (signed)statements[st].b;
 				optres_compound_jumps++;
@@ -5221,8 +5257,14 @@ void QCC_CompoundJumps(int first, int last)
 		if (pr_opcodes[statements[st].op].type_c == NULL)
 		{
 			statement = st + (signed)statements[st].c;
+			infloop = 1000;
 			while (statements[statement].op == OP_GOTO)
 			{
+				if (!infloop--)
+				{
+					QCC_PR_ParseWarning(0, "Infinate loop detected");
+					break;
+				}
 				statements[st].c = (statement+statements[statement].a - st);
 				statement = st + (signed)statements[st].c;
 				optres_compound_jumps++;
@@ -5248,15 +5290,19 @@ void QCC_CheckForDeadAndMissingReturns(int first, int last, int rettype)
 
 	for (st = first; st < last; st++)
 	{
-		if (statements[st].op == OP_RETURN)
+		if (statements[st].op == OP_RETURN || statements[st].op == OP_GOTO)
 		{
 			st++;
 			if (st == last)
 				continue;	//erm... end of function doesn't count as unreachable.
-
+/*
 			if (statements[st].op == OP_GOTO)	//inefficient compiler, we can ignore this.
 				continue;
-
+			if (statements[st].op == OP_DONE)	//inefficient compiler, we can ignore this.
+				continue;
+			if (statements[st].op == OP_RETURN)	//inefficient compiler, we can ignore this.
+				continue;
+*/
 
 			//make sure something goes to just after this return.
 			for (st2 = first; st2 < last; st2++)
@@ -5311,6 +5357,44 @@ void QCC_CheckForDeadAndMissingReturns(int first, int last, int rettype)
 			}
 		}
 	}
+}
+
+int QCC_AStatementJumpsTo(int targ, int first, int last)
+{
+	int st;
+	for (st = first; st < last; st++)
+	{
+		if (pr_opcodes[statements[st].op].type_a == NULL)
+		{
+			if (st + (signed)statements[st].a == targ)
+			{
+				return true;
+			}
+		}
+		if (pr_opcodes[statements[st].op].type_b == NULL)
+		{
+			if (st + (signed)statements[st].b == targ)
+			{
+				return true;
+			}
+		}
+		if (pr_opcodes[statements[st].op].type_c == NULL)
+		{
+			if (st + (signed)statements[st].c == targ)
+			{
+				return true;
+			}
+		}
+	}
+
+	for (st = 0; st < num_labels; st++)	//assume it's used.
+	{
+		if (pr_labels[st].statementno == targ)
+			return true;
+	}
+
+
+	return false;
 }
 /*
 //goes through statements, if it sees a matching statement earlier, it'll strim out the current.
@@ -5715,12 +5799,12 @@ QCC_function_t *QCC_PR_ParseImmediateStatements (QCC_type_t *type)
 	else
 		optres_return_only++;
 
+	QCC_CheckForDeadAndMissingReturns(f->code, numstatements, type->aux_type->type);
+
 	if (opt_compound_jumps)
 		QCC_CompoundJumps(f->code, numstatements);
 //	if (opt_comexprremoval)
 //		QCC_CommonSubExpressionRemoval(f->code, numstatements);
-
-	QCC_CheckForDeadAndMissingReturns(f->code, numstatements, type->aux_type->type);
 
 
 	QCC_RemapLockedTemps(f->code, numstatements);

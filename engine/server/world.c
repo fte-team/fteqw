@@ -529,7 +529,7 @@ void SV_LinkEdict (edict_t *ent, qboolean touch_triggers)
 		return;
 
 // set the abs box
-/*	if (ent->v.solid == SOLID_BSP && 
+	if (ent->v.solid == SOLID_BSP && 
 	(ent->v.angles[0] || ent->v.angles[1] || ent->v.angles[2]) )
 	{	// expand for rotation
 		int			i;
@@ -539,7 +539,14 @@ void SV_LinkEdict (edict_t *ent, qboolean touch_triggers)
 		
 		//we need to link to the correct leaves
 
-		AngleVectors(ent->v.angles, f,r,u);
+		if (progstype == PROG_H2)
+		{
+			ent->v.angles[0]*=-1;
+			AngleVectors(ent->v.angles, f,r,u);
+			ent->v.angles[0]*=-1;
+		}
+		else
+			AngleVectors(ent->v.angles, f,r,u);
 
 		mn[0] = DotProduct(ent->v.mins, f);
 		mn[1] = -DotProduct(ent->v.mins, r);
@@ -552,17 +559,17 @@ void SV_LinkEdict (edict_t *ent, qboolean touch_triggers)
 		{
 			if (mn[i] < mx[i])
 			{
-				ent->v.absmin[i] = ent->v.origin[i]+mn[i];
-				ent->v.absmax[i] = ent->v.origin[i]+mx[i];
+				ent->v.absmin[i] = ent->v.origin[i]+mn[i]-0.1;
+				ent->v.absmax[i] = ent->v.origin[i]+mx[i]+0.1;
 			}
 			else
 			{	//box went inside out
-				ent->v.absmin[i] = ent->v.origin[i]+mx[i];
-				ent->v.absmax[i] = ent->v.origin[i]+mn[i];
+				ent->v.absmin[i] = ent->v.origin[i]+mx[i]-0.1;
+				ent->v.absmax[i] = ent->v.origin[i]+mn[i]+0.1;
 			}
 		}
 	}
-	else*/
+	else
 	{
 		VectorAdd (ent->v.origin, ent->v.mins, ent->v.absmin);	
 		VectorAdd (ent->v.origin, ent->v.maxs, ent->v.absmax);
@@ -1139,7 +1146,16 @@ trace_t SV_ClipMoveToEntity (edict_t *ent, vec3_t start, vec3_t mins, vec3_t max
 	VectorSubtract (end, offset, end_l);
 
 // trace a line through the apropriate clipping hull
-	TransformedHullCheck(hull, start_l, end_l, &trace, ent->v.angles);
+	if (progstype == PROG_H2 && ent->v.solid == SOLID_BSP)
+	{
+		ent->v.angles[0]*=-1;
+		TransformedHullCheck(hull, start_l, end_l, &trace, ent->v.angles);
+		ent->v.angles[0]*=-1;
+	}
+	else
+	{
+		TransformedHullCheck(hull, start_l, end_l, &trace, ent->v.angles);
+	}
 
 // fix trace up by the offset
 	if (trace.fraction != 1)

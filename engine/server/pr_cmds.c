@@ -981,7 +981,7 @@ void Q_InitProgs(void)
 	}
 	prnum = 0;
 
-	switch (sv.worldmodel->fromgame)
+	switch (sv.worldmodel->fromgame)	//spawn functions for - spawn funcs still come from the first progs found.
 	{
 	case fg_quake2:
 		if (COM_FDepthFile("q2bsp.dat", true)!=0x7fffffff)
@@ -1000,6 +1000,9 @@ void Q_InitProgs(void)
 	case fg_halflife:
 		if (COM_FDepthFile("hlbsp.dat", true)!=0x7fffffff)
 			prnum = AddProgs("hlbsp.dat");
+		break;
+
+	default:
 		break;
 	}
 
@@ -1317,10 +1320,10 @@ char *PF_VarString (progfuncs_t *prinst, int	first, globalvars_t *pr_globals)
 
 
 //#define	RETURN_EDICT(pf, e) (((int *)pr_globals)[OFS_RETURN] = EDICT_TO_PROG(pf, e))
-#define	RETURN_SSTRING(s) ((char *)((int *)pr_globals)[OFS_RETURN] = PR_SetString(prinst, s))	//static - exe will not change it.
-#define	RETURN_TSTRING(s) ((char *)((int *)pr_globals)[OFS_RETURN] = PR_SetString(prinst, s))	//temp (static but cycle buffers?)
-#define	RETURN_CSTRING(s) ((char *)((int *)pr_globals)[OFS_RETURN] = PR_SetString(prinst, s))	//semi-permanant. (hash tables?)
-#define	RETURN_PSTRING(s) ((char *)((int *)pr_globals)[OFS_RETURN] = PR_NewString(prinst, s))	//permanant
+#define	RETURN_SSTRING(s) (*(char **)&((int *)pr_globals)[OFS_RETURN] = PR_SetString(prinst, s))	//static - exe will not change it.
+#define	RETURN_TSTRING(s) (*(char **)&((int *)pr_globals)[OFS_RETURN] = PR_SetString(prinst, s))	//temp (static but cycle buffers?)
+#define	RETURN_CSTRING(s) (*(char **)&((int *)pr_globals)[OFS_RETURN] = PR_SetString(prinst, s))	//semi-permanant. (hash tables?)
+#define	RETURN_PSTRING(s) (*(char **)&((int *)pr_globals)[OFS_RETURN] = PR_NewString(prinst, s))	//permanant
 
 /*
 ===============================================================================
@@ -3882,7 +3885,7 @@ client_t *Write_GetClient(void)
 	int		entnum;
 	edict_t	*ent;
 
-	struct globalvars_s *pr_globals = pr_netglob;
+//	struct globalvars_s *pr_globals = pr_netglob;
 
 	ent = PROG_TO_EDICT(pr_netprogfuncs, pr_global_struct->msg_entity);
 	entnum = NUM_FOR_EDICT(pr_netprogfuncs, ent);

@@ -1514,7 +1514,7 @@ void SV_UpdateToReliableMessages (void)
 	SZ_Clear (&sv.q2datagram);
 }
 
-#ifdef _WIN32
+#ifdef _MSC_VER
 #pragma optimize( "", off )
 #endif
 
@@ -1632,7 +1632,7 @@ void SV_SendClientMessages (void)
 	SV_CleanupEnts();
 }
 
-#ifdef _WIN32
+#ifdef _MSC_VER
 #pragma optimize( "", on )
 #endif
 

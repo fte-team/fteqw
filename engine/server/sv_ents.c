@@ -1124,8 +1124,10 @@ void SV_WritePlayersToClient (client_t *client, edict_t *clent, qbyte *pvs, size
 	for (j=0,cl=svs.clients ; j<sv.allocated_client_slots ; j++,cl++)
 	{
 		isbot = !cl->state && cl->name[0];
-		if (cl->state != cs_spawned && !isbot && !sv.demostatevalid)
-			continue;
+		if (!sv.demostatevalid)
+			if (cl->state != cs_spawned)	//this includes bots
+				if (!isbot || progstype != PROG_NQ)	//unless they're NQ bots...
+					continue;
 
 		ent = cl->edict;
 		if (cl->viewent && ent == clent)

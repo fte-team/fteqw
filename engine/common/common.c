@@ -34,30 +34,7 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 //#define HASH_FILESYSTEM
 
 #if defined(HASH_FILESYSTEM) || defined(ONE_FS_HASH)
-//#include "hash.h"
-
-#define Hash_BytesForBuckets(b) (sizeof(bucket_t)*b)
-
-#define STRCMP(s1,s2) (((*s1)!=(*s2)) || strcmp(s1+1,s2+1))	//saves about 2-6 out of 120 - expansion of idea from fastqcc
-typedef struct bucket_s {
-	void *data;
-	char *keystring;
-	struct bucket_s *next;
-} bucket_t;
-typedef struct hashtable_s {
-	int numbuckets;
-	bucket_t **bucket;
-} hashtable_t;
-
-void Hash_InitTable(hashtable_t *table, int numbucks, void *mem);	//mem must be 0 filled. (memset(mem, 0, size))
-int Hash_Key(char *name, int modulus);
-void *Hash_Get(hashtable_t *table, char *name);
-void *Hash_GetKey(hashtable_t *table, int key);
-void *Hash_GetNext(hashtable_t *table, char *name, void *old);
-void *Hash_Add(hashtable_t *table, char *name, void *data);
-void *Hash_Add2(hashtable_t *table, char *name, void *data, bucket_t *buck);
-void *Hash_AddKey(hashtable_t *table, int key, void *data);
-void Hash_Remove(hashtable_t *table, char *name);
+#include "hash.h"
 #endif
 
 
@@ -1491,7 +1468,10 @@ skipwhite:
 		while (1)
 		{
 			if (len >= TOKENSIZE-1)
+			{
+				com_token[len] = '\0';
 				return data;
+			}
 
 
 			c = *data++;
@@ -1525,7 +1505,10 @@ skipwhite:
 	do
 	{
 		if (len >= TOKENSIZE-1)
+		{
+			com_token[len] = '\0';
 			return data;
+		}
 
 		com_token[len] = c;
 		data++;
@@ -1562,6 +1545,11 @@ skipwhite:
 			macro = Cvar_FindVar(name);
 			if (macro)	//got one...
 			{
+				if (len+strlen(macro->string)-(i+1) >= TOKENSIZE-1)	//give up.
+				{
+					com_token[len] = '\0';
+					return data;
+				}
 				memmove(s+strlen(macro->string), s+i+1, len-c-i);
 				memcpy(s, macro->string, strlen(macro->string));
 				s+=strlen(macro->string);
@@ -1620,6 +1608,11 @@ skipwhite:
 		data++;
 		while (1)
 		{
+			if (len >= TOKENSIZE-1)
+			{
+				com_token[len] = '\0';
+				return data;
+			}
 			c = *data++;
 			if (c=='\"' || !c)
 			{
@@ -1645,6 +1638,8 @@ skipwhite:
 // parse a regular word
 	do
 	{
+		if (len >= sizeof(com_token)-1)
+			break;
 		com_token[len] = c;
 		data++;
 		len++;
@@ -1695,6 +1690,12 @@ skipwhite:
 		data++;
 		while (1)
 		{
+			if (len >= TOKENSIZE-2)
+			{
+				com_token[len] = '\0';
+				return data;
+			}
+			
 			c = *data++;
 			if (!c)
 			{
@@ -1735,6 +1736,8 @@ skipwhite:
 // parse a regular word
 	do
 	{
+		if (len >= sizeof(com_token)-1)
+			break;
 		com_token[len] = c;
 		data++;
 		len++;
@@ -2285,20 +2288,18 @@ int FS_RebuildOSFSHash(char *filename, int filesize, void *data)
 	{	//this is actually a directory
 
 		char childpath[256];
-		sprintf(childpath, "%s*.*", filename);
-		Sys_EnumerateFiles(((searchpath_t	*)data)->filename, childpath, FS_RebuildOSFSHash, data);
 		sprintf(childpath, "%s*", filename);
 		Sys_EnumerateFiles(((searchpath_t	*)data)->filename, childpath, FS_RebuildOSFSHash, data);
 		return true;
 	}
-	if (!Hash_Get(&filesystemhash, filename))
+	if (!Hash_GetInsensative(&filesystemhash, filename))
 	{
 		bucket_t *bucket = BZ_Malloc(sizeof(bucket_t) + strlen(filename)+1);
 		strcpy((char *)(bucket+1), filename);
 #ifdef _WIN32
 		Q_strlwr((char *)(bucket+1));
 #endif
-		Hash_Add2(&filesystemhash, (char *)(bucket+1), data, bucket);
+		Hash_AddInsensative(&filesystemhash, (char *)(bucket+1), data, bucket);
 
 		fs_hash_files++;
 	}
@@ -2356,10 +2357,10 @@ void FS_RebuildFSHash(void)
 		case SPT_PACK:
 			for (i = 0; i < search->u.pack->numfiles; i++)
 			{
-				if (!Hash_Get(&filesystemhash, search->u.pack->files[i].name))
+				if (!Hash_GetInsensative(&filesystemhash, search->u.pack->files[i].name))
 				{
 					fs_hash_files++;
-					Hash_Add2(&filesystemhash, search->u.pack->files[i].name, &search->u.pack->files[i], &search->u.pack->files[i].bucket);
+					Hash_AddInsensative(&filesystemhash, search->u.pack->files[i].name, &search->u.pack->files[i], &search->u.pack->files[i].bucket);
 				}
 				else
 					fs_hash_dups++;
@@ -2369,10 +2370,10 @@ void FS_RebuildFSHash(void)
 		case SPT_ZIP:
 			for (i = 0; i < search->u.zip->numfiles; i++)
 			{
-				if (!Hash_Get(&filesystemhash, search->u.zip->files[i].name))
+				if (!Hash_GetInsensative(&filesystemhash, search->u.zip->files[i].name))
 				{
 					fs_hash_files++;
-					Hash_Add2(&filesystemhash, search->u.zip->files[i].name, &search->u.zip->files[i], &search->u.zip->files[i].bucket);
+					Hash_AddInsensative(&filesystemhash, search->u.zip->files[i].name, &search->u.zip->files[i], &search->u.zip->files[i].bucket);
 				}
 				else
 					fs_hash_dups++;
@@ -2380,7 +2381,7 @@ void FS_RebuildFSHash(void)
 			break;
 #endif
 		case SPT_OS:
-			Sys_EnumerateFiles(search->filename, "*.*", FS_RebuildOSFSHash, search);
+			Sys_EnumerateFiles(search->filename, "*", FS_RebuildOSFSHash, search);
 			break;
 		default:
 			Sys_Error("FS_RebuildFSHash: Bad searchpath type\n");
@@ -2669,7 +2670,7 @@ int FS_FLocateFile(char *filename, FSLF_ReturnType_e returntype, flocation_t *lo
 	{
 		if (com_fschanged)
 			FS_RebuildFSHash();
-		pf = Hash_Get(&filesystemhash, filename);
+		pf = Hash_GetInsensative(&filesystemhash, filename);
 		if (!pf)
 			goto fail;
 	}
@@ -3219,7 +3220,7 @@ pack_t *COM_LoadPackFile (char *packfile)
 		newfiles[i].filepos = LittleLong(info.filepos);
 		newfiles[i].filelen = LittleLong(info.filelen);
 #ifdef HASH_FILESYSTEM
-		Hash_Add2(&pack->hash, newfiles[i].name, &newfiles[i], &newfiles[i].bucket);
+		Hash_AddInsensative(&pack->hash, newfiles[i].name, &newfiles[i], &newfiles[i].bucket);
 #endif
 	}
 /*
@@ -3341,7 +3342,7 @@ qboolean COM_LoadMapPackFile (char *filename, int ofs)
 		newfiles[i].filepos = LittleLong(info.filepos)+fstart;
 		newfiles[i].filelen = LittleLong(info.filelen);
 #ifdef HASH_FILESYSTEM
-		Hash_Add2(&pack->hash, newfiles[i].name, &newfiles[i], &newfiles[i].bucket);
+		Hash_AddInsensative(&pack->hash, newfiles[i].name, &newfiles[i], &newfiles[i].bucket);
 #endif
 	}
 
@@ -3546,7 +3547,7 @@ newsection:
 			break;
 		}
 #ifdef HASH_FILESYSTEM
-		Hash_Add2(&pack->hash, newfiles[i].name, &newfiles[i], &newfiles[i].bucket);
+		Hash_AddInsensative(&pack->hash, newfiles[i].name, &newfiles[i], &newfiles[i].bucket);
 #endif
 	}
 
@@ -3624,7 +3625,7 @@ zipfile_t *COM_LoadZipFile (char *packfile)
 		newfiles[i].filelen = file_info.uncompressed_size;
 		newfiles[i].filepos = file_info.c_offset;
 #ifdef HASH_FILESYSTEM
-		Hash_Add2(&zip->hash, newfiles[i].name, &newfiles[i], &newfiles[i].bucket);
+		Hash_AddInsensative(&zip->hash, newfiles[i].name, &newfiles[i], &newfiles[i].bucket);
 #endif
 		unzGoToNextFile (zip->handle);
 	}
@@ -3638,7 +3639,7 @@ packfile_t *Com_FileInZip(zipfile_t *zip, char *filename)
 //	int err;
 
 #ifdef HASH_FILESYSTEM
-	return Hash_Get(&zip->hash, filename);
+	return Hash_GetInsensative(&zip->hash, filename);
 #else
 	int		num;
 
@@ -4215,6 +4216,11 @@ char *Info_ValueForKey (char *s, char *key)
 				return value[valueindex];
 			}
 			*o++ = *s++;
+			if (o+2 >= pkey+sizeof(pkey))	//hrm. hackers at work..
+			{
+				*value[valueindex]='\0';
+				return value[valueindex];
+			}
 		}
 		*o = 0;
 		s++;
@@ -4229,6 +4235,12 @@ char *Info_ValueForKey (char *s, char *key)
 				return value[valueindex];
 			}
 			*o++ = *s++;
+			
+			if (o+2 >= value[valueindex]+sizeof(value[valueindex]))	//hrm. hackers at work..
+			{
+				*value[valueindex]='\0';
+				return value[valueindex];
+			}
 		}
 		*o = 0;
 

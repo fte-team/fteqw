@@ -1690,6 +1690,17 @@ void	Cmd_ExecuteString (char *text, int level)
 				level = a->execlevel;
 
 			Cbuf_InsertText ("\n", level);
+
+			// if the alias value is a command or cvar and
+			// the alias is called with parameters, add them
+			if (Cmd_Argc() > 1 && !strchr(a->value, ' ') && !strchr(a->value, '\t')	&& 
+				(Cvar_FindVar(a->value) || (Cmd_Exists(a->value) && a->value[0] != '+' && a->value[0] != '-'))
+			)
+			{
+				Cbuf_InsertText (Cmd_Args(), level);
+				Cbuf_InsertText (" ", level);
+			}
+
 			Cbuf_InsertText (a->value, level);
 
 			Cbuf_InsertText (va("set cmd_argc \"%i\"\n", cmd_argc), level);
@@ -2614,11 +2625,15 @@ Cmd_Init
 */
 void Cmd_Init (void)
 {
+	extern cvar_t cfg_save_name;
 //
 // register our commands
 //
 	Cmd_AddCommand ("stuffcmds",Cmd_StuffCmds_f);
+	Cmd_AddCommand ("cfg_save",Cmd_WriteConfig_f);
 	Cmd_AddCommand ("cfg_load",Cmd_Exec_f);
+	Cvar_Register (&cfg_save_name, "Configs");
+
 	Cmd_AddCommand ("exec",Cmd_Exec_f);
 	Cmd_AddCommand ("echo",Cmd_Echo_f);
 	Cmd_AddCommand ("alias",Cmd_Alias_f);
@@ -2632,8 +2647,6 @@ void Cmd_Init (void)
 
 	Cmd_AddCommand ("msg_trigger", Cmd_Msg_Trigger_f);
 	Cmd_AddCommand ("filter", Cmd_Msg_Filter_f);
-
-	Cmd_AddCommand ("cfg_save",Cmd_WriteConfig_f);
 
 
 	Cmd_AddCommand ("set", Cmd_set_f);

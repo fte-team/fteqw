@@ -1260,7 +1260,7 @@ qboolean MC_Main_Key (int key, menu_t *menu)	//here purly to restart demos.
 		key_dest = key_game;
 		m_state = m_none;
 		cls.demonum = m_save_demonum;
-		if (cls.demonum != -1 && !cls.demoplayback && cls.state == ca_disconnected)
+		if (cls.demonum != -1 && !cls.demoplayback && cls.state == ca_disconnected && COM_CheckParm("-demos"))
 			CL_NextDemo ();
 		return true;
 	}

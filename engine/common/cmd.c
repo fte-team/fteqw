@@ -724,6 +724,7 @@ void Cmd_Alias_f (void)
 		{
 			cmd_alias = a->next;
 			Z_Free(a);
+			return;
 		}
 		else
 		{

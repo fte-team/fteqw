@@ -358,12 +358,10 @@ SV_TouchLinks
 #define MAX_NODELINKS	256	//all this means is that any more than this will not touch.
 edict_t *nodelinks[MAX_NODELINKS];
 void SV_TouchLinks ( edict_t *ent, areanode_t *node )
-{
+{	//Spike: rewritten this function to cope with killtargets used on a few maps.
 	link_t		*l, *next;
 	edict_t		*touch;
 	int			old_self, old_other;
-
-#if 1
 
 	int linkcount = 0, ln;
 
@@ -386,7 +384,7 @@ void SV_TouchLinks ( edict_t *ent, areanode_t *node )
 		|| ent->v.absmax[2] < touch->v.absmin[2] )
 			continue;
 
-		if (!((int)ent->v.dimension_physics & (int)touch->v.dimension_physics))
+		if (!((int)ent->v.dimension_solid & (int)touch->v.dimension_hit))
 			continue;
 
 		nodelinks[linkcount++] = touch;
@@ -413,54 +411,23 @@ void SV_TouchLinks ( edict_t *ent, areanode_t *node )
 		|| ent->v.absmax[2] < touch->v.absmin[2] )
 			continue;
 
-		if (!((int)ent->v.dimension_physics & (int)touch->v.dimension_physics))
+		if (!((int)ent->v.dimension_solid & (int)touch->v.dimension_hit))	//didn't change did it?...
 			continue;
 
 		pr_global_struct->self = EDICT_TO_PROG(svprogfuncs, touch);
 		pr_global_struct->other = EDICT_TO_PROG(svprogfuncs, ent);
 		pr_global_struct->time = sv.time;
 		PR_ExecuteProgram (svprogfuncs, touch->v.touch);
+
+		if (ent->isfree)
+			break;
 	}
 	pr_global_struct->self = old_self;
 	pr_global_struct->other = old_other;
 
-#else
-// touch linked edicts
-	for (l = node->trigger_edicts.next ; l != &node->trigger_edicts ; l = next)
-	{
-		if (!l)	//this is potentially wrong, but simpler than building a list of all ents to touch.
-			break;
-		next = l->next;
-		touch = EDICT_FROM_AREA(l);
-		if (touch == ent)
-			continue;
-		if (!touch->v.touch || touch->v.solid != SOLID_TRIGGER)
-			continue;
-		if (ent->v.absmin[0] > touch->v.absmax[0]
-		|| ent->v.absmin[1] > touch->v.absmax[1]
-		|| ent->v.absmin[2] > touch->v.absmax[2]
-		|| ent->v.absmax[0] < touch->v.absmin[0]
-		|| ent->v.absmax[1] < touch->v.absmin[1]
-		|| ent->v.absmax[2] < touch->v.absmin[2] )
-			continue;
 
-		if (!((int)ent->v.dimension_physics & (int)touch->dimension_physics))
-			continue;
-
-		old_self = pr_global_struct->self;
-		old_other = pr_global_struct->other;
-
-		pr_global_struct->self = EDICT_TO_PROG(svprogfuncs, touch);
-		pr_global_struct->other = EDICT_TO_PROG(svprogfuncs, ent);
-		pr_global_struct->time = sv.time;
-		PR_ExecuteProgram (svprogfuncs, touch->v.touch);
-
-		pr_global_struct->self = old_self;
-		pr_global_struct->other = old_other;
-	}
-#endif
 // recurse down both sides
-	if (node->axis == -1)
+	if (node->axis == -1 || ent->isfree)
 		return;
 	
 	if ( ent->v.absmax[node->axis] > node->dist )
@@ -1461,7 +1428,7 @@ void SV_ClipMoveToEntities ( moveclip_t *clip )
 		if (clip->type & MOVE_NOMONSTERS && touch->v.solid != SOLID_BSP)
 			continue;
 
-		if (!((int)clip->passedict->v.dimension_physics & (int)touch->v.dimension_physics))
+		if (!((int)clip->passedict->v.dimension_hit & (int)touch->v.dimension_solid))
 			continue;
 
 //		if ( !(clip->contentmask & CONTENTS_DEADMONSTER)
@@ -1609,7 +1576,7 @@ void SV_ClipToLinks ( areanode_t *node, moveclip_t *clip )
 		if (clip->passedict && clip->passedict->v.size[0] && !touch->v.size[0])
 			continue;	// points never interact
 
-		if (!((int)clip->passedict->v.dimension_physics & (int)touch->v.dimension_physics))
+		if (!((int)clip->passedict->v.dimension_hit & (int)touch->v.dimension_solid))
 			continue;
 
 	// might intersect, so do an exact clip

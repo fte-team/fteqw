@@ -500,10 +500,10 @@ static qboolean R_GAliasBuildMesh(mesh_t *mesh, galiasinfo_t *inf, int frame1, i
 		frame1=frame1%g1->numposes;
 		frame2=frame2%g1->numposes;
 
-		plerp[l] = (1-mlerp)*lerp;
+		plerp[l] = (1-mlerp)*(1-lerp);
 		if (plerp[l]>0)
 			pose[l++] = (float *)((char *)g1 + g1->poseofs + sizeof(float)*inf->numbones*12*frame1);
-		plerp[l] = (mlerp)*lerp;
+		plerp[l] = (mlerp)*(1-lerp);
 		if (plerp[l]>0)
 			pose[l++] = (float *)((char *)g1 + g1->poseofs + sizeof(float)*inf->numbones*12*frame2);
 
@@ -514,10 +514,10 @@ static qboolean R_GAliasBuildMesh(mesh_t *mesh, galiasinfo_t *inf, int frame1, i
 		frame1=frame1%g2->numposes;
 		frame2=frame2%g2->numposes;
 
-		plerp[l] = (1-mlerp)*(1-lerp);
+		plerp[l] = (1-mlerp)*(lerp);
 		if (plerp[l]>0)
 			pose[l++] = (float *)((char *)g2 + g2->poseofs + sizeof(float)*inf->numbones*12*frame1);
-		plerp[l] = (mlerp)*(1-lerp);
+		plerp[l] = (mlerp)*(lerp);
 		if (plerp[l]>0)
 			pose[l++] = (float *)((char *)g2 + g2->poseofs + sizeof(float)*inf->numbones*12*frame2);
 /*
@@ -3018,7 +3018,7 @@ void GLMod_LoadZymoticModel(model_t *mod, void *buffer)
 		grp->rate = BigFloat(inscene->framerate);
 		grp->numposes = BigLong(inscene->length);
 		grp->poseofs = (char*)matrix  - (char*)grp;
-//		grp->poseofs += BigLong(inscene->start)*sizeof(float[4][3]);
+		grp->poseofs += BigLong(inscene->start)*12*sizeof(float)*root->numbones;
 	}
 
 	if (inscene != (zymscene_t*)((char*)header + header->lump_scenes.start+header->lump_scenes.length))

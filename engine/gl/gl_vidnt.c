@@ -68,15 +68,8 @@ BOOL bSetupPixelFormat(HDC hDC);
 qboolean VID_SetWindowedMode (rendererstate_t *info);	//-1 on bpp or hz for default.
 qboolean VID_SetFullDIBMode (rendererstate_t *info);	//-1 on bpp or hz for default.
 
-const char *gl_vendor;
-const char *gl_renderer;
-const char *gl_version;
-const char *gl_extensions;
-
 qboolean		DDActive;
 qboolean		scr_skipupdate;
-
-int		gl_canstencil;
 
 static DEVMODE	gdevmode;
 static qboolean	vid_initialized = false;
@@ -123,8 +116,6 @@ viddef_t	vid;				// global video state
 //unsigned	d_8to24rgbtable[256];
 //unsigned short	d_8to16bgrtable[256];
 //unsigned	d_8to24bgrtable[256];
-
-float		gldepthmin, gldepthmax;
 
 modestate_t	modestate = MS_UNINIT;
 

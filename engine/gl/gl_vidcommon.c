@@ -126,6 +126,13 @@ qboolean gammaworks;	//if the gl drivers can set proper gamma.
 
 
 gl_config_t gl_config;
+int		gl_canstencil;
+
+float		gldepthmin, gldepthmax;
+const char *gl_vendor;
+const char *gl_renderer;
+const char *gl_version;
+const char *gl_extensions;
 
 //int		texture_mode = GL_NEAREST;
 //int		texture_mode = GL_NEAREST_MIPMAP_NEAREST;

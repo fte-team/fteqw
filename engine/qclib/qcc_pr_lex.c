@@ -173,99 +173,157 @@ void QCC_PR_NewLine (pbool incomment)
 	if (incomment)	//no constants if in a comment.
 	{
 	}
-	else if (!strncmp(pr_file_p, "#define", 7))
+	else if (*pr_file_p == '#')
 	{
-		QCC_PR_ConditionCompilation();
-		while(*pr_file_p != '\n' && *pr_file_p != '\0')	//read on until the end of the line
+		char *directive;
+		for (directive = pr_file_p+1; *directive; directive++)
 		{
-			pr_file_p++;
+			if (*directive == '\r' || *directive == '\n')
+				QCC_PR_ParseError(ERR_UNKNOWNPUCTUATION, "Hanging # with no directive\n");
+			if (*directive > ' ')
+				break;
 		}
-		if (!m)
-			pr_file_p++;
-	}
-	else if (!strncmp(pr_file_p, "#undef", 6))
-	{
-		pr_file_p+=6;
-		while(*pr_file_p <= ' ')
-			pr_file_p++;
-
-		QCC_PR_SimpleGetToken ();
-		QCC_PR_UndefineName(pr_token);
-
-//		QCC_PR_ConditionCompilation();
-		while(*pr_file_p != '\n' && *pr_file_p != '\0')	//read on until the end of the line
+		if (!strncmp(directive, "define", 6))
 		{
-			pr_file_p++;
-		}
-		if (!m)
-			pr_file_p++;
-	}
-	else if (!strncmp(pr_file_p, "#if", 3))
-	{
- 		pr_file_p+=3;
-		if (!strncmp(pr_file_p, "def ", 4))
-		{
-			ifmode = 0;
-			pr_file_p+=4;
-		}
-		else if (!strncmp(pr_file_p, "ndef ", 5))
-		{
-			ifmode = 1;
-			pr_file_p+=5;
-		}
-		else
-		{
-			ifmode = 2;
-			pr_file_p+=0;
-			//QCC_PR_ParseError("bad \"#if\" type");
-		}
-
-		QCC_PR_SimpleGetToken ();
-		level = 1;
-
-		while(*pr_file_p != '\n' && *pr_file_p != '\0')	//read on until the end of the line
-		{
-			pr_file_p++;
-		}
-//		pr_file_p++;
-//		pr_source_line++;
-
-		if (ifmode == 2)
-		{
-			if (atof(pr_token))
-				eval = true;
-		}
-		else
-		{
-//			if (!STRCMP(pr_token, "COOP_MODE"))
-//				eval = false;
-			if (QCC_PR_CheckCompConstDefined(pr_token))
-				eval = true;
-
-			if (ifmode == 1)		
-				eval = eval?false:true;		
-		}
-
-		if (eval)
-			ifs+=1;
-		else
-		{
-			while (1)
+			pr_file_p = directive;
+			QCC_PR_ConditionCompilation();
+			while(*pr_file_p != '\n' && *pr_file_p != '\0')	//read on until the end of the line
 			{
-				while(*pr_file_p==' ' || *pr_file_p == '\t')
-					pr_file_p++;
-				if (!strncmp(pr_file_p, "#endif", 6))
-					level--;
-				if (!strncmp(pr_file_p, "#if", 3))
-					level++;
-				if (!strncmp(pr_file_p, "#else", 5) && level == 1)
+				pr_file_p++;
+			}
+			if (!m)
+				pr_file_p++;
+		}
+		else if (!strncmp(directive, "undef", 5))
+		{
+			pr_file_p = directive+5;
+			while(*pr_file_p <= ' ')
+				pr_file_p++;
+
+			QCC_PR_SimpleGetToken ();
+			QCC_PR_UndefineName(pr_token);
+
+	//		QCC_PR_ConditionCompilation();
+			while(*pr_file_p != '\n' && *pr_file_p != '\0')	//read on until the end of the line
+			{
+				pr_file_p++;
+			}
+			if (!m)
+				pr_file_p++;
+		}
+		else if (!strncmp(directive, "if", 2))
+		{
+ 			pr_file_p = directive+2;
+			if (!strncmp(pr_file_p, "def ", 4))
+			{
+				ifmode = 0;
+				pr_file_p+=4;
+			}
+			else if (!strncmp(pr_file_p, "ndef ", 5))
+			{
+				ifmode = 1;
+				pr_file_p+=5;
+			}
+			else
+			{
+				ifmode = 2;
+				pr_file_p+=0;
+				//QCC_PR_ParseError("bad \"#if\" type");
+			}
+
+			QCC_PR_SimpleGetToken ();
+			level = 1;
+
+			while(*pr_file_p != '\n' && *pr_file_p != '\0')	//read on until the end of the line
+			{
+				pr_file_p++;
+			}
+	//		pr_file_p++;
+	//		pr_source_line++;
+
+			if (ifmode == 2)
+			{
+				if (atof(pr_token))
+					eval = true;
+			}
+			else
+			{
+	//			if (!STRCMP(pr_token, "COOP_MODE"))
+	//				eval = false;
+				if (QCC_PR_CheckCompConstDefined(pr_token))
+					eval = true;
+
+				if (ifmode == 1)		
+					eval = eval?false:true;		
+			}
+
+			if (eval)
+				ifs+=1;
+			else
+			{
+				while (1)
 				{
-					ifs+=1;
+					while(*pr_file_p==' ' || *pr_file_p == '\t')
+						pr_file_p++;
+					if (*pr_file_p == '#')
+					{
+						pr_file_p++;
+						while(*pr_file_p==' ' || *pr_file_p == '\t')
+							pr_file_p++;
+						if (!strncmp(pr_file_p, "endif", 5))
+							level--;
+						if (!strncmp(pr_file_p, "if", 2))
+							level++;
+						if (!strncmp(pr_file_p, "else", 4) && level == 1)
+						{
+							ifs+=1;
+							while(*pr_file_p != '\n' && *pr_file_p != '\0')	//read on until the end of the line
+							{
+								pr_file_p++;
+							}
+							break;
+						}
+					}
+
 					while(*pr_file_p != '\n' && *pr_file_p != '\0')	//read on until the end of the line
 					{
 						pr_file_p++;
 					}
-					break;
+					if (level <= 0)
+						break;
+					pr_file_p++;	//next line
+					pr_source_line++;
+				}
+			}
+		}
+		else if (!strncmp(directive, "else", 4))
+		{
+			ifs -= 1;
+			level = 1;
+			
+			while(*pr_file_p != '\n' && *pr_file_p != '\0')	//read on until the end of the line
+			{
+				pr_file_p++;
+			}
+			while (1)
+			{
+				while(*pr_file_p==' ' || *pr_file_p == '\t')
+					pr_file_p++;
+				if (*pr_file_p == '#')
+				{
+					pr_file_p++;
+					while(*pr_file_p==' ' || *pr_file_p == '\t')
+						pr_file_p++;
+
+					if (!strncmp(pr_file_p, "endif", 5))
+						level--;
+					if (!strncmp(pr_file_p, "if", 2))
+							level++;
+					if (!strncmp(pr_file_p, "else", 4) && level == 1)
+					{
+						ifs+=1;
+						break;
+					}
 				}
 
 				while(*pr_file_p != '\n' && *pr_file_p != '\0')	//read on until the end of the line
@@ -274,198 +332,193 @@ void QCC_PR_NewLine (pbool incomment)
 				}
 				if (level <= 0)
 					break;
-				pr_file_p++;	//next line
+				pr_file_p++;	//go off the end
 				pr_source_line++;
 			}
 		}
-	}
-	else if (!strncmp(pr_file_p, "#else", 5))
-	{
-		ifs -= 1;
-		level = 1;
-		
-		while(*pr_file_p != '\n' && *pr_file_p != '\0')	//read on until the end of the line
-		{
-			pr_file_p++;
-		}
-		while (1)
-		{
-			while(*pr_file_p==' ' || *pr_file_p == '\t')
-				pr_file_p++;
-			if (!strncmp(pr_file_p, "#endif", 6))
-				level--;
-			if (!strncmp(pr_file_p, "#if", 3))
-					level++;
-			if (!strncmp(pr_file_p, "#else", 5) && level == 1)
+		else if (!strncmp(directive, "endif", 5))
+		{		
+			while(*pr_file_p != '\n' && *pr_file_p != '\0')	//read on until the end of the line
 			{
-				ifs+=1;
-				break;
+				pr_file_p++;
+			}		
+			if (ifs <= 0)
+				QCC_PR_ParseError(ERR_NOPRECOMPILERIF, "unmatched #endif");
+			else
+				ifs-=1;
+		}
+		else if (!strncmp(directive, "eof", 3))
+		{
+			pr_file_p = NULL;
+			return;
+		}
+		else if (!strncmp(directive, "error", 5))
+		{		
+			pr_file_p = directive+5;
+			for (a = 0; a < 1023 && pr_file_p[a] != '\n' && pr_file_p[a] != '\0'; a++)
+				msg[a] = pr_file_p[a];
+
+			msg[a-1] = '\0';
+
+			while(*pr_file_p != '\n' && *pr_file_p != '\0')	//read on until the end of the line, yes, I KNOW we are going to register an error, and not properly leave this function tree, but...
+			{
+				pr_file_p++;
 			}
+
+			QCC_PR_ParseError(ERR_HASHERROR, "#Error: %s", msg);
+		}
+		else if (!strncmp(directive, "warning", 7))
+		{		
+			pr_file_p = directive+7;
+			for (a = 0; a < 1023 && pr_file_p[a] != '\n' && pr_file_p[a] != '\0'; a++)
+				msg[a] = pr_file_p[a];
+
+			msg[a-1] = '\0';
 
 			while(*pr_file_p != '\n' && *pr_file_p != '\0')	//read on until the end of the line
 			{
 				pr_file_p++;
 			}
-			if (level <= 0)
-				break;
-			pr_file_p++;	//go off the end
-			pr_source_line++;
+
+			QCC_PR_ParseWarning(WARN_PRECOMPILERMESSAGE, "#warning: %s", msg);
 		}
-	}
-	else if (!strncmp(pr_file_p, "#endif", 6))
-	{		
-		while(*pr_file_p != '\n' && *pr_file_p != '\0')	//read on until the end of the line
-		{
-			pr_file_p++;
-		}		
-		if (ifs <= 0)
-			QCC_PR_ParseError(ERR_NOPRECOMPILERIF, "unmatched #endif");
-		else
-			ifs-=1;
-	}
-	else if (!strncmp(pr_file_p, "#eof", 4))
-	{
-		pr_file_p = NULL;
-		return;
-	}
-	else if (!strncmp(pr_file_p, "#error", 6))
-	{		
-		pr_file_p += 6;
-		for (a = 0; a < 1023 && pr_file_p[a] != '\n' && pr_file_p[a] != '\0'; a++)
-			msg[a] = pr_file_p[a];
+		else if (!strncmp(directive, "message", 7))
+		{		
+			pr_file_p = directive+7;
+			for (a = 0; a < 1023 && pr_file_p[a] != '\n' && pr_file_p[a] != '\0'; a++)
+				msg[a] = pr_file_p[a];
 
-		msg[a-1] = '\0';
+			msg[a-1] = '\0';
 
-		while(*pr_file_p != '\n' && *pr_file_p != '\0')	//read on until the end of the line, yes, I KNOW we are going to register an error, and not properly leave this function tree, but...
-		{
-			pr_file_p++;
-		}
-
-		QCC_PR_ParseError(ERR_HASHERROR, "#Error: %s", msg);
-	}
-	else if (!strncmp(pr_file_p, "#warning", 8))
-	{		
-		pr_file_p += 8;
-		for (a = 0; a < 1023 && pr_file_p[a] != '\n' && pr_file_p[a] != '\0'; a++)
-			msg[a] = pr_file_p[a];
-
-		msg[a-1] = '\0';
-
-		while(*pr_file_p != '\n' && *pr_file_p != '\0')	//read on until the end of the line
-		{
-			pr_file_p++;
-		}
-
-		QCC_PR_ParseWarning(WARN_PRECOMPILERMESSAGE, "#warning: %s", msg);
-	}
-	else if (!strncmp(pr_file_p, "#message", 8))
-	{		
-		pr_file_p += 8;
-		for (a = 0; a < 1023 && pr_file_p[a] != '\n' && pr_file_p[a] != '\0'; a++)
-			msg[a] = pr_file_p[a];
-
-		msg[a-1] = '\0';
-
-		while(*pr_file_p != '\n' && *pr_file_p != '\0')	//read on until the end of the line
-		{
-			pr_file_p++;
-		}
-
-		printf("#message: %s\n", msg);
-	}
-	else if (!strncmp(pr_file_p, "#copyright", 10))
-	{
-		pr_file_p += 10;
-		for (a = 0; a < 1023 && pr_file_p[a] != '\n' && pr_file_p[a] != '\0'; a++)
-			msg[a] = pr_file_p[a];
-
-		msg[a-1] = '\0';
-
-		while(*pr_file_p != '\n' && *pr_file_p != '\0')	//read on until the end of the line
-		{
-			pr_file_p++;
-		}
-
-		if (strlen(msg) >= sizeof(QCC_copyright))
-			QCC_PR_ParseWarning(WARN_STRINGTOOLONG, "Copyright message is too long\n");
-		strncpy(QCC_copyright, msg, sizeof(QCC_copyright)-1);
-	}
-	else if (!strncmp(pr_file_p, "#pack", 5))
-	{
-		ifmode = 0;
-		pr_file_p+=5;
-		if (!strncmp(pr_file_p, "id", 2))
-			pr_file_p+=3;
-		else	
-		{
-			ifmode = QCC_PR_LexInteger();					
-			if (ifmode == 0)
-				ifmode = 1;
-			pr_file_p++;
-		}
-		for (a = 0; a < 1023 && pr_file_p[a] != '\n' && pr_file_p[a] != '\0'; a++)
-			msg[a] = pr_file_p[a];
-
-		msg[a-1] = '\0';
-
-		while(*pr_file_p != '\n' && *pr_file_p != '\0')	//read on until the end of the line
-		{
-			pr_file_p++;
-		}
-
-		if (ifmode == 0)
-			QCC_packid = atoi(msg);
-		else if (ifmode <= 5)
-			strcpy(QCC_Packname[ifmode-1], msg);
-		else
-			QCC_PR_ParseError(ERR_TOOMANYPACKFILES, "No more than 5 packs are allowed");		
-	}
-	else if (!strncmp(pr_file_p, "#forcecrc", 9))
-	{		
-		pr_file_p+=9;
-
-		ForcedCRC = QCC_PR_LexInteger();					
-
-		pr_file_p++;
-			
-		for (a = 0; a < 1023 && pr_file_p[a] != '\n' && pr_file_p[a] != '\0'; a++)
-			msg[a] = pr_file_p[a];
-
-		msg[a-1] = '\0';
-
-		while(*pr_file_p != '\n' && *pr_file_p != '\0')	//read on until the end of the line
-		{
-			pr_file_p++;
-		}	
-	}
-	else if (!strncmp(pr_file_p, "#includelist", 12))
-	{
-		pr_file_p+=12;
-
-		while(*pr_file_p <= ' ')
-			pr_file_p++;
-
-		while(1)
-		{
-			QCC_PR_LexWhitespace();
-			if (!QCC_PR_SimpleGetToken())
+			while(*pr_file_p != '\n' && *pr_file_p != '\0')	//read on until the end of the line
 			{
-				if (!*pr_file_p)
-					QCC_Error(ERR_EOF, "eof in includelist");
-				else
+				pr_file_p++;
+			}
+
+			printf("#message: %s\n", msg);
+		}
+		else if (!strncmp(directive, "copyright", 9))
+		{
+			pr_file_p = directive+9;
+			for (a = 0; a < 1023 && pr_file_p[a] != '\n' && pr_file_p[a] != '\0'; a++)
+				msg[a] = pr_file_p[a];
+
+			msg[a-1] = '\0';
+
+			while(*pr_file_p != '\n' && *pr_file_p != '\0')	//read on until the end of the line
+			{
+				pr_file_p++;
+			}
+
+			if (strlen(msg) >= sizeof(QCC_copyright))
+				QCC_PR_ParseWarning(WARN_STRINGTOOLONG, "Copyright message is too long\n");
+			strncpy(QCC_copyright, msg, sizeof(QCC_copyright)-1);
+		}
+		else if (!strncmp(directive, "pack", 4))
+		{
+			ifmode = 0;
+			pr_file_p=directive+4;
+			if (!strncmp(pr_file_p, "id", 2))
+				pr_file_p+=3;
+			else	
+			{
+				ifmode = QCC_PR_LexInteger();					
+				if (ifmode == 0)
+					ifmode = 1;
+				pr_file_p++;
+			}
+			for (a = 0; a < 1023 && pr_file_p[a] != '\n' && pr_file_p[a] != '\0'; a++)
+				msg[a] = pr_file_p[a];
+
+			msg[a-1] = '\0';
+
+			while(*pr_file_p != '\n' && *pr_file_p != '\0')	//read on until the end of the line
+			{
+				pr_file_p++;
+			}
+
+			if (ifmode == 0)
+				QCC_packid = atoi(msg);
+			else if (ifmode <= 5)
+				strcpy(QCC_Packname[ifmode-1], msg);
+			else
+				QCC_PR_ParseError(ERR_TOOMANYPACKFILES, "No more than 5 packs are allowed");		
+		}
+		else if (!strncmp(directive, "forcecrc", 8))
+		{		
+			pr_file_p=directive+8;
+
+			ForcedCRC = QCC_PR_LexInteger();					
+
+			pr_file_p++;
+				
+			for (a = 0; a < 1023 && pr_file_p[a] != '\n' && pr_file_p[a] != '\0'; a++)
+				msg[a] = pr_file_p[a];
+
+			msg[a-1] = '\0';
+
+			while(*pr_file_p != '\n' && *pr_file_p != '\0')	//read on until the end of the line
+			{
+				pr_file_p++;
+			}	
+		}
+		else if (!strncmp(directive, "includelist", 11))
+		{
+			pr_file_p=directive+11;
+
+			while(*pr_file_p <= ' ')
+				pr_file_p++;
+
+			while(1)
+			{
+				QCC_PR_LexWhitespace();
+				if (!QCC_PR_SimpleGetToken())
+				{
+					if (!*pr_file_p)
+						QCC_Error(ERR_EOF, "eof in includelist");
+					else
+					{
+						pr_file_p++;
+						pr_source_line++;
+					}
+					continue;
+				}
+				if (!strcmp(pr_token, "#endlist"))
+					break;
+				printf("Including: %s\n", pr_token);
+				QCC_Include(pr_token);
+
+				if (*pr_file_p == '\r')
+					pr_file_p++;
+
+				for (a = 0; a < 1023 && pr_file_p[a] != '\n' && pr_file_p[a] != '\0'; a++)
+					msg[a] = pr_file_p[a];
+
+				msg[a-1] = '\0';
+
+				while(*pr_file_p != '\n' && *pr_file_p != '\0')	//read on until the end of the line
 				{
 					pr_file_p++;
-					pr_source_line++;
 				}
-				continue;
 			}
-			if (!strcmp(pr_token, "#endlist"))
-				break;
+			
+			while(*pr_file_p != '\n' && *pr_file_p != '\0')	//read on until the end of the line
+			{
+				pr_file_p++;
+			}
+		}
+		else if (!strncmp(directive, "include", 7))
+		{		
+			pr_file_p=directive+7;
+
+			while(*pr_file_p <= ' ')
+				pr_file_p++;
+
+			QCC_PR_LexString();
 			printf("Including: %s\n", pr_token);
 			QCC_Include(pr_token);
 
-			if (*pr_file_p == '\r')
-				pr_file_p++;
+			pr_file_p++;
 
 			for (a = 0; a < 1023 && pr_file_p[a] != '\n' && pr_file_p[a] != '\0'; a++)
 				msg[a] = pr_file_p[a];
@@ -477,198 +530,167 @@ void QCC_PR_NewLine (pbool incomment)
 				pr_file_p++;
 			}
 		}
-		
-		while(*pr_file_p != '\n' && *pr_file_p != '\0')	//read on until the end of the line
-		{
-			pr_file_p++;
-		}
-	}
-	else if (!strncmp(pr_file_p, "#include", 8))
-	{		
-		pr_file_p+=8;
+		else if (!strncmp(directive, "datafile", 8))
+		{		
+			pr_file_p=directive+8;
 
-		while(*pr_file_p <= ' ')
-			pr_file_p++;
+			while(*pr_file_p <= ' ')
+				pr_file_p++;
 
-		QCC_PR_LexString();
-		printf("Including: %s\n", pr_token);
-		QCC_Include(pr_token);
+			QCC_PR_LexString();
+			printf("Including datafile: %s\n", pr_token);
+			QCC_AddFile(pr_token);
 
-		pr_file_p++;
-
-		for (a = 0; a < 1023 && pr_file_p[a] != '\n' && pr_file_p[a] != '\0'; a++)
-			msg[a] = pr_file_p[a];
-
-		msg[a-1] = '\0';
-
-		while(*pr_file_p != '\n' && *pr_file_p != '\0')	//read on until the end of the line
-		{
-			pr_file_p++;
-		}
-	}
-	else if (!strncmp(pr_file_p, "#datafile", 9))
-	{		
-		pr_file_p+=9;
-
-		while(*pr_file_p <= ' ')
 			pr_file_p++;
 
-		QCC_PR_LexString();
-		printf("Including datafile: %s\n", pr_token);
-		QCC_AddFile(pr_token);
+			for (a = 0; a < 1023 && pr_file_p[a] != '\n' && pr_file_p[a] != '\0'; a++)
+				msg[a] = pr_file_p[a];
 
-		pr_file_p++;
+			msg[a-1] = '\0';
 
-		for (a = 0; a < 1023 && pr_file_p[a] != '\n' && pr_file_p[a] != '\0'; a++)
-			msg[a] = pr_file_p[a];
-
-		msg[a-1] = '\0';
-
-		while(*pr_file_p != '\n' && *pr_file_p != '\0')	//read on until the end of the line
-		{
-			pr_file_p++;
-		}
-	}
-	else if (!strncmp(pr_file_p, "#output", 7))
-	{
-		extern char		destfile[1024];
-		if (pr_file_p[1] == 'p')
-			pr_file_p+=17;
-		else
-			pr_file_p+=7;
-
-		while(*pr_file_p <= ' ')
-			pr_file_p++;
-
-		QCC_PR_LexString();
-		strcpy(destfile, pr_token);
-		printf("Outputfile: %s\n", destfile);
-
-		pr_file_p++;
-			
-		for (a = 0; a < 1023 && pr_file_p[a] != '\n' && pr_file_p[a] != '\0'; a++)
-			msg[a] = pr_file_p[a];
-
-		msg[a-1] = '\0';
-
-		while(*pr_file_p != '\n' && *pr_file_p != '\0')	//read on until the end of the line
-		{
-			pr_file_p++;
-		}
-	}
-	else if (!strncmp(pr_file_p, "#pragma", 7))
-	{
-		pr_file_p+=7;
-		while(*pr_file_p <= ' ')
-			pr_file_p++;
-
-		qcc_token[0] = '\0';
-		for(a = 0; *pr_file_p != '\n' && *pr_file_p != '\0'; pr_file_p++)	//read on until the end of the line
-		{
-			if ((*pr_file_p == ' ' || *pr_file_p == '\t') && !*qcc_token)
+			while(*pr_file_p != '\n' && *pr_file_p != '\0')	//read on until the end of the line
 			{
-				msg[a] = '\0';
-				strcpy(qcc_token, msg);
-				a=0;
-				continue;
+				pr_file_p++;
 			}
-			msg[a++] = *pr_file_p;
 		}
-		
-		msg[a] = '\0';
+		else if (!strncmp(directive, "output", 6))
 		{
-			char *end;
-			for (end = msg + a-1; end>=msg && *end <= ' '; end--)
-				*end = '\0';
-		}
+			extern char		destfile[1024];
+			pr_file_p=directive+6;
 
-		if (!*qcc_token)
-		{
-			strcpy(qcc_token, msg);
-			msg[0] = '\0';
-		}
+			while(*pr_file_p <= ' ')
+				pr_file_p++;
 
-		{
-			char *end;
-			for (end = msg + a-1; end>=msg && *end <= ' '; end--)
-				*end = '\0';
-		}
+			QCC_PR_LexString();
+			strcpy(destfile, pr_token);
+			printf("Outputfile: %s\n", destfile);
 
-		if (!QC_strcasecmp(qcc_token, "DONT_COMPILE_THIS_FILE"))
-		{
-			while (*pr_file_p)
+			pr_file_p++;
+				
+			for (a = 0; a < 1023 && pr_file_p[a] != '\n' && pr_file_p[a] != '\0'; a++)
+				msg[a] = pr_file_p[a];
+
+			msg[a-1] = '\0';
+
+			while(*pr_file_p != '\n' && *pr_file_p != '\0')	//read on until the end of the line
 			{
-				while(*pr_file_p != '\n' && *pr_file_p != '\0')	//read on until the end of the line
-					pr_file_p++;
+				pr_file_p++;
+			}
+		}
+		else if (!strncmp(directive, "pragma", 6))
+		{
+			pr_file_p=directive+6;
+			while(*pr_file_p <= ' ')
+				pr_file_p++;
 
-				if (*pr_file_p == '\n')
+			qcc_token[0] = '\0';
+			for(a = 0; *pr_file_p != '\n' && *pr_file_p != '\0'; pr_file_p++)	//read on until the end of the line
+			{
+				if ((*pr_file_p == ' ' || *pr_file_p == '\t') && !*qcc_token)
 				{
-					QCC_PR_NewLine(false);
-					pr_file_p++;
+					msg[a] = '\0';
+					strcpy(qcc_token, msg);
+					a=0;
+					continue;
+				}
+				msg[a++] = *pr_file_p;
+			}
+			
+			msg[a] = '\0';
+			{
+				char *end;
+				for (end = msg + a-1; end>=msg && *end <= ' '; end--)
+					*end = '\0';
+			}
+
+			if (!*qcc_token)
+			{
+				strcpy(qcc_token, msg);
+				msg[0] = '\0';
+			}
+
+			{
+				char *end;
+				for (end = msg + a-1; end>=msg && *end <= ' '; end--)
+					*end = '\0';
+			}
+
+			if (!QC_strcasecmp(qcc_token, "DONT_COMPILE_THIS_FILE"))
+			{
+				while (*pr_file_p)
+				{
+					while(*pr_file_p != '\n' && *pr_file_p != '\0')	//read on until the end of the line
+						pr_file_p++;
+
+					if (*pr_file_p == '\n')
+					{
+						QCC_PR_NewLine(false);
+						pr_file_p++;
+					}
 				}
 			}
-		}
-		else if (!QC_strcasecmp(qcc_token, "COPYRIGHT"))
-		{
-			if (strlen(msg) >= sizeof(QCC_copyright))
-				QCC_PR_ParseWarning(WARN_STRINGTOOLONG, "Copyright message is too long\n");
-			strncpy(QCC_copyright, msg, sizeof(QCC_copyright)-1);
-		}
-		else if (!QC_strcasecmp(qcc_token, "TARGET"))
-		{
-			if (qcc_targetformat == QCF_HEXEN2 && numstatements)
-				QCC_PR_ParseWarning(WARN_BADTARGET, "Cannot switch from hexen2 target \'%s\'. Ignored.", msg);
-			else if (!QC_strcasecmp(msg, "H2"))
+			else if (!QC_strcasecmp(qcc_token, "COPYRIGHT"))
 			{
-				if (numstatements)
-					QCC_PR_ParseWarning(WARN_BADTARGET, "Cannot switch from hexen2 target \'%s\'. Ignored.", msg);
-				else
-					qcc_targetformat = QCF_HEXEN2;
+				if (strlen(msg) >= sizeof(QCC_copyright))
+					QCC_PR_ParseWarning(WARN_STRINGTOOLONG, "Copyright message is too long\n");
+				strncpy(QCC_copyright, msg, sizeof(QCC_copyright)-1);
 			}
-			else if (!QC_strcasecmp(msg, "KK7"))
-				qcc_targetformat = QCF_KK7;
-			else if (!QC_strcasecmp(msg, "FTEDEBUG"))
-				qcc_targetformat = QCF_FTEDEBUG;
-			else if (!QC_strcasecmp(msg, "FTE"))
-				qcc_targetformat = QCF_FTE;
-			else if (!QC_strcasecmp(msg, "FTEDEBUG32") || !QC_strcasecmp(msg, "FTE32DEBUG"))
-				qcc_targetformat = QCF_FTEDEBUG32;
-			else if (!QC_strcasecmp(msg, "FTE32"))
-				qcc_targetformat = QCF_FTE32;
-			else if (!QC_strcasecmp(msg, "STANDARD") || !QC_strcasecmp(msg, "ID"))
-				qcc_targetformat = QCF_STANDARD;
-			else if (!QC_strcasecmp(msg, "DEBUG"))
+			else if (!QC_strcasecmp(qcc_token, "TARGET"))
 			{
-				if (qcc_targetformat == QCF_FTE32)
+				if (qcc_targetformat == QCF_HEXEN2 && numstatements)
+					QCC_PR_ParseWarning(WARN_BADTARGET, "Cannot switch from hexen2 target \'%s\'. Ignored.", msg);
+				else if (!QC_strcasecmp(msg, "H2"))
+				{
+					if (numstatements)
+						QCC_PR_ParseWarning(WARN_BADTARGET, "Cannot switch from hexen2 target \'%s\'. Ignored.", msg);
+					else
+						qcc_targetformat = QCF_HEXEN2;
+				}
+				else if (!QC_strcasecmp(msg, "KK7"))
+					qcc_targetformat = QCF_KK7;
+				else if (!QC_strcasecmp(msg, "FTEDEBUG"))
+					qcc_targetformat = QCF_FTEDEBUG;
+				else if (!QC_strcasecmp(msg, "FTE"))
+					qcc_targetformat = QCF_FTE;
+				else if (!QC_strcasecmp(msg, "FTEDEBUG32") || !QC_strcasecmp(msg, "FTE32DEBUG"))
 					qcc_targetformat = QCF_FTEDEBUG32;
-				else if (qcc_targetformat == QCF_FTE)
-					qcc_targetformat = QCF_FTEDEBUG;
-				else if (qcc_targetformat == QCF_STANDARD)
-					qcc_targetformat = QCF_FTEDEBUG;
+				else if (!QC_strcasecmp(msg, "FTE32"))
+					qcc_targetformat = QCF_FTE32;
+				else if (!QC_strcasecmp(msg, "STANDARD") || !QC_strcasecmp(msg, "ID"))
+					qcc_targetformat = QCF_STANDARD;
+				else if (!QC_strcasecmp(msg, "DEBUG"))
+				{
+					if (qcc_targetformat == QCF_FTE32)
+						qcc_targetformat = QCF_FTEDEBUG32;
+					else if (qcc_targetformat == QCF_FTE)
+						qcc_targetformat = QCF_FTEDEBUG;
+					else if (qcc_targetformat == QCF_STANDARD)
+						qcc_targetformat = QCF_FTEDEBUG;
+				}
+				else
+					QCC_PR_ParseWarning(WARN_BADTARGET, "Unknown target \'%s\'. Ignored.", msg);
+			}
+			else if (!QC_strcasecmp(qcc_token, "PROGS_SRC"))
+			{	//doesn't make sence, but silenced if you are switching between using a certain precompiler app used with CuTF.
+			}
+			else if (!QC_strcasecmp(qcc_token, "PROGS_DAT"))
+			{	//doesn't make sence, but silenced if you are switching between using a certain precompiler app used with CuTF.
+				extern char		destfile[1024];
+				QCC_COM_Parse(msg);
+				strcpy(destfile, qcc_token);
+				printf("Outputfile: %s\n", destfile);
+			}
+			else if (!QC_strcasecmp(qcc_token, "disable"))
+			{
+				qccwarningdisabled[atoi(msg)] = true;
+			}
+			else if (!QC_strcasecmp(qcc_token, "enable"))
+			{
+				qccwarningdisabled[atoi(msg)] = false;
 			}
 			else
-				QCC_PR_ParseWarning(WARN_BADTARGET, "Unknown target \'%s\'. Ignored.", msg);
+				QCC_PR_ParseWarning(WARN_BADPRAGMA, "Unknown pragma \'%s\'", qcc_token);
 		}
-		else if (!QC_strcasecmp(qcc_token, "PROGS_SRC"))
-		{	//doesn't make sence, but silenced if you are switching between using a certain precompiler app used with CuTF.
-		}
-		else if (!QC_strcasecmp(qcc_token, "PROGS_DAT"))
-		{	//doesn't make sence, but silenced if you are switching between using a certain precompiler app used with CuTF.
-			extern char		destfile[1024];
-			QCC_COM_Parse(msg);
-			strcpy(destfile, qcc_token);
-			printf("Outputfile: %s\n", destfile);
-		}
-		else if (!QC_strcasecmp(qcc_token, "disable"))
-		{
-			qccwarningdisabled[atoi(msg)] = true;
-		}
-		else if (!QC_strcasecmp(qcc_token, "enable"))
-		{
-			qccwarningdisabled[atoi(msg)] = false;
-		}
-		else
-			QCC_PR_ParseWarning(WARN_BADPRAGMA, "Unknown pragma \'%s\'", qcc_token);
 	}
 
 //	if (pr_dumpasm)
@@ -1376,7 +1398,7 @@ void QCC_PR_LexGrab (void)
 //		QCC_PR_ParseError ("hanging $");
 	if (*pr_file_p <= ' ')
 		QCC_PR_ParseError (ERR_BADFRAMEMACRO, "hanging $");
-	QCC_PR_LexName();
+	QCC_PR_SimpleGetToken();
 	if (!*pr_token)
 		QCC_PR_ParseError (ERR_BADFRAMEMACRO, "hanging $");
 	

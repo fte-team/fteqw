@@ -480,8 +480,6 @@ static qboolean R_GAliasBuildMesh(mesh_t *mesh, galiasinfo_t *inf, int frame1, i
 
 	mesh->normals_array = tempNormals;
 
-	frame1=frame2=0;
-
 	g1 = (galiasgroup_t*)((char *)inf + inf->groupofs + sizeof(galiasgroup_t)*frame1);
 	g2 = (galiasgroup_t*)((char *)inf + inf->groupofs + sizeof(galiasgroup_t)*frame2);
 
@@ -522,8 +520,8 @@ static qboolean R_GAliasBuildMesh(mesh_t *mesh, galiasinfo_t *inf, int frame1, i
 		plerp[l] = (mlerp)*(1-lerp);
 		if (plerp[l]>0)
 			pose[l++] = (float *)((char *)g2 + g2->poseofs + sizeof(float)*inf->numbones*12*frame2);
-
-/*		pose[0] = (float *)((char *)g1 + g1->poseofs);
+/*
+		pose[0] = (float *)((char *)g1 + g1->poseofs);
 		plerp[0] = 1;
 		plerp[1] = 0;
 		plerp[3] = 0;
@@ -2972,6 +2970,9 @@ void GLMod_LoadZymoticModel(model_t *mod, void *buffer)
 	}
 	if (intrans != (zymvertex_t *)((char*)header + header->lump_verts.start))
 		Sys_Error("Vertex transforms list appears corrupt.");
+	if (vertbonecounts != (int *)((char*)header + header->lump_vertbonecounts.start))
+		Sys_Error("Vertex bone counts list appears corrupt.");
+
 
 	root->numverts = v+1;
 
@@ -3001,7 +3002,7 @@ void GLMod_LoadZymoticModel(model_t *mod, void *buffer)
 
 	grp = Hunk_Alloc(sizeof(*grp)*header->numscenes*header->numshaders);
 	matrix = Hunk_Alloc(header->lump_poses.length);
-	inmatrix = (float*)((float*)header + header->lump_poses.start);
+	inmatrix = (float*)((char*)header + header->lump_poses.start);
 	for (i = 0; i < header->lump_poses.length/4; i++)
 		matrix[i] = BigFloat(inmatrix[i]);
 	inscene = (zymscene_t*)((char*)header + header->lump_scenes.start);
@@ -3017,7 +3018,7 @@ void GLMod_LoadZymoticModel(model_t *mod, void *buffer)
 		grp->rate = BigFloat(inscene->framerate);
 		grp->numposes = BigLong(inscene->length);
 		grp->poseofs = (char*)matrix  - (char*)grp;
-		grp->poseofs += BigLong(inscene->start)*sizeof(float[4][3]);
+//		grp->poseofs += BigLong(inscene->start)*sizeof(float[4][3]);
 	}
 
 	if (inscene != (zymscene_t*)((char*)header + header->lump_scenes.start+header->lump_scenes.length))

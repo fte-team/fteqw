@@ -351,8 +351,20 @@ void CL_ParseBeam (int tent)
 #endif
 	}
 
-	R_AddDecals(end);
-	R_AddStain(end, -10, -10, -10, 20);
+	if (tent <= 2)
+	{
+		vec3_t impact, normal;
+		vec3_t extra;
+		VectorSubtract(end, start, normal);
+		VectorNormalize(normal);
+		VectorMA(end, 4, normal, extra);	//extend the end-point by four
+		if (TraceLineN(start, extra, impact, normal))
+		{
+			P_RunParticleEffectTypeString(impact, normal, 1, "te_lightningend"); 
+			R_AddDecals(end);
+			R_AddStain(end, -10, -10, -10, 20);
+		}
+	}
 
 	b = CL_NewBeam(ent, -1);
 	if (!b)
@@ -1929,6 +1941,7 @@ void CL_UpdateBeams (void)
 				d = VectorNormalize(dist);
 				AngleVectors (cl.simangles[0], b->end, dist, org);
 				VectorMA(b->start, d, b->end, b->end);
+				b->end[2] += cl.viewheight[0];
 			}
 		}
 		else if (b->flags & STREAM_ATTACHED)

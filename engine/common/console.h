@@ -97,3 +97,8 @@ void Con_ToggleConsole_f (void);
 
 void Con_NotifyBox (char *text);	// during startup for sound / cd warnings
 
+#ifdef CRAZYDEBUGGING
+#define TRACE(x) Con_Print x
+#else
+#define TRACE(x)
+#endif

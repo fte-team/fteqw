@@ -590,7 +590,7 @@ void CLNQ_SendMove (usercmd_t		*cmd, int pnum)
 	{
 		in_nextimpulse[pnum]++;
 		in_impulsespending[pnum]--;
-		MSG_WriteByte(&buf, in_impulse[pnum][(in_nextimpulse[pnum])%IN_IMPULSECACHE]);
+		MSG_WriteByte(&buf, in_impulse[pnum][(in_nextimpulse[pnum]-1)%IN_IMPULSECACHE]);
 	}
 	else
 		MSG_WriteByte (&buf, 0);
@@ -792,6 +792,8 @@ void CL_SendCmd (void)
 
 	if (msecs>1000)	//come on... That's just stupid.
 		msecs=255;
+	if (msecs<0)
+		msecs=0;	//erm.
 
 	msecstouse = (int)msecs;	//casts round down.
 

@@ -1577,7 +1577,8 @@ int Mod_LoadHiResTexture(char *name, qboolean mipmap, qboolean alpha, qboolean c
 			{
 				if ((data = Read32BitImageFile(buf, com_filesize, &image_width, &image_height)))
 				{
-					BoostGamma(data, image_width, image_height);
+					if (colouradjust)
+						BoostGamma(data, image_width, image_height);
 					len = GL_LoadTexture32 (name, image_width, image_height, (unsigned*)data, mipmap, alpha);
 					BZ_Free(data);
 

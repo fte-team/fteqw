@@ -320,7 +320,7 @@ static void PPL_BaseTextureChain(msurface_t *first)
 			// Binds world to texture env 0
 			GL_SelectTexture(mtexid0);
 			GL_Bind (t->gl_texturenum);
-			if (t->alphaed)
+			if (t->alphaed || currententity->alpha < 1)
 			{
 				glEnable(GL_BLEND);
 				glTexEnvf(GL_TEXTURE_ENV, GL_TEXTURE_ENV_MODE, GL_MODULATE);
@@ -858,6 +858,7 @@ void PPL_BaseTextures(model_t *model)
 	glShadeModel(GL_FLAT);
 
 	currentmodel = model;
+	currententity->alpha = 1;
 
 	if (model == cl.worldmodel && skytexturenum>=0)
 	{

@@ -664,7 +664,6 @@ void Plug_Command_f(void)
 	}
 
 	currentplug = oldplug;
-	return false;
 }
 
 int Plug_Cmd_AddCommand(void *offset, unsigned int mask, const long *arg)
@@ -759,6 +758,7 @@ int Plug_Con_RenameSub(void *offset, unsigned int mask, const long *arg)
 }
 
 void Plug_CloseAll_f(void);
+void Plug_Close_f(void);
 void Plug_Load_f(void)
 {
 	Plug_Load(Cmd_Argv(1));
@@ -769,6 +769,7 @@ void Plug_Init(void)
 	Cvar_Register(&plug_sbar, "plugins");
 	Cvar_Register(&plug_loaddefault, "plugins");
 	Cmd_AddCommand("plug_closeall", Plug_CloseAll_f);
+	Cmd_AddCommand("plug_close", Plug_Close_f);
 	Cmd_AddCommand("plug_load", Plug_Load_f);
 
 	Plug_RegisterBuiltin("Plug_GetEngineFunction",	Plug_FindBuiltin, 0);//plugin wishes to find a builtin number.
@@ -847,7 +848,10 @@ qboolean Plugin_ExecuteString(void)
 			if (currentplug->executestring)
 			{
 				if (VM_Call(currentplug->vm, currentplug->executestring, 0))
+				{
+					currentplug = oldplug;
 					return true;
+				}
 			}
 		}
 	}
@@ -857,12 +861,17 @@ qboolean Plugin_ExecuteString(void)
 
 qboolean Plug_Menu_Event(int eventtype, int param)	//eventtype = draw/keydown/keyup, param = time/key
 {
+	plugin_t *oc=currentplug;
+	qboolean ret;
 	extern int mousecursor_x, mousecursor_y;
 
 	if (!menuplug)
 		return false;
 
-	return VM_Call(menuplug->vm, menuplug->menufunction, eventtype, param, mousecursor_x, mousecursor_y);
+	currentplug = menuplug;
+	ret = VM_Call(menuplug->vm, menuplug->menufunction, eventtype, param, mousecursor_x, mousecursor_y);
+	currentplug=oc;
+	return ret;
 }
 
 void Plug_SBar(void)
@@ -941,6 +950,7 @@ void Plug_Close(plugin_t *plug)
 		prev->next = plug->next;
 	}
 
+	Con_Printf("Closing plugin %s\n", plug->name);
 	VM_Destroy(plug->vm);
 
 	Plug_FreePlugImages(plug);
@@ -948,6 +958,30 @@ void Plug_Close(plugin_t *plug)
 
 	if (currentplug == plug)
 		currentplug = NULL;
+	if (menuplug == plug)
+	{
+		menuplug = NULL;
+		key_dest = key_game;
+	}
+}
+
+void Plug_Close_f(void)
+{
+	plugin_t *plug;
+	char *name = Cmd_Argv(1);
+	if (Cmd_Argc()<2)
+	{
+		Con_Printf("Close which plugin?\n");
+		return;
+	}
+	for (plug = plugs; plug; plug = plug->next)
+	{
+		if (!strcmp(plug->name, Cmd_Argv(1)))
+		{
+			Plug_Close(plug);
+			return;
+		}
+	}
 }
 
 void Plug_CloseAll_f(void)

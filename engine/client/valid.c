@@ -651,6 +651,6 @@ void Validation_CheckIfResponse(char *text)
 			Con_Printf("Authentication Successful.\n");
 		}
 		else
-			Con_Printf("^bAUTHENTICATION FAILED.\n");
+			Con_Printf("^1^bAUTHENTICATION FAILED.\n");
 	}
 }

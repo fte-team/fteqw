@@ -696,19 +696,20 @@ void R_AssosiateEffect_f (void)
 	int effectnum;
 	model_t *model;
 
-	if (	strstr(modelname, "player") || 
+	if (!cls.demoplayback && (
+		strstr(modelname, "player") || 
 		strstr(modelname, "eyes") || 
 		strstr(modelname, "flag") ||
 		strstr(modelname, "tf_stan") ||
 		strstr(modelname, ".bsp") ||
-		strstr(modelname, "turr"))
+		strstr(modelname, "turr")))
 	{
 		Con_Printf("Sorry: Not allowed to attach effects to model \"%s\"\n", modelname);
 		return;
 	}
 
 	model = Mod_FindName(modelname);
-	if (model->flags & EF_ROTATE)
+	if (!cls.demoplayback && (model->flags & EF_ROTATE))
 	{
 		Con_Printf("Sorry: You may not assosiate effects with item model \"%s\"\n", modelname);
 		return;
@@ -727,10 +728,11 @@ void R_AssosiateTrail_f (void)
 	int effectnum;
 	model_t *model;
 	
-	if (	strstr(modelname, "player") ||
+	if (!cls.demoplayback && (
+		strstr(modelname, "player") ||
 		strstr(modelname, "eyes") ||
 		strstr(modelname, "flag") ||
-		strstr(modelname, "tf_stan"))
+		strstr(modelname, "tf_stan")))
 	{
 		Con_Printf("Sorry, you can't assosiate trails with model \"%s\"\n", modelname);
 		return;
@@ -1190,6 +1192,13 @@ glEnable(GL_DEPTH_TEST);
 		{
 	//		if (st->face->visframe != r_framecount)
 	//			continue;
+
+			if (st->face->visframe != r_framecount)
+			{
+				st->nexttime = particletime;
+				continue;
+			}
+
 			while (st->nexttime < particletime)
 			{
 				if (!free_particles)
@@ -1208,7 +1217,7 @@ glEnable(GL_DEPTH_TEST);
 				if (Length(vdist) > (1024+512)*frandom())
 					continue;
 
-				
+				VectorMA(org, 0.5, st->face->normal, org);				
 				if (!(cl.worldmodel->hulls->funcs.HullPointContents(cl.worldmodel->hulls, org) & FTECONTENTS_SOLID))
 				{
 					if (st->face->flags & SURF_PLANEBACK)
@@ -3079,10 +3088,10 @@ void DrawParticleTypes (void texturedparticles(particle_t *,part_type_t*), void 
 			{
 				if (traces-->0&&tr(oldorg, p->org, stop, normal))
 				{
-					R_AddStain(stop,	p->rgb[1]*-10+p->rgb[2]*-10,
-										p->rgb[0]*-10+p->rgb[2]*-10,
-										p->rgb[0]*-10+p->rgb[1]*-10,
-										30*p->alpha);
+					R_AddStain(stop,	(p->rgb[1]*-10+p->rgb[2]*-10),
+										(p->rgb[0]*-10+p->rgb[2]*-10),
+										(p->rgb[0]*-10+p->rgb[1]*-10),
+										30*p->alpha*type->stains);
 					p->die = -1;
 					continue;
 				}

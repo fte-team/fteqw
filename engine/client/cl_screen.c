@@ -111,9 +111,9 @@ extern cvar_t			con_height;
 
 qboolean        scr_initialized;                // ready to draw
 
-qpic_t          *scr_ram;
-qpic_t          *scr_net;
-qpic_t          *scr_turtle;
+mpic_t          *scr_ram;
+mpic_t          *scr_net;
+mpic_t          *scr_turtle;
 
 int                     scr_fullupdate;
 
@@ -433,7 +433,7 @@ void SCR_ShowPics_Draw(void)
 	downloadlist_t *failed;
 	float x, y;
 	showpic_t *sp;
-	qpic_t *p;
+	mpic_t *p;
 	for (sp = showpics; sp; sp = sp->next)
 	{
 		x = sp->x;
@@ -747,12 +747,15 @@ void SCR_CrosshairPosition(int pnum, int *x, int *y)
 		vec3_t start;
 		vec3_t right, up, fwds;
 
-		AngleVectors(cl.viewangles[pnum], fwds, right, up);
-		VectorMA(cl.simorg[pnum], 100000, fwds, end);
+		AngleVectors(cl.simangles[pnum], fwds, right, up);
+
+		VectorCopy(cl.simorg[pnum], start);
+		start[2]+=16;
+		VectorMA(start, 100000, fwds, end);
 
 		memset(&tr, 0, sizeof(tr));
 		tr.fraction = 1;
-		cl.worldmodel->hulls->funcs.RecursiveHullCheck (cl.worldmodel->hulls, 0, 0, 1, cl.simorg[pnum], end, &tr);
+		cl.worldmodel->hulls->funcs.RecursiveHullCheck (cl.worldmodel->hulls, 0, 0, 1, start, end, &tr);
 		if (tr.fraction == 1)
 		{
 			*x = rect.x + rect.width/2 + cl_crossx.value; 
@@ -761,11 +764,10 @@ void SCR_CrosshairPosition(int pnum, int *x, int *y)
 		}
 		else
 		{
-			VectorCopy(cl.simorg[pnum], start);
-			start[2] -= cl.viewheight[pnum]/4;
-			ML_Project(tr.endpos, end, cl.viewangles[pnum], start, (float)rect.width/rect.height, r_refdef.fov_y);
+			start[2]+=cl.viewheight[pnum]/4;
+			ML_Project(tr.endpos, end, cl.simangles[pnum], start, (float)rect.width/rect.height, r_refdef.fov_y);
 			*x = rect.x+rect.width*end[0];
-			*y = rect.y+rect.height*end[1];
+			*y = rect.y+rect.height*(1-end[1]);
 			return;
 		}
 	}
@@ -955,7 +957,7 @@ DrawPause
 */
 void SCR_DrawPause (void)
 {
-	qpic_t  *pic;
+	mpic_t  *pic;
 
 	if (!scr_showpause.value)               // turn off for screenshots
 		return;
@@ -986,7 +988,7 @@ int			total_loading_size, current_loading_size, loading_stage;
 char levelshotname[MAX_QPATH];
 void SCR_DrawLoading (void)
 {
-	qpic_t  *pic;
+	mpic_t  *pic;
 
 	if (!scr_drawloading)
 		return;

@@ -36,12 +36,26 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 #define	TYP_SOUND		67
 #define	TYP_MIPTEX		68
 
+//on disk representation of most q1 images.
 typedef struct
 {
 	int			width, height;
 	qbyte		data[4];			// variably sized
 } qpic_t;
-extern	qpic_t		*draw_disc;	// also used on sbar
+
+//this is what's actually used.
+#define MPIC_ALPHA 1
+typedef struct	//use this so we don't have to go slow over pics, and don't have to shift too much data around.
+{
+	unsigned int	width;	//keeps alignment (which is handy in 32bit modes)
+	unsigned short	height;
+	qbyte flags;
+	qbyte pad;
+	qbyte		data[4];			// variably sized
+} mpic_t;
+
+
+extern	mpic_t		*draw_disc;	// also used on sbar
 
 
 typedef struct

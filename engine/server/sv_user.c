@@ -4687,6 +4687,8 @@ void SV_AirMove (void)
 //		scale = val->_float;
 
 	maxspeed=sv_player->v.maxspeed;//FIXME: This isn't fully compatable code...
+	if (sv_player->v.hasted)
+		maxspeed*=sv_player->v.hasted;
 
 	if (wishspeed > maxspeed*scale)
 	{

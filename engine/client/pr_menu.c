@@ -509,7 +509,7 @@ void PF_CL_is_cached_pic (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 void PF_CL_precache_pic (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
 	char	*str;
-	qpic_t	*pic;
+	mpic_t	*pic;
 	
 	str = PR_GetStringOfs(prinst, OFS_PARM0);
 
@@ -589,7 +589,7 @@ void PF_CL_drawpic (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
 	float *pos = G_VECTOR(OFS_PARM0);
 	char *picname = PR_GetStringOfs(prinst, OFS_PARM1);
-	qpic_t *p = Draw_SafeCachePic(picname);
+	mpic_t *p = Draw_SafeCachePic(picname);
 	float *size = G_VECTOR(OFS_PARM2);
 	float *rgb = G_VECTOR(OFS_PARM3);
 	float alpha = G_FLOAT(OFS_PARM4);
@@ -642,7 +642,7 @@ void PF_CL_drawresetcliparea (progfuncs_t *prinst, struct globalvars_s *pr_globa
 void PF_CL_drawgetimagesize (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
 	char *picname = PR_GetStringOfs(prinst, OFS_PARM0);
-	qpic_t *p = Draw_SafeCachePic(picname);
+	mpic_t *p = Draw_SafeCachePic(picname);
 
 	float *ret = G_VECTOR(OFS_RETURN);
 

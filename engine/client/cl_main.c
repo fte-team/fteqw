@@ -81,6 +81,8 @@ cvar_t	cl_predict_players = {"cl_predict_players", "1"};
 cvar_t	cl_predict_players2 = {"cl_predict_players2", "1"};
 cvar_t	cl_solid_players = {"cl_solid_players", "1"};
 
+cvar_t cl_demospeed = {"cl_demospeed", "0"};
+
 cvar_t  localid = {"localid", ""};
 
 static qboolean allowremotecmd = true;
@@ -93,6 +95,7 @@ cvar_t	spectator = {"spectator",		"",			NULL, CVAR_USERINFO};
 cvar_t	name = {"name",					"unnamed",	NULL, CVAR_ARCHIVE | CVAR_USERINFO};
 cvar_t	team = {"team",					"",			NULL, CVAR_ARCHIVE | CVAR_USERINFO};
 cvar_t	skin = {"skin",					"",			NULL, CVAR_ARCHIVE | CVAR_USERINFO};
+cvar_t	model = {"model",				"",			NULL, CVAR_ARCHIVE | CVAR_USERINFO};
 cvar_t	topcolor = {"topcolor",			"",			NULL, CVAR_ARCHIVE | CVAR_USERINFO};
 cvar_t	bottomcolor = {"bottomcolor",	"",			NULL, CVAR_ARCHIVE | CVAR_USERINFO};
 cvar_t	rate = {"rate",					"2500",		NULL, CVAR_ARCHIVE | CVAR_USERINFO};
@@ -399,7 +402,16 @@ void CL_SendConnectPacket (
 		clients = 1;
 #endif
 
+#ifdef Q3CLIENT
+	if (cls.q2server==2)
+	{	//q3 requires some very strange things.
+		CLQ3_SendConnectPacket(adr);
+		return;
+	}
+#endif
+
 	sprintf(data, "%c%c%c%cconnect", 255, 255, 255, 255);
+
 	if (clients>1)	//splitscreen 'connect' command specifies the number of userinfos sent.
 		strcat(data, va("%i", clients));
 	
@@ -764,6 +776,9 @@ void CL_Disconnect (void)
 
 // stop sounds (especially looping!)
 	S_StopAllSounds (true);
+#ifdef VM_CGAME
+	CG_Stop();
+#endif
 	
 // if running a local server, shut it down
 	if (cls.demoplayback != DPB_NONE)
@@ -866,6 +881,8 @@ void CL_Disconnect (void)
 	if (!isDedicated)
 #endif
 		SCR_EndLoadingPlaque();
+
+	cls.q2server = 0;
 }
 
 #undef serverrunning
@@ -1257,10 +1274,7 @@ void CL_SetInfo_f (void)
 	{
 #ifdef Q2CLIENT
 		if (cls.q2server)
-		{
-			MSG_WriteByte (&cls.netchan.message, clcq2_userinfo);
-			MSG_WriteString (&cls.netchan.message, cls.userinfo);
-		}
+			cls.resendinfo = true;
 		else
 #endif
 			Cmd_ForwardToServer ();
@@ -1520,37 +1534,58 @@ void CL_ConnectionlessPacket (void)
 
 	if (cls.demoplayback == DPB_NONE)
 		Con_TPrintf (TL_ST_COLON, NET_AdrToString (net_from));
-//	Con_DPrintf ("%s", net_message.data + 5);
+//	Con_DPrintf ("%s", net_message.data + 4);
 
-	if (c == S2C_CHALLENGE) {
+	if (c == S2C_CHALLENGE)
+	{
 		unsigned long pext = 0, huffcrc=0;
 		Con_TPrintf (TLC_S2C_CHALLENGE);
 
 		s = MSG_ReadString ();
 		COM_Parse(s);
-		if (!strcmp(com_token, "hallenge"))
+		if (!strcmp(com_token, "hallengeResponse"))
+		{
+#ifdef Q3CLIENT
+			cls.q2server = 2;
+			cls.challenge = atoi(s+17);
+			CL_SendConnectPacket (0, 0/*, ...*/);
+			return;
+#else
+			Con_Printf("\nUnable to connect to Quake3\n");
+			return;
+#endif
+		}
+		else if (!strcmp(com_token, "hallenge"))
 		{
 			char *s2;
-			for (s2 = s; *s; s++)
+			for (s2 = s+9; *s2; s2++)
 			{
-				if ((*s < '0' || *s > '9') && *s != '-')
+				if ((*s2 < '0' || *s2 > '9') && *s2 != '-')
 					break;
 			}
-			if (*s)
+			if (*s2)
 			{//and if it's not, we're unlikly to be compatable with whatever it is that's talking at us.
 #ifdef NQPROT
 				CL_ConnectToDarkPlaces(s+9, net_from);
 #else
-				Con_Printf("Cannot connect to DarkPlaces\n");
+				Con_Printf("\nUnable connect to DarkPlaces\n");
 #endif
 				return;
 			}
 
 #ifdef Q2CLIENT
 			cls.q2server = true;
+#else
+			Con_Printf("\nUnable to connect to Quake2\n");
 #endif
 			s+=9;
 		}
+#ifdef Q3CLIENT
+		else if (!strcmp(com_token, "onnectResponse"))
+		{
+			goto client_connect;
+		}
+#endif
 #ifdef Q2CLIENT
 		else if (!strcmp(com_token, "lient_connect"))
 		{
@@ -1605,6 +1640,20 @@ void CL_ConnectionlessPacket (void)
 		{
 			goto client_connect;
 		}
+		else if (!strcmp(s, "disconnect"))
+		{
+			if (NET_CompareAdr(net_from, cls.netchan.remote_address))
+			{
+				Con_Printf ("disconnect\n");
+				CL_Disconnect_f();
+				return;
+			}
+			else
+			{
+				Con_Printf("Ignoring random disconnect command\n");
+				return;
+			}
+		}
 		else
 		{
 			Con_TPrintf (TLC_Q2CONLESSPACKET_UNKNOWN, s);
@@ -1641,6 +1690,13 @@ void CL_ConnectionlessPacket (void)
 		}
 	}
 #endif
+
+	if (c == 'd')	//note - this conflicts with qw masters, our browser uses a different socket.
+	{
+		Con_Printf("Disconnect\n");
+		CL_Disconnect_f();
+		return;
+	}
 
 	if (c == S2C_CONNECTION)
 	{
@@ -1715,6 +1771,15 @@ client_connect:	//fixme: make function
 		return;
 	}
 	// print command from somewhere
+	if (c == 'p')
+	{
+		if (!strncmp(net_message.data+4, "print\n", 6))
+		{
+			Con_TPrintf (TLC_A2C_PRINT);
+			Con_Print (net_message.data+10);
+			return;
+		}
+	}
 	if (c == A2C_PRINT)
 	{
 		Con_TPrintf (TLC_A2C_PRINT);
@@ -1808,6 +1873,14 @@ void CL_ReadPackets (void)
 		if (cls.state == ca_disconnected)
 			continue;	//ignore it. We arn't connected.
 
+#ifdef Q3CLIENT
+		if (cls.q2server == 2)
+		{
+			CLQ3_ParseServerMessage();
+			continue;
+		}
+#endif
+
 		if (cls.demoplayback == DPB_MVD)
 			MSG_BeginReading();
 		else if (!Netchan_Process(&cls.netchan))
@@ -1852,7 +1925,7 @@ void CL_ReadPackets (void)
 //			MSG_ReadLong();
 
 #ifdef Q2CLIENT
-			if (cls.q2server)
+				if (cls.q2server)
 				CLQ2_ParseServerMessage ();
 			else
 #endif
@@ -2074,6 +2147,7 @@ void CL_Init (void)
 
 	Cvar_Register (&cfg_save_name, cl_controlgroup);
 
+	Cvar_Register (&cl_demospeed, "Demo playback");
 	Cvar_Register (&cl_warncmd, "Warnings");
 	Cvar_Register (&cl_upspeed, cl_inputgroup);
 	Cvar_Register (&cl_forwardspeed, cl_inputgroup);
@@ -2119,6 +2193,7 @@ void CL_Init (void)
 	Cvar_Register (&password,	cl_controlgroup);
 	Cvar_Register (&spectator,	cl_controlgroup);
 	Cvar_Register (&skin,	cl_controlgroup);
+	Cvar_Register (&model,	cl_controlgroup);
 	Cvar_Register (&team,	cl_controlgroup);
 	Cvar_Register (&topcolor,	cl_controlgroup);
 	Cvar_Register (&bottomcolor,	cl_controlgroup);
@@ -2428,6 +2503,9 @@ void Host_Frame (float time)
 	if (cls.demoplayback && recordingdemo)
 		time = recordavi_frametime;
 #endif
+
+	if (cls.demoplayback && cl_demospeed.value>0)
+		time *= cl_demospeed.value;
 
 #ifndef CLIENTONLY
 	RSpeedRemark();

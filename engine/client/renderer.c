@@ -104,7 +104,7 @@ cvar_t		_vid_wait_override = {"_vid_wait_override", "0", NULL, CVAR_ARCHIVE|CVAR
 
 static cvar_t		vid_stretch = {"vid_stretch","1", NULL, CVAR_ARCHIVE|CVAR_RENDERERLATCH};
 //cvar_t		_windowed_mouse = {"_windowed_mouse","1", CVAR_ARCHIVE};
-static cvar_t	gl_driver = {"gl_driver","OPENGL32", NULL, CVAR_ARCHIVE|CVAR_RENDERERLATCH};	//opengl library
+static cvar_t	gl_driver = {"gl_driver","", NULL, CVAR_ARCHIVE|CVAR_RENDERERLATCH};	//opengl library
 cvar_t	vid_renderer = {"vid_renderer", "", NULL, CVAR_ARCHIVE|CVAR_RENDERERLATCH};
 
 static cvar_t	vid_bpp = {"vid_bpp", "32", NULL, CVAR_ARCHIVE|CVAR_RENDERERLATCH};
@@ -387,7 +387,7 @@ void	R_InitTextures (void)
 	qbyte	*dest;
 	
 // create a simple checkerboard texture for the default
-	r_notexture_mip = Hunk_AllocName (sizeof(texture_t) + 16*16+8*8+4*4+2*2, "notexture");
+	r_notexture_mip = BZ_Malloc (sizeof(texture_t) + 16*16+8*8+4*4+2*2);
 	
 	r_notexture_mip->pixbytes = 1;
 	r_notexture_mip->width = r_notexture_mip->height = 16;
@@ -556,10 +556,10 @@ void Renderer_Init(void)
 }
 
 
-qpic_t	*(*Draw_PicFromWad)			(char *name);
-qpic_t	*(*Draw_SafePicFromWad)			(char *name);
-qpic_t	*(*Draw_CachePic)			(char *path);
-qpic_t	*(*Draw_SafeCachePic)		(char *path);
+mpic_t	*(*Draw_PicFromWad)			(char *name);
+mpic_t	*(*Draw_SafePicFromWad)		(char *name);
+mpic_t	*(*Draw_CachePic)			(char *path);
+mpic_t	*(*Draw_SafeCachePic)		(char *path);
 void	(*Draw_Init)				(void);
 void	(*Draw_ReInit)				(void);
 void	(*Draw_Character)			(int x, int y, unsigned int num);
@@ -568,11 +568,11 @@ void	(*Draw_String)				(int x, int y, const qbyte *str);
 void	(*Draw_Alt_String)			(int x, int y, const qbyte *str);
 void	(*Draw_Crosshair)			(void);
 void	(*Draw_DebugChar)			(qbyte num);
-void	(*Draw_Pic)					(int x, int y, qpic_t *pic);
-void	(*Draw_ScalePic)			(int x, int y, int width, int height, qpic_t *pic);
-void	(*Draw_SubPic)				(int x, int y, qpic_t *pic, int srcx, int srcy, int width, int height);
-void	(*Draw_TransPic)			(int x, int y, qpic_t *pic);
-void	(*Draw_TransPicTranslate)	(int x, int y, qpic_t *pic, qbyte *translation);
+void	(*Draw_Pic)					(int x, int y, mpic_t *pic);
+void	(*Draw_ScalePic)			(int x, int y, int width, int height, mpic_t *pic);
+void	(*Draw_SubPic)				(int x, int y, mpic_t *pic, int srcx, int srcy, int width, int height);
+void	(*Draw_TransPic)			(int x, int y, mpic_t *pic);
+void	(*Draw_TransPicTranslate)	(int x, int y, mpic_t *pic, qbyte *translation);
 void	(*Draw_ConsoleBackground)	(int lines);
 void	(*Draw_EditorBackground)	(int lines);
 void	(*Draw_TileClear)			(int x, int y, int w, int h);
@@ -581,7 +581,7 @@ void	(*Draw_FadeScreen)			(void);
 void	(*Draw_BeginDisc)			(void);
 void	(*Draw_EndDisc)				(void);
 
-void	(*Draw_Image)							(float x, float y, float w, float h, float s1, float t1, float s2, float t2, qpic_t *pic);	//gl-style scaled/coloured/subpic 
+void	(*Draw_Image)							(float x, float y, float w, float h, float s1, float t1, float s2, float t2, mpic_t *pic);	//gl-style scaled/coloured/subpic 
 void	(*Draw_ImageColours)		(float r, float g, float b, float a);
 
 void	(*R_Init)					(void);
@@ -646,10 +646,10 @@ struct {
 	char *name[4];
 	r_qrenderer_t rtype;
 
-	qpic_t	*(*Draw_PicFromWad)			(char *name);
-	qpic_t	*(*Draw_SafePicFromWad)			(char *name);
-	qpic_t	*(*Draw_CachePic)			(char *path);
-	qpic_t	*(*Draw_SafeCachePic)		(char *path);
+	mpic_t	*(*Draw_PicFromWad)			(char *name);
+	mpic_t	*(*Draw_SafePicFromWad)			(char *name);
+	mpic_t	*(*Draw_CachePic)			(char *path);
+	mpic_t	*(*Draw_SafeCachePic)		(char *path);
 	void	(*Draw_Init)				(void);
 	void	(*Draw_ReInit)				(void);
 	void	(*Draw_Character)			(int x, int y, unsigned int num);
@@ -658,11 +658,11 @@ struct {
 	void	(*Draw_Alt_String)			(int x, int y, const qbyte *str);
 	void	(*Draw_Crosshair)			(void);
 	void	(*Draw_DebugChar)			(qbyte num);
-	void	(*Draw_Pic)					(int x, int y, qpic_t *pic);
-	void	(*Draw_ScalePic)			(int x, int y, int width, int height, qpic_t *pic);
-	void	(*Draw_SubPic)				(int x, int y, qpic_t *pic, int srcx, int srcy, int width, int height);
-	void	(*Draw_TransPic)			(int x, int y, qpic_t *pic);
-	void	(*Draw_TransPicTranslate)	(int x, int y, qpic_t *pic, qbyte *translation);
+	void	(*Draw_Pic)					(int x, int y, mpic_t *pic);
+	void	(*Draw_ScalePic)			(int x, int y, int width, int height, mpic_t *pic);
+	void	(*Draw_SubPic)				(int x, int y, mpic_t *pic, int srcx, int srcy, int width, int height);
+	void	(*Draw_TransPic)			(int x, int y, mpic_t *pic);
+	void	(*Draw_TransPicTranslate)	(int x, int y, mpic_t *pic, qbyte *translation);
 	void	(*Draw_ConsoleBackground)	(int lines);
 	void	(*Draw_EditorBackground)	(int lines);
 	void	(*Draw_TileClear)			(int x, int y, int w, int h);
@@ -671,7 +671,7 @@ struct {
 	void	(*Draw_BeginDisc)			(void);
 	void	(*Draw_EndDisc)				(void);
 
-	void	(*Draw_Image)				(float x, float y, float w, float h, float s1, float t1, float s2, float t2, qpic_t *pic);	//gl-style scaled/coloured/subpic 
+	void	(*Draw_Image)				(float x, float y, float w, float h, float s1, float t1, float s2, float t2, mpic_t *pic);	//gl-style scaled/coloured/subpic 
 	void	(*Draw_ImageColours)		(float r, float g, float b, float a);
 
 	void	(*R_Init)					(void);

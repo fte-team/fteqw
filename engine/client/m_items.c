@@ -7,7 +7,7 @@ qboolean bindingactive;
 
 void Draw_TextBox (int x, int y, int width, int lines)
 {
-	qpic_t	*p;
+	mpic_t	*p;
 	int		cx, cy;
 	int		n;
 
@@ -76,7 +76,7 @@ void Draw_TextBox (int x, int y, int width, int lines)
 void Draw_BigFontString(int x, int y, const char *text)
 {
 	int sx, sy;
-	qpic_t *p;
+	mpic_t *p;
 	p = Draw_SafeCachePic ("gfx/menu/bigfont.lmp");
 
 	while(*text)
@@ -111,7 +111,7 @@ int dotofs;
 void MenuDrawItems(int xpos, int ypos, menuoption_t *option, menu_t *menu)
 {
 	int i;
-	qpic_t *p; 
+	mpic_t *p; 
 	while (option)
 	{
 		if (mousemoved && !bindingactive)
@@ -419,7 +419,7 @@ menupicture_t *MC_AddPicture(menu_t *menu, int x, int y, char *picname)
 menupicture_t *MC_AddCenterPicture(menu_t *menu, int y, char *picname)
 {
 	int x;
-	qpic_t *p;
+	mpic_t *p;
 
 	if (!qrenderer)
 		return NULL;
@@ -1273,7 +1273,7 @@ void M_Menu_Main_f (void)
 	extern cvar_t m_helpismedia;
 	menubutton_t *b;
 	menu_t *mainm;
-	qpic_t *p;
+	mpic_t *p;
 
 	int q1, q2, h2;
 

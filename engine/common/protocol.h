@@ -624,6 +624,11 @@ enum {
 							// must be power of two
 #define	Q2UPDATE_MASK		(Q2UPDATE_BACKUP-1)
 
+#define	Q3UPDATE_BACKUP	32	// copies of entity_state_t to keep buffered
+							// must be power of two
+#define	Q3UPDATE_MASK		(Q3UPDATE_BACKUP-1)
+
+
 // entity_state_t is the information conveyed from the server
 // in an update message
 
@@ -710,6 +715,8 @@ typedef struct usercmd_s
 	short	forwardmove, sidemove, upmove;
 	qbyte	impulse;
 	qbyte lightlevel;
+	qbyte weapon;
+	int servertime;
 } usercmd_t;
 
 typedef struct q1usercmd_s

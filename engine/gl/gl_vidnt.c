@@ -221,11 +221,15 @@ qboolean GLInitialise (char *renderer)
 	
 	if (!hInstGL)
 	{
+		hInstGL = LoadLibrary("opengl32");
+	}
+	if (!hInstGL)
+	{
 		Con_Printf ("Couldn't load %s\n", opengldllname);
 		return false;
 	}
 
-	Con_DPrintf ("Loaded renderer dll %s\n", renderer);
+	Con_DPrintf ("Loaded renderer dll %s\n", opengldllname);
 
 	// windows dependant
 	qwglCreateContext		= (void *)getwglfunc("wglCreateContext");

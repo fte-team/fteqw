@@ -288,7 +288,7 @@ void Media_LoadTrackNames (char *listname);
 
 void M_Media_Draw (void)
 {
-	qpic_t	*p;
+	mpic_t	*p;
 	mediatrack_t *track;
 	int y;
 	int op, i;

@@ -1179,14 +1179,16 @@ void SV_SaveInfo(FILE *f, char *info, char *commandname)
 		fwrite(" ", 1, 1, f);
 		fwrite(command, value-command, 1, f);
 		fwrite(" ", 1, 1, f);
-		fwrite(value, info-value, 1, f);
+		fwrite(value+1, info-(value+1), 1, f);
 		fwrite("\n", 1, 1, f);
 	}
 }
 
 void SV_SaveInfos(FILE *f)
 {
+	fwrite("\n", 1, 1, f);
 	SV_SaveInfo(f, svs.info, "serverinfo");
+	fwrite("\n", 1, 1, f);
 	SV_SaveInfo(f, localinfo, "localinfo");
 }
 

@@ -41,7 +41,9 @@ typedef struct entity_s
 	int						keynum;			// for matching entities in different frames
 	vec3_t					origin;
 	vec3_t					angles;	
-	vec3_t					axis[3];	
+	vec3_t					axis[3];
+
+	byte_vec4_t				shaderRGBA;
 
 	vec3_t					oldorigin;
 	vec3_t					oldangles;

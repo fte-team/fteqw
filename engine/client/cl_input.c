@@ -842,6 +842,32 @@ void CL_SendCmd (void)
 
 	int clientcount;
 
+#ifdef Q3CLIENT
+	if (cls.q2server==2)
+	{	//guess what? q3 rules don't require network packet limiting!
+		usercmd_t ncmd;
+
+		memset(&ncmd, 0, sizeof(ncmd));
+		ncmd.msec = host_frametime*1000;
+
+		CL_BaseMove (&ncmd, 0);
+
+		// allow mice or other external controllers to add to the move
+		IN_Move (&ncmd, 0);
+
+		// if we are spectator, try autocam
+		if (cl.spectator)
+			Cam_Track(0, &ncmd);
+
+		CL_FinishMove(&ncmd, (int)(host_frametime*1000), 0);
+
+		Cam_FinishMove(0, &ncmd);
+
+		CLQ3_SendCmd(&ncmd);
+		return;
+	}
+#endif
+
 	if (cls.demoplayback != DPB_NONE)
 	{
 		if (cls.demoplayback == DPB_MVD)

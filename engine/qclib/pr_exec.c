@@ -757,9 +757,6 @@ PR_ExecuteProgram
 */
 void PR_ExecuteCode (progfuncs_t *progfuncs, int s)
 {
-	static dstatement16_t fakeop16;
-	static dstatement32_t fakeop32;
-
 	eval_t	*t, *swtch=NULL;
 
 	int swtchtype;

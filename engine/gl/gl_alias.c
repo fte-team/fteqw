@@ -94,6 +94,7 @@ typedef struct {
 	int ofstransforms;
 
 //these exist only in the root mesh.
+	int numtagframes;
 	int numtags;
 	int ofstags;
 } galiasinfo_t;
@@ -2585,6 +2586,8 @@ void GLMod_GetTag(model_t *model, int tagnum, int frame, float **org, float **ax
 	t = (md3tag_t*)((char*)inf + inf->ofstags);
 	if (tagnum <= 0 || tagnum > inf->numtags)
 		return;
+	if (frame < 0 || frame >= inf->numtagframes)
+		return;
 	tagnum--;	//tagnum 0 is 'use my angles/org'
 
 	t += tagnum;
@@ -2606,7 +2609,7 @@ int GLMod_TagNumForName(model_t *model, char *name)
 	t = (md3tag_t*)((char*)inf + inf->ofstags);
 	for (i = 0; i < inf->numtags; i++)
 	{
-		if (!strcmp(t->name, name))
+		if (!strcmp(t[i].name, name))
 			return i+1;
 	}
 	return 0;
@@ -2693,6 +2696,43 @@ typedef struct {
 } md3Shader_t;
 //End of Tenebrae 'assistance'
 
+//This is a hack. It uses an assuption about q3 player models.
+void GL_ParseQ3SkinFile(char *out, char *surfname, char *modelname)
+{
+	char *f, *p;
+	char line[256];
+	COM_StripExtension(modelname, line);
+	strcat(line, "_default.skin");
+
+	f = COM_LoadTempFile2(line);
+	while(f)
+	{
+		f = COM_ParseToken(f);
+		if (!f)
+			return;
+		while(*f == ' ' || *f == '\t')
+			f++;
+		if (*f == ',')
+		{
+			if (!strcmp(com_token, surfname))
+			{
+				f++;
+				COM_ParseToken(f);
+				strcpy(out, com_token);
+				return;
+			}
+		}
+
+		p = strchr(f, '\n');
+		if (!p)
+			f = f+strlen(f);
+		else
+			f = p+1;
+		if (!*f)
+			break;
+	}
+}
+
 void GL_LoadQ3Model(model_t *mod, void *buffer)
 {
 	int hunkstart, hunkend, hunktotal;
@@ -2737,13 +2777,6 @@ void GL_LoadQ3Model(model_t *mod, void *buffer)
 
 //	if (header->version != sdfs)
 //		Sys_Error("GL_LoadQ3Model: Bad version\n");
-
-	if (header->numSurfaces < 1)
-	{
-		mod->type = mod_alias;
-		return;
-	}
-
 
 	parent = NULL;
 	root = NULL;
@@ -2838,7 +2871,7 @@ void GL_LoadQ3Model(model_t *mod, void *buffer)
 			char name[1024];
 			extern int gl_bumpmappingpossible;
 #endif
-			skin = Hunk_Alloc(surf->numShaders*(sizeof(galiasskin_t)+sizeof(galiastexnum_t)));
+			skin = Hunk_Alloc(surf->numShaders*((sizeof(galiasskin_t)+sizeof(galiastexnum_t))));
 			galias->ofsskins = (qbyte *)skin - (qbyte *)galias;
 			texnum = (galiastexnum_t *)(skin + surf->numShaders);
 			inshader = (md3Shader_t *)((qbyte *)surf + surf->ofsShaders);
@@ -2850,6 +2883,9 @@ void GL_LoadQ3Model(model_t *mod, void *buffer)
 				skin->skinwidth = 0;
 				skin->skinheight = 0;
 				skin->skinspeed = 0;
+
+				if (!*inshader->name)	//'fix' the shader by looking the surface name up in a skin file. This isn't perfect, but it does the job for basic models.
+					GL_ParseQ3SkinFile(inshader->name, surf->name, loadmodel->name);
 #ifdef Q3SHADERS
 				texnum->shader = R_RegisterSkin(inshader->name);
 #else
@@ -2926,6 +2962,10 @@ void GL_LoadQ3Model(model_t *mod, void *buffer)
 		surf = (md3Surface_t *)((qbyte *)surf + surf->ofsEnd);
 	}
 
+	if (!root)
+		root = Hunk_Alloc(sizeof(galiasinfo_t));
+
+	root->numtagframes = header->numFrames;
 	root->numtags = header->numTags;
 	root->ofstags = (char*)Hunk_Alloc(header->numTags*sizeof(md3tag_t)*header->numFrames) - (char*)root;
 	memcpy((char*)root+root->ofstags, (char*)header+header->ofsTags, header->numTags*sizeof(md3tag_t)*header->numFrames);

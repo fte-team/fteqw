@@ -76,7 +76,7 @@ void SV_Savegame_f (void)
 		return;
 	}
 
-	sprintf (name, "%s/%s", com_gamedir, Cmd_Argv(1));
+	sprintf (name, "%s/saves/%s", com_gamedir, Cmd_Argv(1));
 	COM_DefaultExtension (name, ".sav");
 
 	Con_TPrintf (STL_SAVEGAMETO, name);
@@ -193,7 +193,7 @@ void SV_Loadgame_f(void)
 //		return;
 //	}
 
-	sprintf (filename, "%s/%s", com_gamedir, Cmd_Argv(1));
+	sprintf (filename, "%s/saves/%s", com_gamedir, Cmd_Argv(1));
 	COM_DefaultExtension (filename, ".sav");
 	
 // we can't call SCR_BeginLoadingPlaque, because too much stack space has
@@ -480,7 +480,7 @@ qboolean SV_LoadLevelCache(char *level, char *startspot, qboolean ignoreplayers)
 	if (!cache)
 		return false;	//not visited yet. Ignore the existing caches as fakes.
 
-	sprintf (name, "%s/%s", com_gamedir, level);
+	sprintf (name, "%s/saves/%s", com_gamedir, level);
 	COM_DefaultExtension (name, ".lvc");
 
 //	Con_TPrintf (STL_LOADGAMEFROM, name);
@@ -675,7 +675,7 @@ void SV_SaveLevelCache(qboolean dontharmgame)
 	}
 
 	
-	sprintf (name, "%s/%s", com_gamedir, cache->mapname);
+	sprintf (name, "%s/saves/%s", com_gamedir, cache->mapname);
 	COM_DefaultExtension (name, ".lvc");
 
 	if (!dontharmgame)	//save game in progress
@@ -792,7 +792,7 @@ void SV_Savegame_f (void)
 	if (!*savename || strstr(savename, ".."))
 		savename = "quicksav";
 
-	sprintf (filename, "%s/%s/info.fsv", com_gamedir, savename);
+	sprintf (filename, "%s/saves/%s/info.fsv", com_gamedir, savename);
 	COM_CreatePath(filename);
 	f = fopen(filename, "wt");
 	if (!f)
@@ -860,7 +860,7 @@ void SV_Savegame_f (void)
 	{
 		fprintf(f, "%s\n", cache->mapname);
 
-		sprintf (filename, "%s/%s.lvc", com_gamedir, cache->mapname);
+		sprintf (filename, "%s/saves/%s.lvc", com_gamedir, cache->mapname);
 		f2 = fopen(filename, "rb");
 		if (!f2)
 			break;
@@ -883,7 +883,7 @@ void SV_Savegame_f (void)
 		fread(buffer, len, 1, f2);
 		fclose(f2);
 
-		sprintf (filename, "%s/%s/%s.lvc", com_gamedir, savename, cache->mapname);
+		sprintf (filename, "%s/saves/%s/%s.lvc", com_gamedir, savename, cache->mapname);
 		f2 = fopen(filename, "wb");
 		if (!f2)
 			break;
@@ -919,7 +919,7 @@ void SV_Loadgame_f (void)
 	if (!*savename || strstr(savename, ".."))
 		strcpy(savename, "quicksav");
 
-	sprintf (filename, "%s/%s/info.fsv", com_gamedir, savename);
+	sprintf (filename, "%s/saves/%s/info.fsv", com_gamedir, savename);
 	f = fopen (filename, "rt");
 	if (!f)
 	{
@@ -1070,7 +1070,7 @@ void SV_Loadgame_f (void)
 
 
 
-		sprintf (filename, "%s/%s/%s.lvc", com_gamedir, savename, cache->mapname);
+		sprintf (filename, "%s/saves/%s/%s.lvc", com_gamedir, savename, cache->mapname);
 		fi = fopen(filename, "rb");
 		if (!fi)
 		{
@@ -1089,7 +1089,7 @@ void SV_Loadgame_f (void)
 		fread(buffer, len, 1, fi);
 		fclose(fi);
 
-		sprintf (filename, "%s/%s.lvc", com_gamedir, cache->mapname);
+		sprintf (filename, "%s/saves/%s.lvc", com_gamedir, cache->mapname);
 		fo = fopen(filename, "wb");
 		if (!fo)
 		{

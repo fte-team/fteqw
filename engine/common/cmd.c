@@ -760,8 +760,16 @@ void Cmd_Alias_f (void)
 			}
 		}
 	}
-	a->execlevel = 0;	//run at users exec level
-	a->restriction = 1;	//this is possibly a security risk if the admin also changes execlevel
+	if (Cmd_FromServer())
+	{
+		a->execlevel = RESTRICT_SERVER;	//server-set aliases MUST run at the server's level.
+		a->restriction = 1;				//and be runnable at the user's level
+	}
+	else
+	{
+		a->execlevel = 0;	//run at users exec level
+		a->restriction = 1;	//this is possibly a security risk if the admin also changes execlevel
+	}
 	a->value = CopyString (cmd);
 }
 
@@ -883,11 +891,15 @@ void Alias_WriteAliases (FILE *f)
 	{		
 //		if ((cmd->restriction?cmd->restriction:rcon_level.value) > Cmd_ExecLevel)
 //			continue;
+		if (cmd->flags & ALIAS_FROMSERVER)
+			continue;
 		if (!num)
-			fprintf(f, "//////////////////\n//Aliases\n");
+			fprintf(f, "\n//////////////////\n//Aliases\n");
 		fprintf(f, "alias %s \"%s\"\n", cmd->name, cmd->value);
-		fprintf(f, "restrict %s %i\n", cmd->name, cmd->restriction);
-		fprintf(f, "aliaslevel %s %i\n", cmd->name, cmd->execlevel);
+		if (cmd->restriction != 1)	//1 is default
+			fprintf(f, "restrict %s %i\n", cmd->name, cmd->restriction);
+		if (cmd->execlevel != 0)	//0 is default (runs at user's level)
+			fprintf(f, "aliaslevel %s %i\n", cmd->name, cmd->execlevel);
 		num++;
 	}
 }
@@ -1537,6 +1549,14 @@ void Cmd_ForwardToServer (void)
 	if (cls.demoplayback)
 		return;		// not really connected
 
+#ifdef Q3CLIENT
+	if (cls.q2server == 2)
+	{
+		CL_SendClientCommand("%s %s", Cmd_Argv(0), Cmd_Args());
+		return;
+	}
+#endif
+
 #ifdef Q2CLIENT
 	MSG_WriteByte (&cls.netchan.message, cls.q2server?clcq2_stringcmd:clc_stringcmd);
 #else
@@ -1566,6 +1586,14 @@ void Cmd_ForwardToServer_f (void)
 	
 	if (cls.demoplayback)
 		return;		// not really connected
+
+#ifdef Q3CLIENT
+	if (cls.q2server == 2)
+	{
+		CL_SendClientCommand("%s", Cmd_Args());
+		return;
+	}
+#endif
 
 	if (Cmd_Argc() > 1)
 	{
@@ -1696,12 +1724,17 @@ void	Cmd_ExecuteString (char *text, int level)
 	}
 #endif
 
+#ifdef VM_CG
+	if (CG_Command())
+		;
+	else 
+#endif
 #ifdef Q2CLIENT
-	if (cls.q2server)
+		if (cls.q2server)
 		Cmd_ForwardToServer();
 	else 
 #endif
-	if (cl_warncmd.value || developer.value)
+		if (cl_warncmd.value || developer.value)
 		Con_TPrintf (TL_COMMANDNOTDEFINED, Cmd_Argv(0));
 }
 

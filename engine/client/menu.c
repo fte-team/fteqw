@@ -95,12 +95,12 @@ void M_PrintWhite (int cx, int cy, qbyte *str)
 	}
 }
 
-void M_DrawTransPic (int x, int y, qpic_t *pic)
+void M_DrawTransPic (int x, int y, mpic_t *pic)
 {
 	Draw_TransPic (x + ((vid.width - 320)>>1), y, pic);
 }
 
-void M_DrawPic (int x, int y, qpic_t *pic)
+void M_DrawPic (int x, int y, mpic_t *pic)
 {
 	Draw_Pic (x + ((vid.width - 320)>>1), y, pic);
 }
@@ -133,7 +133,7 @@ void M_BuildTranslationTable(int top, int bottom)
 }
 
 
-void M_DrawTransPicTranslate (int x, int y, qpic_t *pic)
+void M_DrawTransPicTranslate (int x, int y, mpic_t *pic)
 {
 	Draw_TransPicTranslate (x + ((vid.width - 320)>>1), y, pic, translationTable);
 }
@@ -141,7 +141,7 @@ void M_DrawTransPicTranslate (int x, int y, qpic_t *pic)
 
 void M_DrawTextBox (int x, int y, int width, int lines)
 {
-	qpic_t	*p;
+	mpic_t	*p;
 	int		cx, cy;
 	int		n;
 
@@ -407,7 +407,7 @@ void M_Keys_Draw (void)
 	int		keys[2];
 	char	*name;
 	int		x, y;
-	qpic_t	*p;
+	mpic_t	*p;
 
 	p = Draw_SafeCachePic ("gfx/ttl_cstm.lmp");
 	if (p)
@@ -549,7 +549,7 @@ void M_Menu_Help_f (void)
 
 void M_Help_Draw (void)
 {
-	qpic_t *pic;
+	mpic_t *pic;
 	pic = Draw_SafeCachePic(va(helpstyle, help_page+helppagemin));
 	if (!pic)
 		M_Menu_Main_f ();

@@ -159,7 +159,7 @@ LINK32=link.exe
 # PROP Ignore_Export_Lib 0
 # PROP Target_Dir ""
 # ADD BASE CPP /nologo /G5 /ML /W3 /GX /ZI /Od /I "..\client\gltod3d\sdk7\include" /I "..\client\gltod3d\D3DFrame" /I "..\dxsdk\sdk\inc" /I "..\scitech\include" /I "..\client" /D "NQPROT" /D "_DEBUG" /D "GLQUAKE" /D "SERVERDLL" /D "WIN32" /D "_WINDOWS" /FR".\GLDebug/" /Fp".\GLDebug/qwcl.pch" /YX /Fo".\GLDebug/" /Fd".\GLDebug/" /FD /c
-# ADD CPP /nologo /G5 /ML /W3 /GX /ZI /Od /I "..\client" /I "../libs/dxsdk7/include" /I "../common" /I "../server" /I "../gl" /I "../sw" /I "../qclib" /I "../libs" /D "_DEBUG" /D "WIN32" /D "_WINDOWS" /D "GLQUAKE" /D "SWQUAKE" /D "AVAIL_DX7" /D "ZQUAKETEAMPLAY" /Fr /Fp".\MDebug/qwcl.pch" /YX"quakedef.h" /FD /c
+# ADD CPP /nologo /G5 /ML /W3 /GX /ZI /Od /I "..\client" /I "../libs/dxsdk7/include" /I "../common" /I "../server" /I "../gl" /I "../sw" /I "../qclib" /I "../libs" /D "_DEBUG" /D "WIN32" /D "_WINDOWS" /D "GLQUAKE" /D "SWQUAKE" /D "AVAIL_DX7" /Fr /Fp".\MDebug/qwcl.pch" /YX"quakedef.h" /FD /c
 # ADD BASE MTL /nologo /D "_DEBUG" /mktyplib203 /win32
 # ADD MTL /nologo /D "_DEBUG" /mktyplib203 /win32
 # ADD BASE RSC /l 0x809 /d "_DEBUG"
@@ -481,6 +481,10 @@ SOURCE=..\client\cl_cam.c
 
 !ENDIF 
 
+# End Source File
+# Begin Source File
+
+SOURCE=..\client\cl_cg.c
 # End Source File
 # Begin Source File
 
@@ -833,6 +837,10 @@ SOURCE=..\client\clq2_ents.c
 
 !ENDIF 
 
+# End Source File
+# Begin Source File
+
+SOURCE=..\client\clq3_parse.c
 # End Source File
 # Begin Source File
 

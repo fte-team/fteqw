@@ -35,7 +35,7 @@ void M_Keydown (int key);
 void M_Keyup (int key);
 void M_Draw (int uimenu);
 void M_ToggleMenu_f (void);
-qpic_t	*M_CachePic (char *path);
+mpic_t	*M_CachePic (char *path);
 void M_DrawTextBox (int x, int y, int width, int lines);
 void M_Menu_Quit_f (void);
 
@@ -283,12 +283,12 @@ void M_SListKey(int key);
 
 //drawing funcs
 void M_BuildTranslationTable(int top, int bottom);
-void M_DrawTransPicTranslate (int x, int y, qpic_t *pic);
-void M_DrawTransPic (int x, int y, qpic_t *pic);
+void M_DrawTransPicTranslate (int x, int y, mpic_t *pic);
+void M_DrawTransPic (int x, int y, mpic_t *pic);
 void M_DrawCharacter (int cx, int line, unsigned int num);
 void M_Print (int cx, int cy, qbyte *str);
 void M_PrintWhite (int cx, int cy, qbyte *str);
-void M_DrawPic (int x, int y, qpic_t *pic);
+void M_DrawPic (int x, int y, mpic_t *pic);
 
 
 void M_FindKeysForCommand (char *command, int *twokeys);

@@ -14,10 +14,10 @@ extern r_qrenderer_t qrenderer;
 extern char *q_renderername;
 
 
-extern qpic_t	*(*Draw_PicFromWad)					(char *name);
-extern qpic_t	*(*Draw_SafePicFromWad)				(char *name);
-extern qpic_t	*(*Draw_CachePic)					(char *path);
-extern qpic_t	*(*Draw_SafeCachePic)				(char *path);
+extern mpic_t	*(*Draw_PicFromWad)					(char *name);
+extern mpic_t	*(*Draw_SafePicFromWad)				(char *name);
+extern mpic_t	*(*Draw_CachePic)					(char *path);
+extern mpic_t	*(*Draw_SafeCachePic)				(char *path);
 extern void	(*Draw_Init)							(void);
 extern void	(*Draw_ReInit)							(void);
 extern void	(*Draw_Character)						(int x, int y, unsigned int num);
@@ -26,11 +26,11 @@ extern void	(*Draw_String)							(int x, int y, const qbyte *str);
 extern void	(*Draw_Alt_String)						(int x, int y, const qbyte *str);
 extern void	(*Draw_Crosshair)						(void);
 extern void	(*Draw_DebugChar)						(qbyte num);
-extern void	(*Draw_Pic)								(int x, int y, qpic_t *pic);
-extern void	(*Draw_ScalePic)						(int x, int y, int width, int height, qpic_t *pic);
-extern void	(*Draw_SubPic)							(int x, int y, qpic_t *pic, int srcx, int srcy, int width, int height);
-extern void	(*Draw_TransPic)						(int x, int y, qpic_t *pic);
-extern void	(*Draw_TransPicTranslate)				(int x, int y, qpic_t *pic, qbyte *translation);
+extern void	(*Draw_Pic)								(int x, int y, mpic_t *pic);
+extern void	(*Draw_ScalePic)						(int x, int y, int width, int height, mpic_t *pic);
+extern void	(*Draw_SubPic)							(int x, int y, mpic_t *pic, int srcx, int srcy, int width, int height);
+extern void	(*Draw_TransPic)						(int x, int y, mpic_t *pic);
+extern void	(*Draw_TransPicTranslate)				(int x, int y, mpic_t *pic, qbyte *translation);
 extern void	(*Draw_ConsoleBackground)				(int lines);
 extern void	(*Draw_EditorBackground)				(int lines);
 extern void	(*Draw_TileClear)						(int x, int y, int w, int h);
@@ -40,7 +40,7 @@ extern void	(*Draw_BeginDisc)						(void);
 extern void	(*Draw_EndDisc)							(void);
 extern qboolean (*Draw_IsCached)					(char *picname);	//can be null
 
-extern void	(*Draw_Image)							(float x, float y, float w, float h, float s1, float t1, float s2, float t2, qpic_t *pic);	//gl-style scaled/coloured/subpic 
+extern void	(*Draw_Image)							(float x, float y, float w, float h, float s1, float t1, float s2, float t2, mpic_t *pic);	//gl-style scaled/coloured/subpic 
 extern void	(*Draw_ImageColours)					(float r, float g, float b, float a);
 
 extern void	(*R_Init)								(void);

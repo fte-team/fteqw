@@ -133,6 +133,17 @@ typedef struct
 	int			outgoing_size[MAX_LATENT];
 	double		outgoing_time[MAX_LATENT];
 	qboolean	compress;
+
+#ifdef Q3CLIENT
+	int inLength;
+	char inBuffer[MAX_UDP_PACKET];
+	int inFragmentSequence;
+
+	qboolean outFragment;
+	int outLength;
+	int outStart;
+	char outBuffer[MAX_UDP_PACKET];
+#endif
 } netchan_t;
 
 extern	int	net_drop;		// packets dropped before this one

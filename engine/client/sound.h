@@ -220,7 +220,8 @@ struct soundcardinfo_s { //windows has one defined AFTER directsound
 	char name[256];
 
 
-
+	qboolean selfpainting;	//allow the sound code to call the right functions when it feels the need.
+							//sdl uses this and runs multithreaded.
 
 	qboolean inactive_sound;
 

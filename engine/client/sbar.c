@@ -65,31 +65,31 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 int			sb_updates;		// if >= vid.numpages, no update needed
 
 #define STAT_MINUS		10	// num frame for '-' stats digit
-qpic_t		*sb_nums[2][11];
-qpic_t		*sb_colon, *sb_slash;
-qpic_t		*sb_ibar;
-qpic_t		*sb_sbar;
-qpic_t		*sb_scorebar;
+mpic_t		*sb_nums[2][11];
+mpic_t		*sb_colon, *sb_slash;
+mpic_t		*sb_ibar;
+mpic_t		*sb_sbar;
+mpic_t		*sb_scorebar;
 
-qpic_t		*sb_weapons[7][8];	// 0 is active, 1 is owned, 2-5 are flashes
-qpic_t		*sb_ammo[4];
-qpic_t		*sb_sigil[4];
-qpic_t		*sb_armor[3];
-qpic_t		*sb_items[32];
+mpic_t		*sb_weapons[7][8];	// 0 is active, 1 is owned, 2-5 are flashes
+mpic_t		*sb_ammo[4];
+mpic_t		*sb_sigil[4];
+mpic_t		*sb_armor[3];
+mpic_t		*sb_items[32];
 
-qpic_t	*sb_faces[7][2];		// 0 is gibbed, 1 is dead, 2-6 are alive
+mpic_t	*sb_faces[7][2];		// 0 is gibbed, 1 is dead, 2-6 are alive
 							// 0 is static, 1 is temporary animation
-qpic_t	*sb_face_invis;
-qpic_t	*sb_face_quad;
-qpic_t	*sb_face_invuln;
-qpic_t	*sb_face_invis_invuln;
+mpic_t	*sb_face_invis;
+mpic_t	*sb_face_quad;
+mpic_t	*sb_face_invuln;
+mpic_t	*sb_face_invis_invuln;
 
 //rogue pictures.
-qpic_t      *rsb_invbar[2];
-qpic_t      *rsb_weapons[5];
-qpic_t      *rsb_items[2];
-qpic_t      *rsb_ammo[3];
-qpic_t      *rsb_teambord;
+mpic_t      *rsb_invbar[2];
+mpic_t      *rsb_weapons[5];
+mpic_t      *rsb_items[2];
+mpic_t      *rsb_ammo[3];
+mpic_t      *rsb_teambord;
 //all must be found for any to be used.
 
 qboolean	sb_showscores;
@@ -580,9 +580,9 @@ Sbar_Init
 qboolean sbar_loaded;
 
 char *failedpic;
-qpic_t *Sbar_PicFromWad(char *name)
+mpic_t *Sbar_PicFromWad(char *name)
 {
-	qpic_t *ret;
+	mpic_t *ret;
 	ret = Draw_SafePicFromWad(name);
 
 	if (ret)
@@ -743,7 +743,7 @@ void Sbar_Init (void)
 Sbar_DrawPic
 =============
 */
-void Sbar_DrawPic (int x, int y, qpic_t *pic)
+void Sbar_DrawPic (int x, int y, mpic_t *pic)
 {
 	Draw_Pic (sbar_rect.x + x /* + ((sbar_rect.width - 320)>>1) */, sbar_rect.y + y + (sbar_rect.height-SBAR_HEIGHT), pic);
 }
@@ -755,7 +755,7 @@ Sbar_DrawSubPic
 JACK: Draws a portion of the picture in the status bar.
 */
 
-void Sbar_DrawSubPic(int x, int y, qpic_t *pic, int srcx, int srcy, int width, int height) 
+void Sbar_DrawSubPic(int x, int y, mpic_t *pic, int srcx, int srcy, int width, int height) 
 {
 	Draw_SubPic (sbar_rect.x + x, sbar_rect.y + y+(sbar_rect.height-SBAR_HEIGHT), pic, srcx, srcy, width, height);
 }
@@ -766,7 +766,7 @@ void Sbar_DrawSubPic(int x, int y, qpic_t *pic, int srcx, int srcy, int width, i
 Sbar_DrawTransPic
 =============
 */
-void Sbar_DrawTransPic (int x, int y, qpic_t *pic)
+void Sbar_DrawTransPic (int x, int y, mpic_t *pic)
 {
 	Draw_TransPic (sbar_rect.x + x /*+ ((sbar_rect.width - 320)>>1) */, sbar_rect.y + y + (sbar_rect.height-SBAR_HEIGHT), pic);
 }
@@ -1436,11 +1436,6 @@ void Sbar_Draw (void)
 
 	int deadcount=0;
 
-#ifdef VM_CG
-	if (CG_Refresh())
-		return;
-#endif
-
 	if (scr_con_current == vid.height)
 		return;		// console is full screen
 
@@ -1652,7 +1647,7 @@ added by Zoid
 */
 void Sbar_TeamOverlay (void)
 {
-	qpic_t			*pic;
+	mpic_t			*pic;
 	int				i, k, l;
 	int				x, y;
 	char			num[12];
@@ -1742,7 +1737,7 @@ ping time frags name
 */
 void Sbar_DeathmatchOverlay (int start)
 {
-	qpic_t			*pic;
+	mpic_t			*pic;
 	int				i, k, l;
 	int				top, bottom;
 	int				x, y, f;
@@ -1904,7 +1899,7 @@ void Sbar_DeathmatchOverlay (int start)
 void Sbar_ChatModeOverlay(void)
 {
 	int start =0;
-	qpic_t			*pic;
+	mpic_t			*pic;
 	int				i, k, l;
 	int				top, bottom;
 	int				x, y;
@@ -2147,7 +2142,7 @@ void Sbar_MiniDeathmatchOverlay (void)
 
 void Sbar_CoopIntermission (void)
 {
-	qpic_t	*pic;
+	mpic_t	*pic;
 	int		dig;
 	int		num;
 
@@ -2210,7 +2205,7 @@ Sbar_FinaleOverlay
 */
 void Sbar_FinaleOverlay (void)
 {
-	qpic_t	*pic;
+	mpic_t	*pic;
 
 	scr_copyeverything = 1;
 

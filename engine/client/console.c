@@ -23,15 +23,15 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 
 //this is the same order as q3, except that white and black are swapped...
 consolecolours_t consolecolours[] = {
-#define CON_WHITEMASK 0*256	//must be constant. things assume this
-	{1, 1, 1},
+#define CON_WHITEMASK 7*256	//must be constant. things assume this
+	{0, 0, 0},
 	{1, 0, 0},
 	{0, 1, 0},
 	{1, 1, 0},
 	{0.1, 0.1, 1},	//brighten dark blue a little
 	{1, 0, 1},
 	{0, 1, 1},
-	{0, 0, 0}
+	{1, 1, 1}
 };
 
 int			con_ormask;

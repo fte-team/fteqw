@@ -385,7 +385,7 @@ int Sys_EnumerateFiles (char *gpath, char *match, int (*func)(char *, int, void 
 	dir = opendir(truepath);
 	if (!dir)
 	{
-		Con_Printf("Failed to open dir");
+		Con_DPrintf("Failed to open dir\n");
 		return true;
 	}
 	do
@@ -522,7 +522,7 @@ int main (int c, char **v)
 	parms.memsize = 16*1024*1024;
 
 	j = COM_CheckParm("-mem");
-	if (j)
+	if (j && j+1 < com_argc)
 		parms.memsize = (int) (Q_atof(com_argv[j+1]) * 1024 * 1024);
 	parms.membase = malloc (parms.memsize);
 

@@ -1481,6 +1481,8 @@ static void PPL_BaseChain_NPR_Sketch(msurface_t *first)
 	{
 		for (s = first; s ; s=s->texturechain)
 		{
+			if (!s->polys)
+				continue;
 			glBegin(GL_LINE_LOOP);
 			for (i=s->polys->numverts-1; i>=0; i--)
 				glVertex3f(	s->polys->verts[i][0]+5*(rand()/(float)RAND_MAX-0.5),
@@ -3997,6 +3999,13 @@ void PPL_DrawWorld (void)
 	vec3_t mins, maxs;
 
 	int maxshadowlights = gl_maxshadowlights.value;
+
+	if (!lightmap)
+	{
+		R_PreNewMap();
+		R_NewMap();
+		return;	// :/
+	}
 
 	if (maxshadowlights < 1)
 		maxshadowlights = 1;

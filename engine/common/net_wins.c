@@ -590,6 +590,8 @@ qboolean	NET_GetLoopPacket (netsrc_t sock, netadr_t *from, sizebuf_t *message)
 	message->cursize = loop->msgs[i].datalen;
 	memset (from, 0, sizeof(*from));
 	from->type = NA_LOOPBACK;
+	message->packing = SZ_RAWBYTES;
+	message->currentbit = 0;
 	return true;
 
 }
@@ -693,6 +695,8 @@ qboolean NET_GetPacket (netsrc_t netsrc)
 		}
  		SockadrToNetadr (&from, &net_from);
 
+		net_message.packing = SZ_RAWBYTES;
+		net_message.currentbit = 0;
 		net_message.cursize = ret;
 		if (net_message.cursize == sizeof(net_message_buffer) )
 		{

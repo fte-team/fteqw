@@ -2707,22 +2707,12 @@ memset(pr_immediate_string, 0, sizeof(pr_immediate_string));
 #endif
 
 	QCC_InitData ();
-#if 0
-	p = QCC_CheckParm ("-base");
-	if (p && p < argc-1 )
-		sprintf (qccmprogsdat, "%s%s", qccmsourcedir, argv[p+1]);		
-	else
-	{	//look for a preprogs.src... :o)
-		sprintf (qccmprogsdat, "%spreprogs.src", qccmsourcedir);
-		if (externs->FileSize(qccmprogsdat) <= 0)
-			sprintf (qccmprogsdat, "%sprogs.src", qccmsourcedir);
-	}
-#endif
+
 	QCC_PR_BeginCompilation ((void *)qccHunkAlloc (0x100000), 0x100000);
-#if 0
-	QCC_ReadPoff(qccmprogsdat);
-#endif
-	p = QCC_CheckParm ("-srcfile");
+
+	p = QCC_CheckParm ("-qc");
+	if (!p || p >= argc-1 || argv[p+1][0] == '-')
+		p = QCC_CheckParm ("-srcfile");
 	if (p && p < argc-1 )
 		sprintf (qccmprogsdat, "%s%s", qccmsourcedir, argv[p+1]);		
 	else
@@ -2755,9 +2745,23 @@ memset(pr_immediate_string, 0, sizeof(pr_immediate_string));
 	}
 #endif
 
+	if (QCC_CheckParm ("-qc"))
+	{
+		strcpy(destfile, qccmprogsdat);
+		StripExtension(destfile);
+		strcat(destfile, ".qco");
+
+		p = QCC_CheckParm ("-o");
+		if (!p || p >= argc-1 || argv[p+1][0] == '-')
+		if (p && p < argc-1 )
+			sprintf (destfile, "%s%s", qccmsourcedir, argv[p+1]);
+		goto newstyle;
+	}
+
 	if (*qcc_token == '#')
 	{		
 		void StartNewStyleCompile(void);
+newstyle:
 		newstylesource = true;
 		StartNewStyleCompile();
 		return;
@@ -2775,7 +2779,7 @@ memset(pr_immediate_string, 0, sizeof(pr_immediate_string));
 
 	if (!qccmsrc)
 		QCC_Error (ERR_NOOUTPUT, "No destination filename.  qcc -help for info.");
-	strcpy (destfile, qcc_token);	
+	strcpy (destfile, qcc_token);
 
 #ifndef QCCONLY
 	p=1;
@@ -3227,6 +3231,7 @@ void Sys_Error(const char *text, ...)
 
 int main (int argc, char **argv)
 {
+	int sucess;
 	progexterns_t ext;
 	progfuncs_t funcs;
 	progfuncs = &funcs;
@@ -3238,13 +3243,13 @@ int main (int argc, char **argv)
 	funcs.parms->WriteFile = QCC_WriteFile;
 	funcs.parms->printf = printf;
 	funcs.parms->Sys_Error = Sys_Error;
-	CompileParams(&funcs, true, argc, argv);
+	sucess = CompileParams(&funcs, true, argc, argv);
 	qccClearHunk();
 
 #ifdef _WIN32
-	fgetc(stdin);	//wait for keypress
+//	fgetc(stdin);	//wait for keypress
 #endif
-	return 0;
+	return !sucess;
 }
 #endif
 

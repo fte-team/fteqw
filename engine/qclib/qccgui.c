@@ -1390,43 +1390,52 @@ void GuiParseCommandLine(char *args)
 
 		if (!strnicmp(parameters+paramlen, "-O", 2) || !strnicmp(parameters+paramlen, "/O", 2))
 		{	//strip out all -O
-			if (parameters[paramlen+2] >= '0' && parameters[paramlen+2] <= '3')
+			if (parameters[paramlen+2])
 			{
-				p = parameters[paramlen+2]-'0';
-				for (l = 0; optimisations[l].enabled; l++)
+				if (parameters[paramlen+2] >= '0' && parameters[paramlen+2] <= '3')
 				{
-					if (optimisations[l].optimisationlevel<=p)
-						optimisations[l].flags |= 8;
-					else
-						optimisations[l].flags &= ~8;
+					p = parameters[paramlen+2]-'0';
+					for (l = 0; optimisations[l].enabled; l++)
+					{
+						if (optimisations[l].optimisationlevel<=p)
+							optimisations[l].flags |= 8;
+						else
+							optimisations[l].flags &= ~8;
+					}
 				}
-				p=0;
-			}
-			else if (!strncmp(parameters+paramlen+2, "no-", 3))
-			{
-				if (parameters[paramlen+5])
-					for (p = 0; optimisations[p].enabled; p++)
-						if ((*optimisations[p].abbrev && !strcmp(parameters+paramlen+5, optimisations[p].abbrev)) || !strcmp(parameters+paramlen+5, optimisations[p].fullname))
+				else if (!strncmp(parameters+paramlen+2, "no-", 3))
+				{
+					if (parameters[paramlen+5])
+					{
+						for (p = 0; optimisations[p].enabled; p++)
+							if ((*optimisations[p].abbrev && !strcmp(parameters+paramlen+5, optimisations[p].abbrev)) || !strcmp(parameters+paramlen+5, optimisations[p].fullname))
+							{
+								optimisations[p].flags &= ~8;
+								break;
+							}
+
+						if (!optimisations[p].enabled)
 						{
-							optimisations[p].flags &= ~8;
-							break;
+							parameters[paramlen+next-args] = ' ';
+							paramlen += l;
 						}
-			}
-			else
-			{
-				if (parameters[paramlen+2])
+					}
+				}
+				else
+				{
 					for (p = 0; optimisations[p].enabled; p++)
 						if ((*optimisations[p].abbrev && !strcmp(parameters+paramlen+2, optimisations[p].abbrev)) || !strcmp(parameters+paramlen+2, optimisations[p].fullname))
 						{
 							optimisations[p].flags |= 8;
 							break;
 						}
-			}
 
-			if (!optimisations[p].enabled)
-			{
-				parameters[paramlen+next-args] = ' ';
-				paramlen += l;
+					if (!optimisations[p].enabled)
+					{
+						parameters[paramlen+next-args] = ' ';
+						paramlen += l;
+					}
+				}
 			}
 		}
 		else if (!strnicmp(parameters+paramlen, "-Fno-kce", 8) || !strnicmp(parameters+paramlen, "/Fno-kce", 8))	//keywords stuph

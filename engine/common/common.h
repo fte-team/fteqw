@@ -38,6 +38,12 @@ typedef enum {false, true}	qboolean;
 
 //============================================================================
 
+typedef enum {
+	SZ_BAD,
+	SZ_RAWBYTES,
+	SZ_RAWBITS,
+	SZ_HUFFMAN	//q3 style packets are horrible.
+} sbpacking_t;
 typedef struct sizebuf_s
 {
 	qboolean	allowoverflow;	// if false, do a Sys_Error
@@ -45,6 +51,8 @@ typedef struct sizebuf_s
 	qbyte	*data;
 	int		maxsize;
 	int		cursize;
+	int packing;
+	int currentbit;
 } sizebuf_t;
 
 void SZ_Clear (sizebuf_t *buf);

@@ -10,7 +10,7 @@ void M_Menu_MultiPlayer_f (void)
 {
 	menubutton_t *b;
 	menu_t *menu;
-	qpic_t *p;
+	mpic_t *p;
 
 	p = Draw_SafeCachePic("gfx/mp_menu.lmp");
 
@@ -118,7 +118,7 @@ void MSetup_TransDraw (int x, int y, menucustom_t *option, menu_t *menu)
 {
 	extern qbyte translationTable[256];
 	setupmenu_t *info = menu->data;
-	qpic_t	*p;
+	mpic_t	*p;
 
 	p = Draw_CachePic ("gfx/bigbox.lmp");
 	Draw_TransPic (x-12, y-8, p);	

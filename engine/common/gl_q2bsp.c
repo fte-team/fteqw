@@ -1197,12 +1197,12 @@ void CMod_LoadTexInfo (lump_t *l)	//yes I know these load from the same place
 			_snprintf (name, sizeof(name), "textures/%s.wal", in->texture);
 
 			out->texture = Mod_LoadWall (name);
-			if (!out->texture)
+			if (!out->texture || !out->texture->width || !out->texture->height)
 			{
-				out->texture = Hunk_Alloc(sizeof(texture_t));
+				out->texture = Hunk_Alloc(sizeof(texture_t) + 16*16+8*8+4*4+2*2);
 
-				Con_Printf ("Couldn't load %s\n", name);
-				memcpy(out->texture, &r_notexture_mip, sizeof(r_notexture_mip));
+				Con_Printf ("^2Couldn't load %s\n", name);
+				memcpy(out->texture, r_notexture_mip, sizeof(texture_t) + 16*16+8*8+4*4+2*2);
 	//			out->texture = r_notexture_mip; // texture not found
 	//			out->flags = 0;
 			}
@@ -3503,6 +3503,7 @@ mplane_t	*box_planes;
 int			box_headnode;
 q2cbrush_t	*box_brush;
 mleaf_t		*box_leaf;
+model_t		box_model;
 
 /*
 ===================
@@ -3519,6 +3520,17 @@ void CM_InitBoxHull (void)
 	mnode_t		*c;
 	mplane_t	*p;
 	q2cbrushside_t	*s;
+
+
+	box_model.funcs.FatPVS				= Q2BSP_FatPVS;
+	box_model.funcs.EdictInFatPVS		= Q2BSP_EdictInFatPVS;
+	box_model.funcs.FindTouchedLeafs_Q1	= Q2BSP_FindTouchedLeafs;
+	box_model.funcs.MarkLights			= Q2BSP_MarkLights;
+	box_model.funcs.LeafPVS				= CM_LeafnumPVS;
+	box_model.funcs.LeafForPoint		= CM_ModelPointLeafnum;
+
+	box_model.hulls[0].available = true;
+	Q2BSP_SetHullFuncs(&box_model.hulls[0]);
 
 	box_headnode = numnodes;
 	box_planes = &map_planes[numplanes];
@@ -3601,6 +3613,11 @@ int	CM_HeadnodeForBox (vec3_t mins, vec3_t maxs)
 	return box_headnode;
 }
 
+model_t *CM_TempBoxModel(vec3_t mins, vec3_t maxs)
+{
+	box_model.hulls[0].firstclipnode = CM_HeadnodeForBox(mins, maxs);
+	return &box_model;
+}
 
 /*
 ==================

@@ -48,6 +48,9 @@ int VMUI_fopen (char *name, int *handle, int fmode, int owner)
 {
 	int i;
 
+	if (!handle)
+		return FS_FLocateFile(name, FSLFRT_LENGTH, NULL);
+
 	*handle = 0;
 
 	for (i = 0; i < MAX_VMUI_FILES; i++)
@@ -317,6 +320,14 @@ typedef struct q3refEntity_s {
 	float		rotation;
 } q3refEntity_t;
 
+#define	Q2RF_VIEWERMODEL		2		// don't draw through eyes, only mirrors
+#define	Q2RF_WEAPONMODEL		4		// only draw through eyes
+#define	Q2RF_DEPTHHACK			16		// for view weapon Z crunching
+
+
+#define	Q3RF_THIRD_PERSON		2		// don't draw through eyes, only mirrors (player bodies, chat sprites)
+#define	Q3RF_FIRST_PERSON		4		// only draw through eyes (view weapon, damage blood blob)
+#define	Q3RF_DEPTHHACK			8		// for view weapon Z crunching
 void VQ3_AddEntity(const q3refEntity_t *q3)
 {
 	entity_t ent;
@@ -333,10 +344,94 @@ void VQ3_AddEntity(const q3refEntity_t *q3)
 	ent.lerpfrac = ent.lerptime = q3->backlerp;
 	ent.alpha = 1;
 	ent.scale = 1;
+	*(int*)ent.shaderRGBA = *(int*)q3->shaderRGBA;
+	if (q3->renderfx & Q3RF_DEPTHHACK)
+		ent.flags |= Q2RF_DEPTHHACK;
+	if (q3->renderfx & Q3RF_THIRD_PERSON)
+	{
+		ent.flags |= Q2RF_VIEWERMODEL;
+		return;
+	}
+	if (q3->renderfx & Q3RF_FIRST_PERSON)
+		ent.flags |= Q2RF_WEAPONMODEL;
 	VectorCopy(q3->origin, ent.origin);
 	V_AddEntity(&ent);
 }
 
+int VM_LerpTag(void *out, model_t *model, int f1, int f2, float l2, char *tagname)
+{
+	int tagnum;
+	float *ang;
+	float *org;
+
+	float *org1;
+	float *ang1;
+	float *org2;
+	float *ang2;
+
+	float l1;
+
+	org = (float*)out;
+	ang = ((float*)out+3);
+
+	l1 = 1-l2;
+
+
+	if (Mod_GetTag)
+	{
+		if (Mod_TagNumForName)
+			tagnum = Mod_TagNumForName(model, tagname);
+		else
+			tagnum = 0;
+		Mod_GetTag(model, tagnum, f1, &org1, &ang1);
+		Mod_GetTag(model, tagnum, f2, &org2, &ang2);
+	}
+	else
+	{
+		ang1=ang2=NULL;
+		org1=org2=NULL;	//msvc was warning about this not being present.
+	}
+	if (ang1 && ang2)
+	{
+		org[0] = org1[0]*l1 + org2[0]*l2;
+		org[1] = org1[1]*l1 + org2[1]*l2;
+		org[2] = org1[2]*l1 + org2[2]*l2;
+
+		ang[0] = ang1[0]*l1 + ang2[0]*l2;
+		ang[1] = ang1[1]*l1 + ang2[1]*l2;
+		ang[2] = ang1[2]*l1 + ang2[2]*l2;
+
+		ang[3] = ang1[3]*l1 + ang2[3]*l2;
+		ang[4] = ang1[4]*l1 + ang2[4]*l2;
+		ang[5] = ang1[5]*l1 + ang2[5]*l2;
+
+		ang[6] = ang1[6]*l1 + ang2[6]*l2;
+		ang[7] = ang1[7]*l1 + ang2[7]*l2;
+		ang[8] = ang1[8]*l1 + ang2[8]*l2;
+
+		return true;
+	}
+	else
+	{
+		org[0] = 0;
+		org[1] = 0;
+		org[2] = 0;
+
+		ang[0] = 1;
+		ang[1] = 0;
+		ang[2] = 0;
+
+		ang[3] = 0;
+		ang[4] = 1;
+		ang[5] = 0;
+
+		ang[6] = 0;
+		ang[7] = 0;
+		ang[8] = 1;
+
+		return false;
+	}
+}
 
 #define	MAX_RENDER_STRINGS			8
 #define	MAX_RENDER_STRING_LENGTH	32
@@ -359,10 +454,11 @@ typedef struct q3refdef_s {
 	// text messages for deform text shaders
 	char		text[MAX_RENDER_STRINGS][MAX_RENDER_STRING_LENGTH];
 } q3refdef_t;
+
 void VQ3_RenderView(const q3refdef_t *ref)
 {
 	VectorCopy(ref->vieworg, r_refdef.vieworg);
-	r_refdef.viewangles[0] = (atan2(ref->viewaxis[0][2], sqrt(ref->viewaxis[0][1]*ref->viewaxis[0][1]+ref->viewaxis[0][0]*ref->viewaxis[0][0])) * 180 / M_PI);
+	r_refdef.viewangles[0] = -(atan2(ref->viewaxis[0][2], sqrt(ref->viewaxis[0][1]*ref->viewaxis[0][1]+ref->viewaxis[0][0]*ref->viewaxis[0][0])) * 180 / M_PI);
 	r_refdef.viewangles[1] = (atan2(ref->viewaxis[0][1], ref->viewaxis[0][0]) * 180 / M_PI);
 	r_refdef.viewangles[2] = 0;
 	r_refdef.flags = ref->rdflags;
@@ -372,9 +468,12 @@ void VQ3_RenderView(const q3refdef_t *ref)
 	r_refdef.vrect.y = ref->y;
 	r_refdef.vrect.width = ref->width;
 	r_refdef.vrect.height = ref->height;
+
+	memcpy(cl.q2frame.areabits, ref->areamask, sizeof(cl.q2frame.areabits));
 #ifdef RGLQUAKE
 	if (qrenderer == QR_OPENGL)
 	{
+		gl_ztrickdisabled|=16;
 		glDisable(GL_ALPHA_TEST);
 		glDisable(GL_BLEND);
 	}
@@ -383,9 +482,18 @@ void VQ3_RenderView(const q3refdef_t *ref)
 #ifdef RGLQUAKE
 	if (qrenderer == QR_OPENGL)
 	{
+		gl_ztrickdisabled&=~16;
 		GL_Set2D ();
 		glBlendFunc (GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
 		GL_TexEnv(GL_MODULATE);
+	}
+#endif
+
+	#ifdef RGLQUAKE
+	if (qrenderer == QR_OPENGL)
+	{
+		glDisable(GL_ALPHA_TEST);
+		glEnable(GL_BLEND);
 	}
 #endif
 
@@ -623,130 +731,7 @@ long UI_SystemCallsEx(void *offset, unsigned int mask, int fn, const long *arg)
 	//	tag, model, startFrame, endFrame, frac, tagName
 		if ((int)arg[0] + sizeof(float)*12 >= mask || VM_POINTER(arg[0]) < offset)
 			break;	//out of bounds.
-
-		{
-			int tagnum;
-			float *ang;
-			float *org;
-
-			float *org1;
-			float *ang1;
-			float *org2;
-			float *ang2;
-
-			float l1;
-			float l2;
-
-			int f1 = VM_LONG(arg[2]);
-			int f2 = VM_LONG(arg[3]);
-
-			org = (float*)VM_POINTER(arg[0]);
-			ang = ((float*)VM_POINTER(arg[0])+3);
-
-			l1 = 1-VM_FLOAT(arg[4]);
-			l2 = VM_FLOAT(arg[4]);
-
-
-			if (Mod_GetTag)
-			{
-				if (Mod_TagNumForName)
-					tagnum = Mod_TagNumForName((model_t *)VM_LONG(arg[1]), (char*)VM_POINTER(arg[5]));
-				else
-					tagnum = 0;
-				Mod_GetTag((model_t *)VM_LONG(arg[1]), tagnum, f1, &org1, &ang1);
-				Mod_GetTag((model_t *)VM_LONG(arg[1]), tagnum, f2, &org2, &ang2);
-			}
-			else
-				ang1=ang2=NULL;
-			if (ang1 && ang2)
-			{
-				org[0] = org1[0]*l1 + org2[0]*l2;
-				org[1] = org1[1]*l1 + org2[1]*l2;
-				org[2] = org1[2]*l1 + org2[2]*l2;
-
-				ang[0] = ang1[0]*l1 + ang2[0]*l2;
-				ang[1] = ang1[1]*l1 + ang2[1]*l2;
-				ang[2] = ang1[2]*l1 + ang2[2]*l2;
-
-				ang[3] = ang1[3]*l1 + ang2[3]*l2;
-				ang[4] = ang1[4]*l1 + ang2[4]*l2;
-				ang[5] = ang1[5]*l1 + ang2[5]*l2;
-
-				ang[6] = ang1[6]*l1 + ang2[6]*l2;
-				ang[7] = ang1[7]*l1 + ang2[7]*l2;
-				ang[8] = ang1[8]*l1 + ang2[8]*l2;
-			}
-			else
-			{
-				org[0] = 0;
-				org[1] = 0;
-				org[2] = 0;
-
-				ang[0] = 1;
-				ang[1] = 0;
-				ang[2] = 0;
-
-				ang[3] = 0;
-				ang[4] = 1;
-				ang[5] = 0;
-
-				ang[6] = 0;
-				ang[7] = 0;
-				ang[8] = 1;
-			}
-		}
-/*
-		{
-#ifdef RGLQUAKE
-			float *org1;
-			float *org2;
-			float l1;
-			float l2;
-
-//			m3by3_t *ang1;
-//			m3by3_t *ang2;
-#endif
-			m3by3_t *ang;
-			float *org;
-
-			org = (float*)VM_POINTER(arg[0]);
-			ang = (m3by3_t *)((float*)VM_POINTER(arg[0])+3);
-
-			switch(qrenderer)
-			{
-#ifdef RGLQUAKE
-			case QR_OPENGL:
-
-				GetTag((model_t *)VM_LONG(arg[1]), VM_POINTER(arg[5]), VM_LONG(arg[2]), &org1, &ang1);
-				GetTag((model_t *)VM_LONG(arg[1]), VM_POINTER(arg[5]), VM_LONG(arg[3]), &org2, &ang2);
-
-				l1 = 1-VM_FLOAT(arg[4]);
-				l2 = VM_FLOAT(arg[4]);
-
-				org[0] = org1[0]*l1 + org2[0]*l2;
-				org[1] = org1[1]*l1 + org2[1]*l2;
-				org[2] = org1[2]*l1 + org2[2]*l2;
-
-				(*ang)[0][0] = (*ang1)[0][0]*l1 + (*ang2)[0][0]*l2;
-				(*ang)[0][1] = (*ang1)[0][1]*l1 + (*ang2)[0][1]*l2;
-				(*ang)[0][2] = (*ang1)[0][2]*l1 + (*ang2)[0][2]*l2;
-
-				(*ang)[1][0] = (*ang1)[1][0]*l1 + (*ang2)[1][0]*l2;
-				(*ang)[1][1] = (*ang1)[1][1]*l1 + (*ang2)[1][1]*l2;
-				(*ang)[1][2] = (*ang1)[1][2]*l1 + (*ang2)[1][2]*l2;
-
-				(*ang)[2][0] = (*ang1)[2][0]*l1 + (*ang2)[2][0]*l2;
-				(*ang)[2][1] = (*ang1)[2][1]*l1 + (*ang2)[2][1]*l2;
-				(*ang)[2][2] = (*ang1)[2][2]*l1 + (*ang2)[2][2]*l2;
-				break;
-#endif
-			default:
-				memset(org, 0, sizeof(vec3_t));
-				memset(ang, 0, sizeof(m3by3_t));
-				break;
-			}
-		}
-		*/
+		VM_LerpTag(VM_POINTER(arg[0]), (model_t*)VM_LONG(arg[1]), VM_LONG(arg[2]), VM_LONG(arg[3]), VM_FLOAT(arg[4]), VM_POINTER(arg[5]));
 		break;
 
 	case UI_SOUND_PRECACHE:

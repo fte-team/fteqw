@@ -43,7 +43,7 @@ qbyte	bottommask[128*131];
 qbyte	newsky[128*256];	// newsky and topsky both pack in here, 128 bytes
 							//  of newsky on the left of each scan, 128 bytes
 							//  of topsky on the right, because the low-level
-							//  drawers need 256-qbyte scan widths
+							//  drawers need 256-byte scan widths
 
 
 /*

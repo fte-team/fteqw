@@ -1330,6 +1330,9 @@ void S_Update_(soundcardinfo_t *sc)
 	if (!sound_started)// || (snd_blocked > 0))
 		return;
 
+	if (sc->selfpainting)
+		return;
+
 // Updates DMA time
 	GetSoundtime(sc);
 

@@ -111,13 +111,14 @@ void RSpeedShow(void)
 	}
 }
 
-void SCR_DrawTwoDimensional(int uimenu)
+void SCR_DrawTwoDimensional(int uimenu, qboolean nohud)
 {
 	RSpeedMark();
 	//
 	// draw any areas not covered by the refresh
 	//
-	SCR_TileClear ();
+	if (!nohud)
+		SCR_TileClear ();
 
 	if (r_netgraph.value)
 		GLR_NetGraph ();
@@ -125,7 +126,8 @@ void SCR_DrawTwoDimensional(int uimenu)
 	if (scr_drawdialog)
 	{
 #ifdef PLUGINS
-		Plug_SBar ();
+		if (!nohud)
+			Plug_SBar ();
 #endif
 		SCR_ShowPics_Draw();
 		Draw_FadeScreen ();
@@ -154,19 +156,24 @@ void SCR_DrawTwoDimensional(int uimenu)
 	{
 	}
 	else
-	{		
-		Draw_Crosshair();
+	{
+		if (!nohud)
+		{
+			Draw_Crosshair();
 
-		SCR_DrawRam ();
-		SCR_DrawNet ();
-		SCR_DrawFPS ();
-		SCR_DrawUPS ();
-		SCR_DrawTurtle ();
-		SCR_DrawPause ();
+			SCR_DrawRam ();
+			SCR_DrawNet ();
+			SCR_DrawFPS ();
+			SCR_DrawUPS ();
+			SCR_DrawTurtle ();
+			SCR_DrawPause ();
 #ifdef PLUGINS
-		Plug_SBar ();
+			Plug_SBar ();
 #endif
-		SCR_ShowPics_Draw();
+			SCR_ShowPics_Draw();
+		}
+		else
+			SCR_DrawFPS ();
 		SCR_CheckDrawCenterString ();
 	glTexEnvi ( GL_TEXTURE_ENV, GL_TEXTURE_ENV_MODE, GL_MODULATE );
 #ifdef TEXTEDITOR
@@ -200,6 +207,7 @@ void GLSCR_UpdateScreen (void)
 #ifdef TEXTEDITOR
 	extern qboolean editormodal, editoractive;
 #endif
+	qboolean nohud;
 	RSpeedMark();
 
 	if (block_drawing)
@@ -328,7 +336,14 @@ void GLSCR_UpdateScreen (void)
 // do 3D refresh drawing, and then update the screen
 //
 	SCR_SetUpToDrawConsole ();
-	if (cl.worldmodel && uimenu != 1)
+
+	nohud = false;
+#ifdef VM_CG
+	if (CG_Refresh())
+		nohud = true;
+	else
+#endif
+		if (cl.worldmodel && uimenu != 1)
 		V_RenderView ();
 	else
 		GL_DoSwap();
@@ -337,7 +352,7 @@ void GLSCR_UpdateScreen (void)
 
 	GLR_BrightenScreen();
 
-	SCR_DrawTwoDimensional(uimenu);
+	SCR_DrawTwoDimensional(uimenu, nohud);
 
 	GLV_UpdatePalette ();
 #if defined(_WIN32) && defined(RGLQUAKE)

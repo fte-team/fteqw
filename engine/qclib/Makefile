@@ -1,5 +1,7 @@
 QCC_OBJS=qccmain.c qcc_cmdlib.c qcc_pr_comp.c qcc_pr_lex.c comprout.c hash.c qcd_main.c
 
+CC=gcc
+
 all: qcc
 
 

@@ -818,6 +818,7 @@ void MSG_BeginReading (void)
 {
 	msg_readcount = 0;
 	msg_badread = false;
+	net_message.currentbit = 0;
 }
 
 int MSG_GetReadCount(void)
@@ -825,10 +826,140 @@ int MSG_GetReadCount(void)
 	return msg_readcount;
 }
 
+
+/*
+============
+MSG_ReadRawBytes
+============
+*/
+static int MSG_ReadRawBytes(sizebuf_t *msg, int bits)
+{
+	int bitmask = 0;
+
+	if (bits <= 8)
+	{
+		bitmask = (unsigned char)msg->data[msg_readcount];
+		msg_readcount++;
+		msg->currentbit += 8;
+	}
+	else if (bits <= 16)
+	{
+		bitmask = (unsigned short)(msg->data[msg_readcount]
+			+ (msg->data[msg_readcount+1] << 8));
+		msg_readcount += 2;
+		msg->currentbit += 16;
+	}
+	else if (bits <= 32)
+	{
+		bitmask = msg->data[msg_readcount]
+			+ (msg->data[msg_readcount+1] << 8)
+			+ (msg->data[msg_readcount+2] << 16)
+			+ (msg->data[msg_readcount+3] << 24);
+		msg_readcount += 4;
+		msg->currentbit += 32;
+	}
+
+	return bitmask;
+}
+
+/*
+============
+MSG_ReadRawBits
+============
+*/
+static int MSG_ReadRawBits(sizebuf_t *msg, int bits)
+ {
+	int i;
+	int val;
+	int bitmask = 0;
+
+	for(i=0 ; i<bits ; i++)
+	{
+		val = msg->data[msg->currentbit >> 3] >> (msg->currentbit & 7);
+		msg->currentbit++;
+		bitmask |= (val & 1) << i;		
+	}
+
+	return bitmask;
+}
+
+/*
+============
+MSG_ReadHuffBits
+============
+*/
+static int MSG_ReadHuffBits(sizebuf_t *msg, int bits)
+{
+	int i;
+	int val;
+	int bitmask;
+	int remaining = bits & 7;
+
+	bitmask = MSG_ReadRawBits(msg, remaining);
+		
+	for (i=0 ; i<bits-remaining ; i+=8)
+	{
+		val = Huff_GetByte(msg->data, &msg->currentbit);
+		bitmask |= val << (i + remaining);
+	}
+
+	msg_readcount = (msg->currentbit >> 3) + 1;
+
+	return bitmask;
+}
+
+int MSG_ReadBits(int bits)
+{
+	int i, val;
+	int bitmask = 0;
+	qboolean extend = false;
+
+#ifdef PARANOID
+	if (!bits || bits < -31 || bits > 32)
+		Host_EndGame("MSG_ReadBits: bad bits %i", bits );
+#endif
+
+	if (bits < 0)
+	{
+		bits = -bits;
+		extend = true;
+	}
+
+	switch(net_message.packing)
+	{
+	default:
+	case SZ_BAD:
+		Sys_Error("MSG_ReadBits: bad net_message.packing");
+		break;
+	case SZ_RAWBYTES:
+		bitmask = MSG_ReadRawBytes(&net_message, bits);
+		break;
+	case SZ_RAWBITS:
+		bitmask = MSG_ReadRawBits(&net_message, bits);
+		break;
+	case SZ_HUFFMAN:
+		bitmask = MSG_ReadHuffBits(&net_message, bits);
+		break;
+	}
+
+	if (extend)
+	{
+		if(bitmask & (1 << (bits - 1)))
+		{
+			bitmask |= ~((1 << bits) - 1);
+		}
+	}
+
+	return bitmask;
+}
+
 // returns -1 and sets msg_badread if no more characters are available
 int MSG_ReadChar (void)
 {
 	int	c;
+
+	if (net_message.packing!=SZ_RAWBYTES)
+		return (signed char)MSG_ReadBits(8);
 	
 	if (msg_readcount+1 > net_message.cursize)
 	{
@@ -844,7 +975,10 @@ int MSG_ReadChar (void)
 
 int MSG_ReadByte (void)
 {
-	int	c;
+	unsigned char	c;
+
+	if (net_message.packing!=SZ_RAWBYTES)
+		return (unsigned char)MSG_ReadBits(8);
 	
 	if (msg_readcount+1 > net_message.cursize)
 	{
@@ -861,6 +995,9 @@ int MSG_ReadByte (void)
 int MSG_ReadShort (void)
 {
 	int	c;
+
+	if (net_message.packing!=SZ_RAWBYTES)
+		return (short)MSG_ReadBits(16);
 	
 	if (msg_readcount+2 > net_message.cursize)
 	{
@@ -879,6 +1016,9 @@ int MSG_ReadShort (void)
 int MSG_ReadLong (void)
 {
 	int	c;
+
+	if (net_message.packing!=SZ_RAWBYTES)
+		return (int)MSG_ReadBits(32);
 	
 	if (msg_readcount+4 > net_message.cursize)
 	{
@@ -904,6 +1044,12 @@ float MSG_ReadFloat (void)
 		float	f;
 		int	l;
 	} dat;
+
+	if (net_message.packing!=SZ_RAWBYTES)
+	{
+		dat.l = MSG_ReadBits(32);
+		return dat.f;
+	}
 
 	if (msg_readcount+4 > net_message.cursize)
 	{

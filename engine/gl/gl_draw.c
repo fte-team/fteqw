@@ -65,8 +65,8 @@ extern cvar_t		gl_savecompressedtex;
 extern cvar_t		gl_load24bit;
 
 qbyte		*draw_chars;				// 8*8 graphic characters
-qpic_t		*draw_disc;
-qpic_t		*draw_backtile;
+mpic_t		*draw_disc;
+mpic_t		*draw_backtile;
 
 int			translate_texture;
 int			char_texture, char_tex2, default_char_texture;
@@ -82,9 +82,9 @@ typedef struct
 	float	sl, tl, sh, th;
 } glpic_t;
 
-qbyte		conback_buffer[sizeof(qpic_t) + sizeof(glpic_t)];
-qbyte		custconback_buffer[sizeof(qpic_t) + sizeof(glpic_t)];
-qpic_t		*default_conback = (qpic_t *)&conback_buffer, *conback, *custom_conback = (qpic_t *)&custconback_buffer;
+qbyte		conback_buffer[sizeof(mpic_t) + sizeof(glpic_t)];
+qbyte		custconback_buffer[sizeof(mpic_t) + sizeof(glpic_t)];
+mpic_t		*default_conback = (mpic_t *)&conback_buffer, *conback, *custom_conback = (mpic_t *)&custconback_buffer;
 
 #include "hash.h"
 hashtable_t gltexturetable;
@@ -188,7 +188,7 @@ void Scrap_Upload (void)
 typedef struct glcachepic_s
 {
 	char		name[MAX_QPATH];
-	qpic_t		pic;
+	mpic_t		pic;
 	qbyte		padding[32];	// for appended glpic
 } glcachepic_t;
 
@@ -201,7 +201,7 @@ qbyte		menuplyr_pixels[4096];
 int		pic_texels;
 int		pic_count;
 
-qpic_t *GLDraw_IsCached(char *name)
+mpic_t *GLDraw_IsCached(char *name)
 {
 	glcachepic_t *pic;
 	int i;
@@ -213,7 +213,7 @@ qpic_t *GLDraw_IsCached(char *name)
 	return NULL;
 }
 
-qboolean Draw_RealPicFromWad (qpic_t	*out, char *name)
+qboolean Draw_RealPicFromWad (mpic_t	*out, char *name)
 {
 	qpic_t	*in;
 	glpic_t	*gl;
@@ -292,7 +292,7 @@ qboolean Draw_RealPicFromWad (qpic_t	*out, char *name)
 }
 
 char *failedpic;	//easier this way
-qpic_t *GLDraw_SafePicFromWad (char *name)
+mpic_t *GLDraw_SafePicFromWad (char *name)
 {
 	int i;
 	glcachepic_t	*pic;
@@ -315,20 +315,22 @@ qpic_t *GLDraw_SafePicFromWad (char *name)
 	return &pic->pic;
 }
 
-qpic_t *GLDraw_PicFromWad (char *name)
+mpic_t *GLDraw_PicFromWad (char *name)
 {
-	qpic_t	*pic = GLDraw_SafePicFromWad (name);
+	mpic_t	*pic = GLDraw_SafePicFromWad (name);
 	if (!pic)
 		Sys_Error ("GLDraw_PicFromWad: failed to load %s", name);
 
 	return pic;
 }
 
-qpic_t	*GLDraw_SafeCachePic (char *path)
+mpic_t	*GLDraw_SafeCachePic (char *path)
 {
+	int height;
+	qbyte *data;
 	glcachepic_t	*pic;
 	int			i;
-	qpic_t		*dat;
+	qpic_t		*qpic;
 	glpic_t		*gl;
 
 	for (pic=glmenu_cachepics, i=0 ; i<glmenu_numcachepics ; pic++, i++)
@@ -347,80 +349,13 @@ qpic_t	*GLDraw_SafeCachePic (char *path)
 		char *mem;
 		char alternatename[MAX_QPATH];
 		_snprintf(alternatename, MAX_QPATH-1, "pics/%s.pcx", path);
-		dat = (qpic_t *)COM_LoadMallocFile (alternatename);
-		if (dat)
+		data = COM_LoadMallocFile (alternatename);
+		if (data)
 		{
 			strcpy(pic->name, path);
-			if ((mem = ReadPCXFile((qbyte *)dat, com_filesize, &pic->pic.width, &pic->pic.height)))
+			if ((mem = ReadPCXFile(data, com_filesize, &pic->pic.width, &height)))
 			{
-				gl = (glpic_t *)pic->pic.data;
-				if (!(gl->texnum = Mod_LoadReplacementTexture(alternatename, false, true, false)))
-					gl->texnum = GL_LoadTexture32(path, pic->pic.width, pic->pic.height, (unsigned *)dat, false, false);
-				gl->sl = 0;
-				gl->sh = 1;
-				gl->tl = 0;
-				gl->th = 1;
-
-				BZ_Free(dat);
-				BZ_Free(mem);
-				glmenu_numcachepics++;
-				return &pic->pic;
-			}
-			BZ_Free(dat);
-		}
-	}
-
-	{
-		char *mem;
-		char alternatename[MAX_QPATH];
-		_snprintf(alternatename, MAX_QPATH-1, "%s", path);
-		dat = (qpic_t *)COM_LoadMallocFile (alternatename);
-		if (dat)
-		{
-			strcpy(pic->name, path);
-			mem = NULL;
-			if (!mem)
-				mem = ReadTargaFile((qbyte *)dat, com_filesize, &pic->pic.width, &pic->pic.height, 0);
-#ifdef AVAIL_PNGLIB
-			if (!mem);
-				mem = ReadPNGFile((qbyte *)dat, com_filesize, &pic->pic.width, &pic->pic.height);
-#endif
-#ifdef AVAIL_JPEGLIB
-			if (!mem)
-				mem = ReadJPEGFile((qbyte *)dat, com_filesize, &pic->pic.width, &pic->pic.height);
-#endif
-			if (!mem)
-				mem = ReadPCXFile((qbyte *)dat, com_filesize, &pic->pic.width, &pic->pic.height);
-			if (mem)
-			{
-				gl = (glpic_t *)pic->pic.data;
-				if (!(gl->texnum = Mod_LoadReplacementTexture(alternatename, false, true, false)))
-					gl->texnum = GL_LoadTexture32(path, pic->pic.width, pic->pic.height, (unsigned *)dat, false, true);
-				gl->sl = 0;
-				gl->sh = 1;
-				gl->tl = 0;
-				gl->th = 1;
-
-				BZ_Free(dat);
-				BZ_Free(mem);
-				glmenu_numcachepics++;
-				return &pic->pic;
-			}
-			BZ_Free(dat);
-		}
-	}
-
-#ifdef AVAIL_JPEGLIB
-	{
-		char *mem;
-		char alternatename[MAX_QPATH];
-		_snprintf(alternatename, MAX_QPATH-1,"%s.jpg", path);
-		dat = (qpic_t *)COM_LoadMallocFile (alternatename);
-		if (dat)
-		{
-			strcpy(pic->name, path);
-			if ((mem = ReadJPEGFile((qbyte *)dat, com_filesize, &pic->pic.width, &pic->pic.height)))
-			{
+				pic->pic.height = height;
 				gl = (glpic_t *)pic->pic.data;
 				if (!(gl->texnum = Mod_LoadReplacementTexture(alternatename, false, true, false)))
 					gl->texnum = GL_LoadTexture32(path, pic->pic.width, pic->pic.height, (unsigned *)mem, false, false);
@@ -429,12 +364,82 @@ qpic_t	*GLDraw_SafeCachePic (char *path)
 				gl->tl = 0;
 				gl->th = 1;
 
-				BZ_Free(dat);
+				BZ_Free(data);
 				BZ_Free(mem);
 				glmenu_numcachepics++;
 				return &pic->pic;
 			}
-			BZ_Free(dat);
+			BZ_Free(data);
+		}
+	}
+
+	{
+		char *mem;
+		char alternatename[MAX_QPATH];
+		_snprintf(alternatename, MAX_QPATH-1, "%s", path);
+		data = COM_LoadMallocFile (alternatename);
+		if (data)
+		{
+			strcpy(pic->name, path);
+			mem = NULL;
+			if (!mem)
+				mem = ReadTargaFile((qbyte *)data, com_filesize, &pic->pic.width, &height, 0);
+#ifdef AVAIL_PNGLIB
+			if (!mem);
+				mem = ReadPNGFile((qbyte *)data, com_filesize, &pic->pic.width, &height);
+#endif
+#ifdef AVAIL_JPEGLIB
+			if (!mem)
+				mem = ReadJPEGFile((qbyte *)data, com_filesize, &pic->pic.width, &height);
+#endif
+			if (!mem)
+				mem = ReadPCXFile((qbyte *)data, com_filesize, &pic->pic.width, &height);
+			pic->pic.height = height;
+			if (mem)
+			{
+				gl = (glpic_t *)pic->pic.data;
+				if (!(gl->texnum = Mod_LoadReplacementTexture(alternatename, false, true, false)))
+					gl->texnum = GL_LoadTexture32(path, pic->pic.width, pic->pic.height, (unsigned *)mem, false, true);
+				gl->sl = 0;
+				gl->sh = 1;
+				gl->tl = 0;
+				gl->th = 1;
+
+				BZ_Free(data);
+				BZ_Free(mem);
+				glmenu_numcachepics++;
+				return &pic->pic;
+			}
+			BZ_Free(data);
+		}
+	}
+
+#ifdef AVAIL_JPEGLIB
+	{
+		char *mem;
+		char alternatename[MAX_QPATH];
+		_snprintf(alternatename, MAX_QPATH-1,"%s.jpg", path);
+		data = COM_LoadMallocFile (alternatename);
+		if (data)
+		{
+			strcpy(pic->name, path);
+			if ((mem = ReadJPEGFile(data, com_filesize, &pic->pic.width, &height)))
+			{
+				pic->pic.height = height;
+				gl = (glpic_t *)pic->pic.data;
+				if (!(gl->texnum = Mod_LoadReplacementTexture(alternatename, false, true, false)))
+					gl->texnum = GL_LoadTexture32(path, pic->pic.width, pic->pic.height, (unsigned *)mem, false, false);
+				gl->sl = 0;
+				gl->sh = 1;
+				gl->tl = 0;
+				gl->th = 1;
+
+				BZ_Free(data);
+				BZ_Free(mem);
+				glmenu_numcachepics++;
+				return &pic->pic;
+			}
+			BZ_Free(data);
 		}
 	}
 #endif
@@ -466,25 +471,26 @@ qpic_t	*GLDraw_SafeCachePic (char *path)
 		}
 	}
 */
-	dat = (qpic_t *)COM_LoadTempFile (path);
-	if (!dat)
+	qpic = (qpic_t *)COM_LoadTempFile (path);
+	if (!qpic)
 	{
 		char alternatename[MAX_QPATH];
 		sprintf(alternatename, "gfx/%s.lmp", path);
-		dat = (qpic_t *)COM_LoadTempFile (alternatename);
-		if (!dat)
+		qpic = (qpic_t *)COM_LoadTempFile (alternatename);
+		if (!qpic)
 			return GLDraw_SafePicFromWad(path);
 	}
 
-	SwapPic (dat);
+	SwapPic (qpic);
 
-	if (((8+dat->width*dat->height+3)&(~3)) != ((com_filesize+3)&(~3)))	//round up to the nearest 4.
-	{
+	if (((8+qpic->width*qpic->height+3)&(~3)) != ((com_filesize+3)&(~3)))	//round up to the nearest 4.
+	{	//the filesize didn't match what we were expecting, so it can't be a lmp. reject it.
 		char alternatename[MAX_QPATH];
 		sprintf(alternatename, "gfx/%s.lmp", path);
-		dat = (qpic_t *)COM_LoadTempFile (alternatename);
-		if (!dat)
+		qpic = (qpic_t *)COM_LoadTempFile (alternatename);
+		if (!qpic)
 			return GLDraw_SafePicFromWad(path);
+		SwapPic (qpic);
 	}
 
 	// HACK HACK HACK --- we need to keep the bytes for
@@ -492,19 +498,19 @@ qpic_t	*GLDraw_SafeCachePic (char *path)
 	// configuration dialog
 
 	if (!strncmp (path, "gfx/player/", 11) || !strcmp (path, "gfx/menuplyr.lmp"))	//these arn't cached. I hate hacks.
-		memcpy (menuplyr_pixels, dat->data, dat->width*dat->height);
+		memcpy (menuplyr_pixels, qpic->data, qpic->width*qpic->height);
 	else
 	{
 		glmenu_numcachepics++;
 		Q_strncpyz (pic->name, path, sizeof(pic->name));
 	}
 
-	pic->pic.width = dat->width;
-	pic->pic.height = dat->height;
+	pic->pic.width = qpic->width;
+	pic->pic.height = qpic->height;
 
 	gl = (glpic_t *)pic->pic.data;
 	if (!(gl->texnum = Mod_LoadReplacementTexture(path, false, true, false)))
-		gl->texnum = GL_LoadPicTexture (dat);
+		gl->texnum = GL_LoadPicTexture (qpic);
 	gl->sl = 0;
 	gl->sh = 1;
 	gl->tl = 0;
@@ -512,9 +518,9 @@ qpic_t	*GLDraw_SafeCachePic (char *path)
 
 	return &pic->pic;
 }
-qpic_t	*GLDraw_CachePic (char *path)
+mpic_t	*GLDraw_CachePic (char *path)
 {
-	qpic_t	*pic = GLDraw_SafeCachePic (path);
+	mpic_t	*pic = GLDraw_SafeCachePic (path);
 	if (!pic)
 		Sys_Error ("GLDraw_CachePic: failed to load %s", path);
 
@@ -812,7 +818,7 @@ TRACE(("dbg: GLDraw_ReInit: Allocating upload buffers\n"));
 
 	glClear(GL_COLOR_BUFFER_BIT);
 	{
-		qpic_t *pic = Draw_SafeCachePic ("loading");
+		mpic_t *pic = Draw_SafeCachePic ("loading");
 		if (pic)
 			Draw_Pic ( (vid.width - pic->width)/2, 
 				(vid.height - 48 - pic->height)/2, pic);
@@ -1320,7 +1326,7 @@ void GLDraw_DebugChar (qbyte num)
 Draw_Pic
 =============
 */
-void GLDraw_Pic (int x, int y, qpic_t *pic)
+void GLDraw_Pic (int x, int y, mpic_t *pic)
 {
 	glpic_t			*gl;
 
@@ -1370,7 +1376,7 @@ void GLDraw_Pic (int x, int y, qpic_t *pic)
 #endif
 }
 
-void GLDraw_ScalePic (int x, int y, int width, int height, qpic_t *pic)
+void GLDraw_ScalePic (int x, int y, int width, int height, mpic_t *pic)
 {
 	glpic_t			*gl;
 
@@ -1399,7 +1405,7 @@ void GLDraw_ScalePic (int x, int y, int width, int height, qpic_t *pic)
 Draw_AlphaPic
 =============
 */
-void GLDraw_AlphaPic (int x, int y, qpic_t *pic, float alpha)
+void GLDraw_AlphaPic (int x, int y, mpic_t *pic, float alpha)
 {
 	glpic_t			*gl;
 
@@ -1427,7 +1433,7 @@ void GLDraw_AlphaPic (int x, int y, qpic_t *pic, float alpha)
 	glDisable (GL_BLEND);
 }
 
-void GLDraw_SubPic(int x, int y, qpic_t *pic, int srcx, int srcy, int width, int height)
+void GLDraw_SubPic(int x, int y, mpic_t *pic, int srcx, int srcy, int width, int height)
 {
 	glpic_t			*gl;
 	float newsl, newtl, newsh, newth;
@@ -1488,7 +1494,7 @@ void GLDraw_SubPic(int x, int y, qpic_t *pic, int srcx, int srcy, int width, int
 Draw_TransPic
 =============
 */
-void GLDraw_TransPic (int x, int y, qpic_t *pic)
+void GLDraw_TransPic (int x, int y, mpic_t *pic)
 {
 	if (!pic)
 		return;
@@ -1511,7 +1517,7 @@ Draw_TransPicTranslate
 Only used for the player color selection menu
 =============
 */
-void GLDraw_TransPicTranslate (int x, int y, qpic_t *pic, qbyte *translation)
+void GLDraw_TransPicTranslate (int x, int y, mpic_t *pic, qbyte *translation)
 {
 	int				v, u, c;
 	unsigned		trans[64*64], *dest;
@@ -1695,7 +1701,7 @@ void GLDraw_ImageColours(float r, float g, float b, float a)
 	glColor4f(r, g, b, a);
 }
 
-void GLDraw_Image(float x, float y, float w, float h, float s1, float t1, float s2, float t2, qpic_t *pic)
+void GLDraw_Image(float x, float y, float w, float h, float s1, float t1, float s2, float t2, mpic_t *pic)
 {
 	glpic_t			*gl;
 

@@ -512,6 +512,7 @@ void QCC_PR_PrintStatement (QCC_dstatement_t *s);
 void QCC_PR_Lex (void);
 // reads the next token into pr_token and classifies its type
 
+QCC_type_t *QCC_PR_NewType (char *name, int basictype);
 QCC_type_t *QCC_PR_ParseType (int newtype);
 QCC_type_t *QCC_TypeForName(char *name);
 QCC_type_t *QCC_PR_ParseFunctionType (int newtype, QCC_type_t *returntype);

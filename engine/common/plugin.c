@@ -358,7 +358,7 @@ typedef struct {
 	plugin_t *plugin;
 	char name[64];
 	qboolean picfromwad;
-	qpic_t *pic;
+	mpic_t *pic;
 } pluginimagearray_t;
 int pluginimagearraylen;
 pluginimagearray_t *pluginimagearray;
@@ -369,7 +369,7 @@ int Plug_Draw_LoadImage(void *offset, unsigned int mask, const long *arg)
 	qboolean fromwad = arg[1];
 	int i;
 
-	qpic_t *pic;
+	mpic_t *pic;
 
 	for (i = 0; i < pluginimagearraylen; i++)
 	{
@@ -430,14 +430,14 @@ void Plug_DrawReloadImages(void)
 	}
 }
 
-void GLDraw_Image(float x, float y, float w, float h, float s1, float t1, float s2, float t2, qpic_t *pic);
-void SWDraw_Image (float xp, float yp, float wp, float hp, float s1, float t1, float s2, float t2, qpic_t *pic);
 //int Draw_Image (float x, float y, float w, float h, float s1, float t1, float s2, float t2, qhandle_t image)
 int Plug_Draw_Image(void *offset, unsigned int mask, const long *arg)
 {
-	qpic_t *pic;
+	mpic_t *pic;
 	int i;
 	if (!qrenderer)
+		return 0;
+	if (!Draw_Image)
 		return 0;
 
 	i = VM_LONG(arg[8]);
@@ -453,24 +453,7 @@ int Plug_Draw_Image(void *offset, unsigned int mask, const long *arg)
 	else
 		pic = Draw_CachePic(pluginimagearray[i].name);
 
-#ifdef RGLQUAKE
-	switch (qrenderer)
-	{
-	case QR_OPENGL:
-		glEnable(GL_BLEND);
-		glDisable(GL_DEPTH_TEST);
-		glDisable(GL_ALPHA_TEST);
-		GLDraw_Image(VM_FLOAT(arg[0]), VM_FLOAT(arg[1]), VM_FLOAT(arg[2]), VM_FLOAT(arg[3]), VM_FLOAT(arg[4]), VM_FLOAT(arg[5]), VM_FLOAT(arg[6]), VM_FLOAT(arg[7]), pic);
-		break;
-	}
-#endif
-
-	if (Draw_Image)
-	{
-		Draw_Image(VM_FLOAT(arg[0]), VM_FLOAT(arg[1]), VM_FLOAT(arg[2]), VM_FLOAT(arg[3]), VM_FLOAT(arg[4]), VM_FLOAT(arg[5]), VM_FLOAT(arg[6]), VM_FLOAT(arg[7]), pic);
-		return 1;
-	}
-
+	Draw_Image(VM_FLOAT(arg[0]), VM_FLOAT(arg[1]), VM_FLOAT(arg[2]), VM_FLOAT(arg[3]), VM_FLOAT(arg[4]), VM_FLOAT(arg[5]), VM_FLOAT(arg[6]), VM_FLOAT(arg[7]), pic);
 	return 1;
 }
 

@@ -588,7 +588,7 @@ void GLR_DrawEntitiesOnList (void)
 		switch (currententity->model->type)
 		{
 		case mod_alias:
-			if (!cl.worldmodel || cl.worldmodel->fromgame == fg_doom)
+			if (r_refdef.flags & 1 || !cl.worldmodel || cl.worldmodel->fromgame == fg_doom)
 				R_DrawGAliasModel (currententity);
 			break;
 		

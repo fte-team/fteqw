@@ -167,6 +167,7 @@ typedef struct
 	usercmd_t	cmd[MAX_SPLITS];		// cmd that generated the frame
 	double		senttime;	// time cmd was sent off
 	int			delta_sequence;		// sequence number to delta from, -1 = full update
+	int			cmd_sequence;
 
 	// received from server
 	double		receivedtime;	// time message was received, or -1

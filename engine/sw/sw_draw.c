@@ -40,8 +40,10 @@ typedef struct {
 static rectdesc_t	r_rectdesc;
 
 qbyte		*draw_chars;				// 8*8 graphic characters
-qpic_t		*draw_disc;
-qpic_t		*draw_backtile;
+//mpic_t		*draw_disc;
+mpic_t		*draw_backtile;
+
+void SWDraw_TransPic (int x, int y, mpic_t *pic);
 
 //=============================================================================
 /* Support Routines */
@@ -61,16 +63,16 @@ int			swmenu_numcachepics;
 Draw_CachePic
 ================
 */
-qpic_t	*SWDraw_SafeCachePic (char *extpath)
+mpic_t	*SWDraw_SafeCachePic (char *extpath)
 {
 	swcachepic_t	*pic;
 	int			i;
-	qpic_t		*dat;
+	mpic_t		*dat;
 	char alternatename[MAX_QPATH];
 	char path[MAX_QPATH];
 	Q_strncpyz(path, extpath, sizeof(path));
 	COM_StripExtension(path, path);
-	
+
 	for (pic=swmenu_cachepics, i=0 ; i<swmenu_numcachepics ; pic++, i++)
 		if (!strcmp (path, pic->name))
 			break;
@@ -101,13 +103,17 @@ qpic_t	*SWDraw_SafeCachePic (char *extpath)
 			BZ_Free(file);
 			if (image)
 			{
-				dat = Cache_Alloc(&pic->cache, sizeof(qpic_t) + width*height, path);
-				dat->width = width;
-				dat->height = height;
+				dat = Cache_Alloc(&pic->cache, sizeof(mpic_t) + width*height, path);
+				((mpic_t*)dat)->width = width;
+				((mpic_t*)dat)->height = height;
+				((mpic_t*)dat)->flags = 0;
 				for (i = 0; i < width*height; i++)
 				{
 					if (image[i*4+3] < 64) // 25% threshhold
+					{
+						((mpic_t*)dat)->flags |= MPIC_ALPHA;
 						dat->data[i] = 255;
+					}
 					else
 						dat->data[i] = GetPalette(image[i*4], image[i*4+1], image[i*4+2]);
 				}
@@ -132,13 +138,17 @@ qpic_t	*SWDraw_SafeCachePic (char *extpath)
 			BZ_Free(file);
 			if (image)
 			{
-				dat = Cache_Alloc(&pic->cache, sizeof(qpic_t) + width*height, path);
-				dat->width = width;
-				dat->height = height;
+				dat = Cache_Alloc(&pic->cache, sizeof(mpic_t) + width*height, path);
+				((mpic_t*)dat)->width = width;
+				((mpic_t*)dat)->height = height;
+				((mpic_t*)dat)->flags = 0;
 				for (i = 0; i < width*height; i++)
 				{
 					if (image[i*4+3] < 64) // 25% threshhold
+					{
+						((mpic_t*)dat)->flags |= MPIC_ALPHA;
 						dat->data[i] = 255;
+					}
 					else
 						dat->data[i] = GetPalette(image[i*4], image[i*4+1], image[i*4+2]);
 				}
@@ -163,13 +173,17 @@ qpic_t	*SWDraw_SafeCachePic (char *extpath)
 			BZ_Free(file);
 			if (image)
 			{
-				dat = Cache_Alloc(&pic->cache, sizeof(qpic_t) + width*height, path);
-				dat->width = width;
-				dat->height = height;
+				dat = Cache_Alloc(&pic->cache, sizeof(mpic_t) + width*height, path);
+				((mpic_t*)dat)->width = width;
+				((mpic_t*)dat)->height = height;
+				((mpic_t*)dat)->flags = 0;
 				for (i = 0; i < width*height; i++)
 				{
 					if (image[i*4+3] < 64) // 25% threshhold
+					{
+						((mpic_t*)dat)->flags |= MPIC_ALPHA;
 						dat->data[i] = 255;
+					}
 					else
 						dat->data[i] = GetPalette(image[i*4], image[i*4+1], image[i*4+2]);
 				}
@@ -187,24 +201,29 @@ qpic_t	*SWDraw_SafeCachePic (char *extpath)
 	_snprintf(alternatename, MAX_QPATH-1,"%s.lmp", path);
 	COM_LoadCacheFile (alternatename, &pic->cache);
 	
-	dat = (qpic_t *)pic->cache.data;
+	dat = pic->cache.data;
 	if (!dat)
 	{
 		char alternatename[MAX_QPATH];
 		sprintf(alternatename, "gfx/%s.lmp", path);
-		dat = (qpic_t *)COM_LoadTempFile (alternatename);
+		COM_LoadCacheFile(alternatename, &pic->cache);
+		dat = pic->cache.data;
 		if (!dat)
 			return NULL;
 //		Sys_Error ("Draw_CachePic: failed to load %s", path);
 	}
 
-	SwapPic (dat);
+	SwapPic ((qpic_t*)dat);
+
+	((mpic_t*)dat)->width = ((qpic_t*)dat)->width;
+	((mpic_t*)dat)->height = ((qpic_t*)dat)->height;
+	((mpic_t*)dat)->flags = 0;
 
 	return dat;
 }
-qpic_t	*SWDraw_CachePic (char *path)
+mpic_t	*SWDraw_CachePic (char *path)
 {
-	qpic_t	*pic;
+	mpic_t	*pic;
 	pic = SWDraw_SafeCachePic(path);
 	if (!pic)
 		Sys_Error ("Draw_CachePic: failed to load %s", path);
@@ -212,7 +231,7 @@ qpic_t	*SWDraw_CachePic (char *path)
 	return pic;
 }
 
-qpic_t *SWDraw_ConcharsMalloc (char *name)
+mpic_t *SWDraw_ConcharsMalloc (char *name)
 {
 	// stupid hack for conchars...
 	qpic_t *dat;
@@ -235,14 +254,15 @@ qpic_t *SWDraw_ConcharsMalloc (char *name)
 		for (j = 0; j < 128*128; j++)
 			dat->data[j] = (draw_chars[j] == 255 || !draw_chars[j]) ? draw_chars[j] ^ 255 : draw_chars[j];
 //		memcpy (dat->data, draw_chars, 128*128);
-		dat->width = dat->height = 128;
+		((mpic_t*)dat)->width = ((mpic_t*)dat)->height = 128;
+		((mpic_t*)dat)->flags = 1;
 		strcpy (pic->name, name);
 	}
 
 	return pic->cache.data;
 }
 
-qpic_t	*SWDraw_MallocPic (char *path)
+mpic_t	*SWDraw_MallocPic (char *path)
 {
 	int			i;
 	qpic_t		*dat;
@@ -265,7 +285,7 @@ qpic_t	*SWDraw_MallocPic (char *path)
 	dat = Cache_Check (&pic->cache);
 
 	if (dat)
-		return dat;
+		return (mpic_t	*)dat;
 
 
 
@@ -286,14 +306,15 @@ qpic_t	*SWDraw_MallocPic (char *path)
 				{
 					pic->cache.data = dat;
 					pic->cache.fake = true;
-					dat->width = width;
-					dat->height = height;
+					((mpic_t*)dat)->width = width;
+					((mpic_t*)dat)->height = height;
+					((mpic_t*)dat)->flags = 0;
 					for (i = 0; i < width*height; i++)
 						dat->data[i] = GetPalette(image[i*4], image[i*4+1], image[i*4+2]);
 
 					BZ_Free(image);
 
-					return dat;
+					return (mpic_t	*)dat;
 				}
 				BZ_Free(image);
 			}
@@ -315,22 +336,35 @@ qpic_t	*SWDraw_MallocPic (char *path)
 
 	SwapPic (dat);
 
-	return dat;
+	((mpic_t*)dat)->width = dat->width;
+	((mpic_t*)dat)->height = dat->height;
+	((mpic_t*)dat)->flags = 0;
+
+	return (mpic_t	*)dat;
 }
-qpic_t	*SWDraw_PicFromWad (char *name)
+mpic_t	*SWDraw_PicFromWad (char *name)
 {
 	char q2name[MAX_QPATH];
 	qpic_t *qpic;
+	mpic_t *mpic;
 
 	if (!strcmp(name, "conchars")) // conchars hack
 		return SWDraw_ConcharsMalloc("conchars");
 	
 	sprintf(q2name, "pics/%s.pcx", name);
-	qpic = SWDraw_MallocPic(q2name);
-	if (qpic)
-		return qpic;
+	mpic = SWDraw_MallocPic(q2name);
+	if (mpic)
+		return mpic;
 
-	return W_SafeGetLumpName (name);
+	qpic = W_SafeGetLumpName (name);
+	if (!qpic)
+		return NULL;
+
+	mpic = (mpic_t *)qpic;
+	mpic->width = qpic->width;
+	mpic->height = qpic->height;
+	mpic->flags = memchr (&qpic->data, 255, mpic->width * mpic->height)?MPIC_ALPHA:0;
+	return mpic;
 }
 
 
@@ -347,10 +381,10 @@ void SWDraw_Init (void)
 	draw_chars = W_SafeGetLumpName ("conchars");	//q1
 	if (!draw_chars)
 	{
-		qpic_t *pic;	//try q2
+		mpic_t *pic;	//try q2
 		int i;
 		int s;
-		pic = SWDraw_MallocPic("pics/conchars.pcx");	//safe from host_hunkmarks...
+		pic = (mpic_t *)SWDraw_MallocPic("pics/conchars.pcx");	//safe from host_hunkmarks...
 		if (pic)
 		{
 			draw_chars = pic->data;
@@ -409,10 +443,15 @@ void SWDraw_Init (void)
 	draw_disc = W_SafeGetLumpName ("disc");
 	draw_backtile = W_SafeGetLumpName ("backtile");
 	if (!draw_backtile)
-		draw_backtile = (qpic_t	*)COM_LoadMallocFile("gfx/menu/backtile.lmp");
+		draw_backtile = (mpic_t	*)COM_LoadMallocFile("gfx/menu/backtile.lmp");
 
 	if (draw_backtile)
 	{
+		{
+			((mpic_t*)draw_backtile)->width = ((qpic_t*)draw_backtile)->width;
+			((mpic_t*)draw_backtile)->height = ((qpic_t*)draw_backtile)->height;
+			((mpic_t*)draw_backtile)->flags = 0;
+		}
 		r_rectdesc.width = draw_backtile->width;
 		r_rectdesc.height = draw_backtile->height;
 		r_rectdesc.ptexbytes = draw_backtile->data;
@@ -881,13 +920,19 @@ void SWDraw_DebugChar (qbyte num)
 Draw_Pic
 =============
 */
-void SWDraw_Pic (int x, int y, qpic_t *pic)
+void SWDraw_Pic (int x, int y, mpic_t *pic)
 {
 	qbyte			*dest, *source;
 	int				v, u;
 
 	if (!pic)
 		return;
+
+	if (pic->flags & MPIC_ALPHA)
+	{
+		SWDraw_TransPic(x, y, pic);
+		return;
+	}
 
 	if ((x < 0) ||
 		(x + pic->width > vid.width) ||
@@ -939,16 +984,115 @@ void SWDraw_Pic (int x, int y, qpic_t *pic)
 	}
 }
 
-
 /*
 =============
 Draw_SubPic
 =============
 */
-void SWDraw_SubPic(int x, int y, qpic_t *pic, int srcx, int srcy, int width, int height)
+void SWDraw_TransSubPic(int x, int y, qpic_t *qpic, int srcx, int srcy, int width, int height)
 {
+	mpic_t *pic = (mpic_t *)qpic;
 	qbyte			*dest, *source;
 	int				v, u;
+
+	if ((x < 0) ||
+		(x + width > vid.width) ||
+		(y < 0) ||
+		(y + height > vid.height))
+	{
+		Sys_Error ("Draw_Pic: bad coordinates");
+	}
+
+	source = pic->data + srcy * pic->width + srcx;
+
+	if (r_pixbytes == 1)
+	{
+		qbyte tbyte;
+		dest = vid.buffer + y * vid.rowbytes + x;
+
+		if (pic->width & 7)
+		{	// general
+			for (v=0 ; v<height ; v++)
+			{
+				for (u=0 ; u<width ; u++)
+					if ( (tbyte=source[u]) != TRANSPARENT_COLOR)
+						dest[u] = tbyte;
+	
+				dest += vid.rowbytes;
+				source += pic->width;
+			}
+		}
+		else
+		{	// unwound
+			for (v=0 ; v<height ; v++)
+			{
+				for (u=0 ; u<width ; u+=8)
+				{
+					if ( (tbyte=source[u]) != TRANSPARENT_COLOR)
+						dest[u] = tbyte;
+					if ( (tbyte=source[u+1]) != TRANSPARENT_COLOR)
+						dest[u+1] = tbyte;
+					if ( (tbyte=source[u+2]) != TRANSPARENT_COLOR)
+						dest[u+2] = tbyte;
+					if ( (tbyte=source[u+3]) != TRANSPARENT_COLOR)
+						dest[u+3] = tbyte;
+					if ( (tbyte=source[u+4]) != TRANSPARENT_COLOR)
+						dest[u+4] = tbyte;
+					if ( (tbyte=source[u+5]) != TRANSPARENT_COLOR)
+						dest[u+5] = tbyte;
+					if ( (tbyte=source[u+6]) != TRANSPARENT_COLOR)
+						dest[u+6] = tbyte;
+					if ( (tbyte=source[u+7]) != TRANSPARENT_COLOR)
+						dest[u+7] = tbyte;
+				}
+				dest += vid.rowbytes;
+				source += pic->width;
+			}
+		}
+	}
+	else if (r_pixbytes == 2)
+	{
+		unsigned short	*p16dest;
+		p16dest = (unsigned short *)vid.buffer + y * vid.rowbytes + x;
+
+		for (v=0 ; v<height ; v++)
+		{
+			for (u=0 ; u<(width) ; u++)
+				p16dest[u] = d_8to16table[source[u]];
+			p16dest += vid.rowbytes;
+			source += pic->width;
+		}
+	}
+	else if (r_pixbytes == 4)
+	{
+		unsigned int	*p32dest;
+		p32dest = (unsigned int	*)vid.buffer + y * vid.rowbytes + x;
+
+		for (v=0 ; v<height ; v++)
+		{
+			for (u=0 ; u<(width) ; u++)
+				p32dest[u] = d_8to32table[source[u]];
+			p32dest += vid.rowbytes;
+			source += pic->width;
+		}
+	}
+}
+/*
+=============
+Draw_SubPic
+=============
+*/
+void SWDraw_SubPic(int x, int y, qpic_t *qpic, int srcx, int srcy, int width, int height)
+{
+	mpic_t *pic = (mpic_t *)qpic;
+	qbyte			*dest, *source;
+	int				v, u;
+
+	if (pic->flags & MPIC_ALPHA)
+	{
+		SWDraw_TransSubPic(x, y, qpic, srcx, srcy, width, height);
+		return;
+	}
 
 	if ((x < 0) ||
 		(x + width > vid.width) ||
@@ -1005,7 +1149,7 @@ void SWDraw_SubPic(int x, int y, qpic_t *pic, int srcx, int srcy, int width, int
 Draw_TransPic
 =============
 */
-void SWDraw_TransPic (int x, int y, qpic_t *pic)
+void SWDraw_TransPic (int x, int y, mpic_t *pic)
 {
 	qbyte	*source, tbyte;
 	int				v, u;
@@ -1163,8 +1307,9 @@ void SWDraw_TransPic (int x, int y, qpic_t *pic)
 Draw_TransPicTranslate
 =============
 */
-void SWDraw_TransPicTranslate (int x, int y, qpic_t *pic, qbyte *translation)
+void SWDraw_TransPicTranslate (int x, int y, qpic_t *qpic, qbyte *translation)
 {
+	mpic_t *pic = (mpic_t*)qpic;
 	qbyte	*source, tbyte;
 	int				v, u;
 
@@ -1528,8 +1673,9 @@ void SWDraw_ImageColours (float r, float g, float b, float a)	//like glcolour4f
 	SWDraw_Image_Blend = r<1 || b<1 || g<1 || a<1;
 }
 
-void SWDraw_Image (float xp, float yp, float wp, float hp, float s1, float t1, float s2, float t2, qpic_t *pic)
+void SWDraw_Image (float xp, float yp, float wp, float hp, float s1, float t1, float s2, float t2, qpic_t *qpic)
 {
+	mpic_t *pic = (mpic_t*)qpic;
 	float xend, yend, xratio, yratio;
 
 	if (!pic)
@@ -1626,15 +1772,15 @@ void SWDraw_ConsoleBackground (int lines)
 	qbyte			*src;
 	qbyte *dest;
 	int				f, fstep;
-	qpic_t			*conback;
+	mpic_t			*conback;
 	char			ver[100];
 	static			char saveback[320*8];
 
-	conback = SWDraw_SafeCachePic ("gfx/conback.lmp");
+	conback = (mpic_t *)SWDraw_SafeCachePic ("gfx/conback.lmp");
 	if (!conback)
-		conback = SWDraw_SafeCachePic("pics/conback.pcx");
+		conback = (mpic_t *)SWDraw_SafeCachePic("pics/conback.pcx");
 	if (!conback)
-		conback = SWDraw_SafeCachePic ("gfx/menu/conback.lmp");
+		conback = (mpic_t *)SWDraw_SafeCachePic ("gfx/menu/conback.lmp");
 	if (!conback)
 		Sys_Error("gfx/conback.lmp not found\n");
 

@@ -30,7 +30,7 @@ void M_ScanSaves (void)
 		strcpy (m_filenames[i], "--- UNUSED SLOT ---");
 		loadable[i] = false;
 
-		sprintf (name, "%s/s%i/info.fsv", com_gamedir, i);
+		sprintf (name, "%s/saves/s%i/info.fsv", com_gamedir, i);
 		f = fopen (name, "rb");
 		if (f)
 		{
@@ -150,7 +150,7 @@ void M_Menu_SinglePlayer_f (void)
 	int q1, q2, h2;
 	menubutton_t *b;
 	menu_t *menu;
-	qpic_t *p;
+	mpic_t *p;
 
 	key_dest = key_menu;
 	m_state = m_complex;

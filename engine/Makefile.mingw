@@ -45,240 +45,245 @@ NQPROT_OBJS = \
 	$(OUT_DIR)/net_nqwin.o	\
 	$(OUT_DIR)/net_vcr.o
 CLIENT_OBJS = \
-	$(OUT_DIR)/textedit.o	\
-	$(OUT_DIR)/teamplay.o	\
-	$(OUT_DIR)/zqtp.o		\
-	$(OUT_DIR)/cl_demo.o	\
-	$(OUT_DIR)/cl_ents.o	\
-	$(OUT_DIR)/clq2_ents.o	\
-	$(OUT_DIR)/cl_input.o	\
-	$(OUT_DIR)/cl_main.o	\
-	$(OUT_DIR)/cl_parse.o	\
-	$(OUT_DIR)/cl_pred.o	\
-	$(OUT_DIR)/cl_tent.o	\
-	$(OUT_DIR)/cl_cam.o	\
-	$(OUT_DIR)/cl_ui.o	\
-	$(OUT_DIR)/cl_screen.o  \
-	$(OUT_DIR)/clq2_cin.o	\
-	$(OUT_DIR)/qvm.o	\
-	$(OUT_DIR)/irc_cl.o	\
-	$(OUT_DIR)/ftp_cl.o	\
-	$(OUT_DIR)/http_cl.o	\
-	$(OUT_DIR)/console.o	\
-	$(OUT_DIR)/image.o	\
-	$(OUT_DIR)/in_win.o	\
-	$(OUT_DIR)/keys.o	\
-	$(OUT_DIR)/menu.o	\
-	$(OUT_DIR)/m_master.o	\
-	$(OUT_DIR)/m_multi.o	\
-	$(OUT_DIR)/m_items.o	\
-	$(OUT_DIR)/m_options.o	\
-	$(OUT_DIR)/m_single.o	\
-	$(OUT_DIR)/m_script.o	\
-	$(OUT_DIR)/m_mp3.o	\
-	$(OUT_DIR)/roq_read.o	\
-	$(OUT_DIR)/net_master.o	\
-	$(OUT_DIR)/nonintel.o	\
-	$(OUT_DIR)/r_bulleten.o	\
-	$(OUT_DIR)/r_part.o	\
-	$(OUT_DIR)/r_partset.o	\
-	$(OUT_DIR)/renderer.o	\
-	$(OUT_DIR)/renderque.o	\
-	$(OUT_DIR)/sbar.o	\
-	$(OUT_DIR)/skin.o	\
-	$(OUT_DIR)/snd_dma.o	\
-	$(OUT_DIR)/snd_mem.o	\
-	$(OUT_DIR)/snd_mix.o	\
-	$(OUT_DIR)/snd_mp3.o	\
-	$(OUT_DIR)/snd_ov.o	\
-	$(OUT_DIR)/valid.o		\
-	$(OUT_DIR)/view.o		\
-	$(OUT_DIR)/wad.o		\
-	$(OUT_DIR)/cd_win.o	\
-	$(OUT_DIR)/fragstats.o	\
-	$(OUT_DIR)/clsys_win.o	\
-	$(OUT_DIR)/snd_win.o	\
+	textedit.o	\
+	teamplay.o	\
+	zqtp.o		\
+	cl_demo.o	\
+	cl_ents.o	\
+	clq2_ents.o	\
+	cl_input.o	\
+	cl_main.o	\
+	cl_parse.o	\
+	cl_pred.o	\
+	cl_tent.o	\
+	cl_cam.o	\
+	cl_ui.o	\
+	cl_screen.o  \
+	clq2_cin.o	\
+	qvm.o	\
+	irc_cl.o	\
+	ftp_cl.o	\
+	http_cl.o	\
+	console.o	\
+	image.o	\
+	in_win.o	\
+	keys.o	\
+	menu.o	\
+	m_master.o	\
+	m_multi.o	\
+	m_items.o	\
+	m_options.o	\
+	m_single.o	\
+	m_script.o	\
+	m_mp3.o	\
+	roq_read.o	\
+	net_master.o	\
+	nonintel.o	\
+	r_bulleten.o	\
+	r_part.o	\
+	r_partset.o	\
+	renderer.o	\
+	renderque.o	\
+	sbar.o	\
+	skin.o	\
+	snd_dma.o	\
+	snd_mem.o	\
+	snd_mix.o	\
+	snd_mp3.o	\
+	snd_ov.o	\
+	valid.o		\
+	view.o		\
+	wad.o		\
+	cd_win.o	\
+	fragstats.o	\
+	clsys_win.o	\
+	snd_win.o	\
 					\
-	$(OUT_DIR)/pop3noti.o	\
-	$(OUT_DIR)/imapnoti.o	\
+	pop3noti.o	\
+	imapnoti.o	\
 					\
-	$(OUT_DIR)/m_x.o		\
-	$(OUT_DIR)/x_reqs.o	\
-	$(OUT_DIR)/x_res.o		\
+	m_x.o		\
+	x_reqs.o	\
+	x_res.o		\
 					\
-	$(OUT_DIR)/snd_mixa.o	
+	snd_mixa.o	
 #\
-#	$(OUT_DIR)/sys_dosa.o
+#	sys_dosa.o
 
 SOFTWARE_OBJS = \
-	$(OUT_DIR)/sw_screen.o	\
-	$(OUT_DIR)/sw_draw.o	\
-	$(OUT_DIR)/sw_model.o	\
-	$(OUT_DIR)/r_aclip.o	\
-	$(OUT_DIR)/r_aclipa.o	\
-	$(OUT_DIR)/r_alias.o	\
-	$(OUT_DIR)/r_aliasa.o	\
-	$(OUT_DIR)/r_bsp.o	\
-	$(OUT_DIR)/r_draw.o	\
-	$(OUT_DIR)/r_drawa.o	\
-	$(OUT_DIR)/r_edge.o	\
-	$(OUT_DIR)/r_edgea.o	\
-	$(OUT_DIR)/r_light.o	\
-	$(OUT_DIR)/r_main.o	\
-	$(OUT_DIR)/r_misc.o	\
-	$(OUT_DIR)/r_sky.o	\
-	$(OUT_DIR)/r_sprite.o	\
-	$(OUT_DIR)/r_surf.o	\
-	$(OUT_DIR)/r_vars.o	\
-	$(OUT_DIR)/r_varsa.o	\
+	sw_screen.o	\
+	sw_draw.o	\
+	sw_model.o	\
+	r_aclip.o	\
+	r_aclipa.o	\
+	r_alias.o	\
+	r_aliasa.o	\
+	r_bsp.o	\
+	r_draw.o	\
+	r_drawa.o	\
+	r_edge.o	\
+	r_edgea.o	\
+	r_light.o	\
+	r_main.o	\
+	r_misc.o	\
+	r_sky.o	\
+	r_sprite.o	\
+	r_surf.o	\
+	r_vars.o	\
+	r_varsa.o	\
 				\
-	$(OUT_DIR)/d_draw.o	\
-	$(OUT_DIR)/d_draw16.o	\
-	$(OUT_DIR)/d_edge.o	\
-	$(OUT_DIR)/d_fill.o	\
-	$(OUT_DIR)/d_init.o	\
-	$(OUT_DIR)/d_modech.o	\
-	$(OUT_DIR)/d_part.o	\
-	$(OUT_DIR)/d_parta.o	\
-	$(OUT_DIR)/d_polyse.o	\
-	$(OUT_DIR)/d_polysa.o	\
-	$(OUT_DIR)/d_scan.o	\
-	$(OUT_DIR)/d_scana.o	\
-	$(OUT_DIR)/d_sky.o	\
-	$(OUT_DIR)/d_spr8.o	\
-	$(OUT_DIR)/d_sprite.o	\
-	$(OUT_DIR)/d_surf.o	\
-	$(OUT_DIR)/d_trans.o	\
-	$(OUT_DIR)/d_vars.o	\
-	$(OUT_DIR)/d_varsa.o	\
-	$(OUT_DIR)/d_zpoint.o	\
+	d_draw.o	\
+	d_draw16.o	\
+	d_edge.o	\
+	d_fill.o	\
+	d_init.o	\
+	d_modech.o	\
+	d_part.o	\
+	d_parta.o	\
+	d_polyse.o	\
+	d_polysa.o	\
+	d_scan.o	\
+	d_scana.o	\
+	d_sky.o	\
+	d_spr8.o	\
+	d_sprite.o	\
+	d_surf.o	\
+	d_trans.o	\
+	d_vars.o	\
+	d_varsa.o	\
+	d_zpoint.o	\
 				\
-	$(OUT_DIR)/r_efrag.o	\
-	$(OUT_DIR)/surf16.o	\
-	$(OUT_DIR)/surf8.o
+	r_efrag.o	\
+	surf16.o	\
+	surf8.o
 
-#	$(OUT_DIR)/d_copy.o	\
+#	d_copy.o	\
 
 
-X11_OBJS = $(OUT_DIR)/vid_x.o
-W32_OBJS = $(OUT_DIR)/vid_win2.o \
-		$(OUT_DIR)/vid_ddraw.o \
-		$(OUT_DIR)/vid_dib.o
+X11_OBJS = vid_x.o
+W32_OBJS = vid_win2.o \
+		vid_ddraw.o \
+		vid_dib.o
 
 GLQUAKE_OBJS = \
-	$(OUT_DIR)/gl_alias.o	\
-	$(OUT_DIR)/gl_ppl.o	\
-	$(OUT_DIR)/gl_draw.o	\
-	$(OUT_DIR)/gl_model.o	\
-	$(OUT_DIR)/gl_ngraph.o	\
-	$(OUT_DIR)/gl_rlight.o	\
-	$(OUT_DIR)/gl_rmain.o	\
-	$(OUT_DIR)/gl_rmisc.o	\
-	$(OUT_DIR)/glmod_doom.o	\
-	$(OUT_DIR)/ltface.o	\
-	$(OUT_DIR)/gl_rsurf.o	\
-	$(OUT_DIR)/gl_vidcommon.o	\
-	$(OUT_DIR)/gl_screen.o	\
-	$(OUT_DIR)/gl_backend.o	\
-	$(OUT_DIR)/gl_warp.o	\
-	$(OUT_DIR)/gl_hlmdl.o
+	gl_alias.o	\
+	gl_ppl.o	\
+	gl_draw.o	\
+	gl_model.o	\
+	gl_ngraph.o	\
+	gl_rlight.o	\
+	gl_rmain.o	\
+	gl_rmisc.o	\
+	glmod_doom.o	\
+	ltface.o	\
+	gl_rsurf.o	\
+	gl_vidcommon.o	\
+	gl_screen.o	\
+	gl_backend.o	\
+	gl_warp.o	\
+	gl_hlmdl.o
 
-#	$(OUT_DIR)/gl_refrag.o	\
+#	gl_refrag.o	\
 
-GLW32_OBJS = $(OUT_DIR)/gl_vidnt.o
-GLX_OBJS = $(OUT_DIR)/gl_vidlinuxglx.o
-GLS_OBJS = $(OUT_DIR)/gl_vidlinux.o
+GLW32_OBJS = gl_vidnt.o
+GLX_OBJS = gl_vidlinuxglx.o
+GLS_OBJS = gl_vidlinux.o
 MP3_OBJS = \
-	$(OUT_DIR)/fixed.o \
-	$(OUT_DIR)/bit.o \
-	$(OUT_DIR)/timer.o \
-	$(OUT_DIR)/stream.o \
-	$(OUT_DIR)/frame.o \
-	$(OUT_DIR)/synth.o \
-	$(OUT_DIR)/decoder.o \
-	$(OUT_DIR)/layer12.o \
-	$(OUT_DIR)/layer3.o \
-	$(OUT_DIR)/huffman.o \
-	$(OUT_DIR)/mymad.o
+	fixed.o \
+	bit.o \
+	timer.o \
+	stream.o \
+	frame.o \
+	synth.o \
+	decoder.o \
+	layer12.o \
+	layer3.o \
+	huffman.o \
+	mymad.o
 
 PROGS_OBJS = \
-	$(OUT_DIR)/comprout.o \
-	$(OUT_DIR)/hash.o \
-	$(OUT_DIR)/initlib.o \
-	$(OUT_DIR)/pr_edict.o \
-	$(OUT_DIR)/pr_exec.o \
-	$(OUT_DIR)/pr_multi.o \
-	$(OUT_DIR)/qcc_cmdlib.o \
-	$(OUT_DIR)/QccMain.o \
-	$(OUT_DIR)/qcc_pr_comp.o \
-	$(OUT_DIR)/qcc_pr_lex.o \
-	$(OUT_DIR)/qcdecomp.o \
-	$(OUT_DIR)/qcd_main.o
+	comprout.o \
+	hash.o \
+	initlib.o \
+	pr_edict.o \
+	pr_exec.o \
+	pr_multi.o \
+	qcc_cmdlib.o \
+	QccMain.o \
+	qcc_pr_comp.o \
+	qcc_pr_lex.o \
+	qcdecomp.o \
+	qcd_main.o
 
 SERVER_OBJS = \
-	$(OUT_DIR)/pr_cmds.o 	\
-	$(OUT_DIR)/sv_master.o 	\
-	$(OUT_DIR)/sv_init.o 	\
-	$(OUT_DIR)/sv_main.o 	\
-	$(OUT_DIR)/sv_nchan.o 	\
-	$(OUT_DIR)/sv_ents.o 	\
-	$(OUT_DIR)/sv_send.o 	\
-	$(OUT_DIR)/sv_move.o 	\
-	$(OUT_DIR)/sv_phys.o 	\
-	$(OUT_DIR)/sv_user.o	\
-	$(OUT_DIR)/sv_mvd.o	\
-	$(OUT_DIR)/sv_ccmds.o 	\
-	$(OUT_DIR)/sv_rankin.o 	\
-	$(OUT_DIR)/sv_chat.o 	\
-	$(OUT_DIR)/sv_demo.o	\
-	$(OUT_DIR)/world.o 	\
-	$(OUT_DIR)/worlda.o 	\
-	$(OUT_DIR)/net_preparse.o \
-	$(OUT_DIR)/savegame.o	\
-	$(OUT_DIR)/svq2_ents.o \
-	$(OUT_DIR)/svq2_game.o \
-	$(OUT_DIR)/snd_vc.o	\
-	$(OUT_DIR)/snd_voicecodecs.o	\
-	$(OUT_DIR)/g711.o	\
-	$(OUT_DIR)/g721.o	\
-	$(OUT_DIR)/g723_24.o	\
-	$(OUT_DIR)/g723_40.o	\
-	$(OUT_DIR)/g72x.o	\
-	$(OUT_DIR)/webgen.o	\
-	$(OUT_DIR)/ftpserver.o	\
-	$(OUT_DIR)/httpserver.o \
-	$(OUT_DIR)/sv_pop3.o \
-	$(OUT_DIR)/sv_smtp.o
+	pr_cmds.o 	\
+	sv_master.o 	\
+	sv_init.o 	\
+	sv_main.o 	\
+	sv_nchan.o 	\
+	sv_ents.o 	\
+	sv_send.o 	\
+	sv_move.o 	\
+	sv_phys.o 	\
+	sv_user.o	\
+	sv_mvd.o	\
+	sv_ccmds.o 	\
+	sv_rankin.o 	\
+	sv_chat.o 	\
+	sv_demo.o	\
+	world.o 	\
+	worlda.o 	\
+	net_preparse.o \
+	savegame.o	\
+	svq2_ents.o \
+	svq2_game.o \
+	snd_vc.o	\
+	snd_voicecodecs.o	\
+	g711.o	\
+	g721.o	\
+	g723_24.o	\
+	g723_40.o	\
+	g72x.o	\
+	webgen.o	\
+	ftpserver.o	\
+	httpserver.o \
+	sv_pop3.o \
+	sv_smtp.o
 
 SERVERONLY_OBJS = \
-	$(OUT_DIR)/svmodel.o \
-	$(OUT_DIR)/svsys_win.o
+	svmodel.o \
+	svsys_win.o
 
 COMMON_OBJS = \
-	$(OUT_DIR)/common.o 	\
-	$(OUT_DIR)/cvar.o 	\
-	$(OUT_DIR)/cmd.o 	\
-	$(OUT_DIR)/crc.o 	\
-	$(OUT_DIR)/mathlib.o 	\
-	$(OUT_DIR)/math.o	\
-	$(OUT_DIR)/md4.o 	\
-	$(OUT_DIR)/md5.o 	\
-	$(OUT_DIR)/huff.o	\
-	$(OUT_DIR)/q2pmove.o	\
-	$(OUT_DIR)/net_chan.o 	\
-	$(OUT_DIR)/net_win.o 	\
-	$(OUT_DIR)/zone.o 	\
-	$(OUT_DIR)/gl_q2bsp.o	\
-	$(OUT_DIR)/q1bsp.o 	\
-	$(OUT_DIR)/pmove.o	\
-	$(OUT_DIR)/pmovetst.o	\
-	$(OUT_DIR)/iwebiface.o	\
-	$(OUT_DIR)/translate.o
+	common.o 	\
+	cvar.o 	\
+	cmd.o 	\
+	crc.o 	\
+	mathlib.o 	\
+	math.o	\
+	md4.o 	\
+	md5.o 	\
+	huff.o	\
+	q2pmove.o	\
+	net_chan.o 	\
+	net_win.o 	\
+	zone.o 	\
+	gl_q2bsp.o	\
+	q1bsp.o 	\
+	pmove.o	\
+	pmovetst.o	\
+	iwebiface.o	\
+	translate.o
+
+VPATH=$(CLIENT_DIR):$(COMMON_DIR)
 
 all: all-rel all-dbg
 
-$(OUT_DIR)/image.o : $(CLIENT_DIR)/image.c
+.o : $(subst /, ,$(VPATH)) $@
 	$(DO_CC)
+
+#$(OUT_DIR)/image.o : $(CLIENT_DIR)/image.c
+#	$(DO_CC)
 
 $(OUT_DIR)/sw_screen.o : $(SW_DIR)/sw_screen.c
 	$(DO_CC)

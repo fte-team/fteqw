@@ -3106,7 +3106,7 @@ static void GLR_LeafWorldNode (void)
 		{
 			if (! (areabits[pleaf->area>>3] & (1<<(pleaf->area&7)) ) )
 			{
-				continue;		// not visible
+	//			continue;		// not visible
 			}
 		}
 

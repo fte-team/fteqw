@@ -1932,23 +1932,21 @@ void R_ModifyColor ( meshbuffer_t *mb, shaderpass_t *pass )
 			break;
 
 		case RGB_GEN_ENTITY:
-			Con_Printf("RGB_GEN_ENTITY\n");
-			break;
-/*			for ( i = 0; i < numColors; i++, bArray += 4 ) {
+			for ( i = 0; i < numColors; i++, bArray += 4 )
+			{
 				*(int *)bArray = *(int *)currententity->shaderRGBA;
 			}
 			break;
-*/
+
 		case RGB_GEN_ONE_MINUS_ENTITY:
-			Con_Printf("RGB_GEN_ONE_MINUS_ENTITY\n");
-			break;
-/*			for ( i = 0; i < numColors; i++, bArray += 4 ) {
+			for ( i = 0; i < numColors; i++, bArray += 4 )
+			{
 				bArray[0] = 255 - currententity->shaderRGBA[0];
 				bArray[1] = 255 - currententity->shaderRGBA[1];
 				bArray[2] = 255 - currententity->shaderRGBA[2];
 			}
 			break;
-*/
+
 		case RGB_GEN_VERTEX:
 		case RGB_GEN_EXACT_VERTEX:
 			memcpy ( bArray, vArray, sizeof(byte_vec4_t)*numColors );

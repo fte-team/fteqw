@@ -358,7 +358,10 @@ void M_Menu_FPS_f (void)
 #ifdef RGLQUAKE
 	extern cvar_t gl_compress, gl_waterripples, gl_detail, gl_bump, gl_2dscale, r_flashblend;
 #endif
-	extern cvar_t r_stains, r_bloodstains, r_loadlits, d_smooth, d_mipscale, d_mipcap, r_dynamic, v_contentblend, show_fps;;
+#ifdef SWQUAKE
+	extern cvar_t d_smooth, d_mipscale, d_mipcap;
+#endif
+	extern cvar_t r_stains, r_bloodstains, r_loadlits, r_dynamic, v_contentblend, show_fps;
 
 	key_dest = key_menu;
 	m_state = m_complex;

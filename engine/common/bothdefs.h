@@ -90,7 +90,6 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 		#define NQPROT			//server and client are capable of using quake1/netquake protocols. (qw is still prefered. uses the command 'nqconnect')
 		#define FISH			//sw rendering only
 		#define VM_UI			//support userinterfaces within Q3 Virtual Machines
-		//#define VM_CG	//make work
 		#define ZLIB			//zip/pk3 support
 		#define WEBSERVER		//http/ftp servers
 		#define WEBCLIENT		//http/ftp clients.
@@ -127,10 +126,6 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 	#undef AVAIL_ZLIB
 #endif
 
-#if defined(VM_UI) || defined(VM_CG)
-	#define VM_ANY
-#endif
-
 #ifdef USE_MADLIB	//global option. Specify on compiler command line.
 	#define AVAIL_MP3	//suposedly anti-gpl. don't use in a distributed binary
 #endif
@@ -159,6 +154,7 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 
 #ifdef SERVERONLY	//remove options that don't make sense on only a server
 	#undef Q2CLIENT
+	#undef Q3CLIENT
 	#undef WEBCLIENT
 	#undef IRCCLIENT
 	#undef EMAILCLIENT
@@ -189,6 +185,17 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 #endif
 #if !defined(Q3BSPS)
 	#undef Q3SHADERS
+	#undef Q3CLIENT //reconsider this (later)
+#endif
+
+#ifndef Q3CLIENT
+	#undef VM_CG	// :(
+#else
+	#define VM_CG
+#endif
+
+#if defined(VM_UI) || defined(VM_CG)
+	#define VM_ANY
 #endif
 
 #define PROTOCOLEXTENSIONS

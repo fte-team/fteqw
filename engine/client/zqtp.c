@@ -2585,9 +2585,6 @@ static void CL_Say (qboolean team, char *extra)
 		return;
 	}
 
-	MSG_WriteByte (&cls.netchan.message, clc_stringcmd);
-	SZ_Print (&cls.netchan.message, team ? "say_team " : "say ");
-
 	s = TP_ParseMacroString (Cmd_Args());
 	Q_strncpyz (text, TP_ParseFunChars (s, true), sizeof(text));
 
@@ -2602,6 +2599,15 @@ static void CL_Say (qboolean team, char *extra)
 	}
 
 	strlcat (sendtext, text, sizeof(sendtext));
+#ifdef Q3CLIENT
+	if (cls.q2server==2)
+	{
+		CL_SendClientCommand("%s %s%s", team ? "say_team " : "say ", extra?extra:"", sendtext);
+		return;
+	}
+#endif
+	MSG_WriteByte (&cls.netchan.message, cls.q2server?clcq2_stringcmd:clc_stringcmd);
+	SZ_Print (&cls.netchan.message, team ? "say_team " : "say ");
 
 	if (sendtext[0] < 32)
 		SZ_Print (&cls.netchan.message, "\"");	// add quotes so that old servers parse the message correctly

@@ -1592,8 +1592,8 @@ void CL_ParseProjectiles (int modelindex, qboolean nails2)
 		pr->origin[0] = ( ( bits[0] + ((bits[1]&15)<<8) ) <<1) - 4096;
 		pr->origin[1] = ( ( (bits[1]>>4) + (bits[2]<<4) ) <<1) - 4096;
 		pr->origin[2] = ( ( bits[3] + ((bits[4]&15)<<8) ) <<1) - 4096;
-		pr->angles[0] = 360*(bits[4]>>4)/16;
-		pr->angles[1] = 360*bits[5]/256;
+		pr->angles[0] = 360*((int)bits[4]>>4)/16.0f;
+		pr->angles[1] = 360*(int)bits[5]/256.0f;
 	}
 }
 
@@ -1633,6 +1633,11 @@ void CL_LinkProjectiles (void)
 #endif
 		VectorCopy (pr->origin, ent->origin);
 		VectorCopy (pr->angles, ent->angles);
+
+		ent->angles[0]*=-1;
+		AngleVectors(ent->angles, ent->axis[0], ent->axis[1], ent->axis[2]);
+		VectorInverse(ent->axis[1]);
+		ent->angles[0]*=-1;
 	}
 }
 

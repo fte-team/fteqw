@@ -206,7 +206,18 @@ cvar_t *Cvar_SetCore (cvar_t *var, char *value, qboolean force)
 	if (latch && !force)
 	{
 		if (cl_warncmd.value)
-			Con_Printf (latch, var->name);
+		{
+			if (var->latched_string)
+			{	//already latched
+				if (strcmp(var->latched_string, value))
+					Con_Printf (latch, var->name);
+			}
+			else
+			{	//new latch
+				if (strcmp(var->string, value))
+					Con_Printf (latch, var->name);
+			}
+		}
 
 		if (var->latched_string && !strcmp(var->latched_string, value))	//no point, this would force the same
 			return NULL;

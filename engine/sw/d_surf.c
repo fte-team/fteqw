@@ -50,6 +50,7 @@ int     D_SurfaceCacheForRes (int width, int height, int bpp)
 	if (pix > 64000)
 		size += (pix-64000)*4;
 
+	size*=8;
 	if (bpp)
 		return size*bpp;
 	return size;

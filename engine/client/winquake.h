@@ -96,6 +96,8 @@ struct soundcardinfo_s {
 	DWORD		mmstarttime;
 	DWORD gSndBufSize;
 
+	qboolean selfpainting;
+
 	qboolean inactive_sound;
 #ifndef NODIRECTX
 	qboolean snd_isdirect;

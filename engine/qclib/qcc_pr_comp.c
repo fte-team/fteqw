@@ -666,6 +666,7 @@ pbool QCC_OPCodeValid(QCC_opcode_t *op)
 
 QCC_def_t *QCC_PR_Expression (int priority);
 int QCC_AStatementJumpsTo(int targ, int first, int last);
+pbool QCC_StatementIsAJump(int stnum, int notifdest);
 
 temp_t *functemps;		//floats/strings/funcs/ents...
 
@@ -829,9 +830,6 @@ void QCC_FreeOffset(gofs_t ofs, unsigned int size)
 
 	freeofs = fofs;
 	return;
-
-	QCC_Error(ERR_INTERNAL, "QCC_FreeOffset: not called with end of globals");
-
 }
 
 static QCC_def_t *QCC_GetTemp(QCC_type_t *type)
@@ -4821,7 +4819,7 @@ void QCC_PR_ParseStatement (void)
 		QCC_PR_ParseStatement ();
 
 		//this is so that a missing goto at the end of your switch doesn't end up in the jumptable again
-		if (oldst == numstatements || (QCC_AStatementJumpsTo(numstatements-1, oldst, numstatements-1)))
+		if (oldst == numstatements || !QCC_StatementIsAJump(numstatements-1, numstatements-1))
 		{
 			QCC_FreeTemp(QCC_PR_Statement (&pr_opcodes[OP_GOTO], 0, 0, &patch2));	//the P1 statement/the theyforgotthebreak statement.
 //			QCC_PR_ParseWarning(0, "emitted goto");
@@ -5655,6 +5653,18 @@ void QCC_CheckForDeadAndMissingReturns(int first, int last, int rettype)
 			}
 		}
 	}
+}
+
+pbool QCC_StatementIsAJump(int stnum, int notifdest)	//only the unconditionals.
+{
+	if (statements[stnum].op == OP_RETURN)
+		return true;
+	if (statements[stnum].op == OP_DONE)
+		return true;
+	if (statements[stnum].op == OP_GOTO)
+		if ((int)statements[stnum].a != notifdest)
+			return true;
+	return false;
 }
 
 int QCC_AStatementJumpsTo(int targ, int first, int last)
@@ -6719,7 +6729,7 @@ QCC_def_t *QCC_PR_DummyFieldDef(QCC_type_t *type, char *name, QCC_def_t *scope, 
 {
 	char array[64];
 	char newname[256];
-	int a, i, parms;
+	int a, parms;
 	QCC_def_t *def, *first=NULL;
 	unsigned int maxfield, startfield;
 	QCC_type_t *ftype;
@@ -6827,8 +6837,6 @@ QCC_def_t *QCC_PR_DummyFieldDef(QCC_type_t *type, char *name, QCC_def_t *scope, 
 					def->initialized = true;
 					((int *)qcc_pr_globals)[def->ofs] = *fieldofs;
 					*fieldofs += parttype->size;
-					for (i = parttype->num_parms; i>0; i--)
-						parttype=parttype->next;
 					break;
 				case ev_void:
 					break;

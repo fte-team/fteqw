@@ -33,6 +33,7 @@ char localinfo[MAX_LOCALINFO_STRING+1]; // local game info
 
 extern cvar_t	skill, sv_loadentfiles;
 extern cvar_t	sv_cheats;
+extern cvar_t	sv_bigcoords;
 extern qboolean	sv_allow_cheats;
 
 /*
@@ -514,7 +515,18 @@ void SV_SpawnServer (char *server, char *startspot, qboolean noents, qboolean us
 		svs.clients[i].nextservertimeupdate = 0;
 		if (!svs.clients[i].state)	//bots with the net_preparse module.
 			svs.clients[i].userinfo[0] = '\0';	//clear the userinfo to clear the name
+
+		if (svs.clients[i].netchan.remote_address.type == NA_LOOPBACK)
+		{	//forget this client's message buffers, so that any shared client/server network state persists (eg: float coords)
+			svs.clients[i].num_backbuf = 0;
+			svs.clients[i].datagram.cursize = 0;
+		}
 	}
+
+	if (sv_bigcoords.value)
+		sizeofcoord = 4;
+	else
+		sizeofcoord = 2;
 
 	VoteFlushAll();
 #ifndef SERVERONLY
@@ -614,7 +626,9 @@ void SV_SpawnServer (char *server, char *startspot, qboolean noents, qboolean us
 	SCR_BeginLoadingPlaque();
 #endif
 
-	if (sv.worldmodel->fromgame == fg_halflife)
+	if (sv.worldmodel->fromgame == fg_doom)
+		Info_SetValueForStarKey(svs.info, "*bspversion", "1", MAX_SERVERINFO_STRING);
+	else if (sv.worldmodel->fromgame == fg_halflife)
 		Info_SetValueForStarKey(svs.info, "*bspversion", "30", MAX_SERVERINFO_STRING);
 	else if (sv.worldmodel->fromgame == fg_quake2)
 		Info_SetValueForStarKey(svs.info, "*bspversion", "38", MAX_SERVERINFO_STRING);

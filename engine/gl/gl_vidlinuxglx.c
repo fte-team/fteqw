@@ -66,7 +66,7 @@ static float old_windowed_mouse = 0;
 #define MOUSE_MASK (ButtonPressMask | ButtonReleaseMask | \
 		    PointerMotionMask)
 
-#define X_MASK (KEY_MASK | MOUSE_MASK | FocusChangeMask | VisibilityChangeMask)
+#define X_MASK (KEY_MASK | MOUSE_MASK | ResizeRequest | StructureNotifyMask | FocusChangeMask | VisibilityChangeMask)
 
 
 #ifdef WITH_VMODE
@@ -93,8 +93,6 @@ static float	old_mouse_x, old_mouse_y;
 extern float   mouse_x, mouse_y;
 extern float	old_mouse_x, old_mouse_y;
 #endif
-
-static int scr_width, scr_height;
 
 /*-----------------------------------------------------------------------*/
 
@@ -356,6 +354,14 @@ static void GetEvent(void)
 	XNextEvent(vid_dpy, &event);
 
 	switch (event.type) {
+	case ResizeRequest:
+		glwidth = event.xresizerequest.width;
+		glheight = event.xresizerequest.height;
+		break;
+	case ConfigureNotify:
+		glwidth = event.xconfigurerequest.width;
+		glheight = event.xconfigurerequest.height;
+		break;
 	case KeyPress:
 	case KeyRelease:
 		Key_Event(XLateKey(&event.xkey), event.type == KeyPress);
@@ -566,8 +572,8 @@ GL_BeginRendering
 void GL_BeginRendering (int *x, int *y, int *width, int *height)
 {
 	*x = *y = 0;
-	*width = scr_width;
-	*height = scr_height;
+	*width = glwidth;
+	*height = glheight;
 
 //    if (!wglMakeCurrent( maindc, baseRC ))
 //		Sys_Error ("wglMakeCurrent failed");
@@ -761,8 +767,8 @@ qboolean GLVID_Init (rendererstate_t *info, unsigned char *palette)
 
 	qglXMakeCurrent(vid_dpy, vid_window, ctx);
 
-	scr_width = info->width;
-	scr_height = info->height;
+	glwidth = info->width;
+	glheight = info->height;
 
 	if (vid.conheight > info->height)
 		vid.conheight = info->height;

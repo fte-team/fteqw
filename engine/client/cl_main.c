@@ -2635,7 +2635,7 @@ void Host_Frame (float time)
 #endif
 
 	// decide the simulation time
-	realtime += time;
+	realtime += realframetime;
 	if (oldrealtime > realtime)
 		oldrealtime = 0;
 
@@ -2682,7 +2682,7 @@ void Host_Frame (float time)
 			return;
 	}
 
-	host_frametime = realtime - oldrealtime;
+	host_frametime = (realtime - oldrealtime)*cl.gamespeed;
 	oldrealtime = realtime;
 //	if (host_frametime > 0.2)
 //		host_frametime = 0.2;
@@ -2733,7 +2733,7 @@ void Host_Frame (float time)
 	{
 		extern qboolean runningindepphys;
 		if (!runningindepphys)
-			CL_SendCmd (realframetime);
+			CL_SendCmd (host_frametime/cl.gamespeed);
 
 		if (cls.state == ca_onserver && cl.validsequence && cl.worldmodel)
 		{	// first update is the final signon stage

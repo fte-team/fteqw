@@ -1090,7 +1090,7 @@ void CL_SendCmd (float frametime)
 //	Con_Printf("%f\n", msecs);
 
 	if (msecs>1000)	//come on... That's just stupid.
-		msecs=255;
+		msecs=1000;
 	if (msecs<0)
 		msecs=0;	//erm.
 
@@ -1154,7 +1154,7 @@ void CL_SendCmd (float frametime)
 
 // send this and the previous cmds in the message, so
 // if the last packet was dropped, it can be recovered
-	buf.maxsize = 128;
+	buf.maxsize = sizeof(data);
 	buf.cursize = 0;
 	buf.data = data;
 	clientcount = cl.splitclients;

@@ -3508,6 +3508,12 @@ void AddAllEntsToPmove (void)
 
 int SV_PMTypeForClient (client_t *cl)
 {
+	if (sv.demostatevalid)
+	{	//force noclip... This does create problems for closing demos.
+		if (cl->zquake_extensions & Z_EXT_PM_TYPE_NEW)
+			return PM_SPECTATOR;
+		return PM_OLD_SPECTATOR;
+	}
 	if (cl->edict->v.movetype == MOVETYPE_NOCLIP)
 	{
 		if (cl->zquake_extensions & Z_EXT_PM_TYPE_NEW)
@@ -4139,7 +4145,7 @@ haveannothergo:
 			o[1] = MSG_ReadCoord();
 			o[2] = MSG_ReadCoord();
 			// only allowed by spectators
-			if (host_client->spectator) {
+			if (host_client->spectator||sv.mvdplayback) {
 				VectorCopy(o, sv_player->v.origin);
 				SV_LinkEdict(sv_player, false);
 			}

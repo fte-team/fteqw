@@ -592,7 +592,7 @@ entity_state_t *CL_FindOldPacketEntity(int num)
 	return NULL;
 }
 
-void CLNQ_ParseEntity(int bits)
+void CLNQ_ParseEntity(unsigned int bits)
 {
 	int i;
 	int num, pnum;
@@ -600,6 +600,7 @@ void CLNQ_ParseEntity(int bits)
 	entity_state_t	*base;
 	static float lasttime;
 	packet_entities_t	*pack;
+
 	cl.validsequence=1;
 #define	NQU_MOREBITS	(1<<0)
 #define	NQU_ORIGIN1	(1<<1)
@@ -619,6 +620,30 @@ void CLNQ_ParseEntity(int bits)
 #define	NQU_EFFECTS	(1<<13)
 #define	NQU_LONGENTITY	(1<<14)
 
+	
+// LordHavoc's: protocol extension
+#define DPU_EXTEND1		(1<<15)
+// LordHavoc: first extend byte
+#define DPU_DELTA			(1<<16) // no data, while this is set the entity is delta compressed (uses previous frame as a baseline, meaning only things that have changed from the previous frame are sent, except for the forced full update every half second)
+#define DPU_ALPHA			(1<<17) // 1 byte, 0.0-1.0 maps to 0-255, not sent if exactly 1, and the entity is not sent if <=0 unless it has effects (model effects are checked as well)
+#define DPU_SCALE			(1<<18) // 1 byte, scale / 16 positive, not sent if 1.0
+#define DPU_EFFECTS2		(1<<19) // 1 byte, this is .effects & 0xFF00 (second byte)
+#define DPU_GLOWSIZE		(1<<20) // 1 byte, encoding is float/4.0, unsigned, not sent if 0
+#define DPU_GLOWCOLOR		(1<<21) // 1 byte, palette index, default is 254 (white), this IS used for darklight (allowing colored darklight), however the particles from a darklight are always black, not sent if default value (even if glowsize or glowtrail is set)
+// LordHavoc: colormod feature has been removed, because no one used it
+#define DPU_COLORMOD		(1<<22) // 1 byte, 3 bit red, 3 bit green, 2 bit blue, this lets you tint an object artifically, so you could make a red rocket, or a blue fiend...
+#define DPU_EXTEND2		(1<<23) // another byte to follow
+// LordHavoc: second extend byte
+#define DPU_GLOWTRAIL		(1<<24) // leaves a trail of particles (of color .glowcolor, or black if it is a negative glowsize)
+#define DPU_VIEWMODEL		(1<<25) // attachs the model to the view (origin and angles become relative to it), only shown to owner, a more powerful alternative to .weaponmodel and such
+#define DPU_FRAME2		(1<<26) // 1 byte, this is .frame & 0xFF00 (second byte)
+#define DPU_MODEL2		(1<<27) // 1 byte, this is .modelindex & 0xFF00 (second byte)
+#define DPU_EXTERIORMODEL	(1<<28) // causes this model to not be drawn when using a first person view (third person will draw it, first person will not)
+#define DPU_UNUSED29		(1<<29) // future expansion
+#define DPU_UNUSED30		(1<<30) // future expansion
+#define DPU_EXTEND3		(1<<31) // another byte to follow, future expansion
+
+
 	if (cls.signon == 4 - 1)
 	{	// first update is the final signon stage
 		cls.signon = 4;
@@ -631,6 +656,16 @@ void CLNQ_ParseEntity(int bits)
 	{
 		i = MSG_ReadByte ();
 		bits |= (i<<8);
+	}
+	if (bits & DPU_EXTEND1)
+	{
+		i = MSG_ReadByte ();
+		bits |= (i<<16);
+	}
+	if (bits & DPU_EXTEND2)
+	{
+		i = MSG_ReadByte ();
+		bits |= (i<<24);
 	}
 
 	if (bits & NQU_LONGENTITY)	
@@ -787,10 +822,12 @@ void CL_RotateAroundTag(entity_t *ent, int num, int tagent)
 	float *org=NULL, *ang=NULL;
 	vec3_t axis[3];
 	vec3_t temp[3];
-	int model;
-	int frame;
 
-	float *tagorg=NULL, *tagaxis;
+	int model = 0;	//these two are only initialised because msvc sucks at detecting usage.
+	int frame = 0;
+
+	float *tagorg=NULL;
+	float *tagaxis;
 
 	ps = CL_FindPacketEntity(tagent);
 	if (ps)
@@ -825,10 +862,13 @@ void CL_RotateAroundTag(entity_t *ent, int num, int tagent)
 		AngleVectors(ang, axis[0], axis[1], axis[2]);
 		VectorInverse(axis[1]);
 
-		Mod_GetTag(cl.model_precache[model], cl.lerpents[tagent].tagindex, frame, &tagorg, &tagaxis);
+		if (Mod_GetTag)
+			Mod_GetTag(cl.model_precache[model], cl.lerpents[tagent].tagindex, frame, &tagorg, &tagaxis);
+		else
+			tagaxis = NULL;
 		if (tagaxis)
 		{
-			Matrix3_Multiply(ent->axis, tagaxis, temp);
+			Matrix3_Multiply(ent->axis, (void*)tagaxis, temp);
 		}
 		else	//hrm.
 			memcpy(temp, ent->axis, sizeof(temp));
@@ -894,7 +934,7 @@ void CL_LinkPacketEntities (void)
 		{
 			if (s1->number == cl.viewentity[spnum])
 			{
-	float	a1, a2;
+//	float	a1, a2;
 				cl.simvel[spnum][0] = 0;
 				cl.simvel[spnum][1] = 0;
 				cl.simvel[spnum][2] = 0;

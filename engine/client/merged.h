@@ -38,6 +38,10 @@ extern void	(*Draw_Fill)							(int x, int y, int w, int h, int c);
 extern void	(*Draw_FadeScreen)						(void);
 extern void	(*Draw_BeginDisc)						(void);
 extern void	(*Draw_EndDisc)							(void);
+extern qboolean (*Draw_IsCached)					(char *picname);	//can be null
+
+extern void	(*Draw_Image)							(float x, float y, float w, float h, float s1, float t1, float s2, float t2, qpic_t *pic);	//gl-style scaled/coloured/subpic 
+extern void	(*Draw_ImageColours)					(float r, float g, float b, float a);
 
 extern void	(*R_Init)								(void);
 extern void	(*R_DeInit)								(void);
@@ -72,8 +76,8 @@ extern void	(*VID_ForceLockState)					(int lk);
 extern int		(*VID_ForceUnlockedAndReturnState)	(void);
 extern void	(*VID_SetPalette)						(unsigned char *palette);
 extern void	(*VID_ShiftPalette)						(unsigned char *palette);
-extern char *(*VID_GetRGBInfo)(int prepad, int *truevidwidth, int *truevidheight);
-extern void	(*VID_SetWindowCaption)		(char *msg);
+extern char *(*VID_GetRGBInfo)						(int prepad, int *truevidwidth, int *truevidheight);
+extern void	(*VID_SetWindowCaption)					(char *msg);
 
 extern void SCR_Init								(void);
 extern void SCR_DeInit								(void);
@@ -99,6 +103,7 @@ extern qbyte	*FNC(Mod_Q1LeafPVS)					(struct mleaf_s *leaf, struct model_s *mode
 extern void	FNC(Mod_NowLoadExternal)				(void);
 
 extern void	FNC(Mod_Think)							(void);
+extern void	(*Mod_GetTag)							(struct model_s *model, int tagnum, int frame, float **org, float **axis);
 
 #undef FNC
 

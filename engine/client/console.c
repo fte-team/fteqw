@@ -704,7 +704,7 @@ void VARGS Con_Printf (const char *fmt, ...)
 			return;
 	}
 #endif
-	
+
 // also echo to debugging console
 	Sys_Printf ("%s", msg);	// also echo to debugging console
 
@@ -720,7 +720,7 @@ void VARGS Con_Printf (const char *fmt, ...)
 /*
 	if (con != &con_main)
 		return;
-	
+
 // update the screen immediately if the console is displayed
 	if (cls.state != ca_active && !filmactive)
 #ifndef CLIENTONLY

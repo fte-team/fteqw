@@ -1521,7 +1521,7 @@ void CL_ConnectionlessPacket (void)
 			char *s2;
 			for (s2 = s; *s; s++)
 			{
-				if (*s < '0' || *s > '9')
+				if ((*s < '0' || *s > '9') && *s != '-')
 					break;
 			}
 			if (*s)
@@ -2611,6 +2611,10 @@ void Host_Init (quakeparms_t *parms)
 	extern cvar_t	vid_renderer;
 	COM_InitArgv (parms->argc, parms->argv);
 
+	if (setjmp (host_abort) )
+		Sys_Error("Host_Init: An error occured. Try the -condebug commandline parameter\n");
+
+
 	Sys_mkdir("qw");
 
 	if (COM_CheckParm ("-minmemory"))
@@ -2691,7 +2695,7 @@ void Host_Init (quakeparms_t *parms)
 	Hunk_AllocName (0, "-HOST_HUNKLEVEL-");
 	host_hunklevel = Hunk_LowMark ();
 
-	R_SetRenderer(QR_NONE);//set the mod stuff...
+	R_SetRenderer(0);//set the renderer stuff to 'none'...
 
 	host_initialized = true;
 

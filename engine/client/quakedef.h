@@ -162,7 +162,7 @@ extern "C" {
 #include "progs.h"
 #include "world.h"
 //#ifdef Q2SERVER
-#include "q2game.h"	//under development.
+#include "q2game.h"
 //#endif
 #include "server.h"
 #endif

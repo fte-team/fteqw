@@ -85,6 +85,7 @@ extern cvar_t scr_chatmodecvar;
 
 int mouseusedforgui;
 int mousecursor_x, mousecursor_y;
+int mousemove_x, mousemove_y;
 
 // only the refresh window will be updated unless these variables are flagged 
 int                     scr_copytop;
@@ -1275,7 +1276,7 @@ int MipColor(int r, int g, int b)
 	return best;
 }
 
-void SCR_ScreenShot (char *filename) 
+void SCR_ScreenShot (char *filename)
 {
 	int truewidth, trueheight;
 	qbyte            *buffer;

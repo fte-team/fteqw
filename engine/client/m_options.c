@@ -413,12 +413,3 @@ void M_Menu_FPS_f (void)
 
 	menu->cursoritem = (menuoption_t*)MC_AddWhiteText(menu, 200, 32, NULL, false);
 }
-
-void M_OptionsMenusInit(void)
-{
-	Cmd_AddCommand ("menu_options", M_Menu_Options_f);
-		Cmd_AddCommand ("menu_video", M_Menu_Video_f);
-		Cmd_AddCommand ("menu_audio", M_Menu_Audio_f);
-		Cmd_AddCommand ("menu_fps", M_Menu_FPS_f);
-			Cmd_AddCommand ("menu_particles", M_Menu_Particles_f);
-}

@@ -922,6 +922,7 @@ void IN_MouseEvent (int mstate)
 static void ProcessMouse(mouse_t *mouse, usercmd_t *cmd, int pnum)
 {
 	extern int mouseusedforgui, mousecursor_x, mousecursor_y;
+	extern int mousemove_x, mousemove_y;
 
 	int mx, my;
 	int mouse_x, mouse_y;
@@ -971,6 +972,8 @@ static void ProcessMouse(mouse_t *mouse, usercmd_t *cmd, int pnum)
 
 	if (mouseusedforgui || (key_dest == key_menu && m_state == m_complex) || UI_MenuState())
 	{
+		mousemove_x += mx;
+		mousemove_y += my;
 		mousecursor_x += mx;
 		mousecursor_y += my;
 

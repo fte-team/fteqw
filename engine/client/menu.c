@@ -205,6 +205,8 @@ M_ToggleMenu_f
 */
 void M_ToggleMenu_f (void)
 {
+	if (MP_Toggle())
+		return;
 	m_entersound = true;
 
 	if (key_dest == key_menu)
@@ -789,37 +791,93 @@ void M_Menu_Quit_f (void)
 /* Menu Subsystem */
 
 
-void M_OptionsMenusInit (void);
 void M_Menu_MediaFiles_f (void);
-void M_Init (void)
+void M_Menu_FPS_f (void);
+void M_Menu_Particles_f (void);
+static qboolean internalmenusregistered;
+void M_Init_Internal (void)
 {
-	Cmd_AddCommand ("togglemenu", M_ToggleMenu_f);
+	MP_Shutdown();
+
+	if (internalmenusregistered)
+		return;
+	internalmenusregistered = true;
+
 #ifndef CLIENTONLY
-	Cmd_AddCommand ("menu_save", M_Menu_Save_f);
-	Cmd_AddCommand ("menu_load", M_Menu_Load_f);
-	Cmd_AddCommand ("menu_loadgame", M_Menu_Load_f);	//q2...
+	Cmd_AddRemCommand ("menu_save", M_Menu_Save_f);
+	Cmd_AddRemCommand ("menu_load", M_Menu_Load_f);
+	Cmd_AddRemCommand ("menu_loadgame", M_Menu_Load_f);	//q2...
 #endif
-	Cmd_AddCommand ("menu_single", M_Menu_SinglePlayer_f);
-	Cmd_AddCommand ("menu_multi", M_Menu_MultiPlayer_f);
-	Cmd_AddCommand ("menu_demo", M_Menu_Demos_f);
+	Cmd_AddRemCommand ("menu_single", M_Menu_SinglePlayer_f);
+	Cmd_AddRemCommand ("menu_multi", M_Menu_MultiPlayer_f);
+	Cmd_AddRemCommand ("menu_demo", M_Menu_Demos_f);
 	
-	Cmd_AddCommand ("menu_keys", M_Menu_Keys_f);
-	Cmd_AddCommand ("help", M_Menu_Help_f);
-	Cmd_AddCommand ("menu_quit", M_Menu_Quit_f);
-	Cmd_AddCommand ("menu_media", M_Menu_Media_f);
-	Cmd_AddCommand ("menu_mediafiles", M_Menu_MediaFiles_f);
+	Cmd_AddRemCommand ("menu_keys", M_Menu_Keys_f);
+	Cmd_AddRemCommand ("help", M_Menu_Help_f);
+	Cmd_AddRemCommand ("menu_quit", M_Menu_Quit_f);
+	Cmd_AddRemCommand ("menu_media", M_Menu_Media_f);
+	Cmd_AddRemCommand ("menu_mediafiles", M_Menu_MediaFiles_f);
 
 #ifdef CL_MASTER
-	Cmd_AddCommand ("menu_servers", M_Menu_ServerList_f);
-	Cmd_AddCommand ("menu_slist", M_Menu_ServerList_f);
+	Cmd_AddRemCommand ("menu_servers", M_Menu_ServerList_f);
+	Cmd_AddRemCommand ("menu_slist", M_Menu_ServerList_f);
 #endif
-	Cmd_AddCommand ("menu_setup", M_Menu_Setup_f);
-	Cmd_AddCommand ("menu_newmulti", M_Menu_GameOptions_f);
+	Cmd_AddRemCommand ("menu_setup", M_Menu_Setup_f);
+	Cmd_AddRemCommand ("menu_newmulti", M_Menu_GameOptions_f);
 
+	Cmd_AddRemCommand ("menu_main", M_Menu_Main_f);	//I've moved main to last because that way tab give us main and not quit.
 
-	Cmd_AddCommand ("menu_main", M_Menu_Main_f);	//I've moved main to last because that way tab give us main and not quit.
+	Cmd_AddRemCommand ("menu_options", M_Menu_Options_f);
+	Cmd_AddRemCommand ("menu_video", M_Menu_Video_f);
+	Cmd_AddRemCommand ("menu_audio", M_Menu_Audio_f);
+	Cmd_AddRemCommand ("menu_fps", M_Menu_FPS_f);
+	Cmd_AddRemCommand ("menu_particles", M_Menu_Particles_f);
+}
 
-	M_OptionsMenusInit();
+void M_DeInit_Internal (void)
+{
+	M_RemoveAllMenus(); 
+
+	if (!internalmenusregistered)
+		return;
+	internalmenusregistered = false;
+
+#ifndef CLIENTONLY
+	Cmd_RemoveCommand ("menu_save");
+	Cmd_RemoveCommand ("menu_load");
+	Cmd_RemoveCommand ("menu_loadgame");	//q2...
+#endif
+	Cmd_RemoveCommand ("menu_single");
+	Cmd_RemoveCommand ("menu_multi");
+	Cmd_RemoveCommand ("menu_demo");
+	
+	Cmd_RemoveCommand ("menu_keys");
+	Cmd_RemoveCommand ("help");
+	Cmd_RemoveCommand ("menu_quit");
+	Cmd_RemoveCommand ("menu_media");
+	Cmd_RemoveCommand ("menu_mediafiles");
+
+#ifdef CL_MASTER
+	Cmd_RemoveCommand ("menu_servers");
+	Cmd_RemoveCommand ("menu_slist");
+#endif
+	Cmd_RemoveCommand ("menu_setup");
+	Cmd_RemoveCommand ("menu_newmulti");
+	Cmd_RemoveCommand ("menu_main");	//I've moved main to last because that way tab give us main and not quit.
+
+	Cmd_RemoveCommand ("menu_options");
+	Cmd_RemoveCommand ("menu_video");
+	Cmd_RemoveCommand ("menu_audio");
+	Cmd_RemoveCommand ("menu_fps");
+	Cmd_RemoveCommand ("menu_particles");
+}
+
+//menu.dat is loaded later... after the video and everything is up.
+void M_Init (void)
+{
+	M_Init_Internal();
+
+	Cmd_AddCommand("togglemenu", M_ToggleMenu_f);
 
 	Cvar_Register(&m_helpismedia, "Menu thingumiebobs");
 
@@ -914,6 +972,9 @@ void M_Draw (int uimenu)
 		Plug_Menu_Event (0, (int)(realtime*1000));
 		break;
 #endif
+	case m_menu_dat:
+		MP_Draw();
+		return;
 	}
 
 	if (m_entersound)
@@ -964,6 +1025,10 @@ void M_Keydown (int key)
 		Plug_Menu_Event (1, key);
 		return;
 #endif
+
+	case m_menu_dat:
+		MP_Keydown(key);
+		return;
 	}
 }
 
@@ -980,6 +1045,9 @@ void M_Keyup (int key)
 		Plug_Menu_Event (2, key);
 		return;
 #endif
+	case m_menu_dat:
+		MP_Keyup(key);
+		return;
 	default:
 		break;
 	}

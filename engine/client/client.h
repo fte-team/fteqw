@@ -630,6 +630,7 @@ void CL_BaseMove (usercmd_t *cmd, int pnum);
 
 float CL_KeyState (kbutton_t *key, int pnum);
 char *Key_KeynumToString (int keynum);
+int Key_StringToKeynum (char *str, int *modifier);
 
 //
 // cl_demo.c
@@ -687,6 +688,7 @@ void CL_InitTEnts (void);
 void CL_ClearTEnts (void);
 void CL_ClearCustomTEnts(void);
 void CL_ParseCustomTEnt(void);
+void CL_ParseEffect (qboolean effect2);
 
 //
 // cl_ents.c
@@ -801,7 +803,7 @@ void CLQ2_ParseTEnt (void);
 void CLQ2_AddEntities (void);
 void CLQ2_ParseBaseline (void);
 void CLQ2_ParseFrame (void);
-void CLNQ_ParseEntity(int bits);
+void CLNQ_ParseEntity(unsigned int bits);
 int CLQ2_RegisterTEntModels (void);
 #endif
 

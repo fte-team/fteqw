@@ -900,8 +900,8 @@ void SVM_Think(int port);
 //
 // svonly.c
 //
-typedef enum {RD_NONE, RD_CLIENT, RD_PACKET, RD_OBLIVION} redirect_t;
-void SV_BeginRedirect (redirect_t rd);
+typedef enum {RD_NONE, RD_CLIENT, RD_PACKET, RD_OBLIVION} redirect_t;	//oblivion is provided so people can read the output before the buffer is wiped.
+void SV_BeginRedirect (redirect_t rd, int lang);
 void SV_EndRedirect (void);
 
 //

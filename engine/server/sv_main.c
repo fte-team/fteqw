@@ -650,7 +650,7 @@ void SVC_Status (void)
 	int slots=0;
 
 	Cmd_TokenizeString ("status", false, false);
-	SV_BeginRedirect (RD_PACKET);
+	SV_BeginRedirect (RD_PACKET, LANGDEFAULT);
 	Con_Printf ("%s\n", svs.info);
 	for (i=0 ; i<MAX_CLIENTS ; i++)
 	{
@@ -1882,7 +1882,7 @@ void SVC_RemoteCommand (void)
 				Con_Printf ("Rcon from %s:\n%s\n"
 					, NET_AdrToString (net_from), net_message.data+4);
 
-				SV_BeginRedirect (RD_PACKET);
+				SV_BeginRedirect (RD_PACKET, LANGDEFAULT);
 
 				remaining[0] = 0;
 
@@ -1910,7 +1910,7 @@ void SVC_RemoteCommand (void)
 		Con_Printf ("Bad rcon from %s:\n%s\n"
 			, NET_AdrToString (net_from), net_message.data+4);
 
-		SV_BeginRedirect (RD_PACKET);
+		SV_BeginRedirect (RD_PACKET, LANGDEFAULT);
 
 		Con_Printf ("Bad rcon_password.\n");
 
@@ -1921,7 +1921,7 @@ void SVC_RemoteCommand (void)
 		Con_Printf ("Rcon from %s:\n%s\n"
 			, NET_AdrToString (net_from), net_message.data+4);
 
-		SV_BeginRedirect (RD_PACKET);
+		SV_BeginRedirect (RD_PACKET, LANGDEFAULT);
 
 		remaining[0] = 0;
 
@@ -3043,6 +3043,10 @@ void SV_InitLocal (void)
 	svs.fteprotocolextensions |= PEXT_SHOWPIC;
 	svs.fteprotocolextensions |= PEXT_SETATTACHMENT;
 
+#ifdef PEXT_CHUNKEDDOWNLOADS
+	svs.fteprotocolextensions |= PEXT_CHUNKEDDOWNLOADS;
+#endif
+
 //	if (svs.protocolextensions)
 //		Info_SetValueForStarKey (svs.info, "*"DISTRIBUTION"_ext", va("%x", svs.protocolextensions), MAX_SERVERINFO_STRING);
 
@@ -3349,7 +3353,7 @@ void SV_ExtractFromUserinfo (client_t *cl)
 	if (strlen(val))
 		cl->drate = atoi(val);
 	else
-		cl->drate = 2500;
+		cl->drate = cl->rate;
 
 	// msg command
 	val = Info_ValueForKey (cl->userinfo, "msg");

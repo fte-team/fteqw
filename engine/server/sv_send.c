@@ -40,6 +40,7 @@ Con_Printf redirection
 char	outputbuf[8000];
 
 redirect_t	sv_redirected;
+int sv_redirectedlang;
 
 extern func_t getplayerstat[MAX_CL_STATS];
 extern func_t getplayerstati[MAX_CL_STATS];
@@ -108,15 +109,17 @@ SV_BeginRedirect
   instead of the console
 ==================
 */
-void SV_BeginRedirect (redirect_t rd)
+void SV_BeginRedirect (redirect_t rd, int lang)
 {
 	sv_redirected = rd;
+	sv_redirectedlang = lang;
 	outputbuf[0] = 0;
 }
 
 void SV_EndRedirect (void)
 {
 	SV_FlushRedirect ();
+	sv_redirectedlang = 0;	//clenliness rather than functionality. Shouldn't be needed.
 	sv_redirected = RD_NONE;
 }
 
@@ -165,7 +168,7 @@ void Con_TPrintf (translation_t stringnum, ...)
 	// add to redirected message
 	if (sv_redirected)
 	{
-		fmt = languagetext[stringnum][host_client->language];
+		fmt = languagetext[stringnum][sv_redirectedlang];
 		va_start (argptr,stringnum);
 		_vsnprintf (msg,sizeof(msg)-1, fmt,argptr);
 		va_end (argptr);
@@ -701,13 +704,22 @@ void SV_StartSound (edict_t *entity, int channel, char *sample, int volume,
 	qboolean	reliable = false;
 
 	if (volume < 0 || volume > 255)
-		SV_Error ("SV_StartSound: volume = %i", volume);
+	{
+		Con_Printf ("SV_StartSound: volume = %i", volume);
+		return;
+	}
 
 	if (attenuation < 0 || attenuation > 4)
-		SV_Error ("SV_StartSound: attenuation = %f", attenuation);
+	{
+		Con_Printf ("SV_StartSound: attenuation = %f", attenuation);
+		return;
+	}
 
 	if (channel < 0 || channel > 15)
-		SV_Error ("SV_StartSound: channel = %i", channel);
+	{
+		Con_Printf ("SV_StartSound: channel = %i", channel);
+		return;
+	}
 
 // find precache number for sound
     for (sound_num=1 ; sound_num<MAX_SOUNDS

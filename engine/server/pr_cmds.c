@@ -1228,7 +1228,7 @@ qboolean PR_UserCmd(char *s)
 #ifdef Q2SERVER
 	if (ge)
 	{
-		SV_BeginRedirect (RD_CLIENT);
+		SV_BeginRedirect (RD_CLIENT, host_client->language);
 		ge->ClientCommand(host_client->q2edict);
 		SV_EndRedirect ();
 		return true;	//the dll will convert it to chat.
@@ -1656,7 +1656,7 @@ Writes new values for v_forward, v_up, and v_right based on angles
 makevectors(vector)
 ==============
 */
-void PF_makevectors (progfuncs_t *prinst, struct globalvars_s *pr_globals)
+static void PF_makevectors (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
 	AngleVectors (G_VECTOR(OFS_PARM0), P_VEC(v_forward), P_VEC(v_right), P_VEC(v_up));
 }
@@ -1759,7 +1759,7 @@ void PF_setmodel (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 			}
 		}
 	}
-		
+
 	e->v.model = PR_SetString(prinst, sv.model_precache[i]);
 	e->v.modelindex = i;
 
@@ -5924,7 +5924,9 @@ void PF_readcmd (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 	static char output[8000];
 	extern char outputbuf[];
 	extern redirect_t sv_redirected;
+	extern int sv_redirectedlang;
 	redirect_t old;
+	int oldl;
 
 	s = PR_GetStringOfs(prinst, OFS_PARM0);
 
@@ -5932,16 +5934,17 @@ void PF_readcmd (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 	Cbuf_AddText (s, RESTRICT_LOCAL);
 
 	old = sv_redirected;
+	oldl = sv_redirectedlang;
 	if (old != RD_NONE)
 		SV_EndRedirect();
 
-	SV_BeginRedirect(RD_OBLIVION);
+	SV_BeginRedirect(RD_OBLIVION, LANGDEFAULT);
 	Cbuf_Execute();
 	Q_strncpyz(output, outputbuf, sizeof(output));
 	SV_EndRedirect();
 
 	if (old != RD_NONE)
-		SV_BeginRedirect(old);
+		SV_BeginRedirect(old, oldl);
 
 
 	G_INT(OFS_RETURN) = (int)PR_SetString(prinst, output);

@@ -2836,7 +2836,7 @@ void SV_ExecuteUserCommand (char *s, qboolean fromQC)
 					host_client = oldhost;
 					return;
 				}
-			SV_BeginRedirect (RD_CLIENT);
+			SV_BeginRedirect (RD_CLIENT, host_client->language);
 			u->func ();
 			host_client = oldhost;
 			SV_EndRedirect ();
@@ -2867,7 +2867,7 @@ void SV_ExecuteUserCommand (char *s, qboolean fromQC)
 			Con_Printf ("cmd from %s:\n%s\n"
 				, host_client->name, net_message.data+4);
 
-			SV_BeginRedirect (RD_CLIENT);
+			SV_BeginRedirect (RD_CLIENT, host_client->language);
 
 			remaining[0] = 0;
 
@@ -3278,13 +3278,13 @@ void SVNQ_ExecuteUserCommand (char *s)
 
 			if (!u->func)
 			{
-				SV_BeginRedirect (RD_CLIENT);
+				SV_BeginRedirect (RD_CLIENT, host_client->language);
 				Con_Printf("Command was disabled\n");
 				SV_EndRedirect ();
 			}
 			else
 			{
-				SV_BeginRedirect (RD_CLIENT);
+				SV_BeginRedirect (RD_CLIENT, host_client->language);
 				u->func ();
 				SV_EndRedirect ();
 			}
@@ -3810,7 +3810,7 @@ void SV_RunCmd (usercmd_t *ucmd, qboolean recurse)
 	movevars.ktjump = pm_ktjump.value;
 	movevars.slidefix = (pm_slidefix.value != 0);
 	movevars.airstep = (pm_airstep.value != 0);
-	movevars.walljump = (pm_walljump.value != 0);
+	movevars.walljump = (pm_walljump.value);
 
 	if (sv_player->v.hasted)
 		movevars.maxspeed*=sv_player->v.hasted;

@@ -1454,6 +1454,8 @@ void Sbar_Draw (void)
 #ifdef Q2CLIENT
 	if (cls.q2server)
 	{
+		SCR_VRectForPlayer(&sbar_rect, 0);
+
 		if (*cl.q2statusbar)
 		Sbar_ExecuteLayoutString(cl.q2statusbar);
 		if (*cl.q2layout)

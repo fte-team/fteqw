@@ -716,7 +716,10 @@ void NPP_QWFlush(void)
 		if (buffer[6])
 		{
 			Q_strncpyz(svs.clients[buffer[1]].userinfo, (buffer+6), sizeof(svs.clients[0].userinfo));
-			SV_ExtractFromUserinfo(&svs.clients[buffer[1]]);
+			if (*Info_ValueForKey(svs.clients[buffer[1]].userinfo, "name"))
+				SV_ExtractFromUserinfo(&svs.clients[buffer[1]]);
+			else
+				*svs.clients[buffer[1]].name = '\0';
 		}
 		else
 		{

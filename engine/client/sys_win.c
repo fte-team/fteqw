@@ -1100,7 +1100,7 @@ int WINAPI WinMain (HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLin
 		t = COM_CheckParm("-mem") + 1;
 
 		if (t < com_argc)
-			parms.memsize = Q_atoi (com_argv[t]) * 1024;
+			parms.memsize = Q_atoi (com_argv[t]) * 1024*1024;
 	}
 
 	parms.membase = VirtualAlloc (NULL, parms.memsize, MEM_RESERVE, PAGE_NOACCESS);

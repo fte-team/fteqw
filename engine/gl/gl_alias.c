@@ -601,7 +601,7 @@ static galiastexnum_t *GL_ChooseSkin(galiasinfo_t *inf, char *modelname, entity_
 		bc = e->scoreboard->bottomcolor;
 
 		//colour forcing
-		if (!cl.splitclients && !(cl.fpd & FPD_NO_FORCE_COLOR))	//no colour/skin forcing in splitscreen.
+		if (cl.splitclients<2 && !(cl.fpd & FPD_NO_FORCE_COLOR))	//no colour/skin forcing in splitscreen.
 		{
 			if (cl.teamplay && !strcmp(e->scoreboard->team, cl.players[cl.playernum[0]].team))
 			{

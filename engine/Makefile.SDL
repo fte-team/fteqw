@@ -30,10 +30,12 @@ RELEASE_DIR=$(BASE_DIR)/release
 DEBUG_DIR=$(BASE_DIR)/debug
 
 DO_CC=$(CC) $(CFLAGS) -o $@ -c $<
-ifdef windir
-	DO_AS=$(CC) $(CFLAGS) -x assembler-with-cpp -o $@ -c $<
-else
-	DO_AS=$(CC) $(CFLAGS) -x assembler-with-cpp -DELF -o $@ -c $<
+ifeq ($(USEASM),true)
+	ifdef windir
+		DO_AS=$(CC) $(CFLAGS) -x assembler-with-cpp -o $@ -c $<
+	else
+		DO_AS=$(CC) $(CFLAGS) -x assembler-with-cpp -DELF -o $@ -c $<
+	endif
 endif
 BASELDFLAGS=-lm -lz
 GLXLDFLAGS=-L/usr/X11R6/lib -lX11 -lXext -lpng -ljpeg -lXxf86vm
@@ -41,8 +43,18 @@ GLSLDFLAGS=-L/usr/X11R6/lib -lMesaGL -lglide -lvga
 XLDFLAGS=-L/usr/X11R6/lib -lX11 -lXext -lpng -ljpeg
 SLDFLAGS=-lvga
 
+ifeq ($(USEASM),true)
+	COMMON_ASM_OBJS = 	\
+		worlda.o 		\
+		math.o
 
-BASE_CFLAGS=-DQ3SHADERS -Wall -Dstrnicmp=strncasecmp -Dstricmp=strcasecmp -I$(CLIENT_DIR) -I$(SERVER_DIR) -I$(COMMON_DIR) -I$(SW_DIR) -I$(GL_DIR) -I$(PROGS_DIR) -I$(LIBS_DIR) -I$(QUX_DIR) -I$(LIBS_DIR)/dxsdk7/include -I/usr/X11R6/include -D_vsnprintf=vsnprintf -D_snprintf=snprintf
+	CLIENT_ASM_OBJS = 	\
+		snd_mixa.o
+else
+	BASE_ASM_CFLAGS = -DNOASM
+endif
+
+BASE_CFLAGS=$(BASE_ASM_CFLAGS) -DQ3SHADERS -Wall -Dstrnicmp=strncasecmp -Dstricmp=strcasecmp -I$(CLIENT_DIR) -I$(SERVER_DIR) -I$(COMMON_DIR) -I$(SW_DIR) -I$(GL_DIR) -I$(PROGS_DIR) -I$(LIBS_DIR) -I$(QUX_DIR) -I$(LIBS_DIR)/dxsdk7/include -I/usr/X11R6/include -I$(LIBS_DIR)/sdl/include -I$(LIBS_DIR)/sdl/include/SDL -D_vsnprintf=vsnprintf -D_snprintf=snprintf
 CLIENT_ONLY_CFLAGS=$(BASE_CFLAGS) -DCLIENTONLY
 SERVER_ONLY_CFLAGS=$(BASE_CFLAGS) -DSERVERONLY
 JOINT_CFLAGS=$(BASE_CFLAGS)
@@ -59,7 +71,7 @@ NQPROT_OBJS = \
 	net_wipx.o \
 	net_vcr.o
 
-CLIENT_OBJS = \
+CLIENT_OBJS = $(CLIENT_ASM_OBJS) \
 	textedit.o	\
 	fragstats.o	\
 	teamplay.o	\
@@ -104,7 +116,6 @@ CLIENT_OBJS = \
 	snd_mix.o	\
 	snd_mp3.o	\
 	snd_ov.o	\
-	snd_mixa.o	\
 	valid.o	\
 	view.o	\
 	wad.o			\
@@ -252,13 +263,12 @@ SERVERONLY_OBJS = \
 	svmodel.o \
 	sv_sys_unix.o
 
-COMMON_OBJS = \
+COMMON_OBJS = $(COMMON_ASM_OBJS) \
 	common.o 	\
 	cvar.o 	\
 	cmd.o 	\
 	crc.o 	\
 	mathlib.o 	\
-	math.o	\
 	huff.o	\
 	md4.o 	\
 	md5.o 	\
@@ -273,7 +283,6 @@ COMMON_OBJS = \
 	translate.o		\
 	plugin.o		\
 	q1bsp.o		\
-	worlda.o 		\
 	q2pmove.o
 
 ifeq ($(FTE_TARGET), win32)
@@ -316,8 +325,10 @@ VPATH = $(BASE_DIR) : $(CLIENT_DIR) : $(GL_DIR) : $(COMMON_DIR) : ($SW_DIR) : $(
 $(OUT_DIR)/%.o : %.c
 	$(DO_CC)
 
+ifeq ($(USEASM),true)
 $(OUT_DIR)/%.o : %.s
 	$(DO_AS)
+endif
 
 
 $(OUT_DIR)/$(EXE_NAME): $(addprefix $(OUT_DIR)/, $(OBJS)) 

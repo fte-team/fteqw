@@ -287,9 +287,9 @@ int QCEditor (char *filename, int line, int nump, char **parms)
 		return QCLibEditor(filename, line, nump, parms);
 	else
 	{
-		if (!strncmp(oldfuncname, *parms, sizeof(oldfuncname)))
+		if (!nump && !strncmp(oldfuncname, *parms, sizeof(oldfuncname)))
 		{
-			Con_Printf("Executing %s: %s\n", *parms);
+			Con_Printf("Executing %s: %s\n", *parms, filename);
 			Q_strncpyz(oldfuncname, *parms, sizeof(oldfuncname));
 		}
 		return line;
@@ -391,11 +391,11 @@ void PR_LoadGlabalStruct(void)
 	int i;
 	int *v;
 	nqglobalvars_t *pr_globals = pr_nqglobal_struct;
-#define globalfloat(need,name) ((nqglobalvars_t*)pr_nqglobal_struct)->name = (float *)PR_FindGlobal(svprogfuncs, #name, 0);	if (need && !((nqglobalvars_t*)pr_globals)->name) Sys_Error("Could not find export in progs \"%s\"\n", #name);
-#define globalint(need,name) ((nqglobalvars_t*)pr_globals)->name = (int *)PR_FindGlobal(svprogfuncs, #name, 0);	if (need && !((nqglobalvars_t*)pr_globals)->name) Sys_Error("Could not find export in progs \"%s\"\n", #name "\n");
-#define globalstring(need,name) ((nqglobalvars_t*)pr_globals)->name = (char **)PR_FindGlobal(svprogfuncs, #name, 0);	if (need && !((nqglobalvars_t*)pr_globals)->name) Sys_Error("Could not find export in progs \"%s\"\n", #name);
-#define globalvec(need,name) ((nqglobalvars_t*)pr_globals)->V_##name = (vec3_t *)PR_FindGlobal(svprogfuncs, #name, 0);	if (need && !((nqglobalvars_t*)pr_globals)->V_##name) Sys_Error("Could not find export in progs \"%s\"\n", #name);
-#define globalfunc(need,name) ((nqglobalvars_t*)pr_globals)->name = (func_t *)PR_FindGlobal(svprogfuncs, #name, 0);	if (need && !((nqglobalvars_t*)pr_globals)->name) Sys_Error("Could not find export in progs \"%s\"\n", #name);
+#define globalfloat(need,name) ((nqglobalvars_t*)pr_nqglobal_struct)->name = (float *)PR_FindGlobal(svprogfuncs, #name, 0);	if (need && !((nqglobalvars_t*)pr_globals)->name) SV_Error("Could not find \""#name"\" export in progs\n");
+#define globalint(need,name) ((nqglobalvars_t*)pr_globals)->name = (int *)PR_FindGlobal(svprogfuncs, #name, 0);	if (need && !((nqglobalvars_t*)pr_globals)->name) SV_Error("Could not find export \""#name"\" in progs\n");
+#define globalstring(need,name) ((nqglobalvars_t*)pr_globals)->name = (char **)PR_FindGlobal(svprogfuncs, #name, 0);	if (need && !((nqglobalvars_t*)pr_globals)->name) SV_Error("Could not find export \""#name"\" in progs\n");
+#define globalvec(need,name) ((nqglobalvars_t*)pr_globals)->V_##name = (vec3_t *)PR_FindGlobal(svprogfuncs, #name, 0);	if (need && !((nqglobalvars_t*)pr_globals)->V_##name) SV_Error("Could not find export \""#name"\" in progs\n");
+#define globalfunc(need,name) ((nqglobalvars_t*)pr_globals)->name = (func_t *)PR_FindGlobal(svprogfuncs, #name, 0);	if (need && !((nqglobalvars_t*)pr_globals)->name) SV_Error("Could not find export \""#name"\" in progs\n");
 //			globalint(pad);
 	globalint		(true, self);	//we need the qw ones, but any in standard quake and not quakeworld, we don't really care about.
 	globalint		(true, other);
@@ -643,21 +643,6 @@ progsnum_t AddProgs(char *name)
 	if (!svs.numprogs)
 		PR_ResetBuiltins(progstype);
 
-	if ((f = PR_FindFunction (svprogfuncs, "FTE_init", num )))
-	{
-		pr_globals = PR_globals(svprogfuncs, num);
-		G_FLOAT(OFS_PARM0) = VERSION;
-		PR_ExecuteProgram (svprogfuncs, f);
-
-		fl = G_FLOAT(OFS_RETURN);
-		if (fl < 0)
-			SV_Error ("PR_LoadProgs: %s is not compatable with EXE version", name);
-		else if ((int) (fl*1000) != (int) (VERSION*1000))
-			Con_DPrintf("Warning: Progs may not be fully compatable\n (%4.2f != %4.2f)\n", fl, VERSION);
-	}
-	else
-		Con_DPrintf("function \"float(float ver) FTE_init\" not found\n");
-
 	if ((f = PR_FindFunction (svprogfuncs, "VersionChat", num )))
 	{
 		pr_globals = PR_globals(svprogfuncs, num);
@@ -670,6 +655,14 @@ progsnum_t AddProgs(char *name)
 		else if ((int) (fl*1000) != (int) (VERSION*1000))
 			Con_DPrintf("Warning: Progs may not be fully compatable\n (%4.2f != %4.2f)\n", fl, VERSION);
 	}
+
+	if ((f = PR_FindFunction (svprogfuncs, "FTE_init", num )))
+	{
+		pr_globals = PR_globals(svprogfuncs, num);
+		G_FLOAT(OFS_PARM0) = VERSION;
+		PR_ExecuteProgram (svprogfuncs, f);
+	}
+
 
 	strcpy(svs.progsnames[svs.numprogs], name);
 	svs.progsnum[svs.numprogs] = num;
@@ -695,10 +688,15 @@ void PR_Compile_f(void)
 {
 	int argc=3;
 	double time = Sys_DoubleTime();
-	char *argv[] = {"", "-srcfile", "qwprogs.src"};
+	char *argv[64] = {"", "-srcfile", "qwprogs.src"};
 
-	if (Cmd_Argc() != 1)
+	if (Cmd_Argc() == 2)
 		argv[2] = Cmd_Argv(1);
+	else if (Cmd_Argc()>2)
+	{
+		for (argc = 0; argc < Cmd_Argc(); argc++)
+			argv[argc] = Cmd_Argv(argc);
+	}
 
 	if (!svprogfuncs)
 		Q_SetProgsParms(true);
@@ -922,7 +920,7 @@ void Q_InitProgs(void)
 		oldprnum= AddProgs("progs.dat");
 	}
 	if (oldprnum < 0)
-		Sys_Error("Couldn't open or compile progs\n");
+		SV_Error("Couldn't open or compile progs\n");
 		
 
 	f = PR_FindFunction (svprogfuncs, "AddAddonProgs", oldprnum);	
@@ -1297,7 +1295,7 @@ void PR_LocalInfoChanged(char *name, char *oldivalue, char *newvalue)
 	}
 }
 
-void VARGS PR_BIError(char *format, ...)
+void VARGS PR_BIError(progfuncs_t *progfuncs, char *format, ...)
 {
 	va_list		argptr;
 	static char		string[2048];
@@ -1316,7 +1314,7 @@ void VARGS PR_BIError(char *format, ...)
 		G_INT(OFS_RETURN+2)=0;
 	}
 	else
-		SV_Error("%s\n", string);
+		PR_RunError(progfuncs, "%s", string);
 }
 
 void QC_Clear(void)
@@ -1418,7 +1416,7 @@ void PF_externcall (progfuncs_t *prinst, globalvars_t *pr_globals)	//this func c
 		f = PR_FindFunction(prinst, "MissingFunc", progsnum);
 		if (!f)
 		{
-			PR_BIError("Couldn't find function %s", funcname);
+			PR_BIError(prinst, "Couldn't find function %s", funcname);
 			return;
 		}
 
@@ -1505,7 +1503,7 @@ void PF_instr (progfuncs_t *prinst, globalvars_t *pr_globals)
 
 	if (!s1 || !s2)
 	{
-		PR_BIError("Null string in \"instr\"\n");
+		PR_BIError(prinst, "Null string in \"instr\"\n");
 		return;
 	}
 
@@ -1556,7 +1554,7 @@ void PF_error (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 	ED_Print (ed);
 */	
 
-	Con_Printf("%s", s);
+	Con_Printf("%s\n", s);
 
 	if (developer.value)
 	{
@@ -1712,7 +1710,7 @@ void PF_setmodel (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 			}
 			else
 			{
-				PR_BIError ("no precache: %s\n", m);
+				PR_BIError (prinst, "no precache: %s\n", m);
 				return;
 			}
 		}
@@ -2891,6 +2889,24 @@ void PF_stuffcmd (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 	}
 }
 
+//DP_QC_DROPCLIENT
+void PF_dropclient (progfuncs_t *prinst, struct globalvars_s *pr_globals)
+{
+	int		entnum;
+	client_t	*cl;
+	
+	entnum = G_EDICTNUM(prinst, OFS_PARM0);
+	if (entnum < 1 || entnum > sv.allocated_client_slots)
+		return;
+
+	cl = &svs.clients[entnum-1];
+
+	// so long and thanks for all the fish
+	if (cl->netchan.remote_address.type == NA_LOOPBACK)
+		return;	//don't drop the local client. It looks wrong.
+	cl->drop = true;
+	return;
+}
 /*
 =================
 PF_localcmd
@@ -3211,7 +3227,7 @@ void PF_Find (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 	s = PR_GetStringOfs(prinst, OFS_PARM2);
 	if (!s)
 	{
-		PR_BIError ("PF_Find: bad search string");
+		PR_BIError (prinst, "PF_Find: bad search string");
 		return;
 	}
 		
@@ -3252,7 +3268,7 @@ void PF_precache_sound (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 	
 	if (sv.state != ss_loading)
 	{
-		PR_BIError ("PF_Precache_*: Precache can only be done in spawn functions");
+		PR_BIError (prinst, "PF_Precache_*: Precache can only be done in spawn functions");
 		return;
 	}
 
@@ -3261,7 +3277,7 @@ void PF_precache_sound (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 
 	if (s[0] <= ' ')
 	{
-		PR_BIError ("Bad string");	
+		PR_BIError (prinst, "PF_precache_sound: Bad string");	
 		return;
 	}
 	
@@ -3275,7 +3291,7 @@ void PF_precache_sound (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 		if (!strcmp(sv.sound_precache[i], s))
 			return;
 	}
-	PR_BIError ("PF_precache_sound: overflow");
+	PR_BIError (prinst, "PF_precache_sound: overflow");
 }
 
 void PF_precache_model (progfuncs_t *prinst, struct globalvars_s *pr_globals)
@@ -3285,7 +3301,7 @@ void PF_precache_model (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 	
 	if (sv.state != ss_loading)
 	{
-		PR_BIError ("PF_Precache_*: Precache can only be done in spawn functions");
+		PR_BIError (prinst, "PF_Precache_*: Precache can only be done in spawn functions");
 		G_FLOAT(OFS_RETURN) = 1;
 		return;
 	}
@@ -3295,7 +3311,7 @@ void PF_precache_model (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 
 	if (s[0] <= ' ')
 	{
-		PR_BIError ("Bad string");
+		PR_BIError (prinst, "Bad string");
 		return;
 	}
 
@@ -3304,7 +3320,7 @@ void PF_precache_model (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 		if (!*sv.model_precache[i])
 		{
 			if (strlen(s)>=sizeof(sv.model_precache[i])-1)
-				PR_BIError ("Precache name too long");
+				PR_BIError (prinst, "Precache name too long");
 			strcpy(sv.model_precache[i], s);
 			if (!strcmp(s + strlen(s) - 4, ".bsp"))
 				sv.models[i] = Mod_FindName(sv.model_precache[i]);
@@ -3316,7 +3332,7 @@ void PF_precache_model (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 			return;
 		}
 	}
-	PR_BIError ("PF_precache_model: overflow");
+	PR_BIError (prinst, "PF_precache_model: overflow");
 }
 
 void PF_precache_puzzle_model (progfuncs_t *prinst, struct globalvars_s *pr_globals)
@@ -3341,7 +3357,7 @@ void PF_WeapIndex (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 
 	if (s[0] <= ' ')
 	{
-		PR_BIError ("Bad string");
+		PR_BIError (prinst, "Bad string");
 		return;
 	}
 
@@ -3351,7 +3367,7 @@ void PF_WeapIndex (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 		{
 			if (sv.state != ss_loading)	//allow it to be used to find a model too.
 			{
-				PR_BIError ("PF_Precache_*: Precache can only be done in spawn functions");
+				PR_BIError (prinst, "PF_Precache_*: Precache can only be done in spawn functions");
 				return;
 			}
 
@@ -3368,7 +3384,7 @@ void PF_WeapIndex (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 			return;
 		}
 	}
-	PR_BIError ("PF_precache_model: overflow");
+	PR_BIError (prinst, "PF_precache_model: overflow");
 }
 
 
@@ -3975,7 +3991,7 @@ sizebuf_t *WriteDest (int		dest)
 	case MSG_INIT:
 		if (sv.state != ss_loading)
 		{
-			PR_BIError ("PF_Write_*: MSG_INIT can only be written in spawn functions");
+			PR_BIError (svprogfuncs, "PF_Write_*: MSG_INIT can only be written in spawn functions");
 			return NULL;
 		}
 		return &sv.signon;
@@ -3984,7 +4000,7 @@ sizebuf_t *WriteDest (int		dest)
 		return &sv.multicast;
 
 	default:
-		PR_BIError ("WriteDest: bad destination");
+		PR_BIError (svprogfuncs, "WriteDest: bad destination");
 		break;
 	}
 	
@@ -4005,7 +4021,7 @@ sizebuf_t *NQWriteDest (int dest)
 		entnum = NUM_FOR_EDICT(ent);
 		if (entnum < 1 || entnum > MAX_CLIENTS)
 		{
-			PR_BIError ("WriteDest: not a client");
+			PR_BIError (prinst, "WriteDest: not a client");
 			return &sv.nqreliable_datagram;
 		}
 		return &svs.clients[entnum-1].netchan.message;
@@ -4017,7 +4033,7 @@ sizebuf_t *NQWriteDest (int dest)
 	case MSG_INIT:
 		if (sv.state != ss_loading)
 		{
-			PR_BIError ("PF_Write_*: MSG_INIT can only be written in spawn functions");
+			PR_BIError (svprogfuncs, "PF_Write_*: MSG_INIT can only be written in spawn functions");
 			return NULL;
 		}
 		return &sv.signon;
@@ -4026,7 +4042,7 @@ sizebuf_t *NQWriteDest (int dest)
 		return &sv.nqmulticast;
 
 	default:
-		PR_BIError ("WriteDest: bad destination");
+		PR_BIError (svprogfuncs, "WriteDest: bad destination");
 		break;
 	}
 	
@@ -4550,7 +4566,7 @@ void PF_setspawnparms (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 	i = NUM_FOR_EDICT(prinst, ent);
 	if (i < 1 || i > sv.allocated_client_slots)
 	{
-		PR_BIError ("Entity is not a client");
+		PR_BIError (prinst, "Entity is not a client");
 		return;
 	}
 
@@ -4770,7 +4786,7 @@ qboolean printedheader = false;
 		PR_RunError(prinst, "\nBuiltin %i not implemented.\nMods designed for mvdsv may need pr_imitatemvdsv to be enabled.", prinst->lastcalledbuiltinnumber);
 	else
 		PR_RunError(prinst, "\nBuiltin %i not implemented.\nMod is not compatable.", prinst->lastcalledbuiltinnumber);
-	PR_BIError ("bulitin not implemented");
+	PR_BIError (prinst, "bulitin not implemented");
 }
 
 void PF_Ignore(progfuncs_t *prinst, struct globalvars_s *pr_globals)
@@ -4937,8 +4953,19 @@ void PF_substring (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 	start = G_FLOAT(OFS_PARM1);
 	length = G_FLOAT(OFS_PARM2);
 
-	if (length >= sizeof(string))
-		length = sizeof(string)-1;
+	if (start < 0)
+		start = strlen(s)-start;
+	if (length < 0)
+		length = strlen(s)-start;
+
+	if (start >= length || length<=0 || !*s)
+	{
+		RETURN_TSTRING("");
+		return;
+	}
+
+	if (length >= MAXTEMPBUFFERLEN)
+		length = MAXTEMPBUFFERLEN-1;
 
 	for (i = 0; i < start && *s; i++, s++)
 		;
@@ -4982,6 +5009,225 @@ void PF_stov (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 
 
 
+//FTE_STRINGS
+//strstr, without generating a new string. Use in conjunction with FRIK_FILE's substring for more similar strstr.
+void PF_strstrofs (progfuncs_t *prinst, struct globalvars_s *pr_globals)
+{
+	char *instr = PR_GetStringOfs(prinst, OFS_PARM0);
+	char *match = PR_GetStringOfs(prinst, OFS_PARM1);
+
+	int firstofs = (*prinst->callargc>2)?G_FLOAT(OFS_PARM1):0;
+
+	if (firstofs && (firstofs < 0 || firstofs > strlen(instr)))
+	{
+		G_FLOAT(OFS_RETURN) = -1;
+		return;
+	}
+
+	match = strstr(instr+firstofs, match);
+	if (!match)
+		G_FLOAT(OFS_RETURN) = -1;
+	else
+		G_FLOAT(OFS_RETURN) = match - instr;
+}
+//FTE_STRINGS
+
+void PF_str2chr (progfuncs_t *prinst, struct globalvars_s *pr_globals)
+{
+	char *instr = PR_GetStringOfs(prinst, OFS_PARM0);
+	int ofs = (*prinst->callargc>1)?G_FLOAT(OFS_PARM1):0;
+
+	if (ofs < 0)
+		ofs = strlen(instr)+ofs;
+
+	if (ofs && (ofs < 0 || ofs > strlen(instr)))
+		G_FLOAT(OFS_RETURN) = '\0';
+	else
+		G_FLOAT(OFS_RETURN) = instr[ofs];
+}
+void PF_chr2str (progfuncs_t *prinst, struct globalvars_s *pr_globals)
+{
+	int i;
+
+	char *string = PF_TempStr();
+	for (i = 0; i < *prinst->callargc; i++)
+		string[i] = G_FLOAT(OFS_PARM0 + i*3);
+	string[i] = '\0';
+	RETURN_SSTRING(string);
+}
+static int chrconv_number(int i, int base, int conv)
+{
+	i -= base;
+	switch (conv)
+	{
+	default:
+	case 0:
+		break;
+	case 1:
+		base = '0';
+		break;
+	case 2:
+		base = '0'+128;
+		break;
+	case 3:
+		base = '0'-30;
+		break;
+	case 4:
+		base = '0'+128-30;
+		break;
+	}
+	return i + base;
+}
+static int chrconv_punct(int i, int base, int conv)
+{
+	i -= base;
+	switch (conv)
+	{
+	default:
+	case 0:
+		break;
+	case 1:
+		base = 0;
+		break;
+	case 2:
+		base = 128;
+		break;
+	}
+	return i + base;
+}
+static int chrchar_alpha(int i, int basec, int baset, int convc, int convt)
+{
+	//convert case and colour seperatly...
+
+	i -= baset + basec;
+	switch (convt)
+	{
+	default:
+	case 0:
+		break;
+	case 1:
+		baset = 0;
+		break;
+	case 2:
+		baset = 128;
+		break;
+	}
+
+	switch (convc)
+	{
+	default:
+	case 0:
+		break;
+	case 1:
+		basec = 'a';
+		break;
+	case 2:
+		basec = 'A';
+		break;
+	}
+	return i + basec + baset;
+}
+void PF_strconv (progfuncs_t *prinst, struct globalvars_s *pr_globals)
+{
+	int ccase = G_FLOAT(OFS_PARM0);	//0 same, 1 lower, 2 upper
+	int redalpha = G_FLOAT(OFS_PARM1);	//0 same, 1 white, 2 red
+	int redchars = G_FLOAT(OFS_PARM2);	//0 same, 1 white, 2 red, 3 redspecial, 4 whitespecial
+	char *string = PF_VarString(prinst, 3, pr_globals);
+	int len = strlen(string);
+	int i;
+	char *result = PF_TempStr();
+	
+	if (len >= MAXTEMPBUFFERLEN)
+		len = MAXTEMPBUFFERLEN-1;
+
+	RETURN_SSTRING(result);
+
+	for (i = 0; i < len; i++, string++, result++)	//do this backwards
+	{
+		if (*string >= '0' && *string <= '9')	//normal numbers...
+			*result = chrconv_number(*string, '0', redchars);
+		else if (*string >= '0'+128 && *string <= '9'+128)
+			*result = chrconv_number(*string, '0'+128, redchars);
+		else if (*string >= '0'+128-30 && *string <= '9'+128-30)
+			*result = chrconv_number(*string, '0'+128-30, redchars);
+		else if (*string >= '0'-30 && *string <= '9'-30)
+			*result = chrconv_number(*string, '0'-30, redchars);
+
+		else if (*string >= 'a' && *string <= 'z')	//normal numbers...
+			*result = chrchar_alpha(*string, 0, 'a', ccase, redchars);
+		else if (*string >= 'A' && *string <= 'Z')	//normal numbers...
+			*result = chrchar_alpha(*string, 0, 'A', ccase, redchars);
+		else if (*string >= 'a'+128 && *string <= 'z'+128)	//normal numbers...
+			*result = chrchar_alpha(*string, 128, 'a', ccase, redchars);
+		else if (*string >= 'A'+128 && *string <= 'Z'+128)	//normal numbers...
+			*result = chrchar_alpha(*string, 128, 'A', ccase, redchars);
+
+		else if (*string & 127 < 16 || !redalpha)	//special chars..
+			*result = *string;
+		else if (*string < 128)
+			*result = chrconv_punct(*string, 0, redalpha);
+		else
+			*result = chrconv_punct(*string, 128, redalpha);
+	}
+	*result = '\0';
+}
+
+void PF_infoadd (progfuncs_t *prinst, struct globalvars_s *pr_globals)
+{
+	char *info = PR_GetStringOfs(prinst, OFS_PARM0);
+	char *key = PR_GetStringOfs(prinst, OFS_PARM1);
+	char *value = PF_VarString(prinst, 2, pr_globals);
+	char *temp;
+
+	temp = PF_TempStr();
+	Q_strncpyz(temp, value, MAXTEMPBUFFERLEN);
+
+	Info_SetValueForStarKey(temp, key, value, MAXTEMPBUFFERLEN);
+
+	RETURN_SSTRING(temp);
+}
+void PF_infoget (progfuncs_t *prinst, struct globalvars_s *pr_globals)
+{
+	char *info = PR_GetStringOfs(prinst, OFS_PARM0);
+	char *key = PR_GetStringOfs(prinst, OFS_PARM1);
+	char *temp;
+
+	key = Info_ValueForKey(info, key);
+
+	temp = PF_TempStr();
+	strcpy(temp, key);
+	RETURN_SSTRING(temp);
+}
+void PF_strncmp (progfuncs_t *prinst, struct globalvars_s *pr_globals)
+{
+	char *a = PR_GetStringOfs(prinst, OFS_PARM0);
+	char *b = PR_GetStringOfs(prinst, OFS_PARM1);
+	float len = G_FLOAT(OFS_PARM2);
+
+	G_FLOAT(OFS_RETURN) = strncmp(a, b, len);
+}
+void PF_strcasecmp (progfuncs_t *prinst, struct globalvars_s *pr_globals)
+{
+	char *a = PR_GetStringOfs(prinst, OFS_PARM0);
+	char *b = PR_GetStringOfs(prinst, OFS_PARM1);
+
+	G_FLOAT(OFS_RETURN) = stricmp(a, b);
+}
+void PF_strncasecmp (progfuncs_t *prinst, struct globalvars_s *pr_globals)
+{
+	char *a = PR_GetStringOfs(prinst, OFS_PARM0);
+	char *b = PR_GetStringOfs(prinst, OFS_PARM1);
+	float len = G_FLOAT(OFS_PARM2);
+
+	G_FLOAT(OFS_RETURN) = strnicmp(a, b, len);
+}
+
+
+
+//back to frik_file support.
+
+
+
 #define MAX_QC_FILES 8
 
 typedef struct {
@@ -5021,13 +5267,13 @@ void PF_fopen (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 
 	pf_fopen_files[i].prinst = prinst;
 
-	Q_strncpyz(pf_fopen_files[i].name, name, sizeof(pf_fopen_files[i].name));
+	Q_strncpyz(pf_fopen_files[i].name, va("data/%s", name), sizeof(pf_fopen_files[i].name));
 
 	pf_fopen_files[i].accessmode = fmode;
 	switch (fmode)
 	{
 	case 0:	//read
-		pf_fopen_files[i].data = COM_LoadMallocFile(name);
+		pf_fopen_files[i].data = COM_LoadMallocFile(pf_fopen_files[i].name);
 		pf_fopen_files[i].bufferlen = pf_fopen_files[i].len = com_filesize;
 		pf_fopen_files[i].ofs = 0;
 		if (pf_fopen_files[i].data)
@@ -5036,14 +5282,14 @@ void PF_fopen (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 			G_FLOAT(OFS_RETURN) = -1;
 		break;
 	case 1:	//append
-		pf_fopen_files[i].data = COM_LoadMallocFile(name);
+		pf_fopen_files[i].data = COM_LoadMallocFile(pf_fopen_files[i].name);
 		pf_fopen_files[i].ofs = pf_fopen_files[i].bufferlen = pf_fopen_files[i].len = com_filesize;
 		if (pf_fopen_files[i].data)
 		{
 			G_FLOAT(OFS_RETURN) = i;
 			break;
 		}
-		//fall through
+		//file didn't exist - fall through
 	case 2:	//write
 		pf_fopen_files[i].bufferlen = 8192;
 		pf_fopen_files[i].data = BZ_Malloc(pf_fopen_files[i].bufferlen);
@@ -5120,7 +5366,10 @@ void PF_fgets (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 
 	pf_fopen_files[fnum].ofs = s - pf_fopen_files[fnum].data;
 
-	RETURN_SSTRING(pr_string_temp);
+	if (!pr_string_temp[0] && !*s)
+		G_INT(OFS_PARM0) = 0;	//EOF
+	else
+		RETURN_SSTRING(pr_string_temp);
 }
 
 void PF_fputs (progfuncs_t *prinst, struct globalvars_s *pr_globals)
@@ -5185,12 +5434,16 @@ typedef struct lh_extension_s {
 	char *name;
 	int numbuiltins;
 	qboolean *enabled;
-	char *builtins[14];	//extend freely
+	char *builtins[18];	//extend freely
 } lh_extension_t;
 
 
 
 lh_extension_t QSG_Extensions[] = {
+	{"DP_CON_SET"},
+#ifndef SERVERONLY
+	{"DP_CON_SETA"},		//because the server doesn't write configs.
+#endif
 	{"DP_EF_BLUE"},						//hah!! This is QuakeWorld!!!
 	{"DP_EF_FULLBRIGHT"},				//Rerouted to hexen2 support.
 	{"DP_EF_RED"},
@@ -5202,13 +5455,14 @@ lh_extension_t QSG_Extensions[] = {
 	{"DP_QC_CHANGEPITCH",				1,	NULL, {"changepitch"}},
 	{"DP_QC_COPYENTITY",				1,	NULL, {"copyentity"}},
 	{"DP_QC_CVAR_STRING",				1,	NULL, {"dp_cvar_string"}},	//448 builtin.
+	{"DP_QC_DROPCLIENT",				1,	NULL, {"dropclient"}},	//453 builtin.
 	{"DP_QC_ETOS",						1,	NULL, {"etos"}},
 	{"DP_QC_FINDCHAIN",					1,	NULL, {"findchain"}},
 	{"DP_QC_FINDCHAINFLOAT",			1,	NULL, {"findchainfloat"}},
 	{"DP_QC_FINDFLAGS",				1,	NULL, {"findflags"}},
 	{"DP_QC_FINDCHAINFLAGS",			1,	NULL, {"findchainflags"}},
 	{"DP_QC_FINDFLOAT",					1,	NULL, {"findfloat"}},
-//	{"DP_QC_FS_SEARCH",					4,	NULL, {"search_begin", "search_end", "search_getsize", "search_getfilename"}},
+//no support, just something I want... 	{"DP_QC_FS_SEARCH",					4,	NULL, {"search_begin", "search_end", "search_getsize", "search_getfilename"}},
 	{"DP_QC_MINMAXBOUND",				3,	NULL, {"min", "max", "bound"}},
 	{"DP_QC_MULTIPLETEMPSTRINGS"},
 	{"DP_QC_RANDOMVEC",					1,	NULL, {"randomvec"}},
@@ -5231,6 +5485,7 @@ lh_extension_t QSG_Extensions[] = {
 	{"EXT_DIMENSION_GHOST"},
 	{"EXT_BITSHIFT",					1,	NULL, {"bitshift"}},
 	{"FRIK_FILE",						11, NULL, {"stof", "fopen","fclose","fgets","fputs","strlen","strcat","substring","stov","strzone","strunzone"}},
+	{"FTE_CALLTIMEOFDAY",				1,	NULL, {"calltimeofday"}},
 	{"FTE_FORCEINFOKEY",				1,	NULL, {"forceinfokey"}},
 #ifndef NOMEDIA
 	{"FTE_MEDIA_AVI"},	//playfilm supports avi files.
@@ -5244,6 +5499,12 @@ lh_extension_t QSG_Extensions[] = {
 	{"FTE_NPCCHAT",						1,	NULL, {"chat"}},	//server looks at chat files. It automagically branches through calling qc functions as requested.
 #endif
 	{"FTE_SOLID_LADDER"},	//part of a worthy hl implementation. Allows a simple trigger to remove effects of gravity (solid 20)
+
+	//eperimental advanced strings functions.
+	//reuses the FRIK_FILE builtins (with substring extension)
+	{"FTE_STRINGS",						18, NULL, {"stof", "strlen","strcat","substring","stov","strzone","strunzone",
+												   "strstrofs", "str2chr", "chr2str", "strconv", "infoadd", "infoget", "strncmp", "strcasecmp", "strncasecmp"}},
+
 	{"KRIMZON_SV_PARSECLIENTCOMMAND",	3,	NULL, {"clientcommand", "tokenize", "argv"}},	//very very similar to the mvdsv system.
 	{"QSG_CVARSTRING",					1,	NULL, {"cvar_string"}},
 	{"QW_ENGINE"},	//warning: interpretation of .skin on players can be dodgy, as can some other QW features that differ from NQ.
@@ -5468,13 +5729,15 @@ void PF_ExecuteCommand  (progfuncs_t *prinst, struct globalvars_s *pr_globals)	/
 	pr_global_struct->self = old_self;
 	pr_global_struct->other = old_other;
 }
+void PF_ArgC  (progfuncs_t *prinst, struct globalvars_s *pr_globals)				//85			//float() argc;
+{
+	G_FLOAT(OFS_RETURN) = Cmd_Argc();
+}
+
+//KRIMZON_SV_PARSECLIENTCOMMAND added these two.
 void PF_Tokenize  (progfuncs_t *prinst, struct globalvars_s *pr_globals)			//84			//void(string str) tokanize;
 {
 	Cmd_TokenizeString(PR_GetStringOfs(prinst, OFS_PARM0));
-	G_FLOAT(OFS_RETURN) = Cmd_Argc();
-}
-void PF_ArgC  (progfuncs_t *prinst, struct globalvars_s *pr_globals)				//85			//float() argc;
-{
 	G_FLOAT(OFS_RETURN) = Cmd_Argc();
 }
 void PF_ArgV  (progfuncs_t *prinst, struct globalvars_s *pr_globals)				//86			//string(float num) argv;
@@ -5999,6 +6262,12 @@ void PF_FindFloat (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 	float s;
 	edict_t *ed;
 
+	if (*prinst->callargc != 3)	//I can hate mvdsv if I want to.
+	{
+		PR_BIError(prinst, "PF_FindFloat (#98): callargc != 3\nDid you mean to set pr_imitatemvdsv to 1?");
+		return;
+	}
+
 	e = G_EDICTNUM(prinst, OFS_PARM0);
 	f = G_INT(OFS_PARM1)+prinst->fieldadjust;
 	s = G_FLOAT(OFS_PARM2);
@@ -6098,7 +6367,7 @@ void PF_min (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 		G_FLOAT(OFS_RETURN) = f;
 	}
 	else
-		PR_BIError("PF_min: must supply at least 2 floats\n");
+		PR_BIError(prinst, "PF_min: must supply at least 2 floats\n");
 }
 
 //float(float a, floats) max = #95
@@ -6122,7 +6391,7 @@ void PF_max (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 	}
 	else
 	{
-		PR_BIError("PF_min: must supply at least 2 floats\n");
+		PR_BIError(prinst, "PF_min: must supply at least 2 floats\n");
 	}
 }
 
@@ -6149,7 +6418,7 @@ void PF_clientcommand (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 	//find client for this entity
 	i = NUM_FOR_EDICT(prinst, G_EDICT(prinst, OFS_PARM0)) - 1;
 	if (i < 0 || i >= sv.allocated_client_slots)
-		PR_BIError("PF_clientcommand: entity is not a client");
+		PR_BIError(prinst, "PF_clientcommand: entity is not a client");
 
 	temp_client = host_client;
 	host_client = &svs.clients[i];
@@ -6387,12 +6656,22 @@ void PF_plaque_draw(progfuncs_t *prinst, struct globalvars_s *pr_globals)
 		client_t *cl = Write_GetClient();
 		if (!cl)
 			return;
-		ClientReliableWrite_Begin (cl, svc_centerprint, 2 + strlen(s));
+		ClientReliableWrite_Begin (cl, svc_centerprint, 4 + strlen(s));
+		if (*s)
+		{
+			ClientReliableWrite_Byte (cl, '/');
+			ClientReliableWrite_Byte (cl, 'P');
+		}
 		ClientReliableWrite_String (cl, s);
 	}
 	else
 	{
 		MSG_WriteByte (WriteDest(G_FLOAT(OFS_PARM0)), svc_centerprint);
+		if (*s)
+		{
+			MSG_WriteByte (WriteDest(G_FLOAT(OFS_PARM0)), '/');
+			MSG_WriteByte (WriteDest(G_FLOAT(OFS_PARM0)), 'P');
+		}
 		MSG_WriteString (WriteDest(G_FLOAT(OFS_PARM0)), s);
 	}
 }
@@ -6503,7 +6782,7 @@ void PF_RegisterTEnt(progfuncs_t *prinst, struct globalvars_s *pr_globals)
 	char *effectname = PR_GetStringOfs(prinst, OFS_PARM1);
 	if (sv.state != ss_loading)
 	{
-		PR_BIError ("PF_RegisterTEnt: Registration can only be done in spawn functions");
+		PR_BIError (prinst, "PF_RegisterTEnt: Registration can only be done in spawn functions");
 		G_FLOAT(OFS_RETURN) = -1;
 		return;
 	}
@@ -7122,6 +7401,57 @@ void PF_SearchGetFileName(progfuncs_t *prinst, struct globalvars_s *pr_globals)
 	G_INT(OFS_RETURN) = 0;
 }
 
+
+
+
+
+
+
+
+
+typedef struct {
+	int			ident;
+	int			version;
+
+	char		name[MAX_QPATH];
+
+	int			flags;	//Does anyone know what these are?
+
+	int			numFrames;
+	int			numTags;			
+	int			numSurfaces;
+
+	int			numSkins;
+
+	int			ofsFrames;
+	int			ofsTags;
+	int			ofsSurfaces;
+	int			ofsEnd;
+} md3Header_t;
+typedef struct {
+	char name[MAX_QPATH];
+	vec3_t org;
+	float ang[3][3];
+} md3tag_t;
+
+md3tag_t *SV_GetTags(int modelindex, int *tagcount)
+{
+	md3Header_t *file;
+	file = (md3Header_t*)COM_LoadTempFile(sv.model_precache[modelindex]);
+	if (!file)
+	{
+		Con_Printf("setattachment: \"%s\" is missing\n", sv.model_precache[modelindex]);
+		return NULL;
+	}
+	if (file->ident != MD3_IDENT)
+	{
+		Con_DPrintf("setattachment: not an md3 (%s)\n", sv.model_precache[modelindex]);
+		return NULL;
+	}
+	*tagcount = file->numTags;
+	return (md3tag_t*)((char*)file + file->ofsTags);
+}
+
 void PF_setattachment(progfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
 	edict_t *e = G_EDICT(prinst, OFS_PARM0);
@@ -7131,8 +7461,9 @@ void PF_setattachment(progfuncs_t *prinst, struct globalvars_s *pr_globals)
 	eval_t *te;
 	eval_t *ti;
 
-//	int i, modelindex;
-//	model_t *model;
+	int i, modelindex;
+	md3tag_t *model;
+	int tagcount;
 
 	te = prinst->GetEdictFieldValue(prinst, e, "tag_entity", NULL);
 	ti = prinst->GetEdictFieldValue(prinst, e, "tag_index", NULL);
@@ -7142,19 +7473,23 @@ void PF_setattachment(progfuncs_t *prinst, struct globalvars_s *pr_globals)
 
 	if (tagentity != sv.edicts && tagname && tagname[0])
 	{
-/*		modelindex = (int)tagentity->v->modelindex;
-		if (modelindex >= 0 && modelindex < MAX_MODELS && (model = sv.modeltags[modelindex]))
+		modelindex = (int)e->v.modelindex;
+		if (modelindex > 0 && modelindex < MAX_MODELS && (model = SV_GetTags(modelindex, &tagcount)))
 		{
-			if (v->_float == 0 && model->alias.aliasnum_tags)
-				for (i = 0;i < model->alias.aliasnum_tags;i++)
-					if (!strcmp(tagname, model->alias.aliasdata_tags[i].name))
-						v->_float = i + 1;
-			if (v->_float == 0)
-				Con_DPrintf("setattachment(edict %i, edict %i, string \"%s\"): tried to find tag named \"%s\" on entity %i (model \"%s\") but could not find it\n", NUM_FOR_EDICT(e), NUM_FOR_EDICT(tagentity), tagname, tagname, NUM_FOR_EDICT(tagentity), model->name);
+			for (i = 0;i < tagcount;i++)
+			{
+				if (!strcmp(tagname, model[i].name))
+				{
+					e->tagindex = i + 1;
+					break;
+				}
+			}
+			if (e->tagindex == 0)
+				Con_DPrintf("setattachment(edict %i, edict %i, string \"%s\"): tried to find tag named \"%s\" on entity %i (model \"%s\") but could not find it\n", NUM_FOR_EDICT(prinst, e), NUM_FOR_EDICT(prinst, tagentity), tagname, tagname, NUM_FOR_EDICT(prinst, tagentity), model->name);
 		}
 		else
-			Con_DPrintf("setattachment(edict %i, edict %i, string \"%s\"): tried to find tag named \"%s\" on entity %i but it has no model\n", NUM_FOR_EDICT(e), NUM_FOR_EDICT(tagentity), tagname, tagname, NUM_FOR_EDICT(tagentity));
-*/
+			Con_DPrintf("setattachment(edict %i, edict %i, string \"%s\"): tried to find tag named \"%s\" on entity %i but it has no model\n", NUM_FOR_EDICT(prinst, e), NUM_FOR_EDICT(prinst, tagentity), tagname, tagname, NUM_FOR_EDICT(prinst, tagentity));
+
 	}
 
 	//fix me, move to somewhere nicer.
@@ -7330,7 +7665,7 @@ BuiltinList_t BuiltinList[] = {				//nq	qw		h2		ebfs
 	{"mvdstrncpy",		PF_MVDSV_strncpy,	0,		0,		0,		0},
 	{"log",				PF_log,				0,		0,		0,		0},
 //	{"redirectcmd",		PF_redirectcmd,		0,		0,		0,		101},
-	{"calltimeofday",	PF_calltimeofday,	0,		0,		0,		102},
+	{"mvdcalltimeofday",PF_calltimeofday,	0,		0,		0,		102},
 	{"forcedemoframe",	PF_forcedemoframe,	0,		0,		0,		103},
 //end of mvdsv
 
@@ -7434,7 +7769,19 @@ BuiltinList_t BuiltinList[] = {				//nq	qw		h2		ebfs
 //I guess this should go under DP_TE_STANDARDEFFECTBUILTINS...
 	{"te_lightningblood",PF_te_lightningblood,	0,	0,		0,		219},// #219 te_lightningblood
 
-	{"map_builtin",		PF_builtinsupported,0,		0,		0,		220},	// #100	//per builtin system.
+	{"map_builtin",		PF_builtinsupported,0,		0,		0,		220},	//like #100 - takes 2 args. arg0 is builtinname, 1 is number to map to.
+
+	{"strstrofs",		PF_strstrofs,		0,		0,		0,		221},
+	{"str2chr",			PF_str2chr,			0,		0,		0,		222},
+	{"chr2str",			PF_chr2str,			0,		0,		0,		223},
+	{"strconv",			PF_strconv,			0,		0,		0,		224},
+	{"infoadd",			PF_infoadd,			0,		0,		0,		226},
+	{"infoget",			PF_infoget,			0,		0,		0,		227},
+	{"strncmp",			PF_strncmp,			0,		0,		0,		228},
+	{"strcasecmp",		PF_strcasecmp,		0,		0,		0,		229},
+	{"strncasecmp",		PF_strncasecmp,		0,		0,		0,		230},
+
+	{"calltimeofday",	PF_calltimeofday,	0,		0,		0,		231},
 //end fte extras
 
 //DP extras
@@ -7479,9 +7826,11 @@ BuiltinList_t BuiltinList[] = {				//nq	qw		h2		ebfs
 	{"dp_cvar_string",	PF_cvar_string,		0,		0,		0,		448},// #448 string(float n) cvar_string
 
 //DP_QC_FINDFLAGS
-	{"findflags",	PF_FindFlags,	0,		0,		0,		449},// #449 entity(entity start, .entity fld, float match) findflags
+	{"findflags",		PF_FindFlags,		0,		0,		0,		449},// #449 entity(entity start, .entity fld, float match) findflags
 //DP_QC_FINDCHAINFLAGS
 	{"findchainflags",	PF_findchainflags,	0,		0,		0,		450},// #450 entity(.float fld, float match) findchainflags
+
+	{"dropclient",		PF_dropclient,		0,		0,		0,		453},// #453 void(entity player) dropclient
 
 //end other peoples extras
 	{NULL}
@@ -7616,7 +7965,7 @@ void PR_ResetBuiltins(progstype_t type)	//fix all nulls to PF_FIXME and add any 
 			PR_EnableEBFSBuiltin("mvdstrncpy",		99) != 99 ||
 			PR_EnableEBFSBuiltin("log",				100)!= 100 ||
 //			PR_EnableEBFSBuiltin("redirectcmd",		101)!= 101 ||
-			PR_EnableEBFSBuiltin("calltimeofday",	102)!= 102 ||
+			PR_EnableEBFSBuiltin("mvdcalltimeofday",102)!= 102 ||
 			PR_EnableEBFSBuiltin("forcedemoframe",	103)!= 103)
 			Con_Printf("Failed to register all MVDSV builtins\n");
 		else

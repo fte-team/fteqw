@@ -448,7 +448,6 @@ void CL_BaseMove (usercmd_t *cmd, int pnum)
 
 int MakeChar (int i)
 {
-	i &= ~3;
 	if (i < -127*4)
 		i = -127*4;
 	if (i > 127*4)

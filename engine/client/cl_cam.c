@@ -112,6 +112,13 @@ qboolean Cam_DrawPlayer(int pnum, int playernum)
 	return true;
 }
 
+int Cam_TrackNum(int pnum)
+{
+	if (!autocam[pnum])
+		return -1;
+	return spec_track[pnum];
+}
+
 void Cam_Unlock(int pnum)
 {
 	if (autocam[pnum])

@@ -19,6 +19,7 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 */
 // quakedef.h -- primary header for client
 
+#include "bothdefs.h"	//first thing included by ALL files.
 
 
 #if _MSC_VER
@@ -101,7 +102,6 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 #include <stdarg.h>
 #include <stdio.h>
 #include <stdlib.h>
-#include "bothdefs.h"	//we need to know if png is available
 #if defined(AVAIL_PNGLIB) && defined(PNG_SUCKS_WITH_SETJMP)
 #include <png.h>
 #else

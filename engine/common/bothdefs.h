@@ -171,7 +171,7 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 
 //remove any options that depend upon GL.
 #ifndef SERVERONLY
-	#if defined(SWQUAKE) && !defined(RGLQUAKE) && !defined(GLQUAKE)
+	#if defined(SWQUAKE) && !defined(GLQUAKE)
 		#undef DOOMWADS
 		#undef HALFLIFEMODELS
 		#undef Q3BSPS
@@ -180,7 +180,7 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 	#endif
 #endif
 
-#if !defined(RGLQUAKE)
+#if !defined(GLQUAKE)
 	#undef Q3BSPS
 #endif
 #if !defined(Q3BSPS)

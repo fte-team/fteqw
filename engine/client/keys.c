@@ -1281,7 +1281,8 @@ void Key_Event (int key, qboolean down)
 //
 // during demo playback, most keys bring up the main menu
 //
-	if (cls.demoplayback && cls.demoplayback != DPB_MVD && down && consolekeys[key] && key_dest == key_game)
+
+	if (cls.demoplayback && cls.demoplayback != DPB_MVD && down && consolekeys[key] && key != K_TAB && key_dest == key_game)
 	{
 		M_ToggleMenu_f ();
 		return;

@@ -134,6 +134,7 @@ typedef struct nqglobalvars_s
 	func_t	*SetNewParms;
 	func_t	*SetChangeParms;
 	float *cycle_wrapped;
+	float *dimension_send;
 } nqglobalvars_t;
 
 #define P_VEC(v) (pr_global_struct->V_##v)
@@ -232,6 +233,11 @@ typedef struct entvars_s
 	//dp extra fields
 	int		nodrawtoclient;
 	int		drawonlytoclient;
+
+	//QSG_DIMENSION_PLANES
+	float	dimension_mask;
+	float	dimension_ghost;
+	float	dimension_physics;
 
 	//udc_exeffect support. hacky I know.
 	float	seefcolour;

@@ -3981,6 +3981,7 @@ if (sv_player->v.health > 0 && before && !after )
 
 			pr_global_struct->self = EDICT_TO_PROG(svprogfuncs, ent);
 			pr_global_struct->other = EDICT_TO_PROG(svprogfuncs, sv_player);
+			pr_global_struct->time = sv.time;
 			PR_ExecuteProgram (svprogfuncs, ent->v.touch);
 			playertouch[n/8] |= 1 << (n%8);
 		}

@@ -1284,11 +1284,7 @@ static void PPL_BaseTextureChain(msurface_t *first)
 						}
 					}
 				}
-				if (!s->mesh)
-				{
-					Con_Printf("Shaded surface with no mesh\n");
-				}
-				else
+				if (s->mesh)
 				{
 	/*					MF_NONE			= 1<<0,
 	MF_NORMALS		= 1<<1,
@@ -2926,50 +2922,12 @@ void PPL_DrawShadowMeshes(dlight_t *dl)
 	}
 }
 
-void CL_NewDlight (int key, float x, float y, float z, float radius, float time,
-				   int type);
-//generates stencil shadows of the world geometry.
-//redraws world geometry
-void PPL_AddLight(dlight_t *dl)
+void PPL_UpdateNodeShadowFrames(qbyte	*lvis)
 {
 	int i;
-	int sdecrw;
-	int sincrw;
 	mnode_t *node;
-	int leaf;
-	qbyte *lvis;
-	qbyte *vvis;
 
-	qbyte	lvisb[MAX_MAP_LEAFS/8];
-	qbyte	vvisb[MAX_MAP_LEAFS/8];
 
-	vec3_t mins;
-	vec3_t maxs;
-
-	mins[0] = dl->origin[0] - dl->radius;
-	mins[1] = dl->origin[1] - dl->radius;
-	mins[2] = dl->origin[2] - dl->radius;
-
-	maxs[0] = dl->origin[0] + dl->radius;
-	maxs[1] = dl->origin[1] + dl->radius;
-	maxs[2] = dl->origin[2] + dl->radius;
-
-	if (R_CullBox(mins, maxs))
-		return;
-
-	if (cl.worldmodel->fromgame == fg_quake2 || cl.worldmodel->fromgame == fg_quake3)
-		i = cl.worldmodel->funcs.LeafForPoint(r_refdef.vieworg, cl.worldmodel);
-	else
-		i = r_viewleaf - cl.worldmodel->leafs;
-
-	leaf = cl.worldmodel->funcs.LeafForPoint(dl->origin, cl.worldmodel);
-	lvis = cl.worldmodel->funcs.LeafPVS(leaf, cl.worldmodel, lvisb);
-	vvis = cl.worldmodel->funcs.LeafPVS(i, cl.worldmodel, vvisb);
-
-//	if (!(lvis[i>>3] & (1<<(i&7))))	//light might not be visible, but it's effects probably should be.
-//		return;
-	if (!PPL_VisOverlaps(lvis, vvis))	//The two viewing areas do not intersect.
-		return;
 
 #ifdef Q3BSPS
 	if (cl.worldmodel->fromgame == fg_quake3)
@@ -3039,6 +2997,242 @@ void PPL_AddLight(dlight_t *dl)
 			}
 		}
 	}
+}
+/*
+#if 1 //DP's stolen code
+static void GL_Scissor (int x, int y, int width, int height)
+{
+	qglScissor(x, glheight - (y + height),width,height);
+}
+
+#define BoxesOverlap(a,b,c,d) ((a)[0] <= (d)[0] && (b)[0] >= (c)[0] && (a)[1] <= (d)[1] && (b)[1] >= (c)[1] && (a)[2] <= (d)[2] && (b)[2] >= (c)[2])
+qboolean PPL_ScissorForBox(vec3_t mins, vec3_t maxs)
+{
+	int i, ix1, iy1, ix2, iy2;
+	float x1, y1, x2, y2, x, y, f;
+	vec3_t smins, smaxs;
+	vec4_t v, v2;
+	int r_view_x = 0;
+	int r_view_y = 0;
+	int r_view_width = glwidth;
+	int r_view_height = glheight;
+	if (0)//!r_shadow_scissor.integer)
+	{
+		GL_Scissor(r_view_x, r_view_y, r_view_width, r_view_height);
+		return false;
+	}
+	// if view is inside the box, just say yes it's visible
+	if (BoxesOverlap(r_refdef.vieworg, r_refdef.vieworg, mins, maxs))
+	{
+		GL_Scissor(r_view_x, r_view_y, r_view_width, r_view_height);
+		return false;
+	}
+	for (i = 0;i < 3;i++)
+	{
+		if (vpn[i] >= 0)
+		{
+			v[i] = mins[i];
+			v2[i] = maxs[i];
+		}
+		else
+		{
+			v[i] = maxs[i];
+			v2[i] = mins[i];
+		}
+	}
+	f = DotProduct(vpn, r_refdef.vieworg) + 1;
+	if (DotProduct(vpn, v2) <= f)
+	{
+		// entirely behind nearclip plane
+		GL_Scissor(r_view_x, r_view_y, r_view_width, r_view_height);
+		return true;
+	}
+	if (DotProduct(vpn, v) >= f)
+	{
+		// entirely infront of nearclip plane
+		x1 = y1 = x2 = y2 = 0;
+		for (i = 0;i < 8;i++)
+		{
+			v[0] = (i & 1) ? mins[0] : maxs[0];
+			v[1] = (i & 2) ? mins[1] : maxs[1];
+			v[2] = (i & 4) ? mins[2] : maxs[2];
+			v[3] = 1.0f;
+			GL_TransformToScreen(v, v2);
+			//Con_Printf("%.3f %.3f %.3f %.3f transformed to %.3f %.3f %.3f %.3f\n", v[0], v[1], v[2], v[3], v2[0], v2[1], v2[2], v2[3]);
+			x = v2[0];
+			y = v2[1];
+			if (i)
+			{
+				if (x1 > x) x1 = x;
+				if (x2 < x) x2 = x;
+				if (y1 > y) y1 = y;
+				if (y2 < y) y2 = y;
+			}
+			else
+			{
+				x1 = x2 = x;
+				y1 = y2 = y;
+			}
+		}
+	}
+	else
+	{
+		// clipped by nearclip plane
+		// this is nasty and crude...
+		// create viewspace bbox
+		for (i = 0;i < 8;i++)
+		{
+			v[0] = ((i & 1) ? mins[0] : maxs[0]) - r_refdef.vieworg[0];
+			v[1] = ((i & 2) ? mins[1] : maxs[1]) - r_refdef.vieworg[1];
+			v[2] = ((i & 4) ? mins[2] : maxs[2]) - r_refdef.vieworg[2];
+			v2[0] = DotProduct(v, vright);
+			v2[1] = DotProduct(v, vup);
+			v2[2] = DotProduct(v, vpn);
+			if (i)
+			{
+				if (smins[0] > v2[0]) smins[0] = v2[0];
+				if (smaxs[0] < v2[0]) smaxs[0] = v2[0];
+				if (smins[1] > v2[1]) smins[1] = v2[1];
+				if (smaxs[1] < v2[1]) smaxs[1] = v2[1];
+				if (smins[2] > v2[2]) smins[2] = v2[2];
+				if (smaxs[2] < v2[2]) smaxs[2] = v2[2];
+			}
+			else
+			{
+				smins[0] = smaxs[0] = v2[0];
+				smins[1] = smaxs[1] = v2[1];
+				smins[2] = smaxs[2] = v2[2];
+			}
+		}
+		// now we have a bbox in viewspace
+		// clip it to the view plane
+		if (smins[2] < 1)
+			smins[2] = 1;
+		// return true if that culled the box
+		if (smins[2] >= smaxs[2])
+			return true;
+		// ok some of it is infront of the view, transform each corner back to
+		// worldspace and then to screenspace and make screen rect
+		// initialize these variables just to avoid compiler warnings
+		x1 = y1 = x2 = y2 = 0;
+		for (i = 0;i < 8;i++)
+		{
+			v2[0] = (i & 1) ? smins[0] : smaxs[0];
+			v2[1] = (i & 2) ? smins[1] : smaxs[1];
+			v2[2] = (i & 4) ? smins[2] : smaxs[2];
+			v[0] = v2[0] * vright[0] + v2[1] * vup[0] + v2[2] * vpn[0] + r_refdef.vieworg[0];
+			v[1] = v2[0] * vright[1] + v2[1] * vup[1] + v2[2] * vpn[1] + r_refdef.vieworg[1];
+			v[2] = v2[0] * vright[2] + v2[1] * vup[2] + v2[2] * vpn[2] + r_refdef.vieworg[2];
+			v[3] = 1.0f;
+			GL_TransformToScreen(v, v2);
+			//Con_Printf("%.3f %.3f %.3f %.3f transformed to %.3f %.3f %.3f %.3f\n", v[0], v[1], v[2], v[3], v2[0], v2[1], v2[2], v2[3]);
+			x = v2[0];
+			y = v2[1];
+			if (i)
+			{
+				if (x1 > x) x1 = x;
+				if (x2 < x) x2 = x;
+				if (y1 > y) y1 = y;
+				if (y2 < y) y2 = y;
+			}
+			else
+			{
+				x1 = x2 = x;
+				y1 = y2 = y;
+			}
+		}
+#if 0
+		// this code doesn't handle boxes with any points behind view properly
+		x1 = 1000;x2 = -1000;
+		y1 = 1000;y2 = -1000;
+		for (i = 0;i < 8;i++)
+		{
+			v[0] = (i & 1) ? mins[0] : maxs[0];
+			v[1] = (i & 2) ? mins[1] : maxs[1];
+			v[2] = (i & 4) ? mins[2] : maxs[2];
+			v[3] = 1.0f;
+			GL_TransformToScreen(v, v2);
+			//Con_Printf("%.3f %.3f %.3f %.3f transformed to %.3f %.3f %.3f %.3f\n", v[0], v[1], v[2], v[3], v2[0], v2[1], v2[2], v2[3]);
+			if (v2[2] > 0)
+			{
+				x = v2[0];
+				y = v2[1];
+
+				if (x1 > x) x1 = x;
+				if (x2 < x) x2 = x;
+				if (y1 > y) y1 = y;
+				if (y2 < y) y2 = y;
+			}
+		}
+#endif
+	}
+	ix1 = x1 - 1.0f;
+	iy1 = y1 - 1.0f;
+	ix2 = x2 + 1.0f;
+	iy2 = y2 + 1.0f;
+	//Con_Printf("%f %f %f %f\n", x1, y1, x2, y2);
+	if (ix1 < r_view_x) ix1 = r_view_x;
+	if (iy1 < r_view_y) iy1 = r_view_y;
+	if (ix2 > r_view_x + r_view_width) ix2 = r_view_x + r_view_width;
+	if (iy2 > r_view_y + r_view_height) iy2 = r_view_y + r_view_height;
+	if (ix2 <= ix1 || iy2 <= iy1)
+		return true;
+	// set up the scissor rectangle
+	qglScissor(ix1, iy1, ix2 - ix1, iy2 - iy1);
+	//qglEnable(GL_SCISSOR_TEST);
+	return false;
+}
+#endif
+*/
+void CL_NewDlight (int key, float x, float y, float z, float radius, float time,
+				   int type);
+//generates stencil shadows of the world geometry.
+//redraws world geometry
+void PPL_AddLight(dlight_t *dl)
+{
+	int i;
+	int sdecrw;
+	int sincrw;
+	int leaf;
+	qbyte *lvis;
+	qbyte *vvis;
+
+	qbyte	lvisb[MAX_MAP_LEAFS/8];
+	qbyte	vvisb[MAX_MAP_LEAFS/8];
+
+	vec3_t mins;
+	vec3_t maxs;
+
+	mins[0] = dl->origin[0] - dl->radius;
+	mins[1] = dl->origin[1] - dl->radius;
+	mins[2] = dl->origin[2] - dl->radius;
+
+	maxs[0] = dl->origin[0] + dl->radius;
+	maxs[1] = dl->origin[1] + dl->radius;
+	maxs[2] = dl->origin[2] + dl->radius;
+
+	if (R_CullBox(mins, maxs))
+		return;
+
+//	if (PPL_ScissorForBox(mins, maxs))
+//		return;	//was culled.
+
+	if (cl.worldmodel->fromgame == fg_quake2 || cl.worldmodel->fromgame == fg_quake3)
+		i = cl.worldmodel->funcs.LeafForPoint(r_refdef.vieworg, cl.worldmodel);
+	else
+		i = r_viewleaf - cl.worldmodel->leafs;
+
+	leaf = cl.worldmodel->funcs.LeafForPoint(dl->origin, cl.worldmodel);
+	lvis = cl.worldmodel->funcs.LeafPVS(leaf, cl.worldmodel, lvisb);
+	vvis = cl.worldmodel->funcs.LeafPVS(i, cl.worldmodel, vvisb);
+
+//	if (!(lvis[i>>3] & (1<<(i&7))))	//light might not be visible, but it's effects probably should be.
+//		return;
+	if (!PPL_VisOverlaps(lvis, vvis))	//The two viewing areas do not intersect.
+		return;
+
+//	glEnable(GL_SCISSOR_TEST);
+
 
 	glDisable(GL_BLEND);
 	glTexEnvf(GL_TEXTURE_ENV, GL_TEXTURE_ENV_MODE, GL_REPLACE);
@@ -3086,7 +3280,7 @@ void PPL_AddLight(dlight_t *dl)
 	else
 #endif
 		
-	if (qglStencilOpSeparateATI && r_shadows.value != 667)//GL_ATI_separate_stencil
+	if (qglStencilOpSeparateATI && !((int)r_shadows.value & 2))//GL_ATI_separate_stencil
 	{
 		glClearStencil(0);
 		glClear(GL_STENCIL_BUFFER_BIT);
@@ -3096,6 +3290,7 @@ void PPL_AddLight(dlight_t *dl)
 
 		qglStencilOpSeparateATI(GL_BACK, GL_KEEP, sincrw, GL_KEEP);
 		qglStencilOpSeparateATI(GL_FRONT, GL_KEEP, sdecrw, GL_KEEP);
+		PPL_UpdateNodeShadowFrames(lvisb);
 		PPL_RecursiveWorldNode(dl);
 		PPL_DrawShadowMeshes(dl);
 		qglStencilOpSeparateATI(GL_FRONT_AND_BACK, GL_KEEP, GL_KEEP, GL_KEEP);
@@ -3104,7 +3299,7 @@ void PPL_AddLight(dlight_t *dl)
 
 		glStencilFunc( GL_EQUAL, 0, ~0 );
 	}
-	else if (qglActiveStencilFaceEXT && r_shadows.value != 667)	//NVidias variation on a theme. (GFFX class)
+	else if (qglActiveStencilFaceEXT && !((int)r_shadows.value & 2))	//NVidias variation on a theme. (GFFX class)
 	{
 		glClearStencil(0);
 		glClear(GL_STENCIL_BUFFER_BIT);
@@ -3120,6 +3315,7 @@ void PPL_AddLight(dlight_t *dl)
 		glStencilOp(GL_KEEP, sdecrw, GL_KEEP);
 		glStencilFunc( GL_ALWAYS, 1, ~0 );
 
+		PPL_UpdateNodeShadowFrames(lvisb);
 		PPL_RecursiveWorldNode(dl);
 		PPL_DrawShadowMeshes(dl);
 
@@ -3143,17 +3339,23 @@ void PPL_AddLight(dlight_t *dl)
 
 		glEnable(GL_CULL_FACE);
 
-		glStencilFunc( GL_ALWAYS, 1, ~0 );
+		glStencilFunc( GL_ALWAYS, 0, ~0 );
 
+		shadowsurfcount = 0;
 		glCullFace(GL_BACK);
 		glStencilOp(GL_KEEP, sincrw, GL_KEEP);
+		PPL_UpdateNodeShadowFrames(lvis);
 		PPL_RecursiveWorldNode(dl);
 		PPL_DrawShadowMeshes(dl);
+		Con_Printf("%i ", shadowsurfcount);
 
+		shadowsurfcount=0;
 		glCullFace(GL_FRONT);
 		glStencilOp(GL_KEEP, sdecrw, GL_KEEP);
+		PPL_UpdateNodeShadowFrames(lvis);
 		PPL_RecursiveWorldNode(dl);
 		PPL_DrawShadowMeshes(dl);
+		Con_Printf("%i\n", shadowsurfcount);
 
 		glStencilFunc( GL_EQUAL, 0, ~0 );
 	}
@@ -3171,16 +3373,20 @@ void PPL_AddLight(dlight_t *dl)
 	glColor4f(dl->color[0], dl->color[1], dl->color[2], 1);
 	glDepthFunc(GL_EQUAL);
 
-	lightorg[0] = dl->origin[0];
-	lightorg[1] = dl->origin[1];
-	lightorg[2] = dl->origin[2];
+	lightorg[0] = dl->origin[0]+0.5;
+	lightorg[1] = dl->origin[1]+0.5;
+	lightorg[2] = dl->origin[2]+0.5;
 
 	PPL_DrawEntLighting(dl);
 	glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
 	glDepthMask(1);
 	glDepthFunc(gldepthfunc);
 	glEnable(GL_DEPTH_TEST);
+
 	glDisable(GL_STENCIL_TEST);
+	glStencilFunc( GL_ALWAYS, 0, ~0 );
+
+	qglDisable(GL_SCISSOR_TEST);
 }
 
 void PPL_DrawWorld (void)

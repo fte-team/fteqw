@@ -404,7 +404,7 @@ void R_DrawSkyChain (msurface_t *s)
 			fc = 255;
 		if (fc < 0)
 			fc = 0;
-		pal = vid_curpal+fc*3;
+		pal = host_basepal+fc*3;
 		glDisable(GL_TEXTURE_2D);
 		glColor3f(pal[0]/255.0f, pal[1]/255.0f, pal[2]/255.0f);
 		for (fa=s ; fa ; fa=fa->texturechain)

@@ -43,7 +43,7 @@ void ClearBounds (vec3_t mins, vec3_t maxs);
 //#include <GL/glu.h>
 #include "glsupp.h"
 
-
+void GL_InitFogTexture(void);
 
 void GL_BeginRendering (int *x, int *y, int *width, int *height);
 void GL_EndRendering (void);

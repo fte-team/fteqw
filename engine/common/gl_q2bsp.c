@@ -1,6 +1,7 @@
 #include "quakedef.h"
 #ifdef RGLQUAKE
 #include "glquake.h"
+#include "shader.h"
 #endif
 
 #define MAX_Q3MAP_INDICES 0x80000
@@ -2419,7 +2420,7 @@ continue;
 		}
 		else
 		{
-			int r, g, b;
+//			int r, g, b;
 			extern index_t r_quad_indexes[6];
 
 			mesh = out->mesh = (mesh_t *)Hunk_Alloc ( sizeof(mesh_t));

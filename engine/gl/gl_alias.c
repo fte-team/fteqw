@@ -2548,7 +2548,9 @@ void GL_LoadQ3Model(model_t *mod, void *buffer)
 
 		if (surf->numShaders)
 		{
+#ifndef Q3SHADERS
 			char name[1024];
+#endif
 			skin = Hunk_Alloc(surf->numShaders*(sizeof(galiasskin_t)+sizeof(galiastexnum_t)));
 			galias->ofsskins = (qbyte *)skin - (qbyte *)galias;
 			texnum = (galiastexnum_t *)(skin + surf->numShaders);

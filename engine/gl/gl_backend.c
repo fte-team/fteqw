@@ -1049,10 +1049,10 @@ static float	frand(void)
 	return (rand()&32767)* (1.0/32767);
 }
 
-static float	crand(void)
-{
-	return (rand()&32767)* (2.0/32767) - 1;
-}
+//static float	crand(void)
+//{
+//	return (rand()&32767)* (2.0/32767) - 1;
+//}
 
 /*
 ==============
@@ -1586,7 +1586,7 @@ void R_DeformVertices ( meshbuffer_t *mb )
 							short_axis = 2;
 						}
 					}
-					else if ( (len[0] > len[1]) && (len[0] > len[2]) )
+					else //if ( (len[0] > len[1]) && (len[0] > len[2]) )
 					{
 						if ( len[2] > len[1] )
 						{

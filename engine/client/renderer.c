@@ -1262,7 +1262,9 @@ TRACE(("dbg: R_ApplyRenderer: clearing world\n"));
 		}
 #endif
 	}
+#ifdef PLUGINS
 	Plug_ResChanged();
+#endif
 
 TRACE(("dbg: R_ApplyRenderer: starting on client state\n"));
 	if (cl.worldmodel)

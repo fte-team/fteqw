@@ -1009,7 +1009,9 @@ TRACE(("dbg: GLDraw_ReInit: Allocating upload buffers\n"));
 	TRACE(("dbg: GLDraw_ReInit: PPL_LoadSpecularFragmentProgram\n"));
 	PPL_LoadSpecularFragmentProgram();
 
+#ifdef PLUGINS
 	Plug_DrawReloadImages();
+#endif
 }
 
 void GLDraw_Init (void)
@@ -1881,12 +1883,12 @@ void MediaGL_ShowFrameRGBA_32(qbyte *framedata, int inwidth, int inheight)//top 
 	SCR_DrawConsole (false);
 }
 
+int filmnwidth = 640;
+int filmnheight = 640;
 
 void MediaGL_ShowFrameBGR_24_Flip(qbyte *framedata, int inwidth, int inheight)
 {
 	//we need these as we resize it as we convert to rgba
-	extern int filmnwidth;
-	extern int filmnheight;
 
 	int y, x;
 

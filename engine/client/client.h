@@ -739,6 +739,7 @@ char *TP_EnemyTeam (void);
 char *TP_EnemyName (void);
 void TP_StatChanged (int stat, int value);
 int TP_CategorizeMessage (char *s, int *offset);
+void TP_NewMap (void);
 qboolean TP_FilterMessage (char *s);
 qboolean TP_CheckSoundTrigger (char *str);
 void TP_SearchForMsgTriggers (char *s, int level);

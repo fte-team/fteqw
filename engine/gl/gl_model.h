@@ -70,6 +70,9 @@ typedef struct mesh_s
 	unsigned int	patchHeight;
 } mesh_t;
 
+void R_PushMesh ( mesh_t *mesh, int features );
+void R_RenderMeshBuffer ( struct meshbuffer_s *mb, qboolean shadowpass );
+
 
 extern int gl_canbumpmap;
 

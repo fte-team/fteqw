@@ -94,7 +94,9 @@ void GLSCR_UpdateScreen (void)
 		vid.recalc_refdef = true;
 		Con_CheckResize();
 
+#ifdef PLUGINS
 		Plug_ResChanged();
+#endif
 		GL_Set2D();
 	}
 
@@ -193,7 +195,9 @@ void GLSCR_UpdateScreen (void)
 
 	if (scr_drawdialog)
 	{
+#ifdef PLUGINS
 		Plug_SBar ();
+#endif
 		SCR_ShowPics_Draw();
 		Draw_FadeScreen ();
 		SCR_DrawNotifyString ();
@@ -202,7 +206,9 @@ void GLSCR_UpdateScreen (void)
 	else if (scr_drawloading)
 	{
 		SCR_DrawLoading ();
+#ifdef PLUGINS
 		Plug_SBar ();
+#endif
 		SCR_ShowPics_Draw();
 	}
 	else if (cl.intermission == 1 && key_dest == key_game)
@@ -227,7 +233,9 @@ void GLSCR_UpdateScreen (void)
 		SCR_DrawFPS ();
 		SCR_DrawTurtle ();
 		SCR_DrawPause ();
+#ifdef PLUGINS
 		Plug_SBar ();
+#endif
 		SCR_ShowPics_Draw();
 		SCR_CheckDrawCenterString ();
 	glTexEnvi ( GL_TEXTURE_ENV, GL_TEXTURE_ENV_MODE, GL_MODULATE );

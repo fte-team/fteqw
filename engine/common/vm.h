@@ -31,13 +31,14 @@ int VARGS VM_Call(vm_t *vm, int instruction, ...);
 
 
 //plugin functions
+#ifdef PLUGINS
 qboolean Plug_Menu_Event(int eventtype, int param);
 void Plug_ResChanged(void);
 void Plug_Tick(void);
 void Plug_Init(void);
 
 void Plug_SBar(void);
-
+#endif
 
 
 

@@ -141,7 +141,7 @@ static void SMTP_NewConnection(int socket)
 
 	*newcl->outmessagebuffer = '\0';
 
-	SV_SMTP_QueueMessage(newcl, "220 81.107.21.148 Probably best to say HELO now.\r\n");
+	SV_SMTP_QueueMessage(newcl, "220 81.157.120.30 Probably best to say HELO now.\r\n");
 }
 
 static qboolean SV_SMTP_RunClient(svsmtpclient_t *cl)	//true means client should be dropped
@@ -292,7 +292,7 @@ static qboolean SV_SMTP_RunClient(svsmtpclient_t *cl)	//true means client should
 
 			printf("%s\n", cl->inmessagebuffer);
 
-			token = COM_Parse(cl->inmessagebuffer);
+ 			token = COM_Parse(cl->inmessagebuffer);
 
 			if (!strcmp(com_token, "QUIT"))
 			{

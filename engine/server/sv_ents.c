@@ -2084,8 +2084,9 @@ void SV_WriteEntitiesToClient (client_t *client, sizebuf_t *msg, qboolean ignore
 				modname[strlen(modname)-5] = client->playerclass+'0';
 				state->modelindex = SV_ModelIndex(modname);
 			}
-
 		}
+		if (progstype == PROG_H2 && ent->v.solid == SOLID_BSP)
+			state->angles[0]*=-1;
 
 		if (state->effects & EF_FULLBRIGHT)
 		{

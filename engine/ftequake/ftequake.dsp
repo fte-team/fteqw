@@ -485,6 +485,7 @@ SOURCE=..\client\cl_cam.c
 # Begin Source File
 
 SOURCE=..\client\cl_cg.c
+# PROP Exclude_From_Build 1
 # End Source File
 # Begin Source File
 
@@ -841,6 +842,7 @@ SOURCE=..\client\clq2_ents.c
 # Begin Source File
 
 SOURCE=..\client\clq3_parse.c
+# PROP Exclude_From_Build 1
 # End Source File
 # Begin Source File
 

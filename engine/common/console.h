@@ -36,23 +36,25 @@ extern consolecolours_t consolecolours[MAXCONCOLOURS];
 #define CON_BLINKTEXT		0x4000
 #define CON_2NDCHARSETTEXT	0x8000
 
-#define COLOR_WHITE		'0'
-#define COLOR_RED		'1'
-#define COLOR_GREEN		'2'
-#define COLOR_YELLOW	'3'
-#define COLOR_BLUE		'4'
-#define COLOR_CYAN		'5'
-#define COLOR_MAGENTA	'6'
-#define COLOR_BLACK		'7'
+#define COLOR_BLACK		0
+#define COLOR_RED		1
+#define COLOR_GREEN		2
+#define COLOR_YELLOW	3
+#define COLOR_BLUE		4
+#define COLOR_MAGENTA	5
+#define COLOR_CYAN		6
+#define COLOR_WHITE		7
 
-#define S_COLOR_WHITE	"^0"	//q3 uses 7. Fix some time?
+#define M_COLOR_WHITE	((COLOR_WHITE)<<8)
+
+#define S_COLOR_BLACK	"^0"
 #define S_COLOR_RED		"^1"
 #define S_COLOR_GREEN	"^2"
 #define S_COLOR_YELLOW	"^3"
 #define S_COLOR_BLUE	"^4"
-#define S_COLOR_CYAN	"^5"
-#define S_COLOR_MAGENTA	"^6"
-#define S_COLOR_BLACK	"^7"	//q3 uses 0
+#define S_COLOR_MAGENTA	"^5"
+#define S_COLOR_CYAN	"^6"
+#define S_COLOR_WHITE	"^7"
 
 #define		CON_TEXTSIZE	16384
 typedef struct

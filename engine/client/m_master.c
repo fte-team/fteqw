@@ -73,7 +73,7 @@ static void NM_Print (int cx, int cy, qbyte *str)
 {
 	while (*str)
 	{
-		Draw_ColouredCharacter (cx, cy, (*str)|128);
+		Draw_ColouredCharacter (cx, cy, (*str)|128+M_COLOR_WHITE);
 		str++;
 		cx += 8;
 	}
@@ -83,7 +83,7 @@ static void NM_PrintWhite (int cx, int cy, qbyte *str)
 {
 	while (*str)
 	{
-		Draw_ColouredCharacter (cx, cy, (*str));
+		Draw_ColouredCharacter (cx, cy, (*str)+M_COLOR_WHITE);
 		str++;
 		cx += 8;
 	}
@@ -293,9 +293,9 @@ void M_DrawServerList(void)
 		}
 		else
 			text = "No servers found";
-		NM_PrintColoured((vid.width-strlen(text)*8)/2, 8*5, 0, text);
-		NM_PrintColoured((vid.width-strlen(text2)*8)/2, 8*5+8, 0, text2);
-		NM_PrintColoured((vid.width-strlen(text3)*8)/2, 8*5+16, 0, text3);
+		NM_PrintColoured((vid.width-strlen(text)*8)/2, 8*5, COLOR_WHITE, text);
+		NM_PrintColoured((vid.width-strlen(text2)*8)/2, 8*5+8, COLOR_WHITE, text2);
+		NM_PrintColoured((vid.width-strlen(text3)*8)/2, 8*5+16, COLOR_WHITE, text3);
 
 		return;
 	}
@@ -362,17 +362,17 @@ void M_DrawServerList(void)
 		if (*server->name)
 		{
 			if (blink)
-				colour = 6;
+				colour = COLOR_CYAN;
 			else if (server->special & SS_FAVORITE)
-				colour = 2;
+				colour = COLOR_GREEN;
 			else if (server->special & SS_FTESERVER)
-				colour = 1;
+				colour = COLOR_RED;
 			else if (server->special & SS_QUAKE2)
-				colour = 3;
+				colour = COLOR_YELLOW;
 			else if (server->special & SS_NETQUAKE)
-				colour = 5;
+				colour = COLOR_MAGENTA;
 			else
-				colour = 0;
+				colour = COLOR_WHITE;
 
 			x = vid.width;
 
@@ -426,7 +426,7 @@ void M_DrawSources (void)
 			text = "All servers were filtered out\n";
 		else
 			text = "No sources were found\n";
-		NM_PrintColoured((vid.width-strlen(text)*8)/2, 8*5, 0, text);
+		NM_PrintColoured((vid.width-strlen(text)*8)/2, 8*5, COLOR_WHITE, text);
 
 		return;
 	}
@@ -461,15 +461,15 @@ void M_DrawSources (void)
 		if (blink)
 			NM_PrintColoured(46, y, 6, va("%s", mast->name));	//blinking.
 		else if (mast->type == MT_MASTERQW || mast->type == MT_MASTERQ2)
-			NM_PrintColoured(46, y, 0, va("%s", mast->name));	//white.
+			NM_PrintColoured(46, y, COLOR_WHITE, va("%s", mast->name));	//white.
 #ifdef NQPROT
 		else if (mast->type == MT_SINGLENQ)
-			NM_PrintColoured(46, y, 2, va("%s", mast->name));	//green.
+			NM_PrintColoured(46, y, COLOR_GREEN, va("%s", mast->name));	//green.
 #endif
 		else if (mast->type == MT_SINGLEQW || mast->type == MT_SINGLEQ2)
-			NM_PrintColoured(46, y, 2, va("%s", mast->name));	//green.
+			NM_PrintColoured(46, y, COLOR_GREEN, va("%s", mast->name));	//green.
 		else
-			NM_PrintColoured(46, y, 1, va("%s", mast->name));	//red.
+			NM_PrintColoured(46, y, COLOR_RED, va("%s", mast->name));	//red.
 		y+=8;
 		snum++;
 	}
@@ -512,9 +512,9 @@ void M_DrawSListOptions (void)
 	for (op = 0; op < NUMSLISTOPTIONS; op++)
 	{
 		if (slist_option == op && (int)(realtime*3)&1)
-			c = 6;	//cyan
+			c = COLOR_CYAN;	//cyan
 		else
-			c = options[op].cvar->value>0 || (*options[op].cvar->string && *options[op].cvar->string != '0');//red if on.
+			c = (options[op].cvar->value>0 || (*options[op].cvar->string && *options[op].cvar->string != '0'))?COLOR_RED:COLOR_WHITE;//red if on.
 		switch(options[op].type)
 		{
 		default:
@@ -599,12 +599,12 @@ void M_DrawServers(void)
 	lofs = width/2 - 7*4;
 	for (snum = 0; snum < NUMSLISTHEADERS; snum++)
 	{
-		NM_PrintColoured(width*snum+width/2 - strlen(titles[snum])*4, 0, slist_type==snum, titles[snum]);
+		NM_PrintColoured(width*snum+width/2 - strlen(titles[snum])*4, 0, slist_type==snum?COLOR_RED:COLOR_WHITE, titles[snum]);
 	}
-	NM_PrintColoured(8, 8, 0, "\35");
+	NM_PrintColoured(8, 8, COLOR_WHITE, "\35");
 	for (snum = 16; snum < vid.width-16; snum+=8)
-		NM_PrintColoured(snum, 8, 0, "\36");
-	NM_PrintColoured(snum, 8, 0, "\37");
+		NM_PrintColoured(snum, 8, COLOR_WHITE, "\36");
+	NM_PrintColoured(snum, 8, COLOR_WHITE, "\37");
 
 	switch(slist_type)
 	{

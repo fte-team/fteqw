@@ -1167,9 +1167,9 @@ void Con_DrawConsole (int lines, qboolean noback)
 		// draw it
 		y = con->vislines-22 + 8;
 		for (i = 0; i < strlen(dlbar); i++)
-			Draw_Character ( (i+1)<<3, y, dlbar[i]);
+			Draw_ColouredCharacter ( (i+1)<<3, y, (unsigned char)dlbar[i] | M_COLOR_WHITE);
 
-		Draw_Character ((n+1+x)*8, y, '\x83');
+		Draw_ColouredCharacter ((n+1+x)*8, y, (unsigned char)'\x83' | M_COLOR_WHITE);
 	}
 
 // draw the input prompt, user text, and cursor if desired

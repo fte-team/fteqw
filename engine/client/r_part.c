@@ -2046,8 +2046,8 @@ int R_RocketTrail (vec3_t start, vec3_t end, int type, trailstate_t *ts)
 			p->alpha = ptype->alpha;
 		p->color = 0;
 
-		if (ptype->spawnmode == SM_TRACER)
-			tcount = (int)(len * ptype->count);
+//		if (ptype->spawnmode == SM_TRACER)
+		tcount = (int)(len * ptype->count);
 
 		if (ptype->colorindex >= 0)
 		{

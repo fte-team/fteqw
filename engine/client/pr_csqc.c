@@ -264,7 +264,11 @@ static void PF_Fixme (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 	PR_BIError (prinst, "bulitin not implemented");
 }
 
-
+static void PF_csqc_centerprint (progfuncs_t *prinst, struct globalvars_s *pr_globals)
+{
+	char *str = PF_VarString(prinst, 0, pr_globals);
+	SCR_CenterPrint(0, str);
+}
 
 static void PF_makevectors (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
@@ -852,6 +856,8 @@ static void PF_cs_setsensativityscaler (progfuncs_t *prinst, struct globalvars_s
 	in_sensitivityscale = G_FLOAT(OFS_PARM0);
 }
 
+#define PF_FixTen PF_Fixme,PF_Fixme,PF_Fixme,PF_Fixme,PF_Fixme,PF_Fixme,PF_Fixme,PF_Fixme,PF_Fixme,PF_Fixme
+
 //warning: functions that depend on globals are bad, mkay?
 builtin_t csqc_builtins[] = {
 //0
@@ -1044,88 +1050,28 @@ PF_CSQC_SetModelIndex,
 PF_CSQC_ModelnameForIndex,
 
 PF_cs_setsensativityscaler,
-PF_Fixme,
-PF_Fixme,
+PF_csqc_centerprint,
+PF_print,
 PF_Fixme,
 PF_Fixme,
 
 //160
-PF_Fixme,
-PF_Fixme,
-PF_Fixme,
-PF_Fixme,
-PF_Fixme,
-
-PF_Fixme,
-PF_Fixme,
-PF_Fixme,
-PF_Fixme,
-PF_Fixme,
+PF_FixTen,
 
 //170
-PF_Fixme,
-PF_Fixme,
-PF_Fixme,
-PF_Fixme,
-PF_Fixme,
-
-PF_Fixme,
-PF_Fixme,
-PF_Fixme,
-PF_Fixme,
-PF_Fixme,
+PF_FixTen,
 
 //180
-PF_Fixme,
-PF_Fixme,
-PF_Fixme,
-PF_Fixme,
-PF_Fixme,
-
-PF_Fixme,
-PF_Fixme,
-PF_Fixme,
-PF_Fixme,
-PF_Fixme,
+PF_FixTen,
 
 //190
-PF_Fixme,
-PF_Fixme,
-PF_Fixme,
-PF_Fixme,
-PF_Fixme,
-
-PF_Fixme,
-PF_Fixme,
-PF_Fixme,
-PF_Fixme,
-PF_Fixme,
+PF_FixTen,
 
 //200
-PF_Fixme,
-PF_Fixme,
-PF_Fixme,
-PF_Fixme,
-PF_Fixme,
-
-PF_Fixme,
-PF_Fixme,
-PF_Fixme,
-PF_Fixme,
-PF_Fixme,
+PF_FixTen,
 
 //210
-PF_Fixme,
-PF_Fixme,
-PF_Fixme,
-PF_Fixme,
-PF_Fixme,
-
-PF_Fixme,
-PF_Fixme,
-PF_Fixme,
-PF_Fixme,
-PF_Fixme,
+PF_FixTen,
 
 //220
 PF_Fixme,
@@ -1141,22 +1087,74 @@ PF_strcasecmp,
 PF_strncasecmp,
 
 //230
-PF_Fixme,
-PF_Fixme,
-PF_Fixme,
-PF_Fixme,
-PF_Fixme,
-
-PF_Fixme,
-PF_Fixme,
-PF_Fixme,
-PF_Fixme,
-PF_Fixme,
+PF_FixTen,
 
 //240
+PF_FixTen,
+
+//250
+PF_FixTen,
+
+PF_FixTen,
+
+//260
+PF_FixTen,
+
+//270
+PF_FixTen,
+
+//280
+PF_FixTen,
+
+//290
+PF_FixTen,
+
+//300
+PF_FixTen,
+
+//310
+PF_FixTen,
+
+//320
+PF_FixTen,
+
+//330
+PF_FixTen,
+
+//340
+PF_FixTen,
+
+//350
+PF_FixTen,
+
+//360
+PF_FixTen,
+
+//370
+PF_FixTen,
+
+//380
+PF_FixTen,
+
+//390
+PF_FixTen,
+
+//400
+PF_FixTen,
+
+//410
+PF_FixTen,
+
+//420
+PF_FixTen,
+
+//430
+PF_FixTen,
+
+//440
 PF_Fixme,
-PF_Fixme,
-PF_Fixme,
+PF_Tokenize,
+PF_ArgV,
 PF_Fixme,
 PF_Fixme,
 
@@ -1164,8 +1162,7 @@ PF_Fixme,
 PF_Fixme,
 PF_Fixme,
 PF_Fixme,
-PF_Fixme
-
+PF_Fixme,
 };
 int csqc_numbuiltins = sizeof(csqc_builtins)/sizeof(csqc_builtins[0]);
 

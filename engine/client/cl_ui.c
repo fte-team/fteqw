@@ -329,6 +329,7 @@ void VQ3_AddEntity(const q3refEntity_t *q3)
 	ent.angles[0] = (atan2(q3->axis[0][2], sqrt(q3->axis[0][1]*q3->axis[0][1]+q3->axis[0][0]*q3->axis[0][0])) * 180 / M_PI);
 	ent.angles[1] = (atan2(q3->axis[0][1], q3->axis[0][0]) * 180 / M_PI);
 	ent.angles[2] = 0;//(atan2(q3->axis[2][1], q3->axis[2][0]) * 180 / M_PI);;
+	memcpy(ent.axis, q3->axis, sizeof(q3->axis));
 	ent.lerpfrac = ent.lerptime = q3->backlerp;
 	ent.alpha = 1;
 	ent.scale = 1;
@@ -470,10 +471,16 @@ long UI_SystemCallsEx(void *offset, unsigned int mask, int fn, const long *arg)
 		break;
 
 	case UI_CVAR_SET_VALUE:
-		Cvar_SetValue(VM_POINTER(arg[0]), VM_FLOAT(arg[1]));
+		Cvar_SetValue(Cvar_FindVar(VM_POINTER(arg[0])), VM_FLOAT(arg[1]));
 		break;
 
 	case UI_CVAR_RESET:	//cvar reset
+		{
+			cvar_t *var;
+			var = Cvar_FindVar((char *)VM_POINTER(arg[0]));
+			if (var)
+				Cvar_Set(var, var->defaultstr);
+		}
 		break;
 
 	case UI_CBUF_ADD_COMMAND:
@@ -575,36 +582,23 @@ long UI_SystemCallsEx(void *offset, unsigned int mask, int fn, const long *arg)
 		break;
 
 	case UI_DRAW_COLOUR:	//setcolour float*
-		switch (qrenderer)
+		if (Draw_ImageColours)
 		{
-#ifdef RGLQUAKE
-		case QR_OPENGL:
-			if (VM_POINTER(arg[0]))
-			{
-				float *fl =VM_POINTER(arg[0]);
-				glColor4fv(fl);
-			}
+			float *fl =VM_POINTER(arg[0]);
+			if (!fl)
+				Draw_ImageColours(1, 1, 1, 1);
 			else
-				glColor4f(1, 1, 1, 1);
-			break;
-#endif
-#ifdef SWQUAKE
-		case QR_SOFTWARE:
-			if (VM_POINTER(arg[0]))
-			{
-				float *c = VM_POINTER(arg[0]);
-				SWDraw_ImageColours(c[0], c[1], c[2], c[3]);
-			}
-			else
-				SWDraw_ImageColours(1, 1, 1, 1);
-			break;
-#endif
-		default:
-			break;
+				Draw_ImageColours(fl[0], fl[1], fl[2], fl[3]);
 		}
 		break;
 
 	case UI_DRAW_IMAGE:
+/*fixme
+		if (Draw_Image)
+		{
+			Draw_Image(VM_FLOAT(arg[0]), VM_FLOAT(arg[1]), VM_FLOAT(arg[2]), VM_FLOAT(arg[3]), VM_FLOAT(arg[4]), VM_FLOAT(arg[5]), VM_FLOAT(arg[6]), VM_FLOAT(arg[7]), (qpic_t *)VM_LONG(arg[8]));
+		}
+*/
 		switch (qrenderer)
 		{
 #ifdef RGLQUAKE
@@ -626,8 +620,81 @@ long UI_SystemCallsEx(void *offset, unsigned int mask, int fn, const long *arg)
 		break;
 
 	case UI_LERP_TAG:	//Lerp tag...
+	//	tag, model, startFrame, endFrame, frac, tagName
 		if ((int)arg[0] + sizeof(float)*12 >= mask || VM_POINTER(arg[0]) < offset)
 			break;	//out of bounds.
+
+		{
+			int tagnum;
+			float *ang;
+			float *org;
+
+			float *org1;
+			float *ang1;
+			float *org2;
+			float *ang2;
+
+			float l1;
+			float l2;
+
+			int f1 = VM_LONG(arg[2]);
+			int f2 = VM_LONG(arg[3]);
+
+			org = (float*)VM_POINTER(arg[0]);
+			ang = ((float*)VM_POINTER(arg[0])+3);
+
+			l1 = 1-VM_FLOAT(arg[4]);
+			l2 = VM_FLOAT(arg[4]);
+
+
+			if (Mod_GetTag)
+			{
+				if (Mod_TagNumForName)
+					tagnum = Mod_TagNumForName((model_t *)VM_LONG(arg[1]), (char*)VM_POINTER(arg[5]));
+				else
+					tagnum = 0;
+				Mod_GetTag((model_t *)VM_LONG(arg[1]), tagnum, f1, &org1, &ang1);
+				Mod_GetTag((model_t *)VM_LONG(arg[1]), tagnum, f2, &org2, &ang2);
+			}
+			else
+				ang1=ang2=NULL;
+			if (ang1 && ang2)
+			{
+				org[0] = org1[0]*l1 + org2[0]*l2;
+				org[1] = org1[1]*l1 + org2[1]*l2;
+				org[2] = org1[2]*l1 + org2[2]*l2;
+
+				ang[0] = ang1[0]*l1 + ang2[0]*l2;
+				ang[1] = ang1[1]*l1 + ang2[1]*l2;
+				ang[2] = ang1[2]*l1 + ang2[2]*l2;
+
+				ang[3] = ang1[3]*l1 + ang2[3]*l2;
+				ang[4] = ang1[4]*l1 + ang2[4]*l2;
+				ang[5] = ang1[5]*l1 + ang2[5]*l2;
+
+				ang[6] = ang1[6]*l1 + ang2[6]*l2;
+				ang[7] = ang1[7]*l1 + ang2[7]*l2;
+				ang[8] = ang1[8]*l1 + ang2[8]*l2;
+			}
+			else
+			{
+				org[0] = 0;
+				org[1] = 0;
+				org[2] = 0;
+
+				ang[0] = 1;
+				ang[1] = 0;
+				ang[2] = 0;
+
+				ang[3] = 0;
+				ang[4] = 1;
+				ang[5] = 0;
+
+				ang[6] = 0;
+				ang[7] = 0;
+				ang[8] = 1;
+			}
+		}
 /*
 		{
 #ifdef RGLQUAKE
@@ -756,6 +823,7 @@ long UI_SystemCallsEx(void *offset, unsigned int mask, int fn, const long *arg)
 		break;
 
 	case UI_GET_CLIENT_STATE:	//get client state
+		//fixme: we need to fill in a structure.
 		break;
 
 	case UI_GET_SERVERINFO:
@@ -888,6 +956,9 @@ long UI_SystemCallsEx(void *offset, unsigned int mask, int fn, const long *arg)
 		break;
 
 	case UI_CDKEY_GET:	//get cd key
+		if ((int)arg[0] + VM_LONG(arg[1]) >= mask || VM_POINTER(arg[0]) < offset)
+			break;	//out of bounds.
+		strncpy(VM_POINTER(arg[0]), "aaaaaaaaaaaaaaaa", VM_LONG(arg[1]));
 		break;
 	case UI_CDKEY_SET:	//set cd key
 		if ((int)arg[0] + strlen(VM_POINTER(arg[0])) >= mask || VM_POINTER(arg[0]) < offset)
@@ -933,11 +1004,11 @@ long UI_SystemCallsEx(void *offset, unsigned int mask, int fn, const long *arg)
 	case 67:
 		break;
 
-	case UI_SOMETHINGTHATRETURNSTRUE:
+	case UI_VERIFYCDKEY:
 		VM_LONG(ret) = true;
 		break;
 
-	case UI_SOMETHINGTODOWITHPUNKBUSTER:	//something undocumented about punkbuster...
+	case UI_SOMETHINGTODOWITHPUNKBUSTER:
 		break;
 
 // standard Q3
@@ -1083,7 +1154,7 @@ long UI_SystemCallsEx(void *offset, unsigned int mask, int fn, const long *arg)
 		}
 
 	default:
-		Sys_Error("Bad system trap: %d\n", fn);
+		Sys_Error("Q3UI: Not implemented system trap: %d\n", fn);
 	}
 
 	return ret;
@@ -1204,7 +1275,7 @@ qboolean UI_KeyPress(int key, qboolean down)
 {
 	extern qboolean	keydown[256];
 	extern int		keyshift[256];		// key to map to if shift held down in console
-	qboolean result;
+//	qboolean result;
 	if (!uivm)
 		return false;
 	if (key_dest == key_menu)
@@ -1226,7 +1297,7 @@ qboolean UI_KeyPress(int key, qboolean down)
 	if (key < K_BACKSPACE && key >= ' ')
 		key |= 1024;
 
-	result = VM_Call(uivm, UI_KEY_EVENT, key, down);
+	/*result = */VM_Call(uivm, UI_KEY_EVENT, key, down);
 
 	if (!keycatcher && !cls.state)
 	{
@@ -1234,7 +1305,9 @@ qboolean UI_KeyPress(int key, qboolean down)
 		return true;
 	}
 
-	return result;
+	return true;
+
+//	return result;
 }
 
 void UI_MousePosition(int xpos, int ypos)

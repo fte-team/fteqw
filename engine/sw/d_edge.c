@@ -252,9 +252,7 @@ void D_DrawSurfaces (void)
 
 			if (s->flags & SURF_DRAWSKY)
 			{
-				if (r_worldentity.model->fromgame == fg_halflife)
-					continue;
-				if (r_fastsky.value)
+				if (r_fastsky.value || r_worldentity.model->fromgame != fg_quake)
 				{
 					D_DrawSolidSurface (s, (int)r_fastskycolour.value & 0xFF);
 				}

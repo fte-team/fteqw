@@ -26,7 +26,7 @@ XLDFLAGS=-L/usr/X11R6/lib -lX11 -lXext -lpng -ljpeg
 SLDFLAGS=-lvga
 
 
-BASE_CFLAGS=-Wall -Dstrnicmp=strncasecmp -Dstricmp=strcasecmp -I$(CLIENT_DIR) -I$(SERVER_DIR) -I$(COMMON_DIR) -I$(SW_DIR) -I$(GL_DIR) -I$(PROGS_DIR) -I$(LIBS_DIR) -I$(QUX_DIR) -I/usr/X11R6/include -D_vsnprintf=vsnprintf -D_snprintf=snprintf
+BASE_CFLAGS=-DQ3SHADERS -Wall -Dstrnicmp=strncasecmp -Dstricmp=strcasecmp -I$(CLIENT_DIR) -I$(SERVER_DIR) -I$(COMMON_DIR) -I$(SW_DIR) -I$(GL_DIR) -I$(PROGS_DIR) -I$(LIBS_DIR) -I$(QUX_DIR) -I/usr/X11R6/include -D_vsnprintf=vsnprintf -D_snprintf=snprintf
 CLIENT_ONLY_CFLAGS=$(BASE_CFLAGS) -DCLIENTONLY
 SERVER_ONLY_CFLAGS=$(BASE_CFLAGS) -DSERVERONLY
 JOINT_CFLAGS=$(BASE_CFLAGS)
@@ -163,6 +163,8 @@ GLQUAKE_OBJS = \
 	$(OUT_DIR)/gl_alias.o	\
 	$(OUT_DIR)/gl_draw.o	\
 	$(OUT_DIR)/gl_model.o	\
+	$(OUT_DIR)/gl_backend.o	\
+	$(OUT_DIR)/gl_shader.o	\
 	$(OUT_DIR)/gl_ngraph.o	\
 	$(OUT_DIR)/gl_rlight.o	\
 	$(OUT_DIR)/gl_rmain.o	\
@@ -170,7 +172,6 @@ GLQUAKE_OBJS = \
 	$(OUT_DIR)/gl_rsurf.o	\
 	$(OUT_DIR)/ltface.o	\
 	$(OUT_DIR)/gl_screen.o	\
-	$(OUT_DIR)/gl_backend.o	\
 	$(OUT_DIR)/gl_warp.o	\
 	$(OUT_DIR)/gl_ppl.o	\
 	$(OUT_DIR)/gl_vidcommon.o \
@@ -785,6 +786,9 @@ $(OUT_DIR)/gl_hlmdl.o :         $(GL_DIR)/gl_hlmdl.c
 	$(DO_CC)
 
 $(OUT_DIR)/gl_ppl.o :		$(GL_DIR)/gl_ppl.c
+	$(DO_CC)
+
+$(OUT_DIR)/gl_shader.o :	$(GL_DIR)/gl_shader.c
 	$(DO_CC)
 
 $(OUT_DIR)/gl_backend.o :	$(GL_DIR)/gl_backend.c

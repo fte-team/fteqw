@@ -120,7 +120,7 @@ void SV_CheckVelocity (edict_t *ent)
 
 	if (Length(ent->v.velocity) > sv_maxvelocity.value)
 	{
-		Con_DPrintf("Slowing %s\n", PR_GetString(svprogfuncs, ent->v.classname));
+//		Con_DPrintf("Slowing %s\n", PR_GetString(svprogfuncs, ent->v.classname));
 		VectorScale (ent->v.velocity, sv_maxvelocity.value/Length(ent->v.velocity), ent->v.velocity);
 	}
 }
@@ -207,7 +207,6 @@ void SV_Impact (edict_t *e1, edict_t *e2)
 ClipVelocity
 
 Slide off of the impacting object
-returns the blocked flags (1 = floor, 2 = step / wall)
 ==================
 */
 #define	STOP_EPSILON	0.1
@@ -253,6 +252,7 @@ int SV_FlyMove (edict_t *ent, float time, trace_t *steptrace)
 	vec3_t		end;
 	float		time_left;
 	int			blocked;
+	vec3_t diff;
 	
 	numbumps = 4;
 	
@@ -319,6 +319,8 @@ int SV_FlyMove (edict_t *ent, float time, trace_t *steptrace)
 		if (numplanes >= MAX_CLIP_PLANES)
 		{	// this shouldn't really happen
 			VectorCopy (vec3_origin, ent->v.velocity);
+			if (steptrace)
+				*steptrace = trace;	// save for player extrafriction
 			return 3;
 		}
 
@@ -329,6 +331,10 @@ int SV_FlyMove (edict_t *ent, float time, trace_t *steptrace)
 		}
 		else
 		{
+			VectorSubtract(planes[0], trace.plane.normal, diff);
+			if (Length(diff) < 0.01)
+				continue;	//hit this plane already
+
 			VectorCopy (trace.plane.normal, planes[numplanes]);
 			numplanes++;
 
@@ -347,23 +353,29 @@ int SV_FlyMove (edict_t *ent, float time, trace_t *steptrace)
 				if (j == numplanes)
 					break;
 			}
-			
+
 			if (i != numplanes)
 			{	// go along this plane
+//				Con_Printf ("%5.1f %5.1f %5.1f   ",ent->v.velocity[0], ent->v.velocity[1], ent->v.velocity[2]);
 				VectorCopy (new_velocity, ent->v.velocity);
+//				Con_Printf ("%5.1f %5.1f %5.1f\n",ent->v.velocity[0], ent->v.velocity[1], ent->v.velocity[2]);
 			}
 			else
 			{	// go along the crease
 				if (numplanes != 2)
 				{
 //					Con_Printf ("clip velocity, numplanes == %i\n",numplanes);
+//					Con_Printf ("%5.1f %5.1f %5.1f   ",ent->v.velocity[0], ent->v.velocity[1], ent->v.velocity[2]);
 					VectorCopy (vec3_origin, ent->v.velocity);
+//					Con_Printf ("%5.1f %5.1f %5.1f\n",ent->v.velocity[0], ent->v.velocity[1], ent->v.velocity[2]);
 					return 7;
 				}
+//				Con_Printf ("%5.1f %5.1f %5.1f   ",ent->v.velocity[0], ent->v.velocity[1], ent->v.velocity[2]);
 				CrossProduct (planes[0], planes[1], dir);
 				VectorNormalize(dir);	//fixes slow falling in corners
 				d = DotProduct (dir, ent->v.velocity);
 				VectorScale (dir, d, ent->v.velocity);
+//				Con_Printf ("%5.1f %5.1f %5.1f\n",ent->v.velocity[0], ent->v.velocity[1], ent->v.velocity[2]);
 			}
 		}
 
@@ -1318,6 +1330,7 @@ SV_WalkMove
 Only used by players
 ======================
 */
+/*
 #define	SMSTEPSIZE	4
 void SV_WalkMove (edict_t *ent)
 {
@@ -1474,6 +1487,158 @@ void SV_WalkMove (edict_t *ent)
 //		Con_Printf("down not good\n");
 	}
 }
+*/
+
+
+int SV_SetOnGround (edict_t *ent)
+{
+	vec3_t end;
+	trace_t trace;
+	if ((int)ent->v.flags & FL_ONGROUND)
+		return 1;
+	end[0] = ent->v.origin[0];
+	end[1] = ent->v.origin[1];
+	end[2] = ent->v.origin[2] - 1;
+	trace = SV_Move(ent->v.origin, ent->v.mins, ent->v.maxs, end, MOVE_NORMAL, ent);
+	if (trace.fraction < 1 && trace.plane.normal[2] >= 0.7)
+	{
+		ent->v.flags = (int)ent->v.flags | FL_ONGROUND;
+		ent->v.groundentity = EDICT_TO_PROG(svprogfuncs, trace.ent);
+		return 1;
+	}
+	return 0;
+}
+void SV_WalkMove (edict_t *ent)
+{
+	int clip, oldonground, originalmove_clip, originalmove_flags, originalmove_groundentity;
+	vec3_t upmove, downmove, start_origin, start_velocity, originalmove_origin, originalmove_velocity;
+	trace_t downtrace, steptrace;
+
+	SV_CheckVelocity(ent);
+
+	// do a regular slide move unless it looks like you ran into a step
+	oldonground = (int)ent->v.flags & FL_ONGROUND;
+	ent->v.flags = (int)ent->v.flags & ~FL_ONGROUND;
+
+	VectorCopy (ent->v.origin, start_origin);
+	VectorCopy (ent->v.velocity, start_velocity);
+
+	clip = SV_FlyMove (ent, host_frametime, NULL);
+
+	SV_SetOnGround (ent);
+	SV_CheckVelocity(ent);
+
+	VectorCopy(ent->v.origin, originalmove_origin);
+	VectorCopy(ent->v.velocity, originalmove_velocity);
+	originalmove_clip = clip;
+	originalmove_flags = (int)ent->v.flags;
+	originalmove_groundentity = ent->v.groundentity;
+
+	if ((int)ent->v.flags & FL_WATERJUMP)
+		return;
+
+//	if (sv_nostep.value)
+//		return;
+	
+	// if move didn't block on a step, return
+	if (clip & 2)
+	{
+		// if move was not trying to move into the step, return
+		if (fabs(start_velocity[0]) < 0.03125 && fabs(start_velocity[1]) < 0.03125)
+			return;
+	
+		if (ent->v.movetype != MOVETYPE_FLY)
+		{
+			// return if gibbed by a trigger
+			if (ent->v.movetype != MOVETYPE_WALK)
+				return;
+	
+			// only step up while jumping if that is enabled
+//			if (!(sv_jumpstep.value && sv_gameplayfix_stepwhilejumping.value))
+				if (!oldonground && ent->v.waterlevel == 0)
+					return;
+		}
+	
+		// try moving up and forward to go up a step
+		// back to start pos
+		VectorCopy (start_origin, ent->v.origin);
+		VectorCopy (start_velocity, ent->v.velocity);
+	
+		// move up
+		VectorClear (upmove);
+		upmove[2] = pm_stepheight;
+		// FIXME: don't link?
+		SV_PushEntity(ent, upmove);
+	
+		// move forward
+		ent->v.velocity[2] = 0;
+		clip = SV_FlyMove (ent, host_frametime, &steptrace);
+		ent->v.velocity[2] += start_velocity[2];
+	
+		SV_CheckVelocity(ent);
+	
+		// check for stuckness, possibly due to the limited precision of floats
+		// in the clipping hulls
+		if (clip
+		 && fabs(originalmove_origin[1] - ent->v.origin[1]) < 0.03125
+		 && fabs(originalmove_origin[0] - ent->v.origin[0]) < 0.03125)
+		{
+//			Con_Printf("wall\n");
+			// stepping up didn't make any progress, revert to original move
+			VectorCopy(originalmove_origin, ent->v.origin);
+			VectorCopy(originalmove_velocity, ent->v.velocity);
+			//clip = originalmove_clip;
+			ent->v.flags = originalmove_flags;
+			ent->v.groundentity = originalmove_groundentity; 
+			// now try to unstick if needed
+			//clip = SV_TryUnstick (ent, oldvel);
+			return;
+		}
+
+		//Con_Printf("step - ");
+
+		// extra friction based on view angle
+		if (clip & 2)// && sv_wallfriction.value)
+		{
+//			Con_Printf("wall\n");
+			SV_WallFriction (ent, &steptrace);
+		}
+	}
+	else if (/*!sv_gameplayfix_stepdown.integer || */!oldonground || start_velocity[2] > 0 || ((int)ent->v.flags & FL_ONGROUND) || ent->v.waterlevel >= 2)
+		return;
+
+	// move down
+	VectorClear (downmove);
+	downmove[2] = -pm_stepheight + start_velocity[2]*host_frametime;
+	// FIXME: don't link?
+	downtrace = SV_PushEntity (ent, downmove);
+
+	if (downtrace.fraction < 1 && downtrace.plane.normal[2] > 0.7)
+	{
+		// LordHavoc: disabled this check so you can walk on monsters/players
+		//if (ent->v->solid == SOLID_BSP)
+		{
+			//Con_Printf("onground\n");
+			ent->v.flags =	(int)ent->v.flags | FL_ONGROUND;
+			ent->v.groundentity = EDICT_TO_PROG(svprogfuncs, downtrace.ent);
+		}
+	}
+	else
+	{
+		//Con_Printf("slope\n");
+		// if the push down didn't end up on good ground, use the move without
+		// the step up.  This happens near wall / slope combinations, and can
+		// cause the player to hop up higher on a slope too steep to climb
+		VectorCopy(originalmove_origin, ent->v.origin);
+		VectorCopy(originalmove_velocity, ent->v.velocity);
+		//clip = originalmove_clip;
+		ent->v.flags = originalmove_flags;
+		ent->v.groundentity = originalmove_groundentity; 
+	}
+
+	SV_SetOnGround (ent);
+	SV_CheckVelocity(ent);
+}
 
 
 
@@ -1538,12 +1703,18 @@ void SV_Physics_Client (edict_t	*ent, int num)
 //		if (fabs(oldvel - ent->v.velocity[0])> 100)
 //			Con_Printf("grav: %f -> %f\n", oldvel, ent->v.velocity[0]);
 
+//		if (SV_TestEntityPosition(ent))
+//			Con_Printf("Player starts stuck\n");
+
 		SV_CheckStuck (ent);
 
 //		if (fabs(oldvel - ent->v.velocity[0])> 100)
 //			Con_Printf("stuck: %f -> %f\n", oldvel, ent->v.velocity[0]);
 
 		SV_WalkMove (ent);
+
+//		if (SV_TestEntityPosition(ent))
+//			Con_Printf("Player ends stuck\n");
 
 //		if (fabs(oldvel - ent->v.velocity[0])> 100)
 //			Con_Printf("walk: %f -> %f\n", oldvel, ent->v.velocity[0]);
@@ -1788,6 +1959,8 @@ qboolean SV_Physics (void)
 
 // don't bother running a frame if sys_ticrate seconds haven't passed
 	host_frametime = realtime - old_time;
+	if (host_frametime < -1)
+		old_time = 0;
 	if (host_frametime < sv_mintic.value)
 		return false;
 	if (host_frametime > sv_maxtic.value)

@@ -129,6 +129,17 @@ keyname_t keynames[] =
 	{"KP_STAR",		K_KP_STAR},
 	{"KP_EQUALS",	K_KP_EQUALS},
 
+	//fuhquake compatable.
+	{"KP_0",		K_KP_INS},
+	{"KP_1",		K_KP_END},
+	{"KP_2",		K_KP_DOWNARROW},
+	{"KP_3",		K_KP_PGDN},
+	{"KP_4",		K_KP_LEFTARROW},
+	{"KP_6",		K_KP_RIGHTARROW},
+	{"KP_7",		K_KP_HOME},
+	{"KP_8",		K_KP_UPARROW},
+	{"KP_9",		K_KP_PGUP},
+
 	{"MOUSE1",	K_MOUSE1},
 	{"MOUSE2",	K_MOUSE2},
 	{"MOUSE3",	K_MOUSE3},

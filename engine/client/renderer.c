@@ -1117,7 +1117,10 @@ qboolean R_ApplyRenderer (rendererstate_t *newr)
 		if (!VID_Init(newr, host_basepal))
 			return false;
 
-		GLV_UpdatePalette();
+#ifdef RGLQUAKE
+		if (qrenderer == QR_OPENGL)
+			GLV_UpdatePalette();
+#endif
 
 		v_oldgammavalue = -1;	//force the gamma to be reset
 		W_LoadWadFile("gfx.wad");
@@ -1387,12 +1390,12 @@ void R_RestartRenderer_f (void)
 	if (!R_ApplyRenderer(&newr))
 	{
 		if (R_ApplyRenderer(&oldr))
-			Con_Printf("^1Video mode switch failed. Old mode restored.\n");
+			Con_Printf("^1Video mode switch failed. Old mode restored.\n");	//go back to the old mode, the new one failed.
 		else
 		{
 			newr.renderer = QR_NONE;
 			if (R_ApplyRenderer(&newr))
-				Con_Printf("^1Video mode switch failed. Old mode wasn't supported either. Console forced.\n");
+				Con_Printf("^1Video mode switch failed. Old mode wasn't supported either. Console forced.\nChange vid_mode to a compatable mode, and then use the setrenderer command.\n");
 			else
 				Sys_Error("Couldn't fall back to previous renderer\n");
 		}
@@ -1403,7 +1406,29 @@ void R_SetRenderer_f (void)
 {
 	if (!strcmp(Cmd_Argv(1), "help"))
 	{
-		Con_Printf ("Valid commands are SW, GL and dedicated\n%s SW 8 will set 8bit software rendering\n%s SW 32 will set 32 bit software rendering\n%s GL will use the default OpenGL on your pc\n%s GL 3dfxgl will use a 3dfx minidriver (not supplied)\n^2Be aware that the default opengl driver is often a 3dfx minidriver installed with glquake. If you find default opengl fails, you may need to delete opengl32.dll from your quake directory ^1NOT^0 your system directory");
+		Con_Printf ("\nValid commands are:\n"
+#ifdef SWQUAKE
+					"%s SW 8 will set 8bit software rendering\n"
+					"%s SW 32 will set 32 bit software rendering\n"
+#endif //SWQUAKE
+#ifdef RGLQUAKE
+					"%s GL will use the default OpenGL on your pc\n"
+					"%s GL 3dfxgl will use a 3dfx minidriver (not supplied)\n"
+	#ifdef AVAIL_DX7
+					"%s D3D will use direct3d rendering\n"
+	#endif
+#endif
+					"\n"
+#ifdef SWQUAKE
+					,Cmd_Argv(0),Cmd_Argv(0)
+#endif
+#ifdef RGLQUAKE
+					,Cmd_Argv(0),Cmd_Argv(0)
+	#ifdef AVAIL_DX7
+					,Cmd_Argv(0)
+	#endif
+#endif		
+					);
 		return;
 	}
 	else if (!stricmp(Cmd_Argv(1), "dedicated"))

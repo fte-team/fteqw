@@ -467,7 +467,7 @@ int	oldparsecountmod;
 int	parsecountmod;
 double	parsecounttime;
 
-int		cl_spikeindex, cl_playerindex, cl_flagindex;
+int		cl_spikeindex, cl_playerindex, cl_flagindex, cl_rocketindex, cl_grenadeindex;
 
 #ifdef PEXT_LIGHTUPDATES
 int		cl_lightningindex;
@@ -921,6 +921,8 @@ void Sound_NextDownload (void)
 	cl_playerindex = -1;
 	cl_spikeindex = -1;
 	cl_flagindex = -1;
+	cl_rocketindex = -1;
+	cl_grenadeindex = -1;
 #ifdef PEXT_LIGHTUPDATES
 	cl_lightningindex = -1;
 #endif
@@ -1074,7 +1076,8 @@ int firstblock;
 int blockcycle;
 void CL_ParseChunkedDownload(void)
 {
-	qbyte	*name;
+	qbyte	*svname;
+	qbyte	osname[MAX_OSPATH];
 	int totalsize;
 	int chunknum;
 	char data[DLBLOCKSIZE];
@@ -1083,25 +1086,25 @@ void CL_ParseChunkedDownload(void)
 	if (chunknum < 0)
 	{
 		totalsize = MSG_ReadLong();
-		name = MSG_ReadString();
+		svname = MSG_ReadString();
 		if (cls.demoplayback)
 			return;
 
 		if (totalsize < 0)
 		{
 			if (totalsize == -2)
-				Con_Printf("Server permissions deny downloading file %s\n", name);
+				Con_Printf("Server permissions deny downloading file %s\n", svname);
 			else
-				Con_Printf("Couldn't find file %s on the server\n", name);
+				Con_Printf("Couldn't find file %s on the server\n", svname);
 
-			CL_DownloadFailed(name);
+			CL_DownloadFailed(svname);
 
 			CL_RequestNextDownload();
 			return;
 		}
 
 		if (cls.downloadmethod == DL_QWCHUNKS)
-			Host_EndGame("Received second download - \"%s\"\n", name);
+			Host_EndGame("Received second download - \"%s\"\n", svname);
 
 		//start the new download
 		cls.downloadmethod = DL_QWCHUNKS;
@@ -1110,16 +1113,16 @@ void CL_ParseChunkedDownload(void)
 
 		downloadstarttime = Sys_DoubleTime();
 
-		strcpy(cls.downloadname, name);
-		COM_StripExtension(name, cls.downloadtempname);
+		strcpy(cls.downloadname, svname);
+		COM_StripExtension(svname, cls.downloadtempname);
 		COM_DefaultExtension(cls.downloadtempname, ".tmp");
 
 		if (!strncmp(cls.downloadtempname,"skins/",6))
-			sprintf (name, "qw/%s", cls.downloadtempname);	//skins go to quake/qw/skins. never quake/gamedir/skins (blame id)
+			sprintf (osname, "qw/%s", cls.downloadtempname);	//skins go to quake/qw/skins. never quake/gamedir/skins (blame id)
 		else
-			sprintf (name, "%s/%s", com_gamedir, cls.downloadtempname);
-		COM_CreatePath (name);
-		cls.downloadqw = fopen (name, "wb");
+			sprintf (osname, "%s/%s", com_gamedir, cls.downloadtempname);
+		COM_CreatePath (osname);
+		cls.downloadqw = fopen (osname, "wb");
 
 		firstblock = 0;
 		receivedbytes = 0;
@@ -1128,7 +1131,7 @@ void CL_ParseChunkedDownload(void)
 		return;
 	}
 
-	Con_Printf("Received dl block %i: ", chunknum);
+//	Con_Printf("Received dl block %i: ", chunknum);
 
 	MSG_ReadData(data, DLBLOCKSIZE);
 
@@ -1138,21 +1141,21 @@ void CL_ParseChunkedDownload(void)
 	}
 	if (chunknum < firstblock)
 	{
-		Con_Printf("too old\n", chunknum);
+//		Con_Printf("too old\n", chunknum);
 		return;
 	}
 	if (chunknum-firstblock >= MAXBLOCKS)
 	{
-		Con_Printf("^1too new!\n", chunknum);
+//		Con_Printf("^1too new!\n", chunknum);
 		return;
 	}
 	
 	if (recievedblock[chunknum&(MAXBLOCKS-1)])
 	{
-		Con_Printf("duplicated\n", chunknum);
+//		Con_Printf("duplicated\n", chunknum);
 		return;
 	}
-	Con_Printf("usable\n", chunknum);
+//	Con_Printf("usable\n", chunknum);
 	receivedbytes+=DLBLOCKSIZE;
 	recievedblock[chunknum&(MAXBLOCKS-1)] = true;
 
@@ -1191,15 +1194,17 @@ int CL_RequestADownloadChunk(void)
 		{
 			if (b >= (downloadsize+DLBLOCKSIZE-1)/DLBLOCKSIZE)	//don't ask for blocks that are over the size of the file.
 				continue;
-			Con_Printf("Requesting block %i\n", b);
+//			Con_Printf("Requesting block %i\n", b);
 			return b;
 		}
 	}
 
-	Con_Printf("^1 EOF?\n");
+//	Con_Printf("^1 EOF?\n");
 
 	fclose(cls.downloadqw);
 	CL_FinishDownload(cls.downloadname, cls.downloadtempname);
+
+	Con_Printf("Download took %i seconds\n", (int)(Sys_DoubleTime() - downloadstarttime));
 
 	*cls.downloadname = '\0';
 	cls.downloadqw = NULL;
@@ -1332,7 +1337,7 @@ void CL_ParseDownload (void)
 		cls.downloadqw = NULL;
 		cls.downloadpercent = 0;
 
-		Con_DPrintf("Download took %i seconds\n", (int)(Sys_DoubleTime() - downloadstarttime));
+		Con_Printf("Download took %i seconds\n", (int)(Sys_DoubleTime() - downloadstarttime));
 
 		// get another file if needed
 
@@ -2095,6 +2100,11 @@ void CL_ParseModellist (qboolean lots)
 			cl_playerindex = nummodels;
 		if (!strcmp(cl.model_name[nummodels],"progs/flag.mdl"))
 			cl_flagindex = nummodels;
+
+		if (!strcmp(cl.model_name[nummodels],"progs/missile.mdl"))
+			cl_rocketindex = nummodels;
+		if (!strcmp(cl.model_name[nummodels],"progs/grenade.mdl"))
+			cl_grenadeindex = nummodels;
 	}
 
 	if (nummodels)
@@ -2689,7 +2699,7 @@ void CL_ProcessUserInfo (int slot, player_info_t *player)
 	Q_strncpyz (player->team, Info_ValueForKey (player->userinfo, "team"), sizeof(player->team));
 	player->topcolor = atoi(Info_ValueForKey (player->userinfo, "topcolor"));
 	player->bottomcolor = atoi(Info_ValueForKey (player->userinfo, "bottomcolor"));
-	if (Info_ValueForKey (player->userinfo, "*spectator")[0])
+	if (atoi(Info_ValueForKey (player->userinfo, "*spectator")))
 		player->spectator = true;
 	else
 		player->spectator = false;
@@ -2750,7 +2760,7 @@ void CL_SetInfo (void)
 
 	Con_DPrintf("SETINFO %s: %s=%s\n", player->name, key, value);
 
-	Info_SetValueForKey (player->userinfo, key, value, MAX_INFO_STRING);
+	Info_SetValueForStarKey (player->userinfo, key, value, MAX_INFO_STRING);
 
 	CL_ProcessUserInfo (slot, player);
 }

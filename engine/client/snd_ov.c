@@ -25,6 +25,7 @@ typedef struct {
 	unsigned char *start;	//file positions
 	unsigned long length;
 	unsigned long pos;
+	int srcspeed;
 
 	qboolean failed;
 
@@ -120,7 +121,7 @@ sfxcache_t *S_LoadOVSound (sfx_t *s)
 	{
 		if (buffer->mediaaswavdata)
 		{
-			free(buffer->mediaaswavdata);
+			BZ_Free(buffer->mediaaswavdata);
 
 			buffer->mediaaswavdata=NULL;
 		}
@@ -139,42 +140,85 @@ sfxcache_t *S_LoadOVSound (sfx_t *s)
 
 int OV_DecodeSome(sfx_t *s, int minlength)
 {	
+	extern int snd_speed;
+	int i;
 	int bigendianp = 0;
-	int current_section;
+	int current_section = 0;
 	sfxcache_t *sc;
 
 	ovdecoderbuffer_t *dec = s->decoder->buf;
 	int bytesread;
 
-	if (dec->mediaaswavbuflen < dec->mediaaswavpos+minlength)
+	if (dec->mediaaswavbuflen < dec->mediaaswavpos+minlength+11050)	//expand if needed.
 	{
-		dec->mediaaswavbuflen += minlength;
-		BZ_Realloc(dec->mediaaswavdata, dec->mediaaswavpos);
+		dec->mediaaswavbuflen += minlength+22100;
+		dec->mediaaswavdata = BZ_Realloc(dec->mediaaswavdata, dec->mediaaswavbuflen);
 		s->cache.data = dec->mediaaswavdata;
 		s->cache.fake = true;
+
+		sc = s->cache.data;
+		sc->stereo = dec->mediasc.stereo;
+		sc->loopstart = -1;
 	}
-	sc = s->cache.data;
+	else
+		sc = s->cache.data;
+
+	if (minlength < sc->length)
+	{
+		//done enough for now, don't whizz through the lot
+		return 0;
+	}
 
 	for (;;)
 	{
-		bytesread = p_ov_read(&dec->vf, dec->mediaaswavdata+dec->mediaaswavpos, minlength, bigendianp, 2, 1, &current_section);
+		bytesread = p_ov_read(&dec->vf, dec->mediaaswavdata+dec->mediaaswavpos, dec->mediaaswavbuflen-dec->mediaaswavpos, bigendianp, 2, 1, &current_section);
 		if (bytesread <= 0)
 			return 0;
 
-		dec->mediaaswavpos += bytesread;
-		sc->length = (dec->mediaaswavpos-sizeof(sfxcache_t))/2;
-		minlength -= bytesread/2;
+		if (snd_speed != dec->srcspeed)
+		{	//resample
+			if (dec->mediasc.stereo)
+			{
+				int *data = (int*)(dec->mediaaswavdata+dec->mediaaswavpos);
+				float frac = (float)dec->srcspeed/snd_speed;
+				bytesread = (int)(bytesread/frac);
+				for(i = 0; i < bytesread/4; i++)
+					data[i] = data[(int)(i*frac)];
+			}
+			else
+			{
+			}
+		}
 
-		if (!minlength)
+		dec->mediaaswavpos += bytesread;
+		sc->length = (dec->mediaaswavpos-sizeof(sfxcache_t))/(2*(dec->mediasc.stereo+1));
+		dec->mediasc.length = sc->length;
+
+		if (minlength<=sc->length)
 			return 1;
 	}
-return 0;
 }
 void OV_CancelDecoder(sfx_t *s)
 {
-	ovdecoderbuffer_t *buffer;
-	buffer = s->decoder->buf;
-	p_ov_clear (&buffer->vf);
+	sfxcache_t *src, *dest;
+	ovdecoderbuffer_t *dec;
+
+	dec = s->decoder->buf;
+	p_ov_clear (&dec->vf);	//close the decoder
+
+	//copy to new buffer
+
+	src = s->cache.data;
+	s->cache.fake = false;
+	s->cache.data = NULL;
+	dest = Cache_Alloc(&s->cache, dec->mediaaswavpos, s->name);
+	memcpy(dest, src, dec->mediaaswavpos);
+	BZ_Free(src);
+
+	Z_Free(s->decoder);
+	s->decoder = NULL;
+
+	//and it's now indistinguisable from a wav
 }
 
 static size_t read_func (void *ptr, size_t size, size_t nmemb, void *datasource)
@@ -210,7 +254,7 @@ static int seek_func (void *datasource, ogg_int64_t offset, int whence)
 static int close_func (void *datasource)
 {
 	ovdecoderbuffer_t *buffer = datasource;
-	free(buffer->start);
+	BZ_Free(buffer->start);
 	buffer->start=0;
 	return 0;
 }
@@ -257,11 +301,22 @@ qboolean OV_StartDecode(unsigned char *start, unsigned long length, ovdecoderbuf
 		return false;
 	}
 
-  /* Throw the comments plus a few lines about the bitstream we're
+  /* Print the comments plus a few lines about the bitstream we're
      decoding */
   {
     char **ptr=p_ov_comment(&buffer->vf,-1)->user_comments;
     vorbis_info *vi=p_ov_info(&buffer->vf,-1);
+
+	if (vi->channels < 1 || vi->channels > 2)
+	{
+		p_ov_clear (&buffer->vf);
+		return false;
+	}
+
+	buffer->mediasc.stereo = vi->channels-1;
+	buffer->mediasc.loopstart = -1;
+	buffer->srcspeed = vi->rate;
+
     while(*ptr){
       Con_Printf("%s\n",*ptr);
       ++ptr;

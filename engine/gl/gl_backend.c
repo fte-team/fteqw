@@ -340,9 +340,9 @@ static void Mesh_DeformTextureCoords(mesh_t *mesh, shaderpass_t *pass)
 				out[d*3+1] = DotProduct((in+d*3), mesh->lightaxis[1]);
 				out[d*3+2] = DotProduct((in+d*3), mesh->lightaxis[2]);
 			}
-			glTexCoordPointer(3, GL_FLOAT, 0, out);
+			qglTexCoordPointer(3, GL_FLOAT, 0, out);
 			
-			glEnableClientState( GL_TEXTURE_COORD_ARRAY );
+			qglEnableClientState( GL_TEXTURE_COORD_ARRAY );
 		}
 		return;
 	case TC_GEN_LIGHTMAP:
@@ -362,53 +362,53 @@ static void Mesh_DeformTextureCoords(mesh_t *mesh, shaderpass_t *pass)
 	}
 */
 
-	glEnableClientState( GL_TEXTURE_COORD_ARRAY );
-	glTexCoordPointer(2, GL_FLOAT, 0, in);
+	qglEnableClientState( GL_TEXTURE_COORD_ARRAY );
+	qglTexCoordPointer(2, GL_FLOAT, 0, in);
 }
 
 static void Mesh_SetShaderpassState ( shaderpass_t *pass, qboolean mtex )
 {
 	if ( (mtex && (pass->blendmode != GL_REPLACE)) || (pass->flags & SHADER_PASS_BLEND) )
 	{
-		glEnable (GL_BLEND);
-		glBlendFunc (pass->blendsrc, pass->blenddst);
+		qglEnable (GL_BLEND);
+		qglBlendFunc (pass->blendsrc, pass->blenddst);
 	}
 	else
 	{
-//		glDisable (GL_BLEND);
+//		qglDisable (GL_BLEND);
 	}
 
 	if (pass->flags & SHADER_PASS_ALPHAFUNC)
 	{
-		glEnable (GL_ALPHA_TEST);
+		qglEnable (GL_ALPHA_TEST);
 
 		if (pass->alphafunc == SHADER_ALPHA_GT0)
 		{
-			glAlphaFunc (GL_GREATER, 0);
+			qglAlphaFunc (GL_GREATER, 0);
 		}
 		else if (pass->alphafunc == SHADER_ALPHA_LT128)
 		{
-			glAlphaFunc (GL_LESS, 0.5f);
+			qglAlphaFunc (GL_LESS, 0.5f);
 		}
 		else if (pass->alphafunc == SHADER_ALPHA_GE128)
 		{
-			glAlphaFunc (GL_GEQUAL, 0.5f);
+			qglAlphaFunc (GL_GEQUAL, 0.5f);
 		}
 	}
 	else
 	{
-//		glDisable (GL_ALPHA_TEST);
+//		qglDisable (GL_ALPHA_TEST);
 	}
 
-//	glDepthFunc (pass->depthfunc);
+//	qglDepthFunc (pass->depthfunc);
 
 	if (pass->flags & SHADER_PASS_DEPTHWRITE)
 	{
-		glDepthMask (GL_TRUE);
+		qglDepthMask (GL_TRUE);
 	}
 	else
 	{
-//		glDepthMask (GL_FALSE);
+//		qglDepthMask (GL_FALSE);
 	}
 }
 
@@ -425,25 +425,25 @@ static void Mesh_DrawPass(shaderpass_t *pass, mesh_t *mesh)
 			qglActiveTextureARB(GL_TEXTURE0_ARB+p);
 			qglClientActiveTextureARB(GL_TEXTURE0_ARB+p);
 			GL_BindType(pass[p].texturetype, pass[p].anim_frames[0]);
-			glEnable(pass[p].texturetype);
+			qglEnable(pass[p].texturetype);
 
 			GL_TexEnv(pass[p].envmode);
 			if (pass[p].envmode == GL_COMBINE_ARB)
 			{
-				glTexEnvi(GL_TEXTURE_ENV, GL_SOURCE0_RGB_ARB, pass[p].combinesrc0);
-				glTexEnvi(GL_TEXTURE_ENV, GL_SOURCE1_RGB_ARB, pass[p].combinesrc1);
-				glTexEnvi(GL_TEXTURE_ENV, GL_COMBINE_RGB_ARB, pass[p].combinemode);
+				qglTexEnvi(GL_TEXTURE_ENV, GL_SOURCE0_RGB_ARB, pass[p].combinesrc0);
+				qglTexEnvi(GL_TEXTURE_ENV, GL_SOURCE1_RGB_ARB, pass[p].combinesrc1);
+				qglTexEnvi(GL_TEXTURE_ENV, GL_COMBINE_RGB_ARB, pass[p].combinemode);
 			}
 
 			Mesh_DeformTextureCoords(mesh, pass+p);
 		}
-		glDrawElements(GL_TRIANGLES, mesh->numindexes, GL_UNSIGNED_INT, mesh->indexes);
+		qglDrawElements(GL_TRIANGLES, mesh->numindexes, GL_UNSIGNED_INT, mesh->indexes);
 		for (p = pass->numMergedPasses-1; p >= 0; p--)
 		{
 			qglActiveTextureARB(GL_TEXTURE0_ARB+p);
 			qglClientActiveTextureARB(GL_TEXTURE0_ARB+p);
-			glDisable(pass[p].texturetype);
-			glDisableClientState( GL_TEXTURE_COORD_ARRAY );
+			qglDisable(pass[p].texturetype);
+			qglDisableClientState( GL_TEXTURE_COORD_ARRAY );
 		}
 	}
 	else
@@ -455,18 +455,18 @@ static void Mesh_DrawPass(shaderpass_t *pass, mesh_t *mesh)
 		GL_Bind(pass->anim_frames[0]);
 		if (pass->texturetype != GL_TEXTURE_2D)
 		{
-			glDisable(pass->texturetype);
-			glEnable(pass->texturetype);
+			qglDisable(pass->texturetype);
+			qglEnable(pass->texturetype);
 		}
-		glDrawElements(GL_TRIANGLES, mesh->numindexes, GL_UNSIGNED_INT, mesh->indexes);
+		qglDrawElements(GL_TRIANGLES, mesh->numindexes, GL_UNSIGNED_INT, mesh->indexes);
 
 		if (pass->texturetype != GL_TEXTURE_2D)
 		{
-			glDisable(pass->texturetype);
-			glEnable(GL_TEXTURE_2D);
+			qglDisable(pass->texturetype);
+			qglEnable(GL_TEXTURE_2D);
 		}
 
-		glDisableClientState( GL_TEXTURE_COORD_ARRAY );
+		qglDisableClientState( GL_TEXTURE_COORD_ARRAY );
 	}
 }
 
@@ -475,11 +475,11 @@ void GL_PushShader(shader_t *shader)
 {
 	if (!shader)
 	{
-		glDisableClientState( GL_VERTEX_ARRAY );
+		qglDisableClientState( GL_VERTEX_ARRAY );
 		return;
 	}
 
-	glEnableClientState( GL_VERTEX_ARRAY );
+	qglEnableClientState( GL_VERTEX_ARRAY );
 }
 void GL_PushMesh(mesh_t *mesh, int deluxnum, int lmnum)
 {
@@ -515,50 +515,50 @@ void GL_DrawMesh(mesh_t *mesh, shader_t *shader, int texturenum, int lmtexturenu
 		shader->passes[0].texturetype = GL_TEXTURE_2D;
 	}
 	if (!shader->numdeforms)
-		glVertexPointer(3, GL_FLOAT, 16, mesh->xyz_array);
+		qglVertexPointer(3, GL_FLOAT, 16, mesh->xyz_array);
 	else
 	{
 		MakeDeforms(shader, tempxyzarray, mesh->xyz_array, mesh->numvertexes);
-		glVertexPointer(3, GL_FLOAT, 16, tempxyzarray);
+		qglVertexPointer(3, GL_FLOAT, 16, tempxyzarray);
 	}
-	if (mesh->normals_array && glNormalPointer)
+	if (mesh->normals_array && qglNormalPointer)
 	{
-		glNormalPointer(GL_FLOAT, 0, mesh->normals_array);
-		glEnableClientState( GL_NORMAL_ARRAY );
+		qglNormalPointer(GL_FLOAT, 0, mesh->normals_array);
+		qglEnableClientState( GL_NORMAL_ARRAY );
 	}
 
-	glEnableClientState( GL_VERTEX_ARRAY );
-	if (mesh->colors_array && glColorPointer)
+	qglEnableClientState( GL_VERTEX_ARRAY );
+	if (mesh->colors_array && qglColorPointer)
 	{
-		glColorPointer(4, GL_UNSIGNED_BYTE, 0, mesh->colors_array);
-		glEnableClientState( GL_COLOR_ARRAY );
+		qglColorPointer(4, GL_UNSIGNED_BYTE, 0, mesh->colors_array);
+		qglEnableClientState( GL_COLOR_ARRAY );
 	}
 
 	for (i =0 ; i < shader->numpasses; i+=shader->passes[i].numMergedPasses)
 		Mesh_DrawPass(shader->passes+i, mesh);
 
-	glDisableClientState( GL_VERTEX_ARRAY );
-	glDisableClientState( GL_COLOR_ARRAY );
-	glDisableClientState( GL_NORMAL_ARRAY );
+	qglDisableClientState( GL_VERTEX_ARRAY );
+	qglDisableClientState( GL_COLOR_ARRAY );
+	qglDisableClientState( GL_NORMAL_ARRAY );
 
 /*	//show normals
 	if (mesh->normals_array)
 	{
-		glColor3f(1,1,1);
-		glDisable(GL_TEXTURE_2D);
-		glBegin(GL_LINES);
+		qglColor3f(1,1,1);
+		qglDisable(GL_TEXTURE_2D);
+		qglBegin(GL_LINES);
 		for (i = 0; i < mesh->numvertexes; i++)
 		{
-			glVertex3f(	mesh->xyz_array[i][0],
+			qglVertex3f(	mesh->xyz_array[i][0],
 						mesh->xyz_array[i][1],
 						mesh->xyz_array[i][2]);
 
-			glVertex3f(	mesh->xyz_array[i][0] + mesh->normals_array[i][0],
+			qglVertex3f(	mesh->xyz_array[i][0] + mesh->normals_array[i][0],
 						mesh->xyz_array[i][1] + mesh->normals_array[i][1],
 						mesh->xyz_array[i][2] + mesh->normals_array[i][2]);
 		}
-		glEnd();
-		glEnable(GL_TEXTURE_2D);
+		qglEnd();
+		qglEnable(GL_TEXTURE_2D);
 	}
 */
 }

@@ -208,7 +208,7 @@ mspriteframe_t *R_GetSpriteFrame (entity_t *currententity)
 
 	if ((frame >= psprite->numframes) || (frame < 0))
 	{
-		Con_Printf ("R_DrawSprite: no such frame %d\n", frame);
+		Con_Printf ("R_DrawSprite: no such frame %d (%s)\n", frame, currententity->model->name);
 		frame = 0;
 	}
 

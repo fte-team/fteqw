@@ -396,8 +396,8 @@ ifeq ($(USEASM),true)
 else
 	SWCL_OBJS=$(SOFTWARE_OBJS) vid_x.o snd_linux.o cd_linux.o sys_linux.o
 endif
-	SW_EXE_NAME=../fteswqw.exe
-	SWCL_EXE_NAME=../fteswqwcl.exe
+	SW_EXE_NAME=../fteqw.sw
+	SWCL_EXE_NAME=../fteqwcl.sw
 	SW_LDFLAGS=$(SWLDFLAGS) $(XLDFLAGS)
 	SW_CFLAGS=$(SWCFLAGS)
 	SWB_DIR=sw_linux
@@ -431,7 +431,7 @@ $(OUT_DIR)/%.o : %.c
 	$(DO_CC)
 
 ifeq ($(USEASM),true)
-$(OUT_DIR)/%.o : %.s
+$(OUT_DIR)/%.o : %.s sw/*.h
 	$(DO_AS)
 endif
 

@@ -456,7 +456,8 @@ typedef struct
 typedef struct mtriangle_s {
 	int					xyz_index[3];
 	int					st_index[3];
-	int					neighbors[3];
+	
+	int	pad[2];
 } mtriangle_t;
 
 

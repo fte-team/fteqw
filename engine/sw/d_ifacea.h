@@ -71,9 +71,9 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 
 // stvert_t structure
 // !!! if this is changed, it must be changed in modelgen.h too !!!
-#define stv_s		4
-#define stv_t		8
-#define stv_size	12
+#define stv_s		0
+#define stv_t		4
+#define stv_size	8
 
 
 // trivertx_t structure
@@ -92,6 +92,6 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 #define atd_pfinalverts		20
 #define atd_numtriangles	24
 #define atd_drawtype		28
-#define atd_seamfixupX16	32
+#define atd_pstverts		32
+//#define atd_seamfixupX16	32
 #define atd_size			36
-

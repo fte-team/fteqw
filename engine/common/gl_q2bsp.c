@@ -23,6 +23,10 @@
 #error "nodraw isn't constant"
 #endif
 
+#ifdef SWQUAKE
+extern qboolean r_usinglits;
+#endif
+
 
 //these are in model.c (or gl_model.c)
 void GLMod_LoadVertexes (lump_t *l);

@@ -22,11 +22,6 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 // x86 assembly-language polygon model drawing code
 //
 
-//the id made assembler cannot cope with the changes made to the triangle data type.
-#ifndef NOASM
-#define NOASM
-#endif
-
 #include "asm_i386.h"
 #include "quakeasm.h"
 #include "asm_draw.h"
@@ -1190,15 +1185,15 @@ Llooptop:
 	subl	$0x80000001,%eax
 	jc		Lskip
 
-#if 0
+#ifdef ONSEAMSTUFF
 //		if (ptri[i].facesfront)
 //		{
 //			D_PolysetRecursiveTriangle(index0->v, index1->v, index2->v);
-
 	movl	mtri_facesfront-16(%ebx,%ebp,),%eax
 	testl	%eax,%eax
 	jz		Lfacesback
 #endif
+
 	pushl	%edx
 	pushl	%esi
 	pushl	%ecx
@@ -1207,7 +1202,8 @@ Llooptop:
 	subl	$16,%ebp
 	jnz		Llooptop
 	jmp		Ldone2
-#if 0
+
+#ifdef ONSEAMSTUFF
 //		}
 //		else
 //		{
@@ -1266,10 +1262,8 @@ Lp13:
 	movl	%eax,fv_v+8(%ecx)
 
 //		}
-
-#endif
-
 //	}
+#endif
 Lskip:
 	subl	$16,%ebp
 	jnz		Llooptop
@@ -1575,7 +1569,7 @@ C(D_DrawNonSubdiv):
 	pushl	%ebp				// preserve caller stack frame pointer
 	movl	C(r_affinetridesc)+atd_numtriangles,%ebp
 	pushl	%ebx
-	shll	$(mtri_shift),%ebp
+	shll	$(mtri_shift), %ebp
 	pushl	%esi				// preserve register variables
 	movl	C(r_affinetridesc)+atd_ptriangles,%esi
 	pushl	%edi
@@ -1689,12 +1683,10 @@ LNDLoop:
 	movl	fv_v+16(%ebx),%eax
 	movl	fv_v+20(%ebx),%esi
 	movl	%eax,C(r_p2)+16
-#if 0
 	movl	C(r_affinetridesc)+atd_ptriangles,%edi
-#endif
 	movl	%esi,C(r_p2)+20
-
-#if 0
+			
+#ifdef ONSEAMSTUFF
 	movl	mtri_facesfront-mtri_size(%edi,%ebp,1),%eax
 
 //		if (!ptri->facesfront)
@@ -1707,7 +1699,7 @@ LNDLoop:
 	movl	fv_flags(%ecx),%eax
 	movl	fv_flags(%edx),%esi
 	movl	fv_flags(%ebx),%edi
-	testl	$(ALIAS_ONSEAM),%eax
+	testl	$(ALIAS_ONSEAM),%eax	
 	movl	C(r_affinetridesc)+atd_seamfixupX16,%eax
 	jz		LOnseamDone0
 	addl	%eax,C(r_p0)+8
@@ -1726,10 +1718,10 @@ LOnseamDone1:
 	jz		LOnseamDone2
 	addl	%eax,C(r_p2)+8
 LOnseamDone2:
-
 //		}
 
 LFacesFront:
+
 #endif
 
 	fstps	C(d_xdenom)
@@ -1741,7 +1733,7 @@ LFacesFront:
 
 LNextTri:
 		movl	C(r_affinetridesc)+atd_ptriangles,%esi
-		subl	$16,%ebp
+		subl	$(mtri_size),%ebp
 		jnz		LNDLoop
 //	}
 

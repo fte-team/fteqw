@@ -138,17 +138,17 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 #define rd_yOrigin					108
 #define rd_vieworg					112
 #define rd_viewangles				124
-#define rd_ambientlight				136
-#define rd_flags					140
-#define rd_currentplayernum			144
-#define rd_size						148
+//fox x, fov y
+#define rd_ambientlight				144
+#define rd_flags					148
+#define rd_currentplayernum			152
+#define rd_size						156
 
 // mtriangle_t structure
 // !!! if this is changed, it must be changed in model.h too !!!
-#define mtri_facesfront		0
-#define mtri_vertindex		4
-#define mtri_stindex		16
-#define mtri_size			28	// !!! if this changes, array indexing in !!!
+#define mtri_vertindex		0
+#define mtri_stindex		12
+#define mtri_size			32	// !!! if this changes, array indexing in !!!
 								// !!! d_polysa.s must be changed to match !!!
-#define mtri_shift			4
+#define mtri_shift			5
 

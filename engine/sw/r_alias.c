@@ -26,9 +26,6 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 //future aims include better skin management.
 
 //the asm code cannot handle alias models anymore.
-#ifndef NOASM
-#define NOASM
-#endif
 
 #include "quakedef.h"
 #include "r_local.h"
@@ -513,7 +510,7 @@ void R_AliasTransformFinalVert (finalvert_t *fv, auxvert_t *av,
 }
 
 
-#if	1 //!id386 since stvert_t was changed.
+#if !id386 //since stvert_t was changed.
 
 /*
 ================

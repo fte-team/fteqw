@@ -27,8 +27,7 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 #include "asm_draw.h"
 #include "d_ifacea.h"
 
-//FIXME: rework the changes to stvert_t in.
-#if 0//id386
+#if id386
 
 	.data
 
@@ -39,15 +38,11 @@ Lcoords:	.long	0, 0, 0
 	.text
 
 #define fv			12+4
-#if 0
 #define pstverts	12+8
-#endif
 
 .globl C(R_AliasTransformAndProjectFinalVerts)
 C(R_AliasTransformAndProjectFinalVerts):
-#if 0
 	pushl	%ebp				// preserve caller's stack frame
-#endif
 	pushl	%edi
 	pushl	%esi				// preserve register variables
 
@@ -55,14 +50,12 @@ C(R_AliasTransformAndProjectFinalVerts):
 //	float		lightcos, *plightnormal, zi;
 //	trivertx_t	*pverts;
 
-//	pverts = r_apverts;
+//	pverts = r_apnewverts;
 	movl	C(r_apnewverts),%esi
 
-//	for (i=0 ; i<r_anumverts ; i++, fv++, pverts++)
+//	for (i=0 ; i<r_anumverts ; i++, fv++, pverts++, pstverts++)
 //	{
-#if 0
 	movl	pstverts(%esp),%ebp
-#endif
 	movl	fv(%esp),%edi
 	movl	C(r_anumverts),%ecx
 	subl	%edx,%edx
@@ -106,12 +99,11 @@ Lloop:
 
 	fdivrs	Lfloat_1			// zi | v[2] | v[1] | v[0]
 
-#if 0
 //		fv->v[2] = pstverts->s;
 //		fv->v[3] = pstverts->t;
 //		fv->flags = pstverts->onseam;
-	movl	stv_onseam(%ebp),%eax
-	movl	%eax,fv_flags(%edi)
+//	movl	stv_onseam(%ebp),%eax
+//	movl	%eax,fv_flags(%edi)
 
 	movl	fv_size(%edi),%eax
 	movl	stv_size(%ebp),%eax
@@ -120,7 +112,7 @@ Lloop:
 	leal	(%edx,%edx,2),%eax	// index*3
 
 	fxch	%st(3)				// v[0] | v[2] | v[1] | zi
-#endif
+
 //		lightcos = DotProduct (plightnormal, r_plightvec);
 	flds	C(r_avertexnormals)(,%eax,4)
 	fmuls	C(r_plightvec)
@@ -234,9 +226,7 @@ Lp1:
 
 	popl	%esi				// restore register variables
 	popl	%edi
-#if 0
-//	popl	%ebp				// restore the caller's stack frame
-#endif
+	popl	%ebp				// restore the caller's stack frame
 	ret
 
 Lsavelight:

@@ -22,10 +22,6 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 
 //changes include stvertexes now being seperatly number from the triangles.
 //this allows q2 models to be supported.
-#ifndef NOASM
-#define NOASM
-#endif
-
 #include "quakedef.h"
 #include "r_local.h"
 #include "d_local.h"

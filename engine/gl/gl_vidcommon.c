@@ -41,6 +41,7 @@ void (APIENTRY *qglMatrixMode) (GLenum mode);
 void (APIENTRY *qglMultMatrixf) (const GLfloat *m);
 void (APIENTRY *qglOrtho) (GLdouble left, GLdouble right, GLdouble bottom, GLdouble top, GLdouble zNear, GLdouble zFar);
 void (APIENTRY *qglPolygonMode) (GLenum face, GLenum mode);
+void (APIENTRY *qglPolygonOffset) (GLfloat factor, GLfloat units);
 void (APIENTRY *qglPopMatrix) (void);
 void (APIENTRY *qglPushMatrix) (void);
 void (APIENTRY *qglReadBuffer) (GLenum mode);
@@ -388,6 +389,7 @@ void GL_Init(void *(*getglfunction) (char *name))
 	qglPopAttrib		= (void *)getglcore("glPopAttrib");
 	qglScissor			= (void *)getglcore("glScissor");
 
+	qglPolygonOffset	= (void *)getglext("glPolygonOffset");
 
 
 

@@ -1975,6 +1975,40 @@ int COM_CheckParm (char *parm)
 }
 
 /*
+===============
+COM_ParsePlusSets
+
+Looks for +set blah blah on the commandline, and creates cvars so that engine
+functions may use the cvar before anything's loaded.
+This isn't really needed, but might make some thing nicer.
+===============
+*/
+void COM_ParsePlusSets (void)
+{
+	int i;
+	for (i=1 ; i<com_argc-2 ; i++)
+	{
+		if (!com_argv[i])
+			continue;		// NEXTSTEP sometimes clears appkit vars.
+		if (!com_argv[i+1])
+			continue;
+		if (!com_argv[i+2])
+			continue;
+
+		if (*com_argv[i+1] == '-' || *com_argv[i+1] == '+')
+			continue;	//erm
+		if (*com_argv[i+2] == '-' || *com_argv[i+2] == '+')
+			continue;	//erm
+
+		if (!strcmp(com_argv[i], "+set"))
+			Cvar_Get(com_argv[i+1], com_argv[i+2], 0, "Cvars set on commandline");
+		else if (!strcmp(com_argv[i], "+seta"))
+			Cvar_Get(com_argv[i+1], com_argv[i+2], CVAR_ARCHIVE, "Cvars set on commandline");
+		i+=2;
+	}
+}
+
+/*
 ================
 COM_CheckRegistered
 

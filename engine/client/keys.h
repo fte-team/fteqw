@@ -148,9 +148,10 @@ K_AUX29			= 235,
 K_AUX30			= 236,
 K_AUX31			= 237,
 K_AUX32			= 238,
+K_LWIN			= 239,
+K_RWIN			= 240,
+K_APP			= 241
 };
-
-
 
 typedef enum {key_game, key_console, key_message, key_menu, key_editor} keydest_t;
 

@@ -89,7 +89,7 @@ Con_Printf("Getting gamma\n");
 	GLVID_SetPalette (palette);
 	GL_Init(SDL_GL_GetProcAddress);
 
-	glViewport (0, 0, glwidth, glheight);
+	qglViewport (0, 0, glwidth, glheight);
 
 	mouseactive = false;
 	if (vid_isfullscreen)
@@ -119,7 +119,7 @@ void GL_BeginRendering (int *x, int *y, int *width, int *height)
 //    if (!wglMakeCurrent( maindc, baseRC ))
 //		Sys_Error ("wglMakeCurrent failed");
 
-//	glViewport (*x, *y, *width, *height);
+//	qglViewport (*x, *y, *width, *height);
 }
 
 qboolean screenflush;

@@ -134,7 +134,7 @@ PROC glTexCoordPointerEXT;
 PROC glVertexPointerEXT;
 
 typedef void (APIENTRY *lp3DFXFUNC) (int, int, int, int, int, const void*);
-lp3DFXFUNC glColorTableEXT;
+lp3DFXFUNC qglColorTableEXT;
 qboolean is8bit = false;
 qboolean isPermedia = false;
 
@@ -774,8 +774,8 @@ qboolean VID_AttachGL (rendererstate_t *info)
 	}
 	_vid_wait_override.modified = false;
 	TRACE(("dbg: VID_AttachGL: qSwapBuffers\n"));
-	glClearColor(0, 0, 0, 0);
-	glClear(GL_COLOR_BUFFER_BIT);
+	qglClearColor(0, 0, 0, 0);
+	qglClear(GL_COLOR_BUFFER_BIT);
 	qSwapBuffers(maindc);
 
 	return true;
@@ -1273,13 +1273,13 @@ void VID_Init8bitPalette()
 	char thePalette[256*3];
 	char *oldPalette, *newPalette;
 
-	glColorTableEXT = (void *)qwglGetProcAddress("glColorTableEXT");
-    if (!glColorTableEXT || strstr(gl_extensions, "GL_EXT_shared_texture_palette") ||
+	qglColorTableEXT = (void *)qwglGetProcAddress("glColorTableEXT");
+    if (!qglColorTableEXT || strstr(gl_extensions, "GL_EXT_shared_texture_palette") ||
 		COM_CheckParm("-no8bit"))
 		return;
 
 	Con_SafePrintf("8-bit GL extensions enabled.\n");
-    glEnable( GL_SHARED_TEXTURE_PALETTE_EXT );
+    qglEnable( GL_SHARED_TEXTURE_PALETTE_EXT );
 	oldPalette = (char *) d_8to24rgbtable; //d_8to24table3dfx;
 	newPalette = thePalette;
 	for (i=0;i<256;i++) {
@@ -1288,7 +1288,7 @@ void VID_Init8bitPalette()
 		*newPalette++ = *oldPalette++;
 		oldPalette++;
 	}
-	glColorTableEXT(GL_SHARED_TEXTURE_PALETTE_EXT, GL_RGB, 256, GL_RGB, GL_UNSIGNED_BYTE,
+	qglColorTableEXT(GL_SHARED_TEXTURE_PALETTE_EXT, GL_RGB, 256, GL_RGB, GL_UNSIGNED_BYTE,
 		(void *) thePalette);
 	is8bit = TRUE;
 }

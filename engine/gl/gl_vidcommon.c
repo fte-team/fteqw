@@ -224,7 +224,7 @@ void GL_CheckExtensions (void *(*getglfunction) (char *name))
 		qglMultiTexCoord2fARB = (void *) getglext("glMultiTexCoord2fARB");
 		qglMultiTexCoord3fARB = (void *) getglext("glMultiTexCoord3fARB");		
 
-		glGetIntegerv(GL_MAX_TEXTURE_UNITS_ARB, &gl_mtexarbable);
+		qglGetIntegerv(GL_MAX_TEXTURE_UNITS_ARB, &gl_mtexarbable);
 		gl_mtexable = true;
 
 		qglMTexCoord2fSGIS = qglMultiTexCoord2fARB;
@@ -514,38 +514,38 @@ void GL_Init(void *(*getglfunction) (char *name))
 
 
 
-	gl_vendor = glGetString (GL_VENDOR);
+	gl_vendor = qglGetString (GL_VENDOR);
 	Con_SafePrintf ("GL_VENDOR: %s\n", gl_vendor);
-	gl_renderer = glGetString (GL_RENDERER);
+	gl_renderer = qglGetString (GL_RENDERER);
 	Con_SafePrintf ("GL_RENDERER: %s\n", gl_renderer);
 
-	gl_version = glGetString (GL_VERSION);
+	gl_version = qglGetString (GL_VERSION);
 	Con_SafePrintf ("GL_VERSION: %s\n", gl_version);
-	gl_extensions = glGetString (GL_EXTENSIONS);
+	gl_extensions = qglGetString (GL_EXTENSIONS);
 	Con_DPrintf ("GL_EXTENSIONS: %s\n", gl_extensions);
 
 	GL_CheckExtensions (getglfunction);
 
-	glClearColor (0,0,0,0);	//clear to black so that it looks a little nicer on start.
-	glClear(GL_COLOR_BUFFER_BIT);
-	glCullFace(GL_FRONT);
-	glEnable(GL_TEXTURE_2D);
+	qglClearColor (0,0,0,0);	//clear to black so that it looks a little nicer on start.
+	qglClear(GL_COLOR_BUFFER_BIT);
+	qglCullFace(GL_FRONT);
+	qglEnable(GL_TEXTURE_2D);
 
-	glEnable(GL_ALPHA_TEST);
-	glAlphaFunc(GL_GREATER, 0.666);
+	qglEnable(GL_ALPHA_TEST);
+	qglAlphaFunc(GL_GREATER, 0.666);
 
-	glPolygonMode (GL_FRONT_AND_BACK, GL_FILL);
-	glShadeModel (GL_FLAT);
+	qglPolygonMode (GL_FRONT_AND_BACK, GL_FILL);
+	qglShadeModel (GL_FLAT);
 
-	glTexParameterf(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
-	glTexParameterf(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
-	glTexParameterf(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_REPEAT);
-	glTexParameterf(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_REPEAT);
+	qglTexParameterf(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
+	qglTexParameterf(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
+	qglTexParameterf(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_REPEAT);
+	qglTexParameterf(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_REPEAT);
 
-	glBlendFunc (GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+	qglBlendFunc (GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
 
-//	glTexEnvf(GL_TEXTURE_ENV, GL_TEXTURE_ENV_MODE, GL_MODULATE);
-	glTexEnvf(GL_TEXTURE_ENV, GL_TEXTURE_ENV_MODE, GL_REPLACE);
+//	qglTexEnvf(GL_TEXTURE_ENV, GL_TEXTURE_ENV_MODE, GL_MODULATE);
+	qglTexEnvf(GL_TEXTURE_ENV, GL_TEXTURE_ENV_MODE, GL_REPLACE);
 }
 
 unsigned int	d_8to24rgbtable[256];

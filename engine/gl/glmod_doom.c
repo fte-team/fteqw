@@ -332,16 +332,16 @@ static void GLR_DrawWall(unsigned short texnum, unsigned short s, unsigned short
 
 	GL_Bind(tex->gltexture);
 
-	glBegin(GL_QUADS);
-	glTexCoord2f(s1, t2);
-	glVertex3f(x1, y1, frontfloor);
-	glTexCoord2f(s1, t1);
-	glVertex3f(x1, y1, backfloor);
-	glTexCoord2f(s2, t1);
-	glVertex3f(x2, y2, backfloor);
-	glTexCoord2f(s2, t2);
-	glVertex3f(x2, y2, frontfloor);
-	glEnd();
+	qglBegin(GL_QUADS);
+	qglTexCoord2f(s1, t2);
+	qglVertex3f(x1, y1, frontfloor);
+	qglTexCoord2f(s1, t1);
+	qglVertex3f(x1, y1, backfloor);
+	qglTexCoord2f(s2, t1);
+	qglVertex3f(x2, y2, backfloor);
+	qglTexCoord2f(s2, t2);
+	qglVertex3f(x2, y2, frontfloor);
+	qglEnd();
 }
 
 static void GLR_DrawSSector(unsigned int ssec)
@@ -357,7 +357,7 @@ static void GLR_DrawSSector(unsigned int ssec)
 			break;
 	sec = sectorm + sidedefsm[linedefsl[segsl[seg].linedef].sidedef[segsl[seg].direction]].sector;
 
-	glColor4ub(sec->lightlev, sec->lightlev, sec->lightlev, 255);
+	qglColor4ub(sec->lightlev, sec->lightlev, sec->lightlev, 255);
 	sec->visframe = r_visframecount;
 	for (seg = ssectorsl[ssec].first + ssectorsl[ssec].segcount-1; seg >= ssectorsl[ssec].first; seg--)
 	{
@@ -636,45 +636,45 @@ qboolean GLR_DoomWorld(void)
 	if (!nodel || !nodec)
 		return true;	//err... buggy
 
-	glTexEnvf(GL_TEXTURE_ENV, GL_TEXTURE_ENV_MODE, GL_MODULATE);
-	glDisable(GL_BLEND);
-	glDisable(GL_ALPHA_TEST);
-	glEnable(GL_CULL_FACE);
+	qglTexEnvf(GL_TEXTURE_ENV, GL_TEXTURE_ENV_MODE, GL_MODULATE);
+	qglDisable(GL_BLEND);
+	qglDisable(GL_ALPHA_TEST);
+	qglEnable(GL_CULL_FACE);
 	GL_DisableMultitexture();
 	r_visframecount++;
 	GLR_RecursiveDoomNode(nodec-1);
 
 	if (developer.value)
-	glPolygonMode(GL_FRONT_AND_BACK, GL_LINE);
+	qglPolygonMode(GL_FRONT_AND_BACK, GL_LINE);
 	for (i = 0; i < sectorc; i++)
 	{
 		if (sectorm[i].visframe == r_visframecount)
 		{
-			glColor4ub(sectorm[i].lightlev, sectorm[i].lightlev, sectorm[i].lightlev, 255);
+			qglColor4ub(sectorm[i].lightlev, sectorm[i].lightlev, sectorm[i].lightlev, 255);
 			GL_Bind(sectorm[i].floortex);
-			glBegin(GL_TRIANGLES);
+			qglBegin(GL_TRIANGLES);
 			for (v = 0; v < sectorm[i].numflattris*3; v++)
 			{
 				v1 = sectorm[i].flats[v];
-				glTexCoord2f(vertexesl[v1].xpos/64.0f, vertexesl[v1].ypos/64.0f);
-				glVertex3f(vertexesl[v1].xpos, vertexesl[v1].ypos, sectorm[i].floorheight);
+				qglTexCoord2f(vertexesl[v1].xpos/64.0f, vertexesl[v1].ypos/64.0f);
+				qglVertex3f(vertexesl[v1].xpos, vertexesl[v1].ypos, sectorm[i].floorheight);
 			}
-			glEnd();
+			qglEnd();
 
 			GL_Bind(sectorm[i].ceilingtex);
-			glBegin(GL_TRIANGLES);
+			qglBegin(GL_TRIANGLES);
 			for (v = sectorm[i].numflattris*3-1; v >= 0; v--)
 			{
 				v1 = sectorm[i].flats[v];
-				glTexCoord2f(vertexesl[v1].xpos/64.0f, vertexesl[v1].ypos/64.0f);
-				glVertex3f(vertexesl[v1].xpos, vertexesl[v1].ypos, sectorm[i].ceilingheight);
+				qglTexCoord2f(vertexesl[v1].xpos/64.0f, vertexesl[v1].ypos/64.0f);
+				qglVertex3f(vertexesl[v1].xpos, vertexesl[v1].ypos, sectorm[i].ceilingheight);
 			}
-			glEnd();
+			qglEnd();
 
 			c_brush_polys += sectorm[i].numflattris;
 		}
 	}
-	glPolygonMode(GL_FRONT_AND_BACK, GL_FILL);
+	qglPolygonMode(GL_FRONT_AND_BACK, GL_FILL);
 	return true;
 }
 #endif

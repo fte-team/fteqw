@@ -222,10 +222,10 @@ void EmitWaterPolys (msurface_t *fa, float basealpha)
 	{
 		float f = 10;
 
-		glEnable(GL_AUTO_NORMAL);
+		qglEnable(GL_AUTO_NORMAL);
 		for (p=fa->polys ; p ; p=p->next)
 		{
-			glBegin (GL_POLYGON);
+			qglBegin (GL_POLYGON);
 			for (i=0,v=p->verts[0] ; i<p->numverts ; i++, v+=VERTEXSIZE)
 			{
 				os = v[3];
@@ -237,28 +237,28 @@ void EmitWaterPolys (msurface_t *fa, float basealpha)
 				t = ot + turbsin[(int)((os*0.125+realtime) * TURBSCALE) & 255];
 				t *= (1.0/64);
 
-				glNormal3f(fa->plane->normal[0] + (sin(realtime+v[0]/f+v[1]/f))/4, fa->plane->normal[1] +(sin(realtime-v[1]/f))/4, fa->plane->normal[2] + (sin(realtime+v[2]/f))/4);
-				glTexCoord2f (s, t);
-				glVertex3fv (v);
+				qglNormal3f(fa->plane->normal[0] + (sin(realtime+v[0]/f+v[1]/f))/4, fa->plane->normal[1] +(sin(realtime-v[1]/f))/4, fa->plane->normal[2] + (sin(realtime+v[2]/f))/4);
+				qglTexCoord2f (s, t);
+				qglVertex3fv (v);
 			}
-			glEnd ();
+			qglEnd ();
 		}
-		glDisable(GL_AUTO_NORMAL);
+		qglDisable(GL_AUTO_NORMAL);
 	}
 	else if (r_waterlayers.value>=1)
 	{
 		float a, stm, ttm;
 		int l;
-		glDisable(GL_ALPHA_TEST);
-		glEnable(GL_BLEND);	//to ensure.
+		qglDisable(GL_ALPHA_TEST);
+		qglEnable(GL_BLEND);	//to ensure.
 		for (a=basealpha,l = 0; l < r_waterlayers.value; l++,a=a*4/6)
 		{
-			glColor4f(1, 1, 1, a);
+			qglColor4f(1, 1, 1, a);
 			stm =cos(l)/10;
 			ttm =sin(l)/10;
 			for (p=fa->polys ; p ; p=p->next)
 			{		
-				glBegin (GL_POLYGON);
+				qglBegin (GL_POLYGON);
 				for (i=0,v=p->verts[0] ; i<p->numverts ; i++, v+=VERTEXSIZE)
 				{
 					os = v[3]/(l*0.5+0.2);
@@ -270,10 +270,10 @@ void EmitWaterPolys (msurface_t *fa, float basealpha)
 					t = ot + turbsin[(int)((os*0.125+cl.time+l*8) * TURBSCALE) & 255];//*r_watersurfacewarp.value;
 					t *= (1.0/64);
 
-					glTexCoord2f (s+cl.time*stm, t+cl.time*ttm);
-					glVertex3fv (v);
+					qglTexCoord2f (s+cl.time*stm, t+cl.time*ttm);
+					qglVertex3fv (v);
 				}
-				glEnd ();
+				qglEnd ();
 			}
 		}
 
@@ -283,7 +283,7 @@ void EmitWaterPolys (msurface_t *fa, float basealpha)
 #endif
 		for (p=fa->polys ; p ; p=p->next)
 		{
-			glBegin (GL_POLYGON);
+			qglBegin (GL_POLYGON);
 			for (i=0,v=p->verts[0] ; i<p->numverts ; i++, v+=VERTEXSIZE)
 			{
 				os = v[3];
@@ -295,10 +295,10 @@ void EmitWaterPolys (msurface_t *fa, float basealpha)
 				t = ot + turbsin[(int)((os*0.125+realtime) * TURBSCALE) & 255];
 				t *= (1.0/64);
 
-				glTexCoord2f (s, t);
-				glVertex3fv (v);
+				qglTexCoord2f (s, t);
+				qglVertex3fv (v);
 			}
-			glEnd ();
+			qglEnd ();
 		}
 #ifdef WATERLAYERS
 	}
@@ -327,16 +327,16 @@ void EmitSkyPolys (msurface_t *fa)
 		extern void GL_DrawAliasMesh (mesh_t *mesh, int texnum);
 
 		fa->mesh->colors_array = NULL;
-		glDisable(GL_TEXTURE_2D);
-		glColor3f(0,0,0);
+		qglDisable(GL_TEXTURE_2D);
+		qglColor3f(0,0,0);
 		GL_DrawAliasMesh(fa->mesh, 1);
-		glEnable(GL_TEXTURE_2D);
+		qglEnable(GL_TEXTURE_2D);
 	}
 	else
 	{
 		for (p=fa->polys ; p ; p=p->next)
 		{
-			glBegin (GL_POLYGON);
+			qglBegin (GL_POLYGON);
 			for (i=0,v=p->verts[0] ; i<p->numverts ; i++, v+=VERTEXSIZE)
 			{
 				VectorSubtract (v, r_origin, dir);
@@ -352,10 +352,10 @@ void EmitSkyPolys (msurface_t *fa)
 				s = (speedscale + dir[0]) * (1.0/128);
 				t = (speedscale + dir[1]) * (1.0/128);
 
-				glTexCoord2f (s, t);
-				glVertex3fv (v);
+				qglTexCoord2f (s, t);
+				qglVertex3fv (v);
 			}
-			glEnd ();
+			qglEnd ();
 		}
 	}
 }
@@ -379,14 +379,14 @@ void EmitBothSkyLayers (msurface_t *fa)
 
 	EmitSkyPolys (fa);
 
-	glEnable (GL_BLEND);
+	qglEnable (GL_BLEND);
 	GL_Bind (alphaskytexture);
 	speedscale = cl.gametime*16;
 	speedscale -= (int)speedscale & ~127 ;
 
 	EmitSkyPolys (fa);
 
-	glDisable (GL_BLEND);
+	qglDisable (GL_BLEND);
 }
 
 /*
@@ -411,13 +411,13 @@ void R_DrawSkyChain (msurface_t *s)
 		if (fc < 0)
 			fc = 0;
 		pal = host_basepal+fc*3;
-		glDisable(GL_TEXTURE_2D);
-		glColor3f(pal[0]/255.0f, pal[1]/255.0f, pal[2]/255.0f);
+		qglDisable(GL_TEXTURE_2D);
+		qglColor3f(pal[0]/255.0f, pal[1]/255.0f, pal[2]/255.0f);
 		for (fa=s ; fa ; fa=fa->texturechain)
 			EmitSkyPolys (fa);
 
-		glColor3f(1, 1, 1);
-		glEnable(GL_TEXTURE_2D);
+		qglColor3f(1, 1, 1);
+		qglEnable(GL_TEXTURE_2D);
 		return;
 	}
 
@@ -437,7 +437,7 @@ void R_DrawSkyChain (msurface_t *s)
 	for (fa=s ; fa ; fa=fa->texturechain)
 		EmitSkyPolys (fa);
 
-	glEnable (GL_BLEND);
+	qglEnable (GL_BLEND);
 	GL_Bind (alphaskytexture);
 	speedscale = cl.gametime;
 	speedscale += realtime - cl.gametimemark;
@@ -447,7 +447,7 @@ void R_DrawSkyChain (msurface_t *s)
 	for (fa=s ; fa ; fa=fa->texturechain)
 		EmitSkyPolys (fa);
 
-	glDisable (GL_BLEND);
+	qglDisable (GL_BLEND);
 }
 
 /*
@@ -477,8 +477,8 @@ void R_LoadSkys (void)
 
 		skyboxtex[i] = Mod_LoadHiResTexture(name, false, false, true);
 
-		glTexParameterf(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
-		glTexParameterf(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+		qglTexParameterf(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+		qglTexParameterf(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
 	}
 	Q_strncpyz(loadedskybox, gl_skyboxname.string, sizeof(loadedskybox));
 	gl_skyboxname.modified = false;
@@ -761,7 +761,7 @@ void R_DrawSkyBoxChain (msurface_t *s)
 
 	R_DrawSkyBox (s);
 
-	glColorMask(0, 0, 0, 0);
+	qglColorMask(0, 0, 0, 0);
 	for (fa=s ; fa ; fa=fa->texturechain)
 	{
 		if (fa->mesh)
@@ -770,14 +770,14 @@ void R_DrawSkyBoxChain (msurface_t *s)
 		{
 			for (p=fa->polys ; p ; p=p->next)
 			{
-				glBegin(GL_POLYGON);
+				qglBegin(GL_POLYGON);
 				for (i = 0; i < p->numverts; i++)
-					glVertex3fv(p->verts[i]);
-				glEnd();
+					qglVertex3fv(p->verts[i]);
+				qglEnd();
 			}
 		}
 	}
-	glColorMask(1, 1, 1, 1);
+	qglColorMask(1, 1, 1, 1);
 }
 
 void R_AddSkySurface (msurface_t *fa)
@@ -868,8 +868,8 @@ void MakeSkyVec (float s, float t, int axis)
 		t = 511.0/512;
 
 	t = 1.0 - t;
-	glTexCoord2f (s, t);
-	glVertex3fv (v);
+	qglTexCoord2f (s, t);
+	qglVertex3fv (v);
 }
 
 /*
@@ -888,10 +888,10 @@ void R_DrawSkyBox (msurface_t *s)
 		return;
 
 #if 0
-glEnable (GL_BLEND);
-glTexEnvf(GL_TEXTURE_ENV, GL_TEXTURE_ENV_MODE, GL_MODULATE);
-glColor4f (1,1,1,0.5);
-glDisable (GL_DEPTH_TEST);
+qglEnable (GL_BLEND);
+qglTexEnvf(GL_TEXTURE_ENV, GL_TEXTURE_ENV_MODE, GL_MODULATE);
+qglColor4f (1,1,1,0.5);
+qglDisable (GL_DEPTH_TEST);
 #endif
 	for (i=0 ; i<6 ; i++)
 	{
@@ -906,23 +906,23 @@ skymins[1][i] = -1;
 skymaxs[0][i] = 1;
 skymaxs[1][i] = 1;
 #endif
-		glBegin (GL_QUADS);
+		qglBegin (GL_QUADS);
 		MakeSkyVec (skymins[0][i], skymins[1][i], i);
 		MakeSkyVec (skymins[0][i], skymaxs[1][i], i);
 		MakeSkyVec (skymaxs[0][i], skymaxs[1][i], i);
 		MakeSkyVec (skymaxs[0][i], skymins[1][i], i);
-		glEnd ();
+		qglEnd ();
 	}
 #if 0
-glDisable (GL_BLEND);
-glTexEnvf(GL_TEXTURE_ENV, GL_TEXTURE_ENV_MODE, GL_REPLACE);
-glColor4f (1,1,1,0.5);
-glEnable (GL_DEPTH_TEST);
+qglDisable (GL_BLEND);
+qglTexEnvf(GL_TEXTURE_ENV, GL_TEXTURE_ENV_MODE, GL_REPLACE);
+qglColor4f (1,1,1,0.5);
+qglEnable (GL_DEPTH_TEST);
 #endif
 
 	if (!cls.allow_skyboxes && s)	//allow a little extra fps.
 	{
-		glColorMask(0, 0, 0, 0);	//depth only.
+		qglColorMask(0, 0, 0, 0);	//depth only.
 		for (fa = s; fa; fa = fa->texturechain)
 		{
 			if (fa->mesh)
@@ -931,14 +931,14 @@ glEnable (GL_DEPTH_TEST);
 			{
 				for (poly = fa->polys; poly; poly = poly->next)
 				{
-					glBegin (GL_POLYGON);
+					qglBegin (GL_POLYGON);
 					for (i = 0; i < poly->numverts; i++)
-						glVertex3fv (&poly->verts[0][0]+i*VERTEXSIZE);
-					glEnd ();
+						qglVertex3fv (&poly->verts[0][0]+i*VERTEXSIZE);
+					qglEnd ();
 				}
 			}
 		}
-		glColorMask(1, 1, 1, 1);
+		qglColorMask(1, 1, 1, 1);
 	}
 }
 

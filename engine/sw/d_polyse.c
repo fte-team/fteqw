@@ -584,9 +584,9 @@ void D_PolysetDrawSpans32Trans (spanpackage_t *pspanpackage)
 					lpdest[1] = ((qbyte *)acolormap)[lptex[1] + (llight & 0xFF00)];
 					lpdest[2] = ((qbyte *)acolormap)[lptex[2] + (llight & 0xFF00)];
 #else
-					lpdest[0] = (lpdest[0]*transbackfac + gammatable[(lptex[0]*(llight>>8))/(256)]*transfactor)/255;
-					lpdest[1] = (lpdest[1]*transbackfac + gammatable[(lptex[1]*(llight>>8))/(256)]*transfactor)/255;
-					lpdest[2] = (lpdest[2]*transbackfac + gammatable[(lptex[2]*(llight>>8))/(256)]*transfactor)/255;
+					lpdest[0] = (lpdest[0]*transbackfac + gammatable[(lptex[0]*(llight&0x3FFF))/(0x3FFF)]*transfactor)/255;
+					lpdest[1] = (lpdest[1]*transbackfac + gammatable[(lptex[1]*(llight&0x3FFF))/(0x3FFF)]*transfactor)/255;
+					lpdest[2] = (lpdest[2]*transbackfac + gammatable[(lptex[2]*(llight&0x3FFF))/(0x3FFF)]*transfactor)/255;
 #endif
 					*lpz = lzi >> 16;
 				}
@@ -658,9 +658,9 @@ void D_PolysetDrawSpans32 (spanpackage_t *pspanpackage)
 					lpdest[1] = ((qbyte *)acolormap)[lptex[1] + (llight & 0xFF00)];
 					lpdest[2] = ((qbyte *)acolormap)[lptex[2] + (llight & 0xFF00)];
 #else
-					lpdest[0] = gammatable[(lptex[0]*(llight>>8))/(256)];
-					lpdest[1] = gammatable[(lptex[1]*(llight>>8))/(256)];
-					lpdest[2] = gammatable[(lptex[2]*(llight>>8))/(256)];
+					lpdest[0] = gammatable[(lptex[0]*(llight&0x3FFF))/(0x3FFF)];
+					lpdest[1] = gammatable[(lptex[1]*(llight&0x3FFF))/(0x3FFF)];
+					lpdest[2] = gammatable[(lptex[2]*(llight&0x3FFF))/(0x3FFF)];
 #endif
 					*lpz = lzi >> 16;
 				}

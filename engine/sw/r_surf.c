@@ -1486,9 +1486,9 @@ void R_DrawSurfaceBlock32From32Lit (void)
 				pix = psource[b+0];
 				prowdest[b+2] = pix;
 
-				prowdest[b+0] = gammatable[((int)psource[b+2]*(256-((lightb&0xff00)>>6))) / 256];
-				prowdest[b+1] = gammatable[((int)psource[b+1]*(256-((lightg&0xff00)>>6))) / 256];
-				prowdest[b+2] = gammatable[((int)psource[b+0]*(256-((lightr&0xff00)>>6))) / 256];
+				prowdest[b+0] = gammatable[((int)psource[b+2]*(0x3FFF-(lightb & 0x3FFF))) / 0x3FFF];
+				prowdest[b+1] = gammatable[((int)psource[b+1]*(0x3FFF-(lightg & 0x3FFF))) / 0x3FFF];
+				prowdest[b+2] = gammatable[((int)psource[b+0]*(0x3FFF-(lightr & 0x3FFF))) / 0x3FFF];
 				prowdest[b+3] = psource[b+3];
 
 				lightr += lightstepr;

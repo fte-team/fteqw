@@ -3465,7 +3465,7 @@ int GLAllocBlock (int w, int h, int *x, int *y)
 //rather than forgetting that and redoing it, let's just keep the data.
 int GLFillBlock (int texnum, int w, int h, int x, int y)
 {
-	int		i;
+	int		i, l;
 	while (texnum >= numlightmaps)	//allocate 4 more lightmap slots. not much memory usage, but we don't want any caps here.
 	{
 		lightmap = BZ_Realloc(lightmap, sizeof(*lightmap)*(numlightmaps+4));
@@ -3485,14 +3485,20 @@ int GLFillBlock (int texnum, int w, int h, int x, int y)
 	for (i = texnum; i >= 0; i--)
 	{
 		if (!lightmap[i])
+		{
 			lightmap[i] = BZ_Malloc(sizeof(*lightmap[i]));
+			for (l=0 ; l<LMBLOCK_HEIGHT ; l++)
+			{
+				lightmap[i]->allocated[l] = LMBLOCK_HEIGHT;
+			}
+
+			//maybe someone screwed with my lightmap...
+			memset(lightmap[i]->lightmaps, 255, LMBLOCK_HEIGHT*LMBLOCK_HEIGHT*3);
+			memcpy(lightmap[i]->lightmaps, cl.worldmodel->lightdata+3*LMBLOCK_HEIGHT*LMBLOCK_HEIGHT*i, LMBLOCK_HEIGHT*LMBLOCK_HEIGHT*3);
+
+		}
 		else
 			break;
-	}
-
-	for (i=0 ; i<w ; i++)
-	{
-		lightmap[texnum]->allocated[x + i] = y + h;
 	}
 	return texnum;
 }

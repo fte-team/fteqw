@@ -1,0 +1,209 @@
+#include "progsint.h"
+//#include "qcc.h"
+
+#ifdef AVAIL_ZLIB
+#ifdef _WIN32
+#define ZEXPORT VARGS
+#include "../libs/zlib.h"
+
+//# pragma comment (lib, "zip/zlib.lib") 
+#else
+#include <zlib.h>
+#endif
+#endif
+
+char *QC_decode(progfuncs_t *progfuncs, int complen, int len, int method, char *info, char *buffer)
+{
+	int i;
+	if (method == 0)	//copy
+	{
+		if (complen != len) Sys_Error("lengths do not match");
+		memcpy(buffer, info, len);		
+	}
+	else if (method == 1)	//encryption
+	{
+		if (complen != len) Sys_Error("lengths do not match");
+		for (i = 0; i < len; i++)
+			buffer[i] = info[i] ^ 0xA5;		
+	}
+#ifdef AVAIL_ZLIB
+	else if (method == 2)	//compression (ZLIB)
+	{
+		z_stream strm = {
+			info,
+			complen,
+			0,
+
+			buffer,
+			len,
+			0,
+
+			NULL,
+			NULL,
+
+			NULL,
+			NULL,
+			NULL,
+
+			Z_BINARY,
+			0,
+			0
+		};
+
+		inflateInit(&strm);
+		if (Z_STREAM_END != inflate(&strm, Z_FINISH))	//decompress it in one go.
+			Sys_Error("Failed block decompression\n");
+		inflateEnd(&strm);
+	}
+#endif
+	//add your decryption/decompression routine here.
+	else
+		Sys_Error("Bad file encryption routine\n");
+
+
+	return buffer;
+}
+
+#ifndef MINIMAL
+void SafeWrite(int hand, void *buf, long count);
+int SafeSeek(int hand, int ofs, int mode);
+//we are allowed to trash our input here.
+int QC_encode(progfuncs_t *progfuncs, int len, int method, char *in, int handle)
+{
+	int i;
+	if (method == 0) //copy
+	{		
+		SafeWrite(handle, in, len);
+		return len;
+	}
+	else if (method == 1)	//encryption
+	{
+		for (i = 0; i < len; i++)
+			in[i] = in[i] ^ 0xA5;
+		SafeWrite(handle, in, len);
+		return len;
+	}
+#ifdef AVAIL_ZLIB
+	else if (method == 2)	//compression (ZLIB)
+	{
+		char out[8192];
+
+		z_stream strm = {
+			in,
+			len,
+			0,
+
+			out,
+			sizeof(out),
+			0,
+
+			NULL,
+			NULL,
+
+			NULL,
+			NULL,
+			NULL,
+
+			Z_BINARY,
+			0,
+			0
+		};
+		i=0;
+
+		deflateInit(&strm, Z_BEST_COMPRESSION);
+		while(deflate(&strm, Z_FINISH) == Z_OK)
+		{
+			SafeWrite(handle, out, sizeof(out) - strm.avail_out);	//compress in chunks of 8192. Saves having to allocate a huge-mega-big buffer
+			i+=sizeof(out) - strm.avail_out;
+			strm.next_out = out;
+			strm.avail_out = sizeof(out);
+		}
+		SafeWrite(handle, out, sizeof(out) - strm.avail_out);
+		i+=sizeof(out) - strm.avail_out;
+		deflateEnd(&strm);
+		return i;
+	}
+#endif
+	//add your compression/decryption routine here.
+	else
+	{
+		Sys_Error("Wierd method");
+		return 0;
+	}
+}
+#endif
+
+char *filefromprogs(progfuncs_t *progfuncs, progsnum_t prnum, char *fname, int *size, char *buffer)
+{
+	int num;
+	includeddatafile_t *s;
+	if (!pr_progstate[prnum].progs)
+		return NULL;
+	if (pr_progstate[prnum].progs->version < PROG_DEBUGVERSION)
+		return NULL;
+	if (!pr_progstate[prnum].progs->ofsfiles)
+		return NULL;
+	
+	num = *(int*)((char *)pr_progstate[prnum].progs + pr_progstate[prnum].progs->ofsfiles);
+	s = (includeddatafile_t *)((char *)pr_progstate[prnum].progs + pr_progstate[prnum].progs->ofsfiles+4);	
+	while(num>0)
+	{
+		if (!strcmp(s->filename, fname))
+		{
+			if (size)
+				*size = s->size;
+			if (!buffer)
+				return (char *)0xffffffff;
+			return QC_decode(progfuncs, s->compsize, s->size, s->compmethod, (char *)pr_progstate[prnum].progs+s->ofs, buffer);
+		}
+
+		s++;
+		num--;
+	}	
+
+	if (size)
+		*size = 0;
+	return NULL;
+}
+
+#ifndef QCCONLY
+char *filefromnewprogs(progfuncs_t *progfuncs, char *prname, char *fname, int *size, char *buffer)
+{
+	int num;
+	includeddatafile_t *s;	
+	progstate_t progs;
+	if (!PR_ReallyLoadProgs(progfuncs, prname, -1, &progs, false))
+	{
+		if (size)
+			*size = 0;
+		return NULL;
+	}
+
+	if (progs.progs->version < PROG_DEBUGVERSION)
+		return NULL;
+	if (!progs.progs->ofsfiles)
+		return NULL;
+
+	num = *(int*)((char *)progs.progs + progs.progs->ofsfiles);
+	s = (includeddatafile_t *)((char *)progs.progs + progs.progs->ofsfiles+4);	
+	while(num>0)
+	{
+		if (!strcmp(s->filename, fname))
+		{
+			if (size)
+				*size = s->size;
+			if (!buffer)
+				return (char *)0xffffffff;
+			return QC_decode(progfuncs, s->compsize, s->size, s->compmethod, (char *)progs.progs+s->ofs, buffer);
+		}
+
+		s++;
+		num--;
+	}	
+
+	if (size)
+		*size = 0;
+	return NULL;
+}
+
+#endif

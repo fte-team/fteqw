@@ -2018,7 +2018,7 @@ void R_TeleportSplash (vec3_t org)
 
 void CLQ2_BlasterTrail (vec3_t start, vec3_t end)
 {
-	R_RocketTrail(start, end, rt_blastertrail, 0);
+	R_RocketTrail(start, end, rt_blastertrail, NULL);
 }
 void R_BlasterParticles (vec3_t start, vec3_t dir)
 {
@@ -2068,10 +2068,15 @@ void R_RocketTrail (vec3_t start, vec3_t end, int type, trailstate_t *ts)
 
 	if (ptype->assoc>=0)
 	{
-		trailstate_t nts;
 		VectorCopy(start, vec);
-		memcpy(&nts, ts, sizeof(nts));
-		R_RocketTrail(vec, end, ptype->assoc, &nts);
+		if (ts)
+		{
+			trailstate_t nts;
+			memcpy(&nts, ts, sizeof(nts));
+			R_RocketTrail(vec, end, ptype->assoc, &nts);
+		}
+		else
+			R_RocketTrail(vec, end, ptype->assoc, NULL);
 	}
 	step = 1/ptype->count;
 
@@ -2093,13 +2098,21 @@ void R_RocketTrail (vec3_t start, vec3_t end, int type, trailstate_t *ts)
 //		VectorScale(up, ptype->offsetspread, up);
 	}
 
-	stop = ts->lastdist + len;	//when to stop
+	if (ts)
+	{
+		stop = ts->lastdist + len;	//when to stop
+		len = ts->lastdist;
+	}
+	else
+	{
+		stop = len;
+		len = 0;
+	}
 
 //	len = ts->lastdist/step;
 //	len = (len - (int)len)*step;
 //	VectorMA (start, -len, vec, start);
 
-	len = ts->lastdist;
 
 	b = bfirst = NULL;
 
@@ -2249,43 +2262,54 @@ void R_RocketTrail (vec3_t start, vec3_t end, int type, trailstate_t *ts)
 		p->die = particletime + ptype->die - p->die;
 	}
 
-	ts->lastdist = len;
-
-	// update beamseg list
-	if (ptype->isbeam)
+	if (ts)
 	{
-		if (b)
+		ts->lastdist = len;
+
+		// update beamseg list
+		if (ptype->isbeam)
 		{
-			if (ptype->beams)
+			if (b)
 			{
-				if (ts->lastbeam)
+				if (ptype->beams)
 				{
-					b->next = ts->lastbeam->next;
-					ts->lastbeam->next = bfirst;
-					ts->lastbeam->flags &= ~BS_LASTSEG;
+					if (ts->lastbeam)
+					{
+						b->next = ts->lastbeam->next;
+						ts->lastbeam->next = bfirst;
+						ts->lastbeam->flags &= ~BS_LASTSEG;
+					}
+					else
+					{
+						b->next = ptype->beams;
+						ptype->beams = bfirst;
+					}
 				}
 				else
 				{
-					b->next = ptype->beams;
 					ptype->beams = bfirst;
+					b->next = NULL;
 				}
+
+				b->flags |= BS_LASTSEG;
+				ts->lastbeam = b;
 			}
-			else
+
+			if ((!free_particles || !free_beams) && ts->lastbeam)
 			{
-				ptype->beams = bfirst;
-				b->next = NULL;
+				ts->lastbeam->flags &= ~BS_LASTSEG;
+				ts->lastbeam->flags |= BS_NODRAW;
+				ts->lastbeam = NULL;
 			}
-
-			b->flags |= BS_LASTSEG;
-			ts->lastbeam = b;
 		}
-
-
-		if ((!free_particles || !free_beams) && ts->lastbeam)
+	}
+	else if (ptype->isbeam)
+	{
+		if (b)
 		{
-			ts->lastbeam->flags &= ~BS_LASTSEG;
-			ts->lastbeam->flags |= BS_NODRAW;
-			ts->lastbeam = NULL;
+			b->flags |= BS_NODRAW;
+			b->next = ptype->beams;
+			ptype->beams = bfirst;
 		}
 	}
 
@@ -2306,7 +2330,7 @@ void R_TorchEffect (vec3_t pos, int type)
 
 void CLQ2_BubbleTrail (vec3_t start, vec3_t end)
 {
-	R_RocketTrail(start, end, rt_bubbletrail, 0);
+	R_RocketTrail(start, end, rt_bubbletrail, NULL);
 }
 
 #ifdef Q2BSPS
@@ -2941,7 +2965,7 @@ void DrawParticleTypes (void texturedparticles(particle_t *,part_type_t*), void 
 			if (type->emit >= 0)
 			{
 				if (type->emittime < 0)
-					R_RocketTrail(oldorg, p->org, type->emit, 0);
+					R_RocketTrail(oldorg, p->org, type->emit, NULL);
 				else if (p->nextemit < particletime)
 				{
 					p->nextemit = particletime + type->emittime + frandom()*type->emitrand;

@@ -877,7 +877,7 @@ void CL_ParseCustomTEnt(void)
 	{
 		MSG_ReadPos (pos);
 		MSG_ReadPos (pos2);
-		R_RocketTrail(pos, pos2, t->particleeffecttype, 0);
+		R_RocketTrail(pos, pos2, t->particleeffecttype, NULL);
 	}
 	else
 	{
@@ -1744,9 +1744,7 @@ void CL_UpdateBeams (void)
 */
 //		if (part_type[rt_lightning1].loaded)
 		{
-			trailstate_t ts;
-			memset(&ts, 0, sizeof(ts));
-			R_RocketTrail(b->start, b->end, rt_lightning1, &ts);
+			R_RocketTrail(b->start, b->end, rt_lightning1, NULL);
 			continue;
 		}
 

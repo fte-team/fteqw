@@ -1768,9 +1768,6 @@ void SV_SendMVDMessage(void)
 
 	demo.parsecount++;
 	MVDSetMsgBuf(demo.dbuf,&demo.frames[demo.parsecount&DEMO_FRAMES_MASK].buf);
-
-	if (sv_demoMaxSize.value && demo.size > sv_demoMaxSize.value*1024)
-		SV_MVDStop(1);
 }
 
 

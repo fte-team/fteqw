@@ -542,11 +542,6 @@ typedef struct {
 
 typedef struct
 {
-	FILE		*file;
-	int			tcpsocket;
-	int			writedest;	//doesn't bother if it's not valid demo_both is safe
-
-
 	demobuf_t	*dbuf;
 	dbuffer_t	dbuffer;
 	sizebuf_t	datagram;
@@ -564,13 +559,11 @@ typedef struct
 	int			lastwritten;
 	demo_frame_t	frames[DEMO_FRAMES];
 	demoinfo_t	info[MAX_CLIENTS];
-	int			size;
-	qboolean	disk;
-	void		*dest;
-	qbyte		*mfile;
 	qbyte		buffer[20*MAX_QWMSGLEN];
 	int			bufsize;
 	int			forceFrame;
+
+	struct mvddest_s *dest;
 } demo_t;
 
 
@@ -655,10 +648,6 @@ typedef struct
 	int language;	//the server operators language
 
 	levelcache_t *levcache;
-
-	//mvd demo stuff
-	qbyte		*demomem;
-	int			demomemsize;
 } server_static_t;
 
 //=============================================================================

@@ -223,6 +223,7 @@ void COM_AddParm (char *parm);
 
 void COM_Init (void);
 void COM_InitArgv (int argc, char **argv);
+void COM_ParsePlusSets (void);
 
 char *COM_SkipPath (char *pathname);
 void COM_StripExtension (char *in, char *out);

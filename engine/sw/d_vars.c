@@ -19,9 +19,9 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 */
 // r_vars.c: global refresh variables
 
-#if	!id386
-
 #include	"quakedef.h"
+
+//#if	!id386
 
 // all global and static refresh variables are collected in a contiguous block
 // to avoid cache conflicts.
@@ -47,5 +47,5 @@ short			*d_pzbuffer;
 unsigned int	d_zrowbytes;
 unsigned int	d_zwidth;
 
-#endif	// !id386
+//#endif	// !id386
 

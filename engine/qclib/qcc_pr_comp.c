@@ -3586,35 +3586,59 @@ reloop:
 		if (QCC_PR_Check(".") || QCC_PR_Check("->"))
 		{
 			QCC_def_t *field;
-			field = QCC_PR_ParseValue(d->type);
+			if (QCC_PR_Check("("))
+			{
+				field = QCC_PR_Expression(TOP_PRIORITY);
+				QCC_PR_Expect(")");
+			}
+			else
+				field = QCC_PR_ParseValue(d->type);
 			if (field->type->type == ev_field)
 			{
-				switch(field->type->aux_type->type)
+				if (!field->type->aux_type)
 				{
-				default:
-					QCC_PR_ParseError(ERR_INTERNAL, "Bad field type");
-					return d;
-				case ev_float:
-					return QCC_PR_Statement(&pr_opcodes[OP_LOAD_F], d, field, NULL);
-				case ev_string:
-					return QCC_PR_Statement(&pr_opcodes[OP_LOAD_S], d, field, NULL);
-				case ev_vector:
-					return QCC_PR_Statement(&pr_opcodes[OP_LOAD_V], d, field, NULL);
-				case ev_function:
-					{	//complicated for a typecast
-					d = QCC_PR_Statement(&pr_opcodes[OP_LOAD_FNC], d, field, NULL);
-					nd = (void *)qccHunkAlloc (sizeof(QCC_def_t));
-					memset (nd, 0, sizeof(QCC_def_t));		
-					nd->type = field->type->aux_type;
-					nd->ofs = d->ofs;
-					nd->temp = d->temp;
-					nd->constant = false;
-					nd->name = d->name;
-					return nd;
+					QCC_PR_ParseWarning(ERR_INTERNAL, "Field with null aux_type");
+					return QCC_PR_Statement(&pr_opcodes[OP_LOAD_FLD], d, field, NULL);
+				}
+				else
+				{
+					switch(field->type->aux_type->type)
+					{
+					default:
+						QCC_PR_ParseError(ERR_INTERNAL, "Bad field type");
+						return d;
+					case ev_field:
+						d = QCC_PR_Statement(&pr_opcodes[OP_LOAD_FLD], d, field, NULL);
+						nd = (void *)qccHunkAlloc (sizeof(QCC_def_t));
+						memset (nd, 0, sizeof(QCC_def_t));		
+						nd->type = field->type->aux_type;
+						nd->ofs = d->ofs;
+						nd->temp = d->temp;
+						nd->constant = false;
+						nd->name = d->name;
+						return nd;
+					case ev_float:
+						return QCC_PR_Statement(&pr_opcodes[OP_LOAD_F], d, field, NULL);
+					case ev_string:
+						return QCC_PR_Statement(&pr_opcodes[OP_LOAD_S], d, field, NULL);
+					case ev_vector:
+						return QCC_PR_Statement(&pr_opcodes[OP_LOAD_V], d, field, NULL);
+					case ev_function:
+						{	//complicated for a typecast
+						d = QCC_PR_Statement(&pr_opcodes[OP_LOAD_FNC], d, field, NULL);
+						nd = (void *)qccHunkAlloc (sizeof(QCC_def_t));
+						memset (nd, 0, sizeof(QCC_def_t));		
+						nd->type = field->type->aux_type;
+						nd->ofs = d->ofs;
+						nd->temp = d->temp;
+						nd->constant = false;
+						nd->name = d->name;
+						return nd;
 
+						}
+					case ev_entity:
+						return QCC_PR_Statement(&pr_opcodes[OP_LOAD_ENT], d, field, NULL);
 					}
-				case ev_entity:
-					return QCC_PR_Statement(&pr_opcodes[OP_LOAD_ENT], d, field, NULL);
 				}
 			}
 			else

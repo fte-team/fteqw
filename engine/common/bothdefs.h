@@ -109,6 +109,8 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 
 		#define MENU_DAT	//support for menu.dat
 
+		#define Q3SHADERS
+
 //		#define VOICECHAT	//experimental
 
 //these things were moved to plugins.
@@ -163,6 +165,7 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 	#undef TEXTEDITOR
 	#undef RUNTIMELIGHTING
 	#undef PLUGINS	//we don't have any server side stuff.
+	#undef Q3SHADERS
 #endif
 #ifdef CLIENTONLY	//remove optional server componants that make no sence on a client only build.
 	#undef Q2SERVER
@@ -179,6 +182,13 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 		#undef R_XFLIP
 		#undef RUNTIMELIGHTING
 	#endif
+#endif
+
+#if !defined(RGLQUAKE)
+	#undef Q3BSPS
+#endif
+#if !defined(Q3BSPS)
+	#undef Q3SHADERS
 #endif
 
 #define PROTOCOLEXTENSIONS

@@ -107,6 +107,11 @@ cvar_t	msg = {"msg",					"1",		NULL, CVAR_ARCHIVE | CVAR_USERINFO};
 cvar_t	cl_nofake = {"cl_nofake",		"2"};
 cvar_t	cl_chatsound = {"cl_chatsound",	"1"};
 
+cvar_t	r_rocketlight	= {"r_rocketlight",	"1"};
+cvar_t	r_lightflicker	= {"r_lightflicker",	"1"};
+cvar_t	cl_r2g			= {"cl_r2g",	"0"};
+cvar_t	r_powerupglow	= {"r_powerupglow", "1"};
+
 cvar_t	cl_muzzleflash = {"cl_muzzleflash", "1"};
 
 cvar_t	cl_item_bobbing = {"cl_model_bobbing", "0"};
@@ -2035,7 +2040,8 @@ CL_Download_f
 */
 void CL_Download_f (void)
 {
-	char *p, *q, *url;
+//	char *p, *q;
+	char *url;
 
 	url = Cmd_Argv(1);
 
@@ -2267,6 +2273,11 @@ void CL_Init (void)
 	Cvar_Register (&cl_item_bobbing, "Item effects");
 
 	Cvar_Register (&cl_staticsounds, "Item effects");
+
+	Cvar_Register (&r_rocketlight, "Item effects");
+	Cvar_Register (&r_lightflicker, "Item effects");
+	Cvar_Register (&cl_r2g, "Item effects");
+	Cvar_Register (&r_powerupglow, "Item effects");
 
 	//
 	// info mirrors

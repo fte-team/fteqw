@@ -27,6 +27,11 @@ extern	cvar_t	cl_predict_players2;
 extern	cvar_t	cl_solid_players;
 extern	cvar_t	gl_part_inferno;
 extern	cvar_t	cl_item_bobbing;
+
+extern	cvar_t	r_rocketlight;
+extern	cvar_t	r_lightflicker;
+extern	cvar_t	cl_r2g;
+extern	cvar_t	r_powerupglow;
 extern int cl_playerindex;
 
 static struct predicted_player {
@@ -45,6 +50,8 @@ static struct predicted_player {
 } predicted_players[MAX_CLIENTS];
 
 float newlerprate;
+
+extern int cl_rocketindex, cl_grenadeindex;
 
 //============================================================
 
@@ -1242,6 +1249,7 @@ void CL_LinkPacketEntities (void)
 	//, spnum;
 	dlight_t			*dl;
 	vec3_t				angles;
+	int flicker;
 
 	pack = &cl.frames[cl.validsequence&UPDATE_MASK].packet_entities;
 
@@ -1251,17 +1259,22 @@ void CL_LinkPacketEntities (void)
 	{
 		s1 = &pack->entities[pnum];
 
-		// spawn light flashes, even ones coming from invisible objects
-		if ((s1->effects & (EF_BLUE | EF_RED)) == (EF_BLUE | EF_RED))
-			CL_NewDlight (s1->number, s1->origin[0], s1->origin[1], s1->origin[2], 200 + (rand()&31), 0, 3);
-		else if (s1->effects & EF_BLUE)
-			CL_NewDlight (s1->number, s1->origin[0], s1->origin[1], s1->origin[2], 200 + (rand()&31), 0, 1);
-		else if (s1->effects & EF_RED)
-			CL_NewDlight (s1->number, s1->origin[0], s1->origin[1], s1->origin[2], 200 + (rand()&31), 0, 2);
-		else if (s1->effects & EF_BRIGHTLIGHT)
-			CL_NewDlight (s1->number, s1->origin[0], s1->origin[1], s1->origin[2] + 16, 400 + (rand()&31), 0, 0);
-		else if (s1->effects & EF_DIMLIGHT)
-			CL_NewDlight (s1->number, s1->origin[0], s1->origin[1], s1->origin[2], 200 + (rand()&31), 0, 0);
+		//bots or powerup glows. Bots always glow, powerups can be disabled
+		if (s1->modelindex == cl_playerindex || r_powerupglow.value);
+		{
+			flicker = r_lightflicker.value?(rand()&31):0;
+			// spawn light flashes, even ones coming from invisible objects
+			if ((s1->effects & (EF_BLUE | EF_RED)) == (EF_BLUE | EF_RED))
+				CL_NewDlight (s1->number, s1->origin[0], s1->origin[1], s1->origin[2], 200 + flicker, 0, 3);
+			else if (s1->effects & EF_BLUE)
+				CL_NewDlight (s1->number, s1->origin[0], s1->origin[1], s1->origin[2], 200 + flicker, 0, 1);
+			else if (s1->effects & EF_RED)
+				CL_NewDlight (s1->number, s1->origin[0], s1->origin[1], s1->origin[2], 200 + flicker, 0, 2);
+			else if (s1->effects & EF_BRIGHTLIGHT)
+				CL_NewDlight (s1->number, s1->origin[0], s1->origin[1], s1->origin[2] + 16, 400 + flicker, 0, 0);
+			else if (s1->effects & EF_DIMLIGHT)
+				CL_NewDlight (s1->number, s1->origin[0], s1->origin[1], s1->origin[2], 200 + flicker, 0, 0);
+		}
 
 		// if set to invisible, skip
 		if (s1->modelindex<1)
@@ -1284,7 +1297,11 @@ void CL_LinkPacketEntities (void)
 		ent->visframe = 0;
 
 		ent->keynum = s1->number;
-		ent->model = model;//Mod_ForName("progs/tris.md2", true);//model;
+
+		if (cl_r2g.value && s1->modelindex == cl_rocketindex && cl_rocketindex)
+			ent->model = cl.model_precache[cl_grenadeindex];
+		else
+			ent->model = model;
 
 		ent->flags = 0;
 
@@ -1426,40 +1443,43 @@ void CL_LinkPacketEntities (void)
 		if (model->particletrail>=0)
 			R_RocketTrail (old_origin, ent->origin, model->particletrail, &cl.lerpents[s1->number].trailstate);
 
-		//dlights are not customisable.
-		if (model->flags & EF_ROCKET)
+		//dlights are not so customisable.
+		if (r_rocketlight.value)
 		{
-			if (strncmp(model->name, "models/sflesh", 13))
-			{	//hmm. hexen spider gibs...
-				dl = CL_AllocDlight (s1->number);
-				VectorCopy (ent->origin, dl->origin);
-				dl->radius = 200;
-				dl->die = (float)cl.time;
-				dl->color[0] = 0.20;
-				dl->color[1] = 0.1;
-				dl->color[2] = 0.05;
+			if (model->flags & EF_ROCKET)
+			{
+				if (strncmp(model->name, "models/sflesh", 13))
+				{	//hmm. hexen spider gibs...
+					dl = CL_AllocDlight (s1->number);
+					VectorCopy (ent->origin, dl->origin);
+					dl->radius = 200;
+					dl->die = (float)cl.time;
+					dl->color[0] = 0.20;
+					dl->color[1] = 0.1;
+					dl->color[2] = 0.05;
+				}
 			}
-		}
-		else if (model->flags & EF_FIREBALL)
-		{
-			dl = CL_AllocDlight (i);
-			VectorCopy (ent->origin, dl->origin);
-			dl->radius = 120 - (rand() % 20);
-			dl->die = (float)cl.time;
-		}
-		else if (model->flags & EF_ACIDBALL)
-		{
-			dl = CL_AllocDlight (i);
-			VectorCopy (ent->origin, dl->origin);
-			dl->radius = 120 - (rand() % 20);
-			dl->die = (float)cl.time;
-		}
-		else if (model->flags & EF_SPIT)
-		{
-			dl = CL_AllocDlight (i);
-			VectorCopy (ent->origin, dl->origin);
-			dl->radius = -120 - (rand() % 20);
-			dl->die = (float)cl.time;
+			else if (model->flags & EF_FIREBALL)
+			{
+				dl = CL_AllocDlight (i);
+				VectorCopy (ent->origin, dl->origin);
+				dl->radius = 120 - (rand() % 20);
+				dl->die = (float)cl.time;
+			}
+			else if (model->flags & EF_ACIDBALL)
+			{
+				dl = CL_AllocDlight (i);
+				VectorCopy (ent->origin, dl->origin);
+				dl->radius = 120 - (rand() % 20);
+				dl->die = (float)cl.time;
+			}
+			else if (model->flags & EF_SPIT)
+			{
+				dl = CL_AllocDlight (i);
+				VectorCopy (ent->origin, dl->origin);
+				dl->radius = -120 - (rand() % 20);
+				dl->die = (float)cl.time;
+			}
 		}
 	}
 }
@@ -1573,7 +1593,7 @@ void CL_LinkProjectiles (void)
 
 //========================================
 
-extern	int		cl_spikeindex, cl_playerindex, cl_flagindex;
+extern	int		cl_spikeindex, cl_playerindex, cl_flagindex, cl_rocketindex, cl_grenadeindex;
 
 entity_t *CL_NewTempEntity (void);
 

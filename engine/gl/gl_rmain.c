@@ -137,12 +137,13 @@ extern	cvar_t	scr_fov;
 
 // post processing stuff
 int scenepp_texture;
+int scenepp_texture_warp;
+int scenepp_texture_edge;
 
 int scenepp_ww_program;
-int scenepp_ww_parm_texturei;
-int scenepp_ww_parm_timef;
-int scenepp_ww_parm_xscalef;
-int scenepp_ww_parm_yscalef;
+int scenepp_ww_parm_texture0i;
+int scenepp_ww_parm_texture1i;
+int scenepp_ww_parm_texture2i;
 int scenepp_ww_parm_ampscalef;
 
 // KrimZon - init post processing - called in GL_CheckExtensions, when they're called
@@ -153,28 +154,41 @@ void GL_InitSceneProcessingShaders (void)
 	int vert, frag;
 
 	char *genericvert = "\
-		varying vec2 v_texCoord;\
+		varying vec2 v_texCoord0;\
+		varying vec2 v_texCoord1;\
+		varying vec2 v_texCoord2;\
 		void main (void)\
 		{\
 			vec4 v = vec4( gl_Vertex.x, gl_Vertex.y, gl_Vertex.z, 1.0 );\
 			gl_Position = gl_ModelViewProjectionMatrix * v;\
-			v_texCoord = gl_MultiTexCoord0.xy;\
+			v_texCoord0 = gl_MultiTexCoord0.xy;\
+			v_texCoord1 = gl_MultiTexCoord1.xy;\
+			v_texCoord2 = gl_MultiTexCoord2.xy;\
 		}\
 		";
 
 	char *wwfrag = "\
-		varying vec2 v_texCoord;\
-		uniform sampler2D texture;\
-		uniform float time;\
-		uniform float xscale;\
-		uniform float yscale;\
+		varying vec2 v_texCoord0;\
+		varying vec2 v_texCoord1;\
+		varying vec2 v_texCoord2;\
+		uniform sampler2D theTexture0;\
+		uniform sampler2D theTexture1;\
+		uniform sampler2D theTexture2;\
 		uniform float ampscale;\
 		void main (void)\
 		{\
+			float amptemp;\
+			vec3 edge;\
+			edge = texture2D( theTexture2, v_texCoord2 );\
+			amptemp = ampscale * edge.x;\
+			vec3 offset;\
+			offset = texture2D( theTexture1, v_texCoord1 );\
+			offset.x = (offset.x - 0.5) * 2.0;\
+			offset.y = (offset.y - 0.5) * 2.0;\
 			vec2 temp;\
-			temp.x = v_texCoord.x + sin((v_texCoord.y * xscale) + time) * ampscale;\
-			temp.y = v_texCoord.y + cos((v_texCoord.x * yscale) + time) * ampscale;\
-			gl_FragColor = texture2D( texture, temp );\
+			temp.x = v_texCoord0.x + offset.x * amptemp;\
+			temp.y = v_texCoord0.y + offset.y * amptemp;\
+			gl_FragColor = texture2D( theTexture0, temp );\
 		}\
 		";
 
@@ -186,20 +200,102 @@ void GL_InitSceneProcessingShaders (void)
 
 	scenepp_ww_program = GLSlang_CreateProgram(vert, frag);
 
-//	scenepp_ww_parm_texturei	= GLSlang_GetUniformLocation(scenepp_ww_program, "texture");
-	scenepp_ww_parm_timef		= GLSlang_GetUniformLocation(scenepp_ww_program, "time");
-	scenepp_ww_parm_xscalef		= GLSlang_GetUniformLocation(scenepp_ww_program, "xscale");
-	scenepp_ww_parm_yscalef		= GLSlang_GetUniformLocation(scenepp_ww_program, "yscale");
+	scenepp_ww_parm_texture0i	= GLSlang_GetUniformLocation(scenepp_ww_program, "theTexture0");
+	scenepp_ww_parm_texture1i	= GLSlang_GetUniformLocation(scenepp_ww_program, "theTexture1");
+	scenepp_ww_parm_texture2i	= GLSlang_GetUniformLocation(scenepp_ww_program, "theTexture2");
 	scenepp_ww_parm_ampscalef	= GLSlang_GetUniformLocation(scenepp_ww_program, "ampscale");
 
 	GLSlang_UseProgram(scenepp_ww_program);
 
-//	GLSlang_SetUniform1i(scenepp_ww_parm_texturei, 0);
+	GLSlang_SetUniform1i(scenepp_ww_parm_texture0i, 0);
+	GLSlang_SetUniform1i(scenepp_ww_parm_texture1i, 1);
+	GLSlang_SetUniform1i(scenepp_ww_parm_texture2i, 2);
 
 	GLSlang_UseProgram(0);
 
 	if (qglGetError())
 		Con_Printf("GL Error initing shader object\n");
+}
+
+#define PP_WARP_TEX_SIZE 64
+#define PP_AMP_TEX_SIZE 64
+#define PP_AMP_TEX_BORDER 4
+void GL_SetupSceneProcessingTextures (void)
+{
+	int i, x, y;
+	unsigned char pp_warp_tex[PP_WARP_TEX_SIZE*PP_WARP_TEX_SIZE*3];
+	unsigned char pp_edge_tex[PP_AMP_TEX_SIZE*PP_AMP_TEX_SIZE*3];
+
+	scenepp_texture = texture_extension_number++;
+	scenepp_texture_warp = texture_extension_number++;
+	scenepp_texture_edge = texture_extension_number++;
+
+	// init warp texture - this specifies offset in 
+	for (y=0; y<PP_WARP_TEX_SIZE; y++)
+	{
+		for (x=0; x<PP_WARP_TEX_SIZE; x++)
+		{
+			float fx, fy;
+
+			i = (x + y*PP_WARP_TEX_SIZE) * 3;
+
+			fx = sin(((double)y / PP_WARP_TEX_SIZE) * M_PI * 2);
+			fy = cos(((double)x / PP_WARP_TEX_SIZE) * M_PI * 2);
+
+			pp_warp_tex[i  ] = (fx+1.0f)*127.0f;
+			pp_warp_tex[i+1] = (fy+1.0f)*127.0f;
+			pp_warp_tex[i+2] = 0;
+		}
+	}
+
+	GL_Bind(scenepp_texture_warp);
+	qglTexParameterf(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+	qglTexParameterf(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+	qglTexImage2D(GL_TEXTURE_2D, 0, GL_RGB, PP_WARP_TEX_SIZE, PP_WARP_TEX_SIZE, 0, GL_RGB, GL_UNSIGNED_BYTE, pp_warp_tex);
+
+	// TODO: init edge texture - this is ampscale * 2, with ampscale calculated
+	// init warp texture - this specifies offset in 
+	for (y=0; y<PP_AMP_TEX_SIZE; y++)
+	{
+		for (x=0; x<PP_AMP_TEX_SIZE; x++)
+		{
+			float fx = 1, fy = 1;
+
+			i = (x + y*PP_AMP_TEX_SIZE) * 3;
+
+			if (x < PP_AMP_TEX_BORDER)
+			{
+				fx = (float)x / PP_AMP_TEX_BORDER;
+			}
+			if (x > PP_AMP_TEX_SIZE - PP_AMP_TEX_BORDER)
+			{
+				fx = (PP_AMP_TEX_SIZE - (float)x) / PP_AMP_TEX_BORDER;
+			}
+
+			if (y < PP_AMP_TEX_BORDER)
+			{
+				fy = (float)y / PP_AMP_TEX_BORDER;
+			}
+			if (y > PP_AMP_TEX_SIZE - PP_AMP_TEX_BORDER)
+			{
+				fy = (PP_AMP_TEX_SIZE - (float)y) / PP_AMP_TEX_BORDER;
+			}
+
+			if (fx < fy)
+			{
+				fy = fx;
+			}
+
+			pp_edge_tex[i  ] = fy * 255;
+			pp_edge_tex[i+1] = 0;
+			pp_edge_tex[i+2] = 0;
+		}
+	}
+
+	GL_Bind(scenepp_texture_edge);
+	qglTexParameterf(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+	qglTexParameterf(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+	qglTexImage2D(GL_TEXTURE_2D, 0, GL_RGB, PP_WARP_TEX_SIZE, PP_WARP_TEX_SIZE, 0, GL_RGB, GL_UNSIGNED_BYTE, pp_edge_tex);
 }
 
 /*
@@ -1763,7 +1859,7 @@ void GLR_RenderView (void)
 
 	// SCENE POST PROCESSING
 	// we check if we need to use any shaders - currently it's just waterwarp
-	if ((gl_config.arb_shader_objects) && (r_waterwarp.value && r_viewleaf&&r_viewleaf->contents <= Q1CONTENTS_WATER))
+	if ((gl_config.arb_shader_objects) && (r_waterwarp.value && r_viewleaf && r_viewleaf->contents <= Q1CONTENTS_WATER))
 	{
 		extern int char_texture;
 		float vwidth = 1, vheight = 1;
@@ -1817,31 +1913,59 @@ void GLR_RenderView (void)
 
 		// Here we apply the shaders - currently just waterwarp
 		GLSlang_UseProgram(scenepp_ww_program);
-		//just keep the ratio of x and y scales the same as that of the screen
-		GLSlang_SetUniform1f(scenepp_ww_parm_xscalef, 4 / vs);
-		GLSlang_SetUniform1f(scenepp_ww_parm_yscalef, ((4 / glwidth)*glheight)/vt);
 		//keep the amp proportional to the size of the scene in texture coords
+		// WARNING - waterwarp can change the amplitude, but if it's too big it'll exceed
+		// the size determined by the edge texture, after which black bits will be shown.
+		// Suggest clamping to a suitable range.
 		GLSlang_SetUniform1f(scenepp_ww_parm_ampscalef, (0.005 / 0.625) * vs*r_waterwarp.value);
-		GLSlang_SetUniform1f(scenepp_ww_parm_timef, cl.time);
 
 		if (qglGetError())
 			Con_Printf("GL Error after GLSlang_UseProgram\n");
 
-		qglBegin(GL_QUADS);
+		{
+			float xmin, xmax, ymin, ymax;
 
-		qglTexCoord2f(0, 0);
-		qglVertex2f(0, 0);
+			xmin = cl.time * 0.25;
+			ymin = cl.time * 0.25;
+			xmax = xmin + 1;
+			ymax = ymin + 1/vt*vs;
 
-		qglTexCoord2f(vs, 0);
-		qglVertex2f(glwidth, 0);
+			GL_EnableMultitexture();
+			GL_Bind (scenepp_texture_warp);
 
-		qglTexCoord2f(vs, vt);
-		qglVertex2f(glwidth, glheight);
+			GL_SelectTexture(mtexid1+1);
+			qglEnable(GL_TEXTURE_2D);
+			GL_Bind(scenepp_texture_edge);
 
-		qglTexCoord2f(0, vt);
-		qglVertex2f(0, glheight);
-		
-		qglEnd();
+			qglBegin(GL_QUADS);
+
+			qglMTexCoord2fSGIS (mtexid0, 0, 0);
+			qglMTexCoord2fSGIS (mtexid1, xmin, ymin);
+			qglMTexCoord2fSGIS (mtexid1+1, 0, 0);
+			qglVertex2f(0, 0);
+
+			qglMTexCoord2fSGIS (mtexid0, vs, 0);
+			qglMTexCoord2fSGIS (mtexid1, xmax, ymin);
+			qglMTexCoord2fSGIS (mtexid1+1, 1, 0);
+			qglVertex2f(glwidth, 0);
+
+			qglMTexCoord2fSGIS (mtexid0, vs, vt);
+			qglMTexCoord2fSGIS (mtexid1, xmax, ymax);
+			qglMTexCoord2fSGIS (mtexid1+1, 1, 1);
+			qglVertex2f(glwidth, glheight);
+
+			qglMTexCoord2fSGIS (mtexid0, 0, vt);
+			qglMTexCoord2fSGIS (mtexid1, xmin, ymax);
+			qglMTexCoord2fSGIS (mtexid1+1, 0, 1);
+			qglVertex2f(0, glheight);
+			
+			qglEnd();
+
+			qglDisable(GL_TEXTURE_2D);
+			GL_SelectTexture(mtexid1);
+
+			GL_DisableMultitexture();
+		}
 
 		// Disable shaders
 		GLSlang_UseProgram(0);

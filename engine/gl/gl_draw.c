@@ -917,7 +917,7 @@ TRACE(("dbg: GLDraw_ReInit: Allocating upload buffers\n"));
 	cachedcrosshair=0;
 	crosshairimage.modified = true;
 
-	scenepp_texture = texture_extension_number++;
+	GL_SetupSceneProcessingTextures();
 
 	start = Hunk_LowMark ();
 	conback = default_conback;

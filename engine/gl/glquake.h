@@ -288,7 +288,7 @@ void R_RotateForEntity (entity_t *e);
 void R_DrawAliasModel (entity_t *e);
 
 void GL_InitSceneProcessingShaders (void);
-extern int scenepp_texture;
+void GL_SetupSceneProcessingTextures (void);
 
 //gl_alias.c
 void R_DrawGAliasModel (entity_t *e);

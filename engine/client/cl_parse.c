@@ -687,6 +687,9 @@ void Model_NextDownload (void)
 		if (!stricmp(COM_FileExtension(s), "dsp"))	//doom sprites are weird, and not really downloadable via this system
 			continue;
 
+		if (cls.q2server && s[0] == '#')	//this is a vweap
+			continue;
+
 		if (!CL_CheckOrDownloadFile(s, cls.downloadnumber==1))	//world is required to be loaded.
 			return;		// started a download
 

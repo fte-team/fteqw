@@ -24,7 +24,7 @@ qboolean M_Script_Key (int key, menu_t *menu)
 	return false;
 }
 
-void M_Menu_Clear_f (void)
+void M_MenuS_Clear_f (void)
 {
 	if (menu_script)
 	{
@@ -35,7 +35,7 @@ void M_Menu_Clear_f (void)
 //	Cvar_Set(menualias.name, "");
 }
 
-void M_Menu_Script_f (void)	//create a menu.
+void M_MenuS_Script_f (void)	//create a menu.
 {
 	int items;
 	extern menu_t *currentmenu;
@@ -63,7 +63,7 @@ void M_Menu_Script_f (void)	//create a menu.
 			}
 		}
 		selectitem = items - selectitem-1;
-		M_Menu_Clear_f();
+		M_MenuS_Clear_f();
 	}
 
 	oldmenu = currentmenu;
@@ -83,7 +83,7 @@ void M_Menu_Script_f (void)	//create a menu.
 		Cvar_Set(&menualias, alias);
 }
 
-void M_Menu_Box_f (void)
+void M_MenuS_Box_f (void)
 {
 	int x = atoi(Cmd_Argv(1));
 	int y = atoi(Cmd_Argv(2));
@@ -99,7 +99,7 @@ void M_Menu_Box_f (void)
 	MC_AddBox(menu_script, x, y, width/8, height/8);
 }
 
-void M_Menu_CheckBox_f (void)
+void M_MenuS_CheckBox_f (void)
 {
 	int x = atoi(Cmd_Argv(1));
 	int y = atoi(Cmd_Argv(2));
@@ -118,7 +118,7 @@ void M_Menu_CheckBox_f (void)
 	MC_AddCheckBox(menu_script, x, y, text, cvar);
 }
 
-void M_Menu_Slider_f (void)
+void M_MenuS_Slider_f (void)
 {
 	int x = atoi(Cmd_Argv(1));
 	int y = atoi(Cmd_Argv(2));
@@ -139,7 +139,7 @@ void M_Menu_Slider_f (void)
 	MC_AddSlider(menu_script, x, y, text, cvar, min, max);
 }
 
-void M_Menu_Picture_f (void)
+void M_MenuS_Picture_f (void)
 {
 	int x = atoi(Cmd_Argv(1));
 	int y = atoi(Cmd_Argv(2));
@@ -154,7 +154,7 @@ void M_Menu_Picture_f (void)
 	MC_AddPicture(menu_script, x, y, picname);
 }
 
-void M_Menu_Edit_f (void)
+void M_MenuS_Edit_f (void)
 {
 	int x = atoi(Cmd_Argv(1));
 	int y = atoi(Cmd_Argv(2));
@@ -170,7 +170,7 @@ void M_Menu_Edit_f (void)
 	MC_AddEditCvar(menu_script, x, y, text, def);
 }
 
-void M_Menu_Text_f (void)
+void M_MenuS_Text_f (void)
 {
 	menuoption_t *option;
 	int x = atoi(Cmd_Argv(1));
@@ -192,6 +192,26 @@ void M_Menu_Text_f (void)
 			menu_script->selecteditem = option;
 	}
 }
+
+void M_MenuS_Bind_f (void)
+{
+	int x = atoi(Cmd_Argv(1));
+	int y = atoi(Cmd_Argv(2));
+	char *caption = Cmd_Argv(3);
+	char *command = Cmd_Argv(4);
+
+	if (!menu_script)
+	{
+		Con_Printf("%s with no active menu\n", Cmd_Argv(0));
+		return;
+	}
+
+	if (!*caption)
+		caption = command;
+
+	MC_AddBind(menu_script, x, y, command, caption);
+}
+
 /*
 menuclear
 menualias menucallback
@@ -207,14 +227,15 @@ menutext 0 24 "Cancel"
 */
 void M_Script_Init(void)
 {
-	Cmd_AddCommand("menuclear",	M_Menu_Clear_f);
-	Cmd_AddCommand("conmenu",	M_Menu_Script_f);
-	Cmd_AddCommand("menubox",	M_Menu_Box_f);
-	Cmd_AddCommand("menuedit",	M_Menu_Edit_f);
-	Cmd_AddCommand("menutext",	M_Menu_Text_f);
-	Cmd_AddCommand("menupic",	M_Menu_Picture_f);
-	Cmd_AddCommand("menucheck",	M_Menu_CheckBox_f);
-	Cmd_AddCommand("menuslider",	M_Menu_Slider_f);
+	Cmd_AddCommand("menuclear",	M_MenuS_Clear_f);
+	Cmd_AddCommand("conmenu",	M_MenuS_Script_f);
+	Cmd_AddCommand("menubox",	M_MenuS_Box_f);
+	Cmd_AddCommand("menuedit",	M_MenuS_Edit_f);
+	Cmd_AddCommand("menutext",	M_MenuS_Text_f);
+	Cmd_AddCommand("menupic",	M_MenuS_Picture_f);
+	Cmd_AddCommand("menucheck",	M_MenuS_CheckBox_f);
+	Cmd_AddCommand("menuslider",	M_MenuS_Slider_f);
+	Cmd_AddCommand("menubind",	M_MenuS_Bind_f);
 
 	Cvar_Register(&menualias, "Scripting");
 }

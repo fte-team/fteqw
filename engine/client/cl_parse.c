@@ -3358,11 +3358,28 @@ int getplayerchatcolour(char *msg)
 	id = getplayerid(msg);
 	if (id == -1)	//not a user/server
 		return 1;
+
+	//primary override.
 	msg = Info_ValueForKey(cl.players[id].userinfo, "tc");
-	if (!*msg)
-		return cl.players[id].userid;
-	c = atoi(msg);			
-	return c;
+	if (*msg)
+	{
+		c = atoi(msg);			
+		return c;
+	}
+
+	//override based on team
+	if (cl.teamfortress)
+	{
+		switch (cl.players[id].bottomcolor)
+		{	//translate q1 skin colours to console colours
+		case 4:	//red
+			return 1;
+		case 13:	//blue
+			return 5;
+		//fixme: add the others
+		}
+	}
+	return cl.players[id].userid;
 }
 
 #define SHOWNET(x) if(cl_shownet.value==2)Con_Printf ("%3i:%s\n", msg_readcount-1, x);

@@ -913,23 +913,28 @@ void CL_AllowIndependantSendCmd(qboolean allow)
 			LeaveCriticalSection(&indepcriticialsection);
 		else
 			EnterCriticalSection(&indepcriticialsection);
+		allowindepphys = allow;
 	}
-	allowindepphys = allow;
 }
 
 unsigned long _stdcall CL_IndepPhysicsThread(void *param)
 {
 	int sleeptime;
 	float fps;
+	float time, lasttime;
+	lasttime = Sys_DoubleTime();
 	while(1)
 	{
 		EnterCriticalSection(&indepcriticialsection);
+		time = Sys_DoubleTime();
+		host_frametime = time - lasttime;
+		lasttime = time;
 		CL_SendCmd();
 		LeaveCriticalSection(&indepcriticialsection);
 
-		fps = cl_netfps.value*10;	//try and be generous. (This isn't the framerate capping function).
-		if (fps < 10)
-			fps = 10;
+		fps = cl_netfps.value;
+		if (fps < 0)
+			fps = 0;
 
 		sleeptime = 1000/fps;
 
@@ -949,6 +954,7 @@ void CL_UseIndepPhysics(qboolean allow)
 		runningindepphys = true;
 
 		indepphysicsthread = CreateThread(NULL, 8192, CL_IndepPhysicsThread, NULL, 0, &tid);
+		allowindepphys = 1;
 	}
 	else
 	{
@@ -958,6 +964,7 @@ void CL_UseIndepPhysics(qboolean allow)
 		TerminateThread(indepphysicsthread, 0);
 		CloseHandle(indepphysicsthread);
 		LeaveCriticalSection(&indepcriticialsection);
+		DeleteCriticalSection(&indepcriticialsection);
 
 		runningindepphys = false;
 	}

@@ -810,7 +810,7 @@ void SWV_UpdatePalette (void)
 
 	if (r_pixbytes == 4)	//doesn't support palette cycling. It messes up caches.
 	{
-		if (!force)
+		if (!new && !force)
 			return;
 		basepal = host_basepal;
 		newpal = pal;
@@ -829,6 +829,7 @@ void SWV_UpdatePalette (void)
 		}
 
 		VID_ShiftPalette (pal);
+		D_FlushCaches();
 		return;
 	}
 	if (!new && !force)
@@ -1298,6 +1299,7 @@ void V_RenderPlayerViews(int plnum)
 	}
 
 #ifdef SWQUAKE
+	if (cl.splitclients>1)
 		r_viewchanged = true;
 #endif
 

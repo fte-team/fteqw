@@ -19,8 +19,6 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 */
 // r_main.c
 
-#define SWSTAINS
-
 #include "quakedef.h"
 #include "r_local.h"
 #include "sw_draw.h"
@@ -229,8 +227,10 @@ void SWR_Init (void)
 	
 	Cmd_AddRemCommand ("timerefresh", SWR_TimeRefresh_f);	
 
-	Cvar_SetValue (&r_maxedges, (float)NUMSTACKEDGES);
-	Cvar_SetValue (&r_maxsurfs, (float)NUMSTACKSURFACES);
+	if (!r_maxedges.value)
+		Cvar_SetValue (&r_maxedges, (float)NUMSTACKEDGES);
+	if (!r_maxsurfs.value)
+		Cvar_SetValue (&r_maxsurfs, (float)NUMSTACKSURFACES);
 
 	view_clipplanes[0].leftedge = true;
 	view_clipplanes[1].rightedge = true;
@@ -318,6 +318,8 @@ void SWR_NewMap (void)
 #ifdef SWSTAINS
 	SWR_BuildLightmaps();
 #endif
+
+	R_WipeDecals();
 
 	R_InitSkyBox();
 
@@ -707,6 +709,7 @@ void SWR_DrawEntitiesOnList (void)
 		// trivial accept status
 			if (R_AliasCheckBBox ())
 			{
+				float *org;
 				extern cvar_t r_fullbrightSkins;
 				float fb = r_fullbrightSkins.value;
 				if (fb > cls.allow_fbskins)
@@ -714,7 +717,12 @@ void SWR_DrawEntitiesOnList (void)
 				if (fb < 0)
 					fb = 0;
 
-				j = SWR_LightPoint (currententity->origin);
+				if (currententity->flags & Q2RF_WEAPONMODEL)
+					org = cl.viewent[r_refdef.currentplayernum].origin;
+				else
+					org = currententity->origin;
+
+				j = SWR_LightPoint (org);
 	
 				lighting.ambientlight = j+fb * 120;
 				lighting.shadelight = j+fb * 120;
@@ -725,7 +733,7 @@ void SWR_DrawEntitiesOnList (void)
 				{
 					if (cl_dlights[lnum].radius)
 					{
-						VectorSubtract (currententity->origin,
+						VectorSubtract (org,
 										cl_dlights[lnum].origin,
 										dist);
 						add = cl_dlights[lnum].radius - Length(dist);
@@ -759,6 +767,7 @@ R_DrawViewModel
 */
 void SWR_DrawViewModel (void)
 {
+	/*
 // FIXME: remove and do real lighting
 	float		lightvec[3] = {-1, 0, 0};
 	int			j;
@@ -865,6 +874,7 @@ void SWR_DrawViewModel (void)
 	case mod_dummy:
 		break;
 	}
+	*/
 }
 
 

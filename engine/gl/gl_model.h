@@ -219,6 +219,14 @@ typedef struct mfog_s
 } mfog_t;
 #endif
 
+typedef struct decal_s {
+	int xpos, ypos;
+	struct msurface_s *owner;
+	struct decal_s *next;
+	struct decal_s *prev;
+} decal_t;
+
+
 typedef struct msurface_s
 {
 	int			visframe;		// should be drawn when node is crossed
@@ -269,6 +277,8 @@ typedef struct msurface_s
 	qboolean stained;
 #endif
 	qbyte		*samples;		// [numstyles*surfsize]
+
+	decal_t		*decal;
 } msurface_t;
 
 typedef struct mnode_s

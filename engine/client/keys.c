@@ -212,7 +212,7 @@ keyname_t keynames[] =
 ==============================================================================
 */
 
-qboolean IsCommand (char *line)
+qboolean Cmd_IsCommand (char *line)
 {
 	char	command[128];
 	char	*cmd, *s;
@@ -354,7 +354,7 @@ void Con_ExecuteLine(console_t *con, char *line)
 	con_commandmatch=1;
 	if (line[0] == '\\' || line[0] == '/')
 		Cbuf_AddText (line+1, RESTRICT_LOCAL);	// skip the >
-	else if (IsCommand(line))
+	else if (Cmd_IsCommand(line))
 		Cbuf_AddText (line, RESTRICT_LOCAL);	// valid command
 #ifdef Q2CLIENT
 	else if (cls.q2server)

@@ -47,7 +47,9 @@ cvar_t	sv_cheatpc = {"sv_cheatpc", "125"};
 cvar_t	sv_cheatspeedchecktime = {"sv_cheatspeedchecktime", "30"};
 cvar_t	sv_playermodelchecks = {"sv_playermodelchecks", "1"};
 
-cvar_t	sv_cmdlikercon = {"sv_cmdlikercon", "0"};
+cvar_t	sv_cmdlikercon = {"sv_cmdlikercon", "0"};	//set to 1 to allow a password of username:password instead of the correct rcon password.
+cvar_t cmd_allowaccess = {"cmd_allowaccess", "0"};	//set to 1 to allow cmd to execute console commands on the server.
+cvar_t cmd_gamecodelevel = {"cmd_gamecodelevel", "50"};	//execution level which gamecode is told about (for unrecognised commands)
 
 cvar_t	sv_nomsec = {"sv_nomsec", "0"};
 cvar_t	sv_edgefriction = {"sv_edgefriction", "2"};
@@ -4673,6 +4675,8 @@ void SV_UserInit (void)
 	Cvar_Register (&sv_playermodelchecks, cvargroup_servercontrol);
 
 	Cvar_Register (&sv_cmdlikercon, cvargroup_serverpermissions);
+	Cvar_Register(&cmd_gamecodelevel, "Access controls");
+	Cvar_Register(&cmd_allowaccess, "Access controls");
 
 	Cvar_Register (&votelevel, sv_votinggroup);
 	Cvar_Register (&voteminimum, sv_votinggroup);

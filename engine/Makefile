@@ -43,7 +43,7 @@ ifeq ($(USEASM),true)
 		DO_AS=$(CC) $(BASE_CFLAGS) $(WCFLAGS) -x assembler-with-cpp -DELF -o $@ -c $< $(CFLAGS)
 	endif
 endif
-BASELDFLAGS=-lm  
+BASELDFLAGS=-lm  -lz
 GLXLDFLAGS=-L/usr/X11R6/lib -lX11 -lXext -lpng -ljpeg -lXxf86vm
 GLSLDFLAGS=-L/usr/X11R6/lib -lMesaGL -lglide -lvga
 XLDFLAGS=-L/usr/X11R6/lib -lX11 -lXext -lpng -ljpeg

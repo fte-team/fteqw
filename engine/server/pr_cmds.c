@@ -1268,6 +1268,10 @@ qboolean PR_ConsoleCmd(void)
 {
 	globalvars_t *pr_globals;
 	extern redirect_t sv_redirected;
+
+	if (Cmd_ExecLevel < cmd_gamecodelevel.value)
+		return false;
+
 #ifdef Q2SERVER
 	if (ge)
 	{	//server command
@@ -1280,17 +1284,20 @@ qboolean PR_ConsoleCmd(void)
 	}
 #endif
 
-	pr_globals = PR_globals(svprogfuncs, PR_CURRENT);
-	if (mod_ConsoleCmd && pr_imitatemvdsv.value >= 0)
+	if (svprogfuncs)
 	{
-		if (sv_redirected != RD_OBLIVION)
+		pr_globals = PR_globals(svprogfuncs, PR_CURRENT);
+		if (mod_ConsoleCmd && pr_imitatemvdsv.value >= 0)
 		{
-			pr_global_struct->time = sv.time;
-			pr_global_struct->self = EDICT_TO_PROG(svprogfuncs, sv_player);
+			if (sv_redirected != RD_OBLIVION)
+			{
+				pr_global_struct->time = sv.time;
+				pr_global_struct->self = EDICT_TO_PROG(svprogfuncs, sv_player);
+			}
+			
+			PR_ExecuteProgram (svprogfuncs, mod_ConsoleCmd);
+			return (int) G_FLOAT(OFS_RETURN);
 		}
-		
-		PR_ExecuteProgram (svprogfuncs, mod_ConsoleCmd);
-		return (int) G_FLOAT(OFS_RETURN);
 	}
 
 	return false;

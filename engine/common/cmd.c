@@ -1296,7 +1296,7 @@ void Cmd_RestrictCommand_f (void)
 	cvar_t *v;
 	cmd_function_t	*cmd;
 	char *cmd_name = Cmd_Argv(1);
-	int level = atoi(Cmd_Argv(2));
+	int level;
 
 	if (Cmd_Argc() != 3 && Cmd_Argc() != 2)
 	{
@@ -1304,8 +1304,9 @@ void Cmd_RestrictCommand_f (void)
 		return;
 	}
 
-	if (Cmd_Argc() == 2)
+	if (Cmd_Argc() > 2)
 	{
+		level = atoi(Cmd_Argv(2));
 		if (level > RESTRICT_MAX)
 		{
 			level = RESTRICT_MAX;
@@ -1318,6 +1319,7 @@ void Cmd_RestrictCommand_f (void)
 		else if (level < RESTRICT_MIN)
 			level = RESTRICT_MIN;
 	}
+	else level = 0;
 //commands
 	for (cmd=cmd_functions ; cmd ; cmd=cmd->next)
 	{
@@ -2645,10 +2647,10 @@ void Cmd_Init (void)
 	Cmd_AddCommand ("wait", Cmd_Wait_f);
 #ifndef SERVERONLY
 	Cmd_AddCommand ("cmd", Cmd_ForwardToServer_f);
-#else
+#endif
 	Cmd_AddCommand ("restrict", Cmd_RestrictCommand_f);
 	Cmd_AddCommand ("aliaslevel", Cmd_AliasLevel_f);
-#endif
+
 	Cmd_AddCommand ("showalias", Cmd_ShowAlias_f);
 
 //	Cmd_AddCommand ("msg_trigger", Cmd_Msg_Trigger_f);

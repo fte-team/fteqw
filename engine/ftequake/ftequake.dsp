@@ -89,7 +89,8 @@ BSC32=bscmake.exe
 # ADD BSC32 /nologo
 LINK32=link.exe
 # ADD BASE LINK32 kernel32.lib user32.lib gdi32.lib winspool.lib comdlg32.lib advapi32.lib shell32.lib ole32.lib oleaut32.lib uuid.lib odbc32.lib odbccp32.lib /nologo /subsystem:windows /debug /machine:I386 /pdbtype:sept
-# ADD LINK32 comctl32.lib wsock32.lib winmm.lib kernel32.lib user32.lib gdi32.lib winspool.lib comdlg32.lib advapi32.lib shell32.lib ole32.lib oleaut32.lib uuid.lib odbc32.lib odbccp32.lib /nologo /subsystem:windows /pdb:none /debug /machine:I386 /out:"../../fteswqw_dbg.exe"
+# ADD LINK32 comctl32.lib wsock32.lib winmm.lib kernel32.lib user32.lib gdi32.lib winspool.lib comdlg32.lib advapi32.lib shell32.lib ole32.lib oleaut32.lib uuid.lib odbc32.lib odbccp32.lib /nologo /subsystem:windows /debug /machine:I386 /out:"../../fteswqw_dbg.exe"
+# SUBTRACT LINK32 /pdb:none
 
 !ELSEIF  "$(CFG)" == "ftequake - Win32 GLDebug"
 
@@ -7990,6 +7991,8 @@ SOURCE=..\server\sv_sys_win.c
 
 !ELSEIF  "$(CFG)" == "ftequake - Win32 Debug Dedicated Server"
 
+# ADD CPP /Yu"qwsvdef.h"
+
 !ELSEIF  "$(CFG)" == "ftequake - Win32 Release Dedicated Server"
 
 !ELSEIF  "$(CFG)" == "ftequake - Win32 MinSW"
@@ -8042,6 +8045,8 @@ SOURCE=..\server\svmodel.c
 # PROP Exclude_From_Build 1
 
 !ELSEIF  "$(CFG)" == "ftequake - Win32 Debug Dedicated Server"
+
+# ADD CPP /Yu"qwsvdef.h"
 
 !ELSEIF  "$(CFG)" == "ftequake - Win32 Release Dedicated Server"
 

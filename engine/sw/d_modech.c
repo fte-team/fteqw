@@ -105,6 +105,6 @@ d_pix_max*=2;
 
 	D_Patch ();
 
-	D_FlushCaches();
+//	D_FlushCaches();
 }
 

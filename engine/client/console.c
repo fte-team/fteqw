@@ -842,8 +842,6 @@ void Con_DrawInput (void)
 	int maskstack[4];
 	int maskstackdepth = 0;
 
-	int oc;
-
 	int si, x;
 
 	if (key_dest != key_console && cls.state == ca_active)
@@ -900,7 +898,7 @@ void Con_DrawInput (void)
 
 	if (con_current->commandcompletion)
 	{
-		if (text[1] == '/' || IsCommand(text+1))
+		if (text[1] == '/' || Cmd_IsCommand(text+1))
 		{	//color the first token yellow, it's a valid command
 			for (p = 1; (maskedtext[p]&255)>' '; p++)
 				maskedtext[p] = (maskedtext[p]&255) | (COLOR_YELLOW<<8);
@@ -941,94 +939,6 @@ void Con_DrawInput (void)
 		}
 		i++;
 	}
-
-
-
-	/*
-
-
-	x = 1;
-	if (text[1] == '/')
-		x = 2;
-	if (con_current->commandcompletion)
-	{
-		fname = Cmd_CompleteCommand(text+x, true, con_commandmatch);
-	}
-	else
-		fname = NULL;
-	oc = text[key_linepos];
-	if (!oc)
-		text[key_linepos+1] = 0;
-	if (fname)
-	{
-		si = strlen(text)-x;
-
-		if ((int)(realtime*con_cursorspeed)&1)
-		{
-			text[key_linepos] = 11;
-			mask = COLOR_GREEN<<8;
-			if (*(fname+si))	//make sure we arn't skipping a null char
-				strcat(text, fname+si+1);
-		}
-		else
-		{
-			mask = COLOR_GREEN<<8;
-			strcat(text, fname+si);
-		}
-	}
-	else if (((int)(realtime*con_cursorspeed)&1))
-		text[key_linepos] = 11;
-	else if (!text[key_linepos])
-		text[key_linepos] = 10;
-
-	i = strlen(text);
-
-	if (i >= con_current->linewidth)	//work out the start point
-		si = i - con_current->linewidth;
-	else
-		si = 0;
-
-	y = con_current->vislines-22;
-
-	for (i=0,p=0,x=8; x<=con_current->linewidth*8 ; p++)	//draw it
-	{
-		if (text[p] == '^')
-		{
-			if (text[p+1]>='0' && text[p+1]<'8')
-				mask = (text[p+1]-'0')*256 + (mask&~CON_COLOURMASK);	//change colour only.
-			else if (text[p+1] == 'b')
-				mask = (mask & ~CON_BLINKTEXT) + (CON_BLINKTEXT - (mask & CON_BLINKTEXT));
-			else if (text[p+1] == 'a')	//alternate
-				mask = (mask & ~CON_2NDCHARSETTEXT) + (CON_2NDCHARSETTEXT - (mask & CON_2NDCHARSETTEXT));
-			else if (text[p+1] == 's')	//store on stack (it's great for names)
-			{
-				if (maskstackdepth < sizeof(maskstack)/sizeof(maskstack[0]))
-				{
-					maskstack[maskstackdepth] = mask;
-					maskstackdepth++;
-				}
-			}
-			else if (text[p+1] == 'r')	//restore from stack (it's great for names)
-			{
-				if (maskstackdepth)
-				{
-					maskstackdepth--;
-					mask = maskstack[maskstackdepth];
-				}
-			}
-		}
-		if (!text[p])
-			break;
-		if (si <= i)
-		{
-			Draw_ColouredCharacter ( x, con_current->vislines - 22, text[p]|mask);
-			x+=8;
-		}
-		i++;
-	}
-
-	text[key_linepos] = oc;
-	*/
 }
 
 /*

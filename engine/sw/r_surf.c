@@ -20,12 +20,17 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 // r_surf.c: surface-related refresh code
 
 #include "quakedef.h"
-#define SWSTAINS
 
 #include "r_local.h"
 #ifdef SWSTAINS
 #include "d_local.h"
 #endif
+
+#define MAX_DECALS (1<<8)
+decal_t decals[MAX_DECALS];
+int nextdecal;
+
+void SWR_AddDecal(vec3_t org);
 
 drawsurf_t	r_drawsurf;
 
@@ -74,13 +79,12 @@ extern cvar_t r_stains;
 extern cvar_t r_stainfadetime;
 extern cvar_t r_stainfadeammount;
 
-#define	BLOCK_WIDTH		128
-#define	BLOCK_HEIGHT	128
-
+#define	LMBLOCK_WIDTH		128
+#define	LMBLOCK_HEIGHT		128
 #define	MAX_LIGHTMAPS	64
 
-int		stainmaps[MAX_LIGHTMAPS*BLOCK_WIDTH*BLOCK_HEIGHT];	//added to lightmap for added (hopefully) speed.
-int			allocated[MAX_LIGHTMAPS][BLOCK_WIDTH];
+int		stainmaps[MAX_LIGHTMAPS*LMBLOCK_WIDTH*LMBLOCK_HEIGHT];	//added to lightmap for added (hopefully) speed.
+int			allocated[MAX_LIGHTMAPS][LMBLOCK_WIDTH];
 
 //radius, x y z, a
 void SWR_StainSurf (msurface_t *surf, float *parms)
@@ -100,8 +104,8 @@ void SWR_StainSurf (msurface_t *surf, float *parms)
 	tmax = (surf->extents[1]>>4)+1;
 	tex = surf->texinfo;
 
-		stainbase = stainmaps + surf->lightmaptexturenum*BLOCK_WIDTH*BLOCK_HEIGHT;
-		stainbase += (surf->light_t * BLOCK_WIDTH + surf->light_s);
+		stainbase = stainmaps + surf->lightmaptexturenum*LMBLOCK_WIDTH*LMBLOCK_HEIGHT;
+		stainbase += (surf->light_t * LMBLOCK_WIDTH + surf->light_s);
 
 
 
@@ -150,7 +154,7 @@ void SWR_StainSurf (msurface_t *surf, float *parms)
 					surf->stained = true;
 				}
 			}
-			stainbase += BLOCK_WIDTH;
+			stainbase += LMBLOCK_WIDTH;
 		}
 
 		if (surf->stained)
@@ -204,6 +208,9 @@ void SWR_AddStain(vec3_t org, float red, float green, float blue, float radius)
 	physent_t *pe;
 	int i;
 	float parms[5];
+
+	SWR_AddDecal(org);
+
 	if (red != green && red != blue)	//sw only does luminance of stain maps
 		return;							//a mix would look wrong.
 	if (!r_stains.value || !cl.worldmodel)
@@ -274,10 +281,10 @@ void SWR_LessenStains(void)
 			smax = (surf->extents[0]>>4)+1;
 			tmax = (surf->extents[1]>>4)+1;	
 
-			stain = stainmaps + surf->lightmaptexturenum*BLOCK_WIDTH*BLOCK_HEIGHT;
-			stain += (surf->light_t * BLOCK_WIDTH + surf->light_s);
+			stain = stainmaps + surf->lightmaptexturenum*LMBLOCK_WIDTH*LMBLOCK_HEIGHT;
+			stain += (surf->light_t * LMBLOCK_WIDTH + surf->light_s);
 
-			stride = (BLOCK_WIDTH-smax);
+			stride = (LMBLOCK_WIDTH-smax);
 
 			surf->stained = false;			
 
@@ -334,9 +341,9 @@ int SWAllocBlock (int w, int h, int *x, int *y)
 
 	for (texnum=0 ; texnum<MAX_LIGHTMAPS ; texnum++)
 	{
-		best = BLOCK_HEIGHT;
+		best = LMBLOCK_HEIGHT;
 
-		for (i=0 ; i<BLOCK_WIDTH-w ; i++)
+		for (i=0 ; i<LMBLOCK_WIDTH-w ; i++)
 		{
 			best2 = 0;
 
@@ -354,7 +361,7 @@ int SWAllocBlock (int w, int h, int *x, int *y)
 			}
 		}
 
-		if (best + h > BLOCK_HEIGHT)
+		if (best + h > LMBLOCK_HEIGHT)
 			continue;
 
 		for (i=0 ; i<w ; i++)
@@ -400,6 +407,203 @@ void SWR_BuildLightmaps(void)
 	}
 }
 #endif
+
+//retrieves the next decal to be used, unlinking if needed.
+decal_t *R_GetFreeDecal(void)
+{
+	decal_t *dec = &decals[nextdecal];
+	if (dec->owner)
+	{	//already in use.
+		if (dec->prev)
+			dec->prev->next = dec->next;
+		else
+			dec->owner->decal = dec->next;
+		if (dec->next)
+			dec->next->prev = dec->prev;
+
+		dec->owner->cached_dlight = -1;	//get the surface to redraw.
+	}
+	nextdecal = (nextdecal+1)&(MAX_DECALS-1);
+
+	memset(dec, 0, sizeof(decal_t));
+
+	return dec;
+}
+
+void R_WipeDecals(void)
+{
+	int i;
+
+	memset(decals, 0, sizeof(decals));
+	for (i=0 ; i<cl.worldmodel->numsurfaces ; i++)
+		cl.worldmodel->surfaces[i].decal = NULL;
+}
+
+static vec3_t decalorg;
+static float decalradius;
+void SWR_AddSurfDecal (msurface_t *surf)
+{	
+	int			sd, td;
+	float		dist, rad, minlight;
+	vec3_t		impact, local;
+	int			s, t;
+	int			i;
+	int			smax, tmax;
+	float amm;
+	mtexinfo_t	*tex;
+	decal_t *dec;
+	decal_t *prev;
+
+	smax = (surf->extents[0]>>4)+1;
+	tmax = (surf->extents[1]>>4)+1;
+	tex = surf->texinfo;
+
+	rad = decalradius;
+	dist = DotProduct (decalorg, surf->plane->normal) - surf->plane->dist;
+	rad -= fabs(dist);
+	minlight = 0;
+	if (rad < minlight)	//not hit
+		return;
+	minlight = rad - minlight;
+
+	for (i=0 ; i<3 ; i++)
+	{
+		impact[i] = decalorg[i] - surf->plane->normal[i]*dist;
+	}
+
+	local[0] = DotProduct (impact, tex->vecs[0]) + tex->vecs[0][3];
+	local[1] = DotProduct (impact, tex->vecs[1]) + tex->vecs[1][3];
+
+	local[0] -= surf->texturemins[0];
+	local[1] -= surf->texturemins[1];
+
+	dec = R_GetFreeDecal();
+	if (surf->decal)	//add to the end of the linked list.
+	{
+		prev = surf->decal;
+		while(prev->next)
+			prev = prev->next;
+
+		prev->next = dec;
+		dec->prev = prev;
+	}
+	else
+		surf->decal = dec;	//no list yet
+	dec->owner = surf;
+	surf->cached_dlight = -1;
+	
+	dec->xpos = local[0];
+	dec->ypos = local[1];
+}
+
+void SWR_Q1BSP_AddNodeDecal (mnode_t *node)
+{
+	mplane_t	*splitplane;
+	float		dist;
+	msurface_t	*surf;
+	int			i;
+	
+	if (node->contents < 0)
+		return;	
+
+	splitplane = node->plane;
+	dist = DotProduct (decalorg, splitplane->normal) - splitplane->dist;
+	
+	if (dist > (decalradius))
+	{
+		SWR_Q1BSP_AddNodeDecal (node->children[0]);
+		return;
+	}
+	if (dist < (-decalradius))
+	{
+		SWR_Q1BSP_AddNodeDecal (node->children[1]);
+		return;
+	}
+
+// mark the polygons
+	surf = cl.worldmodel->surfaces + node->firstsurface;
+	for (i=0 ; i<node->numsurfaces ; i++, surf++)
+	{
+		if (surf->flags&~(SURF_DRAWTURB|SURF_PLANEBACK))
+			continue;
+		SWR_AddSurfDecal(surf);
+	}
+
+	SWR_Q1BSP_AddNodeDecal (node->children[0]);
+	SWR_Q1BSP_AddNodeDecal (node->children[1]);
+}
+
+void SWR_AddDecal(vec3_t org)
+{
+	VectorCopy(org, decalorg);
+	decalradius = 320;
+	SWR_Q1BSP_AddNodeDecal(cl.worldmodel->nodes+cl.worldmodel->hulls[0].firstclipnode);
+}
+
+
+void SWR_DrawDecal8(decal_t *dec)
+{
+	mpic_t *srcpic = (mpic_t *)Draw_SafeCachePic ("gfx/conback.lmp");
+	qbyte *srcimg = srcpic->data;
+	int srcw=16, srch=16;
+	int s, t;
+	int stride;	//horizontal pixels to copy
+	int lines;	//vertical pixels to copy
+
+	qbyte *dest = r_drawsurf.surfdat;
+	int dw = r_drawsurf.surfwidth, dh = r_drawsurf.surfheight;
+
+	stride = dw;
+	lines = dh;
+
+	s=0;t=0;
+	/*
+	s = dec->xpos - srcw/2;
+	t = dec->ypos - srch/2;
+	if (s < 0)
+	{
+		stride-=s;
+		s = 0;
+	}
+	if (t < 0)
+	{
+		stride-=t;
+		t = 0;
+	}
+	*/
+
+	//s and t are at the top left of the image.
+	dest += s;	//align to the left
+	srcimg += s;
+	for (t = 0; t < lines; t++)
+	{
+		for (s = 0; s < stride; s++)
+		{
+			dest[s] = srcimg[s];
+		}
+		dest += dw;
+		srcimg += srcw;
+	}
+
+	/*
+	pixel_t		*surfdat;	// destination for generated surface
+	int			rowbytes;	// destination logical width in bytes
+	msurface_t	*surf;		// description for surface to generate
+	fixed8_t	lightadj[MAXLIGHTMAPS];
+							// adjust for lightmap levels for dynamic lighting
+	texture_t	*texture;	// corrected for animating textures
+	int			surfmip;	// mipmapped ratio of surface texels / world pixels
+	int			surfwidth;	// in mipmapped texels
+	int			surfheight;	// in mipmapped texels
+	*/
+}
+
+
+
+
+
+
+
 
 /*
 ===============
@@ -603,10 +807,10 @@ void SWR_BuildLightMap (void)
 		int x, y;
 		int quant;
 
-		stain = stainmaps + surf->lightmaptexturenum*BLOCK_WIDTH*BLOCK_HEIGHT;
-		stain += (surf->light_t * BLOCK_WIDTH + surf->light_s);
+		stain = stainmaps + surf->lightmaptexturenum*LMBLOCK_WIDTH*LMBLOCK_HEIGHT;
+		stain += (surf->light_t * LMBLOCK_WIDTH + surf->light_s);
 
-		sstride = BLOCK_WIDTH - smax;
+		sstride = LMBLOCK_WIDTH - smax;
 
 		i=0;
 
@@ -694,10 +898,10 @@ void SWR_BuildLightMapRGB (void)
 		int sstride;
 		int x, y;
 
-		stain = stainmaps + surf->lightmaptexturenum*BLOCK_WIDTH*BLOCK_HEIGHT;
-		stain += (surf->light_t * BLOCK_WIDTH + surf->light_s);
+		stain = stainmaps + surf->lightmaptexturenum*LMBLOCK_WIDTH*LMBLOCK_HEIGHT;
+		stain += (surf->light_t * LMBLOCK_WIDTH + surf->light_s);
 
-		sstride = BLOCK_WIDTH - smax;
+		sstride = LMBLOCK_WIDTH - smax;
 
 		i=0;
 
@@ -863,16 +1067,17 @@ void R_DrawSurface (void)
 	unsigned char	*pcolumndest;
 	void			(*pblockdrawer)(void);
 	texture_t		*mt;
+	decal_t			*dec;
 
 // calculate the lightings
 	SWR_BuildLightMap ();
-	
+
 	surfrowbytes = r_drawsurf.rowbytes;
 
 	mt = r_drawsurf.texture;
-	
+
 	r_source = (qbyte *)mt + mt->offsets[r_drawsurf.surfmip];
-	
+
 // the fractional light values should range from 0 to (VID_GRADES - 1) << 16
 // from a source range of 0 - 255
 	
@@ -897,7 +1102,7 @@ void R_DrawSurface (void)
 	}
 	else
 	{
-		pblockdrawer = R_DrawSurfaceBlock16From8;
+		pblockdrawer = R_DrawSurfaceBlock16From8;//16bit rendering uses 16bit caches.
 	// TODO: only needs to be set when there is a display settings change
 		horzblockstep = blocksize << 1;
 	}
@@ -935,6 +1140,22 @@ void R_DrawSurface (void)
 			soffset = 0;
 
 		pcolumndest += horzblockstep;
+	}
+
+	if (r_drawsurf.surf->decal && !r_drawsurf.surfmip)
+	{
+		if (r_pixbytes == 1 || r_pixbytes == 4)
+		{
+			for (dec = r_drawsurf.surf->decal; dec; dec = dec->next)
+			{
+				int x, y;
+				x = rand()%smax;
+				y = rand()%tmax;
+				pcolumndest = r_drawsurf.surfdat;
+				pcolumndest[y*smax+x] = 15;
+				SWR_DrawDecal8(dec);
+			}
+		}
 	}
 }
 

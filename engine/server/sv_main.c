@@ -424,6 +424,9 @@ void SV_DropClient (client_t *drop)
 		drop->frames = NULL;
 	}
 
+	if (svs.gametype != GT_PROGS)	//gamecode should do it all for us.
+		return;
+
 // send notification to all remaining clients
 	SV_FullClientUpdate (drop, &sv.reliable_datagram);
 #ifdef NQPROT
@@ -1542,6 +1545,9 @@ void SVC_DirectConnect
 			if (!Rank_GetPlayerStats(newcl->rankid, &rs))
 			{
 				SV_OutOfBandPrintf (isquake2client, adr, "\nRankings/Account system failed\n");
+				Con_Printf("banned player %s is trying to connect\n", newcl->name);
+				newcl->name[0] = 0;
+				memset (newcl->userinfo, 0, sizeof(newcl->userinfo));
 				newcl->state = cs_free;
 				return;
 			}
@@ -1878,55 +1884,58 @@ void SVC_RemoteCommand (void)
 
 	if (!Rcon_Validate ())
 	{
-		int rid;
-		char *s = Cmd_Argv(1);
-		char *colon=NULL, *c2;
-		rankstats_t stats;
-		c2=s;
-		for(;;)
+		if (cmd_allowaccess.value)	//try and find a username, match the numeric password
 		{
-			c2 = strchr(c2, ':');
-			if (!c2)
-				break;
-			colon = c2;
-			c2++;
-		}
-		if (colon)	//oh, could this be a specific username?
-		{
-			*colon = '\0';
-			colon++;
-			rid = Rank_GetPlayerID(s, atoi(colon), false);
-			if (rid)
+			int rid;
+			char *s = Cmd_Argv(1);
+			char *colon=NULL, *c2;
+			rankstats_t stats;
+			c2=s;
+			for(;;)
 			{
-				if (!Rank_GetPlayerStats(rid, &stats))
-					return;
-
-					
-				Con_Printf ("Rcon from %s:\n%s\n"
-					, NET_AdrToString (net_from), net_message.data+4);
-
-				SV_BeginRedirect (RD_PACKET, LANGDEFAULT);
-
-				remaining[0] = 0;
-
-				for (i=2 ; i<Cmd_Argc() ; i++)
+				c2 = strchr(c2, ':');
+				if (!c2)
+					break;
+				colon = c2;
+				c2++;
+			}
+			if (colon)	//oh, could this be a specific username?
+			{
+				*colon = '\0';
+				colon++;
+				rid = Rank_GetPlayerID(s, atoi(colon), false, true);
+				if (rid)
 				{
-					if (strlen(remaining)+strlen(Cmd_Argv(i))>=sizeof(remaining)-2)
-					{
-						Con_Printf("Rcon was too long\n");
-						SV_EndRedirect ();
-						Con_Printf ("Rcon from %s:\n%s\n"
-							, NET_AdrToString (net_from), "Was too long - possible buffer overflow attempt");
+					if (!Rank_GetPlayerStats(rid, &stats))
 						return;
+
+						
+					Con_Printf ("Rcon from %s:\n%s\n"
+						, NET_AdrToString (net_from), net_message.data+4);
+
+					SV_BeginRedirect (RD_PACKET, LANGDEFAULT);
+
+					remaining[0] = 0;
+
+					for (i=2 ; i<Cmd_Argc() ; i++)
+					{
+						if (strlen(remaining)+strlen(Cmd_Argv(i))>=sizeof(remaining)-2)
+						{
+							Con_Printf("Rcon was too long\n");
+							SV_EndRedirect ();
+							Con_Printf ("Rcon from %s:\n%s\n"
+								, NET_AdrToString (net_from), "Was too long - possible buffer overflow attempt");
+							return;
+						}
+						strcat (remaining, Cmd_Argv(i) );
+						strcat (remaining, " ");
 					}
-					strcat (remaining, Cmd_Argv(i) );
-					strcat (remaining, " ");
+
+					Cmd_ExecuteString (remaining, stats.trustlevel);
+
+					SV_EndRedirect ();
+					return;
 				}
-
-				Cmd_ExecuteString (remaining, stats.trustlevel);
-
-				SV_EndRedirect ();
-				return;
 			}
 		}
 
@@ -3227,9 +3236,9 @@ qboolean ReloadRanking(client_t *cl, char *newname)
 	int newid;
 	int j;
 	rankstats_t rs;
-	newid = Rank_GetPlayerID(newname, atoi(Info_ValueForKey (cl->userinfo, "_pwd")), true);	//'_' keys are always stripped. On any server. So try and use that so persistant data won't give out the password when connecting to a different server
+	newid = Rank_GetPlayerID(newname, atoi(Info_ValueForKey (cl->userinfo, "_pwd")), true, false);	//'_' keys are always stripped. On any server. So try and use that so persistant data won't give out the password when connecting to a different server
 	if (!newid)
-		newid = Rank_GetPlayerID(newname, atoi(Info_ValueForKey (cl->userinfo, "password")), true);
+		newid = Rank_GetPlayerID(newname, atoi(Info_ValueForKey (cl->userinfo, "password")), true, false);
 	if (newid)
 	{
 		if (cl->rankid && cl->state >= cs_spawned)//apply current stats

@@ -439,7 +439,7 @@ printf("%s\n", cl->outmessagebuffer);
 			extern cvar_t rank_filename;
 
 			token = COM_ParseToken(token);
-			id = Rank_GetPlayerID(cl->username, atoi(com_token), false);
+			id = Rank_GetPlayerID(cl->username, atoi(com_token), false, true);
 			if (!id && *rank_filename.string)
 			{
 				SV_POP3_QueueMessage(cl,	"-ERR User or Password not valid\r\n");
@@ -471,7 +471,7 @@ printf("%s\n", cl->outmessagebuffer);
 #ifndef CLIENTONLY
 				token = COM_ParseToken(token);
 				pass = Rank_GetPass(cl->username);
-				id = Rank_GetPlayerID(cl->username, pass, false);
+				id = Rank_GetPlayerID(cl->username, pass, false, true);
 				if ((!id && *rank_filename.string) || strcmp(MD5_GetPop3APOPString(cl->greeting, va("%i", pass)), com_token))
 				{
 					SV_POP3_QueueMessage(cl,	"-ERR User or Password not valid\r\n");

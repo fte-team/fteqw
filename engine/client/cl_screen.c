@@ -1880,8 +1880,10 @@ void SCR_DrawTwoDimensional(int uimenu, qboolean nohud)
 		else
 			SCR_DrawFPS ();
 		SCR_CheckDrawCenterString ();
+#ifdef RGLQUAKE
 		if (qrenderer == QR_OPENGL)
 			qglTexEnvi ( GL_TEXTURE_ENV, GL_TEXTURE_ENV_MODE, GL_MODULATE );
+#endif
 #ifdef TEXTEDITOR
 		if (editoractive)
 			Editor_Draw();

@@ -85,6 +85,9 @@ cvar_t	cl_solid_players = {"cl_solid_players", "1"};
 
 cvar_t cl_demospeed = {"cl_demospeed", "0"};
 
+
+cvar_t	cl_indepphysics = {"cl_indepphysics", "0"};
+
 cvar_t  localid = {"localid", ""};
 
 static qboolean allowremotecmd = true;
@@ -504,12 +507,22 @@ void CL_CheckForResend (void)
 	{
 		Q_strncpyz (cls.servername, "internalserver", sizeof(cls.servername));
 		cls.state = ca_disconnected;
-#ifdef Q2CLIENT
-		if (!svprogfuncs)
-			cls.q2server = true;
-		else
-			cls.q2server = false;
+		switch (svs.gametype)
+		{
+#ifdef Q3CLIENT
+		case GT_QUAKE3:
+			cls.q2server = 2;
+			break;
 #endif
+#ifdef Q2CLIENT
+		case GT_QUAKE2:
+			cls.q2server = true;
+			break;
+#endif
+		default:
+			cls.q2server = false;
+			break;
+		}
 			
 		CL_SendConnectPacket (svs.fteprotocolextensions, false);
 		return;
@@ -1817,7 +1830,8 @@ client_connect:	//fixme: make function
 #ifdef NQPROT
 		cls.netchan.qsocket = cls.netcon;
 #endif
-		CL_SendClientCommand("new");
+		if (cls.q2server < 2)
+			CL_SendClientCommand("new");
 		cls.state = ca_connected;
 		Con_TPrintf (TLC_CONNECTED);
 		allowremotecmd = false; // localid required now for remote cmds
@@ -2682,6 +2696,8 @@ void Host_Frame (float time)
 
 	RSpeedRemark();
 
+	CL_UseIndepPhysics(!!cl_indepphysics.value);
+
 	CL_AllowIndependantSendCmd(false);
 
 	if (cls.downloadtype == dl_none && !*cls.downloadname && cl.downloadlist)
@@ -2701,7 +2717,9 @@ void Host_Frame (float time)
 	}
 	else
 	{
-		CL_SendCmd ();
+		extern qboolean runningindepphys;
+		if (!runningindepphys)
+			CL_SendCmd ();
 
 		if (cls.state == ca_onserver && cl.validsequence && cl.worldmodel)
 		{	// first update is the final signon stage

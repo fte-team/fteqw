@@ -84,6 +84,7 @@ qboolean Cmd_Exists (char *cmd_name);
 // used by the cvar code to check for cvar / command name overlap
 
 char *Cmd_CompleteCommand (char *partial, qboolean fullonly, int matchnum);
+qboolean Cmd_IsCommand (char *line);
 // attempts to match a partial command for automatic command line completion
 // returns NULL if nothing fits
 
@@ -91,6 +92,8 @@ int		Cmd_Argc (void);
 char	*Cmd_Argv (int arg);
 char	*Cmd_Args (void);
 extern int	Cmd_ExecLevel;
+
+extern cvar_t cmd_gamecodelevel, cmd_allowaccess;
 // The functions that execute commands get their parameters with these
 // functions. Cmd_Argv () will return an empty string, not a NULL
 // if arg > argc, so string operations are allways safe.

@@ -3421,7 +3421,9 @@ void CL_ParseServerMessage (void)
 
 //
 // if recording demos, copy the message out
-//
+
+
+	//
 	if (cl_shownet.value == 1)
 		Con_TPrintf (TL_INT_SPACE,net_message.cursize);
 	else if (cl_shownet.value == 2)

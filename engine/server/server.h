@@ -1027,7 +1027,7 @@ typedef struct {
 	rankstats_t s;	
 } rankinfo_t;
 
-int Rank_GetPlayerID(char *name, int pwd, qboolean allowcreate);
+int Rank_GetPlayerID(char *name, int pwd, qboolean allowcreate, qboolean requirepasswordtobeset);
 void Rank_SetPlayerStats(int id, rankstats_t *stats);
 rankstats_t *Rank_GetPlayerStats(int id, rankstats_t *buffer);
 rankinfo_t *Rank_GetPlayerInfo(int id, rankinfo_t *buffer);

@@ -1116,9 +1116,9 @@ void R_DrawGAliasModel (entity_t *e)
 	VectorAdd (e->origin, clmodel->mins, mins);
 	VectorAdd (e->origin, clmodel->maxs, maxs);
 
-//	if (!(e->flags & Q2RF_WEAPONMODEL))
-//		if (R_CullBox (mins, maxs))
-//			return;
+	if (!(e->flags & Q2RF_WEAPONMODEL))
+		if (R_CullBox (mins, maxs))
+			return;
 
 	if (!(r_refdef.flags & 1))	//RDF_NOWORLDMODEL
 	{

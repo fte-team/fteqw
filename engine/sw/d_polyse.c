@@ -1183,14 +1183,13 @@ void D_PolysetDraw16 (void)
 
 	a_spans = (spanpackage_t *)
 			(((long)&spans[0] + CACHE_SIZE - 1) & ~(CACHE_SIZE - 1));
-
-#if	!id386
+/*
 	if (r_affinetridesc.drawtype)
 	{
-		D_DrawSubdiv ();
+		D_DrawNonSubdiv ();	//hrm.
 	}
 	else
-#endif
+		*/
 	{
 		D_DrawNonSubdiv ();
 	}

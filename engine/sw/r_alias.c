@@ -395,40 +395,18 @@ void R_AliasSetUpTransform (int trivial_accept)
 	float			rotationmatrix[3][4], t2matrix[3][4];
 	static float	tmatrix[3][4];
 	static float	viewmatrix[3][4];
-	vec3_t			angles;
-
-// TODO: should really be stored with the entity instead of being reconstructed
-// TODO: should use a look-up table
-// TODO: could cache lazily, stored in the entity
-
-	angles[ROLL] = currententity->angles[ROLL];
-	angles[PITCH] = -currententity->angles[PITCH];
-	angles[YAW] = currententity->angles[YAW];
-	AngleVectors (angles, alias_forward, alias_right, alias_up);
-
-	tmatrix[0][0] = currententity->scale;
-	tmatrix[1][1] = currententity->scale;
-	tmatrix[2][2] = currententity->scale;
-
-	tmatrix[0][3] = 0;
-	tmatrix[1][3] = 0;
-	tmatrix[2][3] = 0;
-
-// TODO: can do this with simple matrix rearrangement
 
 	for (i=0 ; i<3 ; i++)
 	{
-		t2matrix[i][0] = alias_forward[i];
-		t2matrix[i][1] = -alias_right[i];
-		t2matrix[i][2] = alias_up[i];
+		rotationmatrix[i][0] = currententity->axis[0][i]*currententity->scale;
+		rotationmatrix[i][1] = currententity->axis[1][i]*currententity->scale;
+		rotationmatrix[i][2] = currententity->axis[2][i]*currententity->scale;
 	}
 
-	t2matrix[0][3] = -modelorg[0];
-	t2matrix[1][3] = -modelorg[1];
-	t2matrix[2][3] = -modelorg[2];
+	rotationmatrix[0][3] = -modelorg[0];
+	rotationmatrix[1][3] = -modelorg[1];
+	rotationmatrix[2][3] = -modelorg[2];
 
-// FIXME: can do more efficiently than full concatenation
-	R_ConcatTransforms (t2matrix, tmatrix, rotationmatrix);
 
 // TODO: should be global, set when vright, etc., set
 	VectorCopy (vright, viewmatrix[0]);
@@ -440,7 +418,26 @@ void R_AliasSetUpTransform (int trivial_accept)
 //	viewmatrix[1][3] = 0;
 //	viewmatrix[2][3] = 0;
 
-	R_ConcatTransforms (viewmatrix, rotationmatrix, aliastransform);
+	if (currententity->flags & Q2RF_WEAPONMODEL)
+	{	//rotate viewmodel to view first
+		float	vmmatrix[3][4];
+		for (i=0 ; i<3 ; i++)
+		{
+			t2matrix[i][0] = cl.viewent[r_refdef.currentplayernum].axis[0][i];
+			t2matrix[i][1] = cl.viewent[r_refdef.currentplayernum].axis[1][i];
+			t2matrix[i][2] = cl.viewent[r_refdef.currentplayernum].axis[2][i];
+		}
+
+		t2matrix[0][3] = cl.viewent[r_refdef.currentplayernum].origin[0];
+		t2matrix[1][3] = cl.viewent[r_refdef.currentplayernum].origin[1];
+		t2matrix[2][3] = cl.viewent[r_refdef.currentplayernum].origin[2];
+
+		R_ConcatTransforms (rotationmatrix, t2matrix, vmmatrix);
+		R_ConcatTransforms (viewmatrix, vmmatrix, aliastransform);
+	}
+	else
+		R_ConcatTransforms (viewmatrix, rotationmatrix, aliastransform);
+
 
 // do the scaling up of x and y to screen coordinates as part of the transform
 // for the unclipped case (it would mess up clipping in the clipped case).
@@ -749,9 +746,9 @@ void R_AliasSetupLighting (alight_t *plighting)
 	r_shadelight *= VID_GRADES;
 
 // rotate the lighting vector into the model's frame of reference
-	r_plightvec[0] = DotProduct (plighting->plightvec, alias_forward);
-	r_plightvec[1] = -DotProduct (plighting->plightvec, alias_right);
-	r_plightvec[2] = DotProduct (plighting->plightvec, alias_up);
+	r_plightvec[0] = DotProduct (plighting->plightvec, currententity->axis[0]);
+	r_plightvec[1] = DotProduct (plighting->plightvec, currententity->axis[1]);
+	r_plightvec[2] = DotProduct (plighting->plightvec, currententity->axis[2]);
 }
 
 /*

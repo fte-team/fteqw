@@ -348,11 +348,15 @@ void Rank_SetPlayerStats(int id, rankstats_t *stats)
 	}	
 }
 
-int Rank_GetPlayerID(char *name, int pwd, qboolean allowadd)
+int Rank_GetPlayerID(char *name, int pwd, qboolean allowadd, qboolean requirepasswordtobeset)
 {
 	rankstats_t rs;
 	rankheader_t rh;
 	int id;
+
+	if (requirepasswordtobeset)
+		if (!pwd)
+			return 0;
 
 	if (!Rank_OpenRankings())
 		return 0;
@@ -364,7 +368,11 @@ int Rank_GetPlayerID(char *name, int pwd, qboolean allowadd)
 		if (!NAMECMP(rh.name, name))
 		{
 			if (rh.pwd == pwd || !rh.pwd)
+			{
+				if (!rh.pwd && requirepasswordtobeset)
+					return 0;
 				return id;
+			}
 			return 0;
 		}
 		id = rh.next;

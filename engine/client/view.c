@@ -80,7 +80,7 @@ cvar_t  cl_crossx = {"cl_crossx", "0", NULL, CVAR_ARCHIVE};
 cvar_t  cl_crossy = {"cl_crossy", "0", NULL, CVAR_ARCHIVE};
 cvar_t	crosshaircorrect = {"crosshaircorrect", "0", NULL, CVAR_SEMICHEAT};
 cvar_t	crosshairimage = {"crosshairimage", ""};
-cvar_t	crosshairalpha = {"crosshairalpha", ""};
+cvar_t	crosshairalpha = {"crosshairalpha", "1"};
 
 cvar_t	gl_cshiftpercent = {"gl_cshiftpercent", "100"};
 

@@ -1957,6 +1957,7 @@ CL_Init
 void CL_Init (void)
 {
 	extern void CL_Say_f (void);
+	extern void CL_SayTeam_f (void);
 	extern	cvar_t		baseskin;
 	extern	cvar_t		noskins;
 	char st[80];
@@ -2124,7 +2125,7 @@ void CL_Init (void)
 	Cmd_AddCommand ("pause", NULL);
 	Cmd_AddCommand ("say", CL_Say_f);
 	Cmd_AddCommand ("sayone", CL_Say_f);
-	Cmd_AddCommand ("say_team", CL_Say_f);
+	Cmd_AddCommand ("say_team", CL_SayTeam_f);
 #ifdef CLIENTONLY
 	Cmd_AddCommand ("serverinfo", NULL);
 #else

@@ -1095,7 +1095,9 @@ void SVC_DirectConnect
 	numssclients = 1;
 	if (atoi(Cmd_Argv(0)+7))
 	{
+#ifdef NQPROT
 		if (!socket)
+#endif		
 			numssclients = atoi(Cmd_Argv(0)+7);
 		if (numssclients<1)
 		{
@@ -1259,8 +1261,9 @@ void SVC_DirectConnect
 				nextuserid--;
 				return;
 			}
-
+#ifdef NQPROT
 			if (!socket)
+#endif	
 			{
 				Con_Printf ("%s:reconnect\n", NET_AdrToString (adr));
 //				SV_DropClient (cl);

@@ -19,9 +19,9 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 */
 // r_surf.c: surface-related refresh code
 
+#include "quakedef.h"
 #define SWSTAINS
 
-#include "quakedef.h"
 #include "r_local.h"
 #ifdef SWSTAINS
 #include "d_local.h"

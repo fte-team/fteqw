@@ -30,6 +30,15 @@ void GL_SelectTexture (GLenum target)
 		qglSelectTextureSGIS(target);
 }
 
+void GL_CheckTMUIs0(void)
+{
+	if (gl_state.currenttmu != 0)
+	{
+		Con_Printf("TMU is not 0\n");
+		GL_SelectTexture(mtexid0);
+	}
+}
+
 void GL_MBind( GLenum target, int texnum )
 {
 	GL_SelectTexture( target );
@@ -45,6 +54,7 @@ void GL_Bind (int texnum)
 {
 	if (gl_state.currenttextures[gl_state.currenttmu] == texnum)
 		return;
+
 	gl_state.currenttextures[gl_state.currenttmu] = texnum;
 
 	bindTexFunc (GL_TEXTURE_2D, texnum);

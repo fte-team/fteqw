@@ -1186,6 +1186,11 @@ void Key_Event (int key, qboolean down)
 			break;
 #endif
 		case key_game:
+			if (media_filmtype)
+			{
+				Media_PlayFilm("");
+				break;
+			}
 		case key_console:
 			M_ToggleMenu_f ();
 			break;

@@ -3071,7 +3071,7 @@ void R_DrawParticles (void)
 		
 		glDisable(GL_ALPHA_TEST);
 		glEnable (GL_BLEND);
-		glTexEnvf(GL_TEXTURE_ENV, GL_TEXTURE_ENV_MODE, GL_MODULATE);
+		GL_TexEnv(GL_MODULATE);
 		glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
 
 		glBegin(GL_QUADS);

@@ -333,6 +333,7 @@ int			numvertexes;
 vec2_t		*map_vertstmexcoords;
 vec2_t		*map_vertlstmexcoords;
 byte_vec4_t *map_colors_array;
+vec3_t		*map_normals_array;
 
 #ifdef Q3SHADERS
 typedef struct {
@@ -1903,6 +1904,7 @@ void CModQ3_LoadVertexes (lump_t *l)
 {
 	q3dvertex_t	*in;
 	vec4_t		*out;
+	vec3_t		*nout;
 	int			i, count, j;
 	vec2_t		*lmout, *stout;
 	byte_vec4_t *cout;
@@ -1919,10 +1921,12 @@ void CModQ3_LoadVertexes (lump_t *l)
 	stout = Hunk_Alloc ( count*sizeof(*stout) );
 	lmout = Hunk_Alloc ( count*sizeof(*lmout) );
 	cout = Hunk_Alloc ( count*sizeof(*cout) );
+	nout = Hunk_Alloc ( count*sizeof(*nout) );
 	map_verts = out;
 	map_vertstmexcoords = stout;
 	map_vertlstmexcoords = lmout;
 	map_colors_array = cout;
+	map_normals_array = nout;
 	numvertexes = count;
 
 	for ( i=0 ; i<count ; i++, in++)
@@ -1930,6 +1934,7 @@ void CModQ3_LoadVertexes (lump_t *l)
 		for ( j=0 ; j < 3 ; j++)
 		{
 			out[i][j] = LittleFloat ( in->point[j] );
+			nout[i][j] = LittleFloat (in->normal[j]);
 		}
 		for ( j=0 ; j < 2 ; j++)
 		{
@@ -2177,7 +2182,7 @@ mesh_t *GL_CreateMeshForPatch ( model_t *mod, q3dface_t *surf )
 	firstvert = LittleLong ( surf->firstvertex );
 	for ( i = 0; i < numverts; i++ ) {
 		VectorCopy ( map_verts[firstvert + i], points[i] );
-//		VectorCopy ( mod->bmodel->normals_array[firstvert + i], normals[i] );
+		VectorCopy ( map_normals_array[firstvert + i], normals[i] );
 		Vector4Scale ( map_colors_array[firstvert + i], (1.0 / 255.0), colors[i] );
 		Vector2Copy ( map_vertstmexcoords[firstvert + i], tex_st[i] );
 		Vector2Copy ( map_vertlstmexcoords[firstvert + i], lm_st[i] );
@@ -2376,8 +2381,8 @@ continue;
 
 #ifdef Q3SHADERS
 			out->mesh = Hunk_Alloc(sizeof(mesh_t) + (sizeof(vec3_t)) * numverts);
-			out->mesh->normals_array= (vec3_t *)(out->mesh+1);
-			out->mesh->colors_array	= map_colors_array + LittleLong(in->firstindex);
+			out->mesh->normals_array= map_normals_array + LittleLong(in->firstvertex);
+			out->mesh->colors_array	= map_colors_array + LittleLong(in->firstvertex);
 			out->mesh->indexes		= map_surfindexes + LittleLong(in->firstindex);
 			out->mesh->xyz_array	= map_verts + LittleLong(in->firstvertex);
 			out->mesh->st_array		= map_vertstmexcoords + LittleLong(in->firstvertex);

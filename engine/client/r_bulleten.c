@@ -274,7 +274,7 @@ void R_SetupBulleten (void)
 player_info_t	*s;
 	char text[256];
 
-	if (bul_norender.value || cl.paused) //don't scroll when paused
+	if (bul_norender.value || cl.paused || !bulletentexture) //don't scroll when paused
 		return;
 
 	bultextpallete = bul_textpalette.value * 16;

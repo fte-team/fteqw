@@ -1315,6 +1315,21 @@ void SV_Begin_f (void)
 
 //=============================================================================
 
+int buffer;
+void SV_NextChunkedDownload(int chunknum)
+{
+#define CHUNKSIZE 1024
+	char buffer[1024];
+	if (host_client->datagram.cursize + CHUNKSIZE+5 > host_client->datagram.maxsize)
+		return;	//choked!
+	fseek (host_client->download, chunknum*CHUNKSIZE, SEEK_SET);
+	fread (buffer, 1, CHUNKSIZE, host_client->download);
+
+	MSG_WriteByte(&host_client->datagram, svc_download);
+	MSG_WriteLong(&host_client->datagram, chunknum);
+	SZ_Write(&host_client->datagram, buffer, CHUNKSIZE);
+}
+
 /*
 ==================
 SV_NextDownload_f
@@ -1329,6 +1344,12 @@ void SV_NextDownload_f (void)
 
 	if (!host_client->download)
 		return;
+
+	if (host_client->fteprotocolextensions & PEXT_CHUNKEDDOWNLOADS)
+	{
+		SV_NextChunkedDownload(atoi(Cmd_Argv(1)));
+		return;
+	}
 
 	r = host_client->downloadsize - host_client->downloadcount;
 	/*
@@ -1550,9 +1571,19 @@ void SV_BeginDownload_f(void)
 // hacked by zoid to allow more conrol over download
 	if (!SV_AllowDownload(name))
 	{	// don't allow anything with .. path
-		ClientReliableWrite_Begin (host_client, host_client->isq2client?svcq2_download:svc_download, 4);
-		ClientReliableWrite_Short (host_client, -1);
-		ClientReliableWrite_Byte (host_client, 0);
+		if (host_client->fteprotocolextensions & PEXT_CHUNKEDDOWNLOADS)
+		{
+			ClientReliableWrite_Begin (host_client, svc_download, 10+strlen(name));
+			ClientReliableWrite_Long (host_client, -1);
+			ClientReliableWrite_Long (host_client, -2);
+			ClientReliableWrite_String (host_client, name);
+		}
+		else
+		{
+			ClientReliableWrite_Begin (host_client, host_client->isq2client?svcq2_download:svc_download, 4);
+			ClientReliableWrite_Short (host_client, -1);
+			ClientReliableWrite_Byte (host_client, 0);
+		}
 		return;
 	}
 
@@ -1585,10 +1616,28 @@ void SV_BeginDownload_f(void)
 		}
 
 		Sys_Printf ("Couldn't download %s to %s\n", name, host_client->name);
-		ClientReliableWrite_Begin (host_client, host_client->isq2client?svcq2_download:svc_download, 4);
-		ClientReliableWrite_Short (host_client, -1);
-		ClientReliableWrite_Byte (host_client, 0);
+		if (host_client->fteprotocolextensions & PEXT_CHUNKEDDOWNLOADS)
+		{
+			ClientReliableWrite_Begin (host_client, svc_download, 10+strlen(name));
+			ClientReliableWrite_Long (host_client, -1);
+			ClientReliableWrite_Long (host_client, -1);
+			ClientReliableWrite_String (host_client, name);
+		}
+		else
+		{
+			ClientReliableWrite_Begin (host_client, host_client->isq2client?svcq2_download:svc_download, 4);
+			ClientReliableWrite_Short (host_client, -1);
+			ClientReliableWrite_Byte (host_client, 0);
+		}
 		return;
+	}
+
+	if (host_client->fteprotocolextensions & PEXT_CHUNKEDDOWNLOADS)
+	{
+		ClientReliableWrite_Begin (host_client, svc_download, 10+strlen(name));
+		ClientReliableWrite_Long (host_client, -1);
+		ClientReliableWrite_Long (host_client, host_client->downloadsize);
+		ClientReliableWrite_String (host_client, name);
 	}
 
 	SV_NextDownload_f ();

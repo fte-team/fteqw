@@ -1267,6 +1267,19 @@ void CL_Packet_f (void)
 		return;
 	}
 
+	if (Cmd_FromServer())
+	{
+		if (adr.type == NA_IP)
+			if (adr.ip[0] == 127)
+			if (adr.ip[1] == 0)
+			if (adr.ip[2] == 0)
+			if (adr.ip[3] == 1)
+			{
+				Con_Printf ("^b^1Server is broken. Ignoring 'realip' packet request\n");
+				return;
+			}
+	}
+
 	in = Cmd_Argv(2);
 	out = send+4;
 	send[0] = send[1] = send[2] = send[3] = 0xff;

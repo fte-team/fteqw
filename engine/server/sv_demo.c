@@ -1,4 +1,7 @@
 #include "qwsvdef.h"
+
+#ifndef CLIENTONLY
+
 void NPP_MVDWriteByte(qbyte data, client_t *to, int broadcast);
 
 void SV_New_f (void);
@@ -582,3 +585,4 @@ void SV_Demo_Init(void)
 //	Cmd_AddCommand("svrecord", SV_RecordDemo_f);
 }
 
+#endif

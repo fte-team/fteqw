@@ -20,6 +20,9 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 // sv_user.c -- server code for moving users
 
 #include "qwsvdef.h"
+
+#ifndef CLIENTONLY
+
 #include <ctype.h>
 #define Q2EDICT_NUM(i) (q2edict_t*)((char *)ge->edicts+i*ge->edict_size)
 #define Q2NUM_FOR_EDICT(ent) (((char *)ent - (char *)ge->edicts) / ge->edict_size)
@@ -4814,3 +4817,4 @@ void SV_ClientThink (void)
 	SV_AirMove ();
 }
 
+#endif

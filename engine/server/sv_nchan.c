@@ -20,6 +20,7 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 // sv_nchan.c, user reliable data stream writes
 
 #include "qwsvdef.h"
+#ifndef CLIENTONLY
 
 // check to see if client block will fit, if not, rotate buffers
 void ClientReliableCheckBlock(client_t *cl, int maxsize)
@@ -257,4 +258,6 @@ void ClientReliableWrite_ZLib(client_t *cl, void *data, int len)
 
 //	return i;
 }
+#endif
+
 #endif

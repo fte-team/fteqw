@@ -3,6 +3,10 @@
 #include "shader.h"
 #include "hash.h"
 
+#ifdef ZYMOTICMODELS
+#define SKELETALMODELS
+#endif
+
 //FIXME
 typedef struct
 {
@@ -95,8 +99,9 @@ typedef struct {
 
 //frame is an index into this
 typedef struct {
+#ifdef SKELETALMODELS
 	qboolean isskeletal;
-
+#endif
 	int numposes;
 	float rate;
 	int poseofs;
@@ -110,7 +115,7 @@ typedef struct {
 	vec3_t		scale_origin;
 } galiaspose_t;
 
-
+#ifdef SKELETALMODELS
 typedef struct {
 	int parent;
 } galiasbone_t;
@@ -121,6 +126,7 @@ typedef struct {
 	int boneindex;
 	vec4_t org;
 } galisskeletaltransforms_t;
+#endif
 
 //we can't be bothered with animating skins.
 //We'll load up to four of them but after that you're on your own
@@ -277,6 +283,7 @@ static void R_LerpFrames(mesh_t *mesh, galiaspose_t *p1, galiaspose_t *p2, float
 	}
 }
 
+#ifdef SKELETALMODELS
 static void R_BuildSkeletalMesh(mesh_t *mesh, float *plerp, float **pose, int poses, galiasbone_t *bones, int bonecount, galisskeletaltransforms_t *weights, int numweights)
 {
 	float bonepose[256][12];
@@ -340,6 +347,7 @@ static void R_BuildSkeletalMesh(mesh_t *mesh, float *plerp, float **pose, int po
 		out[2] += v->org[0] * matrix[8] + v->org[1] * matrix[9] + v->org[2] * matrix[10] + v->org[3] * matrix[11];
 	}
 }
+#endif
 
 static void R_GAliasAddDlights(mesh_t *mesh, vec3_t org, vec3_t angles)
 {
@@ -486,6 +494,7 @@ static qboolean R_GAliasBuildMesh(mesh_t *mesh, galiasinfo_t *inf, int frame1, i
 //we don't support meshes with one pose skeletal and annother not.
 //we don't support meshes with one group skeletal and annother not.
 
+#ifdef SKELETALMODELS
 	if (g1->isskeletal)
 	{
 		int l=0;
@@ -531,6 +540,7 @@ static qboolean R_GAliasBuildMesh(mesh_t *mesh, galiasinfo_t *inf, int frame1, i
 		R_BuildSkeletalMesh(mesh, plerp, pose, l, (galiasbone_t *)((char*)inf+inf->ofsbones), inf->numbones, (galisskeletaltransforms_t *)((char*)inf+inf->ofstransforms), inf->numtransforms);
 		return false;
 	}
+#endif
 
 	if (g1 == g2)	//lerping within group is only done if not changing group
 	{
@@ -2846,7 +2856,7 @@ void GL_LoadQ3Model(model_t *mod, void *buffer)
 
 
 
-
+#ifdef ZYMOTICMODELS
 
 
 typedef struct zymlump_s
@@ -3102,3 +3112,5 @@ void GLMod_LoadZymoticModel(model_t *mod, void *buffer)
 
 	Hunk_FreeToLowMark (hunkstart);
 }
+
+#endif

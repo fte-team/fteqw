@@ -1,5 +1,7 @@
 #include "qwsvdef.h"
 
+#ifndef CLIENTONLY
+
 #if defined(_WIN32) && !defined(MINGW)
 #define inline //_inline	//fix for stupid VC
 #endif
@@ -864,4 +866,5 @@ void Rank_Flush (void)	//new game dir?
 		rankfile=NULL;
 	}
 }
+#endif
 #endif

@@ -21,6 +21,8 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 
 #include "qwsvdef.h"
 
+#ifndef CLIENTONLY
+
 /*
 =============
 SV_CheckBottom
@@ -447,3 +449,4 @@ void SV_MoveToGoal (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 	}
 }
 
+#endif

@@ -1,5 +1,7 @@
 #include "quakedef.h"
 
+#ifdef MENU_DAT
+
 #ifdef RGLQUAKE
 #include "glquake.h"
 #endif
@@ -1483,3 +1485,4 @@ qboolean MP_Toggle(void)
 
 	return true;
 }
+#endif

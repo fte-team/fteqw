@@ -19,6 +19,8 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 */
 #include "qwsvdef.h"
 
+#ifndef CLIENTONLY
+
 qboolean	sv_allow_cheats;
 
 int fp_messages=4, fp_persecond=4, fp_secondsdead=10;
@@ -1583,3 +1585,5 @@ void SV_InitOperatorCommands (void)
 
 	cl_warncmd.value = 1;
 }
+
+#endif

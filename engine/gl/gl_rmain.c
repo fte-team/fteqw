@@ -149,7 +149,7 @@ qboolean R_CullBox (vec3_t mins, vec3_t maxs)
 	int		i;
 
 	for (i=0 ; i<4 ; i++)
-		if (BoxOnPlaneSide (mins, maxs, &frustum[i]) == 2)
+		if (BOX_ON_PLANE_SIDE (mins, maxs, &frustum[i]) == 2)
 			return true;
 	return false;
 }
@@ -163,7 +163,7 @@ qboolean R_CullSphere (vec3_t org, float radius)
 	for (i=0 ; i<4 ; i++)
 	{
 		d = DotProduct(frustum[i].normal, org)-frustum[i].dist;
-		if (d < -radius)
+		if (d <= -radius)
 			return true;
 	}
 	return false;

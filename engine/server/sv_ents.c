@@ -20,6 +20,8 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 
 #include "qwsvdef.h"
 
+#ifndef CLIENTONLY
+
 void SV_CleanupEnts(void);
 
 extern qboolean pr_udc_exteffect_enabled;
@@ -2226,3 +2228,4 @@ void SV_CleanupEnts(void)
 	}
 	needcleanup=0;
 }
+#endif

@@ -469,8 +469,10 @@ void Mod_ParseInfoFromEntityLump(char *data)	//actually, this should be in the m
 
 	wads[0] = '\0';
 
+#ifndef CLIENTONLY
 	if (isDedicated)	//don't bother
 		return;
+#endif
 
 	R_SetSky("", 0, r_origin);
 

@@ -755,7 +755,9 @@ void Sys_SendKeyEvents (void)
 
 	if (!qrenderer)
 	{
+#ifndef CLIENTONLY
 		SV_GetConsoleCommands ();
+#endif
 		return;
 	}
 
@@ -994,6 +996,7 @@ int WINAPI WinMain (HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLin
     /* main window message loop */
 	while (1)
 	{
+#ifndef CLIENTONLY
 		if (isDedicated)
 		{
 			NET_Sleep(100, false);
@@ -1006,6 +1009,7 @@ int WINAPI WinMain (HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLin
 			SV_Frame (time);
 		}
 		else
+#endif
 		{
 	// yield the CPU for a little while when paused, minimized, or not the focus
 			if (((cl.paused && (!ActiveApp && !DDActive)) || Minimized || block_drawing) && !media_filmtype)

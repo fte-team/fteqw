@@ -20,7 +20,7 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 // sv_phys.c
 
 #include "qwsvdef.h"
-
+#ifndef CLIENTONLY
 extern nqglobalvars_t realpr_nqglobal_struct;
 
 /*
@@ -2053,3 +2053,4 @@ void SV_SetMoveVars(void)
 	movevars.waterfriction	    = sv_waterfriction.value;	 
 	movevars.entgravity			= 1.0;
 }
+#endif

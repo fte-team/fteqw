@@ -76,7 +76,7 @@ qboolean Q1BSP_RecursiveHullCheck (hull_t *hull, int num, float p1f, float p2f, 
 	}
 
 	if (num < hull->firstclipnode || num > hull->lastclipnode)
-		SV_Error ("Q1BSP_RecursiveHullCheck: bad node number");
+		Host_Error ("Q1BSP_RecursiveHullCheck: bad node number");
 
 //
 // find the point distances
@@ -268,7 +268,7 @@ Rendering functions (Client only)
 
 Server only functions
 */
-
+#ifndef CLIENTONLY
 
 extern int		fatbytes;
 extern qbyte	fatpvs[(MAX_MAP_LEAFS+1)/4];
@@ -386,6 +386,7 @@ void Q1BSP_FindTouchedLeafs(edict_t *ent)
 		Q1BSP_RFindTouchedLeafs (ent, sv.worldmodel->nodes);
 }
 
+#endif
 /*
 Server only functions
 

@@ -21,6 +21,7 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 
 #include "qwsvdef.h"
 
+#ifndef CLIENTONLY
 /*
 
 entities never clip against themselves, or their owner
@@ -1888,3 +1889,4 @@ trace_t SVQ2_Move (vec3_t start, vec3_t mins, vec3_t maxs, vec3_t end, int type,
 }
 #endif
 
+#endif

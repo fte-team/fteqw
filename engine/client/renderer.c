@@ -1275,6 +1275,7 @@ qboolean R_ApplyRenderer (rendererstate_t *newr)
 {
 	int i, j;
 	extern model_t *loadmodel;
+	extern int host_hunklevel;
 
 	if (newr->bpp == -1)
 		return false;
@@ -1319,7 +1320,9 @@ qboolean R_ApplyRenderer (rendererstate_t *newr)
 	if (qrenderer)	//graphics stuff only when not dedicated
 	{
 		qbyte *data;
+#ifndef CLIENTONLY
 		isDedicated = false;
+#endif
 		v_gamma.modified = true;	//force the gamma to be reset
 
 		Con_Printf("Setting mode %i*%i*%i*%i\n", newr->width, newr->height, newr->bpp, newr->rate);
@@ -1421,6 +1424,9 @@ TRACE(("dbg: R_ApplyRenderer: screen inited\n"));
 	}
 	else
 	{
+#ifdef CLIENTONLY
+		Host_Error("Tried setting dedicated mode\n");
+#else
 TRACE(("dbg: R_ApplyRenderer: isDedicated = true\n"));
 		isDedicated = true;
 		if (cls.state)
@@ -1432,6 +1438,7 @@ TRACE(("dbg: R_ApplyRenderer: isDedicated = true\n"));
 		}
 		Sys_InitTerminal();
 		Con_PrintToSys();
+#endif
 	}
 TRACE(("dbg: R_ApplyRenderer: initing mods\n"));
 	Mod_Init();
@@ -1447,6 +1454,7 @@ TRACE(("dbg: R_ApplyRenderer: initing bulletein boards\n"));
 		R_PreNewMap();
 	}
 
+#ifndef CLIENTONLY
 	if (sv.worldmodel)
 	{
 		edict_t *ent;
@@ -1514,6 +1522,7 @@ TRACE(("dbg: R_ApplyRenderer: clearing world\n"));
 		}
 #endif
 	}
+#endif
 #ifdef PLUGINS
 	Plug_ResChanged();
 #endif
@@ -1616,9 +1625,9 @@ void R_RestartRenderer_f (void)
 {
 	rendererstate_t oldr;
 	rendererstate_t newr;
-
+#ifdef MENU_DAT
 	MP_Shutdown();
-
+#endif
 	memset(&newr, 0, sizeof(newr));
 
 TRACE(("dbg: R_RestartRenderer_f\n"));
@@ -1717,8 +1726,9 @@ TRACE(("dbg: R_RestartRenderer_f\n"));
 	}
 
 	TRACE(("dbg: R_RestartRenderer_f success\n"));
-
+#ifdef MENU_DAT
 	MP_Init();
+#endif
 }
 
 void R_SetRenderer_f (void)

@@ -160,7 +160,9 @@ extern "C" {
 
 #ifndef CLIENTONLY
 #include "progs.h"
+#endif
 #include "world.h"
+#ifndef CLIENTONLY
 //#ifdef Q2SERVER
 #include "q2game.h"
 //#endif

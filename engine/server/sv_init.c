@@ -19,6 +19,7 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 */
 
 #include "qwsvdef.h"
+#ifndef CLIENTONLY
 extern int			total_loading_size, current_loading_size, loading_stage;
 char *T_GetString(int num);
 
@@ -1002,3 +1003,5 @@ void SV_SpawnServer (char *server, char *startspot, qboolean noents, qboolean us
 	SCR_BeginLoadingPlaque();
 #endif
 }
+
+#endif

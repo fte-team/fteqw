@@ -387,6 +387,9 @@ void GLR_AddDynamicLights (msurface_t *surf)
 		if ( !(surf->dlightbits & (1<<lnum) ) )
 			continue;		// not lit by this light
 
+		if (cl_dlights[lnum].nodynamic)
+			continue;
+
 		rad = cl_dlights[lnum].radius;
 		dist = DotProduct (cl_dlights[lnum].origin, surf->plane->normal) -
 				surf->plane->dist;
@@ -451,6 +454,9 @@ void GLR_AddDynamicLightNorms (msurface_t *surf)
 	{
 		if ( !(surf->dlightbits & (1<<lnum) ) )
 			continue;		// not lit by this light
+
+		if (cl_dlights[lnum].nodynamic)
+			continue;
 
 		rad = cl_dlights[lnum].radius;
 		dist = DotProduct (cl_dlights[lnum].origin, surf->plane->normal) -

@@ -18,6 +18,7 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 
 */
 #include "qwsvdef.h"
+#ifndef CLIENTONLY
 #define Q2EDICT_NUM(i) (q2edict_t*)((char *)ge->edicts+i*ge->edict_size)
 
 #ifdef _WIN32
@@ -3465,3 +3466,5 @@ void SV_Init (quakeparms_t *parms)
 
 	}
 }
+
+#endif

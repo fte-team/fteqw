@@ -1555,8 +1555,9 @@ void PPL_BaseBModelTextures(entity_t *e)
 	{
 		for (k=0 ; k<MAX_DLIGHTS ; k++)
 		{
-			if ((cl_dlights[k].die < cl.time) ||
-				(!cl_dlights[k].radius))
+			if (!cl_dlights[k].radius)
+				continue;
+			if (cl_dlights[k].nodynamic)
 				continue;
 
 			currentmodel->funcs.MarkLights (&cl_dlights[k], 1<<k,
@@ -1656,6 +1657,7 @@ void PPL_BaseEntTextures(void)
 	currentmodel = cl.worldmodel;
 }
 
+#ifdef PPL
 static void PPL_GenerateLightArrays(msurface_t *surf, vec3_t relativelightorigin, dlight_t *light)
 {
 	glpoly_t *p;
@@ -1783,7 +1785,7 @@ void PPL_LightTextures(model_t *model, vec3_t modelorigin, dlight_t *light)
 
 			glEnableClientState(GL_COLOR_ARRAY);
 			glColorPointer(3, GL_FLOAT, sizeof(surfvertexarray_t), varray_v->stl);
-			if (t->gl_texturenumbumpmap && gl_mtexarbable>2)
+			if (t->gl_texturenumbumpmap && gl_mtexarbable>3)
 			{
 				GL_MBind(GL_TEXTURE0_ARB, t->gl_texturenumbumpmap);
 				glEnable(GL_TEXTURE_2D);
@@ -1796,7 +1798,7 @@ void PPL_LightTextures(model_t *model, vec3_t modelorigin, dlight_t *light)
 				GL_SelectTexture(GL_TEXTURE1_ARB);
 				GL_BindType(GL_TEXTURE_CUBE_MAP_ARB, normalisationCubeMap);
 				glEnable(GL_TEXTURE_CUBE_MAP_ARB);
-				GL_TexEnv(GL_COMBINE_ARB);	//normalisation cubemap * normalmap
+				GL_TexEnv(GL_COMBINE_ARB);	//normalisation cubemap . normalmap
 				glTexEnvi(GL_TEXTURE_ENV, GL_SOURCE0_RGB_ARB, GL_TEXTURE);
 				glTexEnvi(GL_TEXTURE_ENV, GL_SOURCE1_RGB_ARB, GL_PREVIOUS_ARB);
 				glTexEnvi(GL_TEXTURE_ENV, GL_COMBINE_RGB_ARB, GL_DOT3_RGB_ARB);
@@ -1811,12 +1813,24 @@ void PPL_LightTextures(model_t *model, vec3_t modelorigin, dlight_t *light)
 				glTexEnvi(GL_TEXTURE_ENV, GL_OPERAND0_RGB_ARB, GL_SRC_COLOR);
 				glTexEnvi(GL_TEXTURE_ENV, GL_SOURCE1_RGB_ARB, GL_PREVIOUS_ARB);
 				glTexEnvi(GL_TEXTURE_ENV, GL_COMBINE_RGB_ARB, GL_MODULATE);
+
+				GL_MBind(GL_TEXTURE3_ARB, t->gl_texturenum);
+				glEnable(GL_TEXTURE_2D);
+				glEnableClientState(GL_TEXTURE_COORD_ARRAY);
+				glTexCoordPointer(3, GL_FLOAT, sizeof(surfvertexarray_t), varray_v->stw);
 			}
 			else
 			{
-				GL_TexEnv(GL_MODULATE);
-				glDisable(GL_TEXTURE_2D);
+				if (gl_mtexarbable>3)
+				{
+					GL_TexEnv(GL_MODULATE);
+					glDisable(GL_TEXTURE_2D);
+					glDisableClientState(GL_TEXTURE_COORD_ARRAY);
 
+					GL_SelectTexture(GL_TEXTURE2_ARB);
+					glDisable(GL_TEXTURE_2D);
+					glDisableClientState(GL_TEXTURE_COORD_ARRAY);
+				}
 				GL_SelectTexture(GL_TEXTURE1_ARB);
 				GL_TexEnv(GL_MODULATE);
 				glDisableClientState(GL_TEXTURE_COORD_ARRAY);
@@ -1854,6 +1868,16 @@ void PPL_LightTextures(model_t *model, vec3_t modelorigin, dlight_t *light)
 			}
 			PPL_FlushArrays();
 		}
+	}
+
+	if (gl_mtexarbable>2)
+	{
+		GL_TexEnv(GL_MODULATE);
+		glDisable(GL_TEXTURE_2D);
+		glDisableClientState(GL_TEXTURE_COORD_ARRAY);
+
+		GL_SelectTexture(GL_TEXTURE2_ARB);
+		glDisableClientState(GL_TEXTURE_COORD_ARRAY);
 	}
 
 	GL_TexEnv(GL_MODULATE);
@@ -1894,7 +1918,7 @@ void PPL_LightBModelTextures(entity_t *e, dlight_t *light)
 
 			glEnableClientState(GL_COLOR_ARRAY);
 			glColorPointer(3, GL_FLOAT, sizeof(surfvertexarray_t), varray_v->stl);
-			if (t->gl_texturenumbumpmap && gl_mtexarbable>2)
+			if (t->gl_texturenumbumpmap && gl_mtexarbable>3)
 			{
 				GL_MBind(GL_TEXTURE0_ARB, t->gl_texturenumbumpmap);
 				glEnable(GL_TEXTURE_2D);
@@ -1922,9 +1946,25 @@ void PPL_LightBModelTextures(entity_t *e, dlight_t *light)
 				glTexEnvi(GL_TEXTURE_ENV, GL_OPERAND0_RGB_ARB, GL_SRC_COLOR);
 				glTexEnvi(GL_TEXTURE_ENV, GL_SOURCE1_RGB_ARB, GL_PREVIOUS_ARB);
 				glTexEnvi(GL_TEXTURE_ENV, GL_COMBINE_RGB_ARB, GL_MODULATE);
+
+				GL_MBind(GL_TEXTURE3_ARB, t->gl_texturenum);
+				glEnable(GL_TEXTURE_2D);
+				glEnableClientState(GL_TEXTURE_COORD_ARRAY);
+				glTexCoordPointer(3, GL_FLOAT, sizeof(surfvertexarray_t), varray_v->stw);
 			}
 			else
 			{
+				if (gl_mtexarbable>3)
+				{
+					GL_TexEnv(GL_MODULATE);
+					glDisable(GL_TEXTURE_2D);
+					glDisableClientState(GL_TEXTURE_COORD_ARRAY);
+
+					GL_SelectTexture(GL_TEXTURE2_ARB);
+					glDisable(GL_TEXTURE_2D);
+					glDisableClientState(GL_TEXTURE_COORD_ARRAY);
+				}
+
 				GL_TexEnv(GL_MODULATE);
 				glDisable(GL_TEXTURE_2D);
 				qglActiveTextureARB(GL_TEXTURE1_ARB);
@@ -1964,6 +2004,17 @@ void PPL_LightBModelTextures(entity_t *e, dlight_t *light)
 			}
 			PPL_FlushArrays();
 		}
+
+	if (gl_mtexarbable>2)
+	{
+		GL_TexEnv(GL_MODULATE);
+		glDisable(GL_TEXTURE_2D);
+		glDisableClientState(GL_TEXTURE_COORD_ARRAY);
+
+		GL_SelectTexture(GL_TEXTURE2_ARB);
+		glDisable(GL_TEXTURE_2D);
+		glDisableClientState(GL_TEXTURE_COORD_ARRAY);
+	}
 
 	GL_TexEnv(GL_MODULATE);
 	glDisable(GL_TEXTURE_2D);
@@ -2034,6 +2085,7 @@ void PPL_DrawEntLighting(dlight_t *light)
 		}
 	}
 }
+#endif
 
 void PPL_FullBrights(model_t *model)
 {
@@ -2178,7 +2230,7 @@ void PPL_DrawEntFullBrights(void)
 
 
 
-
+#ifdef PPL
 
 
 
@@ -3064,6 +3116,35 @@ void PPL_UpdateNodeShadowFrames(qbyte	*lvis)
 #if 1 //DP's stolen code
 static void GL_Scissor (int x, int y, int width, int height)
 {
+#if 0	//visible scissors
+	glMatrixMode(GL_PROJECTION);
+	glPushMatrix();
+	glLoadIdentity();
+	glOrtho  (0, glwidth, glheight, 0, -99999, 99999);
+	glMatrixMode(GL_MODELVIEW);
+	glPushMatrix();
+	glLoadIdentity();
+//	GL_Set2D();
+
+	glColor4f(1,1,1,1);
+	glDisable(GL_DEPTH_TEST);
+	glDisable(GL_SCISSOR_TEST);
+	glColorMask( GL_TRUE, GL_TRUE, GL_TRUE, GL_FALSE );
+	glDisable(GL_TEXTURE_2D);
+	GL_TexEnv(GL_REPLACE);
+
+	glBegin(GL_LINE_LOOP);
+	glVertex2f(x, y);
+	glVertex2f(x+glwidth, y);
+	glVertex2f(x+glwidth, y+glheight);
+	glVertex2f(x, y+glheight);
+	glEnd();
+
+	glMatrixMode(GL_PROJECTION);
+	glPopMatrix();
+	glMatrixMode(GL_MODELVIEW);
+	glPopMatrix();
+#endif
 	qglScissor(x, glheight - (y + height),width,height);
 }
 
@@ -3281,9 +3362,6 @@ void PPL_AddLight(dlight_t *dl)
 	maxs[1] = dl->origin[1] + dl->radius;
 	maxs[2] = dl->origin[2] + dl->radius;
 
-	if (R_CullBox(mins, maxs))
-		return;
-
 	if (PPL_ScissorForBox(mins, maxs))
 		return;	//was culled.
 
@@ -3457,9 +3535,15 @@ void PPL_AddLight(dlight_t *dl)
 	qglDisable(GL_SCISSOR_TEST);
 }
 
+#endif
+
 void PPL_DrawWorld (void)
 {
 	dlight_t *l;
+#if 0
+	dlight_t *lc, *furthestprev;
+	float furthest;
+#endif
 	int i;
 
 	vec3_t mins, maxs;
@@ -3483,10 +3567,12 @@ void PPL_DrawWorld (void)
 //	if (qglGetError())
 //		Con_Printf("GL Error on entities\n");
 
+#ifdef PPL
 	if (r_shadows.value && glStencilFunc)
 	{
 		if (cl.worldmodel->fromgame == fg_quake || cl.worldmodel->fromgame == fg_halflife || cl.worldmodel->fromgame == fg_quake2 /*|| cl.worldmodel->fromgame == fg_quake3*/)
 		{
+//			lc = NULL;
 			for (l = cl_dlights, i=0 ; i<MAX_DLIGHTS ; i++, l++)
 			{
 				if (!l->radius || l->noppl)
@@ -3508,32 +3594,67 @@ void PPL_DrawWorld (void)
 				maxs[2] = l->origin[2] + l->radius;
 				if (R_CullBox(mins, maxs))
 					continue;
-				if (R_CullSphere(l->origin, l->radius))
-					continue;
+//				if (R_CullSphere(l->origin, l->radius*1.1))
+//					continue;
 
+#if 1
 				if (!maxshadowlights--)
-					break;
+					continue;
+#else
+				VectorSubtract(l->origin, r_refdef.vieworg, mins)
+				l->dist = Length(mins);
+				VectorNormalize(mins);
+				l->dist*=1-sqrt(DotProduct(vpn, mins)*DotProduct(vpn, mins));
 
+				l->next = lc;
+				lc = l;
+				maxshadowlights--;
+			}
+			while (maxshadowlights<0)//ooer... we exceeded our quota... strip the furthest ones out.
+			{
+				furthest = lc->dist;
+				furthestprev=NULL;
+				for (l = lc; l->next; l = l->next)
+				{
+					if (l->next->dist > furthest)
+					{
+						furthest = l->next->dist;
+						furthestprev = l;
+					}
+				}
+				if (furthestprev)
+					furthestprev->next = furthestprev->next->next;
+				else
+					lc = lc->next;
+
+				maxshadowlights++;
+			}
+
+			for (l = lc; l; l = l->next)	//we now have our quotaed list
+			{
+#endif
 				if(!l->isstatic)
 				{
-				l->color[0]*=2.5;
-				l->color[1]*=2.5;
-				l->color[2]*=2.5;
+					l->color[0]*=2.5;
+					l->color[1]*=2.5;
+					l->color[2]*=2.5;
 				}
 				TRACE(("dbg: calling PPL_AddLight\n"));
 				PPL_AddLight(l);
 				if(!l->isstatic)
 				{
-				l->color[0]/=2.5;
-				l->color[1]/=2.5;
-				l->color[2]/=2.5;
+					l->color[0]/=2.5;
+					l->color[1]/=2.5;
+					l->color[2]/=2.5;
 				}
 			}
 			glEnable(GL_TEXTURE_2D);
+		
 		}
 
 		glDisableClientState(GL_COLOR_ARRAY);
 	}
+#endif
 
 //	if (qglGetError())
 //		Con_Printf("GL Error on shadow lighting\n");

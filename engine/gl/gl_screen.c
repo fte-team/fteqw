@@ -263,12 +263,26 @@ void GLSCR_UpdateScreen (void)
 
 char *GLVID_GetRGBInfo(int prepadbytes, int *truewidth, int *trueheight)
 {	//returns a BZ_Malloced array
+	extern qboolean gammaworks;
+	int i, c;
 	qbyte *ret = BZ_Malloc(prepadbytes + glwidth*glheight*3);
 
 	glReadPixels (glx, gly, glwidth, glheight, GL_RGB, GL_UNSIGNED_BYTE, ret + prepadbytes); 
 
 	*truewidth = glwidth;
 	*trueheight = glheight;
+
+	if (gammaworks)
+	{
+		c = prepadbytes+glwidth*glheight*3;
+		for (i=prepadbytes ; i<c ; i+=3)
+		{
+			extern qbyte		gammatable[256];
+			ret[i+0] = gammatable[ret[i+0]];
+			ret[i+1] = gammatable[ret[i+1]];
+			ret[i+2] = gammatable[ret[i+2]];
+		}
+	}
 	
 	return ret;
 }

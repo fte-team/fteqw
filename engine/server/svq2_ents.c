@@ -1,5 +1,7 @@
 #include "qwsvdef.h"
 
+#ifndef CLIENTONLY
+
 #define Q2EDICT_NUM(i) (q2edict_t*)((char *)ge->edicts+i*ge->edict_size)
 
 #ifndef Q2SERVER
@@ -772,4 +774,4 @@ void SVQ2_Ents_Init(void)
 }
 #endif
 
-
+#endif

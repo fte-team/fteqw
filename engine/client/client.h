@@ -219,6 +219,8 @@ typedef struct dlight_s
 	float	channelfade[3];
 
 	struct	shadowmesh_s *worldshadowmesh;
+	float	dist;
+	struct dlight_s *next;
 } dlight_t;
 
 typedef struct

@@ -53,9 +53,8 @@ void GL_BindType (int type, int texnum)
 {
 	if (gl_state.currenttextures[gl_state.currenttmu] == texnum)
 		return;
+
 	gl_state.currenttextures[gl_state.currenttmu] = texnum;
-
-
 	bindTexFunc (type, texnum);
 }
 

@@ -67,12 +67,15 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 
 		#define MD3MODELS		//we DO want to use quake3 alias models. This might be a minimal build, but we still want this.
 
+		#define CLIENTONLY
+
 	#else
 
 		#define SIDEVIEWS	4	//enable secondary/reverse views.
 		#define SP2MODELS		//quake2 sprite models
 		#define MD2MODELS		//quake2 alias models
 		#define MD3MODELS		//quake3 alias models
+		#define ZYMOTICMODELS	//zymotic skeletal models.
 		#define HUFFNETWORK		//huffman network compression
 		#define HALFLIFEMODELS	//halflife model support (experimental)
 		#define DOOMWADS		//doom wad/map/sprite support
@@ -99,8 +102,11 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 		#define R_XFLIP			//allow view to be flipped horizontally
 		#define IN_XFLIP		//allow input to be flipped horizontally.
 		#define TEXTEDITOR
+		#define PPL				//per pixel lighting (stencil shadowing)
 
 		#define PLUGINS
+
+		#define MENU_DAT	//support for menu.dat
 
 //		#define VOICECHAT	//experimental
 

@@ -1,5 +1,7 @@
 #include "qwsvdef.h"
 
+#ifndef CLIENTONLY
+
 //#ifdef _DEBUG
 #define NEWSAVEFORMAT
 //#endif
@@ -1117,3 +1119,4 @@ void SV_Loadgame_f (void)
 }
 #endif
 
+#endif

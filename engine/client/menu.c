@@ -205,8 +205,10 @@ M_ToggleMenu_f
 */
 void M_ToggleMenu_f (void)
 {
+#ifdef MENU_DAT
 	if (MP_Toggle())
 		return;
+#endif
 	m_entersound = true;
 
 	if (key_dest == key_menu)
@@ -797,7 +799,9 @@ void M_Menu_Particles_f (void);
 static qboolean internalmenusregistered;
 void M_Init_Internal (void)
 {
+#ifdef MENU_DAT
 	MP_Shutdown();
+#endif
 
 	if (internalmenusregistered)
 		return;
@@ -972,9 +976,11 @@ void M_Draw (int uimenu)
 		Plug_Menu_Event (0, (int)(realtime*1000));
 		break;
 #endif
+#ifdef MENU_DAT
 	case m_menu_dat:
 		MP_Draw();
 		return;
+#endif
 	}
 
 	if (m_entersound)
@@ -1025,10 +1031,11 @@ void M_Keydown (int key)
 		Plug_Menu_Event (1, key);
 		return;
 #endif
-
+#ifdef MENU_DAT
 	case m_menu_dat:
 		MP_Keydown(key);
 		return;
+#endif
 	}
 }
 
@@ -1045,9 +1052,11 @@ void M_Keyup (int key)
 		Plug_Menu_Event (2, key);
 		return;
 #endif
+#ifdef MENU_DAT
 	case m_menu_dat:
 		MP_Keyup(key);
 		return;
+#endif
 	default:
 		break;
 	}

@@ -85,6 +85,7 @@ typedef struct q2trace_s
 	struct edict_s	*ent;		// not set by CM_*() functions
 } q2trace_t;
 
+#ifndef CLIENTONLY
 
 #define	MOVE_NORMAL		0
 #define	MOVE_NOMONSTERS	1
@@ -141,3 +142,5 @@ trace_t SV_Move (vec3_t start, vec3_t mins, vec3_t maxs, vec3_t end, int type, e
 
 
 edict_t	*SV_TestPlayerPosition (edict_t *ent, vec3_t origin);
+
+#endif

@@ -1,5 +1,7 @@
 #include "qwsvdef.h"
 
+#ifndef CLIENTONLY
+
 static sizebuf_t	*writedest;
 static client_t		*cldest;
 static int majortype;
@@ -2153,3 +2155,4 @@ void NPP_MVDWriteByte(qbyte data, client_t *to, int broadcast)	//replacement wri
 	NPP_MVDCheckFlush();
 }
 
+#endif

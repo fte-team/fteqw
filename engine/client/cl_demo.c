@@ -486,7 +486,9 @@ void CL_Stop_f (void)
 {
 	if (!cls.demorecording)
 	{
+#ifndef CLIENTONLY
 		SV_MVDStop_f();
+#endif
 		Con_Printf ("Not recording a demo.\n");
 		return;
 	}

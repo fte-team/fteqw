@@ -1373,6 +1373,11 @@ void SCR_ScreenShot_f (void)
 	if (Cmd_Argc() == 2)
 	{
 		Q_strncpyz(pcxname, Cmd_Argv(1), sizeof(pcxname));
+		if (strstr (pcxname, "..") || strchr(pcxname, ':') || *pcxname == '.' || *pcxname == '/')
+		{
+			Con_Printf("Screenshot name refused\n");
+			return;
+		}
 		COM_DefaultExtension (pcxname, scr_sshot_type.string);
 	}
 	else
@@ -1380,14 +1385,14 @@ void SCR_ScreenShot_f (void)
 	// 
 	// find a file name to save it to 
 	// 
-		sprintf(pcxname,"fte00000.%s", scr_sshot_type.string);
+		sprintf(pcxname,"screenshots/fte00000.%s", scr_sshot_type.string);
 			
 		for (i=0 ; i<=100000 ; i++) 
 		{
-			pcxname[4] = (i%10000)/1000 + '0';
-			pcxname[5] = (i%1000)/100 + '0';
-			pcxname[6] = (i%100)/10 + '0';
-			pcxname[7] = (i%10) + '0';
+			pcxname[16] = (i%10000)/1000 + '0';
+			pcxname[17] = (i%1000)/100 + '0';
+			pcxname[18] = (i%100)/10 + '0';
+			pcxname[19] = (i%10) + '0';
 			sprintf (checkname, "%s/%s", com_gamedir, pcxname);
 			if (Sys_FileTime(checkname) == -1)
 				break;  // file doesn't exist

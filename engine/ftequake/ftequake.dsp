@@ -405,42 +405,6 @@ SOURCE=..\server\pr_cmds.c
 # End Source File
 # Begin Source File
 
-SOURCE=..\client\pr_menu.c
-
-!IF  "$(CFG)" == "ftequake - Win32 Release"
-
-!ELSEIF  "$(CFG)" == "ftequake - Win32 Debug"
-
-!ELSEIF  "$(CFG)" == "ftequake - Win32 GLDebug"
-
-!ELSEIF  "$(CFG)" == "ftequake - Win32 GLRelease"
-
-!ELSEIF  "$(CFG)" == "ftequake - Win32 MDebug"
-
-!ELSEIF  "$(CFG)" == "ftequake - Win32 MRelease"
-
-!ELSEIF  "$(CFG)" == "ftequake - Win32 MinGLDebug"
-
-!ELSEIF  "$(CFG)" == "ftequake - Win32 MinGLRelease"
-
-!ELSEIF  "$(CFG)" == "ftequake - Win32 Debug Dedicated Server"
-
-# PROP Exclude_From_Build 1
-# ADD CPP /WX
-
-!ELSEIF  "$(CFG)" == "ftequake - Win32 Release Dedicated Server"
-
-# PROP Exclude_From_Build 1
-
-!ELSEIF  "$(CFG)" == "ftequake - Win32 Q3Debug"
-
-!ELSEIF  "$(CFG)" == "ftequake - Win32 Q3Release"
-
-!ENDIF 
-
-# End Source File
-# Begin Source File
-
 SOURCE=..\server\savegame.c
 # End Source File
 # Begin Source File
@@ -1478,6 +1442,42 @@ SOURCE=..\client\net_master.c
 !ELSEIF  "$(CFG)" == "ftequake - Win32 Release Dedicated Server"
 
 # PROP BASE Exclude_From_Build 1
+# PROP Exclude_From_Build 1
+
+!ELSEIF  "$(CFG)" == "ftequake - Win32 Q3Debug"
+
+!ELSEIF  "$(CFG)" == "ftequake - Win32 Q3Release"
+
+!ENDIF 
+
+# End Source File
+# Begin Source File
+
+SOURCE=..\client\pr_menu.c
+
+!IF  "$(CFG)" == "ftequake - Win32 Release"
+
+!ELSEIF  "$(CFG)" == "ftequake - Win32 Debug"
+
+!ELSEIF  "$(CFG)" == "ftequake - Win32 GLDebug"
+
+!ELSEIF  "$(CFG)" == "ftequake - Win32 GLRelease"
+
+!ELSEIF  "$(CFG)" == "ftequake - Win32 MDebug"
+
+!ELSEIF  "$(CFG)" == "ftequake - Win32 MRelease"
+
+!ELSEIF  "$(CFG)" == "ftequake - Win32 MinGLDebug"
+
+!ELSEIF  "$(CFG)" == "ftequake - Win32 MinGLRelease"
+
+!ELSEIF  "$(CFG)" == "ftequake - Win32 Debug Dedicated Server"
+
+# PROP Exclude_From_Build 1
+# ADD CPP /WX
+
+!ELSEIF  "$(CFG)" == "ftequake - Win32 Release Dedicated Server"
+
 # PROP Exclude_From_Build 1
 
 !ELSEIF  "$(CFG)" == "ftequake - Win32 Q3Debug"

@@ -19,6 +19,7 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 */
 
 #include "qwsvdef.h"
+#ifndef CLIENTONLY
 #include "winquake.h"
 
 #define Q_strncatz strncat
@@ -838,7 +839,7 @@ void SV_MVDStop (int reason)
 
 		SV_BroadcastPrintf (PRINT_CHAT, "Server recording canceled, demo removed\n");
 
-//		Cvar_SetROM(&serverdemo, "");
+		Cvar_ForceSet(Cvar_Get("serverdemo", "", CVAR_NOSET, ""), "");
 
 		return;
 	}
@@ -854,22 +855,33 @@ void SV_MVDStop (int reason)
 
 	SV_MVDWritePackets(demo.parsecount - demo.lastwritten + 1);
 // finish up
-	if (!demo.disk)
+
+	if (demo.file)
 	{
-		fwrite(svs.demomem, 1, demo.size - demo_size, demo.file);
-		fflush(demo.file);
+		if (!demo.disk)
+		{
+			fwrite(svs.demomem, 1, demo.size - demo_size, demo.file);
+			fflush(demo.file);
+		}
+
+		fclose (demo.file);
+		
+		demo.file = NULL;
+	}
+	else
+	{
+		UDP_CloseSocket(demo.tcpsocket);
+		demo.tcpsocket = 0;
 	}
 
-	fclose (demo.file);
-	
-	demo.file = NULL;
+
 	sv.mvdrecording = false;
 	if (!reason)
 		SV_BroadcastPrintf (PRINT_CHAT, "Server recording completed\n");
 	else
 		SV_BroadcastPrintf (PRINT_CHAT, "Server recording stoped\nMax demo size exceeded\n");
 
-//	Cvar_SetROM(&serverdemo, "");
+	Cvar_ForceSet(Cvar_Get("serverdemo", "", CVAR_NOSET, ""), "");
 }
 
 /*
@@ -984,13 +996,17 @@ static char *SV_PrintTeams(void)
 	if (numcl == 2) // duel
 	{
 		_snprintf(buf, sizeof(buf), "team1 %s\nteam2 %s\n", clients[0]->name, clients[1]->name);
-	} else if (!teamplay.value) // ffa
+	} 
+	else if (!teamplay.value) // ffa
 	{ 
 		_snprintf(buf, sizeof(buf), "players:\n");
 		for (i = 0; i < numcl; i++)
 			_snprintf(buf + strlen(buf), sizeof(buf) - strlen(buf), "  %s\n", clients[i]->name);
-	} else { // teamplay
-		for (j = 0; j < numt; j++) {
+	} 
+	else 
+	{ // teamplay
+		for (j = 0; j < numt; j++) 
+		{
 			_snprintf(buf + strlen(buf), sizeof(buf) - strlen(buf), "team %s:\n", teams[j]);
 			for (i = 0; i < numcl; i++)
 				if (!strcmp(Info_ValueForKey(clients[i]->userinfo, "team"), teams[j]))
@@ -1004,13 +1020,13 @@ static char *SV_PrintTeams(void)
 	return va("%s",buf);
 }
 
-static void SV_MVD_Record (char *name)
+static qboolean SV_MVD_Record (char *name, int tcpsocket)
 {
 	sizebuf_t	buf;
 	char buf_data[MAX_QWMSGLEN];
 	int n, i;
 	char *s, info[MAX_INFO_STRING], path[MAX_OSPATH];
-	
+
 	client_t *player;
 	char *gamedir;
 	int seq = 1;
@@ -1022,56 +1038,66 @@ static void SV_MVD_Record (char *name)
 		demo.recorder.frames[i].entities.max_entities = MAX_MVDPACKET_ENTITIES;
 		demo.recorder.frames[i].entities.entities = demo_entities[i];
 	}
-	
+
 	MVDBuffer_Init(&demo.dbuffer, demo.buffer, sizeof(demo.buffer));
 	MVDSetMsgBuf(NULL, &demo.frames[0].buf);
 
 	demo.datagram.maxsize = sizeof(demo.datagram_data);
 	demo.datagram.data = demo.datagram_data;
 
-	demo.file = fopen (name, "wb");
-	if (!demo.file)
+	if (name)
 	{
-		Con_Printf ("ERROR: couldn't open %s\n", name);
-		return;
-	}
-
-	SV_InitRecord();
-
-	s = name + strlen(name);
-	while (*s != '/') s--;
-	Q_strncpyz(demo.name, s+1, sizeof(demo.name));
-	Q_strncpyz(demo.path, sv_demoDir.string, sizeof(demo.path));
-	
-	if (!*demo.path)
-		Q_strncpyz(demo.path, ".", MAX_OSPATH);
-
-	SV_BroadcastPrintf (PRINT_CHAT, "Server starts recording (%s):\n%s\n", demo.disk ? "disk" : "memory", demo.name);
-//	Cvar_SetROM(&serverdemo, demo.name);
-
-	Q_strncpyz(path, name, MAX_OSPATH);
-	Q_strncpyz(path + strlen(path) - 3, "txt", MAX_OSPATH - strlen(path) + 3);
-
-	if (sv_demotxt.value)
-	{
-		FILE *f;
-
-		f = fopen (path, "w+t");
-		if (f != NULL)
+		demo.file = fopen (name, "wb");
+		if (!demo.file)
 		{
-			char buf[2000];
-			date_t date;
-
-			SV_TimeOfDay(&date);
-
-			_snprintf(buf, sizeof(buf), "date %s\nmap %s\nteamplay %d\ndeathmatch %d\ntimelimit %d\n%s",date.str, sv.name, (int)teamplay.value, (int)deathmatch.value, (int)timelimit.value, SV_PrintTeams());
-			fwrite(buf, strlen(buf),1,f);
-			fflush(f);
-			fclose(f);
+			Con_Printf ("ERROR: couldn't open %s\n", name);
+			return false;
 		}
+
+		SV_InitRecord();
+
+		s = name + strlen(name);
+		while (*s != '/') s--;
+		Q_strncpyz(demo.name, s+1, sizeof(demo.name));
+		Q_strncpyz(demo.path, sv_demoDir.string, sizeof(demo.path));
+		
+		if (!*demo.path)
+			Q_strncpyz(demo.path, ".", MAX_OSPATH);
+
+		SV_BroadcastPrintf (PRINT_CHAT, "Server starts recording (%s):\n%s\n", demo.disk ? "disk" : "memory", demo.name);
+		Cvar_ForceSet(Cvar_Get("serverdemo", "", CVAR_NOSET, ""), demo.name);
+
+		Q_strncpyz(path, name, MAX_OSPATH);
+		Q_strncpyz(path + strlen(path) - 3, "txt", MAX_OSPATH - strlen(path) + 3);
+
+		if (sv_demotxt.value)
+		{
+			FILE *f;
+
+			f = fopen (path, "w+t");
+			if (f != NULL)
+			{
+				char buf[2000];
+				date_t date;
+
+				SV_TimeOfDay(&date);
+
+				_snprintf(buf, sizeof(buf), "date %s\nmap %s\nteamplay %d\ndeathmatch %d\ntimelimit %d\n%s",date.str, sv.name, (int)teamplay.value, (int)deathmatch.value, (int)timelimit.value, SV_PrintTeams());
+				fwrite(buf, strlen(buf),1,f);
+				fflush(f);
+				fclose(f);
+			}
+		}
+		else 
+			Sys_remove(path);
 	}
-	else 
-		Sys_remove(path);
+	else
+	{
+		if (demo.tcpsocket)
+			return false;
+		SV_BroadcastPrintf (PRINT_CHAT, "Server starts recording to network client\n");
+		demo.tcpsocket = tcpsocket;
+	}
 
 	sv.mvdrecording = true;
 	demo.pingtime = demo.time = sv.time;
@@ -1327,6 +1353,7 @@ static void SV_MVD_Record (char *name)
 
 	SV_WriteSetMVDMessage();
 	// done
+	return true;
 }
 
 /*
@@ -1485,7 +1512,7 @@ void SV_MVD_Record_f (void)
 	COM_DefaultExtension(name, ".mvd");
 
 	
-	SV_MVD_Record (name);
+	SV_MVD_Record (name, 0);
 }
 
 /*
@@ -1720,7 +1747,7 @@ void SV_MVDEasyRecord_f (void)
 		} while (f);
 	}
 
-	SV_MVD_Record (name2);
+	SV_MVD_Record (name2, 0);
 }
 
 void SV_MVDList_f (void)
@@ -2097,3 +2124,4 @@ void SV_MVDInit(void)
 	Cmd_AddCommand ("rmdemonum", SV_MVDRemoveNum_f);
 }
 
+#endif

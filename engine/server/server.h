@@ -514,6 +514,9 @@ typedef struct {
 typedef struct
 {
 	FILE		*file;
+	int			tcpsocket;
+	int			writedest;	//doesn't bother if it's not valid demo_both is safe
+
 
 	demobuf_t	*dbuf;
 	dbuffer_t	dbuffer;

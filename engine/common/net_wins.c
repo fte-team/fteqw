@@ -964,6 +964,7 @@ void IPX_CloseSocket (int socket)
 // sleeps msec or until net socket is ready
 //stdin can sometimes be a socket. As a result,
 //we give the option to select it for nice console imput with timeouts.
+#ifndef CLIENTONLY
 qboolean NET_Sleep(int msec, qboolean stdinissocket)
 {
     struct timeval timeout;
@@ -1004,6 +1005,7 @@ qboolean NET_Sleep(int msec, qboolean stdinissocket)
 		return FD_ISSET(0, &fdset);
 	return true;
 }
+#endif
 
 void NET_GetLocalIP6Address (int socket)
 {

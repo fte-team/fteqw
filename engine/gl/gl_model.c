@@ -49,7 +49,9 @@ void Mod_LoadQ2BrushModel (model_t *mod, void *buffer);
 void Mod_LoadHLModel (model_t *mod, void *buffer);
 void Mod_LoadAlias3Model (model_t *mod, void *buffer);
 void Mod_LoadGroupModel (model_t *mod, void *buffer);
+#ifdef ZYMOTICMODELS
 void GLMod_LoadZymoticModel(model_t *mod, void *buffer);
+#endif
 model_t *GLMod_LoadModel (model_t *mod, qboolean crash);
 
 #ifdef DOOMWADS
@@ -659,11 +661,11 @@ couldntload:
 	case 29:	//q1
 		GLMod_LoadBrushModel (mod, buf);
 		break;
-
+#ifdef ZYMOTICMODELS
 	case (('O'<<24)+('M'<<16)+('Y'<<8)+'Z'):
 		GLMod_LoadZymoticModel(mod, buf);
 		break;
-
+#endif
 	default:
 		Con_Printf("Unrecognised model format %i\n", LittleLong(*(unsigned *)buf));
 		goto couldntload;
@@ -2586,15 +2588,18 @@ void GLMod_LoadBrushModel (model_t *mod, void *buffer)
 			Mod_ParseInfoFromEntityLump(mod_base + header->lumps[LUMP_ENTITIES].fileofs);
 	}
 
-	mod->funcs.FatPVS				= Q1BSP_FatPVS;
-	mod->funcs.EdictInFatPVS		= Q1BSP_EdictInFatPVS;
-	mod->funcs.FindTouchedLeafs_Q1	= Q1BSP_FindTouchedLeafs;
 	mod->funcs.LightPointValues		= GLQ1BSP_LightPointValues;
 	mod->funcs.StainNode			= Q1BSP_StainNode;
 	mod->funcs.MarkLights			= Q1BSP_MarkLights;
 
 	mod->funcs.LeafForPoint			= GLMod_LeafForPoint;
 	mod->funcs.LeafPVS				= GLMod_LeafnumPVS;
+
+#ifndef CLIENTONLY
+	mod->funcs.FindTouchedLeafs_Q1	= Q1BSP_FindTouchedLeafs;
+	mod->funcs.EdictInFatPVS		= Q1BSP_EdictInFatPVS;
+	mod->funcs.FatPVS				= Q1BSP_FatPVS;
+#endif
 	
 	mod->numframes = 2;		// regular and alternate animation
 	

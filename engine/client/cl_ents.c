@@ -578,7 +578,7 @@ void CL_ParsePacketEntities (qboolean delta)
 	newp->num_entities = newindex;
 }
 
-#ifdef NQPROT
+
 entity_state_t *CL_FindOldPacketEntity(int num)
 {
 	int					pnum;
@@ -597,6 +597,7 @@ entity_state_t *CL_FindOldPacketEntity(int num)
 	}
 	return NULL;
 }
+#ifdef NQPROT
 // reset all entity fields (typically used if status changed)
 #define E5_FULLUPDATE (1<<0)
 // E5_ORIGIN32=0: short[3] = s->origin[0] * 8, s->origin[1] * 8, s->origin[2] * 8

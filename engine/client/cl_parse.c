@@ -1225,8 +1225,9 @@ void CL_ParseServerData (void)
 	{
 		COM_FlushTempoaryPacks();
 		COM_Gamedir(str);
+#ifndef CLIENTONLY
 		Info_SetValueForStarKey (svs.info, "*gamedir", str, MAX_SERVERINFO_STRING);
-
+#endif
 		COM_FlushFSCache();
 	}
 

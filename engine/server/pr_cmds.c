@@ -20,6 +20,8 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 
 #include "qwsvdef.h"
 
+#ifndef CLIENTONLY
+
 //okay, so these are a quick but easy hack
 int QC_RegisterFieldVar(struct progfuncs_s *progfuncs, unsigned int type, char *name, int requestedpos, int origionalofs);
 void ED_Print (struct progfuncs_s *progfuncs, struct edict_s *ed);
@@ -8320,3 +8322,4 @@ void PR_RegisterFields(void)	//it's just easier to do it this way.
 }
 
 
+#endif

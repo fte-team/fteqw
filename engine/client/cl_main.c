@@ -189,7 +189,9 @@ CL_Quit_f
 */
 void CL_Quit_f (void)
 {
+#ifndef CLIENTONLY
 	if (!isDedicated)
+#endif
 	{
 		M_Menu_Quit_f ();
 		return;
@@ -558,7 +560,9 @@ void CLNQ_BeginServerConnect(void)
 #endif
 void CL_BeginServerReconnect(void)
 {
+#ifndef CLIENTONLY
 	if (isDedicated)
+#endif
 	{
 		Con_TPrintf (TLC_DEDICATEDCANNOTCONNECT);
 		return;
@@ -859,7 +863,9 @@ void CL_Disconnect (void)
 #endif
 	CL_StopUpload();
 
+#ifndef CLIENTONLY
 	if (!isDedicated)
+#endif
 		SCR_EndLoadingPlaque();
 }
 
@@ -1383,7 +1389,11 @@ void CL_Startdemos_f (void)
 	for (i=1 ; i<c+1 ; i++)
 		Q_strncpyz (cls.demos[i-1], Cmd_Argv(i), sizeof(cls.demos[0]));
 
-	if (!sv.state && cls.demonum != -1 && cls.demoplayback==DPB_NONE && !media_filmtype && COM_CheckParm("-demos"))
+	if (
+#ifndef CLIENTONLY
+		!sv.state && 
+#endif
+		cls.demonum != -1 && cls.demoplayback==DPB_NONE && !media_filmtype && COM_CheckParm("-demos"))
 	{
 		cls.demonum = 0;
 		CL_NextDemo ();
@@ -2482,8 +2492,10 @@ void Host_Frame (float time)
 	// process console commands
 	Cbuf_Execute ();
 
+#ifndef CLIENTONLY
 	if (isDedicated)	//someone changed it.
 		return;
+#endif
 
 #ifdef NQPROT
 	NET_Poll();
@@ -2777,7 +2789,7 @@ void Host_Shutdown(void)
 	IN_Shutdown ();
 	if (VID_DeInit)
 		VID_DeInit();
-#ifndef CLIENT_ONLY
+#ifndef CLIENTONLY
 	SV_Shutdown();
 #else
 	NET_Shutdown ();
@@ -2786,3 +2798,9 @@ void Host_Shutdown(void)
 	Cvar_Shutdown();
 	Validation_FlushFileList();
 }
+
+#ifdef CLIENTONLY
+void SV_EndRedirect (void)
+{
+}
+#endif

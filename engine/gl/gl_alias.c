@@ -2595,7 +2595,7 @@ typedef struct {
 
 void GL_LoadQ3Model(model_t *mod, void *buffer)
 {
-	extern qboolean gl_bumpmappingpossible;
+	extern int gl_bumpmappingpossible;
 	int hunkstart, hunkend, hunktotal;
 //	int version;
 	int s, i, j, d;

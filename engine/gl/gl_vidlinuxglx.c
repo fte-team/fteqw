@@ -893,3 +893,5 @@ void GLVID_LockBuffer() {}
 int GLVID_ForceUnlockedAndReturnState (void) {return 0;}
 void GLVID_ForceLockState (int lk) {}
 void GLVID_HandlePause (qboolean pause) {}
+
+void GL_DoSwap(void) {}

@@ -278,7 +278,7 @@ void R_Part_SkyTri(float *v1, float *v2, float *v3, struct msurface_s *surf);
 void R_ClearParticles (void);
 void R_Part_NewServer(void);
 int ParticleTypeForName(char *name);
-void R_SetRenderer(r_qrenderer_t wanted);
+void R_SetRenderer(int wanted);
 void R_DrawParticles (void);
 void R_InitParticles (void);
 void RQ_Init(void);

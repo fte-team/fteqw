@@ -106,6 +106,7 @@ CLIENT_OBJS = \
 	$(OUT_DIR)/m_x.o	\
 	$(OUT_DIR)/x_reqs.o	\
 	$(OUT_DIR)/x_res.o	\
+	$(OUT_DIR)/pr_menu.o	\
 #\
 #	$(OUT_DIR)/sys_dosa.o
 SOFTWARE_OBJS = \
@@ -656,6 +657,9 @@ $(OUT_DIR)/roq_read.o :         $(CLIENT_DIR)/roq_read.c
 	$(DO_CC)
 
 $(OUT_DIR)/clq2_cin.o :		$(CLIENT_DIR)/clq2_cin.c
+	$(DO_CC)
+
+$(OUT_DIR)/pr_menu.o :		$(CLIENT_DIR)/pr_menu.c
 	$(DO_CC)
 
 $(OUT_DIR)/m_options.o :         $(CLIENT_DIR)/m_options.c

@@ -450,6 +450,11 @@ V_cshift_f
 */
 void V_cshift_f (void)
 {
+	if (Cmd_Argc() != 5)	//this is actually to warn of a malice bug (and prevent a totally black screen) more than it is to help the user. :/
+	{
+		Con_Printf("v_cshift: v_cshift <r> <g> <b> <alpha>\n");
+		return;
+	}
 	if (Cmd_FromServer())
 	{
 		cl.cshifts[CSHIFT_SERVER].destcolor[0] = atoi(Cmd_Argv(1));
@@ -602,10 +607,9 @@ void GLV_CalcBlend (void)
 		}
 		else
 		{
-			a2 = cl.cshifts[j].percent / 255.0;
+			a2 = cl.cshifts[j].percent / 255.0;	//don't allow modification of this one.
 		}
 
-//		a2 = (cl.cshifts[j].percent/2)/255.0;
 		if (!a2)
 			continue;
 		a = a + a2*(1-a);
@@ -748,10 +752,14 @@ void SWV_UpdatePalette (void)
 	
 	new = false;
 	
+	force = V_CheckGamma ();
+	
 	for (i=0 ; i<NUM_CSHIFTS ; i++)
 	{
 		if (cl.cshifts[i].percent != cl.prev_cshifts[i].percent)
 		{
+			if (i == CSHIFT_SERVER)
+				force = true;	// don't let them cheat.
 			new = true;
 			cl.prev_cshifts[i].percent = cl.cshifts[i].percent;
 		}
@@ -773,7 +781,6 @@ void SWV_UpdatePalette (void)
 	if (cl.cshifts[CSHIFT_BONUS].percent <= 0)
 		cl.cshifts[CSHIFT_BONUS].percent = 0;
 
-	force = V_CheckGamma ();
 
 	if (r_pixbytes == 4)	//doesn't support palette cycling. It messes up caches.
 	{

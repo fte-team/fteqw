@@ -510,6 +510,22 @@ void SVQ2_BaseLines_f (void)
 		MSG_WriteString (&host_client->netchan.message, va("cmd baselines %i %i\n",svs.spawncount, start) );
 	}
 }
+
+void SVQ2_NextServer_f (void)
+{
+	if (!*sv.modelname && atoi(Cmd_Argv(1)) == svs.spawncount)
+	{
+		cvar_t *nsv = Cvar_FindVar("nextserver");
+		if (!nsv || !*nsv->string)
+			return;
+
+		svs.spawncount++;	// make sure another doesn't sneak in
+
+		Cbuf_AddText(nsv->string, RESTRICT_LOCAL);
+		Cbuf_AddText("\n", RESTRICT_LOCAL);
+		Cvar_Set(nsv, "");
+	}
+}
 #endif
 
 /*
@@ -2550,6 +2566,8 @@ ucmd_t ucmdsq2[] = {
 	{"download", SV_BeginDownload_f},
 	{"nextdl", SV_NextDownload_f},
 
+	{"nextserver", SVQ2_NextServer_f},
+
 	{"vote", SV_Vote_f},
 
 #ifdef SVRANKING
@@ -2614,7 +2632,11 @@ void SV_ExecuteUserCommand (char *s, qboolean fromQC)
 	{
 		if (!fromQC)
 			if (PR_UserCmd(s))
+			{
+				host_client = oldhost;
+				SV_EndRedirect ();
 				return;
+			}
 
 		if (sv_cmdlikercon.value && host_client->rankid)
 		{
@@ -3914,7 +3936,7 @@ void SVQ2_ExecuteClientMessage (client_t *cl)
 		cl->send_message = false;	// don't reply, sequences have slipped		
 
 	// save time for ping calculations
-	cl->q2frames[cl->netchan.outgoing_sequence & UPDATE_MASK].senttime = realtime;
+	cl->q2frames[cl->netchan.outgoing_sequence & Q2UPDATE_MASK].senttime = realtime;
 //	cl->q2frames[cl->netchan.outgoing_sequence & UPDATE_MASK].ping_time = -1;
 
 	host_client = cl;

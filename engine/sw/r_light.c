@@ -168,7 +168,7 @@ void SWR_PushDlights (void)
 	{
 		for (i=0 ; i<MAX_DLIGHTS ; i++, l++)
 		{
-			if (l->die < cl.time || !l->radius)
+			if (!l->radius)
 				continue;
 			SWR_Q2MarkLights ( l, 1<<i, cl.worldmodel->nodes );
 		}
@@ -178,7 +178,7 @@ void SWR_PushDlights (void)
 	{
 		for (i=0 ; i<MAX_DLIGHTS ; i++, l++)
 		{
-			if (l->die < cl.time || !l->radius)
+			if (!l->radius)
 				continue;
 			SWR_MarkLights ( l, 1<<i, cl.worldmodel->nodes );
 		}

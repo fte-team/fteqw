@@ -577,7 +577,8 @@ static void inline QVM_Return(qvm_t *vm, long size)
 		if (vm->cs+fp[1])	//this being false causes the program to quit.
 			Sys_Error("VM run time error: program returned to hyperspace\n");
 	if(fp[1]<0)
-		Sys_Error("VM run time error: program returned to negative hyperspace\n");
+		if (vm->cs+fp[1])
+			Sys_Error("VM run time error: program returned to negative hyperspace\n");
 
 	vm->pc=vm->cs+fp[1]; // restore PC
 	fp[1] = fp[0];

@@ -74,7 +74,7 @@ void KeyDown (kbutton_t *b)
 	int pnum;
 	c = Cmd_Argv(0);
 	pnum = atoi(c+strlen(c)-1);
-	if (c[1] == 'b' && !atoi(c+strlen(c)-2))
+	if (c[1] == 'b'&&c[2] == 'u' && !atoi(c+strlen(c)-2))
 		pnum = 0;
 	else if (pnum)pnum--;
 	
@@ -110,7 +110,7 @@ void KeyUp (kbutton_t *b)
 	int pnum;
 	c = Cmd_Argv(0);
 	pnum = atoi(c+strlen(c)-1);
-	if (c[1] == 'b' && !atoi(c+strlen(c)-2))
+	if (c[1] == 'b'&&c[2] == 'u' && !atoi(c+strlen(c)-2))
 		pnum = 0;
 	else if (pnum)pnum--;
 	
@@ -747,6 +747,8 @@ void CL_SendCmd (void)
 	int msecstouse;
 	qboolean	dontdrop=false;
 
+	int clientcount;
+
 	if (cls.demoplayback != DPB_NONE)
 	{
 		if (cls.demoplayback == DPB_MVD)
@@ -852,7 +854,10 @@ void CL_SendCmd (void)
 	buf.maxsize = 128;
 	buf.cursize = 0;
 	buf.data = data;
-	if (cl.splitclients)	//wait for server data before sending clc_move stuff
+	clientcount = cl.splitclients;
+	if (!clientcount)
+		clientcount = 1;
+	if (1)	//wait for server data before sending clc_move stuff
 	{
 #ifdef Q2CLIENT
 		if (cls.q2server)
@@ -899,7 +904,7 @@ void CL_SendCmd (void)
 		}
 		msecs -= msecstouse;
 		firstsize=0;
-		for (plnum = 0; plnum<cl.splitclients; plnum++)
+		for (plnum = 0; plnum<clientcount; plnum++)
 		{
 			i = cls.netchan.outgoing_sequence & UPDATE_MASK;
 			cmd = &cl.frames[i].cmd[plnum];
@@ -952,6 +957,9 @@ void CL_SendCmd (void)
 			cmd->upmove		= v[2];
 
 			memset(accum[plnum], 0, sizeof(accum[plnum]));	//clear accum
+
+			if (plnum)
+				MSG_WriteByte (&buf, clc_move);
 
 			i = (cls.netchan.outgoing_sequence-2) & UPDATE_MASK;
 			cmd = &cl.frames[i].cmd[plnum];

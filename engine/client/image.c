@@ -1593,7 +1593,8 @@ int Mod_LoadHiResTexture(char *name, qboolean mipmap, qboolean alpha, qboolean c
 			{
 				if ((data = Read32BitImageFile(buf, com_filesize, &image_width, &image_height)))
 				{
-					if (colouradjust)
+					extern cvar_t vid_hardwaregamma;
+					if (colouradjust && !vid_hardwaregamma.value)
 						BoostGamma(data, image_width, image_height);
 					TRACE(("dbg: Mod_LoadHiResTexture: %s loaded\n", name));
 					len = GL_LoadTexture32 (name, image_width, image_height, (unsigned*)data, mipmap, alpha);

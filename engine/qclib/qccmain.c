@@ -134,6 +134,17 @@ struct {
 	{NULL}
 };
 
+int QCC_WarningForName(char *name)
+{
+	int i;
+	for (i = 0; warningnames[i].name; i++)
+	{
+		if (!stricmp(name, warningnames[i].name))
+			return warningnames[i].index;
+	}
+	return -1;
+}
+
 optimisations_t optimisations[] =
 {
 	//level 0 = no optimisations
@@ -194,9 +205,10 @@ struct {
 
 	//options
 	{&keywords_coexist,		true, "kce"},
-	{&output_parms,			false, "parms"},	//controls weather to define PARMx for the parms
-	{&autoprototype,		false, "autoproto"},
-	{&writeasm,				false, "wasm"},
+	{&output_parms,			false, "parms"},	//controls weather to define PARMx for the parms (note - this can screw over some decompilers)
+	{&autoprototype,		false, "autoproto"},	//so you no longer need to prototype functions and things in advance.
+	{&writeasm,				false, "wasm"},			//spit out a qc.asm file, containing an assembler dump of the ENTIRE progs. (Doesn't include initialisation of constants)
+	{&flag_ifstring,		true, "ifstring"},		//correction for if(string) no-ifstring to get the standard behaviour.
 	{NULL}
 };
 
@@ -2428,6 +2440,7 @@ void QCC_SetDefaultProperties (void)
 	qccwarningdisabled[WARN_INEFFICIENTPLUSPLUS] = true;
 	qccwarningdisabled[WARN_FTE_SPECIFIC] = true;
 	qccwarningdisabled[WARN_EXTENSION_USED] = true;
+	qccwarningdisabled[WARN_IFSTRING_USED] = true;
 
 
 

@@ -626,7 +626,7 @@ void QCC_PR_NewLine (pbool incomment)
 			qcc_token[0] = '\0';
 			for(a = 0; *pr_file_p != '\n' && *pr_file_p != '\0'; pr_file_p++)	//read on until the end of the line
 			{
-				if ((*pr_file_p == ' ' || *pr_file_p == '\t') && !*qcc_token)
+				if ((*pr_file_p == ' ' || *pr_file_p == '\t'|| *pr_file_p == '(') && !*qcc_token)
 				{
 					msg[a] = '\0';
 					strcpy(qcc_token, msg);
@@ -720,13 +720,34 @@ void QCC_PR_NewLine (pbool incomment)
 				strcpy(destfile, qcc_token);
 				printf("Outputfile: %s\n", destfile);
 			}
-			else if (!QC_strcasecmp(qcc_token, "disable"))
+			else if (!QC_strcasecmp(qcc_token, "warning"))
 			{
-				qccwarningdisabled[atoi(msg)] = true;
-			}
-			else if (!QC_strcasecmp(qcc_token, "enable"))
-			{
-				qccwarningdisabled[atoi(msg)] = false;
+				int st;
+				char *s;
+				s = QCC_COM_Parse(msg);
+				if (!stricmp(qcc_token, "enable") || !stricmp(qcc_token, "on"))
+					st = 0;
+				else if (!stricmp(qcc_token, "disable") || !stricmp(qcc_token, "off"))
+					st = 1;
+				else if (!stricmp(qcc_token, "toggle"))
+					st = 2;
+				else
+					st = -1;
+				if (st>=0)
+				{
+					int wn;
+					s = QCC_COM_Parse(s);
+					wn = QCC_WarningForName(qcc_token);
+					if (wn < 0)
+						QCC_PR_ParseWarning(WARN_BADPRAGMA, "warning id not recognised");
+					else
+					{
+						if (st == 2)	//toggle
+							qccwarningdisabled[wn] = true - qccwarningdisabled[wn];
+						else
+							qccwarningdisabled[wn] = st;
+					}
+				}
 			}
 			else
 				QCC_PR_ParseWarning(WARN_BADPRAGMA, "Unknown pragma \'%s\'", qcc_token);
@@ -1852,7 +1873,7 @@ int QCC_PR_CheakCompConst(void)
 						else
 						{	//stringify
 							pr_file_p++;
-							pr_file_p = QCC_COM_Parse(pr_file_p);
+							pr_file_p = QCC_COM_Parse2(pr_file_p);
 							if (!pr_file_p)
 								break;
 
@@ -1876,7 +1897,7 @@ int QCC_PR_CheakCompConst(void)
 						}
 					}
 
-					pr_file_p = QCC_COM_Parse(pr_file_p);
+					pr_file_p = QCC_COM_Parse2(pr_file_p);
 					if (!pr_file_p)
 						break;
 

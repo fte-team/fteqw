@@ -172,6 +172,115 @@ skipwhite:
 	return data;
 }
 
+//more C tokens...
+char *QCC_COM_Parse2 (char *data)
+{
+	int		c;
+	int		len;
+	
+	len = 0;
+	qcc_token[0] = 0;
+	
+	if (!data)
+		return NULL;
+		
+// skip whitespace
+skipwhite:
+	while ( (c = *data) <= ' ')
+	{
+		if (c == 0)
+		{
+			qcc_eof = true;
+			return NULL;			// end of file;
+		}
+		data++;
+	}
+	
+// skip // comments
+	if (c=='/' && data[1] == '/')
+	{
+		while (*data && *data != '\n')
+			data++;
+		goto skipwhite;
+	}
+	
+
+// handle quoted strings specially
+	if (c == '\"')
+	{
+		data++;
+		do
+		{
+			c = *data++;
+			if (c=='\"'||c=='\0')
+			{
+				qcc_token[len] = 0;
+				return data;
+			}
+			qcc_token[len] = c;
+			len++;
+		} while (1);
+	}
+
+// parse numbers
+	if (c >= '0' && c <= '9')
+	{
+		if (c == '0' && data[1] == 'x')
+		{	//parse hex
+			qcc_token[0] = '0';
+			c='x';
+			len=1;
+			data++;
+			for(;;)
+			{	//parse regular number
+				qcc_token[len] = c;
+				data++;
+				len++;
+				c = *data;
+				if ((c<'0'|| c>'9') && (c<'a'||c>'f') && (c<'A'||c>'F') && c != '.')
+					break;
+			}
+
+		}
+		else
+		{
+			for(;;)
+			{	//parse regular number
+				qcc_token[len] = c;
+				data++;
+				len++;
+				c = *data;
+				if ((c<'0'|| c>'9') && c != '.')
+					break;
+			}
+		}
+		
+		qcc_token[len] = 0;
+		return data;
+	}
+// parse words
+	else if ((c>= 'a' && c <= 'z') || (c>= 'A' && c <= 'Z') || c == '_')
+	{
+		do
+		{
+			qcc_token[len] = c;
+			data++;
+			len++;
+			c = *data;
+		} while ((c>= 'a' && c <= 'z') || (c>= 'A' && c <= 'Z') || c == '_');
+		
+		qcc_token[len] = 0;
+		return data;
+	}
+	else
+	{
+		qcc_token[len] = c;
+		len++;
+		qcc_token[len] = 0;
+		return data+1;
+	}
+}
+
 char *VARGS qcva (char *text, ...)
 {
 	va_list argptr;

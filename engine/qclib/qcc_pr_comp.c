@@ -37,6 +37,7 @@ pbool keywords_coexist;		//don't disable a keyword simply because a var was made
 pbool output_parms;			//emit some PARMX fields. confuses decompilers.
 pbool autoprototype;			//take two passes over the source code. First time round doesn't enter and functions or initialise variables.
 pbool pr_subscopedlocals;	//causes locals to be valid ONLY within thier statement block. (they simply can't be referenced by name outside of it)
+pbool flag_ifstring;
 
 pbool opt_overlaptemps;		//reduce numpr_globals by reuse of temps. When they are not needed they are freed for reuse. The way this is implemented is better than frikqcc's. (This is the single most important optimisation)
 pbool opt_assignments;		//STORE_F isn't used if an operation wrote to a temp.
@@ -969,7 +970,6 @@ static void QCC_RemapLockedTemp(temp_t *t, int firststatement, int laststatement
 {
 #ifdef WRITEASM
 	char buffer[128];
-	int locks=0;
 #endif
 
 	QCC_def_t *def;
@@ -991,7 +991,7 @@ static void QCC_RemapLockedTemp(temp_t *t, int firststatement, int laststatement
 				def->nextlocal = pr.localvars;
 				def->constant = false;
 #ifdef WRITEASM
-				sprintf(buffer, "locked_%i", ++locks);
+				sprintf(buffer, "locked_%i", t->ofs);
 				def->name = qccHunkAlloc(strlen(buffer)+1);
 				strcpy(def->name, buffer);
 #endif
@@ -1010,7 +1010,7 @@ static void QCC_RemapLockedTemp(temp_t *t, int firststatement, int laststatement
 				def->nextlocal = pr.localvars;
 				def->constant = false;
 #ifdef WRITEASM
-				sprintf(buffer, "locked_%i", ++locks);
+				sprintf(buffer, "locked_%i", t->ofs);
 				def->name = qccHunkAlloc(strlen(buffer)+1);
 				strcpy(def->name, buffer);
 #endif
@@ -1029,7 +1029,7 @@ static void QCC_RemapLockedTemp(temp_t *t, int firststatement, int laststatement
 				def->nextlocal = pr.localvars;
 				def->constant = false;
 #ifdef WRITEASM
-				sprintf(buffer, "locked_%i", ++locks);
+				sprintf(buffer, "locked_%i", t->ofs);
 				def->name = qccHunkAlloc(strlen(buffer)+1);
 				strcpy(def->name, buffer);
 #endif
@@ -1311,10 +1311,10 @@ QCC_def_t *QCC_PR_Statement ( QCC_opcode_t *op, QCC_def_t *var_a, QCC_def_t *var
 		if ((var_a->constant && var_b->constant && !var_a->temp && !var_b->temp) || var_a->ofs == var_b->ofs)
 			QCC_PR_ParseWarning(0, "Result of comparison is constant");
 		break;
-	case OP_IF:
-	case OP_IFNOT:
 	case OP_IFS:
 	case OP_IFNOTS:
+	case OP_IF:
+	case OP_IFNOT:
 //		if (var_a->type->type == ev_function && !var_a->temp)
 //			QCC_PR_ParseWarning(0, "Result of comparison is constant");
 		if (var_a->constant && !var_a->temp)
@@ -2054,7 +2054,7 @@ QCC_def_t *QCC_PR_ParseFunctionCall (QCC_def_t *func)	//warning, the func could 
 	if (QCC_OPCodeValid(&pr_opcodes[OP_CALL1H]))
 		callconvention = OP_CALL1H;	//FTE extended
 	else
-		callconvention = OP_CALL1;	//FTE extended
+		callconvention = OP_CALL1;	//standard
 
 	t = func->type;
 
@@ -2513,7 +2513,12 @@ QCC_def_t *QCC_PR_ParseFunctionCall (QCC_def_t *func)	//warning, the func could 
 				if (e->type->type != ev_function && p->type != ev_integer)
 				if ( e->type->type != p->type )*/
 				{
-					QCC_PR_ParseErrorPrintDef (ERR_TYPEMISMATCHPARM, func, "type mismatch on parm %i - (%s should be %s)", arg+1, TypeName(e->type), TypeName(p));
+					if (p->type == ev_integer && e->type->type == ev_float)	//convert float -> int... is this a constant?
+						e = QCC_PR_Statement(pr_opcodes+OP_CONV_FTOI, e, NULL, NULL);
+					else if (p->type == ev_float && e->type->type == ev_integer)	//convert float -> int... is this a constant?
+						e = QCC_PR_Statement(pr_opcodes+OP_CONV_ITOF, e, NULL, NULL);
+					else
+						QCC_PR_ParseErrorPrintDef (ERR_TYPEMISMATCHPARM, func, "type mismatch on parm %i - (%s should be %s)", arg+1, TypeName(e->type), TypeName(p));
 				}
 
 				d->type = p;
@@ -2583,6 +2588,7 @@ QCC_def_t *QCC_PR_ParseFunctionCall (QCC_def_t *func)	//warning, the func could 
 		else
 			QCC_FreeTemp(QCC_PR_Statement(&pr_opcodes[OP_STORE_F], &def_ret, old, NULL));
 		QCC_UnFreeTemp(old);
+		QCC_UnFreeTemp(&def_ret);
 		QCC_PR_ParseWarning(WARN_FIXEDRETURNVALUECONFLICT, "Return value conflict - output is inefficient");
 	}
 	else
@@ -2674,6 +2680,8 @@ QCC_def_t *QCC_PR_ParseFunctionCall (QCC_def_t *func)	//warning, the func could 
 		else
 			QCC_FreeTemp(QCC_PR_Statement(pr_opcodes+OP_STORE_F, old, &def_ret, NULL));
 		QCC_FreeTemp(old);
+		QCC_UnFreeTemp(&def_ret);
+		QCC_UnFreeTemp(d);
 
 		return d;
 	}
@@ -3706,7 +3714,8 @@ QCC_def_t *QCC_PR_Term (void)
 			{
 				if ((unsigned)(statements[numstatements-1].op - OP_LOAD_F) < 6 || statements[numstatements-1].op == OP_LOAD_I || statements[numstatements-1].op == OP_LOAD_P)
 				{
-//					QCC_PR_ParseWarning(0, "debug: &ent.field");
+					statements[numstatements-1].op = OP_ADDRESS;
+					QCC_PR_ParseWarning(0, "debug: &ent.field");
 					e->type = QCC_PR_PointerType(e->type);
 					return e;
 				}
@@ -3718,8 +3727,52 @@ QCC_def_t *QCC_PR_Term (void)
 			}
 //			QCC_PR_ParseWarning(0, "debug: &global");
 
+			if (!QCC_OPCodeValid(&pr_opcodes[OP_GLOBALADDRESS]))
+				QCC_PR_ParseError (ERR_BADEXTENSION, "Cannot use addressof operator ('&') on a global. Please use the FTE target.");
+
 			e2 = QCC_PR_Statement (&pr_opcodes[OP_GLOBALADDRESS], e, 0, NULL);
 			e2->type = QCC_PR_PointerType(e->type);
+			return e2;
+		}
+		else if (QCC_PR_Check ("*"))
+		{
+			int st = numstatements;
+			e = QCC_PR_Expression (NOT_PRIORITY);
+			t = e->type->type;
+
+			switch(e->type->aux_type->type)
+			{
+			case ev_float:
+				e2 = QCC_PR_Statement (&pr_opcodes[OP_LOADP_F], e, 0, NULL);
+				break;
+			case ev_string:
+				e2 = QCC_PR_Statement (&pr_opcodes[OP_LOADP_S], e, 0, NULL);
+				break;
+			case ev_vector:
+				e2 = QCC_PR_Statement (&pr_opcodes[OP_LOADP_V], e, 0, NULL);
+				break;
+			case ev_entity:
+				e2 = QCC_PR_Statement (&pr_opcodes[OP_LOADP_ENT], e, 0, NULL);
+				break;
+			case ev_field:
+				e2 = QCC_PR_Statement (&pr_opcodes[OP_LOADP_FLD], e, 0, NULL);
+				break;
+			case ev_function:
+				e2 = QCC_PR_Statement (&pr_opcodes[OP_LOADP_FLD], e, 0, NULL);
+				break;
+			case ev_integer:
+				e2 = QCC_PR_Statement (&pr_opcodes[OP_LOADP_I], e, 0, NULL);
+				break;
+			case ev_pointer:
+				e2 = QCC_PR_Statement (&pr_opcodes[OP_LOADP_I], e, 0, NULL);
+				break;
+
+			default:
+				QCC_PR_ParseError (ERR_BADNOTTYPE, "type mismatch for *");
+				break;
+			}
+
+			e2->type = e->type->aux_type;
 			return e2;
 		}
 		
@@ -4205,6 +4258,20 @@ QCC_def_t *QCC_PR_Expression (int priority)
 	return e;
 }
 
+void QCC_PR_GotoStatement (QCC_dstatement_t *patch2, char *labelname)
+{
+	if (num_gotos >= max_gotos)
+	{
+		max_gotos += 8;
+		pr_gotos = realloc(pr_gotos, sizeof(*pr_gotos)*max_gotos);
+	}
+
+	strncpy(pr_gotos[num_gotos].name, labelname, sizeof(pr_gotos[num_gotos].name) -1);
+	pr_gotos[num_gotos].lineno = pr_source_line;
+	pr_gotos[num_gotos].statementno = patch2 - statements;
+
+	num_gotos++;
+}
 
 /*
 ============
@@ -4295,6 +4362,11 @@ void QCC_PR_ParseStatement (void)
 					QCC_FreeTemp(QCC_PR_Statement (&pr_opcodes[OP_GOTO], 0, 0, &patch1));
 				else
 					patch1 = NULL;
+			}
+			else if (e->type == type_string)	//special case, as strings are now pointers, not offsets from string table
+			{
+				QCC_PR_ParseWarning(0, "while (string) can result in bizzare behaviour");
+				QCC_FreeTemp(QCC_PR_Statement (&pr_opcodes[OP_IFNOTS], e, 0, &patch1));
 			}
 			else
 				QCC_FreeTemp(QCC_PR_Statement (&pr_opcodes[OP_IFNOT], e, 0, &patch1));
@@ -4438,8 +4510,11 @@ void QCC_PR_ParseStatement (void)
 		}
 		else
 		{
-			if (e->type == type_string)
+			if (e->type == type_string && flag_ifstring)
+			{
+				QCC_PR_ParseWarning(WARN_IFSTRING_USED, "do {} while(string) can result in bizzare behaviour");
 				QCC_FreeTemp(QCC_PR_Statement (&pr_opcodes[OP_IFS], e, &junkdef, (QCC_dstatement_t **)0xffffffff));
+			}
 			else
 				QCC_FreeTemp(QCC_PR_Statement (&pr_opcodes[OP_IF], e, &junkdef, (QCC_dstatement_t **)0xffffffff));
 		}
@@ -4513,8 +4588,11 @@ void QCC_PR_ParseStatement (void)
 			e = QCC_PR_Expression (TOP_PRIORITY);
 			conditional = false;
 
-			if (e->type == type_string)	//special case, as strings are now pointers, not offsets from string table
+			if (e->type == type_string && flag_ifstring)	//special case, as strings are now pointers, not offsets from string table
+			{
+				QCC_PR_ParseWarning(WARN_IFSTRING_USED, "if not(string) can result in bizzare behaviour");
 				QCC_FreeTemp(QCC_PR_Statement (&pr_opcodes[OP_IFS], e, 0, &patch1));
+			}
 			else
 				QCC_FreeTemp(QCC_PR_Statement (&pr_opcodes[OP_IF], e, 0, &patch1));
 		}
@@ -4525,8 +4603,11 @@ void QCC_PR_ParseStatement (void)
 			e = QCC_PR_Expression (TOP_PRIORITY);
 			conditional = false;
 
-			if (e->type == type_string)	//special case, as strings are now pointers, not offsets from string table
+			if (e->type == type_string && flag_ifstring)	//special case, as strings are now pointers, not offsets from string table
+			{
+				QCC_PR_ParseWarning(WARN_IFSTRING_USED, "if (string) can result in bizzare behaviour");
 				QCC_FreeTemp(QCC_PR_Statement (&pr_opcodes[OP_IFNOTS], e, 0, &patch1));
+			}
 			else
 				QCC_FreeTemp(QCC_PR_Statement (&pr_opcodes[OP_IFNOT], e, 0, &patch1));
 		}
@@ -4823,19 +4904,9 @@ void QCC_PR_ParseStatement (void)
 			return;
 		}
 
-		if (num_gotos >= max_gotos)
-		{
-			max_gotos += 8;
-			pr_gotos = realloc(pr_gotos, sizeof(*pr_gotos)*max_gotos);
-		}
-
-		strncpy(pr_gotos[num_gotos].name, pr_token, sizeof(pr_gotos[num_gotos].name) -1);
-		pr_gotos[num_gotos].lineno = pr_source_line;
 		QCC_PR_Statement (&pr_opcodes[OP_GOTO], 0, 0, &patch2);
-		pr_gotos[num_gotos].statementno = patch2 - statements;
 
-
-		num_gotos++;
+		QCC_PR_GotoStatement (patch2, pr_token);
 
 //		QCC_PR_ParseWarning("Gotos are evil");
 		QCC_PR_Lex();
@@ -5078,7 +5149,7 @@ void QCC_PR_ParseState (void)
 
 void QCC_PR_ParseAsm(void)
 {
-QCC_dstatement_t *patch1;
+	QCC_dstatement_t *patch1;
 	int op, p;
 	QCC_def_t *a, *b, *c;
 
@@ -5098,34 +5169,60 @@ QCC_dstatement_t *patch1;
 			{
 				if (pr_opcodes[op].type_a==NULL)
 				{
-					p = (int)pr_immediate._float;
-					QCC_PR_Lex();
 					patch1 = &statements[numstatements];
+
 					QCC_PR_Statement3(&pr_opcodes[op], NULL, NULL, NULL);
-					patch1->a = (int)p;
+
+					if (pr_token_type == tt_name)
+					{
+						QCC_PR_GotoStatement(patch1, QCC_PR_ParseName());
+					}
+					else
+					{
+						p = (int)pr_immediate._float;
+						patch1->a = (int)p;
+					}
+
+					QCC_PR_Lex();
 				}
 				else if (pr_opcodes[op].type_b==NULL)
 				{
-					a = QCC_PR_ParseValue(pr_classtype);
-					p = (int)pr_immediate._float;
-					QCC_PR_Lex();
-
 					patch1 = &statements[numstatements];
+
+					a = QCC_PR_ParseValue(pr_classtype);
 					QCC_PR_Statement3(&pr_opcodes[op], a, NULL, NULL);
 
-					patch1->b = (int)p;
+					if (pr_token_type == tt_name)
+					{
+						QCC_PR_GotoStatement(patch1, QCC_PR_ParseName());
+					}
+					else
+					{
+						p = (int)pr_immediate._float;
+						patch1->b = (int)p;
+					}
+
+					QCC_PR_Lex();
 				}
 				else
 				{
+					patch1 = &statements[numstatements];
+
 					a = QCC_PR_ParseValue(pr_classtype);
 					b = QCC_PR_ParseValue(pr_classtype);
-					p = (int)pr_immediate._float;
-					QCC_PR_Lex();
-
-					patch1 = &statements[numstatements];
 					QCC_PR_Statement3(&pr_opcodes[op], a, b, NULL);
 
-					patch1->c = (int)p;
+					if (pr_token_type == tt_name)
+					{
+						QCC_PR_GotoStatement(patch1, QCC_PR_ParseName());
+					}
+					else
+					{
+						p = (int)pr_immediate._float;
+						patch1->c = (int)p;
+					}
+
+					QCC_PR_Lex();
 				}
 			}
 			else
@@ -5869,7 +5966,12 @@ QCC_function_t *QCC_PR_ParseImmediateStatements (QCC_type_t *type)
 			{
 				if (!strcmp(pr_gotos[i].name, pr_labels[j].name))
 				{
-					statements[pr_gotos[i].statementno].a += pr_labels[j].statementno - pr_gotos[i].statementno;
+					if (!pr_opcodes[statements[pr_gotos[i].statementno].op].type_a)
+						statements[pr_gotos[i].statementno].a += pr_labels[j].statementno - pr_gotos[i].statementno;
+					else if (!pr_opcodes[statements[pr_gotos[i].statementno].op].type_b)
+						statements[pr_gotos[i].statementno].b += pr_labels[j].statementno - pr_gotos[i].statementno;
+					else
+						statements[pr_gotos[i].statementno].c += pr_labels[j].statementno - pr_gotos[i].statementno;
 					break;
 				}
 			}

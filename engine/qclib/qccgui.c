@@ -1258,27 +1258,15 @@ int GUIprintf(const char *msg, ...)
 }
 
 #undef Sys_Error
-void Sys_Error(const char *text, ...);
-void RunCompiler(char *args)
+
+int BuildParms(char *args, char **argv)
 {
-	int i;
-	char *argv[64];
-	char param[2048];
-	char *next;
+	static char param[2048];
 	int paramlen = 0;
 	int argc;
-	progexterns_t ext;
-	progfuncs_t funcs;
-	memset(&funcs, 0, sizeof(funcs));
-	funcs.parms = &ext;
-	memset(&ext, 0, sizeof(ext));
-	funcs.parms->ReadFile = GUIReadFile;
-	funcs.parms->FileSize = GUIFileSize;
-	funcs.parms->WriteFile = QCC_WriteFile;
-	funcs.parms->printf = GUIprintf;
-	funcs.parms->Sys_Error = Sys_Error;
-	GUIprintf("");
-	
+	char *next;
+	int i;
+
 
 	argc = 1;
 	argv[0] = "fteqcc";
@@ -1353,6 +1341,30 @@ void RunCompiler(char *args)
 		argv[argc++] = "-src";
 		argv[argc++] = progssrcdir;
 	}
+
+	return argc;
+}
+
+void Sys_Error(const char *text, ...);
+void RunCompiler(char *args)
+{
+	char *argv[64];
+	int argc;
+	progexterns_t ext;
+	progfuncs_t funcs;
+
+	memset(&funcs, 0, sizeof(funcs));
+	funcs.parms = &ext;
+	memset(&ext, 0, sizeof(ext));
+	funcs.parms->ReadFile = GUIReadFile;
+	funcs.parms->FileSize = GUIFileSize;
+	funcs.parms->WriteFile = QCC_WriteFile;
+	funcs.parms->printf = GUIprintf;
+	funcs.parms->Sys_Error = Sys_Error;
+	GUIprintf("");
+	
+
+	argc = BuildParms(args, argv);
 
 	CompileParams(&funcs, true, argc, argv);
 }
@@ -1488,6 +1500,30 @@ int WINAPI WinMain (HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLin
 	{
 		RunCompiler(lpCmdLine);
 		return 0;
+	}
+
+	if (!*lpCmdLine)
+	{
+		int len;
+		FILE *f;
+		char *s;
+
+		f = fopen("fteqcc.cfg", "rb");
+		if (f)
+		{
+			fseek(f, 0, SEEK_END);
+			len = ftell(f);
+			fseek(f, 0, SEEK_SET);
+			lpCmdLine = malloc(len+1);
+			fread(lpCmdLine, 1, len, f);
+			lpCmdLine[len] = '\0';
+			fclose(f);
+
+			while(s = strchr(lpCmdLine, '\r'))
+				*s = ' ';
+			while(s = strchr(lpCmdLine, '\n'))
+				*s = ' ';
+		}
 	}
 
 	GuiParseCommandLine(lpCmdLine);

@@ -461,6 +461,7 @@ extern pbool keyword_class;
 extern pbool keywords_coexist;
 extern pbool output_parms;
 extern pbool autoprototype;
+extern pbool flag_ifstring;
 
 extern pbool opt_overlaptemps;
 extern pbool opt_shortenifnots;
@@ -574,6 +575,7 @@ enum {
 	WARN_DUPLICATEPRECOMPILER,
 	WARN_FTE_SPECIFIC,	//extension that only FTEQCC will have a clue about.
 	WARN_EXTENSION_USED,	//extension that frikqcc also understands
+	WARN_IFSTRING_USED,
 
 	ERR_PARSEERRORS,	//caused by qcc_pr_parseerror being called.
 

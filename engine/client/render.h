@@ -192,10 +192,13 @@ void MediaSW_ShowFrameBGR_24_Flip(qbyte *framedata, int inwidth, int inheight);	
 void R_ParseParticleEffect (void);
 void R_RunParticleEffect (vec3_t org, vec3_t dir, int color, int count);
 
+typedef struct beamseg_s beamseg_t;
+
 typedef struct {
 	float lastdist;
 	vec3_t lastorg;	//use only if lastdist
 	vec3_t lastdir;	//use only if lastdist
+	beamseg_t *lastbeam; // last beam point
 } trailstate_t;
 void R_RocketTrail (vec3_t start, vec3_t end, int type, trailstate_t *oldpoint);
 int R_RunParticleEffectType(vec3_t org, vec3_t dir, float count, int type);

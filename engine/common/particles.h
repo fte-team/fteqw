@@ -62,10 +62,11 @@ typedef struct particle_s
 			float		rotationspeed;
 			float		nextemit;
 		} p;	//point blob
-		struct {
+/*		struct {
 			vec3_t		org2;
 			vec3_t		lastdir;
-		} b;	//beam
+		} b;
+		*/
 	} u;
 
 // drivers never touch the following fields
@@ -73,6 +74,18 @@ typedef struct particle_s
 	struct particle_s	*next;
 	float		die;
 } particle_t;
+
+#define BS_LASTSEG 0x1 // no draw to next, no delete
+#define BS_DEAD    0x2 // segment is dead
+#define BS_NODRAW  0x4 // only used for lerp switching
+
+typedef struct beamseg_s
+{
+	particle_t *p; 
+	struct beamseg_s *next;  // next in beamseg list
+	int    flags;            // flags for beamseg
+	vec3_t dir;
+} beamseg_t;
 
 #define PARTICLE_Z_CLIP	8.0
 

@@ -85,6 +85,8 @@ typedef struct beamseg_s
 	struct beamseg_s *next;  // next in beamseg list
 	int    flags;            // flags for beamseg
 	vec3_t dir;
+
+	float texture_s;
 } beamseg_t;
 
 #define PARTICLE_Z_CLIP	8.0

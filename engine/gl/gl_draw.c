@@ -374,6 +374,47 @@ qpic_t	*GLDraw_SafeCachePic (char *path)
 			BZ_Free(dat);
 		}
 	}
+
+	{
+		char *mem;
+		char alternatename[MAX_QPATH];
+		_snprintf(alternatename, MAX_QPATH-1, "%s", path);
+		dat = (qpic_t *)COM_LoadMallocFile (alternatename);
+		if (dat)
+		{
+			strcpy(pic->name, path);
+			mem = NULL;
+			if (!mem)
+				mem = ReadTargaFile((qbyte *)dat, com_filesize, &pic->pic.width, &pic->pic.height, 0);
+#ifdef AVAIL_PNGLIB
+			if (!mem);
+				mem = ReadPNGFile((qbyte *)dat, com_filesize, &pic->pic.width, &pic->pic.height);
+#endif
+#ifdef AVAIL_JPEGLIB
+			if (!mem)
+				mem = ReadJPEGFile((qbyte *)dat, com_filesize, &pic->pic.width, &pic->pic.height);
+#endif
+			if (!mem)
+				mem = ReadPCXFile((qbyte *)dat, com_filesize, &pic->pic.width, &pic->pic.height);
+			if (mem)
+			{
+				gl = (glpic_t *)pic->pic.data;
+				if (!(gl->texnum = Mod_LoadReplacementTexture(alternatename, false, true)))
+					gl->texnum = GL_LoadTexture32(path, pic->pic.width, pic->pic.height, (unsigned *)dat, false, true);
+				gl->sl = 0;
+				gl->sh = 1;
+				gl->tl = 0;
+				gl->th = 1;
+
+				BZ_Free(dat);
+				BZ_Free(mem);
+				glmenu_numcachepics++;
+				return &pic->pic;
+			}
+			BZ_Free(dat);
+		}
+	}
+
 #ifdef AVAIL_JPEGLIB
 	{
 		char *mem;
@@ -441,6 +482,15 @@ qpic_t	*GLDraw_SafeCachePic (char *path)
 	}
 
 	SwapPic (dat);
+
+	if (((8+dat->width*dat->height+3)&(~3)) != ((com_filesize+3)&(~3)))	//round up to the nearest 4.
+	{
+		char alternatename[MAX_QPATH];
+		sprintf(alternatename, "gfx/%s.lmp", path);
+		dat = (qpic_t *)COM_LoadTempFile (alternatename);
+		if (!dat)
+			return GLDraw_SafePicFromWad(path);
+	}
 
 	// HACK HACK HACK --- we need to keep the bytes for
 	// the translatable player picture just for the menu

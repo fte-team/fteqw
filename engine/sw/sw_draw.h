@@ -25,6 +25,8 @@ void SWDraw_Init (void);
 void SWDraw_ReInit (void);
 void SWDraw_Shutdown(void);
 void SWDraw_Character (int x, int y, unsigned int num);
+void SWDraw_ImageColours (float r, float g, float b, float a);
+void SWDraw_Image (float xp, float yp, float wp, float hp, float s1, float t1, float s2, float t2, qpic_t *pic);
 void SWDraw_ColouredCharacter (int x, int y, unsigned int num);
 void SWDraw_DebugChar (qbyte num);
 void SWDraw_SubPic(int x, int y, qpic_t *pic, int srcx, int srcy, int width, int height);

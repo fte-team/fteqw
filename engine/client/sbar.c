@@ -1874,7 +1874,8 @@ void Sbar_DeathmatchOverlay (int start)
 		Draw_Character ( x+120 , y, num[1]);
 		Draw_Character ( x+128 , y, num[2]);
 
-		if (k == cl.playernum[0])
+		if ((cl.spectator && k == spec_track[0]) ||
+			(!cl.spectator && k == cl.playernum[0]))
 		{
 			Draw_Character ( x + 104, y, 16);
 			Draw_Character ( x + 136, y, 17);
@@ -2085,7 +2086,8 @@ void Sbar_MiniDeathmatchOverlay (void)
 		Draw_Character ( x+16, y, num[1]);
 		Draw_Character ( x+24, y, num[2]);
 
-		if (k == cl.playernum[0])
+		if ((cl.spectator && k == spec_track[0]) ||
+			(!cl.spectator && k == cl.playernum[0]))
 		{
 			Draw_Character ( x, y, 16);
 			Draw_Character ( x + 32, y, 17);

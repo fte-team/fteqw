@@ -2588,10 +2588,29 @@ void GLMod_GetTag(model_t *model, int tagnum, int frame, float **org, float **ax
 	tagnum--;	//tagnum 0 is 'use my angles/org'
 
 	t += tagnum;
+	t += inf->numtags*frame;
 	*org = t->org;
 	*axis = (float*)t->ang;
 }
 
+int GLMod_TagNumForName(model_t *model, char *name)
+{
+	int i;
+	galiasinfo_t *inf;
+	md3tag_t *t;
+
+	if (!model || model->type != mod_alias)
+		return 0;
+
+	inf = Mod_Extradata(model);
+	t = (md3tag_t*)((char*)inf + inf->ofstags);
+	for (i = 0; i < inf->numtags; i++)
+	{
+		if (!strcmp(t->name, name))
+			return i+1;
+	}
+	return 0;
+}
 
 
 

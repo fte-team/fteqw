@@ -49,6 +49,7 @@ cvar_t	sv_cmdlikercon = {"sv_cmdlikercon", "0"};
 cvar_t	sv_nomsec = {"sv_nomsec", "0"};
 cvar_t	sv_edgefriction = {"sv_edgefriction", "2"};
 
+cvar_t	sv_brokenmovetypes = {"sv_brokenmovetypes", "0"};
 
 cvar_t	sv_chatfilter = {"sv_chatfilter", "0"};
 
@@ -3393,7 +3394,11 @@ int SV_PMTypeForClient (client_t *cl)
 		return PM_FLY;
 
 	if (cl->edict->v.movetype == MOVETYPE_NONE)
+	{
+		if (sv_brokenmovetypes.value)
+			return PM_NORMAL;
 		return PM_NONE;
+	}
 
 	if (cl->edict->v.health <= 0)
 		return PM_DEAD;
@@ -4317,7 +4322,7 @@ void SV_UserInit (void)
 	Cvar_Register (&votepercent, sv_votinggroup);
 	Cvar_Register (&votetime, sv_votinggroup);
 
-
+	Cvar_Register (&sv_brokenmovetypes, "");
 
 	Cvar_Register (&sv_edgefriction, "netquake compatability");
 }

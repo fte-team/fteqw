@@ -2278,16 +2278,14 @@ void R_RocketTrail (vec3_t start, vec3_t end, int type, trailstate_t *ts)
 
 			b->flags |= BS_LASTSEG;
 			ts->lastbeam = b;
+		}
 
-			if (!free_particles || !free_beams)
-			{
-				if (ts->lastbeam)
-				{
-					b->flags &= ~BS_LASTSEG;
-					b->flags |= BS_NODRAW;
-					ts->lastbeam = NULL;
-				}
-			}
+
+		if ((!free_particles || !free_beams) && ts->lastbeam)
+		{
+			ts->lastbeam->flags &= ~BS_LASTSEG;
+			ts->lastbeam->flags |= BS_NODRAW;
+			ts->lastbeam = NULL;
 		}
 	}
 

@@ -911,9 +911,9 @@ static void QCC_FreeTemps(void)
 	t = functemps;
 	while(t)
 	{
-		if (t->used)
+		if (t->used && !pr_error_count)	//don't print this after an error jump out.
 		{
-			QCC_PR_ParseWarning(ERR_INTERNAL, "Temp was used\n");
+			QCC_PR_ParseWarning(WARN_DEBUGGING, "Temp was used\n");
 		}
 		t = t->next;
 	}
@@ -3052,7 +3052,6 @@ QCC_def_t	*QCC_PR_ParseValue (QCC_type_t *assumeclass)
 			else
 			{
 				QCC_PR_ParseWarning (ERR_UNKNOWNVALUE, "Unknown value \"%s\", assuming float.", name);
-				pr_error_count++;
 			}
 		}
 	}

@@ -530,6 +530,8 @@ void VARGS QCC_PR_Warning (int type, char *file, int line, char *error, ...);
 void QCC_PR_ParsePrintDef (int warningtype, QCC_def_t *def);
 void VARGS QCC_PR_ParseErrorPrintDef (int errortype, QCC_def_t *def, char *error, ...);
 
+int QCC_WarningForName(char *name);
+
 //QccMain.c must be changed if this is changed.
 enum {
 	WARN_DEBUGGING,

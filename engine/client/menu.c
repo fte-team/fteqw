@@ -909,10 +909,11 @@ void M_Draw (int uimenu)
 	case m_complex:
 		M_Complex_Draw ();
 		break;
-
+#ifdef PLUGINS
 	case m_plugin:
 		Plug_Menu_Event (0, (int)(realtime*1000));
 		break;
+#endif
 	}
 
 	if (m_entersound)
@@ -958,10 +959,11 @@ void M_Keydown (int key)
 	case m_complex:
 		M_Complex_Key (key);
 		return;
-
+#ifdef PLUGINS
 	case m_plugin:
 		Plug_Menu_Event (1, key);
 		return;
+#endif
 	}
 }
 
@@ -973,9 +975,11 @@ void M_Keyup (int key)
 	case m_xwindows:
 		XWindows_Keyup(key);
 		return;
+#ifdef PLUGINS
 	case m_plugin:
 		Plug_Menu_Event (2, key);
 		return;
+#endif
 	default:
 		break;
 	}

@@ -98,6 +98,8 @@ cvar_t	bottomcolor = {"bottomcolor",	"",			NULL, CVAR_ARCHIVE | CVAR_USERINFO};
 cvar_t	rate = {"rate",					"2500",		NULL, CVAR_ARCHIVE | CVAR_USERINFO};
 cvar_t	noaim = {"noaim",				"",			NULL, CVAR_ARCHIVE | CVAR_USERINFO};
 cvar_t	msg = {"msg",					"1",		NULL, CVAR_ARCHIVE | CVAR_USERINFO};
+cvar_t	cl_nofake = {"cl_nofake",		"2"};
+cvar_t	cl_chatsound = {"cl_chatsound",	"1"};
 
 cvar_t	cl_item_bobbing = {"cl_model_bobbing", "0"};
 
@@ -2037,6 +2039,9 @@ void CL_Init (void)
 	Cvar_Register (&msg,	cl_controlgroup);
 	Cvar_Register (&noaim,	cl_controlgroup);
 
+	Cvar_Register (&cl_nofake,	cl_controlgroup);
+	Cvar_Register (&cl_chatsound,	cl_controlgroup);
+
 	Cvar_Register (&requiredownloads,	cl_controlgroup);
 	Cvar_Register (&cl_standardchat,	cl_controlgroup);
 	Cvar_Register (&cl_nopext, cl_controlgroup);
@@ -2349,7 +2354,9 @@ void Host_Frame (float time)
 	POP3_Think();
 #endif
 
+#ifdef PLUGINS
 	Plug_Tick();
+#endif
 
 	// decide the simulation time
 	realtime += time;
@@ -2384,11 +2391,9 @@ void Host_Frame (float time)
 		return;			// framerate is too high
 
 	*/
+	Mod_Think();
 	if (!CL_FilterTime(realtime - oldrealtime))
-	{
-		Mod_Think();
 		return;
-	}
 
 	host_frametime = realtime - oldrealtime;
 	oldrealtime = realtime;
@@ -2640,6 +2645,10 @@ void Host_Init (quakeparms_t *parms)
 
 	UI_Init();
 
+#ifdef PLUGINS
+	Plug_Init();
+#endif
+
 
 Con_TPrintf (TL_NL);
 #ifdef VERSION3PART
@@ -2661,8 +2670,6 @@ Con_TPrintf (TL_NL);
 				"MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. "
 				"\n"
 				"See the GNU General Public License for more details.\n");
-
-	Plug_Init();
 }
 
 

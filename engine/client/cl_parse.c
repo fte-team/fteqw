@@ -2429,19 +2429,6 @@ void CL_SetStat (int pnum, int stat, int value)
 			if ( (value & (1<<j)) && !(cl.stats[pnum][stat] & (1<<j)))
 				cl.item_gettime[pnum][j] = cl.time;
 	}
-	if (stat == STAT_HEALTH && cl.stats[pnum][stat] != value)
-	{
-		if (value <= 0 && cl.stats[pnum][stat] > 0)
-		{
-			if (Cmd_AliasExist("f_death", RESTRICT_LOCAL))
-				Cbuf_AddText("f_death\n", RESTRICT_LOCAL);
-		}
-		if (value > 0 && cl.stats[pnum][stat] <= 0)
-		{
-			if (Cmd_AliasExist("f_spawn", RESTRICT_LOCAL))
-				Cbuf_AddText("f_spawn\n", RESTRICT_LOCAL);
-		}
-	}
 
 	if (stat == STAT_VIEWHEIGHT && cls.z_ext & Z_EXT_VIEWHEIGHT)
 		cl.viewheight[pnum] = value;
@@ -2454,6 +2441,9 @@ void CL_SetStat (int pnum, int stat, int value)
 	}
 
 	cl.stats[pnum][stat] = value;
+
+	if (pnum == 0)
+		TP_StatChanged(stat, value);
 }
 
 /*
@@ -3098,15 +3088,12 @@ void CLQ2_ParseMuzzleFlash2 (void)
 
 int getplayerid(char *msg);
 int build_number( void );
+//return if we want to print the message.
 qboolean CL_ParseChat(char *text)
 {	
+extern cvar_t cl_chatsound, cl_nofake;
+
 	char *s;
-	qboolean sameteam;
-	int fromid;
-	static float versionresponsetime;
-	static float modifiedresponsetime;
-	static float skinsresponsetime;
-	static float serverresponsetime;
 	s = strchr(text, ':');	//Hmm.. FIXME: Can a player's name contain a ':'?... I think the answer is a yes... Hmmm.. problematic eh?
 	if (!s || s[1] != ' ')	//wasn't a real chat...
 		return true;
@@ -3114,54 +3101,84 @@ qboolean CL_ParseChat(char *text)
 	Sys_ServerActivity();	//chat always flashes the screen..
 
 //check f_ stuff
-	if (!strncmp(s+2, "f_version", 9) && versionresponsetime < Sys_DoubleTime())	//respond to it.
+	if (!strncmp(s+2, "f_", 2))
 	{
-		ValidationPrintVersion(text);
-		versionresponsetime = Sys_DoubleTime() + 5;
-	}
-	else if (!strncmp(s+2, "f_server", 9) && serverresponsetime < Sys_DoubleTime())	//respond to it.
-	{
-		Validation_Server();
-		serverresponsetime = Sys_DoubleTime() + 5;
-	}
-	else if (!strncmp(s+2, "f_modified", 10) && modifiedresponsetime < Sys_DoubleTime())	//respond to it.
-	{
-		Validation_FilesModified();
-		modifiedresponsetime = Sys_DoubleTime() + 5;
-	}
-	else if (!strncmp(s+2, "f_skins", 7) && skinsresponsetime < Sys_DoubleTime())	//respond to it.
-	{
-		Validation_Skins();
-		skinsresponsetime = Sys_DoubleTime() + 5;
-	}
+		static float versionresponsetime;
+		static float modifiedresponsetime;
+		static float skinsresponsetime;
+		static float serverresponsetime;
 
-	if (!strncmp(s+2, "f_", 2))	//stop now. No parsing of 'f_' commands. None at all. Nope. Don't even try it.
+		if (!strncmp(s+2, "f_version", 9) && versionresponsetime < Sys_DoubleTime())	//respond to it.
+		{
+			ValidationPrintVersion(text);
+			versionresponsetime = Sys_DoubleTime() + 5;
+		}
+		else if (!strncmp(s+2, "f_server", 9) && serverresponsetime < Sys_DoubleTime())	//respond to it.
+		{
+			Validation_Server();
+			serverresponsetime = Sys_DoubleTime() + 5;
+		}
+		else if (!strncmp(s+2, "f_modified", 10) && modifiedresponsetime < Sys_DoubleTime())	//respond to it.
+		{
+			Validation_FilesModified();
+			modifiedresponsetime = Sys_DoubleTime() + 5;
+		}
+		else if (!strncmp(s+2, "f_skins", 7) && skinsresponsetime < Sys_DoubleTime())	//respond to it.
+		{
+			Validation_Skins();
+			skinsresponsetime = Sys_DoubleTime() + 5;
+		}
 		return true;
+	}
 
 	Validation_CheckIfResponse(text);
 
-	fromid = getplayerid(text);
-	if (!stricmp(Info_ValueForKey(cl.players[fromid].userinfo, "team"), Info_ValueForKey(cls.userinfo, "team")))
-		sameteam = true;
-	else
-		sameteam = false;
 
-	if (Cmd_FilterMessage(text, sameteam))
-		return false;
-	if (sameteam)
-		Cmd_MessageTrigger(s, 0);
 
+	{
+		int flags;
+		int offset=0;
+		qboolean	suppress_talksound;
+		char *p;
+
+		flags = TP_CategorizeMessage (s, &offset);
+
+		if (flags == 2 && !TP_FilterMessage(s + offset))
+			return false;
+
+		suppress_talksound = false;
+
+		if (flags == 2)
+			suppress_talksound = TP_CheckSoundTrigger (s + offset);
+
+		if (!cl_chatsound.value ||		// no sound at all
+			(cl_chatsound.value == 2 && flags != 2))	// only play sound in mm2
+			suppress_talksound = true;
+
+		if (!suppress_talksound)
+			S_LocalSound ("misc/talk.wav");
+
+		if (cl_nofake.value == 1 || (cl_nofake.value == 2 && flags != 2)) {
+			for (p = s; *p; p++)
+				if (*p == 13 || (*p == 10 && p[1]))
+					*p = ' '; 
+		}
+
+
+	}
 	return true;
 }
 
 char printtext[1024];
-void CL_ParsePrint(char *msg)
+void CL_ParsePrint(char *msg, int level)
 {
 	strncat(printtext, msg, sizeof(printtext)-1);
 	while((msg = strchr(printtext, '\n')))
 	{
 		*msg = '\0';
-		Stats_ParsePrintLine(printtext);
+		if (level != PRINT_CHAT)
+			Stats_ParsePrintLine(printtext);
+		TP_SearchForMsgTriggers(msg, level);
 		msg++;
 
 		memmove(printtext, msg, strlen(msg)+1);
@@ -3319,8 +3336,8 @@ void CL_ParseServerMessage (void)
 			{
 				if (CL_ParseChat(s))
 				{
-					if (!TP_SoundTrigger(s))
-						S_LocalSound ("misc/talk.wav");
+					CL_ParsePrint(s, i);
+
 					if (!cl_standardchat.value)
 						Con_TPrintf (TL_CSPECIALPRINT, getplayerchatcolour(s)%6+'1', s);	//don't ever print it in white.
 					else
@@ -3333,7 +3350,7 @@ void CL_ParseServerMessage (void)
 			}
 			else
 			{
-				CL_ParsePrint(s);
+				CL_ParsePrint(s, i);
 				Con_TPrintf (TL_ST, Translate(s));
 			}
 			break;
@@ -3755,12 +3772,15 @@ void CLQ2_ParseServerMessage (void)
 			{
 				S_LocalSound ("misc/talk.wav");
 				con_ormask = 0x8000;
-				CL_ParseChat(s);
-				Con_TPrintf (TL_CSPECIALPRINT, getplayerchatcolour(s)%6+'1', s);
+				if (CL_ParseChat(s))
+				{
+					CL_ParsePrint(s, i);
+					Con_TPrintf (TL_CSPECIALPRINT, getplayerchatcolour(s)%6+'1', s);
+				}
 			}
 			else
 			{
-				CL_ParsePrint(s);
+				CL_ParsePrint(s, i);
 				Con_TPrintf (TL_ST, Translate(s));
 			}
 			con_ormask = 0;
@@ -3876,8 +3896,19 @@ void CLNQ_ParseServerMessage (void)
 
 		case svc_print:
 			s = MSG_ReadString ();
-			CL_ParsePrint(s);
-			Con_TPrintf (TL_ST, Translate(s));
+			if (*s == 1 || *s == 2)
+			{
+				if (CL_ParseChat(s+1))
+				{
+					CL_ParsePrint(s+1, 3);
+					Con_TPrintf (TL_ST, Translate(s));
+				}
+			}
+			else
+			{
+				CL_ParsePrint(s, 3);
+				Con_TPrintf (TL_ST, Translate(s));
+			}
 			con_ormask = 0;
 			break;
 

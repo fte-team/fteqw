@@ -1807,9 +1807,6 @@ void SCR_DrawTwoDimensional(int uimenu, qboolean nohud)
 	//
 	// draw any areas not covered by the refresh
 	//
-	if (!nohud)
-		SCR_TileClear ();
-
 #ifdef RGLQUAKE
 	if (r_netgraph.value)
 		GLR_NetGraph ();

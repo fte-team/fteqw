@@ -52,6 +52,7 @@ needs almost the entire 256k of stack space!
 */
 void SWSCR_UpdateScreen (void)
 {
+	qboolean nohud;
 	int uimenu;
 	vrect_t		vrect;
 
@@ -145,18 +146,31 @@ void SWSCR_UpdateScreen (void)
 	
 	D_DisableBackBufferAccess ();	// for adapters that can't stay mapped in
 									//  for linear writes all the time
+
+	nohud = true;
 #ifdef TEXTEDIT
 	if (!editormodal)	//don't render view.
 #endif
-	if (cl.worldmodel)
 	{
-		VID_LockBuffer ();
-		V_RenderView ();
-		VID_UnlockBuffer ();
+#ifdef CSQC_DAT
+		if (CSQC_DrawView())
+			nohud = true;
+		else
+#endif
+
+		if (cl.worldmodel)
+		{
+			VID_LockBuffer ();
+			V_RenderView ();
+			VID_UnlockBuffer ();
+		}
 	}
 
 	D_EnableBackBufferAccess ();	// of all overlay stuff if drawing directly
 
+#if 1
+	SCR_DrawTwoDimensional(uimenu, nohud);
+#else
 	if (scr_drawloading)
 	{
 		SCR_DrawLoading ();
@@ -207,6 +221,7 @@ void SWSCR_UpdateScreen (void)
 		SCR_DrawConsole (false);	
 		M_Draw (uimenu);
 	}
+#endif
 
 
 	D_DisableBackBufferAccess ();	// for adapters that can't stay mapped in

@@ -277,6 +277,9 @@ void GLSCR_UpdateScreen (void)
 
 	GLR_BrightenScreen();
 
+	if (!nohud)
+		SCR_TileClear ();
+
 	SCR_DrawTwoDimensional(uimenu, nohud);
 
 	GLV_UpdatePalette ();

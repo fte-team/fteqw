@@ -43,6 +43,7 @@ ifeq ($(USEASM),true)
 		DO_AS=$(CC) $(BASE_CFLAGS) $(WCFLAGS) -x assembler-with-cpp -DELF -o $@ -c $< $(CFLAGS)
 	endif
 endif
+BASELDFLAGS=-lm
 BASELDFLAGS=-lm  -lz
 GLXLDFLAGS=-L/usr/X11R6/lib -lX11 -lXext -lpng -ljpeg -lXxf86vm
 GLSLDFLAGS=-L/usr/X11R6/lib -lMesaGL -lglide -lvga
@@ -151,9 +152,6 @@ CLIENT_OBJS = $(CLIENT_ASM_OBJS) \
 	httpclient.o 	\
 				\
 				\
-	m_x.o			\
-	x_reqs.o		\
-	x_res.o		\
 	pr_menu.o
 
 
@@ -270,7 +268,7 @@ SERVER_OBJS = 		\
 SERVERONLY_OBJS =		\
 	svmodel.o		\
 	sv_sys_unix.o
-	
+
 WINDOWSSERVERONLY_OBJS = \
 	svmodel.o	\
 	sv_sys_win.o
@@ -297,7 +295,7 @@ COMMON_OBJS = $(COMMON_ASM_OBJS) \
 	q1bsp.o		\
 	q2pmove.o
 
-	
+
 #the defaults for sdl come first
 GLCL_OBJS=$(GL_OBJS) $(GLQUAKE_OBJS) gl_vidsdl.o snd_sdl.o cd_sdl.o sys_sdl.o in_sdl.o
 GL_EXE_NAME=../fteqw_sdl.gl
@@ -327,16 +325,16 @@ SWCL_DIR=swcl_sdl
 SV_OBJS=$(COMMON_OBJS) $(NQPROT_OBJS) $(SERVER_OBJS) $(PROGS_OBJS) $(SERVERONLY_OBJS)
 SV_EXE_NAME=../fteqw.sv
 SV_CFLAGS=$(SERVER_ONLY_CFLAGS)
-	
+
 #specific targets override those defaults as needed.
-	
+
 ifeq ($(FTE_TARGET),win32)
 	LIBS_DIR = $(BASE_DIR)/libs
 	SV_EXE_NAME=../fteqwsv.exe
 	SV_LDFLAGS=libs/zlib.lib -lwsock32
 	SV_DIR=sv_mingw
 	SV_OBJS=$(COMMON_OBJS) $(NQPROT_OBJS) $(SERVER_OBJS) $(PROGS_OBJS) $(WINDOWSSERVERONLY_OBJS)
-	
+
 ifeq ($(USEASM),true)
 	GLCL_OBJS=$(GL_OBJS) $(GLQUAKE_OBJS) gl_vidnt.o snd_win.o cd_win.o in_win.o sys_win.o sys_dosa.o
 else
@@ -428,19 +426,24 @@ VPATH = $(BASE_DIR) : $(CLIENT_DIR) : $(GL_DIR) : $(COMMON_DIR) : $(SW_DIR) : $(
 
 
 $(OUT_DIR)/%.o : %.c
-	$(DO_CC)
+	$(DO_CC) -I$(OUT_DIR)
 
 ifeq ($(USEASM),true)
 $(OUT_DIR)/%.o : %.s sw/*.h
 	$(DO_AS)
 endif
 
+#enables use of precompiled headers in gcc 3.4 onwards.
+$(OUT_DIR)/quakedef.h.gch : quakedef.h
+	$(CC) -x c $(BASE_CFLAGS) $(WCFLAGS) -o $@ -c $< $(CFLAGS)
+
 #addprefix is to add the ./release/server/ part of the object name
 #foreach is needed as the OBJS is a list of variable names containing object lists.
 #which is needed as windows sucks too much for the chaining to carry a full list.
 #god knows how gcc loads the list properly.
 #or at least I hope he does. It makes no sence to mortals.
-$(OUT_DIR)/$(EXE_NAME):       $(addprefix $(OUT_DIR)/, $(CUSTOMOBJS) $(foreach ol, $(OBJS), $($(ol)))) 
+
+$(OUT_DIR)/$(EXE_NAME):   $(OUT_DIR)/quakedef.h.gch    $(addprefix $(OUT_DIR)/, $(CUSTOMOBJS) $(foreach ol, $(OBJS), $($(ol))))
 	$(CC) $(WCFLAGS) -o $@ $(addprefix $(OUT_DIR)/, $(CUSTOMOBJS) $(foreach ol, $(OBJS), $($(ol)))) $(LDFLAGS) $(CFLAGS)
 
 _out-rel:
@@ -469,7 +472,7 @@ sv-rel:
 	$(MAKE) sv-tmp TYPE=_out-rel OUT_DIR="$(RELEASE_DIR)/$(SV_DIR)"
 sv-dbg:
 	$(MAKE) sv-tmp TYPE=_out-dbg OUT_DIR="$(DEBUG_DIR)/$(SV_DIR)"
- 
+
 
 
 
@@ -545,7 +548,7 @@ plugins:
 else
 plugins:
 	@-echo no plugins directory installed
-endif	
+endif
 
 help:
 	@-echo "Specfic targets:"

@@ -331,7 +331,7 @@ void Cbuf_ExecuteLevel (int level)
 			// for next frame
 			break;
 		}
-		
+
 // find a \n or ; line break
 		text = (char *)cmd_text[level].buf.data;
 
@@ -1044,7 +1044,7 @@ char *Cmd_ExpandString (char *data, char *dest, int destlen, int maxaccesslevel)
 					if (var->restriction <= maxaccesslevel)
 						bestvar = var;
 				}
-#ifdef SERVERONLY
+#ifndef SERVERONLY
 				if ((str = TP_MacroString (buf+striptrailing, &macro_length)))
 					bestmacro = str;
 #endif
@@ -2185,17 +2185,39 @@ void Cmd_set_f(void)
 		text++;
 	while(*text <= ' ')	//second whitespace
 		text++;
+
 	//second var
-	text = If_Token(text, &end);
-
 	var = Cvar_FindVar (Cmd_Argv(1));
-	if (var)
-		Cvar_Set(var, text);
-	else
-		var = Cvar_Get(Cmd_Argv(1), text, 0, "User variables");
 
-	if (!stricmp(Cmd_Argv(0), "seta"))
-		var->flags |= CVAR_ARCHIVE|CVAR_USERCREATED;
+	if (var)
+	{
+		if (var->flags & CVAR_NOTFROMSERVER && Cmd_FromServer())
+		{
+			Con_Printf ("Server tried setting %s cvar\n", var->name);
+			return true;
+		}
+
+		text = If_Token(text, &end);
+		if (Cmd_FromServer())
+			Cvar_LockFromServer(var, text);
+		else
+			Cvar_Set(var, text);
+	}
+	else
+	{
+		text = If_Token(text, &end);
+		if (Cmd_FromServer())
+		{
+			var = Cvar_Get(Cmd_Argv(1), "", 0, "Game variables");
+			Cvar_LockFromServer(var, text);
+		}
+		else
+			var = Cvar_Get(Cmd_Argv(1), text, 0, "User variables");
+	}
+
+	if (!Cmd_FromServer())
+		if (!stricmp(Cmd_Argv(0), "seta"))
+			var->flags |= CVAR_ARCHIVE|CVAR_USERCREATED;
 }
 
 
@@ -2218,6 +2240,13 @@ void Cvar_Inc_f (void)
 		Con_Printf ("Unknown variable \"%s\"\n", Cmd_Argv(1));
 		return;
 	}
+	if (var->flags & CVAR_NOTFROMSERVER && Cmd_FromServer())
+	{
+		Con_Printf ("Server tried setting %s cvar\n", var->name);
+		return true;
+	}
+
+
 	delta = (c == 3) ? atof (Cmd_Argv(2)) : 1;
 
 	Cvar_SetValue (var, var->value + delta);

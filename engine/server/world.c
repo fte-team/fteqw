@@ -141,7 +141,7 @@ hull_t *SV_HullForEntity (edict_t *ent, int hullnum, vec3_t mins, vec3_t maxs, v
 	if (ent->v.solid == SOLID_BSP)
 	{	// explicit hulls in the BSP model
 		if (ent->v.movetype != MOVETYPE_PUSH)
-			SV_Error ("SOLID_BSP without MOVETYPE_PUSH");
+			SV_Error ("SOLID_BSP without MOVETYPE_PUSH (%s)", ent->v.classname + svprogfuncs->stringtable);
 
 		model = sv.models[ (int)ent->v.modelindex ];
 

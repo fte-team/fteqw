@@ -1033,10 +1033,10 @@ void Sbar_CoopScoreboard (void)
 	int		minutes, seconds, tens, units;
 	int		l;
 
-	sprintf (str,"Monsters:%3i /%3i", cl.stats[STAT_MONSTERS], cl.stats[STAT_TOTALMONSTERS]);
+	sprintf (str,"Monsters:%3i /%3i", cl.stats[0][STAT_MONSTERS], cl.stats[0][STAT_TOTALMONSTERS]);
 	Sbar_DrawString (8, 4, str);
 
-	sprintf (str,"Secrets :%3i /%3i", cl.stats[STAT_SECRETS], cl.stats[STAT_TOTALSECRETS]);
+	sprintf (str,"Secrets :%3i /%3i", cl.stats[0][STAT_SECRETS], cl.stats[0][STAT_TOTALSECRETS]);
 	Sbar_DrawString (8, 12, str);
 
 // time

@@ -120,6 +120,8 @@ static char	*suf[6] = {"rt", "bk", "lf", "ft", "up", "dn"};
 int	r_skysideimage[6] = {5, 2, 4, 1, 0, 3};
 extern	mtexinfo_t		r_skytexinfo[6];
 
+extern cvar_t gl_skyboxname;
+
 char skyname[128];
 void SWR_SetSky (char *name, float rotate, vec3_t axis)
 {
@@ -159,16 +161,35 @@ qboolean SWR_CheckSky (void)
 
 /*
 ================
+R_LoadSkyBox
+================
+*/
+void *Mod_LoadWall(char *name);
+void R_LoadSkyBox (void)
+{
+	int i;
+	char	pathname[MAX_QPATH];
+	for (i=0 ; i<6 ; i++)
+	{
+		sprintf (pathname, "env/%s%s.tga", skyname, suf[r_skysideimage[i]]);
+		r_skytexinfo[i].texture = Mod_LoadWall (pathname);	//preferable
+		if (!r_skytexinfo[i].texture)
+		{
+			sprintf (pathname, "env/%s%s.pcx", skyname, suf[r_skysideimage[i]]);
+			r_skytexinfo[i].texture = Mod_LoadWall (pathname);	//q2 fall back
+		}
+	}
+}
+/*
+================
 R_InitSkyBox
 
 ================
 */
-void *Mod_LoadWall(char *name);
 void R_InitSkyBox (void)
 {
 	int		i;
 	model_t *wm;
-	char	pathname[MAX_QPATH];
 
 	wm = cl.worldmodel;
 
@@ -217,18 +238,6 @@ void R_InitSkyBox (void)
 		r_skyedges[i].v[1] = wm->numvertexes-9+box_edges[i*2+1];
 		r_skyedges[i].cachededgeoffset = 0;
 	}
-
-
-	for (i=0 ; i<6 ; i++)
-	{
-		sprintf (pathname, "env/%s%s.tga", skyname, suf[r_skysideimage[i]]);
-		r_skytexinfo[i].texture = Mod_LoadWall (pathname);	//preferable
-		if (!r_skytexinfo[i].texture)
-		{
-			sprintf (pathname, "env/%s%s.pcx", skyname, suf[r_skysideimage[i]]);
-			r_skytexinfo[i].texture = Mod_LoadWall (pathname);	//q2 fall back
-		}
-	}
 }
 
 /*
@@ -245,6 +254,13 @@ qboolean R_EmitSkyBox (void)
 		return false;		// submodels should never have skies
 	if (r_skyframe == r_framecount)
 		return true;		// already set this frame
+
+	if (gl_skyboxname.modified)
+	{
+		Q_strncpyz (skyname, gl_skyboxname.string, sizeof(skyname));
+		R_LoadSkyBox();
+		gl_skyboxname.modified = false;
+	}
 
 	if (!*skyname)	//none set
 		return false;

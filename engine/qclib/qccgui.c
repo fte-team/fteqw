@@ -621,7 +621,7 @@ void EditFile(char *name, int line)
 
 	if (richedit)
 	{
-		SendMessage(neweditor->editpane, EM_EXLIMITTEXT, 0, 1<<20);
+		SendMessage(neweditor->editpane, EM_EXLIMITTEXT, 0, 1<<31);
 
 		SendMessage(neweditor->editpane, EM_SETUNDOLIMIT, 256, 256);
 	}

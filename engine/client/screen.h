@@ -67,7 +67,7 @@ void SCR_UpdateWholeScreen (void);
 
 
 //this stuff is internal to the screen systems.
-
+void SCR_CrosshairPosition(int pnum, int *x, int *y);
 void SCR_DrawLoading (void);
 void SCR_CalcRefdef (void);
 void SCR_TileClear (void);
@@ -88,3 +88,7 @@ void SCR_ShowPic_Hide(void);
 void SCR_ShowPic_Move(void);
 void SCR_ShowPic_Update(void);
 void SCR_ShowPic_Clear(void);
+
+//a header is better than none...
+void Draw_TextBox (int x, int y, int width, int lines);
+void SCR_ScreenShot (char *filename);

@@ -50,22 +50,22 @@ unsigned int	*d_8to32table = d_8to24bgrtable;	//palette lookups while rendering 
 
 //
 
-
-cvar_t	r_draworder = {"r_draworder","0", NULL, CVAR_CHEAT};
-cvar_t	r_speeds = {"r_speeds","0", NULL, CVAR_CHEAT};
-cvar_t	r_timegraph = {"r_timegraph","0"};
+cvar_t	r_drawviewmodel = {"r_drawviewmodel","1"};
 cvar_t	r_netgraph = {"r_netgraph","0"};
+cvar_t	r_speeds = {"r_speeds","0", NULL, CVAR_CHEAT};
+cvar_t	r_waterwarp = {"r_waterwarp","1"};
+cvar_t	r_drawentities = {"r_drawentities","1"};
+cvar_t	r_fullbright = {"r_fullbright","0", NULL, CVAR_CHEAT};
+cvar_t	r_ambient = {"r_ambient", "0", NULL, CVAR_CHEAT};
+#if defined(SWQUAKE)
+cvar_t	r_draworder = {"r_draworder","0", NULL, CVAR_CHEAT};
+cvar_t	r_timegraph = {"r_timegraph","0"};
 cvar_t	r_zgraph = {"r_zgraph","0"};
 cvar_t	r_graphheight = {"r_graphheight","15"};
 cvar_t	r_clearcolor = {"r_clearcolor","218"};
-cvar_t	r_waterwarp = {"r_waterwarp","1"};
-cvar_t	r_fullbright = {"r_fullbright","0", NULL, CVAR_CHEAT};
-cvar_t	r_drawentities = {"r_drawentities","1"};
-cvar_t	r_drawviewmodel = {"r_drawviewmodel","1"};
 cvar_t	r_aliasstats = {"r_polymodelstats","0"};
 cvar_t	r_dspeeds = {"r_dspeeds","0"};
 cvar_t	r_drawflat = {"r_drawflat", "0", NULL, CVAR_CHEAT};
-cvar_t	r_ambient = {"r_ambient", "0", NULL, CVAR_CHEAT};
 cvar_t	r_reportsurfout = {"r_reportsurfout", "0"};
 cvar_t	r_maxsurfs = {"r_maxsurfs", "0"};
 cvar_t	r_numsurfs = {"r_numsurfs", "0"};
@@ -75,6 +75,7 @@ cvar_t	r_numedges = {"r_numedges", "0"};
 cvar_t	r_aliastransbase = {"r_aliastransbase", "200"};
 cvar_t	r_aliastransadj = {"r_aliastransadj", "100"};
 cvar_t	d_smooth = {"d_smooth", "0"};
+#endif
 cvar_t	gl_skyboxdist = {"gl_skyboxdist", "2300"};
 
 extern	cvar_t	r_dodgytgafiles;
@@ -131,6 +132,7 @@ cvar_t		gl_2dscale = {"gl_2dscale", "1"};
 cvar_t		gl_nobind = {"gl_nobind", "0"};
 cvar_t		gl_max_size = {"gl_max_size", "1024"};
 cvar_t		gl_picmip = {"gl_picmip", "0"};
+cvar_t		gl_picmip2d = {"gl_picmip2d", "0"};
 cvar_t		r_drawdisk = {"r_drawdisk", "1"};
 cvar_t		gl_compress = {"gl_compress", "0"};
 cvar_t		gl_savecompressedtex = {"gl_savecompressedtex", "0"};
@@ -296,6 +298,7 @@ void GLRenderer_Init(void)
 	Cvar_Register (&gl_nobind, GLRENDEREROPTIONS);
 	Cvar_Register (&gl_max_size, GLRENDEREROPTIONS);
 	Cvar_Register (&gl_picmip, GLRENDEREROPTIONS);
+	Cvar_Register (&gl_picmip2d, GLRENDEREROPTIONS);
 	Cvar_Register (&r_drawdisk, GLRENDEREROPTIONS);
 
 	Cvar_Register (&gl_savecompressedtex, GLRENDEREROPTIONS);
@@ -762,7 +765,9 @@ void M_Menu_Video_f (void)
 	MC_AddCheckBox(menu,	16, y,							"      Stain maps", &r_stains,0);	y+=8;
 	MC_AddCheckBox(menu,	16, y,							"   Bouncy sparks", &r_bouncysparks,0);	y+=8;
 	MC_AddCheckBox(menu,	16, y,							"            Rain", &r_part_rain,0);	y+=8;
+#if defined(SWQUAKE)
 	MC_AddCheckBox(menu,	16, y,							"    SW Smoothing", &d_smooth,0);	y+=8;
+#endif
 	MC_AddCheckBox(menu,	16, y,							"  GL Bumpmapping", &gl_bump,0);	y+=8;
 	MC_AddCheckBox(menu,	16, y,							"  Dynamic lights", &r_dynamic,0);	y+=8;
 	MC_AddSlider(menu,	16, y,								"     Screen size", &scr_viewsize,	30,		120);y+=8;
@@ -1037,6 +1042,8 @@ qboolean R_ApplyRenderer (rendererstate_t *newr)
 	if (newr->bpp == -1)
 		return false;
 
+	IN_Shutdown();
+
 	if (R_DeInit)
 	{
 		TRACE(("dbg: R_ApplyRenderer: R_DeInit\n"));
@@ -1051,8 +1058,6 @@ qboolean R_ApplyRenderer (rendererstate_t *newr)
 
 	TRACE(("dbg: R_ApplyRenderer: SCR_DeInit\n"));
 	SCR_DeInit();
-
-	IN_Shutdown();
 
 	COM_FlushTempoaryPacks();
 

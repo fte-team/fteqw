@@ -69,6 +69,7 @@ typedef void (*xcommand_t) (void);
 int Cmd_Level(char *name);
 
 void	Cmd_Init (void);
+void	Cmd_StuffCmds (void);
 
 void	Cmd_RemoveCommand (char *cmd_name);
 void	Cmd_AddRemCommand (char *cmd_name, xcommand_t function);	//removable command
@@ -128,8 +129,6 @@ void	Cmd_ForwardToServer (void);
 
 qboolean Cmd_FilterMessage (char *message, qboolean sameteam);
 void Cmd_MessageTrigger (char *message, int type);
-
-void Cmd_StuffCmds_f (void);
 
 void Cmd_ShiftArgs (int ammount, qboolean expandstring);
 

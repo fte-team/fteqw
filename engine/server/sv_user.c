@@ -1345,11 +1345,13 @@ void SV_NextDownload_f (void)
 	if (!host_client->download)
 		return;
 
+#ifdef PEXT_CHUNKEDDOWNLOADS
 	if (host_client->fteprotocolextensions & PEXT_CHUNKEDDOWNLOADS)
 	{
 		SV_NextChunkedDownload(atoi(Cmd_Argv(1)));
 		return;
 	}
+#endif
 
 	r = host_client->downloadsize - host_client->downloadcount;
 	/*
@@ -1571,6 +1573,7 @@ void SV_BeginDownload_f(void)
 // hacked by zoid to allow more conrol over download
 	if (!SV_AllowDownload(name))
 	{	// don't allow anything with .. path
+#ifdef PEXT_CHUNKEDDOWNLOADS
 		if (host_client->fteprotocolextensions & PEXT_CHUNKEDDOWNLOADS)
 		{
 			ClientReliableWrite_Begin (host_client, svc_download, 10+strlen(name));
@@ -1579,6 +1582,7 @@ void SV_BeginDownload_f(void)
 			ClientReliableWrite_String (host_client, name);
 		}
 		else
+#endif
 		{
 			ClientReliableWrite_Begin (host_client, host_client->isq2client?svcq2_download:svc_download, 4);
 			ClientReliableWrite_Short (host_client, -1);
@@ -1616,6 +1620,7 @@ void SV_BeginDownload_f(void)
 		}
 
 		Sys_Printf ("Couldn't download %s to %s\n", name, host_client->name);
+#ifdef PEXT_CHUNKEDDOWNLOADS
 		if (host_client->fteprotocolextensions & PEXT_CHUNKEDDOWNLOADS)
 		{
 			ClientReliableWrite_Begin (host_client, svc_download, 10+strlen(name));
@@ -1624,6 +1629,7 @@ void SV_BeginDownload_f(void)
 			ClientReliableWrite_String (host_client, name);
 		}
 		else
+#endif
 		{
 			ClientReliableWrite_Begin (host_client, host_client->isq2client?svcq2_download:svc_download, 4);
 			ClientReliableWrite_Short (host_client, -1);
@@ -1632,6 +1638,7 @@ void SV_BeginDownload_f(void)
 		return;
 	}
 
+#ifdef PEXT_CHUNKEDDOWNLOADS
 	if (host_client->fteprotocolextensions & PEXT_CHUNKEDDOWNLOADS)
 	{
 		ClientReliableWrite_Begin (host_client, svc_download, 10+strlen(name));
@@ -1639,6 +1646,7 @@ void SV_BeginDownload_f(void)
 		ClientReliableWrite_Long (host_client, host_client->downloadsize);
 		ClientReliableWrite_String (host_client, name);
 	}
+#endif
 
 	SV_NextDownload_f ();
 	SV_EndRedirect();

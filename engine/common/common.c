@@ -2281,7 +2281,22 @@ void FS_RebuildFSHash(void)
 		filesystemhash.bucket = BZ_Malloc(Hash_BytesForBuckets(filesystemhash.numbuckets));
 	}
 	else
-		memset(filesystemhash.bucket, 0, Hash_BytesForBuckets(filesystemhash.numbuckets));
+	{
+		bucket_t *bucket, *next;
+		
+		for (i = 0; i < filesystemhash.numbuckets; i++)
+		{
+			bucket = filesystemhash.bucket[i];
+			filesystemhash.bucket[i] = NULL;
+			while(bucket)
+			{
+				next = bucket->next;
+				if (bucket->keystring == (char*)(bucket+1))
+					Z_Free(bucket);
+				bucket = next;
+			}
+		}
+	}
 	Hash_InitTable(&filesystemhash, filesystemhash.numbuckets, filesystemhash.bucket);
 
 	fs_hash_dups = 0;

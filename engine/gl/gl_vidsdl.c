@@ -1,7 +1,7 @@
 #include "quakedef.h"
 #include "glquake.h"
 
-#include <SDL/SDL.h>
+#include <SDL.h>
 
 SDL_Surface *sdlsurf;
 

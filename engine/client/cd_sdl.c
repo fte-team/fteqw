@@ -1,6 +1,6 @@
 #include "quakedef.h"
 
-#include <SDL/SDL.h>
+#include <SDL.h>
 
 extern	cvar_t	bgmvolume;
 

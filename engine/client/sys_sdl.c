@@ -1,6 +1,6 @@
 #include "quakedef.h"
 
-#include <SDL/SDL.h>
+#include <SDL.h>
 
 #ifndef WIN32
 #include <fcntl.h>
@@ -118,6 +118,7 @@ void *Sys_GetGameAPI (void *parms)
 {
 	return NULL;
 }
+
 
 
 

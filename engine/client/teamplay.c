@@ -13,7 +13,7 @@
 
 #include "quakedef.h"
 
-#ifndef ZQUAKETEAMPLAY
+#if 0 //ndef ZQUAKETEAMPLAY
 
 cvar_t tp_name_armortype_ga	= {"tp_name_armortype_ga", "g"};
 cvar_t tp_name_armortype_ya	= {"tp_name_armortype_ya", "y"};

@@ -26,7 +26,7 @@ XLDFLAGS=-L/usr/X11R6/lib -lX11 -lXext -lpng -ljpeg
 SLDFLAGS=-lvga
 
 
-BASE_CFLAGS=-Wall -Dstrnicmp=strncasecmp -Dstricmp=strcasecmp -I$(CLIENT_DIR) -I$(SERVER_DIR) -I$(COMMON_DIR) -I$(GL_DIR) -I$(PROGS_DIR) -I$(LIBS_DIR) -I$(QUX_DIR) -I/usr/X11R6/include -D_vsnprintf=vsnprintf -D_snprintf=snprintf
+BASE_CFLAGS=-Wall -Dstrnicmp=strncasecmp -Dstricmp=strcasecmp -I$(CLIENT_DIR) -I$(SERVER_DIR) -I$(COMMON_DIR) -I$(SW_DIR) -I$(GL_DIR) -I$(PROGS_DIR) -I$(LIBS_DIR) -I$(QUX_DIR) -I/usr/X11R6/include -D_vsnprintf=vsnprintf -D_snprintf=snprintf
 CLIENT_ONLY_CFLAGS=$(BASE_CFLAGS) -DCLIENTONLY
 SERVER_ONLY_CFLAGS=$(BASE_CFLAGS) -DSERVERONLY
 JOINT_CFLAGS=$(BASE_CFLAGS)

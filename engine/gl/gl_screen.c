@@ -86,12 +86,12 @@ void RSpeedShow(void)
 
 	for (i = 0; i < RSPEED_MAX; i++)
 	{
-		s = va("%i %-40s", samplerspeeds[i], RSpNames[i]);
+		s = va("%i %-30s", samplerspeeds[i], RSpNames[i]);
 		Draw_String(vid.width-strlen(s)*8, i*8, s);
 	}
 	for (i = 0; i < RQUANT_MAX; i++)
 	{
-		s = va("%i %-40s", samplerquant[i], RQntNames[i]);
+		s = va("%i %-30s", samplerquant[i], RQntNames[i]);
 		Draw_String(vid.width-strlen(s)*8, (i+RSPEED_MAX)*8, s);
 	}
 

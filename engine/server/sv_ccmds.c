@@ -519,7 +519,7 @@ void SV_Map_f (void)
 		cvar_t *nsv;
 		nsv = Cvar_Get("nextserver", "", 0, "");
 		if (nextserver)
-			Cvar_Set(nsv, nextserver);
+			Cvar_Set(nsv, va("gamemap \"%s\"", nextserver));
 		else
 			Cvar_Set(nsv, "");
 	}

@@ -202,7 +202,10 @@ void SV_New_f (void)
 		MSG_WriteByte (&host_client->netchan.message, 128);
 
 	// send full levelname
-	MSG_WriteString (&host_client->netchan.message, sv.mapname);
+	if (sv.demostatevalid)
+		MSG_WriteString (&host_client->netchan.message, sv.demfullmapname);
+	else
+		MSG_WriteString (&host_client->netchan.message, sv.mapname);
 
 	//
 	// game server

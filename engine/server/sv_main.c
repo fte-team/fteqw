@@ -2887,6 +2887,9 @@ void SV_InitLocal (void)
 	Cvar_Register (&allow_download_maps,	cvargroup_serverpermissions);
 	Cvar_Register (&allow_download_demos,	cvargroup_serverpermissions);
 	Cvar_Register (&allow_download_anymap,	cvargroup_serverpermissions);
+	Cvar_Register (&allow_download_textures,cvargroup_serverpermissions);
+	Cvar_Register (&allow_download_pk3s,	cvargroup_serverpermissions);
+	Cvar_Register (&allow_download_wads,	cvargroup_serverpermissions);
 	Cvar_Register (&allow_download_root,	cvargroup_serverpermissions);
 	Cvar_Register (&secure,	cvargroup_serverpermissions);
 

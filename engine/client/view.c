@@ -627,6 +627,7 @@ V_UpdatePalette
 */
 void GLV_UpdatePalette (void)
 {
+	qboolean ogw;
 	int		i, j;
 	qboolean	new;
 //	qbyte	*basepal, *newpal;
@@ -636,9 +637,19 @@ void GLV_UpdatePalette (void)
 	qboolean force;
 
 	V_CalcPowerupCshift ();
-	
+
+// drop the damage value
+	cl.cshifts[CSHIFT_DAMAGE].percent -= host_frametime*150;
+	if (cl.cshifts[CSHIFT_DAMAGE].percent <= 0)
+		cl.cshifts[CSHIFT_DAMAGE].percent = 0;
+
+// drop the bonus value
+	cl.cshifts[CSHIFT_BONUS].percent -= host_frametime*100;
+	if (cl.cshifts[CSHIFT_BONUS].percent <= 0)
+		cl.cshifts[CSHIFT_BONUS].percent = 0;
+
 	new = false;
-	
+
 	for (i=0 ; i<NUM_CSHIFTS ; i++)
 	{
 		if (cl.cshifts[i].percent != cl.prev_cshifts[i].percent)
@@ -653,16 +664,6 @@ void GLV_UpdatePalette (void)
 				cl.prev_cshifts[i].destcolor[j] = cl.cshifts[i].destcolor[j];
 			}
 	}
-
-// drop the damage value
-	cl.cshifts[CSHIFT_DAMAGE].percent -= host_frametime*150;
-	if (cl.cshifts[CSHIFT_DAMAGE].percent <= 0)
-		cl.cshifts[CSHIFT_DAMAGE].percent = 0;
-
-// drop the bonus value
-	cl.cshifts[CSHIFT_BONUS].percent -= host_frametime*100;
-	if (cl.cshifts[CSHIFT_BONUS].percent <= 0)
-		cl.cshifts[CSHIFT_BONUS].percent = 0;
 
 	force = V_CheckGamma ();
 	if (!new && !force)
@@ -695,10 +696,11 @@ void GLV_UpdatePalette (void)
 		ramps[2][i] = gammatable[ib]<<8;
 	}
 
-	VID_ShiftPalette (NULL);	
-	if (gammaworks)
+	ogw = gammaworks;
+	VID_ShiftPalette (NULL);
+	if (ogw != gammaworks)
 	{
-		BuildGammaTable(1,1);
+		Con_DPrintf("Gamma working state %i\n", gammaworks);
 	}
 }
 #endif

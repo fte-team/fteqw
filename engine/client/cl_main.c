@@ -1171,6 +1171,12 @@ void CL_FullServerinfo_f (void)
 	char *p;
 	float v;
 
+	if (!Cmd_FromServer())
+	{
+		Con_Printf("Hey! fullserverinfo is meant to come from the server!\n");
+		return;
+	}
+
 	if (Cmd_Argc() != 2)
 	{
 		Con_TPrintf (TLC_SYNTAX_FULLSERVERINFO);
@@ -2739,6 +2745,9 @@ void Host_Init (quakeparms_t *parms)
 		Sys_Error ("Only %4.1f megs of memory reported, can't execute game", parms->memsize / (float)0x100000);
 
 	Memory_Init (parms->membase, parms->memsize);
+
+	COM_ParsePlusSets();
+
 	Cbuf_Init ();
 	Cmd_Init ();
 
@@ -2803,19 +2812,15 @@ void Host_Init (quakeparms_t *parms)
 	hrc = COM_FDepthFile("hexen.rc", true);
 	def = COM_FDepthFile("default.cfg", true);
 
-	if (def < qrc && def < hrc || (qrc==0x7fffffff && hrc==0x7fffffff))
+	if (qrc >= def && qrc >= hrc && qrc!=0x7fffffff)
+		Cbuf_AddText ("exec quake.rc\n", RESTRICT_LOCAL);
+	else if (hrc >= def && hrc!=0x7fffffff)
+		Cbuf_AddText ("exec hexen.rc\n", RESTRICT_LOCAL);
+	else
 	{	//they didn't give us an rc file!
 		Cbuf_AddText ("exec default.cfg\n", RESTRICT_LOCAL);
 		Cbuf_AddText ("exec config.cfg\n", RESTRICT_LOCAL);
 		Cbuf_AddText ("exec autoexec.cfg\n", RESTRICT_LOCAL);
-	}
-	else if (qrc < hrc)
-	{	//hello hexen2
-		Cbuf_AddText ("exec hexen.rc\n", RESTRICT_LOCAL);
-	}
-	else
-	{	//looks like they want us to run quake.
-		Cbuf_AddText ("exec quake.rc\n", RESTRICT_LOCAL);
 	}
 	Cbuf_AddText ("exec fte.cfg\n", RESTRICT_LOCAL);
 	Cbuf_AddText ("cl_warncmd 1\n", RESTRICT_LOCAL);	//and then it's allowed to start moaning.
@@ -2827,8 +2832,10 @@ void Host_Init (quakeparms_t *parms)
 
 	host_initialized = true;
 
-	if (!setjmp (host_abort) )
-		Cbuf_Execute ();	//if the server initialisation causes a problem, give it a place to abort to
+	Cmd_StuffCmds();
+
+	Cbuf_Execute ();	//if the server initialisation causes a problem, give it a place to abort to
+
 #ifndef NOMEDIA
 	if (!cls.demofile && !cls.state && !media_filmtype)
 	{

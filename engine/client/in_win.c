@@ -927,7 +927,7 @@ static void ProcessMouse(mouse_t *mouse, usercmd_t *cmd, int pnum)
 	extern int mousemove_x, mousemove_y;
 
 	int mx, my;
-	int mouse_x, mouse_y;
+	double mouse_x, mouse_y;
 
 	int i;
 

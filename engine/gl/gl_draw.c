@@ -74,7 +74,6 @@ int			cs_texture; // crosshair texture
 extern int detailtexture;
 
 static unsigned cs_data[16*16];
-int cachedcrosshair;
 
 typedef struct
 {
@@ -914,7 +913,7 @@ TRACE(("dbg: GLDraw_ReInit: Allocating upload buffers\n"));
 	}
 
 	cs_texture = texture_extension_number++;
-	cachedcrosshair=0;
+	crosshair.modified=true;
 	crosshairimage.modified = true;
 
 	GL_SetupSceneProcessingTextures();
@@ -1259,7 +1258,7 @@ void GLDraw_Crosshair(void)
 	float x1, x2, y1, y2;
 	float size;
 
-	if (crosshair.value == 1)
+	if (crosshair.value == 1 && !*crosshairimage.string)
 	{
 		for (sc = 0; sc < cl.splitclients; sc++)
 		{
@@ -1288,10 +1287,13 @@ void GLDraw_Crosshair(void)
 	{
 		GL_Bind (cs_texture);
 
-		if (cachedcrosshair != crosshair.value || crosshair.value >= FIRSTANIMATEDCROSHAIR)
+		if (crosshair.modified || crosshaircolor.modified || crosshair.value >= FIRSTANIMATEDCROSHAIR)
 		{
 			int c = d_8to24rgbtable[(qbyte) crosshaircolor.value];
 			int c2 = d_8to24rgbtable[(qbyte) crosshaircolor.value];
+
+			crosshair.modified = false;
+			crosshaircolor.modified = false;
 
 #define Pix(x,y,c) {	\
 			if (y+8<0)c=0;	\
@@ -1310,7 +1312,6 @@ void GLDraw_Crosshair(void)
 			GL_Upload32(NULL, cs_data, 16, 16, 0, true);
 
 #undef Pix
-			cachedcrosshair = crosshair.value;
 		}
 		if (crosshairsize.value <= 16)
 		{

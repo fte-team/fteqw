@@ -105,6 +105,7 @@ void M_MenuS_CheckBox_f (void)
 	int y = atoi(Cmd_Argv(2));
 	char *text = Cmd_Argv(3);
 	char *cvarname = Cmd_Argv(4);
+	int bitmask = atoi(Cmd_Argv(5));
 	cvar_t *cvar;
 
 	if (!menu_script)
@@ -115,7 +116,7 @@ void M_MenuS_CheckBox_f (void)
 	cvar = Cvar_Get(cvarname, text, 0, "User variables");
 	if (!cvar)
 		return;
-	MC_AddCheckBox(menu_script, x, y, text, cvar);
+	MC_AddCheckBox(menu_script, x, y, text, cvar, bitmask);
 }
 
 void M_MenuS_Slider_f (void)

@@ -76,13 +76,13 @@ void M_Menu_Options_f (void)
 
 	MC_AddSlider(menu, 16, y,			"           Mouse Speed", &sensitivity,		1,		10); y+=8;
 
-	MC_AddCheckBox(menu, 16, y,		"            Always Run", NULL)->func = M_Options_AlwaysRun; y+=8;
-	MC_AddCheckBox(menu, 16, y,		"          Invert Mouse", NULL)->func = M_Options_InvertMouse; y+=8;
-	MC_AddCheckBox(menu, 16, y,		"            Lookspring", &lookspring); y+=8;
-	MC_AddCheckBox(menu, 16, y,		"            Lookstrafe", &lookstrafe); y+=8;
-	MC_AddCheckBox(menu, 16, y,		"    Use old status bar", &cl_sbar); y+=8;
-	MC_AddCheckBox(menu, 16, y,		"      HUD on left side", &cl_hudswap); y+=8;
-	MC_AddCheckBox(menu, 16, y,		"    Old-style chatting", &cl_standardchat);y+=8;
+	MC_AddCheckBox(menu, 16, y,		"            Always Run", NULL,0)->func = M_Options_AlwaysRun; y+=8;
+	MC_AddCheckBox(menu, 16, y,		"          Invert Mouse", NULL,0)->func = M_Options_InvertMouse; y+=8;
+	MC_AddCheckBox(menu, 16, y,		"            Lookspring", &lookspring,0); y+=8;
+	MC_AddCheckBox(menu, 16, y,		"            Lookstrafe", &lookstrafe,0); y+=8;
+	MC_AddCheckBox(menu, 16, y,		"    Use old status bar", &cl_sbar,0); y+=8;
+	MC_AddCheckBox(menu, 16, y,		"      HUD on left side", &cl_hudswap,0); y+=8;
+	MC_AddCheckBox(menu, 16, y,		"    Old-style chatting", &cl_standardchat,0);y+=8;
 	y+=4;MC_AddEditCvar(menu, 16, y,		"           Imitate FPS", "cl_netfps"); y+=8+4;
 
 	MC_AddConsoleCommand(menu, 16, y,	"         Video Options", "menu_video\n"); y+=8;
@@ -93,7 +93,7 @@ void M_Menu_Options_f (void)
 	if (!vid_isfullscreen)	
 #endif
 	{
-		MC_AddCheckBox(menu, 16, y,	"             Use Mouse", &_windowed_mouse); y+=8;
+		MC_AddCheckBox(menu, 16, y,	"             Use Mouse", &_windowed_mouse,0); y+=8;
 	}
 
 	menu->cursoritem = (menuoption_t*)MC_AddWhiteText(menu, 200, 32, NULL, false);
@@ -266,11 +266,11 @@ void M_Menu_Audio_f (void)
 	MC_AddSlider(menu, 16, y,			"       CD Music Volume", &bgmvolume,		0,		1);y+=8;
 	MC_AddSlider(menu, 16, y,			"          Sound Volume", &volume,			0,		1);y+=8;
 	MC_AddSlider(menu, 16, y,			"        Ambient Volume", &ambient_level,	0,		1);y+=8;
-	MC_AddCheckBox(menu, 16, y,			"              no sound", &nosound);y+=8;
-	MC_AddCheckBox(menu, 16, y,			"              precache", &precache);y+=8;
-	MC_AddCheckBox(menu, 16, y,			"     Low Quality Sound", &loadas8bit);y+=8;
-	MC_AddCheckBox(menu, 16, y,			"            Flip Sound", &snd_leftisright);y+=8;
-	MC_AddCheckBox(menu, 16, y,			"    Experimental EAX 2", &snd_eax);y+=8;
+	MC_AddCheckBox(menu, 16, y,			"              no sound", &nosound,0);y+=8;
+	MC_AddCheckBox(menu, 16, y,			"              precache", &precache,0);y+=8;
+	MC_AddCheckBox(menu, 16, y,			"     Low Quality Sound", &loadas8bit,0);y+=8;
+	MC_AddCheckBox(menu, 16, y,			"            Flip Sound", &snd_leftisright,0);y+=8;
+	MC_AddCheckBox(menu, 16, y,			"    Experimental EAX 2", &snd_eax,0);y+=8;
 	MC_AddCvarCombo(menu, 16, y,		"         Speaker setup", &snd_speakers, speakeroptions, speakervalues);y+=8;
 	MC_AddCvarCombo(menu, 16, y,		"           Sound speed", &snd_khz, soundqualityoptions, soundqualityvalues);y+=8;
 	MC_AddConsoleCommand(menu, 16, y,	"         Restart sound", "snd_restart\n");y+=8;
@@ -333,7 +333,7 @@ void M_Menu_Particles_f (void)
 
 	menu->selecteditem = (union menuoption_s *)
 
-	MC_AddCheckBox(menu, 16, y,			"         sparks bounce", &r_bouncysparks);y+=8;
+	MC_AddCheckBox(menu, 16, y,			"         sparks bounce", &r_bouncysparks,0);y+=8;
 	MC_AddSlider(menu, 16, y,			"       exp spark count", &r_particles_in_explosion, 16, 1024);y+=8;
 	MC_AddCvarCombo(menu, 16, y,		"           rain effect", &r_part_rain, r_part_rain_options, r_part_rain_values);y+=8;
 
@@ -342,7 +342,7 @@ void M_Menu_Particles_f (void)
 	{
 		MC_AddCvarCombo(menu, 16, y,		"      WallTorch effect", &gl_part_torch, gl_part_effects_ops, gl_part_effects_vals);y+=8;
 		MC_AddCvarCombo(menu, 16, y,		"     Open flame effect", &gl_part_flame, gl_part_effects_ops, gl_part_effects_vals);y+=8;
-		MC_AddCheckBox(menu, 16, y,			"         Trifan Sparks", &gl_part_trifansparks);y+=8;
+		MC_AddCheckBox(menu, 16, y,			"         Trifan Sparks", &gl_part_trifansparks,0);y+=8;
 	}
 #endif
 
@@ -377,32 +377,32 @@ void M_Menu_FPS_f (void)
 
 	MC_AddConsoleCommand(menu, 48, y,		"  Particle Options", "menu_particles\n"); y+=8;
 
-	MC_AddCheckBox(menu, 48, y,				"          Show FPS", &show_fps);y+=8;
+	MC_AddCheckBox(menu, 48, y,				"          Show FPS", &show_fps,0);y+=8;
 
-	MC_AddCheckBox(menu, 48, y,				"     Content blend", &v_contentblend);y+=8;
-	MC_AddCheckBox(menu, 48, y,				"    Dynamic lights", &r_dynamic);y+=8;
-	MC_AddCheckBox(menu, 48, y,			    "         Stainmaps", &r_stains);y+=8;
+	MC_AddCheckBox(menu, 48, y,				"     Content blend", &v_contentblend,0);y+=8;
+	MC_AddCheckBox(menu, 48, y,				"    Dynamic lights", &r_dynamic,0);y+=8;
+	MC_AddCheckBox(menu, 48, y,			    "         Stainmaps", &r_stains,0);y+=8;
 
 	switch(qrenderer)
 	{
 #ifdef RGLQUAKE
 	case QR_OPENGL:
-		MC_AddCheckBox(menu, 48, y,			"      Blood stains", &r_bloodstains);y+=8;
-		MC_AddCheckBox(menu, 48, y,			"   Load .lit files", &r_loadlits);y+=8;
-		MC_AddCheckBox(menu, 48, y,			"     Flashblending", &r_flashblend);y+=8;
-		MC_AddCheckBox(menu, 48, y,			"        Detailmaps", &gl_detail);y+=8;
-		MC_AddCheckBox(menu, 48, y,			"          Bumpmaps", &gl_bump);y+=8;
-		MC_AddCheckBox(menu, 48, y,			"   Tex Compression", &gl_compress);y+=8;
-		MC_AddCheckBox(menu, 48, y,			"Other Water Effect", &gl_waterripples);y+=8;
+		MC_AddCheckBox(menu, 48, y,			"      Blood stains", &r_bloodstains,0);y+=8;
+		MC_AddCheckBox(menu, 48, y,			"   Load .lit files", &r_loadlits,0);y+=8;
+		MC_AddCheckBox(menu, 48, y,			"     Flashblending", &r_flashblend,0);y+=8;
+		MC_AddCheckBox(menu, 48, y,			"        Detailmaps", &gl_detail,0);y+=8;
+		MC_AddCheckBox(menu, 48, y,			"          Bumpmaps", &gl_bump,0);y+=8;
+		MC_AddCheckBox(menu, 48, y,			"   Tex Compression", &gl_compress,0);y+=8;
+		MC_AddCheckBox(menu, 48, y,			"Other Water Effect", &gl_waterripples,0);y+=8;
 		MC_AddSlider(menu, 48, y,			"     2D resolution", &gl_2dscale,		0,		1);y+=8;
-		MC_AddCheckBox(menu, 48, y,			"   32 bit textures", &gl_load24bit);y+=8;
+		MC_AddCheckBox(menu, 48, y,			"   32 bit textures", &gl_load24bit,0);y+=8;
 		break;
 #endif
 #ifdef SWQUAKE
 	case QR_SOFTWARE:
 		if (r_pixbytes == 4)
-		{MC_AddCheckBox(menu, 48, y,		"   Load .lit files", &r_loadlits);y+=8;}
-		MC_AddCheckBox(menu, 48, y,			" Texture Smoothing", &d_smooth);y+=8;
+		{MC_AddCheckBox(menu, 48, y,		"   Load .lit files", &r_loadlits,0);y+=8;}
+		MC_AddCheckBox(menu, 48, y,			" Texture Smoothing", &d_smooth,0);y+=8;
 		MC_AddSlider(menu, 48, y,			"      Mipmap scale", &d_mipscale,		0.1,	3);y+=8;
 		MC_AddSlider(menu, 48, y,			"    Mipmap Capping", &d_mipcap,		0,		3);y+=8;
 		break;

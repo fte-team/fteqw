@@ -97,6 +97,7 @@ typedef struct {
 	menucommon_t common;
 	const char *text;
 	cvar_t *var;
+	int bits;
 	float value;
 	qboolean (*func) (union menuoption_s *option, chk_set_t set);
 } menucheck_t;
@@ -191,7 +192,7 @@ menupicture_t *MC_AddPicture(menu_t *menu, int x, int y, char *picname);
 menupicture_t *MC_AddCenterPicture(menu_t *menu, int y, char *picname);
 menupicture_t *MC_AddCursor(menu_t *menu, int x, int y);
 menuslider_t *MC_AddSlider(menu_t *menu, int x, int y, const char *text, cvar_t *var, float min, float max);
-menucheck_t *MC_AddCheckBox(menu_t *menu, int x, int y, const char *text, cvar_t *var);
+menucheck_t *MC_AddCheckBox(menu_t *menu, int x, int y, const char *text, cvar_t *var, int cvarbitmask);
 menubutton_t *MC_AddConsoleCommand(menu_t *menu, int x, int y, const char *text, const char *command);
 menubutton_t *MC_AddCommand(menu_t *menu, int x, int y, char *text, qboolean (*command) (union menuoption_s *,struct menu_s *,int));
 
@@ -288,3 +289,7 @@ void M_DrawCharacter (int cx, int line, unsigned int num);
 void M_Print (int cx, int cy, qbyte *str);
 void M_PrintWhite (int cx, int cy, qbyte *str);
 void M_DrawPic (int x, int y, qpic_t *pic);
+
+
+void M_FindKeysForCommand (char *command, int *twokeys);
+void M_UnbindCommand (char *command);

@@ -207,11 +207,21 @@ void MenuDrawItems(int xpos, int ypos, menuoption_t *option, menu_t *menu)
 				if (option->check.func)
 					on = option->check.func(option, CHK_CHECKED);
 				else if (!option->check.var)
-					on = option->check.value;
-				else if (option->check.var->latched_string)
-					on = atof(option->check.var->latched_string);
+						on = option->check.value;
+				else if (option->check.bits)	//bits is a bitmask for use with cvars (users can be clumsy, so bittage of 0 uses non-zero as true, but sets only bit 1)
+				{
+					if (option->check.var->latched_string)
+						on = atoi(option->check.var->latched_string)&option->check.bits;
+					else
+						on = (int)(option->check.var->value)&option->check.bits;
+				}
 				else
-					on = option->check.var->value;
+				{
+					if (option->check.var->latched_string)
+						on = !!atof(option->check.var->latched_string);
+					else
+						on = !!option->check.var->value;
+				}
 
 				if (option->check.text)
 				{
@@ -527,7 +537,7 @@ menucustom_t *MC_AddCustom(menu_t *menu, int x, int y, const char *data)
 	return n;
 }
 
-menucheck_t *MC_AddCheckBox(menu_t *menu, int x, int y, const char *text, cvar_t *var)
+menucheck_t *MC_AddCheckBox(menu_t *menu, int x, int y, const char *text, cvar_t *var, int bits)
 {
 	menucheck_t *n = Z_Malloc(sizeof(menucheck_t)+strlen(text)+1);
 	n->common.type = mt_checkbox;
@@ -539,6 +549,7 @@ menucheck_t *MC_AddCheckBox(menu_t *menu, int x, int y, const char *text, cvar_t
 	n->text = (char *)(n+1);
 	strcpy((char *)(n+1), text);
 	n->var = var;
+	n->bits = bits;
 
 	n->common.next = menu->options;
 	menu->options = (menuoption_t *)n;
@@ -758,10 +769,26 @@ void MC_CheckBox_Key(menucheck_t *option, int key)
 		option->value = !option->value;
 	else
 	{
-		if (option->var->latched_string)
-			Cvar_SetValue(option->var, !atof(option->var->latched_string));
+		if (option->bits)
+		{
+			int old;
+			if (option->var->latched_string)
+				old = atoi(option->var->latched_string);
+			else
+				old = option->var->value;
+
+			if (old & option->bits)
+				Cvar_SetValue(option->var, old&~option->bits);
+			else
+				Cvar_SetValue(option->var, old|option->bits);
+		}
 		else
-			Cvar_SetValue(option->var, !option->var->value);
+		{
+			if (option->var->latched_string)
+				Cvar_SetValue(option->var, !atof(option->var->latched_string));
+			else
+				Cvar_SetValue(option->var, !option->var->value);
+		}
 		S_LocalSound ("misc/menu2.wav");
 	}
 }

@@ -355,7 +355,7 @@ void M_Menu_GameOptions_f (void)
 	info->deathmatch	= MC_AddCombo	(menu, 64, y,			" Deathmatch", (const char **)deathmatchoptions,	deathmatch.value);y+=8;
 	info->teamplay		= MC_AddCombo	(menu, 64, y,			"   Teamplay", (const char **)teamplayoptions,		teamplay.value);y+=8;
 	info->skill			= MC_AddCombo	(menu, 64, y,			"      Skill", (const char **)skilloptions,			skill.value);y+=8;
-	info->rundedicated	= MC_AddCheckBox(menu, 64, y,			"  dedicated", NULL);y+=8;
+	info->rundedicated	= MC_AddCheckBox(menu, 64, y,			"  dedicated", NULL, 0);y+=8;
 	y+=8;
 	info->timelimit		= MC_AddCombo	(menu, 64, y,			" Time Limit", (const char **)timelimitoptions,		timelimit.value/5);y+=8;
 	info->fraglimit		= MC_AddCombo	(menu, 64, y,			" Frag Limit", (const char **)fraglimitoptions,		fraglimit.value/10);y+=8;

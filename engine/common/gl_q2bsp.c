@@ -4606,9 +4606,16 @@ trace_t		CM_TransformedBoxTrace (vec3_t start, vec3_t end,
 		trace.plane.normal[2] = DotProduct (temp, up);
 	}
 
-	trace.endpos[0] = start[0] + trace.fraction * (end[0] - start[0]);
-	trace.endpos[1] = start[1] + trace.fraction * (end[1] - start[1]);
-	trace.endpos[2] = start[2] + trace.fraction * (end[2] - start[2]);
+	if (trace.fraction == 1)
+	{
+		VectorCopy(end, trace.endpos);
+	}
+	else
+	{
+		trace.endpos[0] = start[0] + trace.fraction * (end[0] - start[0]);
+		trace.endpos[1] = start[1] + trace.fraction * (end[1] - start[1]);
+		trace.endpos[2] = start[2] + trace.fraction * (end[2] - start[2]);
+	}
 
 	return trace;
 }

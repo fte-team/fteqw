@@ -4563,18 +4563,18 @@ void SV_ClientThink (void)
 {
 	vec3_t		v_angle;
 
-	sv_player->v.movement[0] = cmd.forwardmove * host_frametime;
-	sv_player->v.movement[1] = cmd.sidemove * host_frametime;
-	sv_player->v.movement[2] = cmd.upmove * host_frametime;
+	sv_player->v.movement[0] = cmd.forwardmove;
+	sv_player->v.movement[1] = cmd.sidemove;
+	sv_player->v.movement[2] = cmd.upmove;
 
-/*	if (SV_PlayerPhysicsQC)
+	if (SV_PlayerPhysicsQC)
 	{
 		pr_global_struct->time = sv.time;
 		pr_global_struct->self = EDICT_TO_PROG(svprogfuncs, sv_player);
 		PR_ExecuteProgram (svprogfuncs, SV_PlayerPhysicsQC);
 		return;
 	}
-*/
+
 	if (sv_player->v.movetype == MOVETYPE_NONE)
 		return;
 	

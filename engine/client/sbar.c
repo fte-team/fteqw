@@ -1126,7 +1126,12 @@ void Sbar_DrawInventory (int pnum)
 			{
 				if (cl.stats[pnum][STAT_ACTIVEWEAPON] == (RIT_LAVA_NAILGUN << i))
 				{
-					Sbar_DrawPic ((i+2)*24, -16, rsb_weapons[i]);
+					if (headsup) {
+						if (sbar_rect.height>200)
+							Sbar_DrawSubPic ((hudswap) ? 0 : (sbar_rect.width-24),-68-(5-i)*16 , rsb_weapons[i],0,0,24,16);
+					
+					} else 
+						Sbar_DrawPic ((i+2)*24, -16, rsb_weapons[i]);
 				}
 			}
 		}

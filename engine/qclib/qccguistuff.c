@@ -271,6 +271,16 @@ int GUI_BuildParms(char *args, char **argv)
 		paramlen += strlen(param+paramlen)+1;
 	}
 
+	for (i = 0; compiler_flag[i].enabled; i++)	//enabled is a pointer
+	{
+		if (compiler_flag[i].flags & FLAG_SETINGUI)
+			sprintf(param+paramlen, "-F%s", compiler_flag[i].abbrev);
+		else
+			sprintf(param+paramlen, "-Fno-%s", compiler_flag[i].abbrev);
+		argv[argc++] = param+paramlen;
+		paramlen += strlen(param+paramlen)+1;
+	}
+
 
 /*	while(*args)
 	{

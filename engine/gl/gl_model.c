@@ -676,6 +676,174 @@ extern qbyte	*mod_base;
 qbyte	*mod_base;
 #endif
 
+char *advtexturedesc;
+char *mapsection;
+char *defaultsection;
+
+static char *GLMod_TD_LeaveSection(char *file)
+{	//recursive routine to find the next }
+	while(file)
+	{
+		file = COM_ParseToken(file);
+		if (*com_token == '{')
+			file = GLMod_TD_LeaveSection(file);
+		else if (*com_token == '}')
+			return file;
+	}
+	return NULL;
+}
+
+static char *GLMod_TD_Section(char *file, char *sectionname)
+{	//position within the open brace.
+	while(file)
+	{
+		while(*file <= ' ')	//skip whitespace and new lines.
+		{
+			if (!*file)
+				return NULL;
+			file++;
+		}
+		file = COM_ParseToken(file);
+		if (!stricmp(com_token, sectionname))
+		{
+			file = COM_ParseToken(file);
+			if (*com_token != '{')
+				return NULL;
+			return file;
+		}
+
+		if (*com_token == '{')
+			file = GLMod_TD_LeaveSection(file);
+	}
+	return NULL;
+}
+void GLMod_InitTextureDescs(char *mapname)
+{
+	if (advtexturedesc)
+		BZ_Free(advtexturedesc);
+	advtexturedesc = COM_LoadMallocFile(va("maps/shaders/%s.shaders", mapname));
+	if (advtexturedesc)
+	{
+		mapsection = advtexturedesc;
+		defaultsection = NULL;
+	}
+	else
+	{
+		advtexturedesc = COM_LoadMallocFile(va("map.shaders", mapname));
+		mapsection = GLMod_TD_Section(advtexturedesc, mapname);
+		defaultsection = GLMod_TD_Section(advtexturedesc, "default");
+	}
+}
+void GLMod_LoadAdvancedTextureSection(char *section, char *name, int *base, int *norm, int *luma, int *alphamode, qboolean *cull) //fixme: add gloss
+{
+	char stdname[MAX_QPATH] = "";
+	char flatname[MAX_QPATH] = "";
+	char bumpname[MAX_QPATH] = "";
+	char normname[MAX_QPATH] = "";
+	char lumaname[MAX_QPATH] = "";
+
+	section = GLMod_TD_Section(section, name);
+
+	while(section)
+	{
+		section = COM_ParseToken(section);
+		if (*com_token == '}')
+			break;
+
+		while(*section <= ' ')	//get rid of nasty whitespace.
+		{
+			if (!*section)
+				return;
+			section++;
+		}
+		if (*section == '=')
+			section++;	//evil notation.
+
+		if (!stricmp(com_token, "texture") || !stricmp(com_token, "base"))
+		{
+			section = COM_ParseToken(section);
+			Q_strncpyz(stdname, com_token, sizeof(stdname));
+		}
+		else if (!stricmp(com_token, "flatmap") || !stricmp(com_token, "diffuse"))
+		{
+			section = COM_ParseToken(section);
+			Q_strncpyz(flatname, com_token, sizeof(flatname));
+		}
+		else if (!stricmp(com_token, "bumpmap"))
+		{
+			section = COM_ParseToken(section);
+			Q_strncpyz(bumpname, com_token, sizeof(bumpname));
+		}
+		else if (!stricmp(com_token, "normalmap"))
+		{
+			section = COM_ParseToken(section);
+			Q_strncpyz(normname, com_token, sizeof(normname));
+		}
+		else if (!stricmp(com_token, "luma") || !stricmp(com_token, "glow"))
+		{
+			section = COM_ParseToken(section);
+			Q_strncpyz(lumaname, com_token, sizeof(lumaname));
+		}
+		else
+		{
+			//best thing we can do is jump to the end of the line, and hope they were a good creator...
+			while(*section && *section != '\n')
+				section++;
+		}
+	}
+
+	//okay it's all parsed. Try and interpret the data now.
+
+	*base = 0;
+	if (norm)
+		*norm = 0;
+	if (luma)
+		*luma = 0;
+
+	if (!*stdname && !*flatname)
+		return;
+
+	if (norm && gl_bumpmappingpossible && cls.allow_bump)
+	{
+		*base = 0;
+		*norm = 0;
+		if (!*norm && *normname)
+			*norm = Mod_LoadHiResTexture(normname, true, false);
+		if (!*norm && *bumpname)
+			*norm = Mod_LoadBumpmapTexture(bumpname);
+
+		if (*norm && *flatname)
+			*base = Mod_LoadHiResTexture(flatname, true, false);
+	}
+	else
+	{
+		*base = 0;
+		if (norm)
+			*norm = 0;
+	}
+	if (!*base && *stdname)
+		*base = Mod_LoadHiResTexture(stdname, true, false);
+	if (!*base && *flatname)
+		*base = Mod_LoadHiResTexture(flatname, true, false);
+	if (luma && *lumaname)
+		*luma = Mod_LoadHiResTexture(lumaname, true, true);
+}
+
+void GLMod_LoadAdvancedTexture(char *name, int *base, int *norm, int *luma, int *alphamode, qboolean *cull)	//fixme: add gloss
+{
+	if (!gl_load24bit.value)
+		return;
+
+	if (mapsection)
+	{
+		GLMod_LoadAdvancedTextureSection(mapsection, name,base,norm,luma,alphamode,cull);
+		if (*base)
+			return;
+	}
+	if (defaultsection)
+		GLMod_LoadAdvancedTextureSection(defaultsection, name,base,norm,luma,alphamode,cull);
+}
+
 /*
 =================
 Mod_LoadTextures
@@ -693,6 +861,8 @@ void GLMod_LoadTextures (lump_t *l)
 	dmiptexlump_t *m;
 	qboolean alphaed;
 	qbyte *base;
+
+	GLMod_InitTextureDescs(loadname);
 	
 	if (!l->filelen)
 	{
@@ -750,7 +920,12 @@ void GLMod_LoadTextures (lump_t *l)
 			if (!R_AddBulleten(tx))
 #endif
 		{
+			GLMod_LoadAdvancedTexture(tx->name, &tx->gl_texturenum, &tx->gl_texturenumbumpmap, &tx->gl_texturenumfb, NULL, NULL);
+			if (tx->gl_texturenum)
+				continue;
+
 			base = (qbyte *)(mt+1);
+
 			if (loadmodel->fromgame == fg_halflife)
 			{//external textures have already been filtered.
 				base = W_ConvertWAD3Texture(mt, &mt->width, &mt->height, &alphaed);	//convert texture to 32 bit.
@@ -780,23 +955,23 @@ void GLMod_LoadTextures (lump_t *l)
 						tx->gl_texturenumfb = GL_LoadTextureFB(altname, tx->width, tx->height, base, true, true);
 				}
 			}
-		}
 
-		tx->gl_texturenumbumpmap = 0;
-		if (gl_bumpmappingpossible && cls.allow_bump)
-		{
-			_snprintf(altname, sizeof(altname)-1, "%s_bump", mt->name);
-
-			if (gl_load24bit.value)
-				tx->gl_texturenumbumpmap = Mod_LoadBumpmapTexture(altname);
-
-			if (!(tx->gl_texturenumbumpmap) && loadmodel->fromgame != fg_halflife)
+			tx->gl_texturenumbumpmap = 0;
+			if (gl_bumpmappingpossible && cls.allow_bump)
 			{
-				base = (qbyte *)(mt+1);	//convert to greyscale.
-				for (j = 0; j < pixels; j++)
-					base[j] = (host_basepal[base[j]*3] + host_basepal[base[j]*3+1] + host_basepal[base[j]*3+2]) / 3;
+				_snprintf(altname, sizeof(altname)-1, "%s_bump", mt->name);
 
-				tx->gl_texturenumbumpmap = GL_LoadTexture8Bump(altname, tx->width, tx->height, base, true);	//normalise it and then bump it.
+				if (gl_load24bit.value)
+					tx->gl_texturenumbumpmap = Mod_LoadBumpmapTexture(altname);
+
+				if (!(tx->gl_texturenumbumpmap) && loadmodel->fromgame != fg_halflife)
+				{
+					base = (qbyte *)(mt+1);	//convert to greyscale.
+					for (j = 0; j < pixels; j++)
+						base[j] = (host_basepal[base[j]*3] + host_basepal[base[j]*3+1] + host_basepal[base[j]*3+2]) / 3;
+
+					tx->gl_texturenumbumpmap = GL_LoadTexture8Bump(altname, tx->width, tx->height, base, true);	//normalise it and then bump it.
+				}
 			}
 		}
 	}
@@ -952,43 +1127,6 @@ void GLMod_NowLoadExternal(void)
 		}
 	}
 }
-
-void GLMod_ReloadTextures(void)
-{
-	texture_t	*tx;
-	model_t *mod;
-	int i;
-	int t;
-	Cache_Flush();
-	for (i = 0, mod=mod_known; i < mod_numknown; i++, mod++)
-	{
-		if (mod->needload)
-			continue;
-		if (mod->type == mod_brush)	//make this reload bsp?
-		{
-			if (mod->textures)
-			for (t = 0; t < mod->numtextures; t++)
-			{
-				tx = mod->textures[t];
-				if (!Q_strncmp(tx->name,"sky",3))
-					R_InitSky (tx);
-				else
-				{
-					texture_mode = GL_LINEAR_MIPMAP_NEAREST; //_LINEAR;
-					if (!(tx->gl_texturenum = Mod_LoadReplacementTexture(tx->name, true, false)))
-						tx->gl_texturenum = GL_LoadTexture (tx->name, tx->width, tx->height, (qbyte *)(tx+1), true, false);
-					texture_mode = GL_LINEAR;
-				}
-			}
-		}
-		else if (mod->type == mod_sprite)
-		{
-			loadmodel = mod;
-			GLMod_LoadSpriteModel(mod, COM_LoadTempFile(mod->name));
-		}
-	}
-}
-
 
 qbyte lmgamma[256];
 void BuildLightMapGammaTable (float g, float c)

@@ -3939,7 +3939,7 @@ void CLNQ_ParseServerMessage (void)
 		switch (cmd)
 		{
 		default:
-			Host_EndGame ("bad protocol\n");//Host_EndGame ("CL_ParseServerMessage: Illegible server message");
+			Host_EndGame ("CLNQ_ParseServerMessage: Illegible server message (%i)", cmd);
 			return;
 			
 		case svc_nop:
@@ -4141,8 +4141,13 @@ void CLNQ_ParseServerMessage (void)
 		case svc_damage:
 			V_ParseDamage (0);
 			break;
-			
 
+		case svcnq_effect:
+			CL_ParseEffect(false);
+			break;
+		case svcnq_effect2:
+			CL_ParseEffect(true);
+			break;
 		}
 	}
 }

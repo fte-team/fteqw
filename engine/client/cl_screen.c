@@ -1,0 +1,1360 @@
+/*
+Copyright (C) 1996-1997 Id Software, Inc.
+
+This program is free software; you can redistribute it and/or
+modify it under the terms of the GNU General Public License
+as published by the Free Software Foundation; either version 2
+of the License, or (at your option) any later version.
+
+This program is distributed in the hope that it will be useful,
+but WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  
+
+See the GNU General Public License for more details.
+
+You should have received a copy of the GNU General Public License
+along with this program; if not, write to the Free Software
+Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
+
+*/
+
+// cl_screen.c -- master for refresh, status bar, console, chat, notify, etc
+
+#include "quakedef.h"
+#include "glquake.h"//would prefer not to have this
+
+
+
+
+
+
+/*
+
+background clear
+rendering
+turtle/net/ram icons
+sbar
+centerprint / slow centerprint
+notify lines
+intermission / finale overlay
+loading plaque
+console
+menu
+
+required background clears
+required update regions
+
+
+syncronous draw mode or async
+One off screen buffer, with updates either copied or xblited
+Need to double buffer?
+
+
+async draw will require the refresh area to be cleared, because it will be
+xblited, but sync draw can just ignore it.
+
+sync
+draw
+
+CenterPrint ()
+SlowPrint ()
+Screen_Update ();
+Con_Printf ();
+
+net 
+turn off messages option
+
+the refresh is allways rendered, unless the console is full screen
+
+
+console is:
+	notify lines
+	half
+	full
+	
+
+*/
+
+
+
+int scr_chatmode;
+extern cvar_t scr_chatmodecvar;
+
+
+int mouseusedforgui;
+int mousecursor_x, mousecursor_y;
+
+// only the refresh window will be updated unless these variables are flagged 
+int                     scr_copytop;
+int                     scr_copyeverything;
+
+float           scr_con_current;
+float           scr_conlines;           // lines of console to display
+
+float           oldscreensize, oldfov;
+extern cvar_t          scr_viewsize;
+extern cvar_t          scr_fov;
+extern cvar_t          scr_conspeed;
+extern cvar_t          scr_centertime;
+extern cvar_t          scr_showram;
+extern cvar_t          scr_showturtle;
+extern cvar_t          scr_showpause;
+extern cvar_t          scr_printspeed;
+extern cvar_t			scr_allowsnap;
+extern cvar_t			scr_sshot_type;
+extern cvar_t	show_fps;
+extern  		cvar_t  crosshair;
+extern cvar_t			con_height;
+
+qboolean        scr_initialized;                // ready to draw
+
+qpic_t          *scr_ram;
+qpic_t          *scr_net;
+qpic_t          *scr_turtle;
+
+int                     scr_fullupdate;
+
+int                     clearconsole;
+int                     clearnotify;
+
+int                     sb_lines;
+
+viddef_t        vid;                            // global video state
+
+vrect_t         scr_vrect;
+
+qboolean        scr_disabled_for_loading;
+qboolean        scr_drawloading;
+float           scr_disabled_time;
+
+qboolean        block_drawing;
+float oldsbar = 0;
+
+void SCR_ScreenShot_f (void);
+void SCR_RSShot_f (void);
+
+/*
+===============================================================================
+
+CENTER PRINTING
+
+===============================================================================
+*/
+
+char            scr_centerstring[MAX_SPLITS][1024];
+float           scr_centertime_start[MAX_SPLITS];   // for slow victory printing
+float           scr_centertime_off[MAX_SPLITS];
+int                     scr_center_lines[MAX_SPLITS];
+int                     scr_erase_lines[MAX_SPLITS];
+int                     scr_erase_center[MAX_SPLITS];
+
+/*
+==============
+SCR_CenterPrint
+
+Called for important messages that should stay in the center of the screen
+for a few moments
+==============
+*/
+void SCR_CenterPrint (int pnum, char *str)
+{
+	Q_strncpyz (scr_centerstring[pnum], str, sizeof(scr_centerstring[pnum]));
+	scr_centertime_off[pnum] = scr_centertime.value;
+	scr_centertime_start[pnum] = cl.time;
+
+// count the number of lines for centering
+	scr_center_lines[pnum] = 1;
+	while (*str)
+	{
+		if (*str == '\n')
+			scr_center_lines[pnum]++;
+		str++;
+	}
+
+	if (Cmd_AliasExist("f_centerprint", RESTRICT_LOCAL))
+	{
+		cvar_t *var;
+		var = Cvar_FindVar ("scr_centerprinttext");
+		if (var)
+			Cvar_Set(var, scr_centerstring[pnum]);
+		else
+			Cvar_Get("scr_centerprinttext", scr_centerstring[pnum], 0, "Script Notifications");
+		Cbuf_AddText("f_centerprint\n", RESTRICT_LOCAL);
+	}
+}
+
+void SCR_EraseCenterString (void)
+{
+	int pnum;
+	int		y;
+
+	if (cl.splitclients>1)
+		return;	//no viewsize with split
+
+	for (pnum = 0; pnum < cl.splitclients; pnum++)
+	{
+		if (scr_erase_center[pnum]++ > vid.numpages)
+		{
+			scr_erase_lines[pnum] = 0;
+			continue;
+		}
+
+		if (scr_center_lines[pnum] <= 4)
+			y = vid.height*0.35;
+		else
+			y = 48;
+
+		scr_copytop = 1;
+		Draw_TileClear (0, y, vid.width, min(8*scr_erase_lines[pnum], vid.height - y - 1));
+	}
+}
+
+
+void SCR_DrawCenterString (int pnum)
+{
+	qbyte    *start;
+	int             l;
+	int             j;
+	int             x, y;
+	int             remaining;
+	int hd = 1;
+
+	vrect_t rect;
+
+	if (cl.splitclients)
+		hd = cl.splitclients;
+
+// the finale prints the characters one at a time
+	if (cl.intermission)
+		remaining = scr_printspeed.value * (cl.time - scr_centertime_start[pnum]);
+	else
+		remaining = 9999;
+
+	scr_erase_center[pnum] = 0;
+	start = scr_centerstring[pnum];
+
+	if (scr_center_lines[pnum] <= 4)
+		y = vid.height/hd*0.35;
+	else
+		y = 48;
+
+	SCR_VRectForPlayer(&rect, pnum);
+
+	y += rect.y;
+
+	do      
+	{
+	// scan the width of the line
+		for (l=0 ; l<40 ; l++)
+			if (start[l] == '\n' || !start[l])
+				break;
+		if (l == 40)
+		{
+			while(l > 0 && start[l-1]>' ')
+			{
+				l--;
+			}
+		}
+		x = rect.x + (rect.width - l*8)/2;
+		for (j=0 ; j<l ; j++, x+=8)
+		{
+			Draw_Character (x, y, start[j]);        
+			if (!remaining--)
+				return;
+		}
+			
+		y += 8;
+
+		start+=l;
+//		for (l=0 ; l<40 && *start && *start != '\n'; l++)
+ //			start++;
+
+		if (!*start)
+			break;
+		else if (*start == '\n'||!l)
+			start++;                // skip the \n
+	} while (1);
+}
+
+void SCR_CheckDrawCenterString (void)
+{
+extern qboolean sb_showscores;
+	int pnum;
+
+	for (pnum = 0; pnum < cl.splitclients; pnum++)
+	{
+		scr_copytop = 1;
+		if (scr_center_lines[pnum] > scr_erase_lines[pnum])
+			scr_erase_lines[pnum] = scr_center_lines[pnum];
+
+		scr_centertime_off[pnum] -= host_frametime;
+		
+		if (key_dest != key_game)	//don't let progs guis/centerprints interfere with the game menu
+			continue;
+
+		if (sb_showscores)	//this was annoying
+			continue;
+
+		if (scr_centertime_off[pnum] <= 0 && !cl.intermission)
+			continue;
+
+		SCR_DrawCenterString (pnum);
+	}
+}
+
+//=============================================================================
+
+/*
+====================
+CalcFov
+====================
+*/
+float CalcFov (float fov_x, float width, float height)
+{
+    float   a;
+    float   x;
+
+    if (fov_x < 1 || fov_x > 179)
+            Sys_Error ("Bad fov: %f", fov_x);
+
+    x = width/tan(fov_x/360*M_PI);
+
+    a = atan (height/x);
+
+    a = a*360/M_PI;
+
+    return a;
+}
+
+/*
+=================
+SCR_CalcRefdef
+
+Must be called whenever vid changes
+Internal use only
+=================
+*/
+void SCR_CalcRefdef (void)
+{
+	float           size;
+	int             h;
+	qboolean		full = false;
+
+	scr_chatmode = scr_chatmodecvar.value;
+
+
+	scr_fullupdate = 0;             // force a background redraw
+	vid.recalc_refdef = 0;
+	scr_viewsize.modified = false;
+
+// force the status bar to redraw
+	Sbar_Changed ();
+
+//========================================
+
+	r_refdef.flags = 0;
+// bound viewsize
+	if (scr_viewsize.value < 30)
+		Cvar_Set (&scr_viewsize,"30");
+	if (scr_viewsize.value > 120)
+		Cvar_Set (&scr_viewsize,"120");
+
+// bound field of view
+	if (scr_fov.value < 10)
+		Cvar_Set (&scr_fov,"10");
+	if (scr_fov.value > 170)
+		Cvar_Set (&scr_fov,"170");
+
+// intermission is always full screen   
+	if (cl.intermission)
+		size = 120;
+	else
+		size = scr_viewsize.value;
+
+#ifdef Q2CLIENT
+	if (cls.q2server)
+		sb_lines = 0;
+	else
+#endif
+		if (size >= 120)
+		sb_lines = 0;           // no status bar at all
+	else if (size >= 110)
+		sb_lines = 24;          // no inventory
+	else
+		sb_lines = 24+16+8;
+
+	if (scr_viewsize.value >= 100.0) {
+		full = true;
+		size = 100.0;
+	} else
+		size = scr_viewsize.value;
+	if (cl.intermission)
+	{
+		full = true;
+		size = 100.0;
+		sb_lines = 0;
+	}
+	size /= 100.0;
+
+	if (!cl_sbar.value && full)
+		h = vid.height;
+	else
+		h = vid.height - sb_lines;
+
+	r_refdef.vrect.width = vid.width * size;
+	if (r_refdef.vrect.width < 96)
+	{
+		size = 96.0 / r_refdef.vrect.width;
+		r_refdef.vrect.width = 96;      // min for icons
+	}
+
+	r_refdef.vrect.height = vid.height * size;
+	if (cl_sbar.value || !full) {
+  		if (r_refdef.vrect.height > vid.height - sb_lines)
+  			r_refdef.vrect.height = vid.height - sb_lines;
+	} else if (r_refdef.vrect.height > vid.height)
+			r_refdef.vrect.height = vid.height;
+	r_refdef.vrect.x = (vid.width - r_refdef.vrect.width)/2;
+	if (full)
+		r_refdef.vrect.y = 0;
+	else 
+		r_refdef.vrect.y = (h - r_refdef.vrect.height)/2;
+
+	if (scr_chatmode)
+	{
+		r_refdef.vrect.height= r_refdef.vrect.y=vid.height/2;
+		r_refdef.vrect.width = r_refdef.vrect.x=vid.width/2;
+		sb_lines=0;
+	}
+
+	r_refdef.fov_x = scr_fov.value;
+	r_refdef.fov_y = CalcFov (r_refdef.fov_x, r_refdef.vrect.width, r_refdef.vrect.height);
+
+
+
+
+//	r_refdef.vrect.height/=2;
+
+#ifdef SWQUAKE
+	if (qrenderer == QR_SOFTWARE)
+	{
+
+		R_SetVrect (&r_refdef.vrect, &scr_vrect, sb_lines);
+
+	// guard against going from one mode to another that's less than half the
+	// vertical resolution
+		if (scr_con_current > vid.height)
+			scr_con_current = vid.height;
+
+	// notify the refresh of the change
+		SWR_ViewChanged (&r_refdef.vrect, sb_lines, vid.aspect);
+	}
+#endif
+
+
+	scr_vrect = r_refdef.vrect;
+}
+
+
+/*
+=================
+SCR_SizeUp_f
+
+Keybinding command
+=================
+*/
+void SCR_SizeUp_f (void)
+{
+	Cvar_SetValue (&scr_viewsize,scr_viewsize.value+10);
+	vid.recalc_refdef = 1;
+}
+
+
+/*
+=================
+SCR_SizeDown_f
+
+Keybinding command
+=================
+*/
+void SCR_SizeDown_f (void)
+{
+	Cvar_SetValue (&scr_viewsize,scr_viewsize.value-10);
+	vid.recalc_refdef = 1;
+}
+
+//============================================================================
+
+/*
+==================
+SCR_Init
+==================
+*/
+void SCR_Init (void)
+{
+//
+// register our commands
+//
+	Cmd_AddRemCommand ("screenshot",SCR_ScreenShot_f);
+	Cmd_AddRemCommand ("sizeup",SCR_SizeUp_f);
+	Cmd_AddRemCommand ("sizedown",SCR_SizeDown_f);
+
+	scr_ram = Draw_SafePicFromWad ("ram");
+	scr_net = Draw_SafePicFromWad ("net");
+	scr_turtle = Draw_SafePicFromWad ("turtle");
+
+	scr_initialized = true;
+}
+
+void SCR_DeInit (void)
+{
+	if (scr_initialized)
+	{
+		scr_initialized = false;
+
+		Cmd_RemoveCommand ("screenshot");
+		Cmd_RemoveCommand ("sizeup");
+		Cmd_RemoveCommand ("sizedown");
+	}
+}
+
+/*
+==============
+SCR_DrawRam
+==============
+*/
+void SCR_DrawRam (void)
+{
+	if (!scr_showram.value || !scr_ram)
+		return;
+
+	if (!r_cache_thrash)
+		return;
+
+	Draw_Pic (scr_vrect.x+32, scr_vrect.y, scr_ram);
+}
+
+/*
+==============
+SCR_DrawTurtle
+==============
+*/
+void SCR_DrawTurtle (void)
+{
+	static int      count;
+	
+	if (!scr_showturtle.value || !scr_turtle)
+		return;
+
+	if (host_frametime < 0.1)
+	{
+		count = 0;
+		return;
+	}
+
+	count++;
+	if (count < 3)
+		return;
+
+	Draw_Pic (scr_vrect.x, scr_vrect.y, scr_turtle);
+}
+
+/*
+==============
+SCR_DrawNet
+==============
+*/
+void SCR_DrawNet (void)
+{
+	if (cls.netchan.outgoing_sequence - cls.netchan.incoming_acknowledged < UPDATE_BACKUP-1)
+		return;
+	if (cls.demoplayback || !scr_net)
+		return;
+
+	Draw_Pic (scr_vrect.x+64, scr_vrect.y, scr_net);
+}
+
+void SCR_DrawFPS (void)
+{
+	extern cvar_t show_fps;
+	static double lastframetime;
+	double t;
+	extern int fps_count;
+	static float lastfps;
+	int x, y;
+	char st[80];
+
+	if (!show_fps.value)
+		return;
+
+	t = Sys_DoubleTime();
+	if ((t - lastframetime) >= 1.0) {
+		lastfps = fps_count/(t - lastframetime);
+		fps_count = 0;
+		lastframetime = t;
+	}
+
+	sprintf(st, "%3.1f FPS", lastfps);
+	x = vid.width - strlen(st) * 8 - 8;
+	y = vid.height - sb_lines - 8;
+//	Draw_TileClear(x, y, strlen(st) * 8, 8);
+	Draw_String(x, y, st);
+}
+
+
+/*
+==============
+DrawPause
+==============
+*/
+void SCR_DrawPause (void)
+{
+	qpic_t  *pic;
+
+	if (!scr_showpause.value)               // turn off for screenshots
+		return;
+
+	if (!cl.paused)
+		return;
+
+	pic = Draw_SafeCachePic ("gfx/pause.lmp");
+	if (pic)
+	{
+		Draw_Pic ( (vid.width - pic->width)/2, 
+			(vid.height - 48 - pic->height)/2, pic);
+	}
+	else
+		Draw_String((vid.width-strlen("Paused")*8)/2, (vid.height-8)/2, "Paused");
+}
+
+
+
+/*
+==============
+SCR_DrawLoading
+==============
+*/
+
+int			total_loading_size, current_loading_size, loading_stage;
+
+char levelshotname[MAX_QPATH];
+void SCR_DrawLoading (void)
+{
+	qpic_t  *pic;
+
+	if (!scr_drawloading)
+		return;
+
+	if (*levelshotname)
+	{
+		if(Draw_ScalePic)
+			Draw_ScalePic(0, 0, vid.width, vid.height, Draw_SafeCachePic (levelshotname));
+	}
+	
+	if (COM_FDepthFile("gfx/loading.lmp", true) < COM_FDepthFile("gfx/menu/loading.lmp", true))
+	{
+		pic = Draw_SafeCachePic ("loading");
+		if (pic)
+			Draw_Pic ( (vid.width - pic->width)/2, 
+				(vid.height - 48 - pic->height)/2, pic);
+	}
+	else
+	{
+		pic = Draw_SafeCachePic ("gfx/menu/loading.lmp");
+		if (pic)
+		{
+			int		size, count, offset;
+
+			if (!scr_drawloading && loading_stage == 0)
+				return;
+				
+			offset = (vid.width - pic->width)/2;
+			Draw_TransPic (offset , 0, pic);
+
+			if (loading_stage == 0)
+				return;
+
+			if (total_loading_size)
+				size = current_loading_size * 106 / total_loading_size;
+			else
+				size = 0;
+
+			if (loading_stage == 1)
+				count = size;
+			else
+				count = 106;
+
+			Draw_Fill (offset+42, 87, count, 1, 136);
+			Draw_Fill (offset+42, 87+1, count, 4, 138);
+			Draw_Fill (offset+42, 87+5, count, 1, 136);
+
+			if (loading_stage == 2)
+				count = size;
+			else
+				count = 0;
+
+			Draw_Fill (offset+42, 97, count, 1, 168);
+			Draw_Fill (offset+42, 97+1, count, 4, 170);
+			Draw_Fill (offset+42, 97+5, count, 1, 168);
+		}
+	}
+}
+
+void SCR_BeginLoadingPlaque (void)
+{
+	if (cls.state != ca_active)
+		return;
+
+	if (!scr_initialized)
+		return;
+
+//	if (key_dest == key_console) //not really appropriate if client is to show it on a remote server.
+//		return;
+
+// redraw with no console and the loading plaque
+	scr_fullupdate = 0;
+	Sbar_Changed ();
+	scr_drawloading = true;
+	SCR_UpdateScreen ();
+	scr_drawloading = false;
+
+	scr_disabled_for_loading = true;
+	scr_disabled_time = Sys_DoubleTime();	//realtime tends to change... Hmmm....
+	scr_fullupdate = 0;
+}
+
+void SCR_EndLoadingPlaque (void)
+{
+	if (!scr_initialized)
+		return;
+
+	scr_disabled_for_loading = false;
+	scr_fullupdate = 0;
+	*levelshotname = '\0';
+}
+
+void SCR_ImageName (char *mapname)
+{
+	strcpy(levelshotname, "levelshots/");
+	COM_FileBase(mapname, levelshotname + strlen(levelshotname));
+
+#ifdef RGLQUAKE
+	if (qrenderer == QR_OPENGL)
+	{
+		if (!Draw_SafeCachePic (levelshotname))
+		{
+			*levelshotname = '\0';
+			return;
+		}
+	}
+	else
+	{
+		*levelshotname = '\0';
+		return;
+	}
+
+	scr_disabled_for_loading = false;
+	scr_drawloading = true;
+	GL_BeginRendering (&glx, &gly, &glwidth, &glheight);
+	SCR_DrawLoading();
+	SCR_SetUpToDrawConsole();
+	SCR_DrawConsole(true);
+	GL_EndRendering();
+	scr_drawloading = false;
+
+	scr_disabled_for_loading = true;
+
+#endif
+}
+
+
+//=============================================================================
+
+
+/*
+==================
+SCR_SetUpToDrawConsole
+==================
+*/
+void SCR_SetUpToDrawConsole (void)
+{
+#ifdef TEXTEDITOR
+	extern qboolean editoractive;
+#endif
+	Con_CheckResize ();
+	
+	if (scr_drawloading)
+		return;         // never a console with loading plaque
+		
+// decide on the height of the console
+	if (cls.state != ca_active && !media_filmtype 
+#ifdef TEXTEDITOR
+		&& !editoractive
+#endif
+		&& !UI_MenuState()
+		)
+	{
+		scr_conlines = vid.height;              // full screen
+		scr_con_current = scr_conlines;
+	}
+	else if (key_dest == key_console || scr_chatmode)
+	{
+		scr_conlines = vid.height*con_height.value/100;    // half screen
+		if (scr_conlines < 32)
+			scr_conlines = 32;	//prevent total loss of console.
+		else if (scr_conlines>vid.height)
+			scr_conlines = vid.height;
+	}
+	else
+		scr_conlines = 0;                               // none visible
+	
+	if (scr_conlines < scr_con_current)
+	{
+		scr_con_current -= scr_conspeed.value*host_frametime;
+		if (scr_conlines > scr_con_current)
+			scr_con_current = scr_conlines;
+
+	}
+	else if (scr_conlines > scr_con_current)
+	{
+		scr_con_current += scr_conspeed.value*host_frametime;
+		if (scr_conlines < scr_con_current)
+			scr_con_current = scr_conlines;
+	}
+
+	if (scr_con_current>vid.height)
+		scr_con_current = vid.height;
+
+	if (clearconsole++ < vid.numpages)
+	{
+		if (qrenderer == QR_SOFTWARE)
+		{
+			scr_copytop = 1;
+			Draw_TileClear (0, (int) scr_con_current, vid.width, vid.height - (int) scr_con_current);
+		}
+
+		Sbar_Changed ();
+	}
+	else if (clearnotify++ < vid.numpages)
+	{
+		if (qrenderer == QR_SOFTWARE)
+		{
+			scr_copytop = 1;
+			Draw_TileClear (0, 0, vid.width, con_notifylines);
+		}
+	}
+	else
+		con_notifylines = 0;
+}
+	
+/*
+==================
+SCR_DrawConsole
+==================
+*/
+void SCR_DrawConsole (qboolean noback)
+{
+	if (key_dest == key_menu)
+		return;
+	if (scr_con_current)
+	{
+		scr_copyeverything = 1;
+		Con_DrawConsole (scr_con_current, noback);
+		clearconsole = 0;
+	}
+	else
+	{
+		if (key_dest == key_game || key_dest == key_message)
+			Con_DrawNotify ();      // only draw notify in game
+	}
+}
+
+
+/* 
+============================================================================== 
+ 
+						SCREEN SHOTS 
+ 
+============================================================================== 
+*/ 
+
+typedef struct _TargaHeader {
+	unsigned char   id_length, colormap_type, image_type;
+	unsigned short  colormap_index, colormap_length;
+	unsigned char   colormap_size;
+	unsigned short  x_origin, y_origin, width, height;
+	unsigned char   pixel_size, attributes;
+} TargaHeader;
+
+
+#ifdef AVAIL_JPEGLIB
+void screenshotJPEG(char *filename, qbyte *screendata, int screenwidth, int screenheight);
+#endif
+#ifdef AVAIL_PNGLIB
+int Image_WritePNG (char *filename, int compression, qbyte *pixels, int width, int height);
+#endif
+void WriteBMPFile(char *filename, qbyte *in, int width, int height);
+
+void WritePCXfile (char *filename, qbyte *data, int width, int height, int rowbytes, qbyte *palette, qboolean upload); //data is 8bit.
+
+/*
+Find closest color in the palette for named color
+*/
+int MipColor(int r, int g, int b)
+{
+	int i;
+	float dist;
+	int best=15;
+	float bestdist;
+	int r1, g1, b1;
+	static int lr = -1, lg = -1, lb = -1;
+	static int lastbest;
+
+	if (r == lr && g == lg && b == lb)
+		return lastbest;
+
+	bestdist = 256*256*3;
+
+	for (i = 0; i < 256; i++) {
+		r1 = host_basepal[i*3] - r;
+		g1 = host_basepal[i*3+1] - g;
+		b1 = host_basepal[i*3+2] - b;
+		dist = r1*r1 + g1*g1 + b1*b1;
+		if (dist < bestdist) {
+			bestdist = dist;
+			best = i;
+		}
+	}
+	lr = r; lg = g; lb = b;
+	lastbest = best;
+	return best;
+}
+
+
+/* 
+================== 
+SCR_ScreenShot_f
+================== 
+*/  
+void SCR_ScreenShot_f (void) 
+{
+	int truewidth, trueheight;
+	qbyte            *buffer;
+	char            pcxname[80]; 
+	char            checkname[MAX_OSPATH];
+	int                     i, c, temp;
+
+#define MAX_PREPAD	128
+	char *ext;
+
+	if (!VID_GetRGBInfo)
+	{
+		Con_Printf("Screenshots are not supported with the current renderer\n");
+		return;
+	}
+
+	if (Cmd_Argc() == 2)
+	{
+		Q_strncpyz(pcxname, Cmd_Argv(1), sizeof(pcxname));
+		COM_DefaultExtension (pcxname, scr_sshot_type.string);
+	}
+	else
+	{
+	// 
+	// find a file name to save it to 
+	// 
+		sprintf(pcxname,"fte00000.%s", scr_sshot_type.string);
+			
+		for (i=0 ; i<=100000 ; i++) 
+		{
+			pcxname[4] = (i%10000)/1000 + '0';
+			pcxname[5] = (i%1000)/100 + '0';
+			pcxname[6] = (i%100)/10 + '0';
+			pcxname[7] = (i%10) + '0';
+			sprintf (checkname, "%s/%s", com_gamedir, pcxname);
+			if (Sys_FileTime(checkname) == -1)
+				break;  // file doesn't exist
+		} 
+		if (i==100000) 
+		{
+			Con_Printf ("SCR_ScreenShot_f: Couldn't create sequentially named file\n"); 
+			return;
+		}
+	}
+
+	ext = COM_FileExtension(pcxname);
+
+	buffer = VID_GetRGBInfo(MAX_PREPAD, &truewidth, &trueheight);
+
+#ifdef AVAIL_PNGLIB
+	if (!strcmp(ext, "png"))
+	{
+		Image_WritePNG(pcxname, 100, buffer+MAX_PREPAD, truewidth, trueheight);
+	}
+	else
+#endif
+#ifdef AVAIL_JPEGLIB
+		if (!strcmp(ext, "jpeg") || !strcmp(ext, "jpg"))
+	{
+		screenshotJPEG(pcxname, buffer+MAX_PREPAD, truewidth, trueheight);
+	}
+	else 
+#endif
+	/*	if (!strcmp(ext, "bmp"))
+	{
+		WriteBMPFile(pcxname, buffer+MAX_PREPAD, truewidth, trueheight);
+	}
+	else*/
+		if (!strcmp(ext, "pcx"))
+	{
+		int y, x;
+		qbyte *src, *dest;
+		qbyte *newbuf = buffer + MAX_PREPAD;
+		// convert to eight bit
+		for (y = 0; y < trueheight; y++) {
+			src = newbuf + (truewidth * 3 * y);
+			dest = newbuf + (truewidth * y);
+
+			for (x = 0; x < truewidth; x++) {
+				*dest++ = MipColor(src[0], src[1], src[2]);
+				src += 3;
+			}
+		}
+
+		WritePCXfile (pcxname, newbuf, truewidth, trueheight, truewidth, host_basepal, false);
+		Con_Printf ("Wrote %s\n", pcxname);
+	}
+	else	//tga
+	{
+		buffer+=MAX_PREPAD-18;
+		memset (buffer, 0, 18);
+		buffer[2] = 2;          // uncompressed type
+		buffer[12] = truewidth&255;
+		buffer[13] = truewidth>>8;
+		buffer[14] = trueheight&255;
+		buffer[15] = trueheight>>8;
+		buffer[16] = 24;        // pixel size
+
+		// swap rgb to bgr
+		c = 18+truewidth*trueheight*3;
+		for (i=18 ; i<c ; i+=3)
+		{
+			temp = buffer[i];
+			buffer[i] = buffer[i+2];
+			buffer[i+2] = temp;
+		}
+		COM_WriteFile (pcxname, buffer, truewidth*trueheight*3 + 18 );
+		Con_Printf ("Wrote %s\n", pcxname);
+		buffer-=MAX_PREPAD-18;
+	}
+
+
+	BZ_Free (buffer);
+} 
+
+// from gl_draw.c
+qbyte		*draw_chars;				// 8*8 graphic characters
+
+void SCR_DrawCharToSnap (int num, qbyte *dest, int width)
+{
+	int		row, col;
+	qbyte	*source;
+	int		drawline;
+	int		x;
+
+	row = num>>4;
+	col = num&15;
+	source = draw_chars + (row<<10) + (col<<3);
+
+	drawline = 8;
+
+	while (drawline--)
+	{
+		for (x=0 ; x<8 ; x++)
+			if (source[x])
+				dest[x] = source[x];
+			else
+				dest[x] = 98;
+		source += 128;
+		dest -= width;
+	}
+
+}
+
+void SCR_DrawStringToSnap (const char *s, qbyte *buf, int x, int y, int width)
+{
+	qbyte *dest;
+	const unsigned char *p;
+
+	dest = buf + ((y * width) + x);
+
+	p = (const unsigned char *)s;
+	while (*p) {
+		SCR_DrawCharToSnap(*p++, dest, width);
+		dest += 8;
+	}
+}
+
+
+/* 
+================== 
+SCR_RSShot
+================== 
+*/  
+qboolean SCR_RSShot (void) 
+{ 
+	int truewidth;
+	int trueheight;
+
+	int     x, y;
+	unsigned char		*src, *dest;
+	char		pcxname[80]; 
+	unsigned char		*newbuf;
+	int w, h;
+	int dx, dy, dex, dey, nx;
+	int r, b, g;
+	int count;
+	float fracw, frach;
+	char st[80];
+	time_t now;
+
+	if (!scr_allowsnap.value)
+		return false;
+
+	if (CL_IsUploading())
+		return false; // already one pending
+
+	if (cls.state < ca_onserver)
+		return false; // gotta be connected
+
+	if (!VID_GetRGBInfo || !scr_initialized)
+	{
+		return false;
+	}
+
+	Con_Printf("Remote screen shot requested.\n");
+
+
+// 
+// save the pcx file 
+// 
+	newbuf = VID_GetRGBInfo(0, &truewidth, &trueheight);
+
+	w = RSSHOT_WIDTH;
+	h = RSSHOT_HEIGHT;
+
+	fracw = (float)truewidth / (float)w;
+	frach = (float)trueheight / (float)h;
+
+	//scale down first.
+	for (y = 0; y < h; y++) {
+		dest = newbuf + (w*3 * y);
+
+		for (x = 0; x < w; x++) {
+			r = g = b = 0;
+
+			dx = x * fracw;
+			dex = (x + 1) * fracw;
+			if (dex == dx) dex++; // at least one
+			dy = y * frach;
+			dey = (y + 1) * frach;
+			if (dey == dy) dey++; // at least one
+
+			count = 0;
+			for (/* */; dy < dey; dy++) {
+				src = newbuf + (truewidth * 3 * dy) + dx * 3;
+				for (nx = dx; nx < dex; nx++) {
+					r += *src++;
+					g += *src++;
+					b += *src++;
+					count++;
+				}
+			}
+			r /= count;
+			g /= count;
+			b /= count;
+			*dest++ = r;
+			*dest++ = b;
+			*dest++ = g;
+		}
+	}
+
+	// convert to eight bit
+	for (y = 0; y < h; y++) {
+		src = newbuf + (w * 3 * y);
+		dest = newbuf + (w * y);
+
+		for (x = 0; x < w; x++) {
+			*dest++ = MipColor(src[0], src[1], src[2]);
+			src += 3;
+		}
+	}
+
+	time(&now);
+	strcpy(st, ctime(&now));
+	st[strlen(st) - 1] = 0;
+	SCR_DrawStringToSnap (st, newbuf, w - strlen(st)*8, h - 1, w);
+
+	Q_strncpyz(st, cls.servername, sizeof(st));
+	SCR_DrawStringToSnap (st, newbuf, w - strlen(st)*8, h - 11, w);
+
+	Q_strncpyz(st, name.string, sizeof(st));
+	SCR_DrawStringToSnap (st, newbuf, w - strlen(st)*8, h - 21, w);
+
+	WritePCXfile (pcxname, newbuf, w, h, w, host_basepal, true);
+
+	BZ_Free(newbuf);
+
+	Con_Printf ("Wrote %s\n", pcxname);
+
+	return true;
+}
+
+//=============================================================================
+
+
+//=============================================================================
+
+char    *scr_notifystring;
+qboolean        scr_drawdialog;
+
+void SCR_DrawNotifyString (void)
+{
+	char    *start;
+	int             l;
+	int             j;
+	int             x, y;
+
+	start = scr_notifystring;
+
+	y = vid.height*0.35;
+
+	do      
+	{
+	// scan the width of the line
+		for (l=0 ; l<40 ; l++)
+			if (start[l] == '\n' || !start[l])
+				break;
+		x = (vid.width - l*8)/2;
+		for (j=0 ; j<l ; j++, x+=8)
+			Draw_Character (x, y, start[j]);        
+			
+		y += 8;
+
+		while (*start && *start != '\n')
+			start++;
+
+		if (!*start)
+			break;
+		start++;                // skip the \n
+	} while (1);
+}
+
+/*
+==================
+SCR_ModalMessage
+
+Displays a text string in the center of the screen and waits for a Y or N
+keypress.  
+==================
+*/
+int SCR_ModalMessage (char *text)
+{
+	scr_notifystring = text;
+ 
+// draw a fresh screen
+	scr_fullupdate = 0;
+	scr_drawdialog = true;
+	SCR_UpdateScreen ();
+	scr_drawdialog = false;
+	
+	S_StopAllSounds (true);               // so dma doesn't loop current sound
+
+	do
+	{
+		key_count = -1;         // wait for a key down and up
+		Sys_SendKeyEvents ();
+	} while (key_lastpress != 'y' && key_lastpress != 'n' && key_lastpress != K_ESCAPE);
+
+	scr_fullupdate = 0;
+	SCR_UpdateScreen ();
+
+	return key_lastpress == 'y';
+}
+
+
+//=============================================================================
+
+/*
+===============
+SCR_BringDownConsole
+
+Brings the console down and fades the palettes back to normal
+================
+*/
+void SCR_BringDownConsole (void)
+{
+	int             i;
+	int pnum;
+	
+	for (pnum = 0; pnum < cl.splitclients; pnum++)
+		scr_centertime_off[pnum] = 0;
+	
+	for (i=0 ; i<20 && scr_conlines != scr_con_current ; i++)
+		SCR_UpdateScreen ();
+
+	cl.cshifts[CSHIFT_CONTENTS].percent = 0;              // no area contents palette on next frame
+	VID_SetPalette (host_basepal);
+}
+
+void SCR_TileClear (void)
+{
+	if (cl.splitclients>1)
+		return;	//splitclients always takes the entire screen.
+
+	if (qrenderer == QR_SOFTWARE)
+	{
+		if (scr_fullupdate++ < vid.numpages)
+		{	// clear the entire screen
+			scr_copyeverything = 1;
+			Draw_TileClear (0, 0, vid.width, vid.height);
+			Sbar_Changed ();
+		}
+		else
+		{
+			char str[11] = "xxxxxxxxxx";
+			if (scr_viewsize.value < 100)
+			{
+				int x, y;
+				x = vid.width - strlen(str) * 8 - 8;
+				y = vid.height - sb_lines - 8;
+				// clear background for counters
+				if (show_fps.value)
+					Draw_TileClear(x, y, 10 * 8, 8);
+			}
+		}
+	}
+	else
+	{
+		if (r_refdef.vrect.x > 0) {
+			// left
+			Draw_TileClear (0, 0, r_refdef.vrect.x, vid.height - sb_lines);
+			// right
+			Draw_TileClear (r_refdef.vrect.x + r_refdef.vrect.width, 0, 
+				vid.width - r_refdef.vrect.x + r_refdef.vrect.width, 
+				vid.height - sb_lines);
+		}
+		if (r_refdef.vrect.y > 0) {
+			// top
+			Draw_TileClear (r_refdef.vrect.x, 0, 
+				r_refdef.vrect.x + r_refdef.vrect.width, 
+				r_refdef.vrect.y);
+			// bottom
+			Draw_TileClear (r_refdef.vrect.x,
+				r_refdef.vrect.y + r_refdef.vrect.height, 
+				r_refdef.vrect.width, 
+				vid.height - sb_lines - 
+				(r_refdef.vrect.height + r_refdef.vrect.y));
+		}
+	}
+}

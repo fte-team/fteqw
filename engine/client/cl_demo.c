@@ -1005,8 +1005,10 @@ void CL_Record_f (void)
 		MSG_WriteString (&buf, cl_lightstyle[i].map);
 	}
 
-	for (i = 0; i < MAX_CL_STATS; i++)
+	for (i = ((cls.fteprotocolextensions&PEXT_HEXEN2)?MAX_QW_STATS:MAX_CL_STATS); i >= 0; i--)
 	{
+		if (!cl.stats[0][i])
+			continue;
 		MSG_WriteByte (&buf, svc_updatestatlong);
 		MSG_WriteByte (&buf, i);
 		MSG_WriteLong (&buf, cl.stats[0][i]);
@@ -1015,20 +1017,6 @@ void CL_Record_f (void)
 			SZ_Clear (&buf); 
 		}
 	}
-
-#if 0
-	MSG_WriteByte (&buf, svc_updatestatlong);
-	MSG_WriteByte (&buf, STAT_TOTALMONSTERS);
-	MSG_WriteLong (&buf, cl.stats[STAT_TOTALMONSTERS]);
-
-	MSG_WriteByte (&buf, svc_updatestatlong);
-	MSG_WriteByte (&buf, STAT_SECRETS);
-	MSG_WriteLong (&buf, cl.stats[STAT_SECRETS]);
-
-	MSG_WriteByte (&buf, svc_updatestatlong);
-	MSG_WriteByte (&buf, STAT_MONSTERS);
-	MSG_WriteLong (&buf, cl.stats[STAT_MONSTERS]);
-#endif
 
 	// get the client to check and download skins
 	// when that is completed, a begin command will be issued

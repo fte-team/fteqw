@@ -61,6 +61,13 @@ void GLR_DrawAlphaSurfaces (void);
 void GL_FlushSkinCache(void);
 void GL_GAliasFlushSkinCache(void);
 
+void PPL_LoadSpecularFragmentProgram(void);
+void PPL_BaseBModelTextures(entity_t *e);
+
+#ifdef RUNTIMELIGHTING
+void LightFace (int surfnum);
+void LightLoadEntities(char *entstring);
+#endif
 
 // Function prototypes for the Texture Object Extension routines
 typedef GLboolean (APIENTRY *ARETEXRESFUNCPTR)(GLsizei, const GLuint *,
@@ -286,7 +293,7 @@ void GL_BuildLightmaps (void);
 
 void GL_LoadShaders(void);
 int Mod_LoadReplacementTexture(char *name, qboolean mipmap, qboolean alpha);
-int Mod_LoadHiResTexture(char *name, qboolean mipmap, qboolean alpha);
+int Mod_LoadHiResTexture(char *name, qboolean mipmap, qboolean alpha, qboolean colouradjust);
 int Mod_LoadBumpmapTexture(char *name);
 
 #define	LMBLOCK_WIDTH		128
@@ -675,6 +682,12 @@ extern BOOL  (WINAPI *qwglMakeCurrent)(HDC, HGLRC);
 extern BOOL  (WINAPI *qSwapBuffers)(HDC);
 #endif
 
+extern qboolean gl_arb_fragment_program;
+extern PFNGLPROGRAMSTRINGARBPROC qglProgramStringARB;
+extern PFNGLGETPROGRAMIVARBPROC qglGetProgramivARB;
+extern PFNGLBINDPROGRAMARBPROC qglBindProgramARB;
+extern PFNGLGENPROGRAMSARBPROC qglGenProgramsARB;
+
 
 #define glAlphaFunc qglAlphaFunc
 #define glBlendFunc qglBlendFunc
@@ -704,6 +717,7 @@ extern BOOL  (WINAPI *qSwapBuffers)(HDC);
 #define glMultMatrixf	qglMultMatrixf
 #define glGetIntegerv	qglGetIntegerv
 #define glTexEnvf	qglTexEnvf
+#define glTexEnvfv	qglTexEnvfv
 #define glTexEnvi	qglTexEnvi
 #define glTexGeni	qglTexGeni
 #define glVertex2f	qglVertex2f
@@ -745,6 +759,7 @@ extern BOOL  (WINAPI *qSwapBuffers)(HDC);
 #define glDrawElements qglDrawElements
 #define glDisableClientState qglDisableClientState
 #define glEnableClientState qglEnableClientState
+#define glDrawArrays qglDrawArrays
 
 //stencil functions
 #define glStencilOp		qglStencilOp

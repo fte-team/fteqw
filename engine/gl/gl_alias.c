@@ -1713,13 +1713,13 @@ static void *Q1_LoadSkins (daliasskintype_t *pskintype, qboolean alpha)
 						char name[MAX_QPATH];
 						COM_StripExtension(skinname, name);	//go for the normalmap
 						strcat(name, "_norm");
-						texnums->bump = Mod_LoadHiResTexture(name, true, true);
+						texnums->bump = Mod_LoadHiResTexture(name, true, true, false);
 						if (!texnums->bump)
 						{
 							strcpy(name, loadmodel->name);
 							COM_StripExtension(COM_SkipPath(skinname), COM_SkipPath(name));
 							strcat(name, "_norm");
-							texnums->bump = Mod_LoadHiResTexture(name, true, true);
+							texnums->bump = Mod_LoadHiResTexture(name, true, true, false);
 							if (!texnums->bump)
 							{
 								COM_StripExtension(skinname, name);	//bother, go for heightmap and convert
@@ -2459,12 +2459,12 @@ void GL_LoadQ3Model(model_t *mod, void *buffer)
 				skin->skinheight = 0;
 				skin->skinspeed = 0;
 
-				texnum->base = Mod_LoadHiResTexture(inshader->name, true, true);
+				texnum->base = Mod_LoadHiResTexture(inshader->name, true, true, true);
 				if (!texnum->base)
 				{
 					strcpy(name, loadmodel->name);
 					strcpy(COM_SkipPath(name), COM_SkipPath(inshader->name));	//eviile eh?
-					texnum->base = Mod_LoadHiResTexture(name, true, true);
+					texnum->base = Mod_LoadHiResTexture(name, true, true, true);
 				}
 
 				texnum->bump = 0;
@@ -2472,13 +2472,13 @@ void GL_LoadQ3Model(model_t *mod, void *buffer)
 				{
 					COM_StripExtension(inshader->name, name);	//go for the normalmap
 					strcat(name, "_norm");
-					texnum->bump = Mod_LoadHiResTexture(name, true, true);
+					texnum->bump = Mod_LoadHiResTexture(name, true, true, false);
 					if (!texnum->bump)
 					{
 						strcpy(name, loadmodel->name);
 						COM_StripExtension(COM_SkipPath(inshader->name), COM_SkipPath(name));
 						strcat(name, "_norm");
-						texnum->bump = Mod_LoadHiResTexture(name, true, true);
+						texnum->bump = Mod_LoadHiResTexture(name, true, true, false);
 						if (!texnum->bump)
 						{
 							COM_StripExtension(inshader->name, name);	//bother, go for heightmap and convert
@@ -2499,7 +2499,7 @@ void GL_LoadQ3Model(model_t *mod, void *buffer)
 				{
 					COM_StripExtension(inshader->name, name);	//go for the normalmap
 					strcat(name, "_luma");
-					texnum->fullbright = Mod_LoadHiResTexture(name, true, true);
+					texnum->fullbright = Mod_LoadHiResTexture(name, true, true, true);
 					if (!texnum->base)
 					{
 						strcpy(name, loadmodel->name);

@@ -1080,7 +1080,7 @@ static int Doom_LoadPatch(char *name)
 			return texnum;
 	}
 	//all else failed.
-	return Mod_LoadHiResTexture(name, true, false);
+	return Mod_LoadHiResTexture(name, true, false, true);
 }
 #endif
 static void CleanWalls(dsidedef_t *sidedefsl)

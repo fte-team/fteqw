@@ -433,7 +433,7 @@ void R_LoadSkys (void)
 	{		
 		sprintf (name, "env/%s%s.tga", gl_skyboxname.string, suf[i]);
 
-		skyboxtex[i] = Mod_LoadHiResTexture(name, false, false);
+		skyboxtex[i] = Mod_LoadHiResTexture(name, false, false, true);
 
 		glTexParameterf(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
 		glTexParameterf(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);

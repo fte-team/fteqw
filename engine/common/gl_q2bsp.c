@@ -1865,7 +1865,7 @@ void CModQ3_LoadShaders (lump_t *l)
 #ifdef RGLQUAKE
 		if (qrenderer == QR_OPENGL)
 		{
-			loadmodel->texinfo[i].texture->gl_texturenum = Mod_LoadHiResTexture(in->shadername, true, false);
+			loadmodel->texinfo[i].texture->gl_texturenum = Mod_LoadHiResTexture(in->shadername, true, false, true);
 			loadmodel->texinfo[i].texture->gl_texturenumfb = 0;
 			loadmodel->texinfo[i].texture->gl_texturenumbumpmap = 0;
 		}

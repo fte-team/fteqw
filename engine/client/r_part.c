@@ -630,7 +630,7 @@ void R_ParticleEffect_f(void)
 #ifdef RGLQUAKE
 	if (qrenderer == QR_OPENGL)
 	{
-		ptype->texturenum = Mod_LoadHiResTexture(ptype->texname, true, true);
+		ptype->texturenum = Mod_LoadHiResTexture(ptype->texname, true, true, true);
 		if (!ptype->texturenum)
 			ptype->texturenum = explosiontexture;
 	}
@@ -840,7 +840,7 @@ void R_ClearParticles (void)
 		{
 			if (*part_type[i].texname)
 			{
-				part_type[i].texturenum = Mod_LoadHiResTexture(part_type[i].texname, true, true);
+				part_type[i].texturenum = Mod_LoadHiResTexture(part_type[i].texname, true, true, true);
 				if (!part_type[i].texturenum)
 					part_type[i].texturenum = explosiontexture;
 			}

@@ -3146,6 +3146,7 @@ void BuildSurfaceDisplayList (msurface_t *fa)
 	float	distoff;
 	vec3_t	offcenter;
 	glpoly_t	*poly;
+	int	lm;
 
 // reconstruct the polygon
 	pedges = currentmodel->edges;
@@ -3180,35 +3181,51 @@ void BuildSurfaceDisplayList (msurface_t *fa)
 			r_pedge = &pedges[-lindex];
 			vec = r_pcurrentvertbase[r_pedge->v[1]].position;
 		}
-		s = DotProduct (vec, fa->texinfo->vecs[0]) + fa->texinfo->vecs[0][3];
-		s /= fa->texinfo->texture->width;
-
-		t = DotProduct (vec, fa->texinfo->vecs[1]) + fa->texinfo->vecs[1][3];
-		t /= fa->texinfo->texture->height;
 
 		VectorAdd(vec, fa->center, fa->center);
 
+		s = DotProduct (vec, fa->texinfo->vecs[0]) + fa->texinfo->vecs[0][3];
+		t = DotProduct (vec, fa->texinfo->vecs[1]) + fa->texinfo->vecs[1][3];
+
 		VectorCopy (vec, poly->verts[i]);
-		poly->verts[i][3] = s;
-		poly->verts[i][4] = t;
+		poly->verts[i][3] = s/fa->texinfo->texture->width;
+		poly->verts[i][4] = t/fa->texinfo->texture->height;
 
 		//
 		// lightmap texture coordinates
 		//
-		s = DotProduct (vec, fa->texinfo->vecs[0]) + fa->texinfo->vecs[0][3];
 		s -= fa->texturemins[0];
+		lm = s*fa->light_t;
 		s += fa->light_s*16;
 		s += 8;
 		s /= LMBLOCK_WIDTH*16; //fa->texinfo->texture->width;
 
-		t = DotProduct (vec, fa->texinfo->vecs[1]) + fa->texinfo->vecs[1][3];
 		t -= fa->texturemins[1];
+		lm += t;
 		t += fa->light_t*16;
 		t += 8;
 		t /= LMBLOCK_HEIGHT*16; //fa->texinfo->texture->height;
 
 		poly->verts[i][5] = s;
 		poly->verts[i][6] = t;
+
+#ifdef SPECULAR
+/*		if (currentmodel->deluxdata&&fa->samples)
+		{
+			qbyte *dlm = fa->samples - currentmodel->lightdata + currentmodel->deluxdata;
+			dlm += lm;
+			poly->verts[i][7] = (dlm[0]-127)/128.0f;
+			poly->verts[i][8] = (dlm[1]-127)/128.0f;
+			poly->verts[i][9] = (dlm[2]-127)/128.0f;
+		}
+		else*/
+			if (fa->flags & SURF_PLANEBACK)
+		{
+				VectorNegate(fa->plane->normal, (poly->verts[i]+7));
+		}
+		else
+			VectorCopy(fa->plane->normal, (poly->verts[i]+7));
+#endif
 	}
 
 	fa->center[0]/=lnumverts;

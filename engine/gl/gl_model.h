@@ -143,6 +143,7 @@ typedef struct texture_s
 	int			gl_texturenum;
 	int			gl_texturenumfb;
 	int			gl_texturenumbumpmap;
+	int			gl_texturenumspec;
 	struct msurface_s	*texturechain;	// for gl_texsort drawing
 	int			anim_total;				// total tenths in sequence ( 0 = no)
 	int			anim_min, anim_max;		// time for this frame min <=time< max
@@ -182,7 +183,12 @@ typedef struct mtexinfo_s
 	struct mtexinfo_s	*next;
 } mtexinfo_t;
 
+#define SPECULAR
+#ifdef SPECULAR
+#define	VERTEXSIZE	10
+#else
 #define	VERTEXSIZE	7
+#endif
 
 typedef struct glpoly_s
 {
@@ -191,7 +197,7 @@ typedef struct glpoly_s
 #ifdef SHADERS
 	float	texcenter[2];	//center of texture made by adveraging the tex coords
 #endif
-	float	verts[4][VERTEXSIZE];	// variable sized (xyz s1t1 s2t2)
+	float	verts[4][VERTEXSIZE];	// variable sized (xyz s1t1 s2t2 (ldir_xyz)
 } glpoly_t;
 
 typedef struct msurface_s

@@ -244,7 +244,7 @@ qboolean Draw_RealPicFromWad (qpic_t	*out, char *name)
 	if (!in && !texnum)	//try a q2 texture
 	{
 		sprintf(name2, "pics/%s", name);
-		texnum = Mod_LoadHiResTexture(name2, false, true);
+		texnum = Mod_LoadHiResTexture(name2, false, true, true);
 	}
 	
 	if (texnum)
@@ -700,7 +700,7 @@ void GLDraw_ReInit (void)
 	{
 		if (!draw_chars)	//or low res.
 		{
-			if (!(char_texture=Mod_LoadHiResTexture("pics/conchars.pcx", false, true)))	//try low res q2 path
+			if (!(char_texture=Mod_LoadHiResTexture("pics/conchars.pcx", false, true, true)))	//try low res q2 path
 			{
 				char *tempchars = COM_LoadMallocFile("gfx/menu/conchars.lmp");
 				char *in, *out;
@@ -896,7 +896,7 @@ void GLDraw_ReInit (void)
 	{
 		if (!ncdata)	//no fallback
 		{
-			if (!(gl->texnum=Mod_LoadHiResTexture("pics/conback.pcx", false, true)))
+			if (!(gl->texnum=Mod_LoadHiResTexture("pics/conback.pcx", false, true, true)))
 				if (!(gl->texnum=Mod_LoadReplacementTexture("gfx/menu/conback.lmp", false, true)))
 					Sys_Error ("Couldn't load gfx/conback.lmp");	//that's messed it up, hasn't it?...
 		}
@@ -948,6 +948,9 @@ void GLDraw_ReInit (void)
 	detailtexture = Mod_LoadReplacementTexture("textures/detail", true, false);
 
 	inited15to8 = false;
+
+
+	PPL_LoadSpecularFragmentProgram();
 }
 
 void GLDraw_Init (void)
@@ -1171,7 +1174,7 @@ void GLDraw_Crosshair(void)
 	}
 	else if ((*crosshair.string>='a' && *crosshair.string<='z') || (*crosshair.string>='A' && *crosshair.string<='Z'))
 	{				
-		int i = Mod_LoadHiResTexture (crosshair.string, false, true);
+		int i = Mod_LoadHiResTexture (crosshair.string, false, true, true);
 		GL_Bind (i);
 	}
 	else
@@ -1704,7 +1707,7 @@ void GL_Set2D (void)
 	if (gl_font.modified)
 	{
 		gl_font.modified = 0;
-		if (!*gl_font.string || !(char_texture=Mod_LoadHiResTexture(va("fonts/%s", gl_font.string), false, true)))
+		if (!*gl_font.string || !(char_texture=Mod_LoadHiResTexture(va("fonts/%s", gl_font.string), false, true, true)))
 			char_texture = default_char_texture;
 
 		gl_smoothfont.modified = 1;
@@ -1713,7 +1716,7 @@ void GL_Set2D (void)
 	{
 		int newtex = 0;
 		gl_conback.modified = 0;
-		if (!*gl_conback.string || !(newtex=Mod_LoadHiResTexture(va("conbacks/%s", gl_conback.string), false, true)))
+		if (!*gl_conback.string || !(newtex=Mod_LoadHiResTexture(va("conbacks/%s", gl_conback.string), false, true, true)))
 			conback = default_conback;
 		else
 		{

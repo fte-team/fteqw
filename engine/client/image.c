@@ -1478,7 +1478,7 @@ int GL_LoadTexture8Bump (char *identifier, int width, int height, unsigned char 
 
 int image_width, image_height;
 qbyte *COM_LoadFile (char *path, int usehunk);
-int Mod_LoadHiResTexture(char *name, qboolean mipmap, qboolean alpha)
+int Mod_LoadHiResTexture(char *name, qboolean mipmap, qboolean alpha, qboolean colouradjust)
 {
 	qboolean alphaed;
 	char *buf, *data;
@@ -1605,7 +1605,7 @@ int Mod_LoadReplacementTexture(char *name, qboolean mipmap, qboolean alpha)
 {
 	if (!gl_load24bit.value)
 		return 0;
-	return Mod_LoadHiResTexture(name, mipmap, alpha);
+	return Mod_LoadHiResTexture(name, mipmap, alpha, true);
 }
 
 int Mod_LoadBumpmapTexture(char *name)
@@ -1671,7 +1671,6 @@ int Mod_LoadBumpmapTexture(char *name)
 				}
 				else
 				{
-	//				Sys_Error("Unsupported picture \"%s\"", name);
 					BZ_Free(buf);
 					continue;
 				}
@@ -1683,56 +1682,6 @@ int Mod_LoadBumpmapTexture(char *name)
 		}
 	}
 	return 0;
-
-
-
-/*
-
-	char *buf, *data;
-	int len;
-//	int h;
-
-	int width, height;
-
-	char *path[] ={
-		"%s",
-		"override/%s.tga",
-		"%s.tga",
-		"progs/%s"};
-
-	int i;	
-
-	if ((len = GL_FindTexture(name))!= -1)	//don't bother if it already exists.
-		return len;
-
-	//should write this nicer.
-	for (i = 0; i < sizeof(path)/sizeof(char *); i++)
-	{
-		if ((buf = COM_LoadFile (va(path[i], name), 5)))
-		{
-			if ((data = ReadTargaFile(buf, com_filesize, &width, &height, 2)))	//Only load a greyscale image.
-			{
-				len = GL_LoadTexture8Bump(name, width, height, data, true);
-				BZ_Free(data);
-			}
-			else if ((data = ReadTargaFile(buf, com_filesize, &width, &height, false)))	//Image is more than just greyscale.
-			{
-				len = GL_LoadTexture32(name, width, height, (unsigned*)data, true, false);	//must be normal
-				BZ_Free(data);
-			}
-			else
-			{
-//				Sys_Error("Unsupported picture \"%s\"", name);
-				BZ_Free(buf);
-				continue;
-			}
-		
-			BZ_Free(buf);
-			
-			return len;
-		}
-	}
-	return 0;*/	
 }
 
 

@@ -28,6 +28,7 @@ void (APIENTRY *qglEnd) (void);
 void (APIENTRY *qglFinish) (void);
 void (APIENTRY *qglFlush) (void);
 void (APIENTRY *qglFrustum) (GLdouble left, GLdouble right, GLdouble bottom, GLdouble top, GLdouble zNear, GLdouble zFar);
+GLenum (APIENTRY *qglGetError) (void);
 void (APIENTRY *qglGetFloatv) (GLenum pname, GLfloat *params);
 void (APIENTRY *qglGetIntegerv) (GLenum pname, GLint *params);
 const GLubyte * (APIENTRY *qglGetString) (GLenum name);
@@ -51,6 +52,7 @@ void (APIENTRY *qglTexCoord1f) (GLfloat s);
 void (APIENTRY *qglTexCoord2f) (GLfloat s, GLfloat t);
 void (APIENTRY *qglTexCoord2fv) (const GLfloat *v);
 void (APIENTRY *qglTexEnvf) (GLenum target, GLenum pname, GLfloat param);
+void (APIENTRY *qglTexEnvfv) (GLenum target, GLenum pname, const GLfloat *param);
 void (APIENTRY *qglTexEnvi) (GLenum target, GLenum pname, GLint param);
 void (APIENTRY *qglTexGeni) (GLenum coord, GLenum pname, GLint param);
 void (APIENTRY *qglTexImage2D) (GLenum target, GLint level, GLint internalformat, GLsizei width, GLsizei height, GLint border, GLenum format, GLenum type, const GLvoid *pixels);
@@ -69,6 +71,7 @@ void (APIENTRY *qglVertexPointer) (GLint size, GLenum type, GLsizei stride, cons
 void (APIENTRY *qglNormalPointer) (GLenum type, GLsizei stride, const GLvoid *pointer);
 void (APIENTRY *qglTexCoordPointer) (GLint size, GLenum type, GLsizei stride, const GLvoid *pointer);
 void (APIENTRY *qglColorPointer) (GLint size, GLenum type, GLsizei stride, const GLvoid *pointer);
+void (APIENTRY *qglDrawArrays) (GLenum mode, GLint first, GLsizei count);
 void (APIENTRY *qglDisableClientState) (GLenum array);
 void (APIENTRY *qglEnableClientState) (GLenum array);
 
@@ -77,6 +80,12 @@ void (APIENTRY *qglStencilOp) (GLenum fail, GLenum zfail, GLenum zpass);
 void (APIENTRY *qglStencilFunc) (GLenum func, GLint ref, GLuint mask);
 void (APIENTRY *qglPushAttrib) (GLbitfield mask);
 void (APIENTRY *qglPopAttrib) (void);
+
+PFNGLPROGRAMSTRINGARBPROC qglProgramStringARB;
+PFNGLGETPROGRAMIVARBPROC qglGetProgramivARB;
+PFNGLBINDPROGRAMARBPROC qglBindProgramARB;
+PFNGLGENPROGRAMSARBPROC qglGenProgramsARB;
+
 
 
 
@@ -111,6 +120,8 @@ int gl_mtexarbable=0;	//max texture units
 qboolean gl_mtexable = false;
 qboolean gl_compressable=false;
 int gl_bumpmappingpossible;
+
+qboolean gl_arb_fragment_program;
 
 
 
@@ -161,6 +172,13 @@ void GL_CheckExtensions (void *(*getglfunction) (char *name))
 	//no truform. sorry.
 	qglPNTrianglesfATI = NULL;
 	qglPNTrianglesiATI = NULL;
+
+	//fragment programs
+	gl_arb_fragment_program = false;
+	qglProgramStringARB = NULL;
+	qglGetProgramivARB = NULL;
+	qglBindProgramARB = NULL;
+	qglGenProgramsARB = NULL;
 
 	if (strstr(gl_extensions, "GL_ARB_multitexture") && !COM_CheckParm("-noamtex"))
 	{	//ARB multitexture is the popular choice.
@@ -243,6 +261,16 @@ void GL_CheckExtensions (void *(*getglfunction) (char *name))
 
 	if (gl_mtexarbable && support_GL_ARB_texture_cube_map && support_GL_ARB_texture_env_combine && support_GL_ARB_texture_env_dot3 && !COM_CheckParm("-nobump") && gl_bump.value)
 		gl_bumpmappingpossible = true;
+
+	
+	if (!!strstr(gl_extensions, "GL_ARB_fragment_program"))
+	{
+		gl_arb_fragment_program = true;
+		qglProgramStringARB = (void *)getglext("glProgramStringARB");
+		qglGetProgramivARB = (void *)getglext("glGetProgramivARB");
+		qglBindProgramARB = (void *)getglext("glBindProgramARB");
+		qglGenProgramsARB = (void *)getglext("glGenProgramsARB");
+	}
 }
 
 //the vid routines have initialised a window, and now they are giving us a reference to some of of GetProcAddress to get pointers to the funcs.
@@ -299,6 +327,7 @@ void GL_Init(void *(*getglfunction) (char *name))
 	qglTexCoord2f		= (void *)getglcore("glTexCoord2f");
 	qglTexCoord2fv		= (void *)getglcore("glTexCoord2fv");
 	qglTexEnvf			= (void *)getglcore("glTexEnvf");
+	qglTexEnvfv			= (void *)getglcore("glTexEnvfv");
 	qglTexEnvi			= (void *)getglcore("glTexEnvi");
 	qglTexGeni			= (void *)getglcore("glTexGeni");
 	qglTexImage2D		= (void *)getglcore("glTexImage2D");
@@ -311,12 +340,15 @@ void GL_Init(void *(*getglfunction) (char *name))
 	qglVertex3fv		= (void *)getglcore("glVertex3fv");
 	qglViewport			= (void *)getglcore("glViewport");
 
-	//fixme: make non-core?
+	qglGetError			= (void *)getglcore("glGetError");
+
+	//various vertex array stuff.
 	qglDrawElements			= (void *)getglcore("glDrawElements");
 	qglVertexPointer		= (void *)getglcore("glVertexPointer");
 	qglNormalPointer		= (void *)getglcore("glNormalPointer");
 	qglTexCoordPointer		= (void *)getglcore("glTexCoordPointer");
 	qglColorPointer			= (void *)getglcore("glColorPointer");
+	qglDrawArrays			= (void *)getglcore("glDrawArrays");
 	qglEnableClientState	= (void *)getglcore("glEnableClientState");
 	qglDisableClientState	= (void *)getglcore("glDisableClientState");
 

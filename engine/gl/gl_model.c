@@ -83,6 +83,9 @@ extern int		mod_numknown;
 #endif
 
 extern cvar_t r_loadlits;
+#ifdef SPECULAR
+extern cvar_t gl_specular;
+#endif
 extern cvar_t r_fb_bmodels;
 extern cvar_t gl_subdivide_size;
 extern cvar_t gl_subdivide_water;
@@ -808,12 +811,12 @@ void GLMod_LoadAdvancedTextureSection(char *section, char *name, int *base, int 
 		*base = 0;
 		*norm = 0;
 		if (!*norm && *normname)
-			*norm = Mod_LoadHiResTexture(normname, true, false);
+			*norm = Mod_LoadHiResTexture(normname, true, false, false);
 		if (!*norm && *bumpname)
 			*norm = Mod_LoadBumpmapTexture(bumpname);
 
 		if (*norm && *flatname)
-			*base = Mod_LoadHiResTexture(flatname, true, false);
+			*base = Mod_LoadHiResTexture(flatname, true, false, true);
 	}
 	else
 	{
@@ -822,11 +825,11 @@ void GLMod_LoadAdvancedTextureSection(char *section, char *name, int *base, int 
 			*norm = 0;
 	}
 	if (!*base && *stdname)
-		*base = Mod_LoadHiResTexture(stdname, true, false);
+		*base = Mod_LoadHiResTexture(stdname, true, false, true);
 	if (!*base && *flatname)
-		*base = Mod_LoadHiResTexture(flatname, true, false);
+		*base = Mod_LoadHiResTexture(flatname, true, false, true);
 	if (luma && *lumaname)
-		*luma = Mod_LoadHiResTexture(lumaname, true, true);
+		*luma = Mod_LoadHiResTexture(lumaname, true, true, true);
 }
 
 void GLMod_LoadAdvancedTexture(char *name, int *base, int *norm, int *luma, int *alphamode, qboolean *cull)	//fixme: add gloss
@@ -972,6 +975,13 @@ void GLMod_LoadTextures (lump_t *l)
 
 					tx->gl_texturenumbumpmap = GL_LoadTexture8Bump(altname, tx->width, tx->height, base, true);	//normalise it and then bump it.
 				}
+
+				//don't do any complex quake 8bit -> glossmap. It would likly look a little ugly...
+				if (gl_specular.value && gl_load24bit.value)
+				{
+					_snprintf(altname, sizeof(altname)-1, "%s_gloss", mt->name);
+					tx->gl_texturenumspec = Mod_LoadHiResTexture(altname, true, false, false);
+				}
 			}
 		}
 	}
@@ -1097,7 +1107,7 @@ void GLMod_NowLoadExternal(void)
 					tx->alphaed = alphaed;
 				}
 				
-				if (!(tx->gl_texturenum = Mod_LoadHiResTexture(tx->name, true, false)))
+				if (!(tx->gl_texturenum = Mod_LoadHiResTexture(tx->name, true, false, true)))
 					tx->gl_texturenum = Mod_LoadReplacementTexture("light1_4", true, false);
 				texture_mode = GL_LINEAR;
 			}
@@ -2897,7 +2907,7 @@ void GLMod_LoadSprite2Model (model_t *mod, void *buffer)
 
 		frame = psprite->frames[i].frameptr = Hunk_AllocName(sizeof(mspriteframe_t), loadname);
 
-		frame->gl_texturenum = Mod_LoadHiResTexture(pframetype->name, true, true);
+		frame->gl_texturenum = Mod_LoadHiResTexture(pframetype->name, true, true, true);
 		frame->width = LittleLong(pframetype->width);
 		frame->height = LittleLong(pframetype->height);
 		origin[0] = LittleLong (pframetype->origin_x);

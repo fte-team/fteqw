@@ -1685,15 +1685,13 @@ void GLMod_LoadTexinfo (lump_t *l)
 		miptex = LittleLong (in->miptex);
 		out->flags = LittleLong (in->flags);
 	
-		if (!loadmodel->textures)
+		if (!loadmodel->textures || miptex < 0 || miptex >= loadmodel->numtextures)
 		{
 			out->texture = r_notexture_mip;	// checkerboard texture
 			out->flags = 0;
 		}
 		else
 		{
-			if (miptex >= loadmodel->numtextures)
-				Sys_Error ("miptex >= loadmodel->numtextures");
 			out->texture = loadmodel->textures[miptex];
 			if (!out->texture)
 			{
@@ -1772,6 +1770,7 @@ void GLMod_LoadFaces (lump_t *l)
 	msurface_t 	*out;
 	int			i, count, surfnum;
 	int			planenum, side;
+	int tn;
 
 	in = (void *)(mod_base + l->fileofs);
 	if (l->filelen % sizeof(*in))
@@ -1794,7 +1793,10 @@ void GLMod_LoadFaces (lump_t *l)
 
 		out->plane = loadmodel->planes + planenum;
 
-		out->texinfo = loadmodel->texinfo + LittleShort (in->texinfo);
+		tn = LittleShort (in->texinfo);
+		if (tn < 0 || tn >= loadmodel->numtexinfo)
+			Host_EndGame("Hey! That map has texinfos out of bounds!\n");
+		out->texinfo = loadmodel->texinfo + tn;
 
 		CalcSurfaceExtents (out);
 				

@@ -1797,7 +1797,8 @@ void CL_SetUpPlayerPrediction(qboolean dopred)
 
 	for (j=0, pplayer = predicted_players, state=frame->playerstate; 
 		j < MAX_CLIENTS;
-		j++, pplayer++, state++) {
+		j++, pplayer++, state++)
+	{
 
 		pplayer->active = false;
 
@@ -1824,10 +1825,13 @@ void CL_SetUpPlayerPrediction(qboolean dopred)
 
 		// note that the local player is special, since he moves locally
 		// we use his last predicted postition
-		if (j == cl.playernum[0]) {
+		if (j == cl.playernum[0])
+		{
 			VectorCopy(cl.frames[cls.netchan.outgoing_sequence&UPDATE_MASK].playerstate[cl.playernum[0]].origin,
 				pplayer->origin);
-		} else {
+		}
+		else
+		{
 			// only predict half the move to minimize overruns
 			msec = 500*(playertime - state->state_time);
 			if (msec <= 0 ||
@@ -1847,6 +1851,13 @@ void CL_SetUpPlayerPrediction(qboolean dopred)
 
 				CL_PredictUsercmd (0, state, &exact, &state->command);
 				VectorCopy (exact.origin, pplayer->origin);
+			}
+
+			if (cl.spectator)
+			{
+				if (!Cam_DrawPlayer(0, j))
+					VectorCopy(pplayer->origin, cl.simorg[0]);
+				
 			}
 		}
 	}

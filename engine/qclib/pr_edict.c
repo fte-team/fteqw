@@ -1517,7 +1517,10 @@ int LoadEnts(progfuncs_t *progfuncs, char *file, float killonspawnflags)
 	{
 		isloadgame = false;
 
-		num = ED_FindGlobalOfs(progfuncs, "__fullspawndata");
+		if (pr_typecurrent>=0)
+			num = ED_FindGlobalOfs(progfuncs, "__fullspawndata");
+		else
+			num = 0;
 		if (num)
 			fulldata = (eval_t *)((int *)pr_globals + num);
 		else
@@ -2324,6 +2327,37 @@ retry:
 		}
 	}
 
+	if (!pr_linenums)
+	{
+		unsigned int lnotype = *(unsigned int*)"LNOF";
+		unsigned int version = 1;
+		int ohm;
+		unsigned int *file;
+		char lnoname[128];
+		ohm = PRHunkMark(progfuncs);
+
+		COM_StripExtension(filename, lnoname);
+		strcat(lnoname, ".lno");
+		if ((len=externs->FileSize(lnoname))>0)
+		{
+			file = PRHunkAlloc(progfuncs, len+1);
+			if (externs->ReadFile(lnoname, file, len+1))
+
+			if (	file[0] != lnotype
+				||	file[1] != version
+				||	file[2] != pr_progs->numglobaldefs
+				||	file[3] != pr_progs->numglobals
+				||	file[4] != pr_progs->numfielddefs
+				||	file[5] != pr_progs->numstatements
+				)
+			{
+				PRHunkFree(progfuncs, ohm);	//whoops: old progs or incompatable
+			}
+			else
+				pr_linenums = file + 6;
+		}
+	}
+
 	pr_functions = fnc;
 //	pr_strings = ((char *)pr_progs + pr_progs->ofs_strings);
 	gd16 = *(ddef16_t**)&current_progstate->globaldefs = (ddef16_t *)((qbyte *)pr_progs + pr_progs->ofs_globaldefs);
@@ -2478,7 +2512,7 @@ retry:
 		break;
 	default:
 		Sys_Error("Bad int size");
-	}	
+	}
 
 //this is a little over complicated and slow.
 //we need to search through the statements, looking for if statements.

@@ -48,7 +48,7 @@ extern qbyte		gammatable[256];
 
 unsigned char *d_15to8table;
 qboolean inited15to8;
-extern cvar_t crosshair, cl_crossx, cl_crossy, crosshaircolor, crosshairsize;
+extern cvar_t crosshair, crosshairimage, crosshairalpha, cl_crossx, cl_crossy, crosshaircolor, crosshairsize;
 
 static int filmtexture;
 
@@ -240,8 +240,8 @@ qboolean Draw_RealPicFromWad (mpic_t	*out, char *name)
 	{
 		sprintf(name2, "pics/%s", name);
 		texnum = Mod_LoadHiResTexture(name2, false, true, false);
-		glDisable(GL_ALPHA_TEST);
-		glEnable(GL_BLEND);	//make sure.
+		qglDisable(GL_ALPHA_TEST);
+		qglEnable(GL_BLEND);	//make sure.
 	}
 	
 	if (texnum)
@@ -915,6 +915,7 @@ TRACE(("dbg: GLDraw_ReInit: Allocating upload buffers\n"));
 
 	cs_texture = texture_extension_number++;
 	cachedcrosshair=0;
+	crosshairimage.modified = true;
 
 	scenepp_texture = texture_extension_number++;
 
@@ -1120,11 +1121,13 @@ void GLDraw_Character (int x, int y, unsigned int num)
 	int				row, col;
 	float			frow, fcol, size;
 
-	if (num == 32)
-		return;		// space
-
 	if (y <= -8)
 		return;			// totally off screen
+
+	num &= 255;
+
+	if (num == 32)
+		return;		// space
 
 #ifndef Q3SHADERS
 	num &= 255;
@@ -1251,6 +1254,7 @@ void GLDraw_Crosshair(void)
 {
 	int x, y;
 	int sc;
+	static int externalhair;
 
 	float x1, x2, y1, y2;
 	float size;
@@ -1264,10 +1268,24 @@ void GLDraw_Crosshair(void)
 		}
 		return;
 	}
-	qglDisable (GL_BLEND);
 	GL_TexEnv(GL_MODULATE);
+	qglColor4f(1, 1, 1, crosshairalpha.value);
 
-	if (crosshair.value)
+	if (*crosshairimage.string)
+	{				
+		if (crosshairimage.modified)
+		{
+			crosshairimage.modified = false;
+			externalhair = Mod_LoadHiResTexture (va("crosshairs/%s", crosshairimage.string), false, true, true);
+			if (!externalhair)
+				externalhair = Mod_LoadHiResTexture (crosshairimage.string, false, true, true);
+		}
+		GL_Bind (externalhair);
+
+		qglEnable (GL_BLEND);
+		qglDisable(GL_ALPHA_TEST);
+	}
+	else if (crosshair.value)
 	{
 		GL_Bind (cs_texture);
 
@@ -1295,13 +1313,27 @@ void GLDraw_Crosshair(void)
 #undef Pix
 			cachedcrosshair = crosshair.value;
 		}
-		qglTexParameterf(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
-		qglTexParameterf(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
-	}
-	else if ((*crosshair.string>='a' && *crosshair.string<='z') || (*crosshair.string>='A' && *crosshair.string<='Z'))
-	{				
-		int i = Mod_LoadHiResTexture (crosshair.string, false, true, true);
-		GL_Bind (i);
+		if (crosshairsize.value <= 16)
+		{
+			qglTexParameterf(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
+			qglTexParameterf(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
+		}
+		else
+		{
+			qglTexParameterf(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+			qglTexParameterf(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+		}
+
+		if (crosshairalpha.value<1)
+		{
+			qglEnable (GL_BLEND);
+			qglDisable(GL_ALPHA_TEST);
+		}
+		else
+		{
+			qglDisable (GL_BLEND);
+			qglEnable(GL_ALPHA_TEST);
+		}
 	}
 	else
 		return;
@@ -1674,10 +1706,20 @@ Fills a box of pixels with a single color
 */
 void GLDraw_Fill (int x, int y, int w, int h, int c)
 {
+	extern qboolean gammaworks;
 	qglDisable (GL_TEXTURE_2D);
-	qglColor3f (gammatable[host_basepal[c*3]]/255.0,
-		gammatable[host_basepal[c*3+1]]/255.0,
-		gammatable[host_basepal[c*3+2]]/255.0);
+	if (gammaworks)
+	{
+		qglColor3f (host_basepal[c*3]/255.0,
+			host_basepal[c*3+1]/255.0,
+			host_basepal[c*3+2]/255.0);
+	}
+	else
+	{
+		qglColor3f (gammatable[host_basepal[c*3]]/255.0,
+			gammatable[host_basepal[c*3+1]]/255.0,
+			gammatable[host_basepal[c*3+2]]/255.0);
+	}
 
 	qglBegin (GL_QUADS);
 

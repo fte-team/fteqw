@@ -447,6 +447,8 @@ void MediaSW_ShowFrame8bit(qbyte *framedata, int inwidth, int inheight, qbyte *p
 {
 	int y, x;
 
+	return;	//the following code is actually 24 bit. :(
+
 	D_EnableBackBufferAccess ();	// of all overlay stuff if drawing directly
 	if (r_pixbytes == 1)
 	{
@@ -463,7 +465,7 @@ void MediaSW_ShowFrame8bit(qbyte *framedata, int inwidth, int inheight, qbyte *p
 			src = framedata + v*inwidth*4;
 			{
 				f = 0;
-				fstep = ((inwidth)*0x10000)/vid.conwidth;
+				fstep = (inwidth<<16)/vid.conwidth;
 				for (x=0 ; x<vid.conwidth ; x+=4)
 				{
 					dest[x] = FindPallete(src[(f>>16)*4], src[(f>>16)*4+1], src[(f>>16)*4+2]);

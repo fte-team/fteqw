@@ -32,8 +32,6 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 #include "d_local.h"	// FIXME: shouldn't be needed (is needed for patch
 						// right now, but that should move)
 
-#undef	id386
-
 #define	Q2RF_DEPTHHACK			16		// for view weapon Z crunching
 
 #define LIGHT_MIN	5		// lowest light value we'll allow, to avoid the
@@ -137,7 +135,7 @@ qboolean R_AliasCheckBBox (void)
 	}
 
 // construct the base bounding box for this frame
-	oframe = currententity->frame;
+	oframe = currententity->oldframe;
 // TODO: don't repeat this check when drawing?
 	if ((oframe >= pmdl->numframes) || (oframe < 0))
 	{
@@ -299,6 +297,8 @@ R_AliasPreparePoints
 General clipped case
 ================
 */
+mstvert_t	*stc;
+mtriangle_t	*tn;
 void R_AliasPreparePoints (void)
 {
 	void (*drawfnc) (void);
@@ -313,24 +313,17 @@ void R_AliasPreparePoints (void)
  	fv = pfinalverts;
 	av = pauxverts;
 
-#if	0//id386
-	if (t_state & TT_ONE)	//use the asm routines if we have it, and don't have alpha
-	{
-		if (r_pixbytes == 4)
-			drawfnc = D_PolysetDraw32;
-		else if (r_pixbytes == 2)
-			drawfnc = D_PolysetDraw16;
-		else
-			drawfnc = D_PolysetDrawAsm;
-	}
+	if (r_pixbytes == 4)
+		drawfnc = D_PolysetDraw32;
+	else if (r_pixbytes == 2)
+		drawfnc = D_PolysetDraw16;
 	else
-#endif
 	{
-		if (r_pixbytes == 4)
-			drawfnc = D_PolysetDraw32;
-		else if (r_pixbytes == 2)
-			drawfnc = D_PolysetDraw16;
+#if	id386
+		if (t_state & TT_ONE)
+			drawfnc = D_PolysetDrawAsm;
 		else
+#endif
 			drawfnc = D_PolysetDrawC;
 	}
 
@@ -354,7 +347,7 @@ void R_AliasPreparePoints (void)
 		}
 	}
 
-	pstverts = (mstvert_t *)((qbyte *)paliashdr + paliashdr->stverts);
+	stc = pstverts = (mstvert_t *)((qbyte *)paliashdr + paliashdr->stverts);
 //
 // clip and draw all triangles
 //
@@ -373,8 +366,10 @@ void R_AliasPreparePoints (void)
 		if ( ! ( (pfv[0]->flags | pfv[1]->flags | pfv[2]->flags) &
 			(ALIAS_XY_CLIP_MASK | ALIAS_Z_CLIP) ) )
 		{	// totally unclipped
+			extern int	r_p0[6], r_p1[6], r_p2[6];
 			r_affinetridesc.pfinalverts = pfinalverts;
 			r_affinetridesc.ptriangles = ptri;
+
 			drawfnc ();
 		}
 		else		
@@ -618,7 +613,7 @@ void R_AliasPrepareUnclippedPoints (void)
 	if (r_pixbytes == 4)
 		D_PolysetDraw32 ();
 #if id386
-	else if (currententity->alpha == 1)
+	else if (t_state & TT_ONE)
 		D_PolysetDrawAsm ();
 #endif
 	else

@@ -1284,21 +1284,15 @@ void D_DrawSubdivC (void)
 #ifdef PEXT_TRANS
 	if (r_pixbytes == 4)
 		drawfnc = D_PolysetRecursiveTriangle32Trans;
-	else if (currententity->alpha != 1)
+	else if (!(t_state & TT_ONE))
 	{
-		Set_TransLevelF(currententity->alpha);	//fixme: this is being called by every poly!
 		if (t_state & TT_ZERO)
 			return;
 
-		if (t_state & TT_ONE)	//it's solid anyway.
-			drawfnc = D_PolysetRecursiveTriangle;
+		if (t_state & TT_REVERSE)
+			drawfnc = D_PolysetRecursiveTriangleReverseTrans;
 		else
-		{
-			if (t_state & TT_REVERSE)
-				drawfnc = D_PolysetRecursiveTriangleReverseTrans;
-			else
-				drawfnc = D_PolysetRecursiveTriangleTrans;
-		}
+			drawfnc = D_PolysetRecursiveTriangleTrans;
 	}
 	else
 #endif
@@ -1328,7 +1322,7 @@ void D_DrawSubdiv32C (void)
 {
 	mtriangle_t		*ptri;
 	finalvert_t		*pfv, *index0, *index1, *index2;
-	mstvert_t		*pst, *st0, *st1, *st2;
+	mstvert_t		*pst;
 	int				i;
 	int				lnumtriangles;
 
@@ -1427,10 +1421,10 @@ void D_DrawNonSubdiv32C (void)
 
 	int				i;
 	int				lnumtriangles;
-#if 1
+
 	mstvert_t		*pst, *stv;
 	pst = r_affinetridesc.pstverts;
-#endif
+
 	pfv = r_affinetridesc.pfinalverts;
 	ptri = r_affinetridesc.ptriangles;
 	lnumtriangles = r_affinetridesc.numtriangles;

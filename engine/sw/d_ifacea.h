@@ -74,7 +74,7 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 #define stv_s		0
 #define stv_t		4
 #define stv_size	8
-#define stv_shift	4
+#define stv_shift	3
 
 
 // trivertx_t structure

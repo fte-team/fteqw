@@ -447,8 +447,6 @@ void MediaSW_ShowFrame8bit(qbyte *framedata, int inwidth, int inheight, qbyte *p
 {
 	int y, x;
 
-	return;	//the following code is actually 24 bit. :(
-
 	D_EnableBackBufferAccess ();	// of all overlay stuff if drawing directly
 	if (r_pixbytes == 1)
 	{
@@ -462,19 +460,19 @@ void MediaSW_ShowFrame8bit(qbyte *framedata, int inwidth, int inheight, qbyte *p
 		for (y=0 ; y<lines ; y++, dest += vid.conrowbytes)
 		{
 			v = (vid.conheight - lines + y)*inheight/vid.conheight;
-			src = framedata + v*inwidth*4;
+			src = framedata + v*inwidth;
 			{
 				f = 0;
 				fstep = (inwidth<<16)/vid.conwidth;
 				for (x=0 ; x<vid.conwidth ; x+=4)
 				{
-					dest[x] = FindPallete(src[(f>>16)*4], src[(f>>16)*4+1], src[(f>>16)*4+2]);
+					dest[x] = FindPallete(palette[src[(f>>16)]*3], palette[src[(f>>16)]*3+1], palette[src[(f>>16)]*3+2]);
 					f += fstep;
-					dest[x+1] = FindPallete(src[(f>>16)*4], src[(f>>16)*4+1], src[(f>>16)*4+2]);
+					dest[x+1] = FindPallete(palette[src[(f>>16)]*3], palette[src[(f>>16)]*3+1], palette[src[(f>>16)]*3+2]);
 					f += fstep;
-					dest[x+2] = FindPallete(src[(f>>16)*4], src[(f>>16)*4+1], src[(f>>16)*4+2]);
+					dest[x+2] = FindPallete(palette[src[(f>>16)]*3], palette[src[(f>>16)]*3+1], palette[src[(f>>16)]*3+2]);
 					f += fstep;
-					dest[x+3] = FindPallete(src[(f>>16)*4], src[(f>>16)*4+1], src[(f>>16)*4+2]);
+					dest[x+3] = FindPallete(palette[src[(f>>16)]*3], palette[src[(f>>16)]*3+1], palette[src[(f>>16)]*3+2]);
 					f += fstep;
 				}
 			}
@@ -482,6 +480,7 @@ void MediaSW_ShowFrame8bit(qbyte *framedata, int inwidth, int inheight, qbyte *p
 	}
 	else if (r_pixbytes == 2)
 	{
+		/*	this still expects 32bit input
 extern int redbits, redshift;
 extern int greenbits, greenshift;
 extern int bluebits, blueshift;
@@ -508,6 +507,7 @@ extern int bluebits, blueshift;
 				}
 			}
 		}
+		*/
 	}
 	else if (r_pixbytes == 4)
 	{
@@ -521,15 +521,15 @@ extern int bluebits, blueshift;
 		for (y=0 ; y<lines ; y++, dest += vid.conrowbytes*4)
 		{
 			v = (vid.conheight - lines + y)*inheight/vid.conheight;
-			src = framedata + v*inwidth*4;
+			src = framedata + v*inwidth;
 			{
 				f = 0;
 				fstep = ((inwidth)*0x10000)/vid.conwidth;
 				for (x=0 ; x<vid.conwidth*4 ; x+=4)	//sw 32 bit rendering is bgrx
 				{
-					dest[x] = src[(f>>16)*4+2];
-					dest[x+1] = src[(f>>16)*4+1];
-					dest[x+2] = src[(f>>16)*4];
+					dest[x] = palette[src[(f>>16)]*3+2];
+					dest[x+1] = palette[src[(f>>16)]*3+1];
+					dest[x+2] = palette[src[(f>>16)]*3];
 					f += fstep;
 				}
 			}

@@ -2499,12 +2499,24 @@ void R_ClipAndDrawPoly ( float alpha, int isturbulent, qboolean textured )
 	}
 	else
 	{
-		if (alpha < 0.5)
-			r_q2polydesc.drawspanlet = R_DrawSpanlet33Stipple;
-		else if (alpha < 0.9)
-			r_q2polydesc.drawspanlet = R_DrawSpanlet66Stipple;
+		if (isturbulent)
+		{
+			if (alpha < 0.5)
+				r_q2polydesc.drawspanlet = R_DrawSpanletTurbulentStipple33;
+			else if (alpha < 0.9)
+				r_q2polydesc.drawspanlet = R_DrawSpanletTurbulentStipple66;
+			else
+				r_q2polydesc.drawspanlet = R_8DrawSpanletAlphaTest;
+		}
 		else
-			r_q2polydesc.drawspanlet = R_8DrawSpanletAlphaTest;
+		{
+			if (alpha < 0.5)
+				r_q2polydesc.drawspanlet = R_DrawSpanlet33Stipple;
+			else if (alpha < 0.9)
+				r_q2polydesc.drawspanlet = R_DrawSpanlet66Stipple;
+			else
+				r_q2polydesc.drawspanlet = R_8DrawSpanletAlphaTest;
+		}
 /*
 		if ( !textured )
 		{
@@ -2711,14 +2723,14 @@ void SWR_DrawAlphaSurfaces( void )
 
 		if (s->texinfo->flags & SURF_TRANS66)
 		{
-			R_ClipAndDrawPoly( 0.66f, 0/*(s->texinfo->flags & (SURF_WARP|SURF_FLOWING))*/, true );
+			R_ClipAndDrawPoly( 0.66f, (s->texinfo->flags & (SURF_WARP|SURF_FLOWING)), true );
 		}
 		else if (s->texinfo->flags & SURF_TRANS33)
 		{
-			R_ClipAndDrawPoly( 0.33f, 0/*(s->texinfo->flags & (SURF_WARP|SURF_FLOWING))*/, true );
+			R_ClipAndDrawPoly( 0.33f, (s->texinfo->flags & (SURF_WARP|SURF_FLOWING)), true );
 		}
 		else
-			R_ClipAndDrawPoly( 1.f, 0/*(s->texinfo->flags & (SURF_WARP|SURF_FLOWING))*/, true );
+			R_ClipAndDrawPoly( 1.f, (s->texinfo->flags & (SURF_WARP|SURF_FLOWING)), true );
 
 		os = s;
 		s = s->nextalphasurface;

@@ -1670,7 +1670,6 @@ LNDLoop:
 	movl	%esi,C(r_p0)+12
 
 
-
 	fdivrs	float_1
 
 //		r_p1[0] = index1->v[0];
@@ -1697,6 +1696,9 @@ LNDLoop:
 	movl	%eax,C(r_p1)+8
 	movl	%esi,C(r_p1)+12
 
+
+
+
 //		r_p2[0] = index2->v[0];
 //		r_p2[1] = index2->v[1];
 //		r_p2[4] = index2->v[4];
@@ -1720,7 +1722,8 @@ LNDLoop:
 	movl	stv_t(%esi), %esi
 	movl	%eax,C(r_p2)+8
 	movl	%esi,C(r_p2)+12
-			
+
+
 	fstps	C(d_xdenom)
 
 //		D_PolysetSetEdgeTable ();

@@ -106,7 +106,7 @@ LINK32=link.exe
 # PROP Ignore_Export_Lib 0
 # PROP Target_Dir ""
 # ADD BASE CPP /nologo /W3 /Gm /GX /ZI /Od /D "WIN32" /D "_DEBUG" /D "_WINDOWS" /D "_MBCS" /YX /FD /GZ /c
-# ADD CPP /nologo /G5 /ML /W3 /Gm- /Gi- /GX /ZI /Od /I "..\client" /I "../common" /I "../server" /I "../gl" /I "../sw" /I "../qclib" /I "../libs" /I "../libs/dxsdk7/include" /D "_DEBUG" /D "GLQUAKE" /D "WIN32" /D "_WINDOWS" /D "AVAIL_OGGVORBIS" /FR".\GLDebug/" /Fp".\GLDebug/qwcl.pch" /Yu"quakedef.h" /Fo".\GLDebug/" /Fd".\GLDebug/" /FD /c
+# ADD CPP /nologo /G5 /ML /W3 /GX /ZI /Od /I "..\client" /I "../common" /I "../server" /I "../gl" /I "../sw" /I "../qclib" /I "../libs" /I "../libs/dxsdk7/include" /D "_DEBUG" /D "GLQUAKE" /D "WIN32" /D "_WINDOWS" /D "AVAIL_OGGVORBIS" /FR".\GLDebug/" /Fp".\GLDebug/qwcl.pch" /Yu"quakedef.h" /Fo".\GLDebug/" /Fd".\GLDebug/" /FD /c
 # SUBTRACT CPP /X
 # ADD BASE MTL /nologo /D "_DEBUG" /mktyplib203 /win32
 # ADD MTL /nologo /D "_DEBUG" /mktyplib203 /win32
@@ -7997,6 +7997,8 @@ SOURCE=..\server\sv_sys_win.c
 
 !ELSEIF  "$(CFG)" == "ftequake - Win32 Release Dedicated Server"
 
+# ADD CPP /Yu"qwsvdef.h"
+
 !ELSEIF  "$(CFG)" == "ftequake - Win32 MinSW"
 
 # PROP BASE Exclude_From_Build 1
@@ -8051,6 +8053,8 @@ SOURCE=..\server\svmodel.c
 # ADD CPP /Yu"qwsvdef.h"
 
 !ELSEIF  "$(CFG)" == "ftequake - Win32 Release Dedicated Server"
+
+# ADD CPP /Yu"qwsvdef.h"
 
 !ELSEIF  "$(CFG)" == "ftequake - Win32 MinSW"
 

@@ -129,12 +129,15 @@ void D_PolysetDrawSpans8 (spanpackage_t *pspanpackage);
 void D_PolysetCalcGradients (int skinwidth);
 void D_PolysetCalcGradients32 (int skinwidth);
 void D_DrawSubdiv (void);
-void D_DrawSubdiv32 (void);
+void D_DrawSubdivC (void);
+void D_DrawSubdiv32C (void);
 void D_DrawNonSubdiv (void);
-void D_DrawNonSubdiv32 (void);
+void D_DrawNonSubdivC (void);
+void D_DrawNonSubdiv32C (void);
 void D_PolysetRecursiveTriangle (int *p1, int *p2, int *p3);
 void D_PolysetSetEdgeTable (void);
-void D_RasterizeAliasPolySmooth8 (void);
+void D_RasterizeAliasPolySmooth8Asm (void);
+void D_RasterizeAliasPolySmooth8C (void);
 void D_PolysetScanLeftEdgeC (int height);
 
 void D_PolysetSetUpForLineScan(fixed8_t startvertu, fixed8_t startvertv,
@@ -629,7 +632,7 @@ void D_PolysetDrawSpans8Trans (spanpackage_t *pspanpackage)
 		return;
 	}
 
-	if (d_aspancount<0||ubasestep<0)
+	if (d_aspancount<0)
 		return;
 
 	do
@@ -942,7 +945,7 @@ void D_PolysetFillSpans8Trans (spanpackage_t *pspanpackage)
 
 
 
-void D_RasterizeAliasPolySmoothTrans (void)
+void D_RasterizeAliasPolySmoothC (void)
 {
 	int				initialleftheight, initialrightheight;
 	int				*plefttop, *prighttop, *pleftbottom, *prightbottom;
@@ -1167,11 +1170,11 @@ void D_PolysetDraw32 (void)
 
 	if (r_affinetridesc.drawtype)
 	{
-		D_DrawSubdiv32 ();
+		D_DrawSubdiv32C ();
 	}
 	else
 	{
-		D_DrawNonSubdiv32 ();
+		D_DrawNonSubdiv32C ();
 	}
 }
 
@@ -1196,14 +1199,12 @@ void D_PolysetDraw16 (void)
 }
 
 
-#if	!id386
-
 /*
 ================
 D_PolysetDraw
 ================
 */
-void D_PolysetDraw (void)
+void D_PolysetDrawC (void)
 {
 	spanpackage_t	spans[DPS_MAXSPANS + 1 +
 			((CACHE_SIZE - 1) / sizeof(spanpackage_t)) + 1];
@@ -1214,11 +1215,11 @@ void D_PolysetDraw (void)
 
 	if (r_affinetridesc.drawtype)
 	{
-		D_DrawSubdiv ();
+		D_DrawSubdivC ();
 	}
 	else
 	{
-		D_DrawNonSubdiv ();
+		D_DrawNonSubdivC ();
 	}
 }
 
@@ -1228,7 +1229,7 @@ void D_PolysetDraw (void)
 D_PolysetDrawFinalVerts
 ================
 */
-void D_PolysetDrawFinalVerts (finalvert_t *fv, int numverts)
+void D_PolysetDrawFinalVertsC (finalvert_t *fv, int numverts)
 {
 	int		i, z;
 	short	*zbuf;
@@ -1261,7 +1262,7 @@ void D_PolysetDrawFinalVerts (finalvert_t *fv, int numverts)
 D_DrawSubdiv
 ================
 */
-void D_DrawSubdiv (void)
+void D_DrawSubdivC (void)
 {
 	mtriangle_t		*ptri;
 	finalvert_t		*pfv, *index0, *index1, *index2;
@@ -1348,8 +1349,8 @@ void D_DrawSubdiv (void)
 		D_PolysetRecursiveTriangle(index0->v, index1->v, index2->v);
 	}
 }
-#endif
-void D_DrawSubdiv32 (void)
+
+void D_DrawSubdiv32C (void)
 {
 	mtriangle_t		*ptri;
 	finalvert_t		*pfv, *index0, *index1, *index2;
@@ -1395,13 +1396,12 @@ void D_DrawSubdiv32 (void)
 	}
 }
 
-#if	!id386
 /*
 ================
 D_DrawNonSubdiv
 ================
 */
-void D_DrawNonSubdiv (void)
+void D_DrawNonSubdivC (void)
 {
 	mtriangle_t		*ptri;
 	finalvert_t		*pfv, *index0, *index1, *index2;
@@ -1415,62 +1415,9 @@ void D_DrawNonSubdiv (void)
 	ptri = r_affinetridesc.ptriangles;
 	lnumtriangles = r_affinetridesc.numtriangles;
 
-#ifdef PEXT_TRANS
-	if (currententity->alpha != 1)
-	{
-		Set_TransLevelF(currententity->alpha);
-		if (!(t_state & TT_ONE))
-		{
-			if (t_state & TT_ZERO)
-				return;
-
-			for (i=0 ; i<lnumtriangles ; i++, ptri++)
-			{
-				index0 = pfv + ptri->xyz_index[0];
-				index1 = pfv + ptri->xyz_index[1];
-				index2 = pfv + ptri->xyz_index[2];
-
-				d_xdenom = (index0->v[1]-index1->v[1]) *
-						(index0->v[0]-index2->v[0]) -
-						(index0->v[0]-index1->v[0])*(index0->v[1]-index2->v[1]);
-
-				if (d_xdenom >= 0)
-				{
-					continue;
-				}
-
-				st0 = pst + ptri->st_index[0];
-				st1 = pst + ptri->st_index[1];
-				st2 = pst + ptri->st_index[2];
-
-				r_p0[0] = index0->v[0];		// u
-				r_p0[1] = index0->v[1];		// v
-				r_p0[2] = st0->s;		// s
-				r_p0[3] = st0->t;		// t
-				r_p0[4] = index0->v[4];		// light
-				r_p0[5] = index0->v[5];		// iz
-
-				r_p1[0] = index1->v[0];
-				r_p1[1] = index1->v[1];
-				r_p1[2] = st1->s;
-				r_p1[3] = st1->t;
-				r_p1[4] = index1->v[4];
-				r_p1[5] = index1->v[5];
-
-				r_p2[0] = index2->v[0];
-				r_p2[1] = index2->v[1];
-				r_p2[2] = st2->s;
-				r_p2[3] = st2->t;
-				r_p2[4] = index2->v[4];
-				r_p2[5] = index2->v[5];
-
-				D_PolysetSetEdgeTable ();
-				D_RasterizeAliasPolySmoothTrans ();
-			}
-			return;
-		}
-	}
-#endif
+	Set_TransLevelF(currententity->alpha);
+	if (t_state & TT_ZERO)
+		return;
 
 	for (i=0 ; i<lnumtriangles ; i++, ptri++)
 	{
@@ -1493,8 +1440,8 @@ void D_DrawNonSubdiv (void)
 
 		r_p0[0] = index0->v[0];		// u
 		r_p0[1] = index0->v[1];		// v
-		r_p0[2] = st0->s;			// s
-		r_p0[3] = st0->t;			// t
+		r_p0[2] = st0->s;		// s
+		r_p0[3] = st0->t;		// t
 		r_p0[4] = index0->v[4];		// light
 		r_p0[5] = index0->v[5];		// iz
 
@@ -1513,12 +1460,11 @@ void D_DrawNonSubdiv (void)
 		r_p2[5] = index2->v[5];
 
 		D_PolysetSetEdgeTable ();
-		D_RasterizeAliasPolySmooth8 ();
+		D_RasterizeAliasPolySmoothC ();
 	}
 }
-#endif
 
-void D_DrawNonSubdiv32 (void)
+void D_DrawNonSubdiv32C (void)
 {
 	mtriangle_t		*ptri;
 	finalvert_t		*pfv, *index0, *index1, *index2;
@@ -1596,7 +1542,7 @@ void D_DrawNonSubdiv32 (void)
 #endif
 
 		D_PolysetSetEdgeTable ();
-		D_RasterizeAliasPolySmoothTrans ();
+		D_RasterizeAliasPolySmoothC ();
 	}
 }
 
@@ -1820,7 +1766,7 @@ void D_PolysetSetUpForLineScan(fixed8_t startvertu, fixed8_t startvertv,
 D_PolysetCalcGradients
 ================
 */
-void D_PolysetCalcGradients (int skinwidth)
+void D_PolysetCalcGradientsAsm (int skinwidth)
 {
 	float	xstepdenominv, ystepdenominv, t0, t1;
 	float	p01_minus_p21, p11_minus_p21, p00_minus_p20, p10_minus_p20;
@@ -2060,7 +2006,8 @@ void D_PolysetFillSpans8 (spanpackage_t *pspanpackage)
 D_RasterizeAliasPolySmooth
 ================
 */
-void D_RasterizeAliasPolySmooth8 (void)
+#if	id386
+void D_RasterizeAliasPolySmooth8Asm (void)
 {
 	int				initialleftheight, initialrightheight;
 	int				*plefttop, *prighttop, *pleftbottom, *prightbottom;
@@ -2104,17 +2051,17 @@ void D_RasterizeAliasPolySmooth8 (void)
 
 	d_ptex = (qbyte *)r_affinetridesc.pskin + (plefttop[2] >> 16) +
 			(plefttop[3] >> 16) * r_affinetridesc.skinwidth;
-#if	id386
+//#if	id386
 	d_sfrac = (plefttop[2] & 0xFFFF) << 16;
 	d_tfrac = (plefttop[3] & 0xFFFF) << 16;
 	d_pzbasestep = (d_zwidth + ubasestep) << 1;
 	d_pzextrastep = d_pzbasestep + 2;
-#else
-	d_sfrac = plefttop[2] & 0xFFFF;
-	d_tfrac = plefttop[3] & 0xFFFF;
-	d_pzbasestep = d_zwidth + ubasestep;
-	d_pzextrastep = d_pzbasestep + 1;
-#endif
+//#else
+//	d_sfrac = plefttop[2] & 0xFFFF;
+//	d_tfrac = plefttop[3] & 0xFFFF;
+//	d_pzbasestep = d_zwidth + ubasestep;
+//	d_pzextrastep = d_pzbasestep + 1;
+//#endif
 	d_light = plefttop[4];
 	d_zi = plefttop[5];
 
@@ -2138,26 +2085,26 @@ void D_RasterizeAliasPolySmooth8 (void)
 	d_ptexbasestep = ((r_sstepy + r_sstepx * ubasestep) >> 16) +
 			((r_tstepy + r_tstepx * ubasestep) >> 16) *
 			r_affinetridesc.skinwidth;
-#if	id386
+//#if	id386
 	d_sfracbasestep = (r_sstepy + r_sstepx * ubasestep) << 16;
 	d_tfracbasestep = (r_tstepy + r_tstepx * ubasestep) << 16;
-#else
-	d_sfracbasestep = (r_sstepy + r_sstepx * ubasestep) & 0xFFFF;
-	d_tfracbasestep = (r_tstepy + r_tstepx * ubasestep) & 0xFFFF;
-#endif
+//#else
+//	d_sfracbasestep = (r_sstepy + r_sstepx * ubasestep) & 0xFFFF;
+//	d_tfracbasestep = (r_tstepy + r_tstepx * ubasestep) & 0xFFFF;
+//#endif
 	d_lightbasestep = r_lstepy + working_lstepx * ubasestep;
 	d_zibasestep = r_zistepy + r_zistepx * ubasestep;
 
 	d_ptexextrastep = ((r_sstepy + r_sstepx * d_countextrastep) >> 16) +
 			((r_tstepy + r_tstepx * d_countextrastep) >> 16) *
 			r_affinetridesc.skinwidth;
-#if	id386
+//#if	id386
 	d_sfracextrastep = (r_sstepy + r_sstepx*d_countextrastep) << 16;
 	d_tfracextrastep = (r_tstepy + r_tstepx*d_countextrastep) << 16;
-#else
-	d_sfracextrastep = (r_sstepy + r_sstepx*d_countextrastep) & 0xFFFF;
-	d_tfracextrastep = (r_tstepy + r_tstepx*d_countextrastep) & 0xFFFF;
-#endif
+//#else
+//	d_sfracextrastep = (r_sstepy + r_sstepx*d_countextrastep) & 0xFFFF;
+//	d_tfracextrastep = (r_tstepy + r_tstepx*d_countextrastep) & 0xFFFF;
+//#endif
 	d_lightextrastep = d_lightbasestep + working_lstepx;
 	d_ziextrastep = d_zibasestep + r_zistepx;
 
@@ -2192,13 +2139,13 @@ void D_RasterizeAliasPolySmooth8 (void)
 		d_pdestbasestep = (screenwidth + ubasestep)*r_pixbytes;
 		d_pdestextrastep = d_pdestbasestep + r_pixbytes;
 		d_pdest = (qbyte *)d_viewbuffer + (ystart * screenwidth + plefttop[0])*r_pixbytes;
-#if	id386
+//#if	id386
 		d_pzbasestep = (d_zwidth + ubasestep) << 1;
 		d_pzextrastep = d_pzbasestep + 2;
-#else
-		d_pzbasestep = d_zwidth + ubasestep;
-		d_pzextrastep = d_pzbasestep + 1;
-#endif
+//#else
+//		d_pzbasestep = d_zwidth + ubasestep;
+//		d_pzextrastep = d_pzbasestep + 1;
+//#endif
 		d_pz = d_pzbuffer + ystart * d_zwidth + plefttop[0];
 
 		if (ubasestep < 0)
@@ -2210,26 +2157,240 @@ void D_RasterizeAliasPolySmooth8 (void)
 		d_ptexbasestep = ((r_sstepy + r_sstepx * ubasestep) >> 16) +
 				((r_tstepy + r_tstepx * ubasestep) >> 16) *
 				r_affinetridesc.skinwidth;
-#if	id386
+//#if	id386
 		d_sfracbasestep = (r_sstepy + r_sstepx * ubasestep) << 16;
 		d_tfracbasestep = (r_tstepy + r_tstepx * ubasestep) << 16;
-#else
-		d_sfracbasestep = (r_sstepy + r_sstepx * ubasestep) & 0xFFFF;
-		d_tfracbasestep = (r_tstepy + r_tstepx * ubasestep) & 0xFFFF;
-#endif
+//#else
+//		d_sfracbasestep = (r_sstepy + r_sstepx * ubasestep) & 0xFFFF;
+//		d_tfracbasestep = (r_tstepy + r_tstepx * ubasestep) & 0xFFFF;
+//#endif
 		d_lightbasestep = r_lstepy + working_lstepx * ubasestep;
 		d_zibasestep = r_zistepy + r_zistepx * ubasestep;
 
 		d_ptexextrastep = ((r_sstepy + r_sstepx * d_countextrastep) >> 16) +
 				((r_tstepy + r_tstepx * d_countextrastep) >> 16) *
 				r_affinetridesc.skinwidth;
-#if	id386
+//#if	id386
 		d_sfracextrastep = ((r_sstepy+r_sstepx*d_countextrastep) & 0xFFFF)<<16;
 		d_tfracextrastep = ((r_tstepy+r_tstepx*d_countextrastep) & 0xFFFF)<<16;
-#else
+//#else
+//		d_sfracextrastep = (r_sstepy+r_sstepx*d_countextrastep) & 0xFFFF;
+//		d_tfracextrastep = (r_tstepy+r_tstepx*d_countextrastep) & 0xFFFF;
+//#endif
+		d_lightextrastep = d_lightbasestep + working_lstepx;
+		d_ziextrastep = d_zibasestep + r_zistepx;
+
+		D_PolysetScanLeftEdge (height);
+	}
+
+// scan out the top (and possibly only) part of the right edge, updating the
+// count field
+	d_pedgespanpackage = a_spans;
+
+	D_PolysetSetUpForLineScan(prighttop[0], prighttop[1],
+						  prightbottom[0], prightbottom[1]);
+	d_aspancount = 0;
+	d_countextrastep = ubasestep + 1;
+	originalcount = a_spans[initialrightheight].count;
+	a_spans[initialrightheight].count = -999999; // mark end of the spanpackages
+	DrawSpans (a_spans);
+
+// scan out the bottom part of the right edge, if it exists
+	if (pedgetable->numrightedges == 2)
+	{
+		int				height;
+		spanpackage_t	*pstart;
+
+		pstart = a_spans + initialrightheight;
+		pstart->count = originalcount;
+
+		d_aspancount = prightbottom[0] - prighttop[0];
+
+		prighttop = prightbottom;
+		prightbottom = pedgetable->prightedgevert2;
+
+		height = prightbottom[1] - prighttop[1];
+
+		D_PolysetSetUpForLineScan(prighttop[0], prighttop[1],
+							  prightbottom[0], prightbottom[1]);
+
+		d_countextrastep = ubasestep + 1;
+		a_spans[initialrightheight + height].count = -999999;
+											// mark end of the spanpackages
+		DrawSpans (pstart);
+	}
+}
+#endif
+void D_RasterizeAliasPolySmooth8C (void)
+{
+	int				initialleftheight, initialrightheight;
+	int				*plefttop, *prighttop, *pleftbottom, *prightbottom;
+	int				working_lstepx, originalcount;
+
+	void (*DrawSpans) (spanpackage_t *pspanpackage);
+	if (r_pixbytes == 1)
+		DrawSpans = D_PolysetDrawSpans8;
+	else
+		DrawSpans = D_PolysetDrawSpans16;
+
+	plefttop = pedgetable->pleftedgevert0;
+	prighttop = pedgetable->prightedgevert0;
+
+	pleftbottom = pedgetable->pleftedgevert1;
+	prightbottom = pedgetable->prightedgevert1;
+
+	initialleftheight = pleftbottom[1] - plefttop[1];
+	initialrightheight = prightbottom[1] - prighttop[1];
+
+//
+// set the s, t, and light gradients, which are consistent across the triangle
+// because being a triangle, things are affine
+//
+	D_PolysetCalcGradients (r_affinetridesc.skinwidth);
+
+//
+// rasterize the polygon
+//
+
+//
+// scan out the top (and possibly only) part of the left edge
+//
+	D_PolysetSetUpForLineScan(plefttop[0], plefttop[1],
+						  pleftbottom[0], pleftbottom[1]);
+
+	d_pedgespanpackage = a_spans;
+
+	ystart = plefttop[1];
+	d_aspancount = plefttop[0] - prighttop[0];
+
+	d_ptex = (qbyte *)r_affinetridesc.pskin + (plefttop[2] >> 16) +
+			(plefttop[3] >> 16) * r_affinetridesc.skinwidth;
+//#if	id386
+//	d_sfrac = (plefttop[2] & 0xFFFF) << 16;
+//	d_tfrac = (plefttop[3] & 0xFFFF) << 16;
+//	d_pzbasestep = (d_zwidth + ubasestep) << 1;
+//	d_pzextrastep = d_pzbasestep + 2;
+//#else
+	d_sfrac = plefttop[2] & 0xFFFF;
+	d_tfrac = plefttop[3] & 0xFFFF;
+	d_pzbasestep = d_zwidth + ubasestep;
+	d_pzextrastep = d_pzbasestep + 1;
+//#endif
+	d_light = plefttop[4];
+	d_zi = plefttop[5];
+
+	d_pdestbasestep = (screenwidth + ubasestep)*r_pixbytes;
+	d_pdestextrastep = d_pdestbasestep + r_pixbytes;
+	d_pdest = (qbyte *)d_viewbuffer +
+			(ystart * screenwidth + plefttop[0])*r_pixbytes;
+	d_pz = d_pzbuffer + ystart * d_zwidth + plefttop[0];
+
+// TODO: can reuse partial expressions here
+
+// for negative steps in x along left edge, bias toward overflow rather than
+// underflow (sort of turning the floor () we did in the gradient calcs into
+// ceil (), but plus a little bit)
+	if (ubasestep < 0)
+		working_lstepx = r_lstepx - 1;
+	else
+		working_lstepx = r_lstepx;
+
+	d_countextrastep = ubasestep + 1;
+	d_ptexbasestep = ((r_sstepy + r_sstepx * ubasestep) >> 16) +
+			((r_tstepy + r_tstepx * ubasestep) >> 16) *
+			r_affinetridesc.skinwidth;
+//#if	id386
+//	d_sfracbasestep = (r_sstepy + r_sstepx * ubasestep) << 16;
+//	d_tfracbasestep = (r_tstepy + r_tstepx * ubasestep) << 16;
+//#else
+	d_sfracbasestep = (r_sstepy + r_sstepx * ubasestep) & 0xFFFF;
+	d_tfracbasestep = (r_tstepy + r_tstepx * ubasestep) & 0xFFFF;
+//#endif
+	d_lightbasestep = r_lstepy + working_lstepx * ubasestep;
+	d_zibasestep = r_zistepy + r_zistepx * ubasestep;
+
+	d_ptexextrastep = ((r_sstepy + r_sstepx * d_countextrastep) >> 16) +
+			((r_tstepy + r_tstepx * d_countextrastep) >> 16) *
+			r_affinetridesc.skinwidth;
+//#if	id386
+//	d_sfracextrastep = (r_sstepy + r_sstepx*d_countextrastep) << 16;
+//	d_tfracextrastep = (r_tstepy + r_tstepx*d_countextrastep) << 16;
+//#else
+	d_sfracextrastep = (r_sstepy + r_sstepx*d_countextrastep) & 0xFFFF;
+	d_tfracextrastep = (r_tstepy + r_tstepx*d_countextrastep) & 0xFFFF;
+//#endif
+	d_lightextrastep = d_lightbasestep + working_lstepx;
+	d_ziextrastep = d_zibasestep + r_zistepx;
+
+	D_PolysetScanLeftEdge (initialleftheight);
+
+//
+// scan out the bottom part of the left edge, if it exists
+//
+	if (pedgetable->numleftedges == 2)
+	{
+		int		height;
+
+		plefttop = pleftbottom;
+		pleftbottom = pedgetable->pleftedgevert2;
+
+		D_PolysetSetUpForLineScan(plefttop[0], plefttop[1],
+							  pleftbottom[0], pleftbottom[1]);
+
+		height = pleftbottom[1] - plefttop[1];
+
+// TODO: make this a function; modularize this function in general
+
+		ystart = plefttop[1];
+		d_aspancount = plefttop[0] - prighttop[0];
+		d_ptex = (qbyte *)r_affinetridesc.pskin + (plefttop[2] >> 16) +
+				(plefttop[3] >> 16) * r_affinetridesc.skinwidth;
+		d_sfrac = 0;
+		d_tfrac = 0;
+		d_light = plefttop[4];
+		d_zi = plefttop[5];
+
+		d_pdestbasestep = (screenwidth + ubasestep)*r_pixbytes;
+		d_pdestextrastep = d_pdestbasestep + r_pixbytes;
+		d_pdest = (qbyte *)d_viewbuffer + (ystart * screenwidth + plefttop[0])*r_pixbytes;
+//#if	id386
+//		d_pzbasestep = (d_zwidth + ubasestep) << 1;
+//		d_pzextrastep = d_pzbasestep + 2;
+//#else
+		d_pzbasestep = d_zwidth + ubasestep;
+		d_pzextrastep = d_pzbasestep + 1;
+//#endif
+		d_pz = d_pzbuffer + ystart * d_zwidth + plefttop[0];
+
+		if (ubasestep < 0)
+			working_lstepx = r_lstepx - 1;
+		else
+			working_lstepx = r_lstepx;
+
+		d_countextrastep = ubasestep + 1;
+		d_ptexbasestep = ((r_sstepy + r_sstepx * ubasestep) >> 16) +
+				((r_tstepy + r_tstepx * ubasestep) >> 16) *
+				r_affinetridesc.skinwidth;
+//#if	id386
+//		d_sfracbasestep = (r_sstepy + r_sstepx * ubasestep) << 16;
+//		d_tfracbasestep = (r_tstepy + r_tstepx * ubasestep) << 16;
+//#else
+		d_sfracbasestep = (r_sstepy + r_sstepx * ubasestep) & 0xFFFF;
+		d_tfracbasestep = (r_tstepy + r_tstepx * ubasestep) & 0xFFFF;
+//#endif
+		d_lightbasestep = r_lstepy + working_lstepx * ubasestep;
+		d_zibasestep = r_zistepy + r_zistepx * ubasestep;
+
+		d_ptexextrastep = ((r_sstepy + r_sstepx * d_countextrastep) >> 16) +
+				((r_tstepy + r_tstepx * d_countextrastep) >> 16) *
+				r_affinetridesc.skinwidth;
+//#if	id386
+//		d_sfracextrastep = ((r_sstepy+r_sstepx*d_countextrastep) & 0xFFFF)<<16;
+//		d_tfracextrastep = ((r_tstepy+r_tstepx*d_countextrastep) & 0xFFFF)<<16;
+//#else
 		d_sfracextrastep = (r_sstepy+r_sstepx*d_countextrastep) & 0xFFFF;
 		d_tfracextrastep = (r_tstepy+r_tstepx*d_countextrastep) & 0xFFFF;
-#endif
+//#endif
 		d_lightextrastep = d_lightbasestep + working_lstepx;
 		d_ziextrastep = d_zibasestep + r_zistepx;
 
@@ -2274,7 +2435,7 @@ void D_RasterizeAliasPolySmooth8 (void)
 	}
 }
 
-void D_RasterizeAliasPolySmooth1 (void)
+void D_RasterizeAliasPolySmooth1Asm (void)
 {
 	int				initialleftheight, initialrightheight;
 	int				*plefttop, *prighttop, *pleftbottom, *prightbottom;

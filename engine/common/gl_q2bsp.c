@@ -1373,7 +1373,10 @@ void CMod_LoadFaces (lump_t *l)
 				out->extents[i] = 16384;
 				out->texturemins[i] = -8192;
 			}
-			GL_SubdivideSurface (out, 64);	// cut up polygon for warps
+#ifdef RGLQUAKE
+			if (qrenderer == QR_OPENGL)
+				GL_SubdivideSurface (out, 64);	// cut up polygon for warps
+#endif
 		}
 		
 	}

@@ -264,13 +264,13 @@ qboolean R_AliasCheckBBox (void)
 	if (allclip)
 		return false;	// trivial reject off one side
 
-//	currententity->trivial_accept = !anyclip & !zclipped;
+	currententity->trivial_accept = !anyclip & !zclipped;
 
 	if (currententity->trivial_accept)
 	{
 		if (minz > (r_aliastransition + (pmdl->size * r_resfudge)))
 		{
-//			currententity->trivial_accept |= 2;
+			currententity->trivial_accept |= 2;
 		}
 	}
 
@@ -299,6 +299,7 @@ General clipped case
 */
 void R_AliasPreparePoints (void)
 {
+	void (*drawfnc) (void);
 	int			i;
 	mstvert_t	*pstverts;
 	finalvert_t	*fv;
@@ -310,14 +311,26 @@ void R_AliasPreparePoints (void)
  	fv = pfinalverts;
 	av = pauxverts;
 
-#ifdef PEXT_TRANS
-/*
-	if (currententity->alpha != 1)
+#if	id386
+	if (currententity->alpha == 1)	//use the asm routines if we have it, and don't have alpha
 	{
-		Set_TransLevelF(currententity->alpha);
+		if (r_pixbytes == 4)
+			drawfnc = D_PolysetDraw32;
+		else if (r_pixbytes == 2)
+			drawfnc = D_PolysetDraw16;
+		else
+			drawfnc = D_PolysetDrawAsm;
 	}
-*/
+	else
 #endif
+	{
+		if (r_pixbytes == 4)
+			drawfnc = D_PolysetDraw32;
+		else if (r_pixbytes == 2)
+			drawfnc = D_PolysetDraw16;
+		else
+			drawfnc = D_PolysetDrawC;
+	}
 
 	for (i=0 ; i<r_anumverts ; i++, fv++, av++, r_apnewverts++, r_apoldverts++)
 	{
@@ -369,16 +382,11 @@ void R_AliasPreparePoints (void)
 		{	// totally unclipped
 			r_affinetridesc.pfinalverts = pfinalverts;
 			r_affinetridesc.ptriangles = ptri;
-			if (r_pixbytes == 4)
-				D_PolysetDraw32 ();
-			else if (r_pixbytes == 2)
-				D_PolysetDraw16 ();
-			else
-				D_PolysetDraw ();
+			drawfnc ();
 		}
 		else		
 		{	// partially clipped
-			R_AliasClipTriangle (ptri);
+			R_AliasClipTriangle (ptri, drawfnc);
 		}
 	}
 }
@@ -616,8 +624,12 @@ void R_AliasPrepareUnclippedPoints (void)
 
 	if (r_pixbytes == 4)
 		D_PolysetDraw32 ();
+#if id386
+	else if (currententity->alpha == 1)
+		D_PolysetDrawAsm ();
+#endif
 	else
-		D_PolysetDraw ();
+		D_PolysetDrawC ();
 }
 
 /*

@@ -138,7 +138,8 @@ void SWD_BeginDirectRect (int x, int y, qbyte *pbitmap, int width, int height);
 void D_DisableBackBufferAccess (void);
 void GLD_EndDirectRect (int x, int y, int width, int height);
 void SWD_EndDirectRect (int x, int y, int width, int height);
-void D_PolysetDraw (void);
+void D_PolysetDrawAsm (void);
+void D_PolysetDrawC (void);	//C version supports transparency
 void D_PolysetDraw16 (void);
 void D_PolysetDraw32 (void);
 void D_PolysetDrawFinalVerts (finalvert_t *fv, int numverts);

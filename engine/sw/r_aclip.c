@@ -234,7 +234,7 @@ int R_AliasClip (finalvert_t *in, finalvert_t *out, int flag, int count,
 R_AliasClipTriangle
 ================
 */
-void R_AliasClipTriangle (mtriangle_t *ptri)
+void R_AliasClipTriangle (mtriangle_t *ptri, void (*drawfnc) (void))
 {
 	int				i, k, pingpong;
 	mtriangle_t		mtri;
@@ -348,10 +348,7 @@ void R_AliasClipTriangle (mtriangle_t *ptri)
 		mtri.st_index[1] = i;
 		mtri.xyz_index[2] = i+1;
 		mtri.st_index[2] = i+1;
-		if (r_pixbytes == 4)
-			D_PolysetDraw32 ();
-		else
-			D_PolysetDraw ();
+		drawfnc ();
 	}
 	r_affinetridesc.pstverts = pst;
 }

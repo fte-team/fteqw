@@ -1620,7 +1620,7 @@ void CLQ2_AddPacketEntities (q2frame_t *frame)
 			ent.flags = renderfx | Q2RF_TRANSLUCENT;
 			ent.alpha = 0.30;
 			ent.fatness = 1;
-#ifdef Q3SHADERS
+#ifdef Q3SHADERS	//fixme: do better.
 			//fixme: this is woefully gl specific. :(
 			ent.shaderRGBA[0] = (!!(renderfx & Q2RF_SHELL_RED)) * 255;
 			ent.shaderRGBA[1] = (!!(renderfx & Q2RF_SHELL_GREEN)) * 255;
@@ -1630,7 +1630,9 @@ void CLQ2_AddPacketEntities (q2frame_t *frame)
 #endif
 			V_AddLerpEntity (&ent);
 		}
+#ifdef Q3SHADERS
 		ent.forcedshader = NULL;
+#endif
 
 //		ent.skin = NULL;		// never use a custom skin on others
 		ent.skinnum = 0;
@@ -1865,6 +1867,7 @@ void CLQ2_AddViewWeapon (q2player_state_t *ps, q2player_state_t *ops)
 	if (ps->fov > 90)
 		return;
 
+	//generate root matrix..
 	view = &cl.viewent[0];
 	VectorCopy(cl.simorg[0], view->origin);
 	AngleVectors(cl.simangles[0], view->axis[0], view->axis[1], view->axis[2]);
@@ -1887,10 +1890,10 @@ void CLQ2_AddViewWeapon (q2player_state_t *ps, q2player_state_t *ops)
 	// set up gun position
 	for (i=0 ; i<3 ; i++)
 	{
-		gun.origin[i] = ops->gunoffset[i]
-			+ cl.lerpfrac * (ps->gunoffset[i] - ops->gunoffset[i]);
-		gun.angles[i] = LerpAngle (ops->gunangles[i],
-			ps->gunangles[i], cl.lerpfrac);
+		gun.origin[i] = 0;//ops->gunoffset[i]
+		//	+ cl.lerpfrac * (ps->gunoffset[i] - ops->gunoffset[i]);
+		gun.angles[i] = 0;//LerpAngle (ops->gunangles[i],
+		//	ps->gunangles[i], cl.lerpfrac);
 	}
 	gun.angles[0]*=-1;
 
@@ -1911,7 +1914,7 @@ void CLQ2_AddViewWeapon (q2player_state_t *ps, q2player_state_t *ops)
 	gun.flags = Q2RF_MINLIGHT | Q2RF_DEPTHHACK | Q2RF_WEAPONMODEL;
 	gun.lerptime = 1.0 - cl.lerpfrac;
 	VectorCopy (gun.origin, gun.oldorigin);	// don't lerp at all
-	V_AddLerpEntity (&gun);
+	V_AddEntity (&gun);
 #endif
 }
 

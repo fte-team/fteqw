@@ -271,7 +271,7 @@ extern int		r_outofedges;
 extern mvertex_t	*r_pcurrentvertbase;
 extern int			r_maxvalidedgeoffset;
 
-void R_AliasClipTriangle (mtriangle_t *ptri);
+void R_AliasClipTriangle (mtriangle_t *ptri, void (*drawfnc) (void));
 
 extern float	r_time1;
 extern float	dp_time1, dp_time2, db_time1, db_time2, rw_time1, rw_time2;

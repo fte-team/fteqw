@@ -56,7 +56,7 @@ lzistepx:		.long	0
 
 #ifndef NeXT
 	.extern C(D_PolysetSetEdgeTable)
-	.extern C(D_RasterizeAliasPolySmooth8)
+	.extern C(D_RasterizeAliasPolySmooth8Asm)
 #endif
 
 //----------------------------------------------------------------------
@@ -1083,8 +1083,8 @@ C(D_Aff8Patch):
 // triangle drawing code
 //----------------------------------------------------------------------
 
-.globl C(D_PolysetDraw)
-C(D_PolysetDraw):
+.globl C(D_PolysetDrawAsm)
+C(D_PolysetDrawAsm):
 
 //	spanpackage_t	spans[DPS_MAXSPANS + 1 +
 //			((CACHE_SIZE - 1) / sizeof(spanpackage_t)) + 1];
@@ -1727,9 +1727,9 @@ LFacesFront:
 	fstps	C(d_xdenom)
 
 //		D_PolysetSetEdgeTable ();
-//		D_RasterizeAliasPolySmooth8 ();
+//		D_RasterizeAliasPolySmooth8Asm ();
 		call	C(D_PolysetSetEdgeTable)
-		call	C(D_RasterizeAliasPolySmooth8)
+		call	C(D_RasterizeAliasPolySmooth8Asm)
 
 LNextTri:
 		movl	C(r_affinetridesc)+atd_ptriangles,%esi

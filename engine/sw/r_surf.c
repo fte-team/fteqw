@@ -535,9 +535,9 @@ void SWR_Q1BSP_AddNodeDecal (mnode_t *node)
 
 void SWR_AddDecal(vec3_t org)
 {
-	VectorCopy(org, decalorg);
-	decalradius = 320;
-	SWR_Q1BSP_AddNodeDecal(cl.worldmodel->nodes+cl.worldmodel->hulls[0].firstclipnode);
+//	VectorCopy(org, decalorg);
+//	decalradius = 320;
+//	SWR_Q1BSP_AddNodeDecal(cl.worldmodel->nodes+cl.worldmodel->hulls[0].firstclipnode);
 }
 
 

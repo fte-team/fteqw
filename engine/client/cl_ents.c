@@ -1223,7 +1223,7 @@ void CL_ParsePlayerinfo (void)
 	int			num;
 	int			i;
 	int new;
-	vec3_t		org, oorg;
+	vec3_t		org;
 
 	lastplayerinfo = num = MSG_ReadByte ();
 	if (num >= MAX_CLIENTS)

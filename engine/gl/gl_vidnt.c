@@ -104,7 +104,6 @@ DWORD		WindowStyle, ExWindowStyle;
 HWND	mainwindow, dibwindow;
 
 unsigned char	vid_curpal[256*3];
-static qboolean fullsbardraw = false;
 
 float vid_gamma = 1.0;
 
@@ -748,8 +747,6 @@ GL_BeginRendering
 */
 void GL_BeginRendering (int *x, int *y, int *width, int *height)
 {
-	extern cvar_t gl_clear;
-
 	*x = *y = 0;
 	*width = WindowRect.right - WindowRect.left;
 	*height = WindowRect.bottom - WindowRect.top;
@@ -826,7 +823,7 @@ BOOL	gammaworks;
 
 void	GLVID_ShiftPalette (unsigned char *palette)
 {
-	extern	qbyte ramps[3][256];
+//	extern	qbyte ramps[3][256];
 	
 //	VID_SetPalette (palette);
 
@@ -1080,13 +1077,18 @@ LONG WINAPI GLMainWndProc (
 		// Event.
 		case WM_MOUSEWHEEL: 
 			if (!vid_initializing)
-				if ((short) HIWORD(wParam) > 0) {
+			{
+				if ((short) HIWORD(wParam) > 0)
+				{
 					Key_Event(K_MWHEELUP, true);
 					Key_Event(K_MWHEELUP, false);
-				} else {
+				}
+				else
+				{
 					Key_Event(K_MWHEELDOWN, true);
 					Key_Event(K_MWHEELDOWN, false);
 				}
+			}
 			break;
 
     	case WM_SIZE:

@@ -2063,7 +2063,11 @@ void *com_pathforfile;	//fread and stuff is preferable if null.
 
 typedef struct searchpath_s
 {
-	enum {SPT_OS, SPT_PACK, SPT_ZIP} type;
+	enum {SPT_OS, SPT_PACK
+#ifdef ZLIB
+		, SPT_ZIP
+#endif
+	} type;
 	char	filename[MAX_OSPATH];
 	union {
 		pack_t	*pack;		// only one of filename / pack will be used

@@ -766,9 +766,6 @@ void LightFace (int surfnum)
 	vec3_t	*light, *norm;
 	vec3_t	wnorm, temp;
 	int		w, h;
-
-	extern byte *runningrgblightdatabase;
-	extern byte *runninglightnormbase;
 	
 	f = dfaces + surfnum;
 

@@ -112,7 +112,7 @@ static ID_INLINE void Huff_PrepareTree( tree_t tree ) {
 	
 	// create first node
 	node = &tree[263];
-	VALUE( tree[0] )++;
+	tree[0] = (void*)(VALUE( tree[0] )+1);
 
 	node[7] = NODE_NONE;
 	tree[2] = node;

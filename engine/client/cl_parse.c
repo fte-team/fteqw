@@ -519,8 +519,6 @@ to start a download from the server.
 */
 qboolean	CL_CheckOrDownloadFile (char *filename, int nodelay)
 {
-	FILE	*f=NULL;
-
 	if (strstr (filename, ".."))
 	{
 		Con_TPrintf (TL_NORELATIVEPATHS);
@@ -3139,7 +3137,7 @@ char printtext[1024];
 void CL_ParsePrint(char *msg)
 {
 	strncat(printtext, msg, sizeof(printtext)-1);
-	while(msg = strchr(printtext, '\n'))
+	while((msg = strchr(printtext, '\n')))
 	{
 		*msg = '\0';
 		Stats_ParsePrintLine(printtext);
@@ -3153,7 +3151,7 @@ char stufftext[4096];
 void CL_ParseStuffCmd(char *msg, int destsplit)	//this protects stuffcmds from network segregation.
 {
 	strncat(stufftext, msg, sizeof(stufftext)-1);
-	while(msg = strchr(stufftext, '\n'))
+	while((msg = strchr(stufftext, '\n')))
 	{
 		*msg = '\0';
 		Con_DPrintf("stufftext: %s\n", stufftext);

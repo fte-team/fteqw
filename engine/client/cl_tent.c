@@ -1467,7 +1467,7 @@ void CLQ2_ParseTEnt (void)
 		ex->ent.model = cl_mod_explode;
 		ex->frames = 4;
 		S_StartSound (pos,  0, 0, cl_sfx_lashit, 1, ATTN_NORM, 0);
-/*		break;
+*//*		break;
 
 
 	case Q2TE_LIGHTNING:

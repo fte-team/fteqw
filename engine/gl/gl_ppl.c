@@ -1002,7 +1002,7 @@ static void PPL_BaseChain_Specular_8TMU(msurface_t *first, texture_t *tex)
 	glRect_t    *theRect;
 	msurface_t *s;
 
-	float fourhalffloats[4] = {0.5,0.5,0.5,0.5};
+//	float fourhalffloats[4] = {0.5,0.5,0.5,0.5};
 
 	glColorMask(1,1,1,1);
 
@@ -1226,7 +1226,6 @@ rgb * lightmap -> rgb
 
 static void PPL_BaseTextureChain(msurface_t *first)
 {
-	extern int		*deluxmap_textures;
 	extern cvar_t gl_bump, gl_specular;
 	texture_t	*t;
 
@@ -1614,7 +1613,6 @@ void PPL_LightTextures(model_t *model, vec3_t modelorigin, dlight_t *light)
 	int		i;
 	msurface_t	*s;
 	texture_t	*t;
-	extern cvar_t gl_bump;
 
 	vec3_t relativelightorigin;
 
@@ -1739,7 +1737,6 @@ void PPL_LightBModelTextures(entity_t *e, dlight_t *light)
 
 	msurface_t	*s;
 	texture_t	*t;
-	extern cvar_t gl_bump;
 
 			vec3_t relativelightorigin;
 

@@ -1512,7 +1512,7 @@ int Mod_LoadHiResTexture(char *name, qboolean mipmap, qboolean alpha, qboolean c
 
 	COM_StripExtension(name, nicename);
 
-	while(data = strchr(nicename, '*'))
+	while((data = strchr(nicename, '*')))
 	{
 		*data = '#';
 	}

@@ -1010,6 +1010,9 @@ qboolean Media_PlayFilm(char *name)
 			}
 		}
 		break;
+#else
+	case MFT_AVI:
+		break;
 #endif
 
 	case MFT_CIN:
@@ -1025,6 +1028,9 @@ qboolean Media_PlayFilm(char *name)
 		}
 		break;
 #endif
+
+	case MFT_NONE:
+		break;
 	}
 
 	media_filmtype = MFT_NONE;
@@ -1777,6 +1783,9 @@ qboolean Media_ShowFilm(void)
 			}
 		}
 		return true;
+#else
+	case MFT_AVI:
+		break;
 #endif
 	case MFT_CIN:
 		if (CIN_RunCinematic())
@@ -1790,6 +1799,8 @@ qboolean Media_ShowFilm(void)
 
 		return false;
 #endif
+	case MFT_NONE:
+		break;
 	}
 	Media_PlayFilm(NULL);
 	return false;

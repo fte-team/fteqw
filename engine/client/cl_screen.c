@@ -405,7 +405,7 @@ void SCR_ShowPics_Draw(void)
 void SCR_ShowPic_Clear(void)
 {
 	showpic_t *sp;
-	while(sp = showpics)
+	while((sp = showpics))
 	{
 		showpics = sp->next;
 
@@ -506,7 +506,6 @@ void SCR_ShowPic_Move(void)
 
 void SCR_ShowPic_Update(void)
 {
-	int zone = MSG_ReadByte();
 	showpic_t *sp;
 	char *s;
 

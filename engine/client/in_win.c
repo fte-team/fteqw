@@ -27,10 +27,12 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 #ifndef NODIRECTX
 #include <dinput.h>
 
+#ifdef _MSC_VER
 #ifdef AVAIL_DX7
 #pragma comment (lib, "../libs/dxsdk7/lib/dxguid.lib")
 #else
 #pragma comment (lib, "dxguid.lib")
+#endif
 #endif
 
 #define DINPUT_BUFFERSIZE           16
@@ -637,7 +639,7 @@ unsigned int _stdcall IN_SerialMSRun(void *param)
 {
 	mouse_t *mouse = param;
 	char code[3];
-	int read;
+	DWORD read;
 	int total=0;
 	IN_SetSerialBoad(mouse->comhandle, 1200);
 	total=0;
@@ -668,11 +670,11 @@ unsigned int _stdcall IN_SerialMSRun(void *param)
 
 //microsofts's intellimouse protocol
 //used by most wheel mice.
-unsigned int _stdcall IN_SerialMSIntelliRun(void *param)
+unsigned long __stdcall IN_SerialMSIntelliRun(void *param)
 {
 	mouse_t *mouse = param;
 	unsigned char code[80];
-	int read, total=0;
+	DWORD read, total=0;
 	IN_SetSerialBoad(mouse->comhandle, 1200);
 
 	ReadFile(mouse->comhandle, code, 11*4+2, &read, NULL);	//header info which we choose to ignore
@@ -1473,7 +1475,7 @@ qboolean IN_ReadJoystick (void)
 	else
 	{
 		// read error occurred
-		// turning off the joystick seems too harsh for 1 read error,\
+		// turning off the joystick seems too harsh for 1 read error,
 		// but what should be done?
 		// Con_Printf ("IN_ReadJoystick: no response\n");
 		// joy_avail = false;

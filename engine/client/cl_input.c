@@ -492,7 +492,6 @@ CL_FinishMove
 */
 void CL_FinishMove (usercmd_t *cmd, int msecs, int pnum)
 {
-	extern int mouseusedforgui;
 	int		ms, i;
 	int bits;
 

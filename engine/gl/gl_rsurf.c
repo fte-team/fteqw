@@ -612,7 +612,6 @@ void GLR_BuildDeluxMap (msurface_t *surf, qbyte *dest)
 	qbyte		*deluxmap;
 	unsigned	scale;
 	int			maps;
-	extern cvar_t r_ambient;
 	float intensity;
 	vec_t		*bnorm;
 	vec3_t temp;
@@ -2971,7 +2970,7 @@ void GLR_MarkLeaves (void)
 	}
 #endif
 
-	if ((r_oldviewleaf == r_viewleaf && r_oldviewleaf2 == r_viewleaf2) && !r_novis.value || r_novis.value == 2)
+	if (((r_oldviewleaf == r_viewleaf && r_oldviewleaf2 == r_viewleaf2) && !r_novis.value) || r_novis.value == 2)
 		return;
 	
 //	if (mirror)

@@ -96,7 +96,7 @@ void Con_PrintCon (char *txt, console_t *con);
 void QT_Update(void)
 {
 	char buffer[2048];
-	int ret;
+	DWORD ret;
 	qterm_t *qt;
 	qterm_t *prev = NULL;
 	for (qt = qterms; qt; qt = (prev=qt)->next)
@@ -122,7 +122,7 @@ void QT_Update(void)
 		}
 		if (WaitForSingleObject(qt->process, 0) == WAIT_TIMEOUT)
 		{
-			if (ret=GetFileSize(qt->pipeout, NULL))
+			if ((ret=GetFileSize(qt->pipeout, NULL)))
 			{
 				if (ret!=INVALID_FILE_SIZE)
 				{
@@ -144,6 +144,7 @@ void QT_KeyPress(int key)
 {
 	qbyte k[2];
 	qterm_t *qt;
+	DWORD send = key;	//get around a gcc warning
 	for (qt = qterms; qt; qt = qt->next)
 	{
 		if (&qt->console == con)
@@ -162,7 +163,7 @@ void QT_KeyPress(int key)
 				}
 				if (GetFileSize(qt->pipein, NULL)<512)
 				{
-					WriteFile(qt->pipein, k, 1, &key, NULL);
+					WriteFile(qt->pipein, k, 1, &send, NULL);
 					Con_PrintCon(k, &qt->console);
 				}
 			}

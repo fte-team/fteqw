@@ -27,8 +27,6 @@ void R_RenderBrushPoly (msurface_t *fa);
 #define PROJECTION_DISTANCE			200
 #define MAX_STENCIL_ENTS			128
 
-static entity_t *g_stencilEnts[MAX_STENCIL_ENTS];
-static int g_numStencilEnts = 0;
 extern int		gl_canstencil;
 
 PFNGLCOMPRESSEDTEXIMAGE2DARBPROC qglCompressedTexImage2DARB;

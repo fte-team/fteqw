@@ -736,7 +736,7 @@ void FTP_Client_Command (char *cmd)
 		Q_strncpyz(con->file, server, sizeof(con->file));
 		Q_strncpyz(con->localfile, server, sizeof(con->localfile));
 
-		if (cmd = COM_ParseOut(cmd, server, sizeof(server)))
+		if ((cmd = COM_ParseOut(cmd, server, sizeof(server))))
 			Q_strncpyz(con->localfile, server, sizeof(con->localfile));
 	}
 	else if (!stricmp(command, "quit"))

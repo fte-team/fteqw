@@ -263,13 +263,13 @@ int Doom_LoadFlat(char *name)
 		}
 	}
 
-	sprintf(texname, "flat-%-0.8s", name);
+	sprintf(texname, "flat-%-.8s", name);
 	strlwr(texname);
 	tex = Mod_LoadReplacementTexture(texname, true, false);
 	if (tex)
 		return tex;
 
-	sprintf(texname, "flats/%-0.8s", name);
+	sprintf(texname, "flats/%-.8s", name);
 	strlwr(texname);
 	file = COM_LoadMallocFile(texname);
 	if (file)

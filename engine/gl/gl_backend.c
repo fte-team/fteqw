@@ -229,7 +229,7 @@ static void MakeDeforms(shader_t *shader, vec4_t *out, vec4_t *in, int number)
 static void Mesh_DeformTextureCoords(mesh_t *mesh, shaderpass_t *pass)
 {
 	int d;
-	tcmod_t *tcmod = pass->tcmod;
+//	tcmod_t *tcmod = pass->tcmod;
 	float *in, *out;
 	switch(pass->tcgen)
 	{

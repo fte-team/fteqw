@@ -497,7 +497,7 @@ static void inline QVM_Enter(qvm_t *vm, long size)
 	fp[0]=fp[1];					// unknown /maybe size/
 	fp[1]=*vm->sp++;	// saved PC
 
-	if (vm->sp > (long*)(vm->ss+vm->len_ss)) Sys_Error("QVM Stack overflow");
+	if ((long*)vm->sp > (long*)(vm->ss+vm->len_ss)) Sys_Error("QVM Stack overflow");
 }
 
 /*
@@ -888,7 +888,7 @@ vm_t *VM_Create(vm_t *vm, const char *name, sys_call_t syscall, sys_callex_t sys
 #ifdef _WIN32
 	if (COM_CheckParm("-dllforqvm"))
 	{
-		if(vm->hInst=Sys_LoadDLL(name, (void**)&vm->vmMain, syscall))
+		if((vm->hInst=Sys_LoadDLL(name, (void**)&vm->vmMain, syscall)))
 		{
 			Con_Printf("Creating native machine \"%s\"\n", name);
 			vm->type=VM_NATIVE;

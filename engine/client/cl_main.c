@@ -728,8 +728,6 @@ void CL_Disconnect (void)
 {
 	qbyte	final[10];
 
-	int killserver = connect_time != -1;
-
 	connect_time = -1;
 
 	Cvar_ApplyLatches(CVAR_SERVEROVERRIDE);

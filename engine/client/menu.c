@@ -965,6 +965,8 @@ void M_Keyup (int key)
 	case m_xwindows:
 		XWindows_Keyup(key);
 		return;
+	default:
+		break;
 	}
 }
 

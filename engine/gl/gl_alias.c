@@ -479,12 +479,12 @@ static galiastexnum_t *GL_ChooseSkin(galiasinfo_t *inf, char *modelname, entity_
 			}
 		}
 
-		(char *)skins = (char *)inf + inf->ofsskins;
+		skins = (galiasskin_t*)((char *)inf + inf->ofsskins);
 		if (!skins->texnums)
 			return NULL;
 		if (e->skinnum >= 0 && e->skinnum < inf->numskins)
 			skins += e->skinnum;
-		(char *)texnums = (char *)skins + skins->ofstexnums;
+		texnums = (galiastexnum_t*)((char *)skins + skins->ofstexnums);
 
 
 		//colourmap isn't present yet.
@@ -619,13 +619,13 @@ static galiastexnum_t *GL_ChooseSkin(galiasinfo_t *inf, char *modelname, entity_
 
 			frame = cl.time*skins->skinspeed;
 			frame = frame%skins->texnums;
-			(char *)texnums = (char *)skins + skins->ofstexnums + frame*sizeof(galiastexnum_t);
+			texnums = (galiastexnum_t*)((char *)skins + skins->ofstexnums + frame*sizeof(galiastexnum_t));
 			memcpy(&cm->texnum, texnums, sizeof(cm->texnum));
 		}
 		return &cm->texnum;
 	}
 
-	(char *)skins = (char *)inf + inf->ofsskins;
+	skins = (galiasskin_t*)((char *)inf + inf->ofsskins);
 	if (e->skinnum >= 0 && e->skinnum < inf->numskins)
 		skins += e->skinnum;
 
@@ -634,7 +634,7 @@ static galiastexnum_t *GL_ChooseSkin(galiasinfo_t *inf, char *modelname, entity_
 
 	frame = cl.time*skins->skinspeed;
 	frame = frame%skins->texnums;
-	(char *)texnums = (char *)skins + skins->ofstexnums + frame*sizeof(galiastexnum_t);
+	texnums = (galiastexnum_t*)((char *)skins + skins->ofstexnums + frame*sizeof(galiastexnum_t));
 	
 	return texnums;
 }
@@ -1090,7 +1090,7 @@ void R_DrawGAliasModel (entity_t *e)
 	
 		}
 		if (inf->nextsurf)
-			(char *)inf = (char *)inf + inf->nextsurf;
+			inf = (galiasinfo_t*)((char *)inf + inf->nextsurf);
 		else
 			inf = NULL;
 	}
@@ -1505,14 +1505,14 @@ static void *Q1_LoadFrameGroup (daliasframetype_t *pframetype, int *seamremaps)
 	vec3_t *normals;
 	vec3_t *verts;
 
-	(char *)frame = (char *)galias + galias->groupofs;
+	frame = (galiasgroup_t*)((char *)galias + galias->groupofs);
 
 	for (i = 0; i < pq1inmodel->numframes; i++)
 	{
 		switch(LittleLong(pframetype->type))
 		{
 		case ALIAS_SINGLE:
-			(char *)pinframe = (char *)(pframetype+1)+sizeof(daliasframe_t);
+			pinframe = (dtrivertx_t*)((char *)(pframetype+1)+sizeof(daliasframe_t));
 			pose = (galiaspose_t *)Hunk_Alloc(sizeof(galiaspose_t) + sizeof(vec3_t)*2*galias->numverts);
 			frame->poseofs = (char *)pose - (char *)frame;
 			frame->numposes = 1;
@@ -1540,10 +1540,10 @@ static void *Q1_LoadFrameGroup (daliasframetype_t *pframetype, int *seamremaps)
 
 //			GL_GenerateNormals((float*)verts, (float*)normals, (int *)((char *)galias + galias->ofs_indexes), galias->numindexes/3, galias->numverts);
 
-			(char *)pframetype = (char *)&pinframe[pq1inmodel->numverts];
+			pframetype = (daliasframetype_t *)&pinframe[pq1inmodel->numverts];
 			break;
 		case ALIAS_GROUP:
-			(char *)ingroup = (char *)(pframetype+1);
+			ingroup = (daliasgroup_t *)(pframetype+1);
 
 			pose = (galiaspose_t *)Hunk_Alloc(ingroup->numframes*(sizeof(galiaspose_t) + sizeof(vec3_t)*2*galias->numverts));
 			frame->poseofs = (char *)pose - (char *)frame;
@@ -1585,7 +1585,7 @@ static void *Q1_LoadFrameGroup (daliasframetype_t *pframetype, int *seamremaps)
 
 //			GL_GenerateNormals((float*)verts, (float*)normals, (int *)((char *)galias + galias->ofs_indexes), galias->numindexes/3, galias->numverts);
 
-			(char *)pframetype = (char *)pinframe;
+			pframetype = (daliasframetype_t *)pinframe;
 			break;
 		default:
 			Sys_Error("Bad frame type\n");
@@ -1668,7 +1668,7 @@ static void *Q1_LoadSkins (daliasskintype_t *pskintype, qboolean alpha)
 			texnums->base = texture;
 			texnums->fullbright = fbtexture;
 
-			(char *)pskintype = (char *)(pskintype+1)+s;
+			pskintype = (daliasskintype_t *)((char *)(pskintype+1)+s);
 			break;
 
 		default:
@@ -1747,7 +1747,7 @@ static void *Q1_LoadSkins (daliasskintype_t *pskintype, qboolean alpha)
 						BZ_Free(saved);
 				}
 			}	
-			(char *)pskintype = (char *)data;
+			pskintype = (daliasskintype_t *)data;
 			break;
 		}
 		outskin++;

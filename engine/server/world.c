@@ -1287,7 +1287,7 @@ void SVQ2_AreaEdicts_r (areanode_t *node)
 			int i;
 			SV_ClearWorld();
 			check = ge->edicts;
-			for (i = 0; i < ge->num_edicts; i++, (char *)check = (char *)check + ge->edict_size)
+			for (i = 0; i < ge->num_edicts; i++, check = (q2edict_t	*)((char *)check + ge->edict_size))
 				memset(&check->area, 0, sizeof(check->area));
 			Con_Printf ("SV_AreaEdicts: Bad links\n");
 			return;

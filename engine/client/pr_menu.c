@@ -354,6 +354,7 @@ void PF_print (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 
 static void PF_cvar (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
+	cvar_t	*var;
 	char	*str;
 	
 	str = PR_GetStringOfs(prinst, OFS_PARM0);
@@ -362,13 +363,23 @@ static void PF_cvar (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 	else if (!strcmp("vid_conheight", str))
 		G_FLOAT(OFS_RETURN) = vid.conheight;
 	else
-		G_FLOAT(OFS_RETURN) = Cvar_VariableValue (str);
+	{
+		var = Cvar_Get(str, "", 0, "menu cvars");
+		if (var)
+		{
+			if (var->latched_string)
+				G_FLOAT(OFS_RETURN) = atof(var->latched_string);			else
+				G_FLOAT(OFS_RETURN) = var->value;
+		}
+		else
+			G_FLOAT(OFS_RETURN) = 0;
+	}
 }
 void PF_getresolution (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
 	float mode = G_FLOAT(OFS_PARM0);
 	float *ret = G_VECTOR(OFS_RETURN);
-
+#pragma message("fixme: PF_getresolution should return other modes")
 	if (mode > 0)
 	{
 		ret[0] = 0;
@@ -377,8 +388,8 @@ void PF_getresolution (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 	}
 	else
 	{
-		ret[0] = vid.conwidth;
-		ret[1] = vid.conheight;
+		ret[0] = vid.width;
+		ret[1] = vid.height;
 		ret[2] = 0;
 	}
 }

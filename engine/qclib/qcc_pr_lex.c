@@ -856,6 +856,14 @@ void QCC_PR_LexString (void)
 		{
 			if (len >= sizeof(pr_immediate_string)-1)
 				QCC_Error(ERR_INVALIDSTRINGIMMEDIATE, "String length exceeds %i", sizeof(pr_immediate_string)-1);
+
+			while(*pr_file_p && *pr_file_p <= ' ')
+				pr_file_p++;
+			if (*pr_file_p == '\"')	//have annother go
+			{
+				pr_file_p++;
+				continue;
+			}
 			pr_token[len] = 0;
 			pr_token_type = tt_immediate;
 			pr_immediate_type = type_string;
@@ -2429,7 +2437,7 @@ QCC_type_t *QCC_PR_ParseFunctionType (int newtype, QCC_type_t *returntype)
 			do
 			{
 				if (ftype->num_parms>=MAX_PARMS+MAX_EXTRA_PARMS)
-					QCC_PR_ParseError(ERR_TOOMANYPARAMETERSFORFUNC, "Too many parameters. Sorry. (limit is %i)\n", MAX_PARMS+MAX_EXTRA_PARMS);
+					QCC_PR_ParseError(ERR_TOOMANYTOTALPARAMETERS, "Too many parameters. Sorry. (limit is %i)\n", MAX_PARMS+MAX_EXTRA_PARMS);
 
 				if (QCC_PR_Check ("..."))
 				{

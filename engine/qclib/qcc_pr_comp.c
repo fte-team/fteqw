@@ -2408,7 +2408,10 @@ QCC_def_t *QCC_PR_ParseFunctionCall (QCC_def_t *func)	//warning, the func could 
 			else if (arg >= MAX_PARMS+MAX_EXTRA_PARMS)
 				QCC_PR_ParseErrorPrintDef (ERR_TOOMANYTOTALPARAMETERS, func, "More than %i parameters", MAX_PARMS+MAX_EXTRA_PARMS);
 			if (!extraparms && arg >= t->num_parms)
-				QCC_PR_ParseErrorPrintDef (ERR_TOOMANYPARAMETERSFORFUNC, func, "too many parameters");
+			{
+				QCC_PR_ParseWarning (WARN_TOOMANYPARAMETERSFORFUNC, "too many parameters");
+				QCC_PR_ParsePrintDef(WARN_TOOMANYPARAMETERSFORFUNC, func);
+			}
 
 			e = QCC_PR_Expression (TOP_PRIORITY);
 
@@ -4164,6 +4167,7 @@ void QCC_PR_ParseStatement (void)
 		QCC_PR_Expect (")");	//after the line number is noted..
 		QCC_PR_ParseStatement ();
 		junkdef.ofs = patch2 - &statements[numstatements];
+		junkdef.type = type_float;
 		QCC_FreeTemp(QCC_PR_Statement (&pr_opcodes[OP_GOTO], &junkdef, 0, (QCC_dstatement_t **)0xffffffff));
 		if (patch1)
 			patch1->b = &statements[numstatements] - patch1;
@@ -4172,8 +4176,8 @@ void QCC_PR_ParseStatement (void)
 		{
 			for(i = breaks; i < num_breaks; i++)
 			{
-				patch2 = &statements[pr_breaks[i]];
-				statements[pr_breaks[i]].a = &statements[numstatements] - patch2;
+				patch1 = &statements[pr_breaks[i]];
+				statements[pr_breaks[i]].a = &statements[numstatements] - patch1;
 			}
 			num_breaks = breaks;
 		}
@@ -4181,7 +4185,7 @@ void QCC_PR_ParseStatement (void)
 		{
 			for(i = continues; i < num_continues; i++)
 			{
-				patch2 = &statements[pr_continues[i]];
+				patch1 = &statements[pr_continues[i]];
 				statements[pr_continues[i]].a = patch1 - patch2;
 			}
 			num_continues = continues;
@@ -4271,6 +4275,7 @@ void QCC_PR_ParseStatement (void)
 		e = QCC_PR_Expression (TOP_PRIORITY);
 		conditional = false;
 		junkdef.ofs = patch1 - &statements[numstatements];
+		junkdef.type = type_float;
 		if (e->type == type_string)
 			QCC_FreeTemp(QCC_PR_Statement (&pr_opcodes[OP_IFS], e, &junkdef, (QCC_dstatement_t **)0xffffffff));
 		else
@@ -4905,34 +4910,34 @@ QCC_dstatement_t *patch1;
 			{
 				if (pr_opcodes[op].type_a==NULL)
 				{
-					p = (short)pr_immediate._float;
+					p = (int)pr_immediate._float;
 					QCC_PR_Lex();
 					patch1 = &statements[numstatements];
 					QCC_PR_Statement3(&pr_opcodes[op], NULL, NULL, NULL);
-					patch1->a = (short)(int)p;
+					patch1->a = (int)p;
 				}
 				else if (pr_opcodes[op].type_b==NULL)
 				{
 					a = QCC_PR_ParseValue(pr_classtype);
-					p = (short)pr_immediate._float;
+					p = (int)pr_immediate._float;
 					QCC_PR_Lex();
 
 					patch1 = &statements[numstatements];
 					QCC_PR_Statement3(&pr_opcodes[op], a, NULL, NULL);
 
-					patch1->b = (short)(int)p;
+					patch1->b = (int)p;
 				}
 				else
 				{
 					a = QCC_PR_ParseValue(pr_classtype);
 					b = QCC_PR_ParseValue(pr_classtype);
-					p = (short)pr_immediate._float;
+					p = (int)pr_immediate._float;
 					QCC_PR_Lex();
 
 					patch1 = &statements[numstatements];
 					QCC_PR_Statement3(&pr_opcodes[op], a, b, NULL);
 
-					patch1->c = (short)(int)p;
+					patch1->c = (int)p;
 				}
 			}
 			else
@@ -5062,6 +5067,7 @@ pbool QCC_FuncJumpsToRange(int first, int last, int firstr, int lastr)
 	return false;
 }
 
+#if 0
 void QCC_CompoundJumps(int first, int last)
 {
 	//jumps to jumps are reordered so they become jumps to the final target.
@@ -5082,7 +5088,7 @@ void QCC_CompoundJumps(int first, int last)
 			}
 			while (statements[statement].op == OP_GOTO)
 			{
-				*(signed*)&statements[st].a = statement+statements[statement].a - st;
+				statements[st].a = statement+statements[statement].a - st;
 				statement = st + (signed)statements[st].a;
 				optres_compound_jumps++;
 			}
@@ -5092,7 +5098,7 @@ void QCC_CompoundJumps(int first, int last)
 			statement = st + (signed)statements[st].b;
 			while (statements[statement].op == OP_GOTO)
 			{
-				*(signed*)&statements[st].b = statement+statements[statement].a - st;
+				statements[st].b = statement+statements[statement].a - st;
 				statement = st + (signed)statements[st].b;
 				optres_compound_jumps++;
 			}
@@ -5102,13 +5108,62 @@ void QCC_CompoundJumps(int first, int last)
 			statement = st + (signed)statements[st].c;
 			while (statements[statement].op == OP_GOTO)
 			{
-				*(signed*)&statements[st].c = statement+statements[statement].a - st;
+				statements[st].c = statement+statements[statement].a - st;
 				statement = st + (signed)statements[st].c;
 				optres_compound_jumps++;
 			}
 		}
 	}
 }
+#else
+void QCC_CompoundJumps(int first, int last)
+{
+	//jumps to jumps are reordered so they become jumps to the final target.
+	int statement;
+	int st;
+	for (st = first; st < last; st++)
+	{
+		if (pr_opcodes[statements[st].op].type_a == NULL)
+		{
+			statement = st + (signed)statements[st].a;
+			if (statements[statement].op == OP_RETURN || statements[statement].op == OP_DONE)
+			{	//goto leads to return. Copy the command out to remove the goto.
+				statements[st].op = statements[statement].op;
+				statements[st].a = statements[statement].a;
+				statements[st].b = statements[statement].b;
+				statements[st].c = statements[statement].c;
+				optres_compound_jumps++;
+			}
+			while (statements[statement].op == OP_GOTO)
+			{
+				statements[st].a = (statement+statements[statement].a - st);
+				statement = st + (signed)statements[st].a;
+				optres_compound_jumps++;
+			}
+		}
+		if (pr_opcodes[statements[st].op].type_b == NULL)
+		{
+			statement = st + (signed)statements[st].b;
+			while (statements[statement].op == OP_GOTO)
+			{
+				statements[st].b = (statement+statements[statement].a - st);
+				statement = st + (signed)statements[st].b;
+				optres_compound_jumps++;
+			}
+		}
+		if (pr_opcodes[statements[st].op].type_c == NULL)
+		{
+			statement = st + (signed)statements[st].c;
+			while (statements[statement].op == OP_GOTO)
+			{
+				statements[st].c = (statement+statements[statement].a - st);
+				statement = st + (signed)statements[st].c;
+				optres_compound_jumps++;
+			}
+		}
+	}
+}
+#endif
 /*
 //goes through statements, if it sees a matching statement earlier, it'll strim out the current.
 void QCC_CommonSubExpressionRemoval(int first, int last)
@@ -5415,6 +5470,7 @@ QCC_function_t *QCC_PR_ParseImmediateStatements (QCC_type_t *type)
 				e2->ofs = QCC_GetFreeOffsetSpace(3);
 				extra_parms[i - MAX_PARMS] = e2;
 			}
+			extra_parms[i - MAX_PARMS]->type = defs[i]->type;
 			if (defs[i]->type->type != ev_vector)
 				QCC_PR_Statement (&pr_opcodes[OP_STORE_F], extra_parms[i - MAX_PARMS], defs[i], NULL);
 			else
@@ -5479,7 +5535,7 @@ QCC_function_t *QCC_PR_ParseImmediateStatements (QCC_type_t *type)
 			{
 				if (!strcmp(pr_gotos[i].name, pr_labels[j].name))
 				{
-					*(signed int*)&statements[pr_gotos[i].statementno].a += pr_labels[j].statementno - pr_gotos[i].statementno;
+					statements[pr_gotos[i].statementno].a += pr_labels[j].statementno - pr_gotos[i].statementno;
 					break;
 				}
 			}
@@ -6502,8 +6558,26 @@ void QCC_PR_ParseDefs (char *classname)
 				}
 				continue;
 			}
+
+			if (pr_token_type == tt_name)
+			{
+				unsigned int i;
+
+				if (def->arraysize>1)
+					QCC_PR_ParseError(ERR_ARRAYNEEDSBRACES, "Array initialisation requires curly braces");
+
+				d = QCC_PR_GetDef(NULL, pr_token, pr_scope, false, 0);
+				if (!d)
+					QCC_PR_ParseError(ERR_NOTDEFINED, "%s was not defined\n", name);
+				if (typecmp(def->type, d->type))
+					QCC_PR_ParseError (ERR_BADIMMEDIATETYPE, "wrong immediate type for %s", name);
+
+
+				for (i = 0; i < d->type->size; i++)
+					G_INT(def->ofs) = G_INT(d->ofs);
+			}
 	
-			if (type->type == ev_function)
+			else if (type->type == ev_function)
 			{
 				def->constant = constant;
 				if (QCC_PR_Check("0"))

@@ -1166,3 +1166,4 @@ char *particle_set_faithful =
 "	offsetspreadvert 113\n"
 "	spawnmode lavasplash\n"
 "}";
+

@@ -799,7 +799,7 @@ void PPL_LoadSpecularFragmentProgram(void)
 	//(diffuse*n.l + gloss*(n.h)^8)*lm
 	//note excessive temp reuse...
 	"!!ARBfp1.0\n"
-#if 1
+
 	"PARAM c0 = {2, 1, 8, 0};\n"
 	"TEMP R0;\n"
 	"TEMP R1;\n"
@@ -820,113 +820,10 @@ void PPL_LoadSpecularFragmentProgram(void)
 	"MAD R0.xyz, R2, R0.w, R0;\n"
 	"TEX R1.xyz, fragment.texcoord[1], texture[2], 2D;\n"
 	"MUL result.color.xyz, R0, R1;\n"
-#else
 
-	"OUTPUT      ocol  = result.color;\n"
-
-	"PARAM       half  = { 0.5, 0.5, 0.5, 0.5 };\n"
-	"PARAM       negone  = { -1,-1,-1,-1 };\n"
-
-	"ATTRIB   tm_tc  = fragment.texcoord[0];\n"
-	"ATTRIB   lm_tc  = fragment.texcoord[1];\n"
-	"ATTRIB   cm_tc  = fragment.texcoord[2];\n"
-
-
-
-	"TEMP diff, spec, nm, ld, cm, gm, lm, dm;\n"
-
-
-	"TEX nm.rgb, tm_tc, texture[1], 2D;\n"
-	"TEX ld.rgb, lm_tc, texture[3], 2D;\n"
-	"TEX dm.rgb, tm_tc, texture[0], 2D;\n"
-	"TEX gm.rgb, tm_tc, texture[4], 2D;\n"
-	"TEX lm.rgb, lm_tc, texture[2], 2D;\n"
-	"TEX cm.rgb, cm_tc, texture[5], CUBE;\n"
-
-	//textures loaded - get diffuse
-	"MAD nm.rgb, nm, 2, negone;\n"
-	"MAD ld.rgb, ld, 2, negone;\n"
-	"DP3 diff.rgb, nm, ld;\n"
-	"MUL diff.rgb, diff, dm;\n"
-	//diff now contains the entire diffuse part of the equation.
-
-	//l 19
-	"MAD cm.rgb, cm, 2, negone;\n"
-	"DP3 spec.rgb, nm, cm;\n"
-
-	"MUL spec.rgb, spec, spec;\n"
-	"MUL spec.rgb, spec, spec;\n"
-	"MUL spec.rgb, spec, spec;\n"
-
-	"MUL spec.rgb, spec, gm;\n"
-	//that's the specular part done.
-
-	//we have diffuse and specular - wahoo
-	//combine then halve.
-	"ADD diff.rgb, diff, spec;\n"
-	//"MUL diff.rgb, diff, half;\n"
-
-
-	//multiply by inverse lm and output the result.
-//	"SUB lm.rgb, 1, lm;\n"
-	"MUL_SAT ocol.rgb, diff, lm;\n"
-#endif
 	//that's all folks.
 	"END";
-/*
-	//okay, the NV fallback
-	char *nvfp = "!!FP1.0\n"
 
-	"PARAM       half  = { 0.5, 0.5, 0.5, 0.5 };\n"
-	"PARAM       negone  = { -1,-1,-1,-1 };\n"
-
-	"ATTRIB   tm_tc  = fragment.texcoord[0];\n"
-	"ATTRIB   lm_tc  = fragment.texcoord[1];\n"
-	"ATTRIB   cm_tc  = fragment.texcoord[2];\n"
-
-
-
-	"TEMP diff, spec, nm, ld, cm, gm, lm, dm;\n"
-
-
-	"TEX nm.rgb, tm_tc, f[TEX1], 2D;\n"	//normalmap
-	"TEX ld.rgb, lm_tc, f[TEX3], 2D;\n"	//
-	"TEX dm.rgb, tm_tc, f[TEX0], 2D;\n"	//deluxmap
-	"TEX gm.rgb, tm_tc, f[TEX4], 2D;\n"	//glossmap
-	"TEX lm.rgb, lm_tc, f[TEX2], 2D;\n"	//lightmap
-	"TEX cm.rgb, cm_tc, f[TEX5], CUBE;\n"	//cubemap
-
-	//textures loaded - get diffuse
-	"MAD nm.rgb, nm, 2, negone;\n"
-	"MAD ld.rgb, ld, 2, negone;\n"
-	"DP3 diff.rgb, nm, ld;\n"
-	"MUL diff.rgb, diff, dm;\n"
-	//diff now contains the entire diffuse part of the equation.
-
-	//l 19
-	"MAD cm.rgb, cm, 2, negone;\n"
-	"DP3 spec.rgb, nm, cm;\n"
-
-	"MUL spec.rgb, spec, spec;\n"
-	"MUL spec.rgb, spec, spec;\n"
-	"MUL spec.rgb, spec, spec;\n"
-
-	"MUL spec.rgb, spec, gm;\n"
-	//that's the specular part done.
-
-	//we have diffuse and specular - wahoo
-	//combine then halve.
-	"ADD diff.rgb, diff, spec;\n"
-	//"MUL diff.rgb, diff, half;\n"
-
-
-	//multiply by inverse lm and output the result.
-//	"SUB lm.rgb, 1, lm;\n"
-	"MUL_SAT o[COLR].rgb, diff, lm;\n"
-	""
-
-	"END";
-*/
 	ppl_specular_fragmentprogram = 0;
 
 	for (i = 0; i < MAXARRAYVERTS; i++)

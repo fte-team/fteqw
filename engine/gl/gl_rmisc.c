@@ -453,7 +453,7 @@ void R_MakeTexWad_f(void)
 	if (!scale)
 		scale = 2;
 
-//	h = FindFirstFile(va("%s/textures/*.tga", com_gamedir), &fd);
+//	h = FindFirstFile(va("%s/textures/ *.tga", com_gamedir), &fd);	//if this is uncommented, clear that space... (gcc warning fix)
 	if (!shader)
 		return;
 	mip = BZ_Malloc(1024*1024);

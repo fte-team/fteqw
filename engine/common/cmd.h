@@ -133,7 +133,7 @@ void Cmd_StuffCmds_f (void);
 
 void Cmd_ShiftArgs (int ammount);
 
-char		*Cmd_ExpandString (char *input, int maxaccesslevel);
+char *Cmd_ExpandString (char *data, char *dest, int destlen, int maxaccesslevel);
 
 extern cvar_t rcon_level;
 

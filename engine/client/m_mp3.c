@@ -2,153 +2,9 @@
 //was origonally an mp3 track selector, now handles lots of media specific stuff - like q3 films!
 //should rename to m_media.c
 #include "quakedef.h"
-
+#ifdef RGLQUAKE
 #include "glquake.h"//fixme
-
-//pal77* pal777to8;
-qbyte *palxxxto8;
-
-#define FindPallete(r,g,b) palxxxto8[((r&palmask[0])>>palshift[0]) | ((g&palmask[1])<<palshift[1]) | ((b&palmask[2])<<palshift[2])]
-//#define FindPallete(r,g,b) (pal777to8[r>>1][g>>1][b>>1])
-qbyte GetPalette(int red, int green, int blue)
-{
-	if (palxxxto8)	//fast precalculated method
-		return FindPallete(red,green,blue);
-	else	//slow, horrible method.
-	{
-		int i, best=15;
-		int bestdif=256*256*256, curdif;
-		extern qbyte *host_basepal;
-		qbyte *pa;
-
-	#define _abs(x) ((x)*(x))
-
-		pa = host_basepal;
-		for (i = 0; i < 256; i++, pa+=3)
-		{
-			curdif = _abs(red - pa[0]) + _abs(green - pa[1]) + _abs(blue - pa[2]);
-			if (curdif < bestdif)
-			{
-				if (curdif<1)
-					return i;
-				bestdif = curdif;
-				best = i;
-			}
-		}
-		return best;
-	}
-}
-
-void MakeVideoPalette(void)
-{
-//	pal77 *temp;
-	qbyte *temp;
-	int r, g, b;
-	int rs, gs, bs, size;
-	int rstep, gstep, bstep;
-	int gshift, bshift;
-	FILE *f;
-	char filename[11];
-
-	if (strlen(r_palconvbits.string) < 3)
-	{
-		// r5g6b5 is default
-		rs = 5;
-		gs = 6;
-		bs = 5;
-	}
-	else
-	{
-		// convert to int
-		rs = r_palconvbits.string[0] - '0';
-		gs = r_palconvbits.string[1] - '0';
-		bs = r_palconvbits.string[2] - '0';
-
-		// limit to 4-8 (can't have 3 because the forumla breaks)
-		if (rs < 4)
-			rs = 4;
-		else if (rs > 8)
-			rs = 8;
-
-		if (gs < 4)
-			gs = 4;
-		else if (gs > 8)
-			gs = 8;
-
-		if (bs < 4)
-			bs = 4;
-		else if (bs > 8)
-			bs = 8;
-	}
-
-	Q_strcpy(filename, "rgb000.pal");
-	filename[3] = rs + '0';
-	filename[4] = gs + '0';
-	filename[5] = bs + '0';
-
-	palshift[0] = 1<<rs;
-	palshift[1] = 1<<gs;
-	palshift[2] = 1<<bs;
-
-	size = palshift[0]*palshift[1]*palshift[2];
-
-	gshift = rs;
-	bshift = rs+gs;
-	rs = 8-rs;
-	gs = 8-gs;
-	bs = 8-bs;
-
-	rstep = 1<<rs;
-	gstep = 1<<gs;
-	bstep = 1<<bs;
-
-	palmask[0] = 0xff ^ (rstep - 1);
-	palmask[1] = 0xff ^ (gstep - 1);
-	palmask[2] = 0xff ^ (bstep - 1);
-
-	palxxxto8 = Hunk_AllocName(size, "RGB data");
-	if (!palxxxto8)
-		BZ_Free(palxxxto8);
-	palxxxto8 = NULL;
-
-	temp = BZ_Malloc(size);
-	COM_FOpenFile (filename, &f);
-	if (f)
-	{
-		fread(temp, 1, size, f);	//cached
-		fclose(f);
-
-		palxxxto8 = temp;
-
-		// update shifts
-		palshift[0] = rs;
-		palshift[1] = (8 - palshift[0]) - gs;
-		palshift[2] = palshift[1] + (8 - bs);
-		return;
-	}
-
-	rstep >>= 1;
-	gstep >>= 1;
-	bstep >>= 1;
-
-	for (r = palshift[0] - 1; r >= 0; r--)
-	for (g = palshift[1] - 1; g >= 0; g--)
-	for (b = palshift[2] - 1; b >= 0; b--)
-	{
-		temp[r+(g<<gshift)+(b<<bshift)] = GetPalette((r<<rs)+rstep, (g<<gs)+gstep, (b<<bs)+bstep);
-	}
-	palxxxto8 = temp;
-
-	// update shifts
-	palshift[0] = rs;
-	palshift[1] = (8 - palshift[0]) - gs;
-	palshift[2] = palshift[1] + (8 - bs);
-
-	if (r_palconvwrite.value)
-		COM_WriteFile(filename, palxxxto8, size);
-}
-
-
+#endif
 
 
 
@@ -916,7 +772,6 @@ char *Media_NextTrack(void)
 
 ///temporary residence for media handling
 #include "roq.h"
-int filmtexture;
 roq_info *roqfilm;
 
 sfxcache_t *moviesoundbuffer;
@@ -1076,9 +931,6 @@ qboolean Media_PlayFilm(char *name)
 		if (key_dest != key_console)
 			scr_con_current=0;
 		media_filmtype = MFT_STATIC;
-#ifndef RGLQUAKE
-		MakeVideoPalette();
-#endif
 		return true;
 	}
 	if (dot && (!strcmp(dot, ".cin")))
@@ -1093,9 +945,6 @@ qboolean Media_PlayFilm(char *name)
 		if (key_dest != key_console)
 			scr_con_current=0;
 		media_filmtype = MFT_ROQ;
-#ifndef RGLQUAKE
-		MakeVideoPalette();
-#endif
 		return true;
 	}
 #ifdef WINAVI
@@ -1210,438 +1059,12 @@ soundpos=0;
 			scr_con_current=0;
 
 		media_filmtype = MFT_AVI;
-
-		MakeVideoPalette();
 		return true;
 	}
 #endif
 	
 	Con_Printf("Failed to find file %s\n", name);
 	return false;
-}
-
-void Media_ShowFrame8bit(qbyte *framedata, int inwidth, int inheight, qbyte *palette)	//bgrandupsidedown is hackily done. It should be a temporary buffer that also indicates stuff.
-{
-#ifdef RGLQUAKE
-	if (qrenderer == QR_OPENGL)
-	{
-		if (!filmtexture)
-		{
-			filmtexture=texture_extension_number;
-			texture_extension_number++;
-		}
-
-		GL_Set2D ();
-
-		GL_Bind(filmtexture);
-		GL_Upload8Pal24(framedata, palette, inwidth, inheight, false, false);	//we may need to rescale the image
-//		glTexImage2D (GL_TEXTURE_2D, 0, 3, roqfilm->width, roqfilm->height, 0, GL_RGBA, GL_UNSIGNED_BYTE, framedata);
-//		glTexParameterf(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, gl_filter_max);
-//		glTexParameterf(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, gl_filter_max);
-
-		glDisable(GL_BLEND);
-		glDisable(GL_ALPHA_TEST);
-		glBegin(GL_QUADS);
-		glTexCoord2f(0, 0);
-		glVertex2f(0, 0);
-		glTexCoord2f(0, 1);
-		glVertex2f(0, vid.height);
-		glTexCoord2f(1, 1);
-		glVertex2f(vid.width, vid.height);
-		glTexCoord2f(1, 0);
-		glVertex2f(vid.width, 0);
-		glEnd();
-		glEnable(GL_ALPHA_TEST);
-	}
-	else
-#endif
-#ifdef SWQUAKE
-	if (qrenderer == QR_SOFTWARE)
-	{
-		int y, x;
-
-		D_EnableBackBufferAccess ();	// of all overlay stuff if drawing directly
-		if (r_pixbytes == 1)
-		{
-			qbyte *dest, *src;
-			int lines=vid.conheight;
-			int v;
-			int f, fstep;
-
-			dest = vid.conbuffer;
-
-			for (y=0 ; y<lines ; y++, dest += vid.conrowbytes)
-			{
-				v = (vid.conheight - lines + y)*inheight/vid.conheight;
-				src = framedata + v*inwidth*4;
-				{
-					f = 0;
-					fstep = ((inwidth)*0x10000)/vid.conwidth;
-					for (x=0 ; x<vid.conwidth ; x+=4)
-					{
-						dest[x] = FindPallete(src[(f>>16)*4], src[(f>>16)*4+1], src[(f>>16)*4+2]);
-						f += fstep;
-						dest[x+1] = FindPallete(src[(f>>16)*4], src[(f>>16)*4+1], src[(f>>16)*4+2]);
-						f += fstep;
-						dest[x+2] = FindPallete(src[(f>>16)*4], src[(f>>16)*4+1], src[(f>>16)*4+2]);
-						f += fstep;
-						dest[x+3] = FindPallete(src[(f>>16)*4], src[(f>>16)*4+1], src[(f>>16)*4+2]);
-						f += fstep;
-					}
-				}
-			}
-		}
-		else if (r_pixbytes == 2)
-		{
-extern int redbits, redshift;
-extern int greenbits, greenshift;
-extern int bluebits, blueshift;
-
-			unsigned short *dest;
-			qbyte *src;
-			int lines=vid.conheight;
-			int v;
-			int f, fstep;
-
-			dest = (unsigned short *)vid.conbuffer;
-
-			for (y=0 ; y<lines ; y++, dest += vid.conrowbytes)
-			{
-				v = (vid.conheight - lines + y)*inheight/vid.conheight;
-				src = framedata + v*inwidth*4;
-				{
-					f = 0;
-					fstep = ((inwidth)*0x10000)/vid.conwidth;
-					for (x=0 ; x<vid.conwidth; x++)	//sw 32 bit rendering is bgrx
-					{
-						dest[x] = (((src[(f>>16)*4]*(1<<redbits))/256)<<redshift) + (((src[(f>>16)*4+1]*(1<<greenbits))/256)<<greenshift) + (((src[(f>>16)*4+2]*(1<<bluebits))/256)<<blueshift);
-						f += fstep;
-					}
-				}
-			}
-		}
-		else if (r_pixbytes == 4)
-		{
-			qbyte *dest, *src;
-			int lines=vid.conheight;
-			int v;
-			int f, fstep;
-
-			dest = vid.conbuffer;
-
-			for (y=0 ; y<lines ; y++, dest += vid.conrowbytes*4)
-			{
-				v = (vid.conheight - lines + y)*inheight/vid.conheight;
-				src = framedata + v*inwidth*4;
-				{
-					f = 0;
-					fstep = ((inwidth)*0x10000)/vid.conwidth;
-					for (x=0 ; x<vid.conwidth*4 ; x+=4)	//sw 32 bit rendering is bgrx
-					{
-						dest[x] = src[(f>>16)*4+2];
-						dest[x+1] = src[(f>>16)*4+1];
-						dest[x+2] = src[(f>>16)*4];
-						f += fstep;
-					}
-				}
-			}
-		}
-		else
-			Sys_Error("24 bit rendering?");
-
-		D_DisableBackBufferAccess ();	// for adapters that can't stay mapped in
-	}
-	else
-#endif
-		Sys_Error("Bad renderer in Media_ShowFrame");
-
-	SCR_SetUpToDrawConsole();
-	if  (scr_con_current)
-	SCR_DrawConsole (false);
-
-	M_Draw(0);
-}
-
-void Media_ShowFrame(qbyte *framedata, int inwidth, int inheight, qbyte *bgrandupsidedown)	//bgrandupsidedown is hackily done. It should be a temporary buffer that also indicates stuff.
-{
-	int y, x;
-
-#ifdef RGLQUAKE
-	if (qrenderer == QR_OPENGL)
-	{
-		if (bgrandupsidedown)	//this is for avi files. (blooming windows programmers...)
-		{	//convert it.
-			int v;
-			unsigned int f, fstep;
-			qbyte *src, *dest;
-			dest = bgrandupsidedown;
-			//change from bgr bottomup to rgba bottomdown
-			for (y=1 ; y<=filmnheight ; y++)
-			{
-				v = ((filmnheight - y)*(float)inheight/filmnheight);
-				src = framedata + v*(inwidth*3);
-				{
-					f = 0;
-					fstep = ((inwidth)*0x10000)/filmnwidth;
-
-					for (x=filmnwidth ; x&3 ; x--)	//do the odd ones first. (bigger condition)
-					{
-						*dest++	= src[(f>>16)*3+2];
-						*dest++	= src[(f>>16)*3+1];
-						*dest++	= src[(f>>16)*3+0];
-						*dest++	= 255;
-						f += fstep;
-					}
-					for ( ; x ; x-=4)	//loop through the remaining chunks.
-					{
-						dest[0]		= src[(f>>16)*3+2];
-						dest[1]		= src[(f>>16)*3+1];
-						dest[2]		= src[(f>>16)*3+0];
-						dest[3]		= 255;
-						f += fstep;
-
-						dest[4]		= src[(f>>16)*3+2];
-						dest[5]		= src[(f>>16)*3+1];
-						dest[6]		= src[(f>>16)*3+0];
-						dest[7]		= 255;
-						f += fstep;
-
-						dest[8]		= src[(f>>16)*3+2];
-						dest[9]		= src[(f>>16)*3+1];
-						dest[10]	= src[(f>>16)*3+0];
-						dest[11]	= 255;
-						f += fstep;
-
-						dest[12]	= src[(f>>16)*3+2];
-						dest[13]	= src[(f>>16)*3+1];
-						dest[14]	= src[(f>>16)*3+0];
-						dest[15]	= 255;
-						f += fstep;
-
-						dest += 16;
-					}
-				}
-			}
-		}
-
-		if (!filmtexture)
-		{
-			filmtexture=texture_extension_number;
-			texture_extension_number++;
-		}
-
-		GL_Set2D ();
-
-		GL_Bind(filmtexture);
-		GL_Upload32("", (unsigned *)framedata, inwidth, inheight, false, false);	//we may need to rescale the image
-//		glTexImage2D (GL_TEXTURE_2D, 0, 3, roqfilm->width, roqfilm->height, 0, GL_RGBA, GL_UNSIGNED_BYTE, framedata);
-//		glTexParameterf(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, gl_filter_max);
-//		glTexParameterf(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, gl_filter_max);
-
-		glDisable(GL_BLEND);
-		glDisable(GL_ALPHA_TEST);
-		glBegin(GL_QUADS);
-		glTexCoord2f(0, 0);
-		glVertex2f(0, 0);
-		glTexCoord2f(0, 1);
-		glVertex2f(0, vid.height);
-		glTexCoord2f(1, 1);
-		glVertex2f(vid.width, vid.height);
-		glTexCoord2f(1, 0);
-		glVertex2f(vid.width, 0);
-		glEnd();
-		glEnable(GL_ALPHA_TEST);
-	}
-	else
-#endif
-#ifdef SWQUAKE
-	if (qrenderer == QR_SOFTWARE)
-	{
-		D_EnableBackBufferAccess ();	// of all overlay stuff if drawing directly
-		if (r_pixbytes == 1)
-		{
-			qbyte *dest, *src;
-			int lines=vid.conheight;
-			int v;
-			int f, fstep;
-
-			dest = vid.conbuffer;
-
-			if (bgrandupsidedown)
-			{
-				for (y=0 ; y<lines ; y++, dest += vid.conrowbytes)
-				{
-					v = (lines - y)*inheight/vid.conheight;
-					src = framedata + v*inwidth*3;
-					{
-						f = 0;
-						fstep = ((inwidth)*0x10000)/vid.conwidth;
-						for (x=0 ; x<vid.conwidth ; x+=4)
-						{
-							dest[x] = FindPallete(src[(f>>16)*3+2], src[(f>>16)*3+1], src[(f>>16)*3]);
-							f += fstep;
-							dest[x+1] = FindPallete(src[(f>>16)*3+2], src[(f>>16)*3+1], src[(f>>16)*3]);
-							f += fstep;
-							dest[x+2] = FindPallete(src[(f>>16)*3+2], src[(f>>16)*3+1], src[(f>>16)*3]);
-							f += fstep;
-							dest[x+3] = FindPallete(src[(f>>16)*3+2], src[(f>>16)*3+1], src[(f>>16)*3]);
-							f += fstep;
-						}
-					}
-				}
-
-			}
-			else
-			{
-				for (y=0 ; y<lines ; y++, dest += vid.conrowbytes)
-				{
-					v = (vid.conheight - lines + y)*inheight/vid.conheight;
-					src = framedata + v*inwidth*4;
-					{
-						f = 0;
-						fstep = ((inwidth)*0x10000)/vid.conwidth;
-						for (x=0 ; x<vid.conwidth ; x+=4)
-						{
-							dest[x] = FindPallete(src[(f>>16)*4], src[(f>>16)*4+1], src[(f>>16)*4+2]);
-							f += fstep;
-							dest[x+1] = FindPallete(src[(f>>16)*4], src[(f>>16)*4+1], src[(f>>16)*4+2]);
-							f += fstep;
-							dest[x+2] = FindPallete(src[(f>>16)*4], src[(f>>16)*4+1], src[(f>>16)*4+2]);
-							f += fstep;
-							dest[x+3] = FindPallete(src[(f>>16)*4], src[(f>>16)*4+1], src[(f>>16)*4+2]);
-							f += fstep;
-						}
-					}
-				}
-			}
-		}
-		else if (r_pixbytes == 2)
-		{
-			if (bgrandupsidedown)
-			{
-extern int redbits, redshift;
-extern int greenbits, greenshift;
-extern int bluebits, blueshift;
-
-				unsigned short *dest;
-				qbyte *src;
-				int lines=vid.conheight;
-				int v;
-				int f, fstep;
-
-				dest = (unsigned short *)vid.conbuffer;
-
-				for (y=0 ; y<lines ; y++, dest += vid.conrowbytes)
-				{
-					v = (lines - y)*inheight/vid.conheight;
-					src = framedata + v*inwidth*3;
-					{
-						f = 0;
-						fstep = ((inwidth)*0x10000)/vid.conwidth;
-						for (x=0 ; x<vid.conwidth; x++)	//sw 32 bit rendering is bgrx
-						{
-							dest[x] = (((src[(f>>16)*3+2]*(1<<redbits))/256)<<redshift) + (((src[(f>>16)*3+1]*(1<<greenbits))/256)<<greenshift) + (((src[(f>>16)*3+0]*(1<<bluebits))/256)<<blueshift);
-							f += fstep;
-						}
-					}
-				}
-			}
-			else
-			{
-extern int redbits, redshift;
-extern int greenbits, greenshift;
-extern int bluebits, blueshift;
-
-				unsigned short *dest;
-				qbyte *src;
-				int lines=vid.conheight;
-				int v;
-				int f, fstep;
-
-				dest = (unsigned short *)vid.conbuffer;
-
-				for (y=0 ; y<lines ; y++, dest += vid.conrowbytes)
-				{
-					v = (vid.conheight - lines + y)*inheight/vid.conheight;
-					src = framedata + v*inwidth*4;
-					{
-						f = 0;
-						fstep = ((inwidth)*0x10000)/vid.conwidth;
-						for (x=0 ; x<vid.conwidth; x++)	//sw 32 bit rendering is bgrx
-						{
-							dest[x] = (((src[(f>>16)*4]*(1<<redbits))/256)<<redshift) + (((src[(f>>16)*4+1]*(1<<greenbits))/256)<<greenshift) + (((src[(f>>16)*4+2]*(1<<bluebits))/256)<<blueshift);
-							f += fstep;
-						}
-					}
-				}
-			}
-		}
-		else if (r_pixbytes == 4)
-		{
-			if (bgrandupsidedown)
-			{
-				unsigned int *dest;
-				qbyte *src;
-				int lines=vid.conheight;
-				int v;
-				int f, fstep;
-
-				dest = (unsigned int *)vid.conbuffer;
-
-				for (y=0 ; y<lines ; y++, dest += vid.conrowbytes)
-				{
-					v = (lines - y)*inheight/vid.conheight;
-					src = framedata + v*inwidth*3;
-					{
-						f = 0;
-						fstep = ((inwidth)*0x10000)/vid.conwidth;
-						for (x=0 ; x<vid.conwidth ; x++)	//sw 32 bit rendering is bgrx
-						{
-							*(dest+x) = *(int *)(src + (f>>16)*3);
-							f += fstep;
-						}
-					}
-				}
-			}
-			else
-			{
-				qbyte *dest, *src;
-				int lines=vid.conheight;
-				int v;
-				int f, fstep;
-
-				dest = vid.conbuffer;
-
-				for (y=0 ; y<lines ; y++, dest += vid.conrowbytes*4)
-				{
-					v = (vid.conheight - lines + y)*inheight/vid.conheight;
-					src = framedata + v*inwidth*4;
-					{
-						f = 0;
-						fstep = ((inwidth)*0x10000)/vid.conwidth;
-						for (x=0 ; x<vid.conwidth*4 ; x+=4)	//sw 32 bit rendering is bgrx
-						{
-							dest[x] = src[(f>>16)*4+2];
-							dest[x+1] = src[(f>>16)*4+1];
-							dest[x+2] = src[(f>>16)*4];
-							f += fstep;
-						}
-					}
-				}
-			}
-		}
-		else
-			Sys_Error("24 bit rendering?");
-
-		D_DisableBackBufferAccess ();	// for adapters that can't stay mapped in
-	}
-	else
-#endif
-		Sys_Error("Bad renderer in Media_ShowFrame");
-
-	SCR_SetUpToDrawConsole();
-	if  (scr_con_current)
-	SCR_DrawConsole (false);
 }
 
 qboolean Media_ShowFilm(void)
@@ -1715,7 +1138,7 @@ qboolean Media_ShowFilm(void)
 				return true;
 			}
 
-			Media_ShowFrame(framedata, roqfilm->width, roqfilm->height, NULL);
+			Media_ShowFrameRGBA_32(framedata, roqfilm->width, roqfilm->height);
 
 			if (roqfilm->audio_channels && sndcardinfo && roqfilm->aud_pos < roqfilm->vid_pos)
 			if (roq_read_audio(roqfilm)>0)
@@ -1732,7 +1155,7 @@ qboolean Media_ShowFilm(void)
 
 
 	case MFT_STATIC:
-		Media_ShowFrame(staticfilmimage, imagewidth, imageheight, NULL);
+		Media_ShowFrameRGBA_32(staticfilmimage, imagewidth, imageheight);
 		return true;
 
 #ifdef WINAVI
@@ -1761,7 +1184,7 @@ qboolean Media_ShowFilm(void)
 			}
 			else
 			{
-				Media_ShowFrame(staticfilmimage, imagewidth, imageheight, framedata);
+				Media_ShowFrameBGR_24_Flip(staticfilmimage, imagewidth, imageheight);
 			}
 
 			if (pavisound)

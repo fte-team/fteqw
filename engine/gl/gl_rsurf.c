@@ -3053,7 +3053,7 @@ int GLAllocBlock (int w, int h, int *x, int *y)
 		}
 		if (!lightmap[texnum])
 		{
-			lightmap[texnum] = BZ_Malloc(sizeof(*lightmap[texnum]));
+			lightmap[texnum] = Z_Malloc(sizeof(*lightmap[texnum]));
 		}
 
 

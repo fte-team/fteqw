@@ -73,6 +73,9 @@ cvar_t	allow_download_demos = {"allow_download_demos", "1"};
 cvar_t	allow_download_maps = {"allow_download_maps", "1"};
 cvar_t	allow_download_anymap = {"allow_download_pakmaps", "0"};
 cvar_t	allow_download_root = {"allow_download_root", "0"};
+cvar_t	allow_download_textures = {"allow_download_textures", "1"};
+cvar_t	allow_download_pk3s = {"allow_download_pk3s", "1"};
+cvar_t	allow_download_wads = {"allow_download_wads", "1"};
 
 cvar_t sv_public = {"sv_public", "1"};
 cvar_t sv_highchars = {"sv_highchars", "1"};
@@ -393,7 +396,7 @@ void SV_DropClient (client_t *drop)
 	drop->old_frags = 0;
 	drop->kills = 0;
 	drop->deaths = 0;
-	if (drop->edict)
+	if (svprogfuncs && drop->edict)
 		drop->edict->v.frags = 0;
 	drop->name[0] = 0;
 	memset (drop->userinfo, 0, sizeof(drop->userinfo));

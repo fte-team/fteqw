@@ -22,7 +22,9 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 #ifdef SWQUAKE
 #include "r_local.h"
 #endif
+#ifdef RGLQUAKE
 #include "glquake.h"//hack
+#endif
 
 #include "renderque.h"
 
@@ -212,6 +214,7 @@ part_type_t *GetParticleType(char *name)
 	ptype->cliptype = -1;
 	ptype->emit = -1;
 	ptype->loaded = 0;
+	ptype->ramp = NULL;
 	return ptype;
 }
 
@@ -895,7 +898,7 @@ void R_Part_NewServer(void)
 	else
 	{
 		Cbuf_AddText(va("exec %s.cfg\n", r_particlesdesc.string), RESTRICT_LOCAL);
-#if defined(_DEBUG) && defined(WIN32)	//expand the particles cfg into a C style quoted string, and copy to clipboard so I can paste it in.
+/*#if defined(_DEBUG) && defined(WIN32)	//expand the particles cfg into a C style quoted string, and copy to clipboard so I can paste it in.
 		{
 			char *TL_ExpandToCString(char *in);
 			extern HWND mainwindow;
@@ -932,7 +935,7 @@ void R_Part_NewServer(void)
 			SetClipboardData(CF_TEXT, hglbCopy); 
 			CloseClipboard();
 		}
-#endif
+#endif*/
 	}
 }
 
@@ -2234,7 +2237,6 @@ void GL_DrawTrifanParticle(particle_t *p, part_type_t *type)
 		}
 
 		lasttype = type;
-		glEnd();
 		glDisable(GL_TEXTURE_2D);
 		if (type->blendmode == BM_ADD)		//addative
 			glBlendFunc(GL_SRC_ALPHA, GL_ONE);
@@ -2244,6 +2246,7 @@ void GL_DrawTrifanParticle(particle_t *p, part_type_t *type)
 			glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
 		glShadeModel(GL_SMOOTH);
 	}
+	glEnd();
 
 	scale = (p->org[0] - r_origin[0])*vpn[0] + (p->org[1] - r_origin[1])*vpn[1]
 		+ (p->org[2] - r_origin[2])*vpn[2];
@@ -2276,6 +2279,7 @@ void GL_DrawTrifanParticle(particle_t *p, part_type_t *type)
 		glVertex3fv (v);
 	}
 	glEnd ();
+	glBegin (GL_LINES);
 }
 
 void GL_DrawSparkedParticle(particle_t *p, part_type_t *type)

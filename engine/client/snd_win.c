@@ -436,11 +436,11 @@ sndinitstat SNDDMA_InitDirect (soundcardinfo_t *sc)
 	sc->sn.samplebits = 16;
 	if (!sc->sn.speed)
 	{
-		if (snd_khz.value == 48)
+		if (snd_khz.value >= 45)
 			sc->sn.speed = 48000;
-		else if (snd_khz.value == 44 || snd_khz.value == 44.1)
+		else if (snd_khz.value >= 30)	//set by a slider
 			sc->sn.speed = 44100;
-		else if (snd_khz.value == 22 || snd_khz.value == 22.05)
+		else if (snd_khz.value >= 20)
 			sc->sn.speed = 22050;
 		else
 			sc->sn.speed = 11025;
@@ -448,7 +448,7 @@ sndinitstat SNDDMA_InitDirect (soundcardinfo_t *sc)
 
 	memset (&format, 0, sizeof(format));
 
-	if (snd_speakers.value >= 6)	//5.1 surround
+	if (snd_speakers.value >= 5)	//5.1 surround
 	{
 		format.Format.wFormatTag = WAVE_FORMAT_EXTENSIBLE;
 		format.Format.cbSize = 22;
@@ -457,7 +457,7 @@ sndinitstat SNDDMA_InitDirect (soundcardinfo_t *sc)
 		format.dwChannelMask = KSAUDIO_SPEAKER_5POINT1;
 		sc->sn.numchannels = 6;
 	}
-	else if (snd_speakers.value >= 4)	//4 speaker quad
+	else if (snd_speakers.value >= 3)	//4 speaker quad
 	{
 		format.Format.wFormatTag = WAVE_FORMAT_EXTENSIBLE;
 		format.Format.cbSize = 22;
@@ -466,7 +466,7 @@ sndinitstat SNDDMA_InitDirect (soundcardinfo_t *sc)
 		format.dwChannelMask = KSAUDIO_SPEAKER_QUAD;
 		sc->sn.numchannels = 4;
 	}
-	else if (snd_speakers.value >= 2)	//stereo
+	else if (snd_speakers.value >= 1.5)	//stereo
 	{
 		format.Format.wFormatTag = WAVE_FORMAT_PCM;
 		format.Format.cbSize = 0;

@@ -218,14 +218,17 @@ cvar_t	gl_skyboxname = {"r_skybox", ""};
 #if defined(RGLQUAKE)
 cvar_t	gl_ztrick = {"gl_ztrick","1"};
 extern cvar_t r_waterlayers;
-cvar_t			gl_triplebuffer = {"gl_triplebuffer", "1", NULL, CVAR_ARCHIVE };
+cvar_t			gl_triplebuffer = {"gl_triplebuffer", "1", NULL, CVAR_ARCHIVE};
 cvar_t			gl_subdivide_size = {"gl_subdivide_size", "128", NULL, CVAR_ARCHIVE};
 cvar_t			gl_subdivide_water = {"gl_subdivide_water", "0", NULL, CVAR_ARCHIVE};
+cvar_t			vid_hardwaregamma = {"vid_hardwaregamma", "1", NULL, CVAR_ARCHIVE};
 void GLRenderer_Init(void)
 {
 	extern cvar_t gl_contrast;
 	//screen
 	Cvar_Register (&gl_triplebuffer, GLRENDEREROPTIONS);
+
+	Cvar_Register (&vid_hardwaregamma, GLRENDEREROPTIONS);
 
 	//model
 	Cvar_Register (&gl_subdivide_size, GLRENDEREROPTIONS);
@@ -377,7 +380,6 @@ void	R_InitTextures (void)
 
 
 void R_SetRenderer_f (void);
-void R_RestartRenderer_f (void);
 
 void Renderer_Init(void)
 {
@@ -557,6 +559,10 @@ int		(*R_LightPoint)				(vec3_t point);
 void	(*R_PushDlights)			(void);
 void	(*R_AddStain)				(vec3_t org, float red, float green, float blue, float radius);
 void	(*R_LessenStains)			(void);
+
+void (*Media_ShowFrameBGR_24_Flip)	(qbyte *framedata, int inwidth, int inheight);	//input is bottom up...
+void (*Media_ShowFrameRGBA_32)		(qbyte *framedata, int inwidth, int inheight);	//top down
+void (*Media_ShowFrame8bit)			(qbyte *framedata, int inwidth, int inheight, qbyte *palette);	//paletted topdown (framedata is 8bit indexes into palette)
 
 void	(*Mod_Init)					(void);
 void	(*Mod_ClearAll)				(void);
@@ -810,6 +816,10 @@ void R_SetRenderer(r_qrenderer_t wanted)
 		VID_ShiftPalette		= NULL;
 		VID_GetRGBInfo			= NULL;
 
+		Media_ShowFrame8bit			= NULL;
+		Media_ShowFrameRGBA_32		= NULL;
+		Media_ShowFrameBGR_24_Flip	= NULL;
+
 #ifdef SWQUAKE	//Any one of them that works.
 		Mod_Init				= SWMod_Init;
 		Mod_Think				= SWMod_Think;
@@ -897,6 +907,10 @@ void R_SetRenderer(r_qrenderer_t wanted)
 		VID_ShiftPalette		= SWVID_ShiftPalette;
 		VID_GetRGBInfo			= SWVID_GetRGBInfo;
 
+		Media_ShowFrame8bit			= MediaSW_ShowFrame8bit;
+		Media_ShowFrameRGBA_32		= MediaSW_ShowFrameRGBA_32;
+		Media_ShowFrameBGR_24_Flip	= MediaSW_ShowFrameBGR_24_Flip;
+
 		Mod_Init				= SWMod_Init;
 		Mod_Think				= SWMod_Think;
 		Mod_ClearAll			= SWMod_ClearAll;
@@ -970,6 +984,10 @@ void R_SetRenderer(r_qrenderer_t wanted)
 		VID_ShiftPalette		= GLVID_ShiftPalette;
 		VID_GetRGBInfo			= GLVID_GetRGBInfo;
 
+		Media_ShowFrame8bit			= MediaGL_ShowFrame8bit;
+		Media_ShowFrameRGBA_32		= MediaGL_ShowFrameRGBA_32;
+		Media_ShowFrameBGR_24_Flip	= MediaGL_ShowFrameBGR_24_Flip;
+
 		Mod_Init				= GLMod_Init;
 		Mod_Think				= GLMod_Think;
 		Mod_ClearAll			= GLMod_ClearAll;
@@ -1037,7 +1055,6 @@ qboolean R_ApplyRenderer (rendererstate_t *newr)
 		qbyte *data;
 		isDedicated = false;
 		v_oldgammavalue = -1;	//force the gamma to be reset
-		V_CheckGamma();
 
 		Con_Printf("Setting mode %i*%i*%i*%i\n", newr->width, newr->height, newr->bpp, newr->rate);
 
@@ -1095,6 +1112,8 @@ qboolean R_ApplyRenderer (rendererstate_t *newr)
 
 		if (!VID_Init(newr, host_basepal))
 			return false;
+
+		GLV_UpdatePalette();
 
 		v_oldgammavalue = -1;	//force the gamma to be reset
 		W_LoadWadFile("gfx.wad");

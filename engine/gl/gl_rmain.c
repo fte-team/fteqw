@@ -156,6 +156,21 @@ qboolean R_CullBox (vec3_t mins, vec3_t maxs)
 	return false;
 }
 
+qboolean R_CullSphere (vec3_t org, float radius)
+{
+	//four frustrum planes all point inwards in an expanding 'cone'.
+	int		i;
+	float d;
+
+	for (i=0 ; i<4 ; i++)
+	{
+		d = DotProduct(frustum[i].normal, org)-frustum[i].dist;
+		if (d < -radius)
+			return true;
+	}
+	return false;
+}
+
 
 void R_RotateForEntity (entity_t *e)
 {

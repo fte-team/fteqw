@@ -262,7 +262,7 @@ void XR_GetAtomName (xclient_t *cl, xReq *request)
 
 	xatom_t	*xa;
 
-	if (XS_GetResource(req->id, &xa) != x_atom)
+	if (XS_GetResource(req->id, (void**)&xa) != x_atom)
 	{
 		X_SendError(cl, BadAtom, req->id, X_GetAtomName, 0);
 		return;
@@ -331,12 +331,12 @@ void XR_GetProperty (xclient_t *cl, xReq *request)
 	int trailing;
 	xGetPropertyReply *rep = (xGetPropertyReply*)buffer;
 
-	if (XS_GetResource(req->window, &wnd) != x_window)
+	if (XS_GetResource(req->window, (void**)&wnd) != x_window)
 	{	//wait a minute, That's not a window!!!
 		X_SendError(cl, BadWindow, req->window, X_GetProperty, 0);
 		return;
 	}
-	if (XS_GetResource(req->property, NULL) != x_atom)
+	if (XS_GetResource(req->property, (void**)NULL) != x_atom)
 	{	//whoops
 		X_SendError(cl, BadAtom, req->property, X_GetProperty, 0);
 		return;
@@ -392,7 +392,7 @@ void XR_ListProperties(xclient_t *cl, xReq *request)
 	xListPropertiesReply *rep = (xListPropertiesReply*)buffer;
 	Atom *out = (Atom *)(rep+1);
 
-	if (XS_GetResource(req->id, &wnd) != x_window)
+	if (XS_GetResource(req->id, (void**)&wnd) != x_window)
 	{	//wait a minute, That's not a window!!!
 		X_SendError(cl, BadWindow, req->id, X_GetProperty, 0);
 		return;
@@ -430,13 +430,13 @@ void XR_ChangeProperty (xclient_t *cl, xReq *request)
 	xatom_t *atom;
 	xwindow_t *wnd;
 
-	if (XS_GetResource(req->window, &wnd) != x_window)
+	if (XS_GetResource(req->window, (void**)&wnd) != x_window)
 	{	//wait a minute, That's not a window!!!
 		X_SendError(cl, BadWindow, req->window, X_ChangeProperty, 0);
 		return;
 	}
 
-	if (XS_GetResource(req->property, &atom) != x_atom)
+	if (XS_GetResource(req->property, (void**)&atom) != x_atom)
 	{
 		X_SendError(cl, BadAtom, req->property, X_ChangeProperty, 0);
 		return;
@@ -494,13 +494,13 @@ void XR_DeleteProperty(xclient_t *cl, xReq *request)
 
 	xwindow_t *wnd;
 
-	if (XS_GetResource(req->window, &wnd) != x_window)
+	if (XS_GetResource(req->window, (void**)&wnd) != x_window)
 	{	//wait a minute, That's not a window!!!
 		X_SendError(cl, BadWindow, req->window, X_DeleteProperty, 0);
 		return;
 	}
 
-	if (XS_GetResource(req->property, NULL) != x_atom)
+	if (XS_GetResource(req->property, (void**)NULL) != x_atom)
 	{
 		X_SendError(cl, BadAtom, req->property, X_DeleteProperty, 0);
 		return;
@@ -532,13 +532,13 @@ void XR_GetSelectionOwner (xclient_t *cl, xReq *request)
 	xGetSelectionOwnerReply reply;
 	xatom_t *atom;
 
-	if (XS_GetResource(req->id, &atom) != x_atom)
+	if (XS_GetResource(req->id, (void**)&atom) != x_atom)
 	{
 		X_SendError(cl, BadAtom, req->id, X_GetSelectionOwner, 0);
 		return;
 	}
 
-	if (XS_GetResource(atom->selectionownerwindowid, NULL) != x_window)	//make sure the window still exists.
+	if (XS_GetResource(atom->selectionownerwindowid, (void**)NULL) != x_window)	//make sure the window still exists.
 	{
 		atom->selectionownerwindowid = None;
 	}
@@ -562,13 +562,13 @@ void XR_SetSelectionOwner (xclient_t *cl, xReq *request)
 	xatom_t *atom;
 	xwindow_t *window;
 
-	if (XS_GetResource(req->selection, &atom) != x_atom)
+	if (XS_GetResource(req->selection, (void**)&atom) != x_atom)
 	{
 		X_SendError(cl, BadAtom, req->selection, X_SetSelectionOwner, 0);
 		return;
 	}
 
-	if (XS_GetResource(req->window, &window) != x_window)	//make sure the window still exists.
+	if (XS_GetResource(req->window, (void**)&window) != x_window)	//make sure the window still exists.
 	{
 		X_SendError(cl, BadWindow, req->window, X_SetSelectionOwner, 0);
 		return;
@@ -617,7 +617,7 @@ void XR_SetInputFocus (xclient_t *cl, xReq *request)
 	xResourceReq	*req = (xResourceReq *)request;
 	xwindow_t *wnd;
 
-	if (XS_GetResource(req->id, &wnd) != x_window)
+	if (XS_GetResource(req->id, (void**)&wnd) != x_window)
 	{
 		X_SendError(cl, BadDrawable, req->id, X_SetInputFocus, 0);
 		return;
@@ -682,7 +682,7 @@ void XR_GetGeometry (xclient_t *cl, xReq *request)
 	rep.pad2			= 0;
 	rep.pad3			= 0;
 
-	switch(XS_GetResource(req->id, &drawable))
+	switch(XS_GetResource(req->id, (void**)&drawable))
 	{
 	case x_window:
 		wnd = (xwindow_t*)drawable;
@@ -719,13 +719,13 @@ void XR_CreateWindow (xclient_t *cl, xReq *request)
 		X_SendError(cl, BadMatch, req->wid, X_CreateWindow, 0);
 		return;
 	}
-	if (XS_GetResource(req->wid, &parent) != x_none)
+	if (XS_GetResource(req->wid, (void**)&parent) != x_none)
 	{
 		X_SendError(cl, BadIDChoice, req->wid, X_CreateWindow, 0);
 		return;
 	}
 
-	if (XS_GetResource(req->parent, &parent) != x_window)
+	if (XS_GetResource(req->parent, (void**)&parent) != x_window)
 	{
 		X_SendError(cl, BadWindow, req->parent, X_CreateWindow, 0);
 		return;
@@ -750,7 +750,7 @@ void XR_CreateWindow (xclient_t *cl, xReq *request)
 	if (req->mask & CWBackPixmap)
 	{
 		wnd->backpixmap = NULL;
-		if (XS_GetResource(*parameters, &wnd->backpixmap) != x_pixmap)
+		if (XS_GetResource(*parameters, (void**)&wnd->backpixmap) != x_pixmap)
 		{
 			if (*parameters)
 				X_SendError(cl, BadPixmap, *parameters, X_CreateWindow, 0);
@@ -898,7 +898,7 @@ void XR_ChangeWindowAttributes (xclient_t *cl, xReq *request)
 	xChangeWindowAttributesReq *req = (xChangeWindowAttributesReq *)request;
 	xwindow_t *wnd;
 
-	if (XS_GetResource(req->window, &wnd) != x_window)
+	if (XS_GetResource(req->window, (void**)&wnd) != x_window)
 	{
 		X_SendError(cl, BadWindow, req->window, X_ChangeWindowAttributes, 0);
 		return;
@@ -911,7 +911,7 @@ void XR_ChangeWindowAttributes (xclient_t *cl, xReq *request)
 		if (wnd->backpixmap)
 			wnd->backpixmap->references--;
 		wnd->backpixmap = NULL;
-		if (XS_GetResource(*parameters, &wnd->backpixmap) != x_pixmap)
+		if (XS_GetResource(*parameters, (void**)&wnd->backpixmap) != x_pixmap)
 		{
 			if (*parameters)
 				X_SendError(cl, BadPixmap, *parameters, X_ChangeWindowAttributes, 0);
@@ -933,7 +933,7 @@ void XR_ChangeWindowAttributes (xclient_t *cl, xReq *request)
 	{
 		X_SendError(cl, BadImplementation, 0, X_ChangeWindowAttributes, 0);
 /*		wnd->borderpixmap = NULL;
-		if (XS_GetResource(*parameters, &wnd->borderpixmap) != x_pixmap)
+		if (XS_GetResource(*parameters, (void**)&wnd->borderpixmap) != x_pixmap)
 		{
 			if (*parameters)
 				X_SendError(cl, BadPixmap, *parameters, X_ChangeWindowAttributes, 0);
@@ -1054,7 +1054,7 @@ void XR_ConfigureWindow (xclient_t *cl, xReq *request)
 
 	CARD32 *parm;
 
-	if (XS_GetResource(req->window, &wnd) != x_window)
+	if (XS_GetResource(req->window, (void**)&wnd) != x_window)
 	{
 		X_SendError(cl, BadWindow, req->window, X_ConfigureWindow, 0);
 		return;
@@ -1182,12 +1182,12 @@ void XR_ReparentWindow (xclient_t *cl, xReq *request)
 	xReparentWindowReq *req = (xReparentWindowReq *)request;
 	xwindow_t *wnd, *parent;
 
-	if (XS_GetResource(req->window, &wnd) != x_window)
+	if (XS_GetResource(req->window, (void**)&wnd) != x_window)
 	{
 		X_SendError(cl, BadWindow, req->window, X_ReparentWindow, 0);
 		return;
 	}
-	if (XS_GetResource(req->parent, &parent) != x_window)
+	if (XS_GetResource(req->parent, (void**)&parent) != x_window)
 	{
 		X_SendError(cl, BadWindow, req->parent, X_ReparentWindow, 0);
 		return;
@@ -1229,7 +1229,7 @@ void XR_DestroyWindow (xclient_t *cl, xReq *request)
 	xResourceReq *req = (xResourceReq *)request;
 	xwindow_t *wnd;
 
-	if (XS_GetResource(req->id, &wnd) != x_window)
+	if (XS_GetResource(req->id, (void**)&wnd) != x_window)
 	{
 		X_SendError(cl, BadWindow, req->id, X_DestroyWindow, 0);
 		return;
@@ -1249,7 +1249,7 @@ void XR_QueryTree (xclient_t *cl, xReq *request)
 	Window	*cwnd;
 
 
-	if (XS_GetResource(req->id, &wnd) != x_window)
+	if (XS_GetResource(req->id, (void**)&wnd) != x_window)
 	{
 		X_SendError(cl, BadWindow, req->id, X_DestroyWindow, 0);
 		return;
@@ -1293,7 +1293,7 @@ void XR_GetWindowAttributes (xclient_t *cl, xReq *request)
 
 	xGetWindowAttributesReply rep;
 
-	if (XS_GetResource(req->id, &wnd) != x_window)
+	if (XS_GetResource(req->id, (void**)&wnd) != x_window)
 	{
 		X_SendError(cl, BadWindow, req->id, X_GetWindowAttributes, 0);
 		return;
@@ -1495,7 +1495,7 @@ void XR_ChangeGC(xclient_t *cl, xReq *request)
 	xChangeGCReq *req = (xChangeGCReq *)request;
 	xgcontext_t *gc;
 
-	if (XS_GetResource(req->gc, &gc) != x_gcontext)
+	if (XS_GetResource(req->gc, (void**)&gc) != x_gcontext)
 	{
 		X_SendError(cl, BadGC, req->gc, X_FreeGC, 0);
 		return;
@@ -1509,7 +1509,7 @@ void XR_CreateGC(xclient_t *cl, xReq *request)
 	xCreateGCReq *req = (xCreateGCReq *)request;
 	xresource_t *drawable;
 
-	if (XS_GetResource(req->gc, &drawable) != x_none)
+	if (XS_GetResource(req->gc, (void**)&drawable) != x_none)
 	{
 //		if (req->gc == cl->ridbase&&drawable->owner)
 //			XS_DestroyResourcesOfClient(drawable->owner);
@@ -1519,7 +1519,7 @@ void XR_CreateGC(xclient_t *cl, xReq *request)
 			return;
 		}
 	}
-	XS_GetResource(req->drawable, &drawable);
+	XS_GetResource(req->drawable, (void**)&drawable);
 	/*if (drawable->restype != x_window && drawable->restype != x_gcontext)
 	{
 		X_SendError(cl, BadDrawable, req->drawable, X_CreateGC, 0);
@@ -1533,7 +1533,7 @@ void XR_FreeGC(xclient_t *cl, xReq *request)
 {
 	xResourceReq *req = (xResourceReq *)request;
 	xresource_t *gc;
-	if (XS_GetResource(req->id, &gc) != x_gcontext)
+	if (XS_GetResource(req->id, (void**)&gc) != x_gcontext)
 	{
 		X_SendError(cl, BadGC, req->id, X_FreeGC, 0);
 		return;
@@ -1685,7 +1685,7 @@ void XR_ClearArea(xclient_t *cl, xReq *request)
 	xClearAreaReq *req = (xClearAreaReq *)request;
 	xwindow_t *wnd;
 
-	if (XS_GetResource(req->window, &wnd) != x_window)
+	if (XS_GetResource(req->window, (void**)&wnd) != x_window)
 	{
 		X_SendError(cl, BadWindow, req->window, X_ClearArea, 0);
 		return;
@@ -1737,14 +1737,14 @@ void XR_CopyArea(xclient_t *cl, xReq *request)	//from and to pixmap or drawable.
 	int outwidth;
 	int outheight;
 
-	if (XS_GetResource(req->gc, &gc) == x_none)
+	if (XS_GetResource(req->gc, (void**)&gc) == x_none)
 	{
 		X_SendError(cl, BadGC, req->gc, X_PutImage, 0);
 		return;
 	}
 
 
-	switch (XS_GetResource(req->srcDrawable, &drawable))
+	switch (XS_GetResource(req->srcDrawable, (void**)&drawable))
 	{
 	default:
 		X_SendError(cl, BadDrawable, req->srcDrawable, X_PutImage, 0);
@@ -1783,7 +1783,7 @@ void XR_CopyArea(xclient_t *cl, xReq *request)	//from and to pixmap or drawable.
 		break;
 	}
 
-	switch (XS_GetResource(req->dstDrawable, &drawable))
+	switch (XS_GetResource(req->dstDrawable, (void**)&drawable))
 	{
 	default:
 		X_SendError(cl, BadDrawable, req->dstDrawable, X_PutImage, 0);
@@ -1832,7 +1832,7 @@ void XR_MapWindow(xclient_t *cl, xReq *request)
 	xResourceReq *req = (xResourceReq *)request;
 
 	xwindow_t *wnd;
-	if (XS_GetResource(req->id, &wnd) != x_window)
+	if (XS_GetResource(req->id, (void**)&wnd) != x_window)
 	{
 		X_SendError(cl, BadWindow, req->id, X_MapWindow, 0);
 		return;
@@ -1937,7 +1937,7 @@ void XR_UnmapWindow(xclient_t *cl, xReq *request)
 	xResourceReq *req = (xResourceReq *)request;
 
 	xwindow_t *wnd;
-	if (XS_GetResource(req->id, &wnd) != x_window)
+	if (XS_GetResource(req->id, (void**)&wnd) != x_window)
 	{
 		X_SendError(cl, BadWindow, req->id, X_UnmapWindow, 0);
 		return;
@@ -1974,7 +1974,7 @@ void XR_MapSubwindows(xclient_t *cl, xReq *request)
 	xResourceReq *req = (xResourceReq *)request;
 	xwindow_t *wnd;
 
-	if (XS_GetResource(req->id, &wnd) != x_window)
+	if (XS_GetResource(req->id, (void**)&wnd) != x_window)
 	{
 		X_SendError(cl, BadWindow, req->id, X_MapWindow, 0);
 		return;
@@ -1992,13 +1992,13 @@ void XR_CreatePixmap(xclient_t *cl, xReq *request)
 	xCreatePixmapReq *req = (xCreatePixmapReq *)request;
 
 	xwindow_t *wnd;
-	if (XS_GetResource(req->drawable, &wnd) != x_window)
+	if (XS_GetResource(req->drawable, (void**)&wnd) != x_window)
 	{
 		X_SendError(cl, BadDrawable, req->drawable, X_CreatePixmap, 0);
 		return;
 	}
 
-	if (XS_GetResource(req->pid, &wnd) != x_none)
+	if (XS_GetResource(req->pid, (void**)&wnd) != x_none)
 	{
 		X_SendError(cl, BadIDChoice, req->pid, X_CreatePixmap, 0);
 	}
@@ -2010,7 +2010,7 @@ void XR_FreePixmap(xclient_t *cl, xReq *request)
 {
 	xResourceReq *req = (xResourceReq *)request;
 	xresource_t *pm;
-	if (XS_GetResource(req->id, &pm) != x_pixmap)
+	if (XS_GetResource(req->id, (void**)&pm) != x_pixmap)
 	{
 		X_SendError(cl, BadPixmap, req->id, X_FreePixmap, 0);
 		return;
@@ -2033,13 +2033,13 @@ void XR_PutImage(xclient_t *cl, xReq *request)
 	int drdepth;
 	unsigned char *drbuffer;
 
-	if (XS_GetResource(req->drawable, &drawable) == x_none)
+	if (XS_GetResource(req->drawable, (void**)&drawable) == x_none)
 	{
 		X_SendError(cl, BadDrawable, req->drawable, X_PutImage, 0);
 		return;
 	}
 
-	if (XS_GetResource(req->gc, &gc) == x_none)
+	if (XS_GetResource(req->gc, (void**)&gc) == x_none)
 	{
 		X_SendError(cl, BadGC, req->gc, X_PutImage, 0);
 		return;
@@ -2189,7 +2189,7 @@ void XR_GetImage(xclient_t *cl, xReq *request)
 	int drheight;
 	unsigned char *drbuffer;
 
-	if (XS_GetResource(req->drawable, &drawable) == x_none)
+	if (XS_GetResource(req->drawable, (void**)&drawable) == x_none)
 	{
 		X_SendError(cl, BadDrawable, req->drawable, X_PutImage, 0);
 		return;
@@ -2358,13 +2358,13 @@ void XR_PolyLine(xclient_t *cl, xReq *request)
 
 
 
-	if (XS_GetResource(req->drawable, &drawable) == x_none)
+	if (XS_GetResource(req->drawable, (void**)&drawable) == x_none)
 	{
 		X_SendError(cl, BadDrawable, req->drawable, X_PolyRectangle, 0);
 		return;
 	}
 
-	if (XS_GetResource(req->gc, &gc) == x_none)
+	if (XS_GetResource(req->gc, (void**)&gc) == x_none)
 	{
 		X_SendError(cl, BadGC, req->gc, X_PolyRectangle, 0);
 		return;
@@ -2452,13 +2452,13 @@ void XR_PolyRectangle(xclient_t *cl, xReq *request)
 
 
 
-	if (XS_GetResource(req->drawable, &drawable) == x_none)
+	if (XS_GetResource(req->drawable, (void**)&drawable) == x_none)
 	{
 		X_SendError(cl, BadDrawable, req->drawable, X_PolyRectangle, 0);
 		return;
 	}
 
-	if (XS_GetResource(req->gc, &gc) == x_none)
+	if (XS_GetResource(req->gc, (void**)&gc) == x_none)
 	{
 		X_SendError(cl, BadGC, req->gc, X_PolyRectangle, 0);
 		return;
@@ -2542,7 +2542,7 @@ void XR_PolyRectangle(xclient_t *cl, xReq *request)
 				out = (unsigned int *)drbuffer + (rect[0] + rect[1]*drwidth);
 				for (i = 0; i < rect[2]; i++)
 				{
-					GCFunc(gc->fgcolour, *(char *)&out[i], gc->function, *(char *)&out[i], 0xffffff);
+					GCFunc(gc->fgcolour, *(char *)&out[i], gc->function, *(char *)&out[i], 0xff);
 				}
 
 				rect[3]--;
@@ -2607,13 +2607,13 @@ void XR_PolyPoint(xclient_t *cl, xReq *request)
 
 	short lastpoint[2];
 
-	if (XS_GetResource(req->drawable, &drawable) == x_none)
+	if (XS_GetResource(req->drawable, (void**)&drawable) == x_none)
 	{
 		X_SendError(cl, BadDrawable, req->drawable, X_PolyPoint, 0);
 		return;
 	}
 
-	if (XS_GetResource(req->gc, &gc) != x_gcontext)
+	if (XS_GetResource(req->gc, (void**)&gc) != x_gcontext)
 	{
 		X_SendError(cl, BadGC, req->gc, X_PolyPoint, 0);
 		return;
@@ -2761,13 +2761,13 @@ void XR_PolyText(xclient_t *cl, xReq *request)
 
 	int xpos, ypos;
 
-	if (XS_GetResource(req->drawable, &drawable) == x_none)
+	if (XS_GetResource(req->drawable, (void**)&drawable) == x_none)
 	{
 		X_SendError(cl, BadDrawable, req->drawable, req->reqType, 0);
 		return;
 	}
 
-	if (XS_GetResource(req->gc, &gc) != x_gcontext)
+	if (XS_GetResource(req->gc, (void**)&gc) != x_gcontext)
 	{
 		X_SendError(cl, BadGC, req->gc, req->reqType, 0);
 		return;
@@ -2861,7 +2861,7 @@ void XR_OpenFont(xclient_t *cl, xReq *request)	//basically ignored. We only supp
 
 void XR_ListFonts(xclient_t *cl, xReq *request)	//basically ignored. We only support one font...
 {
-	xListFontsReq *req = (xListFontsReq *)request;
+//	xListFontsReq *req = (xListFontsReq *)request;
 	int buffer[256];
 	xListFontsReply *reply = (xListFontsReply *)buffer;
 
@@ -2875,7 +2875,7 @@ void XR_ListFonts(xclient_t *cl, xReq *request)	//basically ignored. We only sup
 
 void XR_QueryFont(xclient_t *cl, xReq *request)	//basically ignored. We only support one font...
 {
-	xResourceReq *req = (xResourceReq *)request;
+//	xResourceReq *req = (xResourceReq *)request;
 	char buffer[8192];
 	xQueryFontReply *rep = (xQueryFontReply *)buffer;
 
@@ -3064,7 +3064,7 @@ void XR_SendEvent (xclient_t *cl, xReq *request)
 	xSendEventReq *req = (xSendEventReq *)request;
 	xwindow_t *wnd;
 
-	if (XS_GetResource(req->destination, &wnd) != x_window)
+	if (XS_GetResource(req->destination, (void**)&wnd) != x_window)
 	{
 		X_SendError(cl, BadWindow, req->destination, X_SendEvent, 0);
 		return;
@@ -3150,8 +3150,8 @@ void XR_GrabPointer (xclient_t *cl, xReq *request)
 	}
 
 	xpointergrabclient = cl;
-	XS_GetResource(req->grabWindow, &xpgrabbedwindow);
-	XS_GetResource(req->confineTo, &xpconfinewindow);
+	XS_GetResource(req->grabWindow, (void**)&xpgrabbedwindow);
+	XS_GetResource(req->confineTo, (void**)&xpconfinewindow);
 
 	X_EvalutateCursorOwner(NotifyGrab);
 

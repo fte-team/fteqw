@@ -936,7 +936,7 @@ void Q_InitProgs(void)
 					if (f)
 					{
 						pr_globals = PR_globals(svprogfuncs, PR_CURRENT);
-						(string_t)G_INT(OFS_PARM0) = PR_SetString(svprogfuncs, as);
+						G_INT(OFS_PARM0) = (int)PR_SetString(svprogfuncs, as);
 						PR_ExecuteProgram (svprogfuncs, f);
 					}
 					else
@@ -1054,7 +1054,7 @@ void Q_InitProgs(void)
 					if (f)
 					{
 						pr_globals = PR_globals(svprogfuncs, PR_CURRENT);
-						(string_t)G_INT(OFS_PARM0) = PR_SetString(svprogfuncs, as);
+						G_INT(OFS_PARM0) = (int)PR_SetString(svprogfuncs, as);
 						PR_ExecuteProgram (svprogfuncs, f);					
 					}
 					else
@@ -1096,7 +1096,7 @@ void Q_InitProgs(void)
 				if (f)
 				{
 					pr_globals = PR_globals(svprogfuncs, PR_CURRENT);
-					(string_t)G_INT(OFS_PARM0) = PR_SetString(svprogfuncs, as);
+					G_INT(OFS_PARM0) = (int)PR_SetString(svprogfuncs, as);
 					PR_ExecuteProgram (svprogfuncs, f);					
 				}
 				else
@@ -1130,7 +1130,7 @@ qboolean PR_QCChat(char *text, int say_type)
 	if (!ChatMessage)
 		return false;
 
-	(string_t)G_INT(OFS_PARM0) = PR_SetString(svprogfuncs, text);
+	G_INT(OFS_PARM0) = (int)PR_SetString(svprogfuncs, text);
 	G_FLOAT(OFS_PARM1) = say_type;
 	PR_ExecuteProgram (svprogfuncs, ChatMessage);
 
@@ -2394,7 +2394,7 @@ void PF_LocalSound(progfuncs_t *prinst, struct globalvars_s *pr_globals)
 	float chan = G_FLOAT(OFS_PARM1);
 	float vol = G_FLOAT(OFS_PARM2);
 
-	if (sfx = S_PrecacheSound(s))
+	if ((sfx = S_PrecacheSound(s)))
 		S_StartSound(cl.playernum[0], chan, sfx, cl.simorg[0], vol, 0.0);
 #endif
 };

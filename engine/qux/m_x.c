@@ -588,7 +588,7 @@ nextmessage:
 				{
 					cl->requestnum++;
 
-					if (req->reqType < 0 || req->reqType >= 256 || !XRequests[req->reqType])
+/*					if (req->reqType < 0 || req->reqType >= 256 || !XRequests[req->reqType])
 					{
 	//					Con_Printf("X request %i, len %i - NOT SUPPORTED\n", req->reqType, rlen*4);
 
@@ -597,6 +597,7 @@ nextmessage:
 //						cl->tobedropped = true;
 					}
 					else
+*/
 					{
 //						Con_Printf("X request %i, len %i\n", req->reqType, rlen*4);
 
@@ -782,7 +783,9 @@ void XWindows_TendToClients(void)
 	int addrlen;
 	xclient_t *cl, *prev=NULL;
 	int newclient;
+#ifndef MULTITHREADWIN32
 	unsigned int _true = 1;
+#endif
 
 	if (xlistensocket != -1)
 	{
@@ -800,7 +803,7 @@ void XWindows_TendToClients(void)
 			
 #ifdef MULTITHREADWIN32
 			InitializeCriticalSection (&cl->delecatesection);
-			{int tid;
+			{DWORD tid;
 			cl->threadhandle = CreateThread(NULL, 0, X_RunClient, cl, 0, &tid);
 			}
 
@@ -1075,7 +1078,7 @@ void X_EvalutateCursorOwner(int movemode)
 	int wcx;
 	int wcy;
 
-	extern xwindow_t *xpgrabbedwindow, *xpconfinewindow;
+	extern xwindow_t *xpconfinewindow;
 
 	{
 		extern int mousecursor_x, mousecursor_y;
@@ -1140,7 +1143,7 @@ void X_EvalutateCursorOwner(int movemode)
 
 	if (mx != x_mousex || my != x_mousey || x_windowwithcursor != cursorowner->res.id)
 	{
-		extern qboolean	keydown[256];
+//		extern qboolean	keydown[256];
 
 //		Con_Printf("move %i %i\n", mx, my);
 
@@ -1157,7 +1160,7 @@ void X_EvalutateCursorOwner(int movemode)
 			xwindow_t *a,*b;
 			int d1,d2;
 
-			if (XS_GetResource(x_windowwithcursor, &wnd) != x_window)
+			if (XS_GetResource(x_windowwithcursor, (void**)&wnd) != x_window)
 				wnd = rootwindow;
 
 			x_windowwithcursor = cursorowner->res.id;
@@ -1345,7 +1348,7 @@ void X_EvalutateCursorOwner(int movemode)
 		{	//same window
 			ev.u.keyButtonPointer.child		= x_windowwithcursor;
 
-			if (XS_GetResource(x_windowwithcursor, &wnd) == x_window)
+			if (XS_GetResource(x_windowwithcursor, (void**)&wnd) == x_window)
 			{	//cursor still in the same child.
 				int mask = PointerMotionMask;
 				if (mousestate)
@@ -1375,7 +1378,7 @@ void X_EvalutateFocus(int movemode)
 	xEvent ev;
 	xwindow_t *fo, *po, *wnd;
 
-	if (XS_GetResource(x_windowwithcursor, &po) != x_window)
+	if (XS_GetResource(x_windowwithcursor, (void**)&po) != x_window)
 		po = rootwindow;
 
 //	xfocusedwindow = NULL;
@@ -1383,7 +1386,7 @@ void X_EvalutateFocus(int movemode)
 
 	if (!xfocusedwindow)
 	{
-		if (XS_GetResource(x_windowwithcursor, &fo) != x_window)
+		if (XS_GetResource(x_windowwithcursor, (void**)&fo) != x_window)
 			fo = rootwindow;
 	}
 	else
@@ -1393,7 +1396,6 @@ void X_EvalutateFocus(int movemode)
 
 	if (x_windowwithfocus != fo->res.id)
 	{
-		extern qboolean	keydown[256];
 		ev.u.u.detail					= 0;
 		ev.u.u.sequenceNumber			= 0;
 		ev.u.focus.mode					= movemode;
@@ -1401,7 +1403,7 @@ void X_EvalutateFocus(int movemode)
 			xwindow_t *a,*b;
 			int d1,d2;
 
-			if (XS_GetResource(x_windowwithfocus, &wnd) != x_window)
+			if (XS_GetResource(x_windowwithfocus, (void**)&wnd) != x_window)
 				wnd = rootwindow;
 
 			x_windowwithfocus = fo->res.id;
@@ -1641,7 +1643,7 @@ void XWindows_Draw(void)
 	}
 
 	XWindows_TendToClients();
-	Media_ShowFrame(xscreen, xscreenwidth, xscreenheight, NULL);
+	Media_ShowFrameRGBA_32 (xscreen, xscreenwidth, xscreenheight);
 
 	Con_DrawNotify();
 
@@ -1724,7 +1726,7 @@ void XWindows_Key(int key)
 			ev.u.keyButtonPointer.event		= ev.u.keyButtonPointer.child;
 			ev.u.keyButtonPointer.eventX	= ev.u.keyButtonPointer.rootX;
 			ev.u.keyButtonPointer.eventY	= ev.u.keyButtonPointer.rootY;
-			if (XS_GetResource(x_windowwithcursor, &wnd) == x_window)
+			if (XS_GetResource(x_windowwithcursor, (void**)&wnd) == x_window)
 			{
 				ev.u.u.sequenceNumber = xpointergrabclient->requestnum;
 				while(wnd)
@@ -1736,7 +1738,7 @@ void XWindows_Key(int key)
 				X_SendData(xpointergrabclient, &ev, sizeof(ev));
 			}
 		}
-		else if (XS_GetResource(ev.u.keyButtonPointer.child, &wnd) == x_window)
+		else if (XS_GetResource(ev.u.keyButtonPointer.child, (void**)&wnd) == x_window)
 			X_SendInputNotification(&ev, wnd, (ev.u.u.type==ButtonPress)?ButtonPressMask:KeyPressMask);
 	}
 }
@@ -1805,7 +1807,7 @@ void XWindows_Keyup(int key)
 			ev.u.keyButtonPointer.event		= ev.u.keyButtonPointer.child;
 			ev.u.keyButtonPointer.eventX	= ev.u.keyButtonPointer.rootX;
 			ev.u.keyButtonPointer.eventY	= ev.u.keyButtonPointer.rootY;
-			if (XS_GetResource(x_windowwithcursor, &wnd) == x_window)
+			if (XS_GetResource(x_windowwithcursor, (void**)&wnd) == x_window)
 			{
 				ev.u.u.sequenceNumber = xpointergrabclient->requestnum;
 				while(wnd)
@@ -1817,7 +1819,7 @@ void XWindows_Keyup(int key)
 				X_SendData(xpointergrabclient, &ev, sizeof(ev));
 			}
 		}
-		else if (XS_GetResource(ev.u.keyButtonPointer.child, &wnd) == x_window)
+		else if (XS_GetResource(ev.u.keyButtonPointer.child, (void**)&wnd) == x_window)
 		{
 			X_SendInputNotification(&ev, wnd, (ev.u.u.type==ButtonRelease)?ButtonReleaseMask:KeyReleaseMask);
 		}

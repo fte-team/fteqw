@@ -814,8 +814,8 @@ void SV_Savegame_f (void)
 
 		if (*cl->name)
 			for (len = 0; len < NUM_SPAWN_PARMS; len++)
-				fprintf(f, "%i (%f)\n", cl->spawn_parms[len], cl->spawn_parms[len]);	//write ints as not everyone passes a float in the parms.
-																					//write floats so you can use it to debug.
+				fprintf(f, "%i (%f)\n", *(int*)&cl->spawn_parms[len], cl->spawn_parms[len]);	//write ints as not everyone passes a float in the parms.
+																					//write floats too so you can use it to debug.
 	}
 
 	Q_strncpyz(str, svs.info, sizeof(str));

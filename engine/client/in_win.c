@@ -45,6 +45,7 @@ HRESULT (WINAPI *pDirectInputCreate)(HINSTANCE hinst, DWORD dwVersion,
 
 // mouse variables
 cvar_t	m_filter = {"m_filter","0"};
+cvar_t	m_forcewheel = {"m_forcewheel", "1"};
 cvar_t	in_mwhook = {"in_mwhook","0", NULL, CVAR_ARCHIVE};
 cvar_t	in_dinput = {"in_dinput","0", NULL, CVAR_ARCHIVE};
 
@@ -820,6 +821,7 @@ void IN_Init (void)
 
 		// mouse variables
 		Cvar_Register (&m_filter, "Input stuff");
+		Cvar_Register (&m_forcewheel, "Input stuff");
 		Cvar_Register (&in_mwhook, "Input stuff");
 
 		Cvar_Register (&in_dinput, "Input stuff");
@@ -1114,6 +1116,17 @@ void IN_MouseMove (usercmd_t *cmd, int pnum)
 					sysmouse.delta[1] += od.dwData;
 					break;
 
+				case DIMOFS_Z:
+					if (m_forcewheel.value)
+					{
+						if (od.dwData &	0x80)
+							sysmouse.wheeldelta++;
+						else
+							sysmouse.wheeldelta--;
+					}
+					break;
+
+
 				case DIMOFS_BUTTON0:
 					if (od.dwData & 0x80)
 						sysmouse.buttons |= 1;
@@ -1134,6 +1147,38 @@ void IN_MouseMove (usercmd_t *cmd, int pnum)
 					else
 						sysmouse.buttons &= ~(1<<2);
 					break;
+				case DIMOFS_BUTTON3:
+					if (od.dwData & 0x80)
+						sysmouse.buttons |= (1<<3);
+					else
+						sysmouse.buttons &= ~(1<<3);
+					break;
+#if (DIRECTINPUT_VERSION >= 0x0700)
+				case DIMOFS_BUTTON4:
+					if (od.dwData & 0x80)
+						sysmouse.buttons |= (1<<4);
+					else
+						sysmouse.buttons &= ~(1<<4);
+					break;
+				case DIMOFS_BUTTON5:
+					if (od.dwData & 0x80)
+						sysmouse.buttons |= (1<<5);
+					else
+						sysmouse.buttons &= ~(1<<5);
+					break;
+				case DIMOFS_BUTTON6:
+					if (od.dwData & 0x80)
+						sysmouse.buttons |= (1<<6);
+					else
+						sysmouse.buttons &= ~(1<<6);
+					break;
+				case DIMOFS_BUTTON7:
+					if (od.dwData & 0x80)
+						sysmouse.buttons |= (1<<7);
+					else
+						sysmouse.buttons &= ~(1<<7);
+					break;
+#endif
 			}
 		}
 	}

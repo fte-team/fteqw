@@ -729,6 +729,8 @@ void GLMod_InitTextureDescs(char *mapname)
 	if (advtexturedesc)
 		BZ_Free(advtexturedesc);
 	advtexturedesc = COM_LoadMallocFile(va("maps/shaders/%s.shaders", mapname));
+	if (!advtexturedesc)
+		advtexturedesc = COM_LoadMallocFile(va("shaders/%s.shaders", mapname));
 	if (advtexturedesc)
 	{
 		mapsection = advtexturedesc;
@@ -741,13 +743,14 @@ void GLMod_InitTextureDescs(char *mapname)
 		defaultsection = GLMod_TD_Section(advtexturedesc, "default");
 	}
 }
-void GLMod_LoadAdvancedTextureSection(char *section, char *name, int *base, int *norm, int *luma, int *alphamode, qboolean *cull) //fixme: add gloss
+void GLMod_LoadAdvancedTextureSection(char *section, char *name, int *base, int *norm, int *luma, int *gloss, int *alphamode, qboolean *cull) //fixme: add gloss
 {
 	char stdname[MAX_QPATH] = "";
 	char flatname[MAX_QPATH] = "";
 	char bumpname[MAX_QPATH] = "";
 	char normname[MAX_QPATH] = "";
 	char lumaname[MAX_QPATH] = "";
+	char glossname[MAX_QPATH] = "";
 
 	section = GLMod_TD_Section(section, name);
 
@@ -771,22 +774,29 @@ void GLMod_LoadAdvancedTextureSection(char *section, char *name, int *base, int 
 			section = COM_ParseToken(section);
 			Q_strncpyz(stdname, com_token, sizeof(stdname));
 		}
-		else if (!stricmp(com_token, "flatmap") || !stricmp(com_token, "diffuse"))
+		else if (!stricmp(com_token, "flatmap") || !stricmp(com_token, "flat")
+			|| !stricmp(com_token, "diffusemap") || !stricmp(com_token, "diffuse"))
 		{
 			section = COM_ParseToken(section);
 			Q_strncpyz(flatname, com_token, sizeof(flatname));
 		}
-		else if (!stricmp(com_token, "bumpmap"))
+		else if (!stricmp(com_token, "bumpmap") || !stricmp(com_token, "bump"))
 		{
 			section = COM_ParseToken(section);
 			Q_strncpyz(bumpname, com_token, sizeof(bumpname));
 		}
-		else if (!stricmp(com_token, "normalmap"))
+		else if (!stricmp(com_token, "normalmap") || !stricmp(com_token, "normal"))
 		{
 			section = COM_ParseToken(section);
 			Q_strncpyz(normname, com_token, sizeof(normname));
 		}
-		else if (!stricmp(com_token, "luma") || !stricmp(com_token, "glow"))
+		else if (!stricmp(com_token, "glossmap") || !stricmp(com_token, "gloss"))
+		{
+			section = COM_ParseToken(section);
+			Q_strncpyz(glossname, com_token, sizeof(glossname));
+		}
+		else if (!stricmp(com_token, "luma") || !stricmp(com_token, "glow")
+			|| !stricmp(com_token, "ambient") || !stricmp(com_token, "ambientmap"))
 		{
 			section = COM_ParseToken(section);
 			Q_strncpyz(lumaname, com_token, sizeof(lumaname));
@@ -806,6 +816,8 @@ void GLMod_LoadAdvancedTextureSection(char *section, char *name, int *base, int 
 		*norm = 0;
 	if (luma)
 		*luma = 0;
+	if (gloss)
+		*gloss = 0;
 
 	if (!*stdname && !*flatname)
 		return;
@@ -834,21 +846,24 @@ void GLMod_LoadAdvancedTextureSection(char *section, char *name, int *base, int 
 		*base = Mod_LoadHiResTexture(flatname, true, false, true);
 	if (luma && *lumaname)
 		*luma = Mod_LoadHiResTexture(lumaname, true, true, true);
+
+	if (*norm && gloss && *glossname && gl_specular.value)
+		*gloss = Mod_LoadHiResTexture(glossname, true, false, true);
 }
 
-void GLMod_LoadAdvancedTexture(char *name, int *base, int *norm, int *luma, int *alphamode, qboolean *cull)	//fixme: add gloss
+void GLMod_LoadAdvancedTexture(char *name, int *base, int *norm, int *luma, int *gloss, int *alphamode, qboolean *cull)	//fixme: add gloss
 {
 	if (!gl_load24bit.value)
 		return;
 
 	if (mapsection)
 	{
-		GLMod_LoadAdvancedTextureSection(mapsection, name,base,norm,luma,alphamode,cull);
+		GLMod_LoadAdvancedTextureSection(mapsection, name,base,norm,luma,gloss,alphamode,cull);
 		if (*base)
 			return;
 	}
 	if (defaultsection)
-		GLMod_LoadAdvancedTextureSection(defaultsection, name,base,norm,luma,alphamode,cull);
+		GLMod_LoadAdvancedTextureSection(defaultsection, name,base,norm,luma,gloss,alphamode,cull);
 }
 
 /*
@@ -870,7 +885,7 @@ void GLMod_LoadTextures (lump_t *l)
 	qbyte *base;
 
 	GLMod_InitTextureDescs(loadname);
-	
+
 	if (!l->filelen)
 	{
 		loadmodel->textures = NULL;
@@ -927,7 +942,8 @@ void GLMod_LoadTextures (lump_t *l)
 			if (!R_AddBulleten(tx))
 #endif
 		{
-			GLMod_LoadAdvancedTexture(tx->name, &tx->gl_texturenum, &tx->gl_texturenumbumpmap, &tx->gl_texturenumfb, NULL, NULL);
+			tx->gl_texturenum = 0;
+			GLMod_LoadAdvancedTexture(tx->name, &tx->gl_texturenum, &tx->gl_texturenumbumpmap, &tx->gl_texturenumfb, &tx->gl_texturenumspec, NULL, NULL);
 			if (tx->gl_texturenum)
 				continue;
 
@@ -953,9 +969,9 @@ void GLMod_LoadTextures (lump_t *l)
 
 				if (r_fb_bmodels.value)
 				{
+					_snprintf(altname, sizeof(altname)-1, "%s_luma", mt->name);
 					if (gl_load24bit.value && r_fb_bmodels.value)
 					{
-						_snprintf(altname, sizeof(altname)-1, "%s_luma", mt->name);
 						tx->gl_texturenumfb = Mod_LoadReplacementTexture(altname, true, false);
 					}
 					if (!tx->gl_texturenumfb)	//generate one (if possible).

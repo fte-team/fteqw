@@ -113,7 +113,7 @@ void *Hash_AddKey(hashtable_t *table, int key, void *data)
 	buck = qccHunkAlloc(sizeof(bucket_t));
 
 	buck->data = data;
-	(int)buck->keystring = key;
+	buck->keystring = (char*)key;
 	buck->next = table->bucket[bucknum];
 	table->bucket[bucknum] = buck;
 
@@ -125,7 +125,7 @@ void *Hash_AddKey2(hashtable_t *table, int key, void *data, bucket_t *buck)
 	int bucknum = key%table->numbuckets;
 
 	buck->data = data;
-	(int)buck->keystring = key;
+	buck->keystring = (char*)key;
 	buck->next = table->bucket[bucknum];
 	table->bucket[bucknum] = buck;
 

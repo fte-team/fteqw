@@ -29,11 +29,11 @@ W32LDFLAGS=
 RELEASELDFLAGS=-s
 
 
-BASE_CFLAGS=-Wall -I$(CLIENT_DIR) -I$(COMMON_DIR) -I$(SW_DIR) -I$(GL_DIR) -I$(SERVER_DIR) -I$(PROGS_DIR) -I$(DXSDK_DIR)/include -DWEBSVCL -DDYNAMIC_ENTS -D_WIN32
+BASE_CFLAGS=-Wall -I$(CLIENT_DIR) -I$(COMMON_DIR) -I$(SW_DIR) -I$(GL_DIR) -I$(SERVER_DIR) -I$(PROGS_DIR) -I$(DXSDK_DIR)/include -DWEBSVCL -D_WIN32
 CLIENT_ONLY_CFLAGS=$(BASE_CFLAGS) -DCLIENTONLY
 SERVER_ONLY_CFLAGS=$(BASE_CFLAGS) -DSERVERONLY
 JOINT_CFLAGS=$(BASE_CFLAGS)
-DEBUG_CFLAGS=-g -ggdb
+DEBUG_CFLAGS=-g -ggdb -DZQUAKETEAMPLAY
 RELEASE_CFLAGS=-O6 -s -fno-strict-aliasing -ffast-math -funroll-loops -fexpensive-optimizations $(CPUOPTIMIZATIONS)
 GLCFLAGS=
 
@@ -47,6 +47,7 @@ NQPROT_OBJS = \
 CLIENT_OBJS = \
 	$(OUT_DIR)/textedit.o	\
 	$(OUT_DIR)/teamplay.o	\
+	$(OUT_DIR)/zqtp.o		\
 	$(OUT_DIR)/cl_demo.o	\
 	$(OUT_DIR)/cl_ents.o	\
 	$(OUT_DIR)/clq2_ents.o	\
@@ -592,6 +593,10 @@ $(OUT_DIR)/translate.o :         $(COMMON_DIR)/translate.c
 	$(DO_CC)
 
 $(OUT_DIR)/teamplay.o : $(CLIENT_DIR)/teamplay.c
+	$(DO_CC)
+
+
+$(OUT_DIR)/zqtp.o : $(CLIENT_DIR)/zqtp.c
 	$(DO_CC)
 
 $(OUT_DIR)/cl_main.o :         $(CLIENT_DIR)/cl_main.c

@@ -49,6 +49,8 @@ unsigned char *d_15to8table;
 qboolean inited15to8;
 extern cvar_t crosshair, cl_crossx, cl_crossy, crosshaircolor;
 
+static int filmtexture;
+
 extern cvar_t		gl_nobind;
 extern cvar_t		gl_max_size;
 extern cvar_t		gl_picmip;
@@ -635,7 +637,6 @@ void GLDraw_ReInit (void)
 	extern int		alphaskytexture;
 	extern int skyboxtex[6];
 	extern int	lightmap_textures;
-	extern int filmtexture;
 
 	int maxtexsize;
 
@@ -1740,6 +1741,180 @@ void GL_Set2D (void)
 		}
 	}
 }
+
+
+
+
+
+
+void MediaGL_ShowFrame8bit(qbyte *framedata, int inwidth, int inheight, qbyte *palette)	//bottom up
+{
+	if (!filmtexture)
+	{
+		filmtexture=texture_extension_number;
+		texture_extension_number++;
+	}
+
+	GL_Set2D ();
+
+	GL_Bind(filmtexture);
+	GL_Upload8Pal24(framedata, palette, inwidth, inheight, false, false);	//we may need to rescale the image
+//		glTexImage2D (GL_TEXTURE_2D, 0, 3, roqfilm->width, roqfilm->height, 0, GL_RGBA, GL_UNSIGNED_BYTE, framedata);
+//		glTexParameterf(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, gl_filter_max);
+//		glTexParameterf(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, gl_filter_max);
+
+	glDisable(GL_BLEND);
+	glDisable(GL_ALPHA_TEST);
+	glBegin(GL_QUADS);
+	glTexCoord2f(0, 0);
+	glVertex2f(0, 0);
+	glTexCoord2f(0, 1);
+	glVertex2f(0, vid.height);
+	glTexCoord2f(1, 1);
+	glVertex2f(vid.width, vid.height);
+	glTexCoord2f(1, 0);
+	glVertex2f(vid.width, 0);
+	glEnd();
+	glEnable(GL_ALPHA_TEST);
+
+
+	SCR_SetUpToDrawConsole();
+	if  (scr_con_current)
+	SCR_DrawConsole (false);
+
+	M_Draw(0);
+}
+
+void MediaGL_ShowFrameRGBA_32(qbyte *framedata, int inwidth, int inheight)//top down
+{
+	if (!filmtexture)
+	{
+		filmtexture=texture_extension_number;
+		texture_extension_number++;
+	}
+
+	GL_Set2D ();
+
+	GL_Bind(filmtexture);
+	GL_Upload32("", (unsigned *)framedata, inwidth, inheight, false, false);	//we may need to rescale the image
+
+	glDisable(GL_BLEND);
+	glDisable(GL_ALPHA_TEST);
+	glBegin(GL_QUADS);
+	glTexCoord2f(0, 0);
+	glVertex2f(0, 0);
+	glTexCoord2f(0, 1);
+	glVertex2f(0, vid.height);
+	glTexCoord2f(1, 1);
+	glVertex2f(vid.width, vid.height);
+	glTexCoord2f(1, 0);
+	glVertex2f(vid.width, 0);
+	glEnd();
+	glEnable(GL_ALPHA_TEST);
+
+
+	SCR_SetUpToDrawConsole();
+	if  (scr_con_current)
+	SCR_DrawConsole (false);
+}
+
+
+void MediaGL_ShowFrameBGR_24_Flip(qbyte *framedata, int inwidth, int inheight)
+{
+	//we need these as we resize it as we convert to rgba
+	extern int filmnwidth;
+	extern int filmnheight;
+
+	int y, x;
+
+	int v;
+	unsigned int f, fstep;
+	qbyte *src, *dest;
+	dest = uploadmemorybufferintermediate;
+	//change from bgr bottomup to rgba topdown
+
+	if (inwidth*inheight > sizeofuploadmemorybufferintermediate/4)
+		Sys_Error("MediaGL_ShowFrameBGR_24_Flip: image too big (%i*%i)", inwidth, inheight);
+
+	for (y=1 ; y<=filmnheight ; y++)
+	{
+		v = ((filmnheight - y)*(float)inheight/filmnheight);
+		src = framedata + v*(inwidth*3);
+		{
+			f = 0;
+			fstep = ((inwidth)*0x10000)/filmnwidth;
+
+			for (x=filmnwidth ; x&3 ; x--)	//do the odd ones first. (bigger condition)
+			{
+				*dest++	= src[(f>>16)*3+2];
+				*dest++	= src[(f>>16)*3+1];
+				*dest++	= src[(f>>16)*3+0];
+				*dest++	= 255;
+				f += fstep;
+			}
+			for ( ; x ; x-=4)	//loop through the remaining chunks.
+			{
+				dest[0]		= src[(f>>16)*3+2];
+				dest[1]		= src[(f>>16)*3+1];
+				dest[2]		= src[(f>>16)*3+0];
+				dest[3]		= 255;
+				f += fstep;
+
+				dest[4]		= src[(f>>16)*3+2];
+				dest[5]		= src[(f>>16)*3+1];
+				dest[6]		= src[(f>>16)*3+0];
+				dest[7]		= 255;
+				f += fstep;
+
+				dest[8]		= src[(f>>16)*3+2];
+				dest[9]		= src[(f>>16)*3+1];
+				dest[10]	= src[(f>>16)*3+0];
+				dest[11]	= 255;
+				f += fstep;
+
+				dest[12]	= src[(f>>16)*3+2];
+				dest[13]	= src[(f>>16)*3+1];
+				dest[14]	= src[(f>>16)*3+0];
+				dest[15]	= 255;
+				f += fstep;
+
+				dest += 16;
+			}
+		}
+	}
+
+	if (!filmtexture)
+	{
+		filmtexture=texture_extension_number;
+		texture_extension_number++;
+	}
+
+	GL_Set2D ();
+
+	GL_Bind(filmtexture);
+	GL_Upload32("", (unsigned *)framedata, inwidth, inheight, false, false);	//we may need to rescale the image
+
+	glDisable(GL_BLEND);
+	glDisable(GL_ALPHA_TEST);
+	glBegin(GL_QUADS);
+	glTexCoord2f(0, 0);
+	glVertex2f(0, 0);
+	glTexCoord2f(0, 1);
+	glVertex2f(0, vid.height);
+	glTexCoord2f(1, 1);
+	glVertex2f(vid.width, vid.height);
+	glTexCoord2f(1, 0);
+	glVertex2f(vid.width, 0);
+	glEnd();
+	glEnable(GL_ALPHA_TEST);
+
+
+	SCR_SetUpToDrawConsole();
+	if  (scr_con_current)
+	SCR_DrawConsole (false);
+}
+
+
 
 //====================================================================
 

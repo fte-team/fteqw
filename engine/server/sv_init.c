@@ -463,7 +463,7 @@ void SV_SpawnServer (char *server, char *startspot, qboolean noents, qboolean us
 #ifndef SERVERONLY
 	if (!isDedicated && !qrenderer)
 	{
-		Cmd_ExecuteString("vid_restart\n", RESTRICT_LOCAL);
+		R_RestartRenderer_f();
 	}
 #endif
 

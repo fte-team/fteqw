@@ -816,14 +816,14 @@ void Key_Unbindall_f (void)
 Key_Bind_f
 ===================
 */
-void Key_Bind_f (void)	//FIXME: work with modifiers
+void Key_Bind_f (void)
 {
 	int			i, c, b, modifier;
 	char		cmd[1024];
 	
 	c = Cmd_Argc();
 
-	if (c != 2 && c != 3)
+	if (c < 2)
 	{
 		Con_Printf ("bind <key> [command] : attach a command to a key\n");
 		return;
@@ -841,6 +841,13 @@ void Key_Bind_f (void)	//FIXME: work with modifiers
 			Con_Printf ("\"%s\" = \"%s\"\n", Cmd_Argv(1), keybindings[b][0] );
 		else
 			Con_Printf ("\"%s\" is not bound\n", Cmd_Argv(1) );
+		return;
+	}
+
+	if (c > 3)
+	{
+		Cmd_ShiftArgs(1);
+		Key_SetBinding (b, modifier, Cmd_Args(), Cmd_ExecLevel);
 		return;
 	}
 	

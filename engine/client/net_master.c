@@ -327,7 +327,9 @@ int NET_CheckPollSockets(void)
 		if (*(int *)net_message.data == -1)
 		{
 			int c;
+#ifdef Q2CLIENT
 			char *s;
+#endif
 			MSG_BeginReading ();
 			MSG_ReadLong ();        // skip the -1
 

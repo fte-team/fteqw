@@ -4886,7 +4886,7 @@ void QCC_PR_ParseState (void)
 void QCC_PR_ParseAsm(void)
 {
 QCC_dstatement_t *patch1;
-	int op;
+	int op, p;
 	QCC_def_t *a, *b, *c;
 
 	if (QCC_PR_Check("local"))
@@ -4905,34 +4905,34 @@ QCC_dstatement_t *patch1;
 			{
 				if (pr_opcodes[op].type_a==NULL)
 				{
-					(short)(int)a = (short)pr_immediate._float;
+					p = (short)pr_immediate._float;
 					QCC_PR_Lex();
 					patch1 = &statements[numstatements];
 					QCC_PR_Statement3(&pr_opcodes[op], NULL, NULL, NULL);
-					patch1->a = (short)(int)a;
+					patch1->a = (short)(int)p;
 				}
 				else if (pr_opcodes[op].type_b==NULL)
 				{
 					a = QCC_PR_ParseValue(pr_classtype);
-					(short)(int)b = (short)pr_immediate._float;
+					p = (short)pr_immediate._float;
 					QCC_PR_Lex();
 
 					patch1 = &statements[numstatements];
 					QCC_PR_Statement3(&pr_opcodes[op], a, NULL, NULL);
 
-					patch1->b = (short)(int)b;
+					patch1->b = (short)(int)p;
 				}
 				else
 				{
 					a = QCC_PR_ParseValue(pr_classtype);
 					b = QCC_PR_ParseValue(pr_classtype);
-					(short)(int)c = (short)pr_immediate._float;
+					p = (short)pr_immediate._float;
 					QCC_PR_Lex();
 
 					patch1 = &statements[numstatements];
 					QCC_PR_Statement3(&pr_opcodes[op], a, b, NULL);
 
-					patch1->c = (short)(int)c;
+					patch1->c = (short)(int)p;
 				}
 			}
 			else
@@ -5082,7 +5082,7 @@ void QCC_CompoundJumps(int first, int last)
 			}
 			while (statements[statement].op == OP_GOTO)
 			{
-				(signed)statements[st].a = statement+statements[statement].a - st;
+				*(signed*)&statements[st].a = statement+statements[statement].a - st;
 				statement = st + (signed)statements[st].a;
 				optres_compound_jumps++;
 			}
@@ -5092,7 +5092,7 @@ void QCC_CompoundJumps(int first, int last)
 			statement = st + (signed)statements[st].b;
 			while (statements[statement].op == OP_GOTO)
 			{
-				(signed)statements[st].b = statement+statements[statement].a - st;
+				*(signed*)&statements[st].b = statement+statements[statement].a - st;
 				statement = st + (signed)statements[st].b;
 				optres_compound_jumps++;
 			}
@@ -5102,7 +5102,7 @@ void QCC_CompoundJumps(int first, int last)
 			statement = st + (signed)statements[st].c;
 			while (statements[statement].op == OP_GOTO)
 			{
-				(signed)statements[st].c = statement+statements[statement].a - st;
+				*(signed*)&statements[st].c = statement+statements[statement].a - st;
 				statement = st + (signed)statements[st].c;
 				optres_compound_jumps++;
 			}
@@ -5479,7 +5479,7 @@ QCC_function_t *QCC_PR_ParseImmediateStatements (QCC_type_t *type)
 			{
 				if (!strcmp(pr_gotos[i].name, pr_labels[j].name))
 				{
-					(signed int)statements[pr_gotos[i].statementno].a += pr_labels[j].statementno - pr_gotos[i].statementno;
+					*(signed int*)&statements[pr_gotos[i].statementno].a += pr_labels[j].statementno - pr_gotos[i].statementno;
 					break;
 				}
 			}
@@ -6295,7 +6295,7 @@ void QCC_PR_ParseDefs (char *classname)
 						i>>=1;
 					}
 					if (bits != 1)
-						QCC_PR_ParseWarning(WARN_ENUMFLAGS_NOTBINARY, "enumflags - %i not a binary value", (int)v);
+						QCC_PR_ParseWarning(WARN_ENUMFLAGS_NOTBINARY, "enumflags - value %i not a single bit", (int)v);
 				}
 				QCC_PR_Lex();
 			}

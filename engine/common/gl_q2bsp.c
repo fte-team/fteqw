@@ -1,5 +1,7 @@
 #include "quakedef.h"
+#ifdef RGLQUAKE
 #include "glquake.h"
+#endif
 
 #define MAX_Q3MAP_INDICES 0x80000
 #define	MAX_Q3MAP_VERTEXES	0x80000

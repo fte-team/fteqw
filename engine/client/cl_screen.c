@@ -21,7 +21,9 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 // cl_screen.c -- master for refresh, status bar, console, chat, notify, etc
 
 #include "quakedef.h"
+#ifdef RGLQUAKE
 #include "glquake.h"//would prefer not to have this
+#endif
 
 
 

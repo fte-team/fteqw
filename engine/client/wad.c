@@ -511,11 +511,17 @@ void Mod_ParseInfoFromEntityLump(char *data)	//actually, this should be in the m
 	}
 }
 
+//textures/fred.wad is the DP standard - I wanna go for that one.
+//textures/halfline/fred.wad is what fuhquake can use (yuck). 
+//fred.wad is what half-life supports.
+
+//we only try one download, for textures/fred.wad
+//but we will load wads from the other two paths if we have them locally.
 qboolean Wad_NextDownload (void)
 {
-	char wadname[4096];
+	char wadname[4096+9]="textures/";
 	int i, j, k;
-	
+
 	if (*wads)	//now go about checking the wads
 	{
 		j = 0;
@@ -536,9 +542,12 @@ qboolean Wad_NextDownload (void)
 					k = wads[i];
 					wads[i] = 0;
 					strcpy(wadname, &wads[j]);
-					if (*wadname)
-						if (!CL_CheckOrDownloadFile(wadname, true))
-							return false;
+					if (wadname[9])
+					{
+						if (COM_FCheckExists(wadname+9))	//wad is in root dir, so we don't need to try textures.
+							if (!CL_CheckOrDownloadFile(wadname, true))
+								return false;
+					}
 					wads[i] = k;
 					
 					j = i+1;
@@ -568,9 +577,14 @@ qboolean Wad_NextDownload (void)
 				{
 					k = wads[i];
 					wads[i] = 0;
-					strcpy(wadname, &wads[j]);
-					if (*wadname)
-						W_LoadTextureWadFile (wadname, false);
+					strcpy(wadname+9, &wads[j]);
+					if (wadname[9])
+					{
+						if (COM_FCheckExists(wadname+9))
+							W_LoadTextureWadFile (wadname+9, false);
+						else
+							W_LoadTextureWadFile (wadname, false);
+					}
 					j = i+1;
 					if (!k)
 						break;

@@ -98,7 +98,6 @@ cvar_t	sys_disableWinKeys = {"sys_disableWinKeys", "0"};
 LRESULT CALLBACK LowLevelKeyboardProc (INT nCode, WPARAM wParam, LPARAM lParam)
 {
 	KBDLLHOOKSTRUCT *pkbhs = (KBDLLHOOKSTRUCT *) lParam;
-	BOOL bControlKeyDown = 0;
 	if (ActiveApp)
 	switch (nCode)
 	{

@@ -231,11 +231,7 @@ typedef union eval_s
 
 #define PR_RegisterBuiltin(pf, name, func)					(*pf->RegisterBuiltin)		(pf, name, func)
 
-//#ifdef DYNAMIC_ENTS
 #define NEXT_EDICT(pf,o)		EDICT_NUM(pf, NUM_FOR_EDICT(pf, o)+1)
-/*#else
-#define NEXT_EDICT(pf, o)		(edict_t *)(((char *)o)+ pr_edict_size)
-#endif*/
 #define	RETURN_EDICT(pf, e) (((int *)pr_globals)[OFS_RETURN] = EDICT_TO_PROG(pf, e))
 
 

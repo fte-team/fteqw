@@ -47,7 +47,7 @@
 static qboolean httpserverinitied = false;
 static int	httpserversocket;
 
-typedef enum {HTTP_WAITINGFORREQUEST,HTTP_SENDING,HTTP_RECEIVING} http_mode_t;
+typedef enum {HTTP_WAITINGFORREQUEST,HTTP_SENDING} http_mode_t;
 
 
 
@@ -391,7 +391,7 @@ cont:
 					else if (HTTPmarkup)
 						sprintf(resource, "HTTP/0.9 200 OK\r\n\r\n");
 					else
-						sprintf(resource, "");
+						strcpy(resource, "");
 					msg = resource;
 
 					if (*mode == 'H' || *mode == 'h')

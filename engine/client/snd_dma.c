@@ -173,11 +173,11 @@ void S_Startup (void)
 		for(;;)
 		{
 			sc = Z_Malloc(sizeof(soundcardinfo_t));
-			if (snd_khz.value == 48)
+			if (snd_khz.value >= 45)
 				sc->sn.speed = 48000;
-			else if (snd_khz.value == 44 || snd_khz.value == 44.100)
+			else if (snd_khz.value >= 30)	//set by a slider
 				sc->sn.speed = 44100;
-			else if (snd_khz.value == 22 || snd_khz.value == 22.050)
+			else if (snd_khz.value >= 20)
 				sc->sn.speed = 22050;
 			else
 				sc->sn.speed = 11025;
@@ -197,7 +197,7 @@ void S_Startup (void)
 				break;
 			}
 
-			if (sc->sn.numchannels == 2)
+			if (sc->sn.numchannels < 3)
 			{
 				sc->pitch[0] = 0;
 				sc->pitch[1] = 0;
@@ -206,7 +206,7 @@ void S_Startup (void)
 				sc->yaw[0] = 270;
 				sc->yaw[1] = 90;
 			}
-			else if (sc->sn.numchannels == 4)
+			else if (sc->sn.numchannels < 5)
 			{
 				sc->pitch[0] = 0;
 				sc->pitch[1] = 0;

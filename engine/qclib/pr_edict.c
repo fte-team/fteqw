@@ -91,12 +91,8 @@ struct edict_s *ED_Alloc (progfuncs_t *progfuncs)
 		{
 			if (!e)
 			{
-				if (e)
-					memfree(e);
-#ifdef DYNAMIC_ENTS
-				prinst->edicttable[i] = (struct edict_s *)e = (void*)memalloc(pr_edict_size);
+				prinst->edicttable[i] = *(struct edict_s **)&e = (void*)memalloc(pr_edict_size);
 				e->entnum = i;
-#endif
 			}
 
 			ED_ClearEdict (progfuncs, e);
@@ -118,12 +114,8 @@ struct edict_s *ED_Alloc (progfuncs_t *progfuncs)
 			{
 				if (!e)
 				{
-					if (e)
-						memfree(e);
-	#ifdef DYNAMIC_ENTS
-					prinst->edicttable[i] = (struct edict_s *)e = (void*)memalloc(pr_edict_size);
+					prinst->edicttable[i] = *(struct edict_s **)&e = (void*)memalloc(pr_edict_size);
 					e->entnum = i;
-	#endif
 				}
 
 				ED_ClearEdict (progfuncs, e);
@@ -140,13 +132,13 @@ struct edict_s *ED_Alloc (progfuncs_t *progfuncs)
 		
 	sv_num_edicts++;
 	e = (edictrun_t*)EDICT_NUM(progfuncs, i);
-#ifdef DYNAMIC_ENTS
+
 	if (!e)
 	{
-		prinst->edicttable[i] = (struct edict_s *)e = (void*)memalloc(pr_edict_size);
+		prinst->edicttable[i] = *(struct edict_s **)&e = (void*)memalloc(pr_edict_size);
 		e->entnum = i;
 	}
-#endif
+
 	ED_ClearEdict (progfuncs, e);
 
 	if (externs->entspawn)
@@ -1545,14 +1537,13 @@ int LoadEnts(progfuncs_t *progfuncs, char *file, float killonspawnflags)
 				for (num = 0; num < numents; num++)
 				{
 					ed = (edictrun_t *)EDICT_NUM(progfuncs, num);
-#ifdef DYNAMIC_ENTS
+
 					if (!ed)
 					{
-						prinst->edicttable[num] = (struct edict_s *)ed = (void*)memalloc(pr_edict_size);
+						prinst->edicttable[num] = *(struct edict_s **)&ed = (void*)memalloc(pr_edict_size);
 						ed->entnum = num;
 						ed->isfree = true;
 					}
-#endif
 				}
 			}
 
@@ -1566,21 +1557,20 @@ int LoadEnts(progfuncs_t *progfuncs, char *file, float killonspawnflags)
 			else
 			{
 				ed = (edictrun_t *)EDICT_NUM(progfuncs, num);
-#ifdef DYNAMIC_ENTS
+
 				if (!ed)
 				{
 					Sys_Error("Edict was not allocated\n");
-					prinst->edicttable[num] = (struct edict_s *)ed = (void*)memalloc(pr_edict_size);
+					prinst->edicttable[num] = *(struct edict_s **)&ed = (void*)memalloc(pr_edict_size);
 					ed->entnum = num;
 				}
-#endif
 			}
 			ed->isfree = false;
 			file = ED_ParseEdict(progfuncs, file, ed);
 
 			if (killonspawnflags)
 			{
-				var = GetEdictFieldValue (progfuncs, (struct edict_s *)ed, "spawnflags", &spawnflagscache);
+				var = GetEdictFieldValue (progfuncs, (struct edict_s *)&ed, "spawnflags", &spawnflagscache);
 				if (var)
 				{
 					if ((int)var->_float & (int)killonspawnflags)
@@ -1660,14 +1650,13 @@ int LoadEnts(progfuncs_t *progfuncs, char *file, float killonspawnflags)
 				for (num = 0; num < numents; num++)
 				{
 					ed = (edictrun_t *)EDICT_NUM(progfuncs, num);
-#ifdef DYNAMIC_ENTS
+
 					if (!ed)
 					{
-						prinst->edicttable[num] = (struct edict_s *)ed = (void*)memalloc(pr_edict_size);
+						prinst->edicttable[num] = *(struct edict_s **)&ed = (void*)memalloc(pr_edict_size);
 						ed->entnum = num;
 						ed->isfree = true;
 					}
-#endif
 				}
 			}
 
@@ -1818,14 +1807,13 @@ int LoadEnts(progfuncs_t *progfuncs, char *file, float killonspawnflags)
 				else
 				{
 					ed = (edictrun_t *)EDICT_NUM(progfuncs, numents);
-#ifdef DYNAMIC_ENTS
 					if (!ed)
 					{
-						prinst->edicttable[numents] = (struct edict_s *)ed = (void*)memalloc(pr_edict_size);
+						prinst->edicttable[numents] = *(struct edict_s **)&ed = (void*)memalloc(pr_edict_size);
 						ed->entnum = numents;
 						ed->isfree = true;
 					}
-#endif
+
 					sv_num_edicts = numents;
 					ed->isfree = false;
 					file = ED_ParseEdict (progfuncs, file, ed);
@@ -1842,14 +1830,13 @@ int LoadEnts(progfuncs_t *progfuncs, char *file, float killonspawnflags)
 				for (num = 0; num < numents; num++)
 				{
 					ed = (edictrun_t *)EDICT_NUM(progfuncs, num);
-#ifdef DYNAMIC_ENTS
+
 					if (!ed)
 					{
-						prinst->edicttable[num] = (struct edict_s *)ed = (void*)memalloc(pr_edict_size);
+						prinst->edicttable[num] = *(struct edict_s **)&ed = (void*)memalloc(pr_edict_size);
 						ed->entnum = num;
 						ed->isfree = true;
 					}
-#endif
 				}
 			}
 
@@ -2220,9 +2207,9 @@ retry:
 
 	fnc = pr_functions = (dfunction_t *)((qbyte *)pr_progs + pr_progs->ofs_functions);
 	pr_strings = ((char *)pr_progs + pr_progs->ofs_strings);
-	gd16 = pr_globaldefs16 = (ddef16_t *)((qbyte *)pr_progs + pr_progs->ofs_globaldefs);
-	fld16 = pr_fielddefs16 = (ddef16_t *)((qbyte *)pr_progs + pr_progs->ofs_fielddefs);
-	pr_statements16 = (dstatement16_t *)((qbyte *)pr_progs + pr_progs->ofs_statements);
+	current_progstate->globaldefs = *(void**)&gd16 = (void *)((qbyte *)pr_progs + pr_progs->ofs_globaldefs);
+	current_progstate->fielddefs = *(void**)&fld16 = (void *)((qbyte *)pr_progs + pr_progs->ofs_fielddefs);
+	current_progstate->statements = (void *)((qbyte *)pr_progs + pr_progs->ofs_statements);
 
 	glob = pr_globals = (void *)((qbyte *)pr_progs + pr_progs->ofs_globals);
 
@@ -2252,7 +2239,7 @@ retry:
 			s = PRHunkAlloc(progfuncs, len);
 			QC_decode(progfuncs, LittleLong(*(int *)pr_statements16), len, 2, (char *)(((int *)pr_statements16)+1), s);
 
-			pr_statements16 = (dstatement16_t *)s;
+			current_progstate->statements = (dstatement16_t *)s;
 		}
 		if (pr_progs->blockscompressed & 2)	//global defs
 		{
@@ -2270,7 +2257,7 @@ retry:
 			s = PRHunkAlloc(progfuncs, len);
 			QC_decode(progfuncs, LittleLong(*(int *)pr_globaldefs16), len, 2, (char *)(((int *)pr_globaldefs16)+1), s);
 
-			gd16 = pr_globaldefs16 = (ddef16_t *)s;
+			gd16 = *(ddef16_t**)&current_progstate->globaldefs = (ddef16_t *)s;
 		}
 		if (pr_progs->blockscompressed & 4)	//fields
 		{
@@ -2288,7 +2275,7 @@ retry:
 			s = PRHunkAlloc(progfuncs, len);
 			QC_decode(progfuncs, LittleLong(*(int *)pr_fielddefs16), len, 2, (char *)(((int *)pr_fielddefs16)+1), s);
 
-			pr_fielddefs16 = (ddef16_t *)s;
+			*(ddef16_t**)&current_progstate->fielddefs = (ddef16_t *)s;
 		}
 		if (pr_progs->blockscompressed & 8)	//functions
 		{
@@ -2312,7 +2299,7 @@ retry:
 			s = PRHunkAlloc(progfuncs, len);
 			QC_decode(progfuncs, LittleLong(*(int *)pr_globals), len, 2, (char *)(((int *)pr_globals)+1), s);
 
-			glob = pr_globals = (float *)s;
+			glob = current_progstate->globals = (float *)s;
 		}
 		if (pr_progs->ofslinenums && pr_progs->blockscompressed & 64)	//line numbers
 		{
@@ -2334,7 +2321,7 @@ retry:
 
 	pr_functions = fnc;
 //	pr_strings = ((char *)pr_progs + pr_progs->ofs_strings);
-	gd16 = pr_globaldefs16 = (ddef16_t *)((qbyte *)pr_progs + pr_progs->ofs_globaldefs);
+	gd16 = *(ddef16_t**)&current_progstate->globaldefs = (ddef16_t *)((qbyte *)pr_progs + pr_progs->ofs_globaldefs);
 	fld16 = (ddef16_t *)((qbyte *)pr_progs + pr_progs->ofs_fielddefs);
 //	pr_statements16 = (dstatement16_t *)((qbyte *)pr_progs + pr_progs->ofs_statements);
 	pr_globals = glob;
@@ -2371,14 +2358,14 @@ retry:
 					if (!strncmp(fnc[i].s_name+4, eb->name+1, strlen(eb->name+1)))
 					{
 						fnc[i].first_statement = -0x7fffffff;
-						(void*)fnc[i].profile = (void*)eb->func;
+						*(void**)&fnc[i].profile = (void*)eb->func;
 						break;
 					}
 				}
 				else if (!strcmp(fnc[i].s_name+4, eb->name))
 				{
 					fnc[i].first_statement = -0x7fffffff;
-					(void*)fnc[i].profile = (void*)eb->func;
+					*(void**)&fnc[i].profile = (void*)eb->func;
 					break;
 				}
 			}
@@ -2655,7 +2642,7 @@ retry:
 						isfriked = false;
 					}
 					else
-						(char *)((int *)glob)[gd16[i].ofs] = NULL;
+						*(char **)&((int *)glob)[gd16[i].ofs] = NULL;
 				}
 				break;
 			case ev_function:
@@ -2718,7 +2705,7 @@ retry:
 					isfriked = false;
 				}
 				else if (isfriked != -1)
-					(char *)((int *)glob)[pr_globaldefs32[i].ofs] = NULL;
+					*(char **)&((int *)glob)[pr_globaldefs32[i].ofs] = NULL;
 
 				break;
 			case ev_function:
@@ -2777,27 +2764,14 @@ struct edict_s *EDICT_NUM(progfuncs_t *progfuncs, int n)
 {
 	if (n < 0 || n >= maxedicts)
 		Sys_Error ("QCLIB: EDICT_NUM: bad number %i", n);
-#ifdef DYNAMIC_ENTS
+
 	return prinst->edicttable[n];
-#else
-	return (struct edict_s *)((qbyte *)sv_edicts+ (n)*pr_edict_size);
-#endif
 }
 
 int NUM_FOR_EDICT(progfuncs_t *progfuncs, struct edict_s *e)
 {
-#ifdef DYNAMIC_ENTS
 	edictrun_t *er = (edictrun_t*)e;
 	if (er->entnum < 0 || er->entnum >= maxedicts)
 		Sys_Error ("QCLIB: NUM_FOR_EDICT: bad pointer (%i)", e);
 	return er->entnum;
-#else
-	int		b;
-	b = (qbyte *)e - (qbyte *)sv_edicts;
-	b = b / pr_edict_size;
-	
-	if (b < 0 || b >= sv_num_edicts)
-		Sys_Error ("QCLIB: NUM_FOR_EDICT: bad pointer (%i)", b);
-	return b;
-#endif
 }

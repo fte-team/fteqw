@@ -186,7 +186,6 @@ char *CL_LocationName(float *pos)
 #define INVIS_CHAR2 138
 #define INVIS_CHAR3 160
 
-#ifdef ZQUAKETEAMPLAY
 /*
 ===============
 CL_Say
@@ -194,63 +193,7 @@ CL_Say
 Handles both say and say_team
 ===============
 */
-void CL_Say (qboolean team)
-{
-	extern cvar_t cl_fakename;
-	char	text[1024], sendtext[1024], *s;
 
-	if (Cmd_Argc() < 2)
-	{
-		if (team)
-			Con_Printf ("%s <text>: send a team message\n", Cmd_Argv(0));
-		return;
-	}
-
-	if (cls.state == ca_disconnected)
-	{
-		Con_Printf ("Can't \"%s\", not connected\n", Cmd_Argv(0));
-		return;
-	}
-
-	MSG_WriteByte (&cls.netchan.message, clc_stringcmd);
-	SZ_Print (&cls.netchan.message, team ? "say_team " : "say ");
-
-	s = TP_ParseMacroString (Cmd_Args());
-	Q_strncpyz (text, TP_ParseFunChars (s, true), sizeof(text));
-
-	sendtext[0] = 0;
-	if (team && !cl.spectator && cl_fakename.string[0] &&
-		!strchr(s, '\x0d') /* explicit $\ in message overrides cl_fakename */)
-	{
-		char buf[1024];
-		Cmd_ExpandString (cl_fakename.string, buf);
-		strcpy (buf, TP_ParseMacroString (buf));
-		Q_snprintfz (sendtext, sizeof(sendtext), "\x0d%s: ", TP_ParseFunChars(buf, true));
-	}
-
-	strlcat (sendtext, text, sizeof(sendtext));
-
-	if (sendtext[0] < 32)
-		SZ_Print (&cls.netchan.message, "\"");	// add quotes so that old servers parse the message correctly
-
-	SZ_Print (&cls.netchan.message, sendtext);
-
-	if (sendtext[0] < 32)
-		SZ_Print (&cls.netchan.message, "\"");	// add quotes so that old servers parse the message correctly
-}
-
-
-void CL_Say_f (void)
-{
-	CL_Say (false);
-}
-
-void CL_SayTeam_f (void)
-{
-	CL_Say (true);
-}
-
-#else
 void CL_Say_f (void)
 {
 	char string[256];
@@ -400,10 +343,16 @@ void CL_Say_f (void)
 	MSG_WriteChar(&cls.netchan.message, '\0');
 }
 
+void TP_Init(void)
+{
+}
+
+void TP_CheckPickupSound(char *s, vec3_t org)
+{
+}
+
+
 #endif
-
-
-
 
 qboolean TP_SoundTrigger(char *message)	//if there is a trigger there, play it. Return true if we found one, stripping off the file (it's neater that way).
 {
@@ -446,14 +395,3 @@ qboolean TP_SoundTrigger(char *message)	//if there is a trigger there, play it. 
 	}
 	return false;
 }
-
-void TP_Init(void)
-{
-}
-
-void TP_CheckPickupSound(char *s, vec3_t org)
-{
-}
-
-
-#endif

@@ -88,6 +88,8 @@ extern qboolean	mouseactive;  // from in_win.c
 static HICON	hIcon;
 extern qboolean vid_isfullscreen;
 
+unsigned short origionalgammaramps[3][256];
+
 #ifdef SWQUAKE
 extern
 #endif
@@ -155,6 +157,7 @@ extern cvar_t		vid_nopageflip;
 extern cvar_t		_vid_wait_override;
 extern cvar_t		vid_stretch_by_2;
 extern cvar_t		_windowed_mouse;
+extern cvar_t		vid_hardwaregamma;
 
 int			window_center_x, window_center_y, window_x, window_y, window_width, window_height;
 RECT		window_rect;
@@ -591,6 +594,9 @@ int GLVID_SetMode (rendererstate_t *info, unsigned char *palette)
 
 	vid.recalc_refdef = 1;
 
+	maindc = GetDC(mainwindow);
+	GetDeviceGammaRamp(maindc, origionalgammaramps);
+
 	if (!VID_AttachGL(info))
 		return false;
 
@@ -819,15 +825,22 @@ void	GLVID_SetPalette (unsigned char *palette)
 	d_8to24rgbtable[255] &= 0xffffff;	// 255 is transparent
 }
 
-BOOL	gammaworks;
+qboolean	gammaworks;
 
 void	GLVID_ShiftPalette (unsigned char *palette)
 {
-//	extern	qbyte ramps[3][256];
+	extern	unsigned short ramps[3][256];
 	
 //	VID_SetPalette (palette);
 
-//	gammaworks = SetDeviceGammaRamp (maindc, ramps);
+	if (vid_hardwaregamma.value)	//this is needed because ATI drivers don't work properly.
+		gammaworks = !!SetDeviceGammaRamp (maindc, ramps);
+	else
+		gammaworks = false;
+	if (!gammaworks)
+	{
+		SetDeviceGammaRamp(maindc, origionalgammaramps);
+	}
 }
 
 
@@ -839,6 +852,8 @@ void VID_SetDefaultMode (void)
 
 void	GLVID_Shutdown (void)
 {
+	SetDeviceGammaRamp(maindc, origionalgammaramps);
+
 	VID_UnSetMode();
 }
 
@@ -1258,7 +1273,8 @@ qboolean GLVID_Init (rendererstate_t *info, unsigned char *palette)
 	vid.maxwarpheight = WARP_HEIGHT;
 	vid.colormap = host_colormap;
 
-	DestroyWindow (hwnd_dialog);
+	if (hwnd_dialog)
+		DestroyWindow (hwnd_dialog);
 
 	Check_Gamma(palette, 0);
 	VID_SetPalette (palette);
@@ -1268,8 +1284,6 @@ qboolean GLVID_Init (rendererstate_t *info, unsigned char *palette)
 		VID_UnSetMode();
 		return false;
 	}
-
-    maindc = GetDC(mainwindow);
 
 	// Check for 3DFX Extensions and initialize them.
 	VID_Init8bitPalette();

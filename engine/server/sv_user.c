@@ -1346,6 +1346,9 @@ Con_DPrintf ("UPLOAD: %d received\n", size);
 
 }
 
+//Use of this function is on name only.
+//Be aware that the maps directory should be restricted based on weather the file was from a pack file
+//this is to preserve copyright - please do not breach due to a bug.
 qboolean SV_AllowDownload (char *name)
 {
 	extern	cvar_t	allow_download;
@@ -1353,28 +1356,64 @@ qboolean SV_AllowDownload (char *name)
 	extern	cvar_t	allow_download_models;
 	extern	cvar_t	allow_download_sounds;
 	extern	cvar_t	allow_download_demos;
-	extern	cvar_t	allow_download_maps, allow_download_anymap;
+	extern	cvar_t	allow_download_maps;
+	extern	cvar_t	allow_download_textures;
+	extern	cvar_t	allow_download_pk3s;
+	extern	cvar_t	allow_download_wads;
 	extern	cvar_t	allow_download_root;
-	extern	int		file_from_pak; // ZOID did file come from pak?
+//	extern	int		file_from_pak; // ZOID did file come from pak?
 
-	if (strstr (name, "..") || !allow_download.value
-		// leading dot is no good
-		|| *name == '.'
-		// leading slash bad as well, must be in subdir
-		|| *name == '/'
-		// next up, skin check
-		|| (strncmp(name, "skins/", 6) == 0 && !allow_download_skins.value)
-		// now models
-		|| (strncmp(name, "progs/", 6) == 0 && !allow_download_models.value)
-		// now sounds
-		|| (strncmp(name, "sound/", 6) == 0 && !allow_download_sounds.value)
-		// now maps (note special case for maps, must not be in pak)
-		|| (strncmp(name, "maps/", 5) == 0 && !(allow_download_maps.value||allow_download_anymap.value))
-		//demos
-		|| (strncmp(name, "demos/", 6) == 0 && !allow_download_demos.value)
-		// MUST be in a subdirectory
-		|| (!strstr (name, "/") && !allow_download_root.value))
+	//allowed at all?
+	if (!allow_download.value)
 		return false;
+
+	//no subdirs?
+	if (strstr (name, ".."))	//no under paths.
+		return false;
+	if (*name == '.')	//relative is pointless
+		return false;
+	if (*name == '/')	//no absolute.
+		return false;
+	if (strchr(name, '\\'))	//no windows paths - grow up lame windows users.
+		return false;
+
+	if (strncmp(name,	"maps/", 5) == 0 && (allow_download_maps.value))
+		return true;
+
+	//skins?
+	if (strncmp(name,	"skins/", 6) == 0 && allow_download_skins.value)
+		return true;
+	//models
+	if ((strncmp(name,	"progs/", 6) == 0||
+		strncmp(name,	"models/", 7) == 0) && allow_download_models.value)
+		return true;
+	//sound
+	if (strncmp(name,	"sound/", 6) == 0 && allow_download_sounds.value)
+		return true;
+	//demos
+	if (strncmp(name,	"demos/", 6) == 0 && allow_download_demos.value)
+		return true;
+
+	//textures
+	if (strncmp(name,	"texures/", 8) == 0 && allow_download_textures.value)
+		return true;
+
+	//wads
+	if (strncmp(name,	"wads/", 5) == 0 && allow_download_wads.value)
+		return true;
+	if (!strcmp(".wad", COM_FileExtension(name)) && allow_download_wads.value)
+		return true;
+
+	//pk3s.
+	if (!strcmp(".pk3", COM_FileExtension(name)) && allow_download_pk3s.value)
+		if (strnicmp(name, "pak", 3))	//don't give out q3 pk3 files.
+			return true;
+
+	//root of gamedir
+	if (strchr(name, '/') && !allow_download_root.value)
+		return false;
+
+	//any other subdirs are allowed
 	return true;
 }
 /*
@@ -3217,6 +3256,7 @@ vec3_t offset;
 
 			VectorCopy (check->v.origin, pe->origin);
 			VectorCopy (check->v.angles, pe->angles);
+			pe->angles[0]*=-1;	//quake is wierd.
 			pe->info = NUM_FOR_EDICT(svprogfuncs, check);
 			if (check->v.solid == SOLID_BSP)
 				pe->model = sv.models[(int)(check->v.modelindex)];

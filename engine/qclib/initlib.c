@@ -68,24 +68,9 @@ int PR_InitEnts(progfuncs_t *progfuncs, int max_ents)
 
 	pr_max_edict_size = pr_edict_size;
 
-#ifdef DYNAMIC_ENTS
 	prinst->edicttable = PRHunkAlloc(progfuncs, maxedicts*sizeof(struct edicts_s *));
 	sv_edicts = PRHunkAlloc(progfuncs, pr_edict_size);
 	prinst->edicttable[0] = sv_edicts;
-	sv_num_edicts = 1;
-#else
-	sv_edicts = PRHunkAlloc(progfuncs, (pr_edict_size) * maxedicts);
-
-	{int a;
-	for (a = 1; a < maxedicts; a++)
-	{
-		((edictrun_t*)EDICT_NUM(progfuncs, a))->isfree = true;
-		((edictrun_t*)EDICT_NUM(progfuncs, a))->freetime = 0;
-	}
-	}
-#endif
-
-
 	sv_num_edicts = 1;
 
 	return pr_edict_size;
@@ -93,10 +78,8 @@ int PR_InitEnts(progfuncs_t *progfuncs, int max_ents)
 char tempedicts[2048];	//used as a safty buffer
 void PR_Configure (progfuncs_t *progfuncs, void *mem, int mem_size, int max_progs)	//can be used to wipe all memory
 {
-#ifdef DYNAMIC_ENTS
 	int i;
 	edictrun_t *e;
-#endif
 
 //	int a;
 	pr_max_edict_size=0;
@@ -105,16 +88,14 @@ void PR_Configure (progfuncs_t *progfuncs, void *mem, int mem_size, int max_prog
 	QC_StartShares(progfuncs);
 	QC_InitShares(progfuncs);
 
-#ifdef DYNAMIC_ENTS
 	for ( i=1 ; i<maxedicts; i++)
 	{
-		(struct edict_s *)e = prinst->edicttable[i];
+		e = (edictrun_t *)(prinst->edicttable[i]);
 		prinst->edicttable[i] = NULL;
 //		e->entnum = i;
 		if (e)
 			memfree(e);
 	}
-#endif
 
 	PRHunkFree(progfuncs, 0);	//clear mem - our hunk may not be a real hunk.
 
@@ -452,17 +433,14 @@ void CloseProgs(progfuncs_t *inst)
 	extensionbuiltin_t *eb;
 	void (VARGS *f) (void *);
 
-#ifdef DYNAMIC_ENTS
 	int i;
 	edictrun_t *e;
-#endif
 
 	f = inst->parms->memfree;
 
-#ifdef DYNAMIC_ENTS
 	for ( i=1 ; i<inst->maxedicts; i++)
 	{
-		(struct edict_s *)e = inst->prinst->edicttable[i];
+		e = (edictrun_t *)(inst->prinst->edicttable[i]);
 		inst->prinst->edicttable[i] = NULL;
 		if (e)
 		{
@@ -470,7 +448,6 @@ void CloseProgs(progfuncs_t *inst)
 			f(e);
 		}
 	}
-#endif
 
 	PRHunkFree(inst, 0);
 	while(inst->prinst->extensionbuiltin)

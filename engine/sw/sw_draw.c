@@ -22,7 +22,9 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 // vid buffer
 
 #include "quakedef.h"
+#ifdef RGLQUAKE
 #include "glquake.h"	//with sw refresh???
+#endif
 #include "d_local.h"	//trans stuff
 
 extern unsigned int *d_8to32table;

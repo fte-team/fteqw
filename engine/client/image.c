@@ -1,5 +1,7 @@
 #include "quakedef.h"
+#ifdef RGLQUAKE
 #include "glquake.h"
+#endif
 
 cvar_t r_dodgytgafiles = {"r_dodgytgafiles", "0"};	//Certain tgas are upside down.
 													//This is due to a bug in tenebrae.
@@ -1474,6 +1476,31 @@ void BoostGamma(qbyte *rgba, int width, int height)
 
 #if defined(RGLQUAKE)
 
+//returns r8g8b8a8
+qbyte *Read32BitImageFile(qbyte *buf, int len, int *width, int *height)
+{
+	qbyte *data;
+	if ((data = ReadTargaFile(buf, len, width, height, false)))
+		return data;
+	
+#ifdef AVAIL_PNGLIB
+	if ((buf[0] == -119 && buf[1] == 'P' && buf[2] == 'N' && buf[3] == 'G') && (data = ReadPNGFile(buf, com_filesize, width, height)))
+		return data;
+#endif
+#ifdef AVAIL_JPEGLIB
+	//jpeg jfif only.
+	if ((buf[0] == 0xff && buf[1] == 0xd8 && buf[2] == 0xff && buf[3] == 0xe0) && (data = ReadJPEGFile(buf, com_filesize, width, height)))
+		return data;
+#endif
+	if ((data = ReadPCXFile(buf, com_filesize, width, height)))		
+		return data;
+
+	if ((buf[0] == 'B' && buf[1] == 'M') && (data = ReadBMPFile(buf, com_filesize, width, height)))
+		return data;
+
+	return NULL;
+}
+
 int GL_LoadTexture8Bump (char *identifier, int width, int height, unsigned char *data, qboolean mipmap);
 
 int image_width, image_height;
@@ -1548,49 +1575,21 @@ int Mod_LoadHiResTexture(char *name, qboolean mipmap, qboolean alpha, qboolean c
 				_snprintf(fname, sizeof(fname)-1, path[i], nicename, extensions[e]);
 			if ((buf = COM_LoadFile (fname, 5)))
 			{
-				if ((data = ReadTargaFile(buf, com_filesize, &image_width, &image_height, false)))
+				if ((data = Read32BitImageFile(buf, com_filesize, &image_width, &image_height)))
 				{
 					BoostGamma(data, image_width, image_height);
 					len = GL_LoadTexture32 (name, image_width, image_height, (unsigned*)data, mipmap, alpha);
 					BZ_Free(data);
-				}
-#ifdef AVAIL_PNGLIB
-				else if ((buf[0] == -119 && buf[1] == 'P' && buf[2] == 'N' && buf[3] == 'G') &&(data = ReadPNGFile(buf, com_filesize, &image_width, &image_height)))
-				{
-					BoostGamma(data, image_width, image_height);
-					len = GL_LoadTexture32 (name, image_width, image_height, (unsigned*)data, mipmap, alpha);
-					BZ_Free(data);
-				}
-#endif
-#ifdef AVAIL_JPEGLIB
-				else if ((data = ReadJPEGFile(buf, com_filesize, &image_width, &image_height)))
-				{
-					BoostGamma(data, image_width, image_height);
-					len = GL_LoadTexture32 (name, image_width, image_height, (unsigned*)data, mipmap, alpha);
-					BZ_Free(data);
-				}
-#endif
-				else if ((data = ReadPCXFile(buf, com_filesize, &image_width, &image_height)))		
-				{
-					BoostGamma(data, image_width, image_height);
-					len = GL_LoadTexture32(name, image_width, image_height, (unsigned*)data, mipmap, alpha);
-					BZ_Free(data);
-				}
-				else if ((buf[0] == 'B' && buf[1] == 'M') && (data = ReadBMPFile(buf, com_filesize, &image_width, &image_height)))
-				{
-					BoostGamma(data, image_width, image_height);
-					len = GL_LoadTexture32(name, image_width, image_height, (unsigned*)data, mipmap, alpha);
-					BZ_Free(data);
+
+					BZ_Free(buf);
+
+					return len;
 				}
 				else
 				{
 					BZ_Free(buf);
 					continue;
 				}
-
-				BZ_Free(buf);
-
-				return len;
 			}
 		}
 	}

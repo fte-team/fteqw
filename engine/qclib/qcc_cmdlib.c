@@ -1,6 +1,7 @@
 // cmdlib.c
 
 #include "qcc.h"
+#include <ctype.h>
 //#include <sys/time.h>
 
 #define PATHSEPERATOR   '/'

@@ -135,15 +135,15 @@ static void R_LerpFrames(mesh_t *mesh, galiaspose_t *p1, galiaspose_t *p2, float
 	int temp;
 	vec3_t *p1v, *p2v;
 	vec3_t *p1n, *p2n;
-	(char *)p1v = (char *)p1 + p1->ofsverts;
-	(char *)p2v = (char *)p2 + p2->ofsverts;
+	p1v = (vec3_t *)((char *)p1 + p1->ofsverts);
+	p2v = (vec3_t *)((char *)p2 + p2->ofsverts);
 
-	(char *)p1n = (char *)p1 + p1->ofsnormals;
-	(char *)p2n = (char *)p2 + p2->ofsnormals;
+	p1n = (vec3_t *)((char *)p1 + p1->ofsnormals);
+	p2n = (vec3_t *)((char *)p2 + p2->ofsnormals);
 
 	if (p1v == p2v || r_nolerp.value)
 	{
-		(char *)mesh->normals_array = (char *)p1 + p1->ofsnormals;
+		mesh->normals_array = (vec3_t*)((char *)p1 + p1->ofsnormals);
 		if (r_nolightdir.value)
 		{
 			for (i = 0; i < mesh->numvertexes; i++)
@@ -375,18 +375,18 @@ static void R_GAliasBuildMesh(mesh_t *mesh, galiasinfo_t *inf, int frame1, int f
 		numTempVertexCoords = inf->numverts;
 	}
 
-	(char *)mesh->indexes = (char *)inf + inf->ofs_indexes;
+	mesh->indexes = (int*)((char *)inf + inf->ofs_indexes);
 	mesh->numindexes = inf->numindexes;
-	(char *)mesh->st_array = (char *)inf + inf->ofs_st_array;
+	mesh->st_array = (vec2_t*)((char *)inf + inf->ofs_st_array);
 	mesh->lmst_array = NULL;
 	mesh->colors_array = tempColours;
 	mesh->normals_array = tempNormals;
 	mesh->xyz_array = tempVertexCoords;
 	mesh->numvertexes = inf->numverts;
-	(char *)mesh->trneighbors = (char *)inf + inf->ofs_trineighbours;
+	mesh->trneighbors = (int *)((char *)inf + inf->ofs_trineighbours);
 
-	(char *)g1 = (char *)inf + inf->groupofs + sizeof(galiasgroup_t)*frame1;
-	(char *)g2 = (char *)inf + inf->groupofs + sizeof(galiasgroup_t)*frame2;
+	g1 = (galiasgroup_t*)((char *)inf + inf->groupofs + sizeof(galiasgroup_t)*frame1);
+	g2 = (galiasgroup_t*)((char *)inf + inf->groupofs + sizeof(galiasgroup_t)*frame2);
 
 	if (g1 == g2)	//lerping within group is only done if not changing group
 	{
@@ -610,7 +610,7 @@ static galiastexnum_t *GL_ChooseSkin(galiasinfo_t *inf, char *modelname, entity_
 		}
 		else
 		{
-			(char *)skins = (char *)inf + inf->ofsskins;
+			skins = (galiasskin_t*)((char *)inf + inf->ofsskins);
 			if (e->skinnum >= 0 && e->skinnum < inf->numskins)
 				skins += e->skinnum;
 
@@ -1283,7 +1283,7 @@ void R_DrawGAliasModelLighting (entity_t *e)
 		GL_DrawMesh(&mesh, NULL, 0, 0);
 
 		if (inf->nextsurf)
-			(char *)inf = (char *)inf + inf->nextsurf;
+			inf = (galiasinfo_t*)((char *)inf + inf->nextsurf);
 		else
 			inf = NULL;
 	}
@@ -1356,7 +1356,7 @@ void R_DrawGAliasShadowVolume(entity_t *e, vec3_t lightpos, float radius)
 		}
 
 		if (inf->nextsurf)
-			(char *)inf = (char *)inf + inf->nextsurf;
+			inf = (galiasinfo_t*)((char *)inf + inf->nextsurf);
 		else
 			inf = NULL;
 	}

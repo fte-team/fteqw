@@ -877,8 +877,8 @@ SV_WriteClientdataToMessage
 */
 void SV_WriteClientdataToMessage (client_t *client, sizebuf_t *msg)
 {
-	int		i;
 #ifdef NQPROT
+	int		i;
 	int bits, items;
 	edict_t	*ent;
 #endif

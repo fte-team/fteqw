@@ -1,6 +1,8 @@
 #include "quakedef.h"
 
+#ifdef RGLQUAKE
 #include "glquake.h"	//overkill
+#endif
 
 #ifndef _WIN32
 #include <unistd.h>

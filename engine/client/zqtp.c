@@ -33,10 +33,11 @@
 #ifdef ZQUAKETEAMPLAY
 
 #include "quakedef.h"
-#include "version.h"
+//#include "version.h"
 #include "sound.h"
 //#include "pmove.h"
 #include <time.h>
+#include <ctype.h>
 
 typedef qboolean qbool;
 
@@ -50,11 +51,13 @@ typedef qboolean qbool;
 #define Q_stricmp stricmp
 #define Q_strnicmp strnicmp
 
-#define isalpha(x) (((x) >= 'a' && (x) <= 'z') || ((x) >= 'A' && (x) <= 'Z'))
+/*#define isalpha(x) (((x) >= 'a' && (x) <= 'z') || ((x) >= 'A' && (x) <= 'Z'))
 #define isdigit(x) ((x) >= '0' && (x) <= '9')
 #define isxdigit(x) (isdigit(x) || ((x) >= 'a' && (x) <= 'f'))
-
+*/
 #define Q_rint(f) ((int)((f)+0.5))
+
+void Cmd_AddMacro(char *s, char *(*f)(void));
 
 #ifndef HAVE_STRLCAT
 size_t strlcat (char *dst, const char *src, size_t size)
@@ -402,19 +405,19 @@ char *Macro_BestAmmo (void)
 	switch (_Macro_BestWeapon())
 	{
 	case IT_SHOTGUN: case IT_SUPER_SHOTGUN: 
-		sprintf(macro_buf, "%i", cl.stats[STAT_SHELLS]);
+		sprintf(macro_buf, "%i", cl.stats[0][STAT_SHELLS]);
 		return macro_buf;
 
 	case IT_NAILGUN: case IT_SUPER_NAILGUN:
-		sprintf(macro_buf, "%i", cl.stats[STAT_NAILS]);
+		sprintf(macro_buf, "%i", cl.stats[0][STAT_NAILS]);
 		return macro_buf;
 
 	case IT_GRENADE_LAUNCHER: case IT_ROCKET_LAUNCHER:
-		sprintf(macro_buf, "%i", cl.stats[STAT_ROCKETS]);
+		sprintf(macro_buf, "%i", cl.stats[0][STAT_ROCKETS]);
 		return macro_buf;
 
 	case IT_LIGHTNING:
-		sprintf(macro_buf, "%i", cl.stats[STAT_CELLS]);
+		sprintf(macro_buf, "%i", cl.stats[0][STAT_CELLS]);
 		return macro_buf;
 
 	default:
@@ -518,7 +521,7 @@ char *Macro_Date (void)
 	ptm = localtime (&t);
 	if (!ptm)
 		return "#bad date#";
-	strftime (macro_buf, sizeof(macro_buf)-1, "%d.%m.%y", ptm);
+	strftime (macro_buf, sizeof(macro_buf)-1, "%d.%m.%Y", ptm);
 	return macro_buf;
 }
 
@@ -1037,7 +1040,7 @@ char *TP_LocationName (vec3_t location)
 	float	dist, mindist;
 	vec3_t	vec;
 	static qbool	recursive;
-	char *buf;
+	static char buf[1024];
 	
 	if (!loc_numentries || (cls.state != ca_active))
 		return tp_name_someplace.string;
@@ -1058,7 +1061,7 @@ char *TP_LocationName (vec3_t location)
 	}
 
 	recursive = true;
-	buf = Cmd_ExpandString (locdata[minnum].name, RESTRICT_LOCAL);
+	Cmd_ExpandString (locdata[minnum].name, buf, sizeof(buf), Cmd_ExecLevel);
 	recursive = false;
 
 	return buf;
@@ -2431,5 +2434,73 @@ void TP_Init (void)
 	Cmd_AddCommand ("tp_took", TP_Took_f);
 	Cmd_AddCommand ("tp_pickup", TP_Pickup_f);
 	Cmd_AddCommand ("tp_point", TP_Point_f);
+
+	TP_InitMacros();
+}
+
+
+
+
+
+
+
+
+
+void CL_Say (qboolean team)
+{
+	extern cvar_t cl_fakename;
+	char	text[1024], sendtext[1024], *s;
+
+	if (Cmd_Argc() < 2)
+	{
+		if (team)
+			Con_Printf ("%s <text>: send a team message\n", Cmd_Argv(0));
+		return;
+	}
+
+	if (cls.state == ca_disconnected)
+	{
+		Con_Printf ("Can't \"%s\", not connected\n", Cmd_Argv(0));
+		return;
+	}
+
+	MSG_WriteByte (&cls.netchan.message, clc_stringcmd);
+	SZ_Print (&cls.netchan.message, team ? "say_team " : "say ");
+
+	s = TP_ParseMacroString (Cmd_Args());
+	Q_strncpyz (text, TP_ParseFunChars (s, true), sizeof(text));
+
+	sendtext[0] = 0;
+	if (team && !cl.spectator && cl_fakename.string[0] &&
+		!strchr(s, '\x0d') /* explicit $\ in message overrides cl_fakename */)
+	{
+		char buf[1024];
+		Cmd_ExpandString (cl_fakename.string, buf, sizeof(buf), Cmd_ExecLevel);
+		strcpy (buf, TP_ParseMacroString (buf));
+		Q_snprintfz (sendtext, sizeof(sendtext), "\x0d%s: ", TP_ParseFunChars(buf, true));
+	}
+
+	strlcat (sendtext, text, sizeof(sendtext));
+
+	if (sendtext[0] < 32)
+		SZ_Print (&cls.netchan.message, "\"");	// add quotes so that old servers parse the message correctly
+
+	SZ_Print (&cls.netchan.message, sendtext);
+
+	if (sendtext[0] < 32)
+		SZ_Print (&cls.netchan.message, "\"");	// add quotes so that old servers parse the message correctly
+}
+
+
+void CL_Say_f (void)
+{
+	CL_Say (false);
+}
+
+void CL_SayTeam_f (void)
+{
+	CL_Say (true);
 }
 #endif
+
+

@@ -56,6 +56,7 @@ the fact that it uses wrapper functions to call methods in a class could be a re
 #define     D3D_OVERLOADS
 #define     RELEASENULL(object) if (object) {object->Release();}
 
+#include    "dxsdk7/include/ddraw.h"
 #include    "dxsdk7/include/d3d.h"
 #include    "dxsdk7/include/d3dx.h"
 

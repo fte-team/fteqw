@@ -154,7 +154,7 @@ typedef unsigned char  CARD8;
 typedef CARD32		BITS32;
 typedef CARD16		BITS16;
 
-#ifndef I_NEED_OS2_H
+#if !defined(I_NEED_OS2_H) && !defined(_WIN32)
 typedef CARD8		BYTE;
 typedef CARD8		BOOL;
 #else

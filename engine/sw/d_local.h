@@ -142,5 +142,12 @@ void D_InitTrans(void);
 #define Trans(p, p2)	(t_curlookupp[p][p2])
 // void Set_TransLevelI(int level);
 void Set_TransLevelF(float level);
+
+
+
+extern qbyte *palxxxto8;
+extern int palmask[3];
+extern int palshift[3];
+
 #endif
 

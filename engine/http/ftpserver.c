@@ -167,7 +167,6 @@ int SendFileNameTo(char *fname, int size, void *socket)
 int FTP_SV_makelistensocket(unsigned long blocking)
 {
 	char name[256];
-	unsigned long _true = true;
 	int sock;
 	struct hostent *hent;
 	
@@ -264,7 +263,6 @@ iwboolean FTP_ServerThinkForConnection(FTPclient_t *cl)
 	struct sockaddr_in	from;
 	int		fromlen;
 	char *msg, *line;
-unsigned long _true = true;
 
 	char mode[64];
 	static char resource[8192];

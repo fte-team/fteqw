@@ -1019,9 +1019,9 @@ strofs = (strofs+3)&~3;
 	for (i=0 ; i<numtypeinfos ; i++)
 	{
 		if (qcc_typeinfo[i].aux_type)
-			(unsigned int)qcc_typeinfo[i].aux_type = qcc_typeinfo[i].aux_type - qcc_typeinfo;
+			qcc_typeinfo[i].aux_type = (QCC_type_t*)(qcc_typeinfo[i].aux_type - qcc_typeinfo);
 		if (qcc_typeinfo[i].next)
-			(unsigned int)qcc_typeinfo[i].next = qcc_typeinfo[i].next - qcc_typeinfo;
+			qcc_typeinfo[i].next = (QCC_type_t*)(qcc_typeinfo[i].next - qcc_typeinfo);
 		qcc_typeinfo[i].name = (char *)QCC_CopyDupBackString(qcc_typeinfo[i].name);
 	}
 
@@ -2182,13 +2182,13 @@ void QCC_PR_CommandLinePrecompilerOptions (void)
 		//optimisations.
 		else if ( !strnicmp(myargv[i], "-O", 2) || !strnicmp(myargv[i], "/O", 2) )
 		{
+			p = 0;
 			if (myargv[i][2] >= '0' && myargv[i][2] <= '3')
 			{
-				p=0;
 			}
 			else if (!strnicmp(myargv[i]+2, "no-", 3))
 			{
-				if (myargv[i][5])
+				if (!myargv[i][5])
 					for (p = 0; optimisations[p].enabled; p++)
 						if ((*optimisations[p].abbrev && !stricmp(myargv[i]+5, optimisations[p].abbrev)) || !stricmp(myargv[i]+5, optimisations[p].fullname))
 						{
@@ -2212,6 +2212,7 @@ void QCC_PR_CommandLinePrecompilerOptions (void)
 		
 		else if ( !strnicmp(myargv[i], "-K", 2) || !strnicmp(myargv[i], "/K", 2) )
 		{
+			p = 0;
 			if (!strnicmp(myargv[i]+2, "no-", 3))
 			{
 				for (p = 0; compiler_flag[p].enabled; p++)
@@ -2236,6 +2237,7 @@ void QCC_PR_CommandLinePrecompilerOptions (void)
 		}
 		else if ( !strnicmp(myargv[i], "-F", 2) || !strnicmp(myargv[i], "/F", 2) )
 		{
+			p = 0;
 			if (!strnicmp(myargv[i]+2, "no-", 3))
 			{
 				for (p = 0; compiler_flag[p].enabled; p++)
@@ -2262,6 +2264,7 @@ void QCC_PR_CommandLinePrecompilerOptions (void)
 
 		else if ( !strncmp(myargv[i], "-T", 2) || !strncmp(myargv[i], "/T", 2) )
 		{
+			p = 0;
 			for (p = 0; targets[p].name; p++)
 				if (!stricmp(myargv[i]+2, targets[p].name))
 				{
@@ -2281,6 +2284,7 @@ void QCC_PR_CommandLinePrecompilerOptions (void)
 				memset(qccwarningdisabled, 1, sizeof(qccwarningdisabled));
 			else
 			{
+				p = 0;
 				if (!strnicmp(myargv[i]+2, "no-", 3))
 				{
 					for (p = 0; warningnames[p].name; p++)

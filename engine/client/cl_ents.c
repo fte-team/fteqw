@@ -1755,6 +1755,7 @@ void CL_SetSolidEntities (void)
 			pmove.physents[pmove.numphysent].model = cl.model_precache[state->modelindex];
 			VectorCopy (state->origin, pmove.physents[pmove.numphysent].origin);
 			VectorCopy (state->angles, pmove.physents[pmove.numphysent].angles);
+			pmove.physents[pmove.numphysent].angles[0]*=-1;
 			if (++pmove.numphysent == MAX_PHYSENTS)
 				break;
 		}

@@ -1882,7 +1882,7 @@ void CL_Download_f (void)
 	}
 
 	strcpy(cls.downloadtempname, cls.downloadname);
-	cls.downloadqw = fopen (cls.downloadname, "wb");
+//	cls.downloadqw = fopen (cls.downloadname, "wb");
 	cls.downloadmethod = DL_QW;
 
 

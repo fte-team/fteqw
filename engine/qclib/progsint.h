@@ -32,8 +32,6 @@ typedef unsigned char qbyte;
 #define PROGSUSED
 #endif
 
-#define DYNAMIC_ENTS
-
 extern int maxedicts;
 extern int maxprogs;
 extern int hunksize;
@@ -412,10 +410,7 @@ var(int, hunksize);
 var(extensionbuiltin_t *, extensionbuiltin);
 #define extensionbuiltin prinst->extensionbuiltin
 
-#ifdef DYNAMIC_ENTS
 	struct edict_s **edicttable;
-#endif
-
 } prinst_t;
 extern vec3_t vec3_origin;
 

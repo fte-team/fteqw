@@ -25,6 +25,8 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 #include "r_local.h"
 #endif
 
+#include "winquake.h"
+
 #ifdef FISH
 void R_RenderView_fisheye(void);
 cvar_t ffov = {"ffov", "160"};
@@ -294,7 +296,8 @@ cvar_t		v_contrast = {"contrast", "1", NULL, CVAR_ARCHIVE};
 qbyte		gammatable[256];	// palette is sent through this
 
 
-qbyte		ramps[3][256];
+unsigned short		ramps[3][256];
+extern qboolean		gammaworks;
 float		v_blend[4];		// rgba 0.0 - 1.0
 /*
 void BuildGammaTable (float g)
@@ -354,7 +357,7 @@ qboolean V_CheckGamma (void)
 		return false;
 	v_oldcontrastvalue = v_contrast.value;
 	v_oldgammavalue = v_gamma.value;
-	
+
 	BuildGammaTable (v_gamma.value, v_contrast.value);
 	vid.recalc_refdef = 1;				// force a surface cache flush
 	
@@ -626,8 +629,8 @@ void GLV_UpdatePalette (void)
 {
 	int		i, j;
 	qboolean	new;
-	qbyte	*basepal, *newpal;
-	qbyte	pal[768];
+//	qbyte	*basepal, *newpal;
+//	qbyte	pal[768];
 	float	r,g,b,a;
 	int		ir, ig, ib;
 	qboolean force;
@@ -687,28 +690,16 @@ void GLV_UpdatePalette (void)
 		if (ib > 255)
 			ib = 255;
 
-		ramps[0][i] = gammatable[ir];
-		ramps[1][i] = gammatable[ig];
-		ramps[2][i] = gammatable[ib];
+		ramps[0][i] = gammatable[ir]<<8;
+		ramps[1][i] = gammatable[ig]<<8;
+		ramps[2][i] = gammatable[ib]<<8;
 	}
 
-	basepal = host_basepal;
-	newpal = pal;
-	
-	for (i=0 ; i<256 ; i++)
+	VID_ShiftPalette (NULL);	
+	if (gammaworks)
 	{
-		ir = basepal[0];
-		ig = basepal[1];
-		ib = basepal[2];
-		basepal += 3;
-		
-		newpal[0] = ramps[0][ir];
-		newpal[1] = ramps[1][ig];
-		newpal[2] = ramps[2][ib];
-		newpal += 3;
+		BuildGammaTable(1,1);
 	}
-
-	VID_ShiftPalette (pal);	
 }
 #endif
 /*

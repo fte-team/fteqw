@@ -299,6 +299,7 @@ static void Stats_LoadFragFile(char *name)
 	char *file;
 	char *end;
 	char *tk, *tz;
+	char oend;
 
 	Stats_Clear();
 
@@ -306,13 +307,17 @@ static void Stats_LoadFragFile(char *name)
 	COM_DefaultExtension(filename, ".dat");
 
 	file = COM_LoadTempFile(filename);
-	if (!file)
+	if (!file || !*file)
 		return;
 
+	oend = 1;
 	for (;;)
 	{
+		if (!oend)
+			break;
 		for (end = file; *end && *end != '\n'; end++)
 			;
+		oend = *end;
 		*end = '\0';
 		if (!*file)
 			break;
@@ -398,9 +403,11 @@ static void Stats_LoadFragFile(char *name)
 
 				Stats_StatMessage(fftype, 0, Cmd_Argv(3), NULL);
 			}
-			else {Con_Printf("Unrecognised directive \"%s\"\n", tk);continue;}
+			else
+			{Con_Printf("Unrecognised directive \"%s\"\n", tk);continue;}
 		}
-		else {Con_Printf("Unrecognised directive \"%s\"\n", tk);continue;}
+		else
+		{Con_Printf("Unrecognised directive \"%s\"\n", tk);continue;}
 	}
 }
 

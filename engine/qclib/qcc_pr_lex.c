@@ -1069,7 +1069,7 @@ float QCC_PR_LexFloat (void)
 		len++;
 		pr_file_p++;
 		c = *pr_file_p;
-	} while ((c >= '0' && c<= '9') || c == '.'&&pr_file_p[1]!='.');
+	} while ((c >= '0' && c<= '9') || (c == '.'&&pr_file_p[1]!='.'));	//only allow a . if the next isn't too...
 	pr_token[len] = 0;
 	return (float)atof (pr_token);
 }

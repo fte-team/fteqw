@@ -57,6 +57,9 @@ extern void	(*R_AddStain)							(vec3_t org, float red, float green, float blue,
 extern void	(*R_LessenStains)						(void);
 extern void	(*R_DrawWaterSurfaces)					(void);
 
+extern void (*Media_ShowFrameBGR_24_Flip)			(qbyte *framedata, int inwidth, int inheight);	//input is bottom up...
+extern void (*Media_ShowFrameRGBA_32)				(qbyte *framedata, int inwidth, int inheight);	//top down
+extern void (*Media_ShowFrame8bit)					(qbyte *framedata, int inwidth, int inheight, qbyte *palette);	//paletted topdown (framedata is 8bit indexes into palette)
 
 extern qboolean	(*VID_Init)							(rendererstate_t *info, unsigned char *palette);
 extern void	(*VID_DeInit)							(void);

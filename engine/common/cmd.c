@@ -80,7 +80,7 @@ void Cmd_AddMacro(char *s, char *(*f)(void))
 	macro_commands[macro_count++].func = f;
 }
 
-char *TP_MacroString (char *s)
+char *TP_MacroString (char *s, int *len)
 {
 	int i;
 	macro_command_t	*macro;
@@ -90,6 +90,8 @@ char *TP_MacroString (char *s)
 		macro = &macro_commands[i];
 		if (!Q_strcasecmp(s, macro->name))
 		{
+			if (len)
+				*len = strlen(macro->name);
 			return macro->func();
 		}
 		macro++;
@@ -1000,8 +1002,7 @@ If not SERVERONLY, also expands $macro expressions
 Note: dest must point to a 1024 byte buffer
 ================
 */
-char *TP_MacroString (char *s);
-void Cmd_ExpandString (char *data, char *dest)
+char *Cmd_ExpandString (char *data, char *dest, int destlen, int maxaccesslevel)
 {
 	unsigned int	c;
 	char	buf[255];
@@ -1009,10 +1010,9 @@ void Cmd_ExpandString (char *data, char *dest)
 	cvar_t	*var, *bestvar;
 	int		quotes = 0;
 	char	*str;
-	int		name_length;
-#ifndef SERVERONLY
-	extern int	macro_length;
-#endif
+	char	*bestmacro;
+	int		name_length, macro_length;
+	qboolean striptrailing;
 
 	len = 0;
 
@@ -1025,10 +1025,14 @@ void Cmd_ExpandString (char *data, char *dest)
 		{
 			data++;
 
+			striptrailing = *data == '-';
+
 			// Copy the text after '$' to a temp buffer
 			i = 0;
 			buf[0] = 0;
 			bestvar = NULL;
+			bestmacro = NULL;
+			macro_length=0;
 			while ((c = *data) > 32)
 			{
 				if (c == '$')
@@ -1036,33 +1040,37 @@ void Cmd_ExpandString (char *data, char *dest)
 				data++;
 				buf[i++] = c;
 				buf[i] = 0;
-				if ( (var = Cvar_FindVar(buf)) != NULL )
-					bestvar = var;
+				if ( (var = Cvar_FindVar(buf+striptrailing)) != NULL )
+				{
+					if (var->restriction <= maxaccesslevel)
+						bestvar = var;
+				}
+#ifdef SERVERONLY
+				if ((str = TP_MacroString (buf+striptrailing, &macro_length)))
+					bestmacro = str;
+#endif
 			}
 
-#ifndef SERVERONLY
-			if (dedicated)
-				str = NULL;
-			else {
-				str = TP_MacroString (buf);
+			if (bestmacro)
+			{
+				str = bestmacro;
 				name_length = macro_length;
 			}
-			if (bestvar && (!str || (strlen(bestvar->name) > macro_length))) {
+			else if (bestvar)
+			{
 				str = bestvar->string;
 				name_length = strlen(bestvar->name);
 			}
-#else
-			if (bestvar) {
-				str = bestvar->string;
-				name_length = strlen(bestvar->name);
-			} else
+			else
+			{
 				str = NULL;
-#endif
+				name_length = 0;
+			}
 
 			if (str)
 			{
 				// check buffer size
-				if (len + strlen(str) >= 1024-1)
+				if (len + strlen(str) >= destlen-1)
 					break;
 
 				strcpy(&dest[len], str);
@@ -1070,12 +1078,16 @@ void Cmd_ExpandString (char *data, char *dest)
 				i = name_length;
 				while (buf[i])
 					dest[len++] = buf[i++];
+
+				if (striptrailing && !*str)
+					while(*data <= ' ' && *data)
+						data++;
 			}
 			else
 			{
 				// no matching cvar or macro
 				dest[len++] = '$';
-				if (len + strlen(buf) >= 1024-1)
+				if (len + strlen(buf) >= destlen-1)
 					break;
 				strcpy (&dest[len], buf);
 				len += strlen(buf);
@@ -1086,12 +1098,14 @@ void Cmd_ExpandString (char *data, char *dest)
 			dest[len] = c;
 			data++;
 			len++;
-			if (len >= 1024-1)
+			if (len >= destlen-1)
 				break;
 		}
 	};
 
 	dest[len] = 0;
+
+	return dest;
 }
 
 #else
@@ -1153,7 +1167,7 @@ char		*Cmd_ExpandString (char *input, int maxaccesslevel)
 				}
 				if (maxaccesslevel == RESTRICT_LOCAL)	//don't expand without full rights. (prevents a few loopholes)
 				{
-					macro = TP_MacroString(name);
+					macro = TP_MacroString(name, NULL);
 					if (macro)
 					{
 						memmove(s+strlen(macro), s+i+1, len-c-i);
@@ -1647,9 +1661,11 @@ void	Cmd_ExecuteString (char *text, int level)
 	cmd_function_t	*cmd;
 	cmdalias_t		*a;
 
+	static char dest[8192];
+
 	Cmd_ExecLevel = level;
 
-	text = Cmd_ExpandString(text, level);
+	text = Cmd_ExpandString(text, dest, sizeof(dest), level);
 	Cmd_TokenizeString (text);
 			
 // execute the command line

@@ -499,7 +499,7 @@ qboolean Netchan_Process (netchan_t *chan)
 //
 	if (reliable_ack == (unsigned)chan->reliable_sequence)
 		chan->reliable_length = 0;	// it has been received
-	
+
 //
 // if this message contains a reliable message, bump incoming_reliable_sequence 
 //

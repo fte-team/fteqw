@@ -34,12 +34,6 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 #define APIENTRY
 #endif
 
-// typedef qbyte pal77[128][128];
-// pal77 *pal777to8;
-qbyte *palxxxto8;
-int palmask[3];
-int palshift[3];
-
 void AddPointToBounds (vec3_t v, vec3_t mins, vec3_t maxs);
 qboolean BoundsIntersect (vec3_t mins1, vec3_t maxs1, vec3_t mins2, vec3_t maxs2);
 void ClearBounds (vec3_t mins, vec3_t maxs);
@@ -257,6 +251,7 @@ void GL_Set2D (void);
 // gl_rmain.c
 //
 qboolean R_CullBox (vec3_t mins, vec3_t maxs);
+qboolean R_CullSphere (vec3_t origin, float radius);
 void R_RotateForEntity (entity_t *e);
 void R_DrawAliasModel (entity_t *e);
 

@@ -2943,7 +2943,6 @@ void PPL_AddLight(dlight_t *dl)
 			}
 		}
 	}
-	glStencilFunc( GL_ALWAYS, 1, ~0 );
 
 	glDisable(GL_BLEND);
 	glTexEnvf(GL_TEXTURE_ENV, GL_TEXTURE_ENV_MODE, GL_REPLACE);
@@ -2997,6 +2996,8 @@ void PPL_AddLight(dlight_t *dl)
 		glClear(GL_STENCIL_BUFFER_BIT);
 		glDisable(GL_CULL_FACE);
 
+		glStencilFunc( GL_ALWAYS, 1, ~0 );
+
 		qglStencilOpSeparateATI(GL_BACK, GL_KEEP, sincrw, GL_KEEP);
 		qglStencilOpSeparateATI(GL_FRONT, GL_KEEP, sdecrw, GL_KEEP);
 		PPL_RecursiveWorldNode(dl);
@@ -3015,12 +3016,13 @@ void PPL_AddLight(dlight_t *dl)
 
 		glEnable(GL_STENCIL_TEST_TWO_SIDE_EXT);
 
-		glCullFace(GL_BACK);
 		qglActiveStencilFaceEXT(GL_BACK);
 		glStencilOp(GL_KEEP, sincrw, GL_KEEP);
+		glStencilFunc( GL_ALWAYS, 1, ~0 );
 
 		qglActiveStencilFaceEXT(GL_FRONT);
 		glStencilOp(GL_KEEP, sdecrw, GL_KEEP);
+		glStencilFunc( GL_ALWAYS, 1, ~0 );
 
 		PPL_RecursiveWorldNode(dl);
 		PPL_DrawShadowMeshes(dl);
@@ -3036,11 +3038,15 @@ void PPL_AddLight(dlight_t *dl)
 		glEnable(GL_CULL_FACE);
 
 		glStencilFunc( GL_EQUAL, 0, ~0 );
+		qglActiveStencilFaceEXT(GL_BACK);
+		glStencilFunc( GL_EQUAL, 0, ~0 );
 	}
 	else //your graphics card sucks and lacks efficient stencil shadow techniques.
 	{	//centered around 0. Will only be increased then decreased less.
 		glClearStencil(0);
 		glClear(GL_STENCIL_BUFFER_BIT);
+
+		glStencilFunc( GL_ALWAYS, 1, ~0 );
 
 		glCullFace(GL_BACK);
 		glStencilOp(GL_KEEP, sincrw, GL_KEEP);
@@ -3085,22 +3091,24 @@ void PPL_DrawWorld (void)
 	dlight_t *l;
 	int i;
 
+	vec3_t mins, maxs;
+
 	int maxshadowlights = gl_maxshadowlights.value;
 
 	if (maxshadowlights < 1)
 		maxshadowlights = 1;
-	if (qglGetError())
-		Con_Printf("GL Error before world\n");
+//	if (qglGetError())
+//		Con_Printf("GL Error before world\n");
 //glColorMask(0,0,0,0);
 	PPL_BaseTextures(cl.worldmodel);
-	if (qglGetError())
-		Con_Printf("GL Error during base textures\n");
+//	if (qglGetError())
+//		Con_Printf("GL Error during base textures\n");
 //glColorMask(1,1,1,1);
 	PPL_BaseEntTextures();
 //	CL_NewDlightRGB(1, r_refdef.vieworg[0], r_refdef.vieworg[1]-16, r_refdef.vieworg[2]-24, 128, 1, 1, 1, 1);
 
-	if (qglGetError())
-		Con_Printf("GL Error on entities\n");
+//	if (qglGetError())
+//		Con_Printf("GL Error on entities\n");
 
 	if (r_shadows.value && glStencilFunc)
 	{
@@ -3114,6 +3122,18 @@ void PPL_DrawWorld (void)
 					continue;	//quick check for darklight
 				if (!maxshadowlights--)
 					break;
+
+				mins[0] = l->origin[0] - l->radius;
+				mins[1] = l->origin[1] - l->radius;
+				mins[2] = l->origin[2] - l->radius;
+				maxs[0] = l->origin[0] + l->radius;
+				maxs[1] = l->origin[1] + l->radius;
+				maxs[2] = l->origin[2] + l->radius;
+				if (R_CullBox(mins, maxs))
+					continue;
+				if (R_CullSphere(l->origin, l->radius))
+					continue;
+
 				l->color[0]*=2.5;
 				l->color[1]*=2.5;
 				l->color[2]*=2.5;
@@ -3130,13 +3150,13 @@ void PPL_DrawWorld (void)
 		glDisableClientState(GL_VERTEX_ARRAY);
 	}
 
-	if (qglGetError())
-		Con_Printf("GL Error on shadow lighting\n");
+//	if (qglGetError())
+//		Con_Printf("GL Error on shadow lighting\n");
 
 	PPL_DrawEntFullBrights();
 
-	if (qglGetError())
-		Con_Printf("GL Error on fullbrights/details\n");
+//	if (qglGetError())
+//		Con_Printf("GL Error on fullbrights/details\n");
 
 //	Con_Printf("%i %i %i\n", shadowsurfcount, shadowedgecount, shadowlightfaces);
 	shadowsurfcount	= 0;

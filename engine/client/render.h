@@ -159,6 +159,9 @@ void GLR_DrawWaterSurfaces (void);
 void GLR_AddStain(vec3_t org, float red, float green, float blue, float radius);
 void GLR_LessenStains(void);
 
+void MediaGL_ShowFrame8bit(qbyte *framedata, int inwidth, int inheight, qbyte *palette);
+void MediaGL_ShowFrameRGBA_32(qbyte *framedata, int inwidth, int inheight);	//top down
+void MediaGL_ShowFrameBGR_24_Flip(qbyte *framedata, int inwidth, int inheight);	//input is bottom up...
 #endif
 
 #if defined(SWQUAKE)
@@ -181,6 +184,10 @@ void SWR_PushDlights (void);
 
 void SWR_AddStain(vec3_t org, float red, float green, float blue, float radius);
 void SWR_LessenStains(void);
+
+void MediaSW_ShowFrame8bit(qbyte *framedata, int inwidth, int inheight, qbyte *palette);
+void MediaSW_ShowFrameRGBA_32(qbyte *framedata, int inwidth, int inheight);	//top down
+void MediaSW_ShowFrameBGR_24_Flip(qbyte *framedata, int inwidth, int inheight);	//input is bottom up...
 #endif
 void R_ParseParticleEffect (void);
 void R_RunParticleEffect (vec3_t org, vec3_t dir, int color, int count);
@@ -257,12 +264,9 @@ void SWMod_NowLoadExternal(void);
 #endif
 
 qboolean Media_ShowFilm(void);
-void Media_ShowFrame(qbyte *framedata, int inwidth, int inheight, qbyte *bgrandupsidedown);
-void Media_ShowFrame8bit(qbyte *framedata, int inwidth, int inheight, qbyte *palette);	//for media playback not based in m_mp3.c    gotta rename that file...
 void Media_CaptureDemoEnd(void);
 void Media_RecordAudioFrame (short *sample_buffer, int samples);
 void Media_RecordFrame (void);
-void MakeVideoPalette(void);
 
 void R_Part_SkyTri(float *v1, float *v2, float *v3, struct msurface_s *surf);
 void R_ClearParticles (void);
@@ -304,6 +308,7 @@ void CL_NewDlightRGB (int key, float x, float y, float z, float radius, float ti
 				   float r, float g, float b);
 
 void Renderer_Init(void);
+void R_RestartRenderer_f (void);//this goes here so we can save some stack when first initing the sw renderer.
 
 //used to live in glquake.h
 qbyte GetPalette(int red, int green, int blue);

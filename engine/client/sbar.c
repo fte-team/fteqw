@@ -1669,8 +1669,9 @@ void Sbar_TeamOverlay (void)
 	scr_copyeverything = 1;
 	scr_fullupdate = 0;
 
-	pic = Draw_CachePic ("gfx/ranking.lmp");
-	Draw_Pic ((vid.width-pic->width)/2, 0, pic);
+	pic = Draw_SafeCachePic ("gfx/ranking.lmp");
+	if (pic)
+		Draw_Pic ((vid.width-pic->width)/2, 0, pic);
 
 	y = 24;
 	x = (vid.width - 320)/2 + 36;

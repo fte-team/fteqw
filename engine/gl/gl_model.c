@@ -1269,22 +1269,33 @@ void GLMod_LoadLighting (lump_t *l)
 	if (r_loadlits.value)
 	{
 		qbyte *litdata = NULL;
-		char litname[MAX_QPATH];		
-		if (!litdata)
+		char *litname;
+		char litnamemaps[MAX_QPATH];
+		char litnamelits[MAX_QPATH];
+		int depthmaps;
+		int depthlits;
+		
 		{							
-			strcpy(litname, loadmodel->name);
-			COM_StripExtension(loadmodel->name, litname);
-			COM_DefaultExtension(litname, ".lit");
-			litdata = COM_LoadHunkFile(litname);
+			strcpy(litnamemaps, loadmodel->name);
+			COM_StripExtension(loadmodel->name, litnamemaps);
+			COM_DefaultExtension(litnamemaps, ".lit");
+			depthmaps = COM_FDepthFile(litnamemaps, false); 
 		}
-		if (!litdata)
 		{
-			strcpy(litname, "lits/");
-			COM_StripExtension(COM_SkipPath(loadmodel->name), litname+5);
-			strcat(litname, ".lit");
-
-			litdata = COM_LoadHunkFile(litname);
+			strcpy(litnamelits, "lits/");
+			COM_StripExtension(COM_SkipPath(loadmodel->name), litnamelits+5);
+			strcat(litnamelits, ".lit");
+			depthlits = COM_FDepthFile(litnamelits, false);
 		}
+
+		if (depthmaps <= depthlits)
+			litname = litnamemaps;	//maps has priority over lits
+		else
+		{
+			litname = litnamelits;
+		}
+
+		litdata = COM_LoadHunkFile(litname);
 		COM_StripExtension(COM_SkipPath(loadmodel->name), litname+5);
 		strcat(litname, ".lit");
 		if (litdata && (litdata[0] == 'Q' && litdata[1] == 'L' && litdata[2] == 'I' && litdata[3] == 'T'))

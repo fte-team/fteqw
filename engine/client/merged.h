@@ -104,6 +104,7 @@ extern void	FNC(Mod_NowLoadExternal)				(void);
 
 extern void	FNC(Mod_Think)							(void);
 extern void	(*Mod_GetTag)							(struct model_s *model, int tagnum, int frame, float **org, float **axis);
+extern int (*Mod_TagNumForName)						(struct model_s *model, char *name);
 
 #undef FNC
 

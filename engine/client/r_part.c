@@ -2928,13 +2928,9 @@ void SWD_DrawParticleBlob(particle_t *p, part_type_t *type)
 void SWD_DrawParticleBeam(beamseg_t *beam, part_type_t *type)
 {
 	int r,g,b;	//if you have a cpu with mmx, good for you...
-	vec3_t v;
-	vec3_t cr;
 	beamseg_t *c;
 	particle_t *p;
 	particle_t *q;
-
-	vec3_t point[4];
 
 //	if (!b->next)
 //		return;

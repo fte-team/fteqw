@@ -1019,7 +1019,7 @@ void SV_WriteClientdataToMessage (client_t *client, sizebuf_t *msg)
 			MSG_WriteByte (msg, ent->v.armorvalue);
 	}
 	if (bits & SU_WEAPON)
-		MSG_WriteByte (msg, SV_ModelIndex(ent->v.weaponmodel));
+		MSG_WriteByte (msg, SV_ModelIndex(ent->v.weaponmodel + svprogfuncs->stringtable));
 	
 	MSG_WriteShort (msg, ent->v.health);
 	MSG_WriteByte (msg, ent->v.currentammo);

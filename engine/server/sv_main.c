@@ -844,33 +844,37 @@ void SVC_GetChallenge (void)
 			buf = va("%c%i", S2C_CHALLENGE, svs.challenges[i].challenge);
 
 		over = buf + strlen(buf) + 1;
-#ifdef PROTOCOL_VERSION_FTE
-		//tell the client what fte extensions we support
-		if (svs.fteprotocolextensions)
-		{
-			lng = LittleLong(PROTOCOL_VERSION_FTE);
-			memcpy(over, &lng, sizeof(int));
-			over+=4;
 
-			lng = LittleLong(svs.fteprotocolextensions);
-			memcpy(over, &lng, sizeof(long));
-			over+=4;
-		}
+		if (svprogfuncs)
+		{
+#ifdef PROTOCOL_VERSION_FTE
+			//tell the client what fte extensions we support
+			if (svs.fteprotocolextensions)
+			{
+				lng = LittleLong(PROTOCOL_VERSION_FTE);
+				memcpy(over, &lng, sizeof(int));
+				over+=4;
+
+				lng = LittleLong(svs.fteprotocolextensions);
+				memcpy(over, &lng, sizeof(long));
+				over+=4;
+			}
 #endif
 
 #ifdef HUFFNETWORK
-		compressioncrc = Huff_PreferedCompressionCRC();
-		if (compressioncrc)
-		{
-			lng = LittleLong((('H'<<0) + ('U'<<8) + ('F'<<16) + ('F' << 24)));
-			memcpy(over, &lng, sizeof(int));
-			over+=4;
+			compressioncrc = Huff_PreferedCompressionCRC();
+			if (compressioncrc)
+			{
+				lng = LittleLong((('H'<<0) + ('U'<<8) + ('F'<<16) + ('F' << 24)));
+				memcpy(over, &lng, sizeof(int));
+				over+=4;
 
-			lng = LittleLong(compressioncrc);
-			memcpy(over, &lng, sizeof(long));
-			over+=4;
-		}
+				lng = LittleLong(compressioncrc);
+				memcpy(over, &lng, sizeof(long));
+				over+=4;
+			}
 #endif
+		}
 		Netchan_OutOfBand(NS_SERVER, net_from, strlen(buf)+1+4+4, buf);
 	}
 

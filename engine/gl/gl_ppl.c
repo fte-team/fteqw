@@ -275,7 +275,7 @@ static void PPL_BaseChain_NoBump_1TMU(msurface_t *first, texture_t *tex)
 	GL_TexEnv(GL_MODULATE);
 
 	if (gl_lightmap_format == GL_LUMINANCE || gl_lightmap_format == GL_RGB)
-		glBlendFunc (GL_ZERO, GL_ONE_MINUS_SRC_COLOR);
+		glBlendFunc (GL_ZERO, GL_SRC_COLOR);
 	else if (gl_lightmap_format == GL_INTENSITY)
 	{
 		GL_TexEnv(GL_MODULATE);
@@ -315,6 +315,8 @@ static void PPL_BaseChain_NoBump_1TMU(msurface_t *first, texture_t *tex)
 		PPL_GenerateArrays(s);
 	}
 	PPL_FlushArrays();
+
+	glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
 }
 
 static void PPL_BaseChain_NoBump_2TMU(msurface_t *s, texture_t *tex)
@@ -2071,9 +2073,9 @@ void PPL_DrawEntLighting(dlight_t *light)
 		switch (currententity->model->type)
 		{
 		case mod_alias:
-//			if (!varrayactive)
-//				R_IBrokeTheArrays();
-//			R_DrawGAliasModelLighting (currententity);
+			if (!varrayactive)
+				R_IBrokeTheArrays();
+			R_DrawGAliasModelLighting (currententity, light->origin, light->color, light->radius);
 			break;
 
 		case mod_brush:
@@ -3200,7 +3202,7 @@ qboolean PPL_ScissorForBox(vec3_t mins, vec3_t maxs)
 			v[1] = (i & 2) ? mins[1] : maxs[1];
 			v[2] = (i & 4) ? mins[2] : maxs[2];
 			v[3] = 1.0f;
-			ML_Project(v, v2, r_refdef.viewangles, r_refdef.vieworg, vid.width/vid.height, r_refdef.fov_y);
+			ML_Project(v, v2, r_refdef.viewangles, r_refdef.vieworg, (float)vid.width/vid.height, r_refdef.fov_y);
 			v2[0]*=r_view_width;
 			v2[1]*=r_view_height;
 //			GL_TransformToScreen(v, v2);
@@ -3379,12 +3381,17 @@ void PPL_AddLight(dlight_t *dl)
 	if (!PPL_VisOverlaps(lvis, vvis))	//The two viewing areas do not intersect.
 		return;
 
+	PPL_EnableVertexArrays();
+
+	glDisable(GL_TEXTURE_2D);
+	glTexEnvf(GL_TEXTURE_ENV, GL_TEXTURE_ENV_MODE, GL_REPLACE);
+//	if (1)
+//		goto noshadows;
+
 	glEnable(GL_SCISSOR_TEST);
 
 
 	glDisable(GL_BLEND);
-	glTexEnvf(GL_TEXTURE_ENV, GL_TEXTURE_ENV_MODE, GL_REPLACE);
-	glDisable(GL_TEXTURE_2D);
 	glColorMask( GL_FALSE, GL_FALSE, GL_FALSE, GL_FALSE );
 	glDepthMask(0);
 
@@ -3403,8 +3410,6 @@ void PPL_AddLight(dlight_t *dl)
 		sdecrw = GL_DECR_WRAP_EXT;
 	}
 //our stencil writes.
-
-	PPL_EnableVertexArrays();
 
 #ifdef _DEBUG
 	if (r_shadows.value == 666)	//testing (visible shadow volumes)
@@ -3506,12 +3511,14 @@ void PPL_AddLight(dlight_t *dl)
 		glStencilFunc( GL_EQUAL, 0, ~0 );
 	}
 //end stencil writing.
+
 	glEnable(GL_DEPTH_TEST);
 	glDepthMask(0);
 	glColorMask( GL_TRUE, GL_TRUE, GL_TRUE, GL_TRUE );
 	glStencilOp( GL_KEEP, GL_KEEP, GL_KEEP );
 	glCullFace(GL_FRONT);
 
+//noshadows:
 	glColor3f(1,1,1);
 
 	glEnable(GL_BLEND);
@@ -3568,7 +3575,7 @@ void PPL_DrawWorld (void)
 //		Con_Printf("GL Error on entities\n");
 
 #ifdef PPL
-	if (r_shadows.value && glStencilFunc)
+	if (r_shadows.value && glStencilFunc && gl_canstencil)
 	{
 		if (cl.worldmodel->fromgame == fg_quake || cl.worldmodel->fromgame == fg_halflife || cl.worldmodel->fromgame == fg_quake2 /*|| cl.worldmodel->fromgame == fg_quake3*/)
 		{
@@ -3635,17 +3642,17 @@ void PPL_DrawWorld (void)
 #endif
 				if(!l->isstatic)
 				{
-					l->color[0]*=2.5;
-					l->color[1]*=2.5;
-					l->color[2]*=2.5;
+					l->color[0]*=10;
+					l->color[1]*=10;
+					l->color[2]*=10;
 				}
 				TRACE(("dbg: calling PPL_AddLight\n"));
 				PPL_AddLight(l);
 				if(!l->isstatic)
 				{
-					l->color[0]/=2.5;
-					l->color[1]/=2.5;
-					l->color[2]/=2.5;
+					l->color[0]/=10;
+					l->color[1]/=10;
+					l->color[2]/=10;
 				}
 			}
 			glEnable(GL_TEXTURE_2D);

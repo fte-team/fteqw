@@ -108,6 +108,9 @@ cvar_t r_particlesdesc = {"r_particlesdesc", "spikeset", NULL, CVAR_LATCH|CVAR_S
 
 cvar_t r_part_rain_quantity = {"r_part_rain_quantity", "1"};
 
+cvar_t r_rockettrail = {"r_rockettrail", "1"};
+cvar_t r_grenadetrail = {"r_grenadetrail", "1"};
+
 cvar_t gl_part_trifansparks = {"gl_part_trifansparks", "0"};
 
 cvar_t r_particle_tracelimit = {"r_particle_tracelimit", "250"};
@@ -774,9 +777,46 @@ void R_DefaultTrail (model_t *model)
 		return;
 
 	if (model->flags & EF_ROCKET)
-		model->particletrail = rt_rocket;//q2 models do this without flags.
+	{
+		switch((int)r_rockettrail.value)
+		{
+		case 0:
+			model->particletrail = AllocateParticleType("t_null");
+			break;
+		case 1:
+		default:
+			model->particletrail = rt_rocket;//q2 models do this without flags.
+			break;
+		case 2:
+			model->particletrail = AllocateParticleType("t_grenade");
+			break;
+		case 3:
+			model->particletrail = AllocateParticleType("t_altrocket");
+			break;
+		case 4:
+			model->particletrail = AllocateParticleType("t_gib");
+			break;
+		case 5:
+			model->particletrail = AllocateParticleType("t_zomgib");
+			break;
+		case 6:
+			model->particletrail = AllocateParticleType("t_tracer");
+			break;
+		case 7:
+			model->particletrail = AllocateParticleType("t_tracer2");
+			break;
+		case 8:
+			model->particletrail = AllocateParticleType("t_tracer3");
+			break;
+		}
+	}
 	else if (model->flags & EF_GRENADE)
-		model->particletrail = AllocateParticleType("t_grenade");
+	{
+		if (r_grenadetrail.value)
+			model->particletrail = AllocateParticleType("t_grenade");
+		else
+			model->particletrail = AllocateParticleType("t_null");
+	}
 	else if (model->flags & EF_GIB)
 		model->particletrail = AllocateParticleType("t_gib");
 	else if (model->flags & EF_TRACER)
@@ -925,6 +965,9 @@ void R_InitParticles (void)
 
 	Cvar_Register(&gl_part_trifansparks, particlecvargroupname);
 	Cvar_Register(&r_particle_tracelimit, particlecvargroupname);
+
+	Cvar_Register(&r_rockettrail, particlecvargroupname);
+	Cvar_Register(&r_grenadetrail, particlecvargroupname);
 
 	pt_explosion		= AllocateParticleType("te_explosion");
 	pt_emp				= AllocateParticleType("te_emp");

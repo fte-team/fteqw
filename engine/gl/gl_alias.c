@@ -250,6 +250,75 @@ static void R_LerpFrames(mesh_t *mesh, galiaspose_t *p1, galiaspose_t *p2, float
 	}
 }
 
+static void R_GAliasAddDlights(mesh_t *mesh, vec3_t org, vec3_t angles)
+{
+	int l, v;
+	vec3_t rel;
+	vec3_t dir;
+	vec3_t axis[3];
+	float dot, d, a, f;
+	AngleVectors(angles, axis[0], axis[1], axis[2]);
+	for (l=0 ; l<MAX_DLIGHTS ; l++)
+	{
+		if (cl_dlights[l].die >= cl.time)
+		{
+			VectorSubtract (cl_dlights[l].origin,
+							org,
+							dir);
+			if (Length(dir)>cl_dlights[l].radius+mesh->radius)	//far out man!
+				continue;
+
+			rel[0] = -DotProduct(dir, axis[0]);
+			rel[1] = DotProduct(dir, axis[1]);	//quake's crazy.
+			rel[2] = -DotProduct(dir, axis[2]);
+/*
+			glBegin(GL_LINES);
+			glVertex3f(0,0,0);
+			glVertex3f(rel[0],rel[1],rel[2]);
+			glEnd();
+*/
+			for (v = 0; v < mesh->numvertexes; v++)
+			{
+				VectorSubtract(mesh->xyz_array[v], rel, dir);
+				dot = DotProduct(dir, mesh->normals_array[v]);
+				if (dot>0)
+				{
+					d = DotProduct(dir, dir);
+					a = 1/d;
+					if (a>0)
+					{
+						a *= 10000000*dot/sqrt(d);
+						f = mesh->colors_array[v][0] + a*cl_dlights[l].color[0];
+						if (f > 255)
+							f = 255;
+						else if (f < 0)
+							f = 0;
+						mesh->colors_array[v][0] = f;
+
+						f = mesh->colors_array[v][1] + a*cl_dlights[l].color[1];
+						if (f > 255)
+							f = 255;
+						else if (f < 0)
+							f = 0;
+						mesh->colors_array[v][1] = f;
+
+						f = mesh->colors_array[v][2] + a*cl_dlights[l].color[2];
+						if (f > 255)
+							f = 255;
+						else if (f < 0)
+							f = 0;
+						mesh->colors_array[v][2] = f;
+					}
+//					else
+//						mesh->colors_array[v][1] =255;
+				}
+//				else
+//					mesh->colors_array[v][2] =255;
+			}
+		}
+	}
+}
+
 static void R_GAliasBuildMesh(mesh_t *mesh, galiasinfo_t *inf, int frame1, int frame2, float lerp, float alpha)
 {
 	galiasgroup_t *g1, *g2;
@@ -703,6 +772,8 @@ void R_DrawGAliasModel (entity_t *e)
 	float entScale;
 	vec3_t lightdir;
 
+	int pervertexdlights = 1;
+
 	float	tmatrix[3][4];
 
 	if (e->flags & Q2RF_VIEWERMODEL && e->keynum == cl.playernum[r_refdef.currentplayernum]+1)
@@ -727,26 +798,32 @@ void R_DrawGAliasModel (entity_t *e)
 		lightdir[2] = 1;
 	}
 
-	for (i=0 ; i<MAX_DLIGHTS ; i++)
+	if (!pervertexdlights)
 	{
-		if (cl_dlights[i].die >= cl.time)
+		for (i=0 ; i<MAX_DLIGHTS ; i++)
 		{
-			VectorSubtract (e->origin,
-							cl_dlights[i].origin,
-							dist);
-			add = cl_dlights[i].radius - Length(dist);
+			if (cl_dlights[i].die >= cl.time)
+			{
+				VectorSubtract (e->origin,
+								cl_dlights[i].origin,
+								dist);
+				add = cl_dlights[i].radius - Length(dist);
 
-			if (add > 0) {
-				add*=5;
-				ambientlight[0] += add * cl_dlights[i].color[0];
-				ambientlight[1] += add * cl_dlights[i].color[1];
-				ambientlight[2] += add * cl_dlights[i].color[2];
-				//ZOID models should be affected by dlights as well
-				shadelight[0] += add * cl_dlights[i].color[0];
-				shadelight[1] += add * cl_dlights[i].color[1];
-				shadelight[2] += add * cl_dlights[i].color[2];
+				if (add > 0) {
+					add*=5;
+					ambientlight[0] += add * cl_dlights[i].color[0];
+					ambientlight[1] += add * cl_dlights[i].color[1];
+					ambientlight[2] += add * cl_dlights[i].color[2];
+					//ZOID models should be affected by dlights as well
+					shadelight[0] += add * cl_dlights[i].color[0];
+					shadelight[1] += add * cl_dlights[i].color[1];
+					shadelight[2] += add * cl_dlights[i].color[2];
+				}
 			}
 		}
+	}
+	else
+	{
 	}
 
 	for (i = 0; i < 3; i++)	//clamp light so it doesn't get vulgar.
@@ -990,6 +1067,8 @@ void R_DrawGAliasModel (entity_t *e)
 	while(inf)
 	{
 		R_GAliasBuildMesh(&mesh, inf, e->frame, e->oldframe, e->lerptime, e->alpha);
+		if (pervertexdlights)
+			R_GAliasAddDlights(&mesh, e->origin, e->angles);
 		skin = GL_ChooseSkin(inf, clmodel->name, e);
 		c_alias_polys += mesh.numindexes/3;
 		if (!skin)

@@ -3997,6 +3997,10 @@ SOURCE=..\common\net_wins.c
 # End Source File
 # Begin Source File
 
+SOURCE=..\common\plugin.c
+# End Source File
+# Begin Source File
+
 SOURCE=..\common\pmove.c
 # End Source File
 # Begin Source File

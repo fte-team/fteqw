@@ -4713,7 +4713,7 @@ void	FloodAreaConnections (void)
 
 }
 
-qboolean	CMQ2_SetAreaPortalState (int portalnum, qboolean open)
+void	CMQ2_SetAreaPortalState (int portalnum, qboolean open)
 {
 	if (mapisq3)
 		Host_Error ("CMQ2_SetAreaPortalState on q3 map");
@@ -4721,11 +4721,11 @@ qboolean	CMQ2_SetAreaPortalState (int portalnum, qboolean open)
 		Host_Error ("areaportal > numareaportals");
 
 	if (portalopen[portalnum] == open)
-		return false;
+		return;
 	portalopen[portalnum] = open;
 	FloodAreaConnections ();
 
-	return true;
+	return;
 }
 
 void	CMQ3_SetAreaPortalState (int area1, int area2, qboolean open)

@@ -389,7 +389,12 @@ void Key_Console (int key)
 		else
 		{	// convert to a chat message
 			if (cls.state >= ca_connected && (strncmp(key_lines[edit_line]+1, "say ", 4)))
-				Cbuf_AddText ("say ", RESTRICT_LOCAL);
+			{
+				if (keydown[K_CTRL])
+					Cbuf_AddText ("say_team ", RESTRICT_LOCAL);
+				else
+					Cbuf_AddText ("say ", RESTRICT_LOCAL);
+			}
 			Cbuf_AddText (key_lines[edit_line]+1, RESTRICT_LOCAL);	// skip the >
 		}
 

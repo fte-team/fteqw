@@ -835,6 +835,7 @@ void R_LoadRTLights(void)
 	char *file;
 	char *end;
 	int i;
+	int style;
 
 	vec3_t org;
 	float radius;
@@ -877,6 +878,9 @@ void R_LoadRTLights(void)
 		file = COM_Parse(file);
 		rgb[2] = atof(com_token);
 
+		file = COM_Parse(file);
+		style = atoi(com_token);
+
 		if (!file)
 			break;
 
@@ -889,6 +893,8 @@ void R_LoadRTLights(void)
 
 		dl->nodynamic = true;
 		dl->noflash = true;
+
+		dl->style = style+1;
 
 		file = end+1;
 	}

@@ -336,8 +336,8 @@ readit:
 		fread (&net_message.cursize, 4, 1, cls.demofile);
 		net_message.cursize = LittleLong (net_message.cursize);
 	//Con_Printf("read: %ld bytes\n", net_message.cursize);
-		if (net_message.cursize > MAX_QWMSGLEN)
-			Sys_Error ("Demo message > MAX_QWMSGLEN");
+		if (net_message.cursize > MAX_OVERALLMSGLEN)
+			Sys_Error ("Demo message > MAX_OVERALLMSGLEN");
 		r = fread (net_message.data, net_message.cursize, 1, cls.demofile);
 		if (r != 1)
 		{
@@ -575,10 +575,11 @@ void CL_Record_f (void)
 {
 	int		c;
 	char	name[MAX_OSPATH];
+	int namelen = sizeof(name);
 	sizebuf_t	buf;
 	char	buf_data[MAX_QWMSGLEN];
 	int n, i, j;
-	char *s;
+	char *s, *p, *fname;
 	entity_t *ent;
 	entity_state_t *es, blankes;
 	player_info_t *player;
@@ -586,7 +587,7 @@ void CL_Record_f (void)
 	int seq = 1;
 
 	c = Cmd_Argc();
-	if (c != 2)
+	if (c > 2)
 	{
 		Con_Printf ("record <demoname>\n");
 		return;
@@ -601,19 +602,103 @@ void CL_Record_f (void)
 	if (cls.demorecording)
 		CL_Stop_f();
   
-	s = Cmd_Argv(1);
-	if (strstr(s, ".."))
+	namelen -= strlen(com_gamedir)+1;
+	if (c == 2)	//user supplied a name
 	{
-		Con_Printf ("Relative paths not allowed.\n");
-		return;
+		fname = Cmd_Argv(1);
 	}
-	sprintf (name, "%s/%s", com_gamedir, s);
+	else
+	{	//automagically generate a name
+
+		if (cl.spectator)
+		{	// FIXME: if tracking a player, use his name
+			fname = va ("spec_%s_%s",
+				TP_PlayerName(),
+				TP_MapName());
+		}
+		else
+		{	// guess game type and write demo name
+			i = TP_CountPlayers();
+			if (cl.teamplay && i >= 3)
+			{	// Teamplay
+				fname = va ("%s_%s_vs_%s_%s",
+					TP_PlayerName(),
+					TP_PlayerTeam(),
+					TP_EnemyTeam(),
+					TP_MapName());
+			}
+			else
+			{
+				if (i == 2)
+				{	// Duel
+					fname = va ("%s_vs_%s_%s",
+						TP_PlayerName(),
+						TP_EnemyName(),
+						TP_MapName());
+				}
+				else if (i > 2)
+				{	// FFA
+					fname = va ("%s_ffa_%s",
+						TP_PlayerName(), 
+						TP_MapName());
+				}
+				else
+				{	// one player
+					fname = va ("%s_%s",
+						TP_PlayerName(),
+						TP_MapName());
+				}
+			}
+		}
+	}
+
+	while(p = strstr(fname, ".."))
+	{
+		p[0] = '_';
+		p[1] = '_';
+	}
+
+	// Make sure the filename doesn't contain illegal characters
+	for (p=fname ; *p ; p++)
+	{
+		char c;
+		*p &= 0x7F;		// strip high bit
+		c = *p;
+		if (c<=' ' || c=='?' || c=='*' || (c!=2&&(c=='\\' || c=='/')) || c==':'
+			|| c=='<' || c=='>' || c=='"' || c=='.')
+			*p = '_';
+	}
+	strncpy(name, va("%s/%s", com_gamedir, fname), sizeof(name)-1-8);
+	name[sizeof(name)-1-8] = '\0';
+
+//make a unique name (unless the user specified it).
+	strcat (name, ".qwd");	//we have the space
+	if (c != 2)
+	{
+		FILE *f;
+
+		f = fopen (name, "rb");
+		if (f)
+		{
+			COM_StripExtension(name, name);
+			p = name + strlen(name);
+			strcat(p, "_XX.qwd");
+			p++;
+			i = 0;
+			do
+			{
+				fclose (f);
+				p[0] = i%100 + '0';
+				p[1] = i%10 + '0';
+				f = fopen (name, "rb");
+				i++;
+			} while (f && i < 100);
+		}
+	}
 
 //
 // open the demo file
 //
-	COM_DefaultExtension (name, ".qwd");
-
 	cls.demofile = fopen (name, "wb");
 	if (!cls.demofile)
 	{

@@ -221,6 +221,8 @@ void SCR_DrawCenterString (int pnum)
 
 	vrect_t rect;
 
+	int telejanostyle = 0;
+
 	if (cl.splitclients)
 		hd = cl.splitclients;
 
@@ -242,6 +244,14 @@ void SCR_DrawCenterString (int pnum)
 
 	y += rect.y;
 
+	if (start[0] == '/')
+	{
+		if (start[1] == 'O')
+			telejanostyle = start[1];
+	}
+	if (telejanostyle)
+		start+=2;
+
 	do      
 	{
 	// scan the width of the line
@@ -258,7 +268,14 @@ void SCR_DrawCenterString (int pnum)
 		x = rect.x + (rect.width - l*8)/2;
 		for (j=0 ; j<l ; j++, x+=8)
 		{
-			Draw_Character (x, y, start[j]);        
+			switch(telejanostyle)
+			{
+			case 'O':
+				Draw_Character (x, y+vid.height/2, start[j]);
+				break;
+			default:
+				Draw_Character (x, y, start[j]);
+			}
 			if (!remaining--)
 				return;
 		}
@@ -452,7 +469,7 @@ void SCR_ShowPic_Create(void)
 	sp->x = MSG_ReadShort();
 	sp->y = MSG_ReadShort();
 
-	CL_CheckOrDownloadFile(sp->picname, false);
+	CL_CheckOrDownloadFile(sp->picname, -1);
 }
 
 void SCR_ShowPic_Hide(void)

@@ -700,7 +700,7 @@ void SV_SaveLevelCache(qboolean dontharmgame)
 	fprintf (f, "%s\n", comment);
 	for (cl = svs.clients, clnum=0; clnum < MAX_CLIENTS; cl++,clnum++)//fake dropping
 	{
-		if (cl->state < cs_spawned && !cl->istobeloaded || dontharmgame)	//don't drop if they are still connecting
+		if ((cl->state < cs_spawned && !cl->istobeloaded) || dontharmgame)	//don't drop if they are still connecting
 		{
 			continue;
 		}

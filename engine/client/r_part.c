@@ -2969,7 +2969,7 @@ void DrawParticleTypes (void texturedparticles(particle_t *,part_type_t*), void 
 						p->vel[1] *= 0.8;
 						p->vel[2] *= 0.8;
 
-						if (!*type->texname && Length(p->vel)<1000*pframetime)
+						if (!*type->texname && Length(p->vel)<1000*pframetime && !ptype->isbeam)
 							p->die = -1;
 					}
 					else

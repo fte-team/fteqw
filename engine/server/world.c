@@ -529,29 +529,40 @@ void SV_LinkEdict (edict_t *ent, qboolean touch_triggers)
 		return;
 
 // set the abs box
-	if (ent->v.solid == SOLID_BSP && 
+/*	if (ent->v.solid == SOLID_BSP && 
 	(ent->v.angles[0] || ent->v.angles[1] || ent->v.angles[2]) )
 	{	// expand for rotation
-		float		max, v;
 		int			i;
 
-		max = 0;
-		for (i=0 ; i<3 ; i++)
+		vec3_t f, r, u;
+		vec3_t mn, mx;
+		
+		//we need to link to the correct leaves
+
+		AngleVectors(ent->v.angles, f,r,u);
+
+		mn[0] = DotProduct(ent->v.mins, f);
+		mn[1] = -DotProduct(ent->v.mins, r);
+		mn[2] = DotProduct(ent->v.mins, u);
+		
+		mx[0] = DotProduct(ent->v.maxs, f);
+		mx[1] = -DotProduct(ent->v.maxs, r);
+		mx[2] = DotProduct(ent->v.maxs, u);
+		for (i = 0; i < 3; i++)
 		{
-			v =fabs( ent->v.mins[i]);
-			if (v > max)
-				max = v;
-			v =fabs( ent->v.maxs[i]);
-			if (v > max)
-				max = v;
-		}
-		for (i=0 ; i<3 ; i++)
-		{
-			ent->v.absmin[i] = ent->v.origin[i] - max;
-			ent->v.absmax[i] = ent->v.origin[i] + max;
+			if (mn[i] < mx[i])
+			{
+				ent->v.absmin[i] = ent->v.origin[i]+mn[i];
+				ent->v.absmax[i] = ent->v.origin[i]+mx[i];
+			}
+			else
+			{	//box went inside out
+				ent->v.absmin[i] = ent->v.origin[i]+mx[i];
+				ent->v.absmax[i] = ent->v.origin[i]+mn[i];
+			}
 		}
 	}
-	else
+	else*/
 	{
 		VectorAdd (ent->v.origin, ent->v.mins, ent->v.absmin);	
 		VectorAdd (ent->v.origin, ent->v.maxs, ent->v.absmax);

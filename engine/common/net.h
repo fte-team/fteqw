@@ -40,8 +40,8 @@ typedef struct
 
 struct sockaddr_qstorage
 {
-	short sa_family;
-	unsigned char sa_pad[6];
+	short dontusesa_family;
+	unsigned char dontusesa_pad[6];
 #if defined(_MSC_VER) || defined(MINGW)
 	__int64 sa_align;
 #else

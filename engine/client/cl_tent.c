@@ -946,7 +946,7 @@ void CL_ParseCustomTEnt(void)
 	clcustomtents_t *t;
 	int type = MSG_ReadByte();
 
-	if (type == 255)
+	if (type == 255)	//255 is register
 	{
 		type = MSG_ReadByte();
 		if (type == 255)

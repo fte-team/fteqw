@@ -192,7 +192,7 @@ void NetadrToSockadr (netadr_t *a, struct sockaddr_qstorage *s)
 
 void SockadrToNetadr (struct sockaddr_qstorage *s, netadr_t *a)
 {
-	switch (s->sa_family)
+	switch (((struct sockaddr*)s)->sa_family)
 	{
 	case AF_INET:
 		a->type = NA_IP;
@@ -453,7 +453,7 @@ qboolean	NET_StringToSockaddr (char *s, struct sockaddr_qstorage *sadr)
 		{
 			return false;
 		}
-		sadr->sa_family = 0;
+		((struct sockaddr*)sadr)->sa_family = 0;
 		for (pos = addrinfo; pos; pos = pos->ai_next)
 		{
 			switch(pos->ai_family)
@@ -470,7 +470,7 @@ qboolean	NET_StringToSockaddr (char *s, struct sockaddr_qstorage *sadr)
 		}
 dblbreak:
 		pfreeaddrinfo (addrinfo);
-		if (!sadr->sa_family)
+		if (!((struct sockaddr*)sadr)->sa_family)
 			return false;
 	}
 	else

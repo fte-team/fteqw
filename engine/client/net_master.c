@@ -234,7 +234,7 @@ void NET_SendPollPacket(int len, void *data, netadr_t to)
 
 	NetadrToSockadr (&to, &addr);
 #ifdef USEIPX
-	if (addr.sa_family == AF_IPX)
+	if (((struct sockaddr*)&addr)->sa_family == AF_IPX)
 	{
 		lastpollsockIPX++;
 		if (lastpollsockIPX>=POLLIPXSOCKETS)

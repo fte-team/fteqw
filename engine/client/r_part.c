@@ -828,7 +828,7 @@ void R_DefaultTrail (model_t *model)
 	else if (model->flags & EF_TRACER3)
 		model->particletrail = AllocateParticleType("t_tracer3");
 
-	else if (model->flags & EF_BLOODSHOT)
+	else if (model->flags & EF_BLOODSHOT)	//these are the hexen2 ones.
 		model->particletrail = AllocateParticleType("t_bloodshot");
 	else if (model->flags & EF_FIREBALL)
 		model->particletrail = AllocateParticleType("t_fireball");

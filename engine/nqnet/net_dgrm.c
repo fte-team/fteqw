@@ -28,7 +28,7 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 #define NET_GAMENAME_QW		"QUAKEWORLD"
 
 // This is enables a simple IP banning mechanism
-#define BAN_TEST
+//#define BAN_TEST
 
 #ifdef BAN_TEST
 #if defined(_WIN32)
@@ -1005,7 +1005,7 @@ static qsocket_t *_Datagram_CheckNewConnections (void)
 
 #ifdef BAN_TEST
 	// check for a ban
-	if (clientaddr.sa_family == AF_INET)
+	if (((struct sockaddr_in*)clientaddr).sa_family == AF_INET)
 	{
 		unsigned long testAddr;
 		testAddr = ((struct sockaddr_in *)&clientaddr)->sin_addr.s_addr;

@@ -554,7 +554,7 @@ static int PartialIPAddress (char *in, struct sockaddr_qstorage *hostaddr)
 	else
 		port = net_hostport;
 
-	hostaddr->sa_family = AF_INET;
+	((struct sockaddr_in *)hostaddr)->sin_family = AF_INET;
 	((struct sockaddr_in *)hostaddr)->sin_port = htons((short)port);	
 	((struct sockaddr_in *)hostaddr)->sin_addr.s_addr = (myAddr & htonl(mask)) | htonl(addr);
 	
@@ -672,7 +672,7 @@ int WINS_StringToAddr (char *string, struct sockaddr_qstorage *addr)
 	sscanf(string, "%d.%d.%d.%d:%d", &ha1, &ha2, &ha3, &ha4, &hp);
 	ipaddr = (ha1 << 24) | (ha2 << 16) | (ha3 << 8) | ha4;
 
-	addr->sa_family = AF_INET;
+	((struct sockaddr_in *)addr)->sin_family = AF_INET;
 	((struct sockaddr_in *)addr)->sin_addr.s_addr = htonl(ipaddr);
 	((struct sockaddr_in *)addr)->sin_port = htons((unsigned short)hp);
 	return 0;
@@ -724,7 +724,7 @@ int WINS_GetAddrFromName(char *name, struct sockaddr_qstorage *addr)
 	if (!hostentry)
 		return -1;
 
-	addr->sa_family = AF_INET;
+	((struct sockaddr_in *)addr)->sin_family = AF_INET;
 	((struct sockaddr_in *)addr)->sin_port = htons((unsigned short)net_hostport);	
 	((struct sockaddr_in *)addr)->sin_addr.s_addr = *(int *)hostentry->h_addr_list[0];
 
@@ -735,7 +735,7 @@ int WINS_GetAddrFromName(char *name, struct sockaddr_qstorage *addr)
 
 int WINS_AddrCompare (struct sockaddr_qstorage *addr1, struct sockaddr_qstorage *addr2)
 {
-	if (addr1->sa_family != addr2->sa_family)
+	if (((struct sockaddr_in *)addr1)->sin_family != ((struct sockaddr_in *)addr2)->sin_family)
 		return -1;
 
 	if (((struct sockaddr_in *)addr1)->sin_addr.s_addr != ((struct sockaddr_in *)addr2)->sin_addr.s_addr)

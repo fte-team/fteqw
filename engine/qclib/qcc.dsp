@@ -164,10 +164,36 @@ SOURCE=.\qcc_pr_lex.c
 # Begin Source File
 
 SOURCE=.\qccgui.c
+
+!IF  "$(CFG)" == "qcc - Win32 Release"
+
+# PROP Exclude_From_Build 1
+
+!ELSEIF  "$(CFG)" == "qcc - Win32 Debug"
+
+!ELSEIF  "$(CFG)" == "qcc - Win32 GUIDebug"
+
+!ELSEIF  "$(CFG)" == "qcc - Win32 GUIRelease"
+
+!ENDIF 
+
 # End Source File
 # Begin Source File
 
 SOURCE=.\qccguistuff.c
+
+!IF  "$(CFG)" == "qcc - Win32 Release"
+
+# PROP Exclude_From_Build 1
+
+!ELSEIF  "$(CFG)" == "qcc - Win32 Debug"
+
+!ELSEIF  "$(CFG)" == "qcc - Win32 GUIDebug"
+
+!ELSEIF  "$(CFG)" == "qcc - Win32 GUIRelease"
+
+!ENDIF 
+
 # End Source File
 # Begin Source File
 

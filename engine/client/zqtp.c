@@ -30,7 +30,7 @@
 
 
 #include "bothdefs.h"
-#ifdef ZQUAKETEAMPLAY
+#if 1 //def ZQUAKETEAMPLAY
 
 #include "quakedef.h"
 //#include "version.h"

@@ -123,7 +123,7 @@ int gl_bumpmappingpossible;
 
 qboolean gl_arb_fragment_program;
 
-
+qboolean gammaworks;	//if the gl drivers can set proper gamma.
 
 
 //int		texture_mode = GL_NEAREST;

@@ -45,6 +45,7 @@ CLIENT_OBJS = \
 	$(OUT_DIR)/textedit.o	\
 	$(OUT_DIR)/fragstats.o	\
 	$(OUT_DIR)/teamplay.o	\
+	$(OUT_DIR)/zqtp.o	\
 	$(OUT_DIR)/cl_demo.o	\
 	$(OUT_DIR)/cl_ents.o	\
 	$(OUT_DIR)/clq2_ents.o	\
@@ -108,9 +109,9 @@ CLIENT_OBJS = \
 #\
 #	$(OUT_DIR)/sys_dosa.o
 SOFTWARE_OBJS = \
-	$(OUT_DIR)/screen.o	\
-	$(OUT_DIR)/draw.o	\
-	$(OUT_DIR)/model.o	\
+	$(OUT_DIR)/sw_screen.o	\
+	$(OUT_DIR)/sw_draw.o	\
+	$(OUT_DIR)/sw_model.o	\
 	$(OUT_DIR)/r_aclip.o	\
 	$(OUT_DIR)/r_aclipa.o	\
 	$(OUT_DIR)/r_alias.o	\
@@ -263,6 +264,7 @@ COMMON_OBJS = \
 	$(OUT_DIR)/pmovetst.o	\
 	$(OUT_DIR)/iwebiface.o	\
 	$(OUT_DIR)/translate.o	\
+	$(OUT_DIR)/plugin.o	\
 	$(OUT_DIR)/q1bsp.o	\
 	$(OUT_DIR)/q2pmove.o
 
@@ -286,103 +288,105 @@ $(OUT_DIR)/x_res.o : $(CLIENT_DIR)/../qux/x_res.c
 $(OUT_DIR)/image.o : $(CLIENT_DIR)/image.c
 	$(DO_CC)
 
-$(OUT_DIR)/screen.o : $(CLIENT_DIR)/screen.c
+$(OUT_DIR)/sw_screen.o : $(SW_DIR)/sw_screen.c
 	$(DO_CC)
-$(OUT_DIR)/draw.o : $(CLIENT_DIR)/draw.c
+$(OUT_DIR)/sw_draw.o : $(SW_DIR)/sw_draw.c
 	$(DO_CC)
-$(OUT_DIR)/model.o : $(CLIENT_DIR)/model.c
+$(OUT_DIR)/sw_model.o : $(SW_DIR)/sw_model.c
 	$(DO_CC)
 
-$(OUT_DIR)/r_main.o : $(CLIENT_DIR)/r_main.c
+$(OUT_DIR)/r_main.o : $(SW_DIR)/r_main.c
 	$(DO_CC)
-$(OUT_DIR)/r_misc.o : $(CLIENT_DIR)/r_misc.c
+$(OUT_DIR)/r_misc.o : $(SW_DIR)/r_misc.c
 	$(DO_CC)
-$(OUT_DIR)/r_draw.o : $(CLIENT_DIR)/r_draw.c
+$(OUT_DIR)/r_draw.o : $(SW_DIR)/r_draw.c
 	$(DO_CC)
-$(OUT_DIR)/r_surf.o : $(CLIENT_DIR)/r_surf.c
+$(OUT_DIR)/r_surf.o : $(SW_DIR)/r_surf.c
 	$(DO_CC)
-$(OUT_DIR)/r_bsp.o : $(CLIENT_DIR)/r_bsp.c
+$(OUT_DIR)/r_bsp.o : $(SW_DIR)/r_bsp.c
 	$(DO_CC)
-$(OUT_DIR)/r_edge.o : $(CLIENT_DIR)/r_edge.c
+$(OUT_DIR)/r_edge.o : $(SW_DIR)/r_edge.c
 	$(DO_CC)
-$(OUT_DIR)/r_drawa.o : $(CLIENT_DIR)/r_drawa.s
+$(OUT_DIR)/r_drawa.o : $(SW_DIR)/r_drawa.s
 	$(DO_AS)
-$(OUT_DIR)/r_edgea.o : $(CLIENT_DIR)/r_edgea.s
+$(OUT_DIR)/r_edgea.o : $(SW_DIR)/r_edgea.s
 	$(DO_AS)
 $(OUT_DIR)/r_efrag.o : $(CLIENT_DIR)/r_efrag.c
 	$(DO_CC)
-$(OUT_DIR)/r_vars.o : $(CLIENT_DIR)/r_vars.c
+$(OUT_DIR)/r_vars.o : $(SW_DIR)/r_vars.c
 	$(DO_CC)
-$(OUT_DIR)/r_varsa.o : $(CLIENT_DIR)/r_varsa.s
+$(OUT_DIR)/r_varsa.o : $(SW_DIR)/r_varsa.s
 	$(DO_AS)
-$(OUT_DIR)/r_light.o : $(CLIENT_DIR)/r_light.c
+$(OUT_DIR)/r_light.o : $(SW_DIR)/r_light.c
 	$(DO_CC)
-$(OUT_DIR)/r_sky.o : $(CLIENT_DIR)/r_sky.c
+$(OUT_DIR)/r_sky.o : $(SW_DIR)/r_sky.c
 	$(DO_CC)
-$(OUT_DIR)/r_sprite.o : $(CLIENT_DIR)/r_sprite.c
+$(OUT_DIR)/r_sprite.o : $(SW_DIR)/r_sprite.c
 	$(DO_CC)
-$(OUT_DIR)/r_aclip.o : $(CLIENT_DIR)/r_aclip.c
+$(OUT_DIR)/r_aclip.o : $(SW_DIR)/r_aclip.c
 	$(DO_CC)
-$(OUT_DIR)/r_aclipa.o : $(CLIENT_DIR)/r_aclipa.s
+$(OUT_DIR)/r_aclipa.o : $(SW_DIR)/r_aclipa.s
 	$(DO_AS)
-$(OUT_DIR)/r_alias.o : $(CLIENT_DIR)/r_alias.c
+$(OUT_DIR)/r_alias.o : $(SW_DIR)/r_alias.c
 	$(DO_CC)
-$(OUT_DIR)/r_aliasa.o : $(CLIENT_DIR)/r_aliasa.s
-	$(DO_AS)
-
-
-$(OUT_DIR)/d_polyse.o : $(CLIENT_DIR)/d_polyse.c
-	$(DO_CC)
-$(OUT_DIR)/d_polysa.o : $(CLIENT_DIR)/d_polysa.s
-	$(DO_AS)
-$(OUT_DIR)/d_scan.o : $(CLIENT_DIR)/d_scan.c
-	$(DO_CC)
-$(OUT_DIR)/d_scana.o : $(CLIENT_DIR)/d_scana.s
-	$(DO_AS)
-$(OUT_DIR)/d_init.o : $(CLIENT_DIR)/d_init.c
-	$(DO_CC)
-$(OUT_DIR)/d_modech.o : $(CLIENT_DIR)/d_modech.c
-	$(DO_CC)
-$(OUT_DIR)/d_sky.o : $(CLIENT_DIR)/d_sky.c
-	$(DO_CC)
-$(OUT_DIR)/d_spr8.o : $(CLIENT_DIR)/d_spr8.s
-	$(DO_AS)
-$(OUT_DIR)/d_sprite.o : $(CLIENT_DIR)/d_sprite.c
-	$(DO_CC)
-$(OUT_DIR)/d_fill.o : $(CLIENT_DIR)/d_fill.c
-	$(DO_CC)
-$(OUT_DIR)/d_edge.o : $(CLIENT_DIR)/d_edge.c
-	$(DO_CC)
-$(OUT_DIR)/d_surf.o : $(CLIENT_DIR)/d_surf.c
-	$(DO_CC)
-$(OUT_DIR)/d_part.o : $(CLIENT_DIR)/d_part.c
-	$(DO_CC)
-$(OUT_DIR)/d_parta.o : $(CLIENT_DIR)/d_parta.s
-	$(DO_AS)
-$(OUT_DIR)/d_trans.o : $(CLIENT_DIR)/d_trans.c
-	$(DO_CC)
-$(OUT_DIR)/d_vars.o : $(CLIENT_DIR)/d_vars.c
-	$(DO_CC)
-$(OUT_DIR)/d_varsa.o : $(CLIENT_DIR)/d_varsa.s
-	$(DO_AS)
-$(OUT_DIR)/d_copy.o : $(CLIENT_DIR)/d_copy.s
-	$(DO_AS)
-$(OUT_DIR)/d_draw.o : $(CLIENT_DIR)/d_draw.s
-	$(DO_AS)
-$(OUT_DIR)/d_draw16.o : $(CLIENT_DIR)/d_draw16.s
-	$(DO_AS)
-$(OUT_DIR)/d_zpoint.o : $(CLIENT_DIR)/d_zpoint.c
-	$(DO_CC)
-
-$(OUT_DIR)/surf16.o : $(CLIENT_DIR)/surf16.s
-	$(DO_AS)
-$(OUT_DIR)/surf8.o : $(CLIENT_DIR)/surf8.s
+$(OUT_DIR)/r_aliasa.o : $(SW_DIR)/r_aliasa.s
 	$(DO_AS)
 
-$(OUT_DIR)/vid_x.o : $(CLIENT_DIR)/vid_x.c
+
+$(OUT_DIR)/d_polyse.o : $(SW_DIR)/d_polyse.c
+	$(DO_CC)
+$(OUT_DIR)/d_polysa.o : $(SW_DIR)/d_polysa.s
+	$(DO_AS)
+$(OUT_DIR)/d_scan.o : $(SW_DIR)/d_scan.c
+	$(DO_CC)
+$(OUT_DIR)/d_scana.o : $(SW_DIR)/d_scana.s
+	$(DO_AS)
+$(OUT_DIR)/d_init.o : $(SW_DIR)/d_init.c
+	$(DO_CC)
+$(OUT_DIR)/d_modech.o : $(SW_DIR)/d_modech.c
+	$(DO_CC)
+$(OUT_DIR)/d_sky.o : $(SW_DIR)/d_sky.c
+	$(DO_CC)
+$(OUT_DIR)/d_spr8.o : $(SW_DIR)/d_spr8.s
+	$(DO_AS)
+$(OUT_DIR)/d_sprite.o : $(SW_DIR)/d_sprite.c
+	$(DO_CC)
+$(OUT_DIR)/d_fill.o : $(SW_DIR)/d_fill.c
+	$(DO_CC)
+$(OUT_DIR)/d_edge.o : $(SW_DIR)/d_edge.c
+	$(DO_CC)
+$(OUT_DIR)/d_surf.o : $(SW_DIR)/d_surf.c
+	$(DO_CC)
+$(OUT_DIR)/d_part.o : $(SW_DIR)/d_part.c
+	$(DO_CC)
+$(OUT_DIR)/d_parta.o : $(SW_DIR)/d_parta.s
+	$(DO_AS)
+$(OUT_DIR)/d_trans.o : $(SW_DIR)/d_trans.c
+	$(DO_CC)
+$(OUT_DIR)/d_vars.o : $(SW_DIR)/d_vars.c
+	$(DO_CC)
+$(OUT_DIR)/d_varsa.o : $(SW_DIR)/d_varsa.s
+	$(DO_AS)
+$(OUT_DIR)/d_copy.o : $(SW_DIR)/d_copy.s
+	$(DO_AS)
+$(OUT_DIR)/d_draw.o : $(SW_DIR)/d_draw.s
+	$(DO_AS)
+$(OUT_DIR)/d_draw16.o : $(SW_DIR)/d_draw16.s
+	$(DO_AS)
+$(OUT_DIR)/d_zpoint.o : $(SW_DIR)/d_zpoint.c
+	$(DO_CC)
+
+$(OUT_DIR)/surf16.o : $(SW_DIR)/surf16.s
+	$(DO_AS)
+$(OUT_DIR)/surf8.o : $(SW_DIR)/surf8.s
+	$(DO_AS)
+
+$(OUT_DIR)/vid_x.o : $(SW_DIR)/vid_x.c
 	$(DO_CC)
 
 $(OUT_DIR)/qvm.o : $(COMMON_DIR)/qvm.c
+	$(DO_CC)
+$(OUT_DIR)/plugin.o : $(COMMON_DIR)/plugin.c
 	$(DO_CC)
 
 
@@ -587,6 +591,9 @@ $(OUT_DIR)/translate.o :         $(COMMON_DIR)/translate.c
 	$(DO_CC)
 
 $(OUT_DIR)/teamplay.o : $(CLIENT_DIR)/teamplay.c
+	$(DO_CC)
+
+$(OUT_DIR)/zqtp.o : $(CLIENT_DIR)/zqtp.c
 	$(DO_CC)
 
 $(OUT_DIR)/cl_main.o :         $(CLIENT_DIR)/cl_main.c

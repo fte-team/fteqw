@@ -7,6 +7,7 @@ pbool fl_hexen2;
 pbool fl_autohighlight;
 pbool fl_compileonstart;
 pbool fl_showall;
+pbool fl_log;
 
 char parameters[16384];
 char progssrcname[256];
@@ -154,6 +155,10 @@ void GUI_ParseCommandLine(char *args)
 		else if (!strnicmp(parameters+paramlen, "-ac", 3) || !strnicmp(parameters+paramlen, "/ac", 3))
 		{
 			fl_compileonstart = true;
+		}
+		else if (!strnicmp(parameters+paramlen, "-log", 4) || !strnicmp(parameters+paramlen, "/log", 4))
+		{
+			fl_log = true;
 		}
 		else if (!strnicmp(parameters+paramlen, "-T", 2) || !strnicmp(parameters+paramlen, "/T", 2))	//the target
 		{

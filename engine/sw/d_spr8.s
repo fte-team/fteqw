@@ -21,6 +21,7 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 // d_spr8.s
 // x86 assembly-language horizontal 8-bpp transparent span-drawing code.
 //
+#define SWQUAKE
 #include "asm_i386.h"
 #include "quakeasm.h"
 #include "asm_draw.h"

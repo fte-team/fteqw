@@ -211,6 +211,10 @@ int Plug_Sys_Error(void *offset, unsigned int mask, const long *arg)
 	Sys_Error("%s", (char*)offset+arg[0]);
 	return 0;
 }
+int Plug_Sys_Milliseconds(void *offset, unsigned int mask, const long *arg)
+{
+	return Sys_DoubleTime()*1000;
+}
 int Plug_ExportToEngine(void *offset, unsigned int mask, const long *arg)
 {
 	char *name = (char*)VM_POINTER(arg[0]);
@@ -550,6 +554,20 @@ int Plug_Draw_Colour4f(void *offset, unsigned int mask, const long *arg)
 	return 0;
 }
 
+int Plug_Media_ShowFrameRGBA_32(void *offset, unsigned int mask, const long *arg)
+{
+	void *src = VM_POINTER(arg[0]);
+	int srcwidth = VM_LONG(arg[1]);
+	int srcheight = VM_LONG(arg[2]);
+	int x = VM_LONG(arg[3]);
+	int y = VM_LONG(arg[4]);
+	int width = VM_LONG(arg[5]);
+	int height = VM_LONG(arg[6]);
+
+	Media_ShowFrameRGBA_32(src, srcwidth, srcheight);
+	return 0;
+}
+
 int Plug_Key_GetKeyCode(void *offset, unsigned int mask, const long *arg)
 {
 	int modifier;
@@ -757,11 +775,303 @@ int Plug_Con_RenameSub(void *offset, unsigned int mask, const long *arg)
 	return 1;
 }
 
+
+#ifdef _WIN32
+#define EWOULDBLOCK	WSAEWOULDBLOCK
+#define EMSGSIZE	WSAEMSGSIZE
+#define ECONNRESET	WSAECONNRESET
+#define ECONNABORTED	WSAECONNABORTED
+#define ECONNREFUSED	WSAECONNREFUSED
+#define EADDRNOTAVAIL	WSAEADDRNOTAVAIL
+
+#define qerrno WSAGetLastError()
+#else
+
+
+#define qerrno errno
+
+#define MSG_PARTIAL 0
+#include <sys/types.h>
+#include <sys/socket.h>
+#include <netinet/in.h>
+#include <netdb.h>
+#include <sys/param.h>
+#include <sys/ioctl.h>
+#include <sys/uio.h>
+#include <arpa/inet.h>
+#include <errno.h>
+
+#include <unistd.h>
+
+#define closesocket close
+#define ioctlsocket ioctl
+#endif
+
+typedef enum{
+	STREAM_NONE,
+	STREAM_SOCKET,
+	STREAM_FILE
+} plugstream_e;
+
+typedef struct {
+	plugin_t *plugin;
+	plugstream_e type;
+	int socket;
+	FILE *handle;
+} pluginstream_t;
+pluginstream_t *pluginstreamarray;
+int pluginstreamarraylen;
+
+int Plug_NewStreamHandle(plugstream_e type)
+{
+	int i;
+	for (i = 0; i < pluginstreamarraylen; i++)
+	{
+		if (!pluginstreamarray[i].plugin)
+			break;
+	}
+	if (i == pluginstreamarraylen)
+	{
+		pluginstreamarraylen++;
+		pluginstreamarray = BZ_Realloc(pluginstreamarray, pluginstreamarraylen*sizeof(pluginstream_t));
+	}
+
+	memset(&pluginstreamarray[i], 0, sizeof(pluginstream_t));
+	pluginstreamarray[i].plugin = currentplug;
+	pluginstreamarray[i].type = type;
+	pluginstreamarray[i].socket = -1;
+
+	return i;
+}
+
+//EBUILTIN(int, NET_TCPListen, (char *ip, int port, int maxcount));
+//returns a new socket with listen enabled.
+int Plug_Net_TCPListen(void *offset, unsigned int mask, const long *arg)
+{
+	int handle;
+	int sock;
+	struct sockaddr_qstorage address;
+	int _true = 1;
+	
+	char *localip = VM_POINTER(arg[0]);
+	unsigned short localport = VM_LONG(arg[1]);
+	int maxcount = VM_LONG(arg[2]);
+
+	netadr_t a;
+	if (localip)
+	{
+		if (!NET_StringToAdr(localip, &a))
+			return -1;
+		NetadrToSockadr(&a, &address);
+	}
+	else
+	{
+		memset(&address, 0, sizeof(address));
+		((struct sockaddr_in*)&address)->sin_family = AF_INET;
+	}
+
+	if (((struct sockaddr_in*)&address)->sin_family == AF_INET && !((struct sockaddr_in*)&address)->sin_port)
+		((struct sockaddr_in*)&address)->sin_port = htons(localport);
+#ifdef IPPROTO_IPV6
+	else if (((struct sockaddr_in*)&address)->sin6_family == AF_INET6 && !((struct sockaddr_in6*)&address)->sin6_port)
+		((struct sockaddr_in6*)&address)->sin6_port = htons(localport);
+#endif
+
+	if ((sock = socket(((struct sockaddr*)&address)->sa_family, SOCK_STREAM, 0)) == -1)
+	{
+		Con_Printf("Failed to create socket\n");
+		return -2;
+	}
+	if (ioctlsocket (sock, FIONBIO, &_true) == -1)
+	{
+		closesocket(sock);
+		return -2;
+	}
+
+	if( bind (sock, (void *)&address, sizeof(address)) == -1)
+	{
+		closesocket(sock);
+		return -2;
+	}
+	if( listen (sock, maxcount) == -1)
+	{
+		closesocket(sock);
+		return -2;
+	}
+
+	handle = Plug_NewStreamHandle(STREAM_SOCKET);
+	pluginstreamarray[handle].socket = sock;
+
+	return handle;
+
+}
+int Plug_Net_Accept(void *offset, unsigned int mask, const long *arg)
+{
+	int handle = VM_LONG(arg[0]);
+	struct sockaddr_in address;
+	int addrlen;
+	int sock;
+	int _true = 1;
+
+	if (handle < 0 || handle >= pluginstreamarraylen || pluginstreamarray[handle].plugin != currentplug || pluginstreamarray[handle].type != STREAM_SOCKET)
+		return -2;
+	sock = pluginstreamarray[handle].socket;
+
+	addrlen = sizeof(address);
+	sock = accept(sock, (struct sockaddr *)&address, &addrlen);
+
+	if (sock < 0)
+		return -1;
+
+	if (ioctlsocket (sock, FIONBIO, &_true) == -1)	//now make it non blocking.
+	{
+		closesocket(sock);
+		return -1;
+	}
+
+	if (arg[2] && !VM_OOB(arg[1], arg[2]))
+	{
+		netadr_t a;
+		char *s;
+		SockadrToNetadr((struct sockaddr_qstorage *)&address, &a);
+		s = NET_AdrToString(a);
+		Q_strncpyz(VM_POINTER(arg[1]), s, addrlen);
+	}
+
+	handle = Plug_NewStreamHandle(STREAM_SOCKET);
+	pluginstreamarray[handle].socket = sock;
+
+	return handle;
+}
+//EBUILTIN(int, NET_TCPConnect, (char *ip, int port));
+int Plug_Net_TCPConnect(void *offset, unsigned int mask, const long *arg)
+{
+	char *localip = VM_POINTER(arg[0]);
+	unsigned short localport = VM_LONG(arg[1]);
+
+	int handle;
+	struct sockaddr_qstorage to, from;
+	int sock;
+	int _true = 1;
+
+	netadr_t a;
+
+	NET_StringToAdr(localip, &a);
+	NetadrToSockadr(&a, &to);
+	if (((struct sockaddr_in*)&to)->sin_family == AF_INET && !((struct sockaddr_in*)&to)->sin_port)
+		((struct sockaddr_in*)&to)->sin_port = htons(localport);
+#ifdef IPPROTO_IPV6
+	else if (((struct sockaddr_in*)&to)->sin6_family == AF_INET6 && !((struct sockaddr_in6*)&to)->sin6_port)
+		((struct sockaddr_in6*)&to)->sin6_port = htons(localport);
+#endif
+
+
+	if ((sock = socket (PF_INET, SOCK_STREAM, IPPROTO_TCP)) == -1)
+	{
+		return -2;
+	}
+
+	memset(&from, 0, sizeof(from));
+	((struct sockaddr*)&from)->sa_family = ((struct sockaddr*)&to)->sa_family;
+	if (bind(sock, (struct sockaddr *)&from, sizeof(from)) == -1)
+	{
+		return -2;
+	}
+
+	//not yet blocking. So no frequent attempts please...
+	//non blocking prevents connect from returning worthwhile sensible value.
+	if (connect(sock, (struct sockaddr *)&to, sizeof(to)) == -1)
+	{
+		closesocket(sock);
+		return -2;
+	}
+	
+	if (ioctlsocket (sock, FIONBIO, &_true) == -1)	//now make it non blocking.
+	{
+		return -1;
+	}
+
+	handle = Plug_NewStreamHandle(STREAM_SOCKET);
+	pluginstreamarray[handle].socket = sock;
+
+	return handle;
+}
+int Plug_Net_Recv(void *offset, unsigned int mask, const long *arg)
+{
+	int read;
+	int handle = VM_LONG(arg[0]);
+	void *dest = VM_POINTER(arg[1]);
+	int destlen = VM_LONG(arg[2]);
+
+	if (VM_OOB(arg[1], arg[2]))
+		return -2;
+
+	if (handle < 0 || handle >= pluginstreamarraylen || pluginstreamarray[handle].plugin != currentplug)
+		return -2;
+	switch(pluginstreamarray[handle].type)
+	{
+	case STREAM_SOCKET:
+		read = recv(pluginstreamarray[handle].socket, dest, destlen, 0);
+		if (read < 0)
+		{
+			if (qerrno == EWOULDBLOCK)
+				return -1;
+			else
+				return -2;
+		}
+		else if (read == 0)
+			return -2;	//closed by remote connection.
+		return read;
+	default:
+		return -2;
+	}
+}
+int Plug_Net_Send(void *offset, unsigned int mask, const long *arg)
+{
+	int written;
+	int handle = VM_LONG(arg[0]);
+	void *src = VM_POINTER(arg[1]);
+	int srclen = VM_LONG(arg[2]);
+	if (handle < 0 || handle >= pluginstreamarraylen || pluginstreamarray[handle].plugin != currentplug)
+		return -2;
+	switch(pluginstreamarray[handle].type)
+	{
+	case STREAM_SOCKET:
+		written = send(pluginstreamarray[handle].socket, src, srclen, 0);
+		if (written < 0)
+		{
+			if (qerrno == EWOULDBLOCK)
+				return -1;
+			else
+				return -2;
+		}
+		else if (written == 0)
+			return -2;	//closed by remote connection.
+		return written;
+	default:
+		return -2;
+	}
+}
+int Plug_Net_Close(void *offset, unsigned int mask, const long *arg)
+{
+	int handle = VM_LONG(arg[0]);
+	if (handle < 0 || handle >= pluginstreamarraylen || pluginstreamarray[handle].plugin != currentplug || pluginstreamarray[handle].type != STREAM_SOCKET)
+		return -2;
+
+	closesocket(pluginstreamarray[handle].socket);
+
+	pluginstreamarray[handle].plugin = NULL;
+
+	return 0;
+}
+
 void Plug_CloseAll_f(void);
+void Plug_List_f(void);
 void Plug_Close_f(void);
 void Plug_Load_f(void)
 {
-	Plug_Load(Cmd_Argv(1));
+	if (!Plug_Load(Cmd_Argv(1)))
+		Con_Printf("Couldn't load plugin %s\n", Cmd_Argv(1));
 }
 
 void Plug_Init(void)
@@ -771,11 +1081,13 @@ void Plug_Init(void)
 	Cmd_AddCommand("plug_closeall", Plug_CloseAll_f);
 	Cmd_AddCommand("plug_close", Plug_Close_f);
 	Cmd_AddCommand("plug_load", Plug_Load_f);
+	Cmd_AddCommand("plug_list", Plug_List_f);
 
 	Plug_RegisterBuiltin("Plug_GetEngineFunction",	Plug_FindBuiltin, 0);//plugin wishes to find a builtin number.
 	Plug_RegisterBuiltin("Plug_ExportToEngine",		Plug_ExportToEngine, 0);	//plugin has a call back that we might be interested in.
 	Plug_RegisterBuiltin("Con_Print",				Plug_Con_Print, 0);	//printf is not possible - qvm floats are never doubles, vararg floats in a cdecl call are always converted to doubles.
 	Plug_RegisterBuiltin("Sys_Error",				Plug_Sys_Error, 0);
+	Plug_RegisterBuiltin("Sys_Milliseconds",		Plug_Sys_Milliseconds, 0);
 	Plug_RegisterBuiltin("Com_Error",				Plug_Sys_Error, 0);	//make zquake programmers happy.
 
 	Plug_RegisterBuiltin("Cmd_AddCommand",			Plug_Cmd_AddCommand, 0);
@@ -805,6 +1117,15 @@ void Plug_Init(void)
 
 	Plug_RegisterBuiltin("Con_SubPrint",			Plug_Con_SubPrint, 0);
 	Plug_RegisterBuiltin("Con_RenameSub",			Plug_Con_RenameSub, 0);
+
+	Plug_RegisterBuiltin("Net_TCPListen",			Plug_Net_TCPListen, 0);
+	Plug_RegisterBuiltin("Net_Accept",				Plug_Net_Accept, 0);
+	Plug_RegisterBuiltin("Net_TCPConnect",			Plug_Net_TCPConnect, 0);
+	Plug_RegisterBuiltin("Net_Recv",				Plug_Net_Recv, 0);
+	Plug_RegisterBuiltin("Net_Send",				Plug_Net_Send, 0);
+	Plug_RegisterBuiltin("Net_Close",				Plug_Net_Close, 0);
+
+	Plug_RegisterBuiltin("Media_ShowFrameRGBA_32",	Plug_Media_ShowFrameRGBA_32, 0);
 
 #ifdef _WIN32
 	COM_EnumerateFiles("plugins/*x86.dll",	Plug_Emumerated, "x86.dll");
@@ -991,6 +1312,15 @@ void Plug_CloseAll_f(void)
 	while(plugs)
 	{
 		Plug_Close(plugs);
+	}
+}
+
+void Plug_List_f(void)
+{
+	plugin_t *plug;
+	for (plug = plugs; plug; plug = plug->next)
+	{
+		Con_Printf("%s\n", plug->name);
 	}
 }
 

@@ -1,33 +1,38 @@
 /*
-Copyright (C) 1996-1997 Id Software, Inc.
+	r_aliasa.S
 
-This program is free software; you can redistribute it and/or
-modify it under the terms of the GNU General Public License
-as published by the Free Software Foundation; either version 2
-of the License, or (at your option) any later version.
+	(description)
 
-This program is distributed in the hope that it will be useful,
-but WITHOUT ANY WARRANTY; without even the implied warranty of
-MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  
+	Copyright (C) 1996-1997  Id Software, Inc.
 
-See the GNU General Public License for more details.
+	This program is free software; you can redistribute it and/or
+	modify it under the terms of the GNU General Public License
+	as published by the Free Software Foundation; either version 2
+	of the License, or (at your option) any later version.
 
-You should have received a copy of the GNU General Public License
-along with this program; if not, write to the Free Software
-Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
+	This program is distributed in the hope that it will be useful,
+	but WITHOUT ANY WARRANTY; without even the implied warranty of
+	MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
+
+	See the GNU General Public License for more details.
+
+	You should have received a copy of the GNU General Public License
+	along with this program; if not, write to:
+
+		Free Software Foundation, Inc.
+		59 Temple Place - Suite 330
+		Boston, MA  02111-1307, USA
 
 */
-//
 // r_aliasa.s
 // x86 assembly-language Alias model transform and project code.
-//
 
 #include "asm_i386.h"
 #include "quakeasm.h"
 #include "asm_draw.h"
 #include "d_ifacea.h"
 
-#if id386
+#if 0 //def id386
 
 	.data
 
@@ -42,7 +47,7 @@ Lcoords:	.long	0, 0, 0
 
 .globl C(R_AliasTransformAndProjectFinalVerts)
 C(R_AliasTransformAndProjectFinalVerts):
-	pushl	%ebp				// preserve caller's stack frame
+//	pushl	%ebp	//Spike was here.	// preserve caller's stack frame
 	pushl	%edi
 	pushl	%esi				// preserve register variables
 
@@ -55,7 +60,7 @@ C(R_AliasTransformAndProjectFinalVerts):
 
 //	for (i=0 ; i<r_anumverts ; i++, fv++, pverts++, pstverts++)
 //	{
-	movl	pstverts(%esp),%ebp
+//	movl	pstverts(%esp),%ebp	  //Spike was here.
 	movl	fv(%esp),%edi
 	movl	C(r_anumverts),%ecx
 	subl	%edx,%edx
@@ -87,12 +92,14 @@ Lloop:
 	fxch	%st(1)				// accum | accum3 | accum2 | v[2] | v[1] | v[0]
 	faddp	%st(0),%st(2)		// accum3 | accum | v[2] | v[1] | v[0]
 	movb	tv_lightnormalindex(%esi),%dl
-	movl	stv_s(%ebp),%eax
-	movl	%eax,fv_v+8(%edi)
+//	movl	stv_s(%ebp),%eax  //Spike was here.
+//	movl	%eax,fv_v+8(%edi) //Spike was here.
+	movl	$0,fv_v+8(%edi)	//Spike was here.
 	faddp	%st(0),%st(1)		// z | v[2] | v[1] | v[0]
 
-	movl	stv_t(%ebp),%eax
-	movl	%eax,fv_v+12(%edi)
+//	movl	stv_t(%ebp),%eax  //Spike was here.
+//	movl	%eax,fv_v+12(%edi) //Spike was here.
+	movl	$0,fv_v+12(%edi)  //Spike was here.
 
 //	// lighting
 //		plightnormal = r_avertexnormals[pverts->lightnormalindex];
@@ -102,11 +109,12 @@ Lloop:
 //		fv->v[2] = pstverts->s;
 //		fv->v[3] = pstverts->t;
 //		fv->flags = pstverts->onseam;
-//	movl	stv_onseam(%ebp),%eax
-//	movl	%eax,fv_flags(%edi)
+//	movl	stv_onseam(%ebp),%eax    //Spike was here.
+//	movl	%eax,fv_flags(%edi)        //Spike was here.
+	movl	$0,fv_flags(%edi)        //Spike was here.
 
-	movl	fv_size(%edi),%eax
-	movl	stv_size(%ebp),%eax
+//	movl	fv_size(%edi),%eax	//Spike was here.
+//	movl	stv_size(%ebp),%eax	//Spike was here.
 	movl	4(%esi),%eax
 
 	leal	(%edx,%edx,2),%eax	// index*3
@@ -204,7 +212,7 @@ Lp1:
 	addl	$(tv_size),%esi
 	faddp	%st(0),%st(2)		 // yaccum | x | yaccum3 | zi
 	faddp	%st(0),%st(2)		 // x | y | zi
-	addl	$(stv_size),%ebp
+//	addl	$(stv_size),%ebp	//Spike was here
 	fmul	%st(2),%st(0)		 // x/z | y | zi
 	fxch	%st(1)				 // y | x/z | zi
 	fmul	%st(2),%st(0)		 // y/z | x/z | zi
@@ -226,7 +234,7 @@ Lp1:
 
 	popl	%esi				// restore register variables
 	popl	%edi
-	popl	%ebp				// restore the caller's stack frame
+//	popl	%ebp	//Spike was here.		// restore the caller's stack frame
 	ret
 
 Lsavelight:
@@ -234,4 +242,3 @@ Lsavelight:
 	jmp		Lp1
 
 #endif	// id386
-

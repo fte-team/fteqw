@@ -21,7 +21,7 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 // d_parta.s
 // x86 assembly-language 8-bpp particle-drawing code.
 //
-
+#define SWQUAKE
 #include "asm_i386.h"
 #include "quakeasm.h"
 #include "d_ifacea.h"

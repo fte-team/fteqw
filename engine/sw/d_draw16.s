@@ -22,7 +22,7 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 // x86 assembly-language horizontal 16-bpp span-drawing code, with 16-pixel
 // subdivision.
 //
-
+#define SWQUAKE
 #include "asm_i386.h"
 #include "quakeasm.h"
 #include "asm_draw.h"

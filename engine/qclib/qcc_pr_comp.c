@@ -2868,7 +2868,7 @@ QCC_def_t *QCC_MakeFloatDef(float value)
 // copy the immediate to the global area
 	cn->ofs = QCC_GetFreeOffsetSpace (type_size[type_integer->type]);
 	
-	Hash_AddKey(&floatconstdefstable, fi.i, cn);
+	Hash_AddKey(&floatconstdefstable, fi.i, cn, qccHunkAlloc(sizeof(bucket_t)));
 	
 	G_FLOAT(cn->ofs) = value;	
 		

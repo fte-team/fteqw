@@ -60,10 +60,8 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 #define PEXT_CHUNKEDDOWNLOADS	0x20000000	//alternate file download method. Hopefully it'll give quadroupled download speed, especially on higher pings.
 #endif
 
-#ifdef _DEBUG
 #ifdef CSQC_DAT
 #define PEXT_CSQC				0x40000000	//csqc additions
-#endif
 #endif
 
 

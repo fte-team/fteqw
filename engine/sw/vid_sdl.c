@@ -5,6 +5,12 @@
 extern qboolean vid_isfullscreen;
 
 extern qboolean ActiveApp;
+#ifdef _WIN32
+#include <windows.h>
+HWND mainwindow;
+#endif
+
+qboolean Minimized;
 
 extern SDL_Surface *sdlsurf;
 
@@ -39,7 +45,9 @@ qboolean SWVID_Init (rendererstate_t *info, unsigned char *palette)
 	int flags;
 	Con_Printf("SDL SWVID_Init\n");
 
-	SDL_Init(SDL_INIT_VIDEO | SDL_INIT_NOPARACHUTE);
+	info->bpp = 8;	//I don't know thier card details I'm afraid.
+
+	SDL_InitSubSystem(SDL_INIT_VIDEO | SDL_INIT_NOPARACHUTE);
 
 	if (info->fullscreen)
 	{
@@ -51,6 +59,8 @@ qboolean SWVID_Init (rendererstate_t *info, unsigned char *palette)
 		flags = 0; // :( SDL_RESIZABLE;
 		vid_isfullscreen = false;
 	}
+
+flags |= SDL_SWSURFACE;
 
 	sdlsurf = SDL_SetVideoMode(info->width, info->height, info->bpp, flags|SDL_DOUBLEBUF);
 	if (!sdlsurf)
@@ -73,6 +83,7 @@ qboolean SWVID_Init (rendererstate_t *info, unsigned char *palette)
 	r_pixbytes = info->bpp/8;
 
 	SWVID_LockBuffer();	//make sure our buffer and pitch are set up right.
+	SWVID_UnlockBuffer();
 
 	ResetFrameBuffers();
 	return true;
@@ -123,6 +134,7 @@ void SWVID_ForceLockState (int lk)	//I detest these functions. FIXME: Remove
 void SWVID_UnlockBuffer (void)
 {
 	SDL_UnlockSurface(sdlsurf);
+	vid.buffer = NULL;
 }
 
 int SWVID_ForceUnlockedAndReturnState(void) //FIXME: Remove

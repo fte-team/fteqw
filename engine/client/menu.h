@@ -28,7 +28,6 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 //m_slist	- serverbrowser. Takes full control of screen.
 //m_media	- an mp3 player type thing. It was never really compleate.
 //			  It should perhaps either be fixed or removed.
-//m_xwindows- Run an X windowing syatem. Fixme: make plugin.
 //m_plugin	- A QVM based or DLL based plugin.
 //m_menu_dat- A QC based version of m_plugin. This should be compatable with DP's menu.dat stuff.
 
@@ -114,15 +113,7 @@ void M_Menu_Quit_f (void);
 struct menu_s;
 
 
-
-void XWindows_Draw(void);
-void XWindows_Key(int key);
-void XWindows_Keyup(int key);
-void XWindows_Init(void);
-
-
-
-typedef enum {m_none, m_complex, m_help, m_keys, m_slist, m_media, m_xwindows, m_plugin, m_menu_dat} m_state_t;
+typedef enum {m_none, m_complex, m_help, m_keys, m_slist, m_media, m_plugin, m_menu_dat} m_state_t;
 extern m_state_t m_state;
 
 typedef enum {mt_childwindow, mt_button, mt_buttonbigfont, mt_box, mt_colouredbox, mt_line, mt_edit, mt_text, mt_slider, mt_combo, mt_bind, mt_checkbox, mt_picture, mt_menudot, mt_custom} menutype_t;

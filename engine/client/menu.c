@@ -892,8 +892,6 @@ void M_Init (void)
 	M_Serverlist_Init();
 #endif
 	M_Script_Init();
-
-	XWindows_Init();
 }
 
 
@@ -966,10 +964,6 @@ void M_Draw (int uimenu)
 		M_Media_Draw ();
 		break;
 
-	case m_xwindows:
-		XWindows_Draw();
-		break;
-
 	case m_complex:
 		M_Complex_Draw ();
 		break;
@@ -1021,10 +1015,6 @@ void M_Keydown (int key)
 		M_Media_Key (key);
 		return;
 
-	case m_xwindows:
-		XWindows_Key(key);
-		return;
-
 	case m_complex:
 		M_Complex_Key (key);
 		return;
@@ -1046,9 +1036,6 @@ void M_Keyup (int key)
 {
 	switch (m_state)
 	{
-	case m_xwindows:
-		XWindows_Keyup(key);
-		return;
 #ifdef PLUGINS
 	case m_plugin:
 		Plug_Menu_Event (2, key);

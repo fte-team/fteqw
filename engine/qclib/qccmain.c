@@ -1778,7 +1778,24 @@ unsigned short QCC_PR_WriteProgdefs (char *filename)
 
 
 	if (ForcedCRC)
-		return ForcedCRC;
+		crc = ForcedCRC;
+
+	switch (crc)
+	{
+	case 54730:
+		printf("Recognised progs as QuakeWorld\n");
+		break;
+	case 5927:
+		printf("Recognised progs as regular Quake\n");
+		break;
+	case 38488:
+		printf("Recognised progs as origional Hexen2\n");
+		break;
+	case 26905:
+		printf("Recognised progs as Hexen2 Mission Pack\n");
+		break;
+	}
+
 
 	return crc;
 }

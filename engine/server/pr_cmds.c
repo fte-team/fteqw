@@ -173,6 +173,7 @@ pbool ED_CanFree (edict_t *ed)
 	ed->v.think = 0;
 	ed->v.solid = 0;
 
+	ed->v.SendEntity = 0;
 	sv.csqcentversion[ed->entnum] = ed->v.Version+1;
 
 	return true;
@@ -2514,8 +2515,11 @@ void PF_LocalSound(progfuncs_t *prinst, struct globalvars_s *pr_globals)
 	float chan = G_FLOAT(OFS_PARM1);
 	float vol = G_FLOAT(OFS_PARM2);
 
-	if ((sfx = S_PrecacheSound(s)))
-		S_StartSound(cl.playernum[0], chan, sfx, cl.simorg[0], vol, 0.0);
+	if (!isDedicated)
+	{
+		if ((sfx = S_PrecacheSound(s)))
+			S_StartSound(cl.playernum[0], chan, sfx, cl.simorg[0], vol, 0.0);
+	}
 #endif
 };
 

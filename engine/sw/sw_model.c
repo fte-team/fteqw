@@ -2286,12 +2286,11 @@ void SWMod_LoadAliasModel (model_t *mod, void *buffer)
 			!strcmp(loadmodel->name, "progs/player.mdl") ? pmodel_name : emodel_name,
 			st, MAX_INFO_STRING);
 
-		if (cls.state >= ca_connected) {
-			MSG_WriteByte (&cls.netchan.message, clc_stringcmd);
-			sprintf(st, "setinfo %s %d", 
+		if (cls.state >= ca_connected)
+		{
+			CL_SendClientCommand("setinfo %s %d", 
 				!strcmp(loadmodel->name, "progs/player.mdl") ? pmodel_name : emodel_name,
 				(int)crc);
-			SZ_Print (&cls.netchan.message, st);
 		}
 	}
 
@@ -2564,12 +2563,11 @@ void SWMod_LoadAlias2Model (model_t *mod, void *buffer)
 			!strcmp(loadmodel->name, "progs/player.mdl") ? pmodel_name : emodel_name,
 			st, MAX_INFO_STRING);
 
-		if (cls.state >= ca_connected) {
-			MSG_WriteByte (&cls.netchan.message, clc_stringcmd);
-			sprintf(st, "setinfo %s %d", 
+		if (cls.state >= ca_connected)
+		{
+			CL_SendClientCommand("setinfo %s %d", 
 				!strcmp(loadmodel->name, "progs/player.mdl") ? pmodel_name : emodel_name,
 				(int)crc);
-			SZ_Print (&cls.netchan.message, st);
 		}
 	}
 
@@ -2942,12 +2940,11 @@ void SWMod_LoadAlias3Model (model_t *mod, void *buffer)
 			!strcmp(loadmodel->name, "progs/player.mdl") ? pmodel_name : emodel_name,
 			st, MAX_INFO_STRING);
 
-		if (cls.state >= ca_connected) {
-			MSG_WriteByte (&cls.netchan.message, clc_stringcmd);
-			sprintf(st, "setinfo %s %d", 
+		if (cls.state >= ca_connected)
+		{
+			CL_SendClientCommand("setinfo %s %d", 
 				!strcmp(loadmodel->name, "progs/player.mdl") ? pmodel_name : emodel_name,
 				(int)crc);
-			SZ_Print (&cls.netchan.message, st);
 		}
 	}
 

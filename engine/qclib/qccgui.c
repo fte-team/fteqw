@@ -38,6 +38,8 @@ HWND mdibox;
 HWND outputwindow;
 HWND outputbox;
 
+FILE *logfile;
+
 struct{
 	char *text;
 	HWND hwnd;
@@ -1628,6 +1630,10 @@ int GUIprintf(const char *msg, ...)
 	args = QC_vsnprintf (buf,sizeof(buf)-1, msg,argptr);
 	va_end (argptr);
 
+	printf("%s", buf);
+	if (logfile)
+		fprintf(logfile, "%s", buf);
+
 	if (!*buf)
 	{
 		SetWindowText(outputbox,"");
@@ -1689,7 +1695,6 @@ int GUIprintf(const char *msg, ...)
 
 #undef Sys_Error
 
-
 void Sys_Error(const char *text, ...);
 void RunCompiler(char *args)
 {
@@ -1708,10 +1713,19 @@ void RunCompiler(char *args)
 	funcs.parms->Sys_Error = Sys_Error;
 	GUIprintf("");
 	
+	if (logfile)
+		fclose(logfile);
+	if (fl_log)
+		logfile = fopen("fteqcc.log", "wb");
+	else
+		logfile = NULL;
 
 	argc = GUI_BuildParms(args, argv);
 
 	CompileParams(&funcs, true, argc, argv);
+
+	if (logfile)
+		fclose(logfile);
 }
 
 
@@ -1767,6 +1781,7 @@ int WINAPI WinMain (HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLin
 
 	if(strstr(lpCmdLine, "-stdout"))
 	{
+		GUI_ParseCommandLine(lpCmdLine);
 		RunCompiler(lpCmdLine);
 		return 0;
 	}

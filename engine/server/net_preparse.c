@@ -943,6 +943,7 @@ void NPP_QWWriteByte(int dest, qbyte data)	//replacement write func (nq to qw)
 		case svc_finale:
 			protocollen = 2;
 			break;
+		case svc_updatepl:
 		case svc_muzzleflash:
 			protocollen = 3;
 			break;

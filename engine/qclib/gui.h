@@ -18,3 +18,4 @@ extern pbool fl_hexen2;
 extern pbool fl_autohighlight;
 extern pbool fl_compileonstart;
 extern pbool fl_showall;
+extern pbool fl_log;

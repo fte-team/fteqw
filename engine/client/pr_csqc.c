@@ -1367,7 +1367,10 @@ void CSQC_ParseEntities(void)
 	void *pr_globals;
 
 	if (!csqcprogs)
-		Host_EndGame("CSQC needs to be initialized on this server.\n");
+		Host_EndGame("CSQC needs to be initialized for this server.\n");
+
+	if (!csqcg.ent_update)
+		Host_EndGame("CSQC is unable to parse entities\n");
 
 	pr_globals = PR_globals(csqcprogs, PR_CURRENT);
 

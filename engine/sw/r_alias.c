@@ -270,7 +270,7 @@ qboolean R_AliasCheckBBox (void)
 	{
 		if (minz > (r_aliastransition + (pmdl->size * r_resfudge)))
 		{
-	//		currententity->trivial_accept |= 2;
+//			currententity->trivial_accept |= 2;
 		}
 	}
 
@@ -510,7 +510,7 @@ void R_AliasTransformFinalVert (finalvert_t *fv, auxvert_t *av,
 }
 
 
-#if !id386 //since stvert_t was changed.
+//#if !id386 //since stvert_t was changed.
 
 /*
 ================
@@ -571,7 +571,7 @@ void R_AliasTransformAndProjectFinalVerts (finalvert_t *fv)//, stvert_t *pstvert
 	}
 }
 
-#endif
+//#endif
 
 
 /*
@@ -600,20 +600,16 @@ R_AliasPrepareUnclippedPoints
 */
 void R_AliasPrepareUnclippedPoints (void)
 {
-	finalvert_t	*fv;
-
 	r_anumverts = pmdl->numverts;
-// FIXME: just use pfinalverts directly?
-	fv = pfinalverts;
 
-	R_AliasTransformAndProjectFinalVerts (fv);
+	R_AliasTransformAndProjectFinalVerts (pfinalverts);
 
 	if (r_affinetridesc.drawtype)
 	{
 		if (r_pixbytes == 4)
-			D_PolysetDrawFinalVerts32Trans (fv, r_anumverts);
+			D_PolysetDrawFinalVerts32Trans (pfinalverts, r_anumverts);
 		else
-			D_PolysetDrawFinalVerts (fv, r_anumverts);
+			D_PolysetDrawFinalVerts (pfinalverts, r_anumverts);
 	}
 
 	r_affinetridesc.pfinalverts = pfinalverts;

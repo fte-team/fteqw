@@ -1409,6 +1409,9 @@ void D_DrawNonSubdiv (void)
 	int				i;
 	int				lnumtriangles;
 
+	mstvert_t		*pst, *st0, *st1, *st2;
+
+	pst = r_affinetridesc.pstverts;
 	pfv = r_affinetridesc.pfinalverts;
 	ptri = r_affinetridesc.ptriangles;
 	lnumtriangles = r_affinetridesc.numtriangles;
@@ -1437,24 +1440,28 @@ void D_DrawNonSubdiv (void)
 					continue;
 				}
 
+				st0 = pst + ptri->st_index[0];
+				st1 = pst + ptri->st_index[1];
+				st2 = pst + ptri->st_index[2];
+
 				r_p0[0] = index0->v[0];		// u
 				r_p0[1] = index0->v[1];		// v
-				r_p0[2] = index0->v[2];		// s
-				r_p0[3] = index0->v[3];		// t
+				r_p0[2] = st0->s;		// s
+				r_p0[3] = st0->t;		// t
 				r_p0[4] = index0->v[4];		// light
 				r_p0[5] = index0->v[5];		// iz
 
 				r_p1[0] = index1->v[0];
 				r_p1[1] = index1->v[1];
-				r_p1[2] = index1->v[2];
-				r_p1[3] = index1->v[3];
+				r_p1[2] = st1->s;
+				r_p1[3] = st1->t;
 				r_p1[4] = index1->v[4];
 				r_p1[5] = index1->v[5];
 
 				r_p2[0] = index2->v[0];
 				r_p2[1] = index2->v[1];
-				r_p2[2] = index2->v[2];
-				r_p2[3] = index2->v[3];
+				r_p2[2] = st2->s;
+				r_p2[3] = st2->t;
 				r_p2[4] = index2->v[4];
 				r_p2[5] = index2->v[5];
 
@@ -1481,24 +1488,28 @@ void D_DrawNonSubdiv (void)
 			continue;
 		}
 
+		st0 = pst + ptri->st_index[0];
+		st1 = pst + ptri->st_index[1];
+		st2 = pst + ptri->st_index[2];
+
 		r_p0[0] = index0->v[0];		// u
 		r_p0[1] = index0->v[1];		// v
-		r_p0[2] = index0->v[2];		// s
-		r_p0[3] = index0->v[3];		// t
+		r_p0[2] = st0->s;			// s
+		r_p0[3] = st0->t;			// t
 		r_p0[4] = index0->v[4];		// light
 		r_p0[5] = index0->v[5];		// iz
 
 		r_p1[0] = index1->v[0];
 		r_p1[1] = index1->v[1];
-		r_p1[2] = index1->v[2];
-		r_p1[3] = index1->v[3];
+		r_p1[2] = st1->s;
+		r_p1[3] = st1->t;
 		r_p1[4] = index1->v[4];
 		r_p1[5] = index1->v[5];
 
 		r_p2[0] = index2->v[0];
 		r_p2[1] = index2->v[1];
-		r_p2[2] = index2->v[2];
-		r_p2[3] = index2->v[3];
+		r_p2[2] = st2->s;
+		r_p2[3] = st2->t;
 		r_p2[4] = index2->v[4];
 		r_p2[5] = index2->v[5];
 

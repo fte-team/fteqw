@@ -220,7 +220,7 @@ void IN_Impulse (void)
 	int best, i, imp, items;
 
 
-	
+
 	char	*c;
 	int pnum;
 	c = Cmd_Argv(0);
@@ -275,7 +275,7 @@ void IN_Impulse (void)
 						best = 8;
 			}
 		}
-		
+
 		if (best)
 			newimp = best;
 	}

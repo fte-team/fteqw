@@ -3591,10 +3591,16 @@ extern cvar_t cl_chatsound, cl_nofake;
 	return true;
 }
 
-char printtext[1024];
+char printtext[2048];
 void CL_ParsePrint(char *msg, int level)
 {
-	strncat(printtext, msg, sizeof(printtext)-1);
+	if (strlen(printtext) + strlen(msg) >= sizeof(printtext))
+	{
+		Con_Printf("%s", printtext);
+		Q_strncpyz(printtext, msg, sizeof(printtext));
+	}
+	else
+		strcat(printtext, msg);	//safe due to size on if.
 	while((msg = strchr(printtext, '\n')))
 	{
 		*msg = '\0';

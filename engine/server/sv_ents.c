@@ -2116,7 +2116,7 @@ void SV_WriteEntitiesToClient (client_t *client, sizebuf_t *msg, qboolean ignore
 		ent = EDICT_NUM(svprogfuncs, e);
 
 		// ignore ents without visible models
-		if (!ent->v.modelindex || !*PR_GetString(svprogfuncs, ent->v.model))
+		if (!ent->v.SendEntity && (!ent->v.modelindex || !*PR_GetString(svprogfuncs, ent->v.model)))
 			continue;
 
 		if (progstype != PROG_QW)

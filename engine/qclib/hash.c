@@ -1,4 +1,7 @@
-#include "qcc.h"
+#include "hash.h"
+#include <stdlib.h>
+#include <string.h>
+
 void Hash_InitTable(hashtable_t *table, int numbucks, void *mem)
 {
 	table->numbuckets = numbucks;
@@ -159,23 +162,7 @@ void *Hash_AddInsensative(hashtable_t *table, char *name, void *data, bucket_t *
 
 	return buck;
 }
-#ifndef MINIMAL
-void *Hash_AddKey(hashtable_t *table, int key, void *data)
-{
-	int bucknum = key%table->numbuckets;
-	bucket_t *buck;	
-
-	buck = qccHunkAlloc(sizeof(bucket_t));
-
-	buck->data = data;
-	buck->keystring = (char*)key;
-	buck->next = table->bucket[bucknum];
-	table->bucket[bucknum] = buck;
-
-	return buck;
-}
-#endif
-void *Hash_AddKey2(hashtable_t *table, int key, void *data, bucket_t *buck)
+void *Hash_AddKey(hashtable_t *table, int key, void *data, bucket_t *buck)
 {
 	int bucknum = key%table->numbuckets;
 

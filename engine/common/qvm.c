@@ -537,6 +537,8 @@ static void inline QVM_Call(qvm_t *vm, int addr)
 
 	vm->sp[0]=(long)(vm->pc-vm->cs); // push pc /return address/
 	vm->pc=vm->cs+addr*2;
+	if (!vm->pc)
+		Sys_Error("VM run time error: program called the void\n");
 }
 
 /*

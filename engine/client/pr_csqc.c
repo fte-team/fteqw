@@ -2,13 +2,59 @@
 
 #ifdef CSQC_DAT
 
+#ifdef RGLQUAKE
+#include "glquake.h"	//evil to include this
+#endif
+
+progfuncs_t *csqcprogs;
+
+typedef struct {
+//CHANGING THIS STRUCTURE REQUIRES CHANGES IN CSQC_InitFields
+	//fields the client will pull out of the edict for rendering.
+	float modelindex;	//csqc modelindexes
+	vec3_t origin;
+	vec3_t angles;
+	float alpha;	//transparency
+	float scale;	//model scale
+	float fatness;	//expand models X units along thier normals.
+	float skin;
+	float colormap;
+	float frame;
+	float oldframe;
+	float lerpfrac;
+} csqcentvars_t;
+
 typedef struct menuedict_s
 {
 	qboolean	isfree;
 	float		freetime; // sv.time when the object was freed
 	int			entnum;
 	qboolean	readonly;	//world
+	
+	csqcentvars_t	v;
 } csqcedict_t;
+
+void CSQC_InitFields(void)
+{	//CHANGING THIS FUNCTION REQUIRES CHANGES TO csqcentvars_t
+#define fieldfloat(name) QC_RegisterFieldVar(csqcprogs, ev_float, #name, (int)&((csqcedict_t*)0)->v.name - (int)&((csqcedict_t*)0)->v, -1)
+#define fieldvector(name) QC_RegisterFieldVar(csqcprogs, ev_vector, #name, (int)&((csqcedict_t*)0)->v.name - (int)&((csqcedict_t*)0)->v, -1)
+#define fieldentity(name) QC_RegisterFieldVar(csqcprogs, ev_entity, #name, (int)&((csqcedict_t*)0)->v.name - (int)&((csqcedict_t*)0)->v, -1)
+#define fieldstring(name) QC_RegisterFieldVar(csqcprogs, ev_string, #name, (int)&((csqcedict_t*)0)->v.name - (int)&((csqcedict_t*)0)->v, -1)
+#define fieldfunction(name) QC_RegisterFieldVar(csqcprogs, ev_function, #name, (int)&((csqcedict_t*)0)->v.name - (int)&((csqcedict_t*)0)->v, -1)
+
+	fieldfloat(modelindex);
+	fieldvector(origin);
+	fieldvector(angles);
+	fieldfloat(alpha);	//transparency
+	fieldfloat(scale);	//model scale
+	fieldfloat(fatness);	//expand models X units along thier normals.
+	fieldfloat(skin);
+	fieldfloat(colormap);
+	fieldfloat(frame);
+	fieldfloat(oldframe);
+	fieldfloat(lerpfrac);
+
+}
 
 #define	RETURN_SSTRING(s) (*(char **)&((int *)pr_globals)[OFS_RETURN] = PR_SetString(prinst, s))	//static - exe will not change it.
 char *PF_TempStr(void);
@@ -103,6 +149,201 @@ static void PF_makevectors (progfuncs_t *prinst, struct globalvars_s *pr_globals
 //	AngleVectors (G_VECTOR(OFS_PARM0), CSQC_VEC(v_forward), CSQC_VEC(v_right), CSQC_VEC(v_up));
 }
 
+static void PF_R_AddEntity(progfuncs_t *prinst, struct globalvars_s *pr_globals)
+{
+	csqcedict_t *in = (void*)G_EDICT(prinst, OFS_PARM0);
+	entity_t ent;
+	int i;
+	
+	if (!cl_visedicts)
+		cl_visedicts = cl_visedicts_list[0];
+	memset(&ent, 0, sizeof(ent));
+
+	i = in->v.modelindex;
+	if (i <= 0 || i >= MAX_MODELS)	//whoops, no model, no draw.
+		return; //there might be other ent types later as an extension that stop this.
+
+	ent.model = cl.model_precache[i];
+	
+	ent.frame = in->v.frame;
+	ent.oldframe = in->v.oldframe;
+	ent.lerpfrac = in->v.lerpfrac;
+
+	ent.angles[0] = in->v.angles[0];
+	ent.angles[1] = in->v.angles[1];
+	ent.angles[2] = in->v.angles[2];
+	AngleVectors(ent.angles, ent.axis[0], ent.axis[1], ent.axis[2]);
+	VectorInverse(ent.axis[1]);
+
+	ent.alpha = in->v.alpha;
+	ent.scale = in->v.scale;
+
+	V_AddEntity(&ent);
+}
+
+//clear scene, and set up the default stuff.
+static void PF_R_ClearScene (progfuncs_t *prinst, struct globalvars_s *pr_globals)
+{
+	cl_numvisedicts = 0;
+	
+	VectorCopy(cl.simangles[0], r_refdef.viewangles);
+	r_refdef.flags = 0;
+
+	r_refdef.fov_x = 90;
+	r_refdef.fov_y = 90;
+	r_refdef.vrect.x = 0;
+	r_refdef.vrect.y = 0;
+	r_refdef.vrect.width = vid.width;
+	r_refdef.vrect.height = vid.height;
+}
+
+static void PF_R_SetViewFlag(progfuncs_t *prinst, struct globalvars_s *pr_globals)
+{
+	char *s = PR_GetStringOfs(prinst, OFS_PARM0);
+	float *p = G_VECTOR(OFS_PARM1);
+	switch(*s)
+	{
+	case 'F':
+		if (!strcmp(s, "FOV"))	//set both fov numbers
+		{
+			r_refdef.fov_x = p[0];
+			r_refdef.fov_y = p[1];
+			return;
+		}
+		if (!strcmp(s, "FOV_X"))
+		{
+			r_refdef.fov_x = *p;
+			return;
+		}
+		if (!strcmp(s, "FOV_Y"))
+		{
+			r_refdef.fov_y = *p;
+			return;
+		}
+		break;
+	case 'O':
+		if (!strcmp(s, "ORIGIN"))
+		{
+			VectorCopy(p, r_refdef.vieworg);
+			return;
+		}
+		if (!strcmp(s, "ORIGIN_X"))
+		{
+			r_refdef.vieworg[0] = *p;
+			return;
+		}
+		if (!strcmp(s, "ORIGIN_Y"))
+		{
+			r_refdef.vieworg[1] = *p;
+			return;
+		}
+		if (!strcmp(s, "ORIGIN_Z"))
+		{
+			r_refdef.vieworg[2] = *p;
+			return;
+		}
+		break;
+		
+	case 'A':
+		if (!strcmp(s, "ANGLES"))
+		{
+			VectorCopy(p, r_refdef.viewangles);
+			return;
+		}
+		if (!strcmp(s, "ANGLES_X"))
+		{
+			r_refdef.viewangles[0] = *p;
+			return;
+		}
+		if (!strcmp(s, "ANGLES_Y"))
+		{
+			r_refdef.viewangles[1] = *p;
+			return;
+		}
+		if (!strcmp(s, "ANGLES_Z"))
+		{
+			r_refdef.viewangles[2] = *p;
+			return;
+		}
+		break;
+		
+	case 'W':
+		if (!strcmp(s, "WIDTH"))
+		{
+			r_refdef.vrect.width = *p;
+			return;
+		}
+		break;
+	case 'H':
+		if (!strcmp(s, "HEIGHT"))
+		{
+			r_refdef.vrect.height = *p;
+			return;
+		}
+		break;
+	case 'S':
+		if (!strcmp(s, "SIZE"))
+		{
+			r_refdef.vrect.width = p[0];
+			r_refdef.vrect.height = p[1];
+			return;
+		}
+		break;
+	case 'M':
+		if (!strcmp(s, "MIN_X"))
+		{
+			r_refdef.vrect.x = *p;
+			return;
+		}
+		if (!strcmp(s, "MIN_Y"))
+		{
+			r_refdef.vrect.y = *p;
+			return;
+		}
+		if (!strcmp(s, "MIN"))
+		{
+			r_refdef.vrect.x = p[0];
+			r_refdef.vrect.y = p[1];
+			return;
+		}
+		break;
+	default:
+		break;
+	}
+	Con_DPrintf("SetViewFlag: %s not recognised\n", s);
+}
+
+static void PF_R_RenderScene(progfuncs_t *prinst, struct globalvars_s *pr_globals)
+{
+#ifdef RGLQUAKE
+	if (qrenderer == QR_OPENGL)
+	{
+		gl_ztrickdisabled|=16;
+		qglDisable(GL_ALPHA_TEST);
+		qglDisable(GL_BLEND);
+	}
+#endif
+	R_RenderView();
+#ifdef RGLQUAKE
+	if (qrenderer == QR_OPENGL)
+	{
+		gl_ztrickdisabled&=~16;
+		GL_Set2D ();
+		qglBlendFunc (GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+		GL_TexEnv(GL_MODULATE);
+	}
+#endif
+
+	#ifdef RGLQUAKE
+	if (qrenderer == QR_OPENGL)
+	{
+		qglDisable(GL_ALPHA_TEST);
+		qglEnable(GL_BLEND);
+	}
+#endif
+
+	vid.recalc_refdef = 1;
+}
 
 
 //warning: functions that depend on globals are bad, mkay?
@@ -259,8 +500,6 @@ int csqc_numbuiltins = sizeof(csqc_builtins)/sizeof(csqc_builtins[0]);
 
 
 jmp_buf csqc_abort;
-int incsqcprogs;
-progfuncs_t *csqcprogs;
 progparms_t csqcprogparms;
 csqcedict_t *csqc_edicts;
 int num_csqc_edicts;
@@ -303,6 +542,21 @@ void VARGS CSQC_Abort (char *format, ...)
 }
 
 	Host_EndGame("csqc error");
+}
+
+void CSQC_FindGlobals(void)
+{
+	csqc_time = (float*)PR_FindGlobal(csqcprogs, "time", 0);
+	if (csqc_time)
+		*csqc_time = Sys_DoubleTime();
+
+
+	csqc_init_function	= PR_FindFunction(csqcprogs, "csqc_init",	PR_ANY);
+	csqc_shutdown_function	= PR_FindFunction(csqcprogs, "csqc_shutdown",	PR_ANY);
+	csqc_draw_function	= PR_FindFunction(csqcprogs, "csqc_draw",	PR_ANY);
+	csqc_keydown_function	= PR_FindFunction(csqcprogs, "csqc_keydown",	PR_ANY);
+	csqc_keyup_function	= PR_FindFunction(csqcprogs, "csqc_keyup",	PR_ANY);
+	csqc_toggle_function	= PR_FindFunction(csqcprogs, "csqc_toggle",	PR_ANY);
 }
 
 double  csqctime;
@@ -355,54 +609,39 @@ void CSQC_Init (void)
 	{
 		csqcprogs = InitProgs(&csqcprogparms);
 		PR_Configure(csqcprogs, NULL, -1, 1);
-		if (PR_LoadProgs(csqcprogs, "qwprogs.dat", 54730, NULL, 0) < 0) //no per-progs builtins.
+		
+		CSQC_InitFields();	//let the qclib know the field order that the engine needs.
+		
+		if (PR_LoadProgs(csqcprogs, "qwprogs.dat", 0, NULL, 0) < 0) //no per-progs builtins.
 		{
 			//failed to load or something
-			M_Init_Internal();
 			return;
 		}
 		if (setjmp(csqc_abort))
 		{
-			M_Init_Internal();
 			return;
 		}
-		incsqcprogs++;
-
-		csqc_time = (float*)PR_FindGlobal(csqcprogs, "time", 0);
-		if (csqc_time)
-			*csqc_time = Sys_DoubleTime();
-
+		
 		csqcentsize = PR_InitEnts(csqcprogs, 3072);
+		
+		CSQC_FindGlobals();
 
-
-		//'world' edict
+		//world edict becomes readonly
 		EDICT_NUM(csqcprogs, 0)->readonly = true;
 		EDICT_NUM(csqcprogs, 0)->isfree = false;
 
-
-		csqc_init_function		= PR_FindFunction(csqcprogs, "csqc_init",		PR_ANY);
-		csqc_shutdown_function	= PR_FindFunction(csqcprogs, "csqc_shutdown",	PR_ANY);
-		csqc_draw_function		= PR_FindFunction(csqcprogs, "csqc_draw",		PR_ANY);
-		csqc_keydown_function	= PR_FindFunction(csqcprogs, "csqc_keydown",	PR_ANY);
-		csqc_keyup_function		= PR_FindFunction(csqcprogs, "csqc_keyup",		PR_ANY);
-		csqc_toggle_function	= PR_FindFunction(csqcprogs, "csqc_toggle",		PR_ANY);
-
 		if (csqc_init_function)
 			PR_ExecuteProgram(csqcprogs, csqc_init_function);
-		incsqcprogs--;
 	}
 }
 
 qboolean CSQC_DrawView(void)
 {
-	if (!csqcprogs || !csqc_draw_function)
+	if (!csqc_draw_function)
 		return false;
-
-	incsqcprogs++;
 
 	PR_ExecuteProgram(csqcprogs, csqc_draw_function);
 
-	incsqcprogs--;
 	return true;
 }
 

@@ -1981,6 +1981,8 @@ void CL_Init (void)
 	Cvar_Register (&host_speeds, cl_controlgroup);
 	Cvar_Register (&developer, cl_controlgroup);
 
+	Cvar_Register (&cfg_save_name, cl_controlgroup);
+
 	Cvar_Register (&cl_warncmd, "Warnings");
 	Cvar_Register (&cl_upspeed, cl_inputgroup);
 	Cvar_Register (&cl_forwardspeed, cl_inputgroup);

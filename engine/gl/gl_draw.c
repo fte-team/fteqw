@@ -74,6 +74,8 @@ int			char_texture, char_tex2, default_char_texture;
 int			cs_texture; // crosshair texture
 extern int detailtexture;
 
+float char_instep, default_char_instep;	//to avoid blending issues
+
 static unsigned cs_data[16*16];
 
 typedef struct
@@ -742,6 +744,8 @@ TRACE(("dbg: GLDraw_ReInit: Allocating upload buffers\n"));
 	}
 
 	// now turn them into textures
+	image_width = 0;
+	image_height = 0;
 	TRACE(("dbg: GLDraw_ReInit: looking for conchars\n"));
 	if (!(char_texture=Mod_LoadReplacementTexture("gfx/conchars.lmp", false, true, false))) //no high res
 	{
@@ -821,6 +825,11 @@ TRACE(("dbg: GLDraw_ReInit: Allocating upload buffers\n"));
 			char_texture = GL_LoadTexture ("charset", 128, 128, draw_chars, false, true);
 	}
 	default_char_texture=char_texture;
+	//half a pixel
+	if (image_width)
+		char_instep = default_char_instep = 0.5f/((image_width+image_height)/2);	//you're an idiot if you use non-square conchars
+	else
+		char_instep = default_char_instep = 0.5f/(128);
 
 	TRACE(("dbg: GLDraw_ReInit: loaded charset\n"));
 
@@ -1174,9 +1183,9 @@ void GLDraw_Character (int x, int y, unsigned int num)
 	row = num>>4;
 	col = num&15;
 
-	frow = row*0.0625;
-	fcol = col*0.0625;
-	size = 0.0625;
+	frow = row*0.0625+char_instep;
+	fcol = col*0.0625+char_instep;
+	size = 0.0625-char_instep*2;
 	qglEnable(GL_BLEND);
 	qglDisable(GL_ALPHA_TEST);
 
@@ -1901,7 +1910,12 @@ void GL_Set2D (void)
 	{
 		gl_font.modified = 0;
 		if (!*gl_font.string || !(char_texture=Mod_LoadHiResTexture(va("fonts/%s", gl_font.string), false, true, true)))
+		{
 			char_texture = default_char_texture;
+			char_instep = default_char_instep;
+		}
+		else
+			char_instep = 0.5f/((image_width+image_height)/2);
 
 		gl_smoothfont.modified = 1;
 	}

@@ -178,8 +178,8 @@ qbyte	*Skin_Cache8 (skin_t *skin)
 		|| pcx->version != 5
 		|| pcx->encoding != 1
 		|| pcx->bits_per_pixel != 8
-		|| pcx->xmax >= 320
-		|| pcx->ymax >= 200)
+		|| (unsigned short)LittleShort(pcx->xmax) >= 320
+		|| (unsigned short)LittleShort(pcx->ymax) >= 200)
 	{
 		skin->failedload = true;
 		Con_Printf ("Bad skin %s\n", name);
@@ -188,6 +188,9 @@ qbyte	*Skin_Cache8 (skin_t *skin)
 	skin->width = 320;
 	skin->height = 200;
 	skin->cachedbpp = 8;
+
+	pcx->xmax = (unsigned short)LittleShort(pcx->xmax);
+	pcx->ymax = (unsigned short)LittleShort(pcx->ymax);
 	
 	out = Cache_Alloc (&skin->cache, 320*200, skin->name);
 	if (!out)

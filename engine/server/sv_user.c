@@ -240,7 +240,7 @@ void SV_New_f (void)
 
 	// send server info string
 	MSG_WriteByte (&host_client->netchan.message, svc_stufftext);
-	if (svs.demostatevalid)
+	if (sv.demostatevalid)
 		MSG_WriteString (&host_client->netchan.message, va("fullserverinfo \"%s\"\n", sv.demoinfo));
 	else
 		MSG_WriteString (&host_client->netchan.message, va("fullserverinfo \"%s\"\n", svs.info) );

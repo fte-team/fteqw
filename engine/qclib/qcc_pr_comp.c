@@ -1182,17 +1182,6 @@ QCC_def_t *QCC_PR_Statement ( QCC_opcode_t *op, QCC_def_t *var_a, QCC_def_t *var
 	QCC_dstatement_t	*statement;
 	QCC_def_t			*var_c=NULL, *temp=NULL;
 
-	if (var_a)
-	{
-		var_a->references++;
-		QCC_FreeTemp(var_a);
-	}
-	if (var_b)
-	{
-		var_b->references++;
-		QCC_FreeTemp(var_b);
-	}
-
 	if (outstatement == (QCC_dstatement_t **)0xffffffff)
 		outstatement = NULL;
 	else if (op->priority != -1)
@@ -1219,6 +1208,17 @@ QCC_def_t *QCC_PR_Statement ( QCC_opcode_t *op, QCC_def_t *var_a, QCC_def_t *var
 //			if (var_b && var_b->type && var_b->type != op->type_b->type)
 //				var_b = QCC_SupplyConversion(var_b, op->type_b->type->type);			
 		}
+	}
+
+	if (var_a)
+	{
+		var_a->references++;
+		QCC_FreeTemp(var_a);
+	}
+	if (var_b)
+	{
+		var_b->references++;
+		QCC_FreeTemp(var_b);
 	}
 
 	if (keyword_class && var_a && var_b)
@@ -3603,6 +3603,8 @@ reloop:
 					default:
 						QCC_PR_ParseError(ERR_INTERNAL, "Bad field type");
 						return d;
+					case ev_integer:
+						return QCC_PR_Statement(&pr_opcodes[OP_LOAD_I], d, field, NULL);
 					case ev_field:
 						d = QCC_PR_Statement(&pr_opcodes[OP_LOAD_FLD], d, field, NULL);
 						nd = (void *)qccHunkAlloc (sizeof(QCC_def_t));

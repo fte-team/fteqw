@@ -23,6 +23,9 @@ void Sys_Error (const char *error, ...)
 	Con_Print (string);
 	Con_Print ("\n");
 
+	if (COM_CheckParm("-crashonerror"))
+		*(int*)-3 = 0;
+
 	Host_Shutdown ();
 	exit (1);
 }
@@ -198,7 +201,7 @@ void Sys_CloseTerminal (void)
 #ifdef _WIN32
 #include <windows.h>
 #endif
-int SDL_main(int argc, char **argv)
+int main(int argc, char **argv)
 {
 	float time, newtime, oldtime;
 	quakeparms_t	parms;
@@ -287,6 +290,11 @@ int SDL_main(int argc, char **argv)
 	return 0;
 }
 
+void Sys_HighFPPrecision(void)
+{
+}
 
-
+void Sys_LowFPPrecision(void)
+{
+}
 

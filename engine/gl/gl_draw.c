@@ -240,6 +240,8 @@ qboolean Draw_RealPicFromWad (mpic_t	*out, char *name)
 	{
 		sprintf(name2, "pics/%s", name);
 		texnum = Mod_LoadHiResTexture(name2, false, true, false);
+		glDisable(GL_ALPHA_TEST);
+		glEnable(GL_BLEND);	//make sure.
 	}
 	
 	if (texnum)

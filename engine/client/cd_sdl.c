@@ -333,8 +333,6 @@ int CDAudio_Init(void)
 {
 	int	n;
 
-	Con_Printf("SDL has no sound code\n");
-
 #if		0	// QW
 	if (cls.state == ca_dedicated)
 		return -1;

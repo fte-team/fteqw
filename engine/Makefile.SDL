@@ -5,9 +5,9 @@ CPUOPTIMIZATIONS=
 BASE_DIR=.
 
 ifeq ($(FTE_TARGET),) 
-	ifdef windir
-		FTE_TARGET=win32
-	endif
+#	ifdef windir
+#		FTE_TARGET=win32
+#	endif
 
 	FTE_TARGET ?= sdl
 endif
@@ -320,31 +320,31 @@ endif
 	MCL_DIR=mcl_mgw
 
 else
+#if FTE_TARGET != win32 (so sdl builds then)
 
 
-	GLCL_OBJS=$(GL_OBJS) $(GLQUAKE_OBJS) gl_vidsdl.o snd_sdl.o cd_sdl.o sys_sdl.o
+	GLCL_OBJS=$(GL_OBJS) $(GLQUAKE_OBJS) gl_vidsdl.o snd_sdl.o cd_sdl.o sys_sdl.o in_sdl.o
 	GL_EXE_NAME=../fteqw_sdl.gl
 	GLCL_EXE_NAME=../fteqwcl_sdl.gl
 ifdef windir
-	GL_LDFLAGS=$(GLLDFLAGS) -lmingw32 -lwsock32 -lSDLmain -lSDL
+	GL_LDFLAGS=$(GLLDFLAGS) -lmingw32 -lwsock32 `sdl-config --libs`
 else
-	#pthread is needed because of SDL.
-	GL_LDFLAGS=$(GLLDFLAGS) -lSDLmain -lSDL -lpng -ljpeg -lpthread
+	GL_LDFLAGS=$(GLLDFLAGS) -lpng -ljpeg `sdl-config --libs`
 endif
-	GL_CFLAGS=$(GLCFLAGS)
+	GL_CFLAGS=$(GLCFLAGS) `sdl-config --cflags`
 	GLB_DIR=gl_sdl
 	GLCL_DIR=glcl_sdl
 
-	SWCL_OBJS=$(SOFTWARE_OBJS) vid_sdl.o snd_sdl.o cd_sdl.o sys_sdl.o
-	SW_EXE_NAME=../fteswqw.sw
-	SWCL_EXE_NAME=../fteswqwcl.sw
+	SWCL_OBJS=$(SOFTWARE_OBJS) vid_sdl.o snd_sdl.o cd_sdl.o sys_sdl.o in_sdl.o
+	SW_EXE_NAME=../fteqw_sdl.sw
+	SWCL_EXE_NAME=../fteqwcl_sdl.sw
 ifdef windir
 	SW_LDFLAGS=$(SWLDFLAGS) -lmingw32 -lwsock32 -lSDLmain -lSDL
 else
 	#pthread is needed because of SDL.
-	SW_LDFLAGS=$(SWLDFLAGS) -lSDLmain -lSDL -lpthread
+	SW_LDFLAGS=$(SWLDFLAGS) `sdl-config --libs` -lpng -ljpeg -lSDLmain
 endif
-	SW_CFLAGS=$(SWCFLAGS)
+	SW_CFLAGS=$(SWCFLAGS) `sdl-config --cflags`
 	SWB_DIR=sw_mgw
 	SWCL_DIR=swcl_mgw
 endif
@@ -428,9 +428,9 @@ gl-dbg:
 
 
 swcl-tmp:
-	$(MAKE) -f Makefile.SDL $(TYPE)   OUT_DIR="$(OUT_DIR)" EXE_NAME="$(SWCL_EXE_NAME)" CFLAGS="$(SW_CFLAGS)" LDFLAGS="$(SW_LDFLAGS)" SOBJS="SWCL_OBJS"
+	$(MAKE) -f Makefile.SDL $(TYPE)   OUT_DIR="$(OUT_DIR)" EXE_NAME="$(SWCL_EXE_NAME)" CFLAGS="$(SW_CFLAGS)" LDFLAGS="$(SW_LDFLAGS)" SOBJS="$(SWCL_OBJS)"
 sw-tmp:
-	$(MAKE) -f Makefile.SDL $(TYPE)   OUT_DIR="$(OUT_DIR)" EXE_NAME="$(SW_EXE_NAME)" CFLAGS="$(SW_CFLAGS)" LDFLAGS="$(SW_LDFLAGS)" SOBJS="SWCL_OBJS"
+	$(MAKE) -f Makefile.SDL $(TYPE)   OUT_DIR="$(OUT_DIR)" EXE_NAME="$(SW_EXE_NAME)" CFLAGS="$(SW_CFLAGS)" LDFLAGS="$(SW_LDFLAGS)" SOBJS="$(SWCL_OBJS)"
 
 swcl-rel:
 	$(MAKE) -f Makefile.SDL swcl-tmp TYPE=_cl-rel OUT_DIR="$(RELEASE_DIR)/$(SWCL_DIR)"

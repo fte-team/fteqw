@@ -588,7 +588,7 @@ nextmessage:
 				{
 					cl->requestnum++;
 
-/*					if (req->reqType < 0 || req->reqType >= 256 || !XRequests[req->reqType])
+					if (/*req->reqType < 0 || req->reqType >= 256 ||*/ !XRequests[req->reqType])
 					{
 	//					Con_Printf("X request %i, len %i - NOT SUPPORTED\n", req->reqType, rlen*4);
 
@@ -597,12 +597,12 @@ nextmessage:
 //						cl->tobedropped = true;
 					}
 					else
-*/
 					{
 //						Con_Printf("X request %i, len %i\n", req->reqType, rlen*4);
 
 //Con_Printf("Request %i\n", req->reqType);
 //						Z_CheckSentinals();
+						XS_CheckResourceSentinals();
 						if (!req->length)
 						{
 							int rt, data;
@@ -620,6 +620,7 @@ nextmessage:
 						}
 						else
 							XRequests[req->reqType](cl, req);
+						XS_CheckResourceSentinals();
 //						Z_CheckSentinals();
 //Con_Printf("Done request\n");
 					}
@@ -899,6 +900,8 @@ void XWindows_Startup(void)	//initialise the server socket and do any initial se
 		X_InitRequests();
 		XS_CreateInitialResources();
 	}
+
+	XS_CheckResourceSentinals();
 
 	//quakie stuph
 	key_dest = key_menu;
@@ -1613,6 +1616,7 @@ void X_EvalutateFocus(int movemode)
 
 void XWindows_Draw(void)
 {
+	XS_CheckResourceSentinals();
 	{
 		X_EvalutateCursorOwner(NotifyNormal);
 	}
@@ -1648,11 +1652,14 @@ void XWindows_Draw(void)
 	Con_DrawNotify();
 
 	XWindows_TendToClients();
+	XS_CheckResourceSentinals();
 }
 
 void XWindows_Key(int key)
 {
 	extern qboolean	keydown[256];
+	XS_CheckResourceSentinals();
+
 	if (key == 'q' || (key == K_BACKSPACE && keydown[K_CTRL] && keydown[K_ALT]))	//kill off the server
 	{
 		m_state = m_none;
@@ -1741,9 +1748,11 @@ void XWindows_Key(int key)
 		else if (XS_GetResource(ev.u.keyButtonPointer.child, (void**)&wnd) == x_window)
 			X_SendInputNotification(&ev, wnd, (ev.u.u.type==ButtonPress)?ButtonPressMask:KeyPressMask);
 	}
+	XS_CheckResourceSentinals();
 }
 void XWindows_Keyup(int key)
 {
+	XS_CheckResourceSentinals();
 	{
 		xEvent ev;
 		xwindow_t *wnd;
@@ -1824,6 +1833,7 @@ void XWindows_Keyup(int key)
 			X_SendInputNotification(&ev, wnd, (ev.u.u.type==ButtonRelease)?ButtonReleaseMask:KeyReleaseMask);
 		}
 	}
+	XS_CheckResourceSentinals();
 }
 
 #else

@@ -62,6 +62,20 @@ Atom XS_FindAtom(char *name)
 	return None;
 }
 
+void XS_CheckResourceSentinals(void)
+{
+/*	xresource_t *res;
+	for (res = resources; res; res = res->next)
+	{
+		if (res->restype == x_window)
+		{
+			if (((xwindow_t*)res)->buffer)
+				BZ_CheckSentinals(((xwindow_t*)res)->buffer);
+		}
+	}
+	*/
+}
+
 void XS_DestroyResource(xresource_t *res)
 {
 	qboolean nofree = false;
@@ -369,6 +383,8 @@ xwindow_t *XS_CreateWindow(int wid, xclient_t *owner, xwindow_t *parent, short x
 	XS_SetParent(neww, parent);
 
 	XS_LinkResource(&neww->res);
+
+	XS_CheckResourceSentinals();
 	return neww;
 }
 
@@ -440,6 +456,8 @@ void XS_CreateInitialResources(void)
 	xscreenwidth = 640;
 	xscreenheight = 480;
 	xscreen = realloc(xscreen, xscreenwidth*4 * xscreenheight);
+
+	XS_CheckResourceSentinals();
 
 	XS_DestroyResourcesOfClient(NULL);
 
@@ -521,6 +539,8 @@ void XS_CreateInitialResources(void)
 	rootwindow = XS_CreateWindow(baseres++, NULL, NULL, 0, 0, xscreenwidth, xscreenheight);
 	rootwindow->mapped = true;
 
+	XS_CheckResourceSentinals();
+
 
 	memset(&pm, 0, sizeof(pm));
 	pm.linked = true;
@@ -534,6 +554,8 @@ void XS_CreateInitialResources(void)
 	rootwindow->backpixmap = &pm;
 
 	XW_ClearArea(rootwindow, 0, 0, rootwindow->width, rootwindow->height);
+
+	XS_CheckResourceSentinals();
 
 	xrefreshed = true;
 }

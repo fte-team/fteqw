@@ -172,7 +172,7 @@ void XW_ExposeWindowRegionInternal(xwindow_t *root, int x, int y, int width, int
 
 	if (root->buffer && root != rootwindow)
 	{
-		XW_ClearArea(root, 0, 0, root->width, root->height);
+//		XW_ClearArea(root, 0, 0, root->width, root->height);
 //		free(root->buffer);
 //		root->buffer = NULL;
 	}
@@ -1587,8 +1587,8 @@ void XW_ClearArea(xwindow_t *wnd, int xp, int yp, int width, int height)
 			{
 				//when do we stop?
 				xs = wnd->backpixmap->width;
-				if (xs > wnd->width-x)
-					xs = wnd->width-x;
+				if (xs > wnd->width-x-1)
+					xs = wnd->width-x-1;
 				for (; xs > 0; xs--)
 				{
 					out[x+xs] = in[xs+ys*wnd->backpixmap->width];
@@ -2734,8 +2734,8 @@ void Draw_CharToDrawable (int num, unsigned int *drawable, int x, int y, int wid
 	{
 		for (i=s ; i<e ; i++)
 			if (source[i] != 255 && source[i])
-//				GCFunc(gc->fgcolour, drawable[i], gc->function, drawable[i], d_8to24rgbtable[source[i]]);
-				drawable[i] = gc->fgcolour;//d_8to24rgbtable[source[i]];
+				GCFunc(gc->fgcolour, drawable[i], gc->function, drawable[i], d_8to24rgbtable[source[i]]);
+//				drawable[i] = gc->fgcolour;//d_8to24rgbtable[source[i]];
 		source += 128;
 		drawable += width;
 	}

@@ -68,7 +68,7 @@ char *Skin_FindName (player_info_t *sc)
 	if (cl.splitclients<2 && !cl.teamfortress && !(cl.fpd & FPD_NO_FORCE_SKIN))
 	{
 		char *skinname = NULL;
-		player_state_t *state;
+//		player_state_t *state;
 		qboolean teammate;
 
 		teammate = (cl.teamplay && !strcmp(sc->team, skinforcing_team)) ? true : false;
@@ -216,7 +216,7 @@ qbyte	*Skin_Cache8 (skin_t *skin)
 		return out;
 
 #ifdef SWQUAKE
-	if (qrenderer == QR_SOFTWARE && r_pixbytes == 1)	//only time FB has to exist... (gl can be disabled)
+	if (qrenderer == QR_SOFTWARE && r_pixbytes == 1 && cls.allow_fbskins<0.2)	//only time FB has to exist... (gl can be disabled)
 	{
 		for (x = 0; x < vid.fullbright; x++)
 			fbremap[x] = GetPalette(host_basepal[((x+256-vid.fullbright)*3)], host_basepal[((x+256-vid.fullbright)*3)+1], host_basepal[((x+256-vid.fullbright)*3)+2]);
@@ -232,6 +232,34 @@ qbyte	*Skin_Cache8 (skin_t *skin)
 // load the pic from disk
 //
 //	sprintf (name, "players/male/%s.pcx", skin->name);
+	if (strchr(skin->name, ' ')) //see if it's actually three colours
+	{
+		qbyte bv;
+		int col[3];
+		char *s;
+
+		s = COM_Parse(skin->name);
+		col[0] = atof(com_token);
+		s = COM_Parse(s);
+		col[1] = atof(com_token);
+		s = COM_Parse(s);
+		col[2] = atof(com_token);
+
+		bv = GetPalette(col[0], col[1], col[2]);
+
+		skin->width = 320;
+		skin->height = 200;
+		skin->cachedbpp = 8;
+
+		out = Cache_Alloc (&skin->cache, 320*200, skin->name);
+
+		memset (out, bv, 320*200);
+
+		skin->failedload = false;
+
+		return out;
+	}
+
 	sprintf (name, "skins/%s.pcx", skin->name);
 	raw = COM_LoadTempFile (name);
 	if (!raw)
@@ -439,6 +467,10 @@ void Skin_NextDownload (void)
 		Skin_Find (sc);
 		if (noskins.value)
 			continue;
+
+		if (strchr(sc->skin->name, ' '))	//skip over skins using a space
+			continue;
+
 		if (!CL_CheckOrDownloadFile(va("skins/%s.pcx", sc->skin->name), false))
 			return;		// started a download
 	}

@@ -1266,6 +1266,8 @@ void GLDraw_Crosshair(void)
 #undef Pix
 			cachedcrosshair = crosshair.value;
 		}
+		glTexParameterf(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
+		glTexParameterf(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
 	}
 	else if ((*crosshair.string>='a' && *crosshair.string<='z') || (*crosshair.string>='A' && *crosshair.string<='Z'))
 	{				

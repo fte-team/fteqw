@@ -847,36 +847,6 @@ float *GLRecursiveLightPoint3C (mnode_t *node, vec3_t start, vec3_t end)
 	return GLRecursiveLightPoint3C (node->children[!side], mid, end);
 }
 
-float *GLR_LightPoint3C (vec3_t p)
-{
-	static vec3_t l = {255, 255, 255};
-	static vec3_t nl = {0, 0, 0};
-	float *r;
-	vec3_t		end;	
-	
-	if (!cl.worldmodel->lightdata)
-	{		
-		return l;
-	}
-
-	if (cl.worldmodel->fromgame == fg_quake3)
-		return nl;
-
-	if (cl.worldmodel->fromgame == fg_doom)
-		return nl;
-	
-	end[0] = p[0];
-	end[1] = p[1];
-	end[2] = p[2] - 2048;
-	
-	r = GLRecursiveLightPoint3C (cl.worldmodel->nodes, p, end);
-	
-	if (r == NULL)
-		return nl;
-
-	return r;
-}
-
 #endif
 
 void GLQ1BSP_LightPointValues(vec3_t point, vec3_t res_diffuse, vec3_t res_ambient, vec3_t res_dir)

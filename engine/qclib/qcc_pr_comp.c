@@ -3765,9 +3765,11 @@ QCC_def_t *QCC_PR_Term (void)
 		}
 		else if (QCC_PR_Check ("*"))
 		{
-			int st = numstatements;
 			e = QCC_PR_Expression (NOT_PRIORITY);
 			t = e->type->type;
+
+			if (t != ev_pointer)
+				QCC_PR_ParseError (ERR_BADNOTTYPE, "type mismatch for *");
 
 			switch(e->type->aux_type->type)
 			{
@@ -3797,7 +3799,7 @@ QCC_def_t *QCC_PR_Term (void)
 				break;
 
 			default:
-				QCC_PR_ParseError (ERR_BADNOTTYPE, "type mismatch for *");
+				QCC_PR_ParseError (ERR_BADNOTTYPE, "type mismatch for * (unrecognised type)");
 				break;
 			}
 
@@ -3808,7 +3810,7 @@ QCC_def_t *QCC_PR_Term (void)
 		{
 			e = QCC_PR_Expression (NOT_PRIORITY);
 
-			switch(e->type->aux_type->type)
+			switch(e->type->type)
 			{
 			case ev_float:
 				e2 = QCC_PR_Statement (&pr_opcodes[OP_SUB_F], QCC_MakeFloatDef(0), e, NULL);
@@ -3826,7 +3828,7 @@ QCC_def_t *QCC_PR_Term (void)
 		{
 			e = QCC_PR_Expression (NOT_PRIORITY);
 
-			switch(e->type->aux_type->type)
+			switch(e->type->type)
 			{
 			case ev_float:
 				e2 = QCC_PR_Statement (&pr_opcodes[OP_ADD_F], QCC_MakeFloatDef(0), e, NULL);

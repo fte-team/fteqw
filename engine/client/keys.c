@@ -1145,6 +1145,8 @@ void Key_Event (int key, qboolean down)
 			&& key != K_PGDN
 			&& key != K_LEFTARROW 
 			&& key != K_RIGHTARROW
+			&& key != K_UPARROW 
+			&& key != K_DOWNARROW
 			&& key_repeats[key] > 1)
 			return;	// ignore most autorepeats
 			

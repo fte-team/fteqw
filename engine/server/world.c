@@ -644,7 +644,7 @@ void SV_LinkEdict (edict_t *ent, qboolean touch_triggers)
 
 
 #ifdef Q2SERVER
-void SVQ2_UnlinkEdict(q2edict_t *ent)
+void VARGS SVQ2_UnlinkEdict(q2edict_t *ent)
 {
 	if (!ent->area.prev)
 		return;		// not linked in anywhere
@@ -652,7 +652,7 @@ void SVQ2_UnlinkEdict(q2edict_t *ent)
 	ent->area.prev = ent->area.next = NULL;
 }
 
-void SVQ2_LinkEdict(q2edict_t *ent)
+void VARGS SVQ2_LinkEdict(q2edict_t *ent)
 {
 	areanode_t	*node;
 	int			leafs[MAX_TOTAL_ENT_LEAFS];
@@ -1353,7 +1353,7 @@ void SVQ2_AreaEdicts_r (areanode_t *node)
 		SVQ2_AreaEdicts_r ( node->children[1] );
 }
 
-int SVQ2_AreaEdicts (vec3_t mins, vec3_t maxs, q2edict_t **list,
+int VARGS SVQ2_AreaEdicts (vec3_t mins, vec3_t maxs, q2edict_t **list,
 	int maxcount, int areatype)
 {
 	area_mins = mins;

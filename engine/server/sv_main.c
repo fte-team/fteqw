@@ -292,7 +292,8 @@ void SV_DropClient (client_t *drop)
 		return;
 	}
 	// add the disconnect
-	MSG_WriteByte (&drop->netchan.message, drop->isq2client?svcq2_disconnect:svc_disconnect);
+	if (drop->state != cs_zombie)
+		MSG_WriteByte (&drop->netchan.message, drop->isq2client?svcq2_disconnect:svc_disconnect);
 
 #ifdef SVRANKING
 	if (drop->state == cs_spawned)
@@ -2701,6 +2702,8 @@ void SV_Impulse_f (void)
 		Con_Printf("No empty player slots\n");
 		return;
 	}
+	if (!svprogfuncs)
+		return;
 
 	pr_global_struct->time = sv.time;
 

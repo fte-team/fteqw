@@ -62,7 +62,7 @@ Q2SOLID_BSP			// bsp clip, touch on edge
 
 
 #define	MAXTOUCH	32
-typedef struct
+typedef struct q2pmove_s
 {
 	// state (in / out)
 	q2pmove_state_t	s;
@@ -85,9 +85,11 @@ typedef struct
 	int			waterlevel;
 
 	// callbacks to test the world
-	q2trace_t		(*trace) (vec3_t start, vec3_t mins, vec3_t maxs, vec3_t end);
-	int			(*pointcontents) (vec3_t point);
+	q2trace_t		(VARGS *trace) (vec3_t start, vec3_t mins, vec3_t maxs, vec3_t end);
+	int			(VARGS *pointcontents) (vec3_t point);
 } q2pmove_t;
+
+void VARGS Q2_Pmove (q2pmove_t *pmove);
 
 //===============================================================
 
@@ -173,6 +175,7 @@ struct q2edict_s
 //
 // functions provided by the main engine
 //
+//yes, these are all VARGS, for the calling convention rather than actually being varargs.
 typedef struct
 {
 	// special messages
@@ -180,73 +183,73 @@ typedef struct
 	void	(VARGS *dprintf) (char *fmt, ...);
 	void	(VARGS *cprintf) (q2edict_t *ent, int printlevel, char *fmt, ...);
 	void	(VARGS *centerprintf) (q2edict_t *ent, char *fmt, ...);
-	void	(*sound) (q2edict_t *ent, int channel, int soundindex, float volume, float attenuation, float timeofs);
-	void	(*positioned_sound) (vec3_t origin, q2edict_t *ent, int channel, int soundinedex, float volume, float attenuation, float timeofs);
+	void	(VARGS *sound) (q2edict_t *ent, int channel, int soundindex, float volume, float attenuation, float timeofs);
+	void	(VARGS *positioned_sound) (vec3_t origin, q2edict_t *ent, int channel, int soundinedex, float volume, float attenuation, float timeofs);
 
 	// config strings hold all the index strings, the lightstyles,
 	// and misc data like the sky definition and cdtrack.
 	// All of the current configstrings are sent to clients when
 	// they connect, and changes are sent to all connected clients.
-	void	(*configstring) (int num, char *string);
+	void	(VARGS *configstring) (int num, char *string);
 
 	void	(VARGS *error) (char *fmt, ...);
 
 	// the *index functions create configstrings and some internal server state
-	int		(*modelindex) (char *name);
-	int		(*soundindex) (char *name);
-	int		(*imageindex) (char *name);
+	int		(VARGS *modelindex) (char *name);
+	int		(VARGS *soundindex) (char *name);
+	int		(VARGS *imageindex) (char *name);
 
-	void	(*setmodel) (q2edict_t *ent, char *name);
+	void	(VARGS *setmodel) (q2edict_t *ent, char *name);
 
 	// collision detection
-	q2trace_t	(*trace) (vec3_t start, vec3_t mins, vec3_t maxs, vec3_t end, q2edict_t *passent, int contentmask);
-	int		(*pointcontents) (vec3_t point);
-	qboolean	(*inPVS) (vec3_t p1, vec3_t p2);
-	qboolean	(*inPHS) (vec3_t p1, vec3_t p2);
-	void		(*SetAreaPortalState) (int portalnum, qboolean open);
-	qboolean	(*AreasConnected) (int area1, int area2);
+	q2trace_t	(VARGS *trace) (vec3_t start, vec3_t mins, vec3_t maxs, vec3_t end, q2edict_t *passent, int contentmask);
+	int		(VARGS *pointcontents) (vec3_t point);
+	qboolean	(VARGS *inPVS) (vec3_t p1, vec3_t p2);
+	qboolean	(VARGS *inPHS) (vec3_t p1, vec3_t p2);
+	void		(VARGS *SetAreaPortalState) (int portalnum, qboolean open);
+	qboolean	(VARGS *AreasConnected) (int area1, int area2);
 
 	// an entity will never be sent to a client or used for collision
 	// if it is not passed to linkentity.  If the size, position, or
 	// solidity changes, it must be relinked.
-	void	(*linkentity) (q2edict_t *ent);
-	void	(*unlinkentity) (q2edict_t *ent);		// call before removing an interactive edict
-	int		(*BoxEdicts) (vec3_t mins, vec3_t maxs, q2edict_t **list,	int maxcount, int areatype);
-	void	(*Pmove) (q2pmove_t *pmove);		// player movement code common with client prediction
+	void	(VARGS *linkentity) (q2edict_t *ent);
+	void	(VARGS *unlinkentity) (q2edict_t *ent);		// call before removing an interactive edict
+	int		(VARGS *BoxEdicts) (vec3_t mins, vec3_t maxs, q2edict_t **list,	int maxcount, int areatype);
+	void	(VARGS *Pmove) (q2pmove_t *pmove);		// player movement code common with client prediction
 
 	// network messaging
-	void	(*multicast) (vec3_t origin, multicast_t to);
-	void	(*unicast) (q2edict_t *ent, qboolean reliable);
-	void	(*WriteChar) (int c);
-	void	(*WriteByte) (int c);
-	void	(*WriteShort) (int c);
-	void	(*WriteLong) (int c);
-	void	(*WriteFloat) (float f);
-	void	(*WriteString) (char *s);
-	void	(*WritePosition) (vec3_t pos);	// some fractional bits
-	void	(*WriteDir) (vec3_t pos);		// single byte encoded, very coarse
-	void	(*WriteAngle) (float f);
+	void	(VARGS *multicast) (vec3_t origin, multicast_t to);
+	void	(VARGS *unicast) (q2edict_t *ent, qboolean reliable);
+	void	(VARGS *WriteChar) (int c);
+	void	(VARGS *WriteByte) (int c);
+	void	(VARGS *WriteShort) (int c);
+	void	(VARGS *WriteLong) (int c);
+	void	(VARGS *WriteFloat) (float f);
+	void	(VARGS *WriteString) (char *s);
+	void	(VARGS *WritePosition) (vec3_t pos);	// some fractional bits
+	void	(VARGS *WriteDir) (vec3_t pos);		// single byte encoded, very coarse
+	void	(VARGS *WriteAngle) (float f);
 
 	// managed memory allocation
-	void	*(*TagMalloc) (int size, int tag);
-	void	(*TagFree) (void *block);
-	void	(*FreeTags) (int tag);
+	void	*(VARGS *TagMalloc) (int size, int tag);
+	void	(VARGS *TagFree) (void *block);
+	void	(VARGS *FreeTags) (int tag);
 
 	// console variable interaction
-	cvar_t	*(*cvar) (char *var_name, char *value, int flags);
-	cvar_t	*(*cvar_set) (char *var_name, char *value);
-	cvar_t	*(*cvar_forceset) (char *var_name, char *value);
+	cvar_t	*(VARGS *cvar) (char *var_name, char *value, int flags);
+	cvar_t	*(VARGS *cvar_set) (char *var_name, char *value);
+	cvar_t	*(VARGS *cvar_forceset) (char *var_name, char *value);
 
 	// ClientCommand and ServerCommand parameter access
-	int		(*argc) (void);
-	char	*(*argv) (int n);
-	char	*(*args) (void);	// concatenation of all argv >= 1
+	int		(VARGS *argc) (void);
+	char	*(VARGS *argv) (int n);
+	char	*(VARGS *args) (void);	// concatenation of all argv >= 1
 
 	// add commands to the server console as if they were typed in
 	// for map changing, etc
-	void	(*AddCommandString) (char *text);
+	void	(VARGS *AddCommandString) (char *text);
 
-	void	(*DebugGraph) (float value, int color);
+	void	(VARGS *DebugGraph) (float value, int color);
 } game_import_t;
 
 //
@@ -259,38 +262,38 @@ typedef struct
 	// the init function will only be called when a game starts,
 	// not each time a level is loaded.  Persistant data for clients
 	// and the server can be allocated in init
-	void		(*Init) (void);
-	void		(*Shutdown) (void);
+	void		(VARGS *Init) (void);
+	void		(VARGS *Shutdown) (void);
 
 	// each new level entered will cause a call to SpawnEntities
-	void		(*SpawnEntities) (char *mapname, char *entstring, char *spawnpoint);
+	void		(VARGS *SpawnEntities) (char *mapname, char *entstring, char *spawnpoint);
 
 	// Read/Write Game is for storing persistant cross level information
 	// about the world state and the clients.
 	// WriteGame is called every time a level is exited.
 	// ReadGame is called on a loadgame.
-	void		(*WriteGame) (char *filename, qboolean autosave);
-	void		(*ReadGame) (char *filename);
+	void		(VARGS *WriteGame) (char *filename, qboolean autosave);
+	void		(VARGS *ReadGame) (char *filename);
 
 	// ReadLevel is called after the default map information has been
 	// loaded with SpawnEntities
-	void		(*WriteLevel) (char *filename);
-	void		(*ReadLevel) (char *filename);
+	void		(VARGS *WriteLevel) (char *filename);
+	void		(VARGS *ReadLevel) (char *filename);
 
-	qboolean	(*ClientConnect) (q2edict_t *ent, char *userinfo);
-	void		(*ClientBegin) (q2edict_t *ent);
-	void		(*ClientUserinfoChanged) (q2edict_t *ent, char *userinfo);
-	void		(*ClientDisconnect) (q2edict_t *ent);
-	void		(*ClientCommand) (q2edict_t *ent);
-	void		(*ClientThink) (q2edict_t *ent, q2usercmd_t *cmd);
+	qboolean	(VARGS *ClientConnect) (q2edict_t *ent, char *userinfo);
+	void		(VARGS *ClientBegin) (q2edict_t *ent);
+	void		(VARGS *ClientUserinfoChanged) (q2edict_t *ent, char *userinfo);
+	void		(VARGS *ClientDisconnect) (q2edict_t *ent);
+	void		(VARGS *ClientCommand) (q2edict_t *ent);
+	void		(VARGS *ClientThink) (q2edict_t *ent, q2usercmd_t *cmd);
 
-	void		(*RunFrame) (void);
+	void		(VARGS *RunFrame) (void);
 
 	// ServerCommand will be called when an "sv <command>" command is issued on the
 	// server console.
 	// The game can issue gi.argc() / gi.argv() commands to get the rest
 	// of the parameters
-	void		(*ServerCommand) (void);
+	void		(VARGS *ServerCommand) (void);
 
 	//
 	// global variables shared between game and server

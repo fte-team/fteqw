@@ -1195,7 +1195,14 @@ void SV_Begin_f (void)
 
 	for (split = host_client; split; split = split->controlled)
 	{
-		if (split->istobeloaded)
+#ifdef Q2SERVER
+		if (ge)
+		{
+			ge->ClientBegin(split->q2edict);
+			split->istobeloaded = false;
+		}
+#endif
+		else if (split->istobeloaded)
 		{
 			sendangles = true;
 			split->istobeloaded = false;
@@ -1276,12 +1283,6 @@ void SV_Begin_f (void)
 						host_client = oh;
 					}
 				}
-	#ifdef Q2SERVER
-				else
-				{
-					ge->ClientBegin(split->q2edict);
-				}
-	#endif
 			}
 		}
 	}
@@ -3705,15 +3706,6 @@ void SV_RunCmd (usercmd_t *ucmd, qboolean recurse)
 	qboolean jumpable;
 	extern cvar_t sv_gravity;
 
-#ifdef Q2SERVER
-	if (!svprogfuncs)
-	{
-		ge->ClientThink (host_client->q2edict, (q2usercmd_t*)ucmd);
-		return;
-	}
-#endif
-
-
 	
 	// DMW copied this KK hack copied from QuakeForge anti-cheat
 	// (also extra inside parm on all SV_RunCmds that follow)	
@@ -4381,6 +4373,12 @@ void SVQ2_ExecuteClientMessage (client_t *cl)
 	int		seq_hash;
 	int lastframe;
 
+	if (!ge)
+	{
+		Con_Printf("Q2 client without Q2 server\n");
+		SV_DropClient(cl);
+	}
+
 	// calc ping time
 	frame = &cl->q2frames[cl->netchan.incoming_acknowledged & Q2UPDATE_MASK];
 
@@ -4479,36 +4477,22 @@ void SVQ2_ExecuteClientMessage (client_t *cl)
 
 			if (!sv.paused)
 			{
-				/*if (sv_nomsec.value)
-				{
-					cmd = newcmd;
-					SV_ClientThink ();
-
-					cl->lastcmd = newcmd;
-					cl->lastcmd.buttons = 0; // avoid multiple fires on lag
-					break;
-				}*/
-				SV_PreRunCmd();
-
 				if (net_drop < 20)
 				{
 					while (net_drop > 2)
 					{
-						SV_RunCmd (&cl->lastcmd, false);
+						ge->ClientThink (host_client->q2edict, (q2usercmd_t*)&cl->lastcmd);
 						net_drop--;
 					}
 					if (net_drop > 1)
-						SV_RunCmd (&oldest, false);
+						ge->ClientThink (host_client->q2edict, (q2usercmd_t*)&oldest);
 					if (net_drop > 0)
-						SV_RunCmd (&oldcmd, false);
+						ge->ClientThink (host_client->q2edict, (q2usercmd_t*)&oldcmd);
 				}
-				SV_RunCmd (&newcmd, false);
-
-				SV_PostRunCmd();
+				ge->ClientThink (host_client->q2edict, (q2usercmd_t*)&newcmd);
 			}
 
 			cl->lastcmd = newcmd;
-			cl->lastcmd.buttons = 0; // avoid multiple fires on lag
 			break;
 
 		case clcq2_userinfo:

@@ -642,16 +642,18 @@ typedef struct bannedips_s {
 	netadr_t	adr;
 } bannedips_t;
 
-typedef struct levelcache_s {
-	struct levelcache_s *next;
-	char *mapname;
-} levelcache_t;
-
 typedef enum {
 	GT_PROGS,	//q1, qw, h2 are similar enough that we consider it only one game mode. (We don't support the h2 protocol)
 	GT_QUAKE2,	//q2 servers run from a q2 game dll
-	GT_QUAKE3	//q3 servers run off the q3 qvm api
+	GT_QUAKE3,	//q3 servers run off the q3 qvm api
+	GT_MAX
 } gametype_e;
+
+typedef struct levelcache_s {
+	struct levelcache_s *next;
+	char *mapname;
+	gametype_e gametype;
+} levelcache_t;
 
 typedef struct
 {
@@ -891,7 +893,7 @@ void SV_FilterImpulseInit(void);
 
 //svq2_game.c
 qboolean SVQ2_InitGameProgs(void);
-void SVQ2_ShutdownGameProgs (void);
+void VARGS SVQ2_ShutdownGameProgs (void);
 
 //svq2_ents.c
 void SV_BuildClientFrame (client_t *client);
@@ -923,7 +925,7 @@ void SV_ClearQCStats(void);
 
 void SV_SendClientMessages (void);
 
-void SV_Multicast (vec3_t origin, multicast_t to);
+void VARGS SV_Multicast (vec3_t origin, multicast_t to);
 #define FULLDIMENSIONMASK 0xffffffff
 void SV_MulticastProtExt(vec3_t origin, multicast_t to, int dimension_mask, int with, int without);
 
@@ -1136,7 +1138,10 @@ int SV_RateForClient(client_t *cl);
 void SVVC_Frame (qboolean enabled);
 void SV_CalcPHS (void);
 #ifdef Q2SERVER
-void SVQ2_LinkEdict(q2edict_t *ent);
+void VARGS SVQ2_LinkEdict(q2edict_t *ent);
+void VARGS SVQ2_UnlinkEdict(q2edict_t *ent);
+int VARGS SVQ2_AreaEdicts (vec3_t mins, vec3_t maxs, q2edict_t **list,
+	int maxcount, int areatype);
 #endif
 
 void SV_GetConsoleCommands (void);

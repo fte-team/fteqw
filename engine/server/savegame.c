@@ -30,7 +30,12 @@ void SV_SavegameComment (char *text)
 			i = SAVEGAME_COMMENT_LENGTH;
 		memcpy (text, mapname, i);
 	}
-	sprintf (kills,"kills:%3i/%3i", (int)pr_global_struct->killed_monsters, (int)pr_global_struct->total_monsters);
+	if (ge)	//q2
+	{
+		sprintf (kills,"");
+	}
+	else
+		sprintf (kills,"kills:%3i/%3i", (int)pr_global_struct->killed_monsters, (int)pr_global_struct->total_monsters);
 	memcpy (text+22, kills, strlen(kills));
 // convert space to _ to make stdio happy
 	for (i=0 ; i<SAVEGAME_COMMENT_LENGTH ; i++)
@@ -466,6 +471,7 @@ qboolean SV_LoadLevelCache(char *level, char *startspot, qboolean ignoreplayers)
 
 	int filelen, filepos;
 	char *file;
+	gametype_e gametype;
 
 	levelcache_t *cache;
 
@@ -480,17 +486,25 @@ qboolean SV_LoadLevelCache(char *level, char *startspot, qboolean ignoreplayers)
 	if (!cache)
 		return false;	//not visited yet. Ignore the existing caches as fakes.
 
+	gametype = cache->gametype;
+
 	sprintf (name, "%s/saves/%s", com_gamedir, level);
 	COM_DefaultExtension (name, ".lvc");
 
 //	Con_TPrintf (STL_LOADGAMEFROM, name);
 
 #ifdef Q2SERVER
-	if (ge)
+	if (gametype == GT_QUAKE2)
 	{
 		SV_SpawnServer (level, startspot, false, false);
 
 		SV_ClearWorld();
+		if (!ge)
+		{
+			Con_Printf("Incorrect gamecode type.\n");
+			return false;
+		}
+
 		ge->ReadLevel(name);
 
 		for (i=0 ; i<100 ; i++)	//run for 10 secs to iron out a few bugs.
@@ -540,6 +554,11 @@ qboolean SV_LoadLevelCache(char *level, char *startspot, qboolean ignoreplayers)
 	fscanf (f, "%f\n",&time);	
 	
 	SV_SpawnServer (mapname, startspot, false, false);
+	if (svs.gametype != gametype)
+	{
+		Con_Printf("Incorrect gamecode type. Cannot load game.\n");
+		return false;
+	}
 	if (sv.state != ss_active)
 	{
 		fclose (f);
@@ -670,6 +689,7 @@ void SV_SaveLevelCache(qboolean dontharmgame)
 		cache->mapname = (char *)(cache+1);
 		strcpy(cache->mapname, sv.name);
 
+		cache->gametype = svs.gametype;
 		cache->next = svs.levcache;
 		svs.levcache = cache;
 	}
@@ -682,7 +702,7 @@ void SV_SaveLevelCache(qboolean dontharmgame)
 		Con_TPrintf (STL_SAVEGAMETO, name);
 
 #ifdef Q2SERVER
-	if (!svprogfuncs)
+	if (ge)
 	{
 		char	path[256];
 		strcpy(path, name);
@@ -805,7 +825,7 @@ void SV_Savegame_f (void)
 		return;
 	}
 	SV_SavegameComment(comment);
-	fprintf (f, "%d\n", FTESAVEGAME_VERSION);
+	fprintf (f, "%d\n", FTESAVEGAME_VERSION+svs.gametype);
 	fprintf (f, "%s\n", comment);
 
 	fprintf(f, "%i\n", sv.allocated_client_slots);
@@ -914,6 +934,7 @@ void SV_Loadgame_f (void)
 	int clnum;
 	int slots;
 	client_t *cl;
+	gametype_e gametype;
 
 	int len, buflen=0;
 	char *buffer=NULL;
@@ -933,17 +954,19 @@ void SV_Loadgame_f (void)
 
 	fgets(str, sizeof(str)-1, f);
 	version = atoi(str);
-	if (version != FTESAVEGAME_VERSION)
+	if (version < FTESAVEGAME_VERSION || version >= FTESAVEGAME_VERSION+GT_MAX)
 	{
 		fclose (f);
 		Con_TPrintf (STL_BADSAVEVERSION, version, FTESAVEGAME_VERSION);
 		return;
 	}
+	gametype = version - FTESAVEGAME_VERSION;
 	fgets(str, sizeof(str)-1, f);
 #ifndef SERVERONLY
 	if (!cls.state)
 #endif
 		Con_TPrintf (STL_LOADGAMEFROM, filename);
+
 
 	for (clnum = 0; clnum < MAX_CLIENTS; clnum++)	//clear the server for the level change.
 	{
@@ -951,7 +974,10 @@ void SV_Loadgame_f (void)
 		if (cl->state <= cs_zombie)
 			continue;
 
-		MSG_WriteByte (&cl->netchan.message, svc_stufftext);
+		if (cl->isq2client)
+			MSG_WriteByte (&cl->netchan.message, svcq2_stufftext);
+		else
+			MSG_WriteByte (&cl->netchan.message, svc_stufftext);
 		MSG_WriteString (&cl->netchan.message, "echo Loading Game;disconnect;wait;wait;reconnect\n");	//kindly ask the client to come again.
 		cl->istobeloaded = false;
 	}
@@ -1039,8 +1065,6 @@ void SV_Loadgame_f (void)
 			Cmd_ExecuteString(str, RESTRICT_RCON);
 	}
 
-
-
 	SV_FlushLevelCache();
 
 	fgets(str, sizeof(str)-1, f);
@@ -1063,12 +1087,12 @@ void SV_Loadgame_f (void)
 		if (!*str)
 			continue;
 
-		cache = Z_Malloc(sizeof(levelcache_t)+strlen(sv.name)+1);
+		cache = Z_Malloc(sizeof(levelcache_t)+strlen(str)+1);
 		cache->mapname = (char *)(cache+1);
 		strcpy(cache->mapname, str);
+		cache->gametype = gametype;
 
 		cache->next = svs.levcache;
-
 
 
 
@@ -1116,9 +1140,7 @@ void SV_Loadgame_f (void)
 
 	fclose(f);
 
-
 	SV_LoadLevelCache(str, "", true);
-
 	sv.allocated_client_slots = slots;
 }
 #endif

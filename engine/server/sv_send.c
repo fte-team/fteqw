@@ -666,7 +666,7 @@ void SV_MulticastProtExt(vec3_t origin, multicast_t to, int dimension_mask, int 
 }
 
 //version does all the work now
-void SV_Multicast (vec3_t origin, multicast_t to)
+void VARGS SV_Multicast (vec3_t origin, multicast_t to)
 {
 	SV_MulticastProtExt(origin, to, FULLDIMENSIONMASK, 0, 0);
 }

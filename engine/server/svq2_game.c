@@ -10,11 +10,6 @@ qboolean SVQ2_InitGameProgs(void)
 #else
 game_export_t	*ge;
 
-int SVQ2_AreaEdicts (vec3_t mins, vec3_t maxs, q2edict_t **list,
-	int maxcount, int areatype);
-
-void SVQ2_LinkEdict(q2edict_t *ent);
-void SVQ2_UnlinkEdict(q2edict_t *ent);
 trace_t SVQ2_Move (vec3_t start, vec3_t mins, vec3_t maxs, vec3_t end, int type, q2edict_t *passedict);
 
 
@@ -31,7 +26,7 @@ PF_Unicast
 Sends the contents of the mutlicast buffer to a single client
 ===============
 */
-static void PFQ2_Unicast (q2edict_t *ent, qboolean reliable)
+static void VARGS PFQ2_Unicast (q2edict_t *ent, qboolean reliable)
 {
 	int		p;
 	client_t	*client;
@@ -172,7 +167,7 @@ PF_Configstring
 
 ===============
 */
-static void PFQ2_Configstring (int i, char *val)
+static void VARGS PFQ2_Configstring (int i, char *val)
 {
 	int j;
 	if (i < 0 || i >= Q2MAX_CONFIGSTRINGS)
@@ -278,17 +273,17 @@ static int SVQ2_FindIndex (char *name, int start, int max, char *strings, int st
 }
 
 
-static int SVQ2_ModelIndex (char *name)
+static int VARGS SVQ2_ModelIndex (char *name)
 {
 	return SVQ2_FindIndex (name, Q2CS_MODELS, Q2MAX_MODELS, sv.model_precache[1], sizeof(sv.model_precache[0]), true);
 }
 
-static int SVQ2_SoundIndex (char *name)
+static int VARGS SVQ2_SoundIndex (char *name)
 {
 	return SVQ2_FindIndex (name, Q2CS_SOUNDS, Q2MAX_SOUNDS, sv.sound_precache[1], sizeof(sv.sound_precache[0]), true);
 }
 
-static int SVQ2_ImageIndex (char *name)
+static int VARGS SVQ2_ImageIndex (char *name)
 {
 	return SVQ2_FindIndex (name, Q2CS_IMAGES, Q2MAX_IMAGES, sv.image_precache[1], sizeof(sv.image_precache[0]), true);
 }
@@ -300,7 +295,7 @@ PF_setmodel
 Also sets mins and maxs for inline bmodels
 =================
 */
-static void PFQ2_setmodel (q2edict_t *ent, char *name)
+static void VARGS PFQ2_setmodel (q2edict_t *ent, char *name)
 {
 	int		i;
 	model_t	*mod;
@@ -335,18 +330,18 @@ static qboolean	CMQ2_Q1BSP_SetAreaPortalState (int portalnum, qboolean open)
 	return true;
 }*/
 
-static void PFQ2_WriteChar (int c) {MSG_WriteChar (&sv.multicast, c);}
-static void PFQ2_WriteByte (int c) {MSG_WriteByte (&sv.multicast, c);}
-static void PFQ2_WriteShort (int c) {MSG_WriteShort (&sv.multicast, c);}
-static void PFQ2_WriteLong (int c) {MSG_WriteLong (&sv.multicast, c);}
-static void PFQ2_WriteFloat (float f) {MSG_WriteFloat (&sv.multicast, f);}
-static void PFQ2_WriteString (char *s) {MSG_WriteString (&sv.multicast, s);}
-static void PFQ2_WriteAngle (float f) {MSG_WriteAngle (&sv.multicast, f);}
-static void PFQ2_WritePos (vec3_t pos) {	MSG_WriteCoord (&sv.multicast, pos[0]);
+static void VARGS PFQ2_WriteChar (int c) {MSG_WriteChar (&sv.multicast, c);}
+static void VARGS PFQ2_WriteByte (int c) {MSG_WriteByte (&sv.multicast, c);}
+static void VARGS PFQ2_WriteShort (int c) {MSG_WriteShort (&sv.multicast, c);}
+static void VARGS PFQ2_WriteLong (int c) {MSG_WriteLong (&sv.multicast, c);}
+static void VARGS PFQ2_WriteFloat (float f) {MSG_WriteFloat (&sv.multicast, f);}
+static void VARGS PFQ2_WriteString (char *s) {MSG_WriteString (&sv.multicast, s);}
+static void VARGS PFQ2_WriteAngle (float f) {MSG_WriteAngle (&sv.multicast, f);}
+static void VARGS PFQ2_WritePos (vec3_t pos) {	MSG_WriteCoord (&sv.multicast, pos[0]);
 									MSG_WriteCoord (&sv.multicast, pos[1]);
 									MSG_WriteCoord (&sv.multicast, pos[2]);
 								}
-static void PFQ2_WriteDir (vec3_t dir)	{MSG_WriteDir (&sv.multicast, dir);}
+static void VARGS PFQ2_WriteDir (vec3_t dir)	{MSG_WriteDir (&sv.multicast, dir);}
 
 /*
 =================
@@ -355,7 +350,7 @@ PF_inPVS
 Also checks portalareas so that doors block sight
 =================
 */
-static qboolean PFQ2_inPVS (vec3_t p1, vec3_t p2)
+static qboolean VARGS PFQ2_inPVS (vec3_t p1, vec3_t p2)
 {
 	int		leafnum;
 	int		cluster;
@@ -385,7 +380,7 @@ PF_inPHS
 Also checks portalareas so that doors block sound
 =================
 */
-static qboolean PFQ2_inPHS (vec3_t p1, vec3_t p2)
+static qboolean VARGS PFQ2_inPHS (vec3_t p1, vec3_t p2)
 {
 	int		leafnum;
 	int		cluster;
@@ -429,7 +424,7 @@ static qboolean PFQ2_inPHS (vec3_t p1, vec3_t p2)
 #define Q2CHAN_BODY   4*/
 #define	Q2CHAN_RELIABLE			16
 
-void SVQ2_StartSound (vec3_t origin, q2edict_t *entity, int channel,
+void VARGS SVQ2_StartSound (vec3_t origin, q2edict_t *entity, int channel,
 					int soundindex, float volume,
 					float attenuation, float timeofs)
 {       
@@ -540,7 +535,7 @@ void SVQ2_StartSound (vec3_t origin, q2edict_t *entity, int channel,
 	}
 }  
 
-static void PFQ2_StartSound (q2edict_t *entity, int channel, int sound_num, float volume,
+static void VARGS PFQ2_StartSound (q2edict_t *entity, int channel, int sound_num, float volume,
     float attenuation, float timeofs)
 {
 	if (!entity)
@@ -548,7 +543,7 @@ static void PFQ2_StartSound (q2edict_t *entity, int channel, int sound_num, floa
 	SVQ2_StartSound (NULL, entity, channel, sound_num, volume, attenuation, timeofs);
 }
 
-static q2trace_t SVQ2_Trace (vec3_t start, vec3_t mins, vec3_t maxs, vec3_t end, q2edict_t *passedict, int contentmask)
+static q2trace_t VARGS SVQ2_Trace (vec3_t start, vec3_t mins, vec3_t maxs, vec3_t end, q2edict_t *passedict, int contentmask)
 {
 	q2trace_t ret;
 	trace_t tr;
@@ -562,19 +557,19 @@ static q2trace_t SVQ2_Trace (vec3_t start, vec3_t mins, vec3_t maxs, vec3_t end,
 	return ret;
 }
 
-static int SVQ2_PointContents (vec3_t p)
+static int VARGS SVQ2_PointContents (vec3_t p)
 {
 	q2trace_t tr = SVQ2_Trace(p, NULL, NULL, p, NULL, ~0);
 	return tr.contents;
 //	return CM_PointContents(p, 0);
 }
 
-static cvar_t *Q2Cvar_Get (char *var_name, char *value, int flags)
+static cvar_t *VARGS Q2Cvar_Get (char *var_name, char *value, int flags)
 {
 	return Cvar_Get(var_name, value, flags, "Quake2 game variables");
 }
 
-cvar_t *Q2Cvar_Set (char *var_name, char *value)
+cvar_t *VARGS Q2Cvar_Set (char *var_name, char *value)
 {
 	cvar_t *var = Cvar_FindVar(var_name);
 	if (!var)
@@ -584,7 +579,7 @@ cvar_t *Q2Cvar_Set (char *var_name, char *value)
 	}
 	return Cvar_Set(var, value);
 }
-cvar_t *Q2Cvar_ForceSet (char *var_name, char *value)
+cvar_t *VARGS Q2Cvar_ForceSet (char *var_name, char *value)
 {
 	cvar_t *var = Cvar_FindVar(var_name);
 	if (!var)
@@ -605,7 +600,7 @@ Called when either the entire server is being killed, or
 it is changing to a different game directory.
 ===============
 */
-void SVQ2_ShutdownGameProgs (void)
+void VARGS SVQ2_ShutdownGameProgs (void)
 {
 	if (!ge)
 		return;
@@ -614,7 +609,7 @@ void SVQ2_ShutdownGameProgs (void)
 	ge = NULL;
 }
 
-static void AddCommandString(char *command)
+static void VARGS AddCommandString(char *command)
 {
 	Cbuf_AddText(command, RESTRICT_LOCAL);
 }
@@ -627,15 +622,12 @@ Init the game subsystem for a new map
 ===============
 */
 
-void Q2SCR_DebugGraph(float value, int color)
+void VARGS Q2SCR_DebugGraph(float value, int color)
 {return;}
-
-void Q2_Pmove (q2pmove_t *pmove);
 
 qboolean SVQ2_InitGameProgs(void)
 {
-	static game_import_t	import;
-
+	volatile static game_import_t	import;	//volatile because msvc sucks
 	if (COM_CheckParm("-noq2dll"))
 	{
 		SVQ2_ShutdownGameProgs();
@@ -725,7 +717,7 @@ qboolean SVQ2_InitGameProgs(void)
 	*/
 	}
 
-	ge = (game_export_t *)Sys_GetGameAPI (&import);
+	ge = (game_export_t *)Sys_GetGameAPI ((game_import_t*)&import);
 
 	if (!ge)
 		return false;

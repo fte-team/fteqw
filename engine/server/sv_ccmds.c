@@ -440,6 +440,7 @@ void SV_Map_f (void)
 		Con_TPrintf (STL_MAPCOMMANDUSAGE);
 		return;
 	}
+
 	strcpy (level, Cmd_Argv(1));
 	startspot = ((Cmd_Argc() == 2)?NULL:Cmd_Argv(2));
 
@@ -510,7 +511,24 @@ void SV_Map_f (void)
 	SV_SaveSpawnparms (issamelevel);
 
 	if (startspot && !issamelevel && !newunit)
-		SV_SaveLevelCache(false);
+	{
+		if (ge)
+		{
+			qboolean savedinuse[MAX_CLIENTS];
+			for (i=0 ; i<sv.allocated_client_slots; i++)
+			{
+				savedinuse[i] = svs.clients[i].q2edict->inuse;
+				svs.clients[i].q2edict->inuse = false;
+			}
+			SV_SaveLevelCache(false);
+			for (i=0 ; i<sv.allocated_client_slots; i++)
+			{
+				svs.clients[i].q2edict->inuse = savedinuse[i];
+			}
+		}
+		else
+			SV_SaveLevelCache(false);
+	}
 
 	for (i=0 ; i<MAX_CLIENTS ; i++)	//we need to drop all q2 clients. We don't mix q1w with q2.
 	{

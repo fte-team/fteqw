@@ -54,6 +54,8 @@ cvar_t pr_compatabilitytest = {"pr_compatabilitytest", "0", NULL, CVAR_LATCH};
 cvar_t sv_addon[MAXADDONS];
 char cvargroup_progs[] = "Progs variables";
 
+evalc_t evalc_idealpitch, evalc_pitch_speed;
+
 int pr_teamfield;
 
 void PR_ClearThreads(void);
@@ -72,7 +74,7 @@ typedef struct {
 	int h2num;		//standard hexen2
 	int ebfsnum;	//extra functions, these exist ONLY after being checked for.
 } BuiltinList_t;
-builtin_t pr_builtin[500];
+builtin_t pr_builtin[1024];
 extern BuiltinList_t BuiltinList[];
 
 qboolean pr_udc_exteffect_enabled;
@@ -378,9 +380,10 @@ void PR_Deinit(void)
 }
 
 
-#define NQ_PROGHEADER_CRC 5927
-#define H2_PROGHEADER_CRC 38488
-#define H2MP_PROGHEADER_CRC 26905
+#define QW_PROGHEADER_CRC	54730
+#define NQ_PROGHEADER_CRC	5927
+#define H2_PROGHEADER_CRC	38488	//basic hexen2
+#define H2MP_PROGHEADER_CRC	26905	//hexen2 mission pack uses slightly different defs... *sigh*...
 
 void PR_LoadGlabalStruct(void)
 {
@@ -453,8 +456,11 @@ void PR_LoadGlabalStruct(void)
 
 	globalfloat		(false, dimension_send);
 
+	memset(&evalc_idealpitch, 0, sizeof(evalc_idealpitch));
+	memset(&evalc_pitch_speed, 0, sizeof(evalc_pitch_speed));
+
 	if (!((nqglobalvars_t*)pr_globals)->dimension_send)
-	{
+	{	//make sure dimension send is always a valid pointer.
 		((nqglobalvars_t*)pr_globals)->dimension_send = &dimension_send_default;
 	}
 
@@ -472,22 +478,12 @@ void PR_LoadGlabalStruct(void)
 	}
 
 	SV_ParseClientCommand = PR_FindFunction(svprogfuncs, "SV_ParseClientCommand", PR_ANY);
-	if (pr_imitatemvdsv.value >= 0)
-	{
-		mod_UserCmd = PR_FindFunction(svprogfuncs, "UserCmd", PR_ANY);
-		mod_ConsoleCmd = PR_FindFunction(svprogfuncs, "ConsoleCmd", PR_ANY);
-		UserInfo_Changed = PR_FindFunction(svprogfuncs, "UserInfo_Changed", PR_ANY);
-		localinfoChanged = PR_FindFunction(svprogfuncs, "localinfoChanged", PR_ANY);
-		ChatMessage = PR_FindFunction(svprogfuncs, "ChatMessage", PR_ANY);
-	}
-	else
-	{
-		mod_UserCmd			= 0;
-		mod_ConsoleCmd		= 0;
-		UserInfo_Changed	= 0;
-		localinfoChanged	= 0;
-		ChatMessage			= 0;
-	}
+
+	UserInfo_Changed = PR_FindFunction(svprogfuncs, "UserInfo_Changed", PR_ANY);
+	localinfoChanged = PR_FindFunction(svprogfuncs, "localinfoChanged", PR_ANY);
+	ChatMessage = PR_FindFunction(svprogfuncs, "ChatMessage", PR_ANY);
+	mod_UserCmd = PR_FindFunction(svprogfuncs, "UserCmd", PR_ANY);
+	mod_ConsoleCmd = PR_FindFunction(svprogfuncs, "ConsoleCmd", PR_ANY);
 
 	SV_PlayerPhysicsQC = PR_FindFunction(svprogfuncs, "SV_PlayerPhysics", PR_ANY);
 	EndFrameQC = PR_FindFunction (svprogfuncs, "EndFrame", PR_ANY);
@@ -500,6 +496,64 @@ void PR_LoadGlabalStruct(void)
 	pr_items2 = !!PR_FindGlobal(svprogfuncs, "items2", 0);
 
 	PR_CleanLogText_Init();
+
+	SV_ClearQCStats();
+
+	if (progstype == PROG_H2)
+	{
+		SV_QCStat(ev_float, "level", STAT_H2_LEVEL);
+		SV_QCStat(ev_float, "intelligence", STAT_H2_INTELLIGENCE);
+		SV_QCStat(ev_float, "wisdom", STAT_H2_WISDOM);
+		SV_QCStat(ev_float, "strength", STAT_H2_STRENGTH);
+		SV_QCStat(ev_float, "dexterity", STAT_H2_DEXTERITY);
+		SV_QCStat(ev_float, "bluemana", STAT_H2_BLUEMANA);
+		SV_QCStat(ev_float, "greenmana", STAT_H2_GREENMANA);
+		SV_QCStat(ev_float, "experience", STAT_H2_EXPERIENCE);
+		SV_QCStat(ev_float, "cnt_torch", STAT_H2_CNT_TORCH);
+		SV_QCStat(ev_float, "cnt_h_boost", STAT_H2_CNT_H_BOOST);
+		SV_QCStat(ev_float, "cnt_sh_boost", STAT_H2_CNT_SH_BOOST);
+		SV_QCStat(ev_float, "cnt_mana_boost", STAT_H2_CNT_MANA_BOOST);
+		SV_QCStat(ev_float, "cnt_teleport", STAT_H2_CNT_TELEPORT);
+		SV_QCStat(ev_float, "cnt_tome", STAT_H2_CNT_TOME);
+		SV_QCStat(ev_float, "cnt_summon", STAT_H2_CNT_SUMMON);
+		SV_QCStat(ev_float, "cnt_invisibility", STAT_H2_CNT_INVISIBILITY);
+		SV_QCStat(ev_float, "cnt_glyph", STAT_H2_CNT_GLYPH);
+		SV_QCStat(ev_float, "cnt_haste", STAT_H2_CNT_HASTE);
+		SV_QCStat(ev_float, "cnt_blast", STAT_H2_CNT_BLAST);
+		SV_QCStat(ev_float, "cnt_polymorph", STAT_H2_CNT_POLYMORPH);
+		SV_QCStat(ev_float, "cnt_flight", STAT_H2_CNT_FLIGHT);
+		SV_QCStat(ev_float, "cnt_cubeofforce", STAT_H2_CNT_CUBEOFFORCE);
+		SV_QCStat(ev_float, "cnt_invincibility", STAT_H2_CNT_INVINCIBILITY);
+		SV_QCStat(ev_float, "artifact_active", STAT_H2_ARTIFACT_ACTIVE);
+		SV_QCStat(ev_float, "artifact_low", STAT_H2_ARTIFACT_LOW);
+		SV_QCStat(ev_float, "artifact_low", STAT_H2_ARTIFACT_LOW);
+		SV_QCStat(ev_float, "movetype", STAT_H2_MOVETYPE);
+		SV_QCStat(ev_entity, "cameramode", STAT_H2_CAMERAMODE);
+		SV_QCStat(ev_float, "hasted", STAT_H2_HASTED);
+		SV_QCStat(ev_float, "inventory", STAT_H2_INVENTORY);
+		SV_QCStat(ev_float, "rings_active", STAT_H2_RINGS_ACTIVE);
+
+		SV_QCStat(ev_float, "rings_low", STAT_H2_RINGS_LOW);
+		SV_QCStat(ev_float, "armor_amulet", STAT_H2_AMULET);
+		SV_QCStat(ev_float, "armor_bracer", STAT_H2_BRACER);
+		SV_QCStat(ev_float, "armor_breastplate", STAT_H2_BREASTPLATE);
+		SV_QCStat(ev_float, "armor_helmet", STAT_H2_HELMET);
+		SV_QCStat(ev_float, "ring_flight", STAT_H2_FLIGHT_T);
+		SV_QCStat(ev_float, "ring_water", STAT_H2_WATER_T);
+		SV_QCStat(ev_float, "ring_turning", STAT_H2_TURNING_T);
+		SV_QCStat(ev_float, "ring_regeneration", STAT_H2_REGEN_T);
+		SV_QCStat(ev_string, "puzzle_inv1", STAT_H2_PUZZLE1A);
+		SV_QCStat(ev_string, "puzzle_inv2", STAT_H2_PUZZLE2A);
+		SV_QCStat(ev_string, "puzzle_inv3", STAT_H2_PUZZLE3A);
+		SV_QCStat(ev_string, "puzzle_inv4", STAT_H2_PUZZLE4A);
+		SV_QCStat(ev_string, "puzzle_inv5", STAT_H2_PUZZLE5A);
+		SV_QCStat(ev_string, "puzzle_inv6", STAT_H2_PUZZLE6A);
+		SV_QCStat(ev_string, "puzzle_inv7", STAT_H2_PUZZLE7A);
+		SV_QCStat(ev_string, "puzzle_inv8", STAT_H2_PUZZLE8A);
+		SV_QCStat(ev_float, "max_health", STAT_H2_MAXHEALTH);
+		SV_QCStat(ev_float, "max_mana", STAT_H2_MAXMANA);
+		SV_QCStat(ev_float, "flags", STAT_H2_FLAGS);
+	}
 }
 
 progsnum_t AddProgs(char *name)
@@ -523,7 +577,7 @@ progsnum_t AddProgs(char *name)
 	svprogparms.autocompile = PR_COMPILECHANGED;
 
 	if (progstype == PROG_QW)		
-		num = PR_LoadProgs (svprogfuncs, name, PROGHEADER_CRC, NULL, 0);
+		num = PR_LoadProgs (svprogfuncs, name, QW_PROGHEADER_CRC, NULL, 0);
 	else if (progstype == PROG_NQ)
 		num = PR_LoadProgs (svprogfuncs, name, NQ_PROGHEADER_CRC, NULL, 0);
 	else if (progstype == PROG_UNKNOWN)
@@ -531,7 +585,7 @@ progsnum_t AddProgs(char *name)
 	else //if (progstype == PROG_NONE)
 	{
 		progstype = PROG_QW;
-		num = PR_LoadProgs (svprogfuncs, name, PROGHEADER_CRC, NULL, 0);
+		num = PR_LoadProgs (svprogfuncs, name, QW_PROGHEADER_CRC, NULL, 0);
 		if (num == -1)
 		{
 			svprogparms.autocompile = PR_NOCOMPILE;
@@ -1127,7 +1181,7 @@ qboolean PR_QCChat(char *text, int say_type)
 {
 	globalvars_t *pr_globals = PR_globals(svprogfuncs, PR_CURRENT);
 
-	if (!ChatMessage)
+	if (!ChatMessage || pr_imitatemvdsv.value >= 0)
 		return false;
 
 	G_INT(OFS_PARM0) = (int)PR_SetString(svprogfuncs, text);
@@ -1163,7 +1217,7 @@ qboolean PR_UserCmd(char *s)
 		PR_ExecuteProgram (svprogfuncs, SV_ParseClientCommand);
 		return false;
 	}
-	if (mod_UserCmd)
+	if (mod_UserCmd && pr_imitatemvdsv.value >= 0)
 	{
 		pr_global_struct->time = sv.time;
 		pr_global_struct->self = EDICT_TO_PROG(svprogfuncs, sv_player);
@@ -1192,7 +1246,7 @@ qboolean PR_ConsoleCmd(void)
 #endif
 
 	pr_globals = PR_globals(svprogfuncs, PR_CURRENT);
-	if (mod_ConsoleCmd)
+	if (mod_ConsoleCmd && pr_imitatemvdsv.value >= 0)
 	{
 		if (sv_redirected != RD_OBLIVION)
 		{
@@ -1209,7 +1263,7 @@ qboolean PR_ConsoleCmd(void)
 
 void PR_ClientUserInfoChanged(char *name, char *oldivalue, char *newvalue)
 {
-	if (UserInfo_Changed)
+	if (UserInfo_Changed && pr_imitatemvdsv.value >= 0)
 	{
 		globalvars_t *pr_globals;
 		pr_globals = PR_globals(svprogfuncs, PR_CURRENT);
@@ -1227,7 +1281,7 @@ void PR_ClientUserInfoChanged(char *name, char *oldivalue, char *newvalue)
 
 void PR_LocalInfoChanged(char *name, char *oldivalue, char *newvalue)
 {
-	if (localinfoChanged && sv.state)
+	if (localinfoChanged && sv.state && pr_imitatemvdsv.value >= 0)
 	{
 		globalvars_t *pr_globals;
 		pr_globals = PR_globals(svprogfuncs, PR_CURRENT);
@@ -2580,6 +2634,34 @@ void PF_traceboxdp (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 		pr_global_struct->trace_ent = EDICT_TO_PROG(prinst, sv.edicts);
 }
 
+extern trace_t SV_Trace_Toss (edict_t *ent, edict_t *ignore);
+void PF_TraceToss (progfuncs_t *prinst, struct globalvars_s *pr_globals)
+{
+	trace_t	trace;
+	edict_t	*ent;
+	edict_t	*ignore;
+
+	ent = G_EDICT(prinst, OFS_PARM0);
+	if (ent == sv.edicts)
+		Con_DPrintf("tracetoss: can not use world entity\n");
+	ignore = G_EDICT(prinst, OFS_PARM1);
+
+	trace = SV_Trace_Toss (ent, ignore);
+
+	pr_global_struct->trace_allsolid = trace.allsolid;
+	pr_global_struct->trace_startsolid = trace.startsolid;
+	pr_global_struct->trace_fraction = trace.fraction;
+	pr_global_struct->trace_inwater = trace.inwater;
+	pr_global_struct->trace_inopen = trace.inopen;
+	VectorCopy (trace.endpos, pr_global_struct->V_trace_endpos);
+	VectorCopy (trace.plane.normal, pr_global_struct->V_trace_plane_normal);
+	pr_global_struct->trace_plane_dist =  trace.plane.dist;
+	if (trace.ent)
+		pr_global_struct->trace_ent = EDICT_TO_PROG(prinst, trace.ent);
+	else
+		pr_global_struct->trace_ent = EDICT_TO_PROG(prinst, sv.edicts);
+}
+
 /*
 =================
 PF_checkpos
@@ -2832,6 +2914,8 @@ void PF_cvar (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 		G_FLOAT(OFS_RETURN) = PR_EnableEBFSBuiltin("checkextension", 0);
 	else if (!strcmp(str, "pr_builtin_find"))
 		G_FLOAT(OFS_RETURN) = PR_EnableEBFSBuiltin("builtin_find", 0);
+	else if (!strcmp(str, "pr_map_builtin"))
+		G_FLOAT(OFS_RETURN) = PR_EnableEBFSBuiltin("map_builtin", 0);
 	else if (!strcmp(str, "halflifebsp"))
 		G_FLOAT(OFS_RETURN) = sv.worldmodel->fromgame == fg_halflife;
 	else
@@ -3791,6 +3875,52 @@ void PF_changeyaw (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 	ent->v.angles[1] = anglemod (current + move);
 }
 
+void PF_changepitch (progfuncs_t *prinst, struct globalvars_s *pr_globals)
+{
+	edict_t		*ent;
+	float		ideal, current, move, speed;
+	eval_t *eval;
+	
+	ent = PROG_TO_EDICT(prinst, pr_global_struct->self);
+	current = anglemod( ent->v.angles[1] );
+
+	eval = prinst->GetEdictFieldValue(prinst, ent, "idealpitch", &evalc_idealpitch);
+	if (eval)
+		ideal = eval->_float;
+	else
+		ideal = 0;
+	eval = prinst->GetEdictFieldValue(prinst, ent, "pitch_speed", &evalc_pitch_speed);
+	if (eval)
+		speed = eval->_float;
+	else
+		speed = 0;
+	
+	if (current == ideal)
+		return;
+	move = ideal - current;
+	if (ideal > current)
+	{
+		if (move >= 180)
+			move = move - 360;
+	}
+	else
+	{
+		if (move <= -180)
+			move = move + 360;
+	}
+	if (move > 0)
+	{
+		if (move > speed)
+			move = speed;
+	}
+	else
+	{
+		if (move < -speed)
+			move = -speed;
+	}
+	
+	ent->v.angles[1] = anglemod (current + move);
+}
 /*
 ===============================================================================
 
@@ -5052,6 +5182,7 @@ lh_extension_t QSG_Extensions[] = {
 	{"DP_EF_RED"},
 	{"DP_EXTRA_TEMPSTRING"},			//ftos returns 16 temp buffers.
 	{"DP_HALFLIFE_MAP_CVAR"},
+	{"DP_MONSTERWALK"},
 	{"DP_MOVETYPEBOUNCEMISSILE"},		//I added the code for hexen2 support.
 	{"DP_MOVETYPEFOLLOW"},
 	{"DP_QC_COPYENTITY",				1,	NULL, {"copyentity"}},
@@ -5059,6 +5190,8 @@ lh_extension_t QSG_Extensions[] = {
 	{"DP_QC_ETOS",						1,	NULL, {"etos"}},
 	{"DP_QC_FINDCHAIN",					1,	NULL, {"findchain"}},
 	{"DP_QC_FINDCHAINFLOAT",			1,	NULL, {"findchainfloat"}},
+	{"DP_QC_FINDFLAGS",				1,	NULL, {"findflags"}},
+	{"DP_QC_FINDCHAINFLAGS",			1,	NULL, {"findchainflags"}},
 	{"DP_QC_FINDFLOAT",					1,	NULL, {"findfloat"}},
 //	{"DP_QC_FS_SEARCH",					4,	NULL, {"search_begin", "search_end", "search_getsize", "search_getfilename"}},
 	{"DP_QC_MINMAXBOUND",				3,	NULL, {"min", "max", "bound"}},
@@ -5100,7 +5233,7 @@ lh_extension_t QSG_Extensions[] = {
 	{"QW_ENGINE"},	//warning: interpretation of .skin on players can be dodgy, as can some other QW features that differ from NQ.
 	{"QWE_MVD_RECORD"},	//Quakeworld extended get the credit for this one. (mvdsv)
 	{"TEI_MD3_MODEL"},
-//	{"TQ_RAILTRAIL"},	//client supports it, server can't filter it, but can currently send it.
+//	{"TQ_RAILTRAIL"},	//treat this as the ZQ style railtrails which the client already supports, okay so the preparse stuff needs strengthening.
 	{"ZQ_MOVETYPE_FLY"},
 	{"ZQ_MOVETYPE_NOCLIP"},
 	{"ZQ_MOVETYPE_NONE"},
@@ -5746,6 +5879,7 @@ void PF_etos (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 	G_INT(OFS_RETURN) = (int)PR_SetString(prinst, s);
 }
 
+
 //EXTENSION: DP_QC_FINDCHAIN
 
 //entity(string field, string match) findchain = #402
@@ -5809,6 +5943,36 @@ void PF_findchainfloat (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 	RETURN_EDICT(prinst, chain);
 }
 
+//EXTENSION: DP_QC_FINDCHAINFLAGS
+
+//entity(string field, float match) findchainflags = #450
+//chained search for float, int, and entity reference fields
+void PF_findchainflags (progfuncs_t *prinst, struct globalvars_s *pr_globals)
+{
+	int i, f;
+	int s;
+	edict_t	*ent, *chain;
+
+	chain = (edict_t *) sv.edicts;
+
+	f = G_INT(OFS_PARM0)+prinst->fieldadjust;
+	s = G_FLOAT(OFS_PARM1);
+
+	for (i = 1; i < sv.num_edicts; i++)
+	{
+		ent = EDICT_NUM(svprogfuncs, i);
+		if (ent->isfree)
+			continue;
+		if (!((int)((float *)&ent->v)[f] & s))
+			continue;
+
+		ent->v.chain = EDICT_TO_PROG(prinst, chain);
+		chain = ent;
+	}
+
+	RETURN_EDICT(prinst, chain);
+}
+
 //EXTENSION: DP_QC_FINDFLOAT
 
 //entity(entity start, float fld, float match) findfloat = #98
@@ -5837,6 +6001,33 @@ void PF_FindFloat (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 	RETURN_EDICT(prinst, sv.edicts);
 }
 
+//EXTENSION: DP_QC_FINDFLAGS
+
+//entity(entity start, float fld, float match) findflags = #449
+void PF_FindFlags (progfuncs_t *prinst, struct globalvars_s *pr_globals)
+{
+	int e, f;
+	int s;
+	edict_t *ed;
+
+	e = G_EDICTNUM(prinst, OFS_PARM0);
+	f = G_INT(OFS_PARM1)+prinst->fieldadjust;
+	s = G_FLOAT(OFS_PARM2);
+
+	for (e++; e < sv.num_edicts; e++)
+	{
+		ed = EDICT_NUM(prinst, e);
+		if (ed->isfree)
+			continue;
+		if ((int)((float *)&ed->v)[f] & s)
+		{
+			RETURN_EDICT(prinst, ed);
+			return;
+		}
+	}
+
+	RETURN_EDICT(prinst, sv.edicts);
+}
 
 
 
@@ -7046,8 +7237,11 @@ BuiltinList_t BuiltinList[] = {				//nq	qw		h2		ebfs
 	{"movestep",		PF_movestep,		0,		0,		82,		0},
 	{"advanceweaponframe",PF_advanceweaponframe,0,	0,		83,		0},
 
-
 	{"setclass",		PF_setclass,		0,		0,		66,		0},
+
+	{"changepitch",		PF_changepitch,		0,		0,		0,		63},
+	{"tracetoss",		PF_TraceToss,		0,		0,		0,		64},
+	{"etos",			PF_etos,			0,		0,		0,		65},
 
 	{"movetogoal",		SV_MoveToGoal,		67,		67,		67},	//67
 	{"precache_file",	PF_precache_file,	68,		68,		68},	//68
@@ -7222,6 +7416,8 @@ BuiltinList_t BuiltinList[] = {				//nq	qw		h2		ebfs
 
 //I guess this should go under DP_TE_STANDARDEFFECTBUILTINS...
 	{"te_lightningblood",PF_te_lightningblood,	0,	0,		0,		219},// #219 te_lightningblood
+
+	{"map_builtin",		PF_builtinsupported,0,		0,		0,		220},	// #100	//per builtin system.
 //end fte extras
 
 //DP extras
@@ -7264,6 +7460,12 @@ BuiltinList_t BuiltinList[] = {				//nq	qw		h2		ebfs
 	{"search_getfilename", PF_SearchGetFileName,0,	0,		0,		447},
 //DP_QC_CVAR_STRING
 	{"dp_cvar_string",	PF_cvar_string,		0,		0,		0,		448},// #448 string(float n) cvar_string
+
+//DP_QC_FINDFLAGS
+	{"findflags",	PF_FindFlags,	0,		0,		0,		449},// #449 entity(entity start, .entity fld, float match) findflags
+//DP_QC_FINDCHAINFLAGS
+	{"findchainflags",	PF_findchainflags,	0,		0,		0,		450},// #450 entity(.float fld, float match) findchainflags
+
 //end other peoples extras
 	{NULL}
 
@@ -7573,58 +7775,6 @@ void PR_RegisterFields(void)	//it's just easier to do it this way.
 	fieldfloat(playerclass);
 	fieldfloat(hull);
 	fieldfloat(hasted);
-
-//stats - only a couple... (optimise me...)
-	fieldfloat(level);
-	fieldfloat(intelligence);
-	fieldfloat(experience);
-	fieldfloat(wisdom);
-	fieldfloat(strength);
-	fieldfloat(dexterity);
-	fieldfloat(bluemana);
-	fieldfloat(greenmana);
-	fieldfloat(max_mana);
-	fieldfloat(experiance);
-	fieldfloat(artifact_active);
-	fieldfloat(artifact_low);
-	fieldentity(cameramode);
-	fieldfloat(rings_active);
-	fieldfloat(rings_low);
-	fieldfloat(armor_amulet);
-	fieldfloat(armor_bracer);
-	fieldfloat(armor_breastplate);
-	fieldfloat(armor_helmet);
-	fieldfloat(ring_flight);
-	fieldfloat(ring_water);
-	fieldfloat(ring_turning);
-	fieldfloat(ring_regeneration);
-
-	fieldstring(puzzle_inv1);
-	fieldstring(puzzle_inv2);
-	fieldstring(puzzle_inv3);
-	fieldstring(puzzle_inv4);
-	fieldstring(puzzle_inv5);
-	fieldstring(puzzle_inv6);
-	fieldstring(puzzle_inv7);
-	fieldstring(puzzle_inv8);
-
-	fieldfloat(inventory);
-	fieldfloat(cnt_torch);
-	fieldfloat(cnt_h_boost);
-	fieldfloat(cnt_sh_boost);
-	fieldfloat(cnt_mana_boost);
-	fieldfloat(cnt_teleport);
-	fieldfloat(cnt_tome);
-	fieldfloat(cnt_summon);
-	fieldfloat(cnt_invisibility);
-	fieldfloat(cnt_glyph);
-	fieldfloat(cnt_haste);
-	fieldfloat(cnt_blast);
-	fieldfloat(cnt_polymorph);
-	fieldfloat(cnt_flight);
-	fieldfloat(cnt_cubeofforce);
-	fieldfloat(cnt_invincibility);
-//end of stats.
 
 	fieldfloat(light_level);
 	fieldfloat(abslight);

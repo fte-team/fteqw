@@ -88,7 +88,6 @@ typedef struct edict_s
 
 
 #include "progslib.h"
-#define pr_trace *(svprogfuncs->pr_trace)
 
 #undef pr_global_struct
 //#define pr_nqglobal_struct *((nqglobalvars_t*)pr_globals)

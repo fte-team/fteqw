@@ -34,7 +34,7 @@ void Cache_FreeLow (int new_low_hunk);
 void Cache_FreeHigh (int new_high_hunk);
 
 #ifdef _DEBUG
-//#define MEMDEBUG	8192 //Debugging adds sentinels (the number is the size - I have the ram) 
+#define MEMDEBUG	8192 //Debugging adds sentinels (the number is the size - I have the ram) 
 #endif
 
 #ifndef MEMDEBUG
@@ -174,6 +174,35 @@ void Z_Free (void *c)
 	free(nz);
 }
 
+void BZ_CheckSentinals(void *c)
+{
+#if MEMDEBUG>0
+	zone_t *nz;
+	nz = ((zone_t *)((char*)c-MEMDEBUG))-1;
+
+//	Z_CheckSentinals();
+	{
+		int i;
+		qbyte *buf;
+		buf = (qbyte *)(nz+1);
+		for (i = 0; i < MEMDEBUG; i++)
+		{
+			if (buf[i] != sentinalkey)
+				*(int*)0 = -3;	//force a crash... this'll get our attention.
+		}
+		buf+=MEMDEBUG;
+		//app data
+		buf += nz->size;
+		for (i = 0; i < MEMDEBUG; i++)
+		{
+			if (buf[i] != sentinalkey)
+				*(int*)0 = -3;	//force a crash... this'll get our attention.
+		}
+	}
+#endif
+
+}
+
 void Z_FreeTags(int tag)
 {
 	zone_t *zone, *next;
@@ -301,11 +330,15 @@ void *BZ_Realloc(void *data, int newsize)
 	if (!data)
 		return Z_MallocNamed(newsize, file, lineno);
 	oldzone = ((zone_t *)((char *)data-MEMDEBUG))-1;
+	if (oldzone->size == newsize)
+		return data;
 	newdata = Z_MallocNamed(newsize, file, lineno);
 #else
 	if (!data)
 		return Z_Malloc(newsize);
 	oldzone = ((zone_t *)((char *)data-MEMDEBUG))-1;
+	if (oldzone->size == newsize)
+		return data;
 	newdata = BZ_Malloc(newsize);
 #endif
 	if (oldzone->size < newsize)

@@ -94,6 +94,7 @@ int *debug;
 HHOOK llkeyboardhook;
 
 cvar_t	sys_disableWinKeys = {"sys_disableWinKeys", "0"};
+cvar_t	sys_disableTaskSwitch = {"sys_disableTaskSwitch", "0", NULL, CVAR_NOTFROMSERVER};	// please don't encourage people to use this...
 
 LRESULT CALLBACK LowLevelKeyboardProc (INT nCode, WPARAM wParam, LPARAM lParam)
 {
@@ -124,14 +125,17 @@ LRESULT CALLBACK LowLevelKeyboardProc (INT nCode, WPARAM wParam, LPARAM lParam)
 
 		// Disable CTRL+ESC
 			//this works, but we've got to give some way to tab out...
-//			if (pkbhs->vkCode == VK_ESCAPE && GetAsyncKeyState (VK_CONTROL) >> ((sizeof(SHORT) * 8) - 1))
-//				return 1;
+			if (sys_disableTaskSwitch.value)
+			{
+				if (pkbhs->vkCode == VK_ESCAPE && GetAsyncKeyState (VK_CONTROL) >> ((sizeof(SHORT) * 8) - 1))
+					return 1;
 		// Disable ATL+TAB
-			if (pkbhs->vkCode == VK_TAB && pkbhs->flags & LLKHF_ALTDOWN)
-				return 1;
+				if (pkbhs->vkCode == VK_TAB && pkbhs->flags & LLKHF_ALTDOWN)
+					return 1;
 		// Disable ALT+ESC
-			if (pkbhs->vkCode == VK_ESCAPE && pkbhs->flags & LLKHF_ALTDOWN)
-				return 1;
+				if (pkbhs->vkCode == VK_ESCAPE && pkbhs->flags & LLKHF_ALTDOWN)
+					return 1;
+			}
 
 			break;
 		}
@@ -957,7 +961,8 @@ int WINAPI WinMain (HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLin
 	Sys_Printf ("Host_Init\n");
 	Host_Init (&parms);
 
-	Cvar_Register(&sys_disableWinKeys, "System vars");	
+	Cvar_Register(&sys_disableWinKeys, "System vars");
+	Cvar_Register(&sys_disableTaskSwitch, "System vars");
 
 	oldtime = Sys_DoubleTime ();
 

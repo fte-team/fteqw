@@ -1149,7 +1149,7 @@ void CMod_LoadTexInfo (lump_t *l)	//yes I know these load from the same place
 	q2texinfo_t *in;
 	mtexinfo_t *out;
 	int 	i, j, count;
-	char	name[MAX_QPATH];
+	char	name[MAX_QPATH], *lwr;
 	float	len1, len2;
 	int texcount;
 
@@ -1198,7 +1198,11 @@ void CMod_LoadTexInfo (lump_t *l)	//yes I know these load from the same place
 		}
 		if (j == texcount)	//load a new one
 		{
-			strlwr(in->texture);
+			for (lwr = in->texture; *lwr; lwr++)
+			{
+				if (*lwr >= 'A' || *lwr <= 'Z')
+					*lwr = *lwr - 'A' + 'a';
+			}
 			_snprintf (name, sizeof(name), "textures/%s.wal", in->texture);
 
 			out->texture = Mod_LoadWall (name);

@@ -531,7 +531,7 @@ reeval:
 			else
 			{
 				i -= externs->numglobalbuiltins;
-				if (i > current_progstate->numbuiltins)
+				if (i >= current_progstate->numbuiltins)
 				{
 					if (newf->first_statement == -0x7fffffff)
 						((builtin_t)newf->profile) (progfuncs, (struct globalvars_s *)current_progstate->globals);
@@ -572,8 +572,8 @@ reeval:
 	static char buffer[1024*1024*8];
 	int size = sizeof buffer;
 		progfuncs->save_ents(progfuncs, buffer, &size, 0);
-}*/
-
+}
+*/
 		s = PR_LeaveFunction (progfuncs);
 		st = &pr_statements[s];		
 		if (pr_depth == prinst->exitdepth)

@@ -1743,10 +1743,8 @@ void CL_UpdateBeams (void)
 		}
 */
 //		if (part_type[rt_lightning1].loaded)
-		{
-			R_RocketTrail(b->start, b->end, rt_lightning1, NULL);
+		if (!R_RocketTrail(b->start, b->end, rt_lightning1, NULL))
 			continue;
-		}
 
 	// add new entities for the lightning
 		VectorCopy (b->start, org);

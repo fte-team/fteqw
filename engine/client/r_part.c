@@ -1513,7 +1513,10 @@ int R_RunParticleEffectType (vec3_t org, vec3_t dir, float count, int typenum)
 
 				p->die = ptype->randdie*frandom();
 				p->scale = ptype->scale+ptype->randscale*frandom();
-				p->alpha = ptype->alpha-p->die*(ptype->alpha/ptype->die)*ptype->alphachange;
+				if (ptype->die)
+					p->alpha = ptype->alpha-p->die*(ptype->alpha/ptype->die)*ptype->alphachange;
+				else
+					p->alpha = ptype->alpha;
 				p->color = 0;
 				p->nextemit = particletime + ptype->emitstart - p->die;
 
@@ -1587,7 +1590,10 @@ int R_RunParticleEffectType (vec3_t org, vec3_t dir, float count, int typenum)
 
 				p->die = ptype->randdie*frandom();
 				p->scale = ptype->scale+ptype->randscale*frandom();
-				p->alpha = ptype->alpha-p->die*(ptype->alpha/ptype->die)*ptype->alphachange;
+				if (ptype->die)
+					p->alpha = ptype->alpha-p->die*(ptype->alpha/ptype->die)*ptype->alphachange;
+				else
+					p->alpha = ptype->alpha;
 				p->color = 0;
 				p->nextemit = particletime + ptype->emitstart - p->die;
 
@@ -1680,7 +1686,10 @@ int R_RunParticleEffectType (vec3_t org, vec3_t dir, float count, int typenum)
 
 				p->die = ptype->randdie*frandom();
 				p->scale = ptype->scale+ptype->randscale*frandom();
-				p->alpha = ptype->alpha-p->die*(ptype->alpha/ptype->die)*ptype->alphachange;
+				if (ptype->die)
+					p->alpha = ptype->alpha-p->die*(ptype->alpha/ptype->die)*ptype->alphachange;
+				else
+					p->alpha = ptype->alpha;
 				p->color = 0;
 				p->nextemit = particletime + ptype->emitstart - p->die;
 
@@ -1772,7 +1781,10 @@ int R_RunParticleEffectType (vec3_t org, vec3_t dir, float count, int typenum)
 
 				p->die = ptype->randdie*frandom();
 				p->scale = ptype->scale+ptype->randscale*frandom();
-				p->alpha = ptype->alpha-p->die*(ptype->alpha/ptype->die)*ptype->alphachange;
+				if (ptype->die)
+					p->alpha = ptype->alpha-p->die*(ptype->alpha/ptype->die)*ptype->alphachange;
+				else
+					p->alpha = ptype->alpha;
 				p->color = 0;
 				p->nextemit = particletime + ptype->emitstart - p->die;
 
@@ -2043,12 +2055,10 @@ void MakeNormalVectors (vec3_t forward, vec3_t right, vec3_t up)
 
 void CLQ2_RailTrail (vec3_t start, vec3_t end)
 {
-	trailstate_t ts;
-	memset(&ts, 0, sizeof(ts));
-	R_RocketTrail(start, end, rt_railtrail, &ts);
+	R_RocketTrail(start, end, rt_railtrail, NULL);
 }
 
-void R_RocketTrail (vec3_t start, vec3_t end, int type, trailstate_t *ts)
+int R_RocketTrail (vec3_t start, vec3_t end, int type, trailstate_t *ts)
 {
 	vec3_t	vec, right, up;
 	float	len;
@@ -2064,7 +2074,7 @@ void R_RocketTrail (vec3_t start, vec3_t end, int type, trailstate_t *ts)
 	float stop;
 
 	if (!ptype->loaded)
-		return;
+		return 1;
 
 	if (ptype->assoc>=0)
 	{
@@ -2077,7 +2087,10 @@ void R_RocketTrail (vec3_t start, vec3_t end, int type, trailstate_t *ts)
 		}
 		else
 			R_RocketTrail(vec, end, ptype->assoc, NULL);
-	}
+	} 
+	else if (!ptype->die)
+		ts = NULL;
+
 	step = 1/ptype->count;
 
 	if (step < 0.01)
@@ -2112,7 +2125,6 @@ void R_RocketTrail (vec3_t start, vec3_t end, int type, trailstate_t *ts)
 //	len = ts->lastdist/step;
 //	len = (len - (int)len)*step;
 //	VectorMA (start, -len, vec, start);
-
 
 	b = bfirst = NULL;
 
@@ -2157,7 +2169,10 @@ void R_RocketTrail (vec3_t start, vec3_t end, int type, trailstate_t *ts)
 
 		p->die = ptype->randdie*frandom();
 		p->scale = ptype->scale+ptype->randscale*frandom();
-		p->alpha = ptype->alpha-p->die*(ptype->alpha/ptype->die)*ptype->alphachange;
+		if (ptype->die)
+			p->alpha = ptype->alpha-p->die*(ptype->alpha/ptype->die)*ptype->alphachange;
+		else
+			p->alpha = ptype->alpha;
 		p->color = 0;
 
 		if (ptype->spawnmode == SM_TRACER)
@@ -2313,7 +2328,8 @@ void R_RocketTrail (vec3_t start, vec3_t end, int type, trailstate_t *ts)
 		}
 	}
 
-	return;	//distance the trail actually moved.
+
+	return 0;
 }
 
 void R_TorchEffect (vec3_t pos, int type)
@@ -2884,6 +2900,57 @@ void DrawParticleTypes (void texturedparticles(particle_t *,part_type_t*), void 
 				if (!kill_first) // branch here is probably faster than list traversal later
 					kill_first = p;
 			}
+
+			if (type->beams)
+			{
+				b = type->beams;
+			}
+
+			while ((b=type->beams) && (b->flags & BS_DEAD))
+			{
+				type->beams = b->next;
+				b->next = free_beams;
+				free_beams = b;
+			}
+
+			while (b)
+			{
+				if (!(b->flags & BS_NODRAW))
+				{
+					// no BS_NODRAW implies b->next != NULL
+					// BS_NODRAW should imply b->next == NULL or b->next->flags & BS_DEAD
+					VectorCopy(b->next->p->org, stop);
+					VectorCopy(b->p->org, oldorg);
+					VectorSubtract(stop, oldorg, b->next->dir);
+					VectorNormalize(b->next->dir);
+					VectorAdd(stop, oldorg, stop);
+					VectorScale(stop, 0.5, stop);
+
+					if (*type->texname)
+						RQ_AddDistReorder((void*)beamparticlest, b, type, stop);
+					else
+						RQ_AddDistReorder((void*)beamparticlesut, b, type, stop);
+
+				}
+
+				// clean up dead entries ahead of current
+				for ( ;; )
+				{
+					bkill = b->next;
+					if (bkill && (bkill->flags & BS_DEAD))
+					{
+						b->next = bkill->next;
+						bkill->next = free_beams;
+						free_beams = bkill;
+						continue;
+					}
+					break;
+				}
+
+				b->flags |= BS_DEAD;
+				b = b->next;
+			}
+
 			continue;
 		}
 

@@ -39,8 +39,9 @@ typedef struct
 	model_t	*model;		// only for bsp models
 	vec3_t	mins, maxs;	// only for non-bsp models
 	int		info;		// for client or server to identify
+	int		nonsolid:1;
+	int		notouch:1;
 } physent_t;
-
 
 typedef struct
 {

@@ -2298,6 +2298,8 @@ typedef struct
 char	com_gamedir[MAX_OSPATH];
 char	com_basedir[MAX_OSPATH];
 
+#define ZEXPORT VARGS
+
 #ifdef ZLIB
 #ifdef _WIN32
 #pragma comment( lib, "../libs/zlib.lib" )

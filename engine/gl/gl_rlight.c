@@ -44,6 +44,7 @@ void GLR_AnimateLight (void)
 		if (!cl_lightstyle[j].length)
 		{
 			d_lightstylevalue[j] = 256;
+			cl_lightstyle[j].colour = 7;
 			continue;
 		}
 		k = i % cl_lightstyle[j].length;

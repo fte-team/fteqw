@@ -351,19 +351,19 @@ void BuildGammaTable (float g, float c)
 V_CheckGamma
 =================
 */
-float v_oldgammavalue;
-float v_oldcontrastvalue;
 qboolean V_CheckGamma (void)
 {
-	if (v_gamma.value == v_oldgammavalue && v_contrast.value == v_oldcontrastvalue)
-		return false;
-	v_oldcontrastvalue = v_contrast.value;
-	v_oldgammavalue = v_gamma.value;
+	if (v_gamma.modified || v_contrast.modified)
+	{
+		v_contrast.modified = false;
+		v_gamma.modified = false;
 
-	BuildGammaTable (v_gamma.value, v_contrast.value);
-	vid.recalc_refdef = 1;				// force a surface cache flush
-	
-	return true;
+		BuildGammaTable (v_gamma.value, v_contrast.value);
+		vid.recalc_refdef = 1;				// force a surface cache flush
+		
+		return true;
+	}
+	return false;
 }
 
 

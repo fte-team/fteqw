@@ -1021,7 +1021,6 @@ void R_SetRenderer(r_qrenderer_t wanted)
 }
 
 
-extern float v_oldgammavalue;
 qboolean R_ApplyRenderer (rendererstate_t *newr)
 {
 	int i, j;
@@ -1071,7 +1070,7 @@ qboolean R_ApplyRenderer (rendererstate_t *newr)
 	{
 		qbyte *data;
 		isDedicated = false;
-		v_oldgammavalue = -1;	//force the gamma to be reset
+		v_gamma.modified = true;	//force the gamma to be reset
 
 		Con_Printf("Setting mode %i*%i*%i*%i\n", newr->width, newr->height, newr->bpp, newr->rate);
 
@@ -1145,7 +1144,7 @@ TRACE(("dbg: R_ApplyRenderer: vid applied\n"));
 
 TRACE(("dbg: R_ApplyRenderer: done palette\n"));
 
-		v_oldgammavalue = -1;	//force the gamma to be reset
+		v_gamma.modified = true;	//force the gamma to be reset
 		W_LoadWadFile("gfx.wad");
 TRACE(("dbg: R_ApplyRenderer: wad loaded\n"));
 		Draw_Init();

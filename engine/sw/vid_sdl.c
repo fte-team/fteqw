@@ -8,7 +8,7 @@ extern qboolean ActiveApp;
 
 extern SDL_Surface *sdlsurf;
 
-qbyte vid_curpal[256];
+qbyte vid_curpal[768];
 
 cvar_t in_xflip = {"in_xflip", "0"};
 

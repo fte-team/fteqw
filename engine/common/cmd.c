@@ -992,7 +992,6 @@ void Cmd_ShiftArgs (int ammount)
 	}
 }
 
-#ifdef ZQUAKETEAMPLAY
 /*
 ================
 Cmd_ExpandString
@@ -1107,90 +1106,6 @@ char *Cmd_ExpandString (char *data, char *dest, int destlen, int maxaccesslevel)
 
 	return dest;
 }
-
-#else
-
-/*
-============
-Cmd_ExpandString
-
-Returns a string with all expanded macros.
-============
-*/
-char		*Cmd_ExpandString (char *input, int maxaccesslevel)
-{
-	static unsigned char buffer[8192];
-	unsigned char *s;
-	int c, len;
-
-	Q_strncpyz(buffer, input, sizeof(buffer));
-
-	len = strlen(buffer);
-
-	//we check for macros.
-	for (s = buffer, c= 0; c < len; c++, s++)	//this isn't a quoted token by the way.
-	{
-		if (*s == '$')
-		{
-			cvar_t *cvar;
-			char *macro;
-			char name[64];
-			int i;
-
-			for (i = 1; i < sizeof(name); i++)
-			{
-				if (s[i] <= ' ' || s[i] == '$' || s[i] == '\"')
-					break;
-			}
-
-			Q_strncpyz(name, s+1, i);
-			i-=1;
-			name[i] = '\0';
-
-			if (!*name)
-			{
-				memmove(buffer+c, buffer+c+1, len-c);
-				c--;
-				len--;
-			}
-			else
-			while(*name)
-			{
-				cvar = Cvar_FindVar(name);
-				if (cvar && (cvar->restriction?cvar->restriction:rcon_level.value) <= maxaccesslevel)	//got one...
-				{
-					memmove(s+strlen(cvar->string), s+i+1, len-c-i);
-					Q_strncpyS(s, cvar->string, strlen(cvar->string));
-					s+=strlen(cvar->string);
-					len+=strlen(cvar->string)-(i+1);
-					break;
-				}
-				if (maxaccesslevel == RESTRICT_LOCAL)	//don't expand without full rights. (prevents a few loopholes)
-				{
-					macro = TP_MacroString(name, NULL);
-					if (macro)
-					{
-						memmove(s+strlen(macro), s+i+1, len-c-i);
-						Q_strncpyS(s, macro, strlen(macro));
-						s+=strlen(macro);
-						len+=strlen(macro)-(i+1);
-						break;
-					}
-				}
-
-				i--;
-				name[i] = '\0';
-			}
-		}
-	}
-
-	if (strlen(buffer) >= sizeof(buffer))
-		Sys_Error("Buffer was too small\n");
-
-	return (char *)buffer;
-}
-
-#endif
 
 /*
 ============
@@ -1744,6 +1659,9 @@ void	Cmd_ExecuteString (char *text, int level)
 
 		return;
 	}
+
+	if (Plugin_ExecuteString())
+		return;
 
 #ifndef CLIENTONLY
 	if (sv.state)

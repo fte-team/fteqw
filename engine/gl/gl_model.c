@@ -567,6 +567,8 @@ model_t *GLMod_LoadModel (model_t *mod, qboolean crash)
 			}
 #endif
 
+couldntload:
+
 			if (crash)
 				Host_EndGame ("Mod_NumForName: %s not found", mod->name);
 
@@ -645,9 +647,13 @@ model_t *GLMod_LoadModel (model_t *mod, qboolean crash)
 		break;
 #endif
 
-	default:
+	case 30:	//hl
+	case 29:	//q1
 		GLMod_LoadBrushModel (mod, buf);
 		break;
+	default:
+		Con_Printf("Unrecognised model format %i\n", LittleLong(*(unsigned *)buf));
+		goto couldntload;
 	}
 
 	R_DefaultTrail(mod);

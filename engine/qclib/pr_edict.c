@@ -1408,12 +1408,12 @@ char *SaveCallStack (progfuncs_t *progfuncs, char *s)
 					sprintf(buffer, "\t\tofs%i %i // %f\n", f->parm_start+arg, *(int *)(globalbase - f->locals+arg), *(float *)(globalbase - f->locals+arg) );
 				else
 				{
-__try
-{
+//__try
+//{
 					if (local->type == ev_entity)
 					{	//go safly.
 						int n;
-						sprintf(buffer, "\t\t\"%s\"\t\"entity INVALID POINTER\"\n", local->s_name, n);
+						sprintf(buffer, "\t\t\"%s\"\t\"entity INVALID POINTER\"\n", local->s_name);
 						for (n = 0; n < sv_num_edicts; n++)
 						{
 							if (prinst->edicttable[n] == (struct edict_s *)PROG_TO_EDICT(((eval_t*)(globalbase - f->locals+arg))->edict))
@@ -1425,11 +1425,11 @@ __try
 					}
 					else
 						sprintf(buffer, "\t\t\"%s\"\t\"%s\"\n", local->s_name, PR_ValueString(progfuncs, local->type, (eval_t*)(globalbase - f->locals+arg)));
-}
-__except(EXCEPTION_EXECUTE_HANDLER)
-{
-	sprintf(buffer, "\t\t\"%s\" \"ILLEGAL POINTER\"\n", local->s_name);
-}
+//}
+//__except(EXCEPTION_EXECUTE_HANDLER)
+//{
+//	sprintf(buffer, "\t\t\"%s\" \"ILLEGAL POINTER\"\n", local->s_name);
+//}
 					if (local->type == ev_vector)
 						arg+=2;
 				}
@@ -2443,19 +2443,20 @@ retry:
 		{
 			file = PRHunkAlloc(progfuncs, len+1);
 			if (externs->ReadFile(lnoname, file, len+1))
-
-			if (	file[0] != lnotype
-				||	file[1] != version
-				||	file[2] != pr_progs->numglobaldefs
-				||	file[3] != pr_progs->numglobals
-				||	file[4] != pr_progs->numfielddefs
-				||	file[5] != pr_progs->numstatements
-				)
 			{
-				PRHunkFree(progfuncs, ohm);	//whoops: old progs or incompatable
+				if (	file[0] != lnotype
+					||	file[1] != version
+					||	file[2] != pr_progs->numglobaldefs
+					||	file[3] != pr_progs->numglobals
+					||	file[4] != pr_progs->numfielddefs
+					||	file[5] != pr_progs->numstatements
+					)
+				{
+					PRHunkFree(progfuncs, ohm);	//whoops: old progs or incompatable
+				}
+				else
+					pr_linenums = file + 6;
 			}
-			else
-				pr_linenums = file + 6;
 		}
 	}
 

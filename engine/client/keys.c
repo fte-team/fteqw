@@ -182,6 +182,9 @@ keyname_t keynames[] =
 	{"MWHEELUP", K_MWHEELUP},
 	{"MWHEELDOWN", K_MWHEELDOWN},
 
+	{"CAPSLOCK", K_CAPSLOCK},
+	{"SCROLLLOCK", K_SCRLCK},
+
 	{"SEMICOLON", ';'},	// because a raw semicolon seperates commands
 
 	{NULL,0}
@@ -468,7 +471,13 @@ void Key_Console (int key)
 
 	if (key == K_DOWNARROW)
 	{
-		if (history_line == edit_line) return;
+		if (history_line == edit_line)
+		{
+			key_lines[edit_line][0] = ']';
+			key_lines[edit_line][1] = '\0';
+			key_linepos=1;
+			return;
+		}
 		do
 		{
 			history_line = (history_line + 1) & 31;

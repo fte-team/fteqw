@@ -634,6 +634,7 @@ R_TranslatePlayerSkin
 Translates a skin texture by the per-player color lookup
 ===============
 */
+/*
 void R_TranslatePlayerSkin (int playernum)
 {
 	int		top, bottom;
@@ -648,7 +649,7 @@ void R_TranslatePlayerSkin (int playernum)
 	qbyte		*inrow;
 	unsigned	frac, fracstep;
 	player_info_t *player;
-	extern	qbyte		*player_8bit_texels/*[320*200]*/;
+	extern	qbyte		*player_8bit_texels;
 	char s[512];
 
 	GL_DisableMultitexture();
@@ -827,6 +828,7 @@ void R_TranslatePlayerSkin (int playernum)
 		glTexParameterf(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
 	}
 }
+*/
 
 
 void R_LoadRTLights(void)

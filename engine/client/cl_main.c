@@ -1056,7 +1056,7 @@ void CL_CheckServerInfo(void)
 #ifdef FISH
 	cls.allow_fish=false;
 #endif
-	cls.allow_fbskins = 0;
+//	cls.allow_fbskins = 0;
 //	cls.allow_overbrightlight;
 	if (cls.demoplayback || atoi(Info_ValueForKey(cl.serverinfo, "rearview")))
 		cls.allow_rearview=true;
@@ -1091,7 +1091,7 @@ void CL_CheckServerInfo(void)
 	if (cls.demoplayback || *s)
 		cls.allow_fbskins = atof(s);
 	else
-		cls.allow_fbskins = 0.3;
+		cls.allow_fbskins = 1;
 
 	s = Info_ValueForKey(cl.serverinfo, "*cheats");
 	if (cls.demoplayback || !stricmp(s, "on"))
@@ -2719,6 +2719,8 @@ Host_Init
 */
 void Host_Init (quakeparms_t *parms)
 {
+	int qrc, hrc, def;
+
 	extern cvar_t	vid_renderer;
 	COM_InitArgv (parms->argc, parms->argv);
 
@@ -2796,12 +2798,27 @@ void Host_Init (quakeparms_t *parms)
 	Con_TPrintf (TL_HEAPSIZE, parms->memsize/ (1024*1024.0));
 
 	Cbuf_AddText ("+mlook\n", RESTRICT_LOCAL);		//fixme: this is bulky, only exec one of these.
-	Cbuf_AddText ("exec default.cfg\n", RESTRICT_LOCAL);
-	Cbuf_AddText ("exec config.cfg\n", RESTRICT_LOCAL);	//don't get confused with q2.
-	Cbuf_AddText ("exec quake.rc\n", RESTRICT_LOCAL);
-	Cbuf_AddText ("exec hexen.rc\n", RESTRICT_LOCAL);
+
+	qrc = COM_FDepthFile("quake.rc", true);
+	hrc = COM_FDepthFile("hexen.rc", true);
+	def = COM_FDepthFile("default.cfg", true);
+
+	if (def < qrc && def < hrc || (qrc==0x7fffffff && hrc==0x7fffffff))
+	{	//they didn't give us an rc file!
+		Cbuf_AddText ("exec default.cfg\n", RESTRICT_LOCAL);
+		Cbuf_AddText ("exec config.cfg\n", RESTRICT_LOCAL);
+		Cbuf_AddText ("exec autoexec.cfg\n", RESTRICT_LOCAL);
+	}
+	else if (qrc < hrc)
+	{	//hello hexen2
+		Cbuf_AddText ("exec hexen.rc\n", RESTRICT_LOCAL);
+	}
+	else
+	{	//looks like they want us to run quake.
+		Cbuf_AddText ("exec quake.rc\n", RESTRICT_LOCAL);
+	}
 	Cbuf_AddText ("exec fte.cfg\n", RESTRICT_LOCAL);
-	Cbuf_AddText ("cl_warncmd 1\n", RESTRICT_LOCAL);
+	Cbuf_AddText ("cl_warncmd 1\n", RESTRICT_LOCAL);	//and then it's allowed to start moaning.
 
 	Hunk_AllocName (0, "-HOST_HUNKLEVEL-");
 	host_hunklevel = Hunk_LowMark ();
@@ -2848,7 +2865,7 @@ Con_TPrintf (TL_NL);
 
 	Con_TPrintf (TLC_QUAKEWORLD_INITED);
 
-	Con_Printf("This program is free software; you can redistribute it and/or "
+	Con_DPrintf("This program is free software; you can redistribute it and/or "
 				"modify it under the terms of the GNU General Public License "
 				"as published by the Free Software Foundation; either version 2 "
 				"of the License, or (at your option) any later version."

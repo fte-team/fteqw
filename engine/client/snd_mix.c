@@ -90,8 +90,8 @@ void S_TransferStereo16 (soundcardinfo_t *sc, int endtime)
 	{
 		reps = 0;
 
-		while ((hresult = sc->pDSBuf->lpVtbl->Lock(sc->pDSBuf, 0, sc->gSndBufSize, &pbuf, &dwSize, 
-									   &pbuf2, &dwSize2, 0)) != DS_OK)
+		while ((hresult = sc->pDSBuf->lpVtbl->Lock(sc->pDSBuf, 0, sc->gSndBufSize, (void**)&pbuf, &dwSize, 
+									   (void**)&pbuf2, &dwSize2, 0)) != DS_OK)
 		{
 			if (hresult != DSERR_BUFFERLOST)
 			{
@@ -213,8 +213,8 @@ void S_Transfer4Speaker16 (soundcardinfo_t *sc, int endtime)
 	{
 		reps = 0;
 
-		while ((hresult = sc->pDSBuf->lpVtbl->Lock(sc->pDSBuf, 0, sc->gSndBufSize, &pbuf, &dwSize, 
-									   &pbuf2, &dwSize2, 0)) != DS_OK)
+		while ((hresult = sc->pDSBuf->lpVtbl->Lock(sc->pDSBuf, 0, sc->gSndBufSize, (void**)&pbuf, &dwSize, 
+									  (void**)&pbuf2, &dwSize2, 0)) != DS_OK)
 		{
 			if (hresult != DSERR_BUFFERLOST)
 			{
@@ -357,8 +357,8 @@ void S_Transfer6Speaker16 (soundcardinfo_t *sc, int endtime)
 	{
 		reps = 0;
 
-		while ((hresult = sc->pDSBuf->lpVtbl->Lock(sc->pDSBuf, 0, sc->gSndBufSize, &pbuf, &dwSize, 
-									   &pbuf2, &dwSize2, 0)) != DS_OK)
+		while ((hresult = sc->pDSBuf->lpVtbl->Lock(sc->pDSBuf, 0, sc->gSndBufSize, (void**)&pbuf, &dwSize, 
+									   (void**)&pbuf2, &dwSize2, 0)) != DS_OK)
 		{
 			if (hresult != DSERR_BUFFERLOST)
 			{
@@ -463,8 +463,8 @@ void S_TransferPaintBuffer(soundcardinfo_t *sc, int endtime)
 	{
 		reps = 0;
 
-		while ((hresult = sc->pDSBuf->lpVtbl->Lock(sc->pDSBuf, 0, sc->gSndBufSize, &pbuf, &dwSize, 
-									   &pbuf2,&dwSize2, 0)) != DS_OK)
+		while ((hresult = sc->pDSBuf->lpVtbl->Lock(sc->pDSBuf, 0, sc->gSndBufSize, (void**)&pbuf, &dwSize, 
+									   (void**)&pbuf2,&dwSize2, 0)) != DS_OK)
 		{
 			if (hresult != DSERR_BUFFERLOST)
 			{

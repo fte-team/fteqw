@@ -977,7 +977,7 @@ void S_ClearBuffer (soundcardinfo_t *sc)
 
 		reps = 0;
 
-		while ((hresult = sc->pDSBuf->lpVtbl->Lock(sc->pDSBuf, 0, sc->gSndBufSize, &pData, &dwSize, NULL, NULL, 0)) != DS_OK)
+		while ((hresult = sc->pDSBuf->lpVtbl->Lock(sc->pDSBuf, 0, sc->gSndBufSize, (void**)&pData, &dwSize, NULL, NULL, 0)) != DS_OK)
 		{
 			if (hresult != DSERR_BUFFERLOST)
 			{

@@ -263,6 +263,8 @@ void SWR_NewMap (void)
 	int		i;
 	
 	memset (&r_worldentity, 0, sizeof(r_worldentity));
+	AngleVectors(r_worldentity.angles, r_worldentity.axis[0], r_worldentity.axis[1], r_worldentity.axis[2]);
+	VectorInverse(r_worldentity.axis[1]);
 	r_worldentity.model = cl.worldmodel;
 
 // clear out efrags in case the level hasn't been reloaded

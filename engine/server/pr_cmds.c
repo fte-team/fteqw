@@ -1199,6 +1199,29 @@ qboolean PR_QCChat(char *text, int say_type)
 	return false;
 }
 
+qboolean PR_KrimzonParseCommand(char *s)
+{
+	globalvars_t *pr_globals;
+
+#ifdef Q2SERVER
+	if (ge)
+		return false;
+#endif
+
+	if (SV_ParseClientCommand)
+	{	//the QC is expected to send it back to use via a builtin.
+
+		pr_globals = PR_globals(svprogfuncs, PR_CURRENT);
+		pr_global_struct->time = sv.time;
+		pr_global_struct->self = EDICT_TO_PROG(svprogfuncs, sv_player);
+		
+		G_INT(OFS_PARM0) = (int)PR_SetString(svprogfuncs, s);
+		PR_ExecuteProgram (svprogfuncs, SV_ParseClientCommand);
+		return true;
+	}
+
+	return false;
+}
 qboolean PR_UserCmd(char *s)
 {
 	globalvars_t *pr_globals;
@@ -1208,29 +1231,19 @@ qboolean PR_UserCmd(char *s)
 		SV_BeginRedirect (RD_CLIENT);
 		ge->ClientCommand(host_client->q2edict);
 		SV_EndRedirect ();
-		return true;	//the dll will convert in to chat.
+		return true;	//the dll will convert it to chat.
 	}
 #endif
 
-	pr_globals = PR_globals(svprogfuncs, PR_CURRENT);
-	if (SV_ParseClientCommand)
-	{	//this one is queryable, so it's the one that is proven to exist.
-		//things won't mind if the other system doesn't exist.
-		pr_global_struct->time = sv.time;
-		pr_global_struct->self = EDICT_TO_PROG(svprogfuncs, sv_player);
-		
-		G_INT(OFS_PARM0) = (int)PR_SetString(svprogfuncs, s);
-		PR_ExecuteProgram (svprogfuncs, SV_ParseClientCommand);
-		return true;
-	}
 	if (mod_UserCmd && pr_imitatemvdsv.value >= 0)
-	{
+	{	//we didn't recognise it. see if the mod does.
+		pr_globals = PR_globals(svprogfuncs, PR_CURRENT);
 		pr_global_struct->time = sv.time;
 		pr_global_struct->self = EDICT_TO_PROG(svprogfuncs, sv_player);
 		
 		G_INT(OFS_PARM0) = (int)PR_SetString(svprogfuncs, s);
 		PR_ExecuteProgram (svprogfuncs, mod_UserCmd);
-		return (int) G_FLOAT(OFS_RETURN);
+		return !!G_FLOAT(OFS_RETURN);
 	}
 
 	return false;
@@ -7995,10 +8008,11 @@ BuiltinList_t BuiltinList[] = {				//nq	qw		h2		ebfs
 	{"dropclient",		PF_dropclient,		0,		0,		0,		453},// #453 void(entity player) dropclient
 
 //end other peoples extras
-	{NULL}
 
 	{"writestring2",	PF_WriteString2,	0,		0,		0,		700},	//writestring but without the null terminator. makes things a little nicer.
 	//don't exceed sizeof(pr_builtin)/sizeof(pr_builtin[0]) (currently 1024) without modifing the size of pr_builtin
+
+	{NULL}
 };
 
 void PR_ResetBuiltins(progstype_t type)	//fix all nulls to PF_FIXME and add any extras that have a big number.

@@ -2793,7 +2793,7 @@ void SV_ExecuteUserCommand (char *s, qboolean fromQC)
 		if (!strcmp (Cmd_Argv(0), u->name) )
 		{
 			if (!fromQC && !u->noqchandling)
-				if (PR_UserCmd(s))
+				if (PR_KrimzonParseCommand(s))	//KRIMZON_SV_PARSECLIENTCOMMAND has the opertunity to parse out certain commands.
 				{
 					host_client = oldhost;
 					return;
@@ -2808,7 +2808,7 @@ void SV_ExecuteUserCommand (char *s, qboolean fromQC)
 	if (!u->name)
 	{
 		if (!fromQC)
-			if (PR_UserCmd(s))
+			if (PR_UserCmd(s))			//Q2 and MVDSV command handling only happens if the engine didn't recognise it.
 			{
 				host_client = oldhost;
 				return;

@@ -812,7 +812,7 @@ void R_SetRenderer(r_qrenderer_t wanted)
 		Mod_PointInLeaf			= SWMod_PointInLeaf;
 		Mod_Q1LeafPVS			= SWMod_LeafPVS;
 		Mod_NowLoadExternal		= SWMod_NowLoadExternal;
-#else
+#elif defined(RGLQUAKE)
 		Mod_Init				= GLMod_Init;
 		Mod_Think				= GLMod_Think;
 		Mod_ClearAll			= GLMod_ClearAll;
@@ -824,6 +824,8 @@ void R_SetRenderer(r_qrenderer_t wanted)
 		Mod_PointInLeaf			= GLMod_PointInLeaf;
 		Mod_Q1LeafPVS			= GLMod_LeafPVS;
 		Mod_NowLoadExternal		= GLMod_NowLoadExternal;
+#else
+		#error "No renderer in client build"
 #endif
 
 		

@@ -1865,13 +1865,12 @@ float R_RocketTrail (vec3_t start, vec3_t end, int type, float lastdistance)
 {
 	vec3_t	vec, right, up;
 	float	len;
-	int			j;
-	static int tcount;
+	int			tcount;
 	particle_t	*p;
 	part_type_t *ptype = &part_type[type];
 
 	float veladd = -ptype->veladd;
-	float randvel = ptype->randomvel*2;
+	float randvel = ptype->randomvel;
 	float step;
 	float stop;
 
@@ -1901,8 +1900,8 @@ float R_RocketTrail (vec3_t start, vec3_t end, int type, float lastdistance)
 	if (ptype->spawnmode == SM_SPIRAL)
 	{
 		VectorVectors(vec, right, up);
-		VectorScale(right, ptype->offsetspread, right);
-		VectorScale(up, ptype->offsetspread, up);
+//		VectorScale(right, ptype->offsetspread, right);
+//		VectorScale(up, ptype->offsetspread, up);
 	}
 
 	stop = lastdistance + len;	//when to stop
@@ -1930,6 +1929,9 @@ float R_RocketTrail (vec3_t start, vec3_t end, int type, float lastdistance)
 		p->alpha = ptype->alpha-p->die*(ptype->alpha/ptype->die)*ptype->alphachange;
 		p->color = 0;
 		p->nextemit = particletime + ptype->emitstart - p->die;
+
+		if (ptype->spawnmode == SM_TRACER)
+			tcount = (int)(len * ptype->count);
 
 		if (ptype->colorindex >= 0)
 		{
@@ -1962,42 +1964,60 @@ float R_RocketTrail (vec3_t start, vec3_t end, int type, float lastdistance)
 		switch(ptype->spawnmode)
 		{
 		case SM_TRACER:
-			VectorCopy(start, p->org);
-			tcount++;
-
 			if (tcount & 1)
 			{
-				p->vel[0] = vec[1]*ptype->areaspread;
-				p->vel[1] = -vec[0]*ptype->areaspread;
+				p->vel[0] = vec[1]*ptype->offsetspread;
+				p->vel[1] = -vec[0]*ptype->offsetspread;
+				p->org[0] = vec[1]*ptype->areaspread;
+				p->org[1] = -vec[0]*ptype->areaspread;
 			}
 			else
 			{
-				p->vel[0] = -vec[1]*ptype->areaspread;
-				p->vel[1] = vec[0]*ptype->areaspread;
+				p->vel[0] = -vec[1]*ptype->offsetspread;
+				p->vel[1] = vec[0]*ptype->offsetspread;
+				p->org[0] = -vec[1]*ptype->areaspread;
+				p->org[1] = vec[0]*ptype->areaspread;
 			}
 
 			p->vel[0] += vec[0]*veladd+crandom()*randvel;
 			p->vel[1] += vec[1]*veladd+crandom()*randvel;
 			p->vel[2] = vec[2]*veladd+crandom()*randvel;
+
+			p->org[0] += start[0];
+			p->org[1] += start[1];
+			p->org[2] = start[2];
 			break;
 		case SM_SPIRAL:
-			p->vel[0] = cos(len/50);
-			p->vel[1] = sin(len/50);
-			for (j=0 ; j<3 ; j++)
-				p->org[j] = start[j] + right[j]*p->vel[0] + up[j]*p->vel[1];
+			{
+				float tsin, tcos;
 
-			p->vel[0] = vec[0]*veladd+crandom()*randvel;
-			p->vel[1] = vec[1]*veladd+crandom()*randvel;
-			p->vel[2] = vec[2]*veladd+crandom()*randvel;
+				tcos = cos(len/50)*ptype->areaspread;
+				tsin = sin(len/50)*ptype->areaspread;
+
+				p->org[0] = start[0] + right[0]*tcos + up[0]*tsin;
+				p->org[1] = start[1] + right[1]*tcos + up[1]*tsin;
+				p->org[2] = start[2] + right[2]*tcos + up[2]*tsin;
+
+				tcos = cos(len/50)*ptype->offsetspread;
+				tsin = sin(len/50)*ptype->offsetspread;
+
+				p->vel[0] = vec[0]*veladd+crandom()*randvel + right[0]*tcos + up[0]*tsin;
+				p->vel[1] = vec[1]*veladd+crandom()*randvel + right[1]*tcos + up[1]*tsin;
+				p->vel[2] = vec[2]*veladd+crandom()*randvel + right[2]*tcos + up[2]*tsin;
+			}
 			break;
 		default:
-			p->org[0] = start[0] + crandom()*ptype->areaspread;
-			p->org[1] = start[1] + crandom()*ptype->areaspread;
-			p->org[2] = start[2] + crandom()*ptype->areaspreadvert;
+			p->org[0] = crandom();
+			p->org[1] = crandom();
+			p->org[2] = crandom();
 
-			p->vel[0] = vec[0]*veladd+crandom()*randvel;
-			p->vel[1] = vec[1]*veladd+crandom()*randvel;
-			p->vel[2] = vec[2]*veladd+crandom()*randvel;
+			p->vel[0] = vec[0]*veladd+crandom()*randvel + p->org[0]*ptype->offsetspread;
+			p->vel[1] = vec[1]*veladd+crandom()*randvel + p->org[1]*ptype->offsetspread;
+			p->vel[2] = vec[2]*veladd+crandom()*randvel + p->org[2]*ptype->offsetspreadvert;
+
+			p->org[0] = p->org[0]*ptype->areaspread + start[0];
+			p->org[1] = p->org[1]*ptype->areaspread + start[1];
+			p->org[2] = p->org[2]*ptype->areaspreadvert + start[2];
 			break;
 		}
 

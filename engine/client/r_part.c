@@ -2164,7 +2164,7 @@ int P_ParticleTrail (vec3_t startpos, vec3_t end, int type, trailstate_t *ts)
 
 		// precalculate degree of rotation
 		if (ptype->spawnparam1)
-			tdegree = ptype->spawnparam1*M_PI/180; /* degrees per quake unit */
+			tdegree = 2*M_PI/ptype->spawnparam1; /* distance per rotation inversed */
 	}
 
 	if (ts)

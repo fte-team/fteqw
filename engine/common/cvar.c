@@ -379,6 +379,37 @@ void Cvar_SetValue (cvar_t *var, float value)
 	Cvar_Set (var, val);
 }
 
+void Cvar_Free(cvar_t *tbf)
+{
+	cvar_t *var;
+	cvar_group_t *grp;
+	if (!(tbf->flags & CVAR_POINTER))
+		return;	//only freeable if it was a pointer to begin with.
+
+	for (grp=cvar_groups ; grp ; grp=grp->next)
+	{
+		if (grp->cvars == tbf)
+		{
+			grp->cvars = tbf->next;
+			goto unlinked;
+		}
+		for (var=grp->cvars ; var->next ; var=var->next)
+		{
+			if (var->next == tbf)
+			{
+				var->next = tbf->next;
+				goto unlinked;
+			}
+		}
+	}
+unlinked:
+	Z_Free(tbf->string);
+	Z_Free(tbf->defaultstr);
+	if (tbf->latched_string)
+		Z_Free(tbf->latched_string);
+	Z_Free(tbf);
+}
+
 /*
 ============
 Cvar_RegisterVariable
@@ -392,7 +423,10 @@ void Cvar_Register (cvar_t *variable, char *groupname)
 	cvar_group_t *group;
 	char	value[512];
 
-// first check to see if it has allready been defined
+// copy the value off, because future sets will Z_Free it
+	strcpy (value, variable->string);
+
+// check to see if it has allready been defined
 	old = Cvar_FindVar (variable->name);
 	if (old)
 	{
@@ -401,33 +435,28 @@ void Cvar_Register (cvar_t *variable, char *groupname)
 			cvar_t *prev;
 			group = Cvar_GetGroup(groupname);
 
-			variable->next = old->next;
-			variable->latched_string = old->latched_string;
-			variable->string = old->string;
 			variable->modified = old->modified;
-			variable->value = old->value;
+			variable->flags |= old->flags & CVAR_ARCHIVE;
 
-			//cheat prevention - engine set default is the one that stays.
-			Z_Free(variable->defaultstr);
-			variable->defaultstr = Z_Malloc (strlen(variable->string)+1);	//give it it's default (for server controlled vars and things)
-			strcpy (variable->defaultstr, variable->string);
+// link the variable in
+			variable->next = group->cvars;
+			variable->restriction = old->restriction;	//exe registered vars
+			group->cvars = variable;
 
-			if (group->cvars == old)
-				group->cvars = variable;
+// make sure it can be zfreed
+			variable->string = Z_Malloc (1);
+
+//cheat prevention - engine set default is the one that stays.
+			variable->defaultstr = Z_Malloc (strlen(value)+1);	//give it it's default (for server controlled vars and things)
+			strcpy (variable->defaultstr, value);
+
+// set it through the function to be consistant
+			if (old->latched_string)
+				Cvar_SetCore (variable, old->latched_string, true);
 			else
-			{
-				for (prev = group->cvars; prev; prev++)
-				{
-					if (prev->next == old)
-					{
-						prev->next = variable;
-						break;
-					}
-				}
-				if (!prev)	//this should never happen
-					Sys_Error("Cvar was not linked\n");
-			}
-			Z_Free(old);
+				Cvar_SetCore (variable, old->string, true);
+
+			Cvar_Free(old);
 			return;
 		}
 			
@@ -449,8 +478,6 @@ void Cvar_Register (cvar_t *variable, char *groupname)
 	variable->restriction = 0;	//exe registered vars
 	group->cvars = variable;
 
-// copy the value off, because future sets will Z_Free it
-	strcpy (value, variable->string);
 	variable->string = Z_Malloc (1);
 
 	variable->defaultstr = Z_Malloc (strlen(value)+1);	//give it it's default (for server controlled vars and things)
@@ -482,7 +509,7 @@ cvar_t *Cvar_Get(char *name, char *defaultvalue, int flags, char *group)
 	var->name = (char *)(var+1);
 	strcpy(var->name, name);
 	var->string = defaultvalue;
-	var->flags = flags|CVAR_POINTER;
+	var->flags = flags|CVAR_POINTER|CVAR_USERCREATED;
 
 	Cvar_Register(var, group);
 

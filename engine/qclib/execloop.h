@@ -390,7 +390,10 @@ reeval:
 		NUM_FOR_EDICT(ed);		// make sure it's in range
 #endif
 		if (ed->readonly)
-			PR_RunError (progfuncs, "assignment to read-only entity");
+		{
+			pr_xstatement = st-pr_statements;
+			PR_RunError (progfuncs, "assignment to read-only entity in %s", pr_xfunction->s_name);
+		}
 		OPC->_int = (int)(((int *)edvars(ed)) + OPB->_int + progfuncs->fieldadjust);
 		break;
 
@@ -487,7 +490,7 @@ reeval:
 		if ((fnum & ~0xff000000)==0)
 		{
 			pr_trace++;
-			printf("NULL function from qc (%s).\n", pr_xfunction->s_name);			
+			printf("NULL function from qc (%s).\n", pr_xfunction->s_name);
 #ifndef DEBUGABLE
 			goto cont;
 #endif

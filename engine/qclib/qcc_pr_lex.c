@@ -2668,6 +2668,24 @@ QCC_type_t *QCC_PR_ParseType (int newtype)
 
 //	int ofs;
 
+	if (QCC_PR_Check (".."))	//so we don't end up with the user specifying '. .vector blah' (hexen2 added the .. token for array ranges)
+	{
+		newt = QCC_PR_NewType("FIELD TYPE", ev_field);
+		newt->aux_type = QCC_PR_ParseType (false);
+
+		newt->size = newt->aux_type->size;
+
+		newt = QCC_PR_FindType (newt);
+
+		type = QCC_PR_NewType("FIELD TYPE", ev_field);
+		type->aux_type = newt;
+
+		type->size = type->aux_type->size;
+
+		if (newtype)
+			return type;
+		return QCC_PR_FindType (type);
+	}
 	if (QCC_PR_Check ("."))
 	{
 		newt = QCC_PR_NewType("FIELD TYPE", ev_field);

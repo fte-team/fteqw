@@ -1651,6 +1651,7 @@ QCC_def_t *QCC_PR_Statement ( QCC_opcode_t *op, QCC_def_t *var_a, QCC_def_t *var
 			}
 			statement->a = var_a ? var_a->ofs : 0;
 			statement->b = var_c ? var_c->ofs : 0;
+			QCC_FreeTemp(var_c);
 			var_c = QCC_GetTemp(*op->type_c);
 			statement->c = var_c ? var_c->ofs : 0;
 
@@ -7384,21 +7385,26 @@ void QCC_PR_ParseDefs (char *classname)
 					d = QCC_PR_GetDef (NULL, pr_token, pr_scope, false, 0);
 					if (!d)
 						QCC_PR_ParseError (ERR_NOTDEFINED, "initialisation name not defined : %s", pr_token);
+					if (!d->constant)
+					{
+						QCC_PR_ParseWarning (WARN_NOTCONSTANT, "initialisation name not a constant : %s", pr_token);
+						QCC_PR_ParsePrintDef(WARN_NOTCONSTANT, d);
+					}
 					memcpy (def, d, sizeof(*d));
 					def->name = name;
 					def->initialized = true;
 				}
-				QCC_PR_Lex ();
-				continue;
+				constant = true;
 			}
 			else if (pr_token_type != tt_immediate)
 				QCC_PR_ParseError (ERR_BADIMMEDIATETYPE, "not an immediate for %s - %s", name, pr_token);
 			else if (pr_immediate_type->type != type->type)
 				QCC_PR_ParseError (ERR_BADIMMEDIATETYPE, "wrong immediate type for %s - %s", name, pr_token);
+			else
+				memcpy (qcc_pr_globals + def->ofs, &pr_immediate, 4*type_size[pr_immediate_type->type]);
 	
 			def->constant = constant;
-			def->initialized = 1;
-			memcpy (qcc_pr_globals + def->ofs, &pr_immediate, 4*type_size[pr_immediate_type->type]);
+			def->initialized = true;
 			QCC_PR_Lex ();
 		}
 		

@@ -4,7 +4,7 @@
 
 #include "quakedef.h"
 
-
+#ifdef PLUGINS
 
 typedef struct plugin_s {
 	char *name;
@@ -343,3 +343,5 @@ void Plug_Shutdown(void)
 {
 
 }
+
+#endif

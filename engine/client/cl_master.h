@@ -98,3 +98,4 @@ serverinfo_t *Master_InfoForServer (netadr_t addr);
 serverinfo_t *Master_InfoForNum (int num);
 int Master_TotalCount(void);
 void Master_QueryServer(serverinfo_t *server);
+void MasterInfo_WriteServers(void);

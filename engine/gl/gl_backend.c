@@ -37,7 +37,7 @@ void GL_MBind( GLenum target, int texnum )
 //	if ( gl_state.currenttextures[texnum-mtexid0] == texnum )
 //		return;
 
-	gl_state.currenttextures[texnum-mtexid0] = texnum;
+	gl_state.currenttextures[gl_state.currenttmu] = texnum;
 	bindTexFunc (GL_TEXTURE_2D, texnum);
 }
 
@@ -2567,7 +2567,8 @@ void R_RenderFogOnMesh ( shader_t *shader, struct mfog_s *fog )
 
 	if ( !shader->numpasses || shader->fog_dist || (shader->flags & SHADER_SKY) )
 	{
-		qglDepthFunc ( GL_LEQUAL );
+		extern int gldepthfunc;
+		qglDepthFunc ( gldepthfunc );
 	}
 	else
 	{

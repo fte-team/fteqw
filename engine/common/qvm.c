@@ -457,11 +457,12 @@ static void inline QVM_Goto(qvm_t *vm, int addr)
 */
 static void inline QVM_Call(qvm_t *vm, int addr)
 {
+	vm->sp--;
+	if (vm->sp < (unsigned long*)(vm->ss)) Sys_Error("QVM Stack underflow");
+
 	if(addr<0)
 	{
 	// system trap function
-		vm->sp--;
-
 		{
 			long *fp;
 
@@ -474,7 +475,6 @@ static void inline QVM_Call(qvm_t *vm, int addr)
 	if(addr>vm->len_cs)
 		Sys_Error("VM run time error: program jumped off to hyperspace\n");
 
-	vm->sp--;
 	vm->sp[0]=(long)(vm->pc-vm->cs); // push pc /return address/
 	vm->pc=vm->cs+addr*2;
 }
@@ -509,6 +509,15 @@ static void inline QVM_Return(qvm_t *vm, long size)
 
 	fp=(long*)(vm->ds+vm->bp);
 	vm->bp+=size;
+
+	if(vm->bp>vm->len_ds+vm->len_ss/2)
+		Sys_Error("VM run time error: freed too much stack\n");
+
+	if(fp[1]>vm->len_cs)
+		if (vm->cs+fp[1])	//this being false causes the program to quit.
+			Sys_Error("VM run time error: program returned to hyperspace\n");
+	if(fp[1]<0)
+		Sys_Error("VM run time error: program returned to negative hyperspace\n");
 
 	vm->pc=vm->cs+fp[1]; // restore PC
 	fp[1] = fp[0];
@@ -568,10 +577,10 @@ int QVM_Exec(register qvm_t *qvm, int command, int arg0, int arg1, int arg2, int
 
 	QVM_Call(qvm, 0);
 
-	do
+	for(;;)
 	{
 	// fetch next command
-		op=*qvm->pc++;
+ 		op=*qvm->pc++;
 		param=*qvm->pc++;
 		qvm->cycles++;
 
@@ -592,6 +601,12 @@ int QVM_Exec(register qvm_t *qvm, int command, int arg0, int arg1, int arg2, int
 			break;
 		case OP_LEAVE:
 			QVM_Return(qvm, param);
+
+			if (!qvm->pc)
+			{
+				// pick return value from stack
+				return qvm->sp[0];
+			}
 			break;
 		case OP_CALL:
 			param = *qvm->sp;
@@ -817,10 +832,7 @@ int QVM_Exec(register qvm_t *qvm, int command, int arg0, int arg1, int arg2, int
 			*(signed long*)&qvm->sp[0]=(signed long)(*(float*)&qvm->sp[0]);
 			break;
 		}
-	} while(qvm->pc);
-
-// pick return value from stack
-	return qvm->sp[0];
+	}
 }
 
 

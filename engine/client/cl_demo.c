@@ -77,7 +77,7 @@ void CL_WriteDemoCmd (usercmd_t *pcmd)
 	int		i;
 	float	fl;
 	qbyte	c;
-	usercmd_t cmd;
+	q1usercmd_t cmd;
 
 //Con_Printf("write: %ld bytes, %4.4f\n", msg->cursize, realtime);
 
@@ -87,14 +87,18 @@ void CL_WriteDemoCmd (usercmd_t *pcmd)
 	c = dem_cmd;
 	fwrite (&c, sizeof(c), 1, cls.demofile);
 
-	// correct for qbyte order, bytes don't matter
-	cmd = *pcmd;
+	// correct for byte order, bytes don't matter
+
+	cmd.buttons = pcmd->buttons;
+	cmd.impulse = pcmd->impulse;
+	cmd.msec = pcmd->msec;
 
 	for (i = 0; i < 3; i++)
-		cmd.angles[i] = LittleFloat(cmd.angles[i]);
-	cmd.forwardmove = LittleShort(cmd.forwardmove);
-	cmd.sidemove    = LittleShort(cmd.sidemove);
-	cmd.upmove      = LittleShort(cmd.upmove);
+		cmd.angles[i] = LittleFloat(pcmd->angles[i]*65536/360);
+
+	cmd.forwardmove = LittleShort(pcmd->forwardmove);
+	cmd.sidemove    = LittleShort(pcmd->sidemove);
+	cmd.upmove      = LittleShort(pcmd->upmove);
 
 	fwrite(&cmd, sizeof(cmd), 1, cls.demofile);
 

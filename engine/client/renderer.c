@@ -1104,7 +1104,10 @@ qboolean M_VideoApply (union menuoption_s *op,struct menu_s *menu,int key)
 void M_Menu_Video_f (void)
 {
 	extern cvar_t r_stains, v_contrast;
-	extern cvar_t r_bouncysparks, d_smooth;
+#if defined(SWQUAKE)
+	extern cvar_t d_smooth;
+#endif
+	extern cvar_t r_bouncysparks;
 	static const char *modenames[128] = {"Custom"};
 	static const char *rendererops[] = {
 #ifdef SWQUAKE

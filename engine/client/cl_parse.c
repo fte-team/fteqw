@@ -547,6 +547,12 @@ qboolean	CL_CheckOrDownloadFile (char *filename, int nodelay)
 			if (!strcmp(failed->name, filename))
 				return true;
 		}
+
+		for (failed = cl.downloadlist; failed; failed = failed->next)	//It's already on our list. Ignore it.
+		{
+			if (!strcmp(failed->name, filename))
+				return true;
+		}
 	}
 
 	if ((!requiredownloads.value && !nodelay) || nodelay==-1)

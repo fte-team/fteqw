@@ -116,10 +116,7 @@ typedef struct skytris_s {
 	float area;
 	float nexttime;
 	msurface_t *face;
-	int ptype;
 } skytris_t;
-
-static skytris_t *skytris;
 
 
 
@@ -196,6 +193,7 @@ typedef struct part_type_s {
 
 	int loaded;
 	particle_t	*particles;
+	skytris_t *skytris;
 } part_type_t;
 int numparticletypes;
 part_type_t *part_type;
@@ -291,6 +289,7 @@ void R_ParticleEffect_f(void)
 	char *var, *value;
 	char *buf;
 	particle_t *parts;
+	skytris_t *st;
 
 	part_type_t *ptype;
 	int pnum, assoc;
@@ -323,10 +322,12 @@ void R_ParticleEffect_f(void)
 	pnum = ptype-part_type;
 
 	parts = ptype->particles;
+	st = ptype->skytris;
 	if (ptype->ramp)
 		BZ_Free(ptype->ramp);
 	memset(ptype, 0, sizeof(*ptype));
 	ptype->particles = parts;
+	ptype->skytris = st;
 	strcpy(ptype->name, Cmd_Argv(1));
 	ptype->assoc=-1;
 	ptype->cliptype = -1;
@@ -859,8 +860,6 @@ void R_ClearParticles (void)
 
 	particletime = cl.time;
 
-	skytris = NULL;
-
 #ifdef RGLQUAKE
 	if (qrenderer == QR_OPENGL)
 	{
@@ -877,7 +876,10 @@ void R_ClearParticles (void)
 #endif
 
 	for (i = 0; i < numparticletypes; i++)
+	{
 		part_type[i].particles = NULL;
+		part_type[i].skytris = NULL;
+	}
 }
 
 void R_Part_NewServer(void)
@@ -1012,6 +1014,7 @@ void R_AddRainParticles(void)
 	float x;
 	float y;
 	static float skipped;
+	int ptype;
 
 	vec3_t org, vdist;
 
@@ -1023,46 +1026,92 @@ void R_AddRainParticles(void)
 		return;
 	}
 
-	if (!skytris)	//don't bother (let's use test for the first one for timings)
-		return;
-
-	if (skytris->nexttime < particletime - 0.5)
-		skipped = true;	//we've gone for half a sec without any new rain. This would cause some strange effects, so reset times.
+//	if (skytris->nexttime < particletime - 0.5)
+//		skipped = true;	//we've gone for half a sec without any new rain. This would cause some strange effects, so reset times.
 
 	if (skipped)
 	{
-		for (st = skytris; st; st = st->next)
+		for (ptype = 0; ptype<numparticletypes; ptype++)
 		{
-			st->nexttime = particletime;
+			for (st = part_type[ptype].skytris; st; st = st->next)
+			{
+				st->nexttime = particletime;
+			}
 		}
 	}
 	skipped = false;
+/*
+{
+	int i;
 
-	for (st = skytris; st; st = st->next)
-	{
-//		if (st->face->visframe != r_framecount)
-//			continue;
-		while (st->nexttime < particletime)
+glDisable(GL_TEXTURE_2D);
+glPolygonMode(GL_FRONT_AND_BACK, GL_LINE);
+glDisable(GL_DEPTH_TEST);
+glBegin(GL_TRIANGLES);
+
+	st = skytris;
+	for (i = 0; i < r_part_rain_quantity.value; i++)
+		st = st->next;
+		glVertex3f(st->org[0], st->org[1], st->org[2]);
+		glVertex3f(st->org[0]+st->x[0], st->org[1]+st->x[1], st->org[2]+st->x[2]);
+		glVertex3f(st->org[0]+st->y[0], st->org[1]+st->y[1], st->org[2]+st->y[2]);
+glEnd();
+glPolygonMode(GL_FRONT_AND_BACK, GL_FILL);
+glBegin(GL_POINTS);
+		for (i = 0; i < 1000; i++)
 		{
-			if (!free_particles)
-				return;
-
-			st->nexttime += 10000/(st->area*r_part_rain_quantity.value);
-
-			x = frandom();
-			y = frandom();
+			x = frandom()*frandom();
+			y = frandom() * (1-x);
 			VectorMA(st->org, x, st->x, org);
 			VectorMA(org, y, st->y, org);
 
+			glVertex3f(org[0], org[1], org[2]);
+		}
+glEnd();
+glEnable(GL_DEPTH_TEST);
+}
+*/
+	for (ptype = 0; ptype<numparticletypes; ptype++)
+	{
+		if (!part_type[ptype].loaded)	//woo, batch skipping.
+			continue;
 
-			VectorSubtract(org, r_refdef.vieworg, vdist);
+		for (st = part_type[ptype].skytris; st; st = st->next)
+		{
+	//		if (st->face->visframe != r_framecount)
+	//			continue;
+			while (st->nexttime < particletime)
+			{
+				if (!free_particles)
+					return;
 
-			if (Length(vdist) > (1024+512)*frandom())
-				continue;
+				st->nexttime += 10000/(st->area*r_part_rain_quantity.value);
 
-			
-			if (!(cl.worldmodel->hulls->funcs.HullPointContents(cl.worldmodel->hulls, org) & FTECONTENTS_SOLID))
-				R_RunParticleEffectType(org, st->face->plane->normal, 1, st->ptype);
+				x = frandom()*frandom();
+				y = frandom() * (1-x);
+				VectorMA(st->org, x, st->x, org);
+				VectorMA(org, y, st->y, org);
+
+
+				VectorSubtract(org, r_refdef.vieworg, vdist);
+
+				if (Length(vdist) > (1024+512)*frandom())
+					continue;
+
+				
+				if (!(cl.worldmodel->hulls->funcs.HullPointContents(cl.worldmodel->hulls, org) & FTECONTENTS_SOLID))
+				{
+					if (st->face->flags & SURF_PLANEBACK)
+					{
+						vdist[0] = -st->face->plane->normal[0];
+						vdist[1] = -st->face->plane->normal[1];
+						vdist[2] = -st->face->plane->normal[2];
+						R_RunParticleEffectType(org, vdist, 1, ptype);
+					}
+					else
+						R_RunParticleEffectType(org, st->face->plane->normal, 1, ptype);
+				}
+			}
 		}
 	}
 }
@@ -1080,17 +1129,17 @@ void R_Part_SkyTri(float *v1, float *v2, float *v3, msurface_t *surf)
 	skytris_t *st;
 
 	st = Hunk_Alloc(sizeof(skytris_t));
-	st->next = skytris;
+	st->next = part_type[surf->texinfo->texture->parttype].skytris;
 	VectorCopy(v1, st->org);
 	VectorSubtract(v2, st->org, st->x);
 	VectorSubtract(v3, st->org, st->y);
 
 	VectorCopy(st->x, xd);
 	VectorCopy(st->y, yd);
-
+/*
 	xd[2] = 0;	//prevent area from being valid on vertical surfaces
 	yd[2] = 0;
-
+*/
 	xm = Length(xd);
 	ym = Length(yd);
 
@@ -1099,12 +1148,11 @@ void R_Part_SkyTri(float *v1, float *v2, float *v3, msurface_t *surf)
 	st->area = sin(theta)*xm*ym;
 	st->nexttime = particletime;
 	st->face = surf;
-	st->ptype = surf->texinfo->texture->parttype;
 
 	if (st->area<=0)
 		return;//bummer.
 
-	skytris = st;
+	part_type[surf->texinfo->texture->parttype].skytris = st;
 }
 
 
@@ -1348,9 +1396,6 @@ int R_RunParticleEffectType (vec3_t org, vec3_t dir, float count, int typenum)
 		return 1;
 
 	if (!ptype->loaded)
-		return 1;
-
-	if (!ptype->scale)
 		return 1;
 
 	while(ptype)
@@ -2144,6 +2189,7 @@ qboolean TraceLineN (vec3_t start, vec3_t end, vec3_t impact, vec3_t normal)
 				normal[0] = -delta[0];
 				normal[1] = -delta[1];
 				normal[2] = -delta[2];
+				VectorCopy (start, impact);
 				return true;
 			}
 

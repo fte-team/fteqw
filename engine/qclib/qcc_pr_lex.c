@@ -42,7 +42,12 @@ int numCompilerConstants;
 
 char	*pr_punctuation[] =
 // longer symbols must be before a shorter partial match
-{"&&", "||", "<=", ">=","==", "!=", "/=", "*=", "+=", "-=", "(+)", "(-)", "++", "--", "::", ";", ",", "!", "*", "/", "(", ")", "-", "+", "=", "[", "]", "{", "}", "...", "..", ".", "<<", "<", ">>", ">" , "#" , "@", "&" , "|", "^", ":", NULL};
+{"&&", "||", "<=", ">=","==", "!=", "/=", "*=", "+=", "-=", "|=", "(+)", "(-)", "++", "--", "->", "::", ";", ",", "!", "*", "/", "(", ")", "-", "+", "=", "[", "]", "{", "}", "...", "..", ".", "<<", "<", ">>", ">" , "#" , "@", "&" , "|", "^", ":", NULL};
+
+char *pr_punctuationremap[] =	//a nice bit of evilness.
+//|= -> (+)
+//-> -> .
+{"&&", "||", "<=", ">=","==", "!=", "/=", "*=", "+=", "-=", "(+)","(+)", "(-)", "++", "--", ".", "::", ";", ",", "!", "*", "/", "(", ")", "-", "+", "=", "[", "]", "{", "}", "...", "..", ".", "<<", "<", ">>", ">" , "#" , "@", "&" , "|", "^", ":", NULL};
 
 // simple types.  function types are dynamically allocated
 QCC_type_t	*type_void;// = {ev_void/*, &def_void*/};
@@ -1299,7 +1304,7 @@ void QCC_PR_LexPunctuation (void)
 		len = strlen(p);
 		if (!strncmp(p, pr_file_p, len) )
 		{
-			strcpy (pr_token, p);
+			strcpy (pr_token, pr_punctuationremap[i]);
 			if (p[0] == '{')
 				pr_bracelevel++;
 			else if (p[0] == '}')
@@ -2117,7 +2122,7 @@ void QCC_PR_Lex (void)
 
 // if the first character is a valid identifier, parse until a non-id
 // character is reached
-	if ( c == '~' )
+	if ( c == '~' || c == '%')	//let's see which one we make into an operator first... possibly both...
 	{
 		pr_file_p++;
 		pr_token_type = tt_immediate;

@@ -706,6 +706,15 @@ typedef struct usercmd_s
 	qbyte	impulse;
 	qbyte lightlevel;
 } usercmd_t;
+
+typedef struct q1usercmd_s
+{
+	qbyte	msec;
+	vec3_t	angles;
+	short	forwardmove, sidemove, upmove;
+	qbyte	buttons;
+	qbyte	impulse;
+} q1usercmd_t;
 #define SHORT2ANGLE(x) (x) * (360.0/65536)
 
 

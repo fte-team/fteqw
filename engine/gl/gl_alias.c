@@ -59,6 +59,7 @@ int numTempNormals;
 vec3_t *tempNormals;
 
 extern cvar_t gl_ati_truform;
+extern cvar_t r_vertexdlights;
 
 typedef struct {
 	int ofs_indexes;
@@ -840,8 +841,6 @@ void R_DrawGAliasModel (entity_t *e)
 	float entScale;
 	vec3_t lightdir;
 
-	int pervertexdlights = 1;
-
 	float	tmatrix[3][4];
 
 	currententity = e;
@@ -868,7 +867,7 @@ void R_DrawGAliasModel (entity_t *e)
 		lightdir[2] = 1;
 	}
 
-	if (!pervertexdlights)
+	if (!r_vertexdlights.value)
 	{
 		for (i=0 ; i<MAX_DLIGHTS ; i++)
 		{
@@ -1139,7 +1138,7 @@ void R_DrawGAliasModel (entity_t *e)
 	while(inf)
 	{
 		R_GAliasBuildMesh(&mesh, inf, e->frame, e->oldframe, e->lerptime, e->alpha);
-		if (pervertexdlights)
+		if (r_vertexdlights.value)
 			R_GAliasAddDlights(&mesh, e->origin, e->angles);
 		skin = GL_ChooseSkin(inf, clmodel->name, e);
 		c_alias_polys += mesh.numindexes/3;

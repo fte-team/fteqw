@@ -158,6 +158,7 @@ extern cvar_t		_vid_wait_override;
 extern cvar_t		vid_stretch_by_2;
 extern cvar_t		_windowed_mouse;
 extern cvar_t		vid_hardwaregamma;
+extern cvar_t		gl_lateswap;
 
 int			window_center_x, window_center_y, window_x, window_y, window_width, window_height;
 RECT		window_rect;
@@ -802,8 +803,13 @@ void GL_BeginRendering (int *x, int *y, int *width, int *height)
 //	glViewport (*x, *y, *width, *height);
 }
 
-void GL_EndRendering (void)
+qboolean screenflush;
+void GL_DoSwap (void)
 {
+	if (!screenflush)
+		return;
+	screenflush = 0;
+
 	if (!scr_skipupdate || block_drawing)
 		qSwapBuffers(maindc);
 
@@ -833,6 +839,13 @@ void GL_EndRendering (void)
 			}
 		}
 	}
+}
+
+void GL_EndRendering (void)
+{
+	screenflush = true;
+	if (!gl_lateswap.value)
+		GL_DoSwap();
 }
 
 void	GLVID_SetPalette (unsigned char *palette)

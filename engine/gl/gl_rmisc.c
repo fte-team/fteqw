@@ -208,6 +208,7 @@ void R_Envmap_f (void)
 	glDrawBuffer  (GL_BACK);
 	glReadBuffer  (GL_BACK);
 	GL_EndRendering ();
+	GL_DoSwap();
 }
 
 
@@ -934,6 +935,7 @@ void GLR_TimeRefresh_f (void)
 
 	glDrawBuffer  (GL_BACK);
 	GL_EndRendering ();
+	GL_DoSwap();
 }
 
 #ifndef SWQUAKE

@@ -78,6 +78,8 @@ cvar_t	d_smooth = {"d_smooth", "0"};
 #endif
 cvar_t	gl_skyboxdist = {"gl_skyboxdist", "2300"};
 
+cvar_t	r_vertexdlights = {"r_vertexdlights", "1"};
+
 extern	cvar_t	r_dodgytgafiles;
 
 cvar_t	r_nolerp = {"r_nolerp", "0"};
@@ -153,6 +155,8 @@ cvar_t		gl_lightmapmode = {"gl_lightmapmode", "", NULL, CVAR_ARCHIVE};
 cvar_t		gl_ati_truform = {"gl_ati_truform", "0"};
 cvar_t		gl_ati_truform_type = {"gl_ati_truform_type", "1"};
 cvar_t		gl_ati_truform_tesselation = {"gl_ati_truform_tesselation", "3"};
+
+cvar_t		gl_lateswap = {"gl_lateswap", "1"};
 
 cvar_t			scr_sshot_type = {"scr_sshot_type", "jpg"};
 
@@ -259,6 +263,7 @@ void GLRenderer_Init(void)
 	Cvar_Register (&gl_playermip, GLRENDEREROPTIONS);
 	Cvar_Register (&gl_nocolors, GLRENDEREROPTIONS);
 	Cvar_Register (&gl_finish, GLRENDEREROPTIONS);
+	Cvar_Register (&gl_lateswap, GLRENDEREROPTIONS);
 
 	Cvar_Register (&r_shadows, GLRENDEREROPTIONS);
 	Cvar_Register (&r_noaliasshadows, GLRENDEREROPTIONS);

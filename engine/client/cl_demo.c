@@ -152,6 +152,7 @@ qboolean CL_GetDemoMessage (void)
 	float	demotime;
 	qbyte	c, msecsadded;
 	usercmd_t *pcmd;
+	q1usercmd_t q1cmd;
 
 	static float prevtime = 0;
 
@@ -308,7 +309,7 @@ readnext:
 		// user sent input
 		i = cls.netchan.outgoing_sequence & UPDATE_MASK;
 		pcmd = &cl.frames[i].cmd[0];
-		r = fread (pcmd, sizeof(*pcmd), 1, cls.demofile);
+		r = fread (&q1cmd, sizeof(q1cmd), 1, cls.demofile);
 		if (r != 1)
 		{
 			CL_StopPlayback ();
@@ -316,10 +317,17 @@ readnext:
 		}
 		// byte order stuff
 		for (j = 0; j < 3; j++)
-			pcmd->angles[j] = LittleFloat(pcmd->angles[j]);
-		pcmd->forwardmove = LittleShort(pcmd->forwardmove);
-		pcmd->sidemove    = LittleShort(pcmd->sidemove);
-		pcmd->upmove      = LittleShort(pcmd->upmove);
+		{
+			q1cmd.angles[j] = LittleFloat(q1cmd.angles[j]);
+			pcmd->angles[j] = ((int)(q1cmd.angles[j]*65536.0/360)&65535);
+		}
+		pcmd->forwardmove = q1cmd.forwardmove	= LittleShort(q1cmd.forwardmove);
+		pcmd->sidemove = q1cmd.sidemove			= LittleShort(q1cmd.sidemove);
+		pcmd->upmove = q1cmd.upmove				= LittleShort(q1cmd.upmove);
+		pcmd->msec = q1cmd.msec;
+		pcmd->buttons = q1cmd.buttons;
+
+
 		cl.frames[i].senttime = demotime;
 		cl.frames[i].receivedtime = -1;		// we haven't gotten a reply yet
 		cls.netchan.outgoing_sequence++;

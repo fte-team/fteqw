@@ -1402,6 +1402,8 @@ void PPL_BaseTextures(model_t *model)
 	msurface_t	*s;
 	texture_t	*t;
 
+	GL_DoSwap();
+
 	glDisable(GL_BLEND);
 	glColor4f(1,1,1, 1);
 //	glDepthFunc(GL_LESS);

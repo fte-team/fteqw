@@ -25,6 +25,8 @@ int	PlaneTypeForNormal ( vec3_t normal );
 //Matthew S Fell (msfell@aol.com)
 //Unofficial Doom Specs
 
+//(aol suck)
+
 void Doom_SetHullFuncs(hull_t *hull);
 void Doom_SetModelFunc(model_t *mod);
 

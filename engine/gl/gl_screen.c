@@ -117,6 +117,7 @@ void GLSCR_UpdateScreen (void)
 			GL_BeginRendering (&glx, &gly, &glwidth, &glheight);
 			SCR_DrawLoading ();
 			GL_EndRendering ();	
+			GL_DoSwap();
 			return;
 		}
 	}
@@ -144,6 +145,7 @@ void GLSCR_UpdateScreen (void)
 #endif
 		GLR_BrightenScreen();
 		GL_EndRendering ();	
+		GL_DoSwap();
 		return;
 	}
 #endif
@@ -156,6 +158,7 @@ void GLSCR_UpdateScreen (void)
 #endif
 		GLR_BrightenScreen();
 		GL_EndRendering ();	
+		GL_DoSwap();
 		return;
 	}
 	
@@ -180,6 +183,8 @@ void GLSCR_UpdateScreen (void)
 	SCR_SetUpToDrawConsole ();
 	if (cl.worldmodel && uimenu != 1)
 		V_RenderView ();
+	else
+		GL_DoSwap();
 
 	GL_Set2D ();
 
@@ -252,7 +257,7 @@ void GLSCR_UpdateScreen (void)
 #if defined(_WIN32) && defined(RGLQUAKE)
 	Media_RecordFrame();
 #endif
-	GL_EndRendering ();	
+	GL_EndRendering ();
 }
 
 

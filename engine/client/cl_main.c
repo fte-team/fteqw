@@ -1528,7 +1528,6 @@ void CL_ConnectionlessPacket (void)
 {
 	char	*s;
 	int		c;
-
     MSG_BeginReading ();
     MSG_ReadLong ();        // skip the -1
 
@@ -1727,7 +1726,7 @@ client_connect:	//fixme: make function
 		return;
 	}
 	// remote command from gui front end
-	if (c == A2C_CLIENT_COMMAND)
+	if (c == A2C_CLIENT_COMMAND)	//man I hate this.
 	{
 		char	cmdtext[2048];
 
@@ -1768,7 +1767,7 @@ client_connect:	//fixme: make function
 			return;
 		}
 
-		Cbuf_AddText (cmdtext, RESTRICT_LOCAL);
+		Cbuf_AddText (cmdtext, RESTRICT_SERVER);
 		allowremotecmd = false;
 		return;
 	}

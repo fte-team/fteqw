@@ -488,10 +488,12 @@ void Sys_Init (void)
 //	LARGE_INTEGER	PerformanceFreq;
 //	unsigned int	lowpart, highpart;
 	OSVERSIONINFO	vinfo;
-/*
+
 #ifndef SERVERONLY
 #ifndef CLIENTONLY
-	if (!isDedicated)
+	if (!isDedicated && !COM_CheckParm("-nomutex"))
+#else
+	if (!COM_CheckParm("-nomutex"))	//we need to create a mutex to allow gamespy to realise that we're running, but it might not be desired as it prevents other clients from running too.
 #endif
 	{
 		// allocate a named semaphore on the client so the
@@ -513,7 +515,7 @@ void Sys_Init (void)
 			"qwcl"); // Semaphore name      
 	}
 #endif
-	*/
+
 
 	MaskExceptions ();
 	Sys_SetFPCW ();
@@ -985,8 +987,8 @@ int WINAPI WinMain (HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLin
 	static	char	cwd[1024];
 	int				t;
 	RECT			rect;
-
-    /* previous instances do not exist in Win32 */
+	
+	/* previous instances do not exist in Win32 */
     if (hPrevInstance)
         return 0;	
 

@@ -24,7 +24,7 @@ static int Q1_HullPointContents (hull_t *hull, int num, vec3_t p)
 	while (num >= 0)
 	{
 		if (num < hull->firstclipnode || num > hull->lastclipnode)
-			SV_Error ("SV_HullPointContents: bad node number");
+			Sys_Error ("SV_HullPointContents: bad node number");
 	
 		node = hull->clipnodes + num;
 		plane = hull->planes + node->planenum;

@@ -85,12 +85,12 @@ Zone block
 
 void Memory_Init (void *buf, int size);
 
-void Z_Free (void *ptr);
+void VARGS Z_Free (void *ptr);
 void *Z_Malloc (int size);			// returns 0 filled memory
 void *Z_MallocNamed (int size, char *, int);			// returns 0 filled memory
 //#define Z_Malloc(x) Z_MallocNamed2(x, __FILE__, __LINE__ )
-void *Z_TagMalloc (int size, int tag);
-void Z_FreeTags(int tag);
+void *VARGS Z_TagMalloc (int size, int tag);
+void VARGS Z_FreeTags(int tag);
 
 void Z_DumpHeap (void);
 void Z_CheckHeap (void);

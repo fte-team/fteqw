@@ -955,7 +955,7 @@ static	cmd_function_t	*cmd_functions;		// possible commands to execute
 Cmd_Argc
 ============
 */
-int		Cmd_Argc (void)
+int		VARGS Cmd_Argc (void)
 {
 	return cmd_argc;
 }
@@ -965,7 +965,7 @@ int		Cmd_Argc (void)
 Cmd_Argv
 ============
 */
-char	*Cmd_Argv (int arg)
+char	*VARGS Cmd_Argv (int arg)
 {
 	if ( arg >= cmd_argc )
 		return cmd_null_string;
@@ -980,7 +980,7 @@ Returns a single string containing argv(1) to argv(argc()-1)
 ============
 */
 
-char *Cmd_Args (void)
+char *VARGS Cmd_Args (void)
 {
 	if (!cmd_args)
 		return "";
@@ -2639,6 +2639,7 @@ void Cmd_Init (void)
 // register our commands
 //
 	Cmd_AddCommand ("cfg_save",Cmd_WriteConfig_f);
+
 	Cmd_AddCommand ("cfg_load",Cmd_Exec_f);
 
 	Cmd_AddCommand ("exec",Cmd_Exec_f);
@@ -2656,7 +2657,6 @@ void Cmd_Init (void)
 //	Cmd_AddCommand ("msg_trigger", Cmd_Msg_Trigger_f);
 //	Cmd_AddCommand ("filter", Cmd_Msg_Filter_f);
 
-
 	Cmd_AddCommand ("set", Cmd_set_f);
 	Cmd_AddCommand ("seta", Cmd_set_f);
 	Cmd_AddCommand ("inc", Cvar_Inc_f);
@@ -2666,10 +2666,8 @@ void Cmd_Init (void)
 	Cmd_AddCommand ("cmdlist", Cmd_List_f);
 	Cmd_AddCommand ("aliaslist", Cmd_AliasList_f);
 	Cmd_AddCommand ("cvarlist", Cvar_List_f);
-
 	Cmd_AddCommand ("fs_flush", COM_RefreshFSCache_f);
 	Cvar_Register(&com_fs_cache, "Filesystem");
-
 	Cvar_Register(&tp_disputablemacros, "Teamplay");
 
 #ifndef SERVERONLY
@@ -2681,7 +2679,6 @@ void Cmd_Init (void)
 	cmd_maxbuffersize.restriction = RESTRICT_MAX;	//filling this causes a loop for quite some time.
 
 	Cvar_Register(&cl_aliasoverlap, "Console");
-
 	//FIXME: go through quake.rc and parameters looking for sets and setas and setting them now.
 }
 

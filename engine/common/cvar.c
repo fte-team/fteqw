@@ -71,10 +71,8 @@ cvar_group_t *Cvar_GetGroup(char *gname)
 	g = Z_Malloc(sizeof(cvar_group_t));
 	g->name = gname;
 	g->next = NULL;
-
 	g->next = cvar_groups;
 	cvar_groups = g;
-
 	return g;
 }
 

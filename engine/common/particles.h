@@ -106,7 +106,8 @@ void P_NewServer(void);
 
 //allocate a new effect
 int P_ParticleTypeForName(char *name);
-int P_AllocateParticleType(char *name);
+int P_AllocateParticleType(char *name);	//find one if it exists, or create if it doesn't.
+qboolean P_DescriptionIsLoaded(char *name);	//returns true if it's usable.
 
 void P_SkyTri(float *v1, float *v2, float *v3, struct msurface_s *surf);
 

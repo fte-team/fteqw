@@ -142,3 +142,4 @@ qboolean PM_TestPlayerPosition (vec3_t point);
 #ifndef __cplusplus
 struct trace_s PM_PlayerTrace (vec3_t start, vec3_t stop);
 #endif
+

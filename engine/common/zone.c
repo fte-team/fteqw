@@ -151,7 +151,7 @@ int Z_Allocated(void)
 	return used;
 }
 
-void Z_Free (void *c)
+void VARGS Z_Free (void *c)
 {
 	zone_t *nz;
 	nz = ((zone_t *)((char*)c-ZONEDEBUG))-1;
@@ -221,8 +221,31 @@ void BZ_CheckSentinals(void *c)
 #endif
 
 }
+void BZ_CheckAllSentinals(void)
+{
+	zone_t *zone;
+	for(zone = zone_head; zone; zone=zone->next)
+	{
+		int i;
+		qbyte *buf;
+		buf = (qbyte *)(zone+1);
+		for (i = 0; i < ZONEDEBUG; i++)
+		{
+			if (buf[i] != sentinalkey)
+				*(int*)0 = -3;	//force a crash... this'll get our attention.
+		}
+		buf+=ZONEDEBUG;
+		//app data
+		buf += zone->size;
+		for (i = 0; i < ZONEDEBUG; i++)
+		{
+			if (buf[i] != sentinalkey)
+				*(int*)0 = -3;	//force a crash... this'll get our attention.
+		}
+	}
+}
 
-void Z_FreeTags(int tag)
+void VARGS Z_FreeTags(int tag)
 {
 	zone_t *zone, *next;
 	for(zone = zone_head; zone; zone=next)
@@ -286,9 +309,10 @@ void *Z_BaseTagMalloc (int size, int tag, qboolean clear)
 #ifdef NAMEDMALLOCS
 	strcpy((char *)(nt+1) + nt->size + ZONEDEBUG*2, buffer);
 #endif
+	BZ_CheckAllSentinals();
 	return buf;
 }
-void *Z_TagMalloc (int size, int tag)
+void *VARGS Z_TagMalloc (int size, int tag)
 {
 #ifdef NAMEDMALLOCS
 	return Z_BaseTagMalloc(size, tag, true, "");

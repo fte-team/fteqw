@@ -1198,6 +1198,7 @@ void CMod_LoadTexInfo (lump_t *l)	//yes I know these load from the same place
 		}
 		if (j == texcount)	//load a new one
 		{
+			strlwr(in->texture);
 			_snprintf (name, sizeof(name), "textures/%s.wal", in->texture);
 
 			out->texture = Mod_LoadWall (name);
@@ -1363,7 +1364,7 @@ void CMod_LoadFaces (lump_t *l)
 			out->samples = loadmodel->lightdata + i/3;
 		
 	// set the drawing flags
-		/*
+		
 		if (out->texinfo->flags & SURF_WARP)
 		{
 			out->flags |= SURF_DRAWTURB;
@@ -1372,9 +1373,9 @@ void CMod_LoadFaces (lump_t *l)
 				out->extents[i] = 16384;
 				out->texturemins[i] = -8192;
 			}
-			GL_SubdivideSurface (out);	// cut up polygon for warps
+			GL_SubdivideSurface (out, 64);	// cut up polygon for warps
 		}
-		*/
+		
 	}
 }
 #endif
@@ -4883,7 +4884,7 @@ void	FloodAreaConnections (void)
 
 }
 
-void	CMQ2_SetAreaPortalState (int portalnum, qboolean open)
+void	VARGS CMQ2_SetAreaPortalState (int portalnum, qboolean open)
 {
 	if (mapisq3)
 		Host_Error ("CMQ2_SetAreaPortalState on q3 map");
@@ -4918,7 +4919,7 @@ void	CMQ3_SetAreaPortalState (int area1, int area2, qboolean open)
 	}
 }
 
-qboolean	CM_AreasConnected (int area1, int area2)
+qboolean	VARGS CM_AreasConnected (int area1, int area2)
 {
 	if (map_noareas.value)
 		return true;

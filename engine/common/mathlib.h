@@ -106,4 +106,6 @@ void ML_Project (vec3_t in, vec3_t out, vec3_t viewangles, vec3_t vieworg, float
 void Matrix3_Multiply (vec3_t *in1, vec3_t *in2, vec3_t *out);
 void Matrix4_Transform3(float *matrix, float *vector, float *product);
 void ML_ModelViewMatrix(vec3_t modelview, vec3_t viewangles, vec3_t vieworg);
+void ML_ModelViewMatrixFromAxis(float *modelview, vec3_t pn, vec3_t right, vec3_t up, vec3_t vieworg);
+
 

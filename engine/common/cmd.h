@@ -88,9 +88,9 @@ qboolean Cmd_IsCommand (char *line);
 // attempts to match a partial command for automatic command line completion
 // returns NULL if nothing fits
 
-int		Cmd_Argc (void);
-char	*Cmd_Argv (int arg);
-char	*Cmd_Args (void);
+int		VARGS Cmd_Argc (void);
+char	*VARGS Cmd_Argv (int arg);
+char	*VARGS Cmd_Args (void);
 extern int	Cmd_ExecLevel;
 
 extern cvar_t cmd_gamecodelevel, cmd_allowaccess;

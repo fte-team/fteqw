@@ -1244,7 +1244,7 @@ Pmove
 Can be called by either the server or the client
 ================
 */
-void Q2_Pmove (q2pmove_t *pmove)
+void VARGS Q2_Pmove (q2pmove_t *pmove)
 {
 	q2pm = pmove;
 

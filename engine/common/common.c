@@ -336,6 +336,7 @@ char *Q_strlwr(char *s)
 
 int Q_strwildcmp(char *s1, char *s2)	//2 is wild
 {
+	return !wildcmp(s1, s2);
 	while (1)
 	{
 		if (!*s1 && !*s2)
@@ -1367,6 +1368,55 @@ char *COM_FileExtension (char *in)
 		exten[i] = *in;
 	exten[i] = 0;
 	return exten;
+}
+
+//Quake 2's tank model has a borked skin (or two).
+void COM_CleanUpPath(char *str)
+{
+	char *dots;
+	char *slash;
+	int critisize = 0;
+	for (dots = str; *dots; dots++)
+	{
+		if (*dots >= 'A' && *dots <= 'Z')
+		{
+			*dots = *dots - 'A' + 'a';
+			critisize = 1;
+		}
+		else if (*dots == '\\')
+		{
+			*dots = '/';
+			critisize = 2;
+		}
+	}
+	while (dots = strstr(str, ".."))
+	{
+		for (slash = dots-2; slash >= str; slash--)
+		{
+			if (*slash == '/')
+			{
+				memmove(slash, dots+2, strlen(dots+2)+1);
+				critisize = 3;
+				break;
+			}
+		}
+	}
+	while(*str == '/')
+	{
+		memmove(str, str+1, strlen(str+1)+1);
+		critisize = 4;
+	}
+	if(critisize)
+	{
+		if (critisize == 1)	//not a biggy, so not red.
+			Con_Printf("Please fix file case on your files\n");
+		else if (critisize == 2)	//you're evil.
+			Con_Printf("^1NEVER use backslash in a quake filename (we like portability)\n");
+		else if (critisize == 3)	//compleatly stupid. The main reason why this function exists. Quake2 does it!
+			Con_Printf("You realise that relative paths are a waste of space?\n");
+		else if (critisize == 4)	//AAAAHHHHH! (consider sys_error instead)
+			Con_Printf("^1AAAAAAAHHHH! An absolute path!\n");
+	}
 }
 
 /*
@@ -3526,7 +3576,7 @@ pack_t *COM_LoadPackFile (char *packfile)
 			CRC_ProcessByte(&crc, ((qbyte *)&info)[j]);
 */
 		strcpy (newfiles[i].name, info.name);
-		Q_strlwr(newfiles[i].name);
+		COM_CleanUpPath(newfiles[i].name);	//blooming tanks.
 		newfiles[i].filepos = LittleLong(info.filepos);
 		newfiles[i].filelen = LittleLong(info.filelen);
 #ifdef HASH_FILESYSTEM

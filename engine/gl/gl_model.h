@@ -254,8 +254,8 @@ typedef struct msurface_s
 	mesh_t		*mesh;
 	entity_t	*ownerent;
 	glpoly_t	*polys;				// multiple if warped
-	vec3_t		center;	//adverage
-	float		radius;	//max dist from center
+//	vec3_t		center;	//adverage
+//	float		radius;	//max dist from center
 	struct	msurface_s	*texturechain;
 
 	vec3_t normal;

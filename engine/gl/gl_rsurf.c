@@ -3549,8 +3549,6 @@ void BuildSurfaceDisplayList (msurface_t *fa)
 	int			vertpage;
 	float		*vec;
 	float		s, t;
-	float	distoff;
-	vec3_t	offcenter;
 	glpoly_t	*poly;
 	int	lm;
 
@@ -3646,10 +3644,6 @@ void BuildSurfaceDisplayList (msurface_t *fa)
 	fa->polys = poly;
 	poly->numverts = lnumverts;
 
-	fa->center[0]=0;
-	fa->center[1]=0;
-	fa->center[2]=0;
-
 	for (i=0 ; i<lnumverts ; i++)
 	{
 		lindex = currentmodel->surfedges[fa->firstedge + i];
@@ -3664,8 +3658,6 @@ void BuildSurfaceDisplayList (msurface_t *fa)
 			r_pedge = &pedges[-lindex];
 			vec = r_pcurrentvertbase[r_pedge->v[1]].position;
 		}
-
-		VectorAdd(vec, fa->center, fa->center);
 
 		s = DotProduct (vec, fa->texinfo->vecs[0]) + fa->texinfo->vecs[0][3];
 		t = DotProduct (vec, fa->texinfo->vecs[1]) + fa->texinfo->vecs[1][3];
@@ -3709,18 +3701,6 @@ void BuildSurfaceDisplayList (msurface_t *fa)
 		else
 			VectorCopy(fa->plane->normal, (poly->verts[i]+7));
 #endif
-	}
-
-	fa->center[0]/=lnumverts;
-	fa->center[1]/=lnumverts;
-	fa->center[2]/=lnumverts;
-	fa->radius = 0;
-	for (i=0 ; i<lnumverts ; i++)
-	{
-		VectorSubtract(poly->verts[0], fa->center, offcenter);
-		distoff = Length(offcenter);
-		if (distoff > fa->radius)
-			fa->radius = distoff;
 	}
 
 	//

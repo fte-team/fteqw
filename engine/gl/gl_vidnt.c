@@ -174,22 +174,31 @@ void *getglfunc(char *name)
 	if (!proc)
 	{
 		proc = GetProcAddress(hInstGL, name);
+		TRACE(("dbg: getglfunc: gpa %s: success %i\n", name, !!proc));
 		return proc;
 	}
+	TRACE(("dbg: getglfunc: glgpa %s: success %i\n", name, !!proc));
 	return proc;
 }
 void *getwglfunc(char *name)
 {
 	FARPROC proc;
+	TRACE(("dbg: getwglfunc: %s: getting\n", name));
 	proc = GetProcAddress(hInstGL, name);
 	if (!proc)
 	{
 		if (!hInstwgl)
+		{
+			TRACE(("dbg: getwglfunc: explicitly loading opengl32.dll\n", name));
 			hInstwgl = LoadLibrary("opengl32.dll");
+		}
+		TRACE(("dbg: getwglfunc: %s: wglgetting\n", name));
 		proc = GetProcAddress(hInstwgl, name);
+		TRACE(("dbg: getwglfunc: gpa %s: success %i\n", name, !!proc));
 		if (!proc)
 			Sys_Error("GL function %s was not found in %s\nPossibly you do not have a full enough gl implementation", name, opengldllname);
 	}
+	TRACE(("dbg: getwglfunc: glgpa %s: success %i\n", name, !!proc));
 	return proc;
 }
 
@@ -214,13 +223,16 @@ qboolean GLInitialise (char *renderer)
 
 	strcpy(opengldllname, renderer);
 
+	Con_Printf ("Loading renderer dll %s\n", renderer);
 	hInstGL = LoadLibrary(opengldllname);
 	
 	if (!hInstGL)
 	{
-		Con_SafePrintf ("Couldn't load %s\n", opengldllname);
+		Con_Printf ("Couldn't load %s\n", opengldllname);
 		return false;
 	}
+
+	Con_DPrintf ("Loaded renderer dll %s\n", renderer);
 
 	// windows dependant
 	qwglCreateContext		= (void *)getwglfunc("wglCreateContext");
@@ -230,6 +242,8 @@ qboolean GLInitialise (char *renderer)
 	qwglGetProcAddress		= (void *)getwglfunc("wglGetProcAddress");
 	qwglMakeCurrent			= (void *)getwglfunc("wglMakeCurrent");
 	qSwapBuffers			= SwapBuffers;
+
+	TRACE(("dbg: GLInitialise: got wgl funcs\n"));
 
 	return true;
 }
@@ -522,6 +536,8 @@ int GLVID_SetMode (rendererstate_t *info, unsigned char *palette)
     MSG				msg;
 //	HDC				hdc;
 
+	TRACE(("dbg: GLVID_SetMode\n"));
+
 // so Con_Printfs don't mess us up by forcing vid and snd updates
 	temp = scr_disabled_for_loading;
 	scr_disabled_for_loading = true;
@@ -533,6 +549,7 @@ int GLVID_SetMode (rendererstate_t *info, unsigned char *palette)
 	{
 		if (_windowed_mouse.value && (key_dest == key_game || key_dest == key_menu))
 		{
+			TRACE(("dbg: GLVID_SetMode: VID_SetWindowedMode\n"));
 			stat = VID_SetWindowedMode(info);
 			IN_ActivateMouse ();
 			IN_HideMouse ();
@@ -541,14 +558,22 @@ int GLVID_SetMode (rendererstate_t *info, unsigned char *palette)
 		{
 			IN_DeactivateMouse ();
 			IN_ShowMouse ();
+			TRACE(("dbg: GLVID_SetMode: VID_SetWindowedMode 2\n"));
 			stat = VID_SetWindowedMode(info);
 		}
 	}
 	else
 	{
+		TRACE(("dbg: GLVID_SetMode: VID_SetFullDIBMode\n"));
 		stat = VID_SetFullDIBMode(info);
 		IN_ActivateMouse ();
 		IN_HideMouse ();
+	}
+
+	if (!stat)
+	{
+		TRACE(("dbg: GLVID_SetMode: VID_Set... failed\n"));
+		return false;
 	}
 
 	window_width = DIBWidth;
@@ -557,11 +582,6 @@ int GLVID_SetMode (rendererstate_t *info, unsigned char *palette)
 
 	CDAudio_Resume ();
 	scr_disabled_for_loading = temp;
-
-	if (!stat)
-	{
-		return false;
-	}
 
 // now we try to make sure we get the focus on the mode switch, because
 // sometimes in some systems we don't.  We grab the foreground, then
@@ -596,9 +616,13 @@ int GLVID_SetMode (rendererstate_t *info, unsigned char *palette)
 	maindc = GetDC(mainwindow);
 	GetDeviceGammaRamp(maindc, origionalgammaramps);
 
+	TRACE(("dbg: GLVID_SetMode: attaching gl\n"));
 	if (!VID_AttachGL(info))
+	{
+		TRACE(("dbg: GLVID_SetMode: attaching gl failed\n"));
 		return false;
-
+	}
+TRACE(("dbg: GLVID_SetMode: attaching gl okay\n"));
 	return true;
 }
 
@@ -680,11 +704,13 @@ qboolean VID_AttachGL (rendererstate_t *info)
 			extern cvar_t gl_ztrick;
 			int zbpp = info->bpp > 16 ? 24 : 16;
 			gl_canstencil = false;
+			TRACE(("dbg: VID_AttachGL: D3DInitialize\n"));
 			D3DInitialize();	//replacement of GLInitialise, to get the function pointers set up.
 			if (COM_CheckParm("-zbpp"))
 			{
 				zbpp = Q_atoi(com_argv[COM_CheckParm("-zbpp")+1]);
 			}
+			TRACE(("dbg: VID_AttachGL: d3dSetMode\n"));
 			d3dSetMode(info->fullscreen, info->width, info->height, info->bpp, zbpp);	//d3d cheats to get it's dimensions and stuff... One that we can currently live with though.
 
 			gl_ztrickdisabled |= 2;	//ztrick does funny things.
@@ -692,14 +718,16 @@ qboolean VID_AttachGL (rendererstate_t *info)
 
 			maindc = GetDC(mainwindow);
 
-			Con_SafePrintf(S_COLOR_GREEN"OpenGL to Direct3D wrapper enabled\n");	//green to make it show.
+			Con_Printf(S_COLOR_GREEN"OpenGL to Direct3D wrapper enabled\n");	//green to make it show.
 			break;
 		}
 #endif
 		gl_ztrickdisabled &= ~2;
+		TRACE(("dbg: VID_AttachGL: GLInitialise\n"));
 		if (GLInitialise(info->glrenderer))
 		{
 			maindc = GetDC(mainwindow);
+			TRACE(("dbg: VID_AttachGL: bSetupPixelFormat\n"));
 			bSetupPixelFormat(maindc);
 			break;
 		}
@@ -710,17 +738,21 @@ qboolean VID_AttachGL (rendererstate_t *info)
 			GetSystemDirectory(systemgl, sizeof(systemgl)-1);
 			strncat(systemgl, "\\", sizeof(systemgl)-1);
 			strncat(systemgl, info->glrenderer, sizeof(systemgl)-1);
+			TRACE(("dbg: VID_AttachGL: GLInitialise (system dir specific)\n"));
 			if (GLInitialise(systemgl))
 			{
 				maindc = GetDC(mainwindow);
+				TRACE(("dbg: VID_AttachGL: bSetupPixelFormat\n"));
 				bSetupPixelFormat(maindc);
 				break;
 			}
 		}
 
+		TRACE(("dbg: VID_AttachGL: failed to find a valid dll\n"));
 		return false;
 	} while(1);
 	
+	TRACE(("dbg: VID_AttachGL: qwglCreateContext\n"));
 
     baseRC = qwglCreateContext( maindc );
 	if (!baseRC)
@@ -728,17 +760,25 @@ qboolean VID_AttachGL (rendererstate_t *info)
 		Con_SafePrintf(S_COLOR_RED"Could not initialize GL (wglCreateContext failed).\n\nMake sure you in are 65535 color mode, and try running -window.\n");	//green to make it show.
 		return false;
 	}
+	TRACE(("dbg: VID_AttachGL: qwglMakeCurrent\n"));
     if (!qwglMakeCurrent( maindc, baseRC ))
 	{
 		Con_SafePrintf(S_COLOR_RED"wglMakeCurrent failed\n");	//green to make it show.
 		return false;
 	}
 
+	TRACE(("dbg: VID_AttachGL: GL_Init\n"));
 	GL_Init(getglfunc);
 	qwglSwapIntervalEXT		= getglfunc("wglSwapIntervalEXT");
 	if (qwglSwapIntervalEXT && _vid_wait_override.value>=0)
+	{
+		TRACE(("dbg: VID_AttachGL: qwglSwapIntervalEXT\n"));
 		qwglSwapIntervalEXT(_vid_wait_override.value);
+	}
 	_vid_wait_override.modified = false;
+	TRACE(("dbg: VID_AttachGL: qSwapBuffers\n"));
+	glClearColor(0, 1, 0, 0);
+	glClear(GL_COLOR_BUFFER_BIT);
 	qSwapBuffers(maindc);
 
 	return true;
@@ -883,26 +923,32 @@ BOOL bSetupPixelFormat(HDC hDC)
 	0, 0, 0				// layer masks ignored
     };
     int pixelformat;
+	TRACE(("dbg: bSetupPixelFormat: ChoosePixelFormat\n"));
 
 	if ((pixelformat = ChoosePixelFormat(hDC, &pfd)))
+	{
+		TRACE(("dbg: ChoosePixelFormat 1: worked\n"));
 		if (SetPixelFormat(hDC, pixelformat, &pfd))
 		{
+			TRACE(("dbg: bSetupPixelFormat: we can use the stencil buffer. woot\n"));
 			gl_canstencil = pfd.cStencilBits;
 			return TRUE;
 		}
+	}
+	TRACE(("dbg: ChoosePixelFormat 1: no stencil buffer for us\n"));
 
 	pfd.cStencilBits = 0;
 	gl_canstencil = false;
 
     if ( (pixelformat = ChoosePixelFormat(hDC, &pfd)) == 0 )
     {
-        MessageBox(NULL, "ChoosePixelFormat failed", "Error", MB_OK);
+		Con_Printf("bSetupPixelFormat: ChoosePixelFormat failed\n");
         return FALSE;
     }
 
     if (SetPixelFormat(hDC, pixelformat, &pfd) == FALSE)
     {
-        MessageBox(NULL, "SetPixelFormat failed", "Error", MB_OK);
+        Con_Printf("bSetupPixelFormat: SetPixelFormat failed\n");
         return FALSE;
     }
 
@@ -1272,7 +1318,10 @@ qboolean GLVID_Init (rendererstate_t *info, unsigned char *palette)
     wc.lpszClassName = WINDOW_CLASS_NAME;
 
     if (!RegisterClass (&wc) )
-		Sys_Error ("Couldn't register window class");
+	{
+		Con_Print("^1Couldn't register window class\n");
+		return false;
+	}
 
 	hIcon = LoadIcon (global_hInstance, MAKEINTRESOURCE (IDI_ICON2));
 

@@ -191,6 +191,7 @@ typedef union eval_s
 
 #define PR_CURRENT	-1
 #define PR_ANY	-2	//not always valid. Use for finding funcs
+#define PR_ANYBACK -3
 #define PROGSTRUCT_VERSION 2
 
 

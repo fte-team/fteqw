@@ -25,8 +25,19 @@ vec3_t vec3_origin;
 //int				pr_max_edict_size;
 
 //unsigned short		pr_crc;
-
-int		type_size[9] = {1,sizeof(string_t)/4,1,3,1,1,sizeof(func_t)/4,sizeof(void *)/4, 1};
+const int		type_size[12] = {1,	//void
+						sizeof(string_t)/4,	//string
+						1,	//float
+						3,	//vector
+						1,	//entity
+						1,	//field
+						sizeof(func_t)/4,//function
+						sizeof(void *)/4,//pointer
+						1,	//integer
+						1,	//fixme: how big should a variant be?
+						0,	//ev_struct. variable sized.
+						0	//ev_union. variable sized.
+						};
 
 fdef_t *ED_FieldAtOfs (progfuncs_t *progfuncs, unsigned int ofs);
 pbool	ED_ParseEpair (progfuncs_t *progfuncs, void *base, ddefXX_t *key, char *s, int bits);
@@ -2011,7 +2022,7 @@ int LoadEnts(progfuncs_t *progfuncs, char *file, float killonspawnflags)
 					selfvar = (eval_t *)((int *)pr_globals + ED_FindGlobalOfs(progfuncs, "self"));
 					selfvar->edict = EDICT_TO_PROG(progfuncs, ed);
 
-					f = PR_FindFunc(progfuncs, var->string+progfuncs->stringtable, -2);
+					f = PR_FindFunc(progfuncs, var->string+progfuncs->stringtable, PR_ANYBACK);
 					if (f)
 					{
 						if (CheckSpawn)
@@ -2781,13 +2792,18 @@ retry:
 			for (i = 0; i < pr_progs->numbodylessfuncs; i++)
 			{
 				d16 = ED_FindGlobal16(progfuncs, s);
+				if (!d16)
+					Sys_Error("Progs requires \"%s\" the external function \"%s\", but the definition was stripped", filename, s);
+
+				((int *)glob)[d16->ofs] = PR_FindFunc(progfuncs, s, PR_ANY);
+				if (!((int *)glob)[d16->ofs])
+					Sys_Error("Runtime-linked function %s was not found in primary progs (loading %s)", s, filename);
+				/*
 				d2 = ED_FindGlobalOfsFromProgs(progfuncs, s, 0, ev_function);
 				if (!d2)
-					Sys_Error("Runtime-linked function %s was not found in existing progs", s);
-				if (!d16)
-					Sys_Error("Couldn't find def for \"%s\"", s);
+					Sys_Error("Runtime-linked function %s was not found in primary progs (loading %s)", s, filename);
 				((int *)glob)[d16->ofs] = (*(func_t *)&pr_progstate[0].globals[*d2]);
-
+				*/
 				s+=strlen(s)+1;
 			}
 		}

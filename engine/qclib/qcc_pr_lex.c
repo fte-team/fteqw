@@ -4,6 +4,7 @@
 #ifdef QCC
 #define print printf
 #endif
+#include "time.h"
 
 #define MEMBERFIELDNAME "__m%s"
 
@@ -65,7 +66,19 @@ QCC_type_t	*type_variant;// = {ev_integer/*, &def_integer*/};
 QCC_type_t	*type_floatfield;// = {ev_field/*, &def_field*/, NULL, &type_float};
 
 #ifdef QCCONLY
-const int		type_size[12] = {1,1,1,3,1,1,1,1,1, 1, 0,0};
+const int		type_size[12] = {1,	//void
+						sizeof(string_t)/4,	//string
+						1,	//float
+						3,	//vector
+						1,	//entity
+						1,	//field
+						sizeof(func_t)/4,//function
+						sizeof(void *)/4,//pointer
+						1,	//integer
+						1,	//fixme: how big should a variant be?
+						0,	//ev_struct. variable sized.
+						0	//ev_union. variable sized.
+						};
 #endif
 
 /*QCC_def_t	def_void = {type_void, "temp"};
@@ -1809,31 +1822,6 @@ void QCC_PR_ConditionCompilation(void)
 		QCC_PR_ParseError(ERR_CONSTANTTOOLONG, "Macro %s too long (%i not %i)", cnst->name, strlen(cnst->value), sizeof(cnst->value));
 }
 
-char *daynames[] =
-{
-	"Mon",
-	"Tue",
-	"Wed",
-	"Thu",
-	"Fri",
-	"Sat",
-	"Sun"
-};
-char *monthnames[] =
-{
-	"Jan",
-	"Feb",
-	"Mar",
-	"Apr",
-	"May",
-	"Jun",
-	"Jul",
-	"Aug",
-	"Sep",
-	"Oct",
-	"Nov",
-	"Dec"
-};
 int QCC_PR_CheakCompConst(void)
 {
 	char		*oldpr_file_p = pr_file_p;
@@ -2013,14 +2001,13 @@ int QCC_PR_CheakCompConst(void)
 
 	if (!strncmp(pr_file_p, "__TIME__", 8))
 	{
-		static char retbuf[256];
-#ifdef WIN32
-		SYSTEMTIME Systime;
-		GetSystemTime(&Systime);
-		sprintf(retbuf, "\"%i:%i\"", Systime.wHour, Systime.wMinute);
-#else	//linux
-		sprintf(retbuf, "\"unknown time\"");
-#endif
+		static char retbuf[128];
+
+		time_t long_time;
+		time( &long_time );
+		strftime( retbuf, sizeof(retbuf),
+			 "%R", localtime( &long_time ));
+
 		pr_file_p = retbuf;
 		QCC_PR_Lex();	//translate the macro's value
 		pr_file_p = oldpr_file_p+8;
@@ -2029,15 +2016,15 @@ int QCC_PR_CheakCompConst(void)
 	}
 	if (!strncmp(pr_file_p, "__DATE__", 8))
 	{
-		static char retbuf[256];
-#ifdef WIN32
-		SYSTEMTIME Systime;
-		GetSystemTime(&Systime);
-		//dayname, day, month, year
-		sprintf(retbuf, "\"%s %i %s %i\"", daynames[Systime.wDayOfWeek], Systime.wDay, monthnames[Systime.wMonth], Systime.wYear);
-#else	//linux
-	sprintf(retbuf, "\"unknown date\"");
-#endif
+		static char retbuf[128];
+
+		time_t long_time;
+		time( &long_time );
+		strftime( retbuf, sizeof(retbuf),
+			 "%a %d %b %Y", localtime( &long_time ));
+
+
+
 		pr_file_p = retbuf;
 		QCC_PR_Lex();	//translate the macro's value
 		pr_file_p = oldpr_file_p+8;

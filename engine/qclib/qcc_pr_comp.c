@@ -3251,7 +3251,7 @@ QCC_def_t	*QCC_PR_ParseValue (QCC_type_t *assumeclass)
 				QCC_PR_ParseError (ERR_UNKNOWNVALUE, "Unknown value \"%s\"", name);
 			else
 			{
-				QCC_PR_ParseWarning (ERR_UNKNOWNVALUE, "Unknown value \"%s\", assuming float.", name);
+				QCC_PR_ParseWarning (ERR_UNKNOWNVALUE, "Unknown value \"%s\".", name);
 			}
 		}
 	}
@@ -6653,7 +6653,7 @@ QCC_def_t *QCC_PR_DummyDef(QCC_type_t *type, char *name, QCC_def_t *scope, int a
 {
 	char array[64];
 	char newname[256];
-	int a, i;
+	int a;
 	QCC_def_t *def, *first=NULL;
 
 #define KEYWORD(x) if (!STRCMP(name, #x) && keyword_##x) {if (keyword_##x)QCC_PR_ParseWarning(WARN_KEYWORDDISABLED, "\""#x"\" keyword used as variable name%s", keywords_coexist?" - coexisting":" - disabling");keyword_##x=keywords_coexist;}
@@ -6761,8 +6761,6 @@ QCC_def_t *QCC_PR_DummyDef(QCC_type_t *type, char *name, QCC_def_t *scope, int a
 				case ev_function:
 					sprintf(newname, "%s%s.%s", name, array, parttype->name);
 					QCC_PR_DummyDef(parttype, newname, scope, 1, ofs + type->size*a +parttype->ofs, false)->initialized = true;
-					for (i = parttype->num_parms; i>0; i--)
-						parttype=parttype->next;
 					break;
 				case ev_void:
 					break;
@@ -7675,13 +7673,11 @@ void QCC_PR_ParseDefs (char *classname)
 			def->initialized = 2;
 
 // check for an initialization
-		if (type->type == ev_function && (pr_scope || !constant))
+		if (type->type == ev_function && (pr_scope))
 		{
 			if ( QCC_PR_CheckToken ("=") )
 			{
-				if (def->arraysize>1)
-					goto lazyfunctiondeclaration;
-				QCC_PR_ParseError (ERR_INITIALISEDLOCALFUNCTION, "local functions may only be used as pointers");
+				QCC_PR_ParseError (ERR_INITIALISEDLOCALFUNCTION, "local functions may not be initialised");
 			}
 
 			arraysize = def->arraysize;
@@ -7774,7 +7770,6 @@ void QCC_PR_ParseDefs (char *classname)
 	
 			else if (type->type == ev_function)
 			{
-lazyfunctiondeclaration:
 				def->constant = constant;
 				if (QCC_PR_CheckToken("0"))
 				{
@@ -7784,9 +7779,22 @@ lazyfunctiondeclaration:
 					continue;
 				}
 
+				if (!def->constant && arraysize==1)
+				{
+					def->constant = 0;
+					def->initialized = 1;	//fake function
+
+					name = QCC_PR_ParseName ();
+					d = QCC_PR_GetDef (NULL, name, pr_scope, false, 0);
+					if (!d)
+						QCC_PR_ParseError(ERR_NOTDEFINED, "%s was not previously defined", name);
+					G_FUNCTION(def->ofs+i) = G_FUNCTION(d->ofs);
+					continue;
+				}
+
 				if (arraysize>1)
 				{
-					int i;					
+					int i;
 					def->initialized = 1;	//fake function
 					QCC_PR_Expect ("{");
 					i = 0;
@@ -7825,6 +7833,8 @@ lazyfunctiondeclaration:
 						QCC_PR_ParseError(ERR_TOOMANYINITIALISERS, "Too many initializers");
 					continue;
 				}
+				if (!def->constant)
+					QCC_PR_ParseError(0, "Functions must be constant");
 
 				def->references++;
 				pr_scope = def;

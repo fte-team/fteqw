@@ -146,7 +146,11 @@ void PR_Configure (progfuncs_t *progfuncs, int addressable_size, int max_progs)	
 struct globalvars_s *PR_globals (progfuncs_t *progfuncs, progsnum_t pnum)
 {
 	if (pnum < 0)
+	{
+		if (!current_progstate)
+			return NULL;	//err.. you've not loaded one yet.
 		return (struct globalvars_s *)current_progstate->globals;
+	}
 	return (struct globalvars_s *)pr_progstate[pnum].globals;
 }
 
@@ -162,9 +166,20 @@ func_t PR_FindFunc(progfuncs_t *progfuncs, char *funcname, progsnum_t pnum)
 {
 
 	dfunction_t *f=NULL;
-	if (pnum == -2)
+	if (pnum == PR_ANY)
 	{
-		for (pnum = 0; pnum < maxprogs; pnum ++)
+		for (pnum = 0; pnum < maxprogs; pnum++)
+		{
+			if (!pr_progstate[pnum].progs)
+				continue;
+			f = ED_FindFunction(progfuncs, funcname, &pnum, pnum);
+			if (f)
+				break;
+		}
+	}
+	else if (pnum == PR_ANYBACK)	//run backwards
+	{
+		for (pnum = maxprogs-1; pnum >= 0; pnum--)
 		{
 			if (!pr_progstate[pnum].progs)
 				continue;
@@ -192,7 +207,7 @@ func_t PR_FindFunc(progfuncs_t *progfuncs, char *funcname, progsnum_t pnum)
 	case 32:
 		var32 = ED_FindTypeGlobalFromProgs32(progfuncs, funcname, pnum, ev_function);	//we must make sure we actually have a function def - 'light' is defined as a field before it is defined as a function.
 		if (!var32)
-			return (f - pr_progstate[pnum].functions) | (pnum << 24);;
+			return (f - pr_progstate[pnum].functions) | (pnum << 24);
 		return *(int *)&pr_progstate[pnum].globals[var32->ofs];	
 	}
 	Sys_Error("Error with def size (PR_FindFunc)");	

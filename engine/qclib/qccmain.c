@@ -485,7 +485,7 @@ int WriteBodylessFuncs (int handle)
 	{
 		if (d->type->type == ev_function && !d->scope)// function parms are ok
 		{
-			if (d->initialized != 1)
+			if (d->initialized != 1 && d->references>0)
 			{
 				SafeWrite(handle, d->name, strlen(d->name)+1);
 				ret++;

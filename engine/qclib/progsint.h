@@ -273,7 +273,7 @@ int NUM_FOR_EDICT(progfuncs_t *progfuncs, struct edict_s *e);
 #define	E_VECTOR(e,o) (&((float*)&e->v)[o])
 #define	E_STRING(e,o) (*(string_t *)&((float*)(e+1))[o])
 
-extern	int		type_size[9];
+const extern	int		type_size[];
 
 
 extern	unsigned short		pr_crc;

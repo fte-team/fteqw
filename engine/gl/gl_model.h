@@ -790,7 +790,7 @@ struct trace_s	CM_TransformedBoxTrace (vec3_t start, vec3_t end, vec3_t mins, ve
 
 void Mod_ParseInfoFromEntityLump(char *data);
 
-qboolean	CMQ2_SetAreaPortalState (int portalnum, qboolean open);
+void	CMQ2_SetAreaPortalState (int portalnum, qboolean open);
 #endif
 
 

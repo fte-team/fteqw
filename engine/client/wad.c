@@ -384,7 +384,7 @@ qbyte *W_ConvertWAD3Texture(miptex_t *tex, int *width, int *height, qboolean *us
 	if (!data)
 		return NULL;
 
-	in = (qbyte *)((int) tex + tex->offsets[0]);
+	in = (qbyte *)tex + tex->offsets[0];
 
 	*width = tex->width;
 	*height = tex->height;

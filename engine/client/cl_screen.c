@@ -807,6 +807,7 @@ void SCR_CrosshairPosition(int pnum, int *x, int *y)
 		memset(&tr, 0, sizeof(tr));
 		tr.fraction = 1;
 		cl.worldmodel->hulls->funcs.RecursiveHullCheck (cl.worldmodel->hulls, 0, 0, 1, start, end, &tr);
+		start[2]-=16;
 		if (tr.fraction == 1)
 		{
 			*x = rect.x + rect.width/2 + cl_crossx.value; 
@@ -822,7 +823,8 @@ void SCR_CrosshairPosition(int pnum, int *x, int *y)
 				adj+=4;
 			else
 				adj+=v_viewheight.value;
-			start[2]+=adj/4;
+
+			start[2]+=adj;
 			ML_Project(tr.endpos, end, cl.simangles[pnum], start, (float)rect.width/rect.height, r_refdef.fov_y);
 			*x = rect.x+rect.width*end[0];
 			*y = rect.y+rect.height*(1-end[1]);

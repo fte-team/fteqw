@@ -18,6 +18,15 @@ extern qlpMTex2FUNC		qglMultiTexCoord2fARB;
 #include <GL/glext.h>	//would be ideal.
 #else
 
+#ifndef GL_TEXTURE_WIDTH
+#define GL_TEXTURE_WIDTH                  0x1000
+#endif
+#ifndef GL_TEXTURE_HEIGHT
+#define GL_TEXTURE_HEIGHT                 0x1001
+#endif
+#ifndef GL_TEXTURE_INTERNAL_FORMAT
+#define GL_TEXTURE_INTERNAL_FORMAT		0x1003
+#endif
 
 //#ifndef GL_VERSION_1_2
 #define GL_CLAMP_TO_EDGE                  0x812F

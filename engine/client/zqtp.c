@@ -2567,7 +2567,7 @@ void TP_Init (void)
 
 
 
-static void CL_Say (qboolean team)
+static void CL_Say (qboolean team, char *extra)
 {
 	extern cvar_t cl_fakename;
 	char	text[1024], sendtext[1024], *s;
@@ -2606,6 +2606,8 @@ static void CL_Say (qboolean team)
 	if (sendtext[0] < 32)
 		SZ_Print (&cls.netchan.message, "\"");	// add quotes so that old servers parse the message correctly
 
+	if (extra)
+		SZ_Print (&cls.netchan.message, extra);
 	SZ_Print (&cls.netchan.message, sendtext);
 
 	if (sendtext[0] < 32)
@@ -2615,12 +2617,17 @@ static void CL_Say (qboolean team)
 
 void CL_Say_f (void)
 {
-	CL_Say (false);
+	CL_Say (false, NULL);
+}
+
+void CL_SayMe_f (void)
+{
+	CL_Say (false, "/me ");
 }
 
 void CL_SayTeam_f (void)
 {
-	CL_Say (true);
+	CL_Say (true, NULL);
 }
 #endif
 

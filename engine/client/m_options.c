@@ -395,6 +395,7 @@ void M_Menu_FPS_f (void)
 		MC_AddCheckBox(menu, 48, y,			"   Tex Compression", &gl_compress);y+=8;
 		MC_AddCheckBox(menu, 48, y,			"Other Water Effect", &gl_waterripples);y+=8;
 		MC_AddSlider(menu, 48, y,			"     2D resolution", &gl_2dscale,		0,		1);y+=8;
+		MC_AddCheckBox(menu, 48, y,			"   32 bit textures", &gl_load24bit);y+=8;
 		break;
 #endif
 #ifdef SWQUAKE
@@ -409,8 +410,6 @@ void M_Menu_FPS_f (void)
 	default:
 		break;
 	}
-
-//	MC_AddCheckBox(menu, 48, y,				"32 bit texture loading", &r_32bit);y+=8;	ADD ME
 
 	menu->cursoritem = (menuoption_t*)MC_AddWhiteText(menu, 200, 32, NULL, false);
 }

@@ -4054,7 +4054,10 @@ void COM_Gamedir (char *dir)
 	}
 
 #ifdef Q3SHADERS
-	Shader_Init();
+	{
+		extern void Shader_Init(void);
+		Shader_Init();	//FIXME!
+	}
 #endif
 
 	Validation_FlushFileList();	//prevent previous hacks from making a difference.

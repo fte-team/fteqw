@@ -567,6 +567,9 @@ void	(*Draw_FadeScreen)			(void);
 void	(*Draw_BeginDisc)			(void);
 void	(*Draw_EndDisc)				(void);
 
+void	(*Draw_Image)							(float x, float y, float w, float h, float s1, float t1, float s2, float t2, qpic_t *pic);	//gl-style scaled/coloured/subpic 
+void	(*Draw_ImageColours)		(float r, float g, float b, float a);
+
 void	(*R_Init)					(void);
 void	(*R_DeInit)					(void);
 void	(*R_ReInit)					(void);
@@ -599,6 +602,8 @@ struct mleaf_s *(*Mod_PointInLeaf)	(float *p, struct model_s *model);
 qbyte	*(*Mod_Q1LeafPVS)			(struct mleaf_s *leaf, struct model_s *model, qbyte *buffer);
 void	(*Mod_NowLoadExternal)		(void);
 void	(*Mod_Think)				(void);
+void	(*Mod_GetTag)				(struct model_s *model, int tagnum, int frame, float **org, float **axis);
+
 
 
 qboolean (*VID_Init)				(rendererstate_t *info, unsigned char *palette);
@@ -622,7 +627,403 @@ char *q_renderername = "Non-Selected renderer";
 
 
 
+struct {
+	char *name[4];
+	r_qrenderer_t rtype;
 
+	qpic_t	*(*Draw_PicFromWad)			(char *name);
+	qpic_t	*(*Draw_SafePicFromWad)			(char *name);
+	qpic_t	*(*Draw_CachePic)			(char *path);
+	qpic_t	*(*Draw_SafeCachePic)		(char *path);
+	void	(*Draw_Init)				(void);
+	void	(*Draw_ReInit)				(void);
+	void	(*Draw_Character)			(int x, int y, unsigned int num);
+	void	(*Draw_ColouredCharacter)	(int x, int y, unsigned int num);
+	void	(*Draw_String)				(int x, int y, const qbyte *str);
+	void	(*Draw_Alt_String)			(int x, int y, const qbyte *str);
+	void	(*Draw_Crosshair)			(void);
+	void	(*Draw_DebugChar)			(qbyte num);
+	void	(*Draw_Pic)					(int x, int y, qpic_t *pic);
+	void	(*Draw_ScalePic)			(int x, int y, int width, int height, qpic_t *pic);
+	void	(*Draw_SubPic)				(int x, int y, qpic_t *pic, int srcx, int srcy, int width, int height);
+	void	(*Draw_TransPic)			(int x, int y, qpic_t *pic);
+	void	(*Draw_TransPicTranslate)	(int x, int y, qpic_t *pic, qbyte *translation);
+	void	(*Draw_ConsoleBackground)	(int lines);
+	void	(*Draw_EditorBackground)	(int lines);
+	void	(*Draw_TileClear)			(int x, int y, int w, int h);
+	void	(*Draw_Fill)				(int x, int y, int w, int h, int c);
+	void	(*Draw_FadeScreen)			(void);
+	void	(*Draw_BeginDisc)			(void);
+	void	(*Draw_EndDisc)				(void);
+
+	void	(*Draw_Image)				(float x, float y, float w, float h, float s1, float t1, float s2, float t2, qpic_t *pic);	//gl-style scaled/coloured/subpic 
+	void	(*Draw_ImageColours)		(float r, float g, float b, float a);
+
+	void	(*R_Init)					(void);
+	void	(*R_DeInit)					(void);
+	void	(*R_ReInit)					(void);
+	void	(*R_RenderView)				(void);		// must set r_refdef first
+
+	void	(*R_InitSky)				(struct texture_s *mt);	// called at level load
+	qboolean	(*R_CheckSky)			(void);
+	void	(*R_SetSky)					(char *name, float rotate, vec3_t axis);
+
+	void	(*R_NewMap)					(void);
+	void	(*R_PreNewMap)				(void);
+	int		(*R_LightPoint)				(vec3_t point);
+
+	void	(*R_PushDlights)			(void);
+	void	(*R_AddStain)				(vec3_t org, float red, float green, float blue, float radius);
+	void	(*R_LessenStains)			(void);
+
+	void (*Media_ShowFrameBGR_24_Flip)	(qbyte *framedata, int inwidth, int inheight);	//input is bottom up...
+	void (*Media_ShowFrameRGBA_32)		(qbyte *framedata, int inwidth, int inheight);	//top down
+	void (*Media_ShowFrame8bit)			(qbyte *framedata, int inwidth, int inheight, qbyte *palette);	//paletted topdown (framedata is 8bit indexes into palette)
+
+	void	(*Mod_Init)					(void);
+	void	(*Mod_ClearAll)				(void);
+	struct model_s *(*Mod_ForName)		(char *name, qboolean crash);
+	struct model_s *(*Mod_FindName)		(char *name);
+	void	*(*Mod_Extradata)			(struct model_s *mod);	// handles caching
+	void	(*Mod_TouchModel)			(char *name);
+
+	struct mleaf_s *(*Mod_PointInLeaf)	(float *p, struct model_s *model);
+	qbyte	*(*Mod_Q1LeafPVS)			(struct mleaf_s *leaf, struct model_s *model, qbyte *buffer);
+	void	(*Mod_NowLoadExternal)		(void);
+	void	(*Mod_Think)				(void);
+	void	(*Mod_GetTag)				(struct model_s *model, int tagnum, int frame, float **org, float **axis);
+
+
+	qboolean (*VID_Init)				(rendererstate_t *info, unsigned char *palette);
+	void	 (*VID_DeInit)				(void);
+	void	(*VID_HandlePause)			(qboolean pause);
+	void	(*VID_LockBuffer)			(void);
+	void	(*VID_UnlockBuffer)			(void);
+	void	(*D_BeginDirectRect)		(int x, int y, qbyte *pbitmap, int width, int height);
+	void	(*D_EndDirectRect)			(int x, int y, int width, int height);
+	void	(*VID_ForceLockState)		(int lk);
+	int		(*VID_ForceUnlockedAndReturnState) (void);
+	void	(*VID_SetPalette)			(unsigned char *palette);
+	void	(*VID_ShiftPalette)			(unsigned char *palette);
+	char	*(*VID_GetRGBInfo)			(int prepad, int *truevidwidth, int *truevidheight);
+	void	(*VID_SetWindowCaption)		(char *msg);
+
+	void	(*SCR_UpdateScreen)			(void);
+
+	char *alignment;
+} rendererinfo[] = {
+	{	//ALL builds need a 'none' renderer, as 0.
+		{
+			"none",
+			"dedicated",
+			"terminal",
+			"sw"
+		},
+		QR_NONE,
+
+
+
+
+		NULL,	//Draw_PicFromWad;
+		NULL,	//Draw_PicFromWad;	//Not supported
+		NULL,	//Draw_CachePic;
+		NULL,	//Draw_SafeCachePic;
+		NULL,	//Draw_Init;
+		NULL,	//Draw_Init;
+		NULL,	//Draw_Character;
+		NULL,	//Draw_ColouredCharacter;
+		NULL,	//Draw_String;
+		NULL,	//Draw_Alt_String;
+		NULL,	//Draw_Crosshair;
+		NULL,	//Draw_DebugChar;
+		NULL,	//Draw_Pic;
+		NULL,	//Draw_SubPic;
+		NULL,	//Draw_TransPic;
+		NULL,	//Draw_TransPicTranslate;
+		NULL,	//Draw_ConsoleBackground;
+		NULL,	//Draw_EditorBackground;
+		NULL,	//Draw_TileClear;
+		NULL,	//Draw_Fill;
+		NULL,	//Draw_FadeScreen;
+		NULL,	//Draw_BeginDisc;
+		NULL,	//Draw_EndDisc;
+		NULL,	//I'm lazy.
+
+		NULL,	//Draw_Image
+		NULL,	//Draw_ImageColours
+
+		NULL,	//R_Init;
+		NULL,	//R_DeInit;
+		NULL,	//R_ReInit;
+		NULL,	//R_RenderView;
+		NULL,	//R_InitSky;
+		NULL,	//R_CheckSky;
+		NULL,	//R_SetSky;
+
+		NULL,	//R_NewMap;
+		NULL,	//R_PreNewMap
+		NULL,	//R_LightPoint;
+		NULL,	//R_PushDlights;
+
+
+		NULL,	//R_AddStain;
+		NULL,	//R_LessenStains;
+
+		NULL,	//Media_ShowFrameBGR_24_Flip;
+		NULL,	//Media_ShowFrameRGBA_32;
+		NULL,	//Media_ShowFrame8bit;
+
+#ifdef SWQUAKE
+		SWMod_Init,
+		SWMod_ClearAll,
+		SWMod_ForName,
+		SWMod_FindName,
+		SWMod_Extradata,
+		SWMod_TouchModel,
+
+		SWMod_PointInLeaf,
+		SWMod_LeafPVS,
+		SWMod_NowLoadExternal,
+		SWMod_Think,
+#elif defined(RGLQUAKE)
+		GLMod_Init,
+		GLMod_ClearAll,
+		GLMod_ForName,
+		GLMod_FindName,
+		GLMod_Extradata,
+		GLMod_TouchModel,
+
+		GLMod_PointInLeaf,
+		GLMod_LeafPVS,
+		GLMod_NowLoadExternal,
+		GLMod_Think,
+#else
+		#error "No renderer in client build"
+#endif
+
+		NULL, //Mod_GetTag
+
+		NULL, //VID_Init,
+		NULL, //VID_DeInit,
+		NULL, //VID_HandlePause,
+		NULL, //VID_LockBuffer,
+		NULL, //VID_UnlockBuffer,
+		NULL, //D_BeginDirectRect,
+		NULL, //D_EndDirectRect,
+		NULL, //VID_ForceLockState,
+		NULL, //VID_ForceUnlockedAndReturnState,
+		NULL, //VID_SetPalette,
+		NULL, //VID_ShiftPalette,
+		NULL, //VID_GetRGBInfo,
+
+
+		NULL,	//set caption
+
+		NULL,	//SCR_UpdateScreen;
+
+		""
+	}
+#ifdef SWQUAKE
+	,
+	{
+		{
+			"sw",
+			"software",
+		},
+		QR_SOFTWARE,
+		
+		SWDraw_PicFromWad,
+		SWDraw_PicFromWad,	//Not supported
+		SWDraw_CachePic,
+		SWDraw_SafeCachePic,
+		SWDraw_Init,
+		SWDraw_Init,
+		SWDraw_Character,
+		SWDraw_ColouredCharacter,
+		SWDraw_String,
+		SWDraw_Alt_String,
+		SWDraw_Crosshair,
+		SWDraw_DebugChar,
+		SWDraw_Pic,
+		NULL,//SWDraw_ScaledPic,
+		SWDraw_SubPic,
+		SWDraw_TransPic,
+		SWDraw_TransPicTranslate,
+		SWDraw_ConsoleBackground,
+		SWDraw_EditorBackground,
+		SWDraw_TileClear,
+		SWDraw_Fill,
+		SWDraw_FadeScreen,
+		SWDraw_BeginDisc,
+		SWDraw_EndDisc,
+
+		SWDraw_Image,
+		SWDraw_ImageColours,
+
+		SWR_Init,
+		SWR_DeInit,
+		NULL,//SWR_ReInit,
+		SWR_RenderView,
+
+		SWR_InitSky,
+		SWR_CheckSky,
+		SWR_SetSky,
+
+		SWR_NewMap,
+		NULL,
+		SWR_LightPoint,
+		SWR_PushDlights,
+
+		SWR_AddStain,
+		SWR_LessenStains,
+
+		MediaSW_ShowFrameBGR_24_Flip,
+		MediaSW_ShowFrameRGBA_32,
+		MediaSW_ShowFrame8bit,
+
+		SWMod_Init,
+		SWMod_ClearAll,
+		SWMod_ForName,
+		SWMod_FindName,
+		SWMod_Extradata,
+		SWMod_TouchModel,
+
+		SWMod_PointInLeaf,
+		SWMod_LeafPVS,
+		SWMod_NowLoadExternal,
+		SWMod_Think,
+
+		NULL,	//Mod_GetTag
+
+		SWVID_Init,
+		SWVID_Shutdown,
+		SWVID_HandlePause,
+		SWVID_LockBuffer,
+		SWVID_UnlockBuffer,
+		SWD_BeginDirectRect,
+		SWD_EndDirectRect,
+		SWVID_ForceLockState,
+		SWVID_ForceUnlockedAndReturnState,
+		SWVID_SetPalette,
+		SWVID_ShiftPalette,
+		SWVID_GetRGBInfo,
+
+		NULL,
+		
+		SWSCR_UpdateScreen,
+
+		""
+	}
+#else
+	,
+	{
+		{
+			NULL
+		}
+	}
+#endif
+#ifdef RGLQUAKE
+	,
+	{
+		{
+			"gl",
+			"opengl",
+			"hardware",
+		},
+		QR_SOFTWARE,
+		
+
+		GLDraw_PicFromWad,
+		GLDraw_SafePicFromWad,
+		GLDraw_CachePic,
+		GLDraw_SafeCachePic,
+		GLDraw_Init,
+		GLDraw_ReInit,
+		GLDraw_Character,
+		GLDraw_ColouredCharacter,
+		GLDraw_String,
+		GLDraw_Alt_String,
+		GLDraw_Crosshair,
+		GLDraw_DebugChar,
+		GLDraw_Pic,
+		GLDraw_ScalePic,
+		GLDraw_SubPic,
+		GLDraw_TransPic,
+		GLDraw_TransPicTranslate,
+		GLDraw_ConsoleBackground,
+		GLDraw_EditorBackground,
+		GLDraw_TileClear,
+		GLDraw_Fill,
+		GLDraw_FadeScreen,
+		GLDraw_BeginDisc,
+		GLDraw_EndDisc,
+
+		GLDraw_Image,
+		GLDraw_ImageColours,
+
+		GLR_Init,
+		GLR_DeInit,
+		GLR_ReInit,
+		GLR_RenderView,
+
+
+		GLR_InitSky,
+		GLR_CheckSky,
+		GLR_SetSky,
+
+		GLR_NewMap,
+		GLR_PreNewMap,
+		GLR_LightPoint,
+		GLR_PushDlights,
+
+
+		GLR_AddStain,
+		GLR_LessenStains,
+
+		MediaGL_ShowFrameBGR_24_Flip,
+		MediaGL_ShowFrameRGBA_32,
+		MediaGL_ShowFrame8bit,
+	
+
+		GLMod_Init,
+		GLMod_ClearAll,
+		GLMod_ForName,
+		GLMod_FindName,
+		GLMod_Extradata,
+		GLMod_TouchModel,
+
+		GLMod_PointInLeaf,
+		GLMod_LeafPVS,
+		GLMod_NowLoadExternal,
+		GLMod_Think,
+
+		GLMod_GetTag,
+
+		GLVID_Init,
+		GLVID_DeInit,
+		GLVID_HandlePause,
+		GLVID_LockBuffer,
+		GLVID_UnlockBuffer,
+		GLD_BeginDirectRect,
+		GLD_EndDirectRect,
+		GLVID_ForceLockState,
+		GLVID_ForceUnlockedAndReturnState,
+		GLVID_SetPalette,
+		GLVID_ShiftPalette,
+		GLVID_GetRGBInfo,
+
+		NULL,	//setcaption
+
+	
+		GLSCR_UpdateScreen,
+
+		""
+	}
+#else
+	{
+	}
+#endif
+};
 
 
 
@@ -784,259 +1185,84 @@ void M_Menu_Video_f (void)
 }
 
 
-void R_SetRenderer(r_qrenderer_t wanted)
+void R_SetRenderer(int wanted)
 {
-	switch(wanted)
-	{
-	case QR_NONE:	//special case.
-		q_renderername = "Terminal";
+	q_renderername = rendererinfo[wanted].name[0];
 
-		Draw_PicFromWad			= NULL;
-		Draw_SafePicFromWad		= NULL;	//Not supported
-		Draw_CachePic			= NULL;
-		Draw_SafeCachePic		= NULL;
-		Draw_Init				= NULL;
-		Draw_ReInit				= NULL;
-		Draw_Character			= NULL;
-		Draw_ColouredCharacter	= NULL;
-		Draw_String				= NULL;
-		Draw_Alt_String			= NULL;
-		Draw_Crosshair			= NULL;
-		Draw_DebugChar			= NULL;
-		Draw_Pic				= NULL;
-		Draw_SubPic				= NULL;
-		Draw_TransPic			= NULL;
-		Draw_TransPicTranslate	= NULL;
-		Draw_ConsoleBackground	= NULL;
-		Draw_EditorBackground	= NULL;
-		Draw_TileClear			= NULL;
-		Draw_Fill				= NULL;
-		Draw_FadeScreen			= NULL;
-		Draw_BeginDisc			= NULL;
-		Draw_EndDisc			= NULL;
-		Draw_ScalePic			= NULL;	//I'm lazy.
+	Draw_PicFromWad			= rendererinfo[wanted].Draw_PicFromWad;
+	Draw_SafePicFromWad		= rendererinfo[wanted].Draw_SafePicFromWad;	//Not supported
+	Draw_CachePic			= rendererinfo[wanted].Draw_CachePic;
+	Draw_SafeCachePic		= rendererinfo[wanted].Draw_SafeCachePic;
+	Draw_Init				= rendererinfo[wanted].Draw_Init;
+	Draw_ReInit				= rendererinfo[wanted].Draw_Init;
+	Draw_Character			= rendererinfo[wanted].Draw_Character;
+	Draw_ColouredCharacter	= rendererinfo[wanted].Draw_ColouredCharacter;
+	Draw_String				= rendererinfo[wanted].Draw_String;
+	Draw_Alt_String			= rendererinfo[wanted].Draw_Alt_String;
+	Draw_Crosshair			= rendererinfo[wanted].Draw_Crosshair;
+	Draw_DebugChar			= rendererinfo[wanted].Draw_DebugChar;
+	Draw_Pic				= rendererinfo[wanted].Draw_Pic;
+	Draw_SubPic				= rendererinfo[wanted].Draw_SubPic;
+	Draw_TransPic			= rendererinfo[wanted].Draw_TransPic;
+	Draw_TransPicTranslate	= rendererinfo[wanted].Draw_TransPicTranslate;
+	Draw_ConsoleBackground	= rendererinfo[wanted].Draw_ConsoleBackground;
+	Draw_EditorBackground	= rendererinfo[wanted].Draw_EditorBackground;
+	Draw_TileClear			= rendererinfo[wanted].Draw_TileClear;
+	Draw_Fill				= rendererinfo[wanted].Draw_Fill;
+	Draw_FadeScreen			= rendererinfo[wanted].Draw_FadeScreen;
+	Draw_BeginDisc			= rendererinfo[wanted].Draw_BeginDisc;
+	Draw_EndDisc			= rendererinfo[wanted].Draw_EndDisc;
+	Draw_ScalePic			= rendererinfo[wanted].Draw_ScalePic;
 
-		R_Init					= NULL;
-		R_DeInit				= NULL;
-		R_RenderView			= NULL;
-		R_NewMap				= NULL;
-		R_PreNewMap				= NULL;
-		R_LightPoint			= NULL;
-		R_PushDlights			= NULL;
-		R_InitSky				= NULL;
-		R_CheckSky				= NULL;
-		R_SetSky				= NULL;
+	Draw_Image				= rendererinfo[wanted].Draw_Image;
+	Draw_ImageColours 		= rendererinfo[wanted].Draw_ImageColours;
 
-		R_AddStain				= NULL;
-		R_LessenStains			= NULL;
+	R_Init					= rendererinfo[wanted].R_Init;
+	R_DeInit				= rendererinfo[wanted].R_DeInit;
+	R_RenderView			= rendererinfo[wanted].R_RenderView;
+	R_NewMap				= rendererinfo[wanted].R_NewMap;
+	R_PreNewMap				= rendererinfo[wanted].R_PreNewMap;
+	R_LightPoint			= rendererinfo[wanted].R_LightPoint;
+	R_PushDlights			= rendererinfo[wanted].R_PushDlights;
+	R_InitSky				= rendererinfo[wanted].R_InitSky;
+	R_CheckSky				= rendererinfo[wanted].R_CheckSky;
+	R_SetSky				= rendererinfo[wanted].R_SetSky;
 
-		VID_Init				= NULL;
-		VID_DeInit				= NULL;
-		VID_HandlePause			= NULL;
-		VID_LockBuffer			= NULL;
-		VID_UnlockBuffer		= NULL;
-		D_BeginDirectRect		= NULL;
-		D_EndDirectRect			= NULL;
-		VID_ForceLockState		= NULL;
-		VID_ForceUnlockedAndReturnState	= NULL;
-		VID_SetPalette			= NULL;
-		VID_ShiftPalette		= NULL;
-		VID_GetRGBInfo			= NULL;
+	R_AddStain				= rendererinfo[wanted].R_AddStain;
+	R_LessenStains			= rendererinfo[wanted].R_LessenStains;
 
-		Media_ShowFrame8bit			= NULL;
-		Media_ShowFrameRGBA_32		= NULL;
-		Media_ShowFrameBGR_24_Flip	= NULL;
+	VID_Init				= rendererinfo[wanted].VID_Init;
+	VID_DeInit				= rendererinfo[wanted].VID_DeInit;
+	VID_HandlePause			= rendererinfo[wanted].VID_HandlePause;
+	VID_LockBuffer			= rendererinfo[wanted].VID_LockBuffer;
+	VID_UnlockBuffer		= rendererinfo[wanted].VID_UnlockBuffer;
+	D_BeginDirectRect		= rendererinfo[wanted].D_BeginDirectRect;
+	D_EndDirectRect			= rendererinfo[wanted].D_EndDirectRect;
+	VID_ForceLockState		= rendererinfo[wanted].VID_ForceLockState;
+	VID_ForceUnlockedAndReturnState	= rendererinfo[wanted].VID_ForceUnlockedAndReturnState;
+	VID_SetPalette			= rendererinfo[wanted].VID_SetPalette;
+	VID_ShiftPalette		= rendererinfo[wanted].VID_ShiftPalette;
+	VID_GetRGBInfo			= rendererinfo[wanted].VID_GetRGBInfo;
 
-#ifdef SWQUAKE	//Any one of them that works.
-		Mod_Init				= SWMod_Init;
-		Mod_Think				= SWMod_Think;
-		Mod_ClearAll			= SWMod_ClearAll;
-		Mod_ForName				= SWMod_ForName;
-		Mod_FindName			= SWMod_FindName;
-		Mod_Extradata			= SWMod_Extradata;
-		Mod_TouchModel			= SWMod_TouchModel;
+	Media_ShowFrame8bit			= rendererinfo[wanted].Media_ShowFrame8bit;
+	Media_ShowFrameRGBA_32		= rendererinfo[wanted].Media_ShowFrameRGBA_32;
+	Media_ShowFrameBGR_24_Flip	= rendererinfo[wanted].Media_ShowFrameBGR_24_Flip;
 
-		Mod_PointInLeaf			= SWMod_PointInLeaf;
-		Mod_Q1LeafPVS			= SWMod_LeafPVS;
-		Mod_NowLoadExternal		= SWMod_NowLoadExternal;
-#elif defined(RGLQUAKE)
-		Mod_Init				= GLMod_Init;
-		Mod_Think				= GLMod_Think;
-		Mod_ClearAll			= GLMod_ClearAll;
-		Mod_ForName				= GLMod_ForName;
-		Mod_FindName			= GLMod_FindName;
-		Mod_Extradata			= GLMod_Extradata;
-		Mod_TouchModel			= GLMod_TouchModel;
+	Mod_Init				= rendererinfo[wanted].Mod_Init;
+	Mod_Think				= rendererinfo[wanted].Mod_Think;
+	Mod_ClearAll			= rendererinfo[wanted].Mod_ClearAll;
+	Mod_ForName				= rendererinfo[wanted].Mod_ForName;
+	Mod_FindName			= rendererinfo[wanted].Mod_FindName;
+	Mod_Extradata			= rendererinfo[wanted].Mod_Extradata;
+	Mod_TouchModel			= rendererinfo[wanted].Mod_TouchModel;
 
-		Mod_PointInLeaf			= GLMod_PointInLeaf;
-		Mod_Q1LeafPVS			= GLMod_LeafPVS;
-		Mod_NowLoadExternal		= GLMod_NowLoadExternal;
-#else
-		#error "No renderer in client build"
-#endif
-
-		
-		SCR_UpdateScreen		= NULL;
-		break;
-#ifdef SWQUAKE
-	case QR_SOFTWARE:
-//		wanted = QR_SOFTWARE;
-		q_renderername = "Software";
-
-		Draw_PicFromWad			= SWDraw_PicFromWad;
-		Draw_SafePicFromWad		= SWDraw_PicFromWad;	//Not supported
-		Draw_CachePic			= SWDraw_CachePic;
-		Draw_SafeCachePic		= SWDraw_SafeCachePic;
-		Draw_Init				= SWDraw_Init;
-		Draw_ReInit				= SWDraw_Init;
-		Draw_Character			= SWDraw_Character;
-		Draw_ColouredCharacter	= SWDraw_ColouredCharacter;
-		Draw_String				= SWDraw_String;
-		Draw_Alt_String			= SWDraw_Alt_String;
-		Draw_Crosshair			= SWDraw_Crosshair;
-		Draw_DebugChar			= SWDraw_DebugChar;
-		Draw_Pic				= SWDraw_Pic;
-		Draw_SubPic				= SWDraw_SubPic;
-		Draw_TransPic			= SWDraw_TransPic;
-		Draw_TransPicTranslate	= SWDraw_TransPicTranslate;
-		Draw_ConsoleBackground	= SWDraw_ConsoleBackground;
-		Draw_EditorBackground	= SWDraw_EditorBackground;
-		Draw_TileClear			= SWDraw_TileClear;
-		Draw_Fill				= SWDraw_Fill;
-		Draw_FadeScreen			= SWDraw_FadeScreen;
-		Draw_BeginDisc			= SWDraw_BeginDisc;
-		Draw_EndDisc			= SWDraw_EndDisc;
-		Draw_ScalePic			= NULL;	//I'm lazy.
-
-		R_Init					= SWR_Init;
-		R_DeInit				= SWR_DeInit;
-		R_RenderView			= SWR_RenderView;
-		R_NewMap				= SWR_NewMap;
-		R_PreNewMap				= NULL;
-		R_LightPoint			= SWR_LightPoint;
-		R_PushDlights			= SWR_PushDlights;
-		R_InitSky				= SWR_InitSky;
-		R_CheckSky				= SWR_CheckSky;
-		R_SetSky				= SWR_SetSky;
-
-		R_AddStain				= SWR_AddStain;
-		R_LessenStains			= SWR_LessenStains;
-
-		VID_Init				= SWVID_Init;
-		VID_DeInit				= SWVID_Shutdown;
-		VID_HandlePause			= SWVID_HandlePause;
-		VID_LockBuffer			= SWVID_LockBuffer;
-		VID_UnlockBuffer		= SWVID_UnlockBuffer;
-		D_BeginDirectRect		= SWD_BeginDirectRect;
-		D_EndDirectRect			= SWD_EndDirectRect;
-		VID_ForceLockState		= SWVID_ForceLockState;
-		VID_ForceUnlockedAndReturnState	= SWVID_ForceUnlockedAndReturnState;
-		VID_SetPalette			= SWVID_SetPalette;
-		VID_ShiftPalette		= SWVID_ShiftPalette;
-		VID_GetRGBInfo			= SWVID_GetRGBInfo;
-
-		Media_ShowFrame8bit			= MediaSW_ShowFrame8bit;
-		Media_ShowFrameRGBA_32		= MediaSW_ShowFrameRGBA_32;
-		Media_ShowFrameBGR_24_Flip	= MediaSW_ShowFrameBGR_24_Flip;
-
-		Mod_Init				= SWMod_Init;
-		Mod_Think				= SWMod_Think;
-		Mod_ClearAll			= SWMod_ClearAll;
-		Mod_ForName				= SWMod_ForName;
-		Mod_FindName			= SWMod_FindName;
-		Mod_Extradata			= SWMod_Extradata;
-		Mod_TouchModel			= SWMod_TouchModel;
-
-		Mod_PointInLeaf			= SWMod_PointInLeaf;
-		Mod_Q1LeafPVS			= SWMod_LeafPVS;
-		Mod_NowLoadExternal		= SWMod_NowLoadExternal;
+	Mod_PointInLeaf			= rendererinfo[wanted].Mod_PointInLeaf;
+	Mod_Q1LeafPVS			= rendererinfo[wanted].Mod_Q1LeafPVS;
+	Mod_NowLoadExternal		= rendererinfo[wanted].Mod_NowLoadExternal;
 
 
-		
-		SCR_UpdateScreen		= SWSCR_UpdateScreen;
-		break;
-#endif
-#ifdef RGLQUAKE
-	case QR_OPENGL:
-//		wanted = QR_OPENGL;
-		q_renderername = "OpenGL";
-
-		Draw_PicFromWad			= GLDraw_PicFromWad;
-		Draw_SafePicFromWad		= GLDraw_SafePicFromWad;
-		Draw_CachePic			= GLDraw_CachePic;
-		Draw_SafeCachePic		= GLDraw_SafeCachePic;
-		Draw_Init				= GLDraw_Init;
-		Draw_ReInit				= GLDraw_ReInit;
-		Draw_Character			= GLDraw_Character;
-		Draw_ColouredCharacter	= GLDraw_ColouredCharacter;
-		Draw_String				= GLDraw_String;
-		Draw_Alt_String			= GLDraw_Alt_String;
-		Draw_Crosshair			= GLDraw_Crosshair;
-		Draw_DebugChar			= GLDraw_DebugChar;
-		Draw_Pic				= GLDraw_Pic;
-		Draw_SubPic				= GLDraw_SubPic;
-		Draw_TransPic			= GLDraw_TransPic;
-		Draw_TransPicTranslate	= GLDraw_TransPicTranslate;
-		Draw_ConsoleBackground	= GLDraw_ConsoleBackground;
-		Draw_EditorBackground	= GLDraw_EditorBackground;
-		Draw_TileClear			= GLDraw_TileClear;
-		Draw_Fill				= GLDraw_Fill;
-		Draw_FadeScreen			= GLDraw_FadeScreen;
-		Draw_BeginDisc			= GLDraw_BeginDisc;
-		Draw_EndDisc			= GLDraw_EndDisc;
-		Draw_ScalePic			= GLDraw_ScalePic;
-
-		R_Init					= GLR_Init;
-		R_DeInit				= GLR_DeInit;
-		R_RenderView			= GLR_RenderView;
-		R_NewMap				= GLR_NewMap;
-		R_PreNewMap				= GLR_PreNewMap;
-		R_LightPoint			= GLR_LightPoint;
-		R_PushDlights			= GLR_PushDlights;
-		R_InitSky				= GLR_InitSky;
-		R_CheckSky				= GLR_CheckSky;
-		R_SetSky				= GLR_SetSky;
-
-		R_AddStain				= GLR_AddStain;
-		R_LessenStains			= GLR_LessenStains;
-
-		VID_Init				= GLVID_Init;
-		VID_DeInit				= GLVID_DeInit;
-		VID_HandlePause			= GLVID_HandlePause;
-		VID_LockBuffer			= GLVID_LockBuffer;
-		VID_UnlockBuffer		= GLVID_UnlockBuffer;
-		D_BeginDirectRect		= GLD_BeginDirectRect;
-		D_EndDirectRect			= GLD_EndDirectRect;
-		VID_ForceLockState		= GLVID_ForceLockState;
-		VID_ForceUnlockedAndReturnState	= GLVID_ForceUnlockedAndReturnState;
-		VID_SetPalette			= GLVID_SetPalette;
-		VID_ShiftPalette		= GLVID_ShiftPalette;
-		VID_GetRGBInfo			= GLVID_GetRGBInfo;
-
-		Media_ShowFrame8bit			= MediaGL_ShowFrame8bit;
-		Media_ShowFrameRGBA_32		= MediaGL_ShowFrameRGBA_32;
-		Media_ShowFrameBGR_24_Flip	= MediaGL_ShowFrameBGR_24_Flip;
-
-		Mod_Init				= GLMod_Init;
-		Mod_Think				= GLMod_Think;
-		Mod_ClearAll			= GLMod_ClearAll;
-		Mod_ForName				= GLMod_ForName;
-		Mod_FindName			= GLMod_FindName;
-		Mod_Extradata			= GLMod_Extradata;
-		Mod_TouchModel			= GLMod_TouchModel;
-
-		Mod_PointInLeaf			= GLMod_PointInLeaf;
-		Mod_Q1LeafPVS			= GLMod_LeafPVS;
-		Mod_NowLoadExternal		= GLMod_NowLoadExternal;
-
-
-		
-		SCR_UpdateScreen		= GLSCR_UpdateScreen;
-		break;
-#endif
-	default:
-		Sys_Error("Bad render chosen\n");
-	}
+	
+	SCR_UpdateScreen		= rendererinfo[wanted].SCR_UpdateScreen;
 
 	qrenderer = wanted;
 }
@@ -1387,6 +1613,9 @@ void R_RestartRenderer_f (void)
 {
 	rendererstate_t oldr;
 	rendererstate_t newr;
+
+	MP_Shutdown();
+
 	memset(&newr, 0, sizeof(newr));
 
 TRACE(("dbg: R_RestartRenderer_f\n"));
@@ -1485,6 +1714,8 @@ TRACE(("dbg: R_RestartRenderer_f\n"));
 	}
 
 	TRACE(("dbg: R_RestartRenderer_f success\n"));
+
+	MP_Init();
 }
 
 void R_SetRenderer_f (void)

@@ -148,7 +148,7 @@ void IWeb_GenerateAdminFile(char *parms, char *content, int contentlength)
 		if (!strcmp(rcon_password.string, pwd))
 		{
 			Con_Printf("Web based rcon: %s\n", cmd);
-			SV_BeginRedirect(-1);
+			SV_BeginRedirect(RD_OBLIVION, host_client->language);
 			Cmd_ExecuteString(cmd, RESTRICT_RCON);
 			for (mark = start = outputbuf; *mark; mark++)
 			{

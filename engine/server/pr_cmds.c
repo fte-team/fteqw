@@ -18,15 +18,13 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 
 */
 
+#include "qwsvdef.h"
+
 //okay, so these are a quick but easy hack
-struct progfuncs_s;
-struct edict_s;
 int QC_RegisterFieldVar(struct progfuncs_s *progfuncs, unsigned int type, char *name, int requestedpos, int origionalofs);
 void ED_Print (struct progfuncs_s *progfuncs, struct edict_s *ed);
 int PR_EnableEBFSBuiltin(char *name);
 void PR_CleanLogText_Init (void);
-
-#include "qwsvdef.h"
 
 cvar_t	nomonsters = {"nomonsters", "0"};
 cvar_t	gamecfg = {"gamecfg", "0"};
@@ -281,13 +279,25 @@ void PF_break (progfuncs_t *prinst, struct globalvars_s *pr_globals);
 int QCLibEditor(char *filename, int line, int nump, char **parms);
 int QCEditor (char *filename, int line, int nump, char **parms)
 {
+#ifdef TEXTEDITOR
+	static char oldfuncname[64];
+	if (!parms)
+		return QCLibEditor(filename, line, nump, parms);
+	else
+	{
+		if (!strncmp(oldfuncname, *parms, sizeof(oldfuncname)))
+		{
+			Con_Printf("Executing %s: %s\n", *parms);
+			Q_strncpyz(oldfuncname, *parms, sizeof(oldfuncname));
+		}
+		return line;
+	}
+#else
 	int i;
 	char buffer[8192];
 	char *r;
 	FILE *f;
-#ifdef TEXTEDITOR
-	return QCLibEditor(filename, line, nump, parms);
-#endif
+
 	if (line == -1)
 		return -1;
 	COM_FOpenFile(filename, &f);
@@ -306,6 +316,7 @@ int QCEditor (char *filename, int line, int nump, char **parms)
 	}
 //PF_break(NULL);
 	return line;
+#endif
 }
 
 void Q_SetProgsParms(qboolean forcompiler)
@@ -6690,6 +6701,9 @@ void PF_setcolors (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 }
 
 
+static void DirectSplit(client_t *cl, int svc)
+{
+}
 static void ParamNegateFix ( float * xx, float * yy, int Zone )
 {
 	float x,y;
@@ -6714,6 +6728,9 @@ void PF_ShowPic(progfuncs_t *prinst, struct globalvars_s *pr_globals)
 	float y		= G_FLOAT(OFS_PARM3);
 	float zone	= G_FLOAT(OFS_PARM4);
 	int entnum;
+	int msgsize;
+
+	client_t *cl;
 
 	ParamNegateFix( &x, &y, zone );
 
@@ -6725,6 +6742,9 @@ void PF_ShowPic(progfuncs_t *prinst, struct globalvars_s *pr_globals)
 
 		if (!(svs.clients[entnum].fteprotocolextensions & PEXT_SHOWPIC))
 			return;	//need an extension for this. duh.
+
+
+		cl = &svs.clients[entnum];
 
 		ClientReliableWrite_Begin(&svs.clients[entnum], svc_showpic, 8 + strlen(slot)+strlen(picname));
 		ClientReliableWrite_Byte(&svs.clients[entnum], zone);

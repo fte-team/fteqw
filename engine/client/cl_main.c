@@ -1282,7 +1282,7 @@ void CL_Packet_f (void)
 	int		i, l;
 	char	*in, *out;
 	netadr_t	adr;
-
+	
 	if (Cmd_Argc() != 3)
 	{
 		Con_TPrintf (TLC_PACKET_SYNTAX);
@@ -1309,6 +1309,7 @@ void CL_Packet_f (void)
 
 		Con_Printf ("Sending realip packet\n");
 	}
+	cls.lastarbiatarypackettime = Sys_DoubleTime();	//prevent the packet command from causing a reconnect on badly configured mvdsv servers.
 
 	in = Cmd_Argv(2);
 	out = send+4;
@@ -2417,6 +2418,9 @@ void Host_Frame (float time)
 	static double		time3 = 0;
 	int			pass1, pass2, pass3;
 //	float fps;
+
+	RSpeedLocals();
+
 	if (setjmp (host_abort) )
 		return;			// something bad happened, or the server disconnected
 
@@ -2426,7 +2430,9 @@ void Host_Frame (float time)
 #endif
 
 #ifndef CLIENTONLY
+	RSpeedRemark();
 	SV_Frame(time);
+	RSpeedEnd(RSPEED_SERVER);
 #endif
 
 #ifdef WEBCLIENT
@@ -2508,6 +2514,8 @@ void Host_Frame (float time)
 	NET_Poll();
 #endif
 
+	RSpeedRemark();
+
 	if (cls.downloadtype == dl_none && !*cls.downloadname && cl.downloadlist)
 	{
 CL_RequestNextDownload();
@@ -2545,6 +2553,8 @@ CL_RequestNextDownload();
 			CL_EmitEntities ();
 		}
 	}
+
+	RSpeedEnd(RSPEED_CLIENT);
 
 	// update video
 	if (host_speeds.value)

@@ -1506,7 +1506,10 @@ int R_RunParticleEffectType (vec3_t org, vec3_t dir, float count, int typenum)
 		switch (ptype->spawnmode)
 		{
 		case SM_UNICIRCLE:
-			m = (count*ptype->count)-1;
+			m = (count*ptype->count);
+			if (ptype->isbeam)
+				m--;
+
 			if (m < 1)
 				m = 0;
 			else

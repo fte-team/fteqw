@@ -31,6 +31,7 @@ void Q_InitProgs(void);
 void PR_RegisterSVBuiltins(void);
 void PR_RegisterFields(void);
 void PR_Init(void);
+void ED_Spawned (struct edict_s *ent);
 qboolean PR_UserCmd(char *cmd);
 qboolean PR_ConsoleCmd(void);
 

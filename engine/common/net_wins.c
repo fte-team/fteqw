@@ -418,6 +418,8 @@ qboolean	NET_StringToSockaddr (char *s, struct sockaddr_qstorage *sadr)
 		struct addrinfo udp6hint;
 		int error;
 		char *port;
+		char dupbase[256];
+		int len;
 
 		memset(&udp6hint, 0, sizeof(udp6hint));
 		udp6hint.ai_family = 0;//Any... AF_INET6;
@@ -436,9 +438,12 @@ qboolean	NET_StringToSockaddr (char *s, struct sockaddr_qstorage *sadr)
 			port = NULL;
 		if (port)
 		{
-			*port = '\0';
-			error = pgetaddrinfo(s, port+1, &udp6hint, &addrinfo);
-			*port = ':';
+			len = port - s;
+			if (len >= sizeof(dupbase))
+				len = sizeof(dupbase)-1;
+			strncpy(dupbase, s, len);
+			dupbase[len] = '\0';
+			error = pgetaddrinfo(dupbase, port+1, &udp6hint, &addrinfo);
 		}
 		else
 			error = EAI_NONAME;

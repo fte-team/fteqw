@@ -1248,6 +1248,55 @@ void Datagram_SearchForHosts (qboolean xmit)
 }
 
 #ifndef SERVERONLY
+qsocket_t *Datagram_ConnectToDarkPlacesServer(netadr_t *nadr)
+{	//QuakeWorld connection hit upon a DP server.
+	struct sockaddr_qstorage sendaddr;
+	qsocket_t	*sock;
+	int newsock;
+
+	net_driverlevel = 1;
+	net_landriverlevel = 0;
+
+	//hrm. the server uses out port as well as ip... we connected with the qw port... so we need to swap them over
+	newsock = cls.socketip;
+	cls.socketip = dfunc.OpenSocket(0);
+	if (newsock == -1)
+	{
+		cls.socketip = newsock;
+		Con_Printf("Failed to initialse NQ transports\n");
+		return NULL;
+	}
+
+	sock = NET_NewQSocket ();
+	if (sock == NULL)
+	{
+		Con_Printf("Failed to initialse NQ transports\n");
+		dfunc.CloseSocket(newsock);
+		return NULL;
+	}
+
+	sock->socket = newsock;
+	sock->landriver = net_landriverlevel;
+
+	NetadrToSockadr(nadr, &sendaddr);
+
+	if (dfunc.Connect(newsock, &sendaddr) == -1)
+	{
+		Con_Printf("Failed to initialse NQ transports\n");
+		NET_FreeQSocket(sock);
+		dfunc.CloseSocket(newsock);
+		return NULL;
+	}
+
+	Q_memcpy(&sock->addr, &sendaddr, sizeof(struct sockaddr_qstorage));
+
+	dfunc.GetNameFromAddr (&sendaddr, sock->address);
+	Con_Printf ("Connection accepted\n");
+	sock->lastMessageTime = SetNetTime();
+
+	return sock;
+}
+
 static qsocket_t *_Datagram_Connect (char *host)
 {
 	struct sockaddr_qstorage sendaddr;

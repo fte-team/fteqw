@@ -579,3 +579,8 @@ void Sys_MakeCodeWriteable (unsigned long startaddr, unsigned long length)
 
 }
 
+//fixme: some sort of taskbar/gnome panel flashing.
+void Sys_ServerActivity(void)
+{
+}
+

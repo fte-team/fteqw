@@ -986,7 +986,7 @@ void R_AddRainParticles(void)
 
 	skytris_t *st;
 
-	if (!r_part_rain.value)
+	if (!r_part_rain.value || !r_part_rain_quantity.value)
 	{
 		skipped = true;
 		return;

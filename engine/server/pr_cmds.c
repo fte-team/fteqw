@@ -6946,15 +6946,25 @@ void PF_CustomTEnt(progfuncs_t *prinst, struct globalvars_s *pr_globals)
 
 	type = sv.customtents[type].netstyle;
 	arg = 2;
-	if (type & CTE_CUSTOMCOUNT)
+	if (type & CTE_ISBEAM)
 	{
-		MSG_WriteByte(&sv.multicast, G_FLOAT(OFS_PARM0+arg*3));
+		MSG_WriteCoord(&sv.multicast, G_VECTOR(OFS_PARM0+arg*3)[0]);
+		MSG_WriteCoord(&sv.multicast, G_VECTOR(OFS_PARM0+arg*3)[1]);
+		MSG_WriteCoord(&sv.multicast, G_VECTOR(OFS_PARM0+arg*3)[2]);
 		arg++;
 	}
-	if (type & CTE_CUSTOMDIRECTION)
+	else
 	{
-		MSG_WriteDir(&sv.multicast, G_VECTOR(OFS_PARM0+arg*3));
-		arg++;
+		if (type & CTE_CUSTOMCOUNT)
+		{
+			MSG_WriteByte(&sv.multicast, G_FLOAT(OFS_PARM0+arg*3));
+			arg++;
+		}
+		if (type & CTE_CUSTOMDIRECTION)
+		{
+			MSG_WriteDir(&sv.multicast, G_VECTOR(OFS_PARM0+arg*3));
+			arg++;
+		}
 	}
 	if (arg != *prinst->callargc)
 		Con_Printf("PF_CusromTEnt: bad number of arguments for particle type\n");

@@ -1484,7 +1484,7 @@ qbyte *Read32BitImageFile(qbyte *buf, int len, int *width, int *height)
 		return data;
 	
 #ifdef AVAIL_PNGLIB
-	if ((buf[0] == -119 && buf[1] == 'P' && buf[2] == 'N' && buf[3] == 'G') && (data = ReadPNGFile(buf, com_filesize, width, height)))
+	if ((buf[0] == 137 && buf[1] == 'P' && buf[2] == 'N' && buf[3] == 'G') && (data = ReadPNGFile(buf, com_filesize, width, height)))
 		return data;
 #endif
 #ifdef AVAIL_JPEGLIB

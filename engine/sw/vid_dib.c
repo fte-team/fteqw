@@ -235,6 +235,7 @@ void DIB_SetPalette( const unsigned char *_pal )
 			colors[i].rgbReserved = 0;
 		}
 
+		/*
 		colors[0].rgbRed = 0;
 		colors[0].rgbGreen = 0;
 		colors[0].rgbBlue = 0;
@@ -242,6 +243,7 @@ void DIB_SetPalette( const unsigned char *_pal )
 		colors[255].rgbRed = 0xff;
 		colors[255].rgbGreen = 0xff;
 		colors[255].rgbBlue = 0xff;
+		*/
 
 		if ( SetDIBColorTable( hdcDIBSection, 0, 256, colors ) == 0 )
 		{
@@ -286,6 +288,8 @@ void DIB_SetPalette( const unsigned char *_pal )
 			pLogPal->palPalEntry[i].peBlue	= pal[2];
 			pLogPal->palPalEntry[i].peFlags	= PC_RESERVED | PC_NOCOLLAPSE;
 		}
+		/* if they're using 8-bpp desktop with 8-bpp renderer keep black/white
+		constant so windows is partially usable? */
 		pLogPal->palPalEntry[0].peRed		= 0;
 		pLogPal->palPalEntry[0].peGreen		= 0;
 		pLogPal->palPalEntry[0].peBlue		= 0;
@@ -305,8 +309,10 @@ void DIB_SetPalette( const unsigned char *_pal )
 			Sys_Error( "DIB_SetPalette() - SelectPalette failed(%x)\n",GetLastError() );
 		}
 
+		/*
 		if ( hpalOld == NULL )
 			hpalOld = hpalOld;
+		*/
 
 		if ( ( ret = RealizePalette( hDC ) ) != pLogPal->palNumEntries ) 
 		{

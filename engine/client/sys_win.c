@@ -74,6 +74,88 @@ void VARGS Sys_DebugLog(char *file, char *fmt, ...)
 
 int *debug;
 
+
+
+#if (_WIN32_WINNT < 0x0400)
+	#define LLKHF_ALTDOWN        0x00000020
+	#define LLKHF_UP             0x00000080
+	#define WH_KEYBOARD_LL     13
+	typedef struct {
+		DWORD vkCode;
+		DWORD scanCode;
+		DWORD flags;
+		DWORD time;
+		DWORD dwExtraInfo;
+	} KBDLLHOOKSTRUCT;
+#elif defined(MINGW)
+	#define LLKHF_UP             0x00000080
+#endif
+
+HHOOK llkeyboardhook;
+
+cvar_t	sys_disableWinKeys = {"sys_disableWinKeys", "0"};
+
+LRESULT CALLBACK LowLevelKeyboardProc (INT nCode, WPARAM wParam, LPARAM lParam)
+{
+	KBDLLHOOKSTRUCT *pkbhs = (KBDLLHOOKSTRUCT *) lParam;
+	BOOL bControlKeyDown = 0;
+	if (ActiveApp)
+	switch (nCode)
+	{
+	case HC_ACTION:
+		{
+		//Trap the Left Windowskey
+			if (pkbhs->vkCode == VK_LWIN)
+			{
+				Key_Event (K_LWIN, !(pkbhs->flags & LLKHF_UP));
+				return 1;
+			}
+		//Trap the Right Windowskey
+			if (pkbhs->vkCode == VK_RWIN)
+			{
+				Key_Event (K_RWIN, !(pkbhs->flags & LLKHF_UP));
+				return 1;
+			}
+		//Trap the Application Key (what a pointless key)
+			if (pkbhs->vkCode == VK_APPS)
+			{
+				Key_Event (K_APP, !(pkbhs->flags & LLKHF_UP));
+				return 1;
+			}
+
+		// Disable CTRL+ESC
+			if (pkbhs->vkCode == VK_ESCAPE && GetAsyncKeyState (VK_CONTROL) >> ((sizeof(SHORT) * 8) - 1))
+				return 1;
+		// Disable ATL+TAB
+			if (pkbhs->vkCode == VK_TAB && pkbhs->flags & LLKHF_ALTDOWN)
+				return 1;
+		// Disable ALT+ESC
+			if (pkbhs->vkCode == VK_ESCAPE && pkbhs->flags & LLKHF_ALTDOWN)
+				return 1;
+
+			break;
+		}
+	default:
+		break;
+	}
+	return CallNextHookEx (llkeyboardhook, nCode, wParam, lParam);
+}
+
+void SetHookState(qboolean state)
+{
+	if (!state == !llkeyboardhook)	//not so types are comparable
+		return;
+
+	if (llkeyboardhook)
+	{
+		UnhookWindowsHookEx(llkeyboardhook);
+		llkeyboardhook = NULL;
+	}
+	if (state)
+		llkeyboardhook = SetWindowsHookEx(WH_KEYBOARD_LL, LowLevelKeyboardProc, GetModuleHandle(NULL), 0);
+}
+
+
 /*
 ===============================================================================
 
@@ -304,6 +386,7 @@ void VARGS Sys_Error (const char *error, ...)
 	_vsnprintf (text, sizeof(text)-1, error, argptr);
 	va_end (argptr);
 
+	SetHookState(false);
 	Host_Shutdown ();
 
 	MessageBox(NULL, text, "Error", 0);
@@ -312,6 +395,7 @@ void VARGS Sys_Error (const char *error, ...)
 	CloseHandle (qwclsemaphore);
 #endif
 
+	SetHookState(false);
 	exit (1);
 }
 
@@ -336,6 +420,8 @@ void Sys_Quit (void)
 	if (VID_ForceUnlockedAndReturnState)
 		VID_ForceUnlockedAndReturnState ();
 
+	SetHookState(false);
+
 	Host_Shutdown();
 
 #ifndef SERVERONLY
@@ -354,6 +440,7 @@ void Sys_Quit (void)
 */
 
 
+	SetHookState(false);
 	exit (0);
 }
 
@@ -870,6 +957,8 @@ int WINAPI WinMain (HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLin
 	Sys_Printf ("Host_Init\n");
 	Host_Init (&parms);
 
+	Cvar_Register(&sys_disableWinKeys, "System vars");	
+
 	oldtime = Sys_DoubleTime ();
 
 
@@ -906,6 +995,8 @@ int WINAPI WinMain (HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLin
 			time = newtime - oldtime;
 			Host_Frame (time);
 			oldtime = newtime;
+
+			SetHookState(sys_disableWinKeys.value);
 
 			Sleep(0);
 		}

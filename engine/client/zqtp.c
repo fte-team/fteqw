@@ -721,11 +721,14 @@ static char *Macro_demoplayback (void)
 		return "qwdplayback";
 	case DPB_MVD:
 		return "mvdplayback";
+#ifdef NQPROT
 	case DPB_NETQUAKE:
 		return "demplayback";
+#endif
+#ifdef Q2CLIENT
 	case DPB_QUAKE2:
 		return "dm2playback";
-
+#endif
 	//gcc will warn if we add annother playback and forget here, otherwise I'd use a default.
 	}
 	return "1";	//unknown.

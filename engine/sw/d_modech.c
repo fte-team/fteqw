@@ -19,11 +19,6 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 */
 // d_modech.c: called when mode has just changed
 
-//the id made assembler cannot cope with the changes made to the triangle data type.
-#ifndef NOASM
-#define NOASM
-#endif
-
 #include "quakedef.h"
 #include "d_local.h"
 

@@ -619,8 +619,6 @@ void GL_InitFogTexture (void)
 			t = (float)(sqrt( tx ) * 255.0);
 			data[x+y*FOG_TEXTURE_WIDTH] = (qbyte)(min( t, 255.0f ));
 		}
-
-		data[y] = 0;
 	}
 
 	r_fogtexture = texture_extension_number++;
@@ -629,9 +627,9 @@ void GL_InitFogTexture (void)
 	
 	qglTexParameterf (GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, gl_filter_max);
 	qglTexParameterf (GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, gl_filter_max);
-	
-	qglTexParameteri (GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP);
-	qglTexParameteri (GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP);
+
+	qglTexParameteri (GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
+	qglTexParameteri (GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
 }
 #endif
 /*

@@ -10,7 +10,7 @@ void QCC_PR_ParseAsm(void);
 
 extern char *compilingfile;
 
-pbool conditional;
+int conditional;
 
 pbool keyword_var;
 pbool keyword_thinktime;
@@ -3870,8 +3870,11 @@ QCC_def_t *QCC_PR_Term (void)
 			}
 			else
 			{
+				pbool oldcond = conditional;
+				conditional = conditional?2:0;
 				e =	QCC_PR_Expression (TOP_PRIORITY);
 				QCC_PR_Expect (")");
+				conditional = oldcond;
 			}
 			return e;
 		}
@@ -4135,7 +4138,7 @@ QCC_def_t *QCC_PR_Expression (int priority)
 					editbadfile(strings+s_file, pr_source_line);
 #endif
 				}
-				if (conditional)
+				if (conditional&1)
 					QCC_PR_ParseWarning(WARN_ASSIGNMENTINCONDITIONAL, "Assignment in conditional");
 
 				e = QCC_PR_Statement (op, e2, e, NULL);
@@ -4367,9 +4370,9 @@ void QCC_PR_ParseStatement (void)
 
 		QCC_PR_Expect ("(");
 		patch2 = &statements[numstatements];
-		conditional = true;
+		conditional = 1;
 		e = QCC_PR_Expression (TOP_PRIORITY);
-		conditional = false;
+		conditional = 0;
 		if (((e->constant && !e->temp) || !STRCMP(e->name, "IMMEDIATE")) && opt_compound_jumps)
 		{
 			optres_compound_jumps++;
@@ -4457,13 +4460,13 @@ void QCC_PR_ParseStatement (void)
 		patch2 = &statements[numstatements];
 		if (!QCC_PR_Check(";"))
 		{
-			conditional = true;
+			conditional = 1;
 			e = QCC_PR_Expression(TOP_PRIORITY);
 			while (QCC_PR_Check(","))	//logicops, string ops?
 			{
 				e = QCC_PR_Statement(pr_opcodes+OP_AND, e, QCC_PR_Expression(TOP_PRIORITY), NULL);
 			}
-			conditional = false;
+			conditional = 0;
 			QCC_PR_Expect(";");
 		}
 		else
@@ -4538,9 +4541,9 @@ void QCC_PR_ParseStatement (void)
 		QCC_PR_ParseStatement ();
 		QCC_PR_Expect ("while");
 		QCC_PR_Expect ("(");
-		conditional = true;
+		conditional = 1;
 		e = QCC_PR_Expression (TOP_PRIORITY);
-		conditional = false;
+		conditional = 0;
 		junkdef.ofs = patch1 - &statements[numstatements];
 		junkdef.type = type_float;
 		if (e->constant && !e->temp)
@@ -4624,9 +4627,9 @@ void QCC_PR_ParseStatement (void)
 		if (QCC_PR_Check("not"))
 		{
 			QCC_PR_Expect ("(");
-			conditional = true;
+			conditional = 1;
 			e = QCC_PR_Expression (TOP_PRIORITY);
-			conditional = false;
+			conditional = 0;
 
 			if (e->type == type_string && flag_ifstring)	//special case, as strings are now pointers, not offsets from string table
 			{
@@ -4639,9 +4642,9 @@ void QCC_PR_ParseStatement (void)
 		else
 		{
 			QCC_PR_Expect ("(");
-			conditional = true;
+			conditional = 1;
 			e = QCC_PR_Expression (TOP_PRIORITY);
-			conditional = false;
+			conditional = 0;
 
 			if (e->type == type_string && flag_ifstring)	//special case, as strings are now pointers, not offsets from string table
 			{
@@ -4697,9 +4700,9 @@ void QCC_PR_ParseStatement (void)
 
 		QCC_PR_Expect ("(");
 
-		conditional = true;
+		conditional = 1;
 		e = QCC_PR_Expression (TOP_PRIORITY);
-		conditional = false;
+		conditional = 0;
 
 		if (e == &def_ret)
 		{	//copy it out, so our hack just below doesn't crash us
@@ -5899,7 +5902,7 @@ QCC_function_t *QCC_PR_ParseImmediateStatements (QCC_type_t *type)
 	pbool needsdone=false;
 	freeoffset_t *oldfofs;
 
-	conditional = false;
+	conditional = 0;
 
 	
 	f = (void *)qccHunkAlloc (sizeof(QCC_function_t));

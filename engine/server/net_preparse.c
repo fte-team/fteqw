@@ -1793,7 +1793,7 @@ void NPP_MVDWriteByte(qbyte data, client_t *to, int broadcast)	//replacement wri
 			protocollen = 9;
 			break;
 		default:
-			Con_Printf("bad protocol %i\n", (int)data);
+			Con_Printf("mvd: bad protocol %i\n", (int)data);
 			Con_Printf("(last was %i)\n", (int)majortype);
 			protocollen = sizeof(buffer);
 			net_message.cursize=0;
@@ -2081,7 +2081,7 @@ void NPP_MVDWriteByte(qbyte data, client_t *to, int broadcast)	//replacement wri
 			}
 			break;
 		default:
-			Con_Printf("bad protocol %i\n", (int)data);
+			Con_Printf("mvd: bad protocol %i\n", (int)data);
 			protocollen = sizeof(buffer);
 			net_message.cursize=0;
 			data = svc_nop;

@@ -185,6 +185,12 @@ typedef struct entvars_s
 	float	button0;
 	float	button1;
 	float	button2;
+	float	button3;	//3 and 1 are the same
+	float	button4;
+	float	button5;
+	float	button6;
+	float	button7;
+	float	button8;
 	float	impulse;
 	float	fixangle;
 	vec3_t	v_angle;
@@ -234,10 +240,15 @@ typedef struct entvars_s
 	int		nodrawtoclient;
 	int		drawonlytoclient;
 
-	//QSG_DIMENSION_PLANES
-	float	dimension_mask;
+	//EXT_DIMENSION_VISIBLE
+	float	dimension_see;
+	float	dimension_seen;
+	//EXT_DIMENSION_GHOST
 	float	dimension_ghost;
-	float	dimension_physics;
+	float	dimension_ghost_alpha;
+	//EXT_DIMENSION_PHYSICS
+	float	dimension_solid;
+	float	dimension_hit;
 
 	//udc_exeffect support. hacky I know.
 	float	seefcolour;

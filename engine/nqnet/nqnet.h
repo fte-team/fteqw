@@ -313,6 +313,10 @@ void		NET_Close (struct qsocket_s *sock);
 // from a server.
 // A netcon_t number will not be reused until this function is called for it
 
+//special case for DP servers, which use QW style connectionless commands to connect.
+//this is called directly from the QW portions of code when they detect that the server is a DP server.
+qsocket_t *Datagram_ConnectToDarkPlacesServer(netadr_t *nadr);
+
 void NET_Poll(void);
 
 

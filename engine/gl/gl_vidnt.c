@@ -873,13 +873,16 @@ void	GLVID_ShiftPalette (unsigned char *palette)
 //	VID_SetPalette (palette);
 
 	if (ActiveApp && vid_hardwaregamma.value)	//this is needed because ATI drivers don't work properly (or when task-switched out).
+	{
+		if (gammaworks)
+		{	//we have hardware gamma applied - if we're doing a BF, we don't want to reset to the default gamma (yuck)
+			SetDeviceGammaRamp (maindc, ramps);
+			return;
+		}
 		gammaworks = !!SetDeviceGammaRamp (maindc, ramps);
+	}
 	else
 		gammaworks = false;
-	if (!gammaworks)
-	{
-		SetDeviceGammaRamp(maindc, origionalgammaramps);
-	}
 }
 
 
@@ -892,6 +895,7 @@ void VID_SetDefaultMode (void)
 void	GLVID_Shutdown (void)
 {
 	SetDeviceGammaRamp(maindc, origionalgammaramps);
+	gammaworks = false;
 
 	VID_UnSetMode();
 }
@@ -1055,6 +1059,7 @@ void GLAppActivate(BOOL fActive, BOOL minimize)
 		v_gamma.modified = true;	//wham bam thanks.
 
 		SetDeviceGammaRamp(maindc, origionalgammaramps);
+		gammaworks = false;
 	}
 }
 

@@ -1138,6 +1138,8 @@ void SV_SpawnSpectator (void)
 	sv_player->v.movetype = MOVETYPE_NOCLIP;
 
 	// search for an info_playerstart to spawn the spectator at
+	//this is only useful when a mod doesn't nativly support spectators. old qw on nq mods.
+
 	for (i=MAX_CLIENTS+1 ; i<sv.num_edicts ; i++)
 	{
 		e = EDICT_NUM(svprogfuncs, i);
@@ -2696,12 +2698,14 @@ void Cmd_Observe_f (void)
 	if (host_client->spectator)
 		return;		// already a spectator
 
-	if (!(host_client->zquake_extensions & Z_EXT_JOIN_OBSERVE)) {
+	if (!(host_client->zquake_extensions & Z_EXT_JOIN_OBSERVE))
+	{
 		Con_Printf ("Your QW client doesn't support this command\n");
 		return;
 	}
 
-	if (spectator_password.string[0] && stricmp(spectator_password.string, "none")) {
+	if (spectator_password.string[0] && stricmp(spectator_password.string, "none"))
+	{
 		Con_Printf ("This server requires a %s password. Please disconnect, set the password and reconnect as %s.\n", "spectator", "spectator");
 		return;
 	}
@@ -2712,7 +2716,8 @@ void Cmd_Observe_f (void)
 		if (cl->state != cs_free && cl->spectator)
 			numspectators++;
 	}
-	if (numspectators >= maxspectators.value) {
+	if (numspectators >= maxspectators.value)
+	{
 		Con_Printf ("Can't join, all spectator slots full\n");
 		return;
 	}
@@ -2739,7 +2744,8 @@ void Cmd_Observe_f (void)
 	SV_SpawnSpectator ();
 	
 	// call the spawn function
-	if (SpectatorConnect) {
+	if (SpectatorConnect)
+	{
 		pr_global_struct->time = sv.time;
 		pr_global_struct->self = EDICT_TO_PROG(svprogfuncs, sv_player);
 		PR_ExecuteProgram (svprogfuncs, SpectatorConnect);

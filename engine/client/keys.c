@@ -465,7 +465,7 @@ void Key_Console (int key)
 
 	if (key == K_DEL)
 	{
-		if (strlen(key_lines[edit_line]+key_linepos+1))
+		if (strlen(key_lines[edit_line]+key_linepos))
 		{
 			memmove(key_lines[edit_line]+key_linepos, key_lines[edit_line]+key_linepos+1, strlen(key_lines[edit_line]+key_linepos+1)+1);
 			return;

@@ -795,7 +795,7 @@ void M_SListKey(int key)
 		}
 		else if (slist_type == SLISTTYPE_SOURCES)
 		{
-			MasterInfo_Request(M_FindCurrentMaster());
+			MasterInfo_Request(M_FindCurrentMaster(), true);
 		}
 
 		return;

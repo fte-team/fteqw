@@ -871,6 +871,7 @@ void CLQ2_ParseTEnt (void);
 void CLQ2_AddEntities (void);
 void CLQ2_ParseBaseline (void);
 void CLQ2_ParseFrame (void);
+void CLQ2_RunMuzzleFlash2 (int ent, int flash_number);
 void CLNQ_ParseEntity(unsigned int bits);
 int CLQ2_RegisterTEntModels (void);
 #endif

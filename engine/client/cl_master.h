@@ -93,7 +93,7 @@ extern player_t *mplayers;
 
 void CL_QueryServers(void);
 int NET_CheckPollSockets(void);
-void MasterInfo_Request(master_t *mast);
+void MasterInfo_Request(master_t *mast, qboolean evenifwedonthavethefiles);
 serverinfo_t *Master_InfoForServer (netadr_t addr);
 serverinfo_t *Master_InfoForNum (int num);
 int Master_TotalCount(void);

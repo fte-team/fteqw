@@ -44,7 +44,7 @@ char cl_spectatorgroup[] = "Spectator Tracking";
 // track high fragger
 cvar_t cl_hightrack = {"cl_hightrack", "0" };
 
-cvar_t cl_chasecam = {"cl_chasecam", "0"};
+cvar_t cl_chasecam = {"cl_chasecam", "1"};
 
 //cvar_t cl_camera_maxpitch = {"cl_camera_maxpitch", "10" };
 //cvar_t cl_camera_maxyaw = {"cl_camera_maxyaw", "30" };

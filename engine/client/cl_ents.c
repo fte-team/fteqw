@@ -229,11 +229,6 @@ void CL_DecayLights (void)
 			if (dl->color[2] < 0)
 				dl->color[2] = 0;
 		}
-#ifdef Q2CLIENT	//FIXME: Why? why just q2 clients?
-		if (cls.q2server)
-			if (!dl->decay)
-				dl->radius = 0;
-#endif
 	}
 }
 
@@ -1297,6 +1292,32 @@ void V_AddEntity(entity_t *in)
 	cl_numvisedicts++;
 
 	*ent = *in;
+
+	ent->angles[0]*=-1;
+	AngleVectors(ent->angles, ent->axis[0], ent->axis[1], ent->axis[2]);
+	VectorInverse(ent->axis[1]);
+	ent->angles[0]*=-1;
+}
+
+void V_AddLerpEntity(entity_t *in)	//a convienience function
+{
+	entity_t *ent;
+	float fwds, back;
+	int i;
+
+	if (cl_numvisedicts == MAX_VISEDICTS)
+		return;		// object list is full
+	ent = &cl_visedicts[cl_numvisedicts];
+	cl_numvisedicts++;
+
+	*ent = *in;
+
+	fwds = ent->lerpfrac;
+	back = 1 - ent->lerpfrac;
+	for (i = 0; i < 3; i++)
+	{
+		ent->origin[i] = in->origin[i]*fwds + in->oldorigin[i]*back;
+	}
 
 	ent->angles[0]*=-1;
 	AngleVectors(ent->angles, ent->axis[0], ent->axis[1], ent->axis[2]);

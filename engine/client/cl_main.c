@@ -366,6 +366,9 @@ void CL_SendConnectPacket (
 
 	fteprotextsupported &= ftepext;
 
+	if (cls.q2server)
+		fteprotextsupported = 0;
+
 	cls.fteprotocolextensions = fteprotextsupported;
 #endif
 
@@ -2837,25 +2840,18 @@ void Host_Init (quakeparms_t *parms)
 	Memory_Init (parms->membase, parms->memsize);
 
 	COM_ParsePlusSets();
-
 	Cbuf_Init ();
 	Cmd_Init ();
-
 	V_Init ();
-
 	COM_Init ();
 #ifdef Q2BSPS
 	CM_Init();
 #endif
-
 	Host_FixupModelNames();
-
 
 	NET_Init ();
 	NET_InitClient ();
-
 	Netchan_Init ();
-
 	Renderer_Init();
 
 //	W_LoadWadFile ("gfx.wad");
@@ -2922,15 +2918,15 @@ void Host_Init (quakeparms_t *parms)
 
 	Hunk_AllocName (0, "-HOST_HUNKLEVEL-");
 	host_hunklevel = Hunk_LowMark ();
-
+BZ_CheckAllSentinals();
 	R_SetRenderer(0);//set the renderer stuff to 'none'...
 
 	host_initialized = true;
 
 	Cmd_StuffCmds();
-
+BZ_CheckAllSentinals();
 	Cbuf_Execute ();	//if the server initialisation causes a problem, give it a place to abort to
-
+BZ_CheckAllSentinals();
 	//assuming they didn't use any waits in thier config (fools)
 	//the configs should be fully loaded.
 	//so convert the backwards compable commandline parameters in cvar sets.
@@ -2939,7 +2935,7 @@ void Host_Init (quakeparms_t *parms)
 		Cvar_Set(Cvar_FindVar("vid_fullscreen"), "0");
 	if (COM_CheckParm ("-fullscreen"))
 		Cvar_Set(Cvar_FindVar("vid_fullscreen"), "1");
-
+BZ_CheckAllSentinals();
 	if ((i = COM_CheckParm ("-width")))	//width on it's own also sets height
 	{
 		Cvar_Set(Cvar_FindVar("vid_width"), com_argv[i+1]);

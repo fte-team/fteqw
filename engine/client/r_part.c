@@ -1032,6 +1032,12 @@ void P_InitParticles (void)
 	pe_default			= P_AllocateParticleType("pe_default");
 	pe_size2			= P_AllocateParticleType("pe_size2");
 	pe_size3			= P_AllocateParticleType("pe_size3");
+
+	pt_spark			= P_AllocateParticleType("pe_spark");
+	pt_plasma			= P_AllocateParticleType("pe_plasma");
+
+	rt_gib				= P_AllocateParticleType("t_gib");
+	rt_grenade			= P_AllocateParticleType("t_grenade");
 }
 
 
@@ -1092,6 +1098,7 @@ void P_NewServer(void)
 
 	model_t *mod;
 	int i;
+
 	for (i = 0; i < numparticletypes; i++)
 	{
 		*part_type[i].texname = '\0';
@@ -1101,6 +1108,7 @@ void P_NewServer(void)
 			BZ_Free(part_type->ramp);
 		part_type->ramp = NULL;
 	}
+
 
 
 	for (i=0 , mod=mod_known ; i<mod_numknown ; i++, mod++)
@@ -1115,7 +1123,6 @@ void P_NewServer(void)
 	f_modified_particles = false;
 
 	//particle descriptions submitted by the server are deemed to not be cheats but game configs.
-
 	if (!stricmp(r_particlesdesc.string, "none"))
 		return;
 	else if (!stricmp(r_particlesdesc.string, "faithful") || !*r_particlesdesc.string)
@@ -3367,6 +3374,9 @@ void P_DrawParticles (void)
 
 		qglEnd();
 		qglEnable(GL_TEXTURE_2D);
+
+		GL_TexEnv(GL_MODULATE);
+		qglBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
 
 		qglDepthMask(1);
 		return;

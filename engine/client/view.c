@@ -1085,12 +1085,12 @@ void V_CalcRefdef (int pnum)
 	vec3_t		forward, right, up;
 	float		bob;
 
+	r_refdef.currentplayernum = pnum;
+
 #ifdef Q2CLIENT
 	if (cls.q2server)
 		return;
 #endif
-
-	r_refdef.currentplayernum = pnum;
 
 	V_DriftPitch (pnum);
 

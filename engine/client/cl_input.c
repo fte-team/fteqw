@@ -1171,8 +1171,6 @@ void CL_SendCmd (void)
 		{
 			i = cls.netchan.outgoing_sequence & UPDATE_MASK;
 			cmd = &cl.frames[i].cmd[plnum];
-			if (cmd->buttons)
-				cmd->buttons |= 128;
 
 			if (cls.resendinfo)
 			{
@@ -1254,6 +1252,9 @@ void CL_SendCmd (void)
 			CL_FinishMove(cmd, msecstouse, plnum);
 
 			Cam_FinishMove(plnum, cmd);
+
+			if (cls.q2server && cmd->buttons)
+				cmd->buttons |= 128;
 
 			for (i=0 ; i<3 ; i++)
 				cmd->angles[i] = ((int)(cl.viewangles[plnum][i]*65536.0/360)&65535);

@@ -126,10 +126,11 @@ typedef struct
 
 beam_t		cl_beams[MAX_BEAMS];
 
-#define	MAX_EXPLOSIONS	8
+#define	MAX_EXPLOSIONS	32
 typedef struct
 {
 	vec3_t	origin;
+	vec3_t	oldorigin;
 
 	int firstframe;
 	int numframes;
@@ -142,6 +143,7 @@ typedef struct
 		float lightcolor[3];
 	float	start;
 	model_t	*model;
+	int skinnum;
 } explosion_t;
 
 explosion_t	cl_explosions[MAX_EXPLOSIONS];
@@ -1207,19 +1209,35 @@ void CL_SmokeAndFlash(vec3_t origin)
 
 	ex = CL_AllocExplosion ();
 	VectorCopy (origin, ex->origin);
+	VectorClear(ex->angles);
 //	ex->type = ex_misc;
-//	ex->numframes = 4;
-//	ex->flags = Q2RF_TRANSLUCENT;
-	ex->start = cl.q2frame.servertime - 100;
+	ex->numframes = 4;
+	ex->flags = Q2RF_TRANSLUCENT;
+	ex->start = cl.time;
 	ex->model = Mod_ForName (q2tentmodels[q2cl_mod_smoke].modelname, false);
 
 	ex = CL_AllocExplosion ();
 	VectorCopy (origin, ex->origin);
+	VectorClear(ex->angles);
 //	ex->type = ex_flash;
-//	ex->flags = Q2RF_FULLBRIGHT;
-//	ex->frames = 2;
-	ex->start = cl.q2frame.servertime - 100;
+	ex->flags = Q2RF_FULLBRIGHT;
+	ex->numframes = 2;
+	ex->start = cl.time;
 	ex->model = Mod_ForName (q2tentmodels[q2cl_mod_flash].modelname, false);
+}
+
+void CL_Laser (vec3_t start, vec3_t end, int colors)
+{
+	explosion_t	*ex = CL_AllocExplosion();
+	ex->firstframe = 0;
+	ex->numframes = 10;
+	ex->alpha = 0.33f;
+	ex->model = (void*)0xDEAFF00D;	//something not null
+	ex->skinnum = (colors >> ((rand() % 4)*8)) & 0xff;
+	VectorCopy (start, ex->origin);
+	VectorCopy (end, ex->oldorigin);
+	ex->flags = Q2RF_TRANSLUCENT | Q2RF_BEAM;
+	ex->start = cl.time;
 }
 
 static qbyte splash_color[] = {0x00, 0xe0, 0xb0, 0x50, 0xd0, 0xe0, 0xe8};
@@ -1297,7 +1315,7 @@ void CLQ2_ParseTEnt (void)
 		MSG_ReadPos (pos);
 		MSG_ReadDir (dir);
 		P_RunParticleEffect (pos, dir, 0, 20);
-//		CL_SmokeAndFlash(pos);
+		CL_SmokeAndFlash(pos);
 		R_AddStain(pos, -10, -10, -10, 20);
 		break;
 
@@ -1563,7 +1581,7 @@ void CLQ2_ParseTEnt (void)
 	case Q2TE_BFG_LASER:
 		MSG_ReadPos (pos);
 		MSG_ReadPos (pos2);
-//		CL_ParseLaser (0xd0d1d2d3);
+		CL_Laser(pos, pos2, 0xd0d1d2d3);
 		break;
 
 	case Q2TE_BUBBLETRAIL:
@@ -2049,12 +2067,18 @@ void CL_UpdateExplosions (void)
 		if (!ent)
 			return;
 		VectorCopy (ex->origin, ent->origin);
+		VectorCopy (ex->oldorigin, ent->oldorigin);
 		VectorCopy (ex->angles, ent->angles);
+		ent->skinnum = ex->skinnum;
+		ent->angles[0]*=-1;
+		AngleVectors(ent->angles, ent->axis[0], ent->axis[1], ent->axis[2]);
+		VectorInverse(ent->axis[1]);
 		ent->model = ex->model;
 		ent->frame = (int)f+firstframe;
 		ent->oldframe = of+firstframe;
 		ent->lerptime = 1-(f - (int)f);
 		ent->alpha = 1.0 - f/(numframes);
+		ent->flags = ex->flags;
 	}
 }
 

@@ -413,12 +413,12 @@ qboolean	CL_CheckOrDownloadFile (char *filename, int nodelay)
 		return true;
 }
 
-
 qboolean CL_CheckMD2Skins (char *name)
 {
 	md2_t *pheader;
 	qbyte *precache_model;
 	int precache_model_skin = 1;
+	char *str;
 
 	// checking for skins in the model
 	precache_model = COM_LoadMallocFile (name);
@@ -443,10 +443,14 @@ qboolean CL_CheckMD2Skins (char *name)
 
 	pheader = (md2_t *)precache_model;
 
-	while (precache_model_skin - 1 < LittleLong(pheader->num_skins)) {
-		if (!CL_CheckOrDownloadFile((char *)precache_model +
+	while (precache_model_skin - 1 < LittleLong(pheader->num_skins))
+	{
+		str = (char *)precache_model +
 			LittleLong(pheader->ofs_skins) + 
-			(precache_model_skin - 1)*MD2MAX_SKINNAME, false)) {
+			(precache_model_skin - 1)*MD2MAX_SKINNAME;
+		COM_CleanUpPath(str);
+		if (!CL_CheckOrDownloadFile(str, false))
+		{
 			precache_model_skin++;
 
 			BZ_Free(precache_model);
@@ -1409,6 +1413,7 @@ void CLQ2_ParseServerData (void)
 		//cl.refresh_prepped = false;
 	}
 
+	P_NewServer();
 
 	if (R_PreNewMap)
 		R_PreNewMap();
@@ -2829,380 +2834,15 @@ void CLQ2_ParseMuzzleFlash (void)
 void CLQ2_ParseMuzzleFlash2 (void) 
 {
 	int			ent;
-//	vec3_t		origin;
 	int			flash_number;
-//	dlight_t	*dl;
-//	vec3_t		forward, right;
-//	char		soundname[64];
 
 	ent = MSG_ReadShort ();
 	if (ent < 1 || ent >= Q2MAX_EDICTS)
 		Host_EndGame ("CL_ParseMuzzleFlash2: bad entity");
 
 	flash_number = MSG_ReadByte ();
-/*
-	// locate the origin
-	AngleVectors (cl_entities[ent].current.angles, forward, right, NULL);
-	origin[0] = cl_entities[ent].current.origin[0] + forward[0] * monster_flash_offset[flash_number][0] + right[0] * monster_flash_offset[flash_number][1];
-	origin[1] = cl_entities[ent].current.origin[1] + forward[1] * monster_flash_offset[flash_number][0] + right[1] * monster_flash_offset[flash_number][1];
-	origin[2] = cl_entities[ent].current.origin[2] + forward[2] * monster_flash_offset[flash_number][0] + right[2] * monster_flash_offset[flash_number][1] + monster_flash_offset[flash_number][2];
 
-	dl = CL_AllocDlight (ent);
-	VectorCopy (origin,  dl->origin);
-	dl->radius = 200 + (rand()&31);
-	dl->minlight = 32;
-	dl->die = cl.time;	// + 0.1;
-
-	switch (flash_number)
-	{
-	case Q2MZ2_INFANTRY_MACHINEGUN_1:
-	case Q2MZ2_INFANTRY_MACHINEGUN_2:
-	case Q2MZ2_INFANTRY_MACHINEGUN_3:
-	case Q2MZ2_INFANTRY_MACHINEGUN_4:
-	case Q2MZ2_INFANTRY_MACHINEGUN_5:
-	case Q2MZ2_INFANTRY_MACHINEGUN_6:
-	case Q2MZ2_INFANTRY_MACHINEGUN_7:
-	case Q2MZ2_INFANTRY_MACHINEGUN_8:
-	case Q2MZ2_INFANTRY_MACHINEGUN_9:
-	case Q2MZ2_INFANTRY_MACHINEGUN_10:
-	case Q2MZ2_INFANTRY_MACHINEGUN_11:
-	case Q2MZ2_INFANTRY_MACHINEGUN_12:
-	case Q2MZ2_INFANTRY_MACHINEGUN_13:
-		dl->color[0] = 1;dl->color[1] = 1;dl->color[2] = 0;
-		CL_ParticleEffect (origin, vec3_origin, 0, 40);
-		CL_SmokeAndFlash(origin);
-		Q2S_StartSound (NULL, ent, CHAN_WEAPON, S_RegisterSound("infantry/infatck1.wav"), 1, ATTN_NORM, 0);
-		break;
-
-	case Q2MZ2_SOLDIER_MACHINEGUN_1:
-	case Q2MZ2_SOLDIER_MACHINEGUN_2:
-	case Q2MZ2_SOLDIER_MACHINEGUN_3:
-	case Q2MZ2_SOLDIER_MACHINEGUN_4:
-	case Q2MZ2_SOLDIER_MACHINEGUN_5:
-	case Q2MZ2_SOLDIER_MACHINEGUN_6:
-	case Q2MZ2_SOLDIER_MACHINEGUN_7:
-	case Q2MZ2_SOLDIER_MACHINEGUN_8:
-		dl->color[0] = 1;dl->color[1] = 1;dl->color[2] = 0;
-		CL_ParticleEffect (origin, vec3_origin, 0, 40);
-		CL_SmokeAndFlash(origin);
-		Q2S_StartSound (NULL, ent, CHAN_WEAPON, S_RegisterSound("soldier/solatck3.wav"), 1, ATTN_NORM, 0);
-		break;
-
-	case Q2MZ2_GUNNER_MACHINEGUN_1:
-	case Q2MZ2_GUNNER_MACHINEGUN_2:
-	case Q2MZ2_GUNNER_MACHINEGUN_3:
-	case Q2MZ2_GUNNER_MACHINEGUN_4:
-	case Q2MZ2_GUNNER_MACHINEGUN_5:
-	case Q2MZ2_GUNNER_MACHINEGUN_6:
-	case Q2MZ2_GUNNER_MACHINEGUN_7:
-	case Q2MZ2_GUNNER_MACHINEGUN_8:
-		dl->color[0] = 1;dl->color[1] = 1;dl->color[2] = 0;
-		CL_ParticleEffect (origin, vec3_origin, 0, 40);
-		CL_SmokeAndFlash(origin);
-		Q2S_StartSound (NULL, ent, CHAN_WEAPON, S_RegisterSound("gunner/gunatck2.wav"), 1, ATTN_NORM, 0);
-		break;
-
-	case Q2MZ2_ACTOR_MACHINEGUN_1:
-	case Q2MZ2_SUPERTANK_MACHINEGUN_1:
-	case Q2MZ2_SUPERTANK_MACHINEGUN_2:
-	case Q2MZ2_SUPERTANK_MACHINEGUN_3:
-	case Q2MZ2_SUPERTANK_MACHINEGUN_4:
-	case Q2MZ2_SUPERTANK_MACHINEGUN_5:
-	case Q2MZ2_SUPERTANK_MACHINEGUN_6:
-	case Q2MZ2_TURRET_MACHINEGUN:			// PGM
-		dl->color[0] = 1;dl->color[1] = 1;dl->color[2] = 0;
-
-		CL_ParticleEffect (origin, vec3_origin, 0, 40);
-		CL_SmokeAndFlash(origin);
-		Q2S_StartSound (NULL, ent, CHAN_WEAPON, S_RegisterSound("infantry/infatck1.wav"), 1, ATTN_NORM, 0);
-		break;
-
-	case Q2MZ2_BOSS2_MACHINEGUN_L1:
-	case Q2MZ2_BOSS2_MACHINEGUN_L2:
-	case Q2MZ2_BOSS2_MACHINEGUN_L3:
-	case Q2MZ2_BOSS2_MACHINEGUN_L4:
-	case Q2MZ2_BOSS2_MACHINEGUN_L5:
-	case Q2MZ2_CARRIER_MACHINEGUN_L1:		// PMM
-	case Q2MZ2_CARRIER_MACHINEGUN_L2:		// PMM
-		dl->color[0] = 1;dl->color[1] = 1;dl->color[2] = 0;
-
-		CL_ParticleEffect (origin, vec3_origin, 0, 40);
-		CL_SmokeAndFlash(origin);
-		Q2S_StartSound (NULL, ent, CHAN_WEAPON, S_RegisterSound("infantry/infatck1.wav"), 1, ATTN_NONE, 0);
-		break;
-
-	case Q2MZ2_SOLDIER_BLASTER_1:
-	case Q2MZ2_SOLDIER_BLASTER_2:
-	case Q2MZ2_SOLDIER_BLASTER_3:
-	case Q2MZ2_SOLDIER_BLASTER_4:
-	case Q2MZ2_SOLDIER_BLASTER_5:
-	case Q2MZ2_SOLDIER_BLASTER_6:
-	case Q2MZ2_SOLDIER_BLASTER_7:
-	case Q2MZ2_SOLDIER_BLASTER_8:
-	case Q2MZ2_TURRET_BLASTER:			// PGM
-		dl->color[0] = 1;dl->color[1] = 1;dl->color[2] = 0;
-		Q2S_StartSound (NULL, ent, CHAN_WEAPON, S_RegisterSound("soldier/solatck2.wav"), 1, ATTN_NORM, 0);
-		break;
-
-	case Q2MZ2_FLYER_BLASTER_1:
-	case Q2MZ2_FLYER_BLASTER_2:
-		dl->color[0] = 1;dl->color[1] = 1;dl->color[2] = 0;
-		Q2S_StartSound (NULL, ent, CHAN_WEAPON, S_RegisterSound("flyer/flyatck3.wav"), 1, ATTN_NORM, 0);
-		break;
-
-	case Q2MZ2_MEDIC_BLASTER_1:
-		dl->color[0] = 1;dl->color[1] = 1;dl->color[2] = 0;
-		Q2S_StartSound (NULL, ent, CHAN_WEAPON, S_RegisterSound("medic/medatck1.wav"), 1, ATTN_NORM, 0);
-		break;
-
-	case Q2MZ2_HOVER_BLASTER_1:
-		dl->color[0] = 1;dl->color[1] = 1;dl->color[2] = 0;
-		Q2S_StartSound (NULL, ent, CHAN_WEAPON, S_RegisterSound("hover/hovatck1.wav"), 1, ATTN_NORM, 0);
-		break;
-
-	case Q2MZ2_FLOAT_BLASTER_1:
-		dl->color[0] = 1;dl->color[1] = 1;dl->color[2] = 0;
-		Q2S_StartSound (NULL, ent, CHAN_WEAPON, S_RegisterSound("floater/fltatck1.wav"), 1, ATTN_NORM, 0);
-		break;
-
-	case Q2MZ2_SOLDIER_SHOTGUN_1:
-	case Q2MZ2_SOLDIER_SHOTGUN_2:
-	case Q2MZ2_SOLDIER_SHOTGUN_3:
-	case Q2MZ2_SOLDIER_SHOTGUN_4:
-	case Q2MZ2_SOLDIER_SHOTGUN_5:
-	case Q2MZ2_SOLDIER_SHOTGUN_6:
-	case Q2MZ2_SOLDIER_SHOTGUN_7:
-	case Q2MZ2_SOLDIER_SHOTGUN_8:
-		dl->color[0] = 1;dl->color[1] = 1;dl->color[2] = 0;
-		CL_SmokeAndFlash(origin);
-		Q2S_StartSound (NULL, ent, CHAN_WEAPON, S_RegisterSound("soldier/solatck1.wav"), 1, ATTN_NORM, 0);
-		break;
-
-	case Q2MZ2_TANK_BLASTER_1:
-	case Q2MZ2_TANK_BLASTER_2:
-	case Q2MZ2_TANK_BLASTER_3:
-		dl->color[0] = 1;dl->color[1] = 1;dl->color[2] = 0;
-		Q2S_StartSound (NULL, ent, CHAN_WEAPON, S_RegisterSound("tank/tnkatck3.wav"), 1, ATTN_NORM, 0);
-		break;
-
-	case Q2MZ2_TANK_MACHINEGUN_1:
-	case Q2MZ2_TANK_MACHINEGUN_2:
-	case Q2MZ2_TANK_MACHINEGUN_3:
-	case Q2MZ2_TANK_MACHINEGUN_4:
-	case Q2MZ2_TANK_MACHINEGUN_5:
-	case Q2MZ2_TANK_MACHINEGUN_6:
-	case Q2MZ2_TANK_MACHINEGUN_7:
-	case Q2MZ2_TANK_MACHINEGUN_8:
-	case Q2MZ2_TANK_MACHINEGUN_9:
-	case Q2MZ2_TANK_MACHINEGUN_10:
-	case Q2MZ2_TANK_MACHINEGUN_11:
-	case Q2MZ2_TANK_MACHINEGUN_12:
-	case Q2MZ2_TANK_MACHINEGUN_13:
-	case Q2MZ2_TANK_MACHINEGUN_14:
-	case Q2MZ2_TANK_MACHINEGUN_15:
-	case Q2MZ2_TANK_MACHINEGUN_16:
-	case Q2MZ2_TANK_MACHINEGUN_17:
-	case Q2MZ2_TANK_MACHINEGUN_18:
-	case Q2MZ2_TANK_MACHINEGUN_19:
-		dl->color[0] = 1;dl->color[1] = 1;dl->color[2] = 0;
-		CL_ParticleEffect (origin, vec3_origin, 0, 40);
-		CL_SmokeAndFlash(origin);
-		Com_sprintf(soundname, sizeof(soundname), "tank/tnkatk2%c.wav", 'a' + rand() % 5);
-		Q2S_StartSound (NULL, ent, CHAN_WEAPON, S_RegisterSound(soundname), 1, ATTN_NORM, 0);
-		break;
-
-	case Q2MZ2_CHICK_ROCKET_1:
-	case Q2MZ2_TURRET_ROCKET:			// PGM
-		dl->color[0] = 1;dl->color[1] = 0.5;dl->color[2] = 0.2;
-		Q2S_StartSound (NULL, ent, CHAN_WEAPON, S_RegisterSound("chick/chkatck2.wav"), 1, ATTN_NORM, 0);
-		break;
-
-	case Q2MZ2_TANK_ROCKET_1:
-	case Q2MZ2_TANK_ROCKET_2:
-	case Q2MZ2_TANK_ROCKET_3:
-		dl->color[0] = 1;dl->color[1] = 0.5;dl->color[2] = 0.2;
-		Q2S_StartSound (NULL, ent, CHAN_WEAPON, S_RegisterSound("tank/tnkatck1.wav"), 1, ATTN_NORM, 0);
-		break;
-
-	case Q2MZ2_SUPERTANK_ROCKET_1:
-	case Q2MZ2_SUPERTANK_ROCKET_2:
-	case Q2MZ2_SUPERTANK_ROCKET_3:
-	case Q2MZ2_BOSS2_ROCKET_1:
-	case Q2MZ2_BOSS2_ROCKET_2:
-	case Q2MZ2_BOSS2_ROCKET_3:
-	case Q2MZ2_BOSS2_ROCKET_4:
-	case Q2MZ2_CARRIER_ROCKET_1:
-//	case Q2MZ2_CARRIER_ROCKET_2:
-//	case Q2MZ2_CARRIER_ROCKET_3:
-//	case Q2MZ2_CARRIER_ROCKET_4:
-		dl->color[0] = 1;dl->color[1] = 0.5;dl->color[2] = 0.2;
-		Q2S_StartSound (NULL, ent, CHAN_WEAPON, S_RegisterSound("tank/rocket.wav"), 1, ATTN_NORM, 0);
-		break;
-
-	case Q2MZ2_GUNNER_GRENADE_1:
-	case Q2MZ2_GUNNER_GRENADE_2:
-	case Q2MZ2_GUNNER_GRENADE_3:
-	case Q2MZ2_GUNNER_GRENADE_4:
-		dl->color[0] = 1;dl->color[1] = 0.5;dl->color[2] = 0;
-		Q2S_StartSound (NULL, ent, CHAN_WEAPON, S_RegisterSound("gunner/gunatck3.wav"), 1, ATTN_NORM, 0);
-		break;
-
-	case Q2MZ2_GLADIATOR_RAILGUN_1:
-	// PMM
-	case Q2MZ2_CARRIER_RAILGUN:
-	case Q2MZ2_WIDOW_RAIL:
-	// pmm
-		dl->color[0] = 0.5;dl->color[1] = 0.5;dl->color[2] = 1.0;
-		break;
-
-// --- Xian's shit starts ---
-	case Q2MZ2_MAKRON_BFG:
-		dl->color[0] = 0.5;dl->color[1] = 1 ;dl->color[2] = 0.5;
-		//Q2S_StartSound (NULL, ent, CHAN_WEAPON, S_RegisterSound("makron/bfg_fire.wav"), 1, ATTN_NORM, 0);
-		break;
-
-	case Q2MZ2_MAKRON_BLASTER_1:
-	case Q2MZ2_MAKRON_BLASTER_2:
-	case Q2MZ2_MAKRON_BLASTER_3:
-	case Q2MZ2_MAKRON_BLASTER_4:
-	case Q2MZ2_MAKRON_BLASTER_5:
-	case Q2MZ2_MAKRON_BLASTER_6:
-	case Q2MZ2_MAKRON_BLASTER_7:
-	case Q2MZ2_MAKRON_BLASTER_8:
-	case Q2MZ2_MAKRON_BLASTER_9:
-	case Q2MZ2_MAKRON_BLASTER_10:
-	case Q2MZ2_MAKRON_BLASTER_11:
-	case Q2MZ2_MAKRON_BLASTER_12:
-	case Q2MZ2_MAKRON_BLASTER_13:
-	case Q2MZ2_MAKRON_BLASTER_14:
-	case Q2MZ2_MAKRON_BLASTER_15:
-	case Q2MZ2_MAKRON_BLASTER_16:
-	case Q2MZ2_MAKRON_BLASTER_17:
-		dl->color[0] = 1;dl->color[1] = 1;dl->color[2] = 0;
-		Q2S_StartSound (NULL, ent, CHAN_WEAPON, S_RegisterSound("makron/blaster.wav"), 1, ATTN_NORM, 0);
-		break;
-	
-	case Q2MZ2_JORG_MACHINEGUN_L1:
-	case Q2MZ2_JORG_MACHINEGUN_L2:
-	case Q2MZ2_JORG_MACHINEGUN_L3:
-	case Q2MZ2_JORG_MACHINEGUN_L4:
-	case Q2MZ2_JORG_MACHINEGUN_L5:
-	case Q2MZ2_JORG_MACHINEGUN_L6:
-		dl->color[0] = 1;dl->color[1] = 1;dl->color[2] = 0;
-		CL_ParticleEffect (origin, vec3_origin, 0, 40);
-		CL_SmokeAndFlash(origin);
-		Q2S_StartSound (NULL, ent, CHAN_WEAPON, S_RegisterSound("boss3/xfire.wav"), 1, ATTN_NORM, 0);
-		break;
-
-	case Q2MZ2_JORG_MACHINEGUN_R1:
-	case Q2MZ2_JORG_MACHINEGUN_R2:
-	case Q2MZ2_JORG_MACHINEGUN_R3:
-	case Q2MZ2_JORG_MACHINEGUN_R4:
-	case Q2MZ2_JORG_MACHINEGUN_R5:
-	case Q2MZ2_JORG_MACHINEGUN_R6:
-		dl->color[0] = 1;dl->color[1] = 1;dl->color[2] = 0;
-		CL_ParticleEffect (origin, vec3_origin, 0, 40);
-		CL_SmokeAndFlash(origin);
-		break;
-
-	case Q2MZ2_JORG_BFG_1:
-		dl->color[0] = 0.5;dl->color[1] = 1 ;dl->color[2] = 0.5;
-		break;
-
-	case Q2MZ2_BOSS2_MACHINEGUN_R1:
-	case Q2MZ2_BOSS2_MACHINEGUN_R2:
-	case Q2MZ2_BOSS2_MACHINEGUN_R3:
-	case Q2MZ2_BOSS2_MACHINEGUN_R4:
-	case Q2MZ2_BOSS2_MACHINEGUN_R5:
-	case Q2MZ2_CARRIER_MACHINEGUN_R1:			// PMM
-	case Q2MZ2_CARRIER_MACHINEGUN_R2:			// PMM
-
-		dl->color[0] = 1;dl->color[1] = 1;dl->color[2] = 0;
-
-		CL_ParticleEffect (origin, vec3_origin, 0, 40);
-		CL_SmokeAndFlash(origin);
-		break;
-
-// ======
-// ROGUE
-	case Q2MZ2_STALKER_BLASTER:
-	case Q2MZ2_DAEDALUS_BLASTER:
-	case Q2MZ2_MEDIC_BLASTER_2:
-	case Q2MZ2_WIDOW_BLASTER:
-	case Q2MZ2_WIDOW_BLASTER_SWEEP1:
-	case Q2MZ2_WIDOW_BLASTER_SWEEP2:
-	case Q2MZ2_WIDOW_BLASTER_SWEEP3:
-	case Q2MZ2_WIDOW_BLASTER_SWEEP4:
-	case Q2MZ2_WIDOW_BLASTER_SWEEP5:
-	case Q2MZ2_WIDOW_BLASTER_SWEEP6:
-	case Q2MZ2_WIDOW_BLASTER_SWEEP7:
-	case Q2MZ2_WIDOW_BLASTER_SWEEP8:
-	case Q2MZ2_WIDOW_BLASTER_SWEEP9:
-	case Q2MZ2_WIDOW_BLASTER_100:
-	case Q2MZ2_WIDOW_BLASTER_90:
-	case Q2MZ2_WIDOW_BLASTER_80:
-	case Q2MZ2_WIDOW_BLASTER_70:
-	case Q2MZ2_WIDOW_BLASTER_60:
-	case Q2MZ2_WIDOW_BLASTER_50:
-	case Q2MZ2_WIDOW_BLASTER_40:
-	case Q2MZ2_WIDOW_BLASTER_30:
-	case Q2MZ2_WIDOW_BLASTER_20:
-	case Q2MZ2_WIDOW_BLASTER_10:
-	case Q2MZ2_WIDOW_BLASTER_0:
-	case Q2MZ2_WIDOW_BLASTER_10L:
-	case Q2MZ2_WIDOW_BLASTER_20L:
-	case Q2MZ2_WIDOW_BLASTER_30L:
-	case Q2MZ2_WIDOW_BLASTER_40L:
-	case Q2MZ2_WIDOW_BLASTER_50L:
-	case Q2MZ2_WIDOW_BLASTER_60L:
-	case Q2MZ2_WIDOW_BLASTER_70L:
-	case Q2MZ2_WIDOW_RUN_1:
-	case Q2MZ2_WIDOW_RUN_2:
-	case Q2MZ2_WIDOW_RUN_3:
-	case Q2MZ2_WIDOW_RUN_4:
-	case Q2MZ2_WIDOW_RUN_5:
-	case Q2MZ2_WIDOW_RUN_6:
-	case Q2MZ2_WIDOW_RUN_7:
-	case Q2MZ2_WIDOW_RUN_8:
-		dl->color[0] = 0;dl->color[1] = 1;dl->color[2] = 0;
-		Q2S_StartSound (NULL, ent, CHAN_WEAPON, S_RegisterSound("tank/tnkatck3.wav"), 1, ATTN_NORM, 0);
-		break;
-
-	case Q2MZ2_WIDOW_DISRUPTOR:
-		dl->color[0] = -1;dl->color[1] = -1;dl->color[2] = -1;
-		Q2S_StartSound (NULL, ent, CHAN_WEAPON, S_RegisterSound("weapons/disint2.wav"), 1, ATTN_NORM, 0);
-		break;
-
-	case Q2MZ2_WIDOW_PLASMABEAM:
-	case Q2MZ2_WIDOW2_BEAMER_1:
-	case Q2MZ2_WIDOW2_BEAMER_2:
-	case Q2MZ2_WIDOW2_BEAMER_3:
-	case Q2MZ2_WIDOW2_BEAMER_4:
-	case Q2MZ2_WIDOW2_BEAMER_5:
-	case Q2MZ2_WIDOW2_BEAM_SWEEP_1:
-	case Q2MZ2_WIDOW2_BEAM_SWEEP_2:
-	case Q2MZ2_WIDOW2_BEAM_SWEEP_3:
-	case Q2MZ2_WIDOW2_BEAM_SWEEP_4:
-	case Q2MZ2_WIDOW2_BEAM_SWEEP_5:
-	case Q2MZ2_WIDOW2_BEAM_SWEEP_6:
-	case Q2MZ2_WIDOW2_BEAM_SWEEP_7:
-	case Q2MZ2_WIDOW2_BEAM_SWEEP_8:
-	case Q2MZ2_WIDOW2_BEAM_SWEEP_9:
-	case Q2MZ2_WIDOW2_BEAM_SWEEP_10:
-	case Q2MZ2_WIDOW2_BEAM_SWEEP_11:
-		dl->radius = 300 + (rand()&100);
-		dl->color[0] = 1;dl->color[1] = 1;dl->color[2] = 0;
-		dl->die = cl.time + 200;
-		break;
-// ROGUE
-// ======
-
-// --- Xian's shit ends ---
-
-  //hmm... he must take AGES on the loo.... :p
-
-	}
-	*/
+	CLQ2_RunMuzzleFlash2(ent, flash_number);
 }
 #endif
 
@@ -3886,7 +3526,8 @@ void CLQ2_ParseServerMessage (void)
 	{
 		if (msg_badread)
 		{
-			Host_EndGame ("CL_ParseServerMessage: Bad server message");
+			SV_UnspawnServer();
+			Host_EndGame ("CLQ2_ParseServerMessage: Bad server message");
 			break;
 		}
 

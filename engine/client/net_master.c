@@ -241,6 +241,8 @@ void NET_SendPollPacket(int len, void *data, netadr_t to)
 			lastpollsockIPX=0;
 		if (!pollsocketsIPX[lastpollsockIPX])
 			pollsocketsIPX[lastpollsockIPX] = IPX_OpenSocket(PORT_ANY, true);
+		if (!pollsocketsIPX[lastpollsockIPX])
+			return;	//bother
 		ret = sendto (pollsocketsIPX[lastpollsockIPX], data, len, 0, (struct sockaddr *)&addr, sizeof(addr) );
 	}
 	else
@@ -251,6 +253,8 @@ void NET_SendPollPacket(int len, void *data, netadr_t to)
 			lastpollsockUDP=0;
 		if (!pollsocketsUDP[lastpollsockUDP])
 			pollsocketsUDP[lastpollsockUDP] = UDP_OpenSocket(PORT_ANY, true);
+		if (!pollsocketsUDP[lastpollsockUDP])
+			return;	//bother
 		ret = sendto (pollsocketsUDP[lastpollsockUDP], data, len, 0, (struct sockaddr *)&addr, sizeof(addr) );
 	}
 
@@ -264,9 +268,9 @@ void NET_SendPollPacket(int len, void *data, netadr_t to)
 			return;
 
 		if (qerrno == EADDRNOTAVAIL)
-			Con_DPrintf("NET_SendPacket Warning: %i\n", qerrno);
+			Con_DPrintf("NET_SendPollPacket Warning: %i\n", qerrno);
 		else
-			Con_Printf ("NET_SendPacket ERROR: %i\n", qerrno);
+			Con_Printf ("NET_SendPollPacket ERROR: %i\n", qerrno);
 	}
 }
 
@@ -471,7 +475,7 @@ void SListOptionChanged(serverinfo_t *newserver)
 
 
 //don't try sending to servers we don't support
-void MasterInfo_Request(master_t *mast)
+void MasterInfo_Request(master_t *mast, qboolean evenifwedonthavethefiles)
 {
 	if (!mast)
 		return;
@@ -505,7 +509,7 @@ void MasterInfo_Request(master_t *mast)
 		break;
 #ifdef Q2CLIENT
 	case MT_MASTERQ2:
-		if (COM_FDepthFile("pics/colormap.pcx", true)!=0x7fffffff)
+		if (evenifwedonthavethefiles || COM_FDepthFile("pics/colormap.pcx", true)!=0x7fffffff)	//only query this master if we expect to be able to load it's maps.
 			NET_SendPollPacket (6, "query", mast->adr);
 		break;
 #endif
@@ -562,7 +566,7 @@ void MasterInfo_WriteServers(void)
 	}
 	
 	if (slist_writeserverstxt.value)
-		qws = fopen("server.txt", "wt");
+		qws = fopen("servers.txt", "wt");
 	else
 		qws = NULL;
 	if (qws)
@@ -630,7 +634,7 @@ void MasterInfo_Begin(void)
 
 	for (mast = master; mast; mast=mast->next)
 	{
-		MasterInfo_Request(mast);
+		MasterInfo_Request(mast, false);
 	}
 }
 

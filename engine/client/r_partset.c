@@ -641,7 +641,7 @@ char *particle_set_spikeset =
 "	blend add\n"
 "	areaspread 0\n"
 "	areaspreadvert 0\n"
-"}";
+"}\n";
 
 
 
@@ -894,7 +894,7 @@ char *particle_set_highfps =	//submitted by 'ShadowWalker'
 "	blend add\n"
 "	areaspread 0\n"
 "	areaspreadvert 0\n"
-"}";
+"}\n";
 
 char *particle_set_faithful =
 "r_part t_gib\n"
@@ -1212,5 +1212,5 @@ char *particle_set_faithful =
 "	offsetspread 113\n"
 "	offsetspreadvert 113\n"
 "	spawnmode lavasplash\n"
-"}";
+"}\n";
 

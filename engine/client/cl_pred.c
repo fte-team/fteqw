@@ -38,7 +38,7 @@ extern usercmd_t independantphysics[MAX_SPLITS];
 char *Get_Q2ConfigString(int i);
 
 #ifdef Q2BSPS
-void Q2_Pmove (q2pmove_t *pmove);
+void VARGS Q2_Pmove (q2pmove_t *pmove);
 #define	Q2PMF_DUCKED			1
 #define	Q2PMF_JUMP_HELD		2
 #define	Q2PMF_ON_GROUND		4
@@ -176,7 +176,7 @@ void CLQ2_ClipMoveToEntities ( vec3_t start, vec3_t mins, vec3_t maxs, vec3_t en
 CL_PMTrace
 ================
 */
-q2trace_t	CLQ2_PMTrace (vec3_t start, vec3_t mins, vec3_t maxs, vec3_t end)
+q2trace_t	VARGS CLQ2_PMTrace (vec3_t start, vec3_t mins, vec3_t maxs, vec3_t end)
 {
 	q2trace_t	q2t;
 	trace_t		t;
@@ -201,7 +201,7 @@ q2trace_t	CLQ2_PMTrace (vec3_t start, vec3_t mins, vec3_t maxs, vec3_t end)
 	return q2t;
 }
 
-int		CLQ2_PMpointcontents (vec3_t point)
+int		VARGS CLQ2_PMpointcontents (vec3_t point)
 {
 	int			i;
 	entity_state_t	*ent;
@@ -318,7 +318,7 @@ void CLQ2_PredictMovement (void)	//q2 doesn't support split clients.
 	if (step > 63 && step < 160 && (pm.s.pm_flags & Q2PMF_ON_GROUND) )
 	{
 		cl.predicted_step = step * 0.125;
-		cl.predicted_step_time = realtime - host_frametime * 500;
+		cl.predicted_step_time = realtime - host_frametime * 0.5;
 	}
 
 	cl.onground[0] = !!(pm.s.pm_flags & Q2PMF_ON_GROUND);

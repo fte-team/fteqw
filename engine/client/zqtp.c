@@ -2603,53 +2603,6 @@ void TP_Init (void)
 	TP_CVARS;
 #undef TP_CVAR
 
-	Cvar_Register (&cl_parseFunChars,	TEAMPLAYVARS);
-	Cvar_Register (&cl_parseSay,		TEAMPLAYVARS);
-	Cvar_Register (&cl_triggers,		TEAMPLAYVARS);
-	Cvar_Register (&tp_forceTriggers,	TEAMPLAYVARS);
-	Cvar_Register (&tp_loadlocs,		TEAMPLAYVARS);
-	Cvar_Register (&cl_teamskin,		TEAMPLAYVARS);
-	Cvar_Register (&cl_enemyskin,		TEAMPLAYVARS);
-	Cvar_Register (&tp_soundtrigger,	TEAMPLAYVARS);
-	Cvar_Register (&tp_name_axe,		TEAMPLAYVARS);
-	Cvar_Register (&tp_name_sg,			TEAMPLAYVARS);
-	Cvar_Register (&tp_name_ssg,		TEAMPLAYVARS);
-	Cvar_Register (&tp_name_ng,			TEAMPLAYVARS);
-	Cvar_Register (&tp_name_sng,		TEAMPLAYVARS);
-	Cvar_Register (&tp_name_gl,			TEAMPLAYVARS);
-	Cvar_Register (&tp_name_rl,			TEAMPLAYVARS);
-	Cvar_Register (&tp_name_lg,			TEAMPLAYVARS);
-	Cvar_Register (&tp_name_ra,			TEAMPLAYVARS);
-	Cvar_Register (&tp_name_ya,			TEAMPLAYVARS);
-	Cvar_Register (&tp_name_ga,			TEAMPLAYVARS);
-	Cvar_Register (&tp_name_quad,		TEAMPLAYVARS);
-	Cvar_Register (&tp_name_pent,		TEAMPLAYVARS);
-	Cvar_Register (&tp_name_ring,		TEAMPLAYVARS);
-	Cvar_Register (&tp_name_suit,		TEAMPLAYVARS);
-	Cvar_Register (&tp_name_shells,		TEAMPLAYVARS);
-	Cvar_Register (&tp_name_nails,		TEAMPLAYVARS);
-	Cvar_Register (&tp_name_rockets,	TEAMPLAYVARS);
-	Cvar_Register (&tp_name_cells,		TEAMPLAYVARS);
-	Cvar_Register (&tp_name_mh,			TEAMPLAYVARS);
-	Cvar_Register (&tp_name_health,		TEAMPLAYVARS);
-	Cvar_Register (&tp_name_backpack,	TEAMPLAYVARS);
-	Cvar_Register (&tp_name_flag,		TEAMPLAYVARS);
-	Cvar_Register (&tp_name_nothing,	TEAMPLAYVARS);
-	Cvar_Register (&tp_name_someplace,	TEAMPLAYVARS);
-	Cvar_Register (&tp_name_at,			TEAMPLAYVARS);
-	Cvar_Register (&tp_need_ra,			TEAMPLAYVARS);
-	Cvar_Register (&tp_need_ya,			TEAMPLAYVARS);
-	Cvar_Register (&tp_need_ga,			TEAMPLAYVARS);
-	Cvar_Register (&tp_need_health,		TEAMPLAYVARS);
-	Cvar_Register (&tp_need_weapon,		TEAMPLAYVARS);
-	Cvar_Register (&tp_need_rl,			TEAMPLAYVARS);
-	Cvar_Register (&tp_need_rockets,	TEAMPLAYVARS);
-	Cvar_Register (&tp_need_cells,		TEAMPLAYVARS);
-	Cvar_Register (&tp_need_nails,		TEAMPLAYVARS);
-	Cvar_Register (&tp_need_shells,		TEAMPLAYVARS);
-
-	Cvar_Register (&cl_fakename,		TEAMPLAYVARS);
-
 	Cmd_AddCommand ("loadloc", TP_LoadLocFile_f);
 	Cmd_AddCommand ("filter", TP_MsgFilter_f);
 	Cmd_AddCommand ("msg_trigger", TP_MsgTrigger_f);

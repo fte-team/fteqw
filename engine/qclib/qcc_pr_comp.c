@@ -6339,11 +6339,11 @@ void QCC_PR_ParseDefs (char *classname)
 			{
 				if (pr_token_type != tt_immediate && pr_immediate_type->type != ev_float)
 				{
-					def = QCC_PR_GetDef(NULL, name, NULL, false, 0);
+					def = QCC_PR_GetDef(NULL, QCC_PR_ParseName(), NULL, false, 0);
 					if (def)
 					{
 						if (!def->constant)
-							QCC_PR_ParseError(ERR_NOTANUMBER, "enum - %s is not a constant", name);
+							QCC_PR_ParseError(ERR_NOTANUMBER, "enum - %s is not a constant", def->name);
 						else
 							v = G_FLOAT(def->ofs);
 					}
@@ -6355,6 +6355,7 @@ void QCC_PR_ParseDefs (char *classname)
 				QCC_PR_Lex();
 			}
 			def = QCC_PR_GetDef(type_float, name, pr_scope, true, 1);
+			def->constant = true;
 			G_FLOAT(def->ofs) = v;
 			v++;
 
@@ -6380,11 +6381,11 @@ void QCC_PR_ParseDefs (char *classname)
 			{
 				if (pr_token_type != tt_immediate && pr_immediate_type->type != ev_float)
 				{
-					def = QCC_PR_GetDef(NULL, name, NULL, false, 0);
+					def = QCC_PR_GetDef(NULL, QCC_PR_ParseName(), NULL, false, 0);
 					if (def)
 					{
 						if (!def->constant)
-							QCC_PR_ParseError(ERR_NOTANUMBER, "enumflags - %s is not a constant", name);
+							QCC_PR_ParseError(ERR_NOTANUMBER, "enumflags - %s is not a constant", def->name);
 						else
 							v = G_FLOAT(def->ofs);
 					}
@@ -6412,6 +6413,7 @@ void QCC_PR_ParseDefs (char *classname)
 				QCC_PR_Lex();
 			}
 			def = QCC_PR_GetDef(type_float, name, pr_scope, true, 1);
+			def->constant = true;
 			G_FLOAT(def->ofs) = v;
 			v*=2;
 

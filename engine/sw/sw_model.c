@@ -104,10 +104,12 @@ int SWMod_LeafForPoint (vec3_t p, model_t *model)
 	float		d;
 	mplane_t	*plane;
 
+#ifdef Q2BSPS
 	if (model->fromgame == fg_quake2 || model->fromgame == fg_quake3)
 	{
 		return CM_PointLeafnum(p);
 	}
+#endif
 	
 	if (!model || !model->nodes)
 		Sys_Error ("Mod_PointInLeaf: bad model");
@@ -294,7 +296,7 @@ model_t *SWMod_LoadModel (model_t *mod, qboolean crash)
 		else
 			return mod;		// not cached at all
 	}
-
+#ifdef Q2BSPS
 	if (!*mod->name)
 	{
 		loadmodel = mod;
@@ -303,6 +305,7 @@ model_t *SWMod_LoadModel (model_t *mod, qboolean crash)
 		R_DefaultTrail(mod);
 		return mod;
 	}
+#endif
 
 //
 // because the world is so huge, load it one piece at a time
@@ -310,7 +313,7 @@ model_t *SWMod_LoadModel (model_t *mod, qboolean crash)
 
 	//look for a replacement
 	ext = COM_FileExtension(mod->name);
-#ifndef SERVERONLY
+#ifndef CLIENTONLY
 	if (!isDedicated && (!Q_strcasecmp(ext, "mdl") || !Q_strcasecmp(ext, "bsp")))
 	{
 		char mdlbase[MAX_QPATH];
@@ -386,9 +389,11 @@ model_t *SWMod_LoadModel (model_t *mod, qboolean crash)
 		SWMod_LoadSprite2Model (mod, buf);
 		break;
 #endif
+#ifdef Q2BSPS
 	case IDBSPHEADER:	//looks like id switched to have proper ids
 		Mod_LoadQ2BrushModel (mod, buf);
 		break;
+#endif
 
 	case BSPVERSIONHL:
 	case BSPVERSION:	//hmm.
@@ -1855,9 +1860,11 @@ float RadiusFromBounds (vec3_t mins, vec3_t maxs);
 
 
 void Q1BSP_MarkLights (dlight_t *light, int bit, mnode_t *node);
+#ifndef CLIENTONLY
 void Q1BSP_FatPVS (vec3_t org, qboolean add);
 qboolean Q1BSP_EdictInFatPVS(edict_t *ent);
 void Q1BSP_FindTouchedLeafs(edict_t *ent);
+#endif
 void SWQ1BSP_LightPointValues(vec3_t point, vec3_t res_diffuse, vec3_t res_ambient, vec3_t res_dir);
 
 void SWR_Q1BSP_StainNode (mnode_t *node, float *parms);
@@ -1910,8 +1917,9 @@ void SWMod_LoadBrushModel (model_t *mod, void *buffer)
 	}
 	
 // load into heap
-#ifndef SERVERONLY
+#ifndef CLIENTONLY
 	if (!isDedicated)
+#endif
 	{
 		SWMod_LoadVertexes (&header->lumps[LUMP_VERTEXES]);
 		SWMod_LoadEdges (&header->lumps[LUMP_EDGES]);
@@ -1919,20 +1927,19 @@ void SWMod_LoadBrushModel (model_t *mod, void *buffer)
 		SWMod_LoadLighting (&header->lumps[LUMP_LIGHTING]);	//DMW, made lighting load first. (so we know if lighting is rgb or luminance)
 		SWMod_LoadTextures (&header->lumps[LUMP_TEXTURES]);
 	}
-#endif
 
 	SWMod_LoadSubmodels (&header->lumps[LUMP_MODELS]);	//needs to come before we set the headnodes[3]
 	SWMod_LoadCrouchHull ();
 	SWMod_LoadPlanes (&header->lumps[LUMP_PLANES]);
 
-#ifndef SERVERONLY
+#ifndef CLIENTONLY
 	if (!isDedicated)
+#endif
 	{
 		SWMod_LoadTexinfo (&header->lumps[LUMP_TEXINFO]);
 		SWMod_LoadFaces (&header->lumps[LUMP_FACES]);
 		SWMod_LoadMarksurfaces (&header->lumps[LUMP_MARKSURFACES]);
 	}
-#endif
 
 	SWMod_LoadVisibility (&header->lumps[LUMP_VISIBILITY]);
 	SWMod_LoadLeafs (&header->lumps[LUMP_LEAFS]);
@@ -1946,9 +1953,11 @@ void SWMod_LoadBrushModel (model_t *mod, void *buffer)
 		crouchhullfile=NULL;
 	}
 
+#ifndef CLIENTONLY
 	mod->funcs.FatPVS				= Q1BSP_FatPVS;
 	mod->funcs.EdictInFatPVS		= Q1BSP_EdictInFatPVS;
 	mod->funcs.FindTouchedLeafs_Q1	= Q1BSP_FindTouchedLeafs;
+#endif
 	mod->funcs.LightPointValues		= SWQ1BSP_LightPointValues;
 	mod->funcs.StainNode			= SWR_Q1BSP_StainNode;
 	mod->funcs.MarkLights			= Q1BSP_MarkLights;

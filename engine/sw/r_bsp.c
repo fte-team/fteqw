@@ -659,6 +659,7 @@ void SWR_RecursiveWorldNode (mnode_t *node, int clipflags)
 	}
 }
 
+#ifdef Q2BSPS
 qbyte			areabits[MAX_Q2MAP_AREAS/8];
 void SWR_RecursiveQ2WorldNode (mnode_t *node, int clipflags)
 {
@@ -853,7 +854,7 @@ void SWR_RecursiveQ2WorldNode (mnode_t *node, int clipflags)
 		SWR_RecursiveQ2WorldNode (node->children[!side], clipflags);
 	}
 }
-
+#endif
 
 /*
 ================
@@ -873,14 +874,17 @@ void R_RenderWorld (void)
 	clmodel = currententity->model;
 	r_pcurrentvertbase = clmodel->vertexes;
 
+#ifdef Q2BSPS
 	if (clmodel->fromgame == fg_quake2)
 	{
 		int leafnum;
 		int clientarea;
 		int CM_WriteAreaBits (qbyte *buffer, int area);
+#ifdef Q2CLIENT
 		if (cls.q2server)
 			memcpy(areabits, cl.q2frame.areabits, sizeof(areabits));
 		else
+#endif
 		{
 			leafnum = CM_PointLeafnum (r_refdef.vieworg);
 			clientarea = CM_LeafArea (leafnum);
@@ -890,6 +894,7 @@ void R_RenderWorld (void)
 		SWR_RecursiveQ2WorldNode (clmodel->nodes, 15);
 	}
 	else
+#endif
 		SWR_RecursiveWorldNode (clmodel->nodes, 15);
 
 // if the driver wants the polygons back to front, play the visible ones back

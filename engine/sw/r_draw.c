@@ -164,9 +164,10 @@ qboolean SWR_CheckSky (void)
 R_LoadSkyBox
 ================
 */
-void *Mod_LoadWall(char *name);
 void R_LoadSkyBox (void)
 {
+#ifdef Q2BSPS
+	void *Mod_LoadWall(char *name);
 	int i;
 	char	pathname[MAX_QPATH];
 	for (i=0 ; i<6 ; i++)
@@ -179,6 +180,7 @@ void R_LoadSkyBox (void)
 			r_skytexinfo[i].texture = Mod_LoadWall (pathname);	//q2 fall back
 		}
 	}
+#endif
 }
 /*
 ================

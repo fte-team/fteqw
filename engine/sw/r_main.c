@@ -553,7 +553,7 @@ void SWR_MarkLeaves (void)
 	mnode_t	*node;
 	int		i;
 
-	
+#ifdef Q2BSPS
 	if (cl.worldmodel->fromgame == fg_quake2)
 	{
 		qbyte	fatvis[MAX_MAP_LEAFS/8];
@@ -610,6 +610,7 @@ void SWR_MarkLeaves (void)
 		}
 		return;
 	}
+#endif
 
 	if (r_oldviewleaf == r_viewleaf)
 		return;
@@ -777,8 +778,10 @@ void SWR_DrawViewModel (void)
 		return;
 #endif
 
+#ifdef Q2CLIENT
 	if (cls.q2server)
 		return;
+#endif
 	
 	if (!r_drawviewmodel.value || r_fov_greater_than_90 || !Cam_DrawViewModel(pnum))
 		return;
@@ -1338,8 +1341,10 @@ void SWR_RenderView_ (void)
 	r_warpbuffer = warpbuffer;
 	r_dosirds = r_sirds.value;
 
+#ifdef FISH
 	if (ffov.value && cls.allow_fish)	//THAT's HORRIBLE!
 		r_dosirds = false;
+#endif
 
 	if (r_timegraph.value || r_speeds.value || r_dspeeds.value)
 		r_time1 = Sys_DoubleTime ();

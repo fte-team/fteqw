@@ -477,7 +477,9 @@ void SWDraw_Init (void)
 		r_rectdesc.rowbytes = draw_backtile->width;
 	}
 
+#ifdef PLUGINS
 	Plug_DrawReloadImages();
+#endif
 }
 
 void SWDraw_Shutdown(void)
@@ -1989,12 +1991,10 @@ void SWDraw_ConsoleBackground (int lines)
 	memcpy(conback->data + 320*186, saveback, 320*8);
 }
 
-#ifdef TEXTEDITOR
 void SWDraw_EditorBackground (int lines)
 {
 	SWDraw_ConsoleBackground (lines);
 }
-#endif
 
 
 /*

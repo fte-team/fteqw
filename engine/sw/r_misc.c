@@ -500,6 +500,7 @@ r_refdef.viewangles[2]=    0;
 		r_oldviewleaf = r_viewleaf = &fakeleaf;	//so we can use quake1 rendering routines for q2 bsps.
 		r_viewleaf->contents = Q1CONTENTS_EMPTY;
 	}
+#ifdef Q2BSPS
 	else if (cl.worldmodel->fromgame == fg_quake2)
 	{
 		mleaf_t	*leaf;
@@ -536,6 +537,7 @@ r_refdef.viewangles[2]=    0;
 				r_viewcluster2 = leaf->cluster;
 		}
 	}
+#endif
 	else
 	{
 // current viewleaf

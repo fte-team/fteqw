@@ -160,12 +160,16 @@ void SWSCR_UpdateScreen (void)
 	if (scr_drawloading)
 	{
 		SCR_DrawLoading ();
+#ifdef PLUGINS
 		Plug_SBar ();
+#endif
 		SCR_ShowPics_Draw();
 	}
 	else if (scr_drawdialog)
 	{
+#ifdef PLUGINS
 		Plug_SBar ();
+#endif
 		SCR_ShowPics_Draw();
 		Draw_FadeScreen ();
 		SCR_DrawNotifyString ();
@@ -190,7 +194,10 @@ void SWSCR_UpdateScreen (void)
 		SCR_DrawPause ();
 		SCR_DrawFPS ();
 		SCR_DrawUPS ();
+		SCR_DrawClock();
+#ifdef PLUGINS
 		Plug_SBar ();
+#endif
 		SCR_ShowPics_Draw();
 		SCR_CheckDrawCenterString ();
 #ifdef TEXTEDITOR

@@ -1151,9 +1151,13 @@ qboolean PR_ConsoleCmd(void)
 	extern redirect_t sv_redirected;
 #ifdef Q2SERVER
 	if (ge)
-	{
-		ge->ServerCommand();
-		return true;	//the dll will convert in to chat.
+	{	//server command
+		if (!strcmp(Cmd_Argv(0), "sv"))
+		{
+			ge->ServerCommand();
+			return true;
+		}
+		return false;
 	}
 #endif
 

@@ -430,7 +430,7 @@ void Cam_FinishMove(int pnum, usercmd_t *cmd)
 	if (cls.state != ca_active)
 		return;
 
-	if (!cl.spectator) // only in spectator mode
+	if (!cl.spectator && cls.demoplayback != DPB_MVD) // only in spectator mode
 		return;
 
 	if (cmd->buttons & BUTTON_ATTACK) 

@@ -78,11 +78,18 @@ void GLSCR_UpdateScreen (void)
 		old2dscale = gl_2dscale.value;
 		vid.width = vid.conwidth = (glwidth - 320) * gl_2dscale.value + 320;
 		vid.height = vid.conheight = (glheight - 240) * gl_2dscale.value + 240;
+
 //pretect against too small resolutions (possibly minimising task switches).
 		if (vid.width<320)
+		{
 			vid.width=320;
+			vid.conwidth=320;
+		}
 		if (vid.height<200)
+		{
 			vid.height=200;
+			vid.conheight=200;
+		}
 
 		vid.recalc_refdef = true;
 		Con_CheckResize();

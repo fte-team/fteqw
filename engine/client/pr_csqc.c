@@ -11,6 +11,7 @@ progfuncs_t *csqcprogs;
 unsigned int csqcchecksum;
 
 cvar_t	pr_csmaxedicts = {"pr_csmaxedicts", "3072"};
+cvar_t	cl_csqcdebug = {"cl_csqcdebug", "0"};	//prints entity numbers which arrive (so I can tell people not to apply it to players...)
 
 #define csqcglobals	\
 	globalfunction(init_function,		"CSQC_Init");	\
@@ -1368,6 +1369,7 @@ qboolean CSQC_Init (unsigned int checksum)
 void CSQC_RegisterCvarsAndThings(void)
 {
 	Cvar_Register(&pr_csmaxedicts, "csqc");
+	Cvar_Register(&cl_csqcdebug, "csqc");
 }
 
 qboolean CSQC_DrawView(void)
@@ -1456,6 +1458,8 @@ void CSQC_ParseEntities(void)
 
 			if (entnum >= MAX_EDICTS)
 				Host_EndGame("CSQC recieved too many edicts!\n");
+			if (cl_csqcdebug.value)
+				Con_Printf("Remove %i\n", entnum);
 
 			ent = csqcent[entnum];
 
@@ -1484,9 +1488,16 @@ void CSQC_ParseEntities(void)
 				ent = (csqcedict_t*)ED_Alloc(csqcprogs);
 				csqcent[entnum] = ent;
 				G_FLOAT(OFS_PARM0) = true;
+
+				if (cl_csqcdebug.value)
+					Con_Printf("Add %i\n", entnum);
 			}
 			else
+			{
 				G_FLOAT(OFS_PARM0) = false;
+				if (cl_csqcdebug.value)
+					Con_Printf("Update %i\n", entnum);
+			}
 
 			*csqcg.self = EDICT_TO_PROG(csqcprogs, (void*)ent);
 			PR_ExecuteProgram(csqcprogs, csqcg.ent_update);

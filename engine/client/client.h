@@ -812,3 +812,9 @@ qboolean CIN_DrawCinematic (void);
 qboolean CIN_RunCinematic (void);
 
 void MVD_Interpolate(void);
+
+void TP_Init(void);
+void TP_CheckPickupSound(char *s, vec3_t org);
+
+void Stats_NewMap(void);
+void Stats_ParsePrintLine(char *line);

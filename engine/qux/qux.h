@@ -15,7 +15,7 @@
 #endif
 
 #include "Xproto.h"
-#include "X.h"
+#include "x.h"
 
 #include "bigreqstr.h"
 

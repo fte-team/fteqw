@@ -172,10 +172,12 @@ void MenuDrawItems(int xpos, int ypos, menuoption_t *option, menu_t *menu)
 			if (option->slider.var)
 			{
 #define SLIDER_RANGE 10
-				float range = (option->slider.var->value - option->slider.min)/(option->slider.max-option->slider.min);
+				float range;
 				int	i;
 				int x = xpos+option->common.posx;
 				int y = ypos+option->common.posy;
+
+				range = (option->slider.current - option->slider.min)/(option->slider.max-option->slider.min);
 
 				if (option->slider.text)
 				{
@@ -206,6 +208,8 @@ void MenuDrawItems(int xpos, int ypos, menuoption_t *option, menu_t *menu)
 					on = option->check.func(option, CHK_CHECKED);
 				else if (!option->check.var)
 					on = option->check.value;
+				else if (option->check.var->latched_string)
+					on = atof(option->check.var->latched_string);
 				else
 					on = option->check.var->value;
 
@@ -715,7 +719,7 @@ void MC_Slider_Key(menuslider_t *option, int key)
 			range = 0;
 		option->current = range = (range * (option->max-option->min)) + option->min;
 		if (option->var)
-			Cvar_SetValue(option->var, range);		
+			Cvar_SetValue(option->var, range);
 	}
 	else if (key == K_RIGHTARROW)
 	{
@@ -724,7 +728,7 @@ void MC_Slider_Key(menuslider_t *option, int key)
 			range = 1;
 		option->current = range = (range * (option->max-option->min)) + option->min;
 		if (option->var)
-			Cvar_SetValue(option->var, range);		
+			Cvar_SetValue(option->var, range);
 	}
 	else if (key == K_ENTER || key == K_MOUSE1)
 	{
@@ -754,7 +758,10 @@ void MC_CheckBox_Key(menucheck_t *option, int key)
 		option->value = !option->value;
 	else
 	{
-		Cvar_SetValue(option->var, !option->var->value);
+		if (option->var->latched_string)
+			Cvar_SetValue(option->var, !atof(option->var->latched_string));
+		else
+			Cvar_SetValue(option->var, !option->var->value);
 		S_LocalSound ("misc/menu2.wav");
 	}
 }

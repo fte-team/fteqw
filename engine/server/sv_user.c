@@ -957,10 +957,6 @@ void SV_PreSpawn_f (void)
 					MSG_WriteByte(&host_client->netchan.message, ctent->dlighttime);
 				}
 			}
-			else
-			{
-
-			}
 		}
 	}
 	else 
@@ -4294,9 +4290,11 @@ void SVNQ_ReadClientMove (usercmd_t *move)
 
 // read current angles	
 	for (i=0 ; i<3 ; i++)
-		move->angles[i] = MSG_ReadAngle ();
+	{
+		host_client->edict->v.v_angle[i] = MSG_ReadAngle ();
 
-	VectorCopy (move->angles, host_client->edict->v.v_angle);
+		move->angles[i] = (host_client->edict->v.v_angle[i] * 256*256)/360;
+	}
 		
 // read movement
 	move->forwardmove = MSG_ReadShort ();
@@ -4312,6 +4310,24 @@ void SVNQ_ReadClientMove (usercmd_t *move)
 	i = MSG_ReadByte ();
 	if (i)
 		move->impulse = i;
+
+
+
+
+	if (i && SV_FiltureImpulse(i, host_client->trustlevel))
+		host_client->edict->v.impulse = i;
+
+	host_client->edict->v.button0 = bits & 1;
+	host_client->edict->v.button2 = (bits >> 1) & 1;
+	if (pr_allowbutton1.value)	//many mods use button1 - it's just a wasted field to many mods. So only work it if the cvar allows.
+		host_client->edict->v.button1 = ((bits >> 2) & 1);
+// DP_INPUTBUTTONS
+	host_client->edict->v.button3 = ((bits >> 2) & 1);
+	host_client->edict->v.button4 = ((bits >> 3) & 1);
+	host_client->edict->v.button5 = ((bits >> 4) & 1);
+	host_client->edict->v.button6 = ((bits >> 5) & 1);
+	host_client->edict->v.button7 = ((bits >> 6) & 1);
+	host_client->edict->v.button8 = ((bits >> 7) & 1);
 }
 
 void SVNQ_ExecuteClientMessage (client_t *cl)

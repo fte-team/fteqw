@@ -242,11 +242,11 @@ qboolean Draw_RealPicFromWad (qpic_t	*out, char *name)
 	}
 
 	//standard names substitution
-	texnum = Mod_LoadReplacementTexture(name, false, true);
+	texnum = Mod_LoadReplacementTexture(name, false, true, false);
 	if (!in && !texnum)	//try a q2 texture
 	{
 		sprintf(name2, "pics/%s", name);
-		texnum = Mod_LoadHiResTexture(name2, false, true, true);
+		texnum = Mod_LoadHiResTexture(name2, false, true, false);
 	}
 	
 	if (texnum)
@@ -361,8 +361,8 @@ qpic_t	*GLDraw_SafeCachePic (char *path)
 			if ((mem = ReadPCXFile((qbyte *)dat, com_filesize, &pic->pic.width, &pic->pic.height)))
 			{
 				gl = (glpic_t *)pic->pic.data;
-				if (!(gl->texnum = Mod_LoadReplacementTexture(alternatename, false, true)))
-					gl->texnum = GL_LoadTexture32(path, pic->pic.width, pic->pic.height, (unsigned *)dat, false, true);
+				if (!(gl->texnum = Mod_LoadReplacementTexture(alternatename, false, true, false)))
+					gl->texnum = GL_LoadTexture32(path, pic->pic.width, pic->pic.height, (unsigned *)dat, false, false);
 				gl->sl = 0;
 				gl->sh = 1;
 				gl->tl = 0;
@@ -401,7 +401,7 @@ qpic_t	*GLDraw_SafeCachePic (char *path)
 			if (mem)
 			{
 				gl = (glpic_t *)pic->pic.data;
-				if (!(gl->texnum = Mod_LoadReplacementTexture(alternatename, false, true)))
+				if (!(gl->texnum = Mod_LoadReplacementTexture(alternatename, false, true, false)))
 					gl->texnum = GL_LoadTexture32(path, pic->pic.width, pic->pic.height, (unsigned *)dat, false, true);
 				gl->sl = 0;
 				gl->sh = 1;
@@ -429,8 +429,8 @@ qpic_t	*GLDraw_SafeCachePic (char *path)
 			if ((mem = ReadJPEGFile((qbyte *)dat, com_filesize, &pic->pic.width, &pic->pic.height)))
 			{
 				gl = (glpic_t *)pic->pic.data;
-				if (!(gl->texnum = Mod_LoadReplacementTexture(alternatename, false, true)))
-					gl->texnum = GL_LoadTexture32(path, pic->pic.width, pic->pic.height, (unsigned *)mem, false, true);
+				if (!(gl->texnum = Mod_LoadReplacementTexture(alternatename, false, true, false)))
+					gl->texnum = GL_LoadTexture32(path, pic->pic.width, pic->pic.height, (unsigned *)mem, false, false);
 				gl->sl = 0;
 				gl->sh = 1;
 				gl->tl = 0;
@@ -510,7 +510,7 @@ qpic_t	*GLDraw_SafeCachePic (char *path)
 	pic->pic.height = dat->height;
 
 	gl = (glpic_t *)pic->pic.data;
-	if (!(gl->texnum = Mod_LoadReplacementTexture(path, false, true)))
+	if (!(gl->texnum = Mod_LoadReplacementTexture(path, false, true, false)))
 		gl->texnum = GL_LoadPicTexture (dat);
 	gl->sl = 0;
 	gl->sh = 1;
@@ -701,11 +701,11 @@ TRACE(("dbg: GLDraw_ReInit: Allocating upload buffers\n"));
 
 	// now turn them into textures
 	TRACE(("dbg: GLDraw_ReInit: looking for conchars\n"));
-	if (!(char_texture=Mod_LoadReplacementTexture("gfx/conchars.lmp", false, true))) //no high res
+	if (!(char_texture=Mod_LoadReplacementTexture("gfx/conchars.lmp", false, true, false))) //no high res
 	{
 		if (!draw_chars)	//or low res.
 		{
-			if (!(char_texture=Mod_LoadHiResTexture("pics/conchars.pcx", false, true, true)))	//try low res q2 path
+			if (!(char_texture=Mod_LoadHiResTexture("pics/conchars.pcx", false, true, false)))	//try low res q2 path
 			{
 				char *tempchars = COM_LoadMallocFile("gfx/menu/conchars.lmp");
 				char *in, *out;
@@ -837,7 +837,7 @@ TRACE(("dbg: GLDraw_ReInit: Allocating upload buffers\n"));
 
 
 	TRACE(("dbg: GLDraw_ReInit: gfx/conchars2.lmp\n"));
-	if (!(char_tex2=Mod_LoadReplacementTexture("gfx/conchars2.lmp", false, true)))
+	if (!(char_tex2=Mod_LoadReplacementTexture("gfx/conchars2.lmp", false, true, false)))
 	{
 		if (!draw_chars)
 			char_tex2 = char_texture;
@@ -919,12 +919,12 @@ TRACE(("dbg: GLDraw_ReInit: Allocating upload buffers\n"));
 	glTexParameterf(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
 
 	gl = (glpic_t *)conback->data;
-	if (!(gl->texnum=Mod_LoadReplacementTexture("gfx/conback.lmp", false, true)))
+	if (!(gl->texnum=Mod_LoadReplacementTexture("gfx/conback.lmp", false, true, false)))
 	{
 		if (!ncdata)	//no fallback
 		{
-			if (!(gl->texnum=Mod_LoadHiResTexture("pics/conback.pcx", false, true, true)))
-				if (!(gl->texnum=Mod_LoadReplacementTexture("gfx/menu/conback.lmp", false, true)))
+			if (!(gl->texnum=Mod_LoadHiResTexture("pics/conback.pcx", false, true, false)))
+				if (!(gl->texnum=Mod_LoadReplacementTexture("gfx/menu/conback.lmp", false, true, false)))
 					Sys_Error ("Couldn't load gfx/conback.lmp");	//that's messed it up, hasn't it?...
 		}
 		else
@@ -973,13 +973,16 @@ TRACE(("dbg: GLDraw_ReInit: Allocating upload buffers\n"));
 	if (!draw_backtile)
 		draw_backtile = Draw_SafeCachePic ("gfx/menu/backtile.lmp");
 
-	detailtexture = Mod_LoadReplacementTexture("textures/detail", true, false);
+	detailtexture = Mod_LoadReplacementTexture("textures/detail", true, false, false);
 
 	inited15to8 = false;
 
+	glClearColor (1,0,0,0);
 
 	TRACE(("dbg: GLDraw_ReInit: PPL_LoadSpecularFragmentProgram\n"));
 	PPL_LoadSpecularFragmentProgram();
+
+	Plug_DrawReloadImages();
 }
 
 void GLDraw_Init (void)

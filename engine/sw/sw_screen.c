@@ -160,12 +160,12 @@ void SWSCR_UpdateScreen (void)
 	if (scr_drawloading)
 	{
 		SCR_DrawLoading ();
-		Sbar_Draw ();
+		Plug_SBar ();
 		SCR_ShowPics_Draw();
 	}
 	else if (scr_drawdialog)
 	{
-		Sbar_Draw ();
+		Plug_SBar ();
 		SCR_ShowPics_Draw();
 		Draw_FadeScreen ();
 		SCR_DrawNotifyString ();
@@ -189,7 +189,7 @@ void SWSCR_UpdateScreen (void)
 		SCR_DrawTurtle ();
 		SCR_DrawPause ();
 		SCR_DrawFPS ();
-		Sbar_Draw ();
+		Plug_SBar ();
 		SCR_ShowPics_Draw();
 		SCR_CheckDrawCenterString ();
 #ifdef TEXTEDITOR

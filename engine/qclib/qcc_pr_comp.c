@@ -1157,7 +1157,7 @@ static const char *QCC_VarAtOffset(unsigned int ofs, unsigned int size)
 QCC_def_t *QCC_PR_Statement ( QCC_opcode_t *op, QCC_def_t *var_a, QCC_def_t *var_b, QCC_dstatement_t **outstatement)
 {
 	QCC_dstatement_t	*statement;
-	QCC_def_t			*var_c=NULL, *temp;
+	QCC_def_t			*var_c=NULL, *temp=NULL;
 
 	if (var_a)
 	{
@@ -2586,10 +2586,16 @@ QCC_def_t *QCC_PR_ParseFunctionCall (QCC_def_t *func)	//warning, the func could 
 			}
 		}
 		else
+		{
 			oself = NULL;
+			d = NULL;
+		}
 	}
 	else
+	{
 		oself = NULL;
+		d = NULL;
+	}
 
 	if (arg>MAX_PARMS)
 		QCC_FreeTemp(QCC_PR_Statement (&pr_opcodes[callconvention-1+MAX_PARMS], func, 0, (QCC_dstatement_t **)&st));
@@ -2693,7 +2699,14 @@ QCC_def_t *QCC_MakeFloatDef(float value)
 {
 	QCC_def_t	*cn;
 
-	cn = Hash_GetKey(&floatconstdefstable, *(int*)&value);
+	union {
+		float f;
+		int i;
+	} fi;
+
+	fi.f = value;
+
+	cn = Hash_GetKey(&floatconstdefstable, fi.i);
 	if (cn)
 		return cn;
 
@@ -2713,7 +2726,7 @@ QCC_def_t *QCC_MakeFloatDef(float value)
 // copy the immediate to the global area
 	cn->ofs = QCC_GetFreeOffsetSpace (type_size[type_integer->type]);
 	
-	Hash_AddKey(&floatconstdefstable, *(int *)&value, cn);
+	Hash_AddKey(&floatconstdefstable, fi.i, cn);
 	
 	G_FLOAT(cn->ofs) = value;	
 		
@@ -3080,7 +3093,10 @@ reloop:
 				else if (ao->type->type == ev_float)
 					nd = QCC_PR_Statement(&pr_opcodes[OP_MUL_F], nd, QCC_MakeFloatDef((float)d->type->size), NULL);	//get add part
 				else
+				{
 					QCC_PR_ParseError(ERR_BADARRAYINDEXTYPE, "Array offset is not of integer or float type");
+					nd = NULL;
+				}
 			}
 
 			if (nd->type->type == ao->type->type)
@@ -3090,7 +3106,10 @@ reloop:
 				else if (ao->type->type == ev_float)
 					ao = QCC_PR_Statement(&pr_opcodes[OP_ADD_F], ao, nd, NULL);	//get add part
 				else
+				{
 					QCC_PR_ParseError(ERR_BADARRAYINDEXTYPE, "Array offset is not of integer or float type");
+					nd = NULL;
+				}
 			}
 			else
 			{
@@ -3113,7 +3132,10 @@ reloop:
 				else if (ao->type->type == ev_float)
 					ao = QCC_PR_Statement(&pr_opcodes[OP_MUL_F], ao, QCC_MakeFloatDef((float)d->type->size), NULL);	//get add part
 				else
+				{
+					nd = NULL;
 					QCC_PR_ParseError(ERR_BADARRAYINDEXTYPE, "Array offset is not of integer or float type");
+				}
 			}
 
 			newtype = d->type;
@@ -3132,7 +3154,9 @@ reloop:
 					newtype = nd->type;//don't be fooled
 				}
 				else
+				{
 					nd = QCC_PR_Statement(&pr_opcodes[OP_LOADA_S], d, ao, NULL);	//get pointer to precise def.
+				}
 				break;
 			case ev_vector:
 				nd = QCC_PR_Statement(&pr_opcodes[OP_LOADA_V], d, ao, NULL);	//get pointer to precise def.
@@ -3157,6 +3181,7 @@ reloop:
 				break;
 			default:
 				QCC_PR_ParseError(ERR_NOVALIDOPCODES, "No op available. Try assembler");
+				nd = NULL;
 				break;
 			}
 			d=nd;
@@ -3215,6 +3240,7 @@ reloop:
 					break;
 				default:
 					QCC_PR_ParseError(ERR_NOVALIDOPCODES, "No op available. Try assembler");
+					nd = NULL;
 					break;
 				}
 
@@ -3296,6 +3322,7 @@ reloop:
 						break;
 					default:
 						QCC_PR_ParseError(ERR_NOVALIDOPCODES, "No op available. Try assembler");
+						nd = NULL;
 						break;
 					}
 				}
@@ -3367,6 +3394,7 @@ reloop:
 //						break;
 					default:
 						QCC_PR_ParseError(ERR_NOVALIDOPCODES, "No op available. Try assembler");
+						nd = NULL;
 						break;
 					}					
 
@@ -3440,6 +3468,7 @@ reloop:
 //						break;
 					default:
 						QCC_PR_ParseError(ERR_NOVALIDOPCODES, "No op available. Try assembler");
+						nd = NULL;
 						break;
 					}					
 
@@ -4396,6 +4425,7 @@ void QCC_PR_ParseStatement (void)
 	}
 	if (keyword_switch && QCC_PR_Check("switch"))
 	{
+		int op;
 		int hcstyle;
 		int defaultcase = -1;
 		temp_t *et;
@@ -4412,8 +4442,6 @@ void QCC_PR_ParseStatement (void)
 
 		et = e->temp;
 		e->temp = NULL;	//so noone frees it until we finish this loop
-
-		hcstyle = QCC_OPCodeValid(&pr_opcodes[OP_SWITCH_F]);
 
 		//expands
 
@@ -4444,31 +4472,37 @@ void QCC_PR_ParseStatement (void)
 		//x is emitted in an opcode, stored as a register that we cannot access later.
 		//it should be possible to nest these.
 		
-		if (hcstyle)
+		switch(e->type->type)
 		{
-			switch(e->type->type)
-			{
-			case ev_float:
-				QCC_FreeTemp(QCC_PR_Statement (&pr_opcodes[OP_SWITCH_F], e, 0, &patch1));
-				break;
-			case ev_entity:	//whu???
-				QCC_FreeTemp(QCC_PR_Statement (&pr_opcodes[OP_SWITCH_E], e, 0, &patch1));
-				break;
-			case ev_vector:
-				QCC_FreeTemp(QCC_PR_Statement (&pr_opcodes[OP_SWITCH_V], e, 0, &patch1));
-				break;
-			case ev_string:
-				QCC_FreeTemp(QCC_PR_Statement (&pr_opcodes[OP_SWITCH_S], e, 0, &patch1));
-				break;
-			case ev_function:
-				QCC_FreeTemp(QCC_PR_Statement (&pr_opcodes[OP_SWITCH_FNC], e, 0, &patch1));
-				break;
-			default:
-				hcstyle = false;
-				break;
-			}
+		case ev_float:
+			op = OP_SWITCH_F;
+			break;
+		case ev_entity:	//whu???
+			op = OP_SWITCH_E;
+			break;
+		case ev_vector:
+			op = OP_SWITCH_V;
+			break;
+		case ev_string:
+			op = OP_SWITCH_S;
+			break;
+		case ev_function:
+			op = OP_SWITCH_FNC;
+			break;
+		default:	//err hmm.
+			op = 0;
+			break;
 		}
-		if (!hcstyle)
+
+		if (op)
+			hcstyle = QCC_OPCodeValid(&pr_opcodes[op]);
+		else
+			hcstyle = false;
+
+
+		if (hcstyle)
+			QCC_FreeTemp(QCC_PR_Statement (&pr_opcodes[op], e, 0, &patch1));
+		else
 			QCC_FreeTemp(QCC_PR_Statement (&pr_opcodes[OP_GOTO], e, 0, &patch1));
 
 		QCC_PR_Expect (")");	//close bracket is after we save the statement to mem (so debugger does not show the if statement as being on the line after
@@ -4543,6 +4577,7 @@ void QCC_PR_ParseStatement (void)
 								break;
 							default:
 								QCC_PR_ParseError(ERR_BADSWITCHTYPE, "Bad switch type");
+								e2 = NULL;
 								break;
 							}
 							QCC_FreeTemp(QCC_PR_Statement (&pr_opcodes[OP_IF], e2, 0, &patch3));
@@ -6430,6 +6465,7 @@ void QCC_PR_ParseDefs (char *classname)
 //				return;
 //			}
 			QCC_PR_ParseError (ERR_TYPEWITHNONAME, "type with no name");
+			name = NULL;
 		}
 		else
 			name = QCC_PR_ParseName ();
@@ -6449,7 +6485,10 @@ void QCC_PR_ParseDefs (char *classname)
 			else if (pr_immediate_type->type == ev_float && (float)(int)pr_immediate._float == pr_immediate._float)
 				arraysize = (int)pr_immediate._float;
 			else
+			{
 				QCC_PR_ParseError (ERR_BADARRAYSIZE, "Definition of array (%s) size is not of a numerical value", name);
+				arraysize=0;	//grrr...
+			}
 			QCC_PR_Lex();
 			QCC_PR_Expect("]");
 		}
@@ -7093,7 +7132,7 @@ pbool QCC_Include(char *filename)
 		strcpy(fname, qccmsourcedir);
 		strcat(fname, filename);
 	}
-	QCC_LoadFile(fname, (void **)&newfile);
+	QCC_LoadFile(fname, (void*)&newfile);
 	currentchunk = NULL;
 	pr_file_p = newfile;
 	QCC_PR_CompileFile(newfile, fname);

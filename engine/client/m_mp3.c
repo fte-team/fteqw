@@ -1261,11 +1261,18 @@ int capturewidth;
 char *capturevideomem;
 short *captureaudiomem;
 int captureaudiosamples;
+captureframe;
 cvar_t capturerate = {"capturerate", "15"};
 cvar_t capturecodec = {"capturecodec", "divx"};
 cvar_t capturesound = {"capturesound", "1"};
 cvar_t capturemessage = {"capturemessage", ""};
 qboolean recordingdemo;
+enum {
+	CT_NONE,
+	CT_AVI,
+	CT_SCREENSHOT
+} capturetype;
+char capturefilenameprefix[MAX_QPATH];
 void Media_RecordFrame (void)
 {
 	HRESULT hr;
@@ -1273,7 +1280,7 @@ void Media_RecordFrame (void)
 	qbyte temp;
 	int i, c;
 
-	if (!recordavi_video_stream)
+	if (!capturetype)
 		return;
 
 	if (recordingdemo)
@@ -1285,13 +1292,14 @@ void Media_RecordFrame (void)
 		}
 
 //overlay this on the screen, so it appears in the film
-{
-	int y = vid.height -32-16;
-	if (y < scr_con_current) y = scr_con_current;
-	if (y > vid.height-8)
-		y = vid.height-8;
-	Draw_String(0, y, capturemessage.string);
-}
+	if (*capturemessage.string)
+	{
+		int y = vid.height -32-16;
+		if (y < scr_con_current) y = scr_con_current;
+		if (y > vid.height-8)
+			y = vid.height-8;
+		Draw_String(0, y, capturemessage.string);
+	}
 
 	//time for annother frame?
 	/*if (recordavi_uncompressed_audio_stream)	//sync video to the same frame as audio.
@@ -1306,20 +1314,35 @@ void Media_RecordFrame (void)
 		recordavi_videotime += recordavi_frametime;
 	}
 
-	//ask gl for it
-	glReadPixels (glx, gly, glwidth, glheight, GL_RGB, GL_UNSIGNED_BYTE, framebuffer ); 
-
-	// swap rgb to bgr
-	c = glwidth*glheight*3;
-	for (i=0 ; i<c ; i+=3)
+	switch (capturetype)
 	{
-		temp = framebuffer[i];
-		framebuffer[i] = framebuffer[i+2];
-		framebuffer[i+2] = temp;
+	case CT_AVI:
+	//ask gl for it
+		glReadPixels (glx, gly, glwidth, glheight, GL_RGB, GL_UNSIGNED_BYTE, framebuffer ); 
+
+		// swap rgb to bgr
+		c = glwidth*glheight*3;
+		for (i=0 ; i<c ; i+=3)
+		{
+			temp = framebuffer[i];
+			framebuffer[i] = framebuffer[i+2];
+			framebuffer[i+2] = temp;
+		}
+		//write it
+		hr = AVIStreamWrite(recordavi_video_stream, recordavi_video_frame_counter++, 1, framebuffer, glwidth*glheight * 3, AVIIF_KEYFRAME%15, NULL, NULL);
+		if (FAILED(hr)) Con_Printf("Recoring error\n");	
+		break;
+
+	case CT_SCREENSHOT:
+		{
+			char filename[MAX_OSPATH];
+			sprintf(filename, "%s%i.%s", capturefilenameprefix, captureframe++, capturecodec.string);
+			SCR_ScreenShot(filename);
+		}
+		break;
+	case CT_NONE:	//non issue.
+		;
 	}
-	//write it
-	hr = AVIStreamWrite(recordavi_video_stream, recordavi_video_frame_counter++, 1, framebuffer, glwidth*glheight * 3, AVIIF_KEYFRAME%15, NULL, NULL);
-	if (FAILED(hr)) Con_Printf("Recoring error\n");	
 
 	//this is drawn to the screen and not the film
 skipframe:
@@ -1340,6 +1363,9 @@ void Media_RecordAudioFrame (short *sample_buffer, int samples)
 {
 	HRESULT hr;
 	int samps;
+
+	if (capturetype != CT_AVI)
+		return;
 
 	if (!recordavi_uncompressed_audio_stream)
 		return;
@@ -1393,6 +1419,8 @@ void Media_StopRecordFilm_f (void)
 	captureaudiomem=NULL;
 
 	recordingdemo=false;
+
+	capturetype = CT_NONE;
 }
 void Media_RecordFilm_f (void)
 {
@@ -1409,6 +1437,9 @@ void Media_RecordFilm_f (void)
 		return;
 	}
 
+	if (Cmd_FromServer())	//err... don't think so sony.
+		return;
+
 	if (!aviinited)
 	{
 		aviinited=true;
@@ -1420,12 +1451,6 @@ void Media_RecordFilm_f (void)
 	recordavi_video_frame_counter = 0;
 	recordavi_audio_frame_counter = 0;
 
-
-	if (fourcc && *fourcc)
-		recordavi_codec_fourcc = mmioFOURCC(*(fourcc+0), *(fourcc+1), *(fourcc+2), *(fourcc+3));
-	else
-		recordavi_codec_fourcc = 0;
-
 	if (capturerate.value<=0)
 	{
 		Con_Printf("Invalid capturerate\n");
@@ -1434,108 +1459,136 @@ void Media_RecordFilm_f (void)
 
 	recordavi_frametime = 1/capturerate.value;
 
-	_snprintf(filename, 192, "%s%s", com_gamedir, Cmd_Argv(1));
-	COM_StripExtension(filename, filename);
-	COM_DefaultExtension (filename, ".avi");
-
-	//
-	f = fopen(filename, "rb");
-	if (f)
+	if (fourcc)
 	{
-		fclose(f);
-		unlink(filename);
-	}
-
-	hr = AVIFileOpen(&recordavi_file, filename, OF_WRITE | OF_CREATE, NULL);
-	if (FAILED(hr))
-	{
-		Con_Printf("Failed to open\n");
-		return;
-	}
-
-
-    memset(&bitmap_info_header, 0, sizeof(BITMAPINFOHEADER));
-    bitmap_info_header.biSize = 40;
-    bitmap_info_header.biWidth = glwidth;
-    bitmap_info_header.biHeight = glheight;
-    bitmap_info_header.biPlanes = 1;
-    bitmap_info_header.biBitCount = 24;
-    bitmap_info_header.biCompression = BI_RGB;
-    bitmap_info_header.biSizeImage = glwidth*glheight * 3;
-
-
-    memset(&stream_header, 0, sizeof(stream_header));
-    stream_header.fccType = streamtypeVIDEO;
-    stream_header.fccHandler = recordavi_codec_fourcc;
-    stream_header.dwScale = 100;
-    stream_header.dwRate = (unsigned long)(0.5 + 100.0/recordavi_frametime);
-    SetRect(&stream_header.rcFrame, 0, 0, glwidth, glheight);  
-
-    hr = AVIFileCreateStream(recordavi_file, &recordavi_uncompressed_video_stream, &stream_header);
-    if (FAILED(hr))
-	{
-		Con_Printf("Couldn't initialise the stream\n");
-		Media_StopRecordFilm_f();
-		return;
-	}
-
-    if (recordavi_codec_fourcc)
-	{
-        AVICOMPRESSOPTIONS opts;
-		AVICOMPRESSOPTIONS* aopts[1] = { &opts };
-        memset(&opts, 0, sizeof(opts));        
-        opts.fccType = stream_header.fccType;
-        opts.fccHandler = recordavi_codec_fourcc;
-        // Make the stream according to compression
-        hr = AVIMakeCompressedStream(&recordavi_compressed_video_stream, recordavi_uncompressed_video_stream, &opts, NULL);
-        if (FAILED(hr))
+		if (!strcmp(fourcc, "tga") ||
+			!strcmp(fourcc, "png") ||
+			!strcmp(fourcc, "jpg") ||
+			!strcmp(fourcc, "pcx"))
 		{
-			Con_Printf("Failed to init compressor\n");
+			capturetype = CT_SCREENSHOT;
+			strcpy(capturefilenameprefix, Cmd_Argv(1));
+			captureframe = 0;
+		}
+		else
+		{
+			capturetype = CT_AVI;
+			recordavi_codec_fourcc = mmioFOURCC(*(fourcc+0), *(fourcc+1), *(fourcc+2), *(fourcc+3));
+		}
+	}
+	else
+	{
+		recordavi_codec_fourcc = 0;
+		capturetype = CT_AVI;	//uncompressed avi
+	}
+
+
+	if (capturetype == CT_AVI)
+	{
+		_snprintf(filename, 192, "%s%s", com_gamedir, Cmd_Argv(1));
+		COM_StripExtension(filename, filename);
+		COM_DefaultExtension (filename, ".avi");
+
+		//wipe it.
+		f = fopen(filename, "rb");
+		if (f)
+		{
+			fclose(f);
+			unlink(filename);
+		}
+
+		hr = AVIFileOpen(&recordavi_file, filename, OF_WRITE | OF_CREATE, NULL);
+		if (FAILED(hr))
+		{
+			Con_Printf("Failed to open\n");
+			return;
+		}
+
+
+		memset(&bitmap_info_header, 0, sizeof(BITMAPINFOHEADER));
+		bitmap_info_header.biSize = 40;
+		bitmap_info_header.biWidth = glwidth;
+		bitmap_info_header.biHeight = glheight;
+		bitmap_info_header.biPlanes = 1;
+		bitmap_info_header.biBitCount = 24;
+		bitmap_info_header.biCompression = BI_RGB;
+		bitmap_info_header.biSizeImage = glwidth*glheight * 3;
+
+
+		memset(&stream_header, 0, sizeof(stream_header));
+		stream_header.fccType = streamtypeVIDEO;
+		stream_header.fccHandler = recordavi_codec_fourcc;
+		stream_header.dwScale = 100;
+		stream_header.dwRate = (unsigned long)(0.5 + 100.0/recordavi_frametime);
+		SetRect(&stream_header.rcFrame, 0, 0, glwidth, glheight);  
+
+		hr = AVIFileCreateStream(recordavi_file, &recordavi_uncompressed_video_stream, &stream_header);
+		if (FAILED(hr))
+		{
+			Con_Printf("Couldn't initialise the stream\n");
 			Media_StopRecordFilm_f();
 			return;
 		}
-    }
-	
 
-    hr = AVIStreamSetFormat(recordavi_video_stream, 0, &bitmap_info_header, sizeof(BITMAPINFOHEADER));
-	if (FAILED(hr))
-	{
-		Con_Printf("Failed to set format\n");
-		Media_StopRecordFilm_f();
-		return;
-	}
-
-	if (capturesound.value)
-	{
-		memset(&recordavi_wave_format, 0, sizeof(WAVEFORMATEX));
-		recordavi_wave_format.wFormatTag = WAVE_FORMAT_PCM; 
-		recordavi_wave_format.nChannels = 2; // always stereo in Quake sound engine
-		recordavi_wave_format.nSamplesPerSec = sndcardinfo->sn.speed;
-		recordavi_wave_format.wBitsPerSample = 16; // always 16bit in Quake sound engine
-		recordavi_wave_format.nBlockAlign = recordavi_wave_format.wBitsPerSample/8 * recordavi_wave_format.nChannels; 
-		recordavi_wave_format.nAvgBytesPerSec = recordavi_wave_format.nSamplesPerSec * recordavi_wave_format.nBlockAlign; 
-		recordavi_wave_format.cbSize = 0; 
-
+		if (recordavi_codec_fourcc)
+		{
+			AVICOMPRESSOPTIONS opts;
+			AVICOMPRESSOPTIONS* aopts[1] = { &opts };
+			memset(&opts, 0, sizeof(opts));        
+			opts.fccType = stream_header.fccType;
+			opts.fccHandler = recordavi_codec_fourcc;
+			// Make the stream according to compression
+			hr = AVIMakeCompressedStream(&recordavi_compressed_video_stream, recordavi_uncompressed_video_stream, &opts, NULL);
+			if (FAILED(hr))
+			{
+				Con_Printf("Failed to init compressor\n");
+				Media_StopRecordFilm_f();
+				return;
+			}
+		}
 		
-		memset(&stream_header, 0, sizeof(stream_header));
-		stream_header.fccType = streamtypeAUDIO;
-		stream_header.dwScale = recordavi_wave_format.nBlockAlign;
-		stream_header.dwRate = stream_header.dwScale * (unsigned long)recordavi_wave_format.nSamplesPerSec;
-		stream_header.dwSampleSize = recordavi_wave_format.nBlockAlign;
 
-		hr = AVIFileCreateStream(recordavi_file, &recordavi_uncompressed_audio_stream, &stream_header);
-		if (FAILED(hr)) return;
+		hr = AVIStreamSetFormat(recordavi_video_stream, 0, &bitmap_info_header, sizeof(BITMAPINFOHEADER));
+		if (FAILED(hr))
+		{
+			Con_Printf("Failed to set format\n");
+			Media_StopRecordFilm_f();
+			return;
+		}
 
-		hr = AVIStreamSetFormat(recordavi_uncompressed_audio_stream, 0, &recordavi_wave_format, sizeof(WAVEFORMATEX));
-		if (FAILED(hr)) return;
+		if (capturesound.value)
+		{
+			memset(&recordavi_wave_format, 0, sizeof(WAVEFORMATEX));
+			recordavi_wave_format.wFormatTag = WAVE_FORMAT_PCM; 
+			recordavi_wave_format.nChannels = 2; // always stereo in Quake sound engine
+			recordavi_wave_format.nSamplesPerSec = sndcardinfo->sn.speed;
+			recordavi_wave_format.wBitsPerSample = 16; // always 16bit in Quake sound engine
+			recordavi_wave_format.nBlockAlign = recordavi_wave_format.wBitsPerSample/8 * recordavi_wave_format.nChannels; 
+			recordavi_wave_format.nAvgBytesPerSec = recordavi_wave_format.nSamplesPerSec * recordavi_wave_format.nBlockAlign; 
+			recordavi_wave_format.cbSize = 0; 
+
+			
+			memset(&stream_header, 0, sizeof(stream_header));
+			stream_header.fccType = streamtypeAUDIO;
+			stream_header.dwScale = recordavi_wave_format.nBlockAlign;
+			stream_header.dwRate = stream_header.dwScale * (unsigned long)recordavi_wave_format.nSamplesPerSec;
+			stream_header.dwSampleSize = recordavi_wave_format.nBlockAlign;
+
+			hr = AVIFileCreateStream(recordavi_file, &recordavi_uncompressed_audio_stream, &stream_header);
+			if (FAILED(hr)) return;
+
+			hr = AVIStreamSetFormat(recordavi_uncompressed_audio_stream, 0, &recordavi_wave_format, sizeof(WAVEFORMATEX));
+			if (FAILED(hr)) return;
+		}
+
+
+		recordavi_videotime = realtime;
+		recordavi_audiotime = realtime;
+
+		captureaudiomem = BZ_Malloc(recordavi_wave_format.nSamplesPerSec*2);
+
+		capturevideomem = BZ_Malloc(glwidth*glheight*3);
 	}
-
-
-	recordavi_videotime = realtime;
-	recordavi_audiotime = realtime;
-
-	capturevideomem = BZ_Malloc(glwidth*glheight*3);
-	captureaudiomem = BZ_Malloc(recordavi_wave_format.nSamplesPerSec*2);
 }
 void Media_CaptureDemoEnd(void)
 {

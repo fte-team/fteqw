@@ -34,6 +34,7 @@ extern progfuncs_t *qccprogfuncs;
 #endif
 
 void *qccHunkAlloc(size_t mem);
+void qccClearHunk(void);
 
 extern short   (*BigShort) (short l);
 extern short   (*LittleShort) (short l);

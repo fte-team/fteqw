@@ -962,7 +962,7 @@ TRACE(("dbg: GLMod_LoadTextures: inittexturedescs\n"));
 				base = W_ConvertWAD3Texture(mt, &mt->width, &mt->height, &alphaed);	//convert texture to 32 bit.
 				tx->alphaed = alphaed;
 				texture_mode = GL_LINEAR_MIPMAP_NEAREST; //_LINEAR;
-				if (!(tx->gl_texturenum = Mod_LoadReplacementTexture(mt->name, true, alphaed)))
+				if (!(tx->gl_texturenum = Mod_LoadReplacementTexture(mt->name, true, alphaed, true)))
 					tx->gl_texturenum = GL_LoadTexture32 (mt->name, tx->width, tx->height, (unsigned int *)base, true, alphaed);
 
 				*tx->name = *mt->name;
@@ -971,7 +971,7 @@ TRACE(("dbg: GLMod_LoadTextures: inittexturedescs\n"));
 			else
 			{
 				texture_mode = GL_LINEAR_MIPMAP_NEAREST; //_LINEAR;
-				if (!(tx->gl_texturenum = Mod_LoadReplacementTexture(mt->name, true, false)))
+				if (!(tx->gl_texturenum = Mod_LoadReplacementTexture(mt->name, true, false, true)))
 					tx->gl_texturenum = GL_LoadTexture (mt->name, tx->width, tx->height, base, true, false);
 				texture_mode = GL_LINEAR;
 
@@ -980,7 +980,7 @@ TRACE(("dbg: GLMod_LoadTextures: inittexturedescs\n"));
 					_snprintf(altname, sizeof(altname)-1, "%s_luma", mt->name);
 					if (gl_load24bit.value && r_fb_bmodels.value)
 					{
-						tx->gl_texturenumfb = Mod_LoadReplacementTexture(altname, true, false);
+						tx->gl_texturenumfb = Mod_LoadReplacementTexture(altname, true, false, true);
 					}
 					if (!tx->gl_texturenumfb)	//generate one (if possible).
 						tx->gl_texturenumfb = GL_LoadTextureFB(altname, tx->width, tx->height, base, true, true);
@@ -1152,7 +1152,7 @@ void GLMod_NowLoadExternal(void)
 				}
 				
 				if (!(tx->gl_texturenum = Mod_LoadHiResTexture(tx->name, true, false, true)))
-					tx->gl_texturenum = Mod_LoadReplacementTexture("light1_4", true, false);
+					tx->gl_texturenum = Mod_LoadReplacementTexture("light1_4", true, false, true);
 				texture_mode = GL_LINEAR;
 			}
 		}
@@ -2762,7 +2762,7 @@ void * GLMod_LoadSpriteFrame (void * pin, mspriteframe_t **ppframe, int framenum
 
 	COM_StripExtension(loadmodel->name, name);
 	strcat(name, va("_%i", framenum));
-	pspriteframe->gl_texturenum = Mod_LoadReplacementTexture(name, true, true);
+	pspriteframe->gl_texturenum = Mod_LoadReplacementTexture(name, true, true, true);
 	if (version == SPRITE32_VERSION)
 	{
 		size *= 4;

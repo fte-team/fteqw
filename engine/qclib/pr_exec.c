@@ -233,11 +233,11 @@ int PR_EnterFunction (progfuncs_t *progfuncs, dfunction_t *f, int progsnum)
 	pr_stack[pr_depth].f = pr_xfunction;	
 	pr_stack[pr_depth].progsnum = progsnum;
 	pr_depth++;
-	if (pr_depth >= MAX_STACK_DEPTH)
+	if (pr_depth == MAX_STACK_DEPTH)
 	{
-		printf ("stack overflow");
-		PR_StackTrace (progfuncs);
+		printf ("stack overflow on call to %s", f->s_name);
 		pr_depth--;
+		PR_StackTrace (progfuncs);
 		return pr_xstatement;
 	}
 
@@ -761,7 +761,7 @@ void PR_ExecuteCode (progfuncs_t *progfuncs, int s)
 
 	float *glob;
 
-	int fnum;
+	int fnum = pr_xfunction - pr_functions;
 
 	runaway = 100000;
 
@@ -850,7 +850,7 @@ void PR_ExecuteProgram (progfuncs_t *progfuncs, func_t fnum)
 //		Host_Error ("PR_ExecuteProgram: NULL function from exe");
 
 //		PR_MoveParms(0, pr_typecurrent);
-		PR_SwitchProgs(progfuncs, 0);
+		PR_SwitchProgs(progfuncs, initial_progs);
 		return;
 	}
 

@@ -991,8 +991,6 @@ void screenshotJPEG(char *filename, qbyte *screendata, int screenwidth, int scre
 	jpeg_finish_compress(&cinfo);
 	fclose(outfile);
 	jpeg_destroy_compress(&cinfo);
-
-	Con_Printf ("Wrote %s\n", filename);
 }
 
 #endif
@@ -1620,11 +1618,11 @@ int Mod_LoadHiResTexture(char *name, qboolean mipmap, qboolean alpha, qboolean c
 		return GL_LoadTexture32 (name, image_width, image_height, (unsigned*)data, mipmap, alphaed);
 	return 0;	
 }
-int Mod_LoadReplacementTexture(char *name, qboolean mipmap, qboolean alpha)
+int Mod_LoadReplacementTexture(char *name, qboolean mipmap, qboolean alpha, qboolean gammaadjust)
 {
 	if (!gl_load24bit.value)
 		return 0;
-	return Mod_LoadHiResTexture(name, mipmap, alpha, true);
+	return Mod_LoadHiResTexture(name, mipmap, alpha, gammaadjust);
 }
 
 int Mod_LoadBumpmapTexture(char *name)

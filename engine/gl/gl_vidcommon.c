@@ -384,7 +384,6 @@ void GL_Init(void *(*getglfunction) (char *name))
 
 	glClearColor (0,0,0,0);	//clear to black so that it looks a little nicer on start.
 	glClear(GL_COLOR_BUFFER_BIT);
-	glClearColor (1,0,0,0);
 	glCullFace(GL_FRONT);
 	glEnable(GL_TEXTURE_2D);
 

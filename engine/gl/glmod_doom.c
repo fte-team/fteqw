@@ -265,7 +265,7 @@ int Doom_LoadFlat(char *name)
 
 	sprintf(texname, "flat-%-.8s", name);
 	strlwr(texname);
-	tex = Mod_LoadReplacementTexture(texname, true, false);
+	tex = Mod_LoadReplacementTexture(texname, true, false, true);
 	if (tex)
 		return tex;
 

@@ -949,7 +949,7 @@ void GLR_InitSky (texture_t *mt)
 
 	sprintf(name, "%s_solid", mt->name);
 	strlwr(name);
-	solidskytexture = Mod_LoadReplacementTexture(name, true, false);
+	solidskytexture = Mod_LoadReplacementTexture(name, true, false, true);
 	if (!solidskytexture)
 		solidskytexture = GL_LoadTexture32(name, 128, 128, trans, true, false);
 /*
@@ -974,7 +974,7 @@ void GLR_InitSky (texture_t *mt)
 
 	sprintf(name, "%s_trans", mt->name);
 	strlwr(name);
-	alphaskytexture = Mod_LoadReplacementTexture(name, true, true);
+	alphaskytexture = Mod_LoadReplacementTexture(name, true, true, true);
 	if (!alphaskytexture)
 		alphaskytexture = GL_LoadTexture32(name, 128, 128, trans, true, true);
 /*

@@ -715,7 +715,7 @@ void SCR_CrosshairPosition(int pnum, int *x, int *y)
 		{
 			VectorCopy(cl.simorg[pnum], start);
 			start[2] -= cl.viewheight[pnum]/4;
-			ML_Project(tr.endpos, end, cl.viewangles[pnum], start, (float)rect.width/rect.height);
+			ML_Project(tr.endpos, end, cl.viewangles[pnum], start, (float)rect.width/rect.height, r_refdef.fov_y);
 			*x = rect.x+rect.width*end[0];
 			*y = rect.y+rect.height*end[1];
 			return;
@@ -1209,6 +1209,82 @@ int MipColor(int r, int g, int b)
 	return best;
 }
 
+void SCR_ScreenShot (char *filename) 
+{
+	int truewidth, trueheight;
+	qbyte            *buffer;
+	int                     i, c, temp;
+
+#define MAX_PREPAD	128
+	char *ext;
+
+	ext = COM_FileExtension(filename);
+
+	buffer = VID_GetRGBInfo(MAX_PREPAD, &truewidth, &trueheight);
+
+#ifdef AVAIL_PNGLIB
+	if (!strcmp(ext, "png"))
+	{
+		Image_WritePNG(filename, 100, buffer+MAX_PREPAD, truewidth, trueheight);
+	}
+	else
+#endif
+#ifdef AVAIL_JPEGLIB
+		if (!strcmp(ext, "jpeg") || !strcmp(ext, "jpg"))
+	{
+		screenshotJPEG(filename, buffer+MAX_PREPAD, truewidth, trueheight);
+	}
+	else 
+#endif
+	/*	if (!strcmp(ext, "bmp"))
+	{
+		WriteBMPFile(pcxname, buffer+MAX_PREPAD, truewidth, trueheight);
+	}
+	else*/
+		if (!strcmp(ext, "pcx"))
+	{
+		int y, x;
+		qbyte *src, *dest;
+		qbyte *newbuf = buffer + MAX_PREPAD;
+		// convert to eight bit
+		for (y = 0; y < trueheight; y++) {
+			src = newbuf + (truewidth * 3 * y);
+			dest = newbuf + (truewidth * y);
+
+			for (x = 0; x < truewidth; x++) {
+				*dest++ = MipColor(src[0], src[1], src[2]);
+				src += 3;
+			}
+		}
+
+		WritePCXfile (filename, newbuf, truewidth, trueheight, truewidth, host_basepal, false);
+	}
+	else	//tga
+	{
+		buffer+=MAX_PREPAD-18;
+		memset (buffer, 0, 18);
+		buffer[2] = 2;          // uncompressed type
+		buffer[12] = truewidth&255;
+		buffer[13] = truewidth>>8;
+		buffer[14] = trueheight&255;
+		buffer[15] = trueheight>>8;
+		buffer[16] = 24;        // pixel size
+
+		// swap rgb to bgr
+		c = 18+truewidth*trueheight*3;
+		for (i=18 ; i<c ; i+=3)
+		{
+			temp = buffer[i];
+			buffer[i] = buffer[i+2];
+			buffer[i+2] = temp;
+		}
+		COM_WriteFile (filename, buffer, truewidth*trueheight*3 + 18 );
+		buffer-=MAX_PREPAD-18;
+	}
+
+
+	BZ_Free (buffer);
+}
 
 /* 
 ================== 
@@ -1217,14 +1293,9 @@ SCR_ScreenShot_f
 */  
 void SCR_ScreenShot_f (void) 
 {
-	int truewidth, trueheight;
-	qbyte            *buffer;
 	char            pcxname[80]; 
 	char            checkname[MAX_OSPATH];
-	int                     i, c, temp;
-
-#define MAX_PREPAD	128
-	char *ext;
+	int                     i;
 
 	if (!VID_GetRGBInfo)
 	{
@@ -1261,75 +1332,10 @@ void SCR_ScreenShot_f (void)
 		}
 	}
 
-	ext = COM_FileExtension(pcxname);
-
-	buffer = VID_GetRGBInfo(MAX_PREPAD, &truewidth, &trueheight);
-
-#ifdef AVAIL_PNGLIB
-	if (!strcmp(ext, "png"))
-	{
-		Image_WritePNG(pcxname, 100, buffer+MAX_PREPAD, truewidth, trueheight);
-	}
-	else
-#endif
-#ifdef AVAIL_JPEGLIB
-		if (!strcmp(ext, "jpeg") || !strcmp(ext, "jpg"))
-	{
-		screenshotJPEG(pcxname, buffer+MAX_PREPAD, truewidth, trueheight);
-	}
-	else 
-#endif
-	/*	if (!strcmp(ext, "bmp"))
-	{
-		WriteBMPFile(pcxname, buffer+MAX_PREPAD, truewidth, trueheight);
-	}
-	else*/
-		if (!strcmp(ext, "pcx"))
-	{
-		int y, x;
-		qbyte *src, *dest;
-		qbyte *newbuf = buffer + MAX_PREPAD;
-		// convert to eight bit
-		for (y = 0; y < trueheight; y++) {
-			src = newbuf + (truewidth * 3 * y);
-			dest = newbuf + (truewidth * y);
-
-			for (x = 0; x < truewidth; x++) {
-				*dest++ = MipColor(src[0], src[1], src[2]);
-				src += 3;
-			}
-		}
-
-		WritePCXfile (pcxname, newbuf, truewidth, trueheight, truewidth, host_basepal, false);
-		Con_Printf ("Wrote %s\n", pcxname);
-	}
-	else	//tga
-	{
-		buffer+=MAX_PREPAD-18;
-		memset (buffer, 0, 18);
-		buffer[2] = 2;          // uncompressed type
-		buffer[12] = truewidth&255;
-		buffer[13] = truewidth>>8;
-		buffer[14] = trueheight&255;
-		buffer[15] = trueheight>>8;
-		buffer[16] = 24;        // pixel size
-
-		// swap rgb to bgr
-		c = 18+truewidth*trueheight*3;
-		for (i=18 ; i<c ; i+=3)
-		{
-			temp = buffer[i];
-			buffer[i] = buffer[i+2];
-			buffer[i+2] = temp;
-		}
-		COM_WriteFile (pcxname, buffer, truewidth*trueheight*3 + 18 );
-		Con_Printf ("Wrote %s\n", pcxname);
-		buffer-=MAX_PREPAD-18;
-	}
-
-
-	BZ_Free (buffer);
+	SCR_ScreenShot(pcxname);
+	Con_Printf ("Wrote %s\n", pcxname);
 } 
+
 
 // from gl_draw.c
 qbyte		*draw_chars;				// 8*8 graphic characters

@@ -1114,6 +1114,29 @@ strofs = (strofs+3)&~3;
 	SafeSeek (h, 0, SEEK_SET);
 	SafeWrite (h, &progs, sizeof(progs));
 	SafeClose (h);
+
+	if (outputversion != 7 || !debugdefined)
+	{
+		if (opt_filenames)
+		{
+			printf("Not writing linenumbers file due to conflicting optimisation\n");
+		}
+		else
+		{
+			unsigned int lnotype = *(unsigned int*)"LNOF";
+			COM_StripExtension(destfile);
+			COM_DefaultExtension(destfile, ".lno");
+			printf("Writing %s\n", destfile);
+			h = SafeOpenWrite (destfile, 2*1024*1024);
+			SafeWrite (h, &lnotype, sizeof(int));
+			SafeWrite (h, &numglobaldefs, sizeof(int));
+			SafeWrite (h, &numpr_globals, sizeof(int));
+			SafeWrite (h, &numfielddefs, sizeof(int));
+			SafeWrite (h, &numstatements, sizeof(int));
+			SafeWrite (h, statement_linenums, numstatements*sizeof(int));
+			SafeClose (h);
+		}
+	}
 }
 
 
@@ -2447,8 +2470,8 @@ void QCC_main (int argc, char **argv)	//as part of the quake engine
 
 	int		p;
 
-	extern char    qcc_gamedir[];
 #ifndef QCCONLY
+	extern char    qcc_gamedir[];
 	char	destfile2[1024], *s2;
 #endif
 	char *s;
@@ -2670,7 +2693,7 @@ memset(pr_immediate_string, 0, sizeof(pr_immediate_string));
 		else
 			sprintf (qccmsourcedir, "%s/src/", qcc_gamedir);
 #else
-		sprintf (qccmsourcedir, "");
+		*qccmsourcedir = '\0';
 #endif
 
 	QCC_InitData ();
@@ -3132,7 +3155,7 @@ float   (*LittleFloat) (float l);
 LoadFile
 ==============
 */
-char *QCC_ReadFile (char *fname, void *buffer, int len)
+unsigned char *QCC_ReadFile (char *fname, void *buffer, int len)
 {
 	long    length;
 	FILE *f;

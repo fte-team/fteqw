@@ -1323,6 +1323,9 @@ void Sbar_DrawFace (int pnum)
 		f = 4;
 	else
 		f = cl.stats[pnum][STAT_HEALTH] / 20;
+
+	if (f < 0)
+		f=0;
 	
 	if (cl.time <= cl.faceanimtime[pnum])
 	{

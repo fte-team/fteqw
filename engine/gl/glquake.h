@@ -290,8 +290,8 @@ void R_DrawWorld (void);
 void GL_BuildLightmaps (void);
 
 void GL_LoadShaders(void);
-int Mod_LoadReplacementTexture(char *name, qboolean mipmap, qboolean alpha);
-int Mod_LoadHiResTexture(char *name, qboolean mipmap, qboolean alpha, qboolean colouradjust);
+int Mod_LoadReplacementTexture(char *name, qboolean mipmap, qboolean alpha, qboolean gammaadjust);
+int Mod_LoadHiResTexture(char *name, qboolean mipmap, qboolean alpha, qboolean gammaadjust);
 int Mod_LoadBumpmapTexture(char *name);
 
 #define	LMBLOCK_WIDTH		128

@@ -970,7 +970,7 @@ void *Mod_LoadWall(char *name)
 			tex->height = height;
 
 			texture_mode = GL_LINEAR_MIPMAP_NEAREST; //_LINEAR;
-			if (!(tex->gl_texturenum = Mod_LoadReplacementTexture(name, true, false)))
+			if (!(tex->gl_texturenum = Mod_LoadReplacementTexture(name, true, false, true)))
 				tex->gl_texturenum = GL_LoadTexture32 (name, width, height, (unsigned int *)in, true, false);
 			texture_mode = GL_LINEAR;
 		}
@@ -1052,7 +1052,7 @@ void *Mod_LoadWall(char *name)
 		tex->height = wal->height;
 
 		texture_mode = GL_LINEAR_MIPMAP_NEAREST; //_LINEAR;
-		if (!(tex->gl_texturenum = Mod_LoadReplacementTexture(wal->name, true, false)))
+		if (!(tex->gl_texturenum = Mod_LoadReplacementTexture(wal->name, true, false, true)))
 			tex->gl_texturenum = GL_LoadTexture8Pal24 (wal->name, tex->width, tex->height, (qbyte *)wal+wal->offsets[0], d_q28to24table, true, false);
 
 		in = Hunk_TempAllocMore(wal->width*wal->height);

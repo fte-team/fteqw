@@ -181,6 +181,8 @@ void GLSCR_UpdateScreen (void)
 
 	GL_Set2D ();
 
+	GLR_BrightenScreen();
+
 	//
 	// draw any areas not covered by the refresh
 	//
@@ -191,7 +193,7 @@ void GLSCR_UpdateScreen (void)
 
 	if (scr_drawdialog)
 	{
-		Sbar_Draw ();
+		Plug_SBar ();
 		SCR_ShowPics_Draw();
 		Draw_FadeScreen ();
 		SCR_DrawNotifyString ();
@@ -200,7 +202,7 @@ void GLSCR_UpdateScreen (void)
 	else if (scr_drawloading)
 	{
 		SCR_DrawLoading ();
-		Sbar_Draw ();
+		Plug_SBar ();
 		SCR_ShowPics_Draw();
 	}
 	else if (cl.intermission == 1 && key_dest == key_game)
@@ -222,7 +224,7 @@ void GLSCR_UpdateScreen (void)
 		SCR_DrawFPS ();
 		SCR_DrawTurtle ();
 		SCR_DrawPause ();
-		Sbar_Draw ();
+		Plug_SBar ();
 		SCR_ShowPics_Draw();
 		SCR_CheckDrawCenterString ();
 	glTexEnvi ( GL_TEXTURE_ENV, GL_TEXTURE_ENV_MODE, GL_MODULATE );
@@ -233,8 +235,6 @@ void GLSCR_UpdateScreen (void)
 		M_Draw (uimenu);
 		SCR_DrawConsole (false);
 	}
-
-	GLR_BrightenScreen();
 
 	GLV_UpdatePalette ();
 #if defined(_WIN32) && defined(RGLQUAKE)

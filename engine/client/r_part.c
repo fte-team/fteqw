@@ -512,7 +512,7 @@ void R_ParticleEffect_f(void)
 				ptype->spawnmode = SM_LAVASPLASH;
 			else
 				ptype->spawnmode = SM_BOX;
-				
+
 		}
 		else if (!strcmp(var, "isbeam"))
 			ptype->isbeam = true;

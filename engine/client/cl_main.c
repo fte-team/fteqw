@@ -63,7 +63,7 @@ cvar_t	cl_hudswap	= {"cl_hudswap", "0", NULL, CVAR_ARCHIVE};
 cvar_t	cl_maxfps	= {"cl_maxfps", "-1", NULL, CVAR_ARCHIVE};
 cvar_t	cl_nopext	= {"cl_nopext", "0", NULL, CVAR_ARCHIVE};
 
-cvar_t	cfg_save_name = {"cfg_save_name", "fteconfig", NULL, CVAR_ARCHIVE};
+cvar_t	cfg_save_name = {"cfg_save_name", "fte", NULL, CVAR_ARCHIVE};
 
 cvar_t	cl_splitscreen = {"cl_splitscreen", "0"};
 
@@ -1018,47 +1018,47 @@ void CL_CheckServerInfo(void)
 #endif
 	cls.allow_fbskins = 0;
 //	cls.allow_overbrightlight;
-	if (atoi(Info_ValueForKey(cl.serverinfo, "rearview")))
+	if (cls.demoplayback || atoi(Info_ValueForKey(cl.serverinfo, "rearview")))
 		cls.allow_rearview=true;
 
-	if (atoi(Info_ValueForKey(cl.serverinfo, "watervis")))
+	if (cls.demoplayback || atoi(Info_ValueForKey(cl.serverinfo, "watervis")))
 		cls.allow_watervis=true;
 
-	if (atoi(Info_ValueForKey(cl.serverinfo, "allow_skybox")) || atoi(Info_ValueForKey(cl.serverinfo, "allow_skyboxes")))
+	if (cls.demoplayback || atoi(Info_ValueForKey(cl.serverinfo, "allow_skybox")) || atoi(Info_ValueForKey(cl.serverinfo, "allow_skyboxes")))
 		cls.allow_skyboxes=true;
 
-	if (atoi(Info_ValueForKey(cl.serverinfo, "mirrors")))
+	if (cls.demoplayback || atoi(Info_ValueForKey(cl.serverinfo, "mirrors")))
 		cls.allow_mirrors=true;
 
-	if (atoi(Info_ValueForKey(cl.serverinfo, "allow_shaders")))
+	if (cls.demoplayback || atoi(Info_ValueForKey(cl.serverinfo, "allow_shaders")))
 		cls.allow_shaders=true;
 
-	if (!atoi(Info_ValueForKey(cl.serverinfo, "allow_luma")))
+	if (cls.demoplayback || !atoi(Info_ValueForKey(cl.serverinfo, "allow_luma")))
 		cls.allow_luma=false;
 
-	if (atoi(Info_ValueForKey(cl.serverinfo, "allow_lmgamma")))
+	if (cls.demoplayback || atoi(Info_ValueForKey(cl.serverinfo, "allow_lmgamma")))
 		cls.allow_lightmapgamma=true;
 
 	s = Info_ValueForKey(cl.serverinfo, "allow_bump");
-	if (atoi(s) || !*s)	//admin doesn't care.
+	if (cls.demoplayback || atoi(s) || !*s)	//admin doesn't care.
 		cls.allow_bump=true;
 #ifdef FISH
-	if (atoi(Info_ValueForKey(cl.serverinfo, "allow_fish")))
+	if (cls.demoplayback || atoi(Info_ValueForKey(cl.serverinfo, "allow_fish")))
 		cls.allow_fish=true;			
 #endif
 
 	s = Info_ValueForKey(cl.serverinfo, "fbskins");
-	if (*s)
+	if (cls.demoplayback || *s)
 		cls.allow_fbskins = atof(s);
 	else
 		cls.allow_fbskins = 0.3;
 
 	s = Info_ValueForKey(cl.serverinfo, "*cheats");
-	if (!stricmp(s, "on"))
+	if (cls.demoplayback || !stricmp(s, "on"))
 		cls.allow_cheats = true;
 
 	s = Info_ValueForKey(cl.serverinfo, "strict");
-	if (*s && strcmp(s, "0"))
+	if (!cls.demoplayback && *s && strcmp(s, "0"))
 	{
 		cls.allow_semicheats = false;
 		cls.allow_cheats	= false;

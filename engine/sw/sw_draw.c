@@ -418,6 +418,8 @@ void SWDraw_Init (void)
 		r_rectdesc.ptexbytes = draw_backtile->data;
 		r_rectdesc.rowbytes = draw_backtile->width;
 	}
+
+	Plug_DrawReloadImages();
 }
 
 void SWDraw_Shutdown(void)

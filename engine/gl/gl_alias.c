@@ -1639,15 +1639,15 @@ static void *Q1_LoadSkins (daliasskintype_t *pskintype, qboolean alpha)
 			outskin->skinheight = pq1inmodel->skinheight;
 
 			sprintf(skinname, "%s_%i", loadname, i);
-			texture = Mod_LoadReplacementTexture(skinname, true, false);
+			texture = Mod_LoadReplacementTexture(skinname, true, false, true);
 			if (!texture)
 			{
 				sprintf(skinname, "textures/models/%s_%i", loadname, i);
-				texture = Mod_LoadReplacementTexture(skinname, true, false);
+				texture = Mod_LoadReplacementTexture(skinname, true, false, true);
 				if (texture && r_fb_models.value)
 				{
 					sprintf(skinname, "textures/models/%s_%i_luma", loadname, i);
-					fbtexture = Mod_LoadReplacementTexture(skinname, true, true);
+					fbtexture = Mod_LoadReplacementTexture(skinname, true, true, true);
 				}
 				else
 					fbtexture = 0;
@@ -1655,7 +1655,7 @@ static void *Q1_LoadSkins (daliasskintype_t *pskintype, qboolean alpha)
 			else if (texture && r_fb_models.value)
 			{
 				sprintf(skinname, "%s_%i_luma", loadname, i);
-				fbtexture = Mod_LoadReplacementTexture(skinname, true, true);
+				fbtexture = Mod_LoadReplacementTexture(skinname, true, true, true);
 			}
 			else
 				fbtexture = 0;
@@ -1703,14 +1703,14 @@ static void *Q1_LoadSkins (daliasskintype_t *pskintype, qboolean alpha)
 			for (t = 0; t < outskin->texnums; t++,data+=s, texnums++)
 			{
 				sprintf(skinname, "%s_%i%c", loadname, i, t+'a');
-				texture = Mod_LoadReplacementTexture(skinname, true, false);
+				texture = Mod_LoadReplacementTexture(skinname, true, false, true);
 				if (texture)
 				{
 					texnums->base = texture;
 					if (r_fb_models.value)
 					{
 						sprintf(skinname, "%s_%i%c_luma", loadname, i, t+'a');
-						texnums->fullbright = Mod_LoadReplacementTexture(skinname, true, true);
+						texnums->fullbright = Mod_LoadReplacementTexture(skinname, true, true, true);
 					}
 				}
 				else
@@ -1992,7 +1992,7 @@ static void Q2_LoadSkins(char *skins)
 		outskin->ofstexnums = (char *)texnums - (char *)outskin;
 		outskin->texnums=1;
 
-		texnums->base = Mod_LoadReplacementTexture(skins, true, false);
+		texnums->base = Mod_LoadReplacementTexture(skins, true, false, true);
 		outskin->skinwidth = 0;
 		outskin->skinheight = 0;
 		outskin->skinspeed = 0;

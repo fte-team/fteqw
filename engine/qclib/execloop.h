@@ -424,7 +424,7 @@ reeval:
 
 	case OP_IFNOTS:
 		RUNAWAYCHECK();
-		if (!OPA->string || !*OPA->string)
+		if (!OPA->string || !OPA->string[progfuncs->stringtable])
 			st += (sofs)st->b - 1;	// offset the s++
 		break;
 
@@ -436,7 +436,7 @@ reeval:
 
 	case OP_IFS:
 		RUNAWAYCHECK();
-		if (OPA->string && *OPA->string)
+		if (OPA->string && OPA->string[progfuncs->stringtable])
 			st += (sofs)st->b - 1;	// offset the s++
 		break;
 		

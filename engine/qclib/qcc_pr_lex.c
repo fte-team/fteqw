@@ -2584,6 +2584,8 @@ QCC_type_t *QCC_PR_ParseType (int newtype)
 		type = NULL;
 		if (QCC_PR_Check(","))
 			QCC_PR_ParseError(ERR_NOTANAME, "element missing name");
+
+		newparm = NULL;
 		while (!QCC_PR_Check("}"))
 		{
 			if (QCC_PR_Check(","))
@@ -2630,6 +2632,7 @@ QCC_type_t *QCC_PR_ParseType (int newtype)
 		type = NULL;
 		if (QCC_PR_Check(","))
 			QCC_PR_ParseError(ERR_NOTANAME, "element missing name");
+		newparm = NULL;
 		while (!QCC_PR_Check("}"))
 		{
 			if (QCC_PR_Check(","))

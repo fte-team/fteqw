@@ -1806,6 +1806,75 @@ void PPL_BaseBModelTextures(entity_t *e)
 		R_IBrokeTheArrays();
 }
 
+void RotatePointAroundVector( vec3_t dst, const vec3_t dir, const vec3_t point, float degrees );
+void PerpendicularVector( vec3_t dst, const vec3_t src );
+void R_DrawBeam( entity_t *e )
+{
+#define NUM_BEAM_SEGS 6
+
+	int	i;
+	float r, g, b;
+
+	vec3_t perpvec;
+	vec3_t direction, normalized_direction;
+	vec3_t	start_points[NUM_BEAM_SEGS], end_points[NUM_BEAM_SEGS];
+	vec3_t oldorigin, origin;
+
+	oldorigin[0] = e->oldorigin[0];
+	oldorigin[1] = e->oldorigin[1];
+	oldorigin[2] = e->oldorigin[2];
+
+	origin[0] = e->origin[0];
+	origin[1] = e->origin[1];
+	origin[2] = e->origin[2];
+
+	normalized_direction[0] = direction[0] = oldorigin[0] - origin[0];
+	normalized_direction[1] = direction[1] = oldorigin[1] - origin[1];
+	normalized_direction[2] = direction[2] = oldorigin[2] - origin[2];
+
+	if ( VectorNormalize( normalized_direction ) == 0 )
+		return;
+
+	PerpendicularVector( perpvec, normalized_direction );
+	VectorScale( perpvec, e->frame / 2, perpvec );
+
+	for ( i = 0; i < 6; i++ )
+	{
+		RotatePointAroundVector( start_points[i], normalized_direction, perpvec, (360.0/NUM_BEAM_SEGS)*i );
+		VectorAdd( start_points[i], origin, start_points[i] );
+		VectorAdd( start_points[i], direction, end_points[i] );
+	}
+
+	qglDisable( GL_TEXTURE_2D );
+	qglEnable( GL_BLEND );
+	qglDepthMask( GL_FALSE );
+	qglDisable(GL_ALPHA_TEST);
+
+	r = ( d_8to24rgbtable[e->skinnum & 0xFF] ) & 0xFF;
+	g = ( d_8to24rgbtable[e->skinnum & 0xFF] >> 8 ) & 0xFF;
+	b = ( d_8to24rgbtable[e->skinnum & 0xFF] >> 16 ) & 0xFF;
+
+	r *= 1/255.0F;
+	g *= 1/255.0F;
+	b *= 1/255.0F;
+
+	qglColor4f( r, g, b, e->alpha );
+
+	qglBegin( GL_TRIANGLE_STRIP );
+	for ( i = 0; i < NUM_BEAM_SEGS; i++ )
+	{
+		qglVertex3fv( start_points[i] );
+		qglVertex3fv( end_points[i] );
+		qglVertex3fv( start_points[(i+1)%NUM_BEAM_SEGS] );
+		qglVertex3fv( end_points[(i+1)%NUM_BEAM_SEGS] );
+	}
+	qglEnd();
+
+	qglEnable( GL_TEXTURE_2D );
+	qglDisable( GL_BLEND );
+	qglDepthMask( GL_TRUE );
+}
+
 void PPL_BaseEntTextures(void)
 {
 	extern qboolean r_inmirror;
@@ -1849,6 +1918,11 @@ void PPL_BaseEntTextures(void)
 				continue;
 		}
 
+		if (currententity->flags & Q2RF_BEAM)
+		{
+			R_DrawBeam(currententity);
+			continue;
+		}
 		if (!currententity->model)
 			continue;
 
@@ -2417,6 +2491,9 @@ void PPL_DrawEntFullBrights(void)
 			continue;
 
 		if (!Cam_DrawPlayer(0, currententity->keynum-1))
+			continue;
+
+		if (currententity->flags & Q2RF_BEAM)
 			continue;
 
 		if (!currententity->model)

@@ -401,7 +401,7 @@ void R_DrawSkyChain (msurface_t *s)
 
 	GL_DisableMultitexture();
 
-	if (r_fastsky.value||!solidskytexture)	//this is for visability only... we'd otherwise not stoop this low (and this IS low)
+	if (r_fastsky.value||(!solidskytexture&&!usingskybox))	//this is for visability only... we'd otherwise not stoop this low (and this IS low)
 	{
 		int fc;
 		qbyte *pal;

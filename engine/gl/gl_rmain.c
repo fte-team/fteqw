@@ -731,6 +731,9 @@ void GLR_DrawEntitiesOnList (void)
 		if (!Cam_DrawPlayer(0, currententity->keynum-1))
 			continue;
 
+		if (currententity->flags & Q2RF_BEAM)
+			continue;
+
 		if (!currententity->model)
 			continue;
 
@@ -785,6 +788,9 @@ void GLR_DrawEntitiesOnList (void)
 		currententity = &cl_visedicts[i];
 
 		if (cl.viewentity[r_refdef.currentplayernum] && currententity->keynum == cl.viewentity[r_refdef.currentplayernum])
+			continue;
+
+		if (currententity->flags & Q2RF_BEAM)
 			continue;
 
 		if (!currententity->model)

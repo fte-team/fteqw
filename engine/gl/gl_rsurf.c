@@ -3899,7 +3899,7 @@ void GL_BuildLightmaps (void)
 		gl_lightmap_format = GL_RGB;
 	if (COM_CheckParm ("-lm_4"))
 		gl_lightmap_format = GL_RGBA;
-	if (*gl_lightmapmode.string)
+/*	if (*gl_lightmapmode.string)
 	{
 		switch(*gl_lightmapmode.string)
 		{
@@ -3924,6 +3924,7 @@ void GL_BuildLightmaps (void)
 			break;
 		}
 	}
+*/
 	if (cl.worldmodel->fromgame == fg_quake3 && gl_lightmap_format != GL_RGB && gl_lightmap_format != GL_RGBA)
 		gl_lightmap_format = GL_RGB;
 

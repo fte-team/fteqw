@@ -591,7 +591,7 @@ static galiastexnum_t *GL_ChooseSkin(galiasinfo_t *inf, char *modelname, entity_
 
 	int tc, bc;
 
-	if (!gl_nocolors.value)
+	if (!gl_nocolors.value && !cls.q2server)
 	{
 		if (e->scoreboard)
 		{
@@ -808,6 +808,9 @@ static galiastexnum_t *GL_ChooseSkin(galiasinfo_t *inf, char *modelname, entity_
 			return &cm->texnum;
 		}
 	}
+
+	if (!inf->numskins)
+		return NULL;
 
 	skins = (galiasskin_t*)((char *)inf + inf->ofsskins);
 	if (e->skinnum >= 0 && e->skinnum < inf->numskins)
@@ -2322,13 +2325,15 @@ static void Q2_LoadSkins(char *skins)
 	int i;
 	galiastexnum_t *texnums;
 	galiasskin_t *outskin = (galiasskin_t *)((char *)galias + galias->ofsskins);
+	galias->numskins = pq2inmodel->num_skins;
 
-	for (i = 0; i < pq2inmodel->num_skins; i++)
+	for (i = 0; i < pq2inmodel->num_skins; i++, outskin++)
 	{
 		texnums = Hunk_Alloc(sizeof(*texnums));
 		outskin->ofstexnums = (char *)texnums - (char *)outskin;
 		outskin->texnums=1;
 
+		COM_CleanUpPath(skins);	//blooming tanks.
 		texnums->base = Mod_LoadReplacementTexture(skins, true, false, true);
 		outskin->skinwidth = 0;
 		outskin->skinheight = 0;
@@ -2374,6 +2379,8 @@ void GL_LoadQ2Model (model_t *mod, void *buffer)
 
 	pq2inmodel = (md2_t *)buffer;
 
+	//FIXME: Endian
+
 	version = LittleLong (pq2inmodel->version);
 	if (version != MD2ALIAS_VERSION)
 		Sys_Error ("%s has wrong version number (%i should be %i)",
@@ -2389,6 +2396,8 @@ void GL_LoadQ2Model (model_t *mod, void *buffer)
 		Sys_Error("Model %s has an invalid quantity\n", mod->name);
 
 	mod->flags = 0;
+
+	loadmodel->numframes = pq2inmodel->num_frames;
 
 	size = sizeof(galiasinfo_t)
 		+ pq2inmodel->num_frames*sizeof(galiasgroup_t)
@@ -2800,6 +2809,8 @@ void GL_LoadQ3Model(model_t *mod, void *buffer)
 	surf = (md3Surface_t *)((qbyte *)header + header->ofsSurfaces);
 	for (s = 0; s < header->numSurfaces; s++)
 	{
+		if (surf->ident != MD3_IDENT)
+			Con_Printf("Warning: md3 sub-surface doesn't match ident\n");
 		size = sizeof(galiasinfo_t) + sizeof(galiasgroup_t)*header->numFrames;
 		galias = Hunk_Alloc(size);
 		galias->groupofs = sizeof(*galias);	//frame groups

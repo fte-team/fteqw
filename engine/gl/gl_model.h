@@ -805,7 +805,7 @@ void CM_Init(void);
 
 qboolean	CM_SetAreaPortalState (int portalnum, qboolean open);
 qboolean	CM_HeadnodeVisible (int nodenum, qbyte *visbits);
-qboolean	CM_AreasConnected (int area1, int area2);
+qboolean	VARGS CM_AreasConnected (int area1, int area2);
 int		CM_NumClusters (void);
 int		CM_ClusterSize (void);
 int		CM_LeafContents (int leafnum);
@@ -824,7 +824,7 @@ struct model_s *CM_TempBoxModel(vec3_t mins, vec3_t maxs);
 
 void Mod_ParseInfoFromEntityLump(char *data);
 
-void	CMQ2_SetAreaPortalState (int portalnum, qboolean open);
+void	VARGS CMQ2_SetAreaPortalState (int portalnum, qboolean open);
 #endif
 
 

@@ -247,6 +247,11 @@ qboolean Draw_RealPicFromWad (mpic_t	*out, char *name)
 	
 	if (texnum)
 	{
+		if (!in)
+		{
+			out->width = image_width;
+			out->height = image_height;
+		}
 		gl->texnum = texnum;
 		gl->sl = 0;
 		gl->sh = 1;

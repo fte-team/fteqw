@@ -3038,6 +3038,8 @@ void GLMod_LoadSprite2Model (model_t *mod, void *buffer)
 		frame->down = frame->height - origin[1];
 		frame->left = -origin[0];
 		frame->right = frame->width - origin[0];
+
+		pframetype++;
 	}
 
 	mod->type = mod_sprite;

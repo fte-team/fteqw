@@ -203,17 +203,17 @@ void R_RotateForEntity (entity_t *e)
 		void Matrix4_Multiply(float *a, float *b, float *out);
 		float new[16];
 	Matrix4_Multiply(m, r_world_matrix, new);
-	glLoadMatrixf(new);
+	qglLoadMatrixf(new);
 	}
 #endif
-	glMultMatrixf(m);
+	qglMultMatrixf(m);
 
 #else
-	glTranslatef (e->origin[0],  e->origin[1],  e->origin[2]);
-    glRotatef (e->angles[1],  0, 0, 1);
-    glRotatef (-e->angles[0],  0, 1, 0);
+	qglTranslatef (e->origin[0],  e->origin[1],  e->origin[2]);
+    qglRotatef (e->angles[1],  0, 0, 1);
+    qglRotatef (-e->angles[0],  0, 1, 0);
 	//ZOID: fixed z angle
-    glRotatef (e->angles[2],  1, 0, 0);
+    qglRotatef (e->angles[2],  1, 0, 0);
 #endif
 }
 
@@ -330,7 +330,7 @@ void R_DrawSpriteModel (entity_t *e)
 	right[1]*=currententity->scale;
 	right[2]*=currententity->scale;
 
-	glColor4f (1,1,1, e->alpha);
+	qglColor4f (1,1,1, e->alpha);
 
 	GL_DisableMultitexture();
 
@@ -338,39 +338,39 @@ void R_DrawSpriteModel (entity_t *e)
 
 	if (e->alpha<1)
 	{
-		glEnable(GL_BLEND);
-		glTexEnvf(GL_TEXTURE_ENV, GL_TEXTURE_ENV_MODE, GL_MODULATE);
+		qglEnable(GL_BLEND);
+		qglTexEnvf(GL_TEXTURE_ENV, GL_TEXTURE_ENV_MODE, GL_MODULATE);
 	}
 	else
-		glEnable (GL_ALPHA_TEST);
+		qglEnable (GL_ALPHA_TEST);
 
-	glDisable(GL_CULL_FACE);
-	glBegin (GL_QUADS);
+	qglDisable(GL_CULL_FACE);
+	qglBegin (GL_QUADS);
 
-	glTexCoord2f (0, 1);
+	qglTexCoord2f (0, 1);
 	VectorMA (e->origin, frame->down, up, point);
 	VectorMA (point, frame->left, right, point);
-	glVertex3fv (point);
+	qglVertex3fv (point);
 
-	glTexCoord2f (0, 0);
+	qglTexCoord2f (0, 0);
 	VectorMA (e->origin, frame->up, up, point);
 	VectorMA (point, frame->left, right, point);
-	glVertex3fv (point);
+	qglVertex3fv (point);
 
-	glTexCoord2f (1, 0);
+	qglTexCoord2f (1, 0);
 	VectorMA (e->origin, frame->up, up, point);
 	VectorMA (point, frame->right, right, point);
-	glVertex3fv (point);
+	qglVertex3fv (point);
 
-	glTexCoord2f (1, 1);
+	qglTexCoord2f (1, 1);
 	VectorMA (e->origin, frame->down, up, point);
 	VectorMA (point, frame->right, right, point);
-	glVertex3fv (point);
+	qglVertex3fv (point);
 	
-	glEnd ();
+	qglEnd ();
 
-	glDisable(GL_BLEND);
-	glDisable (GL_ALPHA_TEST);
+	qglDisable(GL_BLEND);
+	qglDisable (GL_ALPHA_TEST);
 }
 #if 0
 extern int gldepthfunc;
@@ -789,29 +789,29 @@ void R_PolyBlend (void)
 
  	GL_DisableMultitexture();
 
-	glDisable (GL_ALPHA_TEST);
-	glEnable (GL_BLEND);
-	glDisable (GL_DEPTH_TEST);
-	glDisable (GL_TEXTURE_2D);
+	qglDisable (GL_ALPHA_TEST);
+	qglEnable (GL_BLEND);
+	qglDisable (GL_DEPTH_TEST);
+	qglDisable (GL_TEXTURE_2D);
 
-    glLoadIdentity ();
+    qglLoadIdentity ();
 
-    glRotatef (-90,  1, 0, 0);	    // put Z going up
-    glRotatef (90,  0, 0, 1);	    // put Z going up
+    qglRotatef (-90,  1, 0, 0);	    // put Z going up
+    qglRotatef (90,  0, 0, 1);	    // put Z going up
 
-	glColor4fv (v_blend);
+	qglColor4fv (v_blend);
 
-	glBegin (GL_QUADS);
+	qglBegin (GL_QUADS);
 
-	glVertex3f (10, 100, 100);
-	glVertex3f (10, -100, 100);
-	glVertex3f (10, -100, -100);
-	glVertex3f (10, 100, -100);
-	glEnd ();
+	qglVertex3f (10, 100, 100);
+	qglVertex3f (10, -100, 100);
+	qglVertex3f (10, -100, -100);
+	qglVertex3f (10, 100, -100);
+	qglEnd ();
 
-	glDisable (GL_BLEND);
-	glEnable (GL_TEXTURE_2D);
-	glEnable (GL_ALPHA_TEST);
+	qglDisable (GL_BLEND);
+	qglEnable (GL_TEXTURE_2D);
+	qglEnable (GL_ALPHA_TEST);
 }
 
 void GLR_BrightenScreen (void)
@@ -829,26 +829,26 @@ void GLR_BrightenScreen (void)
 
 	f = pow (f, vid_gamma);
 	
-	glDisable (GL_TEXTURE_2D);
-	glEnable (GL_BLEND);
-	glBlendFunc (GL_DST_COLOR, GL_ONE);
-	glBegin (GL_QUADS);
+	qglDisable (GL_TEXTURE_2D);
+	qglEnable (GL_BLEND);
+	qglBlendFunc (GL_DST_COLOR, GL_ONE);
+	qglBegin (GL_QUADS);
 	while (f > 1) {
 		if (f >= 2)
-			glColor3f (1,1,1);
+			qglColor3f (1,1,1);
 		else
-			glColor3f (f - 1, f - 1, f - 1);
-		glVertex2f (0, 0);
-		glVertex2f (vid.width, 0);
-		glVertex2f (vid.width, vid.height);
-		glVertex2f (0, vid.height);
+			qglColor3f (f - 1, f - 1, f - 1);
+		qglVertex2f (0, 0);
+		qglVertex2f (vid.width, 0);
+		qglVertex2f (vid.width, vid.height);
+		qglVertex2f (0, vid.height);
 		f *= 0.5;
 	}
-	glEnd ();
-	glBlendFunc (GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
-	glEnable (GL_TEXTURE_2D);
-	glDisable (GL_BLEND);
-	glColor3f(1, 1, 1);
+	qglEnd ();
+	qglBlendFunc (GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+	qglEnable (GL_TEXTURE_2D);
+	qglDisable (GL_BLEND);
+	qglColor3f(1, 1, 1);
 
 	RSpeedEnd(RSPEED_PALETTEFLASHES);
 }
@@ -1037,7 +1037,7 @@ void MYgluPerspective( GLdouble fovy, GLdouble aspect,
 	xmax = ymax * aspect;
 
 #if 1	//for the sake of the d3d...
-	glFrustum( xmin, xmax, ymin, ymax, zNear, zFar );
+	qglFrustum( xmin, xmax, ymin, ymax, zNear, zFar );
 #else
 
 	matrix[0] = (2*zNear) / (xmax - xmin);
@@ -1060,7 +1060,7 @@ void MYgluPerspective( GLdouble fovy, GLdouble aspect,
 	matrix[11] = -1;
 	matrix[15] = 0;
 
-	glMultMatrixf(matrix);
+	qglMultMatrixf(matrix);
 #endif
 }
 
@@ -1100,7 +1100,7 @@ void GL_InfinatePerspective( GLdouble fovy, GLdouble aspect,
 	matrix[11] = -1;
 	matrix[15] = 0;
 
-	glMultMatrixf(matrix);
+	qglMultMatrixf(matrix);
 }
 
 
@@ -1142,10 +1142,10 @@ void R_SetupGL (void)
 		w = h = 256;
 	}
 
-	glViewport (glx + x, gly + y2, w, h);
+	qglViewport (glx + x, gly + y2, w, h);
 
-	glMatrixMode(GL_PROJECTION);
-    glLoadIdentity ();
+	qglMatrixMode(GL_PROJECTION);
+	qglLoadIdentity ();
 
 	screenaspect = (float)r_refdef.vrect.width/r_refdef.vrect.height;
 	if (!r_shadows.value || !gl_canstencil)//gl_nv_range_clamp)
@@ -1164,47 +1164,47 @@ void R_SetupGL (void)
 	if (mirror)
 	{
 		if (mirror_plane->normal[2])
-			glScalef (1, -1, 1);
+			qglScalef (1, -1, 1);
 		else
-			glScalef (-1, 1, 1);
-		glCullFace(GL_BACK);
+			qglScalef (-1, 1, 1);
+		qglCullFace(GL_BACK);
 	}
 	else
-		glCullFace(GL_FRONT);
+		qglCullFace(GL_FRONT);
 
-	glMatrixMode(GL_MODELVIEW);
-    glLoadIdentity ();
+	qglMatrixMode(GL_MODELVIEW);
+	qglLoadIdentity ();
 
-    glRotatef (-90,  1, 0, 0);	    // put Z going up
-    glRotatef (90,  0, 0, 1);	    // put Z going up
+    qglRotatef (-90,  1, 0, 0);	    // put Z going up
+    qglRotatef (90,  0, 0, 1);	    // put Z going up
 
 #ifdef R_XFLIP
 	if (r_xflip.value)
 	{
-		glScalef (1, -1, 1);
-		glCullFace(GL_BACK);
+		qglScalef (1, -1, 1);
+		qglCullFace(GL_BACK);
 	}
 #endif
 
 
-    glRotatef (-r_refdef.viewangles[2],  1, 0, 0);
-    glRotatef (-r_refdef.viewangles[0],  0, 1, 0);
-    glRotatef (-r_refdef.viewangles[1],  0, 0, 1);
-    glTranslatef (-r_refdef.vieworg[0],  -r_refdef.vieworg[1],  -r_refdef.vieworg[2]);
+    qglRotatef (-r_refdef.viewangles[2],  1, 0, 0);
+    qglRotatef (-r_refdef.viewangles[0],  0, 1, 0);
+    qglRotatef (-r_refdef.viewangles[1],  0, 0, 1);
+    qglTranslatef (-r_refdef.vieworg[0],  -r_refdef.vieworg[1],  -r_refdef.vieworg[2]);
 
-	glGetFloatv (GL_MODELVIEW_MATRIX, r_world_matrix);
+	qglGetFloatv (GL_MODELVIEW_MATRIX, r_world_matrix);
 
 	//
 	// set drawing parms
 	//
 	if (gl_cull.value)
-		glEnable(GL_CULL_FACE);
+		qglEnable(GL_CULL_FACE);
 	else
-		glDisable(GL_CULL_FACE);
+		qglDisable(GL_CULL_FACE);
 
-	glDisable(GL_BLEND);
-	glDisable(GL_ALPHA_TEST);
-	glEnable(GL_DEPTH_TEST);
+	qglDisable(GL_BLEND);
+	qglDisable(GL_ALPHA_TEST);
+	qglEnable(GL_DEPTH_TEST);
 
 //#ifndef D3DQUAKE
 //	glClearDepth(1.0f);
@@ -1227,11 +1227,11 @@ void R_SetupGL (void)
 
 	if (gl_dither.value)
 	{
-		glEnable(GL_DITHER);
+		qglEnable(GL_DITHER);
 	}
 	else
 	{
-		glDisable(GL_DITHER);
+		qglDisable(GL_DITHER);
 	}
 
 	GL_DisableMultitexture();
@@ -1306,12 +1306,12 @@ void R_Clear (void)
 	if (r_mirroralpha.value != 1.0)
 	{
 		if (gl_clear.value && !r_secondaryview)
-			glClear (GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+			qglClear (GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 		else
-			glClear (GL_DEPTH_BUFFER_BIT);
+			qglClear (GL_DEPTH_BUFFER_BIT);
 		gldepthmin = 0;
 		gldepthmax = 0.5;
-		glDepthFunc (gldepthfunc=GL_LEQUAL);
+		qglDepthFunc (gldepthfunc=GL_LEQUAL);
 	}
 #ifdef SIDEVIEWS
 	else if (gl_ztrick.value && !gl_ztrickdisabled)
@@ -1322,34 +1322,34 @@ void R_Clear (void)
 		static int trickframe;
 
 		if (gl_clear.value && !(r_refdef.flags & 1))
-			glClear (GL_COLOR_BUFFER_BIT);
+			qglClear (GL_COLOR_BUFFER_BIT);
 
 		trickframe++;
 		if (trickframe & 1)
 		{
 			gldepthmin = 0;
 			gldepthmax = 0.49999;
-			glDepthFunc (gldepthfunc=GL_LEQUAL);
+			qglDepthFunc (gldepthfunc=GL_LEQUAL);
 		}
 		else
 		{
 			gldepthmin = 1;
 			gldepthmax = 0.5;
-			glDepthFunc (gldepthfunc=GL_GEQUAL);
+			qglDepthFunc (gldepthfunc=GL_GEQUAL);
 		}
 	}
 	else
 	{
 		if (gl_clear.value && !r_secondaryview)
-			glClear (GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+			qglClear (GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 		else
-			glClear (GL_DEPTH_BUFFER_BIT);
+			qglClear (GL_DEPTH_BUFFER_BIT);
 		gldepthmin = 0;
 		gldepthmax = 1;
-		glDepthFunc (gldepthfunc=GL_LEQUAL);
+		qglDepthFunc (gldepthfunc=GL_LEQUAL);
 	}
 
-	glDepthRange (gldepthmin, gldepthmax);
+	qglDepthRange (gldepthmin, gldepthmax);
 }
 
 //#if 0 //!!! FIXME, Zoid, mirror is disabled for now
@@ -1506,8 +1506,8 @@ void R_Mirror (void)
 
 	gldepthmin = 0.5;
 	gldepthmax = 1;
-	glDepthRange (gldepthmin, gldepthmax);
-	glDepthFunc (GL_LEQUAL);
+	qglDepthRange (gldepthmin, gldepthmax);
+	qglDepthFunc (GL_LEQUAL);
 
 	R_RenderScene ();
 
@@ -1516,38 +1516,38 @@ void R_Mirror (void)
 
 	gldepthmin = 0;
 	gldepthmax = 0.5;
-	glDepthRange (gldepthmin, gldepthmax);
-	glDepthFunc (GL_LEQUAL);	
+	qglDepthRange (gldepthmin, gldepthmax);
+	qglDepthFunc (GL_LEQUAL);	
 
 	
 	memcpy(r_refdef.viewangles, oldangles, sizeof(vec3_t));
 
-	glMatrixMode(GL_PROJECTION);
+	qglMatrixMode(GL_PROJECTION);
 	if (mirror_plane->normal[2])
-		glScalef (1,-1,1);
+		qglScalef (1,-1,1);
 	else
-		glScalef (-1,1,1);
-	glCullFace(GL_FRONT);
-	glMatrixMode(GL_MODELVIEW);
+		qglScalef (-1,1,1);
+	qglCullFace(GL_FRONT);
+	qglMatrixMode(GL_MODELVIEW);
 
-	glLoadMatrixf (r_base_world_matrix);
+	qglLoadMatrixf (r_base_world_matrix);
 
 	
 
 	// blend on top
-	glDisable(GL_ALPHA_TEST);
-	glEnable (GL_BLEND);
-	glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
-	glColor4f (1,1,1,r_mirroralpha.value);
+	qglDisable(GL_ALPHA_TEST);
+	qglEnable (GL_BLEND);
+	qglBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+	qglColor4f (1,1,1,r_mirroralpha.value);
 	s = r_mirror_chain;
 	for ( ; s ; s=s->texturechain)
 		R_RenderBrushPoly (s);
 	cl.worldmodel->textures[mirrortexturenum]->texturechain = NULL;
-	glDisable (GL_BLEND);
-	glColor4f (1,1,1,1);
+	qglDisable (GL_BLEND);
+	qglColor4f (1,1,1,1);
 	
 	//put things back for rear views
-	glCullFace(GL_BACK);
+	qglCullFace(GL_BACK);
 
 	memcpy(r_refdef.viewangles, oldangles, sizeof(vec3_t));
 	memcpy(r_refdef.vieworg, oldorg, sizeof(vec3_t));
@@ -1599,7 +1599,7 @@ void GLR_RenderView (void)
 	if (gl_finish.value)
 	{
 		RSpeedMark();
-		glFinish ();
+		qglFinish ();
 		RSpeedEnd(RSPEED_FINISH);
 	}
 

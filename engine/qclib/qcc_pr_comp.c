@@ -1409,7 +1409,7 @@ QCC_def_t *QCC_PR_Statement ( QCC_opcode_t *op, QCC_def_t *var_a, QCC_def_t *var
 		case OP_IFS:
 			var_c = QCC_PR_GetDef(type_string, "string_null", NULL, true, 1);
 			numstatements--;
-			var_a = QCC_PR_Statement(&pr_opcodes[OP_NE_S], var_a, var_b, NULL);
+			var_a = QCC_PR_Statement(&pr_opcodes[OP_NE_S], var_a, var_c, NULL);
 			statement = &statements[numstatements];
 			numstatements++;
 

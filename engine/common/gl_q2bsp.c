@@ -4017,12 +4017,12 @@ void CM_ClipBoxToPatch (vec3_t mins, vec3_t maxs, vec3_t p1, vec3_t p2,
 		d1 = DotProduct (p1, plane->normal) - dist;
 		d2 = DotProduct (p2, plane->normal) - dist;
 
-		if (d1 > 0)
-			startout = true;
-
 		// if completely in front of face, no intersection
 		if (d1 > 0 && d2 >= d1)
 			return;
+
+		if (d1 > 0)
+			startout = true;
 
 		if (d1 <= 0 && d2 <= 0)
 			continue;
@@ -4049,7 +4049,7 @@ void CM_ClipBoxToPatch (vec3_t mins, vec3_t maxs, vec3_t p1, vec3_t p2,
 	if (!startout)
 		return;		// original point is inside the patch
 
-	if (enterfrac < leavefrac)
+	if (enterfrac <= leavefrac)
 	{
 		if (leadside && leadside->surface
 			&& enterfrac < trace->fraction)

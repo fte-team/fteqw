@@ -567,6 +567,7 @@ enum {
 	WARN_DEADCODE,
 	WARN_NOTSTANDARDBEHAVIOUR,
 	WARN_INEFFICIENTPLUSPLUS,
+	WARN_DUPLICATEPRECOMPILER,
 	WARN_FTE_SPECIFIC,	//extension that only FTEQCC will have a clue about.
 	WARN_EXTENSION_USED,	//extension that frikqcc also understands
 

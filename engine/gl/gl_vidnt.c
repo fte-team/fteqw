@@ -128,11 +128,6 @@ void ClearAllStates (void);
 void VID_UpdateWindowStatus (void);
 void GL_Init(void *(*getglfunction) (char *name));
 
-PROC glArrayElementEXT;
-PROC glColorPointerEXT;
-PROC glTexCoordPointerEXT;
-PROC glVertexPointerEXT;
-
 typedef void (APIENTRY *lp3DFXFUNC) (int, int, int, int, int, const void*);
 lp3DFXFUNC qglColorTableEXT;
 qboolean is8bit = false;

@@ -137,6 +137,8 @@ qboolean GLX_InitLibrary(char *driver)
 		gllibrary = NULL;
 	if (!gllibrary)
 		gllibrary = dlopen("libGL.so", RTLD_LOCAL | RTLD_LAZY);
+	if (!gllibrary)	//I hate this.
+		gllibrary = dlopen("libGL.so.1", RTLD_LOCAL | RTLD_LAZY);
 	if (!gllibrary)
 		return false;
 
@@ -622,7 +624,11 @@ qboolean GLVID_Init (rendererstate_t *info, unsigned char *palette)
 
 	S_Startup();
 
-	GLX_InitLibrary(info->glrenderer);
+	if (!GLX_InitLibrary(info->glrenderer))
+	{
+		Con_Printf("Couldn't intialise GLX\nEither your drivers are not installed or you need to specify the library name with the gl_driver cvar\n");
+		return false;
+	}
 	
 	vid.maxwarpwidth = WARP_WIDTH;
 	vid.maxwarpheight = WARP_HEIGHT;

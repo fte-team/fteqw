@@ -370,6 +370,7 @@ typedef struct
 	char		serverinfo[MAX_SERVERINFO_STRING];
 
 	int			parsecount;		// server message counter
+	int			oldparsecount;
 	int			oldvalidsequence;
 	int			validsequence;	// this is the sequence number of the last good
 								// packetentity_t we got.  If this is 0, we can't

@@ -82,14 +82,14 @@ cvar_t	crosshaircorrect = {"crosshaircorrect", "0", NULL, CVAR_SEMICHEAT};
 
 cvar_t	gl_cshiftpercent = {"gl_cshiftpercent", "100"};
 
-cvar_t	v_bonusflash = {"v_bonusflash", "1"};
+cvar_t	v_bonusflash = {"v_bonusflash", "0"};
 
-cvar_t  v_contentblend = {"v_contentblend", "1"};
-cvar_t	v_damagecshift = {"v_damagecshift", "1"};
-cvar_t	v_quadcshift = {"v_quadcshift", "1"};
-cvar_t	v_suitcshift = {"v_suitcshift", "1"};
-cvar_t	v_ringcshift = {"v_ringcshift", "1"};
-cvar_t	v_pentcshift = {"v_pentcshift", "1"};
+cvar_t  v_contentblend = {"v_contentblend", "0"};
+cvar_t	v_damagecshift = {"v_damagecshift", "0"};
+cvar_t	v_quadcshift = {"v_quadcshift", "0"};
+cvar_t	v_suitcshift = {"v_suitcshift", "0"};
+cvar_t	v_ringcshift = {"v_ringcshift", "0"};
+cvar_t	v_pentcshift = {"v_pentcshift", "0"};
 
 extern cvar_t cl_chasecam;
 

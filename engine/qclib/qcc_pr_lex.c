@@ -2061,14 +2061,20 @@ void VARGS QCC_PR_ParseWarning (int type, char *error, ...)
 	va_list		argptr;
 	char		string[1024];
 
-	if (qccwarningdisabled[type])
+	if (type < ERR_PARSEERRORS && qccwarningdisabled[type])
 		return;
 
 	va_start (argptr,error);
 	QC_vsnprintf (string,sizeof(string)-1, error,argptr);
 	va_end (argptr);
 
-	printf ("%s:%i: warning: %s\n", strings + s_file, pr_source_line, string);
+	if (type >= ERR_PARSEERRORS)
+	{
+		printf ("%s:%i: error: %s\n", strings + s_file, pr_source_line, string);
+		pr_error_count++;
+	}
+	else
+		printf ("%s:%i: warning: %s\n", strings + s_file, pr_source_line, string);
 }
 
 void VARGS QCC_PR_Warning (int type, char *file, int line, char *error, ...)
@@ -2383,12 +2389,18 @@ char	pr_parm_names[MAX_PARMS+MAX_EXTRA_PARMS][MAX_NAME];
 char	pr_parm_names[MAX_PARMS][MAX_NAME];
 #endif
 
+pbool recursivefunctiontype;
+
 QCC_type_t *QCC_PR_NewType (char *name, int basictype);
 //expects a ( to have already been parsed.
 QCC_type_t *QCC_PR_ParseFunctionType (int newtype, QCC_type_t *returntype)
 {
 	QCC_type_t	*ftype, *ptype, *nptype;
 	char	*name;
+	int definenames = !recursivefunctiontype;
+
+	recursivefunctiontype++;
+
 	ftype = QCC_PR_NewType(type_function->name, ev_function);
 
 	ftype->aux_type = returntype;	// return type
@@ -2432,15 +2444,17 @@ QCC_type_t *QCC_PR_ParseFunctionType (int newtype, QCC_type_t *returntype)
 				if (STRCMP(pr_token, ",") && STRCMP(pr_token, ")"))
 				{
 					name = QCC_PR_ParseName ();
-					strcpy (pr_parm_names[ftype->num_parms], name);
+					if (definenames)
+						strcpy (pr_parm_names[ftype->num_parms], name);
 				}
-				else
+				else if (definenames)
 					strcpy (pr_parm_names[ftype->num_parms], "");
 				ftype->num_parms++;
 			} while (QCC_PR_Check (","));
 	
 		QCC_PR_Expect (")");
 	}
+	recursivefunctiontype--;
 	if (newtype)
 		return ftype;
 	return QCC_PR_FindType (ftype);

@@ -83,6 +83,8 @@ cvar_t sv_loadentfiles = {"sv_loadentfiles", "1"};
 cvar_t sv_maxrate = {"sv_maxrate", "10000"};
 cvar_t sv_maxdrate = {"sv_maxdrate", "10000"};
 
+cvar_t sv_bigcoords = {"sv_bigcoords", "", NULL, CVAR_SERVERINFO};
+
 cvar_t sv_phs = {"sv_phs", "1"};
 cvar_t sv_resetparms = {"sv_resetparms", "0"};
 
@@ -199,7 +201,9 @@ void VARGS SV_Error (char *error, ...)
 	static	qboolean inerror = false;
 
 	if (inerror)
+	{
 		Sys_Error ("SV_Error: recursively entered (%s)", string);
+	}
 
 	inerror = true;
 
@@ -1256,7 +1260,7 @@ void SVC_DirectConnect
 
 	name = Info_ValueForKey (temp.userinfo, "name");
 
-	if (!atoi(Info_ValueForKey (temp.userinfo, "iknow")))
+	if (!isquake2client &&!atoi(Info_ValueForKey (temp.userinfo, "iknow")))
 	{
 		if (sv.worldmodel->fromgame == fg_halflife && !(newcl->fteprotocolextensions & PEXT_HLBSP))
 		{
@@ -1268,7 +1272,7 @@ void SVC_DirectConnect
 			}
 		}
 #ifdef PEXT_Q2BSP
-		else if (!isquake2client &&	sv.worldmodel->fromgame == fg_quake2 && !(newcl->fteprotocolextensions & PEXT_Q2BSP))
+		else if (sv.worldmodel->fromgame == fg_quake2 && !(newcl->fteprotocolextensions & PEXT_Q2BSP))
 		{
 			SV_OutOfBandPrintf (isquake2client, adr, "%c\nThe server is using a quake 2 level and we don't think your client supports this\nuse 'setinfo iknow 1' to ignore this check\nYou can go to "ENGINEWEBSITE" to get a compatable client\n\nYou may need to enable an option\n\n", A2C_PRINT);
 			Con_Printf("player %s was dropped due to incompatable client\n", name);
@@ -2885,6 +2889,8 @@ void SV_InitLocal (void)
 	Cvar_Register (&sv_friction,			cvargroup_serverphysics);
 	Cvar_Register (&sv_waterfriction,		cvargroup_serverphysics);
 
+	Cvar_Register (&sv_bigcoords,			cvargroup_serverphysics);
+
 	Cvar_Register (&pm_bunnyspeedcap,		cvargroup_serverphysics);
 	Cvar_Register (&pm_ktjump,				cvargroup_serverphysics);
 	Cvar_Register (&pm_slidefix,			cvargroup_serverphysics);
@@ -2935,6 +2941,7 @@ void SV_InitLocal (void)
 
 	Cvar_Register (&sv_voicechat,	cvargroup_servercontrol);
 	Cvar_Register (&sv_maxrate, cvargroup_servercontrol);
+	Cvar_Register (&sv_maxdrate, cvargroup_servercontrol);
 
 	Cvar_Register (&sv_nailhack, cvargroup_servercontrol);
 
@@ -3002,8 +3009,8 @@ void SV_InitLocal (void)
 #ifdef PEXT_MODELDBL
 	svs.fteprotocolextensions |= PEXT_MODELDBL;
 #endif
-#ifdef PEXT_ORIGINDBL
-	svs.fteprotocolextensions |= PEXT_ORIGINDBL;
+#ifdef PEXT_FLOATCOORDS
+	svs.fteprotocolextensions |= PEXT_FLOATCOORDS;
 #endif
 	svs.fteprotocolextensions |= PEXT_SEEF1;
 	svs.fteprotocolextensions |= PEXT_SPLITSCREEN;

@@ -4174,18 +4174,24 @@ void SV_point_tempentity (vec3_t o, int type, int count)	//count (usually 1) is 
 
 //this is for lamers with old (or unsupported) clients
 	MSG_WriteByte (&sv.multicast, svc_temp_entity);
+#ifdef NQPROT
 	MSG_WriteByte (&sv.nqmulticast, svc_temp_entity);
+#endif
 	switch(type)
 	{
 	case TE_BULLET:
 		MSG_WriteByte (&sv.multicast, TE_SPIKE);
+#ifdef NQPROT
 		MSG_WriteByte (&sv.nqmulticast, TE_SPIKE);
+#endif
 		type = TE_BULLET;
 		split = PEXT_TE_BULLET;
 		break;
 	case TE_SUPERBULLET:
 		MSG_WriteByte (&sv.multicast, TE_SUPERSPIKE);
+#ifdef NQPROT
 		MSG_WriteByte (&sv.nqmulticast, TE_SUPERSPIKE);
+#endif
 		type = TE_SUPERBULLET;
 		split = PEXT_TE_BULLET;
 		break;
@@ -4193,7 +4199,9 @@ void SV_point_tempentity (vec3_t o, int type, int count)	//count (usually 1) is 
 	case TE_GUNSHOT:
 		MSG_WriteByte (&sv.multicast, type);
 		MSG_WriteByte (&sv.multicast, count);
+#ifdef NQPROT
 		MSG_WriteByte (&sv.nqmulticast, type);	//nq doesn't have a count.
+#endif
 		break;
 	case TE_LIGHTNING1:
 	case TE_LIGHTNING2:
@@ -4205,13 +4213,14 @@ void SV_point_tempentity (vec3_t o, int type, int count)	//count (usually 1) is 
 	MSG_WriteCoord (&sv.multicast, o[0]);
 	MSG_WriteCoord (&sv.multicast, o[1]);
 	MSG_WriteCoord (&sv.multicast, o[2]);
-
+#ifdef NQPROT
 	MSG_WriteCoord (&sv.nqmulticast, o[0]);
 	MSG_WriteCoord (&sv.nqmulticast, o[1]);
 	MSG_WriteCoord (&sv.nqmulticast, o[2]);
-
+#endif
 	if (type == TE_BLOOD || type == TE_LIGHTNINGBLOOD)
 	{
+#ifdef NQPROT
 		sv.nqmulticast.cursize = 0;	//don't send a te_blood or lightningblood to an nq client - they'll die horribly.
 
 		//send a particle instead
@@ -4228,6 +4237,7 @@ void SV_point_tempentity (vec3_t o, int type, int count)	//count (usually 1) is 
 			MSG_WriteByte (&sv.nqmulticast, 73);
 		else
 			MSG_WriteByte (&sv.nqmulticast, 225);
+#endif
 	}
 
 	SV_MulticastProtExt (o, MULTICAST_PHS, pr_global_struct->dimension_send, split, 0);
@@ -4256,7 +4266,7 @@ void SV_beam_tempentity (int ownerent, vec3_t start, vec3_t end, int type)
 	MSG_WriteCoord (&sv.multicast, end[0]);
 	MSG_WriteCoord (&sv.multicast, end[1]);
 	MSG_WriteCoord (&sv.multicast, end[2]);
-
+#ifdef NQPROT
 	if (type == TE_LIGHTNING2 && ownerent<0)	//special handling for TE_BEAM (don't do TE_RAILGUN - it's a tomaz extension)
 	{
 		MSG_WriteByte (&sv.nqmulticast, svc_temp_entity);
@@ -4281,6 +4291,7 @@ void SV_beam_tempentity (int ownerent, vec3_t start, vec3_t end, int type)
 		MSG_WriteCoord (&sv.nqmulticast, end[1]);
 		MSG_WriteCoord (&sv.nqmulticast, end[2]);
 	}
+#endif
 	SV_MulticastProtExt (start, MULTICAST_PHS, pr_global_struct->dimension_send, 0, 0);
 }
 
@@ -6651,11 +6662,11 @@ void PF_setcolors (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 
 	client = &svs.clients[entnum-1];
 	client->edict->v.team = (i & 15) + 1;
-
+#ifdef NQPROT
 	MSG_WriteByte (&sv.nqreliable_datagram, svc_updatecolors);
 	MSG_WriteByte (&sv.nqreliable_datagram, entnum - 1);
 	MSG_WriteByte (&sv.nqreliable_datagram, i);
-
+#endif
 	sprintf(number, "%i", i>>4);
 	if (!strcmp(number, Info_ValueForKey(client->userinfo, "topcolor")))
 	{

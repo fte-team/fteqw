@@ -4796,7 +4796,5 @@ void SV_ClientThink (void)
 	}
 
 	SV_AirMove ();
-
-	Con_Printf("%f %f %f\n", sv_player->v.velocity[0], sv_player->v.velocity[1], sv_player->v.velocity[2]);
 }
 

@@ -326,7 +326,11 @@ trace_t PM_PlayerTrace (vec3_t start, vec3_t end)
 		if (trace.allsolid)
 			trace.startsolid = true;
 		if (trace.startsolid)
+		{
+			if (!pmove.physents[i].model)	//caught inside annother model
+				continue;	//don't count this.
 			trace.fraction = 0;
+		}
 
 	// did we clip the move?
 		if (trace.fraction < total.fraction)

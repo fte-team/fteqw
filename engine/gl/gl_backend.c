@@ -59,6 +59,17 @@ void GL_BindType (int type, int texnum)
 	bindTexFunc (type, texnum);
 }
 
+void GL_TexEnv( GLenum mode )
+{
+	static int lastmodes[MAX_TEXTURE_UNITS] = { -1, -1 };
+
+	if ( mode != lastmodes[gl_state.currenttmu] )
+	{
+		qglTexEnvf( GL_TEXTURE_ENV, GL_TEXTURE_ENV_MODE, mode );
+		lastmodes[gl_state.currenttmu] = mode;
+	}
+}
+
 //vid restarted.
 void GL_FlushBinds(void)
 {
@@ -78,6 +89,10 @@ void GL_FlushBinds(void)
 
 #ifndef Q3SHADERS
 
+qboolean varrayactive;
+void R_IBrokeTheArrays(void)
+{
+}
 
 #define MAX_MESH_VERTS 8192
 
@@ -786,16 +801,7 @@ void VectorNormalizeFast( vec3_t v )
 
 
 
-void GL_TexEnv( GLenum mode )
-{
-	static int lastmodes[MAX_TEXTURE_UNITS] = { -1, -1 };
 
-	if ( mode != lastmodes[gl_state.currenttmu] )
-	{
-		qglTexEnvf( GL_TEXTURE_ENV, GL_TEXTURE_ENV_MODE, mode );
-		lastmodes[gl_state.currenttmu] = mode;
-	}
-}
 typedef vec3_t mat3_t[3];
 mat3_t axisDefault={{1, 0, 0},
 					{0, 1, 0},

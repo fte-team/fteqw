@@ -52,7 +52,7 @@ cvar_t bul_text2 = {"bul_text2", "2"};
 cvar_t bul_text3 = {"bul_text3", "0Join Shubs Army\\nFight for Fear"};
 cvar_t bul_text4 = {"bul_text4", "0Need a gun?\\nGoto bobs place!"};
 cvar_t bul_text5 = {"bul_text5", "0Beware the fans\\nThey can hurt."};
-cvar_t bul_text6 = {"bul_text6", "2Quake B\\n    Arena   "};
+cvar_t bul_text6 = {"bul_text6", "2Quake B Arena"};
 
 cvar_t bul_scrollspeedx = {"bul_scrollspeedx", "-20"};	//pixels per second
 cvar_t bul_scrollspeedy = {"bul_scrollspeedy", "-10"};	//pixels per second

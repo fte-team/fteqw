@@ -552,8 +552,6 @@ void	(*Mod_TouchModel)			(char *name);
 struct mleaf_s *(*Mod_PointInLeaf)	(float *p, struct model_s *model);
 qbyte	*(*Mod_Q1LeafPVS)			(struct mleaf_s *leaf, struct model_s *model, qbyte *buffer);
 void	(*Mod_NowLoadExternal)		(void);
-
-void	(*Mod_ReloadTextures)		(void);
 void	(*Mod_Think)				(void);
 
 
@@ -808,7 +806,6 @@ void R_SetRenderer(r_qrenderer_t wanted)
 		Mod_PointInLeaf			= SWMod_PointInLeaf;
 		Mod_Q1LeafPVS			= SWMod_LeafPVS;
 		Mod_NowLoadExternal		= SWMod_NowLoadExternal;
-		Mod_ReloadTextures		= SWMod_ReloadTextures;
 #else
 		Mod_Init				= GLMod_Init;
 		Mod_Think				= GLMod_Think;
@@ -821,7 +818,6 @@ void R_SetRenderer(r_qrenderer_t wanted)
 		Mod_PointInLeaf			= GLMod_PointInLeaf;
 		Mod_Q1LeafPVS			= GLMod_LeafPVS;
 		Mod_NowLoadExternal		= GLMod_NowLoadExternal;
-		Mod_ReloadTextures		= GLMod_ReloadTextures;
 #endif
 
 		
@@ -894,7 +890,6 @@ void R_SetRenderer(r_qrenderer_t wanted)
 		Mod_PointInLeaf			= SWMod_PointInLeaf;
 		Mod_Q1LeafPVS			= SWMod_LeafPVS;
 		Mod_NowLoadExternal		= SWMod_NowLoadExternal;
-		Mod_ReloadTextures		= SWMod_ReloadTextures;
 
 
 		
@@ -968,7 +963,6 @@ void R_SetRenderer(r_qrenderer_t wanted)
 		Mod_PointInLeaf			= GLMod_PointInLeaf;
 		Mod_Q1LeafPVS			= GLMod_LeafPVS;
 		Mod_NowLoadExternal		= GLMod_NowLoadExternal;
-		Mod_ReloadTextures		= GLMod_ReloadTextures;
 
 
 		
@@ -1017,6 +1011,8 @@ qboolean R_ApplyRenderer (rendererstate_t *newr)
 	Cache_Flush();
 
 	Hunk_FreeToLowMark(host_hunklevel);	//is this a good idea?
+
+	gl_skyboxname.modified = true;
 
 	if (qrenderer)	//graphics stuff only when not dedicated
 	{

@@ -235,7 +235,6 @@ qbyte	*GLMod_LeafPVS (struct mleaf_s *leaf, struct model_s *model, qbyte *buffer
 qbyte	*GLMod_LeafnumPVS (int leafnum, struct model_s *model, qbyte *buffer);
 
 void GLMod_Think (void);
-void GLMod_ReloadTextures(void);
 void GLMod_NowLoadExternal(void);
 void GLR_WipeStains(void);
 void R_LoadSkys (void);
@@ -254,7 +253,6 @@ struct mleaf_s *SWMod_PointInLeaf (float *p, struct model_s *model);
 qbyte	*SWMod_LeafPVS (struct mleaf_s *leaf, struct model_s *model, qbyte *buffer);
 
 void SWMod_Think (void);
-void SWMod_ReloadTextures(void);
 void SWMod_NowLoadExternal(void);
 #endif
 

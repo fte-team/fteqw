@@ -289,7 +289,7 @@ void R_DrawAliasModel (entity_t *e);
 //gl_alias.c
 void R_DrawGAliasModel (entity_t *e);
 void R_DrawGAliasShadowVolume(entity_t *e, vec3_t lightpos, float radius);
-void R_DrawGAliasModelLighting (entity_t *e);
+void R_DrawGAliasModelLighting (entity_t *e, vec3_t lightpos, vec3_t colours, float radius);
 
 //misc model formats
 void R_DrawAlias3Model (entity_t *ent);
@@ -319,6 +319,7 @@ void GL_BuildLightmaps (void);
 
 void GL_LoadShaders(void);
 int Mod_LoadReplacementTexture(char *name, qboolean mipmap, qboolean alpha, qboolean gammaadjust);
+extern int image_width, image_height;
 int Mod_LoadHiResTexture(char *name, qboolean mipmap, qboolean alpha, qboolean gammaadjust);
 int Mod_LoadBumpmapTexture(char *name);
 

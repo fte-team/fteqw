@@ -797,6 +797,7 @@ void M_Init (void)
 #ifndef CLIENTONLY
 	Cmd_AddCommand ("menu_save", M_Menu_Save_f);
 	Cmd_AddCommand ("menu_load", M_Menu_Load_f);
+	Cmd_AddCommand ("menu_loadgame", M_Menu_Load_f);	//q2...
 #endif
 	Cmd_AddCommand ("menu_single", M_Menu_SinglePlayer_f);
 	Cmd_AddCommand ("menu_multi", M_Menu_MultiPlayer_f);

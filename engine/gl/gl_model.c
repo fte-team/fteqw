@@ -49,6 +49,7 @@ void Mod_LoadQ2BrushModel (model_t *mod, void *buffer);
 void Mod_LoadHLModel (model_t *mod, void *buffer);
 void Mod_LoadAlias3Model (model_t *mod, void *buffer);
 void Mod_LoadGroupModel (model_t *mod, void *buffer);
+void GLMod_LoadZymoticModel(model_t *mod, void *buffer);
 model_t *GLMod_LoadModel (model_t *mod, qboolean crash);
 
 #ifdef DOOMWADS
@@ -651,6 +652,11 @@ couldntload:
 	case 29:	//q1
 		GLMod_LoadBrushModel (mod, buf);
 		break;
+
+	case (('O'<<24)+('M'<<16)+('Y'<<8)+'Z'):
+		GLMod_LoadZymoticModel(mod, buf);
+		break;
+
 	default:
 		Con_Printf("Unrecognised model format %i\n", LittleLong(*(unsigned *)buf));
 		goto couldntload;

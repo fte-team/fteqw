@@ -71,7 +71,7 @@ void GL_TexEnv( GLenum mode )
 }
 
 //vid restarted.
-void GL_FlushBinds(void)
+void GL_FlushBackEnd(void)
 {
 	int i;
 	for (i = 0; i < MAX_TEXTURE_UNITS; i++)
@@ -82,19 +82,6 @@ void GL_FlushBinds(void)
 }
 
 typedef vec3_t mat3_t[3];
-void Matrix3_Multiply (mat3_t in1, mat3_t in2, mat3_t out)
-{
-	out[0][0] = in1[0][0]*in2[0][0] + in1[0][1]*in2[1][0] + in1[0][2]*in2[2][0];
-	out[0][1] = in1[0][0]*in2[0][1] + in1[0][1]*in2[1][1] + in1[0][2]*in2[2][1];
-	out[0][2] = in1[0][0]*in2[0][2] + in1[0][1]*in2[1][2] + in1[0][2]*in2[2][2];
-	out[1][0] = in1[1][0]*in2[0][0] + in1[1][1]*in2[1][0] +	in1[1][2]*in2[2][0];
-	out[1][1] = in1[1][0]*in2[0][1] + in1[1][1]*in2[1][1] + in1[1][2]*in2[2][1];
-	out[1][2] = in1[1][0]*in2[0][2] + in1[1][1]*in2[1][2] +	in1[1][2]*in2[2][2];
-	out[2][0] = in1[2][0]*in2[0][0] + in1[2][1]*in2[1][0] +	in1[2][2]*in2[2][0];
-	out[2][1] = in1[2][0]*in2[0][1] + in1[2][1]*in2[1][1] +	in1[2][2]*in2[2][1];
-	out[2][2] = in1[2][0]*in2[0][2] + in1[2][1]*in2[1][2] +	in1[2][2]*in2[2][2];
-}
-
 
 
 

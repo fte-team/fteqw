@@ -200,6 +200,18 @@ qbyte		menuplyr_pixels[4096];
 int		pic_texels;
 int		pic_count;
 
+qpic_t *GLDraw_IsCached(char *name)
+{
+	glcachepic_t *pic;
+	int i;
+
+	for (pic=glmenu_cachepics, i=0 ; i<glmenu_numcachepics ; pic++, i++)
+		if (!strcmp (name, pic->name))
+			return &pic->pic;
+
+	return NULL;
+}
+
 qboolean Draw_RealPicFromWad (qpic_t	*out, char *name)
 {
 	qpic_t	*in;
@@ -682,7 +694,7 @@ void GLDraw_ReInit (void)
 #ifdef Q3SHADERS
 	r_fogtexture=0;
 #endif
-	GL_FlushBinds();
+	GL_FlushBackEnd();
 //	GL_FlushSkinCache();
 	TRACE(("dbg: GLDraw_ReInit: GL_GAliasFlushSkinCache\n"));
 	GL_GAliasFlushSkinCache();
@@ -1174,8 +1186,16 @@ Draw_String
 */
 void GLDraw_String (int x, int y, const qbyte *str)
 {
+	float xstart = x;
 	while (*str)
 	{
+		if (*str == '\n')
+		{
+			x = xstart;
+			y += 8;
+			str++;
+			continue;
+		}
 		Draw_Character (x, y, *str);
 		str++;
 		x += 8;
@@ -1359,7 +1379,7 @@ void GLDraw_ScalePic (int x, int y, int width, int height, qpic_t *pic)
 	if (scrap_dirty)
 		Scrap_Upload ();
 	gl = (glpic_t *)pic->data;
-	glColor4f (1,1,1,1);
+//	glColor4f (1,1,1,1);
 	GL_Bind (gl->texnum);
 	glBegin (GL_QUADS);
 	glTexCoord2f (gl->sl, gl->tl);
@@ -1425,7 +1445,19 @@ void GLDraw_SubPic(int x, int y, qpic_t *pic, int srcx, int srcy, int width, int
 	newtl = gl->tl + (srcy*oldglheight)/pic->height;
 	newth = newtl + (height*oldglheight)/pic->height;
 
-	
+#ifdef Q3SHADERS
+	GL_Bind (gl->texnum);
+	glBegin (GL_QUADS);
+	glTexCoord2f (newsl, newtl);
+	glVertex2f (x, y);
+	glTexCoord2f (newsh, newtl);
+	glVertex2f (x+width, y);
+	glTexCoord2f (newsh, newth);
+	glVertex2f (x+width, y+height);
+	glTexCoord2f (newsl, newth);
+	glVertex2f (x, y+height);
+	glEnd ();
+#else
 	draw_mesh_xyz[0][0] = x;
 	draw_mesh_xyz[0][1] = y;
 	draw_mesh_st[0][0] = newsl;
@@ -1446,9 +1478,6 @@ void GLDraw_SubPic(int x, int y, qpic_t *pic, int srcx, int srcy, int width, int
 	draw_mesh_st[3][0] = newsl;
 	draw_mesh_st[3][1] = newth;
 
-#ifdef Q3SHADERS
-	GL_DrawAliasMesh(&draw_mesh, gl->texnum);
-#else
 	GL_DrawMesh(&draw_mesh, NULL, gl->texnum, 0);
 #endif
 }
@@ -1660,6 +1689,11 @@ void GLDraw_FadeScreen (void)
 	Sbar_Changed();
 }
 
+void GLDraw_ImageColours(float r, float g, float b, float a)
+{
+	glColor4f(r, g, b, a);
+}
+
 void GLDraw_Image(float x, float y, float w, float h, float s1, float t1, float s2, float t2, qpic_t *pic)
 {
 	glpic_t			*gl;
@@ -1690,6 +1724,19 @@ void GLDraw_Image(float x, float y, float w, float h, float s1, float t1, float 
 	t2 = t1 + (t2-t1)*gl->th;
 	t1 += gl->tl;
 
+#ifdef Q3SHADERS
+	GL_Bind (gl->texnum);
+	glBegin (GL_QUADS);
+	glTexCoord2f (s1, t1);
+	glVertex2f (x, y);
+	glTexCoord2f (s2, t1);
+	glVertex2f (x+w, y);
+	glTexCoord2f (s2, t2);
+	glVertex2f (x+w, y+h);
+	glTexCoord2f (s1, t2);
+	glVertex2f (x, y+h);
+	glEnd ();
+#else
 	draw_mesh_xyz[0][0] = x;
 	draw_mesh_xyz[0][1] = y;
 	draw_mesh_st[0][0] = s1;
@@ -1710,9 +1757,6 @@ void GLDraw_Image(float x, float y, float w, float h, float s1, float t1, float 
 	draw_mesh_st[3][0] = s1;
 	draw_mesh_st[3][1] = t2;
 
-#ifdef Q3SHADERS
-	GL_DrawAliasMesh(&draw_mesh, gl->texnum);
-#else
 	GL_DrawMesh(&draw_mesh, NULL, gl->texnum, 0);
 #endif
 }

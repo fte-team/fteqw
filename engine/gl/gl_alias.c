@@ -70,6 +70,8 @@ typedef struct {
 	int numskins;
 	int ofsskins;
 
+	qboolean sharesverts;	//used with models with two shaders using the same vertex.
+
 
 	int numverts;
 
@@ -81,12 +83,20 @@ typedef struct {
 	int nextsurf;
 
 
+	int numbones;
+	int ofsbones;
+	int numtransforms;
+	int ofstransforms;
+
+//these exist only in the root mesh.
 	int numtags;
 	int ofstags;
 } galiasinfo_t;
 
 //frame is an index into this
 typedef struct {
+	qboolean isskeletal;
+
 	int numposes;
 	float rate;
 	int poseofs;
@@ -99,6 +109,18 @@ typedef struct {
 	vec3_t		scale;
 	vec3_t		scale_origin;
 } galiaspose_t;
+
+
+typedef struct {
+	int parent;
+} galiasbone_t;
+
+typedef struct {
+	//skeletal poses refer to this.
+	int vertexindex;
+	int boneindex;
+	vec4_t org;
+} galisskeletaltransforms_t;
 
 //we can't be bothered with animating skins.
 //We'll load up to four of them but after that you're on your own
@@ -255,6 +277,70 @@ static void R_LerpFrames(mesh_t *mesh, galiaspose_t *p1, galiaspose_t *p2, float
 	}
 }
 
+static void R_BuildSkeletalMesh(mesh_t *mesh, float *plerp, float **pose, int poses, galiasbone_t *bones, int bonecount, galisskeletaltransforms_t *weights, int numweights)
+{
+	float bonepose[256][12];
+	float *outhead;
+	galisskeletaltransforms_t *v;
+
+	int i, k, b;
+	float *out, *matrix, m[12];
+
+
+	// vertex weighted skeletal
+	// interpolate matrices and concatenate them to their parents
+	for (i = 0;i < bonecount;i++)
+	{
+		for (k = 0;k < 12;k++)
+			m[k] = 0;
+		for (b = 0;b < poses;b++)
+		{
+			matrix = pose[b] + i*12;
+			
+			for (k = 0;k < 12;k++)
+				m[k] += matrix[k] * plerp[b];
+		}
+		if (bones[i].parent >= 0)
+			R_ConcatTransforms((void*)bonepose[bones[i].parent], (void*)m, (void*)bonepose[i]);
+		else
+			for (k = 0;k < 12;k++)	//parentless
+				bonepose[i][k] = m[k];
+	}
+
+	outhead = (float*)mesh->xyz_array;
+	// blend the vertex bone weights
+	memset(outhead, 0, mesh->numvertexes * sizeof(mesh->xyz_array[0]));
+
+	for (i = 0; i < mesh->numvertexes; i++)
+	{
+		mesh->normals_array[i][0] = 0;
+		mesh->normals_array[i][1] = 0;
+		mesh->normals_array[i][2] = 1;
+
+		mesh->colors_array[i][0] = ambientlight[0];
+		mesh->colors_array[i][1] = ambientlight[1];
+		mesh->colors_array[i][2] = ambientlight[2];
+		mesh->colors_array[i][3] = 255;//alpha;
+/*
+		mesh->xyz_array[i][0] = 0;
+		mesh->xyz_array[i][1] = 0;
+		mesh->xyz_array[i][2] = 0;
+		mesh->xyz_array[i][3] = 1;
+		*/
+	}
+
+	v = weights;
+	for (i = 0;i < numweights;i++, v++)
+	{
+		out = outhead + v->vertexindex * 4;
+		matrix = bonepose[v->boneindex];
+		// FIXME: this can very easily be optimized with SSE or 3DNow
+		out[0] += v->org[0] * matrix[0] + v->org[1] * matrix[1] + v->org[2] * matrix[ 2] + v->org[3] * matrix[ 3];
+		out[1] += v->org[0] * matrix[4] + v->org[1] * matrix[5] + v->org[2] * matrix[ 6] + v->org[3] * matrix[ 7];
+		out[2] += v->org[0] * matrix[8] + v->org[1] * matrix[9] + v->org[2] * matrix[10] + v->org[3] * matrix[11];
+	}
+}
+
 static void R_GAliasAddDlights(mesh_t *mesh, vec3_t org, vec3_t angles)
 {
 	int l, v;
@@ -324,13 +410,13 @@ static void R_GAliasAddDlights(mesh_t *mesh, vec3_t org, vec3_t angles)
 	}
 }
 
-static void R_GAliasBuildMesh(mesh_t *mesh, galiasinfo_t *inf, int frame1, int frame2, float lerp, float alpha)
+static qboolean R_GAliasBuildMesh(mesh_t *mesh, galiasinfo_t *inf, int frame1, int frame2, float lerp, float alpha)
 {
 	galiasgroup_t *g1, *g2;
 	if (!inf->groups)
 	{
 		Con_DPrintf("Model with no frames (%s)\n", currententity->model->name);
-		return;
+		return false;
 	}
 	if (frame1 < 0)
 	{
@@ -355,7 +441,7 @@ static void R_GAliasBuildMesh(mesh_t *mesh, galiasinfo_t *inf, int frame1, int f
 
 	if (lerp <= 0)
 		frame2 = frame1;
-	if (lerp >= 1)
+	else  if (lerp >= 1)
 		frame1 = frame2;
 
 	if (numTempColours < inf->numverts)
@@ -385,13 +471,68 @@ static void R_GAliasBuildMesh(mesh_t *mesh, galiasinfo_t *inf, int frame1, int f
 	mesh->st_array = (vec2_t*)((char *)inf + inf->ofs_st_array);
 	mesh->lmst_array = NULL;
 	mesh->colors_array = tempColours;
-	mesh->normals_array = tempNormals;
 	mesh->xyz_array = tempVertexCoords;
 	mesh->numvertexes = inf->numverts;
 	mesh->trneighbors = (int *)((char *)inf + inf->ofs_trineighbours);
 
+	if (inf->sharesverts)
+		return false;	//don't generate the new vertex positions. We still have them all.
+
+	mesh->normals_array = tempNormals;
+
+	frame1=frame2=0;
+
 	g1 = (galiasgroup_t*)((char *)inf + inf->groupofs + sizeof(galiasgroup_t)*frame1);
 	g2 = (galiasgroup_t*)((char *)inf + inf->groupofs + sizeof(galiasgroup_t)*frame2);
+
+//we don't support meshes with one pose skeletal and annother not.
+//we don't support meshes with one group skeletal and annother not.
+
+	if (g1->isskeletal)
+	{
+		int l=0;
+		float plerp[4];
+		float *pose[4];
+		float mlerp;	//minor lerp, poses within a group.
+
+		mlerp = cl.time*g1->rate;
+		frame1=mlerp;
+		frame2=frame1+1;
+		mlerp-=frame1;
+		frame1=frame1%g1->numposes;
+		frame2=frame2%g1->numposes;
+
+		plerp[l] = (1-mlerp)*lerp;
+		if (plerp[l]>0)
+			pose[l++] = (float *)((char *)g1 + g1->poseofs + sizeof(float)*inf->numbones*12*frame1);
+		plerp[l] = (mlerp)*lerp;
+		if (plerp[l]>0)
+			pose[l++] = (float *)((char *)g1 + g1->poseofs + sizeof(float)*inf->numbones*12*frame2);
+
+		mlerp = cl.time*g2->rate;
+		frame1=mlerp;
+		frame2=frame1+1;
+		mlerp-=frame1;
+		frame1=frame1%g2->numposes;
+		frame2=frame2%g2->numposes;
+
+		plerp[l] = (1-mlerp)*(1-lerp);
+		if (plerp[l]>0)
+			pose[l++] = (float *)((char *)g2 + g2->poseofs + sizeof(float)*inf->numbones*12*frame1);
+		plerp[l] = (mlerp)*(1-lerp);
+		if (plerp[l]>0)
+			pose[l++] = (float *)((char *)g2 + g2->poseofs + sizeof(float)*inf->numbones*12*frame2);
+
+/*		pose[0] = (float *)((char *)g1 + g1->poseofs);
+		plerp[0] = 1;
+		plerp[1] = 0;
+		plerp[3] = 0;
+		plerp[4] = 0;
+		l = 1;
+*/
+		R_BuildSkeletalMesh(mesh, plerp, pose, l, (galiasbone_t *)((char*)inf+inf->ofsbones), inf->numbones, (galisskeletaltransforms_t *)((char*)inf+inf->ofstransforms), inf->numtransforms);
+		return false;
+	}
 
 	if (g1 == g2)	//lerping within group is only done if not changing group
 	{
@@ -403,7 +544,7 @@ static void R_GAliasBuildMesh(mesh_t *mesh, galiasinfo_t *inf, int frame1, int f
 		frame2=frame2%g1->numposes;
 		
 	}
-	else	//don't bother with a four way lerp
+	else	//don't bother with a four way lerp. Yeah, this will produce jerkyness with models with just framegroups.
 	{
 		frame1=0;
 		frame2=0;
@@ -412,6 +553,8 @@ static void R_GAliasBuildMesh(mesh_t *mesh, galiasinfo_t *inf, int frame1, int f
 	R_LerpFrames(mesh,	(galiaspose_t *)((char *)g1 + g1->poseofs + sizeof(galiaspose_t)*frame1),
 						(galiaspose_t *)((char *)g2 + g2->poseofs + sizeof(galiaspose_t)*frame2),
 						1-lerp, (qbyte)(alpha*255), currententity->fatness);//20*sin(cl.time));
+
+	return true;	//to allow the mesh to be dlighted.
 }
 
 void GL_GAliasFlushSkinCache(void)
@@ -1137,8 +1280,7 @@ void R_DrawGAliasModel (entity_t *e)
 	memset(&mesh, 0, sizeof(mesh));
 	while(inf)
 	{
-		R_GAliasBuildMesh(&mesh, inf, e->frame, e->oldframe, e->lerptime, e->alpha);
-		if (r_vertexdlights.value)
+		if (R_GAliasBuildMesh(&mesh, inf, e->frame, e->oldframe, e->lerptime, e->alpha) && r_vertexdlights.value)
 			R_GAliasAddDlights(&mesh, e->origin, e->angles);
 		skin = GL_ChooseSkin(inf, clmodel->name, e);
 		c_alias_polys += mesh.numindexes/3;
@@ -2328,7 +2470,7 @@ typedef struct {
 
 
 
-void Mod_GetTag(model_t *model, int tagnum, int frame, float **org, float **axis)
+void GLMod_GetTag(model_t *model, int tagnum, int frame, float **org, float **axis)
 {
 	galiasinfo_t *inf;
 	md3tag_t *t;
@@ -2691,3 +2833,231 @@ void GL_LoadQ3Model(model_t *mod, void *buffer)
 	Hunk_FreeToLowMark (hunkstart);
 }
 #endif
+
+
+
+
+
+
+typedef struct zymlump_s
+{
+	int start;
+	int length;
+} zymlump_t;
+
+typedef struct zymtype1header_s
+{
+	char id[12]; // "ZYMOTICMODEL", length 12, no termination
+	int type; // 0 (vertex morph) 1 (skeletal pose) or 2 (skeletal scripted)
+	int filesize; // size of entire model file
+	float mins[3], maxs[3], radius; // for clipping uses
+	int numverts;
+	int numtris;
+	int numshaders;
+	int numbones; // this may be zero in the vertex morph format (undecided)
+	int numscenes; // 0 in skeletal scripted models
+
+// skeletal pose header
+	// lump offsets are relative to the file
+	zymlump_t lump_scenes; // zymscene_t scene[numscenes]; // name and other information for each scene (see zymscene struct)
+	zymlump_t lump_poses; // float pose[numposes][numbones][6]; // animation data
+	zymlump_t lump_bones; // zymbone_t bone[numbones];
+	zymlump_t lump_vertbonecounts; // int vertbonecounts[numvertices]; // how many bones influence each vertex (separate mainly to make this compress better)
+	zymlump_t lump_verts; // zymvertex_t vert[numvertices]; // see vertex struct
+	zymlump_t lump_texcoords; // float texcoords[numvertices][2];
+	zymlump_t lump_render; // int renderlist[rendersize]; // sorted by shader with run lengths (int count), shaders are sequentially used, each run can be used with glDrawElements (each triangle is 3 int indices)
+	zymlump_t lump_shaders; // char shadername[numshaders][32]; // shaders used on this model
+	zymlump_t lump_trizone; // byte trizone[numtris]; // see trizone explanation
+} zymtype1header_t;
+
+typedef struct zymbone_s
+{
+	char name[32];
+	int flags;
+	int parent; // parent bone number
+} zymbone_t;
+
+typedef struct zymscene_s
+{
+	char name[32];
+	float mins[3], maxs[3], radius; // for clipping
+	float framerate; // the scene will animate at this framerate (in frames per second)
+	int flags;
+	int start, length; // range of poses
+} zymscene_t;
+
+typedef struct zymvertex_s
+{
+	int bonenum;
+	float origin[3];
+} zymvertex_t;
+
+//this can generate multiple meshes (one for each shader).
+//but only one set of transforms are ever generated.
+void GLMod_LoadZymoticModel(model_t *mod, void *buffer)
+{
+	int i;
+	int hunkstart, hunkend, hunktotal;
+
+	zymtype1header_t *header;
+	galiasinfo_t *root;
+
+	galisskeletaltransforms_t *transforms;
+	zymvertex_t	*intrans;
+
+	galiasbone_t *bone;
+	zymbone_t *inbone;
+	int v;
+	float multiplier;
+	float *matrix, *inmatrix;
+
+	int *vertbonecounts;
+
+	galiasgroup_t *grp;
+	zymscene_t *inscene;
+
+	int *renderlist, count;
+	index_t *indexes;
+
+
+	loadmodel=mod;
+
+	hunkstart = Hunk_LowMark ();
+
+	header = buffer;
+
+	if (memcmp(header->id, "ZYMOTICMODEL", 12))
+		Sys_Error("GLMod_LoadZymoticModel: doesn't appear to BE a zymotic!\n");
+
+	if (BigLong(header->type) != 1)
+		Sys_Error("GLMod_LoadZymoticModel: only type 1 is supported\n");
+
+	for (i = 0; i < sizeof(zymtype1header_t)/4; i++)
+		((int*)header)[i] = BigLong(((int*)header)[i]);
+
+	if (!header->numverts)
+		Sys_Error("GLMod_LoadZymoticModel: no vertexes\n");
+
+	if (!header->numshaders)
+		Sys_Error("GLMod_LoadZymoticModel: no textures\n");
+
+	root = Hunk_AllocName(sizeof(galiasinfo_t)*header->numshaders, loadname);
+
+	root->numtransforms = header->lump_verts.length/sizeof(zymvertex_t);
+	transforms = Hunk_Alloc(root->numtransforms*sizeof(*transforms));
+	root->ofstransforms = (char*)transforms - (char*)root;
+
+	vertbonecounts = (int *)((char*)header + header->lump_vertbonecounts.start);
+	intrans = (zymvertex_t *)((char*)header + header->lump_verts.start);
+
+	vertbonecounts[0] = BigLong(vertbonecounts[0]);
+	multiplier = 1.0f / vertbonecounts[0];
+	for (i = 0, v=0; i < root->numtransforms; i++)
+	{
+		while(!vertbonecounts[v])
+		{
+			v++;
+			if (v == header->numverts)
+				Sys_Error("GLMod_LoadZymoticModel: Too many transformations\n");
+			vertbonecounts[v] = BigLong(vertbonecounts[v]);
+			multiplier = 1.0f / vertbonecounts[v];
+		}
+		transforms[i].vertexindex = v;
+		transforms[i].boneindex = BigLong(intrans[i].bonenum);
+		transforms[i].org[0] = multiplier*BigFloat(intrans[i].origin[0]);
+		transforms[i].org[1] = multiplier*BigFloat(intrans[i].origin[1]);
+		transforms[i].org[2] = multiplier*BigFloat(intrans[i].origin[2]);
+		transforms[i].org[3] = multiplier*1;
+		vertbonecounts[v]--;
+	}
+	if (intrans != (zymvertex_t *)((char*)header + header->lump_verts.start))
+		Sys_Error("Vertex transforms list appears corrupt.");
+
+	root->numverts = v+1;
+
+	root->numbones = header->numbones;
+	bone = Hunk_Alloc(root->numtransforms*sizeof(*transforms));
+	inbone = (zymbone_t*)((char*)header + header->lump_bones.start);
+	for (i = 0; i < root->numbones; i++)
+		bone[i].parent = BigLong(inbone[i].parent);
+	root->ofsbones = (char *)bone - (char *)root;
+
+	renderlist = (int*)((char*)header + header->lump_render.start);
+	for (i = 0;i < header->numshaders; i++)
+	{
+		count = BigLong(*renderlist++);
+		count *= 3;
+		indexes = Hunk_Alloc(count*sizeof(*indexes));
+		root[i].ofs_indexes = (char *)indexes - (char*)&root[i];
+		root[i].numindexes = count;
+		while(count--)
+		{
+			indexes[count] = BigLong(renderlist[count]);
+		}
+		renderlist += root[i].numindexes;
+	}
+	if (renderlist != (int*)((char*)header + header->lump_render.start + header->lump_render.length))
+		Sys_Error("Render list appears corrupt.");
+
+	grp = Hunk_Alloc(sizeof(*grp)*header->numscenes*header->numshaders);
+	matrix = Hunk_Alloc(header->lump_poses.length);
+	inmatrix = (float*)((float*)header + header->lump_poses.start);
+	for (i = 0; i < header->lump_poses.length/4; i++)
+		matrix[i] = BigFloat(inmatrix[i]);
+	inscene = (zymscene_t*)((char*)header + header->lump_scenes.start);
+	for (v = 0; v < header->numshaders; v++)
+	{
+		root[v].groups = header->numscenes;
+		root[v].groupofs = (char*)grp - (char*)&root[0];
+	}
+
+	for (i = 0; i < header->numscenes; i++, grp++, inscene++)
+	{
+		grp->isskeletal = 1;
+		grp->rate = BigFloat(inscene->framerate);
+		grp->numposes = BigLong(inscene->length);
+		grp->poseofs = (char*)matrix  - (char*)grp;
+		grp->poseofs += BigLong(inscene->start)*sizeof(float[4][3]);
+	}
+
+	if (inscene != (zymscene_t*)((char*)header + header->lump_scenes.start+header->lump_scenes.length))
+		Sys_Error("scene list appears corrupt.");
+
+	for (i = 0; i < header->numshaders-1; i++)
+		root[i].nextsurf = sizeof(galiasinfo_t);
+	for (i = 1; i < header->numshaders; i++)
+	{
+
+		root[i].sharesverts = true;
+		root[i].numbones = root[0].numbones;
+		root[i].numindexes = root[0].numindexes;
+		root[i].numskins = 1;
+		root[i].numverts = root[0].numverts;
+
+		root[i].ofsbones = root[0].ofsbones;
+	}
+
+	root[0].numskins = 1;
+
+//
+// move the complete, relocatable alias model to the cache
+//
+
+	hunkend = Hunk_LowMark ();
+
+	mod->flags = Mod_ReadFlagsFromMD1(mod->name, 0);	//file replacement - inherit flags from any defunc mdl files.
+
+	Hunk_Alloc(0);
+	hunktotal = hunkend - hunkstart;
+	
+	Cache_Alloc (&mod->cache, hunktotal, loadname);
+	mod->type = mod_alias;
+	if (!mod->cache.data)
+	{
+		Hunk_FreeToLowMark (hunkstart);
+		return;
+	}
+	memcpy (mod->cache.data, root, hunktotal);
+
+	Hunk_FreeToLowMark (hunkstart);
+}

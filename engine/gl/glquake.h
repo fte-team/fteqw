@@ -214,11 +214,20 @@ extern	const char *gl_renderer;
 extern	const char *gl_version;
 extern	const char *gl_extensions;
 
-void R_TranslatePlayerSkin (int playernum);
-void GL_Bind (int texnum);
-void GL_BindType (int type, int texnum);
+
+#ifdef Q3SHADERS
+void R_UnlockArrays (void);
+void R_IBrokeTheArrays(void);
+#endif
 
 #if defined(RGLQUAKE)
+void R_TranslatePlayerSkin (int playernum);
+void GL_Bind (int texnum);
+void GL_MBind( GLenum target, int texnum );
+void GL_TexEnv( GLenum mode );
+void GL_BindType (int type, int texnum);
+void GL_FlushBackEnd (void);
+
 // Multitexture
 #define    GL_TEXTURE0_SGIS				0x835E
 #define    GL_TEXTURE1_SGIS				0x835F
@@ -245,6 +254,11 @@ extern qboolean gl_mtexable;
 
 void GL_DisableMultitexture(void);
 void GL_EnableMultitexture(void);
+
+//
+// vid_gl*.c
+//
+void GL_DoSwap (void);
 
 //
 // gl_warp.c

@@ -177,6 +177,15 @@ void GL_CheckExtensions (void *(*getglfunction) (char *name))
 	gl_config.arb_texture_non_power_of_two = false;
 	gl_config.sgis_generate_mipmap = false;
 
+	gl_config.tex_env_combine = false;
+	gl_config.env_add = false;
+	gl_config.nv_tex_env_combine4 = false;
+
+	gl_config.arb_texture_env_combine = false;
+	gl_config.arb_texture_env_dot3 = false;
+	gl_config.arb_texture_cube_map = false;
+
+
 	if (strstr(gl_extensions, "GL_ARB_texture_non_power_of_two"))
 		gl_config.arb_texture_non_power_of_two = true;
 	if (strstr(gl_extensions, "GL_SGIS_generate_mipmap"))

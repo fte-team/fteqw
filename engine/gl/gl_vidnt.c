@@ -806,6 +806,7 @@ void GL_BeginRendering (int *x, int *y, int *width, int *height)
 qboolean screenflush;
 void GL_DoSwap (void)
 {
+	extern int mouseusedforgui;
 	if (!screenflush)
 		return;
 	screenflush = 0;
@@ -830,10 +831,10 @@ void GL_DoSwap (void)
 			}
 		} else {
 			windowed_mouse = true;
-			if (key_dest == key_game && !mouseactive && ActiveApp) {
+			if ((key_dest == key_game||mouseusedforgui) && !mouseactive && ActiveApp) {
 				IN_ActivateMouse ();
 				IN_HideMouse ();
-			} else if (mouseactive && key_dest != key_game) {
+			} else if (mouseactive && !(key_dest == key_game || mouseusedforgui)) {
 				IN_DeactivateMouse ();
 				IN_ShowMouse ();
 			}

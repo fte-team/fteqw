@@ -825,6 +825,8 @@ void	GLVID_SetPalette (unsigned char *palette)
 	d_8to24rgbtable[255] &= 0xffffff;	// 255 is transparent
 }
 
+extern gammaworks;
+
 void	GLVID_ShiftPalette (unsigned char *palette)
 {
 	extern	unsigned short ramps[3][256];

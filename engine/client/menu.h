@@ -53,7 +53,7 @@ void XWindows_Init(void);
 typedef enum {m_none, m_complex, m_help, m_keys, m_slist, m_media, m_xwindows} m_state_t;
 extern m_state_t m_state;
 
-typedef enum {mt_childwindow, mt_button, mt_buttonbigfont, mt_box, mt_colouredbox, mt_line, mt_edit, mt_text, mt_slider, mt_combo, mt_checkbox, mt_picture, mt_menudot, mt_custom} menutype_t;
+typedef enum {mt_childwindow, mt_button, mt_buttonbigfont, mt_box, mt_colouredbox, mt_line, mt_edit, mt_text, mt_slider, mt_combo, mt_bind, mt_checkbox, mt_picture, mt_menudot, mt_custom} menutype_t;
 
 typedef struct {	//must be first of each structure type.
 	menutype_t type;
@@ -136,17 +136,24 @@ typedef struct {
 	int selectedoption;
 } menucombo_t;
 
-typedef union menuoption_s {
+typedef struct {
 	menucommon_t common;
-	menubutton_t button;
-	menuedit_t edit;
-	menucombo_t combo;
-	menuslider_t slider;
-	menutext_t text;
-	menucustom_t custom;
-	menupicture_t picture;
-	menubox_t	box;
-	menucheck_t check;
+	char *caption;
+	char *command;
+} menubind_t;
+
+typedef union menuoption_s {
+	menucommon_t	common;
+	menubutton_t	button;
+	menuedit_t		edit;
+	menucombo_t		combo;
+	menuslider_t	slider;
+	menutext_t		text;
+	menucustom_t	custom;
+	menupicture_t	picture;
+	menubox_t		box;
+	menucheck_t		check;
+	menubind_t		bind;
 } menuoption_t;
 
 typedef struct menu_s {
@@ -178,6 +185,7 @@ typedef struct menu_s {
 menutext_t *MC_AddBufferedText(menu_t *menu, int x, int y, const char *text, qboolean rightalign, qboolean red);
 menutext_t *MC_AddRedText(menu_t *menu, int x, int y, const char *text, qboolean rightalign);
 menutext_t *MC_AddWhiteText(menu_t *menu, int x, int y, const char *text, qboolean rightalign);
+menubind_t *MC_AddBind(menu_t *menu, int x, int y, const char *caption, char *command);
 menubox_t *MC_AddBox(menu_t *menu, int x, int y, int width, int height);
 menupicture_t *MC_AddPicture(menu_t *menu, int x, int y, char *picname);
 menupicture_t *MC_AddCenterPicture(menu_t *menu, int y, char *picname);

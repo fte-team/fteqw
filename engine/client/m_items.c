@@ -3,6 +3,7 @@
 int omousex;
 int omousey;
 qboolean mousemoved;
+qboolean bindingactive;
 
 void Draw_TextBox (int x, int y, int width, int lines)
 {
@@ -113,12 +114,16 @@ void MenuDrawItems(int xpos, int ypos, menuoption_t *option, menu_t *menu)
 	qpic_t *p; 
 	while (option)
 	{
-		if (mousemoved)
+		if (mousemoved && !bindingactive)
 		{
 			if (omousex > xpos+option->common.posx && omousex < xpos+option->common.posx+option->common.width)
 				if (omousey > ypos+option->common.posy && omousey < ypos+option->common.posy+option->common.height)
 				{
-					menu->selecteditem = option;
+					if (menu->selecteditem != option)
+					{
+						S_LocalSound ("misc/menu1.wav");
+						menu->selecteditem = option;
+					}
 					if (menu->cursoritem)
 						menu->cursoritem->common.posy = menu->selecteditem->common.posy;
 				}
@@ -244,6 +249,47 @@ void MenuDrawItems(int xpos, int ypos, menuoption_t *option, menu_t *menu)
 				}
 			}
 			break;
+		case mt_bind:
+			{
+				int x = xpos+option->common.posx;
+				int y = ypos+option->common.posy;
+				int l;
+				int		keys[2];
+				char *keyname;
+
+				if (!menu->cursoritem && menu->selecteditem == option)
+					Draw_Alt_String(x, y, option->bind.caption);
+				else
+					Draw_String(x, y, option->bind.caption);
+				x += strlen(option->bind.caption)*8+28;
+				{
+					l = strlen (option->bind.command);
+					
+					M_FindKeysForCommand (option->bind.command, keys);
+					
+					if (bindingactive && menu->selecteditem == option)
+					{
+						Draw_String (x, y, "Press key");
+					}
+					else if (keys[0] == -1)
+					{
+						Draw_String (x, y, "???");
+					}
+					else
+					{
+						keyname = Key_KeynumToString (keys[0]);
+						Draw_String (x, y, keyname);
+						x += strlen(keyname) * 8;
+						if (keys[1] != -1)
+						{
+							Draw_String (x + 8, y, "or");
+							Draw_String (x + 32, y, Key_KeynumToString (keys[1]));
+						}
+					}
+				}
+			}
+			break;
+
 		case mt_combo:
 			{
 				int x = xpos+option->common.posx;
@@ -315,6 +361,23 @@ menutext_t *MC_AddRedText(menu_t *menu, int x, int y, const char *text, qboolean
 	menutext_t *n;
 	n = MC_AddWhiteText(menu, x, y, text, false);
 	n->isred = true;
+	return n;
+}
+
+menubind_t *MC_AddBind(menu_t *menu, int x, int y, const char *caption, char *command)
+{
+	menubind_t *n = Z_Malloc(sizeof(menutext_t) + strlen(caption)+1 + strlen(command)+1);
+	n->common.type = mt_bind;
+	n->common.iszone = true;	
+	n->common.posx = x;
+	n->common.posy = y;
+	n->caption = (char *)(n+1);
+	strcpy(n->caption, caption);
+	n->command = n->caption+strlen(n->caption)+1;
+	strcpy(n->command, command);
+
+	n->common.next = menu->options;
+	menu->options = (menuoption_t *)n;
 	return n;
 }
 
@@ -675,7 +738,10 @@ void MC_Slider_Key(menuslider_t *option, int key)
 		if (option->var)
 			Cvar_SetValue(option->var, range);
 	}
+	else
+		return;
 
+	S_LocalSound ("misc/menu2.wav");
 }
 
 void MC_CheckBox_Key(menucheck_t *option, int key)
@@ -687,7 +753,10 @@ void MC_CheckBox_Key(menucheck_t *option, int key)
 	else if (!option->var)
 		option->value = !option->value;
 	else
+	{
 		Cvar_SetValue(option->var, !option->var->value);
+		S_LocalSound ("misc/menu2.wav");
+	}
 }
 
 void MC_EditBox_Key(menuedit_t *edit, int key)
@@ -708,7 +777,10 @@ void MC_EditBox_Key(menuedit_t *edit, int key)
 	}
 
 	if (edit->cvar)
+	{
 		Cvar_Set(edit->cvar, edit->text);
+		S_LocalSound ("misc/menu2.wav");
+	}
 }
 
 void MC_Combo_Key(menucombo_t *combo, int key)
@@ -911,12 +983,12 @@ menuoption_t *M_NextSelectableItem(menu_t *m, menuoption_t *old)
 
 		if (op == old)
 		{
-			if (op->common.type == mt_slider || op->common.type == mt_checkbox || op->common.type == mt_button || op->common.type == mt_buttonbigfont || op->common.type == mt_edit || op->common.type == mt_combo)
+			if (op->common.type == mt_slider || op->common.type == mt_checkbox || op->common.type == mt_button || op->common.type == mt_buttonbigfont || op->common.type == mt_edit || op->common.type == mt_combo || op->common.type == mt_bind)
 				return op;
 			return NULL;	//whoops.
 		}
 
-		if (op->common.type == mt_slider || op->common.type == mt_checkbox || op->common.type == mt_button || op->common.type == mt_buttonbigfont || op->common.type == mt_edit || op->common.type == mt_combo)
+		if (op->common.type == mt_slider || op->common.type == mt_checkbox || op->common.type == mt_button || op->common.type == mt_buttonbigfont || op->common.type == mt_edit || op->common.type == mt_combo || op->common.type == mt_bind)
 			return op;
 	}
 }
@@ -942,7 +1014,7 @@ menuoption_t *M_PrevSelectableItem(menu_t *m, menuoption_t *old)
 		if (op == old)
 			return old;	//whoops.
 
-		if (op->common.type == mt_slider || op->common.type == mt_checkbox || op->common.type == mt_button || op->common.type == mt_buttonbigfont || op->common.type == mt_edit || op->common.type == mt_combo)
+		if (op->common.type == mt_slider || op->common.type == mt_checkbox || op->common.type == mt_button || op->common.type == mt_buttonbigfont || op->common.type == mt_edit || op->common.type == mt_combo || op->common.type == mt_bind)
 			return op;
 	}
 }
@@ -959,12 +1031,28 @@ void M_Complex_Key(int key)
 	if (currentmenu->selecteditem && currentmenu->selecteditem->common.type == mt_custom && (key == K_DOWNARROW || key == K_UPARROW || key == K_TAB))
 		if (currentmenu->selecteditem->custom.key(&currentmenu->selecteditem->custom, currentmenu, key))
 			return;
+
+	if (currentmenu->selecteditem && currentmenu->selecteditem->common.type == mt_bind)
+	{
+		if (bindingactive)
+		{
+			S_LocalSound ("misc/menu1.wav");
+
+			if (key != K_ESCAPE && key != '`')
+			{
+				Cbuf_InsertText (va("bind %s \"%s\"\n", Key_KeynumToString (key), currentmenu->selecteditem->bind.command), RESTRICT_LOCAL);
+			}
+			bindingactive = false;
+			return;
+		}
+	}
 	
 	switch(key)
 	{
 	case K_ESCAPE:
 		//remove
 		M_RemoveMenu(currentmenu);
+		S_LocalSound ("misc/menu3.wav");
 		break;
 	case K_TAB:
 	case K_DOWNARROW:
@@ -1007,7 +1095,10 @@ void M_Complex_Key(int key)
 			if (!currentmenu->selecteditem->button.command)
 				currentmenu->selecteditem->button.key(currentmenu->selecteditem, currentmenu, key);
 			else if (key == K_ENTER || key == K_MOUSE1)
+			{
 				Cbuf_AddText(currentmenu->selecteditem->button.command, RESTRICT_LOCAL);
+				S_LocalSound ("misc/menu2.wav");
+			}
 			break;
 		case mt_custom:
 			currentmenu->selecteditem->custom.key(&currentmenu->selecteditem->custom, currentmenu, key);
@@ -1018,6 +1109,11 @@ void M_Complex_Key(int key)
 		case mt_combo:
 			MC_Combo_Key(&currentmenu->selecteditem->combo, key);
 			break;
+		case mt_bind:
+			if (key == K_ENTER)
+				bindingactive = true;
+			else if (key == K_BACKSPACE || key == K_DEL)
+				M_UnbindCommand (currentmenu->selecteditem->bind.command);
 		default:
 			break;
 		}

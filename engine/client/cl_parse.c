@@ -2019,6 +2019,7 @@ void CL_ParseStatic (int version)
 	VectorCopy (es.angles, ent->angles);
 	es.angles[0]*=-1;
 	AngleVectors(es.angles, ent->axis[0], ent->axis[1], ent->axis[2]);
+	VectorInverse(ent->axis[1]);
 
 	if (!cl.worldmodel)
 	{
@@ -3722,6 +3723,13 @@ void CL_ParseServerMessage (void)
 
 		case svc_setattachment:
 			CL_ParseAttachment();
+			break;
+
+		case svcqw_effect:
+			CL_ParseEffect(false);
+			break;
+		case svcqw_effect2:
+			CL_ParseEffect(true);
 			break;
 		}
 	}

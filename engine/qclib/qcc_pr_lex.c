@@ -2006,7 +2006,7 @@ int QCC_PR_CheakCompConst(void)
 		time_t long_time;
 		time( &long_time );
 		strftime( retbuf, sizeof(retbuf),
-			 "%R", localtime( &long_time ));
+			 "\"%R\"", localtime( &long_time ));
 
 		pr_file_p = retbuf;
 		QCC_PR_Lex();	//translate the macro's value
@@ -2021,7 +2021,7 @@ int QCC_PR_CheakCompConst(void)
 		time_t long_time;
 		time( &long_time );
 		strftime( retbuf, sizeof(retbuf),
-			 "%a %d %b %Y", localtime( &long_time ));
+			 "\"%a %d %b %Y\"", localtime( &long_time ));
 
 
 

@@ -55,6 +55,7 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 	#define SVRANKING
 
 	#ifdef MINIMAL
+		#define CL_MASTER		//this is useful
 
 		#undef AVAIL_MP3		//no mp3 support
 		#undef AVAIL_JPEGLIB	//no jpeg support

@@ -2874,7 +2874,7 @@ void QCC_PR_EmitFieldsForMembers(QCC_type_t *clas)
 	}
 }
 
-void QCC_PR_EmitClassFunctionTable(QCC_type_t *clas, QCC_type_t *childclas, QCC_def_t *ed)
+void QCC_PR_EmitClassFunctionTable(QCC_type_t *clas, QCC_type_t *childclas, QCC_def_t *ed, QCC_def_t **constructor)
 {	//go through clas, do the virtual thing only if the child class does not override.
 
 	char membername[2048];
@@ -2886,7 +2886,7 @@ void QCC_PR_EmitClassFunctionTable(QCC_type_t *clas, QCC_type_t *childclas, QCC_
 	QCC_def_t *virt;
 
 	if (clas->parentclass)
-		QCC_PR_EmitClassFunctionTable(clas->parentclass, childclas, ed);
+		QCC_PR_EmitClassFunctionTable(clas->parentclass, childclas, ed, constructor);
 
 	type = clas->param;
 	for (p = 0; p < clas->num_parms; p++, type = type->next)
@@ -2909,10 +2909,10 @@ void QCC_PR_EmitClassFunctionTable(QCC_type_t *clas, QCC_type_t *childclas, QCC_
 				QCC_PR_Warning(0, NULL, 0, "Member function %s was not defined", membername);
 				continue;
 			}
-		/*	if (!strcmp(type->name, clas->name))
+			if (!strcmp(type->name, clas->name))
 			{
-				constructor = member;
-			}*/
+				*constructor = member;
+			}
 			point = QCC_PR_Statement(&pr_opcodes[OP_ADDRESS], ed, member, NULL);
 			sprintf(membername, "%s::%s", clas->name, type->name);
 			virt = QCC_PR_GetDef(type, membername, NULL, false, 1);
@@ -2929,7 +2929,7 @@ int QCC_PR_EmitClassFromFunction(QCC_def_t *scope, char *tname)
 	QCC_dfunction_t *df;
 
 	QCC_def_t *virt;
-	QCC_def_t *ed, *oself;
+	QCC_def_t *ed, *oself, *self;
 	QCC_def_t *constructor = NULL;
 
 //	int func;
@@ -2951,32 +2951,31 @@ int QCC_PR_EmitClassFromFunction(QCC_def_t *scope, char *tname)
 	df->parm_start = numpr_globals;
 
 	//locals here...
-	ed = QCC_PR_GetDef(type_entity, "self", NULL, true, 1);	//the one parameter
-	df->parm_start = ed->ofs;
+	ed = QCC_PR_GetDef(type_entity, "ent", NULL, true, 1);
 
-	oself = QCC_PR_GetDef(type_entity, "oself", scope, true, 1);	//the one parameter
-	locals_end = oself->ofs + basetype->size;
-
-	QCC_FreeTemp(QCC_PR_Statement(&pr_opcodes[OP_STORE_ENT], ed, oself, NULL));
 	virt = QCC_PR_GetDef(type_function, "spawn", NULL, false, 0);
 	if (!virt)
 		QCC_Error(ERR_INTERNAL, "spawn function was not defined\n");
 	QCC_PR_SimpleStatement(OP_CALL0, virt->ofs, 0, 0);	//calling convention doesn't come into it.
+	
 	QCC_FreeTemp(QCC_PR_Statement(&pr_opcodes[OP_STORE_ENT], &def_ret, ed, NULL));
 
 	ed->references = 1;	//there may be no functions.
 
-	df->locals = locals_end - df->parm_start;
 
-
-	QCC_PR_EmitClassFunctionTable(basetype, basetype, ed);
+	QCC_PR_EmitClassFunctionTable(basetype, basetype, ed, &constructor);
 
 	if (constructor)
-		QCC_PR_SimpleStatement(OP_CALL1, constructor->ofs, 0, 0);
+	{	//self = ent;
+		self = QCC_PR_GetDef(type_entity, "self", NULL, false, 0);
+		oself = QCC_PR_GetDef(type_entity, "oself", scope, true, 1);
+		QCC_FreeTemp(QCC_PR_Statement(&pr_opcodes[OP_STORE_ENT], self, oself, NULL));
+		QCC_FreeTemp(QCC_PR_Statement(&pr_opcodes[OP_STORE_ENT], ed, self, NULL));	//return to our old self. boom boom.
+		QCC_PR_SimpleStatement(OP_CALL0, constructor->ofs, 0, 0);
+		QCC_FreeTemp(QCC_PR_Statement(&pr_opcodes[OP_STORE_ENT], oself, self, NULL));
+	}
 
-	QCC_FreeTemp(QCC_PR_Statement(&pr_opcodes[OP_STORE_ENT], oself, ed, NULL));	//return to our old self. boom boom.
-
-	QCC_FreeTemp(QCC_PR_Statement(&pr_opcodes[OP_DONE], NULL, NULL, NULL));
+	QCC_FreeTemp(QCC_PR_Statement(&pr_opcodes[OP_RETURN], &def_ret, NULL, NULL));	//apparently we do actually have to return something. *sigh*...
 
 
 	pr_scope = NULL;
@@ -2986,13 +2985,10 @@ int QCC_PR_EmitClassFromFunction(QCC_def_t *scope, char *tname)
 	QCC_WriteAsmFunction(scope, df->first_statement, df->parm_start);
 	pr.localvars = NULL;
 
-/*
-	fixme.
 
-		go through building correct stuff...
+	locals_end = numpr_globals + basetype->size;
+	df->locals = locals_end - df->parm_start;
 
-		also fix field offsets according to the offset.
-*/
 	//basetype
 	return df - functions;
 }

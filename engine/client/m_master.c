@@ -766,7 +766,7 @@ void M_SListKey(int key)
 			}
 		}
 	}
-	else if (key==K_ENTER)
+	else if (key==K_ENTER || key == 's' || key == 'j')
 	{
 		serverinfo_t *server;
 		if (slist_type == SLISTTYPE_SERVERS || slist_type == SLISTTYPE_FAVORITES)
@@ -780,6 +780,11 @@ void M_SListKey(int key)
 			server = M_FindCurrentServer();
 			if (!server)
 				return;	//ah. off the end.
+
+			if (key == 's')
+				Cbuf_AddText("spectator 1\n");
+			else if (key == 'j')
+				Cbuf_AddText("spectator 0\n");
 
 			if (server->special & SS_NETQUAKE)
 				Cbuf_AddText(va("nqconnect %s\n", NET_AdrToString(server->adr)), RESTRICT_LOCAL);

@@ -117,8 +117,6 @@ cvar_t	gl_smoothfont = {"gl_smoothfont", "1"};
 cvar_t	gl_part_flame = {"gl_part_flame", "1"};
 cvar_t	gl_part_torch = {"gl_part_torch", "1"};
 cvar_t	r_part_rain = {"r_part_rain", "0"};
-cvar_t	r_particles_in_explosion = {"r_particles_in_explosion", "256"};
-cvar_t	r_particle_explosion_speed = {"r_particle_explosion_speed", "1"};
 
 cvar_t	r_bouncysparks = {"r_bouncysparks", "0"};
 

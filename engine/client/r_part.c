@@ -100,11 +100,9 @@ extern cvar_t r_bouncysparks;
 extern cvar_t r_part_rain;
 extern cvar_t gl_part_explosionheart, gl_part_emp;
 extern cvar_t gl_part_trifansparks;
-extern cvar_t r_particles_in_explosion;
-extern cvar_t r_particle_explosion_speed;
 extern cvar_t r_bloodstains;
 
-cvar_t r_particlesdesc = {"r_particlesdesc", "spikeset", NULL, CVAR_LATCH, CVAR_SEMICHEAT};
+cvar_t r_particlesdesc = {"r_particlesdesc", "spikeset", NULL, CVAR_LATCH|CVAR_SEMICHEAT};
 
 cvar_t r_part_rain_quantity = {"r_part_rain_quantity", "1"};
 
@@ -892,8 +890,6 @@ void R_InitParticles (void)
 	//particles
 	Cvar_Register(&r_particlesdesc, particlecvargroupname);
 	Cvar_Register(&r_bouncysparks, particlecvargroupname);
-	Cvar_Register(&r_particles_in_explosion, particlecvargroupname);
-	Cvar_Register(&r_particle_explosion_speed, particlecvargroupname);
 	Cvar_Register(&r_part_rain, particlecvargroupname);
 
 	Cvar_Register(&r_part_rain_quantity, particlecvargroupname);

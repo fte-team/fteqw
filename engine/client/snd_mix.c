@@ -587,7 +587,7 @@ void S_PaintChannels(soundcardinfo_t *sc, int endtime)
 				continue;
 			if (!ch->vol[0] && !ch->vol[1] && !ch->vol[2] && !ch->vol[3] && !ch->vol[4] && !ch->vol[5])
 				continue;
-			Con_Printf("Volume %i %i\n", ch->vol[0], ch->vol[1]);
+
 			scache = S_LoadSound (ch->sfx);
 			if (!scache)				
 				continue;

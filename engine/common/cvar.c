@@ -197,9 +197,9 @@ cvar_t *Cvar_SetCore (cvar_t *var, char *value, qboolean force)
 	else if (var->flags & CVAR_RENDERERLATCH && qrenderer)
 		latch = "variable %s will be changed after a renderer restart\n";
 #ifndef SERVERONLY
-	else if (var->flags & CVAR_CHEAT && !cls.allow_cheats)
+	else if (var->flags & CVAR_CHEAT && !cls.allow_cheats && cls.state)
 		latch = "variable %s is a cheat variable - latched\n";
-	else if (var->flags & CVAR_SEMICHEAT && !cls.allow_semicheats)
+	else if (var->flags & CVAR_SEMICHEAT && !cls.allow_semicheats && cls.state)
 		latch = "variable %s is a cheat variable - latched\n";
 #endif
 

@@ -119,6 +119,8 @@ struct progfuncs_s {
 	struct qcthread_s *(*Fork)			(progfuncs_t *prinst);
 	void	(*RunThread)				(progfuncs_t *prinst, struct qcthread_s *thread);
 	void	(*AbortStack)				(progfuncs_t *prinst);
+
+	int lastcalledbuiltinnumber;
 };
 
 typedef struct progexterns_s {

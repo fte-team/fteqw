@@ -1173,7 +1173,7 @@ qboolean Media_ShowFilm(void)
 
 			lpbi = (LPBITMAPINFOHEADER)AVIStreamGetFrame(pgf, currentframe);	// Grab Data From The AVI Stream
 			currentframe++;
-			if (!lpbi)//oops
+			if (!lpbi || lpbi->biBitCount != 24)//oops
 			{		
 				SCR_SetUpToDrawConsole();
 #ifdef SWQUAKE
@@ -1184,7 +1184,7 @@ qboolean Media_ShowFilm(void)
 			}
 			else
 			{
-				Media_ShowFrameBGR_24_Flip(staticfilmimage, imagewidth, imageheight);
+				Media_ShowFrameBGR_24_Flip((char*)lpbi+lpbi->biSize, lpbi->biWidth, lpbi->biHeight);
 			}
 
 			if (pavisound)
@@ -1452,8 +1452,8 @@ void Media_RecordFilm_f (void)
 		Con_Printf("Failed to open\n");
 		return;
 	}
-	
-        
+
+
     memset(&bitmap_info_header, 0, sizeof(BITMAPINFOHEADER));
     bitmap_info_header.biSize = 40;
     bitmap_info_header.biWidth = glwidth;
@@ -1463,7 +1463,7 @@ void Media_RecordFilm_f (void)
     bitmap_info_header.biCompression = BI_RGB;
     bitmap_info_header.biSizeImage = glwidth*glheight * 3;
 
-   
+
     memset(&stream_header, 0, sizeof(stream_header));
     stream_header.fccType = streamtypeVIDEO;
     stream_header.fccHandler = recordavi_codec_fourcc;
@@ -1604,9 +1604,6 @@ void Media_StopRecordFilm_f (void) {}
 void Media_RecordFilm_f (void){}
 void M_Menu_Media_f (void) {}
 char *Media_NextTrack(void) {return NULL;}
-
-void Media_ShowFrame(qbyte *framedata, int inwidth, int inheight, qbyte *bgrandupsidedown) {}
-void Media_ShowFrame8bit(qbyte *framedata, int inwidth, int inheight, qbyte *palette) {}
 
 int filmtexture;
 media_filmtype_t media_filmtype;

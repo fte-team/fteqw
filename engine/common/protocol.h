@@ -53,6 +53,7 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 #define PEXT_CUSTOMTEMPEFFECTS	0x00800000	//supports custom temp ents.
 #define PEXT_256PACKETENTITIES	0x01000000	//Client can recieve 256 packet entities.
 //#define PEXT_64PLAYERS			0x02000000	//Client is able to cope with 64 players. Wow.
+#define PEXT_SHOWPIC			0x04000000
 
 
 
@@ -218,6 +219,10 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 #define	svc_customtempent	67
 
 #define svc_choosesplitclient 68
+#define svc_showpic			69
+#define svc_hidepic			70
+#define svc_movepic			71
+#define svc_updatepic		72
 
 #define svc_invalid			256
 
@@ -581,6 +586,16 @@ enum {
 #define TE_SEEF_DARKFIELD	202
 #define	TE_SEEF_LIGHT		203
 
+//FTE's version of TEI_SHOWLMP2
+#define SL_ORG_NW	0
+#define SL_ORG_NE	1
+#define SL_ORG_SW	2
+#define SL_ORG_SE	3
+#define SL_ORG_CC	4
+#define SL_ORG_CN	5
+#define SL_ORG_CS	6
+#define SL_ORG_CW	7
+#define SL_ORG_CE	8
 
 /*
 ==========================================================

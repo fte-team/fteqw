@@ -641,6 +641,8 @@ void GLV_UpdatePalette (void)
 
 	float hwg;
 
+	RSpeedMark();
+
 	V_CalcPowerupCshift ();
 
 // drop the damage value
@@ -680,7 +682,10 @@ void GLV_UpdatePalette (void)
 	}
 
 	if (!new && !force)
+	{
+		RSpeedEnd(RSPEED_PALETTEFLASHES);
 		return;
+	}
 
 	GLV_CalcBlend ();
 
@@ -716,6 +721,8 @@ void GLV_UpdatePalette (void)
 	{
 		Con_DPrintf("Gamma working state %i\n", gammaworks);
 	}
+
+	RSpeedEnd(RSPEED_PALETTEFLASHES);
 }
 #endif
 /*

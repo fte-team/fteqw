@@ -5231,6 +5231,87 @@ void QCC_CompoundJumps(int first, int last)
 	}
 }
 #endif
+
+void QCC_CheckForDeadAndMissingReturns(int first, int last, int rettype)
+{
+	int st, st2;
+
+	if (statements[last-1].op == OP_DONE)
+		last--;	//don't want the done
+	
+	if (rettype != ev_void)
+		if (statements[last-1].op != OP_RETURN)
+		{
+			QCC_PR_ParseWarning(WARN_MISSINGRETURN, "%s: not all control paths return a value", pr_scope->name );
+			return;
+		}
+
+	for (st = first; st < last; st++)
+	{
+		if (statements[st].op == OP_RETURN)
+		{
+			st++;
+			if (st == last)
+				continue;	//erm... end of function doesn't count as unreachable.
+
+			if (statements[st].op == OP_GOTO)	//inefficient compiler, we can ignore this.
+				continue;
+
+
+			//make sure something goes to just after this return.
+			for (st2 = first; st2 < last; st2++)
+			{
+				if (pr_opcodes[statements[st2].op].type_a == NULL)
+				{
+					if (st2 + (signed)statements[st2].a == st)
+						break;
+				}
+				if (pr_opcodes[statements[st2].op].type_b == NULL)
+				{
+					if (st2 + (signed)statements[st2].b == st)
+						break;
+				}
+				if (pr_opcodes[statements[st2].op].type_c == NULL)
+				{
+					if (st2 + (signed)statements[st2].c == st)
+						break;
+				}
+			}
+			if (st2 == last)
+			{
+				QCC_PR_ParseWarning(WARN_UNREACHABLECODE, "%s: contains unreachable code", pr_scope->name );
+			}
+			continue;
+		}
+		if (rettype != ev_void)
+		{
+			if (pr_opcodes[statements[st].op].type_a == NULL)
+			{
+				if (st + (signed)statements[st].a == last)
+				{
+					QCC_PR_ParseWarning(WARN_MISSINGRETURN, "%s: not all control paths return a value", pr_scope->name );
+					return;
+				}
+			}
+			if (pr_opcodes[statements[st].op].type_b == NULL)
+			{
+				if (st + (signed)statements[st].b == last)
+				{
+					QCC_PR_ParseWarning(WARN_MISSINGRETURN, "%s: not all control paths return a value", pr_scope->name );
+					return;
+				}
+			}
+			if (pr_opcodes[statements[st].op].type_c == NULL)
+			{
+				if (st + (signed)statements[st].c == last)
+				{
+					QCC_PR_ParseWarning(WARN_MISSINGRETURN, "%s: not all control paths return a value", pr_scope->name );
+					return;
+				}
+			}
+		}
+	}
+}
 /*
 //goes through statements, if it sees a matching statement earlier, it'll strim out the current.
 void QCC_CommonSubExpressionRemoval(int first, int last)
@@ -5584,9 +5665,9 @@ QCC_function_t *QCC_PR_ParseImmediateStatements (QCC_type_t *type)
 	QCC_FreeTemps();
 
 	// this is cheap
-	if (type->aux_type->type)
-		if (statements[numstatements - 1].op != OP_RETURN)
-			QCC_PR_ParseWarning(WARN_MISSINGRETURN, "%s: not all control paths return a value", pr_scope->name );
+//	if (type->aux_type->type)
+//		if (statements[numstatements - 1].op != OP_RETURN)
+//			QCC_PR_ParseWarning(WARN_MISSINGRETURN, "%s: not all control paths return a value", pr_scope->name );
 
 	if (f->code == numstatements)
 		needsdone = true;
@@ -5638,6 +5719,8 @@ QCC_function_t *QCC_PR_ParseImmediateStatements (QCC_type_t *type)
 		QCC_CompoundJumps(f->code, numstatements);
 //	if (opt_comexprremoval)
 //		QCC_CommonSubExpressionRemoval(f->code, numstatements);
+
+	QCC_CheckForDeadAndMissingReturns(f->code, numstatements, type->aux_type->type);
 
 
 	QCC_RemapLockedTemps(f->code, numstatements);

@@ -1839,13 +1839,16 @@ int QCC_PR_CheakCompConst(void)
 				char buffer[1024];
 				char *paramoffset[MAXCONSTANTPARAMS+1];
 				int param=0;
+				int plevel=0;
 
 				pr_file_p++;
 				QCC_PR_LexWhitespace();
 				start = pr_file_p;
 				while(1)
 				{
-					if (*pr_file_p == ',' || *pr_file_p == ')')
+					if (*pr_file_p == '(')
+						plevel++;
+					else if (!plevel && (*pr_file_p == ',' || *pr_file_p == ')'))
 					{
 						paramoffset[param++] = start;
 						start = pr_file_p+1;
@@ -1860,7 +1863,9 @@ int QCC_PR_CheakCompConst(void)
 						QCC_PR_LexWhitespace();
 						if (param == MAXCONSTANTPARAMS)
 							QCC_PR_ParseError(ERR_TOOMANYPARAMS, "Too many parameters in macro call");
-					}
+					} else if (*pr_file_p == ')' )
+						plevel--;
+
 					if (!*pr_file_p)
 						QCC_PR_ParseError(ERR_EOF, "EOF on macro call");
 					pr_file_p++;

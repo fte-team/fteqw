@@ -149,7 +149,7 @@ void M_Menu_Load_f (void)
 
 void M_Menu_SinglePlayer_f (void)
 {
-	int q1, q2, h2;
+	int mgt;
 	menubutton_t *b;
 	menu_t *menu;
 	mpic_t *p;
@@ -158,14 +158,12 @@ void M_Menu_SinglePlayer_f (void)
 	m_state = m_complex;
 	m_entersound = true;
 
-	q1 = COM_FDepthFile("gfx/sp_menu.lmp", true);
-	h2 = COM_FDepthFile("gfx/menu/title2.lmp", true);
-	q2 = COM_FDepthFile("pics/m_banner_game.pcx", true);
-	if (q2 < h2 && q2 < q1)
+	mgt = M_GameType();
+	if (mgt == MGT_QUAKE2)
 	{	//q2...
 		menu = M_CreateMenu(0);
 
-		MC_AddCenterPicture(menu, 4, "m_banner_game");
+		MC_AddCenterPicture(menu, 4, "pics/m_banner_game");
 
 		menu->selecteditem = (menuoption_t*)
 		MC_AddConsoleCommand	(menu, 64, 40,	"Easy",		"skill 0;deathmatch 0; coop 0;newgame\n");
@@ -174,9 +172,11 @@ void M_Menu_SinglePlayer_f (void)
 
 		MC_AddConsoleCommand	(menu, 64, 72,	"Load Game", "menu_load\n");
 		MC_AddConsoleCommand	(menu, 64, 80,	"Save Game", "menu_save\n");
+
+		menu->cursoritem = (menuoption_t*)MC_AddWhiteText(menu, 48, 40, NULL, false);
 		return;
 	}
-	else if (h2 < q1)
+	else if (mgt == MGT_HEXEN2)
 	{	//h2
 		menu = M_CreateMenu(0);
 		MC_AddPicture(menu, 16, 0, "gfx/menu/hplaque.lmp");

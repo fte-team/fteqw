@@ -35,7 +35,7 @@ qboolean M_Options_InvertMouse (union menuoption_s *option, chk_set_t set)
 //options menu.
 void M_Menu_Options_f (void)
 {
-	int q1, q2, h2;
+	int mgt;
 	extern cvar_t cl_standardchat;
 #ifdef _WIN32
 	extern qboolean vid_isfullscreen;
@@ -49,13 +49,13 @@ void M_Menu_Options_f (void)
 
 	menu = M_CreateMenu(0);
 
-	q1 = COM_FDepthFile("gfx/menudot1.lmp", true);
-	h2 = COM_FDepthFile("gfx/menu/menudot1.lmp", true);
-	q2 = COM_FDepthFile("pics/m_cursor1.lmp", true);
-	if (q2 < h2 && q2 < q1)
+	mgt = M_GameType();
+	if (mgt == MGT_QUAKE2)
 	{	//q2...
+		MC_AddCenterPicture(menu, 4, "pics/m_banner_options");
+		y += 32;
 	}
-	else if (h2 < q1)
+	else if (mgt == MGT_HEXEN2)
 	{	//h2
 		MC_AddPicture(menu, 16, 0, "gfx/menu/hplaque.lmp");
 		MC_AddCenterPicture(menu, 0, "gfx/menu/title3.lmp");
@@ -66,10 +66,6 @@ void M_Menu_Options_f (void)
 		MC_AddPicture(menu, 16, 4, "gfx/qplaque.lmp");
 		MC_AddCenterPicture(menu, 4, "gfx/p_option.lmp");
 	}
-
-
-
-
 
 	menu->selecteditem = (union menuoption_s *)
 	MC_AddConsoleCommand(menu, 16, y,	"    Customize controls", "menu_keys\n"); y+=8;
@@ -229,6 +225,7 @@ void M_Menu_Audio_f (void)
 {
 	int y = 32;
 	menu_t *menu;
+	int mgt;
 	extern cvar_t nosound, precache, snd_leftisright, snd_khz, snd_eax, snd_speakers, ambient_level;
 
 	static const char *soundqualityoptions[] = {
@@ -267,15 +264,23 @@ void M_Menu_Audio_f (void)
 
 	menu = M_CreateMenu(0);
 
-	MC_AddPicture(menu, 16, 4, "gfx/qplaque.lmp");
-	MC_AddCenterPicture(menu, 4, "gfx/p_option.lmp");
+	mgt = M_GameType();
 
-		
-
-
+	if (mgt == MGT_QUAKE2)
+	{
+		MC_AddCenterPicture(menu, 4, "pics/m_banner_options");
+		y += 32;
+	}
+	else if (mgt == MGT_HEXEN2)
+	{
+	}
+	else
+	{
+		MC_AddPicture(menu, 16, 4, "gfx/qplaque.lmp");
+		MC_AddCenterPicture(menu, 4, "gfx/p_option.lmp");
+	}
 
 	menu->selecteditem = (union menuoption_s *)
-
 
 	MC_AddSlider(menu, 16, y,			"       CD Music Volume", &bgmvolume,		0,		1);y+=8;
 	MC_AddSlider(menu, 16, y,			"          Sound Volume", &volume,			0,		1);y+=8;
@@ -288,7 +293,6 @@ void M_Menu_Audio_f (void)
 	MC_AddCvarCombo(menu, 16, y,		"         Speaker setup", &snd_speakers, speakeroptions, speakervalues);y+=8;
 	MC_AddCvarCombo(menu, 16, y,		"           Sound speed", &snd_khz, soundqualityoptions, soundqualityvalues);y+=8;
 	MC_AddConsoleCommand(menu, 16, y,	"         Restart sound", "snd_restart\n");y+=8;
-
 
 	menu->cursoritem = (menuoption_t*)MC_AddWhiteText(menu, 200, 32, NULL, false);
 }
@@ -306,6 +310,7 @@ void M_Menu_Particles_f (void)
 {
 	int y = 32;
 	menu_t *menu;
+	int mgt;
 	extern cvar_t r_bouncysparks, r_part_rain, gl_part_torch, gl_part_flame, gl_part_trifansparks;
 
 	static const char *r_part_rain_options[] = {
@@ -341,9 +346,21 @@ void M_Menu_Particles_f (void)
 
 	menu = M_CreateMenu(0);
 
-	MC_AddPicture(menu, 16, 4, "gfx/qplaque.lmp");
-	MC_AddCenterPicture(menu, 4, "gfx/p_option.lmp");
+	mgt = M_GameType();
 
+	if (mgt == MGT_QUAKE2)
+	{
+		MC_AddCenterPicture(menu, 4, "pics/m_banner_options");
+		y += 32;
+	}
+	else if (mgt == MGT_HEXEN2)
+	{
+	}
+	else
+	{
+		MC_AddPicture(menu, 16, 4, "gfx/qplaque.lmp");
+		MC_AddCenterPicture(menu, 4, "gfx/p_option.lmp");
+	}
 
 	menu->selecteditem = (union menuoption_s *)
 
@@ -369,6 +386,7 @@ void M_Menu_FPS_f (void)
 {
 	int y = 32;
 	menu_t *menu;
+	int mgt;
 #ifdef RGLQUAKE
 	extern cvar_t gl_compress, gl_waterripples, gl_detail, gl_bump, r_flashblend;
 #endif
@@ -383,12 +401,21 @@ void M_Menu_FPS_f (void)
 
 	menu = M_CreateMenu(0);
 
-	MC_AddPicture(menu, 16, 4, "gfx/qplaque.lmp");
-	MC_AddCenterPicture(menu, 4, "gfx/p_option.lmp");
+	mgt = M_GameType();
 
-		
-
-
+	if (mgt == MGT_QUAKE2)
+	{
+		MC_AddCenterPicture(menu, 4, "pics/m_banner_options");
+		y += 32;
+	}
+	else if (mgt == MGT_HEXEN2)
+	{
+	}
+	else
+	{
+		MC_AddPicture(menu, 16, 4, "gfx/qplaque.lmp");
+		MC_AddCenterPicture(menu, 4, "gfx/p_option.lmp");
+	}
 
 	menu->selecteditem = (union menuoption_s *)
 

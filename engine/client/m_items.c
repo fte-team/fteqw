@@ -437,7 +437,7 @@ menupicture_t *MC_AddCenterPicture(menu_t *menu, int y, char *picname)
 
 menupicture_t *MC_AddCursor(menu_t *menu, int x, int y)
 {
-	int q1, h2, q2;
+	int mgt;
 	menupicture_t *n = Z_Malloc(sizeof(menupicture_t));
 	n->common.type = mt_menudot;
 	n->common.iszone = true;
@@ -448,17 +448,15 @@ menupicture_t *MC_AddCursor(menu_t *menu, int x, int y)
 	menu->options = (menuoption_t *)n;
 
 
-	q1 = COM_FDepthFile("gfx/menudot1.lmp", true);
-	h2 = COM_FDepthFile("gfx/menu/menudot1.lmp", true);
-	q2 = COM_FDepthFile("pics/m_cursor1.pcx", true);
-	if (q2 < h2 && q2 < q1)
+	mgt = M_GameType();
+	if (mgt == MGT_QUAKE2)
 	{	//AND QUAKE 2 WINS!!!
 		menudotstyle = "m_cursor%i";
 		mindot = 0;
 		maxdots = 15;
 		dotofs=0;
 	}
-	else if (h2 < q1)
+	else if (mgt == MGT_HEXEN2)
 	{	//AND THE WINNER IS HEXEN 2!!!
 		menudotstyle = "gfx/menu/menudot%i.lmp";
 		mindot = 1;
@@ -1276,7 +1274,6 @@ qboolean MC_Main_Key (int key, menu_t *menu)	//here purly to restart demos.
 	return false;
 }
 
-
 void M_Menu_Main_f (void)
 {
 	extern cvar_t m_helpismedia;
@@ -1284,7 +1281,7 @@ void M_Menu_Main_f (void)
 	menu_t *mainm;
 	mpic_t *p;
 
-	int q1, q2, h2;
+	int mgt;
 
 	SCR_EndLoadingPlaque();	//just in case...
 
@@ -1319,10 +1316,8 @@ void M_Menu_Main_f (void)
 	}
 */
 
-	q1 = COM_FDepthFile("gfx/mainmenu.lmp", true);
-	q2 = COM_FDepthFile("pics/m_main.pcx", true);
-	h2 = COM_FDepthFile("gfx/menu/title0.lmp", true);
-	if (q2 < q1 && q2 < h2)	//quake2 main menu.
+	mgt = M_GameType();
+	if (mgt == MGT_QUAKE2)	//quake2 main menu.
 	{
 		if (Draw_SafeCachePic("pics/m_main_game"))
 		{			
@@ -1355,7 +1350,7 @@ void M_Menu_Main_f (void)
 		}
 		return;
 	}
-	else if (h2 < q1)
+	else if (mgt == MGT_HEXEN2)
 	{
 		m_state = m_complex;
 		key_dest = key_menu;

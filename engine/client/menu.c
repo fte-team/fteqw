@@ -1051,5 +1051,26 @@ void M_Keyup (int key)
 	}
 }
 
+// Generic function to choose which game menu to draw
+int M_GameType (void)
+{
+	int q1, h2, q2;
+
+	q1 = COM_FDepthFile("gfx/sp_menu.lmp", true);
+	h2 = COM_FDepthFile("gfx/menu/title2.lmp", true);
+	q2 = COM_FDepthFile("pics/m_banner_game.pcx", true);
+
+	if (q2 < h2 && q2 < q1)
+	{	//AND QUAKE 2 WINS!!!
+		return MGT_QUAKE2;
+	}
+	else if (h2 < q1)
+	{	//AND THE WINNER IS HEXEN 2!!!
+		return MGT_HEXEN2;
+	}
+
+	//QUAKE 1 WINS BY DEFAULT!
+	return MGT_QUAKE1;
+}
 
 

@@ -13,23 +13,45 @@ void M_Menu_MultiPlayer_f (void)
 	menubutton_t *b;
 	menu_t *menu;
 	mpic_t *p;
+	int mgt;
 
-	p = Draw_SafeCachePic("gfx/mp_menu.lmp");
-
+	p = NULL; 
 	key_dest = key_menu;
 	m_state = m_complex;
 	m_entersound = true;
 
+	mgt = M_GameType();
+
 	menu = M_CreateMenu(0);
 	
-	if (p)
+	if (mgt == MGT_QUAKE2)
 	{
-		MC_AddPicture(menu, 16, 4, "gfx/qplaque.lmp");
-		MC_AddCenterPicture(menu, 4, "gfx/p_multi.lmp");
-		MC_AddPicture(menu, 72, 32, "gfx/mp_menu.lmp");
+		MC_AddCenterPicture(menu, 4, "pics/m_banner_multiplayer");
+
+		menu->selecteditem = (menuoption_t*)
+		MC_AddConsoleCommand	(menu, 64, 40,	"Join network server", "menu_slist\n");
+		MC_AddConsoleCommand	(menu, 64, 48,	"Start network server", "menu_newmulti\n");
+		MC_AddConsoleCommand	(menu, 64, 56,	"Player setup", "menu_setup\n");
+		MC_AddConsoleCommand	(menu, 64, 64,	"Demos", "menu_demo\n");
+
+		menu->cursoritem = (menuoption_t*)MC_AddWhiteText(menu, 48, 40, NULL, false);
+		return;
+	}
+	else if (mgt == MGT_HEXEN2)
+	{
+	}
+	else
+	{
+		p = Draw_SafeCachePic("gfx/mp_menu.lmp");
+		if (p)
+		{
+			MC_AddPicture(menu, 16, 4, "gfx/qplaque.lmp");
+			MC_AddCenterPicture(menu, 4, "gfx/p_multi.lmp");
+			MC_AddPicture(menu, 72, 32, "gfx/mp_menu.lmp");
+		}
 	}
 
-	b = MC_AddConsoleCommand(menu, 72, 32, "", "menu_slist\n");
+	b = MC_AddConsoleCommand(menu, 72, 32, "", "menu_slist\n"); 
 	menu->selecteditem = (menuoption_t*)b;
 	b->common.height = 20;
 	b->common.width = p?p->width:320;
@@ -345,6 +367,7 @@ void M_Menu_GameOptions_f (void)
 	newmultimenu_t *info;
 	menu_t *menu;
 	int y = 40;
+	int mgt;
 	int players;
 
 	key_dest = key_menu;
@@ -353,10 +376,22 @@ void M_Menu_GameOptions_f (void)
 
 	menu = M_CreateMenu(sizeof(newmultimenu_t));	
 	info = menu->data;
-	
-	MC_AddPicture(menu, 16, 4, "gfx/qplaque.lmp");
-	MC_AddCenterPicture(menu, 4, "gfx/p_multi.lmp");
 
+	mgt = M_GameType();
+
+	if (mgt == MGT_QUAKE2)
+	{
+		MC_AddCenterPicture(menu, 4, "pics/m_banner_start_server");
+		y += 8;
+	}
+	else if (mgt == MGT_HEXEN2)
+	{
+	}
+	else
+	{
+		MC_AddPicture(menu, 16, 4, "gfx/qplaque.lmp");
+		MC_AddCenterPicture(menu, 4, "gfx/p_multi.lmp");
+	}
 
 //	MC_AddPicture(menu, 72, 32, ("gfx/mp_menu.lmp") );
 
@@ -383,10 +418,11 @@ void M_Menu_GameOptions_f (void)
 	y+=8;
 	MC_AddSlider	(menu, 64-7*8, y,					"Extra edict support", &pr_maxedicts, 512, 2047);y+=8;
 	y+=8;
-	info->mapnameedit	= MC_AddEdit	(menu, 64, y,			"        map", "start");y+=16;
-	info->mapnameedit	= MC_AddEdit	(menu, 64, y,			"        map", "start");y+=16;
-
-	
+	if (mgt == MGT_QUAKE2)
+		info->mapnameedit	= MC_AddEdit	(menu, 64, y,			"        map", "base1");
+	else
+		info->mapnameedit	= MC_AddEdit	(menu, 64, y,			"        map", "start");
+	y += 16;
 
 	menu->cursoritem = (menuoption_t*)MC_AddWhiteText(menu, 54, 32, NULL, false);
 

@@ -83,6 +83,7 @@ void Master_AddMaster (char *address, int type, char *description)
 	if (!NET_StringToAdr(address, &adr))
 	{
 		Con_Printf("Failed to resolve address \"%s\"\n", address);
+		return;
 	}
 /*
 	if (type == MT_SINGLEQW || type == MT_SINGLENQ || type == MT_SINGLEQ2)	//single servers are added to the serverlist as well as the masters list
@@ -504,7 +505,7 @@ void MasterInfo_Request(master_t *mast)
 		break;
 #ifdef Q2CLIENT
 	case MT_MASTERQ2:
-		if (COM_FDepthFile("pics/colormap.pcx", true)!=0x7fffffff)	//only query this master if we expect to be able to load it's maps.
+		if (COM_FDepthFile("pics/colormap.pcx", true)!=0x7fffffff)
 			NET_SendPollPacket (6, "query", mast->adr);
 		break;
 #endif

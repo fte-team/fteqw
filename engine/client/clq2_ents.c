@@ -1,4 +1,6 @@
 #include "quakedef.h"
+#include "particles.h"
+
 #ifdef Q2CLIENT
 
 extern cvar_t r_drawviewmodel;
@@ -104,13 +106,6 @@ void CLQ2_FlyEffect(q2centity_t *ent, vec3_t org){};
 void CLQ2_DiminishingTrail(vec3_t oldorg, vec3_t neworg, q2centity_t *ent, unsigned int effects){};
 void CLQ2_BlasterTrail(vec3_t oldorg, vec3_t neworg);
 void CLQ2_BlasterTrail2(vec3_t oldorg, vec3_t neworg){};
-void CLQ2_RocketTrail(vec3_t oldorg, vec3_t neworg, q2centity_t *ent)
-{
-	extern int rt_rocket;
-	P_ParticleTrail(oldorg, neworg, rt_rocket, &ent->trailstate);
-};
-
-
 
 
 #define MAX_Q2EDICTS 1024
@@ -1324,7 +1319,7 @@ void CLQ2_AddPacketEntities (q2frame_t *frame)
 		{
 			if (effects & Q2EF_ROCKET)
 			{
-				CLQ2_RocketTrail (cent->lerp_origin, ent.origin, cent);
+				P_ParticleTrail(cent->lerp_origin, ent.origin, rt_rocket, &cent->trailstate);
 				V_AddLight (ent.origin, 200, 0.2, 0.2, 0);
 			}
 			// PGM - Do not reorder EF_BLASTER and EF_HYPERBLASTER. 
@@ -1340,7 +1335,7 @@ void CLQ2_AddPacketEntities (q2frame_t *frame)
 				}
 				else
 				{
-					CLQ2_BlasterTrail (cent->lerp_origin, ent.origin);
+					P_ParticleTrail(cent->lerp_origin, ent.origin, rt_blastertrail, &cent->trailstate);
 					V_AddLight (ent.origin, 200, 0.2, 0.2, 0);
 				}
 //PGM
@@ -1354,11 +1349,11 @@ void CLQ2_AddPacketEntities (q2frame_t *frame)
 			}
 			else if (effects & Q2EF_GIB)
 			{
-				CLQ2_DiminishingTrail (cent->lerp_origin, ent.origin, cent, effects);
+				P_ParticleTrail(cent->lerp_origin, ent.origin, rt_gib, &cent->trailstate);
 			}
 			else if (effects & Q2EF_GRENADE)
 			{
-				CLQ2_DiminishingTrail (cent->lerp_origin, ent.origin, cent, effects);
+				P_ParticleTrail(cent->lerp_origin, ent.origin, rt_grenade, &cent->trailstate);
 			}
 			else if (effects & Q2EF_FLIES)
 			{
@@ -1455,7 +1450,7 @@ void CLQ2_AddPacketEntities (q2frame_t *frame)
 			{
 				if (effects & Q2EF_ANIM_ALLFAST)
 				{
-					CLQ2_BlasterTrail (cent->lerp_origin, ent.origin);
+					P_ParticleTrail(cent->lerp_origin, ent.origin, rt_blastertrail, &cent->trailstate);
 				}
 				V_AddLight (ent.origin, 130, 0.2, 0.1, 0.1);
 			}

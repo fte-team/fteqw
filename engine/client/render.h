@@ -280,7 +280,6 @@ void CLQ2_FlyEffect(struct q2centity_s *ent, vec3_t org);
 void CLQ2_DiminishingTrail(vec3_t oldorg, vec3_t neworg, struct q2centity_s *ent, unsigned int effects);
 void CLQ2_BlasterTrail(vec3_t oldorg, vec3_t neworg);
 void CLQ2_BlasterTrail2(vec3_t oldorg, vec3_t neworg);
-void CLQ2_RocketTrail(vec3_t oldorg, vec3_t neworg, struct q2centity_s *ent);
 
 void WritePCXfile (char *filename, qbyte *data, int width, int height, int rowbytes, qbyte *palette, qboolean upload); //data is 8bit.
 qbyte *ReadPCXFile(qbyte *buf, int length, int *width, int *height);

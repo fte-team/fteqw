@@ -23,6 +23,17 @@ extern int pt_explosion,
 	pt_superbullet,
 	pe_default;
 
+extern int rt_blastertrail,
+	rt_railtrail,
+	rt_bubbletrail,
+	rt_rocket,
+	rt_grenade,
+	rt_gib,
+	rt_lightning1,
+	rt_lightning2,
+	rt_lightning3;
+
+/*
 extern int rt_rocket_trail,
 	rt_smoke,
 	rt_blood,
@@ -44,6 +55,7 @@ extern int rt_rocket_trail,
 	rt_blastertrail,
 	rt_railtrail,
 	rt_bubbletrail;
+*/
 
 // !!! if this is changed, it must be changed in d_ifacea.h too !!!
 typedef struct particle_s
@@ -98,8 +110,10 @@ int P_AllocateParticleType(char *name);
 
 void P_SkyTri(float *v1, float *v2, float *v3, struct msurface_s *surf);
 
-//wierd effects
+// default particle effect
 void P_RunParticleEffect (vec3_t org, vec3_t dir, int color, int count);	//aka: the particle builtin.
+
+//wierd effects
 void P_RunParticleEffect2 (vec3_t org, vec3_t dmin, vec3_t dmax, int color, int effect, int count);	//these three are needed for hexen2.
 void P_RunParticleEffect3 (vec3_t org, vec3_t box, int color, int effect, int count);
 void P_RunParticleEffect4 (vec3_t org, float radius, int color, int effect, int count);
@@ -108,16 +122,10 @@ void P_DarkFieldParticles (float *org, qbyte colour);
 void P_EntityParticles (float *org, qbyte colour, float *radius);	//nq's EF_BRIGHTFIELD
 void P_TorchEffect (vec3_t pos, int type);	//particles centered around a model, called every frame for those models.
 
-//functions that spawn trails (basically just pass throughs)
-void P_BlasterParticles (vec3_t org, vec3_t dir);
-
 //functions that spawn point effects (basically just pass throughs)
 void P_BlobExplosion (vec3_t org);	//tarbaby explosion or TF emp.
 void P_ParticleExplosion (vec3_t org);	//rocket explosion (sprite is allocated seperatly :( )
 void P_LavaSplash (vec3_t org);	//cthon dying, or a gas grenade.
-void P_TeleportSplash (vec3_t org);	//teleporter effect.
-
-
 
 typedef struct {
 	float lastdist;

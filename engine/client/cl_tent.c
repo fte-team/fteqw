@@ -721,7 +721,7 @@ void CL_ParseTEnt (void)
 		pos[0] = MSG_ReadCoord ();
 		pos[1] = MSG_ReadCoord ();
 		pos[2] = MSG_ReadCoord ();
-		P_TeleportSplash (pos);
+		P_RunParticleEffectType(pos, NULL, 1, pt_teleportsplash);
 		break;
 
 	case TE_GUNSHOT:			// bullet hitting wall
@@ -1269,14 +1269,14 @@ void CLQ2_ParseTEnt (void)
 		{
 			CL_SmokeAndFlash(pos);
 			
-			// impact sound
+			// impact sound (nope, not the same as Q1...)
 			cnt = rand()&15;
 			if (cnt == 1)
-				Q2S_StartSound (pos, 0, 0, cl_sfx_ric1, 1, ATTN_NORM, 0);
+				Q2S_StartSound (pos, 0, 0, S_PrecacheSound ("world/ric1.wav"), 1, ATTN_NORM, 0);
 			else if (cnt == 2)
-				Q2S_StartSound (pos, 0, 0, cl_sfx_ric2, 1, ATTN_NORM, 0);
+				Q2S_StartSound (pos, 0, 0, S_PrecacheSound ("world/ric2.wav"), 1, ATTN_NORM, 0);
 			else if (cnt == 3)
-				Q2S_StartSound (pos, 0, 0, cl_sfx_ric3, 1, ATTN_NORM, 0);
+				Q2S_StartSound (pos, 0, 0, S_PrecacheSound ("world/ric3.wav"), 1, ATTN_NORM, 0);
 		}
 
 		break;
@@ -1290,7 +1290,7 @@ void CLQ2_ParseTEnt (void)
 		else
 			P_RunParticleEffect (pos, dir, 0xb0, 40);
 		//FIXME : replace or remove this sound
-//		Q2S_StartSound (pos, 0, 0, q2cl_sfx_lashit, 1, ATTN_NORM, 0);
+		S_StartSound (-2, 0, S_PrecacheSound ("weapons/lashit.wav"), pos, 1, 1);
 		break;
 
 	case Q2TE_SHOTGUN:			// bullet hitting wall
@@ -1315,6 +1315,13 @@ void CLQ2_ParseTEnt (void)
 		if (r == Q2SPLASH_SPARKS)
 		{
 			r = rand() & 3;
+			if (r == 1)
+				Q2S_StartSound (pos, 0, 0, S_PrecacheSound ("world/spark5.wav"), 1, ATTN_NORM, 0);
+			else if (r == 2)
+				Q2S_StartSound (pos, 0, 0, S_PrecacheSound ("world/spark6.wav"), 1, ATTN_NORM, 0);
+			else
+				Q2S_StartSound (pos, 0, 0, S_PrecacheSound ("world/spark7.wav"), 1, ATTN_NORM, 0);
+
 //			if (r == 0)
 //				Q2S_StartSound (pos, 0, 0, cl_sfx_spark5, 1, ATTN_STATIC, 0);
 //			else if (r == 1)
@@ -1336,14 +1343,17 @@ void CLQ2_ParseTEnt (void)
 	case Q2TE_BLUEHYPERBLASTER:
 		MSG_ReadPos (pos);
 		MSG_ReadPos (dir);
-		P_BlasterParticles (pos, dir);
+		if (P_RunParticleEffectType(pos, dir, 1, pt_blasterparticles))
+			P_RunParticleEffect (pos, dir, 0xe0, 40);
 		break;
 
 	case Q2TE_BLASTER:			// blaster hitting wall
 		MSG_ReadPos (pos);
 		MSG_ReadDir (dir);
 
-		P_BlasterParticles (pos, dir);
+		if (P_RunParticleEffectType(pos, dir, 1, pt_blasterparticles))
+			P_RunParticleEffect (pos, dir, 0xe0, 40);
+
 		R_AddStain(pos, 0, -5, -10, 20);
 
 		ex = CL_AllocExplosion ();
@@ -1364,13 +1374,15 @@ void CLQ2_ParseTEnt (void)
 		else
 			ex->angles[1] = 0;
 		ex->angles[0]*=-1;
+
+		S_StartSound (-2, 0, S_PrecacheSound ("weapons/lashit.wav"), pos, 1, 1);
 		break;
 
 	case Q2TE_RAILTRAIL:			// railgun effect
 		MSG_ReadPos (pos);
 		MSG_ReadPos (pos2);
 		CLQ2_RailTrail (pos, pos2);
-//		Q2S_StartSound (pos2, 0, 0, cl_sfx_railg, 1, ATTN_NORM, 0);
+		Q2S_StartSound (pos, 0, 0, S_PrecacheSound ("weapons/railgf1a.wav"), 1, ATTN_NORM, 0);
 		break;
 
 	case Q2TE_EXPLOSION2:
@@ -1394,7 +1406,10 @@ void CLQ2_ParseTEnt (void)
 		}
 	
 	// sound
-		S_StartSound (-2, 0, S_PrecacheSound ("weapons/rocklx1a.wav"), pos, 1, 1);
+		if (type == Q2TE_GRENADE_EXPLOSION_WATER)
+			S_StartSound (-2, 0, S_PrecacheSound ("weapons/xpld_wat.wav"), pos, 1, 1);
+		else
+			S_StartSound (-2, 0, S_PrecacheSound ("weapons/grenlx1a.wav"), pos, 1, 1);
 	
 	// sprite
 		/*
@@ -1459,7 +1474,9 @@ void CLQ2_ParseTEnt (void)
 	case Q2TE_EXPLOSION1_NP:						// PMM
 		MSG_ReadPos (pos);
 
-		P_ParticleExplosion (pos);
+	// particle effect
+		if (type != Q2TE_EXPLOSION1_BIG && type != Q2TE_EXPLOSION1_NP)
+			P_ParticleExplosion (pos);
 
 	// light
 		{
@@ -1475,7 +1492,10 @@ void CLQ2_ParseTEnt (void)
 		}
 
 	// sound
-		S_StartSound (-2, 0, S_PrecacheSound ("weapons/rocklx1a.wav"), pos, 1, 1);
+		if (type == Q2TE_ROCKET_EXPLOSION_WATER)
+			S_StartSound (-2, 0, S_PrecacheSound ("weapons/xpld_wat.wav"), pos, 1, 1);
+		else
+			S_StartSound (-2, 0, S_PrecacheSound ("weapons/rocklx1a.wav"), pos, 1, 1);
 
 	// sprite		
 /*		if (!R_ParticleExplosionHeart(pos))
@@ -1783,13 +1803,17 @@ void CLQ2_ParseTEnt (void)
 //		CL_Tracker_Explode (pos);
 		S_StartSound (pos, 0, 0, cl_sfx_disrexp, 1, ATTN_NORM, 0);
 		break;
-
+*/
 	case Q2TE_TELEPORT_EFFECT:
 	case Q2TE_DBALL_GOAL:
-		MSG_ReadPos (&net_message, pos);
-		CL_TeleportParticles (pos);
+		MSG_ReadPos (pos);
+		if (P_RunParticleEffectType(pos, NULL, 1, pt_teleportsplash))
+			P_RunParticleEffect(pos, NULL, 7, 768);
+		// This effect won't match ---
+		// Color should be 7+(rand()%8)
+		// not 7&~7+(rand()%8)
 		break;
-
+/*
 	case Q2TE_WIDOWBEAMOUT:
 		CL_ParseWidow ();
 		break;

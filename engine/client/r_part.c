@@ -66,6 +66,8 @@ int rt_blastertrail,
 	rt_railtrail,
 	rt_bubbletrail,
 	rt_rocket,
+	rt_grenade,
+	rt_gib,
 	rt_lightning1,
 	rt_lightning2,
 	rt_lightning3;
@@ -809,13 +811,13 @@ void P_DefaultTrail (model_t *model)
 			model->particletrail = rt_rocket;//q2 models do this without flags.
 			break;
 		case 2:
-			model->particletrail = P_AllocateParticleType("t_grenade");
+			model->particletrail = rt_grenade;
 			break;
 		case 3:
 			model->particletrail = P_AllocateParticleType("t_altrocket");
 			break;
 		case 4:
-			model->particletrail = P_AllocateParticleType("t_gib");
+			model->particletrail = rt_gib;
 			break;
 		case 5:
 			model->particletrail = P_AllocateParticleType("t_zomgib");
@@ -834,12 +836,12 @@ void P_DefaultTrail (model_t *model)
 	else if (model->flags & EF_GRENADE)
 	{
 		if (r_grenadetrail.value)
-			model->particletrail = P_AllocateParticleType("t_grenade");
+			model->particletrail = rt_grenade;
 		else
 			model->particletrail = P_AllocateParticleType("t_null");
 	}
 	else if (model->flags & EF_GIB)
-		model->particletrail = P_AllocateParticleType("t_gib");
+		model->particletrail = rt_gib;
 	else if (model->flags & EF_TRACER)
 		model->particletrail = P_AllocateParticleType("t_tracer");
 	else if (model->flags & EF_ZOMGIB)
@@ -1004,28 +1006,32 @@ void P_InitParticles (void)
 	pt_gunshot			= P_AllocateParticleType("te_gunshot");
 	pt_lavasplash		= P_AllocateParticleType("te_lavasplash");
 	pt_teleportsplash	= P_AllocateParticleType("te_teleportsplash");
-	rt_blastertrail		= P_AllocateParticleType("t_blastertrail");
+	pt_superbullet		= P_AllocateParticleType("te_superbullet");
+	pt_bullet			= P_AllocateParticleType("te_bullet");
 	pt_blasterparticles = P_AllocateParticleType("te_blasterparticles");
 	pt_wizspike			= P_AllocateParticleType("te_wizspike");
 	pt_knightspike		= P_AllocateParticleType("te_knightspike");
 	pt_spike			= P_AllocateParticleType("te_spike");
 	pt_superspike		= P_AllocateParticleType("te_superspike");
+
 	rt_railtrail		= P_AllocateParticleType("t_railtrail");
+	rt_blastertrail		= P_AllocateParticleType("t_blastertrail");
 	rt_bubbletrail		= P_AllocateParticleType("t_bubbletrail");
 	rt_rocket			= P_AllocateParticleType("t_rocket");
+	rt_grenade			= P_AllocateParticleType("t_grenade");
+	rt_gib				= P_AllocateParticleType("t_gib");
 
 	rt_lightning1		= P_AllocateParticleType("t_lightning1");
 	rt_lightning2		= P_AllocateParticleType("t_lightning2");
 	rt_lightning3		= P_AllocateParticleType("t_lightning3");
 
-	pt_superbullet		= P_AllocateParticleType("te_superbullet");
-	pt_bullet			= P_AllocateParticleType("te_bullet");
-	pe_default			= P_AllocateParticleType("pe_default");
-	pe_size2			= P_AllocateParticleType("pe_size2");
-	pe_size3			= P_AllocateParticleType("pe_size3");
 
 	pt_spark			= P_AllocateParticleType("pe_spark");
 	pt_plasma			= P_AllocateParticleType("pe_plasma");
+
+	pe_default			= P_AllocateParticleType("pe_default");
+	pe_size2			= P_AllocateParticleType("pe_size2");
+	pe_size3			= P_AllocateParticleType("pe_size3");
 }
 
 
@@ -1858,43 +1864,25 @@ void P_RunParticleEffect (vec3_t org, vec3_t dir, int color, int count)
 {
 	int ptype;
 
-#if 0
-	if (color == 73)
-	{	//blood
-		P_RunParticleEffectType(org, dir, count, pt_blood);
-		return;
-	}
-	if (color == 225)
-	{	//lightning blood	//a brighter red...
-		P_RunParticleEffectType(org, dir, count, pt_lightningblood);
-		return;
-	}
-
-	if (color == 0)
-	{	//lightning blood
-		P_RunParticleEffectType(org, dir, count, pt_gunshot);
-		return;
-	}
-#endif
-
 	ptype = P_FindParticleType(va("pe_%i", color));
 	if (P_RunParticleEffectType(org, dir, count, ptype))
 	{
+		color &= ~0x7;
 		if (count > 130 && part_type[pe_size3].loaded)
 		{
-			part_type[pe_size3].colorindex = color & ~0x7;
+			part_type[pe_size3].colorindex = color;
 			part_type[pe_size3].colorrand = 8;
 			P_RunParticleEffectType(org, dir, count, pe_size3);
 			return;
 		}
 		if (count > 20 && part_type[pe_size2].loaded)
 		{
-			part_type[pe_size2].colorindex = color & ~0x7;
+			part_type[pe_size2].colorindex = color;
 			part_type[pe_size2].colorrand = 8;
 			P_RunParticleEffectType(org, dir, count, pe_size2);
 			return;
 		}
-		part_type[pe_default].colorindex = color & ~0x7;
+		part_type[pe_default].colorindex = color;
 		part_type[pe_default].colorrand = 8;
 		P_RunParticleEffectType(org, dir, count, pe_default);
 		return;
@@ -2041,18 +2029,9 @@ R_TeleportSplash
 
 ===============
 */
-void P_TeleportSplash (vec3_t org)
-{
-	P_RunParticleEffectType(org, NULL, 1, pt_teleportsplash);
-}
-
 void CLQ2_BlasterTrail (vec3_t start, vec3_t end)
 {
 	P_ParticleTrail(start, end, rt_blastertrail, NULL);
-}
-void P_BlasterParticles (vec3_t start, vec3_t dir)
-{
-	P_RunParticleEffectType(start, dir, 1, pt_blasterparticles);
 }
 
 void MakeNormalVectors (vec3_t forward, vec3_t right, vec3_t up)

@@ -2623,7 +2623,7 @@ void CL_NewTranslation (int slot)
 	char *s;
 	player_info_t	*player;
 
-	if (slot > MAX_CLIENTS)
+	if (slot >= MAX_CLIENTS)
 		Sys_Error ("CL_NewTranslation: slot > MAX_CLIENTS");
 
 	player = &cl.players[slot];

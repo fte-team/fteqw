@@ -76,6 +76,7 @@ void SCR_CheckDrawCenterString (void);
 void SCR_DrawRam (void);
 void SCR_DrawNet (void);
 void SCR_DrawFPS (void);
+void SCR_DrawUPS (void);
 void SCR_DrawTurtle (void);
 void SCR_DrawPause (void);
 void SCR_VRectForPlayer(vrect_t *vrect, int pnum);	//returns a region for the player's view

@@ -1769,9 +1769,12 @@ void CL_UpdateBeams (void)
 			ent->drawflags |= MLS_ABSLIGHT;
 			ent->abslight = 192;
 			ent->alpha = b->alpha;
-			ent->angles[0] = pitch;
+
+			ent->angles[0] = -pitch;
 			ent->angles[1] = yaw;
 			ent->angles[2] = (int)((cl.time*d*1000))%360;	//paused lightning too.
+			AngleVectors(ent->angles, ent->axis[0], ent->axis[1], ent->axis[2]);
+			ent->angles[0] = pitch;
 
 			for (i=0 ; i<3 ; i++)
 				org[i] += dist[i]*30;

@@ -775,7 +775,7 @@ void SNDDMA_SetUnderWater(qboolean underwater)
 */
 		if (underwater)
 		{
-#if 0 //phycotic.
+#if 1 //phycotic.
 			ListenerProperties.flEnvironmentSize = 2.8;
 			ListenerProperties.flEnvironmentDiffusion = 0.240;
 			ListenerProperties.lRoom = -374;
@@ -809,18 +809,18 @@ void SNDDMA_SetUnderWater(qboolean underwater)
 		}
 		else
 		{
-			ListenerProperties.flEnvironmentSize = 3.2;
-			ListenerProperties.flEnvironmentDiffusion = 1;
-			ListenerProperties.lRoom = -374;
-			ListenerProperties.lRoomHF = -2300;
+			ListenerProperties.flEnvironmentSize = 1;
+			ListenerProperties.flEnvironmentDiffusion = 0;
+			ListenerProperties.lRoom = 0;
+			ListenerProperties.lRoomHF = 0;
 			ListenerProperties.flRoomRolloffFactor = 0;
-			ListenerProperties.flAirAbsorptionHF = -5;
-			ListenerProperties.lReflections = 337;
-			ListenerProperties.flReflectionsDelay  = 0.002;
+			ListenerProperties.flAirAbsorptionHF = 0;
+			ListenerProperties.lReflections = 1000;
+			ListenerProperties.flReflectionsDelay  = 0;
 			ListenerProperties.lReverb = 813;
-			ListenerProperties.flReverbDelay = 0.03;
-			ListenerProperties.flDecayTime = 0.381;
-			ListenerProperties.flDecayHFRatio = 0.240;
+			ListenerProperties.flReverbDelay = 0.00;
+			ListenerProperties.flDecayTime = 0.1;
+			ListenerProperties.flDecayHFRatio = 0.1;
 			ListenerProperties.dwFlags = 0x3f;
 			ListenerProperties.dwEnvironment = EAX_ENVIRONMENT_GENERIC;
 		}

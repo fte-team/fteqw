@@ -129,6 +129,8 @@ sfxcache_t *S_LoadOVSound (sfx_t *s)
 		return NULL;
 	}
 
+	buffer->mediaaswavpos = sizeof(sfxcache_t);
+
 	s->decoder->decodemore(s, 100);
 
 	s->cache.fake=true;
@@ -137,11 +139,35 @@ sfxcache_t *S_LoadOVSound (sfx_t *s)
 
 int OV_DecodeSome(sfx_t *s, int minlength)
 {	
+	int bigendianp = 0;
+	int current_section;
+	sfxcache_t *sc;
+
 	ovdecoderbuffer_t *dec = s->decoder->buf;
 	int bytesread;
-	
-//	while ((bytesread = ov_read(&dec->vf, s->cache+dec->, int length, int bigendianp, int word, int sgned, int *bitstream))
-//	ov_read(
+
+	if (dec->mediaaswavbuflen < dec->mediaaswavpos+minlength)
+	{
+		dec->mediaaswavbuflen += minlength;
+		BZ_Realloc(dec->mediaaswavdata, dec->mediaaswavpos);
+		s->cache.data = dec->mediaaswavdata;
+		s->cache.fake = true;
+	}
+	sc = s->cache.data;
+
+	for (;;)
+	{
+		bytesread = p_ov_read(&dec->vf, dec->mediaaswavdata+dec->mediaaswavpos, minlength, bigendianp, 2, 1, &current_section);
+		if (bytesread <= 0)
+			return 0;
+
+		dec->mediaaswavpos += bytesread;
+		sc->length = (dec->mediaaswavpos-sizeof(sfxcache_t))/2;
+		minlength -= bytesread/2;
+
+		if (!minlength)
+			return 1;
+	}
 return 0;
 }
 void OV_CancelDecoder(sfx_t *s)
@@ -216,6 +242,7 @@ qboolean OV_StartDecode(unsigned char *start, unsigned long length, ovdecoderbuf
 		p_ov_pcm_total		= (void *)GetProcAddress(oggvorbislibrary, "ov_pcm_total");
 		p_ov_clear			= (void *)GetProcAddress(oggvorbislibrary, "ov_clear");
 		p_ov_info			= (void *)GetProcAddress(oggvorbislibrary, "ov_info");
+		p_ov_read			= (void *)GetProcAddress(oggvorbislibrary, "ov_read");
 	}
 #else
 	p_ov_open_callbacks = ov_open_callbacks;

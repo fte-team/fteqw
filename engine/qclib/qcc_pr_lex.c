@@ -1376,13 +1376,14 @@ void QCC_PR_LexWhitespace (void)
 
 char	pr_framemacros[MAX_FRAMES][16];
 int		pr_framemacrovalue[MAX_FRAMES];
-int		pr_nummacros;
+int		pr_nummacros, pr_oldmacros;
 int		pr_macrovalue;
 int		pr_savedmacro;
 
 void QCC_PR_ClearGrabMacros (void)
 {
-	pr_nummacros = 0;
+	pr_oldmacros = pr_nummacros;
+//	pr_nummacros = 0;
 	pr_macrovalue = 0;
 	pr_savedmacro = -1;
 }
@@ -1391,7 +1392,7 @@ void QCC_PR_FindMacro (void)
 {
 	int		i;
 
-	for (i=0 ; i<pr_nummacros ; i++)
+	for (i=pr_nummacros-1 ; i>=0 ; i--)
 	{
 		if (!STRCMP (pr_token, pr_framemacros[i]))
 		{
@@ -1402,7 +1403,7 @@ void QCC_PR_FindMacro (void)
 			return;
 		}
 	}
-	for (i=0 ; i<pr_nummacros ; i++)
+	for (i=pr_nummacros-1 ; i>=0 ; i--)
 	{
 		if (!stricmp (pr_token, pr_framemacros[i]))
 		{
@@ -1423,7 +1424,7 @@ pbool QCC_PR_SimpleGetToken (void)
 {
 	int		c;
 	int		i;
-	
+
 // skip whitespace
 	while ( (c = *pr_file_p) <= ' ')
 	{
@@ -1431,7 +1432,7 @@ pbool QCC_PR_SimpleGetToken (void)
 			return false;
 		pr_file_p++;
 	}
-	
+
 	i = 0;
 	while ( (c = *pr_file_p) > ' ' && c != ',' && c != ';' && c != ')' && c != '(')
 	{
@@ -1445,8 +1446,23 @@ pbool QCC_PR_SimpleGetToken (void)
 
 void QCC_PR_ParseFrame (void)
 {
+	int i;
 	while (QCC_PR_SimpleGetToken ())
 	{
+		for (i=pr_nummacros-1 ; i>=0 ; i--)
+		{
+			if (!STRCMP (pr_token, pr_framemacros[i]))
+			{
+				pr_framemacrovalue[i] = pr_macrovalue++;
+				if (i>pr_oldmacros)
+					QCC_PR_ParseWarning(WARN_DUPLICATEMACRO, "Duplicate macro defined (%s)", pr_token);
+				break;
+			}
+		}
+
+		if (i>=0)
+			continue;
+
 		strcpy (pr_framemacros[pr_nummacros], pr_token);
 		pr_framemacrovalue[pr_nummacros] = pr_macrovalue++;
 		pr_nummacros++;

@@ -1917,7 +1917,7 @@ void CL_Download_f (void)
 
 	if (Cmd_FromServer())	//mark server specified downloads.
 	{
-		if (!strncmp(url, "game", 4) || !strcmp(url, "progs.dat") || !strcmp(url, "qwprogs.dat") || strstr(url, ".."))
+		if (!strncmp(url, "game", 4) || !strcmp(url, "progs.dat") || !strcmp(url, "menu.dat") || !strcmp(url, "csqc.dat") || !strcmp(url, "qwprogs.dat") || strstr(url, "..") || strstr(url, ".dll") || strstr(url, ".so"))
 		{	//yes, I know the user can use a different progs from the one that is specified. If you leave it blank there will be no problem. (server isn't allowed to stuff progs cvar)
 			Con_Printf("Ignoring stuffed download of \"%s\" due to possible security risk\n", url);
 			return;

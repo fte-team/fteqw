@@ -109,7 +109,7 @@ void R_GammaCorrectAndSetPalette(const unsigned char *pal)
 
 void SWAppActivate(BOOL fActive, BOOL minimize)
 {
-	boolean newa;
+	qboolean newa;
 	Minimized = minimize;
 
 	// we don't want to act like we're active if we're minimized

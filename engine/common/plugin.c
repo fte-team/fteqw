@@ -55,7 +55,7 @@ void Plug_RegisterBuiltin(char *name, Plug_Builtin_t bi, int flags)
 	while(newnum < numplugbuiltins && plugbuiltins[newnum].func)
 		newnum+=128;
 
-	if (newnum > numplugbuiltins)
+	if (newnum >= numplugbuiltins)
 	{
 		numplugbuiltins = newnum+128;
 		plugbuiltins = BZ_Realloc(plugbuiltins, sizeof(Plug_Plugins_t)*numplugbuiltins);
@@ -78,7 +78,7 @@ static void Plug_RegisterBuiltinIndex(char *name, Plug_Builtin_t bi, int flags, 
 
 	newnum++;
 
-	if (newnum > numplugbuiltins)
+	if (newnum >= numplugbuiltins)
 	{
 		numplugbuiltins = newnum+128;
 		plugbuiltins = BZ_Realloc(plugbuiltins, sizeof(Plug_Plugins_t)*numplugbuiltins);

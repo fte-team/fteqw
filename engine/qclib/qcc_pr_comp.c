@@ -6351,8 +6351,10 @@ void QCC_PR_ParseDefs (char *classname)
 						QCC_PR_ParseError(ERR_NOTANUMBER, "enum - not a number");
 				}
 				else
+				{
 					v = pr_immediate._float;
-				QCC_PR_Lex();
+					QCC_PR_Lex();
+				}
 			}
 			def = QCC_PR_GetDef(type_float, name, pr_scope, true, 1);
 			def->constant = true;
@@ -6393,7 +6395,10 @@ void QCC_PR_ParseDefs (char *classname)
 						QCC_PR_ParseError(ERR_NOTANUMBER, "enumflags - not a number");
 				}
 				else
+				{
 					v = pr_immediate._float;
+					QCC_PR_Lex();
+				}
 
 				bits = 0;
 				i = (int)v;
@@ -6410,7 +6415,6 @@ void QCC_PR_ParseDefs (char *classname)
 					if (bits != 1)
 						QCC_PR_ParseWarning(WARN_ENUMFLAGS_NOTBINARY, "enumflags - value %i not a single bit", (int)v);
 				}
-				QCC_PR_Lex();
 			}
 			def = QCC_PR_GetDef(type_float, name, pr_scope, true, 1);
 			def->constant = true;

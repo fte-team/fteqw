@@ -4365,7 +4365,8 @@ void QCC_PR_ParseStatement (void)
 			QCC_FreeTemp(QCC_PR_Statement(&pr_opcodes[OP_IFNOT], e, 0, &patch1));
 		else
 			patch1 = NULL;
-		QCC_PR_ParseStatement();
+		if (!QCC_PR_Check(";"))
+			QCC_PR_ParseStatement();	//don't give the hanging ';' warning.
 		patch3 = &statements[numstatements];
 		for (i = 0 ; i < numtemp ; i++)
 		{
@@ -4458,6 +4459,7 @@ void QCC_PR_ParseStatement (void)
 		(keyword_vector && !STRCMP ("vector", pr_token)) ||
 		(keyword_integer && !STRCMP ("integer", pr_token)) ||
 		(keyword_int && !STRCMP ("int", pr_token)) ||
+		(keyword_class && !STRCMP ("class", pr_token)) ||
 		(keyword_const && !STRCMP ("const", pr_token)))
 	{
 //		if (locals_end != numpr_globals)	//is this breaking because of locals?
@@ -4538,6 +4540,7 @@ void QCC_PR_ParseStatement (void)
 		int hcstyle;
 		int defaultcase = -1;
 		temp_t *et;
+		int oldst;
 
 		breaks = num_breaks;
 		cases = num_cases;
@@ -4616,9 +4619,14 @@ void QCC_PR_ParseStatement (void)
 
 		QCC_PR_Expect (")");	//close bracket is after we save the statement to mem (so debugger does not show the if statement as being on the line after
 		
+		oldst = numstatements;
 		QCC_PR_ParseStatement ();
 
-		QCC_FreeTemp(QCC_PR_Statement (&pr_opcodes[OP_GOTO], 0, 0, &patch2));	//the P1 statement/the theyforgotthebreak statement.
+	/*	if (oldst != numstatements && QCC_PR_)
+		{
+		}
+		else*/
+			QCC_FreeTemp(QCC_PR_Statement (&pr_opcodes[OP_GOTO], 0, 0, &patch2));	//the P1 statement/the theyforgotthebreak statement.
 		if (hcstyle)
 			patch1->b = &statements[numstatements] - patch1;	//the goto start part
 		else
@@ -4682,6 +4690,9 @@ void QCC_PR_ParseStatement (void)
 								e2 = QCC_PR_Statement (&pr_opcodes[OP_EQ_S], e, pr_casesdef[i], &patch1);
 								break;
 							case ev_function:
+								e2 = QCC_PR_Statement (&pr_opcodes[OP_EQ_FNC], e, pr_casesdef[i], &patch1);
+								break;
+							case ev_field:
 								e2 = QCC_PR_Statement (&pr_opcodes[OP_EQ_FNC], e, pr_casesdef[i], &patch1);
 								break;
 							case ev_integer:

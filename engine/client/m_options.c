@@ -368,7 +368,7 @@ void M_Menu_FPS_f (void)
 	int y = 32;
 	menu_t *menu;
 #ifdef RGLQUAKE
-	extern cvar_t gl_compress, gl_waterripples, gl_detail, gl_bump, gl_2dscale, r_flashblend;
+	extern cvar_t gl_compress, gl_waterripples, gl_detail, gl_bump, r_flashblend;
 #endif
 #ifdef SWQUAKE
 	extern cvar_t d_smooth, d_mipscale, d_mipcap;
@@ -409,7 +409,6 @@ void M_Menu_FPS_f (void)
 		MC_AddCheckBox(menu, 48, y,			"          Bumpmaps", &gl_bump,0);y+=8;
 		MC_AddCheckBox(menu, 48, y,			"   Tex Compression", &gl_compress,0);y+=8;
 		MC_AddCheckBox(menu, 48, y,			"Other Water Effect", &gl_waterripples,0);y+=8;
-		MC_AddSlider(menu, 48, y,			"     2D resolution", &gl_2dscale,		0,		1);y+=8;
 		MC_AddCheckBox(menu, 48, y,			"   32 bit textures", &gl_load24bit,0);y+=8;
 		break;
 #endif

@@ -62,6 +62,7 @@ typedef struct {	//must be first of each structure type.
 	int width;
 	int height;
 	qboolean iszone;
+	qboolean ishidden;
 	union menuoption_s *next;
 } menucommon_t;
 

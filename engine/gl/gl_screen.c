@@ -125,8 +125,7 @@ needs almost the entire 256k of stack space!
 
 void GLSCR_UpdateScreen (void)
 {
-	extern cvar_t gl_2dscale;
-	static float old2dscale=1;
+	extern cvar_t vid_conwidth, vid_conheight;
 	int uimenu;
 #ifdef TEXTEDITOR
 	extern qboolean editormodal;
@@ -140,29 +139,26 @@ void GLSCR_UpdateScreen (void)
 		return;
 	}
 
-	if (gl_2dscale.modified)
+	if (vid_conwidth.modified || vid_conheight.modified)
 	{
-		gl_2dscale.modified=false;
-		if (gl_2dscale.value < 0)	//lower would be wrong
-			Cvar_Set(&gl_2dscale, "0");
-		if (gl_2dscale.value > 2)	//anything higher is unreadable.
-			Cvar_Set(&gl_2dscale, "2");
+		//let let the user be too crazy
+		if (vid_conwidth.value > 2048)	//anything higher is unreadable.
+			Cvar_Set(&vid_conwidth, "2048");
+		if (vid_conwidth.value < 320)	//lower would be wrong
+			Cvar_Set(&vid_conwidth, "320");
+		if (vid_conheight.value > 1536)	//anything higher is unreadable.
+			Cvar_Set(&vid_conheight, "1536");
+		if (vid_conheight.value < 320)	//lower would be wrong
+			Cvar_Set(&vid_conheight, "320");
 
-		old2dscale = gl_2dscale.value;
-		vid.width = vid.conwidth = (glwidth - 320) * gl_2dscale.value + 320;
-		vid.height = vid.conheight = (glheight - 240) * gl_2dscale.value + 240;
+		vid_conwidth.modified = false;
+		vid_conheight.modified = false;
 
-//pretect against too small resolutions (possibly minimising task switches).
-		if (vid.width<320)
-		{
-			vid.width=320;
-			vid.conwidth=320;
-		}
-		if (vid.height<200)
-		{
-			vid.height=200;
-			vid.conheight=200;
-		}
+//		vid.width = vid.conwidth = (glwidth - 320) * gl_2dscale.value + 320;
+//		vid.height = vid.conheight = (glheight - 240) * gl_2dscale.value + 240;
+
+		vid.width = vid.conwidth = vid_conwidth.value;
+		vid.height = vid.conheight = vid_conheight.value;
 
 		vid.recalc_refdef = true;
 		Con_CheckResize();

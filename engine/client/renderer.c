@@ -94,7 +94,6 @@ cvar_t r_stainfadetime = {"r_stainfadetime", "1"};
 cvar_t r_stainfadeammount = {"r_stainfadeammount", "1"};
 
 cvar_t		_windowed_mouse = {"_windowed_mouse","1"};
-static cvar_t		vid_mode = {"vid_mode","0", NULL, CVAR_ARCHIVE|CVAR_RENDERERLATCH};
 cvar_t		_vid_default_mode = {"_vid_default_mode","0", NULL, CVAR_ARCHIVE|CVAR_RENDERERLATCH};
 // Note that 3 is MODE_FULLSCREEN_DEFAULT
 cvar_t		_vid_default_mode_win = {"_vid_default_mode_win","3", NULL, CVAR_ARCHIVE|CVAR_RENDERERLATCH};
@@ -130,7 +129,8 @@ cvar_t	r_fb_bmodels	= {"gl_fb_bmodels", "1", NULL, CVAR_SEMICHEAT|CVAR_RENDERERL
 
 cvar_t	gl_nocolors = {"gl_nocolors","0"};
 cvar_t		gl_load24bit = {"gl_load24bit", "1"};
-cvar_t		gl_2dscale = {"gl_2dscale", "1"};
+cvar_t		vid_conwidth = {"vid_conwidth", "640"};
+cvar_t		vid_conheight = {"vid_conheight", "480"};
 cvar_t		gl_nobind = {"gl_nobind", "0"};
 cvar_t		gl_max_size = {"gl_max_size", "1024"};
 cvar_t		gl_picmip = {"gl_picmip", "0"};
@@ -290,7 +290,8 @@ void GLRenderer_Init(void)
 
 	Cvar_Register (&gl_max_size, GLRENDEREROPTIONS);
 	Cvar_Register (&gl_maxdist, GLRENDEREROPTIONS);
-	Cvar_Register (&gl_2dscale, GLRENDEREROPTIONS);
+	Cvar_Register (&vid_conwidth, GLRENDEREROPTIONS);
+	Cvar_Register (&vid_conheight, GLRENDEREROPTIONS);
 
 	Cvar_Register (&gl_font, GRAPHICALNICETIES);
 	Cvar_Register (&gl_conback, GRAPHICALNICETIES);
@@ -422,23 +423,7 @@ void R_SetRenderer_f (void);
 
 void Renderer_Init(void)
 {
-	char newheight[32];
 	currentrendererstate.bpp = -1;	//no previous.
-
-	//listen to the commandline
-	if (COM_CheckParm("-width"))
-	{
-		vid_mode.string = "-1";
-		vid_width.string = com_argv[COM_CheckParm("-width")+1];
-		vid_height.string = newheight;
-		sprintf(newheight, "%i", (int)(Q_atoi(vid_width.string) * 240.0f/320));	//match it.
-	}
-	if (COM_CheckParm("-height"))
-		vid_height.string = com_argv[COM_CheckParm("-height")+1];
-
-	if (COM_CheckParm("-window"))
-		vid_fullscreen.string = "0";
-
 
 	currentrendererstate.renderer = -1;
 
@@ -454,7 +439,6 @@ void Renderer_Init(void)
 
 
 	//but register ALL vid_ commands.
-	Cvar_Register (&vid_mode, VIDCOMMANDGROUP);
 	Cvar_Register (&vid_wait, VIDCOMMANDGROUP);
 	Cvar_Register (&vid_nopageflip, VIDCOMMANDGROUP);
 	Cvar_Register (&_vid_wait_override, VIDCOMMANDGROUP);
@@ -465,7 +449,6 @@ void Renderer_Init(void)
 	Cvar_Register (&vid_renderer, VIDCOMMANDGROUP);
 
 	Cvar_Register (&_windowed_mouse, VIDCOMMANDGROUP);
-	Cvar_Register (&vid_mode, VIDCOMMANDGROUP);
 	Cvar_Register (&vid_fullscreen, VIDCOMMANDGROUP);
 //	Cvar_Register (&vid_stretch, VIDCOMMANDGROUP);
 	Cvar_Register (&vid_bpp, VIDCOMMANDGROUP);
@@ -1062,43 +1045,83 @@ typedef struct vidmode_s
 {
 	const char *description;
 	int         width, height;
-	int         mode;
 } vidmode_t;
 
 vidmode_t vid_modes[] =
 {
-	{ "Mode 0: 320x240",   320, 240,   0 },
-	{ "Mode 1: 400x300",   400, 300,   1 },
-	{ "Mode 2: 512x384",   512, 384,   2 },
-	{ "Mode 3: 640x480",   640, 480,   3 },
-	{ "Mode 4: 800x600",   800, 600,   4 },
-	{ "Mode 5: 960x720",   960, 720,   5 },
-	{ "Mode 5: 1024x768",  1024, 768,  6 },
-	{ "Mode 6: 1152x864",  1152, 864,  7 },
-	{ "Mode 7: 1280x960",  1280, 960, 8 },
-	{ "Mode 9: 1600x1200", 1600, 1200, 9 },	//height is bound to 200 to 1024
-	{ "Mode 10: 2048x1536", 2048, 1536, 10 }	//too much width will disable water warping (>1280) (but at thet rez, it's almost unnoticable)
+	{ "320x200",   320, 200},
+	{ "320x240",   320, 240},
+	{ "400x300",   400, 300},
+	{ "512x384",   512, 384},
+	{ "640x480",   640, 480},
+	{ "800x600",   800, 600},
+	{ "960x720",   960, 720},
+	{ "1024x768",  1024, 768},
+	{ "1152x864",  1152, 864},
+	{ "1280x960",  1280, 960},
+	{ "1600x1200", 1600, 1200},	//sw height is bound to 200 to 1024
+	{ "2048x1536", 2048, 1536}	//too much width will disable water warping (>1280) (but at that resolution, it's almost unnoticable)
 };
 #define NUMVIDMODES sizeof(vid_modes)/sizeof(vid_modes[0])
 
 
 typedef struct {
 	menucombo_t *renderer;
-	menucombo_t *combo;
+	menucombo_t *modecombo;
+	menucombo_t *conscalecombo;
 	menuedit_t *customwidth;
 	menuedit_t *customheight;
 } videomenuinfo_t;
 
 menuedit_t *MC_AddEdit(menu_t *menu, int x, int y, char *text, char *def);
+void CheckCustomMode(struct menu_s *menu)
+{
+	videomenuinfo_t *info = menu->data;
+	if (info->modecombo->selectedoption && info->conscalecombo->selectedoption)
+	{	//hide the custom options
+		info->customwidth->common.ishidden = true;
+		info->customheight->common.ishidden = true;
+	}
+	else
+	{
+		info->customwidth->common.ishidden = false;
+		info->customheight->common.ishidden = false;
+	}
+
+#ifdef SWQUAKE
+	if (info->renderer->selectedoption < 2)
+		info->conscalecombo->common.ishidden = true;
+	else
+#endif
+		info->conscalecombo->common.ishidden = false;
+}
 qboolean M_VideoApply (union menuoption_s *op,struct menu_s *menu,int key)
 {
 	videomenuinfo_t *info = menu->data;
 	if (key != K_ENTER)
 		return false;
 
-	Cbuf_AddText(va("vid_width %s\n", info->customwidth->text), RESTRICT_LOCAL);
-	Cbuf_AddText(va("vid_height %s\n", info->customheight->text), RESTRICT_LOCAL);
-	Cbuf_AddText(va("vid_mode %i\n", info->combo->selectedoption-1), RESTRICT_LOCAL);
+	if (info->modecombo->selectedoption)
+	{	//set a prefab
+		Cbuf_AddText(va("vid_width %i\n", vid_modes[info->modecombo->selectedoption-1].width), RESTRICT_LOCAL);
+		Cbuf_AddText(va("vid_height %i\n", vid_modes[info->modecombo->selectedoption-1].height), RESTRICT_LOCAL);
+	}
+	else
+	{	//use the custom one
+		Cbuf_AddText(va("vid_width %s\n", info->customwidth->text), RESTRICT_LOCAL);
+		Cbuf_AddText(va("vid_height %s\n", info->customheight->text), RESTRICT_LOCAL);
+	}
+	
+	if (info->conscalecombo->selectedoption)	//I am aware that this handicaps the menu a bit, but it should be easier for n00bs.
+	{	//set a prefab
+		Cbuf_AddText(va("vid_conwidth %i\n", vid_modes[info->conscalecombo->selectedoption-1].width), RESTRICT_LOCAL);
+		Cbuf_AddText(va("vid_conheight %i\n", vid_modes[info->conscalecombo->selectedoption-1].height), RESTRICT_LOCAL);
+	}
+	else
+	{	//use the custom one
+		Cbuf_AddText(va("vid_conwidth %s\n", info->customwidth->text), RESTRICT_LOCAL);
+		Cbuf_AddText(va("vid_conheight %s\n", info->customheight->text), RESTRICT_LOCAL);
+	}
 
 	switch(info->renderer->selectedoption)
 	{
@@ -1150,10 +1173,18 @@ void M_Menu_Video_f (void)
 	};
 	videomenuinfo_t *info;
 	menu_t *menu;
+	int prefabmode;
+	int prefab2dmode;
 
 	int i, y;
+	prefabmode = -1;
+	prefab2dmode = -1;
 	for (i = 0; i < sizeof(vid_modes)/sizeof(vidmode_t); i++)
 	{
+		if (vid_modes[i].width == vid_width.value && vid_modes[i].height == vid_height.value)
+			prefabmode = i;
+		if (vid_modes[i].width == vid_conwidth.value && vid_modes[i].height == vid_conheight.value)
+			prefab2dmode = i;
 		modenames[i+1] = vid_modes[i].description;
 	}
 	modenames[i+1] = NULL;
@@ -1163,7 +1194,7 @@ void M_Menu_Video_f (void)
 	m_entersound = true;
 
 	menu = M_CreateMenu(sizeof(videomenuinfo_t));
-	info = menu->data;	
+	info = menu->data;
 
 #ifdef SWQUAKE
 	if (qrenderer == QR_SOFTWARE && vid_bpp.value >= 32)
@@ -1193,7 +1224,8 @@ void M_Menu_Video_f (void)
 
 	y = 32;
 	info->renderer = MC_AddCombo(menu,	16, y,				"   Renderer     ", rendererops, i);	y+=8;
-	info->combo = MC_AddCombo(menu,	16, y,					"   Video Size   ", modenames, vid_mode.value+1);	y+=8;
+	info->modecombo = MC_AddCombo(menu,	16, y,					"   Video Size   ", modenames, prefabmode+1);	y+=8;
+	info->conscalecombo = MC_AddCombo(menu,	16, y,					"      2d Size   ", modenames, prefab2dmode+1);	y+=8;
 	MC_AddCheckBox(menu,	16, y,							"   Fullscreen   ", &vid_fullscreen,0);	y+=8;
 	y+=4;info->customwidth = MC_AddEdit(menu, 16, y,		"   Custom width ", vid_width.string);	y+=8;
 	y+=4;info->customheight = MC_AddEdit(menu, 16, y,		"   Custom height", vid_height.string);	y+=12;
@@ -1206,7 +1238,9 @@ void M_Menu_Video_f (void)
 #if defined(SWQUAKE)
 	MC_AddCheckBox(menu,	16, y,							"    SW Smoothing", &d_smooth,0);	y+=8;
 #endif
+#ifdef RGLQUAKE
 	MC_AddCheckBox(menu,	16, y,							"  GL Bumpmapping", &gl_bump,0);	y+=8;
+#endif
 	MC_AddCheckBox(menu,	16, y,							"  Dynamic lights", &r_dynamic,0);	y+=8;
 	MC_AddSlider(menu,	16, y,								"     Screen size", &scr_viewsize,	30,		120);y+=8;
 	MC_AddSlider(menu,	16, y,								"           Gamma", &v_gamma, 0.3, 1);	y+=8;
@@ -1214,6 +1248,7 @@ void M_Menu_Video_f (void)
 
 	menu->cursoritem = (menuoption_t*)MC_AddWhiteText(menu, 152, 32, NULL, false);
 	menu->selecteditem = (union menuoption_s *)info->renderer;
+	menu->event = CheckCustomMode;
 }
 
 
@@ -1667,18 +1702,8 @@ TRACE(("dbg: R_RestartRenderer_f\n"));
 
 	Cvar_ApplyLatches(CVAR_RENDERERLATCH);
 
-	if (vid_mode.value < 0)	//custom
-	{
-		newr.width = vid_width.value;
-		newr.height = vid_height.value;
-	}
-	else
-	{
-		if (vid_mode.value >= NUMVIDMODES)
-			vid_mode.value = NUMVIDMODES-1;
-		newr.width = vid_modes[(int)vid_mode.value].width;
-		newr.height = vid_modes[(int)vid_mode.value].height;
-	}
+	newr.width = vid_width.value;
+	newr.height = vid_height.value;
 
 	newr.allow_modex = vid_allow_modex.value;
 

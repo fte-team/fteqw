@@ -128,6 +128,7 @@ void MenuDrawItems(int xpos, int ypos, menuoption_t *option, menu_t *menu)
 						menu->cursoritem->common.posy = menu->selecteditem->common.posy;
 				}
 		}
+		if (!option->common.ishidden)
 		switch(option->common.type)
 		{
 		case mt_text:
@@ -1023,7 +1024,8 @@ menuoption_t *M_NextSelectableItem(menu_t *m, menuoption_t *old)
 		}
 
 		if (op->common.type == mt_slider || op->common.type == mt_checkbox || op->common.type == mt_button || op->common.type == mt_buttonbigfont || op->common.type == mt_edit || op->common.type == mt_combo || op->common.type == mt_bind)
-			return op;
+			if (!op->common.ishidden)
+				return op;
 	}
 }
 
@@ -1049,7 +1051,8 @@ menuoption_t *M_PrevSelectableItem(menu_t *m, menuoption_t *old)
 			return old;	//whoops.
 
 		if (op->common.type == mt_slider || op->common.type == mt_checkbox || op->common.type == mt_button || op->common.type == mt_buttonbigfont || op->common.type == mt_edit || op->common.type == mt_combo || op->common.type == mt_bind)
-			return op;
+			if (!op->common.ishidden)
+				return op;
 	}
 }
 

@@ -385,11 +385,6 @@ static void PF_cvar (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 	char	*str;
 	
 	str = PR_GetStringOfs(prinst, OFS_PARM0);
-	if (!strcmp("vid_conwidth", str))
-		G_FLOAT(OFS_RETURN) = vid.conwidth;
-	else if (!strcmp("vid_conheight", str))
-		G_FLOAT(OFS_RETURN) = vid.conheight;
-	else
 	{
 		var = Cvar_Get(str, "", 0, "menu cvars");
 		if (var)

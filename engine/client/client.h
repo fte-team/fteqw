@@ -274,6 +274,7 @@ typedef struct
 
 // network stuff
 	netchan_t	netchan;
+	float lastarbiatarypackettime;	//used to mark when packets were sent to prevent mvdsv servers from causing us to disconnect.
 
 // private userinfo for sending to masterless servers
 	char		userinfo[MAX_INFO_STRING];

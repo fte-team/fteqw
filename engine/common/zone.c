@@ -29,6 +29,9 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 
 #define NOZONE
 #define NOCACHE
+#ifdef _WIN32
+#define NOHIGH
+#endif
 
 void Cache_FreeLow (int new_low_hunk);
 void Cache_FreeHigh (int new_high_hunk);
@@ -37,11 +40,26 @@ void Cache_FreeHigh (int new_high_hunk);
 //#define MEMDEBUG	8192 //Debugging adds sentinels (the number is the size - I have the ram) 
 #endif
 
-#ifndef MEMDEBUG
-#define MEMDEBUG 0	//needs to be defined because it makes some bits of code simpler
+#define TEMPDEBUG 2
+#define ZONEDEBUG 2
+#define HUNKDEBUG 2
+#define CACHEDEBUG 2
+
+//these need to be defined because it makes some bits of code simpler
+#ifndef HUNKDEBUG
+#define HUNKDEBUG 0
+#endif
+#ifndef ZONEDEBUG
+#define ZONEDEBUG 0
+#endif
+#ifndef TEMPDEBUG
+#define TEMPDEBUG 0
+#endif
+#ifndef CACHEDEBUG
+#define CACHEDEBUG 0
 #endif
 
-#if MEMDEBUG > 0
+#if ZONEDEBUG>0 || HUNKDEBUG>0 || TEMPDEBUG>0||CACHEDEBUG>0
 qbyte sentinalkey;
 #endif
 
@@ -135,24 +153,24 @@ int Z_Allocated(void)
 void Z_Free (void *c)
 {
 	zone_t *nz;
-	nz = ((zone_t *)((char*)c-MEMDEBUG))-1;
+	nz = ((zone_t *)((char*)c-ZONEDEBUG))-1;
 
 //	Z_CheckSentinals();
 
-#if MEMDEBUG>0
+#if ZONEDEBUG>0
 	{
 		int i;
 		qbyte *buf;
 		buf = (qbyte *)(nz+1);
-		for (i = 0; i < MEMDEBUG; i++)
+		for (i = 0; i < ZONEDEBUG; i++)
 		{
 			if (buf[i] != sentinalkey)
 				*(int*)0 = -3;	//force a crash... this'll get our attention.
 		}
-		buf+=MEMDEBUG;
+		buf+=ZONEDEBUG;
 		//app data
 		buf += nz->size;
-		for (i = 0; i < MEMDEBUG; i++)
+		for (i = 0; i < ZONEDEBUG; i++)
 		{
 			if (buf[i] != sentinalkey)
 				*(int*)0 = -3;	//force a crash... this'll get our attention.
@@ -176,24 +194,24 @@ void Z_Free (void *c)
 
 void BZ_CheckSentinals(void *c)
 {
-#if MEMDEBUG>0
+#if ZONEDEBUG>0
 	zone_t *nz;
-	nz = ((zone_t *)((char*)c-MEMDEBUG))-1;
+	nz = ((zone_t *)((char*)c-ZONEDEBUG))-1;
 
 //	Z_CheckSentinals();
 	{
 		int i;
 		qbyte *buf;
 		buf = (qbyte *)(nz+1);
-		for (i = 0; i < MEMDEBUG; i++)
+		for (i = 0; i < ZONEDEBUG; i++)
 		{
 			if (buf[i] != sentinalkey)
 				*(int*)0 = -3;	//force a crash... this'll get our attention.
 		}
-		buf+=MEMDEBUG;
+		buf+=ZONEDEBUG;
 		//app data
 		buf += nz->size;
-		for (i = 0; i < MEMDEBUG; i++)
+		for (i = 0; i < ZONEDEBUG; i++)
 		{
 			if (buf[i] != sentinalkey)
 				*(int*)0 = -3;	//force a crash... this'll get our attention.
@@ -210,7 +228,7 @@ void Z_FreeTags(int tag)
 	{
 		next = zone->next;
 		if (zone->tag == tag)
-			Z_Free((char*)(zone+1)+MEMDEBUG);
+			Z_Free((char*)(zone+1)+ZONEDEBUG);
 	}
 }
 
@@ -238,9 +256,9 @@ void *Z_BaseTagMalloc (int size, int tag, qboolean clear)
 	vsprintf (buffer, descrip,argptr);
 	va_end (argptr);
 
-	nt = malloc(size + sizeof(zone_t)+strlen(buffer)+1 + MEMDEBUG*2);
+	nt = malloc(size + sizeof(zone_t)+strlen(buffer)+1 + ZONEDEBUG*2);
 #else
-	nt = malloc(size + sizeof(zone_t)+ MEMDEBUG*2);
+	nt = malloc(size + sizeof(zone_t)+ ZONEDEBUG*2);
 #endif
 	if (!nt)
 		Sys_Error("Z_BaseTagMalloc: failed on allocation of %i bytes", size);
@@ -255,17 +273,17 @@ void *Z_BaseTagMalloc (int size, int tag, qboolean clear)
 	zone_head = nt;
 	buf = (void *)(nt+1);
 
-#if MEMDEBUG > 0
-	memset(buf, sentinalkey, MEMDEBUG);
-	buf = (char*)buf+MEMDEBUG;
-	memset((char*)buf+size, sentinalkey, MEMDEBUG);
+#if ZONEDEBUG > 0
+	memset(buf, sentinalkey, ZONEDEBUG);
+	buf = (char*)buf+ZONEDEBUG;
+	memset((char*)buf+size, sentinalkey, ZONEDEBUG);
 #endif
 
 	if (clear)
 		Q_memset(buf, 0, size);
 
 #ifdef NAMEDMALLOCS
-	strcpy((char *)(nt+1) + nt->size + MEMDEBUG*2, buffer);
+	strcpy((char *)(nt+1) + nt->size + ZONEDEBUG*2, buffer);
 #endif
 	return buf;
 }
@@ -329,14 +347,14 @@ void *BZ_Realloc(void *data, int newsize)
 #ifdef NAMEDMALLOCS
 	if (!data)
 		return Z_MallocNamed(newsize, file, lineno);
-	oldzone = ((zone_t *)((char *)data-MEMDEBUG))-1;
+	oldzone = ((zone_t *)((char *)data-ZONEDEBUG))-1;
 	if (oldzone->size == newsize)
 		return data;
 	newdata = Z_MallocNamed(newsize, file, lineno);
 #else
 	if (!data)
 		return Z_Malloc(newsize);
-	oldzone = ((zone_t *)((char *)data-MEMDEBUG))-1;
+	oldzone = ((zone_t *)((char *)data-ZONEDEBUG))-1;
 	if (oldzone->size == newsize)
 		return data;
 	newdata = BZ_Malloc(newsize);
@@ -366,7 +384,7 @@ void Zone_Print_f(void)
 	int futurehide = false;
 	int minsize = 0;
 	zone_t *zone;
-#if MEMDEBUG > 0
+#if ZONEDEBUG > 0
 	int i;
 	qbyte *sent;
 	qboolean testsent = false;
@@ -387,42 +405,42 @@ void Zone_Print_f(void)
 		allocated+= zone->size;
 
 #ifdef NAMEDMALLOCS
-		if (*((char *)(zone+1)+zone->size+MEMDEBUG*2)!='#')
+		if (*((char *)(zone+1)+zone->size+ZONEDEBUG*2)!='#')
 		{
-#if MEMDEBUG > 0
+#if ZONEDEBUG > 0
 			if (testsent)
 			{
 				sent = (qbyte *)(zone+1);
-				for (i = 0; i < MEMDEBUG; i++)
+				for (i = 0; i < ZONEDEBUG; i++)
 				{
 					if (sent[i] != sentinalkey)
 					{
-						Con_Printf("^1%i %i-%s\n", zone->size, i, (char *)(zone+1) + zone->size+MEMDEBUG*2);
+						Con_Printf("^1%i %i-%s\n", zone->size, i, (char *)(zone+1) + zone->size+ZONEDEBUG*2);
 						break;
 					}
 				}
-				sent += zone->size+MEMDEBUG;
-				for (i = 0; i < MEMDEBUG; i++)
+				sent += zone->size+ZONEDEBUG;
+				for (i = 0; i < ZONEDEBUG; i++)
 				{
 					if (sent[i] != sentinalkey)
 					{
-						Con_Printf("^1%i %i-%s\n", zone->size, i, (char *)(zone+1) + zone->size+MEMDEBUG*2);
+						Con_Printf("^1%i %i-%s\n", zone->size, i, (char *)(zone+1) + zone->size+ZONEDEBUG*2);
 						break;
 					}
 				}
 			}
 			else if (zone->size >= minsize)
 #endif
-				Con_Printf("%i-%s\n", zone->size, (char *)(zone+1) + zone->size+MEMDEBUG*2);
+				Con_Printf("%i-%s\n", zone->size, (char *)(zone+1) + zone->size+ZONEDEBUG*2);
 			if (futurehide)
-				*((char *)(zone+1)+zone->size+MEMDEBUG*2) = '#';
+				*((char *)(zone+1)+zone->size+ZONEDEBUG*2) = '#';
 
 //			Sleep(10);
 		}
-		overhead += sizeof(zone_t)+MEMDEBUG*2 + strlen((char *)(zone+1) + zone->size+MEMDEBUG*2) +1;
+		overhead += sizeof(zone_t)+ZONEDEBUG*2 + strlen((char *)(zone+1) + zone->size+ZONEDEBUG*2) +1;
 #else
 		Con_Printf("%i-%i ", zone->size, zone->tag);
-		overhead += sizeof(zone_t)+MEMDEBUG*2;
+		overhead += sizeof(zone_t)+ZONEDEBUG*2;
 #endif
 	}
 	Con_Printf("Zone:%i bytes in %i blocks\n", allocated, blocks);
@@ -769,16 +787,16 @@ void Hunk_Check (void)
 	{
 		if (h->sentinal != HUNK_SENTINAL)
 			Sys_Error ("Hunk_Check: trahsed sentinal");
-		if (h->size < 16+MEMDEBUG*2 || h->size + (qbyte *)h - hunk_base > hunk_size)
+		if (h->size < 16+HUNKDEBUG*2 || h->size + (qbyte *)h - hunk_base > hunk_size)
 			Sys_Error ("Hunk_Check: bad size");
-#if MEMDEBUG > 0
+#if HUNKDEBUG > 0
 		{
 			qbyte *present;
 			qbyte *postsent;
 			int i;
 			present = (qbyte *)(h+1);
-			postsent = (qbyte *)h + h->size-MEMDEBUG;
-			for (i = 0; i < MEMDEBUG; i++)
+			postsent = (qbyte *)h + h->size-HUNKDEBUG;
+			for (i = 0; i < HUNKDEBUG; i++)
 			{
 				if (present[i] != sentinalkey)
 					*(int*)0 = -3;
@@ -846,14 +864,14 @@ void Hunk_Print (qboolean all)
 			Sys_Error ("Hunk_Check: trahsed sentinal");
 		if (h->size < 16 || h->size + (qbyte *)h - hunk_base > hunk_size)
 			Sys_Error ("Hunk_Check: bad size");
-#if MEMDEBUG > 0
+#if HUNKDEBUG > 0
 		{
 			qbyte *present;
 			qbyte *postsent;
 			int i;
 			present = (qbyte *)(h+1);
-			postsent = (qbyte *)h + h->size-MEMDEBUG;
-			for (i = 0; i < MEMDEBUG; i++)
+			postsent = (qbyte *)h + h->size-HUNKDEBUG;
+			for (i = 0; i < HUNKDEBUG; i++)
 			{
 				if (present[i] != sentinalkey)
 					*(int*)0 = -3;
@@ -910,7 +928,7 @@ void *Hunk_AllocName (int size, char *name)
 	if (size < 0)
 		Sys_Error ("Hunk_Alloc: bad size: %i", size);
 		
-	size = sizeof(hunk_t) + MEMDEBUG*2 + ((size+15)&~15);
+	size = sizeof(hunk_t) + HUNKDEBUG*2 + ((size+15)&~15);
 	
 #ifndef _WIN32
 	if (hunk_size - hunk_low_used - hunk_high_used < size)
@@ -924,7 +942,7 @@ void *Hunk_AllocName (int size, char *name)
 
 	h = (hunk_t *)(hunk_base + hunk_low_used);
 
-#ifdef _WIN32
+#ifdef NOHIGH
 	if (!VirtualAlloc (hunk_base, hunk_low_used+size+sizeof(hunk_t), MEM_COMMIT, PAGE_READWRITE))
 	{
 		char *buf;
@@ -938,18 +956,18 @@ void *Hunk_AllocName (int size, char *name)
 
 	Cache_FreeLow (hunk_low_used);
 
-	memset (h, 0, size-MEMDEBUG);
+	memset (h, 0, size-HUNKDEBUG);
 
-#if MEMDEBUG>0
-	memset ((h+1), sentinalkey, MEMDEBUG);
-	memset ((qbyte *)h+size-MEMDEBUG, sentinalkey, MEMDEBUG);
+#if HUNKDEBUG>0
+	memset ((h+1), sentinalkey, HUNKDEBUG);
+	memset ((qbyte *)h+size-HUNKDEBUG, sentinalkey, HUNKDEBUG);
 #endif
 	
 	h->size = size;
 	h->sentinal = HUNK_SENTINAL;
 	Q_strncpyz (h->name, COM_SkipPath(name), sizeof(h->name));
 	
-	return (void *)((char *)(h+1)+MEMDEBUG);
+	return (void *)((char *)(h+1)+HUNKDEBUG);
 }
 
 /*
@@ -979,7 +997,7 @@ void Hunk_FreeToLowMark (int mark)
 	memset (hunk_base + mark, 0, hunk_low_used - mark);
 	hunk_low_used = mark;
 
-#ifdef _WIN32
+#ifdef NOHIGH
 	if (!VirtualAlloc (hunk_base, hunk_low_used+sizeof(hunk_t), MEM_COMMIT, PAGE_READWRITE))
 	{
 		char *buf;
@@ -1021,7 +1039,7 @@ Hunk_HighAllocName
 */
 void *Hunk_HighAllocName (int size, char *name)
 {
-#ifdef _WIN32
+#ifdef NOHIGH
 	Sys_Error("High hunk was disabled");
 	return NULL;
 #else
@@ -1072,10 +1090,10 @@ Return space from the top of the hunk
 clears old temp.
 =================
 */
-#ifdef _WIN32
+#ifdef NOHIGH
 typedef struct hnktemps_s {
 	struct hnktemps_s *next;
-#if MEMDEBUG>0
+#if TEMPDEBUG>0
 	int len;
 #endif
 } hnktemps_t;
@@ -1087,19 +1105,19 @@ void Hunk_TempFree(void)
 
 	while (hnktemps)
 	{
-#if MEMDEBUG>0
+#if TEMPDEBUG>0
 		int i;
 		qbyte *buf;
 		buf = (qbyte *)(hnktemps+1);
-		for (i = 0; i < MEMDEBUG; i++)
+		for (i = 0; i < TEMPDEBUG; i++)
 		{
 			if (buf[i] != sentinalkey)
 				*(int*)0 = -3;	//force a crash... this'll get our attention.
 		}
-		buf+=MEMDEBUG;
+		buf+=TEMPDEBUG;
 		//app data
 		buf += hnktemps->len;
-		for (i = 0; i < MEMDEBUG; i++)
+		for (i = 0; i < TEMPDEBUG; i++)
 		{
 			if (buf[i] != sentinalkey)
 				*(int*)0 = -3;	//force a crash... this'll get our attention.
@@ -1120,18 +1138,18 @@ void Hunk_TempFree(void)
 void *Hunk_TempAllocMore (int size)
 {
 	void	*buf;
-#ifdef _WIN32
-#if MEMDEBUG>0
+#ifdef NOHIGH
+#if TEMPDEBUG>0
 	hnktemps_t *nt;
-	nt = malloc(size + sizeof(hnktemps_t) + MEMDEBUG*2);
+	nt = malloc(size + sizeof(hnktemps_t) + TEMPDEBUG*2);
 	nt->next = hnktemps;
 	nt->len = size;
 	hnktemps = nt;
 	buf = (void *)(nt+1);
-	memset(buf, sentinalkey, MEMDEBUG);
-	buf = (char *)buf + MEMDEBUG;
+	memset(buf, sentinalkey, TEMPDEBUG);
+	buf = (char *)buf + TEMPDEBUG;
 	memset(buf, 0, size);
-	memset((char *)buf + size, sentinalkey, MEMDEBUG);
+	memset((char *)buf + size, sentinalkey, TEMPDEBUG);
 	return buf;
 #else
 	hnktemps_t *nt;
@@ -1160,7 +1178,7 @@ void *Hunk_TempAllocMore (int size)
 
 void *Hunk_TempAlloc (int size)
 {
-#ifdef _WIN32
+#ifdef NOHIGH
 
 	Hunk_TempFree();
 
@@ -1209,8 +1227,31 @@ void Cache_Free (cache_user_t *c)
 {
 	cache_system_t *cs;
 	cs = ((cache_system_t *)c->data)-1;
+	cs = (cache_system_t*)((char*)cs - CACHEDEBUG);
 
 	cs->user->data = NULL;
+
+#if CACHEDEBUG>0
+	{
+		int i;
+		qbyte *buf;
+		buf = (qbyte *)(cs+1);
+		for (i = 0; i < CACHEDEBUG; i++)
+		{
+			if (buf[i] != sentinalkey)
+				*(int*)0 = -3;	//force a crash... this'll get our attention.
+		}
+		buf+=CACHEDEBUG;
+		//app data
+		buf += cs->size;
+		for (i = 0; i < CACHEDEBUG; i++)
+		{
+			if (buf[i] != sentinalkey)
+				*(int*)0 = -3;	//force a crash... this'll get our attention.
+		}
+	}
+#endif
+
 
 	if (cs->next)
 		cs->next->prev = cs->prev;
@@ -1250,22 +1291,25 @@ void *Cache_Alloc (cache_user_t *c, int size, char *name)
 	if (size <= 0)
 		Sys_Error ("Cache_Alloc: size %i", size);
 
-	size = (size + 15) & ~15;
+//	size = (size + 15) & ~15;
 
-	nt = malloc(size + sizeof(cache_system_t));
+	nt = malloc(size + sizeof(cache_system_t) + CACHEDEBUG*2);
 	if (!nt)
 		Sys_Error("Cache_Alloc: failed on allocation of %i bytes", size);
 	nt->next = cache_head;
 	nt->prev = NULL;
 	nt->user = c;
-	nt->size = size + sizeof(cache_system_t);
+	nt->size = size;
 	Q_strncpyz(nt->name, name, sizeof(nt->name));
 	if (cache_head)
 		cache_head->prev = nt;
 	cache_head = nt;
 	nt->user->fake = false;
 	buf = (void *)(nt+1);
+	memset(buf, sentinalkey, CACHEDEBUG);
+	buf = (char*)buf+CACHEDEBUG;
 	memset(buf, 0, size);
+	memset((char *)buf+size, sentinalkey, CACHEDEBUG);
 	c->data = buf;
 	return c->data;
 }
@@ -1688,7 +1732,8 @@ void Memory_Init (void *buf, int size)
 	hunk_low_used = 0;
 	hunk_high_used = 0;
 
-#if MEMDEBUG > 0
+#if ZONEDEBUG>0 || HUNKDEBUG>0 || TEMPDEBUG>0||CACHEDEBUG>0
+	srand(time(0));
 	sentinalkey = rand();
 #endif
 

@@ -701,30 +701,8 @@ long UI_SystemCallsEx(void *offset, unsigned int mask, int fn, const long *arg)
 		break;
 
 	case UI_DRAW_IMAGE:
-/*fixme
 		if (Draw_Image)
-		{
 			Draw_Image(VM_FLOAT(arg[0]), VM_FLOAT(arg[1]), VM_FLOAT(arg[2]), VM_FLOAT(arg[3]), VM_FLOAT(arg[4]), VM_FLOAT(arg[5]), VM_FLOAT(arg[6]), VM_FLOAT(arg[7]), (qpic_t *)VM_LONG(arg[8]));
-		}
-*/
-		switch (qrenderer)
-		{
-#ifdef RGLQUAKE
-		case QR_OPENGL:
-			glEnable(GL_BLEND);
-			glDisable(GL_DEPTH_TEST);
-			glEnable(GL_ALPHA_TEST);
-			GLDraw_Image(VM_FLOAT(arg[0]), VM_FLOAT(arg[1]), VM_FLOAT(arg[2]), VM_FLOAT(arg[3]), VM_FLOAT(arg[4]), VM_FLOAT(arg[5]), VM_FLOAT(arg[6]), VM_FLOAT(arg[7]), (qpic_t *)VM_LONG(arg[8]));
-			break;
-#endif
-#ifdef SWQUAKE
-		case QR_SOFTWARE:
-			SWDraw_Image(VM_FLOAT(arg[0]), VM_FLOAT(arg[1]), VM_FLOAT(arg[2]), VM_FLOAT(arg[3]), VM_FLOAT(arg[4]), VM_FLOAT(arg[5]), VM_FLOAT(arg[6]), VM_FLOAT(arg[7]), (qpic_t *)VM_LONG(arg[8]));
-			break;	//FIXME
-#endif
-		default:
-			break;
-		}
 		break;
 
 	case UI_LERP_TAG:	//Lerp tag...

@@ -939,7 +939,7 @@ static void QCC_FreeTemps(void)
 	{
 		if (t->used && !pr_error_count)	//don't print this after an error jump out.
 		{
-			QCC_PR_ParseWarning(WARN_DEBUGGING, "Temp was used\n");
+			QCC_PR_ParseWarning(WARN_DEBUGGING, "Temp was used in %s", pr_scope->name);
 			t->used = false;
 		}
 		t = t->next;
@@ -1583,6 +1583,7 @@ QCC_def_t *QCC_PR_Statement ( QCC_opcode_t *op, QCC_def_t *var_a, QCC_def_t *var
 				statement->c = var_c->ofs;
 				QCC_FreeTemp(temp);
 				var_b = var_b;	//this is the ptr.
+				QCC_FreeTemp(var_a);
 				var_a = var_c;	//this is the value.
 			}
 			else
@@ -1591,13 +1592,13 @@ QCC_def_t *QCC_PR_Statement ( QCC_opcode_t *op, QCC_def_t *var_a, QCC_def_t *var
 				statement->b = var_a ? var_a->ofs : 0;
 				statement->c = var_c->ofs;
 				var_b = var_b;	//this is the ptr.
+				QCC_FreeTemp(var_a);
 				var_a = var_c;	//this is the value.
 			}
 
 			op = &pr_opcodes[OP_STOREP_F];
 			QCC_FreeTemp(var_c);
 			var_c = NULL;
-			QCC_FreeTemp(var_a);
 			QCC_FreeTemp(var_b);
 
 			statement = &statements[numstatements];
@@ -1654,6 +1655,7 @@ QCC_def_t *QCC_PR_Statement ( QCC_opcode_t *op, QCC_def_t *var_a, QCC_def_t *var
 			statement->c = var_c ? var_c->ofs : 0;
 
 			var_b = var_b;	//this is the ptr.
+			QCC_FreeTemp(var_a);
 			var_a = var_c;	//this is the value.
 			op = &pr_opcodes[OP_STOREP_V];
 
@@ -1662,7 +1664,6 @@ QCC_def_t *QCC_PR_Statement ( QCC_opcode_t *op, QCC_def_t *var_a, QCC_def_t *var
 			
 			QCC_FreeTemp(var_c);
 			var_c = NULL;
-			QCC_FreeTemp(var_a);
 			QCC_FreeTemp(var_b);
 
 			statement = &statements[numstatements];
@@ -5919,7 +5920,7 @@ void QCC_PR_ArrayRecurseDivideRegular(QCC_def_t *array, QCC_def_t *index, int mi
 	if (min == max || min+1 == max)
 	{
 		eq = QCC_PR_Statement(pr_opcodes+OP_EQ_F, index, QCC_MakeFloatDef((float)min), NULL);
-		QCC_PR_Statement(pr_opcodes+OP_IFNOT, eq, 0, &st);
+		QCC_FreeTemp(QCC_PR_Statement(pr_opcodes+OP_IFNOT, eq, 0, &st));
 		st->b = 2;
 		QCC_PR_Statement(pr_opcodes+OP_RETURN, 0, 0, &st);
 		st->a = array->ofs + min*array->type->size;
@@ -5931,7 +5932,7 @@ void QCC_PR_ArrayRecurseDivideRegular(QCC_def_t *array, QCC_def_t *index, int mi
 		if (max-min>4)
 		{
 			eq = QCC_PR_Statement(pr_opcodes+OP_LT, index, QCC_MakeFloatDef((float)mid), NULL);
-			QCC_PR_Statement(pr_opcodes+OP_IFNOT, eq, 0, &st);
+			QCC_FreeTemp(QCC_PR_Statement(pr_opcodes+OP_IFNOT, eq, 0, &st));
 		}
 		else
 			st = NULL;
@@ -5951,7 +5952,7 @@ void QCC_PR_ArrayRecurseDivideUsingVectors(QCC_def_t *array, QCC_def_t *index, i
 	if (min == max || min+1 == max)
 	{
 		eq = QCC_PR_Statement(pr_opcodes+OP_EQ_F, index, QCC_MakeFloatDef((float)min), NULL);
-		QCC_PR_Statement(pr_opcodes+OP_IFNOT, eq, 0, &st);
+		QCC_FreeTemp(QCC_PR_Statement(pr_opcodes+OP_IFNOT, eq, 0, &st));
 		st->b = 2;
 		QCC_PR_Statement(pr_opcodes+OP_RETURN, 0, 0, &st);
 		st->a = array->ofs + min*3;
@@ -5963,7 +5964,7 @@ void QCC_PR_ArrayRecurseDivideUsingVectors(QCC_def_t *array, QCC_def_t *index, i
 		if (max-min>4)
 		{
 			eq = QCC_PR_Statement(pr_opcodes+OP_LT, index, QCC_MakeFloatDef((float)mid), NULL);
-			QCC_PR_Statement(pr_opcodes+OP_IFNOT, eq, 0, &st);
+			QCC_FreeTemp(QCC_PR_Statement(pr_opcodes+OP_IFNOT, eq, 0, &st));
 		}
 		else
 			st = NULL;
@@ -6048,8 +6049,8 @@ void QCC_PR_EmitArrayGetFunction(QCC_def_t *scope, char *arrayname)
 	{
 		QCC_def_t *div3, *ret;
 
-		eq = QCC_PR_Statement(pr_opcodes+OP_GE, index, QCC_MakeFloatDef((float)def->arraysize), NULL);
-		QCC_PR_Statement(pr_opcodes+OP_IFNOT, eq, 0, &st);
+		eq = QCC_PR_Statement(pr_opcodes+OP_GE, index, QCC_MakeFloatDef((float)def->arraysize), NULL);	//escape clause - should call some sort of error function instead.. that'd rule!
+		QCC_FreeTemp(QCC_PR_Statement(pr_opcodes+OP_IFNOT, eq, 0, &st));
 		st->b = 2;
 		QCC_PR_Statement(pr_opcodes+OP_RETURN, QCC_MakeFloatDef(0), 0, &st);
 
@@ -6066,24 +6067,27 @@ void QCC_PR_EmitArrayGetFunction(QCC_def_t *scope, char *arrayname)
 
 		div3 = QCC_PR_Statement(pr_opcodes+OP_MUL_F, div3, QCC_MakeFloatDef(3), NULL);
 		QCC_PR_Statement3(pr_opcodes+OP_SUB_F, index, div3, index);
+		QCC_FreeTemp(div3);
 
 		eq = QCC_PR_Statement(pr_opcodes+OP_EQ_F, index, QCC_MakeFloatDef(0), NULL);
-		QCC_PR_Statement(pr_opcodes+OP_IFNOT, eq, 0, &st);
+		QCC_FreeTemp(QCC_PR_Statement(pr_opcodes+OP_IFNOT, eq, 0, &st));
 		st->b = 2;
 		QCC_PR_Statement(pr_opcodes+OP_RETURN, 0, 0, &st);
 		st->a = ret->ofs + 0;
 
 		eq = QCC_PR_Statement(pr_opcodes+OP_EQ_F, index, QCC_MakeFloatDef(1), NULL);
-		QCC_PR_Statement(pr_opcodes+OP_IFNOT, eq, 0, &st);
+		QCC_FreeTemp(QCC_PR_Statement(pr_opcodes+OP_IFNOT, eq, 0, &st));
 		st->b = 2;
 		QCC_PR_Statement(pr_opcodes+OP_RETURN, 0, 0, &st);
 		st->a = ret->ofs + 1;
 
 		eq = QCC_PR_Statement(pr_opcodes+OP_EQ_F, index, QCC_MakeFloatDef(2), NULL);
-		QCC_PR_Statement(pr_opcodes+OP_IFNOT, eq, 0, &st);
+		QCC_FreeTemp(QCC_PR_Statement(pr_opcodes+OP_IFNOT, eq, 0, &st));
 		st->b = 2;
 		QCC_PR_Statement(pr_opcodes+OP_RETURN, 0, 0, &st);
 		st->a = ret->ofs + 2;
+		QCC_FreeTemp(ret);
+		QCC_FreeTemp(index);
 	}
 	else
 	{
@@ -6100,6 +6104,8 @@ void QCC_PR_EmitArrayGetFunction(QCC_def_t *scope, char *arrayname)
 
 
 	QCC_WriteAsmFunction(pr_scope, df->first_statement, df->parm_start);
+
+	QCC_FreeTemps();
 }
 
 void QCC_PR_ArraySetRecurseDivide(QCC_def_t *array, QCC_def_t *index, QCC_def_t *value, int min, int max)
@@ -6109,7 +6115,7 @@ void QCC_PR_ArraySetRecurseDivide(QCC_def_t *array, QCC_def_t *index, QCC_def_t 
 	if (min == max || min+1 == max)
 	{
 		eq = QCC_PR_Statement(pr_opcodes+OP_EQ_F, index, QCC_MakeFloatDef((float)min), NULL);
-		QCC_PR_Statement(pr_opcodes+OP_IFNOT, eq, 0, &st);
+		QCC_FreeTemp(QCC_PR_Statement(pr_opcodes+OP_IFNOT, eq, 0, &st));
 		st->b = 3;
 		if (array->type->size == 3)
 			QCC_PR_Statement(pr_opcodes+OP_STORE_V, value, array, &st);
@@ -6125,7 +6131,7 @@ void QCC_PR_ArraySetRecurseDivide(QCC_def_t *array, QCC_def_t *index, QCC_def_t 
 		if (max-min>4)
 		{
 			eq = QCC_PR_Statement(pr_opcodes+OP_LT, index, QCC_MakeFloatDef((float)mid), NULL);
-			QCC_PR_Statement(pr_opcodes+OP_IFNOT, eq, 0, &st);
+			QCC_FreeTemp(QCC_PR_Statement(pr_opcodes+OP_IFNOT, eq, 0, &st));
 		}
 		else
 			st = NULL;
@@ -6169,6 +6175,8 @@ void QCC_PR_EmitArraySetFunction(QCC_def_t *scope, char *arrayname)
 
 
 	QCC_WriteAsmFunction(pr_scope, df->first_statement, df->parm_start);
+
+	QCC_FreeTemps();
 }
 
 //register a def, and all of it's sub parts.

@@ -799,30 +799,29 @@ void PPL_LoadSpecularFragmentProgram(void)
 	"TEMP diff, spec, nm, ld, cm, gm, lm, dm;\n"
 
 
-	"TEX nm.rgb, tm_tc, texture[1], 2D;\n"		//t1 = n
-	"TEX ld.rgb, lm_tc, texture[3], 2D;\n"		//t2 = l
-	"TEX dm.rgb, tm_tc, texture[0], 2D;\n"		//t2 = d
-	"TEX gm.rgb, tm_tc, texture[4], 2D;\n"		//t2 = gloss
-	"TEX lm.rgb, lm_tc, texture[2], 2D;\n"	//specular = lm
-	"TEX cm.rgb, cm_tc, texture[5], CUBE;\n"		//t2 = d
+	"TEX nm.rgb, tm_tc, texture[1], 2D;\n"
+	"TEX ld.rgb, lm_tc, texture[3], 2D;\n"
+	"TEX dm.rgb, tm_tc, texture[0], 2D;\n"
+	"TEX gm.rgb, tm_tc, texture[4], 2D;\n"
+	"TEX lm.rgb, lm_tc, texture[2], 2D;\n"
+	"TEX cm.rgb, cm_tc, texture[5], CUBE;\n"
 
 	//textures loaded - get diffuse
-	"MAD nm, nm, 2, negone;\n"
-	"MAD ld, ld, 2, negone;\n"
-	"DP3 diff, nm, ld;\n"						//diff = n.l
-	"MUL diff.rgb, diff, dm;\n"			//diff = diff*t2
+	"MAD nm.rgb, nm, 2, negone;\n"
+	"MAD ld.rgb, ld, 2, negone;\n"
+	"DP3 diff.rgb, nm, ld;\n"
+	"MUL diff.rgb, diff, dm;\n"
 	//diff now contains the entire diffuse part of the equation.
 
-	//time for specular
-	//t1 still = n
-	"MAD cm, cm, 2, negone;\n"
-	"DP3 spec, nm, cm;\n"				//spec = t1.t2
+	//l 19
+	"MAD cm.rgb, cm, 2, negone;\n"
+	"DP3 spec.rgb, nm, cm;\n"
 
-	"MUL spec, spec, spec;\n"
-	"MUL spec, spec, spec;\n"
-	"MUL spec, spec, spec;\n"
+	"MUL spec.rgb, spec, spec;\n"
+	"MUL spec.rgb, spec, spec;\n"
+	"MUL spec.rgb, spec, spec;\n"
 
-	"MUL spec, spec, gm;\n"
+	"MUL spec.rgb, spec, gm;\n"
 	//that's the specular part done.
 
 	//we have diffuse and specular - wahoo
@@ -1807,8 +1806,8 @@ void PPL_LightBModelTextures(entity_t *e, dlight_t *light)
 //			for (; s; s=s->texturechain)
 			{
 
-				if (s->shadowframe != r_shadowframe)
-					continue;
+//				if (s->shadowframe != r_shadowframe)
+//					continue;
 
 			/*	if (fabs(s->center[0] - lightorg[0]) > lightradius+s->radius ||
 					fabs(s->center[1] - lightorg[1]) > lightradius+s->radius ||

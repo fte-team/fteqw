@@ -44,6 +44,8 @@ cvar_t	pr_maxedicts = {"pr_maxedicts", "600", NULL, CVAR_LATCH};
 cvar_t	pr_imitatemvdsv = {"pr_imitatemvdsv", "0", NULL, CVAR_LATCH};
 cvar_t	pr_fixbrokenqccarrays = {"pr_fixbrokenqccarrays", "1", NULL, CVAR_LATCH};
 
+cvar_t	pr_no_playerphysics = {"pr_no_playerphysics", "0", NULL, CVAR_LATCH};
+
 cvar_t	progs = {"progs", "", NULL, CVAR_ARCHIVE | CVAR_SERVERINFO | CVAR_NOTFROMSERVER};
 cvar_t	qc_nonetaccess = {"qc_nonetaccess", "0"};	//prevent write_... builtins from doing anything. This means we can run any mod, specific to any engine, on the condition that it also has a qw or nq crc.
 
@@ -485,7 +487,10 @@ void PR_LoadGlabalStruct(void)
 	mod_UserCmd = PR_FindFunction(svprogfuncs, "UserCmd", PR_ANY);
 	mod_ConsoleCmd = PR_FindFunction(svprogfuncs, "ConsoleCmd", PR_ANY);
 
-	SV_PlayerPhysicsQC = PR_FindFunction(svprogfuncs, "SV_PlayerPhysics", PR_ANY);
+	if (pr_no_playerphysics.value)
+		SV_PlayerPhysicsQC = 0;
+	else
+		SV_PlayerPhysicsQC = PR_FindFunction(svprogfuncs, "SV_PlayerPhysics", PR_ANY);
 	EndFrameQC = PR_FindFunction (svprogfuncs, "EndFrame", PR_ANY);
 
 	v = (int *)PR_globals(svprogfuncs, PR_CURRENT);
@@ -794,6 +799,7 @@ void PR_Init(void)
 	Cvar_Register(&pr_maxedicts, cvargroup_progs);
 	Cvar_Register(&pr_imitatemvdsv, cvargroup_progs);
 	Cvar_Register(&pr_fixbrokenqccarrays, cvargroup_progs);
+	Cvar_Register(&pr_no_playerphysics, cvargroup_progs);
 
 	for (i = 0; i < MAXADDONS; i++)
 	{
@@ -5479,7 +5485,12 @@ lh_extension_t QSG_Extensions[] = {
 	{"DP_SV_PLAYERPHYSICS"},
 	{"DP_SV_SETCOLOR"},
 	{"DP_TE_BLOOD",						1,	NULL, {"te_blood"}},
-	{"DP_TE_STANDARDEFFECTBUILTINS",	14,	NULL, { "te_gunshot", "te_spike", "te_superspike", "te_explosion", "te_tarexplosion", "te_wizspike", "te_knightspike", "te_lavasplash", "te_teleport", "te_explosion2", "te_lightning1", "te_lightning2", "te_lightning3", "te_beam"}},	//should we include QW ones?...
+	{"DP_TE_BLOODSHOWER",				1,	NULL, {"te_bloodshower"}},
+	{"DP_TE_CUSTOMFLASH",				1,	NULL, {"te_customflash"}},
+	{"DP_TE_PARTICLECUBE",				1,	NULL, {"te_particlecube"}},
+	{"DP_TE_SMALLFLASH",				1,	NULL, {"te_smallflash"}},
+	{"DP_TE_SPARK",						1,	NULL, {"te_spark"}},
+	{"DP_TE_STANDARDEFFECTBUILTINS",	14,	NULL, {"te_gunshot", "te_spike", "te_superspike", "te_explosion", "te_tarexplosion", "te_wizspike", "te_knightspike", "te_lavasplash", "te_teleport", "te_explosion2", "te_lightning1", "te_lightning2", "te_lightning3", "te_beam"}},	//should we include QW ones?...
 	{"EXT_DIMENSION_VISIBILITY"},
 	{"EXT_DIMENSION_PHYSICS"},
 	{"EXT_DIMENSION_GHOST"},
@@ -7105,6 +7116,41 @@ void PF_te_beam(progfuncs_t *prinst, struct globalvars_s *pr_globals)
 	SV_beam_tempentity(-1 -G_EDICTNUM(prinst, OFS_PARM0), G_VECTOR(OFS_PARM1), G_VECTOR(OFS_PARM2), TE_LIGHTNING2);
 }
 
+//DP_TE_SPARK
+void PF_te_spark(progfuncs_t *prinst, struct globalvars_s *pr_globals)
+{
+#pragma message("PF_te_spark not implemented yet.")
+}
+
+// #416 void(vector org) te_smallflash (DP_TE_SMALLFLASH)
+void PF_te_smallflash(progfuncs_t *prinst, struct globalvars_s *pr_globals)
+{
+#pragma message("PF_te_smallflash not implemented yet.")
+}
+
+// #417 void(vector org, float radius, float lifetime, vector color) te_customflash (DP_TE_CUSTOMFLASH)
+void PF_te_customflash(progfuncs_t *prinst, struct globalvars_s *pr_globals)
+{
+#pragma message("PF_te_customflash not implemented yet.")
+}
+
+//#408 void(vector mincorner, vector maxcorner, vector vel, float howmany, float color, float gravityflag, float randomveljitter) te_particlecube (DP_TE_PARTICLECUBE)
+void PF_te_particlecube(progfuncs_t *prinst, struct globalvars_s *pr_globals)
+{
+#pragma message("PF_te_particlecube not implemented yet.")
+}
+
+// #406 void(vector mincorner, vector maxcorner, float explosionspeed, float howmany) te_bloodshower (DP_TE_BLOODSHOWER)
+void PF_te_bloodshower(progfuncs_t *prinst, struct globalvars_s *pr_globals)
+{
+#pragma message("PF_te_bloodshower not implemented yet.")
+}
+
+//DP_SV_EFFECT
+void PF_effect(progfuncs_t *prinst, struct globalvars_s *pr_globals)
+{
+#pragma message("PF_effect not implemented yet.")
+}
 
 
 void PF_ForceInfoKey(progfuncs_t *prinst, struct globalvars_s *pr_globals)
@@ -7763,7 +7809,7 @@ BuiltinList_t BuiltinList[] = {				//nq	qw		h2		ebfs
 	{"particle3",		PF_particle3,		0,		0,		85,		216},
 	{"particle4",		PF_particle4,		0,		0,		86,		217},
 
-//QSG_DIMENSION_PLANES
+//EXT_DIMENSION_PLANES
 	{"bitshift",		PF_bitshift,		0,		0,		0,		218},
 
 //I guess this should go under DP_TE_STANDARDEFFECTBUILTINS...
@@ -7793,7 +7839,22 @@ BuiltinList_t BuiltinList[] = {				//nq	qw		h2		ebfs
 	{"findchain",		PF_findchain,		0,		0,		0,		402},// #402 entity(string field, string match) findchain (DP_QC_FINDCHAIN)
 //DP_QC_FINDCHAINFLOAT
 	{"findfloatchain",	PF_findchainfloat,	0,		0,		0,		403},// #403 entity(float fld, float match) findchainfloat (DP_QC_FINDCHAINFLOAT)
+//DP_SV_EFFECT
+	{"effect",			PF_effect,			0,		0,		0,		404},// #404 void(vector org, string modelname, float startframe, float endframe, float framerate) effect (DP_SV_EFFECT)
+//DP_TE_BLOOD
 	{"te_blood",		PF_te_blood,		0,		0,		0,		405},// #405 te_blood
+//DP_TE_BLOODSHOWER
+	{"te_bloodshower",	PF_te_bloodshower,	0,		0,		0,		406},// #406 void(vector mincorner, vector maxcorner, float explosionspeed, float howmany) te_bloodshower (DP_TE_BLOODSHOWER)
+
+//DP_TE_PARTICLECUBE
+	{"te_particlecube",	PF_te_particlecube,	0,		0,		0,		408},// #408 void(vector mincorner, vector maxcorner, vector vel, float howmany, float color, float gravityflag, float randomveljitter) te_particlecube (DP_TE_PARTICLECUBE)
+//DP_TE_SPARK
+	{"te_spark",		PF_te_spark,		0,		0,		0,		411},// #411 void(vector org, vector vel, float howmany) te_spark (DP_TE_SPARK)
+//DP_TE_SMALLFLASH
+	{"te_smallflash",	PF_te_smallflash,	0,		0,		0,		416},// #416 void(vector org) te_smallflash (DP_TE_SMALLFLASH)
+//DP_TE_CUSTOMFLASH
+	{"te_customflash",	PF_te_customflash,	0,		0,		0,		417},// #417 void(vector org, float radius, float lifetime, vector color) te_customflash (DP_TE_CUSTOMFLASH)
+
 //DP_TE_STANDARDEFFECTBUILTINS
 	{"te_gunshot",		PF_te_gunshot,		0,		0,		0,		418},// #418 te_gunshot
 	{"te_spike",		PF_te_spike,		0,		0,		0,		419},// #419 te_spike

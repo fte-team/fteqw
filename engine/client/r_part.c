@@ -102,6 +102,8 @@ cvar_t r_part_rain_quantity = {"r_part_rain_quantity", "1"};
 
 cvar_t gl_part_trifansparks = {"gl_part_trifansparks", "0"};
 
+cvar_t r_particle_tracelimit = {"r_particle_tracelimit", "250"};
+
 static float particletime;
 
 typedef struct skytris_s {
@@ -780,6 +782,7 @@ void R_InitParticles (void)
 	Cvar_Register(&r_part_rain_colour, particlecvargroupname);
 
 	Cvar_Register(&gl_part_trifansparks, particlecvargroupname);
+	Cvar_Register(&r_particle_tracelimit, particlecvargroupname);
 
 	pt_explosion		= AllocateParticleType("te_explosion");
 	pt_emp				= AllocateParticleType("te_emp");
@@ -2364,6 +2367,8 @@ void DrawParticleTypes (void texturedparticles(void*,void*), void sparkparticles
 	vec3_t friction;
 	float dist;
 
+	int traces=r_particle_tracelimit.value;
+
 	lasttype = NULL;
 
 	pframetime = host_frametime;	
@@ -2482,7 +2487,7 @@ void DrawParticleTypes (void texturedparticles(void*,void*), void sparkparticles
 
 			if (type->cliptype>=0 && r_bouncysparks.value)
 			{
-				if (tr(oldorg, p->org, stop, normal))
+				if (traces-->0&&tr(oldorg, p->org, stop, normal))
 				{
 					if (type->stains && r_bloodstains.value)
 						R_AddStain(stop,	p->rgb[1]*-10+p->rgb[2]*-10,
@@ -2515,7 +2520,7 @@ void DrawParticleTypes (void texturedparticles(void*,void*), void sparkparticles
 			}
 			else if (type->stains && r_bloodstains.value)
 			{
-				if (tr(oldorg, p->org, stop, normal))
+				if (traces-->0&&tr(oldorg, p->org, stop, normal))
 				{
 					R_AddStain(stop,	p->rgb[1]*-10+p->rgb[2]*-10,
 										p->rgb[0]*-10+p->rgb[2]*-10,

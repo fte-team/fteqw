@@ -1271,7 +1271,7 @@ void R_Clear (void)
 	}
 	else
 	{
-		if (gl_clear.value)
+		if (gl_clear.value && !r_secondaryview)
 			glClear (GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 		else
 			glClear (GL_DEPTH_BUFFER_BIT);

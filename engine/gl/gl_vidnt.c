@@ -1109,8 +1109,11 @@ LONG WINAPI GLMainWndProc (
     	case WM_SIZE:
 			if (!vid_initializing)
 			{
+				extern cvar_t gl_2dscale;
 				WindowRect.right = ((short*)&lParam)[0] - WindowRect.left;
 				WindowRect.bottom = ((short*)&lParam)[1] - WindowRect.top;
+
+				gl_2dscale.modified = true;
 			}
             break;
 

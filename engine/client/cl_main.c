@@ -221,6 +221,21 @@ void CL_Version_f (void)
 	Con_TPrintf (TL_EXEDATETIME, __DATE__, __TIME__);
 }
 
+void CL_ConnectToDarkPlaces(char *challenge, netadr_t adr)
+{
+	char	data[2048];
+	cls.fteprotocolextensions = 0;
+
+	cls.resendinfo = false;
+
+	connect_time = realtime;	// for retransmit requests
+
+	sprintf(data, "%c%c%c%cconnect\\protocol\\darkplaces 3\\challenge\\%s", 255, 255, 255, 255, challenge);
+
+	NET_SendPacket (NS_CLIENT, strlen(data), data, adr);
+
+	cl.splitclients = 0;
+}
 
 /*
 =======================
@@ -1501,12 +1516,30 @@ void CL_ConnectionlessPacket (void)
 
 		s = MSG_ReadString ();
 		COM_Parse(s);
-#ifdef Q2CLIENT
 		if (!strcmp(com_token, "hallenge"))
 		{
+			char *s2;
+			for (s2 = s; *s; s++)
+			{
+				if (*s < '0' || *s > '9')
+					break;
+			}
+			if (*s)
+			{//and if it's not, we're unlikly to be compatable with whatever it is that's talking at us.
+#ifdef NQPROT
+				CL_ConnectToDarkPlaces(s+9, net_from);
+#else
+				Con_Printf("Cannot connect to DarkPlaces\n");
+#endif
+				return;
+			}
+
+#ifdef Q2CLIENT
 			cls.q2server = true;
+#endif
 			s+=9;
 		}
+#ifdef Q2CLIENT
 		else if (!strcmp(com_token, "lient_connect"))
 		{
 			goto client_connect;
@@ -1569,6 +1602,34 @@ void CL_ConnectionlessPacket (void)
 	}
 #endif
 		
+#ifdef NQPROT
+	if (c == 'a')
+	{
+		s = MSG_ReadString ();
+		COM_Parse(s);
+		if (!strcmp(com_token, "ccept"))
+		{
+			cls.netcon = Datagram_ConnectToDarkPlacesServer(&net_from);
+
+			SockadrToNetadr(&cls.netcon->addr, &net_from);
+			Netchan_Setup(cls.netcon->socket, &cls.netchan, net_from, cls.qport);
+			cls.netchan.qsocket = cls.netcon;
+			Con_DPrintf ("CL_EstablishConnection: connected to %s\n", cls.servername);
+			
+			cls.netchan.qsocket = cls.netcon;
+
+			cls.netchan.isnqprotocol = true;
+			
+			cls.demonum = -1;			// not in the demo loop now
+			cls.state = ca_connected;
+
+
+			SCR_BeginLoadingPlaque();
+			return;
+		}
+	}
+#endif
+
 	if (c == S2C_CONNECTION)
 	{
 		int compress;

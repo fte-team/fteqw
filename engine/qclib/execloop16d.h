@@ -390,7 +390,10 @@ reeval:
 		NUM_FOR_EDICT(ed);		// make sure it's in range
 #endif
 		if (ed->readonly)
-			PR_RunError (progfuncs, "assignment to read-only entity");
+		{
+			pr_xstatement = st-pr_statements;
+			PR_RunError (progfuncs, "assignment to read-only entity in %s", pr_xfunction->s_name);
+		}
 		OPC->_int = (int)(((int *)edvars(ed)) + OPB->_int + progfuncs->fieldadjust);
 		break;
 
@@ -424,7 +427,7 @@ reeval:
 
 	case OP_IFNOTS:
 		RUNAWAYCHECK();
-		if (!OPA->string || !*OPA->string)
+		if (!OPA->string || !OPA->string[progfuncs->stringtable])
 			st += (sofs)st->b - 1;	// offset the s++
 		break;
 
@@ -436,7 +439,7 @@ reeval:
 
 	case OP_IFS:
 		RUNAWAYCHECK();
-		if (OPA->string && *OPA->string)
+		if (OPA->string && OPA->string[progfuncs->stringtable])
 			st += (sofs)st->b - 1;	// offset the s++
 		break;
 		
@@ -484,10 +487,10 @@ reeval:
 		else
 			pr_argc = st->op - OP_CALL0;
 		fnum = OPA->function;
-		if ((fnum & ~0xff000000)<=0)
+		if ((fnum & ~0xff000000)==0)
 		{
 			pr_trace++;
-			printf("NULL function from qc.\n");			
+			printf("NULL function from qc (%s).\n", pr_xfunction->s_name);
 #ifndef DEBUGABLE
 			goto cont;
 #endif
@@ -944,7 +947,7 @@ PR_RunError(progfuncs, "Extra opcode not implemented\n");
 		{
 			pr_xstatement = s = st-pr_statements;
 
-			printf("Break point hit.\n");
+			printf("Break point hit in %s.\n", pr_xfunction->s_name);
 			if (pr_trace<1)
 				pr_trace=1;	//this is what it's for
 

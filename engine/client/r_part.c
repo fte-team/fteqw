@@ -1377,9 +1377,9 @@ int R_RunParticleEffectType (vec3_t org, vec3_t dir, float count, int typenum)
 
 				if (dir)
 				{
-					p->vel[0] += dir[0]*ptype->veladd+org[0]*ptype->offsetspread;
-					p->vel[1] += dir[1]*ptype->veladd+org[1]*ptype->offsetspread;
-					p->vel[2] += dir[2]*ptype->veladd+org[2]*ptype->offsetspread;
+					p->vel[0] += dir[0]*ptype->veladd+p->org[0]*ptype->offsetspread;
+					p->vel[1] += dir[1]*ptype->veladd+p->org[1]*ptype->offsetspread;
+					p->vel[2] += dir[2]*ptype->veladd+p->org[2]*ptype->offsetspreadvert;
 				}
 				else
 				{

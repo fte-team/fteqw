@@ -324,27 +324,27 @@ static void R_GAliasBuildMesh(mesh_t *mesh, galiasinfo_t *inf, int frame1, int f
 	galiasgroup_t *g1, *g2;
 	if (!inf->groups)
 	{
-		Con_DPrintf("Model with no frames\n");
+		Con_DPrintf("Model with no frames (%s)\n", currententity->model->name);
 		return;
 	}
 	if (frame1 < 0)
 	{
-		Con_DPrintf("Negative frame\n");
+		Con_DPrintf("Negative frame (%s)\n", currententity->model->name);
 		frame1 = 0;
 	}
 	if (frame2 < 0)
 	{
-		Con_DPrintf("Negative frame\n");
+		Con_DPrintf("Negative frame (%s)\n", currententity->model->name);
 		frame2 = frame1;
 	}
 	if (frame1 >= inf->groups)
 	{
-		Con_DPrintf("Too high frame\n");
+		Con_DPrintf("Too high frame %i (%s)\n", frame1, currententity->model->name);
 		frame1 = 0;
 	}
 	if (frame2 >= inf->groups)
 	{
-		Con_DPrintf("Too high frame\n");
+		Con_DPrintf("Too high frame %i (%s)\n", frame2, currententity->model->name);
 		frame2 = frame1;
 	}
 
@@ -836,6 +836,8 @@ void R_DrawGAliasModel (entity_t *e)
 	int pervertexdlights = 1;
 
 	float	tmatrix[3][4];
+
+	currententity = e;
 
 	if (e->flags & Q2RF_VIEWERMODEL && e->keynum == cl.playernum[r_refdef.currentplayernum]+1)
 		return;

@@ -94,6 +94,7 @@ extern cvar_t gl_subdivide_water;
 #ifdef RUNTIMELIGHTING
 model_t *lightmodel;
 int numlightdata;
+qboolean writelitfile;
 
 int relitsurface;
 void GLMod_UpdateLightmap(int snum)
@@ -424,9 +425,12 @@ void GLMod_Think (void)
 			COM_DefaultExtension(filename, ".lux");
 			COM_WriteFile(filename, lightmodel->deluxdata-8, numlightdata*3+8);
 
-			COM_StripExtension(lightmodel->name, filename);
-			COM_DefaultExtension(filename, ".lit");
-			COM_WriteFile(filename, lightmodel->lightdata-8, numlightdata*3+8);
+			if (writelitfile)	//the user might already have a lit file (don't overwrite it).
+			{
+				COM_StripExtension(lightmodel->name, filename);
+				COM_DefaultExtension(filename, ".lit");
+				COM_WriteFile(filename, lightmodel->lightdata-8, numlightdata*3+8);
+			}
 		}
 	}
 #endif
@@ -1318,11 +1322,12 @@ void GLMod_LoadLighting (lump_t *l)
 		return;
 	}
 #ifdef RUNTIMELIGHTING
-	if (!loadmodel->rgblighting && r_loadlits.value == 2 && !lightmodel)
+	if (r_loadlits.value == 2 && !lightmodel && (loadmodel->rgblighting != true || (!luxdata && gl_bumpmappingpossible)))
 	{
 		qbyte *litdata = NULL;
 		int i;
 		qbyte *normal;
+		writelitfile = !loadmodel->rgblighting;
 		loadmodel->rgblighting = true;
 		loadmodel->lightdata = Hunk_AllocName ( l->filelen*3+8, loadname);
 		strcpy(loadmodel->lightdata, "QLIT");

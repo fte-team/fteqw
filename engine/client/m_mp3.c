@@ -5,14 +5,15 @@
 
 #include "glquake.h"//fixme
 
+//pal77* pal777to8;
+qbyte *palxxxto8;
 
-pal77 *pal777to8;
-
-
+#define FindPallete(r,g,b) palxxxto8[((r&palmask[0])>>palshift[0]) | ((g&palmask[1])<<palshift[1]) | ((b&palmask[2])<<palshift[2])]
+//#define FindPallete(r,g,b) (pal777to8[r>>1][g>>1][b>>1])
 qbyte GetPalette(int red, int green, int blue)
 {
-	if (pal777to8)	//fast precalculated method
-		return pal777to8[red>>1][green>>1][blue>>1];
+	if (palxxxto8)	//fast precalculated method
+		return FindPallete(red,green,blue);
 	else	//slow, horrible method.
 	{
 		int i, best=15;
@@ -38,36 +39,112 @@ qbyte GetPalette(int red, int green, int blue)
 	}
 }
 
-#define FindPallete(r,g,b) pal777to8[r>>1][g>>1][b>>1]
 void MakeVideoPalette(void)
 {
-	pal77 *temp;
+//	pal77 *temp;
+	qbyte *temp;
 	int r, g, b;
+	int rs, gs, bs, size;
+	int rstep, gstep, bstep;
+	int gshift, bshift;
 	FILE *f;
-//	pal777to8 = Hunk_AllocName(128*128*128, "RGB data");
-	if (pal777to8)
-		BZ_Free(pal777to8);
-	pal777to8 = NULL;
-	temp = BZ_Malloc(128*128*128);
-	COM_FOpenFile ("rgbpal.pal", &f);
+	char filename[11];
+
+	if (strlen(r_palconvbits.string) < 3)
+	{
+		// r7g7b7 is default
+		rs = 7;
+		gs = 7;
+		bs = 7;
+	}
+	else
+	{
+		// convert to int
+		rs = r_palconvbits.string[0] - '0';
+		gs = r_palconvbits.string[1] - '0';
+		bs = r_palconvbits.string[2] - '0';
+
+		// limit to 4-8 (can't have 3 because the forumla breaks)
+		if (rs < 4)
+			rs = 4;
+		else if (rs > 8)
+			rs = 8;
+
+		if (gs < 4)
+			gs = 4;
+		else if (gs > 8)
+			gs = 8;
+
+		if (bs < 4)
+			bs = 4;
+		else if (bs > 8)
+			bs = 8;
+	}
+
+	Q_strcpy(filename, "rgb000.pal");
+	filename[3] = rs + '0';
+	filename[4] = gs + '0';
+	filename[5] = bs + '0';
+
+	palshift[0] = 1<<rs;
+	palshift[1] = 1<<gs;
+	palshift[2] = 1<<bs;
+
+	size = palshift[0]*palshift[1]*palshift[2];
+
+	gshift = rs;
+	bshift = rs+gs;
+	rs = 8-rs;
+	gs = 8-gs;
+	bs = 8-bs;
+
+	rstep = 1<<rs;
+	gstep = 1<<gs;
+	bstep = 1<<bs;
+
+	palmask[0] = 0xff ^ (rstep - 1);
+	palmask[1] = 0xff ^ (gstep - 1);
+	palmask[2] = 0xff ^ (bstep - 1);
+
+	palxxxto8 = Hunk_AllocName(size, "RGB data");
+	if (!palxxxto8)
+		BZ_Free(palxxxto8);
+	palxxxto8 = NULL;
+
+	temp = BZ_Malloc(size);
+	COM_FOpenFile (filename, &f);
 	if (f)
 	{
-		fread(temp, 1, 128*128*128, f);	//cached
+		fread(temp, 1, size, f);	//cached
 		fclose(f);
 
-		pal777to8 = temp;
+		palxxxto8 = temp;
+
+		// update shifts
+		palshift[0] = rs;
+		palshift[1] = (8 - palshift[0]) - gs;
+		palshift[2] = palshift[1] + (8 - bs);
 		return;
 	}
 
-	for (r = 0; r < 128; r++)
-	for (g = 0; g < 128; g++)
-	for (b = 0; b < 128; b++)
-	{
-		temp[r][g][b] = GetPalette(r*2, g*2, b*2);
-	}
-	pal777to8 = temp;
+	rstep >>= 1;
+	gstep >>= 1;
+	bstep >>= 1;
 
-	COM_WriteFile("rgbpal.pal", pal777to8, 128*128*128);
+	for (r = palshift[0] - 1; r >= 0; r--)
+	for (g = palshift[1] - 1; g >= 0; g--)
+	for (b = palshift[2] - 1; b >= 0; b--)
+	{
+		temp[r+(g<<gshift)+(b<<bshift)] = GetPalette((r<<rs)+rstep, (g<<gs)+gstep, (b<<bs)+bstep);
+	}
+	palxxxto8 = temp;
+
+	// update shifts
+	palshift[0] = rs;
+	palshift[1] = (8 - palshift[0]) - gs;
+	palshift[2] = palshift[1] + (8 - bs);
+
+	COM_WriteFile(filename, palxxxto8, size);
 }
 
 

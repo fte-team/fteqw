@@ -558,7 +558,7 @@ void SWDraw_Character (int x, int y, unsigned int num)
 	}
 }
 
-#define FindPallete(r,g,b) pal777to8[r>>1][g>>1][b>>1]
+#define FindPallete(r,g,b) palxxxto8[((r&palmask[0])>>palshift[0]) | ((g&palmask[1])<<palshift[1]) | ((b&palmask[2])<<palshift[2])]
 #define colourmask(p,r,g,b) FindPallete(host_basepal[p*3]*r, host_basepal[p*3+1]*g, host_basepal[p*3+2]*b)
 #define draw(p) colourmask(p, (int)consolecolours[colour].r, (int)consolecolours[colour].g, (int)consolecolours[colour].b)
 void SWDraw_ColouredCharacter (int x, int y, unsigned int num)

@@ -34,8 +34,11 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 #define APIENTRY
 #endif
 
-typedef qbyte pal77[128][128];
-pal77 *pal777to8;
+// typedef qbyte pal77[128][128];
+// pal77 *pal777to8;
+qbyte *palxxxto8;
+int palmask[3];
+int palshift[3];
 
 void AddPointToBounds (vec3_t v, vec3_t mins, vec3_t maxs);
 qboolean BoundsIntersect (vec3_t mins1, vec3_t maxs1, vec3_t mins2, vec3_t maxs2);
@@ -769,7 +772,7 @@ extern int r_pixbytes;
 #define WARP_WIDTH		320
 #define WARP_HEIGHT		200
 
-
+extern cvar_t   r_palconvbits;
 extern cvar_t	r_drawflat;
 extern int		d_spanpixcount;
 extern int		r_framecount;		// sequence # of current frame since Quake

@@ -184,6 +184,9 @@ cvar_t	r_flashblend = {"gl_flashblend","0"};
 extern	cvar_t	r_novis;
 extern	cvar_t	r_netgraph;
 
+cvar_t r_transtables = {"r_transtables","2"};
+cvar_t r_palconvbits = {"r_palconvbits", "777"};
+
 extern cvar_t bul_text1;
 extern cvar_t bul_text2;
 extern cvar_t bul_text3;
@@ -326,6 +329,9 @@ void SWRenderer_Init(void)
 	Cvar_Register (&r_ambient, SWRENDEREROPTIONS);
 	Cvar_Register (&r_ambient, SWRENDEREROPTIONS);
 	Cvar_Register (&r_reportsurfout, SWRENDEREROPTIONS);
+
+	Cvar_Register (&r_transtables, SWRENDEREROPTIONS);
+	Cvar_Register (&r_palconvbits, SWRENDEREROPTIONS);
 }
 #endif
 

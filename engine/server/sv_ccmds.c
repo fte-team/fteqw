@@ -348,7 +348,14 @@ void SV_Give_f (void)
 	}
 	
 	if (!SV_SetPlayer ())
+	{
+		int oldself;
+		oldself = pr_global_struct->self;
+		pr_global_struct->self = EDICT_TO_PROG(svprogfuncs, sv_player);
+		Con_Printf("Result: %s\n", svprogfuncs->EvaluateDebugString(svprogfuncs, Cmd_Args()));
+		pr_global_struct->self = oldself;
 		return;
+	}
 
 	if (!svprogfuncs)
 		return;
@@ -383,7 +390,15 @@ void SV_Give_f (void)
 		break;		
 	case 'c':
 		sv_player->v.ammo_cells = v;
-		break;		
+		break;
+	default:
+		{
+			int oldself;
+			oldself = pr_global_struct->self;
+			pr_global_struct->self = EDICT_TO_PROG(svprogfuncs, sv_player);
+			Con_Printf("Result: %s\n", svprogfuncs->EvaluateDebugString(svprogfuncs, Cmd_Args()));
+			pr_global_struct->self = oldself;
+		}
 	}
 }
 
@@ -876,7 +891,7 @@ void SV_Status_f (void)
 	Con_Printf ("cpu utilization  : %3i%%\n",(int)cpu);
 	Con_Printf ("avg response time: %i ms\n",(int)avg);
 	Con_Printf ("packets/frame    : %5.2f\n", pak);	//not relevent as a limit.
-	
+
 // min fps lat drp
 	if (columns < 80)
 	{

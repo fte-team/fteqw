@@ -1532,8 +1532,7 @@ void NPP_MVDFlush(void)
 			int i, j;
 			unsigned short flags;
 			mvdentity_state_t *ents;
-			int wframe, playernum;
-			vec3_t oldorg;
+			int playernum;
 			vec3_t oldang;
 
 			if (!sv.demostate)

@@ -617,6 +617,7 @@ qbyte	*(*Mod_Q1LeafPVS)			(struct mleaf_s *leaf, struct model_s *model, qbyte *b
 void	(*Mod_NowLoadExternal)		(void);
 void	(*Mod_Think)				(void);
 void	(*Mod_GetTag)				(struct model_s *model, int tagnum, int frame, float **org, float **axis);
+int (*Mod_TagNumForName)			(struct model_s *model, char *name);
 
 
 
@@ -706,6 +707,7 @@ struct {
 	void	(*Mod_NowLoadExternal)		(void);
 	void	(*Mod_Think)				(void);
 	void	(*Mod_GetTag)				(struct model_s *model, int tagnum, int frame, float **org, float **axis);
+	int (*Mod_TagNumForName)			(struct model_s *model, char *name);
 
 
 	qboolean (*VID_Init)				(rendererstate_t *info, unsigned char *palette);
@@ -816,6 +818,7 @@ struct {
 #endif
 
 		NULL, //Mod_GetTag
+		NULL, //fixme: server will need this one at some point.
 
 		NULL, //VID_Init,
 		NULL, //VID_DeInit,
@@ -908,6 +911,7 @@ struct {
 		SWMod_Think,
 
 		NULL,	//Mod_GetTag
+		NULL,	//Mod_TagForName
 
 		SWVID_Init,
 		SWVID_Shutdown,
@@ -1012,6 +1016,7 @@ struct {
 		GLMod_Think,
 
 		GLMod_GetTag,
+		GLMod_TagNumForName,
 
 		GLVID_Init,
 		GLVID_DeInit,
@@ -1280,6 +1285,9 @@ void R_SetRenderer(int wanted)
 	Mod_PointInLeaf			= rendererinfo[wanted].Mod_PointInLeaf;
 	Mod_Q1LeafPVS			= rendererinfo[wanted].Mod_Q1LeafPVS;
 	Mod_NowLoadExternal		= rendererinfo[wanted].Mod_NowLoadExternal;
+
+	Mod_GetTag				= rendererinfo[wanted].Mod_GetTag;
+	Mod_TagNumForName 		= rendererinfo[wanted].Mod_TagNumForName;
 
 
 	

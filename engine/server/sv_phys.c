@@ -356,7 +356,7 @@ int SV_FlyMove (edict_t *ent, float time, trace_t *steptrace)
 			{	// go along the crease
 				if (numplanes != 2)
 				{
-					Con_Printf ("clip velocity, numplanes == %i\n",numplanes);
+//					Con_Printf ("clip velocity, numplanes == %i\n",numplanes);
 					VectorCopy (vec3_origin, ent->v.velocity);
 					return 7;
 				}

@@ -847,6 +847,8 @@ void CL_SendCmd (void)
 		if (cls.demoplayback == DPB_MVD)
 		{
 			i = cls.netchan.outgoing_sequence & UPDATE_MASK;
+			cl.frames[i].senttime = realtime;		// we haven't gotten a reply yet
+			cl.frames[i].receivedtime = -1;		// we haven't gotten a reply yet
 			cmd = &cl.frames[i].cmd[0];
 
 			memset(cmd, 0, sizeof(*cmd));
@@ -866,7 +868,6 @@ void CL_SendCmd (void)
 			CL_FinishMove(cmd, (int)(host_frametime*1000), 0);
 
 			Cam_FinishMove(0, cmd);
-
 
 			cls.netchan.outgoing_sequence++;
 		}

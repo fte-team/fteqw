@@ -49,7 +49,6 @@ cvar_t cl_chasecam = {"cl_chasecam", "0"};
 //cvar_t cl_camera_maxpitch = {"cl_camera_maxpitch", "10" };
 //cvar_t cl_camera_maxyaw = {"cl_camera_maxyaw", "30" };
 
-qboolean cam_forceview[MAX_SPLITS];
 vec3_t cam_viewangles[MAX_SPLITS];
 double cam_lastviewtime[MAX_SPLITS];
 
@@ -129,12 +128,19 @@ void Cam_Lock(int pnum, int playernum)
 {
 	char st[40];
 
+	cam_lastviewtime[pnum] = -1000;
+
 	sprintf(st, "ptrack %i", playernum);
 	MSG_WriteByte (&cls.netchan.message, clc_stringcmd);
 	MSG_WriteString (&cls.netchan.message, st);
 	spec_track[pnum] = playernum;
-	cam_forceview[pnum] = true;
 	locked[pnum] = false;
+
+	if (cls.demoplayback == DPB_MVD)
+	{
+		memcpy(&cl.stats[pnum], cl.players[playernum].stats, sizeof(cl.stats[pnum]));
+	}
+
 	Sbar_Changed();
 }
 
@@ -351,7 +357,7 @@ void Cam_Track(int pnum, usercmd_t *cmd)
 	vec3_t vec;
 	float len;
 
-	if (!cl.spectator)
+	if (!cl.spectator || !cl.worldmodel)	//can happen when the server changes level
 		return;
 	
 	if (cl_hightrack.value && !locked[pnum])
@@ -370,11 +376,11 @@ void Cam_Track(int pnum, usercmd_t *cmd)
 		return;
 	}
 
-	frame = &cl.frames[cls.netchan.incoming_sequence & UPDATE_MASK];
+	frame = &cl.frames[cl.validsequence & UPDATE_MASK];
 	player = frame->playerstate + spec_track[pnum];
 	self = frame->playerstate + cl.playernum[pnum];
 
-	if (/*locked[pnum] ||*/ !Cam_IsVisible(player, desired_position[pnum]))
+	if (!locked[pnum] || !Cam_IsVisible(player, desired_position[pnum]))
 	{
 		if (!locked[pnum] || realtime - cam_lastviewtime[pnum] > 0.1)
 		{

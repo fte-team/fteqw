@@ -368,7 +368,7 @@ void R_ParticleEffect_f(void)
 			return;
 		}
 
-		Cmd_TokenizeString(buf);
+		Cmd_TokenizeString(buf, true, true);
 		var = Cmd_Argv(0);
 		value = Cmd_Argv(1);
 

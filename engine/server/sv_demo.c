@@ -225,6 +225,14 @@ void SV_LoadClientDemo_f (void)
 		SV_ReadMVD();
 	}
 
+	if (!sv.state)
+		Cmd_ExecuteString("map start\n", Cmd_ExecLevel);	//go for the start map
+	if (!sv.state)
+	{
+		Con_Printf("Could not activate server\n");
+		return;
+	}
+
 	demoname = Cmd_Argv(1);
 	com_filesize = COM_FOpenFile(demoname, &svd.demofile);
 
@@ -312,7 +320,7 @@ qboolean SV_RunDemo (void)
 	float	demotime;
 	qbyte	c;
 //	usercmd_t *pcmd;
-	usercmd_t emptycmd;
+//	usercmd_t emptycmd;
 	static	float	prevtime = 0.0;
 	qbyte	newtime;
 
@@ -376,11 +384,18 @@ readnext:
 	
 	switch (c & 7) {
 	case dem_cmd :
+
+		Con_Printf ("dem_cmd not supported\n");
+		fclose(svd.demofile);
+		svd.demofile = NULL;
+		return false;
+
+
 		// user sent input
 //		i = svd.netchan.outgoing_sequence & UPDATE_MASK;
 //		pcmd = &cl.frames[i].cmd;
-		if ((r = fread (&emptycmd, sizeof(emptycmd), 1, svd.demofile)) != 1)
-			SV_Error ("Corrupted demo");
+	//	if ((r = fread (&emptycmd, sizeof(emptycmd), 1, svd.demofile)) != 1)
+	//		SV_Error ("Corrupted demo");
 /*
 		// qbyte order stuff
 		for (j = 0; j < 3; j++)
@@ -393,7 +408,7 @@ readnext:
 		cl.frames[i].receivedtime = -1;		// we haven't gotten a reply yet
 		svd.netchan.outgoing_sequence++;
 */
-		fread (&emptycmd, 12, 1, svd.demofile);
+	//	fread (&emptycmd, 12, 1, svd.demofile);
 /*		for (j = 0; j < 3; j++)
 			 cl.viewangles[i] = LittleFloat (cl.viewangles[i]);
 		if (cl.spectator) 

@@ -649,7 +649,7 @@ void SVC_Status (void)
 
 	int slots=0;
 
-	Cmd_TokenizeString ("status");
+	Cmd_TokenizeString ("status", false, false);
 	SV_BeginRedirect (RD_PACKET);
 	Con_Printf ("%s\n", svs.info);
 	for (i=0 ; i<MAX_CLIENTS ; i++)
@@ -1132,7 +1132,7 @@ void SVC_DirectConnect
 	{
 		while(!msg_badread)
 		{
-			Cmd_TokenizeString(MSG_ReadStringLine());
+			Cmd_TokenizeString(MSG_ReadStringLine(), false, false);
 			switch(Q_atoi(Cmd_Argv(0)))
 			{
 			case PROTOCOL_VERSION_FTE:
@@ -1979,7 +1979,7 @@ qboolean SV_ConnectionlessPacket (void)
 
 	s = MSG_ReadStringLine ();
 
-	Cmd_TokenizeString (s);
+	Cmd_TokenizeString (s, false, false);
 
 	c = Cmd_Argv(0);
 
@@ -2020,7 +2020,7 @@ qboolean SV_ConnectionlessPacket (void)
 		{
 			//these messages contain the ip address that it was origionally from (before being farmed out)
 			NET_StringToAdr(Cmd_Argv(1), &net_from);
-			Cmd_ShiftArgs(1);	//get rid of the ip address...		
+			Cmd_ShiftArgs(1, false);	//get rid of the ip address...		
 #ifdef NQPROT
 			SVC_DirectConnect (sock);
 #else
@@ -2719,6 +2719,11 @@ void SV_Frame (float time)
 			SVM_Think(sv_masterport.value);
 		else
 			SVM_Think(PORT_MASTER);
+	}
+
+	{
+void SV_MVDStream_Poll(void);
+	SV_MVDStream_Poll();
 	}
 
 	if (sv.state < ss_active)

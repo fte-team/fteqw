@@ -2704,7 +2704,7 @@ void Draw_CharToDrawable (int num, unsigned int *drawable, int x, int y, int wid
 
 	if (s > e)
 		return;
-	if (y >= height)
+	if (y >= height-e)
 		return;
 	if (y < -8)
 		return;
@@ -2819,13 +2819,13 @@ void XR_PolyText(xclient_t *cl, xReq *request)
 		while(1)
 		{
 			charnum = 0;
+			charnum |= *str++;
 			if (req->reqType == X_ImageText16)
 				charnum |= (*str++)<<8;
-			charnum |= *str++;
 			if (!charnum)
 				return;
 
-			Draw_CharToDrawable(charnum, (unsigned int *)drbuffer, xpos, ypos, drwidth, drheight, gc);
+			Draw_CharToDrawable(charnum&255, (unsigned int *)drbuffer, xpos, ypos, drwidth, drheight, gc);
 
 			xpos += 8;
 		}
@@ -2877,6 +2877,8 @@ void XR_QueryFont(xclient_t *cl, xReq *request)	//basically ignored. We only sup
 {
 //	xResourceReq *req = (xResourceReq *)request;
 	char buffer[8192];
+	int i;
+	xCharInfo *ci;
 	xQueryFontReply *rep = (xQueryFontReply *)buffer;
 
 	rep->type			= X_Reply;
@@ -2910,12 +2912,22 @@ void XR_QueryFont(xclient_t *cl, xReq *request)	//basically ignored. We only sup
 	rep->drawDirection	= 0;
 	rep->minByte1		= 0;
 	rep->maxByte1		= 0;
-	rep->allCharsExist	= 1;
+	rep->allCharsExist	= 0;
 	rep->fontAscent		= 4;
 	rep->fontDescent	= 4;
-	rep->nCharInfos		= 0; /* followed by this many xCharInfo structures */
+	rep->nCharInfos		= 255; /* followed by this many xCharInfo structures */
 
 	rep->length = ((sizeof(xQueryFontReply) - sizeof(xGenericReply)) + rep->nFontProps*sizeof(xFontProp) + rep->nCharInfos*sizeof(xCharInfo))/4;
+
+	ci = (xCharInfo*)(rep+1);
+	for (i = 0; i < rep->nCharInfos; i++)
+	{
+		ci[i].leftSideBearing = 0;
+		ci[i].rightSideBearing = 0;
+		ci[i].characterWidth = 8;
+		ci[i].ascent = 4;
+		ci[i].descent = 4;
+	}
 
 	X_SendData(cl, rep, sizeof(xGenericReply)+rep->length*4);
 }

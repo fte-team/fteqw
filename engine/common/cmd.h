@@ -101,7 +101,7 @@ int Cmd_CheckParm (char *parm);
 char *Cmd_AliasExist(char *name, int restrictionlevel);
 void Alias_WipeStuffedAliaes(void);
 
-void Cmd_TokenizeString (char *text);
+void Cmd_TokenizeString (char *text, qboolean expandmacros, qboolean qctokenize);
 // Takes a null terminated string.  Does not need to be /n terminated.
 // breaks the string up into arg tokens.
 
@@ -131,7 +131,7 @@ void Cmd_MessageTrigger (char *message, int type);
 
 void Cmd_StuffCmds_f (void);
 
-void Cmd_ShiftArgs (int ammount);
+void Cmd_ShiftArgs (int ammount, qboolean expandstring);
 
 char *Cmd_ExpandString (char *data, char *dest, int destlen, int maxaccesslevel);
 

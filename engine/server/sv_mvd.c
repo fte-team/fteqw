@@ -220,6 +220,8 @@ cvar_t	sv_demoNoVis = {"sv_demoNoVis", ""};
 cvar_t	sv_demoMaxSize = {"sv_demoMaxSize", ""};
 cvar_t	sv_demoExtraNames = {"sv_demoExtraNames", ""};
 
+cvar_t mvd_streamport = {"mvd_streamport", "27515"};
+
 static int		demo_max_size;
 static int		demo_size;
 cvar_t			sv_demoPrefix = {"sv_demoPrefix", ""};
@@ -520,16 +522,21 @@ void SV_WriteMVDMessage (sizebuf_t *msg, int type, int to, float time)
 	demo.size += DWRITE (&len, 4, 1, demo.dest);
 	demo.size += DWRITE (msg->data, msg->cursize, 1, demo.dest);
 
-	if (demo.disk)
-		fflush (demo.file);
-	else if (demo.size - demo_size > demo_max_size)
+	if (demo.file)
 	{
-		demo_size = demo.size;
-		demo.mfile -= 0x80000;
-		fwrite(svs.demomem, 1, 0x80000, demo.file);
-		fflush(demo.file);
-		memmove(svs.demomem, svs.demomem + 0x80000, demo.size - 0x80000);
+		if (demo.disk)
+			fflush (demo.file);
+		else if (demo.size - demo_size > demo_max_size)
+		{
+			demo_size = demo.size;
+			demo.mfile -= 0x80000;
+			fwrite(svs.demomem, 1, 0x80000, demo.file);
+			fflush(demo.file);
+			memmove(svs.demomem, svs.demomem + 0x80000, demo.size - 0x80000);
+		}
 	}
+	else
+		demo_size = demo.size;
 }
 
 
@@ -736,6 +743,17 @@ size_t memwrite ( const void *buffer, size_t size, size_t count, qbyte **mem)
 	return c;
 }
 
+size_t streamwrite ( const void *buffer, size_t size, size_t count, qbyte **mem)
+{
+	int sent;
+	sent = send(demo.tcpsocket, buffer, size*count, 0);
+
+	if (sent <= 0)
+		return 0;
+
+	return count;
+}
+
 static char chartbl[256];
 void CleanName_Init ();
 
@@ -745,17 +763,17 @@ void MVD_Init (void)
 
 #define MVDVARGROUP "Server MVD cvars"
 
-	Cvar_Register (&sv_demofps,			MVDVARGROUP);
+	Cvar_Register (&sv_demofps,		MVDVARGROUP);
 	Cvar_Register (&sv_demoPings,		MVDVARGROUP);
 	Cvar_Register (&sv_demoNoVis,		MVDVARGROUP);
 	Cvar_Register (&sv_demoUseCache,	MVDVARGROUP);
 	Cvar_Register (&sv_demoCacheSize,	MVDVARGROUP);
 	Cvar_Register (&sv_demoMaxSize,		MVDVARGROUP);
 	Cvar_Register (&sv_demoMaxDirSize,	MVDVARGROUP);
-	Cvar_Register (&sv_demoDir,			MVDVARGROUP);
+	Cvar_Register (&sv_demoDir,		MVDVARGROUP);
 	Cvar_Register (&sv_demoPrefix,		MVDVARGROUP);
 	Cvar_Register (&sv_demoSuffix,		MVDVARGROUP);
-	Cvar_Register (&sv_demotxt		,	MVDVARGROUP);
+	Cvar_Register (&sv_demotxt,		MVDVARGROUP);
 	Cvar_Register (&sv_demoExtraNames,	MVDVARGROUP);
 
 
@@ -765,7 +783,7 @@ void MVD_Init (void)
 		if (p < com_argc-1)
 			size = Q_atoi (com_argv[p+1]) * 1024;
 		else
-			Sys_Error ("Memory_Init: you must specify a size in KB after -democache");
+			Sys_Error ("MVD_Init: you must specify a size in KB after -democache");
 	}
 
 	if (size < MIN_MVD_MEMORY)
@@ -794,6 +812,25 @@ qboolean SV_InitRecord(void)
 		dwrite = (void *)&fwrite;
 		demo.dest = demo.file;
 		demo.disk = true;
+	} else 
+	{
+		dwrite = (void *)&memwrite;
+		demo.mfile = svs.demomem;
+		demo.dest = &demo.mfile;
+	}
+
+	demo_size = 0;
+
+	return true;
+}
+
+qboolean SV_InitStream(void)
+{
+	if (!USACACHE)
+	{
+		dwrite = (void *)&streamwrite;
+		demo.dest = &demo.tcpsocket;
+		demo.disk = false;
 	} else 
 	{
 		dwrite = (void *)&memwrite;
@@ -1031,6 +1068,8 @@ static qboolean SV_MVD_Record (char *name, int tcpsocket)
 	char *gamedir;
 	int seq = 1;
 
+//okay, this is lame. We're going to allow a new mvd to 'reconnect' if we start recording the other...
+
 	memset(&demo, 0, sizeof(demo));
 	demo.recorder.frames = demo_frames;
 	for (i = 0; i < UPDATE_BACKUP; i++)
@@ -1093,9 +1132,11 @@ static qboolean SV_MVD_Record (char *name, int tcpsocket)
 	}
 	else
 	{
+		SV_InitStream();
+
 		if (demo.tcpsocket)
 			return false;
-		SV_BroadcastPrintf (PRINT_CHAT, "Server starts recording to network client\n");
+		SV_BroadcastPrintf (PRINT_CHAT, "Server starts recording to QWTV\n");
 		demo.tcpsocket = tcpsocket;
 	}
 
@@ -1308,15 +1349,15 @@ static qboolean SV_MVD_Record (char *name, int tcpsocket)
 		MSG_WriteByte (&buf, svc_updatefrags);
 		MSG_WriteByte (&buf, i);
 		MSG_WriteShort (&buf, player->old_frags);
-		
+
 		MSG_WriteByte (&buf, svc_updateping);
 		MSG_WriteByte (&buf, i);
 		MSG_WriteShort (&buf, SV_CalcPing(player));
-		
+
 		MSG_WriteByte (&buf, svc_updatepl);
 		MSG_WriteByte (&buf, i);
 		MSG_WriteByte (&buf, player->lossage);
-		
+
 		MSG_WriteByte (&buf, svc_updateentertime);
 		MSG_WriteByte (&buf, i);
 		MSG_WriteFloat (&buf, realtime - player->connection_started);
@@ -1750,6 +1791,139 @@ void SV_MVDEasyRecord_f (void)
 	SV_MVD_Record (name2, 0);
 }
 
+
+#ifdef _WIN32
+
+#define EWOULDBLOCK	WSAEWOULDBLOCK
+#define EMSGSIZE	WSAEMSGSIZE
+#define ECONNRESET	WSAECONNRESET
+#define ECONNABORTED	WSAECONNABORTED
+#define ECONNREFUSED	WSAECONNREFUSED
+#define EADDRNOTAVAIL	WSAEADDRNOTAVAIL
+
+#define qerrno WSAGetLastError()
+#else
+#define qerrno errno
+
+#include <sys/types.h>
+#include <sys/socket.h>
+#include <netinet/in.h>
+#include <netdb.h>
+#include <sys/param.h>
+#include <sys/ioctl.h>
+#include <sys/uio.h>
+#include <arpa/inet.h>
+#include <errno.h>
+
+#include <unistd.h>
+
+#ifdef sun
+#include <sys/filio.h>
+#endif
+
+#ifdef NeXT
+#include <libc.h>
+#endif
+
+#define closesocket close
+#define ioctlsocket ioctl
+#endif
+
+
+int MVD_StreamStartListening(int port)
+{
+	char name[256];
+	int sock;
+	struct hostent *hent;
+	
+	struct sockaddr_in	address;
+//	int fromlen;
+
+	unsigned int nonblocking = true;
+
+	address.sin_family = AF_INET;
+	if (gethostname(name, sizeof(name)) == -1)
+		return INVALID_SOCKET;
+	hent = gethostbyname(name);
+	if (!hent)
+		return INVALID_SOCKET;
+	address.sin_addr.s_addr = *(int *)(hent->h_addr_list[0]);
+	address.sin_port = htons((u_short)port);
+
+
+
+	if ((sock = socket (PF_INET, SOCK_STREAM, IPPROTO_TCP)) == -1)
+	{
+		Sys_Error ("MVD_StreamStartListening: socket:", strerror(qerrno));
+	}
+
+	if (ioctlsocket (sock, FIONBIO, &nonblocking) == -1)
+	{
+		Sys_Error ("FTP_TCP_OpenSocket: ioctl FIONBIO:", strerror(qerrno));
+	}
+	
+	if( bind (sock, (void *)&address, sizeof(address)) == -1)
+	{
+		closesocket(sock);
+		return INVALID_SOCKET;
+	}
+	
+	listen(sock, 2);
+
+	return sock;
+}
+
+void SV_MVDStream_Poll(void)
+{
+	static int listensocket=INVALID_SOCKET;
+	static int listenport;
+	int client;
+	netadr_t na;
+	struct sockaddr_qstorage addr;
+	int addrlen;
+	qboolean wanted;
+	if (!sv.state)
+		wanted = false;
+	else if (listenport && (int)mvd_streamport.value != listenport)	//easy way to switch... disable for a frame. :)
+	{
+		listenport = mvd_streamport.value;
+		wanted = false;
+	}
+	else
+	{
+		listenport = mvd_streamport.value;
+		wanted = true;
+	}
+
+	if (wanted && listensocket==INVALID_SOCKET)
+		listensocket = MVD_StreamStartListening(listenport);
+	else if (!wanted && listensocket!=INVALID_SOCKET)
+	{
+		closesocket(listensocket);
+		listensocket = INVALID_SOCKET;
+		return;
+	}
+	if (listensocket==INVALID_SOCKET)
+		return;
+
+	addrlen = sizeof(addr);
+	client = accept(listensocket, (struct sockaddr *)&addr, &addrlen);
+
+	if (client == INVALID_SOCKET)
+		return;
+	
+	if (sv.mvdrecording)
+	{	//sorry
+		closesocket(client);
+		return;
+	}
+
+	SockadrToNetadr(&addr, &na);
+	Con_Printf("MVD streaming client connected from %s\n", NET_AdrToString(na));
+
+	SV_MVD_Record (NULL, client);
+}
+
 void SV_MVDList_f (void)
 {
 	dir_t	dir;
@@ -2122,6 +2296,8 @@ void SV_MVDInit(void)
 	Cmd_AddCommand ("demolist", SV_MVDList_f);
 	Cmd_AddCommand ("rmdemo", SV_MVDRemove_f);
 	Cmd_AddCommand ("rmdemonum", SV_MVDRemoveNum_f);
+
+	Cvar_Register(&mvd_streamport, "MVD Streaming");
 }
 
 #endif

@@ -965,7 +965,7 @@ Cmd_ShiftArgs
 Shifts Cmd_Argv results down one (killing first param)
 ============
 */
-void Cmd_ShiftArgs (int ammount)
+void Cmd_ShiftArgs (int ammount, qboolean expandstring)
 {
 	int arg;
 	while (ammount>0 && cmd_argc)
@@ -984,7 +984,7 @@ void Cmd_ShiftArgs (int ammount)
 
 		if (cmd_args)
 		{
-			cmd_args = COM_StringParse(cmd_args);
+			cmd_args = COM_StringParse(cmd_args, expandstring, false);
 			if (cmd_args)
 				while(*cmd_args == ' ')
 					cmd_args++;
@@ -1114,7 +1114,7 @@ Cmd_TokenizeString
 Parses the given string into command line tokens.
 ============
 */
-void Cmd_TokenizeString (char *text)
+void Cmd_TokenizeString (char *text, qboolean expandmacros, qboolean qctokenize)
 {
 	int		i;
 	
@@ -1144,8 +1144,8 @@ void Cmd_TokenizeString (char *text)
 	
 		if (cmd_argc == 1)
 			 cmd_args = text;
-			
-		text = COM_StringParse (text);
+
+		text = COM_StringParse (text, expandmacros, qctokenize);
 		if (!text)
 			return;
 
@@ -1581,7 +1581,7 @@ void	Cmd_ExecuteString (char *text, int level)
 	Cmd_ExecLevel = level;
 
 	text = Cmd_ExpandString(text, dest, sizeof(dest), level);
-	Cmd_TokenizeString (text);
+	Cmd_TokenizeString (text, level == RESTRICT_LOCAL, false);
 			
 // execute the command line
 	if (!Cmd_Argc())

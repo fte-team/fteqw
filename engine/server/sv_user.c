@@ -109,6 +109,7 @@ void SV_New_f (void)
 {
 	char		*gamedir;
 	int			playernum;
+	int splitnum;
 	client_t *split;
 
 	if (host_client->state == cs_spawned)
@@ -166,6 +167,7 @@ void SV_New_f (void)
 		MSG_WriteByte (&host_client->netchan.message, 0);
 	MSG_WriteString (&host_client->netchan.message, gamedir);
 
+	splitnum = 0;
 	for (split = host_client; split; split = split->controlled)
 	{
 #ifdef Q2SERVER
@@ -175,7 +177,9 @@ void SV_New_f (void)
 #endif
 			playernum = NUM_FOR_EDICT(svprogfuncs, split->edict)-1;
 		if (sv.demostate)
-			playernum = (MAX_CLIENTS-1)|128;
+		{
+			playernum = (MAX_CLIENTS-1-splitnum)|128;
+		}
 		else if (split->spectator)
 			playernum |= 128;
 
@@ -192,6 +196,7 @@ void SV_New_f (void)
 	#ifdef SVRANKING
 		split->stats_started = realtime;
 	#endif
+		splitnum++;
 	}
 	if (host_client->fteprotocolextensions & PEXT_SPLITSCREEN)
 		MSG_WriteByte (&host_client->netchan.message, 128);
@@ -620,7 +625,7 @@ void SV_Soundlist_f (void)
 {
 	int i;
 	//char		**s;
-	int			n;
+	unsigned n;
 
 	if (host_client->state != cs_connected)
 	{
@@ -646,9 +651,10 @@ void SV_Soundlist_f (void)
 		SZ_Clear(&host_client->netchan.message);
 	}
 
-	if (n < 0)
+	if (n >= MAX_SOUNDS)
 	{
-		Con_Printf ("SV_Soundlist_f: %s tried to crash us\n", host_client->name);
+		SV_EndRedirect();
+		Con_Printf ("SV_Soundlist_f: %s send an invalid index\n", host_client->name);
 		SV_DropClient(host_client);
 		return;
 	}
@@ -690,7 +696,7 @@ SV_Modellist_f
 void SV_Modellist_f (void)
 {
 	int i;
-	int			n;
+	unsigned n;
 
 	if (host_client->state != cs_connected)
 	{
@@ -716,9 +722,10 @@ void SV_Modellist_f (void)
 		SZ_Clear(&host_client->netchan.message);
 	}
 
-	if (n < 0)
+	if (n >= MAX_MODELS)
 	{
-		Con_Printf ("SV_Modellist_f: %s tried to crash us\n", host_client->name);
+		SV_EndRedirect();
+		Con_Printf ("SV_Modellist_f: %s send an invalid index\n", host_client->name);
 		SV_DropClient(host_client);
 		return;
 	}
@@ -795,9 +802,12 @@ void SV_PreSpawn_f (void)
 	buf = atoi(Cmd_Argv(2));
 
 	if (buf >= bufs+statics+sv.num_edicts+255)
-		buf = 0;
-	if (buf < 0)
-		buf = 0;
+	{
+		SV_EndRedirect();
+		Con_Printf ("SV_Modellist_f: %s send an invalid index\n", host_client->name);
+		SV_DropClient(host_client);
+		return;
+	}
 
 	if (!buf)
 	{
@@ -2748,7 +2758,7 @@ void SV_ExecuteUserCommand (char *s, qboolean fromQC)
 
 	Con_DPrintf("Client command: %s\n", s);
 	
-	Cmd_TokenizeString (s);
+	Cmd_TokenizeString (s, false, false);
 	sv_player = host_client->edict;
 
 	Cmd_ExecLevel=1;
@@ -2766,7 +2776,7 @@ void SV_ExecuteUserCommand (char *s, qboolean fromQC)
 			}
 		}
 		sv_player = host_client->edict;
-		Cmd_ShiftArgs(1);
+		Cmd_ShiftArgs(1, false);
 	}
 
 #ifdef Q2SERVER
@@ -3103,7 +3113,7 @@ void SVNQ_PreSpawn_f (void)
 }
 void SVNQ_NQInfo_f (void)
 {
-	Cmd_TokenizeString(va("setinfo \"%s\" \"%s\"\n", Cmd_Argv(0), Cmd_Argv(1)));
+	Cmd_TokenizeString(va("setinfo \"%s\" \"%s\"\n", Cmd_Argv(0), Cmd_Argv(1)), false, false);
 	SV_SetInfo_f();	
 }
 
@@ -3209,7 +3219,7 @@ void SVNQ_ExecuteUserCommand (char *s)
 	client_t *oldhost = host_client;
 	ucmd_t	*u;
 	
-	Cmd_TokenizeString (s);
+	Cmd_TokenizeString (s, false, false);
 	sv_player = host_client->edict;
 
 	Cmd_ExecLevel=1;

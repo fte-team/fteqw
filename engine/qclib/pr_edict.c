@@ -121,7 +121,13 @@ struct edict_s *ED_Alloc (progfuncs_t *progfuncs)
 		}
 
 		if (i >= maxedicts-1)
+		{
+			int size;
+			char *buf;
+			buf = progfuncs->save_ents(progfuncs, NULL, &size, 0);
+			progfuncs->parms->WriteFile("edalloc.dump", buf, size);
 			Sys_Error ("ED_Alloc: no free edicts");
+		}
 	}
 		
 	sv_num_edicts++;
@@ -1348,6 +1354,99 @@ char *ED_WriteEdict(progfuncs_t *progfuncs, edictrun_t *ed, char *buffer, pbool 
 #undef AddS
 }
 
+char *SaveCallStack (progfuncs_t *progfuncs, char *s)
+{
+#define AddS(str) strcpy(s, str);s+=strlen(str);
+	char buffer[8192];
+	dfunction_t	*f;
+	int			i;
+	int progs;
+
+	int arg;
+	int *globalbase;
+
+	progs = -1;
+
+	if (pr_depth == 0)
+	{
+		AddS ("<NO STACK>\n");
+		return s;
+	}
+
+	globalbase = (int *)pr_globals + pr_xfunction->parm_start + pr_xfunction->locals;
+
+	pr_stack[pr_depth].f = pr_xfunction;
+	for (i=pr_depth ; i>0 ; i--)
+	{
+		f = pr_stack[i].f;
+		
+		if (!f)
+		{
+			AddS ("<NO FUNCTION>\n");
+		}
+		else
+		{
+			if (pr_stack[i].progsnum != progs)
+			{
+				progs = pr_stack[i].progsnum;
+
+				sprintf(buffer, "//%i %s\n", progs, pr_progstate[progs].filename);
+				AddS (buffer);
+			}
+			if (!*f->s_file)
+				sprintf(buffer, "\t\"%i:%s\"\n", progs, f->s_name);
+			else
+				sprintf(buffer, "\t\"%i:%s\" //%s\n", progs, f->s_name, f->s_file);
+			AddS (buffer);
+
+			AddS ("\t{\n");
+			for (arg = 0; arg < f->locals; arg++)
+			{
+				ddef16_t *local;
+				local = ED_GlobalAtOfs16(progfuncs, f->parm_start+arg);
+				if (!local)
+					sprintf(buffer, "\t\tofs%i %i // %f\n", f->parm_start+arg, *(int *)(globalbase - f->locals+arg), *(float *)(globalbase - f->locals+arg) );
+				else
+				{
+__try
+{
+					if (local->type == ev_entity)
+					{	//go safly.
+						int n;
+						sprintf(buffer, "\t\t\"%s\"\t\"entity INVALID POINTER\"\n", local->s_name, n);
+						for (n = 0; n < sv_num_edicts; n++)
+						{
+							if (prinst->edicttable[n] == (struct edict_s *)PROG_TO_EDICT(((eval_t*)(globalbase - f->locals+arg))->edict))
+							{
+								sprintf(buffer, "\t\t\"%s\" \"entity %i\"\n", local->s_name, n);
+								break;
+							}
+						}
+					}
+					else
+						sprintf(buffer, "\t\t\"%s\"\t\"%s\"\n", local->s_name, PR_ValueString(progfuncs, local->type, (eval_t*)(globalbase - f->locals+arg)));
+}
+__except(EXCEPTION_EXECUTE_HANDLER)
+{
+	sprintf(buffer, "\t\t\"%s\" \"ILLEGAL POINTER\"\n", local->s_name);
+}
+					if (local->type == ev_vector)
+						arg+=2;
+				}
+				AddS (buffer);
+			}
+			AddS ("\t}\n");
+
+			if (i == pr_depth)
+				globalbase = localstack + localstack_used - f->locals;
+			else
+				globalbase -= f->locals;
+		}
+	}
+	return s;
+#undef AddS
+}
+
 //there are two ways of saving everything.
 //0 is to save just the entities.
 //1 is to save the entites, and all the progs info so that all the variables are saved off, and it can be reloaded to exactly how it was (provided no files or data has been changed outside, like the progs.dat for example)
@@ -1413,7 +1512,6 @@ char *SaveEnts(progfuncs_t *progfuncs, char *mem, int *len, int alldata)
 
 	if (alldata)
 	{
-		
 		AddS("general {\n");
 		AddS(qcva("\"maxprogs\" \"%i\"\n", maxprogs));
 //		AddS(qcva("\"maxentities\" \"%i\"\n", maxedicts));
@@ -1436,6 +1534,14 @@ char *SaveEnts(progfuncs_t *progfuncs, char *mem, int *len, int alldata)
 				AddS (qcva("\"numbuiltins\" \"%i\"\n", current_progstate->numbuiltins));
 				AddS ("}\n");
 			}
+		}
+
+		if (alldata == 3)
+		{
+			//include callstack
+			AddS("stacktrace {\n");
+			s = SaveCallStack(progfuncs, s);
+			AddS("}\n");
 		}
 
 		for (a = 0; a < maxprogs; a++)	//I would mix, but external functions rely on other progs being loaded
@@ -2002,8 +2108,6 @@ struct edict_s *RestoreEnt (progfuncs_t *progfuncs, char *buf, int *size, struct
 	else
 		ent = (edictrun_t *)ed;
 	ent->isfree = false;
-
-	ED_ClearEdict(progfuncs, ent);
 
 	buf = ED_ParseEdict(progfuncs, buf, ent);
 

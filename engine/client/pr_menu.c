@@ -142,6 +142,33 @@ void PF_loadfromdata (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 	G_FLOAT(OFS_RETURN) = 0;
 }
 
+void PF_parseentitydata(progfuncs_t *prinst, struct globalvars_s *pr_globals)
+{
+	void	*ed = G_EDICT(prinst, OFS_PARM0);
+	char	*file = PR_GetStringOfs(prinst, OFS_PARM1);
+
+	int size;
+
+	if (!*file)
+	{
+		G_FLOAT(OFS_RETURN) = -1;
+		return;
+	}
+
+	if (!prinst->restoreent(prinst, file, &size, ed))
+		Con_Printf("parseentitydata: missing opening data\n");
+	else
+	{
+		file += size;
+		while(*file < ' ' && *file)
+			file++;
+		if (*file)
+			Con_Printf("parseentitydata: too much data\n");
+	}
+	
+	G_FLOAT(OFS_RETURN) = 0;
+}
+
 void PF_mod (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
 	G_FLOAT(OFS_RETURN) = (float)(((int)G_FLOAT(OFS_PARM0))%((int)G_FLOAT(OFS_PARM1)));
@@ -885,6 +912,18 @@ void PF_etof(progfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
 	G_FLOAT(OFS_RETURN) = G_EDICTNUM(prinst, OFS_PARM0);
 }
+void PF_ftoe(progfuncs_t *prinst, struct globalvars_s *pr_globals)
+{
+	int entnum = G_FLOAT(OFS_PARM0);
+
+	RETURN_EDICT(prinst, EDICT_NUM(prinst, entnum));
+}
+
+void PF_IsNull(progfuncs_t *prinst, struct globalvars_s *pr_globals)
+{
+	int str = G_INT(OFS_PARM0);
+	G_FLOAT(OFS_RETURN) = !str;
+}
 
 builtin_t menu_builtins[] = {
 //0
@@ -977,7 +1016,16 @@ builtin_t menu_builtins[] = {
 	PF_chr2str,//8
 	PF_etof,//9				//float 	etof(entity ent) = #79;
 //80
-	skip10
+	PF_ftoe,//10
+	PF_IsNull,
+	skip1
+	skip1
+	skip1
+	skip1
+	skip1
+	skip1
+	skip1
+	skip1
 //90
 	skip10
 //100
@@ -1033,7 +1081,7 @@ builtin_t menu_builtins[] = {
 	PF_CL_findkeysforcommand,
 	PF_gethostcachevalue,
 	PF_gethostcachestring,
-	PF_Fixme			//void 	parseentitydata(entity ent, string data) = #613;
+	PF_parseentitydata			//void 	parseentitydata(entity ent, string data) = #613;
 };
 int menu_numbuiltins = sizeof(menu_builtins)/sizeof(menu_builtins[0]);
 
@@ -1084,6 +1132,8 @@ void MP_Shutdown (void)
 
 	mouseusedforgui = false;
 
+	M_Init_Internal();
+
 	if (inmenuprogs)	//something in the menu caused the problem, so...
 	{
 		inmenuprogs = 0;
@@ -1107,6 +1157,14 @@ void VARGS Menu_Abort (char *format, ...)
 	va_end (argptr);
 
 	Con_Printf("Menu_Abort: %s\nShutting down menu.dat\n", string);
+
+
+{
+	static char buffer[1024*1024*8];
+	int size = sizeof buffer;
+	menuprogs->save_ents(menuprogs, buffer, &size, 3);
+	COM_WriteFile("menucore.txt", buffer, size);
+}
 
 	MP_Shutdown();
 }

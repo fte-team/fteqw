@@ -3474,7 +3474,14 @@ void PF_walkmove (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 //	oldf = pr_xfunction;
 	oldself = pr_global_struct->self;
 	
-	G_FLOAT(OFS_RETURN) = SV_movestep(ent, move, true, false, settrace);
+	if (!SV_TestEntityPosition(ent))
+	{
+		G_FLOAT(OFS_RETURN) = SV_movestep(ent, move, true, false, settrace);
+		if (SV_TestEntityPosition(ent))
+			Con_Printf("Entity became stuck\n");
+	}
+	else
+		Con_Printf("Ent is stuck - sorry\n");
 	
 	
 // restore program state
@@ -3502,7 +3509,7 @@ void PF_droptofloor (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 	end[2] -= 512;
 
 	VectorCopy (ent->v.origin, start);
-	trace = SV_Move (start, ent->v.mins, ent->v.maxs, end, false, ent);
+	trace = SV_Move (start, ent->v.mins, ent->v.maxs, end, MOVE_NORMAL, ent);
 
 	if (trace.fraction == 1 || trace.allsolid)
 		G_FLOAT(OFS_RETURN) = 0;
@@ -3510,7 +3517,7 @@ void PF_droptofloor (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 	{
 		VectorCopy (trace.endpos, ent->v.origin);
 		SV_LinkEdict (ent, false);
-//		ent->v.flags = (int)ent->v.flags | FL_ONGROUND;
+		ent->v.flags = (int)ent->v.flags | FL_ONGROUND;
 		ent->v.groundentity = EDICT_TO_PROG(prinst, trace.ent);
 		G_FLOAT(OFS_RETURN) = 1;
 	}
@@ -5396,9 +5403,9 @@ void PF_fgets (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 	pf_fopen_files[fnum].ofs = s - pf_fopen_files[fnum].data;
 
 	if (!pr_string_temp[0] && !*s)
-		G_INT(OFS_PARM0) = 0;	//EOF
+		G_INT(OFS_RETURN) = 0;	//EOF
 	else
-		RETURN_SSTRING(pr_string_temp);
+		G_INT(OFS_RETURN) = (int)pr_string_temp - prinst->stringtable;
 }
 
 void PF_fputs (progfuncs_t *prinst, struct globalvars_s *pr_globals)
@@ -5776,7 +5783,7 @@ void PF_ArgC  (progfuncs_t *prinst, struct globalvars_s *pr_globals)				//85			/
 //KRIMZON_SV_PARSECLIENTCOMMAND added these two.
 void PF_Tokenize  (progfuncs_t *prinst, struct globalvars_s *pr_globals)			//84			//void(string str) tokanize;
 {
-	Cmd_TokenizeString(PR_GetStringOfs(prinst, OFS_PARM0));
+	Cmd_TokenizeString(PR_GetStringOfs(prinst, OFS_PARM0), false, true);
 	G_FLOAT(OFS_RETURN) = Cmd_Argc();
 }
 void PF_ArgV  (progfuncs_t *prinst, struct globalvars_s *pr_globals)				//86			//string(float num) argv;

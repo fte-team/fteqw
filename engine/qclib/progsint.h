@@ -363,7 +363,7 @@ vars(prstack_t, pr_stack, MAX_STACK_DEPTH);
 var(int, pr_depth);
 #define pr_depth prinst->pr_depth
 
-#define	LOCALSTACK_SIZE		16384
+#define	LOCALSTACK_SIZE		4096
 vars(int, localstack, LOCALSTACK_SIZE);
 #define localstack prinst->localstack
 var(int, localstack_used);

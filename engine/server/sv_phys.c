@@ -270,7 +270,7 @@ int SV_FlyMove (edict_t *ent, float time, trace_t *steptrace)
 
 		trace = SV_Move (ent->v.origin, ent->v.mins, ent->v.maxs, end, false, ent);
 
-		if (trace.allsolid)
+		if (trace.startsolid)
 		{	// entity is trapped in another solid
 			VectorCopy (vec3_origin, ent->v.velocity);
 			return 3;

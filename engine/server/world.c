@@ -1847,6 +1847,9 @@ trace_t SV_Move (vec3_t start, vec3_t mins, vec3_t maxs, vec3_t end, int type, e
 #endif
 		SV_ClipToLinks ( sv_areanodes, &clip );
 
+	if (clip.trace.startsolid)
+		clip.trace.fraction = 0;
+
 	return clip.trace;
 }
 #ifdef Q2SERVER

@@ -154,7 +154,7 @@ qboolean CL_GetDemoMessage (void)
 	int		r, i, j, tracknum;
 	float	f;
 	float	demotime;
-	qbyte	c, msecsadded;
+	qbyte	c, msecsadded=0;
 	usercmd_t *pcmd;
 	q1usercmd_t q1cmd;
 
@@ -173,6 +173,7 @@ qboolean CL_GetDemoMessage (void)
 			{
 				cl.gametime = 0;
 				cl.gametimemark = realtime;
+				prevtime = 0;
 				return 0;
 			}
 			if (realtime<= cl.gametime && cl.gametime)// > dem_lasttime+realtime)
@@ -182,6 +183,24 @@ qboolean CL_GetDemoMessage (void)
 					realtime = cl.gametime;
 					cls.netchan.last_received = realtime;
 				}
+
+				{
+					float f = (cl.gametime-realtime)/(cl.gametime-prevtime);
+					float a1;
+					float a2;
+
+					for (i=0 ; i<3 ; i++)
+					{
+						a1 = cl.viewangles[2][i];
+						a2 = cl.viewangles[1][i];
+						if (a1 - a2 > 180)
+							a1 -= 360;
+						if (a1 - a2 < -180)
+							a1 += 360;
+						cl.simangles[0][i] = a2 + f * (a1 - a2);
+					}
+					VectorCopy(cl.simangles[0], cl.viewangles[0]);
+				}
 				return 0;
 			}
 		}
@@ -189,12 +208,16 @@ qboolean CL_GetDemoMessage (void)
 //		VectorCopy (cl.mviewangles[0], cl.mviewangles[1]);
 		if (cls.demoplayback == DPB_NETQUAKE)
 		{
+			VectorCopy (cl.viewangles[1], cl.viewangles[2]);
 			for (i=0 ; i<3 ; i++)
 			{
 				r = fread (&f, 4, 1, cls.demofile);
-				cl.simangles[0][i] = cl.viewangles[0][i] = LittleFloat (f);
+				cl.simangles[0][i] = cl.viewangles[1][i] = LittleFloat (f);
 			}
+			VectorCopy (cl.viewangles[1], cl.viewangles[0]);
 		}
+
+		prevtime = realtime;
 		
 		net_message.cursize = LittleLong (net_message.cursize);
 		if (net_message.cursize > MAX_NQMSGLEN)
@@ -230,14 +253,6 @@ readnext:
 
 		fread(&msecsadded, sizeof(msecsadded), 1, cls.demofile);
 		demotime = prevtime + msecsadded*(1.0f/1000);
-
-		if (msecsadded)
-		{
-			cls.netchan.incoming_sequence++;
-			cls.netchan.incoming_acknowledged++;
-			cls.netchan.frame_latency = 0;
-			cls.netchan.last_received = demotime; // just to happy timeout check
-		}
 	}
 	else
 	{
@@ -298,6 +313,17 @@ readnext:
 	}
 	else
 		realtime = demotime; // we're warping
+
+	if (cls.demoplayback == DPB_MVD)
+	{
+		if (msecsadded)
+		{
+			cls.netchan.incoming_sequence++;
+			cls.netchan.incoming_acknowledged++;
+			cls.netchan.frame_latency = 0;
+			cls.netchan.last_received = demotime; // just to happy timeout check
+		}
+	}
 
 	prevtime = demotime;
 
@@ -1080,7 +1106,7 @@ void CL_PlayDemo_f (void)
 //
 // disconnect from server
 //
-	CL_Disconnect ();
+	CL_Disconnect_f ();
 	
 //
 // open the demo file

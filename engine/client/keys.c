@@ -869,7 +869,7 @@ void Key_Bind_f (void)
 
 	if (c > 3)
 	{
-		Cmd_ShiftArgs(1);
+		Cmd_ShiftArgs(1, Cmd_ExecLevel==RESTRICT_LOCAL);
 		Key_SetBinding (b, modifier, Cmd_Args(), Cmd_ExecLevel);
 		return;
 	}

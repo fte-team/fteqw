@@ -579,7 +579,7 @@ void CL_PredictMovePNum (int pnum)
 		return;
 	}
 
-	if (cls.netchan.outgoing_sequence - cls.netchan.incoming_sequence >= UPDATE_BACKUP-1)
+	if (cls.netchan.outgoing_sequence - cl.validsequence >= UPDATE_BACKUP-1)
 	{
 		return;
 	}
@@ -597,7 +597,7 @@ void CL_PredictMovePNum (int pnum)
 	}
 
 	// this is the last frame received from the server
-	from = &cl.frames[cls.netchan.incoming_sequence & UPDATE_MASK];
+	from = &cl.frames[cl.validsequence & UPDATE_MASK];
 
 	if (!cl.intermission)
 	{
@@ -637,13 +637,13 @@ void CL_PredictMovePNum (int pnum)
 		}
 	}
 #endif
-	if ((cl_nopred.value|| cl.fixangle))
+	if (((cl_nopred.value && cls.demoplayback!=DPB_MVD)|| cl.fixangle))
 	{
 fixedorg:
 		VectorCopy (vel, cl.simvel[pnum]);
 		VectorCopy (org, cl.simorg[pnum]);
 
-		to = &cl.frames[cls.netchan.incoming_sequence & UPDATE_MASK];
+		to = &cl.frames[cl.validsequence & UPDATE_MASK];
 
 
 
@@ -655,12 +655,12 @@ fixedorg:
 	oldphysent = pmove.numphysent;
 	CL_SetSolidPlayers (cl.playernum[pnum]);
 
-	to = &cl.frames[cls.netchan.incoming_sequence & UPDATE_MASK];
+	to = &cl.frames[cl.validsequence & UPDATE_MASK];
 
-	for (i=1 ; i<UPDATE_BACKUP-1 && cls.netchan.incoming_sequence+i <
+	for (i=1 ; i<UPDATE_BACKUP-1 && cl.validsequence+i <
 			cls.netchan.outgoing_sequence; i++)
 	{
-		to = &cl.frames[(cls.netchan.incoming_sequence+i) & UPDATE_MASK];
+		to = &cl.frames[(cl.validsequence+i) & UPDATE_MASK];
 		if (cl.intermission)
 			to->playerstate->pm_type = PM_FLY;
 		CL_PredictUsercmd (pnum, &from->playerstate[cl.playernum[pnum]]

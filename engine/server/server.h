@@ -80,6 +80,23 @@ typedef struct {
 #define CTE_CHANNELFADE     16
 #define CTE_ISBEAM			128
 
+
+
+typedef struct
+{
+	vec3_t	origin;
+	qbyte	angles[3];
+	qbyte	modelindex;
+	qbyte	frame;
+	qbyte	colormap;
+	qbyte	skinnum;
+	qbyte	effects;
+
+	qbyte	scale;
+	qbyte	trans;
+	qbyte	fatness;
+} mvdentity_state_t;
+
 typedef struct
 {
 	qboolean	active;				// false when server is going down
@@ -175,7 +192,9 @@ typedef struct
 
 	qboolean mvdrecording;
 
+//====================================================
 //this lot is for playback of demos
+
 	qboolean mvdplayback;
 	float realtime;
 	FILE *demofile;	//also signifies playing the thing.
@@ -183,6 +202,7 @@ typedef struct
 	int lasttype;
 	int lastto;
 
+//playback spikes (svc_nails/nails2)
 	int numdemospikes;
 	struct {
 		vec3_t org;
@@ -191,9 +211,14 @@ typedef struct
 		qbyte yaw;
 		qbyte modelindex;
 	} demospikes[255];
-	entity_state_t	*demostate;
+
+//playback of entities (svc_nails/nails2)
+	mvdentity_state_t	*demostate;
+	mvdentity_state_t	*demobaselines;
+	int demomaxents;
 	qboolean demostatevalid;
-	char		demoinfo[MAX_SERVERINFO_STRING];
+
+//players
 	struct {
 		int stats[MAX_CL_STATS];
 		int pl;
@@ -207,11 +232,14 @@ typedef struct
 		float updatetime;
 	} recordedplayer[MAX_CLIENTS];
 
+//gamestate
+	char		demoinfo[MAX_SERVERINFO_STRING];
 	char		demmodel_precache[MAX_MODELS][MAX_QPATH];	// NULL terminated
 	char		demsound_precache[MAX_SOUNDS][MAX_QPATH];	// NULL terminated
 	char		demgamedir[64];
 	char		demname[64];			// map name
-	qboolean	democausesreconnect;	//make players load the level.
+
+	qboolean	democausesreconnect;	//this makes current clients go through the connection process (and when the demo ends too)
 	sizebuf_t	demosignon;
 	int			num_demosignon_buffers;
 	int			demosignon_buffer_size[MAX_SIGNON_BUFFERS];
@@ -219,6 +247,7 @@ typedef struct
 	char		demfullmapname[64];
 
 	char		*demolightstyles[MAX_LIGHTSTYLES];
+//====================================================
 
 	entity_state_t extendedstatics[MAX_STATIC_ENTITIES];
 	int numextrastatics;

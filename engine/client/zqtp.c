@@ -1099,7 +1099,7 @@ static void TP_LoadLocFile (char *filename, qbool quiet)
 		}
 		line[i] = 0;
 
-		Cmd_TokenizeString (line);
+		Cmd_TokenizeString (line, true, false);
 
 		argc = Cmd_Argc();
 		if (!argc)

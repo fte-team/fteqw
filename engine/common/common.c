@@ -1428,7 +1428,7 @@ skipwhite:
 }
 
 //same as COM_Parse, but parses two quotes next to each other as a single quote as part of the string
-char *COM_StringParse (char *data)
+char *COM_StringParse (char *data, qboolean expandmacros, qboolean qctokenize)
 {
 	int		c;
 	int		len;
@@ -1442,7 +1442,7 @@ char *COM_StringParse (char *data)
 		
 // skip whitespace
 skipwhite:
-	while ( (c = *data) <= ' ')
+	while ( (c = *data), c <= ' ' && c != '\n')
 	{
 		if (c == 0)
 			return NULL;			// end of file;
@@ -1501,6 +1501,54 @@ skipwhite:
 		}
 	}
 
+	// handle quoted strings specially
+	if (c == '\'' && qctokenize)
+	{
+		data++;
+		while (1)
+		{
+			if (len >= TOKENSIZE-1)
+			{
+				com_token[len] = '\0';
+				return data;
+			}
+
+
+			c = *data++;
+			if (c=='\'')
+			{
+				c = *(data);
+				if (c!='\'')
+				{
+					com_token[len] = 0;
+					return data;
+				}
+				while (c=='\'')
+				{
+					com_token[len] = c;
+					len++;
+					data++;
+					c = *(data+1);
+				}
+			}
+			if (!c)
+			{
+				com_token[len] = 0;
+				return data;
+			}
+			com_token[len] = c;
+			len++;
+		}
+	}
+
+	if (qctokenize && (c == '\n' || c == '{' || c == '}' || c == ')' || c == '(' || c == ']' || c == '[' || c == '\'' || c == ':' || c == ',' || c == ';'))
+	{
+		// single character
+		com_token[len++] = c;
+		com_token[len] = 0;
+		return data+1;
+	}
+
 // parse a regular word
 	do
 	{
@@ -1514,16 +1562,13 @@ skipwhite:
 		data++;
 		len++;
 		c = *data;
-	} while (c>32);
+	} while (c>32 && !(qctokenize && (c == '\n' || c == '{' || c == '}' || c == ')' || c == '(' || c == ']' || c == '[' || c == '\'' || c == ':' || c == ',' || c == ';')));
 
 	com_token[len] = 0;
-#ifndef CLIENTONLY
-	{
-	extern redirect_t	sv_redirected;
-	if (sv_redirected)	//servers shouldn't give the values of cvars to all clients... Like password...
+
+	if (!expandmacros)
 		return data;
-	}
-#endif
+
 	//now we check for macros.
 	for (s = com_token, c= 0; c < len; c++, s++)	//this isn't a quoted token by the way.
 	{

@@ -751,12 +751,12 @@ void SV_StuffToClient_f(void)
 	char *c;
 	char *key;
 
-	Cmd_ShiftArgs(1);
+	Cmd_ShiftArgs(1, Cmd_ExecLevel==RESTRICT_LOCAL);
 	if (!strcmp(Cmd_Argv(1), "bind"))
 	{
 		key = Z_Malloc(strlen(Cmd_Argv(2))+1);
 		strcpy(key, Cmd_Argv(2));
-		Cmd_ShiftArgs(2);
+		Cmd_ShiftArgs(2, Cmd_ExecLevel==RESTRICT_LOCAL);
 	}
 	else
 		key = NULL;
@@ -1169,7 +1169,7 @@ void SV_SaveInfo(FILE *f, char *info, char *commandname)
 		command = info+1;
 		value = strchr(command, '\\');
 		info = strchr(value+1, '\\');
-		if (!*info)	//eot..
+		if (!info)	//eot..
 			info = value+strlen(value);
 
 		if (*command == '*')	//unsettable, so don't write it for later setting.
@@ -1496,7 +1496,7 @@ void SV_SetTimer_f(void)
 		return;
 	}
 
-	Cmd_ShiftArgs(2);	//strip the two vars
+	Cmd_ShiftArgs(2, Cmd_ExecLevel==RESTRICT_LOCAL);	//strip the two vars
 	command = Cmd_Args();
 
 	timercommand = Cvar_Get("sv_timer", "", CVAR_NOSET, NULL);

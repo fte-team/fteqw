@@ -1258,7 +1258,8 @@ void CL_ParseServerData (void)
 	if (cls.demoplayback == DPB_MVD)
 	{
 		int i;
-		cls.netchan.last_received = MSG_ReadFloat();
+		extern float nextdemotime;
+		cls.netchan.last_received = nextdemotime = /*olddemotime =*/ MSG_ReadFloat();
 		cl.playernum[0] = MAX_CLIENTS - 1;
 		cl.spectator = true;
 		for (i = 0; i < UPDATE_BACKUP; i++)
@@ -1732,7 +1733,7 @@ void CLNQ_ParseClientdata (int bits)
 		CL_SetStat(0, STAT_ROCKETS, MSG_ReadByte());
 		CL_SetStat(0, STAT_CELLS, MSG_ReadByte());
 
-		CL_SetStat(0, STAT_ACTIVEWEAPON, (unsigned short)MSG_ReadShort());
+		CL_SetStat(0, STAT_ACTIVEWEAPON, MSG_ReadByte());
 	}
 
 	if (bits & DPSU_VIEWZOOM)
@@ -2520,6 +2521,14 @@ void CL_SetStat (int pnum, int stat, int value)
 	if (stat < 0 || stat >= MAX_CL_STATS)
 		return;
 //		Host_EndGame ("CL_SetStat: %i is invalid", stat);
+
+	if (cls.demoplayback == DPB_MVD)
+	{
+		extern int cls_lastto;
+		cl.players[cls_lastto].stats[stat]=value;
+		if ( spec_track[pnum] != cls_lastto )
+			return;
+	}
 
 	if (cl.stats[pnum][stat] != value)
 		Sbar_Changed ();
@@ -3698,7 +3707,10 @@ void CL_ParseServerMessage (void)
 			break;
 
 		case svc_nails:
-			CL_ParseProjectiles (cl_spikeindex);
+			CL_ParseProjectiles (cl_spikeindex, false);
+			break;
+		case svc_nails2:
+			CL_ParseProjectiles (cl_spikeindex, true);
 			break;
 
 		case svc_chokecount:		// some preceding packets were choked
@@ -4142,7 +4154,7 @@ void CLNQ_ParseServerMessage (void)
 			cl.gametimemark = realtime;
 			if (nq_dp_protocol<5)
 			{
-				cls.netchan.incoming_sequence++;
+				cl.validsequence = cls.netchan.incoming_sequence++;
 //				cl.frames[(cls.netchan.incoming_sequence-1)&UPDATE_MASK].packet_entities = cl.frames[cls.netchan.incoming_sequence&UPDATE_MASK].packet_entities;
 				cl.frames[cls.netchan.incoming_sequence&UPDATE_MASK].packet_entities.num_entities=0;
 			}

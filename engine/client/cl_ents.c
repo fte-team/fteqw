@@ -406,7 +406,7 @@ void CL_ParsePacketEntities (qboolean delta)
 	int			oldindex, newindex;
 	int			word, newnum, oldnum;
 	qboolean	full;
-	qbyte		from;
+	int		from;
 
 	newpacket = cls.netchan.incoming_sequence&UPDATE_MASK;
 	newp = &cl.frames[newpacket].packet_entities;
@@ -417,36 +417,44 @@ void CL_ParsePacketEntities (qboolean delta)
 		from = MSG_ReadByte ();
 
 		oldpacket = cl.frames[newpacket].delta_sequence;
-
 		if (cls.demoplayback == DPB_MVD)
 			from = oldpacket = cls.netchan.incoming_sequence - 1;
 
-		if ( (from&UPDATE_MASK) != (oldpacket&UPDATE_MASK) )
-			Con_DPrintf ("WARNING: from mismatch\n");
-	}
-	else
-		oldpacket = -1;
-
-	full = false;
-	if (oldpacket != -1)
-	{
-		if (cls.netchan.outgoing_sequence - oldpacket >= UPDATE_BACKUP-1)
-		{	// we can't use this, it is too old
+		if (cls.netchan.outgoing_sequence - cls.netchan.incoming_sequence >= UPDATE_BACKUP - 1) {
+			// there are no valid frames left, so drop it
 			FlushEntityPacket ();
+			cl.validsequence = 0;
 			return;
 		}
-		cl.oldvalidsequence = cl.validsequence;
-		cl.validsequence = cls.netchan.incoming_sequence;
-		oldp = &cl.frames[oldpacket&UPDATE_MASK].packet_entities;
+
+		if ((from & UPDATE_MASK) != (oldpacket & UPDATE_MASK)) {
+			Con_DPrintf ("WARNING: from mismatch\n");
+			FlushEntityPacket ();
+			cl.validsequence = 0;
+			return;
+		}
+
+		if (cls.netchan.outgoing_sequence - oldpacket >= UPDATE_BACKUP - 1) {
+			// we can't use this, it is too old
+			FlushEntityPacket ();
+			// don't clear cl.validsequence, so that frames can still be rendered;
+			// it is possible that a fresh packet will be received before
+			// (outgoing_sequence - incoming_sequence) exceeds UPDATE_BACKUP - 1
+			return;
+		}
+
+		oldp = &cl.frames[oldpacket & UPDATE_MASK].packet_entities;
+		full = false;
 	}
 	else
 	{	// this is a full update that we can start delta compressing from now
 		oldp = &dummy;
 		dummy.num_entities = 0;
-		cl.oldvalidsequence = cl.validsequence;
-		cl.validsequence = cls.netchan.incoming_sequence;
 		full = true;
 	}
+
+	cl.oldvalidsequence = cl.validsequence;
+	cl.validsequence = cls.netchan.incoming_sequence;
 
 	oldindex = 0;
 	newindex = 0;
@@ -805,9 +813,7 @@ void CLNQ_ParseDarkPlaces5Entities(void)	//the things I do.. :o(
 	int oldi;
 	qboolean remove;
 
-	cls.netchan.incoming_sequence++;
-
-	cl.validsequence=1;
+	cl.validsequence = cls.netchan.incoming_sequence++;
 
 	cl_latestframenum = MSG_ReadLong();
 
@@ -926,7 +932,6 @@ void CLNQ_ParseEntity(unsigned int bits)
 	static float lasttime;
 	packet_entities_t	*pack;
 
-	cl.validsequence=1;
 #define	NQU_MOREBITS	(1<<0)
 #define	NQU_ORIGIN1	(1<<1)
 #define	NQU_ORIGIN2	(1<<2)
@@ -1232,7 +1237,7 @@ void CL_LinkPacketEntities (void)
 	dlight_t			*dl;
 	vec3_t				angles;
 
-	pack = &cl.frames[cls.netchan.incoming_sequence&UPDATE_MASK].packet_entities;
+	pack = &cl.frames[cl.validsequence&UPDATE_MASK].packet_entities;
 
 	autorotate = anglemod(100*cl.time);
 
@@ -1253,7 +1258,7 @@ void CL_LinkPacketEntities (void)
 			CL_NewDlight (s1->number, s1->origin[0], s1->origin[1], s1->origin[2], 200 + (rand()&31), 0, 0);
 
 		// if set to invisible, skip
-		if (s1->modelindex<0)
+		if (s1->modelindex<1)
 			continue;
 #if 0
 		for (spnum = 0; spnum < cl.splitclients; spnum++)
@@ -1557,7 +1562,7 @@ CL_ParseProjectiles
 Nails are passed as efficient temporary entities
 =====================
 */
-void CL_ParseProjectiles (int modelindex)
+void CL_ParseProjectiles (int modelindex, qboolean nails2)
 {
 	int		i, c, j;
 	qbyte	bits[6];
@@ -1566,6 +1571,8 @@ void CL_ParseProjectiles (int modelindex)
 	c = MSG_ReadByte ();
 	for (i=0 ; i<c ; i++)
 	{
+		if (nails2)
+			MSG_ReadByte();
 		for (j=0 ; j<6 ; j++)
 			bits[j] = MSG_ReadByte ();
 
@@ -2080,7 +2087,7 @@ void CL_LinkPlayers (void)
 				CL_NewDlight (j+1, state->origin[0], state->origin[1], state->origin[2], 200 + (rand()&31), 0.1, 0)->noppl = (j != cl.playernum[0]);
 		}
 
-		if (!state->modelindex)
+		if (state->modelindex < 1)
 			continue;
 /*
 		if (!Cam_DrawPlayer(j))
@@ -2442,10 +2449,22 @@ void CL_EmitEntities (void)
 
 
 
-
+void CL_ParseClientdata (void);
 
 void MVD_Interpolate(void)
 {
+	player_state_t *self, *oldself;
+
+	CL_ParseClientdata();
+
+	self = &cl.frames[cl.parsecount & UPDATE_MASK].playerstate[cl.playernum[0]];
+	oldself = &cl.frames[(cls.netchan.outgoing_sequence-1) & UPDATE_MASK].playerstate[cl.playernum[0]];
+	self->messagenum = cl.parsecount;
+	VectorCopy(oldself->origin, self->origin);
+	VectorCopy(oldself->velocity, self->velocity);
+	VectorCopy(oldself->viewangles, self->viewangles);
+
+	
 	cls.netchan.outgoing_sequence = cl.parsecount+1;
 }
 

@@ -1197,8 +1197,8 @@ void Mod_LoadPlanes (lump_t *l)
 }
 
 void Q1BSP_FatPVS (vec3_t org, qboolean add);
-qboolean Q1BSP_EdictInFatPVS(edict_t *ent);
-void Q1BSP_FindTouchedLeafs(edict_t *ent);
+qboolean Q1BSP_EdictInFatPVS(struct edict_s *ent);
+void Q1BSP_FindTouchedLeafs(struct edict_s *ent);
 
 /*
 =================

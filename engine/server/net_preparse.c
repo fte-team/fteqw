@@ -1294,18 +1294,18 @@ void NPP_MVDFlush(void)
 		if (1)
 		{
 			int entnum, i;
-			entity_state_t *ent;
+			mvdentity_state_t *ent;
 
-			if (!sv.demostate)
-				sv.demostate = BZ_Malloc(sizeof(entity_state_t)*MAX_EDICTS);
-
-			sv.demostatevalid = true;
+			if (!sv.demobaselines)
+			{
+				sv.demobaselines = (mvdentity_state_t*)BZ_Malloc(sizeof(mvdentity_state_t)*MAX_EDICTS);
+				sv.demostatevalid = true;
+			}
 			entnum = buffer[1] + (buffer[2]<<8);
 //			if (entnum < MAX_CLIENTS)
 //				break;
-			ent = &sv.demostate[entnum];
+			ent = &sv.demobaselines[entnum];
 
-			ent->number = entnum;
 			ent->modelindex = buffer[3];
 			ent->frame = buffer[4];
 			ent->colormap = buffer[5];
@@ -1314,7 +1314,7 @@ void NPP_MVDFlush(void)
 			for (i=0 ; i<3 ; i++)
 			{
 				ent->origin[i] = (short)(buffer[7+i*3] + (buffer[8+i*3]<<8))/8.0f;
-				ent->angles[i] = buffer[9+i*3]*360.0/256;
+				ent->angles[i] = buffer[9+i*3];
 			}
 		}
 		break;
@@ -1412,11 +1412,14 @@ void NPP_MVDFlush(void)
 		ignoreprotocol=true;		//a bug exists in that the delta MUST have been reliably recorded.
 		{
 			int i;
-			entity_state_t *ents;
+			int entnum;
+			mvdentity_state_t *ents;
 			unsigned short s;
 			if (!sv.demostate)
-				sv.demostate = BZ_Malloc(sizeof(entity_state_t)*MAX_EDICTS);
-			sv.demostatevalid = true;
+			{
+				sv.demostate = BZ_Malloc(sizeof(mvdentity_state_t)*MAX_EDICTS);
+				sv.demostatevalid = true;
+			}
 			i = majortype-svc_packetentities+1;
 			while (1)
 			{
@@ -1428,14 +1431,25 @@ void NPP_MVDFlush(void)
 				}
 				else
 				{
-					ents = &sv.demostate[s&511];
-					ents->number = s&511;
+					entnum = s&511;
 					s &= ~511;
+
+					if (entnum > sv.demomaxents)
+						sv.demomaxents = entnum;
+
+					ents = &sv.demostate[entnum];
 					if (s & U_REMOVE)
-					{
+					{	//this entity went from the last packet
 						ents->modelindex = 0;
+						ents->effects = 0;
+						continue;
 					}
 
+					if (!ents->modelindex && !ents->effects && sv.demobaselines)
+					{	//new entity, reset to baseline
+						memcpy(ents, &sv.demobaselines[entnum], sizeof(mvdentity_state_t));
+					}
+					
 					if (s & U_MOREBITS)
 					{
 						s |= buffer[i];
@@ -1480,7 +1494,7 @@ void NPP_MVDFlush(void)
 						
 					if (s & U_ANGLE1)
 					{
-						ents->angles[0] = (unsigned char)(buffer[i])	* (360.0/256);
+						ents->angles[0] = (unsigned char)(buffer[i]);//	* (360.0/256);
 						i++;
 					}
 
@@ -1492,7 +1506,7 @@ void NPP_MVDFlush(void)
 						
 					if (s & U_ANGLE2)
 					{
-						ents->angles[1] = (unsigned char)(buffer[i])	* (360.0/256);
+						ents->angles[1] = (unsigned char)(buffer[i]);//	* (360.0/256);
 						i++;
 					}
 
@@ -1504,7 +1518,7 @@ void NPP_MVDFlush(void)
 						
 					if (s & U_ANGLE3)
 					{
-						ents->angles[2] = (unsigned char)(buffer[i])	* (360.0/256);
+						ents->angles[2] = (unsigned char)(buffer[i]);//	* (360.0/256);
 						i++;
 					}
 				}
@@ -1516,7 +1530,7 @@ void NPP_MVDFlush(void)
 		{
 			int i, j;
 			unsigned short flags;
-			entity_state_t *ents;
+			mvdentity_state_t *ents;
 			int wframe, playernum;
 			vec3_t oldorg;
 			vec3_t oldang;
@@ -1549,7 +1563,8 @@ void NPP_MVDFlush(void)
 			for (j=0 ; j<3 ; j++)
 				if (flags & (DF_ANGLES << j))
 				{
-					ents->angles[j] = (int)(buffer[i] + (buffer[i+1]<<8))*360.0f/(256*256);
+					//FIXME: angle truncation here.
+					ents->angles[j] = (int)(buffer[i] + (buffer[i+1]<<8))/256;
 					i+=2;
 				}
 
@@ -1620,7 +1635,7 @@ void NPP_MVDFlush(void)
 
 	case svc_stufftext:
 		ignoreprotocol = true;
-		Cmd_TokenizeString(buffer+1);
+		Cmd_TokenizeString(buffer+1, false, false);
 		if (!stricmp(Cmd_Argv(0), "fullserverinfo"))
 		{
 			Q_strncpyz(sv.demoinfo, Cmd_Argv(1), sizeof(sv.demoinfo));

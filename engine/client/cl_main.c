@@ -1296,8 +1296,8 @@ void CL_Packet_f (void)
 		return;
 	}
 
-	if (Cmd_FromServer())
-	{
+	if (Cmd_FromServer())	//some mvd servers stuffcmd a packet command which lets them know which ip the client is from.
+	{						//unfortunatly, 50% of servers are badly configured.
 		if (adr.type == NA_IP)
 			if (adr.ip[0] == 127)
 			if (adr.ip[1] == 0)
@@ -1307,6 +1307,8 @@ void CL_Packet_f (void)
 				Con_Printf ("^b^1Server is broken. Ignoring 'realip' packet request\n");
 				return;
 			}
+
+		Con_Printf ("Sending realip packet\n");
 	}
 
 	in = Cmd_Argv(2);

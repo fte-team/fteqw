@@ -278,6 +278,10 @@ void SV_WriteDelta (entity_state_t *from, entity_state_t *to, sizebuf_t *msg, qb
 	int		i;
 	float	miss;
 
+	static entity_state_t defaultbaseline;
+	if (from == &((edict_t*)NULL)->baseline)
+		from = &defaultbaseline;
+
 // send an update
 	bits = 0;
 
@@ -1028,6 +1032,9 @@ void SV_WritePlayersToClient (client_t *client, edict_t *clent, qbyte *pvs, size
 	client_t	*cl;
 	edict_t		*ent, *vent;
 	int			pflags;
+	vec3_t lerpedang;
+
+	int splitnum = 0;
 
 	demo_frame_t *demo_frame;
 	demo_client_t *dcl;
@@ -1194,7 +1201,10 @@ void SV_WritePlayersToClient (client_t *client, edict_t *clent, qbyte *pvs, size
 				clst.zext = client->zquake_extensions;
 				clst.cl = NULL;
 
-				VectorMA(sv.demostate[i+1].angles, realtime - sv.recordedplayer[i].updatetime, sv.recordedplayer[i].avelocity, ang);
+				ang[0] = sv.demostate[i+1].angles[0]*360.0f/256+ (realtime - sv.recordedplayer[i].updatetime)*sv.recordedplayer[i].avelocity[0];
+				ang[1] = sv.demostate[i+1].angles[1]*360.0f/256+ (realtime - sv.recordedplayer[i].updatetime)*sv.recordedplayer[i].avelocity[1];
+				ang[2] = sv.demostate[i+1].angles[2]*360.0f/256+ (realtime - sv.recordedplayer[i].updatetime)*sv.recordedplayer[i].avelocity[2];
+
 				VectorMA(sv.demostate[i+1].origin, realtime - sv.recordedplayer[i].updatetime, sv.recordedplayer[i].velocity, org);
 				ang[0] *= -3;
 
@@ -1221,7 +1231,19 @@ void SV_WritePlayersToClient (client_t *client, edict_t *clent, qbyte *pvs, size
 
 				SV_WritePlayerToClient(msg, &clst);
 			}
-			if (ent != clent)
+			splitnum = 0;
+			if (cl->controlled)
+			{	//hrm. splitscreen.
+				client_t *s;
+				for (s = cl; s; s = s->controlled, splitnum++)
+				{
+					if (s->edict == ent)
+						break;
+				}
+				if (!s)
+					continue;
+			}
+			else if (ent != clent)
 				continue;
 		}
 
@@ -1314,7 +1336,7 @@ void SV_WritePlayersToClient (client_t *client, edict_t *clent, qbyte *pvs, size
 				clst.health = 100;
 
 			if (sv.demostatevalid)
-				clst.playernum = MAX_CLIENTS-1;
+				clst.playernum = MAX_CLIENTS-1-splitnum;
 
 			clst.isself = false;
 			if ((cl == client || cl->controller == client) && !sv.demostatevalid)
@@ -1343,7 +1365,10 @@ void SV_WritePlayersToClient (client_t *client, edict_t *clent, qbyte *pvs, size
 					{
 						clst.origin = sv.demostate[client->spec_track].origin;
 						clst.velocity = sv.recordedplayer[client->spec_track-1].velocity;
-						clst.angles = sv.demostate[client->spec_track].angles;
+						clst.angles = lerpedang;
+						lerpedang[0] = sv.demostate[client->spec_track].angles[0]*360.0/256;
+						lerpedang[1] = sv.demostate[client->spec_track].angles[1]*360.0/256;
+						lerpedang[2] = sv.demostate[client->spec_track].angles[2]*360.0/256;
 					}
 					clst.spectator = 2;
 				}
@@ -1704,7 +1729,7 @@ void SV_WriteEntitiesToClient (client_t *client, sizebuf_t *msg, qboolean ignore
 	vec3_t	org;
 	edict_t	*ent;
 	packet_entities_t	*pack;
-	entity_state_t *dement;
+	mvdentity_state_t *dement;
 	edict_t	*clent;
 	client_frame_t	*frame;
 	entity_state_t	*state;
@@ -1779,7 +1804,7 @@ void SV_WriteEntitiesToClient (client_t *client, sizebuf_t *msg, qboolean ignore
 
 	if (sv.demostatevalid)	//generate info from demo stats
 	{
-		for (e=1, dement=&sv.demostate[e] ; e<sv.num_edicts ; e++, dement++)
+		for (e=1, dement=&sv.demostate[e] ; e<=sv.demomaxents ; e++, dement++)
 		{
 			if (!dement->modelindex)
 				continue;
@@ -1805,7 +1830,9 @@ void SV_WriteEntitiesToClient (client_t *client, sizebuf_t *msg, qboolean ignore
 			state->number = e;
 			state->flags = EF_DIMLIGHT;
 			VectorCopy (dement->origin, state->origin);
-			VectorCopy (dement->angles, state->angles);
+			state->angles[0] = dement->angles[0]*360.0f/256;
+			state->angles[1] = dement->angles[1]*360.0f/256;
+			state->angles[2] = dement->angles[2]*360.0f/256;
 			state->modelindex = dement->modelindex;
 			state->frame = dement->frame;
 			state->colormap = dement->colormap;
@@ -1817,8 +1844,6 @@ void SV_WriteEntitiesToClient (client_t *client, sizebuf_t *msg, qboolean ignore
 #endif
 #ifdef PEXT_TRANS
 			state->trans = dement->trans;
-			if (!state->trans)
-				state->trans = 1;
 #endif
 #ifdef PEXT_FATNESS
 			state->fatness = dement->fatness;

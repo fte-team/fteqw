@@ -156,6 +156,8 @@ typedef struct player_info_s
 	unsigned short vweapindex;
 
 	int prevcount;
+
+	int stats[MAX_CL_STATS];
 } player_info_t;
 
 
@@ -703,7 +705,7 @@ void CL_SetSolidPlayers (int playernum);
 void CL_SetUpPlayerPrediction(qboolean dopred);
 void CL_EmitEntities (void);
 void CL_ClearProjectiles (void);
-void CL_ParseProjectiles (int modelindex);
+void CL_ParseProjectiles (int modelindex, qboolean nails2);
 void CL_ParsePacketEntities (qboolean delta);
 void CL_SetSolidEntities (void);
 void CL_ParsePlayerinfo (void);

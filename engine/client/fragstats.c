@@ -322,7 +322,7 @@ static void Stats_LoadFragFile(char *name)
 		if (!*file)
 			break;
 
-		Cmd_TokenizeString(file);
+		Cmd_TokenizeString(file, true, false);
 		file = end+1;
 		if (!Cmd_Argc())
 			continue;

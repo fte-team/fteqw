@@ -556,6 +556,11 @@ iwboolean FTP_ServerThinkForConnection(FTPclient_t *cl)
 				strcpy(buffer, cl->path+1);
 			else
 				strcpy(buffer, cl->path);
+
+			if (*buffer)	//last characture should be a /
+				if (buffer[strlen(buffer)-1] != '/')
+					strcat(buffer, "/");
+
 			strcat(buffer, "*");
 			QueueMessage (cl, "125 Opening FAKE ASCII mode data connection for file.\r\n");
 

@@ -1892,7 +1892,7 @@ void MediaGL_ShowFrameBGR_24_Flip(qbyte *framedata, int inwidth, int inheight)
 	GL_Set2D ();
 
 	GL_Bind(filmtexture);
-	GL_Upload32("", (unsigned *)framedata, inwidth, inheight, false, false);	//we may need to rescale the image
+	GL_Upload32("", (unsigned *)uploadmemorybufferintermediate, filmnwidth, filmnheight, false, false);	//we may need to rescale the image
 
 	glDisable(GL_BLEND);
 	glDisable(GL_ALPHA_TEST);

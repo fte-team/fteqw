@@ -752,50 +752,67 @@ TRACE(("dbg: GLDraw_ReInit: Allocating upload buffers\n"));
 				//gulp... so it's come to this has it? rework the hexen2 conchars into the q1 system.
 				char *tempchars = COM_LoadMallocFile("gfx/menu/conchars.lmp");
 				char *in, *out;
-				if (!tempchars)
-					Sys_Error("No charset found\n");
-
-				draw_chars = BZ_Malloc(8*8*256*8);
-				
-				out = draw_chars;
-				for (i = 0; i < 8*8; i+=1)
+				if (tempchars)
 				{
-					if ((i/8)&1)
+					draw_chars = BZ_Malloc(8*8*256*8);
+					
+					out = draw_chars;
+					for (i = 0; i < 8*8; i+=1)
 					{
-						in = tempchars + ((i)/8)*16*8*8+(i&7)*32*8 - 256*4+128;
-						for (x = 0; x < 16*8; x++)
-							*out++ = *in++;
+						if ((i/8)&1)
+						{
+							in = tempchars + ((i)/8)*16*8*8+(i&7)*32*8 - 256*4+128;
+							for (x = 0; x < 16*8; x++)
+								*out++ = *in++;
+						}
+						else
+						{
+							in = tempchars + (i/8)*16*8*8+(i&7)*32*8;
+							for (x = 0; x < 16*8; x++)
+								*out++ = *in++;
+						}
 					}
-					else
+					for (i = 0; i < 8*8; i+=1)
 					{
-						in = tempchars + (i/8)*16*8*8+(i&7)*32*8;
-						for (x = 0; x < 16*8; x++)
-							*out++ = *in++;
+						if ((i/8)&1)
+						{
+							in = tempchars+128*128 + ((i)/8)*16*8*8+(i&7)*32*8 - 256*4+128;
+							for (x = 0; x < 16*8; x++)
+								*out++ = *in++;
+						}
+						else
+						{
+							in = tempchars+128*128 + (i/8)*16*8*8+(i&7)*32*8;
+							for (x = 0; x < 16*8; x++)
+								*out++ = *in++;
+						}
 					}
-				}
-				for (i = 0; i < 8*8; i+=1)
-				{
-					if ((i/8)&1)
-					{
-						in = tempchars+128*128 + ((i)/8)*16*8*8+(i&7)*32*8 - 256*4+128;
-						for (x = 0; x < 16*8; x++)
-							*out++ = *in++;
-					}
-					else
-					{
-						in = tempchars+128*128 + (i/8)*16*8*8+(i&7)*32*8;
-						for (x = 0; x < 16*8; x++)
-							*out++ = *in++;
-					}
-				}
-				Z_Free(tempchars);
+					Z_Free(tempchars);
 
-				for (i=0 ; i<128*128 ; i++)
-					if (draw_chars[i] == 0)
-						draw_chars[i] = 255;	// proper transparent color
-				char_texture = GL_LoadTexture ("charset", 128, 128, draw_chars, false, true);
-				Z_Free(draw_chars);
-				draw_chars = NULL;
+					for (i=0 ; i<128*128 ; i++)
+						if (draw_chars[i] == 0)
+							draw_chars[i] = 255;	// proper transparent color
+					char_texture = GL_LoadTexture ("charset", 128, 128, draw_chars, false, true);
+					Z_Free(draw_chars);
+					draw_chars = NULL;
+				}
+				else
+				{
+					extern qbyte default_conchar[11356];
+					int width, height;
+					int i;
+					qbyte *image;
+
+					image = ReadTargaFile(default_conchar, sizeof(default_conchar), &width, &height, false);
+					for (i = 0; i < width*height; i++)
+					{
+						image[i*4+3] = image[i*4];
+						image[i*4+0] = 255;
+						image[i*4+1] = 255;
+						image[i*4+2] = 255;
+					}
+					char_texture = GL_LoadTexture32("charset", width, height, (void*)image, false, true);
+				}
 			}
 		}
 		else
@@ -975,7 +992,10 @@ TRACE(("dbg: GLDraw_ReInit: Allocating upload buffers\n"));
 			if (!(gl->texnum=Mod_LoadHiResTexture("pics/conback.pcx", false, true, false)))
 				if (!(gl->texnum=Mod_LoadReplacementTexture("gfx/menu/conback.lmp", false, true, false)))
 					if (!(gl->texnum=Mod_LoadReplacementTexture("textures/sfx/logo512.jpg", false, false, false)))
-						Sys_Error ("Couldn't load gfx/conback.lmp");	//that's messed it up, hasn't it?...
+					{
+						int data = 0;
+						gl->texnum = GL_LoadTexture32("gfx/conback.lmp", 1, 1, (qbyte *)&data, false, false);
+					}
 		}
 		else
 		{

@@ -34,12 +34,12 @@ QUX_DIR=$(BASE_DIR)/qux
 RELEASE_DIR=$(BASE_DIR)/release
 DEBUG_DIR=$(BASE_DIR)/debug
 
-DO_CC=$(CC) $(BASE_CFLAGS) $(CFLAGS) -o $@ -c $<
+DO_CC=$(CC) $(BASE_CFLAGS) $(WCFLAGS) -o $@ -c $< $(CFLAGS)
 ifeq ($(USEASM),true)
 	ifdef windir
-		DO_AS=$(CC) $(BASE_CFLAGS) $(CFLAGS) -x assembler-with-cpp -o $@ -c $<
+		DO_AS=$(CC) $(BASE_CFLAGS) $(WCFLAGS) -x assembler-with-cpp -o $@ -c $< $(CFLAGS)
 	else
-		DO_AS=$(CC) $(BASE_CFLAGS) $(CFLAGS) -x assembler-with-cpp -DELF -o $@ -c $<
+		DO_AS=$(CC) $(BASE_CFLAGS) $(WCFLAGS) -x assembler-with-cpp -DELF -o $@ -c $< $(CFLAGS)
 	endif
 endif
 BASELDFLAGS=-lm  
@@ -109,6 +109,7 @@ CLIENT_OBJS = $(CLIENT_ASM_OBJS) \
 	cl_cam.o	\
 	cl_screen.o	\
 	cl_ui.o	\
+	pr_csqc.o	\
 	qvm.o	\
 	ircclient.o	\
 	console.o	\
@@ -419,7 +420,7 @@ endif
 SV_DIR?=sv_sdl
 
 .default: help
-all: sv-rel sw-rel gl-rel m-rel
+all: sv-rel sw-rel gl-rel m-rel plugins
 
 VPATH = $(BASE_DIR) : $(CLIENT_DIR) : $(GL_DIR) : $(COMMON_DIR) : $(SW_DIR) : $(SERVER_DIR) : $(NQPROT_DIR) : $(HTTP_DIR) : $(BASE_DIR)/irc : $(BASE_DIR)/email : $(QUX_DIR) : $(PROGS_DIR) : $(SNDCODEC_DIR)
 
@@ -438,30 +439,30 @@ endif
 #god knows how gcc loads the list properly.
 #or at least I hope he does. It makes no sence to mortals.
 $(OUT_DIR)/$(EXE_NAME):       $(addprefix $(OUT_DIR)/, $(foreach ol, $(OBJS), $($(ol)))) 
-	$(CC) $(CFLAGS) -o $@ $(addprefix $(OUT_DIR)/, $(foreach ol, $(OBJS), $($(ol)))) $(LDFLAGS)
+	$(CC) $(WCFLAGS) -o $@ $(addprefix $(OUT_DIR)/, $(foreach ol, $(OBJS), $($(ol)))) $(LDFLAGS) $(CFLAGS)
 
 _out-rel:
-	$(MAKE) $(OUT_DIR)/$(EXE_NAME) EXE_NAME="$(EXE_NAME)" OUT_DIR="$(OUT_DIR)" CFLAGS="$(CFLAGS) $(RELEASE_CFLAGS)" LDFLAGS="$(BASELDFLAGS) $(LDFLAGS)" OBJS="$(OBJS)"
+	$(MAKE) $(OUT_DIR)/$(EXE_NAME) EXE_NAME="$(EXE_NAME)" OUT_DIR="$(OUT_DIR)" WCFLAGS="$(WCFLAGS) $(RELEASE_CFLAGS)" LDFLAGS="$(BASELDFLAGS) $(LDFLAGS)" OBJS="$(OBJS)"
 	strip --strip-all $(OUT_DIR)/$(EXE_NAME)
 
 _out-dbg:
-	$(MAKE) $(OUT_DIR)/$(EXE_NAME) EXE_NAME="$(EXE_NAME)" OUT_DIR="$(OUT_DIR)" CFLAGS="$(CFLAGS) $(DEBUG_CFLAGS)" LDFLAGS="$(BASELDFLAGS) $(LDFLAGS)" OBJS="$(OBJS)"
+	$(MAKE) $(OUT_DIR)/$(EXE_NAME) EXE_NAME="$(EXE_NAME)" OUT_DIR="$(OUT_DIR)" WCFLAGS="$(WCFLAGS) $(DEBUG_CFLAGS)" LDFLAGS="$(BASELDFLAGS) $(LDFLAGS)" OBJS="$(OBJS)"
 
 _cl-rel:
-	$(MAKE) _out-rel EXE_NAME="$(EXE_NAME)" OUT_DIR="$(OUT_DIR)" CFLAGS="$(CLIENT_ONLY_CFLAGS) $(CFLAGS)" LDFLAGS="$(LDFLAGS)" SOBJS="$(SOBJS)" OBJS="SOBJS COMMON_OBJS NQPROT_OBJS CLIENT_OBJS PROGS_OBJS"
+	$(MAKE) _out-rel EXE_NAME="$(EXE_NAME)" OUT_DIR="$(OUT_DIR)" WCFLAGS="$(CLIENT_ONLY_CFLAGS) $(WCFLAGS)" LDFLAGS="$(LDFLAGS)" SOBJS="$(SOBJS)" OBJS="SOBJS COMMON_OBJS NQPROT_OBJS CLIENT_OBJS PROGS_OBJS"
 
 _cl-dbg:
-	$(MAKE) _out-dbg EXE_NAME="$(EXE_NAME)" OUT_DIR="$(OUT_DIR)" CFLAGS="$(CLIENT_ONLY_CFLAGS) $(CFLAGS)" LDFLAGS="$(LDFLAGS)" SOBJS="$(SOBJS)" OBJS="SOBJS COMMON_OBJS NQPROT_OBJS CLIENT_OBJS PROGS_OBJS"
+	$(MAKE) _out-dbg EXE_NAME="$(EXE_NAME)" OUT_DIR="$(OUT_DIR)" WCFLAGS="$(CLIENT_ONLY_CFLAGS) $(WCFLAGS)" LDFLAGS="$(LDFLAGS)" SOBJS="$(SOBJS)" OBJS="SOBJS COMMON_OBJS NQPROT_OBJS CLIENT_OBJS PROGS_OBJS"
 
 _clsv-rel: reldir
-	$(MAKE) _out-rel EXE_NAME="$(EXE_NAME)" OUT_DIR="$(OUT_DIR)" CFLAGS="$(JOINT_CFLAGS) $(CFLAGS)" LDFLAGS="$(LDFLAGS)" SOBJS="$(SOBJS)" OBJS="SOBJS COMMON_OBJS NQPROT_OBJS CLIENT_OBJS PROGS_OBJS SERVER_OBJS"
+	$(MAKE) _out-rel EXE_NAME="$(EXE_NAME)" OUT_DIR="$(OUT_DIR)" WCFLAGS="$(JOINT_CFLAGS) $(WCFLAGS)" LDFLAGS="$(LDFLAGS)" SOBJS="$(SOBJS)" OBJS="SOBJS COMMON_OBJS NQPROT_OBJS CLIENT_OBJS PROGS_OBJS SERVER_OBJS"
 
 _clsv-dbg: debugdir
-	$(MAKE) _out-dbg EXE_NAME="$(EXE_NAME)" OUT_DIR="$(OUT_DIR)" CFLAGS="$(JOINT_CFLAGS) $(CFLAGS)" LDFLAGS="$(LDFLAGS)" SOBJS="$(SOBJS)" OBJS="SOBJS COMMON_OBJS NQPROT_OBJS CLIENT_OBJS PROGS_OBJS SERVER_OBJS"
+	$(MAKE) _out-dbg EXE_NAME="$(EXE_NAME)" OUT_DIR="$(OUT_DIR)" WCFLAGS="$(JOINT_CFLAGS) $(WCFLAGS)" LDFLAGS="$(LDFLAGS)" SOBJS="$(SOBJS)" OBJS="SOBJS COMMON_OBJS NQPROT_OBJS CLIENT_OBJS PROGS_OBJS SERVER_OBJS"
 
 
 sv-tmp: reldir debugdir
-	$(MAKE) $(TYPE) OUT_DIR="$(OUT_DIR)" EXE_NAME="$(SV_EXE_NAME)" CFLAGS="$(SV_CFLAGS)" LDFLAGS="$(SV_LDFLAGS)" OBJS="SV_OBJS"
+	$(MAKE) $(TYPE) OUT_DIR="$(OUT_DIR)" EXE_NAME="$(SV_EXE_NAME)" WCFLAGS="$(SV_CFLAGS)" LDFLAGS="$(SV_LDFLAGS)" OBJS="SV_OBJS"
 sv-rel:
 	$(MAKE) sv-tmp TYPE=_out-rel OUT_DIR="$(RELEASE_DIR)/$(SV_DIR)"
 sv-dbg:
@@ -472,9 +473,9 @@ sv-dbg:
 
 
 glcl-tmp:
-	$(MAKE) $(TYPE)   OUT_DIR="$(OUT_DIR)" EXE_NAME="$(GLCL_EXE_NAME)" CFLAGS="$(GL_CFLAGS)" LDFLAGS="$(GL_LDFLAGS)" SOBJS="$(GLCL_OBJS)"
+	$(MAKE) $(TYPE)   OUT_DIR="$(OUT_DIR)" EXE_NAME="$(GLCL_EXE_NAME)" WCFLAGS="$(GL_CFLAGS)" LDFLAGS="$(GL_LDFLAGS)" SOBJS="$(GLCL_OBJS)"
 gl-tmp:
-	$(MAKE) $(TYPE)   OUT_DIR="$(OUT_DIR)" EXE_NAME="$(GL_EXE_NAME)" CFLAGS="$(GL_CFLAGS)" LDFLAGS="$(GL_LDFLAGS)" SOBJS="$(GLCL_OBJS)"
+	$(MAKE) $(TYPE)   OUT_DIR="$(OUT_DIR)" EXE_NAME="$(GL_EXE_NAME)" WCFLAGS="$(GL_CFLAGS)" LDFLAGS="$(GL_LDFLAGS)" SOBJS="$(GLCL_OBJS)"
 
 glcl-rel:
 	$(MAKE) glcl-tmp TYPE=_cl-rel OUT_DIR="$(RELEASE_DIR)/$(GLCL_DIR)"
@@ -486,12 +487,16 @@ gl-dbg:
 	$(MAKE) gl-tmp TYPE=_clsv-dbg OUT_DIR="$(DEBUG_DIR)/$(GLB_DIR)"
 
 
+mingl-tmp:
+	$(MAKE) $(TYPE) OUT_DIR="$(OUT_DIR)" EXE_NAME=$(MINGL_EXE_NAME)" WCFLAGS="$(GL_CFLAGS) -DMINIMAL" LDFLAGS="$(GL_LDFLAGS)" SOBJS="$(GLCL_OBJS)"
+mingl-rel:
+	$(MAKE) mingl-tmp TYPE=_cl-rel OUT_DIR="$(RELEASE_DIR)/$(MINGL_DIR)"
 
 
 swcl-tmp:
-	$(MAKE) $(TYPE)   OUT_DIR="$(OUT_DIR)" EXE_NAME="$(SWCL_EXE_NAME)" CFLAGS="$(SW_CFLAGS)" LDFLAGS="$(SW_LDFLAGS)" SOBJS="$(SWCL_OBJS)"
+	$(MAKE) $(TYPE)   OUT_DIR="$(OUT_DIR)" EXE_NAME="$(SWCL_EXE_NAME)" WCFLAGS="$(SW_CFLAGS)" LDFLAGS="$(SW_LDFLAGS)" SOBJS="$(SWCL_OBJS)"
 sw-tmp:
-	$(MAKE) $(TYPE)   OUT_DIR="$(OUT_DIR)" EXE_NAME="$(SW_EXE_NAME)" CFLAGS="$(SW_CFLAGS)" LDFLAGS="$(SW_LDFLAGS)" SOBJS="$(SWCL_OBJS)"
+	$(MAKE) $(TYPE)   OUT_DIR="$(OUT_DIR)" EXE_NAME="$(SW_EXE_NAME)" WCFLAGS="$(SW_CFLAGS)" LDFLAGS="$(SW_LDFLAGS)" SOBJS="$(SWCL_OBJS)"
 
 swcl-rel:
 	$(MAKE) swcl-tmp TYPE=_cl-rel OUT_DIR="$(RELEASE_DIR)/$(SWCL_DIR)"
@@ -505,7 +510,7 @@ sw-dbg:
 
 
 mcl-tmp:
-	$(MAKE) $(TYPE)   OUT_DIR="$(OUT_DIR)" EXE_NAME="$(MCL_EXE_NAME)" CFLAGS="$(M_CFLAGS)" LDFLAGS="$(M_LDFLAGS)" SOBJS="$(MCL_OBJS)"
+	$(MAKE) $(TYPE)   OUT_DIR="$(OUT_DIR)" EXE_NAME="$(MCL_EXE_NAME)" WCFLAGS="$(M_CFLAGS)" LDFLAGS="$(M_LDFLAGS)" SOBJS="$(MCL_OBJS)"
 mcl-rel:
 	$(MAKE) mcl-tmp TYPE=_cl-rel OUT_DIR="$(RELEASE_DIR)/$(MCL_DIR)"
 mcl-dbg:
@@ -513,7 +518,7 @@ mcl-dbg:
 
 
 m-tmp:
-	$(MAKE) $(TYPE)   OUT_DIR="$(OUT_DIR)" EXE_NAME="$(M_EXE_NAME)" CFLAGS="$(M_CFLAGS)" LDFLAGS="$(M_LDFLAGS)" SOBJS="$(MCL_OBJS)"
+	$(MAKE) $(TYPE)   OUT_DIR="$(OUT_DIR)" EXE_NAME="$(M_EXE_NAME)" WCFLAGS="$(M_CFLAGS)" LDFLAGS="$(M_LDFLAGS)" SOBJS="$(MCL_OBJS)"
 m-rel:
 	$(MAKE) m-tmp TYPE=_clsv-rel OUT_DIR="$(RELEASE_DIR)/$(MCL_DIR)"
 m-dbg:
@@ -533,6 +538,14 @@ debugdir:
 	@-mkdir $(DEBUG_DIR)
 	@-mkdir $(OUT_DIR)
 endif
+
+ifneq ($(shell grep all ../plugins/Makefile),)
+plugins:
+	$(MAKE) -C ../plugins
+else
+plugins:
+	@-echo no plugins directory installed
+endif	
 
 help:
 	@-echo "Specfic targets:"

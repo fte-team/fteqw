@@ -351,7 +351,7 @@ void CL_ParseBeam (int tent)
 #endif
 	}
 
-	if (tent <= 2)
+	if (tent <= 2 && cls.state == ca_active)
 	{
 		vec3_t impact, normal;
 		vec3_t extra;

@@ -20,6 +20,7 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 // gl_vidnt.c -- NT GL vid component
 
 #include "quakedef.h"
+#ifdef RGLQUAKE
 #include "glquake.h"
 #include "winquake.h"
 #include "resource.h"
@@ -1391,3 +1392,4 @@ qboolean GLVID_Init (rendererstate_t *info, unsigned char *palette)
 
 	return true;
 }
+#endif

@@ -20,6 +20,7 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 // r_surf.c: surface-related refresh code
 
 #include "quakedef.h"
+#ifdef RGLQUAKE
 #include "glquake.h"
 #include "shader.h"
 #include "renderque.h"
@@ -1998,7 +1999,10 @@ void R_RenderDynamicLightmaps (msurface_t *fa)
 	if (fa->dlightframe == r_framecount	// dynamic this frame
 		|| fa->cached_dlight)			// dynamic previously
 	{
+		RSpeedLocals();
 dynamic:
+		RSpeedRemark();
+
 		lightmap[fa->lightmaptexturenum]->modified = true;
 
 		smax = (fa->extents[0]>>4)+1;
@@ -2047,6 +2051,8 @@ dynamic:
 		stainbase = lightmap[fa->lightmaptexturenum]->stainmaps;
 		stainbase += (fa->light_t * LMBLOCK_WIDTH + fa->light_s) * 3;
 		GLR_BuildLightMap (fa, base, luxbase, stainbase);
+
+		RSpeedEnd(RSPEED_DYNAMIC);
 	}
 }
 
@@ -3164,6 +3170,7 @@ R_DrawWorld
 
 void R_DrawWorld (void)
 {
+	RSpeedLocals();
 	entity_t	ent;
 
 	memset (&ent, 0, sizeof(ent));
@@ -3184,6 +3191,8 @@ void R_DrawWorld (void)
 	//#ifdef QUAKE2
 		R_ClearSkyBox ();
 	//#endif
+
+		RSpeedRemark();
 
 #ifdef Q2BSPS
 		if (ent.model->fromgame == fg_quake2 || ent.model->fromgame == fg_quake3)
@@ -3211,6 +3220,8 @@ void R_DrawWorld (void)
 		else
 #endif
 			GLR_RecursiveWorldNode (cl.worldmodel->nodes);
+
+		RSpeedEnd(RSPEED_WORLDNODE);
 
 		TRACE(("dbg: calling PPL_DrawWorld\n"));
 //		if (r_shadows.value >= 2 && gl_canstencil && gl_mtexable)
@@ -3500,7 +3511,8 @@ int GLFillBlock (int texnum, int w, int h, int x, int y)
 
 			//maybe someone screwed with my lightmap...
 			memset(lightmap[i]->lightmaps, 255, LMBLOCK_HEIGHT*LMBLOCK_HEIGHT*3);
-			memcpy(lightmap[i]->lightmaps, cl.worldmodel->lightdata+3*LMBLOCK_HEIGHT*LMBLOCK_HEIGHT*i, LMBLOCK_HEIGHT*LMBLOCK_HEIGHT*3);
+			if (cl.worldmodel->lightdata)
+				memcpy(lightmap[i]->lightmaps, cl.worldmodel->lightdata+3*LMBLOCK_HEIGHT*LMBLOCK_HEIGHT*i, LMBLOCK_HEIGHT*LMBLOCK_HEIGHT*3);
 
 		}
 		else
@@ -3908,3 +3920,4 @@ void GL_BuildLightmaps (void)
 		GL_RGB, GL_UNSIGNED_BYTE, lightmap[i]->deluxmaps);
 	}
 }
+#endif

@@ -22,6 +22,7 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 // vid buffer
 
 #include "quakedef.h"
+#ifdef RGLQUAKE
 #include "glquake.h"
 #include "shader.h"
 
@@ -1095,7 +1096,7 @@ void GLDraw_Character (int x, int y, unsigned int num)
 	if (y <= -8)
 		return;			// totally off screen
 
-
+#ifndef Q3SHADERS
 	num &= 255;
 
 	row = num>>4;
@@ -1104,7 +1105,6 @@ void GLDraw_Character (int x, int y, unsigned int num)
 	frow = row*0.0625;
 	fcol = col*0.0625;
 	size = 0.0625;
-
 	draw_mesh_xyz[0][0] = x;
 	draw_mesh_xyz[0][1] = y;
 	draw_mesh_st[0][0] = fcol;
@@ -1125,7 +1125,6 @@ void GLDraw_Character (int x, int y, unsigned int num)
 	draw_mesh_st[3][0] = fcol;
 	draw_mesh_st[3][1] = frow+size;
 
-#ifndef Q3SHADERS
 	if (num&CON_2NDCHARSETTEXT)
 		GL_DrawMesh(&draw_mesh, NULL, char_tex2, 0);
 	else
@@ -3348,3 +3347,4 @@ int GL_LoadPicTexture (qpic_t *pic)
 }
 
 /****************************************/
+#endif

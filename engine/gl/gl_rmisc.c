@@ -20,6 +20,7 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 // r_misc.c
 
 #include "quakedef.h"
+#ifdef RGLQUAKE
 #include "glquake.h"
 #include "gl_draw.h"
 
@@ -1023,4 +1024,4 @@ void D_FlushCaches (void)
 }
 #endif
 
-
+#endif

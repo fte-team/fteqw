@@ -20,6 +20,7 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 // gl_ngraph.c
 
 #include "quakedef.h"
+#ifdef RGLQUAKE
 #include "glquake.h"
 
 extern qbyte		*draw_chars;				// 8*8 graphic characters
@@ -141,3 +142,4 @@ void GLR_NetGraph (void)
 	glEnd ();
 }
 
+#endif

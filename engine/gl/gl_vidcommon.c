@@ -1,4 +1,5 @@
 #include "quakedef.h"
+#ifdef RGLQUAKE
 #include "glquake.h"
 
 //standard 1.1 opengl calls
@@ -428,3 +429,4 @@ void GL_Init(void *(*getglfunction) (char *name))
 }
 
 unsigned int	d_8to24rgbtable[256];
+#endif

@@ -72,7 +72,7 @@ void GL_TexEnv( GLenum mode )
 {
 	if ( mode != gl_state.texenvmode[gl_state.currenttmu] )
 	{
-		qglTexEnvf( GL_TEXTURE_ENV, GL_TEXTURE_ENV_MODE, mode );
+		qglTexEnvi( GL_TEXTURE_ENV, GL_TEXTURE_ENV_MODE, mode );
 		gl_state.texenvmode[gl_state.currenttmu] = mode;
 	}
 }

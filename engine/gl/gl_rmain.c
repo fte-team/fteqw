@@ -20,6 +20,8 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 // r_main.c
 
 #include "quakedef.h"
+
+#ifdef RGLQUAKE
 #include "glquake.h"
 
 void R_RenderBrushPoly (msurface_t *fa);
@@ -196,6 +198,14 @@ void R_RotateForEntity (entity_t *e)
 
 
 #if 1
+#if 0
+	{
+		void Matrix4_Multiply(float *a, float *b, float *out);
+		float new[16];
+	Matrix4_Multiply(m, r_world_matrix, new);
+	glLoadMatrixf(new);
+	}
+#endif
 	glMultMatrixf(m);
 
 #else
@@ -809,6 +819,8 @@ void GLR_BrightenScreen (void)
 	extern float vid_gamma;
 	float f;
 
+	RSpeedMark();
+
 	if (gl_contrast.value <= 1.0)
 		return;
 
@@ -837,6 +849,8 @@ void GLR_BrightenScreen (void)
 	glEnable (GL_TEXTURE_2D);
 	glDisable (GL_BLEND);
 	glColor3f(1, 1, 1);
+
+	RSpeedEnd(RSPEED_PALETTEFLASHES);
 }
 
 int SignbitsForPlane (mplane_t *out)
@@ -1582,18 +1596,21 @@ void GLR_RenderView (void)
 
 
 
+	if (gl_finish.value)
+	{
+		RSpeedMark();
+		glFinish ();
+		RSpeedEnd(RSPEED_FINISH);
+	}
+
 	if (r_speeds.value)
 	{
-		glFinish ();
 		time1 = Sys_DoubleTime ();
 		c_brush_polys = 0;
 		c_alias_polys = 0;
 	}
 
 	mirror = false;
-
-	if (gl_finish.value)
-		glFinish ();
 
 	R_Clear ();
 /*
@@ -1668,6 +1685,13 @@ void GLR_RenderView (void)
 	{
 //		glFinish ();
 		time2 = Sys_DoubleTime ();
-		Con_Printf ("%3i ms  %4i wpoly %4i epoly\n", (int)((time2-time1)*1000), c_brush_polys, c_alias_polys); 
+
+		RQuantAdd(RQUANT_MSECS, (int)((time2-time1)*1000000));
+
+		RQuantAdd(RQUANT_WPOLYS, c_brush_polys);
+		RQuantAdd(RQUANT_EPOLYS, c_alias_polys);
+	//	Con_Printf ("%3i ms  %4i wpoly %4i epoly\n", (int)((time2-time1)*1000), c_brush_polys, c_alias_polys); 
 	}
 }
+
+#endif

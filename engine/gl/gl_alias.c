@@ -1,4 +1,5 @@
 #include "quakedef.h"
+#ifdef RGLQUAKE
 #include "glquake.h"
 #include "shader.h"
 #include "hash.h"
@@ -1004,9 +1005,20 @@ void GL_DrawAliasMesh_Sketch (mesh_t *mesh, int texnum)
 			glVertex3f(	v2[0]+0.5*(rand()/(float)RAND_MAX-0.5),
 						v2[1]+0.5*(rand()/(float)RAND_MAX-0.5),
 						v2[2]+0.5*(rand()/(float)RAND_MAX-0.5));
+
+			glVertex3f(	v2[0]+0.5*(rand()/(float)RAND_MAX-0.5),
+						v2[1]+0.5*(rand()/(float)RAND_MAX-0.5),
+						v2[2]+0.5*(rand()/(float)RAND_MAX-0.5));
 			glVertex3f(	v3[0]+0.5*(rand()/(float)RAND_MAX-0.5),
 						v3[1]+0.5*(rand()/(float)RAND_MAX-0.5),
 						v3[2]+0.5*(rand()/(float)RAND_MAX-0.5));
+
+			glVertex3f(	v3[0]+0.5*(rand()/(float)RAND_MAX-0.5),
+						v3[1]+0.5*(rand()/(float)RAND_MAX-0.5),
+						v3[2]+0.5*(rand()/(float)RAND_MAX-0.5));
+			glVertex3f(	v1[0]+0.5*(rand()/(float)RAND_MAX-0.5),
+						v1[1]+0.5*(rand()/(float)RAND_MAX-0.5),
+						v1[2]+0.5*(rand()/(float)RAND_MAX-0.5));
 		}
 	}
 	glEnd();
@@ -3182,4 +3194,5 @@ void GLMod_LoadZymoticModel(model_t *mod, void *buffer)
 	Hunk_FreeToLowMark (hunkstart);
 }
 
+#endif
 #endif

@@ -222,7 +222,7 @@ typedef struct mfog_s
 typedef struct msurface_s
 {
 	int			visframe;		// should be drawn when node is crossed
-	int			shadowframe;
+	int			shadowframe, lightframe;
 
 	mplane_t	*plane;
 	int			flags;

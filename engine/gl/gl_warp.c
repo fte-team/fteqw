@@ -20,6 +20,7 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 // gl_warp.c -- sky and water polygons
 
 #include "quakedef.h"
+#ifdef RGLQUAKE
 #include "glquake.h"
 #include <ctype.h>
 
@@ -1023,3 +1024,4 @@ void GLR_InitSky (texture_t *mt)
 	glTexParameterf(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
 */
 }
+#endif

@@ -20,6 +20,7 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 // r_light.c
 
 #include "quakedef.h"
+#ifdef RGLQUAKE
 #include "glquake.h"
 
 int	r_dlightframecount;
@@ -906,4 +907,4 @@ void GLQ1BSP_LightPointValues(vec3_t point, vec3_t res_diffuse, vec3_t res_ambie
 	}
 }
 
-
+#endif

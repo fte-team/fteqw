@@ -510,22 +510,22 @@ void R_DrawHLModel(entity_t	*curent)
 
 	if (curent->alpha<1)
 	{
-		glEnable(GL_BLEND);
+		qglEnable(GL_BLEND);
 	}
 	else
 	{
-		glDisable(GL_BLEND);
+		qglDisable(GL_BLEND);
 	}
-	glBlendFunc (GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+	qglBlendFunc (GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
 
 //	Con_Printf("%s %i\n", sequence->name, sequence->unknown1[0]);
 
-    glPushMatrix();
+    qglPushMatrix();
 
 	{
 		vec3_t difuse, ambient, ldir;
 		cl.worldmodel->funcs.LightPointValues(curent->origin, difuse, ambient, ldir);
-		glColor4f(difuse[0]/255+ambient[0]/255, difuse[1]/255+ambient[1]/255, difuse[2]/255+ambient[2]/255, curent->alpha);
+		qglColor4f(difuse[0]/255+ambient[0]/255, difuse[1]/255+ambient[1]/255, difuse[2]/255+ambient[2]/255, curent->alpha);
 	}
 
     R_RotateForEntity (curent);
@@ -591,7 +591,7 @@ void R_DrawHLModel(entity_t	*curent)
         }
     }
 
-    glPopMatrix();
+    qglPopMatrix();
 
 	GL_TexEnv(GL_REPLACE);
 }
@@ -619,11 +619,11 @@ void GL_Draw_HL_AliasFrame(short *order, vec3_t *transformed, float tex_w, float
         if(count < 0)
         {
             count = -count;
-            glBegin(GL_TRIANGLE_FAN);
+            qglBegin(GL_TRIANGLE_FAN);
         }
         else
 		{
-            glBegin(GL_TRIANGLE_STRIP);
+            qglBegin(GL_TRIANGLE_STRIP);
 		}
 //		c_tris += count-2;
 //		c_chains++;
@@ -635,14 +635,14 @@ void GL_Draw_HL_AliasFrame(short *order, vec3_t *transformed, float tex_w, float
             /*~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~*/
 
             /* texture coordinates come from the draw list */
-            glTexCoord2f(order[2] * tex_w, order[3] * tex_h);
+            qglTexCoord2f(order[2] * tex_w, order[3] * tex_h);
             order += 4;
 
-            glVertex3fv(verts);
+            qglVertex3fv(verts);
 //			c_verts++;
         } while(--count);
 
-        glEnd();
+        qglEnd();
     }
 }
 

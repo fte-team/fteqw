@@ -356,14 +356,14 @@ void EmitBothSkyLayers (msurface_t *fa)
 	GL_DisableMultitexture();
 
 	GL_Bind (solidskytexture);
-	speedscale = realtime*8;
+	speedscale = cl.gametime*8;
 	speedscale -= (int)speedscale & ~127 ;
 
 	EmitSkyPolys (fa);
 
 	glEnable (GL_BLEND);
 	GL_Bind (alphaskytexture);
-	speedscale = realtime*16;
+	speedscale = cl.gametime*16;
 	speedscale -= (int)speedscale & ~127 ;
 
 	EmitSkyPolys (fa);
@@ -391,7 +391,9 @@ void R_DrawSkyChain (msurface_t *s)
 
 	// used when gl_texsort is on
 	GL_Bind(solidskytexture);
-	speedscale = realtime*8;
+	speedscale = cl.gametime;
+	speedscale += realtime - cl.gametimemark;
+	speedscale*=8;
 	speedscale -= (int)speedscale & ~127 ;
 
 	for (fa=s ; fa ; fa=fa->texturechain)
@@ -399,7 +401,9 @@ void R_DrawSkyChain (msurface_t *s)
 
 	glEnable (GL_BLEND);
 	GL_Bind (alphaskytexture);
-	speedscale = realtime*16;
+	speedscale = cl.gametime;
+	speedscale += realtime - cl.gametimemark;
+	speedscale*=16;
 	speedscale -= (int)speedscale & ~127 ;
 
 	for (fa=s ; fa ; fa=fa->texturechain)

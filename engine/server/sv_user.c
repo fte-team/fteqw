@@ -2355,16 +2355,23 @@ void SV_Vote_f (void)
 
 extern qboolean	sv_allow_cheats;
 
-//Sets client to godmode
-void Cmd_God_f (void)
+void Cmd_Notarget_f (void)
 {
+	if (!sv_allow_cheats)
+	{
+		Con_Printf ("Cheats are not allowed on this server\n");
+		return;
+	}
+
 	if ((int) (sv_player->v.flags = (int) sv_player->v.flags ^ FL_NOTARGET) & FL_NOTARGET)
 		SV_ClientPrintf (host_client, PRINT_HIGH, "notarget ON\n");
 	else
 		SV_ClientPrintf (host_client, PRINT_HIGH, "notarget OFF\n");
+}
 
-
-
+//Sets client to godmode
+void Cmd_God_f (void)
+{
 	if (!sv_allow_cheats)
 	{
 		Con_Printf ("Cheats are not allowed on this server\n");
@@ -2457,6 +2464,30 @@ void Cmd_Noclip_f (void)
 		else
 			sv_player->v.solid = SOLID_NOT;
 		SV_ClientPrintf (host_client, PRINT_HIGH, "noclip OFF\n");
+	}
+}
+
+void Cmd_Fly_f (void)
+{
+	if (!sv_allow_cheats)
+	{
+		Con_Printf ("Cheats are not allowed on this server\n");
+		return;
+	}
+
+	if (sv_player->v.movetype != MOVETYPE_FLY)
+	{
+		sv_player->v.movetype = MOVETYPE_FLY;
+		SV_ClientPrintf (host_client, PRINT_HIGH, "flymode ON\n");
+	}
+	else
+	{
+		sv_player->v.movetype = MOVETYPE_WALK;
+		if (sv_player->v.health > 0)
+			sv_player->v.solid = SOLID_SLIDEBOX;
+		else
+			sv_player->v.solid = SOLID_NOT;
+		SV_ClientPrintf (host_client, PRINT_HIGH, "flymode OFF\n");
 	}
 }
 
@@ -2716,6 +2747,8 @@ ucmd_t ucmds[] =
 	{"god", Cmd_God_f},
 	{"give", Cmd_Give_f},
 	{"noclip", Cmd_Noclip_f},
+	{"fly", Cmd_Fly_f},
+	{"notarget", Cmd_Notarget_f},
 	{"setpos", Cmd_SetPos_f},
 
 //	{"stopdownload", SV_StopDownload_f},
@@ -3195,7 +3228,7 @@ ucmd_t nqucmds[] =
 
 	{"god",			Cmd_God_f},
 	{"give",		Cmd_Give_f},
-	{"notarget",	NULL},
+	{"notarget",	Cmd_Notarget_f},
 	{"fly",			NULL},
 	{"noclip",		Cmd_Noclip_f},
 
@@ -3584,7 +3617,7 @@ void SV_RunCmd (usercmd_t *ucmd, qboolean recurse)
 #ifdef Q2SERVER
 	if (!svprogfuncs)
 	{
-		ge->ClientThink (host_client->q2edict, ucmd);
+		ge->ClientThink (host_client->q2edict, (q2usercmd_t*)ucmd);
 		return;
 	}
 #endif

@@ -560,6 +560,9 @@ void D_PolysetDrawSpans8ReverseTrans (spanpackage_t *pspanpackage)
 	int		lzi;
 	short	*lpz;
 
+	if (d_aspancount<0)
+		return;
+
 	do
 	{
 		lcount = d_aspancount - pspanpackage->count;
@@ -625,7 +628,13 @@ void D_PolysetDrawSpans8Trans (spanpackage_t *pspanpackage)
 	short	*lpz;
 
 	if (t_state & TT_REVERSE)
+	{
 		D_PolysetDrawSpans8ReverseTrans(pspanpackage);
+		return;
+	}
+
+	if (d_aspancount<0||ubasestep<0)
+		return;
 
 	do
 	{
@@ -656,7 +665,7 @@ void D_PolysetDrawSpans8Trans (spanpackage_t *pspanpackage)
 			{
 				if ((lzi >> 16) >= *lpz)
 				{
-					*lpdest = Trans(*lpdest, ((qbyte *)acolormap)[*lptex + (llight & 0xFF00)]);
+ 					*lpdest = Trans(*lpdest, ((qbyte *)acolormap)[*lptex + (llight & 0xFF00)]);
 // gel mapping					*lpdest = gelmap[*lpdest];
 					*lpz = lzi >> 16;
 				}

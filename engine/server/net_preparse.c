@@ -1615,6 +1615,7 @@ void NPP_MVDFlush(void)
 				bits+=6;
 			}
 		}
+		ignoreprotocol=true;
 		break;
 
 	case svc_stufftext:
@@ -1791,6 +1792,7 @@ void NPP_MVDWriteByte(qbyte data, client_t *to, int broadcast)	//replacement wri
 		case svc_deltapacketentities:
 		case svc_lightstyle:
 		case svc_nails:
+		case svc_nails2:
 		case svc_centerprint:
 		case svc_setinfo:
 			break;

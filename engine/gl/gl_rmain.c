@@ -1630,13 +1630,18 @@ void GLR_RenderView (void)
 	extern msurface_t  *r_alpha_surfaces;
 	double	time1 = 0, time2;
 
-	if (r_norefresh.value)
+	if (r_norefresh.value || !glwidth || !glheight)
+	{
+		GL_DoSwap();
 		return;
+	}
 
 	if (!(r_refdef.flags & 1))
 		if (!r_worldentity.model || !cl.worldmodel)
-
+		{
+			GL_DoSwap();
 			return;
+		}
 //		Sys_Error ("R_RenderView: NULL worldmodel");
 
 
@@ -1763,12 +1768,6 @@ void GLR_RenderView (void)
 		extern int char_texture;
 		float vwidth = 1, vheight = 1;
 		float vs, vt;
-
-		if (!glwidth || !glheight)
-		{
-			Con_Printf("Window too small!!!\n");
-			return;
-		}
 
 		// get the powers of 2 for the size of the texture that will hold the scene
 		while (vwidth < glwidth)

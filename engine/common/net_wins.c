@@ -677,7 +677,10 @@ qboolean NET_GetPacket (netsrc_t netsrc)
 #ifndef SERVERONLY
 				if (cls.state != ca_disconnected && netsrc == NS_CLIENT)
 				{
-					Cbuf_AddText("disconnect\nreconnect\n", RESTRICT_LOCAL);	//retry connecting.
+					if (cls.lastarbiatarypackettime+5 < Sys_DoubleTime())	//too many mvdsv
+						Cbuf_AddText("disconnect\nreconnect\n", RESTRICT_LOCAL);	//retry connecting.
+					else
+						Con_Printf("Packet was not delivered - server might be badly configured\n");
 					break;
 				}
 #endif

@@ -907,6 +907,10 @@ void CL_SendCmd (void)
 
 		// allow mice or other external controllers to add to the move
 			IN_Move (cmd, plnum);
+
+			if (cl.spectator)
+				Cam_Track(plnum, cmd);
+
 			cmd->msec = msecstouse;
 			extramsec = msecstouse - independantphysics[plnum].msec;
 

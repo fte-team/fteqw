@@ -310,14 +310,18 @@ void CL_ParseDelta (entity_state_t *from, entity_state_t *to, int bits, qboolean
 	if (to->frame != from->frame)
 		cl.lerpents[to->number].framechange = cl.time;	//marked for hl models
 #endif
-	if (to->modelindex != from->modelindex || to->number != from->number || VectorLength(move)>64)	//model changed... or entity changed...
+	if (to->modelindex != from->modelindex || to->number != from->number || VectorLength(move)>128)	//model changed... or entity changed...
 	{
 #ifdef HALFLIFEMODELS
 		cl.lerpents[to->number].framechange = cl.time;	//marked for hl models
 #endif
 		cl.lerpents[to->number].lerptime = -10;
+
+		if (!new)
+			return;
+		move[0] = 1;	//make sure it enters the next block.
 	}
-	else if (to->frame != from->frame || move[0] || move[1] || move[2])
+	if (to->frame != from->frame || move[0] || move[1] || move[2])
 	{
 		cl.lerpents[to->number].origin[0] = from->origin[0];
 		cl.lerpents[to->number].origin[1] = from->origin[1];
@@ -340,7 +344,7 @@ void CL_ParseDelta (entity_state_t *from, entity_state_t *to, int bits, qboolean
 		//store this off for new ents to use.
 		if (new)
 			cl.lerpents[to->number].lerptime = newlerprate;
-		if (to->frame == from->frame && !new)
+		if (to->frame == from->frame && !new) //(h2 runs at 20fps)
 			newlerprate = cl.time-cl.lerpents[to->number].lerptime;
 	}
 }
@@ -785,7 +789,7 @@ void CL_LinkPacketEntities (void)
 {
 	entity_t			*ent;
 	packet_entities_t	*pack;
-	entity_state_t		*s1, *s2;
+	entity_state_t		*s1;
 	float				f;
 	model_t				*model;
 	vec3_t				old_origin;
@@ -798,12 +802,9 @@ void CL_LinkPacketEntities (void)
 
 	autorotate = anglemod(100*cl.time);
 
-	f = 0;		// FIXME: no interpolation right now
-
 	for (pnum=0 ; pnum<pack->num_entities ; pnum++)
 	{
 		s1 = &pack->entities[pnum];
-		s2 = s1;	// FIXME: no interpolation right now
 
 		// spawn light flashes, even ones coming from invisible objects
 		if ((s1->effects & (EF_BLUE | EF_RED)) == (EF_BLUE | EF_RED))
@@ -936,12 +937,13 @@ void CL_LinkPacketEntities (void)
 		ent->oldframe = cl.lerpents[s1->number].frame;
 
 		if (!cl.lerpents[s1->number].lerprate)
+		{
 			ent->lerptime = 0;
+		}
 		else
 		{
 			ent->lerptime = 1-(cl.time-cl.lerpents[s1->number].lerptime)/cl.lerpents[s1->number].lerprate;
 		}
-
 			
 		if (ent->lerptime<0)ent->lerptime=0;
 		if (ent->lerptime>1)ent->lerptime=1;
@@ -1221,6 +1223,7 @@ void CL_ParsePlayerinfo (void)
 	int			num;
 	int			i;
 	int new;
+	vec3_t		org, oorg;
 
 	lastplayerinfo = num = MSG_ReadByte ();
 	if (num >= MAX_CLIENTS)
@@ -1309,9 +1312,11 @@ void CL_ParsePlayerinfo (void)
 			flags |= MSG_ReadByte()<<16;
 
 	state->messagenum = cl.parsecount;
-	state->origin[0] = MSG_ReadCoord ();
-	state->origin[1] = MSG_ReadCoord ();
-	state->origin[2] = MSG_ReadCoord ();
+	org[0] = MSG_ReadCoord ();
+	org[1] = MSG_ReadCoord ();
+	org[2] = MSG_ReadCoord ();
+
+	VectorCopy(org, state->origin);
 
 	new = MSG_ReadByte ();
 	if (state->frame != new)

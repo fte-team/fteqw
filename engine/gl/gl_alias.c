@@ -42,8 +42,6 @@ typedef struct
 extern cvar_t gl_part_flame, gl_part_torch, r_fullbrightSkins, r_fb_models;
 extern cvar_t r_noaliasshadows;
 void R_TorchEffect (vec3_t pos, int type);
-void GL_DrawMesh(mesh_t *mesh, shader_t *shader, int texturenum, int lmtexturenum);
-
 void GLMod_FloodFillSkin( qbyte *skin, int skinwidth, int skinheight );
 
 
@@ -112,6 +110,8 @@ typedef struct {
 	int base;
 	int bump;
 	int fullbright;
+
+	shader_t *shader;
 } galiastexnum_t;
 
 typedef struct {
@@ -375,7 +375,7 @@ static void R_GAliasBuildMesh(mesh_t *mesh, galiasinfo_t *inf, int frame1, int f
 		numTempVertexCoords = inf->numverts;
 	}
 
-	mesh->indexes = (int*)((char *)inf + inf->ofs_indexes);
+	mesh->indexes = (index_t*)((char *)inf + inf->ofs_indexes);
 	mesh->numindexes = inf->numindexes;
 	mesh->st_array = (vec2_t*)((char *)inf + inf->ofs_st_array);
 	mesh->lmst_array = NULL;
@@ -668,7 +668,7 @@ static void R_CalcFacing(mesh_t *mesh, vec3_t lightpos)
 
 	int i;
 
-	int *indexes = mesh->indexes;
+	index_t *indexes = mesh->indexes;
 	int numtris = mesh->numindexes/3;
 	
 
@@ -724,7 +724,7 @@ static void R_DrawShadowVolume(mesh_t *mesh)
 	int t;
 	vec3_t *proj = ProjectedShadowVerts;
 	vec4_t *verts = mesh->xyz_array;
-	int *indexes = mesh->indexes;
+	index_t *indexes = mesh->indexes;
 	int *neighbours = mesh->trneighbors;
 	int numtris = mesh->numindexes/3;
 
@@ -776,6 +776,48 @@ static void R_DrawShadowVolume(mesh_t *mesh)
 		}
 	}
 	glEnd();
+}
+
+void GL_DrawAliasMesh (mesh_t *mesh, int texnum)
+{
+	extern int gldepthfunc;
+#ifdef Q3SHADERS
+	R_UnlockArrays();
+#endif
+
+	glDepthFunc(gldepthfunc);
+	glDepthMask(1);
+	
+	GL_Bind(texnum);
+
+	glVertexPointer(3, GL_FLOAT, 16, mesh->xyz_array);
+	glEnableClientState( GL_VERTEX_ARRAY );
+
+	if (mesh->normals_array)
+	{
+		glNormalPointer(GL_FLOAT, 0, mesh->normals_array);
+		glEnableClientState( GL_NORMAL_ARRAY );
+	}
+
+	if (mesh->colors_array)
+	{
+		glColorPointer(4, GL_UNSIGNED_BYTE, 0, mesh->colors_array);
+		glEnableClientState( GL_COLOR_ARRAY );
+	}
+
+	glEnableClientState( GL_TEXTURE_COORD_ARRAY );
+	glTexCoordPointer(2, GL_FLOAT, 0, mesh->st_array);
+
+	glDrawElements(GL_TRIANGLES, mesh->numindexes, GL_UNSIGNED_INT, mesh->indexes);
+
+	glDisableClientState( GL_VERTEX_ARRAY );
+	glDisableClientState( GL_COLOR_ARRAY );
+	glDisableClientState( GL_NORMAL_ARRAY );
+	glDisableClientState( GL_TEXTURE_COORD_ARRAY );
+
+#ifdef Q3SHADERS
+	R_IBrokeTheArrays();
+#endif
 }
 
 void R_DrawGAliasModel (entity_t *e)
@@ -1090,21 +1132,46 @@ void R_DrawGAliasModel (entity_t *e)
 			R_GAliasAddDlights(&mesh, e->origin, e->angles);
 		skin = GL_ChooseSkin(inf, clmodel->name, e);
 		c_alias_polys += mesh.numindexes/3;
+
 		if (!skin)
-			GL_DrawMesh(&mesh, NULL, 1, 0);
+		{
+			glEnable(GL_TEXTURE_2D);
+			GL_DrawAliasMesh(&mesh, 1);
+		}
+#ifdef Q3SHADERS
+		else if (skin->shader)
+		{
+			meshbuffer_t mb;
+
+			mb.entity = &r_worldentity;
+			mb.shader = skin->shader;
+			mb.fog = NULL;
+			mb.mesh = &mesh;
+			mb.infokey = currententity->keynum;
+			mb.dlightbits = 0;
+
+			R_IBrokeTheArrays();
+
+			R_PushMesh(&mesh, skin->shader->features|MF_COLORS);
+
+			R_RenderMeshBuffer ( &mb, false );
+		}
+#endif
 		else
 		{
-			if (skin->bump)
-				GL_DrawMeshBump(&mesh, skin->base, 0, skin->bump, 0);
-			else
-				GL_DrawMesh(&mesh, NULL, skin->base, 0);
+			glEnable(GL_TEXTURE_2D);
+//			if (skin->bump)
+//				GL_DrawMeshBump(&mesh, skin->base, 0, skin->bump, 0);
+//			else
+				GL_DrawAliasMesh(&mesh, skin->base);
+
 			if (skin->fullbright && r_fb_models.value && cls.allow_luma)
 			{
 				mesh.colors_array = NULL;
 				glEnable(GL_BLEND);
 				glColor4f(1, 1, 1, e->alpha*r_fb_models.value);
 				c_alias_polys += mesh.numindexes/3;
-				GL_DrawMesh(&mesh, NULL, 0, skin->fullbright);
+				GL_DrawAliasMesh(&mesh, skin->fullbright);
 			}
 	
 		}
@@ -1299,7 +1366,10 @@ void R_DrawGAliasModelLighting (entity_t *e)
 	{
 		R_GAliasBuildMesh(&mesh, inf, e->frame, e->oldframe, e->lerptime, e->alpha);
 		mesh.colors_array = NULL;
+#ifdef Q3SHADERS
+#else
 		GL_DrawMesh(&mesh, NULL, 0, 0);
+#endif
 
 		if (inf->nextsurf)
 			inf = (galiasinfo_t*)((char *)inf + inf->nextsurf);
@@ -1784,7 +1854,7 @@ void GL_LoadQ1Model (model_t *mod, void *buffer)
 	dstvert_t *pinstverts;
 	dtriangle_t *pintriangles;
 	int *seamremap;
-	int *indexes;
+	index_t *indexes;
 
 	int size;
 
@@ -1950,7 +2020,7 @@ int Mod_ReadFlagsFromMD1(char *name, int md3version)
 	COM_StripExtension(name, fname);
 	COM_DefaultExtension(fname, ".mdl");
 
-	if (!strcmp(name, fname))	//md3 renamed as mdl
+	if (strcmp(name, fname))	//md3 renamed as mdl
 	{
 		COM_StripExtension(name, fname);	//seeing as the md3 is named over the mdl,
 		COM_DefaultExtension(fname, ".md1");//read from a file with md1 (one, not an ell)
@@ -2009,7 +2079,7 @@ void GL_LoadQ2Model (model_t *mod, void *buffer)
 	int i, j;
 	dmd2stvert_t *pinstverts;
 	dmd2triangle_t *pintri;
-	int *indexes;
+	index_t *indexes;
 	int numindexes;
 
 	vec3_t min;
@@ -2206,6 +2276,7 @@ void GL_LoadQ2Model (model_t *mod, void *buffer)
 // move the complete, relocatable alias model to the cache
 //	
 	hunkend = Hunk_LowMark ();
+	Hunk_Alloc(0);
 	hunktotal = hunkend - hunkstart;
 	
 	Cache_Alloc (&mod->cache, hunktotal, loadname);
@@ -2340,13 +2411,13 @@ void GL_LoadQ3Model(model_t *mod, void *buffer)
 //	int version;
 	int s, i, j, d;
 
-	int *indexes;
+	index_t *indexes;
 
 	vec3_t min;
 	vec3_t max;
 
 	galiaspose_t *pose;
-	galiasinfo_t *parent;
+	galiasinfo_t *parent, *root;
 	galiasgroup_t *group;
 
 	galiasskin_t	*skin;
@@ -2379,8 +2450,15 @@ void GL_LoadQ3Model(model_t *mod, void *buffer)
 //	if (header->version != sdfs)
 //		Sys_Error("GL_LoadQ3Model: Bad version\n");
 
+	if (header->numSurfaces < 1)
+	{
+		mod->type = mod_alias;
+		return;
+	}
+
 
 	parent = NULL;
+	root = NULL;
 
 	min[0] = min[1] = min[2] = 0;
 	max[0] = max[1] = max[2] = 0;
@@ -2396,7 +2474,10 @@ void GL_LoadQ3Model(model_t *mod, void *buffer)
 		galias->numindexes = surf->numTriangles*3;
 		galias->numskins = 1;
 		if (parent)
-			parent->nextsurf = (qbyte *)surf - (qbyte *)parent;
+			parent->nextsurf = (qbyte *)galias - (qbyte *)parent;
+		else
+			root = galias;
+		parent = galias;
 
 		st_array = Hunk_Alloc(sizeof(vec2_t)*galias->numindexes);
 		galias->ofs_st_array = (qbyte*)st_array - (qbyte*)galias;
@@ -2478,6 +2559,9 @@ void GL_LoadQ3Model(model_t *mod, void *buffer)
 				skin->skinwidth = 0;
 				skin->skinheight = 0;
 				skin->skinspeed = 0;
+#ifdef Q3SHADERS
+				texnum->shader = R_RegisterSkin(inshader->name);
+#else
 
 				texnum->base = Mod_LoadHiResTexture(inshader->name, true, true, true);
 				if (!texnum->base)
@@ -2529,7 +2613,7 @@ void GL_LoadQ3Model(model_t *mod, void *buffer)
 						texnum->fullbright = Mod_LoadBumpmapTexture(name);
 					}
 				}
-
+#endif
 
 				skin++;
 				texnum++;
@@ -2555,9 +2639,11 @@ void GL_LoadQ3Model(model_t *mod, void *buffer)
 // move the complete, relocatable alias model to the cache
 //	
 
+	hunkend = Hunk_LowMark ();
+
 	mod->flags = Mod_ReadFlagsFromMD1(mod->name, 0);
 
-	hunkend = Hunk_LowMark ();
+	Hunk_Alloc(0);
 	hunktotal = hunkend - hunkstart;
 	
 	Cache_Alloc (&mod->cache, hunktotal, loadname);
@@ -2567,7 +2653,7 @@ void GL_LoadQ3Model(model_t *mod, void *buffer)
 		Hunk_FreeToLowMark (hunkstart);
 		return;
 	}
-	memcpy (mod->cache.data, galias, hunktotal);
+	memcpy (mod->cache.data, root, hunktotal);
 
 	Hunk_FreeToLowMark (hunkstart);
 }

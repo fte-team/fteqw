@@ -1288,7 +1288,7 @@ qboolean SV_SendClientDatagram (client_t *client)
 
 	// send deltas over reliable stream
 	if (sv.worldmodel)
-		if (!client->isq2client && Netchan_CanReliable (&client->netchan))
+		if (!client->isq2client && Netchan_CanReliable (&client->netchan, SV_RateForClient(client)))
 		{
 			int pnum=1;
 			client_t *c;
@@ -1305,7 +1305,7 @@ qboolean SV_SendClientDatagram (client_t *client)
 	}
 
 	// send the datagram
-	Netchan_Transmit (&client->netchan, msg.cursize, buf);
+	Netchan_Transmit (&client->netchan, msg.cursize, buf, SV_RateForClient(client));
 
 	return true;
 }
@@ -1614,7 +1614,7 @@ void SV_SendClientMessages (void)
 		if (!c->send_message)
 			continue;
 		c->send_message = false;	// try putting this after choke?
-		if (!sv.paused && !Netchan_CanPacket (&c->netchan))
+		if (!sv.paused && !Netchan_CanPacket (&c->netchan, SV_RateForClient(c)))
 		{
 			c->chokecount++;
 			continue;		// bandwidth choke
@@ -1623,7 +1623,7 @@ void SV_SendClientMessages (void)
 		if (c->state == cs_spawned)
 			SV_SendClientDatagram (c);
 		else
-			Netchan_Transmit (&c->netchan, 0, NULL);	// just update reliable
+			Netchan_Transmit (&c->netchan, 0, NULL, SV_RateForClient(c));	// just update reliable
 			
 	}
 

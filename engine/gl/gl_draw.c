@@ -41,7 +41,7 @@ int					sizeofuploadmemorybuffer;
 qbyte				*uploadmemorybufferintermediate;
 int					sizeofuploadmemorybufferintermediate;
 
-int r_quad_indexes[6] = {0, 1, 2, 0, 2, 3};
+index_t r_quad_indexes[6] = {0, 1, 2, 0, 2, 3};
 
 extern qbyte		gammatable[256];
 
@@ -61,8 +61,6 @@ extern cvar_t		gl_font, gl_conback, gl_smoothfont;
 extern cvar_t		gl_savecompressedtex;
 
 extern cvar_t		gl_load24bit;
-
-extern qboolean gl_compressable;
 
 qbyte		*draw_chars;				// 8*8 graphic characters
 qpic_t		*draw_disc;
@@ -110,25 +108,6 @@ typedef struct gltexture_s
 } gltexture_t;
 
 static gltexture_t	*gltextures;
-
-void GL_Bind (int texnum)
-{
-	if (gl_nobind.value)
-		texnum = char_texture;
-	if (currenttexture == texnum)
-		return;
-	currenttexture = texnum;
-
-	bindTexFunc (GL_TEXTURE_2D, texnum);
-}
-void GL_BindType (int type, int texnum)
-{
-	bindTexFunc (type, texnum);
-
-currenttexture=-1;
-}
-
-
 /*
 =============================================================================
 
@@ -615,6 +594,46 @@ void GLDraw_TextureMode_f (void)
 	}
 }
 
+#ifdef Q3SHADERS
+#define FOG_TEXTURE_WIDTH 32
+#define FOG_TEXTURE_HEIGHT 32
+extern int r_fogtexture;
+void GL_InitFogTexture (void)
+{
+	qbyte data[FOG_TEXTURE_WIDTH*FOG_TEXTURE_HEIGHT];
+	int x, y;
+	float tw = 1.0f / ((float)FOG_TEXTURE_WIDTH - 1.0f);
+	float th = 1.0f / ((float)FOG_TEXTURE_HEIGHT - 1.0f);
+	float tx, ty, t;
+
+	if (r_fogtexture)
+		return;
+
+	//
+	// fog texture
+	//
+	for ( y = 0, ty = 0.0f; y < FOG_TEXTURE_HEIGHT; y++, ty += th )
+	{
+		for ( x = 0, tx = 0.0f; x < FOG_TEXTURE_WIDTH; x++, tx += tw )
+		{
+			t = (float)(sqrt( tx ) * 255.0);
+			data[x+y*FOG_TEXTURE_WIDTH] = (qbyte)(min( t, 255.0f ));
+		}
+
+		data[y] = 0;
+	}
+
+	r_fogtexture = texture_extension_number++;
+	GL_Bind(r_fogtexture);
+	qglTexImage2D (GL_TEXTURE_2D, 0, GL_ALPHA, FOG_TEXTURE_WIDTH, FOG_TEXTURE_HEIGHT, 0, GL_ALPHA, GL_UNSIGNED_BYTE, data);
+	
+	qglTexParameterf (GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, gl_filter_max);
+	qglTexParameterf (GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, gl_filter_max);
+	
+	qglTexParameteri (GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP);
+	qglTexParameteri (GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP);
+}
+#endif
 /*
 ===============
 Draw_Init
@@ -660,8 +679,11 @@ void GLDraw_ReInit (void)
 	skyboxtex[0] = 0; skyboxtex[1] = 0; skyboxtex[2] = 0; skyboxtex[3] = 0; skyboxtex[4] = 0; skyboxtex[5] = 0;
 	lightmap_textures=0;
 	filmtexture=0;
-	currenttexture=0;
 	glmenu_numcachepics=0;
+#ifdef Q3SHADERS
+	r_fogtexture=0;
+#endif
+	GL_FlushBinds();
 //	GL_FlushSkinCache();
 	TRACE(("dbg: GLDraw_ReInit: GL_GAliasFlushSkinCache\n"));
 	GL_GAliasFlushSkinCache();
@@ -783,6 +805,11 @@ TRACE(("dbg: GLDraw_ReInit: Allocating upload buffers\n"));
 
 	TRACE(("dbg: GLDraw_ReInit: GL_EndRendering\n"));
 	GL_EndRendering ();	
+
+
+#ifdef Q3SHADERS
+	Shader_Init();
+#endif
 
 	//now emit the conchars picture as if from a wad.
 	strcpy(glmenu_cachepics[glmenu_numcachepics].name, "conchars");
@@ -990,7 +1017,7 @@ void GLDraw_Init (void)
 
 	memset(scrap_allocated, 0, sizeof(scrap_allocated));
 
-	GLR_MeshInit();
+	R_BackendInit();
 
 	Cmd_AddRemCommand ("gl_texturemode", &GLDraw_TextureMode_f);
 
@@ -1007,6 +1034,7 @@ void GLDraw_Init (void)
 	draw_mesh.normals_array = draw_mesh_normals;
 	draw_mesh.st_array = draw_mesh_st;
 	draw_mesh.lmst_array = draw_mesh_lmst;
+
 }
 void GLDraw_DeInit (void)
 {
@@ -1021,6 +1049,10 @@ void GLDraw_DeInit (void)
 	uploadmemorybufferintermediate = NULL;
 	sizeofuploadmemorybuffer = 0;	//and give a nice safe sys_error if we try using it.
 	sizeofuploadmemorybufferintermediate = 0;
+
+#ifdef Q3SHADERS
+	Shader_Shutdown();
+#endif
 }
 
 
@@ -1075,13 +1107,12 @@ void GLDraw_Character (int x, int y, unsigned int num)
 	draw_mesh_st[3][0] = fcol;
 	draw_mesh_st[3][1] = frow+size;
 
+#ifndef Q3SHADERS
 	if (num&CON_2NDCHARSETTEXT)
 		GL_DrawMesh(&draw_mesh, NULL, char_tex2, 0);
 	else
 		GL_DrawMesh(&draw_mesh, NULL, char_texture, 0);
-return;
-
-
+#else
 	
 	if (num&CON_2NDCHARSETTEXT)
 		GL_Bind (char_tex2);
@@ -1107,6 +1138,8 @@ return;
 	glTexCoord2f (fcol, frow + size);
 	glVertex2f (x, y+8);
 	glEnd ();
+
+#endif
 }
 
 void GLDraw_ColouredCharacter (int x, int y, unsigned int num)
@@ -1269,6 +1302,7 @@ void GLDraw_Pic (int x, int y, qpic_t *pic)
 		Scrap_Upload ();
 	gl = (glpic_t *)pic->data;
 
+#ifndef Q3SHADERS
 	draw_mesh_xyz[0][0] = x;
 	draw_mesh_xyz[0][1] = y;
 	draw_mesh_st[0][0] = gl->sl;
@@ -1290,8 +1324,8 @@ void GLDraw_Pic (int x, int y, qpic_t *pic)
 	draw_mesh_st[3][1] = gl->th;
 
 	GL_DrawMesh(&draw_mesh, NULL, gl->texnum, 0);
+#else
 
-/*
 	glColor4f (1,1,1,1);
 	GL_Bind (gl->texnum);
 	glBegin (GL_QUADS);
@@ -1304,7 +1338,7 @@ void GLDraw_Pic (int x, int y, qpic_t *pic)
 	glTexCoord2f (gl->sl, gl->th);
 	glVertex2f (x, y+pic->height);
 	glEnd ();
-	*/
+#endif
 }
 
 void GLDraw_LevelPic (qpic_t *pic)	//Fullscreen and stuff
@@ -1404,7 +1438,11 @@ void GLDraw_SubPic(int x, int y, qpic_t *pic, int srcx, int srcy, int width, int
 	draw_mesh_st[3][0] = newsl;
 	draw_mesh_st[3][1] = newth;
 
+#ifdef Q3SHADERS
+	GL_DrawAliasMesh(&draw_mesh, gl->texnum);
+#else
 	GL_DrawMesh(&draw_mesh, NULL, gl->texnum, 0);
+#endif
 }
 
 /*
@@ -1665,7 +1703,11 @@ void GLDraw_Image(float x, float y, float w, float h, float s1, float t1, float 
 	draw_mesh_st[3][0] = s1;
 	draw_mesh_st[3][1] = t2;
 
+#ifdef Q3SHADERS
+	GL_DrawAliasMesh(&draw_mesh, gl->texnum);
+#else
 	GL_DrawMesh(&draw_mesh, NULL, gl->texnum, 0);
+#endif
 }
 
 //=============================================================================
@@ -2192,7 +2234,7 @@ qboolean GL_UploadCompressed (qbyte *file, int *out_width, int *out_height, unsi
 	int nummips;
 #define GETVAR(var) memcpy(var, file, sizeof(*var));file+=sizeof(*var);
 
-	if (!gl_compressable || !gl_compress.value)
+	if (!gl_config.arb_texture_compression || !gl_compress.value)
 		return false;
 
 	GETVAR(&nummips)
@@ -2227,9 +2269,6 @@ qboolean GL_UploadCompressed (qbyte *file, int *out_width, int *out_height, unsi
 	return true;
 }
 
-qboolean supported_GL_ARB_texture_non_power_of_two;
-qboolean supported_GL_SGIS_generate_mipmap;
-
 /*
 ===============
 GL_Upload32
@@ -2244,7 +2283,7 @@ void GL_Upload32 (char *name, unsigned *data, int width, int height,  qboolean m
 
 	TRACE(("dbg: GL_Upload32: %s %i %i\n", name, width, height));
 
-	if (supported_GL_ARB_texture_non_power_of_two)	//NPOT is a simple extension that relaxes errors.
+	if (gl_config.arb_texture_non_power_of_two)	//NPOT is a simple extension that relaxes errors.
 	{
 		TRACE(("dbg: GL_Upload32: GL_ARB_texture_non_power_of_two\n"));
 		scaled_width = width;
@@ -2282,7 +2321,7 @@ void GL_Upload32 (char *name, unsigned *data, int width, int height,  qboolean m
 		Sys_Error ("GL_LoadTexture: too big");
 
 	samples = alpha ? gl_alpha_format : gl_solid_format;
-	if (gl_compressable && gl_compress.value && name&&mipmap)
+	if (gl_config.arb_texture_compression && gl_compress.value && name&&mipmap)
 		samples = alpha ? GL_COMPRESSED_RGBA_ARB : GL_COMPRESSED_RGB_ARB;	
 
 #if 0
@@ -2299,7 +2338,7 @@ void GL_Upload32 (char *name, unsigned *data, int width, int height,  qboolean m
 #else
 texels += scaled_width * scaled_height;
 
-	if (supported_GL_SGIS_generate_mipmap&&mipmap)
+	if (gl_config.sgis_generate_mipmap&&mipmap)
 	{
 		TRACE(("dbg: GL_Upload32: GL_SGIS_generate_mipmap\n"));
 		glTexParameterf(GL_TEXTURE_2D, GL_GENERATE_MIPMAP_SGIS, GL_TRUE);
@@ -2307,7 +2346,7 @@ texels += scaled_width * scaled_height;
 
 	if (scaled_width == width && scaled_height == height)
 	{
-		if (!mipmap||supported_GL_SGIS_generate_mipmap)	//gotta love this with NPOT textures... :)
+		if (!mipmap||gl_config.sgis_generate_mipmap)	//gotta love this with NPOT textures... :)
 		{
 			TRACE(("dbg: GL_Upload32: non-mipmapped/unscaled\n"));
 			glTexImage2D (GL_TEXTURE_2D, 0, samples, scaled_width, scaled_height, 0, GL_RGBA, GL_UNSIGNED_BYTE, data);
@@ -2320,7 +2359,7 @@ texels += scaled_width * scaled_height;
 
 	TRACE(("dbg: GL_Upload32: recaled\n"));
 	glTexImage2D (GL_TEXTURE_2D, 0, samples, scaled_width, scaled_height, 0, GL_RGBA, GL_UNSIGNED_BYTE, scaled);
-	if (mipmap && !supported_GL_SGIS_generate_mipmap)
+	if (mipmap && !gl_config.sgis_generate_mipmap)
 	{		
 		miplevel = 0;
 		TRACE(("dbg: GL_Upload32: mips\n"));
@@ -2337,7 +2376,7 @@ texels += scaled_width * scaled_height;
 			glTexImage2D (GL_TEXTURE_2D, miplevel, samples, scaled_width, scaled_height, 0, GL_RGBA, GL_UNSIGNED_BYTE, scaled);
 		}
 	}
-	if (gl_compressable && gl_compress.value && gl_savecompressedtex.value && name&&mipmap)
+	if (gl_config.arb_texture_compression && gl_compress.value && gl_savecompressedtex.value && name&&mipmap)
 	{
 		FILE *out;
 		int miplevels;
@@ -2390,7 +2429,7 @@ texels += scaled_width * scaled_height;
 		}
 	}
 done:
-	if (supported_GL_SGIS_generate_mipmap&&mipmap)
+	if (gl_config.sgis_generate_mipmap&&mipmap)
 		glTexParameterf(GL_TEXTURE_2D, GL_GENERATE_MIPMAP_SGIS, GL_FALSE);
 #endif
 
@@ -2413,7 +2452,7 @@ void GL_Upload8Grey (unsigned char*data, int width, int height,  qboolean mipmap
 	unsigned char	*scaled = uploadmemorybuffer;
 	int			scaled_width, scaled_height;
 
-	if (supported_GL_ARB_texture_non_power_of_two)	//NPOT is a simple extension that relaxes errors.
+	if (gl_config.arb_texture_non_power_of_two)	//NPOT is a simple extension that relaxes errors.
 	{
 		TRACE(("dbg: GL_Upload32: GL_ARB_texture_non_power_of_two\n"));
 		scaled_width = width;
@@ -2629,7 +2668,7 @@ void GL_UploadBump(qbyte *data, int width, int height, qboolean mipmap) {
 	s = width*height;
 
 	//Resize to power of 2 and maximum texture size
-	if (supported_GL_ARB_texture_non_power_of_two)	//NPOT is a simple extension that relaxes errors.
+	if (gl_config.arb_texture_non_power_of_two)	//NPOT is a simple extension that relaxes errors.
 	{
 		TRACE(("dbg: GL_Upload32: GL_ARB_texture_non_power_of_two\n"));
 		scaled_width = width;
@@ -3187,7 +3226,7 @@ int GL_LoadCompressed(char *name)
 	gltexture_t	*glt;
 	char inname[MAX_OSPATH];
 
-	if (!gl_compressable || !gl_compress.value)
+	if (!gl_config.arb_texture_compression || !gl_compress.value)
 		return 0;
 
 
@@ -3321,10 +3360,3 @@ int GL_LoadPicTexture (qpic_t *pic)
 }
 
 /****************************************/
-
-void GL_SelectTexture (GLenum target) 
-{
-	if (!gl_mtexable)
-		return;
-	qglSelectTextureSGIS(target);
-}

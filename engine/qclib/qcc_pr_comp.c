@@ -425,6 +425,41 @@ QCC_opcode_t pr_opcodes[] =
 
 
 
+/*
+{7, "!=", "GSTOREP_I", -1, ASSOC_LEFT,				&type_float,	&type_float,	&type_float},
+	OP_GSTOREP_I,
+{7, "!=", "GSTORE_F", -1, ASSOC_LEFT,				&type_float,	&type_float,	&type_float},
+	OP_GSTOREP_F,		//190
+{7, "!=", "GSTORE_ENT", -1, ASSOC_LEFT,				&type_float,	&type_float,	&type_float},
+	OP_GSTOREP_ENT,
+{7, "!=", "GSTORE_FLD", -1, ASSOC_LEFT,				&type_float,	&type_float,	&type_float},
+	OP_GSTOREP_FLD,		// integers
+{7, "!=", "GSTORE_S", -1, ASSOC_LEFT,				&type_float,	&type_float,	&type_float},
+	OP_GSTOREP_S,
+{7, "!=", "GSTORE_FNC", -1, ASSOC_LEFT,				&type_float,	&type_float,	&type_float},
+	OP_GSTOREP_FNC,		// pointers
+{7, "!=", "GSTORE_V", -1, ASSOC_LEFT,				&type_float,	&type_float,	&type_float},
+	OP_GSTOREP_V,
+
+{7, "!=", "BOUNDCHECK", -1, ASSOC_LEFT,				&type_float,	&type_float,	&type_float},
+	OP_GADDRESS,
+
+{7, "!=", "GLOAD_I", -1, ASSOC_LEFT,				&type_float,	&type_float,	&type_float},
+	OP_GLOAD_I,
+{7, "!=", "GLOAD_F", -1, ASSOC_LEFT,				&type_float,	&type_float,	&type_float},
+	OP_GLOAD_F,
+{7, "!=", "GLOAD_FLD", -1, ASSOC_LEFT,				&type_float,	&type_float,	&type_float},
+	OP_GLOAD_FLD,
+{7, "!=", "GLOAD_ENT", -1, ASSOC_LEFT,				&type_float,	&type_float,	&type_float},
+	OP_GLOAD_ENT,		//200
+{7, "!=", "GLOAD_S", -1, ASSOC_LEFT,				&type_float,	&type_float,	&type_float},
+	OP_GLOAD_S,
+{7, "!=", "GLOAD_FNC", -1, ASSOC_LEFT,				&type_float,	&type_float,	&type_float},
+	OP_GLOAD_FNC,
+
+  {7, "!=", "BOUNDCHECK", -1, ASSOC_LEFT,				&type_float,	&type_float,	&type_float},
+	OP_BOUNDCHECK,
+*/
  
  {0, NULL}
 };

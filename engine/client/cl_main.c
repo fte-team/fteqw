@@ -781,9 +781,9 @@ void CL_Disconnect (void)
 				final[0] = clc_stringcmd;
 				strcpy (final+1, "drop");
 			}
-			Netchan_Transmit (&cls.netchan, strlen(final)+1, final);
-			Netchan_Transmit (&cls.netchan, strlen(final)+1, final);
-			Netchan_Transmit (&cls.netchan, strlen(final)+1, final);
+			Netchan_Transmit (&cls.netchan, strlen(final)+1, final, 2500);
+			Netchan_Transmit (&cls.netchan, strlen(final)+1, final, 2500);
+			Netchan_Transmit (&cls.netchan, strlen(final)+1, final, 2500);
 		}
 
 		cls.state = ca_disconnected;

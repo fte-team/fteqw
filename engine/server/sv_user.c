@@ -1951,23 +1951,24 @@ Change the bandwidth estimate for a client
 */
 void SV_Rate_f (void)
 {
+	extern cvar_t sv_maxrate;
 	int		rate;
 	
 	if (Cmd_Argc() != 2)
 	{
 		SV_ClientTPrintf (host_client, PRINT_HIGH, STL_CURRENTRATE,
-			(int)(1.0/host_client->netchan.rate + 0.5));
+			host_client->rate);
 		return;
 	}
 	
 	rate = atoi(Cmd_Argv(1));
 	if (rate < 500)
 		rate = 500;
-	if (rate > 10000)
-		rate = 10000;
+	if (rate > sv_maxrate.value)
+		rate = sv_maxrate.value;
 
 	SV_ClientTPrintf (host_client, PRINT_HIGH, STL_RATESETTO, rate);
-	host_client->netchan.rate = 1.0/rate;
+	host_client->rate = rate;
 }
 
 

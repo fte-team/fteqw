@@ -320,28 +320,36 @@ void EmitSkyPolys (msurface_t *fa)
 	vec3_t	dir;
 	float	length;
 
-	for (p=fa->polys ; p ; p=p->next)
+	if (fa->mesh)
 	{
-		glBegin (GL_POLYGON);
-		for (i=0,v=p->verts[0] ; i<p->numverts ; i++, v+=VERTEXSIZE)
+		fa->mesh->colors_array = NULL;
+		GL_DrawAliasMesh(fa->mesh, 1);
+	}
+	else
+	{
+		for (p=fa->polys ; p ; p=p->next)
 		{
-			VectorSubtract (v, r_origin, dir);
-			dir[2] *= 3;	// flatten the sphere
+			glBegin (GL_POLYGON);
+			for (i=0,v=p->verts[0] ; i<p->numverts ; i++, v+=VERTEXSIZE)
+			{
+				VectorSubtract (v, r_origin, dir);
+				dir[2] *= 3;	// flatten the sphere
 
-			length = dir[0]*dir[0] + dir[1]*dir[1] + dir[2]*dir[2];
-			length = sqrt (length);
-			length = 6*63/length;
+				length = dir[0]*dir[0] + dir[1]*dir[1] + dir[2]*dir[2];
+				length = sqrt (length);
+				length = 6*63/length;
 
-			dir[0] *= length;
-			dir[1] *= length;
+				dir[0] *= length;
+				dir[1] *= length;
 
-			s = (speedscale + dir[0]) * (1.0/128);
-			t = (speedscale + dir[1]) * (1.0/128);
+				s = (speedscale + dir[0]) * (1.0/128);
+				t = (speedscale + dir[1]) * (1.0/128);
 
-			glTexCoord2f (s, t);
-			glVertex3fv (v);
+				glTexCoord2f (s, t);
+				glVertex3fv (v);
+			}
+			glEnd ();
 		}
-		glEnd ();
 	}
 }
 
@@ -386,7 +394,7 @@ void R_DrawSkyChain (msurface_t *s)
 
 	GL_DisableMultitexture();
 
-	if (r_fastsky.value)	//this is for visability only... we'd otherwise not stoop this low (and this IS low)
+	if (r_fastsky.value||!solidskytexture)	//this is for visability only... we'd otherwise not stoop this low (and this IS low)
 	{
 		int fc;
 		qbyte *pal;
@@ -721,13 +729,27 @@ void R_DrawSkyBoxChain (msurface_t *s)
 
 	for (fa=s ; fa ; fa=fa->texturechain)
 	{
-		for (p=fa->polys ; p ; p=p->next)
+		if (fa->mesh)
 		{
-			for (i=0 ; i<p->numverts ; i++)
+			//triangulate
+			for (i=2 ; i<fa->mesh->numvertexes ; i++)
 			{
-				VectorSubtract (p->verts[i], r_origin, verts[i]);
+				VectorSubtract (fa->mesh->xyz_array[0], r_origin, verts[0]);
+				VectorSubtract (fa->mesh->xyz_array[i-1], r_origin, verts[1]);
+				VectorSubtract (fa->mesh->xyz_array[i], r_origin, verts[2]);
+				ClipSkyPolygon (3, verts[0], 0);
 			}
-			ClipSkyPolygon (p->numverts, verts[0], 0);
+		}
+		else
+		{
+			for (p=fa->polys ; p ; p=p->next)
+			{
+				for (i=0 ; i<p->numverts ; i++)
+				{
+					VectorSubtract (p->verts[i], r_origin, verts[i]);
+				}
+				ClipSkyPolygon (p->numverts, verts[0], 0);
+			}
 		}
 	}
 
@@ -736,12 +758,17 @@ void R_DrawSkyBoxChain (msurface_t *s)
 	glColorMask(0, 0, 0, 0);
 	for (fa=s ; fa ; fa=fa->texturechain)
 	{
-		for (p=fa->polys ; p ; p=p->next)
+		if (fa->mesh)
+			GL_DrawAliasMesh(fa->mesh, 1);
+		else
 		{
-			glBegin(GL_POLYGON);
-			for (i = 0; i < p->numverts; i++)
-				glVertex3fv(p->verts[i]);
-			glEnd();
+			for (p=fa->polys ; p ; p=p->next)
+			{
+				glBegin(GL_POLYGON);
+				for (i = 0; i < p->numverts; i++)
+					glVertex3fv(p->verts[i]);
+				glEnd();
+			}
 		}
 	}
 	glColorMask(1, 1, 1, 1);
@@ -892,12 +919,17 @@ glEnable (GL_DEPTH_TEST);
 		glColorMask(0, 0, 0, 0);	//depth only.
 		for (fa = s; fa; fa = fa->texturechain)
 		{
-			for (poly = fa->polys; poly; poly = poly->next)
+			if (fa->mesh)
+				GL_DrawAliasMesh(fa->mesh, 1);
+			else
 			{
-				glBegin (GL_POLYGON);
-				for (i = 0; i < poly->numverts; i++)
-					glVertex3fv (&poly->verts[0][0]+i*VERTEXSIZE);
-				glEnd ();
+				for (poly = fa->polys; poly; poly = poly->next)
+				{
+					glBegin (GL_POLYGON);
+					for (i = 0; i < poly->numverts; i++)
+						glVertex3fv (&poly->verts[0][0]+i*VERTEXSIZE);
+					glEnd ();
+				}
 			}
 		}
 		glColorMask(1, 1, 1, 1);

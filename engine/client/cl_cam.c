@@ -105,8 +105,8 @@ qboolean Cam_DrawViewModel(int pnum)
 // returns true if we should draw this player, we don't if we are chase camming
 qboolean Cam_DrawPlayer(int pnum, int playernum)
 {
-	if (playernum == cl.playernum[pnum])
-		return false;
+//	if (playernum == cl.playernum[pnum])
+//		return false;
 	if (cl.spectator && autocam[pnum] && locked[pnum] && cl_chasecam.value && 
 		spec_track[pnum] == playernum)
 		return false;

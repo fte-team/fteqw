@@ -7315,20 +7315,20 @@ BuiltinList_t BuiltinList[] = {				//nq	qw		h2		ebfs
 //some of these are a little iffy.
 //we support them for mvdsv compatability but some of them look very hacky.
 //these ones are not honoured with numbers, but can be used via the proper means.
-	{"teamfield",		PF_teamfield,		0,		0,		0,		87},
-	{"substr",			PF_substr,			0,		0,		0,		88},
-	{"mvdstrcat",		PF_strcat,			0,		0,		0,		89},
-	{"mvdstrlen",		PF_strlen,			0,		0,		0,		90},
-	{"str2byte",		PF_str2byte,		0,		0,		0,		91},
-	{"str2short",		PF_str2short,		0,		0,		0,		92},
+	{"teamfield",		PF_teamfield,		0,		0,		0,		0},
+	{"substr",			PF_substr,			0,		0,		0,		0},
+	{"mvdstrcat",		PF_strcat,			0,		0,		0,		0},
+	{"mvdstrlen",		PF_strlen,			0,		0,		0,		0},
+	{"str2byte",		PF_str2byte,		0,		0,		0,		0},
+	{"str2short",		PF_str2short,		0,		0,		0,		0},
 	{"mvdnewstr",		PF_newstring,		0,		0,		0,		0},
 	{"mvdfreestr",		PF_forgetstring,	0,		0,		0,		0},
-	{"conprint",		PF_conprint,		0,		0,		0,		95},
-	{"readcmd",			PF_readcmd,			0,		0,		0,		96},
+	{"conprint",		PF_conprint,		0,		0,		0,		0},
+	{"readcmd",			PF_readcmd,			0,		0,		0,		0},
 	{"mvdstrcpy",		PF_MVDSV_strcpy,	0,		0,		0,		0},
-	{"strstr",			PF_strstr,			0,		0,		0,		98},
+	{"strstr",			PF_strstr,			0,		0,		0,		0},
 	{"mvdstrncpy",		PF_MVDSV_strncpy,	0,		0,		0,		0},
-	{"log",				PF_log,				0,		0,		0,		100},
+	{"log",				PF_log,				0,		0,		0,		0},
 //	{"redirectcmd",		PF_redirectcmd,		0,		0,		0,		101},
 	{"calltimeofday",	PF_calltimeofday,	0,		0,		0,		102},
 	{"forcedemoframe",	PF_forcedemoframe,	0,		0,		0,		103},
@@ -7601,23 +7601,23 @@ void PR_ResetBuiltins(progstype_t type)	//fix all nulls to PF_FIXME and add any 
 
 	if (type == PROG_QW && pr_imitatemvdsv.value>0)	//pretend to be mvdsv for a bit.
 	{
-		if (PR_EnableEBFSBuiltin("teamfield",		0) != 87 ||
-			PR_EnableEBFSBuiltin("substr",			0) != 88 ||
-			PR_EnableEBFSBuiltin("mvdstrcat",		0) != 89 ||
-			PR_EnableEBFSBuiltin("mvdstrlen",		0) != 90 ||
-			PR_EnableEBFSBuiltin("str2byte",		0) != 91 ||
-			PR_EnableEBFSBuiltin("str2short",		0) != 92 ||
-			PR_EnableEBFSBuiltin("mvdnewstr",		93)!= 93 ||
-			PR_EnableEBFSBuiltin("mvdfreestr",		94)!= 94 ||
-			PR_EnableEBFSBuiltin("conprint",		0) != 95 ||
-			PR_EnableEBFSBuiltin("readcmd",			0) != 96 ||
-			PR_EnableEBFSBuiltin("mvdstrcpy",		97)!= 97 ||
-			PR_EnableEBFSBuiltin("strstr",			0) != 98 ||
-			PR_EnableEBFSBuiltin("mvdstrncpy",		99)!= 99 ||
-			PR_EnableEBFSBuiltin("log",				0)!= 100 ||
-//			PR_EnableEBFSBuiltin("redirectcmd",		0)!= 101 ||
-			PR_EnableEBFSBuiltin("calltimeofday",	0)!= 102 ||
-			PR_EnableEBFSBuiltin("forcedemoframe",	0)!= 103)
+		if (PR_EnableEBFSBuiltin("teamfield",		87) != 87 ||
+			PR_EnableEBFSBuiltin("substr",			88) != 88 ||
+			PR_EnableEBFSBuiltin("mvdstrcat",		89) != 89 ||
+			PR_EnableEBFSBuiltin("mvdstrlen",		90) != 90 ||
+			PR_EnableEBFSBuiltin("str2byte",		91) != 91 ||
+			PR_EnableEBFSBuiltin("str2short",		92) != 92 ||
+			PR_EnableEBFSBuiltin("mvdnewstr",		93) != 93 ||
+			PR_EnableEBFSBuiltin("mvdfreestr",		94) != 94 ||
+			PR_EnableEBFSBuiltin("conprint",		95) != 95 ||
+			PR_EnableEBFSBuiltin("readcmd",			96) != 96 ||
+			PR_EnableEBFSBuiltin("mvdstrcpy",		97) != 97 ||
+			PR_EnableEBFSBuiltin("strstr",			98) != 98 ||
+			PR_EnableEBFSBuiltin("mvdstrncpy",		99) != 99 ||
+			PR_EnableEBFSBuiltin("log",				100)!= 100 ||
+//			PR_EnableEBFSBuiltin("redirectcmd",		101)!= 101 ||
+			PR_EnableEBFSBuiltin("calltimeofday",	102)!= 102 ||
+			PR_EnableEBFSBuiltin("forcedemoframe",	103)!= 103)
 			Con_Printf("Failed to register all MVDSV builtins\n");
 		else
 			Con_Printf("Be aware that MVDSV does not follow standards. Please encourage your mod developers to not require pr_imitatemvdsv to be set.\n");

@@ -772,9 +772,10 @@ void LightFace (int surfnum)
 //
 // some surfaces don't need lightmaps
 //	
+#ifdef UTILITY
 	for (j=0 ; j<MAXLIGHTMAPS ; j++)
 		f->styles[j] = 255;
-
+#endif
 	if ( bsptexinfo(f->texinfo).flags & TEX_SPECIAL)
 	{	// non-lit texture
 #ifdef UTILITY
@@ -842,6 +843,11 @@ void LightFace (int surfnum)
 #endif
 		return;
 	}
+
+#ifndef UTILITY
+	for (j=0 ; j<MAXLIGHTMAPS ; j++)
+		f->styles[j] = 255;
+#endif
 	
 //
 // save out the values

@@ -941,6 +941,7 @@ void GLR_BuildLightMap (msurface_t *surf, qbyte *dest, qbyte *deluxdest, stmap *
 
 // bound, invert, and shift
 store:
+#ifdef INVERTLIGHTMAPS
 	switch (gl_lightmap_format)
 	{
 #ifdef PEXT_LIGHTSTYLECOL
@@ -1293,6 +1294,360 @@ store:
 	default:
 		Sys_Error ("Bad lightmap format");
 	}
+#else
+	switch (gl_lightmap_format)
+	{
+#ifdef PEXT_LIGHTSTYLECOL
+	case GL_RGBA:
+		stride -= (smax<<2);
+		bl = blocklights;
+		blg = greenblklights;
+		blb = blueblklights;
+
+		if (!r_stains.value)
+			isstained = false;
+		else
+			isstained = surf->stained;
+
+/*		if (!gl_lightcomponantreduction.value)
+		{
+			for (i=0 ; i<tmax ; i++, dest += stride)
+			{
+				for (j=0 ; j<smax ; j++)
+				{
+					t = *bl++;
+					t >>= 7;
+					if (t > 255)
+						dest[0] = 0;
+					else if (t < 0)
+						dest[0] = 256;
+					else
+						dest[0] = (255-t);				
+
+					t = *blg++;
+					t >>= 7;
+					if (t > 255)
+						dest[1] = 0;
+					else if (t < 0)
+						dest[1] = 256;
+					else
+						dest[1] = (255-t);
+
+					t = *blb++;
+					t >>= 7;
+					if (t > 255)
+						dest[2] = 0;
+					else if (t < 0)
+						dest[2] = 256;
+					else
+						dest[2] = (255-t);
+
+					dest[3] = 0;//(dest[0]+dest[1]+dest[2])/3;
+					dest += 4;
+				}
+			}
+		}
+		else
+*/		{
+		stmap *stain;		
+			for (i=0 ; i<tmax ; i++, dest += stride)
+			{
+				stain = stainsrc + i*LMBLOCK_WIDTH*3;
+				for (j=0 ; j<smax ; j++)
+				{
+					r = *bl++;
+					r >>= 7;
+
+					g = *blg++;
+					g >>= 7;
+
+					b = *blb++;
+					b >>= 7;	
+					
+					if (isstained)	//do we need to add the stain?
+					{
+						r += *stain++;
+						g += *stain++;
+						b += *stain++;
+					}
+
+					cr = 0;
+					cg = 0;
+					cb = 0;
+
+					if (r > 255)	//ak too much red
+					{
+						cr -= (255-r)/2;
+						cg += (255-r)/4;	//reduce it, and indicate to drop the others too.
+						cb += (255-r)/4;
+						r = 255;
+					}
+//					else if (r < 0)					
+//						r = 0;				
+					
+					if (g > 255)
+					{					
+						cr += (255-g)/4;
+						cg -= (255-g)/2;
+						cb += (255-g)/4;
+						g = 255;
+					}
+//					else if (g < 0)				
+//						g = 0;					
+
+					if (b > 255)
+					{
+						cr += (255-b)/4;
+						cg += (255-b)/4;
+						cb -= (255-b)/2;
+						b = 255;
+					}
+//					else if (b < 0)
+//						b = 0;
+				//*
+					if ((r+cr) > 255)
+						dest[0] = 0;	//inverse lighting
+					else if ((r+cr) < 0)
+						dest[0] = 255;
+					else
+						dest[0] = 255-(r+cr);
+
+					if ((g+cg) > 255)
+						dest[1] = 0;
+					else if ((g+cg) < 0)
+						dest[1] = 255;
+					else
+						dest[1] = 255-(g+cg);
+
+					if ((b+cb) > 255)
+						dest[2] = 0;
+					else if ((b+cb) < 0)
+						dest[2] = 255;
+					else
+						dest[2] = 255-(b+cb);
+/*/
+					if ((r+cr) > 255)
+						dest[0] = 255;	//non-inverse lighting
+					else if ((r+cr) < 0)
+						dest[0] = 0;
+					else
+						dest[0] = (r+cr);
+
+					if ((g+cg) > 255)
+						dest[1] = 255;
+					else if ((g+cg) < 0)
+						dest[1] = 0;
+					else
+						dest[1] = (g+cg);
+
+					if ((b+cb) > 255)
+						dest[2] = 255;
+					else if ((b+cb) < 0)
+						dest[2] = 0;
+					else
+						dest[2] = (b+cb);
+*/
+
+
+
+					dest[3] = (dest[0]+dest[1]+dest[2])/3;	//alpha?!?!
+					dest += 4;					
+				}
+			}
+		}		
+		break;
+
+	case GL_RGB:
+		stride -= smax*3;
+		bl = blocklights;
+		blg = greenblklights;
+		blb = blueblklights;
+
+		if (!r_stains.value)
+			isstained = false;
+		else
+			isstained = surf->stained;
+
+/*		if (!gl_lightcomponantreduction.value)
+		{
+			for (i=0 ; i<tmax ; i++, dest += stride)
+			{
+				for (j=0 ; j<smax ; j++)
+				{
+					t = *bl++;
+					t >>= 7;
+					if (t > 255)
+						dest[0] = 255;
+					else if (t < 0)
+						dest[0] = 0;
+					else
+						dest[0] = t;				
+
+					t = *blg++;
+					t >>= 7;
+					if (t > 255)
+						dest[1] = 255;
+					else if (t < 0)
+						dest[1] = 0;
+					else
+						dest[1] = t;
+
+					t = *blb++;
+					t >>= 7;
+					if (t > 255)
+						dest[2] = 255;
+					else if (t < 0)
+						dest[2] = 0;
+					else
+						dest[2] = t;
+
+					dest += 3;
+				}
+			}
+		}
+		else
+*/		{
+		stmap *stain;		
+			for (i=0 ; i<tmax ; i++, dest += stride)
+			{
+				stain = stainsrc + i*LMBLOCK_WIDTH*3;
+				for (j=0 ; j<smax ; j++)
+				{
+					r = *bl++;
+					r >>= 7;
+
+					g = *blg++;
+					g >>= 7;
+
+					b = *blb++;
+					b >>= 7;	
+					
+					if (isstained)	//do we need to add the stain?
+					{
+						r += *stain++;
+						g += *stain++;
+						b += *stain++;
+					}
+
+					cr = 0;
+					cg = 0;
+					cb = 0;
+
+					if (r > 255)	//ak too much red
+					{
+						cr -= (255-r)/2;
+						cg += (255-r)/4;	//reduce it, and indicate to drop the others too.
+						cb += (255-r)/4;
+						r = 255;
+					}
+//					else if (r < 0)					
+//						r = 0;				
+					
+					if (g > 255)
+					{					
+						cr += (255-g)/4;
+						cg -= (255-g)/2;
+						cb += (255-g)/4;
+						g = 255;
+					}
+//					else if (g < 0)				
+//						g = 0;					
+
+					if (b > 255)
+					{
+						cr += (255-b)/4;
+						cg += (255-b)/4;
+						cb -= (255-b)/2;
+						b = 255;
+					}
+//					else if (b < 0)
+//						b = 0;
+				//*
+					if ((r+cr) > 255)
+						dest[0] = 255;	//inverse lighting
+					else if ((r+cr) < 0)
+						dest[0] = 0;
+					else
+						dest[0] = (r+cr);
+
+					if ((g+cg) > 255)
+						dest[1] = 255;
+					else if ((g+cg) < 0)
+						dest[1] = 0;
+					else
+						dest[1] = (g+cg);
+
+					if ((b+cb) > 255)
+						dest[2] = 255;
+					else if ((b+cb) < 0)
+						dest[2] = 0;
+					else
+						dest[2] = (b+cb);
+/*/
+					if ((r+cr) > 255)
+						dest[0] = 255;	//non-inverse lighting
+					else if ((r+cr) < 0)
+						dest[0] = 0;
+					else
+						dest[0] = (r+cr);
+
+					if ((g+cg) > 255)
+						dest[1] = 255;
+					else if ((g+cg) < 0)
+						dest[1] = 0;
+					else
+						dest[1] = (g+cg);
+
+					if ((b+cb) > 255)
+						dest[2] = 255;
+					else if ((b+cb) < 0)
+						dest[2] = 0;
+					else
+						dest[2] = (b+cb);
+// */
+					dest += 3;	
+				}
+			}
+		}		
+		break;
+#else
+	case GL_RGBA:
+		stride -= (smax<<2);
+		bl = blocklights;
+		for (i=0 ; i<tmax ; i++, dest += stride)
+		{
+			for (j=0 ; j<smax ; j++)
+			{
+				t = *bl++;
+				t >>= 7;
+				if (t > 255)
+					t = 255;
+				dest[3] = t;
+				dest += 4;
+			}
+		}
+		break;
+#endif
+	case GL_ALPHA:
+	case GL_LUMINANCE:
+	case GL_INTENSITY:
+		bl = blocklights;
+		for (i=0 ; i<tmax ; i++, dest += stride)
+		{
+			for (j=0 ; j<smax ; j++)
+			{
+				t = *bl++;
+				t >>= 7;
+				if (t > 255)
+					t = 255;
+				dest[j] = t;
+			}
+		}
+		break;
+	default:
+		Sys_Error ("Bad lightmap format");
+	}
+#endif
 }
 
 /*
@@ -2796,7 +3151,6 @@ void R_DrawWorld (void)
 	VectorCopy (r_refdef.vieworg, modelorg);
 
 	currententity = &ent;
-	currenttexture = -1;
 
 #ifdef TERRAINMAPS
 	if (ent.model->type == mod_terrain)
@@ -2836,6 +3190,7 @@ void R_DrawWorld (void)
 #endif
 			GLR_RecursiveWorldNode (cl.worldmodel->nodes);
 
+		TRACE(("dbg: calling PPL_DrawWorld\n"));
 //		if (r_shadows.value >= 2 && gl_canstencil && gl_mtexable)
 			PPL_DrawWorld();
 //		else

@@ -46,7 +46,7 @@ typedef struct {
 	int	(*LeafForPoint)			(vec3_t point, struct model_s *model);
 } bspfuncs_t;
 
-
+typedef int index_t;
 typedef struct mesh_s
 {
     int				numvertexes;
@@ -57,7 +57,7 @@ typedef struct mesh_s
 	byte_vec4_t		*colors_array;
 
     int				numindexes;
-    int				*indexes;
+    index_t			*indexes;
 	int				*trneighbors;
 	vec3_t			*trnormals;
 
@@ -144,6 +144,9 @@ typedef struct texture_s
 	int			gl_texturenumfb;
 	int			gl_texturenumbumpmap;
 	int			gl_texturenumspec;
+
+	struct shader_s	*shader;
+
 	struct msurface_s	*texturechain;	// for gl_texsort drawing
 	int			anim_total;				// total tenths in sequence ( 0 = no)
 	int			anim_min, anim_max;		// time for this frame min <=time< max
@@ -200,6 +203,18 @@ typedef struct glpoly_s
 	float	verts[4][VERTEXSIZE];	// variable sized (xyz s1t1 s2t2 (ldir_xyz)
 } glpoly_t;
 
+#ifdef Q3SHADERS
+typedef struct mfog_s
+{
+	struct shader_s		*shader;
+
+	mplane_t		*visibleplane;
+
+	int				numplanes;
+	mplane_t		**planes;
+} mfog_t;
+#endif
+
 typedef struct msurface_s
 {
 	int			visframe;		// should be drawn when node is crossed
@@ -221,6 +236,9 @@ typedef struct msurface_s
 
 	int			light_s, light_t;	// gl lightmap coordinates
 
+#ifdef Q3SHADERS
+	mfog_t		*fog;
+#endif
 	mesh_t		*mesh;
 	entity_t	*ownerent;
 	glpoly_t	*polys;				// multiple if warped

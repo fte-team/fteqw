@@ -109,7 +109,7 @@ typedef struct
 
 // bandwidth estimator
 	double		cleartime;			// if realtime > nc->cleartime, free to go
-	double		rate;				// seconds / qbyte
+//	double		rate;				// seconds / qbyte
 
 // sequencing variables
 	int			incoming_sequence;
@@ -138,15 +138,15 @@ typedef struct
 extern	int	net_drop;		// packets dropped before this one
 
 void Netchan_Init (void);
-void Netchan_Transmit (netchan_t *chan, int length, qbyte *data);
+void Netchan_Transmit (netchan_t *chan, int length, qbyte *data, int rate);
 void Netchan_OutOfBand (netsrc_t sock, netadr_t adr, int length, qbyte *data);
 void VARGS Netchan_OutOfBandPrint (netsrc_t sock, netadr_t adr, char *format, ...);
 void VARGS Netchan_OutOfBandTPrintf (netsrc_t sock, netadr_t adr, int language, translation_t text, ...);
 qboolean Netchan_Process (netchan_t *chan);
 void Netchan_Setup (netsrc_t sock, netchan_t *chan, netadr_t adr, int qport);
 
-qboolean Netchan_CanPacket (netchan_t *chan);
-qboolean Netchan_CanReliable (netchan_t *chan);
+qboolean Netchan_CanPacket (netchan_t *chan, int rate);
+qboolean Netchan_CanReliable (netchan_t *chan, int rate);
 
 #ifdef HUFFNETWORK
 int Huff_PreferedCompressionCRC (void);

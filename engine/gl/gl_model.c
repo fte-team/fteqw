@@ -1217,6 +1217,7 @@ Mod_LoadLighting
 void GLMod_LoadLighting (lump_t *l)
 {	
 	qbyte *luxdata = NULL;
+	int mapcomeswith24bitcolouredlighting = false;
 	loadmodel->rgblighting = false;
 
 	//lit file light intensity is made to match the world's light intensity.
@@ -1232,7 +1233,10 @@ void GLMod_LoadLighting (lump_t *l)
 		return;
 	}
 
-	if (r_loadlits.value && gl_bumpmappingpossible)	//fixme: adjust the light intensities.
+	if (loadmodel->fromgame == fg_halflife || loadmodel->fromgame == fg_quake2 || loadmodel->fromgame == fg_quake3)
+		mapcomeswith24bitcolouredlighting = true;
+
+	if (!mapcomeswith24bitcolouredlighting && r_loadlits.value && gl_bumpmappingpossible)	//fixme: adjust the light intensities.
 	{	//the map util has a '-scalecos X' parameter. use 0 if you're going to use only just lux. without lux scalecos 0 is hideous.
 		char luxname[MAX_QPATH];		
 		if (!luxdata)
@@ -1280,7 +1284,7 @@ void GLMod_LoadLighting (lump_t *l)
 		}	
 	}
 
-	if (r_loadlits.value)
+	if (!mapcomeswith24bitcolouredlighting && r_loadlits.value)
 	{
 		qbyte *litdata = NULL;
 		char *litname;
@@ -1364,11 +1368,11 @@ void GLMod_LoadLighting (lump_t *l)
 //		else
 			//failed to find
 	}
-	if (loadmodel->fromgame == fg_halflife || loadmodel->fromgame == fg_quake2 || loadmodel->fromgame == fg_quake3)
+	if (mapcomeswith24bitcolouredlighting)
 		loadmodel->rgblighting = true;
 
 #ifdef RUNTIMELIGHTING
-	if (r_loadlits.value == 2 && !lightmodel && (loadmodel->rgblighting != true || (!luxdata && gl_bumpmappingpossible)))
+	else if (r_loadlits.value == 2 && !lightmodel && (loadmodel->rgblighting != true || (!luxdata && gl_bumpmappingpossible)))
 	{
 		qbyte *litdata = NULL;
 		int i;

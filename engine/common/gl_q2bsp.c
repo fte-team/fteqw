@@ -332,11 +332,23 @@ int			numvertexes;
 
 vec2_t		*map_vertstmexcoords;
 vec2_t		*map_vertlstmexcoords;
+byte_vec4_t *map_colors_array;
+
+#ifdef Q3SHADERS
+typedef struct {
+	char		shader[MAX_QPATH];
+	int			brushNum;
+	int			visibleSide;	// the brush side that ray tests need to clip against (-1 == none)
+} dfog_t;
+
+mfog_t		*map_fogs;
+int			map_numfogs;
+#endif
 
 q3cface_t	*map_faces;
 int			numfaces;
 
-int *map_surfindexes;
+index_t *map_surfindexes;
 int	map_numsurfindexes;
 
 int			*map_leaffaces;
@@ -1893,6 +1905,7 @@ void CModQ3_LoadVertexes (lump_t *l)
 	vec4_t		*out;
 	int			i, count, j;
 	vec2_t		*lmout, *stout;
+	byte_vec4_t *cout;
 
 	in = (void *)(cmod_base + l->fileofs);
 	if (l->filelen % sizeof(*in))
@@ -1905,9 +1918,11 @@ void CModQ3_LoadVertexes (lump_t *l)
 	out = Hunk_Alloc ( count*sizeof(*out) );
 	stout = Hunk_Alloc ( count*sizeof(*stout) );
 	lmout = Hunk_Alloc ( count*sizeof(*lmout) );
+	cout = Hunk_Alloc ( count*sizeof(*cout) );
 	map_verts = out;
 	map_vertstmexcoords = stout;
 	map_vertlstmexcoords = lmout;
+	map_colors_array = cout;
 	numvertexes = count;
 
 	for ( i=0 ; i<count ; i++, in++)
@@ -1920,6 +1935,10 @@ void CModQ3_LoadVertexes (lump_t *l)
 		{
 			stout[i][j] = LittleFloat ( ((float *)in->texcoords)[j] );
 			lmout[i][j] = LittleFloat ( ((float *)in->texcoords)[j+2] );
+		}
+		for ( j=0 ; j < 4 ; j++)
+		{
+			cout[i][j] = in->color[j];
 		}
 	}
 }
@@ -1985,6 +2004,56 @@ void CModQ3_LoadFaces (lump_t *l)
 }
 
 #ifdef RGLQUAKE
+
+/*
+=================
+Mod_LoadFogs
+=================
+*/
+#ifdef Q3SHADERS
+void CModQ3_LoadFogs (lump_t *l)
+{
+	dfog_t 	*in;
+	mfog_t 	*out;
+	q2cbrush_t *brush;
+	q2cbrushside_t *visibleside, *brushsides;
+	int		i, j, count;
+
+	in = (void *)(mod_base + l->fileofs);
+	if (l->filelen % sizeof(*in))
+		Host_Error ("MOD_LoadBmodel: funny lump size in %s",loadmodel->name);
+	count = l->filelen / sizeof(*in);
+	out = Hunk_Alloc ( count*sizeof(*out) );
+
+	map_fogs = out;
+	map_numfogs = count;
+
+	for ( i=0 ; i<count ; i++, in++, out++)
+	{
+		if ( LittleLong ( in->visibleSide ) == -1 )
+		{
+			continue;
+		}
+
+		brush = map_brushes + LittleLong ( in->brushNum );
+		brushsides = map_brushsides + brush->firstbrushside;
+		visibleside = brushsides + LittleLong ( in->visibleSide );
+
+		out->visibleplane = visibleside->plane;
+		out->shader = R_RegisterShader ( in->shader );
+		out->numplanes = brush->numsides;
+		out->planes = Hunk_Alloc ( out->numplanes*sizeof(cplane_t *) );
+
+		for ( j = 0; j < out->numplanes; j++ )
+		{
+			out->planes[j] = brushsides[j].plane;
+		}
+	}
+
+	if (count)
+		GL_InitFogTexture();
+}
+#endif
 
 //Convert a patch in to a list of glpolys
 
@@ -2072,12 +2141,16 @@ float ColorNormalize (vec3_t in, vec3_t out)
 
 	return f;
 }
-int tempIndexesArray[MAX_ARRAY_VERTS*3];
+index_t tempIndexesArray[MAX_ARRAY_VERTS*3];
 vec4_t			tempxyz_array[MAX_ARRAY_VERTS];	//structure is used only at load.
 vec3_t			tempnormals_array[MAX_ARRAY_VERTS];	//so what harm is there in doing this?
 vec2_t			tempst_array[MAX_ARRAY_VERTS];
 vec2_t			templmst_array[MAX_ARRAY_VERTS];
 byte_vec4_t		tempcolors_array[MAX_ARRAY_VERTS];
+
+#ifdef Q3SHADERS
+#define Hunk_TempAllocMore Hunk_Alloc
+#endif
 
 mesh_t *GL_CreateMeshForPatch ( model_t *mod, q3dface_t *surf )
 {
@@ -2086,7 +2159,7 @@ mesh_t *GL_CreateMeshForPatch ( model_t *mod, q3dface_t *surf )
 		lm_st[MAX_ARRAY_VERTS], tex_st[MAX_ARRAY_VERTS];
 	vec4_t c, colors2[MAX_ARRAY_VERTS], normals2[MAX_ARRAY_VERTS], lm_st2[MAX_ARRAY_VERTS], tex_st2[MAX_ARRAY_VERTS];
 	mesh_t *mesh;
-	int	*indexes;
+	index_t	*indexes;
 	float subdivlevel;
 
 	patch_cp[0] = LittleLong ( surf->patchwidth );
@@ -2105,7 +2178,7 @@ mesh_t *GL_CreateMeshForPatch ( model_t *mod, q3dface_t *surf )
 	for ( i = 0; i < numverts; i++ ) {
 		VectorCopy ( map_verts[firstvert + i], points[i] );
 //		VectorCopy ( mod->bmodel->normals_array[firstvert + i], normals[i] );
-//		Vector4Scale ( mod->bmodel->colors_array[firstvert + i], (1.0 / 255.0), colors[i] );
+		Vector4Scale ( map_colors_array[firstvert + i], (1.0 / 255.0), colors[i] );
 		Vector2Copy ( map_vertstmexcoords[firstvert + i], tex_st[i] );
 		Vector2Copy ( map_vertlstmexcoords[firstvert + i], lm_st[i] );
 	}
@@ -2186,18 +2259,26 @@ mesh_t *GL_CreateMeshForPatch ( model_t *mod, q3dface_t *surf )
 // allocate and fill index table
 	mesh->numindexes = numindexes;
 
-	mesh->indexes = (int *)Hunk_TempAllocMore ( numindexes * sizeof(int));
-	memcpy (mesh->indexes, tempIndexesArray, numindexes * sizeof(int) );
+	mesh->indexes = (index_t *)Hunk_TempAllocMore ( numindexes * sizeof(index_t));
+	memcpy (mesh->indexes, tempIndexesArray, numindexes * sizeof(index_t) );
 
 	return mesh;
 }
 
+#ifdef Q3SHADERS
+#undef Hunk_TempAllocMore
+#endif
 
 
 
 void CModQ3_LoadRFaces (lump_t *l)
 {
+#ifndef Q3SHADERS
 	int polysize = sizeof(glpoly_t) - VERTEXSIZE*sizeof(float);
+	glpoly_t *p;
+	int rv, fi;
+	int gv, v;
+#endif
 	q3dface_t *in;
 	msurface_t *out;
 	mplane_t *pl;
@@ -2206,11 +2287,8 @@ void CModQ3_LoadRFaces (lump_t *l)
 	int surfnum;
 
 	int numverts, numindexes;
-	int gv, v;
-	int rv;
-	int fv, fi;
+	int fv;
 
-	glpoly_t *p;
 	mesh_t *mesh;
 	
 
@@ -2219,7 +2297,7 @@ void CModQ3_LoadRFaces (lump_t *l)
 		Host_Error ("MOD_LoadBmodel: funny lump size in %s",loadmodel->name);
 	count = l->filelen / sizeof(*in);
 	out = Hunk_AllocName ( count*sizeof(*out), loadmodel->name );	
-	pl = Hunk_AllocName (count*sizeof(*p), loadmodel->name);//create a new array of planes for speed.
+	pl = Hunk_AllocName (count*sizeof(*pl), loadmodel->name);//create a new array of planes for speed.
 
 	loadmodel->surfaces = out;
 	loadmodel->numsurfaces = count;
@@ -2251,12 +2329,31 @@ fv = LittleLong(in->firstvertex);
 if (in->fognum!=-1)
 continue;
 */
+
 		if (map_surfaces[in->shadernum].c.value == 0 || map_surfaces[in->shadernum].c.value & Q3CONTENTS_TRANSLUCENT)
 				//q3dm10's thingie is 0
 			out->flags |= SURF_DRAWALPHA;
 
 		if (loadmodel->texinfo[in->shadernum].flags & SURF_SKY)
 			out->flags |= SURF_DRAWSKY;
+
+#ifdef Q3SHADERS
+		if (!out->texinfo->texture->shader)
+		{
+			extern cvar_t r_vertexlight;
+			if (in->facetype == MST_FLARE)
+				out->texinfo->texture->shader = R_RegisterShader_Flare (out->texinfo->texture->name);
+			else if (in->facetype == MST_TRIANGLE_SOUP || r_vertexlight.value)
+				out->texinfo->texture->shader = R_RegisterShader_Vertex (out->texinfo->texture->name);
+			else
+				out->texinfo->texture->shader = R_RegisterShader(out->texinfo->texture->name);
+		}
+
+		if (in->fognum == -1)
+			out->fog = NULL;
+		else
+			out->fog = map_fogs + in->fognum;
+#endif
 		if (map_surfaces[in->shadernum].c.flags & (Q3SURF_NODRAW | Q3SURF_SKIP))
 		{
 			out->mesh = NULL;
@@ -2264,9 +2361,11 @@ continue;
 		}
 		else if (in->facetype == MST_PATCH)
 		{
-			mesh = GL_CreateMeshForPatch(loadmodel, in);
-			out->polys = GL_MeshToGLPoly(mesh);
+			out->mesh = GL_CreateMeshForPatch(loadmodel, in);
+#ifndef Q3SHADERS
+			out->polys = GL_MeshToGLPoly(out->mesh);
 			out->mesh = NULL;
+#endif
 		}
 		else if (in->facetype == MST_PLANAR || in->facetype == MST_TRIANGLE_SOUP)
 		{
@@ -2274,11 +2373,11 @@ continue;
 			numverts = LittleLong(in->num_vertices);
 			if (numindexes%3)
 				Host_Error("mesh indexes should be multiples of 3");
-/*
-			out->mesh = Hunk_Alloc(sizeof(mesh_t) + (sizeof(vec3_t) + sizeof(byte_vec4_t)) * numverts);
-			out->mesh->normals_array= (vec3_t *)(out->mesh+1);
-			out->mesh->colors_array	= (byte_vec4_t *)(out->mesh->normals_array + numverts);
 
+#ifdef Q3SHADERS
+			out->mesh = Hunk_Alloc(sizeof(mesh_t) + (sizeof(vec3_t)) * numverts);
+			out->mesh->normals_array= (vec3_t *)(out->mesh+1);
+			out->mesh->colors_array	= map_colors_array + LittleLong(in->firstindex);
 			out->mesh->indexes		= map_surfindexes + LittleLong(in->firstindex);
 			out->mesh->xyz_array	= map_verts + LittleLong(in->firstvertex);
 			out->mesh->st_array		= map_vertstmexcoords + LittleLong(in->firstvertex);
@@ -2286,7 +2385,7 @@ continue;
 
 			out->mesh->numindexes = numindexes;
 			out->mesh->numvertexes = numverts;
-*/
+#else
 
 			p = Hunk_AllocName (polysize*numindexes/3, "SDList");
 			fv = LittleLong(in->firstvertex);
@@ -2311,7 +2410,31 @@ continue;
 				out->polys = p;
 				p = (glpoly_t *)((char *)p + polysize);
 			}
+#endif
 		}
+		else
+		{
+			int r, g, b;
+			extern index_t r_quad_indexes[6];
+
+			mesh = out->mesh = (mesh_t *)Hunk_Alloc ( sizeof(mesh_t));
+			mesh->xyz_array = (vec4_t *)Hunk_Alloc ( sizeof(vec4_t));
+			mesh->numvertexes = 1;
+			mesh->indexes = r_quad_indexes;
+			mesh->numindexes = 6;
+		//	VectorCopy ( out->origin, mesh->xyz_array[0] );
+
+/*			r = LittleFloat ( in->lightmapVecs[0][0] ) * 255.0f;
+			r = bound ( 0, r, 255 );
+
+			g = LittleFloat ( in->lightmapVecs[0][1] ) * 255.0f;
+			g = bound ( 0, g, 255 );
+
+			b = LittleFloat ( in->lightmapVecs[0][2] ) * 255.0f;
+			b = bound ( 0, b, 255 );
+
+			out->dlightbits = (unsigned int)COLOR_RGB ( r, g, b );
+*/		}
 	}
 }
 #endif
@@ -3062,6 +3185,9 @@ q2cmodel_t *CM_LoadMap (char *name, char *filein, qboolean clientload, unsigned 
 				GLMod_LoadLighting		(&header.lumps[Q3LUMP_LIGHTMAPS]);	//fixme: duplicated loading.
 				CModQ3_LoadLightgrid	(&header.lumps[Q3LUMP_LIGHTGRID]);
 				CModQ3_LoadIndexes		(&header.lumps[Q3LUMP_DRAWINDEXES]);
+#ifdef Q3SHADERS
+				CModQ3_LoadFogs			(&header.lumps[Q3LUMP_FOGS]);
+#endif
 				CModQ3_LoadRFaces		(&header.lumps[Q3LUMP_SURFACES]);
 				CModQ3_LoadMarksurfaces (&header.lumps[Q3LUMP_LEAFSURFACES]);	//fixme: duplicated loading.
 			}

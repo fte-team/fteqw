@@ -1064,7 +1064,7 @@ void CL_SendCmd (void)
 //
 // deliver the message
 //
-	Netchan_Transmit (&cls.netchan, buf.cursize, buf.data);	
+	Netchan_Transmit (&cls.netchan, buf.cursize, buf.data, 2500);	
 
 	if (cls.netchan.fatal_error)
 	{

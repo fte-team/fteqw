@@ -192,8 +192,6 @@ void Netchan_Setup (netsrc_t sock, netchan_t *chan, netadr_t adr, int qport)
 	chan->message.maxsize = MAX_QWMSGLEN;//sizeof(chan->message_buf);
 
 	chan->qport = qport;
-	
-	chan->rate = 1.0/2500;
 }
 
 
@@ -205,11 +203,11 @@ Returns true if the bandwidth choke isn't active
 ================
 */
 #define	MAX_BACKUP	200
-qboolean Netchan_CanPacket (netchan_t *chan)
+qboolean Netchan_CanPacket (netchan_t *chan, int rate)
 {
 	if (chan->remote_address.type == NA_LOOPBACK)
 		return true;	//don't ever drop packets due to possible routing problems when there is no routing.
-	if (chan->cleartime < realtime + MAX_BACKUP*chan->rate)
+	if (chan->cleartime < realtime + MAX_BACKUP/(float)rate)
 		return true;
 	return false;
 }
@@ -222,11 +220,11 @@ Netchan_CanReliable
 Returns true if the bandwidth choke isn't 
 ================
 */
-qboolean Netchan_CanReliable (netchan_t *chan)
+qboolean Netchan_CanReliable (netchan_t *chan, int rate)
 {
 	if (chan->reliable_length)
 		return false;			// waiting for ack
-	return Netchan_CanPacket (chan);
+	return Netchan_CanPacket (chan, rate);
 }
 
 #ifdef SERVERONLY
@@ -243,7 +241,7 @@ transmition / retransmition of the reliable messages.
 A 0 length will still generate a packet and deal with the reliable messages.
 ================
 */
-void Netchan_Transmit (netchan_t *chan, int length, qbyte *data)
+void Netchan_Transmit (netchan_t *chan, int length, qbyte *data, int rate)
 {
 	sizebuf_t	send;
 	qbyte		send_buf[MAX_OVERALLMSGLEN + PACKET_HEADER];
@@ -369,9 +367,9 @@ void Netchan_Transmit (netchan_t *chan, int length, qbyte *data)
 	}
 
 	if (chan->cleartime < realtime)
-		chan->cleartime = realtime + send.cursize*chan->rate;
+		chan->cleartime = realtime + send.cursize/(float)rate;
 	else
-		chan->cleartime += send.cursize*chan->rate;
+		chan->cleartime += send.cursize/(float)rate;
 #ifdef SERVERONLY
 	if (ServerPaused())
 		chan->cleartime = realtime;

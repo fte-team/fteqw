@@ -215,6 +215,9 @@ void GLSCR_UpdateScreen (void)
 		Sbar_FinaleOverlay ();
 		SCR_CheckDrawCenterString ();
 	}
+	else if (cl.intermission == 3 && key_dest == key_game)
+	{
+	}
 	else
 	{		
 		Draw_Crosshair();

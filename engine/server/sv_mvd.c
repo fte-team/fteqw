@@ -2081,6 +2081,11 @@ void SV_MVDInit(void)
 {
 	MVD_Init();
 
+#ifdef SERVERONLY	//client command would conflict otherwise.
+	Cmd_AddCommand ("record", SV_MVD_Record_f);
+	Cmd_AddCommand ("stop", SV_MVDStop_f);
+	Cmd_AddCommand ("cancel", SV_MVD_Cancel_f);
+#endif
 	Cmd_AddCommand ("mvdrecord", SV_MVD_Record_f);
 	Cmd_AddCommand ("easyrecord", SV_MVDEasyRecord_f);
 	Cmd_AddCommand ("mvdstop", SV_MVDStop_f);

@@ -433,6 +433,9 @@ typedef struct client_s
 
 	struct client_s *controller;
 	struct client_s *controlled;
+
+	int rate;
+	int drate;
 } client_t;
 
 // a client can leave the server in one of four ways:
@@ -1039,6 +1042,8 @@ void SV_FlushDemoSignon (void);
 
 // savegame.c
 void SV_FlushLevelCache(void);
+
+int SV_RateForClient(client_t *cl);
 
 
 void SVVC_Frame (qboolean enabled);

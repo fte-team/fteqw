@@ -74,7 +74,7 @@ typedef struct {
 
 static fragstats_t fragstats;
 
-void Stats_Message(char *msg, ...)
+void VARGS Stats_Message(char *msg, ...)
 {
 }
 

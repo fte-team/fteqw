@@ -67,6 +67,7 @@ void (APIENTRY *qglViewport) (GLint x, GLint y, GLsizei width, GLsizei height);
 void (APIENTRY *qglGetTexLevelParameteriv) (GLenum target, GLint level, GLenum pname, GLint *params);
 
 void (APIENTRY *qglDrawElements) (GLenum mode, GLsizei count, GLenum type, const GLvoid *indices);
+void (APIENTRY *qglArrayElement) (GLint i);
 void (APIENTRY *qglVertexPointer) (GLint size, GLenum type, GLsizei stride, const GLvoid *pointer);
 void (APIENTRY *qglNormalPointer) (GLenum type, GLsizei stride, const GLvoid *pointer);
 void (APIENTRY *qglTexCoordPointer) (GLint size, GLenum type, GLsizei stride, const GLvoid *pointer);
@@ -86,7 +87,8 @@ PFNGLGETPROGRAMIVARBPROC qglGetProgramivARB;
 PFNGLBINDPROGRAMARBPROC qglBindProgramARB;
 PFNGLGENPROGRAMSARBPROC qglGenProgramsARB;
 
-
+PFNGLLOCKARRAYSEXTPROC qglLockArraysEXT;
+PFNGLUNLOCKARRAYSEXTPROC qglUnlockArraysEXT;
 
 
 
@@ -115,16 +117,15 @@ PFNGLACTIVESTENCILFACEEXTPROC qglActiveStencilFaceEXT;
 BINDTEXFUNCPTR bindTexFunc;
 
 
-qboolean gl_ext_stencil_wrap;
 int gl_mtexarbable=0;	//max texture units
 qboolean gl_mtexable = false;
-qboolean gl_compressable=false;
 int gl_bumpmappingpossible;
 
-qboolean gl_arb_fragment_program;
 
 qboolean gammaworks;	//if the gl drivers can set proper gamma.
 
+
+gl_config_t gl_config;
 
 //int		texture_mode = GL_NEAREST;
 //int		texture_mode = GL_NEAREST_MIPMAP_NEAREST;
@@ -140,8 +141,8 @@ int		texture_extension_number = 1;
 void GL_CheckExtensions (void *(*getglfunction) (char *name))
 {
 	extern cvar_t gl_bump;
-	qboolean support_GL_ARB_texture_env_combine, support_GL_ARB_texture_env_dot3, support_GL_ARB_texture_cube_map;
 
+	memset(&gl_config, 0, sizeof(gl_config));
 
 	//multitexture
 	gl_mtexable = false;
@@ -157,36 +158,29 @@ void GL_CheckExtensions (void *(*getglfunction) (char *name))
 	//none of them bumpmapping possabilities.
 	gl_bumpmappingpossible = false;
 
-	//no GL_EXT_stencil_wrap
-	gl_ext_stencil_wrap = false;
-
 	//no GL_ATI_separate_stencil
 	qglStencilOpSeparateATI = NULL;
 
 	//no GL_EXT_stencil_two_side
 	qglActiveStencilFaceEXT = NULL;
 
-	//no GL_ARB_texture_compression
-	gl_compressable = false;
-
 	//no truform. sorry.
 	qglPNTrianglesfATI = NULL;
 	qglPNTrianglesiATI = NULL;
 
 	//fragment programs
-	gl_arb_fragment_program = false;
 	qglProgramStringARB = NULL;
 	qglGetProgramivARB = NULL;
 	qglBindProgramARB = NULL;
 	qglGenProgramsARB = NULL;
 
-	supported_GL_ARB_texture_non_power_of_two = false;
-	supported_GL_SGIS_generate_mipmap = false;
+	gl_config.arb_texture_non_power_of_two = false;
+	gl_config.sgis_generate_mipmap = false;
 
 	if (strstr(gl_extensions, "GL_ARB_texture_non_power_of_two"))
-		supported_GL_ARB_texture_non_power_of_two = true;
+		gl_config.arb_texture_non_power_of_two = true;
 	if (strstr(gl_extensions, "GL_SGIS_generate_mipmap"))
-		supported_GL_SGIS_generate_mipmap = true;
+		gl_config.sgis_generate_mipmap = true;
 
 	if (strstr(gl_extensions, "GL_ARB_multitexture") && !COM_CheckParm("-noamtex"))
 	{	//ARB multitexture is the popular choice.
@@ -229,7 +223,7 @@ void GL_CheckExtensions (void *(*getglfunction) (char *name))
 	}
 
 	if (strstr(gl_extensions, "GL_EXT_stencil_wrap"))
-		gl_ext_stencil_wrap = true;
+		gl_config.ext_stencil_wrap = true;
 
 	if (strstr(gl_extensions, "GL_ATI_separate_stencil"))
 		qglStencilOpSeparateATI = (void *) getglext("glStencilOpSeparateATI");
@@ -247,7 +241,7 @@ void GL_CheckExtensions (void *(*getglfunction) (char *name))
 			qglGetCompressedTexImageARB = NULL;
 		}
 		else
-			gl_compressable = true;
+			gl_config.arb_texture_compression = true;
 	}
 
 	if (strstr(gl_extensions, "GL_ATI_pn_triangles"))
@@ -263,17 +257,21 @@ void GL_CheckExtensions (void *(*getglfunction) (char *name))
 			bindTexFunc			= (void *)getglext("glBindTexture");
 	}
 
-	support_GL_ARB_texture_env_combine = !!strstr(gl_extensions, "GL_ARB_texture_env_combine");
-	support_GL_ARB_texture_env_dot3 = !!strstr(gl_extensions, "GL_ARB_texture_env_dot3");
-	support_GL_ARB_texture_cube_map = !!strstr(gl_extensions, "GL_ARB_texture_cube_map");
+	gl_config.tex_env_combine = !!strstr(gl_extensions, "GL_EXT_texture_env_combine");
+	gl_config.env_add = !!strstr(gl_extensions, "GL_EXT_texture_env_add");
+	gl_config.nv_tex_env_combine4 = !!strstr(gl_extensions, "GL_NV_texture_env_combine4");
 
-	if (gl_mtexarbable && support_GL_ARB_texture_cube_map && support_GL_ARB_texture_env_combine && support_GL_ARB_texture_env_dot3 && !COM_CheckParm("-nobump") && gl_bump.value)
+	gl_config.arb_texture_env_combine = !!strstr(gl_extensions, "GL_ARB_texture_env_combine");
+	gl_config.arb_texture_env_dot3 = !!strstr(gl_extensions, "GL_ARB_texture_env_dot3");
+	gl_config.arb_texture_cube_map = !!strstr(gl_extensions, "GL_ARB_texture_cube_map");
+
+	if (gl_mtexarbable && gl_config.arb_texture_cube_map && gl_config.arb_texture_env_combine && gl_config.arb_texture_env_dot3 && !COM_CheckParm("-nobump") && gl_bump.value)
 		gl_bumpmappingpossible = true;
 
 	
 	if (!!strstr(gl_extensions, "GL_ARB_fragment_program"))
 	{
-		gl_arb_fragment_program = true;
+		gl_config.arb_fragment_program = true;
 		qglProgramStringARB = (void *)getglext("glProgramStringARB");
 		qglGetProgramivARB = (void *)getglext("glGetProgramivARB");
 		qglBindProgramARB = (void *)getglext("glBindProgramARB");
@@ -352,6 +350,7 @@ void GL_Init(void *(*getglfunction) (char *name))
 
 	//various vertex array stuff.
 	qglDrawElements			= (void *)getglcore("glDrawElements");
+	qglArrayElement			= (void *)getglcore("glArrayElement");
 	qglVertexPointer		= (void *)getglcore("glVertexPointer");
 	qglNormalPointer		= (void *)getglcore("glNormalPointer");
 	qglTexCoordPointer		= (void *)getglcore("glTexCoordPointer");

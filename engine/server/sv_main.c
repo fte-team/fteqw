@@ -81,6 +81,7 @@ cvar_t sv_public = {"sv_public", "1"};
 cvar_t sv_highchars = {"sv_highchars", "1"};
 cvar_t sv_loadentfiles = {"sv_loadentfiles", "1"};
 cvar_t sv_maxrate = {"sv_maxrate", "10000"};
+cvar_t sv_maxdrate = {"sv_maxdrate", "10000"};
 
 cvar_t sv_phs = {"sv_phs", "1"};
 cvar_t sv_resetparms = {"sv_resetparms", "0"};
@@ -264,7 +265,7 @@ void SV_FinalMessage (char *message)
 	for (i=0, cl = svs.clients ; i<MAX_CLIENTS ; i++, cl++)
 		if (cl->state >= cs_spawned)
 			Netchan_Transmit (&cl->netchan, sv.datagram.cursize
-			, sv.datagram.data);
+			, sv.datagram.data, 10000);
 }
 
 
@@ -374,7 +375,7 @@ void SV_DropClient (client_t *drop)
 #ifndef SERVERONLY
 	if (drop->netchan.remote_address.type == NA_LOOPBACK)
 	{
-		Netchan_Transmit(&drop->netchan, 0, "");
+		Netchan_Transmit(&drop->netchan, 0, "", SV_RateForClient(drop));
 		CL_Disconnect();
 		drop->state = cs_free;	//don't do zombie stuff
 	}
@@ -2546,6 +2547,27 @@ void SV_GetConsoleCommands (void)
 	}
 }
 
+
+int SV_RateForClient(client_t *cl)
+{
+	int rate;
+	if (cl->download)
+	{
+		rate = cl->drate;
+		if (rate > sv_maxdrate.value)
+			rate = sv_maxdrate.value;
+	}
+	else
+	{
+		rate = cl->rate;
+		if (rate > sv_maxrate.value)
+			rate = sv_maxrate.value;
+	}
+	if (rate < 500)
+		rate = 500;
+
+	return rate;
+}
 /*
 ===================
 SV_CheckVars
@@ -3291,14 +3313,15 @@ void SV_ExtractFromUserinfo (client_t *cl)
 	// rate command
 	val = Info_ValueForKey (cl->userinfo, "rate");
 	if (strlen(val))
-	{
-		i = atoi(val);
-		if (i < 500)
-			i = 500;
-		if (i > sv_maxrate.value)
-			i = sv_maxrate.value;
-		cl->netchan.rate = 1.0/i;
-	}
+		cl->rate = atoi(val);
+	else
+		cl->rate = 2500;
+
+	val = Info_ValueForKey (cl->userinfo, "drate");
+	if (strlen(val))
+		cl->drate = atoi(val);
+	else
+		cl->drate = 2500;
 
 	// msg command
 	val = Info_ValueForKey (cl->userinfo, "msg");

@@ -1660,6 +1660,7 @@ CL_UpdateBeams
 */
 void CL_UpdateBeams (void)
 {
+	extern int rt_lightning1;
 	int			i;
 	beam_t		*b;
 	vec3_t		dist, org;
@@ -1741,6 +1742,14 @@ void CL_UpdateBeams (void)
 			continue;
 		}
 */
+//		if (part_type[rt_lightning1].loaded)
+		{
+			trailstate_t ts;
+			memset(&ts, 0, sizeof(ts));
+			R_RocketTrail(b->start, b->end, rt_lightning1, &ts);
+			continue;
+		}
+
 	// add new entities for the lightning
 		VectorCopy (b->start, org);
 		d = VectorNormalize(dist);

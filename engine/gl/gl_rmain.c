@@ -55,9 +55,6 @@ int			c_brush_polys, c_alias_polys;
 
 qboolean	envmap;				// true during envmap command capture 
 
-int			currenttexture = -1;		// to avoid unnecessary texture sets
-
-
 int			particletexture;	// little dot for particles
 int			explosiontexture;
 int			playertextures;		// up to 16 color translated skins
@@ -122,6 +119,7 @@ cvar_t	gl_reporttjunctions = {"gl_reporttjunctions","0"};
 cvar_t	gl_finish = {"gl_finish","0"};
 cvar_t	gl_contrast = {"gl_contrast", "1"};
 cvar_t	gl_dither = {"gl_dither", "1"};
+cvar_t	gl_maxdist = {"gl_maxdist", "8192"};
 
 extern cvar_t gl_ati_truform;
 extern cvar_t gl_ati_truform_type;
@@ -1113,7 +1111,7 @@ void R_SetupGL (void)
 //		yfov = (2.0 * tan (scr_fov.value/360*M_PI)) / screenaspect;
 //		yfov = 2*atan((float)r_refdef.vrect.height/r_refdef.vrect.width)*(scr_fov.value*2)/M_PI;
 //		MYgluPerspective (yfov,  screenaspect,  4,  4096);
-		MYgluPerspective (r_refdef.fov_y,  screenaspect,  4,  4096);
+		MYgluPerspective (r_refdef.fov_y,  screenaspect,  4,  gl_maxdist.value);
 	}
 	else
 	{
@@ -1209,8 +1207,10 @@ void R_RenderScene (void)
 	if (!mirror)
 	GLR_SetupFrame ();
 
+	TRACE(("dbg: calling R_SetFrustrum\n"));
 	R_SetFrustum ();
 
+	TRACE(("dbg: calling R_SetupGL\n"));
 	R_SetupGL ();
 
 	if (!(r_refdef.flags & 1))
@@ -1219,23 +1219,31 @@ void R_RenderScene (void)
 		if (!GLR_DoomWorld ())
 #endif
 		{
+			TRACE(("dbg: calling GLR_MarkLeaves\n"));
 			GLR_MarkLeaves ();	// done here so we know if we're in water
+			TRACE(("dbg: calling R_DrawWorld\n"));
 			R_DrawWorld ();		// adds static entities to the list
 		}
 	}
 
 	S_ExtraUpdate ();	// don't let sound get messed up if going slow
 
+	TRACE(("dbg: calling GLR_DrawEntitiesOnList\n"));
 	GLR_DrawEntitiesOnList ();
 
 //	R_DrawDecals();
 
+	TRACE(("dbg: calling GL_DisableMultitexture\n"));
 	GL_DisableMultitexture();
 
+	TRACE(("dbg: calling R_RenderDlights\n"));
 	R_RenderDlights ();
 
 	if (cl.worldmodel)
+	{
+		TRACE(("dbg: calling R_DrawParticles\n"));
 		R_DrawParticles ();
+	}
 
 #ifdef GLTEST
 	Test_Draw ();

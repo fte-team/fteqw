@@ -86,6 +86,26 @@ extern	PFNGLPNTRIANGLESFATIPROC qglPNTrianglesfATI;
 extern	int texture_extension_number;
 extern	int		texture_mode;
 
+typedef struct {
+	qboolean tex_env_combine;
+	qboolean nv_tex_env_combine4;
+	qboolean env_add;
+
+	qboolean arb_texture_non_power_of_two;
+	qboolean sgis_generate_mipmap;
+
+	qboolean arb_texture_env_combine;
+	qboolean arb_texture_env_dot3;
+	qboolean arb_texture_cube_map;
+
+	qboolean arb_texture_compression;
+	qboolean arb_fragment_program;
+	qboolean ext_stencil_wrap;
+	int maxtmus;	//max texture units
+} gl_config_t;
+
+extern gl_config_t gl_config;
+
 extern	float	gldepthmin, gldepthmax;
 
 void GL_Upload32 (char *name, unsigned *data, int width, int height,  qboolean mipmap, qboolean alpha);	//name was added for texture compression output
@@ -172,7 +192,6 @@ extern	texture_t	*r_notexture_mip;
 extern	int		d_lightstylevalue[256];	// 8.8 fraction of base light value
 
 extern	qboolean	envmap;
-extern	int	currenttexture;
 extern	int	particletexture;
 extern	int explosiontexture;
 extern	int	netgraphtexture;	// netgraph texture
@@ -216,10 +235,8 @@ extern lpMTexFUNC qglMTexCoord2fSGIS;
 extern lpSelTexFUNC qglSelectTextureSGIS;
 
 
-extern qboolean gl_ext_stencil_wrap;
 extern int gl_mtexarbable;	//max texture units
 extern qboolean gl_mtexable;
-extern qboolean gl_compressable;
 
 extern int mtexid0;
 extern int mtexid1;
@@ -228,9 +245,6 @@ extern qboolean gl_mtexable;
 
 void GL_DisableMultitexture(void);
 void GL_EnableMultitexture(void);
-
-extern qboolean supported_GL_SGIS_generate_mipmap;
-extern qboolean supported_GL_ARB_texture_non_power_of_two;
 
 //
 // gl_warp.c
@@ -685,6 +699,9 @@ extern PFNGLPROGRAMSTRINGARBPROC qglProgramStringARB;
 extern PFNGLGETPROGRAMIVARBPROC qglGetProgramivARB;
 extern PFNGLBINDPROGRAMARBPROC qglBindProgramARB;
 extern PFNGLGENPROGRAMSARBPROC qglGenProgramsARB;
+
+extern PFNGLLOCKARRAYSEXTPROC qglLockArraysEXT;
+extern PFNGLUNLOCKARRAYSEXTPROC qglUnlockArraysEXT;
 
 
 #define glAlphaFunc qglAlphaFunc

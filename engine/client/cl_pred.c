@@ -567,7 +567,7 @@ void CL_PredictMovePNum (int pnum)
 		return;
 	}
 */
-	if (cl.intermission)
+	if (cl.intermission && cl.intermission != 3)
 	{
 		cl.crouch[pnum] = 0;
 		return;
@@ -598,7 +598,10 @@ void CL_PredictMovePNum (int pnum)
 	// this is the last frame received from the server
 	from = &cl.frames[cls.netchan.incoming_sequence & UPDATE_MASK];
 
-	VectorCopy (cl.viewangles[pnum], cl.simangles[pnum]);
+	if (!cl.intermission)
+	{
+		VectorCopy (cl.viewangles[pnum], cl.simangles[pnum]);
+	}
 
 	vel = from->playerstate[cl.playernum[pnum]].velocity;
 	org = from->playerstate[cl.playernum[pnum]].origin;
@@ -638,6 +641,8 @@ void CL_PredictMovePNum (int pnum)
 			cls.netchan.outgoing_sequence; i++)
 	{
 		to = &cl.frames[(cls.netchan.incoming_sequence+i) & UPDATE_MASK];
+		if (cl.intermission)
+			to->playerstate->pm_type = PM_FLY;
 		CL_PredictUsercmd (pnum, &from->playerstate[cl.playernum[pnum]]
 			, &to->playerstate[cl.playernum[pnum]], &to->cmd[pnum]);
 

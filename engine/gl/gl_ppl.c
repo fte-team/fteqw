@@ -1,6 +1,7 @@
 #include "quakedef.h"
 #ifdef RGLQUAKE
 #include "glquake.h"
+#include "shader.h"
 
 //these are shared with gl_rsurf - move to header
 void R_MirrorChain (msurface_t *s);
@@ -326,7 +327,7 @@ static void PPL_BaseChain_NoBump_2TMU(msurface_t *s, texture_t *tex)
 	qglClientActiveTextureARB(GL_TEXTURE1_ARB);
 	qglActiveTextureARB(GL_TEXTURE1_ARB);
 	glEnable(GL_TEXTURE_2D);
-	glTexEnvf(GL_TEXTURE_ENV, GL_TEXTURE_ENV_MODE, GL_BLEND);
+	glTexEnvf(GL_TEXTURE_ENV, GL_TEXTURE_ENV_MODE, GL_MODULATE);
 	glEnableClientState(GL_TEXTURE_COORD_ARRAY);
 	glTexCoordPointer(2, GL_FLOAT, sizeof(surfvertexarray_t), varray_v->stl);
 
@@ -440,7 +441,7 @@ static void PPL_BaseChain_Bump_2TMU(msurface_t *first, texture_t *tex)
 
 	qglActiveTextureARB(GL_TEXTURE1_ARB);
 	glEnable(GL_TEXTURE_2D);
-	glTexEnvf(GL_TEXTURE_ENV, GL_TEXTURE_ENV_MODE, GL_BLEND);
+	glTexEnvf(GL_TEXTURE_ENV, GL_TEXTURE_ENV_MODE, GL_MODULATE);
 
 	vi = -1;
 	for (s=first; s ; s=s->texturechain)
@@ -515,7 +516,7 @@ static void PPL_BaseChain_Bump_4TMU(msurface_t *s, texture_t *tex)
 
 	qglActiveTextureARB(GL_TEXTURE3_ARB);
 	glEnable(GL_TEXTURE_2D);
-	glTexEnvi(GL_TEXTURE_ENV, GL_TEXTURE_ENV_MODE, GL_BLEND);
+	glTexEnvi(GL_TEXTURE_ENV, GL_TEXTURE_ENV_MODE, GL_MODULATE);
 
 	qglClientActiveTextureARB(GL_TEXTURE3_ARB);
 	glEnableClientState(GL_TEXTURE_COORD_ARRAY);
@@ -836,7 +837,7 @@ void PPL_LoadSpecularFragmentProgram(void)
 
 
 	//multiply by inverse lm and output the result.
-	"SUB lm.rgb, 1, lm;\n"
+//	"SUB lm.rgb, 1, lm;\n"
 	"MUL_SAT ocol.rgb, diff, lm;\n"
 	//that's all folks.
 	"END";
@@ -854,7 +855,7 @@ void PPL_LoadSpecularFragmentProgram(void)
 		varray_i_polytotri[i*3+2] = i+2;
 	}
 
-	if (!gl_arb_fragment_program)
+	if (!gl_config.arb_fragment_program)
 		return;
 
 	glEnable(GL_FRAGMENT_PROGRAM_ARB);
@@ -1232,8 +1233,90 @@ static void PPL_BaseTextureChain(msurface_t *first)
 {
 	extern cvar_t gl_bump, gl_specular;
 	texture_t	*t;
+#ifdef Q3SHADERS
+	if (first->texinfo->texture->shader)
+	{
+		meshbuffer_t mb;
+		msurface_t *s;
+		int vi=-1;
+		glRect_t    *theRect;
+//		GL_PushShader(first->texinfo->texture->shader);
+		if (first->texinfo->texture->shader->flags & SHADER_FLARE )
+			return;
+
+		GL_DisableMultitexture();
+
+		glShadeModel(GL_SMOOTH);
+
+		{
+			for (s = first; s ; s=s->texturechain)
+			{
+				if (vi != s->lightmaptexturenum)
+				{
+					vi = s->lightmaptexturenum;
+					if (vi >= 0)
+					{
+						GL_BindType(GL_TEXTURE_2D, deluxmap_textures[vi] );
+						if (lightmap[vi]->deluxmodified)
+						{
+							lightmap[vi]->deluxmodified = false;
+							theRect = &lightmap[vi]->deluxrectchange;
+							glTexSubImage2D(GL_TEXTURE_2D, 0, 0, theRect->t, 
+								LMBLOCK_WIDTH, theRect->h, GL_RGB, GL_UNSIGNED_BYTE,
+								lightmap[vi]->deluxmaps+(theRect->t) *LMBLOCK_WIDTH*3);
+							theRect->l = LMBLOCK_WIDTH;
+							theRect->t = LMBLOCK_HEIGHT;
+							theRect->h = 0;
+							theRect->w = 0;
+						}
+						GL_BindType(GL_TEXTURE_2D, lightmap_textures[vi] );
+						if (lightmap[vi]->modified)
+						{
+							lightmap[vi]->modified = false;
+							theRect = &lightmap[vi]->rectchange;
+							glTexSubImage2D(GL_TEXTURE_2D, 0, 0, theRect->t, 
+								LMBLOCK_WIDTH, theRect->h, gl_lightmap_format, GL_UNSIGNED_BYTE,
+								lightmap[vi]->lightmaps+(theRect->t) *LMBLOCK_WIDTH*lightmap_bytes);
+							theRect->l = LMBLOCK_WIDTH;
+							theRect->t = LMBLOCK_HEIGHT;
+							theRect->h = 0;
+							theRect->w = 0;
+						}
+					}
+				}
+				if (!s->mesh)
+				{
+					Con_Printf("Shaded surface with no mesh\n");
+				}
+				else
+				{
+	/*					MF_NONE			= 1<<0,
+	MF_NORMALS		= 1<<1,
+	MF_TRNORMALS	= 1<<2,
+	MF_COLORS		= 1<<3,
+	MF_STCOORDS		= 1<<4,
+	MF_LMCOORDS		= 1<<5,
+	MF_NOCULL		= 1<<6*/
+
+			mb.entity = &r_worldentity;
+			mb.shader = first->texinfo->texture->shader;
+			mb.fog = s->fog;
+			mb.mesh = s->mesh;
+			mb.infokey = vi;
+			mb.dlightbits = 0;
 
 
+					R_PushMesh(s->mesh, mb.shader->features);
+
+					R_RenderMeshBuffer ( &mb, false );
+//					GL_PushMesh(s->mesh, deluxmap_textures[vi], lightmap_textures[vi]);
+				}
+			}
+		}
+//		GL_PushShader(NULL);	//fixme: remove the need.
+		return;
+	}
+#endif
 	glEnable(GL_TEXTURE_2D);
 
 	t = GLR_TextureAnimation (first->texinfo->texture);
@@ -2972,7 +3055,7 @@ void PPL_AddLight(dlight_t *dl)
 
 	sincrw = GL_INCR;
 	sdecrw = GL_DECR;
-	if (gl_ext_stencil_wrap)
+	if (gl_config.ext_stencil_wrap)
 	{	//minamlise damage...
 		sincrw = GL_INCR_WRAP_EXT;
 		sdecrw = GL_DECR_WRAP_EXT;
@@ -3050,7 +3133,6 @@ void PPL_AddLight(dlight_t *dl)
 
 		glEnable(GL_CULL_FACE);
 
-		glStencilFunc( GL_EQUAL, 0, ~0 );
 		qglActiveStencilFaceEXT(GL_BACK);
 		glStencilFunc( GL_EQUAL, 0, ~0 );
 	}
@@ -3058,6 +3140,8 @@ void PPL_AddLight(dlight_t *dl)
 	{	//centered around 0. Will only be increased then decreased less.
 		glClearStencil(0);
 		glClear(GL_STENCIL_BUFFER_BIT);
+
+		glEnable(GL_CULL_FACE);
 
 		glStencilFunc( GL_ALWAYS, 1, ~0 );
 
@@ -3113,10 +3197,12 @@ void PPL_DrawWorld (void)
 //	if (qglGetError())
 //		Con_Printf("GL Error before world\n");
 //glColorMask(0,0,0,0);
+	TRACE(("dbg: calling PPL_BaseTextures\n"));
 	PPL_BaseTextures(cl.worldmodel);
 //	if (qglGetError())
 //		Con_Printf("GL Error during base textures\n");
 //glColorMask(1,1,1,1);
+	TRACE(("dbg: calling PPL_BaseEntTextures\n"));
 	PPL_BaseEntTextures();
 //	CL_NewDlightRGB(1, r_refdef.vieworg[0], r_refdef.vieworg[1]-16, r_refdef.vieworg[2]-24, 128, 1, 1, 1, 1);
 
@@ -3151,6 +3237,7 @@ void PPL_DrawWorld (void)
 				l->color[1]*=2.5;
 				l->color[2]*=2.5;
 
+				TRACE(("dbg: calling PPL_AddLight\n"));
 				PPL_AddLight(l);
 				l->color[0]/=2.5;
 				l->color[1]/=2.5;
@@ -3166,6 +3253,7 @@ void PPL_DrawWorld (void)
 //	if (qglGetError())
 //		Con_Printf("GL Error on shadow lighting\n");
 
+	TRACE(("dbg: calling PPL_DrawEntFullBrights\n"));
 	PPL_DrawEntFullBrights();
 
 //	if (qglGetError())

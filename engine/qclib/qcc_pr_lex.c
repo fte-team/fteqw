@@ -1782,6 +1782,15 @@ int QCC_PR_CheakCompConst(void)
 				pr_file_p = c->value;
 				do
 				{
+					p = strlen(buffer);
+					while(*pr_file_p <= ' ')	//copy across whitespace
+					{
+						if (!*pr_file_p)
+							break;
+						buffer[p] = *pr_file_p++;
+					}
+					buffer[p] = 0;
+
 					pr_file_p = QCC_COM_Parse(pr_file_p);
 					if (!pr_file_p)
 						break;

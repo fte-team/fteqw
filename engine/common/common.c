@@ -3989,6 +3989,10 @@ void COM_Gamedir (char *dir)
 		}
 	}
 
+#ifdef Q3SHADERS
+	Shader_Init();
+#endif
+
 	Validation_FlushFileList();	//prevent previous hacks from making a difference.
 
 	//FIXME: load new palette, if different cause a vid_restart.

@@ -137,6 +137,7 @@ cvar_t		r_drawdisk = {"r_drawdisk", "1"};
 cvar_t		gl_compress = {"gl_compress", "0"};
 cvar_t		gl_savecompressedtex = {"gl_savecompressedtex", "0"};
 extern cvar_t gl_dither;
+extern	cvar_t	gl_maxdist;
 
 #ifdef SPECULAR
 cvar_t		gl_specular = {"gl_specular", "0"};
@@ -268,6 +269,7 @@ void GLRenderer_Init(void)
 	Cvar_Register (&gl_ztrick, GLRENDEREROPTIONS);
 
 	Cvar_Register (&gl_max_size, GLRENDEREROPTIONS);
+	Cvar_Register (&gl_maxdist, GLRENDEREROPTIONS);
 	Cvar_Register (&gl_2dscale, GLRENDEREROPTIONS);
 
 	Cvar_Register (&gl_font, GRAPHICALNICETIES);

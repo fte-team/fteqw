@@ -492,7 +492,11 @@ void TranslateReset(void)
 
 char *Translate(char *message)
 {
-	trans_t *trans;
+	return message;
+
+	//this is pointless.
+
+/*	trans_t *trans;
 	if (!*message)
 		return message;
 	if (Q_strncmp(language.string, lastlang, 8))
@@ -522,6 +526,7 @@ char *Translate(char *message)
 	//strcpy(trans->foreign, message);
 
 	return message;
+*/
 }
 
 char *untranslate(char *message)

@@ -86,7 +86,7 @@ static size_t strlcat (char *dst, const char *src, size_t size)
 }
 #endif
 
-static void Q_snprintfz (char *dest, size_t size, char *fmt, ...)
+static void VARGS Q_snprintfz (char *dest, size_t size, char *fmt, ...)
 {
 	va_list		argptr;
 

@@ -56,7 +56,10 @@ int pe_default,
 int rt_blastertrail,
 	rt_railtrail,
 	rt_bubbletrail,
-	rt_rocket;
+	rt_rocket,
+	rt_lightning1,
+	rt_lightning2,
+	rt_lightning3;
 
 //triangle fan sparks use these.
 static double sint[7] = {0.000000, 0.781832,  0.974928,  0.433884, -0.433884, -0.974928, -0.781832};
@@ -912,6 +915,10 @@ void R_InitParticles (void)
 	rt_railtrail		= AllocateParticleType("t_railtrail");
 	rt_bubbletrail		= AllocateParticleType("t_bubbletrail");
 	rt_rocket			= AllocateParticleType("t_rocket");
+
+	rt_lightning1		= AllocateParticleType("t_lightning1");
+	rt_lightning2		= AllocateParticleType("t_lightning2");
+	rt_lightning3		= AllocateParticleType("t_lightning3");
 
 	pt_superbullet		= AllocateParticleType("te_superbullet");
 	pt_bullet			= AllocateParticleType("te_bullet");
@@ -2036,7 +2043,9 @@ void MakeNormalVectors (vec3_t forward, vec3_t right, vec3_t up)
 
 void CLQ2_RailTrail (vec3_t start, vec3_t end)
 {
-	R_RocketTrail(start, end, rt_railtrail, 0);
+	trailstate_t ts;
+	memset(&ts, 0, sizeof(ts));
+	R_RocketTrail(start, end, rt_railtrail, &ts);
 }
 
 void R_RocketTrail (vec3_t start, vec3_t end, int type, trailstate_t *ts)
@@ -2091,9 +2100,6 @@ void R_RocketTrail (vec3_t start, vec3_t end, int type, trailstate_t *ts)
 //	VectorMA (start, -len, vec, start);
 
 	len = ts->lastdist;
-
-	if (len/step > 1024)
-		return;
 
 	b = bfirst = NULL;
 
@@ -2272,15 +2278,15 @@ void R_RocketTrail (vec3_t start, vec3_t end, int type, trailstate_t *ts)
 
 			b->flags |= BS_LASTSEG;
 			ts->lastbeam = b;
-		}
 
-		if (!free_particles || !free_beams)
-		{
-			if (ts->lastbeam)
+			if (!free_particles || !free_beams)
 			{
-				b->flags &= ~BS_LASTSEG;
-				b->flags |= BS_NODRAW;
-				ts->lastbeam = NULL;
+				if (ts->lastbeam)
+				{
+					b->flags &= ~BS_LASTSEG;
+					b->flags |= BS_NODRAW;
+					ts->lastbeam = NULL;
+				}
 			}
 		}
 	}
@@ -2606,7 +2612,7 @@ void GL_DrawParticleBeam_Textured(beamseg_t *b, part_type_t *type)
 	VectorSubtract(r_refdef.vieworg, q->org, v);
 	VectorNormalize(v);
 	CrossProduct(c->dir, v, cr);
-	ts = b->texture_s*type->rotationstartmin + particletime*type->rotationmin;
+	ts = (c->texture_s*type->rotationstartmin + particletime*type->rotationmin)/754;
 
 	VectorMA(q->org, -q->scale, cr, point);
 	glTexCoord2f(ts, 0);
@@ -2623,7 +2629,7 @@ void GL_DrawParticleBeam_Textured(beamseg_t *b, part_type_t *type)
 	VectorSubtract(r_refdef.vieworg, p->org, v);
 	VectorNormalize(v);
 	CrossProduct(b->dir, v, cr); // replace with old p->dir?
-	ts = b->texture_s*type->rotationstartmin + particletime*type->rotationmin;
+	ts = (b->texture_s*type->rotationstartmin + particletime*type->rotationmin)/754;
 
 	VectorMA(p->org, p->scale, cr, point);
 	glTexCoord2f(ts, 1);

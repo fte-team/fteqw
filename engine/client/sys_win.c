@@ -67,6 +67,28 @@ void VARGS Sys_DebugLog(char *file, char *fmt, ...)
     va_start(argptr, fmt);
     _vsnprintf(data, sizeof(data)-1, fmt, argptr);
     va_end(argptr);
+
+#if defined(CRAZYDEBUGGING) && CRAZYDEBUGGING > 1
+	{
+		static int sock;
+		if (!sock)
+		{
+			struct sockaddr_in sa;
+			netadr_t na;
+			int _true = true;
+			int listip;
+			listip = COM_CheckParm("-debugip");
+			NET_StringToAdr(listip?com_argv[listip+1]:"127.0.0.1", &na);
+			NetadrToSockadr(&na, (struct sockaddr_qstorage*)&sa);
+			sa.sin_port = htons(10000);
+			sock = socket(AF_INET, SOCK_STREAM, IPPROTO_TCP);
+			if (-1==connect(sock, (struct sockaddr*)&sa, sizeof(sa)))
+				Sys_Error("Couldn't send debug log lines\n");
+			setsockopt(sock, IPPROTO_TCP, TCP_NODELAY, (char*)&_true, sizeof(_true));
+		}
+		send(sock, data, strlen(data), 0);
+	}
+#endif
     fd = open(file, O_WRONLY | O_CREAT | O_APPEND, 0666);
     write(fd, data, strlen(data));
     close(fd);

@@ -669,7 +669,7 @@ static galiastexnum_t *GL_ChooseSkin(galiasinfo_t *inf, char *modelname, entity_
 			//colourmap isn't present yet.
 			cm = BZ_Malloc(sizeof(*cm));
 			Q_strncpyz(cm->name, skinname, sizeof(cm->name));
-			Hash_Add2(&skincolourmapped, cm->name, cm, &cm->bucket);
+			Hash_Add(&skincolourmapped, cm->name, cm, &cm->bucket);
 			cm->colour = cc;
 			cm->skinnum = e->skinnum;
 			cm->texnum.fullbright = 0;
@@ -945,7 +945,7 @@ static void R_DrawShadowVolume(mesh_t *mesh)
 	qglEnd();
 }
 
-void GL_DrawAliasMesh_Sketch (mesh_t *mesh, int texnum)
+void GL_DrawAliasMesh_Sketch (mesh_t *mesh)
 {
 	int i;
 	extern int gldepthfunc;
@@ -1402,19 +1402,46 @@ void R_DrawGAliasModel (entity_t *e)
 		qglEnable(GL_PN_TRIANGLES_ATI);
 
 	memset(&mesh, 0, sizeof(mesh));
-	while(inf)
+	for(; inf; ((inf->nextsurf)?(inf = (galiasinfo_t*)((char *)inf + inf->nextsurf)):(inf=NULL)))
 	{
 		if (R_GAliasBuildMesh(&mesh, inf, e->frame, e->oldframe, e->lerptime, e->alpha) && r_vertexdlights.value)
 			R_GAliasAddDlights(&mesh, e->origin, e->angles);
-		skin = GL_ChooseSkin(inf, clmodel->name, e);
+
 		c_alias_polys += mesh.numindexes/3;
 
 		if (r_drawflat.value == 2)
-			GL_DrawAliasMesh_Sketch(&mesh, skin->base);
-		else if (!skin)
+		{
+			GL_DrawAliasMesh_Sketch(&mesh);
+			continue;
+		}
+#ifdef Q3SHADERS
+		else if (currententity->forcedshader)
+		{
+			meshbuffer_t mb;
+
+			R_IBrokeTheArrays();
+
+			mb.entity = &r_worldentity;
+			mb.shader = currententity->forcedshader;
+			mb.fog = NULL;
+			mb.mesh = &mesh;
+			mb.infokey = currententity->keynum;
+			mb.dlightbits = 0;
+
+			R_PushMesh(&mesh, mb.shader->features | MF_NONBATCHED | MF_COLORS);
+
+			R_RenderMeshBuffer ( &mb, false );
+
+			continue;
+		}
+#endif
+
+		skin = GL_ChooseSkin(inf, clmodel->name, e);
+
+		if (!skin)
 		{
 			qglEnable(GL_TEXTURE_2D);
-			GL_DrawAliasMesh_Sketch(&mesh, 1);
+			GL_DrawAliasMesh_Sketch(&mesh);
 		}
 #ifdef Q3SHADERS
 		else if (skin->shader)
@@ -1452,10 +1479,6 @@ void R_DrawGAliasModel (entity_t *e)
 				GL_DrawAliasMesh(&mesh, skin->fullbright);
 			}
 		}
-		if (inf->nextsurf)
-			inf = (galiasinfo_t*)((char *)inf + inf->nextsurf);
-		else
-			inf = NULL;
 	}
 
 	if (qglPNTrianglesfATI && gl_ati_truform.value)

@@ -2593,15 +2593,11 @@ void R_RenderMeshBuffer ( meshbuffer_t *mb, qboolean shadowpass )
 	shader = mb->shader;
 	r_lmtex = mb->infokey;
 
-#ifdef FIZME
 	if ( currententity && !gl_state.in2d ) {
-		r_localShaderTime = r_refdef.time * 0.001f - currententity->shaderTime;
+		r_localShaderTime = r_refdef.time - currententity->shaderTime;
 	} else {
-		r_localShaderTime = Sys_Milliseconds() * 0.001f;
+		r_localShaderTime = realtime;
 	}
-#else
-	r_localShaderTime = realtime;
-#endif
 
 	R_SetShaderState ( shader );
 

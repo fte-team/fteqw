@@ -68,7 +68,7 @@ int SNDDMA_Init(soundcardinfo_t *sc)
 	}
 	
 Con_Printf("SDL AUDIO INITING\n");
-	if(SDL_InitSubSystem(SDL_INIT_AUDIO))
+	if(SDL_InitSubSystem(SDL_INIT_AUDIO | SDL_INIT_NOPARACHUTE))
 	{
 		Con_Print("Couldn't initialize SDL audio subsystem\n");
 		return false;

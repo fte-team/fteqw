@@ -44,6 +44,7 @@ typedef struct entity_s
 	vec3_t					axis[3];
 
 	byte_vec4_t				shaderRGBA;
+	float					shaderTime;
 
 	vec3_t					oldorigin;
 	vec3_t					oldangles;
@@ -72,6 +73,10 @@ typedef struct entity_s
 											//  not split
 
 	int flags;
+
+#ifdef Q3SHADERS
+	struct shader_s *forcedshader;
+#endif
 
 #ifdef PEXT_SCALE
 	float scale;
@@ -124,6 +129,8 @@ typedef struct
 	int			flags;
 
 	int			currentplayernum;
+
+	float		time;
 } refdef_t;
 
 

@@ -344,7 +344,9 @@ void VQ3_AddEntity(const q3refEntity_t *q3)
 	ent.lerpfrac = ent.lerptime = q3->backlerp;
 	ent.alpha = 1;
 	ent.scale = 1;
+	ent.forcedshader = q3->customShader;
 	*(int*)ent.shaderRGBA = *(int*)q3->shaderRGBA;
+	ent.shaderTime = q3->shaderTime;
 	if (q3->renderfx & Q3RF_DEPTHHACK)
 		ent.flags |= Q2RF_DEPTHHACK;
 	if (q3->renderfx & Q3RF_THIRD_PERSON)
@@ -468,6 +470,7 @@ void VQ3_RenderView(const q3refdef_t *ref)
 	r_refdef.vrect.y = ref->y;
 	r_refdef.vrect.width = ref->width;
 	r_refdef.vrect.height = ref->height;
+	r_refdef.time = ref->time/1000.0f;
 
 	memcpy(cl.q2frame.areabits, ref->areamask, sizeof(cl.q2frame.areabits));
 #ifdef RGLQUAKE
@@ -498,6 +501,7 @@ void VQ3_RenderView(const q3refdef_t *ref)
 #endif
 
 	vid.recalc_refdef = 1;
+	r_refdef.time = 0;
 }
 
 

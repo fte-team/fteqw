@@ -1288,7 +1288,7 @@ void CL_LinkPacketEntities (void)
 		s1 = &pack->entities[pnum];
 
 		//bots or powerup glows. Bots always glow, powerups can be disabled
-		if (s1->modelindex == cl_playerindex || r_powerupglow.value);
+		if (s1->modelindex != cl_playerindex && r_powerupglow.value);
 		{
 			flicker = r_lightflicker.value?(rand()&31):0;
 			// spawn light flashes, even ones coming from invisible objects
@@ -2065,7 +2065,7 @@ void CL_LinkPlayers (void)
 			continue;	// not present this frame
 
 		// spawn light flashes, even ones coming from invisible objects
-		if (!r_flashblend.value || j != cl.playernum[0])
+		if ((!r_flashblend.value || j != cl.playernum[0]) && r_powerupglow.value)
 		{
 			if ((state->effects & (EF_BLUE | EF_RED)) == (EF_BLUE | EF_RED))
 				CL_NewDlight (j+1, state->origin[0], state->origin[1], state->origin[2], 200 + (rand()&31), 0.1, 3)->noppl = (j != cl.playernum[0]);

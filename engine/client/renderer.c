@@ -94,9 +94,6 @@ cvar_t r_stainfadetime = {"r_stainfadetime", "1"};
 cvar_t r_stainfadeammount = {"r_stainfadeammount", "1"};
 
 cvar_t		_windowed_mouse = {"_windowed_mouse","1"};
-cvar_t		_vid_default_mode = {"_vid_default_mode","0", NULL, CVAR_ARCHIVE|CVAR_RENDERERLATCH};
-// Note that 3 is MODE_FULLSCREEN_DEFAULT
-cvar_t		_vid_default_mode_win = {"_vid_default_mode_win","3", NULL, CVAR_ARCHIVE|CVAR_RENDERERLATCH};
 cvar_t		vid_wait = {"vid_wait","0"};
 cvar_t		vid_nopageflip = {"vid_nopageflip","0", NULL, CVAR_ARCHIVE|CVAR_RENDERERLATCH};
 cvar_t		_vid_wait_override = {"_vid_wait_override", "0", NULL, CVAR_ARCHIVE|CVAR_RENDERERLATCH};
@@ -113,6 +110,7 @@ static cvar_t	vid_width = {"vid_width", "640", NULL, CVAR_ARCHIVE|CVAR_RENDERERL
 static cvar_t	vid_height = {"vid_height", "480", NULL, CVAR_ARCHIVE|CVAR_RENDERERLATCH};
 static cvar_t	vid_refreshrate = {"vid_displayfrequency", "0", NULL, CVAR_ARCHIVE|CVAR_RENDERERLATCH};
 
+cvar_t	gl_fontedgeclamp = {"gl_fontedgeclamp", "0"};	//gl blends. Set this to 1 to stop the outside of your conchars from being visible
 cvar_t	gl_font = {"gl_font", ""};
 cvar_t	gl_conback = {"gl_conback", ""};
 cvar_t	gl_smoothfont = {"gl_smoothfont", "1"};
@@ -295,6 +293,7 @@ void GLRenderer_Init(void)
 	Cvar_Register (&vid_conwidth, GLRENDEREROPTIONS);
 	Cvar_Register (&vid_conheight, GLRENDEREROPTIONS);
 
+	Cvar_Register (&gl_fontedgeclamp, GRAPHICALNICETIES);
 	Cvar_Register (&gl_font, GRAPHICALNICETIES);
 	Cvar_Register (&gl_conback, GRAPHICALNICETIES);
 	Cvar_Register (&gl_smoothfont, GRAPHICALNICETIES);
@@ -444,8 +443,6 @@ void Renderer_Init(void)
 	Cvar_Register (&vid_wait, VIDCOMMANDGROUP);
 	Cvar_Register (&vid_nopageflip, VIDCOMMANDGROUP);
 	Cvar_Register (&_vid_wait_override, VIDCOMMANDGROUP);
-	Cvar_Register (&_vid_default_mode, VIDCOMMANDGROUP);
-	Cvar_Register (&_vid_default_mode_win, VIDCOMMANDGROUP);
 	Cvar_Register (&vid_stretch, VIDCOMMANDGROUP);
 	Cvar_Register (&_windowed_mouse, VIDCOMMANDGROUP);
 	Cvar_Register (&vid_renderer, VIDCOMMANDGROUP);

@@ -344,7 +344,9 @@ void CL_SendConnectPacket (
 	fteprotextsupported |= PEXT_FLOATCOORDS;
 #endif
 	fteprotextsupported |= PEXT_SPAWNSTATIC2;
+#ifdef PEXT_SEEF1
 	fteprotextsupported |= PEXT_SEEF1;
+#endif
 	fteprotextsupported |= PEXT_SPLITSCREEN;
 	fteprotextsupported |= PEXT_HEXEN2;
 	fteprotextsupported |= PEXT_CUSTOMTEMPEFFECTS;
@@ -848,8 +850,10 @@ void CL_Disconnect (void)
 #ifdef VM_CG
 	CG_Stop();
 #endif
-	
-// if running a local server, shut it down
+#ifdef CSQC_DAT
+	CSQC_Shutdown();
+#endif
+	// if running a local server, shut it down
 	if (cls.demoplayback != DPB_NONE)
 		CL_StopPlayback ();
 	else if (cls.state != ca_disconnected)

@@ -1550,7 +1550,7 @@ void Cmd_ForwardToServer (void)
 #ifdef Q3CLIENT
 	if (cls.q2server == 2)
 	{
-		CL_SendClientCommand("%s %s", Cmd_Argv(0), Cmd_Args());
+		CLQ3_SendClientCommand("%s %s", Cmd_Argv(0), Cmd_Args());
 		return;
 	}
 #endif
@@ -1588,7 +1588,7 @@ void Cmd_ForwardToServer_f (void)
 #ifdef Q3CLIENT
 	if (cls.q2server == 2)
 	{
-		CL_SendClientCommand("%s", Cmd_Args());
+		CLQ3_SendClientCommand("%s", Cmd_Args());
 		return;
 	}
 #endif

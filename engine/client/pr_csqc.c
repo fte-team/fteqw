@@ -8,6 +8,7 @@
 
 progfuncs_t *csqcprogs;
 
+//note: doesn't even have to match the clprogs.dat :)
 typedef struct {
 //CHANGING THIS STRUCTURE REQUIRES CHANGES IN CSQC_InitFields
 	//fields the client will pull out of the edict for rendering.
@@ -22,9 +23,11 @@ typedef struct {
 	float frame;
 	float oldframe;
 	float lerpfrac;
+
+	float drawmask;	//drawentities uses this mask for it.
 } csqcentvars_t;
 
-typedef struct menuedict_s
+typedef struct csqcedict_s
 {
 	qboolean	isfree;
 	float		freetime; // sv.time when the object was freed
@@ -54,6 +57,7 @@ void CSQC_InitFields(void)
 	fieldfloat(oldframe);
 	fieldfloat(lerpfrac);
 
+	fieldfloat(drawmask);
 }
 
 #define	RETURN_SSTRING(s) (*(char **)&((int *)pr_globals)[OFS_RETURN] = PR_SetString(prinst, s))	//static - exe will not change it.
@@ -114,6 +118,18 @@ void PF_coredump (progfuncs_t *prinst, struct globalvars_s *pr_globals);
 void PF_traceon (progfuncs_t *prinst, struct globalvars_s *pr_globals);
 void PF_traceoff (progfuncs_t *prinst, struct globalvars_s *pr_globals);
 void PF_eprint (progfuncs_t *prinst, struct globalvars_s *pr_globals);
+
+//these functions are from pr_menu.dat
+void PF_CL_is_cached_pic (progfuncs_t *prinst, struct globalvars_s *pr_globals);
+void PF_CL_precache_pic (progfuncs_t *prinst, struct globalvars_s *pr_globals);
+void PF_CL_free_pic (progfuncs_t *prinst, struct globalvars_s *pr_globals);
+void PF_CL_drawcharacter (progfuncs_t *prinst, struct globalvars_s *pr_globals);
+void PF_CL_drawstring (progfuncs_t *prinst, struct globalvars_s *pr_globals);
+void PF_CL_drawpic (progfuncs_t *prinst, struct globalvars_s *pr_globals);
+void PF_CL_drawfill (progfuncs_t *prinst, struct globalvars_s *pr_globals);
+void PF_CL_drawsetcliparea (progfuncs_t *prinst, struct globalvars_s *pr_globals);
+void PF_CL_drawresetcliparea (progfuncs_t *prinst, struct globalvars_s *pr_globals);
+void PF_CL_drawgetimagesize (progfuncs_t *prinst, struct globalvars_s *pr_globals);
 
 void PF_fclose_progs (progfuncs_t *prinst);
 char *PF_VarString (progfuncs_t *prinst, int	first, struct globalvars_s *pr_globals);
@@ -181,20 +197,57 @@ static void PF_R_AddEntity(progfuncs_t *prinst, struct globalvars_s *pr_globals)
 	V_AddEntity(&ent);
 }
 
+#define MASK_ENGINE 1
+static void PF_R_AddEntityMask(progfuncs_t *prinst, struct globalvars_s *pr_globals)
+{
+	int mask = G_FLOAT(OFS_PARM0);
+	csqcedict_t *ent;
+	int e;
+
+	for (e=1; e < *prinst->parms->sv_num_edicts; e++)
+	{
+		ent = (void*)EDICT_NUM(prinst, e);
+		if (ent->isfree)
+			continue;
+
+		if ((int)ent->v.drawmask & mask)
+		{
+			G_INT(OFS_PARM0) = EDICT_TO_PROG(prinst, (void*)ent);
+			PF_R_AddEntity(prinst, pr_globals);
+		}
+	}
+
+	if (mask & MASK_ENGINE)
+	{
+		CL_EmitEntities();
+	}
+}
+
+float CalcFov (float fov_x, float width, float height);
 //clear scene, and set up the default stuff.
 static void PF_R_ClearScene (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
+	extern frame_t		*view_frame;
+	extern player_state_t		*view_message;
+
 	cl_numvisedicts = 0;
-	
+
+	view_frame = &cl.frames[cls.netchan.incoming_sequence & UPDATE_MASK];
+	view_message = &view_frame->playerstate[cl.playernum[0]];
+	V_CalcRefdef(0);	//set up the defaults (for player 0)
+	/*
 	VectorCopy(cl.simangles[0], r_refdef.viewangles);
+	VectorCopy(cl.simorg[0], r_refdef.vieworg);
 	r_refdef.flags = 0;
 
-	r_refdef.fov_x = 90;
-	r_refdef.fov_y = 90;
 	r_refdef.vrect.x = 0;
 	r_refdef.vrect.y = 0;
 	r_refdef.vrect.width = vid.width;
 	r_refdef.vrect.height = vid.height;
+
+	r_refdef.fov_x = scr_fov.value;
+	r_refdef.fov_y = CalcFov (r_refdef.fov_x, r_refdef.vrect.width, r_refdef.vrect.height);
+	*/
 }
 
 static void PF_R_SetViewFlag(progfuncs_t *prinst, struct globalvars_s *pr_globals)
@@ -315,6 +368,8 @@ static void PF_R_SetViewFlag(progfuncs_t *prinst, struct globalvars_s *pr_global
 
 static void PF_R_RenderScene(progfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
+	R_PushDlights ();
+
 #ifdef RGLQUAKE
 	if (qrenderer == QR_OPENGL)
 	{
@@ -491,8 +546,45 @@ PF_Fixme,
 PF_Fixme,
 
 
+//120
+PF_Fixme,
+PF_Fixme,
+PF_Fixme,
+PF_Fixme,
+PF_Fixme,
 
-PF_Fixme};
+PF_Fixme,
+PF_Fixme,
+PF_Fixme,
+PF_Fixme,
+PF_Fixme,
+
+//130
+PF_R_ClearScene,
+PF_R_AddEntityMask,
+PF_R_AddEntity,
+PF_R_SetViewFlag,
+PF_R_RenderScene,
+
+PF_Fixme,
+PF_Fixme,
+PF_Fixme,
+PF_Fixme,
+PF_Fixme,
+
+//140
+PF_CL_is_cached_pic,//0
+PF_CL_precache_pic,//1
+PF_CL_free_pic,//2
+PF_CL_drawcharacter,//3
+PF_CL_drawstring,//4
+PF_CL_drawpic,//5
+PF_CL_drawfill,//6
+PF_CL_drawsetcliparea,//7
+PF_CL_drawresetcliparea,//8
+PF_CL_drawgetimagesize,//9
+
+};
 int csqc_numbuiltins = sizeof(csqc_builtins)/sizeof(csqc_builtins[0]);
 
 
@@ -522,7 +614,7 @@ void *VARGS PR_Malloc(int size);	//these functions should be tracked by the libr
 void VARGS PR_Free(void *mem);
 
 //Any menu builtin error or anything like that will come here.
-void VARGS CSQC_Abort (char *format, ...)
+void VARGS CSQC_Abort (char *format, ...)	//an error occured.
 {
 	va_list		argptr;
 	char		string[1024];
@@ -544,6 +636,16 @@ void VARGS CSQC_Abort (char *format, ...)
 	Host_EndGame("csqc error");
 }
 
+void CSQC_Shutdown(void)
+{
+	if (csqcprogs)
+	{
+		CloseProgs(csqcprogs);
+		Con_Printf("Closed csqc\n");
+	}
+	csqcprogs = NULL;
+}
+
 void CSQC_FindGlobals(void)
 {
 	csqc_time = (float*)PR_FindGlobal(csqcprogs, "time", 0);
@@ -551,22 +653,22 @@ void CSQC_FindGlobals(void)
 		*csqc_time = Sys_DoubleTime();
 
 
-	csqc_init_function	= PR_FindFunction(csqcprogs, "csqc_init",	PR_ANY);
-	csqc_shutdown_function	= PR_FindFunction(csqcprogs, "csqc_shutdown",	PR_ANY);
-	csqc_draw_function	= PR_FindFunction(csqcprogs, "csqc_draw",	PR_ANY);
-	csqc_keydown_function	= PR_FindFunction(csqcprogs, "csqc_keydown",	PR_ANY);
-	csqc_keyup_function	= PR_FindFunction(csqcprogs, "csqc_keyup",	PR_ANY);
-	csqc_toggle_function	= PR_FindFunction(csqcprogs, "csqc_toggle",	PR_ANY);
+	csqc_init_function	= PR_FindFunction(csqcprogs, "CSQC_Init",	PR_ANY);
+	csqc_shutdown_function	= PR_FindFunction(csqcprogs, "CSQC_Shutdown",	PR_ANY);
+	csqc_draw_function	= PR_FindFunction(csqcprogs, "CSQC_UpdateView",	PR_ANY);
+	csqc_keydown_function	= PR_FindFunction(csqcprogs, "CSQC_KeyDown",	PR_ANY);
+	csqc_keyup_function	= PR_FindFunction(csqcprogs, "CSQC_KeyUp",	PR_ANY);
 }
 
 double  csqctime;
 void CSQC_Init (void)
 {
+	CSQC_Shutdown();
+
 	if (!qrenderer)
 	{
 		return;
 	}
-
 
 	csqcprogparms.progsversion = PROGSTRUCT_VERSION;
 	csqcprogparms.ReadFile = COM_LoadStackFile;//char *(*ReadFile) (char *fname, void *buffer, int *len);
@@ -614,11 +716,13 @@ void CSQC_Init (void)
 		
 		if (PR_LoadProgs(csqcprogs, "csprogs.dat", 0, NULL, 0) < 0) //no per-progs builtins.
 		{
+			CSQC_Shutdown();
 			//failed to load or something
 			return;
 		}
 		if (setjmp(csqc_abort))
 		{
+			CSQC_Shutdown();
 			return;
 		}
 		
@@ -632,6 +736,8 @@ void CSQC_Init (void)
 
 		if (csqc_init_function)
 			PR_ExecuteProgram(csqcprogs, csqc_init_function);
+
+		Con_Printf("Loaded csqc\n");
 	}
 }
 
@@ -640,9 +746,15 @@ qboolean CSQC_DrawView(void)
 	if (!csqc_draw_function || !csqcprogs)
 		return false;
 
+	R_LessenStains();
+
 	PR_ExecuteProgram(csqcprogs, csqc_draw_function);
 
 	return true;
+}
+
+void CSQC_ParseEntities(void)
+{
 }
 
 #endif

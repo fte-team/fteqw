@@ -1099,9 +1099,9 @@ void V_CalcRefdef (int pnum)
 	if (!cls.q2server)
 #endif
 	{
-		if (view_message->flags & PF_GIB)
+		if (view_message && view_message->flags & PF_GIB)
 			r_refdef.vieworg[2] += 8;	// gib view height
-		else if (view_message->flags & PF_DEAD)
+		else if (view_message && view_message->flags & PF_DEAD)
 			r_refdef.vieworg[2] -= 16;	// corpse view height
 		else
 			r_refdef.vieworg[2] += cl.viewheight[pnum];
@@ -1109,7 +1109,7 @@ void V_CalcRefdef (int pnum)
 		r_refdef.vieworg[2] += cl.crouch[pnum];
 	}
 
-	if (view_message->flags & PF_DEAD)		// PF_GIB will also set PF_DEAD
+	if (view_message && view_message->flags & PF_DEAD)		// PF_GIB will also set PF_DEAD
 	{
 		if (!cl.spectator || !cl_chasecam.value)
 			r_refdef.viewangles[ROLL] = 80;	// dead view angle
@@ -1149,15 +1149,17 @@ void V_CalcRefdef (int pnum)
 		view->model = NULL;
 	else
 #endif
-	if (view_message->flags & (PF_GIB|PF_DEAD) )
+	if (view_message && view_message->flags & (PF_GIB|PF_DEAD) )
  		view->model = NULL;
  	else
 		view->model = cl.model_precache[cl.stats[pnum][STAT_WEAPON]];
-	view->frame = view_message->weaponframe;
+	view->frame = view_message?view_message->weaponframe:0;
 	view->colormap = vid.colormap;
 
 // set up the refresh position
 	r_refdef.viewangles[PITCH] += cl.punchangle[pnum];
+
+	r_refdef.time = realtime;
 
 // smooth out stair step ups
 

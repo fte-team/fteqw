@@ -791,8 +791,6 @@ void Model_NextDownload (void)
 	}
 #endif
 
-Hunk_Check();
-
 	cls.downloadtype = dl_model;
 
 	for ( 
@@ -819,8 +817,6 @@ Hunk_Check();
 				return;
 	}
 	
-	Hunk_Check();
-
 	if (cl.playernum[0] == -1)
 	{	//q2 cinematic - don't load the models.
 		cl.worldmodel = cl.model_precache[1] = Mod_ForName ("", false);
@@ -1624,6 +1620,9 @@ void CL_ParseServerData (void)
 #ifdef VM_CG
 	CG_Stop();
 #endif
+#ifdef CSQC_DAT
+	CSQC_Shutdown();
+#endif
 }
 
 void CLQ2_ParseServerData (void)
@@ -1882,6 +1881,9 @@ Con_DPrintf ("CL_SignonReply: %i\n", cls.signon);
 		Cache_Report ();		// print remaining memory
 #ifdef VM_CG
 		CG_Start();
+#endif
+#ifdef CSQC_DAT
+		CSQC_Init();
 #endif
 		break;
 		

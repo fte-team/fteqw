@@ -45,33 +45,8 @@
 char *MD5_GetPop3APOPString(char *timestamp, char *secrit);
 
 
-#define HASH_FILESYSTEM
-#ifdef HASH_FILESYSTEM
-//#include "hash.h"
 
-#define Hash_BytesForBuckets(b) (sizeof(bucket_t)*b)
-
-#define STRCMP(s1,s2) (((*s1)!=(*s2)) || strcmp(s1+1,s2+1))	//saves about 2-6 out of 120 - expansion of idea from fastqcc
-typedef struct bucket_s {
-	void *data;
-	char *keystring;
-	struct bucket_s *next;
-} bucket_t;
-typedef struct hashtable_s {
-	int numbuckets;
-	bucket_t **bucket;
-} hashtable_t;
-
-void Hash_InitTable(hashtable_t *table, int numbucks, void *mem);	//mem must be 0 filled. (memset(mem, 0, size))
-int Hash_Key(char *name, int modulus);
-void *Hash_Get(hashtable_t *table, char *name);
-void *Hash_GetKey(hashtable_t *table, int key);
-void *Hash_GetNext(hashtable_t *table, char *name, void *old);
-void *Hash_Add(hashtable_t *table, char *name, void *data);
-void *Hash_Add2(hashtable_t *table, char *name, void *data, bucket_t *buck);
-void *Hash_AddKey(hashtable_t *table, int key, void *data);
-void Hash_Remove(hashtable_t *table, char *name);
-#endif
+#include "hash.h"
 
 
 
@@ -100,7 +75,7 @@ qboolean POP3_IsMessageUnique(char *hash)
 	buf = Z_Malloc(sizeof(bucket_t) + strlen(hash)+1);
 	strcpy(buf+sizeof(bucket_t), hash);
 	hash = buf+sizeof(bucket_t);
-	Hash_Add2(&pop3msghash, hash, hash, (bucket_t *)buf);
+	Hash_Add(&pop3msghash, hash, hash, (bucket_t *)buf);
 
 	return true;
 }

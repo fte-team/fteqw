@@ -35,7 +35,7 @@ vec4_t	draw_mesh_xyz[4];
 vec3_t	draw_mesh_normals[4];	
 vec2_t	draw_mesh_st[4];
 vec2_t	draw_mesh_lmst[4];
-//byte_vec4_t	draw_mesh_colors[4];
+byte_vec4_t	draw_mesh_colors[4];
 
 qbyte				*uploadmemorybuffer;
 int					sizeofuploadmemorybuffer;
@@ -59,7 +59,7 @@ extern cvar_t		gl_lerpimages;
 extern cvar_t		gl_picmip2d;
 extern cvar_t		r_drawdisk;
 extern cvar_t		gl_compress;
-extern cvar_t		gl_font, gl_conback, gl_smoothfont;
+extern cvar_t		gl_font, gl_conback, gl_smoothfont, gl_fontedgeclamp;
 
 extern cvar_t		gl_savecompressedtex;
 
@@ -74,7 +74,8 @@ int			char_texture, char_tex2, default_char_texture;
 int			cs_texture; // crosshair texture
 extern int detailtexture;
 
-float char_instep, default_char_instep;	//to avoid blending issues
+float custom_char_instep, default_char_instep;	//to avoid blending issues
+float	char_instep;
 
 static unsigned cs_data[16*16];
 
@@ -827,9 +828,9 @@ TRACE(("dbg: GLDraw_ReInit: Allocating upload buffers\n"));
 	default_char_texture=char_texture;
 	//half a pixel
 	if (image_width)
-		char_instep = default_char_instep = 0.5f/((image_width+image_height)/2);	//you're an idiot if you use non-square conchars
+		custom_char_instep = default_char_instep = 0.5f/((image_width+image_height)/2);	//you're an idiot if you use non-square conchars
 	else
-		char_instep = default_char_instep = 0.5f/(128);
+		custom_char_instep = default_char_instep = 0.5f/(128);
 
 	TRACE(("dbg: GLDraw_ReInit: loaded charset\n"));
 
@@ -1912,12 +1913,13 @@ void GL_Set2D (void)
 		if (!*gl_font.string || !(char_texture=Mod_LoadHiResTexture(va("fonts/%s", gl_font.string), false, true, true)))
 		{
 			char_texture = default_char_texture;
-			char_instep = default_char_instep;
+			custom_char_instep = default_char_instep;
 		}
 		else
-			char_instep = 0.5f/((image_width+image_height)/2);
+			custom_char_instep = 0.5f/((image_width+image_height)/2);
 
-		gl_smoothfont.modified = 1;
+		gl_smoothfont.modified = true;
+		gl_fontedgeclamp.modified = true;
 	}
 	if (gl_conback.modified)
 	{
@@ -1930,6 +1932,15 @@ void GL_Set2D (void)
 			conback = custom_conback;
 			((glpic_t *)conback->data)->texnum = newtex;
 		}
+	}
+
+	if (gl_fontedgeclamp.modified)
+	{
+		if (gl_fontedgeclamp.value)
+			char_instep = custom_char_instep;
+		else
+			char_instep = 0;
+		gl_fontedgeclamp.modified = false;
 	}
 
 	if (gl_smoothfont.modified)
@@ -3308,7 +3319,7 @@ TRACE(("dbg: GL_LoadTexture: new %s\n", identifier));
 	glt->bpp = 8;
 	glt->mipmap = mipmap;
 
-	Hash_Add2(&gltexturetable, glt->identifier, glt, (bucket_t*)(glt+1));
+	Hash_Add(&gltexturetable, glt->identifier, glt, (bucket_t*)(glt+1));
 
 	GL_Bind(texture_extension_number );
 
@@ -3350,7 +3361,7 @@ int GL_LoadTextureFB (char *identifier, int width, int height, qbyte *data, qboo
 	glt->bpp = 8;
 	glt->mipmap = mipmap;
 
-	Hash_Add2(&gltexturetable, glt->identifier, glt, (bucket_t*)(glt+1));
+	Hash_Add(&gltexturetable, glt->identifier, glt, (bucket_t*)(glt+1));
 
 	GL_Bind(texture_extension_number );
 
@@ -3385,7 +3396,7 @@ int GL_LoadTexture8Pal24 (char *identifier, int width, int height, qbyte *data, 
 	glt->bpp = 24;
 	glt->mipmap = mipmap;
 
-	Hash_Add2(&gltexturetable, glt->identifier, glt, (bucket_t*)(glt+1));
+	Hash_Add(&gltexturetable, glt->identifier, glt, (bucket_t*)(glt+1));
 
 	GL_Bind(texture_extension_number );
 
@@ -3421,7 +3432,7 @@ int GL_LoadTexture32 (char *identifier, int width, int height, unsigned *data, q
 	glt->bpp = 32;
 	glt->mipmap = mipmap;
 
-	Hash_Add2(&gltexturetable, glt->identifier, glt, (bucket_t*)(glt+1));
+	Hash_Add(&gltexturetable, glt->identifier, glt, (bucket_t*)(glt+1));
 
 //	if (!isDedicated)
 	{
@@ -3470,7 +3481,7 @@ int GL_LoadCompressed(char *name)
 	glt->texnum = texture_extension_number;
 	glt->bpp = 32;
 
-	Hash_Add2(&gltexturetable, glt->identifier, glt, (bucket_t*)(glt+1));
+	Hash_Add(&gltexturetable, glt->identifier, glt, (bucket_t*)(glt+1));
 
 	GL_Bind(texture_extension_number );
 
@@ -3507,7 +3518,7 @@ int GL_LoadTexture8Grey (char *identifier, int width, int height, unsigned char 
 	glt->bpp = 8;
 	glt->mipmap = mipmap;
 
-	Hash_Add2(&gltexturetable, glt->identifier, glt, (bucket_t*)(glt+1));
+	Hash_Add(&gltexturetable, glt->identifier, glt, (bucket_t*)(glt+1));
 
 //	if (!isDedicated)
 	{
@@ -3551,7 +3562,7 @@ int GL_LoadTexture8Bump (char *identifier, int width, int height, unsigned char 
 	glt->bpp = 8;
 	glt->mipmap = mipmap;
 
-	Hash_Add2(&gltexturetable, glt->identifier, glt, (bucket_t*)(glt+1));
+	Hash_Add(&gltexturetable, glt->identifier, glt, (bucket_t*)(glt+1));
 
 //	if (!isDedicated)
 	{

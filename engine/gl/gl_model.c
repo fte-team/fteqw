@@ -933,6 +933,12 @@ TRACE(("dbg: GLMod_LoadTextures: inittexturedescs\n"));
 
 	TRACE(("dbg: GLMod_LoadTextures: texture %s\n", loadname));
 
+		if (!*mt->name)	//I HATE MAPPERS!
+		{
+			sprintf(mt->name, "unnamed%i", i);
+			Con_Printf("warning: unnamed texture in %s, renaming to %s\n", loadmodel->name, tx->name);
+		}
+
 		mt->width = LittleLong (mt->width);
 		mt->height = LittleLong (mt->height);
 		for (j=0 ; j<MIPLEVELS ; j++)

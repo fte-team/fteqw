@@ -1163,6 +1163,9 @@ void CL_StopUpload(void)
 
 =====================================================================
 */
+#ifdef CLIENTONLY
+float nextdemotime;
+#endif
 
 /*
 ==================

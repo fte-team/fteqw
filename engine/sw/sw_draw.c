@@ -400,43 +400,62 @@ void SWDraw_Init (void)
 		int i, x;
 		char *tempchars = COM_LoadMallocFile("gfx/menu/conchars.lmp");
 		char *in, *out;
-		if (!tempchars)
-			Sys_Error("No charset found\n");
+		if (tempchars)
+		{
+			draw_chars = BZ_Malloc(256*256);
+			
+			out = draw_chars;
+			for (i = 0; i < 8*8; i+=1)
+			{
+				if ((i/8)&1)
+				{
+					in = tempchars + ((i)/8)*16*8*8+(i&7)*32*8 - 256*4+128;
+					for (x = 0; x < 16*8; x++)
+						*out++ = *in++;
+				}
+				else
+				{
+					in = tempchars + (i/8)*16*8*8+(i&7)*32*8;
+					for (x = 0; x < 16*8; x++)
+						*out++ = *in++;
+				}
+			}
+			for (i = 0; i < 8*8; i+=1)
+			{
+				if ((i/8)&1)
+				{
+					in = tempchars+128*128 + ((i)/8)*16*8*8+(i&7)*32*8 - 256*4+128;
+					for (x = 0; x < 16*8; x++)
+						*out++ = *in++;
+				}
+				else
+				{
+					in = tempchars+128*128 + (i/8)*16*8*8+(i&7)*32*8;
+					for (x = 0; x < 16*8; x++)
+						*out++ = *in++;
+				}
+			}
+			Z_Free(tempchars);
+		}
+		else
+		{	//nope, that failed too.
+			//use our built in fallback
+			{
+				int width;
+				int height;
+				qbyte *image;
+				extern qbyte default_conchar[11356];
 
-		draw_chars = BZ_Malloc(8*8*256*8);
-		
-		out = draw_chars;
-		for (i = 0; i < 8*8; i+=1)
-		{
-			if ((i/8)&1)
-			{
-				in = tempchars + ((i)/8)*16*8*8+(i&7)*32*8 - 256*4+128;
-				for (x = 0; x < 16*8; x++)
-					*out++ = *in++;
-			}
-			else
-			{
-				in = tempchars + (i/8)*16*8*8+(i&7)*32*8;
-				for (x = 0; x < 16*8; x++)
-					*out++ = *in++;
+				image = ReadTargaFile(default_conchar, sizeof(default_conchar), &width, &height, false);
+
+				draw_chars = BZ_Malloc(256*256);
+
+				for (i = 0; i < 256*256; i++)
+					draw_chars[i] = image[i*4]?15:0;//GetPalette(image[i*4], image[i*4+1], image[i*4+2]);
+
+				BZ_Free(image);
 			}
 		}
-		for (i = 0; i < 8*8; i+=1)
-		{
-			if ((i/8)&1)
-			{
-				in = tempchars+128*128 + ((i)/8)*16*8*8+(i&7)*32*8 - 256*4+128;
-				for (x = 0; x < 16*8; x++)
-					*out++ = *in++;
-			}
-			else
-			{
-				in = tempchars+128*128 + (i/8)*16*8*8+(i&7)*32*8;
-				for (x = 0; x < 16*8; x++)
-					*out++ = *in++;
-			}
-		}
-		Z_Free(tempchars);
 	}
 	if (!draw_chars)
 		Sys_Error("Failed to find suitable console charactures\n");
@@ -1782,7 +1801,18 @@ void SWDraw_ConsoleBackground (int lines)
 	if (!conback)
 		conback = (mpic_t *)SWDraw_SafeCachePic ("gfx/menu/conback.lmp");
 	if (!conback)
-		Sys_Error("gfx/conback.lmp not found\n");
+	{
+		swcachepic_t *cp;
+
+		for (cp=swmenu_cachepics, v=0 ; v<swmenu_numcachepics ; cp++, v++)
+			if (!strcmp ("gfx/conback", cp->name))
+				break;
+
+		conback = Cache_Alloc(&cp->cache, sizeof(mpic_t) + 320*200, cp->name);
+		conback->width = 320;
+		conback->height = 200;
+		conback->flags = 0;
+	}
 
 	if (lines > vid.conheight)
 		lines = vid.conheight;

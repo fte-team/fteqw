@@ -55,6 +55,7 @@ static int filmtexture;
 extern cvar_t		gl_nobind;
 extern cvar_t		gl_max_size;
 extern cvar_t		gl_picmip;
+extern cvar_t		gl_lerpimages;
 extern cvar_t		gl_picmip2d;
 extern cvar_t		r_drawdisk;
 extern cvar_t		gl_compress;
@@ -2162,6 +2163,144 @@ gltexture_t	*GL_MatchTexture (char *identifier, int bits, int width, int height)
 	return NULL;
 }
 
+
+
+static void Image_Resample32LerpLine (const qbyte *in, qbyte *out, int inwidth, int outwidth)
+{
+	int		j, xi, oldx = 0, f, fstep, endx, lerp;
+	fstep = (int) (inwidth*65536.0f/outwidth);
+	endx = (inwidth-1);
+	for (j = 0,f = 0;j < outwidth;j++, f += fstep)
+	{
+		xi = f >> 16;
+		if (xi != oldx)
+		{
+			in += (xi - oldx) * 4;
+			oldx = xi;
+		}
+		if (xi < endx)
+		{
+			lerp = f & 0xFFFF;
+			*out++ = (qbyte) ((((in[4] - in[0]) * lerp) >> 16) + in[0]);
+			*out++ = (qbyte) ((((in[5] - in[1]) * lerp) >> 16) + in[1]);
+			*out++ = (qbyte) ((((in[6] - in[2]) * lerp) >> 16) + in[2]);
+			*out++ = (qbyte) ((((in[7] - in[3]) * lerp) >> 16) + in[3]);
+		}
+		else // last pixel of the line has no pixel to lerp to
+		{
+			*out++ = in[0];
+			*out++ = in[1];
+			*out++ = in[2];
+			*out++ = in[3];
+		}
+	}
+}
+
+//yes, this is lordhavok's code.
+//superblur away!
+#define LERPBYTE(i) r = row1[i];out[i] = (qbyte) ((((row2[i] - r) * lerp) >> 16) + r)
+static void Image_Resample32Lerp(const void *indata, int inwidth, int inheight, void *outdata, int outwidth, int outheight)
+{
+	int i, j, r, yi, oldy, f, fstep, lerp, endy = (inheight-1), inwidth4 = inwidth*4, outwidth4 = outwidth*4;
+	qbyte *out;
+	const qbyte *inrow;
+	qbyte *tmem, *row1, *row2;
+
+	tmem = row1 = BZ_Malloc(2*(outwidth*4));
+	row2 = row1 + (outwidth * 4);
+
+	out = outdata;
+	fstep = (int) (inheight*65536.0f/outheight);
+
+	inrow = indata;
+	oldy = 0;
+	Image_Resample32LerpLine (inrow, row1, inwidth, outwidth);
+	Image_Resample32LerpLine (inrow + inwidth4, row2, inwidth, outwidth);
+	for (i = 0, f = 0;i < outheight;i++,f += fstep)
+	{
+		yi = f >> 16;
+		if (yi < endy)
+		{
+			lerp = f & 0xFFFF;
+			if (yi != oldy)
+			{
+				inrow = (qbyte *)indata + inwidth4*yi;
+				if (yi == oldy+1)
+					memcpy(row1, row2, outwidth4);
+				else
+					Image_Resample32LerpLine (inrow, row1, inwidth, outwidth);
+				Image_Resample32LerpLine (inrow + inwidth4, row2, inwidth, outwidth);
+				oldy = yi;
+			}
+			j = outwidth - 4;
+			while(j >= 0)
+			{
+				LERPBYTE( 0);
+				LERPBYTE( 1);
+				LERPBYTE( 2);
+				LERPBYTE( 3);
+				LERPBYTE( 4);
+				LERPBYTE( 5);
+				LERPBYTE( 6);
+				LERPBYTE( 7);
+				LERPBYTE( 8);
+				LERPBYTE( 9);
+				LERPBYTE(10);
+				LERPBYTE(11);
+				LERPBYTE(12);
+				LERPBYTE(13);
+				LERPBYTE(14);
+				LERPBYTE(15);
+				out += 16;
+				row1 += 16;
+				row2 += 16;
+				j -= 4;
+			}
+			if (j & 2)
+			{
+				LERPBYTE( 0);
+				LERPBYTE( 1);
+				LERPBYTE( 2);
+				LERPBYTE( 3);
+				LERPBYTE( 4);
+				LERPBYTE( 5);
+				LERPBYTE( 6);
+				LERPBYTE( 7);
+				out += 8;
+				row1 += 8;
+				row2 += 8;
+			}
+			if (j & 1)
+			{
+				LERPBYTE( 0);
+				LERPBYTE( 1);
+				LERPBYTE( 2);
+				LERPBYTE( 3);
+				out += 4;
+				row1 += 4;
+				row2 += 4;
+			}
+			row1 -= outwidth4;
+			row2 -= outwidth4;
+		}
+		else
+		{
+			if (yi != oldy)
+			{
+				inrow = (qbyte *)indata + inwidth4*yi;
+				if (yi == oldy+1)
+					memcpy(row1, row2, outwidth4);
+				else
+					Image_Resample32LerpLine (inrow, row1, inwidth, outwidth);
+				oldy = yi;
+			}
+			memcpy(out, row1, outwidth4);
+		}
+	}
+	BZ_Free(tmem);
+}
+
+
 /*
 ================
 GL_ResampleTexture
@@ -2173,12 +2312,25 @@ void GL_ResampleTexture (unsigned *in, int inwidth, int inheight, unsigned *out,
 	unsigned	*inrow;
 	unsigned	frac, fracstep;
 
+	if (gl_lerpimages.value)
+	{
+		Image_Resample32Lerp(in, inwidth, inheight, out, outwidth, outheight);
+		return;
+	}
+
 	fracstep = inwidth*0x10000/outwidth;
 	for (i=0 ; i<outheight ; i++, out += outwidth)
 	{
 		inrow = in + inwidth*(i*inheight/outheight);
 		frac = fracstep >> 1;
-		for (j=0 ; j<outwidth ; j+=4)
+		j=outwidth-4;
+		while (j&3)
+		{
+			out[j] = inrow[frac>>16];
+			frac += fracstep;
+			j--;
+		}
+		for ( ; j>=0 ; j-=4)
 		{
 			out[j] = inrow[frac>>16];
 			frac += fracstep;
@@ -2468,18 +2620,6 @@ void GL_Upload32 (char *name, unsigned *data, int width, int height,  qboolean m
 	if (gl_config.arb_texture_compression && gl_compress.value && name&&mipmap)
 		samples = alpha ? GL_COMPRESSED_RGBA_ARB : GL_COMPRESSED_RGB_ARB;	
 
-#if 0
-	if (mipmap)
-		gluBuild2DMipmaps (GL_TEXTURE_2D, samples, width, height, GL_RGBA, GL_UNSIGNED_BYTE, trans);
-	else if (scaled_width == width && scaled_height == height)
-		glTexImage2D (GL_TEXTURE_2D, 0, samples, width, height, 0, GL_RGBA, GL_UNSIGNED_BYTE, trans);
-	else
-	{
-		gluScaleImage (GL_RGBA, width, height, GL_UNSIGNED_BYTE, trans,
-			scaled_width, scaled_height, GL_UNSIGNED_BYTE, scaled);
-		glTexImage2D (GL_TEXTURE_2D, 0, samples, scaled_width, scaled_height, 0, GL_RGBA, GL_UNSIGNED_BYTE, scaled);
-	}
-#else
 texels += scaled_width * scaled_height;
 
 	if (gl_config.sgis_generate_mipmap&&mipmap)
@@ -2575,7 +2715,6 @@ texels += scaled_width * scaled_height;
 done:
 	if (gl_config.sgis_generate_mipmap&&mipmap)
 		qglTexParameterf(GL_TEXTURE_2D, GL_GENERATE_MIPMAP_SGIS, GL_FALSE);
-#endif
 
 
 	if (mipmap)

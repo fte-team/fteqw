@@ -13,6 +13,7 @@ typedef struct plugin_s {
 	vm_t *vm;
 	int tick;
 	int executestring;
+	int conexecutecommand;
 	int menufunction;
 	int sbarlevel[3];	//0 - main sbar, 1 - supplementry sbar sections (make sure these can be switched off), 2 - overlays (scoreboard). menus kill all.
 	int reschange;
@@ -214,6 +215,8 @@ int Plug_ExportToEngine(void *offset, unsigned int mask, const long *arg)
 		currentplug->tick = arg[1];
 	else if (!strcmp(name, "ExecuteCommand"))
 		currentplug->executestring = arg[1];
+	else if (!strcmp(name, "ConExecuteCommand"))
+		currentplug->conexecutecommand = arg[1];
 	else if (!strcmp(name, "MenuEvent"))
 		currentplug->menufunction = arg[1];
 	else if (!strcmp(name, "UpdateVideo"))
@@ -474,14 +477,14 @@ int Plug_Draw_Fill(void *offset, unsigned int mask, const long *arg)
 	{
 #ifdef RGLQUAKE
 	case QR_OPENGL:
-		glDisable(GL_TEXTURE_2D);
-		glBegin(GL_QUADS);
-		glVertex2f(x, y);
-		glVertex2f(x+width, y);
-		glVertex2f(x+width, y+height);
-		glVertex2f(x, y+height);
-		glEnd();
-		glEnable(GL_TEXTURE_2D);
+		qglDisable(GL_TEXTURE_2D);
+		qglBegin(GL_QUADS);
+		qglVertex2f(x, y);
+		qglVertex2f(x+width, y);
+		qglVertex2f(x+width, y+height);
+		qglVertex2f(x, y+height);
+		qglEnd();
+		qglEnable(GL_TEXTURE_2D);
 		return 1;
 #endif
 	}
@@ -634,6 +637,35 @@ int Plug_CL_GetStats(void *offset, unsigned int mask, const long *arg)
 	return max;
 }
 
+int Plug_Con_SubPrint(void *offset, unsigned int mask, const long *arg)
+{
+	char *name = VM_POINTER(arg[0]);
+	char *text = VM_POINTER(arg[1]);
+	console_t *con;
+	con = Con_FindConsole(name);
+	if (!con)
+	{
+		con = Con_Create(name);
+		Con_SetVisible(con);
+	}
+
+	Con_PrintCon(con, text);
+
+	return 1;
+}
+int Plug_Con_RenameSub(void *offset, unsigned int mask, const long *arg)
+{
+	char *name = VM_POINTER(arg[0]);
+	console_t *con;
+	con = Con_FindConsole(name);
+	if (!con)
+		return 0;
+
+	Q_strncpyz(con->name, name, sizeof(con->name));
+
+	return 1;
+}
+
 void Plug_Init(void)
 {
 	Plug_RegisterBuiltin("Plug_GetEngineFunction",	Plug_FindBuiltin, 0);//plugin wishes to find a builtin number.
@@ -665,6 +697,9 @@ void Plug_Init(void)
 	Plug_RegisterBuiltin("Draw_Colourp",			Plug_Draw_ColourP, 0);
 	Plug_RegisterBuiltin("Draw_Colour3f",			Plug_Draw_Colour3f, 0);
 	Plug_RegisterBuiltin("Draw_Colour4f",			Plug_Draw_Colour4f, 0);
+
+	Plug_RegisterBuiltin("Con_SubPrint",			Plug_Con_SubPrint, 0);
+	Plug_RegisterBuiltin("Con_RenameSub",			Plug_Con_RenameSub, 0);
 
 #ifdef _WIN32
 	COM_EnumerateFiles("plugins/*x86.dll",	Plug_Emumerated, "x86.dll");

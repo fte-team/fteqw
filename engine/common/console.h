@@ -57,8 +57,9 @@ extern consolecolours_t consolecolours[MAXCONCOLOURS];
 #define S_COLOR_WHITE	"^7"
 
 #define		CON_TEXTSIZE	16384
-typedef struct
+typedef struct console_s
 {
+	char name[64];
 	unsigned short	text[CON_TEXTSIZE];
 	int		current;		// line where next message will be printed
 	int		x;				// offset in current line for next print
@@ -66,11 +67,13 @@ typedef struct
 	int		linewidth;
 	int		totallines;
 	int		vislines;
-	void	(*redirect) (int key);
+	void	(*redirect) (struct console_s *con, int key);
+	void	*userdata;
+	struct console_s *next;
 } console_t;
 
 extern	console_t	con_main;
-extern	console_t	*con;			// point to either con_main or con_chat
+extern	console_t	*con_current;			// point to either con_main or con_chat
 
 extern	int			con_ormask;
 
@@ -87,7 +90,6 @@ void Con_CheckResize (void);
 void Con_Init (void);
 void Con_DrawConsole (int lines, qboolean noback);
 void Con_Print (char *txt);
-void Con_CycleConsole (void);
 void VARGS Con_Printf (const char *fmt, ...);
 void VARGS Con_TPrintf (translation_t text, ...);
 void VARGS Con_DPrintf (char *fmt, ...);
@@ -96,6 +98,15 @@ void Con_Clear_f (void);
 void Con_DrawNotify (void);
 void Con_ClearNotify (void);
 void Con_ToggleConsole_f (void);
+
+
+void Con_CycleConsole (void);
+qboolean Con_IsActive (console_t *con);
+void Con_Destroy (console_t *con);
+console_t *Con_FindConsole(char *name);
+console_t *Con_Create(char *name);
+void Con_SetVisible (console_t *con);
+void Con_PrintCon (console_t *con, char *txt);
 
 void Con_NotifyBox (char *text);	// during startup for sound / cd warnings
 

@@ -432,7 +432,6 @@ void Cvar_Register (cvar_t *variable, char *groupname)
 	{
 		if (old->flags & CVAR_POINTER)
 		{
-			cvar_t *prev;
 			group = Cvar_GetGroup(groupname);
 
 			variable->modified = old->modified;

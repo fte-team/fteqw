@@ -7690,7 +7690,6 @@ BuiltinList_t BuiltinList[] = {				//nq	qw		h2		ebfs
 	{"eprint",			PF_eprint,			31,		31,		31},	//31 // void(entity e) debug print an entire entity
 	{"walkmove",		PF_walkmove,		32,		32,		32},	//32 // float(float yaw, float dist) walkmove
 	{"tracearea",		PF_traceboxh2,		0,		0,		33},	//33 // 
-	{"writestring2",	PF_WriteString2,	0,		0,		0,		33},	//writestring but without the null terminator. makes things a little nicer.
 //	{"qtest_flymove",	NULL,	33},	//vector
 	{"droptofloor",		PF_droptofloor,		34,		34,		34},	//34
 	{"lightstyle",		PF_lightstyle,		35,		35,		35},	//35
@@ -7998,7 +7997,8 @@ BuiltinList_t BuiltinList[] = {				//nq	qw		h2		ebfs
 //end other peoples extras
 	{NULL}
 
-	//don't exceed 500 without modifing the size of pr_builtin
+	{"writestring2",	PF_WriteString2,	0,		0,		0,		700},	//writestring but without the null terminator. makes things a little nicer.
+	//don't exceed sizeof(pr_builtin)/sizeof(pr_builtin[0]) (currently 1024) without modifing the size of pr_builtin
 };
 
 void PR_ResetBuiltins(progstype_t type)	//fix all nulls to PF_FIXME and add any extras that have a big number.

@@ -888,7 +888,7 @@ pbool Decompile(progfuncs_t *progfuncs, char *fname)
 			break;
 		case ev_string:
 			if (v->string && *(pr_strings+v->_int))
-				writes(f, "string %s = \"%s\";\r\n", pr_globaldefs16[i].s_name, v->string);
+				writes(f, "string %s = \"%s\";\r\n", pr_globaldefs16[i].s_name, pr_strings+v->_int);
 			else
 				writes(f, "string %s;\r\n", pr_globaldefs16[i].s_name);
 			break;

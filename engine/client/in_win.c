@@ -736,6 +736,8 @@ void IN_StartupMouse (void)
 			Con_SafePrintf ("DirectInput not initialized\n");
 		}
 	}
+	else
+		dinput = false;
 
 	if (!dinput)
 #endif

@@ -1190,7 +1190,7 @@ void Cmd_TokenizeString (char *text, qboolean expandmacros, qboolean qctokenize)
 Cmd_AddCommand
 ============
 */
-void	Cmd_AddCommand (char *cmd_name, xcommand_t function)
+qboolean	Cmd_AddCommand (char *cmd_name, xcommand_t function)
 {
 	cmd_function_t	*cmd;
 	
@@ -1201,7 +1201,7 @@ void	Cmd_AddCommand (char *cmd_name, xcommand_t function)
 	if (Cvar_VariableString(cmd_name)[0])
 	{
 		Con_Printf ("Cmd_AddCommand: %s already defined as a var\n", cmd_name);
-		return;
+		return false;
 	}
 	
 // fail if the command already exists
@@ -1210,7 +1210,7 @@ void	Cmd_AddCommand (char *cmd_name, xcommand_t function)
 		if (!Q_strcmp (cmd_name, cmd->name))
 		{
 			Con_Printf ("Cmd_AddCommand: %s already defined\n", cmd_name);
-			return;
+			return false;
 		}
 	}
 
@@ -1220,9 +1220,11 @@ void	Cmd_AddCommand (char *cmd_name, xcommand_t function)
 	cmd->next = cmd_functions;
 	cmd->restriction = 0;
 	cmd_functions = cmd;
+
+	return true;
 }
 
-void	Cmd_AddRemCommand (char *cmd_name, xcommand_t function)
+qboolean Cmd_AddRemCommand (char *cmd_name, xcommand_t function)
 {
 	cmd_function_t	*cmd;
 
@@ -1230,7 +1232,7 @@ void	Cmd_AddRemCommand (char *cmd_name, xcommand_t function)
 	if (Cvar_VariableString(cmd_name)[0])
 	{
 		Con_Printf ("Cmd_AddCommand: %s already defined as a var\n", cmd_name);
-		return;
+		return false;
 	}
 	
 // fail if the command already exists
@@ -1239,7 +1241,7 @@ void	Cmd_AddRemCommand (char *cmd_name, xcommand_t function)
 		if (!Q_strcmp (cmd_name, cmd->name))
 		{
 			Con_Printf ("Cmd_AddCommand: %s already defined\n", cmd_name);
-			return;
+			return false;
 		}
 	}
 
@@ -1250,6 +1252,8 @@ void	Cmd_AddRemCommand (char *cmd_name, xcommand_t function)
 	cmd->restriction = 0;
 	cmd->zmalloced = true;
 	cmd_functions = cmd;
+
+	return true;
 }
 
 void	Cmd_RemoveCommand (char *cmd_name)

@@ -72,8 +72,8 @@ void	Cmd_Init (void);
 void	Cmd_StuffCmds (void);
 
 void	Cmd_RemoveCommand (char *cmd_name);
-void	Cmd_AddRemCommand (char *cmd_name, xcommand_t function);	//removable command
-void	Cmd_AddCommand (char *cmd_name, xcommand_t function);
+qboolean	Cmd_AddRemCommand (char *cmd_name, xcommand_t function);	//removable command
+qboolean	Cmd_AddCommand (char *cmd_name, xcommand_t function);
 // called by the init functions of other parts of the program to
 // register commands and functions to call for them.
 // The cmd_name is referenced later, so it should not be in temp memory

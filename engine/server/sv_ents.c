@@ -302,10 +302,6 @@ void SV_WriteDelta (entity_state_t *from, entity_state_t *to, sizebuf_t *msg, qb
 		if ( miss < -0.1 || miss > 0.1 )
 		{
 			bits |= U_ORIGIN1<<i;
-#ifdef PEXT_ORIGINDBL
-			if (protext & PEXT_ORIGINDBL && to->origin[i] >= 4096 || to->origin[i] <= -4096)
-				bits |= PF_ORIGINDBL;
-#endif
 		}
 	}
 
@@ -710,7 +706,7 @@ void SV_WritePlayerToClient(sizebuf_t *msg, clstate_t *ent)
 				}
 			}
 			else
-				pm_code = (ent->zext & Z_EXT_PM_TYPE_NEW)?PM_SPECTATOR:PMC_OLD_SPECTATOR;//(ent->spectator && ent->isself) ? PMC_OLD_SPECTATOR : PMC_NORMAL;
+				pm_code = (ent->zext & Z_EXT_PM_TYPE_NEW)?PMC_SPECTATOR:PMC_OLD_SPECTATOR;//(ent->spectator && ent->isself) ? PMC_OLD_SPECTATOR : PMC_NORMAL;
 			pflags |= pm_code << PF_PMC_SHIFT;
 		}
 
@@ -1225,7 +1221,7 @@ void SV_WritePlayersToClient (client_t *client, edict_t *clent, qbyte *pvs, size
 
 				SV_WritePlayerToClient(msg, &clst);
 			}
-//			if (ent != clent)
+			if (ent != clent)
 				continue;
 		}
 
@@ -1807,7 +1803,7 @@ void SV_WriteEntitiesToClient (client_t *client, sizebuf_t *msg, qboolean ignore
 			pack->num_entities++;
 
 			state->number = e;
-			state->flags = 0;
+			state->flags = EF_DIMLIGHT;
 			VectorCopy (dement->origin, state->origin);
 			VectorCopy (dement->angles, state->angles);
 			state->modelindex = dement->modelindex;

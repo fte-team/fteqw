@@ -21,6 +21,7 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 
 #include "qwsvdef.h"
 
+#ifdef SERVERONLY
 model_t	*loadmodel;
 char	loadname[32];	// for hunk tags
 
@@ -1314,4 +1315,5 @@ void Mod_LoadBrushModel (model_t *mod, void *buffer)
 		}
 	}
 }
+#endif
 

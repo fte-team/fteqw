@@ -881,7 +881,6 @@ qboolean SWVID_Init (rendererstate_t *info, unsigned char *palette)
 	vid.colormap = host_colormap;	
 
 	SWimp_Init(global_hInstance, MainWndProc);
-	SWimp_SetPalette(palette);
 
 	if (hwnd_dialog)
 		DestroyWindow (hwnd_dialog);
@@ -891,6 +890,7 @@ qboolean SWVID_Init (rendererstate_t *info, unsigned char *palette)
 		Sys_Error("Failed to set video mode\n");
 		return false;
 	}
+	SWimp_SetPalette(palette);
 
 	S_Restart_f ();
 

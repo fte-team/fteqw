@@ -2391,10 +2391,15 @@ void QCC_SetDefaultProperties (void)
 	//play with default warnings.
 	qccwarningdisabled[WARN_NOTREFERENCEDCONST] = true;
 	qccwarningdisabled[WARN_MACROINSTRING] = true;
-	qccwarningdisabled[WARN_ASSIGNMENTTOCONSTANT] = true;
+//	qccwarningdisabled[WARN_ASSIGNMENTTOCONSTANT] = true;
 	qccwarningdisabled[WARN_FIXEDRETURNVALUECONFLICT] = true;
 	qccwarningdisabled[WARN_EXTRAPRECACHE] = true;
 	qccwarningdisabled[WARN_DEADCODE] = true;
+	qccwarningdisabled[WARN_INEFFICIENTPLUSPLUS] = true;
+	qccwarningdisabled[WARN_FTE_SPECIFIC] = true;
+	qccwarningdisabled[WARN_EXTENSION_USED] = true;
+
+
 
 	if (QCC_CheckParm("-nowarn") || QCC_CheckParm("-Wnone"))
 		memset(qccwarningdisabled, 1, sizeof(qccwarningdisabled));

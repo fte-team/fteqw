@@ -497,7 +497,7 @@ qboolean CIN_PlayCinematic (char *arg)
 //		Com_Error (ERR_DROP, "Cinematic %s not found.\n", name);
 		CIN_FinishCinematic ();
 		cin.cinematictime = 0;	// done
-		return true;
+		return false;
 	}
 
 	SCR_EndLoadingPlaque ();
@@ -528,9 +528,9 @@ qboolean CIN_PlayCinematic (char *arg)
 
 	cin.cinematicframe = 0;
 	cin.pic = CIN_ReadNextFrame ();
-	cin.cinematictime = Sys_DoubleTime ()*1000;
+	cin.cinematictime = Sys_DoubleTime ()*1000+0.001;
 
-	return false;
+	return true;
 }
 
 #endif

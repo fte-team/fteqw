@@ -142,6 +142,29 @@ void CL_WriteDemoMessage (sizebuf_t *msg)
 	fflush (cls.demofile);
 }
 
+int unreaddata;
+int unreadbytes;
+int readdemobytes(void *data, int len)
+{
+	int i;
+
+	if (unreadbytes)
+	{
+		if (len != unreadbytes)
+			Sys_Error("Demo playback unread the wrong number of bytes\n");
+		memcpy(data, &unreaddata, len);
+
+		unreadbytes=0;
+		return len;
+	}
+
+	i = fread(data, 1, len, cls.demofile);
+
+	memcpy(&unreaddata, data, 4);
+	return i;
+}
+
+
 /*
 ====================
 CL_GetDemoMessage
@@ -149,6 +172,9 @@ CL_GetDemoMessage
   FIXME...
 ====================
 */
+
+float olddemotime = 0;
+extern float nextdemotime;
 qboolean CL_GetDemoMessage (void)
 {
 	int		r, i, j, tracknum;
@@ -157,9 +183,6 @@ qboolean CL_GetDemoMessage (void)
 	qbyte	c, msecsadded=0;
 	usercmd_t *pcmd;
 	q1usercmd_t q1cmd;
-
-	static float prevtime = 0;
-
 
 #ifdef NQPROT
 	if (cls.demoplayback == DPB_NETQUAKE || cls.demoplayback == DPB_QUAKE2)
@@ -173,7 +196,7 @@ qboolean CL_GetDemoMessage (void)
 			{
 				cl.gametime = 0;
 				cl.gametimemark = realtime;
-				prevtime = 0;
+				olddemotime = 0;
 				return 0;
 			}
 			if (realtime<= cl.gametime && cl.gametime)// > dem_lasttime+realtime)
@@ -185,7 +208,7 @@ qboolean CL_GetDemoMessage (void)
 				}
 
 				{
-					float f = (cl.gametime-realtime)/(cl.gametime-prevtime);
+					float f = (cl.gametime-realtime)/(cl.gametime-olddemotime);
 					float a1;
 					float a2;
 
@@ -204,21 +227,21 @@ qboolean CL_GetDemoMessage (void)
 				return 0;
 			}
 		}
-		fread (&net_message.cursize, 4, 1, cls.demofile);
+		readdemobytes(&net_message.cursize, 4);
 //		VectorCopy (cl.mviewangles[0], cl.mviewangles[1]);
 		if (cls.demoplayback == DPB_NETQUAKE)
 		{
 			VectorCopy (cl.viewangles[1], cl.viewangles[2]);
 			for (i=0 ; i<3 ; i++)
 			{
-				r = fread (&f, 4, 1, cls.demofile);
+				readdemobytes(&f, 4);
 				cl.simangles[0][i] = cl.viewangles[1][i] = LittleFloat (f);
 			}
 			VectorCopy (cl.viewangles[1], cl.viewangles[0]);
 		}
 
-		prevtime = realtime;
-		
+		olddemotime = realtime;
+
 		net_message.cursize = LittleLong (net_message.cursize);
 		if (net_message.cursize > MAX_NQMSGLEN)
 		{
@@ -232,8 +255,8 @@ qboolean CL_GetDemoMessage (void)
 			CL_StopPlayback ();
 			return 0;
 		}
-		r = fread (net_message.data, net_message.cursize, 1, cls.demofile);
-		if (r != 1)
+		r = readdemobytes(net_message.data, net_message.cursize);
+		if (r != net_message.cursize)
 		{
 			CL_StopPlayback ();
 			return 0;
@@ -246,17 +269,18 @@ readnext:
 	// read the time from the packet
 	if (cls.demoplayback == DPB_MVD)
 	{
-		if (prevtime > realtime)
-			prevtime = realtime;
-		if (realtime + 1.0 < prevtime)
-			realtime = prevtime - 1.0;
+		if (olddemotime > realtime)
+			olddemotime = realtime;
+		if (realtime + 1.0 < olddemotime)
+			realtime = olddemotime - 1.0;
 
-		fread(&msecsadded, sizeof(msecsadded), 1, cls.demofile);
-		demotime = prevtime + msecsadded*(1.0f/1000);
+		readdemobytes(&msecsadded, sizeof(msecsadded));
+		demotime = olddemotime + msecsadded*(1.0f/1000);
+		nextdemotime = demotime;
 	}
 	else
 	{
-		fread(&demotime, sizeof(demotime), 1, cls.demofile);
+		readdemobytes(&demotime, sizeof(demotime));
 		demotime = LittleFloat(demotime);
 	}
 
@@ -270,11 +294,9 @@ readnext:
 			cls.td_lastframe = demotime;
 			// rewind back to time
 			if (cls.demoplayback == DPB_MVD)
-				fseek(cls.demofile, ftell(cls.demofile) - sizeof(msecsadded),
-						SEEK_SET);
+				unreadbytes = sizeof(msecsadded);
 			else
-				fseek(cls.demofile, ftell(cls.demofile) - sizeof(demotime),
-						SEEK_SET);
+				unreadbytes = sizeof(demotime);
 			return 0;		// allready read this frame's message
 		}
 		if (!cls.td_starttime && cls.state == ca_active)
@@ -292,22 +314,18 @@ readnext:
 			realtime = demotime - 1.0;
 			// rewind back to time
 			if (cls.demoplayback == DPB_MVD)
-				fseek(cls.demofile, ftell(cls.demofile) - sizeof(msecsadded),
-						SEEK_SET);
+				unreadbytes = sizeof(msecsadded);
 			else
-				fseek(cls.demofile, ftell(cls.demofile) - sizeof(demotime),
-						SEEK_SET);
+				unreadbytes = sizeof(demotime);
 			return 0;
 		}
 		else if (realtime < demotime)
 		{
 			// rewind back to time
 			if (cls.demoplayback == DPB_MVD)
-				fseek(cls.demofile, ftell(cls.demofile) - sizeof(msecsadded),
-						SEEK_SET);
+				unreadbytes = sizeof(msecsadded);
 			else
-				fseek(cls.demofile, ftell(cls.demofile) - sizeof(demotime),
-						SEEK_SET);
+				unreadbytes = sizeof(demotime);
 			return 0;		// don't need another message yet
 		}
 	}
@@ -325,7 +343,7 @@ readnext:
 		}
 	}
 
-	prevtime = demotime;
+	olddemotime = demotime;
 
 	if (cls.state < ca_demostart)
 		Host_Error ("CL_GetDemoMessage: cls.state != ca_active");
@@ -339,8 +357,8 @@ readnext:
 		// user sent input
 		i = cls.netchan.outgoing_sequence & UPDATE_MASK;
 		pcmd = &cl.frames[i].cmd[0];
-		r = fread (&q1cmd, sizeof(q1cmd), 1, cls.demofile);
-		if (r != 1)
+		r = readdemobytes (&q1cmd, sizeof(q1cmd));
+		if (r != sizeof(q1cmd))
 		{
 			CL_StopPlayback ();
 			return 0;
@@ -363,7 +381,7 @@ readnext:
 		cls.netchan.outgoing_sequence++;
 		for (i=0 ; i<3 ; i++)
 		{
-			r = fread (&f, 4, 1, cls.demofile);
+			readdemobytes (&f, 4);
 			cl.viewangles[0][i] = LittleFloat (f);
 		}
 		break;
@@ -371,13 +389,13 @@ readnext:
 	case dem_read:
 readit:
 		// get the next message
-		fread (&net_message.cursize, 4, 1, cls.demofile);
+		readdemobytes (&net_message.cursize, 4);
 		net_message.cursize = LittleLong (net_message.cursize);
 	//Con_Printf("read: %ld bytes\n", net_message.cursize);
 		if (net_message.cursize > MAX_OVERALLMSGLEN)
 			Sys_Error ("Demo message > MAX_OVERALLMSGLEN");
-		r = fread (net_message.data, net_message.cursize, 1, cls.demofile);
-		if (r != 1)
+		r = readdemobytes (net_message.data, net_message.cursize);
+		if (r != net_message.cursize)
 		{
 			CL_StopPlayback ();
 			return 0;
@@ -406,9 +424,9 @@ readit:
 		break;
 
 	case dem_set :
-		fread (&i, 4, 1, cls.demofile);
+		readdemobytes (&i, 4);
 		cls.netchan.outgoing_sequence = LittleLong(i);
-		fread (&i, 4, 1, cls.demofile);
+		readdemobytes (&i, 4);
 		cls.netchan.incoming_sequence = LittleLong(i);
 
 		if (cls.demoplayback == DPB_MVD)
@@ -416,7 +434,7 @@ readit:
 		goto readnext;
 
 	case dem_multiple:
-		fread (&i, sizeof(i), 1, cls.demofile);
+		readdemobytes (&i, sizeof(i));
 		cls_lastto = LittleLong(i);
 		cls_lasttype = dem_multiple;
 		goto readit;
@@ -1108,6 +1126,7 @@ void CL_PlayDemo_f (void)
 //
 	CL_Disconnect_f ();
 	
+	unreadbytes = 0;	//just in case
 //
 // open the demo file
 //

@@ -210,31 +210,20 @@ returns the blocked flags (1 = floor, 2 = step / wall)
 ==================
 */
 #define	STOP_EPSILON	0.1
-
-int ClipVelocity (vec3_t in, vec3_t normal, vec3_t out, float overbounce)
+//courtesy of darkplaces, it's just more efficient.
+void ClipVelocity (vec3_t in, vec3_t normal, vec3_t out, float overbounce)
 {
-	float	backoff;
-	float	change;
-	int		i, blocked;
-	
-	blocked = 0;
-	if (normal[2] > 0)
-		blocked |= 1;		// floor
-	if (!normal[2])
-		blocked |= 2;		// step
-	
-	backoff = DotProduct (in, normal) * overbounce;
+	int i;
+	float backoff;
 
-	for (i=0 ; i<3 ; i++)
-	{
-		change = normal[i]*backoff;
-		out[i] = in[i] - change;
+	backoff = -DotProduct (in, normal) * overbounce;
+	VectorMA(in, backoff, normal, out);
+
+	for (i = 0;i < 3;i++)
 		if (out[i] > -STOP_EPSILON && out[i] < STOP_EPSILON)
 			out[i] = 0;
-	}
-	
-	return blocked;
 }
+
 
 
 /*
@@ -332,40 +321,49 @@ int SV_FlyMove (edict_t *ent, float time, trace_t *steptrace)
 			return 3;
 		}
 
-		VectorCopy (trace.plane.normal, planes[numplanes]);
-		numplanes++;
-
-//
-// modify original_velocity so it parallels all of the clip planes
-//
-		for (i=0 ; i<numplanes ; i++)
+		if (1)
 		{
-			ClipVelocity (original_velocity, planes[i], new_velocity, 1);
-			for (j=0 ; j<numplanes ; j++)
-				if (j != i)
-				{
-					if (DotProduct (new_velocity, planes[j]) < 0)
-						break;	// not ok
-				}
-			if (j == numplanes)
-				break;
-		}
-		
-		if (i != numplanes)
-		{	// go along this plane
-			VectorCopy (new_velocity, ent->v.velocity);
+			ClipVelocity(ent->v.velocity, trace.plane.normal, ent->v.velocity, 1);
+			break;
 		}
 		else
-		{	// go along the crease
-			if (numplanes != 2)
+		{
+			VectorCopy (trace.plane.normal, planes[numplanes]);
+			numplanes++;
+
+	//
+	// modify original_velocity so it parallels all of the clip planes
+	//
+			for (i=0 ; i<numplanes ; i++)
 			{
-//				Con_Printf ("clip velocity, numplanes == %i\n",numplanes);
-				VectorCopy (vec3_origin, ent->v.velocity);
-				return 7;
+				ClipVelocity (original_velocity, planes[i], new_velocity, 1);
+				for (j=0 ; j<numplanes ; j++)
+					if (j != i)
+					{
+						if (DotProduct (new_velocity, planes[j]) < 0)
+							break;	// not ok
+					}
+				if (j == numplanes)
+					break;
 			}
-			CrossProduct (planes[0], planes[1], dir);
-			d = DotProduct (dir, ent->v.velocity);
-			VectorScale (dir, d, ent->v.velocity);
+			
+			if (i != numplanes)
+			{	// go along this plane
+				VectorCopy (new_velocity, ent->v.velocity);
+			}
+			else
+			{	// go along the crease
+				if (numplanes != 2)
+				{
+					Con_Printf ("clip velocity, numplanes == %i\n",numplanes);
+					VectorCopy (vec3_origin, ent->v.velocity);
+					return 7;
+				}
+				CrossProduct (planes[0], planes[1], dir);
+				VectorNormalize(dir);	//fixes slow falling in corners
+				d = DotProduct (dir, ent->v.velocity);
+				VectorScale (dir, d, ent->v.velocity);
+			}
 		}
 
 //
@@ -1334,6 +1332,8 @@ void SV_WalkMove (edict_t *ent)
 		&& fabs(oldorg[0] - ent->v.origin[0]) < 0.03125 )
 		{	// stepping up didn't make any progress
 			clip = SV_TryUnstick (ent, oldvel);
+
+//			Con_Printf("Try unstick fwd\n");
 		}
 	}
 	
@@ -1341,6 +1341,9 @@ void SV_WalkMove (edict_t *ent)
 	if ( clip & 2 )
 	{
 		vec3_t lastpos, lastvel, lastdown;
+
+//		Con_Printf("couldn't do it\n");
+
 		//retry with a smaller step (allows entering smaller areas with a step of 4)
 		VectorCopy (downmove, lastdown);
 		VectorCopy (ent->v.origin, lastpos);
@@ -1373,6 +1376,8 @@ void SV_WalkMove (edict_t *ent)
 			&& fabs(oldorg[0] - ent->v.origin[0]) < 0.03125 )
 			{	// stepping up didn't make any progress
 				clip = SV_TryUnstick (ent, oldvel);
+
+//				Con_Printf("Try unstick up\n");
 			}
 		}
 
@@ -1384,10 +1389,15 @@ void SV_WalkMove (edict_t *ent)
 				VectorCopy (lastvel, ent->v.velocity);
 
 				SV_WallFriction (ent, &steptrace);
+
+//				Con_Printf("wall friction\n");
 			}
 
 		else if (clip & 2)
+		{
 			SV_WallFriction (ent, &steptrace);
+//			Con_Printf("wall friction 2\n");
+		}
 	}
 
 // move down
@@ -1408,6 +1418,8 @@ void SV_WalkMove (edict_t *ent)
 // cause the player to hop up higher on a slope too steep to climb	
 		VectorCopy (nosteporg, ent->v.origin);
 		VectorCopy (nostepvel, ent->v.velocity);
+
+//		Con_Printf("down not good\n");
 	}
 }
 
@@ -1427,6 +1439,7 @@ From normal Quake in an attempt to fix physics in QuakeRally
 void SV_Physics_Client (edict_t	*ent, int num)
 {
 	qboolean readyforjump;
+	float oldvel;
 
 	if ( svs.clients[num-1].state < cs_spawned )
 		return;		// unconnected slot
@@ -1464,13 +1477,24 @@ void SV_Physics_Client (edict_t	*ent, int num)
 		break;
 
 	case MOVETYPE_WALK:
+		oldvel = ent->v.velocity[0];
 		if (!SV_RunThink (ent))
 			return;
 		if (!SV_CheckWater (ent) && ! ((int)ent->v.flags & FL_WATERJUMP) )
 			SV_AddGravity (ent, ent->v.gravity);
+
+		if (fabs(oldvel - ent->v.velocity[0])> 100)
+			Con_Printf("grav: %f -> %f\n", oldvel, ent->v.velocity[0]);
+
 		SV_CheckStuck (ent);
 
+		if (fabs(oldvel - ent->v.velocity[0])> 100)
+			Con_Printf("stuck: %f -> %f\n", oldvel, ent->v.velocity[0]);
+
 		SV_WalkMove (ent);
+
+		if (fabs(oldvel - ent->v.velocity[0])> 100)
+			Con_Printf("walk: %f -> %f\n", oldvel, ent->v.velocity[0]);
 
 		break;
 
@@ -1670,6 +1694,19 @@ qboolean SV_Physics (void)
 	old_time = realtime;
 
 	pr_global_struct->frametime = host_frametime;
+
+	for (i = 0; i < sv.allocated_client_slots; i++)
+	{
+		host_client = &svs.clients[i];
+		if (host_client->state == cs_spawned)
+		if (sv_nomsec.value || SV_PlayerPhysicsQC
+#ifndef NQPROT
+				)
+#else
+				|| (host_client->nqprot))
+#endif
+			SV_ClientThink();
+	}
 
 	SV_ProgStartFrame ();
 

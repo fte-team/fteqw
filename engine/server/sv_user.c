@@ -3914,9 +3914,6 @@ haveannothergo:
 							sv_player->v.button0 = newcmd.buttons & 1;
 							sv_player->v.button2 = (newcmd.buttons & 2)>>1;
 
-							cmd = newcmd;
-							SV_ClientThink ();
-
 							cl->lastcmd = newcmd;
 							cl->lastcmd.buttons = 0; // avoid multiple fires on lag
 							continue;
@@ -4104,7 +4101,7 @@ void SVQ2_ExecuteClientMessage (client_t *cl)
 
 			if (!sv.paused)
 			{
-				if (sv_nomsec.value)
+				/*if (sv_nomsec.value)
 				{
 					cmd = newcmd;
 					SV_ClientThink ();
@@ -4112,7 +4109,7 @@ void SVQ2_ExecuteClientMessage (client_t *cl)
 					cl->lastcmd = newcmd;
 					cl->lastcmd.buttons = 0; // avoid multiple fires on lag
 					break;
-				}
+				}*/
 				SV_PreRunCmd();
 
 				if (net_drop < 20)
@@ -4602,6 +4599,9 @@ void SV_WaterJump (void)
 void SV_ClientThink (void)
 {
 	vec3_t		v_angle;
+
+	cmd = host_client->lastcmd;
+	sv_player = host_client->edict;
 
 	sv_player->v.movement[0] = cmd.forwardmove;
 	sv_player->v.movement[1] = cmd.sidemove;

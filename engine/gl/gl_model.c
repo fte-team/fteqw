@@ -982,10 +982,22 @@ void GLMod_LoadTextures (lump_t *l)
 			tx->gl_texturenumbumpmap = 0;
 			if (gl_bumpmappingpossible && cls.allow_bump)
 			{
-				_snprintf(altname, sizeof(altname)-1, "%s_bump", mt->name);
-
-				if (gl_load24bit.value)
-					tx->gl_texturenumbumpmap = Mod_LoadBumpmapTexture(altname);
+				extern cvar_t gl_bump;
+				if (gl_bump.value<2)	//set to 2 to have faster loading.
+				{
+					_snprintf(altname, sizeof(altname)-1, "%s_norm", mt->name);
+					tx->gl_texturenumbumpmap = Mod_LoadHiResTexture(altname, true, false, false);
+				}
+				if (!tx->gl_texturenumbumpmap)
+				{
+					if (gl_load24bit.value)
+					{
+						_snprintf(altname, sizeof(altname)-1, "%s_bump", mt->name);
+						tx->gl_texturenumbumpmap = Mod_LoadBumpmapTexture(altname);
+					}
+					else
+						_snprintf(altname, sizeof(altname)-1, "%s_bump", mt->name);
+				}
 
 				if (!(tx->gl_texturenumbumpmap) && loadmodel->fromgame != fg_halflife)
 				{
@@ -1106,6 +1118,10 @@ void GLMod_NowLoadExternal(void)
 	int i, width, height;
 	qboolean alphaed;
 	texture_t	*tx;
+
+	if (loadmodel->fromgame != fg_halflife)
+		return;
+
 	for (i=0 ; i<loadmodel->numtextures ; i++)
 	{
 		tx = loadmodel->textures[i];

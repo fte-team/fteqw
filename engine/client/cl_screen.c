@@ -211,6 +211,39 @@ void SCR_EraseCenterString (void)
 	}
 }
 
+void SCR_CenterPrintBreaks(char *start, int *lines, int *maxlength)
+{
+	int l;
+	*lines = 0;
+	*maxlength = 0;
+	do      
+	{
+	// scan the width of the line
+		for (l=0 ; l<40 ; l++)
+			if (start[l] == '\n' || !start[l])
+				break;
+		if (l == 40)
+		{
+			while(l > 0 && start[l-1]>' ')
+			{
+				l--;
+			}
+		}
+		
+		(*lines)++;
+		if (*maxlength < l)
+			*maxlength = l;
+
+		start+=l;
+//		for (l=0 ; l<40 && *start && *start != '\n'; l++)
+ //			start++;
+
+		if (!*start)
+			break;
+		else if (*start == '\n'||!l)
+			start++;                // skip the \n
+	} while (1);
+}
 
 void SCR_DrawCenterString (int pnum)
 {
@@ -249,10 +282,19 @@ void SCR_DrawCenterString (int pnum)
 	if (start[0] == '/')
 	{
 		if (start[1] == 'O')
+		{
 			telejanostyle = start[1];
+			start+=2;
+		}
+		else if (start[1] == 'P')
+		{	//hexen2 style plaque.
+			int lines, len;
+			start+=2;
+			SCR_CenterPrintBreaks(start, &lines, &len);
+			x = rect.x+(rect.width-len*8)/2;
+			Draw_TextBox(x, y-8, len-2, lines);
+		}
 	}
-	if (telejanostyle)
-		start+=2;
 
 	do      
 	{
@@ -267,7 +309,7 @@ void SCR_DrawCenterString (int pnum)
 				l--;
 			}
 		}
-		x = rect.x + (rect.width - l*8)/2;
+		x = rect.x + (rect.width - l*8)/2+4;
 		for (j=0 ; j<l ; j++, x+=8)
 		{
 			switch(telejanostyle)
@@ -314,7 +356,7 @@ extern qboolean sb_showscores;
 		if (sb_showscores)	//this was annoying
 			continue;
 
-		if (scr_centertime_off[pnum] <= 0 && !cl.intermission)
+		if (scr_centertime_off[pnum] <= 0 && !cl.intermission && strncmp(scr_centerstring[pnum], "/P", 2))
 			continue;
 
 		SCR_DrawCenterString (pnum);
@@ -417,6 +459,11 @@ void SCR_ShowPics_Draw(void)
 void SCR_ShowPic_Clear(void)
 {
 	showpic_t *sp;
+	int pnum;
+
+	for (pnum = 0; pnum < MAX_SPLITS; pnum++)
+		*scr_centerstring[pnum] = '\0';
+
 	while((sp = showpics))
 	{
 		showpics = sp->next;
@@ -872,8 +919,27 @@ void SCR_DrawFPS (void)
 	y = vid.height - sb_lines - 8;
 //	Draw_TileClear(x, y, strlen(st) * 8, 8);
 	Draw_String(x, y, st);
+}
 
-	sprintf(st, "%3.1f UPS", Length(cl.simvel[0]));
+void SCR_DrawUPS (void)
+{
+	extern cvar_t show_ups;
+	static double lastupstime;
+	double t;
+	static float lastups;
+	int x, y;
+	char st[80];
+
+	if (!show_ups.value)
+		return;
+
+	t = Sys_DoubleTime();
+	if ((t - lastupstime) >= 1.0) {
+		lastups = sqrt((cl.simvel[0][0]*cl.simvel[0][0]) + (cl.simvel[0][1]*cl.simvel[0][1]));
+		lastupstime = t;
+	}
+
+	sprintf(st, "%3.1f UPS", lastups);
 	x = vid.width - strlen(st) * 8 - 8;
 	y = vid.height - sb_lines - 16;
 //	Draw_TileClear(x, y, strlen(st) * 8, 8);

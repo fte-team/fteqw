@@ -269,7 +269,7 @@ typedef struct {
 	qbyte *buffer[MAXCACHEDSOUNDBUFFERS];
 } svvoicechat_t;
 
-#define MAX_BACK_BUFFERS 8
+#define MAX_BACK_BUFFERS 16
 
 enum seef_e{
 	SEEF_BRIGHTFIELD,
@@ -837,7 +837,8 @@ void SV_SetMoveVars(void);
 void SV_SendClientMessages (void);
 
 void SV_Multicast (vec3_t origin, multicast_t to);
-void SV_MulticastProtExt(vec3_t origin, int to, int with, int without);
+#define FULLDIMENSIONMASK 0xffffffff
+void SV_MulticastProtExt(vec3_t origin, multicast_t to, int dimension_mask, int with, int without);
 
 void SV_StartSound (edict_t *entity, int channel, char *sample, int volume,
     float attenuation);

@@ -59,6 +59,7 @@ cvar_t	votetime = {"votetime", "10"};
 
 cvar_t	pr_allowbutton1 = {"pr_allowbutton1", "1", NULL, CVAR_LATCH};
 
+
 extern cvar_t	pm_bunnyspeedcap;
 extern cvar_t	pm_ktjump;
 extern cvar_t	pm_slidefix;
@@ -964,6 +965,7 @@ void SV_Spawn_f (void)
 		else
 		{
 			memset (&ent->v, 0, pr_edict_size-svprogparms.edictsize);
+			ED_Spawned(ent);
 			ent->v.colormap = NUM_FOR_EDICT(svprogfuncs, ent);
 			ent->v.team = 0;	// FIXME
 			ent->v.netname = PR_SetString(svprogfuncs, split->name);
@@ -2728,6 +2730,7 @@ void SVNQ_Spawn_f (void)
 	else
 	{
 		memset (&ent->v, 0, pr_edict_size-svprogparms.edictsize);
+		ED_Spawned(ent);
 
 		ent->v.colormap = NUM_FOR_EDICT(svprogfuncs, ent);
 		ent->v.team = 0;	// FIXME
@@ -3203,6 +3206,8 @@ vec3_t offset;
 					break;
 			if (i != 3)
 				continue;
+			if (!((int)sv_player->v.dimension_physics & (int)check->v.dimension_physics))
+				continue;
 			if (pmove.numphysent == MAX_PHYSENTS)
 				break;
 			pe = &pmove.physents[pmove.numphysent];
@@ -3236,6 +3241,9 @@ vec3_t offset;
 				|| check->v.absmax[i] < pmove_mins[i])
 					break;
 			if (i != 3)
+				continue;
+
+			if (!((int)sv_player->v.dimension_physics & (int)check->v.dimension_physics))
 				continue;
 
 //			sv_player->v.origin
@@ -4529,14 +4537,14 @@ void SV_ClientThink (void)
 	sv_player->v.movement[1] = cmd.sidemove * host_frametime;
 	sv_player->v.movement[2] = cmd.upmove * host_frametime;
 
-	if (SV_PlayerPhysicsQC)
+/*	if (SV_PlayerPhysicsQC)
 	{
 		pr_global_struct->time = sv.time;
 		pr_global_struct->self = EDICT_TO_PROG(svprogfuncs, sv_player);
 		PR_ExecuteProgram (svprogfuncs, SV_PlayerPhysicsQC);
 		return;
 	}
-
+*/
 	if (sv_player->v.movetype == MOVETYPE_NONE)
 		return;
 	

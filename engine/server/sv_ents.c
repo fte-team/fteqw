@@ -546,7 +546,7 @@ int SV_HullNumForPlayer(int h2hull, float *mins, float *maxs)
 		return size[2];	//clients are expected to decide themselves.
 	}
 
-	if (progstype == PROG_H2 && h2hull)
+	if (h2hull)
 		return h2hull-1;
 
 
@@ -690,7 +690,10 @@ void SV_WritePlayerToClient(sizebuf_t *msg, clstate_t *ent)
 		{
 			if (ent->cl)
 			{
-				pm_type = SV_PMTypeForClient (ent->cl);
+				if (ent->cl->viewent)
+					pm_type = PMC_NONE;
+				else
+					pm_type = SV_PMTypeForClient (ent->cl);
 				switch (pm_type)
 				{
 				case PM_NORMAL:		// Z_EXT_PM_TYPE protocol extension
@@ -1253,6 +1256,9 @@ void SV_WritePlayersToClient (client_t *client, edict_t *clent, qbyte *pvs, size
 			{
 				continue;		// not visible
 			}
+
+			if (!((int)clent->v.dimension_mask & ((int)ent->v.dimension_mask | (int)ent->v.dimension_ghost)))
+				continue;	//not in this dimension - sorry...
 		}
 
 		{
@@ -1281,6 +1287,12 @@ void SV_WritePlayersToClient (client_t *client, edict_t *clent, qbyte *pvs, size
 			clst.maxs = vent->v.maxs;
 			clst.scale = vent->v.scale;
 			clst.transparency = vent->v.alpha;
+
+			//QSG_DIMENSION_PLANES - if the only shared dimensions are ghost dimensions, Set half alpha.
+			if (((int)clent->v.dimension_mask & (int)ent->v.dimension_ghost))
+				if (!((int)clent->v.dimension_mask & ((int)ent->v.dimension_mask & ~(int)ent->v.dimension_ghost)) )
+					clst.transparency /= 2;
+
 			clst.fatness = vent->v.fatness;
 			clst.localtime = cl->localtime;
 			clst.health = ent->v.health;
@@ -1945,6 +1957,9 @@ void SV_WriteEntitiesToClient (client_t *client, sizebuf_t *msg, qboolean ignore
 		if (ent->v.drawonlytoclient)
 			if (ent->v.drawonlytoclient != EDICT_TO_PROG(svprogfuncs, client->edict))
 				continue;
+
+		if (!((int)client->edict->v.dimension_mask & ((int)ent->v.dimension_mask | (int)ent->v.dimension_ghost)))
+			continue;	//not in this dimension - sorry...
 #ifdef NQPROT
 		if (nqprot)
 		{
@@ -2062,6 +2077,11 @@ void SV_WriteEntitiesToClient (client_t *client, sizebuf_t *msg, qboolean ignore
 		state->trans = ent->v.alpha;
 		if (!state->trans)
 			state->trans = 1;
+
+		//QSG_DIMENSION_PLANES - if the only shared dimensions are ghost dimensions, Set half alpha.
+		if (((int)client->edict->v.dimension_mask & (int)ent->v.dimension_ghost))
+			if (!((int)client->edict->v.dimension_mask & ((int)ent->v.dimension_mask & ~(int)ent->v.dimension_ghost)) )
+				state->trans /= 2;
 #endif
 #ifdef PEXT_FATNESS
 		state->fatness = ent->v.fatness;

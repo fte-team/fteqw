@@ -386,6 +386,9 @@ void SV_TouchLinks ( edict_t *ent, areanode_t *node )
 		|| ent->v.absmax[2] < touch->v.absmin[2] )
 			continue;
 
+		if (!((int)ent->v.dimension_physics & (int)touch->v.dimension_physics))
+			continue;
+
 		nodelinks[linkcount++] = touch;
 		if (linkcount == MAX_NODELINKS)
 			break;
@@ -408,6 +411,9 @@ void SV_TouchLinks ( edict_t *ent, areanode_t *node )
 		|| ent->v.absmax[0] < touch->v.absmin[0]
 		|| ent->v.absmax[1] < touch->v.absmin[1]
 		|| ent->v.absmax[2] < touch->v.absmin[2] )
+			continue;
+
+		if (!((int)ent->v.dimension_physics & (int)touch->v.dimension_physics))
 			continue;
 
 		pr_global_struct->self = EDICT_TO_PROG(svprogfuncs, touch);
@@ -436,6 +442,9 @@ void SV_TouchLinks ( edict_t *ent, areanode_t *node )
 		|| ent->v.absmax[0] < touch->v.absmin[0]
 		|| ent->v.absmax[1] < touch->v.absmin[1]
 		|| ent->v.absmax[2] < touch->v.absmin[2] )
+			continue;
+
+		if (!((int)ent->v.dimension_physics & (int)touch->dimension_physics))
 			continue;
 
 		old_self = pr_global_struct->self;
@@ -1452,6 +1461,9 @@ void SV_ClipMoveToEntities ( moveclip_t *clip )
 		if (clip->type & MOVE_NOMONSTERS && touch->v.solid != SOLID_BSP)
 			continue;
 
+		if (!((int)clip->passedict->v.dimension_physics & (int)touch->v.dimension_physics))
+			continue;
+
 //		if ( !(clip->contentmask & CONTENTS_DEADMONSTER)
 //		&& (touch->svflags & SVF_DEADMONSTER) )
 //				continue;
@@ -1596,6 +1608,9 @@ void SV_ClipToLinks ( areanode_t *node, moveclip_t *clip )
 
 		if (clip->passedict && clip->passedict->v.size[0] && !touch->v.size[0])
 			continue;	// points never interact
+
+		if (!((int)clip->passedict->v.dimension_physics & (int)touch->v.dimension_physics))
+			continue;
 
 	// might intersect, so do an exact clip
 		if (clip->trace.allsolid)
@@ -1754,7 +1769,7 @@ trace_t SV_Move (vec3_t start, vec3_t mins, vec3_t maxs, vec3_t end, int type, e
 
 	memset ( &clip, 0, sizeof ( moveclip_t ) );
 
-	if (progstype == PROG_H2 && passedict->v.hull)
+	if (passedict->v.hull)
 		hullnum = passedict->v.hull;
 	else if (sv_compatablehulls.value)
 		hullnum = 0;

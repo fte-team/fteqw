@@ -188,7 +188,7 @@ void NPP_Flush(void)
 			org[0] = (*(short*)&buffer[multicastpos])/8.0f;	
 			org[1] = (*(short*)&buffer[multicastpos+2])/8.0f;
 			org[2] = (*(short*)&buffer[multicastpos+4])/8.0f;
-			SV_MulticastProtExt(org, multicasttype, requireextension, 0);
+			SV_MulticastProtExt(org, multicasttype, FULLDIMENSIONMASK, requireextension, 0);
 		}
 		writedest = NULL;
 	}
@@ -302,6 +302,7 @@ void NPP_NQWriteByte(int dest, qbyte data)	//replacement write func (nq to qw)
 			data = svc_updatestatlong;	//ho hum... let it through (should check size later.)
 			protocollen = 5;
 			break;
+		case svc_stufftext:
 		case svc_centerprint:
 			break;
 		case svc_clearviewflags:
@@ -400,6 +401,7 @@ void NPP_NQWriteByte(int dest, qbyte data)	//replacement write func (nq to qw)
 				break;
 			}
 			break;
+		case svc_stufftext:
 		case svc_centerprint:
 			break;
 		default:
@@ -413,6 +415,7 @@ void NPP_NQWriteByte(int dest, qbyte data)	//replacement write func (nq to qw)
 		switch(majortype)
 		{
 		case svc_setname:
+		case svc_stufftext:
 		case svc_centerprint:
 			if (!data)
 				protocollen = bufferlen;
@@ -796,7 +799,7 @@ void NPP_QWFlush(void)
 			org[0] = (*(short*)&buffer[multicastpos])/8.0f;	
 			org[1] = (*(short*)&buffer[multicastpos+2])/8.0f;
 			org[2] = (*(short*)&buffer[multicastpos+4])/8.0f;
-			SV_MulticastProtExt(org, multicasttype, requireextension, 0);
+			SV_MulticastProtExt(org, multicasttype, FULLDIMENSIONMASK, requireextension, 0);
 		}
 		writedest = NULL;
 	}
@@ -1636,7 +1639,7 @@ void NPP_MVDFlush(void)
 			org[0] = (*(short*)&buffer[multicastpos])/8.0f;	
 			org[1] = (*(short*)&buffer[multicastpos+2])/8.0f;
 			org[2] = (*(short*)&buffer[multicastpos+4])/8.0f;
-			SV_MulticastProtExt(org, multicasttype, requireextension, 0);
+			SV_MulticastProtExt(org, multicasttype, FULLDIMENSIONMASK, requireextension, 0);
 		}
 		writedest = NULL;
 	}

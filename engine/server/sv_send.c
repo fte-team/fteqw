@@ -430,7 +430,7 @@ MULTICAST_PVS	send to clients potentially visible from org
 MULTICAST_PHS	send to clients potentially hearable from org
 =================
 */
-void SV_MulticastProtExt(vec3_t origin, int to, int with, int without)
+void SV_MulticastProtExt(vec3_t origin, multicast_t to, int dimension_mask, int with, int without)
 {
 	client_t	*client;
 	qbyte		*mask;
@@ -596,6 +596,10 @@ void SV_MulticastProtExt(vec3_t origin, int to, int with, int without)
 				continue;
 			}
 
+			if (svprogfuncs)
+				if (!(dimension_mask & (int)client->edict->v.dimension_mask))
+					continue;
+
 			if (to == MULTICAST_PHS_R || to == MULTICAST_PHS) {
 				vec3_t delta;
 				VectorSubtract(origin, client->edict->v.origin, delta);
@@ -656,7 +660,7 @@ void SV_MulticastProtExt(vec3_t origin, int to, int with, int without)
 //version does all the work now
 void SV_Multicast (vec3_t origin, multicast_t to)
 {
-	SV_MulticastProtExt(origin, to, 0, 0);
+	SV_MulticastProtExt(origin, to, FULLDIMENSIONMASK, 0, 0);
 }
 
 /*  
@@ -777,9 +781,9 @@ void SV_StartSound (edict_t *entity, int channel, char *sample, int volume,
 		MSG_WriteCoord (&sv.nqmulticast, origin[i]);
 #endif
 	if (use_phs)
-		SV_Multicast (origin, reliable ? MULTICAST_PHS_R : MULTICAST_PHS);
+		SV_MulticastProtExt(origin, reliable ? MULTICAST_PHS_R : MULTICAST_PHS, entity->v.dimension_mask, 0, 0);
 	else
-		SV_Multicast (origin, reliable ? MULTICAST_ALL_R : MULTICAST_ALL);
+		SV_MulticastProtExt(origin, reliable ? MULTICAST_ALL_R : MULTICAST_ALL, entity->v.dimension_mask, 0, 0);
 }
 
 /*
@@ -1379,7 +1383,18 @@ void SV_UpdateToReliableMessages (void)
 					newval = 1;
 			}
 
-			if (host_client->entgravity != newval)
+		/*	if (host_client->viewent)
+			{
+#define VIEWENT_GRAVITY_MAGIC 0.83217	//we use so the gravity is properly reset when viewent is cleared
+				if (host_client->entgravity != newval+VIEWENT_GRAVITY_MAGIC)
+				{
+					ClientReliableWrite_Begin(host_client, svc_entgravity, 5);
+					ClientReliableWrite_Float(host_client, 0);
+					host_client->entgravity = newval+VIEWENT_GRAVITY_MAGIC;
+				}
+#undef VIEWENT_GRAVITY_MAGIC
+			}
+			else */if (host_client->entgravity != newval)
 			{
 				ClientReliableWrite_Begin(host_client, svc_entgravity, 5);
 				ClientReliableWrite_Float(host_client, newval);

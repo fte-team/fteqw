@@ -51,12 +51,12 @@ cvar_t	qc_nonetaccess = {"qc_nonetaccess", "0"};	//prevent write_... builtins fr
 
 cvar_t pr_overridebuiltins = {"pr_overridebuiltins", "1"};
 
+cvar_t pr_compatabilitytest = {"pr_compatabilitytest", "0", NULL, CVAR_LATCH};
+
 cvar_t sv_addon[MAXADDONS];
 char cvargroup_progs[] = "Progs variables";
 
 int pr_teamfield;
-
-
 
 void PR_ClearThreads(void);
 
@@ -133,6 +133,9 @@ pbool QC_WriteFile(char *name, void *data, int len)
 
 void ED_Spawned (struct edict_s *ent)
 {
+	ent->v.dimension_mask = 255;
+	ent->v.dimension_ghost = 0;
+	ent->v.dimension_physics = 255;
 }
 
 pbool ED_CanFree (edict_t *ed)
@@ -368,6 +371,7 @@ void PR_Deinit(void)
 
 void PR_LoadGlabalStruct(void)
 {
+	static float dimension_send_default;
 	int i;
 	int *v;
 	nqglobalvars_t *pr_globals = pr_nqglobal_struct;
@@ -433,6 +437,14 @@ void PR_LoadGlabalStruct(void)
 	globalfunc		(false, SetNewParms);
 	globalfunc		(false, SetChangeParms);
 	globalfloat		(false, cycle_wrapped);
+
+	globalfloat		(false, dimension_send);
+
+	if (!((nqglobalvars_t*)pr_globals)->dimension_send)
+	{
+		dimension_send_default = 255;
+		((nqglobalvars_t*)pr_globals)->dimension_send = &dimension_send_default;
+	}
 
 	pr_teamfield = 0;
 	
@@ -741,6 +753,7 @@ void PR_Init(void)
 	Cvar_Register (&noexit, cvargroup_progs);
 
 	Cvar_Register (&progs, cvargroup_progs);
+	Cvar_Register (&pr_compatabilitytest, cvargroup_progs);
 
 	Cvar_Register (&qc_nonetaccess, cvargroup_progs);
 	Cvar_Register (&pr_overridebuiltins, cvargroup_progs);
@@ -2054,9 +2067,10 @@ void PF_particle (progfuncs_t *prinst, globalvars_t *pr_globals)	//I said it was
 			v = -128;
 		MSG_WriteChar (&sv.nqmulticast, v);
 	}
-	MSG_WriteByte (&sv.nqmulticast, count);
-	MSG_WriteByte (&sv.nqmulticast, color*20);
+	MSG_WriteByte (&sv.nqmulticast, count*20);
+	MSG_WriteByte (&sv.nqmulticast, color);
 #endif
+	//for qw users (and not fte)
 	if (color == 73)
 	{
 		MSG_WriteByte (&sv.multicast, svc_temp_entity);
@@ -2065,7 +2079,7 @@ void PF_particle (progfuncs_t *prinst, globalvars_t *pr_globals)	//I said it was
 		MSG_WriteCoord (&sv.multicast, org[0]);
 		MSG_WriteCoord (&sv.multicast, org[1]);
 		MSG_WriteCoord (&sv.multicast, org[2]);
-		SV_MulticastProtExt(org, MULTICAST_PVS, 0, PEXT_HEXEN2);
+		SV_MulticastProtExt(org, MULTICAST_PVS, pr_global_struct->dimension_send, 0, PEXT_HEXEN2);
 	}
 	else if (color == 225)
 	{
@@ -2074,8 +2088,9 @@ void PF_particle (progfuncs_t *prinst, globalvars_t *pr_globals)	//I said it was
 		MSG_WriteCoord (&sv.multicast, org[0]);
 		MSG_WriteCoord (&sv.multicast, org[1]);
 		MSG_WriteCoord (&sv.multicast, org[2]);		
-		SV_MulticastProtExt(org, MULTICAST_PVS, 0, PEXT_HEXEN2);
+		SV_MulticastProtExt(org, MULTICAST_PVS, pr_global_struct->dimension_send, 0, PEXT_HEXEN2);
 	}
+	//now we can start fte svc_particle stuff..
 	MSG_WriteByte (&sv.multicast, svc_particle);
 	MSG_WriteCoord (&sv.multicast, org[0]);
 	MSG_WriteCoord (&sv.multicast, org[1]);
@@ -2091,7 +2106,7 @@ void PF_particle (progfuncs_t *prinst, globalvars_t *pr_globals)	//I said it was
 	}
 	MSG_WriteByte (&sv.multicast, count);
 	MSG_WriteByte (&sv.multicast, color);
-	SV_MulticastProtExt(org, MULTICAST_PVS, PEXT_HEXEN2, 0);
+	SV_MulticastProtExt(org, MULTICAST_PVS, pr_global_struct->dimension_send, PEXT_HEXEN2, 0);
 }
 
 void PF_te_blood (progfuncs_t *prinst, globalvars_t *pr_globals)
@@ -2168,7 +2183,7 @@ void PF_particle2 (progfuncs_t *prinst, globalvars_t *pr_globals)
 	MSG_WriteByte (&sv.multicast, count);
 	MSG_WriteByte (&sv.multicast, effect);
 
-	SV_MulticastProtExt (org, MULTICAST_PVS, PEXT_HEXEN2, 0);
+	SV_MulticastProtExt (org, MULTICAST_PVS, pr_global_struct->dimension_send, PEXT_HEXEN2, 0);
 }
 
 
@@ -2204,7 +2219,7 @@ void PF_particle3 (progfuncs_t *prinst, globalvars_t *pr_globals)
 	MSG_WriteByte (&sv.multicast, count);
 	MSG_WriteByte (&sv.multicast, effect);
 
-	SV_MulticastProtExt (org, MULTICAST_PVS, PEXT_HEXEN2, 0);
+	SV_MulticastProtExt (org, MULTICAST_PVS, pr_global_struct->dimension_send, PEXT_HEXEN2, 0);
 }
 
 /*
@@ -2238,7 +2253,7 @@ void PF_particle4 (progfuncs_t *prinst, globalvars_t *pr_globals)
 	MSG_WriteByte (&sv.multicast, count);
 	MSG_WriteByte (&sv.multicast, effect);
 
-	SV_MulticastProtExt (org, MULTICAST_PVS, PEXT_HEXEN2, 0);
+	SV_MulticastProtExt (org, MULTICAST_PVS, pr_global_struct->dimension_send, PEXT_HEXEN2, 0);
 }
 
 void PF_particleexplosion(progfuncs_t *prinst, struct globalvars_s *pr_globals)
@@ -2335,8 +2350,26 @@ void PF_sound (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 	if (volume < 0)	//erm...
 		return;
 
+	if (volume > 255)
+		volume = 255;
+
 	SV_StartSound (entity, channel, sample, volume, attenuation);
 }
+
+//an evil one from telejano.
+void PF_LocalSound(progfuncs_t *prinst, struct globalvars_s *pr_globals)
+{
+#ifndef SERVERONLY
+	sfx_t	*sfx;
+
+	char * s = PR_GetStringOfs(prinst, OFS_PARM0);
+	float chan = G_FLOAT(OFS_PARM1);
+	float vol = G_FLOAT(OFS_PARM2);
+
+	if (sfx = S_PrecacheSound(s))
+		S_StartSound(cl.playernum[0], chan, sfx, cl.simorg[0], vol, 0.0);
+#endif
+};
 
 /*
 =================
@@ -2794,6 +2827,22 @@ void PF_cvar_set (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 		Con_Printf("PF_cvar_set: variable %s not found\n", var_name);
 	else
 		Cvar_Set (var, val);
+}
+
+void PF_cvar_setf (progfuncs_t *prinst, struct globalvars_s *pr_globals)
+{
+	char	*var_name;
+	float	val;
+	cvar_t *var;
+	
+	var_name = PR_GetStringOfs(prinst, OFS_PARM0);
+	val = G_FLOAT(OFS_PARM1);
+
+	var = Cvar_FindVar(var_name);
+	if (!var)
+		Con_Printf("PF_cvar_set: variable %s not found\n", var_name);
+	else
+		Cvar_SetValue (var, val);
 }
 
 /*
@@ -4094,13 +4143,10 @@ void PF_WriteString2 (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 
 //======================================================
 
-void PF_tempentity (progfuncs_t *prinst, struct globalvars_s *pr_globals)
+//copes with any qw point entities.
+void SV_point_tempentity (vec3_t o, int type, int count)	//count (usually 1) is available for some tent types.
 {
-	float	*o;
-	int type;	
-	int split=0;
-	o = G_VECTOR(OFS_PARM0);
-	type = G_FLOAT(OFS_PARM1);	
+	int split=0;	
 
 	if (sv.demofile)
 		return;
@@ -4111,18 +4157,31 @@ void PF_tempentity (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 
 //this is for lamers with old (or unsupported) clients
 	MSG_WriteByte (&sv.multicast, svc_temp_entity);
+	MSG_WriteByte (&sv.nqmulticast, svc_temp_entity);
 	switch(type)
 	{
 	case TE_BULLET:
 		MSG_WriteByte (&sv.multicast, TE_SPIKE);
+		MSG_WriteByte (&sv.nqmulticast, TE_SPIKE);
 		type = TE_BULLET;
 		split = PEXT_TE_BULLET;
 		break;
 	case TE_SUPERBULLET:
 		MSG_WriteByte (&sv.multicast, TE_SUPERSPIKE);
+		MSG_WriteByte (&sv.nqmulticast, TE_SUPERSPIKE);
 		type = TE_SUPERBULLET;
 		split = PEXT_TE_BULLET;
 		break;
+	case TE_BLOOD:
+	case TE_GUNSHOT:
+		MSG_WriteByte (&sv.multicast, type);
+		MSG_WriteByte (&sv.multicast, count);
+		MSG_WriteByte (&sv.nqmulticast, type);	//nq doesn't have a count.
+		break;
+	case TE_LIGHTNING1:
+	case TE_LIGHTNING2:
+	case TE_LIGHTNING3:
+		SV_Error("SV_point_tempentity - type is a beam\n");
 	default:
 		MSG_WriteByte (&sv.multicast, type);
 	}
@@ -4130,19 +4189,87 @@ void PF_tempentity (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 	MSG_WriteCoord (&sv.multicast, o[1]);
 	MSG_WriteCoord (&sv.multicast, o[2]);
 
-	SV_MulticastProtExt (o, MULTICAST_PHS, split, 0);
+	MSG_WriteCoord (&sv.nqmulticast, o[0]);
+	MSG_WriteCoord (&sv.nqmulticast, o[1]);
+	MSG_WriteCoord (&sv.nqmulticast, o[2]);
+
+	if (type == TE_BLOOD || type == TE_LIGHTNINGBLOOD)
+	{
+		sv.nqmulticast.cursize = 0;	//don't send a te_blood or lightningblood to an nq client - they'll die horribly.
+
+		//send a particle instead
+		MSG_WriteByte (&sv.nqmulticast, svc_particle);
+		MSG_WriteCoord (&sv.nqmulticast, o[0]);
+		MSG_WriteCoord (&sv.nqmulticast, o[1]);
+		MSG_WriteCoord (&sv.nqmulticast, o[2]);
+		//no direction.
+		MSG_WriteChar (&sv.nqmulticast, 0);
+		MSG_WriteChar (&sv.nqmulticast, 0);
+		MSG_WriteChar (&sv.nqmulticast, 0);
+		MSG_WriteByte (&sv.nqmulticast, count*20);
+		if (type == TE_BLOOD)
+			MSG_WriteByte (&sv.nqmulticast, 73);
+		else
+			MSG_WriteByte (&sv.nqmulticast, 225);
+	}
+
+	SV_MulticastProtExt (o, MULTICAST_PHS, pr_global_struct->dimension_send, split, 0);
 	
 	if (!split)	//don't bother sending again.
 		return;
 
-//this is for cool people
+//this is for cool people (not nq users)
 	MSG_WriteByte (&sv.multicast, svc_temp_entity);
 	MSG_WriteByte (&sv.multicast, type);
 	MSG_WriteCoord (&sv.multicast, o[0]);
 	MSG_WriteCoord (&sv.multicast, o[1]);
 	MSG_WriteCoord (&sv.multicast, o[2]);
 
-	SV_MulticastProtExt (o, MULTICAST_PHS, 0, split);
+	SV_MulticastProtExt (o, MULTICAST_PHS, pr_global_struct->dimension_send, 0, split);
+}
+
+void SV_beam_tempentity (int ownerent, vec3_t start, vec3_t end, int type)
+{
+	MSG_WriteByte (&sv.multicast, svc_temp_entity);
+	MSG_WriteByte (&sv.multicast, type);
+	MSG_WriteShort (&sv.multicast, ownerent);
+	MSG_WriteCoord (&sv.multicast, start[0]);
+	MSG_WriteCoord (&sv.multicast, start[1]);
+	MSG_WriteCoord (&sv.multicast, start[2]);
+	MSG_WriteCoord (&sv.multicast, end[0]);
+	MSG_WriteCoord (&sv.multicast, end[1]);
+	MSG_WriteCoord (&sv.multicast, end[2]);
+
+	if (type == TE_LIGHTNING2 && ownerent<0)	//special handling for TE_BEAM (don't do TE_RAILGUN - it's a tomaz extension)
+	{
+		MSG_WriteByte (&sv.nqmulticast, svc_temp_entity);
+		MSG_WriteByte (&sv.nqmulticast, NQTE_BEAM);
+		MSG_WriteShort (&sv.nqmulticast, -1-ownerent);
+		MSG_WriteCoord (&sv.nqmulticast, start[0]);
+		MSG_WriteCoord (&sv.nqmulticast, start[1]);
+		MSG_WriteCoord (&sv.nqmulticast, start[2]);
+		MSG_WriteCoord (&sv.nqmulticast, end[0]);
+		MSG_WriteCoord (&sv.nqmulticast, end[1]);
+		MSG_WriteCoord (&sv.nqmulticast, end[2]);
+	}
+	else
+	{
+		MSG_WriteByte (&sv.nqmulticast, svc_temp_entity);
+		MSG_WriteByte (&sv.nqmulticast, type);
+		MSG_WriteShort (&sv.nqmulticast, ownerent);
+		MSG_WriteCoord (&sv.nqmulticast, start[0]);
+		MSG_WriteCoord (&sv.nqmulticast, start[1]);
+		MSG_WriteCoord (&sv.nqmulticast, start[2]);
+		MSG_WriteCoord (&sv.nqmulticast, end[0]);
+		MSG_WriteCoord (&sv.nqmulticast, end[1]);
+		MSG_WriteCoord (&sv.nqmulticast, end[2]);
+	}
+	SV_MulticastProtExt (start, MULTICAST_PHS, pr_global_struct->dimension_send, 0, 0);
+}
+
+void PF_tempentity (progfuncs_t *prinst, struct globalvars_s *pr_globals)
+{
+	SV_point_tempentity(G_VECTOR(OFS_PARM0), G_FLOAT(OFS_PARM1), 1);
 }
 
 //=============================================================================
@@ -4421,8 +4548,36 @@ void PF_multicast (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 void PF_Fixme (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
 	progfuncs_t *progfuncs = prinst;
-	PR_RunError(prinst, "Builtin not implemented.\nYou may need pr_imitatemvdsv to be enabled.");
+int i;
+qboolean printedheader = false;
+
+	SV_EndRedirect();
+
+	for (i = 0; BuiltinList[i].bifunc; i++)
+	{
+		if (BuiltinList[i].ebfsnum == prinst->lastcalledbuiltinnumber)
+		{
+			if (!printedheader)
+			{
+				Con_Printf("\nMod forgot to ensure support for builtin %i\nPossible builtins:\n", prinst->lastcalledbuiltinnumber);
+				printedheader = true;
+			}
+			Con_Printf("%s\n", BuiltinList[i].name);
+		}
+	}
+
+	Con_Printf("\n");
+
+	if (progstype == PROG_QW)
+		PR_RunError(prinst, "\nBuiltin %i not implemented.\nMods designed for mvdsv may need pr_imitatemvdsv to be enabled.", prinst->lastcalledbuiltinnumber);
+	else
+		PR_RunError(prinst, "\nBuiltin %i not implemented.\nMod is not compatable.", prinst->lastcalledbuiltinnumber);
 	PR_BIError ("bulitin not implemented");
+}
+
+void PF_Ignore(progfuncs_t *prinst, struct globalvars_s *pr_globals)
+{
+	G_INT(OFS_RETURN) = 0;
 }
 
 /*
@@ -4578,7 +4733,7 @@ void PF_substring (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
 	int i, start, length;
 	char *s;
-	static char string[1024];
+	char *string = PF_TempStr();
 
 	s = PR_GetStringOfs(prinst, OFS_PARM0);
 	start = G_FLOAT(OFS_PARM1);
@@ -4832,7 +4987,7 @@ typedef struct lh_extension_s {
 	char *name;
 	int numbuiltins;
 	qboolean *enabled;
-	char *builtins[11];	//extend freely
+	char *builtins[14];	//extend freely
 } lh_extension_t;
 
 
@@ -4881,15 +5036,22 @@ lh_extension_t QSG_Extensions[] = {
 	{"DP_SV_PLAYERPHYSICS"},
 	{"DP_EXTRA_TEMPSTRING"},	//ftos returns 16 temp buffers.
 
+	{"DP_TE_STANDARDEFFECTBUILTINS",	14,	NULL, { "te_gunshot", "te_spike", "te_superspike", "te_explosion", "te_tarexplosion",
+													"te_wizspike", "te_knightspike", "te_lavasplash", "te_teleport", "te_explosion2",
+													"te_lightning1", "te_lightning2", "te_lightning3", "te_beam"}},	//should we include QW ones?...
+
 	{"ZQ_MOVETYPE_NOCLIP"},
 	{"ZQ_MOVETYPE_FLY"},
 	{"ZQ_MOVETYPE_NONE"},
 
+	{"QSG_DIMENSION_PLANES",			1,	NULL, {"bitshift"}},
+
 	{"FTE_FORCEINFOKEY",				1,	NULL, {"forceinfokey"}},
 	{"FTE_MULTITHREADED",				3,	NULL, {"sleep", "fork", "abort"}},
 #ifdef SVCHAT
-	{"FTE_NPCCHAT",						1,	NULL, {"chat"}}	//server looks at chat files. It automagically branches through calling qc functions as requested.
+	{"FTE_NPCCHAT",						1,	NULL, {"chat"}},	//server looks at chat files. It automagically branches through calling qc functions as requested.
 #endif
+	{"DP_SV_SETCOLOR"}
 };
 
 //some of these are overkill yes, but they are all derived from the fteextensions flags and document the underlaying protocol available.
@@ -4927,16 +5089,21 @@ lh_extension_t FTE_Protocol_Extensions[] =
 	{"FTE_PEXT_VWEAP"},
 #ifdef Q2BSPS
 	{"FTE_PEXT_Q2BSP"},		//supports q2 maps. No bugs are apparent.
+#else
+	{NULL},
+#endif
+#ifdef Q3BSPS
 	{"FTE_PEXT_Q3BSP"},		//quake3 bsp support. dp probably has an equivelent, but this is queryable per client.
 #else
 	{NULL},
-	{NULL},
 #endif
 	{"UDC_EXTEFFECT",					0,	&pr_udc_exteffect_enabled},		//hmm. crap.
-	{NULL},
+	{NULL},	//splitscreen - not queryable.
 	{"FTE_HEXEN2"},				//client can use hexen2 maps. server can use hexen2 progs
 	{"FTE_PEXT_SPAWNSTATIC"},	//means that static entities can have alpha/scale and anything else the engine supports on normal ents. (Added for >256 models, while still being compatable - previous system failed with -1 skins)
-	{"FTE_PEXT_CUSTOMTENTS",					2,	NULL, {"RegisterTempEnt", "CustomTempEnt"}}
+	{"FTE_PEXT_CUSTOMTENTS",					2,	NULL, {"RegisterTempEnt", "CustomTempEnt"}},
+/*not supported yet*/	{"FTE_PEXT_256PACKETENTITIES"},	//client is able to receive unlimited packet entities (server caps itself to 256 to prevent insanity).
+	{"TEI_SHOWLMP2",					6,	NULL, {"showpic", "hidepic", "movepic", "changepic", "showpicent", "hidepicent"}}	//telejano doesn't actually export the moveent/changeent (we don't want to either cos it would stop frik_file stuff being autoregistered)
 };
 
 
@@ -6066,7 +6233,6 @@ void PF_getstring(progfuncs_t *prinst, struct globalvars_s *pr_globals)
 	RETURN_PSTRING(s);
 }
 
-void SV_MulticastProtExt(vec3_t origin, int to, int with, int without);
 void PF_RegisterTEnt(progfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
 	int arg;
@@ -6135,7 +6301,7 @@ void PF_CustomTEnt(progfuncs_t *prinst, struct globalvars_s *pr_globals)
 	float *org = G_VECTOR(OFS_PARM1);
 
 	if (sv.multicast.cursize)
-		SV_MulticastProtExt (org, MULTICAST_PVS, 0, PEXT_CUSTOMTEMPEFFECTS);	//do a multicast with the current buffer to all players who won't get the new effect.
+		SV_MulticastProtExt (org, MULTICAST_PVS, pr_global_struct->dimension_send, 0, PEXT_CUSTOMTEMPEFFECTS);	//do a multicast with the current buffer to all players who won't get the new effect.
 
 	type = G_FLOAT(OFS_PARM0);
 	if (type < 0 || type >= 255)
@@ -6162,7 +6328,7 @@ void PF_CustomTEnt(progfuncs_t *prinst, struct globalvars_s *pr_globals)
 	if (arg != *prinst->callargc)
 		Con_Printf("PF_CusromTEnt: bad number of arguments for particle type\n");
 
-	SV_MulticastProtExt (org, MULTICAST_PVS, PEXT_CUSTOMTEMPEFFECTS, 0);	//now send the new multicast to all that will.
+	SV_MulticastProtExt (org, MULTICAST_PVS, pr_global_struct->dimension_send, PEXT_CUSTOMTEMPEFFECTS, 0);	//now send the new multicast to all that will.
 }
 
 void PF_Abort(progfuncs_t *prinst, struct globalvars_s *pr_globals)
@@ -6270,6 +6436,136 @@ void PF_Fork(progfuncs_t *prinst, struct globalvars_s *pr_globals)
 }
 
 
+//QSG_DIMENSION_PLANES 
+//helper function
+//void(float number, float quantity) bitshift = #218;
+void PF_bitshift(progfuncs_t *prinst, struct globalvars_s *pr_globals)
+{
+	int bitmask;
+	int shift;
+
+	bitmask = G_FLOAT(OFS_PARM0);
+	shift = G_FLOAT(OFS_PARM1);
+
+	if (shift < 0)
+		bitmask >>= shift;
+	else
+		bitmask <<= shift;
+
+	G_FLOAT(OFS_RETURN) = bitmask;
+}
+
+//DP_TE_STANDARDEFFECTBUILTINS
+//void(vector org) te_gunshot = #418;
+void PF_te_gunshot(progfuncs_t *prinst, struct globalvars_s *pr_globals)
+{
+	int count;
+	if (*svprogfuncs->callargc >= 2)
+		count = G_FLOAT(OFS_PARM1);
+	else
+		count = 1;
+	SV_point_tempentity(G_VECTOR(OFS_PARM0), TE_GUNSHOT, count);
+}
+
+//DP_TE_STANDARDEFFECTBUILTINS
+//void(vector org) te_spike = #419;
+void PF_te_spike(progfuncs_t *prinst, struct globalvars_s *pr_globals)
+{
+	SV_point_tempentity(G_VECTOR(OFS_PARM0), TE_SPIKE, 1);
+}
+
+void PF_te_lightningblood(progfuncs_t *prinst, struct globalvars_s *pr_globals)
+{
+	SV_point_tempentity(G_VECTOR(OFS_PARM0), TE_LIGHTNINGBLOOD, 1);
+}
+
+//DP_TE_STANDARDEFFECTBUILTINS
+//void(vector org) te_superspike = #420;
+void PF_te_superspike(progfuncs_t *prinst, struct globalvars_s *pr_globals)
+{
+	SV_point_tempentity(G_VECTOR(OFS_PARM0), TE_SUPERSPIKE, 1);
+}
+
+//DP_TE_STANDARDEFFECTBUILTINS
+//void(vector org) te_explosion = #421;
+void PF_te_explosion(progfuncs_t *prinst, struct globalvars_s *pr_globals)
+{
+	SV_point_tempentity(G_VECTOR(OFS_PARM0), TE_EXPLOSION, 1);
+}
+
+//DP_TE_STANDARDEFFECTBUILTINS
+//void(vector org) te_tarexplosion = #422;
+void PF_te_tarexplosion(progfuncs_t *prinst, struct globalvars_s *pr_globals)
+{
+	SV_point_tempentity(G_VECTOR(OFS_PARM0), TE_TAREXPLOSION, 1);
+}
+
+//DP_TE_STANDARDEFFECTBUILTINS
+//void(vector org) te_wizspike = #423;
+void PF_te_wizspike(progfuncs_t *prinst, struct globalvars_s *pr_globals)
+{
+	SV_point_tempentity(G_VECTOR(OFS_PARM0), TE_WIZSPIKE, 1);
+}
+
+//DP_TE_STANDARDEFFECTBUILTINS
+//void(vector org) te_knightspike = #424;
+void PF_te_knightspike(progfuncs_t *prinst, struct globalvars_s *pr_globals)
+{
+	SV_point_tempentity(G_VECTOR(OFS_PARM0), TE_KNIGHTSPIKE, 1);
+}
+
+//DP_TE_STANDARDEFFECTBUILTINS
+//void(vector org) te_lavasplash = #425;
+void PF_te_lavasplash(progfuncs_t *prinst, struct globalvars_s *pr_globals)
+{
+	SV_point_tempentity(G_VECTOR(OFS_PARM0), TE_LAVASPLASH, 1);
+}
+
+//DP_TE_STANDARDEFFECTBUILTINS
+//void(vector org) te_teleport = #426;
+void PF_te_teleport(progfuncs_t *prinst, struct globalvars_s *pr_globals)
+{
+	SV_point_tempentity(G_VECTOR(OFS_PARM0), TE_TELEPORT, 1);
+}
+
+//DP_TE_STANDARDEFFECTBUILTINS
+//void(vector org, float color) te_explosion2 = #427;
+void PF_te_explosion2(progfuncs_t *prinst, struct globalvars_s *pr_globals)
+{
+	//FIXME: QW doesn't support TE_EXPLOSION2...
+	SV_point_tempentity(G_VECTOR(OFS_PARM0), TE_EXPLOSION, 1);
+}
+
+//DP_TE_STANDARDEFFECTBUILTINS
+//void(entity own, vector start, vector end) te_lightning1 = #428;
+void PF_te_lightning1(progfuncs_t *prinst, struct globalvars_s *pr_globals)
+{
+	SV_beam_tempentity(G_EDICTNUM(prinst, OFS_PARM0), G_VECTOR(OFS_PARM1), G_VECTOR(OFS_PARM2), TE_LIGHTNING1);
+}
+
+//DP_TE_STANDARDEFFECTBUILTINS
+//void(entity own, vector start, vector end) te_lightning2 = #429;
+void PF_te_lightning2(progfuncs_t *prinst, struct globalvars_s *pr_globals)
+{
+	SV_beam_tempentity(G_EDICTNUM(prinst, OFS_PARM0), G_VECTOR(OFS_PARM1), G_VECTOR(OFS_PARM2), TE_LIGHTNING2);
+}
+
+//DP_TE_STANDARDEFFECTBUILTINS
+//void(entity own, vector start, vector end) te_lightning3 = #430;
+void PF_te_lightning3(progfuncs_t *prinst, struct globalvars_s *pr_globals)
+{
+	SV_beam_tempentity(G_EDICTNUM(prinst, OFS_PARM0), G_VECTOR(OFS_PARM1), G_VECTOR(OFS_PARM2), TE_LIGHTNING3);
+}
+
+//DP_TE_STANDARDEFFECTBUILTINS
+//void(entity own, vector start, vector end) te_beam = #431;
+void PF_te_beam(progfuncs_t *prinst, struct globalvars_s *pr_globals)
+{
+	SV_beam_tempentity(-1 -G_EDICTNUM(prinst, OFS_PARM0), G_VECTOR(OFS_PARM1), G_VECTOR(OFS_PARM2), TE_LIGHTNING2);
+}
+
+
+
 void PF_ForceInfoKey(progfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
 	edict_t	*e;
@@ -6307,7 +6603,222 @@ void PF_ForceInfoKey(progfuncs_t *prinst, struct globalvars_s *pr_globals)
 		Con_DPrintf("PF_ForceInfoKey: not world or client\n");
 }
 
+/*
+=================
+PF_setcolors
+
+sets the color of a client and broadcasts the update to all connected clients
+
+setcolors(clientent, value)
+=================
+*/
+
+//from lh
+void PF_setcolors (progfuncs_t *prinst, struct globalvars_s *pr_globals)
+{
+	client_t	*client;
+	int			entnum, i;
+	char number[8];
+
+	entnum = G_EDICTNUM(prinst, OFS_PARM0);
+	i = G_FLOAT(OFS_PARM1);
+
+	if (entnum < 1 || entnum > MAX_CLIENTS)
+	{
+		Con_Printf ("tried to setcolor a non-client\n");
+		return;
+	}
+
+	client = &svs.clients[entnum-1];
+	client->edict->v.team = (i & 15) + 1;
+
+	MSG_WriteByte (&sv.nqreliable_datagram, svc_updatecolors);
+	MSG_WriteByte (&sv.nqreliable_datagram, entnum - 1);
+	MSG_WriteByte (&sv.nqreliable_datagram, i);
+
+	sprintf(number, "%i", i>>4);
+	if (!strcmp(number, Info_ValueForKey(client->userinfo, "topcolor")))
+	{
+		Info_SetValueForKey(client->userinfo, "topcolor", number, MAX_INFO_STRING);
+		MSG_WriteByte (&sv.reliable_datagram, svc_setinfo);
+		MSG_WriteByte (&sv.reliable_datagram, entnum-1);
+		MSG_WriteString (&sv.reliable_datagram, "topcolor");
+		MSG_WriteString (&sv.reliable_datagram, number);
+	}
+
+	sprintf(number, "%i", i&15);
+	if (!strcmp(number, Info_ValueForKey(client->userinfo, "bottomcolor")))
+	{
+		Info_SetValueForKey(client->userinfo, "bottomcolor", number, MAX_INFO_STRING);
+		MSG_WriteByte (&sv.reliable_datagram, svc_setinfo);
+		MSG_WriteByte (&sv.reliable_datagram, entnum-1);
+		MSG_WriteString (&sv.reliable_datagram, "bottomcolor");
+		MSG_WriteString (&sv.reliable_datagram, number);
+	}
+	SV_ExtractFromUserinfo (client);
+}
+
+
+static void ParamNegateFix ( float * xx, float * yy, int Zone )
+{
+	float x,y;
+	x = xx[0];
+	y = yy[0];
+
+	if (Zone == SL_ORG_CC || SL_ORG_CW == Zone || SL_ORG_CE == Zone )
+		y = y + 8000;
+
+	if (Zone == SL_ORG_CC || SL_ORG_CN == Zone || SL_ORG_CS == Zone  )
+		x = x + 8000;
+
+	xx[0] = x;
+	yy[0] = y;
+}
+void PF_ShowPic(progfuncs_t *prinst, struct globalvars_s *pr_globals)
+{
+	progfuncs_t *progfuncs = prinst;
+	char *slot	= PR_GetStringOfs(prinst, OFS_PARM0);
+	char *picname = PR_GetStringOfs(prinst, OFS_PARM1);
+	float x		= G_FLOAT(OFS_PARM2);
+	float y		= G_FLOAT(OFS_PARM3);
+	float zone	= G_FLOAT(OFS_PARM4);
+	int entnum;
+
+	ParamNegateFix( &x, &y, zone );
+
+	if (*prinst->callargc==6)
+	{	//to a single client
+		entnum = G_EDICTNUM(prinst, OFS_PARM5)-1;
+		if (entnum < 0 || entnum >= sv.allocated_client_slots)
+			PR_RunError (prinst, "WriteDest: not a client");
+
+		if (!(svs.clients[entnum].fteprotocolextensions & PEXT_SHOWPIC))
+			return;	//need an extension for this. duh.
+
+		ClientReliableWrite_Begin(&svs.clients[entnum], svc_showpic, 8 + strlen(slot)+strlen(picname));
+		ClientReliableWrite_Byte(&svs.clients[entnum], zone);
+		ClientReliableWrite_String(&svs.clients[entnum], slot);
+		ClientReliableWrite_String(&svs.clients[entnum], picname);
+		ClientReliableWrite_Short(&svs.clients[entnum], x);
+		ClientReliableWrite_Short(&svs.clients[entnum], y);
+	}
+	else
+	{
+		//multicast instead of broadcast - 1: selective on the extensions. 2: reliable. 3: cleaner.
+		MSG_WriteByte  (&sv.multicast, svc_showpic);
+		MSG_WriteByte  (&sv.multicast, zone);//zone
+		MSG_WriteString(&sv.multicast, slot);//label
+		MSG_WriteString(&sv.multicast, picname);//picname
+		MSG_WriteShort (&sv.multicast, x);
+		MSG_WriteShort (&sv.multicast, y);
+
+		SV_MulticastProtExt(vec3_origin, MULTICAST_ALL_R, FULLDIMENSIONMASK, PEXT_SHOWPIC, 0);
+	}
+};
+
+void PF_HidePic(progfuncs_t *prinst, struct globalvars_s *pr_globals)
+{
+	progfuncs_t *progfuncs = prinst;
+	char *slot	= PR_GetStringOfs(prinst, OFS_PARM0);
+	int entnum;
+
+	if (*prinst->callargc==2)
+	{	//to a single client
+		entnum = G_EDICTNUM(prinst, OFS_PARM1)-1;
+		if (entnum < 0 || entnum >= sv.allocated_client_slots)
+			PR_RunError (prinst, "WriteDest: not a client");
+
+		if (!(svs.clients[entnum].fteprotocolextensions & PEXT_SHOWPIC))
+			return;	//need an extension for this. duh.
+
+		ClientReliableWrite_Begin(&svs.clients[entnum], svc_hidepic, 2 + strlen(slot));
+		ClientReliableWrite_String(&svs.clients[entnum], slot);
+	}
+	else
+	{
+		//easier to multicast
+		MSG_WriteByte  (&sv.multicast, svc_hidepic);
+		MSG_WriteString(&sv.multicast, slot);//lmp label
+
+		SV_MulticastProtExt(vec3_origin, MULTICAST_ALL_R, FULLDIMENSIONMASK, PEXT_SHOWPIC, 0);
+	}
+};
+
+
+void PF_MovePic(progfuncs_t *prinst, struct globalvars_s *pr_globals)
+{
+	progfuncs_t *progfuncs = prinst;
+	char *slot	= PR_GetStringOfs(prinst, OFS_PARM0);
+	float x		= G_FLOAT(OFS_PARM1);
+	float y		= G_FLOAT(OFS_PARM2);
+	float zone	= G_FLOAT(OFS_PARM3);
+	int entnum;
+
+	ParamNegateFix( &x, &y, zone );
+
+	if (*prinst->callargc==5)
+	{	//to a single client
+		entnum = G_EDICTNUM(prinst, OFS_PARM4)-1;
+		if (entnum < 0 || entnum >= sv.allocated_client_slots)
+			PR_RunError (prinst, "WriteDest: not a client");
+
+		if (!(svs.clients[entnum].fteprotocolextensions & PEXT_SHOWPIC))
+			return;	//need an extension for this. duh.
+
+		ClientReliableWrite_Begin(&svs.clients[entnum], svc_movepic, 6 + strlen(slot));
+		ClientReliableWrite_String(&svs.clients[entnum], slot);
+		ClientReliableWrite_Byte(&svs.clients[entnum], zone);
+		ClientReliableWrite_Short(&svs.clients[entnum], x);
+		ClientReliableWrite_Short(&svs.clients[entnum], y);
+	}
+	else
+	{
+		//easier to multicast
+		MSG_WriteByte  (&sv.multicast, svc_movepic);
+		MSG_WriteString(&sv.multicast, slot);//lmp label
+		MSG_WriteByte  (&sv.multicast, zone);
+		MSG_WriteShort (&sv.multicast, x);
+		MSG_WriteShort (&sv.multicast, y);
+
+		SV_MulticastProtExt(vec3_origin, MULTICAST_ALL_R, FULLDIMENSIONMASK, PEXT_SHOWPIC, 0);
+	}
+};
+
+void PF_ChangePic(progfuncs_t *prinst, struct globalvars_s *pr_globals)
+{
+	progfuncs_t *progfuncs = prinst;
+	char *slot	= PR_GetStringOfs(prinst, OFS_PARM0);
+	char *newpic= PR_GetStringOfs(prinst, OFS_PARM1);
+	int entnum;
+
+	if (*prinst->callargc==3)
+	{	//to a single client
+		entnum = G_EDICTNUM(prinst, OFS_PARM2)-1;
+		if (entnum < 0 || entnum >= sv.allocated_client_slots)
+			PR_RunError (prinst, "WriteDest: not a client");
+
+		if (!(svs.clients[entnum].fteprotocolextensions & PEXT_SHOWPIC))
+			return;	//need an extension for this. duh.
+
+		ClientReliableWrite_Begin(&svs.clients[entnum], svc_updatepic, 3 + strlen(slot)+strlen(newpic));
+		ClientReliableWrite_String(&svs.clients[entnum], slot);
+		ClientReliableWrite_String(&svs.clients[entnum], newpic);
+	}
+	else
+	{
+		MSG_WriteByte  (&sv.multicast, svc_updatepic);
+		MSG_WriteString(&sv.multicast, slot);
+		MSG_WriteString(&sv.multicast, newpic);
+
+		SV_MulticastProtExt(vec3_origin, MULTICAST_ALL_R, FULLDIMENSIONMASK, PEXT_SHOWPIC, 0);
+	}
+}
+
+
+
 BuiltinList_t BuiltinList[] = {				//nq	qw		h2		ebfs
+	{"fixme",			PF_Fixme,			0,		0,		0},
+	{"ignore",			PF_Ignore,			0,		0,		0},
 	{"makevectors",		PF_makevectors,		1,		1,		1},	// void(entity e)	makevectors 		= #1;
 	{"setorigin",		PF_setorigin,		2,		2,		2},	// void(entity e, vector o) setorigin	= #2;
 	{"setmodel",		PF_setmodel,		3,		3,		3},	// void(entity e, string m) setmodel	= #3;
@@ -6409,11 +6920,31 @@ BuiltinList_t BuiltinList[] = {				//nq	qw		h2		ebfs
 	{"setspawnparms",	PF_setspawnparms,	78,		78,		78},	//78
 	{"plaque_draw",		PF_plaque_draw,		0,		0,		79},	//79
 	{"logfrag",			PF_logfrag,			0,		79,		0},	//79
-	{"rain_go",			PF_rain_go,			0,		0,		80},	//79
+
+// Tomaz - QuakeC String Manipulation Begin
+	{"tq_zone",			PF_dupstring,		0,		0,		0,		79},	//79
+	{"tq_unzone",		PF_forgetstring,	0,		0,		0,		80},	//80
+	//stof
+	{"tq_strcat",		PF_strcat,			0,		0,		0,		82},	//82
+	{"tq_substring",	PF_substring,		0,		0,		0,		83},	//83
+	{"tq_stof",			PF_stof,			0,		0,		0,		84},	//84
+	{"tq_stov",			PF_stov,			0,		0,		0,		85},	//85
+// Tomaz - QuakeC String Manipulation End
+
+// Tomaz - QuakeC File System Begin (new mods use frik_file instead)
+	{"tq_fopen",		PF_fopen,			0,		0,		0,		86},// #86 float(string filename, float mode) fopen (QSG_FILE)
+	{"tq_fclose",		PF_fclose,			0,		0,		0,		87},// #87 void(float fhandle) fclose (QSG_FILE)
+	{"tq_fgets",		PF_fgets,			0,		0,		0,		88},// #88 string(float fhandle) fgets (QSG_FILE)
+	{"tq_fputs",		PF_fputs,			0,		0,		0,		89},// #89 void(float fhandle, string s) fputs (QSG_FILE)
+// Tomaz - QuakeC File System End
+
+	{"rain_go",			PF_rain_go,			0,		0,		80},	//80
 
 	{"infokey",			PF_infokey,			0,		80,		0,		80},	//80
 	{"stof",			PF_stof,			0,		81,		0,		81},	//81
 	{"multicast",		PF_multicast,		0,		82,		0,		0},	//82
+
+
 
 //mvdsv (don't require ebfs usage in qw)
 	{"executecommand",	PF_ExecuteCommand,	0,		83,		0,		83},	//83		//void() exec;   please don't use.
@@ -6473,12 +7004,23 @@ BuiltinList_t BuiltinList[] = {				//nq	qw		h2		ebfs
 	{"max",				PF_max,				0,		0,		0,		95},	// #95 float(float a, floats) max (DP_QC_MINMAXBOUND)
 	{"bound",			PF_bound,			0,		0,		0,		96},	// #96 float(float minimum, float val, float maximum) bound (DP_QC_MINMAXBOUND)
 	{"pow",				PF_pow,				0,		0,		0,		97},
+	{"tj_cvar_string",	PF_cvar_string,		0,		0,		0,		97},	//telejano
+//DP_QC_FINDFLOAT
 	{"findfloat",		PF_FindFloat,		0,		0,		0,		98},	// #98 entity(entity start, float fld, float match) findfloat (DP_QC_FINDFLOAT)
 
 	{"checkextension",	PF_checkextension,	99,		99,		0,		99},	// #99	//darkplaces system - query a string to see if the mod supports X Y and Z.
 	{"builtin_find",	PF_builtinsupported,100,	100,	0,		100},	// #100	//per builtin system.
 	{"anglemod",		PF_anglemod,		0,		0,		0,		102},
 	{"cvar_string",		PF_cvar_string,		0,		0,		0,		103},
+
+//TEI_SHOWLMP2
+	{"showpic",			PF_ShowPic,			0,		0,		0,		104},
+	{"hidepic",			PF_HidePic,			0,		0,		0,		105},
+	{"movepic",			PF_MovePic,			0,		0,		0,		106},
+	{"changepic",		PF_ChangePic,		0,		0,		0,		107},
+	{"showpicent",		PF_ShowPic,			0,		0,		0,		108},
+	{"hidepicent",		PF_HidePic,			0,		0,		0,		109},
+//End TEU_SHOWLMP2
 
 //frik file
 	{"fopen",			PF_fopen,			0,		0,		0,		110},// #110 float(string filename, float mode) fopen (FRIK_FILE)
@@ -6492,6 +7034,11 @@ BuiltinList_t BuiltinList[] = {				//nq	qw		h2		ebfs
 	{"strzone",			PF_dupstring,		0,		0,		0,		118},// #118 string(string s) strzone (FRIK_FILE)
 	{"strunzone",		PF_forgetstring,	0,		0,		0,		119},// #119 string(string s) strunzone (FRIK_FILE)
 //end frikfile
+
+//these are telejano's
+	{"cvar_setf",		PF_cvar_setf,		0,		0,		0,		176},// #176 void(string cvar, float val) cvar_setf
+	{"localsound",		PF_LocalSound,		0,		0,		0,		177},//	#177
+//end telejano
 
 //fte extras
 	{"getmodelindex",	PF_WeapIndex,		0,		0,		0,		200},
@@ -6514,18 +7061,46 @@ BuiltinList_t BuiltinList[] = {				//nq	qw		h2		ebfs
 #ifdef SVCHAT
 	{"chat",			PF_chat,			0,		0,		0,		214},// #214 void(string filename, float starttag, entity edict) SV_Chat (FTE_NPCCHAT)
 #endif
+//FTE_PEXT_HEXEN2
 	{"particle2",		PF_particle2,		0,		0,		42,		215},
 	{"particle3",		PF_particle3,		0,		0,		85,		216},
 	{"particle4",		PF_particle4,		0,		0,		86,		217},
 
+//QSG_DIMENSION_PLANES
+	{"bitshift",		PF_bitshift,		0,		0,		0,		218},
+
+//I guess this should go under DP_TE_STANDARDEFFECTBUILTINS...
+	{"te_lightningblood",PF_te_lightningblood,	0,	0,		0,		219},// #219 te_lightningblood
 //end fte extras
 
-//other peoples extras
+//DP extras
+//DP_QC_COPYENTITY
 	{"copyentity",		PF_copyentity,		0,		0,		0,		400},// #400 void(entity from, entity to) copyentity (DP_QC_COPYENTITY)
+//DP_SV_SETCOLOR
+	{"setcolors",		PF_setcolors,		0,		0,		0,		401},// #401 void(entity from, entity to) setcolors
+//DP_QC_FINDCHAIN
 	{"findchain",		PF_findchain,		0,		0,		0,		402},// #402 entity(string field, string match) findchain (DP_QC_FINDCHAIN)
+//DP_QC_FINDCHAINFLOAT
 	{"findfloatchain",	PF_findchainfloat,	0,		0,		0,		403},// #403 entity(float fld, float match) findchainfloat (DP_QC_FINDCHAINFLOAT)
 	{"te_blood",		PF_te_blood,		0,		0,		0,		405},// #405 te_blood
+//DP_TE_STANDARDEFFECTBUILTINS
+	{"te_gunshot",		PF_te_gunshot,		0,		0,		0,		418},// #418 te_gunshot
+	{"te_spike",		PF_te_spike,		0,		0,		0,		419},// #419 te_spike
+	{"te_superspike",	PF_te_superspike,	0,		0,		0,		420},// #420 te_superspike
+	{"te_explosion",	PF_te_explosion,	0,		0,		0,		421},// #421 te_explosion
+	{"te_tarexplosion",	PF_te_tarexplosion,	0,		0,		0,		422},// #422 te_tarexplosion
+	{"te_wizspike",		PF_te_wizspike,		0,		0,		0,		423},// #423 te_wizspike
+	{"te_knightspike",	PF_te_knightspike,	0,		0,		0,		424},// #424 te_knightspike
+	{"te_lavasplash",	PF_te_lavasplash,	0,		0,		0,		425},// #425 te_lavasplash
+	{"te_teleport",		PF_te_teleport,		0,		0,		0,		426},// #426 te_teleport
+	{"te_explosion2",	PF_te_explosion2,	0,		0,		0,		427},// #427 te_explosion2
+	{"te_lightning1",	PF_te_lightning1,	0,		0,		0,		428},// #428 te_lightning1
+	{"te_lightning2",	PF_te_lightning2,	0,		0,		0,		429},// #429 te_lightning2
+	{"te_lightning3",	PF_te_lightning3,	0,		0,		0,		430},// #430 te_lightning3
+	{"te_beam",			PF_te_beam,			0,		0,		0,		431},// #431 te_beam
+//DP_QC_VECTORVECTORS
 	{"vectorvectors",	PF_vectorvectors,	0,		0,		0,		432},// #432 void(vector dir) vectorvectors (DP_QC_VECTORVECTORS)
+//KRIMZON_SV_PARSECLIENTCOMMAND
 	{"clientcommand",	PF_clientcommand,	0,		0,		0,		440},// #440 void(entity e, string s) clientcommand (KRIMZON_SV_PARSECLIENTCOMMAND)
 	{"tokenize",		PF_Tokenize,		0,		0,		0,		441},// #441 float(string s) tokenize (KRIMZON_SV_PARSECLIENTCOMMAND)
 	{"argv",			PF_ArgV,			0,		0,		0,		442},// #442 string(float n) argv (KRIMZON_SV_PARSECLIENTCOMMAND
@@ -6542,7 +7117,6 @@ void PR_ResetBuiltins(progstype_t type)	//fix all nulls to PF_FIXME and add any 
 	int builtincount[sizeof(pr_builtin)/sizeof(pr_builtin[0])];
 
 	memset(pr_builtin, 0, sizeof(pr_builtin));
-	memset(builtincount, 0, sizeof(builtincount));
 
 	if (type == PROG_QW)
 	{
@@ -6581,6 +7155,7 @@ void PR_ResetBuiltins(progstype_t type)	//fix all nulls to PF_FIXME and add any 
 		}
 	}
 
+	memset(builtincount, 0, sizeof(builtincount));
 
 	for (i = 0; i < pr_numbuiltins; i++)	//clean up nulls
 	{
@@ -6592,23 +7167,52 @@ void PR_ResetBuiltins(progstype_t type)	//fix all nulls to PF_FIXME and add any 
 			builtincount[i]=100;
 	}
 
-	for (i = 0; BuiltinList[i].name; i++)
+	if (!pr_compatabilitytest.value)
 	{
-		builtincount[BuiltinList[i].ebfsnum]++;
-	}
-	for (i = 0; BuiltinList[i].name; i++)
-	{
-		if (BuiltinList[i].ebfsnum)
+		for (i = 0; BuiltinList[i].name; i++)
 		{
-			if (builtincount[BuiltinList[i].ebfsnum] == 1)
+			builtincount[BuiltinList[i].ebfsnum]++;
+		}
+		for (i = 0; BuiltinList[i].name; i++)
+		{
+			if (BuiltinList[i].ebfsnum)
 			{
-				pr_builtin[BuiltinList[i].ebfsnum] = BuiltinList[i].bifunc;
-				Con_DPrintf("Enabled %s\n", BuiltinList[i].name);
+				if (pr_builtin[BuiltinList[i].ebfsnum] == PF_Fixme && builtincount[BuiltinList[i].ebfsnum] == 1)
+				{
+					pr_builtin[BuiltinList[i].ebfsnum] = BuiltinList[i].bifunc;
+					Con_DPrintf("Enabled %s\n", BuiltinList[i].name);
+				}
+				else if (pr_builtin[i] != BuiltinList[i].bifunc)
+					Con_DPrintf("Not enabled %s\n", BuiltinList[i].name);
 			}
-			else if (pr_builtin[i] != BuiltinList[i].bifunc)
-				Con_DPrintf("Not enabled %s\n", BuiltinList[i].name);
 		}
 	}
+
+	{
+		char *builtinmap;
+		int binum;
+		builtinmap = COM_LoadTempFile("fte_bimap.txt");
+		while(1)
+		{
+			builtinmap = COM_Parse(builtinmap);
+			if (!builtinmap)
+				break;
+			binum = atoi(com_token);
+			builtinmap = COM_Parse(builtinmap);
+
+			for (i = 0; BuiltinList[i].name; i++)
+			{
+				if (!strcmp(BuiltinList[i].name, com_token))
+				{
+					pr_builtin[binum] = BuiltinList[i].bifunc;
+					break;
+				}
+			}
+			if (!BuiltinList[i].name)
+				Con_Printf("Failed to map builtin %s to %i specified in fte_bimap.dat\n");
+		}
+	}
+
 
 	for (i = 0; i < sizeof(QSG_Extensions)/sizeof(QSG_Extensions[0]); i++)
 	{
@@ -6857,6 +7461,11 @@ void PR_RegisterFields(void)	//it's just easier to do it this way.
 	fieldfloat(drawflags);
 	fieldentity(movechain);
 	fieldfunction(chainmoved);
+
+	//QSG_DIMENSION_PLANES
+	fieldfloat(dimension_mask);
+	fieldfloat(dimension_ghost);
+	fieldfloat(dimension_physics);
 
 	if (pr_fixbrokenqccarrays.value)
 		QC_RegisterFieldVar(svprogfuncs, 0, NULL, 0,0);

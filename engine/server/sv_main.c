@@ -2974,6 +2974,8 @@ void SV_InitLocal (void)
 	svs.fteprotocolextensions |= PEXT_SPAWNSTATIC2;
 	svs.fteprotocolextensions |= PEXT_CUSTOMTEMPEFFECTS;
 	svs.fteprotocolextensions |= PEXT_256PACKETENTITIES;
+//	svs.fteprotocolextensions |= PEXT_64PLAYERS;
+	svs.fteprotocolextensions |= PEXT_SHOWPIC;
 
 //	if (svs.protocolextensions)
 //		Info_SetValueForStarKey (svs.info, "*"DISTRIBUTION"_ext", va("%x", svs.protocolextensions), MAX_SERVERINFO_STRING);

@@ -1280,7 +1280,10 @@ void M_Menu_Main_f (void)
 	SCR_EndLoadingPlaque();	//just in case...
 
 	if (!Draw_SafeCachePic)
+	{
+		Con_ToggleConsole_f();
 		return;
+	}
 
 /*
 	if (0)
@@ -1389,7 +1392,10 @@ void M_Menu_Main_f (void)
 		MC_AddPicture(mainm, 16, 4, "gfx/qplaque.lmp");
 		p = Draw_SafeCachePic("gfx/ttl_main.lmp");
 		if (!p)
+		{
+			Con_ToggleConsole_f();
 			return;
+		}
 		MC_AddPicture(mainm, (320-p->width)/2, 4, "gfx/ttl_main.lmp");
 		MC_AddPicture(mainm, 72, 32, "gfx/mainmenu.lmp");
 

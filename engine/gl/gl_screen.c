@@ -231,6 +231,7 @@ void GLSCR_UpdateScreen (void)
 		SCR_DrawRam ();
 		SCR_DrawNet ();
 		SCR_DrawFPS ();
+		SCR_DrawUPS ();
 		SCR_DrawTurtle ();
 		SCR_DrawPause ();
 #ifdef PLUGINS

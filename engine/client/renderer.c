@@ -109,8 +109,8 @@ cvar_t	vid_renderer = {"vid_renderer", "", NULL, CVAR_ARCHIVE|CVAR_RENDERERLATCH
 static cvar_t	vid_bpp = {"vid_bpp", "32", NULL, CVAR_ARCHIVE|CVAR_RENDERERLATCH};
 static cvar_t	vid_allow_modex = {"vid_allow_modex", "1", NULL, CVAR_ARCHIVE|CVAR_RENDERERLATCH};
 static cvar_t	vid_fullscreen = {"vid_fullscreen", "1", NULL, CVAR_ARCHIVE|CVAR_RENDERERLATCH};
-static cvar_t	vid_width = {"vid_width", "320", NULL, CVAR_ARCHIVE|CVAR_RENDERERLATCH};
-static cvar_t	vid_height = {"vid_height", "200", NULL, CVAR_ARCHIVE|CVAR_RENDERERLATCH};
+static cvar_t	vid_width = {"vid_width", "640", NULL, CVAR_ARCHIVE|CVAR_RENDERERLATCH};	//more readable defaults to match conwidth/conheight.
+static cvar_t	vid_height = {"vid_height", "480", NULL, CVAR_ARCHIVE|CVAR_RENDERERLATCH};
 static cvar_t	vid_refreshrate = {"vid_displayfrequency", "0", NULL, CVAR_ARCHIVE|CVAR_RENDERERLATCH};
 
 cvar_t	gl_font = {"gl_font", ""};
@@ -238,6 +238,7 @@ cvar_t	r_fastskycolour = {"r_fastskycolour", "0"};
 #if defined(RGLQUAKE)
 cvar_t gl_schematics = {"gl_schematics","0"};
 cvar_t	gl_ztrick = {"gl_ztrick","1"};
+cvar_t	gl_lerpimages = {"gl_lerpimages", "1"};
 extern cvar_t r_waterlayers;
 cvar_t			gl_triplebuffer = {"gl_triplebuffer", "1", NULL, CVAR_ARCHIVE};
 cvar_t			gl_subdivide_size = {"gl_subdivide_size", "128", NULL, CVAR_ARCHIVE};
@@ -275,6 +276,7 @@ void GLRenderer_Init(void)
 	Cvar_Register (&gl_nocolors, GLRENDEREROPTIONS);
 	Cvar_Register (&gl_finish, GLRENDEREROPTIONS);
 	Cvar_Register (&gl_lateswap, GLRENDEREROPTIONS);
+	Cvar_Register (&gl_lerpimages, GLRENDEREROPTIONS);
 
 	Cvar_Register (&r_shadows, GLRENDEREROPTIONS);
 	Cvar_Register (&r_noaliasshadows, GLRENDEREROPTIONS);

@@ -589,7 +589,7 @@ void SV_SpawnServer (char *server, char *startspot, qboolean noents, qboolean us
 	if (usecinematic)
 	{
 		strcpy (sv.name, server);
-		sprintf (sv.modelname, "");
+		strcpy (sv.modelname, "");
 	}
 	else
 	{

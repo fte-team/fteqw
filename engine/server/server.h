@@ -793,6 +793,8 @@ void SV_InitOperatorCommands (void);
 void SV_SendServerinfo (client_t *client);
 void SV_ExtractFromUserinfo (client_t *cl);
 
+void SV_SaveInfos(FILE *f);
+
 
 void Master_Heartbeat (void);
 void Master_Packet (void);
@@ -837,6 +839,9 @@ void SV_SetMoveVars(void);
 //
 // sv_send.c
 //
+void SV_QCStat(int type, char *name, int statnum);
+void SV_ClearQCStats(void);
+
 void SV_SendClientMessages (void);
 
 void SV_Multicast (vec3_t origin, multicast_t to);

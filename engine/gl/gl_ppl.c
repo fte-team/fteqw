@@ -1869,6 +1869,9 @@ void PPL_DrawEntLighting(dlight_t *light)
 		if (cl.viewentity[r_refdef.currentplayernum] && currententity->keynum == cl.viewentity[r_refdef.currentplayernum])
 			continue;
 
+		if (!Cam_DrawPlayer(0, currententity->keynum-1))
+			continue;
+
 		if (!currententity->model)
 			continue;
 
@@ -1994,6 +1997,9 @@ void PPL_DrawEntFullBrights(void)
 		currententity = &cl_visedicts[i];
 
 		if (cl.viewentity[r_refdef.currentplayernum] && currententity->keynum == cl.viewentity[r_refdef.currentplayernum])
+			continue;
+
+		if (!Cam_DrawPlayer(0, currententity->keynum-1))
 			continue;
 
 		if (!currententity->model)

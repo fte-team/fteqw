@@ -66,16 +66,11 @@ struct vm_s {
 };
 
 
-typedef struct {
-	int (EXPORT_FN *func)(int, ...);
-} engineexport_t;
-
 #ifdef _WIN32
 #include "winquake.h"
 void *Sys_LoadDLL(const char *name, void **vmMain, int (EXPORT_FN *syscall)(int arg, ... ))
 {
-	engineexport_t exp;
-	void (*dllEntry)(engineexport_t *);
+	void (*dllEntry)(int (EXPORT_FN *syscall)(int arg, ... ));
 	char dllname[MAX_OSPATH];
 	HINSTANCE hVM;
 
@@ -111,8 +106,7 @@ void *Sys_LoadDLL(const char *name, void **vmMain, int (EXPORT_FN *syscall)(int 
 		return NULL;
 	}
 
-	exp.func = syscall;
-	dllEntry(&exp);
+	dllEntry(syscall);
 
 	*vmMain=(void *)GetProcAddress(hVM, "vmMain");
 	if(!*vmMain)
@@ -139,8 +133,7 @@ void Sys_UnloadDLL(void *handle)
 #include <dlfcn.h>
 void *Sys_LoadDLL(const char *name, void **vmMain, int (EXPORT_FN *syscall)(int arg, ... ))
 {
-	engineexport_t exp;
-	void (*dllEntry)(engineexport_t *);
+	void (*dllEntry)(int (EXPORT_FN *syscall)(int arg, ... ));
 	char dllname[MAX_OSPATH];
 	void *hVM;
 
@@ -176,8 +169,7 @@ void *Sys_LoadDLL(const char *name, void **vmMain, int (EXPORT_FN *syscall)(int 
 		return NULL;
 	}
 
-	exp.func = syscall;
-	(*dllEntry)(&exp);
+	(*dllEntry)(syscall);
 
 	*vmMain=(void *)dlsym(hVM, "vmMain");
 	if(!*vmMain)

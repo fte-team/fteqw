@@ -1261,7 +1261,7 @@ void CL_FullServerinfo_f (void)
 		return;
 	}
 
-	strcpy (cl.serverinfo, Cmd_Argv(1));
+	Q_strncpyz (cl.serverinfo, Cmd_Argv(1), sizeof(cl.serverinfo));
 
 	if ((p = Info_ValueForKey(cl.serverinfo, "*version")) && *p) {
 		v = Q_atof(p);

@@ -21,7 +21,7 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 
 #include "bothdefs.h"	//first thing included by ALL files.
 
-#pragma message("blah")
+#pragma message("building quakedef.h")
 
 #if _MSC_VER
 #define MSVCDISABLEWARNINGS

@@ -3128,6 +3128,16 @@ PF_dprint
 */
 void PF_dprint (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
+	Con_DPrintf ("%s",PF_VarString(prinst, 0, pr_globals));
+}
+
+/*
+=========
+PF_print
+=========
+*/
+void PF_print (progfuncs_t *prinst, struct globalvars_s *pr_globals)
+{
 	Con_Printf ("%s",PF_VarString(prinst, 0, pr_globals));
 }
 
@@ -3142,7 +3152,7 @@ void PF_conprint (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 }
 
 
-void PF_dprintf (progfuncs_t *prinst, struct globalvars_s *pr_globals)
+void PF_printf (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
 	char temp[256];
 	float	v;
@@ -3157,7 +3167,7 @@ void PF_dprintf (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 	Con_Printf (PR_GetStringOfs(prinst, OFS_PARM0),temp);
 }
 
-void PF_dprintv (progfuncs_t *prinst, struct globalvars_s *pr_globals)
+void PF_printv (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
 	char temp[256];
 
@@ -5964,6 +5974,53 @@ void PF_strcat (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 
 /*
 =================
+PF_strpad
+
+string strcat(float pad, string str1, ...)
+=================
+*/
+
+void PF_strpad (progfuncs_t *prinst, struct globalvars_s *pr_globals)
+{
+	char *dest = PF_TempStr();
+	int pad = G_FLOAT(OFS_PARM0);
+	char *src = PF_VarString(prinst, 1, pr_globals);
+
+	RETURN_TSTRING(dest);
+
+	if (pad < 0)
+	{	//pad left
+		pad = -pad - strlen(src);
+		if (pad>=MAXTEMPBUFFERLEN)
+			pad = MAXTEMPBUFFERLEN-1;
+		if (pad < 0)
+			pad = 0;
+
+		Q_strncpyz(dest+pad, src, MAXTEMPBUFFERLEN-pad);
+		while(pad)
+		{
+			pad--;
+			dest[pad] = ' ';
+		}
+	}
+	else
+	{	//pad right
+		if (pad>=MAXTEMPBUFFERLEN)
+			pad = MAXTEMPBUFFERLEN-1;
+		pad -= strlen(src);
+		if (pad < 0)
+			pad = 0;
+
+		Q_strncpyz(dest, src, MAXTEMPBUFFERLEN);
+		dest+=strlen(dest);
+		while(pad)
+			*dest++ = ' ';
+		*dest = '\0';
+	}
+}
+
+/*
+=================
 PF_str2byte
 
 float str2byte (string str)
@@ -6745,7 +6802,7 @@ void PF_setclass (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 	client->playerclass = NewClass;
 
 	sprintf(temp,"%d",(int)NewClass);
-	Info_SetValueForKey (client->userinfo, "playerclass", temp, MAX_INFO_STRING);
+	Info_SetValueForKey (client->userinfo, "playerclass", temp, sizeof(client->userinfo));
 	client->sendinfo = true;
 }
 
@@ -7403,7 +7460,7 @@ void PF_ForceInfoKey(progfuncs_t *prinst, struct globalvars_s *pr_globals)
 	}
 	else if (e1 <= sv.allocated_client_slots)
 	{	//woo. we found a client.
-		Info_SetValueForStarKey(svs.clients[e1-1].userinfo, key, value, MAX_INFO_STRING);
+		Info_SetValueForStarKey(svs.clients[e1-1].userinfo, key, value, sizeof(svs.clients[e1-1].userinfo));
 
 
 		SV_ExtractFromUserinfo (&svs.clients[e1-1]);
@@ -7458,7 +7515,7 @@ void PF_setcolors (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 	sprintf(number, "%i", i>>4);
 	if (!strcmp(number, Info_ValueForKey(client->userinfo, "topcolor")))
 	{
-		Info_SetValueForKey(client->userinfo, "topcolor", number, MAX_INFO_STRING);
+		Info_SetValueForKey(client->userinfo, "topcolor", number, sizeof(client->userinfo));
 		MSG_WriteByte (&sv.reliable_datagram, svc_setinfo);
 		MSG_WriteByte (&sv.reliable_datagram, entnum-1);
 		MSG_WriteString (&sv.reliable_datagram, "topcolor");
@@ -7468,7 +7525,7 @@ void PF_setcolors (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 	sprintf(number, "%i", i&15);
 	if (!strcmp(number, Info_ValueForKey(client->userinfo, "bottomcolor")))
 	{
-		Info_SetValueForKey(client->userinfo, "bottomcolor", number, MAX_INFO_STRING);
+		Info_SetValueForKey(client->userinfo, "bottomcolor", number, sizeof(client->userinfo));
 		MSG_WriteByte (&sv.reliable_datagram, svc_setinfo);
 		MSG_WriteByte (&sv.reliable_datagram, entnum-1);
 		MSG_WriteString (&sv.reliable_datagram, "bottomcolor");
@@ -7825,7 +7882,8 @@ BuiltinList_t BuiltinList[] = {				//nq	qw		h2		ebfs
 	{"bprint",			PF_bprint,			23,		23,		23},	// void(string s) bprint				= #23;
 //FIXME: distinguish between qw and nq parameters here?
 	{"sprint",			PF_sprint,			24,		24,		24},	// void(entity client, string s) sprint = #24;
-	{"dprint",			PF_dprint,			25,		25,		25},	// void(string s) dprint				= #25;
+	{"dprint",			PF_dprint,			25,		0,		25},	// void(string s) dprint				= #25;
+	{"print",			PF_print,			0,		25,		25},	// void(string s) print				= #25;
 	{"ftos",			PF_ftos,			26,		26,		26},	// void(string s) ftos				= #26;
 	{"vtos",			PF_vtos,			27,		27,		27},	// void(string s) vtos				= #27;
 	{"coredump",		PF_coredump,		28,		28,		28},	//28
@@ -7864,14 +7922,14 @@ BuiltinList_t BuiltinList[] = {				//nq	qw		h2		ebfs
 	{"writestring",		PF_WriteString,		58,		58,		58},	//58
 	{"writeentity",		PF_WriteEntity,		59,		59,		59},	//59
 
-	{"dprintf",			PF_dprintf,			0,		0,		60},	//60
+	{"printfloat",		PF_printf,			0,		0,		60},	//60
 
 	{"sin",				PF_Sin,				0,		0,		62,		60},	//60
 	{"cos",				PF_Cos,				0,		0,		61,		61},	//61
 	{"sqrt",			PF_Sqrt,			0,		0,		84,		62},	//62
 
 	{"AdvanceFrame",	PF_AdvanceFrame,	0,		0,		63,		0},
-	{"dprintv",			PF_dprintv,			0,		0,		64,		0},	//64
+	{"printvec",		PF_printv,			0,		0,		64,		0},	//64
 	{"RewindFrame",		PF_RewindFrame,		0,		0,		65,		0},
 	{"particleexplosion",PF_particleexplosion,0,	0,		81,		0},
 	{"movestep",		PF_movestep,		0,		0,		82,		0},
@@ -8064,6 +8122,7 @@ BuiltinList_t BuiltinList[] = {				//nq	qw		h2		ebfs
 	{"str2chr",			PF_str2chr,			0,		0,		0,		222},
 	{"chr2str",			PF_chr2str,			0,		0,		0,		223},
 	{"strconv",			PF_strconv,			0,		0,		0,		224},
+	{"strpad",			PF_strpad,			0,		0,		0,		225},	//will be moved
 	{"infoadd",			PF_infoadd,			0,		0,		0,		226},
 	{"infoget",			PF_infoget,			0,		0,		0,		227},
 	{"strncmp",			PF_strncmp,			0,		0,		0,		228},

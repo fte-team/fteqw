@@ -147,6 +147,7 @@ int csqcentsize;
 void VARGS PR_BIError(progfuncs_t *progfuncs, char *format, ...);
 void PF_cvar_string (progfuncs_t *prinst, struct globalvars_s *pr_globals);
 void PF_cvar_set (progfuncs_t *prinst, struct globalvars_s *pr_globals);
+void PF_print (progfuncs_t *prinst, struct globalvars_s *pr_globals);
 void PF_dprint (progfuncs_t *prinst, struct globalvars_s *pr_globals);
 void PF_error (progfuncs_t *prinst, struct globalvars_s *pr_globals);
 void PF_rint (progfuncs_t *prinst, struct globalvars_s *pr_globals);

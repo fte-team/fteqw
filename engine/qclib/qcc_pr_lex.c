@@ -1437,6 +1437,15 @@ pbool QCC_PR_SimpleGetToken (void)
 			return false;
 		pr_file_p++;
 	}
+	if (pr_file_p[0] == '/')
+	{
+		if (pr_file_p[1] == '/')
+		{	//comment alert
+			while(*pr_file_p && *pr_file_p != '\n')
+				pr_file_p++;
+			return false;
+		}
+	}
 
 	i = 0;
 	while ( (c = *pr_file_p) > ' ' && c != ',' && c != ';' && c != ')' && c != '(')

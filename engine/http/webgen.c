@@ -229,7 +229,7 @@ void IWeb_GenerateIndexFile (char *parms, char *content, int contentlength)
 	IWeb_Generate(hostname.string);
 	IWeb_Generate("</H1>");
 
-	IWeb_Generate("<A HREF=\"http://spike.corecodec.org\">Server website</A><P>");
+	IWeb_Generate("<A HREF=\"http://fte.quakesrc.org\">Server website</A><P>");
 
 	if (Rank_OpenRankings())
 		IWeb_Generate("<A HREF=\"allplayers.html\">Click here to see ranked players.</A><P>");

@@ -20,6 +20,9 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 #include <sys/types.h>
 #include <sys/timeb.h>
 #include "qwsvdef.h"
+
+#ifdef SERVERONLY
+
 #include <winsock.h>
 #include <conio.h>
 
@@ -824,4 +827,5 @@ void CreateSampleService(qboolean create)
         return;
     }
 }
+#endif
 #endif

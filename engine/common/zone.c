@@ -318,29 +318,63 @@ void Zone_Print_f(void)
 	int overhead=0;
 	int allocated = 0;
 	int blocks = 0;
-	int futurehide;
+	int futurehide = false;
+	int i;
+	qbyte *sent;
 	zone_t *zone;
-	if (*Cmd_Argv(1))
-		futurehide = true;
+#if MEMDEBUG > 0
+	qboolean testsent = false;
+	if (*Cmd_Argv(1) == 't')
+	{
+		Con_Printf("Testing Zone sentinels\n");
+		testsent = true;
+	}
 	else
-		futurehide = false;
+#endif
+		if (*Cmd_Argv(1))
+		futurehide = true;
 	for(zone = zone_head; zone; zone=zone->next)
 	{
 		blocks++;
 		allocated+= zone->size;
+
 #ifdef NAMEDMALLOCS
-		if (*((char *)(zone+1)+zone->size)!='#')
+		if (*((char *)(zone+1)+zone->size+MEMDEBUG*2)!='#')
 		{
-			Con_Printf("%i-%s\n", zone->size, (char *)(zone+1) + zone->size);
+#if MEMDEBUG > 0
+			if (testsent)
+			{
+				sent = (qbyte *)(zone+1);
+				for (i = 0; i < MEMDEBUG; i++)
+				{
+					if (sent[i] != sentinalkey)
+					{
+						Con_Printf("^1%i %i-%s\n", zone->size, i, (char *)(zone+1) + zone->size+MEMDEBUG*2);
+						break;
+					}
+				}
+				sent += zone->size+MEMDEBUG;
+				for (i = 0; i < MEMDEBUG; i++)
+				{
+					if (sent[i] != sentinalkey)
+					{
+						Con_Printf("^1%i %i-%s\n", zone->size, i, (char *)(zone+1) + zone->size+MEMDEBUG*2);
+						break;
+					}
+				}
+			}
+			else
+#endif
+				Con_Printf("%i-%s\n", zone->size, (char *)(zone+1) + zone->size+MEMDEBUG*2);
 			if (futurehide)
-				*((char *)(zone+1)+zone->size) = '#';
+				*((char *)(zone+1)+zone->size+MEMDEBUG*2) = '#';
 
 //			Sleep(10);
 		}
-		overhead += sizeof(zone) + strlen((char *)(zone+1) + zone->size) +1;
+		overhead += sizeof(zone_t)+MEMDEBUG*2 + strlen((char *)(zone+1) + zone->size+MEMDEBUG*2) +1;
 #else
 		Con_Printf("%i-%i ", zone->size, zone->tag);
-		overhead += sizeof(zone);
+		overhead += sizeof(zone_t)+MEMDEBUG*2;
 #endif
 	}
 	Con_Printf("Zone:%i bytes in %i blocks\n", allocated, blocks);

@@ -1588,7 +1588,6 @@ int WINAPI WinMain (HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLin
 		NULL,
 		ghInstance,
 		NULL);
-GetDriveType 
 	if (richedit)
 	{
 		SendMessage(outputbox, EM_EXLIMITTEXT, 0, 1<<20);

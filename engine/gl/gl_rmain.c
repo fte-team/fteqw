@@ -751,11 +751,13 @@ void GLR_DrawViewModel (void)
 	case mod_halflife:
 		R_DrawHLModel (currententity);
 		break;
+#else
+	case mod_halflife:	//no gcc warning please
+		break;
 #endif
 
+		//we don't support these as view models
 	case mod_brush:
-		break;
-
 	case mod_dummy:
 		break;
 	}
@@ -770,7 +772,7 @@ R_PolyBlend
 void R_PolyBlend (void)
 {
 	extern qboolean gammaworks;
-	if (!v_blend[3])
+	if (!v_blend[3] || gammaworks)
 		return;
 
 //Con_Printf("R_PolyBlend(): %4.2f %4.2f %4.2f %4.2f\n",v_blend[0], v_blend[1],	v_blend[2],	v_blend[3]);

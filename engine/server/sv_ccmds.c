@@ -1175,7 +1175,6 @@ void SV_SaveInfo(FILE *f, char *info, char *commandname)
 		if (*command == '*')	//unsettable, so don't write it for later setting.
 			continue;
 
-		fprintf(f, "%s ");
 		fwrite(commandname, strlen(commandname), 1, f);
 		fwrite(" ", 1, 1, f);
 		fwrite(command, value-command, 1, f);

@@ -1609,8 +1609,10 @@ qboolean Mod_LoadDoomLevel(model_t *mod)
 	sectorl		= (void *)COM_LoadMallocFile	(va("%s.sectors",	name));
 	sectorc		= com_filesize/sizeof(*sectorl);
 
+#ifndef SERVERONLY
 	numgldoomtextures=0;
 	Doom_LoadPalette();
+#endif
 
 
 	Doom_LoadVerticies(name);

@@ -268,6 +268,7 @@ Con_ToggleConsole_f
 */
 void Con_ToggleConsole_f (void)
 {
+	SCR_EndLoadingPlaque();
 	Key_ClearTyping ();
 
 	if (key_dest == key_console)

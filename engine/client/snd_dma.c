@@ -272,6 +272,9 @@ void S_Restart_f (void)
 	extern qboolean snd_firsttime;
 	Cache_Flush();//forget the old sounds.
 
+	if (COM_CheckParm("-nosound"))
+		return;
+
 	S_StopAllSounds (true);	
 
 	S_Shutdown();
@@ -428,10 +431,15 @@ void S_Init (void)
 		Con_Printf("Sound is already initialized\n");
 		return;
 	}
-//	Con_Printf("\nSound Initialization\n");
+	Con_Printf("\nSound Initialization\n");
 
-//	if (COM_CheckParm("-nosound"))
-//		return;
+	if (COM_CheckParm("-nosound"))
+	{
+		Cvar_Register(&nosound,				"Sound controls");
+		Cvar_ForceSet(&nosound, "1");
+		nosound.flags |= CVAR_NOSET;
+		return;
+	}
 
 //	if (COM_CheckParm("-simsound"))
 //		fakedma = true;

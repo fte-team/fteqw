@@ -916,6 +916,8 @@ TRACE(("dbg: GLDraw_ReInit: Allocating upload buffers\n"));
 	cs_texture = texture_extension_number++;
 	cachedcrosshair=0;
 
+	scenepp_texture = texture_extension_number++;
+
 	start = Hunk_LowMark ();
 	conback = default_conback;
 

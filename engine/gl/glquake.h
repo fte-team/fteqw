@@ -287,6 +287,9 @@ qboolean R_CullSphere (vec3_t origin, float radius);
 void R_RotateForEntity (entity_t *e);
 void R_DrawAliasModel (entity_t *e);
 
+void GL_InitSceneProcessingShaders (void);
+extern int scenepp_texture;
+
 //gl_alias.c
 void R_DrawGAliasModel (entity_t *e);
 void R_DrawGAliasShadowVolume(entity_t *e, vec3_t lightpos, float radius);
@@ -749,13 +752,13 @@ extern PFNGLUNLOCKARRAYSEXTPROC qglUnlockArraysEXT;
 #define glAlphaFunc qglAlphaFunc
 #define glBlendFunc qglBlendFunc
 #define glBegin		qglBegin
+#define glClearDepth qglClearDepth
+#define glClearStencil qglClearStencil
 #define glColor3f	qglColor3f
 #define glColor4f	qglColor4f
 #define glColor4ub	qglColor4ub
 #define glColor4ubv	qglColor4ubv
 #define glColorMask qglColorMask
-#define glClearDepth qglClearDepth
-#define glClearStencil qglClearStencil
 #define glDisable	qglDisable
 #define glEnable	qglEnable
 #define glEnd		qglEnd

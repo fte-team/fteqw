@@ -135,9 +135,61 @@ cvar_t	r_xflip = {"leftisright", "0"};
 extern	cvar_t	gl_ztrick;
 extern	cvar_t	scr_fov;
 
+// post processing stuff
+int scenepp_texture;
 
+int scenepp_ww_program;
+int scenepp_ww_parm_texturei;
+int scenepp_ww_parm_timef;
+int scenepp_ww_parm_xscalef;
+int scenepp_ww_parm_yscalef;
+int scenepp_ww_parm_ampscalef;
 
+// KrimZon - init post processing - called in GL_CheckExtensions, when they're called
+// I put it here so that only this file need be changed when messing with the post
+// processing shaders
+void GL_InitSceneProcessingShaders (void)
+{
+	int vert, frag;
 
+	char *genericvert = "\
+		varying vec2 v_texCoord;\
+		void main (void)\
+		{\
+			vec4 v = vec4( gl_Vertex.x, gl_Vertex.y, gl_Vertex.z, 1.0 );\
+			gl_Position = gl_ModelViewProjectionMatrix * v;\
+			v_texCoord = gl_MultiTexCoord0.xy;\
+		}\
+		";
+
+	char *wwfrag = "\
+		varying vec2 v_texCoord;\
+		uniform sampler2D texture;\
+		uniform float time;\
+		uniform float xscale;\
+		uniform float yscale;\
+		uniform float ampscale;\
+		void main (void)\
+		{\
+			v_texCoord.x = v_texCoord.x + sin((v_texCoord.y * xscale) + time) * ampscale;\
+			v_texCoord.y = v_texCoord.y + cos((v_texCoord.x * xscale) + time) * ampscale;\
+			gl_FragColor = texture2D( texture, v_texCoord );\
+		}\
+		";
+
+	vert = GLSlang_CreateShader(genericvert,	GL_VERTEX_SHADER_ARB);
+	frag = GLSlang_CreateShader(wwfrag,			GL_FRAGMENT_SHADER_ARB);
+
+	scenepp_ww_program = GLSlang_CreateProgram(vert, frag);
+	scenepp_ww_parm_texturei	= GLSlang_GetUniformLocation(scenepp_ww_program, "texture");
+	scenepp_ww_parm_timef		= GLSlang_GetUniformLocation(scenepp_ww_program, "time");
+	scenepp_ww_parm_xscalef		= GLSlang_GetUniformLocation(scenepp_ww_program, "xscale");
+	scenepp_ww_parm_yscalef		= GLSlang_GetUniformLocation(scenepp_ww_program, "yscale");
+	scenepp_ww_parm_ampscalef	= GLSlang_GetUniformLocation(scenepp_ww_program, "ampscale");
+
+	GLSlang_SetUniform1i(scenepp_ww_parm_texturei, 0);
+	GLSlang_SetUniform1f(scenepp_ww_parm_ampscalef, 0.08);
+}
 
 /*
 =================
@@ -1691,6 +1743,83 @@ void GLR_RenderView (void)
 		RQuantAdd(RQUANT_WPOLYS, c_brush_polys);
 		RQuantAdd(RQUANT_EPOLYS, c_alias_polys);
 	//	Con_Printf ("%3i ms  %4i wpoly %4i epoly\n", (int)((time2-time1)*1000), c_brush_polys, c_alias_polys); 
+	}
+
+	// SCENE POST PROCESSING
+	// we check if we need to use any shaders - currently it's just waterwarp
+	if ((gl_config.arb_shader_objects) && (r_waterwarp.value /*&& r_viewleaf->contents <= Q1CONTENTS_WATER*/))
+	{
+		float vwidth = 1, vheight = 1;
+		float vs, vt;
+
+		// get the powers of 2 for the size of the texture that will hold the scene
+		while (vwidth < glwidth)
+		{
+			vwidth *= 2;
+		}
+		while (vheight < glheight)
+		{
+			vheight *= 2;
+		}
+
+		// get the texcoords while we're at it
+		vs = glwidth - vwidth;
+		vt = glheight - vheight;
+
+		// 2d mode, but upside down to quake's normal 2d drawing
+		// this makes grabbing the sreen a lot easier
+		qglViewport (glx, gly, glwidth, glheight);
+
+		qglMatrixMode(GL_PROJECTION);
+		// Push the matrices to go into 2d mode, that matches opengl's mode
+		qglPushMatrix();
+		qglLoadIdentity ();
+		// TODO: use actual window width and height
+		qglOrtho  (0, vid.width, 0, vid.height, -99999, 99999);
+
+		qglMatrixMode(GL_MODELVIEW);
+		qglPushMatrix();
+		qglLoadIdentity ();
+
+		qglDisable (GL_DEPTH_TEST);
+		qglDisable (GL_CULL_FACE);
+		qglDisable (GL_BLEND);
+		qglEnable (GL_ALPHA_TEST);
+
+		// copy the scene to texture
+		GL_Bind(scenepp_texture);
+		qglCopyTexImage2D(GL_TEXTURE_2D, 0, GL_RGB, glx, gly, vwidth, vheight, 0);
+
+		// Here we apply the shaders - currently just waterwarp
+		GLSlang_UseProgram(scenepp_ww_program);
+		GLSlang_SetUniform1f(scenepp_ww_parm_xscalef, glwidth / 32.0f);
+		GLSlang_SetUniform1f(scenepp_ww_parm_xscalef, glheight / 32.0f);
+		GLSlang_SetUniform1f(scenepp_ww_parm_timef, cl.time);
+
+		glBegin(GL_QUADS);
+
+		glTexCoord2f(0, 0);
+		glVertex2f(0, 0);
+
+		glTexCoord2f(vs, 0);
+		glVertex2f(vwidth, 0);
+
+		glTexCoord2f(vs, vt);
+		glVertex2f(vwidth, vheight);
+
+		glTexCoord2f(0, vt);
+		glVertex2f(0, vheight);
+		
+		glEnd();
+
+		// Disable shaders
+		GLSlang_UseProgram(NULL);
+
+		// After all the post processing, pop the matrices
+		qglMatrixMode(GL_PROJECTION);
+		qglPopMatrix();
+		qglMatrixMode(GL_MODELVIEW);
+		qglPopMatrix();
 	}
 }
 

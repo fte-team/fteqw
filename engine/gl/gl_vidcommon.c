@@ -17,6 +17,7 @@ void (APIENTRY *qglColor4fv) (const GLfloat *v);
 void (APIENTRY *qglColor4ub) (GLubyte red, GLubyte green, GLubyte blue, GLubyte alpha);
 void (APIENTRY *qglColor4ubv) (const GLubyte *v);
 void (APIENTRY *qglColorMask) (GLboolean red, GLboolean green, GLboolean blue, GLboolean alpha);
+void (APIENTRY *qglCopyTexImage2D) (GLenum target, GLint level, GLenum internalFormat, GLint x, GLint y, GLsizei width, GLsizei height, GLint border);
 void (APIENTRY *qglCullFace) (GLenum mode);
 void (APIENTRY *qglDepthFunc) (GLenum func);
 void (APIENTRY *qglDepthMask) (GLboolean flag);
@@ -336,6 +337,8 @@ void GL_CheckExtensions (void *(*getglfunction) (char *name))
 		qglUniform4fARB				= (void *)getglext("glUniform4fARB");
 		qglUniform1iARB				= (void *)getglext("glUniform1iARB");
 		qglUniform1fARB				= (void *)getglext("glUniform1fARB");
+
+		GL_InitSceneProcessingShaders();
 	}
 }
 
@@ -441,6 +444,7 @@ void GL_Init(void *(*getglfunction) (char *name))
 	qglColor4ub			= (void *)getglcore("glColor4ub");
 	qglColor4ubv		= (void *)getglcore("glColor4ubv");
 	qglColorMask		= (void *)getglcore("glColorMask");
+	qglCopyTexImage2D	= (void *)getglcore("glCopyTexImage2D");
 	qglCullFace			= (void *)getglcore("glCullFace");
 	qglDepthFunc		= (void *)getglcore("glDepthFunc");
 	qglDepthMask		= (void *)getglcore("glDepthMask");

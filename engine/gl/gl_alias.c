@@ -764,10 +764,10 @@ static galiastexnum_t *GL_ChooseSkin(galiasinfo_t *inf, char *modelname, entity_
 			}
 			texnums->base = texture_extension_number++;
 			GL_Bind(texnums->base);
-			glTexImage2D (GL_TEXTURE_2D, 0, gl_solid_format, scaled_width, scaled_height, 0, GL_RGBA, GL_UNSIGNED_BYTE, pixels);
+			qglTexImage2D (GL_TEXTURE_2D, 0, gl_solid_format, scaled_width, scaled_height, 0, GL_RGBA, GL_UNSIGNED_BYTE, pixels);
 
-			glTexParameterf(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
-			glTexParameterf(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+			qglTexParameterf(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+			qglTexParameterf(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
 
 
 			//now do the fullbrights.
@@ -786,10 +786,10 @@ static galiastexnum_t *GL_ChooseSkin(galiasinfo_t *inf, char *modelname, entity_
 			}
 			texnums->fullbright = texture_extension_number++;
 			GL_Bind(texnums->fullbright);
-			glTexImage2D (GL_TEXTURE_2D, 0, gl_alpha_format, scaled_width, scaled_height, 0, GL_RGBA, GL_UNSIGNED_BYTE, pixels);
+			qglTexImage2D (GL_TEXTURE_2D, 0, gl_alpha_format, scaled_width, scaled_height, 0, GL_RGBA, GL_UNSIGNED_BYTE, pixels);
 
-			glTexParameterf(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
-			glTexParameterf(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+			qglTexParameterf(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+			qglTexParameterf(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
 		}
 		else
 		{
@@ -892,54 +892,54 @@ static void R_DrawShadowVolume(mesh_t *mesh)
 	int *neighbours = mesh->trneighbors;
 	int numtris = mesh->numindexes/3;
 
-	glBegin(GL_TRIANGLES);
+	qglBegin(GL_TRIANGLES);
 	for (t = 0; t < numtris; t++)
 	{
 		if (triangleFacing[t])
 		{
 			//draw front
-			glVertex3fv(verts[indexes[t*3+0]]);
-			glVertex3fv(verts[indexes[t*3+1]]);
-			glVertex3fv(verts[indexes[t*3+2]]);
+			qglVertex3fv(verts[indexes[t*3+0]]);
+			qglVertex3fv(verts[indexes[t*3+1]]);
+			qglVertex3fv(verts[indexes[t*3+2]]);
 
 			//draw back
-			glVertex3fv(proj[indexes[t*3+1]]);
-			glVertex3fv(proj[indexes[t*3+0]]);
-			glVertex3fv(proj[indexes[t*3+2]]);
+			qglVertex3fv(proj[indexes[t*3+1]]);
+			qglVertex3fv(proj[indexes[t*3+0]]);
+			qglVertex3fv(proj[indexes[t*3+2]]);
 
 			//draw side caps
 			if (neighbours[t*3+0] < 0 || !triangleFacing[neighbours[t*3+0]])
 			{
-				glVertex3fv(verts[indexes[t*3+1]]);
-				glVertex3fv(verts[indexes[t*3+0]]);
-				glVertex3fv(proj [indexes[t*3+0]]);
-				glVertex3fv(verts[indexes[t*3+1]]);
-				glVertex3fv(proj [indexes[t*3+0]]);
-				glVertex3fv(proj [indexes[t*3+1]]);
+				qglVertex3fv(verts[indexes[t*3+1]]);
+				qglVertex3fv(verts[indexes[t*3+0]]);
+				qglVertex3fv(proj [indexes[t*3+0]]);
+				qglVertex3fv(verts[indexes[t*3+1]]);
+				qglVertex3fv(proj [indexes[t*3+0]]);
+				qglVertex3fv(proj [indexes[t*3+1]]);
 			}
 
 			if (neighbours[t*3+1] < 0 || !triangleFacing[neighbours[t*3+1]])
 			{
-				glVertex3fv(verts[indexes[t*3+2]]);
-				glVertex3fv(verts[indexes[t*3+1]]);
-				glVertex3fv(proj [indexes[t*3+1]]);
-				glVertex3fv(verts[indexes[t*3+2]]);
-				glVertex3fv(proj [indexes[t*3+1]]);
-				glVertex3fv(proj [indexes[t*3+2]]);
+				qglVertex3fv(verts[indexes[t*3+2]]);
+				qglVertex3fv(verts[indexes[t*3+1]]);
+				qglVertex3fv(proj [indexes[t*3+1]]);
+				qglVertex3fv(verts[indexes[t*3+2]]);
+				qglVertex3fv(proj [indexes[t*3+1]]);
+				qglVertex3fv(proj [indexes[t*3+2]]);
 			}
 
 			if (neighbours[t*3+2] < 0 || !triangleFacing[neighbours[t*3+2]])
 			{
-				glVertex3fv(verts[indexes[t*3+0]]);
-				glVertex3fv(verts[indexes[t*3+2]]);
-				glVertex3fv(proj [indexes[t*3+2]]);
-				glVertex3fv(verts[indexes[t*3+0]]);
-				glVertex3fv(proj [indexes[t*3+2]]);
-				glVertex3fv(proj [indexes[t*3+0]]);
+				qglVertex3fv(verts[indexes[t*3+0]]);
+				qglVertex3fv(verts[indexes[t*3+2]]);
+				qglVertex3fv(proj [indexes[t*3+2]]);
+				qglVertex3fv(verts[indexes[t*3+0]]);
+				qglVertex3fv(proj [indexes[t*3+2]]);
+				qglVertex3fv(proj [indexes[t*3+0]]);
 			}
 		}
 	}
-	glEnd();
+	qglEnd();
 }
 
 void GL_DrawAliasMesh_Sketch (mesh_t *mesh, int texnum)
@@ -950,8 +950,8 @@ void GL_DrawAliasMesh_Sketch (mesh_t *mesh, int texnum)
 	R_UnlockArrays();
 #endif
 
-	glDepthFunc(gldepthfunc);
-	glDepthMask(1);
+	qglDepthFunc(gldepthfunc);
+	qglDepthMask(1);
 
 	if (gldepthmin == 0.5) 
 		qglCullFace ( GL_BACK );
@@ -960,37 +960,37 @@ void GL_DrawAliasMesh_Sketch (mesh_t *mesh, int texnum)
 
 	GL_TexEnv(GL_MODULATE);
 
-	glDisable(GL_TEXTURE_2D);
+	qglDisable(GL_TEXTURE_2D);
 
-	glVertexPointer(3, GL_FLOAT, 16, mesh->xyz_array);
-	glEnableClientState( GL_VERTEX_ARRAY );
+	qglVertexPointer(3, GL_FLOAT, 16, mesh->xyz_array);
+	qglEnableClientState( GL_VERTEX_ARRAY );
 
-	if (mesh->normals_array && glNormalPointer)	//d3d wrapper doesn't support normals, and this is only really needed for truform
+	if (mesh->normals_array && qglNormalPointer)	//d3d wrapper doesn't support normals, and this is only really needed for truform
 	{
-		glNormalPointer(GL_FLOAT, 0, mesh->normals_array);
-		glEnableClientState( GL_NORMAL_ARRAY );
+		qglNormalPointer(GL_FLOAT, 0, mesh->normals_array);
+		qglEnableClientState( GL_NORMAL_ARRAY );
 	}
 
 	if (mesh->colors_array)
 	{
-		glColorPointer(4, GL_UNSIGNED_BYTE, 0, mesh->colors_array);
-		glEnableClientState( GL_COLOR_ARRAY );
+		qglColorPointer(4, GL_UNSIGNED_BYTE, 0, mesh->colors_array);
+		qglEnableClientState( GL_COLOR_ARRAY );
 	}
 	else
-		glDisableClientState( GL_COLOR_ARRAY );
+		qglDisableClientState( GL_COLOR_ARRAY );
 
-	glEnableClientState( GL_TEXTURE_COORD_ARRAY );
-	glTexCoordPointer(2, GL_FLOAT, 0, mesh->st_array);
+	qglEnableClientState( GL_TEXTURE_COORD_ARRAY );
+	qglTexCoordPointer(2, GL_FLOAT, 0, mesh->st_array);
 
-	glDrawElements(GL_TRIANGLES, mesh->numindexes, GL_UNSIGNED_INT, mesh->indexes);
+	qglDrawElements(GL_TRIANGLES, mesh->numindexes, GL_UNSIGNED_INT, mesh->indexes);
 
-	glDisableClientState( GL_VERTEX_ARRAY );
-	glDisableClientState( GL_COLOR_ARRAY );
-	glDisableClientState( GL_NORMAL_ARRAY );
-	glDisableClientState( GL_TEXTURE_COORD_ARRAY );
+	qglDisableClientState( GL_VERTEX_ARRAY );
+	qglDisableClientState( GL_COLOR_ARRAY );
+	qglDisableClientState( GL_NORMAL_ARRAY );
+	qglDisableClientState( GL_TEXTURE_COORD_ARRAY );
 
-	glColor3f(0, 0, 0);
-	glBegin(GL_LINES);
+	qglColor3f(0, 0, 0);
+	qglBegin(GL_LINES);
 	for (i = 0; i < mesh->numindexes; i+=3)
 	{
 		float *v1, *v2, *v3;
@@ -1000,29 +1000,29 @@ void GL_DrawAliasMesh_Sketch (mesh_t *mesh, int texnum)
 		v3 = mesh->xyz_array[mesh->indexes[i+2]];
 		for (n = 0; n < 3; n++)	//rember we do this triangle AND the neighbours
 		{
-			glVertex3f(	v1[0]+0.5*(rand()/(float)RAND_MAX-0.5),
+			qglVertex3f(v1[0]+0.5*(rand()/(float)RAND_MAX-0.5),
 						v1[1]+0.5*(rand()/(float)RAND_MAX-0.5),
 						v1[2]+0.5*(rand()/(float)RAND_MAX-0.5));
-			glVertex3f(	v2[0]+0.5*(rand()/(float)RAND_MAX-0.5),
+			qglVertex3f(v2[0]+0.5*(rand()/(float)RAND_MAX-0.5),
 						v2[1]+0.5*(rand()/(float)RAND_MAX-0.5),
 						v2[2]+0.5*(rand()/(float)RAND_MAX-0.5));
 
-			glVertex3f(	v2[0]+0.5*(rand()/(float)RAND_MAX-0.5),
+			qglVertex3f(v2[0]+0.5*(rand()/(float)RAND_MAX-0.5),
 						v2[1]+0.5*(rand()/(float)RAND_MAX-0.5),
 						v2[2]+0.5*(rand()/(float)RAND_MAX-0.5));
-			glVertex3f(	v3[0]+0.5*(rand()/(float)RAND_MAX-0.5),
+			qglVertex3f(v3[0]+0.5*(rand()/(float)RAND_MAX-0.5),
 						v3[1]+0.5*(rand()/(float)RAND_MAX-0.5),
 						v3[2]+0.5*(rand()/(float)RAND_MAX-0.5));
 
-			glVertex3f(	v3[0]+0.5*(rand()/(float)RAND_MAX-0.5),
+			qglVertex3f(v3[0]+0.5*(rand()/(float)RAND_MAX-0.5),
 						v3[1]+0.5*(rand()/(float)RAND_MAX-0.5),
 						v3[2]+0.5*(rand()/(float)RAND_MAX-0.5));
-			glVertex3f(	v1[0]+0.5*(rand()/(float)RAND_MAX-0.5),
+			qglVertex3f(v1[0]+0.5*(rand()/(float)RAND_MAX-0.5),
 						v1[1]+0.5*(rand()/(float)RAND_MAX-0.5),
 						v1[2]+0.5*(rand()/(float)RAND_MAX-0.5));
 		}
 	}
-	glEnd();
+	qglEnd();
 
 #ifdef Q3SHADERS
 	R_IBrokeTheArrays();
@@ -1036,8 +1036,8 @@ void GL_DrawAliasMesh (mesh_t *mesh, int texnum)
 	R_UnlockArrays();
 #endif
 
-	glDepthFunc(gldepthfunc);
-	glDepthMask(1);
+	qglDepthFunc(gldepthfunc);
+	qglDepthMask(1);
 	
 	GL_Bind(texnum);
 	if (gldepthmin == 0.5) 
@@ -1047,32 +1047,32 @@ void GL_DrawAliasMesh (mesh_t *mesh, int texnum)
 
 	GL_TexEnv(GL_MODULATE);
 
-	glVertexPointer(3, GL_FLOAT, 16, mesh->xyz_array);
-	glEnableClientState( GL_VERTEX_ARRAY );
+	qglVertexPointer(3, GL_FLOAT, 16, mesh->xyz_array);
+	qglEnableClientState( GL_VERTEX_ARRAY );
 
-	if (mesh->normals_array && glNormalPointer)	//d3d wrapper doesn't support normals, and this is only really needed for truform
+	if (mesh->normals_array && qglNormalPointer)	//d3d wrapper doesn't support normals, and this is only really needed for truform
 	{
-		glNormalPointer(GL_FLOAT, 0, mesh->normals_array);
-		glEnableClientState( GL_NORMAL_ARRAY );
+		qglNormalPointer(GL_FLOAT, 0, mesh->normals_array);
+		qglEnableClientState( GL_NORMAL_ARRAY );
 	}
 
 	if (mesh->colors_array)
 	{
-		glColorPointer(4, GL_UNSIGNED_BYTE, 0, mesh->colors_array);
-		glEnableClientState( GL_COLOR_ARRAY );
+		qglColorPointer(4, GL_UNSIGNED_BYTE, 0, mesh->colors_array);
+		qglEnableClientState( GL_COLOR_ARRAY );
 	}
 	else
-		glDisableClientState( GL_COLOR_ARRAY );
+		qglDisableClientState( GL_COLOR_ARRAY );
 
-	glEnableClientState( GL_TEXTURE_COORD_ARRAY );
-	glTexCoordPointer(2, GL_FLOAT, 0, mesh->st_array);
+	qglEnableClientState( GL_TEXTURE_COORD_ARRAY );
+	qglTexCoordPointer(2, GL_FLOAT, 0, mesh->st_array);
 
-	glDrawElements(GL_TRIANGLES, mesh->numindexes, GL_UNSIGNED_INT, mesh->indexes);
+	qglDrawElements(GL_TRIANGLES, mesh->numindexes, GL_UNSIGNED_INT, mesh->indexes);
 
-	glDisableClientState( GL_VERTEX_ARRAY );
-	glDisableClientState( GL_COLOR_ARRAY );
-	glDisableClientState( GL_NORMAL_ARRAY );
-	glDisableClientState( GL_TEXTURE_COORD_ARRAY );
+	qglDisableClientState( GL_VERTEX_ARRAY );
+	qglDisableClientState( GL_COLOR_ARRAY );
+	qglDisableClientState( GL_NORMAL_ARRAY );
+	qglDisableClientState( GL_TEXTURE_COORD_ARRAY );
 
 #ifdef Q3SHADERS
 	R_IBrokeTheArrays();
@@ -1247,57 +1247,57 @@ void R_DrawGAliasModel (entity_t *e)
 	GL_DisableMultitexture();
 	GL_TexEnv(GL_MODULATE);
 	if (gl_smoothmodels.value)
-		glShadeModel (GL_SMOOTH);
+		qglShadeModel (GL_SMOOTH);
 	if (gl_affinemodels.value)
-		glHint (GL_PERSPECTIVE_CORRECTION_HINT, GL_FASTEST);
+		qglHint (GL_PERSPECTIVE_CORRECTION_HINT, GL_FASTEST);
 
-	glDisable (GL_ALPHA_TEST);
+	qglDisable (GL_ALPHA_TEST);
 
 	if (e->flags & Q2RF_DEPTHHACK)
-		glDepthRange (gldepthmin, gldepthmin + 0.3*(gldepthmax-gldepthmin));
+		qglDepthRange (gldepthmin, gldepthmin + 0.3*(gldepthmax-gldepthmin));
 
 //	glColor3f( 1,1,1);
 	if ((e->model->flags & EF_SPECIAL_TRANS))	//hexen2 flags.
 	{
-		glEnable (GL_BLEND);
-		glBlendFunc (GL_ONE_MINUS_SRC_ALPHA, GL_SRC_ALPHA);
+		qglEnable (GL_BLEND);
+		qglBlendFunc (GL_ONE_MINUS_SRC_ALPHA, GL_SRC_ALPHA);
 //		glColor3f( 1,1,1);
-		glDisable( GL_CULL_FACE );
+		qglDisable( GL_CULL_FACE );
 	}
 	else if (e->drawflags & DRF_TRANSLUCENT)
 	{
-		glEnable (GL_BLEND);
-		glBlendFunc (GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+		qglEnable (GL_BLEND);
+		qglBlendFunc (GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
 		e->alpha = r_wateralpha.value;
-//		glColor4f( 1,1,1,r_wateralpha.value);
+//		qglColor4f( 1,1,1,r_wateralpha.value);
 	}
 	else if ((e->model->flags & EF_TRANSPARENT))
 	{
-		glEnable (GL_BLEND);
-		glBlendFunc (GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
-//		glColor3f( 1,1,1);
+		qglEnable (GL_BLEND);
+		qglBlendFunc (GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+//		qglColor3f( 1,1,1);
 	}
 	else if ((e->model->flags & EF_HOLEY))
 	{
-		glEnable (GL_ALPHA_TEST);
-//		glEnable (GL_BLEND);
-		glBlendFunc (GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+		qglEnable (GL_ALPHA_TEST);
+//		qglEnable (GL_BLEND);
+		qglBlendFunc (GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
 
-//		glColor3f( 1,1,1);
+//		qglColor3f( 1,1,1);
 	}
 	else if (e->alpha < 1)
 	{
-		glEnable(GL_BLEND);
-		glBlendFunc (GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+		qglEnable(GL_BLEND);
+		qglBlendFunc (GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
 	}
 	else
 	{
-		glDisable(GL_BLEND);
-		glBlendFunc (GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+		qglDisable(GL_BLEND);
+		qglBlendFunc (GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
 	}
-	//	glEnable (GL_ALPHA_TEST);
+	//	qglEnable (GL_ALPHA_TEST);
 
-	glPushMatrix();
+	qglPushMatrix();
 	R_RotateForEntity(e);
 
 	if (e->scale != 1 && e->scale != 0)	//hexen 2 stuff
@@ -1312,10 +1312,10 @@ void R_DrawGAliasModel (entity_t *e)
 		scale_origin[1] = clmodel->mins[1];
 		scale_origin[2] = clmodel->mins[2];
 
-/*		glScalef(	1/scale[0],
+/*		qglScalef(	1/scale[0],
 					1/scale[1],
 					1/scale[2]);
-		glTranslatef (	-scale_origin[0],
+		qglTranslatef (	-scale_origin[0],
 						-scale_origin[1],
 						-scale_origin[2]);
 */
@@ -1383,20 +1383,20 @@ void R_DrawGAliasModel (entity_t *e)
 				+currententity->origin[1]+(cl.time*3))*5.5;
 		}*/
 
-		glTranslatef (tmatrix[0][3],tmatrix[1][3],tmatrix[2][3]);
-		glScalef (tmatrix[0][0],tmatrix[1][1],tmatrix[2][2]);
+		qglTranslatef (tmatrix[0][3],tmatrix[1][3],tmatrix[2][3]);
+		qglScalef (tmatrix[0][0],tmatrix[1][1],tmatrix[2][2]);
 		
-		glScalef(	1/scale[0],
+		qglScalef(	1/scale[0],
 					1/scale[1],
 					1/scale[2]);
-		glTranslatef (	-scale_origin[0],
+		qglTranslatef (	-scale_origin[0],
 						-scale_origin[1],
 						-scale_origin[2]);
 	}
 
 	inf = GLMod_Extradata (clmodel);
 	if (qglPNTrianglesfATI && gl_ati_truform.value)
-		glEnable(GL_PN_TRIANGLES_ATI);
+		qglEnable(GL_PN_TRIANGLES_ATI);
 
 	memset(&mesh, 0, sizeof(mesh));
 	while(inf)
@@ -1410,7 +1410,7 @@ void R_DrawGAliasModel (entity_t *e)
 			GL_DrawAliasMesh_Sketch(&mesh, skin->base);
 		else if (!skin)
 		{
-			glEnable(GL_TEXTURE_2D);
+			qglEnable(GL_TEXTURE_2D);
 			GL_DrawAliasMesh_Sketch(&mesh, 1);
 		}
 #ifdef Q3SHADERS
@@ -1434,7 +1434,7 @@ void R_DrawGAliasModel (entity_t *e)
 #endif
 		else
 		{
-			glEnable(GL_TEXTURE_2D);
+			qglEnable(GL_TEXTURE_2D);
 //			if (skin->bump)
 //				GL_DrawMeshBump(&mesh, skin->base, 0, skin->bump, 0);
 //			else
@@ -1443,12 +1443,11 @@ void R_DrawGAliasModel (entity_t *e)
 			if (skin->fullbright && r_fb_models.value && cls.allow_luma)
 			{
 				mesh.colors_array = NULL;
-				glEnable(GL_BLEND);
-				glColor4f(1, 1, 1, e->alpha*r_fb_models.value);
+				qglEnable(GL_BLEND);
+				qglColor4f(1, 1, 1, e->alpha*r_fb_models.value);
 				c_alias_polys += mesh.numindexes/3;
 				GL_DrawAliasMesh(&mesh, skin->fullbright);
 			}
-	
 		}
 		if (inf->nextsurf)
 			inf = (galiasinfo_t*)((char *)inf + inf->nextsurf);
@@ -1457,71 +1456,71 @@ void R_DrawGAliasModel (entity_t *e)
 	}
 
 	if (qglPNTrianglesfATI && gl_ati_truform.value)
-		glDisable(GL_PN_TRIANGLES_ATI);
+		qglDisable(GL_PN_TRIANGLES_ATI);
 
 #ifdef SHOWLIGHTDIR	//testing
-	glDisable(GL_TEXTURE_2D);
-	glBegin(GL_LINES);
-	glColor3f(1,0,0);
-	glVertex3f(	0,
+	qglDisable(GL_TEXTURE_2D);
+	qglBegin(GL_LINES);
+	qglColor3f(1,0,0);
+	qglVertex3f(	0,
 				0,
 				0);
-	glVertex3f(	100*mesh.lightaxis[0][0],
+	qglVertex3f(	100*mesh.lightaxis[0][0],
 				100*mesh.lightaxis[0][1],
 				100*mesh.lightaxis[0][2]);
 
-glColor3f(0,1,0);
-	glVertex3f(	0,
+qglColor3f(0,1,0);
+	qglVertex3f(	0,
 				0,
 				0);
-	glVertex3f(	100*mesh.lightaxis[1][0],
+	qglVertex3f(	100*mesh.lightaxis[1][0],
 				100*mesh.lightaxis[1][1],
 				100*mesh.lightaxis[1][2]);
 
-glColor3f(0,0,1);
-	glVertex3f(	0,
+qglColor3f(0,0,1);
+	qglVertex3f(	0,
 				0,
 				0);
-	glVertex3f(	100*mesh.lightaxis[2][0],
+	qglVertex3f(	100*mesh.lightaxis[2][0],
 				100*mesh.lightaxis[2][1],
 				100*mesh.lightaxis[2][2]);
-	glEnd();
-	glEnable(GL_TEXTURE_2D);
+	qglEnd();
+	qglEnable(GL_TEXTURE_2D);
 #endif
 
-	glPopMatrix();
+	qglPopMatrix();
 
-	glDisable(GL_BLEND);
+	qglDisable(GL_BLEND);
 
-	glBlendFunc (GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+	qglBlendFunc (GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
 	GL_TexEnv(GL_REPLACE);
 
-	glEnable(GL_TEXTURE_2D);
+	qglEnable(GL_TEXTURE_2D);
 
-	glShadeModel (GL_FLAT);
+	qglShadeModel (GL_FLAT);
 	if (gl_affinemodels.value)
-		glHint (GL_PERSPECTIVE_CORRECTION_HINT, GL_NICEST);	
+		qglHint (GL_PERSPECTIVE_CORRECTION_HINT, GL_NICEST);	
 
 	if (e->flags & Q2RF_DEPTHHACK)
-		glDepthRange (gldepthmin, gldepthmax);
+		qglDepthRange (gldepthmin, gldepthmax);
 
 	if ((currententity->model->flags & EF_SPECIAL_TRANS) && gl_cull.value)
-		glEnable( GL_CULL_FACE );
+		qglEnable( GL_CULL_FACE );
 	if ((currententity->model->flags & EF_HOLEY))
-		glDisable( GL_ALPHA_TEST );
+		qglDisable( GL_ALPHA_TEST );
 
 #ifdef SHOWLIGHTDIR	//testing
-	glDisable(GL_TEXTURE_2D);
-	glColor3f(1,1,1);
-	glBegin(GL_LINES);
-	glVertex3f(	currententity->origin[0],
+	qglDisable(GL_TEXTURE_2D);
+	qglColor3f(1,1,1);
+	qglBegin(GL_LINES);
+	qglVertex3f(	currententity->origin[0],
 				currententity->origin[1],
 				currententity->origin[2]);
-	glVertex3f(	currententity->origin[0]+100*lightdir[0],
+	qglVertex3f(	currententity->origin[0]+100*lightdir[0],
 				currententity->origin[1]+100*lightdir[1],
 				currententity->origin[2]+100*lightdir[2]);
-	glEnd();
-	glEnable(GL_TEXTURE_2D);
+	qglEnd();
+	qglEnable(GL_TEXTURE_2D);
 #endif
 }
 
@@ -1679,7 +1678,7 @@ void R_DrawGAliasShadowVolume(entity_t *e, vec3_t lightpos, float radius)
 	if (Length(lightorg) > radius + clmodel->radius)
 		return;
 
-	glPushMatrix();
+	qglPushMatrix();
 	R_RotateForEntity(e);
 
 
@@ -1700,7 +1699,7 @@ void R_DrawGAliasShadowVolume(entity_t *e, vec3_t lightpos, float radius)
 			inf = NULL;
 	}
 
-	glPopMatrix();
+	qglPopMatrix();
 }
 
 

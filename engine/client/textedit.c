@@ -925,6 +925,33 @@ int QCLibEditor(char *filename, int line, int nump, char **parms)
 	if (editormodal || !developer.value)
 		return line;	//whoops
 
+	if (!qrenderer)
+	{
+		int i;
+		char buffer[8192];
+		char *r;
+		FILE *f;
+
+		if (line == -1)
+			return -1;
+		COM_FOpenFile(filename, &f);
+		if (!f)
+			Con_Printf("%s - %i\n", filename, line);
+		else
+		{
+			for (i = 0; i < line; i++)
+			{
+				fgets(buffer, sizeof(buffer), f);
+			}
+			if ((r = strchr(buffer, '\r')))
+			{ r[0] = '\n';r[1]='\0';}
+			Con_Printf("%s", buffer);
+			fclose(f);
+		}
+	//PF_break(NULL);
+		return line;
+	}
+
 	if (!strncmp(OpenEditorFile, "src/", 4))
 	{
 		if (!editoractive || strcmp(OpenEditorFile+4, filename))

@@ -1886,7 +1886,7 @@ void GL_Set2D (void)
 	qglOrtho  (0, vid.width, vid.height, 0, -99999, 99999);
 
 	qglMatrixMode(GL_MODELVIEW);
-    qglLoadIdentity ();
+	qglLoadIdentity ();
 
 	qglDisable (GL_DEPTH_TEST);
 	qglDisable (GL_CULL_FACE);

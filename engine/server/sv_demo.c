@@ -204,7 +204,13 @@ qboolean SV_GetPacket (void)
 //char empty[512];
 qboolean SV_ReadMVD (void);
 
-float nextdemotime;
+#ifdef SERVERONLY
+float nextdemotime = 0;
+float olddemotime = 0;
+#else
+extern float nextdemotime;
+extern float olddemotime;
+#endif
 void SV_LoadClientDemo_f (void)
 {
 	int i;
@@ -286,6 +292,7 @@ void SV_LoadClientDemo_f (void)
 	svd.lasttype = dem_read;
 	svd.realtime = realtime;
 	nextdemotime = realtime-0.1; //cause read of the first 0.1 secs to get all spawn info.
+	olddemotime = realtime;
 	while (SV_ReadMVD())
 	{
 		sv.datagram.cursize = 0;
@@ -321,8 +328,8 @@ qboolean SV_RunDemo (void)
 	qbyte	c;
 //	usercmd_t *pcmd;
 //	usercmd_t emptycmd;
-	static	float	prevtime = 0.0;
 	qbyte	newtime;
+
 
 
 readnext:
@@ -331,7 +338,7 @@ readnext:
 	if (svd.mvdplayback)
 	{
 		fread(&newtime, sizeof(newtime), 1, svd.demofile);
-		nextdemotime = prevtime + newtime * (1/1000.0f);
+		nextdemotime = olddemotime + newtime * (1/1000.0f);
 		demotime = nextdemotime;
 
 		if (nextdemotime > svd.realtime)
@@ -370,7 +377,7 @@ readnext:
 		svd.realtime = demotime; // we're warping
 	}
 
-	prevtime = demotime;
+	olddemotime = demotime;
 
 	// get the msg type
 	if ((r = fread (&c, sizeof(c), 1, svd.demofile)) != 1)
@@ -559,7 +566,7 @@ qboolean SV_ReadMVD (void)
 				if (!cl->spec_track)
 					continue;
 				if (!(cl->spec_track >> 3 & svd.lastto))
-						continue;
+					continue;
 
 				for (c = 0; c < net_message.cursize; c++)
 					NPP_MVDWriteByte(net_message.data[c], cl, false);

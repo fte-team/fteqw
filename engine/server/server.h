@@ -227,8 +227,8 @@ typedef struct
 		int userid;
 		int weaponframe;
 		char			userinfo[MAX_INFO_STRING];
-		vec3_t velocity;
-		vec3_t avelocity;
+		vec3_t oldorg;
+		vec3_t oldang;
 		float updatetime;
 	} recordedplayer[MAX_CLIENTS];
 
@@ -451,6 +451,9 @@ typedef struct client_s
 	int trustlevel;
 
 	qboolean wasrecorded;	//this client shouldn't get any net messages sent to them
+	
+	vec3_t	specorigin;	//mvds need to use a different origin from the one QC has.
+	vec3_t	specvelocity;
 
 	int language;	//the clients language
 

@@ -1549,7 +1549,9 @@ void NPP_MVDFlush(void)
 
 //			ents->colormap=playernum+1;
 
-			VectorCopy(ents->origin, oldorg);
+			VectorCopy(ents->origin, sv.recordedplayer[playernum].oldorg);
+			VectorCopy(ents->angles, sv.recordedplayer[playernum].oldang);
+
 			i = 5;
 			for (j=0 ; j<3 ; j++)
 				if (flags & (DF_ORIGIN << j))
@@ -1557,8 +1559,6 @@ void NPP_MVDFlush(void)
 					ents->origin[j] = (signed short)(buffer[i] + (buffer[i+1]<<8))/8.0f;
 					i+=2;
 				}
-			VectorSubtract(ents->origin, oldorg, sv.recordedplayer[playernum].velocity);
-			VectorScale(sv.recordedplayer[playernum].velocity, realtime - sv.recordedplayer[playernum].updatetime, sv.recordedplayer[playernum].velocity);
 
 			VectorCopy(ents->angles, oldang);
 			for (j=0 ; j<3 ; j++)
@@ -1571,9 +1571,6 @@ void NPP_MVDFlush(void)
 
 			if (flags & (DF_ANGLES << 0))	//'stupid quake bug' I believe is the correct quote...
 				ents->angles[0] = ents->angles[0]*-1/3.0f; //also scale pitch down as well as invert
-
-			VectorSubtract(ents->angles, oldang, sv.recordedplayer[playernum].avelocity);
-			VectorScale(sv.recordedplayer[playernum].avelocity, realtime - sv.recordedplayer[playernum].updatetime, sv.recordedplayer[playernum].avelocity);
 
 			if (flags & DF_MODEL)
 			{
@@ -1591,13 +1588,11 @@ void NPP_MVDFlush(void)
 				i+=1;
 			}
 			if (flags & DF_WEAPONFRAME)
-			{
-				wframe = buffer[i];
+			{	//mvds are deltas remember, this is really the only place where that fact is all that important.
+				sv.recordedplayer[playernum].weaponframe = buffer[i];
 				i+=1;
 			}
-			else wframe = 0;
 
-			sv.recordedplayer[playernum].weaponframe = wframe;
 			sv.recordedplayer[playernum].updatetime = realtime;
 
 			ignoreprotocol=true;

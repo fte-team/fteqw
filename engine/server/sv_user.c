@@ -3747,6 +3747,57 @@ void SV_RunCmd (usercmd_t *ucmd, qboolean recurse)
 	host_frametime = ucmd->msec * 0.001;
 	if (host_frametime > 0.1)
 		host_frametime = 0.1;
+	
+	if (sv.demostatevalid)
+	{	//spectators watching MVDs do not affect the running progs.
+		player_mins[0] = -16;
+		player_mins[1] = -16;
+		player_mins[2] = -24;
+
+		player_maxs[0] = 16;
+		player_maxs[1] = 16;
+		player_maxs[2] = 32;
+
+		pmove.angles[0] = SHORT2ANGLE(ucmd->angles[0]);
+		pmove.angles[1] = SHORT2ANGLE(ucmd->angles[1]);
+		pmove.angles[2] = SHORT2ANGLE(ucmd->angles[2]);
+		
+		VectorCopy (host_client->specorigin, pmove.origin);
+		VectorCopy (host_client->specvelocity, pmove.velocity);
+
+		if (host_client->zquake_extensions & Z_EXT_PM_TYPE_NEW)
+			pmove.pm_type = PM_SPECTATOR;
+		else
+			pmove.pm_type = PM_OLD_SPECTATOR;
+		pmove.jump_held = host_client->jump_held;
+		pmove.jump_msec = 0;
+		pmove.waterjumptime = 0;
+		pmove.numphysent = 1;
+		pmove.physents[0].model = sv.worldmodel;
+		pmove.cmd = *ucmd;
+		pmove.hullnum = SV_HullNumForPlayer(0, player_mins, player_maxs);
+
+		movevars.entgravity = 0;
+		movevars.maxspeed = 0;
+		movevars.bunnyspeedcap = pm_bunnyspeedcap.value;
+		movevars.ktjump = pm_ktjump.value;
+		movevars.slidefix = (pm_slidefix.value != 0);
+		movevars.airstep = (pm_airstep.value != 0);
+		movevars.walljump = (pm_walljump.value);
+
+		for (i=0 ; i<3 ; i++)
+		{
+			pmove_mins[i] = pmove.origin[i] - 256;
+			pmove_maxs[i] = pmove.origin[i] + 256;
+		}
+
+		PM_PlayerMove ();
+		
+		VectorCopy (pmove.origin, host_client->specorigin);
+		VectorCopy (pmove.velocity, host_client->specvelocity);
+
+		return;
+	}
 
 #ifdef SVCHAT
 	if (SV_ChatMove(ucmd->impulse))
@@ -4199,7 +4250,7 @@ haveannothergo:
 
 							cl->lastcmd = newcmd;
 							cl->lastcmd.buttons = 0; // avoid multiple fires on lag
-							
+
 							if (msg_badread)
 							{
 								Con_Printf ("SV_ReadClientMessage: badread\n");
@@ -4232,7 +4283,7 @@ haveannothergo:
 						SV_RunCmd (&newcmd, false);
 
 						SV_PostRunCmd();
-				
+
 					}
 
 					cl->lastcmd = newcmd;
@@ -4244,7 +4295,7 @@ haveannothergo:
 					Con_Printf ("SV_ReadClientMessage: badread\n");
 					SV_DropClient (cl);
 					return;
-				}	
+				}
 
 				c = MSG_ReadByte ();
 				if (c != clc_move)
@@ -4272,7 +4323,12 @@ haveannothergo:
 			o[1] = MSG_ReadCoord();
 			o[2] = MSG_ReadCoord();
 			// only allowed by spectators
-			if (host_client->spectator||sv.mvdplayback) {
+			if (sv.mvdplayback)
+			{
+				VectorCopy(o, host_client->specorigin);
+			}
+			else if (host_client->spectator)
+			{
 				VectorCopy(o, sv_player->v.origin);
 				SV_LinkEdict(sv_player, false);
 			}

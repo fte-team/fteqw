@@ -174,7 +174,7 @@ CL_GetDemoMessage
 */
 
 float olddemotime = 0;
-extern float nextdemotime;
+float nextdemotime = 0;
 qboolean CL_GetDemoMessage (void)
 {
 	int		r, i, j, tracknum;

@@ -638,7 +638,7 @@ void SV_WritePlayerToClient(sizebuf_t *msg, clstate_t *ent)
 			}
 		}
 
-		if (ent->spectator == 2 && ent->weaponframe)
+		if (ent->spectator == 2 && ent->weaponframe)	//it's not us, but we are spectating, so we need the correct weaponframe
 			pflags |= PF_WEAPONFRAME;
 
 		if (!ent->isself || ent->fteext & PEXT_SPLITSCREEN)
@@ -779,7 +779,7 @@ void SV_WritePlayerToClient(sizebuf_t *msg, clstate_t *ent)
 				if (pflags & (PF_VELOCITY1<<i) )
 					MSG_WriteShort (msg, 0);
 		}
-		
+
 		if (pflags & PF_MODEL)
 		{
 			MSG_WriteByte (msg, ent->modelindex);
@@ -1032,16 +1032,13 @@ void SV_WritePlayersToClient (client_t *client, edict_t *clent, qbyte *pvs, size
 	client_t	*cl;
 	edict_t		*ent, *vent;
 	int			pflags;
-	vec3_t lerpedang;
-
-	int splitnum = 0;
 
 	demo_frame_t *demo_frame;
 	demo_client_t *dcl;
 #define DF_DEAD		(1<<8)
 #define DF_GIB		(1<<9)
 
-	if (clent == NULL)	//write to demo file. (no pov)
+	if (clent == NULL)	//write to demo file. (no PVS)
 	{
 		demo_frame = &demo.frames[demo.parsecount&DEMO_FRAMES_MASK];
 		for (j=0,cl=svs.clients, dcl = demo_frame->clients; j<MAX_CLIENTS ; j++,cl++, dcl++)
@@ -1127,49 +1124,36 @@ void SV_WritePlayersToClient (client_t *client, edict_t *clent, qbyte *pvs, size
 		return;
 #endif
 
-	for (j=0,cl=svs.clients ; j<sv.allocated_client_slots ; j++,cl++)
+	if (sv.demostatevalid)	//this is a demo
 	{
-		if (sv.demostatevalid)	//this is a demo
+		usercmd_t cmd;
+		vec3_t ang;
+		vec3_t org;
+		vec3_t vel;
+		float lerp;
+		extern vec3_t player_mins, player_maxs;
+		clstate_t clst;
+		extern float olddemotime, nextdemotime;
+		
+		for (i=0 ; i<MAX_CLIENTS ; i++)
 		{
-				// ZOID visibility tracking
-	/*		if (ent != clent &&
-				!(client->spec_track && client->spec_track - 1 == j)) 
-			{
-				if (cl->spectator)
-					continue;
+			//FIXME: Add PVS stuff.
 
-				// ignore if not touching a PV leaf
-				for (i=0 ; i < ent->num_leafs ; i++)
-					if (pvs[ent->leafnums[i] >> 3] & (1 << (ent->leafnums[i]&7) ))
-						break;
-				if (i == ent->num_leafs)
-				{
-					continue;		// not visible
-				}
-			}
-*/
-			if (cl->edict == clent && svs.clients[j].spec_track>0)
-				i = svs.clients[j].spec_track-1;
-			else
-				i = j;
-			if (i>=0&&*sv.recordedplayer[i].userinfo)
+			if (*sv.recordedplayer[i].userinfo)	//if the client was active
 			{
-				usercmd_t cmd;
-				vec3_t ang;
-				vec3_t org;
-				extern vec3_t player_mins, player_maxs;
-				clstate_t clst;
 				clst.playernum = i;
 				clst.onladder = 0;
 				clst.lastcmd = &cmd;
 				clst.modelindex = sv.demostate[i+1].modelindex;
+				if (!clst.modelindex)
+					continue;
 				clst.modelindex2 = 0;
 				clst.frame = sv.demostate[i+1].frame;
 				clst.weaponframe = sv.recordedplayer[i].weaponframe;
 				clst.angles = ang;
 				clst.origin = org;
 				clst.hull = 1;
-				clst.velocity = sv.recordedplayer[i].velocity;
+				clst.velocity = vel;
 				clst.effects = sv.demostate[i+1].effects;
 				clst.skin = sv.demostate[i+1].skinnum;
 				clst.mins = player_mins;
@@ -1179,17 +1163,26 @@ void SV_WritePlayersToClient (client_t *client, edict_t *clent, qbyte *pvs, size
 				clst.fatness = sv.demostate[i+1].fatness;
 				clst.localtime = sv.time;//sv.recordedplayer[j].updatetime;
 				clst.health = sv.recordedplayer[i].stats[STAT_HEALTH];
-				clst.spectator = 0;
+				clst.spectator = 2;	//so that weaponframes work properly.
 				clst.isself = false;
-				clst.fteext = client->fteprotocolextensions;
-				clst.zext = client->zquake_extensions;
+				clst.fteext = 0;//client->fteprotocolextensions;
+				clst.zext = 0;//client->zquake_extensions;
 				clst.cl = NULL;
 
-				ang[0] = sv.demostate[i+1].angles[0]*360.0f/256+ (realtime - sv.recordedplayer[i].updatetime)*sv.recordedplayer[i].avelocity[0];
-				ang[1] = sv.demostate[i+1].angles[1]*360.0f/256+ (realtime - sv.recordedplayer[i].updatetime)*sv.recordedplayer[i].avelocity[1];
-				ang[2] = sv.demostate[i+1].angles[2]*360.0f/256+ (realtime - sv.recordedplayer[i].updatetime)*sv.recordedplayer[i].avelocity[2];
+				lerp = (realtime - olddemotime) / (nextdemotime - olddemotime);
+				if (lerp < 0)
+					lerp = 0;
+				if (lerp > 1)
+					lerp = 1;
+				for (j = 0; j < 3; j++)
+				{
+					ang[j] = (360.0f/256)*(sv.recordedplayer[i].oldang[j] + (sv.demostate[i+1].angles[j] - sv.recordedplayer[i].oldang[j])*lerp);
 
-				VectorMA(sv.demostate[i+1].origin, (realtime - sv.recordedplayer[i].updatetime), sv.recordedplayer[i].velocity, org);
+					org[j] = sv.recordedplayer[i].oldorg[j] + (sv.demostate[i+1].origin[j] - sv.recordedplayer[i].oldorg[j])*lerp;
+					
+					vel[j] = (-sv.recordedplayer[i].oldorg[j] + sv.demostate[i+1].origin[j])*(nextdemotime - olddemotime);
+				}
+
 				ang[0] *= -3;
 
 //				ang[0] = ang[1] = ang[2] = 0;
@@ -1199,40 +1192,63 @@ void SV_WritePlayersToClient (client_t *client, edict_t *clent, qbyte *pvs, size
 				cmd.angles[1] = ang[1]*65535/360.0f;
 				cmd.angles[2] = ang[2]*65535/360.0f;
 				cmd.msec = 50;
-				{vec3_t f, r, u, v;
+					{vec3_t f, r, u, v;
 				vec_t VectorNormalize2 (vec3_t, vec3_t);
 				AngleVectors(ang, f, r, u);
-				VectorCopy(sv.recordedplayer[i].velocity, v);
+				VectorCopy(vel, v);
 				cmd.forwardmove = DotProduct(f, v);
 				cmd.sidemove = DotProduct(r, v);
 				cmd.upmove = DotProduct(u, v);
-				}
+					}
 				clst.lastcmd=NULL;
-
-				clst.spectator = 1;
-				if (i == j)
-					clst.spectator = 2;
 
 				SV_WritePlayerToClient(msg, &clst);
 			}
-			splitnum = 0;
-			if (cl->controlled)
-			{	//hrm. splitscreen.
-				client_t *s;
-				for (s = cl; s; s = s->controlled, splitnum++)
-				{
-					if (s->edict == cl->edict)
-						break;
-				}
-				if (!s)
-					continue;
-			}
-			else if (cl->edict != clent)
-				continue;
 		}
-		
-		
-		
+
+		//now build the spectator's thingie
+
+		memset(&clst, 0, sizeof(clst));
+
+		clst.fteext = 0;//client->fteprotocolextensions;
+		clst.zext = 0;//client->zquake_extensions;
+		clst.playernum = MAX_CLIENTS-1;
+		clst.isself = true;
+		clst.modelindex = 0;
+		clst.hull = 1;
+		clst.frame = 0;
+		clst.localtime = sv.time;
+		clst.mins = player_mins;
+		clst.maxs = player_maxs;
+
+		clst.angles = vec3_origin;	//not needed, as the client knows better than us anyway.
+		clst.origin = client->specorigin;
+		clst.velocity = client->specvelocity;
+
+		for (client = client; client; client = client->controller)
+		{
+			clst.health = 100;
+
+			if (client->spec_track)
+			{
+				clst.weaponframe = sv.recordedplayer[client->spec_track-1].weaponframe;
+				clst.spectator = 2;
+			}
+			else
+			{
+				clst.weaponframe = 0;
+				clst.spectator = 1;
+			}
+
+			SV_WritePlayerToClient(msg, &clst);
+
+			clst.playernum--;
+		}
+		return;
+	}
+
+	for (j=0,cl=svs.clients ; j<sv.allocated_client_slots ; j++,cl++)
+	{
 		isbot = !cl->state && cl->name[0];
 		if (cl->state != cs_spawned)	//this includes bots
 			if (!isbot || progstype != PROG_NQ)	//unless they're NQ bots...
@@ -1341,43 +1357,33 @@ void SV_WritePlayersToClient (client_t *client, edict_t *clent, qbyte *pvs, size
 			if (sv.demostatevalid)
 				clst.health = 100;
 
-			if (sv.demostatevalid)
-				clst.playernum = MAX_CLIENTS-1-splitnum;
-
 			clst.isself = false;
-			if ((cl == client || cl->controller == client) && !sv.demostatevalid)
+			if ((cl == client || cl->controller == client))
 			{
 				clst.isself = true;
 				clst.spectator = 0;
 				if (client->spectator)
 				{
-					clst.spectator = 2;
 					if (client->spec_track)
 					{
+						clst.spectator = 2;
 						clst.mins = svs.clients[client->spec_track-1].edict->v.mins;
 						clst.maxs = svs.clients[client->spec_track-1].edict->v.maxs;
 						clst.health = svs.clients[client->spec_track-1].edict->v.health;
+						clst.weaponframe = svs.clients[client->spec_track-1].edict->v.weaponframe;
 					}
 					else
+					{
+						clst.spectator = 1;
 						clst.health = 1;
+					}
 				}
 			}
-			else if (client->spectator || sv.demostatevalid)
+			else if (client->spectator)
 			{
 				clst.health=100;
-				if (client->spec_track && client->spec_track -1 == j)
-				{
-					if (sv.demostatevalid)
-					{
-						clst.origin = sv.demostate[client->spec_track].origin;
-						clst.velocity = sv.recordedplayer[client->spec_track-1].velocity;
-						clst.angles = lerpedang;
-						lerpedang[0] = sv.demostate[client->spec_track].angles[0]*360.0/256;
-						lerpedang[1] = sv.demostate[client->spec_track].angles[1]*360.0/256;
-						lerpedang[2] = sv.demostate[client->spec_track].angles[2]*360.0/256;
-					}
+				if (client->spec_track && ent == clent)
 					clst.spectator = 2;
-				}
 				else
 					clst.spectator = 1;
 			}

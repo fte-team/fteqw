@@ -669,7 +669,17 @@ void Model_NextDownload (void)
 			return;
 	}
 #endif
+
 	cls.downloadtype = dl_model;
+
+	if (!COM_FCheckExists("pics/colormap.pcx"))	//no false alarms if on q2 data.
+	{
+	if (!CL_CheckOrDownloadFile("gfx/colormap.lmp", false))
+		return;
+	if (!CL_CheckOrDownloadFile("gfx/palette.lmp", false))
+		return;
+	}
+
 	for ( 
 		; cl.model_name[cls.downloadnumber][0]
 		; cls.downloadnumber++)
@@ -680,7 +690,7 @@ void Model_NextDownload (void)
 
 		if (!stricmp(COM_FileExtension(s), "dsp"))	//doom sprites are weird, and not really downloadable via this system
 			continue;
-		
+
 		if (!CL_CheckOrDownloadFile(s, cls.downloadnumber==1))	//world is required to be loaded.
 			return;		// started a download
 
@@ -829,15 +839,22 @@ void CL_RequestNextDownload (void)
 		
 		if (CL_CheckOrDownloadFile(cl.downloadlist->name, true))
 		{
-			for (i = 0; i < mod_numknown; i++)	//go and load this model now.
+			if (!strcmp(cl.downloadlist->name, "gfx/palette.lmp"))
 			{
-				if (!strcmp(mod_known[i].name, cl.downloadlist->name))
-				{
-					Mod_ForName(mod_known[i].name, false);	//throw away result.
-					break;
-				}
+				Cbuf_AddText("vid_restart\n", RESTRICT_LOCAL);
 			}
-			Skin_FlushSkin(cl.downloadlist->name);
+			else
+			{
+				for (i = 0; i < mod_numknown; i++)	//go and load this model now.
+				{
+					if (!strcmp(mod_known[i].name, cl.downloadlist->name))
+					{
+						Mod_ForName(mod_known[i].name, false);	//throw away result.
+						break;
+					}
+				}
+				Skin_FlushSkin(cl.downloadlist->name);
+			}
 
 
 			next = cl.downloadlist->next;
@@ -1038,6 +1055,11 @@ void CL_ParseDownload (void)
 		COM_RefreshFSCache_f();
 
 		cls.downloadmethod = DL_NONE;
+
+		if (!strcmp(cls.downloadname, "gfx/palette.lmp"))
+		{
+			Cbuf_AddText("vid_restart\n", RESTRICT_LOCAL);
+		}
 
 		*cls.downloadname = '\0';
 		cls.downloadqw = NULL;
@@ -1274,11 +1296,19 @@ void CL_ParseServerData (void)
 	Con_TPrintf (TLC_LINEBREAK_NEWLEVEL);
 	Con_TPrintf (TLC_PC_PS_NL, 2, str);
 
-	// ask for the sound list next
 	memset(cl.sound_name, 0, sizeof(cl.sound_name));
-	MSG_WriteByte (&cls.netchan.message, clc_stringcmd);
-//	MSG_WriteString (&cls.netchan.message, va("soundlist %i 0", cl.servercount));
-	MSG_WriteString (&cls.netchan.message, va(soundlist_name, cl.servercount, 0));
+	if (cls.fteprotocolextensions & PEXT_PK3DOWNLOADS)
+	{
+		MSG_WriteByte (&cls.netchan.message, clc_stringcmd);
+		MSG_WriteString (&cls.netchan.message, va("pk3list %i 0", cl.servercount, 0));
+	}
+	else
+	{
+		// ask for the sound list next
+		MSG_WriteByte (&cls.netchan.message, clc_stringcmd);
+	//	MSG_WriteString (&cls.netchan.message, va("soundlist %i 0", cl.servercount));
+		MSG_WriteString (&cls.netchan.message, va(soundlist_name, cl.servercount, 0));
+	}
 
 	// now waiting for downloads, etc
 	cls.state = ca_onserver;
@@ -1987,6 +2017,8 @@ void CL_ParseStatic (int version)
 
 	VectorCopy (es.origin, ent->origin);
 	VectorCopy (es.angles, ent->angles);
+	es.angles[0]*=-1;
+	AngleVectors(es.angles, ent->axis[0], ent->axis[1], ent->axis[2]);
 
 	if (!cl.worldmodel)
 	{
@@ -3148,15 +3180,15 @@ extern cvar_t cl_chatsound, cl_nofake;
 		qboolean	suppress_talksound;
 		char *p;
 
-		flags = TP_CategorizeMessage (s, &offset);
+		flags = TP_CategorizeMessage (text, &offset);
 
-		if (flags == 2 && !TP_FilterMessage(s + offset))
+		if (flags == 2 && !TP_FilterMessage(text + offset))
 			return false;
 
 		suppress_talksound = false;
 
-		if (flags == 2)
-			suppress_talksound = TP_CheckSoundTrigger (s + offset);
+		if (flags == 2 || (!cl.teamplay && flags))
+			suppress_talksound = TP_CheckSoundTrigger (text + offset);
 
 		if (!cl_chatsound.value ||		// no sound at all
 			(cl_chatsound.value == 2 && flags != 2))	// only play sound in mm2
@@ -3171,7 +3203,16 @@ extern cvar_t cl_chatsound, cl_nofake;
 					*p = ' '; 
 		}
 
+		//funky /me stuff
+		p = strchr(text, ':');
+		if (!strncmp(p, ": /me", 5))
+		{
+	//shift name right 1 (for the *)
+			memmove(text+1, text, p - text);
+			*text = '*';
 
+			memmove(p+1, p+5, strlen(p+5)+1);
+		}
 	}
 	return true;
 }

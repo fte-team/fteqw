@@ -185,6 +185,8 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 #define svc_entgravity		50		// gravity change, for prediction
 #define svc_setinfo			51		// setinfo on a client
 #define svc_serverinfo		52		// serverinfo
+#define svcnq_effect		52		// [vector] org [byte] modelindex [byte] startframe [byte] framecount [byte] framerate
+#define svcnq_effect2		53		// [vector] org [short] modelindex [short] startframe [byte] framecount [byte] framerate
 #define svc_updatepl		53		// [qbyte] [qbyte]
 
 #define svc_nails2			54		//qwe - [qbyte] num [52 bits] nxyzpy 8 12 12 12 4 8 
@@ -227,6 +229,9 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 #define svc_updatepic		72
 
 #define svc_setattachment	73
+
+#define svcqw_effect			74		// [vector] org [byte] modelindex [byte] startframe [byte] framecount [byte] framerate
+#define svcqw_effect2			75		// [vector] org [short] modelindex [short] startframe [byte] framecount [byte] framerate
 
 #define svc_invalid			256
 

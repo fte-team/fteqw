@@ -305,7 +305,7 @@ void R_ParticleEffect_f(void)
 	char *var, *value;
 	char *buf;
 	particle_t *parts;
-	beamseg_t *beamsegs, *btemp;
+	beamseg_t *beamsegs;
 	skytris_t *st;
 
 	part_type_t *ptype;
@@ -350,30 +350,13 @@ void R_ParticleEffect_f(void)
 		ptype->particles = parts;
 	}
 
-	// clear beam list.. bit more complex
-	while (ptype->beams && !(ptype->beams->flags & BS_LASTSEG))
+	// go with a lazy clear of list.. mark everything as DEAD and let
+	// the beam rendering handle removing nodes
+	beamsegs = ptype->beams;
+	while (beamsegs)
 	{
-		beamsegs = ptype->beams->next;
-		ptype->beams->next = free_beams;
-		free_beams = ptype->beams;
-		ptype->beams = beamsegs;
-	}
-
-	btemp = ptype->beams;
-	while (btemp)
-	{
-		if (btemp->flags & BS_LASTSEG) // prevent runaway pointers
-		{
-			btemp->flags |= BS_DEAD;
-			btemp = btemp->next;
-		}
-		else
-		{
-			beamsegs = btemp->next;
-			btemp->next = free_beams;
-			free_beams = btemp;
-			btemp = beamsegs;
-		}
+		beamsegs->flags |= BS_DEAD;
+		beamsegs = beamsegs->next;
 	}
 
 	beamsegs = ptype->beams;

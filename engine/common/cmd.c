@@ -1237,7 +1237,7 @@ void	Cmd_RemoveCommand (char *cmd_name)
 		cmd = *back;
 		if (!cmd)
 		{
-			Con_Printf ("Cmd_RemoveCommand: %s not added\n", cmd_name);
+//			Con_Printf ("Cmd_RemoveCommand: %s not added\n", cmd_name);
 			return;
 		}
 		if (!strcmp (cmd_name, cmd->name))
@@ -1660,8 +1660,10 @@ void	Cmd_ExecuteString (char *text, int level)
 		return;
 	}
 
+#ifdef PLUGINS
 	if (Plugin_ExecuteString())
 		return;
+#endif
 
 #ifndef CLIENTONLY
 	if (sv.state)
@@ -2222,6 +2224,7 @@ void Cvar_Inc_f (void)
 }
 
 //////////////////////////
+/*
 typedef struct msg_trigger_s {
 	char *match;
 	char *command;
@@ -2503,7 +2506,7 @@ qboolean Cmd_FilterMessage (char *message, qboolean sameteam)	//returns true if 
 
 	return true;	//not on our list of allowed.
 }
-
+*/
 void Cmd_WriteConfig_f(void)
 {
 	FILE *f;
@@ -2577,8 +2580,8 @@ void Cmd_Init (void)
 	Cmd_AddCommand ("aliaslevel", Cmd_AliasLevel_f);
 #endif
 
-	Cmd_AddCommand ("msg_trigger", Cmd_Msg_Trigger_f);
-	Cmd_AddCommand ("filter", Cmd_Msg_Filter_f);
+//	Cmd_AddCommand ("msg_trigger", Cmd_Msg_Trigger_f);
+//	Cmd_AddCommand ("filter", Cmd_Msg_Filter_f);
 
 
 	Cmd_AddCommand ("set", Cmd_set_f);

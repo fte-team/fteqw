@@ -2604,7 +2604,8 @@ retry:
 //	QC_StartShares(progfuncs);
 
 	isfriked = true;
-//	isfriked = -1;
+	if (!pr_typecurrent)	//progs 0 always acts as string stripped.
+		isfriked = -1;		//partly to avoid some bad progs.
 
 //	len = 0;
 	switch(current_progstate->intsize)
@@ -2742,8 +2743,8 @@ retry:
 	}
 	if (!isfriked)
 		pr_strings=NULL;
-	else
-		printf("String-Stripped support enabled.\n");
+//	else
+//		printf("String-Stripped support enabled.\n");
 
 	if ((isfriked && pr_typecurrent))	//friked progs only allow one file.
 	{

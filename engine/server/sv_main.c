@@ -608,7 +608,13 @@ void SV_FullClientUpdateToClient (client_t *client, client_t *cl)
 	else
 #endif
 	{
-		ClientReliableCheckBlock(cl, 24 + strlen(client->userinfo));
+		if (sv.demofile)
+		{
+			int i = client - svs.clients;
+			ClientReliableCheckBlock(cl, 24 + strlen(sv.recordedplayer[i].userinfo));
+		}
+		else
+			ClientReliableCheckBlock(cl, 24 + strlen(client->userinfo));
 		if (cl->num_backbuf) {
 			SV_FullClientUpdate (client, &cl->backbuf);
 			ClientReliable_FinishWrite(cl);

@@ -6801,6 +6801,8 @@ QCC_def_t *QCC_PR_DummyFieldDef(QCC_type_t *type, char *name, QCC_def_t *scope, 
 						sprintf(newname, "%s%s", parttype->name, array);
 					ftype = QCC_PR_NewType("FIELD TYPE", ev_field);
 					ftype->aux_type = parttype;
+					if (parttype->type == ev_vector)
+						ftype->size = parttype->size;	//vector fields create a _y and _z too, so we need this still.
 					def = QCC_PR_GetDef(NULL, newname, scope, false, 1);
 					if (!def)
 					{
@@ -6841,7 +6843,7 @@ QCC_def_t *QCC_PR_DummyFieldDef(QCC_type_t *type, char *name, QCC_def_t *scope, 
 		}
 	}
 
-	*fieldofs = maxfield;
+	*fieldofs = maxfield;	//final size of the union.
 	return first;
 }
 

@@ -787,6 +787,7 @@ void GL_DrawAliasMesh (mesh_t *mesh, int texnum)
 	glDepthMask(1);
 	
 	GL_Bind(texnum);
+	qglCullFace ( GL_FRONT );
 
 	GL_TexEnv(GL_MODULATE);
 

@@ -326,7 +326,7 @@ void Cvar_ApplyLatches(int latchflag)
 	cvar_t	*var;
 	int mask = ~0;
 
-	if (latchflag == CVAR_SERVEROVERRIDE)
+	if (latchflag == CVAR_SERVEROVERRIDE)	//these ones are cleared
 		mask = ~CVAR_SERVEROVERRIDE;
 
 	for (grp=cvar_groups ; grp ; grp=grp->next)
@@ -482,6 +482,8 @@ cvar_t *Cvar_Get(char *name, char *defaultvalue, int flags, char *group)
 void Cvar_LockFromServer(cvar_t *var, char *str)
 {
 	char *oldlatch;
+
+	Con_DPrintf("Server taking control of cvar %s\n", var->name);
 
 	var->flags |= CVAR_SERVEROVERRIDE;
 

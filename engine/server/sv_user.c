@@ -768,8 +768,16 @@ void SV_PreSpawn_f (void)
 				break;
 
 			ent = EDICT_NUM(svprogfuncs, buf - bufs - sv.numextrastatics);
-			state = &ent->baseline;
 
+			if (ent->tagent)
+			{
+				MSG_WriteByte(&host_client->netchan.message, svc_setattachment);
+				MSG_WriteShort(&host_client->netchan.message, ent->entnum);
+				MSG_WriteShort(&host_client->netchan.message, ent->tagent);
+				MSG_WriteShort(&host_client->netchan.message, ent->tagindex);
+			}
+
+			state = &ent->baseline;
 			if (!state->number || !state->modelindex)
 			{	//ent doesn't have a baseline
 				buf++;
@@ -1130,6 +1138,7 @@ void SV_Begin_f (void)
 						SV_PreRunCmd();
 						{
 							usercmd_t cmd;
+							memset(&cmd, 0, sizeof(cmd));
 							cmd.msec = 0;
 #define ANGLE2SHORT(x) (x) * (65536/360.0)
 							cmd.angles[0] = ANGLE2SHORT(split->edict->v.v_angle[0]);
@@ -3911,8 +3920,19 @@ haveannothergo:
 
 							if (newcmd.impulse)// && SV_FiltureImpulse(newcmd.impulse, host_client->trustlevel))
 								sv_player->v.impulse = newcmd.impulse;
+
 							sv_player->v.button0 = newcmd.buttons & 1;
-							sv_player->v.button2 = (newcmd.buttons & 2)>>1;
+							sv_player->v.button2 = (newcmd.buttons >> 1) & 1;
+							if (pr_allowbutton1.value)	//many mods use button1 - it's just a wasted field to many mods. So only work it if the cvar allows.
+								sv_player->v.button1 = ((newcmd.buttons >> 2) & 1);
+						// DP_INPUTBUTTONS
+							sv_player->v.button3 = ((newcmd.buttons >> 2) & 1);
+							sv_player->v.button4 = ((newcmd.buttons >> 3) & 1);
+							sv_player->v.button5 = ((newcmd.buttons >> 4) & 1);
+							sv_player->v.button6 = ((newcmd.buttons >> 5) & 1);
+							sv_player->v.button7 = ((newcmd.buttons >> 6) & 1);
+							sv_player->v.button8 = ((newcmd.buttons >> 7) & 1);
+
 
 							cl->lastcmd = newcmd;
 							cl->lastcmd.buttons = 0; // avoid multiple fires on lag

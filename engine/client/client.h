@@ -356,8 +356,10 @@ typedef struct {
 	float lerprate;	//inverse rate...
 	vec3_t origin;
 	vec3_t angles;
-	int frame;
 	trailstate_t trailstate;	//when to next throw out a trail
+	unsigned short frame;
+	unsigned short tagent;
+	unsigned short tagindex;
 } lerpents_t;
 //
 // the client_state_t structure is wiped completely at every

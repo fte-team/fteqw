@@ -229,6 +229,9 @@ extern qboolean gl_mtexable;
 void GL_DisableMultitexture(void);
 void GL_EnableMultitexture(void);
 
+extern qboolean supported_GL_SGIS_generate_mipmap;
+extern qboolean supported_GL_ARB_texture_non_power_of_two;
+
 //
 // gl_warp.c
 //

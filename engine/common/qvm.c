@@ -573,7 +573,7 @@ static void inline QVM_Return(qvm_t *vm, long size)
 	if(vm->bp>vm->len_ds+vm->len_ss/2)
 		Sys_Error("VM run time error: freed too much stack\n");
 
-	if(fp[1]>vm->len_cs)
+	if(fp[1]>vm->len_cs*2)
 		if (vm->cs+fp[1])	//this being false causes the program to quit.
 			Sys_Error("VM run time error: program returned to hyperspace\n");
 	if(fp[1]<0)

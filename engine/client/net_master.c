@@ -788,8 +788,8 @@ int CL_ReadServerInfo(char *msg, int servertype, qboolean favorite)
 		info->special |= SS_FTESERVER;
 	else if (!strncmp("FTE", Info_ValueForKey(msg, "*version"), 3))
 		info->special |= SS_FTESERVER;
-		
-		
+
+
 	if (servertype == MT_SINGLEQ2)
 		info->special |= SS_QUAKE2;
 	else if (servertype == MT_SINGLENQ)

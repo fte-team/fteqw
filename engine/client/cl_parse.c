@@ -519,6 +519,8 @@ to start a download from the server.
 */
 qboolean	CL_CheckOrDownloadFile (char *filename, int nodelay)
 {
+	downloadlist_t *failed;
+
 	if (strstr (filename, ".."))
 	{
 		Con_TPrintf (TL_NORELATIVEPATHS);
@@ -541,18 +543,17 @@ qboolean	CL_CheckOrDownloadFile (char *filename, int nodelay)
 
 	if (cl.faileddownloads)
 	{
-		downloadlist_t *failed;
 		for (failed = cl.faileddownloads; failed; failed = failed->next)	//yeah, so it failed... Ignore it.
 		{
 			if (!strcmp(failed->name, filename))
 				return true;
 		}
+	}
 
-		for (failed = cl.downloadlist; failed; failed = failed->next)	//It's already on our list. Ignore it.
-		{
-			if (!strcmp(failed->name, filename))
-				return true;
-		}
+	for (failed = cl.downloadlist; failed; failed = failed->next)	//It's already on our list. Ignore it.
+	{
+		if (!strcmp(failed->name, filename))
+			return true;
 	}
 
 	if ((!requiredownloads.value && !nodelay) || nodelay==-1)
@@ -3676,6 +3677,10 @@ void CL_ParseServerMessage (void)
 			break;
 		case svc_updatepic:
 			SCR_ShowPic_Update();
+			break;
+
+		case svc_setattachment:
+			CL_ParseAttachment();
 			break;
 		}
 	}

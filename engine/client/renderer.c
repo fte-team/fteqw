@@ -75,6 +75,7 @@ cvar_t	r_numedges = {"r_numedges", "0"};
 cvar_t	r_aliastransbase = {"r_aliastransbase", "200"};
 cvar_t	r_aliastransadj = {"r_aliastransadj", "100"};
 cvar_t	d_smooth = {"d_smooth", "0"};
+cvar_t	gl_skyboxdist = {"gl_skyboxdist", "2300"};
 
 extern	cvar_t	r_dodgytgafiles;
 
@@ -214,6 +215,8 @@ void R_BulletenForce_f (void);
 rendererstate_t currentrendererstate;
 
 cvar_t	gl_skyboxname = {"r_skybox", ""};
+cvar_t	r_fastsky = {"r_fastsky", "0"};
+cvar_t	r_fastskycolour = {"r_fastskycolour", "0"};
 
 #if defined(RGLQUAKE)
 cvar_t	gl_ztrick = {"gl_ztrick","1"};
@@ -302,6 +305,8 @@ void GLRenderer_Init(void)
 	Cvar_Register (&gl_ati_truform, GRAPHICALNICETIES);
 	Cvar_Register (&gl_ati_truform_type, GRAPHICALNICETIES);
 	Cvar_Register (&gl_ati_truform_tesselation, GRAPHICALNICETIES);
+
+	Cvar_Register (&gl_skyboxdist, GLRENDEREROPTIONS);
 }
 #endif
 #if defined(SWQUAKE)
@@ -489,6 +494,9 @@ void Renderer_Init(void)
 
 	Cvar_Register (&r_nolerp, GRAPHICALNICETIES);
 	Cvar_Register (&r_nolightdir, GRAPHICALNICETIES);
+
+	Cvar_Register (&r_fastsky, GRAPHICALNICETIES);
+	Cvar_Register (&r_fastskycolour, GRAPHICALNICETIES);
 
 //bulletens
 	Cvar_Register(&bul_nowater, BULLETENVARS);
@@ -1023,12 +1031,19 @@ qboolean R_ApplyRenderer (rendererstate_t *newr)
 		return false;
 
 	if (R_DeInit)
+	{
+		TRACE(("dbg: R_ApplyRenderer: R_DeInit\n"));
 		R_DeInit();
-
-	SCR_DeInit();
+	}
 
 	if (VID_DeInit)
+	{
+		TRACE(("dbg: R_ApplyRenderer: VID_DeInit\n"));
 		VID_DeInit();
+	}
+
+	TRACE(("dbg: R_ApplyRenderer: SCR_DeInit\n"));
+	SCR_DeInit();
 
 	IN_Shutdown();
 
@@ -1047,6 +1062,8 @@ qboolean R_ApplyRenderer (rendererstate_t *newr)
 	Cache_Flush();
 
 	Hunk_FreeToLowMark(host_hunklevel);	//is this a good idea?
+
+	TRACE(("dbg: R_ApplyRenderer: old renderer closed\n"));
 
 	gl_skyboxname.modified = true;
 
@@ -1112,28 +1129,38 @@ qboolean R_ApplyRenderer (rendererstate_t *newr)
 		if (vid.fullbright < 2)
 			vid.fullbright = 0;	//transparent colour doesn't count.
 
-
+TRACE(("dbg: R_ApplyRenderer: Palette loaded\n"));
 
 		if (!VID_Init(newr, host_basepal))
+		{
+			R_SetRenderer(QR_NONE);
 			return false;
+		}
+TRACE(("dbg: R_ApplyRenderer: vid applied\n"));
 
 #ifdef RGLQUAKE
 		if (qrenderer == QR_OPENGL)
 			GLV_UpdatePalette();
 #endif
 
+TRACE(("dbg: R_ApplyRenderer: done palette\n"));
+
 		v_oldgammavalue = -1;	//force the gamma to be reset
 		W_LoadWadFile("gfx.wad");
+TRACE(("dbg: R_ApplyRenderer: wad loaded\n"));
 		Draw_Init();
+TRACE(("dbg: R_ApplyRenderer: draw inited\n"));
 		R_Init();
+TRACE(("dbg: R_ApplyRenderer: renderer inited\n"));
 		SCR_Init();
-
+TRACE(("dbg: R_ApplyRenderer: screen inited\n"));
 		Sbar_Flush();
 
 		IN_Init();
 	}
 	else
 	{
+TRACE(("dbg: R_ApplyRenderer: isDedicated = true\n"));
 		isDedicated = true;
 		if (cls.state)
 		{
@@ -1145,16 +1172,19 @@ qboolean R_ApplyRenderer (rendererstate_t *newr)
 		Sys_InitTerminal();
 		Con_PrintToSys();
 	}
-
+TRACE(("dbg: R_ApplyRenderer: initing mods\n"));
 	Mod_Init();
-
+TRACE(("dbg: R_ApplyRenderer: initing bulletein boards\n"));
 	WipeBulletenTextures();
 
 //	host_hunklevel = Hunk_LowMark();
 
 	if (R_PreNewMap)
 	if (cl.worldmodel)
+	{
+		TRACE(("dbg: R_ApplyRenderer: R_PreNewMap (how handy)\n"));
 		R_PreNewMap();
+	}
 
 	if (sv.worldmodel)
 	{
@@ -1163,11 +1193,14 @@ qboolean R_ApplyRenderer (rendererstate_t *newr)
 		q2edict_t *q2ent;
 #endif
 
+TRACE(("dbg: R_ApplyRenderer: reloading server map\n"));
 		sv.worldmodel = Mod_ForName (sv.modelname, false);
+TRACE(("dbg: R_ApplyRenderer: loaded\n"));
 		if (sv.worldmodel->needload)
 		{
 			SV_Error("Bsp went missing on render restart\n");
 		}
+TRACE(("dbg: R_ApplyRenderer: doing that funky phs thang\n"));
 		SV_CalcPHS ();
 
 		for (i = 0; i < MAX_MODELS; i++)
@@ -1177,7 +1210,7 @@ qboolean R_ApplyRenderer (rendererstate_t *newr)
 			else
 				sv.models[i] = NULL;
 		}
-
+TRACE(("dbg: R_ApplyRenderer: clearing world\n"));
 		SV_ClearWorld ();
 
 		if (svprogfuncs)
@@ -1220,7 +1253,9 @@ qboolean R_ApplyRenderer (rendererstate_t *newr)
 		}
 #endif
 	}
+	Plug_ResChanged();
 
+TRACE(("dbg: R_ApplyRenderer: starting on client state\n"));
 	if (cl.worldmodel)
 	{
 		int staticmodelindex[MAX_STATIC_ENTITIES];		
@@ -1235,13 +1270,14 @@ qboolean R_ApplyRenderer (rendererstate_t *newr)
 
 		cl.worldmodel = NULL;
 		cl_numvisedicts=0;
-
+TRACE(("dbg: R_ApplyRenderer: reloading ALL models\n"));
 		for (i=1 ; i<MAX_MODELS ; i++)
 		{
 			if (!cl.model_name[i][0])
 				break;
 
 			cl.model_precache[i] = NULL;
+			TRACE(("dbg: R_ApplyRenderer: reloading model %s\n", cl.model_name[i]));
 			cl.model_precache[i] = Mod_ForName (cl.model_name[i], false);
 
 			if (!cl.model_precache[i])
@@ -1259,7 +1295,7 @@ qboolean R_ApplyRenderer (rendererstate_t *newr)
 		}
 
 		loadmodel = cl.worldmodel = cl.model_precache[1];
-
+TRACE(("dbg: R_ApplyRenderer: done the models\n"));
 		if (loadmodel->needload)
 		{
 				CL_Disconnect ();
@@ -1268,9 +1304,11 @@ qboolean R_ApplyRenderer (rendererstate_t *newr)
 				return true;
 		}
 
+TRACE(("dbg: R_ApplyRenderer: checking any wad textures\n"));
 		Mod_NowLoadExternal();
+TRACE(("dbg: R_ApplyRenderer: R_NewMap\n"));
 		R_NewMap();
-
+TRACE(("dbg: R_ApplyRenderer: efrags\n"));
 		for (i = 0; i < cl.num_statics; i++)	//make the static entities reappear.
 		{
 			cl_static_entities[i].model = cl.model_precache[staticmodelindex[i]];
@@ -1316,6 +1354,8 @@ void R_RestartRenderer_f (void)
 	rendererstate_t oldr;
 	rendererstate_t newr;
 	memset(&newr, 0, sizeof(newr));
+
+TRACE(("dbg: R_RestartRenderer_f\n"));
 
 	Media_CaptureDemoEnd();
 
@@ -1386,20 +1426,31 @@ void R_RestartRenderer_f (void)
 #error "no default renderer"
 #endif
 
+	TRACE(("dbg: R_RestartRenderer_f renderer %i\n", newr.renderer));
+
 	memcpy(&oldr, &currentrendererstate, sizeof(rendererstate_t));
 	if (!R_ApplyRenderer(&newr))
 	{
+		TRACE(("dbg: R_RestartRenderer_f failed\n"));
 		if (R_ApplyRenderer(&oldr))
+		{
+			TRACE(("dbg: R_RestartRenderer_f old restored\n"));
 			Con_Printf("^1Video mode switch failed. Old mode restored.\n");	//go back to the old mode, the new one failed.
+		}
 		else
 		{
 			newr.renderer = QR_NONE;
 			if (R_ApplyRenderer(&newr))
+			{
+				TRACE(("dbg: R_RestartRenderer_f going to dedicated\n"));
 				Con_Printf("^1Video mode switch failed. Old mode wasn't supported either. Console forced.\nChange vid_mode to a compatable mode, and then use the setrenderer command.\n");
+			}
 			else
 				Sys_Error("Couldn't fall back to previous renderer\n");
 		}
 	}
+
+	TRACE(("dbg: R_RestartRenderer_f success\n"));
 }
 
 void R_SetRenderer_f (void)

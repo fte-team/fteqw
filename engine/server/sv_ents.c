@@ -654,7 +654,7 @@ void SV_WritePlayerToClient(sizebuf_t *msg, clstate_t *ent)
 		if (ent->spectator == 2 && ent->weaponframe)
 			pflags |= PF_WEAPONFRAME;
 
-		if (!ent->isself)
+		if (!ent->isself || ent->fteext & PEXT_SPLITSCREEN)
 		{
 #ifdef PEXT_SCALE	//this is graphics, not physics
 			if (ent->fteext & PEXT_SCALE)
@@ -872,14 +872,14 @@ void SV_WritePlayerToClient(sizebuf_t *msg, clstate_t *ent)
 #define EFQW_DARKFIELD	512
 #define EFQW_LIGHT		1024
 
-void SV_RemoveEffect(client_t *to, edict_t *ent, int seefno)
+void SV_RemoveEffect(client_t *to, edict_t *ent, int seefmask)
 {
 	specialenteffects_t *prev = NULL;
 	specialenteffects_t *ef;
 	int en = NUM_FOR_EDICT(svprogfuncs, ent);
 	for (ef = to->enteffects; ef; ef = ef->next)
 	{
-		if (ef->entnum == en && ef->efnum == seefno)
+		if (ef->entnum == en && ef->efnum & seefmask)
 		{
 			if (prev)
 				prev->next = ef->next;
@@ -887,9 +887,30 @@ void SV_RemoveEffect(client_t *to, edict_t *ent, int seefno)
 				to->enteffects = ef->next;
 			Z_Free(ef);
 
-			ClientReliableWrite_Begin(to, svc_temp_entity, 4);
-			ClientReliableWrite_Byte(to, TE_SEEF_BRIGHTFIELD+seefno);
-			ClientReliableWrite_Short(to, en|0x8000);
+			if (ef->efnum & seefmask & 1>>SEEF_BRIGHTFIELD)
+			{
+				ClientReliableWrite_Begin(to, svc_temp_entity, 4);
+				ClientReliableWrite_Byte(to, TE_SEEF_BRIGHTFIELD);
+				ClientReliableWrite_Short(to, en|0x8000);
+			}
+			if (ef->efnum & seefmask & 1>>SEEF_DARKLIGHT)
+			{
+				ClientReliableWrite_Begin(to, svc_temp_entity, 4);
+				ClientReliableWrite_Byte(to, SEEF_DARKLIGHT);
+				ClientReliableWrite_Short(to, en|0x8000);
+			}
+			if (ef->efnum & seefmask & 1>>SEEF_DARKFIELD)
+			{
+				ClientReliableWrite_Begin(to, svc_temp_entity, 4);
+				ClientReliableWrite_Byte(to, SEEF_DARKFIELD);
+				ClientReliableWrite_Short(to, en|0x8000);
+			}
+			if (ef->efnum & seefmask & 1>>SEEF_LIGHT)
+			{
+				ClientReliableWrite_Begin(to, svc_temp_entity, 4);
+				ClientReliableWrite_Byte(to, SEEF_LIGHT);
+				ClientReliableWrite_Short(to, en|0x8000);
+			}
 			return;
 		}
 		prev = ef;
@@ -904,7 +925,7 @@ void SV_AddEffect(client_t *to, edict_t *ent, int seefno)
 
 	for (ef = to->enteffects; ef; ef = ef->next)
 	{
-		if (ef->entnum == en && ef->efnum == seefno)
+		if (ef->entnum == en && ef->efnum == 1<<seefno)
 		{
 			if (ef->colour != ent->v.seefcolour || ef->offset != ent->v.seefoffset || ef->size[0] != ent->v.seefsizex || ef->size[1] != ent->v.seefsizey || ef->size[2] != ent->v.seefsizez || ef->die < sv.time)
 			{
@@ -925,7 +946,7 @@ void SV_AddEffect(client_t *to, edict_t *ent, int seefno)
 	ef->die = sv.time + 10;
 	ef->next = to->enteffects;
 	to->enteffects = ef;
-	ef->efnum = seefno;
+	ef->efnum = 1<<seefno;
 	ef->entnum = en;
 	ef->colour = ent->v.seefcolour;
 	ef->offset = ent->v.seefoffset;
@@ -958,63 +979,65 @@ void SV_AddEffect(client_t *to, edict_t *ent, int seefno)
 
 void SV_SendExtraEntEffects(client_t *to, edict_t *ent)
 {
-	if (!pr_udc_exteffect_enabled)
-		return;
-
-	if (to->fteprotocolextensions & PEXT_SEEF1)
+	int removeeffects = 0;
+	if (pr_udc_exteffect_enabled)
 	{
-		if (progstype != PROG_QW)
+		if (to->fteprotocolextensions & PEXT_SEEF1)
 		{
-			if ((int)ent->v.effects & (EF_BRIGHTFIELD|EFNQ_DARKLIGHT|EFNQ_DARKFIELD|EFNQ_LIGHT) || to->enteffects)
+			if (progstype != PROG_QW)
 			{
-				if ((int)ent->v.effects & EF_BRIGHTFIELD)
-					SV_AddEffect(to, ent, SEEF_BRIGHTFIELD);
-				else
-					SV_RemoveEffect(to, ent, SEEF_BRIGHTFIELD);
+				if ((int)ent->v.effects & (EF_BRIGHTFIELD|EFNQ_DARKLIGHT|EFNQ_DARKFIELD|EFNQ_LIGHT) || to->enteffects)
+				{
+					if ((int)ent->v.effects & EF_BRIGHTFIELD)
+						SV_AddEffect(to, ent, SEEF_BRIGHTFIELD);
+					else
+						removeeffects |= 1<<SEEF_BRIGHTFIELD;
 
-				if ((int)ent->v.effects & EFNQ_DARKLIGHT)
-					SV_AddEffect(to, ent, SEEF_DARKLIGHT);
-				else
-					SV_RemoveEffect(to, ent, SEEF_DARKLIGHT);
+					if ((int)ent->v.effects & EFNQ_DARKLIGHT)
+						SV_AddEffect(to, ent, SEEF_DARKLIGHT);
+					else
+						removeeffects |= 1<<SEEF_DARKLIGHT;
 
-				if ((int)ent->v.effects & EFNQ_DARKFIELD)
-					SV_AddEffect(to, ent, SEEF_DARKFIELD);
-				else
-					SV_RemoveEffect(to, ent, SEEF_DARKFIELD);
+					if ((int)ent->v.effects & EFNQ_DARKFIELD)
+						SV_AddEffect(to, ent, SEEF_DARKFIELD);
+					else
+						removeeffects |= 1<<SEEF_DARKFIELD;
 
-				if ((int)ent->v.effects & EFNQ_LIGHT)
-					SV_AddEffect(to, ent, SEEF_LIGHT);
-				else
-					SV_RemoveEffect(to, ent, SEEF_LIGHT);
+					if ((int)ent->v.effects & EFNQ_LIGHT)
+						SV_AddEffect(to, ent, SEEF_LIGHT);
+					else
+						removeeffects |= 1<<SEEF_LIGHT;
+				}
 			}
-		}
-		else
-		{
-			if ((int)ent->v.effects & (EF_BRIGHTFIELD|EFQW_DARKLIGHT|EFQW_DARKFIELD|EFQW_LIGHT) || to->enteffects)
+			else
 			{
-				if ((int)ent->v.effects & EF_BRIGHTFIELD)
-					SV_AddEffect(to, ent, SEEF_BRIGHTFIELD);
-				else
-					SV_RemoveEffect(to, ent, SEEF_BRIGHTFIELD);
+				if ((int)ent->v.effects & (EF_BRIGHTFIELD|EFQW_DARKLIGHT|EFQW_DARKFIELD|EFQW_LIGHT) || to->enteffects)
+				{
+					if ((int)ent->v.effects & EF_BRIGHTFIELD)
+						SV_AddEffect(to, ent, SEEF_BRIGHTFIELD);
+					else
+						removeeffects |= 1<<SEEF_BRIGHTFIELD;
 
-				if ((int)ent->v.effects & EFQW_DARKLIGHT)
-					SV_AddEffect(to, ent, SEEF_DARKLIGHT);
-				else
-					SV_RemoveEffect(to, ent, SEEF_DARKLIGHT);
+					if ((int)ent->v.effects & EFQW_DARKLIGHT)
+						SV_AddEffect(to, ent, SEEF_DARKLIGHT);
+					else
+						removeeffects |= 1<<SEEF_DARKLIGHT;
 
-				if ((int)ent->v.effects & EFQW_DARKFIELD)
-					SV_AddEffect(to, ent, SEEF_DARKFIELD);
-				else
-					SV_RemoveEffect(to, ent, SEEF_DARKFIELD);
+					if ((int)ent->v.effects & EFQW_DARKFIELD)
+						SV_AddEffect(to, ent, SEEF_DARKFIELD);
+					else
+						removeeffects |= 1<<SEEF_DARKFIELD;
 
-				if ((int)ent->v.effects & EFQW_LIGHT)
-					SV_AddEffect(to, ent, SEEF_LIGHT);
-				else
-					SV_RemoveEffect(to, ent, SEEF_LIGHT);
+					if ((int)ent->v.effects & EFQW_LIGHT)
+						SV_AddEffect(to, ent, SEEF_LIGHT);
+					else
+						removeeffects |= 1<<SEEF_LIGHT;
+				}
 			}
+			if (to->enteffects)
+				SV_RemoveEffect(to, ent, removeeffects);
 		}
 	}
-
 }
 /*
 =============
@@ -1868,8 +1891,22 @@ void SV_WriteEntitiesToClient (client_t *client, sizebuf_t *msg, qboolean ignore
 
 		if (!ignorepvs)
 		{
-			if (!sv.worldmodel->funcs.EdictInFatPVS(ent))
-				continue;
+			if (ent->tagent)
+			{
+				edict_t *p = ent;
+				int c = 10;
+				while(p->tagent&&c-->0)
+				{
+					p = EDICT_NUM(svprogfuncs, p->tagent);
+				}
+				if (!sv.worldmodel->funcs.EdictInFatPVS(p))
+					continue;
+			}
+			else
+			{
+				if (!sv.worldmodel->funcs.EdictInFatPVS(ent))
+					continue;
+			}
 			/*
 #ifdef Q2BSPS
 			if (sv.worldmodel->fromgame == fg_quake2 || sv.worldmodel->fromgame == fg_quake3)

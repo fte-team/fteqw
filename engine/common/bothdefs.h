@@ -100,6 +100,8 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 		#define IN_XFLIP		//allow input to be flipped horizontally.
 		#define TEXTEDITOR
 
+		#define PLUGINS
+
 //		#define VOICECHAT	//experimental
 
 //these things were moved to plugins.
@@ -153,6 +155,7 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 	#undef EMAILCLIENT
 	#undef TEXTEDITOR
 	#undef RUNTIMELIGHTING
+	#undef PLUGINS	//we don't have any server side stuff.
 #endif
 #ifdef CLIENTONLY	//remove optional server componants that make no sence on a client only build.
 	#undef Q2SERVER

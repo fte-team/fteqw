@@ -90,8 +90,8 @@ typedef struct cvar_group_s
 #define CVAR_POINTER		32	// q2 style. May be converted to q1 if needed. These are often specified on the command line and then converted into q1 when registered properly.
 #define CVAR_NOTFROMSERVER	64
 #define CVAR_USERCREATED	128	//write a 'set' or 'seta' in front of the var name.
-#define CVAR_CHEAT			256	//latch from 0 unless cheats are enabled.
-#define CVAR_SEMICHEAT		512	//if strict ruleset, force to 0.
+#define CVAR_CHEAT			256	//latch to the default, unless cheats are enabled.
+#define CVAR_SEMICHEAT		512	//if strict ruleset, force to 0/blank.
 #define CVAR_RENDERERLATCH	1024
 #define CVAR_SERVEROVERRIDE 2048	//
 

@@ -54,6 +54,7 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 #define PEXT_256PACKETENTITIES	0x01000000	//Client can recieve 256 packet entities.
 //#define PEXT_64PLAYERS			0x02000000	//Client is able to cope with 64 players. Wow.
 #define PEXT_SHOWPIC			0x04000000
+#define PEXT_SETATTACHMENT		0x08000000	//md3 tags (needs networking, they need to lerp).
 
 
 
@@ -223,6 +224,8 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 #define svc_hidepic			70
 #define svc_movepic			71
 #define svc_updatepic		72
+
+#define svc_setattachment	73
 
 #define svc_invalid			256
 

@@ -74,9 +74,11 @@ cvar_t	v_idlescale = {"v_idlescale", "0", NULL};
 
 cvar_t	crosshair = {"crosshair", "0", NULL, CVAR_ARCHIVE};
 cvar_t	crosshaircolor = {"crosshaircolor", "79", NULL, CVAR_ARCHIVE};
+cvar_t	crosshairsize = {"crosshairsize", "8", NULL, CVAR_ARCHIVE};
 
 cvar_t  cl_crossx = {"cl_crossx", "0", NULL, CVAR_ARCHIVE};
 cvar_t  cl_crossy = {"cl_crossy", "0", NULL, CVAR_ARCHIVE};
+cvar_t	crosshaircorrect = {"crosshaircorrect", "0", NULL, CVAR_SEMICHEAT};
 
 cvar_t	gl_cshiftpercent = {"gl_cshiftpercent", "100"};
 
@@ -1440,6 +1442,8 @@ void V_Init (void)
 
 	Cvar_Register (&crosshaircolor, VIEWVARS);
 	Cvar_Register (&crosshair, VIEWVARS);
+	Cvar_Register (&crosshairsize, VIEWVARS);
+	Cvar_Register (&crosshaircorrect, VIEWVARS);
 	Cvar_Register (&cl_crossx, VIEWVARS);
 	Cvar_Register (&cl_crossy, VIEWVARS);
 	Cvar_Register (&gl_cshiftpercent, VIEWVARS);

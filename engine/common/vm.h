@@ -19,6 +19,7 @@ typedef struct vm_s vm_t;
 #define VM_LONG(x)		(*(long*)&(x))
 #define VM_FLOAT(x)		(*(float*)&(x))
 #define VM_POINTER(x)	((x)?(void*)((char *)offset+((x)%mask)):NULL)
+#define VM_OOB(p,l)		(p + l >= mask || VM_POINTER(p) < offset)
 // ------------------------- * interface * -------------------------
 
 void VM_PrintInfo(vm_t *vm);

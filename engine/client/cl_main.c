@@ -153,7 +153,11 @@ qbyte		*host_colormap;
 
 cvar_t	host_speeds = {"host_speeds","0"};			// set for running times
 cvar_t	show_fps = {"show_fps","0"};			// set for running times
+#ifdef CRAZYDEBUGGING
+cvar_t	developer = {"developer","1"};
+#else
 cvar_t	developer = {"developer","0"};
+#endif
 
 int			fps_count;
 
@@ -316,6 +320,7 @@ void CL_SendConnectPacket (
 	fteprotextsupported |= PEXT_256PACKETENTITIES;
 //	fteprotextsupported |= PEXT_64PLAYERS;
 	fteprotextsupported |= PEXT_SHOWPIC;
+	fteprotextsupported |= PEXT_SETATTACHMENT;
 
 	fteprotextsupported &= ftepext;
 

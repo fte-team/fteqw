@@ -6,12 +6,16 @@
 
 #ifdef PLUGINS
 
+#include "glquake.h"
+
 typedef struct plugin_s {
 	char *name;
 	vm_t *vm;
 	int tick;
 	int executestring;
 	int menufunction;
+	int sbarlevel[3];	//0 - main sbar, 1 - supplementry sbar sections (make sure these can be switched off), 2 - overlays (scoreboard). menus kill all.
+	int reschange;
 
 	struct plugin_s *next;
 } plugin_t;
@@ -169,6 +173,9 @@ plugin_t *Plug_Load(char *file)
 
 		argarray = (int)"Plug_GetEngineFunction";
 		VM_Call(newplug->vm, 0, Plug_FindBuiltin(NULL, ~0, &argarray));
+
+		if (newplug->reschange)
+			VM_Call(newplug->vm, newplug->reschange, vid.width, vid.height);
 	}
 	else
 	{
@@ -209,11 +216,79 @@ int Plug_ExportToEngine(void *offset, unsigned int mask, const long *arg)
 		currentplug->executestring = arg[1];
 	else if (!strcmp(name, "MenuEvent"))
 		currentplug->menufunction = arg[1];
+	else if (!strcmp(name, "UpdateVideo"))
+		currentplug->reschange = arg[1];
 	else
 		return 0;
 	return 1;
 }
-//void(char *buffer, int buffersize)
+
+typedef struct {
+	//Make SURE that the engine has resolved all cvar pointers into globals before this happens.
+	plugin_t *plugin;
+	cvar_t *var;
+} plugincvararray_t;
+int plugincvararraylen;
+plugincvararray_t *plugincvararray;
+//qhandle_t Cvar_Register (char *name, char *defaultval, int flags, char *grouphint);
+int Plug_Cvar_Register(void *offset, unsigned int mask, const long *arg)
+{
+	char *name = VM_POINTER(arg[0]);
+	char *defaultvalue = VM_POINTER(arg[1]);
+	unsigned int flags = VM_LONG(arg[2]);
+	char *groupname = VM_POINTER(arg[3]);
+	cvar_t *var;
+	int i;
+
+	var = Cvar_Get(name, defaultvalue, flags&1, groupname);
+
+	for (i = 0; i < plugincvararraylen; i++)
+	{
+		if (!plugincvararray[i].var)
+		{	//hmm... a gap...
+			plugincvararray[i].plugin = currentplug;
+			plugincvararray[i].var = var;
+			return i;
+		}
+	}
+
+	plugincvararray = BZ_Realloc(plugincvararray, (plugincvararraylen+1)*sizeof(plugincvararray_t));
+	plugincvararray[plugincvararraylen].plugin = currentplug;
+	plugincvararray[plugincvararraylen].var = var;
+	plugincvararraylen++;
+	return plugincvararraylen-1;
+}
+//int Cvar_Update, (qhandle_t handle, int modificationcount, char *stringv, float *floatv));	//stringv is 256 chars long, don't expect this function to do anything if modification count is unchanged.
+int Plug_Cvar_Update(void *offset, unsigned int mask, const long *arg)
+{
+	int handle;
+	int modcount;
+	char *stringv;	//255 bytes long.
+	float *floatv;
+	cvar_t *var;
+	handle = VM_LONG(arg[0]);
+	if (handle < 0 || handle >= plugincvararraylen)
+		return 0;
+	if (plugincvararray[handle].plugin != currentplug)
+		return 0;	//I'm not letting you know what annother plugin has registered.
+
+	if (VM_OOB(arg[2], 256) || VM_OOB(arg[3], 4))	//Oi, plugin - you screwed up
+		return 0;
+
+	modcount = VM_LONG(arg[1]);
+	stringv = VM_POINTER(arg[2]);
+	floatv = VM_POINTER(arg[3]);
+
+	var = plugincvararray[handle].var;
+
+
+	strcpy(stringv, var->string);
+	*floatv = var->value;
+
+	return var->modified;
+}
+
+//void Cmd_Args(char *buffer, int buffersize)
 int Plug_Cmd_Args(void *offset, unsigned int mask, const long *arg)
 {
 	char *buffer = (char*)VM_POINTER(arg[0]);
@@ -224,7 +299,7 @@ int Plug_Cmd_Args(void *offset, unsigned int mask, const long *arg)
 	strcpy(buffer, args);
 	return 1;
 }
-//void(int num, char *buffer, int buffersize)
+//void Cmd_Argv(int num, char *buffer, int buffersize)
 int Plug_Cmd_Argv(void *offset, unsigned int mask, const long *arg)
 {
 	char *buffer = (char*)VM_POINTER(arg[1]);
@@ -235,7 +310,7 @@ int Plug_Cmd_Argv(void *offset, unsigned int mask, const long *arg)
 	strcpy(buffer, args);
 	return 1;
 }
-//int(void)
+//int Cmd_Argc(void)
 int Plug_Cmd_Argc(void *offset, unsigned int mask, const long *arg)
 {
 	return Cmd_Argc();
@@ -245,39 +320,221 @@ int Plug_Menu_Control(void *offset, unsigned int mask, const long *arg)
 {
 	switch(VM_LONG(arg[0]))
 	{
-	case 0: //weather it's us or not.
-		return currentplug == menuplug && m_state == m_plugin;
-	case 1:	//weather a menu is active
-		return key_dest == key_menu;
-	case 2:	//give us menu control
+	case 0:	//take away all menus
+	case 1:
+		if (menuplug)
+		{
+			plugin_t *oldplug = currentplug;
+			currentplug = menuplug;
+			Plug_Menu_Event(3, 0);
+			menuplug = NULL;
+			currentplug = oldplug;
+			key_dest = key_game;
+		}
+		if (VM_LONG(arg[0]) != 1)
+			return 1;
+		//give us menu control
 		menuplug = currentplug;
 		key_dest = key_menu;
+		m_state = m_plugin;
 		return 1;
+	case 2: //weather it's us or not.
+		return currentplug == menuplug && m_state == m_plugin;
+	case 3:	//weather a menu is active
+		return key_dest == key_menu;
 	default:
 		return 0;
 	}
 }
 
+int Plug_Draw_Character(void *offset, unsigned int mask, const long *arg)
+{
+	Draw_Character(arg[0], arg[1], (unsigned int)arg[2]);
+	return 0;
+}
+
+int Plug_Draw_Fill(void *offset, unsigned int mask, const long *arg)
+{
+	return 0;
+}
+
+//hrm.... FIXME!
+int Plug_Draw_ColourP(void *offset, unsigned int mask, const long *arg)
+{
+	extern unsigned char	vid_curpal[256*3];
+	qbyte *pal = vid_curpal + VM_LONG(arg[0])*3;
+
+	if (arg[0]<0 || arg[0]>255)
+		return false;
+
+	switch(qrenderer)
+	{
+	case QR_OPENGL:
+		glColor3f(pal[0]/255.0f, pal[1]/255.0f, pal[2]/255.0f);
+		break;
+	case QR_SOFTWARE:
+		SWDraw_ImageColours(pal[0]/255.0f, pal[1]/255.0f, pal[2]/255.0f, 1);
+		break;
+	default:
+		return 0;
+	}
+	return 1;
+}
+
+int Plug_Draw_Colour3f(void *offset, unsigned int mask, const long *arg)
+{
+	switch(qrenderer)
+	{
+	case QR_OPENGL:
+		glColor3f(VM_FLOAT(arg[0]), VM_FLOAT(arg[1]), VM_FLOAT(arg[2]));
+		break;
+	case QR_SOFTWARE:
+		SWDraw_ImageColours(VM_FLOAT(arg[0]), VM_FLOAT(arg[1]), VM_FLOAT(arg[2]), 1);
+		break;
+	default:
+		return 0;
+	}
+	return 1;
+}
+int Plug_Draw_Colour4f(void *offset, unsigned int mask, const long *arg)
+{
+	switch(qrenderer)
+	{
+	case QR_OPENGL:
+		glColor4f(VM_FLOAT(arg[0]), VM_FLOAT(arg[1]), VM_FLOAT(arg[2]), VM_FLOAT(arg[3]));
+		break;
+	case QR_SOFTWARE:
+		SWDraw_ImageColours(VM_FLOAT(arg[0]), VM_FLOAT(arg[1]), VM_FLOAT(arg[2]), VM_FLOAT(arg[3]));
+		break;
+	default:
+		return 0;
+	}
+	return 1;
+}
+
+int Plug_Key_GetKeyCode(void *offset, unsigned int mask, const long *arg)
+{
+	int modifier;
+	return Key_StringToKeynum(VM_POINTER(arg[0]), &modifier);
+}
+
+//void Cvar_SetString (char *name, char *value);
+int Plug_Cvar_SetString(void *offset, unsigned int mask, const long *arg)
+{
+	char *name = VM_POINTER(arg[0]),
+		*value = VM_POINTER(arg[1]);
+	cvar_t *var = Cvar_Get(name, value, 0, "Plugin vars");
+	if (var)
+	{
+		Cvar_Set(var, value);
+		return 1;
+	}
+
+	return 0;
+}
+
+//void Cvar_SetFloat (char *name, float value);
+int Plug_Cvar_SetFloat(void *offset, unsigned int mask, const long *arg)
+{
+	char *name = VM_POINTER(arg[0]);
+	float value = VM_FLOAT(arg[1]);
+	cvar_t *var = Cvar_Get(name, "", 0, "Plugin vars");	//"" because I'm lazy
+	if (var)
+	{
+		Cvar_SetValue(var, value);
+		return 1;
+	}
+
+	return 0;
+}
+
+//void Cvar_GetFloat (char *name);
+int Plug_Cvar_GetFloat(void *offset, unsigned int mask, const long *arg)
+{
+	char *name = VM_POINTER(arg[0]);
+	float value = VM_FLOAT(arg[1]);
+	int ret;
+	cvar_t *var = Cvar_Get(name, "", 0, "Plugin vars");
+	if (var)
+	{
+		VM_FLOAT(ret) = var->value;
+	}
+	else
+		VM_FLOAT(ret) = 0;
+	return ret;
+}
+
+//qboolean Cvar_GetString (char *name, char *retstring, int sizeofretstring);
+int Plug_Cvar_GetString(void *offset, unsigned int mask, const long *arg)
+{
+	char *name, *ret;
+	int retsize;
+	cvar_t *var;
+	if (VM_OOB(arg[1], arg[2]))
+	{
+		return false;
+	}
+
+	name = VM_POINTER(arg[0]);
+	ret = VM_POINTER(arg[1]);
+	retsize = VM_LONG(arg[2]);
+
+
+	var = Cvar_Get(name, "", 0, "Plugin vars");
+	if (strlen(var->name)+1 > retsize)
+		return false;
+
+	strcpy(ret, var->string);
+
+	return true;
+}
+
+//void Cmd_AddText (char *text, qboolean insert);	//abort the entire engine.
+int Plug_Cmd_AddText(void *offset, unsigned int mask, const long *arg)
+{
+	if (VM_LONG(arg[1]))
+		Cbuf_InsertText(VM_POINTER(arg[0]), RESTRICT_LOCAL);
+	else
+		Cbuf_AddText(VM_POINTER(arg[0]), RESTRICT_LOCAL);
+
+	return 1;
+}
+
 void Plug_Init(void)
 {
-	Plug_RegisterBuiltin("Plug_GetEngineFunction", Plug_FindBuiltin, 0);//plugin wishes to find a builtin number.
-	Plug_RegisterBuiltin("Plug_ExportToEngine", Plug_ExportToEngine, 0);	//plugin has a call back that we might be interested in.
-	Plug_RegisterBuiltin("Con_Print", Plug_Con_Print, 0);	//printf is not possible - qvm floats are never doubles, vararg floats in a cdecl call are always converted to doubles.
-	Plug_RegisterBuiltin("Sys_Error", Plug_Sys_Error, 0);
-	Plug_RegisterBuiltin("Com_Error", Plug_Sys_Error, 0);	//make zquake programmers happy.
+	Plug_RegisterBuiltin("Plug_GetEngineFunction",	Plug_FindBuiltin, 0);//plugin wishes to find a builtin number.
+	Plug_RegisterBuiltin("Plug_ExportToEngine",		Plug_ExportToEngine, 0);	//plugin has a call back that we might be interested in.
+	Plug_RegisterBuiltin("Con_Print",				Plug_Con_Print, 0);	//printf is not possible - qvm floats are never doubles, vararg floats in a cdecl call are always converted to doubles.
+	Plug_RegisterBuiltin("Sys_Error",				Plug_Sys_Error, 0);
+	Plug_RegisterBuiltin("Com_Error",				Plug_Sys_Error, 0);	//make zquake programmers happy.
 
-	Plug_RegisterBuiltin("Cmd_Args", Plug_Cmd_Args, 0);
-	Plug_RegisterBuiltin("Cmd_Argc", Plug_Cmd_Argc, 0);
-	Plug_RegisterBuiltin("Cmd_Argv", Plug_Cmd_Argv, 0);
+	Plug_RegisterBuiltin("Cmd_Args",				Plug_Cmd_Args, 0);
+	Plug_RegisterBuiltin("Cmd_Argc",				Plug_Cmd_Argc, 0);
+	Plug_RegisterBuiltin("Cmd_Argv",				Plug_Cmd_Argv, 0);
+	Plug_RegisterBuiltin("Cmd_AddText",				Plug_Cmd_AddText, 0);
 
-	Plug_RegisterBuiltin("Menu_Control", Plug_Menu_Control, 0);
+	Plug_RegisterBuiltin("Menu_Control",			Plug_Menu_Control, 0);
+
+	Plug_RegisterBuiltin("Cvar_Register",			Plug_Cvar_Register, 0);
+	Plug_RegisterBuiltin("Cvar_SetString",			Plug_Cvar_SetString, 0);
+	Plug_RegisterBuiltin("Cvar_SetFloat",			Plug_Cvar_SetFloat, 0);
+	Plug_RegisterBuiltin("Cvar_GetString",			Plug_Cvar_GetString, 0);
+	Plug_RegisterBuiltin("Cvar_GetFloat",			Plug_Cvar_GetFloat, 0);
+
+	Plug_RegisterBuiltin("Draw_Character",			Plug_Draw_Character, 0);
+	Plug_RegisterBuiltin("Draw_Fill",				Plug_Draw_Fill, 0);
+	Plug_RegisterBuiltin("Draw_Colourp",			Plug_Draw_ColourP, 0);
+	Plug_RegisterBuiltin("Draw_Colour3f",			Plug_Draw_Colour3f, 0);
+	Plug_RegisterBuiltin("Draw_Colour4f",			Plug_Draw_Colour4f, 0);
+
+	Plug_RegisterBuiltin("Key_GetKeyCode",			Plug_Key_GetKeyCode, 0);
 
 #ifdef _WIN32
-	COM_EnumerateFiles("plugins/*x86.dll", Plug_Emumerated, "x86.dll");
+	COM_EnumerateFiles("plugins/*x86.dll",	Plug_Emumerated, "x86.dll");
 #elif defined(__linux__)
-	COM_EnumerateFiles("plugins/*x86.so", Plug_Emumerated, "x86.so");
+	COM_EnumerateFiles("plugins/*x86.so",	Plug_Emumerated, "x86.so");
 #endif
-	COM_EnumerateFiles("plugins/*.qvm", Plug_Emumerated, ".qvm");
+	COM_EnumerateFiles("plugins/*.qvm",		Plug_Emumerated, ".qvm");
 }
 
 void Plug_Tick(void)
@@ -291,6 +548,17 @@ void Plug_Tick(void)
 			VM_Call(plug->vm, plug->tick, (int)(realtime*1000));
 		}
 	}
+}
+
+void Plug_ResChanged(void)
+{
+	plugin_t *oldplug = currentplug;
+	for (currentplug = plugs; currentplug; currentplug = currentplug->next)
+	{
+		if (currentplug->reschange)
+			VM_Call(currentplug->vm, currentplug->reschange, vid.width, vid.height);
+	}
+	currentplug = oldplug;
 }
 
 qboolean Plugin_ExecuteString(void)

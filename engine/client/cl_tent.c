@@ -169,6 +169,7 @@ sfx_t			*cl_sfx_ric3;
 sfx_t			*cl_sfx_r_exp3;
 
 cvar_t	cl_expsprite = {"cl_expsprite", "0"};
+cvar_t	cl_truelightning = {"cl_truelightning", "0",	NULL, CVAR_SEMICHEAT};
 
 /*
 =================
@@ -186,6 +187,7 @@ void CL_InitTEnts (void)
 	cl_sfx_r_exp3 = S_PrecacheSound ("weapons/r_exp3.wav");
 
 	Cvar_Register (&cl_expsprite, "Temporary entity control");
+	Cvar_Register (&cl_truelightning, "Temporary entity control");
 }
 
 #ifdef Q2CLIENT
@@ -1667,6 +1669,8 @@ void CL_UpdateBeams (void)
 	float		yaw, pitch;
 	float		forward, offset;
 
+	extern cvar_t cl_truelightning;
+
 // update lightning
 	for (i=0, b=cl_beams ; i< MAX_BEAMS ; i++, b++)
 	{
@@ -1683,12 +1687,13 @@ void CL_UpdateBeams (void)
 
 
 			//rotate the end point to face in the view direction. This gives a smoother shafting. turning looks great.
-			VectorSubtract (b->end, b->start, dist);
-			d = VectorNormalize(dist);
-			AngleVectors (cl.simangles[0], b->end, dist, org);
-			VectorMA(b->start, d, b->end, b->end);
-
-//			b->start[2] -= cl.viewheight;	// adjust for view height?
+			if (cl_truelightning.value)
+			{
+				VectorSubtract (b->end, b->start, dist);
+				d = VectorNormalize(dist);
+				AngleVectors (cl.simangles[0], b->end, dist, org);
+				VectorMA(b->start, d, b->end, b->end);
+			}
 		}
 		else if (b->flags & STREAM_ATTACHED)
 		{

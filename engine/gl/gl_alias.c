@@ -1925,6 +1925,7 @@ void GL_LoadQ1Model (model_t *mod, void *buffer)
 // move the complete, relocatable alias model to the cache
 //	
 	hunkend = Hunk_LowMark ();
+	Hunk_Alloc(0);
 	hunktotal = hunkend - hunkstart;
 	
 	Cache_Alloc (&mod->cache, hunktotal, loadname);

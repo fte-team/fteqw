@@ -387,6 +387,7 @@ static void SP_RecalcXY ( float *xx, float *yy, int origin )
 }
 void SCR_ShowPics_Draw(void)
 {
+	downloadlist_t *failed;
 	float x, y;
 	showpic_t *sp;
 	qpic_t *p;
@@ -395,9 +396,18 @@ void SCR_ShowPics_Draw(void)
 		x = sp->x;
 		y = sp->y;
 		SP_RecalcXY(&x, &y, sp->zone);
-		p = Draw_SafeCachePic(sp->picname);
 		if (!*sp->picname)
 			continue;
+
+		for (failed = cl.faileddownloads; failed; failed = failed->next)
+		{	//don't try displaying ones that we know to have failed.
+			if (!strcmp(failed->name, sp->picname))
+				break;
+		}
+		if (failed)
+			continue;
+
+		p = Draw_SafeCachePic(sp->picname);
 		if (!p)
 			continue;
 		Draw_Pic(x, y, p);
@@ -675,6 +685,49 @@ void SCR_CalcRefdef (void)
 	scr_vrect = r_refdef.vrect;
 }
 
+void SCR_CrosshairPosition(int pnum, int *x, int *y)
+{
+	extern cvar_t cl_crossx, cl_crossy, crosshaircorrect;
+
+	vrect_t rect;
+	SCR_VRectForPlayer(&rect, pnum);
+
+	if (cl.worldmodel && crosshaircorrect.value)
+	{
+		trace_t tr;
+		vec3_t end;
+		vec3_t start;
+		vec3_t right, up, fwds;
+
+		AngleVectors(cl.viewangles[pnum], fwds, right, up);
+		VectorMA(cl.simorg[pnum], 100000, fwds, end);
+
+		memset(&tr, 0, sizeof(tr));
+		tr.fraction = 1;
+		cl.worldmodel->hulls->funcs.RecursiveHullCheck (cl.worldmodel->hulls, 0, 0, 1, cl.simorg[pnum], end, &tr);
+		if (tr.fraction == 1)
+		{
+			*x = rect.x + rect.width/2 + cl_crossx.value; 
+			*y = rect.y + rect.height/2 + cl_crossy.value;
+			return;
+		}
+		else
+		{
+			VectorCopy(cl.simorg[pnum], start);
+			start[2] -= cl.viewheight[pnum]/4;
+			ML_Project(tr.endpos, end, cl.viewangles[pnum], start, (float)rect.width/rect.height);
+			*x = rect.x+rect.width*end[0];
+			*y = rect.y+rect.height*end[1];
+			return;
+		}
+	}
+	else
+	{
+		*x = rect.x + rect.width/2 + cl_crossx.value; 
+		*y = rect.y + rect.height/2 + cl_crossy.value;
+		return;
+	}
+}
 
 /*
 =================
@@ -817,6 +870,12 @@ void SCR_DrawFPS (void)
 	sprintf(st, "%3.1f FPS", lastfps);
 	x = vid.width - strlen(st) * 8 - 8;
 	y = vid.height - sb_lines - 8;
+//	Draw_TileClear(x, y, strlen(st) * 8, 8);
+	Draw_String(x, y, st);
+
+	sprintf(st, "%3.1f UPS", Length(cl.simvel[0]));
+	x = vid.width - strlen(st) * 8 - 8;
+	y = vid.height - sb_lines - 16;
 //	Draw_TileClear(x, y, strlen(st) * 8, 8);
 	Draw_String(x, y, st);
 }

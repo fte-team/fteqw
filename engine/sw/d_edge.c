@@ -198,6 +198,7 @@ void D_DrawSurfaces (void)
 	vec3_t			world_transformed_modelorg;
 	vec3_t			local_modelorg;
 	extern int r_dosirds;
+	extern cvar_t r_fastsky, r_fastskycolour;
 
 	currententity = &r_worldentity;
 	TransformVector (modelorg, transformed_modelorg);
@@ -253,17 +254,24 @@ void D_DrawSurfaces (void)
 			{
 				if (r_worldentity.model->fromgame == fg_halflife)
 					continue;
-				if (!r_skymade)
+				if (r_fastsky.value)
 				{
-					R_MakeSky ();
+					D_DrawSolidSurface (s, (int)r_fastskycolour.value & 0xFF);
 				}
-
-				if (r_pixbytes == 4)
-					D_DrawSkyScans32 (s->spans);
-				else if (r_pixbytes == 2)
-					D_DrawSkyScans16 (s->spans);
 				else
-					D_DrawSkyScans8 (s->spans);
+				{
+					if (!r_skymade)
+					{
+						R_MakeSky ();
+					}
+
+					if (r_pixbytes == 4)
+						D_DrawSkyScans32 (s->spans);
+					else if (r_pixbytes == 2)
+						D_DrawSkyScans16 (s->spans);
+					else
+						D_DrawSkyScans8 (s->spans);
+				}
 				D_DrawZSpans (s->spans);
 			}
 			else if (s->flags & SURF_DRAWSKYBOX)

@@ -1481,22 +1481,39 @@ qbyte *Read32BitImageFile(qbyte *buf, int len, int *width, int *height)
 {
 	qbyte *data;
 	if ((data = ReadTargaFile(buf, len, width, height, false)))
+	{
+		TRACE(("dbg: Read32BitImageFile: tga\n"));
 		return data;
+	}
 	
 #ifdef AVAIL_PNGLIB
 	if ((buf[0] == 137 && buf[1] == 'P' && buf[2] == 'N' && buf[3] == 'G') && (data = ReadPNGFile(buf, com_filesize, width, height)))
+	{
+		TRACE(("dbg: Read32BitImageFile: png\n"));
 		return data;
+	}
 #endif
 #ifdef AVAIL_JPEGLIB
 	//jpeg jfif only.
 	if ((buf[0] == 0xff && buf[1] == 0xd8 && buf[2] == 0xff && buf[3] == 0xe0) && (data = ReadJPEGFile(buf, com_filesize, width, height)))
+	{
+		TRACE(("dbg: Read32BitImageFile: jpeg\n"));
 		return data;
+	}
 #endif
-	if ((data = ReadPCXFile(buf, com_filesize, width, height)))		
+	if ((data = ReadPCXFile(buf, com_filesize, width, height)))
+	{
+		TRACE(("dbg: Read32BitImageFile: pcx\n"));
 		return data;
+	}
 
 	if ((buf[0] == 'B' && buf[1] == 'M') && (data = ReadBMPFile(buf, com_filesize, width, height)))
+	{
+		TRACE(("dbg: Read32BitImageFile: bitmap\n"));
 		return data;
+	}
+
+	TRACE(("dbg: Read32BitImageFile: life sucks\n"));
 
 	return NULL;
 }
@@ -1573,12 +1590,14 @@ int Mod_LoadHiResTexture(char *name, qboolean mipmap, qboolean alpha, qboolean c
 			}
 			else
 				_snprintf(fname, sizeof(fname)-1, path[i], nicename, extensions[e]);
+			TRACE(("dbg: Mod_LoadHiResTexture: trying %s\n", fname));
 			if ((buf = COM_LoadFile (fname, 5)))
 			{
 				if ((data = Read32BitImageFile(buf, com_filesize, &image_width, &image_height)))
 				{
 					if (colouradjust)
 						BoostGamma(data, image_width, image_height);
+					TRACE(("dbg: Mod_LoadHiResTexture: %s loaded\n", name));
 					len = GL_LoadTexture32 (name, image_width, image_height, (unsigned*)data, mipmap, alpha);
 					BZ_Free(data);
 
@@ -1631,6 +1650,8 @@ int Mod_LoadBumpmapTexture(char *name)
 
 	int i, e;
 
+	TRACE(("dbg: Mod_LoadBumpmapTexture: texture %s\n", name));
+
 	COM_StripExtension(name, nicename);
 
 	if ((len = GL_FindTexture(name))!=-1)	//don't bother if it already exists.
@@ -1662,10 +1683,14 @@ int Mod_LoadBumpmapTexture(char *name)
 			}
 			else
 				_snprintf(fname, sizeof(fname)-1, path[i], nicename, extensions[e]);
+
+			TRACE(("dbg: Mod_LoadBumpmapTexture: opening %s\n", fname));
+
 			if ((buf = COM_LoadFile (fname, 5)))
 			{
 				if ((data = ReadTargaFile(buf, com_filesize, &image_width, &image_height, 2)))	//Only load a greyscale image.
 				{
+					TRACE(("dbg: Mod_LoadBumpmapTexture: tga %s loaded\n", name));
 					len = GL_LoadTexture8Bump(name, image_width, image_height, data, true);
 					BZ_Free(data);
 				}

@@ -83,6 +83,7 @@ void SV_CheckAllEnts (void)
 			continue;
 		if (check->v.movetype == MOVETYPE_PUSH
 		|| check->v.movetype == MOVETYPE_NONE
+		|| check->v.movetype == MOVETYPE_FOLLOW
 		|| check->v.movetype == MOVETYPE_NOCLIP)
 			continue;
 
@@ -665,6 +666,7 @@ qboolean SV_Push (edict_t *pusher, vec3_t move, vec3_t amove)
 			continue;
 		if (check->v.movetype == MOVETYPE_PUSH
 		|| check->v.movetype == MOVETYPE_NONE
+		|| check->v.movetype == MOVETYPE_FOLLOW
 		|| check->v.movetype == MOVETYPE_NOCLIP)
 			continue;
 
@@ -854,6 +856,51 @@ void SV_Physics_None (edict_t *ent)
 {
 // regular thinking
 	SV_RunThink (ent);
+}
+
+
+/*
+=============
+SV_Physics_Follow
+
+Entities that are "stuck" to another entity
+=============
+*/
+void SV_Physics_Follow (edict_t *ent)
+{
+	vec3_t vf, vr, vu, angles, v;
+	edict_t *e;
+
+	// regular thinking
+	if (!SV_RunThink (ent))
+		return;
+
+	// LordHavoc: implemented rotation on MOVETYPE_FOLLOW objects
+	e = PROG_TO_EDICT(svprogfuncs, ent->v.aiment);
+	if (e->v.angles[0] == ent->v.punchangle[0] && e->v.angles[1] == ent->v.punchangle[1] && e->v.angles[2] == ent->v.punchangle[2])
+	{
+		// quick case for no rotation
+		VectorAdd(e->v.origin, ent->v.view_ofs, ent->v.origin);
+	}
+	else
+	{
+		angles[0] = -ent->v.punchangle[0];
+		angles[1] =  ent->v.punchangle[1];
+		angles[2] =  ent->v.punchangle[2];
+		AngleVectors (angles, vf, vr, vu);
+		v[0] = ent->v.view_ofs[0] * vf[0] + ent->v.view_ofs[1] * vr[0] + ent->v.view_ofs[2] * vu[0];
+		v[1] = ent->v.view_ofs[0] * vf[1] + ent->v.view_ofs[1] * vr[1] + ent->v.view_ofs[2] * vu[1];
+		v[2] = ent->v.view_ofs[0] * vf[2] + ent->v.view_ofs[1] * vr[2] + ent->v.view_ofs[2] * vu[2];
+		angles[0] = -e->v.angles[0];
+		angles[1] =  e->v.angles[1];
+		angles[2] =  e->v.angles[2];
+		AngleVectors (angles, vf, vr, vu);
+		ent->v.origin[0] = v[0] * vf[0] + v[1] * vf[1] + v[2] * vf[2] + e->v.origin[0];
+		ent->v.origin[1] = v[0] * vr[0] + v[1] * vr[1] + v[2] * vr[2] + e->v.origin[1];
+		ent->v.origin[2] = v[0] * vu[0] + v[1] * vu[1] + v[2] * vu[2] + e->v.origin[2];
+	}
+	VectorAdd (e->v.angles, ent->v.v_angle, ent->v.angles);
+	SV_LinkEdict (ent, true);
 }
 
 /*
@@ -1439,7 +1486,7 @@ From normal Quake in an attempt to fix physics in QuakeRally
 void SV_Physics_Client (edict_t	*ent, int num)
 {
 	qboolean readyforjump;
-	float oldvel;
+//	float oldvel;
 
 	if ( svs.clients[num-1].state < cs_spawned )
 		return;		// unconnected slot
@@ -1477,25 +1524,29 @@ void SV_Physics_Client (edict_t	*ent, int num)
 		break;
 
 	case MOVETYPE_WALK:
-		oldvel = ent->v.velocity[0];
+//		oldvel = ent->v.velocity[0];
 		if (!SV_RunThink (ent))
 			return;
 		if (!SV_CheckWater (ent) && ! ((int)ent->v.flags & FL_WATERJUMP) )
 			SV_AddGravity (ent, ent->v.gravity);
 
-		if (fabs(oldvel - ent->v.velocity[0])> 100)
-			Con_Printf("grav: %f -> %f\n", oldvel, ent->v.velocity[0]);
+//		if (fabs(oldvel - ent->v.velocity[0])> 100)
+//			Con_Printf("grav: %f -> %f\n", oldvel, ent->v.velocity[0]);
 
 		SV_CheckStuck (ent);
 
-		if (fabs(oldvel - ent->v.velocity[0])> 100)
-			Con_Printf("stuck: %f -> %f\n", oldvel, ent->v.velocity[0]);
+//		if (fabs(oldvel - ent->v.velocity[0])> 100)
+//			Con_Printf("stuck: %f -> %f\n", oldvel, ent->v.velocity[0]);
 
 		SV_WalkMove (ent);
 
-		if (fabs(oldvel - ent->v.velocity[0])> 100)
-			Con_Printf("walk: %f -> %f\n", oldvel, ent->v.velocity[0]);
+//		if (fabs(oldvel - ent->v.velocity[0])> 100)
+//			Con_Printf("walk: %f -> %f\n", oldvel, ent->v.velocity[0]);
 
+		break;
+
+	case MOVETYPE_FOLLOW:
+		SV_Physics_Follow (ent);
 		break;
 
 	case MOVETYPE_TOSS:
@@ -1570,6 +1621,9 @@ void SV_RunEntity (edict_t *ent)
 	case MOVETYPE_PUSHPULL:
 		SV_Physics_Step (ent);
 		break;
+	case MOVETYPE_FOLLOW:
+		SV_Physics_Follow (ent);
+		break;
 	case MOVETYPE_TOSS:
 	case MOVETYPE_BOUNCE:
 	case MOVETYPE_BOUNCEMISSILE:
@@ -1589,7 +1643,7 @@ void SV_RunEntity (edict_t *ent)
 
 		break;
 	default:
-		SV_Error ("SV_Physics: bad movetype %i on %s", (int)ent->v.movetype, ent->v.classname);
+		SV_Error ("SV_Physics: bad movetype %i on %s", (int)ent->v.movetype, svprogfuncs->stringtable + ent->v.classname);
 	}
 
 	if (ent2 != sv.edicts)

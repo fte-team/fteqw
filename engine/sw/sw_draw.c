@@ -760,70 +760,74 @@ void SWDraw_Crosshair(void)
 	qbyte c = (qbyte)crosshaircolor.value;
 	qbyte c2 = (qbyte)crosshaircolor.value;
 
-	x = scr_vrect.x + scr_vrect.width/2 + cl_crossx.value; 
-	y = scr_vrect.y + scr_vrect.height/2 + cl_crossy.value;
-
-#define Pix(xp,yp,c) SWDraw_Pixel(x+xp, y+yp, c)
-
-	switch((int)crosshair.value)
+	int sc;
+	
+	for (sc = 0; sc < cl.splitclients; sc++)
 	{
-	case 0:
-		if (*crosshair.string>='a' && *crosshair.string<='z')
+		SCR_CrosshairPosition(sc, &x, &y);
+
+	#define Pix(xp,yp,c) SWDraw_Pixel(x+xp, y+yp, c)
+
+		switch((int)crosshair.value)
 		{
-			static qbyte *crosshairfile;	
-			static int crosshairfilesize;
-			static char cachedcrosshairfile[64];
-			int fx, fy;
-			qbyte *f;
-
-			if (!strncmp(cachedcrosshairfile, crosshair.string, sizeof(cachedcrosshairfile)))
+		case 0:
+			if (*crosshair.string>='a' && *crosshair.string<='z')
 			{
-				if (crosshairfile)
-					Z_Free(crosshairfile);
-				crosshairfile =  COM_LoadFile(va("%s.csh", crosshair.string), 0);
-				crosshairfilesize = com_filesize;
-				Q_strncpyz(cachedcrosshairfile, crosshair.string, sizeof(cachedcrosshairfile));
-			}
+				static qbyte *crosshairfile;	
+				static int crosshairfilesize;
+				static char cachedcrosshairfile[64];
+				int fx, fy;
+				qbyte *f;
 
-			f = crosshairfile;
-			if (!f)
-				return;
-			for (fy = 0; fy < 8; fy++)
-			{
-				for (fx = 0; fx < 8; )
+				if (!strncmp(cachedcrosshairfile, crosshair.string, sizeof(cachedcrosshairfile)))
 				{
-					if (f - crosshairfile > crosshairfilesize)
-					{
-						Con_Printf("Crosshair file has overrun");
-						fy=10;
-						break;
-					}
-					if (*f == 'x')
-					{
-						Pix(fx-3, fy-3, c);
-						fx++;
-					}
-					else if (*f == 'X')
-					{
-						Pix(fx-3, fy-3, c2);
-						fx++;
-					}
-					else if (*f == '0' || *f == 'o' || *f == 'O')
-						fx++;
+					if (crosshairfile)
+						Z_Free(crosshairfile);
+					crosshairfile =  COM_LoadFile(va("%s.csh", crosshair.string), 0);
+					crosshairfilesize = com_filesize;
+					Q_strncpyz(cachedcrosshairfile, crosshair.string, sizeof(cachedcrosshairfile));
+				}
 
-					f++;
-				}				
+				f = crosshairfile;
+				if (!f)
+					return;
+				for (fy = 0; fy < 8; fy++)
+				{
+					for (fx = 0; fx < 8; )
+					{
+						if (f - crosshairfile > crosshairfilesize)
+						{
+							Con_Printf("Crosshair file has overrun");
+							fy=10;
+							break;
+						}
+						if (*f == 'x')
+						{
+							Pix(fx-3, fy-3, c);
+							fx++;
+						}
+						else if (*f == 'X')
+						{
+							Pix(fx-3, fy-3, c2);
+							fx++;
+						}
+						else if (*f == '0' || *f == 'o' || *f == 'O')
+							fx++;
+
+						f++;
+					}				
+				}
 			}
+			break;
+		default:
+		case 1:
+			Draw_Character (
+				scr_vrect.x + scr_vrect.width/2-4 + cl_crossx.value, 
+				scr_vrect.y + scr_vrect.height/2-4 + cl_crossy.value, 
+				'+');
+			break;
+	#include "crosshairs.dat"
 		}
-		break;
-	default:
-	case 1:
-		Draw_Character (
-			scr_vrect.x + scr_vrect.width/2-4 + cl_crossx.value, 
-			scr_vrect.y + scr_vrect.height/2-4 + cl_crossy.value, 
-			'+');
-		break;
-#include "crosshairs.dat"
 	}
 }
 

@@ -34,7 +34,7 @@ void Cache_FreeLow (int new_low_hunk);
 void Cache_FreeHigh (int new_high_hunk);
 
 #ifdef _DEBUG
-#define MEMDEBUG	8192 //Debugging adds sentinels (the number is the size - I have the ram) 
+//#define MEMDEBUG	8192 //Debugging adds sentinels (the number is the size - I have the ram) 
 #endif
 
 #ifndef MEMDEBUG
@@ -331,11 +331,11 @@ void Zone_Print_f(void)
 	int allocated = 0;
 	int blocks = 0;
 	int futurehide = false;
-	int i;
 	int minsize = 0;
-	qbyte *sent;
 	zone_t *zone;
 #if MEMDEBUG > 0
+	int i;
+	qbyte *sent;
 	qboolean testsent = false;
 	if (*Cmd_Argv(1) == 't')
 	{
@@ -736,8 +736,24 @@ void Hunk_Check (void)
 	{
 		if (h->sentinal != HUNK_SENTINAL)
 			Sys_Error ("Hunk_Check: trahsed sentinal");
-		if (h->size < 16 || h->size + (qbyte *)h - hunk_base > hunk_size)
+		if (h->size < 16+MEMDEBUG*2 || h->size + (qbyte *)h - hunk_base > hunk_size)
 			Sys_Error ("Hunk_Check: bad size");
+#if MEMDEBUG > 0
+		{
+			qbyte *present;
+			qbyte *postsent;
+			int i;
+			present = (qbyte *)(h+1);
+			postsent = (qbyte *)h + h->size-MEMDEBUG;
+			for (i = 0; i < MEMDEBUG; i++)
+			{
+				if (present[i] != sentinalkey)
+					*(int*)0 = -3;
+				if (postsent[i] != sentinalkey)
+					*(int*)0 = -3;
+			}
+		}
+#endif
 		h = (hunk_t *)((qbyte *)h+h->size);
 	}
 }
@@ -797,7 +813,22 @@ void Hunk_Print (qboolean all)
 			Sys_Error ("Hunk_Check: trahsed sentinal");
 		if (h->size < 16 || h->size + (qbyte *)h - hunk_base > hunk_size)
 			Sys_Error ("Hunk_Check: bad size");
-			
+#if MEMDEBUG > 0
+		{
+			qbyte *present;
+			qbyte *postsent;
+			int i;
+			present = (qbyte *)(h+1);
+			postsent = (qbyte *)h + h->size-MEMDEBUG;
+			for (i = 0; i < MEMDEBUG; i++)
+			{
+				if (present[i] != sentinalkey)
+					*(int*)0 = -3;
+				if (postsent[i] != sentinalkey)
+					*(int*)0 = -3;
+			}
+		}
+#endif
 		next = (hunk_t *)((qbyte *)h+h->size);
 		count++;
 		totalblocks++;
@@ -846,7 +877,7 @@ void *Hunk_AllocName (int size, char *name)
 	if (size < 0)
 		Sys_Error ("Hunk_Alloc: bad size: %i", size);
 		
-	size = sizeof(hunk_t) + ((size+15)&~15);
+	size = sizeof(hunk_t) + MEMDEBUG*2 + ((size+15)&~15);
 	
 #ifndef _WIN32
 	if (hunk_size - hunk_low_used - hunk_high_used < size)
@@ -857,7 +888,7 @@ void *Hunk_AllocName (int size, char *name)
 	  	Sys_Error ("Not enough RAM allocated.  Try starting using \"-mem 16\" on the QuakeWorld command line.");
 #endif
 #endif
-	
+
 	h = (hunk_t *)(hunk_base + hunk_low_used);
 
 #ifdef _WIN32
@@ -874,13 +905,18 @@ void *Hunk_AllocName (int size, char *name)
 
 	Cache_FreeLow (hunk_low_used);
 
-	memset (h, 0, size);
+	memset (h, 0, size-MEMDEBUG);
+
+#if MEMDEBUG>0
+	memset ((h+1), sentinalkey, MEMDEBUG);
+	memset ((qbyte *)h+size-MEMDEBUG, sentinalkey, MEMDEBUG);
+#endif
 	
 	h->size = size;
 	h->sentinal = HUNK_SENTINAL;
 	Q_strncpyz (h->name, COM_SkipPath(name), sizeof(h->name));
 	
-	return (void *)(h+1);
+	return (void *)((char *)(h+1)+MEMDEBUG);
 }
 
 /*

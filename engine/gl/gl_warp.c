@@ -36,6 +36,9 @@ msurface_t	*warpface;
 
 extern cvar_t gl_skyboxname;
 extern cvar_t gl_waterripples;
+extern cvar_t gl_skyboxdist;
+extern cvar_t r_fastsky;
+extern cvar_t r_fastskycolour;
 char loadedskybox[256];
 
 void R_DrawSkyBox (msurface_t *s);
@@ -381,13 +384,34 @@ void R_DrawSkyChain (msurface_t *s)
 {
 	msurface_t	*fa;
 
+	GL_DisableMultitexture();
+
+	if (r_fastsky.value)	//this is for visability only... we'd otherwise not stoop this low (and this IS low)
+	{
+		int fc;
+		qbyte *pal;
+		extern unsigned char	vid_curpal[256*3];
+		fc = r_fastskycolour.value;
+		if (fc > 255)
+			fc = 255;
+		if (fc < 0)
+			fc = 0;
+		pal = vid_curpal+fc*3;
+		glDisable(GL_TEXTURE_2D);
+		glColor3f(pal[0]/255.0f, pal[1]/255.0f, pal[2]/255.0f);
+		for (fa=s ; fa ; fa=fa->texturechain)
+			EmitSkyPolys (fa);
+
+		glColor3f(1, 1, 1);
+		glEnable(GL_TEXTURE_2D);
+		return;
+	}
+
 	if (usingskybox)
 	{
 		R_DrawSkyBoxChain(s);
 		return;
 	}
-
-	GL_DisableMultitexture();
 
 	// used when gl_texsort is on
 	GL_Bind(solidskytexture);
@@ -778,10 +802,14 @@ void MakeSkyVec (float s, float t, int axis)
 {
 	vec3_t		v, b;
 	int			j, k;
+	float skydist = gl_skyboxdist.value;
 
-	b[0] = s*2300;
-	b[1] = t*2300;
-	b[2] = 2300;
+	if (r_shadows.value)	//because r_shadows comes with an infinate depth perspective.
+		skydist*=20;		//so we can put the distance at whatever distance needed.
+
+	b[0] = s*skydist;
+	b[1] = t*skydist;
+	b[2] = skydist;
 
 	for (j=0 ; j<3 ; j++)
 	{

@@ -700,6 +700,99 @@ static char *Macro_TF_Skin (void)
 }
 
 
+
+//Spike: added these:
+static char *Macro_ConnectionType (void)
+{
+	if (!cls.state)
+		return "disconnected";
+	if (cl.spectator)
+		return "spectator";
+	return "connected";
+}
+
+static char *Macro_demoplayback (void)
+{
+	switch (cls.demoplayback)
+	{
+	case DPB_NONE:
+		return "0";
+	case DPB_QUAKEWORLD:
+		return "qwdplayback";
+	case DPB_MVD:
+		return "mvdplayback";
+	case DPB_NETQUAKE:
+		return "demplayback";
+	case DPB_QUAKE2:
+		return "dm2playback";
+
+	//gcc will warn if we add annother playback and forget here, otherwise I'd use a default.
+	}
+	return "1";	//unknown.
+}
+/*
+$droploc
+Tells location of the dropped flag.
+Note: This will tell only if you have dropped the flag (CTF/TF). 
+
+$droptime
+Tells how many seconds gone of dropped flag.
+
+$ledpoint
+This reports the type of the pointed object as a LED according to the
+following rules:
+If teammate then green.
+If enemy then red.
+If powerup then yellow.
+if item then blue. 
+
+$ledstatus
+This checks your current status (health, armor and best weapon) and
+reports a LED according to the following rules:
+if all of the above is ok then green.
+if there is one thing low then yellow.
+if there are two or over things low then red.
+
+$matchname
+you can use to get the name of the match
+manually (echo $matchname).
+Example: a matchname might be
+"[clan]quaker - [4on4_myclan_vs_someclan] - [dm3]" or whatever.
+
+$matchstatus
+("disconnected", "standby" or "normal"). This can be
+used for detecting prewar/prematch on ktpro/oztf servers.
+
+$matchtype
+duel,2on2,4on4,ffa,etc...
+
+$mp3info
+Evaluates to "author - title".
+Examples:
+if you bind space "say listening to $mp3info"
+then hitting space will say something like
+"listening to disturbed - rise".
+bind x "if disturbed isin $mp3info then say dde music is cool"
+
+$need
+What you need.
+Note: you have to set this with tp_need* variables.
+
+$point
+Name of object you are looking at.
+
+$pointatloc
+Name of object and location of object you are looking at.
+
+$pointloc
+Location of object you are looking at.
+
+$triggermatch
+$triggermatch is the last chat message that exec'd a msg_trigger.
+
+*/
+//Spike: added end.
+
 static void TP_InitMacros(void)
 {
 	Cmd_AddMacro("qt", Macro_Quote);
@@ -727,6 +820,24 @@ static void TP_InitMacros(void)
 	Cmd_AddMacro("took", Macro_Took);
 	Cmd_AddMacro("tf_skin", Macro_TF_Skin);
 
+	//ones added by Spike, for fuhquake compatability
+	Cmd_AddMacro("connectiontype", Macro_ConnectionType);
+	Cmd_AddMacro("demoplayback", Macro_demoplayback);
+/*
+$droploc
+$droptime
+$ledpoint
+$ledstatus
+$matchname
+$matchstatus
+$matchtype
+$mp3info
+$need
+$point
+$pointatloc
+$pointloc
+$triggermatch
+*/
 }
 
 #define MAX_MACRO_STRING 1024

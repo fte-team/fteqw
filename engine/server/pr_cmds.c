@@ -5047,69 +5047,63 @@ typedef struct lh_extension_s {
 
 
 lh_extension_t QSG_Extensions[] = {
-	{"QW_ENGINE"},	//warning: interpretation of .skin on players can be dodgy, as can some other QW features that differ from NQ.
-	{"DP_HALFLIFE_MAP_CVAR"},
-	{"FTE_MULTIPROGS"},	//multiprogs functions are available.
-	{"FTE_SOLID_LADDER"},	//part of a worthy hl implementation. Allows a simple trigger to remove effects of gravity (solid 20)
-	{"FRIK_FILE",						11, NULL, {"stof", "fopen","fclose","fgets","fputs","strlen","strcat","substring","stov","strzone","strunzone"}},
-	{"DP_REGISTERCVAR",					1,	NULL, {"registercvar"}},
-
-	{"DP_QC_SINCOSSQRTPOW",				4,	NULL, {"sin", "cos", "sqrt", "pow"}},
-
-	{"DP_TE_BLOOD",						1,	NULL, {"te_blood"}},
-	{"QSG_CVARSTRING",					1,	NULL, {"cvar_string"}},
-	{"DP_QC_CVAR_STRING",				1,	NULL, {"dp_cvar_string"}},	//448 builtin.
-#ifndef NOMEDIA
-	{"FTE_MEDIA_AVI"},	//playfilm supports avi files.
-	{"FTE_MEDIA_ROQ"},	//playfilm command supports q3 roq files
-	{"FTE_MEDIA_CIN"},	//playfilm command supports q2 cin files.
-#endif
-	{"QWE_MVD_RECORD"},	//Quakeworld extended get the credit for this one. (mvdsv)
-	{"FTE_MVD_PLAYBACK"},
-	{"DP_SPRITE32"},				//hmm... is it legal to advertise this one?
-	{"DP_QC_TRACE_MOVETYPES"},		//this one is just a lame excuse to add annother extension...
-	{"DP_QC_TRACEBOX",					1,	NULL,	{"tracebox"}},
-	{"DP_MOVETYPEBOUNCEMISSILE"},	//I added the code with hexen2 support.
-	{"DP_SV_NODRAWTOCLIENT"},		//I prefer my older system. Guess I might as well remove that older system at some point.
-	{"DP_SV_DRAWONLYTOCLIENT"},
-	{"DP_EF_FULLBRIGHT"},			//Rerouted to hexen2 support.
-	{"DP_EF_BLUE"},					//hah!! This is QuakeWorld!!!
+	{"DP_EF_BLUE"},						//hah!! This is QuakeWorld!!!
+	{"DP_EF_FULLBRIGHT"},				//Rerouted to hexen2 support.
 	{"DP_EF_RED"},
-	{"DP_QC_MINMAXBOUND",				3,	NULL, {"min", "max", "bound"}},
-	{"DP_QC_RANDOMVEC",					1,	NULL, {"randomvec"}},
+	{"DP_EXTRA_TEMPSTRING"},			//ftos returns 16 temp buffers.
+	{"DP_HALFLIFE_MAP_CVAR"},
+	{"DP_MOVETYPEBOUNCEMISSILE"},		//I added the code for hexen2 support.
+	{"DP_MOVETYPEFOLLOW"},
 	{"DP_QC_COPYENTITY",				1,	NULL, {"copyentity"}},
-	{"KRIMZON_SV_PARSECLIENTCOMMAND",	3,	NULL, {"clientcommand", "tokenize", "argv"}},	//very very similar to the mvdsv system.
-	{"DP_QC_VECTORVECTORS",				1,	NULL, {"vectorvectors"}},
-	{"DP_QC_FINDFLOAT",					1,	NULL, {"findfloat"}},
+	{"DP_QC_CVAR_STRING",				1,	NULL, {"dp_cvar_string"}},	//448 builtin.
+	{"DP_QC_ETOS",						1,	NULL, {"etos"}},
 	{"DP_QC_FINDCHAIN",					1,	NULL, {"findchain"}},
 	{"DP_QC_FINDCHAINFLOAT",			1,	NULL, {"findchainfloat"}},
-	{"TEI_MD3_MODEL"},
-//	{"TQ_RAILTRAIL"},	//client supports it, server can't filter it, but can currently send it.
+	{"DP_QC_FINDFLOAT",					1,	NULL, {"findfloat"}},
+//	{"DP_QC_FS_SEARCH",					4,	NULL, {"search_begin", "search_end", "search_getsize", "search_getfilename"}},
+	{"DP_QC_MINMAXBOUND",				3,	NULL, {"min", "max", "bound"}},
+	{"DP_QC_RANDOMVEC",					1,	NULL, {"randomvec"}},
+	{"DP_QC_SINCOSSQRTPOW",				4,	NULL, {"sin", "cos", "sqrt", "pow"}},
+	{"DP_QC_TRACEBOX",					1,	NULL, {"tracebox"}},
+	{"DP_QC_TRACE_MOVETYPES"},		//this one is just a lame excuse to add annother extension...
+	{"DP_QC_VECTORVECTORS",				1,	NULL, {"vectorvectors"}},
 	{"DP_QUAKE2_MODEL"},
 	{"DP_QUAKE3_MODEL"},
-	{"DP_QC_ETOS",						1,	NULL, {"etos"}},
+	{"DP_REGISTERCVAR",					1,	NULL, {"registercvar"}},
+	{"DP_SPRITE32"},				//hmm... is it legal to advertise this one?
+	{"DP_SV_DRAWONLYTOCLIENT"},
+	{"DP_SV_NODRAWTOCLIENT"},		//I prefer my older system. Guess I might as well remove that older system at some point.
 	{"DP_SV_PLAYERPHYSICS"},
-	{"DP_EXTRA_TEMPSTRING"},	//ftos returns 16 temp buffers.
-
-	{"DP_TE_STANDARDEFFECTBUILTINS",	14,	NULL, { "te_gunshot", "te_spike", "te_superspike", "te_explosion", "te_tarexplosion",
-													"te_wizspike", "te_knightspike", "te_lavasplash", "te_teleport", "te_explosion2",
-													"te_lightning1", "te_lightning2", "te_lightning3", "te_beam"}},	//should we include QW ones?...
-
-	{"ZQ_MOVETYPE_NOCLIP"},
-	{"ZQ_MOVETYPE_FLY"},
-	{"ZQ_MOVETYPE_NONE"},
-
+	{"DP_SV_SETCOLOR"},
+	{"DP_TE_BLOOD",						1,	NULL, {"te_blood"}},
+	{"DP_TE_STANDARDEFFECTBUILTINS",	14,	NULL, { "te_gunshot", "te_spike", "te_superspike", "te_explosion", "te_tarexplosion", "te_wizspike", "te_knightspike", "te_lavasplash", "te_teleport", "te_explosion2", "te_lightning1", "te_lightning2", "te_lightning3", "te_beam"}},	//should we include QW ones?...
 	{"EXT_DIMENSION_VISIBILITY"},
 	{"EXT_DIMENSION_PHYSICS"},
 	{"EXT_DIMENSION_GHOST"},
 	{"EXT_BITSHIFT",					1,	NULL, {"bitshift"}},
-
+	{"FRIK_FILE",						11, NULL, {"stof", "fopen","fclose","fgets","fputs","strlen","strcat","substring","stov","strzone","strunzone"}},
 	{"FTE_FORCEINFOKEY",				1,	NULL, {"forceinfokey"}},
+#ifndef NOMEDIA
+	{"FTE_MEDIA_AVI"},	//playfilm supports avi files.
+	{"FTE_MEDIA_CIN"},	//playfilm command supports q2 cin files.
+	{"FTE_MEDIA_ROQ"},	//playfilm command supports q3 roq files
+#endif
+	{"FTE_MULTIPROGS"},	//multiprogs functions are available.
 	{"FTE_MULTITHREADED",				3,	NULL, {"sleep", "fork", "abort"}},
+	{"FTE_MVD_PLAYBACK"},
 #ifdef SVCHAT
 	{"FTE_NPCCHAT",						1,	NULL, {"chat"}},	//server looks at chat files. It automagically branches through calling qc functions as requested.
 #endif
-	{"DP_SV_SETCOLOR"}
+	{"FTE_SOLID_LADDER"},	//part of a worthy hl implementation. Allows a simple trigger to remove effects of gravity (solid 20)
+	{"KRIMZON_SV_PARSECLIENTCOMMAND",	3,	NULL, {"clientcommand", "tokenize", "argv"}},	//very very similar to the mvdsv system.
+	{"QSG_CVARSTRING",					1,	NULL, {"cvar_string"}},
+	{"QW_ENGINE"},	//warning: interpretation of .skin on players can be dodgy, as can some other QW features that differ from NQ.
+	{"QWE_MVD_RECORD"},	//Quakeworld extended get the credit for this one. (mvdsv)
+	{"TEI_MD3_MODEL"},
+//	{"TQ_RAILTRAIL"},	//client supports it, server can't filter it, but can currently send it.
+	{"ZQ_MOVETYPE_FLY"},
+	{"ZQ_MOVETYPE_NOCLIP"},
+	{"ZQ_MOVETYPE_NONE"},
 };
 
 //some of these are overkill yes, but they are all derived from the fteextensions flags and document the underlaying protocol available.
@@ -5772,7 +5766,7 @@ void PF_findchain (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 		ent = EDICT_NUM(svprogfuncs, i);
 		if (ent->isfree)
 			continue;
-		t = *(string_t *)&((float*)&ent->v)[f];
+		t = *(string_t *)&((float*)&ent->v)[f] + prinst->stringtable;
 		if (!t)
 			continue;
 		if (strcmp(t, s))
@@ -6902,6 +6896,72 @@ void PF_ChangePic(progfuncs_t *prinst, struct globalvars_s *pr_globals)
 	}
 }
 
+//DP_QC_FS_SEARCH
+void PF_Search_Begin(progfuncs_t *prinst, struct globalvars_s *pr_globals)
+{
+	G_INT(OFS_RETURN) = 0;
+}
+void PF_Search_End(progfuncs_t *prinst, struct globalvars_s *pr_globals)
+{
+	G_INT(OFS_RETURN) = 0;
+}
+void PF_Search_GetSize(progfuncs_t *prinst, struct globalvars_s *pr_globals)
+{
+	G_INT(OFS_RETURN) = 0;
+}
+void PF_SearchGetFileName(progfuncs_t *prinst, struct globalvars_s *pr_globals)
+{
+	G_INT(OFS_RETURN) = 0;
+}
+
+void PF_setattachment(progfuncs_t *prinst, struct globalvars_s *pr_globals)
+{
+	edict_t *e = G_EDICT(prinst, OFS_PARM0);
+	edict_t *tagentity = G_EDICT(prinst, OFS_PARM1);
+	char *tagname = PR_GetStringOfs(prinst, OFS_PARM2);
+
+	eval_t *te;
+	eval_t *ti;
+
+//	int i, modelindex;
+//	model_t *model;
+
+	te = prinst->GetEdictFieldValue(prinst, e, "tag_entity", NULL);
+	ti = prinst->GetEdictFieldValue(prinst, e, "tag_index", NULL);
+
+	e->tagent = tagentity->entnum;
+	e->tagindex = 0;
+
+	if (tagentity != sv.edicts && tagname && tagname[0])
+	{
+/*		modelindex = (int)tagentity->v->modelindex;
+		if (modelindex >= 0 && modelindex < MAX_MODELS && (model = sv.modeltags[modelindex]))
+		{
+			if (v->_float == 0 && model->alias.aliasnum_tags)
+				for (i = 0;i < model->alias.aliasnum_tags;i++)
+					if (!strcmp(tagname, model->alias.aliasdata_tags[i].name))
+						v->_float = i + 1;
+			if (v->_float == 0)
+				Con_DPrintf("setattachment(edict %i, edict %i, string \"%s\"): tried to find tag named \"%s\" on entity %i (model \"%s\") but could not find it\n", NUM_FOR_EDICT(e), NUM_FOR_EDICT(tagentity), tagname, tagname, NUM_FOR_EDICT(tagentity), model->name);
+		}
+		else
+			Con_DPrintf("setattachment(edict %i, edict %i, string \"%s\"): tried to find tag named \"%s\" on entity %i but it has no model\n", NUM_FOR_EDICT(e), NUM_FOR_EDICT(tagentity), tagname, tagname, NUM_FOR_EDICT(tagentity));
+*/
+	}
+
+	//fix me, move to somewhere nicer.
+	MSG_WriteByte(&sv.multicast, svc_setattachment);
+	MSG_WriteShort(&sv.multicast, e->entnum);
+	MSG_WriteShort(&sv.multicast, e->tagent);
+	MSG_WriteShort(&sv.multicast, e->tagindex);
+
+	SV_MulticastProtExt(vec3_origin, MULTICAST_ALL_R, 0xffffffff, PEXT_SETATTACHMENT, 0);
+
+	if (te)
+		te->edict = EDICT_TO_PROG(prinst,EDICT_NUM(prinst, e->tagent));
+	if (ti)
+		te->_float = e->tagindex;
+}
 
 
 BuiltinList_t BuiltinList[] = {				//nq	qw		h2		ebfs
@@ -7195,6 +7255,13 @@ BuiltinList_t BuiltinList[] = {				//nq	qw		h2		ebfs
 	{"clientcommand",	PF_clientcommand,	0,		0,		0,		440},// #440 void(entity e, string s) clientcommand (KRIMZON_SV_PARSECLIENTCOMMAND)
 	{"tokenize",		PF_Tokenize,		0,		0,		0,		441},// #441 float(string s) tokenize (KRIMZON_SV_PARSECLIENTCOMMAND)
 	{"argv",			PF_ArgV,			0,		0,		0,		442},// #442 string(float n) argv (KRIMZON_SV_PARSECLIENTCOMMAND
+
+	{"setattachment",	PF_setattachment,	0,		0,		0,		443},// #443 void(entity e, entity tagentity, string tagname) setattachment (DP_GFX_QUAKE3MODELTAGS)
+
+	{"search_begin",	PF_Search_Begin,	0,		0,		0,		444},
+	{"search_end",		PF_Search_End,		0,		0,		0,		445},
+	{"search_getsize",	PF_Search_GetSize,	0,		0,		0,		446},
+	{"search_getfilename", PF_SearchGetFileName,0,	0,		0,		447},
 //DP_QC_CVAR_STRING
 	{"dp_cvar_string",	PF_cvar_string,		0,		0,		0,		448},// #448 string(float n) cvar_string
 //end other peoples extras
@@ -7333,6 +7400,8 @@ void PR_ResetBuiltins(progstype_t type)	//fix all nulls to PF_FIXME and add any 
 			PR_EnableEBFSBuiltin("calltimeofday",	0)!= 102 ||
 			PR_EnableEBFSBuiltin("forcedemoframe",	0)!= 103)
 			Con_Printf("Failed to register all MVDSV builtins\n");
+		else
+			Con_Printf("Be aware that MVDSV does not follow standards. Please encourage your mod developers to not require pr_imitatemvdsv to be set.\n");
 	}
 }
 
@@ -7475,6 +7544,7 @@ void PR_RegisterFields(void)	//it's just easier to do it this way.
 	fieldfloat(gravity);		//standard extension
 	fieldfloat(maxspeed);	//standard extension
 	fieldfloat(items2);	//standard nq
+	fieldvector(punchangle);//standard nq
 	fieldfloat(scale);
 	//fieldfloat(transparency);
 	fieldfloat(alpha);
@@ -7502,8 +7572,9 @@ void PR_RegisterFields(void)	//it's just easier to do it this way.
 //hexen 2 stuff
 	fieldfloat(playerclass);
 	fieldfloat(hull);
+	fieldfloat(hasted);
 
-//stats - only a couple...
+//stats - only a couple... (optimise me...)
 	fieldfloat(level);
 	fieldfloat(intelligence);
 	fieldfloat(experience);
@@ -7537,7 +7608,6 @@ void PR_RegisterFields(void)	//it's just easier to do it this way.
 	fieldstring(puzzle_inv7);
 	fieldstring(puzzle_inv8);
 
-	fieldfloat(hasted);
 	fieldfloat(inventory);
 	fieldfloat(cnt_torch);
 	fieldfloat(cnt_h_boost);

@@ -78,6 +78,9 @@ typedef struct edict_s
 
 	entity_state_t	baseline;
 
+	unsigned short tagent;
+	unsigned short tagindex;
+
 	entvars_t	v;					// C exported fields from progs
 // other fields from progs come immediately after
 } edict_t;

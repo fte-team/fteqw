@@ -585,6 +585,9 @@ void SV_MulticastProtExt(vec3_t origin, multicast_t to, int dimension_mask, int 
 			if (client->state != cs_spawned)
 				continue;
 
+			if (client->controller)
+				continue;	//FIXME: send if at least one of the players is near enough.
+
 			if (client->fteprotocolextensions & without)
 			{
 	//			Con_Printf ("Version supressed multicast - without pext\n");
@@ -1160,7 +1163,7 @@ void SV_UpdateClientStats (client_t *client, int pnum)
 #define FL_SPECIAL_ABILITY1		4194304  // has 1st special ability
 #define FL_SPECIAL_ABILITY2		8388608  // has 2nd special ability
 	stats[STAT_H2_FLAGS] = (int)ent->v.flags & (FL_SPECIAL_ABILITY1 | FL_SPECIAL_ABILITY2);
-	
+
 	//dmw tweek for stats
 	pr_globals = PR_globals(svprogfuncs, PR_CURRENT);
 	pr_global_struct->self = EDICT_TO_PROG(svprogfuncs, ent);

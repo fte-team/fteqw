@@ -93,6 +93,9 @@ void GLSCR_UpdateScreen (void)
 
 		vid.recalc_refdef = true;
 		Con_CheckResize();
+
+		Plug_ResChanged();
+		GL_Set2D();
 	}
 
 	vid.numpages = 2 + gl_triplebuffer.value;

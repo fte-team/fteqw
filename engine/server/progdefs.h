@@ -227,6 +227,7 @@ typedef struct entvars_s
 	float	gravity;
 	float	maxspeed;
 	float	items2;
+	vec3_t	punchangle;
 	float	scale;
 	float	alpha;
 	float	fatness;
@@ -257,6 +258,7 @@ typedef struct entvars_s
 	float	seefsizez;
 	float	seefoffset;
 
+	//hexen2 stuff
 	float	playerclass;	//hexen2 requirements
 	float	hull;
 	float	drawflags;
@@ -264,9 +266,12 @@ typedef struct entvars_s
 	int		movechain;
 	func_t	chainmoved;
 
-	float	light_level;
-	float	abslight;
+	float	light_level;//hexen2's grabbing light level from client
+	float	abslight;	//hexen2's force a lightlevel
+	float	hasted;	//hexen2 uses this AS WELL as maxspeed
 
+
+	//FIXME: remove these, use evalc_ts
 	float	level;
 	float	intelligence;
 	float	experience;
@@ -300,7 +305,6 @@ typedef struct entvars_s
 	string_t	puzzle_inv7;
 	string_t	puzzle_inv8;
 
-	float	hasted;
 	float	inventory;
 	float	cnt_torch;
 	float	cnt_h_boost;

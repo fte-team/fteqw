@@ -780,6 +780,49 @@ entity_state_t *CL_FindPacketEntity(int num)
 }
 #endif
 
+void CL_RotateAroundTag(entity_t *ent, int num)
+{
+	entity_state_t *ps;
+	float *org=NULL, *ang=NULL;
+
+	ps = CL_FindPacketEntity(cl.lerpents[num].tagent);
+	if (ps)
+	{
+		org = ps->origin;
+		ang = ps->angles;
+	}
+	else
+	{
+		extern int parsecountmod;
+		if (cl.lerpents[num].tagent <= MAX_CLIENTS && cl.lerpents[num].tagent > 0)
+		{
+			if (cl.lerpents[num].tagent-1 == cl.playernum[0])
+			{
+				org = cl.simorg[0];
+				ang = cl.simangles[0];
+			}
+			else
+			{
+				org = cl.frames[parsecountmod].playerstate[cl.lerpents[num].tagent-1].origin;
+				ang = cl.frames[parsecountmod].playerstate[cl.lerpents[num].tagent-1].viewangles;
+			}
+		}
+	}
+
+	if (org)
+		VectorAdd(ent->origin, org, ent->origin);
+	if (ang)
+	{
+		if (ps)
+			ent->angles[0]+=ang[0];
+		else
+			ent->angles[0]+=-ang[0]/3;
+		ent->angles[1]+=ang[1];
+		ent->angles[2]+=ang[2];
+	}
+
+	ent->keynum = cl.lerpents[num].tagent;
+}
 /*
 ===============
 CL_LinkPacketEntities
@@ -1000,6 +1043,11 @@ void CL_LinkPacketEntities (void)
 					a1 += 360;
 				ent->angles[i] = a2 + f * (a1 - a2);
 			}
+		}
+
+		if (cl.lerpents[s1->number].tagent)
+		{	//ent is attached to a tag, rotate this ent accordingly.
+			CL_RotateAroundTag(ent, s1->number);
 		}
 
 		// add automatic particle trails
@@ -1299,7 +1347,7 @@ void CL_ParsePlayerinfo (void)
 
 		state->hullnum = 1;
 		state->scale = 1;
-		state->trans = 100;
+		state->trans = 1;
 		state->fatness = 0;
 
 		state->pm_type = PM_NORMAL;
@@ -1383,7 +1431,7 @@ void CL_ParsePlayerinfo (void)
 
 	state->hullnum = 1;
 	state->scale = 1;
-	state->trans = 100;
+	state->trans = 1;
 	state->fatness = 0;
 
 	if (cls.z_ext & Z_EXT_PM_TYPE)
@@ -1396,7 +1444,7 @@ void CL_ParsePlayerinfo (void)
 #endif
 #ifdef PEXT_TRANS
 		if (flags & PF_TRANS_Z && cls.fteprotocolextensions & PEXT_TRANS)
-			state->trans = (float)MSG_ReadByte() / 2.55;
+			state->trans = (float)MSG_ReadByte() / 255;
 #endif
 #ifdef PEXT_FATNESS
 		if (flags & PF_FATNESS_Z && cls.fteprotocolextensions & PEXT_FATNESS)
@@ -1458,7 +1506,7 @@ void CL_ParsePlayerinfo (void)
 #endif
 #ifdef PEXT_TRANS
 		if (flags & PF_TRANS_NOZ && cls.fteprotocolextensions & PEXT_TRANS)
-			state->trans = (float)MSG_ReadByte() / 2.55;
+			state->trans = (float)MSG_ReadByte() / 255;
 #endif
 #ifdef PEXT_FATNESS
 		if (flags & PF_FATNESS_NOZ && cls.fteprotocolextensions & PEXT_FATNESS)
@@ -1557,6 +1605,15 @@ void CL_AddVWeapModel(entity_t *player, int model)
 	newent->skinnum = player->skinnum;
 	newent->model = cl.model_precache[model];
 	newent->frame = player->frame;
+}
+
+void CL_ParseAttachment(void)
+{
+	int e = (unsigned short)MSG_ReadShort();
+	int o = (unsigned short)MSG_ReadShort();
+	int i = (unsigned short)MSG_ReadShort();
+	cl.lerpents[e].tagent = o;
+	cl.lerpents[e].tagindex = i;
 }
 
 /*

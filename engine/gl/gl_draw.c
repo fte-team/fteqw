@@ -47,7 +47,7 @@ extern qbyte		gammatable[256];
 
 unsigned char *d_15to8table;
 qboolean inited15to8;
-extern cvar_t crosshair, cl_crossx, cl_crossy, crosshaircolor;
+extern cvar_t crosshair, cl_crossx, cl_crossy, crosshaircolor, crosshairsize;
 
 static int filmtexture;
 
@@ -641,6 +641,8 @@ void GLDraw_ReInit (void)
 	int maxtexsize;
 
 	gltexture_t *glt;
+
+	TRACE(("dbg: GLDraw_ReInit: Closing old\n"));
 	while(gltextures)
 	{
 		glt = gltextures;
@@ -661,6 +663,7 @@ void GLDraw_ReInit (void)
 	currenttexture=0;
 	glmenu_numcachepics=0;
 //	GL_FlushSkinCache();
+	TRACE(("dbg: GLDraw_ReInit: GL_GAliasFlushSkinCache\n"));
 	GL_GAliasFlushSkinCache();
 
 	memset(scrap_allocated, 0, sizeof(scrap_allocated));
@@ -680,7 +683,7 @@ void GLDraw_ReInit (void)
 
 	//required to hold the image after scaling has occured
 	sizeofuploadmemorybuffer = maxtexsize*maxtexsize*4;
-
+TRACE(("dbg: GLDraw_ReInit: Allocating upload buffers\n"));
 	uploadmemorybuffer = BZ_Realloc(uploadmemorybuffer, sizeofuploadmemorybuffer);
 	uploadmemorybufferintermediate = BZ_Realloc(uploadmemorybufferintermediate, sizeofuploadmemorybufferintermediate);
 
@@ -697,6 +700,7 @@ void GLDraw_ReInit (void)
 	}
 
 	// now turn them into textures
+	TRACE(("dbg: GLDraw_ReInit: looking for conchars\n"));
 	if (!(char_texture=Mod_LoadReplacementTexture("gfx/conchars.lmp", false, true))) //no high res
 	{
 		if (!draw_chars)	//or low res.
@@ -756,13 +760,28 @@ void GLDraw_ReInit (void)
 	}
 	default_char_texture=char_texture;
 
+	TRACE(("dbg: GLDraw_ReInit: loaded charset\n"));
+
 	gl_font.modified = true;
 
 	gl_smoothfont.modified = 1;
 
 
+	TRACE(("dbg: GLDraw_ReInit: GL_BeginRendering\n"));
 	GL_BeginRendering (&glx, &gly, &glwidth, &glheight);
-	SCR_DrawLoading ();
+	TRACE(("dbg: GLDraw_ReInit: SCR_DrawLoading\n"));
+
+	GL_Set2D();
+
+	glClear(GL_COLOR_BUFFER_BIT);
+	{
+		qpic_t *pic = Draw_SafeCachePic ("loading");
+		if (pic)
+			Draw_Pic ( (vid.width - pic->width)/2, 
+				(vid.height - 48 - pic->height)/2, pic);
+	}
+
+	TRACE(("dbg: GLDraw_ReInit: GL_EndRendering\n"));
 	GL_EndRendering ();	
 
 	//now emit the conchars picture as if from a wad.
@@ -777,6 +796,7 @@ void GLDraw_ReInit (void)
 	gl->th = 1;
 	glmenu_numcachepics++;
 
+	TRACE(("dbg: GLDraw_ReInit: W_SafeGetLumpName\n"));
 	tinyfont = W_SafeGetLumpName ("tinyfont");
 	if (tinyfont)
 	{
@@ -794,6 +814,7 @@ void GLDraw_ReInit (void)
 		gl->th = 1;
 		glmenu_numcachepics++;
 	}
+	TRACE(("dbg: GLDraw_ReInit: gfx/menu/bigfont\n"));
 	bigfont = (qpic_t *)COM_LoadMallocFile ("gfx/menu/bigfont.lmp");
 	if (bigfont)
 	{
@@ -815,6 +836,7 @@ void GLDraw_ReInit (void)
 	}
 
 
+	TRACE(("dbg: GLDraw_ReInit: gfx/conchars2.lmp\n"));
 	if (!(char_tex2=Mod_LoadReplacementTexture("gfx/conchars2.lmp", false, true)))
 	{
 		if (!draw_chars)
@@ -829,12 +851,14 @@ void GLDraw_ReInit (void)
 	start = Hunk_LowMark ();
 	conback = default_conback;
 
+	TRACE(("dbg: GLDraw_ReInit: COM_FDepthFile(\"gfx/conback.lmp\", false)\n"));
 	if (COM_FDepthFile("gfx/conback.lmp", false) <= COM_FDepthFile("gfx/menu/conback.lmp", false))
 		cb = (qpic_t *)COM_LoadHunkFile ("gfx/conback.lmp");
 	else
 		cb = (qpic_t *)COM_LoadHunkFile ("gfx/menu/conback.lmp");
 	if (cb)
 	{
+		TRACE(("dbg: GLDraw_ReInit: conback opened\n"));
 		SwapPic (cb);
 
 		if (draw_chars)
@@ -856,6 +880,7 @@ void GLDraw_ReInit (void)
 		// scale console to vid size
 		dest = ncdata = Hunk_AllocName(vid.conwidth * vid.conheight, "conback");
 
+		TRACE(("dbg: GLDraw_ReInit: conback loading\n");
 		for (y=0 ; y<vid.conheight ; y++, dest += vid.conwidth)
 		{
 			src = cb->data + cb->width * (y*cb->height/vid.conheight);
@@ -889,6 +914,7 @@ void GLDraw_ReInit (void)
 		ncdata = NULL;
 	}
 
+	TRACE(("dbg: GLDraw_ReInit: conback loaded\n"));
 	glTexParameterf(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
 	glTexParameterf(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
 
@@ -941,6 +967,7 @@ void GLDraw_ReInit (void)
 	//
 	// get the other pics we need
 	//
+	TRACE(("dbg: GLDraw_ReInit: Draw_SafePicFromWad\n"));
 	draw_disc = Draw_SafePicFromWad ("disc");
 	draw_backtile = Draw_SafePicFromWad ("backtile");
 	if (!draw_backtile)
@@ -951,6 +978,7 @@ void GLDraw_ReInit (void)
 	inited15to8 = false;
 
 
+	TRACE(("dbg: GLDraw_ReInit: PPL_LoadSpecularFragmentProgram\n"));
 	PPL_LoadSpecularFragmentProgram();
 }
 
@@ -982,8 +1010,10 @@ void GLDraw_DeInit (void)
 	Cmd_RemoveCommand("gl_texturemode");
 	draw_disc = NULL;
 
-	BZ_Free(uploadmemorybuffer);	//free the mem
-	BZ_Free(uploadmemorybufferintermediate);
+	if (uploadmemorybuffer)
+		BZ_Free(uploadmemorybuffer);	//free the mem
+	if (uploadmemorybufferintermediate)
+		BZ_Free(uploadmemorybufferintermediate);
 	uploadmemorybuffer = NULL;	//make sure we know it's free
 	uploadmemorybufferintermediate = NULL;
 	sizeofuploadmemorybuffer = 0;	//and give a nice safe sys_error if we try using it.
@@ -1128,16 +1158,16 @@ void GLDraw_Crosshair(void)
 {
 	int x, y;
 	int sc;
-	vrect_t		rect;	
+
+	float x1, x2, y1, y2;
+	float size;
 
 	if (crosshair.value == 1)
 	{
 		for (sc = 0; sc < cl.splitclients; sc++)
 		{
-			SCR_VRectForPlayer(&rect, sc);
-			GLDraw_Character (rect.x + rect.width/2-4 + cl_crossx.value, 
-				rect.y + rect.height/2-4 + cl_crossy.value, 
-				'+');
+			SCR_CrosshairPosition(sc, &x, &y);
+			GLDraw_Character (x-4, y-4, '+');
 		}
 		return;
 	}
@@ -1183,19 +1213,22 @@ void GLDraw_Crosshair(void)
 
 	for (sc = 0; sc < cl.splitclients; sc++)
 	{
-		SCR_VRectForPlayer(&rect, sc);
+		SCR_CrosshairPosition(sc, &x, &y);
 
-		x = rect.x + rect.width/2 - 3 + cl_crossx.value; 
-		y = rect.y + rect.height/2 - 3 + cl_crossy.value;
+		size = crosshairsize.value;
+		x1 = x - size;
+		x2 = x + size;
+		y1 = y - size;
+		y2 = y + size;
 		glBegin (GL_QUADS);
 		glTexCoord2f (0, 0);
-		glVertex2f (x - 4, y - 4);
+		glVertex2f (x1, y1);
 		glTexCoord2f (1, 0);
-		glVertex2f (x+12, y-4);
+		glVertex2f (x2, y1);
 		glTexCoord2f (1, 1);
-		glVertex2f (x+12, y+12);
+		glVertex2f (x2, y2);
 		glTexCoord2f (0, 1);
-		glVertex2f (x - 4, y+12);
+		glVertex2f (x1, y2);
 		glEnd ();
 	}
 	
@@ -2191,6 +2224,9 @@ qboolean GL_UploadCompressed (qbyte *file, int *out_width, int *out_height, unsi
 	return true;
 }
 
+qboolean supported_GL_ARB_texture_non_power_of_two;
+qboolean supported_GL_SGIS_generate_mipmap;
+
 /*
 ===============
 GL_Upload32
@@ -2203,14 +2239,27 @@ void GL_Upload32 (char *name, unsigned *data, int width, int height,  qboolean m
 	unsigned	*scaled = (unsigned *)uploadmemorybuffer;
 	int			scaled_width, scaled_height;
 
-	for (scaled_width = 1 ; scaled_width < width ; scaled_width<<=1)
-		;
-	for (scaled_height = 1 ; scaled_height < height ; scaled_height<<=1)
-		;
+	TRACE(("dbg: GL_Upload32: %s %i %i\n", name, width, height));
 
+	if (supported_GL_ARB_texture_non_power_of_two)	//NPOT is a simple extension that relaxes errors.
+	{
+		TRACE(("dbg: GL_Upload32: GL_ARB_texture_non_power_of_two\n"));
+		scaled_width = width;
+		scaled_height = height;
+	}
+	else
+	{
+		for (scaled_width = 1 ; scaled_width < width ; scaled_width<<=1)
+			;
+		for (scaled_height = 1 ; scaled_height < height ; scaled_height<<=1)
+			;
+	}
+
+	TRACE(("dbg: GL_Upload32: %f\n", gl_picmip.value));
 	scaled_width >>= (int)gl_picmip.value;
 	scaled_height >>= (int)gl_picmip.value;
 
+	TRACE(("dbg: GL_Upload32: %f\n", gl_max_size.value));
 	if (gl_max_size.value)
 	{
 		if (scaled_width > gl_max_size.value)
@@ -2218,6 +2267,13 @@ void GL_Upload32 (char *name, unsigned *data, int width, int height,  qboolean m
 		if (scaled_height > gl_max_size.value)
 			scaled_height = gl_max_size.value;
 	}
+
+	if (scaled_width < 1)
+		scaled_width = 1;
+	if (scaled_height < 1)
+		scaled_height = 1;
+
+	TRACE(("dbg: GL_Upload32: %i %i\n", scaled_width, scaled_height));
 
 	if (scaled_width * scaled_height > sizeofuploadmemorybuffer/4)
 		Sys_Error ("GL_LoadTexture: too big");
@@ -2240,10 +2296,17 @@ void GL_Upload32 (char *name, unsigned *data, int width, int height,  qboolean m
 #else
 texels += scaled_width * scaled_height;
 
+	if (supported_GL_SGIS_generate_mipmap&&mipmap)
+	{
+		TRACE(("dbg: GL_Upload32: GL_SGIS_generate_mipmap\n"));
+		glTexParameterf(GL_TEXTURE_2D, GL_GENERATE_MIPMAP_SGIS, GL_TRUE);
+	}
+
 	if (scaled_width == width && scaled_height == height)
 	{
-		if (!mipmap)
+		if (!mipmap||supported_GL_SGIS_generate_mipmap)	//gotta love this with NPOT textures... :)
 		{
+			TRACE(("dbg: GL_Upload32: non-mipmapped/unscaled\n"));
 			glTexImage2D (GL_TEXTURE_2D, 0, samples, scaled_width, scaled_height, 0, GL_RGBA, GL_UNSIGNED_BYTE, data);
 			goto done;
 		}
@@ -2252,10 +2315,12 @@ texels += scaled_width * scaled_height;
 	else
 		GL_ResampleTexture (data, width, height, scaled, scaled_width, scaled_height);
 
+	TRACE(("dbg: GL_Upload32: recaled\n"));
 	glTexImage2D (GL_TEXTURE_2D, 0, samples, scaled_width, scaled_height, 0, GL_RGBA, GL_UNSIGNED_BYTE, scaled);
-	if (mipmap)
+	if (mipmap && !supported_GL_SGIS_generate_mipmap)
 	{		
 		miplevel = 0;
+		TRACE(("dbg: GL_Upload32: mips\n"));
 		while (scaled_width > 1 || scaled_height > 1)
 		{
 			GL_MipMap ((qbyte *)scaled, scaled_width, scaled_height);
@@ -2321,7 +2386,9 @@ texels += scaled_width * scaled_height;
 			}
 		}
 	}
-done: ;
+done:
+	if (supported_GL_SGIS_generate_mipmap&&mipmap)
+		glTexParameterf(GL_TEXTURE_2D, GL_GENERATE_MIPMAP_SGIS, GL_FALSE);
 #endif
 
 
@@ -2343,10 +2410,19 @@ void GL_Upload8Grey (unsigned char*data, int width, int height,  qboolean mipmap
 	unsigned char	*scaled = uploadmemorybuffer;
 	int			scaled_width, scaled_height;
 
-	for (scaled_width = 1 ; scaled_width < width ; scaled_width<<=1)
-		;
-	for (scaled_height = 1 ; scaled_height < height ; scaled_height<<=1)
-		;
+	if (supported_GL_ARB_texture_non_power_of_two)	//NPOT is a simple extension that relaxes errors.
+	{
+		TRACE(("dbg: GL_Upload32: GL_ARB_texture_non_power_of_two\n"));
+		scaled_width = width;
+		scaled_height = height;
+	}
+	else
+	{
+		for (scaled_width = 1 ; scaled_width < width ; scaled_width<<=1)
+			;
+		for (scaled_height = 1 ; scaled_height < height ; scaled_height<<=1)
+			;
+	}
 
 	scaled_width >>= (int)gl_picmip.value;
 	scaled_height >>= (int)gl_picmip.value;
@@ -2359,23 +2435,16 @@ void GL_Upload8Grey (unsigned char*data, int width, int height,  qboolean mipmap
 			scaled_height = gl_max_size.value;
 	}
 
+	if (scaled_width < 1)
+		scaled_width = 1;
+	if (scaled_height < 1)
+		scaled_height = 1;
+
 	if (scaled_width * scaled_height > sizeofuploadmemorybuffer/4)
 		Sys_Error ("GL_LoadTexture: too big");
 
 	samples = 1;//alpha ? gl_alpha_format : gl_solid_format;
 
-#if 0
-	if (mipmap)
-		gluBuild2DMipmaps (GL_TEXTURE_2D, samples, width, height, GL_RGBA, GL_UNSIGNED_BYTE, trans);
-	else if (scaled_width == width && scaled_height == height)
-		glTexImage2D (GL_TEXTURE_2D, 0, samples, width, height, 0, GL_RGBA, GL_UNSIGNED_BYTE, trans);
-	else
-	{
-		gluScaleImage (GL_RGBA, width, height, GL_UNSIGNED_BYTE, trans,
-			scaled_width, scaled_height, GL_UNSIGNED_BYTE, scaled);
-		glTexImage2D (GL_TEXTURE_2D, 0, samples, scaled_width, scaled_height, 0, GL_RGBA, GL_UNSIGNED_BYTE, scaled);
-	}
-#else
 texels += scaled_width * scaled_height;
 
 	if (scaled_width == width && scaled_height == height)
@@ -2410,8 +2479,6 @@ texels += scaled_width * scaled_height;
 		}
 	}
 done: ;
-#endif
-
 
 	if (mipmap)
 	{
@@ -2554,13 +2621,24 @@ void GL_UploadBump(qbyte *data, int width, int height, qboolean mipmap) {
 	int			scaled_width, scaled_height;
 	qbyte			*nmap;
 
+	TRACE(("dbg: GL_UploadBump entered: %i %i\n", width, height));
+
 	s = width*height;
 
 	//Resize to power of 2 and maximum texture size
-	for (scaled_width = 1 ; scaled_width < width ; scaled_width<<=1)
-		;
-	for (scaled_height = 1 ; scaled_height < height ; scaled_height<<=1)
-		;
+	if (supported_GL_ARB_texture_non_power_of_two)	//NPOT is a simple extension that relaxes errors.
+	{
+		TRACE(("dbg: GL_Upload32: GL_ARB_texture_non_power_of_two\n"));
+		scaled_width = width;
+		scaled_height = height;
+	}
+	else
+	{
+		for (scaled_width = 1 ; scaled_width < width ; scaled_width<<=1)
+			;
+		for (scaled_height = 1 ; scaled_height < height ; scaled_height<<=1)
+			;
+	}
 
 	scaled_width >>= (int)gl_picmip.value;
 	scaled_height >>= (int)gl_picmip.value;
@@ -2572,6 +2650,11 @@ void GL_UploadBump(qbyte *data, int width, int height, qboolean mipmap) {
 		if (scaled_height > gl_max_size.value)
 			scaled_height = gl_max_size.value;
 	}
+
+	if (scaled_width < 1)
+		scaled_width = 1;
+	if (scaled_height < 1)
+		scaled_height = 1;
 
 	if (scaled_width * scaled_height > sizeofuploadmemorybuffer/4)
 		Sys_Error ("GL_LoadTexture: too big");
@@ -2637,6 +2720,7 @@ void GL_UploadBump(qbyte *data, int width, int height, qboolean mipmap) {
 //	if (gl_texturefilteranisotropic)
 //		glTexParameterfv (GL_TEXTURE_2D, GL_TEXTURE_MAX_ANISOTROPY_EXT, &gl_texureanisotropylevel);
 
+	TRACE(("dbg: GL_UploadBump: escaped %i %i\n", width, height));
 }
 
 
@@ -2669,10 +2753,19 @@ void GL_Upload8_EXT (qbyte *data, int width, int height,  qboolean mipmap, qbool
 		if (alpha && noalpha)
 			alpha = false;
 	}
-	for (scaled_width = 1 ; scaled_width < width ; scaled_width<<=1)
-		;
-	for (scaled_height = 1 ; scaled_height < height ; scaled_height<<=1)
-		;
+	if (supported_GL_ARB_texture_non_power_of_two)	//NPOT is a simple extension that relaxes errors.
+	{
+		TRACE(("dbg: GL_Upload32: GL_ARB_texture_non_power_of_two\n"));
+		scaled_width = width;
+		scaled_height = height;
+	}
+	else
+	{
+		for (scaled_width = 1 ; scaled_width < width ; scaled_width<<=1)
+			;
+		for (scaled_height = 1 ; scaled_height < height ; scaled_height<<=1)
+			;
+	}
 
 	scaled_width >>= (int)gl_picmip.value;
 	scaled_height >>= (int)gl_picmip.value;
@@ -2684,6 +2777,11 @@ void GL_Upload8_EXT (qbyte *data, int width, int height,  qboolean mipmap, qbool
 		if (scaled_height > gl_max_size.value)
 			scaled_height = gl_max_size.value;
 	}
+
+	if (scaled_width < 1)
+		scaled_width = 1;
+	if (scaled_height < 1)
+		scaled_height = 1;
 
 	if (scaled_width * scaled_height > sizeofuploadmemorybufferintermediate/4)
 		Sys_Error ("GL_LoadTexture: too big");
@@ -2932,8 +3030,14 @@ int GL_LoadTexture (char *identifier, int width, int height, qbyte *data, qboole
 	{
 		glt = GL_MatchTexture(identifier, 8, width, height);
 		if (glt)
+		{
+
+TRACE(("dbg: GL_LoadTexture: duplicate %s\n", identifier));
 			return glt->texnum;
+		}
 	}
+
+TRACE(("dbg: GL_LoadTexture: new %s\n", identifier));
 
 	glt = BZ_Malloc(sizeof(*glt)+sizeof(bucket_t));
 	glt->next = gltextures;
@@ -3170,8 +3274,13 @@ int GL_LoadTexture8Bump (char *identifier, int width, int height, unsigned char 
 	{
 		glt = GL_MatchTexture(identifier, 8, width, height);
 		if (glt)
+		{
+	TRACE(("dbg: GL_LoadTexture8Bump: duplicated %s\n", identifier));
 			return glt->texnum;
+		}
 	}
+
+	TRACE(("dbg: GL_LoadTexture8Bump: new %s\n", identifier));
 
 	glt = BZ_Malloc(sizeof(*glt)+sizeof(bucket_t));
 	glt->next = gltextures;

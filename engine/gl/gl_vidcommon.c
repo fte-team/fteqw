@@ -180,6 +180,14 @@ void GL_CheckExtensions (void *(*getglfunction) (char *name))
 	qglBindProgramARB = NULL;
 	qglGenProgramsARB = NULL;
 
+	supported_GL_ARB_texture_non_power_of_two = false;
+	supported_GL_SGIS_generate_mipmap = false;
+
+	if (strstr(gl_extensions, "GL_ARB_texture_non_power_of_two"))
+		supported_GL_ARB_texture_non_power_of_two = true;
+	if (strstr(gl_extensions, "GL_SGIS_generate_mipmap"))
+		supported_GL_SGIS_generate_mipmap = true;
+
 	if (strstr(gl_extensions, "GL_ARB_multitexture") && !COM_CheckParm("-noamtex"))
 	{	//ARB multitexture is the popular choice.
 		Con_SafePrintf("ARB Multitexture extensions found. Use -noamtex to disable.\n");

@@ -445,6 +445,11 @@ void Con_Init (void)
 {
 	con_debuglog = COM_CheckParm("-condebug");
 
+#ifdef CRAZYDEBUGGING
+	con_debuglog = true;
+	TRACE(("dbg: Con_Init: con_debuglog forced\n"));
+#endif
+
 	con = &con_main;
 	con->linewidth = -1;
 	Con_CheckResize ();
@@ -1037,7 +1042,7 @@ void Con_DrawConsole (int lines, qboolean noback)
 	int				row;
 	unsigned char			dlbar[1024];
 	char *progresstext;
-	int progresspercent;
+	float progresspercent;
 
 #ifdef RUNTIMELIGHTING
 	extern model_t *lightmodel;
@@ -1110,7 +1115,7 @@ void Con_DrawConsole (int lines, qboolean noback)
 		if (relitsurface < lightmodel->numsurfaces)
 		{
 			progresstext = "light";
-			progresspercent = (relitsurface*100) / lightmodel->numsurfaces;
+			progresspercent = (relitsurface*100.0f) / lightmodel->numsurfaces;
 		}
 	}
 #endif
@@ -1140,7 +1145,7 @@ void Con_DrawConsole (int lines, qboolean noback)
 		if (progresspercent == 0)
 			n = 0;
 		else
-			n = y * (float)progresspercent / 100;
+			n = y * progresspercent / 100;
 
 		x = i;
 		for (j = 0; j < y; j++)
@@ -1153,7 +1158,7 @@ void Con_DrawConsole (int lines, qboolean noback)
 		dlbar[i++] = '\x82';
 		dlbar[i] = 0;
 
-		sprintf(dlbar + strlen(dlbar), " %02d%%", progresspercent);
+		sprintf(dlbar + strlen(dlbar), " %02d%%", (int)progresspercent);
 
 		// draw it
 		y = con->vislines-22 + 8;

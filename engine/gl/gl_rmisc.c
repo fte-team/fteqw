@@ -865,11 +865,13 @@ void GLR_NewMap (void)
 	r_viewcluster = -1;
 	r_oldviewcluster = 0;
 	r_viewcluster2 = -1;
+TRACE(("dbg: GLR_NewMap: clear particles\n"));
 	R_ClearParticles ();
+TRACE(("dbg: GLR_NewMap: wiping them stains (getting the cloth out)\n"));
 	GLR_WipeStains();
-
+TRACE(("dbg: GLR_NewMap: building lightmaps\n"));
 	GL_BuildLightmaps ();
-
+TRACE(("dbg: GLR_NewMap: figuring out skys and mirrors\n"));
 	// identify sky texture
 	if (cl.worldmodel->fromgame != fg_quake2 && cl.worldmodel->fromgame != fg_quake3)
 	{
@@ -886,13 +888,13 @@ void GLR_NewMap (void)
 			mirrortexturenum = i;
  		cl.worldmodel->textures[i]->texturechain = NULL;
 	}
-
+TRACE(("dbg: GLR_NewMap: that skybox thang\n"));
 //#ifdef QUAKE2
 	R_LoadSkys ();
 //#endif
-
+TRACE(("dbg: GLR_NewMap: ui\n"));
 	UI_Reset();
-
+TRACE(("dbg: GLR_NewMap: tp\n"));
 	TP_NewMap();
 }
 

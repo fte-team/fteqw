@@ -1028,9 +1028,7 @@ void CL_LinkPacketEntities (void)
 			}
 
 		if (model->particletrail>=0)
-		{
 			cl.lerpents[s1->number].traildist = R_RocketTrail (old_origin, ent->origin, model->particletrail, cl.lerpents[s1->number].traildist);
-		}
 
 		//dlights are not customisable.
 		if (model->flags & EF_ROCKET)
@@ -1245,6 +1243,7 @@ void CL_ParsePlayerinfo (void)
 			prevstate = &cl.frames[info->prevcount & UPDATE_MASK].playerstate[num];
 		}
 		memcpy(state, prevstate, sizeof(player_state_t));
+		info->prevcount = cl.parsecount;
 
 /*		if (cls.findtrack && info->stats[STAT_HEALTH] > 0)
 		{
@@ -1275,7 +1274,10 @@ void CL_ParsePlayerinfo (void)
 		for (i = 0; i < 3; i++)
 		{
 			if (flags & (DF_ANGLES << i))
-				state->command.angles[i] = MSG_ReadAngle16 ();
+			{
+				state->command.angles[i] = MSG_ReadShort();
+			}
+			state->viewangles[i] = state->command.angles[i] * (360.0/65536);
 		}
 
 		if (flags & DF_MODEL)
@@ -1294,6 +1296,8 @@ void CL_ParsePlayerinfo (void)
 		state->scale = 1;
 		state->trans = 100;
 		state->fatness = 0;
+
+		state->pm_type = PM_NORMAL;
 
 		return;
 	}
@@ -1913,8 +1917,13 @@ void CL_EmitEntities (void)
 		return;
 
 	cl_oldnumvisedicts = cl_numvisedicts;
-	cl_oldvisedicts = cl_visedicts_list[(cls.netchan.incoming_sequence-1)&1];
-	cl_visedicts = cl_visedicts_list[cls.netchan.incoming_sequence&1];
+	cl_oldvisedicts = cl_visedicts;
+	if (cl_visedicts == cl_visedicts_list[0])
+		cl_visedicts = cl_visedicts_list[1];
+	else
+		cl_visedicts = cl_visedicts_list[0];
+//	cl_oldvisedicts = cl_visedicts_list[(cls.netchan.incoming_sequence-1)&1];
+//	cl_visedicts = cl_visedicts_list[cls.netchan.incoming_sequence&1];
 
 	cl_numvisedicts = 0;
 

@@ -100,7 +100,7 @@ void CalcSurfaceExtents (msurface_t *s)
 		s->texturemins[i] = bmins[i] * 16;
 		s->extents[i] = (bmaxs[i] - bmins[i]) * 16;
 
-//		if ( !(tex->flags & TEX_SPECIAL) && s->extents[i] > 512 )	//q2 uses 512.
+//		if ( !(tex->flags & TEX_SPECIAL) && s->extents[i] > 512 )	//q2 uses 512. probably for skys.
 //			Sys_Error ("Bad surface extents");
 	}
 }
@@ -2362,6 +2362,8 @@ continue;
 #endif
 		if (map_surfaces[in->shadernum].c.flags & (Q3SURF_NODRAW | Q3SURF_SKIP))
 		{
+			if (map_surfaces[in->shadernum].c.flags & Q3SURF_SKIP)
+				Con_Printf("Surface skip\n");
 			out->mesh = NULL;
 			out->polys = NULL;
 		}
@@ -4035,7 +4037,7 @@ void CM_ClipBoxToPatch (vec3_t mins, vec3_t maxs, vec3_t p1, vec3_t p2,
 		}
 		else
 		{	// leave
-			f = (d1 /*+ DIST_EPSILON*/) / (d1-d2);
+			f = (d1 + DIST_EPSILON) / (d1-d2);
 			if (f < leavefrac)
 				leavefrac = f;
 		}

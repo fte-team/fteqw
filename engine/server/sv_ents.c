@@ -1396,9 +1396,35 @@ void SVNQ_EmitEntity(sizebuf_t *msg, edict_t *ent, int entnum)
 #define	NQU_EFFECTS	(1<<13)
 #define	NQU_LONGENTITY	(1<<14)
 
+// LordHavoc's: protocol extension
+#define DPU_EXTEND1		(1<<15)
+// LordHavoc: first extend byte
+#define DPU_DELTA			(1<<16) // no data, while this is set the entity is delta compressed (uses previous frame as a baseline, meaning only things that have changed from the previous frame are sent, except for the forced full update every half second)
+#define DPU_ALPHA			(1<<17) // 1 byte, 0.0-1.0 maps to 0-255, not sent if exactly 1, and the entity is not sent if <=0 unless it has effects (model effects are checked as well)
+#define DPU_SCALE			(1<<18) // 1 byte, scale / 16 positive, not sent if 1.0
+#define DPU_EFFECTS2		(1<<19) // 1 byte, this is .effects & 0xFF00 (second byte)
+#define DPU_GLOWSIZE		(1<<20) // 1 byte, encoding is float/4.0, unsigned, not sent if 0
+#define DPU_GLOWCOLOR		(1<<21) // 1 byte, palette index, default is 254 (white), this IS used for darklight (allowing colored darklight), however the particles from a darklight are always black, not sent if default value (even if glowsize or glowtrail is set)
+// LordHavoc: colormod feature has been removed, because no one used it
+#define DPU_COLORMOD		(1<<22) // 1 byte, 3 bit red, 3 bit green, 2 bit blue, this lets you tint an object artifically, so you could make a red rocket, or a blue fiend...
+#define DPU_EXTEND2		(1<<23) // another byte to follow
+// LordHavoc: second extend byte
+#define DPU_GLOWTRAIL		(1<<24) // leaves a trail of particles (of color .glowcolor, or black if it is a negative glowsize)
+#define DPU_VIEWMODEL		(1<<25) // attachs the model to the view (origin and angles become relative to it), only shown to owner, a more powerful alternative to .weaponmodel and such
+#define DPU_FRAME2		(1<<26) // 1 byte, this is .frame & 0xFF00 (second byte)
+#define DPU_MODEL2		(1<<27) // 1 byte, this is .modelindex & 0xFF00 (second byte)
+#define DPU_EXTERIORMODEL	(1<<28) // causes this model to not be drawn when using a first person view (third person will draw it, first person will not)
+#define DPU_UNUSED29		(1<<29) // future expansion
+#define DPU_UNUSED30		(1<<30) // future expansion
+#define DPU_EXTEND3		(1<<31) // another byte to follow, future expansion
+
 int i, eff;	
 float miss;
-int bits=0;
+unsigned int bits=0;
+eval_t *val;
+
+int glowsize, glowcolor;
+
 	if (ent->v.modelindex >= 256)	//as much as protocols can handle
 		return;
 
@@ -1437,15 +1463,51 @@ int bits=0;
 
 	if ((ent->baseline.effects & 0x00ff) != ((int)eff & 0x00ff))
 		bits |= NQU_EFFECTS;	
-	
+
 	if (/*ent->baseline.modelindex !=*/ ent->v.modelindex)
 		bits |= NQU_MODEL;
 
 	if (entnum >= 256)
 		bits |= NQU_LONGENTITY;
+
+
+//	if (usedpextensions)
+	{
+		if (ent->baseline.trans != ent->v.alpha)
+			if (!(ent->baseline.trans == 1 && !ent->v.alpha))
+				bits |= DPU_ALPHA;
+		if (ent->baseline.scale != ent->v.scale)
+			bits |= DPU_SCALE;
+
+		if ((ent->baseline.effects&0xff00) != ((int)eff & 0xff00))
+			bits |= DPU_EFFECTS2;
+
+
+		val = svprogfuncs->GetEdictFieldValue(svprogfuncs, ent, "glow_size", NULL);	//ouch.. null...
+		if (val)
+			glowsize = val->_float*0.25f;
+		else
+			glowsize = 0;
+		val = svprogfuncs->GetEdictFieldValue(svprogfuncs, ent, "glow_color", NULL);	//ouch.. null...
+		if (val)
+			glowcolor = val->_float;
+		else
+			glowcolor = 0;
 		
+		if (0 != glowsize)
+			bits |= DPU_GLOWSIZE;
+		if (0 != glowcolor)
+			bits |= DPU_GLOWCOLOR;
+	}
+
+
 	if (bits & 0xFF00)
 		bits |= NQU_MOREBITS;
+	if (bits & 0xFF0000)
+		bits |= DPU_EXTEND1;
+	if (bits & 0xFF000000)
+		bits |= DPU_EXTEND2;
+
 
 //
 // write the message
@@ -1455,38 +1517,36 @@ int bits=0;
 #else
 	MSG_WriteByte (msg,bits | NQU_SIGNAL);
 #endif
-	
-	if (bits & NQU_MOREBITS)
-	{
-		MSG_WriteByte (msg, bits>>8);
-	}
+
+	if (bits & NQU_MOREBITS)	MSG_WriteByte (msg, bits>>8);
+	if (bits & DPU_EXTEND1)		MSG_WriteByte (msg, bits>>16);
+	if (bits & DPU_EXTEND2)		MSG_WriteByte (msg, bits>>24);
+
 	if (bits & NQU_LONGENTITY)
 		MSG_WriteShort (msg,entnum);
 	else
 		MSG_WriteByte (msg,entnum);
 
-	if (bits & NQU_MODEL)
-		MSG_WriteByte (msg,	ent->v.modelindex);
-	if (bits & NQU_FRAME)
-		MSG_WriteByte (msg, ent->v.frame);
-	if (bits & NQU_COLORMAP)
-		MSG_WriteByte (msg, ent->v.colormap);
-	if (bits & NQU_SKIN)
-		MSG_WriteByte (msg, ent->v.skin);
-	if (bits & NQU_EFFECTS)
-		MSG_WriteByte (msg, eff & 0x00ff);		
-	if (bits & NQU_ORIGIN1)
-		MSG_WriteCoord (msg, ent->v.origin[0]);		
-	if (bits & NQU_ANGLE1)
-		MSG_WriteAngle(msg, ent->v.angles[0]);
-	if (bits & NQU_ORIGIN2)
-		MSG_WriteCoord (msg, ent->v.origin[1]);
-	if (bits & NQU_ANGLE2)
-		MSG_WriteAngle(msg, ent->v.angles[1]);
-	if (bits & NQU_ORIGIN3)
-		MSG_WriteCoord (msg, ent->v.origin[2]);
-	if (bits & NQU_ANGLE3)
-		MSG_WriteAngle(msg, ent->v.angles[2]);
+	if (bits & NQU_MODEL)		MSG_WriteByte (msg,	ent->v.modelindex);
+	if (bits & NQU_FRAME)		MSG_WriteByte (msg, ent->v.frame);
+	if (bits & NQU_COLORMAP)	MSG_WriteByte (msg, ent->v.colormap);
+	if (bits & NQU_SKIN)		MSG_WriteByte (msg, ent->v.skin);
+	if (bits & NQU_EFFECTS)		MSG_WriteByte (msg, eff & 0x00ff);		
+	if (bits & NQU_ORIGIN1)		MSG_WriteCoord (msg, ent->v.origin[0]);		
+	if (bits & NQU_ANGLE1)		MSG_WriteAngle(msg, ent->v.angles[0]);
+	if (bits & NQU_ORIGIN2)		MSG_WriteCoord (msg, ent->v.origin[1]);
+	if (bits & NQU_ANGLE2)		MSG_WriteAngle(msg, ent->v.angles[1]);
+	if (bits & NQU_ORIGIN3)		MSG_WriteCoord (msg, ent->v.origin[2]);
+	if (bits & NQU_ANGLE3)		MSG_WriteAngle(msg, ent->v.angles[2]);
+
+	if (bits & DPU_ALPHA)		MSG_WriteByte(msg, ent->v.alpha*255);
+	if (bits & DPU_SCALE)		MSG_WriteByte(msg, ent->v.scale*16);
+	if (bits & DPU_EFFECTS2)	MSG_WriteByte(msg, eff >> 8);
+	if (bits & DPU_GLOWSIZE)	MSG_WriteByte(msg, glowsize);
+	if (bits & DPU_GLOWCOLOR)	MSG_WriteByte(msg, glowcolor);
+//	if (bits & DPU_COLORMOD)	MSG_WriteByte(msg, colormod);
+	if (bits & DPU_FRAME2)		MSG_WriteByte(msg, (int)ent->v.frame >> 8);
+	if (bits & DPU_MODEL2)		MSG_WriteByte(msg, (int)ent->v.modelindex >> 8);
 }
 
 typedef struct gibfilter_s {
@@ -1982,8 +2042,9 @@ void SV_WriteEntitiesToClient (client_t *client, sizebuf_t *msg, qboolean ignore
 			}
 
 		//QSG_DIMENSION_PLANES
-		if (!((int)client->edict->v.dimension_see & ((int)ent->v.dimension_seen | (int)ent->v.dimension_ghost)))
-			continue;	//not in this dimension - sorry...
+		if (client->edict)
+			if (!((int)client->edict->v.dimension_see & ((int)ent->v.dimension_seen | (int)ent->v.dimension_ghost)))
+				continue;	//not in this dimension - sorry...
 
 #ifdef NQPROT
 		if (nqprot)
@@ -2105,14 +2166,15 @@ void SV_WriteEntitiesToClient (client_t *client, sizebuf_t *msg, qboolean ignore
 			state->trans = 1;
 
 		//QSG_DIMENSION_PLANES - if the only shared dimensions are ghost dimensions, Set half alpha.
-		if (((int)client->edict->v.dimension_see & (int)ent->v.dimension_ghost))
-			if (!((int)client->edict->v.dimension_see & ((int)ent->v.dimension_seen & ~(int)ent->v.dimension_ghost)) )
-			{
-				if (ent->v.dimension_ghost_alpha)
-					state->trans *= ent->v.dimension_ghost_alpha;
-				else
-					state->trans *= 0.5;
-			}
+		if (client->edict)
+			if (((int)client->edict->v.dimension_see & (int)ent->v.dimension_ghost))
+				if (!((int)client->edict->v.dimension_see & ((int)ent->v.dimension_seen & ~(int)ent->v.dimension_ghost)) )
+				{
+					if (ent->v.dimension_ghost_alpha)
+						state->trans *= ent->v.dimension_ghost_alpha;
+					else
+						state->trans *= 0.5;
+				}
 #endif
 #ifdef PEXT_FATNESS
 		state->fatness = ent->v.fatness;

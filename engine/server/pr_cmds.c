@@ -1321,8 +1321,8 @@ void VARGS PR_BIError(progfuncs_t *progfuncs, char *format, ...)
 	}
 	else
 	{
-		PR_StackTrace(progfuncs);
-		PR_AbortStack(progfuncs);
+		progfuncs->PR_StackTrace(progfuncs);
+		progfuncs->AbortStack(progfuncs);
 		progfuncs->parms->Abort ("%s", string);
 	}
 }
@@ -1564,7 +1564,7 @@ void PF_error (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 	ED_Print (ed);
 */	
 
-	PR_StackTrace(prinst);
+	prinst->PR_StackTrace(prinst);
 
 	Con_Printf("%s\n", s);
 
@@ -1612,7 +1612,7 @@ void PF_objerror (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 
 		prinst->AbortStack(prinst);
 	
-		PR_BIError ("Program error :%s", s);
+		PR_BIError (prinst, "Program error: %s", s);
 
 		if (sv.time > 10)
 			Cbuf_AddText("restart\n", RESTRICT_LOCAL);
@@ -4781,7 +4781,6 @@ void PF_multicast (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 
 static void PF_Fixme (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
-	progfuncs_t *progfuncs = prinst;
 int i;
 qboolean printedheader = false;
 
@@ -4803,9 +4802,9 @@ qboolean printedheader = false;
 	Con_Printf("\n");
 
 	if (progstype == PROG_QW)
-		PR_RunError(prinst, "\nBuiltin %i not implemented.\nMods designed for mvdsv may need pr_imitatemvdsv to be enabled.", prinst->lastcalledbuiltinnumber);
+		prinst->PR_RunError(prinst, "\nBuiltin %i not implemented.\nMods designed for mvdsv may need pr_imitatemvdsv to be enabled.", prinst->lastcalledbuiltinnumber);
 	else
-		PR_RunError(prinst, "\nBuiltin %i not implemented.\nMod is not compatable.", prinst->lastcalledbuiltinnumber);
+		prinst->PR_RunError(prinst, "\nBuiltin %i not implemented.\nMod is not compatable.", prinst->lastcalledbuiltinnumber);
 	PR_BIError (prinst, "bulitin not implemented");
 }
 
@@ -6208,14 +6207,14 @@ void PF_findchain (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 	char *s, *t;
 	edict_t *ent, *chain;
 
-	chain = (edict_t *) sv.edicts;
+	chain = (edict_t *) *prinst->parms->sv_edicts;
 
 	f = G_INT(OFS_PARM0)+prinst->fieldadjust;
 	s = PR_GetStringOfs(prinst, OFS_PARM1);
 
-	for (i = 1; i < sv.num_edicts; i++)
+	for (i = 1; i < *prinst->parms->sv_num_edicts; i++)
 	{
-		ent = EDICT_NUM(svprogfuncs, i);
+		ent = EDICT_NUM(prinst, i);
 		if (ent->isfree)
 			continue;
 		t = *(string_t *)&((float*)&ent->v)[f] + prinst->stringtable;
@@ -6241,17 +6240,18 @@ void PF_findchainfloat (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 	float s;
 	edict_t	*ent, *chain;
 
-	chain = (edict_t *) sv.edicts;
+	chain = (edict_t *) *prinst->parms->sv_edicts;
 
 	f = G_INT(OFS_PARM0)+prinst->fieldadjust;
+	f += prinst->parms->edictsize/4;
 	s = G_FLOAT(OFS_PARM1);
 
-	for (i = 1; i < sv.num_edicts; i++)
+	for (i = 1; i < *prinst->parms->sv_num_edicts; i++)
 	{
-		ent = EDICT_NUM(svprogfuncs, i);
+		ent = EDICT_NUM(prinst, i);
 		if (ent->isfree)
 			continue;
-		if (((float *)&ent->v)[f] != s)
+		if (((float *)ent)[f] != s)
 			continue;
 
 		ent->v.chain = EDICT_TO_PROG(prinst, chain);
@@ -6271,17 +6271,18 @@ void PF_findchainflags (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 	int s;
 	edict_t	*ent, *chain;
 
-	chain = (edict_t *) sv.edicts;
+	chain = (edict_t *) *prinst->parms->sv_edicts;
 
 	f = G_INT(OFS_PARM0)+prinst->fieldadjust;
+	f += prinst->parms->edictsize/4;
 	s = G_FLOAT(OFS_PARM1);
 
-	for (i = 1; i < sv.num_edicts; i++)
+	for (i = 1; i < *prinst->parms->sv_num_edicts; i++)
 	{
-		ent = EDICT_NUM(svprogfuncs, i);
+		ent = EDICT_NUM(prinst, i);
 		if (ent->isfree)
 			continue;
-		if (!((int)((float *)&ent->v)[f] & s))
+		if (!((int)((float *)ent)[f] & s))
 			continue;
 
 		ent->v.chain = EDICT_TO_PROG(prinst, chain);
@@ -6297,7 +6298,7 @@ void PF_findchainflags (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 void PF_FindFloat (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
 	int e, f;
-	float s;
+	int s;
 	edict_t *ed;
 
 	if (*prinst->callargc != 3)	//I can hate mvdsv if I want to.
@@ -6309,14 +6310,14 @@ void PF_FindFloat (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 	e = G_EDICTNUM(prinst, OFS_PARM0);
 	f = G_INT(OFS_PARM1)+prinst->fieldadjust;
 	f += prinst->parms->edictsize/4;
-	s = G_FLOAT(OFS_PARM2);
+	s = G_INT(OFS_PARM2);
 
 	for (e++; e < *prinst->parms->sv_num_edicts; e++)
 	{
 		ed = EDICT_NUM(prinst, e);
 		if (ed->isfree)
 			continue;
-		if (((float *)ed)[f] == s)
+		if (((int *)ed)[f] == s)
 		{
 			RETURN_EDICT(prinst, ed);
 			return;
@@ -6337,21 +6338,22 @@ void PF_FindFlags (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 
 	e = G_EDICTNUM(prinst, OFS_PARM0);
 	f = G_INT(OFS_PARM1)+prinst->fieldadjust;
+	f += prinst->parms->edictsize/4;
 	s = G_FLOAT(OFS_PARM2);
 
-	for (e++; e < sv.num_edicts; e++)
+	for (e++; e < *prinst->parms->sv_num_edicts; e++)
 	{
 		ed = EDICT_NUM(prinst, e);
 		if (ed->isfree)
 			continue;
-		if ((int)((float *)&ed->v)[f] & s)
+		if ((int)((float *)ed)[f] & s)
 		{
 			RETURN_EDICT(prinst, ed);
 			return;
 		}
 	}
 
-	RETURN_EDICT(prinst, sv.edicts);
+	RETURN_EDICT(prinst, *prinst->parms->sv_edicts);
 }
 
 
@@ -7382,7 +7384,6 @@ static void ParamNegateFix ( float * xx, float * yy, int Zone )
 }
 void PF_ShowPic(progfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
-	progfuncs_t *progfuncs = prinst;
 	char *slot	= PR_GetStringOfs(prinst, OFS_PARM0);
 	char *picname = PR_GetStringOfs(prinst, OFS_PARM1);
 	float x		= G_FLOAT(OFS_PARM2);
@@ -7398,7 +7399,7 @@ void PF_ShowPic(progfuncs_t *prinst, struct globalvars_s *pr_globals)
 	{	//to a single client
 		entnum = G_EDICTNUM(prinst, OFS_PARM5)-1;
 		if (entnum < 0 || entnum >= sv.allocated_client_slots)
-			PR_RunError (prinst, "WriteDest: not a client");
+			prinst->PR_RunError (prinst, "WriteDest: not a client");
 
 		if (!(svs.clients[entnum].fteprotocolextensions & PEXT_SHOWPIC))
 			return;	//need an extension for this. duh.
@@ -7432,7 +7433,7 @@ void PF_HidePic(progfuncs_t *prinst, struct globalvars_s *pr_globals)
 	{	//to a single client
 		entnum = G_EDICTNUM(prinst, OFS_PARM1)-1;
 		if (entnum < 0 || entnum >= sv.allocated_client_slots)
-			PR_RunError (prinst, "WriteDest: not a client");
+			prinst->PR_RunError (prinst, "WriteDest: not a client");
 
 		if (!(svs.clients[entnum].fteprotocolextensions & PEXT_SHOWPIC))
 			return;	//need an extension for this. duh.
@@ -7468,7 +7469,7 @@ void PF_MovePic(progfuncs_t *prinst, struct globalvars_s *pr_globals)
 	{	//to a single client
 		entnum = G_EDICTNUM(prinst, OFS_PARM4)-1;
 		if (entnum < 0 || entnum >= sv.allocated_client_slots)
-			PR_RunError (prinst, "WriteDest: not a client");
+			prinst->PR_RunError (prinst, "WriteDest: not a client");
 
 		if (!(svs.clients[entnum].fteprotocolextensions & PEXT_SHOWPIC))
 			return;	//need an extension for this. duh.
@@ -7502,7 +7503,7 @@ void PF_ChangePic(progfuncs_t *prinst, struct globalvars_s *pr_globals)
 	{	//to a single client
 		entnum = G_EDICTNUM(prinst, OFS_PARM2)-1;
 		if (entnum < 0 || entnum >= sv.allocated_client_slots)
-			PR_RunError (prinst, "WriteDest: not a client");
+			prinst->PR_RunError (prinst, "WriteDest: not a client");
 
 		if (!(svs.clients[entnum].fteprotocolextensions & PEXT_SHOWPIC))
 			return;	//need an extension for this. duh.

@@ -959,7 +959,7 @@ vm_t *VM_Create(vm_t *vm, const char *name, sys_call_t syscall, sys_callex_t sys
 
 
 
-	if (COM_CheckParm("-dllforqvm") || COM_CheckParm("-soforqvm"))	//:)
+	if (!COM_CheckParm("-nodlls") && !COM_CheckParm("-nosos"))	//:)
 	{
 		if((vm->hInst=Sys_LoadDLL(name, (void**)&vm->vmMain, syscall)))
 		{

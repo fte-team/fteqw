@@ -41,7 +41,6 @@ typedef struct
 
 extern cvar_t gl_part_flame, gl_part_torch, r_fullbrightSkins, r_fb_models;
 extern cvar_t r_noaliasshadows;
-vec3_t *GLR_LightPoint3C (vec3_t p);
 void R_TorchEffect (vec3_t pos, int type);
 void GL_DrawMesh(mesh_t *mesh, shader_t *shader, int texturenum, int lmtexturenum);
 

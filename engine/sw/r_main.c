@@ -707,16 +707,23 @@ void SWR_DrawEntitiesOnList (void)
 		// trivial accept status
 			if (R_AliasCheckBBox ())
 			{
+				extern cvar_t r_fullbrightSkins;
+				float fb = r_fullbrightSkins.value;
+				if (fb > cls.allow_fbskins)
+					fb = cls.allow_fbskins;
+				if (fb < 0)
+					fb = 0;
+
 				j = SWR_LightPoint (currententity->origin);
 	
-				lighting.ambientlight = j;
-				lighting.shadelight = j;
+				lighting.ambientlight = j+fb * 120;
+				lighting.shadelight = j+fb * 120;
 
 				lighting.plightvec = lightvec;
 
 				for (lnum=0 ; lnum<MAX_DLIGHTS ; lnum++)
 				{
-					if (cl_dlights[lnum].die >= cl.time)
+					if (cl_dlights[lnum].radius)
 					{
 						VectorSubtract (currententity->origin,
 										cl_dlights[lnum].origin,

@@ -92,7 +92,21 @@ PFNGLGENPROGRAMSARBPROC qglGenProgramsARB;
 PFNGLLOCKARRAYSEXTPROC qglLockArraysEXT;
 PFNGLUNLOCKARRAYSEXTPROC qglUnlockArraysEXT;
 
-
+//glslang - arb_shader_objects
+PFNGLCREATEPROGRAMOBJECTARBPROC  qglCreateProgramObjectARB;
+PFNGLDELETEOBJECTARBPROC         qglDeleteObjectARB;
+PFNGLUSEPROGRAMOBJECTARBPROC     qglUseProgramObjectARB;
+PFNGLCREATESHADEROBJECTARBPROC   qglCreateShaderObjectARB;
+PFNGLSHADERSOURCEARBPROC         qglShaderSourceARB;
+PFNGLCOMPILESHADERARBPROC        qglCompileShaderARB;
+PFNGLGETOBJECTPARAMETERIVARBPROC qglGetObjectParameterivARB;
+PFNGLATTACHOBJECTARBPROC         qglAttachObjectARB;
+PFNGLGETINFOLOGARBPROC           qglGetInfoLogARB;
+PFNGLLINKPROGRAMARBPROC          qglLinkProgramARB;
+PFNGLGETUNIFORMLOCATIONARBPROC   qglGetUniformLocationARB;
+PFNGLUNIFORM4FARBPROC            qglUniform4fARB;
+PFNGLUNIFORM1IARBPROC            qglUniform1iARB;
+PFNGLUNIFORM1FARBPROC            qglUniform1fARB;
 
 //extensions
 //arb multitexture
@@ -194,6 +208,8 @@ void GL_CheckExtensions (void *(*getglfunction) (char *name))
 	gl_config.arb_texture_env_dot3 = false;
 	gl_config.arb_texture_cube_map = false;
 
+	gl_config.arb_fragment_program = false;
+	gl_config.arb_shader_objects = false;
 
 	if (strstr(gl_extensions, "GL_ARB_texture_non_power_of_two"))
 		gl_config.arb_texture_non_power_of_two = true;
@@ -301,6 +317,110 @@ void GL_CheckExtensions (void *(*getglfunction) (char *name))
 		qglBindProgramARB = (void *)getglext("glBindProgramARB");
 		qglGenProgramsARB = (void *)getglext("glGenProgramsARB");
 	}
+
+	// glslang
+	if (!!strstr(gl_extensions, "GL_ARB_shader_objects"))
+	{
+		gl_config.arb_shader_objects = true;
+		qglCreateProgramObjectARB	= (void *)getglext("glCreateProgramObjectARB");
+		qglDeleteObjectARB			= (void *)getglext("glDeleteObjectARB");
+		qglUseProgramObjectARB		= (void *)getglext("glUseProgramObjectARB");
+		qglCreateShaderObjectARB	= (void *)getglext("glCreateShaderObjectARB");
+		qglShaderSourceARB			= (void *)getglext("glShaderSourceARB");
+		qglCompileShaderARB			= (void *)getglext("glCompileShaderARB");
+		qglGetObjectParameterivARB	= (void *)getglext("glGetObjectParameterivARB");
+		qglAttachObjectARB			= (void *)getglext("glAttachObjectARB");
+		qglGetInfoLogARB			= (void *)getglext("glGetInfoLogARB");
+		qglLinkProgramARB			= (void *)getglext("glLinkProgramARB");
+		qglGetUniformLocationARB	= (void *)getglext("glGetUniformLocationARB");
+		qglUniform4fARB				= (void *)getglext("glUniform4fARB");
+		qglUniform1iARB				= (void *)getglext("glUniform1iARB");
+		qglUniform1fARB				= (void *)getglext("glUniform1fARB");
+	}
+}
+
+
+// glslang helper api function definitions
+// type should be GL_FRAGMENT_SHADER_ARB or GL_VERTEX_SHADER_ARB
+GLhandleARB GLSlang_CreateShader (char *shadersource, int shadertype)
+{
+	GLhandleARB shader;
+	GLenum      type;
+	GLint       compiled;
+	char        str[1024];
+
+	switch (shadertype)
+	{
+	case 0:
+		type = GL_FRAGMENT_SHADER_ARB;
+		break;
+	case 1:
+		type = GL_VERTEX_SHADER_ARB;
+		break;
+	default:
+		return -1;
+		break;
+	}
+
+	shader = qglCreateShaderObjectARB(type);
+
+	qglShaderSourceARB(shader, 1, &shadersource, NULL);
+	qglCompileShaderARB(shader);
+
+	qglGetObjectParameterivARB(shader, GL_OBJECT_COMPILE_STATUS_ARB, &compiled);
+	if(!compiled)
+	{
+		qglGetInfoLogARB(shader, sizeof(str), NULL, str);
+		switch (shadertype)
+		{
+		case 0:
+			Con_Printf("Fragment shader compilation error:\n----------\n%s\n----------\n", str);
+			break;
+		case 1:
+			Con_Printf("Vertex shader compilation error:\n----------\n%s\n----------\n", str);
+			break;
+		default:
+			Con_Printf("Shader_CreateShader: This shouldn't happen ever\n");
+			break;
+		}
+		return -1;
+	}
+
+	return shader;
+}
+
+GLhandleARB GLSlang_CreateProgram (GLhandleARB vert, GLhandleARB frag)
+{
+	GLhandleARB program;
+	GLint       linked;
+	char        str[1024];
+
+	program = qglCreateProgramObjectARB();
+	qglAttachObjectARB(program, vert);
+	qglAttachObjectARB(program, frag);
+
+	qglLinkProgramARB(program);
+
+	qglGetObjectParameterivARB(program, GL_OBJECT_LINK_STATUS_ARB, &linked);
+
+	if(!linked)
+	{
+		qglGetInfoLogARB(program, sizeof(str), NULL, str);
+		Con_Printf("Program link error: %s\n", str);
+		return (int)NULL;
+	}
+
+	return program;
+}
+
+GLint GLSlang_GetUniformLocation (int prog, char *name)
+{
+	int i = qglGetUniformLocationARB(prog, name);
+	if (i == -1)
+	{
+		Con_Printf("Failed to get location of uniform '%s'\n", name);
+	}
+	return i;
 }
 
 //the vid routines have initialised a window, and now they are giving us a reference to some of of GetProcAddress to get pointers to the funcs.

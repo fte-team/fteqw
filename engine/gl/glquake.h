@@ -100,6 +100,7 @@ typedef struct {
 
 	qboolean arb_texture_compression;
 	qboolean arb_fragment_program;
+	qboolean arb_shader_objects;
 	qboolean ext_stencil_wrap;
 	int maxtmus;	//max texture units
 } gl_config_t;
@@ -714,6 +715,32 @@ extern PFNGLPROGRAMSTRINGARBPROC qglProgramStringARB;
 extern PFNGLGETPROGRAMIVARBPROC qglGetProgramivARB;
 extern PFNGLBINDPROGRAMARBPROC qglBindProgramARB;
 extern PFNGLGENPROGRAMSARBPROC qglGenProgramsARB;
+
+//glslang - arb_shader_objects
+extern PFNGLCREATEPROGRAMOBJECTARBPROC  qglCreateProgramObjectARB;
+extern PFNGLDELETEOBJECTARBPROC         qglDeleteObjectARB;
+extern PFNGLUSEPROGRAMOBJECTARBPROC     qglUseProgramObjectARB;
+extern PFNGLCREATESHADEROBJECTARBPROC   qglCreateShaderObjectARB;
+extern PFNGLSHADERSOURCEARBPROC         qglShaderSourceARB;
+extern PFNGLCOMPILESHADERARBPROC        qglCompileShaderARB;
+extern PFNGLGETOBJECTPARAMETERIVARBPROC qglGetObjectParameterivARB;
+extern PFNGLATTACHOBJECTARBPROC         qglAttachObjectARB;
+extern PFNGLGETINFOLOGARBPROC           qglGetInfoLogARB;
+extern PFNGLLINKPROGRAMARBPROC          qglLinkProgramARB;
+extern PFNGLGETUNIFORMLOCATIONARBPROC   qglGetUniformLocationARB;
+extern PFNGLUNIFORM4FARBPROC            qglUniform4fARB;
+extern PFNGLUNIFORM1IARBPROC            qglUniform1iARB;
+extern PFNGLUNIFORM1FARBPROC            qglUniform1fARB;
+
+//glslang helper api
+GLhandleARB GLSlang_CreateShader (char *shadersource, int shadertype);
+GLhandleARB GLSlang_CreateProgram (GLhandleARB vert, GLhandleARB frag);
+GLint GLSlang_GetUniformLocation (int prog, char *name);
+#define GLSlang_UseProgram(prog) qglUseProgramObjectARB(prog);
+#define GLSlang_SetUniform1i(uni, parm0) qglUniform1iARB(uni, parm0);
+#define GLSlang_SetUniform1f(uni, parm0) qglUniform1fARB(uni, parm0);
+#define GLSlang_DeleteObject(object) qglDeleteObjectARB(object);
+
 
 extern PFNGLLOCKARRAYSEXTPROC qglLockArraysEXT;
 extern PFNGLUNLOCKARRAYSEXTPROC qglUnlockArraysEXT;

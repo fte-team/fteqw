@@ -1205,12 +1205,12 @@ qboolean PR_UserCmd(char *s)
 #ifdef Q2SERVER
 	if (ge)
 	{
+		SV_BeginRedirect (RD_CLIENT);
 		ge->ClientCommand(host_client->q2edict);
+		SV_EndRedirect ();
 		return true;	//the dll will convert in to chat.
 	}
 #endif
-
-	SV_EndRedirect ();
 
 	pr_globals = PR_globals(svprogfuncs, PR_CURRENT);
 	if (SV_ParseClientCommand)
@@ -1221,7 +1221,7 @@ qboolean PR_UserCmd(char *s)
 		
 		G_INT(OFS_PARM0) = (int)PR_SetString(svprogfuncs, s);
 		PR_ExecuteProgram (svprogfuncs, SV_ParseClientCommand);
-		return false;
+		return true;
 	}
 	if (mod_UserCmd && pr_imitatemvdsv.value >= 0)
 	{

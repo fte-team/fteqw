@@ -2638,17 +2638,18 @@ typedef struct
 {
 	char	*name;
 	void	(*func) (void);
+	qboolean	noqchandling;
 } ucmd_t;
 
 ucmd_t ucmds[] =
 {
-	{"new", SV_New_f},
-	{"pk3list",	SV_PK3List_f},
-	{"modellist", SV_Modellist_f},
-	{"soundlist", SV_Soundlist_f},
-	{"prespawn", SV_PreSpawn_f},
-	{"spawn", SV_Spawn_f},
-	{"begin", SV_Begin_f},
+	{"new", SV_New_f, true},
+	{"pk3list",	SV_PK3List_f, true},
+	{"modellist", SV_Modellist_f, true},
+	{"soundlist", SV_Soundlist_f, true},
+	{"prespawn", SV_PreSpawn_f, true},
+	{"spawn", SV_Spawn_f, true},
+	{"begin", SV_Begin_f, true},
 
 	{"join", Cmd_Join_f},
 	{"observe", Cmd_Observe_f},
@@ -2697,28 +2698,28 @@ ucmd_t ucmds[] =
 
 #ifdef Q2SERVER
 ucmd_t ucmdsq2[] = {
-	{"new", SV_New_f},
-	{"configstrings", SVQ2_ConfigStrings_f},
-	{"baselines", SVQ2_BaseLines_f},
-	{"begin", SV_Begin_f},
+	{"new", SV_New_f, true},
+	{"configstrings", SVQ2_ConfigStrings_f, true},
+	{"baselines", SVQ2_BaseLines_f, true},
+	{"begin", SV_Begin_f, true},
 
-	{"setinfo", SV_SetInfo_f},
+	{"setinfo", SV_SetInfo_f, true},
 
-	{"serverinfo", SV_ShowServerinfo_f},
+	{"serverinfo", SV_ShowServerinfo_f, true},
 
-	{"download", SV_BeginDownload_f},
-	{"nextdl", SV_NextDownload_f},
+	{"download", SV_BeginDownload_f, true},
+	{"nextdl", SV_NextDownload_f, true},
 
-	{"nextserver", SVQ2_NextServer_f},
+	{"nextserver", SVQ2_NextServer_f, true},
 
-	{"vote", SV_Vote_f},
+	{"vote", SV_Vote_f, true},
 
 #ifdef SVRANKING
-	{"topten", Rank_ListTop10_f},
+	{"topten", Rank_ListTop10_f, true},
 #endif
 
-	{"drop", SV_Drop_f},
-	{"disconnect", SV_Drop_f},
+	{"drop", SV_Drop_f, true},
+	{"disconnect", SV_Drop_f, true},
 
 	{NULL, NULL}
 };
@@ -2738,8 +2739,6 @@ void SV_ExecuteUserCommand (char *s, qboolean fromQC)
 	sv_player = host_client->edict;
 
 	Cmd_ExecLevel=1;
-
-	SV_BeginRedirect (RD_CLIENT);
 
 	if (atoi(Cmd_Argv(0))>0)	//now see if it's meant to be from a slave client
 	{
@@ -2767,8 +2766,17 @@ void SV_ExecuteUserCommand (char *s, qboolean fromQC)
 	for ( ; u->name ; u++)
 		if (!strcmp (Cmd_Argv(0), u->name) )
 		{
+			if (!fromQC && !u->noqchandling)
+				if (PR_UserCmd(s))
+				{
+					host_client = oldhost;
+					return;
+				}
+			SV_BeginRedirect (RD_CLIENT);
 			u->func ();
-			break;
+			host_client = oldhost;
+			SV_EndRedirect ();
+			return;
 		}
 
 	if (!u->name)
@@ -2777,7 +2785,6 @@ void SV_ExecuteUserCommand (char *s, qboolean fromQC)
 			if (PR_UserCmd(s))
 			{
 				host_client = oldhost;
-				SV_EndRedirect ();
 				return;
 			}
 
@@ -2790,14 +2797,13 @@ void SV_ExecuteUserCommand (char *s, qboolean fromQC)
 			if (!Rank_GetPlayerStats(host_client->rankid, &stats))
 			{
 				host_client = oldhost;
-				SV_EndRedirect ();
 				return;
 			}
 
 			Con_Printf ("cmd from %s:\n%s\n"
 				, host_client->name, net_message.data+4);
 
-			SV_BeginRedirect (RD_PACKET);
+			SV_BeginRedirect (RD_CLIENT);
 
 			remaining[0] = 0;
 
@@ -3170,9 +3176,9 @@ ucmd_t nqucmds[] =
 	{"color",		SVNQ_NQColour_f},
 	{"kill",		SV_Kill_f},
 	{"pause",		SV_Pause_f},
-	{"spawn",		SVNQ_Spawn_f},
-	{"begin",		SVNQ_Begin_f},
-	{"prespawn",	SVNQ_PreSpawn_f},
+	{"spawn",		SVNQ_Spawn_f, true},
+	{"begin",		SVNQ_Begin_f, true},
+	{"prespawn",	SVNQ_PreSpawn_f, true},
 	{"kick",		NULL},
 	{"ping",		NULL},
 	{"ban",			NULL},
@@ -3187,6 +3193,7 @@ ucmd_t nqucmds[] =
 
 void SVNQ_ExecuteUserCommand (char *s)
 {
+	client_t *oldhost = host_client;
 	ucmd_t	*u;
 	
 	Cmd_TokenizeString (s);
@@ -3194,23 +3201,34 @@ void SVNQ_ExecuteUserCommand (char *s)
 
 	Cmd_ExecLevel=1;
 
-	SV_BeginRedirect (RD_CLIENT);
-
 	for (u=nqucmds ; u->name ; u++)
 	{
 		if (!strcmp (Cmd_Argv(0), u->name) )
 		{
+			if (!fromQC && !u->noqchandling)
+				if (PR_UserCmd(s))
+				{
+					host_client = oldhost;
+					return;
+				}
+
 			if (!u->func)
 			{
-				Con_Printf("Command was disabled\n");				
+				SV_BeginRedirect (RD_CLIENT);
+				Con_Printf("Command was disabled\n");
+				SV_EndRedirect ();
 			}
 			else
+			{
+				SV_BeginRedirect (RD_CLIENT);
 				u->func ();
-			break;
+				SV_EndRedirect ();
+			}
+
+			host_client = oldhost;
+			return;
 		}
 	}
-
-	SV_EndRedirect ();
 
 	if (!u->name)
 		Con_Printf("%s tried to \"%s\"\n", host_client->name, s);

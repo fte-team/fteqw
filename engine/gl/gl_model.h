@@ -187,9 +187,7 @@ typedef struct mtexinfo_s
 typedef struct glpoly_s
 {
 	struct	glpoly_s	*next;
-	struct	glpoly_s	*chain;
 	int		numverts;
-	int		flags;			// for SURF_UNDERWATER
 #ifdef SHADERS
 	float	texcenter[2];	//center of texture made by adveraging the tex coords
 #endif

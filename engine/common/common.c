@@ -680,12 +680,6 @@ void MSG_WriteString (sizebuf_t *sb, char *s)
 		SZ_Write (sb, s, Q_strlen(s)+1);
 }
 
-typedef union {
-	char b[4];
-	short b2;
-	int b4;
-	float f;
-} coorddata;
 int sizeofcoord=2;
 float MSG_FromCoord(coorddata c, int bytes)
 {
@@ -4130,7 +4124,16 @@ void COM_InitFilesystem (void)
 					COM_AddGameDirectory (va("%s/data1", com_basedir) );
 				}
 				else
-					COM_AddGameDirectory (va("%s/id1", com_basedir) );
+				{//quake3, we don't have full support for this, so...
+					f = fopen(va("%s/baseq3/pak0.pk3", com_basedir), "rb");
+					if (f)
+					{
+						fclose(f);
+						COM_AddGameDirectory (va("%s/baseq3", com_basedir) );
+					}
+					else
+						COM_AddGameDirectory (va("%s/id1", com_basedir) );	//ah well, id1 it is, they mustve unpacked it.
+				}
 			}
 		}
 	}

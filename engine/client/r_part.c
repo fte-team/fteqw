@@ -1499,6 +1499,10 @@ int R_RunParticleEffectType (vec3_t org, vec3_t dir, float count, int typenum)
 	if (!ptype->loaded)
 		return 1;
 
+	// get msvc to shut up
+	j = k = l = 0;
+	m = 0;
+
 	while(ptype)
 	{
 		// init spawn specific variables
@@ -1516,9 +1520,9 @@ int R_RunParticleEffectType (vec3_t org, vec3_t dir, float count, int typenum)
 				m = (M_PI*2)/m;
 			break;
 		case SM_TELEBOX:
-			j = k = -ptype->areaspread;
-		case SM_LAVASPLASH:
 			l = -ptype->areaspreadvert;
+		case SM_LAVASPLASH:
+			j = k = -ptype->areaspread;
 			break;
 		}
 		
@@ -1542,7 +1546,7 @@ int R_RunParticleEffectType (vec3_t org, vec3_t dir, float count, int typenum)
 					b = bfirst = free_beams;
 					free_beams = free_beams->next;
 				}
-				b->texture_s = i;
+				b->texture_s = i; // TODO: FIX THIS NUMBER
 				b->flags = 0;
 				b->p = p;
 				VectorClear(b->dir);

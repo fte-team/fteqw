@@ -42,7 +42,7 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 #endif 
 
 
-
+extern cvar_t vid_conwidth;
 
 
 #define WINDOW_CLASS_NAME "WinQuake"
@@ -88,8 +88,6 @@ unsigned short origionalgammaramps[3][256];
 extern
 #endif
 		qboolean vid_initializing;
-
-extern cvar_t gl_2dscale;
 
 qboolean VID_AttachGL (rendererstate_t *info);
 
@@ -369,7 +367,7 @@ qboolean VID_SetWindowedMode (rendererstate_t *info)
 	else
 	{
 		vid.conwidth = 640;
-		gl_2dscale.modified = true;
+		vid_conwidth.modified = true;	//make it reapplied
 	}
 
 	vid.conwidth &= 0xfff8; // make it a multiple of eight
@@ -1200,7 +1198,7 @@ LONG WINAPI GLMainWndProc (
 
 				if (modestate != MS_FULLDIB)	//fullscreen doesn't have the RIGHT to respond to this. Apply to the Court of M$ if you want this changed...
 				{
-					gl_2dscale.modified = true;
+					vid_conwidth.modified = true;	//make it reapplied
 				}
 			}
             break;

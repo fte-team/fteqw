@@ -1296,7 +1296,6 @@ void CMod_LoadFaces (lump_t *l)
 	int			i, count, surfnum;
 	int			planenum, side;
 	int			ti;
-	extern qboolean r_usinglits;
 
 	in = (void *)(cmod_base + l->fileofs);
 	if (l->filelen % sizeof(*in))
@@ -2263,9 +2262,9 @@ void CModQ3_LoadRFaces (lump_t *l)
 
 	mesh_t *mesh;
 
-	extern cvar_t gl_shaders;
+	extern cvar_t gl_shadeq3;
 
-	int shaders = 1;//0;//gl_shaders.value;
+	int shaders = gl_shadeq3.value;
 	
 
 	in = (void *)(mod_base + l->fileofs);

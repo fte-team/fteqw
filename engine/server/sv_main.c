@@ -683,9 +683,9 @@ void SVC_Status (void)
 	if (slots>12)
 		Con_Printf ("5013 23 64 94 \"DeathBunny\" \"soldier\" 13 13\n");
 	if (slots>10)
-		Con_Printf ("5010 32 85 162 \"€ƒ‚²¥ÄOÎÅ\" \"hacker\" 13 13\n");
+		Con_Printf ("5010 32 85 162 \"ï¿½ï¿½\" \"hacker\" 13 13\n");
 	if (slots>8)
-		Con_Printf ("5011 32 85 162 \"ÁlòeaäùÄEÁÄ‘\" \"hacker\" 4 4\n");
+		Con_Printf ("5011 32 85 162 \"ï¿½ï¿½aï¿½ï¿½ï¿½\" \"hacker\" 4 4\n");
 	*/
 	SV_EndRedirect ();
 }
@@ -3042,6 +3042,10 @@ void SV_InitLocal (void)
 //	svs.fteprotocolextensions |= PEXT_64PLAYERS;
 	svs.fteprotocolextensions |= PEXT_SHOWPIC;
 	svs.fteprotocolextensions |= PEXT_SETATTACHMENT;
+	
+#ifdef PEXT_PK3DOWNLOADS
+	svs.fteprotocolextensions |= PEXT_PK3DOWNLOADS;
+#endif	
 
 #ifdef PEXT_CHUNKEDDOWNLOADS
 	svs.fteprotocolextensions |= PEXT_CHUNKEDDOWNLOADS;

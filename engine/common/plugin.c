@@ -156,7 +156,7 @@ static int EXPORT_FN Plug_SystemCalls(int arg, ...)
 plugin_t *Plug_Load(char *file)
 {
 	plugin_t *newplug;
-	int argarray;
+	long argarray;
 
 	for (newplug = plugs; newplug; newplug = newplug->next)
 	{
@@ -175,7 +175,7 @@ plugin_t *Plug_Load(char *file)
 		newplug->next = plugs;
 		plugs = newplug;
 
-		argarray = (int)"Plug_GetEngineFunction";
+		argarray = (long)"Plug_GetEngineFunction";
 		VM_Call(newplug->vm, 0, Plug_FindBuiltin(NULL, ~0, &argarray));
 
 		if (newplug->reschange)
@@ -496,7 +496,7 @@ int Plug_Draw_Fill(void *offset, unsigned int mask, const long *arg)
 	y = VM_FLOAT(arg[1]);
 	width = VM_FLOAT(arg[2]);
 	height = VM_FLOAT(arg[3]);
-	switch(qrenderer)
+	switch(qrenderer)	//FIXME: I don't want qrenderer seen outside the refresh
 	{
 #ifdef RGLQUAKE
 	case QR_OPENGL:
@@ -510,11 +510,12 @@ int Plug_Draw_Fill(void *offset, unsigned int mask, const long *arg)
 		qglEnable(GL_TEXTURE_2D);
 		return 1;
 #endif
+	default:
+		break;
 	}
 	return 0;
 }
 
-//hrm.... FIXME!
 int Plug_Draw_ColourP(void *offset, unsigned int mask, const long *arg)
 {
 	qbyte *pal = host_basepal + VM_LONG(arg[0])*3;
@@ -589,7 +590,6 @@ int Plug_Cvar_SetFloat(void *offset, unsigned int mask, const long *arg)
 int Plug_Cvar_GetFloat(void *offset, unsigned int mask, const long *arg)
 {
 	char *name = VM_POINTER(arg[0]);
-	float value = VM_FLOAT(arg[1]);
 	int ret;
 	cvar_t *var = Cvar_Get(name, "", 0, "Plugin vars");
 	if (var)
@@ -976,7 +976,7 @@ void Plug_Close_f(void)
 	}
 	for (plug = plugs; plug; plug = plug->next)
 	{
-		if (!strcmp(plug->name, Cmd_Argv(1)))
+		if (!strcmp(plug->name, name))
 		{
 			Plug_Close(plug);
 			return;

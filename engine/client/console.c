@@ -1069,7 +1069,7 @@ void Con_DrawNotify (void)
 			Draw_ColouredCharacter ( (x+skip)<<3, v, s[x]|mask);
 			x++;
 		}
-		Draw_ColouredCharacter ( (x+skip)<<3, v, 10+((int)(realtime*con_cursorspeed)&1)|M_COLOR_WHITE);
+		Draw_ColouredCharacter ( (x+skip)<<3, v, (10+((int)(realtime*con_cursorspeed)&1))|M_COLOR_WHITE);
 		v += 8;
 	}
 

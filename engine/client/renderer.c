@@ -176,6 +176,7 @@ cvar_t			scr_allowsnap = {"scr_allowsnap", "1", NULL, CVAR_NOTFROMSERVER};	//oth
 cvar_t			scr_chatmodecvar = {"scr_chatmode", "0"};
 
 #ifdef Q3SHADERS
+cvar_t 			gl_shadeq3 = {"gl_shadeq3", "1"};	//use if you want.
 extern cvar_t r_vertexlight;
 cvar_t			gl_shadeq1 = {"gl_shadeq1", "0", NULL, CVAR_CHEAT};	//FIXME: :(
 cvar_t			gl_shadeq1_name = {"gl_shadeq1_name", "*"};
@@ -339,6 +340,7 @@ void GLRenderer_Init(void)
 	Cvar_Register (&r_vertexlight, GLRENDEREROPTIONS);
 	Cvar_Register (&gl_shadeq1, GLRENDEREROPTIONS);
 	Cvar_Register (&gl_shadeq1_name, GLRENDEREROPTIONS);
+	Cvar_Register (&gl_shadeq3, GLRENDEREROPTIONS);
 #endif
 }
 #endif
@@ -1377,7 +1379,6 @@ qboolean R_ApplyRenderer (rendererstate_t *newr)
 		host_basepal = (qbyte *)COM_LoadMallocFile ("gfx/palette.lmp");
 		if (!host_basepal)
 		{
-			extern char	com_basedir[MAX_OSPATH];
 			qbyte *pcx=NULL;
 			host_basepal = BZ_Malloc(768);
 			pcx = COM_LoadTempFile("pics/colormap.pcx");

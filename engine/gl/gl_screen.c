@@ -129,7 +129,7 @@ void GLSCR_UpdateScreen (void)
 	static float old2dscale=1;
 	int uimenu;
 #ifdef TEXTEDITOR
-	extern qboolean editormodal, editoractive;
+	extern qboolean editormodal;
 #endif
 	qboolean nohud;
 	RSpeedMark();

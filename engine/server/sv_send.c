@@ -1663,7 +1663,7 @@ void SV_SendMVDMessage(void)
 	float		min_fps;
 	extern		cvar_t sv_demofps;
 	extern		cvar_t sv_demoPings;
-	extern		cvar_t	sv_demoMaxSize;
+//	extern		cvar_t	sv_demoMaxSize;
 
 	if (!sv.mvdrecording)
 		return;

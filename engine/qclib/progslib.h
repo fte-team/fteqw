@@ -166,7 +166,7 @@ typedef struct progexterns_s {
 } progparms_t, progexterns_t;
 
 void QC_AddSharedVar(progfuncs_t *progfuncs, int start, int size);
-
+void QC_AddSharedFieldVar(progfuncs_t *progfuncs, int num);
 
 #if defined(QCLIBDLL_EXPORTS)
 __declspec(dllexport)

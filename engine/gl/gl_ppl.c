@@ -84,10 +84,6 @@ static unsigned int varray_i_polytotri[MAXARRAYVERTS];	//012 023 034 045...
 int varray_ic;
 int varray_vc;
 
-#ifdef Q3SHADERS
-static qboolean pplvarrayactive;
-#endif
-
 #define inline static
 
 extern qboolean varrayactive;	//used by the backend
@@ -1311,10 +1307,7 @@ static void PPL_BaseChain_Flat(msurface_t *first)
 
 static void PPL_BaseChain_NPR_Sketch(msurface_t *first)
 {
-	static vec_t wallcolour[4] = {0,0,0,1};
-	static vec_t floorcolour[4] = {0,0,0,1};
 	msurface_t *s;
-	int iswall = -1;
 	int vi=-10;
 	int i;
 	glRect_t    *theRect;

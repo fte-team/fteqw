@@ -563,9 +563,14 @@ void SVQ2_NextServer_f (void)
 
 void SV_PK3List_f (void)
 {
+#ifndef PEXT_PK3DOWNLOADS
+	Con_Printf ("pk3list not valid -- It's not implemented!\n");
+	return;
+#else
 	int crc;
 	char *name;
 	int i;
+	
 
 	if (host_client->state != cs_connected)
 	{	//fixme: send prints instead
@@ -585,7 +590,8 @@ void SV_PK3List_f (void)
 	
 //NOTE:  This doesn't go through ClientReliableWrite since it's before the user
 //spawns.  These functions are written to not overflow
-	if (host_client->num_backbuf) {
+	if (host_client->num_backbuf)
+	{
 		Con_Printf("WARNING %s: [SV_Soundlist] Back buffered (%d), clearing", host_client->name, host_client->netchan.message.cursize); 
 		host_client->num_backbuf = 0;
 		SZ_Clear(&host_client->netchan.message);
@@ -597,7 +603,7 @@ void SV_PK3List_f (void)
 		return;
 	}
 
-	for (i; ; i++)
+	for (; ; i++)
 	{
 		if (host_client->netchan.message.cursize < (MAX_QWMSGLEN/2))
 		{	//user's buffer was too small
@@ -612,12 +618,14 @@ void SV_PK3List_f (void)
 		{
 			MSG_WriteByte(&host_client->netchan.message, svc_stufftext);
 			MSG_WriteString(&host_client->netchan.message, va("echo packfile %s\n", name));
-			continue;	//okay, that was all we could find.
+			continue;	//try the next.
 		}
+		//that's all folks, move on to sound.
 		MSG_WriteByte(&host_client->netchan.message, svc_stufftext);
 		MSG_WriteString(&host_client->netchan.message, va("soundlist %i 0\n", svs.spawncount));
 		return;
 	}
+#endif
 }
 
 /*

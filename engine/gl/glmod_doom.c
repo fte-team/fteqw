@@ -1,18 +1,6 @@
 #include "quakedef.h"
 #include "glquake.h"
 
-#ifdef __linux__
-void strlwr(char *s)
-{
-	while(*s)
-	{
-		if (*s >= 'A' && *s <= 'Z')
-			*s -= 'A' + 'a';
-		s++;
-	}
-}
-#endif
-
 #ifdef DOOMWADS
 
 vec_t VectorNormalize2 (vec3_t v, vec3_t out);
@@ -286,13 +274,13 @@ int Doom_LoadFlat(char *name)
 	Doom_LoadPalette();
 
 	sprintf(texname, "flat-%-.8s", name);
-	strlwr(texname);
+	Q_strlwr(texname);
 	tex = Mod_LoadReplacementTexture(texname, true, false, true);
 	if (tex)
 		return tex;
 
 	sprintf(texname, "flats/%-.8s", name);
-	strlwr(texname);
+	Q_strlwr(texname);
 	file = COM_LoadMallocFile(texname);
 	if (file)
 	{
@@ -1136,7 +1124,7 @@ static int Doom_LoadPatchFromTexWad(char *name, void *texlump, unsigned short *w
 			for (i = 0; i < tx->componantcount; i++, tc++)
 			{
 				strncpy(patch+8, pnames+4+8*tc->patchnum, 8);
-				strlwr(patch+8);
+				Q_strlwr(patch+8);
 				patch[16] = '\0';
 
 				Doom_ExtractPName(tex, (doomimage_t *)COM_LoadTempFile(patch), tx->width, tx->height, tc->xoffset, tc->yoffset);

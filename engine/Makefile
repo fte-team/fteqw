@@ -25,7 +25,8 @@ SERVER_DIR=$(BASE_DIR)/server
 COMMON_DIR=$(BASE_DIR)/common
 NQPROT_DIR=$(BASE_DIR)/nqnet
 HTTP_DIR=$(BASE_DIR)/http
-LIBS_DIR=$(BASE_DIR)/libs
+#LIBS_DIR=$(BASE_DIR)/libs
+LIBS_DIR?=.
 PROGS_DIR=$(BASE_DIR)/qclib
 SNDCODEC_DIR=$(BASE_DIR)/sndcodec
 MP3_DIR=$(BASE_DIR)/../mp3/libmad
@@ -330,6 +331,7 @@ SV_CFLAGS=$(SERVER_ONLY_CFLAGS)
 #specific targets override those defaults as needed.
 	
 ifeq ($(FTE_TARGET),win32)
+	LIBS_DIR = $(BASE_DIR)/libs
 	SV_EXE_NAME=../fteqwsv.exe
 	SV_LDFLAGS=libs/zlib.lib -lwsock32
 	SV_DIR=sv_mingw
@@ -438,8 +440,8 @@ endif
 #which is needed as windows sucks too much for the chaining to carry a full list.
 #god knows how gcc loads the list properly.
 #or at least I hope he does. It makes no sence to mortals.
-$(OUT_DIR)/$(EXE_NAME):       $(addprefix $(OUT_DIR)/, $(foreach ol, $(OBJS), $($(ol)))) 
-	$(CC) $(WCFLAGS) -o $@ $(addprefix $(OUT_DIR)/, $(foreach ol, $(OBJS), $($(ol)))) $(LDFLAGS) $(CFLAGS)
+$(OUT_DIR)/$(EXE_NAME):       $(addprefix $(OUT_DIR)/, $(CUSTOMOBJS) $(foreach ol, $(OBJS), $($(ol)))) 
+	$(CC) $(WCFLAGS) -o $@ $(addprefix $(OUT_DIR)/, $(CUSTOMOBJS) $(foreach ol, $(OBJS), $($(ol)))) $(LDFLAGS) $(CFLAGS)
 
 _out-rel:
 	$(MAKE) $(OUT_DIR)/$(EXE_NAME) EXE_NAME="$(EXE_NAME)" OUT_DIR="$(OUT_DIR)" WCFLAGS="$(WCFLAGS) $(RELEASE_CFLAGS)" LDFLAGS="$(BASELDFLAGS) $(LDFLAGS)" OBJS="$(OBJS)"

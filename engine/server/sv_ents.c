@@ -1821,7 +1821,7 @@ void SV_WriteEntitiesToClient (client_t *client, sizebuf_t *msg, qboolean ignore
 				continue;
 			if (e >= 1024 && !(client->fteprotocolextensions & PEXT_ENTITYDBL2))
 				continue;
-			if (dement->modelindex >= 256 && !(client->fteprotocolextensions & PEXT_MODELDBL))
+			if (/*dement->modelindex >= 256 &&*/ !(client->fteprotocolextensions & PEXT_MODELDBL))
 				continue;
 
 			state = &pack->entities[pack->num_entities];

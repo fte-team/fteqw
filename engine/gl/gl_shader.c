@@ -30,6 +30,7 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 #include <ctype.h>
 
 
+
 //Spike: Marked code removal areas with FIZME
 //readd as porting progresses
 
@@ -215,7 +216,7 @@ static char *Shader_ParseString ( char **ptr )
 	}
 
 	token = COM_ParseExt ( ptr, false );
-	strlwr ( token );
+	Q_strlwr ( token );
 	
 	return token;
 }

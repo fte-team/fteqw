@@ -73,7 +73,7 @@ static void NM_Print (int cx, int cy, qbyte *str)
 {
 	while (*str)
 	{
-		Draw_ColouredCharacter (cx, cy, (*str)|128+M_COLOR_WHITE);
+		Draw_ColouredCharacter (cx, cy, (*str)|128|M_COLOR_WHITE);
 		str++;
 		cx += 8;
 	}

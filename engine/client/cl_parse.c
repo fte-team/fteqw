@@ -1593,12 +1593,14 @@ void CL_ParseServerData (void)
 	Con_TPrintf (TLC_PC_PS_NL, 2, str);
 
 	memset(cl.sound_name, 0, sizeof(cl.sound_name));
-	if (cls.fteprotocolextensions & PEXT_PK3DOWNLOADS)
+#ifdef PEXT_PK3DOWNLOADS
+	if (cls.fteprotocolextensions & PEXT_PK3DOWNLOADS)	//instead of going for a soundlist, go for the pk3 list instead. The server will make us go for the soundlist after.
 	{
 		MSG_WriteByte (&cls.netchan.message, clc_stringcmd);
 		MSG_WriteString (&cls.netchan.message, va("pk3list %i 0", cl.servercount, 0));
 	}
 	else
+#endif
 	{
 		// ask for the sound list next
 		MSG_WriteByte (&cls.netchan.message, clc_stringcmd);

@@ -255,6 +255,7 @@ extern qboolean gl_mtexable;
 
 void GL_DisableMultitexture(void);
 void GL_EnableMultitexture(void);
+void GL_SelectTexture (GLenum target);
 
 //
 // vid_gl*.c

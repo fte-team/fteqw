@@ -2334,7 +2334,7 @@ void R_RenderMeshCombined ( meshbuffer_t *mb, shaderpass_t *pass )
 				break;
 
 			case GL_DECAL:
-				// mimics Alpha-Blending in upper texture stage, but instead of multiplying the alpha-channel, they´re added
+				// mimics Alpha-Blending in upper texture stage, but instead of multiplying the alpha-channel, theyre added
 				// this way it can be possible to use GL_DECAL in both texture-units, while still looking good
 				// normal mutlitexturing would multiply the alpha-channel which looks ugly
 				GL_TexEnv (GL_COMBINE_EXT);

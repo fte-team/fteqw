@@ -92,3 +92,5 @@ void SCR_ShowPic_Clear(void);
 //a header is better than none...
 void Draw_TextBox (int x, int y, int width, int lines);
 void SCR_ScreenShot (char *filename);
+
+void SCR_DrawTwoDimensional(int uimenu, qboolean nohud);

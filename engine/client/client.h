@@ -794,6 +794,7 @@ void	Skin_Skins_f (void);
 void	Skin_FlushSkin(char *name);
 void	Skin_AllSkins_f (void);
 void	Skin_NextDownload (void);
+void Skin_FlushPlayers(void);
 
 #define RSSHOT_WIDTH 320
 #define RSSHOT_HEIGHT 200

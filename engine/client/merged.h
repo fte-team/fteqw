@@ -108,6 +108,8 @@ extern int (*Mod_TagNumForName)						(struct model_s *model, char *name);
 
 #undef FNC
 
+void Draw_FunString(int x, int y, char *str);
+
 
 #ifdef SERVERONLY
 #define Mod_Q1LeafPVS Mod_LeafPVS

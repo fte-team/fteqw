@@ -949,17 +949,19 @@ void R_PolyBlend (void)
 
 //Con_Printf("R_PolyBlend(): %4.2f %4.2f %4.2f %4.2f\n",v_blend[0], v_blend[1],	v_blend[2],	v_blend[3]);
 
- 	GL_DisableMultitexture();
+	GL_DisableMultitexture();
 
 	qglDisable (GL_ALPHA_TEST);
 	qglEnable (GL_BLEND);
 	qglDisable (GL_DEPTH_TEST);
 	qglDisable (GL_TEXTURE_2D);
+	
+	qglBlendFunc (GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
 
-    qglLoadIdentity ();
+	qglLoadIdentity ();
 
-    qglRotatef (-90,  1, 0, 0);	    // put Z going up
-    qglRotatef (90,  0, 0, 1);	    // put Z going up
+	qglRotatef (-90,  1, 0, 0);	    // put Z going up
+	 qglRotatef (90,  0, 0, 1);	    // put Z going up
 
 	qglColor4fv (v_blend);
 
@@ -1864,7 +1866,6 @@ void GLR_RenderView (void)
 	// we check if we need to use any shaders - currently it's just waterwarp
 	if ((gl_config.arb_shader_objects) && (r_waterwarp.value && r_viewleaf && r_viewleaf->contents <= Q1CONTENTS_WATER))
 	{
-		extern int char_texture;
 		float vwidth = 1, vheight = 1;
 		float vs, vt;
 

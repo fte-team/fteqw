@@ -367,7 +367,7 @@ GLhandleARB GLSlang_CreateShader (char *shadersource, int shadertype)
 
 	shader = qglCreateShaderObjectARB(type);
 
-	qglShaderSourceARB(shader, 1, &shadersource, NULL);
+	qglShaderSourceARB(shader, 1, (const GLcharARB**)&shadersource, NULL);
 	qglCompileShaderARB(shader);
 
 	qglGetObjectParameterivARB(shader, GL_OBJECT_COMPILE_STATUS_ARB, &compiled);

@@ -2301,12 +2301,11 @@ char	com_basedir[MAX_OSPATH];
 #ifdef _WIN32
 #pragma comment( lib, "../libs/zlib.lib" )
 #endif
-#ifndef __linux__
-#define uShort ZLIBuShort
-#define uLong ZLIBuLong
-#else
-//typedef unsigned short uShort;
-#endif
+
+//#define uShort ZLIBuShort
+//#define uLong ZLIBuLong
+
+#include <zlib.h>
 #include "unzip.c"
 
 typedef struct zipfile_s

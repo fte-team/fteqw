@@ -324,6 +324,11 @@ void Cvar_ApplyLatches(int latchflag)
 {
 	cvar_group_t	*grp;
 	cvar_t	*var;
+	int mask = ~0;
+
+	if (latchflag == CVAR_SERVEROVERRIDE)
+		mask = ~CVAR_SERVEROVERRIDE;
+
 	for (grp=cvar_groups ; grp ; grp=grp->next)
 	for (var=grp->cvars ; var ; var=var->next)
 	{
@@ -331,9 +336,9 @@ void Cvar_ApplyLatches(int latchflag)
 		{
 			if (var->latched_string)
 			{
-				var->flags &= ~CVAR_NOSET;
 				Cvar_ForceSet(var, var->latched_string);
 			}
+			var->flags &= mask;
 		}
 	}
 }

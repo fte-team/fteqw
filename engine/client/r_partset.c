@@ -54,7 +54,6 @@ char *particle_set_spikeset =
 "	greendelta 0\n"
 "	reddelta 0\n"
 "	gravity 100\n"
-"	stains 1\n"
 "}\n"
 "\n"
 "r_part t_gib\n"

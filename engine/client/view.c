@@ -484,7 +484,7 @@ void V_BonusFlash_f (void)
 		cl.cshifts[CSHIFT_BONUS].destcolor[0] = 215;
 		cl.cshifts[CSHIFT_BONUS].destcolor[1] = 186;
 		cl.cshifts[CSHIFT_BONUS].destcolor[2] = 69;
-		cl.cshifts[CSHIFT_BONUS].percent = 50;
+		cl.cshifts[CSHIFT_BONUS].percent = 50*v_bonusflash.value;
 	}
 }
 

@@ -2974,6 +2974,7 @@ void SV_ExecuteUserCommand (char *s, qboolean fromQC)
 #ifdef NQPROT
 void SVNQ_Spawn_f (void)
 {
+	extern cvar_t sv_gravity;
 	int		i;
 	client_t	*client;
 	edict_t	*ent;
@@ -3008,7 +3009,7 @@ void SVNQ_Spawn_f (void)
 
 	if (host_client->istobeloaded)	//minimal setup
 	{
-		host_client->entgravity = ent->v.gravity;
+		host_client->entgravity = ent->v.gravity*sv_gravity.value;
 		host_client->maxspeed = ent->v.maxspeed;
 	}
 	else
@@ -3021,6 +3022,7 @@ void SVNQ_Spawn_f (void)
 		ent->v.netname = PR_SetString(svprogfuncs, host_client->name);
 
 		host_client->entgravity = ent->v.gravity = 1.0;	
+		host_client->entgravity*=sv_gravity.value;
 		host_client->maxspeed = ent->v.maxspeed = sv_maxspeed.value;
 	}
 
@@ -3687,6 +3689,7 @@ void SV_RunCmd (usercmd_t *ucmd, qboolean recurse)
 	int			oldmsec;
 	double  tmp_time;
 	qboolean jumpable;
+	extern cvar_t sv_gravity;
 
 #ifdef Q2SERVER
 	if (!svprogfuncs)
@@ -3929,7 +3932,7 @@ void SV_RunCmd (usercmd_t *ucmd, qboolean recurse)
 	else
 		pmove.hullnum = SV_HullNumForPlayer(sv_player->v.hull, sv_player->v.mins, sv_player->v.maxs);
 
-	movevars.entgravity = host_client->entgravity;
+	movevars.entgravity = host_client->entgravity/movevars.gravity;
 	movevars.maxspeed = host_client->maxspeed;
 	movevars.bunnyspeedcap = pm_bunnyspeedcap.value;
 	movevars.ktjump = pm_ktjump.value;

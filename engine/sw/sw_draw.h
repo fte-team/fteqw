@@ -32,7 +32,7 @@ void SWDraw_DebugChar (qbyte num);
 void SWDraw_SubPic(int x, int y, mpic_t *pic, int srcx, int srcy, int width, int height);
 void SWDraw_Pic (int x, int y, mpic_t *pic);
 void SWDraw_TransPic (int x, int y, mpic_t *pic);
-void SWDraw_TransPicTranslate (int x, int y, mpic_t *pic, qbyte *translation);
+void SWDraw_TransPicTranslate (int x, int y, int w, int h, qbyte *pic, qbyte *translation);
 void SWDraw_ConsoleBackground (int lines);
 void SWDraw_EditorBackground (int lines);
 void SWDraw_BeginDisc (void);

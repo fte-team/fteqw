@@ -184,6 +184,11 @@ for a few moments
 */
 void SCR_CenterPrint (int pnum, char *str)
 {
+#ifdef CSQC_DAT
+	if (CSQC_CenterPrint(str))	//csqc nabbed it.
+		return;
+#endif
+
 	Q_strncpyz (scr_centerstring[pnum], str, sizeof(scr_centerstring[pnum]));
 	scr_centertime_off[pnum] = scr_centertime.value;
 	scr_centertime_start[pnum] = cl.time;
@@ -1153,8 +1158,8 @@ void SCR_BeginLoadingPlaque (void)
 
 void SCR_EndLoadingPlaque (void)
 {
-	if (!scr_initialized)
-		return;
+//	if (!scr_initialized)
+//		return;
 
 	scr_disabled_for_loading = false;
 	scr_fullupdate = 0;

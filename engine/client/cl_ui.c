@@ -344,9 +344,11 @@ void VQ3_AddEntity(const q3refEntity_t *q3)
 	ent.lerpfrac = ent.lerptime = q3->backlerp;
 	ent.alpha = 1;
 	ent.scale = 1;
-	ent.forcedshader = q3->customShader;
+#ifdef Q3SHADERS
+	ent.forcedshader = (void*)q3->customShader;
 	*(int*)ent.shaderRGBA = *(int*)q3->shaderRGBA;
 	ent.shaderTime = q3->shaderTime;
+#endif
 	if (q3->renderfx & Q3RF_DEPTHHACK)
 		ent.flags |= Q2RF_DEPTHHACK;
 	if (q3->renderfx & Q3RF_THIRD_PERSON)

@@ -28,26 +28,6 @@ float LerpAngle (float a2, float a1, float frac)
 	return a2 + frac * (a1 - a2);
 }
 
-
-#define	Q2PS_M_TYPE			(1<<0)
-#define	Q2PS_M_ORIGIN			(1<<1)
-#define	Q2PS_M_VELOCITY		(1<<2)
-#define	Q2PS_M_TIME			(1<<3)
-#define	Q2PS_M_FLAGS			(1<<4)
-#define	Q2PS_M_GRAVITY		(1<<5)
-#define	Q2PS_M_DELTA_ANGLES	(1<<6)
-
-#define	Q2PS_VIEWOFFSET		(1<<7)
-#define	Q2PS_VIEWANGLES		(1<<8)
-#define	Q2PS_KICKANGLES		(1<<9)
-#define	Q2PS_BLEND			(1<<10)
-#define	Q2PS_FOV				(1<<11)
-#define	Q2PS_WEAPONINDEX		(1<<12)
-#define	Q2PS_WEAPONFRAME		(1<<13)
-#define	Q2PS_RDFLAGS			(1<<14)
-
-
-
 // entity_state_t->effects
 // Effects are things handled on the client side (lights, particles, frame animations)
 // that happen constantly on the given entity.
@@ -87,37 +67,6 @@ float LerpAngle (float a2, float a1, float frac)
 #define Q2EF_TAGTRAIL			0x20000000
 #define Q2EF_HALF_DAMAGE		0x40000000
 #define Q2EF_TRACKERTRAIL		0x80000000
-//ROGUE
-
-// entity_state_t->renderfx flags
-#define	Q2RF_MINLIGHT			1		// allways have some light (viewmodel)
-#define	Q2RF_VIEWERMODEL		2		// don't draw through eyes, only mirrors
-#define	Q2RF_WEAPONMODEL		4		// only draw through eyes
-#define	Q2RF_FULLBRIGHT			8		// allways draw full intensity
-#define	Q2RF_DEPTHHACK			16		// for view weapon Z crunching
-#define	Q2RF_TRANSLUCENT		32
-#define	Q2RF_FRAMELERP			64
-#define Q2RF_BEAM				128
-#define	Q2RF_CUSTOMSKIN			256		// skin is an index in image_precache
-#define	Q2RF_GLOW				512		// pulse lighting for bonus items
-#define Q2RF_SHELL_RED			1024
-#define	Q2RF_SHELL_GREEN		2048
-#define Q2RF_SHELL_BLUE			4096
-
-//ROGUE
-#define Q2RF_IR_VISIBLE			0x00008000		// 32768
-#define	Q2RF_SHELL_DOUBLE		0x00010000		// 65536
-#define	Q2RF_SHELL_HALF_DAM		0x00020000
-#define Q2RF_USE_DISGUISE		0x00040000
-//ROGUE
-
-// player_state_t->refdef flags
-#define	Q2RDF_UNDERWATER		1		// warp the screen as apropriate
-#define Q2RDF_NOWORLDMODEL		2		// used for player configuration screen
-
-//ROGUE
-#define	Q2RDF_IRGOGGLES			4
-#define Q2RDF_UVGOGGLES			8
 //ROGUE
 
 

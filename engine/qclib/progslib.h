@@ -123,6 +123,8 @@ struct progfuncs_s {
 	void	(*AbortStack)				(progfuncs_t *prinst);
 
 	int lastcalledbuiltinnumber;
+
+	int (*RegisterFieldVar)				(progfuncs_t *prinst, unsigned int type, char *name, int requestedpos, int origionalofs);
 };
 
 typedef struct progexterns_s {
@@ -203,6 +205,8 @@ typedef union eval_s
 #define PR_SwitchProgs(pf, num)								(*pf->PR_SwitchProgs)		(pf, num);
 #define PR_globals(pf, num)									(*pf->globals)				(pf, num)
 #define PR_entvars(pf, ent)									(*pf->entvars)				(pf, ent)
+
+#define PR_RegisterFieldVar(pf,type,name,reqofs,qcofs)		(*pf->RegisterFieldVar)		(pf,type,name,reqofs,qcofs)
 
 #define ED_Alloc(pf)										(*pf->ED_Alloc)				(pf)
 #define ED_Free(pf, ed)										(*pf->ED_Free)				(pf, ed)

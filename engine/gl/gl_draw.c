@@ -199,8 +199,6 @@ typedef struct glcachepic_s
 glcachepic_t	glmenu_cachepics[MAX_CACHED_PICS];
 int			glmenu_numcachepics;
 
-qbyte		menuplyr_pixels[4096];
-
 int		pic_texels;
 int		pic_count;
 
@@ -498,13 +496,6 @@ mpic_t	*GLDraw_SafeCachePic (char *path)
 		SwapPic (qpic);
 	}
 
-	// HACK HACK HACK --- we need to keep the bytes for
-	// the translatable player picture just for the menu
-	// configuration dialog
-
-	if (!strncmp (path, "gfx/player/", 11) || !strcmp (path, "gfx/menuplyr.lmp"))	//these arn't cached. I hate hacks.
-		memcpy (menuplyr_pixels, qpic->data, qpic->width*qpic->height);
-	else
 	{
 		glmenu_numcachepics++;
 		Q_strncpyz (pic->name, path, sizeof(pic->name));
@@ -1588,7 +1579,7 @@ Draw_TransPicTranslate
 Only used for the player color selection menu
 =============
 */
-void GLDraw_TransPicTranslate (int x, int y, mpic_t *pic, qbyte *translation)
+void GLDraw_TransPicTranslate (int x, int y, int width, int height, qbyte *pic, qbyte *translation)
 {
 	int				v, u, c;
 	unsigned		trans[64*64], *dest;
@@ -1597,15 +1588,15 @@ void GLDraw_TransPicTranslate (int x, int y, mpic_t *pic, qbyte *translation)
 
 	GL_Bind (translate_texture);
 
-	c = pic->width * pic->height;
+	c = width * height;
 
 	dest = trans;
 	for (v=0 ; v<64 ; v++, dest += 64)
 	{
-		src = &menuplyr_pixels[ ((v*pic->height)>>6) *pic->width];
+		src = &pic[ ((v*height)>>6) *width];
 		for (u=0 ; u<64 ; u++)
 		{
-			p = src[(u*pic->width)>>6];
+			p = src[(u*width)>>6];
 			if (p == 255)
 				dest[u] = p;
 			else
@@ -1623,11 +1614,11 @@ void GLDraw_TransPicTranslate (int x, int y, mpic_t *pic, qbyte *translation)
 	qglTexCoord2f (0, 0);
 	qglVertex2f (x, y);
 	qglTexCoord2f (1, 0);
-	qglVertex2f (x+pic->width, y);
+	qglVertex2f (x+width, y);
 	qglTexCoord2f (1, 1);
-	qglVertex2f (x+pic->width, y+pic->height);
+	qglVertex2f (x+width, y+height);
 	qglTexCoord2f (0, 1);
-	qglVertex2f (x, y+pic->height);
+	qglVertex2f (x, y+height);
 	qglEnd ();
 }
 

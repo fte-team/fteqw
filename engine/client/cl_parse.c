@@ -3627,11 +3627,16 @@ void CL_ParseStuffCmd(char *msg, int destsplit)	//this protects stuffcmds from n
 		*msg = '\0';
 		Con_DPrintf("stufftext: %s\n", stufftext);
 		if (!strncmp(stufftext, "fullserverinfo ", 15))
-			Cmd_ExecuteString(stufftext, RESTRICT_SERVER+destsplit);
+			Cmd_ExecuteString(stufftext, RESTRICT_SERVER+destsplit);	//do this NOW so that it's done before any models or anything are loaded
 		else
 		{
-			Cbuf_AddText (stufftext, RESTRICT_SERVER+destsplit);
-			Cbuf_AddText ("\n", RESTRICT_SERVER+destsplit);
+#ifdef CSQC_DAT
+			if (!CSQC_StuffCmd(stufftext))
+#endif
+			{
+				Cbuf_AddText (stufftext, RESTRICT_SERVER+destsplit);
+				Cbuf_AddText ("\n", RESTRICT_SERVER+destsplit);
+			}
 		}
 		msg++;
 

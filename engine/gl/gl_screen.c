@@ -176,13 +176,13 @@ void GLSCR_UpdateScreen (void)
 
 	if (scr_disabled_for_loading)
 	{
-/*		if (Sys_DoubleTime() - scr_disabled_time > 60 || key_dest != key_game)
+		extern float scr_disabled_time;
+		if (Sys_DoubleTime() - scr_disabled_time > 60 || key_dest != key_game)
 		{
 			scr_disabled_for_loading = false;
-			Con_Printf ("load failed.\n");
 		}
 		else
-*/		{		
+		{		
 			GL_BeginRendering (&glx, &gly, &glwidth, &glheight);
 			SCR_DrawLoading ();
 			GL_EndRendering ();	

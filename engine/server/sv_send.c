@@ -1389,10 +1389,11 @@ void SV_UpdateToReliableMessages (void)
 
 		if (svprogfuncs)
 		{
+			extern cvar_t sv_gravity;
 			// maxspeed/entgravity changes
 			ent = host_client->edict;
 			
-			newval = ent->v.gravity;
+			newval = ent->v.gravity*sv_gravity.value;
 			if (progstype == PROG_NQ)
 			{
 				if (!newval)
@@ -1413,7 +1414,7 @@ void SV_UpdateToReliableMessages (void)
 			else */if (host_client->entgravity != newval)
 			{
 				ClientReliableWrite_Begin(host_client, svc_entgravity, 5);
-				ClientReliableWrite_Float(host_client, newval);
+				ClientReliableWrite_Float(host_client, newval/movevars.gravity);	//lie to the client in a cunning way
 				host_client->entgravity = newval;
 			}
 			newval = ent->v.maxspeed;

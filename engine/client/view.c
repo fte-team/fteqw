@@ -1408,6 +1408,24 @@ void V_RenderView (void)
 	if (cls.state != ca_active)
 		return;
 
+	if (cl.worldmodel)
+	{
+		//work out which packet entities are solid
+		CL_SetSolidEntities ();
+
+		// Set up prediction for other players
+		CL_SetUpPlayerPrediction(false);
+
+		// do client side motion prediction
+		CL_PredictMove ();
+
+		// Set up prediction for other players
+		CL_SetUpPlayerPrediction(true);
+
+		// build a refresh entity list
+		CL_EmitEntities ();
+	}
+
 	view_frame = &cl.frames[cls.netchan.incoming_sequence & UPDATE_MASK];
 
 	R_PushDlights ();

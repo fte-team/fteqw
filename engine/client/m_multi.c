@@ -56,6 +56,9 @@ typedef struct {
 	menuedit_t *skinedit;
 	int topcolour;
 	int lowercolour;
+
+	int tiwidth, tiheight;
+	qbyte translationimage[64*64];
 } setupmenu_t;
 qboolean ApplySetupMenu (union menuoption_s *option,struct menu_s *menu, int key)
 {
@@ -119,14 +122,30 @@ void MSetup_TransDraw (int x, int y, menucustom_t *option, menu_t *menu)
 	extern qbyte translationTable[256];
 	setupmenu_t *info = menu->data;
 	mpic_t	*p;
+	qbyte *f;
+
+	if (info->skinedit->modified)
+	{
+		info->skinedit->modified = false;
+
+		f = COM_LoadMallocFile (va("gfx/player/%s.lmp", info->skinedit->text));
+		if (!f)
+			f = COM_LoadMallocFile("gfx/menuplyr.lmp");
+
+		if (f)
+		{
+			info->tiwidth = ((int*)f)[0];
+			info->tiheight = ((int*)f)[1];
+			memcpy(info->translationimage, f+8, info->tiwidth*info->tiheight);
+			BZ_Free(f);
+		}
+	}
 
 	p = Draw_CachePic ("gfx/bigbox.lmp");
-	Draw_TransPic (x-12, y-8, p);	
-	p = Draw_SafeCachePic (va("gfx/player/%s.lmp", info->skinedit->text));
-	if (!p)	//fallback
-		p = Draw_CachePic ("gfx/menuplyr.lmp");
+	Draw_TransPic (x-12, y-8, p);
+
 	M_BuildTranslationTable(info->topcolour*16, info->lowercolour*16);
-	Draw_TransPicTranslate (x, y, p, translationTable);	
+	Draw_TransPicTranslate (x, y, info->tiwidth, info->tiheight, info->translationimage, translationTable);	
 }
 
 void M_Menu_Setup_f (void)
@@ -164,6 +183,7 @@ void M_Menu_Setup_f (void)
 
 	info->lowercolour = bottomcolor.value;
 	info->topcolour = topcolor.value;
+	info->skinedit->modified = true;
 }
 
 

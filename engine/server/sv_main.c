@@ -3036,7 +3036,9 @@ void SV_InitLocal (void)
 #ifdef PEXT_FLOATCOORDS
 	svs.fteprotocolextensions |= PEXT_FLOATCOORDS;
 #endif
+#ifdef PEXT_SEEF1
 	svs.fteprotocolextensions |= PEXT_SEEF1;
+#endif
 	svs.fteprotocolextensions |= PEXT_SPLITSCREEN;
 	svs.fteprotocolextensions |= PEXT_HEXEN2;
 	svs.fteprotocolextensions |= PEXT_SPAWNSTATIC2;

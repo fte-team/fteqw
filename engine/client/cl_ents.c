@@ -2198,6 +2198,89 @@ void CL_LinkPlayers (void)
 	}
 }
 
+
+
+void CL_LinkViewModel(void)
+{
+	entity_t	ent;
+//	float		ambient[4], diffuse[4];
+//	int			j;
+//	int			lnum;
+//	vec3_t		dist;
+//	float		add;
+//	dlight_t	*dl;
+//	int			ambientlight, shadelight;
+
+	static struct model_s *oldmodel[MAX_SPLITS];	
+	static float lerptime[MAX_SPLITS];
+	static int prevframe[MAX_SPLITS];
+	static int oldframe[MAX_SPLITS];
+
+#ifdef SIDEVIEWS
+	extern qboolean r_secondaryview;
+	if (r_secondaryview==1)
+		return;
+#endif
+
+	if (!r_drawviewmodel.value || !Cam_DrawViewModel(r_refdef.currentplayernum))
+		return;
+
+#ifdef Q2CLIENT
+	if (cls.q2server)
+		return;
+#endif
+
+	if (!r_drawentities.value)
+		return;
+
+	if (cl.stats[r_refdef.currentplayernum][STAT_ITEMS] & IT_INVISIBILITY)
+		return;
+
+	if (cl.stats[r_refdef.currentplayernum][STAT_HEALTH] <= 0)
+		return;
+
+	memset(&ent, 0, sizeof(ent));
+
+	ent.model = cl.viewent[r_refdef.currentplayernum].model;
+	if (!ent.model)
+		return;
+
+#ifdef PEXT_SCALE
+	ent.scale = 1;
+#endif
+	if (r_drawviewmodel.value > 0 && r_drawviewmodel.value < 1)
+		ent.alpha = r_drawviewmodel.value;
+	else
+		ent.alpha = 1;
+
+	ent.frame = cl.viewent[r_refdef.currentplayernum].frame;
+	ent.oldframe = oldframe[r_refdef.currentplayernum];
+
+	if (ent.frame != prevframe[r_refdef.currentplayernum])
+	{
+		oldframe[r_refdef.currentplayernum] = ent.oldframe = prevframe[r_refdef.currentplayernum];
+		lerptime[r_refdef.currentplayernum] = realtime;
+	}
+	prevframe[r_refdef.currentplayernum] = ent.frame;
+
+	if (ent.model != oldmodel[r_refdef.currentplayernum])
+	{
+		oldmodel[r_refdef.currentplayernum] = ent.model;
+		oldframe[r_refdef.currentplayernum] = ent.oldframe = ent.frame;
+		lerptime[r_refdef.currentplayernum] = realtime;
+	}
+	ent.lerptime = 1-(realtime-lerptime[r_refdef.currentplayernum])*10;
+	if (ent.lerptime<0)ent.lerptime=0;
+	if (ent.lerptime>1)ent.lerptime=1;
+#define	Q2RF_VIEWERMODEL		2		// don't draw through eyes, only mirrors
+#define	Q2RF_WEAPONMODEL		4		// only draw through eyes
+#define	Q2RF_DEPTHHACK			16		// for view weapon Z crunching
+
+	ent.flags = Q2RF_WEAPONMODEL|Q2RF_DEPTHHACK;
+
+	V_AddEntity(&ent);
+}
+
 //======================================================================
 
 /*
@@ -2401,6 +2484,20 @@ Builds the visedicts array for cl.time
 Made up of: clients, packet_entities, nails, and tents
 ===============
 */
+void CL_SwapEntityLists(void)
+{
+	cl_oldnumvisedicts = cl_numvisedicts;
+	cl_oldvisedicts = cl_visedicts;
+	if (cl_visedicts == cl_visedicts_list[0])
+		cl_visedicts = cl_visedicts_list[1];
+	else
+		cl_visedicts = cl_visedicts_list[0];
+//	cl_oldvisedicts = cl_visedicts_list[(cls.netchan.incoming_sequence-1)&1];
+//	cl_visedicts = cl_visedicts_list[cls.netchan.incoming_sequence&1];
+
+	cl_numvisedicts = 0;
+}
+
 void CL_EmitEntities (void)
 {
 	if (cls.state != ca_active)
@@ -2418,17 +2515,9 @@ void CL_EmitEntities (void)
 	if (!cl.validsequence)
 		return;
 
-	cl_oldnumvisedicts = cl_numvisedicts;
-	cl_oldvisedicts = cl_visedicts;
-	if (cl_visedicts == cl_visedicts_list[0])
-		cl_visedicts = cl_visedicts_list[1];
-	else
-		cl_visedicts = cl_visedicts_list[0];
-//	cl_oldvisedicts = cl_visedicts_list[(cls.netchan.incoming_sequence-1)&1];
-//	cl_visedicts = cl_visedicts_list[cls.netchan.incoming_sequence&1];
+	CL_SwapEntityLists();
 
-	cl_numvisedicts = 0;
-
+	CL_LinkViewModel ();
 	CL_LinkPlayers ();
 	CL_LinkPacketEntities ();
 	CL_LinkProjectiles ();

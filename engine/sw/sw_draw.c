@@ -27,6 +27,8 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 #endif
 #include "d_local.h"	//trans stuff
 
+#include "sw_draw.h"
+
 extern unsigned int *d_8to32table;
 
 typedef struct {
@@ -1010,9 +1012,8 @@ void SWDraw_Pic (int x, int y, mpic_t *pic)
 Draw_SubPic
 =============
 */
-void SWDraw_TransSubPic(int x, int y, qpic_t *qpic, int srcx, int srcy, int width, int height)
+void SWDraw_TransSubPic(int x, int y, mpic_t *pic, int srcx, int srcy, int width, int height)
 {
-	mpic_t *pic = (mpic_t *)qpic;
 	qbyte			*dest, *source;
 	int				v, u;
 
@@ -1103,15 +1104,14 @@ void SWDraw_TransSubPic(int x, int y, qpic_t *qpic, int srcx, int srcy, int widt
 Draw_SubPic
 =============
 */
-void SWDraw_SubPic(int x, int y, qpic_t *qpic, int srcx, int srcy, int width, int height)
+void SWDraw_SubPic(int x, int y, mpic_t *pic, int srcx, int srcy, int width, int height)
 {
-	mpic_t *pic = (mpic_t *)qpic;
 	qbyte			*dest, *source;
 	int				v, u;
 
 	if (pic->flags & MPIC_ALPHA)
 	{
-		SWDraw_TransSubPic(x, y, qpic, srcx, srcy, width, height);
+		SWDraw_TransSubPic(x, y, pic, srcx, srcy, width, height);
 		return;
 	}
 
@@ -1328,42 +1328,39 @@ void SWDraw_TransPic (int x, int y, mpic_t *pic)
 Draw_TransPicTranslate
 =============
 */
-void SWDraw_TransPicTranslate (int x, int y, qpic_t *qpic, qbyte *translation)
+void SWDraw_TransPicTranslate (int x, int y, int width, int height, qbyte *source, qbyte *translation)
 {
-	mpic_t *pic = (mpic_t*)qpic;
-	qbyte	*source, tbyte;
+	qbyte	tbyte;
 	int				v, u;
 
-	if (x < 0 || (unsigned)(x + pic->width) > vid.width || y < 0 ||
-		 (unsigned)(y + pic->height) > vid.height)
+	if (x < 0 || (unsigned)(x + width) > vid.width || y < 0 ||
+		 (unsigned)(y + height) > vid.height)
 	{
 		Sys_Error ("Draw_TransPic: bad coordinates");
 	}
 		
-	source = pic->data;
-
 	if (r_pixbytes == 1)
 	{
 		qbyte	*dest;
 		dest = vid.buffer + y * vid.rowbytes + x;
 
-		if (pic->width & 7)
+		if (width & 7)
 		{	// general
-			for (v=0 ; v<pic->height ; v++)
+			for (v=0 ; v<height ; v++)
 			{
-				for (u=0 ; u<pic->width ; u++)
+				for (u=0 ; u<width ; u++)
 					if ( (tbyte=source[u]) != TRANSPARENT_COLOR)
 						dest[u] = translation[tbyte];
 
 				dest += vid.rowbytes;
-				source += pic->width;
+				source += width;
 			}
 		}
 		else
 		{	// unwound
-			for (v=0 ; v<pic->height ; v++)
+			for (v=0 ; v<height ; v++)
 			{
-				for (u=0 ; u<pic->width ; u+=8)
+				for (u=0 ; u<width ; u+=8)
 				{
 					if ( (tbyte=source[u]) != TRANSPARENT_COLOR)
 						dest[u] = translation[tbyte];
@@ -1383,7 +1380,7 @@ void SWDraw_TransPicTranslate (int x, int y, qpic_t *qpic, qbyte *translation)
 						dest[u+7] = translation[tbyte];
 				}
 				dest += vid.rowbytes;
-				source += pic->width;
+				source += width;
 			}
 		}
 	}
@@ -1393,23 +1390,23 @@ void SWDraw_TransPicTranslate (int x, int y, qpic_t *qpic, qbyte *translation)
 
 		puidest = (unsigned int	*)(vid.buffer + ((y * vid.rowbytes + x) << 2));
 
-		if (pic->width & 7)
+		if (width & 7)
 		{	// general
-			for (v=0 ; v<pic->height ; v++)
+			for (v=0 ; v<height ; v++)
 			{
-				for (u=0 ; u<pic->width ; u++)
+				for (u=0 ; u<width ; u++)
 					if ( (tbyte=source[u]) != TRANSPARENT_COLOR)
 						puidest[u] = d_8to32table[translation[tbyte]];
 
 				puidest += vid.rowbytes;
-				source += pic->width;
+				source += width;
 			}
 		}
 		else
 		{	// unwound
-			for (v=0 ; v<pic->height ; v++)
+			for (v=0 ; v<height ; v++)
 			{
-				for (u=0 ; u<pic->width ; u+=8)
+				for (u=0 ; u<width ; u+=8)
 				{
 					if ( (tbyte=source[u]) != TRANSPARENT_COLOR)
 						puidest[u] = d_8to32table[translation[tbyte]];
@@ -1429,7 +1426,7 @@ void SWDraw_TransPicTranslate (int x, int y, qpic_t *qpic, qbyte *translation)
 						puidest[u+7] = d_8to32table[translation[tbyte]];
 				}
 				puidest += vid.rowbytes;
-				source += pic->width;
+				source += width;
 			}
 		}
 	}
@@ -1694,9 +1691,8 @@ void SWDraw_ImageColours (float r, float g, float b, float a)	//like glcolour4f
 	SWDraw_Image_Blend = r<1 || b<1 || g<1 || a<1;
 }
 
-void SWDraw_Image (float xp, float yp, float wp, float hp, float s1, float t1, float s2, float t2, qpic_t *qpic)
+void SWDraw_Image (float xp, float yp, float wp, float hp, float s1, float t1, float s2, float t2, mpic_t *pic)
 {
-	mpic_t *pic = (mpic_t*)qpic;
 	float xend, yend, xratio, yratio;
 
 	if (!pic)

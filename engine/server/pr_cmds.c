@@ -23,7 +23,6 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 #ifndef CLIENTONLY
 
 //okay, so these are a quick but easy hack
-int QC_RegisterFieldVar(struct progfuncs_s *progfuncs, unsigned int type, char *name, int requestedpos, int origionalofs);
 void ED_Print (struct progfuncs_s *progfuncs, struct edict_s *ed);
 int PR_EnableEBFSBuiltin(char *name, int binum);
 void PR_CleanLogText_Init (void);
@@ -8235,11 +8234,11 @@ void PR_RegisterSVBuiltins(void)
 
 void PR_RegisterFields(void)	//it's just easier to do it this way.
 {
-#define fieldfloat(name) QC_RegisterFieldVar(svprogfuncs, ev_float, #name, (int)&((edict_t*)0)->v.name - (int)&((edict_t*)0)->v, -1)
-#define fieldvector(name) QC_RegisterFieldVar(svprogfuncs, ev_vector, #name, (int)&((edict_t*)0)->v.name - (int)&((edict_t*)0)->v, -1)
-#define fieldentity(name) QC_RegisterFieldVar(svprogfuncs, ev_entity, #name, (int)&((edict_t*)0)->v.name - (int)&((edict_t*)0)->v, -1)
-#define fieldstring(name) QC_RegisterFieldVar(svprogfuncs, ev_string, #name, (int)&((edict_t*)0)->v.name - (int)&((edict_t*)0)->v, -1)
-#define fieldfunction(name) QC_RegisterFieldVar(svprogfuncs, ev_function, #name, (int)&((edict_t*)0)->v.name - (int)&((edict_t*)0)->v, -1)
+#define fieldfloat(name) PR_RegisterFieldVar(svprogfuncs, ev_float, #name, (int)&((edict_t*)0)->v.name - (int)&((edict_t*)0)->v, -1)
+#define fieldvector(name) PR_RegisterFieldVar(svprogfuncs, ev_vector, #name, (int)&((edict_t*)0)->v.name - (int)&((edict_t*)0)->v, -1)
+#define fieldentity(name) PR_RegisterFieldVar(svprogfuncs, ev_entity, #name, (int)&((edict_t*)0)->v.name - (int)&((edict_t*)0)->v, -1)
+#define fieldstring(name) PR_RegisterFieldVar(svprogfuncs, ev_string, #name, (int)&((edict_t*)0)->v.name - (int)&((edict_t*)0)->v, -1)
+#define fieldfunction(name) PR_RegisterFieldVar(svprogfuncs, ev_function, #name, (int)&((edict_t*)0)->v.name - (int)&((edict_t*)0)->v, -1)
 
 	fieldfloat(modelindex);
 	fieldvector(absmin);
@@ -8333,11 +8332,10 @@ void PR_RegisterFields(void)	//it's just easier to do it this way.
 	fieldfloat(alpha);
 	fieldfloat(fatness);
 	fieldentity(view2);
-	fieldfloat(sendflags);
 	fieldvector(movement);
-	QC_RegisterFieldVar(svprogfuncs, ev_float, "buttonforward", (int)&((edict_t*)0)->v.movement[0] - (int)&((edict_t*)0)->v, -1);
-	QC_RegisterFieldVar(svprogfuncs, ev_float, "buttonright", (int)&((edict_t*)0)->v.movement[1] - (int)&((edict_t*)0)->v, -1);
-	QC_RegisterFieldVar(svprogfuncs, ev_float, "buttonup", (int)&((edict_t*)0)->v.movement[2] - (int)&((edict_t*)0)->v, -1);
+	PR_RegisterFieldVar(svprogfuncs, ev_float, "buttonforward", (int)&((edict_t*)0)->v.movement[0] - (int)&((edict_t*)0)->v, -1);
+	PR_RegisterFieldVar(svprogfuncs, ev_float, "buttonright", (int)&((edict_t*)0)->v.movement[1] - (int)&((edict_t*)0)->v, -1);
+	PR_RegisterFieldVar(svprogfuncs, ev_float, "buttonup", (int)&((edict_t*)0)->v.movement[2] - (int)&((edict_t*)0)->v, -1);
 	fieldfloat(fteflags);
 	fieldfloat(vweapmodelindex);
 
@@ -8346,11 +8344,11 @@ void PR_RegisterFields(void)	//it's just easier to do it this way.
 	fieldentity(drawonlytoclient);
 
 	//UDC_EXTEFFECT... yuckie
-	QC_RegisterFieldVar(svprogfuncs, ev_float, "fieldcolor", (int)&((edict_t*)0)->v.seefcolour - (int)&((edict_t*)0)->v, -1);
-	QC_RegisterFieldVar(svprogfuncs, ev_float, "fieldsizex", (int)&((edict_t*)0)->v.seefsizex - (int)&((edict_t*)0)->v, -1);
-	QC_RegisterFieldVar(svprogfuncs, ev_float, "fieldsizey", (int)&((edict_t*)0)->v.seefsizey - (int)&((edict_t*)0)->v, -1);
-	QC_RegisterFieldVar(svprogfuncs, ev_float, "fieldsizez", (int)&((edict_t*)0)->v.seefsizez - (int)&((edict_t*)0)->v, -1);
-	QC_RegisterFieldVar(svprogfuncs, ev_float, "fieldoffset", (int)&((edict_t*)0)->v.seefoffset - (int)&((edict_t*)0)->v, -1);
+	PR_RegisterFieldVar(svprogfuncs, ev_float, "fieldcolor", (int)&((edict_t*)0)->v.seefcolour - (int)&((edict_t*)0)->v, -1);
+	PR_RegisterFieldVar(svprogfuncs, ev_float, "fieldsizex", (int)&((edict_t*)0)->v.seefsizex - (int)&((edict_t*)0)->v, -1);
+	PR_RegisterFieldVar(svprogfuncs, ev_float, "fieldsizey", (int)&((edict_t*)0)->v.seefsizey - (int)&((edict_t*)0)->v, -1);
+	PR_RegisterFieldVar(svprogfuncs, ev_float, "fieldsizez", (int)&((edict_t*)0)->v.seefsizez - (int)&((edict_t*)0)->v, -1);
+	PR_RegisterFieldVar(svprogfuncs, ev_float, "fieldoffset", (int)&((edict_t*)0)->v.seefoffset - (int)&((edict_t*)0)->v, -1);
 
 //hexen 2 stuff
 	fieldfloat(playerclass);
@@ -8372,7 +8370,7 @@ void PR_RegisterFields(void)	//it's just easier to do it this way.
 	fieldfloat(dimension_hit);
 
 	if (pr_fixbrokenqccarrays.value)
-		QC_RegisterFieldVar(svprogfuncs, 0, NULL, 0,0);
+		PR_RegisterFieldVar(svprogfuncs, 0, NULL, 0,0);
 }
 
 

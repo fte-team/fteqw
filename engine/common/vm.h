@@ -64,6 +64,7 @@ int UI_MenuState(void);
 void CG_Stop (void);
 void CG_Start (void);
 int CG_Refresh(void);
+qboolean CG_Command(void);
 #endif
 
 #endif

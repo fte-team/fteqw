@@ -32,7 +32,7 @@ void GLDraw_SubPic(int x, int y, mpic_t *pic, int srcx, int srcy, int width, int
 void GLDraw_Pic (int x, int y, mpic_t *pic);
 void GLDraw_ScalePic (int x, int y, int width, int height, mpic_t *pic);
 void GLDraw_TransPic (int x, int y, mpic_t *pic);
-void GLDraw_TransPicTranslate (int x, int y, mpic_t *pic, qbyte *translation);
+void GLDraw_TransPicTranslate (int x, int y, int w, int h, qbyte *pic, qbyte *translation);
 void GLDraw_ConsoleBackground (int lines);
 void GLDraw_EditorBackground (int lines);
 void GLDraw_BeginDisc (void);

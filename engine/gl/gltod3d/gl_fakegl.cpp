@@ -1765,7 +1765,7 @@ public:
 		RELEASENULL(m_textureMatrixStack);
 	}
 
-	void glAlphaFunc (GLenum func, GLclampf ref){
+	void cglAlphaFunc (GLenum func, GLclampf ref){
 		if ( m_glAlphaFunc != func || m_glAlphaFuncRef != ref ) {
 			SetRenderStateDirty();
 			m_glAlphaFunc = func;
@@ -1774,7 +1774,7 @@ public:
 		}
 	}
 
-	void glBegin (GLenum mode){
+	void cglBegin (GLenum mode){
 		if ( m_needBeginScene ){
 			HRESULT hr = m_pD3DDev->BeginScene();
 			if ( FAILED(hr) ) {
@@ -1814,7 +1814,7 @@ public:
 		}
 	}
 
-	void glBindTexture(GLenum target, GLuint texture){
+	void cglBindTexture(GLenum target, GLuint texture){
 		if ( target != GL_TEXTURE_2D ) {
 			LocalDebugBreak();
 			return;
@@ -1826,19 +1826,19 @@ public:
 		}
 	}
 
-	inline void glMTexCoord2fSGIS(GLenum target, GLfloat s, GLfloat t){
+	inline void cglMTexCoord2fSGIS(GLenum target, GLfloat s, GLfloat t){
 		int textStage = target - TEXTURE0_SGIS;
 		m_OGLPrimitiveVertexBuffer.SetTextureCoord(textStage, s, t);
 	}
 	
-	void glSelectTextureSGIS(GLenum target){
+	void cglSelectTextureSGIS(GLenum target){
 		int textStage = target - TEXTURE0_SGIS;
 		m_textureState.SetCurrentStage(textStage);
 		m_textures.BindTexture(m_textureState.GetCurrentTexture());
 		// Does not, by itself, dirty the render state
 	}
 
-	void glBlendFunc (GLenum sfactor, GLenum dfactor){
+	void cglBlendFunc (GLenum sfactor, GLenum dfactor){
 		if ( m_glBlendFuncSFactor != sfactor || m_glBlendFuncDFactor != dfactor ) {
 			SetRenderStateDirty();
 			m_glBlendFuncSFactor = sfactor;
@@ -1847,7 +1847,7 @@ public:
 		}
 	}
 
-	void glClear (GLbitfield mask){
+	void cglClear (GLbitfield mask){
 		HRESULT hr;
 		internalEnd();
 		SetGLRenderState();
@@ -1871,7 +1871,7 @@ public:
 		}
 	}
 
-	void glClearColor (GLclampf red, GLclampf green, GLclampf blue, GLclampf alpha){
+	void cglClearColor (GLclampf red, GLclampf green, GLclampf blue, GLclampf alpha){
 		D3DCOLOR clearColor = D3DRGBA(Clamp(red), Clamp(green), Clamp(blue), Clamp(alpha));
 #ifdef USE_D3DXCONTEXT
 		HRESULT hr = m_pD3DX->SetClearColor(clearColor);
@@ -1884,32 +1884,32 @@ public:
 #endif
 	}
 
-	inline void glColor3f (GLfloat red, GLfloat green, GLfloat blue){
+	inline void cglColor3f (GLfloat red, GLfloat green, GLfloat blue){
 		// Note: On x86 architectures this function will chew up a lot of time
 		// converting floating point to integer by calling _ftol
 		// unless the /QIfist flag is specified.
 		m_OGLPrimitiveVertexBuffer.SetColor(D3DRGB(Clamp(red), Clamp(green), Clamp(blue)));
 	}
 
-	inline void glColor3ubv (const GLubyte *v){
+	inline void cglColor3ubv (const GLubyte *v){
 		m_OGLPrimitiveVertexBuffer.SetColor(RGBA_MAKE(v[0], v[1], v[2], 0xff));
 	}
 
-	inline void glColor4f (GLfloat red, GLfloat green, GLfloat blue, GLfloat alpha){
+	inline void cglColor4f (GLfloat red, GLfloat green, GLfloat blue, GLfloat alpha){
 		// Note: On x86 architectures this function will chew up a lot of time
 		// converting floating point to integer by calling _ftol
 		// unless the /QIfist flag is specified.
 		m_OGLPrimitiveVertexBuffer.SetColor(D3DRGBA(Clamp(red), Clamp(green), Clamp(blue), Clamp(alpha)));
 	}
 
-	inline void glColor4fv (const GLfloat *v){
+	inline void cglColor4fv (const GLfloat *v){
 		// Note: On x86 architectures this function will chew up a lot of time
 		// converting floating point to integer by calling _ftol
 		// unless the /QIfist flag is specified.
 		m_OGLPrimitiveVertexBuffer.SetColor(D3DRGBA(Clamp(v[0]), Clamp(v[1]), Clamp(v[2]), Clamp(v[3])));
 	}
 
-	void glCullFace (GLenum mode){
+	void cglCullFace (GLenum mode){
 		if ( m_glCullFaceMode != mode ) {
 			SetRenderStateDirty();
 			m_glCullFaceMode = mode;
@@ -1917,7 +1917,7 @@ public:
 		}
 	}
 
-	void glDepthFunc (GLenum func){
+	void cglDepthFunc (GLenum func){
 		if ( m_glDepthFunc != func ) {
 			SetRenderStateDirty();
 			m_glDepthFunc = func;
@@ -1925,7 +1925,7 @@ public:
 		}
 	}
 
-	void glDepthMask (GLboolean flag){
+	void cglDepthMask (GLboolean flag){
 		if ( m_glDepthMask != (flag != 0) ) {
 			SetRenderStateDirty();
 			m_glDepthMask = flag != 0 ? true : false;
@@ -1933,7 +1933,7 @@ public:
 		}
 	}
 
-	void glDepthRange (GLclampd zNear, GLclampd zFar){
+	void cglDepthRange (GLclampd zNear, GLclampd zFar){
 		if ( m_glDepthRangeNear != zNear || m_glDepthRangeFar != zFar ) {
 			SetRenderStateDirty();
 			m_glDepthRangeNear = zNear;
@@ -1942,19 +1942,19 @@ public:
 		}
 	}
 
-	void glDisable (GLenum cap){
-		glEnableDisableSet(cap, false);
+	void cglDisable (GLenum cap){
+		EnableDisableSet(cap, false);
 	}
 
-	void glDrawBuffer (GLenum /* mode */){
+	void cglDrawBuffer (GLenum /* mode */){
 		// Do nothing. (Can DirectX render to the front buffer at all?)
 	}
 
-	void glEnable (GLenum cap){
-		glEnableDisableSet(cap, true);
+	void cglEnable (GLenum cap){
+		EnableDisableSet(cap, true);
 	}
 
-	void glEnableDisableSet(GLenum cap, bool value){
+	void EnableDisableSet(GLenum cap, bool value){
 		switch ( cap ) {
 		case GL_ALPHA_TEST:
 			if ( m_glAlphaTest != value ) {
@@ -2002,13 +2002,15 @@ public:
 		case GL_DITHER:
 		case GL_FOG:			
 			break;
+		case GL_POLYGON_OFFSET_FILL:	// I fear for the shaders.
+			break;
 		default:
 			LocalDebugBreak();
 			break;
 		}
 	}
 
-	void glEnd (void){
+	void cglEnd (void){
 		// internalEnd();
 	}
 
@@ -2016,12 +2018,12 @@ public:
 		m_OGLPrimitiveVertexBuffer.End();
 	}
 
-	void glFinish (void){
+	void cglFinish (void){
 		// To Do: This is supposed to flush all pending commands
 		internalEnd();
 	}
 
-	void glFrustum (GLdouble left, GLdouble right, GLdouble bottom, GLdouble top, GLdouble zNear, GLdouble zFar){
+	void cglFrustum (GLdouble left, GLdouble right, GLdouble bottom, GLdouble top, GLdouble zNear, GLdouble zFar){
 		SetRenderStateDirty();
 		D3DXMATRIX m;
 		// Note that D3D takes top, bottom arguments in opposite order
@@ -2030,7 +2032,7 @@ public:
 		*m_currentMatrixStateDirty = true;
 	}
 
-	void glGetFloatv (GLenum pname, GLfloat *params){
+	void cglGetFloatv (GLenum pname, GLfloat *params){
 		switch(pname){
 		case GL_MODELVIEW_MATRIX:
 			memcpy(params,m_modelViewMatrixStack->GetTop(), sizeof(D3DMATRIX));
@@ -2041,7 +2043,7 @@ public:
 		}
 	}
 
-	const GLubyte * glGetString (GLenum name){
+	const GLubyte * cglGetString (GLenum name){
 		const char* result = "";
 		EnsureDriverInfo();
 		switch ( name ) {
@@ -2063,28 +2065,28 @@ public:
 		return (const GLubyte *) result;
 	}
 
-	void glHint (GLenum /* target */, GLenum /* mode */){
+	void cglHint (GLenum /* target */, GLenum /* mode */){
 		LocalDebugBreak();
 	}
 
-	void glLoadIdentity (void){
+	void cglLoadIdentity (void){
 		SetRenderStateDirty();
 		m_currentMatrixStack->LoadIdentity();
 		*m_currentMatrixStateDirty = true;
 	}
 
-	void glLoadMatrixf (const GLfloat *m){
+	void cglLoadMatrixf (const GLfloat *m){
 		SetRenderStateDirty();
 		m_currentMatrixStack->LoadMatrix((D3DXMATRIX*) m);
 		*m_currentMatrixStateDirty = true;
 	}
-	void glMultMatrixf (const GLfloat *m){
+	void cglMultMatrixf (const GLfloat *m){
 		SetRenderStateDirty();
 		m_currentMatrixStack->MultMatrixLocal((D3DXMATRIX*) m);
 		*m_currentMatrixStateDirty = true;
 	}
 
-	void glMatrixMode (GLenum mode){
+	void cglMatrixMode (GLenum mode){
 		m_glMatrixMode = mode;
 		switch ( mode ) {
 		case GL_MODELVIEW:
@@ -2105,7 +2107,7 @@ public:
 		}
 	}
 
-	void glOrtho (GLdouble left, GLdouble right, GLdouble bottom, GLdouble top, GLdouble zNear, GLdouble zFar){
+	void cglOrtho (GLdouble left, GLdouble right, GLdouble bottom, GLdouble top, GLdouble zNear, GLdouble zFar){
 		SetRenderStateDirty();
 		D3DXMATRIX m;
 		qD3DXMatrixOrthoOffCenter(&m, left, right, top, bottom, zNear, zFar);
@@ -2113,7 +2115,7 @@ public:
 		*m_currentMatrixStateDirty = true;
 	}
 
-	void glPolygonMode (GLenum face, GLenum mode){
+	void cglPolygonMode (GLenum face, GLenum mode){
 		SetRenderStateDirty();
 		switch ( face ) {
 		case GL_FRONT:
@@ -2132,22 +2134,22 @@ public:
 		}
 	}
 
-	void glPopMatrix (void){
+	void cglPopMatrix (void){
 		SetRenderStateDirty();
 		m_currentMatrixStack->Pop();
 		*m_currentMatrixStateDirty = true;
 	}
 
-	void glPushMatrix (void){
+	void cglPushMatrix (void){
 		m_currentMatrixStack->Push();
 		// Doesn't dirty matrix state
 	}
 
-	void glReadBuffer (GLenum /* mode */){
+	void cglReadBuffer (GLenum /* mode */){
 		// Not that we allow reading from various buffers anyway.
 	}
 
-	void glReadPixels (GLint x, GLint y, GLsizei width, GLsizei height, GLenum format, GLenum type, GLvoid *pixels){
+	void cglReadPixels (GLint x, GLint y, GLsizei width, GLsizei height, GLenum format, GLenum type, GLvoid *pixels){
 		if ( format != GL_RGB || type != GL_UNSIGNED_BYTE) {
 			LocalDebugBreak();
 			return;
@@ -2258,7 +2260,7 @@ public:
 		}
 	}
 
-	void glRotatef (GLfloat angle, GLfloat x, GLfloat y, GLfloat z){
+	void cglRotatef (GLfloat angle, GLfloat x, GLfloat y, GLfloat z){
 		SetRenderStateDirty();
 		D3DXMATRIX m;
 		D3DXVECTOR3 v;
@@ -2271,7 +2273,7 @@ public:
 		*m_currentMatrixStateDirty = true;
 	}
 
-	void glScalef (GLfloat x, GLfloat y, GLfloat z){
+	void cglScalef (GLfloat x, GLfloat y, GLfloat z){
 		SetRenderStateDirty();
 		D3DXMATRIX m;
 		qD3DXMatrixScaling(&m, x, y, z);
@@ -2279,7 +2281,7 @@ public:
 		*m_currentMatrixStateDirty = true;
 	}
 
-	void glShadeModel (GLenum mode){
+	void cglShadeModel (GLenum mode){
 		if ( m_glShadeModel != mode ) {
 			SetRenderStateDirty();
 			m_glShadeModel = mode;
@@ -2287,11 +2289,11 @@ public:
 		}
 	}
 
-	inline void glTexCoord2f (GLfloat s, GLfloat t){
+	inline void cglTexCoord2f (GLfloat s, GLfloat t){
 		m_OGLPrimitiveVertexBuffer.SetTextureCoord0(s, t);
 	}
 
-	void glTexEnvf (GLenum /* target */, GLenum /* pname */, GLfloat param){
+	void cglTexEnvf (GLenum /* target */, GLenum /* pname */, GLfloat param){
 		// ignore target, which must be GL_TEXTURE_ENV
 		// ignore pname, which must be GL_TEXTURE_ENV_MODE
 		if ( m_textureState.GetTextEnvMode() != param ) {
@@ -2311,7 +2313,7 @@ public:
 
 #define LOAD_OURSELVES
 
-	void glTexImage2D (GLenum target, GLint level, GLint internalformat, GLsizei width,
+	void cglTexImage2D (GLenum target, GLint level, GLint internalformat, GLsizei width,
 		GLsizei height, GLint /* border */, GLenum format, GLenum type, const GLvoid *pixels){
 		HRESULT hr;
 		if ( target != GL_TEXTURE_2D || type != GL_UNSIGNED_BYTE) {
@@ -2478,7 +2480,7 @@ public:
 		}
 	}
 
-	void glTexParameterf (GLenum target, GLenum pname, GLfloat param){
+	void cglTexParameterf (GLenum target, GLenum pname, GLfloat param){
 
 		switch(target){
 		case GL_TEXTURE_2D:
@@ -2513,7 +2515,7 @@ public:
 		}
 	}
 
-	void glTexSubImage2D (GLenum target, GLint level,
+	void cglTexSubImage2D (GLenum target, GLint level,
 		GLint xoffset, GLint yoffset, GLsizei width, GLsizei height,
 		GLenum format, GLenum type, const GLvoid *pixels){
 		if ( target != GL_TEXTURE_2D ) {
@@ -2626,7 +2628,7 @@ public:
 		}
 	}
 
-	void glTranslatef (GLfloat x, GLfloat y, GLfloat z){
+	void cglTranslatef (GLfloat x, GLfloat y, GLfloat z){
 		SetRenderStateDirty();
 		D3DXMATRIX m;
 		qD3DXMatrixTranslation(&m, x, y, z);
@@ -2634,19 +2636,19 @@ public:
 		*m_currentMatrixStateDirty = true;
 	}
 
-	inline void glVertex2f (GLfloat x, GLfloat y){
+	inline void cglVertex2f (GLfloat x, GLfloat y){
 		m_OGLPrimitiveVertexBuffer.SetVertex(x, y, 0);
 	}
 
-	inline void glVertex3f (GLfloat x, GLfloat y, GLfloat z){
+	inline void cglVertex3f (GLfloat x, GLfloat y, GLfloat z){
 		m_OGLPrimitiveVertexBuffer.SetVertex(x, y, z);
 	}
 
-	inline void glVertex3fv (const GLfloat *v){
+	inline void cglVertex3fv (const GLfloat *v){
 		m_OGLPrimitiveVertexBuffer.SetVertex(v[0], v[1], v[2]);
 	}
 
-	void glViewport (GLint x, GLint y, GLsizei width, GLsizei height){
+	void cglViewport (GLint x, GLint y, GLsizei width, GLsizei height){
 		if ( m_glViewPortX != x || m_glViewPortY != y ||
 			m_glViewPortWidth != width || m_glViewPortHeight != height ) {
 			SetRenderStateDirty();
@@ -3350,23 +3352,23 @@ private:
 #pragma warning(disable:4273)
 
 void APIENTRY D3DAlphaFunc (GLenum func, GLclampf ref){
-	gFakeGL->glAlphaFunc(func, ref);
+	gFakeGL->cglAlphaFunc(func, ref);
 }
 
 void APIENTRY D3DBegin (GLenum mode){
-	gFakeGL->glBegin(mode);
+	gFakeGL->cglBegin(mode);
 }
 
 void APIENTRY D3DBlendFunc (GLenum sfactor, GLenum dfactor){
-	gFakeGL->glBlendFunc(sfactor, dfactor);
+	gFakeGL->cglBlendFunc(sfactor, dfactor);
 }
 
 void APIENTRY D3DClear (GLbitfield mask){
-	gFakeGL->glClear(mask);
+	gFakeGL->cglClear(mask);
 }
 
 void APIENTRY D3DClearColor (GLclampf red, GLclampf green, GLclampf blue, GLclampf alpha){
-	gFakeGL->glClearColor(red, green, blue, alpha);
+	gFakeGL->cglClearColor(red, green, blue, alpha);
 }
 
 void APIENTRY D3DColor3f (GLfloat red, GLfloat green, GLfloat blue){
@@ -3376,15 +3378,15 @@ void APIENTRY D3DColor3f (GLfloat red, GLfloat green, GLfloat blue){
 	if (red < 0)	red = 0;
 	if (green < 0)	green = 0;
 	if (blue < 0)	blue = 0;
-	gFakeGL->glColor3f(red, green, blue);
+	gFakeGL->cglColor3f(red, green, blue);
 }
 
 void APIENTRY D3DColor3ubv (const GLubyte *v){
-	gFakeGL->glColor3ubv(v);
+	gFakeGL->cglColor3ubv(v);
 }
 void APIENTRY D3DColor3ub (GLubyte v1, GLubyte v2, GLubyte v3)
 {
-	gFakeGL->glColor3f(v1/255.0, v2/255.0, v3/255.0);
+	gFakeGL->cglColor3f(v1/255.0, v2/255.0, v3/255.0);
 }
 void APIENTRY D3DColor4f (GLfloat red, GLfloat green, GLfloat blue, GLfloat alpha){
 	if (red>1)	red = 1;
@@ -3395,48 +3397,48 @@ void APIENTRY D3DColor4f (GLfloat red, GLfloat green, GLfloat blue, GLfloat alph
 	if (green < 0)	green = 0;
 	if (blue < 0)	blue = 0;
 	if (alpha < 0)	alpha = 0;
-	gFakeGL->glColor4f(red, green, blue, alpha);
+	gFakeGL->cglColor4f(red, green, blue, alpha);
 }
 
 void APIENTRY D3DColor4fv (const GLfloat *v){
-	gFakeGL->glColor4fv(v);
+	gFakeGL->cglColor4fv(v);
 }
 
 void APIENTRY D3DColor4ubv (const GLubyte *v)	//no bounds checking needed
 {
-	gFakeGL->glColor4f(v[0]/255.0, v[1]/255.0, v[2]/255.0, v[3]/255.0);
+	gFakeGL->cglColor4f(v[0]/255.0, v[1]/255.0, v[2]/255.0, v[3]/255.0);
 }
 void APIENTRY D3DColor4ub (GLubyte v1, GLubyte v2, GLubyte v3, GLubyte v4)
 {
-	gFakeGL->glColor4f(v1/255.0, v2/255.0, v3/255.0, v4/255.0);
+	gFakeGL->cglColor4f(v1/255.0, v2/255.0, v3/255.0, v4/255.0);
 }
 
 void APIENTRY D3DCullFace (GLenum mode){
-	gFakeGL->glCullFace(mode);
+	gFakeGL->cglCullFace(mode);
 }
 
 void APIENTRY D3DDepthFunc (GLenum func){
-	gFakeGL->glDepthFunc(func);
+	gFakeGL->cglDepthFunc(func);
 }
 
 void APIENTRY D3DDepthMask (GLboolean flag){
-	gFakeGL->glDepthMask(flag);
+	gFakeGL->cglDepthMask(flag);
 }
 
 void APIENTRY D3DDepthRange (GLclampd zNear, GLclampd zFar){
-	gFakeGL->glDepthRange(zNear, zFar);
+	gFakeGL->cglDepthRange(zNear, zFar);
 }
 
 void APIENTRY D3DDisable (GLenum cap){
-	gFakeGL->glDisable(cap);
+	gFakeGL->cglDisable(cap);
 }
 
 void APIENTRY D3DDrawBuffer (GLenum mode){
-	gFakeGL->glDrawBuffer(mode);
+	gFakeGL->cglDrawBuffer(mode);
 }
 
 void APIENTRY D3DEnable (GLenum cap){
-	gFakeGL->glEnable(cap);
+	gFakeGL->cglEnable(cap);
 }
 
 void APIENTRY D3DEnd (void){
@@ -3445,111 +3447,111 @@ void APIENTRY D3DEnd (void){
 }
 
 void APIENTRY D3DFinish (void){
-	gFakeGL->glFinish();
+	gFakeGL->cglFinish();
 }
 
 void APIENTRY D3DFrustum (GLdouble left, GLdouble right, GLdouble bottom, GLdouble top, GLdouble zNear, GLdouble zFar){
-	gFakeGL->glFrustum(left, right, bottom, top, zNear, zFar);
+	gFakeGL->cglFrustum(left, right, bottom, top, zNear, zFar);
 }
 
 void APIENTRY D3DGetFloatv (GLenum pname, GLfloat *params){
-	gFakeGL->glGetFloatv(pname, params);
+	gFakeGL->cglGetFloatv(pname, params);
 }
 
 const GLubyte * APIENTRY D3DGetString (GLenum name){
-	return gFakeGL->glGetString(name);
+	return gFakeGL->cglGetString(name);
 }
 
 void APIENTRY D3DHint (GLenum target, GLenum mode){
-	gFakeGL->glHint(target, mode);
+	gFakeGL->cglHint(target, mode);
 }
 
 void APIENTRY D3DLoadIdentity (void){
-	gFakeGL->glLoadIdentity();
+	gFakeGL->cglLoadIdentity();
 }
 
 void APIENTRY D3DLoadMatrixf (const GLfloat *m){
-	gFakeGL->glLoadMatrixf(m);
+	gFakeGL->cglLoadMatrixf(m);
 }
 
 void APIENTRY D3DMatrixMode (GLenum mode){
-	gFakeGL->glMatrixMode(mode);
+	gFakeGL->cglMatrixMode(mode);
 }
 
 void APIENTRY D3DOrtho (GLdouble left, GLdouble right, GLdouble bottom, GLdouble top, GLdouble zNear, GLdouble zFar){
-	gFakeGL->glOrtho(left, right, top, bottom, zNear, zFar);
+	gFakeGL->cglOrtho(left, right, top, bottom, zNear, zFar);
 }
 
 void APIENTRY D3DPolygonMode (GLenum face, GLenum mode){
-	gFakeGL->glPolygonMode(face, mode);
+	gFakeGL->cglPolygonMode(face, mode);
 }
 
 void APIENTRY D3DPopMatrix (void){
-	gFakeGL->glPopMatrix();
+	gFakeGL->cglPopMatrix();
 }
 
 void APIENTRY D3DPushMatrix (void){
-	gFakeGL->glPushMatrix();
+	gFakeGL->cglPushMatrix();
 }
 
 void APIENTRY D3DReadBuffer (GLenum mode){
-	gFakeGL->glReadBuffer(mode);
+	gFakeGL->cglReadBuffer(mode);
 }
 
 void APIENTRY D3DReadPixels (GLint x, GLint y, GLsizei width, GLsizei height, GLenum format, GLenum type, GLvoid *pixels){
-	gFakeGL->glReadPixels(x, y, width, height, format, type, pixels);
+	gFakeGL->cglReadPixels(x, y, width, height, format, type, pixels);
 }
 
 void APIENTRY D3DRotatef (GLfloat angle, GLfloat x, GLfloat y, GLfloat z){
-	gFakeGL->glRotatef(angle, x, y, z);
+	gFakeGL->cglRotatef(angle, x, y, z);
 }
 
 void APIENTRY D3DScalef (GLfloat x, GLfloat y, GLfloat z){
-	gFakeGL->glScalef(x, y, z);
+	gFakeGL->cglScalef(x, y, z);
 }
 
 void APIENTRY D3DShadeModel (GLenum mode){
-	gFakeGL->glShadeModel(mode);
+	gFakeGL->cglShadeModel(mode);
 }
 
 void APIENTRY D3DTexCoord2f (GLfloat s, GLfloat t){
-	gFakeGL->glTexCoord2f(s, t);
+	gFakeGL->cglTexCoord2f(s, t);
 }
 
 void APIENTRY D3DTexEnvf (GLenum target, GLenum pname, GLfloat param){
-	gFakeGL->glTexEnvf(target, pname, param);
+	gFakeGL->cglTexEnvf(target, pname, param);
 }
 
 void APIENTRY D3DTexImage2D (GLenum target, GLint level, GLint internalformat, GLsizei width, GLsizei height, GLint border, GLenum format, GLenum type, const GLvoid *pixels){
-	gFakeGL->glTexImage2D(target, level, internalformat, width, height, border, format, type, pixels);	
+	gFakeGL->cglTexImage2D(target, level, internalformat, width, height, border, format, type, pixels);	
 }
 
 void APIENTRY D3DTexParameterf (GLenum target, GLenum pname, GLfloat param){
-	gFakeGL->glTexParameterf(target, pname, param);
+	gFakeGL->cglTexParameterf(target, pname, param);
 }
 
 void APIENTRY D3DTexSubImage2D (GLenum target, GLint level, GLint xoffset, GLint yoffset, GLsizei width, GLsizei height, GLenum format, GLenum type, const GLvoid *pixels){
-	gFakeGL->glTexSubImage2D(target, level, xoffset, yoffset, width, height, format, type, pixels);
+	gFakeGL->cglTexSubImage2D(target, level, xoffset, yoffset, width, height, format, type, pixels);
 }
 
 void APIENTRY D3DTranslatef (GLfloat x, GLfloat y, GLfloat z){
-	gFakeGL->glTranslatef(x, y, z);
+	gFakeGL->cglTranslatef(x, y, z);
 }
 
 void APIENTRY D3DVertex2f (GLfloat x, GLfloat y){
-	gFakeGL->glVertex2f(x, y);
+	gFakeGL->cglVertex2f(x, y);
 }
 
 void APIENTRY D3DVertex3f (GLfloat x, GLfloat y, GLfloat z){
-	gFakeGL->glVertex3f(x, y, z);
+	gFakeGL->cglVertex3f(x, y, z);
 }
 
 void APIENTRY D3DVertex3fv (const GLfloat *v){
-	gFakeGL->glVertex3fv(v);
+	gFakeGL->cglVertex3fv(v);
 }
 
 void APIENTRY D3DViewport (GLint x, GLint y, GLsizei width, GLsizei height){
-	gFakeGL->glViewport(x, y, width, height);
+	gFakeGL->cglViewport(x, y, width, height);
 }
 
 HDC gHDC;
@@ -3581,15 +3583,15 @@ HDC   WINAPI D3DwglGetCurrentDC(VOID){
 }
 
 static void APIENTRY D3DBindTextureExt(GLenum target, GLuint texture){
-	gFakeGL->glBindTexture(target, texture);
+	gFakeGL->cglBindTexture(target, texture);
 }
 
 static void APIENTRY D3DMTexCoord2fSGIS(GLenum target, GLfloat s, GLfloat t){
-	gFakeGL->glMTexCoord2fSGIS(target, s, t);
+	gFakeGL->cglMTexCoord2fSGIS(target, s, t);
 }
 
 static void APIENTRY D3DSelectTextureSGIS(GLenum target){
-	gFakeGL->glSelectTextureSGIS(target);
+	gFakeGL->cglSelectTextureSGIS(target);
 }
 
 // type cast unsafe conversion from 
@@ -3704,7 +3706,7 @@ void APIENTRY D3DTexEnvi (GLenum target, GLenum pname, GLint param)
 }
 void APIENTRY D3DMultMatrixf (const GLfloat *m)
 {
-	gFakeGL->glMultMatrixf(m);
+	gFakeGL->cglMultMatrixf(m);
 }
 
 void APIENTRY D3DNormal3f(GLfloat x, GLfloat y, GLfloat z)

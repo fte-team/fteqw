@@ -584,15 +584,6 @@ void CL_PredictMovePNum (int pnum)
 		return;
 	}
 
-	if (cls.state == ca_onserver)
-	{	// first update is the final signon stage
-		cls.state = ca_active;
-		if (VID_SetWindowCaption)
-			VID_SetWindowCaption(va("FTE QuakeWorld: %s", cls.servername));
-
-		SCR_EndLoadingPlaque();
-	}
-
 	// this is the last frame received from the server
 	from = &cl.frames[cl.validsequence & UPDATE_MASK];
 

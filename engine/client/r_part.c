@@ -76,7 +76,7 @@ int R_RunParticleEffectType (vec3_t org, vec3_t dir, float count, int typenum);
 #define crand() (rand()%32767/16383.5f-1)
 
 void D_DrawParticleTrans (particle_t *pparticle);
-void D_DrawSparkTrans (particle_t *pparticle);
+void D_DrawSparkTrans (particle_t *pparticle, vec3_t src, vec3_t dest);
 
 #define MAX_BEAMS                2048   // default max # of beam segments
 #define MAX_PARTICLES			32768	// default max # of particles at one
@@ -2867,6 +2867,9 @@ void GL_DrawParticleBeam_Untextured(beamseg_t *b, part_type_t *type)
 #ifdef SWQUAKE
 void SWD_DrawParticleSpark(particle_t *p, part_type_t *type)
 {
+	float speed;
+	vec3_t src, dest;
+
 	int r,g,b;	//if you have a cpu with mmx, good for you...
 	r = p->rgb[0]*255;
 	if (r < 0)
@@ -2884,7 +2887,22 @@ void SWD_DrawParticleSpark(particle_t *p, part_type_t *type)
 	else if (b > 255)
 		b = 255;
 	p->color = GetPalette(r, g, b);
-	D_DrawSparkTrans(p);
+
+	speed = Length(p->vel);	
+	if ((speed) < 1)
+	{
+		VectorCopy(p->org, src);
+		VectorCopy(p->org, dest);
+	}
+	else
+	{	//causes flickers with lower vels (due to bouncing in physics)
+		if (speed < 50)
+			speed *= 50/speed;
+		VectorMA(p->org, 2.5/(speed), p->vel, src);
+		VectorMA(p->org, -2.5/(speed), p->vel, dest);
+	}
+
+	D_DrawSparkTrans(p, src, dest);
 }
 void SWD_DrawParticleBlob(particle_t *p, part_type_t *type)
 {
@@ -2906,6 +2924,46 @@ void SWD_DrawParticleBlob(particle_t *p, part_type_t *type)
 		b = 255;
 	p->color = GetPalette(r, g, b);
 	D_DrawParticleTrans(p);
+}
+void SWD_DrawParticleBeam(beamseg_t *beam, part_type_t *type)
+{
+	int r,g,b;	//if you have a cpu with mmx, good for you...
+	vec3_t v;
+	vec3_t cr;
+	beamseg_t *c;
+	particle_t *p;
+	particle_t *q;
+
+	vec3_t point[4];
+
+//	if (!b->next)
+//		return;
+
+	c = beam->next;
+
+	q = c->p;
+//	if (!q)
+//		return;
+
+	p = beam->p;
+
+	r = p->rgb[0]*255;
+	if (r < 0)
+		r = 0;
+	else if (r > 255)
+		r = 255;
+	g = p->rgb[1]*255;
+	if (g < 0)
+		g = 0;
+	else if (g > 255)
+		g = 255;
+	b = p->rgb[2]*255;
+	if (b < 0)
+		b = 0;
+	else if (b > 255)
+		b = 255;
+	p->color = GetPalette(r, g, b);
+	D_DrawSparkTrans(p, p->org, q->org );
 }
 #endif
 
@@ -3310,7 +3368,7 @@ void R_DrawParticles (void)
 	if (qrenderer == QR_SOFTWARE)
 	{
 		D_StartParticles();
-		DrawParticleTypes(SWD_DrawParticleBlob, SWD_DrawParticleSpark, NULL, NULL);//SWD_DrawParticleBeam);
+		DrawParticleTypes(SWD_DrawParticleBlob, SWD_DrawParticleSpark, SWD_DrawParticleBeam, SWD_DrawParticleBeam);
 		D_EndParticles();
 		return;
 	}

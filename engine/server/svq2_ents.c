@@ -13,24 +13,6 @@ void SV_BuildClientFrame (client_t *client)
 }
 #else
 
-#define	Q2PS_M_TYPE			(1<<0)
-#define	Q2PS_M_ORIGIN			(1<<1)
-#define	Q2PS_M_VELOCITY		(1<<2)
-#define	Q2PS_M_TIME			(1<<3)
-#define	Q2PS_M_FLAGS			(1<<4)
-#define	Q2PS_M_GRAVITY		(1<<5)
-#define	Q2PS_M_DELTA_ANGLES	(1<<6)
-
-#define	Q2PS_VIEWOFFSET		(1<<7)
-#define	Q2PS_VIEWANGLES		(1<<8)
-#define	Q2PS_KICKANGLES		(1<<9)
-#define	Q2PS_BLEND			(1<<10)
-#define	Q2PS_FOV				(1<<11)
-#define	Q2PS_WEAPONINDEX		(1<<12)
-#define	Q2PS_WEAPONFRAME		(1<<13)
-#define	Q2PS_RDFLAGS			(1<<14)
-#define Q2RF_BEAM				128
-
 q2entity_state_t *svs_client_entities;//[Q2UPDATE_BACKUP*MAX_PACKET_ENTITIES];
 int svs_num_client_entities;
 int svs_next_client_entities;

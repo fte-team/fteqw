@@ -30,7 +30,7 @@ extern void	(*Draw_Pic)								(int x, int y, mpic_t *pic);
 extern void	(*Draw_ScalePic)						(int x, int y, int width, int height, mpic_t *pic);
 extern void	(*Draw_SubPic)							(int x, int y, mpic_t *pic, int srcx, int srcy, int width, int height);
 extern void	(*Draw_TransPic)						(int x, int y, mpic_t *pic);
-extern void	(*Draw_TransPicTranslate)				(int x, int y, mpic_t *pic, qbyte *translation);
+extern void	(*Draw_TransPicTranslate)				(int x, int y, int width, int height, qbyte *image, qbyte *translation);
 extern void	(*Draw_ConsoleBackground)				(int lines);
 extern void	(*Draw_EditorBackground)				(int lines);
 extern void	(*Draw_TileClear)						(int x, int y, int w, int h);

@@ -111,6 +111,9 @@ int		numlight;
 extern	int sv_lightningmodel;
 #endif
 
+edict_t *csqcent[MAX_EDICTS];
+int csqcnuments;
+
 qboolean SV_AddNailUpdate (edict_t *ent)
 {
 	if (ent->v.modelindex != sv_nailmodel
@@ -138,6 +141,16 @@ qboolean SV_DemoNailUpdate (int i)
 	nails[numnails] = (edict_t *)i;
 	numnails++;
 	return true;
+}
+
+static qboolean SV_AddCSQCUpdate (edict_t *ent)
+{
+//	if (!ent->sendcsqc)
+		return false;
+
+//	csqcent[csqcnuments++] = ent;
+
+//	return true;
 }
 
 #ifdef PEXT_LIGHTUPDATES
@@ -256,6 +269,11 @@ void SV_EmitNailUpdate (sizebuf_t *msg, qboolean recorder)
 		for (i=0 ; i<6 ; i++)
 			MSG_WriteByte (msg, bits[i]);
 	}
+}
+
+void SV_EmitCSQCUpdate(client_t *client, sizebuf_t *msg)
+{
+
 }
 
 //=============================================================================
@@ -836,6 +854,7 @@ void SV_WritePlayerToClient(sizebuf_t *msg, clstate_t *ent)
 #endif
 
 
+#ifdef PEXT_SEEF1
 #define EFNQ_DARKLIGHT	16
 #define EFNQ_DARKFIELD	32
 #define EFNQ_LIGHT		64
@@ -956,9 +975,10 @@ void SV_AddEffect(client_t *to, edict_t *ent, int seefno)
 		break;
 	}
 }
-
+#endif
 void SV_SendExtraEntEffects(client_t *to, edict_t *ent)
 {
+#ifdef PEXT_SEEF1
 	int removeeffects = 0;
 	if (pr_udc_exteffect_enabled)
 	{
@@ -1018,6 +1038,7 @@ void SV_SendExtraEntEffects(client_t *to, edict_t *ent)
 				SV_RemoveEffect(to, ent, removeeffects);
 		}
 	}
+#endif
 }
 /*
 =============
@@ -1313,6 +1334,9 @@ void SV_WritePlayersToClient (client_t *client, edict_t *clent, qbyte *pvs, size
 			if (!((int)clent->v.dimension_see & ((int)ent->v.dimension_seen | (int)ent->v.dimension_ghost)))
 				continue;	//not in this dimension - sorry...
 		}
+
+		if (SV_AddCSQCUpdate(ent))
+			continue;
 
 		{
 			clstate_t clst;
@@ -1726,6 +1750,7 @@ qboolean Q2BSP_EdictInFatPVS(edict_t *ent)
 	return true;
 }
 #endif
+
 /*
 =============
 SV_WriteEntitiesToClient
@@ -1811,7 +1836,7 @@ void SV_WriteEntitiesToClient (client_t *client, sizebuf_t *msg, qboolean ignore
 	pvs = fatpvs;
 
 	// send over the players in the PVS
-	SV_WritePlayersToClient (client, clent, pvs, msg);	
+	SV_WritePlayersToClient (client, clent, pvs, msg);
 	
 	// put other visible entities into either a packet_entities or a nails message
 	pack = &frame->entities;
@@ -2048,34 +2073,7 @@ void SV_WriteEntitiesToClient (client_t *client, sizebuf_t *msg, qboolean ignore
 //		if (strstr(sv.model_precache[(int)ent->v.modelindex], "gib"))
 //			continue;
 
-		//QC code doesn't want some clients to see some ents.
-#define SF_OWNERSEEONLY 1
-#define SF_OWNERDONTSEE 2
-#define SF_OWNERTEAMONLY 4
-#define SF_OWNERTEAMDONTSEE 8		
-		if (ent->v.sendflags && !ignorepvs)	//hmm
-		{
-			if ((int)ent->v.sendflags & SF_OWNERSEEONLY)
-			{
-				if (PROG_TO_EDICT(svprogfuncs, ent->v.owner) != clent)
-					continue;
-			}
-			if ((int)ent->v.sendflags & SF_OWNERDONTSEE)
-			{
-				if (PROG_TO_EDICT(svprogfuncs, ent->v.owner) == clent)
-					continue;
-			}
-			if ((int)ent->v.sendflags & SF_OWNERTEAMONLY)
-			{
-				if (ent->v.team != clent->v.team)
-					continue;
-			}
-			if ((int)ent->v.sendflags & SF_OWNERTEAMDONTSEE)
-			{
-				if (ent->v.team == clent->v.team)
-					continue;
-			}
-		}
+
 		if (ent->v.nodrawtoclient)	//DP extension.
 			if (ent->v.nodrawtoclient == EDICT_TO_PROG(svprogfuncs, client->edict))
 				continue;
@@ -2096,6 +2094,9 @@ void SV_WriteEntitiesToClient (client_t *client, sizebuf_t *msg, qboolean ignore
 		if (client->edict)
 			if (!((int)client->edict->v.dimension_see & ((int)ent->v.dimension_seen | (int)ent->v.dimension_ghost)))
 				continue;	//not in this dimension - sorry...
+
+		if (SV_AddCSQCUpdate(ent))	//csqc took it.
+			continue;
 
 #ifdef NQPROT
 		if (nqprot)

@@ -147,7 +147,7 @@ void SWSCR_UpdateScreen (void)
 	D_DisableBackBufferAccess ();	// for adapters that can't stay mapped in
 									//  for linear writes all the time
 
-	nohud = true;
+	nohud = false;
 #ifdef TEXTEDIT
 	if (!editormodal)	//don't render view.
 #endif

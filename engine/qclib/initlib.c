@@ -370,7 +370,9 @@ progfuncs_t deffuncs = {
 	PR_ResumeThread,
 	PR_AbortStack,
 
-	0
+	0,
+
+	QC_RegisterFieldVar
 };
 #undef printf
 

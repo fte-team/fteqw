@@ -734,39 +734,24 @@ vec_t VI2Length(int x, int y)
 	length = sqrt (length);
 	return length;
 }
-void D_DrawSparkTrans32 (particle_t *pparticle)	//draw a line in 3d space
+void D_DrawSparkTrans32 (particle_t *pparticle, vec3_t src, vec3_t dest)	//draw a line in 3d space
 {
 	/*
 	Finds 2d coords for the points, then draws a line between them with an appropriate alpha
 	*/
-	vec3_t delta;
 	unsigned char *pdest;
 	unsigned char *pal;
 	short	*pz;
 	int		count, u1, v1, z1, a1, a, ia;
 	int u2, v2, z2;
-	float speed;
 
 	int du, dv, dz, da;
 
 	if (pparticle->alpha <= 0.0)
 		return;
 
-	speed = Length(pparticle->vel);	
-	if ((speed) < 1)
-	{
-		D_2dPos(pparticle->org, &u1, &v1, &z1);
-		D_2dPos(pparticle->org, &u2, &v2, &z2);
-	}
-	else
-	{	//causes flickers with lower vels (due to bouncing in physics)
-		if (speed < 50)
-			speed *= 50/speed;
-		VectorMA(pparticle->org, 5/(speed), pparticle->vel, delta);
-		D_2dPos(delta, &u1, &v1, &z1);
-		VectorMA(pparticle->org, -5/(speed), pparticle->vel, delta);
-		D_2dPos(delta, &u2, &v2, &z2);
-	}
+	D_2dPos(src, &u1, &v1, &z1);
+	D_2dPos(dest, &u2, &v2, &z2);
 
 	if ((v1 > d_vrectbottom_particle) || 
 		(u1 > d_vrectright_particle) ||
@@ -837,35 +822,20 @@ pal = (qbyte *)(d_8to32table + (int)pparticle->color);
 	} while (count--);
 }
 
-void D_DrawSparkTrans16 (particle_t *pparticle)	//draw a line in 3d space, 8bpp
+void D_DrawSparkTrans16 (particle_t *pparticle, vec3_t src, vec3_t dest)	//draw a line in 3d space, 8bpp
 {
-	vec3_t delta;
 	unsigned short	*pdest;
 	short	*pz;
 	int		count, u1, v1, z1;
 	int u2, v2, z2;
-	float speed;
 
 	int du, dv, dz;
 
 	if (pparticle->alpha <= 0.0)
 		return;
 
-	speed = Length(pparticle->vel);	
-	if ((speed) < 1)
-	{
-		D_2dPos(pparticle->org, &u1, &v1, &z1);
-		D_2dPos(pparticle->org, &u2, &v2, &z2);
-	}
-	else
-	{	//causes flickers with lower vels (due to bouncing in physics)
-		if (speed < 50)
-			speed *= 50/speed;
-		VectorMA(pparticle->org, 2.5/(speed), pparticle->vel, delta);
-		D_2dPos(delta, &u1, &v1, &z1);
-		VectorMA(pparticle->org, -2.5/(speed), pparticle->vel, delta);
-		D_2dPos(delta, &u2, &v2, &z2);
-	}
+	D_2dPos(src, &u1, &v1, &z1);
+	D_2dPos(dest, &u2, &v2, &z2);
 
 	if ((v1 > d_vrectbottom_particle) || 
 		(u1 > d_vrectright_particle) ||
@@ -925,14 +895,12 @@ void D_DrawSparkTrans16 (particle_t *pparticle)	//draw a line in 3d space, 8bpp
 	} while (count--);
 }
 
-void D_DrawSparkTrans (particle_t *pparticle)	//draw a line in 3d space, 8bpp
+void D_DrawSparkTrans (particle_t *pparticle, vec3_t src, vec3_t dest)	//draw a line in 3d space, 8bpp
 {
-	vec3_t delta;
 	qbyte	*pdest;
 	short	*pz;
 	int		count, u1, v1, z1;
 	int u2, v2, z2;
-	float speed;
 
 	int du, dv, dz;
 /*
@@ -941,12 +909,12 @@ void D_DrawSparkTrans (particle_t *pparticle)	//draw a line in 3d space, 8bpp
 */
 	if (r_pixbytes == 4)
 	{
-		D_DrawSparkTrans32(pparticle);
+		D_DrawSparkTrans32(pparticle, src, dest);
 		return;
 	}
 	if (r_pixbytes == 2)
 	{
-		D_DrawSparkTrans16(pparticle);
+		D_DrawSparkTrans16(pparticle, src, dest);
 		return;
 	}
 
@@ -955,21 +923,8 @@ void D_DrawSparkTrans (particle_t *pparticle)	//draw a line in 3d space, 8bpp
 	if (t_state & TT_ZERO)
 		return;
 
-	speed = Length(pparticle->vel);	
-	if ((speed) < 1)
-	{
-		D_2dPos(pparticle->org, &u1, &v1, &z1);
-		D_2dPos(pparticle->org, &u2, &v2, &z2);
-	}
-	else
-	{	//causes flickers with lower vels (due to bouncing in physics)
-		if (speed < 50)
-			speed *= 50/speed;
-		VectorMA(pparticle->org, 2.5/(speed), pparticle->vel, delta);
-		D_2dPos(delta, &u1, &v1, &z1);
-		VectorMA(pparticle->org, -2.5/(speed), pparticle->vel, delta);
-		D_2dPos(delta, &u2, &v2, &z2);
-	}
+	D_2dPos(src, &u1, &v1, &z1);
+	D_2dPos(dest, &u2, &v2, &z2);
 
 	if ((v1 > d_vrectbottom_particle) || 
 		(u1 > d_vrectright_particle) ||

@@ -232,7 +232,6 @@ typedef struct entvars_s
 	float	alpha;
 	float	fatness;
 	int		view2;
-	float	sendflags;
 	float	fteflags;
 	vec3_t	movement;
 	float	vweapmodelindex;

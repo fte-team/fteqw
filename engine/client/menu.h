@@ -81,6 +81,7 @@ typedef struct {
 	cvar_t *cvar;
 	char text[MAX_EDIT_LENGTH];
 	int cursorpos;
+	qboolean modified;
 } menuedit_t;
 typedef struct {
 	menucommon_t common;

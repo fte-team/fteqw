@@ -2722,22 +2722,13 @@ CL_RequestNextDownload();
 	{
 		CL_SendCmd ();
 
-		if (cl.worldmodel)
-		{
-			//work out which packet entities are solid
-			CL_SetSolidEntities ();
+		if (cls.state == ca_onserver && cl.validsequence && cl.worldmodel)
+		{	// first update is the final signon stage
+			cls.state = ca_active;
+			if (VID_SetWindowCaption)
+				VID_SetWindowCaption(va("FTE QuakeWorld: %s", cls.servername));
 
-			// Set up prediction for other players
-			CL_SetUpPlayerPrediction(false);
-
-			// do client side motion prediction
-			CL_PredictMove ();
-
-			// Set up prediction for other players
-			CL_SetUpPlayerPrediction(true);
-
-			// build a refresh entity list
-			CL_EmitEntities ();
+			SCR_EndLoadingPlaque();
 		}
 	}
 

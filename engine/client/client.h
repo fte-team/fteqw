@@ -466,6 +466,9 @@ typedef struct
 	struct model_s		*model_precache[MAX_MODELS];
 	struct sfx_s		*sound_precache[MAX_SOUNDS];
 
+	char				model_csqcname[MAX_CSQCMODELS][MAX_QPATH];
+	struct model_s		*model_csqcprecache[MAX_CSQCMODELS];
+
 	char skyname[MAX_QPATH];
 	char		levelname[40];	// for display on solo scoreboard
 	int			playernum[MAX_SPLITS];
@@ -720,6 +723,38 @@ void CL_ParsePacketEntities (qboolean delta);
 void CL_SetSolidEntities (void);
 void CL_ParsePlayerinfo (void);
 void CL_ParseClientPersist(void);
+//these last ones are needed for csqc handling of engine-bound ents.
+void CL_SwapEntityLists(void);
+void CL_LinkViewModel(void);
+void CL_LinkPlayers (void);
+void CL_LinkPacketEntities (void);
+void CL_LinkProjectiles (void);
+
+//
+//clq3_parse.c
+//
+#ifdef Q3CLIENT
+void CLQ3_SendClientCommand(const char *fmt, ...);
+void CLQ3_SendConnectPacket(netadr_t to);
+void CLQ3_SendCmd(usercmd_t *cmd);
+qboolean CLQ3_Netchan_Process(void);
+void CLQ3_ParseServerMessage (void);
+qboolean CG_FillQ3Snapshot(int snapnum, struct snapshot_s *snapshot);
+
+void CG_InsertIntoGameState(int num, char *str);
+void CG_Restart_f(void);
+#endif
+
+//
+//pr_csqc.c
+//
+#ifdef CSQC_DAT
+void CSQC_Init (void);
+qboolean CSQC_DrawView(void);
+void CSQC_Shutdown(void);
+qboolean CSQC_StuffCmd(char *cmd);
+qboolean CSQC_CenterPrint(char *cmd);
+#endif
 
 //
 // cl_pred.c
@@ -871,6 +906,7 @@ qboolean CIN_RunCinematic (void);
 void MVD_Interpolate(void);
 
 void TP_Init(void);
+void TP_CheckVars(void);
 void TP_CheckPickupSound(char *s, vec3_t org);
 
 void Stats_NewMap(void);

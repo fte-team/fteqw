@@ -79,7 +79,7 @@ void R_CalcTransTable(int table, int level)
 	else
 		rvr = 0;
 
-	COM_FOpenFile (va("data/ttable%i.dat", (int) level) , &f);  //we can ignore the filesize return value
+	COM_FOpenFile (va("tables/ttable%i.dat", (int) level) , &f);  //we can ignore the filesize return value
 	if (f)
 	{
 		if (fread (t_lookup[table], 256, 256, f) == 256)
@@ -126,14 +126,14 @@ void R_CalcTransTable(int table, int level)
 
 	if (r_transtablewrite.value)
 	{
-		COM_CreatePath(va("%s/data/",  com_gamedir));
+		COM_CreatePath(va("%s/tables/",  com_gamedir));
 #if 1
-		f = fopen (va("%s/data/ttable%i.dat",  com_gamedir, (int) level), "wb");
+		f = fopen (va("%s/tables/ttable%i.dat",  com_gamedir, (int) level), "wb");
 		if (f)
 		{
 			if (fwrite (t_lookup[table], 256, 256, f) != 256)
 			{
-					Con_Printf("Couldn't write data to \"data/ttable%i.dat\"\n", (int) level);
+					Con_Printf("Couldn't write data to \"tables/ttable%i.dat\"\n", (int) level);
 					fclose(f);
 					if (rvr)
 						R_ReverseTable(table); // make sure it gets reversed if needed
@@ -142,9 +142,9 @@ void R_CalcTransTable(int table, int level)
 			fclose(f);		
 		}
 		else
-			Con_Printf("Couldn't write data to \"data/ttable%i.dat\"\n", (int) level);
+			Con_Printf("Couldn't write data to \"tables/ttable%i.dat\"\n", (int) level);
 #else		
-		COM_WriteFile(va("data/ttable%i.dat", (int)level, t_lookup[table], 256*256);
+		COM_WriteFile(va("tables/ttable%i.dat", (int)level, t_lookup[table], 256*256);
 #endif	
 	}
 

@@ -480,6 +480,7 @@ menuedit_t *MC_AddEdit(menu_t *menu, int x, int y, char *text, char *def)
 	n->common.iszone = true;	
 	n->common.posx = x;
 	n->common.posy = y;
+	n->modified = true;
 	n->caption = text;
 	Q_strncpyz(n->text, def, sizeof(n->text));
 
@@ -499,6 +500,7 @@ menuedit_t *MC_AddEditCvar(menu_t *menu, int x, int y, char *text, char *name)
 	n->common.posy = y;
 	n->common.width = (strlen(text)+17)*8;
 	n->common.height = 8;
+	n->modified = true;
 	n->caption = (char *)(n+1);
 	strcpy((char *)(n+1), text);
 	n->cvar = cvar;
@@ -810,6 +812,8 @@ void MC_EditBox_Key(menuedit_t *edit, int key)
 		edit->text[len] = key;
 		edit->text[len+1] = '\0';
 	}
+
+	edit->modified = true;
 
 	if (edit->cvar)
 	{

@@ -25,6 +25,8 @@ typedef struct {
 	float lerpfrac;
 
 	float drawmask;	//drawentities uses this mask for it.
+
+	string_t model;
 } csqcentvars_t;
 
 typedef struct csqcedict_s
@@ -39,11 +41,11 @@ typedef struct csqcedict_s
 
 void CSQC_InitFields(void)
 {	//CHANGING THIS FUNCTION REQUIRES CHANGES TO csqcentvars_t
-#define fieldfloat(name) QC_RegisterFieldVar(csqcprogs, ev_float, #name, (int)&((csqcedict_t*)0)->v.name - (int)&((csqcedict_t*)0)->v, -1)
-#define fieldvector(name) QC_RegisterFieldVar(csqcprogs, ev_vector, #name, (int)&((csqcedict_t*)0)->v.name - (int)&((csqcedict_t*)0)->v, -1)
-#define fieldentity(name) QC_RegisterFieldVar(csqcprogs, ev_entity, #name, (int)&((csqcedict_t*)0)->v.name - (int)&((csqcedict_t*)0)->v, -1)
-#define fieldstring(name) QC_RegisterFieldVar(csqcprogs, ev_string, #name, (int)&((csqcedict_t*)0)->v.name - (int)&((csqcedict_t*)0)->v, -1)
-#define fieldfunction(name) QC_RegisterFieldVar(csqcprogs, ev_function, #name, (int)&((csqcedict_t*)0)->v.name - (int)&((csqcedict_t*)0)->v, -1)
+#define fieldfloat(name) PR_RegisterFieldVar(csqcprogs, ev_float, #name, (int)&((csqcedict_t*)0)->v.name - (int)&((csqcedict_t*)0)->v, -1)
+#define fieldvector(name) PR_RegisterFieldVar(csqcprogs, ev_vector, #name, (int)&((csqcedict_t*)0)->v.name - (int)&((csqcedict_t*)0)->v, -1)
+#define fieldentity(name) PR_RegisterFieldVar(csqcprogs, ev_entity, #name, (int)&((csqcedict_t*)0)->v.name - (int)&((csqcedict_t*)0)->v, -1)
+#define fieldstring(name) PR_RegisterFieldVar(csqcprogs, ev_string, #name, (int)&((csqcedict_t*)0)->v.name - (int)&((csqcedict_t*)0)->v, -1)
+#define fieldfunction(name) PR_RegisterFieldVar(csqcprogs, ev_function, #name, (int)&((csqcedict_t*)0)->v.name - (int)&((csqcedict_t*)0)->v, -1)
 
 	fieldfloat(modelindex);
 	fieldvector(origin);
@@ -58,6 +60,8 @@ void CSQC_InitFields(void)
 	fieldfloat(lerpfrac);
 
 	fieldfloat(drawmask);
+
+	fieldstring(model);
 }
 
 #define	RETURN_SSTRING(s) (*(char **)&((int *)pr_globals)[OFS_RETURN] = PR_SetString(prinst, s))	//static - exe will not change it.
@@ -141,6 +145,8 @@ void PF_CL_drawsetcliparea (progfuncs_t *prinst, struct globalvars_s *pr_globals
 void PF_CL_drawresetcliparea (progfuncs_t *prinst, struct globalvars_s *pr_globals);
 void PF_CL_drawgetimagesize (progfuncs_t *prinst, struct globalvars_s *pr_globals);
 
+#define MAXTEMPBUFFERLEN	1024
+
 void PF_fclose_progs (progfuncs_t *prinst);
 char *PF_VarString (progfuncs_t *prinst, int	first, struct globalvars_s *pr_globals);
 
@@ -181,15 +187,24 @@ static void PF_R_AddEntity(progfuncs_t *prinst, struct globalvars_s *pr_globals)
 	entity_t ent;
 	int i;
 	
-	if (!cl_visedicts)
-		cl_visedicts = cl_visedicts_list[0];
 	memset(&ent, 0, sizeof(ent));
 
 	i = in->v.modelindex;
-	if (i <= 0 || i >= MAX_MODELS)	//whoops, no model, no draw.
+	if (i == 0)
+		return;
+	else if (i > 0 && i < MAX_MODELS)
+		ent.model = cl.model_precache[i];
+	else if (i < 0 && i > -MAX_CSQCMODELS)
+		ent.model = cl.model_csqcprecache[-i];
+	else
 		return; //there might be other ent types later as an extension that stop this.
 
-	ent.model = cl.model_precache[i];
+	if (!ent.model)
+	{
+		Con_Printf("PF_R_AddEntity: model wasn't precached!\n");
+		return;
+	}
+
 	
 	ent.frame = in->v.frame;
 	ent.oldframe = in->v.oldframe;
@@ -227,20 +242,41 @@ static void PF_R_AddEntityMask(progfuncs_t *prinst, struct globalvars_s *pr_glob
 		}
 	}
 
-	if (mask & MASK_ENGINE)
+	if (mask & MASK_ENGINE && cl.worldmodel)
 	{
-		CL_EmitEntities();
+		CL_LinkViewModel ();
+		CL_LinkPlayers ();
+		CL_LinkPacketEntities ();
+		CL_LinkProjectiles ();
+		CL_UpdateTEnts ();
 	}
 }
 
-float CalcFov (float fov_x, float width, float height);
+//float CalcFov (float fov_x, float width, float height);
 //clear scene, and set up the default stuff.
 static void PF_R_ClearScene (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
 	extern frame_t		*view_frame;
 	extern player_state_t		*view_message;
 
-	cl_numvisedicts = 0;
+	CL_DecayLights ();
+
+	if (cl.worldmodel)
+	{
+		//work out which packet entities are solid
+		CL_SetSolidEntities ();
+
+		// Set up prediction for other players
+		CL_SetUpPlayerPrediction(false);
+
+		// do client side motion prediction
+		CL_PredictMove ();
+
+		// Set up prediction for other players
+		CL_SetUpPlayerPrediction(true);
+	}
+
+	CL_SwapEntityLists();
 
 	view_frame = &cl.frames[cls.netchan.incoming_sequence & UPDATE_MASK];
 	view_message = &view_frame->playerstate[cl.playernum[0]];
@@ -417,19 +453,24 @@ static void PF_cs_getstatf(progfuncs_t *prinst, struct globalvars_s *pr_globals)
 	G_FLOAT(OFS_RETURN) = val;
 }
 static void PF_cs_getstati(progfuncs_t *prinst, struct globalvars_s *pr_globals)
-{
+{	//convert an int stat into a qc float.
+
 	int stnum = G_FLOAT(OFS_PARM0);
-	unsigned int val = cl.stats[0][stnum];
-	if (G_FLOAT(OFS_PARM1))
-		G_FLOAT(OFS_RETURN) = (val&(((1<<9)-1)<<23))>>23;
+	int val = cl.stats[0][stnum];
+	if (*prinst->callargc > 1)
+	{
+		int first, count;
+		first = G_FLOAT(OFS_PARM1);
+		count = G_FLOAT(OFS_PARM2);
+		G_FLOAT(OFS_RETURN) = (((unsigned int)val)&(((1<<count)-1)<<first))>>first;
+	}
 	else
-		G_FLOAT(OFS_RETURN) = val&((1<<24)-1);
+		G_FLOAT(OFS_RETURN) = val;
 }
 static void PF_cs_getstats(progfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
 	int stnum = G_FLOAT(OFS_PARM0);
 	char *out;
-	unsigned int val;
 
 	out = PF_TempStr();
 
@@ -444,14 +485,116 @@ static void PF_cs_getstats(progfuncs_t *prinst, struct globalvars_s *pr_globals)
 	RETURN_SSTRING(out);
 }
 
+static void PF_CSQC_SetOrigin(progfuncs_t *prinst, struct globalvars_s *pr_globals)
+{
+	csqcedict_t *ent = (void*)G_EDICT(prinst, OFS_PARM0);
+	float *org = G_VECTOR(OFS_PARM1);
+	VectorCopy(org, ent->v.origin);
+
+	//fixme: add some sort of fast area grid
+}
+
+static int FindModel(char *name, int *free)
+{
+	int i;
+
+	*free = 0;
+
+	for (i = 1; i < MAX_CSQCMODELS; i++)
+	{
+		if (!*cl.model_csqcname[i])
+		{
+			*free = -i;
+			break;
+		}
+		if (!strcmp(cl.model_csqcname[i], name))
+			return -i;
+	}
+	for (i = 1; i < MAX_MODELS; i++)
+	{
+		if (!strcmp(cl.model_name[i], name))
+			return i;
+	}
+	return 0;
+}
+static void PF_CSQC_SetModel(progfuncs_t *prinst, struct globalvars_s *pr_globals)
+{
+	csqcedict_t *ent = (void*)G_EDICT(prinst, OFS_PARM0);
+	char *modelname = PR_GetStringOfs(prinst, OFS_PARM1);
+	int freei;
+	int modelindex = FindModel(modelname, &freei);
+
+	if (!modelindex)
+	{
+		if (!freei)
+			Host_EndGame("CSQC ran out of model slots\n");
+		Con_DPrintf("Late caching model \"%s\"\n", modelname);
+		Q_strncpyz(cl.model_csqcname[-freei], modelname, sizeof(cl.model_csqcname[-freei]));	//allocate a slot now
+		modelindex = freei;
+
+		cl.model_csqcprecache[-freei] = Mod_ForName(cl.model_csqcname[-freei], false);
+	}
+
+	ent->v.modelindex = modelindex;
+	if (modelindex < 0)
+		ent->v.model = PR_SetString(prinst, cl.model_csqcname[-modelindex]);
+	else
+		ent->v.model = PR_SetString(prinst, cl.model_name[modelindex]);
+}
+static void PF_CSQC_SetModelIndex(progfuncs_t *prinst, struct globalvars_s *pr_globals)
+{
+	csqcedict_t *ent = (void*)G_EDICT(prinst, OFS_PARM0);
+	int modelindex = G_FLOAT(OFS_PARM1);
+
+	ent->v.modelindex = modelindex;
+	if (modelindex < 0)
+		ent->v.model = PR_SetString(prinst, cl.model_csqcname[-modelindex]);
+	else
+		ent->v.model = PR_SetString(prinst, cl.model_name[modelindex]);
+}
+static void PF_CSQC_PrecacheModel(progfuncs_t *prinst, struct globalvars_s *pr_globals)
+{
+	char *modelname = PR_GetStringOfs(prinst, OFS_PARM0);
+	int i;
+	for (i = 1; i < MAX_CSQCMODELS; i++)
+	{
+		if (!*cl.model_csqcname[i])
+			break;
+		if (!strcmp(cl.model_csqcname[i], modelname))
+		{
+			cl.model_csqcprecache[i] = Mod_ForName(cl.model_csqcname[i], false);
+			break;
+		}
+	}
+
+	for (i = 1; i < MAX_MODELS; i++)	//I regret this.
+	{
+		if (!*cl.model_name[i])
+			break;
+		if (!strcmp(cl.model_name[i], modelname))
+		{
+			cl.model_precache[i] = Mod_ForName(cl.model_name[i], false);
+			break;
+		}
+	}
+}
+static void PF_CSQC_ModelnameForIndex(progfuncs_t *prinst, struct globalvars_s *pr_globals)
+{
+	int modelindex = G_FLOAT(OFS_PARM0);
+
+	if (modelindex < 0)
+		G_INT(OFS_RETURN) = (int)PR_SetString(prinst, cl.model_csqcname[-modelindex]);
+	else
+		G_INT(OFS_RETURN) = (int)PR_SetString(prinst, cl.model_name[modelindex]);
+}
 
 //warning: functions that depend on globals are bad, mkay?
 builtin_t csqc_builtins[] = {
 //0
 	PF_Fixme,
 	PF_makevectors,
-	PF_Fixme, //PF_setorigin
-	PF_Fixme, //PF_setmodel
+	PF_CSQC_SetOrigin, //PF_setorigin
+	PF_CSQC_SetModel, //PF_setmodel
 	PF_Fixme, //PF_setsize
 	PF_Fixme,
 	PF_Fixme, //PF_break,
@@ -466,14 +609,14 @@ builtin_t csqc_builtins[] = {
 	PF_Spawn,
 	PF_Fixme, //PF_Remove,
 	PF_Fixme, //PF_traceline,
-	PF_Fixme, //PF_checkclient,
+	PF_Fixme, //PF_checkclient, (don't support)
 	PF_FindString,
 	PF_Fixme, //PF_precache_sound,
 //20
-	PF_Fixme, //PF_precache_model,
-	PF_Fixme, //PF_stuffcmd,
+	PF_CSQC_PrecacheModel, //PF_precache_model,
+	PF_Fixme, //PF_stuffcmd, (don't support)
 	PF_Fixme, //PF_findradius,
-	PF_Fixme, //PF_bprint,
+	PF_Fixme, //PF_bprint, (don't support)
 	PF_Fixme, //PF_sprint,
 	PF_dprint,
 	PF_ftos,
@@ -483,7 +626,7 @@ builtin_t csqc_builtins[] = {
 //30
 	PF_traceoff,
 	PF_eprint,
-	PF_Fixme, //PF_walkmove,
+	PF_Fixme, //PF_walkmove, (don't support yet)
 	PF_Fixme,
 PF_Fixme, //PF_droptofloor,
 PF_Fixme, //PF_lightstyle,
@@ -496,7 +639,7 @@ PF_Fixme, //PF_checkbottom,
 PF_Fixme, //PF_pointcontents,
 PF_Fixme,
 PF_fabs,
-PF_Fixme, //PF_aim,	hehehe...
+PF_Fixme, //PF_aim,	hehehe... (don't support)
 PF_cvar,
 PF_localcmd,
 PF_nextent,
@@ -526,10 +669,10 @@ PF_Fixme,
 PF_Fixme,
 PF_Fixme,
 SV_MoveToGoal,
-PF_Fixme, //PF_precache_file,
+PF_Fixme, //PF_precache_file, (don't support)
 PF_Fixme, //PF_makestatic,
 //70
-PF_Fixme, //PF_changelevel,
+PF_Fixme, //PF_changelevel, (don't support)
 PF_Fixme,
 PF_cvar_set,
 PF_Fixme, //PF_centerprint,
@@ -539,11 +682,11 @@ PF_Fixme, //PF_precache_model,
 PF_Fixme, //PF_precache_sound,
 PF_Fixme, //PF_precache_file,
 PF_Fixme, //PF_setspawnparms,
-PF_Fixme, //PF_logfrag,
+PF_Fixme, //PF_logfrag, (don't support)
 //80
 PF_Fixme, //PF_infokey,
 PF_stof,
-PF_Fixme, //PF_multicast,
+PF_Fixme, //PF_multicast, (don't support)
 PF_Fixme,
 PF_Fixme,
 
@@ -775,7 +918,8 @@ func_t csqc_shutdown_function;
 func_t csqc_draw_function;
 func_t csqc_keydown_function;
 func_t csqc_keyup_function;
-func_t csqc_toggle_function;
+func_t csqc_parse_stuffcmd;
+func_t csqc_parse_centerprint;
 
 float *csqc_time;
 
@@ -832,6 +976,9 @@ void CSQC_FindGlobals(void)
 	csqc_draw_function	= PR_FindFunction(csqcprogs, "CSQC_UpdateView",	PR_ANY);
 	csqc_keydown_function	= PR_FindFunction(csqcprogs, "CSQC_KeyDown",	PR_ANY);
 	csqc_keyup_function	= PR_FindFunction(csqcprogs, "CSQC_KeyUp",	PR_ANY);
+
+	csqc_parse_stuffcmd	= PR_FindFunction(csqcprogs, "CSQC_Parse_StuffCmd",	PR_ANY);
+	csqc_parse_centerprint	= PR_FindFunction(csqcprogs, "CSQC_Parse_CenterPrint",	PR_ANY);
 }
 
 double  csqctime;
@@ -843,6 +990,9 @@ void CSQC_Init (void)
 	{
 		return;
 	}
+
+	memset(cl.model_csqcname, 0, sizeof(cl.model_csqcname));
+	memset(cl.model_csqcprecache, 0, sizeof(cl.model_csqcprecache));
 
 	csqcprogparms.progsversion = PROGSTRUCT_VERSION;
 	csqcprogparms.ReadFile = COM_LoadStackFile;//char *(*ReadFile) (char *fname, void *buffer, int *len);
@@ -920,15 +1070,99 @@ qboolean CSQC_DrawView(void)
 	if (!csqc_draw_function || !csqcprogs)
 		return false;
 
-	R_LessenStains();
+	r_secondaryview = 0;
+
+	if (cl.worldmodel)
+		R_LessenStains();
 
 	PR_ExecuteProgram(csqcprogs, csqc_draw_function);
 
 	return true;
 }
 
+qboolean CSQC_StuffCmd(char *cmd)
+{
+	void *pr_globals;
+	char *str;
+	if (!csqcprogs || !csqc_parse_stuffcmd)
+		return false;
+
+	str = PF_TempStr();
+	Q_strncpyz(str, cmd, MAXTEMPBUFFERLEN);
+
+	pr_globals = PR_globals(csqcprogs, PR_CURRENT);
+	(*(char **)&((int *)pr_globals)[OFS_PARM0] = PR_SetString(csqcprogs, str));
+
+	PR_ExecuteProgram (csqcprogs, csqc_parse_stuffcmd);
+	return true;
+}
+qboolean CSQC_CenterPrint(char *cmd)
+{
+	void *pr_globals;
+	char *str;
+	if (!csqcprogs || !csqc_parse_centerprint)
+		return false;
+
+	str = PF_TempStr();
+	Q_strncpyz(str, cmd, MAXTEMPBUFFERLEN);
+
+	pr_globals = PR_globals(csqcprogs, PR_CURRENT);
+	(*(char **)&((int *)pr_globals)[OFS_PARM0] = PR_SetString(csqcprogs, str));
+
+	PR_ExecuteProgram (csqcprogs, csqc_parse_centerprint);
+	return G_FLOAT(OFS_RETURN);
+}
+
+//this protocol allows up to 32767 edicts.
 void CSQC_ParseEntities(void)
 {
+	/*
+	csqcedict_t *ent;
+	unsigned short entnum;
+
+	if (!csqcprogs)
+		Host_EndGame
+
+	for(;;)
+	{
+		entnum = MSG_ReadShort();
+		if (!entnum)
+			break;
+		if (entnum & 0x8000)
+		{	//remove
+			entnum &= ~0x8000;
+
+			if (!entnum)
+			{
+				Con_Printf("CSQC cannot remove world!\n");
+				continue;
+			}
+
+			ent = csqcent[entnum];
+
+			if (!ent)	//hrm.
+				continue;
+
+			*csqc_globals->self = EDICT_TO_PROG(svprogfuncs, ent);
+			PR_ExecuteProgram(csqcprogs, csqc_ent_remove);
+			csqcent[entnum] = NULL;
+			//the csqc is expected to call the remove builtin.
+		}
+		else
+		{
+			ent = csqcent[entnum];
+			if (!ent)
+			{
+				ent = ED_Alloc(csqcprogs);
+				G_FLOAT(OFS_PARM0) = true;
+			}
+			else
+				G_FLOAT(OFS_PARM0) = false;
+
+			*csqc_globals->self = EDICT_TO_PROG(svprogfuncs, ent);
+			PR_ExecuteProgram(csqcprogs, csqc_ent_update);
+		}
+	}*/
 }
 
 #endif

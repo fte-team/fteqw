@@ -229,6 +229,9 @@ void GL_SetupSceneProcessingTextures (void)
 	unsigned char pp_warp_tex[PP_WARP_TEX_SIZE*PP_WARP_TEX_SIZE*3];
 	unsigned char pp_edge_tex[PP_AMP_TEX_SIZE*PP_AMP_TEX_SIZE*3];
 
+	if (!gl_config.arb_shader_objects)
+		return;
+
 	scenepp_texture = texture_extension_number++;
 	scenepp_texture_warp = texture_extension_number++;
 	scenepp_texture_edge = texture_extension_number++;
@@ -254,7 +257,7 @@ void GL_SetupSceneProcessingTextures (void)
 	GL_Bind(scenepp_texture_warp);
 	qglTexParameterf(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
 	qglTexParameterf(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
-	qglTexImage2D(GL_TEXTURE_2D, 0, GL_RGB, PP_WARP_TEX_SIZE, PP_WARP_TEX_SIZE, 0, GL_RGB, GL_UNSIGNED_BYTE, pp_warp_tex);
+	qglTexImage2D(GL_TEXTURE_2D, 0, 3, PP_WARP_TEX_SIZE, PP_WARP_TEX_SIZE, 0, GL_RGB, GL_UNSIGNED_BYTE, pp_warp_tex);
 
 	// TODO: init edge texture - this is ampscale * 2, with ampscale calculated
 	// init warp texture - this specifies offset in 
@@ -337,6 +340,31 @@ qboolean R_CullSphere (vec3_t org, float radius)
 void R_RotateForEntity (entity_t *e)
 {
 	float m[16];
+	if (e->flags & Q2RF_WEAPONMODEL)
+	{	//rotate to view first
+		m[0] = cl.viewent[r_refdef.currentplayernum].axis[0][0];
+		m[1] = cl.viewent[r_refdef.currentplayernum].axis[0][1];
+		m[2] = cl.viewent[r_refdef.currentplayernum].axis[0][2];
+		m[3] = 0;
+
+		m[4] = cl.viewent[r_refdef.currentplayernum].axis[1][0];
+		m[5] = cl.viewent[r_refdef.currentplayernum].axis[1][1];
+		m[6] = cl.viewent[r_refdef.currentplayernum].axis[1][2];
+		m[7] = 0;
+
+		m[8] = cl.viewent[r_refdef.currentplayernum].axis[2][0];
+		m[9] = cl.viewent[r_refdef.currentplayernum].axis[2][1];
+		m[10] = cl.viewent[r_refdef.currentplayernum].axis[2][2];
+		m[11] = 0;
+
+		m[12] = cl.viewent[r_refdef.currentplayernum].origin[0];
+		m[13] = cl.viewent[r_refdef.currentplayernum].origin[1];
+		m[14] = cl.viewent[r_refdef.currentplayernum].origin[2];
+		m[15] = 1;
+
+		qglMultMatrixf(m);
+	}
+
 	m[0] = e->axis[0][0];
 	m[1] = e->axis[0][1];
 	m[2] = e->axis[0][2];
@@ -357,26 +385,7 @@ void R_RotateForEntity (entity_t *e)
 	m[14] = e->origin[2];
 	m[15] = 1;
 
-
-
-#if 1
-#if 0
-	{
-		void Matrix4_Multiply(float *a, float *b, float *out);
-		float new[16];
-	Matrix4_Multiply(m, r_world_matrix, new);
-	qglLoadMatrixf(new);
-	}
-#endif
 	qglMultMatrixf(m);
-
-#else
-	qglTranslatef (e->origin[0],  e->origin[1],  e->origin[2]);
-    qglRotatef (e->angles[1],  0, 0, 1);
-    qglRotatef (-e->angles[0],  0, 1, 0);
-	//ZOID: fixed z angle
-    qglRotatef (e->angles[2],  1, 0, 0);
-#endif
 }
 
 /*
@@ -814,6 +823,7 @@ R_DrawViewModel
 */
 void GLR_DrawViewModel (void)
 {
+	/*
 //	float		ambient[4], diffuse[4];
 //	int			j;
 //	int			lnum;
@@ -933,6 +943,7 @@ void GLR_DrawViewModel (void)
 	case mod_dummy:
 		break;
 	}
+*/
 }
 
 
@@ -1862,9 +1873,12 @@ void GLR_RenderView (void)
 	//	Con_Printf ("%3i ms  %4i wpoly %4i epoly\n", (int)((time2-time1)*1000), c_brush_polys, c_alias_polys); 
 	}
 
+	if (!gl_config.arb_shader_objects)
+		return;
+
 	// SCENE POST PROCESSING
 	// we check if we need to use any shaders - currently it's just waterwarp
-	if ((gl_config.arb_shader_objects) && (r_waterwarp.value && r_viewleaf && r_viewleaf->contents <= Q1CONTENTS_WATER))
+	if ( (r_waterwarp.value && r_viewleaf && r_viewleaf->contents <= Q1CONTENTS_WATER))
 	{
 		float vwidth = 1, vheight = 1;
 		float vs, vt;

@@ -1,27 +1,28 @@
 #ifdef WIN32
 
-#ifndef AVAIL_ZLIB
-#ifdef _MSC_VER
-//#define AVAIL_ZLIB
-#endif
-#endif
+	#ifndef AVAIL_ZLIB
+		#ifdef _MSC_VER
+			//#define AVAIL_ZLIB
+		#endif
+	#endif
 
-#include <windows.h>
+	#include <windows.h>
 
-enum{false, true};
+	enum{false, true};
 #else
-#include <stdarg.h>
-#include <math.h>
+	#include <stdarg.h>
+	#include <math.h>
 
-#include <stdlib.h>
-#include <setjmp.h>
-#include <string.h>
-#include <ctype.h>
+	#include <stdlib.h>
+	#include <setjmp.h>
+	#include <string.h>
+	#include <ctype.h>
 
-#ifndef __declspec
-#define __declspec(mode)
-#endif
-typedef enum{false, true} boolean;
+	#ifndef __declspec
+		#define __declspec(mode)
+	#endif
+
+	typedef enum{false, true} boolean;
 //#define _inline inline
 #endif
 typedef unsigned char qbyte;
@@ -300,7 +301,7 @@ eval_t *GetEdictFieldValue(progfuncs_t *progfuncs, struct edict_s *ed, char *nam
 //this is windows - all files are written with this endian standard
 //optimisation
 //leave undefined if in doubt over os.
-#ifndef WIN32
+#ifdef _WIN32
 #define NOENDIAN
 #endif
 

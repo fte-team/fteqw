@@ -214,8 +214,8 @@ void GL_CheckExtensions (void *(*getglfunction) (char *name))
 
 	if (strstr(gl_extensions, "GL_ARB_texture_non_power_of_two"))
 		gl_config.arb_texture_non_power_of_two = true;
-	if (strstr(gl_extensions, "GL_SGIS_generate_mipmap"))
-		gl_config.sgis_generate_mipmap = true;
+//	if (strstr(gl_extensions, "GL_SGIS_generate_mipmap"))	//a suprising number of implementations have this broken.
+//		gl_config.sgis_generate_mipmap = true;
 
 	if (strstr(gl_extensions, "GL_ARB_multitexture") && !COM_CheckParm("-noamtex"))
 	{	//ARB multitexture is the popular choice.

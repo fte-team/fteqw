@@ -788,9 +788,6 @@ void SND_Spatialize(soundcardinfo_t *sc, channel_t *ch)
 	ch->vol[5] = (int) (ch->master_vol * scale[5]);
 	if (ch->vol[5] < 0)
 		ch->vol[5] = 0;
-
-	if (ch->vol[0])
-		Con_Printf("Spacialising\n");
 }
 
 // =======================================================================
@@ -874,7 +871,6 @@ void S_StartSound(int entnum, int entchannel, sfx_t *sfx, vec3_t origin, float f
 {
 	soundcardinfo_t *sc;
 
-	Con_Printf("Starting sound %s\n", sfx->name);
 	if (!sfx || !*sfx->name)	//no named sounds would need specific starting.
 		return;
 

@@ -19,6 +19,9 @@ trace_t SVQ2_Move (vec3_t start, vec3_t mins, vec3_t maxs, vec3_t end, int type,
 
 
 
+void Sys_UnloadGame (void);
+void *Sys_GetGameAPI (void *parms);
+
 
 #ifdef _WIN32	//FIXME
 #include <winquake.h>

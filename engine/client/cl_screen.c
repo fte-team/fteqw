@@ -1003,7 +1003,7 @@ void SCR_DrawUPS (void)
 		return;
 
 	t = Sys_DoubleTime();
-	if ((t - lastupstime) >= 1.0)
+	if ((t - lastupstime) >= 1.0/20)
 	{
 		lastups = sqrt((cl.simvel[0][0]*cl.simvel[0][0]) + (cl.simvel[0][1]*cl.simvel[0][1]));
 		lastupstime = t;

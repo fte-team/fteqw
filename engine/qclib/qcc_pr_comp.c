@@ -1315,10 +1315,10 @@ QCC_def_t *QCC_PR_Statement ( QCC_opcode_t *op, QCC_def_t *var_a, QCC_def_t *var
 	case OP_IFNOT:
 	case OP_IFS:
 	case OP_IFNOTS:
-		if (var_a->type->type == ev_function && !var_a->temp)
+//		if (var_a->type->type == ev_function && !var_a->temp)
+//			QCC_PR_ParseWarning(0, "Result of comparison is constant");
+		if (var_a->constant && !var_a->temp)
 			QCC_PR_ParseWarning(0, "Result of comparison is constant");
-	//	if (var_a->constant && !var_a->temp)
-	//		QCC_PR_ParseWarning(0, "Result of comparison is constant");
 		break;
 	default:
 		break;
@@ -2346,12 +2346,16 @@ QCC_def_t *QCC_PR_ParseFunctionCall (QCC_def_t *func)	//warning, the func could 
 
 			if (old)
 			{
-				d = QCC_GetTemp(type_float);
-				QCC_PR_Statement(pr_opcodes+OP_STORE_V, &def_ret, d, NULL);
+				d = QCC_GetTemp(type_vector);
+				QCC_FreeTemp(QCC_PR_Statement(pr_opcodes+OP_STORE_V, &def_ret, d, NULL));
 				if (def_ret.type->size == 3)
+				{
 					QCC_PR_Statement(pr_opcodes+OP_STORE_V, old, &def_ret, NULL);
+				}
 				else
+				{
 					QCC_PR_Statement(pr_opcodes+OP_STORE_F, old, &def_ret, NULL);
+				}
 				QCC_FreeTemp(old);
 
 				return d;
@@ -2661,7 +2665,10 @@ QCC_def_t *QCC_PR_ParseFunctionCall (QCC_def_t *func)	//warning, the func could 
 	if (old)
 	{
 		d = QCC_GetTemp(t->aux_type);
-		QCC_FreeTemp(QCC_PR_Statement(pr_opcodes+OP_STORE_V, &def_ret, d, NULL));
+		if (t->aux_type->size == 3)
+			QCC_FreeTemp(QCC_PR_Statement(pr_opcodes+OP_STORE_V, &def_ret, d, NULL));
+		else
+			QCC_FreeTemp(QCC_PR_Statement(pr_opcodes+OP_STORE_F, &def_ret, d, NULL));
 		if (def_ret.type->size == 3)
 			QCC_FreeTemp(QCC_PR_Statement(pr_opcodes+OP_STORE_V, old, &def_ret, NULL));
 		else
@@ -4281,7 +4288,17 @@ void QCC_PR_ParseStatement (void)
 			}
 		}
 		else
-			QCC_FreeTemp(QCC_PR_Statement (&pr_opcodes[OP_IFNOT], e, 0, &patch1));
+		{
+			if (e->constant && !e->temp)
+			{
+				if (!G_FLOAT(e->ofs))
+					QCC_FreeTemp(QCC_PR_Statement (&pr_opcodes[OP_GOTO], 0, 0, &patch1));
+				else
+					patch1 = NULL;
+			}
+			else
+				QCC_FreeTemp(QCC_PR_Statement (&pr_opcodes[OP_IFNOT], e, 0, &patch1));
+		}
 		QCC_PR_Expect (")");	//after the line number is noted..
 		QCC_PR_ParseStatement ();
 		junkdef.ofs = patch2 - &statements[numstatements];
@@ -4414,10 +4431,18 @@ void QCC_PR_ParseStatement (void)
 		conditional = false;
 		junkdef.ofs = patch1 - &statements[numstatements];
 		junkdef.type = type_float;
-		if (e->type == type_string)
-			QCC_FreeTemp(QCC_PR_Statement (&pr_opcodes[OP_IFS], e, &junkdef, (QCC_dstatement_t **)0xffffffff));
+		if (e->constant && !e->temp)
+		{
+			if (G_FLOAT(e->ofs))
+				QCC_FreeTemp(QCC_PR_Statement (&pr_opcodes[OP_GOTO], &junkdef, 0, (QCC_dstatement_t **)0xffffffff));
+		}
 		else
-			QCC_FreeTemp(QCC_PR_Statement (&pr_opcodes[OP_IF], e, &junkdef, (QCC_dstatement_t **)0xffffffff));
+		{
+			if (e->type == type_string)
+				QCC_FreeTemp(QCC_PR_Statement (&pr_opcodes[OP_IFS], e, &junkdef, (QCC_dstatement_t **)0xffffffff));
+			else
+				QCC_FreeTemp(QCC_PR_Statement (&pr_opcodes[OP_IF], e, &junkdef, (QCC_dstatement_t **)0xffffffff));
+		}
 
 		QCC_PR_Expect (")");
 		QCC_PR_Expect (";");
@@ -4487,7 +4512,7 @@ void QCC_PR_ParseStatement (void)
 			conditional = true;
 			e = QCC_PR_Expression (TOP_PRIORITY);
 			conditional = false;
-			
+
 			if (e->type == type_string)	//special case, as strings are now pointers, not offsets from string table
 				QCC_FreeTemp(QCC_PR_Statement (&pr_opcodes[OP_IFS], e, 0, &patch1));
 			else
@@ -4499,7 +4524,7 @@ void QCC_PR_ParseStatement (void)
 			conditional = true;
 			e = QCC_PR_Expression (TOP_PRIORITY);
 			conditional = false;
-			
+
 			if (e->type == type_string)	//special case, as strings are now pointers, not offsets from string table
 				QCC_FreeTemp(QCC_PR_Statement (&pr_opcodes[OP_IFNOTS], e, 0, &patch1));
 			else
@@ -6885,9 +6910,6 @@ void QCC_PR_ParseDefs (char *classname)
 
 		if (!def)
 			QCC_PR_ParseError(ERR_NOTANAME, "%s is not part of class %s", name, classname);
-
-		if (qcc_targetformat == QCF_HEXEN2 && arraysize>1)
-			def->constant = true;
 
 		if (noref)
 			def->references++;

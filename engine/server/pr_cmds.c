@@ -23,7 +23,7 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 //okay, so these are a quick but easy hack
 int QC_RegisterFieldVar(struct progfuncs_s *progfuncs, unsigned int type, char *name, int requestedpos, int origionalofs);
 void ED_Print (struct progfuncs_s *progfuncs, struct edict_s *ed);
-int PR_EnableEBFSBuiltin(char *name);
+int PR_EnableEBFSBuiltin(char *name, int binum);
 void PR_CleanLogText_Init (void);
 
 cvar_t	nomonsters = {"nomonsters", "0"};
@@ -2814,9 +2814,9 @@ void PF_cvar (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 	str = PR_GetStringOfs(prinst, OFS_PARM0);
 
 	if (!strcmp(str, "pr_checkextension"))	//no console changing
-		G_FLOAT(OFS_RETURN) = PR_EnableEBFSBuiltin("checkextension");
+		G_FLOAT(OFS_RETURN) = PR_EnableEBFSBuiltin("checkextension", 0);
 	else if (!strcmp(str, "pr_builtin_find"))
-		G_FLOAT(OFS_RETURN) = PR_EnableEBFSBuiltin("builtin_find");
+		G_FLOAT(OFS_RETURN) = PR_EnableEBFSBuiltin("builtin_find", 0);
 	else if (!strcmp(str, "halflifebsp"))
 		G_FLOAT(OFS_RETURN) = sv.worldmodel->fromgame == fg_halflife;
 	else
@@ -5043,6 +5043,7 @@ lh_extension_t QSG_Extensions[] = {
 
 	{"DP_TE_BLOOD",						1,	NULL, {"te_blood"}},
 	{"QSG_CVARSTRING",					1,	NULL, {"cvar_string"}},
+	{"DP_QC_CVAR_STRING",				1,	NULL, {"dp_cvar_string"}},	//448 builtin.
 #ifndef NOMEDIA
 	{"FTE_MEDIA_AVI"},	//playfilm supports avi files.
 	{"FTE_MEDIA_ROQ"},	//playfilm command supports q3 roq files
@@ -5149,27 +5150,29 @@ lh_extension_t FTE_Protocol_Extensions[] =
 };
 
 
-int PR_EnableEBFSBuiltin(char *name)
+int PR_EnableEBFSBuiltin(char *name, int binum)
 {
 	int i;
 	for (i = 0;BuiltinList[i].name;i++)
 	{
 		if (!strcmp(BuiltinList[i].name, name))
 		{
+			if (!binum)
+				binum = BuiltinList[i].ebfsnum;
 			if (!pr_overridebuiltins.value)
 			{
-				if (pr_builtin[BuiltinList[i].ebfsnum] != NULL && pr_builtin[BuiltinList[i].ebfsnum] != PF_Fixme)
+				if (pr_builtin[binum] != NULL && pr_builtin[binum] != PF_Fixme)
 				{
-					if (pr_builtin[BuiltinList[i].ebfsnum] == BuiltinList[i].bifunc)	//it is already this function.
-						return BuiltinList[i].ebfsnum;
+					if (pr_builtin[binum] == BuiltinList[i].bifunc)	//it is already this function.
+						return binum;
 
 					return 0;	//already used... ?
 				}
 			}
 
-			pr_builtin[BuiltinList[i].ebfsnum] = BuiltinList[i].bifunc;
+			pr_builtin[binum] = BuiltinList[i].bifunc;
 			
-			return BuiltinList[i].ebfsnum;
+			return binum;
 		}
 	}
 
@@ -5266,7 +5269,7 @@ void PF_checkextension (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 		G_FLOAT(OFS_RETURN) = false;
 		for (i = 0; i < ext->numbuiltins; i++)
 		{
-			if (!PR_EnableEBFSBuiltin(ext->builtins[i]))
+			if (!PR_EnableEBFSBuiltin(ext->builtins[i], 0))
 			{
 				Con_Printf("Failed to initialise builtin \"%s\" for extension \"%s\"", ext->builtins[i], s);
 				return;	//whoops, we failed.
@@ -5287,7 +5290,7 @@ void PF_builtinsupported (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
 	char *s = PR_GetStringOfs(prinst, OFS_PARM0);
 	
-	G_FLOAT(OFS_RETURN) = PR_EnableEBFSBuiltin(s);
+	G_FLOAT(OFS_RETURN) = PR_EnableEBFSBuiltin(s, 0);
 }
 
 
@@ -5383,7 +5386,7 @@ void PF_strcat (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
 	char *dest = PF_TempStr();
 	char *src = PF_VarString(prinst, 0, pr_globals);
-	strncpy(dest, src, MAXTEMPBUFFERLEN);
+	Q_strncpyz(dest, src, MAXTEMPBUFFERLEN);
 	RETURN_TSTRING(dest);
 }
 
@@ -5530,7 +5533,7 @@ FIXME: check for null pointers first?
 =================
 */
 
-void PF_strcpy (progfuncs_t *prinst, struct globalvars_s *pr_globals)
+void PF_MVDSV_strcpy (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
 	char *src = PR_GetStringOfs(prinst, OFS_PARM1);
 	char *dest = PR_GetStringOfs(prinst, OFS_PARM0);
@@ -5558,7 +5561,7 @@ FIXME: check for null pointers first?
 =================
 */
 
-void PF_strncpy (progfuncs_t *prinst, struct globalvars_s *pr_globals)
+void PF_MVDSV_strncpy (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
 	strncpy(PR_GetStringOfs(prinst, OFS_PARM0), PR_GetStringOfs(prinst, OFS_PARM1), (int) G_FLOAT(OFS_PARM2));
 }
@@ -6701,8 +6704,31 @@ void PF_setcolors (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 }
 
 
-static void DirectSplit(client_t *cl, int svc)
+static client_t *DirectSplit(client_t *cl, int svc, int svclen)
 {
+	if (cl->controller)
+	{	//this is a slave client.
+		//find the right number and send.
+		client_t *sp;
+		int pnum = 0;
+		for (sp = cl->controller; sp; sp = sp->controlled)
+		{
+			if (sp == cl)
+				break;
+			pnum++;
+		}
+		sp = cl->controller;
+
+		ClientReliableWrite_Begin (sp, svc_choosesplitclient, 2+svclen);
+		ClientReliableWrite_Byte (sp, pnum);
+		ClientReliableWrite_Byte (sp, svc);
+		return sp;
+	}
+	else
+	{
+		ClientReliableWrite_Begin (cl, svc, svclen);
+		return cl;
+	}
 }
 static void ParamNegateFix ( float * xx, float * yy, int Zone )
 {
@@ -6728,7 +6754,6 @@ void PF_ShowPic(progfuncs_t *prinst, struct globalvars_s *pr_globals)
 	float y		= G_FLOAT(OFS_PARM3);
 	float zone	= G_FLOAT(OFS_PARM4);
 	int entnum;
-	int msgsize;
 
 	client_t *cl;
 
@@ -6743,32 +6768,27 @@ void PF_ShowPic(progfuncs_t *prinst, struct globalvars_s *pr_globals)
 		if (!(svs.clients[entnum].fteprotocolextensions & PEXT_SHOWPIC))
 			return;	//need an extension for this. duh.
 
-
-		cl = &svs.clients[entnum];
-
-		ClientReliableWrite_Begin(&svs.clients[entnum], svc_showpic, 8 + strlen(slot)+strlen(picname));
-		ClientReliableWrite_Byte(&svs.clients[entnum], zone);
-		ClientReliableWrite_String(&svs.clients[entnum], slot);
-		ClientReliableWrite_String(&svs.clients[entnum], picname);
-		ClientReliableWrite_Short(&svs.clients[entnum], x);
-		ClientReliableWrite_Short(&svs.clients[entnum], y);
+		cl = DirectSplit(&svs.clients[entnum], svc_showpic, 8 + strlen(slot)+strlen(picname));
+		ClientReliableWrite_Byte(cl, zone);
+		ClientReliableWrite_String(cl, slot);
+		ClientReliableWrite_String(cl, picname);
+		ClientReliableWrite_Short(cl, x);
+		ClientReliableWrite_Short(cl, y);
 	}
 	else
 	{
-		//multicast instead of broadcast - 1: selective on the extensions. 2: reliable. 3: cleaner.
-		MSG_WriteByte  (&sv.multicast, svc_showpic);
-		MSG_WriteByte  (&sv.multicast, zone);//zone
-		MSG_WriteString(&sv.multicast, slot);//label
-		MSG_WriteString(&sv.multicast, picname);//picname
-		MSG_WriteShort (&sv.multicast, x);
-		MSG_WriteShort (&sv.multicast, y);
-
-		SV_MulticastProtExt(vec3_origin, MULTICAST_ALL_R, FULLDIMENSIONMASK, PEXT_SHOWPIC, 0);
+		*prinst->callargc = 6;
+		for (entnum = 0; entnum < sv.allocated_client_slots; entnum++)
+		{
+			G_INT(OFS_PARM5) = EDICT_TO_PROG(prinst, EDICT_NUM(prinst, entnum+1));
+			PF_ShowPic(prinst, pr_globals);
+		}
 	}
 };
 
 void PF_HidePic(progfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
+	client_t *cl;
 	progfuncs_t *progfuncs = prinst;
 	char *slot	= PR_GetStringOfs(prinst, OFS_PARM0);
 	int entnum;
@@ -6782,16 +6802,17 @@ void PF_HidePic(progfuncs_t *prinst, struct globalvars_s *pr_globals)
 		if (!(svs.clients[entnum].fteprotocolextensions & PEXT_SHOWPIC))
 			return;	//need an extension for this. duh.
 
-		ClientReliableWrite_Begin(&svs.clients[entnum], svc_hidepic, 2 + strlen(slot));
-		ClientReliableWrite_String(&svs.clients[entnum], slot);
+		cl = DirectSplit(&svs.clients[entnum], svc_hidepic, 2 + strlen(slot));
+		ClientReliableWrite_String(cl, slot);
 	}
 	else
 	{
-		//easier to multicast
-		MSG_WriteByte  (&sv.multicast, svc_hidepic);
-		MSG_WriteString(&sv.multicast, slot);//lmp label
-
-		SV_MulticastProtExt(vec3_origin, MULTICAST_ALL_R, FULLDIMENSIONMASK, PEXT_SHOWPIC, 0);
+		*prinst->callargc = 2;
+		for (entnum = 0; entnum < sv.allocated_client_slots; entnum++)
+		{
+			G_INT(OFS_PARM1) = EDICT_TO_PROG(prinst, EDICT_NUM(prinst, entnum+1));
+			PF_HidePic(prinst, pr_globals);
+		}
 	}
 };
 
@@ -6804,6 +6825,7 @@ void PF_MovePic(progfuncs_t *prinst, struct globalvars_s *pr_globals)
 	float y		= G_FLOAT(OFS_PARM2);
 	float zone	= G_FLOAT(OFS_PARM3);
 	int entnum;
+	client_t *cl;
 
 	ParamNegateFix( &x, &y, zone );
 
@@ -6816,22 +6838,20 @@ void PF_MovePic(progfuncs_t *prinst, struct globalvars_s *pr_globals)
 		if (!(svs.clients[entnum].fteprotocolextensions & PEXT_SHOWPIC))
 			return;	//need an extension for this. duh.
 
-		ClientReliableWrite_Begin(&svs.clients[entnum], svc_movepic, 6 + strlen(slot));
-		ClientReliableWrite_String(&svs.clients[entnum], slot);
-		ClientReliableWrite_Byte(&svs.clients[entnum], zone);
-		ClientReliableWrite_Short(&svs.clients[entnum], x);
-		ClientReliableWrite_Short(&svs.clients[entnum], y);
+		cl = DirectSplit(&svs.clients[entnum], svc_movepic, 6 + strlen(slot));
+		ClientReliableWrite_String(cl, slot);
+		ClientReliableWrite_Byte(cl, zone);
+		ClientReliableWrite_Short(cl, x);
+		ClientReliableWrite_Short(cl, y);
 	}
 	else
 	{
-		//easier to multicast
-		MSG_WriteByte  (&sv.multicast, svc_movepic);
-		MSG_WriteString(&sv.multicast, slot);//lmp label
-		MSG_WriteByte  (&sv.multicast, zone);
-		MSG_WriteShort (&sv.multicast, x);
-		MSG_WriteShort (&sv.multicast, y);
-
-		SV_MulticastProtExt(vec3_origin, MULTICAST_ALL_R, FULLDIMENSIONMASK, PEXT_SHOWPIC, 0);
+		*prinst->callargc = 5;
+		for (entnum = 0; entnum < sv.allocated_client_slots; entnum++)
+		{
+			G_INT(OFS_PARM4) = EDICT_TO_PROG(prinst, EDICT_NUM(prinst, entnum+1));
+			PF_MovePic(prinst, pr_globals);
+		}
 	}
 };
 
@@ -6841,6 +6861,7 @@ void PF_ChangePic(progfuncs_t *prinst, struct globalvars_s *pr_globals)
 	char *slot	= PR_GetStringOfs(prinst, OFS_PARM0);
 	char *newpic= PR_GetStringOfs(prinst, OFS_PARM1);
 	int entnum;
+	client_t *cl;
 
 	if (*prinst->callargc==3)
 	{	//to a single client
@@ -6851,17 +6872,18 @@ void PF_ChangePic(progfuncs_t *prinst, struct globalvars_s *pr_globals)
 		if (!(svs.clients[entnum].fteprotocolextensions & PEXT_SHOWPIC))
 			return;	//need an extension for this. duh.
 
-		ClientReliableWrite_Begin(&svs.clients[entnum], svc_updatepic, 3 + strlen(slot)+strlen(newpic));
-		ClientReliableWrite_String(&svs.clients[entnum], slot);
-		ClientReliableWrite_String(&svs.clients[entnum], newpic);
+		cl = DirectSplit(&svs.clients[entnum], svc_updatepic, 3 + strlen(slot)+strlen(newpic));
+		ClientReliableWrite_String(cl, slot);
+		ClientReliableWrite_String(cl, newpic);
 	}
 	else
 	{
-		MSG_WriteByte  (&sv.multicast, svc_updatepic);
-		MSG_WriteString(&sv.multicast, slot);
-		MSG_WriteString(&sv.multicast, newpic);
-
-		SV_MulticastProtExt(vec3_origin, MULTICAST_ALL_R, FULLDIMENSIONMASK, PEXT_SHOWPIC, 0);
+		*prinst->callargc = 3;
+		for (entnum = 0; entnum < sv.allocated_client_slots; entnum++)
+		{
+			G_INT(OFS_PARM2) = EDICT_TO_PROG(prinst, EDICT_NUM(prinst, entnum+1));
+			PF_ChangePic(prinst, pr_globals);
+		}
 	}
 }
 
@@ -7003,20 +7025,23 @@ BuiltinList_t BuiltinList[] = {				//nq	qw		h2		ebfs
 	{"mvdargc",			PF_ArgC,			0,		85,		0,		85},	//85			//float() argc;
 	{"mvdargv",			PF_ArgV,			0,		86,		0,		86},	//86			//string(float num) argv;
 
-//mvd command
+//mvd commands
+//some of these are a little iffy.
+//we support them for mvdsv compatability but some of them look very hacky.
+//these ones are not honoured with numbers, but can be used via the proper means.
 	{"teamfield",		PF_teamfield,		0,		0,		0,		87},
 	{"substr",			PF_substr,			0,		0,		0,		88},
-	{"mvdstrcat",			PF_strcat,			0,		0,		0,		89},
-	{"mvdstrlen",			PF_strlen,			0,		0,		0,		90},
+	{"mvdstrcat",		PF_strcat,			0,		0,		0,		89},
+	{"mvdstrlen",		PF_strlen,			0,		0,		0,		90},
 	{"str2byte",		PF_str2byte,		0,		0,		0,		91},
 	{"str2short",		PF_str2short,		0,		0,		0,		92},
-	{"newstr",			PF_newstring,		0,		0,		0,		93},
-	{"freestr",			PF_forgetstring,	0,		0,		0,		94},
+	{"mvdnewstr",		PF_newstring,		0,		0,		0,		0},
+	{"mvdfreestr",		PF_forgetstring,	0,		0,		0,		0},
 	{"conprint",		PF_conprint,		0,		0,		0,		95},
 	{"readcmd",			PF_readcmd,			0,		0,		0,		96},
-	{"strcpy",			PF_strcpy,			0,		0,		0,		97},
+	{"mvdstrcpy",		PF_MVDSV_strcpy,	0,		0,		0,		0},
 	{"strstr",			PF_strstr,			0,		0,		0,		98},
-	{"strncpy",			PF_strncpy,			0,		0,		0,		99},
+	{"mvdstrncpy",		PF_MVDSV_strncpy,	0,		0,		0,		0},
 	{"log",				PF_log,				0,		0,		0,		100},
 //	{"redirectcmd",		PF_redirectcmd,		0,		0,		0,		101},
 	{"calltimeofday",	PF_calltimeofday,	0,		0,		0,		102},
@@ -7155,6 +7180,8 @@ BuiltinList_t BuiltinList[] = {				//nq	qw		h2		ebfs
 	{"clientcommand",	PF_clientcommand,	0,		0,		0,		440},// #440 void(entity e, string s) clientcommand (KRIMZON_SV_PARSECLIENTCOMMAND)
 	{"tokenize",		PF_Tokenize,		0,		0,		0,		441},// #441 float(string s) tokenize (KRIMZON_SV_PARSECLIENTCOMMAND)
 	{"argv",			PF_ArgV,			0,		0,		0,		442},// #442 string(float n) argv (KRIMZON_SV_PARSECLIENTCOMMAND
+//DP_QC_CVAR_STRING
+	{"dp_cvar_string",	PF_cvar_string,		0,		0,		0,		448},// #448 string(float n) cvar_string
 //end other peoples extras
 	{NULL}
 
@@ -7260,7 +7287,7 @@ void PR_ResetBuiltins(progstype_t type)	//fix all nulls to PF_FIXME and add any 
 				}
 			}
 			if (!BuiltinList[i].name)
-				Con_Printf("Failed to map builtin %s to %i specified in fte_bimap.dat\n");
+				Con_Printf("Failed to map builtin %s to %i specified in fte_bimap.dat\n", com_token, binum);
 		}
 	}
 
@@ -7273,23 +7300,24 @@ void PR_ResetBuiltins(progstype_t type)	//fix all nulls to PF_FIXME and add any 
 
 	if (type == PROG_QW && pr_imitatemvdsv.value>0)	//pretend to be mvdsv for a bit.
 	{
-		PR_EnableEBFSBuiltin("teamfield");
-		PR_EnableEBFSBuiltin("substr");
-		PR_EnableEBFSBuiltin("mvdstrcat");
-		PR_EnableEBFSBuiltin("mvdstrlen");
-		PR_EnableEBFSBuiltin("str2byte");
-		PR_EnableEBFSBuiltin("str2short");
-		PR_EnableEBFSBuiltin("newstr");
-		PR_EnableEBFSBuiltin("freestr");
-		PR_EnableEBFSBuiltin("conprint");
-		PR_EnableEBFSBuiltin("readcmd");
-		PR_EnableEBFSBuiltin("strcpy");
-		PR_EnableEBFSBuiltin("strstr");
-		PR_EnableEBFSBuiltin("strncpy");
-		PR_EnableEBFSBuiltin("log");
-		PR_EnableEBFSBuiltin("redirectcmd");
-		PR_EnableEBFSBuiltin("calltimeofday");
-		PR_EnableEBFSBuiltin("forcedemoframe");
+		if (PR_EnableEBFSBuiltin("teamfield",		0) != 87 ||
+			PR_EnableEBFSBuiltin("substr",			0) != 88 ||
+			PR_EnableEBFSBuiltin("mvdstrcat",		0) != 89 ||
+			PR_EnableEBFSBuiltin("mvdstrlen",		0) != 90 ||
+			PR_EnableEBFSBuiltin("str2byte",		0) != 91 ||
+			PR_EnableEBFSBuiltin("str2short",		0) != 92 ||
+			PR_EnableEBFSBuiltin("mvdnewstr",		93)!= 93 ||
+			PR_EnableEBFSBuiltin("mvdfreestr",		94)!= 94 ||
+			PR_EnableEBFSBuiltin("conprint",		0) != 95 ||
+			PR_EnableEBFSBuiltin("readcmd",			0) != 96 ||
+			PR_EnableEBFSBuiltin("mvdstrcpy",		97)!= 97 ||
+			PR_EnableEBFSBuiltin("strstr",			0) != 98 ||
+			PR_EnableEBFSBuiltin("mvdstrncpy",		99)!= 99 ||
+			PR_EnableEBFSBuiltin("log",				0)!= 100 ||
+//			PR_EnableEBFSBuiltin("redirectcmd",		0)!= 101 ||
+			PR_EnableEBFSBuiltin("calltimeofday",	0)!= 102 ||
+			PR_EnableEBFSBuiltin("forcedemoframe",	0)!= 103)
+			Con_Printf("Failed to register all MVDSV builtins\n");
 	}
 }
 

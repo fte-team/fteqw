@@ -1411,6 +1411,8 @@ void R_MirrorAddPlayerModels (void)
 	ent->angles[YAW] = r_refdef.viewangles[YAW];
 //	ent->angles[ROLL] = 0;
 	ent->angles[ROLL] = V_CalcRoll (ent->angles, state->velocity)*4;
+	AngleVectors(ent->angles, ent->axis[0], ent->axis[1], ent->axis[2]);
+	VectorInverse(ent->axis[1]);
 
 	// only predict half the move to minimize overruns
 	msec = 500*(playertime - state->state_time);
@@ -1492,6 +1494,7 @@ void R_Mirror (void)
 	glDepthFunc (GL_LEQUAL);
 
 	R_RenderScene ();
+
 	GLR_DrawWaterSurfaces ();
 
 

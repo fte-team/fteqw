@@ -2079,6 +2079,11 @@ public:
 		m_currentMatrixStack->LoadMatrix((D3DXMATRIX*) m);
 		*m_currentMatrixStateDirty = true;
 	}
+	void glMultMatrixf (const GLfloat *m){
+		SetRenderStateDirty();
+		m_currentMatrixStack->MultMatrixLocal((D3DXMATRIX*) m);
+		*m_currentMatrixStateDirty = true;
+	}
 
 	void glMatrixMode (GLenum mode){
 		m_glMatrixMode = mode;
@@ -3700,7 +3705,7 @@ void APIENTRY D3DTexEnvi (GLenum target, GLenum pname, GLint param)
 }
 void APIENTRY D3DMultMatrixf (const GLfloat *m)
 {
-	D3DMultMatrixf(m);
+	gFakeGL->glMultMatrixf(m);
 }
 
 void APIENTRY D3DNormal3f(GLfloat x, GLfloat y, GLfloat z)

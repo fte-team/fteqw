@@ -699,8 +699,10 @@ void CL_ParseTEnt (void)
 
 	case TE_LIGHTNING1:				// lightning bolts
 	case TE_LIGHTNING2:				// lightning bolts
-	case TE_LIGHTNING3:				// lightning bolts
 		CL_ParseBeam (type - TE_LIGHTNING1);
+		break;
+	case TE_LIGHTNING3:				// lightning bolts
+		CL_ParseBeam (2);
 		break;
 	
 	case TE_LAVASPLASH:	

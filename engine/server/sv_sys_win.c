@@ -641,7 +641,7 @@ void WINAPI StartQuakeServerService	(DWORD argc, LPTSTR *argv)
 	{ 
 		printf(" [MY_SERVICE] RegisterServiceCtrlHandler failed %d\n", GetLastError()); 
 		return; 
-	} 
+	}
 
 
 	RegOpenKey(HKEY_LOCAL_MACHINE, "SOFTWARE\\FTE", &hk);
@@ -703,14 +703,6 @@ SERVICE_TABLE_ENTRY   DispatchTable[] =
 qboolean NET_Sleep(int msec, qboolean stdinissocket);
 int main (int argc, char **argv)
 {
-#ifndef _DEBUG
-	{
-		signal (SIGFPE,	Signal_Error_Handler);
-		signal (SIGILL,	Signal_Error_Handler);
-		signal (SIGSEGV,	Signal_Error_Handler);
-	}
-#endif
-
 #ifdef USESERVICE
 	if (StartServiceCtrlDispatcher( DispatchTable)) 
 	{ 
@@ -729,6 +721,15 @@ int main (int argc, char **argv)
 	{
 		CreateSampleService(0);
 		return true;
+	}
+#endif
+
+#ifndef _DEBUG
+	if (COM_CheckParm("-noreset"))
+	{
+		signal (SIGFPE,	Signal_Error_Handler);
+		signal (SIGILL,	Signal_Error_Handler);
+		signal (SIGSEGV,	Signal_Error_Handler);
 	}
 #endif
 	StartQuakeServer();

@@ -60,7 +60,7 @@ typedef qboolean qbool;
 void Cmd_AddMacro(char *s, char *(*f)(void));
 
 #ifndef HAVE_STRLCAT
-size_t strlcat (char *dst, const char *src, size_t size)
+static size_t strlcat (char *dst, const char *src, size_t size)
 {
 	int dstlen = strlen(dst);
 	int srclen = strlen(src);
@@ -86,7 +86,7 @@ size_t strlcat (char *dst, const char *src, size_t size)
 }
 #endif
 
-void Q_snprintfz (char *dest, size_t size, char *fmt, ...)
+static void Q_snprintfz (char *dest, size_t size, char *fmt, ...)
 {
 	va_list		argptr;
 
@@ -154,9 +154,9 @@ cvar_t	tp_need_shells = {"tp_need_shells", "10"};
 
 extern cvar_t	host_mapname;
 
-void TP_FindModelNumbers (void);
-void TP_FindPoint (void);
-char *TP_LocationName (vec3_t location);
+static void TP_FindModelNumbers (void);
+static void TP_FindPoint (void);
+static char *TP_LocationName (vec3_t location);
 
 
 #define MAX_LOC_NAME 48
@@ -188,7 +188,7 @@ tvars_t vars;
 //								TRIGGERS
 //===========================================================================
 
-void TP_ExecTrigger (char *s)
+static void TP_ExecTrigger (char *s)
 {
 	char *astr;
 
@@ -230,10 +230,10 @@ void TP_ExecTrigger (char *s)
 static char	macro_buf[MAX_MACRO_VALUE] = "";
 
 // buffer-size-safe helper functions
-void MacroBuf_strcat (char *str) {
-	strlcat (macro_buf, str, sizeof(macro_buf));
-}
-void MacroBuf_strcat_with_separator (char *str) {
+//static void MacroBuf_strcat (char *str) {
+//	strlcat (macro_buf, str, sizeof(macro_buf));
+//}
+static void MacroBuf_strcat_with_separator (char *str) {
 	if (macro_buf[0])
 		strlcat (macro_buf, "/", sizeof(macro_buf));
 	strlcat (macro_buf, str, sizeof(macro_buf));
@@ -241,60 +241,60 @@ void MacroBuf_strcat_with_separator (char *str) {
 
 
 
-char *Macro_Quote (void)
+static char *Macro_Quote (void)
 {
 	return "\"";
 }
 
-char *Macro_Latency (void)
+static char *Macro_Latency (void)
 {
 	sprintf(macro_buf, "%i", Q_rint(cls.latency*1000));
 	return macro_buf;
 }
 
-char *Macro_Health (void)
+static char *Macro_Health (void)
 {
 	sprintf(macro_buf, "%i", cl.stats[SP][STAT_HEALTH]);
 	return macro_buf;
 }
 
-char *Macro_Armor (void)
+static char *Macro_Armor (void)
 {
 	sprintf(macro_buf, "%i", cl.stats[SP][STAT_ARMOR]);
 	return macro_buf;
 }
 
-char *Macro_Shells (void)
+static char *Macro_Shells (void)
 {
 	sprintf(macro_buf, "%i", cl.stats[SP][STAT_SHELLS]);
 	return macro_buf;
 }
 
-char *Macro_Nails (void)
+static char *Macro_Nails (void)
 {
 	sprintf(macro_buf, "%i", cl.stats[SP][STAT_NAILS]);
 	return macro_buf;
 }
 
-char *Macro_Rockets (void)
+static char *Macro_Rockets (void)
 {
 	sprintf(macro_buf, "%i", cl.stats[SP][STAT_ROCKETS]);
 	return macro_buf;
 }
 
-char *Macro_Cells (void)
+static char *Macro_Cells (void)
 {
 	sprintf(macro_buf, "%i", cl.stats[SP][STAT_CELLS]);
 	return macro_buf;
 }
 
-char *Macro_Ammo (void)
+static char *Macro_Ammo (void)
 {
 	sprintf(macro_buf, "%i", cl.stats[SP][STAT_AMMO]);
 	return macro_buf;
 }
 
-char *Macro_Weapon (void)
+static char *Macro_Weapon (void)
 {
 	switch (cl.stats[SP][STAT_ACTIVEWEAPON])
 	{
@@ -311,7 +311,7 @@ char *Macro_Weapon (void)
 	}
 }
 
-char *Macro_Weapons (void) {	
+static char *Macro_Weapons (void) {	
 	macro_buf[0] = 0;
 
 	if (cl.stats[SP][STAT_ITEMS] & IT_LIGHTNING)
@@ -336,7 +336,7 @@ char *Macro_Weapons (void) {
 	return macro_buf;
 }
 
-char *Macro_WeaponAndAmmo (void)
+static char *Macro_WeaponAndAmmo (void)
 {
 	char buf[sizeof(macro_buf)];
 	Q_snprintfz (buf, sizeof(buf), "%s:%s", Macro_Weapon(), Macro_Ammo());
@@ -344,7 +344,7 @@ char *Macro_WeaponAndAmmo (void)
 	return macro_buf;
 }
 
-char *Macro_WeaponNum (void)
+static char *Macro_WeaponNum (void)
 {
 	switch (cl.stats[SP][STAT_ACTIVEWEAPON])
 	{
@@ -361,7 +361,7 @@ char *Macro_WeaponNum (void)
 	}
 }
 
-int	_Macro_BestWeapon (void)
+static int	_Macro_BestWeapon (void)
 {
 	if (cl.stats[SP][STAT_ITEMS] & IT_ROCKET_LAUNCHER)
 		return IT_ROCKET_LAUNCHER;
@@ -383,7 +383,7 @@ int	_Macro_BestWeapon (void)
 		return 0;
 }
 
-char *Macro_BestWeapon (void)
+static char *Macro_BestWeapon (void)
 {
 	switch (_Macro_BestWeapon())
 	{
@@ -400,7 +400,7 @@ char *Macro_BestWeapon (void)
 	}
 }
 
-char *Macro_BestAmmo (void)
+static char *Macro_BestAmmo (void)
 {
 	switch (_Macro_BestWeapon())
 	{
@@ -426,7 +426,7 @@ char *Macro_BestAmmo (void)
 }
 
 // needed for %b parsing
-char *Macro_BestWeaponAndAmmo (void)
+static char *Macro_BestWeaponAndAmmo (void)
 {
 	char buf[MAX_MACRO_VALUE];
 	sprintf (buf, "%s:%s", Macro_BestWeapon(), Macro_BestAmmo());
@@ -434,7 +434,7 @@ char *Macro_BestWeaponAndAmmo (void)
 	return macro_buf;
 }
 
-char *Macro_ArmorType (void)
+static char *Macro_ArmorType (void)
 {
 	if (cl.stats[SP][STAT_ITEMS] & IT_ARMOR1)
 		return "g";
@@ -446,7 +446,7 @@ char *Macro_ArmorType (void)
 		return "";	// no armor at all
 }
 
-char *Macro_Powerups (void)
+static char *Macro_Powerups (void)
 {
 	int effects;
 
@@ -479,12 +479,12 @@ char *Macro_Powerups (void)
 	return macro_buf;
 }
 
-char *Macro_Location (void)
+static char *Macro_Location (void)
 {
 	return TP_LocationName (cl.simorg[SP]);
 }
 
-char *Macro_LastDeath (void)
+static char *Macro_LastDeath (void)
 {
 	if (vars.deathtrigger_time)
 		return vars.lastdeathloc;
@@ -492,14 +492,14 @@ char *Macro_LastDeath (void)
 		return tp_name_someplace.string;
 }
 
-char *Macro_Location2 (void)
+static char *Macro_Location2 (void)
 {
 	if (vars.deathtrigger_time && realtime - vars.deathtrigger_time <= 5)
 		return vars.lastdeathloc;
 	return Macro_Location();
 }
 
-char *Macro_Time (void)
+static char *Macro_Time (void)
 {
 	time_t		t;
 	struct tm	*ptm;
@@ -512,7 +512,7 @@ char *Macro_Time (void)
 	return macro_buf;
 }
 
-char *Macro_Date (void)
+static char *Macro_Date (void)
 {
 	time_t		t;
 	struct tm	*ptm;
@@ -526,7 +526,7 @@ char *Macro_Date (void)
 }
 
 // returns the last item picked up
-char *Macro_Took (void)
+static char *Macro_Took (void)
 {
 	if (!vars.tooktime || realtime > vars.tooktime + 20)
 		strlcpy (macro_buf, tp_name_nothing.string, sizeof(macro_buf));
@@ -536,7 +536,7 @@ char *Macro_Took (void)
 }
 
 // returns location of the last item picked up
-char *Macro_TookLoc (void)
+static char *Macro_TookLoc (void)
 {
 	if (!vars.tooktime || realtime > vars.tooktime + 20)
 		strlcpy (macro_buf, tp_name_someplace.string, sizeof(macro_buf));
@@ -547,7 +547,7 @@ char *Macro_TookLoc (void)
 
 
 // %i macro - last item picked up in "name at location" style
-char *Macro_TookAtLoc (void)
+static char *Macro_TookAtLoc (void)
 {
 	if (!vars.tooktime || realtime > vars.tooktime + 20)
 		strncpy (macro_buf, tp_name_nothing.string, sizeof(macro_buf)-1);
@@ -561,14 +561,14 @@ char *Macro_TookAtLoc (void)
 
 // pointing calculations are CPU expensive, so the results are cached
 // in vars.pointname & vars.pointloc
-char *Macro_PointName (void)
+static char *Macro_PointName (void)
 {
 	if (cls.framecount != vars.pointframe)
 		TP_FindPoint ();
 	return vars.pointname;
 }
 
-char *Macro_PointLocation (void)
+static char *Macro_PointLocation (void)
 {
 	if (cls.framecount != vars.pointframe)
 		TP_FindPoint ();
@@ -580,7 +580,7 @@ char *Macro_PointLocation (void)
 	}
 }
 
-char *Macro_PointNameAtLocation (void)
+static char *Macro_PointNameAtLocation (void)
 {
 	if (cls.framecount != vars.pointframe)
 		TP_FindPoint ();
@@ -590,7 +590,7 @@ char *Macro_PointNameAtLocation (void)
 		return vars.pointname;
 }
 
-char *Macro_Need (void)
+static char *Macro_Need (void)
 {
 	int i, weapon;
 	char	*needammo = NULL;
@@ -666,7 +666,7 @@ done:
 	return macro_buf;
 }
 
-char *Macro_TF_Skin (void)
+static char *Macro_TF_Skin (void)
 {
 	char *myskin;
 
@@ -700,7 +700,7 @@ char *Macro_TF_Skin (void)
 }
 
 
-void TP_InitMacros(void)
+static void TP_InitMacros(void)
 {
 	Cmd_AddMacro("qt", Macro_Quote);
 	Cmd_AddMacro("latency", Macro_Latency);
@@ -723,6 +723,7 @@ void TP_InitMacros(void)
 	Cmd_AddMacro("time", Macro_Time);
 	Cmd_AddMacro("date", Macro_Date);
 	Cmd_AddMacro("tookatloc", Macro_TookAtLoc);
+	Cmd_AddMacro("tookloc", Macro_TookLoc);
 	Cmd_AddMacro("took", Macro_Took);
 	Cmd_AddMacro("tf_skin", Macro_TF_Skin);
 
@@ -737,7 +738,7 @@ TP_ParseMacroString
 Parses %a-like expressions
 =============
 */
-char *TP_ParseMacroString (char *s)
+static char *TP_ParseMacroString (char *s)
 {
 	static char	buf[MAX_MACRO_STRING];
 	int		i = 0;
@@ -846,7 +847,7 @@ TP_ParseFunChars
 Doesn't check for overflows, so strlen(s) should be < MAX_MACRO_STRING
 ==============
 */
-char *TP_ParseFunChars (char *s, qbool chat)
+static char *TP_ParseFunChars (char *s, qbool chat)
 {
 	static char	 buf[MAX_MACRO_STRING];
 	char		*out = buf;
@@ -943,7 +944,7 @@ locdata_t locdata[MAX_LOC_ENTRIES];	// FIXME: allocate dynamically?
 int	loc_numentries;
 
 
-void TP_LoadLocFile (char *filename, qbool quiet)
+static void TP_LoadLocFile (char *filename, qbool quiet)
 {
 	char	fullpath[MAX_QPATH];
 	char	*buf, *p;
@@ -1023,7 +1024,7 @@ void TP_LoadLocFile (char *filename, qbool quiet)
 		Com_Printf ("Loaded %s (%i points)\n", fullpath, loc_numentries);
 }
 
-void TP_LoadLocFile_f (void)
+static void TP_LoadLocFile_f (void)
 {
 	if (Cmd_Argc() != 2)
 	{
@@ -1034,7 +1035,7 @@ void TP_LoadLocFile_f (void)
 	TP_LoadLocFile (Cmd_Argv(1), false);
 }
 
-char *TP_LocationName (vec3_t location)
+static char *TP_LocationName (vec3_t location)
 {
 	int		i, minnum;
 	float	dist, mindist;
@@ -1087,7 +1088,7 @@ typedef struct msg_trigger_s {
 
 static msg_trigger_t *msg_triggers;
 
-msg_trigger_t *TP_FindTrigger (char *name)
+static msg_trigger_t *TP_FindTrigger (char *name)
 {
 	msg_trigger_t *t;
 
@@ -1099,7 +1100,7 @@ msg_trigger_t *TP_FindTrigger (char *name)
 }
 
 
-void TP_MsgTrigger_f (void)
+static void TP_MsgTrigger_f (void)
 {
 	int		c;
 	char	*name;
@@ -1316,7 +1317,7 @@ int		cl_teambottomcolor = -1;
 int		cl_enemytopcolor = -1;
 int		cl_enemybottomcolor = -1;
 
-void TP_TeamColor_f (void)
+static void TP_TeamColor_f (void)
 {
 	int	top, bottom;
 	int	i;
@@ -1367,7 +1368,7 @@ void TP_TeamColor_f (void)
 	}
 }
 
-void TP_EnemyColor_f (void)
+static void TP_EnemyColor_f (void)
 {
 	int	top, bottom;
 	int	i;
@@ -1509,7 +1510,7 @@ int TP_CategorizeMessage (char *s, int *offset)
 //
 
 // symbolic names used in tp_took, tp_pickup, tp_point commands
-char *pknames[] = {"quad", "pent", "ring", "suit", "ra", "ya",	"ga",
+static char *pknames[] = {"quad", "pent", "ring", "suit", "ra", "ya",	"ga",
 "mh", "health", "lg", "rl", "gl", "sng", "ng", "ssg", "pack",
 "cells", "rockets", "nails", "shells", "flag", "pointed"};
 
@@ -1550,9 +1551,9 @@ char *pknames[] = {"quad", "pent", "ring", "suit", "ra", "ya",	"ga",
 #define default_pointflags (it_powerups|it_suit|it_armor|it_mh| \
 				it_lg|it_rl|it_gl|it_sng|it_rockets|it_pack|it_flag)
 
-int pkflags = default_pkflags;
-int tookflags = default_tookflags;
-int pointflags = default_pointflags;
+static int pkflags = default_pkflags;
+static int tookflags = default_tookflags;
+static int pointflags = default_pointflags;
 
 
 static void FlagCommand (int *flags, int defaultflags)
@@ -1628,7 +1629,7 @@ static void FlagCommand (int *flags, int defaultflags)
 	}
 }
 
-void TP_Took_f (void)
+static void TP_Took_f (void)
 {
 	FlagCommand (&tookflags, default_tookflags);
 }
@@ -1638,7 +1639,7 @@ void TP_Pickup_f (void)
 	FlagCommand (&pkflags, default_pkflags);
 }
 
-void TP_Point_f (void)
+static void TP_Point_f (void)
 {
 	FlagCommand (&pointflags, default_pointflags);
 }
@@ -1697,7 +1698,7 @@ typedef struct {
 	int		flags;		// TODO: "NOPICKUP" (disp), "TEAMENEMY" (flag, disp)
 } item_t;
 
-item_t	tp_items[] = {
+static item_t	tp_items[] = {
 	{	it_quad,	&tp_name_quad,	"progs/quaddama.mdl",
 		{0, 0, 24},	25,
 	},
@@ -1778,9 +1779,9 @@ item_t	tp_items[] = {
 
 #define NUMITEMS (sizeof(tp_items) / sizeof(tp_items[0]))
 
-item_t	*model2item[MAX_MODELS];
+static item_t	*model2item[MAX_MODELS];
 
-void TP_FindModelNumbers (void)
+static void TP_FindModelNumbers (void)
 {
 	int		i, j;
 	char	*s;
@@ -2001,7 +2002,7 @@ more:
 }
 
 
-void TP_FindPoint (void)
+static void TP_FindPoint (void)
 {
 	packet_entities_t	*pak;
 	entity_state_t		*ent;
@@ -2287,8 +2288,8 @@ qbool TP_CheckSoundTrigger (char *str)
 
 
 #define MAX_FILTER_LENGTH 4
-char filter_strings[8][MAX_FILTER_LENGTH+1];
-int	num_filters = 0;
+static char filter_strings[8][MAX_FILTER_LENGTH+1];
+static int	num_filters = 0;
 
 /*
 ======================
@@ -2341,7 +2342,7 @@ qbool TP_FilterMessage (char *s)
 	return false;	// this message is not for us, don't print it
 }
 
-void TP_MsgFilter_f (void)
+static void TP_MsgFilter_f (void)
 {
 	int c, i;
 	char *s;
@@ -2452,7 +2453,7 @@ void TP_Init (void)
 
 
 
-void CL_Say (qboolean team)
+static void CL_Say (qboolean team)
 {
 	extern cvar_t cl_fakename;
 	char	text[1024], sendtext[1024], *s;

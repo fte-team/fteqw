@@ -1519,6 +1519,9 @@ QCC_def_t *QCC_PR_Statement ( QCC_opcode_t *op, QCC_def_t *var_a, QCC_def_t *var
 					if (statements[st].op == OP_ADDRESS)
 						if (statements[st].c == var_b->ofs)
 							break;
+
+					if (statements[st].c == var_b->ofs)
+						QCC_PR_ParseWarning(0, "Temp-reuse may have broken your %s\n", pr_opcodes);
 				}
 				if (st < 0)
 					QCC_PR_ParseError(ERR_INTERNAL, "XSTOREP_F couldn't find pointer generation");
@@ -6694,6 +6697,12 @@ QCC_def_t *QCC_PR_GetDef (QCC_type_t *type, char *name, QCC_def_t *scope, pbool 
 	if (arraysize < 1)
 	{
 		QCC_PR_ParseError (ERR_ARRAYNEEDSSIZE, "First declaration of array %s with no size",name);
+	}
+
+	if (scope)
+	{
+		if (QCC_PR_GetDef(type, name, NULL, false, arraysize))
+			QCC_PR_ParseWarning(0, "Local \"%s\" defined with name of a global", name);
 	}
 
 	ofs = numpr_globals;

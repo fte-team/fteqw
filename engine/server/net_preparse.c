@@ -556,7 +556,8 @@ NPP_CheckDest(dest);
 }
 void NPP_NQWriteCoord(int dest, float in)	//replacement write func (nq to qw)
 {
-	short data = (int)(in*8);
+	short datas = (int)(in*8);
+	float dataf = in;
 NPP_CheckDest(dest);
 	if (!bufferlen)
 		Con_Printf("Messages should start with WriteByte\n");
@@ -566,15 +567,23 @@ NPP_CheckDest(dest);
 		client_t *cl = Write_GetClient();
 		if (cl && cl->nqprot)
 		{			
-			ClientReliableCheckBlock(cl, sizeof(short));
+			ClientReliableCheckBlock(cl, sizeof(float));
 			ClientReliableWrite_Coord(cl, in);
 		}
 	} else
 		MSG_WriteCoord (NQWriteDest(dest), in);
 #endif
 
-	data = LittleShort(data);
-	NPP_AddData(&data, sizeof(short));
+	if (sizeofcoord==4)
+	{
+		dataf = LittleFloat(dataf);
+		NPP_AddData(&dataf, sizeof(float));
+	}
+	else
+	{
+		datas = LittleShort(datas);
+		NPP_AddData(&datas, sizeof(short));
+	}
 	NPP_CheckFlush();
 }
 void NPP_NQWriteString(int dest, char *data)	//replacement write func (nq to qw)
@@ -1148,7 +1157,7 @@ void NPP_QWWriteCoord(int dest, float in)	//replacement write func (nq to qw)
 	if (dest == MSG_ONE) {
 		client_t *cl = Write_GetClient();
 		if (cl && !cl->nqprot)
-		{			
+		{
 			ClientReliableCheckBlock(cl, sizeof(float));
 			ClientReliableWrite_Coord(cl, in);
 		}

@@ -3481,8 +3481,7 @@ void GL_BuildLightmaps (void)
 			}
 
 			GL_CreateSurfaceLightmap (m->surfaces + i);
-			if (m->surfaces[i].texinfo->texture->parttype>=0)
-				R_EmitSkyEffectTris(m, &m->surfaces[i]);
+			R_EmitSkyEffectTris(m, &m->surfaces[i]);
 			if ( m->surfaces[i].flags & SURF_DRAWTURB )
 				continue;
 			if ( m->surfaces[i].flags & SURF_DRAWSKY )

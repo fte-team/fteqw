@@ -49,3 +49,5 @@ qpic_t *GLDraw_CachePic (char *path);
 void GLDraw_Crosshair(void);
 void GLDraw_LevelPic (qpic_t *pic);
 
+void GLDraw_ImageColours(float r, float g, float b, float a);
+void GLDraw_Image(float x, float y, float w, float h, float s1, float t1, float s2, float t2, qpic_t *pic);

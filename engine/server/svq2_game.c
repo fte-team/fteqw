@@ -1,7 +1,5 @@
 #include "qwsvdef.h"
 
-qboolean	CMQ2_SetAreaPortalState (int portalnum, qboolean open);
-
 #define Q2NUM_FOR_EDICT(ent) (((char *)ent - (char *)ge->edicts) / ge->edict_size)
 
 #ifndef Q2SERVER

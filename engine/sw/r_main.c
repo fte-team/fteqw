@@ -661,6 +661,9 @@ void SWR_DrawEntitiesOnList (void)
 		if (currententity->flags & 2)
 			continue;
 
+		if (!Cam_DrawPlayer(0, currententity->keynum-1))
+			continue;
+
 		if (!currententity->model)
 			continue;
 

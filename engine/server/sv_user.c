@@ -1030,7 +1030,7 @@ void SV_SpawnSpectator (void)
 	sv_player->v.movetype = MOVETYPE_NOCLIP;
 
 	// search for an info_playerstart to spawn the spectator at
-	for (i=MAX_CLIENTS-1 ; i<sv.num_edicts ; i++)
+	for (i=MAX_CLIENTS+1 ; i<sv.num_edicts ; i++)
 	{
 		e = EDICT_NUM(svprogfuncs, i);
 		if (!strcmp(PR_GetString(svprogfuncs, e->v.classname), "info_player_start"))

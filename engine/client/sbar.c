@@ -367,8 +367,8 @@ void Sbar_ExecuteLayoutString (char *s)
 	if (!s[0])
 		return;
 
-	x = 0;
-	y = 0;
+	x = sbar_rect.x;
+	y = sbar_rect.y;
 	width = 3;
 
 	while (s)
@@ -377,38 +377,38 @@ void Sbar_ExecuteLayoutString (char *s)
 		if (!strcmp(com_token, "xl"))
 		{
 			s = COM_Parse (s);
-			x = atoi(com_token);
+			x = sbar_rect.x + atoi(com_token);
 			continue;
 		}
 		if (!strcmp(com_token, "xr"))
 		{
 			s = COM_Parse (s);
-			x = sbar_rect.width + atoi(com_token);
+			x = sbar_rect.x + sbar_rect.width + atoi(com_token);
 			continue;
 		}
 		if (!strcmp(com_token, "xv"))
 		{
 			s = COM_Parse (s);
-			x = sbar_rect.width/2 - 160 + atoi(com_token);
+			x = sbar_rect.x + sbar_rect.width/2 - 160 + atoi(com_token);
 			continue;
 		}
 
 		if (!strcmp(com_token, "yt"))
 		{
 			s = COM_Parse (s);
-			y = atoi(com_token);
+			y = sbar_rect.y + atoi(com_token);
 			continue;
 		}
 		if (!strcmp(com_token, "yb"))
 		{
 			s = COM_Parse (s);
-			y = sbar_rect.height + atoi(com_token);
+			y = sbar_rect.y + sbar_rect.height + atoi(com_token);
 			continue;
 		}
 		if (!strcmp(com_token, "yv"))
 		{
 			s = COM_Parse (s);
-			y = sbar_rect.height/2 - 120 + atoi(com_token);
+			y = sbar_rect.y + sbar_rect.height/2 - 120 + atoi(com_token);
 			continue;
 		}
 

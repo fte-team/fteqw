@@ -27,7 +27,9 @@ typedef char *string_t;
 
 
 struct edict_s;
+struct entvars_s;
 struct globalvars_s;
+struct qcthread_s;
 typedef struct progfuncs_s progfuncs_t;
 typedef void (*builtin_t) (progfuncs_t *prinst, struct globalvars_s *gvars);
 

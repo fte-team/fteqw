@@ -784,10 +784,6 @@ void SWMod_NowLoadExternal(void)
 	}
 }
 
-void SWMod_ReloadTextures (void)
-{
-}
-
 /*
 =================
 Mod_LoadLighting

@@ -1269,7 +1269,6 @@ void GLDraw_Crosshair(void)
 		return;
 	}
 	GL_TexEnv(GL_MODULATE);
-	qglColor4f(1, 1, 1, crosshairalpha.value);
 
 	if (*crosshairimage.string)
 	{				
@@ -1338,6 +1337,8 @@ void GLDraw_Crosshair(void)
 	else
 		return;
 
+	qglColor4f(1, 1, 1, crosshairalpha.value);
+
 	for (sc = 0; sc < cl.splitclients; sc++)
 	{
 		SCR_CrosshairPosition(sc, &x, &y);
@@ -1361,6 +1362,8 @@ void GLDraw_Crosshair(void)
 	
 //	GL_TexEnv ( GL_TEXTURE_ENV, GL_TEXTURE_ENV_MODE, GL_REPLACE );
 //	GL_TexEnv ( GL_TEXTURE_ENV, GL_TEXTURE_ENV_MODE, GL_MODULATE );
+
+	qglColor4f(1, 1, 1, 1);
 }
 
 

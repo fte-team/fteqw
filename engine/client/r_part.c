@@ -846,7 +846,7 @@ void R_PartInfo_f (void)
 			j++;
 
 		if (j)
-			Con_Printf("Type %i = %i total\n", i, j);
+			Con_Printf("Type %s = %i total\n", part_type[i].name, j);
 	}
 }
 #endif

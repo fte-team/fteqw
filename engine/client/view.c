@@ -586,6 +586,31 @@ V_CalcBlend
 =============
 */
 #if defined(RGLQUAKE)
+
+void GLV_CalcBlendServer (float colors[4])
+{
+	extern qboolean gammaworks;
+	if (gammaworks || !v_blend[3])
+	{	//regular cshifts work through hardware gamma
+		//server sent cshifts do not.
+		colors[0] = cl.cshifts[CSHIFT_SERVER].destcolor[0]/255.0f;
+		colors[1] = cl.cshifts[CSHIFT_SERVER].destcolor[1]/255.0f;
+		colors[2] = cl.cshifts[CSHIFT_SERVER].destcolor[2]/255.0f;
+		colors[3] = cl.cshifts[CSHIFT_SERVER].percent/255.0f;
+	}
+	else
+	{
+		float na;
+		na = cl.cshifts[CSHIFT_SERVER].percent/255.0f;
+
+		colors[3] = v_blend[3] + na*(1-v_blend[3]);
+//Con_Printf ("j:%i a:%f\n", j, a);
+		na = na/colors[3];
+		colors[0] = v_blend[0]*(1-na) + (cl.cshifts[CSHIFT_SERVER].destcolor[0]/255.0f)*na;
+		colors[1] = v_blend[1]*(1-na) + (cl.cshifts[CSHIFT_SERVER].destcolor[1]/255.0f)*na;
+		colors[2] = v_blend[2]*(1-na) + (cl.cshifts[CSHIFT_SERVER].destcolor[2]/255.0f)*na;
+	}
+}
 void GLV_CalcBlend (void)
 {
 	float	r, g, b, a, a2;
@@ -596,19 +621,20 @@ void GLV_CalcBlend (void)
 	b = 0;
 	a = 0;
 
-	for (j=0 ; j<NUM_CSHIFTS ; j++)	
+	//don't apply it to the server, we'll blend the two later if the user has no hardware gamma (if they do have it, we use just the server specified value) This way we avoid winnt users having a cheat with flashbangs and stuff.
+	for (j=0 ; j<CSHIFT_SERVER ; j++)	
 	{
-		if (j != CSHIFT_SERVER)
-		{
+//		if (j != CSHIFT_SERVER)
+//		{
 			if (!gl_cshiftpercent.value || !gl_polyblend.value)
 				continue;
 
 			a2 = ((cl.cshifts[j].percent * gl_cshiftpercent.value) / 100.0) / 255.0;
-		}
-		else
-		{
-			a2 = cl.cshifts[j].percent / 255.0;	//don't allow modification of this one.
-		}
+//		}
+//		else
+//		{
+//			a2 = cl.cshifts[j].percent / 255.0;	//don't allow modification of this one.
+//		}
 
 		if (!a2)
 			continue;
@@ -665,7 +691,7 @@ void GLV_UpdatePalette (void)
 
 	new = false;
 
-	for (i=0 ; i<NUM_CSHIFTS ; i++)
+	for (i=0 ; i<CSHIFT_SERVER ; i++)
 	{
 		if (cl.cshifts[i].percent != cl.prev_cshifts[i].percent)
 		{

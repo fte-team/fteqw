@@ -952,13 +952,17 @@ void GLR_DrawViewModel (void)
 R_PolyBlend
 ============
 */
+void GLV_CalcBlendServer (float colors[4]);
 void R_PolyBlend (void)
 {
+	float shift[4];
 	extern qboolean gammaworks;
-	if (!v_blend[3] || gammaworks)
+	if ((!v_blend[3] || gammaworks) && !cl.cshifts[CSHIFT_SERVER].percent)
 		return;
 
-//Con_Printf("R_PolyBlend(): %4.2f %4.2f %4.2f %4.2f\n",v_blend[0], v_blend[1],	v_blend[2],	v_blend[3]);
+	GLV_CalcBlendServer(shift);	//figure out the shift we need (normally just the server specified one)
+
+//Con_Printf("R_PolyBlend(): %4.2f %4.2f %4.2f %4.2f\n",shift[0], shift[1],	shift[2],	shift[3]);
 
 	GL_DisableMultitexture();
 
@@ -974,7 +978,7 @@ void R_PolyBlend (void)
 	qglRotatef (-90,  1, 0, 0);	    // put Z going up
 	 qglRotatef (90,  0, 0, 1);	    // put Z going up
 
-	qglColor4fv (v_blend);
+	qglColor4fv (shift);
 
 	qglBegin (GL_QUADS);
 

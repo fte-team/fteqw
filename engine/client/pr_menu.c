@@ -1173,6 +1173,8 @@ void MP_Init (void)
 	{
 		return;
 	}
+	if (COM_CheckParm("-qmenu"))
+		return;
 
 	M_DeInit_Internal();
 

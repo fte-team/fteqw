@@ -28,6 +28,11 @@ extern progfuncs_t *qccprogfuncs;
 #define inline _inline
 #endif
 
+#ifndef _WIN32
+#define stricmp strcasecmp
+#define strnicmp strncasecmp
+#endif
+
 void *qccHunkAlloc(size_t mem);
 
 extern short   (*BigShort) (short l);
@@ -560,8 +565,12 @@ enum {
 	WARN_EXTRAPRECACHE,
 	WARN_NOTPRECACHED,
 	WARN_DEADCODE,
+	WARN_NOTSTANDARDBEHAVIOUR,
+	WARN_INEFFICIENTPLUSPLUS,
+	WARN_FTE_SPECIFIC,	//extension that only FTEQCC will have a clue about.
+	WARN_EXTENSION_USED,	//extension that frikqcc also understands
 
-	ERR_PARSEERRORS,	//caused by qcc_pr_parseerror beung called.
+	ERR_PARSEERRORS,	//caused by qcc_pr_parseerror being called.
 
 	//these are definatly my fault...
 	ERR_INTERNAL,

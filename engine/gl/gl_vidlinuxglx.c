@@ -74,6 +74,9 @@ static qboolean vidmode_ext = false;
 static XF86VidModeModeInfo **vidmodes;
 static int num_vidmodes;
 static qboolean vidmode_active = false;
+
+unsigned short origionalramps[3][256];
+qboolean origionalapplied;
 #endif
 
 extern cvar_t	_windowed_mouse;
@@ -107,7 +110,7 @@ qboolean is8bit = false;
 qboolean isPermedia = false;
 float vid_gamma = 1.0;
 qboolean mouseactive = false;
-qboolean has_focus = false;
+qboolean ActiveApp = false;
 
 int gl_canstencil;
 
@@ -344,6 +347,20 @@ static void uninstall_grabs(void)
 //	XSync(vid_dpy, True);
 }
 
+void ClearAllStates (void)
+{
+	int		i;
+	
+// send an up event for each key, to make sure the server clears them all
+	for (i=0 ; i<256 ; i++)
+	{
+		Key_Event (i, false);
+	}
+
+	Key_ClearStates ();
+//	IN_ClearStates ();
+}
+
 static void GetEvent(void)
 {
 	XEvent event;
@@ -418,15 +435,21 @@ static void GetEvent(void)
 		break;
 
 	case FocusIn:
-		has_focus = true;
+		v_gamma.modified = true;
+		ActiveApp = true;
 		break;
 	case FocusOut:
-		has_focus = false;
+#ifdef WITH_VMODE
+		if (origionalapplied)
+			XF86VidModeSetGammaRamp(vid_dpy, scrnum, 256, origionalramps[0], origionalramps[1], origionalramps[2]);
+#endif
+		ActiveApp = false;
+		ClearAllStates();
 		break;
 	}
 
 	wantwindowed = !!_windowed_mouse.value;
-	if (!has_focus)
+	if (!ActiveApp)
 		wantwindowed = false;
 	if (key_dest == key_console)
 		wantwindowed = false;
@@ -460,6 +483,12 @@ printf("GLVID_Shutdown");
 		uninstall_grabs();
 
 	qglXDestroyContext(vid_dpy, ctx);
+	
+#ifdef WITH_VMODE
+	if (origionalapplied)
+		XF86VidModeSetGammaRamp(vid_dpy, scrnum, 256, origionalramps[0], origionalramps[1], origionalramps[2]);
+#endif
+
 	if (vid_window)
 		XDestroyWindow(vid_dpy, vid_window);
 #ifdef WITH_VMODE
@@ -525,9 +554,27 @@ static Cursor CreateNullCursor(Display *display, Window root)
     return cursor;
 }
 
-void GLVID_ShiftPalette(unsigned char *p)
+void	GLVID_ShiftPalette (unsigned char *palette)
 {
-//	VID_SetPalette(p);
+#ifdef WITH_VMODE
+	extern qboolean gammaworks;
+	extern cvar_t vid_hardwaregamma;
+	extern	unsigned short ramps[3][256];
+	
+//	VID_SetPalette (palette);
+
+	if (ActiveApp && vid_hardwaregamma.value)	//this is needed because ATI drivers don't work properly (or when task-switched out).
+	{
+		if (gammaworks)
+		{	//we have hardware gamma applied - if we're doing a BF, we don't want to reset to the default gamma (yuck)
+			XF86VidModeSetGammaRamp (vid_dpy, scrnum, 256, ramps[0], ramps[1], ramps[2]);
+			return;
+		}
+		gammaworks = !!XF86VidModeSetGammaRamp (vid_dpy, scrnum, 256, ramps[0], ramps[1], ramps[2]);
+	}
+	else
+		gammaworks = false;
+#endif
 }
 
 void	GLVID_SetPalette (unsigned char *palette)
@@ -747,7 +794,7 @@ qboolean GLVID_Init (rendererstate_t *info, unsigned char *palette)
 	}
 #endif
 
-	has_focus = false;
+	ActiveApp = false;
 	vid_window = XCreateWindow(vid_dpy, root, 0, 0, info->width, info->height,
 						0, visinfo->depth, InputOutput,
 						visinfo->visual, mask, &attr);
@@ -769,6 +816,10 @@ qboolean GLVID_Init (rendererstate_t *info, unsigned char *palette)
 	XDefineCursor(vid_dpy, vid_window, CreateNullCursor(vid_dpy, vid_window));
 
 	XFlush(vid_dpy);
+	
+#ifdef WITH_VMODE
+	origionalapplied = XF86VidModeGetGammaRamp(vid_dpy, scrnum, 256, origionalramps[0], origionalramps[1], origionalramps[2]);
+#endif
 
 	ctx = qglXCreateContext(vid_dpy, visinfo, NULL, True);
 

@@ -175,7 +175,7 @@ void SCR_DrawTwoDimensional(int uimenu, qboolean nohud)
 		else
 			SCR_DrawFPS ();
 		SCR_CheckDrawCenterString ();
-	glTexEnvi ( GL_TEXTURE_ENV, GL_TEXTURE_ENV_MODE, GL_MODULATE );
+	qglTexEnvi ( GL_TEXTURE_ENV, GL_TEXTURE_ENV_MODE, GL_MODULATE );
 #ifdef TEXTEDITOR
 		if (editoractive)
 			Editor_Draw();
@@ -343,6 +343,11 @@ void GLSCR_UpdateScreen (void)
 		nohud = true;
 	else
 #endif
+#ifdef CSQC_DAT
+		if (CSQC_DrawView())
+		nohud = true;
+	else
+#endif
 		if (cl.worldmodel && uimenu != 1)
 		V_RenderView ();
 	else
@@ -372,7 +377,7 @@ char *GLVID_GetRGBInfo(int prepadbytes, int *truewidth, int *trueheight)
 	int i, c;
 	qbyte *ret = BZ_Malloc(prepadbytes + glwidth*glheight*3);
 
-	glReadPixels (glx, gly, glwidth, glheight, GL_RGB, GL_UNSIGNED_BYTE, ret + prepadbytes); 
+	qglReadPixels (glx, gly, glwidth, glheight, GL_RGB, GL_UNSIGNED_BYTE, ret + prepadbytes); 
 
 	*truewidth = glwidth;
 	*trueheight = glheight;

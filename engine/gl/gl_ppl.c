@@ -284,14 +284,11 @@ static void PPL_BaseChain_NoBump_1TMU(msurface_t *first, texture_t *tex)
 		glBlendFunc (GL_ZERO, GL_SRC_COLOR);
 	else if (gl_lightmap_format == GL_INTENSITY)
 	{
-		GL_TexEnv(GL_MODULATE);
 		glColor4f (0,0,0,1);
 		glBlendFunc (GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
 	}
 	else if (gl_lightmap_format == GL_RGBA)
-	{
 		glBlendFunc(GL_ZERO, GL_ONE_MINUS_SRC_ALPHA);
-	}
 
 	glTexCoordPointer(2, GL_FLOAT, sizeof(surfvertexarray_t), varray_v->stl);
 
@@ -2492,41 +2489,44 @@ void PPL_SchematicsTextureChain(msurface_t *first)
 	frow=frow/2+0.5;
 	glColor3f(frow, frow, 0);
 
-	glBegin(GL_QUADS);
-	for (s = first; s ; s=s->texturechain)
+	if (gl_schematics.value != 2)
 	{
-		for (v1 = 0; v1 < s->polys->numverts; v1++)
+		glBegin(GL_QUADS);
+		for (s = first; s ; s=s->texturechain)
 		{
-			v2 = v1+1;
-			if (v2 == s->polys->numverts)
-				v2 = 0;	//wrapped.
-			VectorSubtract(s->polys->verts[v1], s->polys->verts[v2], dir);
-			len = Length(dir);
-			VectorNormalize(dir);
-			sprintf(str, "%i", (len<1)?1:(int)len);
-			sl = strlen(str);
-			VectorMA(s->polys->verts[v2], len/2 + sl*4, dir, pos);
-
-			for (c = 0; c < sl; c++)
+			for (v1 = 0; v1 < s->polys->numverts; v1++)
 			{
-				frow = (str[c]>>4)*size;
-				fcol = (str[c]&15)*size;
+				v2 = v1+1;
+				if (v2 == s->polys->numverts)
+					v2 = 0;	//wrapped.
+				VectorSubtract(s->polys->verts[v1], s->polys->verts[v2], dir);
+				len = Length(dir);
+				VectorNormalize(dir);
+				sprintf(str, "%i", (len<1)?1:(int)len);
+				sl = strlen(str);
+				VectorMA(s->polys->verts[v2], len/2 + sl*4, dir, pos);
 
-				glTexCoord2f (fcol, frow + size);
-				glVertex3fv(pos);
-				VectorMA(pos, 8, s->normal, v);
-				glTexCoord2f (fcol, frow);
-				glVertex3fv(v);
-				VectorMA(pos, -8, dir, pos);
-				VectorMA(pos, 8, s->normal, v);
-				glTexCoord2f (fcol + size, frow);
-				glVertex3fv(v);
-				glTexCoord2f (fcol + size, frow + size);
-				glVertex3fv(pos);
+				for (c = 0; c < sl; c++)
+				{
+					frow = (str[c]>>4)*size;
+					fcol = (str[c]&15)*size;
+
+					glTexCoord2f (fcol, frow + size);
+					glVertex3fv(pos);
+					VectorMA(pos, 8, s->normal, v);
+					glTexCoord2f (fcol, frow);
+					glVertex3fv(v);
+					VectorMA(pos, -8, dir, pos);
+					VectorMA(pos, 8, s->normal, v);
+					glTexCoord2f (fcol + size, frow);
+					glVertex3fv(v);
+					glTexCoord2f (fcol + size, frow + size);
+					glVertex3fv(pos);
+				}
 			}
 		}
+		glEnd();
 	}
-	glEnd();
 
 	glDisable(GL_POLYGON_OFFSET_FILL);
 	glEnable(GL_POLYGON_OFFSET_LINE);
@@ -2544,8 +2544,14 @@ void PPL_SchematicsTextureChain(msurface_t *first)
 			VectorSubtract(s->polys->verts[v2], s->polys->verts[v1], dir);
 			len = Length(dir);
 			VectorNormalize(dir);
-			sprintf(str, "%i", (len<1)?1:(int)len);
-			sl = strlen(str);
+
+			if (gl_schematics.value != 2)
+			{
+				sprintf(str, "%i", (len<1)?1:(int)len);
+				sl = strlen(str);
+			}
+			else
+				sl = 0;
 
 			//left side. (find arrowhead part)
 			VectorMA(s->polys->verts[v1], 4, s->normal, pos);
@@ -2559,14 +2565,15 @@ void PPL_SchematicsTextureChain(msurface_t *first)
 			glVertex3fv(v);
 			glVertex3fv(pos);
 
+			//the line
 			glVertex3fv(pos);
 			VectorMA(pos, len/2 - sl*4, dir, pos);
 			glVertex3fv(pos);
 
-
+			//right hand side.
 			VectorMA(s->polys->verts[v2], 4, s->normal, pos);
 
-			VectorMA(pos, 4, dir, v);
+			VectorMA(pos, -4, dir, v);
 			VectorMA(v, -4, s->normal, v);
 			glVertex3fv(v);
 			glVertex3fv(pos);
@@ -2575,6 +2582,7 @@ void PPL_SchematicsTextureChain(msurface_t *first)
 			glVertex3fv(v);
 			glVertex3fv(pos);
 
+			//the line
 			glVertex3fv(pos);
 			VectorMA(pos, -(len/2 - sl*4), dir, pos);
 			glVertex3fv(pos);
@@ -2923,11 +2931,11 @@ void PPL_RecursiveWorldNodeQ2_r (mnode_t *node)
 			{
 				if (surf->shadowframe != r_shadowframe)
 					continue;
-
+/*
 				if (surf->lightframe == r_shadowframe)	//done this one!
 					continue;
 				surf->lightframe = r_shadowframe;
-
+*/
 //				if ((dot < 0) ^ !!(surf->flags & SURF_PLANEBACK))
 //					continue;		// wrong side
 

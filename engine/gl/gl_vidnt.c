@@ -95,7 +95,7 @@ extern
 #endif
 		qboolean vid_initializing;
 
-
+extern cvar_t gl_2dscale;
 
 qboolean VID_AttachGL (rendererstate_t *info);
 
@@ -362,7 +362,6 @@ qboolean VID_SetWindowedMode (rendererstate_t *info)
 		vid.conwidth = Q_atoi(com_argv[i+1]);
 	else
 	{
-		extern cvar_t gl_2dscale;
 		vid.conwidth = 640;
 		gl_2dscale.modified = true;
 	}
@@ -666,6 +665,8 @@ void VID_UpdateWindowStatus (void)
 	window_center_y = (window_rect.top + window_rect.bottom) / 2;
 
 	IN_UpdateClipCursor ();
+
+	gl_2dscale.modified = true;
 }
 
 
@@ -1109,7 +1110,6 @@ LONG WINAPI GLMainWndProc (
     	case WM_SIZE:
 			if (!vid_initializing)
 			{
-				extern cvar_t gl_2dscale;
 				WindowRect.right = ((short*)&lParam)[0] - WindowRect.left;
 				WindowRect.bottom = ((short*)&lParam)[1] - WindowRect.top;
 

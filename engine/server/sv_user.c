@@ -1588,7 +1588,7 @@ SV_BeginDownload_f
 void SV_BeginDownload_f(void)
 {
 	char	*name;
-	extern	cvar_t	allow_download_anymap;
+	extern	cvar_t	allow_download_anymap, allow_download_pakcontents;
 	extern	int		file_from_pak; // ZOID did file come from pak?
 
 
@@ -1638,7 +1638,7 @@ void SV_BeginDownload_f(void)
 	if (!host_client->download
 		// special check for maps, if it came from a pak file, don't allow
 		// download  ZOID
-		|| (!allow_download_anymap.value && strncmp(name, "maps/", 5) == 0 && file_from_pak))
+		|| ((!allow_download_pakcontents.value || (!allow_download_anymap.value && strncmp(name, "maps/", 5) == 0)) && file_from_pak))
 	{
 		if (host_client->download)
 		{

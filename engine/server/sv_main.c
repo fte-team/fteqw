@@ -73,6 +73,7 @@ cvar_t	allow_download_sounds = {"allow_download_sounds", "1"};
 cvar_t	allow_download_demos = {"allow_download_demos", "1"};
 cvar_t	allow_download_maps = {"allow_download_maps", "1"};
 cvar_t	allow_download_anymap = {"allow_download_pakmaps", "0"};
+cvar_t	allow_download_pakcontents = {"allow_download_pakcontents", "1"};
 cvar_t	allow_download_root = {"allow_download_root", "0"};
 cvar_t	allow_download_textures = {"allow_download_textures", "1"};
 cvar_t	allow_download_pk3s = {"allow_download_pk3s", "1"};
@@ -3002,6 +3003,7 @@ void SV_InitLocal (void)
 	Cvar_Register (&allow_download_maps,	cvargroup_serverpermissions);
 	Cvar_Register (&allow_download_demos,	cvargroup_serverpermissions);
 	Cvar_Register (&allow_download_anymap,	cvargroup_serverpermissions);
+	Cvar_Register (&allow_download_pakcontents,	cvargroup_serverpermissions);
 	Cvar_Register (&allow_download_textures,cvargroup_serverpermissions);
 	Cvar_Register (&allow_download_pk3s,	cvargroup_serverpermissions);
 	Cvar_Register (&allow_download_wads,	cvargroup_serverpermissions);

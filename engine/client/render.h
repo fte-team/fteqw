@@ -341,3 +341,5 @@ extern	cvar_t	gl_finish;
 
 extern	cvar_t	gl_max_size;
 extern	cvar_t	gl_playermip;
+
+extern	cvar_t	r_palconvbits;

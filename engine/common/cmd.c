@@ -25,7 +25,6 @@ cvar_t com_fs_cache = {"fs_cache", "0", NULL, CVAR_ARCHIVE};
 cvar_t rcon_level = {"rcon_level", "50"};
 cvar_t cmd_onestuffwonder = {"cmd_stuffcmdonce", "1"};
 cvar_t cmd_maxbuffersize = {"cmd_maxbuffersize", "65536"};
-
 int	Cmd_ExecLevel;
 
 void Cmd_ForwardToServer (void);
@@ -2626,14 +2625,12 @@ Cmd_Init
 */
 void Cmd_Init (void)
 {
-	extern cvar_t cfg_save_name;
 //
 // register our commands
 //
 	Cmd_AddCommand ("stuffcmds",Cmd_StuffCmds_f);
 	Cmd_AddCommand ("cfg_save",Cmd_WriteConfig_f);
 	Cmd_AddCommand ("cfg_load",Cmd_Exec_f);
-	Cvar_Register (&cfg_save_name, "Configs");
 
 	Cmd_AddCommand ("exec",Cmd_Exec_f);
 	Cmd_AddCommand ("echo",Cmd_Echo_f);

@@ -49,21 +49,6 @@ END
 
 /////////////////////////////////////////////////////////////////////////////
 //
-// Icon
-//
-
-// Icon with lowest ID value placed first to ensure application icon
-// remains consistent on all systems.
-#if defined(APSTUDIO_INVOKED) || defined(BRAINS)
-#if defined(APSTUDIO_INVOKED)
-IDI_ICON2$(BRAINS)      ICON    DISCARDABLE     "qwcl2.ico"
-#else
-IDI_ICON2               ICON    DISCARDABLE     "qwcl2.ico"
-#endif
-#endif
-
-/////////////////////////////////////////////////////////////////////////////
-//
 // Dialog
 //
 
@@ -74,7 +59,7 @@ EXSTYLE WS_EX_TOOLWINDOW | WS_EX_CLIENTEDGE
 FONT 16, "Times New Roman"
 BEGIN
     CTEXT           "FTE QuakeWorld",IDC_STATIC,0,0,67,21,SS_CENTERIMAGE
-    CTEXT           "Frilly Tin Elephants",IDC_STATIC,0,23,66,17,
+    CTEXT           "http://fte.quakesrc.org",IDC_STATIC,0,23,66,17,
                     SS_CENTERIMAGE
 END
 

@@ -3804,6 +3804,42 @@ QCC_def_t *QCC_PR_Term (void)
 			e2->type = e->type->aux_type;
 			return e2;
 		}
+		else if (QCC_PR_Check ("-"))
+		{
+			e = QCC_PR_Expression (NOT_PRIORITY);
+
+			switch(e->type->aux_type->type)
+			{
+			case ev_float:
+				e2 = QCC_PR_Statement (&pr_opcodes[OP_SUB_F], QCC_MakeFloatDef(0), e, NULL);
+				break;
+			case ev_integer:
+				e2 = QCC_PR_Statement (&pr_opcodes[OP_SUB_I], QCC_MakeIntDef(0), e, NULL);
+				break;
+			default:
+				QCC_PR_ParseError (ERR_BADNOTTYPE, "type mismatch for -");
+				break;
+			}
+			return e2;
+		}
+		else if (QCC_PR_Check ("+"))
+		{
+			e = QCC_PR_Expression (NOT_PRIORITY);
+
+			switch(e->type->aux_type->type)
+			{
+			case ev_float:
+				e2 = QCC_PR_Statement (&pr_opcodes[OP_ADD_F], QCC_MakeFloatDef(0), e, NULL);
+				break;
+			case ev_integer:
+				e2 = QCC_PR_Statement (&pr_opcodes[OP_ADD_I], QCC_MakeIntDef(0), e, NULL);
+				break;
+			default:
+				QCC_PR_ParseError (ERR_BADNOTTYPE, "type mismatch for +");
+				break;
+			}
+			return e2;
+		}
 		
 		if (QCC_PR_Check ("("))
 		{
@@ -6754,7 +6790,7 @@ QCC_def_t *QCC_PR_DummyFieldDef(QCC_type_t *type, char *name, QCC_def_t *scope, 
 				case ev_string:
 				case ev_vector:
 				case ev_entity:
-				case ev_field:				
+				case ev_field:
 				case ev_pointer:
 				case ev_integer:
 					if (*name)

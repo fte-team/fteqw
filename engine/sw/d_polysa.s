@@ -65,8 +65,8 @@ lzistepx:		.long	0
 
 #define skinwidth	4+0
 
-.globl C(D_PolysetCalcGradients)
-C(D_PolysetCalcGradients):
+.globl C(D_PolysetCalcGradientsAsm)
+C(D_PolysetCalcGradientsAsm):
 
 //	p00_minus_p20 = r_p0[0] - r_p2[0];
 //	p01_minus_p21 = r_p0[1] - r_p2[1];
@@ -1473,8 +1473,8 @@ LSkip2:
 #define fv			4+8
 #define	numverts	8+8
 
-.globl C(D_PolysetDrawFinalVerts)
-C(D_PolysetDrawFinalVerts):
+.globl C(D_PolysetDrawFinalVertsAsm)
+C(D_PolysetDrawFinalVertsAsm):
 	pushl	%ebp				// preserve caller stack frame pointer
 	pushl	%ebx
 

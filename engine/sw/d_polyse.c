@@ -127,8 +127,8 @@ void D_PolysetScanLeftEdge (int height);
 
 void D_PolysetDrawSpans8 (spanpackage_t *pspanpackage);
 void D_PolysetDrawSpans8C (spanpackage_t *pspanpackage);
-void D_PolysetCalcGradients (int skinwidth);
-void D_PolysetCalcGradients32 (int skinwidth);
+void D_PolysetCalcGradientsC (int skinwidth);
+void D_PolysetCalcGradientsAsm (int skinwidth);
 void D_DrawSubdiv (void);
 void D_DrawSubdivC (void);
 void D_DrawSubdiv32C (void);
@@ -145,7 +145,6 @@ void D_PolysetSetUpForLineScan(fixed8_t startvertu, fixed8_t startvertv,
 		fixed8_t endvertu, fixed8_t endvertv);
 
 
-#ifdef PEXT_TRANS
 void D_PolysetDrawFinalVertsTrans (finalvert_t *fv, int numverts)
 {
 	int		i, z;
@@ -968,7 +967,7 @@ void D_RasterizeAliasPolySmoothC (void)
 // set the s, t, and light gradients, which are consistent across the triangle
 // because being a triangle, things are affine
 //
-	D_PolysetCalcGradients32 (r_affinetridesc.skinwidth); //D_PolysetCalcGradients32 but not with asm possibilities
+	D_PolysetCalcGradientsC (r_affinetridesc.skinwidth); //D_PolysetCalcGradients32 but not with asm possibilities
 
 //
 // rasterize the polygon
@@ -1161,7 +1160,6 @@ void D_RasterizeAliasPolySmoothC (void)
 
 
 
-#endif
 
 void D_PolysetDraw32 (void)
 {
@@ -1751,7 +1749,7 @@ void D_PolysetCalcGradientsAsm (int skinwidth)
 
 #endif	// !id386
 
-void D_PolysetCalcGradients32 (int skinwidth)
+void D_PolysetCalcGradientsC (int skinwidth)
 {
 	float	xstepdenominv, ystepdenominv, t0, t1;
 	float	p01_minus_p21, p11_minus_p21, p00_minus_p20, p10_minus_p20;
@@ -1956,7 +1954,7 @@ void D_RasterizeAliasPolySmooth8Asm (void)
 // set the s, t, and light gradients, which are consistent across the triangle
 // because being a triangle, things are affine
 //
-	D_PolysetCalcGradients (r_affinetridesc.skinwidth);
+	D_PolysetCalcGradientsAsm (r_affinetridesc.skinwidth);
 
 //
 // rasterize the polygon
@@ -2153,7 +2151,7 @@ void D_RasterizeAliasPolySmooth8C (void)
 
 	void (*DrawSpans) (spanpackage_t *pspanpackage);
 	if (r_pixbytes == 1)
-		DrawSpans = D_PolysetDrawSpans8;
+		DrawSpans = D_PolysetDrawSpans8C;
 	else
 		DrawSpans = D_PolysetDrawSpans16;
 
@@ -2170,7 +2168,7 @@ void D_RasterizeAliasPolySmooth8C (void)
 // set the s, t, and light gradients, which are consistent across the triangle
 // because being a triangle, things are affine
 //
-	D_PolysetCalcGradients (r_affinetridesc.skinwidth);
+	D_PolysetCalcGradientsC (r_affinetridesc.skinwidth);
 
 //
 // rasterize the polygon

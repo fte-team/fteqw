@@ -610,6 +610,62 @@ void CL_Connect_f (void)
 	CL_BeginServerConnect();
 }
 
+void CL_Join_f (void)
+{
+	char	*server;
+
+	if (Cmd_Argc() != 2)
+	{
+		if (cls.state)
+		{	//Hmm. This server sucks.
+			if (cls.z_ext & Z_EXT_JOIN_OBSERVE)
+				Cmd_ForwardToServer();
+			else
+				Cbuf_AddText("\nspectator 0;reconnect\n", RESTRICT_LOCAL);
+			return;
+		}
+		Con_Printf ("join requires a connection or servername/ip\n");
+		return;	
+	}
+	
+	server = Cmd_Argv (1);
+
+	CL_Disconnect_f ();
+
+	Cvar_Set(&spectator, "0");
+
+	Q_strncpyz (cls.servername, server, sizeof(cls.servername));
+	CL_BeginServerConnect();
+}
+
+void CL_Observe_f (void)
+{
+	char	*server;
+
+	if (Cmd_Argc() != 2)
+	{
+		if (cls.state)
+		{	//Hmm. This server sucks.
+			if (cls.z_ext & Z_EXT_JOIN_OBSERVE)
+				Cmd_ForwardToServer();
+			else
+				Cbuf_AddText("\nspectator 1;reconnect\n", RESTRICT_LOCAL);
+			return;
+		}
+		Con_Printf ("observe requires a connection or servername/ip\n");
+		return;	
+	}
+	
+	server = Cmd_Argv (1);
+
+	CL_Disconnect_f ();
+
+	Cvar_Set(&spectator, "1");
+
+	Q_strncpyz (cls.servername, server, sizeof(cls.servername));
+	CL_BeginServerConnect();
+}
+
 #ifdef NQPROT
 void CLNQ_Connect_f (void)
 {
@@ -847,12 +903,12 @@ void CL_Disconnect (void)
 		cl.worldmodel=NULL;
 	}
 
+	if (cls.downloadmethod <= DL_QWPENDING)
+		cls.downloadmethod = DL_NONE;
 	if (cls.downloadqw)
 	{
 		fclose(cls.downloadqw);
 		cls.downloadqw = NULL;
-		if (cls.downloadmethod == DL_QW)
-			cls.downloadmethod = DL_NONE;
 	}
 	if (!cls.downloadmethod)
 		*cls.downloadname = '\0';
@@ -2269,6 +2325,8 @@ void CL_Init (void)
 	Cmd_AddCommand ("nqconnect", CLNQ_Connect_f);
 #endif
 	Cmd_AddCommand ("reconnect", CL_Reconnect_f);
+	Cmd_AddCommand ("join", CL_Join_f);
+	Cmd_AddCommand ("observe", CL_Observe_f);
 
 	Cmd_AddCommand ("rcon", CL_Rcon_f);
 	Cmd_AddCommand ("packet", CL_Packet_f);

@@ -569,6 +569,24 @@ qboolean CL_EnqueDownload(char *filename, qboolean verbose, qboolean ignorefaile
 void CL_SendDownloadRequest(char *filename)
 {
 	downloadlist_t *dl, *nxt;
+
+	strcpy (cls.downloadname, filename);
+	Con_TPrintf (TL_DOWNLOADINGFILE, cls.downloadname);
+
+	// download to a temp name, and only rename
+	// to the real name when done, so if interrupted
+	// a runt file wont be left
+	COM_StripExtension (cls.downloadname, cls.downloadtempname);
+	strcat (cls.downloadtempname, ".tmp");
+
+	MSG_WriteByte (&cls.netchan.message, clc_stringcmd);
+	MSG_WriteString (&cls.netchan.message, va("download %s", cls.downloadname));
+
+	//prevent ftp/http from changing stuff
+	cls.downloadmethod = DL_QWPENDING;
+	cls.downloadpercent = 0;
+
+
 	if(cl.downloadlist)	//remove from enqued download list
 	{
 		if (!strcmp(cl.downloadlist->name, filename))
@@ -591,22 +609,31 @@ void CL_SendDownloadRequest(char *filename)
 			}
 		}
 	}
+}
 
-	strcpy (cls.downloadname, filename);
-	Con_TPrintf (TL_DOWNLOADINGFILE, cls.downloadname);
+//Do any reloading for the file that just reloaded.
+void CL_FinishDownload(char *filename)
+{
+	int i;
+	extern int mod_numknown;
+	extern model_t	mod_known[];
 
-	// download to a temp name, and only rename
-	// to the real name when done, so if interrupted
-	// a runt file wont be left
-	COM_StripExtension (cls.downloadname, cls.downloadtempname);
-	strcat (cls.downloadtempname, ".tmp");
-
-	MSG_WriteByte (&cls.netchan.message, clc_stringcmd);
-	MSG_WriteString (&cls.netchan.message, va("download %s", cls.downloadname));
-
-	//prevent ftp/http from changing stuff
-	cls.downloadtype = DL_QWPENDING;
-	cls.downloadpercent = 0;
+	if (!strcmp(filename, "gfx/palette.lmp"))
+	{
+		Cbuf_AddText("vid_restart\n", RESTRICT_LOCAL);
+	}
+	else
+	{
+		for (i = 0; i < mod_numknown; i++)	//go and load this model now.
+		{
+			if (!strcmp(mod_known[i].name, filename))
+			{
+				Mod_ForName(mod_known[i].name, false);	//throw away result.
+				break;
+			}
+		}
+		Skin_FlushSkin(filename);
+	}
 }
 
 /*
@@ -642,14 +669,12 @@ qboolean	CL_CheckOrDownloadFile (char *filename, int nodelay)
 	if (cls.demoplayback)
 		return true;
 
-	if (!nodelay)
-		return !CL_EnqueDownload(filename, false, false);
-
-	CL_SendDownloadRequest(filename);
-
 	SCR_EndLoadingPlaque();	//release console.
 
-	return false;
+	if (CL_EnqueDownload(filename, false, false))
+		return !nodelay;
+	else
+		return true;
 }
 
 
@@ -898,35 +923,8 @@ void CL_RequestNextDownload (void)
 {
 	if (cl.downloadlist)
 	{
-		extern int		mod_numknown;
-		extern model_t	mod_known[];
-		int i;
-		downloadlist_t *next;		
-		
-		if (CL_CheckOrDownloadFile(cl.downloadlist->name, true))
-		{
-			if (!strcmp(cl.downloadlist->name, "gfx/palette.lmp"))
-			{
-				Cbuf_AddText("vid_restart\n", RESTRICT_LOCAL);
-			}
-			else
-			{
-				for (i = 0; i < mod_numknown; i++)	//go and load this model now.
-				{
-					if (!strcmp(mod_known[i].name, cl.downloadlist->name))
-					{
-						Mod_ForName(mod_known[i].name, false);	//throw away result.
-						break;
-					}
-				}
-				Skin_FlushSkin(cl.downloadlist->name);
-			}
-
-
-			next = cl.downloadlist->next;
-			Z_Free(cl.downloadlist);
-			cl.downloadlist = next;			
-		}		
+		if (!COM_FCheckExists (cl.downloadlist->name))
+			CL_SendDownloadRequest(cl.downloadlist->name);
 		return;
 	}
 	switch (cls.downloadtype)
@@ -947,6 +945,24 @@ void CL_RequestNextDownload (void)
 	default:
 		Con_DPrintf("Unknown download type.\n");
 	}
+}
+
+void CL_RequestADownloadChunk(void);
+void CL_SendDownloadReq(void)
+{
+	if (cl.downloadlist && !cls.downloadmethod)
+	{
+		CL_RequestNextDownload();
+		return;
+	}
+
+#ifdef PEXT_CHUNKEDDOWNLOADS
+	if (cls.downloadmethod == DL_QWCHUNKS)
+	{
+		CL_RequestADownloadChunk();
+		return;
+	}
+#endif
 }
 
 #ifdef PEXT_ZLIBDL
@@ -998,6 +1014,9 @@ char *ZLibDownloadDecode(int *messagesize, char *input, int finalsize)
 void CL_DownloadFailed(void);
 
 #ifdef PEXT_CHUNKEDDOWNLOADS
+#define MAXBLOCKS 64
+int downloadblock;
+int recievedblock[MAXBLOCKS];
 void CL_ParseChunkedDownload(void)
 {
 	qbyte	*name;
@@ -1044,6 +1063,14 @@ void CL_ParseChunkedDownload(void)
 
 		return;
 	}
+}
+
+void CL_RequestADownloadChunk(void)
+{
+}
+
+void CL_RequestDownloadPacket(void)
+{
 }
 #endif
 
@@ -1153,7 +1180,7 @@ void CL_ParseDownload (void)
 		msg_readcount += size;
 	}
 
-	if (cls.downloadmethod == DL_NONE)
+	if (cls.downloadmethod == DL_QWPENDING)
 		cls.downloadmethod = DL_QW;
 
 	if (percent != 100)
@@ -1190,10 +1217,7 @@ void CL_ParseDownload (void)
 
 		cls.downloadmethod = DL_NONE;
 
-		if (!strcmp(cls.downloadname, "gfx/palette.lmp"))
-		{
-			Cbuf_AddText("vid_restart\n", RESTRICT_LOCAL);
-		}
+		CL_FinishDownload(cls.downloadname);
 
 		*cls.downloadname = '\0';
 		cls.downloadqw = NULL;

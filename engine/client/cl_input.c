@@ -973,6 +973,8 @@ void CL_SendCmd (void)
 		return;
 	}
 
+	CL_SendDownloadReq();
+
 	if (msecstouse > 255)
 		msecstouse = 255;
 

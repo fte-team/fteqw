@@ -1333,6 +1333,10 @@ void CMod_LoadFaces (lump_t *l)
 		{
 			out->flags |= SURF_DRAWSKY;
 		}
+		if (out->texinfo->flags & SURF_WARP)
+		{
+			out->flags |= SURF_DRAWTURB|SURF_DRAWTILED;
+		}
 #endif
 
 		CalcSurfaceExtents (out);

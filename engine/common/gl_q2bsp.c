@@ -2109,44 +2109,6 @@ glpoly_t *GL_MeshToGLPoly(mesh_t *mesh)
 
 #define Vector2Copy(a,b) {(b)[0]=(a)[0];(b)[1]=(a)[1];}
 
-vec_t VectorNormalize2 (vec3_t v, vec3_t out)
-{
-	float	length, ilength;
-
-	length = v[0]*v[0] + v[1]*v[1] + v[2]*v[2];
-
-	if (length)
-	{
-		length = sqrt (length);		// FIXME
-		ilength = 1/length;
-		out[0] = v[0]*ilength;
-		out[1] = v[1]*ilength;
-		out[2] = v[2]*ilength;
-	}
-	else
-	{
-		VectorClear (out);
-	}
-		
-	return length;
-}
-float ColorNormalize (vec3_t in, vec3_t out)
-{
-	float f = max (max (in[0], in[1]), in[2]);
-
-	if ( f > 1.0 ) {
-		f = 1.0 / f;
-		out[0] = in[0] * f;
-		out[1] = in[1] * f;
-		out[2] = in[2] * f;
-	} else {
-		out[0] = in[0];
-		out[1] = in[1];
-		out[2] = in[2];
-	}
-
-	return f;
-}
 index_t tempIndexesArray[MAX_ARRAY_VERTS*3];
 vec4_t			tempxyz_array[MAX_ARRAY_VERTS];	//structure is used only at load.
 vec3_t			tempnormals_array[MAX_ARRAY_VERTS];	//so what harm is there in doing this?

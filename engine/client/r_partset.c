@@ -449,6 +449,30 @@ char *particle_set_spikeset =
 "	areaspreadvert 64\n"
 "}\n"
 "\n"
+//////////////////////////////////////////////////
+//Teleport splash
+
+#if 1	//a simpler effect.
+"r_part te_teleportsplash\n"
+"{\n"
+"	count 64\n"
+"	spawnmode ball\n"
+"	areaspread 48\n"
+"	areaspreadvert 48\n"
+"	texture \"textures/smoke\"\n"
+"	blend blend\n"
+"	die 1\n"
+"	friction 2\n"
+"	gravity 0\n"
+"	scale 64\n"
+"	alpha 0.2\n"
+"	randomvel 64\n"
+"	red 255\n"
+"	green 255\n"
+"	blue 255\n"
+"	scalefactor 1\n"
+"}\n"
+#else // the old red ball effect.
 "r_part te_teleportsplash\n"
 "{\n"
 "	texture \"particles/teleport\"\n"
@@ -471,6 +495,7 @@ char *particle_set_spikeset =
 "	offsetspreadvert 64\n"
 "spawnmode circle\n"
 "}\n"
+#endif
 "\n"
 "//flame effect\n"
 "r_part cu_flame\n"

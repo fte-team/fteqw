@@ -3136,7 +3136,7 @@ void PF_dprintv (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 
 #define MAX_TEMPSTRS	16
 #define MAXTEMPBUFFERLEN	1024
-static char *PF_TempStr(void)
+char *PF_TempStr(void)
 {
 	static char	pr_string_temparr[MAX_TEMPSTRS][MAXTEMPBUFFERLEN];
 	static int tempbuffernum;
@@ -4979,7 +4979,7 @@ void PF_substring (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 	if (length < 0)
 		length = strlen(s)-start;
 
-	if (start >= length || length<=0 || !*s)
+	if (start >= strlen(s) || length<=0 || !*s)
 	{
 		RETURN_TSTRING("");
 		return;

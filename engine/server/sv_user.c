@@ -1503,7 +1503,7 @@ qboolean SV_AllowDownload (char *name)
 			return true;
 
 	//root of gamedir
-	if (strchr(name, '/') && !allow_download_root.value)
+	if (!strchr(name, '/') && !allow_download_root.value)
 		return false;
 
 	//any other subdirs are allowed

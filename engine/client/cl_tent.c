@@ -1837,7 +1837,7 @@ void CL_UpdateBeams (void)
 			continue;
 
 	// if coming from the player, update the start position
-		if (b->flags & 1 && b->entity == cl.playernum[0]+1)	// entity 0 is the world
+		if (b->flags & 1 && b->entity == (autocam[0]?spec_track[0]:(cl.playernum[0]+1)))	// entity 0 is the world
 		{
 //			VectorSubtract(cl.simorg, b->start, org);
 //			VectorAdd(b->end, org, b->end);		//move the end point by simorg-start

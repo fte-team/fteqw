@@ -166,9 +166,7 @@ int			host_hunklevel;
 qbyte		*host_basepal;
 qbyte		*host_colormap;
 
-cvar_t	host_speeds = {"host_speeds","0"};			// set for running times
-cvar_t	show_fps = {"show_fps","0"};			// set for running times
-cvar_t	show_ups = {"show_ups","0"};			// set for running times
+cvar_t	host_speeds = {"host_speeds","0"};		// set for running times
 #ifdef CRAZYDEBUGGING
 cvar_t	developer = {"developer","1"};
 #else
@@ -2227,7 +2225,8 @@ void CL_Init (void)
 //
 // register our commands
 //
-	Cvar_Register (&show_fps, cl_screengroup);
+	CLSCR_Init();
+
 	Cvar_Register (&host_speeds, cl_controlgroup);
 	Cvar_Register (&developer, cl_controlgroup);
 
@@ -2744,6 +2743,7 @@ CL_RequestNextDownload();
 	if (host_speeds.value)
 		time1 = Sys_DoubleTime ();
 
+	TP_CheckVars();
 	if (SCR_UpdateScreen)
 	{
 		extern mleaf_t	*r_viewleaf;

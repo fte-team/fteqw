@@ -456,7 +456,7 @@ void V_cshift_f (void)
 		cl.cshifts[CSHIFT_SERVER].destcolor[1] = atoi(Cmd_Argv(2));
 		cl.cshifts[CSHIFT_SERVER].destcolor[2] = atoi(Cmd_Argv(3));
 		cl.cshifts[CSHIFT_SERVER].percent = atoi(Cmd_Argv(4));
-
+		return;
 	}
 	cshift_empty.destcolor[0] = atoi(Cmd_Argv(1));
 	cshift_empty.destcolor[1] = atoi(Cmd_Argv(2));

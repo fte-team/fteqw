@@ -105,7 +105,6 @@ extern cvar_t          scr_showpause;
 extern cvar_t          scr_printspeed;
 extern cvar_t			scr_allowsnap;
 extern cvar_t			scr_sshot_type;
-extern cvar_t	show_fps;
 extern  		cvar_t  crosshair;
 extern cvar_t			con_height;
 
@@ -135,6 +134,30 @@ float oldsbar = 0;
 
 void SCR_ScreenShot_f (void);
 void SCR_RSShot_f (void);
+
+cvar_t	show_fps	= {"show_fps", "0"};
+cvar_t	show_fps_x	= {"show_fps_x", "-1"};
+cvar_t	show_fps_y	= {"show_fps_y", "-1"};
+cvar_t	show_clock	= {"cl_clock", "0"};
+cvar_t	show_clock_x	= {"cl_clock_x", "0"};
+cvar_t	show_clock_y	= {"cl_clock_y", "-1"};
+cvar_t	show_speed	= {"show_speed", "0"};
+cvar_t	show_speed_x	= {"show_speed_x", "-1"};
+cvar_t	show_speed_y	= {"show_speed_y", "-9"};
+
+extern char cl_screengroup[];
+void CLSCR_Init(void)
+{
+	Cvar_Register(&show_fps, cl_screengroup);
+	Cvar_Register(&show_fps_x, cl_screengroup);
+	Cvar_Register(&show_fps_y, cl_screengroup);
+	Cvar_Register(&show_clock, cl_screengroup);
+	Cvar_Register(&show_clock_x, cl_screengroup);
+	Cvar_Register(&show_clock_y, cl_screengroup);
+	Cvar_Register(&show_speed, cl_screengroup);
+	Cvar_Register(&show_speed_x, cl_screengroup);
+	Cvar_Register(&show_speed_y, cl_screengroup);
+}
 
 /*
 ===============================================================================
@@ -932,6 +955,16 @@ void SCR_DrawNet (void)
 	Draw_Pic (scr_vrect.x+64, scr_vrect.y, scr_net);
 }
 
+void SCR_StringXY(char *str, float x, float y)
+{
+	if (x < 0)
+		x = vid.width - strlen(str)*8;
+	if (y < 0)
+		y = vid.height - sb_lines - 8;
+		
+	Draw_String(x, y, str);
+}
+
 void SCR_DrawFPS (void)
 {
 	extern cvar_t show_fps;
@@ -939,49 +972,59 @@ void SCR_DrawFPS (void)
 	double t;
 	extern int fps_count;
 	static float lastfps;
-	int x, y;
-	char st[80];
+	char str[80];
 
 	if (!show_fps.value)
 		return;
 
 	t = Sys_DoubleTime();
-	if ((t - lastframetime) >= 1.0) {
+	if ((t - lastframetime) >= 1.0)
+	{
 		lastfps = fps_count/(t - lastframetime);
 		fps_count = 0;
 		lastframetime = t;
 	}
 
-	sprintf(st, "%3.1f FPS", lastfps);
-	x = vid.width - strlen(st) * 8 - 8;
-	y = vid.height - sb_lines - 8;
-//	Draw_TileClear(x, y, strlen(st) * 8, 8);
-	Draw_String(x, y, st);
+	sprintf(str, "%3.1f FPS", lastfps);
+	SCR_StringXY(str, show_fps_x.value, show_fps_y.value);
 }
 
 void SCR_DrawUPS (void)
 {
-	extern cvar_t show_ups;
+	extern cvar_t show_speed;
 	static double lastupstime;
 	double t;
 	static float lastups;
-	int x, y;
-	char st[80];
+	char str[80];
 
-	if (!show_ups.value)
+	if (!show_speed.value)
 		return;
 
 	t = Sys_DoubleTime();
-	if ((t - lastupstime) >= 1.0) {
+	if ((t - lastupstime) >= 1.0)
+	{
 		lastups = sqrt((cl.simvel[0][0]*cl.simvel[0][0]) + (cl.simvel[0][1]*cl.simvel[0][1]));
 		lastupstime = t;
 	}
 
-	sprintf(st, "%3.1f UPS", lastups);
-	x = vid.width - strlen(st) * 8 - 8;
-	y = vid.height - sb_lines - 16;
-//	Draw_TileClear(x, y, strlen(st) * 8, 8);
-	Draw_String(x, y, st);
+	sprintf(str, "%3.1f UPS", lastups);
+	SCR_StringXY(str, show_speed_x.value, show_speed_y.value);
+}
+
+void SCR_DrawClock(void)
+{
+	struct tm *newtime;
+	time_t long_time;
+	char str[16];
+	
+	if (!show_clock.value)
+		return;
+	
+	time( &long_time );
+	newtime = localtime( &long_time );
+	strftime( str, sizeof(str)-1, "%H:%M    ", newtime);
+
+	SCR_StringXY(str, show_clock_x.value, show_clock_y.value);
 }
 
 
@@ -1751,4 +1794,86 @@ void SCR_TileClear (void)
 				(r_refdef.vrect.height + r_refdef.vrect.y));
 		}
 	}
+}
+
+
+
+// The 2d refresh stuff.
+void SCR_DrawTwoDimensional(int uimenu, qboolean nohud)
+{
+	RSpeedMark();
+	//
+	// draw any areas not covered by the refresh
+	//
+	if (!nohud)
+		SCR_TileClear ();
+
+#ifdef RGLQUAKE
+	if (r_netgraph.value)
+		GLR_NetGraph ();
+#endif
+
+	if (scr_drawdialog)
+	{
+#ifdef PLUGINS
+		if (!nohud)
+			Plug_SBar ();
+#endif
+		SCR_ShowPics_Draw();
+		Draw_FadeScreen ();
+		SCR_DrawNotifyString ();
+		scr_copyeverything = true;
+	}
+	else if (scr_drawloading)
+	{
+		SCR_DrawLoading ();
+#ifdef PLUGINS
+		Plug_SBar ();
+#endif
+		SCR_ShowPics_Draw();
+	}
+	else if (cl.intermission == 1 && key_dest == key_game)
+	{
+		Sbar_IntermissionOverlay ();
+		M_Draw (uimenu);
+	}
+	else if (cl.intermission == 2 && key_dest == key_game)
+	{
+		Sbar_FinaleOverlay ();
+		SCR_CheckDrawCenterString ();
+	}
+	else if (cl.intermission == 3 && key_dest == key_game)
+	{
+	}
+	else
+	{
+		if (!nohud)
+		{
+			Draw_Crosshair();
+
+			SCR_DrawRam ();
+			SCR_DrawNet ();
+			SCR_DrawFPS ();
+			SCR_DrawUPS ();
+			SCR_DrawClock();
+			SCR_DrawTurtle ();
+			SCR_DrawPause ();
+#ifdef PLUGINS
+			Plug_SBar ();
+#endif
+			SCR_ShowPics_Draw();
+		}
+		else
+			SCR_DrawFPS ();
+		SCR_CheckDrawCenterString ();
+//	qglTexEnvi ( GL_TEXTURE_ENV, GL_TEXTURE_ENV_MODE, GL_MODULATE );
+#ifdef TEXTEDITOR
+		if (editoractive)
+			Editor_Draw();
+#endif
+		M_Draw (uimenu);
+		SCR_DrawConsole (false);
+	}
+
+	RSpeedEnd(RSPEED_2D);
 }

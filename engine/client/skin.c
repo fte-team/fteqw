@@ -498,6 +498,14 @@ void Skin_NextDownload (void)
 	}
 }
 
+//called from a few places when some skin cheat is applied.
+//flushes all player skins.
+void Skin_FlushPlayers(void)
+{	//wipe the skin info
+	int i;
+	for (i = 0; i < MAX_CLIENTS; i++)
+		cl.players[i].skin = NULL;
+}
 
 /*
 ==========

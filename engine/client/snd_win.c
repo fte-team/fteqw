@@ -72,7 +72,7 @@ LPDIRECTSOUNDBUFFER pDSBuf, pDSPBuf;
 */
 HINSTANCE hInstDS;
 
-qboolean SNDDMA_InitDirect (soundcardinfo_t *sc);
+sndinitstat SNDDMA_InitDirect (soundcardinfo_t *sc);
 qboolean SNDDMA_InitWav (soundcardinfo_t *sc);
 
 

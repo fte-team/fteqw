@@ -75,11 +75,11 @@ void SCR_DrawNotifyString (void);
 void SCR_CheckDrawCenterString (void);
 void SCR_DrawRam (void);
 void SCR_DrawNet (void);
-void SCR_DrawFPS (void);
-void SCR_DrawUPS (void);
 void SCR_DrawTurtle (void);
 void SCR_DrawPause (void);
 void SCR_VRectForPlayer(vrect_t *vrect, int pnum);	//returns a region for the player's view
+
+void CLSCR_Init(void);	//basically so I can register a few friendly cvars.
 
 //TEI_SHOWLMP2 stuff
 void SCR_ShowPics_Draw(void);

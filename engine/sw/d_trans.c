@@ -344,7 +344,7 @@ void MakeVideoPalette(void)
 	FILE *f;
 	char filename[11];
 
-	if (strlen(r_palconvbits.string) < 3)
+	if (strlen(r_palconvbits.string) != 3)
 	{
 		// r5g6b5 is default
 		rs = 5;

@@ -213,6 +213,7 @@ void QCC_PR_NewLine (pbool incomment)
 		}
 		else if (!strncmp(directive, "if", 2))
 		{
+			int origionalline = pr_source_line;
  			pr_file_p = directive+2;
 			if (!strncmp(pr_file_p, "def ", 4))
 			{
@@ -263,8 +264,15 @@ void QCC_PR_NewLine (pbool incomment)
 			{
 				while (1)
 				{
-					while(*pr_file_p==' ' || *pr_file_p == '\t')
+					while(*pr_file_p && (*pr_file_p==' ' || *pr_file_p == '\t'))
 						pr_file_p++;
+
+					if (!*pr_file_p)
+					{
+						pr_source_line = origionalline;
+						QCC_PR_ParseError (ERR_NOENDIF, "#if with no endif");
+					}
+
 					if (*pr_file_p == '#')
 					{
 						pr_file_p++;
@@ -298,6 +306,8 @@ void QCC_PR_NewLine (pbool incomment)
 		}
 		else if (!strncmp(directive, "else", 4))
 		{
+			int origionalline = pr_source_line;
+
 			ifs -= 1;
 			level = 1;
 			
@@ -307,8 +317,15 @@ void QCC_PR_NewLine (pbool incomment)
 			}
 			while (1)
 			{
-				while(*pr_file_p==' ' || *pr_file_p == '\t')
+				while(*pr_file_p && (*pr_file_p==' ' || *pr_file_p == '\t'))
 					pr_file_p++;
+
+				if (!*pr_file_p)
+				{
+					pr_source_line = origionalline;
+					QCC_PR_ParseError(ERR_NOENDIF, "#if with no endif");
+				}
+
 				if (*pr_file_p == '#')
 				{
 					pr_file_p++;
@@ -514,16 +531,39 @@ void QCC_PR_NewLine (pbool incomment)
 			while(*pr_file_p <= ' ')
 				pr_file_p++;
 
-			QCC_PR_LexString();
-			printf("Including: %s\n", pr_token);
-			QCC_Include(pr_token);
+			*msg = '\0';
+			if (*pr_file_p == '\"')
+			{
+				pr_file_p++;
+				for (a=0;a<1023;a++)
+				{
+					if (*pr_file_p == '\"')
+						break;
+					msg[a] = *pr_file_p++;
+				}
+				msg[a] = '\0';
+			}
+			else if (*pr_file_p == '<')
+			{
+				pr_file_p++;
+				for (a=0;a<1023;a++)
+				{
+					if (*pr_file_p == '>')
+						break;
+					msg[a] = *pr_file_p++;
+				}
+				msg[a] = '\0';
+			}
+			else
+				QCC_PR_ParseError(0, "Not a string literal");
+			printf("Including: %s\n", msg);
+			QCC_Include(msg);
 
 			pr_file_p++;
 
-			for (a = 0; a < 1023 && pr_file_p[a] != '\n' && pr_file_p[a] != '\0'; a++)
-				msg[a] = pr_file_p[a];
+			while(*pr_file_p != '\n' && *pr_file_p != '\0' && *pr_file_p <= ' ')
+				pr_file_p++;
 
-			msg[a-1] = '\0';
 
 			while(*pr_file_p != '\n' && *pr_file_p != '\0')	//read on until the end of the line
 			{
@@ -827,6 +867,12 @@ void QCC_PR_LexString (void)
 				c = '"';
 			else if (c == 't')
 				c = '\t';
+			else if (c == 'a')
+				c = '\a';
+			else if (c == 'v')
+				c = '\v';
+			else if (c == 'f')
+				c = '\f';
 			else if (c == 's' || c == 'b')
 			{
 				texttype ^= 128;
@@ -880,7 +926,11 @@ void QCC_PR_LexString (void)
 				QCC_Error(ERR_INVALIDSTRINGIMMEDIATE, "String length exceeds %i", sizeof(pr_immediate_string)-1);
 
 			while(*pr_file_p && *pr_file_p <= ' ')
+			{
+				if (*pr_file_p == '\n')
+					QCC_PR_NewLine(false);
 				pr_file_p++;
+			}
 			if (*pr_file_p == '\"')	//have annother go
 			{
 				pr_file_p++;
@@ -2556,6 +2606,16 @@ QCC_type_t *QCC_PR_ParseFunctionType (int newtype, QCC_type_t *returntype)
 		return ftype;
 	return QCC_PR_FindType (ftype);
 }
+QCC_type_t *QCC_PR_PointerType (QCC_type_t *pointsto)
+{
+	QCC_type_t	*ptype;
+	char name[128];
+	sprintf(name, "*%s", pointsto->name);
+	ptype = QCC_PR_NewType(name, ev_pointer);
+	ptype->aux_type = pointsto;
+	return QCC_PR_FindType (ptype);
+}
+
 QCC_type_t *QCC_PR_ParseType (int newtype)
 {
 	QCC_type_t	*newparm;

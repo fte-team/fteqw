@@ -285,6 +285,8 @@ enum {
 	OP_OR_FI,
 	OP_NE_IF,
 	OP_NE_FI,
+
+//erm... FTEQCC doesn't make use of these... These are for DP.
 	OP_GSTOREP_I,
 	OP_GSTOREP_F,		//190
 	OP_GSTOREP_ENT,
@@ -300,6 +302,9 @@ enum {
 	OP_GLOAD_S,
 	OP_GLOAD_FNC,
 	OP_BOUNDCHECK,
+
+//back to ones that we do use.
+	OP_STOREP_P,
 
 	OP_NUMOPS
 };

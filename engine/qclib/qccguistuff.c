@@ -31,7 +31,7 @@ void GoToDefinition(char *name)
 		if (def->type->type == ev_function && def->constant)
 		{
 			fnc = &functions[((int *)qcc_pr_globals)[def->ofs]];
-			if (fnc->first_statement>=0)
+			if (fnc->first_statement>=0 && fnc->s_file)
 			{
 				EditFile(fnc->s_file+strings, statement_linenums[fnc->first_statement]);
 				return;

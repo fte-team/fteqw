@@ -88,6 +88,7 @@ int optres_test2;
 QCC_def_t *QCC_PR_DummyDef(QCC_type_t *type, char *name, QCC_def_t *scope, int arraysize, unsigned int ofs, int referable);
 QCC_type_t *QCC_PR_NewType (char *name, int basictype);
 QCC_type_t *QCC_PR_FindType (QCC_type_t *type);
+QCC_type_t *QCC_PR_PointerType (QCC_type_t *pointsto);
 
 void QCC_PR_ParseState (void);
 pbool simplestore;
@@ -348,7 +349,7 @@ QCC_opcode_t pr_opcodes[] =
  {7, "<<", "LSHIFT_I", 3, ASSOC_LEFT,			&type_integer,	&type_integer, &type_integer},
 
 										//var,		offset			return
- {7, "<ARRAY>", "GET_POINTER", -1, ASSOC_LEFT,	&type_void,		&type_integer, &type_pointer},
+ {7, "<ARRAY>", "GET_POINTER", -1, ASSOC_LEFT,	&type_float,		&type_integer, &type_pointer},
  {7, "<ARRAY>", "ARRAY_OFS", -1, ASSOC_LEFT,		&type_pointer,	&type_integer, &type_pointer},
 
  {7, "=", "LOADA_F", 6, ASSOC_LEFT,			&type_float,	&type_integer, &type_float},
@@ -359,7 +360,7 @@ QCC_opcode_t pr_opcodes[] =
  {7, "=", "LOADA_FNC", 6, ASSOC_LEFT,		&type_function,	&type_integer, &type_function},
  {7, "=", "LOADA_I", 6, ASSOC_LEFT,			&type_integer,	&type_integer, &type_integer},
 
- {7, "=", "STORE_P", 6, ASSOC_RIGHT,				&type_pointer,	&type_pointer, &type_pointer},
+ {7, "=", "STORE_P", 6, ASSOC_RIGHT,			&type_pointer,	&type_pointer, &type_void},
  {7, ".", "INDIRECT_P", 1, ASSOC_LEFT,			&type_entity,	&type_field, &type_pointer},
 
  {7, "=", "LOADP_F", 6, ASSOC_LEFT,			&type_pointer,	&type_integer, &type_float},
@@ -425,42 +426,28 @@ QCC_opcode_t pr_opcodes[] =
 
 
 
-/*
-{7, "!=", "GSTOREP_I", -1, ASSOC_LEFT,				&type_float,	&type_float,	&type_float},
-	OP_GSTOREP_I,
-{7, "!=", "GSTORE_F", -1, ASSOC_LEFT,				&type_float,	&type_float,	&type_float},
-	OP_GSTOREP_F,		//190
-{7, "!=", "GSTORE_ENT", -1, ASSOC_LEFT,				&type_float,	&type_float,	&type_float},
-	OP_GSTOREP_ENT,
-{7, "!=", "GSTORE_FLD", -1, ASSOC_LEFT,				&type_float,	&type_float,	&type_float},
-	OP_GSTOREP_FLD,		// integers
-{7, "!=", "GSTORE_S", -1, ASSOC_LEFT,				&type_float,	&type_float,	&type_float},
-	OP_GSTOREP_S,
-{7, "!=", "GSTORE_FNC", -1, ASSOC_LEFT,				&type_float,	&type_float,	&type_float},
-	OP_GSTOREP_FNC,		// pointers
-{7, "!=", "GSTORE_V", -1, ASSOC_LEFT,				&type_float,	&type_float,	&type_float},
-	OP_GSTOREP_V,
 
-{7, "!=", "BOUNDCHECK", -1, ASSOC_LEFT,				&type_float,	&type_float,	&type_float},
-	OP_GADDRESS,
+{7, "<>", "GSTOREP_I", -1, ASSOC_LEFT,				&type_float,	&type_float,	&type_float},
+{7, "<>", "GSTOREP_F", -1, ASSOC_LEFT,				&type_float,	&type_float,	&type_float},
+{7, "<>", "GSTOREP_ENT", -1, ASSOC_LEFT,				&type_float,	&type_float,	&type_float},
+{7, "<>", "GSTOREP_FLD", -1, ASSOC_LEFT,				&type_float,	&type_float,	&type_float},
+{7, "<>", "GSTOREP_S", -1, ASSOC_LEFT,				&type_float,	&type_float,	&type_float},
+{7, "<>", "GSTORE_PFNC", -1, ASSOC_LEFT,				&type_float,	&type_float,	&type_float},
+{7, "<>", "GSTOREP_V", -1, ASSOC_LEFT,				&type_float,	&type_float,	&type_float},
 
-{7, "!=", "GLOAD_I", -1, ASSOC_LEFT,				&type_float,	&type_float,	&type_float},
-	OP_GLOAD_I,
-{7, "!=", "GLOAD_F", -1, ASSOC_LEFT,				&type_float,	&type_float,	&type_float},
-	OP_GLOAD_F,
-{7, "!=", "GLOAD_FLD", -1, ASSOC_LEFT,				&type_float,	&type_float,	&type_float},
-	OP_GLOAD_FLD,
-{7, "!=", "GLOAD_ENT", -1, ASSOC_LEFT,				&type_float,	&type_float,	&type_float},
-	OP_GLOAD_ENT,		//200
-{7, "!=", "GLOAD_S", -1, ASSOC_LEFT,				&type_float,	&type_float,	&type_float},
-	OP_GLOAD_S,
-{7, "!=", "GLOAD_FNC", -1, ASSOC_LEFT,				&type_float,	&type_float,	&type_float},
-	OP_GLOAD_FNC,
+{7, "<>", "GADDRESS", -1, ASSOC_LEFT,				&type_float,	&type_float,	&type_float},
 
-  {7, "!=", "BOUNDCHECK", -1, ASSOC_LEFT,				&type_float,	&type_float,	&type_float},
-	OP_BOUNDCHECK,
-*/
- 
+{7, "<>", "GLOAD_I", -1, ASSOC_LEFT,				&type_float,	&type_float,	&type_float},
+{7, "<>", "GLOAD_F", -1, ASSOC_LEFT,				&type_float,	&type_float,	&type_float},
+{7, "<>", "GLOAD_FLD", -1, ASSOC_LEFT,				&type_float,	&type_float,	&type_float},
+{7, "<>", "GLOAD_ENT", -1, ASSOC_LEFT,				&type_float,	&type_float,	&type_float},
+{7, "<>", "GLOAD_S", -1, ASSOC_LEFT,				&type_float,	&type_float,	&type_float},
+{7, "<>", "GLOAD_FNC", -1, ASSOC_LEFT,				&type_float,	&type_float,	&type_float},
+
+{7, "<>", "BOUNDCHECK", -1, ASSOC_LEFT,				&type_float,	&type_float,	&type_float},
+
+{7, "=",	"STOREP_P", 6, ASSOC_RIGHT,				&type_pointer, &type_pointer, &type_void},
+
  {0, NULL}
 };
 
@@ -514,6 +501,7 @@ QCC_opcode_t *opcodeprioritized[TOP_PRIORITY+1][64] =
 		&pr_opcodes[OP_LOAD_FLD],
 		&pr_opcodes[OP_LOAD_FNC],
 		&pr_opcodes[OP_LOAD_I],
+		&pr_opcodes[OP_LOAD_P],
 		&pr_opcodes[OP_ADDRESS],
 		NULL
 	}, {	//2
@@ -607,6 +595,7 @@ QCC_opcode_t *opcodeprioritized[TOP_PRIORITY+1][64] =
 		&pr_opcodes[OP_STORE_I],
 		&pr_opcodes[OP_STORE_IF],
 		&pr_opcodes[OP_STORE_FI],
+		&pr_opcodes[OP_STORE_P],
 
 		&pr_opcodes[OP_STOREP_F],
 		&pr_opcodes[OP_STOREP_V],
@@ -617,6 +606,7 @@ QCC_opcode_t *opcodeprioritized[TOP_PRIORITY+1][64] =
 		&pr_opcodes[OP_STOREP_I],
 		&pr_opcodes[OP_STOREP_IF],
 		&pr_opcodes[OP_STOREP_FI],
+		&pr_opcodes[OP_STOREP_P],
 
 		&pr_opcodes[OP_DIVSTORE_F],
 		&pr_opcodes[OP_DIVSTOREP_F],
@@ -950,6 +940,7 @@ static void QCC_FreeTemps(void)
 		if (t->used && !pr_error_count)	//don't print this after an error jump out.
 		{
 			QCC_PR_ParseWarning(WARN_DEBUGGING, "Temp was used\n");
+			t->used = false;
 		}
 		t = t->next;
 	}
@@ -1678,7 +1669,7 @@ QCC_def_t *QCC_PR_Statement ( QCC_opcode_t *op, QCC_def_t *var_a, QCC_def_t *var
 			numstatements++;
 			break;
 		default:
-			QCC_PR_ParseError(ERR_BADEXTENSION, "Opcode \"%s|%s\" not valid for target\n", op->name, op->opname);
+			QCC_PR_ParseError(ERR_BADEXTENSION, "Opcode \"%s|%s\" not valid for target", op->name, op->opname);
 			break;
 		}
 	}
@@ -2489,6 +2480,9 @@ QCC_def_t *QCC_PR_ParseFunctionCall (QCC_def_t *func)	//warning, the func could 
 				case ev_string:
 					e = QCC_PR_Statement(pr_opcodes+OP_LOAD_S, oself, e, NULL);
 					break;
+				case ev_integer:
+					e = QCC_PR_Statement(pr_opcodes+OP_LOAD_I, oself, e, NULL);
+					break;
 				case ev_float:
 					e = QCC_PR_Statement(pr_opcodes+OP_LOAD_F, oself, e, NULL);
 					break;
@@ -2959,7 +2953,7 @@ void QCC_PR_EmitClassFunctionTable(QCC_type_t *clas, QCC_type_t *childclas, QCC_
 }
 
 //take all functions in the type, and parent types, and make sure the links all work properly.
-int QCC_PR_EmitClassFromFunction(QCC_def_t *scope, char *tname)
+void QCC_PR_EmitClassFromFunction(QCC_def_t *scope, char *tname)
 {
 	QCC_type_t *basetype;
 
@@ -2986,6 +2980,8 @@ int QCC_PR_EmitClassFromFunction(QCC_def_t *scope, char *tname)
 	df->parm_size[0] = 1;
 	df->numparms = 1;
 	df->parm_start = numpr_globals;
+
+	G_FUNCTION(scope->ofs) = df - functions;
 
 	//locals here...
 	ed = QCC_PR_GetDef(type_entity, "ent", NULL, true, 1);
@@ -3025,9 +3021,6 @@ int QCC_PR_EmitClassFromFunction(QCC_def_t *scope, char *tname)
 
 	locals_end = numpr_globals + basetype->size;
 	df->locals = locals_end - df->parm_start;
-
-	//basetype
-	return df - functions;
 }
 /*
 ============
@@ -3118,6 +3111,7 @@ reloop:
 			numstatements--;	//remove the last statement			
 
 			nd = QCC_PR_Expression (TOP_PRIORITY);
+			QCC_PR_Expect("]");
 
 			if (d->type->size != 1)	//we need to multiply it to find the offset.						
 			{
@@ -3157,6 +3151,7 @@ reloop:
 		else
 		{
 			ao = QCC_PR_Expression (TOP_PRIORITY);
+			QCC_PR_Expect("]");
 
 			if (QCC_OPCodeValid(&pr_opcodes[OP_LOADA_F]) && d->type->size != 1)	//we need to multiply it to find the offset.
 			{
@@ -3223,8 +3218,7 @@ reloop:
 		{
 			if (qcc_targetformat == QCF_HEXEN2)
 			{	//hexen2 style retrieval, mixed with q1 style assignments...
-				QCC_PR_Expect("]");
-				if (QCC_PR_Check("="))
+				if (QCC_PR_Check("="))	//(hideous concept)
 				{
 					QCC_dstatement_t *st;
 					QCC_def_t *funcretr;
@@ -3239,8 +3233,10 @@ reloop:
 						QCC_PR_ParseErrorPrintDef(ERR_TYPEMISMATCH, d, "Type Mismatch on array assignment");
 
 					QCC_PR_Statement (&pr_opcodes[OP_CALL2H], funcretr, 0, &st);
-					st->a = d->ofs;
+					st->a = ao->ofs;
 					st->b = nd->ofs;
+					QCC_FreeTemp(ao);
+					QCC_FreeTemp(nd);
 					qcc_usefulstatement = true;
 
 					nd = &def_ret;
@@ -3276,6 +3272,8 @@ reloop:
 					nd = NULL;
 					break;
 				}
+				QCC_FreeTemp(d);
+				QCC_FreeTemp(ao);
 
 				d=nd;
 				d->type = newtype;
@@ -3291,9 +3289,8 @@ reloop:
 					if (def_ret.temp->used && ao != &def_ret)
 						QCC_PR_ParseWarning(0, "RETURN VALUE ALREADY IN USE");
 
-					QCC_PR_Statement (&pr_opcodes[OP_STORE_F], ao, &def_parms[0], NULL);
+					QCC_FreeTemp(QCC_PR_Statement (&pr_opcodes[OP_STORE_F], ao, &def_parms[0], NULL));
 
-					QCC_PR_Expect("]");
 					if (QCC_PR_Check("="))
 					{
 						funcretr = QCC_PR_GetDef(type_function, qcva("ArraySet*%s", d->name), NULL, true, 1);
@@ -3301,7 +3298,7 @@ reloop:
 						if (nd->type->type != d->type->type)
 							QCC_PR_ParseErrorPrintDef(ERR_TYPEMISMATCH, d, "Type Mismatch on array assignment");
 
-						QCC_PR_Statement (&pr_opcodes[OP_STORE_V], nd, &def_parms[1], NULL);
+						QCC_FreeTemp(QCC_PR_Statement (&pr_opcodes[OP_STORE_V], nd, &def_parms[1], NULL));
 						QCC_PR_Statement (&pr_opcodes[OP_CALL2], funcretr, 0, NULL);
 						qcc_usefulstatement = true;
 					}
@@ -3320,6 +3317,36 @@ reloop:
 				{
 					switch(newtype->type)
 					{
+					case ev_pointer:
+						if (d->arraysize>1)	//use the array
+						{
+							nd = QCC_PR_Statement(&pr_opcodes[OP_LOADA_I], d, QCC_PR_Statement (&pr_opcodes[OP_CONV_FTOI], ao, 0, NULL), NULL);	//get pointer to precise def.
+							nd->type = d->type->aux_type;
+						}
+						else
+						{	//dereference the pointer.
+							switch(newtype->aux_type->type)
+							{
+							case ev_pointer:
+								nd = QCC_PR_Statement(&pr_opcodes[OP_LOADP_I], d, QCC_PR_Statement (&pr_opcodes[OP_CONV_FTOI], ao, 0, NULL), NULL);	//get pointer to precise def.
+								nd->type = d->type->aux_type;
+								break;
+							case ev_float:
+								nd = QCC_PR_Statement(&pr_opcodes[OP_LOADP_F], d, QCC_PR_Statement (&pr_opcodes[OP_CONV_FTOI], ao, 0, NULL), NULL);	//get pointer to precise def.
+								nd->type = d->type->aux_type;
+								break;
+							case ev_integer:
+								nd = QCC_PR_Statement(&pr_opcodes[OP_LOADP_I], d, QCC_PR_Statement (&pr_opcodes[OP_CONV_FTOI], ao, 0, NULL), NULL);	//get pointer to precise def.
+								nd->type = d->type->aux_type;
+								break;
+							default:
+								QCC_PR_ParseError(ERR_NOVALIDOPCODES, "No op available. Try assembler");
+								nd = NULL;
+								break;
+							}
+						}
+						break;
+
 					case ev_float:
 						nd = QCC_PR_Statement(&pr_opcodes[OP_LOADA_F], d, QCC_PR_Statement (&pr_opcodes[OP_CONV_FTOI], ao, 0, NULL), NULL);	//get pointer to precise def.
 						break;
@@ -3365,7 +3392,6 @@ reloop:
 		else
 			QCC_PR_ParseError(ERR_BADARRAYINDEXTYPE, "Array offset is not of integer or float type");
 		
-		QCC_PR_Expect("]");
 		d->type = newtype;
 		goto reloop;
 	}
@@ -3573,6 +3599,8 @@ reloop:
 					return QCC_PR_Statement(&pr_opcodes[OP_LOAD_ENT], d, field, NULL);
 				}
 			}
+			else
+				QCC_PR_IncludeChunk(".", false, NULL);
 		}
 	}	
 
@@ -3660,10 +3688,29 @@ QCC_def_t *QCC_PR_Term (void)
 
 		else if (QCC_PR_Check ("&"))
 		{
+			int st = numstatements;
 			e = QCC_PR_Expression (NOT_PRIORITY);
 			t = e->type->type;
 
+			if (st != numstatements)
+				//woo, something like ent.field?
+			{
+				if ((unsigned)(statements[numstatements-1].op - OP_LOAD_F) < 6 || statements[numstatements-1].op == OP_LOAD_I || statements[numstatements-1].op == OP_LOAD_P)
+				{
+//					QCC_PR_ParseWarning(0, "debug: &ent.field");
+					e->type = QCC_PR_PointerType(e->type);
+					return e;
+				}
+				else	//this is a restriction that could be lifted, I just want to make sure that I got all the bits first.
+				{
+					QCC_PR_ParseError (ERR_BADNOTTYPE, "type mismatch for '&' Must be singular expression or field reference");
+					return e;
+				}
+			}
+//			QCC_PR_ParseWarning(0, "debug: &global");
+
 			e2 = QCC_PR_Statement (&pr_opcodes[OP_GLOBALADDRESS], e, 0, NULL);
+			e2->type = QCC_PR_PointerType(e->type);
 			return e2;
 		}
 		
@@ -3832,7 +3879,7 @@ QCC_def_t *QCC_PR_Expression (int priority)
 			if ( op->associative!=ASSOC_LEFT )
 			{
 			// if last statement is an indirect, change it to an address of
-				if (!simplestore && ((unsigned)(statements[numstatements-1].op - OP_LOAD_F) < 6 || statements[numstatements-1].op == OP_LOAD_I) && statements[numstatements-1].c == e->ofs)
+				if (!simplestore && ((unsigned)(statements[numstatements-1].op - OP_LOAD_F) < 6 || statements[numstatements-1].op == OP_LOAD_I || statements[numstatements-1].op == OP_LOAD_P) && statements[numstatements-1].c == e->ofs)
 				{
 					qcc_usefulstatement=true;
 					statements[numstatements-1].op = OP_ADDRESS;
@@ -3882,6 +3929,9 @@ QCC_def_t *QCC_PR_Expression (int priority)
 			type_a = e->type->type;
 			type_b = e2->type->type;
 
+//			if (type_a == ev_pointer && type_b == ev_pointer)
+//				QCC_PR_ParseWarning(0, "Debug: pointer op pointer");
+
 			if (op->name[0] == '.')// field access gets type from field
 			{
 				if (e2->type->aux_type)
@@ -3912,7 +3962,11 @@ QCC_def_t *QCC_PR_Expression (int priority)
 						{//assignment
 							if (op->type_a == &type_pointer)	//ent var
 							{
-								if (e->type->type != ev_pointer || e->type->aux_type->type != (*op->type_b)->type)	//if e isn't a pointer to a type_b
+								if (e->type->type != ev_pointer)
+									c = -200;	//don't cast to a pointer.
+								else if ((*op->type_c)->type == ev_void && op->type_b == &type_pointer && e2->type->type == ev_pointer)
+									c = 0;	//generic pointer... fixme: is this safe? make sure both sides are equivelent
+								else if (e->type->aux_type->type != (*op->type_b)->type)	//if e isn't a pointer to a type_b
 									c = -200;	//don't let the conversion work
 								else
 									c = QCC_canConv(e2, (*op->type_c)->type);
@@ -3935,8 +3989,8 @@ QCC_def_t *QCC_PR_Expression (int priority)
 							}
 							else
 							{
-							c=QCC_canConv(e, (*op->type_a)->type);
-							c+=QCC_canConv(e2, (*op->type_b)->type);
+								c=QCC_canConv(e, (*op->type_a)->type);
+								c+=QCC_canConv(e2, (*op->type_b)->type);
 							}
 						}
 
@@ -4678,9 +4732,12 @@ void QCC_PR_ParseStatement (void)
 
 	if (keyword_asm && QCC_PR_Check("asm"))
 	{
-		QCC_PR_Expect ("{");
-
-		while (!QCC_PR_Check("}"))
+		if (QCC_PR_Check("{"))
+		{
+			while (!QCC_PR_Check("}"))
+				QCC_PR_ParseAsm ();
+		}
+		else
 			QCC_PR_ParseAsm ();
 		return;
 	}
@@ -5295,14 +5352,16 @@ void QCC_CheckForDeadAndMissingReturns(int first, int last, int rettype)
 			st++;
 			if (st == last)
 				continue;	//erm... end of function doesn't count as unreachable.
-/*
-			if (statements[st].op == OP_GOTO)	//inefficient compiler, we can ignore this.
-				continue;
-			if (statements[st].op == OP_DONE)	//inefficient compiler, we can ignore this.
-				continue;
-			if (statements[st].op == OP_RETURN)	//inefficient compiler, we can ignore this.
-				continue;
-*/
+
+			if (!opt_compound_jumps)
+			{	//we can ignore single statements like these without compound jumps (compound jumps correctly removes all).
+				if (statements[st].op == OP_GOTO)	//inefficient compiler, we can ignore this.
+					continue;
+				if (statements[st].op == OP_DONE)	//inefficient compiler, we can ignore this.
+					continue;
+				if (statements[st].op == OP_RETURN)	//inefficient compiler, we can ignore this.
+					continue;
+			}
 
 			//make sure something goes to just after this return.
 			for (st2 = first; st2 < last; st2++)
@@ -5654,6 +5713,9 @@ QCC_function_t *QCC_PR_ParseImmediateStatements (QCC_type_t *type)
 		locals_start = locals_end = OFS_PARM0; //hmm...
 		return f;
 	}
+
+	if (type->num_parms < 0)
+		QCC_PR_ParseError (ERR_FUNCTIONWITHVARGS, "QC function with variable arguments and function body");
 	
 	f->builtin = 0;
 //
@@ -5729,7 +5791,6 @@ QCC_function_t *QCC_PR_ParseImmediateStatements (QCC_type_t *type)
 	if (QCC_PR_Check ("asm"))
 	{
 		QCC_PR_Expect ("{");
-
 		while (!QCC_PR_Check("}"))
 			QCC_PR_ParseAsm ();
 	}
@@ -5887,8 +5948,8 @@ void QCC_PR_ArrayRecurseDivideUsingVectors(QCC_def_t *array, QCC_def_t *index, i
 
 		if (max-min>4)
 		{
-			eq = QCC_PR_Statement(pr_opcodes+OP_GE, index, QCC_MakeFloatDef((float)mid), NULL);
-			QCC_PR_Statement(pr_opcodes+OP_IF, eq, 0, &st);
+			eq = QCC_PR_Statement(pr_opcodes+OP_LT, index, QCC_MakeFloatDef((float)mid), NULL);
+			QCC_PR_Statement(pr_opcodes+OP_IFNOT, eq, 0, &st);
 		}
 		else
 			st = NULL;
@@ -5907,6 +5968,8 @@ QCC_def_t *QCC_PR_EmitArrayGetVector(QCC_def_t *array)
 
 	func = QCC_PR_GetDef(type_function, qcva("ArrayGetVec*%s", array->name), NULL, true, 1);
 
+	pr_scope = func;
+
 	df = &functions[numfunctions];
 	numfunctions++;
 
@@ -5917,22 +5980,24 @@ QCC_def_t *QCC_PR_EmitArrayGetVector(QCC_def_t *array)
 	df->numparms = 1;
 	df->parm_start = numpr_globals;
 	index = QCC_PR_GetDef(type_float, "index___", func, true, 1);
+	index->references++;
+	temp = QCC_PR_GetDef(type_float, "div3___", func, true, 1);
 	locals_end = numpr_globals;
 	df->locals = locals_end - df->parm_start;
-	temp = QCC_GetTemp(type_float);
 	QCC_PR_Statement3(pr_opcodes+OP_DIV_F, index, QCC_MakeFloatDef(3), temp);
-	QCC_PR_Statement3(pr_opcodes+OP_BITAND, temp, temp, temp);
+	QCC_PR_Statement3(pr_opcodes+OP_BITAND, temp, temp, temp);//round down to int
 
-	QCC_PR_ArrayRecurseDivideUsingVectors(array, index, 0, (array->arraysize+2)/3);	//round up
+	QCC_PR_ArrayRecurseDivideUsingVectors(array, temp, 0, (array->arraysize+2)/3);	//round up
 
-	QCC_PR_Statement(pr_opcodes+OP_DONE, QCC_MakeFloatDef(0), 0, NULL);
+	QCC_PR_Statement(pr_opcodes+OP_RETURN, QCC_MakeFloatDef(0), 0, NULL);	//err... we didn't find it, give up.
+	QCC_PR_Statement(pr_opcodes+OP_DONE, 0, 0, NULL);	//err... we didn't find it, give up.
 
 	G_FUNCTION(func->ofs) = df - functions;
 	func->initialized = 1;
 	return func;
 }
 
-func_t QCC_PR_EmitArrayGetFunction(char *arrayname)
+void QCC_PR_EmitArrayGetFunction(QCC_def_t *scope, char *arrayname)
 {
 	QCC_def_t *vectortrick;
 	QCC_dfunction_t *df;
@@ -5950,23 +6015,24 @@ func_t QCC_PR_EmitArrayGetFunction(char *arrayname)
 	else
 		vectortrick = NULL;
 
+	pr_scope = scope;
+
 	df = &functions[numfunctions];
 	numfunctions++;
 
 	df->s_file = 0;
-	df->s_name = 0;
+	df->s_name = QCC_CopyString(scope->name);
 	df->first_statement = numstatements;
 	df->parm_size[0] = 1;
 	df->numparms = 1;
 	df->parm_start = numpr_globals;
 	index = QCC_PR_GetDef(type_float, "indexg___", def, true, 1);
-	locals_end = numpr_globals;
-	df->locals = locals_end - df->parm_start;
+
+	G_FUNCTION(scope->ofs) = df - functions;
 
 	if (vectortrick)
 	{
 		QCC_def_t *div3, *ret;
-		def->type = type_vector;
 
 		eq = QCC_PR_Statement(pr_opcodes+OP_GE, index, QCC_MakeFloatDef((float)def->arraysize), NULL);
 		QCC_PR_Statement(pr_opcodes+OP_IFNOT, eq, 0, &st);
@@ -5977,10 +6043,11 @@ func_t QCC_PR_EmitArrayGetFunction(char *arrayname)
 		div3 = QCC_PR_Statement(pr_opcodes+OP_DIV_F, index, QCC_MakeFloatDef(3), NULL);
 		QCC_PR_Statement3(pr_opcodes+OP_BITAND, div3, div3, div3);
 
-		QCC_PR_Statement3(pr_opcodes+OP_STORE_F, div3, &def_parms[0], NULL);
+		QCC_PR_Statement3(pr_opcodes+OP_STORE_F, index, &def_parms[0], NULL);
 		QCC_PR_Statement3(pr_opcodes+OP_CALL1, vectortrick, NULL, NULL);
 		vectortrick->references++;
-		ret = QCC_GetTemp(type_vector);
+		ret = QCC_PR_GetDef(type_vector, "vec__", pr_scope, true, 1);
+		ret->references+=4;
 		QCC_PR_Statement3(pr_opcodes+OP_STORE_V, &def_ret, ret, NULL);
 
 		div3 = QCC_PR_Statement(pr_opcodes+OP_MUL_F, div3, QCC_MakeFloatDef(3), NULL);
@@ -6012,9 +6079,13 @@ func_t QCC_PR_EmitArrayGetFunction(char *arrayname)
 
 	QCC_PR_Statement(pr_opcodes+OP_RETURN, QCC_MakeFloatDef(0), 0, NULL);
 
+	QCC_PR_Statement(pr_opcodes+OP_DONE, 0, 0, NULL);
+
+	locals_end = numpr_globals;
+	df->locals = locals_end - df->parm_start;
 
 
-	return df - functions;
+	QCC_WriteAsmFunction(pr_scope, df->first_statement, df->parm_start);
 }
 
 void QCC_PR_ArraySetRecurseDivide(QCC_def_t *array, QCC_def_t *index, QCC_def_t *value, int min, int max)
@@ -6051,18 +6122,19 @@ void QCC_PR_ArraySetRecurseDivide(QCC_def_t *array, QCC_def_t *index, QCC_def_t 
 	}
 }
 
-func_t QCC_PR_EmitArraySetFunction(char *arrayname)
+void QCC_PR_EmitArraySetFunction(QCC_def_t *scope, char *arrayname)
 {
 	QCC_dfunction_t *df;
 	QCC_def_t *def, *index, *value;
 
 	def = QCC_PR_GetDef(NULL, arrayname, NULL, false, 0);
+	pr_scope = scope;
 
 	df = &functions[numfunctions];
 	numfunctions++;
 
 	df->s_file = 0;
-	df->s_name = 0;
+	df->s_name = QCC_CopyString(scope->name);
 	df->first_statement = numstatements;
 	df->parm_size[0] = 1;
 	df->parm_size[1] = def->type->size;
@@ -6073,6 +6145,8 @@ func_t QCC_PR_EmitArraySetFunction(char *arrayname)
 	locals_end = numpr_globals;
 	df->locals = locals_end - df->parm_start;
 
+	G_FUNCTION(scope->ofs) = df - functions;
+
 	QCC_PR_Statement3(pr_opcodes+OP_BITAND, index, index, index);
 	QCC_PR_ArraySetRecurseDivide(def, index, value, 0, def->arraysize);
 
@@ -6080,7 +6154,7 @@ func_t QCC_PR_EmitArraySetFunction(char *arrayname)
 
 
 
-	return df - functions;
+	QCC_WriteAsmFunction(pr_scope, df->first_statement, df->parm_start);
 }
 
 //register a def, and all of it's sub parts.
@@ -6239,12 +6313,12 @@ QCC_def_t *QCC_PR_DummyDef(QCC_type_t *type, char *name, QCC_def_t *scope, int a
 			first->references++;	//anything above needs to be left in, and so warning about not using it is just going to pee people off.
 		if (arraysize <= 1)
 			first->constant = false;
-		if (pr_scope)
+		if (scope)
 			Hash_Add(&localstable, first->name, first);
 		else
 			Hash_Add(&globalstable, first->name, first);
 
-		if (!pr_scope && asmfile)
+		if (!scope && asmfile)
 			fprintf(asmfile, "%s %s;\n", TypeName(first->type), first->name);
 	}
 
@@ -6526,6 +6600,7 @@ void QCC_PR_ParseDefs (char *classname)
 	pbool noref = false;
 	pbool nosave = false;
 	pbool allocatenew = true;
+	int ispointer;
 	gofs_t oldglobals;
 	int arraysize;
 
@@ -6683,7 +6758,14 @@ void QCC_PR_ParseDefs (char *classname)
 
 	do
 	{
-		if (QCC_PR_Check (";"))
+		if (QCC_PR_Check ("*"))
+		{
+			ispointer = 1;
+			while(QCC_PR_Check ("*"))
+				ispointer++;
+			name = QCC_PR_ParseName ();
+		}
+		else if (QCC_PR_Check (";"))
 		{
 			if (type->type == ev_field && (type->aux_type->type == ev_union || type->aux_type->type == ev_struct))
 			{
@@ -6696,9 +6778,13 @@ void QCC_PR_ParseDefs (char *classname)
 //			}
 			QCC_PR_ParseError (ERR_TYPEWITHNONAME, "type with no name");
 			name = NULL;
+			ispointer = false;
 		}
 		else
+		{
 			name = QCC_PR_ParseName ();
+			ispointer = false;
+		}
 
 		if (QCC_PR_Check("::") && !classname)
 		{
@@ -6745,7 +6831,20 @@ void QCC_PR_ParseDefs (char *classname)
 			pr_classtype = NULL;
 
 		oldglobals = numpr_globals;
-		def = QCC_PR_GetDef (type, name, pr_scope, allocatenew, arraysize);
+
+		if (ispointer)
+		{
+			parm = type;
+			while(ispointer)
+			{
+				ispointer--;
+				parm = QCC_PointerTypeTo(parm);
+			}
+
+			def = QCC_PR_GetDef (parm, name, pr_scope, allocatenew, arraysize);
+		}
+		else
+			def = QCC_PR_GetDef (type, name, pr_scope, allocatenew, arraysize);
 
 		if (!def)
 			QCC_PR_ParseError(ERR_NOTANAME, "%s is not part of class %s", name, classname);
@@ -6770,10 +6869,17 @@ void QCC_PR_ParseDefs (char *classname)
 // check for an initialization
 		if (type->type == ev_function && (pr_scope || !constant))
 		{
-			def->initialized = 1;	//fake function
-			G_FUNCTION(def->ofs) = 0;
 			if ( QCC_PR_Check ("=") )
 				QCC_PR_ParseError (ERR_INITIALISEDLOCALFUNCTION, "local functions may only be used as pointers");
+
+			d = def;	//apply to ALL elements
+			while(d)
+			{
+				d->initialized = 1;	//fake function
+				G_FUNCTION(d->ofs) = 0;
+				d = d->next;
+			}
+
 			continue;
 		}
 

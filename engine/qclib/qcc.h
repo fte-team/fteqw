@@ -606,6 +606,7 @@ enum {
 	ERR_BADIMMEDIATETYPE,
 	ERR_NOOUTPUT,
 	ERR_NOTAFUNCTION,
+	ERR_FUNCTIONWITHVARGS,
 	ERR_BADHEX,
 	ERR_UNKNOWNPUCTUATION,
 	ERR_EXPECTED,
@@ -660,6 +661,7 @@ enum {
 	ERR_WRONGSUBTYPE,
 	ERR_EOF,
 	ERR_NOPRECOMPILERIF,
+	ERR_NOENDIF,
 	ERR_HASHERROR,
 	ERR_NOTATYPE,
 	ERR_TOOMANYPACKFILES,
@@ -738,9 +740,9 @@ extern	QCC_string_t	s_file;			// filename for function definition
 
 extern	QCC_def_t	def_ret, def_parms[MAX_PARMS];
 
-func_t QCC_PR_EmitArrayGetFunction(char *arrayname);
-func_t QCC_PR_EmitArraySetFunction(char *arrayname);
-int QCC_PR_EmitClassFromFunction(QCC_def_t *scope, char *tname);
+void QCC_PR_EmitArrayGetFunction(QCC_def_t *scope, char *arrayname);
+void QCC_PR_EmitArraySetFunction(QCC_def_t *scope, char *arrayname);
+void QCC_PR_EmitClassFromFunction(QCC_def_t *scope, char *tname);
 
 //=============================================================================
 

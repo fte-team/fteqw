@@ -26,13 +26,13 @@ void FS_CloseFromMem(void *mem);
 
 struct qcc_includechunk_s *currentchunk;
 
-unsigned int MAX_REGS		= 32768;
+unsigned int MAX_REGS;
 
-int	MAX_STRINGS		= 1000000;
-int	MAX_GLOBALS		= 16384;
-int	MAX_FIELDS		= 1024;
-int	MAX_STATEMENTS	= 65536;
-int	MAX_FUNCTIONS	= 8192;
+int	MAX_STRINGS;
+int	MAX_GLOBALS;
+int	MAX_FIELDS;
+int	MAX_STATEMENTS;
+int	MAX_FUNCTIONS;
 int MAX_CONSTANTS;
 int max_temps;
 
@@ -1486,15 +1486,18 @@ int QCC_PR_FinishCompilation (void)
 			{
 				if (!strncmp(d->name, "ArrayGet*", 9))
 				{
-					G_FUNCTION(d->ofs) = QCC_PR_EmitArrayGetFunction(d->name+9);
+					QCC_PR_EmitArrayGetFunction(d, d->name+9);
+					pr_scope = NULL;
 				}
 				else if (!strncmp(d->name, "ArraySet*", 9))
 				{
-					G_FUNCTION(d->ofs) = QCC_PR_EmitArraySetFunction(d->name+9);
+					QCC_PR_EmitArraySetFunction(d, d->name+9);
+					pr_scope = NULL;
 				}
 				else if (!strncmp(d->name, "Class*", 6))
 				{
-					G_FUNCTION(d->ofs) = QCC_PR_EmitClassFromFunction(d, d->name+6);
+					QCC_PR_EmitClassFromFunction(d, d->name+6);
+					pr_scope = NULL;
 				}
 				else
 				{
@@ -1507,6 +1510,7 @@ int QCC_PR_FinishCompilation (void)
 				bodylessfuncs = true;
 		}
 	}
+	pr_scope = NULL;
 
 	return !errors;
 }
@@ -2474,7 +2478,7 @@ void QCC_main (int argc, char **argv)	//as part of the quake engine
 
 	MAX_REGS		= 65536;
 	MAX_STRINGS		= 1000000;
-	MAX_GLOBALS		= 16384;
+	MAX_GLOBALS		= 32768;
 	MAX_FIELDS		= 2048;
 	MAX_STATEMENTS	= 0x20000;
 	MAX_FUNCTIONS	= 16384;

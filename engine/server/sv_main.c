@@ -3056,7 +3056,7 @@ void SV_InitLocal (void)
 	Info_SetValueForStarKey (svs.info, "*version", va("%s %4.2f-%i", DISTRIBUTION, VERSION, build_number()), MAX_SERVERINFO_STRING);
 #endif
 
-	Info_SetValueForStarKey (svs.info, "*z_ext", va("%i", SUPPORTED_EXTENSIONS), MAX_SERVERINFO_STRING);
+	Info_SetValueForStarKey (svs.info, "*z_ext", va("%i", SUPPORTED_Z_EXTENSIONS), MAX_SERVERINFO_STRING);
 
 	// init fraglog stuff
 	svs.logsequence = 1;
@@ -3429,6 +3429,8 @@ void SV_Init (quakeparms_t *parms)
 
 		Memory_Init (parms->membase, parms->memsize);		
 
+		COM_ParsePlusSets();
+
 		Cbuf_Init ();
 		Cmd_Init ();
 #ifndef SERVERONLY
@@ -3475,8 +3477,9 @@ void SV_Init (quakeparms_t *parms)
 		Cbuf_InsertText ("exec server.cfg\nexec ftesrv.cfg\n", RESTRICT_LOCAL);	
 		
 	// process command line arguments
-		Cbuf_AddText("stuffcmds", RESTRICT_LOCAL);
 		Cbuf_Execute ();
+
+		Cmd_StuffCmds();
 
 	// if a map wasn't specified on the command line, spawn start.map
 		if (sv.state == ss_dead)

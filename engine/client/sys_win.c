@@ -34,6 +34,117 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 #endif
 
 
+
+
+
+static HINSTANCE	game_library;
+
+/*
+=================
+Sys_UnloadGame
+=================
+*/
+void Sys_UnloadGame (void)
+{
+	if (!FreeLibrary (game_library))
+		Sys_Error ("FreeLibrary failed for game library");
+	game_library = NULL;
+}
+
+/*
+=================
+Sys_GetGameAPI
+
+Loads the game dll
+=================
+*/
+void *Sys_GetGameAPI (void *parms)
+{
+	void	*(*GetGameAPI) (void *);
+	char	name[MAX_OSPATH];
+	char	*path;
+	char	cwd[MAX_OSPATH];
+#if defined _M_IX86
+	const char *gamename = "gamex86.dll";
+
+#ifdef NDEBUG
+	const char *debugdir = "release";
+#else
+	const char *debugdir = "debug";
+#endif
+
+#elif defined _M_ALPHA
+	const char *gamename = "gameaxp.dll";
+
+#ifdef NDEBUG
+	const char *debugdir = "releaseaxp";
+#else
+	const char *debugdir = "debugaxp";
+#endif
+
+#endif
+
+	if (game_library)
+		Sys_Error ("Sys_GetGameAPI without Sys_UnloadingGame");
+
+	// check the current debug directory first for development purposes
+#ifdef _WIN32
+	GetCurrentDirectory(sizeof(cwd), cwd);
+#else
+	_getcwd (cwd, sizeof(cwd));
+#endif
+	_snprintf (name, sizeof(name), "%s/%s/%s", cwd, debugdir, gamename);
+	game_library = LoadLibrary ( name );
+	if (game_library)
+	{
+		Con_DPrintf ("LoadLibrary (%s)\n", name);
+	}
+	else
+	{
+#ifdef DEBUG
+		// check the current directory for other development purposes
+		_snprintf (name, sizeof(name), "%s/%s", cwd, gamename);
+		game_library = LoadLibrary ( name );
+		if (game_library)
+		{
+			Con_DPrintf ("LoadLibrary (%s)\n", name);
+		}
+		else
+#endif
+		{
+			// now run through the search paths
+			path = NULL;
+			while (1)
+			{
+				path = COM_NextPath (path);
+				if (!path)
+					return NULL;		// couldn't find one anywhere
+				_snprintf (name, sizeof(name), "%s/%s", path, gamename);
+				game_library = LoadLibrary (name);
+				if (game_library)
+				{
+					Con_DPrintf ("LoadLibrary (%s)\n",name);
+					break;
+				}
+			}
+		}
+	}
+
+	GetGameAPI = (void *)GetProcAddress (game_library, "GetGameAPI");
+	if (!GetGameAPI)
+	{
+		Sys_UnloadGame ();		
+		return NULL;
+	}
+
+	return GetGameAPI (parms);
+}
+
+
+
+
+
+
 #define MINIMUM_WIN_MEMORY	0x0800000
 #define MAXIMUM_WIN_MEMORY	0x1000000
 
@@ -60,13 +171,13 @@ void Sys_PushFPCW_SetHigh (void);
 
 void VARGS Sys_DebugLog(char *file, char *fmt, ...)
 {
-    va_list argptr; 
-    static char data[1024];
-    int fd;
+	FILE *fd;
+	va_list argptr; 
+	static char data[1024];
     
-    va_start(argptr, fmt);
-    _vsnprintf(data, sizeof(data)-1, fmt, argptr);
-    va_end(argptr);
+	va_start(argptr, fmt);
+	_vsnprintf(data, sizeof(data)-1, fmt, argptr);
+	va_end(argptr);
 
 #if defined(CRAZYDEBUGGING) && CRAZYDEBUGGING > 1
 	{
@@ -89,9 +200,9 @@ void VARGS Sys_DebugLog(char *file, char *fmt, ...)
 		send(sock, data, strlen(data), 0);
 	}
 #endif
-    fd = open(file, O_WRONLY | O_CREAT | O_APPEND, 0666);
-    write(fd, data, strlen(data));
-    close(fd);
+	fd = fopen(file, "wb");
+	fprintf(fd, "%s", data);
+	fclose(fd);
 };
 
 int *debug;

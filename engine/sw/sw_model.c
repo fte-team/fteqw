@@ -225,8 +225,8 @@ model_t *SWMod_FindName (char *name)
 	int		i;
 	model_t	*mod;
 	
-	if (!name[0])
-		Sys_Error ("Mod_ForName: NULL name");
+//	if (!name[0])	//this is allowed to happen for q2 cinematics. :(
+//		Sys_Error ("Mod_ForName: NULL name");
 		
 //
 // search the currently loaded models
@@ -293,6 +293,15 @@ model_t *SWMod_LoadModel (model_t *mod, qboolean crash)
 		}
 		else
 			return mod;		// not cached at all
+	}
+
+	if (!*mod->name)
+	{
+		loadmodel = mod;
+		mod->needload = false;
+		Mod_LoadQ2BrushModel(mod, NULL);
+		R_DefaultTrail(mod);
+		return mod;
 	}
 
 //

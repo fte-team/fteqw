@@ -18,6 +18,7 @@ typedef struct menuedict_s
 
 #define	RETURN_SSTRING(s) (*(char **)&((int *)pr_globals)[OFS_RETURN] = PR_SetString(prinst, s))	//static - exe will not change it.
 char *PF_TempStr(void);
+#define MAXTEMPBUFFERLEN	4096
 
 int menuentsize;
 
@@ -808,6 +809,45 @@ void PF_gethostcachestring (progfuncs_t *prinst, struct globalvars_s *pr_globals
 	G_INT(OFS_RETURN) = 0;
 }
 
+//void 	resethostcachemasks(void) = #615;
+void PF_M_resethostcachemasks(progfuncs_t *prinst, struct globalvars_s *pr_globals)
+{
+}
+//void 	sethostcachemaskstring(float mask, float fld, string str, float op) = #616;
+void PF_M_sethostcachemaskstring(progfuncs_t *prinst, struct globalvars_s *pr_globals)
+{
+}
+//void	sethostcachemasknumber(float mask, float fld, float num, float op) = #617;
+void PF_M_sethostcachemasknumber(progfuncs_t *prinst, struct globalvars_s *pr_globals)
+{
+}
+//void 	resorthostcache(void) = #618;
+void PF_M_resorthostcache(progfuncs_t *prinst, struct globalvars_s *pr_globals)
+{
+}
+//void	sethostcachesort(float fld, float descending) = #619;
+void PF_M_sethostcachesort(progfuncs_t *prinst, struct globalvars_s *pr_globals)
+{
+}
+//void	refreshhostcache(void) = #620;
+void PF_M_refreshhostcache(progfuncs_t *prinst, struct globalvars_s *pr_globals)
+{
+}
+//float	gethostcachenumber(float fld, float hostnr) = #621;
+void PF_M_gethostcachenumber(progfuncs_t *prinst, struct globalvars_s *pr_globals)
+{
+}
+//float	gethostcacheindexforkey(string key) = #622;
+void PF_M_gethostcacheindexforkey(progfuncs_t *prinst, struct globalvars_s *pr_globals)
+{
+}
+//void	addwantedhostcachekey(string key) = #623;
+void PF_M_addwantedhostcachekey(progfuncs_t *prinst, struct globalvars_s *pr_globals)
+{
+}
+
+
+
 void PF_localsound (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
 	char *soundname = PR_GetStringOfs(prinst, OFS_PARM0);
@@ -911,10 +951,157 @@ void PF_ftoe(progfuncs_t *prinst, struct globalvars_s *pr_globals)
 	RETURN_EDICT(prinst, EDICT_NUM(prinst, entnum));
 }
 
-void PF_IsNull(progfuncs_t *prinst, struct globalvars_s *pr_globals)
+void PF_IsNotNull(progfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
 	int str = G_INT(OFS_PARM0);
-	G_FLOAT(OFS_RETURN) = !str;
+	G_FLOAT(OFS_RETURN) = !!str;
+}
+
+void PF_StringToKeyNum(progfuncs_t *prinst, struct globalvars_s *pr_globals)
+{
+	int i;
+	int modifier;
+	char *s;
+
+	s = PR_GetStringOfs(prinst, OFS_PARM1);
+	i = Key_StringToKeynum(s, &modifier);
+	if (i < 0 || modifier != ~0)
+	{
+		G_FLOAT(OFS_RETURN) = -1;
+		return;
+	}
+	i = MP_TranslateFTEtoDPCodes(i);
+	G_FLOAT(OFS_RETURN) = i;
+}
+
+
+//float 	altstr_count(string str) = #82;
+//returns number of single quoted strings in the string.
+void PF_altstr_count(progfuncs_t *prinst, struct globalvars_s *pr_globals)
+{
+	char *s;
+	int count = 0;
+	s = PR_GetStringOfs(prinst, OFS_PARM0);
+	for (;*s;s++)
+	{
+		if (*s == '\\')
+		{
+			if (!*++s)
+				break;
+		}
+		else if (*s == '\'')
+			count++;
+	}
+	G_FLOAT(OFS_RETURN) = count/2;
+}
+//string  altstr_prepare(string str) = #83;
+void PF_altstr_prepare(progfuncs_t *prinst, struct globalvars_s *pr_globals)
+{
+	char *outstr, *out;
+	char *instr, *in;
+	int size;
+
+//	VM_SAFEPARMCOUNT( 1, VM_altstr_prepare );
+
+	instr = PR_GetStringOfs(prinst, OFS_PARM0 );
+	//VM_CheckEmptyString( instr );
+	outstr = PF_TempStr();
+
+	for( out = outstr, in = instr, size = MAXTEMPBUFFERLEN - 1 ; size && *in ; size--, in++, out++ )
+		if( *in == '\'' ) {
+			*out++ = '\\';
+			*out = '\'';
+			size--;
+		} else
+			*out = *in;
+	*out = 0;
+
+	G_INT( OFS_RETURN ) = (int)PR_SetString( prinst, outstr );
+}
+//string  altstr_get(string str, float num) = #84;
+void PF_altstr_get(progfuncs_t *prinst, struct globalvars_s *pr_globals)
+{
+	char *altstr, *pos, *outstr, *out;
+	int count, size;
+
+//	VM_SAFEPARMCOUNT( 2, VM_altstr_get );
+
+	altstr = PR_GetStringOfs(prinst, OFS_PARM0 );
+	//VM_CheckEmptyString( altstr );
+
+	count = G_FLOAT( OFS_PARM1 );
+	count = count * 2 + 1;
+
+	for( pos = altstr ; *pos && count ; pos++ )
+		if( *pos == '\\' && !*++pos )
+			break;
+		else if( *pos == '\'' )
+			count--;
+
+	if( !*pos ) {
+		G_INT( OFS_RETURN ) = (int)PR_SetString( prinst, "" );
+		return;
+	}
+
+    outstr = PF_TempStr();
+	for( out = outstr, size = MAXTEMPBUFFERLEN - 1 ; size && *pos ; size--, pos++, out++ )
+		if( *pos == '\\' ) {
+			if( !*++pos )
+				break;
+			*out = *pos;
+			size--;
+		} else if( *pos == '\'' )
+			break;
+		else
+			*out = *pos;
+
+	*out = 0;
+	G_INT( OFS_RETURN ) = (int)PR_SetString( prinst, outstr );
+}
+//string  altstr_set(string str, float num, string set) = #85
+void PF_altstr_set(progfuncs_t *prinst, struct globalvars_s *pr_globals)
+{
+	int num;
+	char *altstr, *str;
+	char *in;
+	char *outstr, *out;
+
+//	VM_SAFEPARMCOUNT( 3, VM_altstr_set );
+
+	altstr = PR_GetStringOfs(prinst, OFS_PARM0 );
+	//VM_CheckEmptyString( altstr );
+
+	num = G_FLOAT( OFS_PARM1 );
+
+	str = PR_GetStringOfs(prinst, OFS_PARM2 );
+	//VM_CheckEmptyString( str );
+
+	outstr = out = PF_TempStr();
+	for( num = num * 2 + 1, in = altstr; *in && num; *out++ = *in++ )
+		if( *in == '\\' && !*++in )
+			break;
+		else if( *in == '\'' )
+			num--;
+
+	if( !in ) {
+		G_INT( OFS_RETURN ) = (int)PR_SetString( prinst, "" );
+		return;
+	}
+	// copy set in
+	for( ; *str; *out++ = *str++ );
+	// now jump over the old contents
+	for( ; *in ; in++ )
+		if( *in == '\'' || (*in == '\\' && !*++in) )
+			break;
+
+	if( !in ) {
+		G_INT( OFS_RETURN ) = (int)PR_SetString( prinst, "" );
+		return;
+	}
+
+	strcpy( out, in );
+	G_INT( OFS_RETURN ) = (int)PR_SetString( prinst, outstr );
+
 }
 
 builtin_t menu_builtins[] = {
@@ -1009,11 +1196,14 @@ builtin_t menu_builtins[] = {
 	PF_etof,//9				//float 	etof(entity ent) = #79;
 //80
 	PF_ftoe,//10
-	PF_IsNull,
-	skip1
-	skip1
-	skip1
-	skip1
+	PF_IsNotNull,
+
+
+	PF_altstr_count, //float 	altstr_count(string str) = #82;
+	PF_altstr_prepare, //string  altstr_prepare(string str) = #83;
+	PF_altstr_get, //string  altstr_get(string str, float num) = #84;
+	PF_altstr_set, //string  altstr_set(string str, float num, string set) = #85
+
 	skip1
 	skip1
 	skip1
@@ -1073,7 +1263,19 @@ builtin_t menu_builtins[] = {
 	PF_CL_findkeysforcommand,
 	PF_gethostcachevalue,
 	PF_gethostcachestring,
-	PF_parseentitydata			//void 	parseentitydata(entity ent, string data) = #613;
+	PF_parseentitydata,			//void 	parseentitydata(entity ent, string data) = #613;
+
+	PF_StringToKeyNum,
+
+	PF_M_resethostcachemasks,
+	PF_M_sethostcachemaskstring,
+	PF_M_sethostcachemasknumber,
+	PF_M_resorthostcache,
+	PF_M_sethostcachesort,
+	PF_M_refreshhostcache,
+	PF_M_gethostcachenumber,
+	PF_M_gethostcacheindexforkey,
+	PF_M_addwantedhostcachekey
 };
 int menu_numbuiltins = sizeof(menu_builtins)/sizeof(menu_builtins[0]);
 
@@ -1232,11 +1434,11 @@ void MP_Init (void)
 		if (mp_time)
 			*mp_time = Sys_DoubleTime();
 
-		menuentsize = PR_InitEnts(menuprogs, 512);
+		menuentsize = PR_InitEnts(menuprogs, 8192);
 
 
 		//'world' edict
-		EDICT_NUM(menuprogs, 0)->readonly = true;
+//		EDICT_NUM(menuprogs, 0)->readonly = true;
 		EDICT_NUM(menuprogs, 0)->isfree = false;
 
 

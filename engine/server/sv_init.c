@@ -67,6 +67,23 @@ int SV_ModelIndex (char *name)
 	return i;
 }
 
+int SV_SafeModelIndex (char *name)
+{
+	int		i;
+	
+	if (!name || !name[0])
+		return 0;
+
+	for (i=1 ; i<MAX_MODELS && sv.model_precache[i] ; i++)
+		if (!strcmp(sv.model_precache[i], name))
+			return i;
+	if (i==MAX_MODELS || !sv.model_precache[i])
+	{
+		return 0;
+	}
+	return i;
+}
+
 /*
 ================
 SV_FlushSignon
@@ -179,6 +196,8 @@ void SVNQ_CreateBaseline (void)
 {
 	edict_t			*svent;
 	int				entnum;	
+
+	int playermodel = SV_SafeModelIndex("progs/player.mdl");
 		
 	for (entnum = 0; entnum < sv.num_edicts ; entnum++)
 	{
@@ -214,10 +233,8 @@ void SVNQ_CreateBaseline (void)
 				svent->baseline.colormap = entnum;
 			else
 				svent->baseline.colormap = 0;	//this would crash NQ.
-			if (progstype == PROG_H2)
-				svent->baseline.modelindex = SV_ModelIndex("");//"models/paladin.mdl");
-			else
-				svent->baseline.modelindex = SV_ModelIndex("progs/player.mdl");
+
+			svent->baseline.modelindex = playermodel;
 		}
 		else
 		{

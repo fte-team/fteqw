@@ -279,7 +279,7 @@ static void Mesh_SetShaderpassState ( shaderpass_t *pass, qboolean mtex )
 	}
 	else
 	{
-		glDisable (GL_BLEND);
+//		glDisable (GL_BLEND);
 	}
 
 	if (pass->flags & SHADER_PASS_ALPHAFUNC)
@@ -429,6 +429,7 @@ void GL_DrawMesh(mesh_t *mesh, shader_t *shader, int texturenum, int lmtexturenu
 
 	glDisableClientState( GL_VERTEX_ARRAY );
 	glDisableClientState( GL_COLOR_ARRAY );
+	glDisableClientState( GL_NORMAL_ARRAY );
 	glDisableClientState( GL_NORMAL_ARRAY );
 
 /*	//show normals

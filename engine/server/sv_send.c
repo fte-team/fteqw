@@ -1072,6 +1072,7 @@ void SV_QCStat(int type, char *name, int statnum)
 	qcstats[numqcstats].statnum = statnum;
 	Q_strncpyz(qcstats[numqcstats].name, name, sizeof(qcstats[numqcstats].name));
 	memset(&qcstats[numqcstats].evalc, 0, sizeof(evalc_t));
+	numqcstats++;
 }
 
 void SV_ClearQCStats(void)

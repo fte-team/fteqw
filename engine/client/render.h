@@ -355,3 +355,44 @@ extern	cvar_t	gl_playermip;
 
 extern	cvar_t	r_palconvbits;
 extern cvar_t   r_palconvwrite;
+
+
+
+enum {
+	RSPEED_TOTALREFRESH,
+	RSPEED_CLIENT,
+	RSPEED_WORLDNODE,
+	RSPEED_WORLD,
+	RSPEED_ENTITIES,
+	RSPEED_STENCILSHADOWS,
+	RSPEED_FULLBRIGHTS,
+	RSPEED_DYNAMIC,
+	RSPEED_PARTICLES,
+	RSPEED_PARTICLESDRAW,
+	RSPEED_PALETTEFLASHES,
+	RSPEED_2D,
+	RSPEED_SERVER,
+	RSPEED_FINISH,
+
+	RSPEED_MAX
+};
+int rspeeds[RSPEED_MAX];
+
+enum {
+	RQUANT_MSECS,	//old r_speeds
+	RQUANT_EPOLYS,
+	RQUANT_WPOLYS,
+	RQUANT_SHADOWFACES,
+	RQUANT_SHADOWEDGES,
+	RQUANT_LITFACES,
+
+	RQUANT_MAX
+};
+int rquant[RQUANT_MAX];
+
+#define RQuantAdd(type,quant) rquant[type] += quant;
+
+#define RSpeedLocals() int rsp
+#define RSpeedMark() int rsp = r_speeds.value?Sys_DoubleTime()*1000000:0
+#define RSpeedRemark() rsp = r_speeds.value?Sys_DoubleTime()*1000000:0
+#define RSpeedEnd(spt) rspeeds[spt] += r_speeds.value?Sys_DoubleTime()*1000000 - rsp:0

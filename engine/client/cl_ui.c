@@ -1040,7 +1040,7 @@ long UI_SystemCallsEx(void *offset, unsigned int mask, int fn, const long *arg)
 			}
 			vci->bottomcolour = cl.players[i].bottomcolor;
 			vci->frags = cl.players[i].frags;
-			strcpy(vci->name, cl.players[i].name);
+			Q_strncpyz(vci->name, cl.players[i].name, UIMAX_SCOREBOARDNAME);
 			vci->ping = cl.players[i].ping;
 			vci->pl = cl.players[i].pl;
 			vci->starttime = cl.players[i].entertime;

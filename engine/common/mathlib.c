@@ -715,7 +715,7 @@ void QuaternionSlerp( const vec4_t p, vec4_t q, float t, vec4_t qt )
 #endif
 
 //This function is GL stylie (use as 2nd arg to ML_MultMatrix4).
-float *ML_RotationMatrix(float a, float x, float y, float z)
+float *Matrix4_NewRotation(float a, float x, float y, float z)
 {
 	static float ret[16];
 	float c = cos(a* M_PI / 180.0);
@@ -744,7 +744,7 @@ float *ML_RotationMatrix(float a, float x, float y, float z)
 }
 
 //This function is GL stylie (use as 2nd arg to ML_MultMatrix4).
-float *ML_TranslationMatrix(float x, float y, float z)
+float *Matrix4_NewTranslation(float x, float y, float z)
 {
 	static float ret[16];
 	ret[0] = 1;
@@ -770,7 +770,7 @@ float *ML_TranslationMatrix(float x, float y, float z)
 }
 
 //be aware that this generates two sorts of matricies depending on order of a+b
-void ML_MultMatrix4(float *a, float *b, float *out)
+void Matrix4_Multiply(float *a, float *b, float *out)
 {
 	out[0]  = a[0] * b[0] + a[4] * b[1] + a[8] * b[2] + a[12] * b[3];
 	out[1]  = a[1] * b[0] + a[5] * b[1] + a[9] * b[2] + a[13] * b[3];
@@ -794,7 +794,7 @@ void ML_MultMatrix4(float *a, float *b, float *out)
 }
 
 //transform 4d vector by a 4d matrix.
-void ML_MatrixTransform4 (float *matrix, float *vector, float *product)
+void Matrix4_Transform(float *matrix, float *vector, float *product)
 {
 	product[0] = matrix[0]*vector[0] + matrix[4]*vector[1] + matrix[8]*vector[2] + matrix[12]*vector[3];
 	product[1] = matrix[1]*vector[0] + matrix[5]*vector[1] + matrix[9]*vector[2] + matrix[13]*vector[3];
@@ -819,10 +819,10 @@ void ML_Project (vec3_t in, vec3_t out, vec3_t viewangles, vec3_t vieworg, float
 		modelview[10] = 1;
 		modelview[15] = 1;
 
-		ML_MultMatrix4(modelview, ML_RotationMatrix(-90,  1, 0, 0), tempmat);	    // put Z going up
-		ML_MultMatrix4(tempmat, ML_RotationMatrix(90,  0, 0, 1), modelview);	    // put Z going up
+		Matrix4_Multiply(modelview, Matrix4_NewRotation(-90,  1, 0, 0), tempmat);	    // put Z going up
+		Matrix4_Multiply(tempmat, Matrix4_NewRotation(90,  0, 0, 1), modelview);	    // put Z going up
 #else
-		//use the lame wierd and crazy identity matrix..
+		//use this lame wierd and crazy identity matrix..
 		modelview[2] = -1;
 		modelview[4] = -1;
 		modelview[9] = 1;
@@ -831,11 +831,11 @@ void ML_Project (vec3_t in, vec3_t out, vec3_t viewangles, vec3_t vieworg, float
 		//figure out the current modelview matrix
 
 		//I would if some of these, but then I'd still need a couple of copys
-		ML_MultMatrix4(modelview, ML_RotationMatrix(-viewangles[2],  1, 0, 0), tempmat);	    // put Z going up
-		ML_MultMatrix4(tempmat, ML_RotationMatrix(-viewangles[0],  0, 1, 0), modelview);	    // put Z going up
-		ML_MultMatrix4(modelview, ML_RotationMatrix(-viewangles[1],  0, 0, 1), tempmat);	    // put Z going up
+		Matrix4_Multiply(modelview, Matrix4_NewRotation(-viewangles[2],  1, 0, 0), tempmat);	    // put Z going up
+		Matrix4_Multiply(tempmat, Matrix4_NewRotation(-viewangles[0],  0, 1, 0), modelview);	    // put Z going up
+		Matrix4_Multiply(modelview, Matrix4_NewRotation(-viewangles[1],  0, 0, 1), tempmat);	    // put Z going up
 
-		ML_MultMatrix4(tempmat, ML_TranslationMatrix(-vieworg[0],  -vieworg[1],  -vieworg[2]), modelview);	    // put Z going up
+		Matrix4_Multiply(tempmat, Matrix4_NewTranslation(-vieworg[0],  -vieworg[1],  -vieworg[2]), modelview);	    // put Z going up
 
 	}
 
@@ -881,8 +881,8 @@ void ML_Project (vec3_t in, vec3_t out, vec3_t viewangles, vec3_t vieworg, float
 		v[2] = in[2];
 		v[3] = 1;
 
-		ML_MatrixTransform4(modelview, v, tempv); 
-		ML_MatrixTransform4(proj, tempv, v);
+		Matrix4_Multiply(modelview, v, tempv); 
+		Matrix4_Multiply(proj, tempv, v);
 
 		v[0] /= v[3];
 		v[1] /= v[3];
@@ -892,4 +892,19 @@ void ML_Project (vec3_t in, vec3_t out, vec3_t viewangles, vec3_t vieworg, float
 		out[1] = (1+v[1])/2;
 		out[2] = (1+v[2])/2;
 	}
+}
+
+
+//I much prefer it to take float*...
+void Matrix3_Multiply (vec3_t *in1, vec3_t *in2, vec3_t *out)
+{
+	out[0][0] = in1[0][0]*in2[0][0] + in1[0][1]*in2[1][0] + in1[0][2]*in2[2][0];
+	out[0][1] = in1[0][0]*in2[0][1] + in1[0][1]*in2[1][1] + in1[0][2]*in2[2][1];
+	out[0][2] = in1[0][0]*in2[0][2] + in1[0][1]*in2[1][2] + in1[0][2]*in2[2][2];
+	out[1][0] = in1[1][0]*in2[0][0] + in1[1][1]*in2[1][0] +	in1[1][2]*in2[2][0];
+	out[1][1] = in1[1][0]*in2[0][1] + in1[1][1]*in2[1][1] + in1[1][2]*in2[2][1];
+	out[1][2] = in1[1][0]*in2[0][2] + in1[1][1]*in2[1][2] +	in1[1][2]*in2[2][2];
+	out[2][0] = in1[2][0]*in2[0][0] + in1[2][1]*in2[1][0] +	in1[2][2]*in2[2][0];
+	out[2][1] = in1[2][0]*in2[0][1] + in1[2][1]*in2[1][1] +	in1[2][2]*in2[2][1];
+	out[2][2] = in1[2][0]*in2[0][2] + in1[2][1]*in2[1][2] +	in1[2][2]*in2[2][2];
 }

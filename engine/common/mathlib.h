@@ -66,6 +66,8 @@ void VectorInverse (vec3_t v);
 void VectorScale (vec3_t in, vec_t scale, vec3_t out);
 int Q_log2(int val);
 
+float ColorNormalize (vec3_t in, vec3_t out);
+
 void R_ConcatRotations (float in1[3][3], float in2[3][3], float out[3][3]);
 void R_ConcatTransforms (float in1[3][4], float in2[3][4], float out[3][4]);
 
@@ -101,3 +103,4 @@ void RotatePointAroundVector( vec3_t dst, const vec3_t dir, const vec3_t point, 
 
 //used for crosshair stuff.
 void ML_Project (vec3_t in, vec3_t out, vec3_t viewangles, vec3_t vieworg, float wdivh, float fovy);
+void Matrix3_Multiply (vec3_t *in1, vec3_t *in2, vec3_t *out);

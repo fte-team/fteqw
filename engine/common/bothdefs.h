@@ -296,11 +296,12 @@ STAT_TOTALMONSTERS	= 12,
 STAT_SECRETS		= 13,		// bumped on client side by svc_foundsecret
 STAT_MONSTERS		= 14,		// bumped by svc_killedmonster
 STAT_ITEMS			= 15,
-STAT_VIEWHEIGHT		= 16,
-STAT_TIME			= 17,
+STAT_VIEWHEIGHT		= 16,	//same as zquake
+STAT_TIME			= 17,	//zquake
 #ifdef SIDEVIEWS
 STAT_VIEW2			= 20,
 #endif
+STAT_VIEWZOOM		= 21, // DP
 
 STAT_H2_LEVEL	= 32,				// changes stat bar
 STAT_H2_INTELLIGENCE,				// changes stat bar

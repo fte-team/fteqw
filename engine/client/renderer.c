@@ -185,7 +185,7 @@ extern	cvar_t	r_novis;
 extern	cvar_t	r_netgraph;
 
 cvar_t r_transtables = {"r_transtables","2"};
-cvar_t r_transtablefull = {"r_transtablefull", "1"};
+cvar_t r_transtablehalf = {"r_transtablehalf", "1"};
 cvar_t r_transtablewrite = {"r_transtablewrite", "1"};
 cvar_t r_palconvbits = {"r_palconvbits", "565"};
 cvar_t r_palconvwrite = {"r_palconvwrite", "1"};
@@ -335,7 +335,7 @@ void SWRenderer_Init(void)
 
 	Cvar_Register (&r_transtables, SWRENDEREROPTIONS);
 	Cvar_Register (&r_transtablewrite, SWRENDEREROPTIONS);
-	Cvar_Register (&r_transtablefull, SWRENDEREROPTIONS);
+	Cvar_Register (&r_transtablehalf, SWRENDEREROPTIONS);
 	Cvar_Register (&r_palconvbits, SWRENDEREROPTIONS);
 	Cvar_Register (&r_palconvwrite, SWRENDEREROPTIONS);
 }

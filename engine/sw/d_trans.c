@@ -186,7 +186,7 @@ t_curtable=0;
 t_lookup = BZ_Malloc(sizeof(tlookup)*t_numtables);
 t_curlookupp = t_lookup[t_curtable];
 
-	if (r_transtablefull.value)
+	if (r_transtablehalf.value)
 	{
 		t_state = TT_ZERO|TT_USEHALF;
 		for (table = 0; table < t_numtables; table++)

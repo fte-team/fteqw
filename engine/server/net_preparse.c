@@ -1402,7 +1402,8 @@ void NPP_MVDFlush(void)
 				v = buffer[2] | (buffer[3]<<8) | (buffer[4]<<16) | (buffer[5]<<24);
 			s = buffer[1];
 
-			sv.recordedplayer[sv.lastto].stats[s] = v;
+			if (sv.lastto < 32)	//dem_multicast could be used at the wrong time...
+				sv.recordedplayer[sv.lastto].stats[s] = v;
 
 			ignoreprotocol=true;
 		}

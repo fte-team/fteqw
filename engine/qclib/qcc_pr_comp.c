@@ -3639,9 +3639,11 @@ QCC_def_t *QCC_PR_Term (void)
 		if (QCC_PR_Check("++"))	//supposedly. I'm unsure weather it works properly.
 		{
 			qcc_usefulstatement=true;
-			e = QCC_PR_Expression (TOP_PRIORITY);
+			e = QCC_PR_Term ();
 			if (e->constant)
 				QCC_PR_ParseWarning(WARN_ASSIGNMENTTOCONSTANT, "Assignment to constant %s", e->name);
+			if (e->temp)
+				QCC_PR_ParseWarning(WARN_ASSIGNMENTTOCONSTANT, "Hey! That's a temp! ++ operators cannot work on temps!");
 			switch (e->type->type)
 			{
 			case ev_integer:
@@ -3659,9 +3661,11 @@ QCC_def_t *QCC_PR_Term (void)
 		else if (QCC_PR_Check("--"))
 		{
 			qcc_usefulstatement=true;
-			e = QCC_PR_Expression (TOP_PRIORITY);
+			e = QCC_PR_Term ();
 			if (e->constant)
 				QCC_PR_ParseWarning(WARN_ASSIGNMENTTOCONSTANT, "Assignment to constant %s", e->name);
+			if (e->temp)
+				QCC_PR_ParseWarning(WARN_ASSIGNMENTTOCONSTANT, "Hey! That's a temp! -- operators cannot work on temps!");
 			switch (e->type->type)
 			{
 			case ev_integer:
@@ -5798,6 +5802,16 @@ void QCC_WriteAsmFunction(QCC_def_t	*sc, unsigned int firststatement, gofs_t fir
 				else
 					fprintf(asmfile, ",\t%i", statements[i].b);
 				if (pr_opcodes[statements[i].op].type_c != &type_void && pr_opcodes[statements[i].op].associative==ASSOC_LEFT)
+				{
+					if (pr_opcodes[statements[i].op].type_c)
+						fprintf(asmfile, ",\t%s", QCC_VarAtOffset(statements[i].c, (*pr_opcodes[statements[i].op].type_c)->size));
+					else
+						fprintf(asmfile, ",\t%i", statements[i].c);
+				}
+			}
+			else
+			{
+				if (pr_opcodes[statements[i].op].type_c != &type_void)
 				{
 					if (pr_opcodes[statements[i].op].type_c)
 						fprintf(asmfile, ",\t%s", QCC_VarAtOffset(statements[i].c, (*pr_opcodes[statements[i].op].type_c)->size));

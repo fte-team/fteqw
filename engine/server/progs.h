@@ -107,9 +107,5 @@ extern func_t EndFrameQC;
 
 qboolean PR_QCChat(char *text, int say_type);
 
-
-#ifndef SERVERONLY
-int CLPR_FindFunc(char *name);
-void CLPR_Init(void);
-void CLPR_DeinitProgs(void);
-#endif
+void PR_ClientUserInfoChanged(char *name, char *oldivalue, char *newvalue);
+void PR_LocalInfoChanged(char *name, char *oldivalue, char *newvalue);

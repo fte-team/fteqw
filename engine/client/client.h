@@ -346,6 +346,8 @@ typedef struct
 
 extern client_static_t	cls;
 
+extern int nq_dp_protocol;
+
 typedef struct downloadlist_s {
 	char name[128];
 	struct downloadlist_s *next;

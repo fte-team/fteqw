@@ -170,6 +170,10 @@ cvar_t			scr_allowsnap = {"scr_allowsnap", "1", NULL, CVAR_NOTFROMSERVER};	//oth
 
 cvar_t			scr_chatmodecvar = {"scr_chatmode", "0"};
 
+#ifdef Q3SHADERS
+extern cvar_t r_vertexlight;
+#endif
+
 cvar_t r_bloodstains = {"r_bloodstains", "1"};
 
 extern	cvar_t	r_norefresh;
@@ -309,6 +313,10 @@ void GLRenderer_Init(void)
 	Cvar_Register (&gl_ati_truform_tesselation, GRAPHICALNICETIES);
 
 	Cvar_Register (&gl_skyboxdist, GLRENDEREROPTIONS);
+
+#ifdef Q3SHADERS
+	Cvar_Register (&r_vertexlight, GLRENDEREROPTIONS);
+#endif
 }
 #endif
 #if defined(SWQUAKE)

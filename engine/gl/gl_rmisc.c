@@ -834,10 +834,16 @@ void R_LoadRTLights(void)
 	char fname[MAX_QPATH];
 	char *file;
 	char *end;
+	int i;
 
 	vec3_t org;
 	float radius;
 	vec3_t rgb;
+
+	for (i=0 ; i<MAX_DLIGHTS ; i++)
+	{
+		cl_dlights[i].radius = 0;
+	}
 
 	COM_StripExtension(cl.worldmodel->name, fname);
 	strncat(fname, ".rtlights", MAX_QPATH-1);

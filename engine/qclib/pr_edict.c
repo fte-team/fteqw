@@ -161,7 +161,10 @@ void ED_Free (progfuncs_t *progfuncs, struct edict_s *ed)
 
 	if (e->isfree)	//this happens on start.bsp where an onlyregistered trigger killtargets itself (when all of this sort die after 1 trigger anyway).
 	{
-		printf("Tried to free free entity\n");
+		if (pr_depth)
+			printf("Tried to free free entity within %s\n", pr_xfunction->s_name);
+		else
+			printf("Engine tried to free free entity\n");
 //		if (developer.value == 1)
 //			pr_trace = true;
 		return;

@@ -821,6 +821,7 @@ void MSG_BeginReading (void)
 	msg_readcount = 0;
 	msg_badread = false;
 	net_message.currentbit = 0;
+	net_message.packing = SZ_RAWBYTES;
 }
 
 int MSG_GetReadCount(void)

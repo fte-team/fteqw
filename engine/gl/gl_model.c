@@ -421,9 +421,12 @@ void GLMod_Think (void)
 			char filename[MAX_QPATH];
 			Con_Printf("Finished lighting level\n");
 			
-			COM_StripExtension(lightmodel->name, filename);
-			COM_DefaultExtension(filename, ".lux");
-			COM_WriteFile(filename, lightmodel->deluxdata-8, numlightdata*3+8);
+			if (lightmodel->deluxdata)
+			{
+				COM_StripExtension(lightmodel->name, filename);
+				COM_DefaultExtension(filename, ".lux");
+				COM_WriteFile(filename, lightmodel->deluxdata-8, numlightdata*3+8);
+			}
 
 			if (writelitfile)	//the user might already have a lit file (don't overwrite it).
 			{

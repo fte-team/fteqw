@@ -23,6 +23,7 @@ static pbool fl_nokeywords_coexist;
 static pbool fl_autohighlight;
 static pbool fl_compileonstart;
 static pbool fl_autoprototype;
+static pbool fl_acc;
 
 char parameters[16384];
 
@@ -1305,6 +1306,13 @@ int BuildParms(char *args, char **argv)
 		paramlen += strlen(param+paramlen)+1;
 	}
 
+	if (fl_acc)
+	{
+		strcpy(param+paramlen, "-Facc");
+		argv[argc++] = param+paramlen;
+		paramlen += strlen(param+paramlen)+1;
+	}
+
 
 	for (i = 0; optimisations[i].enabled; i++)	//enabled is a pointer
 	{
@@ -1454,6 +1462,10 @@ void GuiParseCommandLine(char *args)
 		{
 			fl_autoprototype = true;
 		}
+		else if (!strnicmp(parameters+paramlen, "-Facc", 5) || !strnicmp(parameters+paramlen, "/Facc", 5))
+		{
+			fl_acc = true;
+		}
 		else if (!strnicmp(parameters+paramlen, "-ac", 3) || !strnicmp(parameters+paramlen, "/ac", 3))
 		{
 			fl_compileonstart = true;
@@ -1537,7 +1549,7 @@ int WINAPI WinMain (HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLin
 
 	GuiParseCommandLine(lpCmdLine);
 
-	if (!*progssrcname)
+	if (!fl_acc && !*progssrcname)
 	{
 		strcpy(progssrcname, "preprogs.src");
 		if (QCC_FileSize(progssrcname)==-1)
@@ -1633,6 +1645,36 @@ int WINAPI WinMain (HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLin
 		NULL,
 		ghInstance,
 		NULL);
+
+	if (!outputbox)
+		outputbox=CreateWindowEx(WS_EX_CLIENTEDGE,
+			richedit?RICHEDIT_CLASS10A:"EDIT",	//fall back to the earlier version
+			"",
+			WS_CHILD /*| ES_READONLY*/ | WS_VISIBLE | 
+			WS_HSCROLL | WS_VSCROLL | ES_LEFT | ES_WANTRETURN |
+			ES_MULTILINE | ES_AUTOVSCROLL,
+			0, 0, 0, 0,
+			mainwindow,
+			NULL,
+			ghInstance,
+			NULL);
+
+	if (!outputbox)
+	{	//you've not got RICHEDIT installed properly, I guess
+		FreeLibrary(richedit);
+		richedit = NULL;
+		outputbox=CreateWindowEx(WS_EX_CLIENTEDGE,
+			"EDIT",
+			"",
+			WS_CHILD /*| ES_READONLY*/ | WS_VISIBLE | 
+			WS_HSCROLL | WS_VSCROLL | ES_LEFT | ES_WANTRETURN |
+			ES_MULTILINE | ES_AUTOVSCROLL,
+			0, 0, 0, 0,
+			mainwindow,
+			NULL,
+			ghInstance,
+			NULL);
+	}
 	if (richedit)
 	{
 		SendMessage(outputbox, EM_EXLIMITTEXT, 0, 1<<20);
@@ -1731,6 +1773,8 @@ int WINAPI WinMain (HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLin
 					}
 					else if (!strncmp(line, "compiling ", 10))
 						EditFile(line+10, -1);
+					else if (!strncmp(line, "prototyping ", 12))
+						EditFile(line+12, -1);
 					Edit_SetSel(outputbox, i&0xffff, i&0xffff);	//deselect it.
 				}
 			}

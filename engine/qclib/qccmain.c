@@ -209,6 +209,9 @@ struct {
 	{&autoprototype,		false, "autoproto"},	//so you no longer need to prototype functions and things in advance.
 	{&writeasm,				false, "wasm"},			//spit out a qc.asm file, containing an assembler dump of the ENTIRE progs. (Doesn't include initialisation of constants)
 	{&flag_ifstring,		true, "ifstring"},		//correction for if(string) no-ifstring to get the standard behaviour.
+	{&flag_acc,				false, "acc"},		//reacc like behaviour of src files.
+	{&flag_caseinsensative,	false, "caseinsens"},	//symbols will be matched to an insensative case if the specified case doesn't exist. This should b usable for any mod
+	{&flag_laxcasts,		false, "lax"},		//Allow lax casting. This'll produce loadsa warnings of course. But allows compilation of certain dodgy code.
 	{NULL}
 };
 
@@ -689,8 +692,8 @@ void QCC_WriteData (int crc)
 			{
 				if (def->references<=1)
 					QCC_PR_Warning(WARN_DEADCODE, strings + def->s_file, def->s_line, "%s is never directly called or referenced (spawn function or dead code)", def->name);
-				else
-					QCC_PR_Warning(WARN_DEADCODE, strings + def->s_file, def->s_line, "%s is never directly called", def->name);
+//				else
+//					QCC_PR_Warning(WARN_DEADCODE, strings + def->s_file, def->s_line, "%s is never directly called", def->name);
 			}
 			if (opt_stripfunctions && def->timescalled >= def->references-1)	//make sure it's not copied into a different var.
 			{								//if it ever does self.think then it could be needed for saves.
@@ -1615,11 +1618,14 @@ char *Sva(char *msg, ...)
 }
 */
 
+#define PROGDEFS_MAX_SIZE 16384
 //write (to file buf) and add to the crc
 void inline Add(char *p, unsigned short *crc, char *file)
 {
 	char *s;
 	int i = strlen(file);
+	if (i + strlen(p)+1 >= PROGDEFS_MAX_SIZE)
+		return;
 	for(s=p;*s;s++,i++)
 	{
 		QCC_CRC_ProcessByte(crc, *s);
@@ -1641,8 +1647,10 @@ void inline Add3(char *p, unsigned short *crc, char *file)
 unsigned short QCC_PR_WriteProgdefs (char *filename)
 {
 	extern int ForcedCRC;
-#define ADD2(p) strcat(file, p)	//no crc (later changes)
-	char file[16384];
+#define ADD2(p) strncat(file, p, PROGDEFS_MAX_SIZE-1 - strlen(file))	//no crc (later changes)
+	int sent1=0xffffffff;
+	char file[PROGDEFS_MAX_SIZE];
+	int sent2=0xffffffff;
 	QCC_def_t	*d;
 	int	f;
 	unsigned short		crc;
@@ -1771,7 +1779,7 @@ unsigned short QCC_PR_WriteProgdefs (char *filename)
 	if (QCC_CheckParm("-progdefs"))
 	{
 		printf ("writing %s\n", filename);
-		f = SafeOpenWrite("progdefs.h", 16384);
+		f = SafeOpenWrite(filename, 16384);
 		SafeWrite(f, file, strlen(file));
 		SafeClose(f);
 	}
@@ -2370,8 +2378,14 @@ void SetEndian(void);
 
 void QCC_SetDefaultProperties (void)
 {
+	extern int ForcedCRC;
 	int level;
 	int i;
+
+	Hash_InitTable(&compconstantstable, MAX_CONSTANTS, qccHunkAlloc(Hash_BytesForBuckets(MAX_CONSTANTS)));
+
+	ForcedCRC = 0;
+
 	QCC_PR_DefineName("FTEQCC");
 
 	if (QCC_CheckParm("/Oz"))
@@ -2469,12 +2483,70 @@ void QCC_SetDefaultProperties (void)
 	}
 }
 
+//builds a list of files, pretends that they came from a progs.src
+int QCC_FindQCFiles()
+{
+#ifdef _WIN32
+	WIN32_FIND_DATA fd;
+	HANDLE h;
+#endif
+
+	int numfiles = 0, i, j;
+	char *filelist[256], *temp;
+
+
+	qccmsrc = qccHunkAlloc(8192);
+	strcat(qccmsrc, "progs.dat\n");//"#pragma PROGS_DAT progs.dat\n");
+
+#ifdef _WIN32
+	h = FindFirstFile("*.qc", &fd);
+	if (h == INVALID_HANDLE_VALUE)
+		return 0;
+
+	do
+	{
+		filelist[numfiles] = qccHunkAlloc (strlen(fd.cFileName)+1);
+		strcpy(filelist[numfiles], fd.cFileName);
+		numfiles++;
+	} while(FindNextFile(h, &fd)!=0);
+	FindClose(h);
+#else
+	printf("-Facc is not supported on this platform. Please make a progs.src file instead\n");
+#endif
+
+	//Sort alphabetically.
+	//bubble. :(
+
+	for (i = 0; i < numfiles-1; i++)
+	{
+		for (j = i+1; j < numfiles; j++)
+		{
+			if (stricmp(filelist[i], filelist[j]) > 0)
+			{
+				temp = filelist[j];
+				filelist[j] = filelist[i];
+				filelist[i] = temp;
+			}
+		}
+	}
+	for (i = 0; i < numfiles; i++)
+	{
+		strcat(qccmsrc, filelist[i]);
+		strcat(qccmsrc, "\n");
+//		strcat(qccmsrc, "#include \"");
+//		strcat(qccmsrc, filelist[i]);
+//		strcat(qccmsrc, "\"\n");
+	}
+
+	return numfiles;
+}
+
 int qcc_compileactive = false;
+extern int accglobalsblock;
 char *origionalqccmsrc;	//for autoprototype.
 void QCC_main (int argc, char **argv)	//as part of the quake engine
 {
 	extern int			pr_bracelevel;
-	extern int ForcedCRC;
 
 	int		p;
 
@@ -2488,6 +2560,10 @@ void QCC_main (int argc, char **argv)	//as part of the quake engine
 	myargv = argv;
 
 	qcc_compileactive = true;
+
+	pHash_Get = &Hash_Get;
+	pHash_GetNext = &Hash_GetNext;
+	pHash_Add = &Hash_Add;
 
 	MAX_REGS		= 65536;
 	MAX_STRINGS		= 1000000;
@@ -2567,7 +2643,6 @@ void QCC_main (int argc, char **argv)	//as part of the quake engine
 		*compiler_flag[p].enabled = compiler_flag[p].defaultval;
 	}
 
-	Hash_InitTable(&compconstantstable, MAX_CONSTANTS, qccHunkAlloc(Hash_BytesForBuckets(MAX_CONSTANTS)));
 	QCC_SetDefaultProperties();
 
 	optres_shortenifnots = 0;
@@ -2593,6 +2668,8 @@ void QCC_main (int argc, char **argv)	//as part of the quake engine
 
 	optres_test1 = 0;
 	optres_test2 = 0;
+
+	accglobalsblock = 0;
 
 
 	numtemps = 0;
@@ -2659,8 +2736,6 @@ memset(pr_immediate_string, 0, sizeof(pr_immediate_string));
 #ifdef MAX_EXTRA_PARMS
 	memset(&extra_parms, 0, sizeof(extra_parms));
 #endif
-
-	ForcedCRC = 0;
 	
 	if ( QCC_CheckParm ("/?") || QCC_CheckParm ("?") || QCC_CheckParm ("-?") || QCC_CheckParm ("-help") || QCC_CheckParm ("--help"))
 	{
@@ -2686,6 +2761,15 @@ memset(pr_immediate_string, 0, sizeof(pr_immediate_string));
 		return;
 	}
 
+	if (flag_caseinsensative)
+	{
+		printf("Compiling without case insensativity\n");
+		pHash_Get = &Hash_GetInsensative;
+		pHash_GetNext = &Hash_GetNextInsensative;
+		pHash_Add = &Hash_AddInsensative;
+	}
+
+
 	if (opt_locals_marshalling)
 		printf("!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!\nLocals marshalling might be buggy. Use with caution\n!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!\n");
 	
@@ -2710,25 +2794,33 @@ memset(pr_immediate_string, 0, sizeof(pr_immediate_string));
 
 	QCC_PR_BeginCompilation ((void *)qccHunkAlloc (0x100000), 0x100000);
 
-	p = QCC_CheckParm ("-qc");
-	if (!p || p >= argc-1 || argv[p+1][0] == '-')
-		p = QCC_CheckParm ("-srcfile");
-	if (p && p < argc-1 )
-		sprintf (qccmprogsdat, "%s%s", qccmsourcedir, argv[p+1]);		
+	if (flag_acc)
+	{
+		if (!QCC_FindQCFiles())
+			QCC_Error (ERR_COULDNTOPENFILE, "Couldn't open file for asm output.");
+	}
 	else
-	{	//look for a preprogs.src... :o)
-		sprintf (qccmprogsdat, "%spreprogs.src", qccmsourcedir);
-		if (externs->FileSize(qccmprogsdat) <= 0)
-			sprintf (qccmprogsdat, "%sprogs.src", qccmsourcedir);
+	{
+		p = QCC_CheckParm ("-qc");
+		if (!p || p >= argc-1 || argv[p+1][0] == '-')
+			p = QCC_CheckParm ("-srcfile");
+		if (p && p < argc-1 )
+			sprintf (qccmprogsdat, "%s%s", qccmsourcedir, argv[p+1]);		
+		else
+		{	//look for a preprogs.src... :o)
+			sprintf (qccmprogsdat, "%spreprogs.src", qccmsourcedir);
+			if (externs->FileSize(qccmprogsdat) <= 0)
+				sprintf (qccmprogsdat, "%sprogs.src", qccmsourcedir);
+		}
+
+		printf ("Source file: %s\n", qccmprogsdat);
+
+		if (QCC_LoadFile (qccmprogsdat, (void *)&qccmsrc) == -1)
+		{		
+			return;
+		}
 	}
 
-	printf ("Source file: %s\n", qccmprogsdat);
-
-	if (QCC_LoadFile (qccmprogsdat, (void *)&qccmsrc) == -1)
-	{		
-		return;
-	}
-	
 	newstylesource = false;
 
 	while(*qccmsrc && *qccmsrc < ' ')
@@ -2840,6 +2932,7 @@ void QCC_ContinueCompile(void)
 		if (autoprototype)
 		{
 			qccmsrc = origionalqccmsrc;
+			QCC_SetDefaultProperties();
 			autoprototype = false;
 			return;
 		}

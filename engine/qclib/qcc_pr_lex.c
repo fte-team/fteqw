@@ -1020,6 +1020,8 @@ void QCC_PR_LexString (void)
 				continue;
 			}
 		}
+		else if (c == 0x74)
+			c = '\n';
 
 		pr_token[len] = c|texttype;
 		len++;
@@ -1555,7 +1557,7 @@ pbool QCC_PR_UndefineName(char *name)
 {
 //	int a;
 	CompilerConstant_t *c;
-	c = Hash_Get(&compconstantstable, name);
+	c = pHash_Get(&compconstantstable, name);
 	if (!c)
 	{
 		QCC_PR_ParseWarning(WARN_NOTDEFINED, "Precompiler constant %s was not defined", name);
@@ -1609,7 +1611,7 @@ CompilerConstant_t *QCC_PR_DefineName(char *name)
 	if (strlen(name) >= MAXCONSTANTLENGTH || !*name)
 		QCC_PR_ParseError(ERR_CONSTANTTOOLONG, "Compiler constant name length is too long or short");
 	
-	cnst = Hash_Get(&compconstantstable, name);
+	cnst = pHash_Get(&compconstantstable, name);
 	if (cnst )
 	{
 		QCC_PR_ParseWarning(WARN_DUPLICATEDEFINITION, "Duplicate definition for Precompiler constant %s", name);
@@ -1626,7 +1628,7 @@ CompilerConstant_t *QCC_PR_DefineName(char *name)
 	for (i = 0; i < MAXCONSTANTPARAMS; i++)
 		cnst->params[i][0] = '\0';
 
-	Hash_Add(&compconstantstable, cnst->name, cnst);
+	pHash_Add(&compconstantstable, cnst->name, cnst, qccHunkAlloc(sizeof(bucket_t)));
 
 	if (!STRCMP(name, "OP_NODUP"))
 		opt_noduplicatestrings = true;
@@ -1696,7 +1698,7 @@ void QCC_PR_ConditionCompilation(void)
 	if (!QCC_PR_SimpleGetToken ())		
 		QCC_PR_ParseError(ERR_NONAME, "No name defined for compiler constant");
 
-	cnst = Hash_Get(&compconstantstable, pr_token);
+	cnst = pHash_Get(&compconstantstable, pr_token);
 	if (cnst)
 	{
 		Hash_Remove(&compconstantstable, pr_token);
@@ -1833,7 +1835,7 @@ int QCC_PR_CheakCompConst(void)
 	strncpy(pr_token, pr_file_p, end-pr_file_p);
 	pr_token[end-pr_file_p]='\0';
 //	printf("%s\n", pr_token);
-	c = Hash_Get(&compconstantstable, pr_token);
+	c = pHash_Get(&compconstantstable, pr_token);
 
 	if (c)
 	{
@@ -2044,7 +2046,7 @@ char *QCC_PR_CheakCompConstString(char *def)
 	
 	CompilerConstant_t *c;
 
-	c = Hash_Get(&compconstantstable, def);
+	c = pHash_Get(&compconstantstable, def);
 
 	if (c)	
 	{
@@ -2056,7 +2058,7 @@ char *QCC_PR_CheakCompConstString(char *def)
 
 CompilerConstant_t *QCC_PR_CheckCompConstDefined(char *def)
 {
-	CompilerConstant_t *c = Hash_Get(&compconstantstable, def);
+	CompilerConstant_t *c = pHash_Get(&compconstantstable, def);
 	return c;
 	/*int a;	
 	for (a = 0; a < numCompilerConstants; a++)
@@ -2330,11 +2332,20 @@ pbool QCC_PR_Check (char *string)
 {
 	if (STRCMP (string, pr_token))
 		return false;
-		
+	
 	QCC_PR_Lex ();
 	return true;
 }
 #endif
+
+pbool QCC_PR_CheckInsens (char *string)
+{
+	if (stricmp (string, pr_token))
+		return false;
+		
+	QCC_PR_Lex ();
+	return true;
+}
 
 /*
 ============
@@ -2662,6 +2673,85 @@ QCC_type_t *QCC_PR_ParseFunctionType (int newtype, QCC_type_t *returntype)
 		return ftype;
 	return QCC_PR_FindType (ftype);
 }
+QCC_type_t *QCC_PR_ParseFunctionTypeReacc (int newtype, QCC_type_t *returntype)
+{
+	QCC_type_t	*ftype, *ptype, *nptype;
+	char	*name;
+	char	argname[64];
+	int definenames = !recursivefunctiontype;
+
+	pbool usesvariants = false;
+
+	recursivefunctiontype++;
+
+	ftype = QCC_PR_NewType(type_function->name, ev_function);
+
+	ftype->aux_type = returntype;	// return type
+	ftype->num_parms = 0;
+	ptype = NULL;
+
+
+	if (!QCC_PR_Check (")"))
+	{
+		if (QCC_PR_Check ("..."))
+			ftype->num_parms = -1;	// variable args
+		else
+			do
+			{
+				if (ftype->num_parms>=MAX_PARMS+MAX_EXTRA_PARMS)
+					QCC_PR_ParseError(ERR_TOOMANYTOTALPARAMETERS, "Too many parameters. Sorry. (limit is %i)\n", MAX_PARMS+MAX_EXTRA_PARMS);
+
+				if (QCC_PR_Check ("..."))
+				{
+					ftype->num_parms = (ftype->num_parms * -1) - 1;
+					break;
+				}
+
+				if (QCC_PR_Check("arg"))
+				{
+					sprintf(argname, "arg%i", ftype->num_parms);
+					name = argname;
+					nptype = QCC_PR_NewType("Variant", ev_variant);
+				}
+				else if (QCC_PR_Check("vect"))	//this can only be of vector sizes, so...
+				{
+					sprintf(argname, "arg%i", ftype->num_parms);
+					name = argname;
+					nptype = QCC_PR_NewType("Vector", ev_vector);
+				}
+				else
+				{
+					name = QCC_PR_ParseName();
+					QCC_PR_Expect(":");
+					nptype = QCC_PR_ParseType(true);
+				}
+
+				if (nptype->type == ev_void)
+					break;
+				if (!ptype)
+				{
+					ptype = nptype;
+					ftype->param = ptype;
+				}
+				else
+				{
+					ptype->next = nptype;
+					ptype = ptype->next;
+				}
+//				type->name = "FUNC PARAMETER";
+
+				if (definenames)
+					strcpy (pr_parm_names[ftype->num_parms], name);
+				ftype->num_parms++;
+			} while (QCC_PR_Check (";"));
+	
+		QCC_PR_Expect (")");
+	}
+	recursivefunctiontype--;
+	if (newtype)
+		return ftype;
+	return QCC_PR_FindType (ftype);
+}
 QCC_type_t *QCC_PR_PointerType (QCC_type_t *pointsto)
 {
 	QCC_type_t	*ptype;
@@ -2669,6 +2759,16 @@ QCC_type_t *QCC_PR_PointerType (QCC_type_t *pointsto)
 	sprintf(name, "*%s", pointsto->name);
 	ptype = QCC_PR_NewType(name, ev_pointer);
 	ptype->aux_type = pointsto;
+	return QCC_PR_FindType (ptype);
+}
+QCC_type_t *QCC_PR_FieldType (QCC_type_t *pointsto)
+{
+	QCC_type_t	*ptype;
+	char name[128];
+	sprintf(name, "FIELD TYPE(%s)", pointsto->name);
+	ptype = QCC_PR_NewType(name, ev_field);
+	ptype->aux_type = pointsto;
+	ptype->size = ptype->aux_type->size;
 	return QCC_PR_FindType (ptype);
 }
 
@@ -2886,8 +2986,23 @@ QCC_type_t *QCC_PR_ParseType (int newtype)
 
 	if (i == numtypeinfos)
 	{
-		QCC_PR_ParseError (ERR_NOTATYPE, "\"%s\" is not a type", name);
-		type = type_float;	// shut up compiler warning
+		if (!stricmp("Void", name))
+			type = type_void;
+		else if (!stricmp("Real", name))
+			type = type_float;
+		else if (!stricmp("Vector", name))
+			type = type_vector;
+		else if (!stricmp("Object", name))
+			type = type_entity;
+		else if (!stricmp("String", name))
+			type = type_string;
+		else if (!stricmp("PFunc", name))
+			type = type_function;
+		else
+		{
+			QCC_PR_ParseError (ERR_NOTATYPE, "\"%s\" is not a type", name);
+			type = type_float;	// shut up compiler warning
+		}
 	}
 	QCC_PR_Lex ();
 	
@@ -2903,7 +3018,6 @@ QCC_type_t *QCC_PR_ParseType (int newtype)
 		return type;
 	}
 }
-
 
 #endif
 

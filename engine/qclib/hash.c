@@ -45,7 +45,7 @@ void *Hash_Get(hashtable_t *table, char *name)
 }
 void *Hash_GetInsensative(hashtable_t *table, char *name)
 {
-	int bucknum = Hash_Key(name, table->numbuckets);
+	int bucknum = Hash_KeyInsensative(name, table->numbuckets);
 	bucket_t *buck;
 
 	buck = table->bucket[bucknum];
@@ -105,24 +105,39 @@ void *Hash_GetNext(hashtable_t *table, char *name, void *old)
 	}
 	return NULL;
 }
-
-#ifndef MINIMAL
-void *Hash_Add(hashtable_t *table, char *name, void *data)
+void *Hash_GetNextInsensative(hashtable_t *table, char *name, void *old)
 {
-	int bucknum = Hash_Key(name, table->numbuckets);
-	bucket_t *buck;	
+	int bucknum = Hash_KeyInsensative(name, table->numbuckets);
+	bucket_t *buck;
 
-	buck = qccHunkAlloc(sizeof(bucket_t));
+	buck = table->bucket[bucknum];
 
-	buck->data = data;
-	buck->keystring = name;
-	buck->next = table->bucket[bucknum];
-	table->bucket[bucknum] = buck;
+	while(buck)
+	{
+		if (!STRCMP(name, buck->keystring))
+		{
+			if (buck->data == old)	//found the old one
+				break;
+		}
 
-	return buck;
+		buck = buck->next;
+	}
+	if (!buck)
+		return NULL;
+
+	buck = buck->next;//don't return old
+	while(buck)
+	{
+		if (!STRCMP(name, buck->keystring))
+			return buck->data;
+
+		buck = buck->next;
+	}
+	return NULL;
 }
-#endif
-void *Hash_Add2(hashtable_t *table, char *name, void *data, bucket_t *buck)
+
+
+void *Hash_Add(hashtable_t *table, char *name, void *data, bucket_t *buck)
 {
 	int bucknum = Hash_Key(name, table->numbuckets);
 

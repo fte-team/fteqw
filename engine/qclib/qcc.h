@@ -462,6 +462,9 @@ extern pbool keywords_coexist;
 extern pbool output_parms;
 extern pbool autoprototype;
 extern pbool flag_ifstring;
+extern pbool flag_acc;
+extern pbool flag_caseinsensative;
+extern pbool flag_laxcasts;
 
 extern pbool opt_overlaptemps;
 extern pbool opt_shortenifnots;
@@ -516,6 +519,7 @@ QCC_type_t *QCC_PR_NewType (char *name, int basictype);
 QCC_type_t *QCC_PR_ParseType (int newtype);
 QCC_type_t *QCC_TypeForName(char *name);
 QCC_type_t *QCC_PR_ParseFunctionType (int newtype, QCC_type_t *returntype);
+QCC_type_t *QCC_PR_ParseFunctionTypeReacc (int newtype, QCC_type_t *returntype);
 char *QCC_PR_ParseName (void);
 CompilerConstant_t *QCC_PR_DefineName(char *name);
 
@@ -580,6 +584,7 @@ enum {
 	WARN_FTE_SPECIFIC,	//extension that only FTEQCC will have a clue about.
 	WARN_EXTENSION_USED,	//extension that frikqcc also understands
 	WARN_IFSTRING_USED,
+	WARN_LAXCAST,	//some errors become this with a compiler flag
 
 	ERR_PARSEERRORS,	//caused by qcc_pr_parseerror being called.
 
@@ -830,7 +835,7 @@ bool inline QCC_PR_Check (char *string)
 {
 	if (strcmp (string, pr_token))
 		return false;
-		
+
 	QCC_PR_Lex ();
 	return true;
 }
@@ -846,3 +851,6 @@ void inline QCC_PR_Expect (char *string)
 void editbadfile(char *fname, int line);
 char *TypeName(QCC_type_t *type);
 void QCC_PR_IncludeChunk (char *data, pbool duplicate, char *filename);
+extern void *(*pHash_Get)(hashtable_t *table, char *name);
+extern void *(*pHash_GetNext)(hashtable_t *table, char *name, void *old);
+extern void *(*pHash_Add)(hashtable_t *table, char *name, void *data, bucket_t *);

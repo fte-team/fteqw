@@ -597,7 +597,7 @@ void SV_MulticastProtExt(vec3_t origin, multicast_t to, int dimension_mask, int 
 			}
 
 			if (svprogfuncs)
-				if (!(dimension_mask & (int)client->edict->v.dimension_mask))
+				if (!((int)client->edict->v.dimension_see & dimension_mask))
 					continue;
 
 			if (to == MULTICAST_PHS_R || to == MULTICAST_PHS) {
@@ -781,9 +781,9 @@ void SV_StartSound (edict_t *entity, int channel, char *sample, int volume,
 		MSG_WriteCoord (&sv.nqmulticast, origin[i]);
 #endif
 	if (use_phs)
-		SV_MulticastProtExt(origin, reliable ? MULTICAST_PHS_R : MULTICAST_PHS, entity->v.dimension_mask, 0, 0);
+		SV_MulticastProtExt(origin, reliable ? MULTICAST_PHS_R : MULTICAST_PHS, entity->v.dimension_seen, 0, 0);
 	else
-		SV_MulticastProtExt(origin, reliable ? MULTICAST_ALL_R : MULTICAST_ALL, entity->v.dimension_mask, 0, 0);
+		SV_MulticastProtExt(origin, reliable ? MULTICAST_ALL_R : MULTICAST_ALL, entity->v.dimension_seen, 0, 0);
 }
 
 /*
@@ -1331,7 +1331,7 @@ void SV_UpdateToReliableMessages (void)
 		{
 			if (!host_client->state && host_client->name[0])
 			{
-				if (host_client->old_frags != host_client->edict->v.frags)
+				if (host_client->old_frags != (int)host_client->edict->v.frags)
 				{
 					for (j=0, client = svs.clients ; j<MAX_CLIENTS ; j++, client++)
 					{
@@ -1354,7 +1354,7 @@ void SV_UpdateToReliableMessages (void)
 				host_client->sendinfo = false;
 				SV_FullClientUpdate (host_client, &sv.reliable_datagram);
 			}
-			if (host_client->old_frags != host_client->edict->v.frags)
+			if (host_client->old_frags != (int)host_client->edict->v.frags)
 			{
 				for (j=0, client = svs.clients ; j<MAX_CLIENTS ; j++, client++)
 				{

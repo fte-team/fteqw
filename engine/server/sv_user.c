@@ -553,7 +553,7 @@ void SV_PK3List_f (void)
 {
 	int crc;
 	char *name;
-	int n, i;
+	int i;
 
 	if (host_client->state != cs_connected)
 	{	//fixme: send prints instead

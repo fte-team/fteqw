@@ -1052,6 +1052,62 @@ void SV_WriteClientdataToMessage (client_t *client, sizebuf_t *msg)
 #endif
 }
 
+typedef struct {
+	int type;
+	char name[64];
+	evalc_t evalc;
+	int statnum;
+} qcstat_t;
+qcstat_t qcstats[MAX_CL_STATS-32];
+int numqcstats;
+void SV_QCStat(int type, char *name, int statnum)
+{
+	if (numqcstats == sizeof(qcstats)/sizeof(qcstats[0]))
+	{
+		Con_Printf("Too many stat types\n");
+		return;
+	}
+
+	qcstats[numqcstats].type = type;
+	qcstats[numqcstats].statnum = statnum;
+	Q_strncpyz(qcstats[numqcstats].name, name, sizeof(qcstats[numqcstats].name));
+	memset(&qcstats[numqcstats].evalc, 0, sizeof(evalc_t));
+}
+
+void SV_ClearQCStats(void)
+{
+	numqcstats = 0;
+}
+
+void SV_UpdateQCStats(edict_t	*ent, int *stats)
+{
+	char *s;
+	int i;
+
+	for (i = 0; i < numqcstats; i++)
+	{
+		eval_t *eval;
+		eval = svprogfuncs->GetEdictFieldValue(svprogfuncs, ent, qcstats[i].name, &qcstats[i].evalc);
+
+		switch(qcstats[i].type)
+		{
+		case ev_float:
+			stats[qcstats[i].statnum] = eval->_float;
+			break;
+		case ev_integer:
+			stats[qcstats[i].statnum] = eval->_int;
+			break;
+		case ev_entity:
+			stats[qcstats[i].statnum] = NUM_FOR_EDICT(svprogfuncs, PROG_TO_EDICT(svprogfuncs, eval->edict));
+			break;
+		case ev_string:
+			s = PR_GetString(svprogfuncs, eval->string);
+			Q_strncpyz((char *)(&stats[qcstats[i].statnum]), s, (4)*sizeof(int));
+			break;
+		}
+	}
+}
+
 /*
 =======================
 SV_UpdateClientStats
@@ -1065,7 +1121,6 @@ void SV_UpdateClientStats (client_t *client, int pnum)
 	edict_t	*ent;
 	int		stats[MAX_CL_STATS];
 	int		i, m;
-	char *s;
 	globalvars_t *pr_globals;
 	extern qboolean pr_items2;
 
@@ -1102,67 +1157,7 @@ void SV_UpdateClientStats (client_t *client, int pnum)
 		stats[STAT_VIEW2] = 0;
 #endif
 
-	stats[STAT_H2_LEVEL] = ent->v.level;
-	stats[STAT_H2_INTELLIGENCE] = ent->v.intelligence;
-	stats[STAT_H2_WISDOM] = ent->v.wisdom;
-	stats[STAT_H2_STRENGTH] = ent->v.strength;
-	stats[STAT_H2_DEXTERITY] = ent->v.dexterity;
-	stats[STAT_H2_BLUEMANA] = ent->v.bluemana;
-	stats[STAT_H2_GREENMANA] = ent->v.greenmana;
-	stats[STAT_H2_EXPERIENCE] = ent->v.experience;
-	stats[STAT_H2_CNT_TORCH] = ent->v.cnt_torch;
-	stats[STAT_H2_CNT_H_BOOST] = ent->v.cnt_h_boost;
-	stats[STAT_H2_CNT_SH_BOOST] = ent->v.cnt_sh_boost;
-	stats[STAT_H2_CNT_MANA_BOOST] = ent->v.cnt_mana_boost;
-	stats[STAT_H2_CNT_TELEPORT] = ent->v.cnt_teleport;
-	stats[STAT_H2_CNT_TOME] = ent->v.cnt_tome;
-	stats[STAT_H2_CNT_SUMMON] = ent->v.cnt_summon;
-	stats[STAT_H2_CNT_INVISIBILITY] = ent->v.cnt_invisibility;
-	stats[STAT_H2_CNT_GLYPH] = ent->v.cnt_glyph;
-	stats[STAT_H2_CNT_HASTE] = ent->v.cnt_haste;
-	stats[STAT_H2_CNT_BLAST] = ent->v.cnt_blast;
-	stats[STAT_H2_CNT_POLYMORPH] = ent->v.cnt_polymorph;
-	stats[STAT_H2_CNT_FLIGHT] = ent->v.cnt_flight;
-	stats[STAT_H2_CNT_CUBEOFFORCE] = ent->v.cnt_cubeofforce;
-	stats[STAT_H2_CNT_INVINCIBILITY] = ent->v.cnt_invincibility;
-	stats[STAT_H2_ARTIFACT_ACTIVE] = ent->v.artifact_active;
-	stats[STAT_H2_ARTIFACT_LOW] = ent->v.artifact_low;
-	stats[STAT_H2_MOVETYPE] = ent->v.movetype;
-	stats[STAT_H2_CAMERAMODE] = 0;//NUM_FOR_EDICT(svprogfuncs, G_EDICT(svprogfuncs, ent->v.cameramode));
-	stats[STAT_H2_HASTED] = ent->v.hasted;
-	stats[STAT_H2_INVENTORY] = ent->v.inventory;
-	stats[STAT_H2_RINGS_ACTIVE] = ent->v.rings_active;
-
-	stats[STAT_H2_RINGS_LOW] = ent->v.rings_low;
-	stats[STAT_H2_AMULET] = ent->v.armor_amulet;
-	stats[STAT_H2_BRACER] = ent->v.armor_bracer;
-	stats[STAT_H2_BREASTPLATE] = ent->v.armor_breastplate;
-	stats[STAT_H2_HELMET] = ent->v.armor_helmet;
-	stats[STAT_H2_FLIGHT_T] = ent->v.ring_flight;
-	stats[STAT_H2_WATER_T] = ent->v.ring_water;
-	stats[STAT_H2_TURNING_T] = ent->v.ring_turning;
-	stats[STAT_H2_REGEN_T] = ent->v.ring_regeneration;
-	s = PR_GetString(svprogfuncs, ent->v.puzzle_inv1);
-	Q_strncpyz((char *)(&stats[STAT_H2_PUZZLE1A]), s, (STAT_H2_PUZZLE2A-STAT_H2_PUZZLE1A)*sizeof(int));
-	s = PR_GetString(svprogfuncs, ent->v.puzzle_inv2);
-	Q_strncpyz((char *)(&stats[STAT_H2_PUZZLE2A]), s, (STAT_H2_PUZZLE2A-STAT_H2_PUZZLE1A)*sizeof(int));
-	s = PR_GetString(svprogfuncs, ent->v.puzzle_inv3);
-	Q_strncpyz((char *)(&stats[STAT_H2_PUZZLE3A]), s, (STAT_H2_PUZZLE2A-STAT_H2_PUZZLE1A)*sizeof(int));
-	s = PR_GetString(svprogfuncs, ent->v.puzzle_inv4);
-	Q_strncpyz((char *)(&stats[STAT_H2_PUZZLE4A]), s, (STAT_H2_PUZZLE2A-STAT_H2_PUZZLE1A)*sizeof(int));
-	s = PR_GetString(svprogfuncs, ent->v.puzzle_inv5);
-	Q_strncpyz((char *)(&stats[STAT_H2_PUZZLE5A]), s, (STAT_H2_PUZZLE2A-STAT_H2_PUZZLE1A)*sizeof(int));
-	s = PR_GetString(svprogfuncs, ent->v.puzzle_inv6);
-	Q_strncpyz((char *)(&stats[STAT_H2_PUZZLE6A]), s, (STAT_H2_PUZZLE2A-STAT_H2_PUZZLE1A)*sizeof(int));
-	s = PR_GetString(svprogfuncs, ent->v.puzzle_inv7);
-	Q_strncpyz((char *)(&stats[STAT_H2_PUZZLE7A]), s, (STAT_H2_PUZZLE2A-STAT_H2_PUZZLE1A)*sizeof(int));
-	s = PR_GetString(svprogfuncs, ent->v.puzzle_inv8);
-	Q_strncpyz((char *)(&stats[STAT_H2_PUZZLE8A]), s, (STAT_H2_PUZZLE2A-STAT_H2_PUZZLE1A)*sizeof(int));
-	stats[STAT_H2_MAXHEALTH] = ent->v.max_health;
-	stats[STAT_H2_MAXMANA] = ent->v.max_mana;
-#define FL_SPECIAL_ABILITY1		4194304  // has 1st special ability
-#define FL_SPECIAL_ABILITY2		8388608  // has 2nd special ability
-	stats[STAT_H2_FLAGS] = (int)ent->v.flags & (FL_SPECIAL_ABILITY1 | FL_SPECIAL_ABILITY2);
+	SV_UpdateQCStats(ent, stats);
 
 	//dmw tweek for stats
 	pr_globals = PR_globals(svprogfuncs, PR_CURRENT);

@@ -4684,6 +4684,9 @@ void QCC_PR_ParseStatement (void)
 							case ev_function:
 								e2 = QCC_PR_Statement (&pr_opcodes[OP_EQ_FNC], e, pr_casesdef[i], &patch1);
 								break;
+							case ev_integer:
+								e2 = QCC_PR_Statement (&pr_opcodes[OP_EQ_I], e, pr_casesdef[i], &patch1);
+								break;
 							default:
 								QCC_PR_ParseError(ERR_BADSWITCHTYPE, "Bad switch type");
 								e2 = NULL;

@@ -137,7 +137,9 @@ cvar_t		gl_compress = {"gl_compress", "0"};
 cvar_t		gl_savecompressedtex = {"gl_savecompressedtex", "0"};
 extern cvar_t gl_dither;
 
-
+#ifdef SPECULAR
+cvar_t		gl_specular = {"gl_specular", "0"};
+#endif
 cvar_t		gl_waterripples = {"gl_waterripples", "0"};
 cvar_t		gl_detail = {"gl_detail", "0", NULL, CVAR_ARCHIVE};
 cvar_t		r_shadows = {"r_shadows", "0", NULL, CVAR_ARCHIVE|CVAR_RENDERERLATCH};
@@ -211,9 +213,10 @@ void R_BulletenForce_f (void);
 
 rendererstate_t currentrendererstate;
 
+cvar_t	gl_skyboxname = {"r_skybox", ""};
+
 #if defined(RGLQUAKE)
 cvar_t	gl_ztrick = {"gl_ztrick","1"};
-extern cvar_t gl_skyboxname;
 extern cvar_t r_waterlayers;
 cvar_t			gl_triplebuffer = {"gl_triplebuffer", "1", NULL, CVAR_ARCHIVE };
 cvar_t			gl_subdivide_size = {"gl_subdivide_size", "128", NULL, CVAR_ARCHIVE};
@@ -266,12 +269,12 @@ void GLRenderer_Init(void)
 	Cvar_Register (&gl_smoothfont, GRAPHICALNICETIES);
 
 	Cvar_Register (&gl_bump, GRAPHICALNICETIES);
-	Cvar_Register (&gl_skyboxname, GRAPHICALNICETIES);
 	Cvar_Register (&gl_contrast, GLRENDEREROPTIONS);
 #ifdef R_XFLIP
 	Cvar_Register (&r_xflip, GLRENDEREROPTIONS);
 #endif
 	Cvar_Register (&gl_load24bit, GRAPHICALNICETIES);
+	Cvar_Register (&gl_specular, GRAPHICALNICETIES);
 
 	Cvar_Register (&gl_lightmapmode, GLRENDEREROPTIONS);
 
@@ -432,6 +435,7 @@ void Renderer_Init(void)
 	Cvar_Register (&vid_height, VIDCOMMANDGROUP);
 	Cvar_Register (&vid_refreshrate, VIDCOMMANDGROUP);
 
+	Cvar_Register (&gl_skyboxname, GRAPHICALNICETIES);
 
 	Cvar_Register(&r_dodgytgafiles, "Bug fixes");
 	Cvar_Register(&r_loadlits, GRAPHICALNICETIES);
@@ -727,18 +731,18 @@ void M_Menu_Video_f (void)
 	y = 32;
 	info->renderer = MC_AddCombo(menu,	16, y,				"   Renderer     ", rendererops, i);	y+=8;
 	info->combo = MC_AddCombo(menu,	16, y,					"   Video Size   ", modenames, vid_mode.value+1);	y+=8;
-	MC_AddCheckBox(menu,	16, y,							"   Fullscreen   ", &vid_fullscreen);	y+=8;
+	MC_AddCheckBox(menu,	16, y,							"   Fullscreen   ", &vid_fullscreen,0);	y+=8;
 	y+=4;info->customwidth = MC_AddEdit(menu, 16, y,		"   Custom width ", vid_width.string);	y+=8;
 	y+=4;info->customheight = MC_AddEdit(menu, 16, y,		"   Custom height", vid_height.string);	y+=12;
 	y+=8;
 	MC_AddCommand(menu,	16, y,								"           Apply", M_VideoApply);	y+=8;
 	y+=8;
-	MC_AddCheckBox(menu,	16, y,							"      Stain maps", &r_stains);	y+=8;
-	MC_AddCheckBox(menu,	16, y,							"   Bouncy sparks", &r_bouncysparks);	y+=8;
-	MC_AddCheckBox(menu,	16, y,							"            Rain", &r_part_rain);	y+=8;
-	MC_AddCheckBox(menu,	16, y,							"    SW Smoothing", &d_smooth);	y+=8;
-	MC_AddCheckBox(menu,	16, y,							"  GL Bumpmapping", &gl_bump);	y+=8;
-	MC_AddCheckBox(menu,	16, y,							"  Dynamic lights", &r_dynamic);	y+=8;
+	MC_AddCheckBox(menu,	16, y,							"      Stain maps", &r_stains,0);	y+=8;
+	MC_AddCheckBox(menu,	16, y,							"   Bouncy sparks", &r_bouncysparks,0);	y+=8;
+	MC_AddCheckBox(menu,	16, y,							"            Rain", &r_part_rain,0);	y+=8;
+	MC_AddCheckBox(menu,	16, y,							"    SW Smoothing", &d_smooth,0);	y+=8;
+	MC_AddCheckBox(menu,	16, y,							"  GL Bumpmapping", &gl_bump,0);	y+=8;
+	MC_AddCheckBox(menu,	16, y,							"  Dynamic lights", &r_dynamic,0);	y+=8;
 	MC_AddSlider(menu,	16, y,								"     Screen size", &scr_viewsize,	30,		120);y+=8;
 	MC_AddSlider(menu,	16, y,								"           Gamma", &v_gamma, 0.3, 1);	y+=8;
 	MC_AddSlider(menu,	16, y,								"        Contrast", &v_contrast, 1, 3);	y+=8;

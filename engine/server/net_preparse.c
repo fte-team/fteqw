@@ -401,6 +401,7 @@ void NPP_NQWriteByte(int dest, qbyte data)	//replacement write func (nq to qw)
 				break;
 			}
 			break;
+		case svc_setname:
 		case svc_stufftext:
 		case svc_centerprint:
 			break;

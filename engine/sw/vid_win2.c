@@ -28,7 +28,6 @@ extern qboolean vid_isfullscreen;
 
 static qbyte		*vid_surfcache;
 static int		vid_surfcachesize;
-static int		VID_highhunkmark;
 
 
 
@@ -169,7 +168,7 @@ LONG WINAPI MainWndProc (
 	HDC				hdc;
 	PAINTSTRUCT		ps;
 	extern unsigned int uiWheelMessage;
-	static int		recursiveflag;
+//	static int		recursiveflag;
 
 	if ( uMsg == uiWheelMessage ) {
 		uMsg = WM_MOUSEWHEEL;
@@ -414,7 +413,7 @@ LONG WINAPI MainWndProc (
 				lRet = TRUE;
 			}
 			break;
-
+*/
 /*		case WM_DISPLAYCHANGE:
 			if (!in_mode_set && (modestate == MS_WINDOWED) && !vid_fulldib_on_focus_mode)
 			{

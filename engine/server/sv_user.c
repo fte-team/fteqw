@@ -57,6 +57,7 @@ cvar_t	voteminimum	= {"voteminimum", "4"};
 cvar_t	votepercent = {"votepercent", "-1"};
 cvar_t	votetime = {"votetime", "10"};
 
+cvar_t	pr_allowbutton1 = {"pr_allowbutton1", "1", NULL, CVAR_LATCH};
 
 extern cvar_t	pm_bunnyspeedcap;
 extern cvar_t	pm_ktjump;
@@ -3449,6 +3450,8 @@ void SV_RunCmd (usercmd_t *ucmd, qboolean recurse)
 
 	sv_player->v.button0 = ucmd->buttons & 1;
 	sv_player->v.button2 = (ucmd->buttons & 2)>>1;
+	if (pr_allowbutton1.value)	//many mods use button1 - it's just a wasted field to many mods. So only work it if the cvar allows.
+		sv_player->v.button1 = (ucmd->buttons & 4) >> 2;
 	if (ucmd->impulse && SV_FiltureImpulse(ucmd->impulse, host_client->trustlevel))
 		sv_player->v.impulse = ucmd->impulse;
 

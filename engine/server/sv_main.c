@@ -2788,6 +2788,7 @@ void SV_InitLocal (void)
 	extern	cvar_t	sv_wateraccelerate;
 	extern	cvar_t	sv_friction;
 	extern	cvar_t	sv_waterfriction;
+	extern	cvar_t	pr_allowbutton1;
 
 	extern	cvar_t	pm_bunnyspeedcap;
 	extern	cvar_t	pm_ktjump;
@@ -2891,6 +2892,7 @@ void SV_InitLocal (void)
 	Cvar_Register (&sv_phs,	cvargroup_servercontrol);
 
 	Cvar_Register (&sv_nomsec,	cvargroup_serverphysics);
+	Cvar_Register (&pr_allowbutton1, cvargroup_servercontrol);
 
 	Cvar_Register (&pausable,	cvargroup_servercontrol);
 

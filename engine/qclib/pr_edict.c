@@ -580,7 +580,7 @@ char *PR_UglyValueString (progfuncs_t *progfuncs, etype_t type, eval_t *val)
 		sprintf (line, "unions cannot yet be saved");
 		break;
 	case ev_string:
-		sprintf (line, "%s", val->string+progfuncs->stringtable);
+		_snprintf (line, sizeof(line), "%s", val->string+progfuncs->stringtable);
 		break;
 	case ev_entity:	
 		sprintf (line, "%i", NUM_FOR_EDICT(progfuncs, (struct edict_s *)PROG_TO_EDICT(progfuncs, val->edict)));

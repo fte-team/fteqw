@@ -4981,6 +4981,7 @@ void PF_forgetstring(progfuncs_t *prinst, struct globalvars_s *pr_globals)
 		(*prinst->pr_trace) = 1;
 		return;
 	}
+	((int *)s)[0] = 0xabcd1234;
 	Z_Free(s);
 }
 void PF_strlen(progfuncs_t *prinst, struct globalvars_s *pr_globals)
@@ -6363,7 +6364,7 @@ static void PF_copyentity (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 	in = G_EDICT(prinst, OFS_PARM0);
 	out = G_EDICT(prinst, OFS_PARM1);
 
-	memcpy(&out->v, &in->v, pr_edict_size-prinst->parms->edictsize);
+	memcpy(out->v, in->v, pr_edict_size);
 	SV_LinkEdict(out, false);
 }
 

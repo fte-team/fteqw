@@ -42,7 +42,7 @@ void Cache_FreeHigh (int new_high_hunk);
 
 //must be multiple of 4.
 #define TEMPDEBUG 4
-#define ZONEDEBUG 4
+#define ZONEDEBUG 64
 #define HUNKDEBUG 4
 #define CACHEDEBUG 4
 
@@ -221,7 +221,7 @@ void BZ_CheckSentinals(void *c)
 #endif
 
 }
-/*	//revive this function each time you get memory corruption and need to trace it.
+	//revive this function each time you get memory corruption and need to trace it.
 void BZ_CheckAllSentinals(void)
 {
 	zone_t *zone;
@@ -245,7 +245,7 @@ void BZ_CheckAllSentinals(void)
 		}
 	}
 }
-*/
+
 
 void VARGS Z_FreeTags(int tag)
 {

@@ -136,11 +136,11 @@ csqcedict_t *csqc_edicts;	//consider this 'world'
 
 void CSQC_InitFields(void)
 {	//CHANGING THIS FUNCTION REQUIRES CHANGES TO csqcentvars_t
-#define fieldfloat(name) PR_RegisterFieldVar(csqcprogs, ev_float, #name, (int)&((csqcedict_t*)0)->v->name - (int)&((csqcedict_t*)0)->v, -1)
-#define fieldvector(name) PR_RegisterFieldVar(csqcprogs, ev_vector, #name, (int)&((csqcedict_t*)0)->v->name - (int)&((csqcedict_t*)0)->v, -1)
-#define fieldentity(name) PR_RegisterFieldVar(csqcprogs, ev_entity, #name, (int)&((csqcedict_t*)0)->v->name - (int)&((csqcedict_t*)0)->v, -1)
-#define fieldstring(name) PR_RegisterFieldVar(csqcprogs, ev_string, #name, (int)&((csqcedict_t*)0)->v->name - (int)&((csqcedict_t*)0)->v, -1)
-#define fieldfunction(name) PR_RegisterFieldVar(csqcprogs, ev_function, #name, (int)&((csqcedict_t*)0)->v->name - (int)&((csqcedict_t*)0)->v, -1)
+#define fieldfloat(name) PR_RegisterFieldVar(csqcprogs, ev_float, #name, (int)&((csqcentvars_t*)0)->name, -1)
+#define fieldvector(name) PR_RegisterFieldVar(csqcprogs, ev_vector, #name, (int)&((csqcentvars_t*)0)->name, -1)
+#define fieldentity(name) PR_RegisterFieldVar(csqcprogs, ev_entity, #name, (int)&((csqcentvars_t*)0)->name, -1)
+#define fieldstring(name) PR_RegisterFieldVar(csqcprogs, ev_string, #name, (int)&((csqcentvars_t*)0)->name, -1)
+#define fieldfunction(name) PR_RegisterFieldVar(csqcprogs, ev_function, #name, (int)&((csqcentvars_t*)0)->name, -1)
 csqcfields
 #undef fieldfloat
 #undef fieldvector
@@ -339,6 +339,7 @@ static void PF_R_AddEntity(progfuncs_t *prinst, struct globalvars_s *pr_globals)
 
 	ent.alpha = in->v->alpha;
 	ent.scale = in->v->scale;
+	ent.skinnum = in->v->skin;
 
 	V_AddEntity(&ent);
 }
@@ -1297,7 +1298,7 @@ qboolean CSQC_Init (unsigned int checksum)
 	csqcprogparms.printf = (void *)Con_Printf;//Con_Printf;//void (*printf) (char *, ...);
 	csqcprogparms.Sys_Error = Sys_Error;
 	csqcprogparms.Abort = CSQC_Abort;
-	csqcprogparms.edictsize = sizeof(csqcedict_t)-sizeof(csqcentvars_t);
+	csqcprogparms.edictsize = sizeof(csqcedict_t);
 
 	csqcprogparms.entspawn = NULL;//void (*entspawn) (struct edict_s *ent);	//ent has been spawned, but may not have all the extra variables (that may need to be set) set
 	csqcprogparms.entcanfree = NULL;//bool (*entcanfree) (struct edict_s *ent);	//return true to stop ent from being freed

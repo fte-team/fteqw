@@ -773,12 +773,12 @@ static void PF_Remove_ (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 
 static void PF_CopyEntity (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
-	void *in, *out;
+	menuedict_t *in, *out;
 
-	in = G_EDICT(prinst, OFS_PARM0);
-	out = G_EDICT(prinst, OFS_PARM1);
+	in = (menuedict_t*)G_EDICT(prinst, OFS_PARM0);
+	out = (menuedict_t*)G_EDICT(prinst, OFS_PARM1);
 
-	memcpy((char*)out+prinst->parms->edictsize, (char*)in+prinst->parms->edictsize, menuentsize-prinst->parms->edictsize);
+	memcpy(out->fields, in->fields, menuentsize);
 }
 
 void PF_gethostcachevalue (progfuncs_t *prinst, struct globalvars_s *pr_globals)
@@ -865,63 +865,61 @@ void PF_menu_findchain (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
 	int i, f;
 	char *s, *t;
-	edict_t *ent, *chain;	//note, all edicts share the common header, but don't use it's fields!
+	menuedict_t *ent, *chain;	//note, all edicts share the common header, but don't use it's fields!
 	eval_t *val;
 
-	chain = (edict_t *) *prinst->parms->sv_edicts;
+	chain = (menuedict_t *) *prinst->parms->sv_edicts;
 
 	f = G_INT(OFS_PARM0)+prinst->fieldadjust;
-	f += prinst->parms->edictsize/4;
 	s = PR_GetStringOfs(prinst, OFS_PARM1);
 
 	for (i = 1; i < *prinst->parms->sv_num_edicts; i++)
 	{
-		ent = EDICT_NUM(prinst, i);
+		ent = (menuedict_t *)EDICT_NUM(prinst, i);
 		if (ent->isfree)
 			continue;
-		t = *(string_t *)&((float*)ent)[f] + prinst->stringtable;
+		t = *(string_t *)&((float*)ent->fields)[f] + prinst->stringtable;
 		if (!t)
 			continue;
 		if (strcmp(t, s))
 			continue;
 
-		val = prinst->GetEdictFieldValue(prinst, ent, "chain", NULL);
+		val = prinst->GetEdictFieldValue(prinst, (void*)ent, "chain", NULL);
 		if (val)
-			val->edict = EDICT_TO_PROG(prinst, chain);
+			val->edict = EDICT_TO_PROG(prinst, (void*)chain);
 		chain = ent;
 	}
 
-	RETURN_EDICT(prinst, chain);
+	RETURN_EDICT(prinst, (void*)chain);
 }
 //entity	findchainfloat(.float _field, float match) = #27;
 void PF_menu_findchainfloat (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
 	int i, f;
 	float s;
-	edict_t	*ent, *chain;	//note, all edicts share the common header, but don't use it's fields!
+	menuedict_t	*ent, *chain;	//note, all edicts share the common header, but don't use it's fields!
 	eval_t *val;
 
-	chain = (edict_t *) *prinst->parms->sv_edicts;
+	chain = (menuedict_t *) *prinst->parms->sv_edicts;
 
 	f = G_INT(OFS_PARM0)+prinst->fieldadjust;
-	f += prinst->parms->edictsize/4;
 	s = G_FLOAT(OFS_PARM1);
 
 	for (i = 1; i < *prinst->parms->sv_num_edicts; i++)
 	{
-		ent = EDICT_NUM(prinst, i);
+		ent = (menuedict_t*)EDICT_NUM(prinst, i);
 		if (ent->isfree)
 			continue;
-		if (((float *)ent)[f] != s)
+		if (((float *)ent->fields)[f] != s)
 			continue;
 
-		val = prinst->GetEdictFieldValue(prinst, ent, "chain", NULL);
+		val = prinst->GetEdictFieldValue(prinst, (void*)ent, "chain", NULL);
 		if (val)
-			val->edict = EDICT_TO_PROG(prinst, chain);
+			val->edict = EDICT_TO_PROG(prinst, (void*)chain);
 		chain = ent;
 	}
 
-	RETURN_EDICT(prinst, chain);
+	RETURN_EDICT(prinst, (void*)chain);
 }
 
 void PF_etof(progfuncs_t *prinst, struct globalvars_s *pr_globals)
@@ -1432,7 +1430,6 @@ void MP_Init (void)
 		mp_keydown_function = PR_FindFunction(menuprogs, "m_keydown", PR_ANY);
 		mp_keyup_function = PR_FindFunction(menuprogs, "m_keyup", PR_ANY);
 		mp_toggle_function = PR_FindFunction(menuprogs, "m_toggle", PR_ANY);
-
 		if (mp_init_function)
 			PR_ExecuteProgram(menuprogs, mp_init_function);
 		inmenuprogs--;

@@ -1,0 +1,940 @@
+/*
+Copyright (C) 1996-1997 Id Software, Inc.
+
+This program is free software; you can redistribute it and/or
+modify it under the terms of the GNU General Public License
+as published by the Free Software Foundation; either version 2
+of the License, or (at your option) any later version.
+
+This program is distributed in the hope that it will be useful,
+but WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  
+
+See the GNU General Public License for more details.
+
+You should have received a copy of the GNU General Public License
+along with this program; if not, write to the Free Software
+Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
+
+*/
+// r_misc.c
+
+#include "quakedef.h"
+#include "glquake.h"
+
+#ifdef WATERLAYERS
+cvar_t	r_waterlayers = {"r_waterlayers","3"};
+#endif
+
+cvar_t	gl_skyboxname = {"r_skybox", ""};
+
+extern void R_InitBubble();
+
+/*
+==================
+R_InitTextures
+==================
+*
+void	GLR_InitTextures (void)
+{
+	int		x,y, m;
+	qbyte	*dest;
+
+// create a simple checkerboard texture for the default
+	r_notexture_mip = Hunk_AllocName (sizeof(texture_t) + 16*16+8*8+4*4+2*2, "notexture");
+	
+	r_notexture_mip->width = r_notexture_mip->height = 16;
+	r_notexture_mip->offsets[0] = sizeof(texture_t);
+	r_notexture_mip->offsets[1] = r_notexture_mip->offsets[0] + 16*16;
+	r_notexture_mip->offsets[2] = r_notexture_mip->offsets[1] + 8*8;
+	r_notexture_mip->offsets[3] = r_notexture_mip->offsets[2] + 4*4;
+	
+	for (m=0 ; m<4 ; m++)
+	{
+		dest = (qbyte *)r_notexture_mip + r_notexture_mip->offsets[m];
+		for (y=0 ; y< (16>>m) ; y++)
+			for (x=0 ; x< (16>>m) ; x++)
+			{
+				if (  (y< (8>>m) ) ^ (x< (8>>m) ) )
+					*dest++ = 0;
+				else
+					*dest++ = 0xff;
+			}
+	}	
+}*/
+//we could go for nice smooth round particles... but then we would loose a little bit of the chaotic nature of the particles.
+static qbyte	dottexture[8][8] =
+{
+	{0,0,0,0,0,0,0,0},
+	{0,0,0,1,1,0,0,0},
+	{0,0,1,1,1,1,0,0},
+	{0,1,1,1,1,1,1,0},
+	{0,1,1,1,1,1,1,0},
+	{0,0,1,1,1,1,0,0},
+	{0,0,0,1,1,0,0,0},
+	{0,0,0,0,0,0,0,0},
+};
+static qbyte	exptexture[16][16] =
+{
+	{0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0},
+	{0,0,0,0,1,0,0,0,1,0,0,1,0,0,0,0},
+	{0,0,0,1,1,1,1,1,3,1,1,2,1,0,0,0},
+	{0,0,0,1,1,1,1,4,4,4,5,4,2,1,1,0},
+	{0,0,1,1,6,5,5,8,6,8,3,6,3,2,1,0},
+	{0,0,1,5,6,7,5,6,8,8,8,3,3,1,0,0},
+	{0,0,0,1,6,8,9,9,9,9,4,6,3,1,0,0},
+	{0,0,2,1,7,7,9,9,9,9,5,3,1,0,0,0},
+	{0,0,2,4,6,8,9,9,9,9,8,6,1,0,0,0},
+	{0,0,2,2,3,5,6,8,9,8,8,4,4,1,0,0},
+	{0,0,1,2,4,1,8,7,8,8,6,5,4,1,0,0},
+	{0,1,1,1,7,8,1,6,7,5,4,7,1,0,0,0},
+	{0,1,2,1,1,5,1,3,4,3,1,1,0,0,0,0},
+	{0,0,0,0,0,1,1,1,1,1,0,0,0,0,0,0},
+	{0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0},
+	{0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0},
+};
+void R_InitParticleTexture (void)
+{
+	int		x,y;
+	qbyte	data[16*16][4];
+
+	//
+	// particle texture
+	//
+	particletexture = texture_extension_number++;
+    GL_Bind(particletexture);
+
+	for (x=0 ; x<8 ; x++)
+	{
+		for (y=0 ; y<8 ; y++)
+		{
+			data[y*8+x][0] = 255;
+			data[y*8+x][1] = 255;
+			data[y*8+x][2] = 255;
+			data[y*8+x][3] = dottexture[x][y]*255;
+		}
+	}
+	glTexImage2D (GL_TEXTURE_2D, 0, gl_alpha_format, 8, 8, 0, GL_RGBA, GL_UNSIGNED_BYTE, data);
+
+	glTexEnvf(GL_TEXTURE_ENV, GL_TEXTURE_ENV_MODE, GL_MODULATE);
+
+	glTexParameterf(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+	glTexParameterf(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+
+
+
+
+	explosiontexture = texture_extension_number++;
+    GL_Bind(explosiontexture);
+
+	for (x=0 ; x<16 ; x++)
+	{
+		for (y=0 ; y<16 ; y++)
+		{
+			data[y*16+x][0] = 255;
+			data[y*16+x][1] = 255;
+			data[y*16+x][2] = 255;
+			data[y*16+x][3] = exptexture[x][y]*255/9.0;
+		}
+	}
+	glTexImage2D (GL_TEXTURE_2D, 0, gl_alpha_format, 16, 16, 0, GL_RGBA, GL_UNSIGNED_BYTE, data);
+
+	glTexEnvf(GL_TEXTURE_ENV, GL_TEXTURE_ENV_MODE, GL_MODULATE);
+
+	glTexParameterf(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+	glTexParameterf(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+}
+
+/*
+===============
+R_Envmap_f
+
+Grab six views for environment mapping tests
+===============
+*/
+void R_Envmap_f (void)
+{
+	qbyte	buffer[256*256*4];
+
+	glDrawBuffer  (GL_FRONT);
+	glReadBuffer  (GL_FRONT);
+	envmap = true;
+
+	r_refdef.vrect.x = 0;
+	r_refdef.vrect.y = 0;
+	r_refdef.vrect.width = 256;
+	r_refdef.vrect.height = 256;
+
+	r_refdef.viewangles[0] = 0;
+	r_refdef.viewangles[1] = 0;
+	r_refdef.viewangles[2] = 0;
+	GL_BeginRendering (&glx, &gly, &glwidth, &glheight);
+	R_RenderView ();
+	glReadPixels (0, 0, 256, 256, GL_RGBA, GL_UNSIGNED_BYTE, buffer);
+	COM_WriteFile ("env0.rgb", buffer, sizeof(buffer));		
+
+	r_refdef.viewangles[1] = 90;
+	GL_BeginRendering (&glx, &gly, &glwidth, &glheight);
+	R_RenderView ();
+	glReadPixels (0, 0, 256, 256, GL_RGBA, GL_UNSIGNED_BYTE, buffer);
+	COM_WriteFile ("env1.rgb", buffer, sizeof(buffer));		
+
+	r_refdef.viewangles[1] = 180;
+	GL_BeginRendering (&glx, &gly, &glwidth, &glheight);
+	R_RenderView ();
+	glReadPixels (0, 0, 256, 256, GL_RGBA, GL_UNSIGNED_BYTE, buffer);
+	COM_WriteFile ("env2.rgb", buffer, sizeof(buffer));		
+
+	r_refdef.viewangles[1] = 270;
+	GL_BeginRendering (&glx, &gly, &glwidth, &glheight);
+	R_RenderView ();
+	glReadPixels (0, 0, 256, 256, GL_RGBA, GL_UNSIGNED_BYTE, buffer);
+	COM_WriteFile ("env3.rgb", buffer, sizeof(buffer));		
+
+	r_refdef.viewangles[0] = -90;
+	r_refdef.viewangles[1] = 0;
+	GL_BeginRendering (&glx, &gly, &glwidth, &glheight);
+	R_RenderView ();
+	glReadPixels (0, 0, 256, 256, GL_RGBA, GL_UNSIGNED_BYTE, buffer);
+	COM_WriteFile ("env4.rgb", buffer, sizeof(buffer));		
+
+	r_refdef.viewangles[0] = 90;
+	r_refdef.viewangles[1] = 0;
+	GL_BeginRendering (&glx, &gly, &glwidth, &glheight);
+	R_RenderView ();
+	glReadPixels (0, 0, 256, 256, GL_RGBA, GL_UNSIGNED_BYTE, buffer);
+	COM_WriteFile ("env5.rgb", buffer, sizeof(buffer));		
+
+	envmap = false;
+	glDrawBuffer  (GL_BACK);
+	glReadBuffer  (GL_BACK);
+	GL_EndRendering ();
+}
+
+
+
+
+
+
+
+
+
+
+
+
+qboolean GenerateNormalisationCubeMap()
+{
+	unsigned char data[32*32*3];
+
+	//some useful variables
+	int size=32;
+	float offset=0.5f;
+	float halfSize=16.0f;
+	vec3_t tempVector;
+	unsigned char * bytePtr;
+
+	int i, j;
+
+	//positive x
+	bytePtr=data;
+
+	for(j=0; j<size; j++)
+	{
+		for(i=0; i<size; i++)
+		{
+			tempVector[0] = halfSize;			
+			tempVector[1] = -(j+offset-halfSize);
+			tempVector[2] = -(i+offset-halfSize);
+
+			VectorNormalize(tempVector);
+
+			bytePtr[0]=(unsigned char)((tempVector[0]/2 + 0.5)*255);
+			bytePtr[1]=(unsigned char)((tempVector[1]/2 + 0.5)*255);
+			bytePtr[2]=(unsigned char)((tempVector[2]/2 + 0.5)*255);
+
+			bytePtr+=3;
+		}
+	}
+	glTexImage2D(	GL_TEXTURE_CUBE_MAP_POSITIVE_X_ARB,
+					0, GL_RGBA8, 32, 32, 0, GL_RGB, GL_UNSIGNED_BYTE, data);
+
+	//negative x
+	bytePtr=data;
+
+	for(j=0; j<size; j++)
+	{
+		for(i=0; i<size; i++)
+		{
+			tempVector[0] = (-halfSize);
+			tempVector[1] = (-(j+offset-halfSize));
+			tempVector[2] = ((i+offset-halfSize));
+
+			VectorNormalize(tempVector);
+
+			bytePtr[0]=(unsigned char)((tempVector[0]/2 + 0.5)*255);
+			bytePtr[1]=(unsigned char)((tempVector[1]/2 + 0.5)*255);
+			bytePtr[2]=(unsigned char)((tempVector[2]/2 + 0.5)*255);
+
+			bytePtr+=3;
+		}
+	}
+	glTexImage2D(	GL_TEXTURE_CUBE_MAP_NEGATIVE_X_ARB,
+					0, GL_RGBA8, 32, 32, 0, GL_RGB, GL_UNSIGNED_BYTE, data);
+
+	//positive y
+	bytePtr=data;
+
+	for(j=0; j<size; j++)
+	{
+		for(i=0; i<size; i++)
+		{
+			tempVector[0] = (i+offset-halfSize);
+			tempVector[1] = (halfSize);
+			tempVector[2] = ((j+offset-halfSize));
+
+			VectorNormalize(tempVector);
+
+			bytePtr[0]=(unsigned char)((tempVector[0]/2 + 0.5)*255);
+			bytePtr[1]=(unsigned char)((tempVector[1]/2 + 0.5)*255);
+			bytePtr[2]=(unsigned char)((tempVector[2]/2 + 0.5)*255);
+
+			bytePtr+=3;
+		}
+	}
+	glTexImage2D(	GL_TEXTURE_CUBE_MAP_POSITIVE_Y_ARB,
+					0, GL_RGBA8, 32, 32, 0, GL_RGB, GL_UNSIGNED_BYTE, data);
+
+	//negative y
+	bytePtr=data;
+
+	for(j=0; j<size; j++)
+	{
+		for(i=0; i<size; i++)
+		{
+			tempVector[0] = (i+offset-halfSize);
+			tempVector[1] = (-halfSize);
+			tempVector[2] = (-(j+offset-halfSize));
+
+			VectorNormalize(tempVector);
+
+			bytePtr[0]=(unsigned char)((tempVector[0]/2 + 0.5)*255);
+			bytePtr[1]=(unsigned char)((tempVector[1]/2 + 0.5)*255);
+			bytePtr[2]=(unsigned char)((tempVector[2]/2 + 0.5)*255);
+
+			bytePtr+=3;
+		}
+	}
+	glTexImage2D(	GL_TEXTURE_CUBE_MAP_NEGATIVE_Y_ARB,
+					0, GL_RGBA8, 32, 32, 0, GL_RGB, GL_UNSIGNED_BYTE, data);
+
+	//positive z
+	bytePtr=data;
+
+	for(j=0; j<size; j++)
+	{
+		for(i=0; i<size; i++)
+		{
+			tempVector[0] = (i+offset-halfSize);
+			tempVector[1] = (-(j+offset-halfSize));
+			tempVector[2] = (halfSize);
+
+			VectorNormalize(tempVector);
+
+			bytePtr[0]=(unsigned char)((tempVector[0]/2 + 0.5)*255);
+			bytePtr[1]=(unsigned char)((tempVector[1]/2 + 0.5)*255);
+			bytePtr[2]=(unsigned char)((tempVector[2]/2 + 0.5)*255);
+
+			bytePtr+=3;
+		}
+	}
+	glTexImage2D(	GL_TEXTURE_CUBE_MAP_POSITIVE_Z_ARB,
+					0, GL_RGBA8, 32, 32, 0, GL_RGB, GL_UNSIGNED_BYTE, data);
+
+	//negative z
+	bytePtr=data;
+
+	for(j=0; j<size; j++)
+	{
+		for(i=0; i<size; i++)
+		{
+			tempVector[0] = (-(i+offset-halfSize));
+			tempVector[1] = (-(j+offset-halfSize));
+			tempVector[2] = (-halfSize);
+
+			VectorNormalize(tempVector);
+
+			bytePtr[0]=(unsigned char)((tempVector[0]/2 + 0.5)*255);
+			bytePtr[1]=(unsigned char)((tempVector[1]/2 + 0.5)*255);
+			bytePtr[2]=(unsigned char)((tempVector[2]/2 + 0.5)*255);
+
+			bytePtr+=3;
+		}
+	}
+	glTexImage2D(	GL_TEXTURE_CUBE_MAP_NEGATIVE_Z_ARB,
+					0, GL_RGBA8, 32, 32, 0, GL_RGB, GL_UNSIGNED_BYTE, data);	
+
+	return true;
+}
+
+
+int normalisationCubeMap;
+/*
+===============
+R_Init
+===============
+*/
+void GLR_ReInit (void)
+{		
+	extern int gl_bumpmappingpossible;
+	R_InitParticleTexture ();
+
+#ifdef GLTEST
+	Test_Init ();
+#endif
+
+	netgraphtexture = texture_extension_number;
+	texture_extension_number++;
+
+	playertextures = texture_extension_number;
+	texture_extension_number += MAX_CLIENTS;
+
+	if (gl_bumpmappingpossible)
+	{
+		//Create normalisation cube map
+		normalisationCubeMap = texture_extension_number++;
+		GL_BindType(GL_TEXTURE_CUBE_MAP_ARB, normalisationCubeMap);
+		GenerateNormalisationCubeMap();
+		glTexParameteri(GL_TEXTURE_CUBE_MAP_ARB, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+		glTexParameteri(GL_TEXTURE_CUBE_MAP_ARB, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+		glTexParameteri(GL_TEXTURE_CUBE_MAP_ARB, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
+		glTexParameteri(GL_TEXTURE_CUBE_MAP_ARB, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
+		glTexParameteri(GL_TEXTURE_CUBE_MAP_ARB, GL_TEXTURE_WRAP_R, GL_CLAMP_TO_EDGE);
+	}
+	else
+		normalisationCubeMap = 0;
+
+}
+/*
+typedef struct
+{
+   long offset;                 	// Position of the entry in WAD
+   long dsize;                  	// Size of the entry in WAD file
+   long size;                   	// Size of the entry in memory
+   char type;                   	// type of entry
+   char cmprs;                  	// Compression. 0 if none.
+   short dummy;                 	// Not used
+   char name[16];               	// we use only first 8
+} wad2entry_t;
+typedef struct
+{
+   char magic[4]; 			//should be WAD2
+   long num;				//number of entries
+   long offset;				//location of directory
+} wad2_t;
+void R_MakeTexWad_f(void)
+{
+	miptex_t dummymip = {"", 0, 0, {0, 0, 0, 0}};
+	wad2_t wad2 = {"WAD2",0,0};
+	wad2entry_t entry[2048];
+	int entries = 0, i;
+	FILE *f;
+	char base[128];
+	char *texname;
+//	qbyte b;
+	float scale;
+	int width, height;
+
+	qbyte *buf, *outmip;
+	qbyte *mip, *stack;
+
+//	WIN32_FIND_DATA fd;
+//	HANDLE h;
+
+	scale = atof(Cmd_Argv(2));
+	if (!scale)
+		scale = 2;
+
+//	h = FindFirstFile(va("%s/textures/*.tga", com_gamedir), &fd);
+	if (!shader)
+		return;
+	mip = BZ_Malloc(1024*1024);
+//	initbuf = BZ_Malloc(1024*1024*4);
+	stack = BZ_Malloc(1024*1024*4+1024);
+	f=fopen(va("%s/shadrtex.wad", com_gamedir), "wb");
+	fwrite(&wad2, 1, sizeof(wad2_t), f);
+
+	for (shad = shader; shad; shad=shad->next)
+	{
+		texname = shad->editorname;
+		if (!*texname)
+			continue;
+		COM_StripExtension(shad->name, base);
+		base[15]=0;
+		for (i =0; i < entries; i++)
+			if (!strcmp(entry[entries].name, base))
+				break;
+		if (i != entries)
+		{
+			Con_Printf("Skipped %s - duplicated shrunken name\n", texname);
+			continue;
+		}
+		entry[entries].offset = ftell(f);
+		entry[entries].dsize = entry[entries].size = 0;
+		entry[entries].type = TYP_MIPTEX;
+		entry[entries].cmprs = 0;
+		entry[entries].dummy = 0;
+		strcpy(entry[entries].name, base);
+
+		strcpy(dummymip.name, base);
+
+		{
+	
+			qbyte *data;
+			int h;
+			float x, xi;
+			float y, yi;			
+
+			char *path[] ={
+		"%s",
+		"override/%s.tga",
+		"override/%s.pcx",
+		"%s.tga",
+		"progs/%s"};
+			for (h = 0, buf=NULL; h < sizeof(path)/sizeof(char *); h++)
+			{			
+				buf = COM_LoadStackFile(va(path[h], texname), stack, 1024*1024*4+1024);
+				if (buf)
+					break;
+			}
+			if (!buf)
+			{
+				Con_Printf("Failed to find texture \"%s\"\n", texname);
+				continue;
+			}
+
+
+data = ReadTargaFile(buf, com_filesize, &width, &height, false);
+if (!data)
+{
+	BZ_Free(data);
+	Con_Printf("Skipped %s - file type not supported (bad bpp?)\n", texname);
+	continue;
+}
+
+			dummymip.width = (int)(width/scale) & ~0xf;
+			dummymip.height = (int)(height/scale) & ~0xf;
+			if (dummymip.width<=0)
+				dummymip.width=16;
+			if (dummymip.height<=0)
+				dummymip.height=16;
+
+			dummymip.offsets[0] = sizeof(dummymip);
+			dummymip.offsets[1] = dummymip.offsets[0]+dummymip.width*dummymip.height;
+			dummymip.offsets[2] = dummymip.offsets[1]+dummymip.width/2*dummymip.height/2;
+			dummymip.offsets[3] = dummymip.offsets[2]+dummymip.width/4*dummymip.height/4;
+			entry[entries].dsize = entry[entries].size = dummymip.offsets[3]+dummymip.width/8*dummymip.height/8;
+
+			xi = (float)width/dummymip.width;
+			yi = (float)height/dummymip.height;
+
+
+			fwrite(&dummymip, 1, sizeof(dummymip), f);
+			outmip=mip;
+			for (outmip=mip, y = 0; y < height; y+=yi)
+			for (x = 0; x < width; x+=xi)
+			{
+				*outmip++ = GetPalette(	data[(int)(x+y*width)*4+0],
+								data[(int)(x+y*width)*4+1],
+								data[(int)(x+y*width)*4+2]);
+			}
+			fwrite(mip, dummymip.width, dummymip.height, f);
+			for (outmip=mip, y = 0; y < height; y+=yi*2)
+			for (x = 0; x < width; x+=xi*2)
+			{
+				*outmip++ = GetPalette(	data[(int)(x+y*width)*4+0],
+								data[(int)(x+y*width)*4+1],
+								data[(int)(x+y*width)*4+2]);				
+			}
+			fwrite(mip, dummymip.width/2, dummymip.height/2, f);
+			for (outmip=mip, y = 0; y < height; y+=yi*4)
+			for (x = 0; x < width; x+=xi*4)
+			{
+				*outmip++ = GetPalette(	data[(int)(x+y*width)*4+0],
+								data[(int)(x+y*width)*4+1],
+								data[(int)(x+y*width)*4+2]);				
+			}
+			fwrite(mip, dummymip.width/4, dummymip.height/4, f);
+			for (outmip=mip, y = 0; y < height; y+=yi*8)
+			for (x = 0; x < width; x+=xi*8)
+			{
+				*outmip++ = GetPalette(	data[(int)(x+y*width)*4+0],
+								data[(int)(x+y*width)*4+1],
+								data[(int)(x+y*width)*4+2]);
+			}
+			fwrite(mip, dummymip.width/8, dummymip.height/8, f);
+
+			BZ_Free(data);
+		}
+		entries++;
+		Con_Printf("Added %s\n", base);
+		GLSCR_UpdateScreen();
+	}
+
+	wad2.offset = ftell(f);
+	wad2.num = entries;
+	fwrite(entry, entries, sizeof(wad2entry_t), f);
+	fseek(f, 0, SEEK_SET);
+	fwrite(&wad2, 1, sizeof(wad2_t), f);
+	fclose(f);
+
+
+	BZ_Free(mip);
+//	BZ_Free(initbuf);
+	BZ_Free(stack);
+
+	Con_Printf("Written %i mips to textures.wad\n", entries);
+}
+*/
+void GLR_TimeRefresh_f (void);
+
+extern cvar_t gl_bump;
+extern cvar_t r_stains, r_stainfadetime, r_stainfadeammount;
+
+void GLR_DeInit (void)
+{
+	Cmd_RemoveCommand ("timerefresh");
+	Cmd_RemoveCommand ("envmap");
+	Cmd_RemoveCommand ("pointfile");
+
+	Cmd_RemoveCommand ("makewad");
+
+	GLDraw_DeInit();
+
+	GLSurf_DeInit();
+}
+
+void GLR_Init (void)
+{	
+	Cmd_AddRemCommand ("timerefresh", GLR_TimeRefresh_f);
+	Cmd_AddRemCommand ("envmap", R_Envmap_f);
+	Cmd_AddRemCommand ("pointfile", R_ReadPointFile_f);
+
+//	Cmd_AddRemCommand ("makewad", R_MakeTexWad_f);
+
+	R_InitBubble();
+
+	GLR_ReInit();
+}
+
+/*
+===============
+R_TranslatePlayerSkin
+
+Translates a skin texture by the per-player color lookup
+===============
+*/
+void R_TranslatePlayerSkin (int playernum)
+{
+	int		top, bottom;
+	qbyte	translate[256];
+	unsigned	translate32[256];
+	int		i, j;
+	qbyte	*original;
+	unsigned	pixels[512*256], *out;
+	unsigned	scaled_width, scaled_height;
+	int			inwidth, inheight;
+	int			tinwidth, tinheight;
+	qbyte		*inrow;
+	unsigned	frac, fracstep;
+	player_info_t *player;
+	extern	qbyte		*player_8bit_texels/*[320*200]*/;
+	char s[512];
+
+	GL_DisableMultitexture();
+
+	player = &cl.players[playernum];
+	if (!player->name[0])
+		return;
+
+	strcpy(s, Info_ValueForKey(player->userinfo, "skin"));
+	COM_StripExtension(s, s);
+	if (player->skin && !stricmp(s, player->skin->name))
+		player->skin = NULL;
+
+	if (player->_topcolor != player->topcolor ||
+		player->_bottomcolor != player->bottomcolor || !player->skin) {
+		player->_topcolor = player->topcolor;
+		player->_bottomcolor = player->bottomcolor;
+
+		top = player->topcolor;
+		bottom = player->bottomcolor;
+		top = (top < 0) ? 0 : ((top > 13) ? 13 : top);
+		bottom = (bottom < 0) ? 0 : ((bottom > 13) ? 13 : bottom);
+		top *= 16;
+		bottom *= 16;
+
+		for (i=0 ; i<256 ; i++)
+			translate[i] = i;
+
+		for (i=0 ; i<16 ; i++)
+		{
+			if (top < 128)	// the artists made some backwards ranges.  sigh.
+				translate[TOP_RANGE+i] = top+i;
+			else
+				translate[TOP_RANGE+i] = top+15-i;
+					
+			if (bottom < 128)
+				translate[BOTTOM_RANGE+i] = bottom+i;
+			else
+				translate[BOTTOM_RANGE+i] = bottom+15-i;
+		}
+
+		//
+		// locate the original skin pixels
+		//
+		// real model width
+		tinwidth = 296;
+		tinheight = 194;
+
+		if (!player->skin)
+			Skin_Find(player);
+		if ((original = Skin_Cache8(player->skin)) != NULL) {
+			//skin data width
+			inwidth = player->skin->width;
+			inheight = player->skin->height;
+		} else {
+			original = player_8bit_texels;
+			inwidth = 296;
+			inheight = 194;
+		}
+		//tinwidth = 251&~3;
+		//tinheight = 194&~3;
+		//tinwidth = 319&~3;
+		//tinheight = 199&~3;
+
+		if (!original)	//can't.
+			return;
+
+
+		// because this happens during gameplay, do it fast
+		// instead of sending it through gl_upload 8
+		GL_Bind(playertextures + playernum);
+
+	#if 0
+		s = 320*200;
+		qbyte	translated[320*200];
+
+		for (i=0 ; i<s ; i+=4)
+		{
+			translated[i] = translate[original[i]];
+			translated[i+1] = translate[original[i+1]];
+			translated[i+2] = translate[original[i+2]];
+			translated[i+3] = translate[original[i+3]];
+		}
+
+
+		// don't mipmap these, because it takes too long
+		GL_Upload8 (translated, paliashdr->skinwidth, paliashdr->skinheight, 
+			false, false, true);
+	#endif
+
+		scaled_width = gl_max_size.value < 512 ? gl_max_size.value : 512;
+		scaled_height = gl_max_size.value < 256 ? gl_max_size.value : 256;
+		// allow users to crunch sizes down even more if they want
+		scaled_width >>= (int)gl_playermip.value;
+		scaled_height >>= (int)gl_playermip.value;
+
+		if (scaled_width < 8)
+			scaled_width = 8;
+		if (scaled_height < 8)
+			scaled_height = 8;
+#ifdef GL_USE8BITTEX
+#ifdef GL_EXT_paletted_texture
+		if (GLVID_Is8bit())
+		{// 8bit texture upload
+			qbyte *out2;
+
+			out2 = (qbyte *)pixels;
+			memset(pixels, 0, sizeof(pixels));
+			fracstep = tinwidth*0x10000/scaled_width;
+			for (i=0 ; i<scaled_height ; i++, out2 += scaled_width)
+			{
+				inrow = original + inwidth*(i*tinheight/scaled_height);
+				frac = fracstep >> 1;
+				for (j=0 ; j<scaled_width ; j+=4)
+				{
+					out2[j] = translate[inrow[frac>>16]];
+					frac += fracstep;
+					out2[j+1] = translate[inrow[frac>>16]];
+					frac += fracstep;
+					out2[j+2] = translate[inrow[frac>>16]];
+					frac += fracstep;
+					out2[j+3] = translate[inrow[frac>>16]];
+					frac += fracstep;
+				}
+			}
+
+			GL_Upload8_EXT ((qbyte *)pixels, scaled_width, scaled_height, false, false);
+			return;
+		}
+#endif
+#endif
+
+#ifdef Q2BSP
+		if (cls.q2server)
+		{
+			extern unsigned char d_q28to24table[768];
+			for (i=0 ; i<256 ; i++)
+			{
+				translate32[i] = d_q28to24table[i*3] |
+								(d_q28to24table[i*3+1]<<8) |
+								(d_q28to24table[i*3+2]<<16) |
+								255<<24;
+			}
+		}
+		else
+#endif
+			for (i=0 ; i<256 ; i++)
+				translate32[i] = d_8to24rgbtable[translate[i]];
+
+		out = pixels;
+		memset(pixels, 0, sizeof(pixels));
+		fracstep = tinwidth*0x10000/scaled_width;
+		for (i=0 ; i<scaled_height ; i++, out += scaled_width)
+		{
+			inrow = original + inwidth*(i*tinheight/scaled_height);
+			frac = fracstep >> 1;
+			for (j=0 ; j<scaled_width ; j+=4)
+			{
+				out[j] = translate32[inrow[frac>>16]];
+				frac += fracstep;
+				out[j+1] = translate32[inrow[frac>>16]];
+				frac += fracstep;
+				out[j+2] = translate32[inrow[frac>>16]];
+				frac += fracstep;
+				out[j+3] = translate32[inrow[frac>>16]];
+				frac += fracstep;
+			}
+		}
+
+		glTexImage2D (GL_TEXTURE_2D, 0, gl_solid_format, 
+			scaled_width, scaled_height, 0, GL_RGBA, 
+			GL_UNSIGNED_BYTE, pixels);
+
+		glTexEnvf(GL_TEXTURE_ENV, GL_TEXTURE_ENV_MODE, GL_MODULATE);
+		glTexParameterf(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+		glTexParameterf(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+	}
+}
+
+/*
+===============
+R_NewMap
+===============
+*/
+void GLR_NewMap (void)
+{
+	extern cvar_t host_mapname;
+	int		i;
+/*
+	if (cl.worldmodel->fromgame == fg_quake3 && cls.netchan.remote_address.type != NA_LOOPBACK)
+	{
+		if (!cls.allow_cheats)
+		{
+			CL_Disconnect();
+			Host_EndGame("\n\nThe quake3 map implementation is still experimental and contains many bugs that could be considered cheats. Therefore, the engine is handicapped to quake3 maps only when hosting - it's single player only.\n\nYou can allow it on the server by activating cheats, at which point this check will be ignored\n");
+			return;
+		}
+//		Cbuf_AddText("disconnect\n", RESTRICT_LOCAL);
+	}
+*/
+	
+	for (i=0 ; i<256 ; i++)
+		d_lightstylevalue[i] = 264;		// normal light value
+
+	memset (&r_worldentity, 0, sizeof(r_worldentity));
+	r_worldentity.model = cl.worldmodel;
+
+	Cvar_Set(&host_mapname, cl.worldmodel->name);
+
+// clear out efrags in case the level hasn't been reloaded
+// FIXME: is this one short?
+	for (i=0 ; i<cl.worldmodel->numleafs ; i++)
+		cl.worldmodel->leafs[i].efrags = NULL;
+		 	
+	r_viewleaf = NULL;
+	r_viewcluster = -1;
+	r_oldviewcluster = 0;
+	r_viewcluster2 = -1;
+	R_ClearParticles ();
+	GLR_WipeStains();
+
+	GL_BuildLightmaps ();
+
+	// identify sky texture
+	if (cl.worldmodel->fromgame != fg_quake2 && cl.worldmodel->fromgame != fg_quake3)
+	{
+		skytexturenum = -1;
+		mirrortexturenum = -1;
+	}
+	for (i=0 ; i<cl.worldmodel->numtextures ; i++)
+	{
+		if (!cl.worldmodel->textures[i])
+			continue;
+		if (!Q_strncmp(cl.worldmodel->textures[i]->name,"sky",3) )
+			skytexturenum = i;
+		if (!Q_strncmp(cl.worldmodel->textures[i]->name,"window02_1",10) )
+			mirrortexturenum = i;
+ 		cl.worldmodel->textures[i]->texturechain = NULL;
+	}
+
+//#ifdef QUAKE2
+	R_LoadSkys ();
+//#endif
+
+	UI_Reset();
+}
+
+void GLR_PreNewMap(void)
+{
+}
+
+
+/*
+====================
+R_TimeRefresh_f
+
+For program optimization
+====================
+*/
+void GLR_TimeRefresh_f (void)
+{
+	int			i;
+	float		start, stop, time;
+
+	glDrawBuffer  (GL_FRONT);
+	glFinish ();
+
+	start = Sys_DoubleTime ();
+	for (i=0 ; i<128 ; i++)
+	{
+		r_refdef.viewangles[1] = i/128.0*360.0;
+		R_RenderView ();
+	}
+
+	glFinish ();
+	stop = Sys_DoubleTime ();
+	time = stop-start;
+	Con_Printf ("%f seconds (%f fps)\n", time, 128/time);
+
+	glDrawBuffer  (GL_BACK);
+	GL_EndRendering ();
+}
+
+#ifndef SWQUAKE
+void D_FlushCaches (void)
+{
+}
+#endif
+
+

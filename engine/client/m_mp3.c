@@ -52,10 +52,10 @@ void MakeVideoPalette(void)
 
 	if (strlen(r_palconvbits.string) < 3)
 	{
-		// r7g7b7 is default
-		rs = 7;
-		gs = 7;
-		bs = 7;
+		// r5g6b5 is default
+		rs = 5;
+		gs = 6;
+		bs = 5;
 	}
 	else
 	{
@@ -144,7 +144,8 @@ void MakeVideoPalette(void)
 	palshift[1] = (8 - palshift[0]) - gs;
 	palshift[2] = palshift[1] + (8 - bs);
 
-	COM_WriteFile(filename, palxxxto8, size);
+	if (r_palconvwrite.value)
+		COM_WriteFile(filename, palxxxto8, size);
 }
 
 

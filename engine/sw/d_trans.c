@@ -14,9 +14,23 @@ int t_curtable;
 int t_numtables;
 int t_numtablesinv;//numtables/65546
 
+int t_state;
+
 #define palette host_basepal
 #define _abs(x) ((x)*(x))
 
+void R_ReverseTable(int table)
+{
+	int p, p2, temp;
+
+	for (p = 0; p < 256; p++)
+		for (p2 = p+1; p2 < 256; p2++)
+		{
+			temp = (t_lookup[table])[p][p2];
+			(t_lookup[table])[p][p2] = (t_lookup[table])[p2][p];
+			(t_lookup[table])[p2][p] = temp;
+		}
+}
 
 void R_CalcTransTable(int table, int level)
 {
@@ -26,7 +40,7 @@ void R_CalcTransTable(int table, int level)
 	int r, g, b,  j;
 	int i;
 	unsigned char *pa;
-	int m;
+	int m, rvr;
 	int dif, curdif;
 
 	qbyte p1multi;
@@ -38,11 +52,37 @@ void R_CalcTransTable(int table, int level)
 
 	pixdivide = p1multi + p2multi;
 
+	if (level > 99) // trivial generate for p2
+	{
+		for (p = 0; p < 256; p++)
+			for (p2 = 0; p2 < 256; p2++)
+				(t_lookup[table])[p][p2] = p2;
+		return;
+	}
+
+	if (level < 1) // trivial generate for p
+	{
+		for (p = 0; p < 256; p++)
+			for (p2 = 0; p2 < 256; p2++)
+				(t_lookup[table])[p][p2] = p;
+		return;
+	}
+
+	if (level > 50)
+	{
+		level = 100 - level;
+		rvr = 1;
+	}
+	else
+		rvr = 0;
+
 	COM_FOpenFile (va("data/ttable%i.dat", (int) level) , &f);  //we can ignore the filesize return value
 	if (f)
 	{
 		if (fread (t_lookup[table], 256, 256, f) == 256)
 		{
+			if (rvr)
+				R_ReverseTable(table);
 			fclose(f);
 			return;
 		}		
@@ -81,24 +121,32 @@ void R_CalcTransTable(int table, int level)
 		}
 	}	
 
-	COM_CreatePath(va("%s/data/",  com_gamedir));
-#if 1
-	f = fopen (va("%s/data/ttable%i.dat",  com_gamedir, (int) level), "wb");
-	if (f)
+	if (r_transtablewrite.value)
 	{
-		if (fwrite (t_lookup[table], 256, 256, f) != 256)
+		COM_CreatePath(va("%s/data/",  com_gamedir));
+#if 1
+		f = fopen (va("%s/data/ttable%i.dat",  com_gamedir, (int) level), "wb");
+		if (f)
 		{
-				Con_Printf("Couldn't write data to \"data/ttable%i.dat\"\n", (int) level);
-				fclose(f);
-				return;
+			if (fwrite (t_lookup[table], 256, 256, f) != 256)
+			{
+					Con_Printf("Couldn't write data to \"data/ttable%i.dat\"\n", (int) level);
+					fclose(f);
+					if (rvr)
+						R_ReverseTable(table); // make sure it gets reversed if needed
+					return;
+			}
+			fclose(f);		
 		}
-		fclose(f);		
-	}
-	else
-		Con_Printf("Couldn't write data to \"data/ttable%i.dat\"\n", (int) level);
+		else
+			Con_Printf("Couldn't write data to \"data/ttable%i.dat\"\n", (int) level);
 #else		
-	COM_WriteFile(va("data/ttable%i.dat", (int)level, t_lookup[table], 256*256);
+		COM_WriteFile(va("data/ttable%i.dat", (int)level, t_lookup[table], 256*256);
 #endif	
+	}
+
+	if (rvr) // just reverse it here instead of having to do reversed writes
+		R_ReverseTable(table);
 }
 
 void D_InitTrans(void)
@@ -111,35 +159,53 @@ void D_InitTrans(void)
 //no trans palette yet..
 	Con_SafePrintf("Making/loading transparency lookup tables\nPlease wait...\n");
 
-MakeVideoPalette();
+	MakeVideoPalette();
+
+	t_numtables = 5;
+
+	i = r_transtables.value;
+	if (i > 0 && i < 50) // might need a max bound sanity check here
+	{
+		t_numtables = i;
+	}
 
 	if ((i = COM_CheckParm("-ttables")) != 0)
 	{
 		t_numtables = Q_atoi(com_argv[i+1]);
 		if (t_numtables < 1)
 			t_numtables = 1;
+		if (t_numtables > 50)
+			t_numtables = 50;
 	}
-	else
-		t_numtables = 5;
 
 t_numtablesinv = ((float)65536/t_numtables)+1;//65546/numtables
 
+t_state = TT_ZERO;
 t_curtable=0;
 //t_lookup = Hunk_AllocName(sizeof(tlookup)*t_numtables, "Transtables");
 t_lookup = BZ_Malloc(sizeof(tlookup)*t_numtables);
 t_curlookupp = t_lookup[t_curtable];
 
-	if (t_numtables == 1)
-		R_CalcTransTable(0, 50);
-	else if (t_numtables == 2)
+	if (r_transtablefull.value)
 	{
-		R_CalcTransTable(0, 50);
-		R_CalcTransTable(1, 100);
+		t_state = TT_ZERO|TT_USEHALF;
+		for (table = 0; table < t_numtables; table++)
+			R_CalcTransTable(table, (int)floor(((table+1)/(float)(t_numtables*2+1))*100 + 0.5));
 	}
 	else
 	{
-		for (table = 0; table < t_numtables; table++)	
-			R_CalcTransTable(table, 100/((float)(t_numtables-1)/table));	
+		if (t_numtables == 1)
+			R_CalcTransTable(0, 50);
+		else if (t_numtables == 2)
+		{
+			R_CalcTransTable(0, 33);
+			R_CalcTransTable(1, 67);
+		}
+		else
+		{
+			for (table = 0; table < t_numtables; table++)	
+				R_CalcTransTable(table, (int)floor(100/((float)(t_numtables-1)/table) + 0.5));	
+		}
 	}
 	Con_Printf("Done\n");
 }
@@ -152,29 +218,79 @@ byte _fastcall Trans(byte p, byte p2)
 }
 #endif
 
+/*
 void Set_TransLevelI(int level)
 {
-	/*
-	0		=0
-	12.5	=1
-	25		=2
-	37.5	=3
-	50		=4
-	62.5	=5
-	75		=6
-	87.5	=7
-	100		=8
-	*/
 	t_curtable = level/(100.0f/(t_numtables-1));
 	t_curlookupp = t_lookup[t_curtable];
 }
+*/
+
 void Set_TransLevelF(float level)	//MUST be between 0 and 1
 {
-//	level+=1.0/(NUMTABLES-1);
 	if (level>1)
 		level = 1;
-	t_curtable = level*(t_numtables-1);
-	t_curlookupp = t_lookup[t_curtable];
+
+	if (t_state & TT_USEHALF)
+	{
+		t_state = TT_ZERO;
+		t_curtable = floor(level*(t_numtables*2+1) + 0.5);
+		if (t_curtable > t_numtables)
+		{
+			t_curtable = (t_numtables*2+1)-t_curtable;
+			t_state = TT_REVERSE|TT_ONE;
+		}
+
+		if (t_curtable > 0)
+		{
+			t_state &= ~(TT_ZERO|TT_ONE);
+			t_curlookupp = t_lookup[t_curtable-1];
+		}
+		
+
+		t_state |= TT_USEHALF;
+	}
+	else if (t_numtables == 1)
+	{
+		if (level < 0.33)
+			t_state = TT_ZERO;
+		else if (level > 0.67)
+			t_state = TT_ONE;
+		else
+			t_state = 0;
+	}
+	else if (t_numtables == 2)
+	{
+		if (level > 0.75)
+			t_state = TT_ONE;
+		else if (level > 0.50)
+		{
+			t_state = 0;
+			t_curtable = 1;
+			t_curlookupp = t_lookup[t_curtable];
+		}
+		else if (level > 0.25)
+		{
+			t_state = 0;
+			t_curtable = 0;
+			t_curlookupp = t_lookup[t_curtable];
+		}
+		else
+			t_state = TT_ZERO;
+	}
+	else
+	{
+		t_curtable = level*t_numtables;
+		if (t_curtable >= t_numtables)
+			t_state = TT_ONE;
+		else if (t_curtable <= 0)
+			t_state = TT_ZERO;
+		else
+		{
+			t_state = 0;
+			t_curlookupp = t_lookup[t_curtable];
+		}
+	}
 }
 
 #endif

@@ -773,6 +773,8 @@ extern int r_pixbytes;
 #define WARP_HEIGHT		200
 
 extern cvar_t   r_palconvbits;
+extern cvar_t   r_palconvwrite;
+
 extern cvar_t	r_drawflat;
 extern int		d_spanpixcount;
 extern int		r_framecount;		// sequence # of current frame since Quake

@@ -22,7 +22,9 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 
 //changes include stvertexes now being seperatly number from the triangles.
 //this allows q2 models to be supported.
+#ifndef NOASM
 #define NOASM
+#endif
 
 #include "quakedef.h"
 #include "r_local.h"
@@ -231,6 +233,83 @@ void D_PolysetDrawFinalVerts32 (finalvert_t *fv, int numverts)
 			}
 		}
 	}
+}
+
+void D_PolysetRecursiveTriangleReverseTrans (int *lp1, int *lp2, int *lp3)
+{
+	int		*temp;
+	int		d;
+	int		new[6];
+	int		z;
+	short	*zbuf;
+
+	d = lp2[0] - lp1[0];
+	if (d < -1 || d > 1)
+		goto split;
+	d = lp2[1] - lp1[1];
+	if (d < -1 || d > 1)
+		goto split;
+
+	d = lp3[0] - lp2[0];
+	if (d < -1 || d > 1)
+		goto split2;
+	d = lp3[1] - lp2[1];
+	if (d < -1 || d > 1)
+		goto split2;
+
+	d = lp1[0] - lp3[0];
+	if (d < -1 || d > 1)
+		goto split3;
+	d = lp1[1] - lp3[1];
+	if (d < -1 || d > 1)
+	{
+split3:
+		temp = lp1;
+		lp1 = lp3;
+		lp3 = lp2;
+		lp2 = temp;
+
+		goto split;
+	}
+
+	return;			// entire tri is filled
+
+split2:
+	temp = lp1;
+	lp1 = lp2;
+	lp2 = lp3;
+	lp3 = temp;
+
+split:
+// split this edge
+	new[0] = (lp1[0] + lp2[0]) >> 1;
+	new[1] = (lp1[1] + lp2[1]) >> 1;
+	new[2] = (lp1[2] + lp2[2]) >> 1;
+	new[3] = (lp1[3] + lp2[3]) >> 1;
+	new[5] = (lp1[5] + lp2[5]) >> 1;
+
+// draw the point if splitting a leading edge
+	if (lp2[1] > lp1[1])
+		goto nodraw;
+	if ((lp2[1] == lp1[1]) && (lp2[0] < lp1[0]))
+		goto nodraw;
+
+
+	z = new[5]>>16;
+	zbuf = zspantable[new[1]] + new[0];
+	if (z >= *zbuf)
+	{
+		int		pix;
+		
+		*zbuf = z;
+		pix = d_pcolormap[skintable[new[3]>>16][new[2]>>16]];
+		d_viewbuffer[d_scantable[new[1]] + new[0]] = Trans(pix, d_viewbuffer[d_scantable[new[1]] + new[0]]);
+	}
+
+nodraw:
+// recursively continue
+	D_PolysetRecursiveTriangleReverseTrans (lp3, lp1, new);
+	D_PolysetRecursiveTriangleReverseTrans (lp3, new, lp2);
 }
 
 void D_PolysetRecursiveTriangleTrans (int *lp1, int *lp2, int *lp3)
@@ -471,6 +550,69 @@ nodraw:
 	D_PolysetRecursiveTriangle16 (lp3, new, lp2);
 }
 
+void D_PolysetDrawSpans8ReverseTrans (spanpackage_t *pspanpackage)
+{
+	int		lcount;
+	qbyte	*lpdest;
+	qbyte	*lptex;
+	int		lsfrac, ltfrac;
+	int		llight;
+	int		lzi;
+	short	*lpz;
+
+	do
+	{
+		lcount = d_aspancount - pspanpackage->count;
+
+		errorterm += erroradjustup;
+		if (errorterm >= 0)
+		{
+			d_aspancount += d_countextrastep;
+			errorterm -= erroradjustdown;
+		}
+		else
+		{
+			d_aspancount += ubasestep;
+		}
+
+		if (lcount)
+		{
+			lpdest = pspanpackage->pdest;
+			lptex = pspanpackage->ptex;
+			lpz = pspanpackage->pz;
+			lsfrac = pspanpackage->sfrac;
+			ltfrac = pspanpackage->tfrac;
+			llight = pspanpackage->light;
+			lzi = pspanpackage->zi;
+
+			do
+			{
+				if ((lzi >> 16) >= *lpz)
+				{
+					*lpdest = Trans(((qbyte *)acolormap)[*lptex + (llight & 0xFF00)], *lpdest);
+// gel mapping					*lpdest = gelmap[*lpdest];
+					*lpz = lzi >> 16;
+				}
+				lpdest++;
+				lzi += r_zistepx;
+				lpz++;
+				llight += r_lstepx;
+				lptex += a_ststepxwhole;
+				lsfrac += a_sstepxfrac;
+				lptex += lsfrac >> 16;
+				lsfrac &= 0xFFFF;
+				ltfrac += a_tstepxfrac;
+				if (ltfrac & 0x10000)
+				{
+					lptex += r_affinetridesc.skinwidth;
+					ltfrac &= 0xFFFF;
+				}
+			} while (--lcount);
+		}
+
+		pspanpackage++;
+	} while (pspanpackage->count != -999999);
+}
 
 void D_PolysetDrawSpans8Trans (spanpackage_t *pspanpackage)
 {
@@ -481,6 +623,9 @@ void D_PolysetDrawSpans8Trans (spanpackage_t *pspanpackage)
 	int		llight;
 	int		lzi;
 	short	*lpz;
+
+	if (t_state & TT_REVERSE)
+		D_PolysetDrawSpans8ReverseTrans(pspanpackage);
 
 	do
 	{
@@ -1149,25 +1294,34 @@ void D_DrawSubdiv (void)
 	if (currententity->alpha != 1)
 	{
 		Set_TransLevelF(currententity->alpha);
-		for (i=0 ; i<lnumtriangles ; i++)
+		if (!(t_state & TT_ONE))
 		{
-			index0 = pfv + ptri[i].xyz_index[0];
-			index1 = pfv + ptri[i].xyz_index[1];
-			index2 = pfv + ptri[i].xyz_index[2];
+			if (t_state & TT_ZERO)
+				return;
 
-			if (((index0->v[1]-index1->v[1]) *
-				 (index0->v[0]-index2->v[0]) -
-				 (index0->v[0]-index1->v[0]) * 
-				 (index0->v[1]-index2->v[1])) >= 0)
+			for (i=0 ; i<lnumtriangles ; i++)
 			{
-				continue;
+				index0 = pfv + ptri[i].xyz_index[0];
+				index1 = pfv + ptri[i].xyz_index[1];
+				index2 = pfv + ptri[i].xyz_index[2];
+
+				if (((index0->v[1]-index1->v[1]) *
+					 (index0->v[0]-index2->v[0]) -
+					 (index0->v[0]-index1->v[0]) * 
+					 (index0->v[1]-index2->v[1])) >= 0)
+				{
+					continue;
+				}
+
+				d_pcolormap = &((qbyte *)acolormap)[index0->v[4] & 0xFF00];
+
+				if (t_state & TT_REVERSE)
+					D_PolysetRecursiveTriangleReverseTrans(index0->v, index1->v, index2->v);
+				else
+					D_PolysetRecursiveTriangleTrans(index0->v, index1->v, index2->v);
 			}
-
-			d_pcolormap = &((qbyte *)acolormap)[index0->v[4] & 0xFF00];
-
-			D_PolysetRecursiveTriangleTrans(index0->v, index1->v, index2->v);
+			return;
 		}
-		return;
 	}
 #endif
 
@@ -1258,46 +1412,52 @@ void D_DrawNonSubdiv (void)
 	if (currententity->alpha != 1)
 	{
 		Set_TransLevelF(currententity->alpha);
-		for (i=0 ; i<lnumtriangles ; i++, ptri++)
+		if (!(t_state & TT_ONE))
 		{
-			index0 = pfv + ptri->xyz_index[0];
-			index1 = pfv + ptri->xyz_index[1];
-			index2 = pfv + ptri->xyz_index[2];
+			if (t_state & TT_ZERO)
+				return;
 
-			d_xdenom = (index0->v[1]-index1->v[1]) *
-					(index0->v[0]-index2->v[0]) -
-					(index0->v[0]-index1->v[0])*(index0->v[1]-index2->v[1]);
-
-			if (d_xdenom >= 0)
+			for (i=0 ; i<lnumtriangles ; i++, ptri++)
 			{
-				continue;
+				index0 = pfv + ptri->xyz_index[0];
+				index1 = pfv + ptri->xyz_index[1];
+				index2 = pfv + ptri->xyz_index[2];
+
+				d_xdenom = (index0->v[1]-index1->v[1]) *
+						(index0->v[0]-index2->v[0]) -
+						(index0->v[0]-index1->v[0])*(index0->v[1]-index2->v[1]);
+
+				if (d_xdenom >= 0)
+				{
+					continue;
+				}
+
+				r_p0[0] = index0->v[0];		// u
+				r_p0[1] = index0->v[1];		// v
+				r_p0[2] = index0->v[2];		// s
+				r_p0[3] = index0->v[3];		// t
+				r_p0[4] = index0->v[4];		// light
+				r_p0[5] = index0->v[5];		// iz
+
+				r_p1[0] = index1->v[0];
+				r_p1[1] = index1->v[1];
+				r_p1[2] = index1->v[2];
+				r_p1[3] = index1->v[3];
+				r_p1[4] = index1->v[4];
+				r_p1[5] = index1->v[5];
+
+				r_p2[0] = index2->v[0];
+				r_p2[1] = index2->v[1];
+				r_p2[2] = index2->v[2];
+				r_p2[3] = index2->v[3];
+				r_p2[4] = index2->v[4];
+				r_p2[5] = index2->v[5];
+
+				D_PolysetSetEdgeTable ();
+				D_RasterizeAliasPolySmoothTrans ();
 			}
-
-			r_p0[0] = index0->v[0];		// u
-			r_p0[1] = index0->v[1];		// v
-			r_p0[2] = index0->v[2];		// s
-			r_p0[3] = index0->v[3];		// t
-			r_p0[4] = index0->v[4];		// light
-			r_p0[5] = index0->v[5];		// iz
-
-			r_p1[0] = index1->v[0];
-			r_p1[1] = index1->v[1];
-			r_p1[2] = index1->v[2];
-			r_p1[3] = index1->v[3];
-			r_p1[4] = index1->v[4];
-			r_p1[5] = index1->v[5];
-
-			r_p2[0] = index2->v[0];
-			r_p2[1] = index2->v[1];
-			r_p2[2] = index2->v[2];
-			r_p2[3] = index2->v[3];
-			r_p2[4] = index2->v[4];
-			r_p2[5] = index2->v[5];
-
-			D_PolysetSetEdgeTable ();
-			D_RasterizeAliasPolySmoothTrans ();
+			return;
 		}
-		return;
 	}
 #endif
 

@@ -503,6 +503,160 @@ NextSpan:
 }
 
 #ifdef PEXT_TRANS
+void D_SpriteDrawSpansReverseTrans (sspan_t *pspan)
+{
+	int			count, spancount, izistep;
+	int			izi;
+	qbyte		*pbase, *pdest;
+	fixed16_t	s, t, snext, tnext, sstep, tstep;
+	float		sdivz, tdivz, zi, z, du, dv, spancountminus1;
+	float		sdivz8stepu, tdivz8stepu, zi8stepu;
+	qbyte		btemp;
+	short		*pz;
+
+	sstep = 0;	// keep compiler happy
+	tstep = 0;	// ditto
+
+	pbase = cacheblock;
+
+	sdivz8stepu = d_sdivzstepu * 8;
+	tdivz8stepu = d_tdivzstepu * 8;
+	zi8stepu = d_zistepu * 8;
+
+// we count on FP exceptions being turned off to avoid range problems
+	izistep = (int)(d_zistepu * 0x8000 * 0x10000);
+
+	do
+	{
+		pdest = (qbyte *)d_viewbuffer + (screenwidth * pspan->v) + pspan->u;
+		pz = d_pzbuffer + (d_zwidth * pspan->v) + pspan->u;
+
+		count = pspan->count;
+
+		if (count <= 0)
+			goto NextSpan;
+
+	// calculate the initial s/z, t/z, 1/z, s, and t and clamp
+		du = (float)pspan->u;
+		dv = (float)pspan->v;
+
+		sdivz = d_sdivzorigin + dv*d_sdivzstepv + du*d_sdivzstepu;
+		tdivz = d_tdivzorigin + dv*d_tdivzstepv + du*d_tdivzstepu;
+		zi = d_ziorigin + dv*d_zistepv + du*d_zistepu;
+		z = (float)0x10000 / zi;	// prescale to 16.16 fixed-point
+	// we count on FP exceptions being turned off to avoid range problems
+		izi = (int)(zi * 0x8000 * 0x10000);
+
+		s = (int)(sdivz * z) + sadjust;
+		if (s > bbextents)
+			s = bbextents;
+		else if (s < 0)
+			s = 0;
+
+		t = (int)(tdivz * z) + tadjust;
+		if (t > bbextentt)
+			t = bbextentt;
+		else if (t < 0)
+			t = 0;
+
+		do
+		{
+		// calculate s and t at the far end of the span
+			if (count >= 8)
+				spancount = 8;
+			else
+				spancount = count;
+
+			count -= spancount;
+
+			if (count)
+			{
+			// calculate s/z, t/z, zi->fixed s and t at far end of span,
+			// calculate s and t steps across span by shifting
+				sdivz += sdivz8stepu;
+				tdivz += tdivz8stepu;
+				zi += zi8stepu;
+				z = (float)0x10000 / zi;	// prescale to 16.16 fixed-point
+
+				snext = (int)(sdivz * z) + sadjust;
+				if (snext > bbextents)
+					snext = bbextents;
+				else if (snext < 8)
+					snext = 8;	// prevent round-off error on <0 steps from
+								//  from causing overstepping & running off the
+								//  edge of the texture
+
+				tnext = (int)(tdivz * z) + tadjust;
+				if (tnext > bbextentt)
+					tnext = bbextentt;
+				else if (tnext < 8)
+					tnext = 8;	// guard against round-off error on <0 steps
+
+				sstep = (snext - s) >> 3;
+				tstep = (tnext - t) >> 3;
+			}
+			else
+			{
+			// calculate s/z, t/z, zi->fixed s and t at last pixel in span (so
+			// can't step off polygon), clamp, calculate s and t steps across
+			// span by division, biasing steps low so we don't run off the
+			// texture
+				spancountminus1 = (float)(spancount - 1);
+				sdivz += d_sdivzstepu * spancountminus1;
+				tdivz += d_tdivzstepu * spancountminus1;
+				zi += d_zistepu * spancountminus1;
+				z = (float)0x10000 / zi;	// prescale to 16.16 fixed-point
+				snext = (int)(sdivz * z) + sadjust;
+				if (snext > bbextents)
+					snext = bbextents;
+				else if (snext < 8)
+					snext = 8;	// prevent round-off error on <0 steps from
+								//  from causing overstepping & running off the
+								//  edge of the texture
+
+				tnext = (int)(tdivz * z) + tadjust;
+				if (tnext > bbextentt)
+					tnext = bbextentt;
+				else if (tnext < 8)
+					tnext = 8;	// guard against round-off error on <0 steps
+
+				if (spancount > 1)
+				{
+					sstep = (snext - s) / (spancount - 1);
+					tstep = (tnext - t) / (spancount - 1);
+				}
+			}
+
+			do
+			{
+				btemp = *(pbase + (s >> 16) + (t >> 16) * cachewidth);
+				if (btemp != 255)
+				{
+					if (*pz <= (izi >> 16))
+					{
+						*pz = izi >> 16;
+						*pdest = Trans(btemp, *pdest);
+					}
+				}
+
+				izi += izistep;
+				pdest++;
+				pz++;
+				s += sstep;
+				t += tstep;
+			} while (--spancount > 0);
+
+			s = snext;
+			t = tnext;
+
+		} while (count > 0);
+
+NextSpan:
+		pspan++;
+
+	} while (pspan->count != DS_SPAN_LIST_END);
+}
+
 void D_SpriteDrawSpansTrans (sspan_t *pspan)
 {
 	int			count, spancount, izistep;
@@ -913,12 +1067,15 @@ void D_DrawSprite (void)
 		D_SpriteDrawSpans16 (sprite_spans);
 	else	//1
 	{
-		if (currententity->alpha>=0.9)
+		Set_TransLevelF(currententity->alpha);
+		if (t_state & TT_ONE)
 			D_SpriteDrawSpans (sprite_spans);
-		else
+		else if (!(t_state & TT_ZERO))
 		{
-			Set_TransLevelF(currententity->alpha);
-			D_SpriteDrawSpansTrans (sprite_spans);
+			if (t_state & TT_REVERSE)
+				D_SpriteDrawSpansReverseTrans (sprite_spans);
+			else
+				D_SpriteDrawSpansTrans (sprite_spans);
 		}
 	}
 #endif

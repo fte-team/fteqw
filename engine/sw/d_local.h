@@ -124,13 +124,23 @@ typedef qbyte tlookup[256][256];
 typedef qbyte tlookupp[256];
 extern tlookup *t_lookup;
 extern tlookupp *t_curlookupp;
-extern int t_curtable;
 extern int t_numtables;
 extern int t_numtablesinv;//65546/numtables
+extern int t_state;
+
+#define TT_REVERSE 0x1 // reverse table points
+#define TT_ZERO    0x2 // zero alpha
+#define TT_ONE     0x4 // full alpha
+#define TT_USEHALF 0x8 // using half transtables
+
+// cvar defines for transtable
+extern cvar_t r_transtablewrite;
+extern cvar_t r_transtables;
+extern cvar_t r_transtablefull;
 
 void D_InitTrans(void);
 #define Trans(p, p2)	(t_curlookupp[p][p2])
-void Set_TransLevelI(int level);
+// void Set_TransLevelI(int level);
 void Set_TransLevelF(float level);
 #endif
 

@@ -314,10 +314,12 @@ void R_AliasPreparePoints (void)
 	av = pauxverts;
 
 #ifdef PEXT_TRANS
+/*
 	if (currententity->alpha != 1)
 	{
 		Set_TransLevelF(currententity->alpha);
 	}
+*/
 #endif
 
 	for (i=0 ; i<r_anumverts ; i++, fv++, av++, r_apnewverts++, r_apoldverts++)

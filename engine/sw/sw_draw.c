@@ -2219,6 +2219,8 @@ void SWDraw_Box(int x1, int y1, int x2, int y2, int paletteindex, float alpha)
 	int				u, v;
 
 	Set_TransLevelF(alpha);
+	if (t_state & TT_ZERO)
+		return;
 
 	if (x1 < x2)
 	{
@@ -2252,10 +2254,20 @@ void SWDraw_Box(int x1, int y1, int x2, int y2, int paletteindex, float alpha)
 
 	if (r_pixbytes == 1)
 	{
-		dest = vid.buffer + y*vid.rowbytes + x;
-		for (v=0 ; v<h ; v++, dest += vid.rowbytes)
-			for (u=0 ; u<w ; u++)
-				dest[u] = Trans(dest[u], paletteindex);
+		if (t_state & TT_ONE)
+		{
+			dest = vid.buffer + y*vid.rowbytes + x;
+			for (v=0 ; v<h ; v++, dest += vid.rowbytes)
+				for (u=0 ; u<w ; u++)
+					dest[u] = paletteindex;
+		}
+		else
+		{
+			dest = vid.buffer + y*vid.rowbytes + x;
+			for (v=0 ; v<h ; v++, dest += vid.rowbytes)
+				for (u=0 ; u<w ; u++)
+					dest[u] = Trans(dest[u], paletteindex);
+		}
 	}
 	else if (r_pixbytes == 4)
 	{

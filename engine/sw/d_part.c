@@ -360,6 +360,163 @@ void D_DrawParticle32 (particle_t *pparticle)
 }
 
 #define draw(x, y) x=Trans(x,(int)y)
+#define rdraw(x, y) x=Trans((int)y,x)
+void D_DrawParticleReverseTrans (particle_t *pparticle)
+{
+	vec3_t	local, transformed;
+	float	zi;
+	qbyte	*pdest;
+	short	*pz;
+	int		i, izi, pix, count, u, v;
+
+// transform point
+	VectorSubtract (pparticle->org, r_origin, local);
+
+	transformed[0] = DotProduct(local, r_pright);
+	transformed[1] = DotProduct(local, r_pup);
+	transformed[2] = DotProduct(local, r_ppn);		
+
+	if (transformed[2] < PARTICLE_Z_CLIP)
+		return;
+
+// project the point
+// FIXME: preadjust xcenter and ycenter
+	zi = 1.0 / transformed[2];
+	u = (int)(xcenter + zi * transformed[0] + 0.5);
+	v = (int)(ycenter - zi * transformed[1] + 0.5);
+
+	if ((v > d_vrectbottom_particle) || 
+		(u > d_vrectright_particle) ||
+		(v < d_vrecty) ||
+		(u < d_vrectx))
+	{
+		return;
+	}
+
+	pz = d_pzbuffer + (d_zwidth * v) + u;	
+	izi = (int)(zi * 0x8000);
+
+	pix = ((int)(izi*pparticle->scale)) >> d_pix_shift;	
+
+	if (pix < d_pix_min)
+		pix = d_pix_min;
+	else if (pix > d_pix_max)
+		pix = d_pix_max;
+
+	u -= pix/2;
+	v -= pix/2;
+	if (u < 0) u = 0;
+	if (v < 0) v = 0;
+	pdest = d_viewbuffer + d_scantable[v] + u;
+
+	switch (pix)
+	{
+	case 1:
+		count = 1 << d_y_aspect_shift;
+
+		for ( ; count ; count--, pz += d_zwidth, pdest += screenwidth)
+		{
+			if (pz[0] <= izi)
+			{
+//				pz[0] = izi;
+				rdraw(pdest[0], pparticle->color);
+			}
+		}
+		break;
+
+	case 2:
+		count = 2 << d_y_aspect_shift;
+
+		for ( ; count ; count--, pz += d_zwidth, pdest += screenwidth)
+		{
+			if (pz[0] <= izi)
+			{
+//				pz[0] = izi;
+				rdraw(pdest[0], pparticle->color);
+			}
+
+			if (pz[1] <= izi)
+			{
+//				pz[1] = izi;
+				rdraw(pdest[1], pparticle->color);
+			}
+		}
+		break;
+
+	case 3:
+		count = 3 << d_y_aspect_shift;
+
+		for ( ; count ; count--, pz += d_zwidth, pdest += screenwidth)
+		{
+			if (pz[0] <= izi)
+			{
+//				pz[0] = izi;
+				rdraw(pdest[0], pparticle->color);
+			}
+
+			if (pz[1] <= izi)
+			{
+//				pz[1] = izi;
+				rdraw(pdest[1], pparticle->color);
+			}
+
+			if (pz[2] <= izi)
+			{
+//				pz[2] = izi;
+				rdraw(pdest[2], pparticle->color);
+			}
+		}
+		break;
+
+	case 4:
+		count = 4 << d_y_aspect_shift;
+
+		for ( ; count ; count--, pz += d_zwidth, pdest += screenwidth)
+		{
+			if (pz[0] <= izi)
+			{
+//				pz[0] = izi;
+				rdraw(pdest[0], pparticle->color);
+			}
+
+			if (pz[1] <= izi)
+			{
+//				pz[1] = izi;
+				rdraw(pdest[1], pparticle->color);
+			}
+
+			if (pz[2] <= izi)
+			{
+//				pz[2] = izi;
+				rdraw(pdest[2], pparticle->color);
+			}
+
+			if (pz[3] <= izi)
+			{
+//				pz[3] = izi;
+				rdraw(pdest[3], pparticle->color);
+			}
+		}
+		break;
+
+	default:
+		count = pix << d_y_aspect_shift;
+
+		for ( ; count ; count--, pz += d_zwidth, pdest += screenwidth)
+		{
+			for (i=0 ; i<pix ; i++)
+			{
+				if (pz[i] <= izi)
+				{
+//					pz[i] = izi;
+					rdraw(pdest[i], pparticle->color);
+				}
+			}
+		}
+		break;
+	}
+}
+
 void D_DrawParticleTrans (particle_t *pparticle)
 {
 	vec3_t	local, transformed;
@@ -379,17 +536,22 @@ void D_DrawParticleTrans (particle_t *pparticle)
 		return;
 	}
 
-	if (pparticle->alpha <= 0.0)
-		return;
+	Set_TransLevelF(pparticle->alpha);
 
+	if (t_state & TT_ZERO)
+		return;
 	
-	if (pparticle->alpha >= 0.9)
+	if (t_state & TT_ONE)
 	{
 		D_DrawParticle(pparticle);
 		return;
 	}
 
-	Set_TransLevelF(pparticle->alpha);
+	if (t_state & TT_REVERSE)
+	{
+		D_DrawParticleReverseTrans(pparticle);
+		return;
+	}
 
 // transform point
 	VectorSubtract (pparticle->org, r_origin, local);
@@ -788,10 +950,10 @@ void D_DrawSparkTrans (particle_t *pparticle)	//draw a line in 3d space, 8bpp
 		return;
 	}
 
-	if (pparticle->alpha <= 0.0)
-		return;
-
 	Set_TransLevelF(pparticle->alpha);
+
+	if (t_state & TT_ZERO)
+		return;
 
 	speed = Length(pparticle->vel);	
 	if ((speed) < 1)
@@ -849,20 +1011,57 @@ void D_DrawSparkTrans (particle_t *pparticle)	//draw a line in 3d space, 8bpp
 			dv /= count;
 			dz /= count;
 		}
-	do
-	{		
-		pz = d_pzbuffer + (d_zwidth * (v1>>16)) + (u1>>16);
 
-		if (*pz <= z1>>16)
-		{
-//			*pz = z1>>16;
+	if (t_state & TT_ONE)
+	{
+		do
+		{		
+			pz = d_pzbuffer + (d_zwidth * (v1>>16)) + (u1>>16);
 
-			pdest = d_viewbuffer + d_scantable[v1>>16] + (u1>>16);
-			draw(*pdest, pparticle->color);
-		}
+			if (*pz <= z1>>16)
+			{
+				pdest = d_viewbuffer + d_scantable[v1>>16] + (u1>>16);
+				*pdest = pparticle->color;
+			}
 
-		u1 += du;
-		v1 += dv;
-		z1 += dz;
-	} while (count--);
+			u1 += du;
+			v1 += dv;
+			z1 += dz;
+		} while (count--);
+	}
+	else if (t_state & TT_REVERSE)
+	{
+		do
+		{		
+			pz = d_pzbuffer + (d_zwidth * (v1>>16)) + (u1>>16);
+
+			if (*pz <= z1>>16)
+			{
+				pdest = d_viewbuffer + d_scantable[v1>>16] + (u1>>16);
+				rdraw(*pdest, pparticle->color);
+			}
+
+			u1 += du;
+			v1 += dv;
+			z1 += dz;
+		} while (count--);
+	}
+	else
+	{
+		do
+		{		
+			pz = d_pzbuffer + (d_zwidth * (v1>>16)) + (u1>>16);
+
+			if (*pz <= z1>>16)
+			{
+//				*pz = z1>>16;
+				pdest = d_viewbuffer + d_scantable[v1>>16] + (u1>>16);
+				draw(*pdest, pparticle->color);
+			}
+
+			u1 += du;
+			v1 += dv;
+			z1 += dz;
+		} while (count--);
+	}
 }

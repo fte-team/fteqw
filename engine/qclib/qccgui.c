@@ -1559,21 +1559,36 @@ static LONG CALLBACK MainWndProc(HWND hWnd,UINT message,
 			TVITEM i;
 			char filename[256];
 			char itemtext[256];
-			nm = lParam;
+			int oldlen;
+			int newlen;
+			nm = (NMHDR*)lParam;
 			if (nm->hwndFrom == projecttree)
 			{
 				switch(nm->code)
 				{
-				case NM_CLICK:
+				case NM_DBLCLK:
 					item = TreeView_GetSelection(projecttree);
 					i.hItem = item;
 					i.mask = TVIF_TEXT;
 					i.pszText = itemtext;
 					i.cchTextMax = sizeof(itemtext)-1;
-					TreeView_GetItem(projecttree, &i);
-					while(i.hItem)
+					if (!TreeView_GetItem(projecttree, &i))
+						return;
+					strcpy(filename, i.pszText);
+					while(item)
 					{
 						item = TreeView_GetParent(projecttree, item);
+						i.hItem = item;
+						if (!TreeView_GetItem(projecttree, &i))
+							break;
+						if (!TreeView_GetParent(projecttree, item))
+							break;
+
+						oldlen = strlen(filename);
+						newlen = strlen(i.pszText);
+						memmove(filename+newlen+1, filename, oldlen+1);
+						filename[newlen] = '/';
+						strncpy(filename, i.pszText, newlen);
 					}
 					EditFile(filename, -1);
 					break;
@@ -1903,6 +1918,7 @@ void SetProgsSrc(void)
 				{	//add a directory.
 					item.hParent = pi;
 					pi = (HANDLE)SendMessage(projecttree,TVM_INSERTITEM,0,(LPARAM)&item);
+					item.hParent = pi;
 				}
 				else pi = item.hParent;
 

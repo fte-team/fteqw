@@ -221,6 +221,7 @@ typedef struct dlight_s
 	float	channelfade[3];
 
 	struct	shadowmesh_s *worldshadowmesh;
+	int style;	//multiply by style values if > 0
 	float	dist;
 	struct dlight_s *next;
 } dlight_t;

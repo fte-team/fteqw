@@ -892,6 +892,8 @@ void GLR_NewMap (void)
 //#endif
 
 	UI_Reset();
+
+	TP_NewMap();
 }
 
 void GLR_PreNewMap(void)

@@ -100,6 +100,7 @@ typedef struct cvar_group_s
 
 cvar_t *Cvar_Get (char *var_name, char *value, int flags, char *groupname);
 
+void Cvar_LockFromServer(cvar_t *var, char *str);
 
 void 	Cvar_Register (cvar_t *variable, char *cvargroup);
 // registers a cvar that allready has the name, string, and optionally the

@@ -329,7 +329,7 @@ int WIPX_StringToAddr (char *string, struct sockaddr_qstorage *addr)
 
 	buf[2] = 0;
 	Q_memset(addr, 0, sizeof(struct sockaddr_qstorage));
-	addr->sa_family = AF_IPX;
+	((struct sockaddr*)addr)->sa_family = AF_IPX;
 
 #define DO(src,dest)	\
 	buf[0] = string[src];	\
@@ -408,7 +408,7 @@ int WIPX_GetAddrFromName(char *name, struct sockaddr_qstorage *addr)
 
 int WIPX_AddrCompare (struct sockaddr_qstorage *addr1, struct sockaddr_qstorage *addr2)
 {
-	if (addr1->sa_family != addr2->sa_family)
+	if (((struct sockaddr*)addr1)->sa_family != ((struct sockaddr*)addr2)->sa_family)
 		return -1;
 
 	if (*((struct sockaddr_ipx *)addr1)->sa_netnum && *((struct sockaddr_ipx *)addr2)->sa_netnum)

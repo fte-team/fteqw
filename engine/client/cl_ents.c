@@ -1266,51 +1266,7 @@ void CL_LinkPacketEntities (void)
 		// if set to invisible, skip
 		if (s1->modelindex<1)
 			continue;
-#if 0
-		for (spnum = 0; spnum < cl.splitclients; spnum++)
-		{
-			if (s1->number == cl.viewentity[spnum])
-			{
-//	float	a1, a2;
-				cl.simvel[spnum][0] = 0;
-				cl.simvel[spnum][1] = 0;
-				cl.simvel[spnum][2] = 0;
 
-
-	//			f = 1-(realtime-cl.lerpents[s1->number].lerptime)*10;
-				f = 1-(cl.time-cl.lerpents[s1->number].lerptime)/cl.lerpents[s1->number].lerprate;
-				if (f<0)f=0;
-				if (f>1)f=1;
-
-				for (i=0 ; i<3 ; i++)
-					cl.simorg[spnum][i] = r_refdef.vieworg[i] = s1->origin[i] + 
-							f * (cl.lerpents[s1->number].origin[i] - s1->origin[i]);
-/*
-				for (i=0 ; i<3 ; i++)
-				{
-					a1 = cl.lerpents[s1->number].angles[i];
-					a2 = s1->angles[i];
-					if (a1 - a2 > 180)
-						a1 -= 360;
-					if (a1 - a2 < -180)
-						a1 += 360;
-					cl.simangles[spnum][i] = a2 + f * (a1 - a2);
-				}
-				cl.simangles[spnum][0] = cl.simangles[spnum][0]*-3;
-*/
-				/*for (i=0 ; i<3 ; i++)
-				{
-					a1 = cl.lerpents[s1->number].angles[i];
-					a2 = s1->angles[i];
-					if (a1 - a2 > 180)
-						a1 -= 360;
-					if (a1 - a2 < -180)
-						a1 += 360;
-					cl.simangles[i] = a2 + f * (a1 - a2);
-				}*/
-			}
-		}
-#endif
 		// create a new entity
 		if (cl_numvisedicts == MAX_VISEDICTS)
 			break;		// object list is full
@@ -1322,33 +1278,7 @@ void CL_LinkPacketEntities (void)
 			continue;
 		}
 
-		/*if (qrenderer == QR_OPENGL && model->type == mod_sprite)	//more efficient strcmping - there arn't that many sprites.
-		{
-			if (gl_part_inferno.value && (model->numframes == 6 || gl_part_inferno.value==2) && !strcmp(model->name, "progs/s_explod.spr"))
-			{
-				VectorCopy (s1->origin, old_origin);
-				for (i=0 ; i<cl_oldnumvisedicts ; i++)
-				{
-					if (cl_oldvisedicts[i].keynum == s1->number)
-					{
-						VectorCopy (cl_oldvisedicts[i].origin, old_origin);
-						break;
-					}
-				}
 
-				for (i=0 ; i<3 ; i++)
-					if ( abs(old_origin[i] - s1->origin[i]) > 128)
-					{	// no trail if too far
-						VectorCopy (s1->origin, old_origin);
-						break;
-					}
-
-				
-				R_FlameTrail(old_origin, s1->origin, (float)s1->frame/model->numframes);
-				model = NULL;
-			}
-		}*/
- 
 		ent = &cl_visedicts[cl_numvisedicts];
 		cl_numvisedicts++;
 		ent->visframe = 0;

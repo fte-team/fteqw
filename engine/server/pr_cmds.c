@@ -3496,8 +3496,12 @@ void PF_walkmove (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 // save program state, because SV_movestep may call other progs
 //	oldf = pr_xfunction;
 	oldself = pr_global_struct->self;
-	
-	if (!SV_TestEntityPosition(ent))
+
+	if (!dist)
+	{
+		G_FLOAT(OFS_RETURN) = !SV_TestEntityPosition(ent);
+	}
+	else if (!SV_TestEntityPosition(ent))
 	{
 		G_FLOAT(OFS_RETURN) = SV_movestep(ent, move, true, false, settrace);
 		if (SV_TestEntityPosition(ent))

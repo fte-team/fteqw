@@ -1618,8 +1618,8 @@ void R_RenderDynamicLightmaps (msurface_t *fa)
 	}
 	
 		
-	fa->polys->chain = lightmap[fa->lightmaptexturenum]->polys;
-	lightmap[fa->lightmaptexturenum]->polys = fa->polys;
+//	fa->polys->chain = lightmap[fa->lightmaptexturenum]->polys;
+//	lightmap[fa->lightmaptexturenum]->polys = fa->polys;
 
 	// check for lightmap modification
 	if (cl.worldmodel->fromgame != fg_quake3)	//no lightstyles on q3 maps
@@ -3156,7 +3156,6 @@ void BuildSurfaceDisplayList (msurface_t *fa)
 	//
 	poly = Hunk_AllocName (sizeof(glpoly_t) + (lnumverts-4) * VERTEXSIZE*sizeof(float), "SDList");
 	poly->next = fa->polys;
-	poly->flags = fa->flags;
 	fa->polys = poly;
 	poly->numverts = lnumverts;
 

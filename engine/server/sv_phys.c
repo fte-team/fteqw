@@ -1727,6 +1727,7 @@ trace_t SV_Trace_Toss (edict_t *tossent, edict_t *ignore)
 	gravity *= sv_gravity.value * 0.05;
 
 	VectorCopy (tossent->v.origin, origin);
+	VectorCopy (tossent->v.velocity, velocity);
 
 	SV_CheckVelocity (tossent);
 

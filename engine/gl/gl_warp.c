@@ -202,7 +202,7 @@ EmitWaterPolys
 Does a water warp on the pre-fragmented glpoly_t chain
 =============
 */
-void EmitWaterPolys (msurface_t *fa)
+void EmitWaterPolys (msurface_t *fa, float basealpha)
 {
 	glpoly_t	*p;
 	float		*v;
@@ -246,7 +246,7 @@ void EmitWaterPolys (msurface_t *fa)
 		int l;
 		glDisable(GL_ALPHA_TEST);
 		glEnable(GL_BLEND);	//to ensure.
-		for (a=r_wateralphaval,l = 0; l < r_waterlayers.value; l++,a=a*4/6)
+		for (a=basealpha,l = 0; l < r_waterlayers.value; l++,a=a*4/6)
 		{
 			glColor4f(1, 1, 1, a);
 			stm =cos(l)/10;

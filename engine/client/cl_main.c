@@ -1399,7 +1399,7 @@ void CL_Packet_f (void)
 				return;
 			}
 
-		Con_Printf ("Sending realip packet\n");
+		Con_DPrintf ("Sending realip packet\n");
 	}
 	cls.lastarbiatarypackettime = Sys_DoubleTime();	//prevent the packet command from causing a reconnect on badly configured mvdsv servers.
 

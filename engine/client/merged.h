@@ -95,7 +95,6 @@ extern struct mleaf_s *FNC(Mod_PointInLeaf)			(float *p, struct model_s *model);
 extern qbyte	*FNC(Mod_Q1LeafPVS)					(struct mleaf_s *leaf, struct model_s *model, qbyte *buffer);	//purly for q1
 extern void	FNC(Mod_NowLoadExternal)				(void);
 
-extern void	FNC(Mod_ReloadTextures)					(void);
 extern void	FNC(Mod_Think)							(void);
 
 #undef FNC

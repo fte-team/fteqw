@@ -207,7 +207,7 @@ void VARGS PR_RunError (progfuncs_t *progfuncs, char *error, ...)
 	pr_depth = 0;		// dump the stack so host_error can shutdown functions	
 	prinst->exitdepth = 0;
 
-	Abort ("Program error %s", string);
+	Abort ("Program error");
 }
 
 /*

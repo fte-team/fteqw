@@ -312,6 +312,8 @@ void CL_SendConnectPacket (
 	fteprotextsupported |= PEXT_HEXEN2;
 	fteprotextsupported |= PEXT_CUSTOMTEMPEFFECTS;
 	fteprotextsupported |= PEXT_256PACKETENTITIES;
+//	fteprotextsupported |= PEXT_64PLAYERS;
+	fteprotextsupported |= PEXT_SHOWPIC;
 
 	fteprotextsupported &= ftepext;
 
@@ -681,6 +683,7 @@ void CL_ClearState (void)
 
 	CL_ClearTEnts ();
 	CL_ClearCustomTEnts();
+	SCR_ShowPic_Clear();
 
 	if (cl.playernum[0] == -1)
 	{	//left over from q2 connect.

@@ -161,10 +161,12 @@ void SWSCR_UpdateScreen (void)
 	{
 		SCR_DrawLoading ();
 		Sbar_Draw ();
+		SCR_ShowPics_Draw();
 	}
 	else if (scr_drawdialog)
 	{
 		Sbar_Draw ();
+		SCR_ShowPics_Draw();
 		Draw_FadeScreen ();
 		SCR_DrawNotifyString ();
 		scr_copyeverything = true;
@@ -187,8 +189,9 @@ void SWSCR_UpdateScreen (void)
 		SCR_DrawTurtle ();
 		SCR_DrawPause ();
 		SCR_DrawFPS ();
-		SCR_CheckDrawCenterString ();
 		Sbar_Draw ();
+		SCR_ShowPics_Draw();
+		SCR_CheckDrawCenterString ();
 #ifdef TEXTEDITOR
 		if (editoractive)
 			Editor_Draw();

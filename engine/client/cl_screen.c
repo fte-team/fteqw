@@ -302,6 +302,208 @@ extern qboolean sb_showscores;
 	}
 }
 
+
+////////////////////////////////////////////////////////////////
+//TEI_SHOWLMP2 (not 3)
+//
+typedef struct showpic_s {
+	struct showpic_s *next;
+	qbyte zone;
+	short x, y;
+	char *name;
+	char *picname;
+} showpic_t;
+showpic_t *showpics;
+
+static void SP_RecalcXY ( float *xx, float *yy, int origin )
+{
+	int midx, midy;
+	float x,y;
+
+	x = xx[0];
+	y = yy[0];
+
+	midy = vid.height * 0.5;// >>1
+	midx = vid.width * 0.5;// >>1
+
+	// Tei - new showlmp
+	switch ( origin ) 
+	{
+		case SL_ORG_NW:
+			break;
+		case SL_ORG_NE:
+			x = vid.width - x;//Inv
+			break;
+		case SL_ORG_SW:
+			y = vid.height - y;//Inv
+			break;
+		case SL_ORG_SE:
+			y = vid.height - y;//inv
+			x = vid.width - x;//Inv
+			break;
+		case SL_ORG_CC:
+			y = midy + (y - 8000);//NegCoded
+			x = midx + (x - 8000);//NegCoded
+			break;
+		case SL_ORG_CN:
+			x = midx + (x - 8000);//NegCoded
+			break;
+		case SL_ORG_CS:
+			x = midx + (x - 8000);//NegCoded
+			y = vid.height - y;//Inverse
+			break;
+		case SL_ORG_CW:
+			y = midy + (y - 8000);//NegCoded
+			break;
+		case SL_ORG_CE:
+			y = midy + (y - 8000);//NegCoded
+			x = vid.height - x; //Inverse
+			break;
+		default:
+			break;
+	}
+
+	xx[0] = x;
+	yy[0] = y;
+}
+void SCR_ShowPics_Draw(void)
+{
+	float x, y;
+	showpic_t *sp;
+	qpic_t *p;
+	for (sp = showpics; sp; sp = sp->next)
+	{
+		x = sp->x;
+		y = sp->y;
+		SP_RecalcXY(&x, &y, sp->zone);
+		p = Draw_SafeCachePic(sp->picname);
+		if (!*sp->picname)
+			continue;
+		if (!p)
+			continue;
+		Draw_Pic(x, y, p);
+	}
+}
+
+void SCR_ShowPic_Clear(void)
+{
+	showpic_t *sp;
+	while(sp = showpics)
+	{
+		showpics = sp->next;
+
+		Z_Free(sp->name);
+		Z_Free(sp->picname);
+		Z_Free(sp);
+	}
+}
+
+showpic_t *SCR_ShowPic_Find(char *name)
+{
+	showpic_t *sp, *last;
+	for (sp = showpics; sp; sp = sp->next)
+	{
+		if (!strcmp(sp->name, name))
+			return sp;
+	}
+
+	if (showpics)
+	{
+		for (last = showpics; last->next; last = last->next)
+			;
+	}
+	else
+		last = NULL;
+	sp = Z_Malloc(sizeof(showpic_t));
+	if (last)
+	{
+		last->next = sp;
+		sp->next = NULL;
+	}
+	else
+	{
+		sp->next = showpics;
+		showpics = sp;
+	}
+	sp->name = Z_Malloc(strlen(name)+1);
+	strcpy(sp->name, name);
+	sp->picname = Z_Malloc(1);
+	sp->x = 0;
+	sp->y = 0;
+	sp->zone = 0;
+
+	return sp;
+}
+
+void SCR_ShowPic_Create(void)
+{
+	int zone = MSG_ReadByte();
+	showpic_t *sp;
+	char *s;
+
+	sp = SCR_ShowPic_Find(MSG_ReadString());
+
+	s = MSG_ReadString();
+
+	Z_Free(sp->picname);
+	sp->picname = Z_Malloc(strlen(s)+1);
+	strcpy(sp->picname, s);
+	sp->zone = zone;
+	sp->x = MSG_ReadShort();
+	sp->y = MSG_ReadShort();
+
+	CL_CheckOrDownloadFile(sp->picname, false);
+}
+
+void SCR_ShowPic_Hide(void)
+{
+	showpic_t *sp, *prev;
+
+	sp = SCR_ShowPic_Find(MSG_ReadString());
+
+	if (sp == showpics)
+		showpics = sp->next;
+	else
+	{
+		for (prev = showpics; prev->next != sp; prev = prev->next)
+			;
+		prev->next = sp->next;
+	}
+
+	Z_Free(sp->name);
+	Z_Free(sp->picname);
+	Z_Free(sp);
+}
+
+void SCR_ShowPic_Move(void)
+{
+	int zone = MSG_ReadByte();
+	showpic_t *sp;
+
+	sp = SCR_ShowPic_Find(MSG_ReadString());
+
+	sp->zone = zone;
+	sp->x = MSG_ReadShort();
+	sp->y = MSG_ReadShort();
+}
+
+void SCR_ShowPic_Update(void)
+{
+	int zone = MSG_ReadByte();
+	showpic_t *sp;
+	char *s;
+
+	sp = SCR_ShowPic_Find(MSG_ReadString());
+
+	s = MSG_ReadString();
+
+	Z_Free(sp->picname);
+	sp->picname = Z_Malloc(strlen(s)+1);
+	strcpy(sp->picname, s);
+
+	CL_CheckOrDownloadFile(sp->picname, false);
+}
+
 //=============================================================================
 
 /*

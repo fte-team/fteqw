@@ -177,6 +177,7 @@ void GLSCR_UpdateScreen (void)
 	if (scr_drawdialog)
 	{
 		Sbar_Draw ();
+		SCR_ShowPics_Draw();
 		Draw_FadeScreen ();
 		SCR_DrawNotifyString ();
 		scr_copyeverything = true;
@@ -185,6 +186,7 @@ void GLSCR_UpdateScreen (void)
 	{
 		SCR_DrawLoading ();
 		Sbar_Draw ();
+		SCR_ShowPics_Draw();
 	}
 	else if (cl.intermission == 1 && key_dest == key_game)
 	{
@@ -205,8 +207,9 @@ void GLSCR_UpdateScreen (void)
 		SCR_DrawFPS ();
 		SCR_DrawTurtle ();
 		SCR_DrawPause ();
-		SCR_CheckDrawCenterString ();
 		Sbar_Draw ();
+		SCR_ShowPics_Draw();
+		SCR_CheckDrawCenterString ();
 	glTexEnvi ( GL_TEXTURE_ENV, GL_TEXTURE_ENV_MODE, GL_MODULATE );
 #ifdef TEXTEDITOR
 		if (editoractive)

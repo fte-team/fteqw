@@ -3622,6 +3622,19 @@ void CL_ParseServerMessage (void)
 			CMQ2_SetAreaPortalState(i, j!=0);
 			break;
 #endif
+
+		case svc_showpic:
+			SCR_ShowPic_Create();
+			break;
+		case svc_hidepic:
+			SCR_ShowPic_Hide();
+			break;
+		case svc_movepic:
+			SCR_ShowPic_Move();
+			break;
+		case svc_updatepic:
+			SCR_ShowPic_Update();
+			break;
 		}
 	}
 }

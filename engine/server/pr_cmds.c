@@ -7313,7 +7313,7 @@ void PF_ForceInfoKey(progfuncs_t *prinst, struct globalvars_s *pr_globals)
 	}
 	else if (e1 <= sv.allocated_client_slots)
 	{	//woo. we found a client.
-		Info_SetValueForKey(svs.clients[e1-1].userinfo, key, value, MAX_INFO_STRING);
+		Info_SetValueForStarKey(svs.clients[e1-1].userinfo, key, value, MAX_INFO_STRING);
 
 
 		SV_ExtractFromUserinfo (&svs.clients[e1-1]);
@@ -7322,6 +7322,9 @@ void PF_ForceInfoKey(progfuncs_t *prinst, struct globalvars_s *pr_globals)
 		MSG_WriteByte (&sv.reliable_datagram, e1-1);
 		MSG_WriteString (&sv.reliable_datagram, key);
 		MSG_WriteString (&sv.reliable_datagram, Info_ValueForKey(svs.clients[e1-1].userinfo, key));
+
+		if (!strcmp(key, "*spectator"))
+			svs.clients[e1-1].spectator = !!atoi(value);
 
 		G_FLOAT(OFS_RETURN) = 1;
 	}

@@ -331,7 +331,7 @@ typedef struct
 	qboolean	allow_shaders;
 	qboolean	allow_luma;
 	qboolean	allow_bump;
-	qboolean	allow_fbskins;
+	float		allow_fbskins;	//fraction of allowance
 #ifdef FISH
 	qboolean	allow_fish;
 #endif
@@ -742,6 +742,7 @@ extern int spec_track[MAX_SPLITS]; // player# of who we are tracking
 qboolean Cam_DrawViewModel(int pnum);
 qboolean Cam_DrawPlayer(int pnum, int playernum);
 void Cam_Track(int pnum, usercmd_t *cmd);
+int Cam_TrackNum(int pnum);
 void Cam_FinishMove(int pnum, usercmd_t *cmd);
 void Cam_Reset(void);
 void CL_InitCam(void);

@@ -903,6 +903,7 @@ static void QCC_UnFreeTemp(QCC_def_t *t)
 
 //We've just parsed a statement.
 //We can gaurentee that any used temps are now not used.
+#ifdef _DEBUG
 static void QCC_FreeTemps(void)
 {
 	temp_t *t;
@@ -911,10 +912,15 @@ static void QCC_FreeTemps(void)
 	while(t)
 	{
 		if (t->used)
-			t->used = false;
+		{
+			QCC_PR_ParseWarning(ERR_INTERNAL, "Temp was used\n");
+		}
 		t = t->next;
 	}
 }
+#else
+#define QCC_FreeTemps()
+#endif
 
 //temps that are still in use over a function call can be considered dodgy.
 //we need to remap these to locally defined temps, on return from the function so we know we got them all.
@@ -1249,7 +1255,7 @@ QCC_def_t *QCC_PR_Statement ( QCC_opcode_t *op, QCC_def_t *var_a, QCC_def_t *var
 	{
 	case OP_AND:
 		if (var_a->ofs == var_b->ofs)
-			QCC_PR_ParseWarning(0, "Parameters for && are the same");
+			QCC_PR_ParseWarning(0, "Parameter offsets for && are the same");
 		if (var_a->constant || var_b->constant)
 			QCC_PR_ParseWarning(0, "Result of comparison is constant");
 		break;
@@ -4268,18 +4274,20 @@ void QCC_PR_ParseStatement (void)
 	{
 		int hcstyle;
 		int defaultcase = -1;
-		int oldallowtemps;
+		temp_t *et;
+
 		breaks = num_breaks;
 		cases = num_cases;
 
+
 		QCC_PR_Expect ("(");
 
-		oldallowtemps = opt_overlaptemps;	//disable temp reuse for now.
-		opt_overlaptemps = 0;
 		conditional = true;
 		e = QCC_PR_Expression (TOP_PRIORITY);
 		conditional = false;
-		opt_overlaptemps = oldallowtemps;
+
+		et = e->temp;
+		e->temp = NULL;	//so noone frees it until we finish this loop
 
 		hcstyle = QCC_OPCodeValid(&pr_opcodes[OP_SWITCH_F]);
 
@@ -4413,14 +4421,14 @@ void QCC_PR_ParseStatement (void)
 								QCC_PR_ParseError(ERR_BADSWITCHTYPE, "Bad switch type");
 								break;
 							}
-							QCC_PR_Statement (&pr_opcodes[OP_IF], e2, 0, &patch3);
+							QCC_FreeTemp(QCC_PR_Statement (&pr_opcodes[OP_IF], e2, 0, &patch3));
 						}
 						else
 						{
 							if (e->type->type == ev_string)
-								QCC_PR_Statement (&pr_opcodes[OP_IFNOTS], e, 0, &patch3);
+								QCC_FreeTemp(QCC_PR_Statement (&pr_opcodes[OP_IFNOTS], e, 0, &patch3));
 							else
-								QCC_PR_Statement (&pr_opcodes[OP_IFNOT], e, 0, &patch3);
+								QCC_FreeTemp(QCC_PR_Statement (&pr_opcodes[OP_IFNOT], e, 0, &patch3));
 						}
 						patch3->b = &statements[pr_cases[i]] - patch3;
 					}
@@ -4449,6 +4457,8 @@ void QCC_PR_ParseStatement (void)
 			num_breaks = breaks;
 		}
 
+		e->temp = et;
+		QCC_FreeTemp(e);
 		return;
 	}
 
@@ -4645,8 +4655,6 @@ void QCC_PR_ParseStatement (void)
 	QCC_FreeTemp(e);
 
 //	qcc_functioncalled=false;
-
-	QCC_FreeTemps();
 }
 
 
@@ -5073,6 +5081,9 @@ void QCC_Marshal_Locals(int first, int laststatement)
 	QCC_def_t *local;
 	unsigned int newofs;
 
+	if (!opt_overlaptemps)	//clear these after each function. we arn't overlapping them so why do we need to keep track of them?
+		functemps = NULL;
+
 	if (!pr.localvars)	//nothing to marshal
 	{
 		locals_start = numpr_globals;
@@ -5323,8 +5334,12 @@ QCC_function_t *QCC_PR_ParseImmediateStatements (QCC_type_t *type)
 		QCC_PR_Expect ("{");
 
 		while (!QCC_PR_Check("}"))
+		{
 			QCC_PR_ParseStatement ();
+			QCC_FreeTemps();
+		}
 	}
+	QCC_FreeTemps();
 
 	// this is cheap
 	if (type->aux_type->type)

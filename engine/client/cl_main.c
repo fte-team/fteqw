@@ -111,6 +111,8 @@ cvar_t	r_rocketlight	= {"r_rocketlight",	"1"};
 cvar_t	r_lightflicker	= {"r_lightflicker",	"1"};
 cvar_t	cl_r2g			= {"cl_r2g",	"0"};
 cvar_t	r_powerupglow	= {"r_powerupglow", "1"};
+cvar_t	cl_gibfilter	= {"cl_gibfilter", "0"};
+cvar_t	cl_deadbodyfilter	= {"cl_deadbodyfilter", "0"};
 
 cvar_t	cl_muzzleflash = {"cl_muzzleflash", "1"};
 
@@ -2278,6 +2280,9 @@ void CL_Init (void)
 	Cvar_Register (&r_lightflicker, "Item effects");
 	Cvar_Register (&cl_r2g, "Item effects");
 	Cvar_Register (&r_powerupglow, "Item effects");
+
+	Cvar_Register (&cl_gibfilter, "Item effects");
+	Cvar_Register (&cl_deadbodyfilter, "Item effects");
 
 	//
 	// info mirrors

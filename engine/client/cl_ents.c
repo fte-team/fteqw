@@ -32,6 +32,8 @@ extern	cvar_t	r_rocketlight;
 extern	cvar_t	r_lightflicker;
 extern	cvar_t	cl_r2g;
 extern	cvar_t	r_powerupglow;
+
+extern	cvar_t	cl_gibfilter, cl_deadbodyfilter;
 extern int cl_playerindex;
 
 static struct predicted_player {
@@ -51,7 +53,32 @@ static struct predicted_player {
 
 float newlerprate;
 
-extern int cl_rocketindex, cl_grenadeindex;
+extern int cl_playerindex, cl_h_playerindex, cl_rocketindex, cl_grenadeindex, cl_gib1index, cl_gib2index, cl_gib3index;
+
+qboolean CL_FilterModelindex(int modelindex, int frame)
+{
+	if (modelindex == cl_playerindex)
+	{
+		if (cl_deadbodyfilter.value == 2)
+		{
+			if (frame >= 41 && frame <= 102)
+				return true;
+		}
+		else if (cl_deadbodyfilter.value)
+		{
+			if (frame == 49 || frame == 60 || frame == 69 || frame == 84 || frame == 93 || frame == 102)
+				return true;
+		}
+	}
+
+	if (cl_gibfilter.value && (
+			modelindex == cl_h_playerindex || 
+			modelindex == cl_gib1index ||
+			modelindex == cl_gib2index ||
+			modelindex == cl_gib3index))
+		return true;
+	return false;
+}
 
 //============================================================
 
@@ -1284,6 +1311,9 @@ void CL_LinkPacketEntities (void)
 		if (cl_numvisedicts == MAX_VISEDICTS)
 			break;		// object list is full
 
+		if (CL_FilterModelindex(s1->modelindex, s1->frame))
+			continue;
+
 		model = cl.model_precache[s1->modelindex];
 		if (!model)
 		{
@@ -2049,6 +2079,9 @@ void CL_LinkPlayers (void)
 		}
 
 		if (state->modelindex < 1)
+			continue;
+
+		if (CL_FilterModelindex(state->modelindex, state->frame))
 			continue;
 /*
 		if (!Cam_DrawPlayer(j))

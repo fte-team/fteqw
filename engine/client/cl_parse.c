@@ -467,7 +467,7 @@ int	oldparsecountmod;
 int	parsecountmod;
 double	parsecounttime;
 
-int		cl_spikeindex, cl_playerindex, cl_flagindex, cl_rocketindex, cl_grenadeindex;
+int		cl_spikeindex, cl_playerindex, cl_h_playerindex, cl_flagindex, cl_rocketindex, cl_grenadeindex, cl_gib1index, cl_gib2index, cl_gib3index;
 
 #ifdef PEXT_LIGHTUPDATES
 int		cl_lightningindex;
@@ -919,10 +919,14 @@ void Sound_NextDownload (void)
 	// done with sounds, request models now
 	memset (cl.model_precache, 0, sizeof(cl.model_precache));
 	cl_playerindex = -1;
+	cl_h_playerindex = -1;
 	cl_spikeindex = -1;
 	cl_flagindex = -1;
 	cl_rocketindex = -1;
 	cl_grenadeindex = -1;
+	cl_gib1index = -1;
+	cl_gib2index = -1;
+	cl_gib3index = -1;
 #ifdef PEXT_LIGHTUPDATES
 	cl_lightningindex = -1;
 #endif
@@ -2098,6 +2102,8 @@ void CL_ParseModellist (qboolean lots)
 #endif
 		if (!strcmp(cl.model_name[nummodels],"progs/player.mdl"))
 			cl_playerindex = nummodels;
+		if (!strcmp(cl.model_name[nummodels],"progs/h_player.mdl"))
+			cl_h_playerindex = nummodels;
 		if (!strcmp(cl.model_name[nummodels],"progs/flag.mdl"))
 			cl_flagindex = nummodels;
 
@@ -2105,6 +2111,14 @@ void CL_ParseModellist (qboolean lots)
 			cl_rocketindex = nummodels;
 		if (!strcmp(cl.model_name[nummodels],"progs/grenade.mdl"))
 			cl_grenadeindex = nummodels;
+
+		
+		if (!strcmp(cl.model_name[nummodels],"progs/gib1.mdl"))
+			cl_gib1index = nummodels;
+		if (!strcmp(cl.model_name[nummodels],"progs/gib2.mdl"))
+			cl_gib2index = nummodels;
+		if (!strcmp(cl.model_name[nummodels],"progs/gib3.mdl"))
+			cl_gib3index = nummodels;
 	}
 
 	if (nummodels)

@@ -782,9 +782,9 @@ void M_SListKey(int key)
 				return;	//ah. off the end.
 
 			if (key == 's')
-				Cbuf_AddText("spectator 1\n");
+				Cbuf_AddText("spectator 1\n", RESTRICT_LOCAL);
 			else if (key == 'j')
-				Cbuf_AddText("spectator 0\n");
+				Cbuf_AddText("spectator 0\n", RESTRICT_LOCAL);
 
 			if (server->special & SS_NETQUAKE)
 				Cbuf_AddText(va("nqconnect %s\n", NET_AdrToString(server->adr)), RESTRICT_LOCAL);

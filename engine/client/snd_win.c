@@ -291,9 +291,9 @@ const static GUID  KSDATAFORMAT_SUBTYPE_PCM = {0x00000001,0x0000,0x0010,
 
 #ifdef _IKsPropertySet_
 const static GUID  CLSID_EAXDIRECTSOUND = {0x4ff53b81, 0x1ce0, 0x11d3,
-	0xaa, 0xb8, 0x0, 0xa0, 0xc9, 0x59, 0x49, 0xd5};
+{0xaa, 0xb8, 0x0, 0xa0, 0xc9, 0x59, 0x49, 0xd5}};
 const static GUID  DSPROPSETID_EAX20_LISTENERPROPERTIES = {0x306a6a8, 0xb224, 0x11d2, 
-0x99, 0xe5, 0x0, 0x0, 0xe8, 0xd8, 0xc7, 0x22};
+{0x99, 0xe5, 0x0, 0x0, 0xe8, 0xd8, 0xc7, 0x22}};
 
 typedef struct _EAXLISTENERPROPERTIES
 {
@@ -367,13 +367,13 @@ const static GUID DSPROPSETID_EAX20_BUFFERPROPERTIES ={
     0x306a6a7, 
     0xb224, 
     0x11d2, 
-    0x99, 0xe5, 0x0, 0x0, 0xe8, 0xd8, 0xc7, 0x22};
+    {0x99, 0xe5, 0x0, 0x0, 0xe8, 0xd8, 0xc7, 0x22}};
 
 const static GUID CLSID_EAXDirectSound ={
 		0x4ff53b81, 
 		0x1ce0, 
 		0x11d3,
-		0xaa, 0xb8, 0x0, 0xa0, 0xc9, 0x59, 0x49, 0xd5};
+		{0xaa, 0xb8, 0x0, 0xa0, 0xc9, 0x59, 0x49, 0xd5}};
 
 typedef struct _EAXBUFFERPROPERTIES
 {
@@ -676,7 +676,7 @@ sndinitstat SNDDMA_InitDirect (soundcardinfo_t *sc)
 // initialize the buffer
 	reps = 0;
 
-	while ((hresult = sc->pDSBuf->lpVtbl->Lock(sc->pDSBuf, 0, sc->gSndBufSize, &sc->lpData, &dwSize, NULL, NULL, 0)) != DS_OK)
+	while ((hresult = sc->pDSBuf->lpVtbl->Lock(sc->pDSBuf, 0, sc->gSndBufSize, (void**)&sc->lpData, &dwSize, NULL, NULL, 0)) != DS_OK)
 	{
 		if (hresult != DSERR_BUFFERLOST)
 		{
@@ -724,7 +724,7 @@ sndinitstat SNDDMA_InitDirect (soundcardinfo_t *sc)
 		int r;
 		DWORD support;
 
-		if (SUCCEEDED(IDirectSoundBuffer_QueryInterface(sc->pDSBuf, &IID_IKsPropertySet, &sc->EaxKsPropertiesSet)))
+		if (SUCCEEDED(IDirectSoundBuffer_QueryInterface(sc->pDSBuf, &IID_IKsPropertySet, (void*)&sc->EaxKsPropertiesSet)))
 		{
 			r = IKsPropertySet_QuerySupport(sc->EaxKsPropertiesSet, &DSPROPSETID_EAX20_LISTENERPROPERTIES, DSPROPERTY_EAXLISTENER_ALLPARAMETERS, &support);
 			if(!SUCCEEDED(r) || (support&(KSPROPERTY_SUPPORT_GET|KSPROPERTY_SUPPORT_SET))

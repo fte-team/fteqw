@@ -2363,6 +2363,9 @@ void Host_Frame (float time)
 	if (oldrealtime > realtime)
 		oldrealtime = 0;
 
+	if (cl.paused)
+		cl.gametimemark += time;
+
 
 #if defined(NQPROT) || defined(Q2CLIENT)
 #if defined(NQPROT) && defined(Q2CLIENT)

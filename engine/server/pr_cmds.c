@@ -147,13 +147,13 @@ pbool ED_CanFree (edict_t *ed)
 	if (ed == sv.edicts)
 	{
 		Con_TPrintf(STL_CANTFREEWORLD);
-		pr_trace = 1;
+		*svprogfuncs->pr_trace = 1;
 		return false;
 	}
 	if (NUM_FOR_EDICT(svprogfuncs, ed) <= sv.allocated_client_slots)
 	{
 		Con_TPrintf(STL_CANTFREEPLAYERS);
-		pr_trace = 1;
+		*svprogfuncs->pr_trace = 1;
 		return false;
 	}
 	SV_UnlinkEdict (ed);		// unlink from world bsp
@@ -1312,15 +1312,19 @@ void VARGS PR_BIError(progfuncs_t *progfuncs, char *format, ...)
 
 	if (developer.value)
 	{
-		globalvars_t *pr_globals = PR_globals(svprogfuncs, PR_CURRENT);
+		globalvars_t *pr_globals = PR_globals(progfuncs, PR_CURRENT);
 		Con_Printf("%s\n", string);
-		pr_trace = 1;		
+		*progfuncs->pr_trace = 1;		
 		G_INT(OFS_RETURN)=0;	//just in case it was a float and should be an ent...
 		G_INT(OFS_RETURN+1)=0;
 		G_INT(OFS_RETURN+2)=0;
 	}
 	else
-		PR_RunError(progfuncs, "%s", string);
+	{
+		PR_StackTrace(progfuncs);
+		PR_AbortStack(progfuncs);
+		progfuncs->parms->Abort ("%s", string);
+	}
 }
 
 void QC_Clear(void)
@@ -1414,7 +1418,7 @@ void PF_externcall (progfuncs_t *prinst, globalvars_t *pr_globals)	//this func c
 		for (i = OFS_PARM0; i < OFS_PARM5; i+=3)
 			VectorCopy(G_VECTOR(i+(2*3)), G_VECTOR(i));
 
-		(pr_trace)++;	//continue debugging
+		(*prinst->pr_trace)++;	//continue debugging
 		PR_ExecuteProgram(prinst, f);
 	}
 	else if (!f)
@@ -1430,7 +1434,7 @@ void PF_externcall (progfuncs_t *prinst, globalvars_t *pr_globals)	//this func c
 			VectorCopy(G_VECTOR(i+(1*3)), G_VECTOR(i));		
 		G_INT(OFS_PARM0) = (int)funcname;
 
-		(pr_trace)++;	//continue debugging
+		(*prinst->pr_trace)++;	//continue debugging
 		PR_ExecuteProgram(prinst, f);
 	}
 }
@@ -1445,7 +1449,7 @@ void PF_externrefcall (progfuncs_t *prinst, globalvars_t *pr_globals)
 	progsnum = G_PROG(OFS_PARM0);
 	f = G_INT(OFS_PARM1);
 	
-	(pr_trace)++;	//continue debugging.
+	(*prinst->pr_trace)++;	//continue debugging.
 	PR_ExecuteProgram(prinst, f);
 }
 
@@ -1560,16 +1564,21 @@ void PF_error (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 	ED_Print (ed);
 */	
 
+	PR_StackTrace(prinst);
+
 	Con_Printf("%s\n", s);
 
 	if (developer.value)
 	{
 //		SV_Error ("Program error: %s", s);
 		PF_break(prinst, pr_globals);
-		pr_trace = 2;
+		(*prinst->pr_trace) = 2;
 	}
 	else
-		SV_Error ("Program error: %s", s);
+	{
+		prinst->AbortStack(prinst);
+		PR_BIError (prinst, "Program error: %s", s);
+	}
 }
 
 /*
@@ -1596,12 +1605,14 @@ void PF_objerror (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 	Con_Printf("%s", s);
 
 	if (developer.value)
-		pr_trace = 2;
+		(*prinst->pr_trace) = 2;
 	else
 	{
-		ED_Free (svprogfuncs, ed);
+		ED_Free (prinst, ed);
+
+		prinst->AbortStack(prinst);
 	
-		SV_Error ("Program error :%s", s);
+		PR_BIError ("Program error :%s", s);
 
 		if (sv.time > 10)
 			Cbuf_AddText("restart\n", RESTRICT_LOCAL);
@@ -1662,7 +1673,7 @@ void PF_setsize (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 	if (e->isfree)
 	{
 		Con_TPrintf(STL_EDICTWASFREE, "setsize");
-		pr_trace = 1;
+		(*prinst->pr_trace) = 1;
 		return;
 	}
 	min = G_VECTOR(OFS_PARM1);
@@ -2513,7 +2524,7 @@ void PF_break (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 		}
 	}
 #elif defined(TEXTEDITOR)
-	(pr_trace)++;
+	(*prinst->pr_trace)++;
 #else	//old break code
 Con_Printf ("break statement\n");
 *(int *)-4 = 0;	// dump to debugger
@@ -2940,7 +2951,7 @@ PF_cvar
 float cvar (string)
 =================
 */
-void PF_cvar (progfuncs_t *prinst, struct globalvars_s *pr_globals)
+static void PF_cvar (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
 	char	*str;
 	
@@ -3192,7 +3203,7 @@ void PF_vtos (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 
 void PF_Spawn (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
-	edict_t	*ed;
+	struct edict_s	*ed;
 	ed = ED_Alloc(prinst);
 	RETURN_EDICT(prinst, ed);
 }
@@ -3210,7 +3221,7 @@ void PF_Remove (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 	
 	ed = G_EDICT(prinst, OFS_PARM0);
 
-	if (ed->isfree && progstype == PROG_H2)
+	if (ed->isfree && progstype != PROG_H2)	//h2 is dire...
 	{
 		Con_DPrintf("Tried removing free entity\n");
 		return;	//yeah, alright, so this is hacky.
@@ -3221,7 +3232,7 @@ void PF_Remove (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 
 
 // entity (entity start, .string field, string match) find = #5;
-void PF_Find (progfuncs_t *prinst, struct globalvars_s *pr_globals)
+void PF_FindString (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
 	int		e;	
 	int		f;
@@ -3230,20 +3241,20 @@ void PF_Find (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 	
 	e = G_EDICTNUM(prinst, OFS_PARM0);
 	f = G_INT(OFS_PARM1)+prinst->fieldadjust;
+	f += prinst->parms->edictsize/4;
 	s = PR_GetStringOfs(prinst, OFS_PARM2);
 	if (!s)
 	{
-		PR_BIError (prinst, "PF_Find: bad search string");
+		PR_BIError (prinst, "PF_FindString: bad search string");
 		return;
 	}
 		
-	for (e++ ; e < sv.num_edicts ; e++)
+	for (e++ ; e < *prinst->parms->sv_num_edicts ; e++)
 	{
 		ed = EDICT_NUM(prinst, e);
 		if (ed->isfree)
 			continue;
-		t = *(string_t *)&((float*)&ed->v)[f];
-//		t = E_STRING(f);
+		t = ((string_t *)ed)[f];
 		if (!t)
 			continue;
 		if (!strcmp(t+prinst->stringtable,s))
@@ -3253,7 +3264,7 @@ void PF_Find (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 		}
 	}
 	
-	RETURN_EDICT(prinst, sv.edicts);
+	RETURN_EDICT(prinst, *prinst->parms->sv_edicts);
 }
 /*
 void PR_CheckEmptyString (char *s)
@@ -3326,7 +3337,10 @@ void PF_precache_model (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 		if (!*sv.model_precache[i])
 		{
 			if (strlen(s)>=sizeof(sv.model_precache[i])-1)
+			{
 				PR_BIError (prinst, "Precache name too long");
+				return;
+			}
 			strcpy(sv.model_precache[i], s);
 			if (!strcmp(s + strlen(s) - 4, ".bsp"))
 				sv.models[i] = Mod_FindName(sv.model_precache[i]);
@@ -3401,12 +3415,12 @@ void PF_coredump (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 
 void PF_traceon (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
-	pr_trace = true;
+	(*prinst->pr_trace) = true;
 }
 
 void PF_traceoff (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
-	pr_trace = false;
+	(*prinst->pr_trace) = false;
 }
 
 void PF_eprint (progfuncs_t *prinst, struct globalvars_s *pr_globals)
@@ -3753,9 +3767,9 @@ void PF_nextent (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 	while (1)
 	{
 		i++;
-		if (i == sv.num_edicts)
+		if (i == *prinst->parms->sv_num_edicts)
 		{
-			RETURN_EDICT(prinst, sv.edicts);
+			RETURN_EDICT(prinst, *prinst->parms->sv_edicts);
 			return;
 		}
 /*		if (i <= MAX_CLIENTS)
@@ -4765,7 +4779,7 @@ void PF_multicast (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 }
 
 
-void PF_Fixme (progfuncs_t *prinst, struct globalvars_s *pr_globals)
+static void PF_Fixme (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
 	progfuncs_t *progfuncs = prinst;
 int i;
@@ -4856,8 +4870,9 @@ void PF_forgetstring(progfuncs_t *prinst, struct globalvars_s *pr_globals)
 	s-=8;
 	if (((int *)s)[0] != PRSTR)
 	{
-		Con_Printf("QC tried to free a non allocated string\n");
-		pr_trace = 1;
+		Con_Printf("QC tried to free a non allocated string: ");
+		Con_Printf("%s\n", s+8);	//two prints, so that logged prints ensure the first is written.
+		(*prinst->pr_trace) = 1;
 		return;
 	}
 	Z_Free(s);
@@ -4875,7 +4890,7 @@ void PF_strcatp(progfuncs_t *prinst, struct globalvars_s *pr_globals)
 	if (((int *)(buf-8))[0] != PRSTR)
 	{
 		Con_Printf("QC tried to add to a non allocated string\n");
-		pr_trace = 1;
+		(*prinst->pr_trace) = 1;
 		G_FLOAT(OFS_RETURN) = 0;
 		return;
 	}
@@ -5264,7 +5279,7 @@ void PF_fopen (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 	}
 
 	if (name[1] == ':' ||	//dos filename absolute path specified - reject.
-		*name == '\\' || *name == '/' ||	//absolute path was given - reject
+		strchr(name, '\\') || *name == '/' ||	//absolute path was given - reject
 		strstr(name, ".."))	//someone tried to be cleaver.
 	{
 		G_FLOAT(OFS_RETURN) = -1;
@@ -5280,12 +5295,19 @@ void PF_fopen (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 	{
 	case 0:	//read
 		pf_fopen_files[i].data = COM_LoadMallocFile(pf_fopen_files[i].name);
-		pf_fopen_files[i].bufferlen = pf_fopen_files[i].len = com_filesize;
-		pf_fopen_files[i].ofs = 0;
+		if (!pf_fopen_files[i].data)
+		{
+			Q_strncpyz(pf_fopen_files[i].name, name, sizeof(pf_fopen_files[i].name));
+			pf_fopen_files[i].data = COM_LoadMallocFile(pf_fopen_files[i].name);
+		}
+
 		if (pf_fopen_files[i].data)
 			G_FLOAT(OFS_RETURN) = i;
 		else
 			G_FLOAT(OFS_RETURN) = -1;
+
+		pf_fopen_files[i].bufferlen = pf_fopen_files[i].len = com_filesize;
+		pf_fopen_files[i].ofs = 0;
 		break;
 	case 1:	//append
 		pf_fopen_files[i].data = COM_LoadMallocFile(pf_fopen_files[i].name);
@@ -5354,7 +5376,7 @@ void PF_fgets (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 
 	//read up to the next \n, ignoring any \rs.
 	o = pr_string_temp;
-	max = o + sizeof(pr_string_temp)-1;
+	max = o + MAXTEMPBUFFERLEN-1;
 	s = pf_fopen_files[fnum].data+pf_fopen_files[fnum].ofs;
 	while(*s)
 	{
@@ -5413,13 +5435,17 @@ void PF_fcloseall (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 	int i;
 	for (i = 0; i < MAX_QC_FILES; i++)
 	{
+		if (pf_fopen_files[i].prinst != prinst)
+			continue;
 		G_FLOAT(OFS_PARM0) = i;
 		PF_fclose(prinst, pr_globals);
 	}
 }
 
-
-
+void PF_fclose_progs (progfuncs_t *prinst)
+{
+	PF_fcloseall(prinst, PR_globals(prinst, PR_CURRENT));
+}
 
 
 
@@ -5488,6 +5514,7 @@ lh_extension_t QSG_Extensions[] = {
 	{"DP_TE_BLOODSHOWER",				1,	NULL, {"te_bloodshower"}},
 	{"DP_TE_CUSTOMFLASH",				1,	NULL, {"te_customflash"}},
 	{"DP_TE_PARTICLECUBE",				1,	NULL, {"te_particlecube"}},
+	{"DP_TE_PLASMABURN",				1,	NULL, {"te_plasmaburn"}},
 	{"DP_TE_SMALLFLASH",				1,	NULL, {"te_smallflash"}},
 	{"DP_TE_SPARK",						1,	NULL, {"te_spark"}},
 	{"DP_TE_STANDARDEFFECTBUILTINS",	14,	NULL, {"te_gunshot", "te_spike", "te_superspike", "te_explosion", "te_tarexplosion", "te_wizspike", "te_knightspike", "te_lavasplash", "te_teleport", "te_explosion2", "te_lightning1", "te_lightning2", "te_lightning3", "te_beam"}},	//should we include QW ones?...
@@ -6149,14 +6176,14 @@ void PF_OpenPortal	(progfuncs_t *prinst, struct globalvars_s *pr_globals)
 
 //void(entity from, entity to) copyentity = #400
 //copies data from one entity to another
-void PF_copyentity (progfuncs_t *prinst, struct globalvars_s *pr_globals)
+static void PF_copyentity (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
 	edict_t *in, *out;
 
 	in = G_EDICT(prinst, OFS_PARM0);
 	out = G_EDICT(prinst, OFS_PARM1);
 
-	memcpy(&out->v, &in->v, pr_edict_size-svprogparms.edictsize);
+	memcpy(&out->v, &in->v, pr_edict_size-prinst->parms->edictsize);
 }
 
 //EXTENSION: DP_QC_ETOS
@@ -6281,21 +6308,22 @@ void PF_FindFloat (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 
 	e = G_EDICTNUM(prinst, OFS_PARM0);
 	f = G_INT(OFS_PARM1)+prinst->fieldadjust;
+	f += prinst->parms->edictsize/4;
 	s = G_FLOAT(OFS_PARM2);
 
-	for (e++; e < sv.num_edicts; e++)
+	for (e++; e < *prinst->parms->sv_num_edicts; e++)
 	{
 		ed = EDICT_NUM(prinst, e);
 		if (ed->isfree)
 			continue;
-		if (((float *)&ed->v)[f] == s)
+		if (((float *)ed)[f] == s)
 		{
 			RETURN_EDICT(prinst, ed);
 			return;
 		}
 	}
 
-	RETURN_EDICT(prinst, sv.edicts);
+	RETURN_EDICT(prinst, *prinst->parms->sv_edicts);
 }
 
 //EXTENSION: DP_QC_FINDFLAGS
@@ -6429,7 +6457,10 @@ void PF_clientcommand (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 	//find client for this entity
 	i = NUM_FOR_EDICT(prinst, G_EDICT(prinst, OFS_PARM0)) - 1;
 	if (i < 0 || i >= sv.allocated_client_slots)
+	{
 		PR_BIError(prinst, "PF_clientcommand: entity is not a client");
+		return;
+	}
 
 	temp_client = host_client;
 	host_client = &svs.clients[i];
@@ -7125,7 +7156,8 @@ void PF_te_spark(progfuncs_t *prinst, struct globalvars_s *pr_globals)
 // #416 void(vector org) te_smallflash (DP_TE_SMALLFLASH)
 void PF_te_smallflash(progfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
-#pragma message("PF_te_smallflash not implemented yet.")
+	float *org = G_VECTOR(OFS_PARM0);
+	SV_point_tempentity(org, 72, 0);
 }
 
 // #417 void(vector org, float radius, float lifetime, vector color) te_customflash (DP_TE_CUSTOMFLASH)
@@ -7147,9 +7179,70 @@ void PF_te_bloodshower(progfuncs_t *prinst, struct globalvars_s *pr_globals)
 }
 
 //DP_SV_EFFECT
+//void(vector org, string modelname, float startframe, float endframe, float framerate) effect = #404;
 void PF_effect(progfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
-#pragma message("PF_effect not implemented yet.")
+	float *org = G_VECTOR(OFS_PARM0);
+	char *name = PR_GetStringOfs(prinst, OFS_PARM1);
+	float startframe = G_FLOAT(OFS_PARM2);
+	float endframe = G_FLOAT(OFS_PARM3);
+	float framerate = G_FLOAT(OFS_PARM4);
+	int index = SV_ModelIndex(name);
+
+	if (startframe>255 || index>255)
+	{
+		MSG_WriteByte (&sv.multicast, svcqw_effect2);
+		MSG_WriteCoord (&sv.multicast, org[0]);
+		MSG_WriteCoord (&sv.multicast, org[1]);
+		MSG_WriteCoord (&sv.multicast, org[2]);
+		MSG_WriteShort (&sv.multicast, index);
+		MSG_WriteShort (&sv.multicast, startframe);
+		MSG_WriteByte (&sv.multicast, endframe);
+		MSG_WriteByte (&sv.multicast, framerate);
+
+#ifdef NQPROT
+		MSG_WriteByte (&sv.nqmulticast, svcnq_effect2);
+		MSG_WriteCoord (&sv.nqmulticast, org[0]);
+		MSG_WriteCoord (&sv.nqmulticast, org[1]);
+		MSG_WriteCoord (&sv.nqmulticast, org[2]);
+		MSG_WriteShort (&sv.nqmulticast, index);
+		MSG_WriteShort (&sv.nqmulticast, startframe);
+		MSG_WriteByte (&sv.nqmulticast, endframe);
+		MSG_WriteByte (&sv.nqmulticast, framerate);
+#endif
+	}
+	else
+	{
+		MSG_WriteByte (&sv.multicast, svcqw_effect);
+		MSG_WriteCoord (&sv.multicast, org[0]);
+		MSG_WriteCoord (&sv.multicast, org[1]);
+		MSG_WriteCoord (&sv.multicast, org[2]);
+		MSG_WriteByte (&sv.multicast, index);
+		MSG_WriteByte (&sv.multicast, startframe);
+		MSG_WriteByte (&sv.multicast, endframe);
+		MSG_WriteByte (&sv.multicast, framerate);
+
+#ifdef NQPROT
+		MSG_WriteByte (&sv.nqmulticast, svcnq_effect);
+		MSG_WriteCoord (&sv.nqmulticast, org[0]);
+		MSG_WriteCoord (&sv.nqmulticast, org[1]);
+		MSG_WriteCoord (&sv.nqmulticast, org[2]);
+		MSG_WriteByte (&sv.nqmulticast, index);
+		MSG_WriteByte (&sv.nqmulticast, startframe);
+		MSG_WriteByte (&sv.nqmulticast, endframe);
+		MSG_WriteByte (&sv.nqmulticast, framerate);
+#endif
+	}
+
+	SV_Multicast(org, MULTICAST_PVS);
+}
+
+//DP_TE_PLASMABURN
+//void(vector org) te_plasmaburn = #433;
+void PF_te_plasmaburn(progfuncs_t *prinst, struct globalvars_s *pr_globals)
+{
+	float *org = G_VECTOR(OFS_PARM0);
+	SV_point_tempentity(org, 75, 0);
 }
 
 
@@ -7574,7 +7667,7 @@ BuiltinList_t BuiltinList[] = {				//nq	qw		h2		ebfs
 	{"remove",			PF_Remove,			15,		15,		15},	// void(entity e) remove				= #15;
 	{"traceline",		PF_traceline,		16,		16,		16},	// float(vector v1, vector v2, float tryents) traceline = #16;
 	{"checkclient",		PF_checkclient,		17,		17,		17},	// entity() clientlist					= #17;
-	{"find",			PF_Find,			18,		18,		18},	// entity(entity start, .string fld, string match) find = #18;
+	{"find",			PF_FindString,		18,		18,		18},	// entity(entity start, .string fld, string match) find = #18;
 	{"precache_sound",	PF_precache_sound,	19,		19,		19},	// void(string s) precache_sound		= #19;
 	{"precache_model",	PF_precache_model,	20,		20,		20},	// void(string s) precache_model		= #20;
 	{"stuffcmd",		PF_stuffcmd,		21,		21,		21},	// void(entity client, string s)stuffcmd = #21;
@@ -7872,6 +7965,9 @@ BuiltinList_t BuiltinList[] = {				//nq	qw		h2		ebfs
 	{"te_beam",			PF_te_beam,			0,		0,		0,		431},// #431 te_beam
 //DP_QC_VECTORVECTORS
 	{"vectorvectors",	PF_vectorvectors,	0,		0,		0,		432},// #432 void(vector dir) vectorvectors (DP_QC_VECTORVECTORS)
+
+	{"te_plasmaburn",	PF_te_plasmaburn,	0,		0,		0,		433},// #433 void(vector org) te_plasmaburn (DP_TE_PLASMABURN)
+
 //KRIMZON_SV_PARSECLIENTCOMMAND
 	{"clientcommand",	PF_clientcommand,	0,		0,		0,		440},// #440 void(entity e, string s) clientcommand (KRIMZON_SV_PARSECLIENTCOMMAND)
 	{"tokenize",		PF_Tokenize,		0,		0,		0,		441},// #441 float(string s) tokenize (KRIMZON_SV_PARSECLIENTCOMMAND)

@@ -1426,7 +1426,10 @@ pbool QCC_PR_UndefineName(char *name)
 	CompilerConstant_t *c;
 	c = Hash_Get(&compconstantstable, name);
 	if (!c)
+	{
+		QCC_PR_ParseWarning(WARN_NOTDEFINED, "Precompiler constant %s was not defined", name);
 		return false;
+	}
 
 	Hash_Remove(&compconstantstable, name);
 	return true;
@@ -1475,7 +1478,12 @@ CompilerConstant_t *QCC_PR_DefineName(char *name)
 	if (strlen(name) >= MAXCONSTANTLENGTH || !*name)
 		QCC_PR_ParseError(ERR_CONSTANTTOOLONG, "Compiler constant name length is too long or short");
 	
-	QCC_PR_UndefineName(name);
+	cnst = Hash_Get(&compconstantstable, name);
+	if (cnst )
+	{
+		QCC_PR_ParseWarning(WARN_DUPLICATEDEFINITION, "Duplicate definition for Precompiler constant %s", name);
+		Hash_Remove(&compconstantstable, name);
+	}
 
 	cnst = qccHunkAlloc(sizeof(CompilerConstant_t));
 
@@ -2672,3 +2680,4 @@ QCC_type_t *QCC_PR_ParseType (int newtype)
 
 
 #endif
+

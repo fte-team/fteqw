@@ -107,7 +107,6 @@ vec3_t			r_pright, r_pup, r_ppn;
 extern cvar_t r_bouncysparks;
 extern cvar_t r_part_rain;
 extern cvar_t gl_part_explosionheart, gl_part_emp;
-extern cvar_t gl_part_trifansparks;
 extern cvar_t r_bloodstains;
 
 cvar_t r_particlesdesc = {"r_particlesdesc", "spikeset", NULL, CVAR_LATCH|CVAR_SEMICHEAT};
@@ -116,8 +115,6 @@ cvar_t r_part_rain_quantity = {"r_part_rain_quantity", "1"};
 
 cvar_t r_rockettrail = {"r_rockettrail", "1"};
 cvar_t r_grenadetrail = {"r_grenadetrail", "1"};
-
-cvar_t gl_part_trifansparks = {"gl_part_trifansparks", "0"};
 
 cvar_t r_particle_tracelimit = {"r_particle_tracelimit", "250"};
 
@@ -707,10 +704,12 @@ void P_ParticleEffect_f(void)
 			ptype->rampindexes++;
 		}
 		else
-			Con_DPrintf("%s is not a recognised particle type field\n", var);
+			Con_DPrintf("%s is not a recognised particle type field (in %s)\n", var, ptype->name);
 	}
 	ptype->invscalefactor = 1-ptype->scalefactor;
 	ptype->loaded = 1;
+	if (ptype->clipcount < 1)
+		ptype->clipcount = 1;
 
 	if (ptype->rampmode && !ptype->ramp)
 	{
@@ -725,8 +724,17 @@ void P_ParticleEffect_f(void)
 #ifdef RGLQUAKE
 	if (qrenderer == QR_OPENGL)
 	{
-		ptype->texturenum = Mod_LoadHiResTexture(ptype->texname, true, true, true);
-		if (!ptype->texturenum)
+		if (strcmp(ptype->texname, "default"))
+		{
+			ptype->texturenum = Mod_LoadHiResTexture(ptype->texname, true, true, true);
+		
+			if (!ptype->texturenum)
+			{
+				Con_DPrintf("Couldn't load texture %s for particle effect %s\n", ptype->texname, ptype->name);
+				ptype->texturenum = explosiontexture;
+			}
+		}
+		else
 			ptype->texturenum = explosiontexture;
 	}
 #endif
@@ -988,7 +996,6 @@ void P_InitParticles (void)
 
 	Cvar_Register(&r_part_rain_quantity, particlecvargroupname);
 
-	Cvar_Register(&gl_part_trifansparks, particlecvargroupname);
 	Cvar_Register(&r_particle_tracelimit, particlecvargroupname);
 
 	Cvar_Register(&r_rockettrail, particlecvargroupname);
@@ -2062,9 +2069,9 @@ void CLQ2_RailTrail (vec3_t start, vec3_t end)
 	P_ParticleTrail(start, end, rt_railtrail, NULL);
 }
 
-int P_ParticleTrail (vec3_t start, vec3_t end, int type, trailstate_t *ts)
+int P_ParticleTrail (vec3_t startpos, vec3_t end, int type, trailstate_t *ts)
 {
-	vec3_t	vec, right, up;
+	vec3_t	vec, right, up, start;
 	float	len;
 	int			tcount;
 	particle_t	*p;
@@ -2080,6 +2087,7 @@ int P_ParticleTrail (vec3_t start, vec3_t end, int type, trailstate_t *ts)
 	if (!ptype->loaded)
 		return 1;
 
+	VectorCopy(startpos, start);
 	if (ptype->assoc>=0)
 	{
 		VectorCopy(start, vec);
@@ -2608,7 +2616,7 @@ void GL_DrawTrifanParticle(particle_t *p, part_type_t *type)
 	if (scale < 20)
 		scale = 0.05;
 	else
-		scale = 0.05 + scale * 0.0002;
+		scale = 0.05 + scale * 0.0001;
 /*
 	if ((p->vel[0]*p->vel[0]+p->vel[1]*p->vel[1]+p->vel[2]*p->vel[2])*2*scale > 30*30)
 		scale = 1+1/30/Length(p->vel)*2;*/
@@ -2631,7 +2639,7 @@ void GL_DrawTrifanParticle(particle_t *p, part_type_t *type)
 		qglVertex3fv (v);
 	}
 	qglEnd ();
-	qglBegin (GL_LINES);
+	qglBegin (GL_TRIANGLES);
 }
 
 void GL_DrawSparkedParticle(particle_t *p, part_type_t *type)
@@ -2982,11 +2990,12 @@ void SWD_DrawParticleBeam(beamseg_t *beam, part_type_t *type)
 }
 #endif
 
-void DrawParticleTypes (void texturedparticles(particle_t *,part_type_t*), void sparkparticles(particle_t*,part_type_t*), void beamparticlest(beamseg_t*,part_type_t*), void beamparticlesut(beamseg_t*,part_type_t*))
+void DrawParticleTypes (void texturedparticles(particle_t *,part_type_t*), void sparklineparticles(particle_t*,part_type_t*), void sparkfanparticles(particle_t*,part_type_t*), void beamparticlest(beamseg_t*,part_type_t*), void beamparticlesut(beamseg_t*,part_type_t*))
 {
 	RSpeedMark();
 
 	qboolean (*tr) (vec3_t start, vec3_t end, vec3_t impact, vec3_t normal);
+	void *pdraw;
 
 	int i;
 	vec3_t oldorg;
@@ -3028,18 +3037,32 @@ void DrawParticleTypes (void texturedparticles(particle_t *,part_type_t*), void 
 	for (i = 0; i < numparticletypes; i++)
 	{
 		type = &part_type[i];
+		if (!type->particles)
+			continue;
+
+		if (type->isbeam)
+		{
+			if (*type->texname)
+				pdraw = beamparticlest;
+			else
+				pdraw = beamparticlesut;
+		}
+		else
+		{
+			if (*type->texname)
+				pdraw = texturedparticles;
+			else if (type->scale || type->scaledelta)
+				pdraw = sparkfanparticles;
+			else
+				pdraw = sparklineparticles;
+		}
 
 		if (!type->die)
 		{
 			while ((p=type->particles))
 			{
 				if (!type->isbeam)
-				{
-					if (*type->texname)
-						RQ_AddDistReorder((void*)texturedparticles, p, type, p->org);
-					else
-						RQ_AddDistReorder((void*)sparkparticles, p, type, p->org);
-				}
+					RQ_AddDistReorder(pdraw, p, type, p->org);
 
 				type->particles = p->next;
 //				p->next = free_particles;
@@ -3075,10 +3098,7 @@ void DrawParticleTypes (void texturedparticles(particle_t *,part_type_t*), void 
 					VectorAdd(stop, oldorg, stop);
 					VectorScale(stop, 0.5, stop);
 
-					if (*type->texname)
-						RQ_AddDistReorder((void*)beamparticlest, b, type, stop);
-					else
-						RQ_AddDistReorder((void*)beamparticlesut, b, type, stop);
+					RQ_AddDistReorder(pdraw, b, type, stop);
 
 				}
 
@@ -3236,12 +3256,7 @@ void DrawParticleTypes (void texturedparticles(particle_t *,part_type_t*), void 
 			}
 
 			if (!type->isbeam)
-			{
-				if (*type->texname)
-					RQ_AddDistReorder((void*)texturedparticles, p, type, p->org);
-				else
-					RQ_AddDistReorder((void*)sparkparticles, p, type, p->org);
-			}
+				RQ_AddDistReorder((void*)pdraw, p, type, p->org);
 		}
 
 		// beams are dealt with here
@@ -3301,12 +3316,7 @@ void DrawParticleTypes (void texturedparticles(particle_t *,part_type_t*), void 
 						VectorScale(stop, 0.5, stop);
 
 						if (beamparticlest!=NULL)
-						{
-							if (*type->texname)
-								RQ_AddDistReorder((void*)beamparticlest, b, type, stop);
-							else
-								RQ_AddDistReorder((void*)beamparticlesut, b, type, stop);
-						}
+							RQ_AddDistReorder(pdraw, b, type, stop);
 					}			
 
 //					if (b->p->die < particletime)
@@ -3366,11 +3376,9 @@ void P_DrawParticles (void)
 		qglBegin(GL_QUADS);
 
 		if (r_drawflat.value == 2)
-			DrawParticleTypes(GL_DrawSketchParticle, GL_DrawSketchSparkParticle, GL_DrawParticleBeam_Textured, GL_DrawParticleBeam_Untextured);//GL_DrawParticleBeam_Sketched, GL_DrawParticleBeam_Sketched);
-		else if (gl_part_trifansparks.value)
-			DrawParticleTypes(GL_DrawTexturedParticle, GL_DrawTrifanParticle, GL_DrawParticleBeam_Textured, GL_DrawParticleBeam_Untextured);
+			DrawParticleTypes(GL_DrawSketchParticle, GL_DrawSketchSparkParticle, GL_DrawSketchSparkParticle, GL_DrawParticleBeam_Textured, GL_DrawParticleBeam_Untextured);//GL_DrawParticleBeam_Sketched, GL_DrawParticleBeam_Sketched);
 		else
-			DrawParticleTypes(GL_DrawTexturedParticle, GL_DrawSparkedParticle, GL_DrawParticleBeam_Textured, GL_DrawParticleBeam_Untextured);
+			DrawParticleTypes(GL_DrawTexturedParticle, GL_DrawSparkedParticle, GL_DrawTrifanParticle, GL_DrawParticleBeam_Textured, GL_DrawParticleBeam_Untextured);
 
 		qglEnd();
 		qglEnable(GL_TEXTURE_2D);
@@ -3386,7 +3394,7 @@ void P_DrawParticles (void)
 	if (qrenderer == QR_SOFTWARE)
 	{
 		D_StartParticles();
-		DrawParticleTypes(SWD_DrawParticleBlob, SWD_DrawParticleSpark, SWD_DrawParticleBeam, SWD_DrawParticleBeam);
+		DrawParticleTypes(SWD_DrawParticleBlob, SWD_DrawParticleSpark, SWD_DrawParticleSpark, SWD_DrawParticleBeam, SWD_DrawParticleBeam);
 		D_EndParticles();
 		return;
 	}

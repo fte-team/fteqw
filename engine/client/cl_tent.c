@@ -531,7 +531,7 @@ void CL_ParseTEnt (void)
 		if (R_RunParticleEffectType(pos, NULL, 1, pt_wizspike))
 			R_RunParticleEffect (pos, vec3_origin, 20, 30);
 
-		S_StartSound (-1, 0, cl_sfx_wizhit, pos, 1, 1);
+		S_StartSound (-2, 0, cl_sfx_wizhit, pos, 1, 1);
 		break;
 		
 	case TE_KNIGHTSPIKE:			// spike hitting wall
@@ -544,7 +544,7 @@ void CL_ParseTEnt (void)
 		if (R_RunParticleEffectType(pos, NULL, 1, pt_knightspike))
 			R_RunParticleEffect (pos, vec3_origin, 226, 20);
 
-		S_StartSound (-1, 0, cl_sfx_knighthit, pos, 1, 1);
+		S_StartSound (-2, 0, cl_sfx_knighthit, pos, 1, 1);
 		break;
 		
 	case TE_SPIKE:			// spike hitting wall
@@ -560,16 +560,16 @@ void CL_ParseTEnt (void)
 				R_RunParticleEffect (pos, vec3_origin, 0, 10);
 
 		if ( rand() % 5 )
-			S_StartSound (-1, 0, cl_sfx_tink1, pos, 1, 1);
+			S_StartSound (-2, 0, cl_sfx_tink1, pos, 1, 1);
 		else
 		{
 			rnd = rand() & 3;
 			if (rnd == 1)
-				S_StartSound (-1, 0, cl_sfx_ric1, pos, 1, 1);
+				S_StartSound (-2, 0, cl_sfx_ric1, pos, 1, 1);
 			else if (rnd == 2)
-				S_StartSound (-1, 0, cl_sfx_ric2, pos, 1, 1);
+				S_StartSound (-2, 0, cl_sfx_ric2, pos, 1, 1);
 			else
-				S_StartSound (-1, 0, cl_sfx_ric3, pos, 1, 1);
+				S_StartSound (-2, 0, cl_sfx_ric3, pos, 1, 1);
 		}
 		break;
 	case TE_SUPERSPIKE:			// super spike hitting wall
@@ -586,16 +586,16 @@ void CL_ParseTEnt (void)
 					R_RunParticleEffect (pos, vec3_origin, 0, 20);
 
 		if ( rand() % 5 )
-			S_StartSound (-1, 0, cl_sfx_tink1, pos, 1, 1);
+			S_StartSound (-2, 0, cl_sfx_tink1, pos, 1, 1);
 		else
 		{
 			rnd = rand() & 3;
 			if (rnd == 1)
-				S_StartSound (-1, 0, cl_sfx_ric1, pos, 1, 1);
+				S_StartSound (-2, 0, cl_sfx_ric1, pos, 1, 1);
 			else if (rnd == 2)
-				S_StartSound (-1, 0, cl_sfx_ric2, pos, 1, 1);
+				S_StartSound (-2, 0, cl_sfx_ric2, pos, 1, 1);
 			else
-				S_StartSound (-1, 0, cl_sfx_ric3, pos, 1, 1);
+				S_StartSound (-2, 0, cl_sfx_ric3, pos, 1, 1);
 		}
 		break;
 	
@@ -615,16 +615,16 @@ void CL_ParseTEnt (void)
 				R_RunParticleEffect (pos, vec3_origin, 0, 10);
 
 		if ( rand() % 5 )
-			S_StartSound (-1, 0, cl_sfx_tink1, pos, 1, 1);
+			S_StartSound (-2, 0, cl_sfx_tink1, pos, 1, 1);
 		else
 		{
 			rnd = rand() & 3;
 			if (rnd == 1)
-				S_StartSound (-1, 0, cl_sfx_ric1, pos, 1, 1);
+				S_StartSound (-2, 0, cl_sfx_ric1, pos, 1, 1);
 			else if (rnd == 2)
-				S_StartSound (-1, 0, cl_sfx_ric2, pos, 1, 1);
+				S_StartSound (-2, 0, cl_sfx_ric2, pos, 1, 1);
 			else
-				S_StartSound (-1, 0, cl_sfx_ric3, pos, 1, 1);
+				S_StartSound (-2, 0, cl_sfx_ric3, pos, 1, 1);
 		}
 		break;
 	case TE_SUPERBULLET:
@@ -641,16 +641,16 @@ void CL_ParseTEnt (void)
 					R_RunParticleEffect (pos, vec3_origin, 0, 20);
 
 		if ( rand() % 5 )
-			S_StartSound (-1, 0, cl_sfx_tink1, pos, 1, 1);
+			S_StartSound (-2, 0, cl_sfx_tink1, pos, 1, 1);
 		else
 		{
 			rnd = rand() & 3;
 			if (rnd == 1)
-				S_StartSound (-1, 0, cl_sfx_ric1, pos, 1, 1);
+				S_StartSound (-2, 0, cl_sfx_ric1, pos, 1, 1);
 			else if (rnd == 2)
-				S_StartSound (-1, 0, cl_sfx_ric2, pos, 1, 1);
+				S_StartSound (-2, 0, cl_sfx_ric2, pos, 1, 1);
 			else
-				S_StartSound (-1, 0, cl_sfx_ric3, pos, 1, 1);
+				S_StartSound (-2, 0, cl_sfx_ric3, pos, 1, 1);
 		}		
 		break;
 #endif
@@ -697,7 +697,7 @@ void CL_ParseTEnt (void)
 		pos[2] = MSG_ReadCoord ();
 		R_BlobExplosion (pos);
 
-		S_StartSound (-1, 0, cl_sfx_r_exp3, pos, 1, 1);
+		S_StartSound (-2, 0, cl_sfx_r_exp3, pos, 1, 1);
 		break;
 
 	case TE_LIGHTNING1:				// lightning bolts
@@ -1205,7 +1205,7 @@ void CLQ2_ParseTEnt (void)
 		}
 	
 	// sound
-		S_StartSound (-1, 0, S_PrecacheSound ("weapons/rocklx1a.wav"), pos, 1, 1);
+		S_StartSound (-2, 0, S_PrecacheSound ("weapons/rocklx1a.wav"), pos, 1, 1);
 	
 	// sprite
 		/*
@@ -1286,7 +1286,7 @@ void CLQ2_ParseTEnt (void)
 		}
 
 	// sound
-		S_StartSound (-1, 0, S_PrecacheSound ("weapons/rocklx1a.wav"), pos, 1, 1);
+		S_StartSound (-2, 0, S_PrecacheSound ("weapons/rocklx1a.wav"), pos, 1, 1);
 
 	// sprite		
 /*		if (!R_ParticleExplosionHeart(pos))

@@ -1387,7 +1387,8 @@ void S_Play(void)
 		else
 			Q_strcpy(name, Cmd_Argv(i));
 		sfx = S_PrecacheSound(name);
-		S_StartSound(cl.playernum[0]+1, -1, sfx, vec3_origin, 1.0, 1.0);
+		S_StartSound(cl.playernum[0]+1, -1, sfx, vec3_origin, 1.0, 0.0);
+//		hash++;
 		i++;
 	}
 }
@@ -1412,7 +1413,8 @@ void S_PlayVol(void)
 			Q_strcpy(name, Cmd_Argv(i));
 		sfx = S_PrecacheSound(name);
 		vol = Q_atof(Cmd_Argv(i+1));
-		S_StartSound(cl.playernum[0]+1, -1, sfx, vec3_origin, vol, 1.0);
+		S_StartSound(cl.playernum[0]+1, -1, sfx, vec3_origin, vol, 0.0);
+//		hash;
 		i+=2;
 	}
 }

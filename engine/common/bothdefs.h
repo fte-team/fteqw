@@ -35,8 +35,11 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 		#define AVAIL_PNGLIB
 		#define AVAIL_JPEGLIB
 		#define AVAIL_ZLIB
+
+//		#define AVAIL_OGGVORBIS
 	#endif
 	#define AVAIL_MASM
+
 	//#define AVAIL_DX7
 
 
@@ -49,10 +52,6 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 		#endif
 	#endif
 
-	#ifndef AVAIL_OGGVORBIS
-		#define NO_OGGVORBIS
-	#endif
-
 	#define SVRANKING
 
 	#ifdef MINIMAL
@@ -62,7 +61,6 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 		#undef AVAIL_PNGLIB		//no png support
 		#undef USE_MADLIB		//no internal mp3 playing
 		#undef AVAIL_DX7		//no d3d support
-		#define NO_OGGVORBIS	//don't use oggvorbis
 		#define NOMEDIA			//NO playing of avis/cins/roqs
 		#define NOVOICECHAT		//NO sound recording, tcp streaming and playback on a remote client. not finalised.
 
@@ -140,6 +138,10 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 	#endif
 #endif
 
+#ifdef NODIRECTX
+	#undef AVAIL_DX7
+#endif
+
 
 #ifdef SERVERONLY	//remove options that don't make sense on only a server
 	#undef Q2CLIENT
@@ -165,7 +167,6 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 		#undef RUNTIMELIGHTING
 	#endif
 #endif
-
 
 #define PROTOCOLEXTENSIONS
 

@@ -53,19 +53,23 @@ void Skin_Find (player_info_t *sc)
 	if (allskins[0])
 		s = allskins;
 	else
-	{
 		s = Info_ValueForKey (sc->userinfo, "skin");
-		if (!s[0])
-			s = baseskin.string;
-	}
-
-	if (*mn)
-		mn = va("%s/%s", mn, s);
 
 	if (strstr (mn, "..") || *mn == '.')
-		mn = "base";
+		mn = "";
 
-	COM_StripExtension (mn, name);
+	if (!*s)
+		s = baseskin.string;
+	if (!*s)
+		s = "default";
+
+	if (*mn)
+	{
+		mn = va("%s/%s", mn, s);
+		COM_StripExtension (mn, name);
+	}
+	else
+		COM_StripExtension (s, name);
 
 	s = strchr(name, '/');
 	if (s)
@@ -399,6 +403,12 @@ Refind all skins, downloading if needed.
 void	Skin_Skins_f (void)
 {
 	int		i;
+
+	if (cls.state == ca_disconnected)
+	{
+		Con_Printf ("Can't \"%s\", not connected\n", Cmd_Argv(0));
+		return;
+	}
 
 	for (i=0 ; i<numskins ; i++)
 	{

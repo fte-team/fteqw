@@ -1343,12 +1343,16 @@ void CLQ2_ParseServerData (void)
 		SCR_EndLoadingPlaque();
 		if (!Media_PlayFilm(str))
 			Con_TPrintf (TLC_NOQ2CINEMATICSSUPPORT, cl.servercount);
+		else
+			cls.state = ca_active;
 	}
 	else
 	{
 		// seperate the printfs so the server message can have a color
 		Con_TPrintf (TLC_LINEBREAK_NEWLEVEL);
 		Con_TPrintf (TLC_PC_PS_NL, 2, str);
+
+		Media_PlayFilm("");
 
 		// need to prep refresh at next oportunity
 		//cl.refresh_prepped = false;
@@ -2185,10 +2189,14 @@ void CL_ParseClientdata (void)
 	oldparsecountmod = parsecountmod;
 
 	i = cls.netchan.incoming_acknowledged;
+	if (cls.demoplayback == DPB_MVD)
+		cl.oldparsecount = i - 1;
 	cl.parsecount = i;
 	i &= UPDATE_MASK;
 	parsecountmod = i;
 	frame = &cl.frames[i];
+	if (cls.demoplayback == DPB_MVD)
+		frame->senttime = realtime - host_frametime;
 	parsecounttime = cl.frames[i].senttime;
 
 	frame->receivedtime = realtime;

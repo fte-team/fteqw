@@ -321,6 +321,8 @@ void SWR_NewMap (void)
 	R_InitSkyBox();
 
 	UI_Reset();
+
+	TP_NewMap();
 }
 
 

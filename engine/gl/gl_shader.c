@@ -935,7 +935,7 @@ static void Shader_MakeCache ( char *path )
 	int size;
 
 	Com_sprintf( filename, sizeof(filename), "scripts/%s", path );
-	Con_Printf ( "...loading '%s'\n", filename );
+	Con_DPrintf ( "...loading '%s'\n", filename );
 
 	size = FS_LoadFile ( filename, (void **)&buf );
 	if ( !buf || size <= 0 ) {

@@ -824,21 +824,20 @@ static void TP_InitMacros(void)
 	//ones added by Spike, for fuhquake compatability
 	Cmd_AddMacro("connectiontype", Macro_ConnectionType);
 	Cmd_AddMacro("demoplayback", Macro_demoplayback);
-/*
-$droploc
-$droptime
-$ledpoint
-$ledstatus
-$matchname
-$matchstatus
-$matchtype
-$mp3info
-$need
-$point
-$pointatloc
-$pointloc
-$triggermatch
-*/
+	Cmd_AddMacro("need", Macro_Need);
+	Cmd_AddMacro("point", Macro_PointName);
+	Cmd_AddMacro("pointatloc", Macro_PointNameAtLocation);
+	Cmd_AddMacro("pointloc", Macro_PointLocation);
+
+//	Cmd_AddMacro("droploc", Macro_LastDrop);
+//	Cmd_AddMacro("droptime", Macro_LastDropTime);
+//	Cmd_AddMacro("ledpoint", Macro_Point_LED);
+//	Cmd_AddMacro("ledstatus", Macro_MyStatus_LED);
+//	Cmd_AddMacro("matchname", Macro_Match_Name);
+//	Cmd_AddMacro("matchstatus", Macro_Match_Status);
+//	Cmd_AddMacro("matchtype", Macro_Match_Type);
+//	Cmd_AddMacro("mp3info", );
+//	Cmd_AddMacro("triggermatch", Macro_LastTrigger_Match);
 }
 
 #define MAX_MACRO_STRING 1024

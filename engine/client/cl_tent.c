@@ -1828,7 +1828,7 @@ void CL_UpdateBeams (void)
 	float		yaw, pitch;
 	float		forward, offset;
 
-	extern cvar_t cl_truelightning;
+	extern cvar_t cl_truelightning, v_viewheight;
 
 // update lightning
 	for (i=0, b=cl_beams ; i< MAX_BEAMS ; i++, b++)
@@ -1842,7 +1842,17 @@ void CL_UpdateBeams (void)
 //			VectorSubtract(cl.simorg, b->start, org);
 //			VectorAdd(b->end, org, b->end);		//move the end point by simorg-start
 
-			VectorCopy (cl.simorg[0], b->start);	//move the start point to player origin
+			VectorCopy (cl.simorg[0], b->start);	//move the start point to view origin
+			b->start[2] += cl.crouch[0];
+			if (v_viewheight.value)
+			{
+				if (v_viewheight.value <= -7)
+					b->start[2] += -7;
+				else if (v_viewheight.value >= 4)
+					b->start[2] += 4;
+				else
+					b->start[2] += v_viewheight.value;
+			}
 
 
 			//rotate the end point to face in the view direction. This gives a smoother shafting. turning looks great.

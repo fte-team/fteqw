@@ -16,9 +16,7 @@ qboolean M_Script_Key (int key, menu_t *menu)
 	if (key >= '0' && key <= '9')
 	{
 		if (key == '0')	//specal case so that "hello" < "0"... (plus matches impulses)
-			Cbuf_AddText(va("set option 10\n%s\n", menualias.string), RESTRICT_LOCAL);
-		else
-			Cbuf_AddText(va("set option %c\n%s\n", key, menualias.string), RESTRICT_LOCAL);
+			Cbuf_AddText(va("set option %i\n%s\n", key-'0'+1, menualias.string), RESTRICT_LOCAL);
 		return true;
 	}
 	return false;

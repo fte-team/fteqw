@@ -112,6 +112,7 @@ typedef struct {
 
 qboolean M_Audio_Key (int key, struct menu_s *menu)
 {
+	int i, x, y;
 	audiomenuinfo_t *info = menu->data;
 	soundcardinfo_t *sc;
 	for (sc = sndcardinfo; sc; sc = sc->next)
@@ -142,6 +143,15 @@ qboolean M_Audio_Key (int key, struct menu_s *menu)
 	{
 		info->testsoundsource->common.posx-=10;
 	}
+	if (key >= '0' && key <= '5')
+	{
+		i = key - '0';
+		x = info->testsoundsource->common.posx - 320/2;
+		y = info->testsoundsource->common.posy - 200/2;
+		sc->yaw[i] = (-atan2 (y,x)*180/M_PI) - 90;
+
+		sc->dist[i] = 50/sqrt(x*x+y*y);
+	}
 
 	menu->selecteditem = NULL;
 
@@ -170,17 +180,19 @@ void M_Audio_StartSound (struct menu_s *menu)
 
 	for (i = 0; i < sc->sn.numchannels; i++)
 	{
-		info->speaker[i]->common.posx = 320/2 - sin(sc->yaw[i]*M_PI/180) * 50;
-		info->speaker[i]->common.posy = 200/2 - cos(sc->yaw[i]*M_PI/180) * 50;
+		info->speaker[i]->common.posx = 320/2 - sin(sc->yaw[i]*M_PI/180) * 50/sc->dist[i];
+		info->speaker[i]->common.posy = 200/2 - cos(sc->yaw[i]*M_PI/180) * 50/sc->dist[i];
 	}
+	for (; i < 6; i++)
+		info->speaker[i]->common.posy = -100;
 
 	if (lasttime+0.5 < Sys_DoubleTime())
 	{
 		lasttime = Sys_DoubleTime();
-		org[0] = listener_origin[0] + listener_right[0]*(info->testsoundsource->common.posx-320/2) + listener_forward[0]*(info->testsoundsource->common.posy-200/2);
-		org[1] = listener_origin[1] + listener_right[1]*(info->testsoundsource->common.posx-320/2) + listener_forward[1]*(info->testsoundsource->common.posy-200/2);
-		org[2] = listener_origin[2] + listener_right[2]*(info->testsoundsource->common.posx-320/2) + listener_forward[2]*(info->testsoundsource->common.posy-200/2);
-		S_StartSound(-1, 0, S_PrecacheSound("misc/menu1.wav"), org, 1, 4);
+		org[0] = listener_origin[0] + 2*(listener_right[0]*(info->testsoundsource->common.posx-320/2) + listener_forward[0]*(info->testsoundsource->common.posy-200/2));
+		org[1] = listener_origin[1] + 2*(listener_right[1]*(info->testsoundsource->common.posx-320/2) + listener_forward[1]*(info->testsoundsource->common.posy-200/2));
+		org[2] = listener_origin[2] + 2*(listener_right[2]*(info->testsoundsource->common.posx-320/2) + listener_forward[2]*(info->testsoundsource->common.posy-200/2));
+		S_StartSound(-2, 0, S_PrecacheSound("player/pain3.wav"), org, 1, 4);
 	}
 }
 

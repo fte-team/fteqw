@@ -612,18 +612,18 @@ void PF_CL_drawfill (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 #ifdef RGLQUAKE
 	if (qrenderer == QR_OPENGL)
 	{
-		glColor4f(rgb[0], rgb[1], rgb[2], alpha);
+		qglColor4f(rgb[0], rgb[1], rgb[2], alpha);
 
-		glDisable(GL_TEXTURE_2D);
+		qglDisable(GL_TEXTURE_2D);
 
-		glBegin(GL_QUADS);
-		glVertex2f(pos[0],			pos[1]);
-		glVertex2f(pos[0]+size[0],	pos[1]);
-		glVertex2f(pos[0]+size[0],	pos[1]+size[1]);
-		glVertex2f(pos[0],			pos[1]+size[1]);
-		glEnd();
+		qglBegin(GL_QUADS);
+		qglVertex2f(pos[0],			pos[1]);
+		qglVertex2f(pos[0]+size[0],	pos[1]);
+		qglVertex2f(pos[0]+size[0],	pos[1]+size[1]);
+		qglVertex2f(pos[0],			pos[1]+size[1]);
+		qglEnd();
 
-		glEnable(GL_TEXTURE_2D);
+		qglEnable(GL_TEXTURE_2D);
 	}
 #endif
 	G_FLOAT(OFS_RETURN) = 1;
@@ -1267,8 +1267,8 @@ void MP_Draw(void)
 	if (qrenderer == QR_OPENGL)
 	{
 		GL_TexEnv(GL_MODULATE);
-		glDisable(GL_ALPHA_TEST);
-		glEnable(GL_BLEND);
+		qglDisable(GL_ALPHA_TEST);
+		qglEnable(GL_BLEND);
 	}
 #endif
 

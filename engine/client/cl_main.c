@@ -71,6 +71,8 @@ cvar_t	lookspring = {"lookspring","0", NULL, CVAR_ARCHIVE};
 cvar_t	lookstrafe = {"lookstrafe","0", NULL, CVAR_ARCHIVE};
 cvar_t	sensitivity = {"sensitivity","3", NULL, CVAR_ARCHIVE};
 
+cvar_t cl_staticsounds = {"cl_staticsounds", "1"};
+
 cvar_t	m_pitch = {"m_pitch","0.022", NULL, CVAR_ARCHIVE};
 cvar_t	m_yaw = {"m_yaw","0.022"};
 cvar_t	m_forward = {"m_forward","1"};
@@ -103,6 +105,8 @@ cvar_t	noaim = {"noaim",				"",			NULL, CVAR_ARCHIVE | CVAR_USERINFO};
 cvar_t	msg = {"msg",					"1",		NULL, CVAR_ARCHIVE | CVAR_USERINFO};
 cvar_t	cl_nofake = {"cl_nofake",		"2"};
 cvar_t	cl_chatsound = {"cl_chatsound",	"1"};
+
+cvar_t	cl_muzzleflash = {"cl_muzzleflash", "1"};
 
 cvar_t	cl_item_bobbing = {"cl_model_bobbing", "0"};
 
@@ -1118,7 +1122,7 @@ void CL_CheckServerInfo(void)
 	cl.bunnyspeedcap = Q_atof(Info_ValueForKey(cl.serverinfo, "pm_bunnyspeedcap"));
 	movevars.slidefix = (Q_atof(Info_ValueForKey(cl.serverinfo, "pm_slidefix")) != 0);
 	movevars.airstep = (Q_atof(Info_ValueForKey(cl.serverinfo, "pm_airstep")) != 0);
-	movevars.walljump = (Q_atof(Info_ValueForKey(cl.serverinfo, "pm_walljump")) != 0);
+	movevars.walljump = (Q_atof(Info_ValueForKey(cl.serverinfo, "pm_walljump")));
 	movevars.ktjump = Q_atof(Info_ValueForKey(cl.serverinfo, "pm_ktjump"));
 
 	// Initialize cl.maxpitch & cl.minpitch
@@ -2110,6 +2114,7 @@ void CL_POP3Poll_f(void)
 }
 #endif
 
+void SCR_ShowPic_Script_f(void);
 /*
 =================
 CL_Init
@@ -2189,10 +2194,14 @@ void CL_Init (void)
 
 	Cvar_Register (&localid,	cl_controlgroup);
 
+	Cvar_Register (&cl_muzzleflash, cl_controlgroup);
+
 	Cvar_Register (&baseskin,	"Teamplay");
 	Cvar_Register (&noskins,	"Teamplay");
 
 	Cvar_Register (&cl_item_bobbing, "Item effects");
+
+	Cvar_Register (&cl_staticsounds, "Item effects");
 
 	//
 	// info mirrors
@@ -2243,6 +2252,8 @@ void CL_Init (void)
 	Cmd_AddCommand ("stop", CL_Stop_f);
 	Cmd_AddCommand ("playdemo", CL_PlayDemo_f);
 	Cmd_AddCommand ("timedemo", CL_TimeDemo_f);
+
+	Cmd_AddCommand ("showpic", SCR_ShowPic_Script_f);
 
 	Cmd_AddCommand ("startdemos", CL_Startdemos_f);
 	Cmd_AddCommand ("demos", CL_Demos_f);

@@ -36,13 +36,13 @@ consolecolours_t consolecolours[] = {
 
 int			con_ormask;
 console_t	con_main;
-console_t	*con;			// point to either con_main
+console_t	*con_current;			// point to either con_main
 
 
 #ifdef QTERM
 #include <windows.h>
 typedef struct qterm_s {
-	console_t console;
+	console_t *console;
 	qboolean running;
 	HANDLE process;
 	HANDLE pipein;
@@ -85,15 +85,58 @@ extern	int		key_linepos;
 
 qboolean	con_initialized;
 
+void Con_ResizeCon (console_t *con);
 
-void Con_Resize (console_t *con);
+qboolean Con_IsActive (console_t *con)
+{
+	return (con == con_current);
+}
+void Con_Destroy (console_t *con)
+{
+	console_t *prev;
+	for (prev = &con_main; prev->next; prev = prev->next)
+	{
+		if (prev->next == con)
+		{
+			prev->next = con->next;
+			break;
+		}
+	}
 
+	BZ_Free(con);
+}
+console_t *Con_FindConsole(char *name)
+{
+	console_t *con;
+	for (con = &con_main; con; con = con->next)
+	{
+		if (!strcmp(con->name, name))
+			return con;
+	}
+	return NULL;
+}
+console_t *Con_Create(char *name)
+{
+	console_t *con;
+	con = BZ_Malloc(sizeof(console_t));
+	Q_strncpyz(con->name, name, sizeof(con->name));
+
+	Con_ResizeCon(con);
+	con->next = con_main.next;
+	con_main.next = con;
+
+	return con;
+}
+void Con_SetVisible (console_t *con)
+{
+	con_current = con;
+}
+void Con_PrintCon (console_t *con, char *txt);
 
 
 
 
 #ifdef QTERM
-void Con_PrintCon (char *txt, console_t *con);
 void QT_Update(void)
 {
 	char buffer[2048];
@@ -104,8 +147,11 @@ void QT_Update(void)
 	{
 		if (!qt->running)
 		{
-			if (con == &qt->console)
+			if (Con_IsActive(qt->console))
 				continue;
+
+			Con_Destroy(qt->console);
+
 			if (prev)
 				prev->next = qt->next;
 			else
@@ -129,48 +175,44 @@ void QT_Update(void)
 				{
 					ReadFile(qt->pipeout, buffer, sizeof(buffer)-32, &ret, NULL);
 					buffer[ret] = '\0';
-					Con_PrintCon(buffer, &qt->console);
+					Con_PrintCon(qt->console, buffer);
 				}
 			}
 		}
 		else
 		{
-			Con_PrintCon("Process ended\n", &qt->console);
+			Con_PrintCon(qt->console, "Process ended\n");
 			qt->running = false;
 		}
 	}
 }
 
-void QT_KeyPress(int key)
+void QT_KeyPress(void *user, int key)
 {
 	qbyte k[2];
-	qterm_t *qt;
+	qterm_t *qt = user;
 	DWORD send = key;	//get around a gcc warning
-	for (qt = qterms; qt; qt = qt->next)
-	{
-		if (&qt->console == con)
-		{
-			k[0] = key;
-			k[1] = '\0';
 
-			if (qt->running)
-			{
-				if (*k == '\r')
-				{
+
+	k[0] = key;
+	k[1] = '\0';
+
+	if (qt->running)
+	{
+		if (*k == '\r')
+		{
 //					*k = '\r';
 //					WriteFile(qt->pipein, k, 1, &key, NULL);
 //					Con_PrintCon(k, &qt->console);
-					*k = '\n';
-				}
-				if (GetFileSize(qt->pipein, NULL)<512)
-				{
-					WriteFile(qt->pipein, k, 1, &send, NULL);
-					Con_PrintCon(k, &qt->console);
-				}
-			}
-			return;
+			*k = '\n';
+		}
+		if (GetFileSize(qt->pipein, NULL)<512)
+		{
+			WriteFile(qt->pipein, k, 1, &send, NULL);
+			Con_PrintCon(qt->console, k);
 		}
 	}
+	return;
 }
 
 void QT_Create(char *command)
@@ -236,15 +278,14 @@ void QT_Create(char *command)
 	CloseHandle(ProcInfo.hThread);
 
 	qt->running = true;
-	qt->console.redirect = QT_KeyPress;
 
-	Con_Resize(&qt->console);
-	Con_PrintCon("Started Process\n", &qt->console);
+	qt->console = Con_Create("QTerm");
+	qt->console->redirect = QT_KeyPress;
+	Con_PrintCon(qt->console, "Started Process\n");
+	Con_SetVisible(qt->console);
 
 	qt->next = qterms;
 	qterms = activeqterm = qt;
-
-	con = &qt->console;
 }
 
 void Con_QTerm_f(void)
@@ -365,7 +406,7 @@ Con_Resize
 
 ================
 */
-void Con_Resize (console_t *con)
+void Con_ResizeCon (console_t *con)
 {
 	int		i, j, width, oldwidth, oldtotallines, numlines, numchars;
 	unsigned short	tbuf[CON_TEXTSIZE];	
@@ -421,7 +462,6 @@ void Con_Resize (console_t *con)
 	con->current = con->totallines - 1;
 	con->display = con->current;
 }
-
 					
 /*
 ================
@@ -432,12 +472,9 @@ If the line width has changed, reformat the buffer.
 */
 void Con_CheckResize (void)
 {
-#ifdef QTERM
-	qterm_t *qt;
-	for (qt = qterms; qt; qt=qt->next)
-		Con_Resize(&qt->console);
-#endif
-	Con_Resize (&con_main);	
+	console_t *c;
+	for (c = &con_main; c; c = c->next)
+		Con_ResizeCon (c);
 }
 
 
@@ -455,8 +492,8 @@ void Con_Init (void)
 	TRACE(("dbg: Con_Init: con_debuglog forced\n"));
 #endif
 
-	con = &con_main;
-	con->linewidth = -1;
+	con_current = &con_main;
+	con_main.linewidth = -1;
 	Con_CheckResize ();
 	
 	Con_Printf ("Console initialized.\n");
@@ -516,7 +553,7 @@ If no console is visible, the notify window will pop up.
 #define INVIS_CHAR2 (char)138	//green
 #define INVIS_CHAR3 (char)160	//blue
 
-void Con_PrintCon (char *txt, console_t *con)
+void Con_PrintCon (console_t *con, char *txt)
 {
 	int		y;
 	int		c, l;
@@ -630,35 +667,14 @@ void Con_PrintCon (char *txt, console_t *con)
 }
 void Con_Print (char *txt)
 {
-	Con_PrintCon(txt, &con_main);	//client console
+	Con_PrintCon(&con_main, txt);	//client console
 }
 
 void Con_CycleConsole(void)
 {
-	console_t *old = con;
-#ifdef QTERM
-	qterm_t *qt;
-	for (qt = qterms; qt; qt=qt->next)
-	{
-		if (old == &qt->console)
-		{
-			if (qt->next)
-			{
-				con = &qt->next->console;
-				return;
-			}
-		}
-	}
-	if (old == &con_main)
-	{
-		if (qterms)
-		{
-			con = &qterms->console;
-			return;
-		}
-	}
-#endif
-	con = &con_main;
+	con_current = con_current->next;
+	if (!con_current)
+		con_current = &con_main;
 }
 
 /*
@@ -830,7 +846,7 @@ void Con_DrawInput (void)
 	if (key_dest != key_console && cls.state == ca_active)
 		return;		// don't draw anything (allways draw if not active)
 
-	if (con != &con_main)
+	if (con_current != &con_main)
 		return;
 
 	
@@ -867,14 +883,14 @@ void Con_DrawInput (void)
 
 	i = strlen(text);
 
-	if (i >= con->linewidth)	//work out the start point
-		si = i - con->linewidth;
+	if (i >= con_current->linewidth)	//work out the start point
+		si = i - con_current->linewidth;
 	else
 		si = 0;
 
-	y = con->vislines-22;
+	y = con_current->vislines-22;
 
-	for (i=0,p=0,x=8; x<=con->linewidth*8 ; p++)	//draw it
+	for (i=0,p=0,x=8; x<=con_current->linewidth*8 ; p++)	//draw it
 	{
 		if (text[p] == '^')
 		{
@@ -905,7 +921,7 @@ void Con_DrawInput (void)
 			break;
 		if (si <= i)
 		{
-			Draw_ColouredCharacter ( x, con->vislines - 22, text[p]|mask);
+			Draw_ColouredCharacter ( x, con_current->vislines - 22, text[p]|mask);
 			x+=8;
 		}
 		i++;
@@ -1064,23 +1080,21 @@ void Con_PrintToSys(void)	//send all the stuff that was con_printed to sys_print
 {
 	int line, row, x;
 	short *text;
-	console_t *curcon = con;
-	if (!con)
-		return;
+	console_t *curcon = &con_main;
 
-	row = curcon->current - con->totallines+1;
-	for (line = 0; line < con->totallines-1; line++, row++)	//skip empty lines.
+	row = curcon->current - curcon->totallines+1;
+	for (line = 0; line < curcon->totallines-1; line++, row++)	//skip empty lines.
 	{
-		text = curcon->text + (row % con->totallines)*con->linewidth;
-		for (x = 0; x < con->linewidth; x++)
+		text = curcon->text + (row % curcon->totallines)*curcon->linewidth;
+		for (x = 0; x < curcon->linewidth; x++)
 			if (((qbyte)(text[x])&255) != ' ')
 				goto breakout;
 	}
 breakout:
-	for (; line < con->totallines-1; line++, row++)
+	for (; line < curcon->totallines-1; line++, row++)
 	{
-		text = curcon->text + (row % con->totallines)*con->linewidth;
-		for (x = 0; x < con->linewidth; x++)
+		text = curcon->text + (row % curcon->totallines)*curcon->linewidth;
+		for (x = 0; x < curcon->linewidth; x++)
 			Sys_Printf("%c", (qbyte)text[x]&255);
 		Sys_Printf("\n");
 	}
@@ -1110,7 +1124,7 @@ void Con_DrawConsole (int lines, qboolean noback)
 	extern int relitsurface;
 #endif
 
-	console_t *curcon = con;
+	console_t *curcon = con_current;
 	
 	if (lines <= 0)
 		return;
@@ -1125,7 +1139,7 @@ void Con_DrawConsole (int lines, qboolean noback)
 		Draw_ConsoleBackground (lines);
 
 // draw the text
-	con->vislines = lines;
+	con_current->vislines = lines;
 	
 // changed to line things up better
 	rows = (lines-22)>>3;		// rows of text to draw
@@ -1136,7 +1150,7 @@ void Con_DrawConsole (int lines, qboolean noback)
 	if (curcon->display != curcon->current)
 	{
 	// draw arrows to show the buffer is backscrolled
-		for (x=0 ; x<con->linewidth ; x+=4)
+		for (x=0 ; x<curcon->linewidth ; x+=4)
 			Draw_Character ( (x+1)<<3, y, '^');
 	
 		y -= 8;
@@ -1148,14 +1162,15 @@ void Con_DrawConsole (int lines, qboolean noback)
 	{
 		if (row < 0)
 			break;
-		if (curcon->current - row >= con->totallines)
+		if (curcon->current - row >= curcon->totallines)
 			break;		// past scrollback wrap point
 			
-		text = curcon->text + (row % con->totallines)*con->linewidth;
+		text = curcon->text + (row % curcon->totallines)*curcon->linewidth;
 
-		for (x=0 ; x<con->linewidth ; x++)
+		for (x=0 ; x<curcon->linewidth ; x++)
 		{
-			Draw_ColouredCharacter ( (x+1)<<3, y, text[x]);
+			if (text[x])
+				Draw_ColouredCharacter ( (x+1)<<3, y, text[x]);
 		}
 	}	
 
@@ -1188,9 +1203,9 @@ void Con_DrawConsole (int lines, qboolean noback)
 		else
 			txt = progresstext;
 
-		x = con->linewidth - ((con->linewidth * 7) / 40);
+		x = curcon->linewidth - ((curcon->linewidth * 7) / 40);
 		y = x - strlen(txt) - 8;
-		i = con->linewidth/3;
+		i = curcon->linewidth/3;
 		if (strlen(txt) > i)
 		{
 			y = x - i - 11;
@@ -1222,7 +1237,7 @@ void Con_DrawConsole (int lines, qboolean noback)
 		sprintf(dlbar + strlen(dlbar), " %02d%%", (int)progresspercent);
 
 		// draw it
-		y = con->vislines-22 + 8;
+		y = curcon->vislines-22 + 8;
 		for (i = 0; i < strlen(dlbar); i++)
 			Draw_ColouredCharacter ( (i+1)<<3, y, (unsigned char)dlbar[i] | M_COLOR_WHITE);
 

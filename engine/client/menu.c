@@ -796,6 +796,7 @@ void M_Menu_Quit_f (void)
 void M_Menu_MediaFiles_f (void);
 void M_Menu_FPS_f (void);
 void M_Menu_Particles_f (void);
+void M_Menu_Audio_Speakers_f (void);
 static qboolean internalmenusregistered;
 void M_Init_Internal (void)
 {
@@ -834,6 +835,7 @@ void M_Init_Internal (void)
 	Cmd_AddRemCommand ("menu_options", M_Menu_Options_f);
 	Cmd_AddRemCommand ("menu_video", M_Menu_Video_f);
 	Cmd_AddRemCommand ("menu_audio", M_Menu_Audio_f);
+	Cmd_AddRemCommand ("menu_speakers", M_Menu_Audio_Speakers_f);
 	Cmd_AddRemCommand ("menu_fps", M_Menu_FPS_f);
 	Cmd_AddRemCommand ("menu_particles", M_Menu_Particles_f);
 }

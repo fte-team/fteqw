@@ -79,6 +79,8 @@ cvar_t	crosshairsize = {"crosshairsize", "8", NULL, CVAR_ARCHIVE};
 cvar_t  cl_crossx = {"cl_crossx", "0", NULL, CVAR_ARCHIVE};
 cvar_t  cl_crossy = {"cl_crossy", "0", NULL, CVAR_ARCHIVE};
 cvar_t	crosshaircorrect = {"crosshaircorrect", "0", NULL, CVAR_SEMICHEAT};
+cvar_t	crosshairimage = {"crosshairimage", ""};
+cvar_t	crosshairalpha = {"crosshairalpha", ""};
 
 cvar_t	gl_cshiftpercent = {"gl_cshiftpercent", "100"};
 
@@ -90,6 +92,8 @@ cvar_t	v_quadcshift = {"v_quadcshift", "0"};
 cvar_t	v_suitcshift = {"v_suitcshift", "0"};
 cvar_t	v_ringcshift = {"v_ringcshift", "0"};
 cvar_t	v_pentcshift = {"v_pentcshift", "0"};
+
+cvar_t	v_viewheight = {"v_viewheight", "0"};
 
 extern cvar_t cl_chasecam;
 
@@ -1059,7 +1063,14 @@ void V_CalcRefdef (int pnum)
 // view is the weapon model (only visible from inside body)
 	view = &cl.viewent[pnum];
 
-	bob = V_CalcBob (pnum);
+	if (v_viewheight.value < -7)
+		bob=-7;
+	else if (v_viewheight.value > 4)
+		bob=4;
+	else if (v_viewheight.value)
+		bob=v_viewheight.value;
+	else
+		bob = V_CalcBob (pnum);
 	
 // refresh position from simulated origin
 	VectorCopy (cl.simorg[pnum], r_refdef.vieworg);
@@ -1106,17 +1117,14 @@ void V_CalcRefdef (int pnum)
 	
 	CalcGunAngle (pnum);
 
-	VectorCopy (cl.simorg[pnum], view->origin);
-	view->origin[2] += cl.viewheight[pnum];
-	view->origin[2] += cl.crouch[pnum];
+	VectorCopy (r_refdef.vieworg, view->origin);
 
 	for (i=0 ; i<3 ; i++)
 	{
 		view->origin[i] += forward[i]*bob*0.4;
-//		view->origin[i] += right[i]*bob*0.4;
+//		view->origin[i] += right[i]*sin(cl.time*5.5342452354235)*0.1;
 //		view->origin[i] += up[i]*bob*0.8;
 	}
-	view->origin[2] += bob;
 
 // fudge position around to keep amount of weapon visible
 // roughly equal with different FOV
@@ -1455,10 +1463,14 @@ void V_Init (void)
 
 	Cvar_Register (&v_bonusflash, VIEWVARS);
 
+	Cvar_Register (&v_viewheight, VIEWVARS);
+
 	Cvar_Register (&crosshaircolor, VIEWVARS);
 	Cvar_Register (&crosshair, VIEWVARS);
 	Cvar_Register (&crosshairsize, VIEWVARS);
 	Cvar_Register (&crosshaircorrect, VIEWVARS);
+	Cvar_Register (&crosshairimage, VIEWVARS);
+	Cvar_Register (&crosshairalpha, VIEWVARS);
 	Cvar_Register (&cl_crossx, VIEWVARS);
 	Cvar_Register (&cl_crossy, VIEWVARS);
 	Cvar_Register (&gl_cshiftpercent, VIEWVARS);

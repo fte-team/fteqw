@@ -2418,17 +2418,17 @@ void GL_DrawTexturedParticle(particle_t *p, part_type_t *type)
 		}
 
 		lasttype = type;
-		glEnd();
-		glEnable(GL_TEXTURE_2D);
+		qglEnd();
+		qglEnable(GL_TEXTURE_2D);
 		GL_Bind(type->texturenum);
 		if (type->blendmode == BM_ADD)		//addative
-			glBlendFunc(GL_SRC_ALPHA, GL_ONE);
+			qglBlendFunc(GL_SRC_ALPHA, GL_ONE);
 //		else if (type->blendmode == BM_SUBTRACT)	//subtractive
 //			glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
 		else
-			glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
-		glShadeModel(GL_FLAT);
-		glBegin(GL_QUADS);
+			qglBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+		qglShadeModel(GL_FLAT);
+		qglBegin(GL_QUADS);
 	}
 	
 	scale = (p->org[0] - r_origin[0])*vpn[0] + (p->org[1] - r_origin[1])*vpn[1]
@@ -2439,7 +2439,7 @@ void GL_DrawTexturedParticle(particle_t *p, part_type_t *type)
 	else
 		scale = 0.25 + scale * 0.001;
 	
-	glColor4f (	p->rgb[0],
+	qglColor4f (p->rgb[0],
 				p->rgb[1],
 				p->rgb[2],
 				p->alpha);
@@ -2454,14 +2454,14 @@ void GL_DrawTexturedParticle(particle_t *p, part_type_t *type)
 		x = 0;
 		y = scale;
 	}
-	glTexCoord2f(0,0);
-	glVertex3f (p->org[0] - x*pright[0] - y*pup[0], p->org[1] - x*pright[1] - y*pup[1], p->org[2] - x*pright[2] - y*pup[2]);
-	glTexCoord2f(0,1);
-	glVertex3f (p->org[0] - y*pright[0] + x*pup[0], p->org[1] - y*pright[1] + x*pup[1], p->org[2] - y*pright[2] + x*pup[2]);
-	glTexCoord2f(1,1);
-	glVertex3f (p->org[0] + x*pright[0] + y*pup[0], p->org[1] + x*pright[1] + y*pup[1], p->org[2] + x*pright[2] + y*pup[2]);
-	glTexCoord2f(1,0);
-	glVertex3f (p->org[0] + y*pright[0] - x*pup[0], p->org[1] + y*pright[1] - x*pup[1], p->org[2] + y*pright[2] - x*pup[2]);
+	qglTexCoord2f(0,0);
+	qglVertex3f (p->org[0] - x*pright[0] - y*pup[0], p->org[1] - x*pright[1] - y*pup[1], p->org[2] - x*pright[2] - y*pup[2]);
+	qglTexCoord2f(0,1);
+	qglVertex3f (p->org[0] - y*pright[0] + x*pup[0], p->org[1] - y*pright[1] + x*pup[1], p->org[2] - y*pright[2] + x*pup[2]);
+	qglTexCoord2f(1,1);
+	qglVertex3f (p->org[0] + x*pright[0] + y*pup[0], p->org[1] + x*pright[1] + y*pup[1], p->org[2] + x*pright[2] + y*pup[2]);
+	qglTexCoord2f(1,0);
+	qglVertex3f (p->org[0] + y*pright[0] - x*pup[0], p->org[1] + y*pright[1] - x*pup[1], p->org[2] + y*pright[2] - x*pup[2]);
 }
 
 
@@ -2475,17 +2475,17 @@ void GL_DrawSketchParticle(particle_t *p, part_type_t *type)
 	if (lasttype != type)
 	{
 		lasttype = type;
-		glEnd();
-		glDisable(GL_TEXTURE_2D);
+		qglEnd();
+		qglDisable(GL_TEXTURE_2D);
 		GL_Bind(type->texturenum);
 //		if (type->blendmode == BM_ADD)		//addative
 //			glBlendFunc(GL_SRC_ALPHA, GL_ONE);
 //		else if (type->blendmode == BM_SUBTRACT)	//subtractive
 //			glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
 //		else
-			glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
-		glShadeModel(GL_SMOOTH);
-		glBegin(GL_LINES);
+			qglBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+		qglShadeModel(GL_SMOOTH);
+		qglBegin(GL_LINES);
 	}
 
 	scale = (p->org[0] - r_origin[0])*vpn[0] + (p->org[1] - r_origin[1])*vpn[1]
@@ -2496,7 +2496,7 @@ void GL_DrawSketchParticle(particle_t *p, part_type_t *type)
 	else
 		scale = 0.25 + scale * 0.001;
 	
-	glColor4f (	p->rgb[0]/2,
+	qglColor4f (p->rgb[0]/2,
 				p->rgb[1]/2,
 				p->rgb[2]/2,
 				p->alpha*2);
@@ -2513,10 +2513,10 @@ void GL_DrawSketchParticle(particle_t *p, part_type_t *type)
 		x = 0;
 		y = scale;
 	}
-	glVertex3f (p->org[0] - x*pright[0] - y*pup[0], p->org[1] - x*pright[1] - y*pup[1], p->org[2] - x*pright[2] - y*pup[2]);
-	glVertex3f (p->org[0] + x*pright[0] + y*pup[0], p->org[1] + x*pright[1] + y*pup[1], p->org[2] + x*pright[2] + y*pup[2]);
-	glVertex3f (p->org[0] + y*pright[0] - x*pup[0], p->org[1] + y*pright[1] - x*pup[1], p->org[2] + y*pright[2] - x*pup[2]);
-	glVertex3f (p->org[0] - y*pright[0] + x*pup[0], p->org[1] - y*pright[1] + x*pup[1], p->org[2] - y*pright[2] + x*pup[2]);
+	qglVertex3f (p->org[0] - x*pright[0] - y*pup[0], p->org[1] - x*pright[1] - y*pup[1], p->org[2] - x*pright[2] - y*pup[2]);
+	qglVertex3f (p->org[0] + x*pright[0] + y*pup[0], p->org[1] + x*pright[1] + y*pup[1], p->org[2] + x*pright[2] + y*pup[2]);
+	qglVertex3f (p->org[0] + y*pright[0] - x*pup[0], p->org[1] + y*pright[1] - x*pup[1], p->org[2] + y*pright[2] - x*pup[2]);
+	qglVertex3f (p->org[0] - y*pright[0] + x*pup[0], p->org[1] - y*pright[1] + x*pup[1], p->org[2] - y*pright[2] + x*pup[2]);
 }
 
 void GL_DrawTrifanParticle(particle_t *p, part_type_t *type)
@@ -2525,19 +2525,19 @@ void GL_DrawTrifanParticle(particle_t *p, part_type_t *type)
 	vec3_t v;
 	float scale;
 
-	glEnd();
+	qglEnd();
 
 	if (lasttype != type)
 	{
 		lasttype = type;
-		glDisable(GL_TEXTURE_2D);
+		qglDisable(GL_TEXTURE_2D);
 		if (type->blendmode == BM_ADD)		//addative
-			glBlendFunc(GL_SRC_ALPHA, GL_ONE);
+			qglBlendFunc(GL_SRC_ALPHA, GL_ONE);
 //		else if (type->blendmode == BM_SUBTRACT)	//subtractive
-//			glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+//			qglBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
 		else
-			glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
-		glShadeModel(GL_SMOOTH);
+			qglBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+		qglShadeModel(GL_SMOOTH);
 	}
 
 	scale = (p->org[0] - r_origin[0])*vpn[0] + (p->org[1] - r_origin[1])*vpn[1]
@@ -2551,13 +2551,13 @@ void GL_DrawTrifanParticle(particle_t *p, part_type_t *type)
 	if ((p->vel[0]*p->vel[0]+p->vel[1]*p->vel[1]+p->vel[2]*p->vel[2])*2*scale > 30*30)
 		scale = 1+1/30/Length(p->vel)*2;*/
 	
-	glBegin (GL_TRIANGLE_FAN);
-	glColor4f (	p->rgb[0],
+	qglBegin (GL_TRIANGLE_FAN);
+	qglColor4f (p->rgb[0],
 				p->rgb[1],
 				p->rgb[2],
 				p->alpha);
-	glVertex3fv (p->org);
-	glColor4f (	p->rgb[0]/2,
+	qglVertex3fv (p->org);
+	qglColor4f (p->rgb[0]/2,
 				p->rgb[1]/2,
 				p->rgb[2]/2,
 				0);
@@ -2566,10 +2566,10 @@ void GL_DrawTrifanParticle(particle_t *p, part_type_t *type)
 		v[0] = p->org[0] - p->vel[0]*scale + vright[0]*cost[i%7]*p->scale + vup[0]*sint[i%7]*p->scale;
 		v[1] = p->org[1] - p->vel[1]*scale + vright[1]*cost[i%7]*p->scale + vup[1]*sint[i%7]*p->scale;
 		v[2] = p->org[2] - p->vel[2]*scale + vright[2]*cost[i%7]*p->scale + vup[2]*sint[i%7]*p->scale;
-		glVertex3fv (v);
+		qglVertex3fv (v);
 	}
-	glEnd ();
-	glBegin (GL_LINES);
+	qglEnd ();
+	qglBegin (GL_LINES);
 }
 
 void GL_DrawSparkedParticle(particle_t *p, part_type_t *type)
@@ -2577,30 +2577,30 @@ void GL_DrawSparkedParticle(particle_t *p, part_type_t *type)
 	if (lasttype != type)
 	{
 		lasttype = type;
-		glEnd();
-		glDisable(GL_TEXTURE_2D);
+		qglEnd();
+		qglDisable(GL_TEXTURE_2D);
 		GL_Bind(type->texturenum);
 		if (type->blendmode == BM_ADD)		//addative
-			glBlendFunc(GL_SRC_ALPHA, GL_ONE);
+			qglBlendFunc(GL_SRC_ALPHA, GL_ONE);
 //		else if (type->blendmode == BM_SUBTRACT)	//subtractive
-//			glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+//			qglBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
 		else
-			glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
-		glShadeModel(GL_SMOOTH);
-		glBegin(GL_LINES);
+			qglBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+		qglShadeModel(GL_SMOOTH);
+		qglBegin(GL_LINES);
 	}
 
-	glColor4f (	p->rgb[0],
+	qglColor4f (p->rgb[0],
 				p->rgb[1],
 				p->rgb[2],
 				p->alpha);
-	glVertex3f (p->org[0], p->org[1], p->org[2]);
+	qglVertex3f (p->org[0], p->org[1], p->org[2]);
 
-	glColor4f (	p->rgb[0],
+	qglColor4f (p->rgb[0],
 				p->rgb[1],
 				p->rgb[2],
 				0);
-	glVertex3f (p->org[0]-p->vel[0]/10, p->org[1]-p->vel[1]/10, p->org[2]-p->vel[2]/10);
+	qglVertex3f (p->org[0]-p->vel[0]/10, p->org[1]-p->vel[1]/10, p->org[2]-p->vel[2]/10);
 
 }
 
@@ -2609,30 +2609,30 @@ void GL_DrawSketchSparkParticle(particle_t *p, part_type_t *type)
 	if (lasttype != type)
 	{
 		lasttype = type;
-		glEnd();
-		glDisable(GL_TEXTURE_2D);
+		qglEnd();
+		qglDisable(GL_TEXTURE_2D);
 		GL_Bind(type->texturenum);
 		if (type->blendmode == BM_ADD)		//addative
-			glBlendFunc(GL_SRC_ALPHA, GL_ONE);
+			qglBlendFunc(GL_SRC_ALPHA, GL_ONE);
 //		else if (type->blendmode == BM_SUBTRACT)	//subtractive
-//			glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+//			qglBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
 		else
-			glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
-		glShadeModel(GL_SMOOTH);
-		glBegin(GL_LINES);
+			qglBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+		qglShadeModel(GL_SMOOTH);
+		qglBegin(GL_LINES);
 	}
 
-	glColor4f (	p->rgb[0],
+	qglColor4f (p->rgb[0],
 				p->rgb[1],
 				p->rgb[2],
 				p->alpha);
-	glVertex3f (p->org[0], p->org[1], p->org[2]);
+	qglVertex3f (p->org[0], p->org[1], p->org[2]);
 
-	glColor4f (	p->rgb[0],
+	qglColor4f (p->rgb[0],
 				p->rgb[1],
 				p->rgb[2],
 				0);
-	glVertex3f (p->org[0]-p->vel[0]/10, p->org[1]-p->vel[1]/10, p->org[2]-p->vel[2]/10);
+	qglVertex3f (p->org[0]-p->vel[0]/10, p->org[1]-p->vel[1]/10, p->org[2]-p->vel[2]/10);
 }
 
 void GL_DrawParticleBeam_Textured(beamseg_t *b, part_type_t *type)
@@ -2660,36 +2660,36 @@ void GL_DrawParticleBeam_Textured(beamseg_t *b, part_type_t *type)
 	if (lasttype != type)
 	{
 		lasttype = type;
-		glEnd();
-		glEnable(GL_TEXTURE_2D);
+		qglEnd();
+		qglEnable(GL_TEXTURE_2D);
 		GL_Bind(type->texturenum);
 		if (type->blendmode == BM_ADD)		//addative
-			glBlendFunc(GL_SRC_ALPHA, GL_ONE);
+			qglBlendFunc(GL_SRC_ALPHA, GL_ONE);
 //		else if (type->blendmode == BM_SUBTRACT)	//subtractive
-//			glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+//			qglBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
 		else
-			glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
-		glShadeModel(GL_SMOOTH);
-		glBegin(GL_QUADS);
+			qglBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+		qglShadeModel(GL_SMOOTH);
+		qglBegin(GL_QUADS);
 	}
-	glColor4f(q->rgb[0],
+	qglColor4f(q->rgb[0],
 			  q->rgb[1],
 			  q->rgb[2],
 			  q->alpha);
-//	glBegin(GL_LINE_LOOP);
+//	qglBegin(GL_LINE_LOOP);
 	VectorSubtract(r_refdef.vieworg, q->org, v);
 	VectorNormalize(v);
 	CrossProduct(c->dir, v, cr);
 	ts = (c->texture_s*type->rotationstartmin + particletime*type->rotationmin)/754;
 
 	VectorMA(q->org, -q->scale, cr, point);
-	glTexCoord2f(ts, 0);
-	glVertex3fv(point);
+	qglTexCoord2f(ts, 0);
+	qglVertex3fv(point);
 	VectorMA(q->org, q->scale, cr, point);
-	glTexCoord2f(ts, 1);
-	glVertex3fv(point);
+	qglTexCoord2f(ts, 1);
+	qglVertex3fv(point);
 
-	glColor4f(p->rgb[0],
+	qglColor4f(p->rgb[0],
 			  p->rgb[1],
 			  p->rgb[2],
 			  p->alpha);
@@ -2700,12 +2700,12 @@ void GL_DrawParticleBeam_Textured(beamseg_t *b, part_type_t *type)
 	ts = (b->texture_s*type->rotationstartmin + particletime*type->rotationmin)/754;
 
 	VectorMA(p->org, p->scale, cr, point);
-	glTexCoord2f(ts, 1);
-	glVertex3fv(point);
+	qglTexCoord2f(ts, 1);
+	qglVertex3fv(point);
 	VectorMA(p->org, -p->scale, cr, point);
-	glTexCoord2f(ts, 0);
-	glVertex3fv(point);
-//	glEnd();
+	qglTexCoord2f(ts, 0);
+	qglVertex3fv(point);
+//	qglEnd();
 }
 
 void GL_DrawParticleBeam_Untextured(beamseg_t *b, part_type_t *type)
@@ -2734,20 +2734,20 @@ void GL_DrawParticleBeam_Untextured(beamseg_t *b, part_type_t *type)
 	if (lasttype != type)
 	{
 		lasttype = type;
-		glEnd();
-		glDisable(GL_TEXTURE_2D);
+		qglEnd();
+		qglDisable(GL_TEXTURE_2D);
 		GL_Bind(type->texturenum);
 		if (type->blendmode == BM_ADD)		//addative
-			glBlendFunc(GL_SRC_ALPHA, GL_ONE);
+			qglBlendFunc(GL_SRC_ALPHA, GL_ONE);
 //		else if (type->blendmode == BM_SUBTRACT)	//subtractive
-//			glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+//			qglBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
 		else
-			glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
-		glShadeModel(GL_SMOOTH);
-		glBegin(GL_QUADS);
+			qglBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+		qglShadeModel(GL_SMOOTH);
+		qglBegin(GL_QUADS);
 	}
 
-//	glBegin(GL_LINE_LOOP);
+//	qglBegin(GL_LINE_LOOP);
 	VectorSubtract(r_refdef.vieworg, q->org, v);
 	VectorNormalize(v);
 	CrossProduct(c->dir, v, cr);
@@ -2769,55 +2769,55 @@ void GL_DrawParticleBeam_Untextured(beamseg_t *b, part_type_t *type)
 	//back in
 	//front in
 	//front out
-	glColor4f(q->rgb[0],
+	qglColor4f(q->rgb[0],
 		  q->rgb[1],
 		  q->rgb[2],
 		  0);
-	glVertex3fv(point[0]);
-	glColor4f(q->rgb[0],
+	qglVertex3fv(point[0]);
+	qglColor4f(q->rgb[0],
 		  q->rgb[1],
 		  q->rgb[2],
 		  q->alpha);
-	glVertex3fv(q->org);
+	qglVertex3fv(q->org);
 
-	glColor4f(p->rgb[0],
+	qglColor4f(p->rgb[0],
 		  p->rgb[1],
 		  p->rgb[2],
 		  p->alpha);
-	glVertex3fv(p->org);
-	glColor4f(p->rgb[0],
+	qglVertex3fv(p->org);
+	qglColor4f(p->rgb[0],
 		  p->rgb[1],
 		  p->rgb[2],
 		  0);
-	glVertex3fv(point[3]);
+	qglVertex3fv(point[3]);
 
 	//front out
 	//front in
 	//back in
 	//back out
-	glColor4f(p->rgb[0],
+	qglColor4f(p->rgb[0],
 		  p->rgb[1],
 		  p->rgb[2],
 		  0);
-	glVertex3fv(point[2]);
-		glColor4f(p->rgb[0],
+	qglVertex3fv(point[2]);
+	qglColor4f(p->rgb[0],
 		  p->rgb[1],
 		  p->rgb[2],
 		  p->alpha);
-	glVertex3fv(p->org);
+	qglVertex3fv(p->org);
 	
-	glColor4f(q->rgb[0],
+	qglColor4f(q->rgb[0],
 		  q->rgb[1],
 		  q->rgb[2],
 		  q->alpha);
-	glVertex3fv(q->org);
-	glColor4f(q->rgb[0],
+	qglVertex3fv(q->org);
+	qglColor4f(q->rgb[0],
 		  q->rgb[1],
 		  q->rgb[2],
 		  0);
-	glVertex3fv(point[1]);
+	qglVertex3fv(point[1]);
 
-//	glEnd();
+//	qglEnd();
 }
 
 #endif
@@ -3240,14 +3240,14 @@ void R_DrawParticles (void)
 	if (qrenderer == QR_OPENGL)
 	{
 		extern cvar_t r_drawflat;
-		glDepthMask(0);
+		qglDepthMask(0);
 		
-		glDisable(GL_ALPHA_TEST);
-		glEnable (GL_BLEND);
+		qglDisable(GL_ALPHA_TEST);
+		qglEnable (GL_BLEND);
 		GL_TexEnv(GL_MODULATE);
-		glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+		qglBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
 
-		glBegin(GL_QUADS);
+		qglBegin(GL_QUADS);
 
 		if (r_drawflat.value == 2)
 			DrawParticleTypes(GL_DrawSketchParticle, GL_DrawSketchSparkParticle, GL_DrawParticleBeam_Textured, GL_DrawParticleBeam_Untextured);//GL_DrawParticleBeam_Sketched, GL_DrawParticleBeam_Sketched);
@@ -3256,10 +3256,10 @@ void R_DrawParticles (void)
 		else
 			DrawParticleTypes(GL_DrawTexturedParticle, GL_DrawSparkedParticle, GL_DrawParticleBeam_Textured, GL_DrawParticleBeam_Untextured);
 
-		glEnd();
-		glEnable(GL_TEXTURE_2D);
+		qglEnd();
+		qglEnable(GL_TEXTURE_2D);
 
-		glDepthMask(1);
+		qglDepthMask(1);
 		return;
 	}
 #endif

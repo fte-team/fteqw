@@ -1158,6 +1158,7 @@ void CL_PlayDemo_f (void)
 	else
 		cls.demoplayback = DPB_QUAKEWORLD;
 	cls.state = ca_demostart;
+	net_message.packing = SZ_RAWBYTES;
 	Netchan_Setup (NS_CLIENT, &cls.netchan, net_from, 0);
 	realtime = 0;
 	cl.gametime = 0;

@@ -1000,6 +1000,11 @@ void V_AddEntity(entity_t *in)
 	cl_numvisedicts++;
 
 	*ent = *in;
+
+	ent->angles[0]*=-1;
+	AngleVectors(ent->angles, ent->axis[0], ent->axis[1], ent->axis[2]);
+	VectorInverse(ent->axis[1]);
+	ent->angles[0]*=-1;
 }
 
 void V_AddLight (vec3_t org, float quant, float r, float g, float b)

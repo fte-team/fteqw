@@ -344,7 +344,9 @@ void S_Control_f (void)
 		soundcardinfo_t *sc;
 		card = atoi(command+4);
 
-		for (i = 0, sc = sndcardinfo; i < card && sc; i++,sc=sc->next);
+		for (i = 0, sc = sndcardinfo; i < card && sc; i++,sc=sc->next)
+			;
+
 		if (!sc)
 		{
 			Con_Printf("Sound card %i is invalid (try resetting first)\n", card);
@@ -700,28 +702,21 @@ SND_Spatialize
 */
 void SND_Spatialize(soundcardinfo_t *sc, channel_t *ch)
 {
-    vec_t dot, dotforward, dotup;
+    vec_t dotright, dotforward, dotup;
     vec_t dist;
-    vec_t scale[MAXSOUNDCHANNELS];
+    vec_t scale;
     vec3_t source_vec;
 	sfx_t *snd;
+	int i;
 
 // anything coming from the view entity will allways be full volume
 	if (ch->entnum == -1 || ch->entnum == cl.playernum[0]+1)
 	{
-		ch->vol[0] = ch->master_vol;
-		ch->vol[1] = ch->master_vol;
-		ch->vol[2] = ch->master_vol;
-		ch->vol[3] = ch->master_vol;
-		ch->vol[4] = ch->master_vol;
-		ch->vol[5] = ch->master_vol;
-
-		ch->delay[0] = 0;
-		ch->delay[1] = 0;
-		ch->delay[2] = 0;
-		ch->delay[3] = 0;
-		ch->delay[4] = 0;
-		ch->delay[5] = 0;
+		for (i = 0; i < sc->sn.numchannels; i++)
+		{
+			ch->vol[i] = ch->master_vol;
+			ch->delay[i] = 0;
+		}
 		return;
 	}
 
@@ -731,71 +726,22 @@ void SND_Spatialize(soundcardinfo_t *sc, channel_t *ch)
 	
 	dist = VectorNormalize(source_vec) * ch->dist_mult;
 	
-	dot = DotProduct(listener_right, source_vec);
-	dotforward = -DotProduct(listener_forward, source_vec);
+	dotright = DotProduct(listener_right, source_vec);
+	dotforward = DotProduct(listener_forward, source_vec);
 	dotup = DotProduct(listener_up, source_vec);
 
-	if (sc->sn.numchannels == 1)
+	for (i = 0; i < sc->sn.numchannels; i++)
 	{
-		scale[0] = 1.0;
-		scale[1] = 1.0;
-		scale[2] = 1.0;
-		scale[3] = 1.0;
-		scale[4] = 1.0;
-		scale[5] = 1.0;
-		ch->delay[0] = 0;
-		ch->delay[1] = 0;
-		ch->delay[2] = 0;
-		ch->delay[3] = 0;
-		ch->delay[4] = 0;
-		ch->delay[5] = 0;
+		scale = 1 + (dotright*sin(sc->yaw[i]*M_PI/180) + dotforward*cos(sc->yaw[i]*M_PI/180));// - dotup*cos(sc->pitch[0])*2;
+		scale = (1.0 - dist) * scale * sc->dist[i];
+//		if (scale < 0.5)
+//			scale = 0.5;
+		ch->vol[i] = (int) (ch->master_vol * scale);
+		if (ch->vol[i] < 0)
+			ch->vol[i] = 0;
+
+		ch->delay[i] = 0;//(scale[0]-1)*1024;
 	}
-	else
-	{
-		scale[0] = 2.0 + dot*sin(sc->yaw[0]*M_PI/180) + dotforward*cos(sc->yaw[0]*M_PI/180);// - dotup*cos(sc->pitch[0])*2;
-		scale[1] = 2.0 + dot*sin(sc->yaw[1]*M_PI/180) + dotforward*cos(sc->yaw[1]*M_PI/180);// - dotup*cos(sc->pitch[1])*2;
-		scale[2] = 2.0 + dot*sin(sc->yaw[2]*M_PI/180) + dotforward*cos(sc->yaw[2]*M_PI/180);// - dotup*cos(sc->pitch[2])*2;
-		scale[3] = 2.0 + dot*sin(sc->yaw[3]*M_PI/180) + dotforward*cos(sc->yaw[3]*M_PI/180);// - dotup*cos(sc->pitch[3])*2;
-		scale[4] = 2.0 + dot*sin(sc->yaw[4]*M_PI/180) + dotforward*cos(sc->yaw[4]*M_PI/180);// - dotup*cos(sc->pitch[4])*2;
-		scale[5] = 2.0 + dot*sin(sc->yaw[5]*M_PI/180) + dotforward*cos(sc->yaw[5]*M_PI/180);// - dotup*cos(sc->pitch[5])*2;
-		ch->delay[0] = 0;//(scale[0]-1)*1024;
-		ch->delay[1] = 0;//(scale[1]-1)*1024;
-		ch->delay[2] = 0;//(scale[2]-1)*1024;
-		ch->delay[3] = 0;//(scale[3]-1)*1024;
-		ch->delay[4] = 0;//(scale[4]-1)*1024;
-		ch->delay[5] = 0;//(scale[5]-1)*1024;
-	}
-
-// add in distance effect
-	scale[0] = (1.0 - dist) * scale[0] * sc->dist[0];	//default fl
-	ch->vol[0] = (int) (ch->master_vol * scale[0]);
-	if (ch->vol[0] < 0)
-		ch->vol[0] = 0;
-
-	scale[1] = (1.0 - dist) * scale[1] * sc->dist[1];	//fr
-	ch->vol[1] = (int) (ch->master_vol * scale[1]);
-	if (ch->vol[1] < 0)
-		ch->vol[1] = 0;
-
-	scale[2] = (1.0 - dist) * scale[2] * sc->dist[2];	//rl
-	ch->vol[2] = (int) (ch->master_vol * scale[2]);
-	if (ch->vol[2] < 0)
-		ch->vol[2] = 0;
-         
-	scale[3] = (1.0 - dist) * scale[3] * sc->dist[3];	//rr
-	ch->vol[3] = (int) (ch->master_vol * scale[3]);
-	if (ch->vol[3] < 0)
-		ch->vol[3] = 0;
-
-	scale[4] = (1.0 - dist) * scale[4] * sc->dist[4];
-	ch->vol[4] = (int) (ch->master_vol * scale[4]);
-	if (ch->vol[4] < 0)
-		ch->vol[4] = 0;
-
-	scale[5] = (1.0 - dist) * scale[5] * sc->dist[5];
-	ch->vol[5] = (int) (ch->master_vol * scale[5]);
-	if (ch->vol[5] < 0)
-		ch->vol[5] = 0;
 }
 
 // =======================================================================

@@ -243,8 +243,8 @@ int PaddedPrint (char *s, int x)
 	if (x)
 		nextcolx = (int)((x + COLUMNWIDTH)/COLUMNWIDTH)*COLUMNWIDTH;
 
-	if (nextcolx > con->linewidth - MINCOLUMNWIDTH
-		|| (x && nextcolx + strlen(s) >= con->linewidth))
+	if (nextcolx > con_main.linewidth - MINCOLUMNWIDTH
+		|| (x && nextcolx + strlen(s) >= con_main.linewidth))
 	{
 		Con_Printf ("\n");
 		x=0;
@@ -356,7 +356,7 @@ void Key_Console (int key)
 	char	*clipText;
 #endif
 
-	if (con->redirect)
+	if (con_current->redirect)
 	{
 		if (key == K_TAB)
 		{	// command completion
@@ -366,7 +366,7 @@ void Key_Console (int key)
 				return;
 			}
 		}
-		con->redirect(key);
+		con_current->redirect(con_current, key);
 		return;
 	}
 	
@@ -513,27 +513,27 @@ void Key_Console (int key)
 
 	if (key == K_PGUP || key==K_MWHEELUP)
 	{
-		con->display -= 2;
+		con_current->display -= 2;
 		return;
 	}
 
 	if (key == K_PGDN || key==K_MWHEELDOWN)
 	{
-		con->display += 2;
-		if (con->display > con->current)
-			con->display = con->current;
+		con_current->display += 2;
+		if (con_current->display > con_current->current)
+			con_current->display = con_current->current;
 		return;
 	}
 
 	if (key == K_HOME)
 	{
-		con->display = con->current - con->totallines + 10;
+		con_current->display = con_current->current - con_current->totallines + 10;
 		return;
 	}
 
 	if (key == K_END)
 	{
-		con->display = con->current;
+		con_current->display = con_current->current;
 		return;
 	}
 	

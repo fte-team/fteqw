@@ -1324,16 +1324,16 @@ void M_Menu_Main_f (void)
 			mainm = M_CreateMenu(0);	
 			mainm->key = MC_Main_Key;	
 
-			MC_AddPicture(mainm, 0, 4, "m_main_plaque");
-			p = Draw_SafeCachePic("m_main_logo");
+			MC_AddPicture(mainm, 0, 4, "pics/m_main_plaque");
+			p = Draw_SafeCachePic("pics/m_main_logo");
 			if (!p)
 				return;
-			MC_AddPicture(mainm, 0, 173, "m_main_logo");
-			MC_AddPicture(mainm, 68, 13, "m_main_game");
-			MC_AddPicture(mainm, 68, 53, "m_main_multiplayer");
-			MC_AddPicture(mainm, 68, 93, "m_main_options");
-			MC_AddPicture(mainm, 68, 133, "m_main_video");
-			MC_AddPicture(mainm, 68, 173, "m_main_quit");
+			MC_AddPicture(mainm, 0, 173, "pics/m_main_logo");
+			MC_AddPicture(mainm, 68, 13, "pics/m_main_game");
+			MC_AddPicture(mainm, 68, 53, "pics/m_main_multiplayer");
+			MC_AddPicture(mainm, 68, 93, "pics/m_main_options");
+			MC_AddPicture(mainm, 68, 133, "pics/m_main_video");
+			MC_AddPicture(mainm, 68, 173, "pics/m_main_quit");
 
 			mainm->selecteditem = (menuoption_t *)
 			MC_AddConsoleCommand	(mainm, 68, 13,	"", "menu_single\n");
@@ -1386,16 +1386,22 @@ void M_Menu_Main_f (void)
 		m_state = m_complex;
 		key_dest = key_menu;
 		m_entersound = true;
-		mainm = M_CreateMenu(0);	
-		mainm->key = MC_Main_Key;	
+		mainm = M_CreateMenu(0);		
 
-		MC_AddPicture(mainm, 16, 4, "gfx/qplaque.lmp");
 		p = Draw_SafeCachePic("gfx/ttl_main.lmp");
 		if (!p)
 		{
-			Con_ToggleConsole_f();
+			MC_AddRedText(mainm, 16, 0,				"MAIN MENU", false);
+
+			mainm->selecteditem = (menuoption_t *)
+			MC_AddConsoleCommand	(mainm, 64, 32,	"Join server", "menu_servers\n");
+			MC_AddConsoleCommand	(mainm, 64, 40,	"Options", "menu_options\n");
+			MC_AddConsoleCommand	(mainm, 64, 48,	"Quit", "menu_quit\n");
 			return;
 		}
+		mainm->key = MC_Main_Key;
+		MC_AddPicture(mainm, 16, 4, "gfx/qplaque.lmp");
+
 		MC_AddPicture(mainm, (320-p->width)/2, 4, "gfx/ttl_main.lmp");
 		MC_AddPicture(mainm, 72, 32, "gfx/mainmenu.lmp");
 

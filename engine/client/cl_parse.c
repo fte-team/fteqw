@@ -511,6 +511,104 @@ int CL_CalcNet (void)
 
 //=============================================================================
 
+//note: this will overwrite existing files.
+//returns true if the download is going to be downloaded after the call.
+qboolean CL_EnqueDownload(char *filename, qboolean verbose, qboolean ignorefailedlist)
+{
+	downloadlist_t *dl;
+	if (strchr(filename, '\\') || strchr(filename, ':') || strstr(filename, ".."))
+	{
+		Con_Printf("Denying download of \"%s\"\n", filename);
+		return false;
+	}
+
+	if (cls.demoplayback)
+		return false;
+
+	if (!ignorefailedlist)
+	{
+		for (dl = cl.faileddownloads; dl; dl = dl->next)	//yeah, so it failed... Ignore it.
+		{
+			if (!strcmp(dl->name, filename))
+			{
+				if (verbose)
+					Con_Printf("We've failed to download \"%s\" already\n", filename);
+				return false;
+			}
+		}
+	}
+
+	for (dl = cl.downloadlist; dl; dl = dl->next)	//It's already on our list. Ignore it.
+	{
+		if (!strcmp(dl->name, filename))
+		{
+			if (verbose)
+				Con_Printf("Already waiting for \"%s\"\n", filename);
+			return true;
+		}
+	}
+
+	if (!strcmp(cls.downloadname, filename))
+	{
+		if (verbose)
+			Con_Printf("Already downloading \"%s\"\n", filename);
+		return true;
+	}
+
+	dl = Z_Malloc(sizeof(downloadlist_t));
+	strcpy(dl->name, filename);
+	dl->next = cl.downloadlist;
+	cl.downloadlist = dl;
+
+	if (verbose)
+		Con_Printf("Enqued download of \"%s\"\n", filename);
+
+	return true;
+}
+
+void CL_SendDownloadRequest(char *filename)
+{
+	downloadlist_t *dl, *nxt;
+	if(cl.downloadlist)	//remove from enqued download list
+	{
+		if (!strcmp(cl.downloadlist->name, filename))
+		{
+			dl = cl.downloadlist;
+			cl.downloadlist = cl.downloadlist->next;
+			Z_Free(dl);
+		}
+		else
+		{
+			for (dl = cl.downloadlist->next; dl->next; dl = dl->next)
+			{
+				if (!strcmp(dl->next->name, filename))
+				{
+					nxt = dl->next->next;
+					Z_Free(dl->next);
+					dl->next = nxt;
+					break;
+				}
+			}
+		}
+	}
+
+	strcpy (cls.downloadname, filename);
+	Con_TPrintf (TL_DOWNLOADINGFILE, cls.downloadname);
+
+	// download to a temp name, and only rename
+	// to the real name when done, so if interrupted
+	// a runt file wont be left
+	COM_StripExtension (cls.downloadname, cls.downloadtempname);
+	strcat (cls.downloadtempname, ".tmp");
+
+	MSG_WriteByte (&cls.netchan.message, clc_stringcmd);
+	MSG_WriteString (&cls.netchan.message, va("download %s", cls.downloadname));
+
+	//prevent ftp/http from changing stuff
+	cls.downloadtype = DL_QWPENDING;
+	cls.downloadpercent = 0;
+}
+
 /*
 ===============
 CL_CheckOrDownloadFile
@@ -535,7 +633,8 @@ qboolean	CL_CheckOrDownloadFile (char *filename, int nodelay)
 	}
 
 	//ZOID - can't download when recording
-	if (cls.demorecording) {
+	if (cls.demorecording)
+	{
 		Con_TPrintf (TL_NODOWNLOADINDEMO, filename);
 		return true;
 	}
@@ -543,43 +642,10 @@ qboolean	CL_CheckOrDownloadFile (char *filename, int nodelay)
 	if (cls.demoplayback)
 		return true;
 
-	if (cl.faileddownloads)
-	{
-		for (failed = cl.faileddownloads; failed; failed = failed->next)	//yeah, so it failed... Ignore it.
-		{
-			if (!strcmp(failed->name, filename))
-				return true;
-		}
-	}
+	if (!nodelay)
+		return !CL_EnqueDownload(filename, false, false);
 
-	for (failed = cl.downloadlist; failed; failed = failed->next)	//It's already on our list. Ignore it.
-	{
-		if (!strcmp(failed->name, filename))
-			return true;
-	}
-
-	if ((!requiredownloads.value && !nodelay) || nodelay==-1)
-	{	
-		downloadlist_t *new;
-		new = Z_Malloc(sizeof(downloadlist_t));
-		strcpy(new->name, filename);
-		new->next = cl.downloadlist;
-		cl.downloadlist = new;
-
-		return true;
-	}
-
-	strcpy (cls.downloadname, filename);
-	Con_TPrintf (TL_DOWNLOADINGFILE, cls.downloadname);
-
-	// download to a temp name, and only rename
-	// to the real name when done, so if interrupted
-	// a runt file wont be left
-	COM_StripExtension (cls.downloadname, cls.downloadtempname);
-	strcat (cls.downloadtempname, ".tmp");
-
-	MSG_WriteByte (&cls.netchan.message, clc_stringcmd);
-	MSG_WriteString (&cls.netchan.message, va("download %s", cls.downloadname));
+	CL_SendDownloadRequest(filename);
 
 	SCR_EndLoadingPlaque();	//release console.
 
@@ -693,8 +759,9 @@ void Model_NextDownload (void)
 		if (!CL_CheckOrDownloadFile(s, cls.downloadnumber==1))	//world is required to be loaded.
 			return;		// started a download
 
-		if (CL_CheckMD2Skins(s))
-			return;
+		if (strstr(s, ".md2"))
+			if (CL_CheckMD2Skins(s))
+				return;
 	}
 
 	if (cl.playernum[0] == -1)
@@ -928,6 +995,58 @@ char *ZLibDownloadDecode(int *messagesize, char *input, int finalsize)
 }
 #endif
 
+void CL_DownloadFailed(void);
+
+#ifdef PEXT_CHUNKEDDOWNLOADS
+void CL_ParseChunkedDownload(void)
+{
+	qbyte	*name;
+	int totalsize;
+	int chunknum;
+
+	chunknum = MSG_ReadLong();
+	if (chunknum < 0)
+	{
+		totalsize = MSG_ReadLong();
+		name = MSG_ReadString();
+		if (cls.demoplayback)
+			return;
+
+		if (totalsize < 0)
+		{
+			if (totalsize == -2)
+				Con_Printf("Server permissions deny downloading file %s\n", name);
+			else
+				Con_Printf("Couldn't find file %s on the server\n", name);
+
+			CL_DownloadFailed();
+
+			CL_RequestNextDownload();
+			return;
+		}
+
+		if (cls.downloadmethod == DL_QWCHUNKS)
+			Host_EndGame("Received second download - \"%s\"\n", name);
+
+		//start the new download
+		cls.downloadmethod = DL_QWCHUNKS;
+		cls.downloadpercent = 0;
+
+		strcpy(cls.downloadname, name);
+		COM_StripExtension(name, cls.downloadtempname);
+		COM_DefaultExtension(cls.downloadtempname, ".tmp");
+
+		return;
+	}
+
+	if (cls.demoplayback)
+	{
+
+		return;
+	}
+}
+#endif
+
 /*
 =====================
 CL_ParseDownload
@@ -940,6 +1059,15 @@ void CL_ParseDownload (void)
 	int		size, percent;
 	qbyte	name[1024];
 	int		r;
+
+#ifdef PEXT_CHUNKEDDOWNLOADS
+#pragma message fixme
+	if (cls.fteprotocolextensions & PEXT_CHUNKEDDOWNLOADS)
+	{
+		CL_ParseChunkedDownload();
+		return;
+	}
+#endif
 
 	// read the data
 	size = MSG_ReadShort ();
@@ -959,7 +1087,7 @@ void CL_ParseDownload (void)
 		strcpy(cls.downloadtempname, "unknown.tmp");
 	}
 
-	if (size == -1)
+	if (size < 0)
 	{
 		Con_TPrintf (TL_FILENOTFOUND);
 		if (cls.downloadqw)
@@ -2097,6 +2225,7 @@ CL_ParseStaticSound
 */
 void CL_ParseStaticSound (void)
 {
+	extern cvar_t cl_staticsounds;
 	vec3_t		org;
 	int			sound_num, vol, atten;
 	int			i;
@@ -2106,6 +2235,9 @@ void CL_ParseStaticSound (void)
 	sound_num = MSG_ReadByte ();
 	vol = MSG_ReadByte ();
 	atten = MSG_ReadByte ();
+
+	if (!cl_staticsounds.value)
+		return;
 	
 	S_StaticSound (cl.sound_precache[sound_num], org, vol, atten);
 }
@@ -2572,8 +2704,16 @@ void CL_MuzzleFlash (void)
 	entity_state_t *s1;
 	int pnum;
 
+	extern cvar_t cl_muzzleflash;
+
 	i = MSG_ReadShort ();
 
+	//was it us?
+	if (i == cl.playernum[0])
+	{
+		if (!cl_muzzleflash.value)
+			return;
+	}
 
 	pack = &cl.frames[cls.netchan.incoming_sequence&UPDATE_MASK].packet_entities;	
 

@@ -748,7 +748,7 @@ char *Media_NextTrack(void)
 
 
 //Avi files are specific to windows. Bit of a bummer really.
-#if defined(_WIN32) && !defined(MINGW)
+#if defined(_WIN32) && !defined(__GNUC__)
 #define WINAVI
 #endif
 
@@ -1318,7 +1318,7 @@ void Media_RecordFrame (void)
 	{
 	case CT_AVI:
 	//ask gl for it
-		glReadPixels (glx, gly, glwidth, glheight, GL_RGB, GL_UNSIGNED_BYTE, framebuffer ); 
+		qglReadPixels (glx, gly, glwidth, glheight, GL_RGB, GL_UNSIGNED_BYTE, framebuffer ); 
 
 		// swap rgb to bgr
 		c = glwidth*glheight*3;
@@ -1351,11 +1351,11 @@ skipframe:
 	if (y < scr_con_current) y = scr_con_current;
 	if (y > vid.height-8)
 		y = vid.height-8;
-	glColor4f(1, 0, 0, sin(realtime*4)/4+0.75);
-	glEnable(GL_BLEND);
-	glDisable(GL_ALPHA_TEST);
+	qglColor4f(1, 0, 0, sin(realtime*4)/4+0.75);
+	qglEnable(GL_BLEND);
+	qglDisable(GL_ALPHA_TEST);
 	GL_TexEnv(GL_MODULATE);
-	glBlendFunc (GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+	qglBlendFunc (GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
 	Draw_String((strlen(capturemessage.string)+1)*8, y, "RECORDING");
 }
 }

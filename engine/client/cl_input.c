@@ -200,6 +200,9 @@ void IN_Button7Up(void) {KeyUp(&in_button7);}
 void IN_Button8Down(void) {KeyDown(&in_button8);}
 void IN_Button8Up(void) {KeyUp(&in_button8);}
 
+float in_rotate;
+void IN_Rotate_f (void) {in_rotate += atoi(Cmd_Argv(1));}
+
 
 //is this useful?
 
@@ -361,13 +364,25 @@ Moves the local angle positions
 */
 void CL_AdjustAngles (int pnum)
 {
-	float	speed;
+	float	speed, quant;
 	float	up, down;
 	
 	if (in_speed.state[pnum] & 1)
 		speed = host_frametime * cl_anglespeedkey.value;
 	else
 		speed = host_frametime;
+
+	if (in_rotate && pnum==0)
+	{
+		quant = in_rotate;
+//		if (quant < -800)
+//			quant = -800;
+//		else if (quant > 800)
+//			quant = 800;
+		quant *= speed;
+		in_rotate -= quant;
+		cl.viewangles[pnum][YAW] += quant;
+	}
 
 	if (!(in_strafe.state[pnum] & 1))
 	{
@@ -1297,6 +1312,8 @@ void CL_InitInput (void)
 		Cmd_AddCommand (vahunk("+button8%s",	spn),	IN_Button8Down);
 		Cmd_AddCommand (vahunk("-button8%s",	spn),	IN_Button8Up);
 	}
+
+	Cmd_AddCommand("rotate", IN_Rotate_f);
 
 	Cvar_Register (&cl_nodelta, inputnetworkcvargroup);
 

@@ -580,6 +580,33 @@ void SCR_ShowPic_Update(void)
 	CL_CheckOrDownloadFile(sp->picname, false);
 }
 
+void SCR_ShowPic_Script_f(void)
+{
+	char *imgname;
+	char *name;
+	int x, y;
+	int zone;
+	showpic_t *sp;
+
+	imgname = Cmd_Argv(1);
+	name = Cmd_Argv(2);
+	x = atoi(Cmd_Argv(3));
+	y = atoi(Cmd_Argv(4));
+	zone = atoi(Cmd_Argv(5));
+
+
+
+	sp = SCR_ShowPic_Find(name);
+
+	Z_Free(sp->picname);
+	sp->picname = Z_Malloc(strlen(imgname)+1);
+	strcpy(sp->picname, imgname);
+
+	sp->zone = zone;
+	sp->x = x;
+	sp->y = y;
+}
+
 //=============================================================================
 
 /*
@@ -735,13 +762,14 @@ void SCR_CalcRefdef (void)
 
 void SCR_CrosshairPosition(int pnum, int *x, int *y)
 {
-	extern cvar_t cl_crossx, cl_crossy, crosshaircorrect;
+	extern cvar_t cl_crossx, cl_crossy, crosshaircorrect, v_viewheight;
 
 	vrect_t rect;
 	SCR_VRectForPlayer(&rect, pnum);
 
 	if (cl.worldmodel && crosshaircorrect.value)
 	{
+		float adj;
 		trace_t tr;
 		vec3_t end;
 		vec3_t start;
@@ -764,7 +792,14 @@ void SCR_CrosshairPosition(int pnum, int *x, int *y)
 		}
 		else
 		{
-			start[2]+=cl.viewheight[pnum]/4;
+			adj=cl.viewheight[pnum];
+			if (v_viewheight.value < -7)
+				adj+=-7;
+			else if (v_viewheight.value > 4)
+				adj+=4;
+			else
+				adj+=v_viewheight.value;
+			start[2]+=adj/4;
 			ML_Project(tr.endpos, end, cl.simangles[pnum], start, (float)rect.width/rect.height, r_refdef.fov_y);
 			*x = rect.x+rect.width*end[0];
 			*y = rect.y+rect.height*(1-end[1]);

@@ -289,7 +289,7 @@ typedef struct
 	int socketip6;
 	int socketipx;
 
-	enum {DL_NONE, DL_QW, DL_HTTP, DL_FTP} downloadmethod;
+	enum {DL_NONE, DL_QW, DL_QWCHUNKS, DL_QWPENDING, DL_HTTP, DL_FTP} downloadmethod;
 	FILE		*downloadqw;		// file transfer from server
 	char		downloadtempname[MAX_OSPATH];
 	char		downloadname[MAX_OSPATH];

@@ -200,7 +200,7 @@ void VARGS Sys_DebugLog(char *file, char *fmt, ...)
 		send(sock, data, strlen(data), 0);
 	}
 #endif
-	fd = fopen(file, "wb");
+	fd = fopen(file, "ab");
 	fprintf(fd, "%s", data);
 	fclose(fd);
 };

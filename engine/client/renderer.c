@@ -177,6 +177,8 @@ cvar_t			scr_chatmodecvar = {"scr_chatmode", "0"};
 
 #ifdef Q3SHADERS
 extern cvar_t r_vertexlight;
+cvar_t			gl_shadeq1 = {"gl_shadeq1", "0", NULL, CVAR_CHEAT};	//FIXME: :(
+cvar_t			gl_shadeq1_name = {"gl_shadeq1_name", "*"};
 #endif
 
 cvar_t r_bloodstains = {"r_bloodstains", "1"};
@@ -335,6 +337,8 @@ void GLRenderer_Init(void)
 	Cvar_Register (&gl_schematics, GLRENDEREROPTIONS);
 #ifdef Q3SHADERS
 	Cvar_Register (&r_vertexlight, GLRENDEREROPTIONS);
+	Cvar_Register (&gl_shadeq1, GLRENDEREROPTIONS);
+	Cvar_Register (&gl_shadeq1_name, GLRENDEREROPTIONS);
 #endif
 }
 #endif

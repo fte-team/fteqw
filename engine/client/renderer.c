@@ -1107,7 +1107,7 @@ qboolean R_ApplyRenderer (rendererstate_t *newr)
 			if (!pcx || !ReadPCXPalette(pcx, com_filesize, host_basepal))
 			{
 				//hrm..
-				if (COM_FCheckExists("gfx/2d/bigchars.tga"))
+				if (COM_CheckParm("-nopalette") || COM_FCheckExists("gfx/2d/bigchars.tga"))
 				{	//q3 data exists... well, it's something... I just hope they avoid anything that assumes quake palette.
 					for (i = 0; i < 256; i++)
 					{	//have to generate one I guess.

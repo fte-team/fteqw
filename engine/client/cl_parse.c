@@ -3211,7 +3211,8 @@ extern cvar_t cl_chatsound, cl_nofake;
 	if (!s || s[1] != ' ')	//wasn't a real chat...
 		return true;
 
-	Sys_ServerActivity();	//chat always flashes the screen..
+	if (!cls.demoplayback)
+		Sys_ServerActivity();	//chat always flashes the screen..
 
 //check f_ stuff
 	if (!strncmp(s+2, "f_", 2))

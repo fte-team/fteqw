@@ -386,8 +386,10 @@ void Zone_Print_f(void)
 	int minsize = 0;
 	zone_t *zone;
 #if ZONEDEBUG > 0
+#ifdef NAMEDMALLOCS
 	int i;
 	qbyte *sent;
+#endif
 	qboolean testsent = false;
 	if (*Cmd_Argv(1) == 't')
 	{

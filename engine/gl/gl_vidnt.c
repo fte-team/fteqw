@@ -858,24 +858,49 @@ void	GLVID_SetPalette (unsigned char *palette)
 	unsigned	*table;
 	extern qbyte gammatable[256];
 
-//
-// 8 8 8 encoding
-//
-	pal = palette;
-	table = d_8to24rgbtable;
-	for (i=0 ; i<256 ; i++)
+	//
+	// 8 8 8 encoding
+	//
+	if (vid_hardwaregamma.value)
 	{
-		r = gammatable[pal[0]];
-		g = gammatable[pal[1]];
-		b = gammatable[pal[2]];
-		pal += 3;
-		
-//		v = (255<<24) + (r<<16) + (g<<8) + (b<<0);
-//		v = (255<<0) + (r<<8) + (g<<16) + (b<<24);
-		v = (255<<24) + (r<<0) + (g<<8) + (b<<16);
-		*table++ = v;
+	//	don't built in the gamma table
+
+		pal = palette;
+		table = d_8to24rgbtable;
+		for (i=0 ; i<256 ; i++)
+		{
+			r = pal[0];
+			g = pal[1];
+			b = pal[2];
+			pal += 3;
+			
+	//		v = (255<<24) + (r<<16) + (g<<8) + (b<<0);
+	//		v = (255<<0) + (r<<8) + (g<<16) + (b<<24);
+			v = (255<<24) + (r<<0) + (g<<8) + (b<<16);
+			*table++ = v;
+		}
+		d_8to24rgbtable[255] &= 0xffffff;	// 255 is transparent
 	}
-	d_8to24rgbtable[255] &= 0xffffff;	// 255 is transparent
+	else
+	{
+//computer has no hardware gamma (poor suckers) increase table accordingly
+
+		pal = palette;
+		table = d_8to24rgbtable;
+		for (i=0 ; i<256 ; i++)
+		{
+			r = gammatable[pal[0]];
+			g = gammatable[pal[1]];
+			b = gammatable[pal[2]];
+			pal += 3;
+			
+	//		v = (255<<24) + (r<<16) + (g<<8) + (b<<0);
+	//		v = (255<<0) + (r<<8) + (g<<16) + (b<<24);
+			v = (255<<24) + (r<<0) + (g<<8) + (b<<16);
+			*table++ = v;
+		}
+		d_8to24rgbtable[255] &= 0xffffff;	// 255 is transparent
+	}
 }
 
 extern gammaworks;

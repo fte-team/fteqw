@@ -1701,6 +1701,13 @@ void NPP_MVDFlush(void)
 			writedest = &sv.multicast;
 		else
 			multicastpos = 0;
+
+		if (writedest == &sv.reliable_datagram)
+		{
+			writedest = &sv.multicast;
+			multicasttype = MULTICAST_ALL_R;
+		}
+	
 		if (bufferlen)
 			SZ_Write(writedest, buffer, bufferlen);
 
@@ -1718,6 +1725,8 @@ void NPP_MVDFlush(void)
 
 			SV_MulticastProtExt(org, multicasttype, FULLDIMENSIONMASK, requireextension, 0);
 		}
+		else if (writedest == &sv.multicast)
+			SV_MulticastProtExt(vec3_origin, multicasttype, FULLDIMENSIONMASK, requireextension, 0);
 		writedest = NULL;
 	}
 	bufferlen = 0;

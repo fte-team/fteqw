@@ -969,7 +969,7 @@ int Plug_Net_TCPConnect(void *offset, unsigned int mask, const long *arg)
 	if (((struct sockaddr_in*)&to)->sin_family == AF_INET && !((struct sockaddr_in*)&to)->sin_port)
 		((struct sockaddr_in*)&to)->sin_port = htons(localport);
 #ifdef IPPROTO_IPV6
-	else if (((struct sockaddr_in*)&to)->sin6_family == AF_INET6 && !((struct sockaddr_in6*)&to)->sin6_port)
+	else if (((struct sockaddr_in6*)&to)->sin6_family == AF_INET6 && !((struct sockaddr_in6*)&to)->sin6_port)
 		((struct sockaddr_in6*)&to)->sin6_port = htons(localport);
 #endif
 

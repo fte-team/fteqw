@@ -141,7 +141,7 @@ qbyte *ReadTargaFile(qbyte *buf, int length, int *width, int *height, int asgrey
 #define NTSC_GREEN 0.587
 #define NTSC_BLUE 0.114
 
-	char *data;
+	unsigned char *data;
 
 	qboolean flipped;
 
@@ -201,7 +201,7 @@ qbyte *ReadTargaFile(qbyte *buf, int length, int *width, int *height, int asgrey
 				pixbuf = targa_rgba + ((rows-1)-row)*columns*(asgrey?1:4);
 			for(column=0; column<columns; )
 			{
-				packetHeader=getc(fin);
+				packetHeader=*data++;
 				packetSize = 1 + (packetHeader & 0x7f);
 				if (packetHeader & 0x80)
 				{        // run-length packet
@@ -216,16 +216,16 @@ qbyte *ReadTargaFile(qbyte *buf, int length, int *width, int *height, int asgrey
 								alphabyte = (int)(inrow[1]&0x80)*2-1;			//alpha?					
 								break;
 						case 24:
-								blue = getc(fin);
-								green = getc(fin);
-								red = getc(fin);
+								blue = *data++;
+								green = *data++;
+								red = *data++;
 								alphabyte = 255;
 								break;
 						case 32:
-								blue = getc(fin);
-								green = getc(fin);
-								red = getc(fin);
-								alphabyte = getc(fin);
+								blue = *data++;
+								green = *data++;
+								red = *data++;
+								alphabyte = *data++;
 								break;
 						default:
 								blue = 127;
@@ -251,7 +251,10 @@ qbyte *ReadTargaFile(qbyte *buf, int length, int *width, int *height, int asgrey
 									row--;
 								else
 									goto breakOut;
-								pixbuf = targa_rgba + row*columns*4;
+								if (flipped)
+									pixbuf = targa_rgba + row*columns*4;
+								else
+									pixbuf = targa_rgba + ((rows-1)-row)*columns*4;
 							}
 						}
 					}
@@ -268,7 +271,10 @@ qbyte *ReadTargaFile(qbyte *buf, int length, int *width, int *height, int asgrey
 									row--;
 								else
 									goto breakOut;
-								pixbuf = targa_rgba + row*columns;
+								if (flipped)
+									pixbuf = targa_rgba + row*columns*1;
+								else
+									pixbuf = targa_rgba + ((rows-1)-row)*columns*1;
 							}
 						}						
 					}
@@ -295,19 +301,19 @@ qbyte *ReadTargaFile(qbyte *buf, int length, int *width, int *height, int asgrey
 										*pixbuf++ = alphabyte;
 										break;
 								case 24:
-										blue = getc(fin);
-										green = getc(fin);
-										red = getc(fin);
+										blue = *data++;
+										green = *data++;
+										red = *data++;
 										*pixbuf++ = red;
 										*pixbuf++ = green;
 										*pixbuf++ = blue;
 										*pixbuf++ = 255;
 										break;
 								case 32:
-										blue = getc(fin);
-										green = getc(fin);
-										red = getc(fin);
-										alphabyte = getc(fin);
+										blue = *data++;
+										green = *data++;
+										red = *data++;
+										alphabyte = *data++;
 										*pixbuf++ = red;
 										*pixbuf++ = green;
 										*pixbuf++ = blue;
@@ -328,7 +334,10 @@ qbyte *ReadTargaFile(qbyte *buf, int length, int *width, int *height, int asgrey
 									row--;
 								else
 									goto breakOut;
-								pixbuf = targa_rgba + row*columns*4;
+								if (flipped)
+									pixbuf = targa_rgba + row*columns*4;
+								else
+									pixbuf = targa_rgba + ((rows-1)-row)*columns*4;
 							}						
 						}
 					}
@@ -349,16 +358,16 @@ qbyte *ReadTargaFile(qbyte *buf, int length, int *width, int *height, int asgrey
 										*pixbuf++ = red*NTSC_RED + green*NTSC_GREEN + blue*NTSC_BLUE;
 										break;
 								case 24:
-										blue = getc(fin);
-										green = getc(fin);
-										red = getc(fin);
+										blue = *data++;
+										green = *data++;
+										red = *data++;
 										*pixbuf++ = red*NTSC_RED + green*NTSC_GREEN + blue*NTSC_BLUE;
 										break;
 								case 32:
-										blue = getc(fin);
-										green = getc(fin);
-										red = getc(fin);
-										alphabyte = getc(fin);
+										blue = *data++;
+										green = *data++;
+										red = *data++;
+										alphabyte = *data++;
 										*pixbuf++ = red*NTSC_RED + green*NTSC_GREEN + blue*NTSC_BLUE;
 										break;
 								default:
@@ -376,7 +385,10 @@ qbyte *ReadTargaFile(qbyte *buf, int length, int *width, int *height, int asgrey
 									row--;
 								else
 									goto breakOut;
-								pixbuf = targa_rgba + row*columns;
+								if (flipped)
+									pixbuf = targa_rgba + row*columns*1;
+								else
+									pixbuf = targa_rgba + ((rows-1)-row)*columns*1;
 							}						
 						}
 					}

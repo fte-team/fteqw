@@ -130,7 +130,7 @@ Handles cursor positioning, line wrapping, etc
 // FIXME: make a buffer size safe vsprintf?
 #ifdef SERVERONLY
 qboolean con_debuglog;
-void Con_Printf (const char *fmt, ...)
+void VARGS Con_Printf (const char *fmt, ...)
 {
 	va_list		argptr;
 	char		msg[MAXPRINTMSG];

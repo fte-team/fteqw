@@ -56,6 +56,9 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 #define PEXT_SHOWPIC			0x04000000
 #define PEXT_SETATTACHMENT		0x08000000	//md3 tags (needs networking, they need to lerp).
 #define PEXT_PK3DOWNLOADS		0x10000000	//retrieve a list of pk3s/pk3s/paks for downloading (with optional URL and crcs)
+#ifdef _DEBUG
+#define PEXT_CHUNKEDDOWNLOADS	0x20000000	//alternate file download method. Hopefully it'll give quadroupled download speed, especially on higher pings.
+#endif
 
 
 
@@ -67,7 +70,7 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 #define Z_EXT_PITCHLIMITS	(1<<4)	// serverinfo maxpitch & minpitch
 #define Z_EXT_JOIN_OBSERVE	(1<<5)	// server: "join" and "observe" commands are supported
 									// client: on-the-fly spectator <-> player switching supported
-#define SUPPORTED_EXTENSIONS (Z_EXT_PM_TYPE|Z_EXT_PM_TYPE_NEW|Z_EXT_VIEWHEIGHT|Z_EXT_SERVERTIME|Z_EXT_PITCHLIMITS|Z_EXT_JOIN_OBSERVE)
+#define SUPPORTED_Z_EXTENSIONS (Z_EXT_PM_TYPE|Z_EXT_PM_TYPE_NEW|Z_EXT_VIEWHEIGHT|Z_EXT_SERVERTIME|Z_EXT_PITCHLIMITS|Z_EXT_JOIN_OBSERVE)
 
 
 #define PROTOCOL_VERSION_FTE			(('F'<<0) + ('T'<<8) + ('E'<<16) + ('X' << 24))	//fte extensions.

@@ -208,8 +208,6 @@ void GL_InitSceneProcessingShaders (void)
 	if (qglGetError())
 		Con_Printf("GL Error after initing shader object\n");
 
-	GLSlang_SetUniform1f(scenepp_ww_parm_ampscalef, 0.02);
-
 	if (qglGetError())
 		Con_Printf("GL Error after initing shader object\n");
 
@@ -1772,7 +1770,7 @@ void GLR_RenderView (void)
 
 	// SCENE POST PROCESSING
 	// we check if we need to use any shaders - currently it's just waterwarp
-	if ((gl_config.arb_shader_objects) && (r_waterwarp.value /*&& r_viewleaf->contents <= Q1CONTENTS_WATER*/))
+	if ((gl_config.arb_shader_objects) && (r_waterwarp.value && r_viewleaf->contents <= Q1CONTENTS_WATER))
 	{
 		extern int char_texture;
 		float vwidth = 1, vheight = 1;
@@ -1826,8 +1824,11 @@ void GLR_RenderView (void)
 
 		// Here we apply the shaders - currently just waterwarp
 		GLSlang_UseProgram(scenepp_ww_program);
-		GLSlang_SetUniform1f(scenepp_ww_parm_xscalef, glwidth / 32.0f);
-		GLSlang_SetUniform1f(scenepp_ww_parm_xscalef, glheight / 32.0f);
+		//just keep the ratio of x and y scales the same as that of the screen
+		GLSlang_SetUniform1f(scenepp_ww_parm_xscalef, 4 / vs);
+		GLSlang_SetUniform1f(scenepp_ww_parm_yscalef, ((4 / glwidth)*glheight)/vt);
+		//keep the amp proportional to the size of the scene in texture coords
+		GLSlang_SetUniform1f(scenepp_ww_parm_ampscalef, (0.005 / 0.625) * vs);
 		GLSlang_SetUniform1f(scenepp_ww_parm_timef, cl.time);
 
 		if (qglGetError())

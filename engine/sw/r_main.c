@@ -1735,7 +1735,36 @@ void R_ApplySIRDAlgorithum(void)
 		curp = (vid.buffer + (vid.rowbytes * y));
 		curz = (d_pzbuffer + (vid.width * y ));
 
-		if (r_dosirds != 2)
+#ifdef _DEBUG
+		if (r_dosirds == 2)
+		{
+			//if we are just drawing the height map
+			//this lets you see which layers are used to
+			//create the SIRD
+			//
+			//NOTE: even though it may sort of look like
+			//a grey-scale height map, that is merely a
+			//coincidence because of how the colours are
+			//organized in the pallette.
+
+			lastz = 0;
+			cz = 0;
+			for (x=0; x<vid.width; x++)
+			{
+				if (lastz != *curz)
+				{
+					lastz = *curz;
+					cz = R_SIRDZFunc(*curz);
+				}
+
+				*curp = cz;
+
+				curp++;
+				curz++;
+			}
+		}
+		else
+#endif
 		{
 			// draw the SIRD
 
@@ -1779,33 +1808,6 @@ void R_ApplySIRDAlgorithum(void)
 
 				curp++;
 				curbp++;
-				curz++;
-			}
-		}
-		else
-		{
-			//if we are just drawing the height map
-			//this lets you see which layers are used to
-			//create the SIRD
-			//
-			//NOTE: even though it may sort of look like
-			//a grey-scale height map, that is merely a
-			//coincidence because of how the colours are
-			//organized in the pallette.
-
-			lastz = 0;
-			cz = 0;
-			for (x=0; x<vid.width; x++)
-			{
-				if (lastz != *curz)
-				{
-					lastz = *curz;
-					cz = R_SIRDZFunc(*curz);
-				}
-
-				*curp = cz;
-
-				curp++;
 				curz++;
 			}
 		}

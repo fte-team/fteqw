@@ -1245,8 +1245,9 @@ qboolean Cmd_AddRemCommand (char *cmd_name, xcommand_t function)
 		}
 	}
 
-	cmd = Z_Malloc (sizeof(cmd_function_t));
-	cmd->name = cmd_name;
+	cmd = Z_Malloc (sizeof(cmd_function_t)+strlen(cmd_name)+1);
+	cmd->name = (char*)(cmd+1);
+	strcpy(cmd->name, cmd_name);
 	cmd->function = function;
 	cmd->next = cmd_functions;
 	cmd->restriction = 0;

@@ -727,7 +727,7 @@ void GLMod_LoadTextures (lump_t *l)
 		tx->width = mt->width;
 		tx->height = mt->height;
 
-		tx->parttype = FindParticleType(va("tex_%s", tx->name));
+		tx->parttype = ParticleTypeForName(va("tex_%s", tx->name));
 
 		if (!mt->offsets[0])	//this is a hl external style texture, load it a little later (from a wad)
 		{

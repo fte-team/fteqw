@@ -1036,6 +1036,13 @@ void Con_DrawConsole (int lines, qboolean noback)
 	char *txt;
 	int				row;
 	unsigned char			dlbar[1024];
+	char *progresstext;
+	int progresspercent;
+
+#ifdef RUNTIMELIGHTING
+	extern model_t *lightmodel;
+	extern int relitsurface;
+#endif
 
 	console_t *curcon = con;
 	
@@ -1086,14 +1093,34 @@ void Con_DrawConsole (int lines, qboolean noback)
 		}
 	}	
 
+	progresstext = NULL;
+	progresspercent = 0;
+
 	// draw the download bar
 	// figure out width
 	if (cls.downloadmethod)
 	{
-		if ((txt = strrchr(cls.downloadname, '/')) != NULL)
+		progresstext = cls.downloadname;
+		progresspercent = cls.downloadpercent;
+
+	}
+#ifdef RUNTIMELIGHTING
+	else if (lightmodel)
+	{
+		if (relitsurface < lightmodel->numsurfaces)
+		{
+			progresstext = "light";
+			progresspercent = (relitsurface*100) / lightmodel->numsurfaces;
+		}
+	}
+#endif
+
+	if (progresstext)
+	{
+		if ((txt = strrchr(progresstext, '/')) != NULL)
 			txt++;
 		else
-			txt = cls.downloadname;
+			txt = progresstext;
 
 		x = con->linewidth - ((con->linewidth * 7) / 40);
 		y = x - strlen(txt) - 8;
@@ -1110,10 +1137,10 @@ void Con_DrawConsole (int lines, qboolean noback)
 		i = strlen(dlbar);
 		dlbar[i++] = '\x80';
 		// where's the dot go?
-		if (cls.downloadpercent == 0)
+		if (progresspercent == 0)
 			n = 0;
 		else
-			n = y * (float)cls.downloadpercent / 100;
+			n = y * (float)progresspercent / 100;
 
 		x = i;
 		for (j = 0; j < y; j++)
@@ -1126,7 +1153,7 @@ void Con_DrawConsole (int lines, qboolean noback)
 		dlbar[i++] = '\x82';
 		dlbar[i] = 0;
 
-		sprintf(dlbar + strlen(dlbar), " %02d%%", cls.downloadpercent);
+		sprintf(dlbar + strlen(dlbar), " %02d%%", progresspercent);
 
 		// draw it
 		y = con->vislines-22 + 8;
@@ -1135,7 +1162,6 @@ void Con_DrawConsole (int lines, qboolean noback)
 
 		Draw_Character ((n+1+x)*8, y, '\x83');
 	}
-
 
 // draw the input prompt, user text, and cursor if desired
 	Con_DrawInput ();

@@ -2051,8 +2051,7 @@ typedef struct zipfile_s
 } zipfile_t;
 
 static packfile_t *Com_FileInZip(zipfile_t *zip, char *filename);
-char *Com_ReadFileInZip(zipfile_t *zip, char *buffer);
-int com_filenum;
+char *Com_ReadFileInZip(zipfile_t *zip, int index, char *buffer);
 void *com_pathforfile;	//fread and stuff is preferable if null.
 #endif
 
@@ -2691,7 +2690,7 @@ int FS_FLocateFile(char *filename, FSLF_ReturnType_e returntype, flocation_t *lo
 						loc->offset = pf->filepos;
 						loc->len = pf->filelen;
 
-						unzLocateFileMy (zip->handle, com_filenum, zip->files[com_filenum].filepos);
+						unzLocateFileMy (zip->handle, loc->index, zip->files[loc->index].filepos);
 						loc->offset = unzGetCurrentFileUncompressedPos(zip->handle);
 						if (loc->offset<0)
 						{	//file not found...
@@ -2785,8 +2784,7 @@ int COM_FOpenLocationFILE(flocation_t *loc, FILE **file)
 			char *buf;
 			FILE *f = tmpfile();
 			buf = BZ_Malloc(loc->len);
-			com_filenum = loc->index;
-			Com_ReadFileInZip(loc->search->u.zip, buf);
+			Com_ReadFileInZip(loc->search->u.zip, loc->index, buf);
 			fwrite(buf, 1, loc->len, f);
 			BZ_Free(buf);
 			fseek(f, 0, SEEK_SET);
@@ -2911,8 +2909,7 @@ qbyte *COM_LoadFile (char *path, int usehunk)
 		{
 #ifdef ZLIB
 		case SPT_ZIP:
-			com_filenum = loc.index;
-			Com_ReadFileInZip(loc.search->u.zip, buf);
+			Com_ReadFileInZip(loc.search->u.zip, loc.index, buf);
 			break;
 #endif
 		default:
@@ -3591,19 +3588,19 @@ packfile_t *Com_FileInZip(zipfile_t *zip, char *filename)
 #endif
 	return NULL;
 }
-char *Com_ReadFileInZip(zipfile_t *zip, char *buffer)
+char *Com_ReadFileInZip(zipfile_t *zip, int index, char *buffer)
 {
 	int err;
 
-	unzLocateFileMy (zip->handle, com_filenum, zip->files[com_filenum].filepos);
+	unzLocateFileMy (zip->handle, index, zip->files[index].filepos);
 
 	unzOpenCurrentFile (zip->handle);
-	err = unzReadCurrentFile (zip->handle, buffer, zip->files[com_filenum].filelen);
+	err = unzReadCurrentFile (zip->handle, buffer, zip->files[index].filelen);
 	unzCloseCurrentFile (zip->handle);
 
-	if (err!=zip->files[com_filenum].filelen)
+	if (err!=zip->files[index].filelen)
 	{
-		printf ("Can't extract file \"%s:%s\"", zip->filename, zip->files[com_filenum].name);
+		printf ("Can't extract file \"%s:%s\"", zip->filename, zip->files[index].name);
 		return 0;
 	}
   

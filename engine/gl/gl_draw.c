@@ -54,6 +54,7 @@ static int filmtexture;
 extern cvar_t		gl_nobind;
 extern cvar_t		gl_max_size;
 extern cvar_t		gl_picmip;
+extern cvar_t		gl_picmip2d;
 extern cvar_t		r_drawdisk;
 extern cvar_t		gl_compress;
 extern cvar_t		gl_font, gl_conback, gl_smoothfont;
@@ -1208,7 +1209,7 @@ void GLDraw_Crosshair(void)
 		return;
 	}
 	glDisable (GL_BLEND);
-	glTexEnvi(GL_TEXTURE_ENV, GL_TEXTURE_ENV_MODE, GL_MODULATE);
+	GL_TexEnv(GL_MODULATE);
 
 	if (crosshair.value)
 	{
@@ -1268,8 +1269,8 @@ void GLDraw_Crosshair(void)
 		glEnd ();
 	}
 	
-//	glTexEnvf ( GL_TEXTURE_ENV, GL_TEXTURE_ENV_MODE, GL_REPLACE );
-//	glTexEnvf ( GL_TEXTURE_ENV, GL_TEXTURE_ENV_MODE, GL_MODULATE );
+//	GL_TexEnv ( GL_TEXTURE_ENV, GL_TEXTURE_ENV_MODE, GL_REPLACE );
+//	GL_TexEnv ( GL_TEXTURE_ENV, GL_TEXTURE_ENV_MODE, GL_MODULATE );
 }
 
 
@@ -2297,9 +2298,17 @@ void GL_Upload32 (char *name, unsigned *data, int width, int height,  qboolean m
 			;
 	}
 
-	TRACE(("dbg: GL_Upload32: %f\n", gl_picmip.value));
-	scaled_width >>= (int)gl_picmip.value;
-	scaled_height >>= (int)gl_picmip.value;
+	if (mipmap)
+	{
+		TRACE(("dbg: GL_Upload32: %f\n", gl_picmip.value));
+		scaled_width >>= (int)gl_picmip.value;
+		scaled_height >>= (int)gl_picmip.value;
+	}
+	else
+	{
+		scaled_width >>= (int)gl_picmip2d.value;
+		scaled_height >>= (int)gl_picmip2d.value;
+	}
 
 	TRACE(("dbg: GL_Upload32: %f\n", gl_max_size.value));
 	if (gl_max_size.value)
@@ -2466,8 +2475,17 @@ void GL_Upload8Grey (unsigned char*data, int width, int height,  qboolean mipmap
 			;
 	}
 
-	scaled_width >>= (int)gl_picmip.value;
-	scaled_height >>= (int)gl_picmip.value;
+	if (mipmap)
+	{
+		TRACE(("dbg: GL_Upload8Grey: %f\n", gl_picmip.value));
+		scaled_width >>= (int)gl_picmip.value;
+		scaled_height >>= (int)gl_picmip.value;
+	}
+	else
+	{
+		scaled_width >>= (int)gl_picmip2d.value;
+		scaled_height >>= (int)gl_picmip2d.value;
+	}
 
 	if (gl_max_size.value)
 	{
@@ -2682,8 +2700,17 @@ void GL_UploadBump(qbyte *data, int width, int height, qboolean mipmap) {
 			;
 	}
 
-	scaled_width >>= (int)gl_picmip.value;
-	scaled_height >>= (int)gl_picmip.value;
+	if (mipmap)
+	{
+		TRACE(("dbg: GL_UploadBump: %f\n", gl_picmip.value));
+		scaled_width >>= (int)gl_picmip.value;
+		scaled_height >>= (int)gl_picmip.value;
+	}
+	else
+	{
+		scaled_width >>= (int)gl_picmip2d.value;
+		scaled_height >>= (int)gl_picmip2d.value;
+	}
 
 	if (gl_max_size.value)
 	{
@@ -2809,8 +2836,17 @@ void GL_Upload8_EXT (qbyte *data, int width, int height,  qboolean mipmap, qbool
 			;
 	}
 
-	scaled_width >>= (int)gl_picmip.value;
-	scaled_height >>= (int)gl_picmip.value;
+	if (mipmap)
+	{
+		TRACE(("dbg: GL_Upload8_EXT: %f\n", gl_picmip.value));
+		scaled_width >>= (int)gl_picmip.value;
+		scaled_height >>= (int)gl_picmip.value;
+	}
+	else
+	{
+		scaled_width >>= (int)gl_picmip2d.value;
+		scaled_height >>= (int)gl_picmip2d.value;
+	}
 
 	if (gl_max_size.value)
 	{

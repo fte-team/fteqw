@@ -34,8 +34,8 @@ void GL_MBind( GLenum target, int texnum )
 {
 	GL_SelectTexture( target );
 
-//	if ( gl_state.currenttextures[texnum-mtexid0] == texnum )
-//		return;
+	if ( gl_state.currenttextures[gl_state.currenttmu] == texnum )
+		return;
 
 	gl_state.currenttextures[gl_state.currenttmu] = texnum;
 	bindTexFunc (GL_TEXTURE_2D, texnum);
@@ -51,9 +51,12 @@ void GL_Bind (int texnum)
 }
 void GL_BindType (int type, int texnum)
 {
-	bindTexFunc (type, texnum);
+	if (gl_state.currenttextures[gl_state.currenttmu] == texnum)
+		return;
+	gl_state.currenttextures[gl_state.currenttmu] = texnum;
 
-	gl_state.currenttextures[gl_state.currenttmu] = -1;
+
+	bindTexFunc (type, texnum);
 }
 
 //vid restarted.
@@ -402,7 +405,7 @@ static void Mesh_DrawPass(shaderpass_t *pass, mesh_t *mesh)
 			GL_BindType(pass[p].texturetype, pass[p].anim_frames[0]);
 			glEnable(pass[p].texturetype);
 
-			glTexEnvi(GL_TEXTURE_ENV, GL_TEXTURE_ENV_MODE, pass[p].envmode);
+			GL_TexEnv(pass[p].envmode);
 			if (pass[p].envmode == GL_COMBINE_ARB)
 			{
 				glTexEnvi(GL_TEXTURE_ENV, GL_SOURCE0_RGB_ARB, pass[p].combinesrc0);
@@ -425,7 +428,7 @@ static void Mesh_DrawPass(shaderpass_t *pass, mesh_t *mesh)
 	{
 		Mesh_DeformTextureCoords(mesh, pass);
 
-		glTexEnvi(GL_TEXTURE_ENV, GL_TEXTURE_ENV_MODE, pass->envmode);
+		GL_TexEnv(pass->envmode);
 
 		GL_Bind(pass->anim_frames[0]);
 		if (pass->texturetype != GL_TEXTURE_2D)
@@ -1059,6 +1062,7 @@ static float	frand(void)
 R_BackendInit
 ==============
 */
+void R_IBrokeTheArrays(void);
 void R_BackendInit (void)
 {
 	int i;
@@ -1089,10 +1093,7 @@ void R_BackendInit (void)
 	r_arrays_locked = false;
 	r_blocked = false;
 
-	qglVertexPointer( 3, GL_FLOAT, 16, vertexArray );	// padded for SIMD
-	qglColorPointer( 4, GL_UNSIGNED_BYTE, 0, colorArray );
-
-	qglEnableClientState( GL_VERTEX_ARRAY );
+	R_IBrokeTheArrays();
 
 	//FIZME: FTE already has some stuff along these lines, surly...
 //	if ( !r_ignorehwgamma->value )
@@ -1122,8 +1123,10 @@ void R_BackendInit (void)
 	}
 }
 
+qboolean varrayactive;
 void R_IBrokeTheArrays(void)
 {
+	varrayactive = true;
 	qglVertexPointer( 3, GL_FLOAT, 16, vertexArray );	// padded for SIMD
 	qglColorPointer( 4, GL_UNSIGNED_BYTE, 0, colorArray );
 
@@ -1754,6 +1757,10 @@ int R_ShaderpassTex ( shaderpass_t *pass )
 	{
 		return lightmap_textures[r_lmtex];
 	}
+/*	else if ( (pass->flags & SHADER_PASS_DELUXMAP) && r_lmtex >= 0 )
+	{
+		return deluxmap_textures[r_lmtex];
+	}*/
 
 	return pass->anim_frames[0] ? pass->anim_frames[0] : 0;
 }
@@ -2493,6 +2500,13 @@ void R_RenderMeshBuffer ( meshbuffer_t *mb, qboolean shadowpass )
 	if ( !numVerts ) {
 		return;
 	}
+
+//	R_IBrokeTheArrays();
+
+//	qglVertexPointer( 3, GL_FLOAT, 16, vertexArray );	// padded for SIMD
+//	qglColorPointer( 4, GL_UNSIGNED_BYTE, 0, colorArray );
+
+//	qglEnableClientState( GL_VERTEX_ARRAY );
 
 	shader = mb->shader;
 	r_lmtex = mb->infokey;

@@ -2083,7 +2083,7 @@ void GLR_DrawWaterSurfaces (void)
 		glEnable (GL_BLEND);
 		glDisable (GL_ALPHA_TEST);
 		glColor4f (1,1,1,r_wateralphaval);
-		glTexEnvf(GL_TEXTURE_ENV, GL_TEXTURE_ENV_MODE, GL_MODULATE);
+		GL_TexEnv(GL_MODULATE);
 	}
 
 	if (gl_waterripples.value)
@@ -2104,8 +2104,6 @@ void GLR_DrawWaterSurfaces (void)
 			continue;
 		if ( !(s->flags & SURF_DRAWTURB ) )
 			continue;
-
-		// set modulate mode explicitly
 		
 		GL_Bind (t->gl_texturenum);
 
@@ -2116,7 +2114,7 @@ void GLR_DrawWaterSurfaces (void)
 	}
 
 	if (r_wateralphaval < 1.0) {
-		glTexEnvf(GL_TEXTURE_ENV, GL_TEXTURE_ENV_MODE, GL_REPLACE);
+		GL_TexEnv(GL_REPLACE);
 
 		glColor4f (1,1,1,1);
 		glDisable (GL_BLEND);
@@ -2132,7 +2130,29 @@ static void GLR_DrawAlphaSurface(msurface_t	*s)
 {
 	glPushMatrix();
 	R_RotateForEntity(s->ownerent);
+#ifdef Q3SHADERS
+	if (s->texinfo->texture->shader)
+	{
+		meshbuffer_t mb;
+		mb.dlightbits = 0;
+		mb.entity = s->ownerent;
+		mb.shader = s->texinfo->texture->shader;
+		mb.sortkey = 0;
 
+		mb.infokey = s->lightmaptexturenum;
+		mb.mesh = s->mesh;
+		mb.fog = s->fog;
+		currententity = s->ownerent;
+		if (s->mesh)
+		{
+			R_PushMesh(s->mesh, mb.shader->features|MF_NONBATCHED);
+			R_RenderMeshBuffer ( &mb, false );
+		}
+
+		glPopMatrix();
+		return;
+	}
+#endif
 	GL_Bind(s->texinfo->texture->gl_texturenum);
 
 	if (s->texinfo->flags & SURF_TRANS33)
@@ -2153,10 +2173,10 @@ static void GLR_DrawAlphaSurface(msurface_t	*s)
 				int i;
 				float *v;
 				glpoly_t *p;
-				glTexEnvf(GL_TEXTURE_ENV, GL_TEXTURE_ENV_MODE, GL_REPLACE);
+				GL_TexEnv(GL_REPLACE);
 				GL_EnableMultitexture();
 				GL_Bind(lightmap_textures[s->lightmaptexturenum]);
-				glTexEnvf(GL_TEXTURE_ENV, GL_TEXTURE_ENV_MODE, GL_BLEND);
+				GL_TexEnv(GL_BLEND);
 				p = s->polys;
 
 				glColor4f (1,1,1,1);
@@ -2209,16 +2229,12 @@ void GLR_DrawAlphaSurfaces (void)
 	//
 
     glLoadMatrixf (r_world_matrix);
-	glTexEnvf(GL_TEXTURE_ENV, GL_TEXTURE_ENV_MODE, GL_MODULATE);
+	GL_TexEnv(GL_MODULATE);
 	
 	glEnable(GL_ALPHA_TEST);
 	glDisable(GL_BLEND);
-	if (cl.worldmodel && (cl.worldmodel->fromgame == fg_quake3|| cl.worldmodel->fromgame == fg_quake2))
+	if (cl.worldmodel && (cl.worldmodel->fromgame == fg_quake2))
 	{	//this is a mahoosive hack.
-		//we need to use different blending modes for lights and 'rugs'...
-		//we could do this by seeing if a texture includes alpha - rug, or if it's fully solid - light.
-		if (cl.worldmodel->fromgame == fg_quake3)
-			glBlendFunc (GL_ONE, GL_ONE_MINUS_SRC_COLOR);
 		glDepthMask(0);	//this makes no difference to the cheating.
 
 		glDisable(GL_ALPHA_TEST);
@@ -2250,10 +2266,10 @@ void GLR_DrawAlphaSurfaces (void)
 				float *v;
 				glpoly_t *p;
 				GL_Bind(s->texinfo->texture->gl_texturenum);
-				glTexEnvf(GL_TEXTURE_ENV, GL_TEXTURE_ENV_MODE, GL_REPLACE);
+				GL_TexEnv(GL_REPLACE);
 				GL_EnableMultitexture();
 				GL_Bind(lightmap_textures[s->lightmaptexturenum]);
-				glTexEnvf(GL_TEXTURE_ENV, GL_TEXTURE_ENV_MODE, GL_BLEND);
+				GL_TexEnv(GL_BLEND);
 				p = s->polys;
 
 
@@ -2297,7 +2313,7 @@ void GLR_DrawAlphaSurfaces (void)
 	RQ_RenderDistAndClear();
 	glDepthMask(1);
 
-	glTexEnvf(GL_TEXTURE_ENV, GL_TEXTURE_ENV_MODE, GL_REPLACE);
+	GL_TexEnv(GL_REPLACE);
 
 	glColor4f (1,1,1,1);
 	glDisable (GL_BLEND);
@@ -2468,13 +2484,13 @@ static void DrawTextureChains (model_t *model, float alpha, vec3_t relativelight
 					glEnable(GL_TEXTURE_2D);
 
 					//Set up texture environment to do (tex0 dot tex1)*color
-					glTexEnvi(GL_TEXTURE_ENV, GL_TEXTURE_ENV_MODE, GL_COMBINE_ARB);
+					GL_TexEnv(GL_COMBINE_ARB);
 					glTexEnvi(GL_TEXTURE_ENV, GL_SOURCE0_RGB_ARB, GL_TEXTURE);
 					glTexEnvi(GL_TEXTURE_ENV, GL_COMBINE_RGB_ARB, GL_REPLACE);
 
 					qglActiveTextureARB(GL_TEXTURE1_ARB);
 				
-					glTexEnvi(GL_TEXTURE_ENV, GL_TEXTURE_ENV_MODE, GL_COMBINE_ARB);
+					GL_TexEnv(GL_COMBINE_ARB);
 					glTexEnvi(GL_TEXTURE_ENV, GL_SOURCE0_RGB_ARB, GL_TEXTURE);
 					glTexEnvi(GL_TEXTURE_ENV, GL_SOURCE1_RGB_ARB, GL_PREVIOUS_ARB);
 					glTexEnvi(GL_TEXTURE_ENV, GL_COMBINE_RGB_ARB, GL_DOT3_RGB_ARB);

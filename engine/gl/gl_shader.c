@@ -1894,7 +1894,7 @@ int R_LoadShader ( char *name, int type )
 
 				s->numpasses = 1;
 				s->numdeforms = 0;
-				s->flags = SHADER_NOPICMIP|SHADER_NOMIPMAPS;
+				s->flags = SHADER_NOPICMIP|SHADER_NOMIPMAPS|SHADER_BLEND;
 				s->features = MF_STCOORDS|MF_COLORS;
 				s->sort = SHADER_SORT_ADDITIVE;
 				s->registration_sequence = 1;//fizme: registration_sequence;

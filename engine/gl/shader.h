@@ -198,7 +198,8 @@ typedef struct shader_s {
 		SHADER_ENTITY_MERGABLE	= 1 << 9,
 		SHADER_VIDEOMAP			= 1 << 10,
 		SHADER_DEPTHWRITE		= 1 << 11,
-		SHADER_AGEN_PORTAL		= 1 << 12
+		SHADER_AGEN_PORTAL		= 1 << 12,
+		SHADER_BLEND			= 1 << 13	//blend or alphatest (not 100% opaque).
 	} flags;
 
 	shaderpass_t passes[SHADER_PASS_MAX];

@@ -323,7 +323,10 @@ void EmitSkyPolys (msurface_t *fa)
 	if (fa->mesh)
 	{
 		fa->mesh->colors_array = NULL;
+		glDisable(GL_TEXTURE_2D);
+		glColor3f(0,0,0);
 		GL_DrawAliasMesh(fa->mesh, 1);
+		glEnable(GL_TEXTURE_2D);
 	}
 	else
 	{

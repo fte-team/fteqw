@@ -70,13 +70,22 @@ static unsigned int varray_i_polytotri[MAXARRAYVERTS];	//012 023 034 045...
 int varray_ic;
 int varray_vc;
 
+#ifdef Q3SHADERS
+static qboolean pplvarrayactive;
+#endif
+
 #define inline static
+
+extern qboolean varrayactive;	//used by the backend
 
 inline void PPL_EnableVertexArrays(void)
 {
+	varrayactive = false;
+
 	glDisableClientState(GL_COLOR_ARRAY);
 	glEnableClientState(GL_VERTEX_ARRAY);
 	glVertexPointer(3, GL_FLOAT, sizeof(surfvertexarray_t), varray_v->xyz);
+	glDisableClientState( GL_COLOR_ARRAY );
 }
 inline void PPL_FlushArrays(void)
 {
@@ -245,7 +254,7 @@ static void PPL_BaseChain_NoBump_1TMU(msurface_t *first, texture_t *tex)
 	glEnableClientState(GL_TEXTURE_COORD_ARRAY);
 	glTexCoordPointer(2, GL_FLOAT, sizeof(surfvertexarray_t), varray_v->stw);
 
-	glTexEnvf(GL_TEXTURE_ENV, GL_TEXTURE_ENV_MODE, GL_REPLACE);
+	GL_TexEnv(GL_REPLACE);
 	GL_Bind (tex->gl_texturenum);
 
 	for (s=first; s ; s=s->texturechain)
@@ -255,13 +264,13 @@ static void PPL_BaseChain_NoBump_1TMU(msurface_t *first, texture_t *tex)
 	PPL_FlushArrays();
 
 	glEnable(GL_BLEND);
-	glTexEnvi(GL_TEXTURE_ENV, GL_TEXTURE_ENV_MODE, GL_MODULATE);
+	GL_TexEnv(GL_MODULATE);
 
 	if (gl_lightmap_format == GL_LUMINANCE || gl_lightmap_format == GL_RGB)
 		glBlendFunc (GL_ZERO, GL_ONE_MINUS_SRC_COLOR);
 	else if (gl_lightmap_format == GL_INTENSITY)
 	{
-		glTexEnvf(GL_TEXTURE_ENV, GL_TEXTURE_ENV_MODE, GL_MODULATE);
+		GL_TexEnv(GL_MODULATE);
 		glColor4f (0,0,0,1);
 		glBlendFunc (GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
 	}
@@ -310,24 +319,21 @@ static void PPL_BaseChain_NoBump_2TMU(msurface_t *s, texture_t *tex)
 	if (tex->alphaed)
 	{
 		glEnable(GL_BLEND);
-		glTexEnvf(GL_TEXTURE_ENV, GL_TEXTURE_ENV_MODE, GL_MODULATE);
+		GL_TexEnv(GL_MODULATE);
 	}
 	else
 	{
 		glDisable(GL_BLEND);
-		glTexEnvf(GL_TEXTURE_ENV, GL_TEXTURE_ENV_MODE, GL_REPLACE);
+		GL_TexEnv(GL_REPLACE);
 	}
 
 
-	GL_Bind (tex->gl_texturenum);
-	qglClientActiveTextureARB(GL_TEXTURE0_ARB);
+	GL_MBind(GL_TEXTURE0_ARB, tex->gl_texturenum);
 	glEnableClientState(GL_TEXTURE_COORD_ARRAY);
 	glTexCoordPointer(2, GL_FLOAT, sizeof(surfvertexarray_t), varray_v->stw);
 
-	qglClientActiveTextureARB(GL_TEXTURE1_ARB);
-	qglActiveTextureARB(GL_TEXTURE1_ARB);
-	glEnable(GL_TEXTURE_2D);
-	glTexEnvf(GL_TEXTURE_ENV, GL_TEXTURE_ENV_MODE, GL_MODULATE);
+	GL_SelectTexture(GL_TEXTURE1_ARB);
+	GL_TexEnv(GL_MODULATE);
 	glEnableClientState(GL_TEXTURE_COORD_ARRAY);
 	glTexCoordPointer(2, GL_FLOAT, sizeof(surfvertexarray_t), varray_v->stl);
 
@@ -337,24 +343,28 @@ static void PPL_BaseChain_NoBump_2TMU(msurface_t *s, texture_t *tex)
 		if (vi != s->lightmaptexturenum)
 		{
 			PPL_FlushArrays();
+			if (vi<0)
+				glEnable(GL_TEXTURE_2D);
 			vi = s->lightmaptexturenum;
 
 			if (vi>=0)
 			{
-			GL_BindType(GL_TEXTURE_2D, lightmap_textures[vi] );
-			if (lightmap[vi]->modified)
-			{
-				lightmap[vi]->modified = false;
-				theRect = &lightmap[vi]->rectchange;
-				glTexSubImage2D(GL_TEXTURE_2D, 0, 0, theRect->t, 
-					LMBLOCK_WIDTH, theRect->h, gl_lightmap_format, GL_UNSIGNED_BYTE,
-					lightmap[vi]->lightmaps+(theRect->t) *LMBLOCK_WIDTH*lightmap_bytes);
-				theRect->l = LMBLOCK_WIDTH;
-				theRect->t = LMBLOCK_HEIGHT;
-				theRect->h = 0;
-				theRect->w = 0;
+				GL_Bind(lightmap_textures[vi] );
+				if (lightmap[vi]->modified)
+				{
+					lightmap[vi]->modified = false;
+					theRect = &lightmap[vi]->rectchange;
+					glTexSubImage2D(GL_TEXTURE_2D, 0, 0, theRect->t, 
+						LMBLOCK_WIDTH, theRect->h, gl_lightmap_format, GL_UNSIGNED_BYTE,
+						lightmap[vi]->lightmaps+(theRect->t) *LMBLOCK_WIDTH*lightmap_bytes);
+					theRect->l = LMBLOCK_WIDTH;
+					theRect->t = LMBLOCK_HEIGHT;
+					theRect->h = 0;
+					theRect->w = 0;
+				}
 			}
-			}
+			else
+				glDisable(GL_TEXTURE_2D);
 		}
 
 		PPL_GenerateArrays(s);
@@ -363,9 +373,9 @@ static void PPL_BaseChain_NoBump_2TMU(msurface_t *s, texture_t *tex)
 
 	glDisable(GL_TEXTURE_2D);
 	glDisableClientState(GL_TEXTURE_COORD_ARRAY);
-	qglClientActiveTextureARB(GL_TEXTURE0_ARB);
-	qglActiveTextureARB(GL_TEXTURE0_ARB);
 
+	GL_SelectTexture(GL_TEXTURE0_ARB);
+	glDisableClientState(GL_TEXTURE_COORD_ARRAY);
 }
 
 static void PPL_BaseChain_Bump_2TMU(msurface_t *first, texture_t *tex)
@@ -378,33 +388,31 @@ static void PPL_BaseChain_Bump_2TMU(msurface_t *first, texture_t *tex)
 	if (tex->alphaed)
 	{
 		glEnable(GL_BLEND);
-		glTexEnvf(GL_TEXTURE_ENV, GL_TEXTURE_ENV_MODE, GL_MODULATE);
+		GL_TexEnv(GL_MODULATE);
 	}
 	else
 	{
 		glDisable(GL_BLEND);
-		glTexEnvf(GL_TEXTURE_ENV, GL_TEXTURE_ENV_MODE, GL_REPLACE);
+		GL_TexEnv(GL_REPLACE);
 	}
 
 	//Bind normal map to texture unit 0
-	GL_BindType(GL_TEXTURE_2D, tex->gl_texturenumbumpmap);
+	GL_MBind(GL_TEXTURE0_ARB, tex->gl_texturenumbumpmap);
 	glEnable(GL_TEXTURE_2D);
-	glTexEnvi(GL_TEXTURE_ENV, GL_TEXTURE_ENV_MODE, GL_COMBINE_ARB);
+	GL_TexEnv(GL_COMBINE_ARB);
 	glTexEnvi(GL_TEXTURE_ENV, GL_SOURCE0_RGB_ARB, GL_TEXTURE);
 	glTexEnvi(GL_TEXTURE_ENV, GL_COMBINE_RGB_ARB, GL_REPLACE);
 
-	qglClientActiveTextureARB(GL_TEXTURE0_ARB);
 	glEnableClientState(GL_TEXTURE_COORD_ARRAY);
 	glTexCoordPointer(2, GL_FLOAT, sizeof(surfvertexarray_t), varray_v->stw);
 
-	qglActiveTextureARB(GL_TEXTURE1_ARB);	//the deluxmap
+	GL_MBind(GL_TEXTURE1_ARB, tex->gl_texturenumbumpmap);
 	glEnable(GL_TEXTURE_2D);
-	glTexEnvi(GL_TEXTURE_ENV, GL_TEXTURE_ENV_MODE, GL_COMBINE_ARB);
+	GL_TexEnv(GL_COMBINE_ARB);
 	glTexEnvi(GL_TEXTURE_ENV, GL_SOURCE0_RGB_ARB, GL_TEXTURE);
 	glTexEnvi(GL_TEXTURE_ENV, GL_SOURCE1_RGB_ARB, GL_PREVIOUS_ARB);
 	glTexEnvi(GL_TEXTURE_ENV, GL_COMBINE_RGB_ARB, GL_DOT3_RGB_ARB);
 
-	qglClientActiveTextureARB(GL_TEXTURE1_ARB);
 	glEnableClientState(GL_TEXTURE_COORD_ARRAY);
 	glTexCoordPointer(2, GL_FLOAT, sizeof(surfvertexarray_t), varray_v->stl);
 
@@ -417,7 +425,7 @@ static void PPL_BaseChain_Bump_2TMU(msurface_t *first, texture_t *tex)
 			PPL_FlushArrays();
 			vi = s->lightmaptexturenum;
 
-			GL_BindType(GL_TEXTURE_2D, deluxmap_textures[vi] );
+			GL_Bind(deluxmap_textures[vi] );
 			if (lightmap[vi]->deluxmodified)
 			{
 				lightmap[vi]->deluxmodified = false;
@@ -436,12 +444,11 @@ static void PPL_BaseChain_Bump_2TMU(msurface_t *first, texture_t *tex)
 	}
 	PPL_FlushArrays();
 
-	qglActiveTextureARB(GL_TEXTURE0_ARB);
-	GL_Bind (tex->gl_texturenum);
+	GL_MBind(GL_TEXTURE0_ARB, tex->gl_texturenum);
 
-	qglActiveTextureARB(GL_TEXTURE1_ARB);
+	GL_SelectTexture(GL_TEXTURE1_ARB);
 	glEnable(GL_TEXTURE_2D);
-	glTexEnvf(GL_TEXTURE_ENV, GL_TEXTURE_ENV_MODE, GL_MODULATE);
+	GL_TexEnv(GL_MODULATE);
 
 	vi = -1;
 	for (s=first; s ; s=s->texturechain)
@@ -451,7 +458,7 @@ static void PPL_BaseChain_Bump_2TMU(msurface_t *first, texture_t *tex)
 			PPL_FlushArrays();
 			vi = s->lightmaptexturenum;
 
-			GL_BindType(GL_TEXTURE_2D, lightmap_textures[vi] );
+			GL_Bind(lightmap_textures[vi] );
 			if (lightmap[vi]->modified)
 			{
 				lightmap[vi]->modified = false;
@@ -471,8 +478,7 @@ static void PPL_BaseChain_Bump_2TMU(msurface_t *first, texture_t *tex)
 	PPL_FlushArrays();
 
 	glDisableClientState(GL_TEXTURE_COORD_ARRAY);
-	qglClientActiveTextureARB(GL_TEXTURE0_ARB);
-	qglActiveTextureARB(GL_TEXTURE0_ARB);
+	GL_SelectTexture(GL_TEXTURE0_ARB);
 }
 
 static void PPL_BaseChain_Bump_4TMU(msurface_t *s, texture_t *tex)
@@ -481,44 +487,39 @@ static void PPL_BaseChain_Bump_4TMU(msurface_t *s, texture_t *tex)
 	glRect_t    *theRect;
 
 	PPL_EnableVertexArrays();
-	qglActiveTextureARB(GL_TEXTURE0_ARB);
 
 	//Bind normal map to texture unit 0
-	GL_BindType(GL_TEXTURE_2D, tex->gl_texturenumbumpmap);
+	GL_MBind(GL_TEXTURE0_ARB, tex->gl_texturenumbumpmap);
 	glEnable(GL_TEXTURE_2D);
-	glTexEnvi(GL_TEXTURE_ENV, GL_TEXTURE_ENV_MODE, GL_COMBINE_ARB);
-	glTexEnvi(GL_TEXTURE_ENV, GL_SOURCE0_RGB_ARB, GL_TEXTURE);
-	glTexEnvi(GL_TEXTURE_ENV, GL_COMBINE_RGB_ARB, GL_REPLACE);
+	GL_TexEnv(GL_REPLACE);
 
-	qglClientActiveTextureARB(GL_TEXTURE0_ARB);
 	glEnableClientState(GL_TEXTURE_COORD_ARRAY);
 	glTexCoordPointer(2, GL_FLOAT, sizeof(surfvertexarray_t), varray_v->stw);
 
-	qglActiveTextureARB(GL_TEXTURE1_ARB);	//the deluxmap
+	//1 gets the deluxmap
+	GL_SelectTexture(GL_TEXTURE1_ARB);
 	glEnable(GL_TEXTURE_2D);
-	glTexEnvi(GL_TEXTURE_ENV, GL_TEXTURE_ENV_MODE, GL_COMBINE_ARB);
+	GL_TexEnv(GL_COMBINE_ARB);
 	glTexEnvi(GL_TEXTURE_ENV, GL_SOURCE0_RGB_ARB, GL_TEXTURE);
 	glTexEnvi(GL_TEXTURE_ENV, GL_SOURCE1_RGB_ARB, GL_PREVIOUS_ARB);
 	glTexEnvi(GL_TEXTURE_ENV, GL_COMBINE_RGB_ARB, GL_DOT3_RGB_ARB);
 
-	qglClientActiveTextureARB(GL_TEXTURE1_ARB);
 	glEnableClientState(GL_TEXTURE_COORD_ARRAY);
 	glTexCoordPointer(2, GL_FLOAT, sizeof(surfvertexarray_t), varray_v->stl);
 
-	qglActiveTextureARB(GL_TEXTURE2_ARB);
+	//2 gets the diffusemap
+	GL_MBind(GL_TEXTURE2_ARB, tex->gl_texturenum);
 	glEnable(GL_TEXTURE_2D);
-	glTexEnvi(GL_TEXTURE_ENV, GL_TEXTURE_ENV_MODE, GL_MODULATE);
-	GL_Bind (tex->gl_texturenum);
+	GL_TexEnv(GL_MODULATE);
 
-	qglClientActiveTextureARB(GL_TEXTURE2_ARB);
 	glEnableClientState(GL_TEXTURE_COORD_ARRAY);
 	glTexCoordPointer(2, GL_FLOAT, sizeof(surfvertexarray_t), varray_v->stw);
 
-	qglActiveTextureARB(GL_TEXTURE3_ARB);
+	//3 gets the lightmap
+	GL_SelectTexture(GL_TEXTURE3_ARB);
 	glEnable(GL_TEXTURE_2D);
-	glTexEnvi(GL_TEXTURE_ENV, GL_TEXTURE_ENV_MODE, GL_MODULATE);
+	GL_TexEnv(GL_MODULATE);
 
-	qglClientActiveTextureARB(GL_TEXTURE3_ARB);
 	glEnableClientState(GL_TEXTURE_COORD_ARRAY);
 	glTexCoordPointer(2, GL_FLOAT, sizeof(surfvertexarray_t), varray_v->stl);
 
@@ -530,8 +531,7 @@ static void PPL_BaseChain_Bump_4TMU(msurface_t *s, texture_t *tex)
 			PPL_FlushArrays();
 			vi = s->lightmaptexturenum;
 
-			qglActiveTextureARB(GL_TEXTURE1_ARB);
-			GL_BindType(GL_TEXTURE_2D, deluxmap_textures[vi] );
+			GL_MBind(GL_TEXTURE1_ARB, deluxmap_textures[vi] );
 			if (lightmap[vi]->deluxmodified)
 			{
 				lightmap[vi]->deluxmodified = false;
@@ -544,8 +544,7 @@ static void PPL_BaseChain_Bump_4TMU(msurface_t *s, texture_t *tex)
 				theRect->h = 0;
 				theRect->w = 0;
 			}
-			qglActiveTextureARB(GL_TEXTURE3_ARB);
-			GL_BindType(GL_TEXTURE_2D, lightmap_textures[vi] );
+			GL_MBind(GL_TEXTURE3_ARB, lightmap_textures[vi] );
 			if (lightmap[vi]->modified)
 			{
 				lightmap[vi]->modified = false;
@@ -564,26 +563,23 @@ static void PPL_BaseChain_Bump_4TMU(msurface_t *s, texture_t *tex)
 	}
 	PPL_FlushArrays();
 
-	qglActiveTextureARB(GL_TEXTURE3_ARB);
+	GL_SelectTexture(GL_TEXTURE3_ARB);
+	glDisableClientState(GL_TEXTURE_COORD_ARRAY);
 	glDisable(GL_TEXTURE_2D);
-	qglActiveTextureARB(GL_TEXTURE2_ARB);
+
+	GL_SelectTexture(GL_TEXTURE2_ARB);
+	glDisableClientState(GL_TEXTURE_COORD_ARRAY);
 	glDisable(GL_TEXTURE_2D);
-	qglActiveTextureARB(GL_TEXTURE1_ARB);
+
+	GL_SelectTexture(GL_TEXTURE1_ARB);
+	glDisableClientState(GL_TEXTURE_COORD_ARRAY);
 	glDisable(GL_TEXTURE_2D);
-	qglActiveTextureARB(GL_TEXTURE0_ARB);
 
-
-	qglClientActiveTextureARB(GL_TEXTURE3_ARB);
-	glDisableClientState(GL_TEXTURE_COORD_ARRAY);
-	qglClientActiveTextureARB(GL_TEXTURE2_ARB);
-	glDisableClientState(GL_TEXTURE_COORD_ARRAY);
-	qglClientActiveTextureARB(GL_TEXTURE1_ARB);
-	glDisableClientState(GL_TEXTURE_COORD_ARRAY);
-	qglClientActiveTextureARB(GL_TEXTURE0_ARB);
+	GL_SelectTexture(GL_TEXTURE0_ARB);
 	glDisableClientState(GL_TEXTURE_COORD_ARRAY);
 
 
-	glTexEnvf(GL_TEXTURE_ENV, GL_TEXTURE_ENV_MODE, GL_MODULATE);
+	GL_TexEnv(GL_MODULATE);
 }
 
 #ifdef SPECULAR
@@ -610,7 +606,7 @@ glDisable(GL_BLEND);
 	qglActiveTextureARB(GL_TEXTURE0_ARB);
 	GL_BindType(GL_TEXTURE_2D, tex->gl_texturenumbumpmap);
 	glEnable(GL_TEXTURE_2D);
-	glTexEnvi(GL_TEXTURE_ENV, GL_TEXTURE_ENV_MODE, GL_REPLACE);
+	GL_TexEnv(GL_REPLACE);
 	qglClientActiveTextureARB(GL_TEXTURE0_ARB);
 	glEnableClientState(GL_TEXTURE_COORD_ARRAY);
 	glTexCoordPointer(2, GL_FLOAT, sizeof(surfvertexarray_t), varray_v->stw);
@@ -624,7 +620,7 @@ glDisable(GL_BLEND);
 	glEnable(GL_TEXTURE_CUBE_MAP_ARB);
 	if (qglGetError())
 		Con_Printf("Error binding dot3 cubemap\n");
-	glTexEnvi(GL_TEXTURE_ENV, GL_TEXTURE_ENV_MODE, GL_COMBINE_ARB);
+	GL_TexEnv(GL_COMBINE_ARB);
 	glTexEnvi(GL_TEXTURE_ENV, GL_SOURCE0_RGB_ARB, GL_TEXTURE);
 	glTexEnvi(GL_TEXTURE_ENV, GL_SOURCE1_RGB_ARB, GL_PREVIOUS_ARB);
 	glTexEnvi(GL_TEXTURE_ENV, GL_COMBINE_RGB_ARB, GL_DOT3_RGB_ARB);
@@ -641,7 +637,7 @@ glDisable(GL_BLEND);
 	qglActiveTextureARB(GL_TEXTURE2_ARB);
 	GL_BindType(GL_TEXTURE_2D, tex->gl_texturenumbumpmap);	//need to bind something.
 	glEnable(GL_TEXTURE_2D);
-	glTexEnvi(GL_TEXTURE_ENV, GL_TEXTURE_ENV_MODE, GL_COMBINE_ARB);
+	GL_TexEnv(GL_COMBINE_ARB);
 	glTexEnvi(GL_TEXTURE_ENV, GL_SOURCE0_RGB_ARB, GL_PREVIOUS_ARB);
 	glTexEnvi(GL_TEXTURE_ENV, GL_SOURCE1_RGB_ARB, GL_PREVIOUS_ARB);
 	glTexEnvi(GL_TEXTURE_ENV, GL_COMBINE_RGB_ARB, GL_MODULATE);
@@ -652,7 +648,7 @@ glDisable(GL_BLEND);
 	qglActiveTextureARB(GL_TEXTURE3_ARB);
 	GL_BindType(GL_TEXTURE_2D, tex->gl_texturenumspec);
 	glEnable(GL_TEXTURE_2D);
-	glTexEnvi(GL_TEXTURE_ENV, GL_TEXTURE_ENV_MODE, GL_COMBINE_ARB);
+	GL_TexEnv(GL_COMBINE_ARB);
 	glTexEnvi(GL_TEXTURE_ENV, GL_SOURCE0_RGB_ARB, GL_TEXTURE);
 	glTexEnvi(GL_TEXTURE_ENV, GL_SOURCE1_RGB_ARB, GL_PREVIOUS_ARB);
 	glTexEnvi(GL_TEXTURE_ENV, GL_COMBINE_RGB_ARB, GL_MODULATE);
@@ -673,12 +669,12 @@ glEnable(GL_BLEND);
 glBlendFunc(GL_DST_COLOR, GL_ZERO);
 	// Add normal dot delux times diffusemap then multiple the entire lot by the lightmap.
 	qglActiveTextureARB(GL_TEXTURE0_ARB);
-	glTexEnvi(GL_TEXTURE_ENV, GL_TEXTURE_ENV_MODE, GL_REPLACE);
+	GL_TexEnv(GL_REPLACE);
 
 	qglActiveTextureARB(GL_TEXTURE1_ARB);
 	glDisable(GL_TEXTURE_CUBE_MAP_ARB);
 	glEnable(GL_TEXTURE_2D);
-	glTexEnvi(GL_TEXTURE_ENV, GL_TEXTURE_ENV_MODE, GL_COMBINE_ARB);
+	GL_TexEnv(GL_COMBINE_ARB);
 	glTexEnvi(GL_TEXTURE_ENV, GL_SOURCE0_RGB_ARB, GL_TEXTURE);
 	glTexEnvi(GL_TEXTURE_ENV, GL_SOURCE1_RGB_ARB, GL_PREVIOUS_ARB);
 	glTexEnvi(GL_TEXTURE_ENV, GL_COMBINE_RGB_ARB, GL_DOT3_RGB_ARB);
@@ -689,7 +685,7 @@ glBlendFunc(GL_DST_COLOR, GL_ZERO);
 	qglActiveTextureARB(GL_TEXTURE2_ARB);
 	glEnable(GL_TEXTURE_2D);
 	GL_BindType(GL_TEXTURE_2D, tex->gl_texturenum);
-	glTexEnvi(GL_TEXTURE_ENV, GL_TEXTURE_ENV_MODE, GL_COMBINE_ARB);
+	GL_TexEnv(GL_COMBINE_ARB);
 	glTexEnvi(GL_TEXTURE_ENV, GL_SOURCE0_RGB_ARB, GL_TEXTURE);
 	glTexEnvi(GL_TEXTURE_ENV, GL_SOURCE1_RGB_ARB, GL_PREVIOUS_ARB);
 	glTexEnvi(GL_TEXTURE_ENV, GL_COMBINE_RGB_ARB, GL_MODULATE);
@@ -700,7 +696,7 @@ glBlendFunc(GL_DST_COLOR, GL_ZERO);
 	qglActiveTextureARB(GL_TEXTURE3_ARB);
 	glEnable(GL_TEXTURE_2D);
 	glDisable(GL_TEXTURE_2D);
-	glTexEnvi(GL_TEXTURE_ENV, GL_TEXTURE_ENV_MODE, GL_COMBINE_ARB);
+	GL_TexEnv(GL_COMBINE_ARB);
 	glTexEnvi(GL_TEXTURE_ENV, GL_SOURCE0_RGB_ARB, GL_TEXTURE);
 	glTexEnvi(GL_TEXTURE_ENV, GL_SOURCE1_RGB_ARB, GL_PREVIOUS_ARB);
 	glTexEnvi(GL_TEXTURE_ENV, GL_COMBINE_RGB_ARB, GL_MODULATE);
@@ -900,11 +896,17 @@ static void PPL_BaseChain_Specular_FP(msurface_t *s, texture_t *tex)
 	if (qglGetError())
 		Con_Printf("GL Error on shadow lighting\n");
 
-	qglActiveTextureARB(GL_TEXTURE0_ARB);
-	GL_BindType(GL_TEXTURE_2D, tex->gl_texturenum);
+	GL_MBind(GL_TEXTURE0_ARB, tex->gl_texturenum);
+	glEnableClientState(GL_TEXTURE_COORD_ARRAY);
+	glTexCoordPointer(2, GL_FLOAT, sizeof(surfvertexarray_t), varray_v->stw);
 
-	qglActiveTextureARB(GL_TEXTURE1_ARB);
-	GL_BindType(GL_TEXTURE_2D, tex->gl_texturenumbumpmap);
+	GL_MBind(GL_TEXTURE1_ARB, tex->gl_texturenumbumpmap);
+	glEnableClientState(GL_TEXTURE_COORD_ARRAY);
+	glTexCoordPointer(2, GL_FLOAT, sizeof(surfvertexarray_t), varray_v->stl);
+
+	GL_SelectTexture(GL_TEXTURE2_ARB);
+	glEnableClientState(GL_TEXTURE_COORD_ARRAY);
+	glTexCoordPointer(3, GL_FLOAT, sizeof(surfvertexarray_t), varray_v->ncm);
 
 	//qglActiveTextureARB(GL_TEXTURE2_ARB);
 	//GL_BindType(GL_TEXTURE_2D, );	//lightmap
@@ -915,24 +917,12 @@ static void PPL_BaseChain_Specular_FP(msurface_t *s, texture_t *tex)
 	if (qglGetError())
 		Con_Printf("GL Error on shadow lighting\n");
 
-	qglActiveTextureARB(GL_TEXTURE4_ARB);
-	GL_BindType(GL_TEXTURE_2D, tex->gl_texturenumspec);
+	GL_MBind(GL_TEXTURE4_ARB, tex->gl_texturenumspec);
 
-	qglActiveTextureARB(GL_TEXTURE5_ARB);
+	GL_SelectTexture(GL_TEXTURE5_ARB);
 	GL_BindType(GL_TEXTURE_CUBE_MAP_ARB, normalisationCubeMap);
 
 
-	qglClientActiveTextureARB(GL_TEXTURE0_ARB);
-	glEnableClientState(GL_TEXTURE_COORD_ARRAY);
-	glTexCoordPointer(2, GL_FLOAT, sizeof(surfvertexarray_t), varray_v->stw);
-
-	qglClientActiveTextureARB(GL_TEXTURE1_ARB);
-	glEnableClientState(GL_TEXTURE_COORD_ARRAY);
-	glTexCoordPointer(2, GL_FLOAT, sizeof(surfvertexarray_t), varray_v->stl);
-
-	qglClientActiveTextureARB(GL_TEXTURE2_ARB);
-	glEnableClientState(GL_TEXTURE_COORD_ARRAY);
-	glTexCoordPointer(3, GL_FLOAT, sizeof(surfvertexarray_t), varray_v->ncm);
 
 	if (qglGetError())
 		Con_Printf("GL Error on shadow lighting\n");
@@ -945,8 +935,7 @@ static void PPL_BaseChain_Specular_FP(msurface_t *s, texture_t *tex)
 			PPL_FlushArrays();
 			vi = s->lightmaptexturenum;
 
-			qglActiveTextureARB(GL_TEXTURE3_ARB);
-			GL_BindType(GL_TEXTURE_2D, deluxmap_textures[vi] );
+			GL_MBind(GL_TEXTURE3_ARB, deluxmap_textures[vi] );
 			if (lightmap[vi]->deluxmodified)
 			{
 				lightmap[vi]->deluxmodified = false;
@@ -959,8 +948,7 @@ static void PPL_BaseChain_Specular_FP(msurface_t *s, texture_t *tex)
 				theRect->h = 0;
 				theRect->w = 0;
 			}
-			qglActiveTextureARB(GL_TEXTURE2_ARB);
-			GL_BindType(GL_TEXTURE_2D, lightmap_textures[vi] );
+			GL_MBind(GL_TEXTURE2_ARB, lightmap_textures[vi] );
 			if (lightmap[vi]->modified)
 			{
 				lightmap[vi]->modified = false;
@@ -983,17 +971,15 @@ static void PPL_BaseChain_Specular_FP(msurface_t *s, texture_t *tex)
 
 	glDisable(GL_FRAGMENT_PROGRAM_ARB);
 
-
-	qglClientActiveTextureARB(GL_TEXTURE1_ARB);
+	GL_SelectTexture(GL_TEXTURE2_ARB);
 	glDisableClientState(GL_TEXTURE_COORD_ARRAY);
 
-	qglClientActiveTextureARB(GL_TEXTURE2_ARB);
+	GL_SelectTexture(GL_TEXTURE1_ARB);
 	glDisableClientState(GL_TEXTURE_COORD_ARRAY);
 
-	qglClientActiveTextureARB(GL_TEXTURE0_ARB);
+	GL_SelectTexture(GL_TEXTURE0_ARB);
 	glDisableClientState(GL_TEXTURE_COORD_ARRAY);
 
-	qglActiveTextureARB(GL_TEXTURE0_ARB);
 
 	if (qglGetError())
 		Con_Printf("GL Error on shadow lighting\n");
@@ -1029,45 +1015,42 @@ rgb * lightmap -> rgb
 	glDisable(GL_BLEND);
 
 //0 takes a normalmap
-	qglActiveTextureARB(GL_TEXTURE0_ARB);
-	GL_BindType(GL_TEXTURE_2D, tex->gl_texturenumbumpmap);
-	qglClientActiveTextureARB(GL_TEXTURE0_ARB);
+	GL_MBind(GL_TEXTURE0_ARB, tex->gl_texturenumbumpmap);
 	glEnableClientState(GL_TEXTURE_COORD_ARRAY);
 	glTexCoordPointer(2, GL_FLOAT, sizeof(surfvertexarray_t), varray_v->stw);
-	glTexEnvi(GL_TEXTURE_ENV, GL_TEXTURE_ENV_MODE, GL_REPLACE);
+	GL_TexEnv(GL_REPLACE);
+
 //1 takes a cubemap for specular half-vectors.
-	qglActiveTextureARB(GL_TEXTURE1_ARB);
+	GL_SelectTexture(GL_TEXTURE1_ARB);
 	GL_BindType(GL_TEXTURE_CUBE_MAP_ARB, normalisationCubeMap);
 	glDisable(GL_TEXTURE_2D);
 	glEnable(GL_TEXTURE_CUBE_MAP_ARB);
-	qglClientActiveTextureARB(GL_TEXTURE1_ARB);
 	glEnableClientState(GL_TEXTURE_COORD_ARRAY);
 	glTexCoordPointer(3, GL_FLOAT, sizeof(surfvertexarray_t), varray_v->ncm);
-	glTexEnvi(GL_TEXTURE_ENV, GL_TEXTURE_ENV_MODE, GL_COMBINE_ARB);
+	GL_TexEnv(GL_COMBINE_ARB);
 	glTexEnvi(GL_TEXTURE_ENV, GL_SOURCE0_RGB_ARB, GL_TEXTURE);
 	glTexEnvi(GL_TEXTURE_ENV, GL_SOURCE1_RGB_ARB, GL_PREVIOUS_ARB);
 	glTexEnvi(GL_TEXTURE_ENV, GL_COMBINE_RGB_ARB, GL_DOT3_RGBA_ARB);	//writes alpha
+
 //2 takes a normalmap
-	qglActiveTextureARB(GL_TEXTURE2_ARB);
+	GL_MBind(GL_TEXTURE2_ARB, tex->gl_texturenumbumpmap);
 	glEnable(GL_TEXTURE_2D);
-	GL_BindType(GL_TEXTURE_2D, tex->gl_texturenumbumpmap);
-	qglClientActiveTextureARB(GL_TEXTURE2_ARB);
 	glEnableClientState(GL_TEXTURE_COORD_ARRAY);
 	glTexCoordPointer(2, GL_FLOAT, sizeof(surfvertexarray_t), varray_v->stw);
-	glTexEnvi(GL_TEXTURE_ENV, GL_TEXTURE_ENV_MODE, GL_COMBINE_ARB);
+	GL_TexEnv(GL_COMBINE_ARB);
 	glTexEnvi(GL_TEXTURE_ENV, GL_SOURCE0_RGB_ARB, GL_TEXTURE);
 	glTexEnvi(GL_TEXTURE_ENV, GL_COMBINE_RGB_ARB, GL_REPLACE);
 
 	glTexEnvi(GL_TEXTURE_ENV, GL_SOURCE0_ALPHA_ARB, GL_PREVIOUS_ARB);	//square the alpha
 	glTexEnvi(GL_TEXTURE_ENV, GL_SOURCE1_ALPHA_ARB, GL_PREVIOUS_ARB);
 	glTexEnvi(GL_TEXTURE_ENV, GL_COMBINE_ALPHA_ARB, GL_MODULATE);
+
 //3 takes the deluxmap
-	qglActiveTextureARB(GL_TEXTURE3_ARB);
+	GL_SelectTexture(GL_TEXTURE3_ARB);
 	glEnable(GL_TEXTURE_2D);	//bind with the surface texturenum
-	qglClientActiveTextureARB(GL_TEXTURE3_ARB);
 	glEnableClientState(GL_TEXTURE_COORD_ARRAY);
 	glTexCoordPointer(2, GL_FLOAT, sizeof(surfvertexarray_t), varray_v->stl);
-	glTexEnvi(GL_TEXTURE_ENV, GL_TEXTURE_ENV_MODE, GL_COMBINE_ARB);
+	GL_TexEnv(GL_COMBINE_ARB);
 	glTexEnvi(GL_TEXTURE_ENV, GL_SOURCE0_RGB_ARB, GL_TEXTURE);
 	glTexEnvi(GL_TEXTURE_ENV, GL_SOURCE1_RGB_ARB, GL_PREVIOUS_ARB);
 	glTexEnvi(GL_TEXTURE_ENV, GL_COMBINE_RGB_ARB, GL_DOT3_RGB_ARB);
@@ -1075,15 +1058,14 @@ rgb * lightmap -> rgb
 	glTexEnvi(GL_TEXTURE_ENV, GL_SOURCE0_ALPHA_ARB, GL_PREVIOUS_ARB);	//square the alpha again.
 	glTexEnvi(GL_TEXTURE_ENV, GL_SOURCE1_ALPHA_ARB, GL_PREVIOUS_ARB);
 	glTexEnvi(GL_TEXTURE_ENV, GL_COMBINE_ALPHA_ARB, GL_MODULATE);
+
 //4 multiplies with diffuse
-	qglActiveTextureARB(GL_TEXTURE4_ARB);
+	GL_MBind(GL_TEXTURE4_ARB, tex->gl_texturenum);
 	glEnable(GL_TEXTURE_2D);
-	GL_BindType(GL_TEXTURE_2D, tex->gl_texturenum);
-	qglClientActiveTextureARB(GL_TEXTURE4_ARB);
 	glEnableClientState(GL_TEXTURE_COORD_ARRAY);
 	glTexCoordPointer(2, GL_FLOAT, sizeof(surfvertexarray_t), varray_v->stw);
 
-	glTexEnvi(GL_TEXTURE_ENV, GL_TEXTURE_ENV_MODE, GL_COMBINE_ARB);
+	GL_TexEnv(GL_COMBINE_ARB);
 	glTexEnvi(GL_TEXTURE_ENV, GL_SOURCE0_RGB_ARB, GL_PREVIOUS_ARB);
 	glTexEnvi(GL_TEXTURE_ENV, GL_SOURCE1_RGB_ARB, GL_TEXTURE);
 	glTexEnvi(GL_TEXTURE_ENV, GL_COMBINE_RGB_ARB, GL_MODULATE);
@@ -1097,22 +1079,20 @@ rgb * lightmap -> rgb
 	glTexEnvi(GL_TEXTURE_ENV, GL_COMBINE_ALPHA_ARB, GL_MODULATE);
 
 //5 halves rgb and alpha (so that adding will not clamp)
-	qglActiveTextureARB(GL_TEXTURE5_ARB);
+	GL_MBind(GL_TEXTURE5_ARB, tex->gl_texturenum);	//need to bind something.
 	glEnable(GL_TEXTURE_2D);
-	GL_BindType(GL_TEXTURE_2D, tex->gl_texturenum);	//need to bind something.
-	qglClientActiveTextureARB(GL_TEXTURE5_ARB);
 	glEnableClientState(GL_TEXTURE_COORD_ARRAY);
 	glTexCoordPointer(2, GL_FLOAT, sizeof(surfvertexarray_t), varray_v->stw);
 /*	glTexEnvfv(GL_TEXTURE_ENV, GL_TEXTURE_ENV_COLOR, fourhalffloats);
 
-	glTexEnvi(GL_TEXTURE_ENV, GL_TEXTURE_ENV_MODE, GL_COMBINE_ARB);
+	GL_TexEnv(GL_COMBINE_ARB);
 	glTexEnvi(GL_TEXTURE_ENV, GL_SOURCE0_RGB_ARB, GL_PREVIOUS_ARB);
 	glTexEnvi(GL_TEXTURE_ENV, GL_OPERAND0_RGB_ARB, GL_SRC_COLOR);
 	glTexEnvi(GL_TEXTURE_ENV, GL_SOURCE1_RGB_ARB, GL_CONSTANT_ARB);
 	glTexEnvi(GL_TEXTURE_ENV, GL_OPERAND1_RGB_ARB, GL_SRC_COLOR);
 	glTexEnvi(GL_TEXTURE_ENV, GL_COMBINE_RGB_ARB, GL_MODULATE);
 */
-	glTexEnvi(GL_TEXTURE_ENV, GL_TEXTURE_ENV_MODE, GL_COMBINE_ARB);
+	GL_TexEnv(GL_COMBINE_ARB);
 	glTexEnvi(GL_TEXTURE_ENV, GL_SOURCE0_ALPHA_ARB, GL_PREVIOUS_ARB);
 	glTexEnvi(GL_TEXTURE_ENV, GL_OPERAND0_RGB_ARB, GL_SRC_ALPHA);
 	glTexEnvi(GL_TEXTURE_ENV, GL_SOURCE1_ALPHA_ARB, GL_CONSTANT_ARB);
@@ -1126,15 +1106,13 @@ rgb * lightmap -> rgb
 	glTexEnvi(GL_TEXTURE_ENV, GL_COMBINE_ALPHA_ARB, GL_REPLACE);
 
 //6 adds rgb and alpha, using the glossmap...
-	qglActiveTextureARB(GL_TEXTURE6_ARB);
+	GL_MBind(GL_TEXTURE6_ARB, tex->gl_texturenumspec);
 	glEnable(GL_TEXTURE_2D);
-	GL_BindType(GL_TEXTURE_2D, tex->gl_texturenumspec);
-	qglClientActiveTextureARB(GL_TEXTURE6_ARB);
 	glEnableClientState(GL_TEXTURE_COORD_ARRAY);
 	glTexCoordPointer(2, GL_FLOAT, sizeof(surfvertexarray_t), varray_v->stw);
 
 	//broken diffuse + specular
-	glTexEnvi(GL_TEXTURE_ENV, GL_TEXTURE_ENV_MODE, GL_COMBINE_ARB);
+	GL_TexEnv(GL_COMBINE_ARB);
 	glTexEnvi(GL_TEXTURE_ENV, GL_SOURCE0_RGB_ARB, GL_PREVIOUS_ARB);
 	glTexEnvi(GL_TEXTURE_ENV, GL_OPERAND0_RGB_ARB, GL_SRC_ALPHA);
 	glTexEnvi(GL_TEXTURE_ENV, GL_SOURCE1_RGB_ARB, GL_PREVIOUS_ARB);
@@ -1143,13 +1121,13 @@ rgb * lightmap -> rgb
 	glTexEnvi(GL_TEXTURE_ENV, GL_OPERAND2_RGB_ARB, GL_SRC_COLOR);
 	glTexEnvi(GL_TEXTURE_ENV, GL_COMBINE_RGB_ARB,  GL_MODULATE_ADD_ATI);
 	//perfect diffuse
-/*	glTexEnvi(GL_TEXTURE_ENV, GL_TEXTURE_ENV_MODE, GL_COMBINE_ARB);
+/*	GL_TexEnv(GL_COMBINE_ARB);
 	glTexEnvi(GL_TEXTURE_ENV, GL_SOURCE0_RGB_ARB, GL_PREVIOUS_ARB);
 	glTexEnvi(GL_TEXTURE_ENV, GL_OPERAND0_RGB_ARB, GL_SRC_COLOR);
 	glTexEnvi(GL_TEXTURE_ENV, GL_COMBINE_RGB_ARB,  GL_REPLACE);
 */
 	//perfect specular
-/*	glTexEnvi(GL_TEXTURE_ENV, GL_TEXTURE_ENV_MODE, GL_COMBINE_ARB);
+/*	GL_TexEnv(GL_COMBINE_ARB);
 	glTexEnvi(GL_TEXTURE_ENV, GL_SOURCE0_RGB_ARB, GL_PREVIOUS_ARB);
 	glTexEnvi(GL_TEXTURE_ENV, GL_OPERAND0_RGB_ARB, GL_SRC_ALPHA);
 	glTexEnvi(GL_TEXTURE_ENV, GL_SOURCE1_RGB_ARB, GL_TEXTURE);
@@ -1157,13 +1135,13 @@ rgb * lightmap -> rgb
 	glTexEnvi(GL_TEXTURE_ENV, GL_COMBINE_RGB_ARB,  GL_MODULATE);
 */
 //7 multiplies by lightmap
-	qglActiveTextureARB(GL_TEXTURE7_ARB);
+	GL_SelectTexture(GL_TEXTURE7_ARB);
 	glEnable(GL_TEXTURE_2D);	//bind with the surface texturenum
-	qglClientActiveTextureARB(GL_TEXTURE7_ARB);
+
 	glEnableClientState(GL_TEXTURE_COORD_ARRAY);
 	glTexCoordPointer(2, GL_FLOAT, sizeof(surfvertexarray_t), varray_v->stl);
 
-	glTexEnvi(GL_TEXTURE_ENV, GL_TEXTURE_ENV_MODE, GL_COMBINE_ARB);
+	GL_TexEnv(GL_COMBINE_ARB);
 	glTexEnvi(GL_TEXTURE_ENV, GL_SOURCE0_RGB_ARB, GL_TEXTURE);
 	glTexEnvi(GL_TEXTURE_ENV, GL_OPERAND0_RGB_ARB, GL_ONE_MINUS_SRC_COLOR);
 	glTexEnvi(GL_TEXTURE_ENV, GL_SOURCE1_RGB_ARB, GL_PREVIOUS_ARB);
@@ -1178,8 +1156,7 @@ rgb * lightmap -> rgb
 			PPL_FlushArrays();
 			vi = s->lightmaptexturenum;
 
-			qglActiveTextureARB(GL_TEXTURE3_ARB);
-			GL_BindType(GL_TEXTURE_2D, deluxmap_textures[vi] );
+			GL_MBind(GL_TEXTURE3_ARB, deluxmap_textures[vi] );
 			if (lightmap[vi]->deluxmodified)
 			{
 				lightmap[vi]->deluxmodified = false;
@@ -1192,8 +1169,7 @@ rgb * lightmap -> rgb
 				theRect->h = 0;
 				theRect->w = 0;
 			}
-			qglActiveTextureARB(GL_TEXTURE7_ARB);
-			GL_BindType(GL_TEXTURE_2D, lightmap_textures[vi] );
+			GL_MBind(GL_TEXTURE7_ARB, lightmap_textures[vi] );
 			if (lightmap[vi]->modified)
 			{
 				lightmap[vi]->modified = false;
@@ -1215,17 +1191,15 @@ rgb * lightmap -> rgb
 
 	for (vi = 7; vi > 0; vi--)
 	{
-		qglActiveTextureARB(GL_TEXTURE0_ARB+vi);
+		GL_SelectTexture(GL_TEXTURE0_ARB+vi);
 		glDisable(GL_TEXTURE_2D);
-		qglClientActiveTextureARB(GL_TEXTURE0_ARB+vi);
 		glDisableClientState(GL_TEXTURE_COORD_ARRAY);
 	}
-	glDisable(GL_TEXTURE_CUBE_MAP_ARB);
+	glDisable(GL_TEXTURE_CUBE_MAP_ARB);//1
 	
 	glDisableClientState(GL_TEXTURE_COORD_ARRAY);
 
-	qglActiveTextureARB(GL_TEXTURE0_ARB);
-	qglClientActiveTextureARB(GL_TEXTURE0_ARB);
+	GL_SelectTexture(GL_TEXTURE0_ARB);
 }
 #endif
 
@@ -1239,10 +1213,21 @@ static void PPL_BaseTextureChain(msurface_t *first)
 		meshbuffer_t mb;
 		msurface_t *s;
 		int vi=-1;
+		int redraw = false;
+
 		glRect_t    *theRect;
-//		GL_PushShader(first->texinfo->texture->shader);
 		if (first->texinfo->texture->shader->flags & SHADER_FLARE )
 			return;
+
+		if (!varrayactive)
+			R_IBrokeTheArrays();
+
+		mb.entity = &r_worldentity;
+		mb.shader = first->texinfo->texture->shader;
+		mb.mesh = NULL;
+		mb.fog = NULL;
+		mb.infokey = -2;
+		mb.dlightbits = 0;
 
 		GL_DisableMultitexture();
 
@@ -1256,9 +1241,9 @@ static void PPL_BaseTextureChain(msurface_t *first)
 					vi = s->lightmaptexturenum;
 					if (vi >= 0)
 					{
-						GL_BindType(GL_TEXTURE_2D, deluxmap_textures[vi] );
 						if (lightmap[vi]->deluxmodified)
 						{
+							GL_BindType(GL_TEXTURE_2D, deluxmap_textures[vi] );
 							lightmap[vi]->deluxmodified = false;
 							theRect = &lightmap[vi]->deluxrectchange;
 							glTexSubImage2D(GL_TEXTURE_2D, 0, 0, theRect->t, 
@@ -1269,9 +1254,9 @@ static void PPL_BaseTextureChain(msurface_t *first)
 							theRect->h = 0;
 							theRect->w = 0;
 						}
-						GL_BindType(GL_TEXTURE_2D, lightmap_textures[vi] );
 						if (lightmap[vi]->modified)
 						{
+							GL_BindType(GL_TEXTURE_2D, lightmap_textures[vi] );
 							lightmap[vi]->modified = false;
 							theRect = &lightmap[vi]->rectchange;
 							glTexSubImage2D(GL_TEXTURE_2D, 0, 0, theRect->t, 
@@ -1284,32 +1269,35 @@ static void PPL_BaseTextureChain(msurface_t *first)
 						}
 					}
 				}
+				if (s->flags&SURF_DRAWALPHA || !(mb.shader->sort & SHADER_SORT_OPAQUE))
+				{
+					extern msurface_t  *r_alpha_surfaces;
+					s->nextalphasurface = r_alpha_surfaces;
+					r_alpha_surfaces = s;
+					s->ownerent = &r_worldentity;
+					continue;
+				}
 				if (s->mesh)
 				{
-	/*					MF_NONE			= 1<<0,
-	MF_NORMALS		= 1<<1,
-	MF_TRNORMALS	= 1<<2,
-	MF_COLORS		= 1<<3,
-	MF_STCOORDS		= 1<<4,
-	MF_LMCOORDS		= 1<<5,
-	MF_NOCULL		= 1<<6*/
+					redraw = mb.fog != s->fog || mb.infokey != vi|| mb.shader->flags&SHADER_DEFORMV_BULGE;
 
-			mb.entity = &r_worldentity;
-			mb.shader = first->texinfo->texture->shader;
-			mb.fog = s->fog;
-			mb.mesh = s->mesh;
-			mb.infokey = vi;
-			mb.dlightbits = 0;
+					if (redraw)
+					{
+						if (mb.mesh)
+							R_RenderMeshBuffer ( &mb, false );
+						redraw = false;
+					}
 
-
+					mb.infokey = vi;
+					mb.mesh = s->mesh;
+					mb.fog = s->fog;
 					R_PushMesh(s->mesh, mb.shader->features);
-
-					R_RenderMeshBuffer ( &mb, false );
-//					GL_PushMesh(s->mesh, deluxmap_textures[vi], lightmap_textures[vi]);
 				}
 			}
 		}
-//		GL_PushShader(NULL);	//fixme: remove the need.
+
+		if (mb.mesh)
+			R_RenderMeshBuffer ( &mb, false );
 		return;
 	}
 #endif
@@ -1461,10 +1449,7 @@ void PPL_BaseTextures(model_t *model)
 			continue;
 
 		if ((s->flags & SURF_DRAWTURB) && r_wateralphaval != 1.0)
-		{
-			t->texturechain = NULL;
 			continue;	// draw translucent water later
-		}
 
 		PPL_BaseTextureChain(s);
 	}
@@ -1484,6 +1469,8 @@ void PPL_BaseBModelTextures(entity_t *e)
 	R_RotateForEntity(e);
 	currentmodel = model = e->model;
 	s = model->surfaces+model->firstmodelsurface;
+
+	GL_TexEnv(GL_MODULATE);
 
 	if (currententity->alpha<1)
 	{
@@ -1543,6 +1530,10 @@ void PPL_BaseBModelTextures(entity_t *e)
 	glPopMatrix();
 	GL_DisableMultitexture();
 	glBlendFunc (GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+
+
+	if (!varrayactive)
+		R_IBrokeTheArrays();
 }
 
 void PPL_BaseEntTextures(void)
@@ -1584,6 +1575,8 @@ void PPL_BaseEntTextures(void)
 		switch (currententity->model->type)
 		{
 		case mod_alias:
+			if (!varrayactive)
+				R_IBrokeTheArrays();
 			R_DrawGAliasModel (currententity);
 			break;
 
@@ -1714,6 +1707,9 @@ void PPL_LightTextures(model_t *model, vec3_t modelorigin, dlight_t *light)
 		if (!s)
 			continue;
 
+		if ((s->flags & SURF_DRAWTURB) && r_wateralphaval != 1.0)
+			continue;	// draw translucent water later
+
 
 		{
 			extern int normalisationCubeMap;
@@ -1725,34 +1721,28 @@ void PPL_LightTextures(model_t *model, vec3_t modelorigin, dlight_t *light)
 			glColorPointer(3, GL_FLOAT, sizeof(surfvertexarray_t), varray_v->stl);
 			if (t->gl_texturenumbumpmap && gl_mtexarbable>2)
 			{
-				qglActiveTextureARB(GL_TEXTURE0_ARB);
-				GL_BindType(GL_TEXTURE_2D, t->gl_texturenumbumpmap);
+				GL_MBind(GL_TEXTURE0_ARB, t->gl_texturenumbumpmap);
 				glEnable(GL_TEXTURE_2D);
 				//Set up texture environment to do (tex0 dot tex1)*color
-				glTexEnvi(GL_TEXTURE_ENV, GL_TEXTURE_ENV_MODE, GL_COMBINE_ARB);	//make texture normalmap available.
-				glTexEnvi(GL_TEXTURE_ENV, GL_SOURCE0_RGB_ARB, GL_TEXTURE);
-				glTexEnvi(GL_TEXTURE_ENV, GL_COMBINE_RGB_ARB, GL_REPLACE);
+				GL_TexEnv(GL_REPLACE);	//make texture normalmap available.
 
-				qglClientActiveTextureARB(GL_TEXTURE0_ARB);
 				glEnableClientState(GL_TEXTURE_COORD_ARRAY);
 				glTexCoordPointer(2, GL_FLOAT, sizeof(surfvertexarray_t), varray_v->stw);
 
-				qglActiveTextureARB(GL_TEXTURE1_ARB);
+				GL_SelectTexture(GL_TEXTURE1_ARB);
 				GL_BindType(GL_TEXTURE_CUBE_MAP_ARB, normalisationCubeMap);
 				glEnable(GL_TEXTURE_CUBE_MAP_ARB);
-				glTexEnvi(GL_TEXTURE_ENV, GL_TEXTURE_ENV_MODE, GL_COMBINE_ARB);	//normalisation cubemap * normalmap
+				GL_TexEnv(GL_COMBINE_ARB);	//normalisation cubemap * normalmap
 				glTexEnvi(GL_TEXTURE_ENV, GL_SOURCE0_RGB_ARB, GL_TEXTURE);
 				glTexEnvi(GL_TEXTURE_ENV, GL_SOURCE1_RGB_ARB, GL_PREVIOUS_ARB);
 				glTexEnvi(GL_TEXTURE_ENV, GL_COMBINE_RGB_ARB, GL_DOT3_RGB_ARB);
 
-				qglClientActiveTextureARB(GL_TEXTURE1_ARB);
 				glEnableClientState(GL_TEXTURE_COORD_ARRAY);
 				glTexCoordPointer(3, GL_FLOAT, sizeof(surfvertexarray_t), varray_v->ncm);
 
-				qglActiveTextureARB(GL_TEXTURE2_ARB);
-				GL_BindType(GL_TEXTURE_2D, t->gl_texturenumbumpmap);
+				GL_MBind(GL_TEXTURE2_ARB, t->gl_texturenumbumpmap);	//a dummy
 				glEnable(GL_TEXTURE_2D);
-				glTexEnvi(GL_TEXTURE_ENV, GL_TEXTURE_ENV_MODE, GL_COMBINE_ARB);	//bumps * color		(the attenuation)
+				GL_TexEnv(GL_COMBINE_ARB);	//bumps * color		(the attenuation)
 				glTexEnvi(GL_TEXTURE_ENV, GL_SOURCE0_RGB_ARB, GL_PRIMARY_COLOR_ARB); //(doesn't actually use the bound texture)
 				glTexEnvi(GL_TEXTURE_ENV, GL_OPERAND0_RGB_ARB, GL_SRC_COLOR);
 				glTexEnvi(GL_TEXTURE_ENV, GL_SOURCE1_RGB_ARB, GL_PREVIOUS_ARB);
@@ -1760,15 +1750,14 @@ void PPL_LightTextures(model_t *model, vec3_t modelorigin, dlight_t *light)
 			}
 			else
 			{
-				glTexEnvi(GL_TEXTURE_ENV, GL_TEXTURE_ENV_MODE, GL_MODULATE);
+				GL_TexEnv(GL_MODULATE);
 				glDisable(GL_TEXTURE_2D);
-				qglActiveTextureARB(GL_TEXTURE1_ARB);
-				glTexEnvi(GL_TEXTURE_ENV, GL_TEXTURE_ENV_MODE, GL_MODULATE);
+				GL_SelectTexture(GL_TEXTURE1_ARB);
+				GL_TexEnv(GL_MODULATE);
 				glDisableClientState(GL_TEXTURE_COORD_ARRAY);
 				glDisable(GL_TEXTURE_CUBE_MAP_ARB);
-				qglActiveTextureARB(GL_TEXTURE0_ARB);
 
-				qglClientActiveTextureARB(GL_TEXTURE0_ARB);
+				GL_SelectTexture(GL_TEXTURE0_ARB);
 				glEnableClientState(GL_TEXTURE_COORD_ARRAY);
 				glTexCoordPointer(2, GL_FLOAT, sizeof(surfvertexarray_t), varray_v->stw);
 			}
@@ -1801,16 +1790,16 @@ void PPL_LightTextures(model_t *model, vec3_t modelorigin, dlight_t *light)
 		}
 	}
 
-	glTexEnvi(GL_TEXTURE_ENV, GL_TEXTURE_ENV_MODE, GL_MODULATE);
+	GL_TexEnv(GL_MODULATE);
 	glDisable(GL_TEXTURE_2D);
-	qglClientActiveTextureARB(GL_TEXTURE1_ARB);
-	glDisableClientState(GL_TEXTURE_COORD_ARRAY);
-	qglClientActiveTextureARB(GL_TEXTURE0_ARB);
-	glDisableClientState(GL_TEXTURE_COORD_ARRAY);
-	qglActiveTextureARB(GL_TEXTURE1_ARB);
-	glTexEnvi(GL_TEXTURE_ENV, GL_TEXTURE_ENV_MODE, GL_MODULATE);
+
+	GL_SelectTexture(GL_TEXTURE1_ARB);
+	GL_TexEnv(GL_MODULATE);
 	glDisable(GL_TEXTURE_CUBE_MAP_ARB);
-	qglActiveTextureARB(GL_TEXTURE0_ARB);
+	glDisableClientState(GL_TEXTURE_COORD_ARRAY);
+
+	GL_SelectTexture(GL_TEXTURE0_ARB);
+	glDisableClientState(GL_TEXTURE_COORD_ARRAY);
 	glDisable(GL_TEXTURE_2D);
 
 }
@@ -1841,34 +1830,28 @@ void PPL_LightBModelTextures(entity_t *e, dlight_t *light)
 			glColorPointer(3, GL_FLOAT, sizeof(surfvertexarray_t), varray_v->stl);
 			if (t->gl_texturenumbumpmap && gl_mtexarbable>2)
 			{
-				qglActiveTextureARB(GL_TEXTURE0_ARB);
-				GL_BindType(GL_TEXTURE_2D, t->gl_texturenumbumpmap);
+				GL_MBind(GL_TEXTURE0_ARB, t->gl_texturenumbumpmap);
 				glEnable(GL_TEXTURE_2D);
 				//Set up texture environment to do (tex0 dot tex1)*color
-				glTexEnvi(GL_TEXTURE_ENV, GL_TEXTURE_ENV_MODE, GL_COMBINE_ARB);	//make texture normalmap available.
-				glTexEnvi(GL_TEXTURE_ENV, GL_SOURCE0_RGB_ARB, GL_TEXTURE);
-				glTexEnvi(GL_TEXTURE_ENV, GL_COMBINE_RGB_ARB, GL_REPLACE);
+				GL_TexEnv(GL_REPLACE);	//make texture normalmap available.
 
-				qglClientActiveTextureARB(GL_TEXTURE0_ARB);
 				glEnableClientState(GL_TEXTURE_COORD_ARRAY);
 				glTexCoordPointer(2, GL_FLOAT, sizeof(surfvertexarray_t), varray_v->stw);
 
-				qglActiveTextureARB(GL_TEXTURE1_ARB);
+				GL_SelectTexture(GL_TEXTURE1_ARB);
 				GL_BindType(GL_TEXTURE_CUBE_MAP_ARB, normalisationCubeMap);
 				glEnable(GL_TEXTURE_CUBE_MAP_ARB);
-				glTexEnvi(GL_TEXTURE_ENV, GL_TEXTURE_ENV_MODE, GL_COMBINE_ARB);	//normalisation cubemap * normalmap
+				GL_TexEnv(GL_COMBINE_ARB);	//normalisation cubemap * normalmap
 				glTexEnvi(GL_TEXTURE_ENV, GL_SOURCE0_RGB_ARB, GL_TEXTURE);
 				glTexEnvi(GL_TEXTURE_ENV, GL_SOURCE1_RGB_ARB, GL_PREVIOUS_ARB);
 				glTexEnvi(GL_TEXTURE_ENV, GL_COMBINE_RGB_ARB, GL_DOT3_RGB_ARB);
 
-				qglClientActiveTextureARB(GL_TEXTURE1_ARB);
 				glEnableClientState(GL_TEXTURE_COORD_ARRAY);
 				glTexCoordPointer(3, GL_FLOAT, sizeof(surfvertexarray_t), varray_v->ncm);
 
-				qglActiveTextureARB(GL_TEXTURE2_ARB);
-				GL_BindType(GL_TEXTURE_2D, t->gl_texturenumbumpmap);
+				GL_MBind(GL_TEXTURE2_ARB, t->gl_texturenumbumpmap);
 				glEnable(GL_TEXTURE_2D);
-				glTexEnvi(GL_TEXTURE_ENV, GL_TEXTURE_ENV_MODE, GL_COMBINE_ARB);	//bumps * color		(the attenuation)
+				GL_TexEnv(GL_COMBINE_ARB);	//bumps * color		(the attenuation)
 				glTexEnvi(GL_TEXTURE_ENV, GL_SOURCE0_RGB_ARB, GL_PRIMARY_COLOR_ARB); //(doesn't actually use the bound texture)
 				glTexEnvi(GL_TEXTURE_ENV, GL_OPERAND0_RGB_ARB, GL_SRC_COLOR);
 				glTexEnvi(GL_TEXTURE_ENV, GL_SOURCE1_RGB_ARB, GL_PREVIOUS_ARB);
@@ -1876,10 +1859,10 @@ void PPL_LightBModelTextures(entity_t *e, dlight_t *light)
 			}
 			else
 			{
-				glTexEnvi(GL_TEXTURE_ENV, GL_TEXTURE_ENV_MODE, GL_MODULATE);
+				GL_TexEnv(GL_MODULATE);
 				glDisable(GL_TEXTURE_2D);
 				qglActiveTextureARB(GL_TEXTURE1_ARB);
-				glTexEnvi(GL_TEXTURE_ENV, GL_TEXTURE_ENV_MODE, GL_MODULATE);
+				GL_TexEnv(GL_MODULATE);
 				glDisableClientState(GL_TEXTURE_COORD_ARRAY);
 				glDisable(GL_TEXTURE_CUBE_MAP_ARB);
 				qglActiveTextureARB(GL_TEXTURE0_ARB);
@@ -1916,14 +1899,14 @@ void PPL_LightBModelTextures(entity_t *e, dlight_t *light)
 			PPL_FlushArrays();
 		}
 
-	glTexEnvi(GL_TEXTURE_ENV, GL_TEXTURE_ENV_MODE, GL_MODULATE);
+	GL_TexEnv(GL_MODULATE);
 	glDisable(GL_TEXTURE_2D);
 	qglClientActiveTextureARB(GL_TEXTURE1_ARB);
 	glDisableClientState(GL_TEXTURE_COORD_ARRAY);
 	qglClientActiveTextureARB(GL_TEXTURE0_ARB);
 	glDisableClientState(GL_TEXTURE_COORD_ARRAY);
 	qglActiveTextureARB(GL_TEXTURE1_ARB);
-	glTexEnvi(GL_TEXTURE_ENV, GL_TEXTURE_ENV_MODE, GL_MODULATE);
+	GL_TexEnv(GL_MODULATE);
 	glDisable(GL_TEXTURE_CUBE_MAP_ARB);
 	qglActiveTextureARB(GL_TEXTURE0_ARB);
 	glDisable(GL_TEXTURE_2D);
@@ -1971,6 +1954,8 @@ void PPL_DrawEntLighting(dlight_t *light)
 		switch (currententity->model->type)
 		{
 		case mod_alias:
+//			if (!varrayactive)
+//				R_IBrokeTheArrays();
 //			R_DrawGAliasModelLighting (currententity);
 			break;
 
@@ -1994,7 +1979,7 @@ void PPL_FullBrights(model_t *model)
 
 	glDepthMask(0);	//don't bother writing depth
 
-	glTexEnvf(GL_TEXTURE_ENV, GL_TEXTURE_ENV_MODE, GL_MODULATE);
+	GL_TexEnv(GL_MODULATE);
 
 	glShadeModel(GL_FLAT);
 
@@ -2010,12 +1995,15 @@ void PPL_FullBrights(model_t *model)
 		if (!s)
 			continue;
 
+		if ((s->flags & SURF_DRAWTURB) && r_wateralphaval != 1.0)
+			continue;	// draw translucent water later
+
 		PPL_FullBrightTextureChain(s);
 
 		t->texturechain=NULL;
 	}
 
-	glTexEnvf(GL_TEXTURE_ENV, GL_TEXTURE_ENV_MODE, GL_REPLACE);
+	GL_TexEnv(GL_REPLACE);
 	glDepthMask(1);
 }
 
@@ -2034,7 +2022,7 @@ void PPL_FullBrightBModelTextures(entity_t *e)
 	glColor4f(1, 1, 1, 1);
 	glDepthMask(0);	//don't bother writing depth
 
-	glTexEnvf(GL_TEXTURE_ENV, GL_TEXTURE_ENV_MODE, GL_MODULATE);
+	GL_TexEnv(GL_MODULATE);
 	glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
 	glShadeModel(GL_FLAT);
 
@@ -3347,7 +3335,6 @@ void PPL_AddLight(dlight_t *dl)
 		PPL_UpdateNodeShadowFrames(lvis);
 		PPL_RecursiveWorldNode(dl);
 		PPL_DrawShadowMeshes(dl);
-		Con_Printf("%i ", shadowsurfcount);
 
 		shadowsurfcount=0;
 		glCullFace(GL_FRONT);
@@ -3355,7 +3342,6 @@ void PPL_AddLight(dlight_t *dl)
 		PPL_UpdateNodeShadowFrames(lvis);
 		PPL_RecursiveWorldNode(dl);
 		PPL_DrawShadowMeshes(dl);
-		Con_Printf("%i\n", shadowsurfcount);
 
 		glStencilFunc( GL_EQUAL, 0, ~0 );
 	}
@@ -3453,7 +3439,6 @@ void PPL_DrawWorld (void)
 		}
 
 		glDisableClientState(GL_COLOR_ARRAY);
-		glDisableClientState(GL_VERTEX_ARRAY);
 	}
 
 //	if (qglGetError())
@@ -3469,5 +3454,7 @@ void PPL_DrawWorld (void)
 	shadowsurfcount	= 0;
 	shadowedgecount = 0;
 	shadowlightfaces = 0;
+
+	R_IBrokeTheArrays();
 }
 #endif

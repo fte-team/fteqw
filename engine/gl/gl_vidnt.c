@@ -1099,7 +1099,7 @@ LONG WINAPI GLMainWndProc (
 			if (!vid_initializing)
 				Key_Event (MapKey(lParam), true);
 			break;
-			
+
 		case WM_KEYUP:
 		case WM_SYSKEYUP:
 			if (!vid_initializing)

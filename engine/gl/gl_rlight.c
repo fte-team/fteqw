@@ -412,11 +412,15 @@ void GLQ3_LightGrid(vec3_t point, vec3_t res_diffuse, vec3_t res_ambient, vec3_t
 		res_dir[2] = 0.1;
 	}
 
-	if (!lg)
+//	if (!lg)
 	{
-		res_ambient[0] = 255;
-		res_ambient[1] = 255;
-		res_ambient[2] = 255;
+		res_ambient[0] = 64;
+		res_ambient[1] = 64;
+		res_ambient[2] = 64;
+
+		res_diffuse[0] = 192;
+		res_diffuse[1] = 192;
+		res_diffuse[2] = 192;
 		return;
 	}
 

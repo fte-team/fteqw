@@ -1628,6 +1628,264 @@ int Doom_PointContents(hull_t *hull, vec3_t p)
 	return FTECONTENTS_EMPTY;
 }
 
+#define NEWTRACES
+#ifdef NEWTRACES
+static qboolean ispoint;
+static void ClipToBlockMap(hull_t *hull, int block, vec3_t start, vec3_t end, trace_t *trace)
+{
+	unsigned short *linedefs;
+	dlinedef_t *ld;
+	plane_t *lp;
+	float planedist;
+
+	float d1, d2;	//distance start, end
+
+
+			trace->endpos[0] = end[0];
+			trace->endpos[1] = end[1];
+			trace->endpos[2] = end[2];
+
+			trace->fraction = 1;
+
+	for(linedefs = (short*)blockmapl + blockmapofs[block]+1; *linedefs != 0xffff; linedefs++)
+	{
+		ld = linedefsl + *linedefs;
+
+		lp = lineplanes + *linedefs;
+
+		if (ispoint)
+			planedist = lp->dist;
+		else
+		{	//figure out how far to move the plane out by (tracebox instead of tracecylinder
+			vec3_t ofs;
+			int j;
+			for (j=0 ; j<2 ; j++)
+			{
+				if (lp->normal[j] < 0)
+					ofs[j] = hull->clip_maxs[j];
+				else
+					ofs[j] = hull->clip_mins[j];
+			}
+			ofs[2] = 0;
+			planedist = lp->dist - DotProduct (ofs, lp->normal);
+		}
+
+		d1 = DotProduct(lp->normal, start) - (planedist);
+		d2 = DotProduct(lp->normal, end) - (planedist);
+		if (d1 > 0 && d2 > 0)
+			continue;	//both points on the front side.
+
+		if (d1 < 0 && d2 < 0)
+			continue;	//both points on the back side.
+	}
+}
+
+static int numinsectors;
+static int insector[8];
+static trace_t *trace_trace;
+static hull_t *trace_hull;
+static vec3_t trace_end;
+static vec3_t trace_start;
+static qboolean EnterSector(int secnum, float z)
+{
+	int i;
+	for (i = 0; i < numinsectors; i++)
+		if (insector[i] == secnum)
+			return true;	//erm. already in this one
+
+	if (i == sizeof(insector)/sizeof(insector[0]))
+	{
+		Con_DPrintf("Trace was in too many sectors\n");
+		return false;	//you're not allowed to enter
+	}
+	if (z + trace_hull->clip_mins[2] < sectorm[secnum].floorheight)	//was outside
+		return false;
+	if (z + trace_hull->clip_mins[2] > sectorm[secnum].ceilingheight)	//was outside
+		return false;
+
+	insector[i] = secnum;
+	return true;	//yay, the trace entered a big enough hole!
+}
+void LeaveSector(int secnum, float x, float y)
+{
+	float z;
+
+	int i;
+	for (i = 0; i < numinsectors; i++)
+		if (insector[i] == secnum)
+		{
+			//switch with last.
+			insector[i] = insector[numinsectors-1];
+			numinsectors--;
+
+			//z at x,y
+			if (trace_end[0]-trace_start[0])
+				z = (trace_end[2]-trace_start[2])/(trace_end[0]-trace_start[0]);
+			else if (trace_end[1]-trace_start[1])
+				z = (trace_end[2]-trace_start[2])/(trace_end[1]-trace_start[1]);
+			else
+			{	//was a vertical trace.
+				z = trace_end[2];
+			}
+			if (z > sectorm[secnum].ceilingheight)
+			{
+				z = sectorm[secnum].ceilingheight;
+				if (z < trace_trace->endpos[2])
+				{
+					trace_trace->endpos[0] -= (trace_end[0]-trace_start[0])/(z-trace_start[0]);
+					trace_trace->endpos[1] -= (trace_end[1]-trace_start[1])/(z-trace_start[1]);
+					trace_trace->endpos[2] = z;
+				}
+			}
+			if (z < sectorm[secnum].floorheight)
+			{
+				z = sectorm[secnum].floorheight;
+				if (z < trace_trace->endpos[2])
+				{
+					trace_trace->endpos[0] -= (trace_end[0]-trace_start[0])/(z-trace_start[0]);
+					trace_trace->endpos[1] -= (trace_end[1]-trace_start[1])/(z-trace_start[1]);
+					trace_trace->endpos[2] = z;
+				}
+			}
+			return;
+		}
+
+	Con_DPrintf("Trace wasn't in sector\n");
+}
+
+void Doom_ClipToInitialNode(int nodenum)
+{
+	int s;
+	int seg;
+	ddoomnode_t *node;
+	if (nodenum & NODE_IS_SSECTOR)
+	{
+		nodenum -= NODE_IS_SSECTOR;
+		for (seg = ssectorsl[nodenum].first; seg < ssectorsl[nodenum].first + ssectorsl[nodenum].segcount; seg++)
+			if (segsl[seg].linedef != 0xffff)
+				break;
+
+		s = sidedefsm[linedefsl[segsl[seg].linedef].sidedef[segsl[seg].direction]].sector;
+
+		if (!EnterSector(s, trace_start[2]))
+		{	//clipped by floor
+			trace_trace->fraction = 0;
+			trace_trace->allsolid = trace_trace->startsolid = true;
+			trace_trace->endpos[0] = trace_start[0];
+			trace_trace->endpos[1] = trace_start[1];
+			trace_trace->endpos[2] = trace_start[2];	//yeah, we do mean this - startsolid
+	//		if (IS_NAN(trace->endpos[2]))
+	//			Con_Printf("Nanny\n");
+		}
+		return;
+	}
+
+	node = nodel + nodenum;
+
+	if (node->x1lower+trace_hull->clip_mins[0] <= trace_start[0] && node->x1upper+trace_hull->clip_maxs[0] >= trace_start[0])
+		if (node->y1lower+trace_hull->clip_mins[1] <= trace_start[1] && node->y1upper+trace_hull->clip_maxs[1] >= trace_start[1])
+			Doom_ClipToInitialNode(node->node1);
+
+	if (node->x2lower+trace_hull->clip_mins[0] <= trace_start[0] && node->x2upper+trace_hull->clip_maxs[0] >= trace_start[0])
+		if (node->y2lower+trace_hull->clip_mins[1] <= trace_start[1] && node->y2upper+trace_hull->clip_maxs[1] >= trace_start[1])
+			Doom_ClipToInitialNode(node->node2);
+
+}
+
+void Doom_ClipToInitialSectors(void)
+{
+	Doom_ClipToInitialNode(nodec-1);
+/*
+	ddoomnode_t *node;
+	plane_t *plane;
+	int num;
+	int seg;
+	float d;
+	num = nodec-1;
+	while (1)
+	{
+		if (num & NODE_IS_SSECTOR)
+		{
+			num -= NODE_IS_SSECTOR;
+			for (seg = ssectorsl[num].first; seg < ssectorsl[num].first + ssectorsl[num].segcount; seg++)
+				if (segsl[seg].linedef != 0xffff)
+					break;
+
+			return sidedefsm[linedefsl[segsl[seg].linedef].sidedef[segsl[seg].direction]].sector;
+		}
+
+		node = nodel + num;
+		plane = nodeplanes + num;
+		
+//		if (plane->type < 3)
+//			d = p[plane->type] - plane->dist;
+//		else
+			d = DotProduct (plane->normal, p) - plane->dist;
+		if (d < 0)
+			num = node->node2;
+		else
+			num = node->node1;
+	}
+	
+	return num;
+*/
+}
+qboolean Doom_RecursiveHullCheck (hull_t *hull, int num, float p1f, float p2f, vec3_t start, vec3_t end, trace_t *trace)
+{
+	int bmi;
+	ispoint = !hull->clip_mins[0] && !hull->clip_mins[1] && !hull->clip_maxs[0] && !hull->clip_maxs[1];
+
+	trace->allsolid = trace->startsolid = false;
+	trace->contents = FTECONTENTS_EMPTY;
+
+
+	trace_trace = trace;
+	trace_hull = hull;
+	trace_end[0] = end[0];
+	trace_end[1] = end[1];
+	trace_end[2] = end[2];
+	trace_start[0] = start[0];
+	trace_start[1] = start[1];
+	trace_start[2] = start[2];
+
+
+
+	Doom_ClipToInitialNode(nodec-1);
+
+	if (trace->allsolid)	//started outside gamespace
+		return trace->fraction==1;
+
+	//clip to the blockmap.
+	//blockmap is 128*128
+	bmi = ((int)start[0] - blockmapl->xorg)/128 + (((int)start[1] - blockmapl->yorg)/128)*blockmapl->columns;
+	if (end[0] - start[0] > 0)
+	{
+		if (end[1] - start[1] > 0)
+		{
+			ClipToBlockMap(hull, bmi, start, end, trace);
+		}
+		else
+		{
+			trace->endpos[0] = start[0];
+			trace->endpos[1] = start[1];
+			trace->endpos[2] = start[2];
+
+			trace->fraction = 0;
+		}
+	}
+	else
+	{
+		trace->endpos[0] = start[0];
+		trace->endpos[1] = start[1];
+		trace->endpos[2] = start[2];
+
+		trace->fraction = 0;
+	}
+
+	return trace->fraction==1;
+}
+
+#else
 qboolean Doom_RecursiveHullCheck (hull_t *hull, int num, float p1f, float p2f, vec3_t start, vec3_t p2, trace_t *trace)
 {
 #define TRACESTEP	16
@@ -1643,7 +1901,10 @@ qboolean Doom_RecursiveHullCheck (hull_t *hull, int num, float p1f, float p2f, v
 	int j;
 
 	float clipfrac;
+	qboolean ispoint;
 #define	DIST_EPSILON	(0.03125)
+
+	ispoint = !hull->clip_mins[0] && !hull->clip_mins[1] && !hull->clip_maxs[0] && !hull->clip_maxs[1];
 
 //	Con_Printf("%i\n", sec1);
 
@@ -1715,7 +1976,7 @@ qboolean Doom_RecursiveHullCheck (hull_t *hull, int num, float p1f, float p2f, v
 				
 				lp = lineplanes + *linedefs;
 
-				if (1)
+				if (!ispoint)
 				{	//figure out how far to move the plane out by
 					for (j=0 ; j<2 ; j++)
 					{
@@ -2014,6 +2275,7 @@ qboolean Doom_RecursiveHullCheck (hull_t *hull, int num, float p1f, float p2f, v
 //Con_Printf("total = %f\n", trace->fraction);
 	return trace->fraction==1;
 }
+#endif
 
 void Doom_SetHullFuncs(hull_t *hull)
 {

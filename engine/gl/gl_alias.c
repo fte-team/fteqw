@@ -600,7 +600,6 @@ static galiastexnum_t *GL_ChooseSkin(galiasinfo_t *inf, char *modelname, entity_
 			GL_Bind(texnums->base);
 			glTexImage2D (GL_TEXTURE_2D, 0, gl_solid_format, scaled_width, scaled_height, 0, GL_RGBA, GL_UNSIGNED_BYTE, pixels);
 
-			glTexEnvf(GL_TEXTURE_ENV, GL_TEXTURE_ENV_MODE, GL_MODULATE);
 			glTexParameterf(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
 			glTexParameterf(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
 
@@ -623,7 +622,6 @@ static galiastexnum_t *GL_ChooseSkin(galiasinfo_t *inf, char *modelname, entity_
 			GL_Bind(texnums->fullbright);
 			glTexImage2D (GL_TEXTURE_2D, 0, gl_alpha_format, scaled_width, scaled_height, 0, GL_RGBA, GL_UNSIGNED_BYTE, pixels);
 
-			glTexEnvf(GL_TEXTURE_ENV, GL_TEXTURE_ENV_MODE, GL_MODULATE);
 			glTexParameterf(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
 			glTexParameterf(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
 		}
@@ -790,6 +788,8 @@ void GL_DrawAliasMesh (mesh_t *mesh, int texnum)
 	
 	GL_Bind(texnum);
 
+	GL_TexEnv(GL_MODULATE);
+
 	glVertexPointer(3, GL_FLOAT, 16, mesh->xyz_array);
 	glEnableClientState( GL_VERTEX_ARRAY );
 
@@ -804,6 +804,8 @@ void GL_DrawAliasMesh (mesh_t *mesh, int texnum)
 		glColorPointer(4, GL_UNSIGNED_BYTE, 0, mesh->colors_array);
 		glEnableClientState( GL_COLOR_ARRAY );
 	}
+	else
+		glDisableClientState( GL_COLOR_ARRAY );
 
 	glEnableClientState( GL_TEXTURE_COORD_ARRAY );
 	glTexCoordPointer(2, GL_FLOAT, 0, mesh->st_array);
@@ -975,7 +977,7 @@ void R_DrawGAliasModel (entity_t *e)
 	*/
 
 	GL_DisableMultitexture();
-	glTexEnvf(GL_TEXTURE_ENV, GL_TEXTURE_ENV_MODE, GL_MODULATE);
+	GL_TexEnv(GL_MODULATE);
 	if (gl_smoothmodels.value)
 		glShadeModel (GL_SMOOTH);
 	if (gl_affinemodels.value)
@@ -1023,6 +1025,7 @@ void R_DrawGAliasModel (entity_t *e)
 	else
 	{
 		glDisable(GL_BLEND);
+		glBlendFunc (GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
 	}
 	//	glEnable (GL_ALPHA_TEST);
 
@@ -1127,6 +1130,7 @@ void R_DrawGAliasModel (entity_t *e)
 	if (qglPNTrianglesfATI && gl_ati_truform.value)
 		glEnable(GL_PN_TRIANGLES_ATI);
 
+	memset(&mesh, 0, sizeof(mesh));
 	while(inf)
 	{
 		R_GAliasBuildMesh(&mesh, inf, e->frame, e->oldframe, e->lerptime, e->alpha);
@@ -1154,7 +1158,7 @@ void R_DrawGAliasModel (entity_t *e)
 
 			R_IBrokeTheArrays();
 
-			R_PushMesh(&mesh, skin->shader->features|MF_COLORS);
+			R_PushMesh(&mesh, skin->shader->features | MF_NONBATCHED | MF_COLORS);
 
 			R_RenderMeshBuffer ( &mb, false );
 		}
@@ -1221,7 +1225,7 @@ glColor3f(0,0,1);
 	glDisable(GL_BLEND);
 
 	glBlendFunc (GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
-	glTexEnvf(GL_TEXTURE_ENV, GL_TEXTURE_ENV_MODE, GL_REPLACE);
+	GL_TexEnv(GL_REPLACE);
 
 	glEnable(GL_TEXTURE_2D);
 
@@ -1349,7 +1353,7 @@ void R_DrawGAliasModelLighting (entity_t *e)
 	VectorNormalize (shadevector);
 
 	GL_DisableMultitexture();
-	glTexEnvf(GL_TEXTURE_ENV, GL_TEXTURE_ENV_MODE, GL_MODULATE);
+	GL_TexEnv(GL_MODULATE);
 	if (gl_smoothmodels.value)
 		glShadeModel (GL_SMOOTH);
 	if (gl_affinemodels.value)
@@ -1382,7 +1386,7 @@ void R_DrawGAliasModelLighting (entity_t *e)
 	if (gl_ati_truform.value)
 		glDisable(GL_PN_TRIANGLES_ATI);
 
-	glTexEnvf(GL_TEXTURE_ENV, GL_TEXTURE_ENV_MODE, GL_REPLACE);
+	GL_TexEnv(GL_REPLACE);
 
 	glShadeModel (GL_FLAT);
 	if (gl_affinemodels.value)

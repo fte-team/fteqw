@@ -506,7 +506,7 @@ void R_DrawHLModel(entity_t	*curent)
 	if (sequence->motiontype)
 		model.frame = sequence->numframes-1;
 
-	glTexEnvf(GL_TEXTURE_ENV, GL_TEXTURE_ENV_MODE, GL_MODULATE);
+	GL_TexEnv(GL_MODULATE);
 
 	if (curent->alpha<1)
 	{
@@ -593,7 +593,7 @@ void R_DrawHLModel(entity_t	*curent)
 
     glPopMatrix();
 
-	glTexEnvf(GL_TEXTURE_ENV, GL_TEXTURE_ENV_MODE, GL_REPLACE);
+	GL_TexEnv(GL_REPLACE);
 }
 
 /*

@@ -676,14 +676,6 @@ void Model_NextDownload (void)
 
 	cls.downloadtype = dl_model;
 
-	if (!COM_FCheckExists("pics/colormap.pcx"))	//no false alarms if on q2 data.
-	{
-	if (!CL_CheckOrDownloadFile("gfx/colormap.lmp", false))
-		return;
-	if (!CL_CheckOrDownloadFile("gfx/palette.lmp", false))
-		return;
-	}
-
 	for ( 
 		; cl.model_name[cls.downloadnumber][0]
 		; cls.downloadnumber++)

@@ -707,7 +707,7 @@ void Draw_CursorLine(int ox, int y, fileblock_t *b)
 	int cx;
 	int a = 0, i;
 
-	int colour=0;
+	int colour=COLOR_WHITE;
 
 	int ts = edittabspacing.value;
 	if (ts < 1)
@@ -715,14 +715,14 @@ void Draw_CursorLine(int ox, int y, fileblock_t *b)
 	ts*=8;
 
 	if (b->flags & (FB_BREAK))
-		colour = 1;	//red		
+		colour = COLOR_RED;	//red		
 
 	if (executionblock == b)
 	{
 		if (colour)	//break point too
-			colour = 2;	//green
+			colour = COLOR_GREEN;	//green
 		else
-			colour = 3;	//yellow
+			colour = COLOR_YELLOW;	//yellow
 	}
 
 	if (cursorx <= strlen(d)+1 && (int)(realtime*4.0) & 1)
@@ -734,7 +734,7 @@ void Draw_CursorLine(int ox, int y, fileblock_t *b)
 		if (*d == '\t')
 		{
 			if (a == cx)
-				Draw_ColouredCharacter (x+ox, y, 11);			
+				Draw_ColouredCharacter (x+ox, y, 11|M_COLOR_WHITE);			
 			x+=ts;
 			x-=x%ts;
 			d++;
@@ -744,7 +744,7 @@ void Draw_CursorLine(int ox, int y, fileblock_t *b)
 		if (x+ox< vid.width)
 		{
 			if (a == cx)
-				Draw_ColouredCharacter (x+ox, y, 11);
+				Draw_ColouredCharacter (x+ox, y, 11|M_COLOR_WHITE);
 			else
 				Draw_ColouredCharacter (x+ox, y, (int)*d | (colour<<8));
 		}
@@ -762,7 +762,7 @@ void Draw_NonCursorLine(int x, int y, fileblock_t *b)
 	qbyte *d = b->data;
 	int i;
 
-	int colour=0;
+	int colour=COLOR_WHITE;
 
 	int ts = edittabspacing.value;
 	if (ts < 1)
@@ -770,14 +770,14 @@ void Draw_NonCursorLine(int x, int y, fileblock_t *b)
 	ts*=8;
 
 	if (b->flags & (FB_BREAK))
-		colour = 1;	//red		
+		colour = COLOR_RED;	//red		
 
 	if (executionblock == b)
 	{
 		if (colour)	//break point too
-			colour = 2;	//green
+			colour = COLOR_GREEN;	//green
 		else
-			colour = 3;	//yellow
+			colour = COLOR_YELLOW;	//yellow
 	}
 
 	for (i = 0; i < b->datalength; i++)

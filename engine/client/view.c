@@ -450,8 +450,8 @@ V_cshift_f
 */
 void V_cshift_f (void)
 {
-	if (Cmd_Argc() != 5)	//this is actually to warn of a malice bug (and prevent a totally black screen) more than it is to help the user. :/
-	{
+	if (Cmd_Argc() != 5 && Cmd_Argc() != 1)	//this is actually to warn of a malice bug (and prevent a totally black screen) more than it is to help the user. :/
+	{										//The 1 is so teamfortress can use it to clear.
 		Con_Printf("v_cshift: v_cshift <r> <g> <b> <alpha>\n");
 		return;
 	}

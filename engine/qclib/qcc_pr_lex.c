@@ -1020,7 +1020,7 @@ void QCC_PR_LexString (void)
 				continue;
 			}
 		}
-		else if (c == 0x74)
+		else if (c == 0x7C && flag_acc)	//reacc support... reacc is strange.
 			c = '\n';
 
 		pr_token[len] = c|texttype;

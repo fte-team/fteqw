@@ -67,6 +67,7 @@ int			playertextures;		// up to 16 color translated skins
 int			mirrortexturenum;	// quake texturenum, not gltexturenum
 qboolean	mirror;
 mplane_t	*mirror_plane;
+msurface_t	*r_mirror_chain;
 
 void R_DrawAliasModel (entity_t *e);
 
@@ -1381,6 +1382,8 @@ void R_MirrorAddPlayerModels (void)
 		VectorCopy (exact.origin, ent->origin);
 	}
 
+	VectorCopy(cl.simorg[0], ent->origin);
+
 	if (state->effects & EF_FLAG1)
 		CL_AddFlagModels (ent, 0);
 	else if (state->effects & EF_FLAG2)
@@ -1428,6 +1431,8 @@ void R_Mirror (void)
 	r_refdef.vieworg[2] = 64;
 */
 
+	AngleVectors (r_refdef.viewangles, vpn, vright, vup);
+
 
 	gldepthmin = 0.5;
 	gldepthmax = 1;
@@ -1461,8 +1466,9 @@ void R_Mirror (void)
 	// blend on top
 	glDisable(GL_ALPHA_TEST);
 	glEnable (GL_BLEND);
+	glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
 	glColor4f (1,1,1,r_mirroralpha.value);
-	s = cl.worldmodel->textures[mirrortexturenum]->texturechain;
+	s = r_mirror_chain;
 	for ( ; s ; s=s->texturechain)
 		R_RenderBrushPoly (s);
 	cl.worldmodel->textures[mirrortexturenum]->texturechain = NULL;

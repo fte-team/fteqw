@@ -53,6 +53,7 @@ lightmapinfo_t **lightmap;
 int numlightmaps;
 
 msurface_t  *r_alpha_surfaces = NULL;
+extern msurface_t *r_mirror_chain;
 
 mleaf_t		*r_vischain;		// linked list of visible leafs
 
@@ -1698,6 +1699,7 @@ void R_MirrorChain (msurface_t *s)
 {
 	if (mirror)
 		return;
+	r_mirror_chain = s;
 	mirror = true;
 	mirror_plane = s->plane;
 }

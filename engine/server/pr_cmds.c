@@ -2162,7 +2162,21 @@ void PF_particle (progfuncs_t *prinst, globalvars_t *pr_globals)	//I said it was
 	MSG_WriteByte (&sv.nqmulticast, color);
 #endif
 	//for qw users (and not fte)
-	if (color == 73)
+/*	if (*prinst->callargc >= 5)
+	{
+	PARM4 = te_
+	optional PARM5 = count
+		MSG_WriteByte (&sv.multicast, svc_temp_entity);
+		MSG_WriteByte (&sv.multicast, TE_BLOOD);
+		MSG_WriteByte (&sv.multicast, count<10?1:(count+10)/20);
+		MSG_WriteCoord (&sv.multicast, org[0]);
+		MSG_WriteCoord (&sv.multicast, org[1]);
+		MSG_WriteCoord (&sv.multicast, org[2]);
+		SV_MulticastProtExt(org, MULTICAST_PVS, pr_global_struct->dimension_send, 0, PEXT_HEXEN2);
+	}
+	else 
+*/
+		if (color == 73)
 	{
 		MSG_WriteByte (&sv.multicast, svc_temp_entity);
 		MSG_WriteByte (&sv.multicast, TE_BLOOD);
@@ -5185,6 +5199,7 @@ lh_extension_t QSG_Extensions[] = {
 	{"DP_MONSTERWALK"},
 	{"DP_MOVETYPEBOUNCEMISSILE"},		//I added the code for hexen2 support.
 	{"DP_MOVETYPEFOLLOW"},
+	{"DP_QC_CHANGEPITCH",				1,	NULL, {"changepitch"}},
 	{"DP_QC_COPYENTITY",				1,	NULL, {"copyentity"}},
 	{"DP_QC_CVAR_STRING",				1,	NULL, {"dp_cvar_string"}},	//448 builtin.
 	{"DP_QC_ETOS",						1,	NULL, {"etos"}},
@@ -5195,6 +5210,7 @@ lh_extension_t QSG_Extensions[] = {
 	{"DP_QC_FINDFLOAT",					1,	NULL, {"findfloat"}},
 //	{"DP_QC_FS_SEARCH",					4,	NULL, {"search_begin", "search_end", "search_getsize", "search_getfilename"}},
 	{"DP_QC_MINMAXBOUND",				3,	NULL, {"min", "max", "bound"}},
+	{"DP_QC_MULTIPLETEMPSTRINGS"},
 	{"DP_QC_RANDOMVEC",					1,	NULL, {"randomvec"}},
 	{"DP_QC_SINCOSSQRTPOW",				4,	NULL, {"sin", "cos", "sqrt", "pow"}},
 	{"DP_QC_TRACEBOX",					1,	NULL, {"tracebox"}},
@@ -5236,7 +5252,8 @@ lh_extension_t QSG_Extensions[] = {
 //	{"TQ_RAILTRAIL"},	//treat this as the ZQ style railtrails which the client already supports, okay so the preparse stuff needs strengthening.
 	{"ZQ_MOVETYPE_FLY"},
 	{"ZQ_MOVETYPE_NOCLIP"},
-	{"ZQ_MOVETYPE_NONE"},
+	{"ZQ_MOVETYPE_NONE"}
+//	{"ZQ_QC_PARTICLE"}	//particle builtin works in QW ( we don't mimic ZQ fully so...)
 };
 
 //some of these are overkill yes, but they are all derived from the fteextensions flags and document the underlaying protocol available.

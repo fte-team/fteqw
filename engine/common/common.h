@@ -263,6 +263,7 @@ qbyte *COM_LoadMallocFile (char *path);
 void COM_LoadCacheFile (char *path, struct cache_user_s *cu);
 void COM_CreatePath (char *path);
 void COM_Gamedir (char *dir);
+char *COM_GetPathInfo (int i, int *crc);
 char *COM_NextPath (char *prevpath);
 void COM_FlushFSCache(void);	//a file was written using fopen
 void COM_RefreshFSCache_f(void);

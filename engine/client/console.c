@@ -816,10 +816,10 @@ void Con_DrawInput (void)
 	int		y;
 	int		i;
 	int p;
-	int mask=CON_WHITEMASK;
 	unsigned char	*text, *fname;
 	extern int con_commandmatch;
 
+	int mask=CON_WHITEMASK;
 	int maskstack[4];
 	int maskstackdepth = 0;
 
@@ -914,7 +914,6 @@ void Con_DrawInput (void)
 	text[key_linepos] = oc;
 }
 
-
 /*
 ================
 Con_DrawNotify
@@ -931,6 +930,10 @@ void Con_DrawNotify (void)
 	char	*s;
 	int		skip;
 	int maxlines;
+
+	int mask=CON_WHITEMASK;
+	int maskstack[4];
+	int maskstackdepth = 0;
 
 	console_t *con = &con_main;	//notify text should never use a chat console
 
@@ -975,25 +978,81 @@ void Con_DrawNotify (void)
 	
 		if (chat_team)
 		{
-			Draw_String (8, v, "say_team:");
+			Draw_FunString (8, v, "say_team:");	//make sure we get coloration right
 			skip = 11;
 		}
 		else
 		{
-			Draw_String (8, v, "say:");
+			Draw_FunString (8, v, "say:");
 			skip = 5;
 		}
 
 		s = chat_buffer;
 		if (chat_bufferlen > (vid.width>>3)-(skip+1))
 			s += chat_bufferlen - ((vid.width>>3)-(skip+1));
-		x = 0;
+		x = chat_buffer - s;
+
+		while(x < 0)
+		{
+			if (s[x] == '^')
+			{
+				if (s[x+1]>='0' && s[x+1]<'8')
+					mask = (s[x+1]-'0')*256 + (mask&~CON_COLOURMASK);	//change colour only.
+				else if (s[x+1] == 'b')
+					mask = (mask & ~CON_BLINKTEXT) + (CON_BLINKTEXT - (mask & CON_BLINKTEXT));
+				else if (s[x+1] == 'a')	//alternate
+					mask = (mask & ~CON_2NDCHARSETTEXT) + (CON_2NDCHARSETTEXT - (mask & CON_2NDCHARSETTEXT));
+				else if (s[x+1] == 's')	//store on stack (it's great for names)
+				{
+					if (maskstackdepth < sizeof(maskstack)/sizeof(maskstack[0]))
+					{
+						maskstack[maskstackdepth] = mask;
+						maskstackdepth++;
+					}
+				}
+				else if (s[x+1] == 'r')	//restore from stack (it's great for names)
+				{
+					if (maskstackdepth)
+					{
+						maskstackdepth--;
+						mask = maskstack[maskstackdepth];
+					}
+				}
+			}
+		}
+
 		while(s[x])
 		{
-			Draw_Character ( (x+skip)<<3, v, s[x]);
+			if (s[x] == '^')
+			{
+				if (s[x+1]>='0' && s[x+1]<'8')
+					mask = (s[x+1]-'0')*256 + (mask&~CON_COLOURMASK);	//change colour only.
+				else if (s[x+1] == 'b')
+					mask = (mask & ~CON_BLINKTEXT) + (CON_BLINKTEXT - (mask & CON_BLINKTEXT));
+				else if (s[x+1] == 'a')	//alternate
+					mask = (mask & ~CON_2NDCHARSETTEXT) + (CON_2NDCHARSETTEXT - (mask & CON_2NDCHARSETTEXT));
+				else if (s[x+1] == 's')	//store on stack (it's great for names)
+				{
+					if (maskstackdepth < sizeof(maskstack)/sizeof(maskstack[0]))
+					{
+						maskstack[maskstackdepth] = mask;
+						maskstackdepth++;
+					}
+				}
+				else if (s[x+1] == 'r')	//restore from stack (it's great for names)
+				{
+					if (maskstackdepth)
+					{
+						maskstackdepth--;
+						mask = maskstack[maskstackdepth];
+					}
+				}
+			}
+
+			Draw_ColouredCharacter ( (x+skip)<<3, v, s[x]|M_COLOR_WHITE);
 			x++;
 		}
-		Draw_Character ( (x+skip)<<3, v, 10+((int)(realtime*con_cursorspeed)&1));
+		Draw_ColouredCharacter ( (x+skip)<<3, v, 10+((int)(realtime*con_cursorspeed)&1)|M_COLOR_WHITE);
 		v += 8;
 	}
 

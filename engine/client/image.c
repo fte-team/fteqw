@@ -705,9 +705,9 @@ int Image_WritePNG (char *filename, int compression, qbyte *pixels, int width, i
 #endif
 
 #ifdef AVAIL_JPEGLIB
-#if defined(MINGW)
-#error no jpegs with mingw
-#elif defined(_WIN32)
+#define XMD_H	//fix for mingw
+
+#if defined(_WIN32)
 
 #define JPEG_API VARGS
 #include "jpeglib.h"

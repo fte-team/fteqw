@@ -2872,6 +2872,10 @@ void Host_Init (quakeparms_t *parms)
 	Editor_Init();
 #endif
 
+#ifdef PLUGINS
+	Plug_Init();
+#endif
+
 	//	Con_Printf ("Exe: "__TIME__" "__DATE__"\n");
 	Con_TPrintf (TL_HEAPSIZE, parms->memsize/ (1024*1024.0));
 
@@ -2925,10 +2929,6 @@ void Host_Init (quakeparms_t *parms)
 	}
 
 	UI_Init();
-
-#ifdef PLUGINS
-	Plug_Init();
-#endif
 
 
 Con_TPrintf (TL_NL);

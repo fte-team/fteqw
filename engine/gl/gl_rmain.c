@@ -172,13 +172,13 @@ void GL_InitSceneProcessingShaders (void)
 		void main (void)\
 		{\
 			v_texCoord.x = v_texCoord.x + sin((v_texCoord.y * xscale) + time) * ampscale;\
-			v_texCoord.y = v_texCoord.y + cos((v_texCoord.x * xscale) + time) * ampscale;\
+			v_texCoord.y = v_texCoord.y + cos((v_texCoord.x * yscale) + time) * ampscale;\
 			gl_FragColor = texture2D( texture, v_texCoord );\
 		}\
 		";
 
-	vert = GLSlang_CreateShader(genericvert,	GL_VERTEX_SHADER_ARB);
-	frag = GLSlang_CreateShader(wwfrag,			GL_FRAGMENT_SHADER_ARB);
+	vert = GLSlang_CreateShader(genericvert,	1);
+	frag = GLSlang_CreateShader(wwfrag,			0);
 
 	scenepp_ww_program = GLSlang_CreateProgram(vert, frag);
 	scenepp_ww_parm_texturei	= GLSlang_GetUniformLocation(scenepp_ww_program, "texture");

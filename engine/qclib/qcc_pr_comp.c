@@ -3940,14 +3940,133 @@ QCC_def_t *QCC_PR_Expression (int priority)
 		}
 		if (!op)
 		{
+			if (e == NULL)
+				QCC_PR_ParseError(ERR_INTERNAL, "e == null");
+
+
 			if (!STRCMP(pr_token, "++"))
 			{
-				QCC_PR_IncludeChunk("+=1", false, NULL);
+				//if the last statement was an ent.float (or something)
+				if (((unsigned)(statements[numstatements-1].op - OP_LOAD_F) < 6 || statements[numstatements-1].op == OP_LOAD_I) && statements[numstatements-1].c == e->ofs)
+				{	//we have our load.
+					QCC_def_t		*e3;
+//the only inefficiency here is with an extra temp (we can't reuse the origional)
+//this is not a problem, as the optimise temps or locals marshalling can clean these up for us
+					qcc_usefulstatement=true;
+//load
+//add to temp
+//store temp to offset
+//return origional loaded (which is not at the same offset as the pointer we store to)
+					e2 = QCC_GetTemp(type_float);
+					e3 = QCC_GetTemp(type_pointer);
+					QCC_PR_SimpleStatement(OP_ADDRESS, statements[numstatements-1].a, statements[numstatements-1].b, e3->ofs);
+					if (e->type->type == ev_float)
+					{
+						QCC_PR_Statement3(&pr_opcodes[OP_ADD_F], e, QCC_MakeFloatDef(1), e2);
+						QCC_PR_Statement3(&pr_opcodes[OP_STOREP_F], e2, e3, NULL);
+					}
+					else if (e->type->type == ev_integer)
+					{
+						QCC_PR_Statement3(&pr_opcodes[OP_ADD_I], e, QCC_MakeIntDef(1), e2);
+						QCC_PR_Statement3(&pr_opcodes[OP_STOREP_I], e2, e3, NULL);
+					}
+					else
+					{
+						QCC_PR_ParseError(ERR_PARSEERRORS, "-- suffix operator results in nonstandard behaviour. Use -=1 or prefix form instead");
+						QCC_PR_IncludeChunk("-=1", false, NULL);
+					}
+					QCC_FreeTemp(e2);
+					QCC_FreeTemp(e3);
+				}
+				else if (e->type->type == ev_float)
+				{
+//copy to temp
+//add to origional
+//return temp (which == origional)
+					QCC_PR_ParseWarning(WARN_INEFFICIENTPLUSPLUS, "++ suffix operator results in inefficient behaviour. Use +=1 or prefix form instead");
+					qcc_usefulstatement=true;
+
+					e2 = QCC_GetTemp(type_float);
+					QCC_PR_Statement3(&pr_opcodes[OP_STORE_F], e, e2, NULL);
+					QCC_PR_Statement3(&pr_opcodes[OP_ADD_F], e, QCC_MakeFloatDef(1), e);
+					QCC_FreeTemp(e);
+					e = e2;
+				}
+				else if (e->type->type == ev_integer)
+				{
+					QCC_PR_ParseWarning(WARN_INEFFICIENTPLUSPLUS, "++ suffix operator results in inefficient behaviour. Use +=1 or prefix form instead");
+					qcc_usefulstatement=true;
+
+					e2 = QCC_GetTemp(type_integer);
+					QCC_PR_Statement3(&pr_opcodes[OP_STORE_I], e, e2, NULL);
+					QCC_PR_Statement3(&pr_opcodes[OP_ADD_I], e, QCC_MakeIntDef(1), e);
+					QCC_FreeTemp(e);
+					e = e2;
+				}
+				else
+				{
+					QCC_PR_ParseWarning(WARN_NOTSTANDARDBEHAVIOUR, "++ suffix operator results in nonstandard behaviour. Use +=1 or prefix form instead");
+					QCC_PR_IncludeChunk("+=1", false, NULL);
+				}
 				QCC_PR_Lex();
 			}
 			else if (!STRCMP(pr_token, "--"))
 			{
-				QCC_PR_IncludeChunk("-=1", false, NULL);
+				if (((unsigned)(statements[numstatements-1].op - OP_LOAD_F) < 6 || statements[numstatements-1].op == OP_LOAD_I) && statements[numstatements-1].c == e->ofs)
+				{	//we have our load.
+					QCC_def_t		*e3;
+//load
+//add to temp
+//store temp to offset
+//return origional loaded (which is not at the same offset as the pointer we store to)
+					e2 = QCC_GetTemp(type_float);
+					e3 = QCC_GetTemp(type_pointer);
+					QCC_PR_SimpleStatement(OP_ADDRESS, statements[numstatements-1].a, statements[numstatements-1].b, e3->ofs);
+					if (e->type->type == ev_float)
+					{
+						QCC_PR_Statement3(&pr_opcodes[OP_SUB_F], e, QCC_MakeFloatDef(1), e2);
+						QCC_PR_Statement3(&pr_opcodes[OP_STOREP_F], e2, e3, NULL);
+					}
+					else if (e->type->type == ev_integer)
+					{
+						QCC_PR_Statement3(&pr_opcodes[OP_SUB_I], e, QCC_MakeIntDef(1), e2);
+						QCC_PR_Statement3(&pr_opcodes[OP_STOREP_I], e2, e3, NULL);
+					}
+					else
+					{
+						QCC_PR_ParseError(ERR_PARSEERRORS, "-- suffix operator results in nonstandard behaviour. Use -=1 or prefix form instead");
+						QCC_PR_IncludeChunk("-=1", false, NULL);
+					}
+					QCC_FreeTemp(e2);
+					QCC_FreeTemp(e3);
+				}
+				else if (e->type->type == ev_float)
+				{
+					QCC_PR_ParseWarning(WARN_INEFFICIENTPLUSPLUS, "-- suffix operator results in inefficient behaviour. Use -=1 or prefix form instead");
+					qcc_usefulstatement=true;
+
+					e2 = QCC_GetTemp(type_float);
+					QCC_PR_Statement3(&pr_opcodes[OP_STORE_F], e, e2, NULL);
+					QCC_PR_Statement3(&pr_opcodes[OP_SUB_F], e, QCC_MakeFloatDef(1), e);
+					QCC_FreeTemp(e);
+					e = e2;
+				}
+				else if (e->type->type == ev_integer)
+				{
+					QCC_PR_ParseWarning(WARN_INEFFICIENTPLUSPLUS, "-- suffix operator results in inefficient behaviour. Use -=1 or prefix form instead");
+					qcc_usefulstatement=true;
+
+					e2 = QCC_GetTemp(type_integer);
+					QCC_PR_Statement3(&pr_opcodes[OP_STORE_I], e, e2, NULL);
+					QCC_PR_Statement3(&pr_opcodes[OP_SUB_I], e, QCC_MakeIntDef(1), e);
+					QCC_FreeTemp(e);
+					e = e2;
+				}
+				else
+				{
+					QCC_PR_ParseWarning(WARN_NOTSTANDARDBEHAVIOUR, "-- suffix operator results in nonstandard behaviour. Use -=1 or prefix form instead");
+					QCC_PR_IncludeChunk("-=1", false, NULL);
+				}
 				QCC_PR_Lex();
 			}
 			break;	// next token isn't at this priority level

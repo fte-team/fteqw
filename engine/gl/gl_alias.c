@@ -2128,7 +2128,11 @@ void GL_LoadQ1Model (model_t *mod, void *buffer)
 
 	pq1inmodel = (dmdl_t *)buffer;
 
-	version = LittleLong (pq1inmodel->version);
+	seamremap = (int*)pq1inmodel;	//I like overloading locals.
+	for (i = 0; i < sizeof(dmdl_t)/4; i++)
+		seamremap[i] = LittleLong(seamremap[i]);
+
+	version = pq1inmodel->version;
 	if (version != ALIAS_VERSION)
 		Sys_Error ("%s has wrong version number (%i should be %i)",
 				 mod->name, version, ALIAS_VERSION);
@@ -2141,7 +2145,7 @@ void GL_LoadQ1Model (model_t *mod, void *buffer)
 		pq1inmodel->skinwidth < 1)
 		Sys_Error("Model %s has an invalid quantity\n", mod->name);
 
-	mod->flags = LittleLong (pq1inmodel->flags);
+	mod->flags = pq1inmodel->flags;
 
 	size = sizeof(galiasinfo_t)
 		+ pq1inmodel->numframes*sizeof(galiasgroup_t)
@@ -2269,11 +2273,11 @@ int Mod_ReadFlagsFromMD1(char *name, int md3version)
 	if (!pinmodel)	//not found
 		return 0;
 
-	if (pinmodel->ident != IDPOLYHEADER)
+	if (LittleLong(pinmodel->ident) != IDPOLYHEADER)
 		return 0;
-	if (pinmodel->version != ALIAS_VERSION)
+	if (LittleLong(pinmodel->version) != ALIAS_VERSION)
 		return 0;
-	return pinmodel->flags;
+	return LittleLong(pinmodel->flags);
 }
 
 #ifdef MD2MODELS

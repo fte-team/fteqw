@@ -38,7 +38,7 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 #define PEXT_MODELDBL			0x00001000
 #define PEXT_ENTITYDBL			0x00002000	//max of 1024 ents instead of 512
 #define PEXT_ENTITYDBL2			0x00004000	//max of 1024 ents instead of 512
-//#define PEXT_ORIGINDBL			0x00008000	//max of +-8192 instead of +-4096 of map origins (Achieved by *2 on origins in writecoord)
+#define PEXT_FLOATCOORDS		0x00008000	//supports floating point origins.
 #define PEXT_VWEAP				0x00010000	//cause an extra qbyte to be sent, and an extra list of models for vweaps.
 #ifdef Q2BSPS
 #define PEXT_Q2BSP				0x00020000
@@ -55,6 +55,7 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 //#define PEXT_64PLAYERS			0x02000000	//Client is able to cope with 64 players. Wow.
 #define PEXT_SHOWPIC			0x04000000
 #define PEXT_SETATTACHMENT		0x08000000	//md3 tags (needs networking, they need to lerp).
+#define PEXT_PK3DOWNLOADS		0x10000000	//retrieve a list of pk3s/pk3s/paks for downloading (with optional URL and crcs)
 
 
 
@@ -329,7 +330,7 @@ enum clcq2_ops_e
 #define	PF_HULLSIZE_Z		(1<<14)
 #endif
 
-#define	PF_ORIGINDBL		(1<<19)
+//#define	PF_ORIGINDBL		(1<<19)
 
 
 

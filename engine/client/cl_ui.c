@@ -384,7 +384,7 @@ void VQ3_RenderView(const q3refdef_t *ref)
 	{
 		GL_Set2D ();
 		glBlendFunc (GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
-		glTexEnvf(GL_TEXTURE_ENV, GL_TEXTURE_ENV_MODE, GL_MODULATE);
+		GL_TexEnv(GL_MODULATE);
 	}
 #endif
 

@@ -1117,7 +1117,10 @@ void SV_UpdateQCStats(edict_t	*ent, int *stats)
 			break;
 		case ev_string:
 			s = PR_GetString(svprogfuncs, eval->string);
-			Q_strncpyz((char *)(&stats[qcstats[i].statnum]), s, (4)*sizeof(int));
+			stats[qcstats[i].statnum+0] = LittleLong(((int*)s)[0]);	//so the network is sent out correctly as a string.
+			stats[qcstats[i].statnum+1] = LittleLong(((int*)s)[1]);
+			stats[qcstats[i].statnum+2] = LittleLong(((int*)s)[2]);
+			stats[qcstats[i].statnum+3] = LittleLong(((int*)s)[3]);
 			break;
 		}
 	}

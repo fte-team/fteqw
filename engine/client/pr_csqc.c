@@ -119,6 +119,16 @@ void PF_traceon (progfuncs_t *prinst, struct globalvars_s *pr_globals);
 void PF_traceoff (progfuncs_t *prinst, struct globalvars_s *pr_globals);
 void PF_eprint (progfuncs_t *prinst, struct globalvars_s *pr_globals);
 
+void PF_strstrofs (progfuncs_t *prinst, struct globalvars_s *pr_globals);
+void PF_str2chr (progfuncs_t *prinst, struct globalvars_s *pr_globals);
+void PF_chr2str (progfuncs_t *prinst, struct globalvars_s *pr_globals);
+void PF_strconv (progfuncs_t *prinst, struct globalvars_s *pr_globals);
+void PF_infoadd (progfuncs_t *prinst, struct globalvars_s *pr_globals);
+void PF_infoget (progfuncs_t *prinst, struct globalvars_s *pr_globals);
+void PF_strncmp (progfuncs_t *prinst, struct globalvars_s *pr_globals);
+void PF_strcasecmp (progfuncs_t *prinst, struct globalvars_s *pr_globals);
+void PF_strncasecmp (progfuncs_t *prinst, struct globalvars_s *pr_globals);
+
 //these functions are from pr_menu.dat
 void PF_CL_is_cached_pic (progfuncs_t *prinst, struct globalvars_s *pr_globals);
 void PF_CL_precache_pic (progfuncs_t *prinst, struct globalvars_s *pr_globals);
@@ -400,6 +410,40 @@ static void PF_R_RenderScene(progfuncs_t *prinst, struct globalvars_s *pr_global
 	vid.recalc_refdef = 1;
 }
 
+static void PF_cs_getstatf(progfuncs_t *prinst, struct globalvars_s *pr_globals)
+{
+	int stnum = G_FLOAT(OFS_PARM0);
+	float val = *(float*)&cl.stats[0][stnum];	//copy float into the stat
+	G_FLOAT(OFS_RETURN) = val;
+}
+static void PF_cs_getstati(progfuncs_t *prinst, struct globalvars_s *pr_globals)
+{
+	int stnum = G_FLOAT(OFS_PARM0);
+	unsigned int val = cl.stats[0][stnum];
+	if (G_FLOAT(OFS_PARM1))
+		G_FLOAT(OFS_RETURN) = (val&(((1<<9)-1)<<23))>>23;
+	else
+		G_FLOAT(OFS_RETURN) = val&((1<<24)-1);
+}
+static void PF_cs_getstats(progfuncs_t *prinst, struct globalvars_s *pr_globals)
+{
+	int stnum = G_FLOAT(OFS_PARM0);
+	char *out;
+	unsigned int val;
+
+	out = PF_TempStr();
+
+	//the network protocol byteswaps
+
+	((unsigned int*)out)[0] = LittleLong(cl.stats[0][stnum+0]);
+	((unsigned int*)out)[1] = LittleLong(cl.stats[0][stnum+1]);
+	((unsigned int*)out)[2] = LittleLong(cl.stats[0][stnum+2]);
+	((unsigned int*)out)[3] = LittleLong(cl.stats[0][stnum+3]);
+	((unsigned int*)out)[4] = 0;	//make sure it's null terminated
+
+	RETURN_SSTRING(out);
+}
+
 
 //warning: functions that depend on globals are bad, mkay?
 builtin_t csqc_builtins[] = {
@@ -533,17 +577,17 @@ PF_Fixme,
 PF_Fixme,
 PF_Fixme,
 //110
-PF_Fixme,
-PF_Fixme,
-PF_Fixme,
-PF_Fixme,
-PF_Fixme,
+PF_fopen,
+PF_fclose,
+PF_fgets,
+PF_fputs,
+PF_strlen,
 
-PF_Fixme,
-PF_Fixme,
-PF_Fixme,
-PF_Fixme,
-PF_Fixme,
+PF_strcat,
+PF_substring,
+PF_stov,
+PF_dupstring,
+PF_forgetstring,
 
 
 //120
@@ -583,6 +627,136 @@ PF_CL_drawfill,//6
 PF_CL_drawsetcliparea,//7
 PF_CL_drawresetcliparea,//8
 PF_CL_drawgetimagesize,//9
+
+//150
+PF_cs_getstatf,
+PF_cs_getstati,
+PF_cs_getstats,
+PF_Fixme,
+PF_Fixme,
+
+PF_Fixme,
+PF_Fixme,
+PF_Fixme,
+PF_Fixme,
+PF_Fixme,
+
+//160
+PF_Fixme,
+PF_Fixme,
+PF_Fixme,
+PF_Fixme,
+PF_Fixme,
+
+PF_Fixme,
+PF_Fixme,
+PF_Fixme,
+PF_Fixme,
+PF_Fixme,
+
+//170
+PF_Fixme,
+PF_Fixme,
+PF_Fixme,
+PF_Fixme,
+PF_Fixme,
+
+PF_Fixme,
+PF_Fixme,
+PF_Fixme,
+PF_Fixme,
+PF_Fixme,
+
+//180
+PF_Fixme,
+PF_Fixme,
+PF_Fixme,
+PF_Fixme,
+PF_Fixme,
+
+PF_Fixme,
+PF_Fixme,
+PF_Fixme,
+PF_Fixme,
+PF_Fixme,
+
+//190
+PF_Fixme,
+PF_Fixme,
+PF_Fixme,
+PF_Fixme,
+PF_Fixme,
+
+PF_Fixme,
+PF_Fixme,
+PF_Fixme,
+PF_Fixme,
+PF_Fixme,
+
+//200
+PF_Fixme,
+PF_Fixme,
+PF_Fixme,
+PF_Fixme,
+PF_Fixme,
+
+PF_Fixme,
+PF_Fixme,
+PF_Fixme,
+PF_Fixme,
+PF_Fixme,
+
+//210
+PF_Fixme,
+PF_Fixme,
+PF_Fixme,
+PF_Fixme,
+PF_Fixme,
+
+PF_Fixme,
+PF_Fixme,
+PF_Fixme,
+PF_Fixme,
+PF_Fixme,
+
+//220
+PF_Fixme,
+PF_strstrofs,
+PF_str2chr,
+PF_chr2str,
+PF_strconv,
+
+PF_infoadd,
+PF_infoget,
+PF_strncmp,
+PF_strcasecmp,
+PF_strncasecmp,
+
+//230
+PF_Fixme,
+PF_Fixme,
+PF_Fixme,
+PF_Fixme,
+PF_Fixme,
+
+PF_Fixme,
+PF_Fixme,
+PF_Fixme,
+PF_Fixme,
+PF_Fixme,
+
+//240
+PF_Fixme,
+PF_Fixme,
+PF_Fixme,
+PF_Fixme,
+PF_Fixme,
+
+PF_Fixme,
+PF_Fixme,
+PF_Fixme,
+PF_Fixme,
+PF_Fixme
 
 };
 int csqc_numbuiltins = sizeof(csqc_builtins)/sizeof(csqc_builtins[0]);

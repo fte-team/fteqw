@@ -2345,7 +2345,7 @@ void SWMod_LoadAliasModel (model_t *mod, void *buffer)
 	numframes = pmodel->numframes;
 
 	if (pmodel->skinwidth & 0x03)
-		Sys_Error ("Mod_LoadAliasModel: skinwidth not multiple of 4");
+		Sys_Error ("Mod_LoadAliasModel: \"%s\" skinwidth not multiple of 4", loadmodel->name);
 
 	pheader->model = (qbyte *)pmodel - (qbyte *)pheader;
 

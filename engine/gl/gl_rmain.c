@@ -184,34 +184,22 @@ void GL_InitSceneProcessingShaders (void)
 	vert = GLSlang_CreateShader(genericvert,	1);//GL_VERTEX_SHADER_ARB);
 	frag = GLSlang_CreateShader(wwfrag,			0);//GL_FRAGMENT_SHADER_ARB);
 
-	if (qglGetError())
-		Con_Printf("GL Error after initing shader object\n");
-
 	scenepp_ww_program = GLSlang_CreateProgram(vert, frag);
-	if (qglGetError())
-		Con_Printf("GL Error after initing shader object\n");
 
 //	scenepp_ww_parm_texturei	= GLSlang_GetUniformLocation(scenepp_ww_program, "texture");
 	scenepp_ww_parm_timef		= GLSlang_GetUniformLocation(scenepp_ww_program, "time");
 	scenepp_ww_parm_xscalef		= GLSlang_GetUniformLocation(scenepp_ww_program, "xscale");
-	if (qglGetError())
-		Con_Printf("GL Error after initing shader object\n");
 	scenepp_ww_parm_yscalef		= GLSlang_GetUniformLocation(scenepp_ww_program, "yscale");
 	scenepp_ww_parm_ampscalef	= GLSlang_GetUniformLocation(scenepp_ww_program, "ampscale");
-	if (qglGetError())
-		Con_Printf("GL Error after initing shader object\n");
 
 	GLSlang_UseProgram(scenepp_ww_program);
 
 //	GLSlang_SetUniform1i(scenepp_ww_parm_texturei, 0);
 
-	if (qglGetError())
-		Con_Printf("GL Error after initing shader object\n");
-
-	if (qglGetError())
-		Con_Printf("GL Error after initing shader object\n");
-
 	GLSlang_UseProgram(0);
+
+	if (qglGetError())
+		Con_Printf("GL Error initing shader object\n");
 }
 
 /*
@@ -1770,11 +1758,17 @@ void GLR_RenderView (void)
 
 	// SCENE POST PROCESSING
 	// we check if we need to use any shaders - currently it's just waterwarp
-	if ((gl_config.arb_shader_objects) && (r_waterwarp.value && r_viewleaf->contents <= Q1CONTENTS_WATER))
+	if ((gl_config.arb_shader_objects) && (r_waterwarp.value && r_viewleaf&&r_viewleaf->contents <= Q1CONTENTS_WATER))
 	{
 		extern int char_texture;
 		float vwidth = 1, vheight = 1;
 		float vs, vt;
+
+		if (!glwidth || !glheight)
+		{
+			Con_Printf("Window too small!!!\n");
+			return;
+		}
 
 		// get the powers of 2 for the size of the texture that will hold the scene
 		while (vwidth < glwidth)
@@ -1828,7 +1822,7 @@ void GLR_RenderView (void)
 		GLSlang_SetUniform1f(scenepp_ww_parm_xscalef, 4 / vs);
 		GLSlang_SetUniform1f(scenepp_ww_parm_yscalef, ((4 / glwidth)*glheight)/vt);
 		//keep the amp proportional to the size of the scene in texture coords
-		GLSlang_SetUniform1f(scenepp_ww_parm_ampscalef, (0.005 / 0.625) * vs);
+		GLSlang_SetUniform1f(scenepp_ww_parm_ampscalef, (0.005 / 0.625) * vs*r_waterwarp.value);
 		GLSlang_SetUniform1f(scenepp_ww_parm_timef, cl.time);
 
 		if (qglGetError())

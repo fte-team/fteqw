@@ -776,7 +776,7 @@ void CL_Disconnect (void)
 
 // stop sounds (especially looping!)
 	S_StopAllSounds (true);
-#ifdef VM_CGAME
+#ifdef VM_CG
 	CG_Stop();
 #endif
 	
@@ -2566,7 +2566,7 @@ void Host_Frame (float time)
 		return;			// framerate is too high
 
 	*/
-	Mod_Think();
+	Mod_Think();	//think even on idle (which means small walls and a fast cpu can get more surfaces done.
 	if (!CL_FilterTime(realtime - oldrealtime))
 		return;
 
@@ -2589,9 +2589,12 @@ void Host_Frame (float time)
 		return;
 #endif
 
+	cls.framecount++;
+
 #ifdef NQPROT
 	NET_Poll();
 #endif
+
 
 	RSpeedRemark();
 

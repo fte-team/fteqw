@@ -1247,6 +1247,8 @@ void CL_ParseServerData (void)
 	Stats_NewMap();
 	cl.servercount = svcnt;
 
+	cl.teamfortress = !Q_strcasecmp(str, "fortress");
+
 	if (cl.gamedirchanged)
 	{
 		cl.gamedirchanged = false;
@@ -2330,31 +2332,31 @@ void CL_NewTranslation (int slot)
 	int		i, j;
 	int		top, bottom;
 	qbyte	*dest, *source;
-	player_info_t	*player;
-	char s[512];
 #endif
+
+	char *s;
+	player_info_t	*player;
+
+	if (slot > MAX_CLIENTS)
+		Sys_Error ("CL_NewTranslation: slot > MAX_CLIENTS");
+
+	player = &cl.players[slot];
+
+	s = Skin_FindName (player);
+	COM_StripExtension(s, s);
+	if (player->skin && !stricmp(s, player->skin->name))
+		player->skin = NULL;
+
 
 #ifdef RGLQUAKE
 	if (qrenderer == QR_OPENGL)
-	{
-		if (slot > MAX_CLIENTS)
-			Sys_Error ("CL_NewTranslation: slot > MAX_CLIENTS");
-
-		cl.players[slot].skin = NULL;
-//		R_TranslatePlayerSkin(slot);
+	{	//gl doesn't need to do anything except prevent the sys_error below.
 	}
 	else
 #endif
 #ifdef SWQUAKE
 		if (qrenderer == QR_SOFTWARE)
 	{
-		player = &cl.players[slot];
-
-		strcpy(s, Info_ValueForKey(player->userinfo, "skin"));
-		COM_StripExtension(s, s);
-		if (player->skin && !stricmp(s, player->skin->name))
-			player->skin = NULL;
-
 		top = player->topcolor;
 		bottom = player->bottomcolor;
 		if (!cl.splitclients && !(cl.fpd & FPD_NO_FORCE_COLOR))	//no colour/skin forcing in splitscreen.

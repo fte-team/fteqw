@@ -43,8 +43,6 @@ typedef qboolean qbool;
 
 #define SP 0
 
-#define teamfortress spectator
-#define framecount qport
 #define Com_Printf Con_Printf
 
 #define strlcpy Q_strncpyz

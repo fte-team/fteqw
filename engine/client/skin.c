@@ -23,12 +23,84 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 cvar_t		baseskin = {"baseskin", "base"};
 cvar_t		noskins = {"noskins", "0"};
 
+extern cvar_t	cl_teamskin;
+extern cvar_t	cl_enemyskin;
+
 extern cvar_t	r_fb_models;
 
 char		allskins[128];
 #define	MAX_CACHED_SKINS		128
 skin_t		skins[MAX_CACHED_SKINS];
 int			numskins;
+
+//returns the name
+char *Skin_FindName (player_info_t *sc)
+{
+	int tracknum;
+	char *s;
+	static char name[MAX_OSPATH];
+
+	char *skinforcing_team;
+
+	if (allskins[0])
+	{
+		Q_strncpyz(name, allskins, sizeof(name));
+	}
+	else
+	{
+		s = Info_ValueForKey(sc->userinfo, "skin");
+		if (s && s[0])
+			Q_strncpyz(name, s, sizeof(name));
+		else
+			Q_strncpyz(name, baseskin.string, sizeof(name));
+	}
+
+	if (cl.spectator && (tracknum = Cam_TrackNum()) != -1)
+		skinforcing_team = cl.players[tracknum].team;
+	else if (cl.spectator)
+		skinforcing_team = "spec";
+	else
+		skinforcing_team = cl.players[cl.playernum[0]].team;
+
+	//Don't force skins in splitscreen (it's probable that the new skin would be wrong).
+	//Don't force skins in TF (where skins are forced on a class basis by the mod).
+	//Don't force skins on servers that have it disabled.
+	if (cl.splitclients<2 && !cl.teamfortress && !(cl.fpd & FPD_NO_FORCE_SKIN))
+	{
+		char *skinname = NULL;
+		player_state_t *state;
+		qboolean teammate;
+
+		teammate = (cl.teamplay && !strcmp(sc->team, skinforcing_team)) ? true : false;
+/*
+		if (!cl.validsequence)
+			goto nopowerups;
+
+		state = cl.frames[cl.parsecount & UPDATE_MASK].playerstate + (sc - cl.players);
+
+		if (state->messagenum != cl.parsecount)
+			goto nopowerups;
+
+		if ((state->effects & (EF_BLUE | EF_RED)) == (EF_BLUE | EF_RED))
+			skinname = teammate ? cl_teambothskin.string : cl_enemybothskin.string;
+		else if (state->effects & EF_BLUE)
+			skinname = teammate ? cl_teamquadskin.string : cl_enemyquadskin.string;
+		else if (state->effects & EF_RED)
+			skinname = teammate ? cl_teampentskin.string : cl_enemypentskin.string;
+
+	nopowerups:
+*/
+		if (!skinname || !skinname[0])
+			skinname = teammate ? cl_teamskin.string : cl_enemyskin.string;
+		if (skinname[0] && !strchr(skinname, '/'))	// a '/' in a skin name is deemed as a model name, so we ignore it.
+			Q_strncpyz(name, skinname, sizeof(name));
+	}
+
+	if (strstr(name, "..") || *name == '.')
+		Q_strncpyz(name, baseskin.string, sizeof(name));
+
+	return name;
+}
 
 /*
 ================
@@ -69,7 +141,9 @@ void Skin_Find (player_info_t *sc)
 		COM_StripExtension (mn, name);
 	}
 	else
-		COM_StripExtension (s, name);
+
+	s = Skin_FindName(sc);
+	COM_StripExtension (s, name);
 
 	s = strchr(name, '/');
 	if (s)

@@ -273,6 +273,8 @@ typedef struct
 
 	qboolean resendinfo;
 
+	int framecount;
+
 // network stuff
 	netchan_t	netchan;
 	float lastarbiatarypackettime;	//used to mark when packets were sent to prevent mvdsv servers from causing us to disconnect.
@@ -514,6 +516,8 @@ typedef struct
 
 	int teamplay;
 	int deathmatch;
+
+	qboolean teamfortress;	//*sigh*. This is used for teamplay stuff. This sucks.
 } client_state_t;
 
 extern int		cl_teamtopcolor;
@@ -523,8 +527,10 @@ extern int		cl_enemybottomcolor;
 
 //FPD values
 //(commented out ones are ones that we don't support)
+#define FPD_NO_FORCE_SKIN	256
 #define FPD_NO_FORCE_COLOR	512
-
+#define FPD_LIMIT_PITCH		(1 << 14)	//limit scripted pitch changes
+#define FPD_LIMIT_YAW		(1 << 15)	//limit scripted yaw changes
 
 //
 // cvars
@@ -779,6 +785,7 @@ typedef struct
 } pcx_t;
 
 
+char *Skin_FindName (player_info_t *sc);
 void	Skin_Find (player_info_t *sc);
 qbyte	*Skin_Cache8 (skin_t *skin);
 qbyte	*Skin_Cache32 (skin_t *skin);

@@ -1157,6 +1157,37 @@ void SV_Localinfo_f (void)
 	PR_LocalInfoChanged(Cmd_Argv(1), old, Cmd_Argv(2));
 }
 
+void SV_SaveInfo(FILE *f, char *info, char *commandname)
+{
+	char *command;
+	char *value;
+
+	while(*info == '\\')
+	{
+		command = info+1;
+		value = strchr(command, '\\');
+		info = strchr(value+1, '\\');
+		if (!*info)	//eot..
+			info = value+strlen(value);
+
+		if (*command == '*')	//unsettable, so don't write it for later setting.
+			continue;
+
+		fprintf(f, "%s ");
+		fwrite(commandname, strlen(commandname), 1, f);
+		fwrite(" ", 1, 1, f);
+		fwrite(command, value-command, 1, f);
+		fwrite(" ", 1, 1, f);
+		fwrite(value, info-value, 1, f);
+		fwrite("\n", 1, 1, f);
+	}
+}
+
+void SV_SaveInfos(FILE *f)
+{
+	SV_SaveInfo(f, svs.info, "serverinfo");
+	SV_SaveInfo(f, localinfo, "localinfo");
+}
 
 /*
 ===========

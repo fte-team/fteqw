@@ -384,7 +384,7 @@ void NPP_NQWriteByte(int dest, qbyte data)	//replacement write func (nq to qw)
 				break;
 			case TE_RAILTRAIL:
 				protocollen = sizeofcoord*6+sizeof(qbyte)*1;
-				multicastpos=1;
+				multicastpos=2;
 				multicasttype=MULTICAST_PHS;
 				break;
 			case TE_STREAM_CHAIN:
@@ -401,6 +401,18 @@ void NPP_NQWriteByte(int dest, qbyte data)	//replacement write func (nq to qw)
 			case TE_STREAM_COLORBEAM:
 				protocollen = sizeofcoord*6+sizeof(short)+sizeof(qbyte)*(3+2);
 				multicastpos = 8;
+				multicasttype=MULTICAST_PHS;
+				break;
+
+			case 76:
+				protocollen = sizeofcoord*9+sizeof(qbyte)*2;
+				multicastpos = 2;
+				multicasttype=MULTICAST_PHS;
+				break;
+
+			case 79:
+				protocollen = sizeofcoord*6+sizeof(qbyte)*3;
+				multicastpos = 1;
 				multicasttype=MULTICAST_PHS;
 				break;
 

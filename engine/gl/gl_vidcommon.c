@@ -257,6 +257,12 @@ void GL_CheckExtensions (void *(*getglfunction) (char *name))
 			bindTexFunc			= (void *)getglext("glBindTexture");
 	}
 
+	if (strstr(gl_extensions, "GL_EXT_compiled_vertex_array"))
+	{
+		qglLockArraysEXT = (void *)getglext("glLockArraysEXT");
+		qglUnlockArraysEXT = (void *)getglext("glUnlockArraysEXT");
+	}
+
 	gl_config.tex_env_combine = !!strstr(gl_extensions, "GL_EXT_texture_env_combine");
 	gl_config.env_add = !!strstr(gl_extensions, "GL_EXT_texture_env_add");
 	gl_config.nv_tex_env_combine4 = !!strstr(gl_extensions, "GL_NV_texture_env_combine4");

@@ -900,8 +900,8 @@ void CL_FlushClientCommands(void)
 	}
 }
 
-#ifdef _WIN32
 qboolean runningindepphys;
+#ifdef _WIN32
 CRITICAL_SECTION indepcriticialsection;
 HANDLE indepphysicsthread;
 void CL_AllowIndependantSendCmd(qboolean allow)
@@ -972,6 +972,9 @@ void CL_UseIndepPhysics(qboolean allow)
 }
 #else
 void CL_AllowIndependantSendCmd(qboolean allow)
+{
+}
+void CL_UseIndepPhysics(qboolean allow)
 {
 }
 #endif

@@ -58,6 +58,8 @@ kbutton_t	in_lookup, in_lookdown, in_moveleft, in_moveright;
 kbutton_t	in_strafe, in_speed, in_use, in_jump, in_attack;
 kbutton_t	in_up, in_down;
 
+kbutton_t	in_button3, in_button4, in_button5, in_button6, in_button7, in_button8;
+
 #define IN_IMPULSECACHE 256
 int			in_impulse[MAX_SPLITS][IN_IMPULSECACHE];
 int			in_nextimpulse[MAX_SPLITS];
@@ -72,7 +74,9 @@ void KeyDown (kbutton_t *b)
 	int pnum;
 	c = Cmd_Argv(0);
 	pnum = atoi(c+strlen(c)-1);
-	if (pnum)pnum--;
+	if (c[1] == 'b' && !atoi(c+strlen(c)-2))
+		pnum = 0;
+	else if (pnum)pnum--;
 	
 	c = Cmd_Argv(1);
 	if (c[0])
@@ -106,7 +110,9 @@ void KeyUp (kbutton_t *b)
 	int pnum;
 	c = Cmd_Argv(0);
 	pnum = atoi(c+strlen(c)-1);
-	if (pnum)pnum--;
+	if (c[1] == 'b' && !atoi(c+strlen(c)-2))
+		pnum = 0;
+	else if (pnum)pnum--;
 	
 	c = Cmd_Argv(1);
 	if (c[0])
@@ -179,6 +185,20 @@ void IN_UseDown (void) {KeyDown(&in_use);}
 void IN_UseUp (void) {KeyUp(&in_use);}
 void IN_JumpDown (void) {KeyDown(&in_jump);}
 void IN_JumpUp (void) {KeyUp(&in_jump);}
+
+
+void IN_Button3Down(void) {KeyDown(&in_button3);}
+void IN_Button3Up(void) {KeyUp(&in_button3);}
+void IN_Button4Down(void) {KeyDown(&in_button4);}
+void IN_Button4Up(void) {KeyUp(&in_button4);}
+void IN_Button5Down(void) {KeyDown(&in_button5);}
+void IN_Button5Up(void) {KeyUp(&in_button5);}
+void IN_Button6Down(void) {KeyDown(&in_button6);}
+void IN_Button6Up(void) {KeyUp(&in_button6);}
+void IN_Button7Down(void) {KeyDown(&in_button7);}
+void IN_Button7Up(void) {KeyUp(&in_button7);}
+void IN_Button8Down(void) {KeyDown(&in_button8);}
+void IN_Button8Up(void) {KeyUp(&in_button8);}
 
 
 //is this useful?
@@ -475,6 +495,7 @@ void CL_FinishMove (usercmd_t *cmd, int msecs, int pnum)
 {
 	extern int mouseusedforgui;
 	int		ms, i;
+	int bits;
 
 //
 // allways dump the first two message, because it may contain leftover inputs
@@ -485,16 +506,18 @@ void CL_FinishMove (usercmd_t *cmd, int msecs, int pnum)
 //
 // figure button bits
 //
-//	if (!mouseusedforgui && !(key_dest == key_menu && m_state == m_complex))
-	{
-		if ( in_attack.state[pnum] & 3 )
-			cmd->buttons |= 1;
-		in_attack.state[pnum] &= ~2;
-	}
-	
-	if (in_jump.state[pnum] & 3)
-		cmd->buttons |= 2;
-	in_jump.state[pnum] &= ~2;
+
+	bits = 0;
+	if (in_attack .state[pnum] & 3)	bits |=   1; in_attack.state[pnum]	&= ~2;
+	if (in_jump   .state[pnum] & 3)	bits |=   2; in_jump.state[pnum]	&= ~2;
+	if (in_use    .state[pnum] & 3)	bits |=   4; in_use.state[pnum]		&= ~2;
+	if (in_button3.state[pnum] & 3)	bits |=   4; in_button3.state[pnum] &= ~2;	//yup, flag 4 twice.
+	if (in_button4.state[pnum] & 3)	bits |=   8; in_button4.state[pnum] &= ~2;
+	if (in_button5.state[pnum] & 3)	bits |=  16; in_button5.state[pnum] &= ~2;
+	if (in_button6.state[pnum] & 3)	bits |=  32; in_button6.state[pnum] &= ~2;
+	if (in_button7.state[pnum] & 3)	bits |=  64; in_button7.state[pnum] &= ~2;
+	if (in_button8.state[pnum] & 3)	bits |= 128; in_button8.state[pnum] &= ~2;
+	cmd->buttons = bits;
 
 	// send milliseconds of time to apply the move
 	ms = msecs;//host_frametime * 1000;
@@ -552,17 +575,15 @@ void CLNQ_SendMove (usercmd_t		*cmd, int pnum)
 //
 	bits = 0;
 
-	if ( in_attack.state[pnum] & 3 )
-		bits |= 1;
-	in_attack.state[pnum] &= ~2;
-	
-	if (in_jump.state[pnum] & 3)
-		bits |= 2;
-	in_jump.state[pnum] &= ~2;
-
-	if (in_use.state[pnum] & 3)
-		bits |= 4;
-	in_use.state[pnum] &= ~2;
+	if (in_attack.state[pnum] & 3 )	bits |=   1; in_attack.state[pnum]	&= ~2;
+	if (in_jump.state[pnum] & 3)	bits |=   2; in_jump.state[pnum]	&= ~2;
+	if (in_use.state[pnum] & 3)		bits |=   4; in_use.state[pnum]		&= ~2;
+	if (in_button3.state[pnum] & 3)	bits |=   4; in_button3.state[pnum] &= ~2;	//yup, flag 4 twice.
+	if (in_button4.state[pnum] & 3)	bits |=   8; in_button4.state[pnum] &= ~2;
+	if (in_button5.state[pnum] & 3)	bits |=  16; in_button5.state[pnum] &= ~2;
+	if (in_button6.state[pnum] & 3)	bits |=  32; in_button6.state[pnum] &= ~2;
+	if (in_button7.state[pnum] & 3)	bits |=  64; in_button7.state[pnum] &= ~2;
+	if (in_button8.state[pnum] & 3)	bits |= 128; in_button8.state[pnum] &= ~2;
 
 	
     MSG_WriteByte (&buf, bits);
@@ -1122,6 +1143,20 @@ void CL_InitInput (void)
 		Cmd_AddCommand (vahunk("-klook%s",		spn),	IN_KLookUp);
 		Cmd_AddCommand (vahunk("+mlook%s",		spn),	IN_MLookDown);
 		Cmd_AddCommand (vahunk("-mlook%s",		spn),	IN_MLookUp);
+
+
+		Cmd_AddCommand (vahunk("+button3%s",	spn),	IN_Button3Down);
+		Cmd_AddCommand (vahunk("-button3%s",	spn),	IN_Button3Up);
+		Cmd_AddCommand (vahunk("+button4%s",	spn),	IN_Button4Down);
+		Cmd_AddCommand (vahunk("-button4%s",	spn),	IN_Button4Up);
+		Cmd_AddCommand (vahunk("+button5%s",	spn),	IN_Button5Down);
+		Cmd_AddCommand (vahunk("-button5%s",	spn),	IN_Button5Up);
+		Cmd_AddCommand (vahunk("+button6%s",	spn),	IN_Button6Down);
+		Cmd_AddCommand (vahunk("-button6%s",	spn),	IN_Button6Up);
+		Cmd_AddCommand (vahunk("+button7%s",	spn),	IN_Button7Down);
+		Cmd_AddCommand (vahunk("-button7%s",	spn),	IN_Button7Up);
+		Cmd_AddCommand (vahunk("+button8%s",	spn),	IN_Button8Down);
+		Cmd_AddCommand (vahunk("-button8%s",	spn),	IN_Button8Up);
 	}
 
 	Cvar_Register (&cl_nodelta, inputnetworkcvargroup);

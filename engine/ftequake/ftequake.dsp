@@ -301,7 +301,6 @@ LINK32=link.exe
 # PROP Target_Dir ""
 # ADD BASE CPP /nologo /G5 /ML /W3 /GX /ZI /Od /I "..\client" /I "../common" /I "../server" /I "../gl" /I "../sw" /I "../qclib" /I "../libs" /D "MINIMAL" /D "_DEBUG" /D "GLQUAKE" /D "WIN32" /D "_WINDOWS" /D "SERVERONLY" /FR".\GLDebug/" /Fp".\GLDebug/qwcl.pch" /YX /Fo".\GLDebug/" /Fd".\GLDebug/" /FD /c
 # ADD CPP /nologo /G6 /ML /W3 /GX /O1 /I "..\client" /I "../common" /I "../server" /I "../gl" /I "../sw" /I "../qclib" /I "../libs" /D "MINIMAL" /D "NDEBUG" /D "WIN32" /D "_WINDOWS" /D "SERVERONLY" /FR".\GLDebug/" /Fp".\GLDebug/qwcl.pch" /YX /Fo".\GLDebug/" /Fd".\GLDebug/" /FD /c
-# SUBTRACT CPP /Z<none>
 # ADD BASE MTL /nologo /D "_DEBUG" /mktyplib203 /win32
 # ADD MTL /nologo /D "_DEBUG" /mktyplib203 /win32
 # ADD BASE RSC /l 0x809 /d "_DEBUG"
@@ -2666,6 +2665,8 @@ SOURCE=..\sw\d_edge.c
 
 !ELSEIF  "$(CFG)" == "ftequake - Win32 MinGLRelease"
 
+# PROP Exclude_From_Build 1
+
 !ELSEIF  "$(CFG)" == "ftequake - Win32 Debug Dedicated Server"
 
 # PROP Exclude_From_Build 1
@@ -2703,6 +2704,8 @@ SOURCE=..\sw\d_fill.c
 # PROP Exclude_From_Build 1
 
 !ELSEIF  "$(CFG)" == "ftequake - Win32 MinGLRelease"
+
+# PROP Exclude_From_Build 1
 
 !ELSEIF  "$(CFG)" == "ftequake - Win32 Debug Dedicated Server"
 
@@ -2742,6 +2745,8 @@ SOURCE=..\sw\d_init.c
 
 !ELSEIF  "$(CFG)" == "ftequake - Win32 MinGLRelease"
 
+# PROP Exclude_From_Build 1
+
 !ELSEIF  "$(CFG)" == "ftequake - Win32 Debug Dedicated Server"
 
 # PROP Exclude_From_Build 1
@@ -2779,6 +2784,8 @@ SOURCE=..\sw\d_modech.c
 # PROP Exclude_From_Build 1
 
 !ELSEIF  "$(CFG)" == "ftequake - Win32 MinGLRelease"
+
+# PROP Exclude_From_Build 1
 
 !ELSEIF  "$(CFG)" == "ftequake - Win32 Debug Dedicated Server"
 
@@ -2818,6 +2825,8 @@ SOURCE=..\sw\d_part.c
 
 !ELSEIF  "$(CFG)" == "ftequake - Win32 MinGLRelease"
 
+# PROP Exclude_From_Build 1
+
 !ELSEIF  "$(CFG)" == "ftequake - Win32 Debug Dedicated Server"
 
 # PROP Exclude_From_Build 1
@@ -2855,6 +2864,8 @@ SOURCE=..\sw\d_polyse.c
 # PROP Exclude_From_Build 1
 
 !ELSEIF  "$(CFG)" == "ftequake - Win32 MinGLRelease"
+
+# PROP Exclude_From_Build 1
 
 !ELSEIF  "$(CFG)" == "ftequake - Win32 Debug Dedicated Server"
 
@@ -2894,6 +2905,8 @@ SOURCE=..\sw\d_scan.c
 
 !ELSEIF  "$(CFG)" == "ftequake - Win32 MinGLRelease"
 
+# PROP Exclude_From_Build 1
+
 !ELSEIF  "$(CFG)" == "ftequake - Win32 Debug Dedicated Server"
 
 # PROP Exclude_From_Build 1
@@ -2931,6 +2944,8 @@ SOURCE=..\sw\d_sky.c
 # PROP Exclude_From_Build 1
 
 !ELSEIF  "$(CFG)" == "ftequake - Win32 MinGLRelease"
+
+# PROP Exclude_From_Build 1
 
 !ELSEIF  "$(CFG)" == "ftequake - Win32 Debug Dedicated Server"
 
@@ -2970,6 +2985,8 @@ SOURCE=..\sw\d_sprite.c
 
 !ELSEIF  "$(CFG)" == "ftequake - Win32 MinGLRelease"
 
+# PROP Exclude_From_Build 1
+
 !ELSEIF  "$(CFG)" == "ftequake - Win32 Debug Dedicated Server"
 
 # PROP Exclude_From_Build 1
@@ -3007,6 +3024,8 @@ SOURCE=..\sw\d_surf.c
 # PROP Exclude_From_Build 1
 
 !ELSEIF  "$(CFG)" == "ftequake - Win32 MinGLRelease"
+
+# PROP Exclude_From_Build 1
 
 !ELSEIF  "$(CFG)" == "ftequake - Win32 Debug Dedicated Server"
 
@@ -3046,6 +3065,8 @@ SOURCE=..\sw\d_trans.c
 
 !ELSEIF  "$(CFG)" == "ftequake - Win32 MinGLRelease"
 
+# PROP Exclude_From_Build 1
+
 !ELSEIF  "$(CFG)" == "ftequake - Win32 Debug Dedicated Server"
 
 # PROP Exclude_From_Build 1
@@ -3083,6 +3104,8 @@ SOURCE=..\sw\d_vars.c
 # PROP Exclude_From_Build 1
 
 !ELSEIF  "$(CFG)" == "ftequake - Win32 MinGLRelease"
+
+# PROP Exclude_From_Build 1
 
 !ELSEIF  "$(CFG)" == "ftequake - Win32 Debug Dedicated Server"
 
@@ -3122,6 +3145,8 @@ SOURCE=..\sw\d_zpoint.c
 
 !ELSEIF  "$(CFG)" == "ftequake - Win32 MinGLRelease"
 
+# PROP Exclude_From_Build 1
+
 !ELSEIF  "$(CFG)" == "ftequake - Win32 Debug Dedicated Server"
 
 # PROP Exclude_From_Build 1
@@ -3159,6 +3184,8 @@ SOURCE=..\sw\nonintel.c
 # PROP Exclude_From_Build 1
 
 !ELSEIF  "$(CFG)" == "ftequake - Win32 MinGLRelease"
+
+# PROP Exclude_From_Build 1
 
 !ELSEIF  "$(CFG)" == "ftequake - Win32 Debug Dedicated Server"
 
@@ -3198,6 +3225,8 @@ SOURCE=..\sw\r_aclip.c
 
 !ELSEIF  "$(CFG)" == "ftequake - Win32 MinGLRelease"
 
+# PROP Exclude_From_Build 1
+
 !ELSEIF  "$(CFG)" == "ftequake - Win32 Debug Dedicated Server"
 
 # PROP Exclude_From_Build 1
@@ -3235,6 +3264,8 @@ SOURCE=..\sw\r_alias.c
 # PROP Exclude_From_Build 1
 
 !ELSEIF  "$(CFG)" == "ftequake - Win32 MinGLRelease"
+
+# PROP Exclude_From_Build 1
 
 !ELSEIF  "$(CFG)" == "ftequake - Win32 Debug Dedicated Server"
 
@@ -3274,6 +3305,8 @@ SOURCE=..\sw\r_bsp.c
 
 !ELSEIF  "$(CFG)" == "ftequake - Win32 MinGLRelease"
 
+# PROP Exclude_From_Build 1
+
 !ELSEIF  "$(CFG)" == "ftequake - Win32 Debug Dedicated Server"
 
 # PROP Exclude_From_Build 1
@@ -3311,6 +3344,8 @@ SOURCE=..\sw\r_draw.c
 # PROP Exclude_From_Build 1
 
 !ELSEIF  "$(CFG)" == "ftequake - Win32 MinGLRelease"
+
+# PROP Exclude_From_Build 1
 
 !ELSEIF  "$(CFG)" == "ftequake - Win32 Debug Dedicated Server"
 
@@ -3350,6 +3385,8 @@ SOURCE=..\sw\r_edge.c
 
 !ELSEIF  "$(CFG)" == "ftequake - Win32 MinGLRelease"
 
+# PROP Exclude_From_Build 1
+
 !ELSEIF  "$(CFG)" == "ftequake - Win32 Debug Dedicated Server"
 
 # PROP Exclude_From_Build 1
@@ -3387,6 +3424,8 @@ SOURCE=..\sw\r_light.c
 # PROP Exclude_From_Build 1
 
 !ELSEIF  "$(CFG)" == "ftequake - Win32 MinGLRelease"
+
+# PROP Exclude_From_Build 1
 
 !ELSEIF  "$(CFG)" == "ftequake - Win32 Debug Dedicated Server"
 
@@ -3426,6 +3465,8 @@ SOURCE=..\sw\r_main.c
 
 !ELSEIF  "$(CFG)" == "ftequake - Win32 MinGLRelease"
 
+# PROP Exclude_From_Build 1
+
 !ELSEIF  "$(CFG)" == "ftequake - Win32 Debug Dedicated Server"
 
 # PROP Exclude_From_Build 1
@@ -3463,6 +3504,8 @@ SOURCE=..\sw\r_misc.c
 # PROP Exclude_From_Build 1
 
 !ELSEIF  "$(CFG)" == "ftequake - Win32 MinGLRelease"
+
+# PROP Exclude_From_Build 1
 
 !ELSEIF  "$(CFG)" == "ftequake - Win32 Debug Dedicated Server"
 
@@ -3502,6 +3545,8 @@ SOURCE=..\sw\r_sky.c
 
 !ELSEIF  "$(CFG)" == "ftequake - Win32 MinGLRelease"
 
+# PROP Exclude_From_Build 1
+
 !ELSEIF  "$(CFG)" == "ftequake - Win32 Debug Dedicated Server"
 
 # PROP Exclude_From_Build 1
@@ -3539,6 +3584,8 @@ SOURCE=..\sw\r_sprite.c
 # PROP Exclude_From_Build 1
 
 !ELSEIF  "$(CFG)" == "ftequake - Win32 MinGLRelease"
+
+# PROP Exclude_From_Build 1
 
 !ELSEIF  "$(CFG)" == "ftequake - Win32 Debug Dedicated Server"
 
@@ -3578,6 +3625,8 @@ SOURCE=..\sw\r_surf.c
 
 !ELSEIF  "$(CFG)" == "ftequake - Win32 MinGLRelease"
 
+# PROP Exclude_From_Build 1
+
 !ELSEIF  "$(CFG)" == "ftequake - Win32 Debug Dedicated Server"
 
 # PROP Exclude_From_Build 1
@@ -3615,6 +3664,8 @@ SOURCE=..\sw\r_vars.c
 # PROP Exclude_From_Build 1
 
 !ELSEIF  "$(CFG)" == "ftequake - Win32 MinGLRelease"
+
+# PROP Exclude_From_Build 1
 
 !ELSEIF  "$(CFG)" == "ftequake - Win32 Debug Dedicated Server"
 
@@ -3654,6 +3705,8 @@ SOURCE=..\sw\sw_draw.c
 
 !ELSEIF  "$(CFG)" == "ftequake - Win32 MinGLRelease"
 
+# PROP Exclude_From_Build 1
+
 !ELSEIF  "$(CFG)" == "ftequake - Win32 Debug Dedicated Server"
 
 # PROP Exclude_From_Build 1
@@ -3691,6 +3744,8 @@ SOURCE=..\sw\sw_model.c
 # PROP Exclude_From_Build 1
 
 !ELSEIF  "$(CFG)" == "ftequake - Win32 MinGLRelease"
+
+# PROP Exclude_From_Build 1
 
 !ELSEIF  "$(CFG)" == "ftequake - Win32 Debug Dedicated Server"
 
@@ -3730,6 +3785,8 @@ SOURCE=..\sw\sw_screen.c
 
 !ELSEIF  "$(CFG)" == "ftequake - Win32 MinGLRelease"
 
+# PROP Exclude_From_Build 1
+
 !ELSEIF  "$(CFG)" == "ftequake - Win32 Debug Dedicated Server"
 
 # PROP Exclude_From_Build 1
@@ -3767,6 +3824,8 @@ SOURCE=..\sw\vid_ddraw.c
 # PROP Exclude_From_Build 1
 
 !ELSEIF  "$(CFG)" == "ftequake - Win32 MinGLRelease"
+
+# PROP Exclude_From_Build 1
 
 !ELSEIF  "$(CFG)" == "ftequake - Win32 Debug Dedicated Server"
 
@@ -3806,6 +3865,8 @@ SOURCE=..\sw\vid_dib.c
 
 !ELSEIF  "$(CFG)" == "ftequake - Win32 MinGLRelease"
 
+# PROP Exclude_From_Build 1
+
 !ELSEIF  "$(CFG)" == "ftequake - Win32 Debug Dedicated Server"
 
 # PROP Exclude_From_Build 1
@@ -3843,6 +3904,8 @@ SOURCE=..\sw\vid_win2.c
 # PROP Exclude_From_Build 1
 
 !ELSEIF  "$(CFG)" == "ftequake - Win32 MinGLRelease"
+
+# PROP Exclude_From_Build 1
 
 !ELSEIF  "$(CFG)" == "ftequake - Win32 Debug Dedicated Server"
 
@@ -6429,8 +6492,8 @@ SOURCE=..\client\winquake.rc
 
 !IF  "$(CFG)" == "ftequake - Win32 Release"
 
-# ADD BASE RSC /l 0x809 /i "\ftetgcvs\temp\client" /i "\ftetgcvs\fte\QW\client"
-# ADD RSC /l 0x809 /i "\ftetgcvs\temp\client" /i "\ftetgcvs\fte\QW\client" /d "MINIMAL"
+# ADD BASE RSC /l 0x809 /i "\ftetgcvs\sourceforge\engine\client" /i "\ftetgcvs\temp\client" /i "\ftetgcvs\fte\QW\client"
+# ADD RSC /l 0x809 /i "\ftetgcvs\sourceforge\engine\client" /i "\ftetgcvs\temp\client" /i "\ftetgcvs\fte\QW\client" /d "MINIMAL"
 
 !ELSEIF  "$(CFG)" == "ftequake - Win32 Debug"
 

@@ -3090,7 +3090,10 @@ qboolean CL_ParseChat(char *text)
 	static float serverresponsetime;
 	s = strchr(text, ':');	//Hmm.. FIXME: Can a player's name contain a ':'?... I think the answer is a yes... Hmmm.. problematic eh?
 	if (!s || s[1] != ' ')	//wasn't a real chat...
-		return true;	
+		return true;
+
+	Sys_ServerActivity();	//chat always flashes the screen..
+
 //check f_ stuff
 	if (!strncmp(s+2, "f_version", 9) && versionresponsetime < Sys_DoubleTime())	//respond to it.
 	{

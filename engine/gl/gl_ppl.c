@@ -2282,6 +2282,8 @@ void PPL_DrawWorld (void)
 			{
 				if (l->die < cl.time || !l->radius || l->noppl)
 					continue;
+				if (l->color[0] < 0 || l->color[1] < 0 || l->color[2] < 0)
+					continue;
 				if (!maxshadowlights--)
 					break;
 				l->color[0]*=2.5;

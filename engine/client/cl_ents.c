@@ -908,7 +908,7 @@ void CL_LinkPacketEntities (void)
 				for (i=0 ; i<3 ; i++)
 					cl.simorg[spnum][i] = r_refdef.vieworg[i] = s1->origin[i] + 
 							f * (cl.lerpents[s1->number].origin[i] - s1->origin[i]);
-
+/*
 				for (i=0 ; i<3 ; i++)
 				{
 					a1 = cl.lerpents[s1->number].angles[i];
@@ -920,7 +920,7 @@ void CL_LinkPacketEntities (void)
 					cl.simangles[spnum][i] = a2 + f * (a1 - a2);
 				}
 				cl.simangles[spnum][0] = cl.simangles[spnum][0]*-3;
-
+*/
 				/*for (i=0 ; i<3 ; i++)
 				{
 					a1 = cl.lerpents[s1->number].angles[i];

@@ -514,6 +514,7 @@ reeval:
 		{	// negative statements are built in functions
 			i = -newf->first_statement;
 //			p = pr_typecurrent;
+			progfuncs->lastcalledbuiltinnumber = i;
 			if (i < externs->numglobalbuiltins)
 			{
 				(*externs->globalbuiltins[i]) (progfuncs, (struct globalvars_s *)current_progstate->globals);

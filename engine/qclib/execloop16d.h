@@ -390,8 +390,8 @@ reeval:
 		NUM_FOR_EDICT(ed);		// make sure it's in range
 #endif
 		if (ed->readonly)
-			PR_RunError (progfuncs, "assignment to world entity");
-		OPC->_int = (int)(((int *)edvars(ed)) + OPB->_int);
+			PR_RunError (progfuncs, "assignment to read-only entity");
+		OPC->_int = (int)(((int *)edvars(ed)) + OPB->_int + progfuncs->fieldadjust);
 		break;
 
 	//load a field to a value
@@ -405,7 +405,7 @@ reeval:
 #ifdef PARANOID
 		NUM_FOR_EDICT(ed);		// make sure it's in range
 #endif
-		ptr = (eval_t *)(((int *)edvars(ed)) + OPB->_int);
+		ptr = (eval_t *)(((int *)edvars(ed)) + OPB->_int + progfuncs->fieldadjust);
 		OPC->_int = ptr->_int;
 		break;
 
@@ -414,7 +414,7 @@ reeval:
 #ifdef PARANOID
 		NUM_FOR_EDICT(ed);		// make sure it's in range
 #endif
-		ptr = (eval_t *)(((int *)edvars(ed)) + OPB->_int);
+		ptr = (eval_t *)(((int *)edvars(ed)) + OPB->_int + progfuncs->fieldadjust);
 		OPC->vector[0] = ptr->vector[0];
 		OPC->vector[1] = ptr->vector[1];
 		OPC->vector[2] = ptr->vector[2];
@@ -493,6 +493,13 @@ reeval:
 #endif
 			break;
 		}
+/*
+{
+	static char buffer[1024*1024*8];
+	int size = sizeof buffer;
+		progfuncs->save_ents(progfuncs, buffer, &size, 0);
+}*/
+
 
 		p=pr_typecurrent;
 //about to switch. needs caching.
@@ -507,6 +514,7 @@ reeval:
 		{	// negative statements are built in functions
 			i = -newf->first_statement;
 //			p = pr_typecurrent;
+			progfuncs->lastcalledbuiltinnumber = i;
 			if (i < externs->numglobalbuiltins)
 			{
 				(*externs->globalbuiltins[i]) (progfuncs, (struct globalvars_s *)current_progstate->globals);
@@ -525,7 +533,7 @@ reeval:
 					if (newf->first_statement == -0x7fffffff)
 						((builtin_t)newf->profile) (progfuncs, (struct globalvars_s *)current_progstate->globals);
 					else
-						PR_RunError (progfuncs, "Bad builtin call number");
+						PR_RunError (progfuncs, "Bad builtin call number - %i", -newf->first_statement);
 				}
 				else
 					current_progstate->builtins [i] (progfuncs, (struct globalvars_s *)current_progstate->globals);
@@ -556,11 +564,17 @@ reeval:
 		pr_globals[OFS_RETURN] = pr_globals[st->a];
 		pr_globals[OFS_RETURN+1] = pr_globals[st->a+1];
 		pr_globals[OFS_RETURN+2] = pr_globals[st->a+2];
+/*
+{
+	static char buffer[1024*1024*8];
+	int size = sizeof buffer;
+		progfuncs->save_ents(progfuncs, buffer, &size, 0);
+}*/
 
 		s = PR_LeaveFunction (progfuncs);
 		st = &pr_statements[s];		
 		if (pr_depth == prinst->exitdepth)
-		{
+		{		
 			return;		// all done
 		}
 		goto restart;
@@ -630,7 +644,7 @@ reeval:
 	case OP_NE_I:
 		OPC->_int = (OPA->_int != OPB->_int);
 		break;
-		
+	
 
 	//array/structure reading/riting.
 	case OP_GLOBALADDRESS:		
@@ -656,6 +670,8 @@ reeval:
 		OPC->vector[1] = ptr->vector[1];
 		OPC->vector[2] = ptr->vector[2];
 		break;
+
+
 
 	case OP_ADD_SF:	//(char*)c = (char*)a + (float)b
 		OPC->_int = OPA->_int + (int)OPB->_float;
@@ -876,6 +892,52 @@ reeval:
 			PR_RunError (progfuncs, "OP_CASERANGE with bad/missing OP_SWITCH %i", swtchtype);
 		}
 		break;
+
+
+
+
+
+
+
+
+
+
+
+			case OP_MUL_IF:
+			case OP_MUL_FI:
+			case OP_MUL_VI:
+			case OP_DIV_IF:
+			case OP_DIV_FI:
+			case OP_BITAND_IF:
+			case OP_BITOR_IF:
+			case OP_BITAND_FI:
+			case OP_BITOR_FI:
+			case OP_AND_I:
+			case OP_OR_I:
+			case OP_AND_IF:
+			case OP_OR_IF:
+			case OP_AND_FI:
+			case OP_OR_FI:
+			case OP_NOT_I:
+			case OP_NE_IF:
+			case OP_NE_FI:
+			case OP_GSTOREP_I:
+			case OP_GSTOREP_F:
+			case OP_GSTOREP_ENT:
+			case OP_GSTOREP_FLD:		// integers
+			case OP_GSTOREP_S:
+			case OP_GSTOREP_FNC:		// pointers
+			case OP_GSTOREP_V:
+			case OP_GADDRESS:
+			case OP_GLOAD_I:
+			case OP_GLOAD_F:
+			case OP_GLOAD_FLD:
+			case OP_GLOAD_ENT:
+			case OP_GLOAD_S:
+			case OP_GLOAD_FNC:
+			case OP_BOUNDCHECK:
+PR_RunError(progfuncs, "Extra opcode not implemented\n");
+				break;
 
 	default:					
 		if (st->op & 0x8000)	//break point!

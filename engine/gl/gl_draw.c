@@ -1081,7 +1081,7 @@ void GLDraw_ColouredCharacter (int x, int y, unsigned int num)
 	
 	if (num & CON_BLINKTEXT)
 	{
-		if ((int)(cl.time*3) & 1)
+		if ((int)(realtime*3) & 1)
 			return;
 	}
 

@@ -404,30 +404,15 @@ void SV_WriteDelta (entity_state_t *from, entity_state_t *to, sizebuf_t *msg, qb
 	if (bits & U_EFFECTS)
 		MSG_WriteByte (msg, to->effects);
 	if (bits & U_ORIGIN1)
-	{
-		if (bits & PF_ORIGINDBL)
-			MSG_WriteBigCoord (msg, to->origin[0]);
-		else
-			MSG_WriteCoord (msg, to->origin[0]);
-	}
+		MSG_WriteCoord (msg, to->origin[0]);
 	if (bits & U_ANGLE1)
 		MSG_WriteAngle(msg, to->angles[0]);
 	if (bits & U_ORIGIN2)
-	{
-		if (bits & PF_ORIGINDBL)
-			MSG_WriteBigCoord (msg, to->origin[1]);
-		else
-			MSG_WriteCoord (msg, to->origin[1]);
-	}
+		MSG_WriteCoord (msg, to->origin[1]);
 	if (bits & U_ANGLE2)
 		MSG_WriteAngle(msg, to->angles[1]);
 	if (bits & U_ORIGIN3)
-	{
-		if (bits & PF_ORIGINDBL)
-			MSG_WriteBigCoord (msg, to->origin[2]);
-		else
-			MSG_WriteCoord (msg, to->origin[2]);
-	}
+		MSG_WriteCoord (msg, to->origin[2]);
 	if (bits & U_ANGLE3)
 		MSG_WriteAngle(msg, to->angles[2]);
 
@@ -727,15 +712,6 @@ void SV_WritePlayerToClient(sizebuf_t *msg, clstate_t *ent)
 			pflags |= pm_code << PF_PMC_SHIFT;
 		}
 
-#ifdef PEXT_ORIGINDBL
-		if (ent->fteext & PEXT_ORIGINDBL)
-		{
-			for (i=0 ; i<3 ; i++)
-				if (ent->origin[i] <= -4096 || ent->origin[i] >= 4096)
-					pflags |= PF_ORIGINDBL;
-		}
-#endif
-
 		if (pflags & 0xff0000)
 			pflags |= PF_EXTRA_PFS;
 
@@ -749,14 +725,8 @@ void SV_WritePlayerToClient(sizebuf_t *msg, clstate_t *ent)
 		}
 		//we need to tell the client that it's moved, as it's own origin might not be natural
 
-		if (pflags & PF_ORIGINDBL)
-		{
-			for (i=0 ; i<3 ; i++)
-				MSG_WriteBigCoord (msg, ent->origin[i]+(sv.demostatevalid?1:0));
-		}
-		else
-			for (i=0 ; i<3 ; i++)
-				MSG_WriteCoord (msg, ent->origin[i]+(sv.demostatevalid?1:0));
+		for (i=0 ; i<3 ; i++)
+			MSG_WriteCoord (msg, ent->origin[i]+(sv.demostatevalid?1:0));
 
 		MSG_WriteByte (msg, ent->frame);
 
@@ -1995,12 +1965,21 @@ void SV_WriteEntitiesToClient (client_t *client, sizebuf_t *msg, qboolean ignore
 					continue;
 			}
 		}
-		if (ent->v.nodrawtoclient)	//standard DP extension.
+		if (ent->v.nodrawtoclient)	//DP extension.
 			if (ent->v.nodrawtoclient == EDICT_TO_PROG(svprogfuncs, client->edict))
 				continue;
 		if (ent->v.drawonlytoclient)
 			if (ent->v.drawonlytoclient != EDICT_TO_PROG(svprogfuncs, client->edict))
-				continue;
+			{
+				client_t *split;
+				for (split = client->controlled; split; split=split->controlled)
+				{
+					if (split->edict->v.view2 == EDICT_TO_PROG(svprogfuncs, ent))
+						break;
+				}
+				if (!split)
+					continue;
+			}
 
 		//QSG_DIMENSION_PLANES
 		if (!((int)client->edict->v.dimension_see & ((int)ent->v.dimension_seen | (int)ent->v.dimension_ghost)))

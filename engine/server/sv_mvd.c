@@ -319,7 +319,7 @@ void SV_MVDWriteToDisk(int type, int to, float time)
 	int	size;
 	sizebuf_t msg;
 
-	(qbyte*)p = demo.dbuf->data;
+	p = (header_t *)demo.dbuf->data;
 	demo.dbuf->h = NULL;
 
 	oldm = demo.dbuf->bufsize;
@@ -350,7 +350,7 @@ void SV_MVDWriteToDisk(int type, int to, float time)
 			demobuffer->start += size + header;
 		}
 		// move along
-		(qbyte*)p = p->data + size;
+		p = (header_t *)(p->data + size);
 	}
 
 	if (demobuffer->start == demobuffer->last) {
@@ -378,7 +378,7 @@ static void MVDSetBuf(qbyte type, int to)
 	header_t *p;
 	int pos = 0;
 
-	(qbyte*)p = demo.dbuf->data;
+	p = (header_t *)demo.dbuf->data;
 
 	while (pos < demo.dbuf->bufsize)
 	{
@@ -391,7 +391,7 @@ static void MVDSetBuf(qbyte type, int to)
 			return;
 		}
 
-		(qbyte*)p = p->data + p->size;
+		p = (header_t *)(p->data + p->size);
 	}
 	// type&&to not exist in the buf, so add it
 

@@ -78,6 +78,8 @@ qboolean		msg_suppress_1 = 0;
 
 void COM_InitFilesystem (void);
 void COM_Path_f (void);
+void COM_Dir_f (void);
+void COM_Locate_f (void);
 
 
 // if a packfile directory differs from this, it is assumed to be hacked
@@ -912,7 +914,6 @@ static int MSG_ReadHuffBits(sizebuf_t *msg, int bits)
 
 int MSG_ReadBits(int bits)
 {
-	int i, val;
 	int bitmask = 0;
 	qboolean extend = false;
 
@@ -2136,7 +2137,9 @@ void COM_Init (void)
 		LittleFloat = FloatSwap;
 	}
 
-	Cmd_AddCommand ("path", COM_Path_f);
+	Cmd_AddCommand ("path", COM_Path_f);		//prints a list of current search paths.
+	Cmd_AddCommand ("dir", COM_Dir_f);			//q3 like
+	Cmd_AddCommand ("flocate", COM_Locate_f);	//prints the pak or whatever where this file can be found.
 
 	COM_InitFilesystem ();
 
@@ -2381,6 +2384,52 @@ void COM_Path_f (void)
 			Con_Printf ("%s\n", s->filename);
 		}
 	}
+}
+
+
+/*
+============
+COM_Dir_f
+
+============
+*/
+static int COM_Dir_List(char *name, int size, void *parm)
+{
+	Con_Printf("%s  (%i)\n", name, size);
+	return 1;
+}
+
+void COM_Dir_f (void)
+{
+	char match[MAX_QPATH];
+
+	Q_strncpyz(match, Cmd_Argv(1), sizeof(match));
+	if (Cmd_Argc()>2)
+	{
+		strncat(match, "/*.", sizeof(match)-1);
+		match[sizeof(match)-1] = '\0';
+		strncat(match, Cmd_Argv(2), sizeof(match)-1);
+		match[sizeof(match)-1] = '\0';
+	}
+	else
+		strncat(match, "/*", sizeof(match)-1);
+
+	COM_EnumerateFiles(match, COM_Dir_List, NULL);
+}
+
+/*
+============
+COM_Locate_f
+
+============
+*/
+void COM_Locate_f (void)
+{
+	flocation_t loc;
+	if (FS_FLocateFile(Cmd_Argv(1), FSLFRT_LENGTH, &loc))
+		Con_Printf("Inside %s\n", loc.rawname);
+	else
+		Con_Printf("Not found\n");
 }
 
 /*

@@ -85,6 +85,8 @@ int SNDDMA_Init(soundcardinfo_t *sc)
 		if (!strcmp(ec->name, snddev))
 			return 2;
 
+	sc->inactive_sound = true;	//linux sound devices always play sound, even when we're not the active app...
+
 // open the sound device, confirm capability to mmap, and get size of dma buffer
 
 	Q_strncpyz(sc->name, snddev, sizeof(sc->name));

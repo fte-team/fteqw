@@ -36,9 +36,6 @@ void S_StopAllSoundsC(void);
 
 void S_UpdateCard(soundcardinfo_t *sc, vec3_t origin, vec3_t forward, vec3_t right, vec3_t up);
 
-// QuakeWorld hack...
-#define	viewentity	playernum[0]+1
-
 // =======================================================================
 // Internal sound data & structures
 // =======================================================================
@@ -83,6 +80,7 @@ cvar_t ambient_fade = {"ambient_fade", "100"};
 cvar_t snd_noextraupdate = {"snd_noextraupdate", "0"};
 cvar_t snd_show = {"snd_show", "0"};
 cvar_t snd_khz = {"snd_khz", "11"};
+cvar_t	snd_inactive = {"snd_inactive", "0"};	//set if you want sound even when tabbed out.
 cvar_t _snd_mixahead = {"_snd_mixahead", "0.2", NULL, CVAR_ARCHIVE};
 cvar_t snd_leftisright = {"snd_leftisright", "0", NULL, CVAR_ARCHIVE};
 cvar_t snd_eax = {"snd_eax", "0"};
@@ -482,6 +480,8 @@ void S_Init (void)
 
 	Cvar_Register(&snd_capture,			"Sound controls");
 
+	Cvar_Register(&snd_inactive,		"Sound controls");
+
 	if (host_parms.memsize < 0x800000)
 	{
 		Cvar_Set (&loadas8bit, "1");
@@ -666,7 +666,7 @@ channel_t *SND_PickChannel(soundcardinfo_t *sc, int entnum, int entchannel)
 		}
 
 		// don't let monster sounds override player sounds
-		if (sc->channel[ch_idx].entnum == cl.viewentity && entnum != cl.viewentity && sc->channel[ch_idx].sfx)
+		if (sc->channel[ch_idx].entnum == cl.playernum[0]+1 && entnum != cl.playernum[0]+1 && sc->channel[ch_idx].sfx)
 			continue;
 
 		if (sc->channel[ch_idx].end < life_left)
@@ -699,7 +699,7 @@ void SND_Spatialize(soundcardinfo_t *sc, channel_t *ch)
 	sfx_t *snd;
 
 // anything coming from the view entity will allways be full volume
-	if (ch->entnum == -1 || ch->entnum == (cl.viewentity?cl.viewentity:cl.playernum[0]+1))
+	if (ch->entnum == -1 || ch->entnum == cl.playernum[0]+1)
 	{
 		ch->vol[0] = ch->master_vol;
 		ch->vol[1] = ch->master_vol;
@@ -788,6 +788,9 @@ void SND_Spatialize(soundcardinfo_t *sc, channel_t *ch)
 	ch->vol[5] = (int) (ch->master_vol * scale[5]);
 	if (ch->vol[5] < 0)
 		ch->vol[5] = 0;
+
+	if (ch->vol[0])
+		Con_Printf("Spacialising\n");
 }
 
 // =======================================================================
@@ -870,6 +873,8 @@ void S_StartSoundCard(soundcardinfo_t *sc, int entnum, int entchannel, sfx_t *sf
 void S_StartSound(int entnum, int entchannel, sfx_t *sfx, vec3_t origin, float fvol, float attenuation)
 {
 	soundcardinfo_t *sc;
+
+	Con_Printf("Starting sound %s\n", sfx->name);
 	if (!sfx || !*sfx->name)	//no named sounds would need specific starting.
 		return;
 
@@ -1165,8 +1170,13 @@ void S_UpdateCard(soundcardinfo_t *sc, vec3_t origin, vec3_t forward, vec3_t rig
 	channel_t	*ch;
 	channel_t	*combine;
 
-	if (!sound_started || (snd_blocked > 0))
+	if (!sound_started)
 		return;
+	if ((snd_blocked > 0))
+	{
+		if (!sc->inactive_sound)
+			return;
+	}
 
 	VectorCopy(origin, listener_origin);
 	VectorCopy(forward, listener_forward);
@@ -1451,7 +1461,7 @@ void S_LocalSound (char *sound)
 		Con_Printf ("S_LocalSound: can't cache %s\n", sound);
 		return;
 	}
-	S_StartSound (cl.viewentity, -1, sfx, vec3_origin, 1, 1);
+	S_StartSound (-1, -1, sfx, vec3_origin, 1, 1);
 }
 
 

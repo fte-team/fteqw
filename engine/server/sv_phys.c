@@ -321,7 +321,7 @@ int SV_FlyMove (edict_t *ent, float time, trace_t *steptrace)
 			return 3;
 		}
 
-		if (1)
+		if (0)
 		{
 			ClipVelocity(ent->v.velocity, trace.plane.normal, ent->v.velocity, 1);
 			break;

@@ -49,12 +49,12 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 #define pt_org				0
 #define pt_color			12
 // drivers never touch the following fields
-#define pt_next				16
+/*#define pt_next				16
 #define pt_vel				20
 #define pt_ramp				32
 #define pt_die				36
 #define pt_type				40
-#define pt_size				44
+#define pt_size				44*/
 
 #define PARTICLE_Z_CLIP	8.0
 

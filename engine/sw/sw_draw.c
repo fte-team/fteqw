@@ -1639,43 +1639,8 @@ void SWDraw_ConsoleBackground (int lines)
 
 	//sprintf (ver, "start commands with a \\ character %4.2f", VERSION);
 
-	if (cls.downloadmethod)	//don't cover the downloading bit.
-	{
-		sprintf (ver, "%4.2f", VERSION);
-		dest = conback->data + 320 + 320*186 - 11 - 8*strlen(ver);
-	}
-	else
-	{
-		if (r_pixbytes == 4)
-#ifdef DISTRIBUTION
-#if defined(__linux__)
-		sprintf (ver, "rgb Linux (%4.2f) QuakeWorld %s %4.2f", LINUX_VERSION, DISTRIBUTION, VERSION);
-#else
-		sprintf (ver, "rgb QuakeWorld %s %4.2f", DISTRIBUTION, VERSION);
-#endif
-#else
-#if defined(__linux__)
-		sprintf (ver, "rgb Linux (%4.2f) QuakeWorld %4.2f", LINUX_VERSION, VERSION);
-#else
-		sprintf (ver, "rgb QuakeWorld %4.2f", VERSION);
-#endif
-#endif
-		else
-#ifdef DISTRIBUTION
-#if defined(__linux__)
-		sprintf (ver, "Linux (%4.2f) QuakeWorld %s %4.2f", LINUX_VERSION, DISTRIBUTION, VERSION);
-#else
-		sprintf (ver, "QuakeWorld %s %4.2f", DISTRIBUTION, VERSION);
-#endif
-#else
-#if defined(__linux__)
-		sprintf (ver, "Linux (%4.2f) QuakeWorld %4.2f", LINUX_VERSION, VERSION);
-#else
-		sprintf (ver, "QuakeWorld %4.2f", VERSION);
-#endif
-#endif
-		dest = conback->data + 320 - (strlen(ver)*8 + 11) + 320*186;
-	}
+	sprintf (ver, "%4.2f", VERSION);
+	dest = conback->data + 320 + 320*186 - 11 - 8*strlen(ver);
 
 	memcpy(saveback, conback->data + 320*186, 320*8);
 	for (x=0 ; x<strlen(ver) ; x++)

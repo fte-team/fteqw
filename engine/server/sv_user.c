@@ -3916,6 +3916,20 @@ haveannothergo:
 
 							cl->lastcmd = newcmd;
 							cl->lastcmd.buttons = 0; // avoid multiple fires on lag
+							
+							if (msg_badread)
+							{
+								Con_Printf ("SV_ReadClientMessage: badread\n");
+								SV_DropClient (cl);
+								return;
+							}
+							c = MSG_ReadByte ();
+							if (c != clc_move)
+							{
+								host_client = cl = split;
+								sv_player = cl->edict;
+								goto haveannothergo;
+							}
 							continue;
 						}
 						SV_PreRunCmd();
@@ -4661,5 +4675,7 @@ void SV_ClientThink (void)
 	}
 
 	SV_AirMove ();
+
+	Con_Printf("%f %f %f\n", sv_player->v.velocity[0], sv_player->v.velocity[1], sv_player->v.velocity[2]);
 }
 

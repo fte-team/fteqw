@@ -1362,7 +1362,7 @@ void CL_Startdemos_f (void)
 	for (i=1 ; i<c+1 ; i++)
 		Q_strncpyz (cls.demos[i-1], Cmd_Argv(i), sizeof(cls.demos[0]));
 
-	if (!sv.state && cls.demonum != -1 && cls.demoplayback==DPB_NONE && !media_filmtype)
+	if (!sv.state && cls.demonum != -1 && cls.demoplayback==DPB_NONE && !media_filmtype && COM_CheckParm("-demos"))
 	{
 		cls.demonum = 0;
 		CL_NextDemo ();

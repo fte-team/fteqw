@@ -135,7 +135,8 @@ typedef struct q2centity_s
 
 	int			serverframe;		// if not current, this ent isn't in the frame
 
-	float		trailcount;			// for diminishing grenade trails
+	trailstate_t trailstate;
+//	float		trailcount;			// for diminishing grenade trails
 	vec3_t		lerp_origin;		// for trails (variable hz)
 
 	int			fly_stoptime;
@@ -158,7 +159,7 @@ void CLQ2_BlasterTrail2(vec3_t oldorg, vec3_t neworg){};
 void CLQ2_RocketTrail(vec3_t oldorg, vec3_t neworg, q2centity_t *ent)
 {
 	extern int rt_rocket;
-	ent->trailcount = R_RocketTrail(oldorg, neworg, rt_rocket, ent->trailcount);
+	R_RocketTrail(oldorg, neworg, rt_rocket, &ent->trailstate);
 };
 
 
@@ -504,7 +505,7 @@ void CLQ2_DeltaEntity (q2frame_t *frame, int newnum, entity_state_t *old, int bi
 
 	if (ent->serverframe != cl.q2frame.serverframe - 1)
 	{	// wasn't in last update, so initialize some things
-		ent->trailcount = 1024;		// for diminishing rocket / grenade trails
+		ent->trailstate.lastdist = 0;	// for diminishing rocket / grenade trails
 		// duplicate the current state so lerping doesn't hurt anything
 		ent->prev = *state;
 		if (state->event == Q2EV_OTHER_TELEPORT)

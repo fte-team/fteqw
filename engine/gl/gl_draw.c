@@ -1468,21 +1468,6 @@ void GLDraw_ConsoleBackground (int lines)
 	{
 		GLDraw_AlphaPic (0, lines - vid.height, conback, (float)(1.2 * lines)/y);
 	}
-/*
-	// hack the version number directly into the pic
-//	y = lines-186;
-	y = lines-14;
-	if (!cls.download) {
-#ifdef __linux__
-		sprintf (ver, "LinuxGL (%4.2f) QuakeWorld", LINUX_VERSION);
-#else
-		sprintf (ver, "GL (%4.2f) QuakeWorld", GLQUAKE_VERSION);
-#endif
-		x = vid.conwidth - (strlen(ver)*8 + 11) - (vid.conwidth*8/320)*7;
-		for (i=0 ; i<strlen(ver) ; i++)
-			Draw_Character (x + i * 8, y, ver[i] | 0x80);
-	}
-	*/
 }
 
 void GLDraw_EditorBackground (int lines)

@@ -679,7 +679,7 @@ void CL_ParseTEnt (void)
 
 
 	// sound
-		S_StartSound (-1, 0, cl_sfx_r_exp3, pos, 1, 1);
+		S_StartSound (-2, 0, cl_sfx_r_exp3, pos, 1, 1);
 	
 	// sprite		
 		if (cl_expsprite.value) // temp hopefully

@@ -741,6 +741,7 @@ R_PolyBlend
 */
 void R_PolyBlend (void)
 {
+	extern qboolean gammaworks;
 	if (!v_blend[3])
 		return;
 

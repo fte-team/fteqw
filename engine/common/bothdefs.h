@@ -177,9 +177,7 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 
 // defs common to client and server
 
-#define GLQUAKE_VERSION 1.01
-#define	VERSION		2.55
-#define LINUX_VERSION 0.98
+#define	VERSION		2.56
 
 //#define VERSION3PART	//add the 3rd decimal point of a more precise version.
 

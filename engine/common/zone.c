@@ -288,14 +288,26 @@ void *BZF_Malloc(int size)	//BZ_Malloc but allowed to fail - like straight mallo
 #endif
 }
 
+
+#ifdef NAMEDMALLOCS
+void *BZ_NamedRealloc(void *data, int newsize, char *file, int lineno)
+#else
 void *BZ_Realloc(void *data, int newsize)
+#endif
 {
 	zone_t *oldzone;
 	void *newdata;
+#ifdef NAMEDMALLOCS
+	if (!data)
+		return Z_MallocNamed(newsize, file, lineno);
+	oldzone = ((zone_t *)((char *)data-MEMDEBUG))-1;
+	newdata = Z_MallocNamed(newsize, file, lineno);
+#else
 	if (!data)
 		return Z_Malloc(newsize);
 	oldzone = ((zone_t *)((char *)data-MEMDEBUG))-1;
 	newdata = BZ_Malloc(newsize);
+#endif
 	if (oldzone->size < newsize)
 	{
 		memcpy(newdata, data, oldzone->size);
@@ -320,6 +332,7 @@ void Zone_Print_f(void)
 	int blocks = 0;
 	int futurehide = false;
 	int i;
+	int minsize = 0;
 	qbyte *sent;
 	zone_t *zone;
 #if MEMDEBUG > 0
@@ -331,8 +344,10 @@ void Zone_Print_f(void)
 	}
 	else
 #endif
-		if (*Cmd_Argv(1))
+		if (*Cmd_Argv(1) == 'h')
 		futurehide = true;
+	else if (*Cmd_Argv(1))
+		minsize = atoi(Cmd_Argv(1));
 	for(zone = zone_head; zone; zone=zone->next)
 	{
 		blocks++;
@@ -363,7 +378,7 @@ void Zone_Print_f(void)
 					}
 				}
 			}
-			else
+			else if (zone->size >= minsize)
 #endif
 				Con_Printf("%i-%s\n", zone->size, (char *)(zone+1) + zone->size+MEMDEBUG*2);
 			if (futurehide)

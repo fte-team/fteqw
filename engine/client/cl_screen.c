@@ -978,7 +978,7 @@ void SCR_ImageName (char *mapname)
 	GL_BeginRendering (&glx, &gly, &glwidth, &glheight);
 	SCR_DrawLoading();
 	SCR_SetUpToDrawConsole();
-	SCR_DrawConsole(true);
+	SCR_DrawConsole(!!*levelshotname);
 	GL_EndRendering();
 	scr_drawloading = false;
 

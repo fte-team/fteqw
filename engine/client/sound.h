@@ -222,7 +222,7 @@ struct soundcardinfo_s { //windows has one defined AFTER directsound
 
 
 
-
+	qboolean inactive_sound;
 
 	qboolean snd_isdirect;
 	qboolean snd_iswave;

@@ -2617,6 +2617,8 @@ void SV_Impulse_f (void)
 
 	pr_global_struct->time = sv.time;
 
+	memset (&svs.clients[i].edict->v, 0, pr_edict_size-svprogparms.edictsize);
+
 	svs.clients[i].edict->v.netname = PR_SetString(svprogfuncs, "Console");
 
 	pr_global_struct->self = EDICT_TO_PROG(svprogfuncs, svs.clients[i].edict);
@@ -2631,6 +2633,13 @@ void SV_Impulse_f (void)
 	pr_global_struct->self = EDICT_TO_PROG(svprogfuncs, svs.clients[i].edict);
 	PR_ExecuteProgram (svprogfuncs, pr_global_struct->PlayerPreThink);
 
+	pr_global_struct->self = EDICT_TO_PROG(svprogfuncs, svs.clients[i].edict);
+	PR_ExecuteProgram (svprogfuncs, svs.clients[i].edict->v.think);
+	{
+		char buffer[256] = "self.ishuman";
+		pr_global_struct->self = EDICT_TO_PROG(svprogfuncs, svs.clients[i].edict);
+		Con_Printf("Result: %s\n", svprogfuncs->EvaluateDebugString(svprogfuncs, buffer));
+	}
 	pr_global_struct->self = EDICT_TO_PROG(svprogfuncs, svs.clients[i].edict);
 	PR_ExecuteProgram (svprogfuncs, pr_global_struct->PlayerPostThink);
 

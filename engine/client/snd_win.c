@@ -95,9 +95,11 @@ void S_BlockSound (void)
 
 	for (sc = sndcardinfo; sc; sc=sc->next)
 	{
-		if (sc->snd_iswave)
-		if (snd_blocked == 1)
-			waveOutReset (sc->hWaveOut);
+		if (sc->snd_iswave && !sc->inactive_sound)
+		{
+			if (snd_blocked == 1)
+				waveOutReset (sc->hWaveOut);
+		}
 	}
 }
 
@@ -421,7 +423,7 @@ Direct-Sound support
 */
 sndinitstat SNDDMA_InitDirect (soundcardinfo_t *sc)
 {
-	extern cvar_t snd_khz, snd_eax, snd_speakers;
+	extern cvar_t snd_khz, snd_eax, snd_speakers, snd_inactive;
 	DSBUFFERDESC	dsbuf;
 	DSBCAPS			dsbcaps;
 	DWORD			dwSize, dwWrite;
@@ -613,7 +615,12 @@ sndinitstat SNDDMA_InitDirect (soundcardinfo_t *sc)
 	// create the secondary buffer we'll actually work with
 		memset (&dsbuf, 0, sizeof(dsbuf));
 		dsbuf.dwSize = sizeof(DSBUFFERDESC);
-		dsbuf.dwFlags = DSBCAPS_CTRLFREQUENCY | /*DSBCAPS_LOCSOFTWARE |*/ DSBCAPS_GLOBALFOCUS;	//dmw 29 may, 2003 removed locsoftware
+		dsbuf.dwFlags = DSBCAPS_CTRLFREQUENCY;	//dmw 29 may, 2003 removed locsoftware
+		if (snd_inactive.value)
+		{
+			dsbuf.dwFlags |= DSBCAPS_GLOBALFOCUS;
+			sc->inactive_sound = true;
+		}
 		dsbuf.dwBufferBytes = SECONDARY_BUFFER_SIZE;
 		dsbuf.lpwfxFormat = (WAVEFORMATEX *)&format;
 
@@ -986,6 +993,8 @@ int SNDDMA_Init(soundcardinfo_t *sc)
 
 	if (COM_CheckParm ("-wavonly"))
 		wavonly = true;
+
+	sc->inactive_sound = false;	//don't generate sound when the window is inactive.
 
 #ifndef NODIRECTX
 	sc->dsound_init =

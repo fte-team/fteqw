@@ -107,6 +107,7 @@ int Z_Allocated(void);
 void *BZ_Malloc(int size);
 void *BZF_Malloc(int size);
 void *BZ_Realloc(void *ptr, int size);
+void *BZ_NamedRealloc(void *ptr, int size, char *, int);
 void BZ_Free(void *ptr);
 
 #ifdef NAMEDMALLOCS
@@ -114,6 +115,8 @@ void BZ_Free(void *ptr);
 
 
 #define Z_Malloc(size) Z_MallocNamed(size, __FILE__, __LINE__)
+
+#define BZ_Realloc(ptr, size) BZ_NamedRealloc(ptr, size, __FILE__, __LINE__)
 #endif
 
 void *Hunk_Alloc (int size);		// returns 0 filled memory

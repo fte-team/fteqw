@@ -1020,7 +1020,7 @@ void CL_LinkPacketEntities (void)
 		}
 		if (i == cl_oldnumvisedicts)
 		{
-			cl.lerpents[s1->number].traildist = 0;
+			cl.lerpents[s1->number].trailstate.lastdist = 0;
 			continue;		// not in last message
 		}
 
@@ -1032,7 +1032,7 @@ void CL_LinkPacketEntities (void)
 			}
 
 		if (model->particletrail>=0)
-			cl.lerpents[s1->number].traildist = R_RocketTrail (old_origin, ent->origin, model->particletrail, cl.lerpents[s1->number].traildist);
+			R_RocketTrail (old_origin, ent->origin, model->particletrail, &cl.lerpents[s1->number].trailstate);
 
 		//dlights are not customisable.
 		if (model->flags & EF_ROCKET)

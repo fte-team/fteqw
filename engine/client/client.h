@@ -357,7 +357,7 @@ typedef struct {
 	vec3_t origin;
 	vec3_t angles;
 	int frame;
-	float traildist;	//when to next throw out a trail
+	trailstate_t trailstate;	//when to next throw out a trail
 } lerpents_t;
 //
 // the client_state_t structure is wiped completely at every

@@ -53,17 +53,25 @@ typedef struct particle_s
 	float		color;
 	vec3_t		rgb;
 	float		alpha;
-	float		angle;
+	float		scale;
+
+	union {
+		struct {
+			vec3_t		vel;
+			float		angle;
+			float		rotationspeed;
+			float		nextemit;
+		} p;	//point blob
+		struct {
+			vec3_t		org2;
+			vec3_t		lastdir;
+		} b;	//beam
+	} u;
 
 // drivers never touch the following fields
-	vec3_t		vel;
-	float		rotationspeed;
+
 	struct particle_s	*next;
-	float		nextemit;
 	float		die;
-
-	float scale;
-
 } particle_t;
 
 #define PARTICLE_Z_CLIP	8.0

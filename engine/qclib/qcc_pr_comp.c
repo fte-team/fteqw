@@ -4237,7 +4237,7 @@ void QCC_PR_ParseStatement (void)
 			for(i = breaks; i < num_breaks; i++)
 			{
 				patch1 = &statements[pr_breaks[i]];
-				statements[pr_breaks[i]].a = &statements[numstatements] - patch1;
+				statements[pr_breaks[i]].a = &statements[numstatements] - patch1;	//jump to after the return-to-top goto
 			}
 			num_breaks = breaks;
 		}
@@ -4246,7 +4246,7 @@ void QCC_PR_ParseStatement (void)
 			for(i = continues; i < num_continues; i++)
 			{
 				patch1 = &statements[pr_continues[i]];
-				statements[pr_continues[i]].a = patch1 - patch2;
+				statements[pr_continues[i]].a = patch2 - patch1;	//jump back to top
 			}
 			num_continues = continues;
 		}
@@ -6676,6 +6676,8 @@ void QCC_PR_ParseDefs (char *classname)
 
 				for (i = 0; i < d->type->size; i++)
 					G_INT(def->ofs) = G_INT(d->ofs);
+				QCC_PR_Lex();
+				continue;
 			}
 	
 			else if (type->type == ev_function)

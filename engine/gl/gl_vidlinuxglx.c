@@ -600,7 +600,6 @@ qboolean GLVID_Init (rendererstate_t *info, unsigned char *palette)
 		GLX_DEPTH_SIZE, 1,
 		None
 	};
-	char	gldir[MAX_OSPATH];
 	XSetWindowAttributes attr;
 	unsigned long mask;
 	Window root;
@@ -778,9 +777,6 @@ qboolean GLVID_Init (rendererstate_t *info, unsigned char *palette)
 	InitSig(); // trap evil signals
 
 	GL_Init(&GLX_GetSymbol);
-
-	sprintf (gldir, "%s/glquake", com_gamedir);
-	Sys_mkdir (gldir);
 
 	VID_SetPalette(palette);
 

@@ -1570,7 +1570,7 @@ void R_RenderBrushPoly (msurface_t *fa)
 
 	if (fa->flags & SURF_DRAWTURB)
 	{	// warp texture, no lightmaps
-		EmitWaterPolys (fa);
+		EmitWaterPolys (fa, r_wateralphaval);
 		glDisable(GL_BLEND);	//to ensure.
 		return;
 	}
@@ -1754,7 +1754,7 @@ void GLR_DrawWaterSurfaces (void)
 		GL_Bind (t->gl_texturenum);
 
 		for ( ; s ; s=s->texturechain)
-			EmitWaterPolys (s);
+			EmitWaterPolys (s, r_wateralphaval);
 		
 		t->texturechain = NULL;
 	}
@@ -1788,7 +1788,7 @@ static void GLR_DrawAlphaSurface(msurface_t	*s)
 		if (s->flags & SURF_DRAWTURB)
 		{
 			glColor4f (1,1,1,1);
-			EmitWaterPolys (s);
+			EmitWaterPolys (s, r_wateralphaval);
 		}
 		else
 		{
@@ -1833,8 +1833,8 @@ static void GLR_DrawAlphaSurface(msurface_t	*s)
 		return;
 	}
 
-	if (s->flags & SURF_DRAWTURB)
-		EmitWaterPolys (s);
+	if (s->flags & SURF_DRAWTURB || s->texinfo->flags & SURF_WARP)
+		EmitWaterPolys (s, r_wateralphaval);
 //	else if(s->texinfo->flags & SURF_FLOWING)			// PGM	9/16/98
 //		DrawGLFlowingPoly (s);							// PGM
 	else
@@ -1857,11 +1857,12 @@ void GLR_DrawAlphaSurfaces (void)
 	
 	glEnable(GL_ALPHA_TEST);
 	glDisable(GL_BLEND);
-	if (cl.worldmodel && cl.worldmodel->fromgame == fg_quake3)
+	if (cl.worldmodel && (cl.worldmodel->fromgame == fg_quake3|| cl.worldmodel->fromgame == fg_quake2))
 	{	//this is a mahoosive hack.
 		//we need to use different blending modes for lights and 'rugs'...
 		//we could do this by seeing if a texture includes alpha - rug, or if it's fully solid - light.
-		glBlendFunc (GL_ONE, GL_ONE_MINUS_SRC_COLOR);
+		if (cl.worldmodel->fromgame == fg_quake3)
+			glBlendFunc (GL_ONE, GL_ONE_MINUS_SRC_COLOR);
 		glDepthMask(0);	//this makes no difference to the cheating.
 
 		glDisable(GL_ALPHA_TEST);

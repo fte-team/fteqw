@@ -1508,7 +1508,9 @@ Con_DPrintf ("CL_SignonReply: %i\n", cls.signon);
 		MSG_WriteByte (&cls.netchan.message, clc_stringcmd);
 		MSG_WriteString (&cls.netchan.message, "begin");
 		Cache_Report ();		// print remaining memory
+#ifdef VM_CG
 		CG_Start();
+#endif
 		break;
 		
 	case 4:

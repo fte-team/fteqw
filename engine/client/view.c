@@ -21,6 +21,10 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 
 #include "quakedef.h"
 
+#ifdef SWQUAKE
+#include "r_local.h"
+#endif
+
 #ifdef FISH
 void R_RenderView_fisheye(void);
 cvar_t ffov = {"ffov", "160"};

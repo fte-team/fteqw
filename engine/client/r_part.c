@@ -47,7 +47,9 @@ int pt_explosion,
 	pt_teleportsplash,
 	pt_blasterparticles,
 	pt_superbullet,
-	pt_bullet;
+	pt_bullet,
+	pt_spark,
+	pt_plasma;
 
 int pe_default,
 	pe_size2,
@@ -928,6 +930,9 @@ void R_InitParticles (void)
 	pe_default			= AllocateParticleType("pe_default");
 	pe_size2			= AllocateParticleType("pe_size2");
 	pe_size3			= AllocateParticleType("pe_size3");
+
+	pt_spark			= AllocateParticleType("pe_spark");
+	pt_plasma			= AllocateParticleType("pe_plasma");
 }
 
 
@@ -2394,6 +2399,8 @@ void GL_DrawTrifanParticle(particle_t *p, part_type_t *type)
 	vec3_t v;
 	float scale;
 
+	glEnd();
+
 	if (lasttype != type)
 	{
 		lasttype = type;
@@ -2406,7 +2413,6 @@ void GL_DrawTrifanParticle(particle_t *p, part_type_t *type)
 			glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
 		glShadeModel(GL_SMOOTH);
 	}
-	glEnd();
 
 	scale = (p->org[0] - r_origin[0])*vpn[0] + (p->org[1] - r_origin[1])*vpn[1]
 		+ (p->org[2] - r_origin[2])*vpn[2];

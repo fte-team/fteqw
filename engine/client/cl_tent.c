@@ -851,6 +851,29 @@ void CL_ParseTEnt (void)
 
 		break;
 
+	case 74://TE_FLAMEJET
+#pragma message("CL_ParseTEnt: effect 74 not implemented (properly)")
+pos[0] = MSG_ReadCoord ();
+pos[1] = MSG_ReadCoord ();
+pos[2] = MSG_ReadCoord ();
+
+pos2[0] = MSG_ReadCoord ();
+pos2[1] = MSG_ReadCoord ();
+pos2[2] = MSG_ReadCoord ();
+cnt = MSG_ReadByte ();
+
+R_ParticleExplosion (pos);
+		break;
+
+		case 75://TE_PLASMABURN
+#pragma message("CL_ParseTEnt: effect 75 not implemented (properly)")
+pos[0] = MSG_ReadCoord ();
+pos[1] = MSG_ReadCoord ();
+pos[2] = MSG_ReadCoord ();
+
+R_ParticleExplosion (pos);
+		break;
+
 	case 76:
 #pragma message("CL_ParseTEnt: effect 76 not implemented")
 pos[0] = MSG_ReadCoord ();

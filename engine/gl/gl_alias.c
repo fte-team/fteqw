@@ -2903,11 +2903,17 @@ void GLMod_LoadZymoticModel(model_t *mod, void *buffer)
 	galisskeletaltransforms_t *transforms;
 	zymvertex_t	*intrans;
 
+	galiasskin_t *skin;
+	galiastexnum_t *texnums;
+
 	galiasbone_t *bone;
 	zymbone_t *inbone;
 	int v;
 	float multiplier;
 	float *matrix, *inmatrix;
+
+	vec2_t *stcoords;
+	vec2_t *inst;
 
 	int *vertbonecounts;
 
@@ -2916,6 +2922,8 @@ void GLMod_LoadZymoticModel(model_t *mod, void *buffer)
 
 	int *renderlist, count;
 	index_t *indexes;
+
+	char *shadername;
 
 
 	loadmodel=mod;
@@ -2991,9 +2999,12 @@ void GLMod_LoadZymoticModel(model_t *mod, void *buffer)
 		indexes = Hunk_Alloc(count*sizeof(*indexes));
 		root[i].ofs_indexes = (char *)indexes - (char*)&root[i];
 		root[i].numindexes = count;
-		while(count--)
-		{
-			indexes[count] = BigLong(renderlist[count]);
+		while(count)
+		{	//invert
+			indexes[count-1] = BigLong(renderlist[count-3]);
+			indexes[count-2] = BigLong(renderlist[count-2]);
+			indexes[count-3] = BigLong(renderlist[count-1]);
+			count-=3;
 		}
 		renderlist += root[i].numindexes;
 	}
@@ -3006,11 +3017,31 @@ void GLMod_LoadZymoticModel(model_t *mod, void *buffer)
 	for (i = 0; i < header->lump_poses.length/4; i++)
 		matrix[i] = BigFloat(inmatrix[i]);
 	inscene = (zymscene_t*)((char*)header + header->lump_scenes.start);
-	for (v = 0; v < header->numshaders; v++)
+	shadername = ((char*)header + header->lump_shaders.start);
+
+	stcoords = Hunk_Alloc(root[0].numverts*sizeof(vec2_t));
+	inst = (vec2_t *)((char *)header + header->lump_texcoords.start);
+	for (i = 0; i < header->lump_texcoords.length/8; i++)
 	{
-		root[v].groups = header->numscenes;
-		root[v].groupofs = (char*)grp - (char*)&root[0];
+		stcoords[i][0] = BigFloat(inst[i][0]);
+		stcoords[i][1] = 1-BigFloat(inst[i][1]);	//hmm. upside down skin coords?
 	}
+	for (i = 0; i < header->numshaders; i++, shadername+=32)
+	{
+		root[i].ofs_st_array = (char*)stcoords - (char*)&root[i];
+
+		root[i].groups = header->numscenes;
+		root[i].groupofs = (char*)grp - (char*)&root[i];
+
+		skin = Hunk_Alloc(sizeof(*skin)+sizeof(*texnums));
+		texnums = (galiastexnum_t *)(skin+1);	//texnums is seperate for skingroups/animating skins... Which this format doesn't support.
+		root[i].ofsskins = (char *)skin - (char *)&root[i];
+		root[i].numskins = 1;
+		skin->ofstexnums = (char *)texnums - (char *)skin;
+		skin->texnums = 1;
+		texnums->base = Mod_LoadHiResTexture(shadername, true, true, true);
+	}
+
 
 	for (i = 0; i < header->numscenes; i++, grp++, inscene++)
 	{
@@ -3032,13 +3063,10 @@ void GLMod_LoadZymoticModel(model_t *mod, void *buffer)
 		root[i].sharesverts = true;
 		root[i].numbones = root[0].numbones;
 		root[i].numindexes = root[0].numindexes;
-		root[i].numskins = 1;
 		root[i].numverts = root[0].numverts;
 
 		root[i].ofsbones = root[0].ofsbones;
 	}
-
-	root[0].numskins = 1;
 
 //
 // move the complete, relocatable alias model to the cache

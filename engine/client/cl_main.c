@@ -153,6 +153,7 @@ qbyte		*host_colormap;
 
 cvar_t	host_speeds = {"host_speeds","0"};			// set for running times
 cvar_t	show_fps = {"show_fps","0"};			// set for running times
+cvar_t	show_ups = {"show_ups","0"};			// set for running times
 #ifdef CRAZYDEBUGGING
 cvar_t	developer = {"developer","1"};
 #else
@@ -309,8 +310,8 @@ void CL_SendConnectPacket (
 #ifdef PEXT_VWEAP
 	fteprotextsupported |= PEXT_VWEAP;
 #endif
-#ifdef PEXT_ORIGINDBL
-	fteprotextsupported |= PEXT_ORIGINDBL;
+#ifdef PEXT_FLOATCOORDS
+	fteprotextsupported |= PEXT_FLOATCOORDS;
 #endif
 	fteprotextsupported |= PEXT_SPAWNSTATIC2;
 	fteprotextsupported |= PEXT_SEEF1;
@@ -1957,6 +1958,7 @@ CL_Init
 void CL_Init (void)
 {
 	extern void CL_Say_f (void);
+	extern void CL_SayMe_f (void);
 	extern void CL_SayTeam_f (void);
 	extern	cvar_t		baseskin;
 	extern	cvar_t		noskins;
@@ -2124,6 +2126,7 @@ void CL_Init (void)
 	Cmd_AddCommand ("kill", NULL);
 	Cmd_AddCommand ("pause", NULL);
 	Cmd_AddCommand ("say", CL_Say_f);
+	Cmd_AddCommand ("me", CL_SayMe_f);
 	Cmd_AddCommand ("sayone", CL_Say_f);
 	Cmd_AddCommand ("say_team", CL_SayTeam_f);
 #ifdef CLIENTONLY

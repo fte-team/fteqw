@@ -50,8 +50,8 @@ typedef int index_t;
 typedef struct mesh_s
 {
     int				numvertexes;
-	vec4_t			*xyz_array;	//structure is used only at load.
-	vec3_t			*normals_array;	//so what harm is there in doing this?
+	vec4_t			*xyz_array;
+	vec3_t			*normals_array;
 	vec2_t			*st_array;
 	vec2_t			*lmst_array;
 	byte_vec4_t		*colors_array;

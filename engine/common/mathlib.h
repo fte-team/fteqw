@@ -104,3 +104,6 @@ void RotatePointAroundVector( vec3_t dst, const vec3_t dir, const vec3_t point, 
 //used for crosshair stuff.
 void ML_Project (vec3_t in, vec3_t out, vec3_t viewangles, vec3_t vieworg, float wdivh, float fovy);
 void Matrix3_Multiply (vec3_t *in1, vec3_t *in2, vec3_t *out);
+void Matrix4_Transform3(float *matrix, float *vector, float *product);
+void ML_ModelViewMatrix(vec3_t modelview, vec3_t viewangles, vec3_t vieworg);
+

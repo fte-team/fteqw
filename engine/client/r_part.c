@@ -146,7 +146,7 @@ typedef struct part_type_s {
 	vec3_t rgbrand;
 	int colorindex;
 	int colorrand;
-	int citracer;
+	qboolean citracer;
 	float rgbchangetime;
 	vec3_t rgbrandsync;
 	float scale, alpha;
@@ -181,7 +181,7 @@ typedef struct part_type_s {
 
 	float offsetup; // make this into a vec3_t later with dir, possibly for mdls
 
-	enum {SM_BOX, SM_CIRCLE, SM_BALL, SM_SPIRAL, SM_TRACER, SM_TELEBOX, SM_LAVASPLASH} spawnmode;	
+	enum {SM_BOX, SM_CIRCLE, SM_BALL, SM_SPIRAL, SM_TRACER, SM_TELEBOX, SM_LAVASPLASH, SM_UNICIRCLE} spawnmode;	
 	//box = even spread within the area
 	//circle = around edge of a circle
 	//ball = filled sphere
@@ -189,9 +189,11 @@ typedef struct part_type_s {
 	//tracer = tracer trail
 	//telebox = q1-style telebox
 	//lavasplash = q1-style lavasplash
+	//unicircle = uniform circle
 
 	float gravity;
 	vec3_t friction;
+	float clipbounce;
 	int stains;
 
 	enum {RAMP_NONE, RAMP_DELTA, RAMP_ABSOLUTE} rampmode;
@@ -345,11 +347,12 @@ void R_ParticleEffect_f(void)
 	ptype->emit = -1;
 	ptype->alpha = 1;
 	ptype->alphachange = 1;
+	ptype->clipbounce = 0.8;
 	ptype->colorindex = -1;
 	ptype->rotationstartmin = -M_PI;	//start with a random angle
 	ptype->rotationstartrand = M_PI-ptype->rotationstartmin;
 	ptype->rotationmin = 0;				//but don't spin
-	ptype->rotationrand = 0-ptype->rotationmin;
+	ptype->rotationrand = 0;
 
 	while(1)
 	{
@@ -438,6 +441,8 @@ void R_ParticleEffect_f(void)
 		}
 		else if (!strcmp(var, "gravity"))
 			ptype->gravity = atof(value);
+		else if (!strcmp(var, "clipbounce"))
+			ptype->clipbounce = atof(value);
 
 		else if (!strcmp(var, "assoc"))
 		{
@@ -451,7 +456,7 @@ void R_ParticleEffect_f(void)
 		else if (!strcmp(var, "colorrand"))
 			ptype->colorrand = atoi(value);
 		else if (!strcmp(var, "citracer"))
-			ptype->citracer = atoi(value);
+			ptype->citracer = true;
 
 		else if (!strcmp(var, "red"))
 			ptype->rgb[0] = atof(value)/255;
@@ -523,6 +528,8 @@ void R_ParticleEffect_f(void)
 				ptype->spawnmode = SM_TELEBOX;
 			else if (!strcmp(value, "lavasplash"))
 				ptype->spawnmode = SM_LAVASPLASH;
+			else if (!strcmp(value, "uniformcircle"))
+				ptype->spawnmode = SM_UNICIRCLE;
 			else
 				ptype->spawnmode = SM_BOX;
 
@@ -1298,11 +1305,6 @@ void R_EmitSkyEffectTris(model_t *mod, msurface_t 	*fa)
 	}
 }
 
-
-
-
-
-
 void R_DarkFieldParticles (float *org, qbyte colour)
 {
 	int			i, j, k;
@@ -1486,10 +1488,10 @@ int R_RunParticleEffectType (vec3_t org, vec3_t dir, float count, int typenum)
 {
 	part_type_t *ptype = &part_type[typenum];
 	int i, j, k, l;
+	float m;
 	particle_t	*p;
-
-	if (typenum == 0)
-		typenum = rand()&15;
+	beamseg_t *b, *bfirst;
+	vec3_t ofsvec, arsvec; // offsetspread vec, areaspread vec
 
 	if (typenum < 0)
 		return 1;
@@ -1499,162 +1501,118 @@ int R_RunParticleEffectType (vec3_t org, vec3_t dir, float count, int typenum)
 
 	while(ptype)
 	{
-		switch (ptype->spawnmode) 
+		// init spawn specific variables
+		b = bfirst = NULL;
+		switch (ptype->spawnmode)
 		{
-		case SM_BOX:
-			for (i = 0; i < count*ptype->count; i++)
-			{
-				if (!free_particles)
-					return 0;
-				p = free_particles;
-				free_particles = p->next;
-				p->next = ptype->particles;
-				ptype->particles = p;
-
-				p->die = ptype->randdie*frandom();
-				p->scale = ptype->scale+ptype->randscale*frandom();
-				if (ptype->die)
-					p->alpha = ptype->alpha-p->die*(ptype->alpha/ptype->die)*ptype->alphachange;
-				else
-					p->alpha = ptype->alpha;
-				p->color = 0;
-				p->nextemit = particletime + ptype->emitstart - p->die;
-
-				p->rotationspeed = ptype->rotationmin + frandom()*ptype->rotationrand;
-				p->angle = ptype->rotationstartmin + frandom()*ptype->rotationstartrand;
-
-				if (ptype->colorindex >= 0)
-				{
-					int cidx;
-					cidx = ptype->colorrand > 0 ? rand() % ptype->colorrand : 0;
-					cidx = ptype->colorindex + cidx;
-					if (cidx > 255)
-						p->alpha = p->alpha / 2;
-					cidx = d_8to24rgbtable[cidx & 0xff];
-					p->rgb[0] = (cidx & 0xff) * (1/255.0);
-					p->rgb[1] = (cidx >> 8 & 0xff) * (1/255.0);
-					p->rgb[2] = (cidx >> 16 & 0xff) * (1/255.0);
-				}
-				else
-					VectorCopy(ptype->rgb, p->rgb);
-
-				// use org temporarily for rgbsync
-				p->org[2] = frandom();
-				p->org[0] = p->org[2]*ptype->rgbrandsync[0] + frandom()*(1-ptype->rgbrandsync[0]);
-				p->org[1] = p->org[2]*ptype->rgbrandsync[1] + frandom()*(1-ptype->rgbrandsync[1]);
-				p->org[2] = p->org[2]*ptype->rgbrandsync[2] + frandom()*(1-ptype->rgbrandsync[2]);
-
-				p->rgb[0] += p->org[0]*ptype->rgbrand[0] + ptype->rgbchange[0]*p->die;
-				p->rgb[1] += p->org[1]*ptype->rgbrand[1] + ptype->rgbchange[1]*p->die;
-				p->rgb[2] += p->org[2]*ptype->rgbrand[2] + ptype->rgbchange[2]*p->die;
-
-				p->org[0] = crandom();
-				p->org[1] = crandom();
-				p->org[2] = crandom();
-
-				p->vel[0] = crandom()*ptype->randomvel;
-				p->vel[1] = crandom()*ptype->randomvel;
-				p->vel[2] = crandom()*ptype->randomvelvert;
-
-				if (dir)
-				{
-					p->vel[0] += dir[0]*ptype->veladd+p->org[0]*ptype->offsetspread;
-					p->vel[1] += dir[1]*ptype->veladd+p->org[1]*ptype->offsetspread;
-					p->vel[2] += dir[2]*ptype->veladd+p->org[2]*ptype->offsetspreadvert;
-				}
-				else
-				{
-					p->vel[0] += p->org[0]*ptype->offsetspread;
-					p->vel[1] += p->org[1]*ptype->offsetspread;
-					p->vel[2] += p->org[2]*ptype->offsetspreadvert - ptype->veladd;
-				}
-				p->org[0] = org[0] + p->org[0]*ptype->areaspread;
-				p->org[1] = org[1] + p->org[1]*ptype->areaspread;
-				p->org[2] = org[2] + p->org[2]*ptype->areaspreadvert + ptype->offsetup;
-
-				p->die = particletime + ptype->die - p->die;
-			}
+		case SM_UNICIRCLE:
+			m = (count*ptype->count)-1;
+			if (m < 1)
+				m = 0;
+			else
+				m = (M_PI*2)/m;
 			break;
 		case SM_TELEBOX:
 			j = k = -ptype->areaspread;
+		case SM_LAVASPLASH:
 			l = -ptype->areaspreadvert;
-
-			for (i = 0; i < count*ptype->count; i++)
+			break;
+		}
+		
+		// particle spawning loop
+		for (i = 0; i < count*ptype->count; i++)
+		{
+			if (!free_particles)
+				break;
+			p = free_particles;
+			if (ptype->isbeam)
 			{
-				if (!free_particles)
-					return 0;
-				p = free_particles;
-				free_particles = p->next;
-				p->next = ptype->particles;
-				ptype->particles = p;
-
-				p->die = ptype->randdie*frandom();
-				p->scale = ptype->scale+ptype->randscale*frandom();
-				if (ptype->die)
-					p->alpha = ptype->alpha-p->die*(ptype->alpha/ptype->die)*ptype->alphachange;
-				else
-					p->alpha = ptype->alpha;
-				p->color = 0;
-				p->nextemit = particletime + ptype->emitstart - p->die;
-
-				p->rotationspeed = ptype->rotationmin + frandom()*ptype->rotationrand;
-				p->angle = ptype->rotationstartmin + frandom()*ptype->rotationstartrand;
-
-				if (ptype->colorindex >= 0)
+				if (!free_beams)
+					break;
+				if (b)
 				{
-					int cidx;
-					cidx = ptype->colorrand > 0 ? rand() % ptype->colorrand : 0;
-					cidx = ptype->colorindex + cidx;
-					if (cidx > 255)
-						p->alpha = p->alpha / 2;
-					cidx = d_8to24rgbtable[cidx & 0xff];
-					p->rgb[0] = (cidx & 0xff) * (1/255.0);
-					p->rgb[1] = (cidx >> 8 & 0xff) * (1/255.0);
-					p->rgb[2] = (cidx >> 16 & 0xff) * (1/255.0);
-				}
-				else
-					VectorCopy(ptype->rgb, p->rgb);
-
-				// use org temporarily for rgbsync
-				p->org[2] = frandom();
-				p->org[0] = p->org[2]*ptype->rgbrandsync[0] + frandom()*(1-ptype->rgbrandsync[0]);
-				p->org[1] = p->org[2]*ptype->rgbrandsync[1] + frandom()*(1-ptype->rgbrandsync[1]);
-				p->org[2] = p->org[2]*ptype->rgbrandsync[2] + frandom()*(1-ptype->rgbrandsync[2]);
-
-				p->rgb[0] += p->org[0]*ptype->rgbrand[0] + ptype->rgbchange[0]*p->die;
-				p->rgb[1] += p->org[1]*ptype->rgbrand[1] + ptype->rgbchange[1]*p->die;
-				p->rgb[2] += p->org[2]*ptype->rgbrand[2] + ptype->rgbchange[2]*p->die;
-
-				p->vel[0] = crandom()*ptype->randomvel;
-				p->vel[1] = crandom()*ptype->randomvel;
-				p->vel[2] = crandom()*ptype->randomvelvert;
-
-				// use org to store temp for particle dir
-				p->org[0] = k;
-				p->org[1] = j;
-				p->org[2] = l+4;
-				VectorNormalize(p->org);
-				VectorScale(p->org, 1.0-(frandom())*0.55752, p->org);
-
-				if (dir)
-				{
-					p->vel[0] += dir[0]*ptype->veladd+p->org[0]*ptype->offsetspread;
-					p->vel[1] += dir[1]*ptype->veladd+p->org[1]*ptype->offsetspread;
-					p->vel[2] += dir[2]*ptype->veladd+p->org[2]*ptype->offsetspreadvert;
+					b = b->next = free_beams;
+					free_beams = free_beams->next;
 				}
 				else
 				{
-					p->vel[0] += p->org[0]*ptype->offsetspread;
-					p->vel[1] += p->org[1]*ptype->offsetspread;
-					p->vel[2] += p->org[2]*ptype->offsetspreadvert - ptype->veladd;
+					b = bfirst = free_beams;
+					free_beams = free_beams->next;
 				}
+				b->texture_s = i;
+				b->flags = 0;
+				b->p = p;
+				VectorClear(b->dir);
+			}
+			free_particles = p->next;
+			p->next = ptype->particles;
+			ptype->particles = p;
+
+			p->die = ptype->randdie*frandom();
+			p->scale = ptype->scale+ptype->randscale*frandom();
+			if (ptype->die)
+				p->alpha = ptype->alpha-p->die*(ptype->alpha/ptype->die)*ptype->alphachange;
+			else
+				p->alpha = ptype->alpha;
+			p->color = 0;
+			p->nextemit = particletime + ptype->emitstart - p->die;
+
+			p->rotationspeed = ptype->rotationmin + frandom()*ptype->rotationrand;
+			p->angle = ptype->rotationstartmin + frandom()*ptype->rotationstartrand;
+
+			if (ptype->colorindex >= 0)
+			{
+				int cidx;
+				cidx = ptype->colorrand > 0 ? rand() % ptype->colorrand : 0;
+				cidx = ptype->colorindex + cidx;
+				if (cidx > 255)
+					p->alpha = p->alpha / 2; // Hexen 2 style transparency
+				cidx = d_8to24rgbtable[cidx & 0xff];
+				p->rgb[0] = (cidx & 0xff) * (1/255.0);
+				p->rgb[1] = (cidx >> 8 & 0xff) * (1/255.0);
+				p->rgb[2] = (cidx >> 16 & 0xff) * (1/255.0);
+			}
+			else
+				VectorCopy(ptype->rgb, p->rgb);
+
+			// use org temporarily for rgbsync
+			p->org[2] = frandom();
+			p->org[0] = p->org[2]*ptype->rgbrandsync[0] + frandom()*(1-ptype->rgbrandsync[0]);
+			p->org[1] = p->org[2]*ptype->rgbrandsync[1] + frandom()*(1-ptype->rgbrandsync[1]);
+			p->org[2] = p->org[2]*ptype->rgbrandsync[2] + frandom()*(1-ptype->rgbrandsync[2]);
+
+			p->rgb[0] += p->org[0]*ptype->rgbrand[0] + ptype->rgbchange[0]*p->die;
+			p->rgb[1] += p->org[1]*ptype->rgbrand[1] + ptype->rgbchange[1]*p->die;
+			p->rgb[2] += p->org[2]*ptype->rgbrand[2] + ptype->rgbchange[2]*p->die;
+
+			// randomvel
+			p->vel[0] = crandom()*ptype->randomvel;
+			p->vel[1] = crandom()*ptype->randomvel;
+			p->vel[2] = crandom()*ptype->randomvelvert;
+
+			// handle spawn modes (org/vel)
+			switch (ptype->spawnmode)
+			{
+			case SM_BOX:
+				ofsvec[0] = crandom();
+				ofsvec[1] = crandom();
+				ofsvec[2] = crandom();
+
+				arsvec[0] = ofsvec[0]*ptype->areaspread;
+				arsvec[1] = ofsvec[1]*ptype->areaspread;
+				arsvec[2] = ofsvec[2]*ptype->areaspreadvert;
+				break;
+			case SM_TELEBOX:
+				ofsvec[0] = k;
+				ofsvec[1] = j;
+				ofsvec[2] = l+4;
+				VectorNormalize(ofsvec);
+				VectorScale(ofsvec, 1.0-(frandom())*0.55752, ofsvec);
 
 				// org is just like the original
-				p->org[0] = org[0] + j + (rand()&3);
-				p->org[1] = org[1] + k + (rand()&3);
-				p->org[2] = org[2] + l + (rand()&3) + ptype->offsetup;
-
-				p->die = particletime + ptype->die - p->die;
+				arsvec[0] = j + (rand()&3);
+				arsvec[1] = k + (rand()&3);
+				arsvec[2] = l + (rand()&3);
 
 				// advance telebox loop
 				j += 4;
@@ -1670,93 +1628,19 @@ int R_RunParticleEffectType (vec3_t org, vec3_t dir, float count, int typenum)
 							l = -ptype->areaspreadvert;
 					}
 				}
-			}
-			break;
-		case SM_LAVASPLASH:
-			j = k = -ptype->areaspread;
-
-			for (i = 0; i < count*ptype->count; i++)
-			{
-				if (!free_particles)
-					return 0;
-				p = free_particles;
-				free_particles = p->next;
-				p->next = ptype->particles;
-				ptype->particles = p;
-
-				p->die = ptype->randdie*frandom();
-				p->scale = ptype->scale+ptype->randscale*frandom();
-				if (ptype->die)
-					p->alpha = ptype->alpha-p->die*(ptype->alpha/ptype->die)*ptype->alphachange;
-				else
-					p->alpha = ptype->alpha;
-				p->color = 0;
-				p->nextemit = particletime + ptype->emitstart - p->die;
-
-				p->rotationspeed = ptype->rotationmin + frandom()*ptype->rotationrand;
-				p->angle = ptype->rotationstartmin + frandom()*ptype->rotationstartrand;
-
-				if (ptype->colorindex >= 0)
-				{
-					int cidx;
-					cidx = ptype->colorrand > 0 ? rand() % ptype->colorrand : 0;
-					cidx = ptype->colorindex + cidx;
-					if (cidx > 255)
-						p->alpha = p->alpha / 2;
-					cidx = d_8to24rgbtable[cidx & 0xff];
-					p->rgb[0] = (cidx & 0xff) * (1/255.0);
-					p->rgb[1] = (cidx >> 8 & 0xff) * (1/255.0);
-					p->rgb[2] = (cidx >> 16 & 0xff) * (1/255.0);
-				}
-				else
-					VectorCopy(ptype->rgb, p->rgb);
-
-				// use org temporarily for rgbsync
-				p->org[2] = frandom();
-				p->org[0] = p->org[2]*ptype->rgbrandsync[0] + frandom()*(1-ptype->rgbrandsync[0]);
-				p->org[1] = p->org[2]*ptype->rgbrandsync[1] + frandom()*(1-ptype->rgbrandsync[1]);
-				p->org[2] = p->org[2]*ptype->rgbrandsync[2] + frandom()*(1-ptype->rgbrandsync[2]);
-
-				p->rgb[0] += p->org[0]*ptype->rgbrand[0] + ptype->rgbchange[0]*p->die;
-				p->rgb[1] += p->org[1]*ptype->rgbrand[1] + ptype->rgbchange[1]*p->die;
-				p->rgb[2] += p->org[2]*ptype->rgbrand[2] + ptype->rgbchange[2]*p->die;
-
-				p->vel[0] = crandom()*ptype->randomvel;
-				p->vel[1] = crandom()*ptype->randomvel;
-				p->vel[2] = crandom()*ptype->randomvelvert;
-
+				break;
+			case SM_LAVASPLASH:
 				// calc directions, org with temp vector
-				{
-					vec3_t temp;
+				ofsvec[0] = k*8 + (rand()&7);
+				ofsvec[1] = j*8 + (rand()&7);
+				ofsvec[2] = 256;
 
-					temp[0] = k*8 + (rand()&7);
-					temp[1] = j*8 + (rand()&7);
-					temp[2] = 256;
+				arsvec[0] = ofsvec[0];
+				arsvec[1] = ofsvec[1];
+				arsvec[2] = frandom()*ptype->areaspreadvert;
 
-					// calc org first
-					p->org[0] = org[0] + temp[0];
-					p->org[1] = org[1] + temp[1];
-					p->org[2] = org[2] + frandom()*ptype->areaspreadvert + ptype->offsetup;
-
-					VectorNormalize(temp);
-					VectorScale(temp, 1.0-(frandom())*0.55752, temp);
-
-					if (dir)
-					{
-						p->vel[0] += dir[0]*ptype->veladd+temp[0]*ptype->offsetspread;
-						p->vel[1] += dir[1]*ptype->veladd+temp[1]*ptype->offsetspread;
-						p->vel[2] += dir[2]*ptype->veladd+temp[2]*ptype->offsetspreadvert;
-					}
-					else
-					{
-						p->vel[0] += temp[0]*ptype->offsetspread;
-						p->vel[1] += temp[1]*ptype->offsetspread;
-						p->vel[2] += temp[2]*ptype->offsetspreadvert - ptype->veladd;
-					}
-
-				}
-
-				p->die = particletime + ptype->die - p->die;
+				VectorNormalize(ofsvec);
+				VectorScale(ofsvec, 1.0-(frandom())*0.55752, ofsvec);
 
 				// advance splash loop
 				j++;
@@ -1767,91 +1651,76 @@ int R_RunParticleEffectType (vec3_t org, vec3_t dir, float count, int typenum)
 					if (k >= ptype->areaspread)
 					k = -ptype->areaspread;
 				}
-			}
-			break;
-		default: // circle
-			for (i = 0; i < count*ptype->count; i++)
-			{
-				if (!free_particles)
-					return 0;
-				p = free_particles;
-				free_particles = p->next;
-				p->next = ptype->particles;
-				ptype->particles = p;
-
-				p->die = ptype->randdie*frandom();
-				p->scale = ptype->scale+ptype->randscale*frandom();
-				if (ptype->die)
-					p->alpha = ptype->alpha-p->die*(ptype->alpha/ptype->die)*ptype->alphachange;
-				else
-					p->alpha = ptype->alpha;
-				p->color = 0;
-				p->nextemit = particletime + ptype->emitstart - p->die;
-
-				p->rotationspeed = ptype->rotationmin + frandom()*ptype->rotationrand;
-				p->angle = ptype->rotationstartmin + frandom()*ptype->rotationstartrand;
-
-				if (ptype->colorindex >= 0)
-				{
-					int cidx;
-					cidx = ptype->colorrand > 0 ? rand() % ptype->colorrand : 0;
-					cidx = ptype->colorindex + cidx;
-					if (cidx > 255)
-						p->alpha = p->alpha / 2;
-					cidx = d_8to24rgbtable[cidx & 0xff];
-					p->rgb[0] = (cidx & 0xff) * (1/255.0);
-					p->rgb[1] = (cidx >> 8 & 0xff) * (1/255.0);
-					p->rgb[2] = (cidx >> 16 & 0xff) * (1/255.0);
-				}
-				else
-					VectorCopy(ptype->rgb, p->rgb);
-
-				// use org temporarily for rgbsync
-				p->org[2] = frandom();
-				p->org[0] = p->org[2]*ptype->rgbrandsync[0] + frandom()*(1-ptype->rgbrandsync[0]);
-				p->org[1] = p->org[2]*ptype->rgbrandsync[1] + frandom()*(1-ptype->rgbrandsync[1]);
-				p->org[2] = p->org[2]*ptype->rgbrandsync[2] + frandom()*(1-ptype->rgbrandsync[2]);
-
-				p->rgb[0] += p->org[0]*ptype->rgbrand[0] + ptype->rgbchange[0]*p->die;
-				p->rgb[1] += p->org[1]*ptype->rgbrand[1] + ptype->rgbchange[1]*p->die;
-				p->rgb[2] += p->org[2]*ptype->rgbrand[2] + ptype->rgbchange[2]*p->die;
-
-				p->org[0] = hrandom();
-				p->org[1] = hrandom();
+				break;
+			case SM_UNICIRCLE:
+				ofsvec[0] = cos(m*i);
+				ofsvec[1] = sin(m*i);
+				ofsvec[2] = 0;
+				VectorScale(ofsvec, ptype->areaspread, arsvec);
+				break;
+			default: // SM_BALL, SM_CIRCLE
+				ofsvec[0] = hrandom();
+				ofsvec[1] = hrandom();
 				if (ptype->areaspreadvert)
-					p->org[2] = hrandom();
+					ofsvec[2] = hrandom();
 				else
-					p->org[2] = 0;
+					ofsvec[2] = 0;
 
-				VectorNormalize(p->org);
+				VectorNormalize(ofsvec);
 				if (ptype->spawnmode != SM_CIRCLE)
-					VectorScale(p->org, frandom(), p->org);
+					VectorScale(ofsvec, frandom(), ofsvec);
 
-				p->vel[0] = crandom()*ptype->randomvel;
-				p->vel[1] = crandom()*ptype->randomvel;
-				p->vel[2] = crandom()*ptype->randomvelvert;
+				arsvec[0] = ofsvec[0]*ptype->areaspread;
+				arsvec[1] = ofsvec[1]*ptype->areaspread;
+				arsvec[2] = ofsvec[2]*ptype->areaspreadvert;
+				break;
+			}
 
-				if (dir)
+			// apply arsvec+ofsvec
+			if (dir)
+			{
+				p->vel[0] += dir[0]*ptype->veladd+ofsvec[0]*ptype->offsetspread;
+				p->vel[1] += dir[1]*ptype->veladd+ofsvec[1]*ptype->offsetspread;
+				p->vel[2] += dir[2]*ptype->veladd+ofsvec[2]*ptype->offsetspreadvert;
+			}
+			else
+			{
+				p->vel[0] += ofsvec[0]*ptype->offsetspread;
+				p->vel[1] += ofsvec[1]*ptype->offsetspread;
+				p->vel[2] += ofsvec[2]*ptype->offsetspreadvert - ptype->veladd;
+			}
+			p->org[0] = org[0] + arsvec[0];
+			p->org[1] = org[1] + arsvec[1];
+			p->org[2] = org[2] + arsvec[2] + ptype->offsetup;
+
+			p->die = particletime + ptype->die - p->die;
+		}
+
+		// update beam list
+		if (ptype->isbeam)
+		{
+			if (b)
+			{
+				// update dir for bfirst for certain modes since it will never get updated
+				switch (ptype->spawnmode)
 				{
-					p->vel[0] += dir[0]*ptype->veladd+org[0]*ptype->offsetspread;
-					p->vel[1] += dir[1]*ptype->veladd+org[1]*ptype->offsetspread;
-					p->vel[2] += dir[2]*ptype->veladd+org[2]*ptype->offsetspreadvert;
+				case SM_UNICIRCLE:
+					// kinda hackish here, assuming ofsvec contains the point at i-1
+					arsvec[0] = cos(m*(i-2));
+					arsvec[1] = sin(m*(i-2));
+					arsvec[2] = 0;
+					VectorSubtract(ofsvec, arsvec, bfirst->dir);
+					VectorNormalize(bfirst->dir);			
+					break;
 				}
-				else
-				{
-					p->vel[0] += p->org[0]*ptype->offsetspread;
-					p->vel[1] += p->org[1]*ptype->offsetspread;
-					p->vel[2] += p->org[2]*ptype->offsetspreadvert - ptype->veladd;
 
-				}
-				p->org[0] = org[0] + p->org[0]*ptype->areaspread;
-				p->org[1] = org[1] + p->org[1]*ptype->areaspread;
-				p->org[2] = org[2] + p->org[2]*ptype->areaspreadvert + ptype->offsetup;
-
-				p->die = particletime + ptype->die - p->die;
+				b->flags |= BS_NODRAW;
+				b->next = ptype->beams;
+				ptype->beams = bfirst;
 			}
 		}
 
+		// go to next associated effect
 		if (ptype->assoc < 0)
 			break;
 		ptype = &part_type[ptype->assoc];
@@ -2139,7 +2008,6 @@ int R_RocketTrail (vec3_t start, vec3_t end, int type, trailstate_t *ts)
 		}
 
 		p = free_particles;
-
 		if (ptype->isbeam)
 		{
 			if (!free_beams)
@@ -2157,7 +2025,7 @@ int R_RocketTrail (vec3_t start, vec3_t end, int type, trailstate_t *ts)
 				b = bfirst = free_beams;
 				free_beams = free_beams->next;
 			}
-			b->texture_s = len;
+			b->texture_s = len; // not sure how to calc this
 			b->flags = 0;
 			b->p = p;
 			VectorCopy(vec, b->dir);
@@ -2328,7 +2196,6 @@ int R_RocketTrail (vec3_t start, vec3_t end, int type, trailstate_t *ts)
 		}
 	}
 
-
 	return 0;
 }
 
@@ -2489,10 +2356,9 @@ void GL_DrawTexturedParticle(particle_t *p, part_type_t *type)
 		+ (p->org[2] - r_origin[2])*vpn[2];
 	scale = (scale*p->scale)*(type->invscalefactor) + p->scale * (type->scalefactor*250);
 	if (scale < 20)
-		scale = 1;
+		scale = 0.25;
 	else
-		scale = 1 + scale * 0.004;
-	scale/=4;
+		scale = 0.25 + scale * 0.001;
 	
 	glColor4f (	p->rgb[0],
 				p->rgb[1],
@@ -2543,11 +2409,9 @@ void GL_DrawTrifanParticle(particle_t *p, part_type_t *type)
 		+ (p->org[2] - r_origin[2])*vpn[2];
 	scale = (scale*p->scale)*(type->invscalefactor) + p->scale * (type->scalefactor*250);
 	if (scale < 20)
-		scale = 1;
+		scale = 0.05;
 	else
-		scale = 1 + scale * 0.004;
-	scale/=4;
-	scale/=5;
+		scale = 0.05 + scale * 0.0002;
 /*
 	if ((p->vel[0]*p->vel[0]+p->vel[1]*p->vel[1]+p->vel[2]*p->vel[2])*2*scale > 30*30)
 		scale = 1+1/30/Length(p->vel)*2;*/
@@ -3056,9 +2920,9 @@ void DrawParticleTypes (void texturedparticles(particle_t *,part_type_t*), void 
 				
 						VectorMA(p->vel, dist, normal, p->vel);
 						VectorCopy(stop, p->org);
-						p->vel[0] *= 0.8;
-						p->vel[1] *= 0.8;
-						p->vel[2] *= 0.8;
+						p->vel[0] *= type->clipbounce;
+						p->vel[1] *= type->clipbounce;
+						p->vel[2] *= type->clipbounce;
 
 						if (!*type->texname && Length(p->vel)<1000*pframetime && !type->isbeam)
 							p->die = -1;

@@ -2188,13 +2188,17 @@ void QCC_PR_CommandLinePrecompilerOptions (void)
 			}
 			else if (!strnicmp(myargv[i]+2, "no-", 3))
 			{
-				if (!myargv[i][5])
+				if (myargv[i][5])
+				{
 					for (p = 0; optimisations[p].enabled; p++)
+					{
 						if ((*optimisations[p].abbrev && !stricmp(myargv[i]+5, optimisations[p].abbrev)) || !stricmp(myargv[i]+5, optimisations[p].fullname))
 						{
 							*optimisations[p].enabled = false;
 							break;
 						}
+					}
+				}
 			}
 			else
 			{

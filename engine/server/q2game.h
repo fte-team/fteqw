@@ -68,7 +68,7 @@ typedef struct
 	q2pmove_state_t	s;
 
 	// command (in)
-	usercmd_t		cmd;
+	q2usercmd_t		cmd;
 	qboolean		snapinitial;	// if s has been changed outside pmove
 
 	// results (out)
@@ -282,7 +282,7 @@ typedef struct
 	void		(*ClientUserinfoChanged) (q2edict_t *ent, char *userinfo);
 	void		(*ClientDisconnect) (q2edict_t *ent);
 	void		(*ClientCommand) (q2edict_t *ent);
-	void		(*ClientThink) (q2edict_t *ent, usercmd_t *cmd);
+	void		(*ClientThink) (q2edict_t *ent, q2usercmd_t *cmd);
 
 	void		(*RunFrame) (void);
 

@@ -824,7 +824,7 @@ void GLMod_LoadAdvancedTextureSection(char *section, char *name, int *base, int 
 
 	if (!*stdname && !*flatname)
 		return;
-
+TRACE(("dbg: GLMod_LoadAdvancedTextureSection: %s\n", name));
 	if (norm && gl_bumpmappingpossible && cls.allow_bump)
 	{
 		*base = 0;
@@ -887,6 +887,8 @@ void GLMod_LoadTextures (lump_t *l)
 	qboolean alphaed;
 	qbyte *base;
 
+TRACE(("dbg: GLMod_LoadTextures: inittexturedescs\n"));
+
 	GLMod_InitTextureDescs(loadname);
 
 	if (!l->filelen)
@@ -907,6 +909,9 @@ void GLMod_LoadTextures (lump_t *l)
 		if (m->dataofs[i] == -1)	//e1m2, this happens
 			continue;
 		mt = (miptex_t *)((qbyte *)m + m->dataofs[i]);
+
+	TRACE(("dbg: GLMod_LoadTextures: texture %s\n", loadname));
+
 		mt->width = LittleLong (mt->width);
 		mt->height = LittleLong (mt->height);
 		for (j=0 ; j<MIPLEVELS ; j++)
@@ -1220,7 +1225,13 @@ void GLMod_LoadLighting (lump_t *l)
 	else
 		BuildLightMapGammaTable(1, 1);
 
+	loadmodel->lightdata = NULL;
 	loadmodel->deluxdata = NULL;
+	if (!l->filelen)
+	{
+		return;
+	}
+
 	if (r_loadlits.value && gl_bumpmappingpossible)	//fixme: adjust the light intensities.
 	{	//the map util has a '-scalecos X' parameter. use 0 if you're going to use only just lux. without lux scalecos 0 is hideous.
 		char luxname[MAX_QPATH];		
@@ -1319,10 +1330,6 @@ void GLMod_LoadLighting (lump_t *l)
 
 
 				//now some cheat protection.
-				if (!l->filelen)
-				{	//would otherwise be full bright so no need to check.
-					return;
-				}
 
 				normal = mod_base + l->fileofs;
 				litdata = loadmodel->lightdata;
@@ -1350,8 +1357,6 @@ void GLMod_LoadLighting (lump_t *l)
 					litdata+=3;
 				}
 				//end anti-cheat
-
-				return;
 			}
 		}
 		else if (litdata)
@@ -1362,11 +1367,6 @@ void GLMod_LoadLighting (lump_t *l)
 	if (loadmodel->fromgame == fg_halflife || loadmodel->fromgame == fg_quake2 || loadmodel->fromgame == fg_quake3)
 		loadmodel->rgblighting = true;
 
-	if (!l->filelen)
-	{
-		loadmodel->lightdata = NULL;
-		return;
-	}
 #ifdef RUNTIMELIGHTING
 	if (r_loadlits.value == 2 && !lightmodel && (loadmodel->rgblighting != true || (!luxdata && gl_bumpmappingpossible)))
 	{
@@ -1409,6 +1409,9 @@ void GLMod_LoadLighting (lump_t *l)
 		return;
 	}
 #endif
+
+	if (loadmodel->lightdata)
+		return;
 
 	loadmodel->lightdata = Hunk_AllocName ( l->filelen, loadname);
 

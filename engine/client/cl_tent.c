@@ -329,7 +329,10 @@ void CL_ParseBeam (int tent)
 		m = Mod_ForName("progs/bolt.mdl", true);
 		break;
 	case 1:
-		m = Mod_ForName("progs/bolt2.mdl", true);
+		if (ent < 0 && ent >= -MAX_CLIENTS)	//based on the railgun concept - this adds a rogue style TE_BEAM effect.
+			m = Mod_ForName("progs/beam.mdl", false);	//remember to precache!
+		else
+			m = Mod_ForName("progs/bolt2.mdl", true);
 		break;
 	case 2:
 		m = Mod_ForName("progs/bolt3.mdl", true);

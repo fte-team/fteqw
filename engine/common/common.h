@@ -105,6 +105,16 @@ struct usercmd_s;
 
 extern struct usercmd_s nullcmd;
 
+typedef union {	//note: reading from packets can be misaligned
+	char b[4];
+	short b2;
+	int b4;
+	float f;
+} coorddata;
+extern int sizeofcoord;
+float MSG_FromCoord(coorddata c, int bytes);
+coorddata MSG_ToCoord(float f, int bytes);
+
 void MSG_WriteChar (sizebuf_t *sb, int c);
 void MSG_WriteByte (sizebuf_t *sb, int c);
 void MSG_WriteShort (sizebuf_t *sb, int c);

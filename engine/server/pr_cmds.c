@@ -1235,6 +1235,18 @@ qboolean PR_UserCmd(char *s)
 	}
 #endif
 
+	if (SV_ParseClientCommand)
+	{	//the QC is expected to send it back to use via a builtin.
+
+		pr_globals = PR_globals(svprogfuncs, PR_CURRENT);
+		pr_global_struct->time = sv.time;
+		pr_global_struct->self = EDICT_TO_PROG(svprogfuncs, sv_player);
+		
+		G_INT(OFS_PARM0) = (int)PR_SetString(svprogfuncs, s);
+		PR_ExecuteProgram (svprogfuncs, SV_ParseClientCommand);
+		return true;
+	}
+
 	if (mod_UserCmd && pr_imitatemvdsv.value >= 0)
 	{	//we didn't recognise it. see if the mod does.
 		pr_globals = PR_globals(svprogfuncs, PR_CURRENT);
@@ -2167,8 +2179,6 @@ void PF_particle (progfuncs_t *prinst, globalvars_t *pr_globals)	//I said it was
 	float		color;
 	float		count;
 	int i, v;
-
-	return;
 			
 	org = G_VECTOR(OFS_PARM0);
 	dir = G_VECTOR(OFS_PARM1);
@@ -3538,7 +3548,7 @@ void PF_droptofloor (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 ===============
 PF_lightstyle
 
-void(float style, string value) lightstyle
+void(float style, string value [, float colour]) lightstyle
 ===============
 */
 void PF_lightstyle (progfuncs_t *prinst, struct globalvars_s *pr_globals)
@@ -3945,6 +3955,7 @@ void PF_changeyaw (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 	ent->v.angles[1] = anglemod (current + move);
 }
 
+//void() changepitch = #63;
 void PF_changepitch (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
 	edict_t		*ent;
@@ -5622,7 +5633,7 @@ lh_extension_t FTE_Protocol_Extensions[] =
 	{"FTE_HEXEN2"},				//client can use hexen2 maps. server can use hexen2 progs
 	{"FTE_PEXT_SPAWNSTATIC"},	//means that static entities can have alpha/scale and anything else the engine supports on normal ents. (Added for >256 models, while still being compatable - previous system failed with -1 skins)
 	{"FTE_PEXT_CUSTOMTENTS",					2,	NULL, {"RegisterTempEnt", "CustomTempEnt"}},
-/*not supported yet*/	{"FTE_PEXT_256PACKETENTITIES"},	//client is able to receive unlimited packet entities (server caps itself to 256 to prevent insanity).
+	{"FTE_PEXT_256PACKETENTITIES"},	//client is able to receive unlimited packet entities (server caps itself to 256 to prevent insanity).
 	{"TEI_SHOWLMP2",					6,	NULL, {"showpic", "hidepic", "movepic", "changepic", "showpicent", "hidepicent"}}	//telejano doesn't actually export the moveent/changeent (we don't want to either cos it would stop frik_file stuff being autoregistered)
 };
 
@@ -6203,6 +6214,7 @@ static void PF_copyentity (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 	out = G_EDICT(prinst, OFS_PARM1);
 
 	memcpy(&out->v, &in->v, pr_edict_size-prinst->parms->edictsize);
+	SV_LinkEdict(out, false);
 }
 
 //EXTENSION: DP_QC_ETOS

@@ -2606,7 +2606,11 @@ static void CL_Say (qboolean team, char *extra)
 		return;
 	}
 #endif
+#ifdef Q2CLIENT
 	MSG_WriteByte (&cls.netchan.message, cls.q2server?clcq2_stringcmd:clc_stringcmd);
+#else
+	MSG_WriteByte (&cls.netchan.message, clc_stringcmd);
+#endif
 	SZ_Print (&cls.netchan.message, team ? "say_team " : "say ");
 
 	if (sendtext[0] < 32)

@@ -331,9 +331,12 @@ int SV_FlyMove (edict_t *ent, float time, trace_t *steptrace)
 		}
 		else
 		{
-			VectorSubtract(planes[0], trace.plane.normal, diff);
-			if (Length(diff) < 0.01)
-				continue;	//hit this plane already
+			if (numplanes)
+			{
+				VectorSubtract(planes[0], trace.plane.normal, diff);
+				if (Length(diff) < 0.01)
+					continue;	//hit this plane already
+			}
 
 			VectorCopy (trace.plane.normal, planes[numplanes]);
 			numplanes++;

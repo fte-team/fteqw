@@ -882,7 +882,9 @@ void CL_Disconnect (void)
 #endif
 		SCR_EndLoadingPlaque();
 
+#ifdef Q2CLIENT
 	cls.q2server = 0;
+#endif
 }
 
 #undef serverrunning

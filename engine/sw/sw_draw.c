@@ -40,7 +40,7 @@ typedef struct {
 static rectdesc_t	r_rectdesc;
 
 qbyte		*draw_chars;				// 8*8 graphic characters
-//mpic_t		*draw_disc;
+mpic_t		*draw_disc;
 mpic_t		*draw_backtile;
 
 void SWDraw_TransPic (int x, int y, mpic_t *pic);

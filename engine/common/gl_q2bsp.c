@@ -3525,7 +3525,9 @@ void CM_InitBoxHull (void)
 	box_model.funcs.FatPVS				= Q2BSP_FatPVS;
 	box_model.funcs.EdictInFatPVS		= Q2BSP_EdictInFatPVS;
 	box_model.funcs.FindTouchedLeafs_Q1	= Q2BSP_FindTouchedLeafs;
+#ifndef SERVERONLY
 	box_model.funcs.MarkLights			= Q2BSP_MarkLights;
+#endif
 	box_model.funcs.LeafPVS				= CM_LeafnumPVS;
 	box_model.funcs.LeafForPoint		= CM_ModelPointLeafnum;
 

@@ -883,6 +883,7 @@ static int MSG_ReadRawBits(sizebuf_t *msg, int bits)
 	return bitmask;
 }
 
+#ifndef MINIMAL
 /*
 ============
 MSG_ReadHuffBits
@@ -907,6 +908,7 @@ static int MSG_ReadHuffBits(sizebuf_t *msg, int bits)
 
 	return bitmask;
 }
+#endif
 
 int MSG_ReadBits(int bits)
 {
@@ -937,9 +939,11 @@ int MSG_ReadBits(int bits)
 	case SZ_RAWBITS:
 		bitmask = MSG_ReadRawBits(&net_message, bits);
 		break;
+#ifndef MINIMAL
 	case SZ_HUFFMAN:
 		bitmask = MSG_ReadHuffBits(&net_message, bits);
 		break;
+#endif
 	}
 
 	if (extend)

@@ -1565,7 +1565,7 @@ void CMod_LoadPlanes (lump_t *l)
 	if (count < 1)
 		Host_Error ("Map with no planes");
 	// need to save space for box planes
-	if (count > MAX_Q2MAP_PLANES)
+	if (count >= MAX_Q2MAP_PLANES)
 		Host_Error ("Map has too many planes");
 
 	out = map_planes;	
@@ -2355,7 +2355,7 @@ continue;
 				out->texinfo->texture->shader = R_RegisterShader(out->texinfo->texture->name);
 		}
 
-		if (in->fognum == -1)
+		if (in->fognum == -1 || !map_numfogs)
 			out->fog = NULL;
 		else
 			out->fog = map_fogs + in->fognum;
@@ -3088,6 +3088,7 @@ q2cmodel_t *CM_LoadMap (char *name, char *filein, qboolean clientload, unsigned 
 	q2dheader_t		header;
 	int				length;
 	static unsigned	last_checksum;
+	qboolean nofog;
 
 	// free old stuff
 	numplanes = 0;
@@ -3125,18 +3126,17 @@ q2cmodel_t *CM_LoadMap (char *name, char *filein, qboolean clientload, unsigned 
 	header.ident = LittleLong(header.ident);
 	header.version = LittleLong(header.version);
 
-	if (header.version != Q2BSPVERSION && header.version != Q3BSPVERSION)
-		Host_Error ("CMod_LoadBrushModel: %s has wrong version number (%i should be %i or %i)"
-		, name, header.version, Q2BSPVERSION, Q3BSPVERSION);
-
 	cmod_base = mod_base = (qbyte *)buf;
 
 	switch(header.version)
 	{
 	default:
-		Sys_Error("Bad internal renderer on q2 map load\n");
+		if (header.version != Q2BSPVERSION && header.version != Q3BSPVERSION)
+			Host_Error ("Quake 2 or Quake 3 based BSP with unknown header (%i should be %i or %i)"
+			, name, header.version, Q2BSPVERSION, Q3BSPVERSION);
 		break;
 #if 1
+	case Q3BSPVERSION+1:
 	case Q3BSPVERSION:
 		mapisq3 = true;
 		loadmodel->fromgame = fg_quake3;
@@ -3192,7 +3192,10 @@ q2cmodel_t *CM_LoadMap (char *name, char *filein, qboolean clientload, unsigned 
 				CModQ3_LoadLightgrid	(&header.lumps[Q3LUMP_LIGHTGRID]);
 				CModQ3_LoadIndexes		(&header.lumps[Q3LUMP_DRAWINDEXES]);
 #ifdef Q3SHADERS
-				CModQ3_LoadFogs			(&header.lumps[Q3LUMP_FOGS]);
+				if (header.version != Q3BSPVERSION+1)
+					CModQ3_LoadFogs			(&header.lumps[Q3LUMP_FOGS]);
+				else
+					map_numfogs = 0;
 #endif
 				CModQ3_LoadRFaces		(&header.lumps[Q3LUMP_SURFACES]);
 				CModQ3_LoadMarksurfaces (&header.lumps[Q3LUMP_LEAFSURFACES]);	//fixme: duplicated loading.

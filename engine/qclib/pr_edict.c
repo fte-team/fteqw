@@ -76,12 +76,6 @@ struct edict_s *ED_Alloc (progfuncs_t *progfuncs)
 	int			i;
 	edictrun_t		*e;
 
-	static int lastmax;
-
-	if (lastmax + 2 < sv_num_edicts)
-		lastmax = lastmax;
-	lastmax = sv_num_edicts;
-
 	for ( i=0 ; i<sv_num_edicts ; i++)
 	{
 		e = (edictrun_t*)EDICT_NUM(progfuncs, i);
@@ -610,8 +604,7 @@ char *PR_UglyValueString (progfuncs_t *progfuncs, etype_t type, eval_t *val)
 		if (val->vector[0] == (int)val->vector[0] && val->vector[1] == (int)val->vector[1] && val->vector[2] == (int)val->vector[2])
 			sprintf (line, "%i %i %i", (int)val->vector[0], (int)val->vector[1], (int)val->vector[2]);
 		else
-			sprintf (line, "%f %f %f", val->vector[0], val->vector[1], val->vector[2]);
-		break;		
+			sprintf (line, "%f %f %f", val->vector[0], val->vector[1], val->vector[2]);		
 		break;
 	default:
 		sprintf (line, "bad type %i", type);
@@ -1998,6 +1991,9 @@ struct edict_s *RestoreEnt (progfuncs_t *progfuncs, char *buf, int *size, struct
 	char *start = buf;
 
 	buf = QCC_COM_Parse(buf);	//read the key
+	if (!buf || !*qcc_token)
+		return NULL;
+
 	if (strcmp(qcc_token, "{"))
 		Sys_Error("Restore Ent with no opening brace");
 
@@ -2336,7 +2332,8 @@ retry:
 		char lnoname[128];
 		ohm = PRHunkMark(progfuncs);
 
-		COM_StripExtension(filename, lnoname);
+		strcpy(lnoname, filename);
+		StripExtension(lnoname);
 		strcat(lnoname, ".lno");
 		if ((len=externs->FileSize(lnoname))>0)
 		{
@@ -2524,15 +2521,16 @@ retry:
 	case 16:
 		for (i=0 ; i<pr_progs->numstatements ; i++)
 		{
-			ddef16_t *gd;
 #ifndef NOENDIAN
 			st16[i].op = LittleShort(st16[i].op);
 			st16[i].a = LittleShort(st16[i].a);
 			st16[i].b = LittleShort(st16[i].b);
 			st16[i].c = LittleShort(st16[i].c);
 #endif
+/*
 			if (st16[i].op == OP_IF || st16[i].op == OP_IFNOT)	//strings are dodgy. if("") can evaluate to true
 			{
+				ddef16_t *gd;
 				gd = ED_GlobalAtOfs16(progfuncs, st16[i].a);
 				if (!gd)
 					continue;
@@ -2551,7 +2549,9 @@ retry:
 						st16[i].op = OP_IFNOTS;
 				}
 			}
-			else if (st16[i].op >= OP_CALL1 && st16[i].op <= OP_CALL8)
+			else 
+*/
+			if (st16[i].op >= OP_CALL1 && st16[i].op <= OP_CALL8)
 			{
 				if (st16[i].b)
 					hexencalling = true;
@@ -2572,16 +2572,16 @@ retry:
 	case 24:	//24 sucks. Guess why.
 		for (i=0 ; i<pr_progs->numstatements ; i++)
 		{
-			ddef16_t *gd;
 #ifndef NOENDIAN
 			pr_statements32[i].op = LittleLong(pr_statements32[i].op);
 			pr_statements32[i].a = LittleLong(pr_statements32[i].a);
 			pr_statements32[i].b = LittleLong(pr_statements32[i].b);
 			pr_statements32[i].c = LittleLong(pr_statements32[i].c);
 #endif
-
+/*
 			if (pr_statements32[i].op == OP_IF || pr_statements32[i].op == OP_IFNOT)	//strings are dodgy. if("") can evaluate to true
 			{
+				ddef16_t *gd;
 				gd = ED_GlobalAtOfs16(progfuncs, pr_statements32[i].a);
 				if (!gd)
 					continue;
@@ -2597,7 +2597,9 @@ retry:
 					pr_statements32[i].op = pr_statements32[i].op - OP_IF + OP_IFS;
 				}
 			}
-			else if (pr_statements32[i].op >= OP_CALL1 && pr_statements32[i].op <= OP_CALL8)
+			else 
+*/
+				if (pr_statements32[i].op >= OP_CALL1 && pr_statements32[i].op <= OP_CALL8)
 			{
 				if (pr_statements32[i].b)
 					hexencalling = true;
@@ -2612,7 +2614,6 @@ retry:
 					pr_statements32[i].op += OP_CALL1H - OP_CALL1;
 			}
 		}
-		break;
 		break;
 	case 32:
 #ifndef NOENDIAN

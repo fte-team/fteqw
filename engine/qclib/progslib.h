@@ -228,9 +228,6 @@ typedef union eval_s
 #define PROG_TO_EDICT(pf, ed)								(*pf->ProgsToEdict)			(pf, ed)
 #define EDICT_TO_PROG(pf, ed)								(*pf->EdictToProgs)			(pf, ed)
 
-#define PR_RunError			(*progfuncs->PR_RunError)
-#define PR_PrintEdict		(*progfuncs->PR_PrintEdict)
-
 #define PR_RegisterBuiltin(pf, name, func)					(*pf->RegisterBuiltin)		(pf, name, func)
 
 #define NEXT_EDICT(pf,o)		EDICT_NUM(pf, NUM_FOR_EDICT(pf, o)+1)

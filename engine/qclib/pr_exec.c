@@ -227,6 +227,7 @@ PR_EnterFunction
 Returns the new program statement counter
 ====================
 */
+void	PR_AbortStack			(progfuncs_t *progfuncs);
 int PR_EnterFunction (progfuncs_t *progfuncs, dfunction_t *f, int progsnum)
 {
 	int		i, j, c, o;
@@ -240,6 +241,7 @@ int PR_EnterFunction (progfuncs_t *progfuncs, dfunction_t *f, int progsnum)
 		printf ("stack overflow on call to %s", f->s_name);
 		pr_depth--;
 		PR_StackTrace (progfuncs);
+		PR_AbortStack(progfuncs);
 		return pr_xstatement;
 	}
 
@@ -703,7 +705,7 @@ static char *lastfile = NULL;
 	int i;
 	dfunction_t *f = pr_xfunction;	
 
-	if (f && pr_progstate[pn].linenums)
+	if (f && pr_progstate[pn].linenums && externs->useeditor)
 	{
 		if (lastline == pr_progstate[pn].linenums[statement] && lastfile == f->s_file)
 			return statement;	//no info/same line as last time
@@ -730,7 +732,8 @@ static char *lastfile = NULL;
 	}
 	else if (f)	//annoying.
 	{
-		externs->useeditor(f->s_file, -1, 0, &f->s_name);
+		if (externs->useeditor)
+			externs->useeditor(f->s_file, -1, 0, &f->s_name);
 		return statement;
 	}
 	
@@ -765,7 +768,7 @@ void PR_ExecuteCode (progfuncs_t *progfuncs, int s)
 
 	int fnum = pr_xfunction - pr_functions;
 
-	runaway = 100000;
+	runaway = 1000000;
 
 	prinst->continuestatement = -1;
 

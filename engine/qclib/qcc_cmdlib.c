@@ -129,6 +129,15 @@ skipwhite:
 			data++;
 		goto skipwhite;
 	}
+
+	// skip /* comments
+	if (c=='/' && data[1] == '*')
+	{
+		while (data[1] && (data[0] != '*' || data[1] != '/'))
+			data++;
+		data+=2;
+		goto skipwhite;
+	}
 	
 
 // handle quoted strings specially
@@ -490,22 +499,6 @@ void    StripFilename (char *path)
 		length--;
 	path[length] = 0;
 }
-
-void    StripExtension (char *path)
-{
-	int             length;
-
-	length = strlen(path)-1;
-	while (length > 0 && path[length] != '.')
-	{
-		length--;
-		if (path[length] == '/')
-			return;		// no extension
-	}
-	if (length)
-		path[length] = 0;
-}
-
 
 /*
 ====================
@@ -912,3 +905,18 @@ void FS_CloseFromMem(void *mem)
 
 
 #endif
+
+void    StripExtension (char *path)
+{
+	int             length;
+
+	length = strlen(path)-1;
+	while (length > 0 && path[length] != '.')
+	{
+		length--;
+		if (path[length] == '/')
+			return;		// no extension
+	}
+	if (length)
+		path[length] = 0;
+}

@@ -92,6 +92,7 @@ void QC_AddSharedFieldVar(progfuncs_t *progfuncs, int num);
 int QC_RegisterFieldVar(progfuncs_t *progfuncs, unsigned int type, char *name, int requestedpos, int origionalofs);
 pbool Decompile(progfuncs_t *progfuncs, char *fname);
 int PR_ToggleBreakpoint(progfuncs_t *progfuncs, char *filename, int linenum, int flag);
+void    StripExtension (char *path);
 
 
 #define edvars(ed) (((char *)ed)+externs->edictsize)	//pointer to the field vars, given an edict

@@ -842,7 +842,8 @@ qboolean GLVID_Init (rendererstate_t *info, unsigned char *palette)
 
 	GL_Init(&GLX_GetSymbol);
 
-	VID_SetPalette(palette);
+	GLVID_SetPalette(palette);
+	GLVID_ShiftPalette(palette);
 
 	Con_SafePrintf ("Video mode %dx%d initialized.\n", info->width, info->height);
 

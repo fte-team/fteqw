@@ -1881,6 +1881,10 @@ R_ModifyColor
 */
 void R_ModifyColor ( meshbuffer_t *mb, shaderpass_t *pass )
 {
+	extern qbyte *host_basepal;
+	extern qboolean gammaworks;
+	extern qbyte gammatable[256];
+	
 	int i, b;
 	float *table, c, a;
 	vec3_t t, v;
@@ -1952,6 +1956,87 @@ void R_ModifyColor ( meshbuffer_t *mb, shaderpass_t *pass )
 		case RGB_GEN_EXACT_VERTEX:
 			memcpy ( bArray, vArray, sizeof(byte_vec4_t)*numColors );
 			break;
+			
+		case RGB_GEN_TOPCOLOR:	//multiply vertex by topcolor (for player models)
+		{
+			int rc, gc, bc;
+			if (currententity->scoreboard)
+			{
+				i = currententity->scoreboard->topcolor;
+				//colour forcing
+				if (cl.splitclients<2 && !(cl.fpd & FPD_NO_FORCE_COLOR))	//no colour/skin forcing in splitscreen.
+				{
+					if (cl.teamplay && !strcmp(currententity->scoreboard->team, cl.players[cl.playernum[0]].team))
+					{
+						if (cl_teamtopcolor>=0)
+							i = cl_teamtopcolor;
+					}
+					else
+					{
+						if (cl_enemytopcolor>=0)
+							i = cl_enemytopcolor;
+					}
+				}
+			}
+			else
+				i = TOP_RANGE>>4;
+			rc = host_basepal[i<<4];
+			gc = host_basepal[i<<4];
+			bc = host_basepal[i<<4];
+			if (!gammaworks)
+			{
+				rc = gammatable[rc];
+				gc = gammatable[gc];
+				bc = gammatable[bc];
+			}
+			for ( i = 0; i < numColors; i++, bArray += 4, vArray += 4 ) {
+				bArray[0] = (vArray[0]*rc)>>8;
+				bArray[1] = (vArray[1]*gc)>>8;
+				bArray[2] = (vArray[2]*bc)>>8;
+			}
+			break;
+		}
+			
+		case RGB_GEN_BOTTOMCOLOR:	//multiply vertex by bottomcolor (for player models)
+		{
+			int rc, gc, bc;
+			if (currententity->scoreboard)
+			{
+				i = currententity->scoreboard->bottomcolor;
+				//colour forcing
+				if (cl.splitclients<2 && !(cl.fpd & FPD_NO_FORCE_COLOR))	//no colour/skin forcing in splitscreen.
+				{
+					if (cl.teamplay && !strcmp(currententity->scoreboard->team, cl.players[cl.playernum[0]].team))
+					{
+						if (cl_teambottomcolor>=0)
+							i = cl_teambottomcolor;
+					}
+					else
+					{
+						if (cl_enemybottomcolor>=0)
+							i = cl_enemybottomcolor;
+					}
+				}
+			}
+			else
+				i = BOTTOM_RANGE>>4;
+			rc = host_basepal[i<<4];
+			gc = host_basepal[i<<4];
+			bc = host_basepal[i<<4];
+			if (!gammaworks)
+			{
+				rc = gammatable[rc];
+				gc = gammatable[gc];
+				bc = gammatable[bc];
+			}
+			for ( i = 0; i < numColors; i++, bArray += 4, vArray += 4 ) {
+				bArray[0] = (vArray[0]*rc)>>8;
+				bArray[1] = (vArray[1]*gc)>>8;
+				bArray[2] = (vArray[2]*bc)>>8;
+			}
+			break;
+		}
+		
 
 		case RGB_GEN_ONE_MINUS_VERTEX:
 			for ( i = 0; i < numColors; i++, bArray += 4, vArray += 4 ) {

@@ -126,7 +126,8 @@ typedef struct
 } q2player_state_t;
 #endif
 
-#define	MAX_SCOREBOARDNAME	16
+#define	MAX_SCOREBOARDNAME	64
+#define MAX_DISPLAYEDNAME	16
 typedef struct player_info_s
 {
 	int		userid;

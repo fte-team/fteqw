@@ -8,7 +8,7 @@ of the License, or (at your option) any later version.
 
 This program is distributed in the hope that it will be useful,
 but WITHOUT ANY WARRANTY; without even the implied warranty of
-MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
 
 See the GNU General Public License for more details.
 
@@ -72,7 +72,7 @@ qboolean CL_FilterModelindex(int modelindex, int frame)
 	}
 
 	if (cl_gibfilter.value && (
-			modelindex == cl_h_playerindex || 
+			modelindex == cl_h_playerindex ||
 			modelindex == cl_gib1index ||
 			modelindex == cl_gib2index ||
 			modelindex == cl_gib3index))
@@ -204,28 +204,28 @@ void CL_DecayLights (void)
 			dl->radius = 0;
 			continue;
 		}
-	
+
 		dl->radius -= host_frametime*dl->decay;
 		if (dl->radius < 0)
 			dl->radius = 0;
 
 		if (dl->channelfade[0])
 		{
-			dl->color[0] -= host_frametime*dl->channelfade[0]; 
+			dl->color[0] -= host_frametime*dl->channelfade[0];
 			if (dl->color[0] < 0)
 				dl->color[0] = 0;
 		}
 
 		if (dl->channelfade[1])
 		{
-			dl->color[1] -= host_frametime*dl->channelfade[1]; 
+			dl->color[1] -= host_frametime*dl->channelfade[1];
 			if (dl->color[1] < 0)
 				dl->color[1] = 0;
 		}
 
 		if (dl->channelfade[2])
 		{
-			dl->color[2] -= host_frametime*dl->channelfade[2]; 
+			dl->color[2] -= host_frametime*dl->channelfade[2];
 			if (dl->color[2] < 0)
 				dl->color[2] = 0;
 		}
@@ -305,19 +305,19 @@ void CL_ParseDelta (entity_state_t *from, entity_state_t *to, int bits, qboolean
 
 	if (bits & U_ORIGIN1)
 		to->origin[0] = MSG_ReadCoord ();
-		
+
 	if (bits & U_ANGLE1)
 		to->angles[0] = MSG_ReadAngle ();
 
 	if (bits & U_ORIGIN2)
 		to->origin[1] = MSG_ReadCoord ();
-		
+
 	if (bits & U_ANGLE2)
 		to->angles[1] = MSG_ReadAngle ();
 
 	if (bits & U_ORIGIN3)
 		to->origin[2] = MSG_ReadCoord ();
-		
+
 	if (bits & U_ANGLE3)
 		to->angles[2] = MSG_ReadAngle ();
 
@@ -541,7 +541,7 @@ void CL_ParsePacketEntities (qboolean delta)
 					newnum += 512;
 				if (excessive & U_ENTITYDBL2)
 					newnum += 1024;
-			}			
+			}
 
 			msg_readcount = oldpos;//undo the read...
 		}
@@ -677,7 +677,7 @@ entity_state_t *CL_FindOldPacketEntity(int num)
 // byte = bound(0, s->scale * 16, 255)
 #define E5_SCALE (1<<10)
 // flag
-#define E5_ORIGIN32 (1<<11) 
+#define E5_ORIGIN32 (1<<11)
 // flag
 #define E5_ANGLES16 (1<<12)
 // flag
@@ -766,9 +766,9 @@ void DP5_ParseDelta(entity_state_t *s)
 	{
 		if (bits & E5_ANGLES16)
 		{
-			s->angles[0] = MSG_ReadAngle16(); 
-			s->angles[1] = MSG_ReadAngle16(); 
-			s->angles[2] = MSG_ReadAngle16(); 
+			s->angles[0] = MSG_ReadAngle16();
+			s->angles[1] = MSG_ReadAngle16();
+			s->angles[2] = MSG_ReadAngle16();
 		}
 		else
 		{
@@ -848,7 +848,7 @@ void CLNQ_ParseDarkPlaces5Entities(void)	//the things I do.. :o(
 
 	packet_entities_t	*pack, *oldpack;
 
-	entity_state_t		*to, *from;	
+	entity_state_t		*to, *from;
 	unsigned short read;
 	int oldi;
 	qboolean remove;
@@ -967,7 +967,7 @@ void CLNQ_ParseEntity(unsigned int bits)
 {
 	int i;
 	int num, pnum;
-	entity_state_t		*state, *from;	
+	entity_state_t		*state, *from;
 	entity_state_t	*base;
 	static float lasttime;
 	packet_entities_t	*pack;
@@ -990,7 +990,7 @@ void CLNQ_ParseEntity(unsigned int bits)
 #define	NQU_EFFECTS	(1<<13)
 #define	NQU_LONGENTITY	(1<<14)
 
-	
+
 // LordHavoc's: protocol extension
 #define DPU_EXTEND1		(1<<15)
 // LordHavoc: first extend byte
@@ -1018,8 +1018,8 @@ void CLNQ_ParseEntity(unsigned int bits)
 	{	// first update is the final signon stage
 		cls.signon = 4;
 		CLNQ_SignonReply ();
-	}	
-	pack = &cl.frames[cls.netchan.incoming_sequence&UPDATE_MASK].packet_entities;	
+	}
+	pack = &cl.frames[cls.netchan.incoming_sequence&UPDATE_MASK].packet_entities;
 
 
 	if (bits & NQU_MOREBITS)
@@ -1038,7 +1038,7 @@ void CLNQ_ParseEntity(unsigned int bits)
 		bits |= (i<<24);
 	}
 
-	if (bits & NQU_LONGENTITY)	
+	if (bits & NQU_LONGENTITY)
 		num = MSG_ReadShort ();
 	else
 		num = MSG_ReadByte ();
@@ -1064,7 +1064,7 @@ void CLNQ_ParseEntity(unsigned int bits)
 
 	state->number = num;
 
-	if (bits & NQU_MODEL)	
+	if (bits & NQU_MODEL)
 		state->modelindex = MSG_ReadByte ();
 	else
 		state->modelindex = base->modelindex;
@@ -1186,7 +1186,7 @@ entity_state_t *CL_FindPacketEntity(int num)
 }
 #endif
 
-void CL_RotateAroundTag(entity_t *ent, int num, int tagent)
+void CL_RotateAroundTag(entity_t *ent, int num, int tagent, int tagnum)
 {
 	entity_state_t *ps;
 	float *org=NULL, *ang=NULL;
@@ -1199,6 +1199,11 @@ void CL_RotateAroundTag(entity_t *ent, int num, int tagent)
 	float *tagorg=NULL;
 	float *tagaxis;
 
+//	ent->keynum = tagent;
+
+	if (cl.lerpents[tagent].tagent)
+		CL_RotateAroundTag(ent, num, cl.lerpents[tagent].tagent, cl.lerpents[tagent].tagindex);
+
 	ps = CL_FindPacketEntity(tagent);
 	if (ps)
 	{
@@ -1210,6 +1215,7 @@ void CL_RotateAroundTag(entity_t *ent, int num, int tagent)
 	else
 	{
 		extern int parsecountmod;
+//		Con_Printf("tagent %i\n", tagent);
 		if (tagent <= MAX_CLIENTS && tagent > 0)
 		{
 			if (tagent-1 == cl.playernum[0])
@@ -1233,27 +1239,22 @@ void CL_RotateAroundTag(entity_t *ent, int num, int tagent)
 		VectorInverse(axis[1]);
 
 		if (Mod_GetTag)
-			Mod_GetTag(cl.model_precache[model], cl.lerpents[tagent].tagindex, frame, &tagorg, &tagaxis);
+			Mod_GetTag(cl.model_precache[model], tagnum, frame, &tagorg, &tagaxis);
 		else
 			tagaxis = NULL;
 		if (tagaxis)
 		{
-			Matrix3_Multiply(ent->axis, (void*)tagaxis, temp);
+//			Con_Printf("Found tag %i\n", cl.lerpents[tagent].tagindex);
+			R_ConcatRotations(ent->axis, (void*)tagaxis, temp);
 		}
 		else	//hrm.
+		{
 			memcpy(temp, ent->axis, sizeof(temp));
-		Matrix3_Multiply(axis, temp, ent->axis);
+		}
+		R_ConcatRotations(axis, temp, ent->axis);
 	}
-
 	if (org)
 		VectorAdd(ent->origin, org, ent->origin);
-	if (tagorg)
-		VectorAdd(ent->origin, tagorg, ent->origin);
-
-	ent->keynum = tagent;
-
-	if (cl.lerpents[tagent].tagent)
-		CL_RotateAroundTag(ent, num, cl.lerpents[tagent].tagent);
 }
 /*
 ===============
@@ -1336,7 +1337,7 @@ void CL_LinkPacketEntities (void)
 		ent->flags = 0;
 
 		// set colormap
-		if (s1->colormap && (s1->colormap <= MAX_CLIENTS) 
+		if (s1->colormap && (s1->colormap <= MAX_CLIENTS)
 			&& (gl_nocolors.value == -1 || (ent->model/* && s1->modelindex == cl_playerindex*/)))
 		{
 			ent->colormap = cl.players[s1->colormap-1].translations;
@@ -1366,7 +1367,7 @@ void CL_LinkPacketEntities (void)
 		{
 			ent->lerptime = 1-(cl.time-cl.lerpents[s1->number].lerptime)/cl.lerpents[s1->number].lerprate;
 		}
-			
+
 		if (ent->lerptime<0)ent->lerptime=0;
 		if (ent->lerptime>1)ent->lerptime=1;
 
@@ -1393,7 +1394,7 @@ void CL_LinkPacketEntities (void)
 
 		// calculate origin
 		for (i=0 ; i<3 ; i++)
-			ent->origin[i] = s1->origin[i] + 
+			ent->origin[i] = s1->origin[i] +
 			f * (cl.lerpents[s1->number].origin[i] - s1->origin[i]);
 
 		// rotate binary objects locally
@@ -1430,7 +1431,7 @@ void CL_LinkPacketEntities (void)
 
 		if (cl.lerpents[s1->number].tagent)
 		{	//ent is attached to a tag, rotate this ent accordingly.
-			CL_RotateAroundTag(ent, s1->number, cl.lerpents[s1->number].tagent);
+			CL_RotateAroundTag(ent, s1->number, cl.lerpents[s1->number].tagent, cl.lerpents[s1->number].tagindex);
 		}
 
 		// add automatic particle trails
@@ -1962,14 +1963,14 @@ void CL_AddFlagModels (entity_t *ent, int team)
 	f = 14;
 	if (ent->frame >= 29 && ent->frame <= 40) {
 		if (ent->frame >= 29 && ent->frame <= 34) { //axpain
-			if      (ent->frame == 29) f = f + 2; 
+			if      (ent->frame == 29) f = f + 2;
 			else if (ent->frame == 30) f = f + 8;
 			else if (ent->frame == 31) f = f + 12;
 			else if (ent->frame == 32) f = f + 11;
 			else if (ent->frame == 33) f = f + 10;
 			else if (ent->frame == 34) f = f + 4;
 		} else if (ent->frame >= 35 && ent->frame <= 40) { // pain
-			if      (ent->frame == 35) f = f + 2; 
+			if      (ent->frame == 35) f = f + 2;
 			else if (ent->frame == 36) f = f + 10;
 			else if (ent->frame == 37) f = f + 10;
 			else if (ent->frame == 38) f = f + 8;
@@ -1978,7 +1979,7 @@ void CL_AddFlagModels (entity_t *ent, int team)
 		}
 	} else if (ent->frame >= 103 && ent->frame <= 118) {
 		if      (ent->frame >= 103 && ent->frame <= 104) f = f + 6;  //nailattack
-		else if (ent->frame >= 105 && ent->frame <= 106) f = f + 6;  //light 
+		else if (ent->frame >= 105 && ent->frame <= 106) f = f + 6;  //light
 		else if (ent->frame >= 107 && ent->frame <= 112) f = f + 7;  //rocketattack
 		else if (ent->frame >= 112 && ent->frame <= 118) f = f + 7;  //shotattack
 	}
@@ -2057,7 +2058,7 @@ void CL_LinkPlayers (void)
 
 	frame = &cl.frames[cl.parsecount&UPDATE_MASK];
 
-	for (j=0, info=cl.players, state=frame->playerstate ; j < MAX_CLIENTS 
+	for (j=0, info=cl.players, state=frame->playerstate ; j < MAX_CLIENTS
 		; j++, info++, state++)
 	{
 		if (state->messagenum != cl.parsecount)
@@ -2096,7 +2097,7 @@ void CL_LinkPlayers (void)
 		ent->flags = 0;
 
 		ent->model = cl.model_precache[state->modelindex];
-		ent->skinnum = state->skinnum;		
+		ent->skinnum = state->skinnum;
 
 		ent->frame = state->frame;
 		ent->oldframe = state->oldframe;
@@ -2230,7 +2231,7 @@ void CL_SetSolidEntities (void)
 		if (!cl.model_precache[state->modelindex])
 			continue;
 		if (*cl.model_precache[state->modelindex]->name == '*' || cl.model_precache[state->modelindex]->numsubmodels)
-		if ( cl.model_precache[state->modelindex]->hulls[1].firstclipnode 
+		if ( cl.model_precache[state->modelindex]->hulls[1].firstclipnode
 			|| cl.model_precache[state->modelindex]->clipbox )
 		{
 			pmove.physents[pmove.numphysent].model = cl.model_precache[state->modelindex];
@@ -2274,7 +2275,7 @@ void CL_SetUpPlayerPrediction(qboolean dopred)
 
 	frame = &cl.frames[cl.parsecount&UPDATE_MASK];
 
-	for (j=0, pplayer = predicted_players, state=frame->playerstate; 
+	for (j=0, pplayer = predicted_players, state=frame->playerstate;
 		j < MAX_CLIENTS;
 		j++, pplayer++, state++)
 	{
@@ -2336,7 +2337,7 @@ void CL_SetUpPlayerPrediction(qboolean dopred)
 			{
 				if (!Cam_DrawPlayer(0, j))
 					VectorCopy(pplayer->origin, cl.simorg[0]);
-				
+
 			}
 		}
 	}
@@ -2458,7 +2459,7 @@ void MVD_Interpolate(void)
 	VectorCopy(oldself->velocity, self->velocity);
 	VectorCopy(oldself->viewangles, self->viewangles);
 
-	
+
 	cls.netchan.outgoing_sequence = cl.parsecount+1;
 }
 

@@ -791,6 +791,8 @@ void Model_NextDownload (void)
 	}
 #endif
 
+Hunk_Check();
+
 	cls.downloadtype = dl_model;
 
 	for ( 
@@ -816,6 +818,8 @@ void Model_NextDownload (void)
 			if (CL_CheckMD2Skins(s))
 				return;
 	}
+	
+	Hunk_Check();
 
 	if (cl.playernum[0] == -1)
 	{	//q2 cinematic - don't load the models.
@@ -827,9 +831,13 @@ void Model_NextDownload (void)
 		{
 			if (!cl.model_name[i][0])
 				break;
+				
+			Hunk_Check();
 
 			cl.model_precache[i] = NULL;
 			cl.model_precache[i] = Mod_ForName (cl.model_name[i], false);
+			
+			Hunk_Check();
 
 			if (!cl.model_precache[i] || (i == 1 && (cl.model_precache[i]->type == mod_dummy || cl.model_precache[i]->needload)))
 			{

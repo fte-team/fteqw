@@ -616,6 +616,9 @@ void CL_UpdatePrydonCursor(float cursor_screen[2], vec3_t cursor_start, vec3_t c
 	ML_ModelViewMatrix(modelview, cl.viewangles[0], cl.simorg[0]);
 	Matrix4_Transform3(modelview, temp, cursor_end);
 
+	CL_SetSolidEntities();
+	//don't bother with players, they don't exist in NQ...
+
 	tr = PM_PlayerTrace(cursor_start, cursor_end);
 	VectorCopy(tr.endpos, cursor_impact);
 //	CL_SelectTraceLine(cursor_start, cursor_end, cursor_impact, entnum);

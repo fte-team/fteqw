@@ -2820,6 +2820,7 @@ Host_Init
 */
 void Host_Init (quakeparms_t *parms)
 {
+	int i;
 	int qrc, hrc, def;
 
 	extern cvar_t	vid_renderer;
@@ -2907,9 +2908,10 @@ void Host_Init (quakeparms_t *parms)
 
 	Cbuf_AddText ("+mlook\n", RESTRICT_LOCAL);		//fixme: this is bulky, only exec one of these.
 
-	qrc = COM_FDepthFile("quake.rc", true);
-	hrc = COM_FDepthFile("hexen.rc", true);
-	def = COM_FDepthFile("default.cfg", true);
+	//who should we imitate?
+	qrc = COM_FDepthFile("quake.rc", true);	//q1
+	hrc = COM_FDepthFile("hexen.rc", true);	//h2
+	def = COM_FDepthFile("default.cfg", true);	//q2/q3
 
 	if (qrc >= def && qrc >= hrc && qrc!=0x7fffffff)
 		Cbuf_AddText ("exec quake.rc\n", RESTRICT_LOCAL);
@@ -2935,15 +2937,34 @@ void Host_Init (quakeparms_t *parms)
 
 	Cbuf_Execute ();	//if the server initialisation causes a problem, give it a place to abort to
 
-#ifndef NOMEDIA
-	if (!cls.demofile && !cls.state && !media_filmtype)
+	//assuming they didn't use any waits in thier config (fools)
+	//the configs should be fully loaded.
+	//so convert the backwards compable commandline parameters in cvar sets.
+
+	if (COM_CheckParm ("-window") || COM_CheckParm ("-startwindowed"))
+		Cvar_Set(Cvar_FindVar("vid_fullscreen"), "0");
+	if (COM_CheckParm ("-fullscreen"))
+		Cvar_Set(Cvar_FindVar("vid_fullscreen"), "1");
+
+	if ((i = COM_CheckParm ("-width")))	//width on it's own also sets height
 	{
-		if (COM_FDepthFile("video/idlogo.roq", true) > COM_FDepthFile("video/idlog.cin", true))
-			Media_PlayFilm("video/idlog.cin");
-		else
-			Media_PlayFilm("video/idlogo.roq");	
+		Cvar_Set(Cvar_FindVar("vid_width"), com_argv[i+1]);
+		Cvar_SetValue(Cvar_FindVar("vid_height"), (atoi(com_argv[i+1])/3)*4);
 	}
-#endif
+	if ((i = COM_CheckParm ("-height")))
+		Cvar_Set(Cvar_FindVar("vid_height"), com_argv[i+1]);
+
+	if ((i = COM_CheckParm ("-conwidth")))	//width on it's own also sets height
+	{
+		Cvar_Set(Cvar_FindVar("vid_conwidth"), com_argv[i+1]);
+		Cvar_SetValue(Cvar_FindVar("vid_conheight"), (atoi(com_argv[i+1])/3)*4);
+	}
+	if ((i = COM_CheckParm ("-conheight")))
+		Cvar_Set(Cvar_FindVar("vid_conheight"), com_argv[i+1]);
+
+	if ((i = COM_CheckParm ("-bpp")))
+		Cvar_Set(Cvar_FindVar("vid_bpp"), com_argv[i+1]);
+
 	if (!qrenderer && *vid_renderer.string)
 	{
 		Cmd_ExecuteString("vid_restart\n", RESTRICT_LOCAL);
@@ -2956,6 +2977,15 @@ void Host_Init (quakeparms_t *parms)
 
 	UI_Init();
 
+#ifndef NOMEDIA
+	if (!cls.demofile && !cls.state && !media_filmtype)
+	{
+		if (COM_FDepthFile("video/idlogo.roq", true) > COM_FDepthFile("video/idlog.cin", true))
+			Media_PlayFilm("video/idlog.cin");
+		else
+			Media_PlayFilm("video/idlogo.roq");	
+	}
+#endif
 
 Con_TPrintf (TL_NL);
 #ifdef VERSION3PART

@@ -548,6 +548,7 @@ model_t *GLMod_LoadModel (model_t *mod, qboolean crash)
 	{
 		Mod_LoadQ2BrushModel (mod, buf);
 		mod->needload = false;
+		R_DefaultTrail(mod);
 		return mod;
 	}
 #endif
@@ -561,11 +562,14 @@ model_t *GLMod_LoadModel (model_t *mod, qboolean crash)
 	{
 		char mdlbase[MAX_QPATH];
 		COM_StripExtension(mod->name, mdlbase);
-
+#ifdef MD3MODELS
 		if (!buf)
 			buf = (unsigned *)COM_LoadStackFile (va("%s.md3", mdlbase), stackbuf, sizeof(stackbuf));
+#endif
+#ifdef MD2MODELS
 		if (!buf)
 			buf = (unsigned *)COM_LoadStackFile (va("%s.md2", mdlbase), stackbuf, sizeof(stackbuf));
+#endif
 	}
 	if (!buf)
 	{
@@ -578,6 +582,7 @@ model_t *GLMod_LoadModel (model_t *mod, qboolean crash)
 			{
 				mod->needload = false;
 				GLMod_LoadDoomSprite(mod);
+				R_DefaultTrail(mod);
 				return mod;
 			}
 #endif
@@ -595,6 +600,7 @@ couldntload:
 			mod->maxs[1] = 16;
 			mod->maxs[2] = 16;
 			mod->needload = true;
+			R_DefaultTrail(mod);
 			return mod;
 			return NULL;
 		}

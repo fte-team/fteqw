@@ -8,7 +8,7 @@ of the License, or (at your option) any later version.
 
 This program is distributed in the hope that it will be useful,
 but WITHOUT ANY WARRANTY; without even the implied warranty of
-MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
 
 See the GNU General Public License for more details.
 
@@ -62,13 +62,13 @@ int PM_ClipVelocity (vec3_t in, vec3_t normal, vec3_t out, float overbounce)
 	float	backoff;
 	float	change;
 	int		i, blocked;
-	
+
 	blocked = 0;
 	if (normal[2] > 0)
 		blocked |= BLOCKED_FLOOR;		// floor
 	if (!normal[2])
 		blocked |= BLOCKED_STEP;		// step
-	
+
 	backoff = DotProduct (in, normal) * overbounce;
 
 	for (i=0 ; i<3 ; i++)
@@ -78,7 +78,7 @@ int PM_ClipVelocity (vec3_t in, vec3_t normal, vec3_t out, float overbounce)
 		if (out[i] > -STOP_EPSILON && out[i] < STOP_EPSILON)
 			out[i] = 0;
 	}
-	
+
 	return blocked;
 }
 
@@ -105,14 +105,14 @@ int PM_SlideMove (void)
 	vec3_t		end;
 	float		time_left;
 	int			blocked;
-	
+
 	numbumps = 4;
-	
+
 	blocked = 0;
 	VectorCopy (pmove.velocity, original_velocity);
 	VectorCopy (pmove.velocity, primal_velocity);
 	numplanes = 0;
-	
+
 	time_left = frametime;
 
 	for (bumpcount=0 ; bumpcount<numbumps ; bumpcount++)
@@ -152,7 +152,7 @@ int PM_SlideMove (void)
 			blocked |= BLOCKED_OTHER;
 
 		time_left -= time_left * trace.fraction;
-		
+
 	// cliped to another plane
 		if (numplanes >= MAX_CLIP_PLANES)
 		{	// this shouldn't really happen
@@ -178,9 +178,8 @@ int PM_SlideMove (void)
 				&& Length(pmove.velocity)>200 && pmove.cmd.buttons & 2 && !pmove.jump_held && !pmove.waterjumptime)
 			{
 				PM_ClipVelocity (original_velocity, planes[i], pmove.velocity, 2);
-				pmove.velocity[2] += 270;
-				if (pmove.velocity[2] < 125)
-					pmove.velocity[2] = 125;
+				if (pmove.velocity[2] < 270)
+					pmove.velocity[2] = 270;
 				pmove.jump_msec = pmove.cmd.msec;
 				pmove.jump_held = true;
 				pmove.waterjumptime = 0;
@@ -196,7 +195,7 @@ int PM_SlideMove (void)
 			if (j == numplanes)
 				break;
 		}
-		
+
 		if (i != numplanes)
 		{	// go along this plane
 		}
@@ -302,7 +301,7 @@ usedown:
 		VectorCopy (downvel, pmove.velocity);
 		return;
 	}
-	
+
 	// copy z value from slide move
 	pmove.velocity[2] = downvel[2];
 
@@ -332,7 +331,7 @@ void PM_Friction (void)
 	float	drop;
 	vec3_t	start, stop;
 	trace_t	trace;
-	
+
 	if (pmove.waterjumptime)
 		return;
 
@@ -408,7 +407,7 @@ void PM_Accelerate (vec3_t wishdir, float wishspeed, float accel)
 	accelspeed = accel*frametime*wishspeed;
 	if (accelspeed > addspeed)
 		accelspeed = addspeed;
-	
+
 	for (i=0 ; i<3 ; i++)
 		pmove.velocity[i] += accelspeed*wishdir[i];
 }
@@ -418,7 +417,7 @@ void PM_AirAccelerate (vec3_t wishdir, float wishspeed, float accel)
 	int			i;
 	float		addspeed, accelspeed, currentspeed, wishspd = wishspeed;
 	float		originalspeed, newspeed, speedcap;
-		
+
 	if (pmove.pm_type == PM_DEAD)
 		return;
 	if (pmove.waterjumptime)
@@ -441,7 +440,7 @@ void PM_AirAccelerate (vec3_t wishdir, float wishspeed, float accel)
 	accelspeed = accel * wishspeed * frametime;
 	if (accelspeed > addspeed)
 		accelspeed = addspeed;
-	
+
 	for (i=0 ; i<3 ; i++)
 		pmove.velocity[i] += accelspeed*wishdir[i];
 
@@ -517,19 +516,19 @@ void PM_FlyMove ()
 
 	for (i=0 ; i<3 ; i++)
 		wishvel[i] = forward[i]*pmove.cmd.forwardmove + right[i]*pmove.cmd.sidemove;
-	
+
 	wishvel[2] += pmove.cmd.upmove;
 
 	VectorCopy (wishvel, wishdir);
 	wishspeed = VectorNormalize(wishdir);
-	
+
 	if (wishspeed > movevars.maxspeed) {
 		VectorScale (wishvel, movevars.maxspeed/wishspeed, wishvel);
 		wishspeed = movevars.maxspeed;
 	}
-	
+
 	PM_Accelerate (wishdir, wishspeed, movevars.accelerate);
-	
+
 	PM_StepSlideMove ();
 }
 
@@ -544,7 +543,7 @@ void PM_LadderMove (void)
 
 //
 // user intentions
-//	
+//
 	for (i=0 ; i<3 ; i++)
 		wishvel[i] = forward[i]*pmove.cmd.forwardmove + right[i]*pmove.cmd.sidemove + up[i]*pmove.cmd.upmove;
 
@@ -575,7 +574,7 @@ void PM_LadderMove (void)
 		VectorCopy (trace.endpos, pmove.origin);
 		return;
 	}
-	
+
 	PM_FlyMove ();
 
 }
@@ -596,7 +595,7 @@ void PM_AirMove (void)
 
 	fmove = pmove.cmd.forwardmove;
 	smove = pmove.cmd.sidemove;
-	
+
 	forward[2] = 0;
 	right[2] = 0;
 	VectorNormalize (forward);
@@ -617,7 +616,7 @@ void PM_AirMove (void)
 		VectorScale (wishvel, movevars.maxspeed/wishspeed, wishvel);
 		wishspeed = movevars.maxspeed;
 	}
-	
+
 	if (pmove.onground)
 	{
 		if (pmove.velocity[2] > 0 || !movevars.slidefix)
@@ -731,7 +730,7 @@ void PM_CategorizePosition (void)
 	{
 		trace_t t;
 		vec3_t flatforward, fwd1;
-		
+
 		flatforward[0] = forward[0];
 		flatforward[1] = forward[1];
 		flatforward[2] = 0;
@@ -952,7 +951,7 @@ void PM_SpectatorMove (void)
 	// accelerate
 	fmove = pmove.cmd.forwardmove;
 	smove = pmove.cmd.sidemove;
-	
+
 	VectorNormalize (forward);
 	VectorNormalize (right);
 
@@ -986,9 +985,9 @@ void PM_SpectatorMove (void)
 		accelspeed = movevars.accelerate*frametime*wishspeed;
 		if (accelspeed > addspeed)
 			accelspeed = addspeed;
-		
+
 		for (i=0 ; i<3 ; i++)
-			pmove.velocity[i] += accelspeed*wishdir[i];	
+			pmove.velocity[i] += accelspeed*wishdir[i];
 	}
 
 	// move

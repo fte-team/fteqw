@@ -612,7 +612,7 @@ void CSQC_Init (void)
 		
 		CSQC_InitFields();	//let the qclib know the field order that the engine needs.
 		
-		if (PR_LoadProgs(csqcprogs, "qwprogs.dat", 0, NULL, 0) < 0) //no per-progs builtins.
+		if (PR_LoadProgs(csqcprogs, "csprogs.dat", 0, NULL, 0) < 0) //no per-progs builtins.
 		{
 			//failed to load or something
 			return;
@@ -637,7 +637,7 @@ void CSQC_Init (void)
 
 qboolean CSQC_DrawView(void)
 {
-	if (!csqc_draw_function)
+	if (!csqc_draw_function || !csqcprogs)
 		return false;
 
 	PR_ExecuteProgram(csqcprogs, csqc_draw_function);

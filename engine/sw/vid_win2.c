@@ -109,15 +109,20 @@ void R_GammaCorrectAndSetPalette(const unsigned char *pal)
 
 void SWAppActivate(BOOL fActive, BOOL minimize)
 {
+	boolean newa;
 	Minimized = minimize;
-
-	Key_ClearStates();
 
 	// we don't want to act like we're active if we're minimized
 	if (fActive && !Minimized)
-		ActiveApp = true;
+		newa = true;
 	else
-		ActiveApp = false;
+		newa = false;
+
+	if (ActiveApp == newa)	//don't pause and resume these too often.
+		return;
+	ActiveApp = newa;
+
+	Key_ClearStates();
 
 	// minimize/restore mouse-capture on demand
 	if (!ActiveApp)

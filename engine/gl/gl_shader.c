@@ -651,32 +651,38 @@ static void Shaderpass_RGBGen ( shader_t *shader, shaderpass_t *pass, char **ptr
 	char		*token;
 
 	token = Shader_ParseString ( ptr );
-	if ( !Q_stricmp (token, "identitylighting") ) {
+	if ( !Q_stricmp (token, "identitylighting") )
 		pass->rgbgen = RGB_GEN_IDENTITY_LIGHTING;
-	} else if ( !Q_stricmp (token, "identity") ) {
+	else if ( !Q_stricmp (token, "identity") )
 		pass->rgbgen = RGB_GEN_IDENTITY;
-	} else if ( !Q_stricmp (token, "wave") ) {
+	else if ( !Q_stricmp (token, "wave") )
+	{
 		pass->rgbgen = RGB_GEN_WAVE;
-
 		Shader_ParseFunc ( ptr, &pass->rgbgen_func );
-	} else if ( !Q_stricmp(token, "entity") ) {
+	}
+	else if ( !Q_stricmp(token, "entity") )
 		pass->rgbgen = RGB_GEN_ENTITY;
-	} else if ( !Q_stricmp (token, "oneMinusEntity") ) {
+	else if ( !Q_stricmp (token, "oneMinusEntity") )
 		pass->rgbgen = RGB_GEN_ONE_MINUS_ENTITY;
-	} else if ( !Q_stricmp (token, "vertex")) {
+	else if ( !Q_stricmp (token, "vertex"))
 		pass->rgbgen = RGB_GEN_VERTEX;
-	} else if ( !Q_stricmp (token, "oneMinusVertex") ) {
+	else if ( !Q_stricmp (token, "oneMinusVertex") )
 		pass->rgbgen = RGB_GEN_ONE_MINUS_VERTEX;
-	} else if ( !Q_stricmp (token, "lightingDiffuse") ) {
+	else if ( !Q_stricmp (token, "lightingDiffuse") )
 		pass->rgbgen = RGB_GEN_LIGHTING_DIFFUSE;
-	} else if ( !Q_stricmp (token, "exactvertex") ) {
+	else if ( !Q_stricmp (token, "exactvertex") )
 		pass->rgbgen = RGB_GEN_EXACT_VERTEX;
-	} else if ( !Q_stricmp (token, "const") || !Q_stricmp (token, "constant") ) {
+	else if ( !Q_stricmp (token, "const") || !Q_stricmp (token, "constant") )
+	{
 		pass->rgbgen = RGB_GEN_CONST;
 		pass->rgbgen_func.type = SHADER_FUNC_CONSTANT;
 
 		Shader_ParseVector ( ptr, pass->rgbgen_func.args );
 	}
+	else if ( !Q_stricmp (token, "topcolor") )
+		pass->rgbgen = RGB_GEN_TOPCOLOR;
+	else if ( !Q_stricmp (token, "bottomcolor") )
+		pass->rgbgen = RGB_GEN_BOTTOMCOLOR;
 }
 
 static void Shaderpass_AlphaGen ( shader_t *shader, shaderpass_t *pass, char **ptr )

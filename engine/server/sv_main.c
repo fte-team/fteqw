@@ -1281,24 +1281,24 @@ void SVC_DirectConnect
 			if (atof(Info_ValueForKey (temp.userinfo, "*FuhQuake")) < 0.3)
 			{
 				SV_OutOfBandPrintf (isquake2client, adr, "%c\nThe server is using a halflife level and we don't think your client supports this\nuse 'setinfo iknow 1' to ignore this check\nYou can go to "ENGINEWEBSITE" to get a compatable client\n\nYou may need to enable an option\n\n", A2C_PRINT);
-				Con_Printf("player %s was dropped due to incompatable client\n", name);
-				return;
+//				Con_Printf("player %s was dropped due to incompatable client\n", name);
+//				return;
 			}
 		}
 #ifdef PEXT_Q2BSP
 		else if (sv.worldmodel->fromgame == fg_quake2 && !(newcl->fteprotocolextensions & PEXT_Q2BSP))
 		{
 			SV_OutOfBandPrintf (isquake2client, adr, "%c\nThe server is using a quake 2 level and we don't think your client supports this\nuse 'setinfo iknow 1' to ignore this check\nYou can go to "ENGINEWEBSITE" to get a compatable client\n\nYou may need to enable an option\n\n", A2C_PRINT);
-			Con_Printf("player %s was dropped due to incompatable client\n", name);
-			return;
+//			Con_Printf("player %s was dropped due to incompatable client\n", name);
+//			return;
 		}
 #endif
 #ifdef PEXT_Q3BSP
 		else if (sv.worldmodel->fromgame == fg_quake3 && !(newcl->fteprotocolextensions & PEXT_Q3BSP))
 		{
 			SV_OutOfBandPrintf (isquake2client, adr, "%c\nThe server is using a quake 3 level and we don't think your client supports this\nuse 'setinfo iknow 1' to ignore this check\nYou can go to "ENGINEWEBSITE" to get a compatable client\n\nYou may need to enable an option\n\n", A2C_PRINT);
-			Con_Printf("player %s was dropped due to incompatable client\n", name);
-			return;
+//			Con_Printf("player %s was dropped due to incompatable client\n", name);
+//			return;
 		}
 #endif
 	}

@@ -1808,7 +1808,7 @@ void PPL_BaseBModelTextures(entity_t *e)
 void PPL_BaseEntTextures(void)
 {
 	extern model_t *currentmodel;
-	int		i;
+	int		i,j;
 
 	if (!r_drawentities.value)
 		return;
@@ -1817,6 +1817,17 @@ void PPL_BaseEntTextures(void)
 	for (i=0 ; i<cl_numvisedicts ; i++)
 	{
 		currententity = &cl_visedicts[i];
+
+		j = currententity->keynum;
+		while(j)
+		{
+			if (j == cl.viewentity[r_refdef.currentplayernum]+1)
+				break;
+
+			j = cl.lerpents[j].tagent;
+		}
+		if (j)
+			continue;
 
 		if (cl.viewentity[r_refdef.currentplayernum] && currententity->keynum == cl.viewentity[r_refdef.currentplayernum])
 			continue;

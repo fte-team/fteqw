@@ -34,7 +34,7 @@ void S_Update_(soundcardinfo_t *sc);
 void S_StopAllSounds(qboolean clear);
 void S_StopAllSoundsC(void);
 
-void S_UpdateCard(soundcardinfo_t *sc, vec3_t origin, vec3_t forward, vec3_t right, vec3_t up);
+void S_UpdateCard(soundcardinfo_t *sc);
 
 // =======================================================================
 // Internal sound data & structures
@@ -161,6 +161,8 @@ void S_Startup (void)
 
 	if (sound_started)
 		S_Shutdown();
+
+	snd_blocked = 0;
 
 	if (!fakedma)
 	{
@@ -1109,13 +1111,18 @@ void S_Update(vec3_t origin, vec3_t forward, vec3_t right, vec3_t up)
 {
 	soundcardinfo_t *sc;
 
+	VectorCopy(origin, listener_origin);
+	VectorCopy(forward, listener_forward);
+	VectorCopy(right, listener_right);
+	VectorCopy(up, listener_up);
+
 	S_UpdateCapture();
 
 	for (sc = sndcardinfo; sc; sc = sc->next)
-		S_UpdateCard(sc, origin, forward, right, up);
+		S_UpdateCard(sc);
 
 }
-void S_UpdateCard(soundcardinfo_t *sc, vec3_t origin, vec3_t forward, vec3_t right, vec3_t up)
+void S_UpdateCard(soundcardinfo_t *sc)
 {
 	int			i, j;
 	int			total;
@@ -1129,11 +1136,6 @@ void S_UpdateCard(soundcardinfo_t *sc, vec3_t origin, vec3_t forward, vec3_t rig
 		if (!sc->inactive_sound)
 			return;
 	}
-
-	VectorCopy(origin, listener_origin);
-	VectorCopy(forward, listener_forward);
-	VectorCopy(right, listener_right);
-	VectorCopy(up, listener_up);
 	
 // update general area ambient sound sources
 	S_UpdateAmbientSounds (sc);
@@ -1253,6 +1255,9 @@ void S_ExtraUpdate (void)
 {
 	soundcardinfo_t *sc;
 
+	if (!sound_started)
+		return;
+
 #ifdef _WIN32
 	IN_Accumulate ();
 #endif
@@ -1272,12 +1277,16 @@ void S_Update_(soundcardinfo_t *sc)
 {
 	unsigned        endtime;
 	int				samps;
-	
-	if (!sound_started)// || (snd_blocked > 0))
-		return;
+
 
 	if (sc->selfpainting)
 		return;
+
+	if ((snd_blocked > 0))
+	{
+		if (!sc->inactive_sound)
+			return;
+	}
 
 // Updates DMA time
 	GetSoundtime(sc);

@@ -195,20 +195,27 @@ void R_InitSkyBox (void)
 
 	wm = cl.worldmodel;
 
-	r_skyfaces = wm->surfaces + wm->numsurfaces;
-	wm->numsurfaces += 6;
-	r_skyverts = wm->vertexes + wm->numvertexes;
-	wm->numvertexes += 8;
-	r_skyedges = wm->edges + wm->numedges;
-	wm->numedges += 12;
-	r_skysurfedges = wm->surfedges + wm->numsurfedges;
-	wm->numsurfedges += 24;
-	if (wm->numsurfaces > MAX_MAP_FACES
-		|| wm->numvertexes > MAX_MAP_VERTS
-		|| wm->numedges > MAX_MAP_EDGES)
+	Hunk_Check();
+	
+	if (wm->numsurfaces+6 > MAX_MAP_FACES
+		|| wm->numvertexes+8 > MAX_MAP_VERTS
+		|| wm->numedges+12 > MAX_MAP_EDGES)
 		Host_Error ("InitSkyBox: map overflow");
 
+	r_skyfaces = wm->surfaces + wm->numsurfaces;
+//	wm->numsurfaces += 6;
+	r_skyverts = wm->vertexes + wm->numvertexes;
+//	wm->numvertexes += 8;
+	r_skyedges = wm->edges + wm->numedges;
+//	wm->numedges += 12;
+	r_skysurfedges = wm->surfedges + wm->numsurfedges;
+//	wm->numsurfedges += 24;
+		
+		Hunk_Check();
+
 	memset (r_skyfaces, 0, 6*sizeof(*r_skyfaces));
+	
+	Hunk_Check();
 	for (i=0 ; i<6 ; i++)
 	{
 		r_skyplanes[i].normal[skybox_planes[i*2]] = 1;
@@ -220,26 +227,30 @@ void R_InitSkyBox (void)
 		r_skyfaces[i].plane = &r_skyplanes[i];
 		r_skyfaces[i].numedges = 4;
 		r_skyfaces[i].flags = box_faces[i] | SURF_DRAWSKYBOX;
-		r_skyfaces[i].firstedge = wm->numsurfedges-24+i*4;
+		r_skyfaces[i].firstedge = wm->numsurfedges+i*4;
 		r_skyfaces[i].texinfo = &r_skytexinfo[i];
 		r_skyfaces[i].texturemins[0] = -128;
 		r_skyfaces[i].texturemins[1] = -128;
 		r_skyfaces[i].extents[0] = 256;
 		r_skyfaces[i].extents[1] = 256;
 	}
+	Hunk_Check();
 
 	for (i=0 ; i<24 ; i++)
 		if (box_surfedges[i] > 0)
-			r_skysurfedges[i] = wm->numedges-13 + box_surfedges[i];
+			r_skysurfedges[i] = wm->numedges-12 + box_surfedges[i];
 		else
-			r_skysurfedges[i] = - (wm->numedges-13 + -box_surfedges[i]);
+			r_skysurfedges[i] = - (wm->numedges-12 + -box_surfedges[i]);
+			
+			Hunk_Check();
 
 	for(i=0 ; i<12 ; i++)
 	{
-		r_skyedges[i].v[0] = wm->numvertexes-9+box_edges[i*2+0];
-		r_skyedges[i].v[1] = wm->numvertexes-9+box_edges[i*2+1];
+		r_skyedges[i].v[0] = wm->numvertexes-8+box_edges[i*2+0];
+		r_skyedges[i].v[1] = wm->numvertexes-8+box_edges[i*2+1];
 		r_skyedges[i].cachededgeoffset = 0;
 	}
+	Hunk_Check();
 }
 
 /*

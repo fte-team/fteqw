@@ -593,219 +593,222 @@ static galiastexnum_t *GL_ChooseSkin(galiasinfo_t *inf, char *modelname, entity_
 
 	int tc, bc;
 
-	if (e->scoreboard)
+	if (gl_nocolors.value)
 	{
-		if (!e->scoreboard->skin && !gl_nocolors.value)
-			Skin_Find(e->scoreboard);
-		tc = e->scoreboard->topcolor;
-		bc = e->scoreboard->bottomcolor;
-
-		//colour forcing
-		if (cl.splitclients<2 && !(cl.fpd & FPD_NO_FORCE_COLOR))	//no colour/skin forcing in splitscreen.
+		if (e->scoreboard)
 		{
-			if (cl.teamplay && !strcmp(e->scoreboard->team, cl.players[cl.playernum[0]].team))
+			if (!e->scoreboard->skin)
+				Skin_Find(e->scoreboard);
+			tc = e->scoreboard->topcolor;
+			bc = e->scoreboard->bottomcolor;
+	
+			//colour forcing
+			if (cl.splitclients<2 && !(cl.fpd & FPD_NO_FORCE_COLOR))	//no colour/skin forcing in splitscreen.
 			{
-				if (cl_teamtopcolor>=0)
-					tc = cl_teamtopcolor;
-				if (cl_teambottomcolor>=0)
-					bc = cl_teambottomcolor;
-			}
-			else
-			{
-				if (cl_enemytopcolor>=0)
-					tc = cl_enemytopcolor;
-				if (cl_enemybottomcolor>=0)
-					bc = cl_enemybottomcolor;
+				if (cl.teamplay && !strcmp(e->scoreboard->team, cl.players[cl.playernum[0]].team))
+				{
+					if (cl_teamtopcolor>=0)
+						tc = cl_teamtopcolor;
+					if (cl_teambottomcolor>=0)
+						bc = cl_teambottomcolor;
+				}
+				else
+				{
+					if (cl_enemytopcolor>=0)
+						tc = cl_enemytopcolor;
+					if (cl_enemybottomcolor>=0)
+						bc = cl_enemybottomcolor;
+				}
 			}
 		}
-	}
-	else
-	{
-		tc = 1;
-		bc = 1;
-	}
-
-	if (!gl_nocolors.value && (tc != 1 || bc != 1 || (e->scoreboard && e->scoreboard->skin)))
-	{
-		int			inwidth, inheight;
-		int			tinwidth, tinheight;
-		char *skinname;
-		qbyte	*original;
-		int cc;
-		galiascolourmapped_t *cm;
-		cc = (tc<<4)|bc;
-
-		if (!strstr(modelname, "progs/player.mdl"))
-			skinname = modelname;
 		else
 		{
-			if (e->scoreboard && e->scoreboard->skin && !gl_nocolors.value)
-				skinname = e->scoreboard->skin->name;
-			else
+			tc = 1;
+			bc = 1;
+		}
+	
+		if (tc != 1 || bc != 1 || (e->scoreboard && e->scoreboard->skin))
+		{
+			int			inwidth, inheight;
+			int			tinwidth, tinheight;
+			char *skinname;
+			qbyte	*original;
+			int cc;
+			galiascolourmapped_t *cm;
+			cc = (tc<<4)|bc;
+	
+			if (!strstr(modelname, "progs/player.mdl"))
 				skinname = modelname;
-		}
-
-		if (!skincolourmapped.numbuckets)
-			Hash_InitTable(&skincolourmapped, 256, BZ_Malloc(Hash_BytesForBuckets(256)));
-
-		for (cm = Hash_Get(&skincolourmapped, skinname); cm; cm = Hash_GetNext(&skincolourmapped, skinname, cm))
-		{
-			if (cm->colour == cc && cm->skinnum == e->skinnum)
+			else
 			{
-				return &cm->texnum;
+				if (e->scoreboard && e->scoreboard->skin && !gl_nocolors.value)
+					skinname = e->scoreboard->skin->name;
+				else
+					skinname = modelname;
 			}
-		}
-
-		skins = (galiasskin_t*)((char *)inf + inf->ofsskins);
-		if (!skins->texnums)
-			return NULL;
-		if (e->skinnum >= 0 && e->skinnum < inf->numskins)
-			skins += e->skinnum;
-		texnums = (galiastexnum_t*)((char *)skins + skins->ofstexnums);
-
-
-		//colourmap isn't present yet.
-		cm = BZ_Malloc(sizeof(*cm));
-		Q_strncpyz(cm->name, skinname, sizeof(cm->name));
-		Hash_Add2(&skincolourmapped, cm->name, cm, &cm->bucket);
-		cm->colour = cc;
-		cm->skinnum = e->skinnum;
-		cm->texnum.fullbright = 0;
-		cm->texnum.base = 0;
-		cm->texnum.bump = texnums[cm->skinnum].bump;	//can't colour bumpmapping
-		if (skinname!=modelname && e->scoreboard && e->scoreboard->skin)
-		{
-			original = Skin_Cache8(e->scoreboard->skin);
-			inwidth = e->scoreboard->skin->width;
-			inheight = e->scoreboard->skin->height;
-		}
-		else
-		{
-			original = NULL;
-			inwidth = 0;
-		}
-		if (!original)
-		{
-			if (skins->ofstexels)
+	
+			if (!skincolourmapped.numbuckets)
+				Hash_InitTable(&skincolourmapped, 256, BZ_Malloc(Hash_BytesForBuckets(256)));
+	
+			for (cm = Hash_Get(&skincolourmapped, skinname); cm; cm = Hash_GetNext(&skincolourmapped, skinname, cm))
 			{
-				original = (qbyte *)skins + skins->ofstexels;
-				inwidth = skins->skinwidth;
-				inheight = skins->skinheight;
+				if (cm->colour == cc && cm->skinnum == e->skinnum)
+				{
+					return &cm->texnum;
+				}
+			}
+	
+			skins = (galiasskin_t*)((char *)inf + inf->ofsskins);
+			if (!skins->texnums)
+				return NULL;
+			if (e->skinnum >= 0 && e->skinnum < inf->numskins)
+				skins += e->skinnum;
+			texnums = (galiastexnum_t*)((char *)skins + skins->ofstexnums);
+	
+	
+			//colourmap isn't present yet.
+			cm = BZ_Malloc(sizeof(*cm));
+			Q_strncpyz(cm->name, skinname, sizeof(cm->name));
+			Hash_Add2(&skincolourmapped, cm->name, cm, &cm->bucket);
+			cm->colour = cc;
+			cm->skinnum = e->skinnum;
+			cm->texnum.fullbright = 0;
+			cm->texnum.base = 0;
+			cm->texnum.bump = texnums[cm->skinnum].bump;	//can't colour bumpmapping
+			if (skinname!=modelname && e->scoreboard && e->scoreboard->skin)
+			{
+				original = Skin_Cache8(e->scoreboard->skin);
+				inwidth = e->scoreboard->skin->width;
+				inheight = e->scoreboard->skin->height;
 			}
 			else
 			{
 				original = NULL;
 				inwidth = 0;
-				inheight = 0;
 			}
-		}
-		tinwidth = skins->skinwidth;
-		tinheight = skins->skinheight;
-		if (original)
-		{
-			int i, j;
-			qbyte	translate[256];
-			unsigned translate32[256];
-			static unsigned	pixels[512*512];
-			unsigned	*out;
-			unsigned	frac, fracstep;
-
-			unsigned	scaled_width, scaled_height;
-			qbyte		*inrow;
-
-			texnums = &cm->texnum;
-
-			texnums->base = 0;
-			texnums->fullbright = 0;
-
-			scaled_width = gl_max_size.value < 512 ? gl_max_size.value : 512;
-			scaled_height = gl_max_size.value < 512 ? gl_max_size.value : 512;
-
-			for (i=0 ; i<256 ; i++)
-				translate[i] = i;
-
-			tc<<=4;
-			bc<<=4;
-
-			for (i=0 ; i<16 ; i++)
+			if (!original)
 			{
-				if (tc < 128)	// the artists made some backwards ranges.  sigh.
-					translate[TOP_RANGE+i] = tc+i;
-				else
-					translate[TOP_RANGE+i] = tc+15-i;
-						
-				if (bc < 128)
-					translate[BOTTOM_RANGE+i] = bc+i;
-				else
-					translate[BOTTOM_RANGE+i] = bc+15-i;
-			}
-
-
-			for (i=0 ; i<256 ; i++)
-				translate32[i] = d_8to24rgbtable[translate[i]];
-
-			out = pixels;
-			fracstep = tinwidth*0x10000/scaled_width;
-			for (i=0 ; i<scaled_height ; i++, out += scaled_width)
-			{
-				inrow = original + inwidth*(i*tinheight/scaled_height);
-				frac = fracstep >> 1;
-				for (j=0 ; j<scaled_width ; j+=4)
+				if (skins->ofstexels)
 				{
-					out[j] = translate32[inrow[frac>>16]];
-					frac += fracstep;
-					out[j+1] = translate32[inrow[frac>>16]];
-					frac += fracstep;
-					out[j+2] = translate32[inrow[frac>>16]];
-					frac += fracstep;
-					out[j+3] = translate32[inrow[frac>>16]];
-					frac += fracstep;
+					original = (qbyte *)skins + skins->ofstexels;
+					inwidth = skins->skinwidth;
+					inheight = skins->skinheight;
+				}
+				else
+				{
+					original = NULL;
+					inwidth = 0;
+					inheight = 0;
 				}
 			}
-			texnums->base = texture_extension_number++;
-			GL_Bind(texnums->base);
-			qglTexImage2D (GL_TEXTURE_2D, 0, gl_solid_format, scaled_width, scaled_height, 0, GL_RGBA, GL_UNSIGNED_BYTE, pixels);
-
-			qglTexParameterf(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
-			qglTexParameterf(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
-
-
-			//now do the fullbrights.
-			out = pixels;
-			fracstep = tinwidth*0x10000/scaled_width;
-			for (i=0 ; i<scaled_height ; i++, out += scaled_width)
+			tinwidth = skins->skinwidth;
+			tinheight = skins->skinheight;
+			if (original)
 			{
-				inrow = original + inwidth*(i*tinheight/scaled_height);
-				frac = fracstep >> 1;
-				for (j=0 ; j<scaled_width ; j+=1)
+				int i, j;
+				qbyte	translate[256];
+				unsigned translate32[256];
+				static unsigned	pixels[512*512];
+				unsigned	*out;
+				unsigned	frac, fracstep;
+	
+				unsigned	scaled_width, scaled_height;
+				qbyte		*inrow;
+	
+				texnums = &cm->texnum;
+	
+				texnums->base = 0;
+				texnums->fullbright = 0;
+	
+				scaled_width = gl_max_size.value < 512 ? gl_max_size.value : 512;
+				scaled_height = gl_max_size.value < 512 ? gl_max_size.value : 512;
+	
+				for (i=0 ; i<256 ; i++)
+					translate[i] = i;
+	
+				tc<<=4;
+				bc<<=4;
+	
+				for (i=0 ; i<16 ; i++)
 				{
-					if (inrow[frac>>16] < 255-vid.fullbright)
-						((char *) (&out[j]))[3] = 0;	//alpha 0
-					frac += fracstep;
+					if (tc < 128)	// the artists made some backwards ranges.  sigh.
+						translate[TOP_RANGE+i] = tc+i;
+					else
+						translate[TOP_RANGE+i] = tc+15-i;
+							
+					if (bc < 128)
+						translate[BOTTOM_RANGE+i] = bc+i;
+					else
+						translate[BOTTOM_RANGE+i] = bc+15-i;
 				}
+	
+	
+				for (i=0 ; i<256 ; i++)
+					translate32[i] = d_8to24rgbtable[translate[i]];
+	
+				out = pixels;
+				fracstep = tinwidth*0x10000/scaled_width;
+				for (i=0 ; i<scaled_height ; i++, out += scaled_width)
+				{
+					inrow = original + inwidth*(i*tinheight/scaled_height);
+					frac = fracstep >> 1;
+					for (j=0 ; j<scaled_width ; j+=4)
+					{
+						out[j] = translate32[inrow[frac>>16]];
+						frac += fracstep;
+						out[j+1] = translate32[inrow[frac>>16]];
+						frac += fracstep;
+						out[j+2] = translate32[inrow[frac>>16]];
+						frac += fracstep;
+						out[j+3] = translate32[inrow[frac>>16]];
+						frac += fracstep;
+					}
+				}
+				texnums->base = texture_extension_number++;
+				GL_Bind(texnums->base);
+				qglTexImage2D (GL_TEXTURE_2D, 0, gl_solid_format, scaled_width, scaled_height, 0, GL_RGBA, GL_UNSIGNED_BYTE, pixels);
+	
+				qglTexParameterf(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+				qglTexParameterf(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+	
+	
+				//now do the fullbrights.
+				out = pixels;
+				fracstep = tinwidth*0x10000/scaled_width;
+				for (i=0 ; i<scaled_height ; i++, out += scaled_width)
+				{
+					inrow = original + inwidth*(i*tinheight/scaled_height);
+					frac = fracstep >> 1;
+					for (j=0 ; j<scaled_width ; j+=1)
+					{
+						if (inrow[frac>>16] < 255-vid.fullbright)
+							((char *) (&out[j]))[3] = 0;	//alpha 0
+						frac += fracstep;
+					}
+				}
+				texnums->fullbright = texture_extension_number++;
+				GL_Bind(texnums->fullbright);
+				qglTexImage2D (GL_TEXTURE_2D, 0, gl_alpha_format, scaled_width, scaled_height, 0, GL_RGBA, GL_UNSIGNED_BYTE, pixels);
+	
+				qglTexParameterf(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+				qglTexParameterf(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
 			}
-			texnums->fullbright = texture_extension_number++;
-			GL_Bind(texnums->fullbright);
-			qglTexImage2D (GL_TEXTURE_2D, 0, gl_alpha_format, scaled_width, scaled_height, 0, GL_RGBA, GL_UNSIGNED_BYTE, pixels);
-
-			qglTexParameterf(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
-			qglTexParameterf(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+			else
+			{
+				skins = (galiasskin_t*)((char *)inf + inf->ofsskins);
+				if (e->skinnum >= 0 && e->skinnum < inf->numskins)
+					skins += e->skinnum;
+	
+				if (!skins->texnums)
+					return NULL;
+	
+				frame = cl.time*skins->skinspeed;
+				frame = frame%skins->texnums;
+				texnums = (galiastexnum_t*)((char *)skins + skins->ofstexnums + frame*sizeof(galiastexnum_t));
+				memcpy(&cm->texnum, texnums, sizeof(cm->texnum));
+			}
+			return &cm->texnum;
 		}
-		else
-		{
-			skins = (galiasskin_t*)((char *)inf + inf->ofsskins);
-			if (e->skinnum >= 0 && e->skinnum < inf->numskins)
-				skins += e->skinnum;
-
-			if (!skins->texnums)
-				return NULL;
-
-			frame = cl.time*skins->skinspeed;
-			frame = frame%skins->texnums;
-			texnums = (galiastexnum_t*)((char *)skins + skins->ofstexnums + frame*sizeof(galiastexnum_t));
-			memcpy(&cm->texnum, texnums, sizeof(cm->texnum));
-		}
-		return &cm->texnum;
 	}
 
 	skins = (galiasskin_t*)((char *)inf + inf->ofsskins);

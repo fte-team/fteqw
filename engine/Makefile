@@ -509,23 +509,21 @@ sw-rel:
 sw-dbg:
 	$(MAKE) sw-tmp TYPE=_clsv-dbg OUT_DIR="$(DEBUG_DIR)/$(SWB_DIR)"
 
-
-
 mcl-tmp:
 	$(MAKE) $(TYPE)   OUT_DIR="$(OUT_DIR)" EXE_NAME="$(MCL_EXE_NAME)" WCFLAGS="$(M_CFLAGS)" LDFLAGS="$(M_LDFLAGS)" SOBJS="$(MCL_OBJS)"
+m-tmp:
+	$(MAKE) $(TYPE)   OUT_DIR="$(OUT_DIR)" EXE_NAME="$(M_EXE_NAME)" WCFLAGS="$(M_CFLAGS)" LDFLAGS="$(M_LDFLAGS)" SOBJS="$(MCL_OBJS)"
+
 mcl-rel:
 	$(MAKE) mcl-tmp TYPE=_cl-rel OUT_DIR="$(RELEASE_DIR)/$(MCL_DIR)"
 mcl-dbg:
 	$(MAKE) mcl-tmp TYPE=_cl-dbg OUT_DIR="$(DEBUG_DIR)/$(MCL_DIR)"
-
-
-m-tmp:
-	$(MAKE) $(TYPE)   OUT_DIR="$(OUT_DIR)" EXE_NAME="$(M_EXE_NAME)" WCFLAGS="$(M_CFLAGS)" LDFLAGS="$(M_LDFLAGS)" SOBJS="$(MCL_OBJS)"
 m-rel:
 	$(MAKE) m-tmp TYPE=_clsv-rel OUT_DIR="$(RELEASE_DIR)/$(MCL_DIR)"
 m-dbg:
 	$(MAKE) m-tmp TYPE=_clsv-dbg OUT_DIR="$(DEBUG_DIR)/$(MCL_DIR)"
 
+.PHONY: m-tmp mcl-tmp sw-tmp swcl-tmp mingl-tmp glcl-tmp gl-tmp sv-tmp _clsv-dbg _clsv-rel _cl-dbg _cl-rel _out-rel _out-dbg
 
 ifdef windir
 debugdir:

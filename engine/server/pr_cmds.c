@@ -7669,7 +7669,7 @@ void PF_setattachment(progfuncs_t *prinst, struct globalvars_s *pr_globals)
 
 	if (tagentity != sv.edicts && tagname && tagname[0])
 	{
-		modelindex = (int)e->v.modelindex;
+		modelindex = (int)tagentity->v.modelindex;
 		if (modelindex > 0 && modelindex < MAX_MODELS && (model = SV_GetTags(modelindex, &tagcount)))
 		{
 			for (i = 0;i < tagcount;i++)

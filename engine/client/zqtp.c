@@ -731,6 +731,64 @@ static char *Macro_demoplayback (void)
 	}
 	return "1";	//unknown.
 }
+
+static char *Macro_Match_Name (void)
+{
+	int i;
+	i = TP_CountPlayers();
+	if (cl.teamplay && i >= 3)
+	{	// Teamplay
+		return va ("%s %s vs %s - %s",
+			TP_PlayerName(),
+			TP_PlayerTeam(),
+			TP_EnemyTeam(),
+			TP_MapName());
+	}
+	else
+	{
+		if (i == 2)
+		{	// Duel
+			return va ("%s vs %s - %s",
+				TP_PlayerName(),
+				TP_EnemyName(),
+				TP_MapName());
+		}
+		else if (i > 2)
+		{	// FFA
+			return va ("%s ffa - %s",
+				TP_PlayerName(), 
+				TP_MapName());
+		}
+		else
+		{	// one player
+			return va ("%s - %s",
+				TP_PlayerName(),
+				TP_MapName());
+		}
+	}
+}
+
+//$matchtype
+//duel,2on2,4on4,ffa,etc...
+static char *Macro_Match_Type (void)
+{
+	int i;
+	i = TP_CountPlayers();
+	if (cl.teamplay && i >= 3)
+	{
+		if (i >= 6)
+			return "4on4";
+		return "2on2";
+	}
+	if (i == 2)
+		return "duel";
+	if (i == 1)
+		return "single";
+	if (i == 0)
+		return "empty";
+	return "ffa";
+}
+
 /*
 $droploc
 Tells location of the dropped flag.
@@ -764,9 +822,6 @@ $matchstatus
 ("disconnected", "standby" or "normal"). This can be
 used for detecting prewar/prematch on ktpro/oztf servers.
 
-$matchtype
-duel,2on2,4on4,ffa,etc...
-
 $mp3info
 Evaluates to "author - title".
 Examples:
@@ -774,19 +829,6 @@ if you bind space "say listening to $mp3info"
 then hitting space will say something like
 "listening to disturbed - rise".
 bind x "if disturbed isin $mp3info then say dde music is cool"
-
-$need
-What you need.
-Note: you have to set this with tp_need* variables.
-
-$point
-Name of object you are looking at.
-
-$pointatloc
-Name of object and location of object you are looking at.
-
-$pointloc
-Location of object you are looking at.
 
 $triggermatch
 $triggermatch is the last chat message that exec'd a msg_trigger.
@@ -828,14 +870,14 @@ static void TP_InitMacros(void)
 	Cmd_AddMacro("point", Macro_PointName);
 	Cmd_AddMacro("pointatloc", Macro_PointNameAtLocation);
 	Cmd_AddMacro("pointloc", Macro_PointLocation);
+	Cmd_AddMacro("matchname", Macro_Match_Name);
+	Cmd_AddMacro("matchtype", Macro_Match_Type);
 
 //	Cmd_AddMacro("droploc", Macro_LastDrop);
 //	Cmd_AddMacro("droptime", Macro_LastDropTime);
 //	Cmd_AddMacro("ledpoint", Macro_Point_LED);
 //	Cmd_AddMacro("ledstatus", Macro_MyStatus_LED);
-//	Cmd_AddMacro("matchname", Macro_Match_Name);
 //	Cmd_AddMacro("matchstatus", Macro_Match_Status);
-//	Cmd_AddMacro("matchtype", Macro_Match_Type);
 //	Cmd_AddMacro("mp3info", );
 //	Cmd_AddMacro("triggermatch", Macro_LastTrigger_Match);
 }

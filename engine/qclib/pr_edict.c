@@ -1000,6 +1000,7 @@ pbool	ED_ParseEpair (progfuncs_t *progfuncs, void *base, ddefXX_t *key, char *s,
 		break;
 	default:
 		Sys_Error("Bad bits in ED_ParseEpair");
+		d = 0;
 	}
 	
 	switch (type)

@@ -2926,9 +2926,6 @@ void SWMod_LoadAlias3Model (model_t *mod, void *buffer)
 
 	vec3_t				mins, maxs;
 
-
-
-	
 	if (!strcmp(loadmodel->name, "progs/player.mdl") ||
 		!strcmp(loadmodel->name, "progs/eyes.mdl")) {
 		unsigned short crc;
@@ -3225,7 +3222,7 @@ void SWMod_LoadAlias3Model (model_t *mod, void *buffer)
 
 //
 // move the complete, relocatable alias model to the cache
-//	
+//
 	end = Hunk_LowMark ();
 	total = end - start;
 	

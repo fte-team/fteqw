@@ -667,7 +667,6 @@ void CL_Record_f (void)
 	}
 	else
 	{	//automagically generate a name
-
 		if (cl.spectator)
 		{	// FIXME: if tracking a player, use his name
 			fname = va ("spec_%s_%s",

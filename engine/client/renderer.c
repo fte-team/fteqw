@@ -1381,6 +1381,8 @@ qboolean R_ApplyRenderer (rendererstate_t *newr)
 
 	COM_FlushTempoaryPacks();
 
+	S_Shutdown();
+
 	if (qrenderer == QR_NONE || qrenderer==-1)
 	{
 		if (newr->renderer == QR_NONE && qrenderer != -1)
@@ -1684,6 +1686,9 @@ TRACE(("dbg: R_ApplyRenderer: efrags\n"));
 					"OpenGL renderer initialized\n");
 		break;
 	}
+	
+	if (!isDedicated)
+		S_Restart_f();
 
 	memcpy(&currentrendererstate, newr, sizeof(currentrendererstate));
 	return true;
@@ -1713,6 +1718,7 @@ TRACE(("dbg: R_RestartRenderer_f\n"));
 	newr.fullscreen = vid_fullscreen.value;
 	newr.rate = vid_refreshrate.value;
 	Q_strncpyz(newr.glrenderer, gl_driver.string, sizeof(newr.glrenderer));
+
 	if (!*vid_renderer.string)
 	{
 		//gotta do this after main hunk is saved off.

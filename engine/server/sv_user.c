@@ -902,6 +902,7 @@ void SV_PreSpawn_f (void)
 	}
 }
 
+static void SetUpClientEdict (client_t *cl, edict_t *ent);
 /*
 ==================
 SV_Spawn_f
@@ -909,7 +910,6 @@ SV_Spawn_f
 */
 void SV_Spawn_f (void)
 {
-	extern int pr_teamfield;
 	int		i;
 	client_t	*client, *split;
 	edict_t	*ent;
@@ -980,16 +980,7 @@ void SV_Spawn_f (void)
 		}
 		else
 		{
-			memset (&ent->v, 0, pr_edict_size-svprogparms.edictsize);
-			ED_Spawned(ent);
-			ent->v.colormap = NUM_FOR_EDICT(svprogfuncs, ent);
-			ent->v.team = 0;	// FIXME
-			ent->v.netname = PR_SetString(svprogfuncs, split->name);
-			if (pr_teamfield)
-				((int *)&ent->v)[pr_teamfield] = (int)PR_SetString(svprogfuncs, split->team);
-
-			split->entgravity = ent->v.gravity = 1.0;	
-			split->maxspeed = ent->v.maxspeed = sv_maxspeed.value;
+			SetUpClientEdict(split, ent);
 		}
 
 	//
@@ -2393,11 +2384,17 @@ void Cmd_SetPos_f(void)
 void ED_ClearEdict (progfuncs_t *progfuncs, edict_t *e);
 static void SetUpClientEdict (client_t *cl, edict_t *ent)
 {
+	extern int pr_teamfield;
 	ED_ClearEdict(svprogfuncs, ent);
+	ED_Spawned(ent);
 	ent->isfree = false;
 	
 	ent->v.colormap = NUM_FOR_EDICT(svprogfuncs, ent);
 	ent->v.netname = PR_SetString(svprogfuncs, cl->name);
+
+	if (pr_teamfield)
+		((int *)&ent->v)[pr_teamfield] = (int)PR_SetString(svprogfuncs, cl->team);
+
 
 	ent->v.gravity = cl->entgravity = 1.0;
 	ent->v.maxspeed = cl->maxspeed = sv_maxspeed.value;

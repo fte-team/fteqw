@@ -76,7 +76,7 @@ void (APIENTRY *qglDrawArrays) (GLenum mode, GLint first, GLsizei count);
 void (APIENTRY *qglDisableClientState) (GLenum array);
 void (APIENTRY *qglEnableClientState) (GLenum array);
 
-
+void (APIENTRY *qglScissor) (GLint x, GLint y, GLsizei width, GLsizei height);
 void (APIENTRY *qglStencilOp) (GLenum fail, GLenum zfail, GLenum zpass);
 void (APIENTRY *qglStencilFunc) (GLenum func, GLint ref, GLuint mask);
 void (APIENTRY *qglPushAttrib) (GLbitfield mask);
@@ -364,7 +364,7 @@ void GL_Init(void *(*getglfunction) (char *name))
 	qglStencilFunc		= (void *)getglcore("glStencilFunc");
 	qglPushAttrib		= (void *)getglcore("glPushAttrib");
 	qglPopAttrib		= (void *)getglcore("glPopAttrib");
-
+	qglScissor			= (void *)getglcore("glScissor");
 
 
 

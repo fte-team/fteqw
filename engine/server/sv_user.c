@@ -827,7 +827,7 @@ void SV_PreSpawn_f (void)
 		SZ_Clear(&host_client->netchan.message);
 	}
 
-	if (buf >= bufs)
+	if (buf >= bufs && !sv.democausesreconnect)
 	{
 		int i;
 		entity_state_t from;
@@ -969,7 +969,11 @@ void SV_PreSpawn_f (void)
 			}
 		}
 	}
-	else 
+	else if (buf >= bufs)
+	{
+		buf = bufs+sv.numextrastatics+sv.num_edicts+255;
+	}
+	else
 	{
 		if (sv.democausesreconnect)
 			SZ_Write (&host_client->netchan.message, 

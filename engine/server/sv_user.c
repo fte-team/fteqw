@@ -661,6 +661,10 @@ void SV_Soundlist_f (void)
 			*sv.demsound_precache[i] && host_client->netchan.message.cursize < (MAX_QWMSGLEN/2); 
 			i++, n++)
 			MSG_WriteString (&host_client->netchan.message, sv.demsound_precache[i]);
+
+			
+		if (!*sv.demsound_precache[i])
+			n = 0;
 	}
 	else
 	{
@@ -668,14 +672,14 @@ void SV_Soundlist_f (void)
 			*sv.sound_precache[i] && host_client->netchan.message.cursize < (MAX_QWMSGLEN/2); 
 			i++, n++)
 			MSG_WriteString (&host_client->netchan.message, sv.sound_precache[i]);
+
+		if (!*sv.sound_precache[i])
+			n = 0;
 	}
 	MSG_WriteByte (&host_client->netchan.message, 0);
 
 	// next msg
-	if (*sv.sound_precache[i])
-		MSG_WriteByte (&host_client->netchan.message, n);
-	else
-		MSG_WriteByte (&host_client->netchan.message, 0);
+	MSG_WriteByte (&host_client->netchan.message, n);
 }
 
 /*
@@ -736,6 +740,9 @@ void SV_Modellist_f (void)
 			*sv.demmodel_precache[i] && ((n&255)==0||host_client->netchan.message.cursize < (MAX_QWMSGLEN/2));
 			i++, n++)
 			MSG_WriteString (&host_client->netchan.message, sv.demmodel_precache[i]);
+
+		if (!*sv.demmodel_precache[i])
+			n = 0;
 	}
 	else
 	{
@@ -743,15 +750,15 @@ void SV_Modellist_f (void)
 			*sv.model_precache[i] && (((n&255)==0)||(host_client->netchan.message.cursize < (MAX_QWMSGLEN/2)));	//make sure we don't send a 0 next...
 			i++, n++)
 			MSG_WriteString (&host_client->netchan.message, sv.model_precache[i]);
+
+		if (!*sv.model_precache[i])
+			n = 0;
 	}
 
 	MSG_WriteByte (&host_client->netchan.message, 0);
 
 	// next msg
-	if ((sv.democausesreconnect && *sv.demmodel_precache[i]) || (!sv.democausesreconnect && *sv.model_precache[i]))
-		MSG_WriteByte (&host_client->netchan.message, n);
-	else
-		MSG_WriteByte (&host_client->netchan.message, 0);
+	MSG_WriteByte (&host_client->netchan.message, n);
 }
 
 /*
@@ -2734,6 +2741,8 @@ void SV_ExecuteUserCommand (char *s, qboolean fromQC)
 {
 	ucmd_t	*u;
 	client_t *oldhost = host_client;
+
+	Con_DPrintf("Client command: %s\n", s);
 	
 	Cmd_TokenizeString (s);
 	sv_player = host_client->edict;
@@ -3205,7 +3214,7 @@ void SVNQ_ExecuteUserCommand (char *s)
 	{
 		if (!strcmp (Cmd_Argv(0), u->name) )
 		{
-			if (!fromQC && !u->noqchandling)
+			if (/*!fromQC && */!u->noqchandling)
 				if (PR_UserCmd(s))
 				{
 					host_client = oldhost;

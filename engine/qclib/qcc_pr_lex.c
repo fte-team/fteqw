@@ -1644,7 +1644,7 @@ void QCC_PR_ConditionCompilation(void)
 			if (s[-1] == '\\')
 			{
 			}
-			else if (s[-2] == '\\' && s[-1] == '\r' && s[-1] == '\n')
+			else if (s[-2] == '\\' && s[-1] == '\r' && s[0] == '\n')
 			{
 			}
 			else
@@ -1787,7 +1787,7 @@ int QCC_PR_CheakCompConst(void)
 					{
 						if (!*pr_file_p)
 							break;
-						buffer[p] = *pr_file_p++;
+						buffer[p++] = *pr_file_p++;
 					}
 					buffer[p] = 0;
 
@@ -2245,8 +2245,8 @@ int typecmp(QCC_type_t *a, QCC_type_t *b)
 
 	if (a->size != b->size)
 		return 1;
-	if (STRCMP(a->name, b->name))
-		return 1;
+//	if (STRCMP(a->name, b->name))	//This isn't 100% clean.
+//		return 1;
 
 	if (typecmp(a->aux_type, b->aux_type))
 		return 1;

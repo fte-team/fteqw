@@ -1336,6 +1336,32 @@ qboolean SV_SendClientDatagram (client_t *client)
 	return true;
 }
 
+client_t *SV_SplitClientDest(client_t *client, qbyte first, int size)
+{
+	client_t *sp;
+	if (client->controller)
+	{	//this is a slave client.
+		//find the right number and send.
+		int pnum = 0;
+		for (sp = client->controller; sp; sp = sp->controlled)
+		{
+			if (sp == client)
+				break;
+			pnum++;
+		}
+		sp = client->controller;
+
+		ClientReliableWrite_Begin (sp, svc_choosesplitclient, size+2);
+		ClientReliableWrite_Byte (sp, pnum);
+		ClientReliableWrite_Byte (sp, first);
+		return sp;
+	}
+	else
+	{
+		ClientReliableWrite_Begin (client, first, size);
+		return client;
+	}
+}		
 /*
 =======================
 SV_UpdateToReliableMessages
@@ -1345,7 +1371,7 @@ void SV_UpdateToReliableMessages (void)
 {
 	float newval;
 	int			i, j;
-	client_t *client;
+	client_t *client, *sp;
 	edict_t *ent;
 
 // check for changes to be sent over the reliable streams to all clients
@@ -1353,7 +1379,7 @@ void SV_UpdateToReliableMessages (void)
 	{
 		if (host_client->state != cs_spawned)
 		{
-			if (!host_client->state && host_client->name[0])
+			if (!host_client->state && host_client->name[0])	//if this is a bot
 			{
 				if (host_client->old_frags != (int)host_client->edict->v.frags)
 				{
@@ -1364,6 +1390,14 @@ void SV_UpdateToReliableMessages (void)
 						ClientReliableWrite_Begin(client, svc_updatefrags, 4);
 						ClientReliableWrite_Byte(client, i);
 						ClientReliableWrite_Short(client, host_client->edict->v.frags);
+					}
+
+					if (sv.mvdrecording)
+					{
+						MVDWrite_Begin(dem_all, 0, 4);
+						MSG_WriteByte((sizebuf_t*)demo.dbuf, svc_updatefrags);
+						MSG_WriteByte((sizebuf_t*)demo.dbuf, i);
+						MSG_WriteShort((sizebuf_t*)demo.dbuf, host_client->edict->v.frags);
 					}
 
 					host_client->old_frags = host_client->edict->v.frags;
@@ -1391,6 +1425,14 @@ void SV_UpdateToReliableMessages (void)
 					ClientReliableWrite_Short(client, host_client->edict->v.frags);
 				}
 
+				if (sv.mvdrecording)
+				{
+					MVDWrite_Begin(dem_all, 0, 4);
+					MSG_WriteByte((sizebuf_t*)demo.dbuf, svc_updatefrags);
+					MSG_WriteByte((sizebuf_t*)demo.dbuf, i);
+					MSG_WriteShort((sizebuf_t*)demo.dbuf, host_client->edict->v.frags);
+				}
+
 				host_client->old_frags = host_client->edict->v.frags;
 			}
 		}
@@ -1408,21 +1450,10 @@ void SV_UpdateToReliableMessages (void)
 					newval = 1;
 			}
 
-		/*	if (host_client->viewent)
+			if (host_client->entgravity != newval)
 			{
-#define VIEWENT_GRAVITY_MAGIC 0.83217	//we use so the gravity is properly reset when viewent is cleared
-				if (host_client->entgravity != newval+VIEWENT_GRAVITY_MAGIC)
-				{
-					ClientReliableWrite_Begin(host_client, svc_entgravity, 5);
-					ClientReliableWrite_Float(host_client, 0);
-					host_client->entgravity = newval+VIEWENT_GRAVITY_MAGIC;
-				}
-#undef VIEWENT_GRAVITY_MAGIC
-			}
-			else */if (host_client->entgravity != newval)
-			{
-				ClientReliableWrite_Begin(host_client, svc_entgravity, 5);
-				ClientReliableWrite_Float(host_client, newval/movevars.gravity);	//lie to the client in a cunning way
+				sp = SV_SplitClientDest(host_client, svc_entgravity, 5);
+				ClientReliableWrite_Float(sp, newval/movevars.gravity);	//lie to the client in a cunning way
 				host_client->entgravity = newval;
 			}
 			newval = ent->v.maxspeed;
@@ -1554,6 +1585,27 @@ void SV_SendClientMessages (void)
 {
 	int			i, j;
 	client_t	*c;
+
+#ifdef Q3SERVER
+	if (svs.gametype == GT_QUAKE3)
+	{
+		for (i=0, c = svs.clients ; i<MAX_CLIENTS ; i++, c++)
+		{
+			if (c->state <= cs_zombie)
+				continue;
+
+			if (c->drop)
+			{
+				SV_DropClient(c);
+				c->drop = false;
+				continue;
+			}
+
+			SVQ3_SendMessage(c);
+		}
+		return;
+	}
+#endif
 
 // update frags, names, etc
 	SV_UpdateToReliableMessages ();

@@ -4422,7 +4422,10 @@ void QCC_PR_ParseStatement (void)
 		QCC_PR_Expect("(");
 		if (!QCC_PR_Check(";"))
 		{
-			QCC_FreeTemp(QCC_PR_Expression(TOP_PRIORITY));
+			do
+			{
+				QCC_FreeTemp(QCC_PR_Expression(TOP_PRIORITY));
+			} while (QCC_PR_Check(","));
 			QCC_PR_Expect(";");
 		}
 
@@ -4431,6 +4434,10 @@ void QCC_PR_ParseStatement (void)
 		{
 			conditional = true;
 			e = QCC_PR_Expression(TOP_PRIORITY);
+			while (QCC_PR_Check(","))	//logicops, string ops?
+			{
+				e = QCC_PR_Statement(pr_opcodes+OP_AND, e, QCC_PR_Expression(TOP_PRIORITY), NULL);
+			}
 			conditional = false;
 			QCC_PR_Expect(";");
 		}
@@ -4440,7 +4447,11 @@ void QCC_PR_ParseStatement (void)
 		if (!QCC_PR_Check(")"))
 		{
 			old_numstatements = numstatements;
-			QCC_FreeTemp(QCC_PR_Expression(TOP_PRIORITY));
+			do
+			{
+				QCC_FreeTemp(QCC_PR_Expression(TOP_PRIORITY));
+			} while (QCC_PR_Check(","));
+
 			numtemp = numstatements - old_numstatements;
 			if (numtemp > sizeof(linenum)/sizeof(linenum[0]))
 				QCC_PR_ParseError(ERR_TOOCOMPLEX, "Update expression too large");

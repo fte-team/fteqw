@@ -566,27 +566,9 @@ qboolean CL_EnqueDownload(char *filename, qboolean verbose, qboolean ignorefaile
 	return true;
 }
 
-void CL_SendDownloadRequest(char *filename)
+void CL_DisenqueDownload(char *filename)
 {
 	downloadlist_t *dl, *nxt;
-
-	strcpy (cls.downloadname, filename);
-	Con_TPrintf (TL_DOWNLOADINGFILE, cls.downloadname);
-
-	// download to a temp name, and only rename
-	// to the real name when done, so if interrupted
-	// a runt file wont be left
-	COM_StripExtension (cls.downloadname, cls.downloadtempname);
-	strcat (cls.downloadtempname, ".tmp");
-
-	MSG_WriteByte (&cls.netchan.message, clc_stringcmd);
-	MSG_WriteString (&cls.netchan.message, va("download %s", cls.downloadname));
-
-	//prevent ftp/http from changing stuff
-	cls.downloadmethod = DL_QWPENDING;
-	cls.downloadpercent = 0;
-
-
 	if(cl.downloadlist)	//remove from enqued download list
 	{
 		if (!strcmp(cl.downloadlist->name, filename))
@@ -611,12 +593,58 @@ void CL_SendDownloadRequest(char *filename)
 	}
 }
 
+void CL_SendDownloadRequest(char *filename)
+{
+	strcpy (cls.downloadname, filename);
+	Con_TPrintf (TL_DOWNLOADINGFILE, cls.downloadname);
+
+	// download to a temp name, and only rename
+	// to the real name when done, so if interrupted
+	// a runt file wont be left
+	COM_StripExtension (cls.downloadname, cls.downloadtempname);
+	strcat (cls.downloadtempname, ".tmp");
+
+	MSG_WriteByte (&cls.netchan.message, clc_stringcmd);
+	MSG_WriteString (&cls.netchan.message, va("download %s", cls.downloadname));
+
+	//prevent ftp/http from changing stuff
+	cls.downloadmethod = DL_QWPENDING;
+	cls.downloadpercent = 0;
+
+	CL_DisenqueDownload(filename);
+}
+
 //Do any reloading for the file that just reloaded.
-void CL_FinishDownload(char *filename)
+void CL_FinishDownload(char *filename, char *tempname)
 {
 	int i;
 	extern int mod_numknown;
 	extern model_t	mod_known[];
+
+	COM_RefreshFSCache_f();
+
+	cls.downloadmethod = DL_NONE;
+
+	// rename the temp file to it's final name
+	if (tempname)
+	{
+		char oldn[MAX_OSPATH], newn[MAX_OSPATH];
+		if (strcmp(tempname, filename))
+		{
+			if (strncmp(tempname,"skins/",6))
+			{
+				sprintf (oldn, "%s/%s", com_gamedir, tempname);
+				sprintf (newn, "%s/%s", com_gamedir, filename);
+			}
+			else
+			{
+				sprintf (oldn, "qw/%s", tempname);
+				sprintf (newn, "qw/%s", filename);
+			}
+			if (rename (oldn, newn))
+				Con_TPrintf (TL_RENAMEFAILED);
+		}
+	}
 
 	if (!strcmp(filename, "gfx/palette.lmp"))
 	{
@@ -646,8 +674,6 @@ to start a download from the server.
 */
 qboolean	CL_CheckOrDownloadFile (char *filename, int nodelay)
 {
-	downloadlist_t *failed;
-
 	if (strstr (filename, ".."))
 	{
 		Con_TPrintf (TL_NORELATIVEPATHS);
@@ -925,6 +951,11 @@ void CL_RequestNextDownload (void)
 	{
 		if (!COM_FCheckExists (cl.downloadlist->name))
 			CL_SendDownloadRequest(cl.downloadlist->name);
+		else
+		{
+			Con_Printf("Already have %s\n", cl.downloadlist->name);
+			CL_DisenqueDownload(cl.downloadlist->name);
+		}
 		return;
 	}
 	switch (cls.downloadtype)
@@ -947,8 +978,8 @@ void CL_RequestNextDownload (void)
 	}
 }
 
-void CL_RequestADownloadChunk(void);
-void CL_SendDownloadReq(void)
+int CL_RequestADownloadChunk(void);
+void CL_SendDownloadReq(sizebuf_t *msg)
 {
 	if (cl.downloadlist && !cls.downloadmethod)
 	{
@@ -959,7 +990,16 @@ void CL_SendDownloadReq(void)
 #ifdef PEXT_CHUNKEDDOWNLOADS
 	if (cls.downloadmethod == DL_QWCHUNKS)
 	{
-		CL_RequestADownloadChunk();
+		int i = CL_RequestADownloadChunk();
+		if (i < 0)
+		{
+			//we can stop downloading now.
+		}
+		else
+		{
+			MSG_WriteByte(msg, clc_stringcmd);
+			MSG_WriteString(msg, va("nextdl %i\n", i));
+		}
 		return;
 	}
 #endif
@@ -1011,17 +1051,33 @@ char *ZLibDownloadDecode(int *messagesize, char *input, int finalsize)
 }
 #endif
 
-void CL_DownloadFailed(void);
+void CL_DownloadFailed(char *name)
+{
+	//add this to our failed list. (so we don't try downloading it again...)
+	downloadlist_t *failed;
+	failed = Z_Malloc(sizeof(downloadlist_t));
+	failed->next = cl.faileddownloads;
+	cl.faileddownloads = failed;
+	Q_strncpyz(failed->name, name, sizeof(failed->name));
 
+	cls.downloadmethod = DL_NONE;
+}
+
+float downloadstarttime;
 #ifdef PEXT_CHUNKEDDOWNLOADS
-#define MAXBLOCKS 64
-int downloadblock;
+#define MAXBLOCKS 64	//must be power of 2
+#define DLBLOCKSIZE 1024
+int downloadsize;
+int receivedbytes;
 int recievedblock[MAXBLOCKS];
+int firstblock;
+int blockcycle;
 void CL_ParseChunkedDownload(void)
 {
 	qbyte	*name;
 	int totalsize;
 	int chunknum;
+	char data[DLBLOCKSIZE];
 
 	chunknum = MSG_ReadLong();
 	if (chunknum < 0)
@@ -1038,7 +1094,7 @@ void CL_ParseChunkedDownload(void)
 			else
 				Con_Printf("Couldn't find file %s on the server\n", name);
 
-			CL_DownloadFailed();
+			CL_DownloadFailed(name);
 
 			CL_RequestNextDownload();
 			return;
@@ -1050,28 +1106,108 @@ void CL_ParseChunkedDownload(void)
 		//start the new download
 		cls.downloadmethod = DL_QWCHUNKS;
 		cls.downloadpercent = 0;
+		downloadsize = totalsize;
+
+		downloadstarttime = Sys_DoubleTime();
 
 		strcpy(cls.downloadname, name);
 		COM_StripExtension(name, cls.downloadtempname);
 		COM_DefaultExtension(cls.downloadtempname, ".tmp");
 
+		if (!strncmp(cls.downloadtempname,"skins/",6))
+			sprintf (name, "qw/%s", cls.downloadtempname);	//skins go to quake/qw/skins. never quake/gamedir/skins (blame id)
+		else
+			sprintf (name, "%s/%s", com_gamedir, cls.downloadtempname);
+		COM_CreatePath (name);
+		cls.downloadqw = fopen (name, "wb");
+
+		firstblock = 0;
+		receivedbytes = 0;
+		blockcycle = -1;	//so it requests 0 first. :)
+		memset(recievedblock, 0, sizeof(recievedblock));
 		return;
 	}
+
+	Con_Printf("Received dl block %i: ", chunknum);
+
+	MSG_ReadData(data, DLBLOCKSIZE);
 
 	if (cls.demoplayback)
-	{
-
+	{	//err, yeah, when playing demos we don't actually pay any attention to this.
 		return;
 	}
+	if (chunknum < firstblock)
+	{
+		Con_Printf("too old\n", chunknum);
+		return;
+	}
+	if (chunknum-firstblock >= MAXBLOCKS)
+	{
+		Con_Printf("^1too new!\n", chunknum);
+		return;
+	}
+	
+	if (recievedblock[chunknum&(MAXBLOCKS-1)])
+	{
+		Con_Printf("duplicated\n", chunknum);
+		return;
+	}
+	Con_Printf("usable\n", chunknum);
+	receivedbytes+=DLBLOCKSIZE;
+	recievedblock[chunknum&(MAXBLOCKS-1)] = true;
+
+	while(recievedblock[firstblock&(MAXBLOCKS-1)])
+	{
+		recievedblock[firstblock&(MAXBLOCKS-1)] = false;
+		firstblock++;
+	}
+
+	fseek(cls.downloadqw, chunknum*DLBLOCKSIZE, SEEK_SET);
+	if (downloadsize - chunknum*DLBLOCKSIZE < DLBLOCKSIZE)	//final block is actually meant to be smaller than we recieve.
+		fwrite(data, 1, downloadsize - chunknum*DLBLOCKSIZE, cls.downloadqw);
+	else
+		fwrite(data, 1, DLBLOCKSIZE, cls.downloadqw);
+
+	cls.downloadpercent = receivedbytes/(float)downloadsize*100;
 }
 
-void CL_RequestADownloadChunk(void)
+int CL_RequestADownloadChunk(void)
 {
+	int i;
+	int b;
+
+	if (cls.downloadmethod != DL_QWCHUNKS)
+	{
+		Con_Printf("download not initiated\n");
+		return 0;
+	}
+
+	blockcycle++;
+	for (i = 0; i < MAXBLOCKS; i++)
+	{
+		b = ((i+blockcycle)&(MAXBLOCKS-1))
+			+ firstblock;
+		if (!recievedblock[b&(MAXBLOCKS-1)])	//don't ask for ones we've already got.
+		{
+			if (b >= (downloadsize+DLBLOCKSIZE-1)/DLBLOCKSIZE)	//don't ask for blocks that are over the size of the file.
+				continue;
+			Con_Printf("Requesting block %i\n", b);
+			return b;
+		}
+	}
+
+	Con_Printf("^1 EOF?\n");
+
+	fclose(cls.downloadqw);
+	CL_FinishDownload(cls.downloadname, cls.downloadtempname);
+
+	*cls.downloadname = '\0';
+	cls.downloadqw = NULL;
+	cls.downloadpercent = 0;
+
+	return -1;
 }
 
-void CL_RequestDownloadPacket(void)
-{
-}
 #endif
 
 /*
@@ -1085,10 +1221,8 @@ void CL_ParseDownload (void)
 {
 	int		size, percent;
 	qbyte	name[1024];
-	int		r;
 
 #ifdef PEXT_CHUNKEDDOWNLOADS
-#pragma message fixme
 	if (cls.fteprotocolextensions & PEXT_CHUNKEDDOWNLOADS)
 	{
 		CL_ParseChunkedDownload();
@@ -1130,13 +1264,8 @@ void CL_ParseDownload (void)
 			Z_Free(cl.downloadlist);
 			cl.downloadlist = next;
 		}
-		{	//add this to our failed list. (so we don't try downloading it again...)
-			downloadlist_t *failed;
-			failed = Z_Malloc(sizeof(downloadlist_t));
-			failed->next = cl.faileddownloads;
-			cl.faileddownloads = failed;
-			Q_strncpyz(failed->name, cls.downloadname, sizeof(failed->name));
-		}
+
+		CL_DownloadFailed(cls.downloadname);
 
 		CL_RequestNextDownload ();
 		return;
@@ -1160,6 +1289,8 @@ void CL_ParseDownload (void)
 			CL_RequestNextDownload ();
 			return;
 		}
+
+		downloadstarttime = Sys_DoubleTime();
 		SCR_EndLoadingPlaque();
 	}
 #ifdef PEXT_ZLIBDL
@@ -1194,34 +1325,14 @@ void CL_ParseDownload (void)
 	}
 	else
 	{
-		char	oldn[MAX_OSPATH];
-		char	newn[MAX_OSPATH];
-
 		fclose (cls.downloadqw);
 
-		// rename the temp file to it's final name
-		if (strcmp(cls.downloadtempname, cls.downloadname)) {
-			if (strncmp(cls.downloadtempname,"skins/",6)) {
-				sprintf (oldn, "%s/%s", com_gamedir, cls.downloadtempname);
-				sprintf (newn, "%s/%s", com_gamedir, cls.downloadname);
-			} else {
-				sprintf (oldn, "qw/%s", cls.downloadtempname);
-				sprintf (newn, "qw/%s", cls.downloadname);
-			}
-			r = rename (oldn, newn);
-			if (r)
-				Con_TPrintf (TL_RENAMEFAILED);
-		}
-
-		COM_RefreshFSCache_f();
-
-		cls.downloadmethod = DL_NONE;
-
-		CL_FinishDownload(cls.downloadname);
-
+		CL_FinishDownload(cls.downloadname, cls.downloadtempname);
 		*cls.downloadname = '\0';
 		cls.downloadqw = NULL;
 		cls.downloadpercent = 0;
+
+		Con_DPrintf("Download took %i seconds\n", (int)(Sys_DoubleTime() - downloadstarttime));
 
 		// get another file if needed
 

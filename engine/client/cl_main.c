@@ -101,6 +101,7 @@ cvar_t	model = {"model",				"",			NULL, CVAR_ARCHIVE | CVAR_USERINFO};
 cvar_t	topcolor = {"topcolor",			"",			NULL, CVAR_ARCHIVE | CVAR_USERINFO};
 cvar_t	bottomcolor = {"bottomcolor",	"",			NULL, CVAR_ARCHIVE | CVAR_USERINFO};
 cvar_t	rate = {"rate",					"2500",		NULL, CVAR_ARCHIVE | CVAR_USERINFO};
+cvar_t	drate = {"drate",				"100000",	NULL, CVAR_ARCHIVE | CVAR_USERINFO};		// :)
 cvar_t	noaim = {"noaim",				"",			NULL, CVAR_ARCHIVE | CVAR_USERINFO};
 cvar_t	msg = {"msg",					"1",		NULL, CVAR_ARCHIVE | CVAR_USERINFO};
 cvar_t	cl_nofake = {"cl_nofake",		"2"};
@@ -346,6 +347,9 @@ void CL_SendConnectPacket (
 //	fteprotextsupported |= PEXT_64PLAYERS;
 	fteprotextsupported |= PEXT_SHOWPIC;
 	fteprotextsupported |= PEXT_SETATTACHMENT;
+#ifdef PEXT_CHUNKEDDOWNLOADS
+	fteprotextsupported |= PEXT_CHUNKEDDOWNLOADS;
+#endif
 
 	fteprotextsupported &= ftepext;
 
@@ -430,11 +434,11 @@ void CL_SendConnectPacket (
 	strcat(data, va(" %i %i", cls.qport, cls.challenge));
 
 	//userinfo 0 + zquake extension info.
-	strcat(data, va(" \"%s\\*z_ext\\%i\"", cls.userinfo, SUPPORTED_EXTENSIONS));
+	strcat(data, va(" \"%s\\*z_ext\\%i\"", cls.userinfo, SUPPORTED_Z_EXTENSIONS));
 	for (c = 1; c < clients; c++)
 	{
 		Info_SetValueForStarKey (playerinfo2, "name", va("%s%i", name.string, c+1), MAX_INFO_STRING);
-		strcat(data, va(" \"%s\"", playerinfo2, SUPPORTED_EXTENSIONS));
+		strcat(data, va(" \"%s\"", playerinfo2, SUPPORTED_Z_EXTENSIONS));
 	}
 
 	strcat(data, "\n");
@@ -2086,7 +2090,10 @@ void CL_Download_f (void)
 		cls.downloadtype = dl_single;
 	}
 
-	
+	CL_EnqueDownload(url, true, false);
+
+	/*
+	strcpy(cls.downloadname, url);
 
 	_snprintf (cls.downloadname, sizeof(cls.downloadname), "%s/%s", com_gamedir, url);
 
@@ -2103,13 +2110,15 @@ void CL_Download_f (void)
 			break;
 	}
 
-	strcpy(cls.downloadtempname, cls.downloadname);
+	COM_StripExtension(cls.downloadname, cls.downloadtempname);
+	COM_DefaultExtension(cls.downloadtempname, ".tmp");
+	if (cls.down
 //	cls.downloadqw = fopen (cls.downloadname, "wb");
-	cls.downloadmethod = DL_QW;
+	cls.downloadmethod = DL_QWPENDING;
 
 
 	MSG_WriteByte (&cls.netchan.message, clc_stringcmd);
-	SZ_Print (&cls.netchan.message, va("download %s\n",url));
+	SZ_Print (&cls.netchan.message, va("download %s\n",url));*/
 }
 
 #ifdef _WINDOWS
@@ -2271,6 +2280,7 @@ void CL_Init (void)
 	Cvar_Register (&topcolor,	cl_controlgroup);
 	Cvar_Register (&bottomcolor,	cl_controlgroup);
 	Cvar_Register (&rate,	cl_controlgroup);
+	Cvar_Register (&drate,	cl_controlgroup);
 	Cvar_Register (&msg,	cl_controlgroup);
 	Cvar_Register (&noaim,	cl_controlgroup);
 

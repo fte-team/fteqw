@@ -973,8 +973,6 @@ void CL_SendCmd (void)
 		return;
 	}
 
-	CL_SendDownloadReq();
-
 	if (msecstouse > 255)
 		msecstouse = 255;
 
@@ -998,6 +996,9 @@ void CL_SendCmd (void)
 	buf.cursize = 0;
 	buf.data = data;
 	clientcount = cl.splitclients;
+
+	CL_SendDownloadReq(&buf);
+
 	if (!clientcount)
 		clientcount = 1;
 	if (1)	//wait for server data before sending clc_move stuff? nope, mvdsv doesn't like that.

@@ -2322,6 +2322,49 @@ qboolean GL_UploadCompressed (qbyte *file, int *out_width, int *out_height, unsi
 	return true;
 }
 
+
+void GL_RoundDimensions(int *scaled_width, int *scaled_height, qboolean mipmap)
+{
+	if (gl_config.arb_texture_non_power_of_two)	//NPOT is a simple extension that relaxes errors.
+	{
+		TRACE(("dbg: GL_RoundDimensions: GL_ARB_texture_non_power_of_two\n"));
+	}
+	else
+	{
+		int width = *scaled_width;
+		int height = *scaled_height;
+		for (*scaled_width = 1 ; *scaled_width < width ; *scaled_width<<=1)
+			;
+		for (*scaled_height = 1 ; *scaled_height < height ; *scaled_height<<=1)
+			;
+	}
+
+	if (mipmap)
+	{
+		TRACE(("dbg: GL_RoundDimensions: %f\n", gl_picmip.value));
+		*scaled_width >>= (int)gl_picmip.value;
+		*scaled_height >>= (int)gl_picmip.value;
+	}
+	else
+	{
+		*scaled_width >>= (int)gl_picmip2d.value;
+		*scaled_height >>= (int)gl_picmip2d.value;
+	}
+
+	TRACE(("dbg: GL_RoundDimensions: %f\n", gl_max_size.value));
+	if (gl_max_size.value)
+	{
+		if (*scaled_width > gl_max_size.value)
+			*scaled_width = gl_max_size.value;
+		if (*scaled_height > gl_max_size.value)
+			*scaled_height = gl_max_size.value;
+	}
+
+	if (*scaled_width < 1)
+		*scaled_width = 1;
+	if (*scaled_height < 1)
+		*scaled_height = 1;
+}
 /*
 ===============
 GL_Upload32
@@ -2336,45 +2379,9 @@ void GL_Upload32 (char *name, unsigned *data, int width, int height,  qboolean m
 
 	TRACE(("dbg: GL_Upload32: %s %i %i\n", name, width, height));
 
-	if (gl_config.arb_texture_non_power_of_two)	//NPOT is a simple extension that relaxes errors.
-	{
-		TRACE(("dbg: GL_Upload32: GL_ARB_texture_non_power_of_two\n"));
-		scaled_width = width;
-		scaled_height = height;
-	}
-	else
-	{
-		for (scaled_width = 1 ; scaled_width < width ; scaled_width<<=1)
-			;
-		for (scaled_height = 1 ; scaled_height < height ; scaled_height<<=1)
-			;
-	}
-
-	if (mipmap)
-	{
-		TRACE(("dbg: GL_Upload32: %f\n", gl_picmip.value));
-		scaled_width >>= (int)gl_picmip.value;
-		scaled_height >>= (int)gl_picmip.value;
-	}
-	else
-	{
-		scaled_width >>= (int)gl_picmip2d.value;
-		scaled_height >>= (int)gl_picmip2d.value;
-	}
-
-	TRACE(("dbg: GL_Upload32: %f\n", gl_max_size.value));
-	if (gl_max_size.value)
-	{
-		if (scaled_width > gl_max_size.value)
-			scaled_width = gl_max_size.value;
-		if (scaled_height > gl_max_size.value)
-			scaled_height = gl_max_size.value;
-	}
-
-	if (scaled_width < 1)
-		scaled_width = 1;
-	if (scaled_height < 1)
-		scaled_height = 1;
+	scaled_width = width;
+	scaled_height = height;
+	GL_RoundDimensions(&scaled_width, &scaled_height, mipmap);
 
 	TRACE(("dbg: GL_Upload32: %i %i\n", scaled_width, scaled_height));
 
@@ -2513,44 +2520,9 @@ void GL_Upload8Grey (unsigned char*data, int width, int height,  qboolean mipmap
 	unsigned char	*scaled = uploadmemorybuffer;
 	int			scaled_width, scaled_height;
 
-	if (gl_config.arb_texture_non_power_of_two)	//NPOT is a simple extension that relaxes errors.
-	{
-		TRACE(("dbg: GL_Upload32: GL_ARB_texture_non_power_of_two\n"));
-		scaled_width = width;
-		scaled_height = height;
-	}
-	else
-	{
-		for (scaled_width = 1 ; scaled_width < width ; scaled_width<<=1)
-			;
-		for (scaled_height = 1 ; scaled_height < height ; scaled_height<<=1)
-			;
-	}
-
-	if (mipmap)
-	{
-		TRACE(("dbg: GL_Upload8Grey: %f\n", gl_picmip.value));
-		scaled_width >>= (int)gl_picmip.value;
-		scaled_height >>= (int)gl_picmip.value;
-	}
-	else
-	{
-		scaled_width >>= (int)gl_picmip2d.value;
-		scaled_height >>= (int)gl_picmip2d.value;
-	}
-
-	if (gl_max_size.value)
-	{
-		if (scaled_width > gl_max_size.value)
-			scaled_width = gl_max_size.value;
-		if (scaled_height > gl_max_size.value)
-			scaled_height = gl_max_size.value;
-	}
-
-	if (scaled_width < 1)
-		scaled_width = 1;
-	if (scaled_height < 1)
-		scaled_height = 1;
+	scaled_width = width;
+	scaled_height = height;
+	GL_RoundDimensions(&scaled_width, &scaled_height, mipmap);
 
 	if (scaled_width * scaled_height > sizeofuploadmemorybuffer/4)
 		Sys_Error ("GL_LoadTexture: too big");
@@ -2726,56 +2698,17 @@ unsigned int * genNormalMap(qbyte *pixels, int w, int h, float scale)
 }
 
 //PENTA
-void GL_UploadBump(qbyte *data, int width, int height, qboolean mipmap) {
-	
-	int			s;
+void GL_UploadBump(qbyte *data, int width, int height, qboolean mipmap)
+{
     unsigned char	*scaled = uploadmemorybuffer;
 	int			scaled_width, scaled_height;
 	qbyte			*nmap;
 
 	TRACE(("dbg: GL_UploadBump entered: %i %i\n", width, height));
 
-	s = width*height;
-
-	//Resize to power of 2 and maximum texture size
-	if (gl_config.arb_texture_non_power_of_two)	//NPOT is a simple extension that relaxes errors.
-	{
-		TRACE(("dbg: GL_Upload32: GL_ARB_texture_non_power_of_two\n"));
-		scaled_width = width;
-		scaled_height = height;
-	}
-	else
-	{
-		for (scaled_width = 1 ; scaled_width < width ; scaled_width<<=1)
-			;
-		for (scaled_height = 1 ; scaled_height < height ; scaled_height<<=1)
-			;
-	}
-
-	if (mipmap)
-	{
-		TRACE(("dbg: GL_UploadBump: %f\n", gl_picmip.value));
-		scaled_width >>= (int)gl_picmip.value;
-		scaled_height >>= (int)gl_picmip.value;
-	}
-	else
-	{
-		scaled_width >>= (int)gl_picmip2d.value;
-		scaled_height >>= (int)gl_picmip2d.value;
-	}
-
-	if (gl_max_size.value)
-	{
-		if (scaled_width > gl_max_size.value)
-			scaled_width = gl_max_size.value;
-		if (scaled_height > gl_max_size.value)
-			scaled_height = gl_max_size.value;
-	}
-
-	if (scaled_width < 1)
-		scaled_width = 1;
-	if (scaled_height < 1)
-		scaled_height = 1;
+	scaled_width = width;
+	scaled_height = height;
+	GL_RoundDimensions(&scaled_width, &scaled_height, mipmap);
 
 	if (scaled_width * scaled_height > sizeofuploadmemorybuffer/4)
 		Sys_Error ("GL_LoadTexture: too big");
@@ -2874,44 +2807,10 @@ void GL_Upload8_EXT (qbyte *data, int width, int height,  qboolean mipmap, qbool
 		if (alpha && noalpha)
 			alpha = false;
 	}
-	if (supported_GL_ARB_texture_non_power_of_two)	//NPOT is a simple extension that relaxes errors.
-	{
-		TRACE(("dbg: GL_Upload32: GL_ARB_texture_non_power_of_two\n"));
-		scaled_width = width;
-		scaled_height = height;
-	}
-	else
-	{
-		for (scaled_width = 1 ; scaled_width < width ; scaled_width<<=1)
-			;
-		for (scaled_height = 1 ; scaled_height < height ; scaled_height<<=1)
-			;
-	}
 
-	if (mipmap)
-	{
-		TRACE(("dbg: GL_Upload8_EXT: %f\n", gl_picmip.value));
-		scaled_width >>= (int)gl_picmip.value;
-		scaled_height >>= (int)gl_picmip.value;
-	}
-	else
-	{
-		scaled_width >>= (int)gl_picmip2d.value;
-		scaled_height >>= (int)gl_picmip2d.value;
-	}
-
-	if (gl_max_size.value)
-	{
-		if (scaled_width > gl_max_size.value)
-			scaled_width = gl_max_size.value;
-		if (scaled_height > gl_max_size.value)
-			scaled_height = gl_max_size.value;
-	}
-
-	if (scaled_width < 1)
-		scaled_width = 1;
-	if (scaled_height < 1)
-		scaled_height = 1;
+	scaled_width = width;
+	scaled_height = height;
+	GL_RoundDimensions(&scaled_width, &scaled_height, mipmap);
 
 	if (scaled_width * scaled_height > sizeofuploadmemorybufferintermediate/4)
 		Sys_Error ("GL_LoadTexture: too big");

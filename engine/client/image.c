@@ -182,7 +182,7 @@ qbyte *ReadTargaFile(qbyte *buf, int length, int *width, int *height, int asgrey
 	{
 		return ReadGreyTargaFile(data, length, &tgaheader, asgrey);
 	}
-	else if (tgaheader.version == 10)
+	else if (tgaheader.version == 10 || tgaheader.version == 11)
 	{		
 #undef getc
 #define getc(x) *data++
@@ -191,7 +191,8 @@ qbyte *ReadTargaFile(qbyte *buf, int length, int *width, int *height, int asgrey
 
 		qbyte blue, red, green, alphabyte;
 
-		if (tgaheader.bpp == 8) return NULL;
+		if (tgaheader.version == 10 && tgaheader.bpp == 8) return NULL;
+		if (tgaheader.version == 11 && tgaheader.bpp != 8) return NULL;
 
 		for(row=rows-1; row>=0; row--)
 		{
@@ -207,6 +208,11 @@ qbyte *ReadTargaFile(qbyte *buf, int length, int *width, int *height, int asgrey
 				{        // run-length packet
 					switch (tgaheader.bpp)
 					{
+						case 8:	//we made sure this was version 11
+								blue = green = red = *data++;
+								alphabyte = 255;
+								break;
+
 						case 16:
 								inrow = data;
 								data+=2;
@@ -287,6 +293,13 @@ qbyte *ReadTargaFile(qbyte *buf, int length, int *width, int *height, int asgrey
 						{
 							switch (tgaheader.bpp)
 							{
+								case 8:
+										blue = green = red = *data++;
+										*pixbuf++ = red;
+										*pixbuf++ = green;
+										*pixbuf++ = blue;
+										*pixbuf++ = 255;
+										break;
 								case 16:
 										inrow = data;
 										data+=2;
@@ -347,6 +360,9 @@ qbyte *ReadTargaFile(qbyte *buf, int length, int *width, int *height, int asgrey
 						{
 							switch (tgaheader.bpp)
 							{
+								case 8:
+										*pixbuf++ = *data++;
+										break;
 								case 16:
 										inrow = data;
 										data+=2;

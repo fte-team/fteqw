@@ -142,6 +142,8 @@ void Cam_Lock(int pnum, int playernum)
 	MSG_WriteString (&cls.netchan.message, st);
 	spec_track[pnum] = playernum;
 	locked[pnum] = false;
+	
+	Skin_FlushPlayers();
 
 	if (cls.demoplayback == DPB_MVD)
 	{

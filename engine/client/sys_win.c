@@ -246,6 +246,40 @@ qboolean Sys_remove (char *path)
 	return true;
 }
 
+//1 if match
+int wildcmp(char *wild, char *string) {
+	char *cp=NULL, *mp=NULL;
+	
+	while ((*string) && (*wild != '*')) {
+		if ((*wild != *string) && (*wild != '?')) {
+			return 0;
+		}
+		wild++;
+		string++;
+	}
+
+	while (*string) {
+		if (*wild == '*') {
+			if (!*++wild) {
+				return 1;
+			}
+			mp = wild;
+			cp = string+1;
+		} else if ((*wild == *string) || (*wild == '?')) {
+			wild++;
+			string++;
+		} else {
+			wild = mp;
+			string = cp++;
+		}
+	}
+		
+	while (*wild == '*') {
+		wild++;
+	}
+	return !*wild;
+}
+
 int Sys_EnumerateFiles (char *gpath, char *match, int (*func)(char *, int, void *), void *parm)
 {
 	HANDLE r;
@@ -254,37 +288,54 @@ int Sys_EnumerateFiles (char *gpath, char *match, int (*func)(char *, int, void 
 	char file[MAX_OSPATH];
 	char *s;
 	int go;
-	strcpy(apath, match);
-//	sprintf(apath, "%s%s", gpath, match);
-	for (s = apath+strlen(apath)-1; s>= apath; s--)
+	if (!gpath)
+		return 0;
+//	strcpy(apath, match);
+	sprintf(apath, "%s/%s", gpath, match);
+	for (s = apath+strlen(apath)-1; s> apath; s--)
 	{
 		if (*s == '/')			
 			break;
 	}
-	s++;
-	*s = '\0';	
+	*s = '\0';
 	
+	//this is what we ask windows for.
+	sprintf(file, "%s/*.*", apath);
 
-	if (gpath)
-		sprintf(file, "%s/%s", gpath, match);
-	else
-		strcpy(file, match);
+	//we need to make apath contain the path in match but not gpath
+	strcpy(apath, match);
+	match = s+1;
+	for (s = apath+strlen(apath)-1; s> apath; s--)
+	{
+		if (*s == '/')			
+			break;
+	}
+	*s = '\0';
+	if (s != apath)
+		strcat(apath, "/");
+
 	r = FindFirstFile(file, &fd);
 	if (r==(HANDLE)-1)
 		return 1;
     go = true;
 	do
 	{
-		if (*fd.cFileName == '.');
+		if (*fd.cFileName == '.');	//don't ever find files with a name starting with '.'
 		else if (fd.dwFileAttributes != 16)	//is a directory
 		{
-			sprintf(file, "%s%s", apath, fd.cFileName);
-			go = func(file, fd.nFileSizeLow, parm);
+			if (wildcmp(match, fd.cFileName))
+			{
+				sprintf(file, "%s%s", apath, fd.cFileName);
+				go = func(file, fd.nFileSizeLow, parm);
+			}
 		}
 		else
 		{
-			sprintf(file, "%s%s/", apath, fd.cFileName);
-			go = func(file, fd.nFileSizeLow, parm);
+			if (wildcmp(match, fd.cFileName))
+			{
+				sprintf(file, "%s%s/", apath, fd.cFileName);
+				go = func(file, fd.nFileSizeLow, parm);
+			}
 		}
 	}
 	while(FindNextFile(r, &fd) && go);

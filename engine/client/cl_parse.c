@@ -23,6 +23,7 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 
 void CL_GetNumberedEntityInfo (int num, float *org, float *ang);
 void CLNQ_ParseDarkPlaces5Entities(void);
+void CL_SetStat (int pnum, int stat, int value);
 
 void R_ParseParticleEffect2 (void);
 void R_ParseParticleEffect3 (void);
@@ -1438,6 +1439,7 @@ void CLNQ_ParseServerData(void)		//Doesn't change gamedir - use with caution.
 	sizeofangle = 1;
 
 	nq_dp_protocol = 0;
+	cls.z_ext = 0;
 
 	if (protover == 250)
 		Host_EndGame ("Nehahra demo net protocol is not supported\n");
@@ -1447,6 +1449,15 @@ void CLNQ_ParseServerData(void)		//Doesn't change gamedir - use with caution.
 		nq_dp_protocol = 5;
 		sizeofcoord = 4;
 		sizeofangle = 2;
+	}
+	else if (protover == 3503)
+	{
+		//darkplaces6 (it's a small difference from dp5)
+		nq_dp_protocol = 6;
+		sizeofcoord = 4;
+		sizeofangle = 2;
+
+		cls.z_ext = Z_EXT_VIEWHEIGHT;
 	}
 	else if (protover != NQ_PROTOCOL_VERSION)
 	{
@@ -1628,7 +1639,7 @@ Con_DPrintf ("CL_SignonReply: %i\n", cls.signon);
 #define	DEFAULT_VIEWHEIGHT	22
 void CLNQ_ParseClientdata (int bits)
 {
-	int		i, j;
+	int		i;
 
 	bits &= 0xffff;
 
@@ -1638,9 +1649,9 @@ void CLNQ_ParseClientdata (int bits)
 		bits |= (MSG_ReadByte() << 24);
 	
 	if (bits & SU_VIEWHEIGHT)
-		cl.viewheight[0] = MSG_ReadChar ();
-	else
-		cl.viewheight[0] = DEFAULT_VIEWHEIGHT;
+		CL_SetStat(0, STAT_VIEWHEIGHT, MSG_ReadChar ());
+	else if (nq_dp_protocol != 6)
+		CL_SetStat(0, STAT_VIEWHEIGHT, DEFAULT_VIEWHEIGHT);
 
 	if (bits & SU_IDEALPITCH)
 		/*cl.idealpitch =*/ MSG_ReadChar ();
@@ -1664,7 +1675,7 @@ void CLNQ_ParseClientdata (int bits)
 
 		if (bits & (SU_VELOCITY1<<i) )
 		{
-			if (nq_dp_protocol == 5)
+			if (nq_dp_protocol == 5 || nq_dp_protocol == 6)
 				/*cl.simvel[0][i] =*/ MSG_ReadFloat();
 			else
 			/*cl.mvelocity[0][i] =*/ MSG_ReadChar()/**16*/;
@@ -1673,164 +1684,62 @@ void CLNQ_ParseClientdata (int bits)
 //			cl.mvelocity[0][i] = 0;
 	}
 
-// [always sent]	if (bits & SU_ITEMS)
-	i = MSG_ReadLong ();
+	if (bits & SU_ITEMS)
+		CL_SetStat(0, STAT_ITEMS, MSG_ReadLong());
 
-	if (cl.stats[0][STAT_ITEMS] != i)
-	{	// set flash times
-		Sbar_Changed ();
-		for (j=0 ; j<32 ; j++)
-			if ( (i & (1<<j)) && !(cl.stats[0][STAT_ITEMS] & (1<<j)))
-				cl.item_gettime[0][j] = cl.time;
-		cl.stats[0][STAT_ITEMS] = i;
-	}
-		
 //	cl.onground = (bits & SU_ONGROUND) != 0;
 //	cl.inwater = (bits & SU_INWATER) != 0;
 
-	if (nq_dp_protocol == 5)
+	if (nq_dp_protocol == 6)
 	{
-		if (bits & SU_WEAPONFRAME)
-			i = MSG_ReadShort ();
-		else
-			i = 0;
+	}
+	else if (nq_dp_protocol == 5)
+	{
+		CL_SetStat(0, STAT_WEAPONFRAME, (bits & SU_WEAPONFRAME)?(unsigned short)MSG_ReadShort():0);
+		CL_SetStat(0, STAT_ARMOR, (bits & SU_ARMOR)?MSG_ReadShort():0);
+		CL_SetStat(0, STAT_WEAPON, (bits & SU_WEAPON)?MSG_ReadShort():0);
 
-		cl.stats[0][STAT_WEAPONFRAME] = i;
+		CL_SetStat(0, STAT_HEALTH, MSG_ReadShort());
 
-		if (bits & SU_ARMOR)
-			i = MSG_ReadShort ();
-		else
-			i = 0;
-		if (cl.stats[0][STAT_ARMOR] != i)
-		{
-			cl.stats[0][STAT_ARMOR] = i;
-			Sbar_Changed ();
-		}
+		CL_SetStat(0, STAT_AMMO, MSG_ReadShort());
 
-		if (bits & SU_WEAPON)
-			i = MSG_ReadShort ();
-		else
-			i = 0;
-		if (cl.stats[0][STAT_WEAPON] != i)
-		{
-			cl.stats[0][STAT_WEAPON] = i;
-			Sbar_Changed ();
-		}
-		
-		i = MSG_ReadShort ();
-		if (cl.stats[0][STAT_HEALTH] != i)
-		{
-			cl.stats[0][STAT_HEALTH] = i;
-			Sbar_Changed ();
-		}
+		CL_SetStat(0, STAT_SHELLS, MSG_ReadShort());
+		CL_SetStat(0, STAT_NAILS, MSG_ReadShort());
+		CL_SetStat(0, STAT_ROCKETS, MSG_ReadShort());
+		CL_SetStat(0, STAT_CELLS, MSG_ReadShort());
 
-		i = MSG_ReadShort ();
-		if (cl.stats[0][STAT_AMMO] != i)
-		{
-			cl.stats[0][STAT_AMMO] = i;
-			Sbar_Changed ();
-		}
-
-		for (i=0 ; i<4 ; i++)
-		{
-			j = MSG_ReadShort ();
-			if (cl.stats[0][STAT_SHELLS+i] != j)
-			{
-				cl.stats[0][STAT_SHELLS+i] = j;
-				Sbar_Changed ();
-			}
-		}
-
-		i = MSG_ReadShort ();
-
+		CL_SetStat(0, STAT_ACTIVEWEAPON, (unsigned short)MSG_ReadShort());
 	}
 	else
 	{
-		if (bits & SU_WEAPONFRAME)
-			i = MSG_ReadByte ();
-		else
-			i = 0;
+		CL_SetStat(0, STAT_WEAPONFRAME, (bits & SU_WEAPONFRAME)?(unsigned char)MSG_ReadByte():0);
+		CL_SetStat(0, STAT_ARMOR, (bits & SU_ARMOR)?MSG_ReadByte():0);
+		CL_SetStat(0, STAT_WEAPON, (bits & SU_WEAPON)?MSG_ReadByte():0);
 
-		cl.stats[0][STAT_WEAPONFRAME] = i;
+		CL_SetStat(0, STAT_HEALTH, MSG_ReadShort());
 
-		if (bits & SU_ARMOR)
-			i = MSG_ReadByte ();
-		else
-			i = 0;
-		if (cl.stats[0][STAT_ARMOR] != i)
-		{
-			cl.stats[0][STAT_ARMOR] = i;
-			Sbar_Changed ();
-		}
+		CL_SetStat(0, STAT_AMMO, MSG_ReadByte());
 
-		if (bits & SU_WEAPON)
-			i = MSG_ReadByte ();
-		else
-			i = 0;
-		if (cl.stats[0][STAT_WEAPON] != i)
-		{
-			cl.stats[0][STAT_WEAPON] = i;
-			Sbar_Changed ();
-		}
-		
-		i = MSG_ReadShort ();
-		if (cl.stats[0][STAT_HEALTH] != i)
-		{
-			cl.stats[0][STAT_HEALTH] = i;
-			Sbar_Changed ();
-		}
+		CL_SetStat(0, STAT_SHELLS, MSG_ReadByte());
+		CL_SetStat(0, STAT_NAILS, MSG_ReadByte());
+		CL_SetStat(0, STAT_ROCKETS, MSG_ReadByte());
+		CL_SetStat(0, STAT_CELLS, MSG_ReadByte());
 
-		i = MSG_ReadByte ();
-		if (cl.stats[0][STAT_AMMO] != i)
-		{
-			cl.stats[0][STAT_AMMO] = i;
-			Sbar_Changed ();
-		}
-
-		for (i=0 ; i<4 ; i++)
-		{
-			j = MSG_ReadByte ();
-			if (cl.stats[0][STAT_SHELLS+i] != j)
-			{
-				cl.stats[0][STAT_SHELLS+i] = j;
-				Sbar_Changed ();
-			}
-		}
-
-		i = MSG_ReadByte ();
+		CL_SetStat(0, STAT_ACTIVEWEAPON, (unsigned short)MSG_ReadShort());
 	}
-
-	if (standard_quake)
-	{
-		if (cl.stats[0][STAT_ACTIVEWEAPON] != i)
-		{
-			cl.stats[0][STAT_ACTIVEWEAPON] = i;
-			Sbar_Changed ();
-		}
-	}
-	else
-	{
-		if (cl.stats[0][STAT_ACTIVEWEAPON] != (1<<i))
-		{
-			cl.stats[0][STAT_ACTIVEWEAPON] = (1<<i);
-			Sbar_Changed ();
-		}
-	}
-
-
 
 	if (bits & DPSU_VIEWZOOM)
 	{
-		if (nq_dp_protocol == 5)
+		if (nq_dp_protocol == 5 || nq_dp_protocol == 6)
 			i = (unsigned short) MSG_ReadShort();
 		else
 			i = MSG_ReadByte();
 		if (i < 2)
 			i = 2;
-//		cl.viewzoomnew = (float) i * (1.0f / 255.0f);
+		CL_SetStat(0, STAT_VIEWZOOM, i);
 	}
-//	else
-//		cl.viewzoomnew = 1;
+	else if (nq_dp_protocol != 6)
+		CL_SetStat(0, STAT_VIEWZOOM, 255);
 }
 #endif
 /*
@@ -2605,11 +2514,11 @@ void CL_SetStat (int pnum, int stat, int value)
 		return;
 //		Host_EndGame ("CL_SetStat: %i is invalid", stat);
 
-	Sbar_Changed ();
+	if (cl.stats[pnum][stat] != value)
+		Sbar_Changed ();
 	
 	if (stat == STAT_ITEMS)
 	{	// set flash times
-		Sbar_Changed ();
 		for (j=0 ; j<32 ; j++)
 			if ( (value & (1<<j)) && !(cl.stats[pnum][stat] & (1<<j)))
 				cl.item_gettime[pnum][j] = cl.time;
@@ -4138,6 +4047,44 @@ void CLNQ_ParseServerMessage (void)
 			vid.recalc_refdef = true;	// leave full screen intermission			
 			break;
 
+		case 54://svc_precache:
+			{
+				int i = (unsigned short)MSG_ReadShort();
+				char *s = MSG_ReadString();
+				if (i < 32768)
+				{
+					if (i >= 1 && i < MAX_MODELS)
+					{
+						model_t *model;
+						CL_CheckOrDownloadFile(s, true);
+						model = Mod_ForName(s, i == 1);
+						if (!model)
+							Con_Printf("svc_precache: Mod_ForName(\"%s\") failed\n", s);
+						cl.model_precache[i] = model;
+						strcpy (cl.model_name[i], s);
+					}
+					else
+						Con_Printf("svc_precache: model index %i outside range %i...%i\n", i, 1, MAX_MODELS);
+				}
+				else
+				{
+					i -= 32768;
+					if (i >= 1 && i < MAX_SOUNDS)
+					{
+						sfx_t *sfx;
+						CL_CheckOrDownloadFile(va("sounds/%s", s), true);
+						sfx = S_PrecacheSound (s);
+						if (!sfx)
+							Con_Printf("svc_precache: S_PrecacheSound(\"%s\") failed\n", s);
+						cl.sound_precache[i] = sfx;
+						strcpy (cl.sound_name[i], s);
+					}
+					else
+						Con_Printf("svc_precache: sound index %i outside range %i...%i\n", i, 1, MAX_SOUNDS);
+				}
+			}
+			break;
+
 		case svc_cdtrack:
 			cl.cdtrack = MSG_ReadByte ();
 			MSG_ReadByte ();
@@ -4186,7 +4133,7 @@ void CLNQ_ParseServerMessage (void)
 			cl.last_servermessage = realtime;
 			cl.gametime = MSG_ReadFloat();
 			cl.gametimemark = realtime;
-			if (nq_dp_protocol!=5)
+			if (nq_dp_protocol<5)
 			{
 				cls.netchan.incoming_sequence++;
 //				cl.frames[(cls.netchan.incoming_sequence-1)&UPDATE_MASK].packet_entities = cl.frames[cls.netchan.incoming_sequence&UPDATE_MASK].packet_entities;
@@ -4239,6 +4186,11 @@ void CLNQ_ParseServerMessage (void)
 		case svc_updatestat:
 			i = MSG_ReadByte ();			
 			j = MSG_ReadLong ();
+			CL_SetStat (0, i, j);
+			break;
+		case 51://svc_updatestat:
+			i = MSG_ReadByte ();			
+			j = MSG_ReadByte ();
 			CL_SetStat (0, i, j);
 			break;
 		case svc_setangle:
@@ -4308,11 +4260,11 @@ void CLNQ_ParseServerMessage (void)
 			break;
 
 		case 57://svc_entities
-	if (cls.signon == 4 - 1)
-	{	// first update is the final signon stage
-		cls.signon = 4;
-		CLNQ_SignonReply ();
-	}	
+			if (cls.signon == 4 - 1)
+			{	// first update is the final signon stage
+				cls.signon = 4;
+				CLNQ_SignonReply ();
+			}	
 			//well, it's really any protocol, but we're only going to support version 5.
 			CLNQ_ParseDarkPlaces5Entities();
 			break;

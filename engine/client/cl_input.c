@@ -545,6 +545,69 @@ void CL_FinishMove (usercmd_t *cmd, int msecs, int pnum)
 	cmd->upmove = MakeChar (cmd->upmove);
 }
 
+cvar_t cl_prydoncursor = {"cl_prydoncursor", "0"};
+void CL_UpdatePrydonCursor(float cursor_screen[2], vec3_t cursor_start, vec3_t cursor_impact, int *entnum)
+{
+	float modelview[16];
+	vec3_t cursor_end;
+	trace_t tr;
+
+	vec3_t temp, scale;
+
+	if (!cl_prydoncursor.value)
+	{	//center the cursor
+		cursor_screen[0] = 0;
+		cursor_screen[1] = 0;
+	}
+
+	/*
+	if (cl.cmd.cursor_screen[0] < -1)
+	{
+		cl.viewangles[YAW] -= m_yaw.value * (cl.cmd.cursor_screen[0] - -1) * vid.realwidth * sensitivity.value * cl.viewzoom;
+		cl.cmd.cursor_screen[0] = -1;
+	}
+	if (cl.cmd.cursor_screen[0] > 1)
+	{
+		cl.viewangles[YAW] -= m_yaw.value * (cl.cmd.cursor_screen[0] - 1) * vid.realwidth * sensitivity.value * cl.viewzoom;
+		cl.cmd.cursor_screen[0] = 1;
+	}
+	if (cl.cmd.cursor_screen[1] < -1)
+	{
+		cl.viewangles[PITCH] += m_pitch.value * (cl.cmd.cursor_screen[1] - -1) * vid.realheight * sensitivity.value * cl.viewzoom;
+		cl.cmd.cursor_screen[1] = -1;
+	}
+	if (cl.cmd.cursor_screen[1] > 1)
+	{
+		cl.viewangles[PITCH] += m_pitch.value * (cl.cmd.cursor_screen[1] - 1) * vid.realheight * sensitivity.value * cl.viewzoom;
+		cl.cmd.cursor_screen[1] = 1;
+	}
+	*/
+//	cursor_screen[0] = bound(-1, cursor_screen[0], 1);
+//	cursor_screen[1] = bound(-1, cursor_screen[1], 1);
+
+	scale[0] = -tan(r_refdef.fov_x * M_PI / 360.0);
+	scale[1] = -tan(r_refdef.fov_y * M_PI / 360.0);
+	scale[2] = 1;
+
+	// trace distance
+	VectorScale(scale, 1000000, scale);
+
+
+	VectorCopy(cl.simorg[0], cursor_start);
+	temp[0] = cursor_screen[2] * scale[2];
+	temp[1] = cursor_screen[0] * scale[0];
+	temp[2] = cursor_screen[1] * scale[1];
+
+	ML_ModelViewMatrix(modelview, cl.viewangles[0], cl.simorg[0]);
+	Matrix4_Transform3(modelview, temp, cursor_end);
+
+	tr = PM_PlayerTrace(cursor_start, cursor_end);
+	VectorCopy(tr.endpos, cursor_impact);
+//	CL_SelectTraceLine(cursor_start, cursor_end, cursor_impact, entnum);
+	// makes sparks where cursor is
+	//CL_SparkShower(cl.cmd.cursor_impact, cl.cmd.cursor_normal, 5, 0);
+}
+
 #ifdef NQPROT
 void CLNQ_SendMove (usercmd_t		*cmd, int pnum)
 {
@@ -552,6 +615,10 @@ void CLNQ_SendMove (usercmd_t		*cmd, int pnum)
 	int i;
 	sizebuf_t	buf;
 	qbyte	data[128];
+
+	float cursor_screen[2];
+	vec3_t cursor_start, cursor_impact;
+	int cursor_entitynumber=0;//I hate warnings as errors
 	
 	buf.maxsize = 128;
 	buf.cursize = 0;
@@ -583,8 +650,13 @@ void CLNQ_SendMove (usercmd_t		*cmd, int pnum)
 	if (in_button7.state[pnum] & 3)	bits |=  64; in_button7.state[pnum] &= ~2;
 	if (in_button8.state[pnum] & 3)	bits |= 128; in_button8.state[pnum] &= ~2;
 
-	
-    MSG_WriteByte (&buf, bits);
+	if (nq_dp_protocol == 6)
+	{
+		CL_UpdatePrydonCursor(cursor_screen, cursor_start, cursor_impact, &cursor_entitynumber);
+		MSG_WriteLong (&buf, bits);
+	}
+	else
+		MSG_WriteByte (&buf, bits);
 
 	if (in_impulsespending[pnum])
 	{
@@ -594,6 +666,21 @@ void CLNQ_SendMove (usercmd_t		*cmd, int pnum)
 	}
 	else
 		MSG_WriteByte (&buf, 0);
+
+
+	if (nq_dp_protocol == 6)
+	{
+		MSG_WriteShort (&buf, cursor_screen[0] * 32767.0f);
+		MSG_WriteShort (&buf, cursor_screen[1] * 32767.0f);
+		MSG_WriteFloat (&buf, cursor_start[0]);
+		MSG_WriteFloat (&buf, cursor_start[1]);
+		MSG_WriteFloat (&buf, cursor_start[2]);
+		MSG_WriteFloat (&buf, cursor_impact[0]);
+		MSG_WriteFloat (&buf, cursor_impact[1]);
+		MSG_WriteFloat (&buf, cursor_impact[2]);
+		MSG_WriteShort (&buf, cursor_entitynumber);
+	}
+
 
 
 //

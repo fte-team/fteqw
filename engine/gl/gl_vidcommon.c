@@ -124,7 +124,6 @@ int		texture_mode = GL_LINEAR;
 
 int		texture_extension_number = 1;
 
-#define fieldvector(name) QC_RegisterFieldVar(svprogfuncs, ev_vector, #name, (int)&((edict_t*)0)->v.name - (int)&((edict_t*)0)->v, -1)
 #define getglcore getglfunction
 #define getglext(name) getglfunction(name)
 void GL_CheckExtensions (void *(*getglfunction) (char *name))

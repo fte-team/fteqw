@@ -185,6 +185,10 @@ typedef struct part_type_s {
 	float scalefactor;
 	float invscalefactor;
 
+	float spawnparam1;
+	float spawnparam2;
+/*	float spawnparam3; */
+
 	float offsetup; // make this into a vec3_t later with dir, possibly for mdls
 
 	enum {SM_BOX, SM_CIRCLE, SM_BALL, SM_SPIRAL, SM_TRACER, SM_TELEBOX, SM_LAVASPLASH, SM_UNICIRCLE, SM_FIELD} spawnmode;	
@@ -497,7 +501,7 @@ void P_ParticleEffect_f(void)
 		else if (!strcmp(var, "colorrand"))
 			ptype->colorrand = atoi(value);
 		else if (!strcmp(var, "citracer"))
-			ptype->citracer = true;
+			ptype->citracer = true; 
 
 		else if (!strcmp(var, "red"))
 			ptype->rgb[0] = atof(value)/255;
@@ -602,6 +606,7 @@ void P_ParticleEffect_f(void)
 		else if (!strcmp(var, "emitstart"))
 			ptype->emitstart = atof(value);
 
+		// old names
 		else if (!strcmp(var, "areaspread"))
 			ptype->areaspread = atof(value);
 		else if (!strcmp(var, "areaspreadvert"))
@@ -610,6 +615,31 @@ void P_ParticleEffect_f(void)
 			ptype->offsetspread = atof(value);
 		else if (!strcmp(var, "offsetspreadvert"))
 			ptype->offsetspreadvert  = atof(value);
+
+		// new names
+		else if (!strcmp(var, "spawnorg"))
+		{
+			ptype->areaspreadvert = ptype->areaspread = atof(value);
+
+			if (Cmd_Argc()>2)
+				ptype->areaspreadvert = atof(Cmd_Argv(2));
+		}
+		else if (!strcmp(var, "spawnvel"))
+		{
+			ptype->offsetspreadvert = ptype->offsetspread = atof(value);
+
+			if (Cmd_Argc()>2)
+				ptype->offsetspreadvert = atof(Cmd_Argv(2));
+		}
+
+		// spawn mode param fields
+		else if (!strcmp(var, "spawnparam1"))
+			ptype->spawnparam1 = atof(value);
+		else if (!strcmp(var, "spawnparam2"))
+			ptype->spawnparam2 = atof(value);
+/*		else if (!strcmp(var, "spawnparam3"))
+			ptype->spawnparam3 = atof(value); */
+
 		else if (!strcmp(var, "up"))
 			ptype->offsetup = atof(value);
 		else if (!strcmp(var, "rampmode"))
@@ -1583,7 +1613,7 @@ int P_RunParticleEffectTypeString (vec3_t org, vec3_t dir, float count, char *na
 int P_RunParticleEffectType (vec3_t org, vec3_t dir, float count, int typenum)
 {
 	part_type_t *ptype = &part_type[typenum];
-	int i, j, k, l;
+	int i, j, k, l, spawnspc;
 	float m;
 	particle_t	*p;
 	beamseg_t *b, *bfirst;
@@ -1603,6 +1633,8 @@ int P_RunParticleEffectType (vec3_t org, vec3_t dir, float count, int typenum)
 	{
 		// init spawn specific variables
 		b = bfirst = NULL;
+		spawnspc = 8;
+
 		switch (ptype->spawnmode)
 		{
 		case SM_UNICIRCLE:
@@ -1614,11 +1646,22 @@ int P_RunParticleEffectType (vec3_t org, vec3_t dir, float count, int typenum)
 				m = 0;
 			else
 				m = (M_PI*2)/m;
+
+			if (ptype->spawnparam1) /* use for weird shape hacks */
+				m *= ptype->spawnparam1;
 			break;
 		case SM_TELEBOX:
+			spawnspc = 4;
 			l = -ptype->areaspreadvert;
 		case SM_LAVASPLASH:
 			j = k = -ptype->areaspread;
+			if (ptype->spawnparam1)
+				m = ptype->spawnparam1;
+			else
+				m = 0.55752; /* default weird number for tele/lavasplash used in vanilla Q1 */
+
+			if (ptype->spawnparam2)
+				spawnspc = (int)ptype->spawnparam2;
 			break;
 		case SM_FIELD:
 			if (!avelocities[0][0])
@@ -1722,23 +1765,23 @@ int P_RunParticleEffectType (vec3_t org, vec3_t dir, float count, int typenum)
 				ofsvec[1] = j;
 				ofsvec[2] = l+4;
 				VectorNormalize(ofsvec);
-				VectorScale(ofsvec, 1.0-(frandom())*0.55752, ofsvec);
+				VectorScale(ofsvec, 1.0-(frandom())*m, ofsvec);
 
 				// org is just like the original
-				arsvec[0] = j + (rand()&3);
-				arsvec[1] = k + (rand()&3);
-				arsvec[2] = l + (rand()&3);
+				arsvec[0] = j + (rand()%spawnspc);
+				arsvec[1] = k + (rand()%spawnspc);
+				arsvec[2] = l + (rand()%spawnspc);
 
 				// advance telebox loop
-				j += 4;
+				j += spawnspc;
 				if (j >= ptype->areaspread)
 				{
 					j = -ptype->areaspread;
-					k += 4;
+					k += spawnspc;
 					if (k >= ptype->areaspread)
 					{
 						k = -ptype->areaspread;
-						l += 4;
+						l += spawnspc;
 						if (l >= ptype->areaspreadvert)
 							l = -ptype->areaspreadvert;
 					}
@@ -1746,8 +1789,8 @@ int P_RunParticleEffectType (vec3_t org, vec3_t dir, float count, int typenum)
 				break;
 			case SM_LAVASPLASH:
 				// calc directions, org with temp vector
-				ofsvec[0] = k*8 + (rand()&7);
-				ofsvec[1] = j*8 + (rand()&7);
+				ofsvec[0] = k*spawnspc + (rand()%spawnspc);
+				ofsvec[1] = j*spawnspc + (rand()%spawnspc);
 				ofsvec[2] = 256;
 
 				arsvec[0] = ofsvec[0];
@@ -1755,9 +1798,9 @@ int P_RunParticleEffectType (vec3_t org, vec3_t dir, float count, int typenum)
 				arsvec[2] = frandom()*ptype->areaspreadvert;
 
 				VectorNormalize(ofsvec);
-				VectorScale(ofsvec, 1.0-(frandom())*0.55752, ofsvec);
+				VectorScale(ofsvec, 1.0-(frandom())*m, ofsvec);
 
-				// advance splash loop
+				// advance splash loop (fix this)
 				j++;
 				if (j >= ptype->areaspread)
 				{
@@ -2083,6 +2126,7 @@ int P_ParticleTrail (vec3_t startpos, vec3_t end, int type, trailstate_t *ts)
 	float randvel = ptype->randomvel;
 	float step;
 	float stop;
+	float tdegree = 1/50; /* MSVC whine */
 
 	if (!ptype->loaded)
 		return 1;
@@ -2118,9 +2162,9 @@ int P_ParticleTrail (vec3_t startpos, vec3_t end, int type, trailstate_t *ts)
 	{
 		VectorVectors(vec, right, up);
 
-		//nice idea, stops areaspread/offsetspread being so seperate.
-//		VectorScale(right, ptype->offsetspread, right);
-//		VectorScale(up, ptype->offsetspread, up);
+		// precalculate degree of rotation
+		if (ptype->spawnparam1)
+			tdegree = ptype->spawnparam1*M_PI/180; /* degrees per quake unit */
 	}
 
 	if (ts)
@@ -2193,7 +2237,10 @@ int P_ParticleTrail (vec3_t startpos, vec3_t end, int type, trailstate_t *ts)
 		p->color = 0;
 
 //		if (ptype->spawnmode == SM_TRACER)
-		tcount = (int)(len * ptype->count);
+		if (ptype->spawnparam1)
+			tcount = (int)(len * ptype->count / ptype->spawnparam1);
+		else
+			tcount = (int)(len * ptype->count);
 
 		if (ptype->colorindex >= 0)
 		{
@@ -2259,15 +2306,15 @@ int P_ParticleTrail (vec3_t startpos, vec3_t end, int type, trailstate_t *ts)
 			{
 				float tsin, tcos;
 
-				tcos = cos(len/50)*ptype->areaspread;
-				tsin = sin(len/50)*ptype->areaspread;
+				tcos = cos(len*tdegree)*ptype->areaspread;
+				tsin = sin(len*tdegree)*ptype->areaspread;
 
 				p->org[0] = start[0] + right[0]*tcos + up[0]*tsin;
 				p->org[1] = start[1] + right[1]*tcos + up[1]*tsin;
 				p->org[2] = start[2] + right[2]*tcos + up[2]*tsin;
 
-				tcos = cos(len/50)*ptype->offsetspread;
-				tsin = sin(len/50)*ptype->offsetspread;
+				tcos = cos(len*tdegree)*ptype->offsetspread;
+				tsin = sin(len*tdegree)*ptype->offsetspread;
 
 				p->vel[0] = vec[0]*veladd+crandom()*randvel + right[0]*tcos + up[0]*tsin;
 				p->vel[1] = vec[1]*veladd+crandom()*randvel + right[1]*tcos + up[1]*tsin;

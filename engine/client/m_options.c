@@ -311,7 +311,7 @@ void M_Menu_Particles_f (void)
 	int y = 32;
 	menu_t *menu;
 	int mgt;
-	extern cvar_t r_bouncysparks, r_part_rain, gl_part_torch, gl_part_flame, gl_part_trifansparks;
+	extern cvar_t r_bouncysparks, r_part_rain, gl_part_torch, gl_part_flame;
 
 	static const char *r_part_rain_options[] = {
 		"off",

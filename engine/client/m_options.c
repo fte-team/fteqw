@@ -369,14 +369,8 @@ void M_Menu_Particles_f (void)
 //	MC_AddSlider(menu, 16, y,			"       exp spark count", &r_particles_in_explosion, 16, 1024);y+=8;
 	MC_AddCvarCombo(menu, 16, y,		"     texture emittance", &r_part_rain, r_part_rain_options, r_part_rain_values);y+=8;
 
-#ifdef RGLQUAKE
-	if (qrenderer == QR_OPENGL)	//sw doesn't have these.
-	{
-		MC_AddCvarCombo(menu, 16, y,		"      WallTorch effect", &gl_part_torch, gl_part_effects_ops, gl_part_effects_vals);y+=8;
-		MC_AddCvarCombo(menu, 16, y,		"     Open flame effect", &gl_part_flame, gl_part_effects_ops, gl_part_effects_vals);y+=8;
-		MC_AddCheckBox(menu, 16, y,			"         Trifan Sparks", &gl_part_trifansparks,0);y+=8;
-	}
-#endif
+	MC_AddCvarCombo(menu, 16, y,		"      WallTorch effect", &gl_part_torch, gl_part_effects_ops, gl_part_effects_vals);y+=8;
+	MC_AddCvarCombo(menu, 16, y,		"     Open flame effect", &gl_part_flame, gl_part_effects_ops, gl_part_effects_vals);y+=8;
 
 
 	menu->cursoritem = (menuoption_t*)MC_AddWhiteText(menu, 200, 32, NULL, false);
@@ -389,7 +383,7 @@ void M_Menu_FPS_f (void)
 	menu_t *menu;
 	int mgt;
 #ifdef RGLQUAKE
-	extern cvar_t gl_compress, gl_waterripples, gl_detail, gl_bump, r_flashblend;
+	extern cvar_t gl_compress, gl_detail, gl_bump, r_flashblend;
 #endif
 #ifdef SWQUAKE
 	extern cvar_t d_smooth, d_mipscale, d_mipcap;
@@ -438,7 +432,6 @@ void M_Menu_FPS_f (void)
 		MC_AddCheckBox(menu, 48, y,			"        Detailmaps", &gl_detail,0);y+=8;
 		MC_AddCheckBox(menu, 48, y,			"          Bumpmaps", &gl_bump,0);y+=8;
 		MC_AddCheckBox(menu, 48, y,			"   Tex Compression", &gl_compress,0);y+=8;
-		MC_AddCheckBox(menu, 48, y,			"Other Water Effect", &gl_waterripples,0);y+=8;
 		MC_AddCheckBox(menu, 48, y,			"   32 bit textures", &gl_load24bit,0);y+=8;
 		break;
 #endif

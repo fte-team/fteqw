@@ -314,6 +314,13 @@ void SVQ2_ConfigStrings_f (void)
 
 	start = atoi(Cmd_Argv(2));
 
+	if (start < 0)
+	{
+		Con_Printf ("SV_Configstrings_f: %s tried crashing us\n", host_client->name);
+		host_client->drop = true;
+		return;
+	}
+
 	// write a packet full of data
 
 	while ( host_client->netchan.message.cursize < MAX_QWMSGLEN/2 
@@ -3975,6 +3982,7 @@ haveannothergo:
 						SV_RunCmd (&newcmd, false);
 
 						SV_PostRunCmd();
+				
 					}
 
 					cl->lastcmd = newcmd;

@@ -87,6 +87,7 @@ void ResampleSfx (sfx_t *sfx, int inrate, int inwidth, qbyte *data)
 			{
 				srcsample = samplefrac >> 8;
 				samplefrac += fracstep;
+
 				if (inwidth == 2)
 					sample = LittleShort ( ((short *)data)[(srcsample<<1)] );
 				else
@@ -165,7 +166,6 @@ sfxcache_t *S_LoadSound (sfx_t *s)
 	qbyte	*data;
 	wavinfo_t	info;
 	int		len;
-	float	stepscale;
 	sfxcache_t	*sc;
 	qbyte	stackbuf[1*1024];		// avoid dirtying the cache heap
 
@@ -217,15 +217,13 @@ sfxcache_t *S_LoadSound (sfx_t *s)
 	}
 
 	info = GetWavinfo (s->name, data, com_filesize);
-	if (info.numchannels != 1)
+	if (info.numchannels < 1 || info.numchannels > 2)
 	{
-		Con_Printf ("%s is a stereo sample\n",s->name);
+		Con_Printf ("%s has an unsupported quantity of channels.\n",s->name);
 		return NULL;
 	}
 
-	stepscale = (float)info.rate / snd_speed;	
-	len = info.samples / stepscale;
-
+	len = (int) ((double) info.samples * (double) snd_speed / (double) info.rate);
 	len = len * info.width * info.numchannels;
 
 	sc = Cache_Alloc ( &s->cache, len + sizeof(sfxcache_t), s->name);
@@ -236,7 +234,7 @@ sfxcache_t *S_LoadSound (sfx_t *s)
 	sc->loopstart = info.loopstart;
 	sc->speed = info.rate;
 	sc->width = info.width;
-	sc->stereo = 0;//info.numchannels;
+	sc->stereo = info.numchannels-1;
 
 	ResampleSfx (s, sc->speed, sc->width, data + info.dataofs);
 
@@ -416,7 +414,7 @@ wavinfo_t GetWavinfo (char *name, qbyte *wav, int wavlength)
 	}
 
 	data_p += 4;
-	samples = GetLittleLong () / info.width;
+	samples = GetLittleLong () / info.width /info.numchannels;
 
 	if (info.samples)
 	{

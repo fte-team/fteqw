@@ -834,7 +834,7 @@ void	GLVID_ShiftPalette (unsigned char *palette)
 	
 //	VID_SetPalette (palette);
 
-	if (vid_hardwaregamma.value)	//this is needed because ATI drivers don't work properly.
+	if (ActiveApp && vid_hardwaregamma.value)	//this is needed because ATI drivers don't work properly (or when task-switched out).
 		gammaworks = !!SetDeviceGammaRamp (maindc, ramps);
 	else
 		gammaworks = false;
@@ -981,12 +981,15 @@ void GLAppActivate(BOOL fActive, BOOL minimize)
 								// Fix for alt-tab bug in NVidia drivers
 				MoveWindow (mainwindow, 0, 0, gdevmode.dmPelsWidth, gdevmode.dmPelsHeight, false);
 			}
+			gl_2dscale.modified = true;
 		}
 		else if ((modestate == MS_WINDOWED) && _windowed_mouse.value && (key_dest == key_game || key_dest == key_menu))
 		{
 			IN_ActivateMouse ();
 			IN_HideMouse ();
 		}
+
+		v_gamma.modified = true;	//so that we can start doing palette flashes and things
 	}
 
 	if (!fActive)
@@ -1005,6 +1008,10 @@ void GLAppActivate(BOOL fActive, BOOL minimize)
 			IN_DeactivateMouse ();
 			IN_ShowMouse ();
 		}
+
+		v_gamma.modified = true;	//wham bam thanks.
+
+		SetDeviceGammaRamp(maindc, origionalgammaramps);
 	}
 }
 

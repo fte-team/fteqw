@@ -703,7 +703,7 @@ void R_AliasSetupSkin (void)
 			r_affinetridesc.skinheight = skin->height;
 		}
 	}
-	else if (currententity->scoreboard)
+	else if (currententity->scoreboard && r_pixbytes == 4)
 	{
 		qbyte	*base;
 		skin_t	*skin;

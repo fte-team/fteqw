@@ -23,7 +23,6 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 
 cvar_t com_fs_cache = {"fs_cache", "0", NULL, CVAR_ARCHIVE};
 cvar_t rcon_level = {"rcon_level", "50"};
-cvar_t cmd_onestuffwonder = {"cmd_stuffcmdonce", "1"};
 cvar_t cmd_maxbuffersize = {"cmd_maxbuffersize", "65536"};
 int	Cmd_ExecLevel;
 
@@ -400,19 +399,13 @@ quake +prog jctest.qp +cmd amlev1
 quake -nosound +cmd amlev1
 ===============
 */
-void Cmd_StuffCmds_f (void)
+void Cmd_StuffCmds (void)
 {
 	int		i, j;
 	int		s;
 	char	*text, *build, c;
 
-	static qboolean getstuffed = true;
 
-	if (!getstuffed && cmd_onestuffwonder.value)
-		return;
-
-	getstuffed = false;
-		
 // build the combined string to parse from
 	s = 0;
 	for (i=1 ; i<com_argc ; i++)
@@ -459,7 +452,7 @@ void Cmd_StuffCmds_f (void)
 	}
 	
 	if (build[0])
-		Cbuf_InsertText (build, Cmd_ExecLevel);
+		Cbuf_AddText (build, RESTRICT_LOCAL);
 	
 	Z_Free (text);
 	Z_Free (build);
@@ -2655,7 +2648,6 @@ void Cmd_Init (void)
 //
 // register our commands
 //
-	Cmd_AddCommand ("stuffcmds",Cmd_StuffCmds_f);
 	Cmd_AddCommand ("cfg_save",Cmd_WriteConfig_f);
 	Cmd_AddCommand ("cfg_load",Cmd_Exec_f);
 
@@ -2696,7 +2688,6 @@ void Cmd_Init (void)
 	rcon_level.restriction = RESTRICT_MAX;	//default. Don't let anyone change this too easily.
 	cmd_maxbuffersize.restriction = RESTRICT_MAX;	//filling this causes a loop for quite some time.
 
-	Cvar_Register(&cmd_onestuffwonder, "Console");
 	Cvar_Register(&cl_aliasoverlap, "Console");
 
 	//FIXME: go through quake.rc and parameters looking for sets and setas and setting them now.

@@ -2039,7 +2039,7 @@ char	com_basedir[MAX_OSPATH];
 #define uShort ZLIBuShort
 #define uLong ZLIBuLong
 #else
-typedef unsigned short uShort;
+//typedef unsigned short uShort;
 #endif
 #include "unzip.c"
 

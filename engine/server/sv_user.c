@@ -137,13 +137,24 @@ void SV_New_f (void)
 		SZ_Clear(&host_client->netchan.message);
 	}
 
+	if (sizeofcoord > 2 && !(host_client->fteprotocolextensions & PEXT_FLOATCOORDS))
+	{
+		SV_ClientPrintf(host_client, 2, "\n\n\n\nSorry, but your client does not appear to support FTE's bigcoords\nFTE users will need to set cl_nopext to 0 and then reconnect, or to upgrade\n");
+		Con_Printf("%s does not support bigcoords\n", host_client->name);
+		return;
+	}
+
+
 	// send the serverdata
 	MSG_WriteByte (&host_client->netchan.message, host_client->isq2client?svcq2_serverdata:svc_serverdata);
 #ifdef PROTOCOL_VERSION_FTE
 	if (host_client->fteprotocolextensions)//let the client know
 	{
 		MSG_WriteLong (&host_client->netchan.message, PROTOCOL_VERSION_FTE);
-		MSG_WriteLong (&host_client->netchan.message, host_client->fteprotocolextensions);
+		if (sizeofcoord == 2)	//we're not using float orgs on this level.
+			MSG_WriteLong (&host_client->netchan.message, host_client->fteprotocolextensions&~PEXT_FLOATCOORDS);
+		else
+			MSG_WriteLong (&host_client->netchan.message, host_client->fteprotocolextensions);
 	}
 #endif
 	MSG_WriteLong (&host_client->netchan.message, host_client->isq2client?host_client->isq2client:PROTOCOL_VERSION);
@@ -538,6 +549,65 @@ void SVQ2_NextServer_f (void)
 }
 #endif
 
+void SV_PK3List_f (void)
+{
+	int crc;
+	char *name;
+	int n, i;
+
+	if (host_client->state != cs_connected)
+	{	//fixme: send prints instead
+		Con_Printf ("pk3list not valid -- allready spawned\n");
+		return;
+	}
+
+	// handle the case of a level changing while a client was connecting
+	if ( atoi(Cmd_Argv(1)) != svs.spawncount && !sv.msgfromdemo)
+	{
+		Con_Printf ("SV_PK3List_f from different level\n");
+		SV_New_f ();
+		return;
+	}
+
+	i = atoi(Cmd_Argv(2));
+	
+//NOTE:  This doesn't go through ClientReliableWrite since it's before the user
+//spawns.  These functions are written to not overflow
+	if (host_client->num_backbuf) {
+		Con_Printf("WARNING %s: [SV_Soundlist] Back buffered (%d), clearing", host_client->name, host_client->netchan.message.cursize); 
+		host_client->num_backbuf = 0;
+		SZ_Clear(&host_client->netchan.message);
+	}
+	if (i < 0)
+	{
+		Con_Printf ("SV_PK3List_f: %s tried to crash us\n", host_client->name);
+		SV_DropClient(host_client);
+		return;
+	}
+
+	for (i; ; i++)
+	{
+		if (host_client->netchan.message.cursize < (MAX_QWMSGLEN/2))
+		{	//user's buffer was too small
+			MSG_WriteByte(&host_client->netchan.message, svc_stufftext);
+			MSG_WriteString(&host_client->netchan.message, va("cmd pk3list %i %i\n", svs.spawncount, 0));
+			return;	//and stop before we flood them
+		}
+
+		name = COM_GetPathInfo(i, &crc);
+
+		if (name && *name)
+		{
+			MSG_WriteByte(&host_client->netchan.message, svc_stufftext);
+			MSG_WriteString(&host_client->netchan.message, va("echo packfile %s\n", name));
+			continue;	//okay, that was all we could find.
+		}
+		MSG_WriteByte(&host_client->netchan.message, svc_stufftext);
+		MSG_WriteString(&host_client->netchan.message, va("soundlist %i 0\n", svs.spawncount));
+		return;
+	}
+}
+
 /*
 ==================
 SV_Soundlist_f
@@ -571,6 +641,13 @@ void SV_Soundlist_f (void)
 		Con_Printf("WARNING %s: [SV_Soundlist] Back buffered (%d), clearing", host_client->name, host_client->netchan.message.cursize); 
 		host_client->num_backbuf = 0;
 		SZ_Clear(&host_client->netchan.message);
+	}
+
+	if (n < 0)
+	{
+		Con_Printf ("SV_Soundlist_f: %s tried to crash us\n", host_client->name);
+		SV_DropClient(host_client);
+		return;
 	}
 
 	MSG_WriteByte (&host_client->netchan.message, svc_soundlist);
@@ -630,6 +707,13 @@ void SV_Modellist_f (void)
 		Con_Printf("WARNING %s: [SV_Modellist] Back buffered (%d), clearing", host_client->name, host_client->netchan.message.cursize); 
 		host_client->num_backbuf = 0;
 		SZ_Clear(&host_client->netchan.message);
+	}
+
+	if (n < 0)
+	{
+		Con_Printf ("SV_Modellist_f: %s tried to crash us\n", host_client->name);
+		SV_DropClient(host_client);
+		return;
 	}
 
 	if (n >= 255)
@@ -701,6 +785,8 @@ void SV_PreSpawn_f (void)
 	buf = atoi(Cmd_Argv(2));
 
 	if (buf >= bufs+statics+sv.num_edicts+255)
+		buf = 0;
+	if (buf < 0)
 		buf = 0;
 
 	if (!buf)
@@ -1057,7 +1143,7 @@ void SV_Begin_f (void)
 
 	for (split = host_client; split; split = split->controlled)
 		split->state = cs_spawned;
-	
+
 	// handle the case of a level changing while a client was connecting
 	if ( atoi(Cmd_Argv(1)) != svs.spawncount && !sv.msgfromdemo)
 	{
@@ -1838,7 +1924,7 @@ void SV_TogglePause (void)
 	{
 		if (!cl->state)
 			continue;
-		if (!cl->isq2client)
+		if (!cl->isq2client && !cl->controller)
 		{
 			ClientReliableWrite_Begin (cl, svc_setpause, 2);
 			ClientReliableWrite_Byte (cl, sv.paused);
@@ -2393,7 +2479,7 @@ static void SetUpClientEdict (client_t *cl, edict_t *ent)
 	ent->v.netname = PR_SetString(svprogfuncs, cl->name);
 
 	if (pr_teamfield)
-		((int *)&ent->v)[pr_teamfield] = (int)PR_SetString(svprogfuncs, cl->team);
+		((string_t *)&ent->v)[pr_teamfield] = (string_t)PR_SetString(svprogfuncs, cl->team);
 
 
 	ent->v.gravity = cl->entgravity = 1.0;
@@ -2558,6 +2644,7 @@ typedef struct
 ucmd_t ucmds[] =
 {
 	{"new", SV_New_f},
+	{"pk3list",	SV_PK3List_f},
 	{"modellist", SV_Modellist_f},
 	{"soundlist", SV_Soundlist_f},
 	{"prespawn", SV_PreSpawn_f},
@@ -3271,10 +3358,13 @@ vec3_t offset;
 
 			VectorCopy (check->v.origin, pe->origin);
 			VectorCopy (check->v.angles, pe->angles);
-			pe->angles[0]*=-1;	//quake is wierd.
 			pe->info = NUM_FOR_EDICT(svprogfuncs, check);
 			if (check->v.solid == SOLID_BSP)
+			{
+				if(progstype != PROG_H2)
+					pe->angles[0]*=-1;	//quake is wierd. I guess someone fixed it hexen2... or my code is buggy or something...
 				pe->model = sv.models[(int)(check->v.modelindex)];
+			}
 			else
 			{
 				pe->model = NULL;

@@ -2126,6 +2126,7 @@ void R_RocketTrail (vec3_t start, vec3_t end, int type, trailstate_t *ts)
 				b = bfirst = free_beams;
 				free_beams = free_beams->next;
 			}
+			b->texture_s = len;
 			b->flags = 0;
 			b->p = p;
 			VectorCopy(vec, b->dir);
@@ -2559,13 +2560,89 @@ void GL_DrawSparkedParticle(particle_t *p, part_type_t *type)
 	glVertex3f (p->org[0]-p->u.p.vel[0]/10, p->org[1]-p->u.p.vel[1]/10, p->org[2]-p->u.p.vel[2]/10);
 
 }
-void GL_DrawParticleBeam(beamseg_t *b, part_type_t *type)
+
+void GL_DrawParticleBeam_Textured(beamseg_t *b, part_type_t *type)
 {
 	vec3_t v, point;
 	vec3_t cr;
 	beamseg_t *c;
 	particle_t *p;
 	particle_t *q;
+	float ts;
+
+//	if (!b->next)
+//		return;
+
+	c = b->next;
+
+	q = c->p;
+//	if (!q)
+//		return;
+
+	p = b->p;
+//	if (!p)
+//		return;
+
+	if (lasttype != type)
+	{
+		lasttype = type;
+		glEnd();
+		glEnable(GL_TEXTURE_2D);
+		GL_Bind(type->texturenum);
+		if (type->blendmode == BM_ADD)		//addative
+			glBlendFunc(GL_SRC_ALPHA, GL_ONE);
+//		else if (type->blendmode == BM_SUBTRACT)	//subtractive
+//			glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+		else
+			glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+		glShadeModel(GL_SMOOTH);
+		glBegin(GL_QUADS);
+	}
+	glColor4f(q->rgb[0],
+			  q->rgb[1],
+			  q->rgb[2],
+			  q->alpha);
+//	glBegin(GL_LINE_LOOP);
+	VectorSubtract(r_refdef.vieworg, q->org, v);
+	VectorNormalize(v);
+	CrossProduct(c->dir, v, cr);
+	ts = b->texture_s*type->rotationstartmin + particletime*type->rotationmin;
+
+	VectorMA(q->org, -q->scale, cr, point);
+	glTexCoord2f(ts, 0);
+	glVertex3fv(point);
+	VectorMA(q->org, q->scale, cr, point);
+	glTexCoord2f(ts, 1);
+	glVertex3fv(point);
+
+	glColor4f(p->rgb[0],
+			  p->rgb[1],
+			  p->rgb[2],
+			  p->alpha);
+
+	VectorSubtract(r_refdef.vieworg, p->org, v);
+	VectorNormalize(v);
+	CrossProduct(b->dir, v, cr); // replace with old p->dir?
+	ts = b->texture_s*type->rotationstartmin + particletime*type->rotationmin;
+
+	VectorMA(p->org, p->scale, cr, point);
+	glTexCoord2f(ts, 1);
+	glVertex3fv(point);
+	VectorMA(p->org, -p->scale, cr, point);
+	glTexCoord2f(ts, 0);
+	glVertex3fv(point);
+//	glEnd();
+}
+
+void GL_DrawParticleBeam_Untextured(beamseg_t *b, part_type_t *type)
+{
+	vec3_t v;
+	vec3_t cr;
+	beamseg_t *c;
+	particle_t *p;
+	particle_t *q;
+
+	vec3_t point[4];
 
 //	if (!b->next)
 //		return;
@@ -2595,33 +2672,77 @@ void GL_DrawParticleBeam(beamseg_t *b, part_type_t *type)
 		glShadeModel(GL_SMOOTH);
 		glBegin(GL_QUADS);
 	}
-	glColor4f(q->rgb[0],
-			  q->rgb[1],
-			  q->rgb[2],
-			  q->alpha);
+
 //	glBegin(GL_LINE_LOOP);
 	VectorSubtract(r_refdef.vieworg, q->org, v);
 	VectorNormalize(v);
 	CrossProduct(c->dir, v, cr);
 
-	VectorMA(q->org, -q->scale, cr, point);
-	glVertex3fv(point);
-	VectorMA(q->org, q->scale, cr, point);
-	glVertex3fv(point);
+	VectorMA(q->org, -q->scale, cr, point[0]);
+	VectorMA(q->org, q->scale, cr, point[1]);
 
-	glColor4f(p->rgb[0],
-			  p->rgb[1],
-			  p->rgb[2],
-			  p->alpha);
 
 	VectorSubtract(r_refdef.vieworg, p->org, v);
 	VectorNormalize(v);
 	CrossProduct(b->dir, v, cr); // replace with old p->dir?
 
-	VectorMA(p->org, p->scale, cr, point);
-	glVertex3fv(point);
-	VectorMA(p->org, -p->scale, cr, point);
-	glVertex3fv(point);
+	VectorMA(p->org, p->scale, cr, point[2]);
+	VectorMA(p->org, -p->scale, cr, point[3]);
+
+
+	//one half
+	//back out
+	//back in
+	//front in
+	//front out
+	glColor4f(q->rgb[0],
+		  q->rgb[1],
+		  q->rgb[2],
+		  0);
+	glVertex3fv(point[0]);
+	glColor4f(q->rgb[0],
+		  q->rgb[1],
+		  q->rgb[2],
+		  q->alpha);
+	glVertex3fv(q->org);
+
+	glColor4f(p->rgb[0],
+		  p->rgb[1],
+		  p->rgb[2],
+		  p->alpha);
+	glVertex3fv(p->org);
+	glColor4f(p->rgb[0],
+		  p->rgb[1],
+		  p->rgb[2],
+		  0);
+	glVertex3fv(point[3]);
+
+	//front out
+	//front in
+	//back in
+	//back out
+	glColor4f(p->rgb[0],
+		  p->rgb[1],
+		  p->rgb[2],
+		  0);
+	glVertex3fv(point[2]);
+		glColor4f(p->rgb[0],
+		  p->rgb[1],
+		  p->rgb[2],
+		  p->alpha);
+	glVertex3fv(p->org);
+	
+	glColor4f(q->rgb[0],
+		  q->rgb[1],
+		  q->rgb[2],
+		  q->alpha);
+	glVertex3fv(q->org);
+	glColor4f(q->rgb[0],
+		  q->rgb[1],
+		  q->rgb[2],
+		  0);
+	glVertex3fv(point[1]);
+
 //	glEnd();
 }
 
@@ -2670,7 +2791,7 @@ void SWD_DrawParticleBlob(particle_t *p, part_type_t *type)
 	D_DrawParticleTrans(p);
 }
 #endif
-void DrawParticleTypes (void texturedparticles(particle_t *,part_type_t*), void sparkparticles(particle_t*,part_type_t*), void beamparticles(beamseg_t*,part_type_t*))
+void DrawParticleTypes (void texturedparticles(particle_t *,part_type_t*), void sparkparticles(particle_t*,part_type_t*), void beamparticlest(beamseg_t*,part_type_t*), void beamparticlesut(beamseg_t*,part_type_t*))
 {
 	qboolean (*tr) (vec3_t start, vec3_t end, vec3_t impact, vec3_t normal);
 
@@ -2934,7 +3055,11 @@ void DrawParticleTypes (void texturedparticles(particle_t *,part_type_t*), void 
 						VectorNormalize(b->next->dir);
 						VectorAdd(stop, oldorg, stop);
 						VectorScale(stop, 0.5, stop);
-						RQ_AddDistReorder((void*)beamparticles, b, type, stop);
+
+						if (*type->texname)
+							RQ_AddDistReorder((void*)beamparticlest, b, type, stop);
+						else
+							RQ_AddDistReorder((void*)beamparticlesut, b, type, stop);
 					}			
 
 //					if (b->p->die < particletime)
@@ -2990,9 +3115,9 @@ void R_DrawParticles (void)
 		glBegin(GL_QUADS);
 
 		if (gl_part_trifansparks.value)
-			DrawParticleTypes(GL_DrawTexturedParticle, GL_DrawTrifanParticle, GL_DrawParticleBeam);
+			DrawParticleTypes(GL_DrawTexturedParticle, GL_DrawTrifanParticle, GL_DrawParticleBeam_Textured, GL_DrawParticleBeam_Untextured);
 		else
-			DrawParticleTypes(GL_DrawTexturedParticle, GL_DrawSparkedParticle, GL_DrawParticleBeam);
+			DrawParticleTypes(GL_DrawTexturedParticle, GL_DrawSparkedParticle, GL_DrawParticleBeam_Textured, GL_DrawParticleBeam_Untextured);
 
 		glEnd();
 		glEnable(GL_TEXTURE_2D);
@@ -3005,7 +3130,7 @@ void R_DrawParticles (void)
 	if (qrenderer == QR_SOFTWARE)
 	{
 		D_StartParticles();
-		DrawParticleTypes(SWD_DrawParticleBlob, SWD_DrawParticleSpark, NULL);//SWD_DrawParticleBeam);
+		DrawParticleTypes(SWD_DrawParticleBlob, SWD_DrawParticleSpark, NULL, NULL);//SWD_DrawParticleBeam);
 		D_EndParticles();
 		return;
 	}

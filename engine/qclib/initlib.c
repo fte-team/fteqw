@@ -385,7 +385,9 @@ progfuncs_t deffuncs = {
 
 	PR_ForkStack,
 	PR_ResumeThread,
-	PR_AbortStack
+	PR_AbortStack,
+
+	0
 };
 #undef printf
 

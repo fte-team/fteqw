@@ -957,6 +957,13 @@ void CL_ParseDownload (void)
 		return; // not in demo playback
 	}
 
+	if (!*cls.downloadname)	//huh... that's not right...
+	{
+		Con_Print("^1Warning: Server sending unknown file.\n");
+		strcpy(cls.downloadname, "unknown.txt");
+		strcpy(cls.downloadtempname, "unknown.tmp");
+	}
+
 	if (size == -1)
 	{
 		Con_TPrintf (TL_FILENOTFOUND);

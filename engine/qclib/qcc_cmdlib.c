@@ -885,8 +885,6 @@ void	QCC_AddFile (char *filename)
 
 	externs->ReadFile(filename, mem, len+1);
 	mem[len] = '\0';
-
-	outputversion = PROG_DEBUGVERSION;
 }
 void *FS_ReadToMem(char *filename, void *mem, int *len)
 {

@@ -428,14 +428,14 @@ void PF_nonfatalobjerror (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 	
 	s = PF_VarString(prinst, 0, pr_globals);
 
-	prinst->PR_StackTrace(prinst);
+	PR_StackTrace(prinst);
 
-	selfp = prinst->FindGlobal(prinst, "self", PR_CURRENT);
+	selfp = PR_FindGlobal(prinst, "self", PR_CURRENT);
 	if (selfp && selfp->_int)
 	{
 		ed = PROG_TO_EDICT(prinst, selfp->_int);
 
-		prinst->PR_PrintEdict(prinst, ed);
+		PR_PrintEdict(prinst, ed);
 
 
 		if (developer.value)
@@ -471,7 +471,7 @@ static void PF_Fixme (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
 	Con_Printf("\n");
 
-	prinst->PR_RunError(prinst, "\nBuiltin %i not implemented.\nMenu is not compatable.", prinst->lastcalledbuiltinnumber);
+	prinst->RunError(prinst, "\nBuiltin %i not implemented.\nMenu is not compatable.", prinst->lastcalledbuiltinnumber);
 	PR_BIError (prinst, "bulitin not implemented");
 }
 
@@ -772,19 +772,19 @@ void PF_getmousepos (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 }
 
 
-void PF_Remove_ (progfuncs_t *prinst, struct globalvars_s *pr_globals)
+static void PF_Remove_ (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
-	void *ed;
+	menuedict_t *ed;
 	
-	ed = G_EDICT(prinst, OFS_PARM0);
-/*
+	ed = (void*)G_EDICT(prinst, OFS_PARM0);
+
 	if (ed->isfree)
 	{
 		Con_DPrintf("Tried removing free entity\n");
 		return;
 	}
-*/
-	ED_Free (prinst, ed);
+
+	ED_Free (prinst, (void*)ed);
 }
 
 static void PF_CopyEntity (progfuncs_t *prinst, struct globalvars_s *pr_globals)

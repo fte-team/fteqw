@@ -139,9 +139,10 @@ char *filefromprogs(progfuncs_t *progfuncs, progsnum_t prnum, char *fname, int *
 	includeddatafile_t *s;
 	if (!pr_progstate[prnum].progs)
 		return NULL;
-	if (pr_progstate[prnum].progs->version < PROG_DEBUGVERSION)
+	if (pr_progstate[prnum].progs->version != PROG_EXTENDEDVERSION)
 		return NULL;
-	if (!pr_progstate[prnum].progs->ofsfiles)
+	if (!pr_progstate[prnum].progs->secondaryversion != PROG_SECONDARYVERSION16 &&
+		!pr_progstate[prnum].progs->secondaryversion != PROG_SECONDARYVERSION32)
 		return NULL;
 	
 	num = *(int*)((char *)pr_progstate[prnum].progs + pr_progstate[prnum].progs->ofsfiles);
@@ -179,7 +180,7 @@ char *filefromnewprogs(progfuncs_t *progfuncs, char *prname, char *fname, int *s
 		return NULL;
 	}
 
-	if (progs.progs->version < PROG_DEBUGVERSION)
+	if (progs.progs->version < PROG_EXTENDEDVERSION)
 		return NULL;
 	if (!progs.progs->ofsfiles)
 		return NULL;

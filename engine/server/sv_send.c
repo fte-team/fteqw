@@ -1076,17 +1076,25 @@ qcstat_t qcstats[MAX_CL_STATS-32];
 int numqcstats;
 void SV_QCStat(int type, char *name, int statnum)
 {
+	int i;
 	if (numqcstats == sizeof(qcstats)/sizeof(qcstats[0]))
 	{
 		Con_Printf("Too many stat types\n");
 		return;
 	}
 
-	qcstats[numqcstats].type = type;
-	qcstats[numqcstats].statnum = statnum;
-	Q_strncpyz(qcstats[numqcstats].name, name, sizeof(qcstats[numqcstats].name));
-	memset(&qcstats[numqcstats].evalc, 0, sizeof(evalc_t));
-	numqcstats++;
+	for (i = 0; i < numqcstats; i++)
+	{
+		if (qcstats[i].statnum == statnum)
+			break;
+	}
+	if (i == numqcstats)
+		numqcstats++;
+
+	qcstats[i].type = type;
+	qcstats[i].statnum = statnum;
+	Q_strncpyz(qcstats[i].name, name, sizeof(qcstats[i].name));
+	memset(&qcstats[i].evalc, 0, sizeof(evalc_t));
 }
 
 void SV_ClearQCStats(void)

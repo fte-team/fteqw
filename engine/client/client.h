@@ -629,6 +629,8 @@ extern	kbutton_t	in_mlook, in_klook;
 extern 	kbutton_t 	in_strafe;
 extern 	kbutton_t 	in_speed;
 
+extern	float in_sensitivityscale;
+
 void CL_InitInput (void);
 void CL_SendCmd (void);
 void CL_SendMove (usercmd_t *cmd);
@@ -652,6 +654,9 @@ void CL_BaseMove (usercmd_t *cmd, int pnum);
 float CL_KeyState (kbutton_t *key, int pnum);
 char *Key_KeynumToString (int keynum);
 int Key_StringToKeynum (char *str, int *modifier);
+
+void VARGS CL_SendClientCommand(char *format, ...);
+void CL_AllowIndependantSendCmd(qboolean allow);
 
 //
 // cl_demo.c

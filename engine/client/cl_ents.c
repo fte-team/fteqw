@@ -1186,12 +1186,33 @@ entity_state_t *CL_FindPacketEntity(int num)
 }
 #endif
 
+//return 0 to 1
+//1 being entirly new frame.
+float CL_LerpEntityFrac(float lerprate, float lerptime)
+{
+	float f;
+	if (!lerprate)
+	{
+		return 0;
+	}
+	else
+	{
+		f = 1-(cl.time-lerptime)/lerprate;
+	}
+
+	if (f<0)f=0;
+	if (f>1)f=1;
+
+	return f;
+}
+
 void CL_RotateAroundTag(entity_t *ent, int num, int tagent, int tagnum)
 {
 	entity_state_t *ps;
 	float *org=NULL, *ang=NULL;
 	vec3_t axis[3];
 	vec3_t temp[3];
+	vec3_t destorg;
 
 	int model = 0;	//these two are only initialised because msvc sucks at detecting usage.
 	int frame = 0;
@@ -1203,6 +1224,8 @@ void CL_RotateAroundTag(entity_t *ent, int num, int tagent, int tagnum)
 
 	if (cl.lerpents[tagent].tagent)
 		CL_RotateAroundTag(ent, num, cl.lerpents[tagent].tagent, cl.lerpents[tagent].tagindex);
+
+	ent->keynum = tagent;
 
 	ps = CL_FindPacketEntity(tagent);
 	if (ps)
@@ -1244,18 +1267,43 @@ void CL_RotateAroundTag(entity_t *ent, int num, int tagent, int tagnum)
 			tagaxis = NULL;
 		if (tagaxis)
 		{
+			VectorAdd(org, ent->origin, destorg);
+			VectorMA(destorg, tagorg[0], ent->axis[0], destorg);
+			VectorMA(destorg, tagorg[1], ent->axis[1], destorg);
+			VectorMA(destorg, tagorg[2], ent->axis[2], destorg);
+			VectorCopy(destorg, ent->origin);
+
 //			Con_Printf("Found tag %i\n", cl.lerpents[tagent].tagindex);
-			R_ConcatRotations(ent->axis, (void*)tagaxis, temp);
+			Matrix3_Multiply(axis, ent->axis, temp);	//the ent->axis here is the result of the parent's transforms
+			Matrix3_Multiply((void*)tagaxis, temp, ent->axis);
 		}
 		else	//hrm.
 		{
-			memcpy(temp, ent->axis, sizeof(temp));
+//			memcpy(axis, ent->axis, sizeof(temp));
 		}
-		R_ConcatRotations(axis, temp, ent->axis);
+
+
 	}
-	if (org)
-		VectorAdd(ent->origin, org, ent->origin);
+//	if (org)
+//		VectorAdd(ent->origin, org, ent->origin);
 }
+
+void V_AddEntity(entity_t *in)
+{
+	entity_t *ent;
+	if (cl_numvisedicts == MAX_VISEDICTS)
+		return;		// object list is full
+	ent = &cl_visedicts[cl_numvisedicts];
+	cl_numvisedicts++;
+
+	*ent = *in;
+
+	ent->angles[0]*=-1;
+	AngleVectors(ent->angles, ent->axis[0], ent->axis[1], ent->axis[2]);
+	VectorInverse(ent->axis[1]);
+	ent->angles[0]*=-1;
+}
+
 /*
 ===============
 CL_LinkPacketEntities

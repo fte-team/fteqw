@@ -2252,7 +2252,7 @@ retry:
 //		printf("Opening standard progs file \"%s\"\n", filename);
 		current_progstate->intsize = 16;
 	}
-	else if (pr_progs->version == PROG_DEBUGVERSION)
+	else if (pr_progs->version == PROG_EXTENDEDVERSION)
 	{
 		if (pr_progs->secondaryversion == PROG_SECONDARYVERSION16)
 		{
@@ -2287,7 +2287,7 @@ retry:
 	}
 
 //progs contains enough info for use to recompile it.
-	if (trysleft && externs->autocompile == PR_COMPILECHANGED && pr_progs->version == PROG_DEBUGVERSION)
+	if (trysleft && externs->autocompile == PR_COMPILECHANGED && pr_progs->version == PROG_EXTENDEDVERSION)
 	{
 		if (PR_TestRecompile(progfuncs))
 		{
@@ -2324,7 +2324,7 @@ retry:
 
 	pr_linenums=NULL;
 	pr_types=NULL;
-	if (pr_progs->version == PROG_DEBUGVERSION)
+	if (pr_progs->version == PROG_EXTENDEDVERSION)
 	{
 		if (pr_progs->ofslinenums)
 			pr_linenums = (int *)((qbyte *)pr_progs + pr_progs->ofslinenums);
@@ -2520,7 +2520,7 @@ retry:
 		((int *)glob)[i] = LittleLong (((int *)glob)[i]);
 #endif	
 
-	if (pr_progs->version == PROG_DEBUGVERSION)
+	if (pr_progs->version == PROG_EXTENDEDVERSION)
 	{
 		if (pr_types)
 		{			
@@ -2802,7 +2802,7 @@ retry:
 			}
 		}
 
-		if (pr_progs->version == PROG_DEBUGVERSION && pr_progs->numbodylessfuncs)
+		if (pr_progs->version == PROG_EXTENDEDVERSION && pr_progs->numbodylessfuncs)
 		{
 			s = &((char *)pr_progs)[pr_progs->ofsbodylessfuncs];
 			for (i = 0; i < pr_progs->numbodylessfuncs; i++)
@@ -2862,7 +2862,7 @@ retry:
 			}
 		}
 
-		if (pr_progs->version == PROG_DEBUGVERSION && pr_progs->numbodylessfuncs)
+		if (pr_progs->version == PROG_EXTENDEDVERSION && pr_progs->numbodylessfuncs)
 		{
 			s = &((char *)pr_progs)[pr_progs->ofsbodylessfuncs];
 			for (i = 0; i < pr_progs->numbodylessfuncs; i++)

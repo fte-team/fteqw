@@ -1,7 +1,5 @@
-#include "bothdefs.h"
-#ifndef NOMEDIA
-
 #include "quakedef.h"
+#ifndef NOMEDIA
 
 typedef struct
 {
@@ -93,8 +91,7 @@ void CIN_FinishCinematic (void)
 	// tell the server to advance to the next map / cinematic
 	if (cls.state == ca_active)
 	{
-		MSG_WriteByte (&cls.netchan.message, clc_stringcmd);
-		SZ_Print (&cls.netchan.message, va("nextserver %i\n", cl.servercount));
+		CL_SendClientCommand("nextserver %i", cl.servercount);
 	}
 }
 

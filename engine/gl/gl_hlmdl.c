@@ -1,8 +1,7 @@
-#include "bothdefs.h"
+#include "quakedef.h"
 
 #ifdef HALFLIFEMODELS
 
-#include "quakedef.h"
 #include "glquake.h"
 /*
  +++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
@@ -112,12 +111,11 @@ void Mod_LoadHLModel (model_t *mod, void *buffer)
 			!strcmp(mod->name, "progs/player.mdl") ? pmodel_name : emodel_name,
 			st, MAX_INFO_STRING);
 
-		if (cls.state >= ca_connected) {
-			MSG_WriteByte (&cls.netchan.message, clc_stringcmd);
-			sprintf(st, "setinfo %s %d", 
+		if (cls.state >= ca_connected)
+		{
+			CL_SendClientCommand("setinfo %s %d", 
 				!strcmp(mod->name, "progs/player.mdl") ? pmodel_name : emodel_name,
 				(int)crc);
-			SZ_Print (&cls.netchan.message, st);
 		}
 	}
 	

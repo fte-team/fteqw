@@ -4,7 +4,7 @@
 
 # TARGTYPE "Win32 (x86) Application" 0x0101
 
-CFG=FTEQUAKE - WIN32 MRELEASE
+CFG=ftequake - Win32 GLDebugQ3
 !MESSAGE This is not a valid makefile. To build this project using NMAKE,
 !MESSAGE use the Export Makefile command and run
 !MESSAGE 
@@ -13,7 +13,7 @@ CFG=FTEQUAKE - WIN32 MRELEASE
 !MESSAGE You can specify a configuration when running NMAKE
 !MESSAGE by defining the macro CFG on the command line. For example:
 !MESSAGE 
-!MESSAGE NMAKE /f "ftequake.mak" CFG="FTEQUAKE - WIN32 MRELEASE"
+!MESSAGE NMAKE /f "ftequake.mak" CFG="ftequake - Win32 GLDebugQ3"
 !MESSAGE 
 !MESSAGE Possible choices for configuration are:
 !MESSAGE 
@@ -27,6 +27,8 @@ CFG=FTEQUAKE - WIN32 MRELEASE
 !MESSAGE "ftequake - Win32 MinGLRelease" (based on "Win32 (x86) Application")
 !MESSAGE "ftequake - Win32 Debug Dedicated Server" (based on "Win32 (x86) Application")
 !MESSAGE "ftequake - Win32 Release Dedicated Server" (based on "Win32 (x86) Application")
+!MESSAGE "ftequake - Win32 MinSW" (based on "Win32 (x86) Application")
+!MESSAGE "ftequake - Win32 GLDebugQ3" (based on "Win32 (x86) Application")
 !MESSAGE 
 
 # Begin Project
@@ -51,7 +53,7 @@ RSC=rc.exe
 # PROP Ignore_Export_Lib 0
 # PROP Target_Dir ""
 # ADD BASE CPP /nologo /W3 /GX /O2 /D "WIN32" /D "NDEBUG" /D "_WINDOWS" /D "_MBCS" /YX /FD /c
-# ADD CPP /nologo /G6 /W3 /GX /O2 /I "..\client" /I "../common" /I "../server" /I "../gl" /I "../sw" /I "../qclib" /I "../libs" /I "../libs/dxsdk7/include" /D "NDEBUG" /D "_MBCS" /D "WIN32" /D "_WINDOWS" /D "SWQUAKE" /FR /YX /FD /c
+# ADD CPP /nologo /G6 /W3 /GX /O2 /I "..\client" /I "../common" /I "../server" /I "../gl" /I "../sw" /I "../qclib" /I "../libs" /I "../libs/dxsdk7/include" /D "NDEBUG" /D "_MBCS" /D "WIN32" /D "_WINDOWS" /D "SWQUAKE" /FR /Yu"quakedef.h" /FD /c
 # ADD BASE MTL /nologo /D "NDEBUG" /mktyplib203 /win32
 # ADD MTL /nologo /D "NDEBUG" /mktyplib203 /win32
 # ADD BASE RSC /l 0x809 /d "NDEBUG"
@@ -61,7 +63,7 @@ BSC32=bscmake.exe
 # ADD BSC32 /nologo
 LINK32=link.exe
 # ADD BASE LINK32 kernel32.lib user32.lib gdi32.lib winspool.lib comdlg32.lib advapi32.lib shell32.lib ole32.lib oleaut32.lib uuid.lib odbc32.lib odbccp32.lib /nologo /subsystem:windows /machine:I386
-# ADD LINK32 comctl32.lib wsock32.lib kernel32.lib user32.lib gdi32.lib winspool.lib comdlg32.lib advapi32.lib shell32.lib ole32.lib oleaut32.lib uuid.lib odbc32.lib odbccp32.lib winmm.lib /nologo /subsystem:windows /machine:I386 /out:"../../fteswqw.exe"
+# ADD LINK32 comctl32.lib wsock32.lib kernel32.lib user32.lib gdi32.lib winspool.lib comdlg32.lib advapi32.lib shell32.lib ole32.lib oleaut32.lib uuid.lib odbc32.lib odbccp32.lib winmm.lib /nologo /subsystem:windows /pdb:none /machine:I386 /out:"../../fteswqw.exe"
 
 !ELSEIF  "$(CFG)" == "ftequake - Win32 Debug"
 
@@ -77,7 +79,7 @@ LINK32=link.exe
 # PROP Ignore_Export_Lib 0
 # PROP Target_Dir ""
 # ADD BASE CPP /nologo /W3 /Gm /GX /ZI /Od /D "WIN32" /D "_DEBUG" /D "_WINDOWS" /D "_MBCS" /YX /FD /GZ /c
-# ADD CPP /nologo /G6 /W3 /Gm /GX /ZI /Od /I "../client" /I "../common" /I "../server" /I "../gl" /I "../sw" /I "../qclib" /I "../libs" /I "../libs/dxsdk7/include" /D "_DEBUG" /D "WIN32" /D "_WINDOWS" /D "SWQUAKE" /FR".\Debug/" /Fp".\Debug/qwcl.pch" /YX /Fo".\Debug/" /Fd".\Debug/" /FD /c
+# ADD CPP /nologo /G6 /W3 /Gm /GX /ZI /Od /I "../client" /I "../common" /I "../server" /I "../gl" /I "../sw" /I "../qclib" /I "../libs" /I "../libs/dxsdk7/include" /D "_DEBUG" /D "WIN32" /D "_WINDOWS" /D "SWQUAKE" /FR".\Debug/" /Fp".\Debug/qwcl.pch" /Yu"quakedef.h" /Fo".\Debug/" /Fd".\Debug/" /FD /c
 # ADD BASE MTL /nologo /D "_DEBUG" /mktyplib203 /win32
 # ADD MTL /nologo /D "_DEBUG" /mktyplib203 /win32
 # ADD BASE RSC /l 0x809 /d "_DEBUG"
@@ -87,7 +89,7 @@ BSC32=bscmake.exe
 # ADD BSC32 /nologo
 LINK32=link.exe
 # ADD BASE LINK32 kernel32.lib user32.lib gdi32.lib winspool.lib comdlg32.lib advapi32.lib shell32.lib ole32.lib oleaut32.lib uuid.lib odbc32.lib odbccp32.lib /nologo /subsystem:windows /debug /machine:I386 /pdbtype:sept
-# ADD LINK32 comctl32.lib wsock32.lib winmm.lib kernel32.lib user32.lib gdi32.lib winspool.lib comdlg32.lib advapi32.lib shell32.lib ole32.lib oleaut32.lib uuid.lib odbc32.lib odbccp32.lib /nologo /subsystem:windows /debug /machine:I386 /out:"../../fteswqw_dbg.exe" /pdbtype:sept
+# ADD LINK32 comctl32.lib wsock32.lib winmm.lib kernel32.lib user32.lib gdi32.lib winspool.lib comdlg32.lib advapi32.lib shell32.lib ole32.lib oleaut32.lib uuid.lib odbc32.lib odbccp32.lib /nologo /subsystem:windows /pdb:none /debug /machine:I386 /out:"../../fteswqw_dbg.exe"
 
 !ELSEIF  "$(CFG)" == "ftequake - Win32 GLDebug"
 
@@ -103,7 +105,7 @@ LINK32=link.exe
 # PROP Ignore_Export_Lib 0
 # PROP Target_Dir ""
 # ADD BASE CPP /nologo /W3 /Gm /GX /ZI /Od /D "WIN32" /D "_DEBUG" /D "_WINDOWS" /D "_MBCS" /YX /FD /GZ /c
-# ADD CPP /nologo /G5 /ML /W3 /GX /ZI /Od /I "..\client" /I "../common" /I "../server" /I "../gl" /I "../sw" /I "../qclib" /I "../libs" /I "../libs/dxsdk7/include" /D "_DEBUG" /D "GLQUAKE" /D "WIN32" /D "_WINDOWS" /D "AVAIL_OGGVORBIS" /FR".\GLDebug/" /Fp".\GLDebug/qwcl.pch" /YX /Fo".\GLDebug/" /Fd".\GLDebug/" /FD /c
+# ADD CPP /nologo /G5 /ML /W3 /GX /ZI /Od /I "..\client" /I "../common" /I "../server" /I "../gl" /I "../sw" /I "../qclib" /I "../libs" /I "../libs/dxsdk7/include" /D "_DEBUG" /D "GLQUAKE" /D "WIN32" /D "_WINDOWS" /D "AVAIL_OGGVORBIS" /FR".\GLDebug/" /Fp".\GLDebug/qwcl.pch" /Yu"quakedef.h" /Fo".\GLDebug/" /Fd".\GLDebug/" /FD /c
 # SUBTRACT CPP /X
 # ADD BASE MTL /nologo /D "_DEBUG" /mktyplib203 /win32
 # ADD MTL /nologo /D "_DEBUG" /mktyplib203 /win32
@@ -114,8 +116,7 @@ BSC32=bscmake.exe
 # ADD BSC32 /nologo
 LINK32=link.exe
 # ADD BASE LINK32 kernel32.lib user32.lib gdi32.lib winspool.lib comdlg32.lib advapi32.lib shell32.lib ole32.lib oleaut32.lib uuid.lib odbc32.lib odbccp32.lib /nologo /subsystem:windows /debug /machine:I386 /pdbtype:sept
-# ADD LINK32 comctl32.lib wsock32.lib kernel32.lib user32.lib gdi32.lib winspool.lib comdlg32.lib advapi32.lib shell32.lib ole32.lib oleaut32.lib uuid.lib odbc32.lib odbccp32.lib winmm.lib /nologo /subsystem:windows /pdb:".\GLDebug/dglqwcl.pdb" /debug /machine:I386 /out:"../../fteglqw_dbg.exe"
-# SUBTRACT LINK32 /pdb:none
+# ADD LINK32 comctl32.lib wsock32.lib kernel32.lib user32.lib gdi32.lib winspool.lib comdlg32.lib advapi32.lib shell32.lib ole32.lib oleaut32.lib uuid.lib odbc32.lib odbccp32.lib winmm.lib /nologo /subsystem:windows /pdb:none /debug /machine:I386 /out:"../../fteglqw_dbg.exe"
 
 !ELSEIF  "$(CFG)" == "ftequake - Win32 GLRelease"
 
@@ -132,7 +133,7 @@ LINK32=link.exe
 # PROP Ignore_Export_Lib 0
 # PROP Target_Dir ""
 # ADD BASE CPP /nologo /W3 /GX /O2 /I "..\client" /D "WIN32" /D "NDEBUG" /D "_WINDOWS" /D "_MBCS" /YX /FD /c
-# ADD CPP /nologo /G6 /Gr /W3 /GX /O2 /Ob2 /I "..\client" /I "../common" /I "../server" /I "../gl" /I "../sw" /I "../qclib" /I "../libs" /I "../libs/dxsdk7/include" /D "NDEBUG" /D "_MBCS" /D "GLQUAKE" /D "WIN32" /D "_WINDOWS" /FR /YX /FD /c
+# ADD CPP /nologo /G6 /Gr /W3 /GX /O2 /Ob2 /I "..\client" /I "../common" /I "../server" /I "../gl" /I "../sw" /I "../qclib" /I "../libs" /I "../libs/dxsdk7/include" /D "NDEBUG" /D "_MBCS" /D "GLQUAKE" /D "WIN32" /D "_WINDOWS" /FR /Yu"quakedef.h" /FD /c
 # ADD BASE MTL /nologo /D "NDEBUG" /mktyplib203 /win32
 # ADD MTL /nologo /D "NDEBUG" /mktyplib203 /win32
 # ADD BASE RSC /l 0x809 /d "NDEBUG"
@@ -142,7 +143,7 @@ BSC32=bscmake.exe
 # ADD BSC32 /nologo
 LINK32=link.exe
 # ADD BASE LINK32 comctl32.lib ..\dxsdk\sdk\lib\dxguid.lib wsock32.lib kernel32.lib user32.lib gdi32.lib winspool.lib comdlg32.lib advapi32.lib shell32.lib ole32.lib oleaut32.lib uuid.lib odbc32.lib odbccp32.lib winmm.lib /nologo /subsystem:windows /machine:I386 /out:"../../../fteqw.exe"
-# ADD LINK32 comctl32.lib wsock32.lib kernel32.lib user32.lib gdi32.lib winspool.lib comdlg32.lib advapi32.lib shell32.lib ole32.lib oleaut32.lib uuid.lib odbc32.lib odbccp32.lib winmm.lib /nologo /subsystem:windows /map /machine:I386 /out:"../../fteglqw.exe"
+# ADD LINK32 comctl32.lib wsock32.lib kernel32.lib user32.lib gdi32.lib winspool.lib comdlg32.lib advapi32.lib shell32.lib ole32.lib oleaut32.lib uuid.lib odbc32.lib odbccp32.lib winmm.lib /nologo /subsystem:windows /pdb:none /map /machine:I386 /out:"../../fteglqw.exe"
 
 !ELSEIF  "$(CFG)" == "ftequake - Win32 MDebug"
 
@@ -159,7 +160,7 @@ LINK32=link.exe
 # PROP Ignore_Export_Lib 0
 # PROP Target_Dir ""
 # ADD BASE CPP /nologo /G5 /ML /W3 /GX /ZI /Od /I "..\client\gltod3d\sdk7\include" /I "..\client\gltod3d\D3DFrame" /I "..\dxsdk\sdk\inc" /I "..\scitech\include" /I "..\client" /D "NQPROT" /D "_DEBUG" /D "GLQUAKE" /D "SERVERDLL" /D "WIN32" /D "_WINDOWS" /FR".\GLDebug/" /Fp".\GLDebug/qwcl.pch" /YX /Fo".\GLDebug/" /Fd".\GLDebug/" /FD /c
-# ADD CPP /nologo /G5 /ML /W3 /GX /ZI /Od /I "..\client" /I "../libs/dxsdk7/include" /I "../common" /I "../server" /I "../gl" /I "../sw" /I "../qclib" /I "../libs" /D "_DEBUG" /D "WIN32" /D "_WINDOWS" /D "GLQUAKE" /D "SWQUAKE" /D "AVAIL_DX7" /Fr /Fp".\MDebug/qwcl.pch" /YX"quakedef.h" /FD /c
+# ADD CPP /nologo /G5 /W3 /Gi /GX /ZI /Od /I "..\client" /I "../libs/dxsdk7/include" /I "../common" /I "../server" /I "../gl" /I "../sw" /I "../qclib" /I "../libs" /D "_DEBUG" /D "WIN32" /D "_WINDOWS" /D "GLQUAKE" /D "SWQUAKE" /D "AVAIL_DX7" /Fr /Fp".\MDebug/qwcl.pch" /Yu"quakedef.h" /FD /c
 # ADD BASE MTL /nologo /D "_DEBUG" /mktyplib203 /win32
 # ADD MTL /nologo /D "_DEBUG" /mktyplib203 /win32
 # ADD BASE RSC /l 0x809 /d "_DEBUG"
@@ -170,7 +171,7 @@ BSC32=bscmake.exe
 LINK32=link.exe
 # ADD BASE LINK32 comctl32.lib wsock32.lib kernel32.lib user32.lib gdi32.lib winspool.lib comdlg32.lib advapi32.lib shell32.lib ole32.lib oleaut32.lib uuid.lib odbc32.lib odbccp32.lib winmm.lib /nologo /subsystem:windows /pdb:".\GLDebug/dglqwcl.pdb" /debug /machine:I386 /out:"../../../fteglqw.exe"
 # SUBTRACT BASE LINK32 /pdb:none
-# ADD LINK32 comctl32.lib wsock32.lib kernel32.lib user32.lib gdi32.lib winspool.lib comdlg32.lib advapi32.lib shell32.lib ole32.lib oleaut32.lib uuid.lib odbc32.lib odbccp32.lib winmm.lib /nologo /subsystem:windows /pdb:".\MDebug/dglqwcl.pdb" /debug /machine:I386 /out:"../../fteqw_dbg.exe"
+# ADD LINK32 comctl32.lib wsock32.lib kernel32.lib user32.lib gdi32.lib winspool.lib comdlg32.lib advapi32.lib shell32.lib ole32.lib oleaut32.lib uuid.lib odbc32.lib odbccp32.lib winmm.lib /nologo /subsystem:windows /map /debug /machine:I386 /out:"../../fteqw_dbg.exe"
 # SUBTRACT LINK32 /profile /pdb:none
 
 !ELSEIF  "$(CFG)" == "ftequake - Win32 MRelease"
@@ -188,7 +189,7 @@ LINK32=link.exe
 # PROP Ignore_Export_Lib 0
 # PROP Target_Dir ""
 # ADD BASE CPP /nologo /W3 /GX /O2 /I "..\client\gltod3d\sdk7\include" /I "..\client\gltod3d\D3DFrame" /I "..\dxsdk\sdk\inc" /I "..\scitech\include" /I "..\client" /D "NOSOUNDASM" /D "NDEBUG" /D "_MBCS" /D "GLQUAKE" /D "SERVERDLL" /D "NQPROT" /D "WIN32" /D "_WINDOWS" /FR /YX /FD /c
-# ADD CPP /nologo /G6 /GX /O2 /I "..\client" /I "../libs/dxsdk7/include" /I "../common" /I "../server" /I "../gl" /I "../sw" /I "../qclib" /I "../libs" /D "NDEBUG" /D "_MBCS" /D "WIN32" /D "_WINDOWS" /D "GLQUAKE" /D "SWQUAKE" /D "AVAIL_DX7" /Fr /YX /FD /c
+# ADD CPP /nologo /G6 /GX /O2 /I "..\client" /I "../libs/dxsdk7/include" /I "../common" /I "../server" /I "../gl" /I "../sw" /I "../qclib" /I "../libs" /D "NDEBUG" /D "_MBCS" /D "WIN32" /D "_WINDOWS" /D "GLQUAKE" /D "SWQUAKE" /D "AVAIL_DX7" /Fr /Yu"quakedef.h" /FD /c
 # ADD BASE MTL /nologo /D "NDEBUG" /mktyplib203 /win32
 # ADD MTL /nologo /D "NDEBUG" /mktyplib203 /win32
 # ADD BASE RSC /l 0x809 /d "NDEBUG"
@@ -198,7 +199,7 @@ BSC32=bscmake.exe
 # ADD BSC32 /nologo
 LINK32=link.exe
 # ADD BASE LINK32 comctl32.lib wsock32.lib kernel32.lib user32.lib gdi32.lib winspool.lib comdlg32.lib advapi32.lib shell32.lib ole32.lib oleaut32.lib uuid.lib odbc32.lib odbccp32.lib winmm.lib /nologo /subsystem:windows /machine:I386 /out:"../../../fteglqw.exe"
-# ADD LINK32 comctl32.lib wsock32.lib kernel32.lib user32.lib gdi32.lib winspool.lib comdlg32.lib advapi32.lib shell32.lib ole32.lib oleaut32.lib uuid.lib odbc32.lib odbccp32.lib winmm.lib /nologo /subsystem:windows /map /machine:I386 /out:"../../fteqw.exe"
+# ADD LINK32 comctl32.lib wsock32.lib kernel32.lib user32.lib gdi32.lib winspool.lib comdlg32.lib advapi32.lib shell32.lib ole32.lib oleaut32.lib uuid.lib odbc32.lib odbccp32.lib winmm.lib /nologo /subsystem:windows /pdb:none /map /machine:I386 /out:"../../fteqw.exe"
 
 !ELSEIF  "$(CFG)" == "ftequake - Win32 MinGLDebug"
 
@@ -215,7 +216,7 @@ LINK32=link.exe
 # PROP Ignore_Export_Lib 0
 # PROP Target_Dir ""
 # ADD BASE CPP /nologo /G5 /ML /W3 /GX /ZI /Od /I "..\client\gltod3d\sdk7\include" /I "..\client\gltod3d\D3DFrame" /I "..\dxsdk\sdk\inc" /I "..\scitech\include" /I "..\client" /D "NQPROT" /D "_DEBUG" /D "GLQUAKE" /D "SERVERDLL" /D "WIN32" /D "_WINDOWS" /D "Q2SERVER" /D "DYNAMIC_ENTS" /FR".\GLDebug/" /Fp".\GLDebug/qwcl.pch" /YX /Fo".\GLDebug/" /Fd".\GLDebug/" /FD /c
-# ADD CPP /nologo /G5 /ML /W3 /GX /ZI /Od /I "..\client" /I "../common" /I "../server" /I "../gl" /I "../sw" /I "../qclib" /I "../libs" /I "../libs/dxsdk7/include" /D "MINIMAL" /D "_DEBUG" /D "GLQUAKE" /D "WIN32" /D "_WINDOWS" /FR".\GLDebug/" /Fp".\GLDebug/qwcl.pch" /YX /Fo".\GLDebug/" /Fd".\GLDebug/" /FD /c
+# ADD CPP /nologo /G5 /ML /W3 /GX /ZI /Od /I "..\client" /I "../common" /I "../server" /I "../gl" /I "../sw" /I "../qclib" /I "../libs" /I "../libs/dxsdk7/include" /D "MINIMAL" /D "_DEBUG" /D "GLQUAKE" /D "WIN32" /D "_WINDOWS" /FR".\GLDebug/" /Fp".\GLDebug/qwcl.pch" /Yu"quakedef.h" /Fo".\GLDebug/" /Fd".\GLDebug/" /FD /c
 # ADD BASE MTL /nologo /D "_DEBUG" /mktyplib203 /win32
 # ADD MTL /nologo /D "_DEBUG" /mktyplib203 /win32
 # ADD BASE RSC /l 0x809 /d "_DEBUG"
@@ -226,8 +227,7 @@ BSC32=bscmake.exe
 LINK32=link.exe
 # ADD BASE LINK32 comctl32.lib wsock32.lib kernel32.lib user32.lib gdi32.lib winspool.lib comdlg32.lib advapi32.lib shell32.lib ole32.lib oleaut32.lib uuid.lib odbc32.lib odbccp32.lib winmm.lib /nologo /subsystem:windows /pdb:".\GLDebug/dglqwcl.pdb" /debug /machine:I386 /out:"../../../fteglqw.exe"
 # SUBTRACT BASE LINK32 /pdb:none
-# ADD LINK32 comctl32.lib wsock32.lib kernel32.lib user32.lib gdi32.lib winspool.lib comdlg32.lib advapi32.lib shell32.lib ole32.lib oleaut32.lib uuid.lib odbc32.lib odbccp32.lib winmm.lib /nologo /subsystem:windows /pdb:".\GLDebug/dglqwcl.pdb" /debug /machine:I386 /out:"../../fteminglqw_dbg.exe"
-# SUBTRACT LINK32 /pdb:none
+# ADD LINK32 comctl32.lib wsock32.lib kernel32.lib user32.lib gdi32.lib winspool.lib comdlg32.lib advapi32.lib shell32.lib ole32.lib oleaut32.lib uuid.lib odbc32.lib odbccp32.lib winmm.lib /nologo /subsystem:windows /pdb:none /debug /machine:I386 /out:"../../fteminglqw_dbg.exe"
 
 !ELSEIF  "$(CFG)" == "ftequake - Win32 MinGLRelease"
 
@@ -244,7 +244,7 @@ LINK32=link.exe
 # PROP Ignore_Export_Lib 0
 # PROP Target_Dir ""
 # ADD BASE CPP /nologo /G6 /Gr /W3 /GX /O2 /Ob2 /I "..\client\gltod3d\sdk7\include" /I "..\client\gltod3d\D3DFrame" /I "..\dxsdk\sdk\inc" /I "..\scitech\include" /I "..\client" /D "NOSOUNDASM" /D "NDEBUG" /D "_MBCS" /D "GLQUAKE" /D "SERVERDLL" /D "NQPROT" /D "WIN32" /D "_WINDOWS" /D "Q2SERVER" /D "DYNAMIC_ENTS" /FR /YX /FD /c
-# ADD CPP /nologo /G6 /Gr /W3 /GX /O2 /I "..\client" /I "../common" /I "../server" /I "../gl" /I "../sw" /I "../qclib" /I "../libs" /I "../libs/dxsdk7/include" /D "MINIMAL" /D "NDEBUG" /D "_MBCS" /D "GLQUAKE" /D "WIN32" /D "_WINDOWS" /FR /YX /FD /c
+# ADD CPP /nologo /G6 /Gr /W3 /GX /O2 /I "..\client" /I "../common" /I "../server" /I "../gl" /I "../sw" /I "../qclib" /I "../libs" /I "../libs/dxsdk7/include" /D "MINIMAL" /D "NDEBUG" /D "_MBCS" /D "GLQUAKE" /D "WIN32" /D "_WINDOWS" /FR /Yu"quakedef.h" /FD /c
 # ADD BASE MTL /nologo /D "NDEBUG" /mktyplib203 /win32
 # ADD MTL /nologo /D "NDEBUG" /mktyplib203 /win32
 # ADD BASE RSC /l 0x809 /d "NDEBUG"
@@ -254,7 +254,7 @@ BSC32=bscmake.exe
 # ADD BSC32 /nologo
 LINK32=link.exe
 # ADD BASE LINK32 comctl32.lib wsock32.lib kernel32.lib user32.lib gdi32.lib winspool.lib comdlg32.lib advapi32.lib shell32.lib ole32.lib oleaut32.lib uuid.lib odbc32.lib odbccp32.lib winmm.lib /nologo /subsystem:windows /machine:I386 /out:"../../../fteglqw.exe"
-# ADD LINK32 wsock32.lib winmm.lib kernel32.lib user32.lib gdi32.lib /nologo /subsystem:windows /machine:I386 /out:"../../fteminglqw.exe"
+# ADD LINK32 wsock32.lib winmm.lib kernel32.lib user32.lib gdi32.lib /nologo /subsystem:windows /pdb:none /machine:I386 /out:"../../fteminglqw.exe"
 
 !ELSEIF  "$(CFG)" == "ftequake - Win32 Debug Dedicated Server"
 
@@ -271,7 +271,7 @@ LINK32=link.exe
 # PROP Ignore_Export_Lib 0
 # PROP Target_Dir ""
 # ADD BASE CPP /nologo /G5 /ML /W3 /GX /ZI /Od /I "..\client" /I "../common" /I "../server" /I "../gl" /I "../sw" /I "../qclib" /I "../libs" /D "MINIMAL" /D "_DEBUG" /D "GLQUAKE" /D "WIN32" /D "_WINDOWS" /FR".\GLDebug/" /Fp".\GLDebug/qwcl.pch" /YX /Fo".\GLDebug/" /Fd".\GLDebug/" /FD /c
-# ADD CPP /nologo /G6 /ML /W3 /WX /GX /ZI /Od /I "..\client" /I "../common" /I "../server" /I "../gl" /I "../sw" /I "../qclib" /I "../libs" /I "../libs/dxsdk7/include" /D "MINIMAL" /D "_DEBUG" /D "WIN32" /D "_WINDOWS" /D "SERVERONLY" /FR".\GLDebug/" /Fp".\GLDebug/qwcl.pch" /YX /Fo".\GLDebug/" /Fd".\GLDebug/" /FD /c
+# ADD CPP /nologo /G6 /ML /W3 /WX /GX /ZI /Od /I "..\client" /I "../common" /I "../server" /I "../gl" /I "../sw" /I "../qclib" /I "../libs" /I "../libs/dxsdk7/include" /D "_DEBUG" /D "WIN32" /D "_WINDOWS" /D "SERVERONLY" /FR".\GLDebug/" /Fp".\GLDebug/qwcl.pch" /Yu"quakedef.h" /Fo".\GLDebug/" /Fd".\GLDebug/" /FD /c
 # ADD BASE MTL /nologo /D "_DEBUG" /mktyplib203 /win32
 # ADD MTL /nologo /D "_DEBUG" /mktyplib203 /win32
 # ADD BASE RSC /l 0x809 /d "_DEBUG"
@@ -282,8 +282,7 @@ BSC32=bscmake.exe
 LINK32=link.exe
 # ADD BASE LINK32 comctl32.lib wsock32.lib kernel32.lib user32.lib gdi32.lib winspool.lib comdlg32.lib advapi32.lib shell32.lib ole32.lib oleaut32.lib uuid.lib odbc32.lib odbccp32.lib winmm.lib /nologo /subsystem:windows /pdb:".\GLDebug/dglqwcl.pdb" /debug /machine:I386 /out:"../../../fteminglqw.exe"
 # SUBTRACT BASE LINK32 /pdb:none
-# ADD LINK32 comctl32.lib wsock32.lib kernel32.lib user32.lib gdi32.lib winspool.lib comdlg32.lib advapi32.lib shell32.lib ole32.lib oleaut32.lib uuid.lib odbc32.lib odbccp32.lib winmm.lib /nologo /subsystem:console /pdb:".\GLDebug/dglqwcl.pdb" /debug /machine:I386 /out:"../../fteqwsv.exe"
-# SUBTRACT LINK32 /pdb:none
+# ADD LINK32 comctl32.lib wsock32.lib kernel32.lib user32.lib gdi32.lib winspool.lib comdlg32.lib advapi32.lib shell32.lib ole32.lib oleaut32.lib uuid.lib odbc32.lib odbccp32.lib winmm.lib /nologo /subsystem:console /pdb:none /debug /machine:I386 /out:"../../fteqwsv.exe"
 
 !ELSEIF  "$(CFG)" == "ftequake - Win32 Release Dedicated Server"
 
@@ -300,7 +299,7 @@ LINK32=link.exe
 # PROP Ignore_Export_Lib 0
 # PROP Target_Dir ""
 # ADD BASE CPP /nologo /G5 /ML /W3 /GX /ZI /Od /I "..\client" /I "../common" /I "../server" /I "../gl" /I "../sw" /I "../qclib" /I "../libs" /D "MINIMAL" /D "_DEBUG" /D "GLQUAKE" /D "WIN32" /D "_WINDOWS" /D "SERVERONLY" /FR".\GLDebug/" /Fp".\GLDebug/qwcl.pch" /YX /Fo".\GLDebug/" /Fd".\GLDebug/" /FD /c
-# ADD CPP /nologo /G6 /ML /W3 /GX /O1 /I "..\client" /I "../common" /I "../server" /I "../gl" /I "../sw" /I "../qclib" /I "../libs" /I "../libs/dxsdk7/include" /D "NDEBUG" /D "WIN32" /D "_WINDOWS" /D "SERVERONLY" /FR".\GLDebug/" /Fp".\GLDebug/qwcl.pch" /YX /Fo".\GLDebug/" /Fd".\GLDebug/" /FD /c
+# ADD CPP /nologo /G6 /ML /W3 /GX /O1 /I "..\client" /I "../common" /I "../server" /I "../gl" /I "../sw" /I "../qclib" /I "../libs" /I "../libs/dxsdk7/include" /D "NDEBUG" /D "WIN32" /D "_WINDOWS" /D "SERVERONLY" /FR".\GLDebug/" /Fp".\GLDebug/qwcl.pch" /Yu"quakedef.h" /Fo".\GLDebug/" /Fd".\GLDebug/" /FD /c
 # ADD BASE MTL /nologo /D "_DEBUG" /mktyplib203 /win32
 # ADD MTL /nologo /D "_DEBUG" /mktyplib203 /win32
 # ADD BASE RSC /l 0x809 /d "_DEBUG"
@@ -311,8 +310,64 @@ BSC32=bscmake.exe
 LINK32=link.exe
 # ADD BASE LINK32 comctl32.lib wsock32.lib kernel32.lib user32.lib gdi32.lib winspool.lib comdlg32.lib advapi32.lib shell32.lib ole32.lib oleaut32.lib uuid.lib odbc32.lib odbccp32.lib winmm.lib /nologo /subsystem:console /pdb:".\GLDebug/dglqwcl.pdb" /debug /machine:I386 /out:"../../../fteminglqw.exe"
 # SUBTRACT BASE LINK32 /pdb:none
-# ADD LINK32 winmm.lib wsock32.lib user32.lib shell32.lib Advapi32.lib /nologo /subsystem:console /incremental:no /pdb:".\GLDebug/dglqwcl.pdb" /map /machine:I386 /out:"../../fteqwsv.exe"
-# SUBTRACT LINK32 /pdb:none /debug
+# ADD LINK32 winmm.lib wsock32.lib user32.lib shell32.lib Advapi32.lib /nologo /subsystem:console /pdb:none /map /machine:I386 /out:"../../fteqwsv.exe"
+# SUBTRACT LINK32 /debug
+
+!ELSEIF  "$(CFG)" == "ftequake - Win32 MinSW"
+
+# PROP BASE Use_MFC 0
+# PROP BASE Use_Debug_Libraries 1
+# PROP BASE Output_Dir "ftequake___Win32_MinSW"
+# PROP BASE Intermediate_Dir "ftequake___Win32_MinSW"
+# PROP BASE Ignore_Export_Lib 0
+# PROP BASE Target_Dir ""
+# PROP Use_MFC 0
+# PROP Use_Debug_Libraries 1
+# PROP Output_Dir "ftequake___Win32_MinSW"
+# PROP Intermediate_Dir "ftequake___Win32_MinSW"
+# PROP Ignore_Export_Lib 0
+# PROP Target_Dir ""
+# ADD BASE CPP /nologo /G6 /W3 /Gm /GX /ZI /Od /I "../client" /I "../common" /I "../server" /I "../gl" /I "../sw" /I "../qclib" /I "../libs" /I "../libs/dxsdk7/include" /D "_DEBUG" /D "WIN32" /D "_WINDOWS" /D "SWQUAKE" /FR".\Debug/" /Fp".\Debug/qwcl.pch" /YX /Fo".\Debug/" /Fd".\Debug/" /FD /c
+# ADD CPP /nologo /G6 /W3 /Gm /GX /ZI /Od /I "../client" /I "../common" /I "../server" /I "../gl" /I "../sw" /I "../qclib" /I "../libs" /I "../libs/dxsdk7/include" /D "_DEBUG" /D "WIN32" /D "_WINDOWS" /D "SWQUAKE" /D "MINIMAL" /FR".\Debug/" /Fp".\Debug/qwcl.pch" /Yu"quakedef.h" /Fo".\Debug/" /Fd".\Debug/" /FD /c
+# ADD BASE MTL /nologo /D "_DEBUG" /mktyplib203 /win32
+# ADD MTL /nologo /D "_DEBUG" /mktyplib203 /win32
+# ADD BASE RSC /l 0x809 /d "_DEBUG"
+# ADD RSC /l 0x809 /d "_DEBUG"
+BSC32=bscmake.exe
+# ADD BASE BSC32 /nologo
+# ADD BSC32 /nologo
+LINK32=link.exe
+# ADD BASE LINK32 comctl32.lib wsock32.lib winmm.lib kernel32.lib user32.lib gdi32.lib winspool.lib comdlg32.lib advapi32.lib shell32.lib ole32.lib oleaut32.lib uuid.lib odbc32.lib odbccp32.lib /nologo /subsystem:windows /debug /machine:I386 /out:"../../fteswqw_dbg.exe" /pdbtype:sept
+# ADD LINK32 comctl32.lib wsock32.lib winmm.lib kernel32.lib user32.lib gdi32.lib winspool.lib comdlg32.lib advapi32.lib shell32.lib ole32.lib oleaut32.lib uuid.lib odbc32.lib odbccp32.lib /nologo /subsystem:windows /pdb:none /debug /machine:I386 /out:"../../fteswqw_dbg.exe"
+
+!ELSEIF  "$(CFG)" == "ftequake - Win32 GLDebugQ3"
+
+# PROP BASE Use_MFC 0
+# PROP BASE Use_Debug_Libraries 1
+# PROP BASE Output_Dir "ftequake___Win32_GLDebugQ3"
+# PROP BASE Intermediate_Dir "ftequake___Win32_GLDebugQ3"
+# PROP BASE Ignore_Export_Lib 0
+# PROP BASE Target_Dir ""
+# PROP Use_MFC 0
+# PROP Use_Debug_Libraries 1
+# PROP Output_Dir "ftequake___Win32_GLDebugQ3"
+# PROP Intermediate_Dir "ftequake___Win32_GLDebugQ3"
+# PROP Ignore_Export_Lib 0
+# PROP Target_Dir ""
+# ADD BASE CPP /nologo /G5 /ML /W3 /GX /ZI /Od /I "..\client" /I "../common" /I "../server" /I "../gl" /I "../sw" /I "../qclib" /I "../libs" /I "../libs/dxsdk7/include" /D "_DEBUG" /D "GLQUAKE" /D "WIN32" /D "_WINDOWS" /D "AVAIL_OGGVORBIS" /D "Q3CLIENT" /FR".\GLDebug/" /Fp".\GLDebug/qwcl.pch" /YX /Fo".\GLDebug/" /Fd".\GLDebug/" /FD /c
+# SUBTRACT BASE CPP /X
+# ADD CPP /nologo /G5 /W3 /GX /ZI /Od /I "..\client" /I "../common" /I "../server" /I "../gl" /I "../sw" /I "../qclib" /I "../libs" /I "../libs/dxsdk7/include" /D "_DEBUG" /D "GLQUAKE" /D "WIN32" /D "_WINDOWS" /D "AVAIL_OGGVORBIS" /D "Q3CLIENT" /Fp".\GLDebugQ3/qwcl.pch" /Yu"quakedef.h" /Fo".\GLDebugQ3/" /Fd".\GLDebugQ3/" /FD /c
+# ADD BASE MTL /nologo /D "_DEBUG" /mktyplib203 /win32
+# ADD MTL /nologo /D "_DEBUG" /mktyplib203 /win32
+# ADD BASE RSC /l 0x809 /d "_DEBUG"
+# ADD RSC /l 0x809 /fo"GLDebugQ3/winquake.res" /d "_DEBUG"
+BSC32=bscmake.exe
+# ADD BASE BSC32 /nologo
+# ADD BSC32 /nologo /o"GLDebugQ3/ftequake.bsc"
+LINK32=link.exe
+# ADD BASE LINK32 comctl32.lib wsock32.lib kernel32.lib user32.lib gdi32.lib winspool.lib comdlg32.lib advapi32.lib shell32.lib ole32.lib oleaut32.lib uuid.lib odbc32.lib odbccp32.lib winmm.lib /nologo /subsystem:windows /pdb:".\GLDebug/dglqwcl.pdb" /debug /machine:I386 /out:"../../fteglqw_dbg.exe"
+# SUBTRACT BASE LINK32 /pdb:none
+# ADD LINK32 comctl32.lib wsock32.lib winmm.lib kernel32.lib user32.lib gdi32.lib winspool.lib comdlg32.lib advapi32.lib shell32.lib ole32.lib oleaut32.lib uuid.lib odbc32.lib odbccp32.lib /nologo /subsystem:windows /pdb:none /debug /machine:I386 /out:"../../fteglqw_dbg.exe"
 
 !ENDIF 
 
@@ -328,6 +383,8 @@ LINK32=link.exe
 # Name "ftequake - Win32 MinGLRelease"
 # Name "ftequake - Win32 Debug Dedicated Server"
 # Name "ftequake - Win32 Release Dedicated Server"
+# Name "ftequake - Win32 MinSW"
+# Name "ftequake - Win32 GLDebugQ3"
 # Begin Group "Source Files"
 
 # PROP Default_Filter "cpp;c;cxx;rc;def;r;odl;idl;hpj;bat"
@@ -337,82 +394,1102 @@ LINK32=link.exe
 # Begin Source File
 
 SOURCE=..\server\net_preparse.c
+
+!IF  "$(CFG)" == "ftequake - Win32 Release"
+
+# ADD CPP /Yu"qwsvdef.h"
+
+!ELSEIF  "$(CFG)" == "ftequake - Win32 Debug"
+
+# ADD CPP /Yu"qwsvdef.h"
+
+!ELSEIF  "$(CFG)" == "ftequake - Win32 GLDebug"
+
+# ADD CPP /Yu"qwsvdef.h"
+
+!ELSEIF  "$(CFG)" == "ftequake - Win32 GLRelease"
+
+# ADD CPP /Yu"qwsvdef.h"
+
+!ELSEIF  "$(CFG)" == "ftequake - Win32 MDebug"
+
+# ADD CPP /Yu"qwsvdef.h"
+
+!ELSEIF  "$(CFG)" == "ftequake - Win32 MRelease"
+
+# ADD CPP /Yu"qwsvdef.h"
+
+!ELSEIF  "$(CFG)" == "ftequake - Win32 MinGLDebug"
+
+# ADD CPP /Yu"qwsvdef.h"
+
+!ELSEIF  "$(CFG)" == "ftequake - Win32 MinGLRelease"
+
+# ADD CPP /Yu"qwsvdef.h"
+
+!ELSEIF  "$(CFG)" == "ftequake - Win32 Debug Dedicated Server"
+
+# ADD CPP /Yu"qwsvdef.h"
+
+!ELSEIF  "$(CFG)" == "ftequake - Win32 Release Dedicated Server"
+
+# ADD CPP /Yu"qwsvdef.h"
+
+!ELSEIF  "$(CFG)" == "ftequake - Win32 MinSW"
+
+# ADD CPP /Yu"qwsvdef.h"
+
+!ELSEIF  "$(CFG)" == "ftequake - Win32 GLDebugQ3"
+
+# ADD CPP /Yu"qwsvdef.h"
+
+!ENDIF 
+
 # End Source File
 # Begin Source File
 
 SOURCE=..\server\pr_cmds.c
+
+!IF  "$(CFG)" == "ftequake - Win32 Release"
+
+# ADD CPP /Yu"qwsvdef.h"
+
+!ELSEIF  "$(CFG)" == "ftequake - Win32 Debug"
+
+# ADD CPP /Yu"qwsvdef.h"
+
+!ELSEIF  "$(CFG)" == "ftequake - Win32 GLDebug"
+
+# ADD CPP /Yu"qwsvdef.h"
+
+!ELSEIF  "$(CFG)" == "ftequake - Win32 GLRelease"
+
+# ADD CPP /Yu"qwsvdef.h"
+
+!ELSEIF  "$(CFG)" == "ftequake - Win32 MDebug"
+
+# ADD CPP /Yu"qwsvdef.h"
+
+!ELSEIF  "$(CFG)" == "ftequake - Win32 MRelease"
+
+# ADD CPP /Yu"qwsvdef.h"
+
+!ELSEIF  "$(CFG)" == "ftequake - Win32 MinGLDebug"
+
+# ADD CPP /Yu"qwsvdef.h"
+
+!ELSEIF  "$(CFG)" == "ftequake - Win32 MinGLRelease"
+
+# ADD CPP /Yu"qwsvdef.h"
+
+!ELSEIF  "$(CFG)" == "ftequake - Win32 Debug Dedicated Server"
+
+# ADD CPP /Yu"qwsvdef.h"
+
+!ELSEIF  "$(CFG)" == "ftequake - Win32 Release Dedicated Server"
+
+# ADD CPP /Yu"qwsvdef.h"
+
+!ELSEIF  "$(CFG)" == "ftequake - Win32 MinSW"
+
+# ADD CPP /Yu"qwsvdef.h"
+
+!ELSEIF  "$(CFG)" == "ftequake - Win32 GLDebugQ3"
+
+# ADD CPP /Yu"qwsvdef.h"
+
+!ENDIF 
+
 # End Source File
 # Begin Source File
 
 SOURCE=..\server\savegame.c
+
+!IF  "$(CFG)" == "ftequake - Win32 Release"
+
+# ADD CPP /Yu"qwsvdef.h"
+
+!ELSEIF  "$(CFG)" == "ftequake - Win32 Debug"
+
+# ADD CPP /Yu"qwsvdef.h"
+
+!ELSEIF  "$(CFG)" == "ftequake - Win32 GLDebug"
+
+# ADD CPP /Yu"qwsvdef.h"
+
+!ELSEIF  "$(CFG)" == "ftequake - Win32 GLRelease"
+
+# ADD CPP /Yu"qwsvdef.h"
+
+!ELSEIF  "$(CFG)" == "ftequake - Win32 MDebug"
+
+# ADD CPP /Yu"qwsvdef.h"
+
+!ELSEIF  "$(CFG)" == "ftequake - Win32 MRelease"
+
+# ADD CPP /Yu"qwsvdef.h"
+
+!ELSEIF  "$(CFG)" == "ftequake - Win32 MinGLDebug"
+
+# ADD CPP /Yu"qwsvdef.h"
+
+!ELSEIF  "$(CFG)" == "ftequake - Win32 MinGLRelease"
+
+# ADD CPP /Yu"qwsvdef.h"
+
+!ELSEIF  "$(CFG)" == "ftequake - Win32 Debug Dedicated Server"
+
+# ADD CPP /Yu"qwsvdef.h"
+
+!ELSEIF  "$(CFG)" == "ftequake - Win32 Release Dedicated Server"
+
+# ADD CPP /Yu"qwsvdef.h"
+
+!ELSEIF  "$(CFG)" == "ftequake - Win32 MinSW"
+
+# ADD CPP /Yu"qwsvdef.h"
+
+!ELSEIF  "$(CFG)" == "ftequake - Win32 GLDebugQ3"
+
+# ADD CPP /Yu"qwsvdef.h"
+
+!ENDIF 
+
 # End Source File
 # Begin Source File
 
 SOURCE=..\server\sv_ccmds.c
+
+!IF  "$(CFG)" == "ftequake - Win32 Release"
+
+# ADD CPP /Yu"qwsvdef.h"
+
+!ELSEIF  "$(CFG)" == "ftequake - Win32 Debug"
+
+# ADD CPP /Yu"qwsvdef.h"
+
+!ELSEIF  "$(CFG)" == "ftequake - Win32 GLDebug"
+
+# ADD CPP /Yu"qwsvdef.h"
+
+!ELSEIF  "$(CFG)" == "ftequake - Win32 GLRelease"
+
+# ADD CPP /Yu"qwsvdef.h"
+
+!ELSEIF  "$(CFG)" == "ftequake - Win32 MDebug"
+
+# ADD CPP /Yu"qwsvdef.h"
+
+!ELSEIF  "$(CFG)" == "ftequake - Win32 MRelease"
+
+# ADD CPP /Yu"qwsvdef.h"
+
+!ELSEIF  "$(CFG)" == "ftequake - Win32 MinGLDebug"
+
+# ADD CPP /Yu"qwsvdef.h"
+
+!ELSEIF  "$(CFG)" == "ftequake - Win32 MinGLRelease"
+
+# ADD CPP /Yu"qwsvdef.h"
+
+!ELSEIF  "$(CFG)" == "ftequake - Win32 Debug Dedicated Server"
+
+# ADD CPP /Yu"qwsvdef.h"
+
+!ELSEIF  "$(CFG)" == "ftequake - Win32 Release Dedicated Server"
+
+# ADD CPP /Yu"qwsvdef.h"
+
+!ELSEIF  "$(CFG)" == "ftequake - Win32 MinSW"
+
+# ADD CPP /Yu"qwsvdef.h"
+
+!ELSEIF  "$(CFG)" == "ftequake - Win32 GLDebugQ3"
+
+# ADD CPP /Yu"qwsvdef.h"
+
+!ENDIF 
+
 # End Source File
 # Begin Source File
 
 SOURCE=..\server\sv_chat.c
+
+!IF  "$(CFG)" == "ftequake - Win32 Release"
+
+# ADD CPP /Yu"qwsvdef.h"
+
+!ELSEIF  "$(CFG)" == "ftequake - Win32 Debug"
+
+# ADD CPP /Yu"qwsvdef.h"
+
+!ELSEIF  "$(CFG)" == "ftequake - Win32 GLDebug"
+
+# ADD CPP /Yu"qwsvdef.h"
+
+!ELSEIF  "$(CFG)" == "ftequake - Win32 GLRelease"
+
+# ADD CPP /Yu"qwsvdef.h"
+
+!ELSEIF  "$(CFG)" == "ftequake - Win32 MDebug"
+
+# ADD CPP /Yu"qwsvdef.h"
+
+!ELSEIF  "$(CFG)" == "ftequake - Win32 MRelease"
+
+# ADD CPP /Yu"qwsvdef.h"
+
+!ELSEIF  "$(CFG)" == "ftequake - Win32 MinGLDebug"
+
+# ADD CPP /Yu"qwsvdef.h"
+
+!ELSEIF  "$(CFG)" == "ftequake - Win32 MinGLRelease"
+
+# ADD CPP /Yu"qwsvdef.h"
+
+!ELSEIF  "$(CFG)" == "ftequake - Win32 Debug Dedicated Server"
+
+# ADD CPP /Yu"qwsvdef.h"
+
+!ELSEIF  "$(CFG)" == "ftequake - Win32 Release Dedicated Server"
+
+# ADD CPP /Yu"qwsvdef.h"
+
+!ELSEIF  "$(CFG)" == "ftequake - Win32 MinSW"
+
+# ADD CPP /Yu"qwsvdef.h"
+
+!ELSEIF  "$(CFG)" == "ftequake - Win32 GLDebugQ3"
+
+# ADD CPP /Yu"qwsvdef.h"
+
+!ENDIF 
+
 # End Source File
 # Begin Source File
 
 SOURCE=..\server\sv_demo.c
+
+!IF  "$(CFG)" == "ftequake - Win32 Release"
+
+# ADD CPP /Yu"qwsvdef.h"
+
+!ELSEIF  "$(CFG)" == "ftequake - Win32 Debug"
+
+# ADD CPP /Yu"qwsvdef.h"
+
+!ELSEIF  "$(CFG)" == "ftequake - Win32 GLDebug"
+
+# ADD CPP /Yu"qwsvdef.h"
+
+!ELSEIF  "$(CFG)" == "ftequake - Win32 GLRelease"
+
+# ADD CPP /Yu"qwsvdef.h"
+
+!ELSEIF  "$(CFG)" == "ftequake - Win32 MDebug"
+
+# ADD CPP /Yu"qwsvdef.h"
+
+!ELSEIF  "$(CFG)" == "ftequake - Win32 MRelease"
+
+# ADD CPP /Yu"qwsvdef.h"
+
+!ELSEIF  "$(CFG)" == "ftequake - Win32 MinGLDebug"
+
+# ADD CPP /Yu"qwsvdef.h"
+
+!ELSEIF  "$(CFG)" == "ftequake - Win32 MinGLRelease"
+
+# ADD CPP /Yu"qwsvdef.h"
+
+!ELSEIF  "$(CFG)" == "ftequake - Win32 Debug Dedicated Server"
+
+# ADD CPP /Yu"qwsvdef.h"
+
+!ELSEIF  "$(CFG)" == "ftequake - Win32 Release Dedicated Server"
+
+# ADD CPP /Yu"qwsvdef.h"
+
+!ELSEIF  "$(CFG)" == "ftequake - Win32 MinSW"
+
+# ADD CPP /Yu"qwsvdef.h"
+
+!ELSEIF  "$(CFG)" == "ftequake - Win32 GLDebugQ3"
+
+# ADD CPP /Yu"qwsvdef.h"
+
+!ENDIF 
+
 # End Source File
 # Begin Source File
 
 SOURCE=..\server\sv_ents.c
+
+!IF  "$(CFG)" == "ftequake - Win32 Release"
+
+# ADD CPP /Yu"qwsvdef.h"
+
+!ELSEIF  "$(CFG)" == "ftequake - Win32 Debug"
+
+# ADD CPP /Yu"qwsvdef.h"
+
+!ELSEIF  "$(CFG)" == "ftequake - Win32 GLDebug"
+
+# ADD CPP /Yu"qwsvdef.h"
+
+!ELSEIF  "$(CFG)" == "ftequake - Win32 GLRelease"
+
+# ADD CPP /Yu"qwsvdef.h"
+
+!ELSEIF  "$(CFG)" == "ftequake - Win32 MDebug"
+
+# ADD CPP /Yu"qwsvdef.h"
+
+!ELSEIF  "$(CFG)" == "ftequake - Win32 MRelease"
+
+# ADD CPP /Yu"qwsvdef.h"
+
+!ELSEIF  "$(CFG)" == "ftequake - Win32 MinGLDebug"
+
+# ADD CPP /Yu"qwsvdef.h"
+
+!ELSEIF  "$(CFG)" == "ftequake - Win32 MinGLRelease"
+
+# ADD CPP /Yu"qwsvdef.h"
+
+!ELSEIF  "$(CFG)" == "ftequake - Win32 Debug Dedicated Server"
+
+# ADD CPP /Yu"qwsvdef.h"
+
+!ELSEIF  "$(CFG)" == "ftequake - Win32 Release Dedicated Server"
+
+# ADD CPP /Yu"qwsvdef.h"
+
+!ELSEIF  "$(CFG)" == "ftequake - Win32 MinSW"
+
+# ADD CPP /Yu"qwsvdef.h"
+
+!ELSEIF  "$(CFG)" == "ftequake - Win32 GLDebugQ3"
+
+# ADD CPP /Yu"qwsvdef.h"
+
+!ENDIF 
+
 # End Source File
 # Begin Source File
 
 SOURCE=..\server\sv_init.c
+
+!IF  "$(CFG)" == "ftequake - Win32 Release"
+
+# ADD CPP /Yu"qwsvdef.h"
+
+!ELSEIF  "$(CFG)" == "ftequake - Win32 Debug"
+
+# ADD CPP /Yu"qwsvdef.h"
+
+!ELSEIF  "$(CFG)" == "ftequake - Win32 GLDebug"
+
+# ADD CPP /Yu"qwsvdef.h"
+
+!ELSEIF  "$(CFG)" == "ftequake - Win32 GLRelease"
+
+# ADD CPP /Yu"qwsvdef.h"
+
+!ELSEIF  "$(CFG)" == "ftequake - Win32 MDebug"
+
+# ADD CPP /Yu"qwsvdef.h"
+
+!ELSEIF  "$(CFG)" == "ftequake - Win32 MRelease"
+
+# ADD CPP /Yu"qwsvdef.h"
+
+!ELSEIF  "$(CFG)" == "ftequake - Win32 MinGLDebug"
+
+# ADD CPP /Yu"qwsvdef.h"
+
+!ELSEIF  "$(CFG)" == "ftequake - Win32 MinGLRelease"
+
+# ADD CPP /Yu"qwsvdef.h"
+
+!ELSEIF  "$(CFG)" == "ftequake - Win32 Debug Dedicated Server"
+
+# ADD CPP /Yu"qwsvdef.h"
+
+!ELSEIF  "$(CFG)" == "ftequake - Win32 Release Dedicated Server"
+
+# ADD CPP /Yu"qwsvdef.h"
+
+!ELSEIF  "$(CFG)" == "ftequake - Win32 MinSW"
+
+# ADD CPP /Yu"qwsvdef.h"
+
+!ELSEIF  "$(CFG)" == "ftequake - Win32 GLDebugQ3"
+
+# ADD CPP /Yu"qwsvdef.h"
+
+!ENDIF 
+
 # End Source File
 # Begin Source File
 
 SOURCE=..\server\sv_main.c
+
+!IF  "$(CFG)" == "ftequake - Win32 Release"
+
+# ADD CPP /Yu"qwsvdef.h"
+
+!ELSEIF  "$(CFG)" == "ftequake - Win32 Debug"
+
+# ADD CPP /Yu"qwsvdef.h"
+
+!ELSEIF  "$(CFG)" == "ftequake - Win32 GLDebug"
+
+# ADD CPP /Yu"qwsvdef.h"
+
+!ELSEIF  "$(CFG)" == "ftequake - Win32 GLRelease"
+
+# ADD CPP /Yu"qwsvdef.h"
+
+!ELSEIF  "$(CFG)" == "ftequake - Win32 MDebug"
+
+# ADD CPP /Yu"qwsvdef.h"
+
+!ELSEIF  "$(CFG)" == "ftequake - Win32 MRelease"
+
+# ADD CPP /Yu"qwsvdef.h"
+
+!ELSEIF  "$(CFG)" == "ftequake - Win32 MinGLDebug"
+
+# ADD CPP /Yu"qwsvdef.h"
+
+!ELSEIF  "$(CFG)" == "ftequake - Win32 MinGLRelease"
+
+# ADD CPP /Yu"qwsvdef.h"
+
+!ELSEIF  "$(CFG)" == "ftequake - Win32 Debug Dedicated Server"
+
+# ADD CPP /Yu"qwsvdef.h"
+
+!ELSEIF  "$(CFG)" == "ftequake - Win32 Release Dedicated Server"
+
+# ADD CPP /Yu"qwsvdef.h"
+
+!ELSEIF  "$(CFG)" == "ftequake - Win32 MinSW"
+
+# ADD CPP /Yu"qwsvdef.h"
+
+!ELSEIF  "$(CFG)" == "ftequake - Win32 GLDebugQ3"
+
+# ADD CPP /Yu"qwsvdef.h"
+
+!ENDIF 
+
 # End Source File
 # Begin Source File
 
 SOURCE=..\server\sv_master.c
+
+!IF  "$(CFG)" == "ftequake - Win32 Release"
+
+# ADD CPP /Yu"qwsvdef.h"
+
+!ELSEIF  "$(CFG)" == "ftequake - Win32 Debug"
+
+# ADD CPP /Yu"qwsvdef.h"
+
+!ELSEIF  "$(CFG)" == "ftequake - Win32 GLDebug"
+
+# ADD CPP /Yu"qwsvdef.h"
+
+!ELSEIF  "$(CFG)" == "ftequake - Win32 GLRelease"
+
+# ADD CPP /Yu"qwsvdef.h"
+
+!ELSEIF  "$(CFG)" == "ftequake - Win32 MDebug"
+
+# ADD CPP /Yu"qwsvdef.h"
+
+!ELSEIF  "$(CFG)" == "ftequake - Win32 MRelease"
+
+# ADD CPP /Yu"qwsvdef.h"
+
+!ELSEIF  "$(CFG)" == "ftequake - Win32 MinGLDebug"
+
+# ADD CPP /Yu"qwsvdef.h"
+
+!ELSEIF  "$(CFG)" == "ftequake - Win32 MinGLRelease"
+
+# ADD CPP /Yu"qwsvdef.h"
+
+!ELSEIF  "$(CFG)" == "ftequake - Win32 Debug Dedicated Server"
+
+# ADD CPP /Yu"qwsvdef.h"
+
+!ELSEIF  "$(CFG)" == "ftequake - Win32 Release Dedicated Server"
+
+# ADD CPP /Yu"qwsvdef.h"
+
+!ELSEIF  "$(CFG)" == "ftequake - Win32 MinSW"
+
+# ADD CPP /Yu"qwsvdef.h"
+
+!ELSEIF  "$(CFG)" == "ftequake - Win32 GLDebugQ3"
+
+# ADD CPP /Yu"qwsvdef.h"
+
+!ENDIF 
+
 # End Source File
 # Begin Source File
 
 SOURCE=..\server\sv_move.c
+
+!IF  "$(CFG)" == "ftequake - Win32 Release"
+
+# ADD CPP /Yu"qwsvdef.h"
+
+!ELSEIF  "$(CFG)" == "ftequake - Win32 Debug"
+
+# ADD CPP /Yu"qwsvdef.h"
+
+!ELSEIF  "$(CFG)" == "ftequake - Win32 GLDebug"
+
+# ADD CPP /Yu"qwsvdef.h"
+
+!ELSEIF  "$(CFG)" == "ftequake - Win32 GLRelease"
+
+# ADD CPP /Yu"qwsvdef.h"
+
+!ELSEIF  "$(CFG)" == "ftequake - Win32 MDebug"
+
+# ADD CPP /Yu"qwsvdef.h"
+
+!ELSEIF  "$(CFG)" == "ftequake - Win32 MRelease"
+
+# ADD CPP /Yu"qwsvdef.h"
+
+!ELSEIF  "$(CFG)" == "ftequake - Win32 MinGLDebug"
+
+# ADD CPP /Yu"qwsvdef.h"
+
+!ELSEIF  "$(CFG)" == "ftequake - Win32 MinGLRelease"
+
+# ADD CPP /Yu"qwsvdef.h"
+
+!ELSEIF  "$(CFG)" == "ftequake - Win32 Debug Dedicated Server"
+
+# ADD CPP /Yu"qwsvdef.h"
+
+!ELSEIF  "$(CFG)" == "ftequake - Win32 Release Dedicated Server"
+
+# ADD CPP /Yu"qwsvdef.h"
+
+!ELSEIF  "$(CFG)" == "ftequake - Win32 MinSW"
+
+# ADD CPP /Yu"qwsvdef.h"
+
+!ELSEIF  "$(CFG)" == "ftequake - Win32 GLDebugQ3"
+
+# ADD CPP /Yu"qwsvdef.h"
+
+!ENDIF 
+
 # End Source File
 # Begin Source File
 
 SOURCE=..\server\sv_mvd.c
+
+!IF  "$(CFG)" == "ftequake - Win32 Release"
+
+# ADD CPP /Yu"qwsvdef.h"
+
+!ELSEIF  "$(CFG)" == "ftequake - Win32 Debug"
+
+# ADD CPP /Yu"qwsvdef.h"
+
+!ELSEIF  "$(CFG)" == "ftequake - Win32 GLDebug"
+
+# ADD CPP /Yu"qwsvdef.h"
+
+!ELSEIF  "$(CFG)" == "ftequake - Win32 GLRelease"
+
+# ADD CPP /Yu"qwsvdef.h"
+
+!ELSEIF  "$(CFG)" == "ftequake - Win32 MDebug"
+
+# ADD CPP /Yu"qwsvdef.h"
+
+!ELSEIF  "$(CFG)" == "ftequake - Win32 MRelease"
+
+# ADD CPP /Yu"qwsvdef.h"
+
+!ELSEIF  "$(CFG)" == "ftequake - Win32 MinGLDebug"
+
+# ADD CPP /Yu"qwsvdef.h"
+
+!ELSEIF  "$(CFG)" == "ftequake - Win32 MinGLRelease"
+
+# ADD CPP /Yu"qwsvdef.h"
+
+!ELSEIF  "$(CFG)" == "ftequake - Win32 Debug Dedicated Server"
+
+# ADD CPP /Yu"qwsvdef.h"
+
+!ELSEIF  "$(CFG)" == "ftequake - Win32 Release Dedicated Server"
+
+# ADD CPP /Yu"qwsvdef.h"
+
+!ELSEIF  "$(CFG)" == "ftequake - Win32 MinSW"
+
+# ADD CPP /Yu"qwsvdef.h"
+
+!ELSEIF  "$(CFG)" == "ftequake - Win32 GLDebugQ3"
+
+# ADD CPP /Yu"qwsvdef.h"
+
+!ENDIF 
+
 # End Source File
 # Begin Source File
 
 SOURCE=..\server\sv_nchan.c
+
+!IF  "$(CFG)" == "ftequake - Win32 Release"
+
+# ADD CPP /Yu"qwsvdef.h"
+
+!ELSEIF  "$(CFG)" == "ftequake - Win32 Debug"
+
+# ADD CPP /Yu"qwsvdef.h"
+
+!ELSEIF  "$(CFG)" == "ftequake - Win32 GLDebug"
+
+# ADD CPP /Yu"qwsvdef.h"
+
+!ELSEIF  "$(CFG)" == "ftequake - Win32 GLRelease"
+
+# ADD CPP /Yu"qwsvdef.h"
+
+!ELSEIF  "$(CFG)" == "ftequake - Win32 MDebug"
+
+# ADD CPP /Yu"qwsvdef.h"
+
+!ELSEIF  "$(CFG)" == "ftequake - Win32 MRelease"
+
+# ADD CPP /Yu"qwsvdef.h"
+
+!ELSEIF  "$(CFG)" == "ftequake - Win32 MinGLDebug"
+
+# ADD CPP /Yu"qwsvdef.h"
+
+!ELSEIF  "$(CFG)" == "ftequake - Win32 MinGLRelease"
+
+# ADD CPP /Yu"qwsvdef.h"
+
+!ELSEIF  "$(CFG)" == "ftequake - Win32 Debug Dedicated Server"
+
+# ADD CPP /Yu"qwsvdef.h"
+
+!ELSEIF  "$(CFG)" == "ftequake - Win32 Release Dedicated Server"
+
+# ADD CPP /Yu"qwsvdef.h"
+
+!ELSEIF  "$(CFG)" == "ftequake - Win32 MinSW"
+
+# ADD CPP /Yu"qwsvdef.h"
+
+!ELSEIF  "$(CFG)" == "ftequake - Win32 GLDebugQ3"
+
+# ADD CPP /Yu"qwsvdef.h"
+
+!ENDIF 
+
 # End Source File
 # Begin Source File
 
 SOURCE=..\server\sv_phys.c
+
+!IF  "$(CFG)" == "ftequake - Win32 Release"
+
+# ADD CPP /Yu"qwsvdef.h"
+
+!ELSEIF  "$(CFG)" == "ftequake - Win32 Debug"
+
+# ADD CPP /Yu"qwsvdef.h"
+
+!ELSEIF  "$(CFG)" == "ftequake - Win32 GLDebug"
+
+# ADD CPP /Yu"qwsvdef.h"
+
+!ELSEIF  "$(CFG)" == "ftequake - Win32 GLRelease"
+
+# ADD CPP /Yu"qwsvdef.h"
+
+!ELSEIF  "$(CFG)" == "ftequake - Win32 MDebug"
+
+# ADD CPP /Yu"qwsvdef.h"
+
+!ELSEIF  "$(CFG)" == "ftequake - Win32 MRelease"
+
+# ADD CPP /Yu"qwsvdef.h"
+
+!ELSEIF  "$(CFG)" == "ftequake - Win32 MinGLDebug"
+
+# ADD CPP /Yu"qwsvdef.h"
+
+!ELSEIF  "$(CFG)" == "ftequake - Win32 MinGLRelease"
+
+# ADD CPP /Yu"qwsvdef.h"
+
+!ELSEIF  "$(CFG)" == "ftequake - Win32 Debug Dedicated Server"
+
+# ADD CPP /Yu"qwsvdef.h"
+
+!ELSEIF  "$(CFG)" == "ftequake - Win32 Release Dedicated Server"
+
+# ADD CPP /Yu"qwsvdef.h"
+
+!ELSEIF  "$(CFG)" == "ftequake - Win32 MinSW"
+
+# ADD CPP /Yu"qwsvdef.h"
+
+!ELSEIF  "$(CFG)" == "ftequake - Win32 GLDebugQ3"
+
+# ADD CPP /Yu"qwsvdef.h"
+
+!ENDIF 
+
 # End Source File
 # Begin Source File
 
 SOURCE=..\server\sv_rankin.c
+
+!IF  "$(CFG)" == "ftequake - Win32 Release"
+
+# ADD CPP /Yu"qwsvdef.h"
+
+!ELSEIF  "$(CFG)" == "ftequake - Win32 Debug"
+
+# ADD CPP /Yu"qwsvdef.h"
+
+!ELSEIF  "$(CFG)" == "ftequake - Win32 GLDebug"
+
+# ADD CPP /Yu"qwsvdef.h"
+
+!ELSEIF  "$(CFG)" == "ftequake - Win32 GLRelease"
+
+# ADD CPP /Yu"qwsvdef.h"
+
+!ELSEIF  "$(CFG)" == "ftequake - Win32 MDebug"
+
+# ADD CPP /Yu"qwsvdef.h"
+
+!ELSEIF  "$(CFG)" == "ftequake - Win32 MRelease"
+
+# ADD CPP /Yu"qwsvdef.h"
+
+!ELSEIF  "$(CFG)" == "ftequake - Win32 MinGLDebug"
+
+# ADD CPP /Yu"qwsvdef.h"
+
+!ELSEIF  "$(CFG)" == "ftequake - Win32 MinGLRelease"
+
+# ADD CPP /Yu"qwsvdef.h"
+
+!ELSEIF  "$(CFG)" == "ftequake - Win32 Debug Dedicated Server"
+
+# ADD CPP /Yu"qwsvdef.h"
+
+!ELSEIF  "$(CFG)" == "ftequake - Win32 Release Dedicated Server"
+
+# ADD CPP /Yu"qwsvdef.h"
+
+!ELSEIF  "$(CFG)" == "ftequake - Win32 MinSW"
+
+# ADD CPP /Yu"qwsvdef.h"
+
+!ELSEIF  "$(CFG)" == "ftequake - Win32 GLDebugQ3"
+
+# ADD CPP /Yu"qwsvdef.h"
+
+!ENDIF 
+
 # End Source File
 # Begin Source File
 
 SOURCE=..\server\sv_send.c
+
+!IF  "$(CFG)" == "ftequake - Win32 Release"
+
+# ADD CPP /Yu"qwsvdef.h"
+
+!ELSEIF  "$(CFG)" == "ftequake - Win32 Debug"
+
+# ADD CPP /Yu"qwsvdef.h"
+
+!ELSEIF  "$(CFG)" == "ftequake - Win32 GLDebug"
+
+# ADD CPP /Yu"qwsvdef.h"
+
+!ELSEIF  "$(CFG)" == "ftequake - Win32 GLRelease"
+
+# ADD CPP /Yu"qwsvdef.h"
+
+!ELSEIF  "$(CFG)" == "ftequake - Win32 MDebug"
+
+# ADD CPP /Yu"qwsvdef.h"
+
+!ELSEIF  "$(CFG)" == "ftequake - Win32 MRelease"
+
+# ADD CPP /Yu"qwsvdef.h"
+
+!ELSEIF  "$(CFG)" == "ftequake - Win32 MinGLDebug"
+
+# ADD CPP /Yu"qwsvdef.h"
+
+!ELSEIF  "$(CFG)" == "ftequake - Win32 MinGLRelease"
+
+# ADD CPP /Yu"qwsvdef.h"
+
+!ELSEIF  "$(CFG)" == "ftequake - Win32 Debug Dedicated Server"
+
+# ADD CPP /Yu"qwsvdef.h"
+
+!ELSEIF  "$(CFG)" == "ftequake - Win32 Release Dedicated Server"
+
+# ADD CPP /Yu"qwsvdef.h"
+
+!ELSEIF  "$(CFG)" == "ftequake - Win32 MinSW"
+
+# ADD CPP /Yu"qwsvdef.h"
+
+!ELSEIF  "$(CFG)" == "ftequake - Win32 GLDebugQ3"
+
+# ADD CPP /Yu"qwsvdef.h"
+
+!ENDIF 
+
 # End Source File
 # Begin Source File
 
 SOURCE=..\server\sv_user.c
+
+!IF  "$(CFG)" == "ftequake - Win32 Release"
+
+# ADD CPP /Yu"qwsvdef.h"
+
+!ELSEIF  "$(CFG)" == "ftequake - Win32 Debug"
+
+# ADD CPP /Yu"qwsvdef.h"
+
+!ELSEIF  "$(CFG)" == "ftequake - Win32 GLDebug"
+
+# ADD CPP /Yu"qwsvdef.h"
+
+!ELSEIF  "$(CFG)" == "ftequake - Win32 GLRelease"
+
+# ADD CPP /Yu"qwsvdef.h"
+
+!ELSEIF  "$(CFG)" == "ftequake - Win32 MDebug"
+
+# ADD CPP /Yu"qwsvdef.h"
+
+!ELSEIF  "$(CFG)" == "ftequake - Win32 MRelease"
+
+# ADD CPP /Yu"qwsvdef.h"
+
+!ELSEIF  "$(CFG)" == "ftequake - Win32 MinGLDebug"
+
+# ADD CPP /Yu"qwsvdef.h"
+
+!ELSEIF  "$(CFG)" == "ftequake - Win32 MinGLRelease"
+
+# ADD CPP /Yu"qwsvdef.h"
+
+!ELSEIF  "$(CFG)" == "ftequake - Win32 Debug Dedicated Server"
+
+# ADD CPP /Yu"qwsvdef.h"
+
+!ELSEIF  "$(CFG)" == "ftequake - Win32 Release Dedicated Server"
+
+# ADD CPP /Yu"qwsvdef.h"
+
+!ELSEIF  "$(CFG)" == "ftequake - Win32 MinSW"
+
+# ADD CPP /Yu"qwsvdef.h"
+
+!ELSEIF  "$(CFG)" == "ftequake - Win32 GLDebugQ3"
+
+# ADD CPP /Yu"qwsvdef.h"
+
+!ENDIF 
+
 # End Source File
 # Begin Source File
 
 SOURCE=..\server\svq2_ents.c
+
+!IF  "$(CFG)" == "ftequake - Win32 Release"
+
+# ADD CPP /Yu"qwsvdef.h"
+
+!ELSEIF  "$(CFG)" == "ftequake - Win32 Debug"
+
+# ADD CPP /Yu"qwsvdef.h"
+
+!ELSEIF  "$(CFG)" == "ftequake - Win32 GLDebug"
+
+# ADD CPP /Yu"qwsvdef.h"
+
+!ELSEIF  "$(CFG)" == "ftequake - Win32 GLRelease"
+
+# ADD CPP /Yu"qwsvdef.h"
+
+!ELSEIF  "$(CFG)" == "ftequake - Win32 MDebug"
+
+# ADD CPP /Yu"qwsvdef.h"
+
+!ELSEIF  "$(CFG)" == "ftequake - Win32 MRelease"
+
+# ADD CPP /Yu"qwsvdef.h"
+
+!ELSEIF  "$(CFG)" == "ftequake - Win32 MinGLDebug"
+
+# ADD CPP /Yu"qwsvdef.h"
+
+!ELSEIF  "$(CFG)" == "ftequake - Win32 MinGLRelease"
+
+# ADD CPP /Yu"qwsvdef.h"
+
+!ELSEIF  "$(CFG)" == "ftequake - Win32 Debug Dedicated Server"
+
+# ADD CPP /Yu"qwsvdef.h"
+
+!ELSEIF  "$(CFG)" == "ftequake - Win32 Release Dedicated Server"
+
+# ADD CPP /Yu"qwsvdef.h"
+
+!ELSEIF  "$(CFG)" == "ftequake - Win32 MinSW"
+
+# ADD CPP /Yu"qwsvdef.h"
+
+!ELSEIF  "$(CFG)" == "ftequake - Win32 GLDebugQ3"
+
+# ADD CPP /Yu"qwsvdef.h"
+
+!ENDIF 
+
 # End Source File
 # Begin Source File
 
 SOURCE=..\server\svq2_game.c
+
+!IF  "$(CFG)" == "ftequake - Win32 Release"
+
+# ADD CPP /Yu"qwsvdef.h"
+
+!ELSEIF  "$(CFG)" == "ftequake - Win32 Debug"
+
+# ADD CPP /Yu"qwsvdef.h"
+
+!ELSEIF  "$(CFG)" == "ftequake - Win32 GLDebug"
+
+# ADD CPP /Yu"qwsvdef.h"
+
+!ELSEIF  "$(CFG)" == "ftequake - Win32 GLRelease"
+
+# ADD CPP /Yu"qwsvdef.h"
+
+!ELSEIF  "$(CFG)" == "ftequake - Win32 MDebug"
+
+# ADD CPP /Yu"qwsvdef.h"
+
+!ELSEIF  "$(CFG)" == "ftequake - Win32 MRelease"
+
+# ADD CPP /Yu"qwsvdef.h"
+
+!ELSEIF  "$(CFG)" == "ftequake - Win32 MinGLDebug"
+
+# ADD CPP /Yu"qwsvdef.h"
+
+!ELSEIF  "$(CFG)" == "ftequake - Win32 MinGLRelease"
+
+# ADD CPP /Yu"qwsvdef.h"
+
+!ELSEIF  "$(CFG)" == "ftequake - Win32 Debug Dedicated Server"
+
+# ADD CPP /Yu"qwsvdef.h"
+
+!ELSEIF  "$(CFG)" == "ftequake - Win32 Release Dedicated Server"
+
+# ADD CPP /Yu"qwsvdef.h"
+
+!ELSEIF  "$(CFG)" == "ftequake - Win32 MinSW"
+
+# ADD CPP /Yu"qwsvdef.h"
+
+!ELSEIF  "$(CFG)" == "ftequake - Win32 GLDebugQ3"
+
+# ADD CPP /Yu"qwsvdef.h"
+
+!ENDIF 
+
 # End Source File
 # Begin Source File
 
 SOURCE=..\server\world.c
+
+!IF  "$(CFG)" == "ftequake - Win32 Release"
+
+# ADD CPP /Yu"qwsvdef.h"
+
+!ELSEIF  "$(CFG)" == "ftequake - Win32 Debug"
+
+# ADD CPP /Yu"qwsvdef.h"
+
+!ELSEIF  "$(CFG)" == "ftequake - Win32 GLDebug"
+
+# ADD CPP /Yu"qwsvdef.h"
+
+!ELSEIF  "$(CFG)" == "ftequake - Win32 GLRelease"
+
+# ADD CPP /Yu"qwsvdef.h"
+
+!ELSEIF  "$(CFG)" == "ftequake - Win32 MDebug"
+
+# ADD CPP /Yu"qwsvdef.h"
+
+!ELSEIF  "$(CFG)" == "ftequake - Win32 MRelease"
+
+# ADD CPP /Yu"qwsvdef.h"
+
+!ELSEIF  "$(CFG)" == "ftequake - Win32 MinGLDebug"
+
+# ADD CPP /Yu"qwsvdef.h"
+
+!ELSEIF  "$(CFG)" == "ftequake - Win32 MinGLRelease"
+
+# ADD CPP /Yu"qwsvdef.h"
+
+!ELSEIF  "$(CFG)" == "ftequake - Win32 Debug Dedicated Server"
+
+# ADD CPP /Yu"qwsvdef.h"
+
+!ELSEIF  "$(CFG)" == "ftequake - Win32 Release Dedicated Server"
+
+# ADD CPP /Yu"qwsvdef.h"
+
+!ELSEIF  "$(CFG)" == "ftequake - Win32 MinSW"
+
+# ADD CPP /Yu"qwsvdef.h"
+
+!ELSEIF  "$(CFG)" == "ftequake - Win32 GLDebugQ3"
+
+# ADD CPP /Yu"qwsvdef.h"
+
+!ENDIF 
+
 # End Source File
 # End Group
 # Begin Group "client"
@@ -447,6 +1524,10 @@ SOURCE=..\client\cd_win.c
 # PROP BASE Exclude_From_Build 1
 # PROP Exclude_From_Build 1
 
+!ELSEIF  "$(CFG)" == "ftequake - Win32 MinSW"
+
+!ELSEIF  "$(CFG)" == "ftequake - Win32 GLDebugQ3"
+
 !ENDIF 
 
 # End Source File
@@ -479,13 +1560,64 @@ SOURCE=..\client\cl_cam.c
 # PROP BASE Exclude_From_Build 1
 # PROP Exclude_From_Build 1
 
+!ELSEIF  "$(CFG)" == "ftequake - Win32 MinSW"
+
+!ELSEIF  "$(CFG)" == "ftequake - Win32 GLDebugQ3"
+
 !ENDIF 
 
 # End Source File
 # Begin Source File
 
 SOURCE=..\client\cl_cg.c
+
+!IF  "$(CFG)" == "ftequake - Win32 Release"
+
 # PROP Exclude_From_Build 1
+
+!ELSEIF  "$(CFG)" == "ftequake - Win32 Debug"
+
+# PROP Exclude_From_Build 1
+
+!ELSEIF  "$(CFG)" == "ftequake - Win32 GLDebug"
+
+!ELSEIF  "$(CFG)" == "ftequake - Win32 GLRelease"
+
+# PROP Exclude_From_Build 1
+
+!ELSEIF  "$(CFG)" == "ftequake - Win32 MDebug"
+
+# PROP Exclude_From_Build 1
+
+!ELSEIF  "$(CFG)" == "ftequake - Win32 MRelease"
+
+# PROP Exclude_From_Build 1
+
+!ELSEIF  "$(CFG)" == "ftequake - Win32 MinGLDebug"
+
+# PROP Exclude_From_Build 1
+
+!ELSEIF  "$(CFG)" == "ftequake - Win32 MinGLRelease"
+
+# PROP Exclude_From_Build 1
+
+!ELSEIF  "$(CFG)" == "ftequake - Win32 Debug Dedicated Server"
+
+# PROP Exclude_From_Build 1
+
+!ELSEIF  "$(CFG)" == "ftequake - Win32 Release Dedicated Server"
+
+# PROP Exclude_From_Build 1
+
+!ELSEIF  "$(CFG)" == "ftequake - Win32 MinSW"
+
+# PROP BASE Exclude_From_Build 1
+# PROP Exclude_From_Build 1
+
+!ELSEIF  "$(CFG)" == "ftequake - Win32 GLDebugQ3"
+
+!ENDIF 
+
 # End Source File
 # Begin Source File
 
@@ -515,6 +1647,10 @@ SOURCE=..\client\cl_demo.c
 
 # PROP BASE Exclude_From_Build 1
 # PROP Exclude_From_Build 1
+
+!ELSEIF  "$(CFG)" == "ftequake - Win32 MinSW"
+
+!ELSEIF  "$(CFG)" == "ftequake - Win32 GLDebugQ3"
 
 !ENDIF 
 
@@ -548,6 +1684,10 @@ SOURCE=..\client\cl_ents.c
 # PROP BASE Exclude_From_Build 1
 # PROP Exclude_From_Build 1
 
+!ELSEIF  "$(CFG)" == "ftequake - Win32 MinSW"
+
+!ELSEIF  "$(CFG)" == "ftequake - Win32 GLDebugQ3"
+
 !ENDIF 
 
 # End Source File
@@ -579,6 +1719,10 @@ SOURCE=..\client\cl_input.c
 
 # PROP BASE Exclude_From_Build 1
 # PROP Exclude_From_Build 1
+
+!ELSEIF  "$(CFG)" == "ftequake - Win32 MinSW"
+
+!ELSEIF  "$(CFG)" == "ftequake - Win32 GLDebugQ3"
 
 !ENDIF 
 
@@ -612,6 +1756,10 @@ SOURCE=..\client\cl_main.c
 # PROP BASE Exclude_From_Build 1
 # PROP Exclude_From_Build 1
 
+!ELSEIF  "$(CFG)" == "ftequake - Win32 MinSW"
+
+!ELSEIF  "$(CFG)" == "ftequake - Win32 GLDebugQ3"
+
 !ENDIF 
 
 # End Source File
@@ -643,6 +1791,10 @@ SOURCE=..\client\cl_parse.c
 
 # PROP BASE Exclude_From_Build 1
 # PROP Exclude_From_Build 1
+
+!ELSEIF  "$(CFG)" == "ftequake - Win32 MinSW"
+
+!ELSEIF  "$(CFG)" == "ftequake - Win32 GLDebugQ3"
 
 !ENDIF 
 
@@ -676,6 +1828,10 @@ SOURCE=..\client\cl_pred.c
 # PROP BASE Exclude_From_Build 1
 # PROP Exclude_From_Build 1
 
+!ELSEIF  "$(CFG)" == "ftequake - Win32 MinSW"
+
+!ELSEIF  "$(CFG)" == "ftequake - Win32 GLDebugQ3"
+
 !ENDIF 
 
 # End Source File
@@ -707,6 +1863,10 @@ SOURCE=..\client\cl_screen.c
 
 # PROP BASE Exclude_From_Build 1
 # PROP Exclude_From_Build 1
+
+!ELSEIF  "$(CFG)" == "ftequake - Win32 MinSW"
+
+!ELSEIF  "$(CFG)" == "ftequake - Win32 GLDebugQ3"
 
 !ENDIF 
 
@@ -740,6 +1900,10 @@ SOURCE=..\client\cl_tent.c
 # PROP BASE Exclude_From_Build 1
 # PROP Exclude_From_Build 1
 
+!ELSEIF  "$(CFG)" == "ftequake - Win32 MinSW"
+
+!ELSEIF  "$(CFG)" == "ftequake - Win32 GLDebugQ3"
+
 !ENDIF 
 
 # End Source File
@@ -771,6 +1935,10 @@ SOURCE=..\client\cl_ui.c
 
 # PROP BASE Exclude_From_Build 1
 # PROP Exclude_From_Build 1
+
+!ELSEIF  "$(CFG)" == "ftequake - Win32 MinSW"
+
+!ELSEIF  "$(CFG)" == "ftequake - Win32 GLDebugQ3"
 
 !ENDIF 
 
@@ -804,6 +1972,12 @@ SOURCE=..\client\clq2_cin.c
 # PROP BASE Exclude_From_Build 1
 # PROP Exclude_From_Build 1
 
+!ELSEIF  "$(CFG)" == "ftequake - Win32 MinSW"
+
+!ELSEIF  "$(CFG)" == "ftequake - Win32 GLDebugQ3"
+
+# SUBTRACT CPP /YX /Yc /Yu
+
 !ENDIF 
 
 # End Source File
@@ -836,13 +2010,66 @@ SOURCE=..\client\clq2_ents.c
 # PROP BASE Exclude_From_Build 1
 # PROP Exclude_From_Build 1
 
+!ELSEIF  "$(CFG)" == "ftequake - Win32 MinSW"
+
+!ELSEIF  "$(CFG)" == "ftequake - Win32 GLDebugQ3"
+
+# SUBTRACT CPP /YX /Yc /Yu
+
 !ENDIF 
 
 # End Source File
 # Begin Source File
 
 SOURCE=..\client\clq3_parse.c
+
+!IF  "$(CFG)" == "ftequake - Win32 Release"
+
 # PROP Exclude_From_Build 1
+
+!ELSEIF  "$(CFG)" == "ftequake - Win32 Debug"
+
+# PROP Exclude_From_Build 1
+
+!ELSEIF  "$(CFG)" == "ftequake - Win32 GLDebug"
+
+!ELSEIF  "$(CFG)" == "ftequake - Win32 GLRelease"
+
+# PROP Exclude_From_Build 1
+
+!ELSEIF  "$(CFG)" == "ftequake - Win32 MDebug"
+
+# PROP Exclude_From_Build 1
+
+!ELSEIF  "$(CFG)" == "ftequake - Win32 MRelease"
+
+# PROP Exclude_From_Build 1
+
+!ELSEIF  "$(CFG)" == "ftequake - Win32 MinGLDebug"
+
+# PROP Exclude_From_Build 1
+
+!ELSEIF  "$(CFG)" == "ftequake - Win32 MinGLRelease"
+
+# PROP Exclude_From_Build 1
+
+!ELSEIF  "$(CFG)" == "ftequake - Win32 Debug Dedicated Server"
+
+# PROP Exclude_From_Build 1
+
+!ELSEIF  "$(CFG)" == "ftequake - Win32 Release Dedicated Server"
+
+# PROP Exclude_From_Build 1
+
+!ELSEIF  "$(CFG)" == "ftequake - Win32 MinSW"
+
+# PROP BASE Exclude_From_Build 1
+# PROP Exclude_From_Build 1
+
+!ELSEIF  "$(CFG)" == "ftequake - Win32 GLDebugQ3"
+
+!ENDIF 
+
 # End Source File
 # Begin Source File
 
@@ -872,6 +2099,10 @@ SOURCE=..\client\console.c
 
 # PROP BASE Exclude_From_Build 1
 # PROP Exclude_From_Build 1
+
+!ELSEIF  "$(CFG)" == "ftequake - Win32 MinSW"
+
+!ELSEIF  "$(CFG)" == "ftequake - Win32 GLDebugQ3"
 
 !ENDIF 
 
@@ -905,6 +2136,10 @@ SOURCE=..\client\fragstats.c
 # PROP BASE Exclude_From_Build 1
 # PROP Exclude_From_Build 1
 
+!ELSEIF  "$(CFG)" == "ftequake - Win32 MinSW"
+
+!ELSEIF  "$(CFG)" == "ftequake - Win32 GLDebugQ3"
+
 !ENDIF 
 
 # End Source File
@@ -936,6 +2171,10 @@ SOURCE=..\client\image.c
 
 # PROP BASE Exclude_From_Build 1
 # PROP Exclude_From_Build 1
+
+!ELSEIF  "$(CFG)" == "ftequake - Win32 MinSW"
+
+!ELSEIF  "$(CFG)" == "ftequake - Win32 GLDebugQ3"
 
 !ENDIF 
 
@@ -969,6 +2208,10 @@ SOURCE=..\client\in_win.c
 # PROP BASE Exclude_From_Build 1
 # PROP Exclude_From_Build 1
 
+!ELSEIF  "$(CFG)" == "ftequake - Win32 MinSW"
+
+!ELSEIF  "$(CFG)" == "ftequake - Win32 GLDebugQ3"
+
 !ENDIF 
 
 # End Source File
@@ -1000,6 +2243,10 @@ SOURCE=..\client\keys.c
 
 # PROP BASE Exclude_From_Build 1
 # PROP Exclude_From_Build 1
+
+!ELSEIF  "$(CFG)" == "ftequake - Win32 MinSW"
+
+!ELSEIF  "$(CFG)" == "ftequake - Win32 GLDebugQ3"
 
 !ENDIF 
 
@@ -1033,6 +2280,10 @@ SOURCE=..\client\m_items.c
 # PROP BASE Exclude_From_Build 1
 # PROP Exclude_From_Build 1
 
+!ELSEIF  "$(CFG)" == "ftequake - Win32 MinSW"
+
+!ELSEIF  "$(CFG)" == "ftequake - Win32 GLDebugQ3"
+
 !ENDIF 
 
 # End Source File
@@ -1064,6 +2315,12 @@ SOURCE=..\client\m_master.c
 
 # PROP BASE Exclude_From_Build 1
 # PROP Exclude_From_Build 1
+
+!ELSEIF  "$(CFG)" == "ftequake - Win32 MinSW"
+
+!ELSEIF  "$(CFG)" == "ftequake - Win32 GLDebugQ3"
+
+# SUBTRACT CPP /YX /Yc /Yu
 
 !ENDIF 
 
@@ -1097,6 +2354,10 @@ SOURCE=..\client\m_mp3.c
 # PROP BASE Exclude_From_Build 1
 # PROP Exclude_From_Build 1
 
+!ELSEIF  "$(CFG)" == "ftequake - Win32 MinSW"
+
+!ELSEIF  "$(CFG)" == "ftequake - Win32 GLDebugQ3"
+
 !ENDIF 
 
 # End Source File
@@ -1128,6 +2389,10 @@ SOURCE=..\client\m_multi.c
 
 # PROP BASE Exclude_From_Build 1
 # PROP Exclude_From_Build 1
+
+!ELSEIF  "$(CFG)" == "ftequake - Win32 MinSW"
+
+!ELSEIF  "$(CFG)" == "ftequake - Win32 GLDebugQ3"
 
 !ENDIF 
 
@@ -1161,6 +2426,10 @@ SOURCE=..\client\m_options.c
 # PROP BASE Exclude_From_Build 1
 # PROP Exclude_From_Build 1
 
+!ELSEIF  "$(CFG)" == "ftequake - Win32 MinSW"
+
+!ELSEIF  "$(CFG)" == "ftequake - Win32 GLDebugQ3"
+
 !ENDIF 
 
 # End Source File
@@ -1192,6 +2461,10 @@ SOURCE=..\client\m_script.c
 
 # PROP BASE Exclude_From_Build 1
 # PROP Exclude_From_Build 1
+
+!ELSEIF  "$(CFG)" == "ftequake - Win32 MinSW"
+
+!ELSEIF  "$(CFG)" == "ftequake - Win32 GLDebugQ3"
 
 !ENDIF 
 
@@ -1225,6 +2498,10 @@ SOURCE=..\client\m_single.c
 # PROP BASE Exclude_From_Build 1
 # PROP Exclude_From_Build 1
 
+!ELSEIF  "$(CFG)" == "ftequake - Win32 MinSW"
+
+!ELSEIF  "$(CFG)" == "ftequake - Win32 GLDebugQ3"
+
 !ENDIF 
 
 # End Source File
@@ -1256,6 +2533,10 @@ SOURCE=..\client\menu.c
 
 # PROP BASE Exclude_From_Build 1
 # PROP Exclude_From_Build 1
+
+!ELSEIF  "$(CFG)" == "ftequake - Win32 MinSW"
+
+!ELSEIF  "$(CFG)" == "ftequake - Win32 GLDebugQ3"
 
 !ENDIF 
 
@@ -1289,6 +2570,47 @@ SOURCE=..\client\net_master.c
 # PROP BASE Exclude_From_Build 1
 # PROP Exclude_From_Build 1
 
+!ELSEIF  "$(CFG)" == "ftequake - Win32 MinSW"
+
+!ELSEIF  "$(CFG)" == "ftequake - Win32 GLDebugQ3"
+
+# SUBTRACT CPP /YX /Yc /Yu
+
+!ENDIF 
+
+# End Source File
+# Begin Source File
+
+SOURCE=..\client\pr_csqc.c
+
+!IF  "$(CFG)" == "ftequake - Win32 Release"
+
+!ELSEIF  "$(CFG)" == "ftequake - Win32 Debug"
+
+!ELSEIF  "$(CFG)" == "ftequake - Win32 GLDebug"
+
+!ELSEIF  "$(CFG)" == "ftequake - Win32 GLRelease"
+
+!ELSEIF  "$(CFG)" == "ftequake - Win32 MDebug"
+
+!ELSEIF  "$(CFG)" == "ftequake - Win32 MRelease"
+
+!ELSEIF  "$(CFG)" == "ftequake - Win32 MinGLDebug"
+
+!ELSEIF  "$(CFG)" == "ftequake - Win32 MinGLRelease"
+
+!ELSEIF  "$(CFG)" == "ftequake - Win32 Debug Dedicated Server"
+
+# PROP Exclude_From_Build 1
+
+!ELSEIF  "$(CFG)" == "ftequake - Win32 Release Dedicated Server"
+
+# PROP Exclude_From_Build 1
+
+!ELSEIF  "$(CFG)" == "ftequake - Win32 MinSW"
+
+!ELSEIF  "$(CFG)" == "ftequake - Win32 GLDebugQ3"
+
 !ENDIF 
 
 # End Source File
@@ -1321,6 +2643,10 @@ SOURCE=..\client\pr_menu.c
 
 # PROP Exclude_From_Build 1
 
+!ELSEIF  "$(CFG)" == "ftequake - Win32 MinSW"
+
+!ELSEIF  "$(CFG)" == "ftequake - Win32 GLDebugQ3"
+
 !ENDIF 
 
 # End Source File
@@ -1352,6 +2678,10 @@ SOURCE=..\client\r_bulleten.c
 
 # PROP BASE Exclude_From_Build 1
 # PROP Exclude_From_Build 1
+
+!ELSEIF  "$(CFG)" == "ftequake - Win32 MinSW"
+
+!ELSEIF  "$(CFG)" == "ftequake - Win32 GLDebugQ3"
 
 !ENDIF 
 
@@ -1386,6 +2716,10 @@ SOURCE=..\client\r_efrag.c
 # PROP Exclude_From_Build 1
 # ADD CPP /G6 /O1
 
+!ELSEIF  "$(CFG)" == "ftequake - Win32 MinSW"
+
+!ELSEIF  "$(CFG)" == "ftequake - Win32 GLDebugQ3"
+
 !ENDIF 
 
 # End Source File
@@ -1418,6 +2752,10 @@ SOURCE=..\client\r_part.c
 # PROP BASE Exclude_From_Build 1
 # PROP Exclude_From_Build 1
 
+!ELSEIF  "$(CFG)" == "ftequake - Win32 MinSW"
+
+!ELSEIF  "$(CFG)" == "ftequake - Win32 GLDebugQ3"
+
 !ENDIF 
 
 # End Source File
@@ -1427,28 +2765,54 @@ SOURCE=..\client\r_partset.c
 
 !IF  "$(CFG)" == "ftequake - Win32 Release"
 
+# SUBTRACT CPP /YX /Yc /Yu
+
 !ELSEIF  "$(CFG)" == "ftequake - Win32 Debug"
+
+# SUBTRACT CPP /YX /Yc /Yu
 
 !ELSEIF  "$(CFG)" == "ftequake - Win32 GLDebug"
 
+# SUBTRACT CPP /YX /Yc /Yu
+
 !ELSEIF  "$(CFG)" == "ftequake - Win32 GLRelease"
+
+# SUBTRACT CPP /YX /Yc /Yu
 
 !ELSEIF  "$(CFG)" == "ftequake - Win32 MDebug"
 
+# SUBTRACT CPP /YX /Yc /Yu
+
 !ELSEIF  "$(CFG)" == "ftequake - Win32 MRelease"
+
+# SUBTRACT CPP /YX /Yc /Yu
 
 !ELSEIF  "$(CFG)" == "ftequake - Win32 MinGLDebug"
 
+# SUBTRACT CPP /YX /Yc /Yu
+
 !ELSEIF  "$(CFG)" == "ftequake - Win32 MinGLRelease"
+
+# SUBTRACT CPP /YX /Yc /Yu
 
 !ELSEIF  "$(CFG)" == "ftequake - Win32 Debug Dedicated Server"
 
 # PROP Exclude_From_Build 1
+# SUBTRACT CPP /YX /Yc /Yu
 
 !ELSEIF  "$(CFG)" == "ftequake - Win32 Release Dedicated Server"
 
 # PROP BASE Exclude_From_Build 1
 # PROP Exclude_From_Build 1
+# SUBTRACT CPP /YX /Yc /Yu
+
+!ELSEIF  "$(CFG)" == "ftequake - Win32 MinSW"
+
+# SUBTRACT CPP /YX /Yc /Yu
+
+!ELSEIF  "$(CFG)" == "ftequake - Win32 GLDebugQ3"
+
+# SUBTRACT CPP /YX /Yc /Yu
 
 !ENDIF 
 
@@ -1482,6 +2846,10 @@ SOURCE=..\client\renderer.c
 # PROP BASE Exclude_From_Build 1
 # PROP Exclude_From_Build 1
 
+!ELSEIF  "$(CFG)" == "ftequake - Win32 MinSW"
+
+!ELSEIF  "$(CFG)" == "ftequake - Win32 GLDebugQ3"
+
 !ENDIF 
 
 # End Source File
@@ -1513,6 +2881,10 @@ SOURCE=..\client\renderque.c
 
 # PROP BASE Exclude_From_Build 1
 # PROP Exclude_From_Build 1
+
+!ELSEIF  "$(CFG)" == "ftequake - Win32 MinSW"
+
+!ELSEIF  "$(CFG)" == "ftequake - Win32 GLDebugQ3"
 
 !ENDIF 
 
@@ -1546,6 +2918,12 @@ SOURCE=..\client\roq_read.c
 # PROP BASE Exclude_From_Build 1
 # PROP Exclude_From_Build 1
 
+!ELSEIF  "$(CFG)" == "ftequake - Win32 MinSW"
+
+!ELSEIF  "$(CFG)" == "ftequake - Win32 GLDebugQ3"
+
+# SUBTRACT CPP /YX /Yc /Yu
+
 !ENDIF 
 
 # End Source File
@@ -1577,6 +2955,10 @@ SOURCE=..\client\sbar.c
 
 # PROP BASE Exclude_From_Build 1
 # PROP Exclude_From_Build 1
+
+!ELSEIF  "$(CFG)" == "ftequake - Win32 MinSW"
+
+!ELSEIF  "$(CFG)" == "ftequake - Win32 GLDebugQ3"
 
 !ENDIF 
 
@@ -1610,6 +2992,10 @@ SOURCE=..\client\skin.c
 # PROP BASE Exclude_From_Build 1
 # PROP Exclude_From_Build 1
 
+!ELSEIF  "$(CFG)" == "ftequake - Win32 MinSW"
+
+!ELSEIF  "$(CFG)" == "ftequake - Win32 GLDebugQ3"
+
 !ENDIF 
 
 # End Source File
@@ -1641,6 +3027,10 @@ SOURCE=..\client\snd_dma.c
 
 # PROP BASE Exclude_From_Build 1
 # PROP Exclude_From_Build 1
+
+!ELSEIF  "$(CFG)" == "ftequake - Win32 MinSW"
+
+!ELSEIF  "$(CFG)" == "ftequake - Win32 GLDebugQ3"
 
 !ENDIF 
 
@@ -1674,6 +3064,10 @@ SOURCE=..\client\snd_mem.c
 # PROP BASE Exclude_From_Build 1
 # PROP Exclude_From_Build 1
 
+!ELSEIF  "$(CFG)" == "ftequake - Win32 MinSW"
+
+!ELSEIF  "$(CFG)" == "ftequake - Win32 GLDebugQ3"
+
 !ENDIF 
 
 # End Source File
@@ -1705,6 +3099,10 @@ SOURCE=..\client\snd_mix.c
 
 # PROP BASE Exclude_From_Build 1
 # PROP Exclude_From_Build 1
+
+!ELSEIF  "$(CFG)" == "ftequake - Win32 MinSW"
+
+!ELSEIF  "$(CFG)" == "ftequake - Win32 GLDebugQ3"
 
 !ENDIF 
 
@@ -1738,6 +3136,10 @@ SOURCE=..\client\snd_mp3.c
 # PROP BASE Exclude_From_Build 1
 # PROP Exclude_From_Build 1
 
+!ELSEIF  "$(CFG)" == "ftequake - Win32 MinSW"
+
+!ELSEIF  "$(CFG)" == "ftequake - Win32 GLDebugQ3"
+
 !ENDIF 
 
 # End Source File
@@ -1769,6 +3171,10 @@ SOURCE=..\client\snd_ov.c
 
 # PROP BASE Exclude_From_Build 1
 # PROP Exclude_From_Build 1
+
+!ELSEIF  "$(CFG)" == "ftequake - Win32 MinSW"
+
+!ELSEIF  "$(CFG)" == "ftequake - Win32 GLDebugQ3"
 
 !ENDIF 
 
@@ -1802,6 +3208,10 @@ SOURCE=..\client\snd_win.c
 # PROP BASE Exclude_From_Build 1
 # PROP Exclude_From_Build 1
 
+!ELSEIF  "$(CFG)" == "ftequake - Win32 MinSW"
+
+!ELSEIF  "$(CFG)" == "ftequake - Win32 GLDebugQ3"
+
 !ENDIF 
 
 # End Source File
@@ -1833,6 +3243,10 @@ SOURCE=..\client\sys_win.c
 
 # PROP BASE Exclude_From_Build 1
 # PROP Exclude_From_Build 1
+
+!ELSEIF  "$(CFG)" == "ftequake - Win32 MinSW"
+
+!ELSEIF  "$(CFG)" == "ftequake - Win32 GLDebugQ3"
 
 !ENDIF 
 
@@ -1866,6 +3280,10 @@ SOURCE=..\client\teamplay.c
 # PROP BASE Exclude_From_Build 1
 # PROP Exclude_From_Build 1
 
+!ELSEIF  "$(CFG)" == "ftequake - Win32 MinSW"
+
+!ELSEIF  "$(CFG)" == "ftequake - Win32 GLDebugQ3"
+
 !ENDIF 
 
 # End Source File
@@ -1897,6 +3315,10 @@ SOURCE=..\client\textedit.c
 
 # PROP BASE Exclude_From_Build 1
 # PROP Exclude_From_Build 1
+
+!ELSEIF  "$(CFG)" == "ftequake - Win32 MinSW"
+
+!ELSEIF  "$(CFG)" == "ftequake - Win32 GLDebugQ3"
 
 !ENDIF 
 
@@ -1930,6 +3352,10 @@ SOURCE=..\client\valid.c
 # PROP BASE Exclude_From_Build 1
 # PROP Exclude_From_Build 1
 
+!ELSEIF  "$(CFG)" == "ftequake - Win32 MinSW"
+
+!ELSEIF  "$(CFG)" == "ftequake - Win32 GLDebugQ3"
+
 !ENDIF 
 
 # End Source File
@@ -1961,6 +3387,10 @@ SOURCE=..\client\view.c
 
 # PROP BASE Exclude_From_Build 1
 # PROP Exclude_From_Build 1
+
+!ELSEIF  "$(CFG)" == "ftequake - Win32 MinSW"
+
+!ELSEIF  "$(CFG)" == "ftequake - Win32 GLDebugQ3"
 
 !ENDIF 
 
@@ -1994,6 +3424,10 @@ SOURCE=..\client\wad.c
 # PROP BASE Exclude_From_Build 1
 # PROP Exclude_From_Build 1
 
+!ELSEIF  "$(CFG)" == "ftequake - Win32 MinSW"
+
+!ELSEIF  "$(CFG)" == "ftequake - Win32 GLDebugQ3"
+
 !ENDIF 
 
 # End Source File
@@ -2025,6 +3459,12 @@ SOURCE=..\client\zqtp.c
 
 # PROP BASE Exclude_From_Build 1
 # PROP Exclude_From_Build 1
+
+!ELSEIF  "$(CFG)" == "ftequake - Win32 MinSW"
+
+!ELSEIF  "$(CFG)" == "ftequake - Win32 GLDebugQ3"
+
+# SUBTRACT CPP /YX /Yc /Yu
 
 !ENDIF 
 
@@ -2064,6 +3504,13 @@ SOURCE=..\gl\gl_alias.c
 # PROP BASE Exclude_From_Build 1
 # PROP Exclude_From_Build 1
 
+!ELSEIF  "$(CFG)" == "ftequake - Win32 MinSW"
+
+# PROP BASE Exclude_From_Build 1
+# PROP Exclude_From_Build 1
+
+!ELSEIF  "$(CFG)" == "ftequake - Win32 GLDebugQ3"
+
 !ENDIF 
 
 # End Source File
@@ -2097,6 +3544,13 @@ SOURCE=..\gl\gl_backend.c
 
 # PROP BASE Exclude_From_Build 1
 # PROP Exclude_From_Build 1
+
+!ELSEIF  "$(CFG)" == "ftequake - Win32 MinSW"
+
+# PROP BASE Exclude_From_Build 1
+# PROP Exclude_From_Build 1
+
+!ELSEIF  "$(CFG)" == "ftequake - Win32 GLDebugQ3"
 
 !ENDIF 
 
@@ -2132,6 +3586,13 @@ SOURCE=..\gl\gl_draw.c
 # PROP BASE Exclude_From_Build 1
 # PROP Exclude_From_Build 1
 
+!ELSEIF  "$(CFG)" == "ftequake - Win32 MinSW"
+
+# PROP BASE Exclude_From_Build 1
+# PROP Exclude_From_Build 1
+
+!ELSEIF  "$(CFG)" == "ftequake - Win32 GLDebugQ3"
+
 !ENDIF 
 
 # End Source File
@@ -2141,30 +3602,57 @@ SOURCE=..\gl\gltod3d\gl_fakegl.cpp
 
 !IF  "$(CFG)" == "ftequake - Win32 Release"
 
+# SUBTRACT CPP /YX /Yc /Yu
+
 !ELSEIF  "$(CFG)" == "ftequake - Win32 Debug"
 
 # PROP Exclude_From_Build 1
+# SUBTRACT CPP /YX /Yc /Yu
 
 !ELSEIF  "$(CFG)" == "ftequake - Win32 GLDebug"
 
+# SUBTRACT CPP /YX /Yc /Yu
+
 !ELSEIF  "$(CFG)" == "ftequake - Win32 GLRelease"
+
+# SUBTRACT CPP /YX /Yc /Yu
 
 !ELSEIF  "$(CFG)" == "ftequake - Win32 MDebug"
 
+# SUBTRACT CPP /YX /Yc /Yu
+
 !ELSEIF  "$(CFG)" == "ftequake - Win32 MRelease"
+
+# SUBTRACT CPP /YX /Yc /Yu
 
 !ELSEIF  "$(CFG)" == "ftequake - Win32 MinGLDebug"
 
+# SUBTRACT CPP /YX /Yc /Yu
+
 !ELSEIF  "$(CFG)" == "ftequake - Win32 MinGLRelease"
+
+# SUBTRACT CPP /YX /Yc /Yu
 
 !ELSEIF  "$(CFG)" == "ftequake - Win32 Debug Dedicated Server"
 
 # PROP Exclude_From_Build 1
+# SUBTRACT CPP /YX /Yc /Yu
 
 !ELSEIF  "$(CFG)" == "ftequake - Win32 Release Dedicated Server"
 
 # PROP BASE Exclude_From_Build 1
 # PROP Exclude_From_Build 1
+# SUBTRACT CPP /YX /Yc /Yu
+
+!ELSEIF  "$(CFG)" == "ftequake - Win32 MinSW"
+
+# PROP BASE Exclude_From_Build 1
+# PROP Exclude_From_Build 1
+# SUBTRACT CPP /YX /Yc /Yu
+
+!ELSEIF  "$(CFG)" == "ftequake - Win32 GLDebugQ3"
+
+# SUBTRACT CPP /YX /Yc /Yu
 
 !ENDIF 
 
@@ -2200,6 +3688,15 @@ SOURCE=..\gl\gl_hlmdl.c
 # PROP BASE Exclude_From_Build 1
 # PROP Exclude_From_Build 1
 
+!ELSEIF  "$(CFG)" == "ftequake - Win32 MinSW"
+
+# PROP BASE Exclude_From_Build 1
+# PROP Exclude_From_Build 1
+
+!ELSEIF  "$(CFG)" == "ftequake - Win32 GLDebugQ3"
+
+# SUBTRACT CPP /YX /Yc /Yu
+
 !ENDIF 
 
 # End Source File
@@ -2233,6 +3730,13 @@ SOURCE=..\gl\gl_model.c
 
 # PROP BASE Exclude_From_Build 1
 # PROP Exclude_From_Build 1
+
+!ELSEIF  "$(CFG)" == "ftequake - Win32 MinSW"
+
+# PROP BASE Exclude_From_Build 1
+# PROP Exclude_From_Build 1
+
+!ELSEIF  "$(CFG)" == "ftequake - Win32 GLDebugQ3"
 
 !ENDIF 
 
@@ -2268,6 +3772,13 @@ SOURCE=..\gl\gl_ngraph.c
 # PROP BASE Exclude_From_Build 1
 # PROP Exclude_From_Build 1
 
+!ELSEIF  "$(CFG)" == "ftequake - Win32 MinSW"
+
+# PROP BASE Exclude_From_Build 1
+# PROP Exclude_From_Build 1
+
+!ELSEIF  "$(CFG)" == "ftequake - Win32 GLDebugQ3"
+
 !ENDIF 
 
 # End Source File
@@ -2302,6 +3813,13 @@ SOURCE=..\gl\gl_ppl.c
 # PROP BASE Exclude_From_Build 1
 # PROP Exclude_From_Build 1
 
+!ELSEIF  "$(CFG)" == "ftequake - Win32 MinSW"
+
+# PROP BASE Exclude_From_Build 1
+# PROP Exclude_From_Build 1
+
+!ELSEIF  "$(CFG)" == "ftequake - Win32 GLDebugQ3"
+
 !ENDIF 
 
 # End Source File
@@ -2327,11 +3845,13 @@ SOURCE=..\common\gl_q2bsp.c
 
 !ELSEIF  "$(CFG)" == "ftequake - Win32 Debug Dedicated Server"
 
-# PROP Exclude_From_Build 1
-
 !ELSEIF  "$(CFG)" == "ftequake - Win32 Release Dedicated Server"
 
 # PROP BASE Exclude_From_Build 1
+
+!ELSEIF  "$(CFG)" == "ftequake - Win32 MinSW"
+
+!ELSEIF  "$(CFG)" == "ftequake - Win32 GLDebugQ3"
 
 !ENDIF 
 
@@ -2367,6 +3887,13 @@ SOURCE=..\gl\gl_rlight.c
 # PROP BASE Exclude_From_Build 1
 # PROP Exclude_From_Build 1
 
+!ELSEIF  "$(CFG)" == "ftequake - Win32 MinSW"
+
+# PROP BASE Exclude_From_Build 1
+# PROP Exclude_From_Build 1
+
+!ELSEIF  "$(CFG)" == "ftequake - Win32 GLDebugQ3"
+
 !ENDIF 
 
 # End Source File
@@ -2400,6 +3927,13 @@ SOURCE=..\gl\gl_rmain.c
 
 # PROP BASE Exclude_From_Build 1
 # PROP Exclude_From_Build 1
+
+!ELSEIF  "$(CFG)" == "ftequake - Win32 MinSW"
+
+# PROP BASE Exclude_From_Build 1
+# PROP Exclude_From_Build 1
+
+!ELSEIF  "$(CFG)" == "ftequake - Win32 GLDebugQ3"
 
 !ENDIF 
 
@@ -2435,6 +3969,13 @@ SOURCE=..\gl\gl_rmisc.c
 # PROP BASE Exclude_From_Build 1
 # PROP Exclude_From_Build 1
 
+!ELSEIF  "$(CFG)" == "ftequake - Win32 MinSW"
+
+# PROP BASE Exclude_From_Build 1
+# PROP Exclude_From_Build 1
+
+!ELSEIF  "$(CFG)" == "ftequake - Win32 GLDebugQ3"
+
 !ENDIF 
 
 # End Source File
@@ -2468,6 +4009,13 @@ SOURCE=..\gl\gl_rsurf.c
 
 # PROP BASE Exclude_From_Build 1
 # PROP Exclude_From_Build 1
+
+!ELSEIF  "$(CFG)" == "ftequake - Win32 MinSW"
+
+# PROP BASE Exclude_From_Build 1
+# PROP Exclude_From_Build 1
+
+!ELSEIF  "$(CFG)" == "ftequake - Win32 GLDebugQ3"
 
 !ENDIF 
 
@@ -2503,6 +4051,13 @@ SOURCE=..\gl\gl_screen.c
 # PROP BASE Exclude_From_Build 1
 # PROP Exclude_From_Build 1
 
+!ELSEIF  "$(CFG)" == "ftequake - Win32 MinSW"
+
+# PROP BASE Exclude_From_Build 1
+# PROP Exclude_From_Build 1
+
+!ELSEIF  "$(CFG)" == "ftequake - Win32 GLDebugQ3"
+
 !ENDIF 
 
 # End Source File
@@ -2531,6 +4086,10 @@ SOURCE=..\gl\gl_shader.c
 !ELSEIF  "$(CFG)" == "ftequake - Win32 Release Dedicated Server"
 
 # PROP Exclude_From_Build 1
+
+!ELSEIF  "$(CFG)" == "ftequake - Win32 MinSW"
+
+!ELSEIF  "$(CFG)" == "ftequake - Win32 GLDebugQ3"
 
 !ENDIF 
 
@@ -2566,6 +4125,13 @@ SOURCE=..\gl\gl_vidcommon.c
 # PROP BASE Exclude_From_Build 1
 # PROP Exclude_From_Build 1
 
+!ELSEIF  "$(CFG)" == "ftequake - Win32 MinSW"
+
+# PROP BASE Exclude_From_Build 1
+# PROP Exclude_From_Build 1
+
+!ELSEIF  "$(CFG)" == "ftequake - Win32 GLDebugQ3"
+
 !ENDIF 
 
 # End Source File
@@ -2599,6 +4165,13 @@ SOURCE=..\gl\gl_vidnt.c
 
 # PROP BASE Exclude_From_Build 1
 # PROP Exclude_From_Build 1
+
+!ELSEIF  "$(CFG)" == "ftequake - Win32 MinSW"
+
+# PROP BASE Exclude_From_Build 1
+# PROP Exclude_From_Build 1
+
+!ELSEIF  "$(CFG)" == "ftequake - Win32 GLDebugQ3"
 
 !ENDIF 
 
@@ -2634,6 +4207,13 @@ SOURCE=..\gl\gl_warp.c
 # PROP BASE Exclude_From_Build 1
 # PROP Exclude_From_Build 1
 
+!ELSEIF  "$(CFG)" == "ftequake - Win32 MinSW"
+
+# PROP BASE Exclude_From_Build 1
+# PROP Exclude_From_Build 1
+
+!ELSEIF  "$(CFG)" == "ftequake - Win32 GLDebugQ3"
+
 !ENDIF 
 
 # End Source File
@@ -2668,6 +4248,13 @@ SOURCE=..\gl\glmod_doom.c
 # PROP BASE Exclude_From_Build 1
 # PROP Exclude_From_Build 1
 
+!ELSEIF  "$(CFG)" == "ftequake - Win32 MinSW"
+
+# PROP BASE Exclude_From_Build 1
+# PROP Exclude_From_Build 1
+
+!ELSEIF  "$(CFG)" == "ftequake - Win32 GLDebugQ3"
+
 !ENDIF 
 
 # End Source File
@@ -2701,6 +4288,15 @@ SOURCE=..\gl\LTFACE.C
 
 # PROP BASE Exclude_From_Build 1
 # PROP Exclude_From_Build 1
+
+!ELSEIF  "$(CFG)" == "ftequake - Win32 MinSW"
+
+# PROP BASE Exclude_From_Build 1
+# PROP Exclude_From_Build 1
+
+!ELSEIF  "$(CFG)" == "ftequake - Win32 GLDebugQ3"
+
+# SUBTRACT CPP /YX /Yc /Yu
 
 !ENDIF 
 
@@ -2750,6 +4346,13 @@ SOURCE=..\sw\d_edge.c
 # PROP BASE Exclude_From_Build 1
 # PROP Exclude_From_Build 1
 
+!ELSEIF  "$(CFG)" == "ftequake - Win32 MinSW"
+
+!ELSEIF  "$(CFG)" == "ftequake - Win32 GLDebugQ3"
+
+# PROP BASE Exclude_From_Build 1
+# PROP Exclude_From_Build 1
+
 !ENDIF 
 
 # End Source File
@@ -2786,6 +4389,13 @@ SOURCE=..\sw\d_fill.c
 # PROP Exclude_From_Build 1
 
 !ELSEIF  "$(CFG)" == "ftequake - Win32 Release Dedicated Server"
+
+# PROP BASE Exclude_From_Build 1
+# PROP Exclude_From_Build 1
+
+!ELSEIF  "$(CFG)" == "ftequake - Win32 MinSW"
+
+!ELSEIF  "$(CFG)" == "ftequake - Win32 GLDebugQ3"
 
 # PROP BASE Exclude_From_Build 1
 # PROP Exclude_From_Build 1
@@ -2830,6 +4440,13 @@ SOURCE=..\sw\d_init.c
 # PROP BASE Exclude_From_Build 1
 # PROP Exclude_From_Build 1
 
+!ELSEIF  "$(CFG)" == "ftequake - Win32 MinSW"
+
+!ELSEIF  "$(CFG)" == "ftequake - Win32 GLDebugQ3"
+
+# PROP BASE Exclude_From_Build 1
+# PROP Exclude_From_Build 1
+
 !ENDIF 
 
 # End Source File
@@ -2866,6 +4483,13 @@ SOURCE=..\sw\d_modech.c
 # PROP Exclude_From_Build 1
 
 !ELSEIF  "$(CFG)" == "ftequake - Win32 Release Dedicated Server"
+
+# PROP BASE Exclude_From_Build 1
+# PROP Exclude_From_Build 1
+
+!ELSEIF  "$(CFG)" == "ftequake - Win32 MinSW"
+
+!ELSEIF  "$(CFG)" == "ftequake - Win32 GLDebugQ3"
 
 # PROP BASE Exclude_From_Build 1
 # PROP Exclude_From_Build 1
@@ -2910,6 +4534,13 @@ SOURCE=..\sw\d_part.c
 # PROP BASE Exclude_From_Build 1
 # PROP Exclude_From_Build 1
 
+!ELSEIF  "$(CFG)" == "ftequake - Win32 MinSW"
+
+!ELSEIF  "$(CFG)" == "ftequake - Win32 GLDebugQ3"
+
+# PROP BASE Exclude_From_Build 1
+# PROP Exclude_From_Build 1
+
 !ENDIF 
 
 # End Source File
@@ -2946,6 +4577,13 @@ SOURCE=..\sw\d_polyse.c
 # PROP Exclude_From_Build 1
 
 !ELSEIF  "$(CFG)" == "ftequake - Win32 Release Dedicated Server"
+
+# PROP BASE Exclude_From_Build 1
+# PROP Exclude_From_Build 1
+
+!ELSEIF  "$(CFG)" == "ftequake - Win32 MinSW"
+
+!ELSEIF  "$(CFG)" == "ftequake - Win32 GLDebugQ3"
 
 # PROP BASE Exclude_From_Build 1
 # PROP Exclude_From_Build 1
@@ -2990,6 +4628,13 @@ SOURCE=..\sw\d_scan.c
 # PROP BASE Exclude_From_Build 1
 # PROP Exclude_From_Build 1
 
+!ELSEIF  "$(CFG)" == "ftequake - Win32 MinSW"
+
+!ELSEIF  "$(CFG)" == "ftequake - Win32 GLDebugQ3"
+
+# PROP BASE Exclude_From_Build 1
+# PROP Exclude_From_Build 1
+
 !ENDIF 
 
 # End Source File
@@ -3026,6 +4671,13 @@ SOURCE=..\sw\d_sky.c
 # PROP Exclude_From_Build 1
 
 !ELSEIF  "$(CFG)" == "ftequake - Win32 Release Dedicated Server"
+
+# PROP BASE Exclude_From_Build 1
+# PROP Exclude_From_Build 1
+
+!ELSEIF  "$(CFG)" == "ftequake - Win32 MinSW"
+
+!ELSEIF  "$(CFG)" == "ftequake - Win32 GLDebugQ3"
 
 # PROP BASE Exclude_From_Build 1
 # PROP Exclude_From_Build 1
@@ -3070,6 +4722,13 @@ SOURCE=..\sw\d_sprite.c
 # PROP BASE Exclude_From_Build 1
 # PROP Exclude_From_Build 1
 
+!ELSEIF  "$(CFG)" == "ftequake - Win32 MinSW"
+
+!ELSEIF  "$(CFG)" == "ftequake - Win32 GLDebugQ3"
+
+# PROP BASE Exclude_From_Build 1
+# PROP Exclude_From_Build 1
+
 !ENDIF 
 
 # End Source File
@@ -3106,6 +4765,13 @@ SOURCE=..\sw\d_surf.c
 # PROP Exclude_From_Build 1
 
 !ELSEIF  "$(CFG)" == "ftequake - Win32 Release Dedicated Server"
+
+# PROP BASE Exclude_From_Build 1
+# PROP Exclude_From_Build 1
+
+!ELSEIF  "$(CFG)" == "ftequake - Win32 MinSW"
+
+!ELSEIF  "$(CFG)" == "ftequake - Win32 GLDebugQ3"
 
 # PROP BASE Exclude_From_Build 1
 # PROP Exclude_From_Build 1
@@ -3150,6 +4816,13 @@ SOURCE=..\sw\d_trans.c
 # PROP BASE Exclude_From_Build 1
 # PROP Exclude_From_Build 1
 
+!ELSEIF  "$(CFG)" == "ftequake - Win32 MinSW"
+
+!ELSEIF  "$(CFG)" == "ftequake - Win32 GLDebugQ3"
+
+# PROP BASE Exclude_From_Build 1
+# PROP Exclude_From_Build 1
+
 !ENDIF 
 
 # End Source File
@@ -3186,6 +4859,13 @@ SOURCE=..\sw\d_vars.c
 # PROP Exclude_From_Build 1
 
 !ELSEIF  "$(CFG)" == "ftequake - Win32 Release Dedicated Server"
+
+# PROP BASE Exclude_From_Build 1
+# PROP Exclude_From_Build 1
+
+!ELSEIF  "$(CFG)" == "ftequake - Win32 MinSW"
+
+!ELSEIF  "$(CFG)" == "ftequake - Win32 GLDebugQ3"
 
 # PROP BASE Exclude_From_Build 1
 # PROP Exclude_From_Build 1
@@ -3230,6 +4910,13 @@ SOURCE=..\sw\d_zpoint.c
 # PROP BASE Exclude_From_Build 1
 # PROP Exclude_From_Build 1
 
+!ELSEIF  "$(CFG)" == "ftequake - Win32 MinSW"
+
+!ELSEIF  "$(CFG)" == "ftequake - Win32 GLDebugQ3"
+
+# PROP BASE Exclude_From_Build 1
+# PROP Exclude_From_Build 1
+
 !ENDIF 
 
 # End Source File
@@ -3266,6 +4953,13 @@ SOURCE=..\sw\nonintel.c
 # PROP Exclude_From_Build 1
 
 !ELSEIF  "$(CFG)" == "ftequake - Win32 Release Dedicated Server"
+
+# PROP BASE Exclude_From_Build 1
+# PROP Exclude_From_Build 1
+
+!ELSEIF  "$(CFG)" == "ftequake - Win32 MinSW"
+
+!ELSEIF  "$(CFG)" == "ftequake - Win32 GLDebugQ3"
 
 # PROP BASE Exclude_From_Build 1
 # PROP Exclude_From_Build 1
@@ -3310,6 +5004,13 @@ SOURCE=..\sw\r_aclip.c
 # PROP BASE Exclude_From_Build 1
 # PROP Exclude_From_Build 1
 
+!ELSEIF  "$(CFG)" == "ftequake - Win32 MinSW"
+
+!ELSEIF  "$(CFG)" == "ftequake - Win32 GLDebugQ3"
+
+# PROP BASE Exclude_From_Build 1
+# PROP Exclude_From_Build 1
+
 !ENDIF 
 
 # End Source File
@@ -3346,6 +5047,13 @@ SOURCE=..\sw\r_alias.c
 # PROP Exclude_From_Build 1
 
 !ELSEIF  "$(CFG)" == "ftequake - Win32 Release Dedicated Server"
+
+# PROP BASE Exclude_From_Build 1
+# PROP Exclude_From_Build 1
+
+!ELSEIF  "$(CFG)" == "ftequake - Win32 MinSW"
+
+!ELSEIF  "$(CFG)" == "ftequake - Win32 GLDebugQ3"
 
 # PROP BASE Exclude_From_Build 1
 # PROP Exclude_From_Build 1
@@ -3390,6 +5098,13 @@ SOURCE=..\sw\r_bsp.c
 # PROP BASE Exclude_From_Build 1
 # PROP Exclude_From_Build 1
 
+!ELSEIF  "$(CFG)" == "ftequake - Win32 MinSW"
+
+!ELSEIF  "$(CFG)" == "ftequake - Win32 GLDebugQ3"
+
+# PROP BASE Exclude_From_Build 1
+# PROP Exclude_From_Build 1
+
 !ENDIF 
 
 # End Source File
@@ -3426,6 +5141,13 @@ SOURCE=..\sw\r_draw.c
 # PROP Exclude_From_Build 1
 
 !ELSEIF  "$(CFG)" == "ftequake - Win32 Release Dedicated Server"
+
+# PROP BASE Exclude_From_Build 1
+# PROP Exclude_From_Build 1
+
+!ELSEIF  "$(CFG)" == "ftequake - Win32 MinSW"
+
+!ELSEIF  "$(CFG)" == "ftequake - Win32 GLDebugQ3"
 
 # PROP BASE Exclude_From_Build 1
 # PROP Exclude_From_Build 1
@@ -3470,6 +5192,13 @@ SOURCE=..\sw\r_edge.c
 # PROP BASE Exclude_From_Build 1
 # PROP Exclude_From_Build 1
 
+!ELSEIF  "$(CFG)" == "ftequake - Win32 MinSW"
+
+!ELSEIF  "$(CFG)" == "ftequake - Win32 GLDebugQ3"
+
+# PROP BASE Exclude_From_Build 1
+# PROP Exclude_From_Build 1
+
 !ENDIF 
 
 # End Source File
@@ -3506,6 +5235,13 @@ SOURCE=..\sw\r_light.c
 # PROP Exclude_From_Build 1
 
 !ELSEIF  "$(CFG)" == "ftequake - Win32 Release Dedicated Server"
+
+# PROP BASE Exclude_From_Build 1
+# PROP Exclude_From_Build 1
+
+!ELSEIF  "$(CFG)" == "ftequake - Win32 MinSW"
+
+!ELSEIF  "$(CFG)" == "ftequake - Win32 GLDebugQ3"
 
 # PROP BASE Exclude_From_Build 1
 # PROP Exclude_From_Build 1
@@ -3550,6 +5286,13 @@ SOURCE=..\sw\r_main.c
 # PROP BASE Exclude_From_Build 1
 # PROP Exclude_From_Build 1
 
+!ELSEIF  "$(CFG)" == "ftequake - Win32 MinSW"
+
+!ELSEIF  "$(CFG)" == "ftequake - Win32 GLDebugQ3"
+
+# PROP BASE Exclude_From_Build 1
+# PROP Exclude_From_Build 1
+
 !ENDIF 
 
 # End Source File
@@ -3586,6 +5329,13 @@ SOURCE=..\sw\r_misc.c
 # PROP Exclude_From_Build 1
 
 !ELSEIF  "$(CFG)" == "ftequake - Win32 Release Dedicated Server"
+
+# PROP BASE Exclude_From_Build 1
+# PROP Exclude_From_Build 1
+
+!ELSEIF  "$(CFG)" == "ftequake - Win32 MinSW"
+
+!ELSEIF  "$(CFG)" == "ftequake - Win32 GLDebugQ3"
 
 # PROP BASE Exclude_From_Build 1
 # PROP Exclude_From_Build 1
@@ -3630,6 +5380,13 @@ SOURCE=..\sw\r_sky.c
 # PROP BASE Exclude_From_Build 1
 # PROP Exclude_From_Build 1
 
+!ELSEIF  "$(CFG)" == "ftequake - Win32 MinSW"
+
+!ELSEIF  "$(CFG)" == "ftequake - Win32 GLDebugQ3"
+
+# PROP BASE Exclude_From_Build 1
+# PROP Exclude_From_Build 1
+
 !ENDIF 
 
 # End Source File
@@ -3666,6 +5423,13 @@ SOURCE=..\sw\r_sprite.c
 # PROP Exclude_From_Build 1
 
 !ELSEIF  "$(CFG)" == "ftequake - Win32 Release Dedicated Server"
+
+# PROP BASE Exclude_From_Build 1
+# PROP Exclude_From_Build 1
+
+!ELSEIF  "$(CFG)" == "ftequake - Win32 MinSW"
+
+!ELSEIF  "$(CFG)" == "ftequake - Win32 GLDebugQ3"
 
 # PROP BASE Exclude_From_Build 1
 # PROP Exclude_From_Build 1
@@ -3710,6 +5474,13 @@ SOURCE=..\sw\r_surf.c
 # PROP BASE Exclude_From_Build 1
 # PROP Exclude_From_Build 1
 
+!ELSEIF  "$(CFG)" == "ftequake - Win32 MinSW"
+
+!ELSEIF  "$(CFG)" == "ftequake - Win32 GLDebugQ3"
+
+# PROP BASE Exclude_From_Build 1
+# PROP Exclude_From_Build 1
+
 !ENDIF 
 
 # End Source File
@@ -3746,6 +5517,13 @@ SOURCE=..\sw\r_vars.c
 # PROP Exclude_From_Build 1
 
 !ELSEIF  "$(CFG)" == "ftequake - Win32 Release Dedicated Server"
+
+# PROP BASE Exclude_From_Build 1
+# PROP Exclude_From_Build 1
+
+!ELSEIF  "$(CFG)" == "ftequake - Win32 MinSW"
+
+!ELSEIF  "$(CFG)" == "ftequake - Win32 GLDebugQ3"
 
 # PROP BASE Exclude_From_Build 1
 # PROP Exclude_From_Build 1
@@ -3790,6 +5568,13 @@ SOURCE=..\sw\sw_draw.c
 # PROP BASE Exclude_From_Build 1
 # PROP Exclude_From_Build 1
 
+!ELSEIF  "$(CFG)" == "ftequake - Win32 MinSW"
+
+!ELSEIF  "$(CFG)" == "ftequake - Win32 GLDebugQ3"
+
+# PROP BASE Exclude_From_Build 1
+# PROP Exclude_From_Build 1
+
 !ENDIF 
 
 # End Source File
@@ -3826,6 +5611,13 @@ SOURCE=..\sw\sw_model.c
 # PROP Exclude_From_Build 1
 
 !ELSEIF  "$(CFG)" == "ftequake - Win32 Release Dedicated Server"
+
+# PROP BASE Exclude_From_Build 1
+# PROP Exclude_From_Build 1
+
+!ELSEIF  "$(CFG)" == "ftequake - Win32 MinSW"
+
+!ELSEIF  "$(CFG)" == "ftequake - Win32 GLDebugQ3"
 
 # PROP BASE Exclude_From_Build 1
 # PROP Exclude_From_Build 1
@@ -3870,6 +5662,13 @@ SOURCE=..\sw\sw_screen.c
 # PROP BASE Exclude_From_Build 1
 # PROP Exclude_From_Build 1
 
+!ELSEIF  "$(CFG)" == "ftequake - Win32 MinSW"
+
+!ELSEIF  "$(CFG)" == "ftequake - Win32 GLDebugQ3"
+
+# PROP BASE Exclude_From_Build 1
+# PROP Exclude_From_Build 1
+
 !ENDIF 
 
 # End Source File
@@ -3906,6 +5705,13 @@ SOURCE=..\sw\vid_ddraw.c
 # PROP Exclude_From_Build 1
 
 !ELSEIF  "$(CFG)" == "ftequake - Win32 Release Dedicated Server"
+
+# PROP BASE Exclude_From_Build 1
+# PROP Exclude_From_Build 1
+
+!ELSEIF  "$(CFG)" == "ftequake - Win32 MinSW"
+
+!ELSEIF  "$(CFG)" == "ftequake - Win32 GLDebugQ3"
 
 # PROP BASE Exclude_From_Build 1
 # PROP Exclude_From_Build 1
@@ -3950,6 +5756,13 @@ SOURCE=..\sw\vid_dib.c
 # PROP BASE Exclude_From_Build 1
 # PROP Exclude_From_Build 1
 
+!ELSEIF  "$(CFG)" == "ftequake - Win32 MinSW"
+
+!ELSEIF  "$(CFG)" == "ftequake - Win32 GLDebugQ3"
+
+# PROP BASE Exclude_From_Build 1
+# PROP Exclude_From_Build 1
+
 !ENDIF 
 
 # End Source File
@@ -3990,6 +5803,13 @@ SOURCE=..\sw\vid_win2.c
 # PROP BASE Exclude_From_Build 1
 # PROP Exclude_From_Build 1
 
+!ELSEIF  "$(CFG)" == "ftequake - Win32 MinSW"
+
+!ELSEIF  "$(CFG)" == "ftequake - Win32 GLDebugQ3"
+
+# PROP BASE Exclude_From_Build 1
+# PROP Exclude_From_Build 1
+
 !ENDIF 
 
 # End Source File
@@ -4000,26 +5820,167 @@ SOURCE=..\sw\vid_win2.c
 # Begin Source File
 
 SOURCE=..\nqnet\net_dgrm.c
+
+!IF  "$(CFG)" == "ftequake - Win32 Release"
+
+!ELSEIF  "$(CFG)" == "ftequake - Win32 Debug"
+
+!ELSEIF  "$(CFG)" == "ftequake - Win32 GLDebug"
+
+!ELSEIF  "$(CFG)" == "ftequake - Win32 GLRelease"
+
+!ELSEIF  "$(CFG)" == "ftequake - Win32 MDebug"
+
+!ELSEIF  "$(CFG)" == "ftequake - Win32 MRelease"
+
+!ELSEIF  "$(CFG)" == "ftequake - Win32 MinGLDebug"
+
+!ELSEIF  "$(CFG)" == "ftequake - Win32 MinGLRelease"
+
+!ELSEIF  "$(CFG)" == "ftequake - Win32 Debug Dedicated Server"
+
+!ELSEIF  "$(CFG)" == "ftequake - Win32 Release Dedicated Server"
+
+!ELSEIF  "$(CFG)" == "ftequake - Win32 MinSW"
+
+!ELSEIF  "$(CFG)" == "ftequake - Win32 GLDebugQ3"
+
+# SUBTRACT CPP /YX /Yc /Yu
+
+!ENDIF 
+
 # End Source File
 # Begin Source File
 
 SOURCE=..\nqnet\net_loop.c
+
+!IF  "$(CFG)" == "ftequake - Win32 Release"
+
+!ELSEIF  "$(CFG)" == "ftequake - Win32 Debug"
+
+!ELSEIF  "$(CFG)" == "ftequake - Win32 GLDebug"
+
+!ELSEIF  "$(CFG)" == "ftequake - Win32 GLRelease"
+
+!ELSEIF  "$(CFG)" == "ftequake - Win32 MDebug"
+
+!ELSEIF  "$(CFG)" == "ftequake - Win32 MRelease"
+
+!ELSEIF  "$(CFG)" == "ftequake - Win32 MinGLDebug"
+
+!ELSEIF  "$(CFG)" == "ftequake - Win32 MinGLRelease"
+
+!ELSEIF  "$(CFG)" == "ftequake - Win32 Debug Dedicated Server"
+
+!ELSEIF  "$(CFG)" == "ftequake - Win32 Release Dedicated Server"
+
+!ELSEIF  "$(CFG)" == "ftequake - Win32 MinSW"
+
+!ELSEIF  "$(CFG)" == "ftequake - Win32 GLDebugQ3"
+
+# SUBTRACT CPP /YX /Yc /Yu
+
+!ENDIF 
+
 # End Source File
 # Begin Source File
 
 SOURCE=..\nqnet\net_main.c
-# End Source File
-# Begin Source File
 
-SOURCE=..\nqnet\net_vcr.c
+!IF  "$(CFG)" == "ftequake - Win32 Release"
+
+!ELSEIF  "$(CFG)" == "ftequake - Win32 Debug"
+
+!ELSEIF  "$(CFG)" == "ftequake - Win32 GLDebug"
+
+!ELSEIF  "$(CFG)" == "ftequake - Win32 GLRelease"
+
+!ELSEIF  "$(CFG)" == "ftequake - Win32 MDebug"
+
+!ELSEIF  "$(CFG)" == "ftequake - Win32 MRelease"
+
+!ELSEIF  "$(CFG)" == "ftequake - Win32 MinGLDebug"
+
+!ELSEIF  "$(CFG)" == "ftequake - Win32 MinGLRelease"
+
+!ELSEIF  "$(CFG)" == "ftequake - Win32 Debug Dedicated Server"
+
+!ELSEIF  "$(CFG)" == "ftequake - Win32 Release Dedicated Server"
+
+!ELSEIF  "$(CFG)" == "ftequake - Win32 MinSW"
+
+!ELSEIF  "$(CFG)" == "ftequake - Win32 GLDebugQ3"
+
+# SUBTRACT CPP /YX /Yc /Yu
+
+!ENDIF 
+
 # End Source File
 # Begin Source File
 
 SOURCE=..\nqnet\net_win.c
+
+!IF  "$(CFG)" == "ftequake - Win32 Release"
+
+!ELSEIF  "$(CFG)" == "ftequake - Win32 Debug"
+
+!ELSEIF  "$(CFG)" == "ftequake - Win32 GLDebug"
+
+!ELSEIF  "$(CFG)" == "ftequake - Win32 GLRelease"
+
+!ELSEIF  "$(CFG)" == "ftequake - Win32 MDebug"
+
+!ELSEIF  "$(CFG)" == "ftequake - Win32 MRelease"
+
+!ELSEIF  "$(CFG)" == "ftequake - Win32 MinGLDebug"
+
+!ELSEIF  "$(CFG)" == "ftequake - Win32 MinGLRelease"
+
+!ELSEIF  "$(CFG)" == "ftequake - Win32 Debug Dedicated Server"
+
+!ELSEIF  "$(CFG)" == "ftequake - Win32 Release Dedicated Server"
+
+!ELSEIF  "$(CFG)" == "ftequake - Win32 MinSW"
+
+!ELSEIF  "$(CFG)" == "ftequake - Win32 GLDebugQ3"
+
+# SUBTRACT CPP /YX /Yc /Yu
+
+!ENDIF 
+
 # End Source File
 # Begin Source File
 
 SOURCE=..\nqnet\net_wipx.c
+
+!IF  "$(CFG)" == "ftequake - Win32 Release"
+
+!ELSEIF  "$(CFG)" == "ftequake - Win32 Debug"
+
+!ELSEIF  "$(CFG)" == "ftequake - Win32 GLDebug"
+
+!ELSEIF  "$(CFG)" == "ftequake - Win32 GLRelease"
+
+!ELSEIF  "$(CFG)" == "ftequake - Win32 MDebug"
+
+!ELSEIF  "$(CFG)" == "ftequake - Win32 MRelease"
+
+!ELSEIF  "$(CFG)" == "ftequake - Win32 MinGLDebug"
+
+!ELSEIF  "$(CFG)" == "ftequake - Win32 MinGLRelease"
+
+!ELSEIF  "$(CFG)" == "ftequake - Win32 Debug Dedicated Server"
+
+!ELSEIF  "$(CFG)" == "ftequake - Win32 Release Dedicated Server"
+
+!ELSEIF  "$(CFG)" == "ftequake - Win32 MinSW"
+
+!ELSEIF  "$(CFG)" == "ftequake - Win32 GLDebugQ3"
+
+# SUBTRACT CPP /YX /Yc /Yu
+
+!ENDIF 
+
 # End Source File
 # Begin Source File
 
@@ -4036,6 +5997,7 @@ SOURCE=..\common\cmd.c
 # Begin Source File
 
 SOURCE=..\common\common.c
+# ADD CPP /Yc"quakedef.h"
 # End Source File
 # Begin Source File
 
@@ -4056,10 +6018,12 @@ SOURCE=..\common\mathlib.c
 # Begin Source File
 
 SOURCE=..\common\md4.c
+# SUBTRACT CPP /YX /Yc /Yu
 # End Source File
 # Begin Source File
 
 SOURCE=..\common\md5.c
+# ADD CPP /Yu
 # End Source File
 # Begin Source File
 
@@ -4108,6 +6072,7 @@ SOURCE=..\common\zone.c
 # Begin Source File
 
 SOURCE=..\QCLIB\Comprout.c
+# SUBTRACT CPP /YX /Yc /Yu
 # End Source File
 # Begin Source File
 
@@ -4116,23 +6081,27 @@ SOURCE=..\qclib\execloop.h
 # Begin Source File
 
 SOURCE=..\QCLIB\hash.c
+# SUBTRACT CPP /YX /Yc /Yu
 # End Source File
 # Begin Source File
 
 SOURCE=..\QCLIB\initlib.c
+# SUBTRACT CPP /YX /Yc /Yu
 # End Source File
 # Begin Source File
 
 SOURCE=..\QCLIB\pr_edict.c
+# SUBTRACT CPP /YX /Yc /Yu
 # End Source File
 # Begin Source File
 
 SOURCE=..\QCLIB\Pr_exec.c
-# SUBTRACT CPP /WX
+# SUBTRACT CPP /WX /YX /Yc /Yu
 # End Source File
 # Begin Source File
 
 SOURCE=..\QCLIB\pr_multi.c
+# SUBTRACT CPP /YX /Yc /Yu
 # End Source File
 # Begin Source File
 
@@ -4141,26 +6110,32 @@ SOURCE=..\QCLIB\progtype.h
 # Begin Source File
 
 SOURCE=..\QCLIB\qcc_cmdlib.c
+# SUBTRACT CPP /YX /Yc /Yu
 # End Source File
 # Begin Source File
 
 SOURCE=..\QCLIB\qcc_pr_comp.c
+# SUBTRACT CPP /YX /Yc /Yu
 # End Source File
 # Begin Source File
 
 SOURCE=..\QCLIB\qcc_pr_lex.c
+# SUBTRACT CPP /YX /Yc /Yu
 # End Source File
 # Begin Source File
 
 SOURCE=..\QCLIB\QccMain.c
+# SUBTRACT CPP /YX /Yc /Yu
 # End Source File
 # Begin Source File
 
 SOURCE=..\QCLIB\qcd_main.c
+# SUBTRACT CPP /YX /Yc /Yu
 # End Source File
 # Begin Source File
 
 SOURCE=..\QCLIB\qcdecomp.c
+# SUBTRACT CPP /YX /Yc /Yu
 # End Source File
 # End Group
 # Begin Group "asm"
@@ -4178,7 +6153,7 @@ InputPath=..\sw\d_draw.s
 InputName=d_draw
 
 "$(OUTDIR)\$(InputName).obj" : $(SOURCE) "$(INTDIR)" "$(OUTDIR)"
-	cl /EP  /DSWQUAKE /I ..\common > $(OUTDIR)\$(InputName).spp $(InputPath) 
+	cl /EP /I ..\common > $(OUTDIR)\$(InputName).spp $(InputPath) 
 	..\gas2masm\debug\gas2masm < $(OUTDIR)\$(InputName).spp >          $(OUTDIR)\$(InputName).asm 
 	ml /c /Cp /coff /Fo$(OUTDIR)\$(InputName).obj /Zm /Zi                                                                                                                                                                                                                           $(OUTDIR)\$(InputName).asm 
 	del $(OUTDIR)\$(InputName).spp 
@@ -4193,7 +6168,7 @@ InputPath=..\sw\d_draw.s
 InputName=d_draw
 
 "$(OUTDIR)\$(InputName).obj" : $(SOURCE) "$(INTDIR)" "$(OUTDIR)"
-	cl /EP  /DSWQUAKE /I ..\common > $(OUTDIR)\$(InputName).spp $(InputPath) 
+	cl /EP /I ..\common > $(OUTDIR)\$(InputName).spp $(InputPath) 
 	..\gas2masm\debug\gas2masm < $(OUTDIR)\$(InputName).spp >          $(OUTDIR)\$(InputName).asm 
 	ml /c /Cp /coff /Fo$(OUTDIR)\$(InputName).obj /Zm /Zi                                                                                                                                                                                                                           $(OUTDIR)\$(InputName).asm 
 	del $(OUTDIR)\$(InputName).spp 
@@ -4218,7 +6193,7 @@ InputPath=..\sw\d_draw.s
 InputName=d_draw
 
 "$(OUTDIR)\$(InputName).obj" : $(SOURCE) "$(INTDIR)" "$(OUTDIR)"
-	cl /EP  /DSWQUAKE /I ..\common > $(OUTDIR)\$(InputName).spp $(InputPath) 
+	cl /EP /I ..\common > $(OUTDIR)\$(InputName).spp $(InputPath) 
 	..\gas2masm\debug\gas2masm < $(OUTDIR)\$(InputName).spp >          $(OUTDIR)\$(InputName).asm 
 	ml /c /Cp /coff /Fo$(OUTDIR)\$(InputName).obj /Zm /Zi                                                                                                                                                                                                                           $(OUTDIR)\$(InputName).asm 
 	del $(OUTDIR)\$(InputName).spp 
@@ -4234,7 +6209,7 @@ InputPath=..\sw\d_draw.s
 InputName=d_draw
 
 "$(OUTDIR)\$(InputName).obj" : $(SOURCE) "$(INTDIR)" "$(OUTDIR)"
-	cl /EP  /DSWQUAKE /I ..\common > $(OUTDIR)\$(InputName).spp $(InputPath) 
+	cl /EP /I ..\common > $(OUTDIR)\$(InputName).spp $(InputPath) 
 	..\gas2masm\debug\gas2masm < $(OUTDIR)\$(InputName).spp >          $(OUTDIR)\$(InputName).asm 
 	ml /c /Cp /coff /Fo$(OUTDIR)\$(InputName).obj /Zm /Zi                                                                                                                                                                                                                           $(OUTDIR)\$(InputName).asm 
 	del $(OUTDIR)\$(InputName).spp 
@@ -4257,6 +6232,26 @@ InputName=d_draw
 # PROP Exclude_From_Build 1
 
 !ELSEIF  "$(CFG)" == "ftequake - Win32 Release Dedicated Server"
+
+# PROP BASE Exclude_From_Build 1
+# PROP Exclude_From_Build 1
+
+!ELSEIF  "$(CFG)" == "ftequake - Win32 MinSW"
+
+# Begin Custom Build
+OutDir=.\ftequake___Win32_MinSW
+InputPath=..\sw\d_draw.s
+InputName=d_draw
+
+"$(OUTDIR)\$(InputName).obj" : $(SOURCE) "$(INTDIR)" "$(OUTDIR)"
+	cl /EP /I ..\common > $(OUTDIR)\$(InputName).spp $(InputPath) 
+	..\gas2masm\debug\gas2masm < $(OUTDIR)\$(InputName).spp >          $(OUTDIR)\$(InputName).asm 
+	ml /c /Cp /coff /Fo$(OUTDIR)\$(InputName).obj /Zm /Zi                                                                                                                                                                                                                           $(OUTDIR)\$(InputName).asm 
+	del $(OUTDIR)\$(InputName).spp 
+	
+# End Custom Build
+
+!ELSEIF  "$(CFG)" == "ftequake - Win32 GLDebugQ3"
 
 # PROP BASE Exclude_From_Build 1
 # PROP Exclude_From_Build 1
@@ -4276,7 +6271,7 @@ InputPath=..\sw\d_draw16.s
 InputName=d_draw16
 
 "$(OUTDIR)\$(InputName).obj" : $(SOURCE) "$(INTDIR)" "$(OUTDIR)"
-	cl /EP  /DSWQUAKE /I ..\common > $(OUTDIR)\$(InputName).spp $(InputPath) 
+	cl /EP /I ..\common > $(OUTDIR)\$(InputName).spp $(InputPath) 
 	..\gas2masm\debug\gas2masm < $(OUTDIR)\$(InputName).spp >          $(OUTDIR)\$(InputName).asm 
 	ml /c /Cp /coff /Fo$(OUTDIR)\$(InputName).obj /Zm /Zi                                                                                                                                                                                                                           $(OUTDIR)\$(InputName).asm 
 	del $(OUTDIR)\$(InputName).spp 
@@ -4291,7 +6286,7 @@ InputPath=..\sw\d_draw16.s
 InputName=d_draw16
 
 "$(OUTDIR)\$(InputName).obj" : $(SOURCE) "$(INTDIR)" "$(OUTDIR)"
-	cl /EP  /DSWQUAKE /I ..\common > $(OUTDIR)\$(InputName).spp $(InputPath) 
+	cl /EP /I ..\common > $(OUTDIR)\$(InputName).spp $(InputPath) 
 	..\gas2masm\debug\gas2masm < $(OUTDIR)\$(InputName).spp >          $(OUTDIR)\$(InputName).asm 
 	ml /c /Cp /coff /Fo$(OUTDIR)\$(InputName).obj /Zm /Zi                                                                                                                                                                                                                           $(OUTDIR)\$(InputName).asm 
 	del $(OUTDIR)\$(InputName).spp 
@@ -4316,7 +6311,7 @@ InputPath=..\sw\d_draw16.s
 InputName=d_draw16
 
 "$(OUTDIR)\$(InputName).obj" : $(SOURCE) "$(INTDIR)" "$(OUTDIR)"
-	cl /EP  /DSWQUAKE /I ..\common > $(OUTDIR)\$(InputName).spp $(InputPath) 
+	cl /EP /I ..\common > $(OUTDIR)\$(InputName).spp $(InputPath) 
 	..\gas2masm\debug\gas2masm < $(OUTDIR)\$(InputName).spp >          $(OUTDIR)\$(InputName).asm 
 	ml /c /Cp /coff /Fo$(OUTDIR)\$(InputName).obj /Zm /Zi                                                                                                                                                                                                                           $(OUTDIR)\$(InputName).asm 
 	del $(OUTDIR)\$(InputName).spp 
@@ -4332,7 +6327,7 @@ InputPath=..\sw\d_draw16.s
 InputName=d_draw16
 
 "$(OUTDIR)\$(InputName).obj" : $(SOURCE) "$(INTDIR)" "$(OUTDIR)"
-	cl /EP  /DSWQUAKE /I ..\common > $(OUTDIR)\$(InputName).spp $(InputPath) 
+	cl /EP /I ..\common > $(OUTDIR)\$(InputName).spp $(InputPath) 
 	..\gas2masm\debug\gas2masm < $(OUTDIR)\$(InputName).spp >          $(OUTDIR)\$(InputName).asm 
 	ml /c /Cp /coff /Fo$(OUTDIR)\$(InputName).obj /Zm /Zi                                                                                                                                                                                                                           $(OUTDIR)\$(InputName).asm 
 	del $(OUTDIR)\$(InputName).spp 
@@ -4355,6 +6350,26 @@ InputName=d_draw16
 # PROP Exclude_From_Build 1
 
 !ELSEIF  "$(CFG)" == "ftequake - Win32 Release Dedicated Server"
+
+# PROP BASE Exclude_From_Build 1
+# PROP Exclude_From_Build 1
+
+!ELSEIF  "$(CFG)" == "ftequake - Win32 MinSW"
+
+# Begin Custom Build
+OutDir=.\ftequake___Win32_MinSW
+InputPath=..\sw\d_draw16.s
+InputName=d_draw16
+
+"$(OUTDIR)\$(InputName).obj" : $(SOURCE) "$(INTDIR)" "$(OUTDIR)"
+	cl /EP /I ..\common > $(OUTDIR)\$(InputName).spp $(InputPath) 
+	..\gas2masm\debug\gas2masm < $(OUTDIR)\$(InputName).spp >          $(OUTDIR)\$(InputName).asm 
+	ml /c /Cp /coff /Fo$(OUTDIR)\$(InputName).obj /Zm /Zi                                                                                                                                                                                                                           $(OUTDIR)\$(InputName).asm 
+	del $(OUTDIR)\$(InputName).spp 
+	
+# End Custom Build
+
+!ELSEIF  "$(CFG)" == "ftequake - Win32 GLDebugQ3"
 
 # PROP BASE Exclude_From_Build 1
 # PROP Exclude_From_Build 1
@@ -4374,7 +6389,7 @@ InputPath=..\sw\d_parta.s
 InputName=d_parta
 
 "$(OUTDIR)\$(InputName).obj" : $(SOURCE) "$(INTDIR)" "$(OUTDIR)"
-	cl /EP  /DSWQUAKE /I ..\common > $(OUTDIR)\$(InputName).spp $(InputPath) 
+	cl /EP /I ..\common > $(OUTDIR)\$(InputName).spp $(InputPath) 
 	..\gas2masm\debug\gas2masm < $(OUTDIR)\$(InputName).spp >          $(OUTDIR)\$(InputName).asm 
 	ml /c /Cp /coff /Fo$(OUTDIR)\$(InputName).obj /Zm /Zi                                                                                                                                                                                                                           $(OUTDIR)\$(InputName).asm 
 	del $(OUTDIR)\$(InputName).spp 
@@ -4389,7 +6404,7 @@ InputPath=..\sw\d_parta.s
 InputName=d_parta
 
 "$(OUTDIR)\$(InputName).obj" : $(SOURCE) "$(INTDIR)" "$(OUTDIR)"
-	cl /EP  /DSWQUAKE /I ..\common > $(OUTDIR)\$(InputName).spp $(InputPath) 
+	cl /EP /I ..\common > $(OUTDIR)\$(InputName).spp $(InputPath) 
 	..\gas2masm\debug\gas2masm < $(OUTDIR)\$(InputName).spp >          $(OUTDIR)\$(InputName).asm 
 	ml /c /Cp /coff /Fo$(OUTDIR)\$(InputName).obj /Zm /Zi                                                                                                                                                                                                                           $(OUTDIR)\$(InputName).asm 
 	del $(OUTDIR)\$(InputName).spp 
@@ -4414,7 +6429,7 @@ InputPath=..\sw\d_parta.s
 InputName=d_parta
 
 "$(OUTDIR)\$(InputName).obj" : $(SOURCE) "$(INTDIR)" "$(OUTDIR)"
-	cl /EP  /DSWQUAKE /I ..\common > $(OUTDIR)\$(InputName).spp $(InputPath) 
+	cl /EP /I ..\common > $(OUTDIR)\$(InputName).spp $(InputPath) 
 	..\gas2masm\debug\gas2masm < $(OUTDIR)\$(InputName).spp >          $(OUTDIR)\$(InputName).asm 
 	ml /c /Cp /coff /Fo$(OUTDIR)\$(InputName).obj /Zm /Zi                                                                                                                                                                                                                           $(OUTDIR)\$(InputName).asm 
 	del $(OUTDIR)\$(InputName).spp 
@@ -4430,7 +6445,7 @@ InputPath=..\sw\d_parta.s
 InputName=d_parta
 
 "$(OUTDIR)\$(InputName).obj" : $(SOURCE) "$(INTDIR)" "$(OUTDIR)"
-	cl /EP  /DSWQUAKE /I ..\common > $(OUTDIR)\$(InputName).spp $(InputPath) 
+	cl /EP /I ..\common > $(OUTDIR)\$(InputName).spp $(InputPath) 
 	..\gas2masm\debug\gas2masm < $(OUTDIR)\$(InputName).spp >          $(OUTDIR)\$(InputName).asm 
 	ml /c /Cp /coff /Fo$(OUTDIR)\$(InputName).obj /Zm /Zi                                                                                                                                                                                                                           $(OUTDIR)\$(InputName).asm 
 	del $(OUTDIR)\$(InputName).spp 
@@ -4453,6 +6468,26 @@ InputName=d_parta
 # PROP Exclude_From_Build 1
 
 !ELSEIF  "$(CFG)" == "ftequake - Win32 Release Dedicated Server"
+
+# PROP BASE Exclude_From_Build 1
+# PROP Exclude_From_Build 1
+
+!ELSEIF  "$(CFG)" == "ftequake - Win32 MinSW"
+
+# Begin Custom Build
+OutDir=.\ftequake___Win32_MinSW
+InputPath=..\sw\d_parta.s
+InputName=d_parta
+
+"$(OUTDIR)\$(InputName).obj" : $(SOURCE) "$(INTDIR)" "$(OUTDIR)"
+	cl /EP /I ..\common > $(OUTDIR)\$(InputName).spp $(InputPath) 
+	..\gas2masm\debug\gas2masm < $(OUTDIR)\$(InputName).spp >          $(OUTDIR)\$(InputName).asm 
+	ml /c /Cp /coff /Fo$(OUTDIR)\$(InputName).obj /Zm /Zi                                                                                                                                                                                                                           $(OUTDIR)\$(InputName).asm 
+	del $(OUTDIR)\$(InputName).spp 
+	
+# End Custom Build
+
+!ELSEIF  "$(CFG)" == "ftequake - Win32 GLDebugQ3"
 
 # PROP BASE Exclude_From_Build 1
 # PROP Exclude_From_Build 1
@@ -4472,7 +6507,7 @@ InputPath=..\sw\d_polysa.s
 InputName=d_polysa
 
 "$(OUTDIR)\$(InputName).obj" : $(SOURCE) "$(INTDIR)" "$(OUTDIR)"
-	cl /EP  /DSWQUAKE /I ..\common > $(OUTDIR)\$(InputName).spp $(InputPath) 
+	cl /EP /I ..\common > $(OUTDIR)\$(InputName).spp $(InputPath) 
 	..\gas2masm\debug\gas2masm < $(OUTDIR)\$(InputName).spp >          $(OUTDIR)\$(InputName).asm 
 	ml /c /Cp /coff /Fo$(OUTDIR)\$(InputName).obj /Zm /Zi                                                                                                                                                                                                                           $(OUTDIR)\$(InputName).asm 
 	del $(OUTDIR)\$(InputName).spp 
@@ -4487,7 +6522,7 @@ InputPath=..\sw\d_polysa.s
 InputName=d_polysa
 
 "$(OUTDIR)\$(InputName).obj" : $(SOURCE) "$(INTDIR)" "$(OUTDIR)"
-	cl /EP  /DSWQUAKE /I ..\common > $(OUTDIR)\$(InputName).spp $(InputPath) 
+	cl /EP /I ..\common > $(OUTDIR)\$(InputName).spp $(InputPath) 
 	..\gas2masm\debug\gas2masm < $(OUTDIR)\$(InputName).spp >          $(OUTDIR)\$(InputName).asm 
 	ml /c /Cp /coff /Fo$(OUTDIR)\$(InputName).obj /Zm /Zi                                                                                                                                                                                                                           $(OUTDIR)\$(InputName).asm 
 	del $(OUTDIR)\$(InputName).spp 
@@ -4512,7 +6547,7 @@ InputPath=..\sw\d_polysa.s
 InputName=d_polysa
 
 "$(OUTDIR)\$(InputName).obj" : $(SOURCE) "$(INTDIR)" "$(OUTDIR)"
-	cl /EP  /DSWQUAKE /I ..\common > $(OUTDIR)\$(InputName).spp $(InputPath) 
+	cl /EP /I ..\common > $(OUTDIR)\$(InputName).spp $(InputPath) 
 	..\gas2masm\debug\gas2masm < $(OUTDIR)\$(InputName).spp >          $(OUTDIR)\$(InputName).asm 
 	ml /c /Cp /coff /Fo$(OUTDIR)\$(InputName).obj /Zm /Zi                                                                                                                                                                                                                           $(OUTDIR)\$(InputName).asm 
 	del $(OUTDIR)\$(InputName).spp 
@@ -4528,7 +6563,7 @@ InputPath=..\sw\d_polysa.s
 InputName=d_polysa
 
 "$(OUTDIR)\$(InputName).obj" : $(SOURCE) "$(INTDIR)" "$(OUTDIR)"
-	cl /EP  /DSWQUAKE /I ..\common > $(OUTDIR)\$(InputName).spp $(InputPath) 
+	cl /EP /I ..\common > $(OUTDIR)\$(InputName).spp $(InputPath) 
 	..\gas2masm\debug\gas2masm < $(OUTDIR)\$(InputName).spp >          $(OUTDIR)\$(InputName).asm 
 	ml /c /Cp /coff /Fo$(OUTDIR)\$(InputName).obj /Zm /Zi                                                                                                                                                                                                                           $(OUTDIR)\$(InputName).asm 
 	del $(OUTDIR)\$(InputName).spp 
@@ -4551,6 +6586,26 @@ InputName=d_polysa
 # PROP Exclude_From_Build 1
 
 !ELSEIF  "$(CFG)" == "ftequake - Win32 Release Dedicated Server"
+
+# PROP BASE Exclude_From_Build 1
+# PROP Exclude_From_Build 1
+
+!ELSEIF  "$(CFG)" == "ftequake - Win32 MinSW"
+
+# Begin Custom Build
+OutDir=.\ftequake___Win32_MinSW
+InputPath=..\sw\d_polysa.s
+InputName=d_polysa
+
+"$(OUTDIR)\$(InputName).obj" : $(SOURCE) "$(INTDIR)" "$(OUTDIR)"
+	cl /EP /I ..\common > $(OUTDIR)\$(InputName).spp $(InputPath) 
+	..\gas2masm\debug\gas2masm < $(OUTDIR)\$(InputName).spp >          $(OUTDIR)\$(InputName).asm 
+	ml /c /Cp /coff /Fo$(OUTDIR)\$(InputName).obj /Zm /Zi                                                                                                                                                                                                                           $(OUTDIR)\$(InputName).asm 
+	del $(OUTDIR)\$(InputName).spp 
+	
+# End Custom Build
+
+!ELSEIF  "$(CFG)" == "ftequake - Win32 GLDebugQ3"
 
 # PROP BASE Exclude_From_Build 1
 # PROP Exclude_From_Build 1
@@ -4570,7 +6625,7 @@ InputPath=..\sw\d_scana.s
 InputName=d_scana
 
 "$(OUTDIR)\$(InputName).obj" : $(SOURCE) "$(INTDIR)" "$(OUTDIR)"
-	cl /EP  /DSWQUAKE /I ..\common > $(OUTDIR)\$(InputName).spp $(InputPath) 
+	cl /EP /I ..\common > $(OUTDIR)\$(InputName).spp $(InputPath) 
 	..\gas2masm\debug\gas2masm < $(OUTDIR)\$(InputName).spp >          $(OUTDIR)\$(InputName).asm 
 	ml /c /Cp /coff /Fo$(OUTDIR)\$(InputName).obj /Zm /Zi                                                                                                                                                                                                                           $(OUTDIR)\$(InputName).asm 
 	del $(OUTDIR)\$(InputName).spp 
@@ -4585,7 +6640,7 @@ InputPath=..\sw\d_scana.s
 InputName=d_scana
 
 "$(OUTDIR)\$(InputName).obj" : $(SOURCE) "$(INTDIR)" "$(OUTDIR)"
-	cl /EP  /DSWQUAKE /I ..\common > $(OUTDIR)\$(InputName).spp $(InputPath) 
+	cl /EP /I ..\common > $(OUTDIR)\$(InputName).spp $(InputPath) 
 	..\gas2masm\debug\gas2masm < $(OUTDIR)\$(InputName).spp >          $(OUTDIR)\$(InputName).asm 
 	ml /c /Cp /coff /Fo$(OUTDIR)\$(InputName).obj /Zm /Zi                                                                                                                                                                                                                           $(OUTDIR)\$(InputName).asm 
 	del $(OUTDIR)\$(InputName).spp 
@@ -4610,7 +6665,7 @@ InputPath=..\sw\d_scana.s
 InputName=d_scana
 
 "$(OUTDIR)\$(InputName).obj" : $(SOURCE) "$(INTDIR)" "$(OUTDIR)"
-	cl /EP  /DSWQUAKE /I ..\common > $(OUTDIR)\$(InputName).spp $(InputPath) 
+	cl /EP /I ..\common > $(OUTDIR)\$(InputName).spp $(InputPath) 
 	..\gas2masm\debug\gas2masm < $(OUTDIR)\$(InputName).spp >          $(OUTDIR)\$(InputName).asm 
 	ml /c /Cp /coff /Fo$(OUTDIR)\$(InputName).obj /Zm /Zi                                                                                                                                                                                                                           $(OUTDIR)\$(InputName).asm 
 	del $(OUTDIR)\$(InputName).spp 
@@ -4626,7 +6681,7 @@ InputPath=..\sw\d_scana.s
 InputName=d_scana
 
 "$(OUTDIR)\$(InputName).obj" : $(SOURCE) "$(INTDIR)" "$(OUTDIR)"
-	cl /EP  /DSWQUAKE /I ..\common > $(OUTDIR)\$(InputName).spp $(InputPath) 
+	cl /EP /I ..\common > $(OUTDIR)\$(InputName).spp $(InputPath) 
 	..\gas2masm\debug\gas2masm < $(OUTDIR)\$(InputName).spp >          $(OUTDIR)\$(InputName).asm 
 	ml /c /Cp /coff /Fo$(OUTDIR)\$(InputName).obj /Zm /Zi                                                                                                                                                                                                                           $(OUTDIR)\$(InputName).asm 
 	del $(OUTDIR)\$(InputName).spp 
@@ -4649,6 +6704,26 @@ InputName=d_scana
 # PROP Exclude_From_Build 1
 
 !ELSEIF  "$(CFG)" == "ftequake - Win32 Release Dedicated Server"
+
+# PROP BASE Exclude_From_Build 1
+# PROP Exclude_From_Build 1
+
+!ELSEIF  "$(CFG)" == "ftequake - Win32 MinSW"
+
+# Begin Custom Build
+OutDir=.\ftequake___Win32_MinSW
+InputPath=..\sw\d_scana.s
+InputName=d_scana
+
+"$(OUTDIR)\$(InputName).obj" : $(SOURCE) "$(INTDIR)" "$(OUTDIR)"
+	cl /EP /I ..\common > $(OUTDIR)\$(InputName).spp $(InputPath) 
+	..\gas2masm\debug\gas2masm < $(OUTDIR)\$(InputName).spp >          $(OUTDIR)\$(InputName).asm 
+	ml /c /Cp /coff /Fo$(OUTDIR)\$(InputName).obj /Zm /Zi                                                                                                                                                                                                                           $(OUTDIR)\$(InputName).asm 
+	del $(OUTDIR)\$(InputName).spp 
+	
+# End Custom Build
+
+!ELSEIF  "$(CFG)" == "ftequake - Win32 GLDebugQ3"
 
 # PROP BASE Exclude_From_Build 1
 # PROP Exclude_From_Build 1
@@ -4668,7 +6743,7 @@ InputPath=..\sw\d_spr8.s
 InputName=d_spr8
 
 "$(OUTDIR)\$(InputName).obj" : $(SOURCE) "$(INTDIR)" "$(OUTDIR)"
-	cl /EP  /DSWQUAKE /I ..\common > $(OUTDIR)\$(InputName).spp $(InputPath) 
+	cl /EP /I ..\common > $(OUTDIR)\$(InputName).spp $(InputPath) 
 	..\gas2masm\debug\gas2masm < $(OUTDIR)\$(InputName).spp >          $(OUTDIR)\$(InputName).asm 
 	ml /c /Cp /coff /Fo$(OUTDIR)\$(InputName).obj /Zm /Zi                                                                                                                                                                                                                           $(OUTDIR)\$(InputName).asm 
 	del $(OUTDIR)\$(InputName).spp 
@@ -4683,7 +6758,7 @@ InputPath=..\sw\d_spr8.s
 InputName=d_spr8
 
 "$(OUTDIR)\$(InputName).obj" : $(SOURCE) "$(INTDIR)" "$(OUTDIR)"
-	cl /EP  /DSWQUAKE /I ..\common > $(OUTDIR)\$(InputName).spp $(InputPath) 
+	cl /EP /I ..\common > $(OUTDIR)\$(InputName).spp $(InputPath) 
 	..\gas2masm\debug\gas2masm < $(OUTDIR)\$(InputName).spp >          $(OUTDIR)\$(InputName).asm 
 	ml /c /Cp /coff /Fo$(OUTDIR)\$(InputName).obj /Zm /Zi                                                                                                                                                                                                                           $(OUTDIR)\$(InputName).asm 
 	del $(OUTDIR)\$(InputName).spp 
@@ -4708,7 +6783,7 @@ InputPath=..\sw\d_spr8.s
 InputName=d_spr8
 
 "$(OUTDIR)\$(InputName).obj" : $(SOURCE) "$(INTDIR)" "$(OUTDIR)"
-	cl /EP  /DSWQUAKE /I ..\common > $(OUTDIR)\$(InputName).spp $(InputPath) 
+	cl /EP /I ..\common > $(OUTDIR)\$(InputName).spp $(InputPath) 
 	..\gas2masm\debug\gas2masm < $(OUTDIR)\$(InputName).spp >          $(OUTDIR)\$(InputName).asm 
 	ml /c /Cp /coff /Fo$(OUTDIR)\$(InputName).obj /Zm /Zi                                                                                                                                                                                                                           $(OUTDIR)\$(InputName).asm 
 	del $(OUTDIR)\$(InputName).spp 
@@ -4724,7 +6799,7 @@ InputPath=..\sw\d_spr8.s
 InputName=d_spr8
 
 "$(OUTDIR)\$(InputName).obj" : $(SOURCE) "$(INTDIR)" "$(OUTDIR)"
-	cl /EP  /DSWQUAKE /I ..\common > $(OUTDIR)\$(InputName).spp $(InputPath) 
+	cl /EP /I ..\common > $(OUTDIR)\$(InputName).spp $(InputPath) 
 	..\gas2masm\debug\gas2masm < $(OUTDIR)\$(InputName).spp >          $(OUTDIR)\$(InputName).asm 
 	ml /c /Cp /coff /Fo$(OUTDIR)\$(InputName).obj /Zm /Zi                                                                                                                                                                                                                           $(OUTDIR)\$(InputName).asm 
 	del $(OUTDIR)\$(InputName).spp 
@@ -4747,6 +6822,26 @@ InputName=d_spr8
 # PROP Exclude_From_Build 1
 
 !ELSEIF  "$(CFG)" == "ftequake - Win32 Release Dedicated Server"
+
+# PROP BASE Exclude_From_Build 1
+# PROP Exclude_From_Build 1
+
+!ELSEIF  "$(CFG)" == "ftequake - Win32 MinSW"
+
+# Begin Custom Build
+OutDir=.\ftequake___Win32_MinSW
+InputPath=..\sw\d_spr8.s
+InputName=d_spr8
+
+"$(OUTDIR)\$(InputName).obj" : $(SOURCE) "$(INTDIR)" "$(OUTDIR)"
+	cl /EP /I ..\common > $(OUTDIR)\$(InputName).spp $(InputPath) 
+	..\gas2masm\debug\gas2masm < $(OUTDIR)\$(InputName).spp >          $(OUTDIR)\$(InputName).asm 
+	ml /c /Cp /coff /Fo$(OUTDIR)\$(InputName).obj /Zm /Zi                                                                                                                                                                                                                           $(OUTDIR)\$(InputName).asm 
+	del $(OUTDIR)\$(InputName).spp 
+	
+# End Custom Build
+
+!ELSEIF  "$(CFG)" == "ftequake - Win32 GLDebugQ3"
 
 # PROP BASE Exclude_From_Build 1
 # PROP Exclude_From_Build 1
@@ -4766,7 +6861,7 @@ InputPath=..\sw\d_varsa.s
 InputName=d_varsa
 
 "$(OUTDIR)\$(InputName).obj" : $(SOURCE) "$(INTDIR)" "$(OUTDIR)"
-	cl /EP  /DSWQUAKE /I ..\common > $(OUTDIR)\$(InputName).spp $(InputPath) 
+	cl /EP /I ..\common > $(OUTDIR)\$(InputName).spp $(InputPath) 
 	..\gas2masm\debug\gas2masm < $(OUTDIR)\$(InputName).spp >          $(OUTDIR)\$(InputName).asm 
 	ml /c /Cp /coff /Fo$(OUTDIR)\$(InputName).obj /Zm /Zi                                                                                                                                                                                                                           $(OUTDIR)\$(InputName).asm 
 	del $(OUTDIR)\$(InputName).spp 
@@ -4781,7 +6876,7 @@ InputPath=..\sw\d_varsa.s
 InputName=d_varsa
 
 "$(OUTDIR)\$(InputName).obj" : $(SOURCE) "$(INTDIR)" "$(OUTDIR)"
-	cl /EP  /DSWQUAKE /I ..\common > $(OUTDIR)\$(InputName).spp $(InputPath) 
+	cl /EP /I ..\common > $(OUTDIR)\$(InputName).spp $(InputPath) 
 	..\gas2masm\debug\gas2masm < $(OUTDIR)\$(InputName).spp >          $(OUTDIR)\$(InputName).asm 
 	ml /c /Cp /coff /Fo$(OUTDIR)\$(InputName).obj /Zm /Zi                                                                                                                                                                                                                           $(OUTDIR)\$(InputName).asm 
 	del $(OUTDIR)\$(InputName).spp 
@@ -4806,7 +6901,7 @@ InputPath=..\sw\d_varsa.s
 InputName=d_varsa
 
 "$(OUTDIR)\$(InputName).obj" : $(SOURCE) "$(INTDIR)" "$(OUTDIR)"
-	cl /EP  /DSWQUAKE /I ..\common > $(OUTDIR)\$(InputName).spp $(InputPath) 
+	cl /EP /I ..\common > $(OUTDIR)\$(InputName).spp $(InputPath) 
 	..\gas2masm\debug\gas2masm < $(OUTDIR)\$(InputName).spp >          $(OUTDIR)\$(InputName).asm 
 	ml /c /Cp /coff /Fo$(OUTDIR)\$(InputName).obj /Zm /Zi                                                                                                                                                                                                                           $(OUTDIR)\$(InputName).asm 
 	del $(OUTDIR)\$(InputName).spp 
@@ -4822,7 +6917,7 @@ InputPath=..\sw\d_varsa.s
 InputName=d_varsa
 
 "$(OUTDIR)\$(InputName).obj" : $(SOURCE) "$(INTDIR)" "$(OUTDIR)"
-	cl /EP  /DSWQUAKE /I ..\common > $(OUTDIR)\$(InputName).spp $(InputPath) 
+	cl /EP /I ..\common > $(OUTDIR)\$(InputName).spp $(InputPath) 
 	..\gas2masm\debug\gas2masm < $(OUTDIR)\$(InputName).spp >          $(OUTDIR)\$(InputName).asm 
 	ml /c /Cp /coff /Fo$(OUTDIR)\$(InputName).obj /Zm /Zi                                                                                                                                                                                                                           $(OUTDIR)\$(InputName).asm 
 	del $(OUTDIR)\$(InputName).spp 
@@ -4845,6 +6940,26 @@ InputName=d_varsa
 # PROP Exclude_From_Build 1
 
 !ELSEIF  "$(CFG)" == "ftequake - Win32 Release Dedicated Server"
+
+# PROP BASE Exclude_From_Build 1
+# PROP Exclude_From_Build 1
+
+!ELSEIF  "$(CFG)" == "ftequake - Win32 MinSW"
+
+# Begin Custom Build
+OutDir=.\ftequake___Win32_MinSW
+InputPath=..\sw\d_varsa.s
+InputName=d_varsa
+
+"$(OUTDIR)\$(InputName).obj" : $(SOURCE) "$(INTDIR)" "$(OUTDIR)"
+	cl /EP /I ..\common > $(OUTDIR)\$(InputName).spp $(InputPath) 
+	..\gas2masm\debug\gas2masm < $(OUTDIR)\$(InputName).spp >          $(OUTDIR)\$(InputName).asm 
+	ml /c /Cp /coff /Fo$(OUTDIR)\$(InputName).obj /Zm /Zi                                                                                                                                                                                                                           $(OUTDIR)\$(InputName).asm 
+	del $(OUTDIR)\$(InputName).spp 
+	
+# End Custom Build
+
+!ELSEIF  "$(CFG)" == "ftequake - Win32 GLDebugQ3"
 
 # PROP BASE Exclude_From_Build 1
 # PROP Exclude_From_Build 1
@@ -4864,7 +6979,7 @@ InputPath=..\common\math.s
 InputName=math
 
 "$(OUTDIR)\$(InputName).obj" : $(SOURCE) "$(INTDIR)" "$(OUTDIR)"
-	cl /EP  /DSWQUAKE /I ..\common > $(OUTDIR)\$(InputName).spp $(InputPath) 
+	cl /EP /I ..\common > $(OUTDIR)\$(InputName).spp $(InputPath) 
 	..\gas2masm\debug\gas2masm < $(OUTDIR)\$(InputName).spp >          $(OUTDIR)\$(InputName).asm 
 	ml /c /Cp /coff /Fo$(OUTDIR)\$(InputName).obj /Zm /Zi                                                                                                                                                                                                                           $(OUTDIR)\$(InputName).asm 
 	del $(OUTDIR)\$(InputName).spp 
@@ -4879,7 +6994,7 @@ InputPath=..\common\math.s
 InputName=math
 
 "$(OUTDIR)\$(InputName).obj" : $(SOURCE) "$(INTDIR)" "$(OUTDIR)"
-	cl /EP  /DSWQUAKE /I ..\common > $(OUTDIR)\$(InputName).spp $(InputPath) 
+	cl /EP /I ..\common > $(OUTDIR)\$(InputName).spp $(InputPath) 
 	..\gas2masm\debug\gas2masm < $(OUTDIR)\$(InputName).spp >          $(OUTDIR)\$(InputName).asm 
 	ml /c /Cp /coff /Fo$(OUTDIR)\$(InputName).obj /Zm /Zi                                                                                                                                                                                                                           $(OUTDIR)\$(InputName).asm 
 	del $(OUTDIR)\$(InputName).spp 
@@ -4894,7 +7009,7 @@ InputPath=..\common\math.s
 InputName=math
 
 "$(OUTDIR)\$(InputName).obj" : $(SOURCE) "$(INTDIR)" "$(OUTDIR)"
-	cl /EP  /DSWQUAKE /I ..\common > $(OUTDIR)\$(InputName).spp $(InputPath) 
+	cl /EP /I ..\common > $(OUTDIR)\$(InputName).spp $(InputPath) 
 	..\gas2masm\debug\gas2masm < $(OUTDIR)\$(InputName).spp >          $(OUTDIR)\$(InputName).asm 
 	ml /c /Cp /coff /Fo$(OUTDIR)\$(InputName).obj /Zm /Zi                                                                                                                                                                                                                           $(OUTDIR)\$(InputName).asm 
 	del $(OUTDIR)\$(InputName).spp 
@@ -4909,7 +7024,7 @@ InputPath=..\common\math.s
 InputName=math
 
 "$(OUTDIR)\$(InputName).obj" : $(SOURCE) "$(INTDIR)" "$(OUTDIR)"
-	cl /EP  /DSWQUAKE /I ..\common > $(OUTDIR)\$(InputName).spp $(InputPath) 
+	cl /EP /I ..\common > $(OUTDIR)\$(InputName).spp $(InputPath) 
 	..\gas2masm\debug\gas2masm < $(OUTDIR)\$(InputName).spp >          $(OUTDIR)\$(InputName).asm 
 	ml /c /Cp /coff /Fo$(OUTDIR)\$(InputName).obj /Zm /Zi                                                                                                                                                                                                                           $(OUTDIR)\$(InputName).asm 
 	del $(OUTDIR)\$(InputName).spp 
@@ -4925,7 +7040,7 @@ InputPath=..\common\math.s
 InputName=math
 
 "$(OUTDIR)\$(InputName).obj" : $(SOURCE) "$(INTDIR)" "$(OUTDIR)"
-	cl /EP  /DSWQUAKE /I ..\common > $(OUTDIR)\$(InputName).spp $(InputPath) 
+	cl /EP /I ..\common > $(OUTDIR)\$(InputName).spp $(InputPath) 
 	..\gas2masm\debug\gas2masm < $(OUTDIR)\$(InputName).spp >          $(OUTDIR)\$(InputName).asm 
 	ml /c /Cp /coff /Fo$(OUTDIR)\$(InputName).obj /Zm /Zi                                                                                                                                                                                                                           $(OUTDIR)\$(InputName).asm 
 	del $(OUTDIR)\$(InputName).spp 
@@ -4940,7 +7055,7 @@ InputPath=..\common\math.s
 InputName=math
 
 "$(OUTDIR)\$(InputName).obj" : $(SOURCE) "$(INTDIR)" "$(OUTDIR)"
-	cl /EP  /DSWQUAKE /I ..\common > $(OUTDIR)\$(InputName).spp $(InputPath) 
+	cl /EP /I ..\common > $(OUTDIR)\$(InputName).spp $(InputPath) 
 	..\gas2masm\debug\gas2masm < $(OUTDIR)\$(InputName).spp >          $(OUTDIR)\$(InputName).asm 
 	ml /c /Cp /coff /Fo$(OUTDIR)\$(InputName).obj /Zm /Zi                                                                                                                                                                                                                           $(OUTDIR)\$(InputName).asm 
 	del $(OUTDIR)\$(InputName).spp 
@@ -4955,7 +7070,7 @@ InputPath=..\common\math.s
 InputName=math
 
 "$(OUTDIR)\$(InputName).obj" : $(SOURCE) "$(INTDIR)" "$(OUTDIR)"
-	cl /EP  /DSWQUAKE /I ..\common > $(OUTDIR)\$(InputName).spp $(InputPath) 
+	cl /EP /I ..\common > $(OUTDIR)\$(InputName).spp $(InputPath) 
 	..\gas2masm\debug\gas2masm < $(OUTDIR)\$(InputName).spp >          $(OUTDIR)\$(InputName).asm 
 	ml /c /Cp /coff /Fo$(OUTDIR)\$(InputName).obj /Zm /Zi                                                                                                                                                                                                                           $(OUTDIR)\$(InputName).asm 
 	del $(OUTDIR)\$(InputName).spp 
@@ -4970,7 +7085,7 @@ InputPath=..\common\math.s
 InputName=math
 
 "$(OUTDIR)\$(InputName).obj" : $(SOURCE) "$(INTDIR)" "$(OUTDIR)"
-	cl /EP  /DSWQUAKE /I ..\common > $(OUTDIR)\$(InputName).spp $(InputPath) 
+	cl /EP /I ..\common > $(OUTDIR)\$(InputName).spp $(InputPath) 
 	..\gas2masm\debug\gas2masm < $(OUTDIR)\$(InputName).spp >          $(OUTDIR)\$(InputName).asm 
 	ml /c /Cp /coff /Fo$(OUTDIR)\$(InputName).obj /Zm /Zi                                                                                                                                                                                                                           $(OUTDIR)\$(InputName).asm 
 	del $(OUTDIR)\$(InputName).spp 
@@ -4985,7 +7100,7 @@ InputPath=..\common\math.s
 InputName=math
 
 "$(OUTDIR)\$(InputName).obj" : $(SOURCE) "$(INTDIR)" "$(OUTDIR)"
-	cl /EP  /DSERVERONLY /I ..\common > $(OUTDIR)\$(InputName).spp $(InputPath) 
+	cl /EP /I ..\common > $(OUTDIR)\$(InputName).spp $(InputPath) 
 	..\gas2masm\debug\gas2masm < $(OUTDIR)\$(InputName).spp >          $(OUTDIR)\$(InputName).asm 
 	ml /c /Cp /coff /Fo$(OUTDIR)\$(InputName).obj /Zm /Zi                                                                                                                                                                                                                           $(OUTDIR)\$(InputName).asm 
 	del $(OUTDIR)\$(InputName).spp 
@@ -5000,7 +7115,37 @@ InputPath=..\common\math.s
 InputName=math
 
 "$(OUTDIR)\$(InputName).obj" : $(SOURCE) "$(INTDIR)" "$(OUTDIR)"
-	cl /EP  /DSERVERONLY /I ..\common > $(OUTDIR)\$(InputName).spp $(InputPath) 
+	cl /EP /I ..\common > $(OUTDIR)\$(InputName).spp $(InputPath) 
+	..\gas2masm\debug\gas2masm < $(OUTDIR)\$(InputName).spp >          $(OUTDIR)\$(InputName).asm 
+	ml /c /Cp /coff /Fo$(OUTDIR)\$(InputName).obj /Zm /Zi                                                                                                                                                                                                                           $(OUTDIR)\$(InputName).asm 
+	del $(OUTDIR)\$(InputName).spp 
+	
+# End Custom Build
+
+!ELSEIF  "$(CFG)" == "ftequake - Win32 MinSW"
+
+# Begin Custom Build
+OutDir=.\ftequake___Win32_MinSW
+InputPath=..\common\math.s
+InputName=math
+
+"$(OUTDIR)\$(InputName).obj" : $(SOURCE) "$(INTDIR)" "$(OUTDIR)"
+	cl /EP /I ..\common > $(OUTDIR)\$(InputName).spp $(InputPath) 
+	..\gas2masm\debug\gas2masm < $(OUTDIR)\$(InputName).spp >          $(OUTDIR)\$(InputName).asm 
+	ml /c /Cp /coff /Fo$(OUTDIR)\$(InputName).obj /Zm /Zi                                                                                                                                                                                                                           $(OUTDIR)\$(InputName).asm 
+	del $(OUTDIR)\$(InputName).spp 
+	
+# End Custom Build
+
+!ELSEIF  "$(CFG)" == "ftequake - Win32 GLDebugQ3"
+
+# Begin Custom Build
+OutDir=.\ftequake___Win32_GLDebugQ3
+InputPath=..\common\math.s
+InputName=math
+
+"$(OUTDIR)\$(InputName).obj" : $(SOURCE) "$(INTDIR)" "$(OUTDIR)"
+	cl /EP /I ..\common > $(OUTDIR)\$(InputName).spp $(InputPath) 
 	..\gas2masm\debug\gas2masm < $(OUTDIR)\$(InputName).spp >          $(OUTDIR)\$(InputName).asm 
 	ml /c /Cp /coff /Fo$(OUTDIR)\$(InputName).obj /Zm /Zi                                                                                                                                                                                                                           $(OUTDIR)\$(InputName).asm 
 	del $(OUTDIR)\$(InputName).spp 
@@ -5022,7 +7167,7 @@ InputPath=..\sw\r_aclipa.s
 InputName=r_aclipa
 
 "$(OUTDIR)\$(InputName).obj" : $(SOURCE) "$(INTDIR)" "$(OUTDIR)"
-	cl /EP  /DSWQUAKE /I ..\common > $(OUTDIR)\$(InputName).spp $(InputPath) 
+	cl /EP /I ..\common > $(OUTDIR)\$(InputName).spp $(InputPath) 
 	..\gas2masm\debug\gas2masm < $(OUTDIR)\$(InputName).spp >          $(OUTDIR)\$(InputName).asm 
 	ml /c /Cp /coff /Fo$(OUTDIR)\$(InputName).obj /Zm /Zi                                                                                                                                                                                                                           $(OUTDIR)\$(InputName).asm 
 	del $(OUTDIR)\$(InputName).spp 
@@ -5037,7 +7182,7 @@ InputPath=..\sw\r_aclipa.s
 InputName=r_aclipa
 
 "$(OUTDIR)\$(InputName).obj" : $(SOURCE) "$(INTDIR)" "$(OUTDIR)"
-	cl /EP  /DSWQUAKE /I ..\common > $(OUTDIR)\$(InputName).spp $(InputPath) 
+	cl /EP /I ..\common > $(OUTDIR)\$(InputName).spp $(InputPath) 
 	..\gas2masm\debug\gas2masm < $(OUTDIR)\$(InputName).spp >          $(OUTDIR)\$(InputName).asm 
 	ml /c /Cp /coff /Fo$(OUTDIR)\$(InputName).obj /Zm /Zi                                                                                                                                                                                                                           $(OUTDIR)\$(InputName).asm 
 	del $(OUTDIR)\$(InputName).spp 
@@ -5062,7 +7207,7 @@ InputPath=..\sw\r_aclipa.s
 InputName=r_aclipa
 
 "$(OUTDIR)\$(InputName).obj" : $(SOURCE) "$(INTDIR)" "$(OUTDIR)"
-	cl /EP  /DSWQUAKE /I ..\common > $(OUTDIR)\$(InputName).spp $(InputPath) 
+	cl /EP /I ..\common > $(OUTDIR)\$(InputName).spp $(InputPath) 
 	..\gas2masm\debug\gas2masm < $(OUTDIR)\$(InputName).spp >          $(OUTDIR)\$(InputName).asm 
 	ml /c /Cp /coff /Fo$(OUTDIR)\$(InputName).obj /Zm /Zi                                                                                                                                                                                                                           $(OUTDIR)\$(InputName).asm 
 	del $(OUTDIR)\$(InputName).spp 
@@ -5078,7 +7223,7 @@ InputPath=..\sw\r_aclipa.s
 InputName=r_aclipa
 
 "$(OUTDIR)\$(InputName).obj" : $(SOURCE) "$(INTDIR)" "$(OUTDIR)"
-	cl /EP  /DSWQUAKE /I ..\common > $(OUTDIR)\$(InputName).spp $(InputPath) 
+	cl /EP /I ..\common > $(OUTDIR)\$(InputName).spp $(InputPath) 
 	..\gas2masm\debug\gas2masm < $(OUTDIR)\$(InputName).spp >          $(OUTDIR)\$(InputName).asm 
 	ml /c /Cp /coff /Fo$(OUTDIR)\$(InputName).obj /Zm /Zi                                                                                                                                                                                                                           $(OUTDIR)\$(InputName).asm 
 	del $(OUTDIR)\$(InputName).spp 
@@ -5101,6 +7246,26 @@ InputName=r_aclipa
 # PROP Exclude_From_Build 1
 
 !ELSEIF  "$(CFG)" == "ftequake - Win32 Release Dedicated Server"
+
+# PROP BASE Exclude_From_Build 1
+# PROP Exclude_From_Build 1
+
+!ELSEIF  "$(CFG)" == "ftequake - Win32 MinSW"
+
+# Begin Custom Build
+OutDir=.\ftequake___Win32_MinSW
+InputPath=..\sw\r_aclipa.s
+InputName=r_aclipa
+
+"$(OUTDIR)\$(InputName).obj" : $(SOURCE) "$(INTDIR)" "$(OUTDIR)"
+	cl /EP /I ..\common > $(OUTDIR)\$(InputName).spp $(InputPath) 
+	..\gas2masm\debug\gas2masm < $(OUTDIR)\$(InputName).spp >          $(OUTDIR)\$(InputName).asm 
+	ml /c /Cp /coff /Fo$(OUTDIR)\$(InputName).obj /Zm /Zi                                                                                                                                                                                                                           $(OUTDIR)\$(InputName).asm 
+	del $(OUTDIR)\$(InputName).spp 
+	
+# End Custom Build
+
+!ELSEIF  "$(CFG)" == "ftequake - Win32 GLDebugQ3"
 
 # PROP BASE Exclude_From_Build 1
 # PROP Exclude_From_Build 1
@@ -5120,7 +7285,7 @@ InputPath=..\sw\r_aliasa.s
 InputName=r_aliasa
 
 "$(OUTDIR)\$(InputName).obj" : $(SOURCE) "$(INTDIR)" "$(OUTDIR)"
-	cl /EP  /DSWQUAKE /I ..\common > $(OUTDIR)\$(InputName).spp $(InputPath) 
+	cl /EP /I ..\common > $(OUTDIR)\$(InputName).spp $(InputPath) 
 	..\gas2masm\debug\gas2masm < $(OUTDIR)\$(InputName).spp >          $(OUTDIR)\$(InputName).asm 
 	ml /c /Cp /coff /Fo$(OUTDIR)\$(InputName).obj /Zm /Zi                                                                                                                                                                                                                           $(OUTDIR)\$(InputName).asm 
 	del $(OUTDIR)\$(InputName).spp 
@@ -5135,7 +7300,7 @@ InputPath=..\sw\r_aliasa.s
 InputName=r_aliasa
 
 "$(OUTDIR)\$(InputName).obj" : $(SOURCE) "$(INTDIR)" "$(OUTDIR)"
-	cl /EP  /DSWQUAKE /I ..\common > $(OUTDIR)\$(InputName).spp $(InputPath) 
+	cl /EP /I ..\common > $(OUTDIR)\$(InputName).spp $(InputPath) 
 	..\gas2masm\debug\gas2masm < $(OUTDIR)\$(InputName).spp >          $(OUTDIR)\$(InputName).asm 
 	ml /c /Cp /coff /Fo$(OUTDIR)\$(InputName).obj /Zm /Zi                                                                                                                                                                                                                           $(OUTDIR)\$(InputName).asm 
 	del $(OUTDIR)\$(InputName).spp 
@@ -5160,7 +7325,7 @@ InputPath=..\sw\r_aliasa.s
 InputName=r_aliasa
 
 "$(OUTDIR)\$(InputName).obj" : $(SOURCE) "$(INTDIR)" "$(OUTDIR)"
-	cl /EP  /DSWQUAKE /I ..\common > $(OUTDIR)\$(InputName).spp $(InputPath) 
+	cl /EP /I ..\common > $(OUTDIR)\$(InputName).spp $(InputPath) 
 	..\gas2masm\debug\gas2masm < $(OUTDIR)\$(InputName).spp >          $(OUTDIR)\$(InputName).asm 
 	ml /c /Cp /coff /Fo$(OUTDIR)\$(InputName).obj /Zm /Zi                                                                                                                                                                                                                           $(OUTDIR)\$(InputName).asm 
 	del $(OUTDIR)\$(InputName).spp 
@@ -5176,7 +7341,7 @@ InputPath=..\sw\r_aliasa.s
 InputName=r_aliasa
 
 "$(OUTDIR)\$(InputName).obj" : $(SOURCE) "$(INTDIR)" "$(OUTDIR)"
-	cl /EP  /DSWQUAKE /I ..\common > $(OUTDIR)\$(InputName).spp $(InputPath) 
+	cl /EP /I ..\common > $(OUTDIR)\$(InputName).spp $(InputPath) 
 	..\gas2masm\debug\gas2masm < $(OUTDIR)\$(InputName).spp >          $(OUTDIR)\$(InputName).asm 
 	ml /c /Cp /coff /Fo$(OUTDIR)\$(InputName).obj /Zm /Zi                                                                                                                                                                                                                           $(OUTDIR)\$(InputName).asm 
 	del $(OUTDIR)\$(InputName).spp 
@@ -5199,6 +7364,26 @@ InputName=r_aliasa
 # PROP Exclude_From_Build 1
 
 !ELSEIF  "$(CFG)" == "ftequake - Win32 Release Dedicated Server"
+
+# PROP BASE Exclude_From_Build 1
+# PROP Exclude_From_Build 1
+
+!ELSEIF  "$(CFG)" == "ftequake - Win32 MinSW"
+
+# Begin Custom Build
+OutDir=.\ftequake___Win32_MinSW
+InputPath=..\sw\r_aliasa.s
+InputName=r_aliasa
+
+"$(OUTDIR)\$(InputName).obj" : $(SOURCE) "$(INTDIR)" "$(OUTDIR)"
+	cl /EP /I ..\common > $(OUTDIR)\$(InputName).spp $(InputPath) 
+	..\gas2masm\debug\gas2masm < $(OUTDIR)\$(InputName).spp >          $(OUTDIR)\$(InputName).asm 
+	ml /c /Cp /coff /Fo$(OUTDIR)\$(InputName).obj /Zm /Zi                                                                                                                                                                                                                           $(OUTDIR)\$(InputName).asm 
+	del $(OUTDIR)\$(InputName).spp 
+	
+# End Custom Build
+
+!ELSEIF  "$(CFG)" == "ftequake - Win32 GLDebugQ3"
 
 # PROP BASE Exclude_From_Build 1
 # PROP Exclude_From_Build 1
@@ -5218,7 +7403,7 @@ InputPath=..\sw\r_drawa.s
 InputName=r_drawa
 
 "$(OUTDIR)\$(InputName).obj" : $(SOURCE) "$(INTDIR)" "$(OUTDIR)"
-	cl /EP  /DSWQUAKE /I ..\common > $(OUTDIR)\$(InputName).spp $(InputPath) 
+	cl /EP /I ..\common > $(OUTDIR)\$(InputName).spp $(InputPath) 
 	..\gas2masm\debug\gas2masm < $(OUTDIR)\$(InputName).spp >          $(OUTDIR)\$(InputName).asm 
 	ml /c /Cp /coff /Fo$(OUTDIR)\$(InputName).obj /Zm /Zi                                                                                                                                                                                                                           $(OUTDIR)\$(InputName).asm 
 	del $(OUTDIR)\$(InputName).spp 
@@ -5233,7 +7418,7 @@ InputPath=..\sw\r_drawa.s
 InputName=r_drawa
 
 "$(OUTDIR)\$(InputName).obj" : $(SOURCE) "$(INTDIR)" "$(OUTDIR)"
-	cl /EP  /DSWQUAKE /I ..\common > $(OUTDIR)\$(InputName).spp $(InputPath) 
+	cl /EP /I ..\common > $(OUTDIR)\$(InputName).spp $(InputPath) 
 	..\gas2masm\debug\gas2masm < $(OUTDIR)\$(InputName).spp >          $(OUTDIR)\$(InputName).asm 
 	ml /c /Cp /coff /Fo$(OUTDIR)\$(InputName).obj /Zm /Zi                                                                                                                                                                                                                           $(OUTDIR)\$(InputName).asm 
 	del $(OUTDIR)\$(InputName).spp 
@@ -5258,7 +7443,7 @@ InputPath=..\sw\r_drawa.s
 InputName=r_drawa
 
 "$(OUTDIR)\$(InputName).obj" : $(SOURCE) "$(INTDIR)" "$(OUTDIR)"
-	cl /EP  /DSWQUAKE /I ..\common > $(OUTDIR)\$(InputName).spp $(InputPath) 
+	cl /EP /I ..\common > $(OUTDIR)\$(InputName).spp $(InputPath) 
 	..\gas2masm\debug\gas2masm < $(OUTDIR)\$(InputName).spp >          $(OUTDIR)\$(InputName).asm 
 	ml /c /Cp /coff /Fo$(OUTDIR)\$(InputName).obj /Zm /Zi                                                                                                                                                                                                                           $(OUTDIR)\$(InputName).asm 
 	del $(OUTDIR)\$(InputName).spp 
@@ -5274,7 +7459,7 @@ InputPath=..\sw\r_drawa.s
 InputName=r_drawa
 
 "$(OUTDIR)\$(InputName).obj" : $(SOURCE) "$(INTDIR)" "$(OUTDIR)"
-	cl /EP  /DSWQUAKE /I ..\common > $(OUTDIR)\$(InputName).spp $(InputPath) 
+	cl /EP /I ..\common > $(OUTDIR)\$(InputName).spp $(InputPath) 
 	..\gas2masm\debug\gas2masm < $(OUTDIR)\$(InputName).spp >          $(OUTDIR)\$(InputName).asm 
 	ml /c /Cp /coff /Fo$(OUTDIR)\$(InputName).obj /Zm /Zi                                                                                                                                                                                                                           $(OUTDIR)\$(InputName).asm 
 	del $(OUTDIR)\$(InputName).spp 
@@ -5297,6 +7482,26 @@ InputName=r_drawa
 # PROP Exclude_From_Build 1
 
 !ELSEIF  "$(CFG)" == "ftequake - Win32 Release Dedicated Server"
+
+# PROP BASE Exclude_From_Build 1
+# PROP Exclude_From_Build 1
+
+!ELSEIF  "$(CFG)" == "ftequake - Win32 MinSW"
+
+# Begin Custom Build
+OutDir=.\ftequake___Win32_MinSW
+InputPath=..\sw\r_drawa.s
+InputName=r_drawa
+
+"$(OUTDIR)\$(InputName).obj" : $(SOURCE) "$(INTDIR)" "$(OUTDIR)"
+	cl /EP /I ..\common > $(OUTDIR)\$(InputName).spp $(InputPath) 
+	..\gas2masm\debug\gas2masm < $(OUTDIR)\$(InputName).spp >          $(OUTDIR)\$(InputName).asm 
+	ml /c /Cp /coff /Fo$(OUTDIR)\$(InputName).obj /Zm /Zi                                                                                                                                                                                                                           $(OUTDIR)\$(InputName).asm 
+	del $(OUTDIR)\$(InputName).spp 
+	
+# End Custom Build
+
+!ELSEIF  "$(CFG)" == "ftequake - Win32 GLDebugQ3"
 
 # PROP BASE Exclude_From_Build 1
 # PROP Exclude_From_Build 1
@@ -5316,7 +7521,7 @@ InputPath=..\sw\r_edgea.s
 InputName=r_edgea
 
 "$(OUTDIR)\$(InputName).obj" : $(SOURCE) "$(INTDIR)" "$(OUTDIR)"
-	cl /EP  /DSWQUAKE /I ..\common > $(OUTDIR)\$(InputName).spp $(InputPath) 
+	cl /EP /I ..\common > $(OUTDIR)\$(InputName).spp $(InputPath) 
 	..\gas2masm\debug\gas2masm < $(OUTDIR)\$(InputName).spp >          $(OUTDIR)\$(InputName).asm 
 	ml /c /Cp /coff /Fo$(OUTDIR)\$(InputName).obj /Zm /Zi                                                                                                                                                                                                                           $(OUTDIR)\$(InputName).asm 
 	del $(OUTDIR)\$(InputName).spp 
@@ -5331,7 +7536,7 @@ InputPath=..\sw\r_edgea.s
 InputName=r_edgea
 
 "$(OUTDIR)\$(InputName).obj" : $(SOURCE) "$(INTDIR)" "$(OUTDIR)"
-	cl /EP  /DSWQUAKE /I ..\common > $(OUTDIR)\$(InputName).spp $(InputPath) 
+	cl /EP /I ..\common > $(OUTDIR)\$(InputName).spp $(InputPath) 
 	..\gas2masm\debug\gas2masm < $(OUTDIR)\$(InputName).spp >          $(OUTDIR)\$(InputName).asm 
 	ml /c /Cp /coff /Fo$(OUTDIR)\$(InputName).obj /Zm /Zi                                                                                                                                                                                                                           $(OUTDIR)\$(InputName).asm 
 	del $(OUTDIR)\$(InputName).spp 
@@ -5356,7 +7561,7 @@ InputPath=..\sw\r_edgea.s
 InputName=r_edgea
 
 "$(OUTDIR)\$(InputName).obj" : $(SOURCE) "$(INTDIR)" "$(OUTDIR)"
-	cl /EP  /DSWQUAKE /I ..\common > $(OUTDIR)\$(InputName).spp $(InputPath) 
+	cl /EP /I ..\common > $(OUTDIR)\$(InputName).spp $(InputPath) 
 	..\gas2masm\debug\gas2masm < $(OUTDIR)\$(InputName).spp >          $(OUTDIR)\$(InputName).asm 
 	ml /c /Cp /coff /Fo$(OUTDIR)\$(InputName).obj /Zm /Zi                                                                                                                                                                                                                           $(OUTDIR)\$(InputName).asm 
 	del $(OUTDIR)\$(InputName).spp 
@@ -5372,7 +7577,7 @@ InputPath=..\sw\r_edgea.s
 InputName=r_edgea
 
 "$(OUTDIR)\$(InputName).obj" : $(SOURCE) "$(INTDIR)" "$(OUTDIR)"
-	cl /EP  /DSWQUAKE /I ..\common > $(OUTDIR)\$(InputName).spp $(InputPath) 
+	cl /EP /I ..\common > $(OUTDIR)\$(InputName).spp $(InputPath) 
 	..\gas2masm\debug\gas2masm < $(OUTDIR)\$(InputName).spp >          $(OUTDIR)\$(InputName).asm 
 	ml /c /Cp /coff /Fo$(OUTDIR)\$(InputName).obj /Zm /Zi                                                                                                                                                                                                                           $(OUTDIR)\$(InputName).asm 
 	del $(OUTDIR)\$(InputName).spp 
@@ -5395,6 +7600,26 @@ InputName=r_edgea
 # PROP Exclude_From_Build 1
 
 !ELSEIF  "$(CFG)" == "ftequake - Win32 Release Dedicated Server"
+
+# PROP BASE Exclude_From_Build 1
+# PROP Exclude_From_Build 1
+
+!ELSEIF  "$(CFG)" == "ftequake - Win32 MinSW"
+
+# Begin Custom Build
+OutDir=.\ftequake___Win32_MinSW
+InputPath=..\sw\r_edgea.s
+InputName=r_edgea
+
+"$(OUTDIR)\$(InputName).obj" : $(SOURCE) "$(INTDIR)" "$(OUTDIR)"
+	cl /EP /I ..\common > $(OUTDIR)\$(InputName).spp $(InputPath) 
+	..\gas2masm\debug\gas2masm < $(OUTDIR)\$(InputName).spp >          $(OUTDIR)\$(InputName).asm 
+	ml /c /Cp /coff /Fo$(OUTDIR)\$(InputName).obj /Zm /Zi                                                                                                                                                                                                                           $(OUTDIR)\$(InputName).asm 
+	del $(OUTDIR)\$(InputName).spp 
+	
+# End Custom Build
+
+!ELSEIF  "$(CFG)" == "ftequake - Win32 GLDebugQ3"
 
 # PROP BASE Exclude_From_Build 1
 # PROP Exclude_From_Build 1
@@ -5414,7 +7639,7 @@ InputPath=..\sw\r_varsa.s
 InputName=r_varsa
 
 "$(OUTDIR)\$(InputName).obj" : $(SOURCE) "$(INTDIR)" "$(OUTDIR)"
-	cl /EP  /DSWQUAKE /I ..\common > $(OUTDIR)\$(InputName).spp $(InputPath) 
+	cl /EP /I ..\common > $(OUTDIR)\$(InputName).spp $(InputPath) 
 	..\gas2masm\debug\gas2masm < $(OUTDIR)\$(InputName).spp >          $(OUTDIR)\$(InputName).asm 
 	ml /c /Cp /coff /Fo$(OUTDIR)\$(InputName).obj /Zm /Zi                                                                                                                                                                                                                           $(OUTDIR)\$(InputName).asm 
 	del $(OUTDIR)\$(InputName).spp 
@@ -5429,7 +7654,7 @@ InputPath=..\sw\r_varsa.s
 InputName=r_varsa
 
 "$(OUTDIR)\$(InputName).obj" : $(SOURCE) "$(INTDIR)" "$(OUTDIR)"
-	cl /EP  /DSWQUAKE /I ..\common > $(OUTDIR)\$(InputName).spp $(InputPath) 
+	cl /EP /I ..\common > $(OUTDIR)\$(InputName).spp $(InputPath) 
 	..\gas2masm\debug\gas2masm < $(OUTDIR)\$(InputName).spp >          $(OUTDIR)\$(InputName).asm 
 	ml /c /Cp /coff /Fo$(OUTDIR)\$(InputName).obj /Zm /Zi                                                                                                                                                                                                                           $(OUTDIR)\$(InputName).asm 
 	del $(OUTDIR)\$(InputName).spp 
@@ -5454,7 +7679,7 @@ InputPath=..\sw\r_varsa.s
 InputName=r_varsa
 
 "$(OUTDIR)\$(InputName).obj" : $(SOURCE) "$(INTDIR)" "$(OUTDIR)"
-	cl /EP  /DSWQUAKE /I ..\common > $(OUTDIR)\$(InputName).spp $(InputPath) 
+	cl /EP /I ..\common > $(OUTDIR)\$(InputName).spp $(InputPath) 
 	..\gas2masm\debug\gas2masm < $(OUTDIR)\$(InputName).spp >          $(OUTDIR)\$(InputName).asm 
 	ml /c /Cp /coff /Fo$(OUTDIR)\$(InputName).obj /Zm /Zi                                                                                                                                                                                                                           $(OUTDIR)\$(InputName).asm 
 	del $(OUTDIR)\$(InputName).spp 
@@ -5470,7 +7695,7 @@ InputPath=..\sw\r_varsa.s
 InputName=r_varsa
 
 "$(OUTDIR)\$(InputName).obj" : $(SOURCE) "$(INTDIR)" "$(OUTDIR)"
-	cl /EP  /DSWQUAKE /I ..\common > $(OUTDIR)\$(InputName).spp $(InputPath) 
+	cl /EP /I ..\common > $(OUTDIR)\$(InputName).spp $(InputPath) 
 	..\gas2masm\debug\gas2masm < $(OUTDIR)\$(InputName).spp >          $(OUTDIR)\$(InputName).asm 
 	ml /c /Cp /coff /Fo$(OUTDIR)\$(InputName).obj /Zm /Zi                                                                                                                                                                                                                           $(OUTDIR)\$(InputName).asm 
 	del $(OUTDIR)\$(InputName).spp 
@@ -5493,6 +7718,26 @@ InputName=r_varsa
 # PROP Exclude_From_Build 1
 
 !ELSEIF  "$(CFG)" == "ftequake - Win32 Release Dedicated Server"
+
+# PROP BASE Exclude_From_Build 1
+# PROP Exclude_From_Build 1
+
+!ELSEIF  "$(CFG)" == "ftequake - Win32 MinSW"
+
+# Begin Custom Build
+OutDir=.\ftequake___Win32_MinSW
+InputPath=..\sw\r_varsa.s
+InputName=r_varsa
+
+"$(OUTDIR)\$(InputName).obj" : $(SOURCE) "$(INTDIR)" "$(OUTDIR)"
+	cl /EP /I ..\common > $(OUTDIR)\$(InputName).spp $(InputPath) 
+	..\gas2masm\debug\gas2masm < $(OUTDIR)\$(InputName).spp >          $(OUTDIR)\$(InputName).asm 
+	ml /c /Cp /coff /Fo$(OUTDIR)\$(InputName).obj /Zm /Zi                                                                                                                                                                                                                           $(OUTDIR)\$(InputName).asm 
+	del $(OUTDIR)\$(InputName).spp 
+	
+# End Custom Build
+
+!ELSEIF  "$(CFG)" == "ftequake - Win32 GLDebugQ3"
 
 # PROP BASE Exclude_From_Build 1
 # PROP Exclude_From_Build 1
@@ -5512,7 +7757,7 @@ InputPath=..\client\snd_mixa.s
 InputName=snd_mixa
 
 "$(OUTDIR)\$(InputName).obj" : $(SOURCE) "$(INTDIR)" "$(OUTDIR)"
-	cl /EP  /DSWQUAKE /I ..\common > $(OUTDIR)\$(InputName).spp $(InputPath) 
+	cl /EP /I ..\common > $(OUTDIR)\$(InputName).spp $(InputPath) 
 	..\gas2masm\debug\gas2masm < $(OUTDIR)\$(InputName).spp >          $(OUTDIR)\$(InputName).asm 
 	ml /c /Cp /coff /Fo$(OUTDIR)\$(InputName).obj /Zm /Zi                                                                                                                                                                                                                           $(OUTDIR)\$(InputName).asm 
 	del $(OUTDIR)\$(InputName).spp 
@@ -5527,7 +7772,7 @@ InputPath=..\client\snd_mixa.s
 InputName=snd_mixa
 
 "$(OUTDIR)\$(InputName).obj" : $(SOURCE) "$(INTDIR)" "$(OUTDIR)"
-	cl /EP  /DSWQUAKE /I ..\common > $(OUTDIR)\$(InputName).spp $(InputPath) 
+	cl /EP /I ..\common > $(OUTDIR)\$(InputName).spp $(InputPath) 
 	..\gas2masm\debug\gas2masm < $(OUTDIR)\$(InputName).spp >          $(OUTDIR)\$(InputName).asm 
 	ml /c /Cp /coff /Fo$(OUTDIR)\$(InputName).obj /Zm /Zi                                                                                                                                                                                                                           $(OUTDIR)\$(InputName).asm 
 	del $(OUTDIR)\$(InputName).spp 
@@ -5542,7 +7787,7 @@ InputPath=..\client\snd_mixa.s
 InputName=snd_mixa
 
 "$(OUTDIR)\$(InputName).obj" : $(SOURCE) "$(INTDIR)" "$(OUTDIR)"
-	cl /EP  /DSWQUAKE /I ..\common > $(OUTDIR)\$(InputName).spp $(InputPath) 
+	cl /EP /I ..\common > $(OUTDIR)\$(InputName).spp $(InputPath) 
 	..\gas2masm\debug\gas2masm < $(OUTDIR)\$(InputName).spp >          $(OUTDIR)\$(InputName).asm 
 	ml /c /Cp /coff /Fo$(OUTDIR)\$(InputName).obj /Zm /Zi                                                                                                                                                                                                                           $(OUTDIR)\$(InputName).asm 
 	del $(OUTDIR)\$(InputName).spp 
@@ -5557,7 +7802,7 @@ InputPath=..\client\snd_mixa.s
 InputName=snd_mixa
 
 "$(OUTDIR)\$(InputName).obj" : $(SOURCE) "$(INTDIR)" "$(OUTDIR)"
-	cl /EP  /DSWQUAKE /I ..\common > $(OUTDIR)\$(InputName).spp $(InputPath) 
+	cl /EP /I ..\common > $(OUTDIR)\$(InputName).spp $(InputPath) 
 	..\gas2masm\debug\gas2masm < $(OUTDIR)\$(InputName).spp >          $(OUTDIR)\$(InputName).asm 
 	ml /c /Cp /coff /Fo$(OUTDIR)\$(InputName).obj /Zm /Zi                                                                                                                                                                                                                           $(OUTDIR)\$(InputName).asm 
 	del $(OUTDIR)\$(InputName).spp 
@@ -5573,7 +7818,7 @@ InputPath=..\client\snd_mixa.s
 InputName=snd_mixa
 
 "$(OUTDIR)\$(InputName).obj" : $(SOURCE) "$(INTDIR)" "$(OUTDIR)"
-	cl /EP  /DSWQUAKE /I ..\common > $(OUTDIR)\$(InputName).spp $(InputPath) 
+	cl /EP /I ..\common > $(OUTDIR)\$(InputName).spp $(InputPath) 
 	..\gas2masm\debug\gas2masm < $(OUTDIR)\$(InputName).spp >          $(OUTDIR)\$(InputName).asm 
 	ml /c /Cp /coff /Fo$(OUTDIR)\$(InputName).obj /Zm /Zi                                                                                                                                                                                                                           $(OUTDIR)\$(InputName).asm 
 	del $(OUTDIR)\$(InputName).spp 
@@ -5588,7 +7833,7 @@ InputPath=..\client\snd_mixa.s
 InputName=snd_mixa
 
 "$(OUTDIR)\$(InputName).obj" : $(SOURCE) "$(INTDIR)" "$(OUTDIR)"
-	cl /EP  /DSWQUAKE /I ..\common > $(OUTDIR)\$(InputName).spp $(InputPath) 
+	cl /EP /I ..\common > $(OUTDIR)\$(InputName).spp $(InputPath) 
 	..\gas2masm\debug\gas2masm < $(OUTDIR)\$(InputName).spp >          $(OUTDIR)\$(InputName).asm 
 	ml /c /Cp /coff /Fo$(OUTDIR)\$(InputName).obj /Zm /Zi                                                                                                                                                                                                                           $(OUTDIR)\$(InputName).asm 
 	del $(OUTDIR)\$(InputName).spp 
@@ -5603,7 +7848,7 @@ InputPath=..\client\snd_mixa.s
 InputName=snd_mixa
 
 "$(OUTDIR)\$(InputName).obj" : $(SOURCE) "$(INTDIR)" "$(OUTDIR)"
-	cl /EP  /DSWQUAKE /I ..\common > $(OUTDIR)\$(InputName).spp $(InputPath) 
+	cl /EP /I ..\common > $(OUTDIR)\$(InputName).spp $(InputPath) 
 	..\gas2masm\debug\gas2masm < $(OUTDIR)\$(InputName).spp >          $(OUTDIR)\$(InputName).asm 
 	ml /c /Cp /coff /Fo$(OUTDIR)\$(InputName).obj /Zm /Zi                                                                                                                                                                                                                           $(OUTDIR)\$(InputName).asm 
 	del $(OUTDIR)\$(InputName).spp 
@@ -5618,7 +7863,7 @@ InputPath=..\client\snd_mixa.s
 InputName=snd_mixa
 
 "$(OUTDIR)\$(InputName).obj" : $(SOURCE) "$(INTDIR)" "$(OUTDIR)"
-	cl /EP  /DSWQUAKE /I ..\common > $(OUTDIR)\$(InputName).spp $(InputPath) 
+	cl /EP /I ..\common > $(OUTDIR)\$(InputName).spp $(InputPath) 
 	..\gas2masm\debug\gas2masm < $(OUTDIR)\$(InputName).spp >          $(OUTDIR)\$(InputName).asm 
 	ml /c /Cp /coff /Fo$(OUTDIR)\$(InputName).obj /Zm /Zi                                                                                                                                                                                                                           $(OUTDIR)\$(InputName).asm 
 	del $(OUTDIR)\$(InputName).spp 
@@ -5633,6 +7878,36 @@ InputName=snd_mixa
 
 # PROP BASE Exclude_From_Build 1
 # PROP Exclude_From_Build 1
+
+!ELSEIF  "$(CFG)" == "ftequake - Win32 MinSW"
+
+# Begin Custom Build
+OutDir=.\ftequake___Win32_MinSW
+InputPath=..\client\snd_mixa.s
+InputName=snd_mixa
+
+"$(OUTDIR)\$(InputName).obj" : $(SOURCE) "$(INTDIR)" "$(OUTDIR)"
+	cl /EP /I ..\common > $(OUTDIR)\$(InputName).spp $(InputPath) 
+	..\gas2masm\debug\gas2masm < $(OUTDIR)\$(InputName).spp >          $(OUTDIR)\$(InputName).asm 
+	ml /c /Cp /coff /Fo$(OUTDIR)\$(InputName).obj /Zm /Zi                                                                                                                                                                                                                           $(OUTDIR)\$(InputName).asm 
+	del $(OUTDIR)\$(InputName).spp 
+	
+# End Custom Build
+
+!ELSEIF  "$(CFG)" == "ftequake - Win32 GLDebugQ3"
+
+# Begin Custom Build
+OutDir=.\ftequake___Win32_GLDebugQ3
+InputPath=..\client\snd_mixa.s
+InputName=snd_mixa
+
+"$(OUTDIR)\$(InputName).obj" : $(SOURCE) "$(INTDIR)" "$(OUTDIR)"
+	cl /EP /I ..\common > $(OUTDIR)\$(InputName).spp $(InputPath) 
+	..\gas2masm\debug\gas2masm < $(OUTDIR)\$(InputName).spp >          $(OUTDIR)\$(InputName).asm 
+	ml /c /Cp /coff /Fo$(OUTDIR)\$(InputName).obj /Zm /Zi                                                                                                                                                                                                                           $(OUTDIR)\$(InputName).asm 
+	del $(OUTDIR)\$(InputName).spp 
+	
+# End Custom Build
 
 !ENDIF 
 
@@ -5649,7 +7924,7 @@ InputPath=..\sw\surf16.s
 InputName=surf16
 
 "$(OUTDIR)\$(InputName).obj" : $(SOURCE) "$(INTDIR)" "$(OUTDIR)"
-	cl /EP  /DSWQUAKE /I ..\common > $(OUTDIR)\$(InputName).spp $(InputPath) 
+	cl /EP /I ..\common > $(OUTDIR)\$(InputName).spp $(InputPath) 
 	..\gas2masm\debug\gas2masm < $(OUTDIR)\$(InputName).spp >          $(OUTDIR)\$(InputName).asm 
 	ml /c /Cp /coff /Fo$(OUTDIR)\$(InputName).obj /Zm /Zi                                                                                                                                                                                                                           $(OUTDIR)\$(InputName).asm 
 	del $(OUTDIR)\$(InputName).spp 
@@ -5664,7 +7939,7 @@ InputPath=..\sw\surf16.s
 InputName=surf16
 
 "$(OUTDIR)\$(InputName).obj" : $(SOURCE) "$(INTDIR)" "$(OUTDIR)"
-	cl /EP  /DSWQUAKE /I ..\common > $(OUTDIR)\$(InputName).spp $(InputPath) 
+	cl /EP /I ..\common > $(OUTDIR)\$(InputName).spp $(InputPath) 
 	..\gas2masm\debug\gas2masm < $(OUTDIR)\$(InputName).spp >          $(OUTDIR)\$(InputName).asm 
 	ml /c /Cp /coff /Fo$(OUTDIR)\$(InputName).obj /Zm /Zi                                                                                                                                                                                                                           $(OUTDIR)\$(InputName).asm 
 	del $(OUTDIR)\$(InputName).spp 
@@ -5689,7 +7964,7 @@ InputPath=..\sw\surf16.s
 InputName=surf16
 
 "$(OUTDIR)\$(InputName).obj" : $(SOURCE) "$(INTDIR)" "$(OUTDIR)"
-	cl /EP  /DSWQUAKE /I ..\common > $(OUTDIR)\$(InputName).spp $(InputPath) 
+	cl /EP /I ..\common > $(OUTDIR)\$(InputName).spp $(InputPath) 
 	..\gas2masm\debug\gas2masm < $(OUTDIR)\$(InputName).spp >          $(OUTDIR)\$(InputName).asm 
 	ml /c /Cp /coff /Fo$(OUTDIR)\$(InputName).obj /Zm /Zi                                                                                                                                                                                                                           $(OUTDIR)\$(InputName).asm 
 	del $(OUTDIR)\$(InputName).spp 
@@ -5705,7 +7980,7 @@ InputPath=..\sw\surf16.s
 InputName=surf16
 
 "$(OUTDIR)\$(InputName).obj" : $(SOURCE) "$(INTDIR)" "$(OUTDIR)"
-	cl /EP  /DSWQUAKE /I ..\common > $(OUTDIR)\$(InputName).spp $(InputPath) 
+	cl /EP /I ..\common > $(OUTDIR)\$(InputName).spp $(InputPath) 
 	..\gas2masm\debug\gas2masm < $(OUTDIR)\$(InputName).spp >          $(OUTDIR)\$(InputName).asm 
 	ml /c /Cp /coff /Fo$(OUTDIR)\$(InputName).obj /Zm /Zi                                                                                                                                                                                                                           $(OUTDIR)\$(InputName).asm 
 	del $(OUTDIR)\$(InputName).spp 
@@ -5728,6 +8003,26 @@ InputName=surf16
 # PROP Exclude_From_Build 1
 
 !ELSEIF  "$(CFG)" == "ftequake - Win32 Release Dedicated Server"
+
+# PROP BASE Exclude_From_Build 1
+# PROP Exclude_From_Build 1
+
+!ELSEIF  "$(CFG)" == "ftequake - Win32 MinSW"
+
+# Begin Custom Build
+OutDir=.\ftequake___Win32_MinSW
+InputPath=..\sw\surf16.s
+InputName=surf16
+
+"$(OUTDIR)\$(InputName).obj" : $(SOURCE) "$(INTDIR)" "$(OUTDIR)"
+	cl /EP /I ..\common > $(OUTDIR)\$(InputName).spp $(InputPath) 
+	..\gas2masm\debug\gas2masm < $(OUTDIR)\$(InputName).spp >          $(OUTDIR)\$(InputName).asm 
+	ml /c /Cp /coff /Fo$(OUTDIR)\$(InputName).obj /Zm /Zi                                                                                                                                                                                                                           $(OUTDIR)\$(InputName).asm 
+	del $(OUTDIR)\$(InputName).spp 
+	
+# End Custom Build
+
+!ELSEIF  "$(CFG)" == "ftequake - Win32 GLDebugQ3"
 
 # PROP BASE Exclude_From_Build 1
 # PROP Exclude_From_Build 1
@@ -5747,7 +8042,7 @@ InputPath=..\sw\surf8.s
 InputName=surf8
 
 "$(OUTDIR)\$(InputName).obj" : $(SOURCE) "$(INTDIR)" "$(OUTDIR)"
-	cl /EP  /DSWQUAKE /I ..\common > $(OUTDIR)\$(InputName).spp $(InputPath) 
+	cl /EP /I ..\common > $(OUTDIR)\$(InputName).spp $(InputPath) 
 	..\gas2masm\debug\gas2masm < $(OUTDIR)\$(InputName).spp >          $(OUTDIR)\$(InputName).asm 
 	ml /c /Cp /coff /Fo$(OUTDIR)\$(InputName).obj /Zm /Zi                                                                                                                                                                                                                           $(OUTDIR)\$(InputName).asm 
 	del $(OUTDIR)\$(InputName).spp 
@@ -5762,7 +8057,7 @@ InputPath=..\sw\surf8.s
 InputName=surf8
 
 "$(OUTDIR)\$(InputName).obj" : $(SOURCE) "$(INTDIR)" "$(OUTDIR)"
-	cl /EP  /DSWQUAKE /I ..\common > $(OUTDIR)\$(InputName).spp $(InputPath) 
+	cl /EP /I ..\common > $(OUTDIR)\$(InputName).spp $(InputPath) 
 	..\gas2masm\debug\gas2masm < $(OUTDIR)\$(InputName).spp >          $(OUTDIR)\$(InputName).asm 
 	ml /c /Cp /coff /Fo$(OUTDIR)\$(InputName).obj /Zm /Zi                                                                                                                                                                                                                           $(OUTDIR)\$(InputName).asm 
 	del $(OUTDIR)\$(InputName).spp 
@@ -5787,7 +8082,7 @@ InputPath=..\sw\surf8.s
 InputName=surf8
 
 "$(OUTDIR)\$(InputName).obj" : $(SOURCE) "$(INTDIR)" "$(OUTDIR)"
-	cl /EP  /DSWQUAKE /I ..\common > $(OUTDIR)\$(InputName).spp $(InputPath) 
+	cl /EP /I ..\common > $(OUTDIR)\$(InputName).spp $(InputPath) 
 	..\gas2masm\debug\gas2masm < $(OUTDIR)\$(InputName).spp >          $(OUTDIR)\$(InputName).asm 
 	ml /c /Cp /coff /Fo$(OUTDIR)\$(InputName).obj /Zm /Zi                                                                                                                                                                                                                           $(OUTDIR)\$(InputName).asm 
 	del $(OUTDIR)\$(InputName).spp 
@@ -5803,7 +8098,7 @@ InputPath=..\sw\surf8.s
 InputName=surf8
 
 "$(OUTDIR)\$(InputName).obj" : $(SOURCE) "$(INTDIR)" "$(OUTDIR)"
-	cl /EP  /DSWQUAKE /I ..\common > $(OUTDIR)\$(InputName).spp $(InputPath) 
+	cl /EP /I ..\common > $(OUTDIR)\$(InputName).spp $(InputPath) 
 	..\gas2masm\debug\gas2masm < $(OUTDIR)\$(InputName).spp >          $(OUTDIR)\$(InputName).asm 
 	ml /c /Cp /coff /Fo$(OUTDIR)\$(InputName).obj /Zm /Zi                                                                                                                                                                                                                           $(OUTDIR)\$(InputName).asm 
 	del $(OUTDIR)\$(InputName).spp 
@@ -5826,6 +8121,26 @@ InputName=surf8
 # PROP Exclude_From_Build 1
 
 !ELSEIF  "$(CFG)" == "ftequake - Win32 Release Dedicated Server"
+
+# PROP BASE Exclude_From_Build 1
+# PROP Exclude_From_Build 1
+
+!ELSEIF  "$(CFG)" == "ftequake - Win32 MinSW"
+
+# Begin Custom Build
+OutDir=.\ftequake___Win32_MinSW
+InputPath=..\sw\surf8.s
+InputName=surf8
+
+"$(OUTDIR)\$(InputName).obj" : $(SOURCE) "$(INTDIR)" "$(OUTDIR)"
+	cl /EP /I ..\common > $(OUTDIR)\$(InputName).spp $(InputPath) 
+	..\gas2masm\debug\gas2masm < $(OUTDIR)\$(InputName).spp >          $(OUTDIR)\$(InputName).asm 
+	ml /c /Cp /coff /Fo$(OUTDIR)\$(InputName).obj /Zm /Zi                                                                                                                                                                                                                           $(OUTDIR)\$(InputName).asm 
+	del $(OUTDIR)\$(InputName).spp 
+	
+# End Custom Build
+
+!ELSEIF  "$(CFG)" == "ftequake - Win32 GLDebugQ3"
 
 # PROP BASE Exclude_From_Build 1
 # PROP Exclude_From_Build 1
@@ -5845,7 +8160,7 @@ InputPath=..\client\sys_wina.s
 InputName=sys_wina
 
 "$(OUTDIR)\$(InputName).obj" : $(SOURCE) "$(INTDIR)" "$(OUTDIR)"
-	cl /EP  /DSWQUAKE /I ..\common > $(OUTDIR)\$(InputName).spp $(InputPath) 
+	cl /EP /I ..\common > $(OUTDIR)\$(InputName).spp $(InputPath) 
 	..\gas2masm\debug\gas2masm < $(OUTDIR)\$(InputName).spp >          $(OUTDIR)\$(InputName).asm 
 	ml /c /Cp /coff /Fo$(OUTDIR)\$(InputName).obj /Zm /Zi                                                                                                                                                                                                                           $(OUTDIR)\$(InputName).asm 
 	del $(OUTDIR)\$(InputName).spp 
@@ -5860,7 +8175,7 @@ InputPath=..\client\sys_wina.s
 InputName=sys_wina
 
 "$(OUTDIR)\$(InputName).obj" : $(SOURCE) "$(INTDIR)" "$(OUTDIR)"
-	cl /EP  /DSWQUAKE /I ..\common > $(OUTDIR)\$(InputName).spp $(InputPath) 
+	cl /EP /I ..\common > $(OUTDIR)\$(InputName).spp $(InputPath) 
 	..\gas2masm\debug\gas2masm < $(OUTDIR)\$(InputName).spp >          $(OUTDIR)\$(InputName).asm 
 	ml /c /Cp /coff /Fo$(OUTDIR)\$(InputName).obj /Zm /Zi                                                                                                                                                                                                                           $(OUTDIR)\$(InputName).asm 
 	del $(OUTDIR)\$(InputName).spp 
@@ -5875,7 +8190,7 @@ InputPath=..\client\sys_wina.s
 InputName=sys_wina
 
 "$(OUTDIR)\$(InputName).obj" : $(SOURCE) "$(INTDIR)" "$(OUTDIR)"
-	cl /EP  /DSWQUAKE /I ..\common > $(OUTDIR)\$(InputName).spp $(InputPath) 
+	cl /EP /I ..\common > $(OUTDIR)\$(InputName).spp $(InputPath) 
 	..\gas2masm\debug\gas2masm < $(OUTDIR)\$(InputName).spp >          $(OUTDIR)\$(InputName).asm 
 	ml /c /Cp /coff /Fo$(OUTDIR)\$(InputName).obj /Zm /Zi                                                                                                                                                                                                                           $(OUTDIR)\$(InputName).asm 
 	del $(OUTDIR)\$(InputName).spp 
@@ -5890,7 +8205,7 @@ InputPath=..\client\sys_wina.s
 InputName=sys_wina
 
 "$(OUTDIR)\$(InputName).obj" : $(SOURCE) "$(INTDIR)" "$(OUTDIR)"
-	cl /EP  /DSWQUAKE /I ..\common > $(OUTDIR)\$(InputName).spp $(InputPath) 
+	cl /EP /I ..\common > $(OUTDIR)\$(InputName).spp $(InputPath) 
 	..\gas2masm\debug\gas2masm < $(OUTDIR)\$(InputName).spp >          $(OUTDIR)\$(InputName).asm 
 	ml /c /Cp /coff /Fo$(OUTDIR)\$(InputName).obj /Zm /Zi                                                                                                                                                                                                                           $(OUTDIR)\$(InputName).asm 
 	del $(OUTDIR)\$(InputName).spp 
@@ -5906,7 +8221,7 @@ InputPath=..\client\sys_wina.s
 InputName=sys_wina
 
 "$(OUTDIR)\$(InputName).obj" : $(SOURCE) "$(INTDIR)" "$(OUTDIR)"
-	cl /EP  /DSWQUAKE /I ..\common > $(OUTDIR)\$(InputName).spp $(InputPath) 
+	cl /EP /I ..\common > $(OUTDIR)\$(InputName).spp $(InputPath) 
 	..\gas2masm\debug\gas2masm < $(OUTDIR)\$(InputName).spp >          $(OUTDIR)\$(InputName).asm 
 	ml /c /Cp /coff /Fo$(OUTDIR)\$(InputName).obj /Zm /Zi                                                                                                                                                                                                                           $(OUTDIR)\$(InputName).asm 
 	del $(OUTDIR)\$(InputName).spp 
@@ -5921,7 +8236,7 @@ InputPath=..\client\sys_wina.s
 InputName=sys_wina
 
 "$(OUTDIR)\$(InputName).obj" : $(SOURCE) "$(INTDIR)" "$(OUTDIR)"
-	cl /EP  /DSWQUAKE /I ..\common > $(OUTDIR)\$(InputName).spp $(InputPath) 
+	cl /EP /I ..\common > $(OUTDIR)\$(InputName).spp $(InputPath) 
 	..\gas2masm\debug\gas2masm < $(OUTDIR)\$(InputName).spp >          $(OUTDIR)\$(InputName).asm 
 	ml /c /Cp /coff /Fo$(OUTDIR)\$(InputName).obj /Zm /Zi                                                                                                                                                                                                                           $(OUTDIR)\$(InputName).asm 
 	del $(OUTDIR)\$(InputName).spp 
@@ -5936,7 +8251,7 @@ InputPath=..\client\sys_wina.s
 InputName=sys_wina
 
 "$(OUTDIR)\$(InputName).obj" : $(SOURCE) "$(INTDIR)" "$(OUTDIR)"
-	cl /EP  /DSWQUAKE /I ..\common > $(OUTDIR)\$(InputName).spp $(InputPath) 
+	cl /EP /I ..\common > $(OUTDIR)\$(InputName).spp $(InputPath) 
 	..\gas2masm\debug\gas2masm < $(OUTDIR)\$(InputName).spp >          $(OUTDIR)\$(InputName).asm 
 	ml /c /Cp /coff /Fo$(OUTDIR)\$(InputName).obj /Zm /Zi                                                                                                                                                                                                                           $(OUTDIR)\$(InputName).asm 
 	del $(OUTDIR)\$(InputName).spp 
@@ -5951,7 +8266,7 @@ InputPath=..\client\sys_wina.s
 InputName=sys_wina
 
 "$(OUTDIR)\$(InputName).obj" : $(SOURCE) "$(INTDIR)" "$(OUTDIR)"
-	cl /EP  /DSWQUAKE /I ..\common > $(OUTDIR)\$(InputName).spp $(InputPath) 
+	cl /EP /I ..\common > $(OUTDIR)\$(InputName).spp $(InputPath) 
 	..\gas2masm\debug\gas2masm < $(OUTDIR)\$(InputName).spp >          $(OUTDIR)\$(InputName).asm 
 	ml /c /Cp /coff /Fo$(OUTDIR)\$(InputName).obj /Zm /Zi                                                                                                                                                                                                                           $(OUTDIR)\$(InputName).asm 
 	del $(OUTDIR)\$(InputName).spp 
@@ -5966,6 +8281,36 @@ InputName=sys_wina
 
 # PROP BASE Exclude_From_Build 1
 # PROP Exclude_From_Build 1
+
+!ELSEIF  "$(CFG)" == "ftequake - Win32 MinSW"
+
+# Begin Custom Build
+OutDir=.\ftequake___Win32_MinSW
+InputPath=..\client\sys_wina.s
+InputName=sys_wina
+
+"$(OUTDIR)\$(InputName).obj" : $(SOURCE) "$(INTDIR)" "$(OUTDIR)"
+	cl /EP /I ..\common > $(OUTDIR)\$(InputName).spp $(InputPath) 
+	..\gas2masm\debug\gas2masm < $(OUTDIR)\$(InputName).spp >          $(OUTDIR)\$(InputName).asm 
+	ml /c /Cp /coff /Fo$(OUTDIR)\$(InputName).obj /Zm /Zi                                                                                                                                                                                                                           $(OUTDIR)\$(InputName).asm 
+	del $(OUTDIR)\$(InputName).spp 
+	
+# End Custom Build
+
+!ELSEIF  "$(CFG)" == "ftequake - Win32 GLDebugQ3"
+
+# Begin Custom Build
+OutDir=.\ftequake___Win32_GLDebugQ3
+InputPath=..\client\sys_wina.s
+InputName=sys_wina
+
+"$(OUTDIR)\$(InputName).obj" : $(SOURCE) "$(INTDIR)" "$(OUTDIR)"
+	cl /EP /I ..\common > $(OUTDIR)\$(InputName).spp $(InputPath) 
+	..\gas2masm\debug\gas2masm < $(OUTDIR)\$(InputName).spp >          $(OUTDIR)\$(InputName).asm 
+	ml /c /Cp /coff /Fo$(OUTDIR)\$(InputName).obj /Zm /Zi                                                                                                                                                                                                                           $(OUTDIR)\$(InputName).asm 
+	del $(OUTDIR)\$(InputName).spp 
+	
+# End Custom Build
 
 !ENDIF 
 
@@ -5982,7 +8327,7 @@ InputPath=..\server\worlda.s
 InputName=worlda
 
 "$(OUTDIR)\$(InputName).obj" : $(SOURCE) "$(INTDIR)" "$(OUTDIR)"
-	cl /EP  /DSWQUAKE /I ..\common > $(OUTDIR)\$(InputName).spp $(InputPath) 
+	cl /EP /I ..\common > $(OUTDIR)\$(InputName).spp $(InputPath) 
 	..\gas2masm\debug\gas2masm < $(OUTDIR)\$(InputName).spp >          $(OUTDIR)\$(InputName).asm 
 	ml /c /Cp /coff /Fo$(OUTDIR)\$(InputName).obj /Zm /Zi                                                                                                                                                                                                                           $(OUTDIR)\$(InputName).asm 
 	del $(OUTDIR)\$(InputName).spp 
@@ -5997,7 +8342,7 @@ InputPath=..\server\worlda.s
 InputName=worlda
 
 "$(OUTDIR)\$(InputName).obj" : $(SOURCE) "$(INTDIR)" "$(OUTDIR)"
-	cl /EP  /DSWQUAKE /I ..\common > $(OUTDIR)\$(InputName).spp $(InputPath) 
+	cl /EP /I ..\common > $(OUTDIR)\$(InputName).spp $(InputPath) 
 	..\gas2masm\debug\gas2masm < $(OUTDIR)\$(InputName).spp >          $(OUTDIR)\$(InputName).asm 
 	ml /c /Cp /coff /Fo$(OUTDIR)\$(InputName).obj /Zm /Zi                                                                                                                                                                                                                           $(OUTDIR)\$(InputName).asm 
 	del $(OUTDIR)\$(InputName).spp 
@@ -6012,7 +8357,7 @@ InputPath=..\server\worlda.s
 InputName=worlda
 
 "$(OUTDIR)\$(InputName).obj" : $(SOURCE) "$(INTDIR)" "$(OUTDIR)"
-	cl /EP  /DSWQUAKE /I ..\common > $(OUTDIR)\$(InputName).spp $(InputPath) 
+	cl /EP /I ..\common > $(OUTDIR)\$(InputName).spp $(InputPath) 
 	..\gas2masm\debug\gas2masm < $(OUTDIR)\$(InputName).spp >          $(OUTDIR)\$(InputName).asm 
 	ml /c /Cp /coff /Fo$(OUTDIR)\$(InputName).obj /Zm /Zi                                                                                                                                                                                                                           $(OUTDIR)\$(InputName).asm 
 	del $(OUTDIR)\$(InputName).spp 
@@ -6027,7 +8372,7 @@ InputPath=..\server\worlda.s
 InputName=worlda
 
 "$(OUTDIR)\$(InputName).obj" : $(SOURCE) "$(INTDIR)" "$(OUTDIR)"
-	cl /EP  /DSWQUAKE /I ..\common > $(OUTDIR)\$(InputName).spp $(InputPath) 
+	cl /EP /I ..\common > $(OUTDIR)\$(InputName).spp $(InputPath) 
 	..\gas2masm\debug\gas2masm < $(OUTDIR)\$(InputName).spp >          $(OUTDIR)\$(InputName).asm 
 	ml /c /Cp /coff /Fo$(OUTDIR)\$(InputName).obj /Zm /Zi                                                                                                                                                                                                                           $(OUTDIR)\$(InputName).asm 
 	del $(OUTDIR)\$(InputName).spp 
@@ -6043,7 +8388,7 @@ InputPath=..\server\worlda.s
 InputName=worlda
 
 "$(OUTDIR)\$(InputName).obj" : $(SOURCE) "$(INTDIR)" "$(OUTDIR)"
-	cl /EP  /DSWQUAKE /I ..\common > $(OUTDIR)\$(InputName).spp $(InputPath) 
+	cl /EP /I ..\common > $(OUTDIR)\$(InputName).spp $(InputPath) 
 	..\gas2masm\debug\gas2masm < $(OUTDIR)\$(InputName).spp >          $(OUTDIR)\$(InputName).asm 
 	ml /c /Cp /coff /Fo$(OUTDIR)\$(InputName).obj /Zm /Zi                                                                                                                                                                                                                           $(OUTDIR)\$(InputName).asm 
 	del $(OUTDIR)\$(InputName).spp 
@@ -6058,7 +8403,7 @@ InputPath=..\server\worlda.s
 InputName=worlda
 
 "$(OUTDIR)\$(InputName).obj" : $(SOURCE) "$(INTDIR)" "$(OUTDIR)"
-	cl /EP  /DSWQUAKE /I ..\common > $(OUTDIR)\$(InputName).spp $(InputPath) 
+	cl /EP /I ..\common > $(OUTDIR)\$(InputName).spp $(InputPath) 
 	..\gas2masm\debug\gas2masm < $(OUTDIR)\$(InputName).spp >          $(OUTDIR)\$(InputName).asm 
 	ml /c /Cp /coff /Fo$(OUTDIR)\$(InputName).obj /Zm /Zi                                                                                                                                                                                                                           $(OUTDIR)\$(InputName).asm 
 	del $(OUTDIR)\$(InputName).spp 
@@ -6073,7 +8418,7 @@ InputPath=..\server\worlda.s
 InputName=worlda
 
 "$(OUTDIR)\$(InputName).obj" : $(SOURCE) "$(INTDIR)" "$(OUTDIR)"
-	cl /EP  /DSWQUAKE /I ..\common > $(OUTDIR)\$(InputName).spp $(InputPath) 
+	cl /EP /I ..\common > $(OUTDIR)\$(InputName).spp $(InputPath) 
 	..\gas2masm\debug\gas2masm < $(OUTDIR)\$(InputName).spp >          $(OUTDIR)\$(InputName).asm 
 	ml /c /Cp /coff /Fo$(OUTDIR)\$(InputName).obj /Zm /Zi                                                                                                                                                                                                                           $(OUTDIR)\$(InputName).asm 
 	del $(OUTDIR)\$(InputName).spp 
@@ -6088,7 +8433,7 @@ InputPath=..\server\worlda.s
 InputName=worlda
 
 "$(OUTDIR)\$(InputName).obj" : $(SOURCE) "$(INTDIR)" "$(OUTDIR)"
-	cl /EP  /DSWQUAKE /I ..\common > $(OUTDIR)\$(InputName).spp $(InputPath) 
+	cl /EP /I ..\common > $(OUTDIR)\$(InputName).spp $(InputPath) 
 	..\gas2masm\debug\gas2masm < $(OUTDIR)\$(InputName).spp >          $(OUTDIR)\$(InputName).asm 
 	ml /c /Cp /coff /Fo$(OUTDIR)\$(InputName).obj /Zm /Zi                                                                                                                                                                                                                           $(OUTDIR)\$(InputName).asm 
 	del $(OUTDIR)\$(InputName).spp 
@@ -6103,7 +8448,7 @@ InputPath=..\server\worlda.s
 InputName=worlda
 
 "$(OUTDIR)\$(InputName).obj" : $(SOURCE) "$(INTDIR)" "$(OUTDIR)"
-	cl /EP  /DSERVERONLY /I ..\common > $(OUTDIR)\$(InputName).spp $(InputPath) 
+	cl /EP /I ..\common > $(OUTDIR)\$(InputName).spp $(InputPath) 
 	..\gas2masm\debug\gas2masm < $(OUTDIR)\$(InputName).spp >          $(OUTDIR)\$(InputName).asm 
 	ml /c /Cp /coff /Fo$(OUTDIR)\$(InputName).obj /Zm /Zi                                                                                                                                                                                                                           $(OUTDIR)\$(InputName).asm 
 	del $(OUTDIR)\$(InputName).spp 
@@ -6118,7 +8463,37 @@ InputPath=..\server\worlda.s
 InputName=worlda
 
 "$(OUTDIR)\$(InputName).obj" : $(SOURCE) "$(INTDIR)" "$(OUTDIR)"
-	cl /EP  /DSERVERONLY /I ..\common > $(OUTDIR)\$(InputName).spp $(InputPath) 
+	cl /EP /I ..\common > $(OUTDIR)\$(InputName).spp $(InputPath) 
+	..\gas2masm\debug\gas2masm < $(OUTDIR)\$(InputName).spp >          $(OUTDIR)\$(InputName).asm 
+	ml /c /Cp /coff /Fo$(OUTDIR)\$(InputName).obj /Zm /Zi                                                                                                                                                                                                                           $(OUTDIR)\$(InputName).asm 
+	del $(OUTDIR)\$(InputName).spp 
+	
+# End Custom Build
+
+!ELSEIF  "$(CFG)" == "ftequake - Win32 MinSW"
+
+# Begin Custom Build
+OutDir=.\ftequake___Win32_MinSW
+InputPath=..\server\worlda.s
+InputName=worlda
+
+"$(OUTDIR)\$(InputName).obj" : $(SOURCE) "$(INTDIR)" "$(OUTDIR)"
+	cl /EP /I ..\common > $(OUTDIR)\$(InputName).spp $(InputPath) 
+	..\gas2masm\debug\gas2masm < $(OUTDIR)\$(InputName).spp >          $(OUTDIR)\$(InputName).asm 
+	ml /c /Cp /coff /Fo$(OUTDIR)\$(InputName).obj /Zm /Zi                                                                                                                                                                                                                           $(OUTDIR)\$(InputName).asm 
+	del $(OUTDIR)\$(InputName).spp 
+	
+# End Custom Build
+
+!ELSEIF  "$(CFG)" == "ftequake - Win32 GLDebugQ3"
+
+# Begin Custom Build
+OutDir=.\ftequake___Win32_GLDebugQ3
+InputPath=..\server\worlda.s
+InputName=worlda
+
+"$(OUTDIR)\$(InputName).obj" : $(SOURCE) "$(INTDIR)" "$(OUTDIR)"
+	cl /EP /I ..\common > $(OUTDIR)\$(InputName).spp $(InputPath) 
 	..\gas2masm\debug\gas2masm < $(OUTDIR)\$(InputName).spp >          $(OUTDIR)\$(InputName).asm 
 	ml /c /Cp /coff /Fo$(OUTDIR)\$(InputName).obj /Zm /Zi                                                                                                                                                                                                                           $(OUTDIR)\$(InputName).asm 
 	del $(OUTDIR)\$(InputName).spp 
@@ -6135,26 +8510,200 @@ InputName=worlda
 # Begin Source File
 
 SOURCE=..\http\ftpclient.c
+
+!IF  "$(CFG)" == "ftequake - Win32 Release"
+
+!ELSEIF  "$(CFG)" == "ftequake - Win32 Debug"
+
+!ELSEIF  "$(CFG)" == "ftequake - Win32 GLDebug"
+
+!ELSEIF  "$(CFG)" == "ftequake - Win32 GLRelease"
+
+!ELSEIF  "$(CFG)" == "ftequake - Win32 MDebug"
+
+!ELSEIF  "$(CFG)" == "ftequake - Win32 MRelease"
+
+!ELSEIF  "$(CFG)" == "ftequake - Win32 MinGLDebug"
+
+!ELSEIF  "$(CFG)" == "ftequake - Win32 MinGLRelease"
+
+!ELSEIF  "$(CFG)" == "ftequake - Win32 Debug Dedicated Server"
+
+!ELSEIF  "$(CFG)" == "ftequake - Win32 Release Dedicated Server"
+
+!ELSEIF  "$(CFG)" == "ftequake - Win32 MinSW"
+
+!ELSEIF  "$(CFG)" == "ftequake - Win32 GLDebugQ3"
+
+# SUBTRACT CPP /YX /Yc /Yu
+
+!ENDIF 
+
 # End Source File
 # Begin Source File
 
 SOURCE=..\http\ftpserver.c
+
+!IF  "$(CFG)" == "ftequake - Win32 Release"
+
+!ELSEIF  "$(CFG)" == "ftequake - Win32 Debug"
+
+!ELSEIF  "$(CFG)" == "ftequake - Win32 GLDebug"
+
+!ELSEIF  "$(CFG)" == "ftequake - Win32 GLRelease"
+
+!ELSEIF  "$(CFG)" == "ftequake - Win32 MDebug"
+
+!ELSEIF  "$(CFG)" == "ftequake - Win32 MRelease"
+
+!ELSEIF  "$(CFG)" == "ftequake - Win32 MinGLDebug"
+
+!ELSEIF  "$(CFG)" == "ftequake - Win32 MinGLRelease"
+
+!ELSEIF  "$(CFG)" == "ftequake - Win32 Debug Dedicated Server"
+
+!ELSEIF  "$(CFG)" == "ftequake - Win32 Release Dedicated Server"
+
+!ELSEIF  "$(CFG)" == "ftequake - Win32 MinSW"
+
+!ELSEIF  "$(CFG)" == "ftequake - Win32 GLDebugQ3"
+
+# SUBTRACT CPP /YX /Yc /Yu
+
+!ENDIF 
+
 # End Source File
 # Begin Source File
 
 SOURCE=..\http\httpclient.c
+
+!IF  "$(CFG)" == "ftequake - Win32 Release"
+
+!ELSEIF  "$(CFG)" == "ftequake - Win32 Debug"
+
+!ELSEIF  "$(CFG)" == "ftequake - Win32 GLDebug"
+
+!ELSEIF  "$(CFG)" == "ftequake - Win32 GLRelease"
+
+!ELSEIF  "$(CFG)" == "ftequake - Win32 MDebug"
+
+!ELSEIF  "$(CFG)" == "ftequake - Win32 MRelease"
+
+!ELSEIF  "$(CFG)" == "ftequake - Win32 MinGLDebug"
+
+!ELSEIF  "$(CFG)" == "ftequake - Win32 MinGLRelease"
+
+!ELSEIF  "$(CFG)" == "ftequake - Win32 Debug Dedicated Server"
+
+!ELSEIF  "$(CFG)" == "ftequake - Win32 Release Dedicated Server"
+
+!ELSEIF  "$(CFG)" == "ftequake - Win32 MinSW"
+
+!ELSEIF  "$(CFG)" == "ftequake - Win32 GLDebugQ3"
+
+# SUBTRACT CPP /YX /Yc /Yu
+
+!ENDIF 
+
 # End Source File
 # Begin Source File
 
 SOURCE=..\http\httpserver.c
+
+!IF  "$(CFG)" == "ftequake - Win32 Release"
+
+!ELSEIF  "$(CFG)" == "ftequake - Win32 Debug"
+
+!ELSEIF  "$(CFG)" == "ftequake - Win32 GLDebug"
+
+!ELSEIF  "$(CFG)" == "ftequake - Win32 GLRelease"
+
+!ELSEIF  "$(CFG)" == "ftequake - Win32 MDebug"
+
+!ELSEIF  "$(CFG)" == "ftequake - Win32 MRelease"
+
+!ELSEIF  "$(CFG)" == "ftequake - Win32 MinGLDebug"
+
+!ELSEIF  "$(CFG)" == "ftequake - Win32 MinGLRelease"
+
+!ELSEIF  "$(CFG)" == "ftequake - Win32 Debug Dedicated Server"
+
+!ELSEIF  "$(CFG)" == "ftequake - Win32 Release Dedicated Server"
+
+!ELSEIF  "$(CFG)" == "ftequake - Win32 MinSW"
+
+!ELSEIF  "$(CFG)" == "ftequake - Win32 GLDebugQ3"
+
+# SUBTRACT CPP /YX /Yc /Yu
+
+!ENDIF 
+
 # End Source File
 # Begin Source File
 
 SOURCE=..\email\imapnoti.c
+
+!IF  "$(CFG)" == "ftequake - Win32 Release"
+
+!ELSEIF  "$(CFG)" == "ftequake - Win32 Debug"
+
+!ELSEIF  "$(CFG)" == "ftequake - Win32 GLDebug"
+
+!ELSEIF  "$(CFG)" == "ftequake - Win32 GLRelease"
+
+!ELSEIF  "$(CFG)" == "ftequake - Win32 MDebug"
+
+!ELSEIF  "$(CFG)" == "ftequake - Win32 MRelease"
+
+!ELSEIF  "$(CFG)" == "ftequake - Win32 MinGLDebug"
+
+!ELSEIF  "$(CFG)" == "ftequake - Win32 MinGLRelease"
+
+!ELSEIF  "$(CFG)" == "ftequake - Win32 Debug Dedicated Server"
+
+!ELSEIF  "$(CFG)" == "ftequake - Win32 Release Dedicated Server"
+
+!ELSEIF  "$(CFG)" == "ftequake - Win32 MinSW"
+
+!ELSEIF  "$(CFG)" == "ftequake - Win32 GLDebugQ3"
+
+# SUBTRACT CPP /YX /Yc /Yu
+
+!ENDIF 
+
 # End Source File
 # Begin Source File
 
 SOURCE=..\irc\ircclient.c
+
+!IF  "$(CFG)" == "ftequake - Win32 Release"
+
+!ELSEIF  "$(CFG)" == "ftequake - Win32 Debug"
+
+!ELSEIF  "$(CFG)" == "ftequake - Win32 GLDebug"
+
+!ELSEIF  "$(CFG)" == "ftequake - Win32 GLRelease"
+
+!ELSEIF  "$(CFG)" == "ftequake - Win32 MDebug"
+
+!ELSEIF  "$(CFG)" == "ftequake - Win32 MRelease"
+
+!ELSEIF  "$(CFG)" == "ftequake - Win32 MinGLDebug"
+
+!ELSEIF  "$(CFG)" == "ftequake - Win32 MinGLRelease"
+
+!ELSEIF  "$(CFG)" == "ftequake - Win32 Debug Dedicated Server"
+
+!ELSEIF  "$(CFG)" == "ftequake - Win32 Release Dedicated Server"
+
+!ELSEIF  "$(CFG)" == "ftequake - Win32 MinSW"
+
+!ELSEIF  "$(CFG)" == "ftequake - Win32 GLDebugQ3"
+
+# SUBTRACT CPP /YX /Yc /Yu
+
+!ENDIF 
+
 # End Source File
 # Begin Source File
 
@@ -6163,22 +8712,189 @@ SOURCE=..\http\iweb.h
 # Begin Source File
 
 SOURCE=..\http\iwebiface.c
+
+!IF  "$(CFG)" == "ftequake - Win32 Release"
+
+# SUBTRACT CPP /YX /Yc /Yu
+
+!ELSEIF  "$(CFG)" == "ftequake - Win32 Debug"
+
+# SUBTRACT CPP /YX /Yc /Yu
+
+!ELSEIF  "$(CFG)" == "ftequake - Win32 GLDebug"
+
+# SUBTRACT CPP /YX /Yc /Yu
+
+!ELSEIF  "$(CFG)" == "ftequake - Win32 GLRelease"
+
+# SUBTRACT CPP /YX /Yc /Yu
+
+!ELSEIF  "$(CFG)" == "ftequake - Win32 MDebug"
+
+# SUBTRACT CPP /YX /Yc /Yu
+
+!ELSEIF  "$(CFG)" == "ftequake - Win32 MRelease"
+
+# SUBTRACT CPP /YX /Yc /Yu
+
+!ELSEIF  "$(CFG)" == "ftequake - Win32 MinGLDebug"
+
+# SUBTRACT CPP /YX /Yc /Yu
+
+!ELSEIF  "$(CFG)" == "ftequake - Win32 MinGLRelease"
+
+# SUBTRACT CPP /YX /Yc /Yu
+
+!ELSEIF  "$(CFG)" == "ftequake - Win32 Debug Dedicated Server"
+
+# SUBTRACT CPP /YX /Yc /Yu
+
+!ELSEIF  "$(CFG)" == "ftequake - Win32 Release Dedicated Server"
+
+# SUBTRACT CPP /YX /Yc /Yu
+
+!ELSEIF  "$(CFG)" == "ftequake - Win32 MinSW"
+
+# SUBTRACT CPP /YX /Yc /Yu
+
+!ELSEIF  "$(CFG)" == "ftequake - Win32 GLDebugQ3"
+
+# SUBTRACT CPP /YX /Yc /Yu
+
+!ENDIF 
+
 # End Source File
 # Begin Source File
 
 SOURCE=..\email\pop3noti.c
+
+!IF  "$(CFG)" == "ftequake - Win32 Release"
+
+!ELSEIF  "$(CFG)" == "ftequake - Win32 Debug"
+
+!ELSEIF  "$(CFG)" == "ftequake - Win32 GLDebug"
+
+!ELSEIF  "$(CFG)" == "ftequake - Win32 GLRelease"
+
+!ELSEIF  "$(CFG)" == "ftequake - Win32 MDebug"
+
+!ELSEIF  "$(CFG)" == "ftequake - Win32 MRelease"
+
+!ELSEIF  "$(CFG)" == "ftequake - Win32 MinGLDebug"
+
+!ELSEIF  "$(CFG)" == "ftequake - Win32 MinGLRelease"
+
+!ELSEIF  "$(CFG)" == "ftequake - Win32 Debug Dedicated Server"
+
+!ELSEIF  "$(CFG)" == "ftequake - Win32 Release Dedicated Server"
+
+!ELSEIF  "$(CFG)" == "ftequake - Win32 MinSW"
+
+!ELSEIF  "$(CFG)" == "ftequake - Win32 GLDebugQ3"
+
+# SUBTRACT CPP /YX /Yc /Yu
+
+!ENDIF 
+
 # End Source File
 # Begin Source File
 
 SOURCE=..\email\sv_pop3.c
+
+!IF  "$(CFG)" == "ftequake - Win32 Release"
+
+!ELSEIF  "$(CFG)" == "ftequake - Win32 Debug"
+
+!ELSEIF  "$(CFG)" == "ftequake - Win32 GLDebug"
+
+!ELSEIF  "$(CFG)" == "ftequake - Win32 GLRelease"
+
+!ELSEIF  "$(CFG)" == "ftequake - Win32 MDebug"
+
+!ELSEIF  "$(CFG)" == "ftequake - Win32 MRelease"
+
+!ELSEIF  "$(CFG)" == "ftequake - Win32 MinGLDebug"
+
+!ELSEIF  "$(CFG)" == "ftequake - Win32 MinGLRelease"
+
+!ELSEIF  "$(CFG)" == "ftequake - Win32 Debug Dedicated Server"
+
+!ELSEIF  "$(CFG)" == "ftequake - Win32 Release Dedicated Server"
+
+!ELSEIF  "$(CFG)" == "ftequake - Win32 MinSW"
+
+!ELSEIF  "$(CFG)" == "ftequake - Win32 GLDebugQ3"
+
+# SUBTRACT CPP /YX /Yc /Yu
+
+!ENDIF 
+
 # End Source File
 # Begin Source File
 
 SOURCE=..\email\sv_smtp.c
+
+!IF  "$(CFG)" == "ftequake - Win32 Release"
+
+!ELSEIF  "$(CFG)" == "ftequake - Win32 Debug"
+
+!ELSEIF  "$(CFG)" == "ftequake - Win32 GLDebug"
+
+!ELSEIF  "$(CFG)" == "ftequake - Win32 GLRelease"
+
+!ELSEIF  "$(CFG)" == "ftequake - Win32 MDebug"
+
+!ELSEIF  "$(CFG)" == "ftequake - Win32 MRelease"
+
+!ELSEIF  "$(CFG)" == "ftequake - Win32 MinGLDebug"
+
+!ELSEIF  "$(CFG)" == "ftequake - Win32 MinGLRelease"
+
+!ELSEIF  "$(CFG)" == "ftequake - Win32 Debug Dedicated Server"
+
+!ELSEIF  "$(CFG)" == "ftequake - Win32 Release Dedicated Server"
+
+!ELSEIF  "$(CFG)" == "ftequake - Win32 MinSW"
+
+!ELSEIF  "$(CFG)" == "ftequake - Win32 GLDebugQ3"
+
+# SUBTRACT CPP /YX /Yc /Yu
+
+!ENDIF 
+
 # End Source File
 # Begin Source File
 
 SOURCE=..\http\webgen.c
+
+!IF  "$(CFG)" == "ftequake - Win32 Release"
+
+!ELSEIF  "$(CFG)" == "ftequake - Win32 Debug"
+
+!ELSEIF  "$(CFG)" == "ftequake - Win32 GLDebug"
+
+!ELSEIF  "$(CFG)" == "ftequake - Win32 GLRelease"
+
+!ELSEIF  "$(CFG)" == "ftequake - Win32 MDebug"
+
+!ELSEIF  "$(CFG)" == "ftequake - Win32 MRelease"
+
+!ELSEIF  "$(CFG)" == "ftequake - Win32 MinGLDebug"
+
+!ELSEIF  "$(CFG)" == "ftequake - Win32 MinGLRelease"
+
+!ELSEIF  "$(CFG)" == "ftequake - Win32 Debug Dedicated Server"
+
+!ELSEIF  "$(CFG)" == "ftequake - Win32 Release Dedicated Server"
+
+!ELSEIF  "$(CFG)" == "ftequake - Win32 MinSW"
+
+!ELSEIF  "$(CFG)" == "ftequake - Win32 GLDebugQ3"
+
+# SUBTRACT CPP /YX /Yc /Yu
+
+!ENDIF 
+
 # End Source File
 # End Group
 # Begin Group "vc"
@@ -6187,34 +8903,42 @@ SOURCE=..\http\webgen.c
 # Begin Source File
 
 SOURCE=..\sndcodec\g711.c
+# PROP Exclude_From_Build 1
 # End Source File
 # Begin Source File
 
 SOURCE=..\sndcodec\g721.c
+# PROP Exclude_From_Build 1
 # End Source File
 # Begin Source File
 
 SOURCE=..\sndcodec\g723_24.c
+# PROP Exclude_From_Build 1
 # End Source File
 # Begin Source File
 
 SOURCE=..\sndcodec\g723_40.c
+# PROP Exclude_From_Build 1
 # End Source File
 # Begin Source File
 
 SOURCE=..\sndcodec\g72x.c
+# PROP Exclude_From_Build 1
 # End Source File
 # Begin Source File
 
 SOURCE=..\sndcodec\snd_vc.c
+# PROP Exclude_From_Build 1
 # End Source File
 # Begin Source File
 
 SOURCE=..\sndcodec\snd_voicecodecs.c
+# PROP Exclude_From_Build 1
 # End Source File
 # Begin Source File
 
 SOURCE=..\sndcodec\voicechat.h
+# PROP Exclude_From_Build 1
 # End Source File
 # End Group
 # Begin Group "x"
@@ -6249,6 +8973,12 @@ SOURCE=..\qux\m_x.c
 # PROP BASE Exclude_From_Build 1
 # PROP Exclude_From_Build 1
 
+!ELSEIF  "$(CFG)" == "ftequake - Win32 MinSW"
+
+!ELSEIF  "$(CFG)" == "ftequake - Win32 GLDebugQ3"
+
+# SUBTRACT CPP /YX /Yc /Yu
+
 !ENDIF 
 
 # End Source File
@@ -6280,6 +9010,10 @@ SOURCE=..\qux\qux.h
 
 # PROP BASE Exclude_From_Build 1
 # PROP Exclude_From_Build 1
+
+!ELSEIF  "$(CFG)" == "ftequake - Win32 MinSW"
+
+!ELSEIF  "$(CFG)" == "ftequake - Win32 GLDebugQ3"
 
 !ENDIF 
 
@@ -6313,6 +9047,10 @@ SOURCE=..\qux\X.h
 # PROP BASE Exclude_From_Build 1
 # PROP Exclude_From_Build 1
 
+!ELSEIF  "$(CFG)" == "ftequake - Win32 MinSW"
+
+!ELSEIF  "$(CFG)" == "ftequake - Win32 GLDebugQ3"
+
 !ENDIF 
 
 # End Source File
@@ -6344,6 +9082,12 @@ SOURCE=..\qux\x_reqs.c
 
 # PROP BASE Exclude_From_Build 1
 # PROP Exclude_From_Build 1
+
+!ELSEIF  "$(CFG)" == "ftequake - Win32 MinSW"
+
+!ELSEIF  "$(CFG)" == "ftequake - Win32 GLDebugQ3"
+
+# SUBTRACT CPP /YX /Yc /Yu
 
 !ENDIF 
 
@@ -6379,6 +9123,12 @@ SOURCE=..\qux\x_res.c
 # PROP BASE Exclude_From_Build 1
 # PROP Exclude_From_Build 1
 
+!ELSEIF  "$(CFG)" == "ftequake - Win32 MinSW"
+
+!ELSEIF  "$(CFG)" == "ftequake - Win32 GLDebugQ3"
+
+# SUBTRACT CPP /YX /Yc /Yu
+
 !ENDIF 
 
 # End Source File
@@ -6410,6 +9160,10 @@ SOURCE=..\qux\Xmd.h
 
 # PROP BASE Exclude_From_Build 1
 # PROP Exclude_From_Build 1
+
+!ELSEIF  "$(CFG)" == "ftequake - Win32 MinSW"
+
+!ELSEIF  "$(CFG)" == "ftequake - Win32 GLDebugQ3"
 
 !ENDIF 
 
@@ -6443,6 +9197,10 @@ SOURCE=..\qux\Xproto.h
 # PROP BASE Exclude_From_Build 1
 # PROP Exclude_From_Build 1
 
+!ELSEIF  "$(CFG)" == "ftequake - Win32 MinSW"
+
+!ELSEIF  "$(CFG)" == "ftequake - Win32 GLDebugQ3"
+
 !ENDIF 
 
 # End Source File
@@ -6474,6 +9232,10 @@ SOURCE=..\qux\Xprotostr.h
 
 # PROP BASE Exclude_From_Build 1
 # PROP Exclude_From_Build 1
+
+!ELSEIF  "$(CFG)" == "ftequake - Win32 MinSW"
+
+!ELSEIF  "$(CFG)" == "ftequake - Win32 GLDebugQ3"
 
 !ENDIF 
 
@@ -6522,6 +9284,16 @@ SOURCE=..\server\sv_sys_win.c
 
 !ELSEIF  "$(CFG)" == "ftequake - Win32 Release Dedicated Server"
 
+!ELSEIF  "$(CFG)" == "ftequake - Win32 MinSW"
+
+# PROP BASE Exclude_From_Build 1
+# PROP Exclude_From_Build 1
+
+!ELSEIF  "$(CFG)" == "ftequake - Win32 GLDebugQ3"
+
+# PROP BASE Exclude_From_Build 1
+# PROP Exclude_From_Build 1
+
 !ENDIF 
 
 # End Source File
@@ -6565,6 +9337,16 @@ SOURCE=..\server\svmodel.c
 
 !ELSEIF  "$(CFG)" == "ftequake - Win32 Release Dedicated Server"
 
+!ELSEIF  "$(CFG)" == "ftequake - Win32 MinSW"
+
+# PROP BASE Exclude_From_Build 1
+# PROP Exclude_From_Build 1
+
+!ELSEIF  "$(CFG)" == "ftequake - Win32 GLDebugQ3"
+
+# PROP BASE Exclude_From_Build 1
+# PROP Exclude_From_Build 1
+
 !ENDIF 
 
 # End Source File
@@ -6601,6 +9383,10 @@ SOURCE=..\client\winquake.rc
 # PROP BASE Exclude_From_Build 1
 # PROP Exclude_From_Build 1
 
+!ELSEIF  "$(CFG)" == "ftequake - Win32 MinSW"
+
+!ELSEIF  "$(CFG)" == "ftequake - Win32 GLDebugQ3"
+
 !ENDIF 
 
 # End Source File
@@ -6611,6 +9397,10 @@ SOURCE=..\client\winquake.rc
 # Begin Source File
 
 SOURCE=..\common\bothdefs.h
+# End Source File
+# Begin Source File
+
+SOURCE=..\client\client.h
 # End Source File
 # Begin Source File
 
@@ -6694,6 +9484,16 @@ SOURCE=..\..\mp3\libmad\bit.c
 # PROP BASE Exclude_From_Build 1
 # PROP Exclude_From_Build 1
 
+!ELSEIF  "$(CFG)" == "ftequake - Win32 MinSW"
+
+# PROP BASE Exclude_From_Build 1
+# PROP Exclude_From_Build 1
+
+!ELSEIF  "$(CFG)" == "ftequake - Win32 GLDebugQ3"
+
+# PROP BASE Exclude_From_Build 1
+# PROP Exclude_From_Build 1
+
 !ENDIF 
 
 # End Source File
@@ -6743,6 +9543,16 @@ SOURCE=..\..\mp3\libmad\decoder.c
 # PROP Exclude_From_Build 1
 
 !ELSEIF  "$(CFG)" == "ftequake - Win32 Release Dedicated Server"
+
+# PROP BASE Exclude_From_Build 1
+# PROP Exclude_From_Build 1
+
+!ELSEIF  "$(CFG)" == "ftequake - Win32 MinSW"
+
+# PROP BASE Exclude_From_Build 1
+# PROP Exclude_From_Build 1
+
+!ELSEIF  "$(CFG)" == "ftequake - Win32 GLDebugQ3"
 
 # PROP BASE Exclude_From_Build 1
 # PROP Exclude_From_Build 1
@@ -6800,6 +9610,16 @@ SOURCE=..\..\mp3\libmad\fixed.c
 # PROP BASE Exclude_From_Build 1
 # PROP Exclude_From_Build 1
 
+!ELSEIF  "$(CFG)" == "ftequake - Win32 MinSW"
+
+# PROP BASE Exclude_From_Build 1
+# PROP Exclude_From_Build 1
+
+!ELSEIF  "$(CFG)" == "ftequake - Win32 GLDebugQ3"
+
+# PROP BASE Exclude_From_Build 1
+# PROP Exclude_From_Build 1
+
 !ENDIF 
 
 # End Source File
@@ -6849,6 +9669,16 @@ SOURCE=..\..\mp3\libmad\frame.c
 # PROP Exclude_From_Build 1
 
 !ELSEIF  "$(CFG)" == "ftequake - Win32 Release Dedicated Server"
+
+# PROP BASE Exclude_From_Build 1
+# PROP Exclude_From_Build 1
+
+!ELSEIF  "$(CFG)" == "ftequake - Win32 MinSW"
+
+# PROP BASE Exclude_From_Build 1
+# PROP Exclude_From_Build 1
+
+!ELSEIF  "$(CFG)" == "ftequake - Win32 GLDebugQ3"
 
 # PROP BASE Exclude_From_Build 1
 # PROP Exclude_From_Build 1
@@ -6906,6 +9736,16 @@ SOURCE=..\..\mp3\libmad\huffman.c
 # PROP BASE Exclude_From_Build 1
 # PROP Exclude_From_Build 1
 
+!ELSEIF  "$(CFG)" == "ftequake - Win32 MinSW"
+
+# PROP BASE Exclude_From_Build 1
+# PROP Exclude_From_Build 1
+
+!ELSEIF  "$(CFG)" == "ftequake - Win32 GLDebugQ3"
+
+# PROP BASE Exclude_From_Build 1
+# PROP Exclude_From_Build 1
+
 !ENDIF 
 
 # End Source File
@@ -6955,6 +9795,16 @@ SOURCE=..\..\mp3\libmad\layer12.c
 # PROP Exclude_From_Build 1
 
 !ELSEIF  "$(CFG)" == "ftequake - Win32 Release Dedicated Server"
+
+# PROP BASE Exclude_From_Build 1
+# PROP Exclude_From_Build 1
+
+!ELSEIF  "$(CFG)" == "ftequake - Win32 MinSW"
+
+# PROP BASE Exclude_From_Build 1
+# PROP Exclude_From_Build 1
+
+!ELSEIF  "$(CFG)" == "ftequake - Win32 GLDebugQ3"
 
 # PROP BASE Exclude_From_Build 1
 # PROP Exclude_From_Build 1
@@ -7012,6 +9862,16 @@ SOURCE=..\..\mp3\libmad\layer3.c
 # PROP BASE Exclude_From_Build 1
 # PROP Exclude_From_Build 1
 
+!ELSEIF  "$(CFG)" == "ftequake - Win32 MinSW"
+
+# PROP BASE Exclude_From_Build 1
+# PROP Exclude_From_Build 1
+
+!ELSEIF  "$(CFG)" == "ftequake - Win32 GLDebugQ3"
+
+# PROP BASE Exclude_From_Build 1
+# PROP Exclude_From_Build 1
+
 !ENDIF 
 
 # End Source File
@@ -7061,6 +9921,16 @@ SOURCE=..\client\mymad.c
 # PROP Exclude_From_Build 1
 
 !ELSEIF  "$(CFG)" == "ftequake - Win32 Release Dedicated Server"
+
+# PROP BASE Exclude_From_Build 1
+# PROP Exclude_From_Build 1
+
+!ELSEIF  "$(CFG)" == "ftequake - Win32 MinSW"
+
+# PROP BASE Exclude_From_Build 1
+# PROP Exclude_From_Build 1
+
+!ELSEIF  "$(CFG)" == "ftequake - Win32 GLDebugQ3"
 
 # PROP BASE Exclude_From_Build 1
 # PROP Exclude_From_Build 1
@@ -7118,6 +9988,16 @@ SOURCE=..\..\mp3\libmad\stream.c
 # PROP BASE Exclude_From_Build 1
 # PROP Exclude_From_Build 1
 
+!ELSEIF  "$(CFG)" == "ftequake - Win32 MinSW"
+
+# PROP BASE Exclude_From_Build 1
+# PROP Exclude_From_Build 1
+
+!ELSEIF  "$(CFG)" == "ftequake - Win32 GLDebugQ3"
+
+# PROP BASE Exclude_From_Build 1
+# PROP Exclude_From_Build 1
+
 !ENDIF 
 
 # End Source File
@@ -7167,6 +10047,16 @@ SOURCE=..\..\mp3\libmad\synth.c
 # PROP Exclude_From_Build 1
 
 !ELSEIF  "$(CFG)" == "ftequake - Win32 Release Dedicated Server"
+
+# PROP BASE Exclude_From_Build 1
+# PROP Exclude_From_Build 1
+
+!ELSEIF  "$(CFG)" == "ftequake - Win32 MinSW"
+
+# PROP BASE Exclude_From_Build 1
+# PROP Exclude_From_Build 1
+
+!ELSEIF  "$(CFG)" == "ftequake - Win32 GLDebugQ3"
 
 # PROP BASE Exclude_From_Build 1
 # PROP Exclude_From_Build 1
@@ -7224,6 +10114,16 @@ SOURCE=..\..\mp3\libmad\timer.c
 # PROP BASE Exclude_From_Build 1
 # PROP Exclude_From_Build 1
 
+!ELSEIF  "$(CFG)" == "ftequake - Win32 MinSW"
+
+# PROP BASE Exclude_From_Build 1
+# PROP Exclude_From_Build 1
+
+!ELSEIF  "$(CFG)" == "ftequake - Win32 GLDebugQ3"
+
+# PROP BASE Exclude_From_Build 1
+# PROP Exclude_From_Build 1
+
 !ENDIF 
 
 # End Source File
@@ -7273,6 +10173,16 @@ SOURCE=..\..\mp3\libmad\version.c
 # PROP Exclude_From_Build 1
 
 !ELSEIF  "$(CFG)" == "ftequake - Win32 Release Dedicated Server"
+
+# PROP BASE Exclude_From_Build 1
+# PROP Exclude_From_Build 1
+
+!ELSEIF  "$(CFG)" == "ftequake - Win32 MinSW"
+
+# PROP BASE Exclude_From_Build 1
+# PROP Exclude_From_Build 1
+
+!ELSEIF  "$(CFG)" == "ftequake - Win32 GLDebugQ3"
 
 # PROP BASE Exclude_From_Build 1
 # PROP Exclude_From_Build 1

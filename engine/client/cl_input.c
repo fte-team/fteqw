@@ -21,12 +21,18 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 
 #include "quakedef.h"
 
+#ifdef _WIN32
+#include "winquake.h"	//fps indep stuff.
+#endif
+
+float in_sensitivityscale;
+
 cvar_t	cl_nodelta = {"cl_nodelta","0"};
 
 cvar_t	cl_c2spps = {"cl_c2spps", "0"};
 cvar_t	cl_c2sImpulseBackup = {"cl_c2sImpulseBackup","3"};
 
-cvar_t	cl_netfps = {"cl_netfps", "74"};
+cvar_t	cl_netfps = {"cl_netfps", "0"};
 
 
 
@@ -744,8 +750,7 @@ void CLNQ_SendCmd(void)
 	if (name.modified)
 	{
 		name.modified = false;
-		MSG_WriteByte(&cls.netchan.message, clc_stringcmd);
-		MSG_WriteString(&cls.netchan.message, va("name \"%s\"\n", name.string));
+		CL_SendClientCommand("name \"%s\"\n", name.string);
 	}
 
 	if (nq_dp_protocol > 0)
@@ -795,7 +800,7 @@ void AddComponant(vec3_t angles, vec3_t dest, float fm, float rm, float um)
 }
 
 #define bound(n,v,x) v<n?n:(v>x?x:v)
-qboolean CL_Net_FilterTime (double time)
+qboolean CL_FilterTime (double time, float wantfps)
 {
 	extern cvar_t rate;
 	float fps, fpscap;
@@ -805,16 +810,16 @@ qboolean CL_Net_FilterTime (double time)
 
 	if (cls.demoplayback != DPB_NONE)
 	{
-		if (!cl_netfps.value)
+		if (!wantfps)
 			return true;
-		fps = max (30.0, cl_netfps.value);
+		fps = max (30.0, wantfps);
 	}
 	else
 	{
 		fpscap = cls.maxfps ? max (30.0, cls.maxfps) : 0x7fff;
 	
-		if (cl_netfps.value)
-			fps = bound (10.0, cl_netfps.value, fpscap);
+		if (wantfps>0)
+			fps = bound (10.0, wantfps, fpscap);
 		else
 		{
 //			if (com_serveractive)
@@ -829,6 +834,139 @@ qboolean CL_Net_FilterTime (double time)
 
 	return true;
 }
+
+qboolean allowindepphys;
+
+typedef struct clcmdbuf_s {
+	struct clcmdbuf_s *next;
+	int len;
+	char command[4];	//this is dynamically allocated, so this is variably sized.
+} clcmdbuf_t;
+clcmdbuf_t *clientcmdlist;
+void VARGS CL_SendClientCommand(char *format, ...)
+{
+	qboolean oldallow;
+	va_list		argptr;
+	char		string[2048];
+	clcmdbuf_t *buf, *prev;
+
+	va_start (argptr, format);
+	_vsnprintf (string,sizeof(string)-1, format,argptr);
+	va_end (argptr);
+
+
+//	Con_Printf("Queing stringcmd %s\n", string);
+
+#ifdef Q3CLIENT
+	if (cls.q2server==2)
+	{
+		CLQ3_SendClientCommand("%s", string);
+		return;
+	}
+#endif
+
+	oldallow = allowindepphys;
+	CL_AllowIndependantSendCmd(false);
+
+	buf = Z_Malloc(sizeof(*buf)+strlen(string));
+	strcpy(buf->command, string);
+	buf->len = strlen(buf->command);
+
+	//add to end of the list so that the first of the list is the first to be sent.
+	if (!clientcmdlist)
+		clientcmdlist = buf;
+	else
+	{
+		for (prev = clientcmdlist; prev->next; prev=prev->next)
+			;
+		prev->next = buf;
+	}
+
+	CL_AllowIndependantSendCmd(oldallow);
+}
+
+void CL_FlushClientCommands(void)
+{
+	clcmdbuf_t *next;
+	CL_AllowIndependantSendCmd(false);
+
+	while(clientcmdlist)
+	{
+		next = clientcmdlist->next;
+		Z_Free(clientcmdlist);
+		clientcmdlist=next;
+	}
+}
+
+#ifdef _WIN32
+qboolean runningindepphys;
+CRITICAL_SECTION indepcriticialsection;
+HANDLE indepphysicsthread;
+void CL_AllowIndependantSendCmd(qboolean allow)
+{
+	if (!runningindepphys)
+		return;
+
+	if (allowindepphys != allow && runningindepphys)
+	{
+		if (allow)
+			LeaveCriticalSection(&indepcriticialsection);
+		else
+			EnterCriticalSection(&indepcriticialsection);
+	}
+	allowindepphys = allow;
+}
+
+unsigned long _stdcall CL_IndepPhysicsThread(void *param)
+{
+	int sleeptime;
+	float fps;
+	while(1)
+	{
+		EnterCriticalSection(&indepcriticialsection);
+		CL_SendCmd();
+		LeaveCriticalSection(&indepcriticialsection);
+
+		fps = cl_netfps.value*10;	//try and be generous. (This isn't the framerate capping function).
+		if (fps < 10)
+			fps = 10;
+
+		sleeptime = 1000/fps;
+
+		Sleep(sleeptime);
+	}
+}
+
+void CL_UseIndepPhysics(qboolean allow)
+{
+	if (runningindepphys == allow)
+		return;
+
+	if (allow)
+	{	//enable it
+		DWORD tid;	//*sigh*...
+		InitializeCriticalSection(&indepcriticialsection);
+		runningindepphys = true;
+
+		indepphysicsthread = CreateThread(NULL, 8192, CL_IndepPhysicsThread, NULL, 0, &tid);
+	}
+	else
+	{
+		//shut it down.
+
+		EnterCriticalSection(&indepcriticialsection);
+		TerminateThread(indepphysicsthread, 0);
+		CloseHandle(indepphysicsthread);
+		LeaveCriticalSection(&indepcriticialsection);
+
+		runningindepphys = false;
+	}
+}
+#else
+void CL_AllowIndependantSendCmd(qboolean allow)
+{
+}
+#endif
 
 /*
 =================
@@ -860,6 +998,8 @@ void CL_SendCmd (void)
 
 	int clientcount;
 
+	extern cvar_t cl_maxfps;
+
 #ifdef Q3CLIENT
 	if (cls.q2server==2)
 	{	//guess what? q3 rules don't require network packet limiting!
@@ -885,6 +1025,19 @@ void CL_SendCmd (void)
 		return;
 	}
 #endif
+
+	{
+		clcmdbuf_t *next;
+		while (clientcmdlist)
+		{
+			next = clientcmdlist->next;
+			MSG_WriteByte (&cls.netchan.message, clc_stringcmd);
+			MSG_WriteString (&cls.netchan.message, clientcmdlist->command);
+//			Con_Printf("Sending stringcmd %s\n", clientcmdlist->command);
+			Z_Free(clientcmdlist);
+			clientcmdlist = next;
+		}
+	}
 
 	if (cls.demoplayback != DPB_NONE)
 	{
@@ -937,7 +1090,7 @@ void CL_SendCmd (void)
 
 	msecstouse = (int)msecs;	//casts round down.
 
-	if (!CL_Net_FilterTime(msecstouse) && msecstouse<255)
+	if (!CL_FilterTime(msecstouse, cl_netfps.value<=0?cl_maxfps.value:cl_netfps.value) && msecstouse<255)
 	{
 		usercmd_t new;
 

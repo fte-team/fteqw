@@ -604,8 +604,7 @@ void CL_SendDownloadRequest(char *filename)
 	COM_StripExtension (cls.downloadname, cls.downloadtempname);
 	strcat (cls.downloadtempname, ".tmp");
 
-	MSG_WriteByte (&cls.netchan.message, clc_stringcmd);
-	MSG_WriteString (&cls.netchan.message, va("download %s", cls.downloadname));
+	CL_SendClientCommand("download %s", cls.downloadname);
 
 	//prevent ftp/http from changing stuff
 	cls.downloadmethod = DL_QWPENDING;
@@ -816,7 +815,9 @@ void Model_NextDownload (void)
 			if (CL_CheckMD2Skins(s))
 				return;
 	}
-	
+
+	CL_AllowIndependantSendCmd(false);	//stop it now, the indep stuff *could* require model tracing.
+
 	if (cl.playernum[0] == -1)
 	{	//q2 cinematic - don't load the models.
 		cl.worldmodel = cl.model_precache[1] = Mod_ForName ("", false);
@@ -827,12 +828,12 @@ void Model_NextDownload (void)
 		{
 			if (!cl.model_name[i][0])
 				break;
-				
+
 			Hunk_Check();
 
 			cl.model_precache[i] = NULL;
 			cl.model_precache[i] = Mod_ForName (cl.model_name[i], false);
-			
+
 			Hunk_Check();
 
 			if (!cl.model_precache[i] || (i == 1 && (cl.model_precache[i]->type == mod_dummy || cl.model_precache[i]->needload)))
@@ -879,9 +880,8 @@ void Model_NextDownload (void)
 #endif
 	{
 	// done with modellist, request first of static signon messages
-		MSG_WriteByte (&cls.netchan.message, clc_stringcmd);
-//		MSG_WriteString (&cls.netchan.message, va("prespawn %i 0 %i", cl.servercount, cl.worldmodel->checksum2));
-		MSG_WriteString (&cls.netchan.message, va(prespawn_name, cl.servercount, cl.worldmodel->checksum2));
+//		CL_SendClientCommand("prespawn %i 0 %i", cl.servercount, cl.worldmodel->checksum2);
+		CL_SendClientCommand(prespawn_name, cl.servercount, cl.worldmodel->checksum2);
 	}
 }
 
@@ -945,9 +945,8 @@ void Sound_NextDownload (void)
 	else
 #endif
 	{
-		MSG_WriteByte (&cls.netchan.message, clc_stringcmd);
-//		MSG_WriteString (&cls.netchan.message, va("modellist %i 0", cl.servercount));
-		MSG_WriteString (&cls.netchan.message, va(modellist_name, cl.servercount, 0));
+//		CL_SendClientCommand ("modellist %i 0", cl.servercount);
+		CL_SendClientCommand (modellist_name, cl.servercount, 0);
 	}
 }
 
@@ -1009,8 +1008,7 @@ void CL_SendDownloadReq(sizebuf_t *msg)
 		}
 		else
 		{
-			MSG_WriteByte(msg, clc_stringcmd);
-			MSG_WriteString(msg, va("nextdl %i\n", i));
+			CL_SendClientCommand("nextdl %i\n", i);
 		}
 		return;
 	}
@@ -1335,8 +1333,7 @@ void CL_ParseDownload (void)
 		// request next block
 		cls.downloadpercent = percent;
 
-		MSG_WriteByte (&cls.netchan.message, clc_stringcmd);
-		SZ_Print (&cls.netchan.message, "nextdl");
+		CL_SendClientCommand("nextdl");
 	}
 	else
 	{
@@ -1602,16 +1599,14 @@ void CL_ParseServerData (void)
 #ifdef PEXT_PK3DOWNLOADS
 	if (cls.fteprotocolextensions & PEXT_PK3DOWNLOADS)	//instead of going for a soundlist, go for the pk3 list instead. The server will make us go for the soundlist after.
 	{
-		MSG_WriteByte (&cls.netchan.message, clc_stringcmd);
-		MSG_WriteString (&cls.netchan.message, va("pk3list %i 0", cl.servercount, 0));
+		CL_SendClientCommand ("pk3list %i 0", cl.servercount, 0);
 	}
 	else
 #endif
 	{
 		// ask for the sound list next
-		MSG_WriteByte (&cls.netchan.message, clc_stringcmd);
-	//	MSG_WriteString (&cls.netchan.message, va("soundlist %i 0", cl.servercount));
-		MSG_WriteString (&cls.netchan.message, va(soundlist_name, cl.servercount, 0));
+//		CL_SendClientCommand ("soundlist %i 0", cl.servercount);
+		CL_SendClientCommand (soundlist_name, cl.servercount, 0);
 	}
 
 	// now waiting for downloads, etc
@@ -1848,8 +1843,7 @@ void CLNQ_ParseServerData(void)		//Doesn't change gamedir - use with caution.
 	cls.state = ca_onserver;
 }
 void CLNQ_SignonReply (void)
-{		
-	char 	str[8192];
+{
 	extern cvar_t	topcolor;
 	extern cvar_t	bottomcolor;
 
@@ -1858,26 +1852,20 @@ Con_DPrintf ("CL_SignonReply: %i\n", cls.signon);
 	switch (cls.signon)
 	{
 	case 1:
-		MSG_WriteByte (&cls.netchan.message, clc_stringcmd);
-		MSG_WriteString (&cls.netchan.message, "prespawn");
+		CL_SendClientCommand("prespawn");
 		break;
 
 	case 2:		
-		MSG_WriteByte (&cls.netchan.message, clc_stringcmd);
-		MSG_WriteString (&cls.netchan.message, va("name \"%s\"\n", name.string));
+		CL_SendClientCommand("name \"%s\"\n", name.string);
 		name.modified = false;
 	
-		MSG_WriteByte (&cls.netchan.message, clc_stringcmd);
-		MSG_WriteString (&cls.netchan.message, va("color %i %i\n", (int)topcolor.value, (int)bottomcolor.value));
+		CL_SendClientCommand("color %i %i\n", (int)topcolor.value, (int)bottomcolor.value);
 	
-		MSG_WriteByte (&cls.netchan.message, clc_stringcmd);
-		sprintf (str, "spawn %s", "");
-		MSG_WriteString (&cls.netchan.message, str);
+		CL_SendClientCommand("spawn %s", "");
 		break;
 		
 	case 3:	
-		MSG_WriteByte (&cls.netchan.message, clc_stringcmd);
-		MSG_WriteString (&cls.netchan.message, "begin");
+		CL_SendClientCommand("begin");
 		Cache_Report ();		// print remaining memory
 #ifdef VM_CG
 		CG_Start();
@@ -2052,7 +2040,8 @@ void CL_ParseSoundlist (void)
 
 	numsounds = MSG_ReadByte();
 
-	for (;;) {
+	for (;;)
+	{
 		str = MSG_ReadString ();
 		if (!str[0])
 			break;
@@ -2069,10 +2058,10 @@ void CL_ParseSoundlist (void)
 
 	n = MSG_ReadByte();
 
-	if (n) {
-		MSG_WriteByte (&cls.netchan.message, clc_stringcmd);
-//		MSG_WriteString (&cls.netchan.message, va("soundlist %i %i", cl.servercount, n));
-		MSG_WriteString (&cls.netchan.message, va(soundlist_name, cl.servercount, n));
+	if (n)
+	{
+//		CL_SendClientCommand("soundlist %i %i", cl.servercount, n);
+		CL_SendClientCommand(soundlist_name, cl.servercount, n);
 		return;
 	}
 
@@ -2140,10 +2129,10 @@ void CL_ParseModellist (qboolean lots)
 
 	n = MSG_ReadByte();
 
-	if (n) {
-		MSG_WriteByte (&cls.netchan.message, clc_stringcmd);
-//		MSG_WriteString (&cls.netchan.message, va("modellist %i %i", cl.servercount, n));
-		MSG_WriteString (&cls.netchan.message, va(modellist_name, cl.servercount, (nummodels&0xff00) + n));
+	if (n)
+	{
+//		CL_SendClientCommand("modellist %i %i", cl.servercount, n);
+		CL_SendClientCommand(modellist_name, cl.servercount, (nummodels&0xff00) + n);
 		return;
 	}
 
@@ -4141,6 +4130,12 @@ void CL_ParseServerMessage (void)
 		case svcqw_effect2:
 			CL_ParseEffect(true);
 			break;
+
+#ifdef PEXT_CSQC
+		case svc_csqcentities:
+			CSQC_ParseEntities();
+			break;
+#endif
 		}
 	}
 }
@@ -4229,8 +4224,7 @@ void CLQ2_ParseServerMessage (void)
 			return;
 		case svcq2_reconnect:	//8
 			Con_TPrintf (TLC_RECONNECTING);
-			MSG_WriteChar (&cls.netchan.message, clc_stringcmd);
-			MSG_WriteString (&cls.netchan.message, "new");
+			CL_SendClientCommand("new");
 			break;
 		case svcq2_sound:		//9			// <see code>
 			CLQ2_ParseStartSoundPacket();

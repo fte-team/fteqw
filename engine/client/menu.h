@@ -18,14 +18,86 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 
 */
 
-//
-// the net drivers should just set the apropriate bits in m_activenet,
-// instead of having the menu code look through their internal tables
-//
-#define	MNET_IPX		1
-#define	MNET_TCP		2
+//There are still menu states, which say which menu gets absolute control.
+//Some of the destinations are healthier than others. :)
 
-extern	int	m_activenet;
+//m_none	- menu is disabled
+//m_complex	- hirachy of item types
+//m_help	- old q1 style help menu (fixme: make m_complex)
+//m_keys	- old q1 style key menu (fixme: make m_complex)
+//m_slist	- serverbrowser. Takes full control of screen.
+//m_media	- an mp3 player type thing. It was never really compleate.
+//			  It should perhaps either be fixed or removed.
+//m_xwindows- Run an X windowing syatem. Fixme: make plugin.
+//m_plugin	- A QVM based or DLL based plugin.
+//m_menu_dat- A QC based version of m_plugin. This should be compatable with DP's menu.dat stuff.
+
+
+//the m_complex menu state is the most advanced, and drives the bulk of FTE's menus in an event driven way.
+//It consists of menus and items. Fairly basic really.
+//Each item type has a structure (or shares a structure).
+//Each of these structures contain a menucommon_t.
+//The backend of this system lives in m_items.c.
+//If you're creating your own quake menu, there should be little need to go in there.
+//These are the item types:
+
+//mt_childwindow	- 
+//mt_button			- Executes a console command or callback on enter. Uses conchars.
+//mt_buttonbigfont	- Used by hexen2's menus. Uses gfx/menu/bigfont.lmp as it's charactures.
+//mt_box			- A 2d box. The same one as the quit dialog from q1, but resized.
+//mt_colouredbox	- Not used.
+//mt_line			- Not used.
+//mt_edit			- A one row edit box, either attached to a cvar, or an apply button.
+//mt_text			- unselectable. Otherwise like mt_button
+//mt_slider			- a horizontal slider, like quake's gamma option, attached to a cvar.
+//mt_combo			- multiple specific options. Created with specifically structured info.
+//mt_bind			- a key binding option.
+//mt_checkbox		- a yes/no toggle, attached to a cvar.
+//mt_picture		- Just draws a lmp from it's x/y.
+//mt_menudot		- The 24*24 rotating quake menudot. Should be specified as the cursoritem, and should be placed to match the selecteditem's y position.
+//mt_custom			- Just an option with callbacks. This is the basis of the top/bottom color seletion, and could be used for all sorts of things.
+
+
+//Sample menu creation, entirly within /* and */
+//Note that most of FTE's menus are more complicated, as FTE runs on Q1/Q2/H2 data, and it's choice of menu images reflects this.
+//Most of the normal menus also have more items too, of course.
+
+//FTE's menu console commands are registered from M_Init_Internal instead of M_Init as implied here. Why?
+//FTE's menu.dat support unregisters the menu console commands so the menu.dat can use those commands instead.
+//This results in more user friendliness for mods but makes the code a little more confusing.
+//If you make the menu name unique enough, then there's no need to follow the standard menu code.
+/*
+//M_SomeMenuConsoleCommand_f
+//Spawns a sample menu.
+void M_SomeMenuConsoleCommand_f (void)
+{
+	menu_t *m = M_CreateMenu(0);
+	int y = 32;
+
+	//add the title
+	MC_AddCenterPicture(m, 4, "gfx/p_option.lmp");
+
+	//add the blinking > thingie
+	//(note NULL instead of a valid string, this should really be a variant of mt_menudot instead)
+	menu->cursoritem = (menuoption_t*)MC_AddWhiteText(menu, 200, y, NULL, false);
+
+	//Set up so the first item is selected. :)
+	m->selecteditem = (menuoption_t*)
+
+	//Add the items.
+	MC_AddConsoleCommand(menu, 16, y,	"    Customize controls", "menu_keys\n"); y+=8;
+	MC_AddSlider(menu, 16, y,			"           Mouse Speed", &sensitivity,		1,		10); y+=8;
+	MC_AddCheckBox(menu, 16, y,			"            Lookstrafe", &lookstrafe,0); y+=8;
+}
+
+//eg: M_Init
+void M_SomeInitialisationFunctionCalledAtStartup(void)
+{
+	Cmd_AddCommand("menu_somemenu", M_SomeMenuConsoleCommand_f);
+}
+*/
+
+
 
 //
 // menus
@@ -197,9 +269,7 @@ menuslider_t *MC_AddSlider(menu_t *menu, int x, int y, const char *text, cvar_t 
 menucheck_t *MC_AddCheckBox(menu_t *menu, int x, int y, const char *text, cvar_t *var, int cvarbitmask);
 menubutton_t *MC_AddConsoleCommand(menu_t *menu, int x, int y, const char *text, const char *command);
 menubutton_t *MC_AddCommand(menu_t *menu, int x, int y, char *text, qboolean (*command) (union menuoption_s *,struct menu_s *,int));
-
 menucombo_t *MC_AddCombo(menu_t *menu, int x, int y, const char *caption, const char **text, int initialvalue);
-
 menubutton_t *MC_AddCommand(menu_t *menu, int x, int y, char *text, qboolean (*command) (union menuoption_s *,struct menu_s *,int));
 menuedit_t *MC_AddEdit(menu_t *menu, int x, int y, char *text, char *def);
 menuedit_t *MC_AddEditCvar(menu_t *menu, int x, int y, char *text, char *name);

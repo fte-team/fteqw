@@ -66,7 +66,6 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 		#undef USE_MADLIB		//no internal mp3 playing
 		#undef AVAIL_DX7		//no d3d support
 		#define NOMEDIA			//NO playing of avis/cins/roqs
-		#define NOVOICECHAT		//NO sound recording, tcp streaming and playback on a remote client. not finalised.
 
 		#define MD3MODELS		//we DO want to use quake3 alias models. This might be a minimal build, but we still want this.
 
@@ -116,7 +115,7 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 
 		#define Q3SHADERS
 
-//		#define VOICECHAT	//experimental
+//		#define VOICECHAT	//not added yet.
 
 //these things were moved to plugins.
 //#define IRCCLIENT		//connects to irc servers.

@@ -992,6 +992,16 @@ void SCR_DrawFPS (void)
 		lastframetime = t;
 	}
 
+	if (show_fps.value == 2)	//alternate mode that displays the lowest noticed
+	{
+		if (lastfps > 1/host_frametime)
+		{
+			lastfps = 1/host_frametime;
+			fps_count = 0;
+			lastframetime = t;
+		}
+	}
+
 	sprintf(str, "%3.1f FPS", lastfps);
 	SCR_StringXY(str, show_fps_x.value, show_fps_y.value);
 }
@@ -1260,7 +1270,7 @@ void SCR_SetUpToDrawConsole (void)
 
 	if (clearconsole++ < vid.numpages)
 	{
-		if (qrenderer == QR_SOFTWARE)
+		if (qrenderer == QR_SOFTWARE &&	!media_filmtype)
 		{
 			scr_copytop = 1;
 			Draw_TileClear (0, (int) scr_con_current, vid.width, vid.height - (int) scr_con_current);
@@ -1270,7 +1280,7 @@ void SCR_SetUpToDrawConsole (void)
 	}
 	else if (clearnotify++ < vid.numpages)
 	{
-		if (qrenderer == QR_SOFTWARE)
+		if (qrenderer == QR_SOFTWARE &&	!media_filmtype)
 		{
 			scr_copytop = 1;
 			Draw_TileClear (0, 0, vid.width, con_notifylines);
@@ -1870,7 +1880,8 @@ void SCR_DrawTwoDimensional(int uimenu, qboolean nohud)
 		else
 			SCR_DrawFPS ();
 		SCR_CheckDrawCenterString ();
-//	qglTexEnvi ( GL_TEXTURE_ENV, GL_TEXTURE_ENV_MODE, GL_MODULATE );
+		if (qrenderer == QR_OPENGL)
+			qglTexEnvi ( GL_TEXTURE_ENV, GL_TEXTURE_ENV_MODE, GL_MODULATE );
 #ifdef TEXTEDITOR
 		if (editoractive)
 			Editor_Draw();

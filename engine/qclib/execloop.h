@@ -904,43 +904,120 @@ reeval:
 
 
 
+	case OP_BITAND_IF:
+		OPC->_int = (OPA->_int & (int)OPB->_float);
+		break;
+	case OP_BITOR_IF:
+		OPC->_int = (OPA->_int | (int)OPB->_float);
+		break;
+	case OP_BITAND_FI:
+		OPC->_int = ((int)OPA->_float & OPB->_int);
+		break;
+	case OP_BITOR_FI:
+		OPC->_int = ((int)OPA->_float | OPB->_int);
+		break;
 
+	case OP_MUL_IF:
+		OPC->_float = (OPA->_int * OPB->_float);
+		break;
+	case OP_MUL_FI:
+		OPC->_float = (OPA->_float * OPB->_int);
+		break;
 
-			case OP_MUL_IF:
-			case OP_MUL_FI:
-			case OP_MUL_VI:
-			case OP_DIV_IF:
-			case OP_DIV_FI:
-			case OP_BITAND_IF:
-			case OP_BITOR_IF:
-			case OP_BITAND_FI:
-			case OP_BITOR_FI:
-			case OP_AND_I:
-			case OP_OR_I:
-			case OP_AND_IF:
-			case OP_OR_IF:
-			case OP_AND_FI:
-			case OP_OR_FI:
-			case OP_NOT_I:
-			case OP_NE_IF:
-			case OP_NE_FI:
-			case OP_GSTOREP_I:
-			case OP_GSTOREP_F:
-			case OP_GSTOREP_ENT:
-			case OP_GSTOREP_FLD:		// integers
-			case OP_GSTOREP_S:
-			case OP_GSTOREP_FNC:		// pointers
-			case OP_GSTOREP_V:
-			case OP_GADDRESS:
-			case OP_GLOAD_I:
-			case OP_GLOAD_F:
-			case OP_GLOAD_FLD:
-			case OP_GLOAD_ENT:
-			case OP_GLOAD_S:
-			case OP_GLOAD_FNC:
-			case OP_BOUNDCHECK:
-PR_RunError(progfuncs, "Extra opcode not implemented\n");
-				break;
+	case OP_MUL_VI:
+		OPC->vector[0] = OPA->vector[0] * OPB->_int;
+		OPC->vector[1] = OPA->vector[0] * OPB->_int;
+		OPC->vector[2] = OPA->vector[0] * OPB->_int;
+		break;
+	case OP_MUL_IV:
+		OPC->vector[0] = OPB->_int * OPA->vector[0];
+		OPC->vector[1] = OPB->_int * OPA->vector[1];
+		OPC->vector[2] = OPB->_int * OPA->vector[2];
+		break;
+
+	case OP_DIV_IF:
+		OPC->_float = (OPA->_int / OPB->_float);
+		break;
+	case OP_DIV_FI:
+		OPC->_float = (OPA->_float / OPB->_int);
+		break;
+
+	case OP_AND_I:
+		OPC->_int = (OPA->_int && OPB->_int);
+		break;
+	case OP_OR_I:
+		OPC->_int = (OPA->_int || OPB->_int);
+		break;
+
+	case OP_AND_IF:
+		OPC->_int = (OPA->_int && OPB->_float);
+		break;
+	case OP_OR_IF:
+		OPC->_int = (OPA->_int || OPB->_float);
+		break;
+
+	case OP_AND_FI:
+		OPC->_int = (OPA->_float && OPB->_int);
+		break;
+	case OP_OR_FI:
+		OPC->_int = (OPA->_float || OPB->_int);
+		break;
+
+	case OP_NOT_I:
+		OPC->_int = !OPA->_int;
+		break;
+
+	case OP_NE_IF:
+		OPC->_int = (OPA->_int != OPB->_float);
+		break;
+	case OP_NE_FI:
+		OPC->_int = (OPA->_float != OPB->_int);
+		break;
+
+	case OP_GSTOREP_I:
+	case OP_GSTOREP_F:
+	case OP_GSTOREP_ENT:
+	case OP_GSTOREP_FLD:		// integers
+	case OP_GSTOREP_S:
+	case OP_GSTOREP_FNC:		// pointers
+	case OP_GSTOREP_V:
+	case OP_GADDRESS:
+	case OP_GLOAD_I:
+	case OP_GLOAD_F:
+	case OP_GLOAD_FLD:
+	case OP_GLOAD_ENT:
+	case OP_GLOAD_S:
+	case OP_GLOAD_FNC:
+		pr_xstatement = st-pr_statements;
+		PR_RunError(progfuncs, "Extra opcode not implemented\n");
+		break;
+
+	case OP_BOUNDCHECK:
+		if (OPA->_int < st->c || OPA->_int >= st->b)
+		{
+			pr_xstatement = st-pr_statements;
+			PR_RunError(progfuncs, "Progs boundcheck failed. Value is %i.", OPA->_int);
+		}
+		break;
+	case OP_PUSH:
+		OPC->_int = (int)&localstack[localstack_used+pr_spushed];
+		pr_spushed += OPA->_int;
+		if (pr_spushed + localstack_used >= LOCALSTACK_SIZE)
+		{
+			pr_spushed = 0;
+			pr_xstatement = st-pr_statements;
+			PR_RunError(progfuncs, "Progs pushed too much");
+		}
+		break;
+	case OP_POP:
+		pr_spushed -= OPA->_int;
+		if (pr_spushed < 0)
+		{
+			pr_spushed = 0;
+			pr_xstatement = st-pr_statements;
+			PR_RunError(progfuncs, "Progs poped more than it pushed");
+		}
+		break;
 
 	default:					
 		if (st->op & 0x8000)	//break point!
@@ -960,7 +1037,7 @@ PR_RunError(progfuncs, "Extra opcode not implemented\n");
 			fakeop.op &= ~0x8000;
 			st = &fakeop;	//a little remapping...
 #else
-			st->op &= ~0x8000;
+			st->op &= ~0x8000;	//just remove the breakpoint and go around again, but this time in the debugger.
 #endif
 
 			goto reeval;	//reexecute

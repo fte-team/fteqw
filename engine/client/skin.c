@@ -494,9 +494,7 @@ void Skin_NextDownload (void)
 #ifdef CSQC_DAT
 		CSQC_Init();
 #endif
-		MSG_WriteByte (&cls.netchan.message, clc_stringcmd);
-		MSG_WriteString (&cls.netchan.message,
-			va("begin %i", cl.servercount));
+		CL_SendClientCommand("begin %i", cl.servercount);
 		Cache_Report ();		// print remaining memory
 	}
 }

@@ -389,7 +389,7 @@ void SV_WriteMVDMessage (sizebuf_t *msg, int type, int to, float time);
 
 demo_t			demo;
 static dbuffer_t	*demobuffer;
-static int	header = (int)&((header_t*)0)->data;
+static int	header = (char *)&((header_t*)0)->data - (char *)NULL;
 
 entity_state_t demo_entities[UPDATE_MASK+1][MAX_MVDPACKET_ENTITIES];
 client_frame_t demo_frames[UPDATE_MASK+1];

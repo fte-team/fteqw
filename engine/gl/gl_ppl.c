@@ -9,6 +9,7 @@ void GL_SelectTexture (GLenum target);
 void R_RenderDynamicLightmaps (msurface_t *fa);
 void R_BlendLightmaps (void);
 
+extern qboolean r_inmirror;
 extern int gldepthfunc;
 extern int		*lightmap_textures;
 extern int		lightmap_bytes;		// 1, 2, or 4
@@ -1693,7 +1694,7 @@ void PPL_BaseTextures(model_t *model)
 			}
 		}
 	}
-	if (mirrortexturenum>=0 && model == cl.worldmodel && r_mirroralpha.value != 1.0)
+	if (!r_inmirror && mirrortexturenum>=0 && model == cl.worldmodel && r_mirroralpha.value != 1.0)
 	{
 		t = model->textures[mirrortexturenum];
 		if (t)
@@ -1807,6 +1808,7 @@ void PPL_BaseBModelTextures(entity_t *e)
 
 void PPL_BaseEntTextures(void)
 {
+	extern qboolean r_inmirror;
 	extern model_t *currentmodel;
 	int		i,j;
 
@@ -1818,21 +1820,34 @@ void PPL_BaseEntTextures(void)
 	{
 		currententity = &cl_visedicts[i];
 
-		j = currententity->keynum;
-		while(j)
+		if (r_inmirror)
 		{
-			if (j == cl.viewentity[r_refdef.currentplayernum]+1)
-				break;
-
-			j = cl.lerpents[j].tagent;
+			if (currententity->flags & Q2RF_WEAPONMODEL)
+				continue;
 		}
-		if (j)
-			continue;
+		else
+		{
+#if 0
+			if (currententity->keynum == r_refdef.currentplayernum+1)
+				continue;
+#else
+			j = currententity->keynum;
+			while(j)
+			{
+				
+				if (j == (cl.viewentity[r_refdef.currentplayernum]?cl.viewentity[r_refdef.currentplayernum]:(cl.playernum[r_refdef.currentplayernum]+1)))
+					break;
 
-		if (cl.viewentity[r_refdef.currentplayernum] && currententity->keynum == cl.viewentity[r_refdef.currentplayernum])
-			continue;
-		if (!Cam_DrawPlayer(0, currententity->keynum-1))
-			continue;
+				j = cl.lerpents[j].tagent;
+			}
+			if (j)
+				continue;
+#endif
+			if (cl.viewentity[r_refdef.currentplayernum] && currententity->keynum == cl.viewentity[r_refdef.currentplayernum])
+				continue;
+			if (!Cam_DrawPlayer(0, currententity->keynum-1))
+				continue;
+		}
 
 		if (!currententity->model)
 			continue;

@@ -19,11 +19,9 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 */
 // common.c -- misc functions used in client and server
 
-#include <ctype.h>
-
 #include "quakedef.h"
 
-
+#include <ctype.h>
 
 
 
@@ -1610,6 +1608,22 @@ skipwhite:
 				data++;
 			goto skipwhite;
 		}
+	}
+
+//skip / * comments
+	if (c == '/' && data[1] == '*' && !qctokenize)
+	{
+		data+=2;
+		while(*data)
+		{
+			if (*data == '*' && data[1] == '/')
+			{
+				data+=2;
+				goto skipwhite;
+			}
+			data++;
+		}
+		goto skipwhite;
 	}
 	
 

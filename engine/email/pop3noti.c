@@ -1,4 +1,4 @@
-#include "bothdefs.h"
+#include "quakedef.h"
 
 #ifdef EMAILCLIENT
 
@@ -9,7 +9,6 @@
 //so we have a special state.
 
 
-#include "quakedef.h"
 #include "winquake.h"
 
 #ifdef _WIN32

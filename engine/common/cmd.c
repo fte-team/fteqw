@@ -45,9 +45,9 @@ typedef struct cmdalias_s
 cmdalias_t	*cmd_alias;
 
 cvar_t cl_warncmd = {"cl_warncmd", "0"};
-cvar_t cl_aliasoverlap = {"cl_aliasoverlap", "1", NULL, CVAR_NOTFROMSERVER};
+cvar_t cl_aliasoverlap = {"cl_aliasoverlap", "1", NULL,	CVAR_NOTFROMSERVER};
 
-
+cvar_t tp_disputablemacros = {"tp_disputablemacros", "1", NULL,  CVAR_SEMICHEAT};
 
 
 //=============================================================================
@@ -66,17 +66,20 @@ cvar_t cl_aliasoverlap = {"cl_aliasoverlap", "1", NULL, CVAR_NOTFROMSERVER};
 typedef struct {
 	char name[32];
 	char *(*func) (void);
+	int disputableintentions;
 } macro_command_t;
 
 static macro_command_t macro_commands[MAX_MACROS];
 static int macro_count = 0;
 
-void Cmd_AddMacro(char *s, char *(*f)(void))
+void Cmd_AddMacro(char *s, char *(*f)(void), int disputableintentions)
 {
 	if (macro_count == MAX_MACROS)
 		Sys_Error("Cmd_AddMacro: macro_count == MAX_MACROS");
 	Q_strncpyz(macro_commands[macro_count].name, s, sizeof(macro_commands[macro_count].name));
-	macro_commands[macro_count++].func = f;
+	macro_commands[macro_count].func = f;
+	macro_commands[macro_count].disputableintentions = disputableintentions;
+	macro_count++;
 }
 
 char *TP_MacroString (char *s, int *len)
@@ -89,11 +92,13 @@ char *TP_MacroString (char *s, int *len)
 		macro = &macro_commands[i];
 		if (!Q_strcasecmp(s, macro->name))
 		{
+			if (macro->disputableintentions)
+				if (!tp_disputablemacros.value)
+					continue;
 			if (len)
 				*len = strlen(macro->name);
 			return macro->func();
 		}
-		macro++;
 	}
 	return NULL;
 }
@@ -1555,17 +1560,10 @@ void Cmd_ForwardToServer (void)
 	}
 #endif
 
-#ifdef Q2CLIENT
-	MSG_WriteByte (&cls.netchan.message, cls.q2server?clcq2_stringcmd:clc_stringcmd);
-#else
-	MSG_WriteByte (&cls.netchan.message, clc_stringcmd);
-#endif
-	SZ_Print (&cls.netchan.message, Cmd_Argv(0));
 	if (Cmd_Argc() > 1)
-	{
-		SZ_Print (&cls.netchan.message, " ");
-		SZ_Print (&cls.netchan.message, Cmd_Args());
-	}
+		CL_SendClientCommand("%s %s", Cmd_Argv(0), Cmd_Args());
+	else
+		CL_SendClientCommand("%s", Cmd_Argv(0));
 }
 
 // don't forward the first argument
@@ -1585,23 +1583,8 @@ void Cmd_ForwardToServer_f (void)
 	if (cls.demoplayback)
 		return;		// not really connected
 
-#ifdef Q3CLIENT
-	if (cls.q2server == 2)
-	{
-		CLQ3_SendClientCommand("%s", Cmd_Args());
-		return;
-	}
-#endif
-
 	if (Cmd_Argc() > 1)
-	{
-#ifdef Q2CLIENT
-		MSG_WriteByte (&cls.netchan.message, cls.q2server?clcq2_stringcmd:clc_stringcmd);
-#else
-		MSG_WriteByte (&cls.netchan.message, clc_stringcmd);
-#endif
-		SZ_Print (&cls.netchan.message, Cmd_Args());
-	}
+		CL_SendClientCommand("%s", Cmd_Args());
 }
 #else
 void Cmd_ForwardToServer (void)
@@ -2684,6 +2667,8 @@ void Cmd_Init (void)
 
 	Cmd_AddCommand ("fs_flush", COM_RefreshFSCache_f);
 	Cvar_Register(&com_fs_cache, "Filesystem");
+
+	Cvar_Register(&tp_disputablemacros, "Teamplay");
 
 #ifndef SERVERONLY
 	rcon_level.value = atof(rcon_level.string);	//client is restricted to not be allowed to change restrictions.

@@ -1,4 +1,4 @@
-#include "bothdefs.h"
+#include "quakedef.h"
 
 #ifdef WEBSERVER
 
@@ -132,8 +132,9 @@ void FTP_ServerShutdown(void)
 	IWebPrintf("FTP server is deactivated\n");
 }
 
-int SendFileNameTo(char *fname, int size, void *socket)
+static int SendFileNameTo(char *fname, int size, void *param)
 {
+	int socket = (int)param;	//64->32... this is safe due to where it's called from. It's just not so portable.
 //	int i;
 	char buffer[256+1];
 	char *slash;
@@ -159,7 +160,7 @@ int SendFileNameTo(char *fname, int size, void *socket)
 //	strcpy(buffer, fname);
 //	for (i = strlen(buffer); i < 40; i+=8)
 //		strcat(buffer, "\t");
-	send((int)socket, buffer, strlen(buffer), 0);
+	send(socket, buffer, strlen(buffer), 0);
 
 	return true;
 }
@@ -564,7 +565,7 @@ iwboolean FTP_ServerThinkForConnection(FTPclient_t *cl)
 			strcat(buffer, "*");
 			QueueMessage (cl, "125 Opening FAKE ASCII mode data connection for file.\r\n");
 
-			COM_EnumerateFiles(buffer, SendFileNameTo, (void *)cl->datasock);
+			COM_EnumerateFiles(buffer, SendFileNameTo, (void*)cl->datasock);	//32->64 this is safe
 
 			QueueMessage (cl, "226 Transfer complete.\r\n");
 

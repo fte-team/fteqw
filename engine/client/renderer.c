@@ -1359,6 +1359,8 @@ qboolean R_ApplyRenderer (rendererstate_t *newr)
 	if (newr->bpp == -1)
 		return false;
 
+	CL_AllowIndependantSendCmd(false);	//FIXME: figure out exactly which parts are going to affect the model loading.
+
 	IN_Shutdown();
 
 	if (R_DeInit)

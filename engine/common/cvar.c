@@ -251,8 +251,7 @@ cvar_t *Cvar_SetCore (cvar_t *var, char *value, qboolean force)
 			else
 #endif
 			{
-				MSG_WriteByte (&cls.netchan.message, clc_stringcmd);
-				SZ_Print (&cls.netchan.message, va("setinfo \"%s\" \"%s\"\n", var->name, value));
+				CL_SendClientCommand("setinfo \"%s\" \"%s\"\n", var->name, value);
 			}
 		}
 	}
@@ -584,10 +583,7 @@ qboolean	Cvar_Command (int level)
 #ifndef SERVERONLY
 	if (Cmd_ExecLevel > RESTRICT_SERVER)
 	{	//directed at a secondary player.
-		char *msg;
-		msg = va("%i setinfo %s \"%s\"", Cmd_ExecLevel - RESTRICT_SERVER-1, v->name, str);
-		MSG_WriteByte (&cls.netchan.message, clc_stringcmd);
-		MSG_WriteString (&cls.netchan.message, msg);
+		CL_SendClientCommand("%i setinfo %s \"%s\"", Cmd_ExecLevel - RESTRICT_SERVER-1, v->name, str);
 		return true;
 	}
 

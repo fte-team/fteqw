@@ -310,7 +310,7 @@ void Netchan_Transmit (netchan_t *chan, int length, qbyte *data, int rate)
 
 // write the packet header
 	send.data = send_buf;
-	send.maxsize = MAX_QWMSGLEN + PACKET_HEADER;	//dmw wasn't quite true.
+	send.maxsize = MAX_QWMSGLEN + PACKET_HEADER;	//dmw: wasn't quite true.
 	send.cursize = 0;
 
 	w1 = chan->outgoing_sequence | (send_reliable<<31);

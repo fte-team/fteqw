@@ -155,6 +155,11 @@ SOURCE=.\qcc_cmdlib.c
 # End Source File
 # Begin Source File
 
+SOURCE=.\qcc_gtk.c
+# PROP Exclude_From_Build 1
+# End Source File
+# Begin Source File
+
 SOURCE=.\qcc_pr_comp.c
 # End Source File
 # Begin Source File

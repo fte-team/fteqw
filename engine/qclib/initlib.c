@@ -410,7 +410,7 @@ progexterns_t defexterns = {
 	NULL, //builtin_t *globalbuiltins;	//these are available to all progs
 	0, //int numglobalbuiltins;
 
-	PR_COMPILENEXIST,
+	PR_NOCOMPILE,
 
 	&safetime, //double *gametime;
 

@@ -238,6 +238,7 @@ int PR_EnterFunction (progfuncs_t *progfuncs, dfunction_t *f, int progsnum)
 	pr_stack[pr_depth].s = pr_xstatement;
 	pr_stack[pr_depth].f = pr_xfunction;	
 	pr_stack[pr_depth].progsnum = progsnum;
+	pr_stack[pr_depth].pushed = pr_spushed;
 	pr_depth++;
 	if (pr_depth == MAX_STACK_DEPTH)
 	{
@@ -252,6 +253,8 @@ int PR_EnterFunction (progfuncs_t *progfuncs, dfunction_t *f, int progsnum)
 		PR_AbortStack(progfuncs);
 		return pr_xstatement;
 	}
+
+	localstack_used += pr_spushed;	//make sure the call doesn't hurt pushed pointers
 
 // save off any locals that the new function steps on (to a side place, fromwhere they are restored on exit)
 	c = f->locals;
@@ -303,6 +306,9 @@ int PR_LeaveFunction (progfuncs_t *progfuncs)
 	PR_MoveParms(progfuncs, pr_stack[pr_depth].progsnum, pr_typecurrent);
 	PR_SwitchProgs(progfuncs, pr_stack[pr_depth].progsnum);
 	pr_xfunction = pr_stack[pr_depth].f;
+	pr_spushed = pr_stack[pr_depth].pushed;
+
+	localstack_used -= pr_spushed;
 	return pr_stack[pr_depth].s;
 }
 
@@ -786,6 +792,7 @@ void PR_ExecuteCode (progfuncs_t *progfuncs, int s)
 		printf ("runaway loop error");			\
 		while(pr_depth > prinst->exitdepth)		\
 			PR_LeaveFunction(progfuncs);		\
+		pr_spushed = 0;							\
 		return;									\
 	}
 

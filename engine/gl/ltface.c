@@ -1,10 +1,9 @@
-#include "bothdefs.h"
+#include "quakedef.h"
 
-#if defined(GLQUAKE) || (!defined(GLQUAKE) && !defined(SWQUAKE))
+#if defined(RGLQUAKE) || (!defined(RGLQUAKE) && !defined(SWQUAKE))
 
 #ifdef RUNTIMELIGHTING
-#if defined(GLQUAKE)
-#include "quakedef.h"
+#if defined(RGLQUAKE)
 
 
 extern model_t *lightmodel;

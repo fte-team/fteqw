@@ -719,6 +719,7 @@ void NET_SendPacket (netsrc_t netsrc, int length, void *data, netadr_t to)
 
 	if (to.type == NA_LOOPBACK)
 	{
+//		if (Cvar_Get("drop", "0", 0, "network debugging")->value)
 //		if ((rand()&15)==15)	//simulate PL
 //			return;
 		NET_SendLoopPacket(netsrc, length, data, to);

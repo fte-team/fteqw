@@ -3056,6 +3056,10 @@ void SV_InitLocal (void)
 	svs.fteprotocolextensions |= PEXT_CHUNKEDDOWNLOADS;
 #endif
 
+#ifdef PEXT_CSQC
+	svs.fteprotocolextensions |= PEXT_CSQC;
+#endif
+
 //	if (svs.protocolextensions)
 //		Info_SetValueForStarKey (svs.info, "*"DISTRIBUTION"_ext", va("%x", svs.protocolextensions), MAX_SERVERINFO_STRING);
 

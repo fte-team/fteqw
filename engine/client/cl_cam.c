@@ -123,8 +123,7 @@ void Cam_Unlock(int pnum)
 {
 	if (autocam[pnum])
 	{
-		MSG_WriteByte (&cls.netchan.message, clc_stringcmd);
-		MSG_WriteString (&cls.netchan.message, "ptrack");
+		CL_SendClientCommand("ptrack");
 		autocam[pnum] = CAM_NONE;
 		locked[pnum] = false;
 		Sbar_Changed();
@@ -133,13 +132,11 @@ void Cam_Unlock(int pnum)
 
 void Cam_Lock(int pnum, int playernum)
 {
-	char st[40];
 
 	cam_lastviewtime[pnum] = -1000;
 
-	sprintf(st, "ptrack %i", playernum);
-	MSG_WriteByte (&cls.netchan.message, clc_stringcmd);
-	MSG_WriteString (&cls.netchan.message, st);
+	CL_SendClientCommand("ptrack %i", playernum);
+
 	spec_track[pnum] = playernum;
 	locked[pnum] = false;
 	

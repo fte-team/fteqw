@@ -143,16 +143,6 @@ qboolean SV_DemoNailUpdate (int i)
 	return true;
 }
 
-static qboolean SV_AddCSQCUpdate (edict_t *ent)
-{
-//	if (!ent->sendcsqc)
-		return false;
-
-//	csqcent[csqcnuments++] = ent;
-
-//	return true;
-}
-
 #ifdef PEXT_LIGHTUPDATES
 qboolean SV_AddLightUpdate (edict_t *ent)
 {
@@ -271,9 +261,159 @@ void SV_EmitNailUpdate (sizebuf_t *msg, qboolean recorder)
 	}
 }
 
+
+
+
+
+//=============================================================================
+
+//this is the bit of the code that sends the csqc entity deltas out.
+//whenever the entity in question has a newer version than we sent to the client, we need to resend.
+
+//So, we track the outgoing sequence that an entity was sent in, and the version.
+//Upon detection of a dropped packet, we resend all entities who were last sent in that packet.
+//When an entities' last sent version doesn't match the current version, we send.
+static qboolean SV_AddCSQCUpdate (client_t *client, edict_t *ent)
+{
+#ifndef PEXT_CSQC
+	return false;
+#else
+	if (!(client->fteprotocolextensions & PEXT_CSQC))
+		return false;
+
+	if (!ent->v.SendEntity)
+		return false;
+
+	csqcent[csqcnuments++] = ent;
+
+	return true;
+#endif
+}
+sizebuf_t csqcmsgbuffer;
 void SV_EmitCSQCUpdate(client_t *client, sizebuf_t *msg)
 {
+#ifdef PEXT_CSQC
+	qbyte messagebuffer[1024];
+	int en;
+	int currentsequence = client->netchan.outgoing_sequence;
+	unsigned short mask;
+	globalvars_t *pr_globals = PR_globals(svprogfuncs, PR_CURRENT);
+	edict_t *ent;
+	qboolean writtenheader = false;
 
+//	if (!csqcnuments)
+//		return;
+
+	if (!(client->fteprotocolextensions & PEXT_CSQC))
+		return;
+
+	//FIXME: prioritise the list of csqc ents somehow
+
+	csqcmsgbuffer.data = messagebuffer;
+	csqcmsgbuffer.maxsize = sizeof(messagebuffer);
+	csqcmsgbuffer.packing = msg->packing;
+
+	for (en = 0; en < csqcnuments; en++)
+	{
+		ent = csqcent[en];
+
+		//prevent mishaps with entities being respawned and things.
+		if ((int)ent->v.Version < sv.csqcentversion[ent->entnum])
+			ent->v.Version = sv.csqcentversion[ent->entnum];
+		else
+			sv.csqcentversion[ent->entnum] = (int)ent->v.Version;
+
+		//If it's not changed, don't send
+		if (client->csqcentversions[ent->entnum] == sv.csqcentversion[ent->entnum])
+			continue;
+
+		csqcmsgbuffer.cursize = 0;
+		csqcmsgbuffer.currentbit = 0;
+		//Ask CSQC to write a buffer for it.
+		G_INT(OFS_PARM0) = EDICT_TO_PROG(svprogfuncs, client->edict);
+		pr_global_struct->self = EDICT_TO_PROG(svprogfuncs, ent);
+		PR_ExecuteProgram(svprogfuncs, ent->v.SendEntity);
+		if (G_INT(OFS_RETURN))	//0 means not to tell the client about it.
+		{
+			if (msg->cursize + csqcmsgbuffer.cursize+5 >= msg->maxsize)
+			{
+				if (csqcmsgbuffer.cursize < 32)
+					break;
+				continue;
+			}
+			if (!writtenheader)
+			{
+				writtenheader=true;
+				MSG_WriteByte(msg, svc_csqcentities);
+			}
+			MSG_WriteShort(msg, ent->entnum);
+			//FIXME: Add a developer mode to write the length of each entity.
+			SZ_Write(msg, csqcmsgbuffer.data, csqcmsgbuffer.cursize);
+
+			Con_Printf("Sending update packet %i\n", ent->entnum);
+		}
+		else if (sv.csqcentversion[ent->entnum])
+		{	//Don't want to send.
+			if (!writtenheader)
+			{
+				writtenheader=true;
+				MSG_WriteByte(msg, svc_csqcentities);
+			}
+
+			mask = (unsigned)ent->entnum | 0x8000;
+			MSG_WriteShort(msg, mask);
+			Con_Printf("Sending remove 2 packet\n");
+		}
+		client->csqcentversions[ent->entnum] = sv.csqcentversion[ent->entnum];
+		client->csqcentsequence[ent->entnum] = currentsequence;
+	}
+	for (en = 1; en < sv.num_edicts; en++)
+	{
+		if (client->csqcentversions[en] && (client->csqcentversions[en] != sv.csqcentversion[en]))
+		{
+			ent = EDICT_NUM(svprogfuncs, en);
+		//	if (!ent->isfree)
+		//		continue;
+
+			if (msg->cursize + 5 >= msg->maxsize)	//try removing next frame instead.
+			{
+			}
+			else
+			{
+				if (!writtenheader)
+				{
+					writtenheader=true;
+					MSG_WriteByte(msg, svc_csqcentities);
+				}
+
+				Con_Printf("Sending remove packet %i\n", en);
+				mask = (unsigned)en | 0x8000;
+				MSG_WriteShort(msg, mask);
+
+				client->csqcentversions[en] = 0;
+				client->csqcentsequence[en] = currentsequence;
+			}
+		}
+	}
+	if (writtenheader)
+		MSG_WriteShort(msg, 0);	//a 0 means no more.
+
+	csqcnuments = 0;
+
+	//prevent the qc from trying to use it at inopertune times.
+	csqcmsgbuffer.maxsize = 0;
+	csqcmsgbuffer.data = NULL;
+#endif
+}
+
+void SV_CSQC_DroppedPacket(client_t *client, int sequence)
+{
+#ifdef PEXT_CSQC
+	int i;
+	for (i = 0; i < sv.num_edicts; i++)
+		if (client->csqcentsequence[i] == sequence)
+			client->csqcentversions[i]--;	//do that update thang (but later).
+#endif
 }
 
 //=============================================================================
@@ -1335,7 +1475,7 @@ void SV_WritePlayersToClient (client_t *client, edict_t *clent, qbyte *pvs, size
 				continue;	//not in this dimension - sorry...
 		}
 
-		if (SV_AddCSQCUpdate(ent))
+		if (SV_AddCSQCUpdate(client, ent))
 			continue;
 
 		{
@@ -2095,7 +2235,7 @@ void SV_WriteEntitiesToClient (client_t *client, sizebuf_t *msg, qboolean ignore
 			if (!((int)client->edict->v.dimension_see & ((int)ent->v.dimension_seen | (int)ent->v.dimension_ghost)))
 				continue;	//not in this dimension - sorry...
 
-		if (SV_AddCSQCUpdate(ent))	//csqc took it.
+		if (SV_AddCSQCUpdate(client, ent))	//csqc took it.
 			continue;
 
 #ifdef NQPROT
@@ -2249,6 +2389,8 @@ void SV_WriteEntitiesToClient (client_t *client, sizebuf_t *msg, qboolean ignore
 	// last packetentities acknowledged by the client
 
 	SV_EmitPacketEntities (client, pack, msg);
+
+	SV_EmitCSQCUpdate(client, msg);
 
 	// now add the specialized nail update
 	SV_EmitNailUpdate (msg, ignorepvs);

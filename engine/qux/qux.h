@@ -1,5 +1,3 @@
-#include "quakedef.h"
-
 #ifdef _WIN32	//for multithreaded reading
 #define BOOL WINDOWSSUCKS_BOOL
 #define INT32 WINDOWSSUCKS_INT32

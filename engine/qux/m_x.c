@@ -1,6 +1,6 @@
 //network interface
 
-#include "bothdefs.h"
+#include "quakedef.h"
 
 #ifndef NOMEDIA
 

@@ -4,8 +4,6 @@
 #include "qcc.h"
 int mkdir(const char *path);
 
-int outputversion;
-
 char QCC_copyright[1024];
 int QCC_packid;
 char QCC_Packname[5][128];
@@ -40,6 +38,7 @@ int *qcc_tempofs;
 int tempsstart;
 int numtemps;
 
+pbool	compressoutput;
 
 pbool newstylesource;
 char		destfile[1024];
@@ -152,66 +151,64 @@ optimisations_t optimisations[] =
 	//level 2 = speed optimisations
 	//level 3 = dodgy optimisations.
 	//level 4 = experimental...
-	{&opt_assignments,				"t",	1,	2,	"assignments"},
-	{&opt_shortenifnots,			"i",	1,	2,	"shortenifs"},
-	{&opt_nonvec_parms,				"p",	1,	2,	"nonvec_parms"},
-	{&opt_constant_names,			"c",	2,	1,	"constant_names"},
-	{&opt_constant_names_strings,	"cs",	3,	1,	"constant_names_strings"},
-	{&opt_dupconstdefs,				"d",	1,	2,	"dupconstdefs"},
-	{&opt_noduplicatestrings,		"s",	1,	0,	"noduplicatestrings"},
-	{&opt_locals,					"l",	1,	1,	"locals"},
-	{&opt_function_names,			"n",	1,	1,	"function_names"},
-	{&opt_filenames,				"f",	1,	1,	"filenames"},
-	{&opt_unreferenced,				"u",	1,	2,	"unreferenced"},
-	{&opt_overlaptemps,				"r",	1,	2,	"overlaptemps"},
-	{&opt_constantarithmatic,		"a",	1,	2,	"constantarithmatic"},
-	{&opt_precache_file,			"pf",	2,	0,	"precache_file"},
-	{&opt_return_only,				"ro",	3,	0,	"return_only"},
-	{&opt_compound_jumps,			"cj",	3,	0,	"compound_jumps"},
-//	{&opt_comexprremoval,			"cer",	4,	0,	"expression_removal"},	//this would be too hard...
-	{&opt_stripfunctions,			"sf",	3,	0,	"strip_functions"},
-	{&opt_locals_marshalling,		"lm",	4,	1,	"locals_marshalling"},
-	{&opt_logicops,					"o",	2,	0,	"logicops"},
+
+	{&opt_assignments,				"t",	1,	FLAG_ASDEFAULT,			"assignments",		"c = a*b is performed in one operation rather than two, and can cause older decompilers to fail."},
+	{&opt_shortenifnots,			"i",	1,	FLAG_ASDEFAULT,			"shortenifs",		"if (!a) was traditionally compiled in two statements. This optimisation does it in one, but can cause some decompilers to get confused."},
+	{&opt_nonvec_parms,				"p",	1,	FLAG_ASDEFAULT,			"nonvec_parms",		"In the origional qcc, function parameters were specified as a vector store even for floats. This fixes that."},
+	{&opt_constant_names,			"c",	2,	FLAG_KILLSDEBUGGERS,	"constant_names",	"This optimisation strips out the names of constants (but not strings) from your progs, resulting in smaller files. It makes decompilers leave out names or fabricate numerical ones."},
+	{&opt_constant_names_strings,	"cs",	3,	FLAG_KILLSDEBUGGERS,	"constant_names_strings", "This optimisation strips out the names of string constants from your progs. However, this can break addons, so don't use it in those cases."},
+	{&opt_dupconstdefs,				"d",	1,	FLAG_ASDEFAULT,			"dupconstdefs",		"This will merge definitions of constants which are the same value. Pay extra attention to assignment to constant warnings."},
+	{&opt_noduplicatestrings,		"s",	1,	0,						"noduplicatestrings", "This will compact the string table that is stored in the progs. It will be considerably smaller with this."},
+	{&opt_locals,					"l",	1,	FLAG_KILLSDEBUGGERS,	"locals",			"Strips out local names and definitions. This makes it REALLY hard to decompile"},
+	{&opt_function_names,			"n",	1,	FLAG_KILLSDEBUGGERS,	"function_names",	"This strips out the names of functions which are never called. Doesn't make much of an impact though."},
+	{&opt_filenames,				"f",	1,	FLAG_KILLSDEBUGGERS,	"filenames",		"This strips out the filenames of the progs. This can confuse the really old decompilers, but is nothing to the more recent ones."},
+	{&opt_unreferenced,				"u",	1,	FLAG_ASDEFAULT,			"unreferenced",		"Removes the entries of unreferenced variables. Doesn't make a difference in well maintained code."},
+	{&opt_overlaptemps,				"r",	1,	FLAG_ASDEFAULT,			"overlaptemps",		"Optimises the pr_globals count by overlapping temporaries. In QC, every multiplication, division or operation in general produces a temporary variable. This optimisation prevents excess, and in the case of Hexen2's gamecode, reduces the count by 50k. This is the most important optimisation, ever."},
+	{&opt_constantarithmatic,		"a",	1,	FLAG_ASDEFAULT,			"constantarithmatic", "5*6 actually emits an operation into the progs. This prevents that happening, effectivly making the compiler see 30"},
+	{&opt_precache_file,			"pf",	2,	0,						"precache_file",	"Strip out stuff wasted used in function calls and strings to the precache_file builtin (which is actually a stub in quake)."},
+	{&opt_return_only,				"ro",	3,	0,						"return_only",		"Functions ending in a return statement do not need a done statement at the end of the function. This can confuse some decompilers, making functions appear larger than they were."},
+	{&opt_compound_jumps,			"cj",	3,	0,						"compound_jumps",	"This optimisation plays an effect mostly with nested if/else statements, instead of jumping to an unconditional jump statement, it'll jump to the final destination instead. This will bewilder decompilers."},
+//	{&opt_comexprremoval,			"cer",	4,	0,						"expression_removal",	"Eliminate common sub-expressions"},	//this would be too hard...
+	{&opt_stripfunctions,			"sf",	3,	0,						"strip_functions",	"Strips out the 'defs' of functions that were only ever called directly. This does not affect saved games."},
+	{&opt_locals_marshalling,		"lm",	4,	FLAG_HIDDENINGUI|FLAG_KILLSDEBUGGERS,		"locals_marshalling", "Store all locals in one section of the pr_globals. Vastly reducing it. This effectivly does the job of overlaptemps. It's been noticed as buggy by a few, however, and the curcumstances where it causes problems are not yet known."},
+	{&opt_vectorcalls,				"vc",	4,	0,						"vectorcalls",		"Where a function is called with just a vector, this causes the function call to store three floats instead of one vector. This can save a good number of pr_globals where those vectors contain many duplicate coordinates but do not match entirly."},
 	{NULL}
 };
 
 
-struct {
-	pbool *enabled;
-	pbool defaultval;
-	char *name;
-} compiler_flag[] = {
+compiler_flag_t compiler_flag[] = {
 	//keywords
-	{&keyword_var,			true, "var"},
-	{&keyword_thinktime,	false, "thinktime"},
-	{&keyword_switch,		true, "switch"},
-	{&keyword_for,			true, "for"},
-	{&keyword_case,			true, "case"},
-	{&keyword_default,		true, "default"},
-	{&keyword_do,			true, "do"},
-	{&keyword_asm,			true, "asm"},
-	{&keyword_goto,			true, "goto"},
-	{&keyword_break,		true, "break"},
-	{&keyword_continue,		true, "continue"},
-	{&keyword_state,		false, "state"},
-	{&keyword_string,		true, "string"},
-	{&keyword_float,		true, "float"},
-	{&keyword_entity,		true, "entity"},
-	{&keyword_vector,		true, "vector"},
-	{&keyword_const,		true, "const"},
-	{&keyword_integer,		true, "integer"},
-	{&keyword_int,			true, "int"},
-	{&keyword_class,		true, "class"},
+	{&keyword_var,			FLAG_HIDDENINGUI|FLAG_ASDEFAULT, "var",			"Keyword: var",		"Disables the 'var' keyword."},
+	{&keyword_thinktime,	FLAG_HIDDENINGUI|0,				"thinktime",	"Keyword: thinktime",	"Disables the 'thinktime' keyword."},
+	{&keyword_switch,		FLAG_HIDDENINGUI|FLAG_ASDEFAULT, "switch",		"Keyword: switch",	"Disables the 'switch' keyword."},
+	{&keyword_for,			FLAG_HIDDENINGUI|FLAG_ASDEFAULT, "for",			"Keyword: for",		"Disables the 'for' keyword."},
+	{&keyword_case,			FLAG_HIDDENINGUI|FLAG_ASDEFAULT, "case",		"Keyword: case",	"Disables the 'case' keyword."},
+	{&keyword_default,		FLAG_HIDDENINGUI|FLAG_ASDEFAULT, "default",		"Keyword: default",	"Disables the 'default' keyword."},
+	{&keyword_do,			FLAG_HIDDENINGUI|FLAG_ASDEFAULT, "do",			"Keyword: do",		"Disables the 'do' keyword."},
+	{&keyword_asm,			FLAG_HIDDENINGUI|FLAG_ASDEFAULT, "asm",			"Keyword: asm",		"Disables the 'asm' keyword."},
+	{&keyword_goto,			FLAG_HIDDENINGUI|FLAG_ASDEFAULT, "goto",		"Keyword: goto",	"Disables the 'goto' keyword."},
+	{&keyword_break,		FLAG_HIDDENINGUI|FLAG_ASDEFAULT, "break",		"Keyword: break",	"Disables the 'break' keyword."},
+	{&keyword_continue,		FLAG_HIDDENINGUI|FLAG_ASDEFAULT, "continue",	"Keyword: continue",	"Disables the 'continue' keyword."},
+	{&keyword_state,		FLAG_HIDDENINGUI|0,				"state",		"Keyword: state",	"Disables the 'state' keyword."},
+	{&keyword_string,		FLAG_HIDDENINGUI|FLAG_ASDEFAULT, "string",		"Keyword: string",	"Disables the 'string' keyword."},
+	{&keyword_float,		FLAG_HIDDENINGUI|FLAG_ASDEFAULT, "float",		"Keyword: float",	"Disables the 'float' keyword."},
+	{&keyword_entity,		FLAG_HIDDENINGUI|FLAG_ASDEFAULT, "entity",		"Keyword: entity",	"Disables the 'entity' keyword."},
+	{&keyword_vector,		FLAG_HIDDENINGUI|FLAG_ASDEFAULT, "vector",		"Keyword: vector",	"Disables the 'vector' keyword."},
+	{&keyword_const,		FLAG_HIDDENINGUI|FLAG_ASDEFAULT, "const",		"Keyword: const",	"Disables the 'const' keyword."},
+	{&keyword_integer,		FLAG_HIDDENINGUI|FLAG_ASDEFAULT, "integer",		"Keyword: integer",	"Disables the 'integer' keyword."},
+	{&keyword_int,			FLAG_HIDDENINGUI|FLAG_ASDEFAULT, "int",			"Keyword: int",		"Disables the 'int' keyword."},
+	{&keyword_class,		FLAG_HIDDENINGUI|FLAG_ASDEFAULT, "class",		"Keyword: class",	"Disables the 'class' keyword."},
 
 	//options
-	{&keywords_coexist,		true, "kce"},
-	{&output_parms,			false, "parms"},	//controls weather to define PARMx for the parms (note - this can screw over some decompilers)
-	{&autoprototype,		false, "autoproto"},	//so you no longer need to prototype functions and things in advance.
-	{&writeasm,				false, "wasm"},			//spit out a qc.asm file, containing an assembler dump of the ENTIRE progs. (Doesn't include initialisation of constants)
-	{&flag_ifstring,		true, "ifstring"},		//correction for if(string) no-ifstring to get the standard behaviour.
-	{&flag_acc,				false, "acc"},		//reacc like behaviour of src files.
-	{&flag_caseinsensative,	false, "caseinsens"},	//symbols will be matched to an insensative case if the specified case doesn't exist. This should b usable for any mod
-	{&flag_laxcasts,		false, "lax"},		//Allow lax casting. This'll produce loadsa warnings of course. But allows compilation of certain dodgy code.
+	{&keywords_coexist,		FLAG_ASDEFAULT, "kce",			"Keywords Coexist",		"If you want keywords to NOT be disabled when they a variable by the same name is defined, check here."},
+	{&output_parms,			0,				"parms",		"Define offset parms",	"if PARM0 PARM1 etc should be defined by the compiler. These are useful if you make use of the asm keyword for function calls, or you wish to create your own variable arguments. This is an easy way to break decompilers."},	//controls weather to define PARMx for the parms (note - this can screw over some decompilers)
+	{&autoprototype,		0,				"autoproto",	"Automatic Prototyping","Causes compilation to take two passes instead of one. The first pass, only the definitions are read. The second pass actually compiles your code. This means you never have to remember to prototype functions again."},	//so you no longer need to prototype functions and things in advance.
+	{&writeasm,				0,				"wasm",			"Dump Assembler",		"Writes out a qc.asm which contains all your functions but in assembler. This is a great way to look for bugs in fteqcc, but can also be used to see exactly what your functions turn into, and thus how to optimise statements better."},			//spit out a qc.asm file, containing an assembler dump of the ENTIRE progs. (Doesn't include initialisation of constants)
+	{&flag_ifstring,		0,				"ifstring",		"if(string) fix",		"Causes if(string) to behave identically to if(string!="") This is most useful with addons of course, but also has adverse effects with FRIK_FILE's fgets, where it becomes impossible to determin the end of the file. In such a case, you can still use asm {IF string 2;RETURN} to detect eof and leave the function."},		//correction for if(string) no-ifstring to get the standard behaviour.
+	{&flag_acc,				0,				"acc",			"Reacc support",		"Reacc is a pascall like compiler. It was released before the Quake source was released. This flag has a few effects. It sorts all qc files in the current directory into alphabetical order to compile them. It also allows Reacc global/field distinctions, as well as allows ¦ as EOF. Whilst case insensativity and lax type checking are supported by reacc, they are seperate compiler flags in fteqcc."},		//reacc like behaviour of src files.
+	{&flag_caseinsensative,	0,				"caseinsens",	"Case insensativity",	"Causes fteqcc to become case insensative whilst compiling names. It's generally not advised to use this as it compiles a little more slowly and provides little benefit. However, it is required for full reacc support."},	//symbols will be matched to an insensative case if the specified case doesn't exist. This should b usable for any mod
+	{&flag_laxcasts,		0,				"lax",			"Lax type checks",		"Disables many errors (generating warnings instead) when function calls or operations refer to two normally incompatable types. This is required for reacc support, and can also allow certain (evil) mods to compile that were origionally written for frikqcc."},		//Allow lax casting. This'll produce loadsa warnings of course. But allows compilation of certain dodgy code.
+	{&opt_logicops,			0,				"lo",			"Logic ops",			"This changes the behaviour of your code. It generates additional if operations to early-out in if statements. With this flag, the line if (0 && somefunction()) will never call the function. It can thus be considered an optimisation. However, due to the change of behaviour, it is not considered so by fteqcc. Note that due to inprecisions with floats, this flag can cause runaway loop errors within the player walk and run functions. This code is advised:\nplayer_stand1:\n    if (self.velocity_x || self.velocity_y)\nplayer_run\n    if (!(self.velocity_x || self.velocity_y))"},
 	{NULL}
 };
 
@@ -219,11 +216,12 @@ struct {
 	qcc_targetformat_t target;
 	char *name;
 } targets[] = {
-	{QCF_STANDARD,	"q1"},
 	{QCF_STANDARD,	"standard"},
+	{QCF_STANDARD,	"q1"},
 	{QCF_STANDARD,	"quakec"},
-	{QCF_HEXEN2,	"h2"},
 	{QCF_HEXEN2,	"hexen2"},
+	{QCF_HEXEN2,	"h2"},
+	{QCF_KK7,		"kkqwsv"},
 	{QCF_KK7,		"kk7"},
 	{QCF_KK7,		"bigprogs"},
 	{QCF_KK7,		"version7"},
@@ -536,7 +534,7 @@ void QCC_WriteData (int crc)
 	dprograms_t	progs;
 	int			h;
 	int			i, len;
-	pbool debugdefined = false;
+	pbool debugtarget = false;
 	pbool types = false;
 	int outputsize = 16;
 
@@ -557,22 +555,13 @@ void QCC_WriteData (int crc)
 		if (bodylessfuncs)
 			printf("Warning: There are some functions without bodies.\n");
 
-		if (outputversion > PROG_VERSION)
-		{
-			printf("Forcing target to FTE due to additional opcodes\n");
-			qcc_targetformat = QCF_FTE;
-			outputversion = PROG_DEBUGVERSION;	//force it.
-		}
-		else if (numpr_globals > 65530 )
+		if (numpr_globals > 65530 )
 		{
 			printf("Forcing target to FTE32 due to numpr_globals\n");
-			qcc_targetformat = QCF_FTE32;
 			outputsize = 32;
-			outputversion = PROG_DEBUGVERSION;	//force it.
 		}
 		else if (qcc_targetformat == QCF_HEXEN2)
 		{
-			outputversion = PROG_VERSION;
 			printf("Progs execution requires a Hexen2 compatable engine\n");
 			break;
 		}
@@ -585,39 +574,37 @@ void QCC_WriteData (int crc)
 			break;
 		}
 		//intentional
+		qcc_targetformat = QCF_FTE;
 	case QCF_FTEDEBUG:
-	case QCF_FTEDEBUG32:
 	case QCF_FTE:
-	case QCF_FTE32:
-		if (qcc_targetformat == QCF_FTEDEBUG || qcc_targetformat == QCF_FTEDEBUG32)
-			debugdefined = true;
-		if (qcc_targetformat == QCF_FTE32 || qcc_targetformat == QCF_FTEDEBUG32)
-			outputsize = 32;
-		else if (numpr_globals > 65530)
+		if (qcc_targetformat == QCF_FTEDEBUG)
+			debugtarget = true;
+
+		if (numpr_globals > 65530)
 		{
-			printf("Forcing 32 bit target due to numpr_globals\n");
+			printf("Using 32 bit target due to numpr_globals\n");
+			outputsize = 32;
 		}
 
 		//compression of blocks?
-		if (QCC_PR_CheckCompConstDefined("OP_COMP_STATEMENTS"))	progs.blockscompressed |=1;
-		if (QCC_PR_CheckCompConstDefined("OP_COMP_DEFS"))		progs.blockscompressed |=2;
-		if (QCC_PR_CheckCompConstDefined("OP_COMP_FIELDS"))		progs.blockscompressed |=4;
-		if (QCC_PR_CheckCompConstDefined("OP_COMP_FUNCTIONS"))	progs.blockscompressed |=8;
-		if (QCC_PR_CheckCompConstDefined("OP_COMP_STRINGS"))	progs.blockscompressed |=16;
-		if (QCC_PR_CheckCompConstDefined("OP_COMP_GLOBALS"))	progs.blockscompressed |=32;
-		if (QCC_PR_CheckCompConstDefined("OP_COMP_LINES"))		progs.blockscompressed |=64;
-		if (QCC_PR_CheckCompConstDefined("OP_COMP_TYPES"))		progs.blockscompressed |=128;
+		if (compressoutput)		progs.blockscompressed |=1;		//statements
+		if (compressoutput)		progs.blockscompressed |=2;		//defs
+		if (compressoutput)		progs.blockscompressed |=4;		//fields
+		if (compressoutput)		progs.blockscompressed |=8;		//functions
+		if (compressoutput)		progs.blockscompressed |=16;	//strings
+		if (compressoutput)		progs.blockscompressed |=32;	//globals
+		if (compressoutput)		progs.blockscompressed |=64;	//line numbers
+		if (compressoutput)		progs.blockscompressed |=128;	//types
 		//include a type block?
-		types = !!QCC_PR_CheckCompConstDefined("TYPES");	//useful for debugging and saving (maybe, anyway...).
-
-		outputversion = PROG_DEBUGVERSION;
+		types = debugtarget;//!!QCC_PR_CheckCompConstDefined("TYPES");	//useful for debugging and saving (maybe, anyway...).
 
 		printf("An FTE executor will be required\n");
 		break;
 	case QCF_KK7:
-		outputversion = PROG_DEBUGVERSION;
 		if (bodylessfuncs)
 			printf("Warning: There are some functions without bodies.\n");
+		if (numpr_globals > 65530)
+			printf("Warning: Saving is not supported. Ensure all engine read fields and globals are defined early on.\n");
 
 		printf("A KK compatable executor will be required (FTE/KK)\n");
 		break;
@@ -1041,12 +1028,19 @@ strofs = (strofs+3)&~3;
 	progs.ofs_types = 0;
 	progs.numtypes = 0;
 
-	if (qcc_targetformat == QCF_KK7)
+	switch(qcc_targetformat)
 	{
-		outputversion = 7;
-	}
-	else if (outputversion >= PROG_DEBUGVERSION)
-	{
+	case QCF_KK7:
+		progs.version = PROG_KKQWSVVERSION;
+		break;
+	case QCF_STANDARD:
+	case QCF_HEXEN2:	//urgh
+		progs.version = PROG_VERSION;
+		break;
+	case QCF_FTE:
+	case QCF_FTEDEBUG:
+		progs.version = PROG_EXTENDEDVERSION;
+
 		if (outputsize == 32)
 			progs.secondaryversion = PROG_SECONDARYVERSION32;
 		else
@@ -1055,7 +1049,7 @@ strofs = (strofs+3)&~3;
 		progs.ofsbodylessfuncs = SafeSeek (h, 0, SEEK_CUR);
 		progs.numbodylessfuncs = WriteBodylessFuncs(h);		
 
-		if (debugdefined)
+		if (debugtarget)
 		{
 			progs.ofslinenums = SafeSeek (h, 0, SEEK_CUR);
 			if (progs.blockscompressed&64)
@@ -1097,10 +1091,9 @@ strofs = (strofs+3)&~3;
 			progs.numtypes = 0;
 		}
 
-		progs.ofsfiles = WriteSourceFiles(h, &progs, debugdefined);
+		progs.ofsfiles = WriteSourceFiles(h, &progs, debugtarget);
+		break;
 	}
-
-	progs.version = outputversion;
 
 	printf ("%6i TOTAL SIZE\n", (int)SafeSeek (h, 0, SEEK_CUR));
 
@@ -1118,7 +1111,7 @@ strofs = (strofs+3)&~3;
 	SafeWrite (h, &progs, sizeof(progs));
 	SafeClose (h);
 
-	if (outputversion != 7 || !debugdefined)
+	if (!debugtarget)
 	{
 		if (opt_filenames)
 		{
@@ -1433,6 +1426,7 @@ void	QCC_PR_BeginCompilation (void *memory, int memsize)
 	type_function = QCC_PR_NewType("function", ev_function);
 	type_pointer = QCC_PR_NewType("pointer", ev_pointer);	
 	type_integer = QCC_PR_NewType("__integer", ev_integer);
+	type_variant = QCC_PR_NewType("__variant", ev_variant);
 
 	type_floatfield = QCC_PR_NewType("fieldfloat", ev_field);
 	type_floatfield->aux_type = type_float;
@@ -1648,9 +1642,7 @@ unsigned short QCC_PR_WriteProgdefs (char *filename)
 {
 	extern int ForcedCRC;
 #define ADD2(p) strncat(file, p, PROGDEFS_MAX_SIZE-1 - strlen(file))	//no crc (later changes)
-	int sent1=0xffffffff;
 	char file[PROGDEFS_MAX_SIZE];
-	int sent2=0xffffffff;
 	QCC_def_t	*d;
 	int	f;
 	unsigned short		crc;
@@ -2262,7 +2254,7 @@ void QCC_PR_CommandLinePrecompilerOptions (void)
 			if (!strnicmp(myargv[i]+2, "no-", 3))
 			{
 				for (p = 0; compiler_flag[p].enabled; p++)
-					if (!stricmp(myargv[i]+5, compiler_flag[p].name))
+					if (!stricmp(myargv[i]+5, compiler_flag[p].abbrev))
 					{
 						*compiler_flag[p].enabled = false;
 						break;
@@ -2271,7 +2263,7 @@ void QCC_PR_CommandLinePrecompilerOptions (void)
 			else
 			{
 				for (p = 0; compiler_flag[p].enabled; p++)
-					if (!stricmp(myargv[i]+2, compiler_flag[p].name))
+					if (!stricmp(myargv[i]+2, compiler_flag[p].abbrev))
 					{
 						*compiler_flag[p].enabled = true;
 						break;
@@ -2287,7 +2279,7 @@ void QCC_PR_CommandLinePrecompilerOptions (void)
 			if (!strnicmp(myargv[i]+2, "no-", 3))
 			{
 				for (p = 0; compiler_flag[p].enabled; p++)
-					if (!stricmp(myargv[i]+5, compiler_flag[p].name))
+					if (!stricmp(myargv[i]+5, compiler_flag[p].abbrev))
 					{
 						*compiler_flag[p].enabled = false;
 						break;
@@ -2296,7 +2288,7 @@ void QCC_PR_CommandLinePrecompilerOptions (void)
 			else
 			{
 				for (p = 0; compiler_flag[p].enabled; p++)
-					if (!stricmp(myargv[i]+2, compiler_flag[p].name))
+					if (!stricmp(myargv[i]+2, compiler_flag[p].abbrev))
 					{
 						*compiler_flag[p].enabled = true;
 						break;
@@ -2416,7 +2408,7 @@ void QCC_SetDefaultProperties (void)
 	{
 		for (i = 0; optimisations[i].enabled; i++)
 		{
-			if (optimisations[i].flags & 2)
+			if (optimisations[i].flags & FLAG_ASDEFAULT)
 				*optimisations[i].enabled = true;
 			else
 				*optimisations[i].enabled = false;
@@ -2477,7 +2469,7 @@ void QCC_SetDefaultProperties (void)
 	{
 		for (i = 0; optimisations[i].enabled; i++)
 		{
-			if (optimisations[i].flags & 1)
+			if (optimisations[i].flags & FLAG_KILLSDEBUGGERS)
 				*optimisations[i].enabled = false;
 		}
 	}
@@ -2569,10 +2561,12 @@ void QCC_main (int argc, char **argv)	//as part of the quake engine
 	MAX_STRINGS		= 1000000;
 	MAX_GLOBALS		= 32768;
 	MAX_FIELDS		= 2048;
-	MAX_STATEMENTS	= 0x20000;
+	MAX_STATEMENTS	= 0x80000;
 	MAX_FUNCTIONS	= 16384;
 	maxtypeinfos	= 16384;
 	MAX_CONSTANTS	= 2048;
+
+	compressoutput = 0;
 
 	p = externs->FileSize("qcc.cfg");
 	if (p < 0)
@@ -2635,12 +2629,10 @@ void QCC_main (int argc, char **argv)	//as part of the quake engine
 	strcpy(QCC_copyright, "This file was created with ForeThought's modified QuakeC compiler\nThanks to ID Software");
 	for (p = 0; p < 5; p++)
 		strcpy(QCC_Packname[p], "");
-	
-	outputversion = PROG_VERSION;
 
 	for (p = 0; compiler_flag[p].enabled; p++)
 	{
-		*compiler_flag[p].enabled = compiler_flag[p].defaultval;
+		*compiler_flag[p].enabled = compiler_flag[p].flags & FLAG_ASDEFAULT;
 	}
 
 	QCC_SetDefaultProperties();
@@ -3322,6 +3314,7 @@ void Sys_Error(const char *text, ...)
 	QCC_Error(ERR_INTERNAL, "%s", msg);
 }
 
+#ifndef USEGUI
 int main (int argc, char **argv)
 {
 	int sucess;
@@ -3344,6 +3337,7 @@ int main (int argc, char **argv)
 #endif
 	return !sucess;
 }
+#endif
 #endif
 
 #endif

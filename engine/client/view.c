@@ -1436,6 +1436,8 @@ void V_RenderView (void)
 
 	if (cl.worldmodel)
 	{
+		CL_AllowIndependantSendCmd(false);
+
 		//work out which packet entities are solid
 		CL_SetSolidEntities ();
 
@@ -1450,6 +1452,8 @@ void V_RenderView (void)
 
 		// build a refresh entity list
 		CL_EmitEntities ();
+
+		CL_AllowIndependantSendCmd(true);
 	}
 
 	view_frame = &cl.frames[cls.netchan.incoming_sequence & UPDATE_MASK];

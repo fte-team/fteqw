@@ -268,5 +268,10 @@ typedef struct entvars_s
 	float	light_level;//hexen2's grabbing light level from client
 	float	abslight;	//hexen2's force a lightlevel
 	float	hasted;	//hexen2 uses this AS WELL as maxspeed
+
+
+	//csqc stuph.
+	func_t	SendEntity;
+	float	Version;
 } entvars_t;
 

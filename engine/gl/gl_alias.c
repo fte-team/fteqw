@@ -356,9 +356,7 @@ static void R_GAliasAddDlights(mesh_t *mesh, vec3_t org, vec3_t angles)
 	int l, v;
 	vec3_t rel;
 	vec3_t dir;
-	vec3_t axis[3];
 	float dot, d, a, f;
-	AngleVectors(angles, axis[0], axis[1], axis[2]);
 	for (l=0 ; l<MAX_DLIGHTS ; l++)
 	{
 		if (cl_dlights[l].radius)
@@ -369,9 +367,9 @@ static void R_GAliasAddDlights(mesh_t *mesh, vec3_t org, vec3_t angles)
 			if (Length(dir)>cl_dlights[l].radius+mesh->radius)	//far out man!
 				continue;
 
-			rel[0] = -DotProduct(dir, axis[0]);
-			rel[1] = DotProduct(dir, axis[1]);	//quake's crazy.
-			rel[2] = -DotProduct(dir, axis[2]);
+			rel[0] = -DotProduct(dir, currententity->axis[0]);
+			rel[1] = -DotProduct(dir, currententity->axis[1]);	//quake's crazy.
+			rel[2] = -DotProduct(dir, currententity->axis[2]);
 /*
 			glBegin(GL_LINES);
 			glVertex3f(0,0,0);
@@ -593,7 +591,7 @@ static galiastexnum_t *GL_ChooseSkin(galiasinfo_t *inf, char *modelname, entity_
 
 	int tc, bc;
 
-	if (gl_nocolors.value)
+	if (!gl_nocolors.value)
 	{
 		if (e->scoreboard)
 		{
@@ -1100,8 +1098,8 @@ void R_DrawGAliasModel (entity_t *e)
 
 	currententity = e;
 
-	if (e->flags & Q2RF_VIEWERMODEL && e->keynum == cl.playernum[r_refdef.currentplayernum]+1)
-		return;
+//	if (e->flags & Q2RF_VIEWERMODEL && e->keynum == cl.playernum[r_refdef.currentplayernum]+1)
+//		return;
 
 	{
 		extern int cl_playerindex;
@@ -1118,9 +1116,9 @@ void R_DrawGAliasModel (entity_t *e)
 	VectorAdd (e->origin, clmodel->mins, mins);
 	VectorAdd (e->origin, clmodel->maxs, maxs);
 
-	if (!(e->flags & Q2RF_WEAPONMODEL))
-		if (R_CullBox (mins, maxs))
-			return;
+//	if (!(e->flags & Q2RF_WEAPONMODEL))
+//		if (R_CullBox (mins, maxs))
+//			return;
 
 	if (!(r_refdef.flags & 1))	//RDF_NOWORLDMODEL
 	{
@@ -1221,23 +1219,14 @@ void R_DrawGAliasModel (entity_t *e)
 
 //#define SHOWLIGHTDIR
 	{	//lightdir is absolute, shadevector is relative
-		vec3_t entaxis[3];
-		e->angles[0]*=-1;
-		AngleVectors(e->angles, entaxis[0], entaxis[1], entaxis[2]);
-		e->angles[0]*=-1;
-		entaxis[1][0]*=-1;
-		entaxis[1][1]*=-1;
-		entaxis[1][2]*=-1;
-		shadevector[0] = DotProduct(lightdir, entaxis[0]);
-		shadevector[1] = DotProduct(lightdir, entaxis[1]);
-		shadevector[2] = DotProduct(lightdir, entaxis[2]);
+		shadevector[0] = DotProduct(lightdir, e->axis[0]);
+		shadevector[1] = DotProduct(lightdir, e->axis[1]);
+		shadevector[2] = DotProduct(lightdir, e->axis[2]);
 		VectorNormalize(shadevector);
 
 		VectorCopy(shadevector, mesh.lightaxis[2]);
 		VectorVectors(mesh.lightaxis[2], mesh.lightaxis[1], mesh.lightaxis[0]);
-		mesh.lightaxis[0][0]*=-1;
-		mesh.lightaxis[0][1]*=-1;
-		mesh.lightaxis[0][2]*=-1;
+		VectorInverse(mesh.lightaxis[1]);
 	}
 	/*
 	an = e->angles[1]/180*M_PI;
@@ -2153,12 +2142,11 @@ void GL_LoadQ1Model (model_t *mod, void *buffer)
 			!strcmp(loadmodel->name, "progs/player.mdl") ? pmodel_name : emodel_name,
 			st, MAX_INFO_STRING);
 
-		if (cls.state >= ca_connected) {
-			MSG_WriteByte (&cls.netchan.message, clc_stringcmd);
-			sprintf(st, "setinfo %s %d", 
+		if (cls.state >= ca_connected)
+		{
+			CL_SendClientCommand("setinfo %s %d", 
 				!strcmp(loadmodel->name, "progs/player.mdl") ? pmodel_name : emodel_name,
 				(int)crc);
-			SZ_Print (&cls.netchan.message, st);
 		}
 	}
 	

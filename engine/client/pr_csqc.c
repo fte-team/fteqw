@@ -8,25 +8,104 @@
 
 progfuncs_t *csqcprogs;
 
+typedef struct {
+//These are the functions the engine will call to, found by name.
+	func_t init_function;
+	func_t shutdown_function;
+	func_t draw_function;
+	func_t keydown_function;
+	func_t keyup_function;
+	func_t parse_stuffcmd;
+	func_t parse_centerprint;
+
+	func_t ent_update;
+	func_t ent_remove;
+
+//These are pointers to the csqc's globals.
+	float *time;				//float		Written before entering most qc functions
+	int	*self;					//entity	Written before entering most qc functions
+
+	float *forward;				//vector	written by anglevectors
+	float *right;				//vector	written by anglevectors
+	float *up;					//vector	written by anglevectors
+
+	float *trace_allsolid;		//bool		written by traceline
+	float *trace_startsolid;	//bool		written by traceline
+	float *trace_fraction;		//float		written by traceline
+	float *trace_inwater;		//bool		written by traceline
+	float *trace_inopen;		//bool		written by traceline
+	float *trace_endpos;		//vector	written by traceline
+	float *trace_plane_normal;	//vector	written by traceline
+	float *trace_plane_dist;	//float		written by traceline
+	int *trace_ent;				//entity	written by traceline
+} csqcglobals_t;
+static csqcglobals_t csqcg;
+
+
+
+void CSQC_FindGlobals(void)
+{
+	csqcg.time = (float*)PR_FindGlobal(csqcprogs, "time", 0);
+	if (csqcg.time)
+		*csqcg.time = Sys_DoubleTime();
+
+	csqcg.self = (int*)PR_FindGlobal(csqcprogs, "self", 0);
+
+
+	csqcg.forward = (float*)PR_FindGlobal(csqcprogs, "v_forward", 0);
+	csqcg.right = (float*)PR_FindGlobal(csqcprogs, "v_right", 0);
+	csqcg.up = (float*)PR_FindGlobal(csqcprogs, "v_up", 0);
+
+
+	csqcg.init_function	= PR_FindFunction(csqcprogs, "CSQC_Init",	PR_ANY);
+	csqcg.shutdown_function	= PR_FindFunction(csqcprogs, "CSQC_Shutdown",	PR_ANY);
+	csqcg.draw_function	= PR_FindFunction(csqcprogs, "CSQC_UpdateView",	PR_ANY);
+	csqcg.keydown_function	= PR_FindFunction(csqcprogs, "CSQC_KeyDown",	PR_ANY);
+	csqcg.keyup_function	= PR_FindFunction(csqcprogs, "CSQC_KeyUp",	PR_ANY);
+
+	csqcg.parse_stuffcmd	= PR_FindFunction(csqcprogs, "CSQC_Parse_StuffCmd",	PR_ANY);
+	csqcg.parse_centerprint	= PR_FindFunction(csqcprogs, "CSQC_Parse_CenterPrint",	PR_ANY);
+
+	csqcg.ent_update	= PR_FindFunction(csqcprogs, "CSQC_Ent_Update",	PR_ANY);
+	csqcg.ent_remove	= PR_FindFunction(csqcprogs, "CSQC_Ent_Remove",	PR_ANY);
+}
+
+
+
+//this is the list for all the csqc fields.
+//(the #define is so the list always matches the ones pulled out)
+#define csqcfields	\
+	fieldfloat(modelindex);	\
+	fieldvector(origin);	\
+	fieldvector(angles);	\
+	fieldfloat(alpha);		/*transparency*/	\
+	fieldfloat(scale);		/*model scale*/		\
+	fieldfloat(fatness);	/*expand models X units along thier normals.*/	\
+	fieldfloat(skin);		\
+	fieldfloat(colormap);	\
+	fieldfloat(frame);		\
+	fieldfloat(oldframe);	\
+	fieldfloat(lerpfrac);	\
+							\
+	fieldfloat(drawmask);	/*So that the qc can specify all rockets at once or all bannanas at once*/	\
+	fieldfunction(predraw);	/*If present, is called just before it's drawn.*/	\
+							\
+	fieldstring(model);
+
+
 //note: doesn't even have to match the clprogs.dat :)
 typedef struct {
-//CHANGING THIS STRUCTURE REQUIRES CHANGES IN CSQC_InitFields
-	//fields the client will pull out of the edict for rendering.
-	float modelindex;	//csqc modelindexes
-	vec3_t origin;
-	vec3_t angles;
-	float alpha;	//transparency
-	float scale;	//model scale
-	float fatness;	//expand models X units along thier normals.
-	float skin;
-	float colormap;
-	float frame;
-	float oldframe;
-	float lerpfrac;
-
-	float drawmask;	//drawentities uses this mask for it.
-
-	string_t model;
+#define fieldfloat(name) float name
+#define fieldvector(name) vec3_t name
+#define fieldentity(name) int name
+#define fieldstring(name) string_t name
+#define fieldfunction(name) func_t name
+csqcfields
+#undef fieldfloat
+#undef fieldvector
+#undef fieldentity
+#undef fieldstring
+#undef fieldfunction
 } csqcentvars_t;
 
 typedef struct csqcedict_s
@@ -39,6 +118,9 @@ typedef struct csqcedict_s
 	csqcentvars_t	v;
 } csqcedict_t;
 
+csqcedict_t *csqc_edicts;	//consider this 'world'
+
+
 void CSQC_InitFields(void)
 {	//CHANGING THIS FUNCTION REQUIRES CHANGES TO csqcentvars_t
 #define fieldfloat(name) PR_RegisterFieldVar(csqcprogs, ev_float, #name, (int)&((csqcedict_t*)0)->v.name - (int)&((csqcedict_t*)0)->v, -1)
@@ -46,23 +128,15 @@ void CSQC_InitFields(void)
 #define fieldentity(name) PR_RegisterFieldVar(csqcprogs, ev_entity, #name, (int)&((csqcedict_t*)0)->v.name - (int)&((csqcedict_t*)0)->v, -1)
 #define fieldstring(name) PR_RegisterFieldVar(csqcprogs, ev_string, #name, (int)&((csqcedict_t*)0)->v.name - (int)&((csqcedict_t*)0)->v, -1)
 #define fieldfunction(name) PR_RegisterFieldVar(csqcprogs, ev_function, #name, (int)&((csqcedict_t*)0)->v.name - (int)&((csqcedict_t*)0)->v, -1)
-
-	fieldfloat(modelindex);
-	fieldvector(origin);
-	fieldvector(angles);
-	fieldfloat(alpha);	//transparency
-	fieldfloat(scale);	//model scale
-	fieldfloat(fatness);	//expand models X units along thier normals.
-	fieldfloat(skin);
-	fieldfloat(colormap);
-	fieldfloat(frame);
-	fieldfloat(oldframe);
-	fieldfloat(lerpfrac);
-
-	fieldfloat(drawmask);
-
-	fieldstring(model);
+csqcfields
+#undef fieldfloat
+#undef fieldvector
+#undef fieldentity
+#undef fieldstring
+#undef fieldfunction
 }
+
+csqcedict_t *csqcent[MAX_EDICTS];
 
 #define	RETURN_SSTRING(s) (*(char **)&((int *)pr_globals)[OFS_RETURN] = PR_SetString(prinst, s))	//static - exe will not change it.
 char *PF_TempStr(void);
@@ -150,6 +224,22 @@ void PF_CL_drawgetimagesize (progfuncs_t *prinst, struct globalvars_s *pr_global
 void PF_fclose_progs (progfuncs_t *prinst);
 char *PF_VarString (progfuncs_t *prinst, int	first, struct globalvars_s *pr_globals);
 
+
+static void PF_Remove_ (progfuncs_t *prinst, struct globalvars_s *pr_globals)
+{
+	csqcedict_t *ed;
+	
+	ed = (csqcedict_t*)G_EDICT(prinst, OFS_PARM0);
+
+	if (ed->isfree)
+	{
+		Con_DPrintf("CSQC Tried removing free entity\n");
+		return;
+	}
+
+	ED_Free (prinst, (void*)ed);
+}
+
 static void PF_cvar (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
 	cvar_t	*var;
@@ -170,7 +260,7 @@ static void PF_Fixme (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
 	Con_Printf("\n");
 
-	prinst->PR_RunError(prinst, "\nBuiltin %i not implemented.\nMenu is not compatable.", prinst->lastcalledbuiltinnumber);
+	prinst->RunError(prinst, "\nBuiltin %i not implemented.\nMenu is not compatable.", prinst->lastcalledbuiltinnumber);
 	PR_BIError (prinst, "bulitin not implemented");
 }
 
@@ -178,7 +268,9 @@ static void PF_Fixme (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 
 static void PF_makevectors (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
-//	AngleVectors (G_VECTOR(OFS_PARM0), CSQC_VEC(v_forward), CSQC_VEC(v_right), CSQC_VEC(v_up));
+	if (!csqcg.forward || !csqcg.right || !csqcg.up)
+		Host_EndGame("PF_makevectors: one of v_forward, v_right or v_up was not defined\n");
+	AngleVectors (G_VECTOR(OFS_PARM0), csqcg.forward, csqcg.right, csqcg.up);
 }
 
 static void PF_R_AddEntity(progfuncs_t *prinst, struct globalvars_s *pr_globals)
@@ -186,18 +278,28 @@ static void PF_R_AddEntity(progfuncs_t *prinst, struct globalvars_s *pr_globals)
 	csqcedict_t *in = (void*)G_EDICT(prinst, OFS_PARM0);
 	entity_t ent;
 	int i;
-	
-	memset(&ent, 0, sizeof(ent));
+	model_t *model;
+
+	if (in->v.predraw)
+	{
+		int oldself = *csqcg.self;
+		*csqcg.self = EDICT_TO_PROG(prinst, (void*)in);
+		PR_ExecuteProgram(prinst, in->v.predraw);
+		*csqcg.self = oldself;
+	}
 
 	i = in->v.modelindex;
 	if (i == 0)
 		return;
 	else if (i > 0 && i < MAX_MODELS)
-		ent.model = cl.model_precache[i];
+		model = cl.model_precache[i];
 	else if (i < 0 && i > -MAX_CSQCMODELS)
-		ent.model = cl.model_csqcprecache[-i];
+		model = cl.model_csqcprecache[-i];
 	else
 		return; //there might be other ent types later as an extension that stop this.
+
+	memset(&ent, 0, sizeof(ent));
+	ent.model = model;
 
 	if (!ent.model)
 	{
@@ -213,6 +315,7 @@ static void PF_R_AddEntity(progfuncs_t *prinst, struct globalvars_s *pr_globals)
 	ent.angles[0] = in->v.angles[0];
 	ent.angles[1] = in->v.angles[1];
 	ent.angles[2] = in->v.angles[2];
+	memcpy(ent.origin, in->v.origin, sizeof(vec3_t));
 	AngleVectors(ent.angles, ent.axis[0], ent.axis[1], ent.axis[2]);
 	VectorInverse(ent.axis[1]);
 
@@ -220,6 +323,14 @@ static void PF_R_AddEntity(progfuncs_t *prinst, struct globalvars_s *pr_globals)
 	ent.scale = in->v.scale;
 
 	V_AddEntity(&ent);
+}
+
+static void PF_R_AddDynamicLight(progfuncs_t *prinst, struct globalvars_s *pr_globals)
+{
+	float *org = G_VECTOR(OFS_PARM0);
+	float radius = G_FLOAT(OFS_PARM1);
+	float *rgb = G_VECTOR(OFS_PARM2);
+	V_AddLight(org, radius, rgb[0]/5, rgb[1]/5, rgb[2]/5);
 }
 
 #define MASK_ENGINE 1
@@ -414,7 +525,8 @@ static void PF_R_SetViewFlag(progfuncs_t *prinst, struct globalvars_s *pr_global
 
 static void PF_R_RenderScene(progfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
-	R_PushDlights ();
+	if (cl.worldmodel)
+		R_PushDlights ();
 
 #ifdef RGLQUAKE
 	if (qrenderer == QR_OPENGL)
@@ -494,6 +606,77 @@ static void PF_CSQC_SetOrigin(progfuncs_t *prinst, struct globalvars_s *pr_globa
 	//fixme: add some sort of fast area grid
 }
 
+//FIXME: Not fully functional
+static void PF_CSQC_traceline(progfuncs_t *prinst, struct globalvars_s *pr_globals)
+{
+	float	*v1, *v2, *mins, *maxs;
+	trace_t	trace;
+	int		nomonsters;
+	edict_t	*ent;
+//	int savedhull;
+
+	v1 = G_VECTOR(OFS_PARM0);
+	v2 = G_VECTOR(OFS_PARM1);
+	nomonsters = G_FLOAT(OFS_PARM2);
+	ent = G_EDICT(prinst, OFS_PARM3);
+
+//	if (*prinst->callargc == 6)
+//	{
+//		mins = G_VECTOR(OFS_PARM4);
+//		maxs = G_VECTOR(OFS_PARM5);
+//	}
+//	else
+	{
+		mins = vec3_origin;
+		maxs = vec3_origin;
+	}
+/*
+	savedhull = ent->v.hull;
+	ent->v.hull = 0;
+	trace = SV_Move (v1, mins, maxs, v2, nomonsters, ent);
+	ent->v.hull = savedhull;
+*/
+	
+	memset(&trace, 0, sizeof(trace));
+	trace.fraction = 1;
+	cl.worldmodel->hulls->funcs.RecursiveHullCheck (cl.worldmodel->hulls, 0, 0, 1, v1, v2, &trace);
+
+	*csqcg.trace_allsolid = trace.allsolid;
+	*csqcg.trace_startsolid = trace.startsolid;
+	*csqcg.trace_fraction = trace.fraction;
+	*csqcg.trace_inwater = trace.inwater;
+	*csqcg.trace_inopen = trace.inopen;
+	VectorCopy (trace.endpos, csqcg.trace_endpos);
+	VectorCopy (trace.plane.normal, csqcg.trace_plane_normal);
+	*csqcg.trace_plane_dist =  trace.plane.dist;	
+//	if (trace.ent)
+//		*csqcg.trace_ent = EDICT_TO_PROG(prinst, trace.ent);
+//	else
+		*csqcg.trace_ent = EDICT_TO_PROG(prinst, (void*)csqc_edicts);
+}
+
+static void PF_CSQC_pointcontents(progfuncs_t *prinst, struct globalvars_s *pr_globals)
+{
+	float	*v;
+	int cont;
+	
+	v = G_VECTOR(OFS_PARM0);
+
+	cont = cl.worldmodel->hulls[0].funcs.HullPointContents(&cl.worldmodel->hulls[0], v);
+	if (cont & FTECONTENTS_SOLID)
+		G_FLOAT(OFS_RETURN) = Q1CONTENTS_SOLID;
+	else if (cont & FTECONTENTS_SKY)
+		G_FLOAT(OFS_RETURN) = Q1CONTENTS_SKY;
+	else if (cont & FTECONTENTS_LAVA)
+		G_FLOAT(OFS_RETURN) = Q1CONTENTS_LAVA;
+	else if (cont & FTECONTENTS_SLIME)
+		G_FLOAT(OFS_RETURN) = Q1CONTENTS_SLIME;
+	else if (cont & FTECONTENTS_WATER)
+		G_FLOAT(OFS_RETURN) = Q1CONTENTS_WATER;
+	else
+		G_FLOAT(OFS_RETURN) = Q1CONTENTS_EMPTY;
+}
+
 static int FindModel(char *name, int *free)
 {
 	int i;
@@ -554,20 +737,11 @@ static void PF_CSQC_SetModelIndex(progfuncs_t *prinst, struct globalvars_s *pr_g
 }
 static void PF_CSQC_PrecacheModel(progfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
+	int modelindex, freei;
 	char *modelname = PR_GetStringOfs(prinst, OFS_PARM0);
 	int i;
-	for (i = 1; i < MAX_CSQCMODELS; i++)
-	{
-		if (!*cl.model_csqcname[i])
-			break;
-		if (!strcmp(cl.model_csqcname[i], modelname))
-		{
-			cl.model_csqcprecache[i] = Mod_ForName(cl.model_csqcname[i], false);
-			break;
-		}
-	}
 
-	for (i = 1; i < MAX_MODELS; i++)	//I regret this.
+	for (i = 1; i < MAX_MODELS; i++)	//Make sure that the server specified model is loaded..
 	{
 		if (!*cl.model_name[i])
 			break;
@@ -577,7 +751,25 @@ static void PF_CSQC_PrecacheModel(progfuncs_t *prinst, struct globalvars_s *pr_g
 			break;
 		}
 	}
+
+	modelindex = FindModel(modelname, &freei);	//now load it
+
+	if (!modelindex)
+	{
+		if (!freei)
+			Host_EndGame("CSQC ran out of model slots\n");
+		Q_strncpyz(cl.model_csqcname[-freei], modelname, sizeof(cl.model_csqcname[-freei]));	//allocate a slot now
+		modelindex = freei;
+
+		cl.model_csqcprecache[-freei] = Mod_ForName(cl.model_csqcname[-freei], false);
+	}
 }
+static void PF_CSQC_PrecacheSound(progfuncs_t *prinst, struct globalvars_s *pr_globals)
+{
+	char *soundname = PR_GetStringOfs(prinst, OFS_PARM0);
+	S_PrecacheSound(soundname);
+}
+
 static void PF_CSQC_ModelnameForIndex(progfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
 	int modelindex = G_FLOAT(OFS_PARM0);
@@ -586,6 +778,78 @@ static void PF_CSQC_ModelnameForIndex(progfuncs_t *prinst, struct globalvars_s *
 		G_INT(OFS_RETURN) = (int)PR_SetString(prinst, cl.model_csqcname[-modelindex]);
 	else
 		G_INT(OFS_RETURN) = (int)PR_SetString(prinst, cl.model_name[modelindex]);
+}
+
+static void PF_ReadByte(progfuncs_t *prinst, struct globalvars_s *pr_globals)
+{
+	G_FLOAT(OFS_RETURN) = MSG_ReadByte();
+}
+
+static void PF_ReadChar(progfuncs_t *prinst, struct globalvars_s *pr_globals)
+{
+	G_FLOAT(OFS_RETURN) = MSG_ReadChar();
+}
+
+static void PF_ReadShort(progfuncs_t *prinst, struct globalvars_s *pr_globals)
+{
+	G_FLOAT(OFS_RETURN) = MSG_ReadShort();
+}
+
+static void PF_ReadLong(progfuncs_t *prinst, struct globalvars_s *pr_globals)
+{
+	G_FLOAT(OFS_RETURN) = MSG_ReadLong();
+}
+
+static void PF_ReadCoord(progfuncs_t *prinst, struct globalvars_s *pr_globals)
+{
+	G_FLOAT(OFS_RETURN) = MSG_ReadCoord();
+}
+
+static void PF_ReadString(progfuncs_t *prinst, struct globalvars_s *pr_globals)
+{
+	char *str = PF_TempStr();
+	char *read = MSG_ReadString();
+
+	Q_strncpyz(str, read, MAXTEMPBUFFERLEN);
+}
+
+static void PF_ReadAngle(progfuncs_t *prinst, struct globalvars_s *pr_globals)
+{
+	G_FLOAT(OFS_RETURN) = MSG_ReadAngle();
+}
+
+
+static void PF_objerror (progfuncs_t *prinst, struct globalvars_s *pr_globals)
+{
+	char	*s;
+	edict_t	*ed;
+	
+	s = PF_VarString(prinst, 0, pr_globals);
+/*	Con_Printf ("======OBJECT ERROR in %s:\n%s\n", PR_GetString(pr_xfunction->s_name),s);
+*/	ed = PROG_TO_EDICT(prinst, pr_global_struct->self);
+/*	ED_Print (ed);
+*/
+	ED_Print(prinst, ed);
+	Con_Printf("%s", s);
+
+	if (developer.value)
+		(*prinst->pr_trace) = 2;
+	else
+	{
+		ED_Free (prinst, ed);
+
+		prinst->AbortStack(prinst);
+	
+		PR_BIError (prinst, "Program error: %s", s);
+
+		if (sv.time > 10)
+			Cbuf_AddText("restart\n", RESTRICT_LOCAL);
+	}
+}
+
+static void PF_cs_setsensativityscaler (progfuncs_t *prinst, struct globalvars_s *pr_globals)
+{
+	in_sensitivityscale = G_FLOAT(OFS_PARM0);
 }
 
 //warning: functions that depend on globals are bad, mkay?
@@ -603,15 +867,15 @@ builtin_t csqc_builtins[] = {
 	PF_normalize,
 //10
 	PF_error,
-	PF_Fixme, //PF_objerror,
+	PF_objerror,
 	PF_vlen,
 	PF_vectoyaw,
 	PF_Spawn,
-	PF_Fixme, //PF_Remove,
-	PF_Fixme, //PF_traceline,
+	PF_Remove_, //PF_Remove,
+	PF_CSQC_traceline, //PF_traceline,
 	PF_Fixme, //PF_checkclient, (don't support)
 	PF_FindString,
-	PF_Fixme, //PF_precache_sound,
+	PF_CSQC_PrecacheSound, //PF_precache_sound,
 //20
 	PF_CSQC_PrecacheModel, //PF_precache_model,
 	PF_Fixme, //PF_stuffcmd, (don't support)
@@ -636,7 +900,7 @@ PF_ceil,
 PF_Fixme,
 //40
 PF_Fixme, //PF_checkbottom,
-PF_Fixme, //PF_pointcontents,
+PF_CSQC_pointcontents, //PF_pointcontents,
 PF_Fixme,
 PF_fabs,
 PF_Fixme, //PF_aim,	hehehe... (don't support)
@@ -649,14 +913,15 @@ PF_Fixme, //PF_changeyaw,
 PF_Fixme,
 PF_vectoangles,
 
-PF_Fixme,
-PF_Fixme,
-PF_Fixme,
-PF_Fixme,
-PF_Fixme,
-PF_Fixme,
-PF_Fixme,
-PF_Fixme,
+PF_ReadByte,
+PF_ReadChar,
+PF_ReadShort,
+PF_ReadLong,
+PF_ReadCoord,
+PF_ReadAngle,
+PF_ReadString,
+PF_Fixme,//PF_ReadEntity,
+
 //60
 PF_Fixme,
 
@@ -678,7 +943,7 @@ PF_cvar_set,
 PF_Fixme, //PF_centerprint,
 PF_Fixme, //PF_ambientsound,
 
-PF_Fixme, //PF_precache_model,
+PF_CSQC_PrecacheModel, //PF_precache_model,
 PF_Fixme, //PF_precache_sound,
 PF_Fixme, //PF_precache_file,
 PF_Fixme, //PF_setspawnparms,
@@ -753,7 +1018,7 @@ PF_R_AddEntity,
 PF_R_SetViewFlag,
 PF_R_RenderScene,
 
-PF_Fixme,
+PF_R_AddDynamicLight,
 PF_Fixme,
 PF_Fixme,
 PF_Fixme,
@@ -775,10 +1040,10 @@ PF_CL_drawgetimagesize,//9
 PF_cs_getstatf,
 PF_cs_getstati,
 PF_cs_getstats,
-PF_Fixme,
-PF_Fixme,
+PF_CSQC_SetModelIndex,
+PF_CSQC_ModelnameForIndex,
 
-PF_Fixme,
+PF_cs_setsensativityscaler,
 PF_Fixme,
 PF_Fixme,
 PF_Fixme,
@@ -910,19 +1175,7 @@ int csqc_numbuiltins = sizeof(csqc_builtins)/sizeof(csqc_builtins[0]);
 
 jmp_buf csqc_abort;
 progparms_t csqcprogparms;
-csqcedict_t *csqc_edicts;
 int num_csqc_edicts;
-
-func_t csqc_init_function;
-func_t csqc_shutdown_function;
-func_t csqc_draw_function;
-func_t csqc_keydown_function;
-func_t csqc_keyup_function;
-func_t csqc_parse_stuffcmd;
-func_t csqc_parse_centerprint;
-
-float *csqc_time;
-
 
 
 
@@ -962,23 +1215,8 @@ void CSQC_Shutdown(void)
 		Con_Printf("Closed csqc\n");
 	}
 	csqcprogs = NULL;
-}
 
-void CSQC_FindGlobals(void)
-{
-	csqc_time = (float*)PR_FindGlobal(csqcprogs, "time", 0);
-	if (csqc_time)
-		*csqc_time = Sys_DoubleTime();
-
-
-	csqc_init_function	= PR_FindFunction(csqcprogs, "CSQC_Init",	PR_ANY);
-	csqc_shutdown_function	= PR_FindFunction(csqcprogs, "CSQC_Shutdown",	PR_ANY);
-	csqc_draw_function	= PR_FindFunction(csqcprogs, "CSQC_UpdateView",	PR_ANY);
-	csqc_keydown_function	= PR_FindFunction(csqcprogs, "CSQC_KeyDown",	PR_ANY);
-	csqc_keyup_function	= PR_FindFunction(csqcprogs, "CSQC_KeyUp",	PR_ANY);
-
-	csqc_parse_stuffcmd	= PR_FindFunction(csqcprogs, "CSQC_Parse_StuffCmd",	PR_ANY);
-	csqc_parse_centerprint	= PR_FindFunction(csqcprogs, "CSQC_Parse_CenterPrint",	PR_ANY);
+	in_sensitivityscale = 1;
 }
 
 double  csqctime;
@@ -1001,7 +1239,7 @@ void CSQC_Init (void)
 	csqcprogparms.printf = (void *)Con_Printf;//Con_Printf;//void (*printf) (char *, ...);
 	csqcprogparms.Sys_Error = Sys_Error;
 	csqcprogparms.Abort = CSQC_Abort;
-	csqcprogparms.edictsize = sizeof(csqcedict_t);
+	csqcprogparms.edictsize = sizeof(csqcedict_t)-sizeof(csqcentvars_t);
 
 	csqcprogparms.entspawn = NULL;//void (*entspawn) (struct edict_s *ent);	//ent has been spawned, but may not have all the extra variables (that may need to be set) set
 	csqcprogparms.entcanfree = NULL;//bool (*entcanfree) (struct edict_s *ent);	//return true to stop ent from being freed
@@ -1033,6 +1271,7 @@ void CSQC_Init (void)
 	csqctime = Sys_DoubleTime();
 	if (!csqcprogs)
 	{
+		in_sensitivityscale = 1;
 		csqcprogs = InitProgs(&csqcprogparms);
 		PR_Configure(csqcprogs, NULL, -1, 1);
 		
@@ -1049,17 +1288,20 @@ void CSQC_Init (void)
 			CSQC_Shutdown();
 			return;
 		}
+
+		memset(csqcent, 0, sizeof(csqcent));
 		
 		csqcentsize = PR_InitEnts(csqcprogs, 3072);
 		
 		CSQC_FindGlobals();
 
+		ED_Alloc(csqcprogs);	//we need a word entity.
 		//world edict becomes readonly
 		EDICT_NUM(csqcprogs, 0)->readonly = true;
 		EDICT_NUM(csqcprogs, 0)->isfree = false;
 
-		if (csqc_init_function)
-			PR_ExecuteProgram(csqcprogs, csqc_init_function);
+		if (csqcg.init_function)
+			PR_ExecuteProgram(csqcprogs, csqcg.init_function);
 
 		Con_Printf("Loaded csqc\n");
 	}
@@ -1067,7 +1309,7 @@ void CSQC_Init (void)
 
 qboolean CSQC_DrawView(void)
 {
-	if (!csqc_draw_function || !csqcprogs)
+	if (!csqcg.draw_function || !csqcprogs)
 		return false;
 
 	r_secondaryview = 0;
@@ -1075,7 +1317,10 @@ qboolean CSQC_DrawView(void)
 	if (cl.worldmodel)
 		R_LessenStains();
 
-	PR_ExecuteProgram(csqcprogs, csqc_draw_function);
+	if (csqcg.time)
+		*csqcg.time = Sys_DoubleTime();
+
+	PR_ExecuteProgram(csqcprogs, csqcg.draw_function);
 
 	return true;
 }
@@ -1084,7 +1329,7 @@ qboolean CSQC_StuffCmd(char *cmd)
 {
 	void *pr_globals;
 	char *str;
-	if (!csqcprogs || !csqc_parse_stuffcmd)
+	if (!csqcprogs || !csqcg.parse_stuffcmd)
 		return false;
 
 	str = PF_TempStr();
@@ -1093,14 +1338,14 @@ qboolean CSQC_StuffCmd(char *cmd)
 	pr_globals = PR_globals(csqcprogs, PR_CURRENT);
 	(*(char **)&((int *)pr_globals)[OFS_PARM0] = PR_SetString(csqcprogs, str));
 
-	PR_ExecuteProgram (csqcprogs, csqc_parse_stuffcmd);
+	PR_ExecuteProgram (csqcprogs, csqcg.parse_stuffcmd);
 	return true;
 }
 qboolean CSQC_CenterPrint(char *cmd)
 {
 	void *pr_globals;
 	char *str;
-	if (!csqcprogs || !csqc_parse_centerprint)
+	if (!csqcprogs || !csqcg.parse_centerprint)
 		return false;
 
 	str = PF_TempStr();
@@ -1109,19 +1354,25 @@ qboolean CSQC_CenterPrint(char *cmd)
 	pr_globals = PR_globals(csqcprogs, PR_CURRENT);
 	(*(char **)&((int *)pr_globals)[OFS_PARM0] = PR_SetString(csqcprogs, str));
 
-	PR_ExecuteProgram (csqcprogs, csqc_parse_centerprint);
+	PR_ExecuteProgram (csqcprogs, csqcg.parse_centerprint);
 	return G_FLOAT(OFS_RETURN);
 }
 
 //this protocol allows up to 32767 edicts.
+#ifdef PEXT_CSQC
 void CSQC_ParseEntities(void)
 {
-	/*
 	csqcedict_t *ent;
 	unsigned short entnum;
+	void *pr_globals;
 
 	if (!csqcprogs)
-		Host_EndGame
+		Host_EndGame("CSQC needs to be initialized on this server.\n");
+
+	pr_globals = PR_globals(csqcprogs, PR_CURRENT);
+
+	if (csqcg.time)
+		*csqcg.time = Sys_DoubleTime();
 
 	for(;;)
 	{
@@ -1133,36 +1384,41 @@ void CSQC_ParseEntities(void)
 			entnum &= ~0x8000;
 
 			if (!entnum)
-			{
-				Con_Printf("CSQC cannot remove world!\n");
-				continue;
-			}
+				Host_EndGame("CSQC cannot remove world!\n");
+
+			if (entnum >= MAX_EDICTS)
+				Host_EndGame("CSQC recieved too many edicts!\n");
 
 			ent = csqcent[entnum];
 
 			if (!ent)	//hrm.
 				continue;
 
-			*csqc_globals->self = EDICT_TO_PROG(svprogfuncs, ent);
-			PR_ExecuteProgram(csqcprogs, csqc_ent_remove);
+			*csqcg.self = EDICT_TO_PROG(csqcprogs, (void*)ent);
+			PR_ExecuteProgram(csqcprogs, csqcg.ent_remove);
 			csqcent[entnum] = NULL;
 			//the csqc is expected to call the remove builtin.
 		}
 		else
 		{
+			if (entnum >= MAX_EDICTS)
+				Host_EndGame("CSQC recieved too many edicts!\n");
+
 			ent = csqcent[entnum];
 			if (!ent)
 			{
-				ent = ED_Alloc(csqcprogs);
+				ent = (csqcedict_t*)ED_Alloc(csqcprogs);
+				csqcent[entnum] = ent;
 				G_FLOAT(OFS_PARM0) = true;
 			}
 			else
 				G_FLOAT(OFS_PARM0) = false;
 
-			*csqc_globals->self = EDICT_TO_PROG(svprogfuncs, ent);
-			PR_ExecuteProgram(csqcprogs, csqc_ent_update);
+			*csqcg.self = EDICT_TO_PROG(csqcprogs, (void*)ent);
+			PR_ExecuteProgram(csqcprogs, csqcg.ent_update);
 		}
-	}*/
+	}
 }
+#endif
 
 #endif

@@ -832,12 +832,36 @@ void ML_ModelViewMatrix(float *modelview, vec3_t viewangles, vec3_t vieworg)
 	//figure out the current modelview matrix
 
 	//I would if some of these, but then I'd still need a couple of copys
-	Matrix4_Multiply(modelview, Matrix4_NewRotation(-viewangles[2],  1, 0, 0), tempmat);	    // put Z going up
-	Matrix4_Multiply(tempmat, Matrix4_NewRotation(-viewangles[0],  0, 1, 0), modelview);	    // put Z going up
-	Matrix4_Multiply(modelview, Matrix4_NewRotation(-viewangles[1],  0, 0, 1), tempmat);	    // put Z going up
+	Matrix4_Multiply(modelview, Matrix4_NewRotation(-viewangles[2],  1, 0, 0), tempmat);
+	Matrix4_Multiply(tempmat, Matrix4_NewRotation(-viewangles[0],  0, 1, 0), modelview);
+	Matrix4_Multiply(modelview, Matrix4_NewRotation(-viewangles[1],  0, 0, 1), tempmat);
 
 	Matrix4_Multiply(tempmat, Matrix4_NewTranslation(-vieworg[0],  -vieworg[1],  -vieworg[2]), modelview);	    // put Z going up
 }
+void ML_ModelViewMatrixFromAxis(float *modelview, vec3_t pn, vec3_t right, vec3_t up, vec3_t vieworg)
+{
+	float tempmat[16];
+
+	tempmat[ 0] = right[0];
+	tempmat[ 1] = up[0];
+	tempmat[ 2] = -pn[0];
+	tempmat[ 3] = 0;
+	tempmat[ 4] = right[1];
+	tempmat[ 5] = up[1];
+	tempmat[ 6] = -pn[1];
+	tempmat[ 7] = 0;
+	tempmat[ 8] = right[2];
+	tempmat[ 9] = up[2];
+	tempmat[10] = -pn[2];
+	tempmat[11] = 0;
+	tempmat[12] = 0;
+	tempmat[13] = 0;
+	tempmat[14] = 0;
+	tempmat[15] = 1;
+
+	Matrix4_Multiply(tempmat, Matrix4_NewTranslation(-vieworg[0],  -vieworg[1],  -vieworg[2]), modelview);	    // put Z going up
+}
+
 
 void ML_ProjectionMatrix(float *proj, float wdivh, float fovy)
 {

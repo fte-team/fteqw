@@ -19,7 +19,8 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 */
 // net_loop.c
 
-#include "../client/quakedef.h"
+#include "quakedef.h"
+
 #if !(defined(CLIENTONLY) || defined(SERVERONLY))
 #ifdef NQPROT
 #include "net_loop.h"

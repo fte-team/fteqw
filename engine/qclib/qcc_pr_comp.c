@@ -61,6 +61,7 @@ pbool opt_compound_jumps;		//jumps to jump statements jump to the final point.
 pbool opt_stripfunctions;		//if a functions is only ever called directly or by exe, don't emit the def.
 pbool opt_locals_marshalling;	//make the local vars of all functions occupy the same globals.
 pbool opt_logicops;				//don't make conditions enter functions if the return value will be discarded due to a previous value. (C style if statements)
+pbool opt_vectorcalls;			//vectors can be packed into 3 floats, which can yield lower numpr_globals, but cost two more statements per call (only works for q1 calling conventions).
 //bool opt_comexprremoval;
 
 //these are the results of the opt_. The values are printed out when compilation is compleate, showing effectivness.
@@ -435,26 +436,28 @@ QCC_opcode_t pr_opcodes[] =
 
 
 
-{7, "<>", "GSTOREP_I", -1, ASSOC_LEFT,				&type_float,	&type_float,	&type_float},
-{7, "<>", "GSTOREP_F", -1, ASSOC_LEFT,				&type_float,	&type_float,	&type_float},
-{7, "<>", "GSTOREP_ENT", -1, ASSOC_LEFT,				&type_float,	&type_float,	&type_float},
-{7, "<>", "GSTOREP_FLD", -1, ASSOC_LEFT,				&type_float,	&type_float,	&type_float},
-{7, "<>", "GSTOREP_S", -1, ASSOC_LEFT,				&type_float,	&type_float,	&type_float},
-{7, "<>", "GSTORE_PFNC", -1, ASSOC_LEFT,				&type_float,	&type_float,	&type_float},
-{7, "<>", "GSTOREP_V", -1, ASSOC_LEFT,				&type_float,	&type_float,	&type_float},
+{7, "<>",	"GSTOREP_I", -1, ASSOC_LEFT,			&type_float,	&type_float,	&type_float},
+{7, "<>",	"GSTOREP_F", -1, ASSOC_LEFT,			&type_float,	&type_float,	&type_float},
+{7, "<>",	"GSTOREP_ENT", -1, ASSOC_LEFT,			&type_float,	&type_float,	&type_float},
+{7, "<>",	"GSTOREP_FLD", -1, ASSOC_LEFT,			&type_float,	&type_float,	&type_float},
+{7, "<>",	"GSTOREP_S", -1, ASSOC_LEFT,			&type_float,	&type_float,	&type_float},
+{7, "<>",	"GSTORE_PFNC", -1, ASSOC_LEFT,			&type_float,	&type_float,	&type_float},
+{7, "<>",	"GSTOREP_V", -1, ASSOC_LEFT,			&type_float,	&type_float,	&type_float},
 
-{7, "<>", "GADDRESS", -1, ASSOC_LEFT,				&type_float,	&type_float,	&type_float},
+{7, "<>",	"GADDRESS", -1, ASSOC_LEFT,				&type_float,	&type_float,	&type_float},
 
-{7, "<>", "GLOAD_I", -1, ASSOC_LEFT,				&type_float,	&type_float,	&type_float},
-{7, "<>", "GLOAD_F", -1, ASSOC_LEFT,				&type_float,	&type_float,	&type_float},
-{7, "<>", "GLOAD_FLD", -1, ASSOC_LEFT,				&type_float,	&type_float,	&type_float},
-{7, "<>", "GLOAD_ENT", -1, ASSOC_LEFT,				&type_float,	&type_float,	&type_float},
-{7, "<>", "GLOAD_S", -1, ASSOC_LEFT,				&type_float,	&type_float,	&type_float},
-{7, "<>", "GLOAD_FNC", -1, ASSOC_LEFT,				&type_float,	&type_float,	&type_float},
+{7, "<>",	"GLOAD_I", -1, ASSOC_LEFT,				&type_float,	&type_float,	&type_float},
+{7, "<>",	"GLOAD_F", -1, ASSOC_LEFT,				&type_float,	&type_float,	&type_float},
+{7, "<>",	"GLOAD_FLD", -1, ASSOC_LEFT,				&type_float,	&type_float,	&type_float},
+{7, "<>",	"GLOAD_ENT", -1, ASSOC_LEFT,				&type_float,	&type_float,	&type_float},
+{7, "<>",	"GLOAD_S", -1, ASSOC_LEFT,				&type_float,	&type_float,	&type_float},
+{7, "<>",	"GLOAD_FNC", -1, ASSOC_LEFT,				&type_float,	&type_float,	&type_float},
 
-{7, "<>", "BOUNDCHECK", -1, ASSOC_LEFT,				&type_float,	&type_float,	&type_float},
+{7, "<>",	"BOUNDCHECK", -1, ASSOC_LEFT,				&type_float,	&type_float,	&type_float},
 
-{7, "=",	"STOREP_P", 6, ASSOC_RIGHT,				&type_pointer, &type_pointer, &type_void},
+{7, "=",	"STOREP_P", 6, ASSOC_RIGHT,				&type_pointer,	&type_pointer,	&type_void},
+{7, "<PUSH>",	"PUSH", -1, ASSOC_RIGHT,			&type_float,	&type_void,		&type_pointer},
+{7, "<POP>",	"POP", -1, ASSOC_RIGHT,				&type_float,	&type_void,		&type_void},
 
  {0, NULL}
 };
@@ -663,9 +666,7 @@ pbool QCC_OPCodeValid(QCC_opcode_t *op)
 			return true;
 		return false;
 	case QCF_FTE:
-	case QCF_FTE32:
 	case QCF_FTEDEBUG:
-	case QCF_FTEDEBUG32:
 		return true;
 	}
 	return false;
@@ -2064,12 +2065,17 @@ QCC_def_t *QCC_PR_ParseFunctionCall (QCC_def_t *func)	//warning, the func could 
 
 	t = func->type;
 
-	if (t->type != ev_function)
+	if (t->type == ev_variant)
+	{
+		t->aux_type = type_variant;
+	}
+
+	if (t->type != ev_function && t->type != ev_variant)
 	{
 		QCC_PR_ParseErrorPrintDef (ERR_NOTAFUNCTION, func, "not a function");
 	}
 
-	if (!t->num_parms)	//intrinsics. These base functions have variable arguments. I would check for (...) args too, but that might be used for extended builtin functionality. (this code wouldn't compile otherwise)
+	if (!t->num_parms&&t->type != ev_variant)	//intrinsics. These base functions have variable arguments. I would check for (...) args too, but that might be used for extended builtin functionality. (this code wouldn't compile otherwise)
 	{
 		if (!strcmp(func->name, "random"))
 		{
@@ -2428,7 +2434,12 @@ QCC_def_t *QCC_PR_ParseFunctionCall (QCC_def_t *func)	//warning, the func could 
 
 // copy the arguments to the global parameter variables
 	arg = 0;
-	if (t->num_parms < 0)
+	if (t->type == ev_variant)
+	{
+		extraparms = true;
+		np = 0;
+	}
+	else if (t->num_parms < 0)
 	{
 		extraparms = true;
 		np = (t->num_parms * -1) - 1;
@@ -2436,161 +2447,219 @@ QCC_def_t *QCC_PR_ParseFunctionCall (QCC_def_t *func)	//warning, the func could 
 	else
 		np = t->num_parms;
 
-	
-	if (!QCC_PR_Check(")"))
-	{
-		p = t->param;
-		do
+	if (opt_vectorcalls && (t->num_parms == 1 && t->param->type == ev_vector))
+	{	//if we're using vectorcalls
+		//if it's a function, takes a vector
+		vec3_t arg;
+		if (pr_token_type == tt_immediate && pr_immediate_type == type_vector)
 		{
-			if (extraparms && arg >= MAX_PARMS)
-				QCC_PR_ParseErrorPrintDef (ERR_TOOMANYPARAMETERSVARARGS, func, "More than %i parameters on varargs function", MAX_PARMS);
-			else if (arg >= MAX_PARMS+MAX_EXTRA_PARMS)
-				QCC_PR_ParseErrorPrintDef (ERR_TOOMANYTOTALPARAMETERS, func, "More than %i parameters", MAX_PARMS+MAX_EXTRA_PARMS);
-			if (!extraparms && arg >= t->num_parms)
-			{
-				QCC_PR_ParseWarning (WARN_TOOMANYPARAMETERSFORFUNC, "too many parameters");
-				QCC_PR_ParsePrintDef(WARN_TOOMANYPARAMETERSFORFUNC, func);
-			}
+			memcpy(arg, pr_immediate.vector, sizeof(arg));
+			while(*pr_file_p == ' ' || *pr_file_p == '\t' || *pr_file_p == '\n')
+				pr_file_p++;
+			if (*pr_file_p == ')')
+			{	//woot
+				def_parms[0].ofs = OFS_PARM0+0;
+				QCC_FreeTemp(QCC_PR_Statement (&pr_opcodes[OP_STORE_F], QCC_MakeFloatDef(arg[0]), &def_parms[0], (QCC_dstatement_t **)0xffffffff));
+				def_parms[0].ofs = OFS_PARM0+1;
+				QCC_FreeTemp(QCC_PR_Statement (&pr_opcodes[OP_STORE_F], QCC_MakeFloatDef(arg[1]), &def_parms[0], (QCC_dstatement_t **)0xffffffff));
+				def_parms[0].ofs = OFS_PARM0+2;
+				QCC_FreeTemp(QCC_PR_Statement (&pr_opcodes[OP_STORE_F], QCC_MakeFloatDef(arg[2]), &def_parms[0], (QCC_dstatement_t **)0xffffffff));
+				def_parms[0].ofs = OFS_PARM0;
 
-			e = QCC_PR_Expression (TOP_PRIORITY);
-
-			if (arg == 0 && func->name)
-			{
-			// save information for model and sound caching
-				if (!strncmp(func->name,"precache_", 9))
-				{
-					if (!strncmp(func->name+9,"sound", 5))
-						QCC_PrecacheSound (e, func->name[14]);
-					else if (!strncmp(func->name+9,"model", 5))
-						QCC_PrecacheModel (e, func->name[14]);
-					else if (!strncmp(func->name+9,"texture", 7))
-						QCC_PrecacheTexture (e, func->name[16]);
-					else if (!strncmp(func->name+9,"file", 4))
-						QCC_PrecacheFile (e, func->name[13]);
-				}
-			}
-
-			if (arg>=MAX_PARMS)
-			{
-				if (!extra_parms[arg - MAX_PARMS])
-				{
-					d = (QCC_def_t *) qccHunkAlloc (sizeof(QCC_def_t));
-					d->name = "extra parm";
-					d->ofs = QCC_GetFreeOffsetSpace (3);
-					extra_parms[arg - MAX_PARMS] = d;
-				}
-				d = extra_parms[arg - MAX_PARMS];
+				QCC_PR_Lex();
+				QCC_PR_Expect(")");
 			}
 			else
-				d = &def_parms[arg];
-
-			if (pr_classtype && e->type->type == ev_field && p->type != ev_field)
-			{	//convert.
-				oself = QCC_PR_GetDef(type_entity, "self", NULL, true, 1);
-				switch(e->type->aux_type->type)
+			{	//bum
+				e = QCC_PR_Expression (TOP_PRIORITY);
+				if (e->type->type != ev_vector)
 				{
-				case ev_string:
-					e = QCC_PR_Statement(pr_opcodes+OP_LOAD_S, oself, e, NULL);
-					break;
-				case ev_integer:
-					e = QCC_PR_Statement(pr_opcodes+OP_LOAD_I, oself, e, NULL);
-					break;
-				case ev_float:
-					e = QCC_PR_Statement(pr_opcodes+OP_LOAD_F, oself, e, NULL);
-					break;
-				case ev_function:
-					e = QCC_PR_Statement(pr_opcodes+OP_LOAD_FNC, oself, e, NULL);
-					break;
-				case ev_vector:
-					e = QCC_PR_Statement(pr_opcodes+OP_LOAD_V, oself, e, NULL);
-					break;
-				case ev_entity:
-					e = QCC_PR_Statement(pr_opcodes+OP_LOAD_ENT, oself, e, NULL);
-					break;
-				default:
-					QCC_Error(ERR_INTERNAL, "Bad member type. Try forced expansion");
-				}
-			}
-
-			if (p)
-			{
-				if (typecmp(e->type, p))
-				/*if (e->type->type != ev_integer && p->type != ev_function)
-				if (e->type->type != ev_function && p->type != ev_integer)
-				if ( e->type->type != p->type )*/
-				{
-					if (p->type == ev_integer && e->type->type == ev_float)	//convert float -> int... is this a constant?
-						e = QCC_PR_Statement(pr_opcodes+OP_CONV_FTOI, e, NULL, NULL);
-					else if (p->type == ev_float && e->type->type == ev_integer)	//convert float -> int... is this a constant?
-						e = QCC_PR_Statement(pr_opcodes+OP_CONV_ITOF, e, NULL, NULL);
-					else if (p->type != ev_variant)	//can cast to variant whatever happens
+					if (flag_laxcasts)
 					{
-						if (flag_laxcasts)
-						{
-							QCC_PR_ParseWarning(WARN_LAXCAST, "type mismatch on parm %i - (%s should be %s)", arg+1, TypeName(e->type), TypeName(p));
-							QCC_PR_ParsePrintDef(WARN_LAXCAST, func);
-						}
-						else
-							QCC_PR_ParseErrorPrintDef (ERR_TYPEMISMATCHPARM, func, "type mismatch on parm %i - (%s should be %s)", arg+1, TypeName(e->type), TypeName(p));
+						QCC_PR_ParseWarning(WARN_LAXCAST, "type mismatch on parm %i - (%s should be %s)", 1, TypeName(e->type), TypeName(type_vector));
+						QCC_PR_ParsePrintDef(WARN_LAXCAST, func);
+					}
+					else
+						QCC_PR_ParseErrorPrintDef (ERR_TYPEMISMATCHPARM, func, "type mismatch on parm %i - (%s should be %s)", 1, TypeName(e->type), TypeName(type_vector));
+				}
+				QCC_PR_Expect(")");
+				QCC_FreeTemp(QCC_PR_Statement (&pr_opcodes[OP_STORE_V], e, &def_parms[0], (QCC_dstatement_t **)0xffffffff));
+			}
+		}
+		else
+		{	//bother
+			e = QCC_PR_Expression (TOP_PRIORITY);
+			if (e->type->type != ev_vector)
+			{
+				if (flag_laxcasts)
+				{
+					QCC_PR_ParseWarning(WARN_LAXCAST, "type mismatch on parm %i - (%s should be %s)", 1, TypeName(e->type), TypeName(type_vector));
+					QCC_PR_ParsePrintDef(WARN_LAXCAST, func);
+				}
+				else
+					QCC_PR_ParseErrorPrintDef (ERR_TYPEMISMATCHPARM, func, "type mismatch on parm %i - (%s should be %s)", 1, TypeName(e->type), TypeName(type_vector));
+			}
+			QCC_PR_Expect(")");
+			QCC_FreeTemp(QCC_PR_Statement (&pr_opcodes[OP_STORE_V], e, &def_parms[0], (QCC_dstatement_t **)0xffffffff));
+		}
+	}
+	else
+	{
+		if (!QCC_PR_Check(")"))
+		{
+			p = t->param;
+			do
+			{
+				if (extraparms && arg >= MAX_PARMS)
+					QCC_PR_ParseErrorPrintDef (ERR_TOOMANYPARAMETERSVARARGS, func, "More than %i parameters on varargs function", MAX_PARMS);
+				else if (arg >= MAX_PARMS+MAX_EXTRA_PARMS)
+					QCC_PR_ParseErrorPrintDef (ERR_TOOMANYTOTALPARAMETERS, func, "More than %i parameters", MAX_PARMS+MAX_EXTRA_PARMS);
+				if (!extraparms && arg >= t->num_parms)
+				{
+					QCC_PR_ParseWarning (WARN_TOOMANYPARAMETERSFORFUNC, "too many parameters");
+					QCC_PR_ParsePrintDef(WARN_TOOMANYPARAMETERSFORFUNC, func);
+				}
+
+				e = QCC_PR_Expression (TOP_PRIORITY);
+
+				if (arg == 0 && func->name)
+				{
+				// save information for model and sound caching
+					if (!strncmp(func->name,"precache_", 9))
+					{
+						if (!strncmp(func->name+9,"sound", 5))
+							QCC_PrecacheSound (e, func->name[14]);
+						else if (!strncmp(func->name+9,"model", 5))
+							QCC_PrecacheModel (e, func->name[14]);
+						else if (!strncmp(func->name+9,"texture", 7))
+							QCC_PrecacheTexture (e, func->name[16]);
+						else if (!strncmp(func->name+9,"file", 4))
+							QCC_PrecacheFile (e, func->name[13]);
 					}
 				}
 
-				d->type = p;
+				if (arg>=MAX_PARMS)
+				{
+					if (!extra_parms[arg - MAX_PARMS])
+					{
+						d = (QCC_def_t *) qccHunkAlloc (sizeof(QCC_def_t));
+						d->name = "extra parm";
+						d->ofs = QCC_GetFreeOffsetSpace (3);
+						extra_parms[arg - MAX_PARMS] = d;
+					}
+					d = extra_parms[arg - MAX_PARMS];
+				}
+				else
+					d = &def_parms[arg];
 
-				p=p->next;
-			}
-		// a vector copy will copy everything
-			else
-				d->type = type_void;
+				if (pr_classtype && e->type->type == ev_field && p->type != ev_field)
+				{	//convert.
+					oself = QCC_PR_GetDef(type_entity, "self", NULL, true, 1);
+					switch(e->type->aux_type->type)
+					{
+					case ev_string:
+						e = QCC_PR_Statement(pr_opcodes+OP_LOAD_S, oself, e, NULL);
+						break;
+					case ev_integer:
+						e = QCC_PR_Statement(pr_opcodes+OP_LOAD_I, oself, e, NULL);
+						break;
+					case ev_float:
+						e = QCC_PR_Statement(pr_opcodes+OP_LOAD_F, oself, e, NULL);
+						break;
+					case ev_function:
+						e = QCC_PR_Statement(pr_opcodes+OP_LOAD_FNC, oself, e, NULL);
+						break;
+					case ev_vector:
+						e = QCC_PR_Statement(pr_opcodes+OP_LOAD_V, oself, e, NULL);
+						break;
+					case ev_entity:
+						e = QCC_PR_Statement(pr_opcodes+OP_LOAD_ENT, oself, e, NULL);
+						break;
+					default:
+						QCC_Error(ERR_INTERNAL, "Bad member type. Try forced expansion");
+					}
+				}
 
-			if (arg == 1 && !STRCMP(func->name, "setmodel"))
-			{
-				QCC_SetModel(e);
-			}
+				if (p)
+				{
+					if (typecmp(e->type, p))
+					/*if (e->type->type != ev_integer && p->type != ev_function)
+					if (e->type->type != ev_function && p->type != ev_integer)
+					if ( e->type->type != p->type )*/
+					{
+						if (p->type == ev_integer && e->type->type == ev_float)	//convert float -> int... is this a constant?
+							e = QCC_PR_Statement(pr_opcodes+OP_CONV_FTOI, e, NULL, NULL);
+						else if (p->type == ev_float && e->type->type == ev_integer)	//convert float -> int... is this a constant?
+							e = QCC_PR_Statement(pr_opcodes+OP_CONV_ITOF, e, NULL, NULL);
+						else if (p->type != ev_variant)	//can cast to variant whatever happens
+						{
+							if (flag_laxcasts)
+							{
+								QCC_PR_ParseWarning(WARN_LAXCAST, "type mismatch on parm %i - (%s should be %s)", arg+1, TypeName(e->type), TypeName(p));
+								QCC_PR_ParsePrintDef(WARN_LAXCAST, func);
+							}
+							else
+								QCC_PR_ParseErrorPrintDef (ERR_TYPEMISMATCHPARM, func, "type mismatch on parm %i - (%s should be %s)", arg+1, TypeName(e->type), TypeName(p));
+						}
+					}
 
-			param[arg] = e;
-/*			if (e->type->size>1)
-				QCC_PR_Statement (&pr_opcodes[OP_STORE_V], e, d, (QCC_dstatement_t **)0xffffffff);
-			else
-				QCC_PR_Statement (&pr_opcodes[OP_STORE_F], e, d, (QCC_dstatement_t **)0xffffffff);
-				*/
-			arg++;
-		} while (QCC_PR_Check (","));
+					d->type = p;
 
-		if (t->num_parms != -1 && arg < np)
-			QCC_PR_ParseWarning (WARN_TOOFEWPARAMS, "too few parameters on call to %s", func->name);
-		QCC_PR_Expect (")");
-	}
-	else if (np)
-	{
-		QCC_PR_ParseWarning (WARN_TOOFEWPARAMS, "%s: Too few parameters", func->name);
-		QCC_PR_ParsePrintDef (WARN_TOOFEWPARAMS, func);
-	}
+					p=p->next;
+				}
+			// a vector copy will copy everything
+				else
+					d->type = type_void;
 
-//	qcc_functioncalled++;
-	for (i = 0; i < arg; i++)
-	{
-		if (i>=MAX_PARMS)
-			d = extra_parms[i - MAX_PARMS];
-		else
-			d = &def_parms[i];
+				if (arg == 1 && !STRCMP(func->name, "setmodel"))
+				{
+					QCC_SetModel(e);
+				}
 
-		if (callconvention == OP_CALL1H)
-			if (i < 2)
-			{
-				param[i]->references++;
-				d->references++;
-				QCC_FreeTemp(param[i]);
-				continue;
-			}
+				param[arg] = e;
+	/*			if (e->type->size>1)
+					QCC_PR_Statement (&pr_opcodes[OP_STORE_V], e, d, (QCC_dstatement_t **)0xffffffff);
+				else
+					QCC_PR_Statement (&pr_opcodes[OP_STORE_F], e, d, (QCC_dstatement_t **)0xffffffff);
+					*/
+				arg++;
+			} while (QCC_PR_Check (","));
 
-		if (param[i]->type->size>1 || !opt_nonvec_parms)
-			QCC_FreeTemp(QCC_PR_Statement (&pr_opcodes[OP_STORE_V], param[i], d, (QCC_dstatement_t **)0xffffffff));
-		else
+			if (t->num_parms != -1 && arg < np)
+				QCC_PR_ParseWarning (WARN_TOOFEWPARAMS, "too few parameters on call to %s", func->name);
+			QCC_PR_Expect (")");
+		}
+		else if (np)
 		{
-			d->type = param[i]->type;
-			QCC_FreeTemp(QCC_PR_Statement (&pr_opcodes[OP_STORE_F], param[i], d, (QCC_dstatement_t **)0xffffffff));
-			optres_nonvec_parms++;
+			QCC_PR_ParseWarning (WARN_TOOFEWPARAMS, "%s: Too few parameters", func->name);
+			QCC_PR_ParsePrintDef (WARN_TOOFEWPARAMS, func);
+		}
+
+	//	qcc_functioncalled++;
+		for (i = 0; i < arg; i++)
+		{
+			if (i>=MAX_PARMS)
+				d = extra_parms[i - MAX_PARMS];
+			else
+				d = &def_parms[i];
+
+			if (callconvention == OP_CALL1H)
+				if (i < 2)
+				{
+					param[i]->references++;
+					d->references++;
+					QCC_FreeTemp(param[i]);
+					continue;
+				}
+
+			if (param[i]->type->size>1 || !opt_nonvec_parms)
+				QCC_FreeTemp(QCC_PR_Statement (&pr_opcodes[OP_STORE_V], param[i], d, (QCC_dstatement_t **)0xffffffff));
+			else
+			{
+				d->type = param[i]->type;
+				QCC_FreeTemp(QCC_PR_Statement (&pr_opcodes[OP_STORE_F], param[i], d, (QCC_dstatement_t **)0xffffffff));
+				optres_nonvec_parms++;
+			}
 		}
 	}
 
@@ -2684,11 +2753,19 @@ QCC_def_t *QCC_PR_ParseFunctionCall (QCC_def_t *func)	//warning, the func could 
 
 	if (old)
 	{
-		d = QCC_GetTemp(t->aux_type);
-		if (t->aux_type->size == 3)
-			QCC_FreeTemp(QCC_PR_Statement(pr_opcodes+OP_STORE_V, &def_ret, d, NULL));
-		else
+		if (t->type == ev_variant)
+		{
+			d = QCC_GetTemp(type_variant);
 			QCC_FreeTemp(QCC_PR_Statement(pr_opcodes+OP_STORE_F, &def_ret, d, NULL));
+		}
+		else
+		{
+			d = QCC_GetTemp(t->aux_type);
+			if (t->aux_type->size == 3)
+				QCC_FreeTemp(QCC_PR_Statement(pr_opcodes+OP_STORE_V, &def_ret, d, NULL));
+			else
+				QCC_FreeTemp(QCC_PR_Statement(pr_opcodes+OP_STORE_F, &def_ret, d, NULL));
+		}
 		if (def_ret.type->size == 3)
 			QCC_FreeTemp(QCC_PR_Statement(pr_opcodes+OP_STORE_V, old, &def_ret, NULL));
 		else
@@ -2700,7 +2777,10 @@ QCC_def_t *QCC_PR_ParseFunctionCall (QCC_def_t *func)	//warning, the func could 
 		return d;
 	}
 	
-	def_ret.type = t->aux_type;
+	if (t->type == ev_variant)
+		def_ret.type = type_variant;
+	else
+		def_ret.type = t->aux_type;
 	if (def_ret.temp->used)
 		QCC_PR_ParseWarning(WARN_FIXEDRETURNVALUECONFLICT, "Return value conflict - output is inefficient");
 	def_ret.temp->used = true;
@@ -3136,7 +3216,7 @@ QCC_def_t	*QCC_PR_ParseValue (QCC_type_t *assumeclass)
 		}
 		else
 		{
-			od = d = QCC_PR_GetDef (type_float, name, pr_scope, true, 1);
+			od = d = QCC_PR_GetDef (type_variant, name, pr_scope, true, 1);
 			if (!d)
 				QCC_PR_ParseError (ERR_UNKNOWNVALUE, "Unknown value \"%s\"", name);
 			else
@@ -5240,18 +5320,22 @@ void QCC_PR_ParseState (void)
 			QCC_def_t *framef, *frame;
 			QCC_def_t *self;
 			QCC_def_t *cycle_wrapped;
+			temp_t *ftemp;
+
 			self = QCC_PR_GetDef(type_entity, "self", NULL, false, 0);
 			framef = QCC_PR_GetDef(NULL, "frame", NULL, false, 0);
 			cycle_wrapped = QCC_PR_GetDef(type_float, "cycle_wrapped", NULL, false, 0);
 
 			frame = QCC_PR_Statement(&pr_opcodes[OP_LOAD_F], self, framef, NULL);
-			QCC_FreeTemp(QCC_PR_Statement(&pr_opcodes[OP_STORE_F], QCC_MakeFloatDef(0), cycle_wrapped, NULL));
+			if (cycle_wrapped)
+				QCC_FreeTemp(QCC_PR_Statement(&pr_opcodes[OP_STORE_F], QCC_MakeFloatDef(0), cycle_wrapped, NULL));
+			QCC_UnFreeTemp(frame);
 
 			//make sure the frame is within the bounds given.
+			ftemp = frame->temp;
+			frame->temp = NULL;
 			t1 = QCC_PR_Statement(&pr_opcodes[OP_LT], frame, s1, NULL);
-			QCC_UnFreeTemp(frame);
 			t2 = QCC_PR_Statement(&pr_opcodes[OP_GT], frame, def, NULL);
-			QCC_UnFreeTemp(frame);
 			t1 = QCC_PR_Statement(&pr_opcodes[OP_OR], t1, t2, NULL);
 			QCC_PR_SimpleStatement(OP_IFNOT, t1->ofs, 2, 0);
 			QCC_FreeTemp(t1);
@@ -5267,7 +5351,8 @@ void QCC_PR_ParseState (void)
 				QCC_FreeTemp(t1);
 					QCC_FreeTemp(QCC_PR_Statement(&pr_opcodes[OP_STORE_F], s1, frame, NULL));
 					QCC_UnFreeTemp(frame);
-					QCC_FreeTemp(QCC_PR_Statement(&pr_opcodes[OP_STORE_F], QCC_MakeFloatDef(1), cycle_wrapped, NULL));
+					if (cycle_wrapped)
+						QCC_FreeTemp(QCC_PR_Statement(&pr_opcodes[OP_STORE_F], QCC_MakeFloatDef(1), cycle_wrapped, NULL));
 
 			QCC_PR_SimpleStatement(OP_GOTO, 6, 0, 0);
 				//reverse animation.
@@ -5277,10 +5362,13 @@ void QCC_PR_ParseState (void)
 				QCC_FreeTemp(t1);
 					QCC_FreeTemp(QCC_PR_Statement(&pr_opcodes[OP_STORE_F], def, frame, NULL));
 					QCC_UnFreeTemp(frame);
-					QCC_FreeTemp(QCC_PR_Statement(&pr_opcodes[OP_STORE_F], QCC_MakeFloatDef(1), cycle_wrapped, NULL));
+					if (cycle_wrapped)
+						QCC_FreeTemp(QCC_PR_Statement(&pr_opcodes[OP_STORE_F], QCC_MakeFloatDef(1), cycle_wrapped, NULL));
 	
 			//self.frame = frame happens with the normal state opcode.
 			QCC_FreeTemp(QCC_PR_Statement (&pr_opcodes[OP_STATE], frame, pr_scope, NULL));
+
+			frame->temp = ftemp;
 			QCC_FreeTemp(frame);
 		}
 		return;
@@ -7158,7 +7246,7 @@ void QCC_PR_ParseDefs (char *classname)
 		return;
 	}
 
-	if (1)//flag_acc)
+	if (flag_acc)
 	{
 		char *oldp;
 		if (QCC_PR_CheckInsens ("CodeSys"))	//reacc support.
@@ -7451,17 +7539,53 @@ void QCC_PR_ParseDefs (char *classname)
 		
 		if ( QCC_PR_Check ("[") )
 		{
-			if (pr_immediate_type->type == ev_integer)
-				arraysize = pr_immediate._int;
-			else if (pr_immediate_type->type == ev_float && (float)(int)pr_immediate._float == pr_immediate._float)
-				arraysize = (int)pr_immediate._float;
+			char *oldprfile = pr_file_p;
+			arraysize = 0;
+			if (QCC_PR_Check("]"))
+			{
+				QCC_PR_Expect("=");
+				QCC_PR_Expect("{");
+				QCC_PR_Lex();
+				arraysize++;
+				while(1)
+				{
+					if(pr_token_type == tt_eof)
+						break;
+					if (QCC_PR_Check(","))
+						arraysize++;
+					if (QCC_PR_Check("}"))
+						break;
+					QCC_PR_Lex();
+				}
+				pr_file_p = oldprfile;
+				QCC_PR_Lex();
+			}
 			else
+			{
+				if(pr_token_type == tt_name)
+				{
+					def = QCC_PR_GetDef(NULL, QCC_PR_ParseName(), pr_scope, false, 0);
+					if (def && def->arraysize==1)
+					{
+						if (def->type->type == ev_integer)
+							arraysize = G_INT(def->ofs);
+						else if (def->type->type == ev_float && (float)(int)G_FLOAT(def->ofs) == G_FLOAT(def->ofs))
+							arraysize = (int)G_FLOAT(def->ofs);
+					}
+				}
+				else if (pr_token_type == tt_immediate)
+				{
+					arraysize = atoi (pr_token);
+					QCC_PR_Lex();
+				}
+				QCC_PR_Expect("]");
+			}
+
+			if (arraysize < 1)
 			{
 				QCC_PR_ParseError (ERR_BADARRAYSIZE, "Definition of array (%s) size is not of a numerical value", name);
 				arraysize=0;	//grrr...
 			}
-			QCC_PR_Lex();
-			QCC_PR_Expect("]");
 		}
 		else
 			arraysize = 1;
@@ -7636,16 +7760,21 @@ lazyfunctiondeclaration:
 					i = 0;
 					do
 					{
-						name = QCC_PR_ParseName ();
-
-						d = QCC_PR_GetDef (NULL, name, pr_scope, false, 0);
-						if (!d)
-							QCC_PR_ParseError(ERR_NOTDEFINED, "%s was not defined", name);
+						if (QCC_PR_Check("0"))
+							G_FUNCTION(def->ofs+i) = 0;
 						else
 						{
-							if (!d->initialized)
-								QCC_PR_ParseWarning(WARN_NOTDEFINED, "initialisation of function arrays must be placed after the body of all functions used (%s)", name);
-							G_FUNCTION(def->ofs+i) = G_FUNCTION(d->ofs);
+							name = QCC_PR_ParseName ();
+
+							d = QCC_PR_GetDef (NULL, name, pr_scope, false, 0);
+							if (!d)
+								QCC_PR_ParseError(ERR_NOTDEFINED, "%s was not defined", name);
+							else
+							{
+								if (!d->initialized)
+									QCC_PR_ParseWarning(WARN_NOTDEFINED, "initialisation of function arrays must be placed after the body of all functions used (%s)", name);
+								G_FUNCTION(def->ofs+i) = G_FUNCTION(d->ofs);
+							}
 						}
 
 						i++;

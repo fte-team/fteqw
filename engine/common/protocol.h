@@ -60,6 +60,12 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 #define PEXT_CHUNKEDDOWNLOADS	0x20000000	//alternate file download method. Hopefully it'll give quadroupled download speed, especially on higher pings.
 #endif
 
+#ifdef _DEBUG
+#ifdef CSQC_DAT
+#define PEXT_CSQC				0x40000000	//csqc additions
+#endif
+#endif
+
 
 
 //ZQuake transparent protocol extensions.
@@ -235,6 +241,10 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 
 #define svcqw_effect			74		// [vector] org [byte] modelindex [byte] startframe [byte] framecount [byte] framerate
 #define svcqw_effect2			75		// [vector] org [short] modelindex [short] startframe [byte] framecount [byte] framerate
+
+#ifdef PEXT_CSQC
+#define svc_csqcentities	76	//entity lump for csqc
+#endif
 
 #define svc_invalid			256
 

@@ -580,7 +580,9 @@ void CL_PredictMovePNum (int pnum)
 	}
 
 	if (cls.netchan.outgoing_sequence - cl.validsequence >= UPDATE_BACKUP-1)
-	{
+	{	//lagging like poo.
+		if (!cl.intermission)	//keep the angles working though.
+			VectorCopy (cl.viewangles[pnum], cl.simangles[pnum]);
 		return;
 	}
 

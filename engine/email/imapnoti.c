@@ -1,10 +1,9 @@
-#include "bothdefs.h"
+#include "quakedef.h"
 
 #ifdef EMAILCLIENT
 
 //code to sit on an imap server and check for new emails every now and then.
 
-#include "quakedef.h"
 #include "winquake.h"
 
 #ifdef _WIN32

@@ -19,9 +19,9 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 */
 // snd_mix.c -- portable code to mix sounds for snd_dma.c
 
-#ifndef __CYGWIN__
-
 #include "quakedef.h"
+
+#ifndef __CYGWIN__
 
 #ifndef NOSOUNDASM
 #define NOSOUNDASM	//since channels per sound card went to 6 (portable_samplegroup_t was changed)

@@ -1896,8 +1896,7 @@ void Sbar_DeathmatchOverlay (int start)
 		)
 	{
 		cl.last_ping_request = realtime;
-		MSG_WriteByte (&cls.netchan.message, clc_stringcmd);
-		SZ_Print (&cls.netchan.message, "pings");
+		CL_SendClientCommand("pings");
 	}
 
 	scr_copyeverything = 1;
@@ -2056,8 +2055,7 @@ void Sbar_ChatModeOverlay(void)
 		)
 	{
 		cl.last_ping_request = realtime;
-		MSG_WriteByte (&cls.netchan.message, clc_stringcmd);
-		SZ_Print (&cls.netchan.message, "pings");
+		CL_SendClientCommand("pings");
 	}
 
 	scr_copyeverything = 1;

@@ -1,3 +1,5 @@
+#include "bothdefs.h"
+
 #ifdef WEBSVONLY
 	#define WEBSERVER
 #else

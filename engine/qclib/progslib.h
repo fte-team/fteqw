@@ -41,22 +41,22 @@ typedef struct {
 	int spare[2];
 } evalc_t;
 #define sizeofevalc sizeof(evalc_t)
-typedef enum {ev_void, ev_string, ev_float, ev_vector, ev_entity, ev_field, ev_function, ev_pointer, ev_integer, ev_struct, ev_union, ev_variant} etype_t;
+typedef enum {ev_void, ev_string, ev_float, ev_vector, ev_entity, ev_field, ev_function, ev_pointer, ev_integer, ev_variant, ev_struct, ev_union} etype_t;
 
 struct progfuncs_s {
 	int progsversion;	//PROGSTRUCT_VERSION
 
 
-	void	(*PR_Configure)				(progfuncs_t *prinst, void *mem, int memsize, int max_progs);		//configure buffers and memory. Used to reset and must be called first.
-	progsnum_t	(*PR_LoadProgs)			(progfuncs_t *prinst, char *s, int headercrc, builtin_t *builtins, int numbuiltins);	//load a progs
-	int		(*PR_InitEnts)				(progfuncs_t *prinst, int max_ents);	//returns size of edicts for use with nextedict macro
-	void	(*PR_ExecuteProgram)		(progfuncs_t *prinst, func_t fnum);	//start execution
-	pbool	(*PR_SwitchProgs)			(progfuncs_t *prinst, progsnum_t num);	//switch to a different progs - my aim is to make this obsolete
+	void	(*Configure)				(progfuncs_t *prinst, void *mem, int memsize, int max_progs);		//configure buffers and memory. Used to reset and must be called first.
+	progsnum_t	(*LoadProgs)			(progfuncs_t *prinst, char *s, int headercrc, builtin_t *builtins, int numbuiltins);	//load a progs
+	int		(*InitEnts)					(progfuncs_t *prinst, int max_ents);	//returns size of edicts for use with nextedict macro
+	void	(*ExecuteProgram)			(progfuncs_t *prinst, func_t fnum);	//start execution
+	pbool	(*SwitchProgs)				(progfuncs_t *prinst, progsnum_t num);	//switch to a different progs - my aim is to make this obsolete
 	struct globalvars_s	*(*globals)		(progfuncs_t *prinst, progsnum_t num);	//get the globals of a progs
 	struct entvars_s	*(*entvars)		(progfuncs_t *prinst, struct edict_s *ent);	//return a pointer to the entvars of an ent
 
-	void	(VARGS *PR_RunError)		(progfuncs_t *prinst, char *msg, ...);		//builtins call this to say there was a problem
-	void	(*PR_PrintEdict)			(progfuncs_t *prinst, struct edict_s *ed);	//get a listing of all vars on an edict (sent back via 'print')
+	void	(VARGS *RunError)			(progfuncs_t *prinst, char *msg, ...);		//builtins call this to say there was a problem
+	void	(*PrintEdict)				(progfuncs_t *prinst, struct edict_s *ed);	//get a listing of all vars on an edict (sent back via 'print')
 
 	struct edict_s	*(*ED_Alloc)		(progfuncs_t *prinst);
 	void	(*ED_Free)					(progfuncs_t *prinst, struct edict_s *ed);
@@ -66,17 +66,17 @@ struct progfuncs_s {
 
 	void	(*SetGlobalEdict)			(progfuncs_t *prinst, struct edict_s *ed, int ofs);	//set a global to an edict (partially obsolete)
 
-	char	*(*PR_VarString)			(progfuncs_t *prinst, int	first);	//returns a string made up of multiple arguments
+	char	*(*VarString)				(progfuncs_t *prinst, int	first);	//returns a string made up of multiple arguments
 
 	struct progstate_s **progstate;	//these are so the macros work properly
 //	struct edict_s **sv_edicts;
 
 //	int *sv_num_edicts;
 
-	func_t	(*PR_FindFunction)			(progfuncs_t *prinst, char *funcname, progsnum_t num);
+	func_t	(*FindFunction)				(progfuncs_t *prinst, char *funcname, progsnum_t num);
 
-	int		(*PR_StartCompile)			(progfuncs_t *prinst, int argv, char **argc);	//1 if can compile, 0 if failed to compile
-	int		(*PR_ContinueCompile)		(progfuncs_t *prinst);	//2 if finished, 1 if more to go, 0 if failed
+	int		(*StartCompile)				(progfuncs_t *prinst, int argv, char **argc);	//1 if can compile, 0 if failed to compile
+	int		(*ContinueCompile)			(progfuncs_t *prinst);	//2 if finished, 1 if more to go, 0 if failed
 
 	char	*(*filefromprogs)			(progfuncs_t *prinst, progsnum_t prnum, char *fname, int *size, char *buffer);	//reveals encoded/added files from already loaded progs
 	char	*(*filefromnewprogs)		(progfuncs_t *prinst, char *prname, char *fname, int *size, char *buffer);	//reveals encoded/added files from a progs on the disk somewhere
@@ -99,7 +99,7 @@ struct progfuncs_s {
 
 	int		*pr_trace;	//start calling the editor for each line executed	
 
-	void	(*PR_StackTrace)			(progfuncs_t *prinst);
+	void	(*StackTrace)				(progfuncs_t *prinst);
 	
 	int		(*ToggleBreak)				(progfuncs_t *prinst, char *filename, int linenum, int mode);
 
@@ -198,11 +198,11 @@ typedef union eval_s
 
 
 #ifndef DLL_PROG
-#define PR_Configure(pf, mem, memsize, max_progs)			(*pf->PR_Configure)			(pf, mem, memsize, max_progs)
-#define PR_LoadProgs(pf, s, headercrc, builtins, numb)		(*pf->PR_LoadProgs)			(pf, s, headercrc, builtins, numb)
-#define PR_InitEnts(pf, maxents)							(*pf->PR_InitEnts)			(pf, maxents)
-#define PR_ExecuteProgram(pf, fnum)							(*pf->PR_ExecuteProgram)	(pf, fnum)
-#define PR_SwitchProgs(pf, num)								(*pf->PR_SwitchProgs)		(pf, num);
+#define PR_Configure(pf, mem, memsize, max_progs)			(*pf->Configure)			(pf, mem, memsize, max_progs)
+#define PR_LoadProgs(pf, s, headercrc, builtins, numb)		(*pf->LoadProgs)			(pf, s, headercrc, builtins, numb)
+#define PR_InitEnts(pf, maxents)							(*pf->InitEnts)				(pf, maxents)
+#define PR_ExecuteProgram(pf, fnum)							(*pf->ExecuteProgram)		(pf, fnum)
+#define PR_SwitchProgs(pf, num)								(*pf->SwitchProgs)			(pf, num);
 #define PR_globals(pf, num)									(*pf->globals)				(pf, num)
 #define PR_entvars(pf, ent)									(*pf->entvars)				(pf, ent)
 
@@ -217,17 +217,27 @@ typedef union eval_s
 #define EDICT_NUM(pf, num)									(*pf->EDICT_NUM)			(pf, num)
 #define NUM_FOR_EDICT(pf, e)								(*pf->NUM_FOR_EDICT)		(pf, e)
 #define SetGlobalEdict(pf, ed, ofs)							(*pf->SetGlobalEdict)		(pf, ed, ofs)
-#define PR_VarString		(*progfuncs->PR_VarString)
+#define PR_VarString(pf,first)								(*pf->VarString)			(pf,first)
+
+#define PR_StartCompile(pf,argc,argv)						(*pf->StartCompile)			(pf,argc,argv)
+#define PR_ContinueCompile(pf)								(*pf->ContinueCompile)		(pf)
+
+#define PR_StackTrace(pf)									(*pf->StackTrace)			(pf)
+#define PR_AbortStack(pf)									(*pf->AbortStack)			(pf)
+
+#define PR_RunError(pf,str)									(*pf->RunError)				(pf,str)
+
+#define PR_PrintEdict(pf,ed)								(*pf->PrintEdict)			(pf, ed)
 
 //#define sv_edicts			(*progfuncs->sv_edicts)
-#define current_progstate	(*progfuncs->progstate)
+//#define current_progstate	(*progfuncs->progstate)
 
 //#define pr_num_edicts		(*progfuncs->sv_num_edicts)
 
-#define PR_FindFunction(pf, name, num)						(*pf->PR_FindFunction)		(pf, name, num)
+#define PR_FindFunction(pf, name, num)						(*pf->FindFunction)			(pf, name, num)
 #define PR_FindGlobal(pf, name, progs)						(*pf->FindGlobal)			(pf, name, progs)
 #define PR_AddString(pf, ed)								(*pf->AddString)			(pf, ed)
-#define PR_Alloc			(*progfuncs->Tempmem)
+#define PR_Alloc(pf,size)									(*pf->Tempmem)				(pf, size)
 
 #define PROG_TO_EDICT(pf, ed)								(*pf->ProgsToEdict)			(pf, ed)
 #define EDICT_TO_PROG(pf, ed)								(*pf->EdictToProgs)			(pf, ed)

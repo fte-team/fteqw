@@ -65,6 +65,7 @@ int			mirrortexturenum;	// quake texturenum, not gltexturenum
 qboolean	mirror;
 mplane_t	*mirror_plane;
 msurface_t	*r_mirror_chain;
+qboolean	r_inmirror;	//or out-of-body
 
 void R_DrawAliasModel (entity_t *e);
 
@@ -1293,7 +1294,6 @@ void R_SetupGL (void)
 	float	screenaspect;
 	extern	int glwidth, glheight;
 	int		x, x2, y2, y, w, h;
-
 	//
 	// set up viewpoint
 	//
@@ -1349,29 +1349,24 @@ void R_SetupGL (void)
 		qglCullFace(GL_BACK);
 	}
 	else
+	{
+#ifdef R_XFLIP
+		if (r_xflip.value)
+		{
+			qglScalef (1, -1, 1);
+			qglCullFace(GL_BACK);
+		}
+		else
+#endif
 		qglCullFace(GL_FRONT);
+	}
 
 	qglMatrixMode(GL_MODELVIEW);
-	qglLoadIdentity ();
-
-    qglRotatef (-90,  1, 0, 0);	    // put Z going up
-    qglRotatef (90,  0, 0, 1);	    // put Z going up
-
-#ifdef R_XFLIP
-	if (r_xflip.value)
-	{
-		qglScalef (1, -1, 1);
-		qglCullFace(GL_BACK);
-	}
-#endif
 
 
-    qglRotatef (-r_refdef.viewangles[2],  1, 0, 0);
-    qglRotatef (-r_refdef.viewangles[0],  0, 1, 0);
-    qglRotatef (-r_refdef.viewangles[1],  0, 0, 1);
-    qglTranslatef (-r_refdef.vieworg[0],  -r_refdef.vieworg[1],  -r_refdef.vieworg[2]);
+	ML_ModelViewMatrixFromAxis(r_world_matrix, vpn, vright, vup, r_refdef.vieworg);
+	qglLoadMatrixf(r_world_matrix);
 
-	qglGetFloatv (GL_MODELVIEW_MATRIX, r_world_matrix);
 
 	//
 	// set drawing parms
@@ -1647,40 +1642,105 @@ void R_MirrorAddPlayerModels (void)
 void R_Mirror (void)
 {
 	float		d;
-	msurface_t	*s;
+	msurface_t	*s, *prevs, *prevr, *rejects;
 //	entity_t	*ent;
+	mplane_t *mirror_plane;
 
-	int oldvisents;
-	vec3_t oldangles, oldorg;	//cache - for rear view mirror and stuff.
+	vec3_t oldangles, oldorg, oldvpn, oldvright, oldvup;	//cache - for rear view mirror and stuff.
 
 	if (!mirror)
+	{
+		r_inmirror = false;
 		return;
+	}
 
-	oldvisents = cl_numvisedicts;
-	R_MirrorAddPlayerModels();	//we need to add the player model. Invisible in mirror otherwise.
+	r_inmirror = true;
 
 	memcpy(oldangles, r_refdef.viewangles, sizeof(vec3_t));
 	memcpy(oldorg, r_refdef.vieworg, sizeof(vec3_t));
-	
+	memcpy(oldvpn, vpn, sizeof(vec3_t));
+	memcpy(oldvright, vright, sizeof(vec3_t));
+	memcpy(oldvup, vup, sizeof(vec3_t));
 	memcpy (r_base_world_matrix, r_world_matrix, sizeof(r_base_world_matrix));
 
-	d = DotProduct (r_refdef.vieworg, mirror_plane->normal) - mirror_plane->dist;
-	VectorMA (r_refdef.vieworg, -2*d, mirror_plane->normal, r_refdef.vieworg);
+	while(r_mirror_chain)
+	{
+		s = r_mirror_chain;
+		r_mirror_chain = r_mirror_chain->texturechain;
+		//this loop figures out all surfaces with the same plane.
+		//yes, this can mean that the list is reversed a few times, but we do have depth testing to solve that anyway.
+		for(prevs = s,prevr=NULL,rejects=NULL;r_mirror_chain;r_mirror_chain=r_mirror_chain->texturechain)
+		{
+			if (s->plane->dist != r_mirror_chain->plane->dist || s->plane->signbits != r_mirror_chain->plane->signbits 
+				|| s->plane->normal[0] != r_mirror_chain->plane->normal[0] || s->plane->normal[1] != r_mirror_chain->plane->normal[1] || s->plane->normal[2] != r_mirror_chain->plane->normal[2])
+			{	//reject
+				if (prevr)
+					prevr->texturechain = r_mirror_chain;
+				else
+					rejects = r_mirror_chain;
+				prevr = r_mirror_chain;
+			}
+			else
+			{	//matches
+				prevs->texturechain = r_mirror_chain;
+				prevs = r_mirror_chain;
+			}
+		}
+		prevs->texturechain = NULL;
+		if (prevr)
+			prevr->texturechain = NULL;
+
+		r_mirror_chain = rejects;
+
+		mirror_plane = s->plane;
+
+		//enable stencil writing
+		qglClearStencil(0);
+		qglEnable(GL_STENCIL_TEST);
+		qglStencilOp(GL_KEEP, GL_KEEP, GL_REPLACE);	//replace where it passes
+		qglStencilFunc( GL_ALWAYS, 1, ~0 );	//always pass (where z passes set to 1)
+
+		qglColorMask( GL_FALSE, GL_FALSE, GL_FALSE, GL_FALSE );
+		qglDepthMask( GL_FALSE );
+		for (prevs = s; s; s=s->texturechain)	//write the polys to the stencil buffer.
+			R_RenderBrushPoly (s);
+
+		qglColorMask( GL_TRUE, GL_TRUE, GL_TRUE, GL_TRUE );
+		qglDepthMask( GL_TRUE );
+
+		qglStencilOp(GL_KEEP, GL_KEEP, GL_KEEP);
+		qglStencilFunc( GL_EQUAL, 1, ~0 );	//pass if equal to 1
+
+
+//	oldvisents = cl_numvisedicts;
+//	R_MirrorAddPlayerModels();	//we need to add the player model. Invisible in mirror otherwise.
+
+	d = DotProduct (oldorg, mirror_plane->normal) - mirror_plane->dist;
+	VectorMA (oldorg, -2*d, mirror_plane->normal, r_refdef.vieworg);
 	memcpy(r_origin, r_refdef.vieworg, sizeof(vec3_t));	
 
-	d = DotProduct (vpn, mirror_plane->normal);
-	VectorMA (vpn, -2*d, mirror_plane->normal, vpn);
+	d = DotProduct (oldvpn, mirror_plane->normal);
+	VectorMA (oldvpn, -2*d, mirror_plane->normal, vpn);
+
+	d = DotProduct (oldvright, mirror_plane->normal);
+	VectorMA (oldvright, -2*d, mirror_plane->normal, vright);
+
+	d = DotProduct (oldvup, mirror_plane->normal);
+	VectorMA (oldvup, -2*d, mirror_plane->normal, vup);
 
 	r_refdef.viewangles[0] = -asin (vpn[2])/M_PI*180;
 	r_refdef.viewangles[1] = atan2 (vpn[1], vpn[0])/M_PI*180;
-	r_refdef.viewangles[2] = -r_refdef.viewangles[2];	
+	r_refdef.viewangles[2] = -oldangles[2];	
+
+	vpn[0]*=0.001;
+	vpn[1]*=0.001;
+	vpn[2]*=0.001;
 /*
 	r_refdef.vieworg[0] = 400;
 	r_refdef.vieworg[1] = 575;
 	r_refdef.vieworg[2] = 64;
 */
-
-	AngleVectors (r_refdef.viewangles, vpn, vright, vup);
+//	AngleVectors (r_refdef.viewangles, vpn, vright, vup);
 
 
 	gldepthmin = 0.5;
@@ -1700,6 +1760,7 @@ void R_Mirror (void)
 
 	
 	memcpy(r_refdef.viewangles, oldangles, sizeof(vec3_t));
+	memcpy(r_refdef.vieworg, oldorg, sizeof(vec3_t));
 
 	qglMatrixMode(GL_PROJECTION);
 	if (mirror_plane->normal[2])
@@ -1711,26 +1772,34 @@ void R_Mirror (void)
 
 	qglLoadMatrixf (r_base_world_matrix);
 
-	
+	qglDisable(GL_STENCIL_TEST);
 
 	// blend on top
 	qglDisable(GL_ALPHA_TEST);
 	qglEnable (GL_BLEND);
 	qglBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
 	qglColor4f (1,1,1,r_mirroralpha.value);
-	s = r_mirror_chain;
-	for ( ; s ; s=s->texturechain)
-		R_RenderBrushPoly (s);
+
+		for ( ; s ; s=s->texturechain)
+		{
+			qglEnable (GL_BLEND);
+			R_RenderBrushPoly (s);
+		}
 	cl.worldmodel->textures[mirrortexturenum]->texturechain = NULL;
 	qglDisable (GL_BLEND);
 	qglColor4f (1,1,1,1);
 	
 	//put things back for rear views
 	qglCullFace(GL_BACK);
+//	cl_numvisedicts = oldvisents;
+	}
 
 	memcpy(r_refdef.viewangles, oldangles, sizeof(vec3_t));
 	memcpy(r_refdef.vieworg, oldorg, sizeof(vec3_t));
-	cl_numvisedicts = oldvisents;
+
+	AngleVectors (r_refdef.viewangles, vpn, vright, vup);
+
+	r_inmirror = false;
 }
 //#endif
 

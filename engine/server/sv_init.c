@@ -754,8 +754,18 @@ void SV_SpawnServer (char *server, char *startspot, qboolean noents, qboolean us
 
 			if (!svs.clients[i].state && svs.clients[i].name[0])	//this is a bot.
 				svs.clients[i].name[0] = '\0';						//make it go away
+
+#ifdef PEXT_CSQC
+			memset(svs.clients[i].csqcentsequence, 0, sizeof(svs.clients[i].csqcentsequence));
+			memset(svs.clients[i].csqcentversions, 0, sizeof(svs.clients[i].csqcentversions));
+#endif
 		}
 		sv.allocated_client_slots = i;
+
+#ifdef PEXT_CSQC
+		for (i=0 ; i<MAX_EDICTS ; i++)
+			sv.csqcentversion[i] = 1;	//force all csqc edicts to start off as version 1
+#endif
 
 	}
 #ifdef Q2SERVER

@@ -1,6 +1,5 @@
-#include "bothdefs.h"
-#ifdef Q2CLIENT
 #include "quakedef.h"
+#ifdef Q2CLIENT
 
 extern cvar_t r_drawviewmodel;
 
@@ -940,25 +939,9 @@ struct model_s *S_RegisterSexedModel (entity_state_t *ent, char *base)
 
 */
 
-void V_AddEntity(entity_t *in)
-{
-	entity_t *ent;
-	if (cl_numvisedicts == MAX_VISEDICTS)
-		return;		// object list is full
-	ent = &cl_visedicts[cl_numvisedicts];
-	cl_numvisedicts++;
-
-	*ent = *in;
-
-	ent->angles[0]*=-1;
-	AngleVectors(ent->angles, ent->axis[0], ent->axis[1], ent->axis[2]);
-	VectorInverse(ent->axis[1]);
-	ent->angles[0]*=-1;
-}
-
 void V_AddLight (vec3_t org, float quant, float r, float g, float b)
 {
-	CL_NewDlightRGB (0, org[0], org[1], org[2], quant, 0.1, r, g, b);
+	CL_NewDlightRGB (0, org[0], org[1], org[2], quant, 0, r, g, b);
 }
 /*
 ===============

@@ -22,10 +22,8 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 //
 // huff.c - Huffman compression routines for data bitstream
 //
-#include "bothdefs.h"
-#ifdef HUFFNETWORK
-
 #include "quakedef.h"
+#ifdef HUFFNETWORK
 #define ID_INLINE
 
 #define VALUE(a)			(*(int  *)&(a))

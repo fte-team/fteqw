@@ -255,6 +255,8 @@ typedef struct
 //end this lot... (demo playback)
 
 	svcustomtents_t customtents[255];
+
+	int				csqcentversion[MAX_EDICTS];//prevents ent versions from going backwards
 } server_t;
 
 
@@ -398,6 +400,12 @@ typedef struct client_s
 
 	int				spec_track;			// entnum of player tracking
 
+#ifdef PEXT_CSQC
+	int				csqclastsentsequence;
+	int				csqcentsequence[MAX_EDICTS];//the sequence number a csqc entity was sent in
+	int				csqcentversions[MAX_EDICTS];//the version of the entity when it was sent in that sequenced packet.
+#endif
+
 	//true/false/persist
 	qbyte		ismuted;
 	qbyte		iscuffed;
@@ -420,6 +428,8 @@ typedef struct client_s
 	int				chokecount;
 	int				delta_sequence;		// -1 = no compression
 	netchan_t		netchan;
+
+	int				lastsequence_acknoledged;
 
 	svvoicechat_t voicechat;
 
@@ -748,6 +758,15 @@ typedef enum multicast_e
 	MULTICAST_PVS_R
 } multicast_t;
 #endif
+
+
+//shared with qc
+#define	MSG_BROADCAST	0		// unreliable to all
+#define	MSG_ONE			1		// reliable to one (msg_entity)
+#define	MSG_ALL			2		// reliable to all
+#define	MSG_INIT		3		// write to the init string
+#define	MSG_MULTICAST	4		// for multicast()
+#define MSG_CSQC		5		// for writing csqc entities
 
 //============================================================================
 

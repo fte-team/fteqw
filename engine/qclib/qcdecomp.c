@@ -757,6 +757,8 @@ void FigureOutTypes(progfuncs_t *progfuncs)
 	type_pointer = QCC_PR_NewType("pointer", ev_pointer);	
 	type_integer = QCC_PR_NewType("integer", ev_integer);
 
+//	type_variant = QCC_PR_NewType("__variant", ev_variant);
+
 	type_floatfield = QCC_PR_NewType("fieldfloat", ev_field);
 	type_floatfield->aux_type = type_float;
 	type_pointer->aux_type = QCC_PR_NewType("pointeraux", ev_float);

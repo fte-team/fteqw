@@ -21,6 +21,7 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 
 #include "bothdefs.h"	//first thing included by ALL files.
 
+#pragma message("blah")
 
 #if _MSC_VER
 #define MSVCDISABLEWARNINGS
@@ -73,6 +74,9 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 #pragma warning(3:4673)     // thrown object cannot be handled in catch block
 #pragma warning(3:4674)     // dtor of thrown object is inaccessible
 #pragma warning(3:4705)     // statement has no effect (example: a+1;)
+
+
+#pragma warning( 4 : 4267)	//truncation from const double to float
 #endif
 
 
@@ -88,6 +92,9 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 
 #ifdef SERVERONLY
 #define isDedicated true
+#endif
+#ifdef CLIENTONLY
+#define isDedicated false
 #endif
 
 #ifdef __linux__

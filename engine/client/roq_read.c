@@ -20,14 +20,13 @@
  *       Tim Ferguson: http://www.csse.monash.edu.au/~timf/
  * ------------------------------------------------------------------------ */
 
-#include "bothdefs.h"
+#include "quakedef.h"
 
 #ifndef NOMEDIA
 
 //#include <stdio.h>
 //#include <stdlib.h>
 //#include <string.h>
-#include "quakedef.h"
 #include "roq.h"
 
 //#define DBUG	1

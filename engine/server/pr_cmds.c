@@ -141,6 +141,8 @@ void ED_Spawned (struct edict_s *ent)
 	ent->v.dimension_ghost = 0;
 	ent->v.dimension_solid = 255;
 	ent->v.dimension_hit = 255;
+
+	ent->v.Version = sv.csqcentversion[ent->entnum]+1;
 }
 
 pbool ED_CanFree (edict_t *ed)
@@ -170,6 +172,8 @@ pbool ED_CanFree (edict_t *ed)
 	ed->v.nextthink = 0;
 	ed->v.think = 0;
 	ed->v.solid = 0;
+
+	sv.csqcentversion[ed->entnum] = ed->v.Version+1;
 
 	return true;
 }
@@ -706,8 +710,8 @@ void PR_Compile_f(void)
 
 	if (!svprogfuncs)
 		Q_SetProgsParms(true);
-	if (svprogfuncs->PR_StartCompile(svprogfuncs, argc, argv))
-		while(svprogfuncs->PR_ContinueCompile(svprogfuncs));
+	if (PR_StartCompile(svprogfuncs, argc, argv))
+		while(PR_ContinueCompile(svprogfuncs));
 
 	time = Sys_DoubleTime() - time;
 
@@ -1347,8 +1351,8 @@ void VARGS PR_BIError(progfuncs_t *progfuncs, char *format, ...)
 	}
 	else
 	{
-		progfuncs->PR_StackTrace(progfuncs);
-		progfuncs->AbortStack(progfuncs);
+		PR_StackTrace(progfuncs);
+		PR_AbortStack(progfuncs);
 		progfuncs->parms->Abort ("%s", string);
 	}
 }
@@ -1546,7 +1550,7 @@ void PF_instr (progfuncs_t *prinst, globalvars_t *pr_globals)
 	sub = strstr(s1, s2);
 
 	if (sub == NULL)
-		RETURN_SSTRING("");
+		G_INT(OFS_RETURN) = 0;
 	else
 		RETURN_SSTRING(sub);	//last as long as the origional string
 }
@@ -1590,7 +1594,7 @@ void PF_error (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 	ED_Print (ed);
 */	
 
-	prinst->PR_StackTrace(prinst);
+	PR_StackTrace(prinst);
 
 	Con_Printf("%s\n", s);
 
@@ -1602,7 +1606,7 @@ void PF_error (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 	}
 	else
 	{
-		prinst->AbortStack(prinst);
+		PR_AbortStack(prinst);
 		PR_BIError (prinst, "Program error: %s", s);
 	}
 }
@@ -1617,7 +1621,7 @@ removed, but the level can continue.
 objerror(value)
 =================
 */
-void PF_objerror (progfuncs_t *prinst, struct globalvars_s *pr_globals)
+static void PF_objerror (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
 	char	*s;
 	edict_t	*ed;
@@ -2567,7 +2571,7 @@ if the tryents flag is set.
 traceline (vector1, vector2, tryents)
 =================
 */
-void PF_traceline (progfuncs_t *prinst, struct globalvars_s *pr_globals)
+static void PF_traceline (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
 	float	*v1, *v2, *mins, *maxs;
 	trace_t	trace;
@@ -2613,7 +2617,7 @@ void PF_traceline (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 		pr_global_struct->trace_ent = EDICT_TO_PROG(prinst, sv.edicts);
 }
 
-void PF_traceboxh2 (progfuncs_t *prinst, struct globalvars_s *pr_globals)
+static void PF_traceboxh2 (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
 	float	*v1, *v2, *mins, *maxs;
 	trace_t	trace;
@@ -2650,7 +2654,7 @@ void PF_traceboxh2 (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 		pr_global_struct->trace_ent = EDICT_TO_PROG(prinst, sv.edicts);
 }
 
-void PF_traceboxdp (progfuncs_t *prinst, struct globalvars_s *pr_globals)
+static void PF_traceboxdp (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
 	float	*v1, *v2, *mins, *maxs;
 	trace_t	trace;
@@ -2688,7 +2692,7 @@ void PF_traceboxdp (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 }
 
 extern trace_t SV_Trace_Toss (edict_t *ent, edict_t *ignore);
-void PF_TraceToss (progfuncs_t *prinst, struct globalvars_s *pr_globals)
+static void PF_TraceToss (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
 	trace_t	trace;
 	edict_t	*ent;
@@ -2963,9 +2967,9 @@ void PF_localcmd (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 	
 	str = PR_GetStringOfs(prinst, OFS_PARM0);	
 	if (!strcmp(str, "host_framerate 0\n"))
-		Cbuf_AddText ("sv_mintic 0\n", RESTRICT_RCON);	//hmm... do this better...
+		Cbuf_AddText ("sv_mintic 0\n", RESTRICT_SERVER);	//hmm... do this better...
 	else
-		Cbuf_AddText (str, RESTRICT_RCON);
+		Cbuf_AddText (str, RESTRICT_SERVER);
 }
 
 /*
@@ -3159,7 +3163,7 @@ void PF_dprintv (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 }
 
 #define MAX_TEMPSTRS	16
-#define MAXTEMPBUFFERLEN	1024
+#define MAXTEMPBUFFERLEN	4096
 char *PF_TempStr(void)
 {
 	static char	pr_string_temparr[MAX_TEMPSTRS][MAXTEMPBUFFERLEN];
@@ -4120,8 +4124,15 @@ client_t *Write_GetClient(void)
 	return &svs.clients[entnum-1];
 }
 
+extern sizebuf_t csqcmsgbuffer;
 void PF_WriteByte (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
+	if (G_FLOAT(OFS_PARM0) == MSG_CSQC)
+	{	//csqc buffers are always written.
+		MSG_WriteByte(&csqcmsgbuffer, G_FLOAT(OFS_PARM1));
+		return;
+	}
+
 	if (qc_nonetaccess.value || sv.demofile)
 		return;
 
@@ -4154,6 +4165,12 @@ void PF_WriteByte (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 
 void PF_WriteChar (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
+	if (G_FLOAT(OFS_PARM0) == MSG_CSQC)
+	{	//csqc buffers are always written.
+		MSG_WriteChar(&csqcmsgbuffer, G_FLOAT(OFS_PARM1));
+		return;
+	}
+
 	if (qc_nonetaccess.value || sv.demofile)
 		return;
 	pr_netprogfuncs = prinst;
@@ -4185,6 +4202,12 @@ void PF_WriteChar (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 
 void PF_WriteShort (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
+	if (G_FLOAT(OFS_PARM0) == MSG_CSQC)
+	{	//csqc buffers are always written.
+		MSG_WriteShort(&csqcmsgbuffer, G_FLOAT(OFS_PARM1));
+		return;
+	}
+
 	if (qc_nonetaccess.value || sv.demofile)
 		return;
 
@@ -4217,6 +4240,12 @@ void PF_WriteShort (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 
 void PF_WriteLong (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
+	if (G_FLOAT(OFS_PARM0) == MSG_CSQC)
+	{	//csqc buffers are always written.
+		MSG_WriteLong(&csqcmsgbuffer, G_FLOAT(OFS_PARM1));
+		return;
+	}
+
 	if (qc_nonetaccess.value || sv.demofile)
 		return;
 
@@ -4249,6 +4278,12 @@ void PF_WriteLong (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 
 void PF_WriteAngle (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
+	if (G_FLOAT(OFS_PARM0) == MSG_CSQC)
+	{	//csqc buffers are always written.
+		MSG_WriteAngle(&csqcmsgbuffer, G_FLOAT(OFS_PARM1));
+		return;
+	}
+
 	if (qc_nonetaccess.value || sv.demofile)
 		return;
 	pr_netprogfuncs = prinst;
@@ -4280,6 +4315,12 @@ void PF_WriteAngle (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 
 void PF_WriteCoord (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
+	if (G_FLOAT(OFS_PARM0) == MSG_CSQC)
+	{	//csqc buffers are always written.
+		MSG_WriteCoord(&csqcmsgbuffer, G_FLOAT(OFS_PARM1));
+		return;
+	}
+
 	if (qc_nonetaccess.value || sv.demofile)
 		return;
 
@@ -4312,10 +4353,15 @@ void PF_WriteCoord (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 
 void PF_WriteString (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
-	char *str;
+	char *str = PF_VarString(prinst, 1, pr_globals);;
+	if (G_FLOAT(OFS_PARM0) == MSG_CSQC)
+	{	//csqc buffers are always written.
+		MSG_WriteString(&csqcmsgbuffer, str);
+		return;
+	}
+
 	if (qc_nonetaccess.value || sv.demofile)
 		return;
-	str = PF_VarString(prinst, 1, pr_globals);
 
 	pr_netprogfuncs = prinst;
 	pr_netglob = pr_globals;
@@ -4347,6 +4393,12 @@ void PF_WriteString (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 
 void PF_WriteEntity (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
+	if (G_FLOAT(OFS_PARM0) == MSG_CSQC)
+	{	//csqc buffers are always written.
+		MSG_WriteShort(&csqcmsgbuffer, G_EDICTNUM(prinst, OFS_PARM1));
+		return;
+	}
+
 	if (qc_nonetaccess.value || sv.demofile)
 		return;
 
@@ -4382,8 +4434,9 @@ void PF_WriteEntity (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 void PF_WriteString2 (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
 	int old;
-	char *str;
-	if (qc_nonetaccess.value || sv.demofile)
+	char *str = PF_VarString(prinst, 1, pr_globals);
+	
+	if (G_FLOAT(OFS_PARM0) != MSG_CSQC && (qc_nonetaccess.value || sv.demofile))
 		return;
 
 	str = PF_VarString(prinst, 1, pr_globals);
@@ -4836,9 +4889,9 @@ qboolean printedheader = false;
 	Con_Printf("\n");
 
 	if (progstype == PROG_QW)
-		prinst->PR_RunError(prinst, "\nBuiltin %i not implemented.\nMods designed for mvdsv may need pr_imitatemvdsv to be enabled.", prinst->lastcalledbuiltinnumber);
+		prinst->RunError(prinst, "\nBuiltin %i not implemented.\nMods designed for mvdsv may need pr_imitatemvdsv to be enabled.", prinst->lastcalledbuiltinnumber);
 	else
-		prinst->PR_RunError(prinst, "\nBuiltin %i not implemented.\nMod is not compatable.", prinst->lastcalledbuiltinnumber);
+		prinst->RunError(prinst, "\nBuiltin %i not implemented.\nMod is not compatable.", prinst->lastcalledbuiltinnumber);
 	PR_BIError (prinst, "bulitin not implemented");
 }
 
@@ -5284,6 +5337,8 @@ void PF_strncasecmp (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 
 #define MAX_QC_FILES 8
 
+#define FIRST_QC_FILE_INDEX 1000
+
 typedef struct {
 	char name[256];
 	char *data;
@@ -5319,8 +5374,6 @@ void PF_fopen (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 		return;
 	}
 
-	pf_fopen_files[i].prinst = prinst;
-
 	Q_strncpyz(pf_fopen_files[i].name, va("data/%s", name), sizeof(pf_fopen_files[i].name));
 
 	pf_fopen_files[i].accessmode = fmode;
@@ -5335,7 +5388,10 @@ void PF_fopen (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 		}
 
 		if (pf_fopen_files[i].data)
-			G_FLOAT(OFS_RETURN) = i;
+		{
+			G_FLOAT(OFS_RETURN) = i + FIRST_QC_FILE_INDEX;
+			pf_fopen_files[i].prinst = prinst;
+		}
 		else
 			G_FLOAT(OFS_RETURN) = -1;
 
@@ -5347,7 +5403,8 @@ void PF_fopen (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 		pf_fopen_files[i].ofs = pf_fopen_files[i].bufferlen = pf_fopen_files[i].len = com_filesize;
 		if (pf_fopen_files[i].data)
 		{
-			G_FLOAT(OFS_RETURN) = i;
+			G_FLOAT(OFS_RETURN) = i + FIRST_QC_FILE_INDEX;
+			pf_fopen_files[i].prinst = prinst;
 			break;
 		}
 		//file didn't exist - fall through
@@ -5356,7 +5413,8 @@ void PF_fopen (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 		pf_fopen_files[i].data = BZ_Malloc(pf_fopen_files[i].bufferlen);
 		pf_fopen_files[i].len = 0;
 		pf_fopen_files[i].ofs = 0;
-		G_FLOAT(OFS_RETURN) = i;
+		G_FLOAT(OFS_RETURN) = i + FIRST_QC_FILE_INDEX;
+		pf_fopen_files[i].prinst = prinst;
 		break;
 	default: //bad
 		G_FLOAT(OFS_RETURN) = -1;
@@ -5366,15 +5424,24 @@ void PF_fopen (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 
 void PF_fclose (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
-	int fnum = G_FLOAT(OFS_PARM0);
+	int fnum = G_FLOAT(OFS_PARM0)-FIRST_QC_FILE_INDEX;
 	if (fnum < 0 || fnum >= MAX_QC_FILES)
+	{
+		Con_Printf("PF_fclose: File out of range\n");
 		return;	//out of range
+	}
 
 	if (!pf_fopen_files[fnum].data)
+	{
+		Con_Printf("PF_fclose: File is not open\n");
 		return;	//not open
+	}
 
 	if (pf_fopen_files[fnum].prinst != prinst)
+	{
+		Con_Printf("PF_fclose: File is from wrong instance\n");
 		return;	//this just isn't ours.
+	}
 
 	switch(pf_fopen_files[fnum].accessmode)
 	{
@@ -5388,24 +5455,34 @@ void PF_fclose (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 		break;
 	}
 	pf_fopen_files[fnum].data = NULL;
+	pf_fopen_files[fnum].prinst = NULL;
 }
 
 void PF_fgets (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
 	char c, *s, *o, *max;
-	int fnum = G_FLOAT(OFS_PARM0);
+	int fnum = G_FLOAT(OFS_PARM0) - FIRST_QC_FILE_INDEX;
 	char *pr_string_temp = PF_TempStr();
 
 	*pr_string_temp = '\0';
 	RETURN_SSTRING(pr_string_temp);
 	if (fnum < 0 || fnum >= MAX_QC_FILES)
+	{
+		Con_Printf("PF_fgets: File out of range\n");
 		return;	//out of range
+	}
 
 	if (!pf_fopen_files[fnum].data)
+	{
+		Con_Printf("PF_fgets: File is not open\n");
 		return;	//not open
+	}
 
 	if (pf_fopen_files[fnum].prinst != prinst)
+	{
+		Con_Printf("PF_fgets: File is from wrong instance\n");
 		return;	//this just isn't ours.
+	}
 
 	//read up to the next \n, ignoring any \rs.
 	o = pr_string_temp;
@@ -5435,17 +5512,26 @@ void PF_fgets (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 
 void PF_fputs (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
-	int fnum = G_FLOAT(OFS_PARM0);
+	int fnum = G_FLOAT(OFS_PARM0) - FIRST_QC_FILE_INDEX;
 	char *msg = PF_VarString(prinst, 1, pr_globals);
 	int len = strlen(msg);
 	if (fnum < 0 || fnum >= MAX_QC_FILES)
+	{
+		Con_Printf("PF_fgets: File out of range\n");
 		return;	//out of range
+	}
 
 	if (!pf_fopen_files[fnum].data)
+	{
+		Con_Printf("PF_fgets: File is not open\n");
 		return;	//not open
+	}
 
 	if (pf_fopen_files[fnum].prinst != prinst)
+	{
+		Con_Printf("PF_fgets: File is from wrong instance\n");
 		return;	//this just isn't ours.
+	}
 
 	if (pf_fopen_files[fnum].bufferlen < pf_fopen_files[fnum].ofs + len)
 	{
@@ -5470,7 +5556,7 @@ void PF_fcloseall (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 	{
 		if (pf_fopen_files[i].prinst != prinst)
 			continue;
-		G_FLOAT(OFS_PARM0) = i;
+		G_FLOAT(OFS_PARM0) = i+FIRST_QC_FILE_INDEX;
 		PF_fclose(prinst, pr_globals);
 	}
 }
@@ -5585,11 +5671,13 @@ lh_extension_t QSG_Extensions[] = {
 	{"ZQ_MOVETYPE_FLY"},
 	{"ZQ_MOVETYPE_NOCLIP"},
 	{"ZQ_MOVETYPE_NONE"}
-//	{"ZQ_QC_PARTICLE"}	//particle builtin works in QW ( we don't mimic ZQ fully so...)
+//	{"ZQ_QC_PARTICLE"}	//particle builtin works in QW ( we don't mimic ZQ fully though)
 };
 
 //some of these are overkill yes, but they are all derived from the fteextensions flags and document the underlaying protocol available.
 //(which is why there are two lists of extensions here)
+//note: not all of these are actually supported. This list mearly reflects the values of the PEXT_ constants.
+//Check protocol.h to make sure that the related PEXT is enabled. The engine will only accept if they are actually supported.
 lh_extension_t FTE_Protocol_Extensions[] =
 {
 	{"FTE_PEXT_SETVIEW"},		//nq setview works.
@@ -5598,16 +5686,8 @@ lh_extension_t FTE_Protocol_Extensions[] =
 	{"DP_ENT_ALPHA"},			//transparent entites
 	{"FTE_PEXT_VIEW2"},		//secondary view.
 	{"FTE_PEXT_BULLETENS"},	//bulleten boards (scrolling text on walls)
-#ifdef PEXT_ZLIBDL
 	{"FTE_PEXT_ZLIBDL"},		//supposed download optimisation (unimportant to qc)
-#else
-	{NULL},
-#endif
-#ifdef PEXT_LIGHTUPDATES
 	{"FTE_PEXT_LIGHTUPDATES"},	//zap.mdl is sent as a nail packet.
-#else
-	{NULL},
-#endif
 	{"FTE_PEXT_FATNESS"},		//entities may be expanded along thier vertex normals
 	{"DP_HALFLIFE_MAP"},		//entitiy can visit a hl bsp
 	{"FTE_PEXT_TE_BULLET"},	//additional particle effect. Like TE_SPIKE and TE_SUPERSPIKE
@@ -5615,29 +5695,22 @@ lh_extension_t FTE_Protocol_Extensions[] =
 	{"FTE_PEXT_MODELDBL"},	//max of 512 models
 	{"FTE_PEXT_ENTITYDBL"},	//max of 1024 ents
 	{"FTE_PEXT_ENTITYDBL2"},	//max of 2048 ents
-#ifdef PEXT_ORIGINDBL
 	{"FTE_PEXT_ORIGINDBL"},	//-8k to +8k map size.
-#else
-	{NULL},
-#endif
 	{"FTE_PEXT_VWEAP"},
-#ifdef Q2BSPS
 	{"FTE_PEXT_Q2BSP"},		//supports q2 maps. No bugs are apparent.
-#else
-	{NULL},
-#endif
-#ifdef Q3BSPS
 	{"FTE_PEXT_Q3BSP"},		//quake3 bsp support. dp probably has an equivelent, but this is queryable per client.
-#else
-	{NULL},
-#endif
 	{"UDC_EXTEFFECT",					0,	&pr_udc_exteffect_enabled},		//hmm. crap.
 	{NULL},	//splitscreen - not queryable.
 	{"FTE_HEXEN2"},				//client can use hexen2 maps. server can use hexen2 progs
 	{"FTE_PEXT_SPAWNSTATIC"},	//means that static entities can have alpha/scale and anything else the engine supports on normal ents. (Added for >256 models, while still being compatable - previous system failed with -1 skins)
 	{"FTE_PEXT_CUSTOMTENTS",					2,	NULL, {"RegisterTempEnt", "CustomTempEnt"}},
 	{"FTE_PEXT_256PACKETENTITIES"},	//client is able to receive unlimited packet entities (server caps itself to 256 to prevent insanity).
-	{"TEI_SHOWLMP2",					6,	NULL, {"showpic", "hidepic", "movepic", "changepic", "showpicent", "hidepicent"}}	//telejano doesn't actually export the moveent/changeent (we don't want to either cos it would stop frik_file stuff being autoregistered)
+	{"FTE_PEXT_64PLAYERS"},
+	{"TEI_SHOWLMP2",					6,	NULL, {"showpic", "hidepic", "movepic", "changepic", "showpicent", "hidepicent"}},	//telejano doesn't actually export the moveent/changeent (we don't want to either cos it would stop frik_file stuff being autoregistered)
+	{"DP_GFX_QUAKE3MODELTAGS",			1,	NULL, {"setattachment"}},
+	{"FTE_PK3DOWNLOADS"},
+	{"PEXT_CHUNKEDDOWNLOADS"},
+	{"EXT_CSQC"}
 };
 
 
@@ -5678,14 +5751,12 @@ lh_extension_t *checkfteextensioncl(int mask, char *name)	//true if the cient ex
 	unsigned int m = 1;
 	for (i = 0; i < sizeof(FTE_Protocol_Extensions)/sizeof(lh_extension_t); i++)
 	{
-		if (mask & m)	//suported
+		if (mask & (1<<i))	//suported
 		{
 			if (FTE_Protocol_Extensions[i].name)	//some were removed
 				if (!stricmp(name, FTE_Protocol_Extensions[i].name))	//name matches
 					return &FTE_Protocol_Extensions[i];
 		}
-
-		m=m<<2;
 	}
 	return NULL;
 }
@@ -5696,9 +5767,12 @@ lh_extension_t *checkfteextensionsv(char *name)	//true if the server supports an
 
 	for (i = 0; i < sizeof(FTE_Protocol_Extensions)/sizeof(lh_extension_t); i++)
 	{
-		if (FTE_Protocol_Extensions[i].name)	//some were removed
-			if (!stricmp(name, FTE_Protocol_Extensions[i].name))	//name matches
-				return &FTE_Protocol_Extensions[i];
+		if (svs.fteprotocolextensions & (1<<i))
+		{
+			if (FTE_Protocol_Extensions[i].name)	//some were removed
+				if (!stricmp(name, FTE_Protocol_Extensions[i].name))	//name matches
+					return &FTE_Protocol_Extensions[i];
+		}
 	}
 	return NULL;
 }
@@ -5771,6 +5845,7 @@ void PF_checkextension (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 			*ext->enabled = true;
 
 		G_FLOAT(OFS_RETURN) = true;
+		Con_Printf("Extension %s is supported\n", s);
 	}
 	else
 		G_FLOAT(OFS_RETURN) = false;
@@ -7457,7 +7532,7 @@ void PF_ShowPic(progfuncs_t *prinst, struct globalvars_s *pr_globals)
 	{	//to a single client
 		entnum = G_EDICTNUM(prinst, OFS_PARM5)-1;
 		if (entnum < 0 || entnum >= sv.allocated_client_slots)
-			prinst->PR_RunError (prinst, "WriteDest: not a client");
+			PR_RunError (prinst, "WriteDest: not a client");
 
 		if (!(svs.clients[entnum].fteprotocolextensions & PEXT_SHOWPIC))
 			return;	//need an extension for this. duh.
@@ -7490,7 +7565,7 @@ void PF_HidePic(progfuncs_t *prinst, struct globalvars_s *pr_globals)
 	{	//to a single client
 		entnum = G_EDICTNUM(prinst, OFS_PARM1)-1;
 		if (entnum < 0 || entnum >= sv.allocated_client_slots)
-			prinst->PR_RunError (prinst, "WriteDest: not a client");
+			PR_RunError (prinst, "WriteDest: not a client");
 
 		if (!(svs.clients[entnum].fteprotocolextensions & PEXT_SHOWPIC))
 			return;	//need an extension for this. duh.
@@ -7525,7 +7600,7 @@ void PF_MovePic(progfuncs_t *prinst, struct globalvars_s *pr_globals)
 	{	//to a single client
 		entnum = G_EDICTNUM(prinst, OFS_PARM4)-1;
 		if (entnum < 0 || entnum >= sv.allocated_client_slots)
-			prinst->PR_RunError (prinst, "WriteDest: not a client");
+			PR_RunError (prinst, "WriteDest: not a client");
 
 		if (!(svs.clients[entnum].fteprotocolextensions & PEXT_SHOWPIC))
 			return;	//need an extension for this. duh.
@@ -7558,7 +7633,7 @@ void PF_ChangePic(progfuncs_t *prinst, struct globalvars_s *pr_globals)
 	{	//to a single client
 		entnum = G_EDICTNUM(prinst, OFS_PARM2)-1;
 		if (entnum < 0 || entnum >= sv.allocated_client_slots)
-			prinst->PR_RunError (prinst, "WriteDest: not a client");
+			PR_RunError (prinst, "WriteDest: not a client");
 
 		if (!(svs.clients[entnum].fteprotocolextensions & PEXT_SHOWPIC))
 			return;	//need an extension for this. duh.
@@ -7701,6 +7776,21 @@ void PF_setattachment(progfuncs_t *prinst, struct globalvars_s *pr_globals)
 		te->_float = e->tagindex;
 }
 
+void PF_clientstat(progfuncs_t *prinst, struct globalvars_s *pr_globals)
+{ 
+	char *name = PF_VarString(prinst, 2, pr_globals);
+	SV_QCStat(G_FLOAT(OFS_PARM0), name, G_FLOAT(OFS_PARM1));
+}
+
+void PF_runclientphys(progfuncs_t *prinst, struct globalvars_s *pr_globals)
+{
+	pmove.numphysent = 1;
+	pmove.physents[0].model = sv.worldmodel;
+//	AddLinksToPmove ( sv_areanodes );
+
+
+	PM_PlayerMove();
+}
 
 BuiltinList_t BuiltinList[] = {				//nq	qw		h2		ebfs
 	{"fixme",			PF_Fixme,			0,		0,		0},
@@ -7881,7 +7971,7 @@ BuiltinList_t BuiltinList[] = {				//nq	qw		h2		ebfs
 	{"precache_sound4",	PF_precache_sound,	0,		0,		101,	0},
 	{"precache_model4",	PF_precache_model,	0,		0,		102,	0},
 	{"precache_file4",	PF_precache_file,	0,		0,		103,	0},
-	{"stopsound4",		PF_StopSound,		0,		0,		106,	0},
+	{"stopsound",		PF_StopSound,		0,		0,		106,	0},
 
 	{"precache_model4",	PF_precache_model,	0,		0,		116,	0},//please don't use...
 	{"precache_sound4",	PF_precache_sound,	0,		0,		117,	0},
@@ -7965,6 +8055,7 @@ BuiltinList_t BuiltinList[] = {				//nq	qw		h2		ebfs
 
 	{"map_builtin",		PF_builtinsupported,0,		0,		0,		220},	//like #100 - takes 2 args. arg0 is builtinname, 1 is number to map to.
 
+//FTE_STRINGS
 	{"strstrofs",		PF_strstrofs,		0,		0,		0,		221},
 	{"str2chr",			PF_str2chr,			0,		0,		0,		222},
 	{"chr2str",			PF_chr2str,			0,		0,		0,		223},
@@ -7974,8 +8065,16 @@ BuiltinList_t BuiltinList[] = {				//nq	qw		h2		ebfs
 	{"strncmp",			PF_strncmp,			0,		0,		0,		228},
 	{"strcasecmp",		PF_strcasecmp,		0,		0,		0,		229},
 	{"strncasecmp",		PF_strncasecmp,		0,		0,		0,		230},
+//END FTE_STRINGS
 
+//FTE_CALLTIMEOFDAY
 	{"calltimeofday",	PF_calltimeofday,	0,		0,		0,		231},
+
+//EXT_CSQC
+	{"clientstat",		PF_clientstat,		0,		0,		0,		232},
+	{"runclientphys",	PF_runclientphys,	0,		0,		0,		233},
+//END EXT_CSQC
+
 //end fte extras
 
 //DP extras
@@ -8369,6 +8468,13 @@ void PR_RegisterFields(void)	//it's just easier to do it this way.
 	fieldfloat(dimension_solid);
 	fieldfloat(dimension_hit);
 
+
+	fieldfunction(SendEntity);
+	fieldfloat(Version);
+
+	//Tell the qc library to split the entity fields each side.
+	//the fields above become < 0, the remaining fields specified by the qc stay where the mod specified, as far as possible (with addons at least).
+	//this means that custom array offsets still work in mods like ktpro.
 	if (pr_fixbrokenqccarrays.value)
 		PR_RegisterFieldVar(svprogfuncs, 0, NULL, 0,0);
 }

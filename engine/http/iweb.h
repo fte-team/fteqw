@@ -53,13 +53,14 @@ char **com_argv;
 #ifndef QUAKEDEF_H__
 
 #include "quakedef.h"
-#ifdef _WIN32
-#include "winquake.h"
-#endif
 
 #else
 //#include <netinet/in.h>
 #endif
+#endif
+
+#ifdef _WIN32
+#include "winquake.h"
 #endif
 
 #define IWEBACC_READ	1

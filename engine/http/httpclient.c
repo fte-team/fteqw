@@ -1,4 +1,4 @@
-#include "bothdefs.h"
+#include "quakedef.h"
 
 #ifdef WEBCLIENT
 

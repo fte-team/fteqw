@@ -29,10 +29,9 @@
 //TP_SearchForMsgTriggers: should only allow safe commands. work out what the meaning of safe commands is.
 
 
-#include "bothdefs.h"
+#include "quakedef.h"
 #if 1 //def ZQUAKETEAMPLAY
 
-#include "quakedef.h"
 //#include "version.h"
 #include "sound.h"
 //#include "pmove.h"
@@ -54,8 +53,6 @@ typedef qboolean qbool;
 #define isxdigit(x) (isdigit(x) || ((x) >= 'a' && (x) <= 'f'))
 */
 #define Q_rint(f) ((int)((f)+0.5))
-
-void Cmd_AddMacro(char *s, char *(*f)(void));
 
 #ifndef HAVE_STRLCAT
 static size_t strlcat (char *dst, const char *src, size_t size)
@@ -99,56 +96,68 @@ static void VARGS Q_snprintfz (char *dest, size_t size, char *fmt, ...)
 	dest[size-1] = 0;
 }
 
-cvar_t	cl_fakename = {"cl_fakename", ""};
+//a list of all the cvars
+//this is down to the fact that I keep defining them but forgetting to register. :/
+#define TP_CVARS \
+	TP_CVAR(cl_fakename,		"");	\
+	TP_CVAR(cl_parseSay,		"1");	\
+	TP_CVAR(cl_parseFunChars,		"1");	\
+	TP_CVAR(cl_triggers,		"1");	\
+	TP_CVAR(tp_forceTriggers,		"0");	\
+	TP_CVAR(tp_loadlocs,		"1");	\
+	TP_CVAR(cl_teamskin,		"");	\
+	TP_CVAR(cl_enemyskin,		"");	\
+	TP_CVAR(tp_soundtrigger,		"~");	\
+										\
+	TP_CVAR(tp_name_none,		"");	\
+	TP_CVAR(tp_name_axe,		"axe");	\
+	TP_CVAR(tp_name_sg,			"sg");	\
+	TP_CVAR(tp_name_ssg,		"ssg");	\
+	TP_CVAR(tp_name_ng,			"ng");	\
+	TP_CVAR(tp_name_sng,		"sng");	\
+	TP_CVAR(tp_name_gl,			"gl");	\
+	TP_CVAR(tp_name_rl,			"rl");	\
+	TP_CVAR(tp_name_lg,			"lg");	\
+	TP_CVAR(tp_name_ra,			"ra");	\
+	TP_CVAR(tp_name_ya,			"ya");	\
+	TP_CVAR(tp_name_ga,			"ga");	\
+	TP_CVAR(tp_name_quad,		"quad");	\
+	TP_CVAR(tp_name_pent,		"pent");	\
+	TP_CVAR(tp_name_ring,		"ring");	\
+	TP_CVAR(tp_name_suit,		"suit");	\
+	TP_CVAR(tp_name_shells,		"shells");	\
+	TP_CVAR(tp_name_nails,		"nails");	\
+	TP_CVAR(tp_name_rockets,	"rockets");	\
+	TP_CVAR(tp_name_cells,		"cells");	\
+	TP_CVAR(tp_name_mh,			"mega");	\
+	TP_CVAR(tp_name_health,		"health");	\
+	TP_CVAR(tp_name_backpack,	"pack");	\
+	TP_CVAR(tp_name_flag,		"flag");	\
+	TP_CVAR(tp_name_nothing,	"nothing");	\
+	TP_CVAR(tp_name_someplace,	"someplace");	\
+	TP_CVAR(tp_name_at,			"at");	\
+	TP_CVAR(tp_need_ra,			"50");	\
+	TP_CVAR(tp_need_ya,			"50");	\
+	TP_CVAR(tp_need_ga,			"50");	\
+	TP_CVAR(tp_need_health,		"50");	\
+	TP_CVAR(tp_need_weapon,		"35687");	\
+	TP_CVAR(tp_need_rl,			"1");	\
+	TP_CVAR(tp_need_rockets,	"5");	\
+	TP_CVAR(tp_need_cells,		"20");	\
+	TP_CVAR(tp_need_nails,		"40");	\
+	TP_CVAR(tp_need_shells,		"10");	\
+	TP_CVAR(tp_name_disp, "dispenser");	\
+	TP_CVAR(tp_name_sentry, "sentry gun");	\
+	TP_CVAR(tp_name_rune_1, "resistance rune");	\
+	TP_CVAR(tp_name_rune_2, "strength rune");	\
+	TP_CVAR(tp_name_rune_3, "haste rune");	\
+	TP_CVAR(tp_name_rune_4, "regeneration rune")
 
-
-cvar_t	cl_parseSay = {"cl_parseSay", "1"};
-cvar_t	cl_parseFunChars = {"cl_parseFunChars", "1"};
-cvar_t	cl_triggers = {"cl_triggers", "0"};
-cvar_t	tp_forceTriggers = {"tp_forceTriggers", "0"};
-cvar_t	tp_loadlocs = {"tp_loadlocs", "1"};
-
-cvar_t	cl_teamskin = {"teamskin", ""};
-cvar_t	cl_enemyskin = {"enemyskin", ""};
-
-cvar_t  tp_soundtrigger = {"tp_soundtrigger", "~"};
-
-cvar_t	tp_name_axe = {"tp_name_axe", "axe"};
-cvar_t	tp_name_sg = {"tp_name_sg", "sg"};
-cvar_t	tp_name_ssg = {"tp_name_ssg", "ssg"};
-cvar_t	tp_name_ng = {"tp_name_ng", "ng"};
-cvar_t	tp_name_sng = {"tp_name_sng", "sng"};
-cvar_t	tp_name_gl = {"tp_name_gl", "gl"};
-cvar_t	tp_name_rl = {"tp_name_rl", "rl"};
-cvar_t	tp_name_lg = {"tp_name_lg", "lg"};
-cvar_t	tp_name_ra = {"tp_name_ra", "ra"};
-cvar_t	tp_name_ya = {"tp_name_ya", "ya"};
-cvar_t	tp_name_ga = {"tp_name_ga", "ga"};
-cvar_t	tp_name_quad = {"tp_name_quad", "quad"};
-cvar_t	tp_name_pent = {"tp_name_pent", "pent"};
-cvar_t	tp_name_ring = {"tp_name_ring", "ring"};
-cvar_t	tp_name_suit = {"tp_name_suit", "suit"};
-cvar_t	tp_name_shells = {"tp_name_shells", "shells"};
-cvar_t	tp_name_nails = {"tp_name_nails", "nails"};
-cvar_t	tp_name_rockets = {"tp_name_rockets", "rockets"};
-cvar_t	tp_name_cells = {"tp_name_cells", "cells"};
-cvar_t	tp_name_mh = {"tp_name_mh", "mega"};
-cvar_t	tp_name_health = {"tp_name_health", "health"};
-cvar_t	tp_name_backpack = {"tp_name_backpack", "pack"};
-cvar_t	tp_name_flag = {"tp_name_flag", "flag"};
-cvar_t	tp_name_nothing = {"tp_name_nothing", "nothing"};
-cvar_t	tp_name_someplace = {"tp_name_someplace", "someplace"};
-cvar_t	tp_name_at = {"tp_name_at", "at"};
-cvar_t	tp_need_ra = {"tp_need_ra", "50"};
-cvar_t	tp_need_ya = {"tp_need_ya", "50"};
-cvar_t	tp_need_ga = {"tp_need_ga", "50"};
-cvar_t	tp_need_health = {"tp_need_health", "50"};
-cvar_t	tp_need_weapon = {"tp_need_weapon", "35687"};
-cvar_t	tp_need_rl = {"tp_need_rl", "1"};
-cvar_t	tp_need_rockets = {"tp_need_rockets", "5"};
-cvar_t	tp_need_cells = {"tp_need_cells", "20"};
-cvar_t	tp_need_nails = {"tp_need_nails", "40"};
-cvar_t	tp_need_shells = {"tp_need_shells", "10"};
+//create the globals for all the TP cvars.
+#define TP_CVAR(name,def) cvar_t	name = {#name, def}
+TP_CVARS;
+#undef TP_CVAR
+	
 
 extern cvar_t	host_mapname;
 
@@ -178,6 +187,7 @@ typedef struct tvars_s {
 	char	pointname[32];
 	vec3_t	pointorg;
 	char	pointloc[MAX_LOC_NAME];
+	int		droppedweapon;
 } tvars_t;
 
 tvars_t vars;
@@ -292,42 +302,51 @@ static char *Macro_Ammo (void)
 	return macro_buf;
 }
 
+static char *Weapon_NumToString (int wnum)
+{
+	switch (wnum)
+	{
+	case IT_AXE:				return tp_name_axe.string;
+	case IT_SHOTGUN:			return tp_name_sg.string;
+	case IT_SUPER_SHOTGUN:		return tp_name_ssg.string;
+	case IT_NAILGUN:			return tp_name_ng.string;
+	case IT_SUPER_NAILGUN:		return tp_name_sng.string;
+	case IT_GRENADE_LAUNCHER:	return tp_name_gl.string;
+	case IT_ROCKET_LAUNCHER:	return tp_name_rl.string;
+	case IT_LIGHTNING:			return tp_name_lg.string;
+	default:					return tp_name_none.string;
+	}
+}
+
 static char *Macro_Weapon (void)
 {
-	switch (cl.stats[SP][STAT_ACTIVEWEAPON])
-	{
-	case IT_AXE: return "axe";
-	case IT_SHOTGUN: return "sg";
-	case IT_SUPER_SHOTGUN: return "ssg";
-	case IT_NAILGUN: return "ng";
-	case IT_SUPER_NAILGUN: return "sng";
-	case IT_GRENADE_LAUNCHER: return "gl";
-	case IT_ROCKET_LAUNCHER: return "rl";
-	case IT_LIGHTNING: return "lg";
-	default:
-		return "";
-	}
+	return Weapon_NumToString(cl.stats[SP][STAT_ACTIVEWEAPON]);
+}
+
+static char *Macro_DroppedWeapon (void)
+{
+	return Weapon_NumToString(vars.droppedweapon);
 }
 
 static char *Macro_Weapons (void) {	
 	macro_buf[0] = 0;
 
 	if (cl.stats[SP][STAT_ITEMS] & IT_LIGHTNING)
-		strcpy(macro_buf, "lg");
+		strcpy(macro_buf, tp_name_lg.string);
 	if (cl.stats[SP][STAT_ITEMS] & IT_ROCKET_LAUNCHER)
-		MacroBuf_strcat_with_separator ("rl");
+		MacroBuf_strcat_with_separator (tp_name_rl.string);
 	if (cl.stats[SP][STAT_ITEMS] & IT_GRENADE_LAUNCHER)
-		MacroBuf_strcat_with_separator ("gl");
+		MacroBuf_strcat_with_separator (tp_name_gl.string);
 	if (cl.stats[SP][STAT_ITEMS] & IT_SUPER_NAILGUN)
-		MacroBuf_strcat_with_separator ("sng");
+		MacroBuf_strcat_with_separator (tp_name_sng.string);
 	if (cl.stats[SP][STAT_ITEMS] & IT_NAILGUN)
-		MacroBuf_strcat_with_separator ("ng");
+		MacroBuf_strcat_with_separator (tp_name_ng.string);
 	if (cl.stats[SP][STAT_ITEMS] & IT_SUPER_SHOTGUN)
-		MacroBuf_strcat_with_separator ("ssg");
+		MacroBuf_strcat_with_separator (tp_name_ssg.string);
 	if (cl.stats[SP][STAT_ITEMS] & IT_SHOTGUN)
-		MacroBuf_strcat_with_separator ("sg");
+		MacroBuf_strcat_with_separator (tp_name_sg.string);
 	if (cl.stats[SP][STAT_ITEMS] & IT_AXE)
-		MacroBuf_strcat_with_separator ("axe");
+		MacroBuf_strcat_with_separator (tp_name_axe.string);
 //	if (!macro_buf[0])	
 //		strlcpy(macro_buf, tp_name_none.string, sizeof(macro_buf));
 
@@ -383,19 +402,7 @@ static int	_Macro_BestWeapon (void)
 
 static char *Macro_BestWeapon (void)
 {
-	switch (_Macro_BestWeapon())
-	{
-	case IT_AXE: return "axe";
-	case IT_SHOTGUN: return "sg";
-	case IT_SUPER_SHOTGUN: return "ssg";
-	case IT_NAILGUN: return "ng";
-	case IT_SUPER_NAILGUN: return "sng";
-	case IT_GRENADE_LAUNCHER: return "gl";
-	case IT_ROCKET_LAUNCHER: return "rl";
-	case IT_LIGHTNING: return "lg";
-	default:
-		return "";
-	}
+	return Weapon_NumToString(_Macro_BestWeapon());
 }
 
 static char *Macro_BestAmmo (void)
@@ -489,6 +496,7 @@ static char *Macro_LastDeath (void)
 	else
 		return tp_name_someplace.string;
 }
+
 
 static char *Macro_Location2 (void)
 {
@@ -838,48 +846,50 @@ $triggermatch is the last chat message that exec'd a msg_trigger.
 
 static void TP_InitMacros(void)
 {
-	Cmd_AddMacro("qt", Macro_Quote);
-	Cmd_AddMacro("latency", Macro_Latency);
-	Cmd_AddMacro("health", Macro_Health);
-	Cmd_AddMacro("armortype", Macro_ArmorType);
-	Cmd_AddMacro("armor", Macro_Armor);
-	Cmd_AddMacro("shells", Macro_Shells);
-	Cmd_AddMacro("nails", Macro_Nails);
-	Cmd_AddMacro("rockets", Macro_Rockets);
-	Cmd_AddMacro("cells", Macro_Cells);
-	Cmd_AddMacro("weaponnum", Macro_WeaponNum);
-	Cmd_AddMacro("weapons", Macro_Weapons);
-	Cmd_AddMacro("weapon", Macro_Weapon);
-	Cmd_AddMacro("ammo", Macro_Ammo);
-	Cmd_AddMacro("bestweapon", Macro_BestWeapon);
-	Cmd_AddMacro("bestammo", Macro_BestAmmo);
-	Cmd_AddMacro("powerups", Macro_Powerups);
-	Cmd_AddMacro("location", Macro_Location);
-	Cmd_AddMacro("deathloc", Macro_LastDeath);
-	Cmd_AddMacro("time", Macro_Time);
-	Cmd_AddMacro("date", Macro_Date);
-	Cmd_AddMacro("tookatloc", Macro_TookAtLoc);
-	Cmd_AddMacro("tookloc", Macro_TookLoc);
-	Cmd_AddMacro("took", Macro_Took);
-	Cmd_AddMacro("tf_skin", Macro_TF_Skin);
+	Cmd_AddMacro("qt", Macro_Quote, false);
+	Cmd_AddMacro("latency", Macro_Latency, false);
+	Cmd_AddMacro("health", Macro_Health, true);
+	Cmd_AddMacro("armortype", Macro_ArmorType, true);
+	Cmd_AddMacro("armor", Macro_Armor, true);
+	Cmd_AddMacro("shells", Macro_Shells, true);
+	Cmd_AddMacro("nails", Macro_Nails, true);
+	Cmd_AddMacro("rockets", Macro_Rockets, true);
+	Cmd_AddMacro("cells", Macro_Cells, true);
+	Cmd_AddMacro("weaponnum", Macro_WeaponNum, true);
+	Cmd_AddMacro("weapons", Macro_Weapons, true);
+	Cmd_AddMacro("weapon", Macro_Weapon, true);
+	Cmd_AddMacro("ammo", Macro_Ammo, true);
+	Cmd_AddMacro("bestweapon", Macro_BestWeapon, true);
+	Cmd_AddMacro("bestammo", Macro_BestAmmo, true);
+	Cmd_AddMacro("powerups", Macro_Powerups, true);
+	Cmd_AddMacro("location", Macro_Location, false);
+	Cmd_AddMacro("deathloc", Macro_LastDeath, true);
+	Cmd_AddMacro("time", Macro_Time, true);
+	Cmd_AddMacro("date", Macro_Date, false);
+	Cmd_AddMacro("tookatloc", Macro_TookAtLoc, true);
+	Cmd_AddMacro("tookloc", Macro_TookLoc, true);
+	Cmd_AddMacro("took", Macro_Took, true);
+	Cmd_AddMacro("tf_skin", Macro_TF_Skin, true);
+
+	Cmd_AddMacro("droppedweapon", Macro_DroppedWeapon, true);
 
 	//ones added by Spike, for fuhquake compatability
-	Cmd_AddMacro("connectiontype", Macro_ConnectionType);
-	Cmd_AddMacro("demoplayback", Macro_demoplayback);
-	Cmd_AddMacro("need", Macro_Need);
-	Cmd_AddMacro("point", Macro_PointName);
-	Cmd_AddMacro("pointatloc", Macro_PointNameAtLocation);
-	Cmd_AddMacro("pointloc", Macro_PointLocation);
-	Cmd_AddMacro("matchname", Macro_Match_Name);
-	Cmd_AddMacro("matchtype", Macro_Match_Type);
+	Cmd_AddMacro("connectiontype", Macro_ConnectionType, false);
+	Cmd_AddMacro("demoplayback", Macro_demoplayback, false);
+	Cmd_AddMacro("need", Macro_Need, true);
+	Cmd_AddMacro("point", Macro_PointName, true);
+	Cmd_AddMacro("pointatloc", Macro_PointNameAtLocation, true);
+	Cmd_AddMacro("pointloc", Macro_PointLocation, true);
+	Cmd_AddMacro("matchname", Macro_Match_Name, false);
+	Cmd_AddMacro("matchtype", Macro_Match_Type, false);
 
-//	Cmd_AddMacro("droploc", Macro_LastDrop);
-//	Cmd_AddMacro("droptime", Macro_LastDropTime);
-//	Cmd_AddMacro("ledpoint", Macro_Point_LED);
-//	Cmd_AddMacro("ledstatus", Macro_MyStatus_LED);
-//	Cmd_AddMacro("matchstatus", Macro_Match_Status);
-//	Cmd_AddMacro("mp3info", );
-//	Cmd_AddMacro("triggermatch", Macro_LastTrigger_Match);
+//	Cmd_AddMacro("droploc", Macro_LastDrop, true);
+//	Cmd_AddMacro("droptime", Macro_LastDropTime, true);
+//	Cmd_AddMacro("ledpoint", Macro_Point_LED, true);
+//	Cmd_AddMacro("ledstatus", Macro_MyStatus_LED, true);
+//	Cmd_AddMacro("matchstatus", Macro_Match_Status, false);
+//	Cmd_AddMacro("mp3info", , false);
+//	Cmd_AddMacro("triggermatch", Macro_LastTrigger_Match, false);
 }
 
 #define MAX_MACRO_STRING 1024
@@ -1665,7 +1675,8 @@ int TP_CategorizeMessage (char *s, int *offset)
 // symbolic names used in tp_took, tp_pickup, tp_point commands
 static char *pknames[] = {"quad", "pent", "ring", "suit", "ra", "ya",	"ga",
 "mh", "health", "lg", "rl", "gl", "sng", "ng", "ssg", "pack",
-"cells", "rockets", "nails", "shells", "flag", "pointed"};
+"cells", "rockets", "nails", "shells", "flag", "pointed",
+"sentry", "disp", "runes"};
 
 #define it_quad		(1<<0)
 #define it_pent		(1<<1)
@@ -1689,7 +1700,10 @@ static char *pknames[] = {"quad", "pent", "ring", "suit", "ra", "ya",	"ga",
 #define it_shells	(1<<19)
 #define it_flag		(1<<20)
 #define it_pointed	(1<<21)		// only valid for tp_took
-#define NUM_ITEMFLAGS 22
+#define it_sentry   (1 << 22)
+#define it_disp		(1 << 23)
+#define it_runes	(1 << 24)
+#define NUM_ITEMFLAGS 25
 
 #define it_powerups	(it_quad|it_pent|it_ring)
 #define it_weapons	(it_lg|it_rl|it_gl|it_sng|it_ng|it_ssg)
@@ -1926,8 +1940,46 @@ static item_t	tp_items[] = {
 	},
 	{	it_ra|it_ya|it_ga, NULL,	"progs/armor.mdl",
 		{0, 0, 24},	22,
+	},
+	{	it_flag,	&tp_name_flag,	"progs/w_g_key.mdl",
+		{0, 0, 20},	18,
+	},
+	{	it_flag,	&tp_name_flag,	"progs/w_s_key.mdl",
+		{0, 0, 20},	18,
+	},
+	{	it_flag,	&tp_name_flag,	"progs/m_g_key.mdl",
+		{0, 0, 20},	18,
+	},
+	{	it_flag,	&tp_name_flag,	"progs/m_s_key.mdl",
+		{0, 0, 20},	18,
+	},
+	{	it_flag,	&tp_name_flag,	"progs/b_s_key.mdl",
+		{0, 0, 20},	18,
+	},
+	{	it_flag,	&tp_name_flag,	"progs/b_g_key.mdl",
+		{0, 0, 20},	18,
+	},
+	{	it_flag,	&tp_name_flag,	"progs/flag.mdl",
+		{0, 0, 14},	25,
+	},
+	{	it_runes,	&tp_name_rune_1,	"progs/end1.mdl",
+		{0, 0, 20},	18,
+	},
+	{	it_runes,	&tp_name_rune_2,	"progs/end2.mdl",
+		{0, 0, 20},	18,
+	},
+	{	it_runes,	&tp_name_rune_3,	"progs/end3.mdl",
+		{0, 0, 20},	18,
+	},
+	{	it_runes,	&tp_name_rune_4,	"progs/end4.mdl",
+		{0, 0, 20},	18,
+	},
+	{	it_sentry, &tp_name_sentry, "progs/turrgun.mdl",
+		{0, 0, 23},	25,
+	},
+	{	it_disp, &tp_name_disp,	"progs/disp.mdl",
+		{0, 0, 24},	25,
 	}
-
 };
 
 #define NUMITEMS (sizeof(tp_items) / sizeof(tp_items[0]))
@@ -2133,22 +2185,11 @@ more:
 		return;
 	}
 
-	if (!strcmp(s, "items/armor1.wav"))
-	{
-		item_t	*item;
-		switch (FindNearestItem (it_armor, &item)) {
-			case 1: ExecTookTrigger (tp_name_ga.string, it_ga, org); break;
-			case 2: ExecTookTrigger (tp_name_ya.string, it_ya, org); break;
-			case 3: ExecTookTrigger (tp_name_ra.string, it_ra, org); break;
-		}
-		return;
-	}
-
 	// backpack or ammo
 	if (!strcmp (s, "weapons/lock4.wav"))
 	{
 		item_t	*item;
-		if (!FindNearestItem (it_ammo|it_pack, &item))
+		if (!FindNearestItem (it_ammo|it_pack|it_runes, &item))
 			return;
 		ExecTookTrigger (item->cvar->string, item->itemflag, org);
 	}
@@ -2316,8 +2357,10 @@ void TP_StatChanged (int stat, int value)
 
 	if (stat == STAT_HEALTH)
 	{
-		if (value > 0) {
-			if (vars.health <= 0) {
+		if (value > 0)
+		{
+			if (vars.health <= 0)
+			{
 				// we just respawned
 				vars.respawntrigger_time = realtime;
 
@@ -2327,10 +2370,16 @@ void TP_StatChanged (int stat, int value)
 			vars.health = value;
 			return;
 		}
-		if (vars.health > 0) {		// We have just died
+		if (vars.health > 0)
+		{		// We have just died
+
+			vars.droppedweapon = cl.stats[SP][STAT_ACTIVEWEAPON];
+
 			vars.deathtrigger_time = realtime;
 			strcpy (vars.lastdeathloc, Macro_Location());
-			if (!cl.spectator && CountTeammates()) {
+
+			if (!cl.spectator && CountTeammates())
+			{
 				if (cl.teamfortress && (cl.stats[SP][STAT_ITEMS] & (IT_KEY1|IT_KEY2))
 					&& Cmd_AliasExist("f_flagdeath", RESTRICT_LOCAL))
 					TP_ExecTrigger ("f_flagdeath");
@@ -2549,6 +2598,11 @@ void TP_Init (void)
 {
 #define TEAMPLAYVARS	"Teamplay Variables"
 
+	//register all the TeamPlay cvars.
+#define TP_CVAR(name,def) Cvar_Register (&name,	TEAMPLAYVARS);
+	TP_CVARS;
+#undef TP_CVAR
+
 	Cvar_Register (&cl_parseFunChars,	TEAMPLAYVARS);
 	Cvar_Register (&cl_parseSay,		TEAMPLAYVARS);
 	Cvar_Register (&cl_triggers,		TEAMPLAYVARS);
@@ -2655,22 +2709,7 @@ static void CL_Say (qboolean team, char *extra)
 		return;
 	}
 #endif
-#ifdef Q2CLIENT
-	MSG_WriteByte (&cls.netchan.message, cls.q2server?clcq2_stringcmd:clc_stringcmd);
-#else
-	MSG_WriteByte (&cls.netchan.message, clc_stringcmd);
-#endif
-	SZ_Print (&cls.netchan.message, team ? "say_team " : "say ");
-
-	if (sendtext[0] < 32)
-		SZ_Print (&cls.netchan.message, "\"");	// add quotes so that old servers parse the message correctly
-
-	if (extra)
-		SZ_Print (&cls.netchan.message, extra);
-	SZ_Print (&cls.netchan.message, sendtext);
-
-	if (sendtext[0] < 32)
-		SZ_Print (&cls.netchan.message, "\"");	// add quotes so that old servers parse the message correctly
+	CL_SendClientCommand("%s \"%s%s\"", team ? "say_team " : "say ", extra?extra:"", sendtext);
 }
 
 

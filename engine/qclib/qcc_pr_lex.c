@@ -60,11 +60,12 @@ QCC_type_t	*type_function;// = {ev_function/*, &def_function*/,NULL,&type_void};
 // type_function is a void() function used for state defs
 QCC_type_t	*type_pointer;// = {ev_pointer/*, &def_pointer*/};
 QCC_type_t	*type_integer;// = {ev_integer/*, &def_integer*/};
+QCC_type_t	*type_variant;// = {ev_integer/*, &def_integer*/};
 
 QCC_type_t	*type_floatfield;// = {ev_field/*, &def_field*/, NULL, &type_float};
 
 #ifdef QCCONLY
-const int		type_size[9] = {1,1,1,3,1,1,1,1,1};
+const int		type_size[12] = {1,1,1,3,1,1,1,1,1, 1, 0,0};
 #endif
 
 /*QCC_def_t	def_void = {type_void, "temp"};
@@ -141,47 +142,32 @@ void QCC_PR_PrintNextLine (void)
 	printf ("\n");
 }
 
-/*
-==============
-PR_NewLine
-
-Call at start of file and when *pr_file_p == '\n'
-==============
-*/
 int ForcedCRC;
 int QCC_PR_LexInteger (void);
 void	QCC_AddFile (char *filename);
 void QCC_PR_LexString (void);
 pbool QCC_PR_SimpleGetToken (void);
-void QCC_PR_NewLine (pbool incomment)
+
+/*
+==============
+QCC_PR_Precompiler
+==============
+
+Runs precompiler stage
+*/
+pbool QCC_PR_Precompiler(void)
 {
 	char msg[1024];
 	int ifmode;
 	int a;
-	pbool	m;
 	static int ifs = 0;
 	int level;	//#if level
 	pbool eval = false;
-	
-	if (*pr_file_p == '\n')
-	{
-		pr_file_p++;
-		m = true;
-	}
-	else
-		m = false;
 
-	pr_source_line++;
-	pr_line_start = pr_file_p;
-	while(*pr_file_p==' ' || *pr_file_p == '\t')
-		pr_file_p++;
-	if (incomment)	//no constants if in a comment.
-	{
-	}
-	else if (*pr_file_p == '#')
+	if (*pr_file_p == '#')
 	{
 		char *directive;
-		for (directive = pr_file_p+1; *directive; directive++)
+		for (directive = pr_file_p+1; *directive; directive++)	//so #    define works
 		{
 			if (*directive == '\r' || *directive == '\n')
 				QCC_PR_ParseError(ERR_UNKNOWNPUCTUATION, "Hanging # with no directive\n");
@@ -196,8 +182,6 @@ void QCC_PR_NewLine (pbool incomment)
 			{
 				pr_file_p++;
 			}
-			if (!m)
-				pr_file_p++;
 		}
 		else if (!strncmp(directive, "undef", 5))
 		{
@@ -213,8 +197,6 @@ void QCC_PR_NewLine (pbool incomment)
 			{
 				pr_file_p++;
 			}
-			if (!m)
-				pr_file_p++;
 		}
 		else if (!strncmp(directive, "if", 2))
 		{
@@ -259,7 +241,7 @@ void QCC_PR_NewLine (pbool incomment)
 				if (QCC_PR_CheckCompConstDefined(pr_token))
 					eval = true;
 
-				if (ifmode == 1)		
+				if (ifmode == 1)
 					eval = eval?false:true;		
 			}
 
@@ -315,7 +297,7 @@ void QCC_PR_NewLine (pbool incomment)
 
 			ifs -= 1;
 			level = 1;
-			
+
 			while(*pr_file_p != '\n' && *pr_file_p != '\0')	//read on until the end of the line
 			{
 				pr_file_p++;
@@ -372,7 +354,7 @@ void QCC_PR_NewLine (pbool incomment)
 		else if (!strncmp(directive, "eof", 3))
 		{
 			pr_file_p = NULL;
-			return;
+			return true;
 		}
 		else if (!strncmp(directive, "error", 5))
 		{		
@@ -684,7 +666,7 @@ void QCC_PR_NewLine (pbool incomment)
 			{
 				if (qcc_targetformat == QCF_HEXEN2 && numstatements)
 					QCC_PR_ParseWarning(WARN_BADTARGET, "Cannot switch from hexen2 target \'%s\'. Ignored.", msg);
-				else if (!QC_strcasecmp(msg, "H2"))
+				else if (!QC_strcasecmp(msg, "H2") || !QC_strcasecmp(msg, "HEXEN2"))
 				{
 					if (numstatements)
 						QCC_PR_ParseWarning(WARN_BADTARGET, "Cannot switch from hexen2 target \'%s\'. Ignored.", msg);
@@ -697,21 +679,10 @@ void QCC_PR_NewLine (pbool incomment)
 					qcc_targetformat = QCF_FTEDEBUG;
 				else if (!QC_strcasecmp(msg, "FTE"))
 					qcc_targetformat = QCF_FTE;
-				else if (!QC_strcasecmp(msg, "FTEDEBUG32") || !QC_strcasecmp(msg, "FTE32DEBUG"))
-					qcc_targetformat = QCF_FTEDEBUG32;
-				else if (!QC_strcasecmp(msg, "FTE32"))
-					qcc_targetformat = QCF_FTE32;
 				else if (!QC_strcasecmp(msg, "STANDARD") || !QC_strcasecmp(msg, "ID"))
 					qcc_targetformat = QCF_STANDARD;
 				else if (!QC_strcasecmp(msg, "DEBUG"))
-				{
-					if (qcc_targetformat == QCF_FTE32)
-						qcc_targetformat = QCF_FTEDEBUG32;
-					else if (qcc_targetformat == QCF_FTE)
-						qcc_targetformat = QCF_FTEDEBUG;
-					else if (qcc_targetformat == QCF_STANDARD)
-						qcc_targetformat = QCF_FTEDEBUG;
-				}
+					qcc_targetformat = QCF_FTEDEBUG;
 				else
 					QCC_PR_ParseWarning(WARN_BADTARGET, "Unknown target \'%s\'. Ignored.", msg);
 			}
@@ -757,6 +728,40 @@ void QCC_PR_NewLine (pbool incomment)
 			else
 				QCC_PR_ParseWarning(WARN_BADPRAGMA, "Unknown pragma \'%s\'", qcc_token);
 		}
+		return true;
+	}
+
+	return false;
+}
+
+/*
+==============
+PR_NewLine
+
+Call at start of file and when *pr_file_p == '\n'
+==============
+*/
+void QCC_PR_NewLine (pbool incomment)
+{
+	pbool	m;
+	
+	if (*pr_file_p == '\n')
+	{
+		pr_file_p++;
+		m = true;
+	}
+	else
+		m = false;
+
+	pr_source_line++;
+	pr_line_start = pr_file_p;
+	while(*pr_file_p==' ' || *pr_file_p == '\t')
+		pr_file_p++;
+	if (incomment)	//no constants if in a comment.
+	{
+	}
+	else if (QCC_PR_Precompiler())
+	{
 	}
 
 //	if (pr_dumpasm)
@@ -1380,7 +1385,7 @@ void QCC_PR_LexWhitespace (void)
 //============================================================================
 
 #define	MAX_FRAMES	8192
-
+char	pr_framemodelname[64];
 char	pr_framemacros[MAX_FRAMES][16];
 int		pr_framemacrovalue[MAX_FRAMES];
 int		pr_nummacros, pr_oldmacros;
@@ -1395,35 +1400,39 @@ void QCC_PR_ClearGrabMacros (void)
 	pr_savedmacro = -1;
 }
 
-void QCC_PR_FindMacro (void)
+int QCC_PR_FindMacro (char *name)
 {
 	int		i;
 
 	for (i=pr_nummacros-1 ; i>=0 ; i--)
 	{
-		if (!STRCMP (pr_token, pr_framemacros[i]))
+		if (!STRCMP (name, pr_framemacros[i]))
 		{
-			sprintf (pr_token,"%d", pr_framemacrovalue[i]);
-			pr_token_type = tt_immediate;
-			pr_immediate_type = type_float;
-			pr_immediate._float = (float)pr_framemacrovalue[i];
-			return;
+			return pr_framemacrovalue[i];
 		}
 	}
 	for (i=pr_nummacros-1 ; i>=0 ; i--)
 	{
-		if (!stricmp (pr_token, pr_framemacros[i]))
+		if (!stricmp (name, pr_framemacros[i]))
 		{
-			sprintf (pr_token,"%d", pr_framemacrovalue[i]);
-			pr_token_type = tt_immediate;
-			pr_immediate_type = type_float;
-			pr_immediate._float = (float)pr_framemacrovalue[i];
-
 			QCC_PR_ParseWarning(WARN_CASEINSENSATIVEFRAMEMACRO, "Case insensative frame macro");
-			return;
+			return pr_framemacrovalue[i];
 		}
 	}
-	QCC_PR_ParseError (ERR_BADFRAMEMACRO, "Unknown frame macro $%s", pr_token);
+	return -1;
+}
+
+void QCC_PR_ExpandMacro(void)
+{
+	int		i = QCC_PR_FindMacro(pr_token);
+
+	if (i < 0)
+		QCC_PR_ParseError (ERR_BADFRAMEMACRO, "Unknown frame macro $%s", pr_token);
+
+	sprintf (pr_token,"%d", i);
+	pr_token_type = tt_immediate;
+	pr_immediate_type = type_float;
+	pr_immediate._float = (float)i;
 }
 
 // just parses text, returning false if an eol is reached
@@ -1447,6 +1456,8 @@ pbool QCC_PR_SimpleGetToken (void)
 				pr_file_p++;
 			return false;
 		}
+		if (pr_file_p[1] == '*')
+			return false;
 	}
 
 	i = 0;
@@ -1457,33 +1468,36 @@ pbool QCC_PR_SimpleGetToken (void)
 		pr_file_p++;
 	}
 	pr_token[i] = 0;
-	return true;
+	return i!=0;
+}
+
+void QCC_PR_MacroFrame(char *name, int value)
+{
+	int i;
+	for (i=pr_nummacros-1 ; i>=0 ; i--)
+	{
+		if (!STRCMP (name, pr_framemacros[i]))
+		{
+			pr_framemacrovalue[i] = value;
+			if (i>=pr_oldmacros)
+				QCC_PR_ParseWarning(WARN_DUPLICATEMACRO, "Duplicate macro defined (%s)", pr_token);
+			//else it's from an old file, and shouldn't be mentioned.
+			return;
+		}
+	}
+
+	strcpy (pr_framemacros[pr_nummacros], name);
+	pr_framemacrovalue[pr_nummacros] = value;
+	pr_nummacros++;
+	if (pr_nummacros >= MAX_FRAMES)
+		QCC_PR_ParseError(ERR_TOOMANYFRAMEMACROS, "Too many frame macros defined");
 }
 
 void QCC_PR_ParseFrame (void)
 {
-	int i;
 	while (QCC_PR_SimpleGetToken ())
 	{
-		for (i=pr_nummacros-1 ; i>=0 ; i--)
-		{
-			if (!STRCMP (pr_token, pr_framemacros[i]))
-			{
-				pr_framemacrovalue[i] = pr_macrovalue++;
-				if (i>pr_oldmacros)
-					QCC_PR_ParseWarning(WARN_DUPLICATEMACRO, "Duplicate macro defined (%s)", pr_token);
-				break;
-			}
-		}
-
-		if (i>=0)
-			continue;
-
-		strcpy (pr_framemacros[pr_nummacros], pr_token);
-		pr_framemacrovalue[pr_nummacros] = pr_macrovalue++;
-		pr_nummacros++;
-		if (pr_nummacros >= MAX_FRAMES)
-			QCC_PR_ParseError(ERR_TOOMANYFRAMEMACROS, "Too many frame macros defined");
+		QCC_PR_MacroFrame(pr_token, pr_macrovalue++);
 	}
 }
 
@@ -1540,14 +1554,33 @@ void QCC_PR_LexGrab (void)
 	else if (!STRCMP (pr_token, "framerestore"))
 	{
 		QCC_PR_SimpleGetToken ();
-		QCC_PR_FindMacro();
+		QCC_PR_ExpandMacro();
 		pr_macrovalue = (int)pr_immediate._float;
+		
+		QCC_PR_Lex ();
+	}
+	else if (!STRCMP (pr_token, "modelname"))
+	{
+		int i;
+		QCC_PR_SimpleGetToken ();
+
+		if (*pr_framemodelname)
+			QCC_PR_MacroFrame(pr_framemodelname, pr_macrovalue);
+
+		strncpy(pr_framemodelname, pr_token, sizeof(pr_framemodelname)-1);
+		pr_framemodelname[sizeof(pr_framemodelname)-1] = '\0';
+
+		i = QCC_PR_FindMacro(pr_framemodelname);
+		if (i)
+			pr_macrovalue = i;
+		else
+			i = 0;
 		
 		QCC_PR_Lex ();
 	}
 // look for a frame name macro
 	else
-		QCC_PR_FindMacro ();
+		QCC_PR_ExpandMacro ();
 }
 
 //===========================
@@ -1834,13 +1867,17 @@ int QCC_PR_CheakCompConst(void)
 	}
 	strncpy(pr_token, pr_file_p, end-pr_file_p);
 	pr_token[end-pr_file_p]='\0';
+
+	if (!strcmp(pr_token, "varkeyword"))
+		printf("varkeyword!!!\n");
 //	printf("%s\n", pr_token);
 	c = pHash_Get(&compconstantstable, pr_token);
 
 	if (c)
 	{
 		pr_file_p = oldpr_file_p+strlen(c->name);
-		QCC_PR_LexWhitespace();
+		while(*pr_file_p == ' ' || *pr_file_p == '\t')
+			pr_file_p++;
 		if (c->numparams>=0)
 		{
 			if (*pr_file_p == '(')
@@ -1853,7 +1890,8 @@ int QCC_PR_CheakCompConst(void)
 				int plevel=0;
 
 				pr_file_p++;
-				QCC_PR_LexWhitespace();
+				while(*pr_file_p == ' ' || *pr_file_p == '\t')
+					pr_file_p++;
 				start = pr_file_p;
 				while(1)
 				{
@@ -1871,7 +1909,8 @@ int QCC_PR_CheakCompConst(void)
 						}
 						*pr_file_p = '\0';
 						pr_file_p++;
-						QCC_PR_LexWhitespace();
+						while(*pr_file_p == ' ' || *pr_file_p == '\t')
+							pr_file_p++;
 						if (param == MAXCONSTANTPARAMS)
 							QCC_PR_ParseError(ERR_TOOMANYPARAMS, "Too many parameters in macro call");
 					} else if (*pr_file_p == ')' )
@@ -1900,7 +1939,7 @@ int QCC_PR_CheakCompConst(void)
 					}
 					buffer[p] = 0;
 
-					if (*pr_file_p == '#')	//if you ask for #a##b you will be shot. use #a #b instead.
+					if (*pr_file_p == '#')	//if you ask for #a##b you will be shot. use #a #b instead, or chain macros.
 					{
 						if (pr_file_p[1] == '#')
 						{	//concatinate (srip out whitespace)
@@ -2986,6 +3025,8 @@ QCC_type_t *QCC_PR_ParseType (int newtype)
 
 	if (i == numtypeinfos)
 	{
+		if (!*name)
+			return NULL;
 		if (!stricmp("Void", name))
 			type = type_void;
 		else if (!stricmp("Real", name))

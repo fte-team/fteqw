@@ -1,8 +1,7 @@
-#include "bothdefs.h"
+#include "quakedef.h"
 
 #ifdef CL_MASTER
 
-#include "quakedef.h"
 #include "cl_master.h"
 
 #define NET_GAMENAME_NQ		"QUAKE"

@@ -150,7 +150,6 @@ struct edict_s *RestoreEnt (progfuncs_t *progfuncs, char *buf, int *size, struct
 char *PF_VarString (int	first);
 void PR_StackTrace (progfuncs_t *progfuncs);
 
-extern int outputversion;
 extern int noextensions;
 
 #ifndef COMPILER
@@ -315,6 +314,7 @@ typedef struct
 	int				s;
 	dfunction_t		*f;
 	int				progsnum;
+	int pushed;
 } prstack_t;
 
 
@@ -363,6 +363,8 @@ vars(prstack_t, pr_stack, MAX_STACK_DEPTH);
 #define pr_stack prinst->pr_stack
 var(int, pr_depth);
 #define pr_depth prinst->pr_depth
+var(int, spushed);
+#define pr_spushed prinst->spushed
 
 #define	LOCALSTACK_SIZE		4096
 vars(int, localstack, LOCALSTACK_SIZE);

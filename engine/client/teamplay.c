@@ -196,9 +196,11 @@ Handles both say and say_team
 
 void CL_Say_f (void)
 {
+	char output[8192];
 	char string[256];
 	char *msg;
 	int c;
+	output[0] = '\0';
 	if (cls.state == ca_disconnected || cls.demoplayback)
 	{
 #ifndef CLIENT_ONLY
@@ -219,21 +221,17 @@ void CL_Say_f (void)
 		}
 	}
 
-	MSG_WriteByte (&cls.netchan.message, clc_stringcmd);
-	Q_strncpyz(string, Cmd_Argv(0), sizeof(string));
-	for (msg = string; *msg; msg++)
+	Q_strncpyz(output, Cmd_Argv(0), sizeof(string));
+	for (msg = output; *msg; msg++)
 		if (*msg >= 'A' && *msg <= 'Z')
 			*msg = *msg - 'A' + 'a';
-	SZ_Print (&cls.netchan.message, string);
-	cls.netchan.message.cursize--;
 
 	msg = Cmd_Args();
 
 	if (Cmd_Argc() > 1)
 	{
-		SZ_Print (&cls.netchan.message," ");
-		cls.netchan.message.cursize--;
-		MSG_WriteChar(&cls.netchan.message, '\"');
+		Q_strncatz(output, " \"", sizeof(output));
+
 		while(*msg)
 		{
 			c = *msg;
@@ -247,40 +245,29 @@ void CL_Say_f (void)
 				switch(*msg)
 				{
 				case 'n':
-					SZ_Print(&cls.netchan.message, name.string);
-					cls.netchan.message.cursize--;
+					Q_strncatz(output, name.string, sizeof(output));
 					msg++;
 					continue;
 				case 'h':
-					SZ_Print(&cls.netchan.message, va("%i", cl.stats[0][STAT_HEALTH]));
-					cls.netchan.message.cursize--;	//remove the null term
+					Q_strncatz(output, va("%i", cl.stats[0][STAT_HEALTH]), sizeof(output));
 					msg++;
 					continue;
 				case 'a':
-					SZ_Print(&cls.netchan.message, va("%i", cl.stats[0][STAT_ARMOR]));
-					cls.netchan.message.cursize--;
+					Q_strncatz(output, va("%i", cl.stats[0][STAT_ARMOR]), sizeof(output));
 					msg++;
 					continue;
 				case 'A':
-					SZ_Print(&cls.netchan.message, TP_ArmourType());
-					cls.netchan.message.cursize--;
+					Q_strncatz(output, TP_ArmourType(), sizeof(output));
 					msg++;
 					continue;
 				case 'l':
-					SZ_Print(&cls.netchan.message, CL_LocationName(r_refdef.vieworg));
-					cls.netchan.message.cursize--;
+					Q_strncatz(output, CL_LocationName(cl.simorg[0]), sizeof(output));
 					msg++;
 					continue;
 				case 'S':
-					SZ_Print(&cls.netchan.message, TP_ClassForTFSkin());
-					cls.netchan.message.cursize--;
+					Q_strncatz(output, TP_ClassForTFSkin(), sizeof(output));
 					msg++;
 					continue;
-				case '\0':	//whoops.
-					MSG_WriteChar(&cls.netchan.message, '%');
-					MSG_WriteChar(&cls.netchan.message, '\"');
-					MSG_WriteChar(&cls.netchan.message, *msg);
-					return;
 				case '%':
 					c  = '%';
 					break;
@@ -333,14 +320,14 @@ void CL_Say_f (void)
 
 			}
 		
-			MSG_WriteChar(&cls.netchan.message, c);
+			Q_strncatz(output, va("%c", c), sizeof(output));
 
 			msg++;
 		}
-		MSG_WriteChar(&cls.netchan.message, '\"');
+		Q_strncatz(output, "\"", sizeof(output));
 	}
-	
-	MSG_WriteChar(&cls.netchan.message, '\0');
+
+	CL_SendClientCommand("%s", output);
 }
 
 void TP_Init(void)

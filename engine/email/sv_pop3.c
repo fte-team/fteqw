@@ -1,8 +1,7 @@
-#include "bothdefs.h"
+#include "quakedef.h"
 
 #ifdef EMAILSERVER
 
-#include "quakedef.h"
 #include "winquake.h"
 
 //FIXME: the DELE command's effects arn't properly checked.

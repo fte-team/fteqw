@@ -488,7 +488,7 @@ void Editor_Key(int key)
 		break;
 	case K_F6:
 		if (editprogfuncs)
-			editprogfuncs->PR_StackTrace(editprogfuncs);		
+			PR_StackTrace(editprogfuncs);		
 		break;
 	case K_F7:
 		EditorSaveFile(OpenEditorFile);

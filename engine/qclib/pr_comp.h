@@ -305,6 +305,8 @@ enum {
 
 //back to ones that we do use.
 	OP_STOREP_P,
+	OP_PUSH,	//push 4octets onto the local-stack (which is ALWAYS poped on function return). Returns a pointer.
+	OP_POP,		//pop those ones that were pushed (don't over do it). Needs assembler.
 
 	OP_NUMOPS
 };
@@ -422,7 +424,8 @@ typedef struct
 
 
 #define	PROG_VERSION	6
-#define	PROG_DEBUGVERSION	7
+#define PROG_KKQWSVVERSION 7
+#define	PROG_EXTENDEDVERSION	7
 #define PROG_SECONDARYVERSION16 (*(int*)"1FTE" ^ *(int*)"PROG")	//something unlikly and still meaningful (to me)
 #define PROG_SECONDARYVERSION32 (*(int*)"1FTE" ^ *(int*)"32B ")	//something unlikly and still meaningful (to me)
 typedef struct

@@ -320,6 +320,10 @@ void GL_CheckExtensions (void *(*getglfunction) (char *name))
 	}
 
 	// glslang
+	//the gf2 to gf4 cards emulate vertex_shader and thus supports shader_objects.
+	//but our code kinda requires both for clean workings.
+	if (!!strstr(gl_extensions, "GL_ARB_fragment_shader"))
+	if (!!strstr(gl_extensions, "GL_ARB_vertex_shader"))
 	if (!!strstr(gl_extensions, "GL_ARB_shader_objects"))
 	{
 		gl_config.arb_shader_objects = true;
@@ -410,7 +414,7 @@ GLhandleARB GLSlang_CreateProgram (GLhandleARB vert, GLhandleARB frag)
 	{
 		qglGetInfoLogARB(program, sizeof(str), NULL, str);
 		Con_Printf("Program link error: %s\n", str);
-		return (int)NULL;
+		return (GLhandleARB)0;
 	}
 
 	return program;

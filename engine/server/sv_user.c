@@ -4099,13 +4099,20 @@ void SV_ExecuteClientMessage (client_t *cl)
 	qboolean	move_issued = false; //only allow one move command
 	int		checksumIndex;
 	qbyte	checksum, calculatedChecksum;
-	int		seq_hash;
+	int		seq_hash, i;
 
 	// calc ping time
 	if (cl->frames)
 	{	//split screen doesn't always have frames.
 		frame = &cl->frames[cl->netchan.incoming_acknowledged & UPDATE_MASK];
-		frame->ping_time = realtime - frame->senttime;
+
+		if (cl->lastsequence_acknoledged + UPDATE_BACKUP > cl->netchan.incoming_acknowledged)
+			frame->ping_time = realtime - frame->senttime;	//no more phenomanally low pings please
+
+		for (i = cl->lastsequence_acknoledged+1; i < cl->netchan.incoming_acknowledged; i++)
+			SV_CSQC_DroppedPacket(cl, i);
+
+		cl->lastsequence_acknoledged = cl->netchan.incoming_acknowledged;
 	}
 	else
 		return;	//shouldn't happen...

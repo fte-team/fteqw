@@ -68,7 +68,7 @@ extern int MAX_CONSTANTS;
 #define MAXCONSTANTPARAMLENGTH 32
 #define MAXCONSTANTPARAMS 4
 
-typedef enum {QCF_STANDARD, QCF_HEXEN2, QCF_FTE, QCF_FTE32, QCF_FTEDEBUG, QCF_FTEDEBUG32, QCF_KK7} qcc_targetformat_t;
+typedef enum {QCF_STANDARD, QCF_HEXEN2, QCF_FTE, QCF_FTEDEBUG, QCF_KK7} qcc_targetformat_t;
 extern qcc_targetformat_t qcc_targetformat;
 
 
@@ -371,10 +371,10 @@ typedef union QCC_eval_s
 	union QCC_eval_s		*ptr;
 } QCC_eval_t;
 
-const extern	int		type_size[9];
+const extern	int		type_size[12];
 //extern	QCC_def_t	*def_for_type[9];
 
-extern	QCC_type_t	*type_void, *type_string, *type_float, *type_vector, *type_entity, *type_field, *type_function, *type_pointer, *type_integer, *type_floatfield;
+extern	QCC_type_t	*type_void, *type_string, *type_float, *type_vector, *type_entity, *type_field, *type_function, *type_pointer, *type_integer, *type_variant, *type_floatfield;
 
 struct QCC_function_s
 {
@@ -486,6 +486,7 @@ extern pbool opt_compound_jumps;
 extern pbool opt_stripfunctions;
 extern pbool opt_locals_marshalling;
 extern pbool opt_logicops;
+extern pbool opt_vectorcalls;
 
 extern int optres_shortenifnots;
 extern int optres_overlaptemps;
@@ -527,6 +528,7 @@ void QCC_RemapOffsets(unsigned int firststatement, unsigned int laststatement, u
 
 #ifndef COMMONINLINES
 pbool QCC_PR_Check (char *string);
+pbool QCC_PR_CheckInsens (char *string);
 void QCC_PR_Expect (char *string);
 #endif
 void VARGS QCC_PR_ParseError (int errortype, char *error, ...);
@@ -685,16 +687,30 @@ enum {
 	WARN_MAX
 };
 
-
+#define FLAG_KILLSDEBUGGERS	1
+#define FLAG_ASDEFAULT		2
+#define FLAG_SETINGUI		4
+#define FLAG_HIDDENINGUI	8
 typedef struct {
 	pbool *enabled;
 	char *abbrev;
 	int optimisationlevel;
 	int flags;	//1: kills debuggers. 2: applied as default.
 	char *fullname;
+	char *description;
 	void *guiinfo;
 } optimisations_t;
 extern optimisations_t optimisations[];
+
+typedef struct {
+	pbool *enabled;
+	int flags;	//2 applied as default
+	char *abbrev;
+	char *fullname;
+	char *description;
+	void *guiinfo;
+} compiler_flag_t;
+extern compiler_flag_t compiler_flag[];
 
 extern pbool qccwarningdisabled[WARN_MAX];
 

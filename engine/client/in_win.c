@@ -1008,8 +1008,8 @@ static void ProcessMouse(mouse_t *mouse, usercmd_t *cmd, int pnum)
 	mouse->old_delta[0] = mx;
 	mouse->old_delta[1] = my;
 
-	mouse_x *= sensitivity.value;
-	mouse_y *= sensitivity.value;
+	mouse_x *= sensitivity.value*in_sensitivityscale;
+	mouse_y *= sensitivity.value*in_sensitivityscale;
 
 	if (!cmd)
 	{

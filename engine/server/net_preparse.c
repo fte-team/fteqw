@@ -32,13 +32,6 @@ static qboolean ignoreprotocol;
 #define TE_LIGHTNING4_NEH		17 // [string] model [entity] entity [vector] start [vector] end
 #define TE_EXPLOSIONSMALL2		20	//	org.
 
-//share with pr_cmds.
-#define	MSG_BROADCAST	0		// unreliable to all
-#define	MSG_ONE			1		// reliable to one (msg_entity)
-#define	MSG_ALL			2		// reliable to all
-#define	MSG_INIT		3		// write to the init string
-#define	MSG_MULTICAST	4		// for multicast()
-
 client_t *Write_GetClient(void);
 sizebuf_t *WriteDest (int dest);
 #ifdef NQPROT

@@ -357,6 +357,9 @@ void CL_SendConnectPacket (
 #ifdef PEXT_CHUNKEDDOWNLOADS
 	fteprotextsupported |= PEXT_CHUNKEDDOWNLOADS;
 #endif
+#ifdef PEXT_CSQC
+	fteprotextsupported |= PEXT_CSQC;
+#endif
 
 	fteprotextsupported &= ftepext;
 
@@ -769,6 +772,8 @@ void CL_ClearState (void)
 #define tolocalserver false
 #define SV_UnspawnServer()
 #endif
+
+	CL_AllowIndependantSendCmd(false);	//model stuff could be a problem.
 
 	S_StopAllSounds (true);
 
@@ -1399,8 +1404,13 @@ void CL_Packet_f (void)
 			if (adr.ip[2] == 0)
 			if (adr.ip[3] == 1)
 			{
+				adr.ip[0] = cls.netchan.remote_address.ip[0];
+				adr.ip[1] = cls.netchan.remote_address.ip[1];
+				adr.ip[2] = cls.netchan.remote_address.ip[2];
+				adr.ip[3] = cls.netchan.remote_address.ip[3];
+				adr.port = cls.netchan.remote_address.port;
 				Con_Printf ("^b^1Server is broken. Ignoring 'realip' packet request\n");
-				return;
+
 			}
 
 		Con_DPrintf ("Sending realip packet\n");
@@ -1582,8 +1592,7 @@ void CL_Reconnect_f (void)
 	if (cls.state == ca_connected)
 	{
 		Con_TPrintf (TLC_RECONNECTING);
-		MSG_WriteChar (&cls.netchan.message, clc_stringcmd);
-		MSG_WriteString (&cls.netchan.message, "new");
+		CL_SendClientCommand("new");
 		return;
 	}
 
@@ -1798,8 +1807,7 @@ client_connect:	//fixme: make function
 #ifdef NQPROT
 		cls.netchan.qsocket = cls.netcon;
 #endif
-		MSG_WriteChar (&cls.netchan.message, clc_stringcmd);
-		MSG_WriteString (&cls.netchan.message, "new");
+		CL_SendClientCommand("new");
 		cls.state = ca_connected;
 		Con_TPrintf (TLC_CONNECTED);
 		allowremotecmd = false; // localid required now for remote cmds
@@ -2127,8 +2135,7 @@ void CL_Download_f (void)
 	cls.downloadmethod = DL_QWPENDING;
 
 
-	MSG_WriteByte (&cls.netchan.message, clc_stringcmd);
-	SZ_Print (&cls.netchan.message, va("download %s\n",url));*/
+	CL_SendClientCommand("download %s\n",url);*/
 }
 
 #ifdef _WINDOWS
@@ -2531,54 +2538,6 @@ qboolean Host_SimulationTime(float time)
 #endif
 
 /*
-===================
-CL_FilterTime
-
-Returns false if the time is too short to run a frame
-===================
-*/
-#define bound(n,v,x) v<n?n:(v>x?x:v)
-qboolean CL_Net_FilterTime (double time);
-qboolean CL_FilterTime (double time)
-{
-	float fps;
-//	float fpscap;
-
-	if (cls.timedemo) 
-		return true;
-
-//	if (cls.demoplayback)
-//	{
-		if (!cl_maxfps.value)
-			return true;
-		if (cl_maxfps.value < 0)
-			return CL_Net_FilterTime(time*1000); 
-		fps = max (30.0, cl_maxfps.value);
-/*	}
-	else
-	{
-		fpscap = cls.maxfps ? max (30.0, cls.maxfps) : 0x7fff;
-	
-		if (cl_maxfps.value)
-			fps = bound (10.0, cl_maxfps.value, fpscap);
-		else
-		{
-//			if (com_serveractive)
-//				fps = fpscap;
-//			else
-				fps = bound (30.0, rate.value/80.0, fpscap);
-		}
-	}
-*/
-	if (time < 1.0 / fps)
-		return false;
-
-	return true;
-}
-
-
-
-/*
 ==================
 Host_Frame
 
@@ -2590,8 +2549,10 @@ extern float recordavi_frametime;
 extern qboolean recordingdemo;
 #endif
 
+extern cvar_t cl_netfps;
 int		nopacketcount;
 void SNDDMA_SetUnderWater(qboolean underwater);
+qboolean CL_FilterTime (double time, float wantfps);
 void Host_Frame (float time)
 {
 	static double		time1 = 0;
@@ -2606,7 +2567,7 @@ void Host_Frame (float time)
 		return;			// something bad happened, or the server disconnected
 
 #if defined(WINAVI) && !defined(NOMEDIA)
-	if (cls.demoplayback && recordingdemo)
+	if (cls.demoplayback && recordingdemo && recordavi_frametime>0.01)
 		time = recordavi_frametime;
 #endif
 
@@ -2672,8 +2633,16 @@ void Host_Frame (float time)
 
 	*/
 	Mod_Think();	//think even on idle (which means small walls and a fast cpu can get more surfaces done.
-	if (!CL_FilterTime(realtime - oldrealtime))
-		return;
+	if (cl_maxfps.value>0 && cl_netfps.value>0)
+	{	//limit the fps freely, and expect the netfps to cope.
+		if ((realtime - oldrealtime) < 1/cl_maxfps.value)
+			return;
+	}
+	else
+	{
+		if (!CL_FilterTime((realtime - oldrealtime)*1000, cl_maxfps.value>0?cl_maxfps.value:cl_netfps.value))
+			return;
+	}
 
 	host_frametime = realtime - oldrealtime;
 	oldrealtime = realtime;
@@ -2703,13 +2672,15 @@ void Host_Frame (float time)
 
 	RSpeedRemark();
 
+	CL_AllowIndependantSendCmd(false);
+
 	if (cls.downloadtype == dl_none && !*cls.downloadname && cl.downloadlist)
-	{
-CL_RequestNextDownload();
-	}
+		CL_RequestNextDownload();
 
 	// fetch results from server
 	CL_ReadPackets ();
+
+	CL_AllowIndependantSendCmd(true);
 
 	// send intentions now
 	// resend a connection request if necessary

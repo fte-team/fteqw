@@ -1923,6 +1923,8 @@ void CL_FTP_f(void)
 {	
 	FTP_Client_Command(Cmd_Args()); 
 }
+#endif
+#ifdef IRCCLIENT
 void CL_IRC_f(void)
 {	
 	IRC_Command(Cmd_Args()); 
@@ -2347,6 +2349,8 @@ void Host_Frame (float time)
 	POP3_Think();
 #endif
 
+	Plug_Tick();
+
 	// decide the simulation time
 	realtime += time;
 	if (oldrealtime > realtime)
@@ -2657,6 +2661,8 @@ Con_TPrintf (TL_NL);
 				"MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. "
 				"\n"
 				"See the GNU General Public License for more details.\n");
+
+	Plug_Init();
 }
 
 

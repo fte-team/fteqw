@@ -65,7 +65,7 @@ cvar_t	r_graphheight = {"r_graphheight","15"};
 cvar_t	r_clearcolor = {"r_clearcolor","218"};
 cvar_t	r_aliasstats = {"r_polymodelstats","0"};
 cvar_t	r_dspeeds = {"r_dspeeds","0"};
-cvar_t	r_drawflat = {"r_drawflat", "0", NULL, CVAR_CHEAT};
+//cvar_t	r_drawflat = {"r_drawflat", "0", NULL, CVAR_CHEAT};
 cvar_t	r_reportsurfout = {"r_reportsurfout", "0"};
 cvar_t	r_maxsurfs = {"r_maxsurfs", "0"};
 cvar_t	r_numsurfs = {"r_numsurfs", "0"};
@@ -233,6 +233,7 @@ cvar_t	r_fastsky = {"r_fastsky", "0"};
 cvar_t	r_fastskycolour = {"r_fastskycolour", "0"};
 
 #if defined(RGLQUAKE)
+cvar_t gl_schematics = {"gl_schematics","0"};
 cvar_t	gl_ztrick = {"gl_ztrick","1"};
 extern cvar_t r_waterlayers;
 cvar_t			gl_triplebuffer = {"gl_triplebuffer", "1", NULL, CVAR_ARCHIVE};
@@ -331,6 +332,7 @@ void GLRenderer_Init(void)
 	Cvar_Register (&r_floorcolour, GLRENDEREROPTIONS);
 	Cvar_Register (&r_vertexdlights, GLRENDEREROPTIONS);
 
+	Cvar_Register (&gl_schematics, GLRENDEREROPTIONS);
 #ifdef Q3SHADERS
 	Cvar_Register (&r_vertexlight, GLRENDEREROPTIONS);
 #endif
@@ -432,7 +434,7 @@ void Renderer_Init(void)
 		vid_fullscreen.string = "0";
 
 
-
+	currentrendererstate.renderer = -1;
 
 	Cmd_AddCommand("setrenderer", R_SetRenderer_f);
 	Cmd_AddCommand("vid_restart", R_RestartRenderer_f);
@@ -1032,7 +1034,11 @@ struct {
 		""
 	}
 #else
+	,
 	{
+		{
+		NULL
+		}
 	}
 #endif
 };
@@ -1329,6 +1335,8 @@ qboolean R_ApplyRenderer (rendererstate_t *newr)
 
 	gl_skyboxname.modified = true;
 
+	pmove.numphysent = 0;
+
 	if (qrenderer)	//graphics stuff only when not dedicated
 	{
 		qbyte *data;
@@ -1409,7 +1417,6 @@ TRACE(("dbg: R_ApplyRenderer: Palette loaded\n"));
 
 		if (!VID_Init(newr, host_basepal))
 		{
-			R_SetRenderer(QR_NONE);
 			return false;
 		}
 TRACE(("dbg: R_ApplyRenderer: vid applied\n"));
@@ -1730,12 +1737,15 @@ TRACE(("dbg: R_RestartRenderer_f\n"));
 			if (R_ApplyRenderer(&newr))
 			{
 				TRACE(("dbg: R_RestartRenderer_f going to dedicated\n"));
+				Con_Printf("\n================================\n");
 				Con_Printf("^1Video mode switch failed. Old mode wasn't supported either. Console forced.\nChange vid_mode to a compatable mode, and then use the setrenderer command.\n");
+				Con_Printf("================================\n\n");
 			}
 			else
 				Sys_Error("Couldn't fall back to previous renderer\n");
 		}
 	}
+	SCR_EndLoadingPlaque();
 
 	TRACE(("dbg: R_RestartRenderer_f success\n"));
 #ifdef MENU_DAT

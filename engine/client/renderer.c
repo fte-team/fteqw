@@ -1620,9 +1620,6 @@ TRACE(("dbg: R_ApplyRenderer: efrags\n"));
 	else
 		UI_Reset();
 
-	if (cls.state)
-		Cbuf_AddText("say Auto: Changed resolution\n", RESTRICT_MAX);
-
 	switch (qrenderer)
 	{
 	case QR_NONE:

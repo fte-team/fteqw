@@ -225,8 +225,13 @@ part_type_t *GetParticleType(char *name)
 	ptype->assoc=-1;
 	ptype->cliptype = -1;
 	ptype->emit = -1;
+/*
+	Due to BZ_Realloc we can assume all of this anyway
 	ptype->loaded = 0;
 	ptype->ramp = NULL;
+	ptype->particles = NULL;
+	ptype->beams = NULL;
+*/
 	return ptype;
 }
 
@@ -300,7 +305,7 @@ void R_ParticleEffect_f(void)
 	char *var, *value;
 	char *buf;
 	particle_t *parts;
-	beamseg_t *beamsegs;
+	beamseg_t *beamsegs, *btemp;
 	skytris_t *st;
 
 	part_type_t *ptype;
@@ -333,13 +338,47 @@ void R_ParticleEffect_f(void)
 
 	pnum = ptype-part_type;
 
-	parts = ptype->particles;
-	beamsegs = ptype->beams;
 	st = ptype->skytris;
 	if (ptype->ramp)
 		BZ_Free(ptype->ramp);
+
+	while (ptype->particles) // empty particle list
+	{
+		parts = ptype->particles->next;
+		ptype->particles->next = free_particles;
+		free_particles = ptype->particles;
+		ptype->particles = parts;
+	}
+
+	// clear beam list.. bit more complex
+	while (ptype->beams && !(ptype->beams->flags & BS_LASTSEG))
+	{
+		beamsegs = ptype->beams->next;
+		ptype->beams->next = free_beams;
+		free_beams = ptype->beams;
+		ptype->beams = beamsegs;
+	}
+
+	btemp = ptype->beams;
+	while (btemp)
+	{
+		if (btemp->flags & BS_LASTSEG) // prevent runaway pointers
+		{
+			btemp->flags |= BS_DEAD;
+			btemp = btemp->next;
+		}
+		else
+		{
+			beamsegs = btemp->next;
+			btemp->next = free_beams;
+			free_beams = btemp;
+			btemp = beamsegs;
+		}
+	}
+
+	beamsegs = ptype->beams;
 	memset(ptype, 0, sizeof(*ptype));
-	ptype->particles = parts;
+//	ptype->particles = parts;
 	ptype->beams = beamsegs;
 	ptype->skytris = st;
 	strcpy(ptype->name, Cmd_Argv(1));

@@ -965,7 +965,10 @@ void GLR_SetupFrame (void)
 void MYgluPerspective( GLdouble fovy, GLdouble aspect,
 		     GLdouble zNear, GLdouble zFar )
 {
+#if 1	//for the sake of the d3d...
+#else
 	GLfloat matrix[16];
+#endif
 	GLdouble xmin, xmax, ymin, ymax;
 
 	ymax = zNear * tan( fovy * M_PI / 360.0 );

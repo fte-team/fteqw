@@ -277,9 +277,15 @@ model_t *Mod_LoadModel (model_t *mod, qboolean crash)
 #endif
 
 
-	default:
+	case 29:
+	case 30:
 		Mod_LoadBrushModel (mod, buf);
 		break;
+
+	default:
+		if (crash)
+			SV_Error ("Mod_NumForName: %s: format not recognised", mod->name);
+		return NULL;
 	}
 
 	return mod;

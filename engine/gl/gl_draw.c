@@ -1844,6 +1844,7 @@ void GL_Set2D (void)
 
 	if (gl_smoothfont.modified)
 	{
+		gl_smoothfont.modified = false;
 		GL_Bind(char_texture);
 		if (gl_smoothfont.value)
 		{

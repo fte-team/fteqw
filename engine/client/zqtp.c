@@ -2493,6 +2493,16 @@ static void TP_MsgFilter_f (void)
 	}
 }
 
+void TP_CheckVars(void)
+{
+	if (cl_enemyskin.modified || cl_teamskin.modified)
+	{
+		Skin_FlushPlayers();
+		cl_enemyskin.modified = false;
+		cl_teamskin.modified = false;
+	}
+}
+
 void TP_Init (void)
 {
 #define TEAMPLAYVARS	"Teamplay Variables"

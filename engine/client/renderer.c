@@ -197,6 +197,10 @@ cvar_t	r_flashblend = {"gl_flashblend","0"};
 extern	cvar_t	r_novis;
 extern	cvar_t	r_netgraph;
 
+cvar_t r_drawflat = {"r_drawflat","0", NULL, CVAR_SEMICHEAT};
+cvar_t r_wallcolour = {"r_wallcolour","0 0 1"};
+cvar_t r_floorcolour = {"r_floorcolour","0.5 0.5 1"};
+
 cvar_t r_transtables = {"r_transtables","2"};
 cvar_t r_transtablehalf = {"r_transtablehalf", "1"};
 cvar_t r_transtablewrite = {"r_transtablewrite", "1"};
@@ -323,6 +327,10 @@ void GLRenderer_Init(void)
 
 	Cvar_Register (&gl_skyboxdist, GLRENDEREROPTIONS);
 
+	Cvar_Register (&r_wallcolour, GLRENDEREROPTIONS);
+	Cvar_Register (&r_floorcolour, GLRENDEREROPTIONS);
+	Cvar_Register (&r_vertexdlights, GLRENDEREROPTIONS);
+
 #ifdef Q3SHADERS
 	Cvar_Register (&r_vertexlight, GLRENDEREROPTIONS);
 #endif
@@ -358,7 +366,6 @@ void SWRenderer_Init(void)
 	Cvar_Register (&r_graphheight, SWRENDEREROPTIONS);
 	Cvar_Register (&r_aliasstats, SWRENDEREROPTIONS);
 	Cvar_Register (&r_dspeeds, SWRENDEREROPTIONS);
-	Cvar_Register (&r_drawflat, SWRENDEREROPTIONS);
 	Cvar_Register (&r_ambient, SWRENDEREROPTIONS);
 	Cvar_Register (&r_ambient, SWRENDEREROPTIONS);
 	Cvar_Register (&r_reportsurfout, SWRENDEREROPTIONS);
@@ -516,6 +523,8 @@ void Renderer_Init(void)
 
 	Cvar_Register (&r_fastsky, GRAPHICALNICETIES);
 	Cvar_Register (&r_fastskycolour, GRAPHICALNICETIES);
+
+	Cvar_Register (&r_drawflat, GRAPHICALNICETIES);
 
 //bulletens
 	Cvar_Register(&bul_nowater, BULLETENVARS);

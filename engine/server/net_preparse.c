@@ -412,7 +412,7 @@ void NPP_NQWriteByte(int dest, qbyte data)	//replacement write func (nq to qw)
 
 			case 79:
 				protocollen = sizeofcoord*6+sizeof(qbyte)*3;
-				multicastpos = 1;
+				multicastpos = 2;
 				multicasttype=MULTICAST_PHS;
 				break;
 

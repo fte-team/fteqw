@@ -3798,7 +3798,7 @@ void SV_RunCmd (usercmd_t *ucmd, qboolean recurse)
 			pmove_maxs[i] = pmove.origin[i] + 256;
 		}
 
-		PM_PlayerMove (cl.gamespeed);
+		PM_PlayerMove (sv.gamespeed);
 		
 		VectorCopy (pmove.origin, host_client->specorigin);
 		VectorCopy (pmove.velocity, host_client->specvelocity);

@@ -983,11 +983,16 @@ void CL_SendCmd (void)
 	clientcount = cl.splitclients;
 	if (!clientcount)
 		clientcount = 1;
-	if (1)	//wait for server data before sending clc_move stuff
+	if (1)	//wait for server data before sending clc_move stuff? nope, mvdsv doesn't like that.
 	{
 #ifdef Q2CLIENT
 		if (cls.q2server)
 		{
+			i = cls.netchan.outgoing_sequence & UPDATE_MASK;
+			cmd = &cl.frames[i].cmd[plnum];
+			if (cmd->buttons)
+				cmd->buttons |= 128;
+
 			if (cls.resendinfo)
 			{
 				MSG_WriteByte (&cls.netchan.message, clcq2_userinfo);

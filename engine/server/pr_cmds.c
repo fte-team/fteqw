@@ -6500,7 +6500,11 @@ void PF_clientcommand (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 	temp_client = host_client;
 	host_client = &svs.clients[i];
 	if (host_client->state == cs_connected || host_client->state == cs_spawned)
-		SV_ExecuteUserCommand (PF_VarString(prinst, OFS_PARM1, pr_globals), true);
+	{
+		SV_ExecuteUserCommand (PF_VarString(prinst, 1, pr_globals), true);
+	}
+	else
+		Con_Printf("PF_clientcommand: client is not active\n");
 	host_client = temp_client;
 	if (host_client)
 		sv_player = host_client->edict;

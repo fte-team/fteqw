@@ -20,6 +20,7 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 // net_wipx.c
 
 #include "quakedef.h"
+#ifdef _WIN32
 #ifdef NQPROT
 #include "../client/winquake.h"
 #include <wsipx.h>
@@ -438,4 +439,4 @@ int WIPX_SetSocketPort (struct sockaddr_qstorage *addr, int port)
 
 //=============================================================================
 #endif
-
+#endif

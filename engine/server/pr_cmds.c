@@ -6112,6 +6112,13 @@ void PF_RegisterTEnt(progfuncs_t *prinst, struct globalvars_s *pr_globals)
 		sv.customtents[i].dlightradius = G_FLOAT(OFS_PARM1+arg*3)/4;
 		sv.customtents[i].dlighttime = G_FLOAT(OFS_PARM2+arg*3)*16;
 		arg += 3;
+		if (nettype & CTE_CHANNELFADE)
+		{
+			sv.customtents[i].dlightcfade[0] = G_FLOAT(OFS_PARM0+arg*3+0)*64;
+			sv.customtents[i].dlightcfade[1] = G_FLOAT(OFS_PARM0+arg*3+1)*64;
+			sv.customtents[i].dlightcfade[2] = G_FLOAT(OFS_PARM0+arg*3+2)*64;
+			arg++; // we're out now..
+		}
 	}
 
 	if (arg != *prinst->callargc)

@@ -804,12 +804,14 @@ typedef struct {
 	vec3_t dlightrgb;
 	float dlightradius;
 	float dlighttime;
+	vec3_t dlightcfade;
 } clcustomtents_t;
 
 #define CTE_CUSTOMCOUNT		1
 #define CTE_CUSTOMDIRECTION	2
 #define CTE_STAINS			4
 #define CTE_GLOWS			8
+#define CTE_CHANNELFADE		16
 #define CTE_ISBEAM			128
 
 clcustomtents_t customtenttype[255];	//network based.
@@ -850,6 +852,12 @@ void CL_ParseCustomTEnt(void)
 			t->dlightrgb[2] = MSG_ReadByte()/255.0f;
 			t->dlightradius = MSG_ReadByte();
 			t->dlighttime = MSG_ReadByte()/16.0f;
+			if (t->netstyle & CTE_CHANNELFADE)
+			{
+				t->dlightcfade[0] = MSG_ReadByte()/64.0f;
+				t->dlightcfade[1] = MSG_ReadByte()/64.0f;
+				t->dlightcfade[2] = MSG_ReadByte()/64.0f;
+			}
 		}
 		else
 			t->dlighttime = 0;
@@ -901,7 +909,14 @@ void CL_ParseCustomTEnt(void)
 		dl->color[1] = t->dlightrgb[1];
 		dl->color[2] = t->dlightrgb[2];
 
-		// let darklights work since they get no control over this just yet
+		if (t->netstyle & CTE_CHANNELFADE)
+		{
+			dl->channelfade[0] = t->dlightcfade[0];
+			dl->channelfade[1] = t->dlightcfade[1];
+			dl->channelfade[2] = t->dlightcfade[2];
+		}
+
+		/*
 		if (dl->color[0] < 0)
 			dl->channelfade[0] = 0;
 		else
@@ -916,6 +931,7 @@ void CL_ParseCustomTEnt(void)
 			dl->channelfade[2] = 0;
 		else
 			dl->channelfade[2] = dl->color[0]/t->dlighttime;
+		*/
 	}
 }
 void CL_ClearCustomTEnts(void)

@@ -3106,7 +3106,6 @@ q2cmodel_t *CM_LoadMap (char *name, char *filein, qboolean clientload, unsigned 
 	q2dheader_t		header;
 	int				length;
 	static unsigned	last_checksum;
-	qboolean nofog;
 
 	// free old stuff
 	numplanes = 0;

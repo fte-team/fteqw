@@ -3801,6 +3801,7 @@ QCC_def_t *QCC_PR_Term (void)
 
 			default:
 				QCC_PR_ParseError (ERR_BADNOTTYPE, "type mismatch for * (unrecognised type)");
+				e2 = NULL;
 				break;
 			}
 
@@ -3821,6 +3822,7 @@ QCC_def_t *QCC_PR_Term (void)
 				break;
 			default:
 				QCC_PR_ParseError (ERR_BADNOTTYPE, "type mismatch for -");
+				e2 = NULL;
 				break;
 			}
 			return e2;
@@ -3839,6 +3841,7 @@ QCC_def_t *QCC_PR_Term (void)
 				break;
 			default:
 				QCC_PR_ParseError (ERR_BADNOTTYPE, "type mismatch for +");
+				e2 = NULL;
 				break;
 			}
 			return e2;

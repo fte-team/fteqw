@@ -185,9 +185,9 @@ static void R_LerpFrames(mesh_t *mesh, galiaspose_t *p1, galiaspose_t *p2, float
 				mesh->xyz_array[i][1] = p1v[i][1];
 				mesh->xyz_array[i][2] = p1v[i][2];
 
-				mesh->colors_array[i][0] = ambientlight[0]+shadelight[0];
-				mesh->colors_array[i][1] = ambientlight[1]+shadelight[1];
-				mesh->colors_array[i][2] = ambientlight[2]+shadelight[2];
+				mesh->colors_array[i][0] = /*ambientlight[0]/2*/+shadelight[0];
+				mesh->colors_array[i][1] = /*ambientlight[1]/2*/+shadelight[1];
+				mesh->colors_array[i][2] = /*ambientlight[2]/2*/+shadelight[2];
 				mesh->colors_array[i][3] = alpha;
 			}
 		}
@@ -677,17 +677,25 @@ static galiastexnum_t *GL_ChooseSkin(galiasinfo_t *inf, char *modelname, entity_
 			inwidth = e->scoreboard->skin->width;
 			inheight = e->scoreboard->skin->height;
 		}
-		else if (skins->ofstexels)
-		{
-			original = (qbyte *)skins + skins->ofstexels;
-			inwidth = skins->skinwidth;
-			inheight = skins->skinheight;
-		}
 		else
 		{
 			original = NULL;
 			inwidth = 0;
-			inheight = 0;
+		}
+		if (!original)
+		{
+			if (skins->ofstexels)
+			{
+				original = (qbyte *)skins + skins->ofstexels;
+				inwidth = skins->skinwidth;
+				inheight = skins->skinheight;
+			}
+			else
+			{
+				original = NULL;
+				inwidth = 0;
+				inheight = 0;
+			}
 		}
 		tinwidth = skins->skinwidth;
 		tinheight = skins->skinheight;
@@ -943,14 +951,17 @@ void GL_DrawAliasMesh (mesh_t *mesh, int texnum)
 	glDepthMask(1);
 	
 	GL_Bind(texnum);
-	qglCullFace ( GL_FRONT );
+	if (gldepthmin == 0.5) 
+		qglCullFace ( GL_BACK );
+	else
+		qglCullFace ( GL_FRONT );
 
 	GL_TexEnv(GL_MODULATE);
 
 	glVertexPointer(3, GL_FLOAT, 16, mesh->xyz_array);
 	glEnableClientState( GL_VERTEX_ARRAY );
 
-	if (mesh->normals_array)
+	if (mesh->normals_array && glNormalPointer)	//d3d wrapper doesn't support normals, and this is only really needed for truform
 	{
 		glNormalPointer(GL_FLOAT, 0, mesh->normals_array);
 		glEnableClientState( GL_NORMAL_ARRAY );
@@ -1422,14 +1433,66 @@ glColor3f(0,0,1);
 #endif
 }
 
-void R_DrawGAliasModelLighting (entity_t *e)
+//returns result in the form of the result vector
+void RotateLightVector(vec3_t angles, vec3_t origin, vec3_t lightpoint, vec3_t result)
 {
+	vec3_t f, r, u, offs;
+
+	angles[0]*=-1;
+	AngleVectors(angles, f, r, u);
+	angles[0]*=-1;
+
+	offs[0] = lightpoint[0] - origin[0];
+	offs[1] = lightpoint[1] - origin[1];
+	offs[2] = lightpoint[2] - origin[2];
+
+	result[0] = DotProduct (offs, f);
+	result[1] = -DotProduct (offs, r);
+	result[2] = DotProduct (offs, u);
+}
+
+void GL_LightMesh (mesh_t *mesh, vec3_t lightpos, vec3_t colours, float radius)
+{
+	vec3_t dir;
+	int i;
+	float dot;
+	vec4_t *xyz = mesh->xyz_array;
+	vec3_t *normals = mesh->normals_array;
+	byte_vec4_t *out = mesh->colors_array;
+
+	if (normals)
+	{
+		for (i = 0; i < mesh->numvertexes; i++)
+		{
+			VectorSubtract(lightpos, xyz[i], dir);
+			dot = DotProduct(dir, normals[i]);
+			out[i][0] = colours[0]*dot;
+			out[i][1] = colours[1]*dot;
+			out[i][2] = colours[2]*dot;
+			out[i][3] = 255;
+		}
+	}
+	else
+	{
+		for (i = 0; i < mesh->numvertexes; i++)
+		{
+			VectorSubtract(lightpos, xyz[i], dir);
+			out[i][0] = colours[0];
+			out[i][1] = colours[1];
+			out[i][2] = colours[2];
+			out[i][3] = 255;
+		}
+	}
+}
+
+void R_DrawGAliasModelLighting (entity_t *e, vec3_t lightpos, vec3_t colours, float radius)
+{
+	return;	//not ready yet
+#if 0
+
 	model_t *clmodel = e->model;
 	vec3_t mins, maxs;
-	vec3_t dist;
-	vec_t add, an;
 	vec3_t lightdir;
-	int i;
 	galiasinfo_t *inf;
 	mesh_t mesh;
 
@@ -1450,73 +1513,8 @@ void R_DrawGAliasModelLighting (entity_t *e)
 		if (R_CullBox (mins, maxs))
 			return;
 
-	if (!(r_refdef.flags & 1))	//RDF_NOWORLDMODEL
-	{
-		cl.worldmodel->funcs.LightPointValues(e->origin, shadelight, ambientlight, lightdir);
-	}
-	else
-	{
-		ambientlight[0] = ambientlight[1] = ambientlight[2] = shadelight[0] = shadelight[1] = shadelight[2] = 255;
-		lightdir[0] = 0;
-		lightdir[1] = 1;
-		lightdir[2] = 1;
-	}
+	RotateLightVector(e->angles, e->origin, lightpos, lightdir);
 
-	if (e->flags & 4)
-	{
-		if (ambientlight[0] < 24)
-			ambientlight[0] = shadelight[0] = 24;
-		if (ambientlight[1] < 24)
-			ambientlight[1] = shadelight[1] = 24;
-		if (ambientlight[2] < 24)
-			ambientlight[2] = shadelight[2] = 24;
-	}
-
-	for (i=0 ; i<MAX_DLIGHTS ; i++)
-	{
-		if (cl_dlights[i].radius)
-		{
-			VectorSubtract (e->origin,
-							cl_dlights[i].origin,
-							dist);
-			add = cl_dlights[i].radius - Length(dist);
-
-			if (add > 0) {
-				add*=5;
-				ambientlight[0] += add * cl_dlights[i].color[0];
-				ambientlight[1] += add * cl_dlights[i].color[1];
-				ambientlight[2] += add * cl_dlights[i].color[2];
-				//ZOID models should be affected by dlights as well
-				shadelight[0] += add * cl_dlights[i].color[0];
-				shadelight[1] += add * cl_dlights[i].color[1];
-				shadelight[2] += add * cl_dlights[i].color[2];
-			}
-		}
-	}
-
-//MORE HUGE HACKS! WHEN WILL THEY CEASE!
-	// clamp lighting so it doesn't overbright as much
-	// ZOID: never allow players to go totally black
-	if (!strcmp(clmodel->name, "progs/player.mdl"))
-	{
-		for (i = 0; i < 3; i++)
-			if (ambientlight[i] < 8)
-				ambientlight[i] = shadelight[i] = 8;
-	}
-	for (i = 0; i < 3; i++)
-	{
-		if (ambientlight[i] > 128)
-			ambientlight[i] = 128;
-
-		shadelight[i] /= 200.0/255;
-		ambientlight[i] /= 200.0/255;
-	}
-
-	an = e->angles[1]/180*M_PI;
-	shadevector[0] = cos(-an);
-	shadevector[1] = sin(-an);
-	shadevector[2] = 1;
-	VectorNormalize (shadevector);
 
 	GL_DisableMultitexture();
 	GL_TexEnv(GL_MODULATE);
@@ -1529,6 +1527,8 @@ void R_DrawGAliasModelLighting (entity_t *e)
 	if (e->flags & Q2RF_DEPTHHACK)
 		glDepthRange (gldepthmin, gldepthmin + 0.3*(gldepthmax-gldepthmin));
 
+	glColor3f(colours[0], colours[1], colours[2]);
+
 	glPushMatrix();
 	R_RotateForEntity(e);
 	inf = GLMod_Extradata (clmodel);
@@ -1537,8 +1537,11 @@ void R_DrawGAliasModelLighting (entity_t *e)
 	while(inf)
 	{
 		R_GAliasBuildMesh(&mesh, inf, e->frame, e->oldframe, e->lerptime, e->alpha);
-		mesh.colors_array = NULL;
+
+		GL_LightMesh(&mesh, lightdir, colours, radius);
+
 #ifdef Q3SHADERS
+		GL_DrawAliasMesh(&mesh, 0);
 #else
 		GL_DrawMesh(&mesh, NULL, 0, 0);
 #endif
@@ -1560,24 +1563,7 @@ void R_DrawGAliasModelLighting (entity_t *e)
 
 	if (e->flags & Q2RF_DEPTHHACK)
 		glDepthRange (gldepthmin, gldepthmax);
-}
-
-//returns result in the form of the result vector
-void RotateLightVector(vec3_t angles, vec3_t origin, vec3_t lightpoint, vec3_t result)
-{
-	vec3_t f, r, u, offs;
-
-	angles[0]*=-1;
-	AngleVectors(angles, f, r, u);
-	angles[0]*=-1;
-
-	offs[0] = lightpoint[0] - origin[0];
-	offs[1] = lightpoint[1] - origin[1];
-	offs[2] = lightpoint[2] - origin[2];
-
-	result[0] = DotProduct (offs, f);
-	result[1] = -DotProduct (offs, r);
-	result[2] = DotProduct (offs, u);
+#endif
 }
 
 //FIXME: Be less agressive.
@@ -2595,7 +2581,6 @@ typedef struct {
 
 void GL_LoadQ3Model(model_t *mod, void *buffer)
 {
-	extern int gl_bumpmappingpossible;
 	int hunkstart, hunkend, hunktotal;
 //	int version;
 	int s, i, j, d;
@@ -2737,6 +2722,7 @@ void GL_LoadQ3Model(model_t *mod, void *buffer)
 		{
 #ifndef Q3SHADERS
 			char name[1024];
+			extern int gl_bumpmappingpossible;
 #endif
 			skin = Hunk_Alloc(surf->numShaders*(sizeof(galiasskin_t)+sizeof(galiastexnum_t)));
 			galias->ofsskins = (qbyte *)skin - (qbyte *)galias;

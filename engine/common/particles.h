@@ -130,7 +130,7 @@ void P_DefaultTrail (struct model_s *model);	//fills in the default particle pro
 
 //the core spawn function for point effects
 int P_RunParticleEffectType(vec3_t org, vec3_t dir, float count, int type);	//1 if failed.
-
+int P_RunParticleEffectTypeString (vec3_t org, vec3_t dir, float count, char *name); //1 if failed.
 
 void P_EmitSkyEffectTris(struct model_s *mod, struct msurface_s 	*fa);
 

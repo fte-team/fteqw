@@ -1551,6 +1551,15 @@ void P_BlobExplosion (vec3_t org)
 	P_RunParticleEffectType(org, NULL, 1, pt_blob);
 }
 
+int P_RunParticleEffectTypeString (vec3_t org, vec3_t dir, float count, char *name)
+{
+	int type = P_FindParticleType(name);
+	if (type < 0)
+		return 1;
+
+	return P_RunParticleEffectType(org, dir, count, type);
+}
+
 int P_RunParticleEffectType (vec3_t org, vec3_t dir, float count, int typenum)
 {
 	part_type_t *ptype = &part_type[typenum];

@@ -876,9 +876,8 @@ void CL_ParseTEnt (void)
 		// count
 		cnt = MSG_ReadByte ();
 
-		rnd = FindParticleType("te_flamejet");
-		if (R_RunParticleEffectType(pos, pos2, cnt, rnd))
-			R_RunParticleEffect (pos, pos2, 232, cnt);
+		if (P_RunParticleEffectTypeString(pos, pos2, cnt, "te_flamejet"))
+			P_RunParticleEffect (pos, pos2, 232, cnt);
 		break;
 
 	case 75://TE_PLASMABURN

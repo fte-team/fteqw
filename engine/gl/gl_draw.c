@@ -1133,6 +1133,8 @@ void GLDraw_Character (int x, int y, unsigned int num)
 	frow = row*0.0625;
 	fcol = col*0.0625;
 	size = 0.0625;
+	glEnable(GL_BLEND);
+	glDisable(GL_ALPHA_TEST);
 	
 	glBegin (GL_QUADS);
 	glTexCoord2f (fcol, frow);
@@ -1538,7 +1540,6 @@ void GLDraw_ConsoleBackground (int lines)
 	y = (vid.height * 3) >> 2;
 	conback->width = vid.conwidth;
 	conback->height = vid.conheight;
-
 	if (lines > y)
 	{
 		glColor3f (1,1,1);

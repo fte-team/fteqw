@@ -1565,7 +1565,12 @@ void QCC_PR_ConditionCompilation(void)
 	if (!QCC_PR_SimpleGetToken ())		
 		QCC_PR_ParseError(ERR_NONAME, "No name defined for compiler constant");
 
-	QCC_PR_UndefineName(pr_token);
+	cnst = Hash_Get(&compconstantstable, pr_token);
+	if (cnst)
+	{
+		Hash_Remove(&compconstantstable, pr_token);
+		QCC_PR_ParseWarning(WARN_DUPLICATEPRECOMPILER, "Duplicate definition of %s", pr_token);
+	}
 
 	cnst = QCC_PR_DefineName(pr_token);
 

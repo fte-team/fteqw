@@ -1060,7 +1060,7 @@ void XWindows_DrawWindowTree(xwindow_t *wnd, short xofs, short yofs)
 //quakie functions
 void XWindows_Init(void)
 {
-	Cmd_AddCommand("x", XWindows_Startup);
+	Cmd_AddCommand("startx", XWindows_Startup);
 }
 
 int x_mousex;

@@ -1940,8 +1940,8 @@ qboolean SV_Physics (void)
 	edict_t	*ent;
 	static double	old_time;
 
-#ifdef Q2SERVER
-	if (!svprogfuncs)	//make tics multiples of sv_maxtic (defaults to 0.1)
+
+	if (svs.gametype != GT_PROGS)	//make tics multiples of sv_maxtic (defaults to 0.1)
 	{
 		host_frametime = realtime - old_time;
 		if (host_frametime < sv_maxtic.value && realtime)
@@ -1956,10 +1956,24 @@ qboolean SV_Physics (void)
 
 		sv.framenum++;
 		sv.time = sv.framenum*100;
-		ge->RunFrame();
+		switch(svs.gametype)
+		{
+#ifdef Q2SERVER
+		case GT_QUAKE2:
+			ge->RunFrame();
+			break;
+#endif
+#ifdef Q3SERVER
+		case GT_QUAKE3:
+			SVQ3_RunFrame();
+			break;
+#endif
+		default:
+			break;
+		}
 		return false;
 	}
-#endif
+
 
 // don't bother running a frame if sys_ticrate seconds haven't passed
 	host_frametime = realtime - old_time;

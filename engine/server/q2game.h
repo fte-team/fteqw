@@ -42,7 +42,7 @@ typedef struct pmove_s pmove_t;
 
 
 
-#define	GAME_API_VERSION	3
+#define	Q2GAME_API_VERSION	3
 
 // edict->svflags
 

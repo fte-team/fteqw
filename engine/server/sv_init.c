@@ -474,6 +474,8 @@ void SV_SpawnServer (char *server, char *startspot, qboolean noents, qboolean us
 	func_t f;
 	char *file;
 
+	gametype_e oldgametype;
+
 	edict_t		*ent;
 #ifdef Q2SERVER
 	q2edict_t		*q2ent;
@@ -699,35 +701,44 @@ void SV_SpawnServer (char *server, char *startspot, qboolean noents, qboolean us
 		svprogfuncs = NULL;
 	}
 
+	sv.state = ss_loading;
+
+	oldgametype = svs.gametype;
+#ifdef Q3SERVER
+	if (SVQ3_InitGame())
+		svs.gametype = GT_QUAKE3;
+	else
+#endif
 #ifdef Q2SERVER
-	if ((sv.worldmodel->fromgame == fg_quake2 || sv.worldmodel->fromgame == fg_quake3) && !*progs.string && SVQ2_InitGameProgs())	//full q2 dll decision in one if statement
-	{	//quake2 game support depends upon q2 style bsp clipping (fixable if we tried)		also, don't use q2 dlls if a progs.dat was specified.							
-		for (i=0 ; i<MAX_CLIENTS ; i++)	//we need to drop all non-q2 clients. We don't mix q1w with q2.
-		{
-			if (!svs.clients[i].isq2client && svs.clients[i].state)
-				SV_DropClient(&svs.clients[i]);
-		}
-	}
+	if ((sv.worldmodel->fromgame == fg_quake2 || sv.worldmodel->fromgame == fg_quake3) && !*progs.string && SVQ2_InitGameProgs())	//these are the rules for running a q2 server
+		svs.gametype = GT_QUAKE2;	//we loaded the dll
 	else
 #endif
 	{
-		for (i=0 ; i<MAX_CLIENTS ; i++)	//we need to drop all q2 clients. We don't mix q1w with q2.
-		{
-			if (svs.clients[i].isq2client && svs.clients[i].state)
-				SV_DropClient(&svs.clients[i]);
-		}
+		svs.gametype = GT_PROGS;	//let's just hope this loads.
+		Q_InitProgs();
+	}
 
+#ifdef Q3SERVER
+	if (svs.gametype != GT_QUAKE3)
+		SVQ3_ShutdownGame();
+#endif
 #ifdef Q2SERVER
-		if (ge)	//we don't want the q2 stuff anymore.
-		{
-			SVQ2_ShutdownGameProgs ();
-			ge = NULL;
-		}
+	if (svs.gametype != GT_QUAKE2)	//we don't want the q2 stuff anymore.
+		SVQ2_ShutdownGameProgs ();
 #endif
 
-		//load the progs.
-		 sv.state = ss_loading;
-		Q_InitProgs();
+//	if ((sv.worldmodel->fromgame == fg_quake2 || sv.worldmodel->fromgame == fg_quake3) && !*progs.string && SVQ2_InitGameProgs())	//full q2 dll decision in one if statement
+
+	if (oldgametype != svs.gametype)
+	{
+		for (i=0 ; i<MAX_CLIENTS ; i++)	//server type changed, so we need to drop all clients. :(
+		{
+			if (svs.clients[i].state)
+				SV_DropClient(&svs.clients[i]);
+
+			svs.clients[i].name[0] = '\0';						//kill all bots
+		}
 	}
 
 #ifndef SERVERONLY
@@ -735,8 +746,9 @@ void SV_SpawnServer (char *server, char *startspot, qboolean noents, qboolean us
 	SCR_BeginLoadingPlaque();
 #endif
 
-	if (svprogfuncs)
+	switch (svs.gametype)
 	{
+	case GT_PROGS:
 		ent = EDICT_NUM(svprogfuncs, 0);
 		ent->isfree = false;
 		
@@ -767,10 +779,9 @@ void SV_SpawnServer (char *server, char *startspot, qboolean noents, qboolean us
 			sv.csqcentversion[i] = 1;	//force all csqc edicts to start off as version 1
 #endif
 
-	}
+		break;
 #ifdef Q2SERVER
-	else
-	{
+	case GT_QUAKE2:
 		for (i=0 ; i<MAX_CLIENTS ; i++)
 		{
 			q2ent = Q2EDICT_NUM(i+1);
@@ -778,8 +789,9 @@ void SV_SpawnServer (char *server, char *startspot, qboolean noents, qboolean us
 			svs.clients[i].q2edict = q2ent;
 		}
 		sv.allocated_client_slots = i;
-	}
+		break;
 #endif
+	}
 
 #ifndef SERVERONLY
 	current_loading_size+=10;
@@ -834,7 +846,7 @@ void SV_SpawnServer (char *server, char *startspot, qboolean noents, qboolean us
 				if (eval) eval->_float = deathmatch.value;
 			}
 			eval = PR_FindGlobal(svprogfuncs, "randomclass", 0);
-			if (eval) eval->_float = 1;
+			if (eval) eval->_float = Cvar_Get("randomclass", "1", CVAR_LATCH, "Hexen2 rules")->value;
 
 			eval = PR_FindGlobal(svprogfuncs, "cl_playerclass", 0);
 			if (eval) eval->_float = 1;
@@ -902,23 +914,33 @@ void SV_SpawnServer (char *server, char *startspot, qboolean noents, qboolean us
 		char crc[12];
 		sprintf(crc, "%i", CRC_Block(file, com_filesize));
 		Info_SetValueForStarKey(svs.info, "*entfile", crc, MAX_SERVERINFO_STRING);
-		if (svprogfuncs)
+		switch(svs.gametype)
+		{
+		case GT_PROGS:
 			pr_edict_size = PR_LoadEnts(svprogfuncs, file, spawnflagmask);
+			break;
 #ifdef Q2SERVER
-		else
+		case GT_QUAKE2:
 			ge->SpawnEntities(sv.name, file, startspot?startspot:"");
+			break;
 #endif
+		}
 		BZ_Free(file);
 	}
 	else
 	{
 		Info_SetValueForStarKey(svs.info, "*entfile", "", MAX_SERVERINFO_STRING);
-		if (svprogfuncs)
+		switch(svs.gametype)
+		{
+		case GT_PROGS:
 			pr_edict_size = PR_LoadEnts(svprogfuncs, sv.worldmodel->entities, spawnflagmask);
+			break;
 #ifdef Q2SERVER
-		else
+		case GT_QUAKE2:
 			ge->SpawnEntities(sv.name, sv.worldmodel->entities, startspot?startspot:"");
+			break;
 #endif
+		}
 	}
 
 #ifndef SERVERONLY

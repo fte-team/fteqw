@@ -1056,6 +1056,7 @@ void R_SetFrustum (void)
 	if ((int)r_novis.value & 4)
 		return;
 
+	/*	removed - assumes fov_x == fov_y
 	if (r_refdef.fov_x == 90) 
 	{
 		// front side is visible
@@ -1067,6 +1068,7 @@ void R_SetFrustum (void)
 		VectorSubtract (vpn, vup, frustum[3].normal);
 	}
 	else
+		*/
 	{
 
 		// rotate VPN right by FOV_X/2 degrees

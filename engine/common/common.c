@@ -4750,7 +4750,7 @@ void Info_SetValueForStarKey (char *s, char *key, char *value, int maxsize)
 	if (!value || !strlen(value))
 		return;
 
-	sprintf (new, "\\%s\\%s", key, value);
+	_snprintf (new, sizeof(new), "\\%s\\%s", key, value);
 
 	if ((int)(strlen(new) + strlen(s) + 1) > maxsize)
 	{

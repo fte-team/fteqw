@@ -32,8 +32,9 @@ typedef enum qboolean;//false and true are forcivly defined.
 typedef enum {false, true}	qboolean;
 #endif
 
-#define	MAX_INFO_STRING	196
-#define	MAX_SERVERINFO_STRING	512
+#define	MAX_INFO_STRING			196	//regular quakeworld. Sickening isn't it.
+#define	EXTENDED_INFO_STRING	1024
+#define	MAX_SERVERINFO_STRING	1024	//standard quake has 512 here.
 #define	MAX_LOCALINFO_STRING	32768
 
 //============================================================================

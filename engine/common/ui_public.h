@@ -1,13 +1,7 @@
 //these structures are shared with the exe.
 
 #define UIMAX_SCOREBOARDNAME 16
-#define UIMAX_INFO_STRING 196
-
-#ifdef UIMAX_INFO_STRING 
-#if MAX_INFO_STRING != UIMAX_INFO_STRING 
-#pragma message("MAX_INFO_STRING doesn't match UIMAX_INFO_STRING")
-#endif
-#endif
+#define UIMAX_INFO_STRING EXTENDED_INFO_STRING
 
 typedef struct {
 	int userid;

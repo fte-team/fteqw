@@ -439,7 +439,6 @@ int VM_LerpTag(void *out, model_t *model, int f1, int f2, float l2, char *tagnam
 
 #define	MAX_RENDER_STRINGS			8
 #define	MAX_RENDER_STRING_LENGTH	32
-#define MAX_MAP_AREA_BYTES 16
 
 typedef struct q3refdef_s {
 	int			x, y, width, height;
@@ -508,7 +507,7 @@ void VQ3_RenderView(const q3refdef_t *ref)
 
 
 
-
+#ifndef Q3CLIENT
 typedef struct {
 	int			handle;
 	int			modificationCount;
@@ -516,6 +515,7 @@ typedef struct {
 	int			integer;
 	char		string[256];
 } vmcvar_t;
+#endif
 
 #ifndef _DEBUG
 static

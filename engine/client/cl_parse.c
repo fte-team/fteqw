@@ -2777,7 +2777,7 @@ void CL_SetInfo (void)
 
 	Con_DPrintf("SETINFO %s: %s=%s\n", player->name, key, value);
 
-	Info_SetValueForStarKey (player->userinfo, key, value, MAX_INFO_STRING);
+	Info_SetValueForStarKey (player->userinfo, key, value, sizeof(player->userinfo));
 
 	CL_ProcessUserInfo (slot, player);
 }

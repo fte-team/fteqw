@@ -41,7 +41,7 @@ sizebuf_t *NQWriteDest (int dest);
 void NPP_SetInfo(client_t *cl, char *key, char *value)
 {
 	int i;
-	Info_SetValueForKey (cl->userinfo, key, value, MAX_INFO_STRING);
+	Info_SetValueForKey (cl->userinfo, key, value, sizeof(cl->userinfo));
 	if (!*Info_ValueForKey (cl->userinfo, "name"))
 		cl->name[0] = '\0';
 	else // process any changed values

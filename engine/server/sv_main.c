@@ -844,15 +844,23 @@ void SVC_GetChallenge (void)
 	{
 		char *buf;
 		int lng;
-		char *over;	
-		if (!svprogfuncs)//htons(net_from.port) == PORT_CLIENT)	//quake 2 client port - this is a hack based on an evil assumtion.
+		char *over;
+
+#ifdef Q3SERVER
+		if (svs.gametype == GT_QUAKE3)	//q3 servers
+			buf = va("challengeResponse %i", svs.challenges[i].challenge);
+		else
+#endif
+#ifdef Q2SERVER
+			if (svs.gametype == GT_QUAKE2)	//quake 2 servers give a different challenge responce
 			buf = va("challenge %i", svs.challenges[i].challenge);
 		else
+#endif
 			buf = va("%c%i", S2C_CHALLENGE, svs.challenges[i].challenge);
 
 		over = buf + strlen(buf) + 1;
 
-		if (svprogfuncs)
+		if (svs.gametype == GT_PROGS)
 		{
 #ifdef PROTOCOL_VERSION_FTE
 			//tell the client what fte extensions we support
@@ -1048,6 +1056,21 @@ void VARGS SV_OutOfBandTPrintf (int q2, netadr_t adr, int language, translation_
 	Netchan_OutOfBand (NS_SERVER, adr, strlen(string), (qbyte *)string);
 }
 
+qboolean SV_ChallengePasses(int challenge)
+{
+	int i;
+	for (i=0 ; i<MAX_CHALLENGES ; i++)
+	{	//one per ip.
+		if (NET_CompareBaseAdr (net_from, svs.challenges[i].adr))
+		{
+			if (challenge == svs.challenges[i].challenge)
+				return true;
+			return false;
+		}
+	}
+	return false;
+}
+
 /*
 ==================
 SVC_DirectConnect
@@ -1164,17 +1187,14 @@ void SVC_DirectConnect
 	if (sv.msgfromdemo || net_from.type == NA_LOOPBACK)	//normal rules don't apply
 		i=0;
 	else
+	{
 	// see if the challenge is valid
-		for (i=0 ; i<MAX_CHALLENGES ; i++)
+		if (!SV_ChallengePasses(challenge))
 		{
-			if (NET_CompareBaseAdr (net_from, svs.challenges[i].adr))
-			{
-				if (challenge == svs.challenges[i].challenge)
-					break;		// good
-				SV_OutOfBandPrintf (isquake2client, net_from, "\nBad challenge.\n");
-				return;
-			}
+			SV_OutOfBandPrintf (isquake2client, net_from, "\nBad challenge.\n");
+			return;
 		}
+	}
 	if (i == MAX_CHALLENGES)
 	{
 		SV_OutOfBandPrintf (isquake2client, net_from, "No challenge for address.\n");
@@ -1196,7 +1216,7 @@ void SVC_DirectConnect
 				return;
 			}
 			Info_RemoveKey (userinfo[0], "spectator"); // remove key
-			Info_SetValueForStarKey (userinfo[0], "*spectator", "1", MAX_INFO_STRING);
+			Info_SetValueForStarKey (userinfo[0], "*spectator", "1", sizeof(userinfo[0]));
 			spectator = true;
 		}
 		else
@@ -1685,7 +1705,7 @@ void SVC_DirectConnect
 		if (spectator)
 		{
 			Info_RemoveKey (cl->userinfo, "spectator");
-			Info_SetValueForStarKey (cl->userinfo, "*spectator", "1", MAX_INFO_STRING);
+			Info_SetValueForStarKey (cl->userinfo, "*spectator", "1", sizeof(cl->userinfo));
 		}
 		else
 			Info_RemoveKey (cl->userinfo, "*spectator");
@@ -1803,7 +1823,7 @@ void SVNQ_CheckForNewClients(void)
 		{
 			cl->state = cs_connected;	//this is a real player
 			*cl->userinfo = '\0';
-			Info_SetValueForKey(cl->userinfo, "name", "unnamed", MAX_INFO_STRING);
+			Info_SetValueForKey(cl->userinfo, "name", "unnamed", sizeof(cl->userinfo));
 			SV_ExtractFromUserinfo(cl);
 
 			if (pr_global_struct->SetNewParms)
@@ -1998,7 +2018,15 @@ qboolean SV_ConnectionlessPacket (void)
 		SVC_InfoQ2 ();
 	else if (!strncmp(c,"connect", 7))
 	{
-		if (secure.value)	//FIXME: possible problem for nq clients when enabled
+#ifdef Q3SERVER
+		if (svs.gametype == GT_QUAKE3)
+		{
+			SVQ3_DirectConnect();
+			return true;
+		}
+		else 
+#endif
+			if (secure.value)	//FIXME: possible problem for nq clients when enabled
 			Netchan_OutOfBandPrint (NS_SERVER, net_from, "%c\nThis server requires client validation.\nPlease use the "DISTRIBUTION" validation program\n", A2C_PRINT);
 		else
 		{
@@ -2432,7 +2460,15 @@ void SV_ReadPackets (void)
 #endif
 			continue;
 		}
-		
+
+#ifdef Q3SERVER
+		if (svs.gametype == GT_QUAKE3)
+		{
+			SVQ3_HandleClient();
+			continue;
+		}
+#endif
+
 		// read the qport out of the message so we can fix up
 		// stupid address translating routers
 		MSG_BeginReading ();
@@ -3310,7 +3346,7 @@ void SV_ExtractFromUserinfo (client_t *cl)
 		else
 		{
 
-			Info_SetValueForKey (cl->userinfo, "name", newname, MAX_INFO_STRING);
+			Info_SetValueForKey (cl->userinfo, "name", newname, sizeof(cl->userinfo));
 			if (!sv.paused) {
 				if (!cl->lastnametime || realtime - cl->lastnametime > 5) {
 					cl->lastnamecount = 0;
@@ -3342,7 +3378,7 @@ void SV_ExtractFromUserinfo (client_t *cl)
 		}
 	}
 
-	Info_SetValueForKey(cl->userinfo, "name", newname, MAX_INFO_STRING);
+	Info_SetValueForKey(cl->userinfo, "name", newname, sizeof(cl->userinfo));
 
 	val = Info_ValueForKey (cl->userinfo, "lang");
 	cl->language = atoi(val);
@@ -3493,6 +3529,8 @@ void SV_Init (quakeparms_t *parms)
 		Cbuf_Execute ();
 
 		Cmd_StuffCmds();
+
+		Cbuf_Execute ();
 
 	// if a map wasn't specified on the command line, spawn start.map
 		if (sv.state == ss_dead)

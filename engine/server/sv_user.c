@@ -1583,6 +1583,10 @@ void SV_BeginDownload_f(void)
 
 
 	name = Cmd_Argv(1);
+
+	if (!strncmp(name, "demonum/", 8))
+		name = SV_MVDNum(atoi(name+8));
+
 // hacked by zoid to allow more conrol over download
 	if (!SV_AllowDownload(name))
 	{	// don't allow anything with .. path
@@ -2202,7 +2206,7 @@ void SV_SetInfo_f (void)
 
 	strcpy(oldval, Info_ValueForKey(host_client->userinfo, Cmd_Argv(1)));
 
-	Info_SetValueForKey (host_client->userinfo, Cmd_Argv(1), Cmd_Argv(2), MAX_INFO_STRING);
+	Info_SetValueForKey (host_client->userinfo, Cmd_Argv(1), Cmd_Argv(2), sizeof(host_client->userinfo));
 // name is extracted below in ExtractFromUserInfo
 //	strncpy (host_client->name, Info_ValueForKey (host_client->userinfo, "name")
 //		, sizeof(host_client->name)-1);	
@@ -2743,7 +2747,7 @@ void Cmd_Observe_f (void)
 
 	// turn the player into a spectator
 	host_client->spectator = true;
-	Info_SetValueForStarKey (host_client->userinfo, "*spectator", "1", MAX_INFO_STRING);
+	Info_SetValueForStarKey (host_client->userinfo, "*spectator", "1", sizeof(host_client->userinfo));
 
 	// FIXME, bump the client's userid?
 
@@ -3261,18 +3265,18 @@ void SVNQ_NQColour_f (void)
 	if (progstype != PROG_QW)
 		host_client->edict->v.team = bottom + 1;
 
-	Info_SetValueForKey(host_client->userinfo, "topcolor", va("%i", top), MAX_INFO_STRING);
-	Info_SetValueForKey(host_client->userinfo, "bottomcolor", va("%i", bottom), MAX_INFO_STRING);
+	Info_SetValueForKey(host_client->userinfo, "topcolor", va("%i", top), sizeof(host_client->userinfo));
+	Info_SetValueForKey(host_client->userinfo, "bottomcolor", va("%i", bottom), sizeof(host_client->userinfo));
 	switch(bottom)
 	{
 	case 4:
-		Info_SetValueForKey(host_client->userinfo, "team", "red", MAX_INFO_STRING);
+		Info_SetValueForKey(host_client->userinfo, "team", "red", sizeof(host_client->userinfo));
 		break;
 	case 14:
-		Info_SetValueForKey(host_client->userinfo, "team", "blue", MAX_INFO_STRING);
+		Info_SetValueForKey(host_client->userinfo, "team", "blue", sizeof(host_client->userinfo));
 		break;
 	default:
-		Info_SetValueForKey(host_client->userinfo, "team", va("t%i", bottom+1), MAX_INFO_STRING);
+		Info_SetValueForKey(host_client->userinfo, "team", va("t%i", bottom+1), sizeof(host_client->userinfo));
 		break;
 	}
 

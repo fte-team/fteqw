@@ -863,7 +863,7 @@ typedef struct q1usercmd_s
 //ROGUE
 
 
-
+#define MAX_MAP_AREA_BYTES		32
 
 // edict->drawflags (hexen2 stuff)
 #define MLS_MASKIN				7	// Model Light Style

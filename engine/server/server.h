@@ -292,6 +292,19 @@ typedef struct	//merge?
 	int					senttime;			// for ping calculations
 } q2client_frame_t;
 #endif
+#ifdef Q3SERVER
+#include "clq3defs.h"
+typedef struct	//merge?
+{
+	int					flags;
+	int					areabytes;
+	qbyte				areabits[MAX_Q2MAP_AREAS/8];		// portalarea visibility bits
+	q3playerState_t		ps;
+	int					num_entities;
+	int					first_entity;		// into the circular sv_packet_entities[]
+	int					senttime;			// for ping calculations
+} q3client_frame_t;
+#endif
 
 #define MAXCACHEDSOUNDBUFFERS 8
 typedef struct {
@@ -336,8 +349,9 @@ typedef struct client_s
 	qboolean		drop;				// lose this guy next opportunity
 	int				lossage;			// loss percentage
 
+	int challenge;
 	int				userid;							// identifying number
-	char			userinfo[MAX_INFO_STRING];		// infostring
+	char			userinfo[EXTENDED_INFO_STRING];		// infostring
 
 	usercmd_t		lastcmd;			// for filling in big drops and partial predictions
 	double			localtime;			// of last message
@@ -393,6 +407,9 @@ typedef struct client_s
 #ifdef Q2SERVER
 	q2client_frame_t	*q2frames;
 #endif
+#ifdef Q3SERVER
+	q3client_frame_t	*q3frames;
+#endif
 	};
 	FILE			*download;			// file being downloaded
 	int				downloadsize;		// total bytes
@@ -400,6 +417,15 @@ typedef struct client_s
 
 	int				spec_track;			// entnum of player tracking
 
+#ifdef Q3SERVER
+	int	gamestatesequence;	//the sequence number the initial gamestate was sent in.
+	int last_server_command_num;
+	int last_client_command_num;
+	int num_server_commands;
+	int num_client_commands;
+	char server_commands[1024][64];
+	char last_client_command[1024];
+#endif
 #ifdef PEXT_CSQC
 	int				csqclastsentsequence;
 	int				csqcentsequence[MAX_EDICTS];//the sequence number a csqc entity was sent in
@@ -427,6 +453,7 @@ typedef struct client_s
 //===== NETWORK ============
 	int				chokecount;
 	int				delta_sequence;		// -1 = no compression
+	int				last_sequence;
 	netchan_t		netchan;
 
 	int				lastsequence_acknoledged;
@@ -618,8 +645,15 @@ typedef struct levelcache_s {
 	char *mapname;
 } levelcache_t;
 
+typedef enum {
+	GT_PROGS,	//q1, qw, h2 are similar enough that we consider it only one game mode. (We don't support the h2 protocol)
+	GT_QUAKE2,	//q2 servers run from a q2 game dll
+	GT_QUAKE3	//q3 servers run off the q3 qvm api
+} gametype_e;
+
 typedef struct
 {
+	gametype_e	gametype;
 	int			spawncount;			// number of servers spawned since start,
 									// used to check late spawns
 

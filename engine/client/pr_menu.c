@@ -26,6 +26,7 @@ int menuentsize;
 void VARGS PR_BIError(progfuncs_t *progfuncs, char *format, ...);
 void PF_cvar_string (progfuncs_t *prinst, struct globalvars_s *pr_globals);
 void PF_cvar_set (progfuncs_t *prinst, struct globalvars_s *pr_globals);
+void PF_print (progfuncs_t *prinst, struct globalvars_s *pr_globals);
 void PF_dprint (progfuncs_t *prinst, struct globalvars_s *pr_globals);
 void PF_error (progfuncs_t *prinst, struct globalvars_s *pr_globals);
 void PF_rint (progfuncs_t *prinst, struct globalvars_s *pr_globals);
@@ -358,24 +359,6 @@ void PF_search_getfilename (progfuncs_t *prinst, struct globalvars_s *pr_globals
 }
 
 
-
-
-
-
-void PF_developerprint (progfuncs_t *prinst, struct globalvars_s *pr_globals)
-{
-	char *s;
-	if (!developer.value)
-		return;
-	s = PF_VarString(prinst, 0, pr_globals);
-	Con_Printf("%s", s);
-}
-void PF_print (progfuncs_t *prinst, struct globalvars_s *pr_globals)
-{
-	char *s;
-	s = PF_VarString(prinst, 0, pr_globals);
-	Con_Printf("%s", s);
-}
 
 
 
@@ -1123,7 +1106,7 @@ builtin_t menu_builtins[] = {
 	PF_localcmd,//13
 	PF_cvar,//14
 	PF_cvar_set,//15
-	PF_developerprint,//16
+	PF_dprint,//16
 	PF_ftos,//17
 	PF_fabs,//18
 	PF_vtos,//19

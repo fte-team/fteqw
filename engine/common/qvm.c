@@ -1039,6 +1039,17 @@ qboolean VM_Restart(vm_t *vm)
 	return VM_Create(vm, name, syscall, syscallex)!=NULL;
 }
 
+void *VM_MemoryBase(vm_t *vm)
+{
+	switch(vm->type)
+	{
+	case VM_NATIVE:
+		return NULL;
+	case VM_BYTECODE:
+		return ((qvm_t*)vm->hInst)->ds;
+	}
+}
+
 /*
 ** VM_Call
 */

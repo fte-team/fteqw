@@ -573,14 +573,14 @@ void R_Set2DFrustum (void)
 	viewang[2] = 0;
 	AngleVectors (viewang, vpn, vright, vup);
 
-	if (r_refdef.fov_x == 90) 
+/*	if (r_refdef.fov_x == 90) 
 	{
 		// front side is visible
 
 		VectorAdd (vpn, vright, frustum2d[0].normal);
 		VectorSubtract (vpn, vright, frustum2d[1].normal);
 	}
-	else
+	else*/
 	{
 
 		// rotate VPN right by FOV_X/2 degrees

@@ -4,7 +4,7 @@
 #ifdef __linux__
 void strlwr(char *s)
 {
-	while(s)
+	while(*s)
 	{
 		if (*s >= 'A' && *s <= 'Z')
 			*s -= 'A' + 'a';
@@ -930,7 +930,7 @@ static void Triangulate_Sectors(dsector_t *sectorl, qboolean glbspinuse)
 		sectorm[i].floorheight = sectorl[i].floorheight;
 	}
 }
-
+#ifndef SERVERONLY
 static void *textures1;
 static void *textures2;
 static char *pnames;
@@ -1082,7 +1082,7 @@ static int Doom_LoadPatch(char *name)
 	//all else failed.
 	return Mod_LoadHiResTexture(name, true, false);
 }
-
+#endif
 static void CleanWalls(dsidedef_t *sidedefsl)
 {
 	int i;
@@ -1484,7 +1484,7 @@ qboolean Mod_LoadDoomLevel(model_t *mod)
 	COM_StripExtension(mod->name, name);
 
 	if (!COM_LoadTempFile(va("%s", mod->name)))
-		Host_EndGame("Wad map %s does not exist\n", mod->name);
+		Sys_Error("Wad map %s does not exist\n", mod->name);
 
 	gl_nodes	= (void *)COM_LoadMallocFile	(va("%s.gl_nodes",	name));
 	if (gl_nodes && com_filesize>0)
@@ -1514,9 +1514,9 @@ qboolean Mod_LoadDoomLevel(model_t *mod)
 	sidedefsc	= com_filesize/sizeof(*sidedefsl);
 	blockmapl	= (void *)COM_LoadMallocFile	(va("%s.blockmap",	name));
 //	blockmaps	= com_filesize;
-
+#ifndef SERVERONLY
 	Doom_LoadTextureInfos();
-
+#endif
 	blockmapofs = (unsigned short*)(blockmapl+1);
 
 	if (!nodel || !sectorl || !segsl || !ssectorsl || !thingsl || !linedefsl || !sidedefsl || !vertexesl)

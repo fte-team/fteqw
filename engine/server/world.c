@@ -1120,7 +1120,7 @@ trace_t SV_ClipMoveToEntity (edict_t *ent, vec3_t start, vec3_t mins, vec3_t max
 	vec3_t		start_l, end_l;
 	hull_t		*hull;
 
-/*
+
 #ifdef Q2BSPS
 	if (ent->v.solid == SOLID_BSP)
 		if (sv.models[(int)ent->v.modelindex] && (sv.models[(int)ent->v.modelindex]->fromgame == fg_quake2 || sv.models[(int)ent->v.modelindex]->fromgame == fg_quake3))
@@ -1131,7 +1131,7 @@ trace_t SV_ClipMoveToEntity (edict_t *ent, vec3_t start, vec3_t mins, vec3_t max
 			return trace;
 		}
 #endif
-*/
+
 
 // fill in a default trace
 	memset (&trace, 0, sizeof(trace_t));
@@ -1774,7 +1774,7 @@ trace_t SV_Move (vec3_t start, vec3_t mins, vec3_t maxs, vec3_t end, int type, e
 		hullnum = 0;
 		best = 8192;
 		//x/y pos/neg are assumed to be the same magnitute.
-		//y pos/height are assumed to be different from all the others.
+		//z pos/height are assumed to be different from all the others.
 		for (i = 0; i < MAX_MAP_HULLSM; i++)
 		{
 			if (!sv.worldmodel->hulls[i].available)
@@ -1782,7 +1782,7 @@ trace_t SV_Move (vec3_t start, vec3_t mins, vec3_t maxs, vec3_t end, int type, e
 #define sq(x) ((x)*(x))
 			diff = sq(sv.worldmodel->hulls[i].clip_maxs[2] - maxs[2]) +
 				sq(sv.worldmodel->hulls[i].clip_mins[2] - mins[2]) +
-				sq(sv.worldmodel->hulls[i].clip_maxs[0] - maxs[0]) +
+				sq(sv.worldmodel->hulls[i].clip_maxs[1] - maxs[1]) +
 				sq(sv.worldmodel->hulls[i].clip_mins[0] - mins[0]);
 			if (diff < best)
 			{

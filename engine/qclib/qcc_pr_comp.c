@@ -3804,10 +3804,11 @@ QCC_def_t *QCC_PR_Expression (int priority)
 				if (op->priority == 7 && opt_logicops)
 				{
 					optres_logicops++;
-					if (*op->name == '&')
-						QCC_PR_Statement(&pr_opcodes[OP_IFNOT], e, NULL, &st);
+					st = &statements[numstatements];
+					if (*op->name == '&')	//statement 3 because we don't want to optimise this into if from not ifnot
+						QCC_PR_Statement3(&pr_opcodes[OP_IFNOT], e, NULL, NULL);
 					else
-						QCC_PR_Statement(&pr_opcodes[OP_IF], e, NULL, &st);
+						QCC_PR_Statement3(&pr_opcodes[OP_IF], e, NULL, NULL);
 				}
 
 				e2 = QCC_PR_Expression (priority-1);

@@ -331,7 +331,8 @@ void SV_CalcPHS (void)
 		return;
 	}
 
-	Con_TPrintf (STL_BUILDINGPHS);
+	if (developer.value)
+		Con_TPrintf (STL_BUILDINGPHS);
 
 	num = sv.worldmodel->numleafs;
 	rowwords = (num+31)>>5;
@@ -391,7 +392,8 @@ void SV_CalcPHS (void)
 	}
 
 	if (num)
-		Con_TPrintf (STL_PHSINFO, vcount/num, count/num, num);
+		if (developer.value)
+			Con_TPrintf (STL_PHSINFO, vcount/num, count/num, num);
 }
 
 unsigned SV_CheckModel(char *mdl)

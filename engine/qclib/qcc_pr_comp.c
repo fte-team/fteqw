@@ -667,8 +667,6 @@ pbool QCC_OPCodeValid(QCC_opcode_t *op)
 QCC_def_t *QCC_PR_Expression (int priority);
 int QCC_AStatementJumpsTo(int targ, int first, int last);
 
-QCC_def_t	junkdef;
-
 temp_t *functemps;		//floats/strings/funcs/ents...
 
 //===========================================================================
@@ -4443,9 +4441,8 @@ void QCC_PR_ParseStatement (void)
 		}
 		QCC_PR_Expect (")");	//after the line number is noted..
 		QCC_PR_ParseStatement ();
-		junkdef.ofs = patch2 - &statements[numstatements];
-		junkdef.type = type_float;
-		QCC_FreeTemp(QCC_PR_Statement (&pr_opcodes[OP_GOTO], &junkdef, 0, (QCC_dstatement_t **)0xffffffff));
+		QCC_FreeTemp(QCC_PR_Statement (&pr_opcodes[OP_GOTO], NULL, 0, &patch3));
+		patch3->a = patch2 - patch3;
 		if (patch1)
 		{
 			if (patch1->op == OP_GOTO)
@@ -4582,22 +4579,26 @@ void QCC_PR_ParseStatement (void)
 		conditional = 1;
 		e = QCC_PR_Expression (TOP_PRIORITY);
 		conditional = 0;
-		junkdef.ofs = patch1 - &statements[numstatements];
-		junkdef.type = type_float;
+
 		if (e->constant && !e->temp)
 		{
 			if (G_FLOAT(e->ofs))
-				QCC_FreeTemp(QCC_PR_Statement (&pr_opcodes[OP_GOTO], &junkdef, 0, (QCC_dstatement_t **)0xffffffff));
+			{
+				QCC_FreeTemp(QCC_PR_Statement (&pr_opcodes[OP_GOTO], NULL, 0, &patch2));
+				patch2->a = patch1 - patch2;
+			}
 		}
 		else
 		{
 			if (e->type == type_string && flag_ifstring)
 			{
 				QCC_PR_ParseWarning(WARN_IFSTRING_USED, "do {} while(string) can result in bizzare behaviour");
-				QCC_FreeTemp(QCC_PR_Statement (&pr_opcodes[OP_IFS], e, &junkdef, (QCC_dstatement_t **)0xffffffff));
+				QCC_FreeTemp(QCC_PR_Statement (&pr_opcodes[OP_IFS], e, NULL, &patch2));
 			}
 			else
-				QCC_FreeTemp(QCC_PR_Statement (&pr_opcodes[OP_IF], e, &junkdef, (QCC_dstatement_t **)0xffffffff));
+				QCC_FreeTemp(QCC_PR_Statement (&pr_opcodes[OP_IF], e, NULL, &patch2));
+
+			patch2->b = patch1 - patch2;
 		}
 
 		QCC_PR_Expect (")");

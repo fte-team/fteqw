@@ -1503,6 +1503,8 @@ int R_RunParticleEffectType (vec3_t org, vec3_t dir, float count, int typenum)
 			j = 0;
 			m = 0;
 			break;
+		default:	//others don't need intitialisation
+			break;
 		}
 		
 		// particle spawning loop
@@ -1719,6 +1721,8 @@ int R_RunParticleEffectType (vec3_t org, vec3_t dir, float count, int typenum)
 					arsvec[2] = 0;
 					VectorSubtract(ofsvec, arsvec, bfirst->dir);
 					VectorNormalize(bfirst->dir);			
+					break;
+				default:
 					break;
 				}
 
@@ -2022,6 +2026,12 @@ int R_RocketTrail (vec3_t start, vec3_t end, int type, trailstate_t *ts)
 	{
 		stop = ts->lastdist + len;	//when to stop
 		len = ts->lastdist;
+
+		if (!len)
+		{
+			len = particletime;
+			stop += len;
+		}
 	}
 	else
 	{
@@ -2389,7 +2399,7 @@ void GL_DrawTexturedParticle(particle_t *p, part_type_t *type)
 		glShadeModel(GL_FLAT);
 		glBegin(GL_QUADS);
 	}
-
+	
 	scale = (p->org[0] - r_origin[0])*vpn[0] + (p->org[1] - r_origin[1])*vpn[1]
 		+ (p->org[2] - r_origin[2])*vpn[2];
 	scale = (scale*p->scale)*(type->invscalefactor) + p->scale * (type->scalefactor*250);
@@ -2421,6 +2431,61 @@ void GL_DrawTexturedParticle(particle_t *p, part_type_t *type)
 	glVertex3f (p->org[0] + x*pright[0] + y*pup[0], p->org[1] + x*pright[1] + y*pup[1], p->org[2] + x*pright[2] + y*pup[2]);
 	glTexCoord2f(1,0);
 	glVertex3f (p->org[0] + y*pright[0] - x*pup[0], p->org[1] + y*pright[1] - x*pup[1], p->org[2] + y*pright[2] - x*pup[2]);
+}
+
+
+void GL_DrawSketchParticle(particle_t *p, part_type_t *type)
+{
+	float x,y;
+	float scale;
+
+	int quant;
+
+	if (lasttype != type)
+	{
+		lasttype = type;
+		glEnd();
+		glDisable(GL_TEXTURE_2D);
+		GL_Bind(type->texturenum);
+//		if (type->blendmode == BM_ADD)		//addative
+//			glBlendFunc(GL_SRC_ALPHA, GL_ONE);
+//		else if (type->blendmode == BM_SUBTRACT)	//subtractive
+//			glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+//		else
+			glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+		glShadeModel(GL_SMOOTH);
+		glBegin(GL_LINES);
+	}
+
+	scale = (p->org[0] - r_origin[0])*vpn[0] + (p->org[1] - r_origin[1])*vpn[1]
+		+ (p->org[2] - r_origin[2])*vpn[2];
+	scale = (scale*p->scale)*(type->invscalefactor) + p->scale * (type->scalefactor*250);
+	if (scale < 20)
+		scale = 0.25;
+	else
+		scale = 0.25 + scale * 0.001;
+	
+	glColor4f (	p->rgb[0]/2,
+				p->rgb[1]/2,
+				p->rgb[2]/2,
+				p->alpha*2);
+
+	quant = scale;
+
+	if (p->angle)
+	{
+		x = sin(p->angle)*scale;
+		y = cos(p->angle)*scale;
+	}
+	else
+	{
+		x = 0;
+		y = scale;
+	}
+	glVertex3f (p->org[0] - x*pright[0] - y*pup[0], p->org[1] - x*pright[1] - y*pup[1], p->org[2] - x*pright[2] - y*pup[2]);
+	glVertex3f (p->org[0] + x*pright[0] + y*pup[0], p->org[1] + x*pright[1] + y*pup[1], p->org[2] + x*pright[2] + y*pup[2]);
+	glVertex3f (p->org[0] + y*pright[0] - x*pup[0], p->org[1] + y*pright[1] - x*pup[1], p->org[2] + y*pright[2] - x*pup[2]);
+	glVertex3f (p->org[0] - y*pright[0] + x*pup[0], p->org[1] - y*pright[1] + x*pup[1], p->org[2] - y*pright[2] + x*pup[2]);
 }
 
 void GL_DrawTrifanParticle(particle_t *p, part_type_t *type)
@@ -2506,6 +2571,37 @@ void GL_DrawSparkedParticle(particle_t *p, part_type_t *type)
 				0);
 	glVertex3f (p->org[0]-p->vel[0]/10, p->org[1]-p->vel[1]/10, p->org[2]-p->vel[2]/10);
 
+}
+
+void GL_DrawSketchSparkParticle(particle_t *p, part_type_t *type)
+{
+	if (lasttype != type)
+	{
+		lasttype = type;
+		glEnd();
+		glDisable(GL_TEXTURE_2D);
+		GL_Bind(type->texturenum);
+		if (type->blendmode == BM_ADD)		//addative
+			glBlendFunc(GL_SRC_ALPHA, GL_ONE);
+//		else if (type->blendmode == BM_SUBTRACT)	//subtractive
+//			glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+		else
+			glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+		glShadeModel(GL_SMOOTH);
+		glBegin(GL_LINES);
+	}
+
+	glColor4f (	p->rgb[0],
+				p->rgb[1],
+				p->rgb[2],
+				p->alpha);
+	glVertex3f (p->org[0], p->org[1], p->org[2]);
+
+	glColor4f (	p->rgb[0],
+				p->rgb[1],
+				p->rgb[2],
+				0);
+	glVertex3f (p->org[0]-p->vel[0]/10, p->org[1]-p->vel[1]/10, p->org[2]-p->vel[2]/10);
 }
 
 void GL_DrawParticleBeam_Textured(beamseg_t *b, part_type_t *type)
@@ -2738,6 +2834,7 @@ void SWD_DrawParticleBlob(particle_t *p, part_type_t *type)
 	D_DrawParticleTrans(p);
 }
 #endif
+
 void DrawParticleTypes (void texturedparticles(particle_t *,part_type_t*), void sparkparticles(particle_t*,part_type_t*), void beamparticlest(beamseg_t*,part_type_t*), void beamparticlesut(beamseg_t*,part_type_t*))
 {
 	qboolean (*tr) (vec3_t start, vec3_t end, vec3_t impact, vec3_t normal);
@@ -3103,6 +3200,7 @@ void R_DrawParticles (void)
 #if defined(RGLQUAKE)
 	if (qrenderer == QR_OPENGL)
 	{
+		extern cvar_t r_drawflat;
 		glDepthMask(0);
 		
 		glDisable(GL_ALPHA_TEST);
@@ -3112,7 +3210,9 @@ void R_DrawParticles (void)
 
 		glBegin(GL_QUADS);
 
-		if (gl_part_trifansparks.value)
+		if (r_drawflat.value == 2)
+			DrawParticleTypes(GL_DrawSketchParticle, GL_DrawSketchSparkParticle, GL_DrawParticleBeam_Textured, GL_DrawParticleBeam_Untextured);//GL_DrawParticleBeam_Sketched, GL_DrawParticleBeam_Sketched);
+		else if (gl_part_trifansparks.value)
 			DrawParticleTypes(GL_DrawTexturedParticle, GL_DrawTrifanParticle, GL_DrawParticleBeam_Textured, GL_DrawParticleBeam_Untextured);
 		else
 			DrawParticleTypes(GL_DrawTexturedParticle, GL_DrawSparkedParticle, GL_DrawParticleBeam_Textured, GL_DrawParticleBeam_Untextured);

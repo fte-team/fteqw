@@ -179,10 +179,10 @@ void GL_InitSceneProcessingShaders (void)
 		{\
 			float amptemp;\
 			vec3 edge;\
-			edge = texture2D( theTexture2, v_texCoord2 );\
+			edge = texture2D( theTexture2, v_texCoord2 ).rgb;\
 			amptemp = ampscale * edge.x;\
 			vec3 offset;\
-			offset = texture2D( theTexture1, v_texCoord1 );\
+			offset = texture2D( theTexture1, v_texCoord1 ).rgb;\
 			offset.x = (offset.x - 0.5) * 2.0;\
 			offset.y = (offset.y - 0.5) * 2.0;\
 			vec2 temp;\
@@ -199,6 +199,9 @@ void GL_InitSceneProcessingShaders (void)
 	frag = GLSlang_CreateShader(wwfrag,			0);//GL_FRAGMENT_SHADER_ARB);
 
 	scenepp_ww_program = GLSlang_CreateProgram(vert, frag);
+
+	if (!scenepp_ww_program)
+		return;
 
 	scenepp_ww_parm_texture0i	= GLSlang_GetUniformLocation(scenepp_ww_program, "theTexture0");
 	scenepp_ww_parm_texture1i	= GLSlang_GetUniformLocation(scenepp_ww_program, "theTexture1");

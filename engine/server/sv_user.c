@@ -325,6 +325,7 @@ void SVQ2_ConfigStrings_f (void)
 {
 	extern int map_checksum;
 	int			start;
+	char *str;
 
 	Con_DPrintf ("Configstrings() from %s\n", host_client->name);
 
@@ -356,18 +357,21 @@ void SVQ2_ConfigStrings_f (void)
 	while ( host_client->netchan.message.cursize < MAX_QWMSGLEN/2 
 		&& start < Q2MAX_CONFIGSTRINGS)
 	{
-
+		str = sv.configstring[start];
+		if (*str)
+		{
+			MSG_WriteByte (&host_client->netchan.message, svcq2_configstring);
+			MSG_WriteShort (&host_client->netchan.message, start);
+			MSG_WriteString (&host_client->netchan.message, str);
+		}
+			/*
 		//choose range to grab from.
 		if (start < Q2CS_CDTRACK)
 		{
 			MSG_WriteByte (&host_client->netchan.message, svcq2_configstring);
 			MSG_WriteShort (&host_client->netchan.message, start);
 			MSG_WriteString (&host_client->netchan.message, sv.name);
-/*			if (svprogfuncs)
-				MSG_WriteString (&host_client->netchan.message, va("%s", PR_GetString(svprogfuncs, sv.edicts->v.message)));
-			else
-				MSG_WriteString (&host_client->netchan.message, "LEVEL NAME");
-*/		}
+		}
 		else if (start < Q2CS_SKY)
 		{
 			MSG_WriteByte (&host_client->netchan.message, svcq2_configstring);
@@ -476,6 +480,7 @@ void SVQ2_ConfigStrings_f (void)
 //			MSG_WriteShort (&host_client->netchan.message, start);
 //			MSG_WriteString (&host_client->netchan.message, sv.configstrings[start]);
 		}
+		*/
 		start++;
 	}
 
@@ -2137,25 +2142,16 @@ Change the bandwidth estimate for a client
 =================
 */
 void SV_Rate_f (void)
-{
-	extern cvar_t sv_maxrate;
-	int		rate;
-	
+{	
 	if (Cmd_Argc() != 2)
 	{
-		SV_ClientTPrintf (host_client, PRINT_HIGH, STL_CURRENTRATE,
-			host_client->rate);
+		SV_ClientPrintf (host_client, PRINT_HIGH, "Effective rate %i\n", SV_RateForClient(host_client));
 		return;
 	}
-	
-	rate = atoi(Cmd_Argv(1));
-	if (rate < 500)
-		rate = 500;
-	if (rate > sv_maxrate.value)
-		rate = sv_maxrate.value;
 
-	SV_ClientTPrintf (host_client, PRINT_HIGH, STL_RATESETTO, rate);
-	host_client->rate = rate;
+	host_client->rate = atoi(Cmd_Argv(1));
+
+	SV_ClientTPrintf (host_client, PRINT_HIGH, STL_RATESETTO, SV_RateForClient(host_client));
 }
 
 
@@ -2854,9 +2850,10 @@ ucmd_t ucmdsq2[] = {
 	{"baselines", SVQ2_BaseLines_f, true},
 	{"begin", SV_Begin_f, true},
 
-	{"setinfo", SV_SetInfo_f, true},
+//	{"setinfo", SV_SetInfo_f, true},
 
 	{"serverinfo", SV_ShowServerinfo_f, true},
+	{"info", SV_ShowServerinfo_f, true},
 
 	{"download", SV_BeginDownload_f, true},
 	{"nextdl", SV_NextDownload_f, true},
@@ -2865,9 +2862,9 @@ ucmd_t ucmdsq2[] = {
 
 	{"vote", SV_Vote_f, true},
 
-#ifdef SVRANKING
-	{"topten", Rank_ListTop10_f, true},
-#endif
+//#ifdef SVRANKING
+//	{"topten", Rank_ListTop10_f, true},
+//#endif
 
 	{"drop", SV_Drop_f, true},
 	{"disconnect", SV_Drop_f, true},
@@ -3754,6 +3751,7 @@ void SV_RunCmd (usercmd_t *ucmd, qboolean recurse)
 	}
 
 	host_frametime = ucmd->msec * 0.001;
+	host_frametime *= sv.gamespeed;
 	if (host_frametime > 0.1)
 		host_frametime = 0.1;
 	
@@ -3800,7 +3798,7 @@ void SV_RunCmd (usercmd_t *ucmd, qboolean recurse)
 			pmove_maxs[i] = pmove.origin[i] + 256;
 		}
 
-		PM_PlayerMove ();
+		PM_PlayerMove (cl.gamespeed);
 		
 		VectorCopy (pmove.origin, host_client->specorigin);
 		VectorCopy (pmove.velocity, host_client->specvelocity);
@@ -3978,7 +3976,7 @@ if (sv_player->v.health > 0 && before && !after )
 	Con_Printf ("player %s got stuck in playermove!!!!\n", host_client->name);
 }
 #else
-	PM_PlayerMove ();
+	PM_PlayerMove (sv.gamespeed);
 #endif
 
 	host_client->jump_held = pmove.jump_held;
@@ -4496,7 +4494,9 @@ void SVQ2_ExecuteClientMessage (client_t *cl)
 			break;
 
 		case clcq2_userinfo:
-			s = MSG_ReadString ();
+			strncpy (cl->userinfo, MSG_ReadString (), sizeof(cl->userinfo)-1);
+			ge->ClientUserinfoChanged (cl->q2edict, cl->userinfo);	//tell the gamecode
+			SV_ExtractFromUserinfo(cl);	//let the server routines know
 			break;
 
 		case clcq2_stringcmd:	

@@ -591,7 +591,7 @@ static galiastexnum_t *GL_ChooseSkin(galiasinfo_t *inf, char *modelname, entity_
 
 	int tc, bc;
 
-	if (!gl_nocolors.value && !cls.q2server)
+	if (!gl_nocolors.value)
 	{
 		if (e->scoreboard)
 		{
@@ -633,17 +633,16 @@ static galiastexnum_t *GL_ChooseSkin(galiasinfo_t *inf, char *modelname, entity_
 			qbyte	*original;
 			int cc;
 			galiascolourmapped_t *cm;
+			char hashname[512];
 			cc = (tc<<4)|bc;
-	
-			if (!strstr(modelname, "progs/player.mdl"))
-				skinname = modelname;
-			else
+
+			if (e->scoreboard && e->scoreboard->skin && !gl_nocolors.value)
 			{
-				if (e->scoreboard && e->scoreboard->skin && !gl_nocolors.value)
-					skinname = e->scoreboard->skin->name;
-				else
-					skinname = modelname;
+				sprintf(hashname, "%s$%s", modelname, e->scoreboard->skin->name);
+				skinname = hashname;
 			}
+			else
+				skinname = modelname;
 	
 			if (!skincolourmapped.numbuckets)
 				Hash_InitTable(&skincolourmapped, 256, BZ_Malloc(Hash_BytesForBuckets(256)));
@@ -656,14 +655,21 @@ static galiastexnum_t *GL_ChooseSkin(galiasinfo_t *inf, char *modelname, entity_
 				}
 			}
 	
-			skins = (galiasskin_t*)((char *)inf + inf->ofsskins);
-			if (!skins->texnums)
-				return NULL;
-			if (e->skinnum >= 0 && e->skinnum < inf->numskins)
-				skins += e->skinnum;
-			texnums = (galiastexnum_t*)((char *)skins + skins->ofstexnums);
-	
-	
+			if (!inf->numskins)
+			{
+				skins = NULL;
+				texnums = NULL;
+			}
+			else
+			{
+				skins = (galiasskin_t*)((char *)inf + inf->ofsskins);
+				if (!skins->texnums)
+					return NULL;
+				if (e->skinnum >= 0 && e->skinnum < inf->numskins)
+					skins += e->skinnum;
+				texnums = (galiastexnum_t*)((char *)skins + skins->ofstexnums);
+			}
+
 			//colourmap isn't present yet.
 			cm = BZ_Malloc(sizeof(*cm));
 			Q_strncpyz(cm->name, skinname, sizeof(cm->name));
@@ -672,8 +678,25 @@ static galiastexnum_t *GL_ChooseSkin(galiasinfo_t *inf, char *modelname, entity_
 			cm->skinnum = e->skinnum;
 			cm->texnum.fullbright = 0;
 			cm->texnum.base = 0;
+
+			if (!texnums)
+			{	//load just the skin
+				if (e->scoreboard && e->scoreboard->skin)
+				{	
+					original = Skin_Cache8(e->scoreboard->skin);
+					if (!original)
+						return NULL;
+					inwidth = e->scoreboard->skin->width;
+					inheight = e->scoreboard->skin->height;
+
+					cm->texnum.base = cm->texnum.fullbright = GL_LoadTexture(e->scoreboard->skin->name, inwidth, inheight, original, true, false);
+					return &cm->texnum;
+				}
+				return NULL;
+			}
+
 			cm->texnum.bump = texnums[cm->skinnum].bump;	//can't colour bumpmapping
-			if (skinname!=modelname && e->scoreboard && e->scoreboard->skin)
+			if ((!texnums || skinname!=modelname) && e->scoreboard && e->scoreboard->skin)
 			{
 				original = Skin_Cache8(e->scoreboard->skin);
 				inwidth = e->scoreboard->skin->width;

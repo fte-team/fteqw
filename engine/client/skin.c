@@ -149,7 +149,10 @@ void Skin_Find (player_info_t *sc)
 	if (s)
 	{
 		*s = '\0';
-		model = Mod_ForName(va("models/players/%s.mdl", name), false);
+		if (cls.q2server)
+			model = Mod_ForName(va("players/%s/tris.mdl", name), false);
+		else
+			model = Mod_ForName(va("models/players/%s.mdl", name), false);
 		if (model->type == mod_dummy)
 			model = NULL;
 		*s = '/';
@@ -231,7 +234,6 @@ qbyte	*Skin_Cache8 (skin_t *skin)
 //
 // load the pic from disk
 //
-//	sprintf (name, "players/male/%s.pcx", skin->name);
 	if (strchr(skin->name, ' ')) //see if it's actually three colours
 	{
 		qbyte bv;
@@ -260,7 +262,10 @@ qbyte	*Skin_Cache8 (skin_t *skin)
 		return out;
 	}
 
-	sprintf (name, "skins/%s.pcx", skin->name);
+	if (cls.q2server)
+		sprintf (name, "players/%s.pcx", skin->name);
+	else
+		sprintf (name, "skins/%s.pcx", skin->name);
 	raw = COM_LoadTempFile (name);
 	if (!raw)
 	{
@@ -291,21 +296,29 @@ qbyte	*Skin_Cache8 (skin_t *skin)
 		Con_Printf ("Bad skin %s\n", name);
 		return NULL;
 	}
-	skin->width = 320;
-	skin->height = 200;
+	if (qrenderer == QR_SOFTWARE)
+	{
+		skin->width = 320;
+		skin->height = 200;
+	}
+	else
+	{
+		skin->width = pcx->xmax+1;
+		skin->height = pcx->ymax;
+	}
 	skin->cachedbpp = 8;
 
 	pcx->xmax = (unsigned short)LittleShort(pcx->xmax);
 	pcx->ymax = (unsigned short)LittleShort(pcx->ymax);
 	
-	out = Cache_Alloc (&skin->cache, 320*200, skin->name);
+	out = Cache_Alloc (&skin->cache, skin->width*skin->height, skin->name);
 	if (!out)
 		Sys_Error ("Skin_Cache: couldn't allocate");
 
 	pix = out;
-	memset (out, 0, 320*200);
+	memset (out, 0, skin->width*skin->height);
 
-	for (y=0 ; y<pcx->ymax ; y++, pix += 320)
+	for (y=0 ; y<pcx->ymax ; y++, pix += skin->width)
 	{
 		for (x=0 ; x<=pcx->xmax ; )
 		{

@@ -7857,7 +7857,7 @@ void PF_runclientphys(progfuncs_t *prinst, struct globalvars_s *pr_globals)
 //	AddLinksToPmove ( sv_areanodes );
 
 
-	PM_PlayerMove();
+	PM_PlayerMove(sv.gamespeed);
 }
 
 BuiltinList_t BuiltinList[] = {				//nq	qw		h2		ebfs

@@ -178,26 +178,35 @@ optimisations_t optimisations[] =
 
 compiler_flag_t compiler_flag[] = {
 	//keywords
-	{&keyword_var,			FLAG_HIDDENINGUI|FLAG_ASDEFAULT, "var",			"Keyword: var",		"Disables the 'var' keyword."},
-	{&keyword_thinktime,	FLAG_HIDDENINGUI|0,				"thinktime",	"Keyword: thinktime",	"Disables the 'thinktime' keyword."},
-	{&keyword_switch,		FLAG_HIDDENINGUI|FLAG_ASDEFAULT, "switch",		"Keyword: switch",	"Disables the 'switch' keyword."},
-	{&keyword_for,			FLAG_HIDDENINGUI|FLAG_ASDEFAULT, "for",			"Keyword: for",		"Disables the 'for' keyword."},
-	{&keyword_case,			FLAG_HIDDENINGUI|FLAG_ASDEFAULT, "case",		"Keyword: case",	"Disables the 'case' keyword."},
-	{&keyword_default,		FLAG_HIDDENINGUI|FLAG_ASDEFAULT, "default",		"Keyword: default",	"Disables the 'default' keyword."},
-	{&keyword_do,			FLAG_HIDDENINGUI|FLAG_ASDEFAULT, "do",			"Keyword: do",		"Disables the 'do' keyword."},
-	{&keyword_asm,			FLAG_HIDDENINGUI|FLAG_ASDEFAULT, "asm",			"Keyword: asm",		"Disables the 'asm' keyword."},
-	{&keyword_goto,			FLAG_HIDDENINGUI|FLAG_ASDEFAULT, "goto",		"Keyword: goto",	"Disables the 'goto' keyword."},
-	{&keyword_break,		FLAG_HIDDENINGUI|FLAG_ASDEFAULT, "break",		"Keyword: break",	"Disables the 'break' keyword."},
+	{&keyword_asm,			FLAG_HIDDENINGUI|FLAG_ASDEFAULT, "asm",			"Keyword: asm",			"Disables the 'asm' keyword."},
+	{&keyword_break,		FLAG_HIDDENINGUI|FLAG_ASDEFAULT, "break",		"Keyword: break",		"Disables the 'break' keyword."},
+	{&keyword_case,			FLAG_HIDDENINGUI|FLAG_ASDEFAULT, "case",		"Keyword: case",		"Disables the 'case' keyword."},
+	{&keyword_class,		FLAG_HIDDENINGUI|FLAG_ASDEFAULT, "class",		"Keyword: class",		"Disables the 'class' keyword."},
+	{&keyword_const,		FLAG_HIDDENINGUI|FLAG_ASDEFAULT, "const",		"Keyword: const",		"Disables the 'const' keyword."},
 	{&keyword_continue,		FLAG_HIDDENINGUI|FLAG_ASDEFAULT, "continue",	"Keyword: continue",	"Disables the 'continue' keyword."},
-	{&keyword_state,		FLAG_HIDDENINGUI|0,				"state",		"Keyword: state",	"Disables the 'state' keyword."},
-	{&keyword_string,		FLAG_HIDDENINGUI|FLAG_ASDEFAULT, "string",		"Keyword: string",	"Disables the 'string' keyword."},
-	{&keyword_float,		FLAG_HIDDENINGUI|FLAG_ASDEFAULT, "float",		"Keyword: float",	"Disables the 'float' keyword."},
-	{&keyword_entity,		FLAG_HIDDENINGUI|FLAG_ASDEFAULT, "entity",		"Keyword: entity",	"Disables the 'entity' keyword."},
-	{&keyword_vector,		FLAG_HIDDENINGUI|FLAG_ASDEFAULT, "vector",		"Keyword: vector",	"Disables the 'vector' keyword."},
-	{&keyword_const,		FLAG_HIDDENINGUI|FLAG_ASDEFAULT, "const",		"Keyword: const",	"Disables the 'const' keyword."},
-	{&keyword_integer,		FLAG_HIDDENINGUI|FLAG_ASDEFAULT, "integer",		"Keyword: integer",	"Disables the 'integer' keyword."},
-	{&keyword_int,			FLAG_HIDDENINGUI|FLAG_ASDEFAULT, "int",			"Keyword: int",		"Disables the 'int' keyword."},
-	{&keyword_class,		FLAG_HIDDENINGUI|FLAG_ASDEFAULT, "class",		"Keyword: class",	"Disables the 'class' keyword."},
+	{&keyword_default,		FLAG_HIDDENINGUI|FLAG_ASDEFAULT, "default",		"Keyword: default",		"Disables the 'default' keyword."},
+	{&keyword_entity,		FLAG_HIDDENINGUI|FLAG_ASDEFAULT, "entity",		"Keyword: entity",		"Disables the 'entity' keyword."},
+	{&keyword_enum,			FLAG_HIDDENINGUI|FLAG_ASDEFAULT, "enum",		"Keyword: enum",		"Disables the 'enum' keyword."},	//kinda like in c, but typedef not supported.
+	{&keyword_enumflags,	FLAG_HIDDENINGUI|FLAG_ASDEFAULT, "enumflags",	"Keyword: enumflags",	"Disables the 'enumflags' keyword."},	//like enum, but doubles instead of adds 1.
+	{&keyword_extern,		FLAG_HIDDENINGUI|FLAG_ASDEFAULT, "extern",		"Keyword: extern",		"Disables the 'extern' keyword."},	//function is external, don't error or warn if the body was not found
+	{&keyword_float,		FLAG_HIDDENINGUI|FLAG_ASDEFAULT, "float",		"Keyword: float",		"Disables the 'float' keyword."},
+	{&keyword_for,			FLAG_HIDDENINGUI|FLAG_ASDEFAULT, "for",			"Keyword: for",			"Disables the 'for' keyword."},
+	{&keyword_goto,			FLAG_HIDDENINGUI|FLAG_ASDEFAULT, "goto",		"Keyword: goto",		"Disables the 'goto' keyword."},
+	{&keyword_int,			FLAG_HIDDENINGUI|FLAG_ASDEFAULT, "int",			"Keyword: int",			"Disables the 'int' keyword."},
+	{&keyword_integer,		FLAG_HIDDENINGUI|FLAG_ASDEFAULT, "integer",		"Keyword: integer",		"Disables the 'integer' keyword."},
+	{&keyword_noref,		FLAG_HIDDENINGUI|FLAG_ASDEFAULT, "noref",		"Keyword: noref",		"Disables the 'noref' keyword."},	//nowhere else references this, don't strip it.
+	{&keyword_nosave,		FLAG_HIDDENINGUI|FLAG_ASDEFAULT, "nosave",		"Keyword: nosave",		"Disables the 'nosave' keyword."},	//don't write the def to the output.
+	{&keyword_shared,		FLAG_HIDDENINGUI|FLAG_ASDEFAULT, "shared",		"Keyword: shared",		"Disables the 'shared' keyword."},	//mark global to be copied over when progs changes (part of FTE_MULTIPROGS)
+	{&keyword_state,		FLAG_HIDDENINGUI|0,				"state",		"Keyword: state",		"Disables the 'state' keyword."},
+	{&keyword_string,		FLAG_HIDDENINGUI|FLAG_ASDEFAULT, "string",		"Keyword: string",		"Disables the 'string' keyword."},
+	{&keyword_struct,		FLAG_HIDDENINGUI|FLAG_ASDEFAULT, "struct",		"Keyword: struct",		"Disables the 'struct' keyword."},
+	{&keyword_switch,		FLAG_HIDDENINGUI|FLAG_ASDEFAULT, "switch",		"Keyword: switch",		"Disables the 'switch' keyword."},
+	{&keyword_thinktime,	FLAG_HIDDENINGUI|0,				"thinktime",	"Keyword: thinktime",	"Disables the 'thinktime' keyword."},
+	{&keyword_typedef,		FLAG_HIDDENINGUI|FLAG_ASDEFAULT, "typedef",		"Keyword: typedef",		"Disables the 'typedef' keyword."},	//fixme
+	{&keyword_union,		FLAG_HIDDENINGUI|FLAG_ASDEFAULT, "union",		"Keyword: union",		"Disables the 'union' keyword."},	//you surly know what a union is!
+	{&keyword_var,			FLAG_HIDDENINGUI|FLAG_ASDEFAULT, "var",			"Keyword: var",			"Disables the 'var' keyword."},
+	{&keyword_vector,		FLAG_HIDDENINGUI|FLAG_ASDEFAULT, "vector",		"Keyword: vector",		"Disables the 'vector' keyword."},
+
 
 	//options
 	{&keywords_coexist,		FLAG_ASDEFAULT, "kce",			"Keywords Coexist",		"If you want keywords to NOT be disabled when they a variable by the same name is defined, check here."},
@@ -2479,7 +2488,7 @@ void QCC_SetDefaultProperties (void)
 	QCC_PR_CommandLinePrecompilerOptions();
 
 
-	if (qcc_targetformat == QCF_HEXEN2)
+	if (qcc_targetformat == QCF_HEXEN2)	//force on the thinktime keyword if hexen2 progs.
 		keyword_thinktime = true;
 
 	if (QCC_CheckParm("/Debug"))	//disable any debug optimisations
@@ -2830,13 +2839,6 @@ memset(pr_immediate_string, 0, sizeof(pr_immediate_string));
 		}
 	}
 
-	newstylesource = false;
-
-	while(*qccmsrc && *qccmsrc < ' ')
-		qccmsrc++;
-
-	pr_file_p = QCC_COM_Parse(qccmsrc);
-
 #ifdef WRITEASM
 	if (writeasm)
 	{
@@ -2845,6 +2847,11 @@ memset(pr_immediate_string, 0, sizeof(pr_immediate_string));
 			QCC_Error (ERR_INTERNAL, "Couldn't open file for asm output.");
 	}
 #endif
+
+	newstylesource = false;
+	while(*qccmsrc && *qccmsrc < ' ')
+		qccmsrc++;
+	pr_file_p = QCC_COM_Parse(qccmsrc);
 
 	if (QCC_CheckParm ("-qc"))
 	{

@@ -221,6 +221,7 @@ void BZ_CheckSentinals(void *c)
 #endif
 
 }
+/*	//revive this function each time you get memory corruption and need to trace it.
 void BZ_CheckAllSentinals(void)
 {
 	zone_t *zone;
@@ -244,6 +245,7 @@ void BZ_CheckAllSentinals(void)
 		}
 	}
 }
+*/
 
 void VARGS Z_FreeTags(int tag)
 {
@@ -309,7 +311,6 @@ void *Z_BaseTagMalloc (int size, int tag, qboolean clear)
 #ifdef NAMEDMALLOCS
 	strcpy((char *)(nt+1) + nt->size + ZONEDEBUG*2, buffer);
 #endif
-	BZ_CheckAllSentinals();
 	return buf;
 }
 void *VARGS Z_TagMalloc (int size, int tag)

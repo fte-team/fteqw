@@ -419,6 +419,78 @@ static void PPL_BaseChain_NoBump_2TMU(msurface_t *s, texture_t *tex)
 	qglDisableClientState(GL_TEXTURE_COORD_ARRAY);
 }
 
+static void PPL_BaseChain_NoBump_2TMU_NoMerge(msurface_t *s, texture_t *tex)
+{	//doesn't merge surfaces, but tells gl to do each vertex arrayed surface individually, which means no vertex copying.
+	int vi;
+	glRect_t    *theRect;
+
+	PPL_EnableVertexArrays();
+
+	if (tex->alphaed)
+	{
+		qglEnable(GL_BLEND);
+		GL_TexEnv(GL_MODULATE);
+	}
+	else
+	{
+		qglDisable(GL_BLEND);
+		GL_TexEnv(GL_REPLACE);
+	}
+
+
+	GL_MBind(GL_TEXTURE0_ARB, tex->gl_texturenum);
+	qglEnableClientState(GL_TEXTURE_COORD_ARRAY);
+
+	GL_SelectTexture(GL_TEXTURE1_ARB);
+	GL_TexEnv(GL_MODULATE);
+	qglEnableClientState(GL_TEXTURE_COORD_ARRAY);
+
+	vi = -1;
+	for (; s ; s=s->texturechain)
+	{
+		if (vi != s->lightmaptexturenum)
+		{
+			if (vi<0)
+				qglEnable(GL_TEXTURE_2D);
+			vi = s->lightmaptexturenum;
+
+			if (vi>=0)
+			{
+				GL_Bind(lightmap_textures[vi] );
+				if (lightmap[vi]->modified)
+				{
+					lightmap[vi]->modified = false;
+					theRect = &lightmap[vi]->rectchange;
+					qglTexSubImage2D(GL_TEXTURE_2D, 0, 0, theRect->t, 
+						LMBLOCK_WIDTH, theRect->h, gl_lightmap_format, GL_UNSIGNED_BYTE,
+						lightmap[vi]->lightmaps+(theRect->t) *LMBLOCK_WIDTH*lightmap_bytes);
+					theRect->l = LMBLOCK_WIDTH;
+					theRect->t = LMBLOCK_HEIGHT;
+					theRect->h = 0;
+					theRect->w = 0;
+				}
+			}
+			else
+				qglDisable(GL_TEXTURE_2D);
+		}
+
+		qglClientActiveTextureARB(GL_TEXTURE0_ARB);
+		qglTexCoordPointer(2, GL_FLOAT, VERTEXSIZE*sizeof(GL_FLOAT), s->polys[0].verts[0]+3);
+		qglClientActiveTextureARB(GL_TEXTURE1_ARB);
+		qglTexCoordPointer(2, GL_FLOAT, VERTEXSIZE*sizeof(GL_FLOAT), s->polys[0].verts[0]+5);
+
+		qglVertexPointer(3, GL_FLOAT, VERTEXSIZE*sizeof(GL_FLOAT), s->polys[0].verts[0]);
+
+		qglDrawElements(GL_TRIANGLES, (s->polys[0].numverts-2)*3, GL_UNSIGNED_INT, varray_i_polytotri);
+	}
+
+	qglDisable(GL_TEXTURE_2D);
+	qglDisableClientState(GL_TEXTURE_COORD_ARRAY);
+
+	GL_SelectTexture(GL_TEXTURE0_ARB);
+	qglDisableClientState(GL_TEXTURE_COORD_ARRAY);
+}
+
 static void PPL_BaseChain_Bump_2TMU(msurface_t *first, texture_t *tex)
 {
 	int vi;
@@ -1617,7 +1689,8 @@ static void PPL_BaseTextureChain(msurface_t *first)
 		}
 		else
 		{
-			PPL_BaseChain_NoBump_2TMU(first, t);
+			PPL_BaseChain_NoBump_2TMU_NoMerge(first, t);
+//			PPL_BaseChain_NoBump_2TMU(first, t);
 		}
 	}
 }

@@ -386,6 +386,9 @@ typedef struct
 	int			fpd;
 	int			servercount;	// server identification for prespawns
 
+	float		gamespeed;
+	qboolean	csqcdebug;
+
 	char		serverinfo[MAX_SERVERINFO_STRING];
 
 	int			parsecount;		// server message counter
@@ -489,10 +492,6 @@ typedef struct
 // all player information
 	player_info_t	players[MAX_CLIENTS];
 
-#ifdef CLPROGS
-	struct edict_s *edicts;
-	int num_edicts;
-#endif
 
 	downloadlist_t *downloadlist;
 	downloadlist_t *faileddownloads;
@@ -634,7 +633,7 @@ extern 	kbutton_t 	in_speed;
 extern	float in_sensitivityscale;
 
 void CL_InitInput (void);
-void CL_SendCmd (void);
+void CL_SendCmd (float frametime);
 void CL_SendMove (usercmd_t *cmd);
 #ifdef NQPROT
 void CL_ParseTEnt (qboolean nqprot);

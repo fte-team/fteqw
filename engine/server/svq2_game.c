@@ -176,6 +176,12 @@ static void VARGS PFQ2_Configstring (int i, char *val)
 	if (!val)
 		val = "";
 
+	strcpy(sv.configstring[i], val);
+
+	if (i == Q2CS_NAME)
+		Q_strncpyz(sv.mapname, val, sizeof(sv.name));
+
+/*
 	//work out range
 	if (i >= Q2CS_LIGHTS && i < Q2CS_LIGHTS+Q2MAX_LIGHTSTYLES)
 	{
@@ -213,32 +219,10 @@ static void VARGS PFQ2_Configstring (int i, char *val)
 	}
 	else
 	{
-/*
-#define	Q2CS_NAME				0
-#define	Q2CS_CDTRACK			1
-#define	Q2CS_SKY				2
-#define	Q2CS_SKYAXIS			3		// %f %f %f format
-#define	Q2CS_SKYROTATE			4
-#define	Q2CS_STATUSBAR			5		// display program string
-
-#define Q2CS_AIRACCEL			29		// air acceleration control
-#define	Q2CS_MAXCLIENTS			30
-#define	Q2CS_MAPCHECKSUM		31		// for catching cheater maps
-
-#define	Q2CS_MODELS				32
-#define	Q2CS_SOUNDS				(Q2CS_MODELS	+Q2MAX_MODELS)
-#define	Q2CS_IMAGES				(Q2CS_SOUNDS	+Q2MAX_SOUNDS)
-#define	Q2CS_LIGHTS				(Q2CS_IMAGES	+Q2MAX_IMAGES)
-#define	Q2CS_ITEMS				(Q2CS_LIGHTS	+Q2MAX_LIGHTSTYLES)
-#define	Q2CS_PLAYERSKINS		(Q2CS_ITEMS		+Q2MAX_ITEMS)
-#define Q2CS_GENERAL			(Q2CS_PLAYERSKINS	+Q2MAX_CLIENTS)
-*/
-
-
 		Con_Printf("Ignoring configstring %i\n", i);
 	}
+*/
 
-	
 	if (sv.state != ss_loading)
 	{	// send the update to everyone
 		SZ_Clear (&sv.multicast);
@@ -250,9 +234,12 @@ static void VARGS PFQ2_Configstring (int i, char *val)
 	}
 }
 
-static int SVQ2_FindIndex (char *name, int start, int max, char *strings, int stringlength, qboolean create)
+static int SVQ2_FindIndex (char *name, int start, int max, qboolean create)
 {
 	int		i;
+	int stringlength = MAX_QPATH;
+	char *strings = sv.configstring[start];
+	strings += stringlength;
 	
 	if (!name || !name[0])
 		return 0;
@@ -275,17 +262,17 @@ static int SVQ2_FindIndex (char *name, int start, int max, char *strings, int st
 
 static int VARGS SVQ2_ModelIndex (char *name)
 {
-	return SVQ2_FindIndex (name, Q2CS_MODELS, Q2MAX_MODELS, sv.model_precache[1], sizeof(sv.model_precache[0]), true);
+	return SVQ2_FindIndex (name, Q2CS_MODELS, Q2MAX_MODELS, true);
 }
 
 static int VARGS SVQ2_SoundIndex (char *name)
 {
-	return SVQ2_FindIndex (name, Q2CS_SOUNDS, Q2MAX_SOUNDS, sv.sound_precache[1], sizeof(sv.sound_precache[0]), true);
+	return SVQ2_FindIndex (name, Q2CS_SOUNDS, Q2MAX_SOUNDS, true);
 }
 
 static int VARGS SVQ2_ImageIndex (char *name)
 {
-	return SVQ2_FindIndex (name, Q2CS_IMAGES, Q2MAX_IMAGES, sv.image_precache[1], sizeof(sv.image_precache[0]), true);
+	return SVQ2_FindIndex (name, Q2CS_IMAGES, Q2MAX_IMAGES, true);
 }
 
 /*

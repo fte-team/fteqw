@@ -230,6 +230,9 @@ shader_t *R_RegisterShader (char *name);
 shader_t *R_RegisterShader_Vertex (char *name);
 shader_t *R_RegisterShader_Flare (char *name);
 shader_t *R_RegisterSkin (char *name);
+shader_t *R_RegisterCustom (char *name, void(*defaultgen)(char *name, shader_t*));
+
+void Shader_DefaultSkinShell(char *shortname, shader_t *s);
 
 
 void R_BackendInit (void);

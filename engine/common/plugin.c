@@ -881,7 +881,7 @@ int Plug_Net_TCPListen(void *offset, unsigned int mask, const long *arg)
 	if (((struct sockaddr_in*)&address)->sin_family == AF_INET && !((struct sockaddr_in*)&address)->sin_port)
 		((struct sockaddr_in*)&address)->sin_port = htons(localport);
 #ifdef IPPROTO_IPV6
-	else if (((struct sockaddr_in*)&address)->sin6_family == AF_INET6 && !((struct sockaddr_in6*)&address)->sin6_port)
+	else if (((struct sockaddr_in6*)&address)->sin6_family == AF_INET6 && !((struct sockaddr_in6*)&address)->sin6_port)
 		((struct sockaddr_in6*)&address)->sin6_port = htons(localport);
 #endif
 

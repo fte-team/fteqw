@@ -1686,14 +1686,204 @@ void Shader_RunCinematic (void)
 	}
 }
 
-int R_LoadShader ( char *name, int type )
+void Shader_DefaultBSP(char *shortname, shader_t *s)
+{
+	shaderpass_t *pass;
+	pass = &s->passes[0];
+	pass->flags = SHADER_PASS_LIGHTMAP | SHADER_PASS_DEPTHWRITE | SHADER_PASS_NOCOLORARRAY;
+	pass->tcgen = TC_GEN_LIGHTMAP;
+	pass->anim_frames[0] = 0;
+	pass->depthfunc = GL_LEQUAL;
+	pass->blendmode = GL_REPLACE;
+	pass->alphagen = ALPHA_GEN_IDENTITY;
+	pass->rgbgen = RGB_GEN_IDENTITY;
+	pass->numMergedPasses = 2;
+
+	if ( qglMTexCoord2fSGIS )
+	{
+		pass->numMergedPasses = 2;
+		pass->flush = R_RenderMeshMultitextured;
+	}
+	else
+	{
+		pass->numMergedPasses = 1;
+		pass->flush = R_RenderMeshGeneric;
+	}
+		
+	pass = &s->passes[1];
+	pass->flags = SHADER_PASS_BLEND | SHADER_PASS_NOCOLORARRAY;
+	pass->tcgen = TC_GEN_BASE;
+	pass->anim_frames[0] = Mod_LoadHiResTexture(shortname, true, false, true);//GL_FindImage (shortname, 0);
+	pass->blendsrc = GL_ZERO;
+	pass->blenddst = GL_SRC_COLOR;
+	pass->blendmode = GL_MODULATE;
+	pass->depthfunc = GL_LEQUAL;
+	pass->rgbgen = RGB_GEN_IDENTITY;
+	pass->alphagen = ALPHA_GEN_IDENTITY;
+
+	pass->numMergedPasses = 1;
+	pass->flush = R_RenderMeshGeneric;
+
+	if ( !pass->anim_frames[0] ) {
+		Con_DPrintf ( S_COLOR_YELLOW "Shader %s has a stage with no image: %s.\n", s->name, shortname );
+		pass->anim_frames[0] = 0;//fizme:r_notexture;
+	}
+
+	s->numpasses = 2;
+	s->numdeforms = 0;
+	s->flags = SHADER_DEPTHWRITE|SHADER_CULL_FRONT;
+	s->features = MF_STCOORDS|MF_LMCOORDS|MF_TRNORMALS;
+	s->sort = SHADER_SORT_OPAQUE;
+	s->registration_sequence = 1;//fizme: registration_sequence;
+}
+
+void Shader_DefaultBSPVertex(char *shortname, shader_t *s)
+{
+	shaderpass_t *pass;
+	pass = &s->passes[0];
+	pass->tcgen = TC_GEN_BASE;
+	pass->anim_frames[0] = Mod_LoadHiResTexture(shortname, true, false, true);//GL_FindImage (shortname, 0);
+	pass->depthfunc = GL_LEQUAL;
+	pass->flags = SHADER_PASS_DEPTHWRITE;
+	pass->rgbgen = RGB_GEN_VERTEX;
+	pass->alphagen = ALPHA_GEN_IDENTITY;
+	pass->blendmode = GL_MODULATE;
+	pass->numMergedPasses = 1;
+	pass->flush = R_RenderMeshGeneric;
+
+	if ( !pass->anim_frames[0] ) {
+		Con_DPrintf ( S_COLOR_YELLOW "Shader %s has a stage with no image: %s.\n", s->name, shortname );
+		pass->anim_frames[0] = 0;//fizme:r_notexture;
+	}
+
+	s->numpasses = 1;
+	s->numdeforms = 0;
+	s->flags = SHADER_DEPTHWRITE|SHADER_CULL_FRONT;
+	s->features = MF_STCOORDS|MF_COLORS|MF_TRNORMALS;
+	s->sort = SHADER_SORT_OPAQUE;
+	s->registration_sequence = 1;//fizme: registration_sequence;
+}
+void Shader_DefaultBSPFlare(char *shortname, shader_t *s)
+{
+	shaderpass_t *pass;
+	pass = &s->passes[0];
+	pass->flags = SHADER_PASS_BLEND | SHADER_PASS_NOCOLORARRAY;
+	pass->blendsrc = GL_ONE;
+	pass->blenddst = GL_ONE;
+	pass->blendmode = GL_MODULATE;
+	pass->anim_frames[0] = Mod_LoadHiResTexture(shortname, true, true, true);//GL_FindImage (shortname, 0);
+	pass->depthfunc = GL_LEQUAL;
+	pass->rgbgen = RGB_GEN_VERTEX;
+	pass->alphagen = ALPHA_GEN_IDENTITY;
+	pass->numtcmods = 0;
+	pass->tcgen = TC_GEN_BASE;
+	pass->numMergedPasses = 1;
+	pass->flush = R_RenderMeshGeneric;
+
+	if ( !pass->anim_frames[0] ) {
+		Con_DPrintf ( S_COLOR_YELLOW "Shader %s has a stage with no image: %s.\n", s->name, shortname );
+		pass->anim_frames[0] = 0;//fizme:r_notexture;
+	}
+
+	s->numpasses = 1;
+	s->numdeforms = 0;
+	s->flags = SHADER_FLARE;
+	s->features = MF_STCOORDS|MF_COLORS;
+	s->sort = SHADER_SORT_ADDITIVE;
+	s->registration_sequence = 1;//fizme: registration_sequence;
+}
+void Shader_DefaultSkin(char *shortname, shader_t *s)
+{
+	shaderpass_t *pass;
+	pass = &s->passes[0];
+	pass->flags = SHADER_PASS_DEPTHWRITE;
+	pass->anim_frames[0] = Mod_LoadHiResTexture(shortname, true, true, true);//GL_FindImage (shortname, 0);
+	pass->depthfunc = GL_LEQUAL;
+	pass->rgbgen = RGB_GEN_LIGHTING_DIFFUSE;
+	pass->numtcmods = 0;
+	pass->tcgen = TC_GEN_BASE;
+	pass->blendmode = GL_MODULATE;
+	pass->numMergedPasses = 1;
+	pass->flush = R_RenderMeshGeneric;
+
+	if ( !pass->anim_frames[0] ) {
+		Con_DPrintf ( S_COLOR_YELLOW "Shader %s has a stage with no image: %s.\n", s->name, shortname );
+		pass->anim_frames[0] = 0;//fizme:r_notexture;
+	}
+
+	s->numpasses = 1;
+	s->numdeforms = 0;
+	s->flags = SHADER_DEPTHWRITE|SHADER_CULL_FRONT;
+	s->features = MF_STCOORDS|MF_NORMALS;
+	s->sort = SHADER_SORT_OPAQUE;
+	s->registration_sequence = 1;//fizme: registration_sequence;
+}
+void Shader_DefaultSkinShell(char *shortname, shader_t *s)
+{
+	shaderpass_t *pass;
+	pass = &s->passes[0];
+	pass->flags = SHADER_PASS_DEPTHWRITE | SHADER_PASS_BLEND;
+	pass->anim_frames[0] = Mod_LoadHiResTexture(shortname, true, true, true);//GL_FindImage (shortname, 0);
+	pass->depthfunc = GL_LEQUAL;
+	pass->rgbgen = RGB_GEN_ENTITY;
+	pass->alphagen = ALPHA_GEN_ENTITY;
+	pass->numtcmods = 0;
+	pass->tcgen = TC_GEN_BASE;
+	pass->blendsrc = GL_SRC_ALPHA;
+	pass->blenddst = GL_ONE_MINUS_SRC_ALPHA;
+	pass->blendmode = GL_MODULATE;
+	pass->numMergedPasses = 1;
+	pass->flush = R_RenderMeshGeneric;
+
+	if ( !pass->anim_frames[0] ) {
+		Con_DPrintf ( S_COLOR_YELLOW "Shader %s has a stage with no image: %s.\n", s->name, shortname );
+		pass->anim_frames[0] = 0;//fizme:r_notexture;
+	}
+
+	s->numpasses = 1;
+	s->numdeforms = 0;
+	s->flags = SHADER_DEPTHWRITE|SHADER_CULL_FRONT;
+	s->features = MF_STCOORDS|MF_NORMALS;
+	s->sort = SHADER_SORT_OPAQUE;
+	s->registration_sequence = 1;//fizme: registration_sequence;
+}
+void Shader_Default2D(char *shortname, shader_t *s)
+{
+	shaderpass_t *pass;
+	pass = &s->passes[0];
+	pass->flags = SHADER_PASS_BLEND | SHADER_PASS_NOCOLORARRAY;
+	pass->blendsrc = GL_SRC_ALPHA;
+	pass->blenddst = GL_ONE_MINUS_SRC_ALPHA;
+	pass->blendmode = GL_MODULATE;
+	pass->anim_frames[0] = Mod_LoadHiResTexture(shortname, false, true, true);//GL_FindImage (shortname, IT_NOPICMIP|IT_NOMIPMAP);
+	pass->depthfunc = GL_LEQUAL;
+	pass->rgbgen = RGB_GEN_VERTEX;
+	pass->alphagen = ALPHA_GEN_VERTEX;
+	pass->numtcmods = 0;
+	pass->tcgen = TC_GEN_BASE;
+	pass->numMergedPasses = 1;
+	pass->flush = R_RenderMeshGeneric;
+
+	if ( !pass->anim_frames[0] ) {
+		Con_DPrintf ( S_COLOR_YELLOW "Shader %s has a stage with no image: %s.\n", s->name, shortname );
+		pass->anim_frames[0] = 0;//fizme:r_notexture;
+	}
+
+	s->numpasses = 1;
+	s->numdeforms = 0;
+	s->flags = SHADER_NOPICMIP|SHADER_NOMIPMAPS|SHADER_BLEND;
+	s->features = MF_STCOORDS|MF_COLORS;
+	s->sort = SHADER_SORT_ADDITIVE;
+	s->registration_sequence = 1;//fizme: registration_sequence;
+}
+
+int R_LoadShader ( char *name, void(*defaultgen)(char *name, shader_t*))
 {
 	int i, f = -1;
 	unsigned int offset, length = 0;
 	char shortname[MAX_QPATH], path[MAX_QPATH];
 	char *buf = NULL, *ts = NULL;
 	shader_t *s;
-	shaderpass_t *pass;
 
 	COM_StripExtension ( name, shortname );
 
@@ -1768,166 +1958,10 @@ int R_LoadShader ( char *name, int type )
 	}
 	else		// make a default shader
 	{
-		switch (type)
-		{
-			case SHADER_BSP:
-				pass = &s->passes[0];
-				pass->flags = SHADER_PASS_LIGHTMAP | SHADER_PASS_DEPTHWRITE | SHADER_PASS_NOCOLORARRAY;
-				pass->tcgen = TC_GEN_LIGHTMAP;
-				pass->anim_frames[0] = 0;
-				pass->depthfunc = GL_LEQUAL;
-				pass->blendmode = GL_REPLACE;
-				pass->alphagen = ALPHA_GEN_IDENTITY;
-				pass->rgbgen = RGB_GEN_IDENTITY;
-				pass->numMergedPasses = 2;
-
-				if ( qglMTexCoord2fSGIS )
-				{
-					pass->numMergedPasses = 2;
-					pass->flush = R_RenderMeshMultitextured;
-				}
-				else
-				{
-					pass->numMergedPasses = 1;
-					pass->flush = R_RenderMeshGeneric;
-				}
-					
-				pass = &s->passes[1];
-				pass->flags = SHADER_PASS_BLEND | SHADER_PASS_NOCOLORARRAY;
-				pass->tcgen = TC_GEN_BASE;
-				pass->anim_frames[0] = Mod_LoadHiResTexture(shortname, true, false, true);//GL_FindImage (shortname, 0);
-				pass->blendsrc = GL_ZERO;
-				pass->blenddst = GL_SRC_COLOR;
-				pass->blendmode = GL_MODULATE;
-				pass->depthfunc = GL_LEQUAL;
-				pass->rgbgen = RGB_GEN_IDENTITY;
-				pass->alphagen = ALPHA_GEN_IDENTITY;
-
-				pass->numMergedPasses = 1;
-				pass->flush = R_RenderMeshGeneric;
-
-				if ( !pass->anim_frames[0] ) {
-					Con_DPrintf ( S_COLOR_YELLOW "Shader %s has a stage with no image: %s.\n", s->name, shortname );
-					pass->anim_frames[0] = 0;//fizme:r_notexture;
-				}
-
-				s->numpasses = 2;
-				s->numdeforms = 0;
-				s->flags = SHADER_DEPTHWRITE|SHADER_CULL_FRONT;
-				s->features = MF_STCOORDS|MF_LMCOORDS|MF_TRNORMALS;
-				s->sort = SHADER_SORT_OPAQUE;
-				s->registration_sequence = 1;//fizme: registration_sequence;
-				break;
-
-			case SHADER_BSP_VERTEX:
-				pass = &s->passes[0];
-				pass->tcgen = TC_GEN_BASE;
-				pass->anim_frames[0] = Mod_LoadHiResTexture(shortname, true, false, true);//GL_FindImage (shortname, 0);
-				pass->depthfunc = GL_LEQUAL;
-				pass->flags = SHADER_PASS_DEPTHWRITE;
-				pass->rgbgen = RGB_GEN_VERTEX;
-				pass->alphagen = ALPHA_GEN_IDENTITY;
-				pass->blendmode = GL_MODULATE;
-				pass->numMergedPasses = 1;
-				pass->flush = R_RenderMeshGeneric;
-
-				if ( !pass->anim_frames[0] ) {
-					Con_DPrintf ( S_COLOR_YELLOW "Shader %s has a stage with no image: %s.\n", s->name, shortname );
-					pass->anim_frames[0] = 0;//fizme:r_notexture;
-				}
-
-				s->numpasses = 1;
-				s->numdeforms = 0;
-				s->flags = SHADER_DEPTHWRITE|SHADER_CULL_FRONT;
-				s->features = MF_STCOORDS|MF_COLORS|MF_TRNORMALS;
-				s->sort = SHADER_SORT_OPAQUE;
-				s->registration_sequence = 1;//fizme: registration_sequence;
-				break;
-
-			case SHADER_BSP_FLARE:
-				pass = &s->passes[0];
-				pass->flags = SHADER_PASS_BLEND | SHADER_PASS_NOCOLORARRAY;
-				pass->blendsrc = GL_ONE;
-				pass->blenddst = GL_ONE;
-				pass->blendmode = GL_MODULATE;
-				pass->anim_frames[0] = Mod_LoadHiResTexture(shortname, true, true, true);//GL_FindImage (shortname, 0);
-				pass->depthfunc = GL_LEQUAL;
-				pass->rgbgen = RGB_GEN_VERTEX;
-				pass->alphagen = ALPHA_GEN_IDENTITY;
-				pass->numtcmods = 0;
-				pass->tcgen = TC_GEN_BASE;
-				pass->numMergedPasses = 1;
-				pass->flush = R_RenderMeshGeneric;
-
-				if ( !pass->anim_frames[0] ) {
-					Con_DPrintf ( S_COLOR_YELLOW "Shader %s has a stage with no image: %s.\n", s->name, shortname );
-					pass->anim_frames[0] = 0;//fizme:r_notexture;
-				}
-
-				s->numpasses = 1;
-				s->numdeforms = 0;
-				s->flags = SHADER_FLARE;
-				s->features = MF_STCOORDS|MF_COLORS;
-				s->sort = SHADER_SORT_ADDITIVE;
-				s->registration_sequence = 1;//fizme: registration_sequence;
-				break;
-
-			case SHADER_MD3:
-				pass = &s->passes[0];
-				pass->flags = SHADER_PASS_DEPTHWRITE;
-				pass->anim_frames[0] = Mod_LoadHiResTexture(shortname, true, true, true);//GL_FindImage (shortname, 0);
-				pass->depthfunc = GL_LEQUAL;
-				pass->rgbgen = RGB_GEN_LIGHTING_DIFFUSE;
-				pass->numtcmods = 0;
-				pass->tcgen = TC_GEN_BASE;
-				pass->blendmode = GL_MODULATE;
-				pass->numMergedPasses = 1;
-				pass->flush = R_RenderMeshGeneric;
-
-				if ( !pass->anim_frames[0] ) {
-					Con_DPrintf ( S_COLOR_YELLOW "Shader %s has a stage with no image: %s.\n", s->name, shortname );
-					pass->anim_frames[0] = 0;//fizme:r_notexture;
-				}
-
-				s->numpasses = 1;
-				s->numdeforms = 0;
-				s->flags = SHADER_DEPTHWRITE|SHADER_CULL_FRONT;
-				s->features = MF_STCOORDS|MF_NORMALS;
-				s->sort = SHADER_SORT_OPAQUE;
-				s->registration_sequence = 1;//fizme: registration_sequence;
-				break;
-
-			case SHADER_2D:
-				pass = &s->passes[0];
-				pass->flags = SHADER_PASS_BLEND | SHADER_PASS_NOCOLORARRAY;
-				pass->blendsrc = GL_SRC_ALPHA;
-				pass->blenddst = GL_ONE_MINUS_SRC_ALPHA;
-				pass->blendmode = GL_MODULATE;
-				pass->anim_frames[0] = Mod_LoadHiResTexture(shortname, false, true, true);//GL_FindImage (shortname, IT_NOPICMIP|IT_NOMIPMAP);
-				pass->depthfunc = GL_LEQUAL;
-				pass->rgbgen = RGB_GEN_VERTEX;
-				pass->alphagen = ALPHA_GEN_VERTEX;
-				pass->numtcmods = 0;
-				pass->tcgen = TC_GEN_BASE;
-				pass->numMergedPasses = 1;
-				pass->flush = R_RenderMeshGeneric;
-
-				if ( !pass->anim_frames[0] ) {
-					Con_DPrintf ( S_COLOR_YELLOW "Shader %s has a stage with no image: %s.\n", s->name, shortname );
-					pass->anim_frames[0] = 0;//fizme:r_notexture;
-				}
-
-				s->numpasses = 1;
-				s->numdeforms = 0;
-				s->flags = SHADER_NOPICMIP|SHADER_NOMIPMAPS|SHADER_BLEND;
-				s->features = MF_STCOORDS|MF_COLORS;
-				s->sort = SHADER_SORT_ADDITIVE;
-				s->registration_sequence = 1;//fizme: registration_sequence;
-				break;
-
-			default:
-				return -1;
-		}
+		if (defaultgen)
+			defaultgen(shortname, s);
+		else
+			return -1;
 	}
 
 	return f;
@@ -1935,27 +1969,31 @@ int R_LoadShader ( char *name, int type )
 
 shader_t *R_RegisterPic (char *name) 
 {
-	return &r_shaders[R_LoadShader (name, SHADER_2D)];
+	return &r_shaders[R_LoadShader (name, Shader_Default2D)];
 }
 
 shader_t *R_RegisterShader (char *name)
 {
-	return &r_shaders[R_LoadShader (name, SHADER_BSP)];
+	return &r_shaders[R_LoadShader (name, Shader_DefaultBSP)];
 }
 
 shader_t *R_RegisterShader_Vertex (char *name)
 {
-	return &r_shaders[R_LoadShader (name, SHADER_BSP_VERTEX)];
+	return &r_shaders[R_LoadShader (name, Shader_DefaultBSPVertex)];
 }
 
 shader_t *R_RegisterShader_Flare (char *name)
 {
-	return &r_shaders[R_LoadShader (name, SHADER_BSP_FLARE)];
+	return &r_shaders[R_LoadShader (name, Shader_DefaultBSPFlare)];
 }
 
 shader_t *R_RegisterSkin (char *name)
 {
-	return &r_shaders[R_LoadShader (name, SHADER_MD3)];
+	return &r_shaders[R_LoadShader (name, Shader_DefaultSkin)];
+}
+shader_t *R_RegisterCustom (char *name, void(*defaultgen)(char *name, shader_t*))
+{
+	return &r_shaders[R_LoadShader (name, defaultgen)];
 }
 #endif
 

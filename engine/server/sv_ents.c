@@ -347,6 +347,12 @@ void SV_EmitCSQCUpdate(client_t *client, sizebuf_t *msg)
 				MSG_WriteByte(msg, svc_csqcentities);
 			}
 			MSG_WriteShort(msg, ent->entnum);
+			if (sv.csqcdebug)	//optional extra.
+			{
+				if (!csqcmsgbuffer.cursize)
+					Con_Printf("Warning: empty csqc packet on %s\n", svprogfuncs->stringtable+ent->v.classname);
+				MSG_WriteShort(msg, csqcmsgbuffer.cursize);
+			}
 			//FIXME: Add a developer mode to write the length of each entity.
 			SZ_Write(msg, csqcmsgbuffer.data, csqcmsgbuffer.cursize);
 
@@ -2141,6 +2147,7 @@ void SV_WriteEntitiesToClient (client_t *client, sizebuf_t *msg, qboolean ignore
 
 		if (!ignorepvs)
 		{
+			//branch out to the pvs testing.
 			if (ent->tagent)
 			{
 				edict_t *p = ent;
@@ -2157,54 +2164,6 @@ void SV_WriteEntitiesToClient (client_t *client, sizebuf_t *msg, qboolean ignore
 				if (!sv.worldmodel->funcs.EdictInFatPVS(ent))
 					continue;
 			}
-			/*
-#ifdef Q2BSPS
-			if (sv.worldmodel->fromgame == fg_quake2 || sv.worldmodel->fromgame == fg_quake3)
-			{//quake2 vising logic
-				// check area
-				if (!CM_AreasConnected (clientarea, ent->areanum))
-				{	// doors can legally straddle two areas, so
-					// we may need to check another one
-					if (!ent->areanum2
-						|| !CM_AreasConnected (clientarea, ent->areanum2))
-						continue;		// blocked by a door
-				}
-
-				if (ent->num_leafs == -1)
-				{	// too many leafs for individual check, go by headnode
-					if (!CM_HeadnodeVisible (ent->headnode, fatpvs))
-						continue;
-				}
-				else
-				{	// check individual leafs
-					for (i=0 ; i < ent->num_leafs ; i++)
-					{
-						l = ent->leafnums[i];
-						if (fatpvs[l >> 3] & (1 << (l&7) ))
-							break;
-					}
-					if (i == ent->num_leafs)
-						continue;		// not visible
-				}
-			}
-			else
-#endif
-				if (sv.worldmodel->fromgame == fg_doom)
-				{
-				}
-			else
-			{//quake1 vising logic
-				// ignore if not touching a PV leaf
-				for (i=0 ; i < ent->num_leafs ; i++)
-					if (pvs[ent->leafnums[i] >> 3] & (1 << (ent->leafnums[i]&7) ))
-						break;
-					
-				if (i == ent->num_leafs)		// not visible
-				{
-					continue;
-				}
-			}
-			*/
 		}
 
 

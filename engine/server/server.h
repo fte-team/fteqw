@@ -102,6 +102,9 @@ typedef struct
 	qboolean	active;				// false when server is going down
 	server_state_t	state;			// precache commands are only valid during load
 
+	float		gamespeed;	//time progression multiplier, fixed per-level.
+	qboolean	csqcdebug;
+
 	double		time;
 	int framenum;
 	
@@ -118,14 +121,22 @@ typedef struct
 	char		mapname[256];
 	char		modelname[MAX_QPATH];		// maps/<name>.bsp, for model_precache[0]
 	struct model_s 	*worldmodel;
-	char		model_precache[MAX_MODELS][MAX_QPATH];	// NULL terminated
-	char		sound_precache[MAX_SOUNDS][MAX_QPATH];	// NULL terminated
-	char		image_precache[Q2MAX_IMAGES][MAX_QPATH];
-	char		*lightstyles[MAX_LIGHTSTYLES];
-	char		lightstylecolours[MAX_LIGHTSTYLES];
-	struct model_s		*models[MAX_MODELS];
 
-	char *statusbar;	//part of the config strings - q2 has a progs specified sbar.
+	union {
+#ifdef Q2SERVER
+		struct {
+			char configstring[Q2MAX_CONFIGSTRINGS][MAX_QPATH];
+		};
+#endif
+		struct {
+			char		model_precache[MAX_MODELS][MAX_QPATH];	// NULL terminated
+			char		sound_precache[MAX_SOUNDS][MAX_QPATH];	// NULL terminated
+			char		image_precache[Q2MAX_IMAGES][MAX_QPATH];
+			char		*lightstyles[MAX_LIGHTSTYLES];
+			char		lightstylecolours[MAX_LIGHTSTYLES];
+		};
+	};
+	struct model_s		*models[MAX_MODELS];
 
 	int			allocated_client_slots;	//number of slots available. (used mostly to stop single player saved games cacking up)
 	int			max_edicts;	//limiting factor... 1024 fields*4*MAX_EDICTS == a heck of a lot.

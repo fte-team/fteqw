@@ -2,6 +2,7 @@
 #include "particles.h"
 
 #ifdef Q2CLIENT
+#include "shader.h"
 
 extern cvar_t r_drawviewmodel;
 
@@ -1438,10 +1439,10 @@ void CLQ2_AddPacketEntities (q2frame_t *frame)
 
 				player = &cl.players[s1->skinnum%MAX_CLIENTS];
 				ent.model = player->model;
-				if (!ent.model)
+				if (!ent.model || ent.model->needload)	//we need to do better than this
 				{
 					ent.model = Mod_ForName(va("players/%s/tris.md2", Info_ValueForKey(player->userinfo, "model")), false);
-					if (!ent.model)
+					if (!ent.model || ent.model->needload)
 						ent.model = Mod_ForName("players/male/tris.md2", false);
 				}
 				ent.scoreboard = player;
@@ -1529,12 +1530,11 @@ void CLQ2_AddPacketEntities (q2frame_t *frame)
 			}
 		}
 
- 	ent.angles[0]*=-1;
+ 	ent.angles[0]*=-1;	//q2 has it fixed.
 
-		if (s1->number == cl.playernum[0]+1)
+		if (s1->number == cl.playernum[0]+1)	//woo! this is us!
 		{
 			ent.flags |= Q2RF_VIEWERMODEL;	// only draw from mirrors
-			// FIXME: still pass to refresh
 
 			if (effects & Q2EF_FLAG1)
 				V_AddLight (ent.origin, 225, 0.2, 0.05, 0.05);
@@ -1544,8 +1544,6 @@ void CLQ2_AddPacketEntities (q2frame_t *frame)
 				V_AddLight (ent.origin, 225, 0.2, 0.2, 0.0);	//PGM
 			else if (effects & Q2EF_TRACKERTRAIL)					//PGM
 				V_AddLight (ent.origin, 225, -0.2, -0.2, -0.2);	//PGM
-
-			continue;
 		}
 
 		// if set to invisible, skip
@@ -1589,7 +1587,7 @@ void CLQ2_AddPacketEntities (q2frame_t *frame)
 
 			// all of the solo colors are fine.  we need to catch any of the combinations that look bad
 			// (double & half) and turn them into the appropriate color, and make double/quad something special
-/*			if (renderfx & Q2RF_SHELL_HALF_DAM)
+			if (renderfx & Q2RF_SHELL_HALF_DAM)
 			{
 				
 				{
@@ -1617,13 +1615,22 @@ void CLQ2_AddPacketEntities (q2frame_t *frame)
 						else
 							renderfx |= Q2RF_SHELL_GREEN;
 				}
-			}*/
+			}
 			// pmm
 			ent.flags = renderfx | Q2RF_TRANSLUCENT;
 			ent.alpha = 0.30;
-			ent.fatness = 10;
+			ent.fatness = 1;
+#ifdef Q3SHADERS
+			//fixme: this is woefully gl specific. :(
+			ent.shaderRGBA[0] = (!!(renderfx & Q2RF_SHELL_RED)) * 255;
+			ent.shaderRGBA[1] = (!!(renderfx & Q2RF_SHELL_GREEN)) * 255;
+			ent.shaderRGBA[2] = (!!(renderfx & Q2RF_SHELL_BLUE)) * 255;
+			ent.shaderRGBA[3] = ent.alpha*255;
+			ent.forcedshader = R_RegisterCustom("q2/shell", Shader_DefaultSkinShell);
+#endif
 			V_AddLerpEntity (&ent);
 		}
+		ent.forcedshader = NULL;
 
 //		ent.skin = NULL;		// never use a custom skin on others
 		ent.skinnum = 0;

@@ -93,6 +93,8 @@ cvar_t sv_master = {"sv_master", "0"};
 cvar_t sv_masterport = {"sv_masterport", "0"};
 
 cvar_t	sv_voicechat = {"sv_voicechat", "0"};	//still development.
+cvar_t	sv_gamespeed = {"sv_gamespeed", "1"};
+cvar_t	sv_csqcdebug = {"sv_csqcdebug", "0"};
 
 cvar_t pausable	= {"pausable", "1"};
 
@@ -331,7 +333,10 @@ void SV_DropClient (client_t *drop)
 #ifdef SVCHAT
 	SV_WipeChat(drop);
 #endif
-
+#ifdef Q2SERVER
+	if (ge)
+		ge->ClientDisconnect(drop->q2edict);
+#endif
 	if (svprogfuncs)
 	{
 		if (drop->state == cs_spawned)
@@ -356,10 +361,6 @@ void SV_DropClient (client_t *drop)
 			Z_Free(drop->spawninfo);
 		drop->spawninfo = NULL;
 	}
-#ifdef Q2SERVER
-	else if (ge && drop->q2edict)	//could be in sv_spawnserver.
-		ge->ClientDisconnect(drop->q2edict);
-#endif
 
 	if (drop->spectator)
 		Con_Printf ("Spectator %s removed\n",drop->name);
@@ -1472,7 +1473,7 @@ void SVC_DirectConnect
 		if (!ge->ClientConnect(q2ent, temp.userinfo))
 			return;
 
-
+		ge->ClientUserinfoChanged(q2ent, temp.userinfo);
 
 		// build a new connection
 		// accept the new client
@@ -2615,7 +2616,7 @@ void SV_GetConsoleCommands (void)
 int SV_RateForClient(client_t *cl)
 {
 	int rate;
-	if (cl->download)
+	if (cl->download && cl->drate)
 	{
 		rate = cl->drate;
 		if (rate > sv_maxdrate.value)
@@ -2755,12 +2756,17 @@ void SV_Frame (float time)
 // keep the random time dependent
 	rand ();
 
+	if (!sv.gamespeed)
+		sv.gamespeed = 1;
+
 // decide the simulation time
 	if (!sv.paused) {
 #ifndef SERVERONLY
 		if (isDedicated)
 #endif
 			realtime += time;
+
+		time *= sv.gamespeed;
 		sv.time += time;
 	}
 #ifdef IWEB_H__
@@ -3006,6 +3012,9 @@ void SV_InitLocal (void)
 
 	Cvar_Register (&sv_phs,	cvargroup_servercontrol);
 
+	Cvar_Register (&sv_csqcdebug, cvargroup_servercontrol);
+
+	Cvar_Register (&sv_gamespeed, cvargroup_serverphysics);
 	Cvar_Register (&sv_nomsec,	cvargroup_serverphysics);
 	Cvar_Register (&pr_allowbutton1, cvargroup_servercontrol);
 
@@ -3414,7 +3423,7 @@ void SV_ExtractFromUserinfo (client_t *cl)
 	if (strlen(val))
 		cl->drate = atoi(val);
 	else
-		cl->drate = cl->rate;
+		cl->drate = 0;	//0 disables the downloading check
 
 	// msg command
 	val = Info_ValueForKey (cl->userinfo, "msg");

@@ -935,8 +935,13 @@ void QCC_PR_LexString (void)
 			else if (c == '\'')
 				c = '\'';
 			else if (c >= '0' && c <= '9')
-				c = (int)QCC_PR_LexOctal();
-
+				c = 18 + c - '0';
+			else if (c >= '0' && c <= '8')
+			{	//octal
+				c = c - '0';
+				while(*pr_file_p >= '0' && *pr_file_p <= '8')
+					c = (c<<3) | (*pr_file_p++ - '0');
+			}
 			else if (c == '\r')
 			{	//sigh
 				c = *pr_file_p++;
@@ -2367,7 +2372,7 @@ Returns false and does nothing otherwise
 =============
 */
 #ifndef COMMONINLINES
-pbool QCC_PR_Check (char *string)
+pbool QCC_PR_CheckToken (char *string)
 {
 	if (STRCMP (string, pr_token))
 		return false;
@@ -2375,16 +2380,42 @@ pbool QCC_PR_Check (char *string)
 	QCC_PR_Lex ();
 	return true;
 }
-#endif
 
-pbool QCC_PR_CheckInsens (char *string)
+pbool QCC_PR_CheckName(char *string)
 {
-	if (stricmp (string, pr_token))
-		return false;
-		
+	if (flag_caseinsensative) 
+	{
+		if (stricmp (string, pr_token))
+			return false;
+	}
+	else
+	{
+		if (STRCMP(string, pr_token))
+			return false;
+	}
 	QCC_PR_Lex ();
 	return true;
 }
+
+pbool QCC_PR_CheckKeyword(int keywordenabled, char *string)
+{
+	if (!keywordenabled)
+		return false;
+	if (flag_caseinsensative) 
+	{
+		if (stricmp (string, pr_token))
+			return false;
+	}
+	else
+	{
+		if (STRCMP(string, pr_token))
+			return false;
+	}
+	QCC_PR_Lex ();
+	return true;
+}
+#endif
+
 
 /*
 ============
@@ -2622,7 +2653,7 @@ void QCC_PR_SkipToSemicolon (void)
 {
 	do
 	{
-		if (!pr_bracelevel && QCC_PR_Check (";"))
+		if (!pr_bracelevel && QCC_PR_CheckToken (";"))
 			return;
 		QCC_PR_Lex ();
 	} while (pr_token_type != tt_eof);
@@ -2661,9 +2692,9 @@ QCC_type_t *QCC_PR_ParseFunctionType (int newtype, QCC_type_t *returntype)
 	ptype = NULL;
 
 
-	if (!QCC_PR_Check (")"))
+	if (!QCC_PR_CheckToken (")"))
 	{
-		if (QCC_PR_Check ("..."))
+		if (QCC_PR_CheckToken ("..."))
 			ftype->num_parms = -1;	// variable args
 		else
 			do
@@ -2671,7 +2702,7 @@ QCC_type_t *QCC_PR_ParseFunctionType (int newtype, QCC_type_t *returntype)
 				if (ftype->num_parms>=MAX_PARMS+MAX_EXTRA_PARMS)
 					QCC_PR_ParseError(ERR_TOOMANYTOTALPARAMETERS, "Too many parameters. Sorry. (limit is %i)\n", MAX_PARMS+MAX_EXTRA_PARMS);
 
-				if (QCC_PR_Check ("..."))
+				if (QCC_PR_CheckToken ("..."))
 				{
 					ftype->num_parms = (ftype->num_parms * -1) - 1;
 					break;
@@ -2703,7 +2734,7 @@ QCC_type_t *QCC_PR_ParseFunctionType (int newtype, QCC_type_t *returntype)
 				else if (definenames)
 					strcpy (pr_parm_names[ftype->num_parms], "");
 				ftype->num_parms++;
-			} while (QCC_PR_Check (","));
+			} while (QCC_PR_CheckToken (","));
 	
 		QCC_PR_Expect (")");
 	}
@@ -2730,9 +2761,9 @@ QCC_type_t *QCC_PR_ParseFunctionTypeReacc (int newtype, QCC_type_t *returntype)
 	ptype = NULL;
 
 
-	if (!QCC_PR_Check (")"))
+	if (!QCC_PR_CheckToken (")"))
 	{
-		if (QCC_PR_Check ("..."))
+		if (QCC_PR_CheckToken ("..."))
 			ftype->num_parms = -1;	// variable args
 		else
 			do
@@ -2740,19 +2771,19 @@ QCC_type_t *QCC_PR_ParseFunctionTypeReacc (int newtype, QCC_type_t *returntype)
 				if (ftype->num_parms>=MAX_PARMS+MAX_EXTRA_PARMS)
 					QCC_PR_ParseError(ERR_TOOMANYTOTALPARAMETERS, "Too many parameters. Sorry. (limit is %i)\n", MAX_PARMS+MAX_EXTRA_PARMS);
 
-				if (QCC_PR_Check ("..."))
+				if (QCC_PR_CheckToken ("..."))
 				{
 					ftype->num_parms = (ftype->num_parms * -1) - 1;
 					break;
 				}
 
-				if (QCC_PR_Check("arg"))
+				if (QCC_PR_CheckToken("arg"))
 				{
 					sprintf(argname, "arg%i", ftype->num_parms);
 					name = argname;
 					nptype = QCC_PR_NewType("Variant", ev_variant);
 				}
-				else if (QCC_PR_Check("vect"))	//this can only be of vector sizes, so...
+				else if (QCC_PR_CheckToken("vect"))	//this can only be of vector sizes, so...
 				{
 					sprintf(argname, "arg%i", ftype->num_parms);
 					name = argname;
@@ -2782,7 +2813,7 @@ QCC_type_t *QCC_PR_ParseFunctionTypeReacc (int newtype, QCC_type_t *returntype)
 				if (definenames)
 					strcpy (pr_parm_names[ftype->num_parms], name);
 				ftype->num_parms++;
-			} while (QCC_PR_Check (";"));
+			} while (QCC_PR_CheckToken (";"));
 	
 		QCC_PR_Expect (")");
 	}
@@ -2821,7 +2852,7 @@ QCC_type_t *QCC_PR_ParseType (int newtype)
 
 //	int ofs;
 
-	if (QCC_PR_Check (".."))	//so we don't end up with the user specifying '. .vector blah' (hexen2 added the .. token for array ranges)
+	if (QCC_PR_CheckToken (".."))	//so we don't end up with the user specifying '. .vector blah' (hexen2 added the .. token for array ranges)
 	{
 		newt = QCC_PR_NewType("FIELD TYPE", ev_field);
 		newt->aux_type = QCC_PR_ParseType (false);
@@ -2839,7 +2870,7 @@ QCC_type_t *QCC_PR_ParseType (int newtype)
 			return type;
 		return QCC_PR_FindType (type);
 	}
-	if (QCC_PR_Check ("."))
+	if (QCC_PR_CheckToken ("."))
 	{
 		newt = QCC_PR_NewType("FIELD TYPE", ev_field);
 		newt->aux_type = QCC_PR_ParseType (false);
@@ -2853,7 +2884,7 @@ QCC_type_t *QCC_PR_ParseType (int newtype)
 
 	name = QCC_PR_CheakCompConstString(pr_token);
 
-	if (QCC_PR_Check ("class"))
+	if (QCC_PR_CheckKeyword (keyword_class, "class"))
 	{
 //		int parms;
 		QCC_type_t *fieldtype;
@@ -2864,7 +2895,7 @@ QCC_type_t *QCC_PR_ParseType (int newtype)
 
 		type = NULL;
 
-		if (QCC_PR_Check(":"))
+		if (QCC_PR_CheckToken(":"))
 		{
 			char *parentname = QCC_PR_ParseName();
 			newt->parentclass = QCC_TypeForName(parentname);
@@ -2876,11 +2907,11 @@ QCC_type_t *QCC_PR_ParseType (int newtype)
 
 
 		QCC_PR_Expect("{");
-		if (QCC_PR_Check(","))
+		if (QCC_PR_CheckToken(","))
 			QCC_PR_ParseError(ERR_NOTANAME, "member missing name");
-		while (!QCC_PR_Check("}"))
+		while (!QCC_PR_CheckToken("}"))
 		{
-//			if (QCC_PR_Check(","))
+//			if (QCC_PR_CheckToken(","))
 //				type->next = QCC_PR_NewType(type->name, type->type);
 //			else
 				newparm = QCC_PR_ParseType(true);
@@ -2888,17 +2919,17 @@ QCC_type_t *QCC_PR_ParseType (int newtype)
 			if (newparm->type == ev_struct || newparm->type == ev_union)	//we wouldn't be able to handle it.
 				QCC_PR_ParseError(ERR_INTERNAL, "Struct or union in class %s", classname);
 
-			if (!QCC_PR_Check(";"))
+			if (!QCC_PR_CheckToken(";"))
 			{
 				newparm->name = QCC_CopyString(pr_token)+strings;
 				QCC_PR_Lex();
-				if (QCC_PR_Check("["))
+				if (QCC_PR_CheckToken("["))
 				{
 					type->next->size*=atoi(pr_token);
 					QCC_PR_Lex();
 					QCC_PR_Expect("]");
 				}
-				QCC_PR_Check(";");
+				QCC_PR_CheckToken(";");
 			}
 			else
 				newparm->name = QCC_CopyString("")+strings;
@@ -2924,20 +2955,20 @@ QCC_type_t *QCC_PR_ParseType (int newtype)
 		QCC_PR_Expect(";");
 		return NULL;
 	}
-	if (QCC_PR_Check ("struct"))
+	if (QCC_PR_CheckKeyword (keyword_struct, "struct"))
 	{
 		newt = QCC_PR_NewType("struct", ev_struct);
 		newt->size=0;
 		QCC_PR_Expect("{");
 
 		type = NULL;
-		if (QCC_PR_Check(","))
+		if (QCC_PR_CheckToken(","))
 			QCC_PR_ParseError(ERR_NOTANAME, "element missing name");
 
 		newparm = NULL;
-		while (!QCC_PR_Check("}"))
+		while (!QCC_PR_CheckToken("}"))
 		{
-			if (QCC_PR_Check(","))
+			if (QCC_PR_CheckToken(","))
 			{
 				if (!newparm)
 					QCC_PR_ParseError(ERR_NOTANAME, "element missing type");
@@ -2946,17 +2977,17 @@ QCC_type_t *QCC_PR_ParseType (int newtype)
 			else
 				newparm = QCC_PR_ParseType(true);
 
-			if (!QCC_PR_Check(";"))
+			if (!QCC_PR_CheckToken(";"))
 			{
 				newparm->name = QCC_CopyString(pr_token)+strings;
 				QCC_PR_Lex();
-				if (QCC_PR_Check("["))
+				if (QCC_PR_CheckToken("["))
 				{
 					newparm->size*=atoi(pr_token);
 					QCC_PR_Lex();
 					QCC_PR_Expect("]");
 				}
-				QCC_PR_Check(";");
+				QCC_PR_CheckToken(";");
 			}
 			else
 				newparm->name = QCC_CopyString("")+strings;
@@ -2972,19 +3003,19 @@ QCC_type_t *QCC_PR_ParseType (int newtype)
 		}
 		return newt;
 	}
-	if (QCC_PR_Check ("union"))
+	if (QCC_PR_CheckKeyword (keyword_union, "union"))
 	{
 		newt = QCC_PR_NewType("union", ev_union);
 		newt->size=0;
 		QCC_PR_Expect("{");
 		
 		type = NULL;
-		if (QCC_PR_Check(","))
+		if (QCC_PR_CheckToken(","))
 			QCC_PR_ParseError(ERR_NOTANAME, "element missing name");
 		newparm = NULL;
-		while (!QCC_PR_Check("}"))
+		while (!QCC_PR_CheckToken("}"))
 		{
-			if (QCC_PR_Check(","))
+			if (QCC_PR_CheckToken(","))
 			{
 				if (!newparm)
 					QCC_PR_ParseError(ERR_NOTANAME, "element missing type");
@@ -2992,7 +3023,7 @@ QCC_type_t *QCC_PR_ParseType (int newtype)
 			}
 			else
 				newparm = QCC_PR_ParseType(true);
-			if (QCC_PR_Check(";"))
+			if (QCC_PR_CheckToken(";"))
 				newparm->name = QCC_CopyString("")+strings;
 			else
 			{
@@ -3047,7 +3078,7 @@ QCC_type_t *QCC_PR_ParseType (int newtype)
 	}
 	QCC_PR_Lex ();
 	
-	if (QCC_PR_Check ("("))	//this is followed by parameters. Must be a function.
+	if (QCC_PR_CheckToken ("("))	//this is followed by parameters. Must be a function.
 		return QCC_PR_ParseFunctionType(newtype, type);
 	else
 	{

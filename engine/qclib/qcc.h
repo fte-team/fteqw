@@ -437,26 +437,37 @@ extern	token_type_t	pr_token_type;
 extern	QCC_type_t		*pr_immediate_type;
 extern	QCC_eval_t		pr_immediate;
 
-extern pbool keyword_var;
-extern pbool keyword_thinktime;
-extern pbool keyword_switch;
-extern pbool keyword_for;
+extern pbool keyword_asm;
+extern pbool keyword_break;
 extern pbool keyword_case;
+extern pbool keyword_class;
+extern pbool keyword_const;
+extern pbool keyword_continue;
 extern pbool keyword_default;
 extern pbool keyword_do;
-extern pbool keyword_asm;
+extern pbool keyword_entity;
+extern pbool keyword_float;
+extern pbool keyword_for;
 extern pbool keyword_goto;
-extern pbool keyword_break;
-extern pbool keyword_continue;
+extern pbool keyword_int;
+extern pbool keyword_integer;
 extern pbool keyword_state;
 extern pbool keyword_string;
-extern pbool keyword_float;
-extern pbool keyword_entity;
+extern pbool keyword_struct;
+extern pbool keyword_switch;
+extern pbool keyword_thinktime;
+extern pbool keyword_var;
 extern pbool keyword_vector;
-extern pbool keyword_integer;
-extern pbool keyword_int;
-extern pbool keyword_const;
-extern pbool keyword_class;
+extern pbool keyword_union;
+extern pbool keyword_enum;	//kinda like in c, but typedef not supported.
+extern pbool keyword_enumflags;	//like enum, but doubles instead of adds 1.
+extern pbool keyword_typedef;	//fixme
+extern pbool keyword_extern;	//function is external, don't error or warn if the body was not found
+extern pbool keyword_shared;	//mark global to be copied over when progs changes (part of FTE_MULTIPROGS)
+extern pbool keyword_noref;	//nowhere else references this, don't strip it.
+extern pbool keyword_nosave;	//don't write the def to the output.
+extern pbool keyword_union;	//you surly know what a union is!
+
 
 extern pbool keywords_coexist;
 extern pbool output_parms;
@@ -527,9 +538,10 @@ CompilerConstant_t *QCC_PR_DefineName(char *name);
 void QCC_RemapOffsets(unsigned int firststatement, unsigned int laststatement, unsigned int min, unsigned int max, unsigned int newmin);
 
 #ifndef COMMONINLINES
-pbool QCC_PR_Check (char *string);
-pbool QCC_PR_CheckInsens (char *string);
+pbool QCC_PR_CheckToken (char *string);
+pbool QCC_PR_CheckName (char *string);
 void QCC_PR_Expect (char *string);
+pbool QCC_PR_CheckKeyword(int keywordenabled, char *string);
 #endif
 void VARGS QCC_PR_ParseError (int errortype, char *error, ...);
 void VARGS QCC_PR_ParseWarning (int warningtype, char *error, ...);
@@ -587,6 +599,7 @@ enum {
 	WARN_EXTENSION_USED,	//extension that frikqcc also understands
 	WARN_IFSTRING_USED,
 	WARN_LAXCAST,	//some errors become this with a compiler flag
+	WARN_UNDESIRABLECONVENTION,
 
 	ERR_PARSEERRORS,	//caused by qcc_pr_parseerror being called.
 
@@ -847,9 +860,9 @@ extern qcc_cachedsourcefile_t *qcc_sourcefile;
 
 
 #ifdef COMMONINLINES
-bool inline QCC_PR_Check (char *string)
+bool inline QCC_PR_CheckToken (char *string)
 {
-	if (strcmp (string, pr_token))
+	if (STRCMP (string, pr_token))
 		return false;
 
 	QCC_PR_Lex ();

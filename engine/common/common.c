@@ -332,38 +332,49 @@ char *Q_strlwr(char *s)
 
 	return ret;
 }
-	
 
-int Q_strwildcmp(char *s1, char *s2)	//2 is wild
+int wildcmp(char *wild, char *string)
 {
-	return !wildcmp(s1, s2);
-	while (1)
+	char *cp=NULL, *mp=NULL;
+	
+	while ((*string) && (*wild != '*'))
 	{
-		if (!*s1 && !*s2)
-			return 0;	//yay, they are equivalent
-		if (!*s1 || !*s2)
-			return -1;	//one ended too soon.
-
-		if (*s2 == '*')
+		if ((*wild != *string) && (*wild != '?'))
 		{
-			s2++;
-			while (1)
-			{
-				if (!*s1 && *s2)
-					return -1;
-				if (*s1 == '.' || *s1 == '/' || !*s1)
-					break;
-				s1++;
-			}			
+			return 0;
 		}
-		else if (*s2 != *s1 && *s2 != '?')			
-			return -1;
+		wild++;
+		string++;
+	}
+
+	while (*string)
+	{
+		if (*wild == '*')
+		{
+			if (!*++wild)
+			{
+				return 1;
+			}
+			mp = wild;
+			cp = string+1;
+		}
+		else if ((*wild == *string) || (*wild == '?'))
+		{
+			wild++;
+			string++;
+		}
 		else
 		{
-			s1++;
-			s2++;
+			wild = mp;
+			string = cp++;
 		}
 	}
+		
+	while (*wild == '*')
+	{
+		wild++;
+	}
+	return !*wild;
 }
 
 int Q_atoi (char *str)
@@ -3465,7 +3476,6 @@ qbyte *COM_LoadStackFile (char *path, void *buffer, int bufsize)
 }
 
 
-int Q_strwildcmp(char *s1, char *s2);
 #ifdef ZLIB
 int COM_EnumerateZipFiles (zipfile_t *zip, char *match, int (*func)(char *, int, void *), void *parm);
 #endif
@@ -3475,7 +3485,7 @@ int COM_EnumeratePackFiles (pack_t *zip, char *match, int (*func)(char *, int, v
 
 	for (num = 0; num<(int)zip->numfiles; num++)
 	{
-		if (!Q_strwildcmp(zip->files[num].name, match))
+		if (wildcmp(zip->files[num].name, match))
 		{
 			if (!func(zip->files[num].name, zip->files[num].filelen, parm))
 				return false;
@@ -4030,14 +4040,13 @@ char *Com_ReadFileInZip(zipfile_t *zip, int index, char *buffer)
 	return 0;
 }
 
-int Q_strwildcmp(char *s1, char *s2);
 int COM_EnumerateZipFiles (zipfile_t *zip, char *match, int (*func)(char *, int, void *), void *parm)
 {
 	int		num;
 
 	for (num = 0; num<(int)zip->numfiles; num++)
 	{
-		if (!Q_strwildcmp(zip->files[num].name, match))
+		if (wildcmp(zip->files[num].name, match))
 		{
 			if (!func(zip->files[num].name, zip->files[num].filelen, parm))
 				return false;

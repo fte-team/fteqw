@@ -3188,14 +3188,16 @@ void GL_Upload8 (qbyte *data, int width, int height,  qboolean mipmap, qboolean 
 	}
 	else
 	{
-		if (s&3)
-			Sys_Error ("GL_Upload8: s&3");
-		for (i=0 ; i<s ; i+=4)
+		for (i=(s&~3)-4 ; i>=0 ; i-=4)
 		{
 			trans[i] = d_8to24rgbtable[data[i]];
 			trans[i+1] = d_8to24rgbtable[data[i+1]];
 			trans[i+2] = d_8to24rgbtable[data[i+2]];
 			trans[i+3] = d_8to24rgbtable[data[i+3]];
+		}
+		for (i=s&~3 ; i<s ; i++)	//wow, funky
+		{
+			trans[i] = d_8to24rgbtable[data[i]];
 		}
 	}
 

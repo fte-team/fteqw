@@ -10,6 +10,8 @@ progfuncs_t *csqcprogs;
 
 unsigned int csqcchecksum;
 
+cvar_t	pr_csmaxedicts = {"pr_csmaxedicts", "3072"};
+
 #define csqcglobals	\
 	globalfunction(init_function,		"CSQC_Init");	\
 	globalfunction(shutdown_function,	"CSQC_Shutdown");	\
@@ -1345,7 +1347,7 @@ qboolean CSQC_Init (unsigned int checksum)
 
 		memset(csqcent, 0, sizeof(csqcent));
 		
-		csqcentsize = PR_InitEnts(csqcprogs, 3072);
+		csqcentsize = PR_InitEnts(csqcprogs, pr_csmaxedicts.value);
 		
 		CSQC_FindGlobals();
 
@@ -1361,6 +1363,11 @@ qboolean CSQC_Init (unsigned int checksum)
 	}
 
 	return true; //success!
+}
+
+void CSQC_RegisterCvarsAndThings(void)
+{
+	Cvar_Register(&pr_csmaxedicts, "csqc");
 }
 
 qboolean CSQC_DrawView(void)
@@ -1421,6 +1428,8 @@ void CSQC_ParseEntities(void)
 	csqcedict_t *ent;
 	unsigned short entnum;
 	void *pr_globals;
+	int packetsize;
+	int packetstart;
 
 	if (!csqcprogs)
 		Host_EndGame("CSQC needs to be initialized for this server.\n");
@@ -1463,6 +1472,12 @@ void CSQC_ParseEntities(void)
 			if (entnum >= MAX_EDICTS)
 				Host_EndGame("CSQC recieved too many edicts!\n");
 
+			if (cl.csqcdebug)
+			{
+				packetsize = MSG_ReadShort();
+				packetstart = msg_readcount;
+			}
+
 			ent = csqcent[entnum];
 			if (!ent)
 			{
@@ -1475,6 +1490,25 @@ void CSQC_ParseEntities(void)
 
 			*csqcg.self = EDICT_TO_PROG(csqcprogs, (void*)ent);
 			PR_ExecuteProgram(csqcprogs, csqcg.ent_update);
+
+			if (cl.csqcdebug)
+			{
+				if (msg_readcount != packetstart+packetsize)
+				{
+					if (msg_readcount > packetstart+packetsize)
+						Con_Printf("CSQC overread entity %i. Size %i, read %i\n", entnum, packetsize, msg_readcount - packetsize);
+					else
+						Con_Printf("CSQC underread entity %i. Size %i, read %i\n", entnum, packetsize, msg_readcount - packetsize);
+					Con_Printf("First byte is %i\n", net_message.data[msg_readcount]);
+#ifndef CLIENTONLY
+					if (sv.state)
+					{
+						Con_Printf("Server classname: \"%s\"\n", svprogfuncs->stringtable+EDICT_NUM(svprogfuncs, entnum)->v.classname);
+					}
+#endif
+				}
+				msg_readcount = packetstart+packetsize;	//leetism.
+			}
 		}
 	}
 }

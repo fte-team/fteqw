@@ -1289,6 +1289,12 @@ void CL_FullServerinfo_f (void)
 	}
 	CL_CheckServerInfo();
 
+	cl.gamespeed = atof(Info_ValueForKey(cl.serverinfo, "*gamespeed"))/100.f;
+	if (cl.gamespeed < 0.1)
+		cl.gamespeed = 1;
+
+	cl.csqcdebug = atoi(Info_ValueForKey(cl.serverinfo, "*csqcdebug"));
+
 #ifdef CSQC_DAT
 	p = Info_ValueForKey(cl.serverinfo, "*csprogs");
 	if (*p)	//only allow csqc if the server says so, and the 'checksum' matches.
@@ -2249,9 +2255,6 @@ void CL_Init (void)
 	Info_SetValueForStarKey (cls.userinfo, "*ver", st, MAX_INFO_STRING);
 
 	InitValidation();
-#ifdef CLPROGS
-	CLPR_Init();
-#endif
 
 	CL_InitInput ();
 	CL_InitTEnts ();
@@ -2264,7 +2267,9 @@ void CL_Init (void)
 // register our commands
 //
 	CLSCR_Init();
-
+#ifdef CSQC_DAT
+	CSQC_RegisterCvarsAndThings();
+#endif
 	Cvar_Register (&host_speeds, cl_controlgroup);
 	Cvar_Register (&developer, cl_controlgroup);
 
@@ -2587,11 +2592,14 @@ void Host_Frame (float time)
 	static double		time3 = 0;
 	int			pass1, pass2, pass3;
 //	float fps;
+	float realframetime;
 
 	RSpeedLocals();
 
 	if (setjmp (host_abort) )
 		return;			// something bad happened, or the server disconnected
+
+	realframetime = time;
 
 #if defined(WINAVI) && !defined(NOMEDIA)
 	if (cls.demoplayback && recordingdemo && recordavi_frametime>0.01)
@@ -2606,6 +2614,9 @@ void Host_Frame (float time)
 	SV_Frame(time);
 	RSpeedEnd(RSPEED_SERVER);
 #endif
+	if (cl.gamespeed<0.1)
+		cl.gamespeed = 1;
+	time *= cl.gamespeed;
 
 #ifdef WEBCLIENT
 	FTP_ClientThink();
@@ -2722,7 +2733,7 @@ void Host_Frame (float time)
 	{
 		extern qboolean runningindepphys;
 		if (!runningindepphys)
-			CL_SendCmd ();
+			CL_SendCmd (realframetime);
 
 		if (cls.state == ca_onserver && cl.validsequence && cl.worldmodel)
 		{	// first update is the final signon stage
@@ -2918,15 +2929,15 @@ void Host_Init (quakeparms_t *parms)
 
 	Hunk_AllocName (0, "-HOST_HUNKLEVEL-");
 	host_hunklevel = Hunk_LowMark ();
-BZ_CheckAllSentinals();
+
 	R_SetRenderer(0);//set the renderer stuff to 'none'...
 
 	host_initialized = true;
 
 	Cmd_StuffCmds();
-BZ_CheckAllSentinals();
+
 	Cbuf_Execute ();	//if the server initialisation causes a problem, give it a place to abort to
-BZ_CheckAllSentinals();
+
 	//assuming they didn't use any waits in thier config (fools)
 	//the configs should be fully loaded.
 	//so convert the backwards compable commandline parameters in cvar sets.
@@ -2935,7 +2946,7 @@ BZ_CheckAllSentinals();
 		Cvar_Set(Cvar_FindVar("vid_fullscreen"), "0");
 	if (COM_CheckParm ("-fullscreen"))
 		Cvar_Set(Cvar_FindVar("vid_fullscreen"), "1");
-BZ_CheckAllSentinals();
+
 	if ((i = COM_CheckParm ("-width")))	//width on it's own also sets height
 	{
 		Cvar_Set(Cvar_FindVar("vid_width"), com_argv[i+1]);

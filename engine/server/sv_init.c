@@ -23,7 +23,7 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 extern int			total_loading_size, current_loading_size, loading_stage;
 char *T_GetString(int num);
 
-#define Q2EDICT_NUM(i) (q2edict_t*)((char *)ge->edicts+i*ge->edict_size)
+#define Q2EDICT_NUM(i) (q2edict_t*)((char *)ge->edicts+(i)*ge->edict_size)
 
 server_static_t	svs;				// persistant server info
 server_t		sv;					// local server
@@ -35,6 +35,8 @@ char localinfo[MAX_LOCALINFO_STRING+1]; // local game info
 extern cvar_t	skill, sv_loadentfiles;
 extern cvar_t	sv_cheats;
 extern cvar_t	sv_bigcoords;
+extern cvar_t	sv_gamespeed;
+extern cvar_t	sv_csqcdebug;
 extern qboolean	sv_allow_cheats;
 
 /*
@@ -671,21 +673,6 @@ void SV_SpawnServer (char *server, char *startspot, qboolean noents, qboolean us
 	//
 	SV_ClearWorld ();
 
-	strcpy(sv.sound_precache[0], "");
-	strcpy(sv.model_precache[0], "");
-
-	strcpy(sv.model_precache[1], sv.modelname);
-	sv.models[1] = sv.worldmodel;
-	for (i=1 ; i<sv.worldmodel->numsubmodels ; i++)
-	{
-		strcpy(sv.model_precache[1+i], localmodels[i]);
-		sv.models[i+1] = Mod_ForName (localmodels[i], false);
-	}
-
-	//check player/eyes models for hacks
-	sv.model_player_checksum = SV_CheckModel("progs/player.mdl");
-	sv.eyes_player_checksum = SV_CheckModel("progs/eyes.mdl");
-
 	if (sv_cheats.value)
 	{
 		sv_allow_cheats = true;
@@ -695,6 +682,15 @@ void SV_SpawnServer (char *server, char *startspot, qboolean noents, qboolean us
 	{
 		sv_allow_cheats = false;
 		Info_SetValueForStarKey(svs.info, "*cheats", "", MAX_SERVERINFO_STRING);
+	}
+
+	sv.gamespeed = sv_gamespeed.value;
+	Info_SetValueForStarKey(svs.info, "*gamespeed", va("%i", (int)(sv.gamespeed*100)), MAX_SERVERINFO_STRING);
+	sv.gamespeed = atof(Info_ValueForKey(svs.info, "*gamespeed"))/100;
+	if (sv.gamespeed < 0.1 || sv.gamespeed == 1)
+	{
+		sv.gamespeed = 1;
+		Info_SetValueForStarKey(svs.info, "*gamespeed", "", MAX_SERVERINFO_STRING);
 	}
 
 	//do we allow csprogs?
@@ -708,7 +704,18 @@ void SV_SpawnServer (char *server, char *startspot, qboolean noents, qboolean us
 	}
 	else
 		Info_SetValueForStarKey(svs.info, "*csprogs", "", MAX_SERVERINFO_STRING);
+
+	sv.csqcdebug = sv_csqcdebug.value;
+	if (sv.csqcdebug)
+		Info_SetValueForStarKey(svs.info, "*csqcdebug", "1", MAX_SERVERINFO_STRING);
+	else
+		Info_RemoveKey(svs.info, "*csqcdebug");
 #endif
+
+
+
+
+
 	if (svprogfuncs)	//we don't want the q1 stuff anymore.
 	{
 		CloseProgs(svprogfuncs);
@@ -754,6 +761,36 @@ void SV_SpawnServer (char *server, char *startspot, qboolean noents, qboolean us
 			svs.clients[i].name[0] = '\0';						//kill all bots
 		}
 	}
+
+	sv.models[1] = sv.worldmodel;
+	if (svs.gametype == GT_PROGS)
+	{
+		strcpy(sv.sound_precache[0], "");
+		strcpy(sv.model_precache[0], "");
+
+		strcpy(sv.model_precache[1], sv.modelname);
+		for (i=1 ; i<sv.worldmodel->numsubmodels ; i++)
+		{
+			strcpy(sv.model_precache[1+i], localmodels[i]);
+			sv.models[i+1] = Mod_ForName (localmodels[i], false);
+		}
+
+		//check player/eyes models for hacks
+		sv.model_player_checksum = SV_CheckModel("progs/player.mdl");
+		sv.eyes_player_checksum = SV_CheckModel("progs/eyes.mdl");
+	}
+	else if (svs.gametype == GT_QUAKE2)
+	{
+		memset(sv.configstring, 0, sizeof(sv.configstring));
+		strcpy(sv.configstring[Q2CS_MODELS+1], sv.modelname);
+		for (i=1; i<sv.worldmodel->numsubmodels; i++)
+		{
+			strcpy(sv.configstring[Q2CS_MODELS+1+i], localmodels[i]);
+			sv.models[i+1] = Mod_ForName (localmodels[i], false);
+		}
+	}
+
+
 
 #ifndef SERVERONLY
 	current_loading_size+=10;

@@ -927,9 +927,8 @@ unsigned long _stdcall CL_IndepPhysicsThread(void *param)
 	{
 		EnterCriticalSection(&indepcriticialsection);
 		time = Sys_DoubleTime();
-		host_frametime = time - lasttime;
+		CL_SendCmd(time - lasttime);
 		lasttime = time;
-		CL_SendCmd();
 		LeaveCriticalSection(&indepcriticialsection);
 
 		fps = cl_netfps.value;
@@ -982,7 +981,7 @@ CL_SendCmd
 */
 usercmd_t independantphysics[MAX_SPLITS];
 vec3_t accum[MAX_SPLITS];
-void CL_SendCmd (void)
+void CL_SendCmd (float frametime)
 {
 	sizebuf_t	buf;
 	qbyte		data[512];
@@ -1013,7 +1012,7 @@ void CL_SendCmd (void)
 		usercmd_t ncmd;
 
 		memset(&ncmd, 0, sizeof(ncmd));
-		ncmd.msec = host_frametime*1000;
+		ncmd.msec = frametime*1000;
 
 		CL_BaseMove (&ncmd, 0);
 
@@ -1024,7 +1023,7 @@ void CL_SendCmd (void)
 		if (cl.spectator)
 			Cam_Track(0, &ncmd);
 
-		CL_FinishMove(&ncmd, (int)(host_frametime*1000), 0);
+		CL_FinishMove(&ncmd, (int)(frametime*1000), 0);
 
 		Cam_FinishMove(0, &ncmd);
 
@@ -1056,7 +1055,7 @@ void CL_SendCmd (void)
 			cmd = &cl.frames[i].cmd[0];
 
 			memset(cmd, 0, sizeof(*cmd));
-			cmd->msec = host_frametime*1000;
+			cmd->msec = frametime*1000;
 			independantphysics[0].msec = 0;
 
 				// get basic movement from keyboard
@@ -1069,7 +1068,7 @@ void CL_SendCmd (void)
 			if (cl.spectator)
 				Cam_Track(0, cmd);
 
-			CL_FinishMove(cmd, (int)(host_frametime*1000), 0);
+			CL_FinishMove(cmd, (int)(frametime*1000), 0);
 
 			Cam_FinishMove(0, cmd);
 
@@ -1087,7 +1086,7 @@ void CL_SendCmd (void)
 	}
 #endif
 
-	msecs += host_frametime*1000;
+	msecs += frametime*1000;
 //	Con_Printf("%f\n", msecs);
 
 	if (msecs>1000)	//come on... That's just stupid.
@@ -1345,7 +1344,7 @@ void CL_SendCmd (void)
 //shamelessly stolen from fuhquake
 	if (cl_c2spps.value>0)
 	{
-		pps_balance += host_frametime;
+		pps_balance += frametime;
 		// never drop more than 2 messages in a row -- that'll cause PL
 		// and don't drop if one of the last two movemessages have an impulse
 		if (pps_balance > 0 || dropcount >= 2 || dontdrop)

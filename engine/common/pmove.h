@@ -130,7 +130,7 @@ typedef struct {
 extern	movevars_t		movevars;
 extern	playermove_t	pmove;
 
-void PM_PlayerMove (void);
+void PM_PlayerMove (float gamespeed);
 void PM_Init (void);
 void PM_InitBoxHull (void);
 

@@ -428,7 +428,7 @@ void CL_PredictUsercmd (int pnum, player_state_t *from, player_state_t *to, user
 		player_mins[2] = 0;
 	}
 
-	PM_PlayerMove ();
+	PM_PlayerMove (cl.gamespeed);
 
 	to->waterjumptime = pmove.waterjumptime;
 	to->jump_held = pmove.jump_held;

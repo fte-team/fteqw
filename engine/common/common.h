@@ -165,6 +165,7 @@ void MSG_ReadData (void *data, int len);
 char *Q_strcpyline(char *out, char *in, int maxlen);	//stops at '\n' (and '\r')
 
 char *Q_strlwr(char *str);
+int wildcmp(char *wild, char *string);	//1 if match
 
 #define Q_memset(d, f, c) memset((d), (f), (c))
 #define Q_memcpy(d, s, c) memcpy((d), (s), (c))

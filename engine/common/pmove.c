@@ -1004,9 +1004,9 @@ Numtouch and touchindex[] will be set if any of the physents
 were contacted during the move.
 =============
 */
-void PM_PlayerMove (void)
+void PM_PlayerMove (float gamespeed)
 {
-	frametime = pmove.cmd.msec * 0.001;
+	frametime = pmove.cmd.msec * 0.001*gamespeed;
 	pmove.numtouch = 0;
 
 	if (pmove.pm_type == PM_NONE || pmove.pm_type == PM_FREEZE) {

@@ -32,11 +32,14 @@ void RunCompiler(char *args);
 HINSTANCE ghInstance;
 HMODULE richedit;
 
+pbool resetprogssrc;	//progs.src was changed, reload project info.
+
 
 HWND mainwindow;
 HWND mdibox;
 HWND outputwindow;
 HWND outputbox;
+HWND projecttree;
 
 FILE *logfile;
 
@@ -67,10 +70,12 @@ void GUI_DialogPrint(char *title, char *text)
 
 HWND CreateAnEditControl(HWND parent)
 {
+	HWND newc;
+
 	if (!richedit)
 		richedit = LoadLibrary("RICHED32.DLL");
 
-	outputbox=CreateWindowEx(WS_EX_CLIENTEDGE,
+	newc=CreateWindowEx(WS_EX_CLIENTEDGE,
 		richedit?RICHEDIT_CLASS:"EDIT",
 		"",
 		WS_CHILD /*| ES_READONLY*/ | WS_VISIBLE | 
@@ -82,8 +87,8 @@ HWND CreateAnEditControl(HWND parent)
 		ghInstance,
 		NULL);
 
-	if (!outputbox)
-		outputbox=CreateWindowEx(WS_EX_CLIENTEDGE,
+	if (!newc)
+		newc=CreateWindowEx(WS_EX_CLIENTEDGE,
 			richedit?RICHEDIT_CLASS10A:"EDIT",	//fall back to the earlier version
 			"",
 			WS_CHILD /*| ES_READONLY*/ | WS_VISIBLE | 
@@ -95,11 +100,11 @@ HWND CreateAnEditControl(HWND parent)
 			ghInstance,
 			NULL);
 
-	if (!outputbox)
+	if (!newc)
 	{	//you've not got RICHEDIT installed properly, I guess
 		FreeLibrary(richedit);
 		richedit = NULL;
-		outputbox=CreateWindowEx(WS_EX_CLIENTEDGE,
+		newc=CreateWindowEx(WS_EX_CLIENTEDGE,
 			"EDIT",
 			"",
 			WS_CHILD /*| ES_READONLY*/ | WS_VISIBLE | 
@@ -112,14 +117,26 @@ HWND CreateAnEditControl(HWND parent)
 			NULL);
 	}
 
-	if (richedit)
+	//go to lucidia console, 10pt
 	{
-		SendMessage(outputbox, EM_EXLIMITTEXT, 0, 1<<20);
+		CHARFORMAT cf;
+		memset(&cf, 0, sizeof(cf));
+		cf.cbSize = sizeof(cf);
+		cf.dwMask = CFM_BOLD | CFM_FACE;// | CFM_SIZE;
+		strcpy(cf.szFaceName, "Lucida Console");
+		cf.yHeight = 5;
+
+		SendMessage(newc, EM_SETCHARFORMAT, SCF_ALL, (WPARAM)&cf);
 	}
 
-	ShowWindow(outputbox, SW_SHOW);
+	if (richedit)
+	{
+		SendMessage(newc, EM_EXLIMITTEXT, 0, 1<<20);
+	}
 
-	return outputbox;
+	ShowWindow(newc, SW_SHOW);
+
+	return newc;
 }
 
 
@@ -328,6 +345,8 @@ static LONG CALLBACK EditorWndProc(HWND hWnd,UINT message,
 		}
 		goto gdefault;
 	case WM_CREATE:
+		editor->editpane = CreateAnEditControl(hWnd);
+		/*
 		editor->editpane=CreateWindowEx(WS_EX_CLIENTEDGE,
 			richedit?RICHEDIT_CLASS:"EDIT",
 			"",
@@ -339,7 +358,7 @@ static LONG CALLBACK EditorWndProc(HWND hWnd,UINT message,
 			NULL,
 			ghInstance,
 			NULL);
-
+*/
 		if (richedit)
 		{
 			SendMessage(editor->editpane, EM_EXLIMITTEXT, 0, 1<<31);
@@ -1045,6 +1064,7 @@ static LONG CALLBACK OptionsWndProc(HWND hWnd,UINT message,
 					SetCurrentDirectory(progssrcdir);
 					*progssrcdir = '\0';
 				}
+				resetprogssrc = true;
 			}
 			break;
 		case IDI_O_LEVEL0:
@@ -1371,7 +1391,7 @@ void OptionsDialog(void)
 
 		compiler_flag[i].guiinfo = wnd = CreateWindow("BUTTON",compiler_flag[i].fullname,
 			   WS_CHILD | WS_VISIBLE | BS_AUTOCHECKBOX,
-			   x,y,200-16,16,
+			   x,y,168,16,
 			   optionsmenu,
 			   (HMENU)IDI_O_COMPILER_FLAG,
 			   ghInstance,
@@ -1471,8 +1491,13 @@ static LONG CALLBACK MainWndProc(HWND hWnd,UINT message,
 			mdibox = CreateWindow( "MDICLIENT", (LPCTSTR) NULL,
 			WS_CHILD | WS_CLIPCHILDREN | WS_VSCROLL | WS_HSCROLL,
 			0, 0, 320, 200, hWnd, (HMENU) 0xCAC, ghInstance, (LPSTR) &ccs);
+			ShowWindow(mdibox, SW_SHOW);
 
-			ShowWindow(mdibox, SW_SHOW); 
+			projecttree = CreateWindow(WC_TREEVIEW, (LPCTSTR) NULL,
+			WS_CHILD | WS_CLIPCHILDREN | WS_VSCROLL | WS_HSCROLL
+				|	TVS_HASBUTTONS |TVS_LINESATROOT|TVS_HASLINES,
+			0, 0, 320, 200, hWnd, (HMENU) 0xCAC, ghInstance, (LPSTR) &ccs);
+			ShowWindow(projecttree, SW_SHOW);
 		}
 		break;
 
@@ -1482,7 +1507,13 @@ static LONG CALLBACK MainWndProc(HWND hWnd,UINT message,
 
 	case WM_SIZE:
 		GetClientRect(mainwindow, &rect);
-		SetWindowPos(mdibox?mdibox:outputbox, NULL, 0, 0, rect.right-rect.left, rect.bottom-rect.top - 32, 0);
+		if (projecttree)
+		{
+			SetWindowPos(projecttree, NULL, 0, 0, 192, rect.bottom-rect.top - 32, 0);
+			SetWindowPos(mdibox?mdibox:outputbox, NULL, 192, 0, rect.right-rect.left-192, rect.bottom-rect.top - 32, 0);
+		}
+		else
+			SetWindowPos(mdibox?mdibox:outputbox, NULL, 0, 0, rect.right-rect.left, rect.bottom-rect.top - 32, 0);
 		width = (rect.right-rect.left);
 		width/=NUMBUTTONS;
 		for (i = 0; i < NUMBUTTONS; i++)
@@ -1520,6 +1551,34 @@ static LONG CALLBACK MainWndProc(HWND hWnd,UINT message,
 			else
 				GenericMenu(wParam);
 			break;
+		}
+	case WM_NOTIFY:
+		{
+			NMHDR *nm;
+			HANDLE item;
+			TVITEM i;
+			char filename[256];
+			char itemtext[256];
+			nm = lParam;
+			if (nm->hwndFrom == projecttree)
+			{
+				switch(nm->code)
+				{
+				case NM_CLICK:
+					item = TreeView_GetSelection(projecttree);
+					i.hItem = item;
+					i.mask = TVIF_TEXT;
+					i.pszText = itemtext;
+					i.cchTextMax = sizeof(itemtext)-1;
+					TreeView_GetItem(projecttree, &i);
+					while(i.hItem)
+					{
+						item = TreeView_GetParent(projecttree, item);
+					}
+					EditFile(filename, -1);
+					break;
+				}
+			}
 		}
 	default:
 		if (mdibox)
@@ -1771,6 +1830,92 @@ void CreateOutputWindow(void)
 	SendMessage(mdibox, WM_MDIACTIVATE, (WPARAM)outputwindow, 0);
 }
 
+//progssrcname should already have been set.
+void SetProgsSrc(void)
+{
+	FILE *f;
+
+	HANDLE rootitem, pi;
+	TVINSERTSTRUCT item;
+	TV_ITEM parent;
+	char parentstring[256];
+	memset(&item, 0, sizeof(item));
+	memset(&parent, 0, sizeof(parent));
+
+	if (projecttree)
+	{
+		int size;
+		char *buffer;
+		char *slash;
+
+		f = fopen (progssrcname, "rb");
+		if (!f)
+			return;
+		fseek(f, 0, SEEK_END);
+		size = ftell(f);
+		fseek(f, 0, SEEK_SET);
+		buffer = malloc(size+1);
+		if (!buffer)
+		{
+			fclose(f);
+			return;
+		}
+		buffer[size] = '\0';
+		fread(buffer, 1, size, f);
+		fclose(f);
+
+		pr_file_p = QCC_COM_Parse(buffer);
+		if (*qcc_token == '#')
+		{
+			free(buffer);	//aaaahhh! newstyle!
+			return;
+		}
+
+		pr_file_p = QCC_COM_Parse(pr_file_p);	//we dont care about the produced progs.dat
+
+
+		item.hParent = TVI_ROOT;
+		item.hInsertAfter = TVI_SORT;
+		item.item.pszText = progssrcname;
+		item.item.mask = TVIF_TEXT;
+		rootitem = (HANDLE)SendMessage(projecttree,TVM_INSERTITEM,0,(LPARAM)&item);
+		while(pr_file_p)
+		{
+			pi = item.hParent = rootitem;
+			item.item.pszText = qcc_token;
+			while(slash = strchr(item.item.pszText, '/'))
+			{
+				*slash = '\0';
+				item.hParent = TreeView_GetChild(projecttree, item.hParent);
+				do
+				{
+					parent.hItem = item.hParent;
+					parent.mask = TVIF_TEXT;
+					parent.pszText = parentstring;
+					parent.cchTextMax = sizeof(parentstring)-1;
+					if (TreeView_GetItem(projecttree, &parent))
+					{
+						if (!stricmp(parent.pszText, item.item.pszText))
+							break;
+					}
+				} while(item.hParent=TreeView_GetNextSibling(projecttree, item.hParent));
+				if (!item.hParent)
+				{	//add a directory.
+					item.hParent = pi;
+					pi = (HANDLE)SendMessage(projecttree,TVM_INSERTITEM,0,(LPARAM)&item);
+				}
+				else pi = item.hParent;
+
+				item.item.pszText = slash+1;
+			}
+			SendMessage(projecttree,TVM_INSERTITEM,0,(LPARAM)&item);
+			pr_file_p = QCC_COM_Parse(pr_file_p);
+		}
+
+		free(buffer);
+	}
+}
+
 int WINAPI WinMain (HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine, int nCmdShow)
 {
 	unsigned int i;
@@ -1863,6 +2008,8 @@ int WINAPI WinMain (HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLin
 		}
 	}
 
+	resetprogssrc = true;
+
     wndclass.style      = 0;
     wndclass.lpfnWndProc   = (WNDPROC)MainWndProc;
     wndclass.cbClsExtra    = 0;
@@ -1947,6 +2094,12 @@ int WINAPI WinMain (HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLin
 	while(mainwindow || editors)
 	{
 		MSG        msg;
+
+		if (resetprogssrc)
+		{	//this here, with the compiler below, means that we don't run recursivly.
+			resetprogssrc = false;
+			SetProgsSrc();
+		}
 
 		EditorsRun();
 

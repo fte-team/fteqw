@@ -1857,7 +1857,7 @@ void CL_ParseModellist (qboolean lots)
 void CL_ProcessUserInfo (int slot, player_info_t *player);
 void CLQ2_ParseClientinfo(int i, char *s)
 {
-	char *skin, *model, *name;
+	char *model, *name;
 	player_info_t *player;
 	//s contains "name\model/skin"
 
@@ -1877,7 +1877,7 @@ void CLQ2_ParseClientinfo(int i, char *s)
 		name = "Unnammed";
 		model = "male";
 	}
-
+#if 0
 	skin = strchr(model, '/');
 	if (skin)
 	{
@@ -1886,9 +1886,16 @@ void CLQ2_ParseClientinfo(int i, char *s)
 	}
 	else
 		skin = "";
-	Info_SetValueForKey(player->userinfo, "name", name, MAX_INFO_STRING);
 	Info_SetValueForKey(player->userinfo, "model", model, MAX_INFO_STRING);
 	Info_SetValueForKey(player->userinfo, "skin", skin, MAX_INFO_STRING);
+#else
+	Info_SetValueForKey(player->userinfo, "skin", model, MAX_INFO_STRING);
+#endif
+	Info_SetValueForKey(player->userinfo, "name", name, MAX_INFO_STRING);
+
+	cl.players[i].userid = i;
+	cl.players[i].bottomcolor = 1;
+	cl.players[i].topcolor = 1;
 	CL_ProcessUserInfo (i, player);
 }
 

@@ -126,6 +126,7 @@ void D_PolysetScanLeftEdge (int height);
 #endif
 
 void D_PolysetDrawSpans8 (spanpackage_t *pspanpackage);
+void D_PolysetDrawSpans8C (spanpackage_t *pspanpackage);
 void D_PolysetCalcGradients (int skinwidth);
 void D_PolysetCalcGradients32 (int skinwidth);
 void D_DrawSubdiv (void);
@@ -628,7 +629,10 @@ void D_PolysetDrawSpans8Trans (spanpackage_t *pspanpackage)
 
 	if (t_state & TT_REVERSE)
 	{
-		D_PolysetDrawSpans8ReverseTrans(pspanpackage);
+		if (t_state & TT_ONE)
+			D_PolysetDrawSpans8C(pspanpackage);
+		else
+			D_PolysetDrawSpans8ReverseTrans(pspanpackage);
 		return;
 	}
 
@@ -1194,7 +1198,7 @@ void D_PolysetDraw16 (void)
 	else
 		*/
 	{
-		D_DrawNonSubdiv ();
+		D_DrawNonSubdivC ();
 	}
 }
 
@@ -1269,66 +1273,36 @@ void D_DrawSubdivC (void)
 	int				i;
 	int				lnumtriangles;
 
+	void (*drawfnc) (int *p1, int *p2, int *p3);
+
 	pfv = r_affinetridesc.pfinalverts;
 	ptri = r_affinetridesc.ptriangles;
 	lnumtriangles = r_affinetridesc.numtriangles;
 
+
+
 #ifdef PEXT_TRANS
 	if (r_pixbytes == 4)
-	{		
-		for (i=0 ; i<lnumtriangles ; i++)
-		{
-			index0 = pfv + ptri[i].xyz_index[0];
-			index1 = pfv + ptri[i].xyz_index[1];
-			index2 = pfv + ptri[i].xyz_index[2];
-
-			if (((index0->v[1]-index1->v[1]) *
-				 (index0->v[0]-index2->v[0]) -
-				 (index0->v[0]-index1->v[0]) * 
-				 (index0->v[1]-index2->v[1])) >= 0)
-			{
-				continue;
-			}
-
-			d_pcolormap = &((qbyte *)acolormap)[index0->v[4] & 0xFF00];
-
-			D_PolysetRecursiveTriangle32Trans(index0->v, index1->v, index2->v);
-		}
-		return;
-	}
-	if (currententity->alpha != 1)
+		drawfnc = D_PolysetRecursiveTriangle32Trans;
+	else if (currententity->alpha != 1)
 	{
-		Set_TransLevelF(currententity->alpha);
-		if (!(t_state & TT_ONE))
-		{
-			if (t_state & TT_ZERO)
-				return;
-
-			for (i=0 ; i<lnumtriangles ; i++)
-			{
-				index0 = pfv + ptri[i].xyz_index[0];
-				index1 = pfv + ptri[i].xyz_index[1];
-				index2 = pfv + ptri[i].xyz_index[2];
-
-				if (((index0->v[1]-index1->v[1]) *
-					 (index0->v[0]-index2->v[0]) -
-					 (index0->v[0]-index1->v[0]) * 
-					 (index0->v[1]-index2->v[1])) >= 0)
-				{
-					continue;
-				}
-
-				d_pcolormap = &((qbyte *)acolormap)[index0->v[4] & 0xFF00];
-
-				if (t_state & TT_REVERSE)
-					D_PolysetRecursiveTriangleReverseTrans(index0->v, index1->v, index2->v);
-				else
-					D_PolysetRecursiveTriangleTrans(index0->v, index1->v, index2->v);
-			}
+		Set_TransLevelF(currententity->alpha);	//fixme: this is being called by every poly!
+		if (t_state & TT_ZERO)
 			return;
+
+		if (t_state & TT_ONE)	//it's solid anyway.
+			drawfnc = D_PolysetRecursiveTriangle;
+		else
+		{
+			if (t_state & TT_REVERSE)
+				drawfnc = D_PolysetRecursiveTriangleReverseTrans;
+			else
+				drawfnc = D_PolysetRecursiveTriangleTrans;
 		}
 	}
+	else
 #endif
+		drawfnc = D_PolysetRecursiveTriangle;
 
 	for (i=0 ; i<lnumtriangles ; i++)
 	{
@@ -1377,19 +1351,6 @@ void D_DrawSubdiv32C (void)
 			continue;
 		}
 
-		st0 = pst + ptri[i].st_index[0];
-		st1 = pst + ptri[i].st_index[1];
-		st2 = pst + ptri[i].st_index[2];
-
-		index0->v[2] = st0->s;
-		index0->v[3] = st0->t;
-
-		index1->v[2] = st1->s;
-		index1->v[3] = st1->t;
-
-		index2->v[2] = st2->s;
-		index2->v[3] = st2->t;
-
 		d_pcolormap = &((qbyte *)acolormap)[index0->v[4] & 0xFF00];
 
 		D_PolysetRecursiveTriangle32Trans(index0->v, index1->v, index2->v);
@@ -1408,16 +1369,12 @@ void D_DrawNonSubdivC (void)
 	int				i;
 	int				lnumtriangles;
 
-	mstvert_t		*pst, *st0, *st1, *st2;
+	mstvert_t		*pst, *stv;
 
 	pst = r_affinetridesc.pstverts;
 	pfv = r_affinetridesc.pfinalverts;
 	ptri = r_affinetridesc.ptriangles;
 	lnumtriangles = r_affinetridesc.numtriangles;
-
-	Set_TransLevelF(currententity->alpha);
-	if (t_state & TT_ZERO)
-		return;
 
 	for (i=0 ; i<lnumtriangles ; i++, ptri++)
 	{
@@ -1434,28 +1391,27 @@ void D_DrawNonSubdivC (void)
 			continue;
 		}
 
-		st0 = pst + ptri->st_index[0];
-		st1 = pst + ptri->st_index[1];
-		st2 = pst + ptri->st_index[2];
-
 		r_p0[0] = index0->v[0];		// u
 		r_p0[1] = index0->v[1];		// v
-		r_p0[2] = st0->s;		// s
-		r_p0[3] = st0->t;		// t
+		stv = pst + ptri->st_index[0];
+		r_p0[2] = stv->s;		// s
+		r_p0[3] = stv->t;		// t
 		r_p0[4] = index0->v[4];		// light
 		r_p0[5] = index0->v[5];		// iz
 
 		r_p1[0] = index1->v[0];
 		r_p1[1] = index1->v[1];
-		r_p1[2] = st1->s;
-		r_p1[3] = st1->t;
+		stv = pst + ptri->st_index[1];
+		r_p1[2] = stv->s;
+		r_p1[3] = stv->t;
 		r_p1[4] = index1->v[4];
 		r_p1[5] = index1->v[5];
 
 		r_p2[0] = index2->v[0];
 		r_p2[1] = index2->v[1];
-		r_p2[2] = st2->s;
-		r_p2[3] = st2->t;
+		stv = pst + ptri->st_index[2];
+		r_p2[2] = stv->s;
+		r_p2[3] = stv->t;
 		r_p2[4] = index2->v[4];
 		r_p2[5] = index2->v[5];
 
@@ -1471,8 +1427,8 @@ void D_DrawNonSubdiv32C (void)
 
 	int				i;
 	int				lnumtriangles;
-#if 0
-	stvert_t		*pst, *st0, *st1, *st2;
+#if 1
+	mstvert_t		*pst, *stv;
 	pst = r_affinetridesc.pstverts;
 #endif
 	pfv = r_affinetridesc.pfinalverts;
@@ -1493,53 +1449,30 @@ void D_DrawNonSubdiv32C (void)
 		{
 			continue;
 		}
-#if 0
-		st0 = pfv + ptri->st_index[0];
-		st1 = pfv + ptri->st_index[1];
-		st2 = pfv + ptri->st_index[2];
 
 		r_p0[0] = index0->v[0];		// u
 		r_p0[1] = index0->v[1];		// v
-		r_p0[2] = st0->s;//index0->v[2];		// s
-		r_p0[3] = st0->t;//index0->v[3];		// t
+		stv = pst + ptri->st_index[0];
+		r_p0[2] = stv->s;//index0->v[2];		// s
+		r_p0[3] = stv->t;//index0->v[3];		// t
 		r_p0[4] = index0->v[4];		// light
 		r_p0[5] = index0->v[5];		// iz
 
 		r_p1[0] = index1->v[0];
 		r_p1[1] = index1->v[1];
-		r_p1[2] = st1->s;//index1->v[2];
-		r_p1[3] = st1->t;//index1->v[3];
+		stv = pst + ptri->st_index[1];
+		r_p1[2] = stv->s;//index1->v[2];
+		r_p1[3] = stv->t;//index1->v[3];
 		r_p1[4] = index1->v[4];
 		r_p1[5] = index1->v[5];
 
 		r_p2[0] = index2->v[0];
 		r_p2[1] = index2->v[1];
-		r_p2[2] = st2->s;//index2->v[2];
-		r_p2[3] = st2->t;//index2->v[3];
+		stv = pst + ptri->st_index[2];
+		r_p2[2] = stv->s;//index2->v[2];
+		r_p2[3] = stv->t;//index2->v[3];
 		r_p2[4] = index2->v[4];
 		r_p2[5] = index2->v[5];
-#else
-		r_p0[0] = index0->v[0];		// u
-		r_p0[1] = index0->v[1];		// v
-		r_p0[2] = index0->v[2];		// s
-		r_p0[3] = index0->v[3];		// t
-		r_p0[4] = index0->v[4];		// light
-		r_p0[5] = index0->v[5];		// iz
-
-		r_p1[0] = index1->v[0];
-		r_p1[1] = index1->v[1];
-		r_p1[2] = index1->v[2];
-		r_p1[3] = index1->v[3];
-		r_p1[4] = index1->v[4];
-		r_p1[5] = index1->v[5];
-
-		r_p2[0] = index2->v[0];
-		r_p2[1] = index2->v[1];
-		r_p2[2] = index2->v[2];
-		r_p2[3] = index2->v[3];
-		r_p2[4] = index2->v[4];
-		r_p2[5] = index2->v[5];
-#endif
 
 		D_PolysetSetEdgeTable ();
 		D_RasterizeAliasPolySmoothC ();
@@ -1891,14 +1824,12 @@ void InitGel (qbyte *palette)
 }
 #endif
 
-#if	!id386
-
 /*
 ================
 D_PolysetDrawSpans8
 ================
 */
-void D_PolysetDrawSpans8 (spanpackage_t *pspanpackage)
+void D_PolysetDrawSpans8C (spanpackage_t *pspanpackage)
 {
 	int		lcount;
 	qbyte	*lpdest;
@@ -1961,7 +1892,6 @@ void D_PolysetDrawSpans8 (spanpackage_t *pspanpackage)
 		pspanpackage++;
 	} while (pspanpackage->count != -999999);
 }
-#endif	// !id386
 
 
 /*
@@ -2434,7 +2364,7 @@ void D_RasterizeAliasPolySmooth8C (void)
 		DrawSpans (pstart);
 	}
 }
-
+/*
 void D_RasterizeAliasPolySmooth1Asm (void)
 {
 	int				initialleftheight, initialrightheight;
@@ -2642,7 +2572,7 @@ void D_RasterizeAliasPolySmooth1Asm (void)
 		D_PolysetDrawSpans8 (pstart);
 	}
 }
-
+*/
 
 /*
 ================

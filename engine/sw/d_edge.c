@@ -282,7 +282,7 @@ void D_DrawSurfaces (void)
 					d_zistepv = 0;
 					d_ziorigin = -0.9;
 
-					D_DrawSolidSurface (s, (int)r_clearcolor.value & 0xFF);
+					D_DrawSolidSurface (s, (int)r_fastskycolour.value & 0xFF);
 					D_DrawZSpans (s->spans);
 					continue;
 				}

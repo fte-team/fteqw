@@ -240,6 +240,8 @@ void R_AliasClipTriangle (mtriangle_t *ptri, void (*drawfnc) (void))
 	mtriangle_t		mtri;
 	unsigned		clipflags;
 
+	mstvert_t	tst[3];	//temp st
+
 	mstvert_t	*pst = r_affinetridesc.pstverts;
 
 
@@ -336,18 +338,25 @@ void R_AliasClipTriangle (mtriangle_t *ptri, void (*drawfnc) (void))
 // draw triangles
 	r_affinetridesc.ptriangles = &mtri;
 	r_affinetridesc.pfinalverts = fv[pingpong];
-	r_affinetridesc.pstverts = fstv[pingpong];
+	r_affinetridesc.pstverts = tst;
 
 // FIXME: do all at once as trifan?
 	mtri.xyz_index[0] = 0;
 	mtri.st_index[0] = 0;
+	tst[0].s = fv[pingpong][0].v[2];
+	tst[0].t = fv[pingpong][0].v[3];
 
 	for (i=1 ; i<k-1 ; i++)
 	{
 		mtri.xyz_index[1] = i;
-		mtri.st_index[1] = i;
+		mtri.st_index[1] = 1;
+		tst[1].s = fv[pingpong][i].v[2];
+		tst[1].t = fv[pingpong][i].v[3];
+
 		mtri.xyz_index[2] = i+1;
-		mtri.st_index[2] = i+1;
+		mtri.st_index[2] = 2;
+		tst[2].s = fv[pingpong][i+1].v[2];
+		tst[2].t = fv[pingpong][i+1].v[3];
 		drawfnc ();
 	}
 	r_affinetridesc.pstverts = pst;

@@ -32,6 +32,8 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 #include "d_local.h"	// FIXME: shouldn't be needed (is needed for patch
 						// right now, but that should move)
 
+#undef	id386
+
 #define	Q2RF_DEPTHHACK			16		// for view weapon Z crunching
 
 #define LIGHT_MIN	5		// lowest light value we'll allow, to avoid the
@@ -311,8 +313,8 @@ void R_AliasPreparePoints (void)
  	fv = pfinalverts;
 	av = pauxverts;
 
-#if	id386
-	if (currententity->alpha == 1)	//use the asm routines if we have it, and don't have alpha
+#if	0//id386
+	if (t_state & TT_ONE)	//use the asm routines if we have it, and don't have alpha
 	{
 		if (r_pixbytes == 4)
 			drawfnc = D_PolysetDraw32;
@@ -368,15 +370,6 @@ void R_AliasPreparePoints (void)
 		if ( pfv[0]->flags & pfv[1]->flags & pfv[2]->flags & (ALIAS_XY_CLIP_MASK | ALIAS_Z_CLIP) )
 			continue;		// completely clipped
 
-		pfv[0]->v[2] = pstverts[ptri->st_index[0]].s;
-		pfv[0]->v[3] = pstverts[ptri->st_index[0]].t;
-
-		pfv[1]->v[2] = pstverts[ptri->st_index[1]].s;
-		pfv[1]->v[3] = pstverts[ptri->st_index[1]].t;
-
-		pfv[2]->v[2] = pstverts[ptri->st_index[2]].s;
-		pfv[2]->v[3] = pstverts[ptri->st_index[2]].t;
-		
 		if ( ! ( (pfv[0]->flags | pfv[1]->flags | pfv[2]->flags) &
 			(ALIAS_XY_CLIP_MASK | ALIAS_Z_CLIP) ) )
 		{	// totally unclipped
@@ -883,6 +876,9 @@ void R_AliasDrawModel (alight_t *plighting)
 	extern qbyte transfactor;
 	extern qbyte transbackfac;
 
+	Set_TransLevelF(currententity->alpha);
+	if (t_state & TT_ZERO)
+		return;
 
 	r_amodels_drawn++;
 
@@ -910,6 +906,14 @@ void R_AliasDrawModel (alight_t *plighting)
 			r_recursiveaffinetriangles;
 
 	r_affinetridesc.pstverts = (mstvert_t *)((qbyte *)paliashdr + paliashdr->stverts);
+/*	{
+	int i;
+	for (i = 0; i < pmdl->numstverts; i++)
+	{
+		r_affinetridesc.pstverts[i].s = rand()<<8;
+		r_affinetridesc.pstverts[i].t = rand()<<8;
+	}
+	}*/
 
 	if (r_affinetridesc.drawtype)
 	{

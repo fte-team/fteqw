@@ -123,41 +123,6 @@ extern	mtexinfo_t		r_skytexinfo[6];
 extern cvar_t gl_skyboxname;
 
 char skyname[128];
-void SWR_SetSky (char *name, float rotate, vec3_t axis)
-{
-	int		i;
-
-	Q_strncpyz (skyname, name, sizeof(skyname));
-//	skyrotate = rotate;
-//	VectorCopy (axis, skyaxis);
-
-	for (i=0 ; i<6 ; i++)
-	{
-		r_skytexinfo[i].texture = NULL;
-	}
-}
-
-qboolean SWR_CheckSky (void)
-{
-	int		i;
-	char	pathname[MAX_QPATH];
-
-	if (!*skyname)
-		return true;
-	for (i=0 ; i<6 ; i++)
-	{
-		sprintf (pathname, "env/%s%s.pcx", skyname, suf[r_skysideimage[i]]);
-		if (COM_FCheckExists(pathname))
-		{
-			continue;// it exists, don't bother going for a tga version
-		}
-
-		sprintf (pathname, "env/%s%s.tga", skyname, suf[r_skysideimage[i]]);
-		if (!CL_CheckOrDownloadFile(pathname, -1))
-			return false;
-	}
-	return true;
-}
 
 /*
 ================
@@ -182,6 +147,45 @@ void R_LoadSkyBox (void)
 	}
 #endif
 }
+
+void SWR_SetSky (char *name, float rotate, vec3_t axis)
+{
+	int		i;
+
+	Q_strncpyz (skyname, name, sizeof(skyname));
+//	skyrotate = rotate;
+//	VectorCopy (axis, skyaxis);
+
+	for (i=0 ; i<6 ; i++)
+	{
+		r_skytexinfo[i].texture = NULL;
+	}
+
+	R_LoadSkyBox();
+}
+
+qboolean SWR_CheckSky (void)
+{
+	int		i;
+	char	pathname[MAX_QPATH];
+
+	if (!*skyname)
+		return true;
+	for (i=0 ; i<6 ; i++)
+	{
+		sprintf (pathname, "env/%s%s.pcx", skyname, suf[r_skysideimage[i]]);
+		if (COM_FCheckExists(pathname))
+		{
+			continue;// it exists, don't bother going for a tga version
+		}
+
+		sprintf (pathname, "env/%s%s.tga", skyname, suf[r_skysideimage[i]]);
+		if (!CL_CheckOrDownloadFile(pathname, -1))
+			return false;
+	}
+	return true;
+}
+
 /*
 ================
 R_InitSkyBox

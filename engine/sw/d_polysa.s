@@ -1104,7 +1104,7 @@ C(D_PolysetDrawAsm):
 //		D_DrawNonSubdiv ();
 	movl	C(r_affinetridesc)+atd_drawtype,%eax
 	testl	%eax,%eax
-	jz		C(D_DrawNonSubdiv)
+	jz		C(D_DrawNonSubdivAsm)
 
 	pushl	%ebp				// preserve caller stack frame pointer
 
@@ -1564,8 +1564,8 @@ LNextVert:
 // not C-callable because of stack buffer cleanup
 //----------------------------------------------------------------------
 
-.globl C(D_DrawNonSubdiv)
-C(D_DrawNonSubdiv):
+.globl C(D_DrawNonSubdivAsm)
+C(D_DrawNonSubdivAsm):
 	pushl	%ebp				// preserve caller stack frame pointer
 	movl	C(r_affinetridesc)+atd_numtriangles,%ebp
 	pushl	%ebx
@@ -1626,104 +1626,101 @@ LNDLoop:
 	movl	%eax,C(d_xdenom)
 	fildl	C(d_xdenom)
 
+	//ecx = index0
+	//edx = index1
+	//ebx = index2
+
+	//edi = temp
+	//eax = temp (non cachable)
+	//esi = temp (non cachable)
+
+	//use esi for st pointer?
+//edi contains base triangles
+//ebp is the current triangle number
+//
+	movl	C(r_affinetridesc)+atd_pstverts,%edi
+
 //		r_p0[0] = index0->v[0];		// u
 //		r_p0[1] = index0->v[1];		// v
-//		r_p0[2] = index0->v[2];		// s
-//		r_p0[3] = index0->v[3];		// t
 //		r_p0[4] = index0->v[4];		// light
 //		r_p0[5] = index0->v[5];		// iz
 	movl	fv_v+0(%ecx),%eax
 	movl	fv_v+4(%ecx),%esi
 	movl	%eax,C(r_p0)+0
 	movl	%esi,C(r_p0)+4
-	movl	fv_v+8(%ecx),%eax
-	movl	fv_v+12(%ecx),%esi
-	movl	%eax,C(r_p0)+8
-	movl	%esi,C(r_p0)+12
 	movl	fv_v+16(%ecx),%eax
 	movl	fv_v+20(%ecx),%esi
 	movl	%eax,C(r_p0)+16
 	movl	%esi,C(r_p0)+20
 
+	//now we can reuse ecx
+	movl	C(r_affinetridesc)+atd_ptriangles,%ecx
+
+//esi = edi + ecx->st_index[0];
+//		r_p0[2] = esi->v[2];		// s
+//		r_p0[3] = esi->v[3];		// t
+
+	movl mtri_stindex+0-mtri_size(%ecx,%ebp),%esi
+	shll $(stv_shift), %esi
+	addl %edi, %esi
+
+	movl	stv_s(%esi), %eax
+	movl	stv_t(%esi), %esi
+	movl	%eax,C(r_p0)+8
+	movl	%esi,C(r_p0)+12
+
+
+
 	fdivrs	float_1
 
 //		r_p1[0] = index1->v[0];
 //		r_p1[1] = index1->v[1];
-//		r_p1[2] = index1->v[2];
-//		r_p1[3] = index1->v[3];
 //		r_p1[4] = index1->v[4];
 //		r_p1[5] = index1->v[5];
 	movl	fv_v+0(%edx),%eax
 	movl	fv_v+4(%edx),%esi
 	movl	%eax,C(r_p1)+0
 	movl	%esi,C(r_p1)+4
-	movl	fv_v+8(%edx),%eax
-	movl	fv_v+12(%edx),%esi
-	movl	%eax,C(r_p1)+8
-	movl	%esi,C(r_p1)+12
 	movl	fv_v+16(%edx),%eax
 	movl	fv_v+20(%edx),%esi
 	movl	%eax,C(r_p1)+16
 	movl	%esi,C(r_p1)+20
 
+//		r_p1[2] = index1->v[2];
+//		r_p1[3] = index1->v[3];
+	movl mtri_stindex+4-mtri_size(%ecx,%ebp),%esi
+	shll $(stv_shift), %esi
+	addl %edi, %esi
+
+	movl	stv_s(%esi), %eax
+	movl	stv_t(%esi), %esi
+	movl	%eax,C(r_p1)+8
+	movl	%esi,C(r_p1)+12
+
 //		r_p2[0] = index2->v[0];
 //		r_p2[1] = index2->v[1];
-//		r_p2[2] = index2->v[2];
-//		r_p2[3] = index2->v[3];
 //		r_p2[4] = index2->v[4];
 //		r_p2[5] = index2->v[5];
 	movl	fv_v+0(%ebx),%eax
 	movl	fv_v+4(%ebx),%esi
 	movl	%eax,C(r_p2)+0
 	movl	%esi,C(r_p2)+4
-	movl	fv_v+8(%ebx),%eax
-	movl	fv_v+12(%ebx),%esi
-	movl	%eax,C(r_p2)+8
-	movl	%esi,C(r_p2)+12
 	movl	fv_v+16(%ebx),%eax
 	movl	fv_v+20(%ebx),%esi
 	movl	%eax,C(r_p2)+16
-	movl	C(r_affinetridesc)+atd_ptriangles,%edi
 	movl	%esi,C(r_p2)+20
+
+//		r_p2[2] = index2->v[2];
+//		r_p2[3] = index2->v[3];
+	movl mtri_stindex+8-mtri_size(%ecx,%ebp),%esi
+	shll $(stv_shift), %esi
+	addl %edi, %esi
+
+	movl	stv_s(%esi), %eax
+	movl	stv_t(%esi), %esi
+	movl	%eax,C(r_p2)+8
+	movl	%esi,C(r_p2)+12
 			
-#ifdef ONSEAMSTUFF
-	movl	mtri_facesfront-mtri_size(%edi,%ebp,1),%eax
-
-//		if (!ptri->facesfront)
-//		{
-	testl	%eax,%eax
-	jnz		LFacesFront
-
-//			if (index0->flags & ALIAS_ONSEAM)
-//				r_p0[2] += r_affinetridesc.seamfixupX16;
-	movl	fv_flags(%ecx),%eax
-	movl	fv_flags(%edx),%esi
-	movl	fv_flags(%ebx),%edi
-	testl	$(ALIAS_ONSEAM),%eax	
-	movl	C(r_affinetridesc)+atd_seamfixupX16,%eax
-	jz		LOnseamDone0
-	addl	%eax,C(r_p0)+8
-LOnseamDone0:
-
-//			if (index1->flags & ALIAS_ONSEAM)
-// 				r_p1[2] += r_affinetridesc.seamfixupX16;
-	testl	$(ALIAS_ONSEAM),%esi
-	jz		LOnseamDone1
-	addl	%eax,C(r_p1)+8
-LOnseamDone1:
-
-//			if (index2->flags & ALIAS_ONSEAM)
-//				r_p2[2] += r_affinetridesc.seamfixupX16;
-	testl	$(ALIAS_ONSEAM),%edi
-	jz		LOnseamDone2
-	addl	%eax,C(r_p2)+8
-LOnseamDone2:
-//		}
-
-LFacesFront:
-
-#endif
-
 	fstps	C(d_xdenom)
 
 //		D_PolysetSetEdgeTable ();

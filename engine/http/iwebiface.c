@@ -314,7 +314,7 @@ cvar_t pop3server = {"sv_pop3", "0"};
 cvar_t smtpserver = {"sv_smtp", "0"};
 cvar_t sv_readlevel = {"sv_readlevel", "0"};	//default to allow anyone
 cvar_t sv_writelevel = {"sv_writelevel", "35"};	//allowed to write to uploads/uname
-cvar_t sv_fulllevel = {"sv_fulllevel", "49"};	//allowed to write anywhere, replace any file...
+cvar_t sv_fulllevel = {"sv_fulllevel", "51"};	//allowed to write anywhere, replace any file...
 #endif
 
 //this file contains functions called from each side.

@@ -269,58 +269,5 @@ typedef struct entvars_s
 	float	light_level;//hexen2's grabbing light level from client
 	float	abslight;	//hexen2's force a lightlevel
 	float	hasted;	//hexen2 uses this AS WELL as maxspeed
-
-
-	//FIXME: remove these, use evalc_ts
-	float	level;
-	float	intelligence;
-	float	experience;
-	float	wisdom;
-	float	strength;
-	float	dexterity;
-	float	bluemana;
-	float	greenmana;
-	float	max_mana;
-	float	experiance;
-	float	artifact_active;
-	float	artifact_low;
-	int		cameramode;
-	float	rings_active;
-	float	rings_low;
-	float	armor_amulet;
-	float	armor_bracer;
-	float	armor_breastplate;
-	float	armor_helmet;
-	float	ring_flight;
-	float	ring_water;
-	float	ring_turning;
-	float	ring_regeneration;
-
-	string_t	puzzle_inv1;
-	string_t	puzzle_inv2;
-	string_t	puzzle_inv3;
-	string_t	puzzle_inv4;
-	string_t	puzzle_inv5;
-	string_t	puzzle_inv6;
-	string_t	puzzle_inv7;
-	string_t	puzzle_inv8;
-
-	float	inventory;
-	float	cnt_torch;
-	float	cnt_h_boost;
-	float	cnt_sh_boost;
-	float	cnt_mana_boost;
-	float	cnt_teleport;
-	float	cnt_tome;
-	float	cnt_summon;
-	float	cnt_invisibility;
-	float	cnt_glyph;
-	float	cnt_haste;
-	float	cnt_blast;
-	float	cnt_polymorph;
-	float	cnt_flight;
-	float	cnt_cubeofforce;
-	float	cnt_invincibility;
 } entvars_t;
 
-#define PROGHEADER_CRC 54730

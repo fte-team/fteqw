@@ -198,16 +198,18 @@ void VARGS PR_RunError (progfuncs_t *progfuncs, char *error, ...)
 	Q_vsnprintf (string,sizeof(string)-1, error,argptr);
 	va_end (argptr);
 
+	SV_EndRedirect();
+
 //	PR_PrintStatement (pr_statements + pr_xstatement);
 	PR_StackTrace (progfuncs);
-	printf ("%s\n", string);
+	printf ("\n");
 
 //editbadfile(pr_strings + pr_xfunction->s_file, -1);
 	
 	pr_depth = 0;		// dump the stack so host_error can shutdown functions	
 	prinst->exitdepth = 0;
 
-	Abort ("Program error");
+	Abort (string);
 }
 
 /*

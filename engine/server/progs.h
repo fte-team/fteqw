@@ -32,6 +32,7 @@ void PR_RegisterSVBuiltins(void);
 void PR_RegisterFields(void);
 void PR_Init(void);
 qboolean PR_UserCmd(char *cmd);
+qboolean PR_ConsoleCmd(void);
 
 void PR_RunThreads(void);
 

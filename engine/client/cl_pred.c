@@ -549,7 +549,7 @@ void CL_PredictMovePNum (int pnum)
 	if (cl_pushlatency.value > 0)
 		Cvar_Set (&cl_pushlatency, "0");
 
-	if (cl.paused)
+	if (cl.paused && !cls.demoplayback!=DPB_MVD && (!cl.spectator || !autocam[pnum])) 
 		return;
 #ifdef NQPROT
 	if (cls.demoplayback!=DPB_NETQUAKE)	//don't increase time in nq demos.
@@ -595,11 +595,10 @@ void CL_PredictMovePNum (int pnum)
 		SCR_EndLoadingPlaque();
 	}
 
-
-	VectorCopy (cl.viewangles[pnum], cl.simangles[pnum]);
-
 	// this is the last frame received from the server
 	from = &cl.frames[cls.netchan.incoming_sequence & UPDATE_MASK];
+
+	VectorCopy (cl.viewangles[pnum], cl.simangles[pnum]);
 
 	vel = from->playerstate[cl.playernum[pnum]].velocity;
 	org = from->playerstate[cl.playernum[pnum]].origin;
@@ -616,7 +615,7 @@ void CL_PredictMovePNum (int pnum)
 		}
 	}
 #endif
-	if ((cl_nopred.value|| cl.fixangle) || cls.demoplayback==DPB_MVD)
+	if ((cl_nopred.value|| cl.fixangle))
 	{
 		VectorCopy (vel, cl.simvel[pnum]);
 		VectorCopy (org, cl.simorg[pnum]);

@@ -171,24 +171,49 @@ void GL_InitSceneProcessingShaders (void)
 		uniform float ampscale;\
 		void main (void)\
 		{\
-			v_texCoord.x = v_texCoord.x + sin((v_texCoord.y * xscale) + time) * ampscale;\
-			v_texCoord.y = v_texCoord.y + cos((v_texCoord.x * yscale) + time) * ampscale;\
-			gl_FragColor = texture2D( texture, v_texCoord );\
+			vec2 temp;\
+			temp.x = v_texCoord.x + sin((v_texCoord.y * xscale) + time) * ampscale;\
+			temp.y = v_texCoord.y + cos((v_texCoord.x * yscale) + time) * ampscale;\
+			gl_FragColor = texture2D( texture, temp );\
 		}\
 		";
 
-	vert = GLSlang_CreateShader(genericvert,	1);
-	frag = GLSlang_CreateShader(wwfrag,			0);
+	if (qglGetError())
+		Con_Printf("GL Error before initing shader object\n");
+
+	vert = GLSlang_CreateShader(genericvert,	1);//GL_VERTEX_SHADER_ARB);
+	frag = GLSlang_CreateShader(wwfrag,			0);//GL_FRAGMENT_SHADER_ARB);
+
+	if (qglGetError())
+		Con_Printf("GL Error after initing shader object\n");
 
 	scenepp_ww_program = GLSlang_CreateProgram(vert, frag);
-	scenepp_ww_parm_texturei	= GLSlang_GetUniformLocation(scenepp_ww_program, "texture");
+	if (qglGetError())
+		Con_Printf("GL Error after initing shader object\n");
+
+//	scenepp_ww_parm_texturei	= GLSlang_GetUniformLocation(scenepp_ww_program, "texture");
 	scenepp_ww_parm_timef		= GLSlang_GetUniformLocation(scenepp_ww_program, "time");
 	scenepp_ww_parm_xscalef		= GLSlang_GetUniformLocation(scenepp_ww_program, "xscale");
+	if (qglGetError())
+		Con_Printf("GL Error after initing shader object\n");
 	scenepp_ww_parm_yscalef		= GLSlang_GetUniformLocation(scenepp_ww_program, "yscale");
 	scenepp_ww_parm_ampscalef	= GLSlang_GetUniformLocation(scenepp_ww_program, "ampscale");
+	if (qglGetError())
+		Con_Printf("GL Error after initing shader object\n");
 
-	GLSlang_SetUniform1i(scenepp_ww_parm_texturei, 0);
-	GLSlang_SetUniform1f(scenepp_ww_parm_ampscalef, 0.08);
+	GLSlang_UseProgram(scenepp_ww_program);
+
+//	GLSlang_SetUniform1i(scenepp_ww_parm_texturei, 0);
+
+	if (qglGetError())
+		Con_Printf("GL Error after initing shader object\n");
+
+	GLSlang_SetUniform1f(scenepp_ww_parm_ampscalef, 0.02);
+
+	if (qglGetError())
+		Con_Printf("GL Error after initing shader object\n");
+
+	GLSlang_UseProgram(0);
 }
 
 /*
@@ -1749,6 +1774,7 @@ void GLR_RenderView (void)
 	// we check if we need to use any shaders - currently it's just waterwarp
 	if ((gl_config.arb_shader_objects) && (r_waterwarp.value /*&& r_viewleaf->contents <= Q1CONTENTS_WATER*/))
 	{
+		extern int char_texture;
 		float vwidth = 1, vheight = 1;
 		float vs, vt;
 
@@ -1762,9 +1788,12 @@ void GLR_RenderView (void)
 			vheight *= 2;
 		}
 
-		// get the texcoords while we're at it
-		vs = glwidth - vwidth;
-		vt = glheight - vheight;
+		if (qglGetError())
+			Con_Printf("GL Error before drawing with shaderobjects\n");
+
+		// get the maxtexcoords while we're at it
+		vs = glwidth / vwidth;
+		vt = glheight / vheight;
 
 		// 2d mode, but upside down to quake's normal 2d drawing
 		// this makes grabbing the sreen a lot easier
@@ -1775,7 +1804,7 @@ void GLR_RenderView (void)
 		qglPushMatrix();
 		qglLoadIdentity ();
 		// TODO: use actual window width and height
-		qglOrtho  (0, vid.width, 0, vid.height, -99999, 99999);
+		qglOrtho  (0, glwidth, 0, glheight, -99999, 99999);
 
 		qglMatrixMode(GL_MODELVIEW);
 		qglPushMatrix();
@@ -1789,6 +1818,11 @@ void GLR_RenderView (void)
 		// copy the scene to texture
 		GL_Bind(scenepp_texture);
 		qglCopyTexImage2D(GL_TEXTURE_2D, 0, GL_RGB, glx, gly, vwidth, vheight, 0);
+		qglTexParameterf(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+		qglTexParameterf(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+
+		if (qglGetError())
+			Con_Printf("GL Error after qglCopyTexImage2D\n");
 
 		// Here we apply the shaders - currently just waterwarp
 		GLSlang_UseProgram(scenepp_ww_program);
@@ -1796,30 +1830,36 @@ void GLR_RenderView (void)
 		GLSlang_SetUniform1f(scenepp_ww_parm_xscalef, glheight / 32.0f);
 		GLSlang_SetUniform1f(scenepp_ww_parm_timef, cl.time);
 
-		glBegin(GL_QUADS);
+		if (qglGetError())
+			Con_Printf("GL Error after GLSlang_UseProgram\n");
 
-		glTexCoord2f(0, 0);
-		glVertex2f(0, 0);
+		qglBegin(GL_QUADS);
 
-		glTexCoord2f(vs, 0);
-		glVertex2f(vwidth, 0);
+		qglTexCoord2f(0, 0);
+		qglVertex2f(0, 0);
 
-		glTexCoord2f(vs, vt);
-		glVertex2f(vwidth, vheight);
+		qglTexCoord2f(vs, 0);
+		qglVertex2f(glwidth, 0);
 
-		glTexCoord2f(0, vt);
-		glVertex2f(0, vheight);
+		qglTexCoord2f(vs, vt);
+		qglVertex2f(glwidth, glheight);
+
+		qglTexCoord2f(0, vt);
+		qglVertex2f(0, glheight);
 		
-		glEnd();
+		qglEnd();
 
 		// Disable shaders
-		GLSlang_UseProgram(NULL);
+		GLSlang_UseProgram(0);
 
 		// After all the post processing, pop the matrices
 		qglMatrixMode(GL_PROJECTION);
 		qglPopMatrix();
 		qglMatrixMode(GL_MODELVIEW);
 		qglPopMatrix();
+
+		if (qglGetError())
+			Con_Printf("GL Error after drawing with shaderobjects\n");
 	}
 }
 

@@ -103,6 +103,17 @@ typedef struct {
 //others are ignored.
 
 typedef struct {
+	char name[8];
+	short width;
+	short height;
+	int gltexture;
+//	shader_t *glshader;	// :o)
+} gldoomtexture_t;
+
+static gldoomtexture_t *gldoomtextures;
+static int numgldoomtextures;
+
+typedef struct {
 	short texx;
 	short texy;
 	char uppertex[8];
@@ -111,11 +122,13 @@ typedef struct {
 	unsigned short sector;
 } dsidedef_t;
 typedef struct {
-	float texx;
-	float texy;
-	int uppertex;
-	int lowertex;
-	int middletex;
+	unsigned short texx;
+	unsigned short texy;
+
+	unsigned short uppertex;
+	unsigned short lowertex;
+	unsigned short middletex;
+
 	unsigned short sector;
 } msidedef_t;
 
@@ -239,12 +252,10 @@ extern char loadname[];
 qbyte doompalette[768];
 static qboolean paletteloaded;
 
-int Doom_LoadFlat(char *name)
+void Doom_LoadPalette(void)
 {
 	char *file;
-	char texname[64];
 	int tex;
-
 	if (!paletteloaded)
 	{
 		paletteloaded = true;
@@ -264,6 +275,15 @@ int Doom_LoadFlat(char *name)
 			}
 		}
 	}
+}
+
+int Doom_LoadFlat(char *name)
+{
+	char *file;
+	char texname[64];
+	int tex;
+
+	Doom_LoadPalette();
 
 	sprintf(texname, "flat-%-.8s", name);
 	strlwr(texname);
@@ -286,6 +306,42 @@ int Doom_LoadFlat(char *name)
 	}
 
 	return tex;
+}
+
+static void GLR_DrawWall(unsigned short texnum, unsigned short s, unsigned short t, float x1, float y1, float frontfloor, float x2, float y2, float backfloor, qboolean unpegged)
+{
+	gldoomtexture_t *tex = gldoomtextures+texnum;
+	float len = sqrt((x1-x2)*(x1-x2) + (y1-y2)*(y1-y2));
+	float s1, s2;
+	float t1, t2;
+
+	s1 = s/tex->width;
+	s2 = s1 + len/tex->width;
+
+	if (unpegged)
+	{
+		t2 = t/tex->height;
+		t1 = t2 - (backfloor-frontfloor)/tex->height;
+	}
+	else
+	{
+		t1 = t/tex->height;
+		t2 = t1 + (backfloor-frontfloor)/tex->height;
+	}
+
+
+	GL_Bind(tex->gltexture);
+
+	glBegin(GL_QUADS);
+	glTexCoord2f(s1, t2);
+	glVertex3f(x1, y1, frontfloor);
+	glTexCoord2f(s1, t1);
+	glVertex3f(x1, y1, backfloor);
+	glTexCoord2f(s2, t1);
+	glVertex3f(x2, y2, backfloor);
+	glTexCoord2f(s2, t2);
+	glVertex3f(x2, y2, frontfloor);
+	glEnd();
 }
 
 static void GLR_DrawSSector(unsigned int ssec)
@@ -321,17 +377,12 @@ static void GLR_DrawSSector(unsigned int ssec)
 
 			if (sec->floorheight < sec2->floorheight)
 			{
-				GL_Bind(sidedefsm[sd].lowertex);
-				glBegin(GL_QUADS);
-				glTexCoord2f(0, 1);
-				glVertex3f(vertexesl[v0].xpos, vertexesl[v0].ypos, sec->floorheight);
-				glTexCoord2f(0, 0);
-				glVertex3f(vertexesl[v0].xpos, vertexesl[v0].ypos, sec2->floorheight);
-				glTexCoord2f(1, 0);
-				glVertex3f(vertexesl[v1].xpos, vertexesl[v1].ypos, sec2->floorheight);
-				glTexCoord2f(1, 1);
-				glVertex3f(vertexesl[v1].xpos, vertexesl[v1].ypos, sec->floorheight);
-				glEnd();
+				GLR_DrawWall(sidedefsm[sd].lowertex, 
+					sidedefsm[ld->sidedef[1-segsl[seg].direction]].texx,
+					sidedefsm[ld->sidedef[1-segsl[seg].direction]].texy,
+					vertexesl[v0].xpos, vertexesl[v0].ypos, sec->floorheight,
+					vertexesl[v1].xpos, vertexesl[v1].ypos, sec2->floorheight, ld->flags & LINEDEF_LOWERUNPEGGED);
+
 				c_brush_polys++;
 			}
 
@@ -339,6 +390,14 @@ static void GLR_DrawSSector(unsigned int ssec)
 			{
 			//	if (sec2->ceilingheight != sec2->floorheight)
 			//	sec2->floorheight = sec2->ceilingheight-32;
+				
+				GLR_DrawWall(sidedefsm[sd].uppertex, 
+					sidedefsm[ld->sidedef[1-segsl[seg].direction]].texx,
+					sidedefsm[ld->sidedef[1-segsl[seg].direction]].texy,
+					vertexesl[v0].xpos, vertexesl[v0].ypos, sec2->ceilingheight,
+					vertexesl[v1].xpos, vertexesl[v1].ypos, sec->ceilingheight, ld->flags & LINEDEF_UPPERUNPEGGED);
+
+/*
 				GL_Bind(sidedefsm[sd].uppertex);
 				glBegin(GL_QUADS);
 				glTexCoord2f(0, 1);
@@ -349,12 +408,18 @@ static void GLR_DrawSSector(unsigned int ssec)
 				glVertex3f(vertexesl[v1].xpos, vertexesl[v1].ypos, sec->ceilingheight);
 				glTexCoord2f(1, 1);
 				glVertex3f(vertexesl[v1].xpos, vertexesl[v1].ypos, sec2->ceilingheight);
-				glEnd();
+				glEnd();*/
 				c_brush_polys++;
 			}
 
 			if (sidedefsm[sd].middletex)
 			{
+				GLR_DrawWall(sidedefsm[sd].middletex, 
+					sidedefsm[ld->sidedef[segsl[seg].direction]].texx,
+					sidedefsm[ld->sidedef[segsl[seg].direction]].texy,
+					vertexesl[v1].xpos, vertexesl[v1].ypos, (sec2->ceilingheight < sec->ceilingheight)?sec2->ceilingheight:sec->ceilingheight,
+					vertexesl[v0].xpos, vertexesl[v0].ypos, (sec2->floorheight > sec->floorheight)?sec2->floorheight:sec->floorheight, false);
+/*
 				GL_Bind(sidedefsm[sd].middletex);
 				glBegin(GL_QUADS);
 				if (sec2->ceilingheight < sec->ceilingheight)
@@ -386,11 +451,20 @@ static void GLR_DrawSSector(unsigned int ssec)
 					glVertex3f(vertexesl[v0].xpos, vertexesl[v0].ypos, sec->floorheight);
 				}
 				glEnd();
+				*/
 				c_brush_polys++;
 			}
 		}
 		else
 		{	//solid wall, draw full wall.
+
+			GLR_DrawWall(sidedefsm[sd].middletex, 
+				sidedefsm[ld->sidedef[segsl[seg].direction]].texx,
+				sidedefsm[ld->sidedef[segsl[seg].direction]].texy,
+				vertexesl[v0].xpos, vertexesl[v0].ypos, sec->floorheight,
+				vertexesl[v1].xpos, vertexesl[v1].ypos, sec->ceilingheight, false);
+#if 0
+
 			GL_Bind(sidedefsm[sd].middletex);
 			glBegin(GL_QUADS);
 		/*	if (ld->flags & LINEDEF_LOWERUNPEGGED)
@@ -416,6 +490,7 @@ static void GLR_DrawSSector(unsigned int ssec)
 				glVertex3f(vertexesl[v1].xpos, vertexesl[v1].ypos, sec->floorheight);
 			}
 			glEnd();
+#endif
 			c_brush_polys++;
 		}
 	}
@@ -987,9 +1062,9 @@ static void Doom_ExtractPName(unsigned int *out, doomimage_t *di, int outwidth, 
 	colpointers = (unsigned int*)(data+sizeof(doomimage_t));
 	for (c = 0; c < di->width; c++)
 	{
-		if (c < 0)
+		if (c+x < 0)
 			continue;
-		if (c > outwidth)
+		if (c+x >= outwidth)
 			break;
 
 		if (colpointers[c] >= com_filesize)
@@ -1003,11 +1078,19 @@ static void Doom_ExtractPName(unsigned int *out, doomimage_t *di, int outwidth, 
 
 			rc = *coldata++;
 
-			coldata++;
+			coldata++;	//one not drawn, on each side
+
+			fr+=y;
+
+			if (fr<0)
+			{
+				coldata -= fr;	//plus
+				fr = 0;
+			}
 
 			if ((fr+rc) > outheight)
 			{
-				extra = rc - outheight - fr +1;
+				extra = rc - (outheight - fr) +1;
 				rc = outheight - fr;
 				if (rc < 0)
 					break;
@@ -1017,18 +1100,18 @@ static void Doom_ExtractPName(unsigned int *out, doomimage_t *di, int outwidth, 
 
 			while(rc)
 			{
-				out[c + fr*outwidth] = (gammatable[doompalette[*coldata*3]]) + (gammatable[doompalette[*coldata*3+1]]<<8) + (gammatable[doompalette[*coldata*3+2]]<<16);
+				out[c+x + fr*outwidth] = (gammatable[doompalette[*coldata*3]]) + (gammatable[doompalette[*coldata*3+1]]<<8) + (gammatable[doompalette[*coldata*3+2]]<<16) + (255<<24);
 				coldata++;
 				fr++;
 				rc--;
 			}
 
-			coldata+=extra;
+			coldata+=extra; //one not drawn, on each side
 		}
 	}
 }
 
-static int Doom_LoadPatchFromTexWad(char *name, void *texlump)
+static int Doom_LoadPatchFromTexWad(char *name, void *texlump, unsigned short *width, unsigned short *height)
 {
 	char patch[32] = "patches/";
 	unsigned int *tex;
@@ -1046,6 +1129,9 @@ static int Doom_LoadPatchFromTexWad(char *name, void *texlump)
 		if (!strncmp(tx->name, name, 8))
 		{
 			tex = BZ_Malloc(tx->width*tx->height*4);
+			memset(tex, 255, tx->width*tx->height*4);
+			*width = tx->width;
+			*height = tx->height;
 			tc = (ddoomtexturecomponant_t*)(tx+1);
 			for (i = 0; i < tx->componantcount; i++, tc++)
 			{
@@ -1069,20 +1155,40 @@ static int Doom_LoadPatchFromTexWad(char *name, void *texlump)
 static int Doom_LoadPatch(char *name)
 {
 	int texnum;
+
+	for (texnum = 0; texnum < numgldoomtextures; texnum++)	//a hash table might be a good plan.
+	{
+		if(!strncmp(name, gldoomtextures[texnum].name, 8))
+		{
+			return texnum;
+		}
+	}
+	//couldn't find it.
+//	texnum = numgldoomtextures;
+
+	gldoomtextures = BZ_Realloc(gldoomtextures, sizeof(*gldoomtextures)*((numgldoomtextures+16)&~15));
+	numgldoomtextures++;
+
+	strncpy(gldoomtextures[texnum].name, name, 8);
+
+
 	if (textures1)
 	{
-		texnum = Doom_LoadPatchFromTexWad(name, textures1);
-		if (texnum)
+		gldoomtextures[texnum].gltexture = Doom_LoadPatchFromTexWad(name, textures1, &gldoomtextures[texnum].width, &gldoomtextures[texnum].height);
+		if (gldoomtextures[texnum].gltexture)
 			return texnum;
 	}
 	if (textures2)
 	{
-		texnum = Doom_LoadPatchFromTexWad(name, textures2);
-		if (texnum)
+		gldoomtextures[texnum].gltexture = Doom_LoadPatchFromTexWad(name, textures2, &gldoomtextures[texnum].width, &gldoomtextures[texnum].height);
+		if (gldoomtextures[texnum].gltexture)
 			return texnum;
 	}
 	//all else failed.
-	return Mod_LoadHiResTexture(name, true, false, true);
+	gldoomtextures[texnum].gltexture = Mod_LoadHiResTexture(name, true, false, true);
+	gldoomtextures[texnum].width = image_width;
+	gldoomtextures[texnum].height = image_height;
+	return texnum;
 }
 #endif
 static void CleanWalls(dsidedef_t *sidedefsl)
@@ -1143,8 +1249,8 @@ static void CleanWalls(dsidedef_t *sidedefsl)
 		}
 #endif
 		sidedefsm[i].sector = sidedefsl[i].sector;
-		sidedefsm[i].texx = sidedefsl[i].texx/64.0f;
-		sidedefsm[i].texy = sidedefsl[i].texy/64.0f;
+		sidedefsm[i].texx = sidedefsl[i].texx;
+		sidedefsm[i].texy = sidedefsl[i].texy;
 	}
 }
 
@@ -1503,6 +1609,10 @@ qboolean Mod_LoadDoomLevel(model_t *mod)
 	sectorl		= (void *)COM_LoadMallocFile	(va("%s.sectors",	name));
 	sectorc		= com_filesize/sizeof(*sectorl);
 
+	numgldoomtextures=0;
+	Doom_LoadPalette();
+
+
 	Doom_LoadVerticies(name);
 
 	Doom_LoadSSegs(name);
@@ -1630,7 +1740,7 @@ int Doom_PointContents(hull_t *hull, vec3_t p)
 	return FTECONTENTS_EMPTY;
 }
 
-#define NEWTRACES
+//#define NEWTRACES
 #ifdef NEWTRACES
 static qboolean ispoint;
 static void ClipToBlockMap(hull_t *hull, int block, vec3_t start, vec3_t end, trace_t *trace)
@@ -1641,6 +1751,12 @@ static void ClipToBlockMap(hull_t *hull, int block, vec3_t start, vec3_t end, tr
 	float planedist;
 
 	float d1, d2;	//distance start, end
+
+	if (block < 0 || block >= blockmapl->columns*blockmapl->rows)
+	{
+		trace->fraction = 0;
+		return;
+	}
 
 
 			trace->endpos[0] = end[0];
@@ -1679,6 +1795,15 @@ static void ClipToBlockMap(hull_t *hull, int block, vec3_t start, vec3_t end, tr
 
 		if (d1 < 0 && d2 < 0)
 			continue;	//both points on the back side.
+
+		//line crossed plane
+
+		if (d1<0)	//moved onto backside
+		{
+			
+			LeaveSector(sidedefsm[ld->sidedef[0]].sector);
+			EnterSector(sidedefsm[ld->sidedef[1]].sector);
+		}
 	}
 }
 

@@ -489,6 +489,8 @@ void MasterInfo_Request(master_t *mast)
 	case MT_BCASTNQ:
 	case MT_SINGLENQ:
 		SZ_Clear(&net_message);
+		net_message.packing = SZ_RAWBYTES;
+		net_message.currentbit = 0;
 		MSG_WriteLong(&net_message, 0);// save space for the header, filled in later
 		MSG_WriteByte(&net_message, CCREQ_SERVER_INFO);
 		MSG_WriteString(&net_message, NET_GAMENAME_NQ);	//look for either sort of server

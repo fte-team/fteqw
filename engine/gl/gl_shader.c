@@ -27,6 +27,9 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 #include "hash.h"
 
 
+#include <ctype.h>
+
+
 //Spike: Marked code removal areas with FIZME
 //readd as porting progresses
 
@@ -184,12 +187,12 @@ typedef struct shadercache_s {
 } shadercache_t;
 
 static shadercache_t *shader_hash[HASH_SIZE];
-static char shaderbuf[MAX_QPATH * 256];
+//static char shaderbuf[MAX_QPATH * 256];
 
 shader_t	r_shaders[MAX_SHADERS];
 
-static char		r_skyboxname[MAX_QPATH];
-static float	r_skyheight;
+//static char		r_skyboxname[MAX_QPATH];
+//static float	r_skyheight;
 
 char *Shader_Skip( char *ptr );
 static qboolean Shader_Parsetok( shader_t *shader, shaderpass_t *pass, shaderkey_t *keys,
@@ -1091,8 +1094,8 @@ void Shader_SetBlendmode ( shaderpass_t *pass )
 		return;
 	}
 
-	if ( pass->blendsrc == GL_ZERO && pass->blenddst == GL_SRC_COLOR ||
-		pass->blendsrc == GL_DST_COLOR && pass->blenddst == GL_ZERO )
+	if ( (pass->blendsrc == GL_ZERO && pass->blenddst == GL_SRC_COLOR) ||
+		(pass->blendsrc == GL_DST_COLOR && pass->blenddst == GL_ZERO) )
 		pass->blendmode = GL_MODULATE;
 	else if ( pass->blendsrc == GL_ONE && pass->blenddst == GL_ONE )
 		pass->blendmode = GL_ADD;
@@ -1331,6 +1334,8 @@ void Shader_SetFeatures ( shader_t *s )
 			case RGB_GEN_EXACT_VERTEX:
 				s->features |= MF_COLORS;
 				break;
+			default:
+				break;
 		}
 
 		switch ( pass->alphagen ) {
@@ -1339,6 +1344,8 @@ void Shader_SetFeatures ( shader_t *s )
 				break;
 			case ALPHA_GEN_VERTEX:
 				s->features |= MF_COLORS;
+				break;
+			default:
 				break;
 		}
 

@@ -1636,17 +1636,14 @@ qboolean Doom_RecursiveHullCheck (hull_t *hull, int num, float p1f, float p2f, v
 	int bmi, obmi;
 	vec3_t delta;
 	int sec1 = Doom_SectorNearPoint(start);
-	vec3_t p1, pointonplane;
-	float d1, d2, c1, c2;
+	vec3_t p1, pointonplane, ofs;
+	float d1, d2, c1, c2, planedist;
 	plane_t *lp;
 	mdoomvertex_t *v1, *v2;
+	int j;
 
 	float clipfrac;
 #define	DIST_EPSILON	(0.03125)
-
-	float cylinder = 0;//hull->clip_maxs[0];	//FIXME: //lines and gravity cause major problems. the player is only ever in one sector at a time but should be in multiple.
-//	hull->clip_mins[2]=0;
-//	hull->clip_maxs[2]=0;
 
 //	Con_Printf("%i\n", sec1);
 
@@ -1656,7 +1653,7 @@ qboolean Doom_RecursiveHullCheck (hull_t *hull, int num, float p1f, float p2f, v
 		trace->allsolid = trace->startsolid = true;
 		trace->endpos[0] = start[0];
 		trace->endpos[1] = start[1];
-		trace->endpos[2] = start[2];
+		trace->endpos[2] = start[2];	//yeah, we do mean this - startsolid
 //		if (IS_NAN(trace->endpos[2]))
 //			Con_Printf("Nanny\n");
 		trace->plane.normal[0] = 0;
@@ -1684,7 +1681,7 @@ qboolean Doom_RecursiveHullCheck (hull_t *hull, int num, float p1f, float p2f, v
 	obmi = -1;
 	VectorSubtract(p2, p1, delta);
 	p2f = Length(delta)+DIST_EPSILON;
-	if (IS_NAN(p2f))
+	if (IS_NAN(p2f) || p2f > 100000)
 		p2f = 100000;
 	VectorNormalize(delta);
 
@@ -1717,36 +1714,119 @@ qboolean Doom_RecursiveHullCheck (hull_t *hull, int num, float p1f, float p2f, v
 				}
 				
 				lp = lineplanes + *linedefs;
-				d1 = DotProduct(lp->normal, start) - (lp->dist);
-				d2 = DotProduct(lp->normal, p2) - (lp->dist);
-				if (d1 >= cylinder && d2 >= cylinder)
+
+				if (1)
+				{	//figure out how far to move the plane out by
+					for (j=0 ; j<2 ; j++)
+					{
+						if (lp->normal[j] < 0)
+							ofs[j] = hull->clip_maxs[j];
+						else
+							ofs[j] = hull->clip_mins[j];
+					}
+					ofs[2] = 0;
+					planedist = lp->dist - DotProduct (ofs, lp->normal);
+				}
+				else
+					planedist = lp->dist;
+
+				d1 = DotProduct(lp->normal, start) - (planedist);
+				d2 = DotProduct(lp->normal, p2) - (planedist);
+				if (d1 > 0 && d2 > 0)
 					continue;	//both points on the front side.
-				if (d1 <= cylinder && d2 <= cylinder)
-					continue;	//both points on the reverse side.
+				if (d1 < 0)	//start on back side
+				{
+					if (ld->sidedef[1] != 0xffff)	//two sided (optimisation)
+					{
+						planedist = -planedist+lp->dist;
+						if (/*d1 < planedist*-1 &&*/ d1 > planedist*2)
+						{	//right, we managed to end up just on the other side of a wall's plane.
+							v1 = &vertexesl[ld->vert[0]];
+							v2 = &vertexesl[ld->vert[1]];
+							if (!(d1 - d2))
+								continue;
+							if (d1<0)	//back to front.
+								c1 = (d1+DIST_EPSILON) / (d1 - d2);
+							else
+								c1 = (d1-DIST_EPSILON) / (d1 - d2);
+							c2 = 1-c1;
+							pointonplane[0] = start[0]*c2 + p2[0]*c1;
+/*							if (pointonplane[0] > v1->xpos+DIST_EPSILON*2+hull->clip_maxs[0] && pointonplane[0] > v2->xpos+DIST_EPSILON*2+hull->clip_maxs[0])
+								continue;
+							if (pointonplane[0] < v1->xpos-DIST_EPSILON*2+hull->clip_mins[0] && pointonplane[0] < v2->xpos-DIST_EPSILON*2+hull->clip_mins[0])
+								continue;
+*/							pointonplane[1] = start[1]*c2 + p2[1]*c1;
+/*							if (pointonplane[1] > v1->ypos+DIST_EPSILON*2+hull->clip_maxs[1] && pointonplane[1] > v2->ypos+DIST_EPSILON*2+hull->clip_maxs[1])
+								continue;
+							if (pointonplane[1] < v1->ypos-DIST_EPSILON*2+hull->clip_mins[1] && pointonplane[1] < v2->ypos-DIST_EPSILON*2+hull->clip_mins[1])
+								continue;
+*/
+							pointonplane[2] = start[2]*c2 + p2[2]*c1;
+
+							Con_Printf("Started in wall\n");
+							j = sidedefsm[ld->sidedef[d1 < planedist]].sector;
+							//yup, we are in the thing
+							//prevent ourselves from entering the back-sector's floor/ceiling
+							if (pointonplane[2] < sectorm[j].floorheight-hull->clip_mins[2])	//whoops, started outside... ?
+							{
+								Con_Printf("Started in floor\n");
+								trace->allsolid = trace->startsolid = false;
+								trace->endpos[2] = sectorm[j].floorheight-hull->clip_mins[2];
+								trace->fraction = fabs(trace->endpos[2] - start[2]) / fabs(p2[2] - start[2]);
+								trace->endpos[0] = start[0]+delta[0]*trace->fraction*p2f;
+								trace->endpos[1] = start[1]+delta[1]*trace->fraction*p2f;
+						//		if (IS_NAN(trace->endpos[2]))
+						//			Con_Printf("Nanny\n");
+								trace->plane.normal[0] = 0;
+								trace->plane.normal[1] = 0;
+								trace->plane.normal[2] = 1;
+								trace->plane.dist = sectorm[j].floorheight-hull->clip_mins[2];
+
+								continue;
+							}
+							if (pointonplane[2] > sectorm[j].ceilingheight-hull->clip_maxs[2])	//whoops, started outside... ?
+							{
+								Con_Printf("Started in ceiling\n");
+								trace->allsolid = trace->startsolid = false;
+								trace->endpos[0] = pointonplane[0];
+								trace->endpos[1] = pointonplane[1];
+								trace->endpos[2] = sectorm[j].ceilingheight-hull->clip_maxs[2];
+								trace->fraction = fabs(trace->endpos[2] - start[2]) / fabs(p2[2] - start[2]);
+								trace->plane.normal[0] = 0;
+								trace->plane.normal[1] = 0;
+								trace->plane.normal[2] = -1;
+								trace->plane.dist = -(sectorm[j].ceilingheight-hull->clip_maxs[2]);
+								continue;
+							}
+						}
+					}
+					if (d2 < 0)
+						continue;	//both points on the reverse side.
+				}
 
 				//line crosses plane.
 
 				v1 = &vertexesl[ld->vert[0]];
 				v2 = &vertexesl[ld->vert[1]];
 
-				if (d1<cylinder)	//back to front.
+				if (d1<0)	//back to front.
 				{
 					if (ld->sidedef[1] == 0xffff)
-						continue;	//allow them to pass
+						continue;	//hack to allow them to pass
 					c1 = (d1+DIST_EPSILON) / (d1 - d2);
 				}
 				else
 					c1 = (d1-DIST_EPSILON) / (d1 - d2);
 				c2 = 1-c1;
 				pointonplane[0] = start[0]*c2 + p2[0]*c1;
-				if (pointonplane[0] > v1->xpos+DIST_EPSILON*2+cylinder && pointonplane[0] > v2->xpos+DIST_EPSILON*2+cylinder)
+				if (pointonplane[0] > v1->xpos+DIST_EPSILON*2+hull->clip_maxs[0] && pointonplane[0] > v2->xpos+DIST_EPSILON*2+hull->clip_maxs[0])
 					continue;
-				if (pointonplane[0] < v1->xpos-DIST_EPSILON*2-cylinder && pointonplane[0] < v2->xpos-DIST_EPSILON*2-cylinder)
+				if (pointonplane[0] < v1->xpos-DIST_EPSILON*2+hull->clip_mins[0] && pointonplane[0] < v2->xpos-DIST_EPSILON*2+hull->clip_mins[0])
 					continue;
 				pointonplane[1] = start[1]*c2 + p2[1]*c1;
-				if (pointonplane[1] > v1->ypos+DIST_EPSILON*2+cylinder && pointonplane[1] > v2->ypos+DIST_EPSILON*2+cylinder)
+				if (pointonplane[1] > v1->ypos+DIST_EPSILON*2+hull->clip_maxs[1] && pointonplane[1] > v2->ypos+DIST_EPSILON*2+hull->clip_maxs[1])
 					continue;
-				if (pointonplane[1] < v1->ypos-DIST_EPSILON*2-cylinder && pointonplane[1] < v2->ypos-DIST_EPSILON*2-cylinder)
+				if (pointonplane[1] < v1->ypos-DIST_EPSILON*2+hull->clip_mins[1] && pointonplane[1] < v2->ypos-DIST_EPSILON*2+hull->clip_mins[1])
 					continue;
 				pointonplane[2] = start[2]*c2 + p2[2]*c1;
 
@@ -1754,10 +1834,10 @@ qboolean Doom_RecursiveHullCheck (hull_t *hull, int num, float p1f, float p2f, v
 				{	//unconditionally clipped.
 				}
 				else
-				{	//ensure that the side we are passing on to passes the clip
+				{	//ensure that the side we are passing on to passes the clip (no ceiling/floor clips happened first)
 					msector_t *sec2;
 
-					if (d1<cylinder)
+					if (d1<0)
 						sec2 = &sectorm[sidedefsm[ld->sidedef[1]].sector];
 					else
 						sec2 = &sectorm[sidedefsm[ld->sidedef[0]].sector];
@@ -1812,7 +1892,7 @@ qboolean Doom_RecursiveHullCheck (hull_t *hull, int num, float p1f, float p2f, v
 						continue;
 					}
 
-					if (d1<cylinder)
+					if (d1<0)
 						sec2 = &sectorm[sidedefsm[ld->sidedef[0]].sector];
 					else
 						sec2 = &sectorm[sidedefsm[ld->sidedef[1]].sector];
@@ -1823,7 +1903,7 @@ qboolean Doom_RecursiveHullCheck (hull_t *hull, int num, float p1f, float p2f, v
 					if (pointonplane[2] > sec2->floorheight-hull->clip_mins[2] &&
 						pointonplane[2] < sec2->ceilingheight-hull->clip_maxs[2])
 					{
-//						Con_Printf("Two sided passed\n");
+						Con_Printf("Two sided passed\n");
 						continue;
 					}
 
@@ -1831,10 +1911,10 @@ qboolean Doom_RecursiveHullCheck (hull_t *hull, int num, float p1f, float p2f, v
 //					sec2->floorheight--;
 				}
 
-				if (d1<cylinder)	//back to front.
-					c1 = (d1-cylinder+DIST_EPSILON) / (d1 - d2);
+				if (d1<0)	//back to front.
+					c1 = (d1+DIST_EPSILON) / (d1 - d2);
 				else
-					c1 = (d1-cylinder-DIST_EPSILON) / (d1 - d2);
+					c1 = (d1-DIST_EPSILON) / (d1 - d2);
 
 
 				clipfrac = c1;
@@ -1847,16 +1927,17 @@ qboolean Doom_RecursiveHullCheck (hull_t *hull, int num, float p1f, float p2f, v
 				if (trace->fraction > clipfrac)
 				{
 					trace->fraction = clipfrac;
-					VectorMA(pointonplane, cylinder, lp->normal, trace->endpos);
+					VectorMA(pointonplane, 0, lp->normal, trace->endpos);
+					VectorMA(trace->endpos, -0.1, delta, trace->endpos);
 //					if (IS_NAN(trace->endpos[2]))
 //						Con_Printf("Buggy clipping\n");
 					VectorCopy(lp->normal, trace->plane.normal);
-					trace->plane.dist = lp->dist-cylinder;
+					trace->plane.dist = planedist;
 //					if (IS_NAN(trace->plane.normal[2]))
 //						Con_Printf("Buggy clipping\n");
 
-//					if (clipfrac)
-//					Con_Printf("Clip Wall %f\n", clipfrac);
+					if (clipfrac)
+					Con_Printf("Clip Wall %f\n", clipfrac);
 				}
 			}
 			

@@ -70,6 +70,10 @@ void PF_vectoyaw (progfuncs_t *prinst, struct globalvars_s *pr_globals);
 void PF_vectoangles (progfuncs_t *prinst, struct globalvars_s *pr_globals);
 void PF_findchain (progfuncs_t *prinst, struct globalvars_s *pr_globals);
 void PF_findchainfloat (progfuncs_t *prinst, struct globalvars_s *pr_globals);
+void PF_coredump (progfuncs_t *prinst, struct globalvars_s *pr_globals);
+void PF_traceon (progfuncs_t *prinst, struct globalvars_s *pr_globals);
+void PF_traceoff (progfuncs_t *prinst, struct globalvars_s *pr_globals);
+void PF_eprint (progfuncs_t *prinst, struct globalvars_s *pr_globals);
 
 void PF_fclose_progs (progfuncs_t *prinst);
 char *PF_VarString (progfuncs_t *prinst, int	first, struct globalvars_s *pr_globals);
@@ -866,6 +870,11 @@ void PF_menu_findchainfloat (progfuncs_t *prinst, struct globalvars_s *pr_global
 	RETURN_EDICT(prinst, chain);
 }
 
+void PF_etof(progfuncs_t *prinst, struct globalvars_s *pr_globals)
+{
+	G_FLOAT(OFS_RETURN) = G_EDICTNUM(prinst, OFS_PARM0);
+}
+
 builtin_t menu_builtins[] = {
 //0
 	PF_Fixme,
@@ -902,10 +911,10 @@ builtin_t menu_builtins[] = {
 	PF_CL_precache_sound,//29
 
 //30
-	skip1				//void	coredump(void) = #30;
-	skip1				//void	traceon(void) = #31;
-	skip1				//void	traceoff(void) = #32;
-	skip1				//void	eprint(entity e)  = #33;
+	PF_coredump,				//void	coredump(void) = #30;
+	PF_traceon,				//void	traceon(void) = #31;
+	PF_traceoff,				//void	traceoff(void) = #32;
+	PF_eprint,				//void	eprint(entity e)  = #33;
 	PF_rint,
 	PF_floor,
 	PF_ceil,
@@ -955,7 +964,7 @@ builtin_t menu_builtins[] = {
 	PF_search_getsize ,//6
 	PF_search_getfilename,//7
 	PF_chr2str,//8
-	PF_Fixme,//9				//float 	etof(entity ent) = #79;
+	PF_etof,//9				//float 	etof(entity ent) = #79;
 //80
 	skip10
 //90

@@ -549,7 +549,7 @@ r_refdef.viewangles[2]=    0;
 #else
 	r_dowarp = r_waterwarp.value && (r_viewleaf->contents <= Q1CONTENTS_WATER);
 #endif
-	if (vid.width > MAXWIDTH || r_pixbytes == 4 || scr_chatmode)
+	if (vid.width > MAXWIDTH || r_pixbytes != 1 || scr_chatmode)
 		r_dowarp = 0;
 	if (r_dosirds)
 		r_dowarp = 0;

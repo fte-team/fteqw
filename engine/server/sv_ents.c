@@ -1131,6 +1131,7 @@ void SV_WritePlayersToClient (client_t *client, edict_t *clent, qbyte *pvs, size
 		vec3_t org;
 		vec3_t vel;
 		float lerp;
+		float a1, a2;
 		extern vec3_t player_mins, player_maxs;
 		clstate_t clst;
 		extern float olddemotime, nextdemotime;
@@ -1176,7 +1177,14 @@ void SV_WritePlayersToClient (client_t *client, edict_t *clent, qbyte *pvs, size
 					lerp = 1;
 				for (j = 0; j < 3; j++)
 				{
-					ang[j] = (360.0f/256)*(sv.recordedplayer[i].oldang[j] + (sv.demostate[i+1].angles[j] - sv.recordedplayer[i].oldang[j])*lerp);
+					a1 = (360.0f/256)*sv.recordedplayer[i].oldang[j];
+					a2 = (360.0f/256)*sv.demostate[i+1].angles[j];
+					a2 = a2 - a1;
+					if (a2 > 180)
+						a2-=360;
+					if (a2 < -180)
+						a2+=360;
+					ang[j] = (a1 + (a2)*lerp);
 
 					org[j] = sv.recordedplayer[i].oldorg[j] + (sv.demostate[i+1].origin[j] - sv.recordedplayer[i].oldorg[j])*lerp;
 					

@@ -847,6 +847,7 @@ void S_StartSoundCard(soundcardinfo_t *sc, int entnum, int entchannel, sfx_t *sf
 	target_chan->sfx = sfx;
 	target_chan->pos = startpos;
 	target_chan->end = sc->paintedtime + scache->length;
+	target_chan->looping = false;
 	
 // if an identical sound has also been started this frame, offset the pos
 // a bit to keep it from just making the first one louder
@@ -1046,7 +1047,8 @@ void S_StaticSound (sfx_t *sfx, vec3_t origin, float vol, float attenuation)
 		VectorCopy (origin, ss->origin);
 		ss->master_vol = vol;
 		ss->dist_mult = (attenuation/64) / sound_nominal_clip_dist;
-		ss->end = scard->paintedtime + scache->length;	
+		ss->end = scard->paintedtime + scache->length;
+		ss->looping = true;
 		
 		SND_Spatialize (scard, ss);
 	}

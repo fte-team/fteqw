@@ -700,6 +700,11 @@ void S_PaintChannels(soundcardinfo_t *sc, int endtime)
 							break;
 						}
 					}
+					else if (ch->looping && scache->length)
+					{
+						ch->pos = 0;
+						ch->end = ltime + scache->length - ch->pos;
+					}
 					else
 					{	// channel just stopped	
 						s = ch->sfx;

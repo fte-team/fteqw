@@ -318,7 +318,7 @@ qboolean M_DemoKey(menucustom_t *control, menu_t *menu, int key)
 			if (extnum == info->numext)	//wasn't on our list of extensions.
 				extnum = 0;
 
-			Cbuf_AddText(va("%s %s\n", info->command[extnum], info->options[info->selected].name), RESTRICT_LOCAL);
+			Cbuf_AddText(va("%s \"%s\"\n", info->command[extnum], info->options[info->selected].name), RESTRICT_LOCAL);
 		}
 		return true;
 	}
@@ -392,11 +392,8 @@ void ShowDemoMenu (menu_t *menu, char *path)
 		sprintf(match, "%s../", path);
 		DemoAddItem(match, 0, menu->data);
 	}
-#ifdef _WIN32
-	sprintf(match, "%s*.*", path);
-#else
 	sprintf(match, "%s*", path);
-#endif
+
 	COM_EnumerateFiles(match, DemoAddItem, menu->data);
 }
 
@@ -419,11 +416,11 @@ void M_Menu_Demos_f (void)
 	info->ext[1] = ".dem";
 	info->command[2] = "playdemo";
 	info->ext[2] = ".dm2";
-	info->command[3] = "mvdplay";
+	info->command[3] = "playdemo";
 	info->ext[3] = ".mvd";
 	//there are also quizmo demos (.qwz) out there...
 	//we don't support them, but if we were to ask quizmo to decode them for us, we could do.
-	info->numext = 3;
+	info->numext = 4;
 
 	MC_AddWhiteText(menu, 24, 8, "Demos", false);
 	MC_AddWhiteText(menu, 16, 24, "\35\36\36\36\36\36\36\36\36\36\36\36\36\36\36\36\36\36\36\36\36\36\36\36\36\36\36\36\36\36\36\36\36\36\36\36\37", false);

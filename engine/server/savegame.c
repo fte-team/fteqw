@@ -684,6 +684,10 @@ void SV_SaveLevelCache(qboolean dontharmgame)
 #ifdef Q2SERVER
 	if (!svprogfuncs)
 	{
+		char	path[256];
+		strcpy(path, name);
+		path[COM_SkipPath(name)-name] = '\0';
+		Sys_mkdir(path);
 		ge->WriteLevel(name);
 		return;
 	}

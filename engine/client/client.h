@@ -664,6 +664,7 @@ void CL_StartUpload (qbyte *data, int size);
 void CL_StopUpload(void);
 
 void CL_RequestNextDownload (void);
+void CL_ParseAttachment(void);
 
 //
 // view.c
@@ -727,6 +728,22 @@ void Cam_Reset(void);
 void CL_InitCam(void);
 
 //
+//zqtp.c
+//
+qboolean TP_SoundTrigger(char *message);
+char *TP_PlayerName (void);
+char *TP_MapName (void);
+int	TP_CountPlayers (void);
+char *TP_PlayerTeam (void);
+char *TP_EnemyTeam (void);
+char *TP_EnemyName (void);
+void TP_StatChanged (int stat, int value);
+int TP_CategorizeMessage (char *s, int *offset);
+qboolean TP_FilterMessage (char *s);
+qboolean TP_CheckSoundTrigger (char *str);
+void TP_SearchForMsgTriggers (char *s, int level);
+
+//
 // skin.c
 //
 
@@ -775,6 +792,9 @@ void	InitValidation(void);
 extern	qboolean f_modified_particles;
 extern	qboolean care_f_modified;
 
+
+//random files (fixme: clean up)
+
 #ifdef Q2CLIENT
 void CLQ2_ParseTEnt (void);
 void CLQ2_AddEntities (void);
@@ -804,7 +824,8 @@ void Editor_Draw(void);
 void Editor_Init(void);
 #endif
 
-qboolean TP_SoundTrigger(char *message);
+
+
 void CL_AddVWeapModel(entity_t *player, int model);
 
 

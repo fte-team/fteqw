@@ -17,6 +17,7 @@ typedef struct {
 gl_state_t gl_state;
 
 extern int		*lightmap_textures;
+extern int		*deluxmap_textures;
 
 void GL_SelectTexture (GLenum target) 
 {
@@ -1755,10 +1756,10 @@ int R_ShaderpassTex ( shaderpass_t *pass )
 	{
 		return lightmap_textures[r_lmtex];
 	}
-/*	else if ( (pass->flags & SHADER_PASS_DELUXMAP) && r_lmtex >= 0 )
+	else if ( (pass->flags & SHADER_PASS_DELUXMAP) && r_lmtex >= 0 )
 	{
 		return deluxmap_textures[r_lmtex];
-	}*/
+	}
 
 	return pass->anim_frames[0] ? pass->anim_frames[0] : 0;
 }

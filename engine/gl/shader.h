@@ -168,8 +168,9 @@ typedef struct shaderpass_s {
 		SHADER_PASS_VIDEOMAP	= 1 << 3,
 		SHADER_PASS_DETAIL		= 1 << 4,
 		SHADER_PASS_LIGHTMAP	= 1 << 5,
-		SHADER_PASS_NOCOLORARRAY = 1<< 6,
-		SHADER_PASS_ANIMMAP		= 1 << 7
+		SHADER_PASS_DELUXMAP	= 1 << 6,
+		SHADER_PASS_NOCOLORARRAY = 1<< 7,
+		SHADER_PASS_ANIMMAP		= 1 << 8
 	} flags;
 } shaderpass_t;
 

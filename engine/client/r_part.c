@@ -2837,6 +2837,8 @@ void SWD_DrawParticleBlob(particle_t *p, part_type_t *type)
 
 void DrawParticleTypes (void texturedparticles(particle_t *,part_type_t*), void sparkparticles(particle_t*,part_type_t*), void beamparticlest(beamseg_t*,part_type_t*), void beamparticlesut(beamseg_t*,part_type_t*))
 {
+	RSpeedMark();
+
 	qboolean (*tr) (vec3_t start, vec3_t end, vec3_t impact, vec3_t normal);
 
 	int i;
@@ -3151,10 +3153,13 @@ void DrawParticleTypes (void texturedparticles(particle_t *,part_type_t*), void 
 						VectorAdd(stop, oldorg, stop);
 						VectorScale(stop, 0.5, stop);
 
-						if (*type->texname)
-							RQ_AddDistReorder((void*)beamparticlest, b, type, stop);
-						else
-							RQ_AddDistReorder((void*)beamparticlesut, b, type, stop);
+						if (beamparticlest!=NULL)
+						{
+							if (*type->texname)
+								RQ_AddDistReorder((void*)beamparticlest, b, type, stop);
+							else
+								RQ_AddDistReorder((void*)beamparticlesut, b, type, stop);
+						}
 					}			
 
 //					if (b->p->die < particletime)
@@ -3176,8 +3181,11 @@ void DrawParticleTypes (void texturedparticles(particle_t *,part_type_t*), void 
 		}
 	}
 
+	RSpeedEnd(RSPEED_PARTICLES);
 
+	RSpeedRemark();
 	RQ_RenderDistAndClear();
+	RSpeedEnd(RSPEED_PARTICLESDRAW);
 
 	// lazy delete for particles is done here
 	if (kill_list)

@@ -102,7 +102,7 @@ void PR_Configure (progfuncs_t *progfuncs, void *mem, int mem_size, int max_prog
 //three conditions.
 //mem + size uses new hunk space
 //size>=0 uses previous hunk space
-//size < 0 uses memalloc for mem, then 'emulates' a hunk.
+//size < 0 uses memalloc for mem, then emulates a hunk.
 	if (mem == NULL)
 	{
 		if (mem_size < 0)
@@ -199,6 +199,8 @@ eval_t *PR_FindGlobal(progfuncs_t *progfuncs, char *globname, progsnum_t pnum)
 {
 	ddef16_t *var16;
 	ddef32_t *var32;
+	if (pnum == PR_CURRENT)
+		pnum = pr_typecurrent;
 	switch(pr_progstate[pnum].intsize)
 	{
 	case 16:

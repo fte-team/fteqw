@@ -1694,12 +1694,12 @@ void PF_setmodel (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 	else
 	{	
 		if (progstype != PROG_QW)
-		{	//also uses setsize.
-			int len = strlen(m);
-			if (m[len-4] == '.' && m[len-3] == 'b' && m[len-2] == 's' && m[len-1] == 'p')
-				mod = Mod_ForName (m, false);
-			else
-				mod = NULL;
+		{	//also sets size.
+
+			//nq dedicated servers load bsps and mdls
+			//qw dedicated servers only load bsps (better)
+
+			mod = sv.models[i];
 			if (mod)
 			{
 				VectorCopy (mod->mins, e->v.mins);
@@ -1709,9 +1709,17 @@ void PF_setmodel (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 			}
 			else
 			{
-				VectorCopy (vec3_origin, e->v.mins);
-				VectorCopy (vec3_origin, e->v.maxs);
-				VectorSubtract (vec3_origin, vec3_origin, e->v.size);
+				//it's an interesting fact that nq pretended that it's models were all +/- 16 (causing culling issues).
+				//seing as dedicated servers don't want to load mdls,
+				//imitate the behaviour of setting the size (which nq can only have as +/- 16)
+				//hell, this works with quakerally so why not use it.
+				e->v.mins[0] = 
+				e->v.mins[1] =
+				e->v.mins[2] = -16;
+				e->v.maxs[0] = 
+				e->v.maxs[1] =
+				e->v.maxs[2] = 16;
+				VectorSubtract (e->v.maxs, e->v.mins, e->v.size);
 				SV_LinkEdict (e, false);
 			}
 		}
@@ -1725,6 +1733,7 @@ void PF_setmodel (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 				VectorSubtract (mod->maxs, mod->mins, e->v.size);
 				SV_LinkEdict (e, false);
 			}
+			//qw was fixed - it never sets the size of an alias model.
 		}
 	}
 }

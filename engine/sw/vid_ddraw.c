@@ -5,7 +5,7 @@ qboolean vid_palettized;
 #ifndef NODIRECTX
 
 HMODULE hinstDDRAW;
-LPDIRECTDRAW lpDirectDraw;
+LPDIRECTDRAW2 lpDirectDraw;
 LPDIRECTDRAWSURFACE lpddsFrontBuffer, lpddsBackBuffer, lpddsOffScreenBuffer;
 LPDIRECTDRAWPALETTE	lpddpPalette;
 extern qbyte		vid_curpal[];
@@ -141,7 +141,7 @@ qboolean DDRAW_Init(rendererstate_t *info, unsigned char **ppbuffer, int *ppitch
 	DDSCAPS ddscaps;
 
 	HRESULT ddrval;
-	HRESULT (WINAPI *QDirectDrawCreate)( GUID FAR *lpGUID, LPDIRECTDRAW FAR * lplpDDRAW, IUnknown FAR * pUnkOuter );
+	HRESULT (WINAPI *QDirectDrawCreateEx)( GUID FAR *lpGUID, LPVOID  *lplpDD, REFIID  iid, IUnknown FAR * pUnkOuter );
 
 	hinstDDRAW = LoadLibrary( "ddraw.dll" );
 	if (!hinstDDRAW)
@@ -150,13 +150,13 @@ qboolean DDRAW_Init(rendererstate_t *info, unsigned char **ppbuffer, int *ppitch
 		goto fail;
 	}
 
-	if ( ( QDirectDrawCreate = ( HRESULT (WINAPI *)( GUID FAR *, LPDIRECTDRAW FAR *, IUnknown FAR * ) ) GetProcAddress( hinstDDRAW, "DirectDrawCreate" ) ) == NULL )
+	if ( ( QDirectDrawCreateEx = ( HRESULT (WINAPI *)( GUID FAR *, LPVOID *, REFIID, IUnknown FAR * ) ) GetProcAddress( hinstDDRAW, "DirectDrawCreateEx" ) ) == NULL )
 	{
 		Con_Printf( "*** DirectDrawCreate == NULL ***\n" );
 		goto fail;
 	}
 
-	if ( ( ddrval = QDirectDrawCreate( NULL, &lpDirectDraw, NULL ) ) != DD_OK )
+	if ( ( ddrval = QDirectDrawCreateEx( NULL, &lpDirectDraw, &IID_IDirectDraw2, NULL ) ) != DD_OK )
 	{
 		Con_Printf( "failed - %s\n", DDrawError( ddrval ) );
 		goto fail;
@@ -184,7 +184,7 @@ qboolean DDRAW_Init(rendererstate_t *info, unsigned char **ppbuffer, int *ppitch
 	Con_SafePrintf( "...finding display mode\n" );
 	Con_SafePrintf( "...setting linear mode: " );
 
-	if ( ( ddrval = lpDirectDraw->lpVtbl->SetDisplayMode( lpDirectDraw, vid.width, vid.height, r_pixbytes*8 ) ) == DD_OK )
+	if ( ( ddrval = lpDirectDraw->lpVtbl->SetDisplayMode( lpDirectDraw, vid.width, vid.height, r_pixbytes*8, info->rate, 0 ) ) == DD_OK )
 	{
 		Con_SafePrintf( "ok\n" );
 	}
@@ -217,7 +217,7 @@ qboolean DDRAW_Init(rendererstate_t *info, unsigned char **ppbuffer, int *ppitch
 		/*
 		** change our display mode
 		*/
-		if ( ( ddrval = lpDirectDraw->lpVtbl->SetDisplayMode( lpDirectDraw, vid.width, vid.height, r_pixbytes*8 ) ) != DD_OK )
+		if ( ( ddrval = lpDirectDraw->lpVtbl->SetDisplayMode( lpDirectDraw, vid.width, vid.height, r_pixbytes*8, info->rate, 0 ) ) != DD_OK )
 		{
 			Con_SafePrintf( "failed SDM - %s\n", DDrawError( ddrval ) );
 			goto fail;

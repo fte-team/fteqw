@@ -25,6 +25,12 @@ extern lightmapinfo_t **lightmap;
 
 extern model_t *currentmodel;
 
+int r_shadowframe;
+
+int shadowsurfcount;
+int shadowedgecount;
+int shadowlightfaces;
+
 //#define glBegin glEnd
 
 
@@ -44,6 +50,7 @@ int firstedge;
 vec3_t lightorg = {0, 0, 0};
 float lightradius;
 
+#ifndef WORLDVERTEXARRAYS
 static void PPL_BaseTextureChain(msurface_t *first)
 {
 	extern int		*deluxmap_textures;
@@ -67,7 +74,7 @@ static void PPL_BaseTextureChain(msurface_t *first)
 		glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
 		GL_Bind (t->gl_texturenum);
 		for (; s ; s=s->texturechain)
-			EmitWaterPolys (s);
+			EmitWaterPolys (s, r_wateralphaval);
 
 		glDisable(GL_BLEND);
 		glColor4f(1,1,1, 1);
@@ -359,6 +366,428 @@ static void PPL_BaseTextureChain(msurface_t *first)
 		}
 	}
 }
+#else	//vertex arrays
+
+typedef struct {
+	float xyz[3];
+	float stw[2];
+	float stl[2];
+} surfvertexarray_t;
+
+#define MAXARRAYVERTS	512
+static surfvertexarray_t varray_v[MAXARRAYVERTS];
+static int vararry_i[MAXARRAYVERTS];
+int varray_ic;
+int varray_vc;
+
+#define inline static
+
+inline void PPL_EnableVertexArrays(void)
+{
+	glDisableClientState(GL_COLOR_ARRAY);
+	glEnableClientState(GL_VERTEX_ARRAY);
+	glVertexPointer(3, GL_FLOAT, 7*sizeof(float), varray_v->xyz);
+}
+inline void PPL_FlushArrays(void)
+{
+	if (varray_ic)
+		glDrawElements(GL_TRIANGLES, varray_ic, GL_UNSIGNED_INT, vararry_i);
+	varray_ic = 0;
+	varray_vc = 0;
+}
+static void PPL_GenerateArrays(msurface_t *surf)
+{
+	glpoly_t *p;
+	int vi;
+	int vc_s;
+	float *v;
+
+	for (p = surf->polys; p; p=p->next)
+	{
+		if (varray_ic + p->numverts*3>MAXARRAYVERTS)
+		{
+			PPL_FlushArrays();
+		}
+
+		vc_s = varray_vc;
+		v = p->verts[0];
+
+		varray_v[varray_vc].xyz[0] = v[0];
+		varray_v[varray_vc].xyz[1] = v[1];
+		varray_v[varray_vc].xyz[2] = v[2];
+		varray_v[varray_vc].stw[0] = v[3];
+		varray_v[varray_vc].stw[1] = v[4];
+		varray_v[varray_vc].stl[0] = v[5];
+		varray_v[varray_vc].stl[1] = v[6];
+		varray_vc++;
+		v += VERTEXSIZE;
+		varray_v[varray_vc].xyz[0] = v[0];
+		varray_v[varray_vc].xyz[1] = v[1];
+		varray_v[varray_vc].xyz[2] = v[2];
+		varray_v[varray_vc].stw[0] = v[3];
+		varray_v[varray_vc].stw[1] = v[4];
+		varray_v[varray_vc].stl[0] = v[5];
+		varray_v[varray_vc].stl[1] = v[6];
+		varray_vc++;
+		v += VERTEXSIZE;
+		for (vi=2 ; vi<p->numverts ; vi++, v+= VERTEXSIZE)
+		{
+			vararry_i[varray_ic] = vc_s;
+			vararry_i[varray_ic+1] = varray_vc-1;
+			vararry_i[varray_ic+2] = varray_vc;
+			varray_ic+=3;
+
+			varray_v[varray_vc].xyz[0] = v[0];
+			varray_v[varray_vc].xyz[1] = v[1];
+			varray_v[varray_vc].xyz[2] = v[2];
+			varray_v[varray_vc].stw[0] = v[3];
+			varray_v[varray_vc].stw[1] = v[4];
+			varray_v[varray_vc].stl[0] = v[5];
+			varray_v[varray_vc].stl[1] = v[6];
+			varray_vc++;
+		}
+	}
+}
+
+static void PPL_BaseTextureChain(msurface_t *first)
+{
+	extern int		*deluxmap_textures;
+	extern cvar_t gl_bump;
+	texture_t	*t;
+
+	msurface_t *s = first;
+
+	int vi;
+	glRect_t    *theRect;
+	glpoly_t *p;
+	float *v;
+
+	glEnable(GL_TEXTURE_2D);
+
+	t = GLR_TextureAnimation (s->texinfo->texture);
+
+	if (s->flags & SURF_DRAWTURB)
+	{
+		/*
+		GL_DisableMultitexture();
+		glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+		GL_Bind (t->gl_texturenum);
+		for (; s ; s=s->texturechain)
+			EmitWaterPolys (s);
+
+		glDisable(GL_BLEND);
+		glColor4f(1,1,1, 1);
+
+		t->texturechain = NULL;	//no lighting effects. (good job these don't animate eh?)
+	*/	return;
+	}
+
+	if (s->lightmaptexturenum < 0)	//no lightmap
+	{
+	/*	GL_DisableMultitexture();
+		glTexEnvf(GL_TEXTURE_ENV, GL_TEXTURE_ENV_MODE, GL_REPLACE);
+		GL_Bind (t->gl_texturenum);
+
+
+		for (; s ; s=s->texturechain)
+		for (p = s->polys; p; p=p->next)
+		{
+			glBegin(GL_POLYGON);
+			v = p->verts[0];
+			for (vi=0 ; vi<p->numverts ; vi++, v+= VERTEXSIZE)
+			{
+				glTexCoord2f (v[3], v[4]);
+				glVertex3fv (v);
+			}
+			glEnd ();
+		}
+*/	}
+	else if (!gl_mtexarbable)
+	{	//multitexture isn't supported.
+/*		glDisable(GL_BLEND);
+		glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+
+		glTexEnvf(GL_TEXTURE_ENV, GL_TEXTURE_ENV_MODE, GL_REPLACE);
+		GL_Bind (t->gl_texturenum);
+		for (s = first; s ; s=s->texturechain)
+		{
+			for (p = s->polys; p; p=p->next)
+			{
+				glBegin(GL_POLYGON);
+				v = p->verts[0];
+				for (vi=0 ; vi<p->numverts ; vi++, v+= VERTEXSIZE)
+				{
+					glTexCoord2f (v[3], v[4]);
+					glVertex3fv (v);
+				}
+				glEnd ();
+			}
+		}
+
+		glEnable(GL_BLEND);
+		glTexEnvi(GL_TEXTURE_ENV, GL_TEXTURE_ENV_MODE, GL_MODULATE);
+
+		if (gl_lightmap_format == GL_LUMINANCE || gl_lightmap_format == GL_RGB)
+			glBlendFunc (GL_ZERO, GL_ONE_MINUS_SRC_COLOR);
+		else if (gl_lightmap_format == GL_INTENSITY)
+		{
+			glTexEnvf(GL_TEXTURE_ENV, GL_TEXTURE_ENV_MODE, GL_MODULATE);
+			glColor4f (0,0,0,1);
+			glBlendFunc (GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+		}
+		else if (gl_lightmap_format == GL_RGBA)
+		{
+			glBlendFunc(GL_ZERO, GL_ONE_MINUS_SRC_ALPHA);
+		}
+
+		for (s = first; s ; s=s->texturechain)
+		{
+			vi = s->lightmaptexturenum;
+			// Binds lightmap to texenv 1
+			GL_Bind (lightmap_textures[vi]);
+			if (lightmap[vi]->modified)
+			{
+				lightmap[vi]->modified = false;
+				theRect = &lightmap[vi]->rectchange;
+				glTexSubImage2D(GL_TEXTURE_2D, 0, 0, theRect->t, 
+					LMBLOCK_WIDTH, theRect->h, gl_lightmap_format, GL_UNSIGNED_BYTE,
+					lightmap[vi]->lightmaps+(theRect->t) *LMBLOCK_WIDTH*lightmap_bytes);
+				theRect->l = LMBLOCK_WIDTH;
+				theRect->t = LMBLOCK_HEIGHT;
+				theRect->h = 0;
+				theRect->w = 0;
+			}
+
+			for (p = s->polys; p; p=p->next)
+			{
+				glBegin(GL_POLYGON);
+				v = p->verts[0];
+				for (vi=0 ; vi<p->numverts ; vi++, v+= VERTEXSIZE)
+				{
+					glTexCoord2f (v[5], v[6]);
+					glVertex3fv (v);
+				}
+				glEnd ();
+			}
+		}
+*/	}
+	else
+	{
+		if (gl_bump.value && currentmodel->deluxdata && t->gl_texturenumbumpmap)
+		{
+PPL_EnableVertexArrays();
+			qglActiveTextureARB(GL_TEXTURE0_ARB);
+
+			//Bind normal map to texture unit 0
+			GL_BindType(GL_TEXTURE_2D, t->gl_texturenumbumpmap);
+			glEnable(GL_TEXTURE_2D);
+			glTexEnvi(GL_TEXTURE_ENV, GL_TEXTURE_ENV_MODE, GL_COMBINE_ARB);
+			glTexEnvi(GL_TEXTURE_ENV, GL_SOURCE0_RGB_ARB, GL_TEXTURE);
+			glTexEnvi(GL_TEXTURE_ENV, GL_COMBINE_RGB_ARB, GL_REPLACE);
+
+			qglClientActiveTextureARB(GL_TEXTURE0_ARB);
+			glEnableClientState(GL_TEXTURE_COORD_ARRAY);
+			glTexCoordPointer(2, GL_FLOAT, 7*sizeof(float), varray_v->stw);
+
+			qglActiveTextureARB(GL_TEXTURE1_ARB);	//the deluxmap
+			glEnable(GL_TEXTURE_2D);
+			glTexEnvi(GL_TEXTURE_ENV, GL_TEXTURE_ENV_MODE, GL_COMBINE_ARB);
+			glTexEnvi(GL_TEXTURE_ENV, GL_SOURCE0_RGB_ARB, GL_TEXTURE);
+			glTexEnvi(GL_TEXTURE_ENV, GL_SOURCE1_RGB_ARB, GL_PREVIOUS_ARB);
+			glTexEnvi(GL_TEXTURE_ENV, GL_COMBINE_RGB_ARB, GL_DOT3_RGB_ARB);
+
+			qglClientActiveTextureARB(GL_TEXTURE1_ARB);
+			glEnableClientState(GL_TEXTURE_COORD_ARRAY);
+			glTexCoordPointer(2, GL_FLOAT, 7*sizeof(float), varray_v->stl);
+
+//we now have normalmap.deluxmap on the screen.
+			if (gl_mtexarbable>=4)	//go the whole hog. bumpmapping in one pass.
+			{
+				//continue going to give (normalmap.deluxemap)*texture*lightmap.
+				qglActiveTextureARB(GL_TEXTURE2_ARB);
+				glEnable(GL_TEXTURE_2D);
+				glTexEnvi(GL_TEXTURE_ENV, GL_TEXTURE_ENV_MODE, GL_MODULATE);
+				GL_Bind (t->gl_texturenum);
+
+				qglClientActiveTextureARB(GL_TEXTURE2_ARB);
+				glEnableClientState(GL_TEXTURE_COORD_ARRAY);
+				glTexCoordPointer(2, GL_FLOAT, 7*sizeof(float), varray_v->stw);
+
+				qglActiveTextureARB(GL_TEXTURE3_ARB);
+				glEnable(GL_TEXTURE_2D);
+				glTexEnvi(GL_TEXTURE_ENV, GL_TEXTURE_ENV_MODE, GL_BLEND);
+
+				qglClientActiveTextureARB(GL_TEXTURE3_ARB);
+				glEnableClientState(GL_TEXTURE_COORD_ARRAY);
+				glTexCoordPointer(2, GL_FLOAT, 7*sizeof(float), varray_v->stl);
+
+				vi = -1;
+				for (; s ; s=s->texturechain)
+				{
+					if (vi != s->lightmaptexturenum)
+					{
+						PPL_FlushArrays();
+						vi = s->lightmaptexturenum;
+
+						qglActiveTextureARB(GL_TEXTURE1_ARB);
+						GL_BindType(GL_TEXTURE_2D, deluxmap_textures[vi] );
+						if (lightmap[vi]->deluxmodified)
+						{
+							lightmap[vi]->deluxmodified = false;
+							theRect = &lightmap[vi]->deluxrectchange;
+							glTexSubImage2D(GL_TEXTURE_2D, 0, 0, theRect->t, 
+								LMBLOCK_WIDTH, theRect->h, GL_RGB, GL_UNSIGNED_BYTE,
+								lightmap[vi]->deluxmaps+(theRect->t) *LMBLOCK_WIDTH*3);
+							theRect->l = LMBLOCK_WIDTH;
+							theRect->t = LMBLOCK_HEIGHT;
+							theRect->h = 0;
+							theRect->w = 0;
+						}
+						qglActiveTextureARB(GL_TEXTURE3_ARB);
+						GL_BindType(GL_TEXTURE_2D, lightmap_textures[vi] );
+						if (lightmap[vi]->modified)
+						{
+							lightmap[vi]->modified = false;
+							theRect = &lightmap[vi]->rectchange;
+							glTexSubImage2D(GL_TEXTURE_2D, 0, 0, theRect->t, 
+								LMBLOCK_WIDTH, theRect->h, gl_lightmap_format, GL_UNSIGNED_BYTE,
+								lightmap[vi]->lightmaps+(theRect->t) *LMBLOCK_WIDTH*lightmap_bytes);
+							theRect->l = LMBLOCK_WIDTH;
+							theRect->t = LMBLOCK_HEIGHT;
+							theRect->h = 0;
+							theRect->w = 0;
+						}
+					}
+
+					PPL_GenerateArrays(s);
+					PPL_FlushArrays();
+				}
+
+				qglActiveTextureARB(GL_TEXTURE3_ARB);
+				glDisable(GL_TEXTURE_2D);
+				qglActiveTextureARB(GL_TEXTURE2_ARB);
+				glDisable(GL_TEXTURE_2D);
+				qglActiveTextureARB(GL_TEXTURE1_ARB);
+				glDisable(GL_TEXTURE_2D);
+				qglActiveTextureARB(GL_TEXTURE0_ARB);	//the deluxmap
+
+				glTexEnvf(GL_TEXTURE_ENV, GL_TEXTURE_ENV_MODE, GL_MODULATE);
+				return;
+			}
+
+			glDisable(GL_BLEND);
+			glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+
+			for (; s ; s=s->texturechain)
+			{
+				vi = s->lightmaptexturenum;
+				GL_BindType(GL_TEXTURE_2D, deluxmap_textures[vi] );
+				if (lightmap[vi]->deluxmodified)
+				{
+					lightmap[vi]->deluxmodified = false;
+					theRect = &lightmap[vi]->deluxrectchange;
+					glTexSubImage2D(GL_TEXTURE_2D, 0, 0, theRect->t, 
+						LMBLOCK_WIDTH, theRect->h, GL_RGB, GL_UNSIGNED_BYTE,
+						lightmap[vi]->deluxmaps+(theRect->t) *LMBLOCK_WIDTH*3);
+					theRect->l = LMBLOCK_WIDTH;
+					theRect->t = LMBLOCK_HEIGHT;
+					theRect->h = 0;
+					theRect->w = 0;
+				}
+
+				for (p = s->polys; p; p=p->next)
+				{
+					glBegin(GL_POLYGON);
+					v = p->verts[0];
+					for (vi=0 ; vi<p->numverts ; vi++, v+= VERTEXSIZE)
+					{									
+						qglMultiTexCoord2fARB(GL_TEXTURE0_ARB, v[3], v[4]);
+						qglMultiTexCoord2fARB(GL_TEXTURE1_ARB, v[5], v[6]);
+						glVertex3fv (v);
+					}
+					glEnd ();
+				}
+			}
+			glDisable(GL_TEXTURE_2D);
+			qglActiveTextureARB(GL_TEXTURE0_ARB);
+
+			glBlendFunc(GL_DST_COLOR, GL_ZERO);	//tell the texture + lightmap to do current*tex*light (where current is normalmap.deluxemap)
+			glEnable(GL_BLEND);
+
+			s = first;
+
+			GL_SelectTexture(mtexid0);
+			GL_Bind(t->gl_texturenum);
+			glTexEnvf(GL_TEXTURE_ENV, GL_TEXTURE_ENV_MODE, GL_MODULATE);
+			GL_EnableMultitexture();
+			glTexEnvf(GL_TEXTURE_ENV, GL_TEXTURE_ENV_MODE, GL_BLEND);
+		}
+		else
+		{
+PPL_EnableVertexArrays();
+			// Binds world to texture env 0
+			GL_Bind (t->gl_texturenum);
+			if (t->alphaed)
+			{
+				glEnable(GL_BLEND);
+				glTexEnvf(GL_TEXTURE_ENV, GL_TEXTURE_ENV_MODE, GL_MODULATE);
+			}
+			else
+			{
+				glDisable(GL_BLEND);
+				glTexEnvf(GL_TEXTURE_ENV, GL_TEXTURE_ENV_MODE, GL_REPLACE);
+			}
+
+			qglClientActiveTextureARB(GL_TEXTURE0_ARB);
+			glEnableClientState(GL_TEXTURE_COORD_ARRAY);
+			glTexCoordPointer(2, GL_FLOAT, 7*sizeof(float), varray_v->stw);
+
+			qglClientActiveTextureARB(GL_TEXTURE1_ARB);
+			qglActiveTextureARB(GL_TEXTURE1_ARB);
+			glEnable(GL_TEXTURE_2D);
+			glTexEnvf(GL_TEXTURE_ENV, GL_TEXTURE_ENV_MODE, GL_BLEND);
+			glEnableClientState(GL_TEXTURE_COORD_ARRAY);
+			glTexCoordPointer(2, GL_FLOAT, 7*sizeof(float), varray_v->stl);
+		}
+
+		vi = -1;
+		for (; s; s=s->texturechain)
+		{
+			if (vi != s->lightmaptexturenum)
+			{
+				PPL_FlushArrays();
+
+				vi = s->lightmaptexturenum;
+				// Binds lightmap to texenv 1
+				GL_Bind (lightmap_textures[vi]);
+				if (lightmap[vi]->modified)
+				{
+					lightmap[vi]->modified = false;
+					theRect = &lightmap[vi]->rectchange;
+					glTexSubImage2D(GL_TEXTURE_2D, 0, 0, theRect->t, 
+						LMBLOCK_WIDTH, theRect->h, gl_lightmap_format, GL_UNSIGNED_BYTE,
+						lightmap[vi]->lightmaps+(theRect->t) *LMBLOCK_WIDTH*lightmap_bytes);
+					theRect->l = LMBLOCK_WIDTH;
+					theRect->t = LMBLOCK_HEIGHT;
+					theRect->h = 0;
+					theRect->w = 0;
+				}
+			}
+			PPL_GenerateArrays(s);
+		}
+		PPL_FlushArrays();
+
+		qglActiveTextureARB(GL_TEXTURE1_ARB);
+		glDisable(GL_TEXTURE_2D);
+
+		qglActiveTextureARB(GL_TEXTURE0_ARB);
+		qglClientActiveTextureARB(GL_TEXTURE0_ARB);
+
+		glDisableClientState(GL_VERTEX_ARRAY);
+		glDisableClientState(GL_TEXTURE_COORD_ARRAY);
+	}
+}
+#endif
 
 static void PPL_FullBrightTextureChain(msurface_t *first)
 {
@@ -480,6 +909,7 @@ void PPL_BaseTextures(model_t *model)
 
 void PPL_BaseBModelTextures(entity_t *e)
 {
+	extern msurface_t  *r_alpha_surfaces;
 	int i, k;
 	model_t *model;
 	msurface_t *s;
@@ -490,8 +920,16 @@ void PPL_BaseBModelTextures(entity_t *e)
 	currentmodel = model = e->model;
 	s = model->surfaces+model->firstmodelsurface;
 
-	glDisable(GL_BLEND);
-	glColor4f(1, 1, 1, 1);
+	if (currententity->alpha<1)
+	{
+		glEnable(GL_BLEND);
+		glColor4f(1, 1, 1, currententity->alpha);
+	}
+	else
+	{
+		glDisable(GL_BLEND);
+		glColor4f(1, 1, 1, 1);
+	}
 
 	glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
 
@@ -517,7 +955,14 @@ void PPL_BaseBModelTextures(entity_t *e)
 
 	for (s = model->surfaces+model->firstmodelsurface,i = 0; i < model->nummodelsurfaces; i++, s++)
 	{
-		if (chain && s->texinfo->texture != chain->texinfo->texture)	//last surface or not the same as the next
+		if (s->texinfo->flags & SURF_TRANS33 || s->texinfo->flags & SURF_TRANS66)
+		{
+			s->ownerent = currententity;
+			s->nextalphasurface = r_alpha_surfaces;
+			r_alpha_surfaces = s;
+			continue;
+		}
+		else if (chain && s->texinfo->texture != chain->texinfo->texture)	//last surface or not the same as the next
 		{
 			PPL_BaseTextureChain(chain);
 			chain = NULL;
@@ -680,6 +1125,7 @@ void PPL_LightTextures(model_t *model, vec3_t modelorigin, dlight_t *light)
 					}
 					for (p = s->polys; p; p=p->next)
 					{
+						shadowlightfaces++;
 						glBegin(GL_POLYGON);
 						v = p->verts[0];
 						for (vi=0 ; vi<p->numverts ; vi++, v+= VERTEXSIZE)
@@ -718,6 +1164,7 @@ void PPL_LightTextures(model_t *model, vec3_t modelorigin, dlight_t *light)
 		vec3_t lightdir;
 
 		glDisable(GL_TEXTURE_2D);
+//		glColor4f(1,1,1,1);
 
 		VectorSubtract(light->origin, modelorigin, relativelightorigin);
 
@@ -740,11 +1187,13 @@ void PPL_LightTextures(model_t *model, vec3_t modelorigin, dlight_t *light)
 //				GL_Bind (t->gl_texturenum);
 				for (; s; s=s->texturechain)
 				{
+					if (s->shadowframe != r_shadowframe)
+						continue;
 
-				/*	if (fabs(s->center[0] - lightorg[0]) > lightradius+s->radius ||
+					if (fabs(s->center[0] - lightorg[0]) > lightradius+s->radius ||
 						fabs(s->center[1] - lightorg[1]) > lightradius+s->radius ||
 						fabs(s->center[2] - lightorg[2]) > lightradius+s->radius)
-						continue;*/
+						continue;
 
 
 					if (s->flags & SURF_PLANEBACK)
@@ -760,6 +1209,7 @@ void PPL_LightTextures(model_t *model, vec3_t modelorigin, dlight_t *light)
 
 					for (p = s->polys; p; p=p->next)
 					{
+						shadowlightfaces++;
 						glBegin(GL_POLYGON);
 						v = p->verts[0];
 						for (vi=0 ; vi<p->numverts ; vi++, v+= VERTEXSIZE)
@@ -1180,8 +1630,6 @@ qboolean PPL_VisOverlaps(qbyte *v1, qbyte *v2)
 	return false;
 }
 
-int r_shadowframe;
-
 void PPL_RecursiveWorldNode_r (mnode_t *node)
 {
 	int			c, side;
@@ -1204,8 +1652,15 @@ void PPL_RecursiveWorldNode_r (mnode_t *node)
 	if (node->contents == Q1CONTENTS_SOLID)
 		return;		// solid
 
-//	if (R_CullBox (node->minmaxs, node->minmaxs+3))
-//		return;
+
+	//if light areabox is outside node, ignore node + children
+	for (c = 0; c < 3; c++)
+	{
+		if (lightorg[c] + lightradius < node->minmaxs[c])
+			return;
+		if (lightorg[c] - lightradius > node->minmaxs[3+c])
+			return;
+	}
 	
 // if a leaf node, draw stuff
 	if (node->contents < 0)
@@ -1289,12 +1744,12 @@ void PPL_RecursiveWorldNode_r (mnode_t *node)
 					if (DotProduct(surf->plane->normal, lightorg)-surf->plane->dist >= lightradius)
 						continue;
 				}
-				if (fabs(surf->center[0] - lightorg[0]) > lightradius+surf->radius ||
+/*				if (fabs(surf->center[0] - lightorg[0]) > lightradius+surf->radius ||
 					fabs(surf->center[1] - lightorg[1]) > lightradius+surf->radius ||
 					fabs(surf->center[2] - lightorg[2]) > lightradius+surf->radius)
 					continue;
-				
-#define PROJECTION_DISTANCE (float)0x7fffffff
+*/				
+#define PROJECTION_DISTANCE (float)(lightradius*2)//0x7fffffff
 #ifdef EDGEOPTIMISE
 				//build a list of the edges that are to be drawn.
 				for (v = 0; v < surf->numedges; v++)
@@ -1341,6 +1796,8 @@ void PPL_RecursiveWorldNode_r (mnode_t *node)
 #endif
 				for (p = surf->polys; p; p=p->next)
 				{
+					shadowsurfcount++;
+
 					//front face
 					glBegin(GL_POLYGON);
 					for (v = 0; v < p->numverts; v++)
@@ -1497,7 +1954,7 @@ void PPL_RecursiveWorldNodeQ2_r (mnode_t *node)
 					if (DotProduct(surf->plane->normal, lightorg)-surf->plane->dist <= 0)
 						continue;
 				}
-#define PROJECTION_DISTANCE (float)0x7fffffff
+//#define PROJECTION_DISTANCE (float)0x7fffffff
 				if (surf->flags & (SURF_DRAWALPHA | SURF_DRAWTILED))
 				{	// no shadows
 					continue;
@@ -1661,7 +2118,7 @@ void PPL_RecursiveWorldNodeQ3_r (mnode_t *node)
 					if (DotProduct(surf->plane->normal, lightorg)-surf->plane->dist >= lightradius)
 						continue;
 				}
-#define PROJECTION_DISTANCE (float)0x7fffffff
+//#define PROJECTION_DISTANCE (float)0x7fffffff
 				/*if (surf->flags & (SURF_DRAWALPHA | SURF_DRAWTILED))
 				{	// no shadows
 					continue;
@@ -1872,6 +2329,8 @@ void PPL_RecursiveWorldNode (dlight_t *dl)
 		}
 
 		firstedge = edge[firstedge].next;
+
+		shadowedgecount++;
 	}
 	glEnd();
 	for (firstedge = 0; firstedge < cl.worldmodel->numedges; firstedge++)
@@ -1909,7 +2368,7 @@ void PPL_DrawBrushModel(dlight_t *dl, entity_t *e)
 			if (DotProduct(surf->plane->normal, lightorg)-surf->plane->dist <= 0.1)
 				continue;
 		}
-#define PROJECTION_DISTANCE (float)0x7fffffff
+//#define PROJECTION_DISTANCE (float)0x7fffffff
 		if (surf->flags & (SURF_DRAWALPHA | SURF_DRAWTILED))
 		{	// no shadows
 			continue;
@@ -2052,7 +2511,7 @@ void PPL_AddLight(dlight_t *dl)
 	if (R_CullBox(mins, maxs))
 		return;
 
-	if (cl.worldmodel->fromgame == fg_quake3)
+	if (cl.worldmodel->fromgame == fg_quake2 || cl.worldmodel->fromgame == fg_quake3)
 		i = cl.worldmodel->funcs.LeafForPoint(r_refdef.vieworg, cl.worldmodel);
 	else
 		i = r_viewleaf - cl.worldmodel->leafs;
@@ -2270,8 +2729,9 @@ void PPL_DrawWorld (void)
 
 	if (maxshadowlights < 1)
 		maxshadowlights = 1;
-
+//glColorMask(0,0,0,0);
 	PPL_BaseTextures(cl.worldmodel);
+//glColorMask(1,1,1,1);
 	PPL_BaseEntTextures();
 //	CL_NewDlightRGB(1, r_refdef.vieworg[0], r_refdef.vieworg[1]-16, r_refdef.vieworg[2]-24, 128, 1, 1, 1, 1);
 	if (r_shadows.value && glStencilFunc)
@@ -2282,8 +2742,8 @@ void PPL_DrawWorld (void)
 			{
 				if (l->die < cl.time || !l->radius || l->noppl)
 					continue;
-				if (l->color[0] < 0 || l->color[1] < 0 || l->color[2] < 0)
-					continue;
+				if (l->color[0]<0)
+					continue;	//quick check for darklight
 				if (!maxshadowlights--)
 					break;
 				l->color[0]*=2.5;
@@ -2299,5 +2759,10 @@ void PPL_DrawWorld (void)
 		}
 	}
 	PPL_DrawEntFullBrights();
+
+//	Con_Printf("%i %i %i\n", shadowsurfcount, shadowedgecount, shadowlightfaces);
+	shadowsurfcount	= 0;
+	shadowedgecount = 0;
+	shadowlightfaces = 0;
 }
 #endif

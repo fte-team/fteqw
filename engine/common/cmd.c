@@ -330,7 +330,7 @@ void Cbuf_ExecuteLevel (int level)
 			// for next frame
 			break;
 		}
-
+		
 // find a \n or ; line break
 		text = (char *)cmd_text[level].buf.data;
 
@@ -377,7 +377,7 @@ void Cbuf_Execute (void)
 {
 	int level;
 
-	for (level = 0; level <= sizeof(cmd_text)/sizeof(cmd_text[0]); level++)
+	for (level = 0; level < sizeof(cmd_text)/sizeof(cmd_text[0]); level++)
 		Cbuf_ExecuteLevel(level);
 }
 

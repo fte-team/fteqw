@@ -537,6 +537,26 @@ char *CopyString (char *in)
 	return out;
 }
 
+void Cmd_ShowAlias_f (void)
+{
+	cmdalias_t	*a;
+	char *s;
+
+	s = Cmd_Argv(1);
+
+	//find it, print it
+	for (a = cmd_alias ; a ; a=a->next)
+	{
+		if (!strcmp(s, a->name))
+		{
+			Con_Printf ("alias %s %s\n", a->name, a->value);
+			return;
+		}
+	}
+
+	Con_Printf("Alias doesn't exist\n");
+}
+
 /*
 ===============
 Cmd_Alias_f
@@ -2616,6 +2636,7 @@ void Cmd_Init (void)
 	Cmd_AddCommand ("restrict", Cmd_RestrictCommand_f);
 	Cmd_AddCommand ("aliaslevel", Cmd_AliasLevel_f);
 #endif
+	Cmd_AddCommand ("showalias", Cmd_ShowAlias_f);
 
 //	Cmd_AddCommand ("msg_trigger", Cmd_Msg_Trigger_f);
 //	Cmd_AddCommand ("filter", Cmd_Msg_Filter_f);

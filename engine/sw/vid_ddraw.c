@@ -373,6 +373,9 @@ qboolean DDRAW_Init(rendererstate_t *info, unsigned char **ppbuffer, int *ppitch
 
 		vid_palettized = true;
 	}
+	else
+		vid_palettized = false;
+
 	/*
 	** lock the back buffer
 	*/

@@ -734,6 +734,8 @@ void CL_SendCmd (void)
 			cmd = &cl.frames[i].cmd[0];
 
 			memset(cmd, 0, sizeof(*cmd));
+			cmd->msec = host_frametime*1000;
+			independantphysics[0].msec = 0;
 
 				// get basic movement from keyboard
 			CL_BaseMove (cmd, 0);

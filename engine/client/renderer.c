@@ -809,6 +809,7 @@ void R_SetRenderer(r_qrenderer_t wanted)
 		Draw_FadeScreen			= NULL;
 		Draw_BeginDisc			= NULL;
 		Draw_EndDisc			= NULL;
+		Draw_ScalePic			= NULL;	//I'm lazy.
 
 		R_Init					= NULL;
 		R_DeInit				= NULL;
@@ -900,6 +901,7 @@ void R_SetRenderer(r_qrenderer_t wanted)
 		Draw_FadeScreen			= SWDraw_FadeScreen;
 		Draw_BeginDisc			= SWDraw_BeginDisc;
 		Draw_EndDisc			= SWDraw_EndDisc;
+		Draw_ScalePic			= NULL;	//I'm lazy.
 
 		R_Init					= SWR_Init;
 		R_DeInit				= SWR_DeInit;
@@ -977,6 +979,7 @@ void R_SetRenderer(r_qrenderer_t wanted)
 		Draw_FadeScreen			= GLDraw_FadeScreen;
 		Draw_BeginDisc			= GLDraw_BeginDisc;
 		Draw_EndDisc			= GLDraw_EndDisc;
+		Draw_ScalePic			= GLDraw_ScalePic;
 
 		R_Init					= GLR_Init;
 		R_DeInit				= GLR_DeInit;
@@ -1097,7 +1100,20 @@ qboolean R_ApplyRenderer (rendererstate_t *newr)
 			host_basepal = BZ_Malloc(768);
 			pcx = COM_LoadTempFile("pics/colormap.pcx");
 			if (!pcx || !ReadPCXPalette(pcx, com_filesize, host_basepal))
-				Sys_Error ("Couldn't load gfx/palette.lmp\nMake sure the working/base directory is correct and contains id1/pak0.pak or baseq2/pak0.pak\n\nbasedir:%s", com_basedir);
+			{
+				//hrm..
+				if (COM_FCheckExists("gfx/2d/bigchars.tga"))
+				{	//q3 data exists... well, it's something... I just hope they avoid anything that assumes quake palette.
+					for (i = 0; i < 256; i++)
+					{	//have to generate one I guess.
+						host_basepal[i*3+0] = i;
+						host_basepal[i*3+1] = i;
+						host_basepal[i*3+2] = i;
+					}
+				}
+				else
+					Sys_Error ("Couldn't load gfx/palette.lmp\nMake sure the working/base directory is correct and contains id1/pak0.pak or baseq2/pak0.pak\n\nbasedir:%s", com_basedir);
+			}
 		}
 		if (host_colormap)
 			BZ_Free(host_colormap);
@@ -1106,7 +1122,6 @@ qboolean R_ApplyRenderer (rendererstate_t *newr)
 		{
 #ifdef SWQUAKE
 			float f;
-			vid.fullbright = 0;
 			data = host_colormap = BZ_Malloc(256*VID_GRADES+sizeof(int));
 			//let's try making one. this is probably caused by running out of baseq2.
 			for (j = 0; j < VID_GRADES; j++)
@@ -1120,9 +1135,9 @@ qboolean R_ApplyRenderer (rendererstate_t *newr)
 					data[i] = i;
 				data+=256;
 			}
-#else
-			Sys_Error ("Couldn't load gfx/colormap.lmp");
-#endif
+#endif		//glquake doesn't really care.
+
+			vid.fullbright=0;
 		}
 		else
 		{

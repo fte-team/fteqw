@@ -830,6 +830,16 @@ void CL_ParseTEnt (void)
 		pos[0] = MSG_ReadCoord ();
 		pos[1] = MSG_ReadCoord ();
 		pos[2] = MSG_ReadCoord ();
+
+		// light
+		dl = CL_AllocDlight (0);
+		VectorCopy (pos, dl->origin);
+		dl->radius = 200;
+		dl->decay = 1000;
+		dl->die = cl.time + 0.2;
+		dl->color[0] = 0.4;
+		dl->color[1] = 0.4;
+		dl->color[2] = 0.4;
 		break;
 
 	case 73://TE_CUSTOMFLASH
@@ -844,34 +854,54 @@ void CL_ParseTEnt (void)
 		pos2[0] = (MSG_ReadByte() + 1) * (1.0 / 256.0);
 		dl->die = cl.time + pos2[0];
 		dl->decay = dl->radius / pos2[0];
+	
+		// DP's range is 0-2 for lights, FTE is 0-0.4.. 255/637.5 = 0.4
+		dl->color[0] = MSG_ReadByte()*(1.0f/637.5f);
+		dl->color[1] = MSG_ReadByte()*(1.0f/637.5f);
+		dl->color[2] = MSG_ReadByte()*(1.0f/637.5f);
 		
-		dl->color[0] = MSG_ReadByte()/255.0f;
-		dl->color[1] = MSG_ReadByte()/255.0f;
-		dl->color[2] = MSG_ReadByte()/255.0f;
-
 		break;
 
 	case 74://TE_FLAMEJET
-#pragma message("CL_ParseTEnt: effect 74 not implemented (properly)")
-pos[0] = MSG_ReadCoord ();
-pos[1] = MSG_ReadCoord ();
-pos[2] = MSG_ReadCoord ();
+		// origin
+		pos[0] = MSG_ReadCoord ();
+		pos[1] = MSG_ReadCoord ();
+		pos[2] = MSG_ReadCoord ();
 
-pos2[0] = MSG_ReadCoord ();
-pos2[1] = MSG_ReadCoord ();
-pos2[2] = MSG_ReadCoord ();
-cnt = MSG_ReadByte ();
+		// velocity
+		pos2[0] = MSG_ReadCoord ();
+		pos2[1] = MSG_ReadCoord ();
+		pos2[2] = MSG_ReadCoord ();
 
-P_ParticleExplosion (pos);
+		// count
+		cnt = MSG_ReadByte ();
+
+		rnd = FindParticleType("te_flamejet");
+		if (R_RunParticleEffectType(pos, pos2, cnt, rnd))
+			R_RunParticleEffect (pos, pos2, 232, cnt);
 		break;
 
-		case 75://TE_PLASMABURN
-#pragma message("CL_ParseTEnt: effect 75 not implemented (properly)")
-pos[0] = MSG_ReadCoord ();
-pos[1] = MSG_ReadCoord ();
-pos[2] = MSG_ReadCoord ();
+	case 75://TE_PLASMABURN
+		// origin
+		pos[0] = MSG_ReadCoord ();
+		pos[1] = MSG_ReadCoord ();
+		pos[2] = MSG_ReadCoord ();
 
-P_ParticleExplosion (pos);
+		// light
+		dl = CL_AllocDlight (0);
+		VectorCopy (pos, dl->origin);
+		dl->radius = 200;
+		dl->decay = 1000;
+		dl->die = cl.time + 0.2;
+		dl->color[0] = 0.2;
+		dl->color[1] = 0.2;
+		dl->color[2] = 0.2;
+
+		// stain (Hopefully this is close to how DP does it)
+		R_AddStain(pos, -10, -10, -10, 30);
+
+		// TODO: DP also has a decal, should this be simulated or should we just
+		// use a particle effect and let the user decide what to do with it?
 		break;
 
 	case 76:

@@ -509,8 +509,8 @@ int Plug_Draw_Fill(void *offset, unsigned int mask, const long *arg)
 //hrm.... FIXME!
 int Plug_Draw_ColourP(void *offset, unsigned int mask, const long *arg)
 {
-	extern unsigned char	vid_curpal[256*3];
-	qbyte *pal = vid_curpal + VM_LONG(arg[0])*3;
+	extern unsigned char	host_basepal[256*3];
+	qbyte *pal = host_basepal + VM_LONG(arg[0])*3;
 
 	if (arg[0]<0 || arg[0]>255)
 		return false;

@@ -818,11 +818,11 @@ void	CMQ2_SetAreaPortalState (int portalnum, qboolean open);
 
 
 
+#endif	//Q2BSPS
 
 
 
 
-#ifdef SWQUAKE
 typedef struct
 {
 	aliasskintype_t		type;
@@ -836,9 +836,3 @@ typedef struct
 	int					intervals;
 	maliasskindesc_t	skindescs[1];
 } maliasskingroup_t;
-
-#endif
-#endif	//__MODEL__
-
-
-

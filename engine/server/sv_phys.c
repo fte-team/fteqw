@@ -1091,7 +1091,12 @@ void SV_Physics_Step (edict_t *ent)
 		if ( (int)ent->v.flags & FL_ONGROUND )	// just hit ground
 		{
 			if (hitsound)
-				SV_StartSound (ent, 0, "demon/dland2.wav", 255, 1);
+			{
+				if (progstype == PROG_H2)
+					SV_StartSound (ent, 0, "fx/thngland.wav", 255, 1);
+				else
+					SV_StartSound (ent, 0, "demon/dland2.wav", 255, 1);
+			}
 		}
 	}
 
@@ -1704,6 +1709,47 @@ void SV_RunNewmis (void)
 	SV_RunEntity (ent);	
 	
 	host_frametime = pr_global_struct->frametime;
+}
+
+trace_t SV_Trace_Toss (edict_t *tossent, edict_t *ignore)
+{
+	int i;
+	float gravity;
+	vec3_t move, end;
+	trace_t trace;
+
+	vec3_t origin, velocity;
+
+	// this has to fetch the field from the original edict, since our copy is truncated
+	gravity = tossent->v.gravity;
+	if (!gravity)
+		gravity = 1.0;
+	gravity *= sv_gravity.value * 0.05;
+
+	VectorCopy (tossent->v.origin, origin);
+
+	SV_CheckVelocity (tossent);
+
+	for (i = 0;i < 200;i++) // LordHavoc: sanity check; never trace more than 10 seconds
+	{
+		velocity[2] -= gravity;
+		VectorScale (velocity, 0.05, move);
+		VectorAdd (origin, move, end);
+		trace = SV_Move (origin, tossent->v.mins, tossent->v.maxs, end, MOVE_NORMAL, tossent);
+		VectorCopy (trace.endpos, origin);
+
+		if (trace.fraction < 1 && trace.ent && trace.ent != ignore)
+			break;
+
+		if (Length(velocity) > sv_maxvelocity.value)
+		{
+//			Con_DPrintf("Slowing %s\n", PR_GetString(svprogfuncs, tossent->v.classname));
+			VectorScale (velocity, sv_maxvelocity.value/Length(velocity), velocity);
+		}
+	}
+
+	trace.fraction = 0; // not relevant
+	return trace;
 }
 
 /*

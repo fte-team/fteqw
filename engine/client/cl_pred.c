@@ -82,9 +82,9 @@ void CLQ2_CheckPredictionError (void)
 	}
 	else
 	{
-		if (/*cl_showmiss->value && */(delta[0] || delta[1] || delta[2]) )
-			Con_Printf ("prediction miss on %i: %i\n", cl.q2frame.serverframe, 
-			delta[0] + delta[1] + delta[2]);
+//		if (/*cl_showmiss->value && */(delta[0] || delta[1] || delta[2]) )
+//			Con_Printf ("prediction miss on %i: %i\n", cl.q2frame.serverframe, 
+//			delta[0] + delta[1] + delta[2]);
 
 		VectorCopy (cl.q2frame.playerstate.pmove.origin, cl_predicted_origins[frame]);
 
@@ -274,7 +274,7 @@ void CLQ2_PredictMovement (void)	//q2 doesn't support split clients.
 	if (current - ack >= UPDATE_MASK)
 	{
 //		if (cl_showmiss->value)
-			Con_Printf ("exceeded CMD_BACKUP\n");
+//			Con_Printf ("exceeded CMD_BACKUP\n");
 		return;	
 	}
 

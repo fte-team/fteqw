@@ -401,8 +401,8 @@ void SWR_BuildLightmaps(void)
 	surf = cl.worldmodel->surfaces;
 	for (i=0 ; i<cl.worldmodel->numsurfaces ; i++, surf++)
 	{
-		if ( cl.worldmodel->surfaces[i].flags & SURF_DRAWSKY )
-			P_EmitSkyEffectTris(cl.worldmodel, &cl.worldmodel->surfaces[i]);
+//		if ( cl.worldmodel->surfaces[i].flags & SURF_DRAWSKY )
+//			P_EmitSkyEffectTris(cl.worldmodel, &cl.worldmodel->surfaces[i]);
 		SWR_CreateSurfaceLightmap(surf);
 	}
 }

@@ -55,7 +55,7 @@ Sets everything to NULL
 void ED_ClearEdict (progfuncs_t *progfuncs, edictrun_t *e)
 {
 	int num = e->entnum;
-	memset (edvars(e), 0, pr_edict_size-externs->edictsize);
+	memset (e->fields, 0, fields_size);
 	e->isfree = false;
 	e->entnum = num;
 }
@@ -85,7 +85,8 @@ struct edict_s *ED_Alloc (progfuncs_t *progfuncs)
 		{
 			if (!e)
 			{
-				prinst->edicttable[i] = *(struct edict_s **)&e = (void*)memalloc(pr_edict_size);
+				prinst->edicttable[i] = *(struct edict_s **)&e = (void*)memalloc(externs->edictsize);
+				e->fields = PRAddressableAlloc(progfuncs, fields_size);
 				e->entnum = i;
 			}
 
@@ -108,7 +109,8 @@ struct edict_s *ED_Alloc (progfuncs_t *progfuncs)
 			{
 				if (!e)
 				{
-					prinst->edicttable[i] = *(struct edict_s **)&e = (void*)memalloc(pr_edict_size);
+					prinst->edicttable[i] = *(struct edict_s **)&e = (void*)memalloc(externs->edictsize);
+					e->fields = PRAddressableAlloc(progfuncs, fields_size);
 					e->entnum = i;
 				}
 
@@ -135,7 +137,8 @@ struct edict_s *ED_Alloc (progfuncs_t *progfuncs)
 
 	if (!e)
 	{
-		prinst->edicttable[i] = *(struct edict_s **)&e = (void*)memalloc(pr_edict_size);
+		prinst->edicttable[i] = *(struct edict_s **)&e = (void*)memalloc(externs->edictsize);
+		e->fields = PRAddressableAlloc(progfuncs, fields_size);
 		e->entnum = i;
 	}
 
@@ -485,7 +488,7 @@ char *PR_ValueString (progfuncs_t *progfuncs, etype_t type, eval_t *val)
 		sprintf (line, "%s", val->string+progfuncs->stringtable);
 		break;
 	case ev_entity:	
-		sprintf (line, "entity %i", NUM_FOR_EDICT(progfuncs, (struct edict_s *)PROG_TO_EDICT(val->edict)) );
+		sprintf (line, "entity %i", NUM_FOR_EDICT(progfuncs, (struct edict_s *)PROG_TO_EDICT(progfuncs, val->edict)) );
 		break;
 	case ev_function:
 		if (!val->function)
@@ -520,20 +523,22 @@ char *PR_ValueString (progfuncs_t *progfuncs, etype_t type, eval_t *val)
 	case ev_pointer:
 		sprintf (line, "pointer");
 		{
-			int entnum;
-			int valofs;
-			if (val->edict == 0)
+//			int entnum;
+//			int valofs;
+			if (val->_int == 0)
 			{
 				sprintf (line, "NULL pointer");
 				break;
 			}
-			entnum = ((qbyte *)val->edict - (qbyte *)sv_edicts) / pr_edict_size;
-			valofs = (int *)val->edict - (int *)edvars(EDICT_NUM(progfuncs, entnum));
-			fielddef = ED_FieldAtOfs (progfuncs, valofs );
-			if (!fielddef)
-				sprintf(line, "ent%i.%s", entnum, "UNKNOWN");
-			else
-				sprintf(line, "ent%i.%s", entnum, fielddef->s_name);
+		//FIXME: :/
+			sprintf(line, "UNKNOWN");
+//			entnum = ((qbyte *)val->edict - (qbyte *)sv_edicts) / pr_edict_size;
+//			valofs = (int *)val->edict - (int *)edvars(EDICT_NUM(progfuncs, entnum));
+//			fielddef = ED_FieldAtOfs (progfuncs, valofs );
+//			if (!fielddef)
+//				sprintf(line, "ent%i.%s", entnum, "UNKNOWN");
+//			else
+//				sprintf(line, "ent%i.%s", entnum, fielddef->s_name);
 		}
 		break;
 	default:
@@ -578,7 +583,7 @@ char *PR_UglyValueString (progfuncs_t *progfuncs, etype_t type, eval_t *val)
 		sprintf (line, "%s", val->string+progfuncs->stringtable);
 		break;
 	case ev_entity:	
-		sprintf (line, "%i", NUM_FOR_EDICT(progfuncs, (struct edict_s *)PROG_TO_EDICT(val->edict)));
+		sprintf (line, "%i", NUM_FOR_EDICT(progfuncs, (struct edict_s *)PROG_TO_EDICT(progfuncs, val->edict)));
 		break;
 	case ev_function:
 		i = (val->function & 0xff000000)>>24;
@@ -646,7 +651,7 @@ char *PR_UglyOldValueString (progfuncs_t *progfuncs, etype_t type, eval_t *val)
 		sprintf (line, "%s", val->string+progfuncs->stringtable);
 		break;
 	case ev_entity:	
-		sprintf (line, "%i", NUM_FOR_EDICT(progfuncs, (struct edict_s *)PROG_TO_EDICT(val->edict)));
+		sprintf (line, "%i", NUM_FOR_EDICT(progfuncs, (struct edict_s *)PROG_TO_EDICT(progfuncs, val->edict)));
 		break;
 	case ev_function:
 		f = pr_progstate[(val->function & 0xff000000)>>24].functions + (val->function & ~0xff000000);
@@ -1033,7 +1038,7 @@ pbool	ED_ParseEpair (progfuncs_t *progfuncs, void *base, ddefXX_t *key, char *s,
 		break;
 		
 	case ev_entity:
-		*(int *)d = EDICT_TO_PROG(EDICT_NUM(progfuncs, atoi (s)));
+		*(int *)d = EDICT_TO_PROG(progfuncs, EDICT_NUM(progfuncs, atoi (s)));
 		break;
 
 	case ev_field:
@@ -1146,7 +1151,7 @@ char *ED_ParseEdict (progfuncs_t *progfuncs, char *data, edictrun_t *ent)
 		}
 
 cont:
-		if (!ED_ParseEpair (progfuncs, (void *)(((char *)ent)+externs->edictsize), (ddefXX_t*)key, qcc_token, 32))
+		if (!ED_ParseEpair (progfuncs, ent->fields, (ddefXX_t*)key, qcc_token, 32))
 			Sys_Error ("ED_ParseEdict: parse error on entities");
 	}
 
@@ -1331,7 +1336,7 @@ char *ED_WriteEdict(progfuncs_t *progfuncs, edictrun_t *ed, char *buffer, pbool 
 		if (name[len-2] == '_' && (name[len-1] == 'x' || name[len-1] == 'y' || name[len-1] == 'z'))
 			continue;	// skip _x, _y, _z vars
 			
-		v = (int *)(((char *)ed + externs->edictsize) + d->ofs*4);
+		v = (int *)((char*)ed->fields + d->ofs*4);
 
 	// if the value is still all 0, skip the field
 #ifdef DEF_SAVEGLOBAL
@@ -1417,7 +1422,7 @@ char *SaveCallStack (progfuncs_t *progfuncs, char *s)
 						sprintf(buffer, "\t\t\"%s\"\t\"entity INVALID POINTER\"\n", local->s_name);
 						for (n = 0; n < sv_num_edicts; n++)
 						{
-							if (prinst->edicttable[n] == (struct edict_s *)PROG_TO_EDICT(((eval_t*)(globalbase - f->locals+arg))->edict))
+							if (prinst->edicttable[n] == (struct edict_s *)PROG_TO_EDICT(progfuncs, ((eval_t*)(globalbase - f->locals+arg))->edict))
 							{
 								sprintf(buffer, "\t\t\"%s\" \"entity %i\"\n", local->s_name, n);
 								break;
@@ -1646,7 +1651,8 @@ int LoadEnts(progfuncs_t *progfuncs, char *file, float killonspawnflags)
 
 					if (!ed)
 					{
-						prinst->edicttable[num] = *(struct edict_s **)&ed = (void*)memalloc(pr_edict_size);
+						prinst->edicttable[num] = *(struct edict_s **)&ed = (void*)memalloc(externs->edictsize);
+						ed->fields = PRAddressableAlloc(progfuncs, fields_size);
 						ed->entnum = num;
 						ed->isfree = true;
 					}
@@ -1667,7 +1673,8 @@ int LoadEnts(progfuncs_t *progfuncs, char *file, float killonspawnflags)
 				if (!ed)
 				{
 					Sys_Error("Edict was not allocated\n");
-					prinst->edicttable[num] = *(struct edict_s **)&ed = (void*)memalloc(pr_edict_size);
+					prinst->edicttable[num] = *(struct edict_s **)&ed = (void*)memalloc(externs->edictsize);
+					ed->fields = PRAddressableAlloc(progfuncs, fields_size);
 					ed->entnum = num;
 				}
 			}
@@ -1696,7 +1703,7 @@ int LoadEnts(progfuncs_t *progfuncs, char *file, float killonspawnflags)
 					if (f)
 					{
 						var = (eval_t *)((int *)pr_globals + ED_FindGlobalOfs(progfuncs, "self"));
-						var->edict = EDICT_TO_PROG(ed);
+						var->edict = EDICT_TO_PROG(progfuncs, ed);
 						PR_ExecuteProgram(progfuncs, f-pr_functions);
 					}
 				}
@@ -1759,7 +1766,8 @@ int LoadEnts(progfuncs_t *progfuncs, char *file, float killonspawnflags)
 
 					if (!ed)
 					{
-						prinst->edicttable[num] = *(struct edict_s **)&ed = (void*)memalloc(pr_edict_size);
+						prinst->edicttable[num] = *(struct edict_s **)&ed = (void*)memalloc(externs->edictsize);
+						ed->fields = PRAddressableAlloc(progfuncs, fields_size);
 						ed->entnum = num;
 						ed->isfree = true;
 					}
@@ -1823,7 +1831,7 @@ int LoadEnts(progfuncs_t *progfuncs, char *file, float killonspawnflags)
 			QC_StartShares(progfuncs);
 //			QC_InitShares();	//forget stuff
 //			pr_edict_size = 0;
-			pr_max_edict_size=0;
+			max_fields_size=0;
 
 			file = QCC_COM_Parse(file);
 			if (qcc_token[0] != '{')
@@ -1851,7 +1859,7 @@ int LoadEnts(progfuncs_t *progfuncs, char *file, float killonspawnflags)
 					Sys_Error("Bad key \"%s\" in general block", qcc_token);
 			}
 			
-			hunkused = 0;
+			PRAddressableFlush(progfuncs, -1);
 			resethunk=true;
 
 			pr_progstate = PRHunkAlloc(progfuncs, sizeof(progstate_t) * maxprogs);
@@ -1859,6 +1867,7 @@ int LoadEnts(progfuncs_t *progfuncs, char *file, float killonspawnflags)
 
 			sv_num_edicts = 1;	//set up a safty buffer so things won't go horribly wrong too often
 			sv_edicts=(struct edict_s *)tempedicts;
+			((edictrun_t*)sv_edicts)->readonly = true;
 
 			sv_num_edicts = numents;	//should be fine
 
@@ -1915,7 +1924,8 @@ int LoadEnts(progfuncs_t *progfuncs, char *file, float killonspawnflags)
 					ed = (edictrun_t *)EDICT_NUM(progfuncs, numents);
 					if (!ed)
 					{
-						prinst->edicttable[numents] = *(struct edict_s **)&ed = (void*)memalloc(pr_edict_size);
+						prinst->edicttable[numents] = *(struct edict_s **)&ed = (void*)memalloc(externs->edictsize);
+						ed->fields = PRAddressableAlloc(progfuncs, fields_size);
 						ed->entnum = numents;
 						ed->isfree = true;
 					}
@@ -1939,7 +1949,8 @@ int LoadEnts(progfuncs_t *progfuncs, char *file, float killonspawnflags)
 
 					if (!ed)
 					{
-						prinst->edicttable[num] = *(struct edict_s **)&ed = (void*)memalloc(pr_edict_size);
+						prinst->edicttable[num] = *(struct edict_s **)&ed = (void*)memalloc(externs->edictsize);
+						ed->fields = PRAddressableAlloc(progfuncs, fields_size);
 						ed->entnum = num;
 						ed->isfree = true;
 					}
@@ -1998,7 +2009,7 @@ int LoadEnts(progfuncs_t *progfuncs, char *file, float killonspawnflags)
 					}
 
 					selfvar = (eval_t *)((int *)pr_globals + ED_FindGlobalOfs(progfuncs, "self"));
-					selfvar->edict = EDICT_TO_PROG(ed);
+					selfvar->edict = EDICT_TO_PROG(progfuncs, ed);
 
 					f = PR_FindFunc(progfuncs, var->string+progfuncs->stringtable, -2);
 					if (f)
@@ -2043,7 +2054,7 @@ int LoadEnts(progfuncs_t *progfuncs, char *file, float killonspawnflags)
 		return entsize;
 	}
 	else
-		return pr_edict_size;
+		return max_fields_size;
 }
 
 #define AddS(str) strcpy(s, str);s+=strlen(str);
@@ -2397,7 +2408,7 @@ retry:
 		if (pr_progs->blockscompressed & 16)	//string table
 		{
 			len=sizeof(char)*pr_progs->numstrings;
-			s = PRHunkAlloc(progfuncs, len);
+			s = PRAddressableAlloc(progfuncs, len);
 			QC_decode(progfuncs, LittleLong(*(int *)pr_strings), len, 2, (char *)(((int *)pr_strings)+1), s);
 
 			pr_strings = (char *)s;
@@ -2405,12 +2416,12 @@ retry:
 		if (pr_progs->blockscompressed & 32)	//globals
 		{
 			len=sizeof(float)*pr_progs->numglobals;
-			s = PRHunkAlloc(progfuncs, len);
+			s = PRAddressableAlloc(progfuncs, len);
 			QC_decode(progfuncs, LittleLong(*(int *)pr_globals), len, 2, (char *)(((int *)pr_globals)+1), s);
 
 			glob = current_progstate->globals = (float *)s;
 		}
-		if (pr_progs->ofslinenums && pr_progs->blockscompressed & 64)	//line numbers
+		if (pr_linenums && pr_progs->blockscompressed & 64)	//line numbers
 		{
 			len=sizeof(int)*pr_progs->numstatements;
 			s = PRHunkAlloc(progfuncs, len);
@@ -2520,23 +2531,20 @@ retry:
 		((int *)glob)[i] = LittleLong (((int *)glob)[i]);
 #endif	
 
-	if (pr_progs->version == PROG_EXTENDEDVERSION)
-	{
-		if (pr_types)
-		{			
-			for (i=0 ; i<pr_progs->numtypes ; i++)
-			{	
+	if (pr_types)
+	{			
+		for (i=0 ; i<pr_progs->numtypes ; i++)
+		{	
 #ifndef NOENDIAN
-				pr_types[i].type = LittleLong(current_progstate->types[i].type);
-				pr_types[i].next = LittleLong(current_progstate->types[i].next);
-				pr_types[i].aux_type = LittleLong(current_progstate->types[i].aux_type);
-				pr_types[i].num_parms = LittleLong(current_progstate->types[i].num_parms);
-				pr_types[i].ofs = LittleLong(current_progstate->types[i].ofs);
-				pr_types[i].size = LittleLong(current_progstate->types[i].size);
-				pr_types[i].name = (string_t)LittleLong((long)current_progstate->types[i].name);
+			pr_types[i].type = LittleLong(current_progstate->types[i].type);
+			pr_types[i].next = LittleLong(current_progstate->types[i].next);
+			pr_types[i].aux_type = LittleLong(current_progstate->types[i].aux_type);
+			pr_types[i].num_parms = LittleLong(current_progstate->types[i].num_parms);
+			pr_types[i].ofs = LittleLong(current_progstate->types[i].ofs);
+			pr_types[i].size = LittleLong(current_progstate->types[i].size);
+			pr_types[i].name = (string_t)LittleLong((long)current_progstate->types[i].name);
 #endif
-				pr_types[i].name += (int)pr_strings;
-			}
+			pr_types[i].name += (int)pr_strings;
 		}
 	}
 
@@ -2547,6 +2555,7 @@ retry:
 	{
 	case 24:
 	case 16:
+		//byteswap the globals and fix name offsets
 		for (i=0 ; i<pr_progs->numglobaldefs ; i++)
 		{
 #ifndef NOENDIAN
@@ -2557,6 +2566,7 @@ retry:
 			gd16[i].s_name += (int)pr_strings;
 		}
 
+		//byteswap fields and fix name offets. Also register the fields (which will result in some offset adjustments in the globals segment).
 		for (i=0 ; i<pr_progs->numfielddefs ; i++)
 		{
 #ifndef NOENDIAN
@@ -2617,11 +2627,8 @@ retry:
 		Sys_Error("Bad int size");
 	}
 
-//this is a little over complicated and slow.
-//we need to search through the statements, looking for if statements.
-//if the if statement works on a string, we need to adjust the opcode a little.
-//This way, if (string) works properly, rather than always being true.
-//if only compilers expanded to if (string!=string_null)
+//ifstring fixes arn't performed anymore. 
+//the following switch just fixes endian and hexen2 calling conventions (by using different opcodes).
 	switch(current_progstate->intsize)
 	{
 	case 16:
@@ -2633,30 +2640,6 @@ retry:
 			st16[i].b = LittleShort(st16[i].b);
 			st16[i].c = LittleShort(st16[i].c);
 #endif
-/*
-			if (st16[i].op == OP_IF || st16[i].op == OP_IFNOT)	//strings are dodgy. if("") can evaluate to true
-			{
-				ddef16_t *gd;
-				gd = ED_GlobalAtOfs16(progfuncs, st16[i].a);
-				if (!gd)
-					continue;
-				if (pr_types)
-					type = pr_types[gd->type & ~(DEF_SHARED|DEF_SAVEGLOBAL)].type;
-				else
-					type = gd->type & ~(DEF_SHARED|DEF_SAVEGLOBAL);
-
-				if (type == ev_string)
-				{	//fix it.
-//					printf("Fixing if\n");
-
-					if (st16[i].op == OP_IF)
-						st16[i].op = OP_IFS;
-					else if (st16[i].op == OP_IFNOT)
-						st16[i].op = OP_IFNOTS;
-				}
-			}
-			else 
-*/
 			if (st16[i].op >= OP_CALL1 && st16[i].op <= OP_CALL8)
 			{
 				if (st16[i].b)
@@ -2666,7 +2649,6 @@ retry:
 		}
 		if (hexencalling)
 		{
-			printf("Detected Hexen2 calling convention\n");
 			for (i=0 ; i<pr_progs->numstatements ; i++)
 			{
 				if (st16[i].op >= OP_CALL1 && st16[i].op <= OP_CALL8)
@@ -2684,28 +2666,7 @@ retry:
 			pr_statements32[i].b = LittleLong(pr_statements32[i].b);
 			pr_statements32[i].c = LittleLong(pr_statements32[i].c);
 #endif
-/*
-			if (pr_statements32[i].op == OP_IF || pr_statements32[i].op == OP_IFNOT)	//strings are dodgy. if("") can evaluate to true
-			{
-				ddef16_t *gd;
-				gd = ED_GlobalAtOfs16(progfuncs, pr_statements32[i].a);
-				if (!gd)
-					continue;
-				if (pr_types)
-					type = pr_types[gd->type & ~(DEF_SHARED|DEF_SAVEGLOBAL)].type;
-				else
-					type = gd->type & ~(DEF_SHARED|DEF_SAVEGLOBAL);
-
-				if (type == ev_string)
-				{	//fix it.
-//					printf("Fixing if\n");
-
-					pr_statements32[i].op = pr_statements32[i].op - OP_IF + OP_IFS;
-				}
-			}
-			else 
-*/
-				if (pr_statements32[i].op >= OP_CALL1 && pr_statements32[i].op <= OP_CALL8)
+			if (pr_statements32[i].op >= OP_CALL1 && pr_statements32[i].op <= OP_CALL8)
 			{
 				if (pr_statements32[i].b)
 					hexencalling = true;
@@ -2722,17 +2683,29 @@ retry:
 		}
 		break;
 	case 32:
-#ifndef NOENDIAN
 		for (i=0 ; i<pr_progs->numstatements ; i++)
 		{
+#ifndef NOENDIAN
 			pr_statements32[i].op = LittleLong(pr_statements32[i].op);
 			pr_statements32[i].a = LittleLong(pr_statements32[i].a);
 			pr_statements32[i].b = LittleLong(pr_statements32[i].b);
 			pr_statements32[i].c = LittleLong(pr_statements32[i].c);
-
-			//don't bother fixing if(string). The FTE compiler fixes it with if(string != string_null)
-		}
 #endif
+			if (pr_statements32[i].op >= OP_CALL1 && pr_statements32[i].op <= OP_CALL8)
+			{
+				if (pr_statements32[i].b)
+					hexencalling = true;
+
+			}
+		}
+		if (hexencalling)
+		{
+			for (i=0 ; i<pr_progs->numstatements ; i++)
+			{
+				if (pr_statements32[i].op >= OP_CALL1 && pr_statements32[i].op <= OP_CALL8)
+					pr_statements32[i].op += OP_CALL1H - OP_CALL1;
+			}
+		}
 		break;
 	}
 

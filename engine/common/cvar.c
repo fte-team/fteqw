@@ -31,7 +31,7 @@ char	*cvar_null_string = "";
 Cvar_FindVar
 ============
 */
-cvar_t *Cvar_FindVar (char *var_name)
+cvar_t *Cvar_FindVar (const char *var_name)
 {
 	cvar_group_t	*grp;
 	cvar_t	*var;
@@ -49,7 +49,7 @@ cvar_t *Cvar_FindVar (char *var_name)
 	return NULL;
 }
 
-cvar_group_t *Cvar_FindGroup (char *group_name)
+cvar_group_t *Cvar_FindGroup (const char *group_name)
 {
 	cvar_group_t	*grp;
 	
@@ -59,7 +59,7 @@ cvar_group_t *Cvar_FindGroup (char *group_name)
 
 	return NULL;
 }
-cvar_group_t *Cvar_GetGroup(char *gname)
+cvar_group_t *Cvar_GetGroup(const char *gname)
 {
 	cvar_group_t *g;
 	if (!gname)
@@ -68,8 +68,8 @@ cvar_group_t *Cvar_GetGroup(char *gname)
 	if (g)
 		return g;
 
-	g = Z_Malloc(sizeof(cvar_group_t));
-	g->name = gname;
+	g = (cvar_group_t*)Z_Malloc(sizeof(cvar_group_t));
+	g->name = (char*)gname;
 	g->next = NULL;
 	g->next = cvar_groups;
 	cvar_groups = g;
@@ -101,7 +101,7 @@ void Cvar_List_f (void)
 Cvar_VariableValue
 ============
 */
-float	Cvar_VariableValue (char *var_name)
+float	Cvar_VariableValue (const char *var_name)
 {
 	cvar_t	*var;
 	
@@ -117,7 +117,7 @@ float	Cvar_VariableValue (char *var_name)
 Cvar_VariableString
 ============
 */
-char *Cvar_VariableString (char *var_name)
+char *Cvar_VariableString (const char *var_name)
 {
 	cvar_t *var;
 	
@@ -171,7 +171,7 @@ void SV_SendServerInfoChange(char *key, char *value);
 Cvar_Set
 ============
 */
-cvar_t *Cvar_SetCore (cvar_t *var, char *value, qboolean force)
+cvar_t *Cvar_SetCore (cvar_t *var, const char *value, qboolean force)
 {
 	char *latch=NULL;
 	
@@ -222,7 +222,7 @@ cvar_t *Cvar_SetCore (cvar_t *var, char *value, qboolean force)
 			var->latched_string = NULL;
 			return NULL;
 		}
-		var->latched_string = Z_Malloc(strlen(value)+1);
+		var->latched_string = (char*)Z_Malloc(strlen(value)+1);
 		strcpy(var->latched_string, value);
 		return NULL;
 	}
@@ -263,7 +263,7 @@ cvar_t *Cvar_SetCore (cvar_t *var, char *value, qboolean force)
 		Z_Free (var->string);	// free the old value string
 	}
 	
-	var->string = Z_Malloc (Q_strlen(value)+1);
+	var->string = (char*)Z_Malloc (Q_strlen(value)+1);
 	Q_strcpy (var->string, value);
 	var->value = Q_atof (var->string);
 
@@ -347,11 +347,11 @@ void Cvar_ApplyLatches(int latchflag)
 	}
 }
 
-cvar_t *Cvar_Set (cvar_t *var, char *value)
+cvar_t *Cvar_Set (cvar_t *var, const char *value)
 {
 	return Cvar_SetCore(var, value, false);
 }
-cvar_t *Cvar_ForceSet (cvar_t *var, char *value)
+cvar_t *Cvar_ForceSet (cvar_t *var, const char *value)
 {
 	return Cvar_SetCore(var, value, true);
 }
@@ -410,7 +410,7 @@ Cvar_RegisterVariable
 Adds a freestanding variable to the variable list.
 ============
 */
-void Cvar_Register (cvar_t *variable, char *groupname)
+void Cvar_Register (cvar_t *variable, const char *groupname)
 {
 	cvar_t *old;
 	cvar_group_t *group;
@@ -436,10 +436,10 @@ void Cvar_Register (cvar_t *variable, char *groupname)
 			group->cvars = variable;
 
 // make sure it can be zfreed
-			variable->string = Z_Malloc (1);
+			variable->string = (char*)Z_Malloc (1);
 
 //cheat prevention - engine set default is the one that stays.
-			variable->defaultstr = Z_Malloc (strlen(value)+1);	//give it it's default (for server controlled vars and things)
+			variable->defaultstr = (char*)Z_Malloc (strlen(value)+1);	//give it it's default (for server controlled vars and things)
 			strcpy (variable->defaultstr, value);
 
 // set it through the function to be consistant
@@ -470,9 +470,9 @@ void Cvar_Register (cvar_t *variable, char *groupname)
 	variable->restriction = 0;	//exe registered vars
 	group->cvars = variable;
 
-	variable->string = Z_Malloc (1);
+	variable->string = (char*)Z_Malloc (1);
 
-	variable->defaultstr = Z_Malloc (strlen(value)+1);	//give it it's default (for server controlled vars and things)
+	variable->defaultstr = (char*)Z_Malloc (strlen(value)+1);	//give it it's default (for server controlled vars and things)
 	strcpy (variable->defaultstr, value);
 
 // set it through the function to be consistant
@@ -484,7 +484,7 @@ void Cvar_RegisterVariable (cvar_t *variable)
 	Cvar_Register(variable, NULL);
 }
 */
-cvar_t *Cvar_Get(char *name, char *defaultvalue, int flags, char *group)
+cvar_t *Cvar_Get(const char *name, const char *defaultvalue, int flags, const char *group)
 {
 	cvar_t *var;
 	var = Cvar_FindVar(name);
@@ -497,10 +497,10 @@ cvar_t *Cvar_Get(char *name, char *defaultvalue, int flags, char *group)
 		return var;
 	}
 
-	var = Z_Malloc(sizeof(cvar_t)+strlen(name)+1);
+	var = (cvar_t*)Z_Malloc(sizeof(cvar_t)+strlen(name)+1);
 	var->name = (char *)(var+1);
 	strcpy(var->name, name);
-	var->string = defaultvalue;
+	var->string = (char*)defaultvalue;
 	var->flags = flags|CVAR_POINTER|CVAR_USERCREATED;
 
 	Cvar_Register(var, group);
@@ -509,11 +509,11 @@ cvar_t *Cvar_Get(char *name, char *defaultvalue, int flags, char *group)
 }
 
 //prevent the client from altering the cvar until they change map or the server resets the var to the default.
-void Cvar_LockFromServer(cvar_t *var, char *str)
+void Cvar_LockFromServer(cvar_t *var, const char *str)
 {
 	char *oldlatch;
 
-	Con_DPrintf("Server taking control of cvar %s\n", var->name);
+	Con_DPrintf("Server taking control of cvar %s (%s)\n", var->name, str);
 
 	var->flags |= CVAR_SERVEROVERRIDE;
 
@@ -522,7 +522,7 @@ void Cvar_LockFromServer(cvar_t *var, char *str)
 		var->latched_string = NULL;
 	else	//taking control
 	{
-		oldlatch = Z_Malloc(strlen(var->string)+1);
+		oldlatch = (char*)Z_Malloc(strlen(var->string)+1);
 		strcpy(oldlatch, var->string);
 	}
 

@@ -27,7 +27,9 @@ typedef unsigned char 		qbyte;
 #undef false
 
 #ifdef __cplusplus
-typedef enum qboolean;//false and true are forcivly defined.
+typedef enum {qfalse, qtrue} qboolean;//false and true are forcivly defined.
+#define true qtrue
+#define false qfalse
 #else
 typedef enum {false, true}	qboolean;
 #endif
@@ -130,7 +132,7 @@ void MSG_WriteByte (sizebuf_t *sb, int c);
 void MSG_WriteShort (sizebuf_t *sb, int c);
 void MSG_WriteLong (sizebuf_t *sb, int c);
 void MSG_WriteFloat (sizebuf_t *sb, float f);
-void MSG_WriteString (sizebuf_t *sb, char *s);
+void MSG_WriteString (sizebuf_t *sb, const char *s);
 void MSG_WriteCoord (sizebuf_t *sb, float f);
 void MSG_WriteBigCoord (sizebuf_t *sb, float f);
 void MSG_WriteAngle (sizebuf_t *sb, float f);
@@ -216,7 +218,7 @@ extern	qboolean	com_eof;
 char *COM_Parse (char *data);
 char *COM_ParseCString (char *data);
 char *COM_StringParse (char *data, qboolean expandmacros, qboolean qctokenize);
-char *COM_ParseToken (char *data);
+const char *COM_ParseToken (const char *data);
 char *COM_TrimString(char *str);
 
 
@@ -293,12 +295,12 @@ extern	struct cvar_s	registered;
 extern qboolean		standard_quake, rogue, hipnotic;
 
 #define	MAX_INFO_KEY	64
-char *Info_ValueForKey (char *s, char *key);
-void Info_RemoveKey (char *s, char *key);
+char *Info_ValueForKey (char *s, const char *key);
+void Info_RemoveKey (char *s, const char *key);
 void Info_RemovePrefixedKeys (char *start, char prefix);
 void Info_RemoveNonStarKeys (char *start);
-void Info_SetValueForKey (char *s, char *key, char *value, int maxsize);
-void Info_SetValueForStarKey (char *s, char *key, char *value, int maxsize);
+void Info_SetValueForKey (char *s, const char *key, const char *value, int maxsize);
+void Info_SetValueForStarKey (char *s, const char *key, const char *value, int maxsize);
 void Info_Print (char *s);
 
 unsigned Com_BlockChecksum (void *buffer, int length);

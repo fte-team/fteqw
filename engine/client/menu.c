@@ -796,6 +796,7 @@ void M_Menu_Quit_f (void)
 void M_Menu_MediaFiles_f (void);
 void M_Menu_FPS_f (void);
 void M_Menu_Particles_f (void);
+void M_Menu_ParticleSets_f (void);
 void M_Menu_Audio_Speakers_f (void);
 static qboolean internalmenusregistered;
 void M_Init_Internal (void)
@@ -838,6 +839,7 @@ void M_Init_Internal (void)
 	Cmd_AddRemCommand ("menu_speakers", M_Menu_Audio_Speakers_f);
 	Cmd_AddRemCommand ("menu_fps", M_Menu_FPS_f);
 	Cmd_AddRemCommand ("menu_particles", M_Menu_Particles_f);
+	Cmd_AddRemCommand ("menu_particlesets", M_Menu_ParticleSets_f);
 }
 
 void M_DeInit_Internal (void)
@@ -876,6 +878,7 @@ void M_DeInit_Internal (void)
 	Cmd_RemoveCommand ("menu_audio");
 	Cmd_RemoveCommand ("menu_fps");
 	Cmd_RemoveCommand ("menu_particles");
+	Cmd_RemoveCommand ("menu_particlesets");
 }
 
 //menu.dat is loaded later... after the video and everything is up.

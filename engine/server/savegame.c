@@ -585,7 +585,7 @@ qboolean SV_LoadLevelCache(char *level, char *startspot, qboolean ignoreplayers)
 
 	Q_SetProgsParms(false);
 
-	PR_Configure(svprogfuncs, NULL, -1, MAX_PROGS);
+	PR_Configure(svprogfuncs, -1, MAX_PROGS);
 	PR_RegisterFields();
 	PR_InitEnts(svprogfuncs, sv.max_edicts);
 

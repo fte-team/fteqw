@@ -116,8 +116,8 @@ int csqcnuments;
 
 qboolean SV_AddNailUpdate (edict_t *ent)
 {
-	if (ent->v.modelindex != sv_nailmodel
-		&& ent->v.modelindex != sv_supernailmodel)
+	if (ent->v->modelindex != sv_nailmodel
+		&& ent->v->modelindex != sv_supernailmodel)
 		return false;
 	if (sv_nailhack.value)
 		return false;
@@ -146,7 +146,7 @@ qboolean SV_DemoNailUpdate (int i)
 #ifdef PEXT_LIGHTUPDATES
 qboolean SV_AddLightUpdate (edict_t *ent)
 {
-	if (ent->v.modelindex != sv_lightningmodel)
+	if (ent->v->modelindex != sv_lightningmodel)
 		return false;
 	if (numlight == MAX_NAILS)
 		return true;
@@ -172,11 +172,11 @@ void SV_EmitNailUpdate (sizebuf_t *msg, qboolean recorder)
 		for (n=0 ; n<numlight ; n++)
 		{
 			ent = light[n];
-			x = (int)(ent->v.origin[0]+4096)>>1;
-			y = (int)(ent->v.origin[1]+4096)>>1;
-			z = (int)(ent->v.origin[2]+4096)>>1;
-			p = (int)(16*ent->v.angles[0]/360)&15;
-			yaw = (int)(256*ent->v.angles[1]/360)&255;
+			x = (int)(ent->v->origin[0]+4096)>>1;
+			y = (int)(ent->v->origin[1]+4096)>>1;
+			z = (int)(ent->v->origin[2]+4096)>>1;
+			p = (int)(16*ent->v->angles[0]/360)&15;
+			yaw = (int)(256*ent->v->angles[1]/360)&255;
 
 			bits[0] = x;
 			bits[1] = (x>>8) | (y<<4);
@@ -236,18 +236,18 @@ void SV_EmitNailUpdate (sizebuf_t *msg, qboolean recorder)
 	{
 		ent = nails[n];
 		if (recorder) {
-			if (!ent->v.colormap) {
+			if (!ent->v->colormap) {
 				if (!((++nailcount)&255)) nailcount++;
-				ent->v.colormap = nailcount&255;
+				ent->v->colormap = nailcount&255;
 			}
 
-			MSG_WriteByte (msg, (qbyte)ent->v.colormap);
+			MSG_WriteByte (msg, (qbyte)ent->v->colormap);
 		}
-		x = (int)(ent->v.origin[0]+4096)>>1;
-		y = (int)(ent->v.origin[1]+4096)>>1;
-		z = (int)(ent->v.origin[2]+4096)>>1;
-		p = (int)(16*ent->v.angles[0]/360)&15;
-		yaw = (int)(256*ent->v.angles[1]/360)&255;
+		x = (int)(ent->v->origin[0]+4096)>>1;
+		y = (int)(ent->v->origin[1]+4096)>>1;
+		z = (int)(ent->v->origin[2]+4096)>>1;
+		p = (int)(16*ent->v->angles[0]/360)&15;
+		yaw = (int)(256*ent->v->angles[1]/360)&255;
 
 		bits[0] = x;
 		bits[1] = (x>>8) | (y<<4);
@@ -281,7 +281,7 @@ static qboolean SV_AddCSQCUpdate (client_t *client, edict_t *ent)
 	if (!(client->csqcactive))
 		return false;
 
-	if (!ent->v.SendEntity)
+	if (!ent->v->SendEntity)
 		return false;
 
 	csqcent[csqcnuments++] = ent;
@@ -318,10 +318,10 @@ void SV_EmitCSQCUpdate(client_t *client, sizebuf_t *msg)
 		ent = csqcent[en];
 
 		//prevent mishaps with entities being respawned and things.
-		if ((int)ent->v.Version < sv.csqcentversion[ent->entnum])
-			ent->v.Version = sv.csqcentversion[ent->entnum];
+		if ((int)ent->v->Version < sv.csqcentversion[ent->entnum])
+			ent->v->Version = sv.csqcentversion[ent->entnum];
 		else
-			sv.csqcentversion[ent->entnum] = (int)ent->v.Version;
+			sv.csqcentversion[ent->entnum] = (int)ent->v->Version;
 
 		//If it's not changed, don't send
 		if (client->csqcentversions[ent->entnum] == sv.csqcentversion[ent->entnum])
@@ -332,7 +332,7 @@ void SV_EmitCSQCUpdate(client_t *client, sizebuf_t *msg)
 		//Ask CSQC to write a buffer for it.
 		G_INT(OFS_PARM0) = EDICT_TO_PROG(svprogfuncs, client->edict);
 		pr_global_struct->self = EDICT_TO_PROG(svprogfuncs, ent);
-		PR_ExecuteProgram(svprogfuncs, ent->v.SendEntity);
+		PR_ExecuteProgram(svprogfuncs, ent->v->SendEntity);
 		if (G_INT(OFS_RETURN))	//0 means not to tell the client about it.
 		{
 			if (msg->cursize + csqcmsgbuffer.cursize+5 >= msg->maxsize)
@@ -350,7 +350,7 @@ void SV_EmitCSQCUpdate(client_t *client, sizebuf_t *msg)
 			if (sv.csqcdebug)	//optional extra.
 			{
 				if (!csqcmsgbuffer.cursize)
-					Con_Printf("Warning: empty csqc packet on %s\n", svprogfuncs->stringtable+ent->v.classname);
+					Con_Printf("Warning: empty csqc packet on %s\n", svprogfuncs->stringtable+ent->v->classname);
 				MSG_WriteShort(msg, csqcmsgbuffer.cursize);
 			}
 			//FIXME: Add a developer mode to write the length of each entity.
@@ -1068,7 +1068,7 @@ void SV_AddEffect(client_t *to, edict_t *ent, int seefno)
 	{
 		if (ef->entnum == en && ef->efnum == 1<<seefno)
 		{
-			if (ef->colour != ent->v.seefcolour || ef->offset != ent->v.seefoffset || ef->size[0] != ent->v.seefsizex || ef->size[1] != ent->v.seefsizey || ef->size[2] != ent->v.seefsizez || ef->die < sv.time)
+			if (ef->colour != ent->v->seefcolour || ef->offset != ent->v->seefoffset || ef->size[0] != ent->v->seefsizex || ef->size[1] != ent->v->seefsizey || ef->size[2] != ent->v->seefsizez || ef->die < sv.time)
 			{
 				if (prev)
 					prev->next = ef->next;
@@ -1089,17 +1089,17 @@ void SV_AddEffect(client_t *to, edict_t *ent, int seefno)
 	to->enteffects = ef;
 	ef->efnum = 1<<seefno;
 	ef->entnum = en;
-	ef->colour = ent->v.seefcolour;
+	ef->colour = ent->v->seefcolour;
 	if (!ef->colour)
 		ef->colour = 111;
-	ef->offset = ent->v.seefoffset;
-	ef->size[0] = ent->v.seefsizex;
+	ef->offset = ent->v->seefoffset;
+	ef->size[0] = ent->v->seefsizex;
 	if (!ef->size[0])
 		ef->offset = 64;
-	ef->size[1] = ent->v.seefsizey;
+	ef->size[1] = ent->v->seefsizey;
 	if (!ef->size[1])
 		ef->offset = 64;
-	ef->size[2] = ent->v.seefsizez;
+	ef->size[2] = ent->v->seefsizez;
 	if (!ef->size[2])
 		ef->offset = 64;
 
@@ -1136,24 +1136,24 @@ void SV_SendExtraEntEffects(client_t *to, edict_t *ent)
 		{
 			if (progstype != PROG_QW)
 			{
-				if ((int)ent->v.effects & (EF_BRIGHTFIELD|EFNQ_DARKLIGHT|EFNQ_DARKFIELD|EFNQ_LIGHT) || to->enteffects)
+				if ((int)ent->v->effects & (EF_BRIGHTFIELD|EFNQ_DARKLIGHT|EFNQ_DARKFIELD|EFNQ_LIGHT) || to->enteffects)
 				{
-					if ((int)ent->v.effects & EF_BRIGHTFIELD)
+					if ((int)ent->v->effects & EF_BRIGHTFIELD)
 						SV_AddEffect(to, ent, SEEF_BRIGHTFIELD);
 					else
 						removeeffects |= 1<<SEEF_BRIGHTFIELD;
 
-					if ((int)ent->v.effects & EFNQ_DARKLIGHT)
+					if ((int)ent->v->effects & EFNQ_DARKLIGHT)
 						SV_AddEffect(to, ent, SEEF_DARKLIGHT);
 					else
 						removeeffects |= 1<<SEEF_DARKLIGHT;
 
-					if ((int)ent->v.effects & EFNQ_DARKFIELD)
+					if ((int)ent->v->effects & EFNQ_DARKFIELD)
 						SV_AddEffect(to, ent, SEEF_DARKFIELD);
 					else
 						removeeffects |= 1<<SEEF_DARKFIELD;
 
-					if ((int)ent->v.effects & EFNQ_LIGHT)
+					if ((int)ent->v->effects & EFNQ_LIGHT)
 						SV_AddEffect(to, ent, SEEF_LIGHT);
 					else
 						removeeffects |= 1<<SEEF_LIGHT;
@@ -1161,24 +1161,24 @@ void SV_SendExtraEntEffects(client_t *to, edict_t *ent)
 			}
 			else
 			{
-				if ((int)ent->v.effects & (EF_BRIGHTFIELD|EFQW_DARKLIGHT|EFQW_DARKFIELD|EFQW_LIGHT) || to->enteffects)
+				if ((int)ent->v->effects & (EF_BRIGHTFIELD|EFQW_DARKLIGHT|EFQW_DARKFIELD|EFQW_LIGHT) || to->enteffects)
 				{
-					if ((int)ent->v.effects & EF_BRIGHTFIELD)
+					if ((int)ent->v->effects & EF_BRIGHTFIELD)
 						SV_AddEffect(to, ent, SEEF_BRIGHTFIELD);
 					else
 						removeeffects |= 1<<SEEF_BRIGHTFIELD;
 
-					if ((int)ent->v.effects & EFQW_DARKLIGHT)
+					if ((int)ent->v->effects & EFQW_DARKLIGHT)
 						SV_AddEffect(to, ent, SEEF_DARKLIGHT);
 					else
 						removeeffects |= 1<<SEEF_DARKLIGHT;
 
-					if ((int)ent->v.effects & EFQW_DARKFIELD)
+					if ((int)ent->v->effects & EFQW_DARKFIELD)
 						SV_AddEffect(to, ent, SEEF_DARKFIELD);
 					else
 						removeeffects |= 1<<SEEF_DARKFIELD;
 
-					if ((int)ent->v.effects & EFQW_LIGHT)
+					if ((int)ent->v->effects & EFQW_LIGHT)
 						SV_AddEffect(to, ent, SEEF_LIGHT);
 					else
 						removeeffects |= 1<<SEEF_LIGHT;
@@ -1231,14 +1231,14 @@ void SV_WritePlayersToClient (client_t *client, edict_t *clent, qbyte *pvs, size
 
 			if (progstype != PROG_QW)
 			{
-				if ((int)ent->v.effects & EF_MUZZLEFLASH)
+				if ((int)ent->v->effects & EF_MUZZLEFLASH)
 				{
 					if (needcleanup < (j+1))
 					{
 						needcleanup = (j+1);
 						MSG_WriteByte(&sv.multicast, svc_muzzleflash);
 						MSG_WriteShort(&sv.multicast, (j+1));
-						SV_Multicast(ent->v.origin, MULTICAST_PVS);				
+						SV_Multicast(ent->v->origin, MULTICAST_PVS);				
 					}
 				}
 			}
@@ -1248,15 +1248,15 @@ void SV_WritePlayersToClient (client_t *client, edict_t *clent, qbyte *pvs, size
 
 			dcl->parsecount = demo.parsecount;
 
-			VectorCopy(vent->v.origin, dcl->info.origin);
-			VectorCopy(vent->v.angles, dcl->info.angles);
+			VectorCopy(vent->v->origin, dcl->info.origin);
+			VectorCopy(vent->v->angles, dcl->info.angles);
 			dcl->info.angles[0] *= -3;
 			dcl->info.angles[2] = 0; // no roll angle
 
-			if (ent->v.health <= 0)
+			if (ent->v->health <= 0)
 			{	// don't show the corpse looking around...
 				dcl->info.angles[0] = 0;
-				dcl->info.angles[1] = vent->v.angles[1];
+				dcl->info.angles[1] = vent->v->angles[1];
 				dcl->info.angles[2] = 0;
 			}
 
@@ -1267,21 +1267,21 @@ void SV_WritePlayersToClient (client_t *client, edict_t *clent, qbyte *pvs, size
 			}
 			else
 			{
-				dcl->info.skinnum = ent->v.skin;
-				dcl->info.effects = ent->v.effects;
-				dcl->info.weaponframe = ent->v.weaponframe;
-				dcl->info.model = ent->v.modelindex;
+				dcl->info.skinnum = ent->v->skin;
+				dcl->info.effects = ent->v->effects;
+				dcl->info.weaponframe = ent->v->weaponframe;
+				dcl->info.model = ent->v->modelindex;
 			}
 			dcl->sec = sv.time - cl->localtime;
-			dcl->frame = ent->v.frame;
+			dcl->frame = ent->v->frame;
 			dcl->flags = 0;
 			dcl->cmdtime = cl->localtime;
 			dcl->fixangle = demo.fixangle[j];
 			demo.fixangle[j] = 0;
 
-			if (ent->v.health <= 0)
+			if (ent->v->health <= 0)
 				dcl->flags |= DF_DEAD;
-			if (ent->v.mins[2] != -24)
+			if (ent->v->mins[2] != -24)
 				dcl->flags |= DF_GIB;
 			continue;
 		}
@@ -1450,17 +1450,17 @@ void SV_WritePlayersToClient (client_t *client, edict_t *clent, qbyte *pvs, size
 
 		if (progstype != PROG_QW)
 		{
-			if (progstype == PROG_H2 && (int)ent->v.effects & EF_NODRAW && ent != clent)
+			if (progstype == PROG_H2 && (int)ent->v->effects & EF_NODRAW && ent != clent)
 				continue;
 
-			if ((int)ent->v.effects & EF_MUZZLEFLASH)
+			if ((int)ent->v->effects & EF_MUZZLEFLASH)
 			{
 				if (needcleanup < (j+1))
 				{
 					needcleanup = (j+1);
 					MSG_WriteByte(&sv.multicast, svc_muzzleflash);
 					MSG_WriteShort(&sv.multicast, (j+1));
-					SV_Multicast(ent->v.origin, MULTICAST_PVS);				
+					SV_Multicast(ent->v->origin, MULTICAST_PVS);				
 				}
 			}
 		}
@@ -1481,7 +1481,7 @@ void SV_WritePlayersToClient (client_t *client, edict_t *clent, qbyte *pvs, size
 				continue;		// not visible
 			}
 
-			if (!((int)clent->v.dimension_see & ((int)ent->v.dimension_seen | (int)ent->v.dimension_ghost)))
+			if (!((int)clent->v->dimension_see & ((int)ent->v->dimension_seen | (int)ent->v->dimension_ghost)))
 				continue;	//not in this dimension - sorry...
 		}
 
@@ -1491,43 +1491,43 @@ void SV_WritePlayersToClient (client_t *client, edict_t *clent, qbyte *pvs, size
 		{
 			clstate_t clst;
 			clst.playernum = j;
-			clst.onladder = (int)ent->v.fteflags&FF_LADDER;
+			clst.onladder = (int)ent->v->fteflags&FF_LADDER;
 			clst.lastcmd = &cl->lastcmd;
-			clst.modelindex = vent->v.modelindex;
-			clst.modelindex2 = vent->v.vweapmodelindex;
-			clst.frame = vent->v.frame;
-			clst.weaponframe = ent->v.weaponframe;
-			clst.angles = ent->v.angles;
-			clst.origin = vent->v.origin;
-			clst.velocity = vent->v.velocity;
-			clst.effects = ent->v.effects;
+			clst.modelindex = vent->v->modelindex;
+			clst.modelindex2 = vent->v->vweapmodelindex;
+			clst.frame = vent->v->frame;
+			clst.weaponframe = ent->v->weaponframe;
+			clst.angles = ent->v->angles;
+			clst.origin = vent->v->origin;
+			clst.velocity = vent->v->velocity;
+			clst.effects = ent->v->effects;
 
-			if (((int)vent->v.effects & EF_NODRAW) && progstype == PROG_H2)
+			if (((int)vent->v->effects & EF_NODRAW) && progstype == PROG_H2)
 			{
 				clst.effects = 0;
 				clst.modelindex = 0;
 			}
 
-			clst.skin = vent->v.skin;
-			clst.mins = vent->v.mins;
-			clst.hull = vent->v.hull;
-			clst.maxs = vent->v.maxs;
-			clst.scale = vent->v.scale;
-			clst.transparency = vent->v.alpha;
+			clst.skin = vent->v->skin;
+			clst.mins = vent->v->mins;
+			clst.hull = vent->v->hull;
+			clst.maxs = vent->v->maxs;
+			clst.scale = vent->v->scale;
+			clst.transparency = vent->v->alpha;
 
 			//QSG_DIMENSION_PLANES - if the only shared dimensions are ghost dimensions, Set half alpha.
-			if (((int)clent->v.dimension_see & (int)ent->v.dimension_ghost))
-				if (!((int)clent->v.dimension_see & ((int)ent->v.dimension_seen & ~(int)ent->v.dimension_ghost)) )
+			if (((int)clent->v->dimension_see & (int)ent->v->dimension_ghost))
+				if (!((int)clent->v->dimension_see & ((int)ent->v->dimension_seen & ~(int)ent->v->dimension_ghost)) )
 				{
-					if (ent->v.dimension_ghost_alpha)
-						clst.transparency *= ent->v.dimension_ghost_alpha;
+					if (ent->v->dimension_ghost_alpha)
+						clst.transparency *= ent->v->dimension_ghost_alpha;
 					else
 						clst.transparency *= 0.5;
 				}
 
-			clst.fatness = vent->v.fatness;
+			clst.fatness = vent->v->fatness;
 			clst.localtime = cl->localtime;
-			clst.health = ent->v.health;
+			clst.health = ent->v->health;
 			clst.spectator = 0;
 			clst.fteext = client->fteprotocolextensions;
 			clst.zext = client->zquake_extensions;
@@ -1549,10 +1549,10 @@ void SV_WritePlayersToClient (client_t *client, edict_t *clent, qbyte *pvs, size
 					if (client->spec_track)
 					{
 						clst.spectator = 2;
-						clst.mins = svs.clients[client->spec_track-1].edict->v.mins;
-						clst.maxs = svs.clients[client->spec_track-1].edict->v.maxs;
-						clst.health = svs.clients[client->spec_track-1].edict->v.health;
-						clst.weaponframe = svs.clients[client->spec_track-1].edict->v.weaponframe;
+						clst.mins = svs.clients[client->spec_track-1].edict->v->mins;
+						clst.maxs = svs.clients[client->spec_track-1].edict->v->maxs;
+						clst.health = svs.clients[client->spec_track-1].edict->v->health;
+						clst.weaponframe = svs.clients[client->spec_track-1].edict->v->weaponframe;
 					}
 					else
 					{
@@ -1580,10 +1580,10 @@ void SV_WritePlayersToClient (client_t *client, edict_t *clent, qbyte *pvs, size
 //FIXME: Name flags
 		//player is visible, now would be a good time to update what the player is like.
 		pflags = 0;
-		if (client->fteprotocolextensions & PEXT_VWEAP && client->otherclientsknown[j].vweap != ent->v.vweapmodelindex)
+		if (client->fteprotocolextensions & PEXT_VWEAP && client->otherclientsknown[j].vweap != ent->v->vweapmodelindex)
 		{
 			pflags |= 1;
-			client->otherclientsknown[j].vweap = ent->v.vweapmodelindex;
+			client->otherclientsknown[j].vweap = ent->v->vweapmodelindex;
 		}
 		if (pflags)
 		{
@@ -1650,7 +1650,7 @@ eval_t *val;
 
 int glowsize, glowcolor;
 
-	if (ent->v.modelindex >= 256)	//as much as protocols can handle
+	if (ent->v->modelindex >= 256)	//as much as protocols can handle
 		return;
 
 	if (entnum >= 768)		//too many for a conventional nq client.
@@ -1658,38 +1658,38 @@ int glowsize, glowcolor;
 
 	for (i=0 ; i<3 ; i++)
 	{				
-		miss = ent->v.origin[i] - ent->baseline.origin[i];
+		miss = ent->v->origin[i] - ent->baseline.origin[i];
 		if ( miss < -0.1 || miss > 0.1 )
 			bits |= NQU_ORIGIN1<<i;
 	}
 
-	if (ent->v.angles[0] != ent->baseline.angles[0] )
+	if (ent->v->angles[0] != ent->baseline.angles[0] )
 		bits |= NQU_ANGLE1;
 		
-	if (ent->v.angles[1] != ent->baseline.angles[1] )
+	if (ent->v->angles[1] != ent->baseline.angles[1] )
 		bits |= NQU_ANGLE2;
 		
-	if (ent->v.angles[2] != ent->baseline.angles[2] )
+	if (ent->v->angles[2] != ent->baseline.angles[2] )
 		bits |= NQU_ANGLE3;
 		
-	if ((ent->v.movetype == MOVETYPE_STEP || (ent->v.movetype == MOVETYPE_PUSH)) && (bits & (U_ANGLE1|U_ANGLE2|U_ANGLE3)))
+	if ((ent->v->movetype == MOVETYPE_STEP || (ent->v->movetype == MOVETYPE_PUSH)) && (bits & (U_ANGLE1|U_ANGLE2|U_ANGLE3)))
 		bits |= NQU_NOLERP;	// don't mess up the step animation
 
-	if (ent->baseline.colormap != ent->v.colormap && ent->v.colormap>=0)
+	if (ent->baseline.colormap != ent->v->colormap && ent->v->colormap>=0)
 		bits |= NQU_COLORMAP;
 
-	if (ent->baseline.skinnum != ent->v.skin)
+	if (ent->baseline.skinnum != ent->v->skin)
 		bits |= NQU_SKIN;
 
-	if (ent->baseline.frame != ent->v.frame)
+	if (ent->baseline.frame != ent->v->frame)
 		bits |= NQU_FRAME;
 
-	eff = ent->v.effects;
+	eff = ent->v->effects;
 
 	if ((ent->baseline.effects & 0x00ff) != ((int)eff & 0x00ff))
 		bits |= NQU_EFFECTS;	
 
-	if (/*ent->baseline.modelindex !=*/ ent->v.modelindex)
+	if (/*ent->baseline.modelindex !=*/ ent->v->modelindex)
 		bits |= NQU_MODEL;
 
 	if (entnum >= 256)
@@ -1698,10 +1698,10 @@ int glowsize, glowcolor;
 
 //	if (usedpextensions)
 	{
-		if (ent->baseline.trans != ent->v.alpha)
-			if (!(ent->baseline.trans == 1 && !ent->v.alpha))
+		if (ent->baseline.trans != ent->v->alpha)
+			if (!(ent->baseline.trans == 1 && !ent->v->alpha))
 				bits |= DPU_ALPHA;
-		if (ent->baseline.scale != ent->v.scale)
+		if (ent->baseline.scale != ent->v->scale)
 			bits |= DPU_SCALE;
 
 		if ((ent->baseline.effects&0xff00) != ((int)eff & 0xff00))
@@ -1752,26 +1752,26 @@ int glowsize, glowcolor;
 	else
 		MSG_WriteByte (msg,entnum);
 
-	if (bits & NQU_MODEL)		MSG_WriteByte (msg,	ent->v.modelindex);
-	if (bits & NQU_FRAME)		MSG_WriteByte (msg, ent->v.frame);
-	if (bits & NQU_COLORMAP)	MSG_WriteByte (msg, ent->v.colormap);
-	if (bits & NQU_SKIN)		MSG_WriteByte (msg, ent->v.skin);
+	if (bits & NQU_MODEL)		MSG_WriteByte (msg,	ent->v->modelindex);
+	if (bits & NQU_FRAME)		MSG_WriteByte (msg, ent->v->frame);
+	if (bits & NQU_COLORMAP)	MSG_WriteByte (msg, ent->v->colormap);
+	if (bits & NQU_SKIN)		MSG_WriteByte (msg, ent->v->skin);
 	if (bits & NQU_EFFECTS)		MSG_WriteByte (msg, eff & 0x00ff);		
-	if (bits & NQU_ORIGIN1)		MSG_WriteCoord (msg, ent->v.origin[0]);		
-	if (bits & NQU_ANGLE1)		MSG_WriteAngle(msg, ent->v.angles[0]);
-	if (bits & NQU_ORIGIN2)		MSG_WriteCoord (msg, ent->v.origin[1]);
-	if (bits & NQU_ANGLE2)		MSG_WriteAngle(msg, ent->v.angles[1]);
-	if (bits & NQU_ORIGIN3)		MSG_WriteCoord (msg, ent->v.origin[2]);
-	if (bits & NQU_ANGLE3)		MSG_WriteAngle(msg, ent->v.angles[2]);
+	if (bits & NQU_ORIGIN1)		MSG_WriteCoord (msg, ent->v->origin[0]);		
+	if (bits & NQU_ANGLE1)		MSG_WriteAngle(msg, ent->v->angles[0]);
+	if (bits & NQU_ORIGIN2)		MSG_WriteCoord (msg, ent->v->origin[1]);
+	if (bits & NQU_ANGLE2)		MSG_WriteAngle(msg, ent->v->angles[1]);
+	if (bits & NQU_ORIGIN3)		MSG_WriteCoord (msg, ent->v->origin[2]);
+	if (bits & NQU_ANGLE3)		MSG_WriteAngle(msg, ent->v->angles[2]);
 
-	if (bits & DPU_ALPHA)		MSG_WriteByte(msg, ent->v.alpha*255);
-	if (bits & DPU_SCALE)		MSG_WriteByte(msg, ent->v.scale*16);
+	if (bits & DPU_ALPHA)		MSG_WriteByte(msg, ent->v->alpha*255);
+	if (bits & DPU_SCALE)		MSG_WriteByte(msg, ent->v->scale*16);
 	if (bits & DPU_EFFECTS2)	MSG_WriteByte(msg, eff >> 8);
 	if (bits & DPU_GLOWSIZE)	MSG_WriteByte(msg, glowsize);
 	if (bits & DPU_GLOWCOLOR)	MSG_WriteByte(msg, glowcolor);
 //	if (bits & DPU_COLORMOD)	MSG_WriteByte(msg, colormod);
-	if (bits & DPU_FRAME2)		MSG_WriteByte(msg, (int)ent->v.frame >> 8);
-	if (bits & DPU_MODEL2)		MSG_WriteByte(msg, (int)ent->v.modelindex >> 8);
+	if (bits & DPU_FRAME2)		MSG_WriteByte(msg, (int)ent->v->frame >> 8);
+	if (bits & DPU_MODEL2)		MSG_WriteByte(msg, (int)ent->v->modelindex >> 8);
 }
 
 typedef struct gibfilter_s {
@@ -1843,8 +1843,8 @@ void SV_GibFilterInit(void)
 }
 qboolean SV_GibFilter(edict_t	*ent)
 {
-	int indx = ent->v.modelindex;
-	int frame = ent->v.frame;
+	int indx = ent->v->modelindex;
+	int frame = ent->v->frame;
 	gibfilter_t *gf;
 
 	for (gf = gibfilter; gf; gf=gf->next)
@@ -1942,16 +1942,16 @@ void SV_WriteEntitiesToClient (client_t *client, sizebuf_t *msg, qboolean ignore
 	if (!ignorepvs)
 	{
 		clent = client->edict;
-		VectorAdd (clent->v.origin, clent->v.view_ofs, org);
+		VectorAdd (clent->v->origin, clent->v->view_ofs, org);
 
 		sv.worldmodel->funcs.FatPVS(org, false);
 
 #ifdef PEXT_VIEW2	
-		if (clent->v.view2)
-			sv.worldmodel->funcs.FatPVS(PROG_TO_EDICT(svprogfuncs, clent->v.view2)->v.origin, true);
+		if (clent->v->view2)
+			sv.worldmodel->funcs.FatPVS(PROG_TO_EDICT(svprogfuncs, clent->v->view2)->v->origin, true);
 #endif
 		for (split = client->controlled; split; split = split->controlled)
-			sv.worldmodel->funcs.FatPVS(split->edict->v.origin, true);
+			sv.worldmodel->funcs.FatPVS(split->edict->v->origin, true);
 /*
 		if (sv.worldmodel->fromgame == fg_doom)
 		{
@@ -1972,11 +1972,11 @@ void SV_WriteEntitiesToClient (client_t *client, sizebuf_t *msg, qboolean ignore
 			SV_Q1BSP_FatPVS (org);
 
 #ifdef PEXT_VIEW2	
-			if (clent->v.view2)
-				SV_Q1BSP_AddToFatPVS (PROG_TO_EDICT(svprogfuncs, clent->v.view2)->v.origin, sv.worldmodel->nodes);	//add a little more...
+			if (clent->v->view2)
+				SV_Q1BSP_AddToFatPVS (PROG_TO_EDICT(svprogfuncs, clent->v->view2)->v->origin, sv.worldmodel->nodes);	//add a little more...
 #endif
 			for (split = client->controlled; split; split = split->controlled)
-				SV_Q1BSP_AddToFatPVS (split->edict->v.origin, sv.worldmodel->nodes);	//add a little more...
+				SV_Q1BSP_AddToFatPVS (split->edict->v->origin, sv.worldmodel->nodes);	//add a little more...
 		}
 */
 	}
@@ -2073,26 +2073,26 @@ void SV_WriteEntitiesToClient (client_t *client, sizebuf_t *msg, qboolean ignore
 
 		state->number = client - svs.clients + 1;
 		state->flags = 0;
-		VectorCopy (clent->v.origin, state->origin);
-		VectorCopy (clent->v.angles, state->angles);
-		state->modelindex = clent->v.modelindex;
-		state->frame = clent->v.frame;
-		state->colormap = clent->v.colormap;
-		state->skinnum = clent->v.skin;
-		state->effects = clent->v.effects;
-		state->drawflags = clent->v.drawflags;
-		state->abslight = clent->v.abslight;
+		VectorCopy (clent->v->origin, state->origin);
+		VectorCopy (clent->v->angles, state->angles);
+		state->modelindex = clent->v->modelindex;
+		state->frame = clent->v->frame;
+		state->colormap = clent->v->colormap;
+		state->skinnum = clent->v->skin;
+		state->effects = clent->v->effects;
+		state->drawflags = clent->v->drawflags;
+		state->abslight = clent->v->abslight;
 
 #ifdef PEXT_SCALE
-		state->scale = clent->v.scale;
+		state->scale = clent->v->scale;
 #endif
 #ifdef PEXT_TRANS
-		state->trans = clent->v.alpha;
+		state->trans = clent->v->alpha;
 		if (!state->trans)
 			state->trans = 1;
 #endif
 #ifdef PEXT_FATNESS
-		state->fatness = clent->v.fatness;
+		state->fatness = clent->v->fatness;
 #endif
 
 		if (state->effects & EF_FLAG1)
@@ -2126,21 +2126,21 @@ void SV_WriteEntitiesToClient (client_t *client, sizebuf_t *msg, qboolean ignore
 		ent = EDICT_NUM(svprogfuncs, e);
 
 		// ignore ents without visible models
-		if (!ent->v.SendEntity && (!ent->v.modelindex || !*PR_GetString(svprogfuncs, ent->v.model)))
+		if (!ent->v->SendEntity && (!ent->v->modelindex || !*PR_GetString(svprogfuncs, ent->v->model)))
 			continue;
 
 		if (progstype != PROG_QW)
 		{
-			if (progstype == PROG_H2 && (int)ent->v.effects & EF_NODRAW)
+			if (progstype == PROG_H2 && (int)ent->v->effects & EF_NODRAW)
 				continue;
-			if ((int)ent->v.effects & EF_MUZZLEFLASH)
+			if ((int)ent->v->effects & EF_MUZZLEFLASH)
 			{
 				if (needcleanup < e)
 				{
 					needcleanup = e;
 					MSG_WriteByte(&sv.multicast, svc_muzzleflash);
 					MSG_WriteShort(&sv.multicast, e);
-					SV_Multicast(ent->v.origin, MULTICAST_PVS);				
+					SV_Multicast(ent->v->origin, MULTICAST_PVS);				
 				}
 			}
 		}
@@ -2173,20 +2173,20 @@ void SV_WriteEntitiesToClient (client_t *client, sizebuf_t *msg, qboolean ignore
 		if (client->gibfilter && SV_GibFilter(ent))
 			continue;
 
-//		if (strstr(sv.model_precache[(int)ent->v.modelindex], "gib"))
+//		if (strstr(sv.model_precache[(int)ent->v->modelindex], "gib"))
 //			continue;
 
 
-		if (ent->v.nodrawtoclient)	//DP extension.
-			if (ent->v.nodrawtoclient == EDICT_TO_PROG(svprogfuncs, client->edict))
+		if (ent->v->nodrawtoclient)	//DP extension.
+			if (ent->v->nodrawtoclient == EDICT_TO_PROG(svprogfuncs, client->edict))
 				continue;
-		if (ent->v.drawonlytoclient)
-			if (ent->v.drawonlytoclient != EDICT_TO_PROG(svprogfuncs, client->edict))
+		if (ent->v->drawonlytoclient)
+			if (ent->v->drawonlytoclient != EDICT_TO_PROG(svprogfuncs, client->edict))
 			{
 				client_t *split;
 				for (split = client->controlled; split; split=split->controlled)
 				{
-					if (split->edict->v.view2 == EDICT_TO_PROG(svprogfuncs, ent))
+					if (split->edict->v->view2 == EDICT_TO_PROG(svprogfuncs, ent))
 						break;
 				}
 				if (!split)
@@ -2195,7 +2195,7 @@ void SV_WriteEntitiesToClient (client_t *client, sizebuf_t *msg, qboolean ignore
 
 		//QSG_DIMENSION_PLANES
 		if (client->edict)
-			if (!((int)client->edict->v.dimension_see & ((int)ent->v.dimension_seen | (int)ent->v.dimension_ghost)))
+			if (!((int)client->edict->v->dimension_see & ((int)ent->v->dimension_seen | (int)ent->v->dimension_ghost)))
 				continue;	//not in this dimension - sorry...
 
 		if (SV_AddCSQCUpdate(client, ent))	//csqc took it.
@@ -2222,15 +2222,15 @@ void SV_WriteEntitiesToClient (client_t *client, sizebuf_t *msg, qboolean ignore
 			continue;
 		if (e >= 1024 && !(client->fteprotocolextensions & PEXT_ENTITYDBL2))
 			continue;
-		if (ent->v.modelindex >= 256 && !(client->fteprotocolextensions & PEXT_MODELDBL))
+		if (ent->v->modelindex >= 256 && !(client->fteprotocolextensions & PEXT_MODELDBL))
 			continue;
 
 #ifdef DEPTHOPTIMISE
 		if (clent)
 		{
 			//find distance based upon absolute mins/maxs so bsps are treated fairly.
-			VectorAdd(ent->v.absmin, ent->v.absmax, org);
-			VectorMA(clent->v.origin, -0.5, org, org);
+			VectorAdd(ent->v->absmin, ent->v->absmax, org);
+			VectorMA(clent->v->origin, -0.5, org, org);
 			dist = Length(org);
 
 			// add to the packetentities
@@ -2282,16 +2282,16 @@ void SV_WriteEntitiesToClient (client_t *client, sizebuf_t *msg, qboolean ignore
 
 		state->number = e;
 		state->flags = 0;
-		VectorCopy (ent->v.origin, state->origin);
-		VectorCopy (ent->v.angles, state->angles);
-		state->modelindex = ent->v.modelindex;
-		state->frame = ent->v.frame;
-		state->colormap = ent->v.colormap;
-		state->skinnum = ent->v.skin;
-		state->effects = ent->v.effects;
-		state->drawflags = ent->v.drawflags;
-		state->abslight = (int)(ent->v.abslight*255) & 255;
-		if ((int)ent->v.flags & FL_CLASS_DEPENDENT && client->playerclass)
+		VectorCopy (ent->v->origin, state->origin);
+		VectorCopy (ent->v->angles, state->angles);
+		state->modelindex = ent->v->modelindex;
+		state->frame = ent->v->frame;
+		state->colormap = ent->v->colormap;
+		state->skinnum = ent->v->skin;
+		state->effects = ent->v->effects;
+		state->drawflags = ent->v->drawflags;
+		state->abslight = (int)(ent->v->abslight*255) & 255;
+		if ((int)ent->v->flags & FL_CLASS_DEPENDENT && client->playerclass)
 		{
 			char modname[MAX_QPATH];
 			Q_strncpyz(modname, sv.model_precache[state->modelindex], sizeof(modname));
@@ -2301,7 +2301,7 @@ void SV_WriteEntitiesToClient (client_t *client, sizebuf_t *msg, qboolean ignore
 				state->modelindex = SV_ModelIndex(modname);
 			}
 		}
-		if (progstype == PROG_H2 && ent->v.solid == SOLID_BSP)
+		if (progstype == PROG_H2 && ent->v->solid == SOLID_BSP)
 			state->angles[0]*=-1;
 
 		if (state->effects & EF_FULLBRIGHT)
@@ -2313,26 +2313,26 @@ void SV_WriteEntitiesToClient (client_t *client, sizebuf_t *msg, qboolean ignore
 			state->effects &= EF_BRIGHTLIGHT | EF_DIMLIGHT;
 
 #ifdef PEXT_SCALE
-		state->scale = ent->v.scale;
+		state->scale = ent->v->scale;
 #endif
 #ifdef PEXT_TRANS
-		state->trans = ent->v.alpha;
+		state->trans = ent->v->alpha;
 		if (!state->trans)
 			state->trans = 1;
 
 		//QSG_DIMENSION_PLANES - if the only shared dimensions are ghost dimensions, Set half alpha.
 		if (client->edict)
-			if (((int)client->edict->v.dimension_see & (int)ent->v.dimension_ghost))
-				if (!((int)client->edict->v.dimension_see & ((int)ent->v.dimension_seen & ~(int)ent->v.dimension_ghost)) )
+			if (((int)client->edict->v->dimension_see & (int)ent->v->dimension_ghost))
+				if (!((int)client->edict->v->dimension_see & ((int)ent->v->dimension_seen & ~(int)ent->v->dimension_ghost)) )
 				{
-					if (ent->v.dimension_ghost_alpha)
-						state->trans *= ent->v.dimension_ghost_alpha;
+					if (ent->v->dimension_ghost_alpha)
+						state->trans *= ent->v->dimension_ghost_alpha;
 					else
 						state->trans *= 0.5;
 				}
 #endif
 #ifdef PEXT_FATNESS
-		state->fatness = ent->v.fatness;
+		state->fatness = ent->v->fatness;
 #endif
 	}
 #ifdef NQPROT
@@ -2370,8 +2370,8 @@ void SV_CleanupEnts(void)
 	for (e=1 ; e<=needcleanup ; e++)
 	{
 		ent = EDICT_NUM(svprogfuncs, e);
-		if ((int)ent->v.effects & EF_MUZZLEFLASH)
-			ent->v.effects = (int)ent->v.effects & ~EF_MUZZLEFLASH;
+		if ((int)ent->v->effects & EF_MUZZLEFLASH)
+			ent->v->effects = (int)ent->v->effects & ~EF_MUZZLEFLASH;
 	}
 	needcleanup=0;
 }

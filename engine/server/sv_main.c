@@ -406,7 +406,7 @@ void SV_DropClient (client_t *drop)
 	drop->kills = 0;
 	drop->deaths = 0;
 	if (svprogfuncs && drop->edict)
-		drop->edict->v.frags = 0;
+		drop->edict->v->frags = 0;
 	drop->name[0] = 0;
 	memset (drop->userinfo, 0, sizeof(drop->userinfo));
 
@@ -2711,7 +2711,7 @@ void SV_Impulse_f (void)
 
 	SetUpClientEdict(&svs.clients[i], svs.clients[i].edict);
 
-	svs.clients[i].edict->v.netname = PR_SetString(svprogfuncs, "Console");
+	svs.clients[i].edict->v->netname = PR_SetString(svprogfuncs, "Console");
 
 	pr_global_struct->self = EDICT_TO_PROG(svprogfuncs, svs.clients[i].edict);
 	PR_ExecuteProgram (svprogfuncs, pr_global_struct->ClientConnect);
@@ -2723,16 +2723,16 @@ void SV_Impulse_f (void)
 	pr_global_struct->self = EDICT_TO_PROG(svprogfuncs, svs.clients[i].edict);
 	PR_ExecuteProgram (svprogfuncs, pr_global_struct->PlayerPreThink);
 	pr_global_struct->self = EDICT_TO_PROG(svprogfuncs, svs.clients[i].edict);
-	PR_ExecuteProgram (svprogfuncs, svs.clients[i].edict->v.think);
+	PR_ExecuteProgram (svprogfuncs, svs.clients[i].edict->v->think);
 	pr_global_struct->self = EDICT_TO_PROG(svprogfuncs, svs.clients[i].edict);
 	PR_ExecuteProgram (svprogfuncs, pr_global_struct->PlayerPostThink);
 
-	svs.clients[i].edict->v.impulse = atoi(Cmd_Argv(1));
+	svs.clients[i].edict->v->impulse = atoi(Cmd_Argv(1));
 
 	pr_global_struct->self = EDICT_TO_PROG(svprogfuncs, svs.clients[i].edict);
 	PR_ExecuteProgram (svprogfuncs, pr_global_struct->PlayerPreThink);
 	pr_global_struct->self = EDICT_TO_PROG(svprogfuncs, svs.clients[i].edict);
-	PR_ExecuteProgram (svprogfuncs, svs.clients[i].edict->v.think);
+	PR_ExecuteProgram (svprogfuncs, svs.clients[i].edict->v->think);
 	pr_global_struct->self = EDICT_TO_PROG(svprogfuncs, svs.clients[i].edict);
 	PR_ExecuteProgram (svprogfuncs, pr_global_struct->PlayerPostThink);
 

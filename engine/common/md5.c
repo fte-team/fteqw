@@ -33,16 +33,6 @@ documentation and/or software.
 /* GLOBAL.H - RSAREF types and constants
  */
 
-/* PROTOTYPES should be set to one if and only if the compiler supports
-  function argument prototyping.
-The following makes PROTOTYPES default to 0 if it has not already
-
-  been defined with C compiler flags.
- */
-#ifndef PROTOTYPES
-#define PROTOTYPES 0
-#endif
-
 /* POINTER defines a generic pointer type */
 typedef unsigned char *POINTER;
 
@@ -51,17 +41,6 @@ typedef unsigned short int UINT2;
 
 /* UINT4 defines a four byte word */
 typedef unsigned long int UINT4;
-
-/* PROTO_LIST is defined depending on how PROTOTYPES is defined above.
-If using PROTOTYPES, then PROTO_LIST returns the list, otherwise it
-  returns an empty list.
- */
-#if PROTOTYPES
-#define PROTO_LIST(list) list
-#else
-#define PROTO_LIST(list) ()
-#endif
-
 
 
 
@@ -101,10 +80,9 @@ typedef struct {
   unsigned char buffer[64];                         /* input buffer */
 } MD5_CTX;
 
-void MD5Init PROTO_LIST ((MD5_CTX *));
-void MD5Update PROTO_LIST
-  ((MD5_CTX *, unsigned char *, unsigned int));
-void MD5Final PROTO_LIST ((unsigned char [16], MD5_CTX *));
+void MD5Init (MD5_CTX *ctx);
+void MD5Update (MD5_CTX *, unsigned char *, unsigned int);
+void MD5Final (unsigned char [16], MD5_CTX *);
 
 
 
@@ -137,11 +115,9 @@ void MD5Final PROTO_LIST ((unsigned char [16], MD5_CTX *));
 #define S43 15
 #define S44 21
 
-static void MD5Transform PROTO_LIST ((UINT4 [4], unsigned char [64]));
-static void Encode PROTO_LIST
-  ((unsigned char *, UINT4 *, unsigned int));
-static void Decode PROTO_LIST
-  ((UINT4 *, unsigned char *, unsigned int));
+static void MD5Transform (UINT4 [4], unsigned char [64]);
+static void Encode (unsigned char *, UINT4 *, unsigned int);
+static void Decode (UINT4 *, unsigned char *, unsigned int);
 
 static unsigned char PADDING[64] = {
   0x80, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
@@ -186,8 +162,7 @@ Rotation is separate from addition to prevent recomputation.
 
 /* MD5 initialization. Begins an MD5 operation, writing a new context.
  */
-void MD5Init (context)
-MD5_CTX *context;                                        /* context */
+void MD5Init (MD5_CTX *context)
 {
   context->count[0] = context->count[1] = 0;
   /* Load magic initialization constants.
@@ -202,10 +177,7 @@ MD5_CTX *context;                                        /* context */
   operation, processing another message block, and updating the
   context.
  */
-void MD5Update (context, input, inputLen)
-MD5_CTX *context;                                        /* context */
-unsigned char *input;                                /* input block */
-unsigned int inputLen;                     /* length of input block */
+void MD5Update (MD5_CTX *context, unsigned char *input, unsigned int inputLen)
 {
   unsigned int i, index, partLen;
 
@@ -245,9 +217,7 @@ unsigned int inputLen;                     /* length of input block */
 /* MD5 finalization. Ends an MD5 message-digest operation, writing the
   the message digest and zeroizing the context.
  */
-void MD5Final (digest, context)
-unsigned char digest[16];                         /* message digest */
-MD5_CTX *context;                                       /* context */
+void MD5Final (unsigned char digest[16], MD5_CTX *context)
 {
   unsigned char bits[8];
   unsigned int index, padLen;
@@ -274,9 +244,7 @@ MD5_CTX *context;                                       /* context */
 
 /* MD5 basic transformation. Transforms state based on block.
  */
-static void MD5Transform (state, block)
-UINT4 state[4];
-unsigned char block[64];
+static void MD5Transform (UINT4 state[4], unsigned char block[64])
 {
   UINT4 a = state[0], b = state[1], c = state[2], d = state[3], x[16];
 
@@ -369,10 +337,7 @@ unsigned char block[64];
 /* Encodes input (UINT4) into output (unsigned char). Assumes len is
   a multiple of 4.
  */
-static void Encode (output, input, len)
-unsigned char *output;
-UINT4 *input;
-unsigned int len;
+static void Encode (unsigned char *output, UINT4 *input, unsigned int len)
 {
   unsigned int i, j;
 
@@ -387,10 +352,7 @@ unsigned int len;
 /* Decodes input (unsigned char) into output (UINT4). Assumes len is
   a multiple of 4.
  */
-static void Decode (output, input, len)
-UINT4 *output;
-unsigned char *input;
-unsigned int len;
+static void Decode (UINT4 *output, unsigned char *input, unsigned int len)
 {
   unsigned int i, j;
 

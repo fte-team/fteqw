@@ -47,7 +47,7 @@ struct progfuncs_s {
 	int progsversion;	//PROGSTRUCT_VERSION
 
 
-	void	(*Configure)				(progfuncs_t *prinst, void *mem, int memsize, int max_progs);		//configure buffers and memory. Used to reset and must be called first.
+	void	(*Configure)				(progfuncs_t *prinst, int addressablesize, int max_progs);		//configure buffers and memory. Used to reset and must be called first. Flushes a running VM.
 	progsnum_t	(*LoadProgs)			(progfuncs_t *prinst, char *s, int headercrc, builtin_t *builtins, int numbuiltins);	//load a progs
 	int		(*InitEnts)					(progfuncs_t *prinst, int max_ents);	//returns size of edicts for use with nextedict macro
 	void	(*ExecuteProgram)			(progfuncs_t *prinst, func_t fnum);	//start execution
@@ -69,9 +69,6 @@ struct progfuncs_s {
 	char	*(*VarString)				(progfuncs_t *prinst, int	first);	//returns a string made up of multiple arguments
 
 	struct progstate_s **progstate;	//these are so the macros work properly
-//	struct edict_s **sv_edicts;
-
-//	int *sv_num_edicts;
 
 	func_t	(*FindFunction)				(progfuncs_t *prinst, char *funcname, progsnum_t num);
 
@@ -194,11 +191,11 @@ typedef union eval_s
 
 #define PR_CURRENT	-1
 #define PR_ANY	-2	//not always valid. Use for finding funcs
-#define PROGSTRUCT_VERSION 1
+#define PROGSTRUCT_VERSION 2
 
 
 #ifndef DLL_PROG
-#define PR_Configure(pf, mem, memsize, max_progs)			(*pf->Configure)			(pf, mem, memsize, max_progs)
+#define PR_Configure(pf, memsize, max_progs)				(*pf->Configure)			(pf, memsize, max_progs)
 #define PR_LoadProgs(pf, s, headercrc, builtins, numb)		(*pf->LoadProgs)			(pf, s, headercrc, builtins, numb)
 #define PR_InitEnts(pf, maxents)							(*pf->InitEnts)				(pf, maxents)
 #define PR_ExecuteProgram(pf, fnum)							(*pf->ExecuteProgram)		(pf, fnum)

@@ -69,7 +69,7 @@ the qc code:
 
 #define SENDDELAY 1
 
-float SV_ChatFunc(char *func);
+float SV_ChatFunc(const char *func);
 void Chat_GetTag(char *filename, float tag, char **text, char **condition, char **options)
 {	
 	char *file; char *s;
@@ -169,12 +169,13 @@ float SV_ChatSetValue(char *name, float newval)
 	return newval;
 }
 
-float SV_ChatFunc(char *func)	//parse a condition/function
+float SV_ChatFunc(const char *func)	//parse a condition/function
 {
 	globalvars_t *pr_globals;
 	float result;
 	int noted = false;
-	char *s, *os, namebuf[64];
+	const char *s, *os;
+	char namebuf[64];
 	func_t f;
 	int parm;
 	while (*func <= ' ')

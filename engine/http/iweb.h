@@ -136,7 +136,7 @@ char *Q_strcpyline(char *out, char *in, int maxlen);
 
 
 
-iwboolean	FTP_StringToAdr (char *s, qbyte ip[4], qbyte port[2]);
+iwboolean	FTP_StringToAdr (const char *s, qbyte ip[4], qbyte port[2]);
 
 //server tick/control functions
 iwboolean FTP_ServerRun(iwboolean ftpserverwanted);

@@ -1497,11 +1497,13 @@ void CL_LinkPacketEntities (void)
 		AngleVectors(angles, ent->axis[0], ent->axis[1], ent->axis[2]);
 		VectorInverse(ent->axis[1]);
 
-
 		if (cl.lerpents[s1->number].tagent)
 		{	//ent is attached to a tag, rotate this ent accordingly.
 			CL_RotateAroundTag(ent, s1->number, cl.lerpents[s1->number].tagent, cl.lerpents[s1->number].tagindex);
 		}
+
+		if (ent->keynum <= MAX_CLIENTS)
+			ent->keynum += MAX_EDICTS;
 
 		// add automatic particle trails
 		if (!model || (!(model->flags&~EF_ROTATE) && model->particletrail<0))

@@ -126,8 +126,9 @@ typedef struct csqcedict_s
 	float		freetime; // sv.time when the object was freed
 	int			entnum;
 	qboolean	readonly;	//world
-	
-	csqcentvars_t	v;
+	csqcentvars_t	*v;
+
+	//add whatever you wish here
 } csqcedict_t;
 
 csqcedict_t *csqc_edicts;	//consider this 'world'
@@ -135,11 +136,11 @@ csqcedict_t *csqc_edicts;	//consider this 'world'
 
 void CSQC_InitFields(void)
 {	//CHANGING THIS FUNCTION REQUIRES CHANGES TO csqcentvars_t
-#define fieldfloat(name) PR_RegisterFieldVar(csqcprogs, ev_float, #name, (int)&((csqcedict_t*)0)->v.name - (int)&((csqcedict_t*)0)->v, -1)
-#define fieldvector(name) PR_RegisterFieldVar(csqcprogs, ev_vector, #name, (int)&((csqcedict_t*)0)->v.name - (int)&((csqcedict_t*)0)->v, -1)
-#define fieldentity(name) PR_RegisterFieldVar(csqcprogs, ev_entity, #name, (int)&((csqcedict_t*)0)->v.name - (int)&((csqcedict_t*)0)->v, -1)
-#define fieldstring(name) PR_RegisterFieldVar(csqcprogs, ev_string, #name, (int)&((csqcedict_t*)0)->v.name - (int)&((csqcedict_t*)0)->v, -1)
-#define fieldfunction(name) PR_RegisterFieldVar(csqcprogs, ev_function, #name, (int)&((csqcedict_t*)0)->v.name - (int)&((csqcedict_t*)0)->v, -1)
+#define fieldfloat(name) PR_RegisterFieldVar(csqcprogs, ev_float, #name, (int)&((csqcedict_t*)0)->v->name - (int)&((csqcedict_t*)0)->v, -1)
+#define fieldvector(name) PR_RegisterFieldVar(csqcprogs, ev_vector, #name, (int)&((csqcedict_t*)0)->v->name - (int)&((csqcedict_t*)0)->v, -1)
+#define fieldentity(name) PR_RegisterFieldVar(csqcprogs, ev_entity, #name, (int)&((csqcedict_t*)0)->v->name - (int)&((csqcedict_t*)0)->v, -1)
+#define fieldstring(name) PR_RegisterFieldVar(csqcprogs, ev_string, #name, (int)&((csqcedict_t*)0)->v->name - (int)&((csqcedict_t*)0)->v, -1)
+#define fieldfunction(name) PR_RegisterFieldVar(csqcprogs, ev_function, #name, (int)&((csqcedict_t*)0)->v->name - (int)&((csqcedict_t*)0)->v, -1)
 csqcfields
 #undef fieldfloat
 #undef fieldvector
@@ -297,15 +298,15 @@ static void PF_R_AddEntity(progfuncs_t *prinst, struct globalvars_s *pr_globals)
 	int i;
 	model_t *model;
 
-	if (in->v.predraw)
+	if (in->v->predraw)
 	{
 		int oldself = *csqcg.self;
 		*csqcg.self = EDICT_TO_PROG(prinst, (void*)in);
-		PR_ExecuteProgram(prinst, in->v.predraw);
+		PR_ExecuteProgram(prinst, in->v->predraw);
 		*csqcg.self = oldself;
 	}
 
-	i = in->v.modelindex;
+	i = in->v->modelindex;
 	if (i == 0)
 		return;
 	else if (i > 0 && i < MAX_MODELS)
@@ -325,19 +326,19 @@ static void PF_R_AddEntity(progfuncs_t *prinst, struct globalvars_s *pr_globals)
 	}
 
 	
-	ent.frame = in->v.frame;
-	ent.oldframe = in->v.oldframe;
-	ent.lerpfrac = in->v.lerpfrac;
+	ent.frame = in->v->frame;
+	ent.oldframe = in->v->oldframe;
+	ent.lerpfrac = in->v->lerpfrac;
 
-	ent.angles[0] = in->v.angles[0];
-	ent.angles[1] = in->v.angles[1];
-	ent.angles[2] = in->v.angles[2];
-	memcpy(ent.origin, in->v.origin, sizeof(vec3_t));
+	ent.angles[0] = in->v->angles[0];
+	ent.angles[1] = in->v->angles[1];
+	ent.angles[2] = in->v->angles[2];
+	memcpy(ent.origin, in->v->origin, sizeof(vec3_t));
 	AngleVectors(ent.angles, ent.axis[0], ent.axis[1], ent.axis[2]);
 	VectorInverse(ent.axis[1]);
 
-	ent.alpha = in->v.alpha;
-	ent.scale = in->v.scale;
+	ent.alpha = in->v->alpha;
+	ent.scale = in->v->scale;
 
 	V_AddEntity(&ent);
 }
@@ -363,7 +364,7 @@ static void PF_R_AddEntityMask(progfuncs_t *prinst, struct globalvars_s *pr_glob
 		if (ent->isfree)
 			continue;
 
-		if ((int)ent->v.drawmask & mask)
+		if ((int)ent->v->drawmask & mask)
 		{
 			G_INT(OFS_PARM0) = EDICT_TO_PROG(prinst, (void*)ent);
 			PF_R_AddEntity(prinst, pr_globals);
@@ -618,7 +619,7 @@ static void PF_CSQC_SetOrigin(progfuncs_t *prinst, struct globalvars_s *pr_globa
 {
 	csqcedict_t *ent = (void*)G_EDICT(prinst, OFS_PARM0);
 	float *org = G_VECTOR(OFS_PARM1);
-	VectorCopy(org, ent->v.origin);
+	VectorCopy(org, ent->v->origin);
 
 	//fixme: add some sort of fast area grid
 }
@@ -746,22 +747,22 @@ static void PF_CSQC_SetModel(progfuncs_t *prinst, struct globalvars_s *pr_global
 		cl.model_csqcprecache[-freei] = Mod_ForName(cl.model_csqcname[-freei], false);
 	}
 
-	ent->v.modelindex = modelindex;
+	ent->v->modelindex = modelindex;
 	if (modelindex < 0)
-		ent->v.model = PR_SetString(prinst, cl.model_csqcname[-modelindex]);
+		ent->v->model = PR_SetString(prinst, cl.model_csqcname[-modelindex]);
 	else
-		ent->v.model = PR_SetString(prinst, cl.model_name[modelindex]);
+		ent->v->model = PR_SetString(prinst, cl.model_name[modelindex]);
 }
 static void PF_CSQC_SetModelIndex(progfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
 	csqcedict_t *ent = (void*)G_EDICT(prinst, OFS_PARM0);
 	int modelindex = G_FLOAT(OFS_PARM1);
 
-	ent->v.modelindex = modelindex;
+	ent->v->modelindex = modelindex;
 	if (modelindex < 0)
-		ent->v.model = PR_SetString(prinst, cl.model_csqcname[-modelindex]);
+		ent->v->model = PR_SetString(prinst, cl.model_csqcname[-modelindex]);
 	else
-		ent->v.model = PR_SetString(prinst, cl.model_name[modelindex]);
+		ent->v->model = PR_SetString(prinst, cl.model_name[modelindex]);
 }
 static void PF_CSQC_PrecacheModel(progfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
@@ -1330,7 +1331,7 @@ qboolean CSQC_Init (unsigned int checksum)
 	{
 		in_sensitivityscale = 1;
 		csqcprogs = InitProgs(&csqcprogparms);
-		PR_Configure(csqcprogs, NULL, -1, 1);
+		PR_Configure(csqcprogs, -1, 1);
 		
 		CSQC_InitFields();	//let the qclib know the field order that the engine needs.
 		
@@ -1514,7 +1515,7 @@ void CSQC_ParseEntities(void)
 #ifndef CLIENTONLY
 					if (sv.state)
 					{
-						Con_Printf("Server classname: \"%s\"\n", svprogfuncs->stringtable+EDICT_NUM(svprogfuncs, entnum)->v.classname);
+						Con_Printf("Server classname: \"%s\"\n", svprogfuncs->stringtable+EDICT_NUM(svprogfuncs, entnum)->v->classname);
 					}
 #endif
 				}

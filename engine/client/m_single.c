@@ -424,7 +424,7 @@ void M_Menu_Demos_f (void)
 	//we don't support them, but if we were to ask quizmo to decode them for us, we could do.
 	info->numext = 4;
 
-	MC_AddWhiteText(menu, 24, 8, "Demos", false);
+	MC_AddWhiteText(menu, 24, 8, "Choose a Demo", false);
 	MC_AddWhiteText(menu, 16, 24, "\35\36\36\36\36\36\36\36\36\36\36\36\36\36\36\36\36\36\36\36\36\36\36\36\36\36\36\36\36\36\36\36\36\36\36\36\37", false);
 
 	info->list = MC_AddCustom(menu, 0, 32, NULL);
@@ -434,6 +434,36 @@ void M_Menu_Demos_f (void)
 	menu->selecteditem = (menuoption_t*)info->list;
 
 	ShowDemoMenu(menu, "");
+}
+
+void M_Menu_ParticleSets_f (void)
+{
+	demomenu_t *info;
+	menu_t *menu;	
+
+	key_dest = key_menu;
+	m_state = m_complex;
+	m_entersound = true;
+
+	menu = M_CreateMenu(sizeof(demomenu_t));
+	menu->remove = M_Demo_Remove;
+	info = menu->data;
+
+	info->command[0] = "r_particlesdesc";
+	info->ext[0] = ".cfg";
+	info->command[1] = "playdemo";
+	info->numext = 1;
+
+	MC_AddWhiteText(menu, 24, 8, "Choose a Particle Set", false);
+	MC_AddWhiteText(menu, 16, 24, "\35\36\36\36\36\36\36\36\36\36\36\36\36\36\36\36\36\36\36\36\36\36\36\36\36\36\36\36\36\36\36\36\36\36\36\36\37", false);
+
+	info->list = MC_AddCustom(menu, 0, 32, NULL);
+	info->list->draw = M_DemoDraw;
+	info->list->key = M_DemoKey;
+
+	menu->selecteditem = (menuoption_t*)info->list;
+
+	ShowDemoMenu(menu, "particles/");
 }
 
 void M_Menu_MediaFiles_f (void)

@@ -63,10 +63,14 @@ extern int pr_edict_size;
 #define	MAX_ENT_LEAFS	16
 typedef struct edict_s
 {
+	//these 5 shared with qclib
 	qboolean	isfree;
 	float		freetime; // sv.time when the object was freed
 	int			entnum;
 	qboolean	readonly;	//world
+	entvars_t		*v;
+
+	//the rest is free for adaption
 	link_t		area;				// linked to a division node or leaf
 
 	int solidtype;
@@ -82,7 +86,6 @@ typedef struct edict_s
 	unsigned short tagent;
 	unsigned short tagindex;
 
-	entvars_t	v;					// C exported fields from progs
 // other fields from progs come immediately after
 } edict_t;
   

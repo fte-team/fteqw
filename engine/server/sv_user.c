@@ -252,7 +252,7 @@ void SV_New_f (void)
 	// send music
 	MSG_WriteByte (&host_client->netchan.message, svc_cdtrack);
 	if (svprogfuncs)
-		MSG_WriteByte (&host_client->netchan.message, sv.edicts->v.sounds);
+		MSG_WriteByte (&host_client->netchan.message, sv.edicts->v->sounds);
 	else
 		MSG_WriteByte (&host_client->netchan.message, 0);
 }
@@ -299,8 +299,8 @@ void SVNQ_New_f (void)
 
 // send music
 	MSG_WriteByte (&host_client->netchan.message, svc_cdtrack);
-	MSG_WriteByte (&host_client->netchan.message, sv.edicts->v.sounds);
-	MSG_WriteByte (&host_client->netchan.message, sv.edicts->v.sounds);
+	MSG_WriteByte (&host_client->netchan.message, sv.edicts->v->sounds);
+	MSG_WriteByte (&host_client->netchan.message, sv.edicts->v->sounds);
 
 // set view	
 	MSG_WriteByte (&host_client->netchan.message, svc_setview);
@@ -377,7 +377,7 @@ void SVQ2_ConfigStrings_f (void)
 			MSG_WriteByte (&host_client->netchan.message, svcq2_configstring);
 			MSG_WriteShort (&host_client->netchan.message, start);
 			if (svprogfuncs)
-				MSG_WriteString (&host_client->netchan.message, va("%i", sv.edicts->v.sounds));
+				MSG_WriteString (&host_client->netchan.message, va("%i", sv.edicts->v->sounds));
 			else
 				MSG_WriteString (&host_client->netchan.message, "0");
 		}
@@ -1105,8 +1105,8 @@ void SV_Spawn_f (void)
 
 		if (split->istobeloaded)	//minimal setup
 		{
-			split->entgravity = ent->v.gravity;
-			split->maxspeed = ent->v.maxspeed;
+			split->entgravity = ent->v->gravity;
+			split->maxspeed = ent->v->maxspeed;
 		}
 		else
 		{
@@ -1152,10 +1152,10 @@ void SV_SpawnSpectator (void)
 	int		i;
 	edict_t	*e;
 
-	VectorCopy (vec3_origin, sv_player->v.origin);
-	VectorCopy (vec3_origin, sv_player->v.view_ofs);
-	sv_player->v.view_ofs[2] = DEFAULT_VIEWHEIGHT;
-	sv_player->v.movetype = MOVETYPE_NOCLIP;
+	VectorCopy (vec3_origin, sv_player->v->origin);
+	VectorCopy (vec3_origin, sv_player->v->view_ofs);
+	sv_player->v->view_ofs[2] = DEFAULT_VIEWHEIGHT;
+	sv_player->v->movetype = MOVETYPE_NOCLIP;
 
 	// search for an info_playerstart to spawn the spectator at
 	//this is only useful when a mod doesn't nativly support spectators. old qw on nq mods.
@@ -1163,9 +1163,9 @@ void SV_SpawnSpectator (void)
 	for (i=MAX_CLIENTS+1 ; i<sv.num_edicts ; i++)
 	{
 		e = EDICT_NUM(svprogfuncs, i);
-		if (!strcmp(PR_GetString(svprogfuncs, e->v.classname), "info_player_start"))
+		if (!strcmp(PR_GetString(svprogfuncs, e->v->classname), "info_player_start"))
 		{
-			VectorCopy (e->v.origin, sv_player->v.origin);
+			VectorCopy (e->v->origin, sv_player->v->origin);
 			return;
 		}
 	}
@@ -1279,9 +1279,9 @@ void SV_Begin_f (void)
 							memset(&cmd, 0, sizeof(cmd));
 							cmd.msec = 0;
 #define ANGLE2SHORT(x) (x) * (65536/360.0)
-							cmd.angles[0] = ANGLE2SHORT(split->edict->v.v_angle[0]);
-							cmd.angles[1] = ANGLE2SHORT(split->edict->v.v_angle[1]);
-							cmd.angles[2] = ANGLE2SHORT(split->edict->v.v_angle[2]);
+							cmd.angles[0] = ANGLE2SHORT(split->edict->v->v_angle[0]);
+							cmd.angles[1] = ANGLE2SHORT(split->edict->v->v_angle[1]);
+							cmd.angles[2] = ANGLE2SHORT(split->edict->v->v_angle[2]);
 							SV_RunCmd(&cmd, false);
 						}
 						SV_PostRunCmd();
@@ -1331,7 +1331,7 @@ void SV_Begin_f (void)
 // with a permanent head tilt		
 		MSG_WriteByte (&host_client->netchan.message, svc_setangle);
 		MSG_WriteAngle (&host_client->netchan.message, 0 );
-		MSG_WriteAngle (&host_client->netchan.message, host_client->edict->v.angles[1] );
+		MSG_WriteAngle (&host_client->netchan.message, host_client->edict->v->angles[1] );
 		MSG_WriteAngle (&host_client->netchan.message, 0 );
 	}
 }
@@ -2003,7 +2003,7 @@ SV_Kill_f
 */
 void SV_Kill_f (void)
 {
-	if (sv_player->v.health <= 0)
+	if (sv_player->v->health <= 0)
 	{
 		SV_ClientTPrintf (host_client, PRINT_HIGH, STL_NOSUISIDEWHENDEAD);
 		return;
@@ -2105,7 +2105,7 @@ void SV_PTrack_f (void)
 		host_client->spec_track = 0;
 		ent = EDICT_NUM(svprogfuncs, host_client - svs.clients + 1);
 		tent = EDICT_NUM(svprogfuncs, 0);
-		ent->v.goalentity = EDICT_TO_PROG(svprogfuncs, tent);
+		ent->v->goalentity = EDICT_TO_PROG(svprogfuncs, tent);
 		return;
 	}
 	
@@ -2123,14 +2123,14 @@ void SV_PTrack_f (void)
 		host_client->spec_track = 0;
 		ent = EDICT_NUM(svprogfuncs, host_client - svs.clients + 1);
 		tent = EDICT_NUM(svprogfuncs, 0);
-		ent->v.goalentity = EDICT_TO_PROG(svprogfuncs, tent);
+		ent->v->goalentity = EDICT_TO_PROG(svprogfuncs, tent);
 		return;
 	}
 	host_client->spec_track = i + 1; // now tracking
 
 	ent = EDICT_NUM(svprogfuncs, host_client - svs.clients + 1);
 	tent = EDICT_NUM(svprogfuncs, i + 1);
-	ent->v.goalentity = EDICT_TO_PROG(svprogfuncs, tent);
+	ent->v->goalentity = EDICT_TO_PROG(svprogfuncs, tent);
 }
 
 
@@ -2222,7 +2222,7 @@ void SV_SetInfo_f (void)
 
 	if (progstype != PROG_QW && !strcmp(Cmd_Argv(1), "bottomcolor"))
 	{
-		sv_player->v.team = atoi(Cmd_Argv(2))+1;
+		sv_player->v->team = atoi(Cmd_Argv(2))+1;
 	}
 
 	PR_ClientUserInfoChanged(Cmd_Argv(1), oldval, Cmd_Argv(2));
@@ -2438,7 +2438,7 @@ void Cmd_Notarget_f (void)
 		return;
 	}
 
-	if ((int) (sv_player->v.flags = (int) sv_player->v.flags ^ FL_NOTARGET) & FL_NOTARGET)
+	if ((int) (sv_player->v->flags = (int) sv_player->v->flags ^ FL_NOTARGET) & FL_NOTARGET)
 		SV_ClientPrintf (host_client, PRINT_HIGH, "notarget ON\n");
 	else
 		SV_ClientPrintf (host_client, PRINT_HIGH, "notarget OFF\n");
@@ -2453,7 +2453,7 @@ void Cmd_God_f (void)
 		return;
 	}
 
-	if ((int) (sv_player->v.flags = (int) sv_player->v.flags ^ FL_GODMODE) & FL_GODMODE)
+	if ((int) (sv_player->v->flags = (int) sv_player->v->flags ^ FL_GODMODE) & FL_GODMODE)
 		SV_ClientPrintf (host_client, PRINT_HIGH, "godmode ON\n");
 	else
 		SV_ClientPrintf (host_client, PRINT_HIGH, "godmode OFF\n");
@@ -2486,23 +2486,23 @@ void Cmd_Give_f (void)
 		case '7':
 		case '8':
 		case '9':
-			sv_player->v.items = (int) sv_player->v.items | IT_SHOTGUN<< (t[0] - '2');
+			sv_player->v->items = (int) sv_player->v->items | IT_SHOTGUN<< (t[0] - '2');
 			break;
 
 		case 's':
-			sv_player->v.ammo_shells = v;
+			sv_player->v->ammo_shells = v;
 			break;		
 		case 'n':
-			sv_player->v.ammo_nails = v;
+			sv_player->v->ammo_nails = v;
 			break;		
 		case 'r':
-			sv_player->v.ammo_rockets = v;
+			sv_player->v->ammo_rockets = v;
 			break;		
 		case 'h':
-			sv_player->v.health = v;
+			sv_player->v->health = v;
 			break;		
 		case 'c':
-			sv_player->v.ammo_cells = v;
+			sv_player->v->ammo_cells = v;
 			break;		
 		}
 	}
@@ -2525,19 +2525,19 @@ void Cmd_Noclip_f (void)
 		return;
 	}
 
-	if (sv_player->v.movetype != MOVETYPE_NOCLIP)
+	if (sv_player->v->movetype != MOVETYPE_NOCLIP)
 	{
-		sv_player->v.movetype = MOVETYPE_NOCLIP;
-		sv_player->v.solid = SOLID_TRIGGER;
+		sv_player->v->movetype = MOVETYPE_NOCLIP;
+		sv_player->v->solid = SOLID_TRIGGER;
 		SV_ClientPrintf (host_client, PRINT_HIGH, "noclip ON\n");
 	}
 	else
 	{
-		sv_player->v.movetype = MOVETYPE_WALK;
-		if (sv_player->v.health > 0)
-			sv_player->v.solid = SOLID_SLIDEBOX;
+		sv_player->v->movetype = MOVETYPE_WALK;
+		if (sv_player->v->health > 0)
+			sv_player->v->solid = SOLID_SLIDEBOX;
 		else
-			sv_player->v.solid = SOLID_NOT;
+			sv_player->v->solid = SOLID_NOT;
 		SV_ClientPrintf (host_client, PRINT_HIGH, "noclip OFF\n");
 	}
 }
@@ -2550,18 +2550,18 @@ void Cmd_Fly_f (void)
 		return;
 	}
 
-	if (sv_player->v.movetype != MOVETYPE_FLY)
+	if (sv_player->v->movetype != MOVETYPE_FLY)
 	{
-		sv_player->v.movetype = MOVETYPE_FLY;
+		sv_player->v->movetype = MOVETYPE_FLY;
 		SV_ClientPrintf (host_client, PRINT_HIGH, "flymode ON\n");
 	}
 	else
 	{
-		sv_player->v.movetype = MOVETYPE_WALK;
-		if (sv_player->v.health > 0)
-			sv_player->v.solid = SOLID_SLIDEBOX;
+		sv_player->v->movetype = MOVETYPE_WALK;
+		if (sv_player->v->health > 0)
+			sv_player->v->solid = SOLID_SLIDEBOX;
 		else
-			sv_player->v.solid = SOLID_NOT;
+			sv_player->v->solid = SOLID_NOT;
 		SV_ClientPrintf (host_client, PRINT_HIGH, "flymode OFF\n");
 	}
 }
@@ -2582,18 +2582,18 @@ void Cmd_SetPos_f(void)
 
 	if (Cmd_Argc() != 4)
 	{
-		Con_Printf ("setpos %i %i %i\n", (int)sv_player->v.origin[0], (int)sv_player->v.origin[1], (int)sv_player->v.origin[2]);
+		Con_Printf ("setpos %i %i %i\n", (int)sv_player->v->origin[0], (int)sv_player->v->origin[1], (int)sv_player->v->origin[2]);
 		return;
 	}
-	if (sv_player->v.movetype != MOVETYPE_NOCLIP)
+	if (sv_player->v->movetype != MOVETYPE_NOCLIP)
 	{
-		sv_player->v.movetype = MOVETYPE_NOCLIP;
+		sv_player->v->movetype = MOVETYPE_NOCLIP;
 		Con_Printf("noclip on\n");
 	}
 
-	sv_player->v.origin[0] = atof(Cmd_Argv(1));
-	sv_player->v.origin[1] = atof(Cmd_Argv(2));
-	sv_player->v.origin[2] = atof(Cmd_Argv(3));
+	sv_player->v->origin[0] = atof(Cmd_Argv(1));
+	sv_player->v->origin[1] = atof(Cmd_Argv(2));
+	sv_player->v->origin[2] = atof(Cmd_Argv(3));
 	SV_LinkEdict (sv_player, false);
 }
 
@@ -2605,16 +2605,16 @@ void SetUpClientEdict (client_t *cl, edict_t *ent)
 	ED_Spawned(ent);
 	ent->isfree = false;
 	
-	ent->v.colormap = NUM_FOR_EDICT(svprogfuncs, ent);
-	ent->v.netname = PR_SetString(svprogfuncs, cl->name);
+	ent->v->colormap = NUM_FOR_EDICT(svprogfuncs, ent);
+	ent->v->netname = PR_SetString(svprogfuncs, cl->name);
 
 	if (pr_teamfield)
 		((string_t *)&ent->v)[pr_teamfield] = (string_t)PR_SetString(svprogfuncs, cl->team);
 
 
-	ent->v.gravity = cl->entgravity = 1.0;
-	ent->v.maxspeed = cl->maxspeed = sv_maxspeed.value;
-	ent->v.movetype = MOVETYPE_NOCLIP;
+	ent->v->gravity = cl->entgravity = 1.0;
+	ent->v->maxspeed = cl->maxspeed = sv_maxspeed.value;
+	ent->v->movetype = MOVETYPE_NOCLIP;
 }
 /*
 ==================
@@ -3021,21 +3021,21 @@ void SVNQ_Spawn_f (void)
 
 	if (host_client->istobeloaded)	//minimal setup
 	{
-		host_client->entgravity = ent->v.gravity*sv_gravity.value;
-		host_client->maxspeed = ent->v.maxspeed;
+		host_client->entgravity = ent->v->gravity*sv_gravity.value;
+		host_client->maxspeed = ent->v->maxspeed;
 	}
 	else
 	{
 		memset (&ent->v, 0, pr_edict_size-svprogparms.edictsize);
 		ED_Spawned(ent);
 
-		ent->v.colormap = NUM_FOR_EDICT(svprogfuncs, ent);
-		ent->v.team = 0;	// FIXME
-		ent->v.netname = PR_SetString(svprogfuncs, host_client->name);
+		ent->v->colormap = NUM_FOR_EDICT(svprogfuncs, ent);
+		ent->v->team = 0;	// FIXME
+		ent->v->netname = PR_SetString(svprogfuncs, host_client->name);
 
-		host_client->entgravity = ent->v.gravity = 1.0;	
+		host_client->entgravity = ent->v->gravity = 1.0;	
 		host_client->entgravity*=sv_gravity.value;
-		host_client->maxspeed = ent->v.maxspeed = sv_maxspeed.value;
+		host_client->maxspeed = ent->v->maxspeed = sv_maxspeed.value;
 	}
 
 //
@@ -3161,7 +3161,7 @@ void SVNQ_Begin_f (void)
 // with a permanent head tilt		
 		MSG_WriteByte (&host_client->netchan.message, svc_setangle);
 		MSG_WriteAngle (&host_client->netchan.message, 0 );
-		MSG_WriteAngle (&host_client->netchan.message, host_client->edict->v.angles[1] );
+		MSG_WriteAngle (&host_client->netchan.message, host_client->edict->v->angles[1] );
 		MSG_WriteAngle (&host_client->netchan.message, 0 );
 	}
 
@@ -3271,7 +3271,7 @@ void SVNQ_NQColour_f (void)
 	playercolor = top*16 + bottom;
 	
 	if (progstype != PROG_QW)
-		host_client->edict->v.team = bottom + 1;
+		host_client->edict->v->team = bottom + 1;
 
 	Info_SetValueForKey(host_client->userinfo, "topcolor", va("%i", top), sizeof(host_client->userinfo));
 	Info_SetValueForKey(host_client->userinfo, "bottomcolor", va("%i", bottom), sizeof(host_client->userinfo));
@@ -3501,18 +3501,18 @@ vec3_t offset;
 		next = l->next;
 		check = EDICT_FROM_AREA(l);
 
-		if (check->v.owner == pl)
+		if (check->v->owner == pl)
 			continue;		// player's own missile
-		if (check->v.solid == SOLID_BSP 
-			|| check->v.solid == SOLID_BBOX 
-			|| check->v.solid == SOLID_SLIDEBOX)
+		if (check->v->solid == SOLID_BSP 
+			|| check->v->solid == SOLID_BBOX 
+			|| check->v->solid == SOLID_SLIDEBOX)
 		{
 			if (check == sv_player)
 				continue;
 
 			for (i=0 ; i<3 ; i++)
-				if (check->v.absmin[i] > pmove_maxs[i]
-				|| check->v.absmax[i] < pmove_mins[i])
+				if (check->v->absmin[i] > pmove_maxs[i]
+				|| check->v->absmax[i] < pmove_mins[i])
 					break;
 			if (i != 3)
 				continue;
@@ -3520,60 +3520,60 @@ vec3_t offset;
 			if (pmove.numphysent == MAX_PHYSENTS)
 				break;
 			pe = &pmove.physents[pmove.numphysent];
-			pe->notouch = !((int)sv_player->v.dimension_solid & (int)check->v.dimension_hit);
-			if (!((int)sv_player->v.dimension_hit & (int)check->v.dimension_solid))
+			pe->notouch = !((int)sv_player->v->dimension_solid & (int)check->v->dimension_hit);
+			if (!((int)sv_player->v->dimension_hit & (int)check->v->dimension_solid))
 				continue;
 			pmove.numphysent++;
 
-			VectorCopy (check->v.origin, pe->origin);
-			VectorCopy (check->v.angles, pe->angles);
+			VectorCopy (check->v->origin, pe->origin);
+			VectorCopy (check->v->angles, pe->angles);
 			pe->info = NUM_FOR_EDICT(svprogfuncs, check);
-			if (check->v.solid == SOLID_BSP)
+			if (check->v->solid == SOLID_BSP)
 			{
 				if(progstype != PROG_H2)
 					pe->angles[0]*=-1;	//quake is wierd. I guess someone fixed it hexen2... or my code is buggy or something...
-				pe->model = sv.models[(int)(check->v.modelindex)];
+				pe->model = sv.models[(int)(check->v->modelindex)];
 			}
 			else
 			{
 				pe->model = NULL;
-				VectorCopy (check->v.mins, pe->mins);
-				VectorCopy (check->v.maxs, pe->maxs);
+				VectorCopy (check->v->mins, pe->mins);
+				VectorCopy (check->v->maxs, pe->maxs);
 			}
 		}
 	}
-	if (sv_player->v.mins[2] != 24)	//crouching/dead
+	if (sv_player->v->mins[2] != 24)	//crouching/dead
 	for (l = node->trigger_edicts.next ; l != &node->trigger_edicts ; l = next)
 	{
 		next = l->next;
 		check = EDICT_FROM_AREA(l);
 
-		if (check->v.owner == pl)
+		if (check->v->owner == pl)
 			continue;		// player's own missile
-		if (check->v.solid == SOLID_LADDER)
+		if (check->v->solid == SOLID_LADDER)
 		{
 			for (i=0 ; i<3 ; i++)
-				if (check->v.absmin[i] > pmove_maxs[i]
-				|| check->v.absmax[i] < pmove_mins[i])
+				if (check->v->absmin[i] > pmove_maxs[i]
+				|| check->v->absmax[i] < pmove_mins[i])
 					break;
 			if (i != 3)
 				continue;
 
-			if (!((int)sv_player->v.dimension_hit & (int)check->v.dimension_solid))
+			if (!((int)sv_player->v->dimension_hit & (int)check->v->dimension_solid))
 				continue;
 
-//			check->v.model = "a";
-			os = check->v.solid;
-			omt = check->v.movetype;
-			check->v.solid = SOLID_BSP;
-			check->v.movetype = MOVETYPE_PUSH;
-			hull = SV_HullForEntity (check, 0, sv_player->v.mins, sv_player->v.maxs, offset);			
-			check->v.movetype = omt;
-			check->v.solid = os;
+//			check->v->model = "a";
+			os = check->v->solid;
+			omt = check->v->movetype;
+			check->v->solid = SOLID_BSP;
+			check->v->movetype = MOVETYPE_PUSH;
+			hull = SV_HullForEntity (check, 0, sv_player->v->mins, sv_player->v->maxs, offset);			
+			check->v->movetype = omt;
+			check->v->solid = os;
 
 	// test the point
-			if ( hull->funcs.HullPointContents (hull, sv_player->v.origin) == FTECONTENTS_SOLID )
-				sv_player->v.fteflags = (int)sv_player->v.fteflags | FF_LADDER;	//touch that ladder!
+			if ( hull->funcs.HullPointContents (hull, sv_player->v->origin) == FTECONTENTS_SOLID )
+				sv_player->v->fteflags = (int)sv_player->v->fteflags | FF_LADDER;	//touch that ladder!
 		}
 	}
 	
@@ -3609,34 +3609,34 @@ void AddAllEntsToPmove (void)
 		check = EDICT_NUM(svprogfuncs, e);
 		if (check->isfree)
 			continue;
-		if (check->v.owner == pl)
+		if (check->v->owner == pl)
 			continue;
-		if (check->v.solid == SOLID_BSP 
-			|| check->v.solid == SOLID_BBOX 
-			|| check->v.solid == SOLID_SLIDEBOX)
+		if (check->v->solid == SOLID_BSP 
+			|| check->v->solid == SOLID_BBOX 
+			|| check->v->solid == SOLID_SLIDEBOX)
 		{
 			if (check == sv_player)
 				continue;
 
 			for (i=0 ; i<3 ; i++)
-				if (check->v.absmin[i] > pmove_maxs[i]
-				|| check->v.absmax[i] < pmove_mins[i])
+				if (check->v->absmin[i] > pmove_maxs[i]
+				|| check->v->absmax[i] < pmove_mins[i])
 					break;
 			if (i != 3)
 				continue;
 			pe = &pmove.physents[pmove.numphysent];
 
-			VectorCopy (check->v.origin, pe->origin);
-			VectorCopy (check->v.angles, pe->angles);
+			VectorCopy (check->v->origin, pe->origin);
+			VectorCopy (check->v->angles, pe->angles);
 			pmove.physents[pmove.numphysent].info = e;
-			if (check->v.solid == SOLID_BSP)
-				pe->model = sv.models[(int)(check->v.modelindex)];
+			if (check->v->solid == SOLID_BSP)
+				pe->model = sv.models[(int)(check->v->modelindex)];
 			else
 			{
 				pe->angles[0] = pe->angles[1] = pe->angles[2] = 0;
 				pe->model = NULL;
-				VectorCopy (check->v.mins, pe->mins);
-				VectorCopy (check->v.maxs, pe->maxs);
+				VectorCopy (check->v->mins, pe->mins);
+				VectorCopy (check->v->maxs, pe->maxs);
 			}
 
 			if (++pmove.numphysent == MAX_PHYSENTS)
@@ -3653,24 +3653,24 @@ int SV_PMTypeForClient (client_t *cl)
 			return PM_SPECTATOR;
 		return PM_OLD_SPECTATOR;
 	}
-	if (cl->edict->v.movetype == MOVETYPE_NOCLIP)
+	if (cl->edict->v->movetype == MOVETYPE_NOCLIP)
 	{
 		if (cl->zquake_extensions & Z_EXT_PM_TYPE_NEW)
 			return PM_SPECTATOR;
 		return PM_OLD_SPECTATOR;
 	}
 
-	if (cl->edict->v.movetype == MOVETYPE_FLY)
+	if (cl->edict->v->movetype == MOVETYPE_FLY)
 		return PM_FLY;
 
-	if (cl->edict->v.movetype == MOVETYPE_NONE)
+	if (cl->edict->v->movetype == MOVETYPE_NONE)
 	{
 		if (sv_brokenmovetypes.value)
 			return PM_NORMAL;
 		return PM_NONE;
 	}
 
-	if (cl->edict->v.health <= 0)
+	if (cl->edict->v->health <= 0)
 		return PM_DEAD;
 
 	return PM_NORMAL;
@@ -3815,54 +3815,54 @@ void SV_RunCmd (usercmd_t *ucmd, qboolean recurse)
 	}
 #endif
 
-	if (!sv_player->v.fixangle)
+	if (!sv_player->v->fixangle)
 	{
-		sv_player->v.v_angle[0] = SHORT2ANGLE(ucmd->angles[0]);
-		sv_player->v.v_angle[1] = SHORT2ANGLE(ucmd->angles[1]);
-		sv_player->v.v_angle[2] = SHORT2ANGLE(ucmd->angles[2]);
+		sv_player->v->v_angle[0] = SHORT2ANGLE(ucmd->angles[0]);
+		sv_player->v->v_angle[1] = SHORT2ANGLE(ucmd->angles[1]);
+		sv_player->v->v_angle[2] = SHORT2ANGLE(ucmd->angles[2]);
 	}
 
 	if (progstype == PROG_H2)
-		sv_player->v.light_level = 128;	//hmm... HACK!!!
+		sv_player->v->light_level = 128;	//hmm... HACK!!!
 
-	sv_player->v.button0 = ucmd->buttons & 1;
-	sv_player->v.button2 = (ucmd->buttons >> 1) & 1;
+	sv_player->v->button0 = ucmd->buttons & 1;
+	sv_player->v->button2 = (ucmd->buttons >> 1) & 1;
 	if (pr_allowbutton1.value)	//many mods use button1 - it's just a wasted field to many mods. So only work it if the cvar allows.
-		sv_player->v.button1 = ((ucmd->buttons >> 2) & 1);
+		sv_player->v->button1 = ((ucmd->buttons >> 2) & 1);
 // DP_INPUTBUTTONS
-	sv_player->v.button3 = ((ucmd->buttons >> 2) & 1);
-	sv_player->v.button4 = ((ucmd->buttons >> 3) & 1);
-	sv_player->v.button5 = ((ucmd->buttons >> 4) & 1);
-	sv_player->v.button6 = ((ucmd->buttons >> 5) & 1);
-	sv_player->v.button7 = ((ucmd->buttons >> 6) & 1);
-	sv_player->v.button8 = ((ucmd->buttons >> 7) & 1);
+	sv_player->v->button3 = ((ucmd->buttons >> 2) & 1);
+	sv_player->v->button4 = ((ucmd->buttons >> 3) & 1);
+	sv_player->v->button5 = ((ucmd->buttons >> 4) & 1);
+	sv_player->v->button6 = ((ucmd->buttons >> 5) & 1);
+	sv_player->v->button7 = ((ucmd->buttons >> 6) & 1);
+	sv_player->v->button8 = ((ucmd->buttons >> 7) & 1);
 	if (ucmd->impulse && SV_FiltureImpulse(ucmd->impulse, host_client->trustlevel))
-		sv_player->v.impulse = ucmd->impulse;
+		sv_player->v->impulse = ucmd->impulse;
 
 	if (host_client->iscuffed)
 	{
-		sv_player->v.impulse = 0;
-		sv_player->v.button0 = 0;
+		sv_player->v->impulse = 0;
+		sv_player->v->button0 = 0;
 	}
 
-	sv_player->v.movement[0] = ucmd->forwardmove * host_frametime;
-	sv_player->v.movement[1] = ucmd->sidemove * host_frametime;
-	sv_player->v.movement[2] = ucmd->upmove * host_frametime;
+	sv_player->v->movement[0] = ucmd->forwardmove * host_frametime;
+	sv_player->v->movement[1] = ucmd->sidemove * host_frametime;
+	sv_player->v->movement[2] = ucmd->upmove * host_frametime;
 
 	SV_CheckVelocity(sv_player);
 
 //
 // angles
 // show 1/3 the pitch angle and all the roll angle	
-	if (sv_player->v.health > 0)
+	if (sv_player->v->health > 0)
 	{
-		if (!sv_player->v.fixangle)
+		if (!sv_player->v->fixangle)
 		{
-			sv_player->v.angles[PITCH] = -sv_player->v.v_angle[PITCH]/3;
-			sv_player->v.angles[YAW] = sv_player->v.v_angle[YAW];
+			sv_player->v->angles[PITCH] = -sv_player->v->v_angle[PITCH]/3;
+			sv_player->v->angles[YAW] = sv_player->v->v_angle[YAW];
 		}
-		sv_player->v.angles[ROLL] = 
-			V_CalcRoll (sv_player->v.angles, sv_player->v.velocity)*4;
+		sv_player->v->angles[ROLL] = 
+			V_CalcRoll (sv_player->v->angles, sv_player->v->velocity)*4;
 	}
 
 	if (!host_client->spectator)
@@ -3873,16 +3873,16 @@ void SV_RunCmd (usercmd_t *ucmd, qboolean recurse)
 		pr_global_struct->time = sv.time;
 		pr_global_struct->self = EDICT_TO_PROG(svprogfuncs, sv_player);
 
-		oldvz = sv_player->v.velocity[2];
+		oldvz = sv_player->v->velocity[2];
 		if (progstype != PROG_QW)
 		{
 #define FL_JUMPRELEASED 4096
-			jumpable = (int)sv_player->v.flags & FL_JUMPRELEASED;
+			jumpable = (int)sv_player->v->flags & FL_JUMPRELEASED;
 
-			pmove.waterjumptime = sv_player->v.teleport_time;
+			pmove.waterjumptime = sv_player->v->teleport_time;
 			if (pmove.waterjumptime > sv.time)
-				sv_player->v.flags = (int)sv_player->v.flags | FL_WATERJUMP;
-			sv_player->v.teleport_time = sv.time + pmove.waterjumptime;
+				sv_player->v->flags = (int)sv_player->v->flags | FL_WATERJUMP;
+			sv_player->v->teleport_time = sv.time + pmove.waterjumptime;
 		}
 		else
 			jumpable = false;
@@ -3890,15 +3890,15 @@ void SV_RunCmd (usercmd_t *ucmd, qboolean recurse)
 		
 		if (progstype != PROG_QW)
 		{
-			if (sv_player->v.velocity[2] == 225 && sv_player->v.teleport_time > sv.time)
+			if (sv_player->v->velocity[2] == 225 && sv_player->v->teleport_time > sv.time)
 			{
-				sv_player->v.velocity[2] = oldvz;
+				sv_player->v->velocity[2] = oldvz;
 		//		Con_Printf("Waterjump detected\n");
 			}
-			sv_player->v.flags = (int)sv_player->v.flags & ~FL_WATERJUMP;
-			sv_player->v.teleport_time = pmove.waterjumptime;
-			if (jumpable && !((int)sv_player->v.flags & FL_JUMPRELEASED))	//hmm... a jump was hit.
-				sv_player->v.velocity[2] -= 270;
+			sv_player->v->flags = (int)sv_player->v->flags & ~FL_WATERJUMP;
+			sv_player->v->teleport_time = pmove.waterjumptime;
+			if (jumpable && !((int)sv_player->v->flags & FL_JUMPRELEASED))	//hmm... a jump was hit.
+				sv_player->v->velocity[2] -= 270;
 		}
 
 		SV_RunThink (sv_player);
@@ -3907,34 +3907,34 @@ void SV_RunCmd (usercmd_t *ucmd, qboolean recurse)
 //	memset(&pmove, 0, sizeof(pmove));
 //	memset(&movevars, 0, sizeof(movevars));
 
-	player_mins[0] = sv_player->v.mins[0];
-	player_mins[1] = sv_player->v.mins[1];
-	player_mins[2] = sv_player->v.mins[2];
+	player_mins[0] = sv_player->v->mins[0];
+	player_mins[1] = sv_player->v->mins[1];
+	player_mins[2] = sv_player->v->mins[2];
 
-	player_maxs[0] = sv_player->v.maxs[0];
-	player_maxs[1] = sv_player->v.maxs[1];
-	player_maxs[2] = sv_player->v.maxs[2];
+	player_maxs[0] = sv_player->v->maxs[0];
+	player_maxs[1] = sv_player->v->maxs[1];
+	player_maxs[2] = sv_player->v->maxs[2];
 
 	for (i=0 ; i<3 ; i++)
-		pmove.origin[i] = sv_player->v.origin[i];// + (sv_player->v.mins[i] - player_mins[i]);
+		pmove.origin[i] = sv_player->v->origin[i];// + (sv_player->v->mins[i] - player_mins[i]);
 
-	VectorCopy (sv_player->v.velocity, pmove.velocity);
-	VectorCopy (sv_player->v.v_angle, pmove.angles);
+	VectorCopy (sv_player->v->velocity, pmove.velocity);
+	VectorCopy (sv_player->v->v_angle, pmove.angles);
 
 	pmove.pm_type = SV_PMTypeForClient (host_client);
 	pmove.jump_held = host_client->jump_held;
 	pmove.jump_msec = 0;
 	if (progstype != PROG_QW)	//this is just annoying.
-		pmove.waterjumptime = sv_player->v.teleport_time - sv.time;
+		pmove.waterjumptime = sv_player->v->teleport_time - sv.time;
 	else
-		pmove.waterjumptime = sv_player->v.teleport_time;
+		pmove.waterjumptime = sv_player->v->teleport_time;
 	pmove.numphysent = 1;
 	pmove.physents[0].model = sv.worldmodel;
 	pmove.cmd = *ucmd;
 	if (sv.worldmodel->fromgame == fg_quake2 || sv.worldmodel->fromgame == fg_quake3)
-		pmove.hullnum = ((int)sv_player->v.fteflags&FF_CROUCHING)?3:1;
+		pmove.hullnum = ((int)sv_player->v->fteflags&FF_CROUCHING)?3:1;
 	else
-		pmove.hullnum = SV_HullNumForPlayer(sv_player->v.hull, sv_player->v.mins, sv_player->v.maxs);
+		pmove.hullnum = SV_HullNumForPlayer(sv_player->v->hull, sv_player->v->mins, sv_player->v->maxs);
 
 	movevars.entgravity = host_client->entgravity/movevars.gravity;
 	movevars.maxspeed = host_client->maxspeed;
@@ -3944,22 +3944,22 @@ void SV_RunCmd (usercmd_t *ucmd, qboolean recurse)
 	movevars.airstep = (pm_airstep.value != 0);
 	movevars.walljump = (pm_walljump.value);
 
-	if (sv_player->v.hasted)
-		movevars.maxspeed*=sv_player->v.hasted;
+	if (sv_player->v->hasted)
+		movevars.maxspeed*=sv_player->v->hasted;
 
 	for (i=0 ; i<3 ; i++)
 	{
 		pmove_mins[i] = pmove.origin[i] - 256;
 		pmove_maxs[i] = pmove.origin[i] + 256;
 	}
-	sv_player->v.fteflags = (int)sv_player->v.fteflags & ~FF_LADDER;	//assume not touching ladder trigger
+	sv_player->v->fteflags = (int)sv_player->v->fteflags & ~FF_LADDER;	//assume not touching ladder trigger
 #if 1
 	AddLinksToPmove ( sv_areanodes );
 #else
 	AddAllEntsToPmove ();
 #endif
 
-	if ((int)sv_player->v.fteflags & FF_LADDER)
+	if ((int)sv_player->v->fteflags & FF_LADDER)
 		pmove.onladder = true;
 	else
 		pmove.onladder = false;
@@ -3972,7 +3972,7 @@ before = PM_TestPlayerPosition (pmove.origin);
 	PlayerMove ();
 after = PM_TestPlayerPosition (pmove.origin);
 
-if (sv_player->v.health > 0 && before && !after )
+if (sv_player->v->health > 0 && before && !after )
 	Con_Printf ("player %s got stuck in playermove!!!!\n", host_client->name);
 }
 #else
@@ -3981,44 +3981,44 @@ if (sv_player->v.health > 0 && before && !after )
 
 	host_client->jump_held = pmove.jump_held;
 	if (progstype != PROG_QW)	//this is just annoying.
-		sv_player->v.teleport_time = pmove.waterjumptime + sv.time;
+		sv_player->v->teleport_time = pmove.waterjumptime + sv.time;
 	else
-		sv_player->v.teleport_time = pmove.waterjumptime;
-	sv_player->v.waterlevel = pmove.waterlevel;
+		sv_player->v->teleport_time = pmove.waterjumptime;
+	sv_player->v->waterlevel = pmove.waterlevel;
 
 	if (pmove.watertype & FTECONTENTS_SOLID)
-		sv_player->v.watertype = Q1CONTENTS_SOLID;
+		sv_player->v->watertype = Q1CONTENTS_SOLID;
 	else if (pmove.watertype & FTECONTENTS_SKY)
-		sv_player->v.watertype = Q1CONTENTS_SKY;
+		sv_player->v->watertype = Q1CONTENTS_SKY;
 	else if (pmove.watertype & FTECONTENTS_LAVA)
-		sv_player->v.watertype = Q1CONTENTS_LAVA;
+		sv_player->v->watertype = Q1CONTENTS_LAVA;
 	else if (pmove.watertype & FTECONTENTS_SLIME)
-		sv_player->v.watertype = Q1CONTENTS_SLIME;
+		sv_player->v->watertype = Q1CONTENTS_SLIME;
 	else if (pmove.watertype & FTECONTENTS_WATER)
-		sv_player->v.watertype = Q1CONTENTS_WATER;
+		sv_player->v->watertype = Q1CONTENTS_WATER;
 	else
-		sv_player->v.watertype = Q1CONTENTS_EMPTY;
+		sv_player->v->watertype = Q1CONTENTS_EMPTY;
 
 	if (pmove.onground)
 	{
-		sv_player->v.flags = (int)sv_player->v.flags | FL_ONGROUND;
-		sv_player->v.groundentity = EDICT_TO_PROG(svprogfuncs, EDICT_NUM(svprogfuncs, pmove.physents[pmove.groundent].info));
+		sv_player->v->flags = (int)sv_player->v->flags | FL_ONGROUND;
+		sv_player->v->groundentity = EDICT_TO_PROG(svprogfuncs, EDICT_NUM(svprogfuncs, pmove.physents[pmove.groundent].info));
 	}
 	else
-		sv_player->v.flags = (int)sv_player->v.flags & ~FL_ONGROUND;
+		sv_player->v->flags = (int)sv_player->v->flags & ~FL_ONGROUND;
 
 	for (i=0 ; i<3 ; i++)
-		sv_player->v.origin[i] = pmove.origin[i];// - (sv_player->v.mins[i] - player_mins[i]);
+		sv_player->v->origin[i] = pmove.origin[i];// - (sv_player->v->mins[i] - player_mins[i]);
 
 #if 0
 	// truncate velocity the same way the net protocol will
 	for (i=0 ; i<3 ; i++)
-		sv_player->v.velocity[i] = (int)pmove.velocity[i];
+		sv_player->v->velocity[i] = (int)pmove.velocity[i];
 #else
-	VectorCopy (pmove.velocity, sv_player->v.velocity);
+	VectorCopy (pmove.velocity, sv_player->v->velocity);
 #endif
 
-	VectorCopy (pmove.angles, sv_player->v.v_angle);
+	VectorCopy (pmove.angles, sv_player->v->v_angle);
 
 	player_mins[0] = -16;
 	player_mins[1] = -16;
@@ -4045,13 +4045,13 @@ if (sv_player->v.health > 0 && before && !after )
 				continue;
 			n = pmove.physents[pmove.touchindex[i]].info;
 			ent = EDICT_NUM(svprogfuncs, n);
-			if (!ent->v.touch || (playertouch[n/8]&(1<<(n%8))))
+			if (!ent->v->touch || (playertouch[n/8]&(1<<(n%8))))
 				continue;
 
 			pr_global_struct->self = EDICT_TO_PROG(svprogfuncs, ent);
 			pr_global_struct->other = EDICT_TO_PROG(svprogfuncs, sv_player);
 			pr_global_struct->time = sv.time;
-			PR_ExecuteProgram (svprogfuncs, ent->v.touch);
+			PR_ExecuteProgram (svprogfuncs, ent->v->touch);
 			playertouch[n/8] |= 1 << (n%8);
 		}
 	}
@@ -4239,27 +4239,27 @@ haveannothergo:
 					{
 						if (sv_nomsec.value || SV_PlayerPhysicsQC)
 						{
-							if (!sv_player->v.fixangle)
+							if (!sv_player->v->fixangle)
 							{
-								sv_player->v.v_angle[0] = newcmd.angles[0]* (360.0/65536);
-								sv_player->v.v_angle[1] = newcmd.angles[1]* (360.0/65536);
-								sv_player->v.v_angle[2] = newcmd.angles[2]* (360.0/65536);
+								sv_player->v->v_angle[0] = newcmd.angles[0]* (360.0/65536);
+								sv_player->v->v_angle[1] = newcmd.angles[1]* (360.0/65536);
+								sv_player->v->v_angle[2] = newcmd.angles[2]* (360.0/65536);
 							}
 
 							if (newcmd.impulse)// && SV_FiltureImpulse(newcmd.impulse, host_client->trustlevel))
-								sv_player->v.impulse = newcmd.impulse;
+								sv_player->v->impulse = newcmd.impulse;
 
-							sv_player->v.button0 = newcmd.buttons & 1;
-							sv_player->v.button2 = (newcmd.buttons >> 1) & 1;
+							sv_player->v->button0 = newcmd.buttons & 1;
+							sv_player->v->button2 = (newcmd.buttons >> 1) & 1;
 							if (pr_allowbutton1.value)	//many mods use button1 - it's just a wasted field to many mods. So only work it if the cvar allows.
-								sv_player->v.button1 = ((newcmd.buttons >> 2) & 1);
+								sv_player->v->button1 = ((newcmd.buttons >> 2) & 1);
 						// DP_INPUTBUTTONS
-							sv_player->v.button3 = ((newcmd.buttons >> 2) & 1);
-							sv_player->v.button4 = ((newcmd.buttons >> 3) & 1);
-							sv_player->v.button5 = ((newcmd.buttons >> 4) & 1);
-							sv_player->v.button6 = ((newcmd.buttons >> 5) & 1);
-							sv_player->v.button7 = ((newcmd.buttons >> 6) & 1);
-							sv_player->v.button8 = ((newcmd.buttons >> 7) & 1);
+							sv_player->v->button3 = ((newcmd.buttons >> 2) & 1);
+							sv_player->v->button4 = ((newcmd.buttons >> 3) & 1);
+							sv_player->v->button5 = ((newcmd.buttons >> 4) & 1);
+							sv_player->v->button6 = ((newcmd.buttons >> 5) & 1);
+							sv_player->v->button7 = ((newcmd.buttons >> 6) & 1);
+							sv_player->v->button8 = ((newcmd.buttons >> 7) & 1);
 
 
 							cl->lastcmd = newcmd;
@@ -4343,7 +4343,7 @@ haveannothergo:
 			}
 			else if (host_client->spectator)
 			{
-				VectorCopy(o, sv_player->v.origin);
+				VectorCopy(o, sv_player->v->origin);
 				SV_LinkEdict(sv_player, false);
 			}
 			break;
@@ -4522,9 +4522,9 @@ void SVNQ_ReadClientMove (usercmd_t *move)
 // read current angles	
 	for (i=0 ; i<3 ; i++)
 	{
-		host_client->edict->v.v_angle[i] = MSG_ReadAngle ();
+		host_client->edict->v->v_angle[i] = MSG_ReadAngle ();
 
-		move->angles[i] = (host_client->edict->v.v_angle[i] * 256*256)/360;
+		move->angles[i] = (host_client->edict->v->v_angle[i] * 256*256)/360;
 	}
 		
 // read movement
@@ -4546,19 +4546,19 @@ void SVNQ_ReadClientMove (usercmd_t *move)
 
 
 	if (i && SV_FiltureImpulse(i, host_client->trustlevel))
-		host_client->edict->v.impulse = i;
+		host_client->edict->v->impulse = i;
 
-	host_client->edict->v.button0 = bits & 1;
-	host_client->edict->v.button2 = (bits >> 1) & 1;
+	host_client->edict->v->button0 = bits & 1;
+	host_client->edict->v->button2 = (bits >> 1) & 1;
 	if (pr_allowbutton1.value)	//many mods use button1 - it's just a wasted field to many mods. So only work it if the cvar allows.
-		host_client->edict->v.button1 = ((bits >> 2) & 1);
+		host_client->edict->v->button1 = ((bits >> 2) & 1);
 // DP_INPUTBUTTONS
-	host_client->edict->v.button3 = ((bits >> 2) & 1);
-	host_client->edict->v.button4 = ((bits >> 3) & 1);
-	host_client->edict->v.button5 = ((bits >> 4) & 1);
-	host_client->edict->v.button6 = ((bits >> 5) & 1);
-	host_client->edict->v.button7 = ((bits >> 6) & 1);
-	host_client->edict->v.button8 = ((bits >> 7) & 1);
+	host_client->edict->v->button3 = ((bits >> 2) & 1);
+	host_client->edict->v->button4 = ((bits >> 3) & 1);
+	host_client->edict->v->button5 = ((bits >> 4) & 1);
+	host_client->edict->v->button6 = ((bits >> 5) & 1);
+	host_client->edict->v->button7 = ((bits >> 6) & 1);
+	host_client->edict->v->button8 = ((bits >> 7) & 1);
 }
 
 void SVNQ_ExecuteClientMessage (client_t *cl)
@@ -4763,7 +4763,7 @@ void SV_UserFriction (void)
 // if the leading edge is over a dropoff, increase friction
 	start[0] = stop[0] = origin[0] + vel[0]/speed*16;
 	start[1] = stop[1] = origin[1] + vel[1]/speed*16;
-	start[2] = origin[2] + sv_player->v.mins[2];
+	start[2] = origin[2] + sv_player->v->mins[2];
 	stop[2] = start[2] - 34;
 
 	trace = SV_Move (start, vec3_origin, vec3_origin, stop, true, sv_player);
@@ -4841,19 +4841,19 @@ void SV_AirMove (void)
 	float		fmove, smove;
 	float scale, maxspeed;
 
-	AngleVectors (sv_player->v.angles, forward, right, up);
+	AngleVectors (sv_player->v->angles, forward, right, up);
 
 	fmove = cmd.forwardmove;
 	smove = cmd.sidemove;
 	
 // hack to not let you back into teleporter
-	if (sv.time < sv_player->v.teleport_time && fmove < 0)
+	if (sv.time < sv_player->v->teleport_time && fmove < 0)
 		fmove = 0;
 		
 	for (i=0 ; i<3 ; i++)
 		wishvel[i] = forward[i]*fmove + right[i]*smove;
 
-	if ( (int)sv_player->v.movetype != MOVETYPE_WALK)
+	if ( (int)sv_player->v->movetype != MOVETYPE_WALK)
 		wishvel[2] = cmd.upmove;
 	else
 		wishvel[2] = 0;
@@ -4866,9 +4866,9 @@ void SV_AirMove (void)
 //	else
 //		scale = val->_float;
 
-	maxspeed=sv_player->v.maxspeed;//FIXME: This isn't fully compatable code...
-	if (sv_player->v.hasted)
-		maxspeed*=sv_player->v.hasted;
+	maxspeed=sv_player->v->maxspeed;//FIXME: This isn't fully compatable code...
+	if (sv_player->v->hasted)
+		maxspeed*=sv_player->v->hasted;
 
 	if (wishspeed > maxspeed*scale)
 	{
@@ -4876,7 +4876,7 @@ void SV_AirMove (void)
 		wishspeed = maxspeed*scale;
 	}
 	
-	if ( sv_player->v.movetype == MOVETYPE_NOCLIP)
+	if ( sv_player->v->movetype == MOVETYPE_NOCLIP)
 	{	// noclip
 		VectorCopy (wishvel, velocity);
 	}
@@ -4902,7 +4902,7 @@ void SV_WaterMove (void)
 //
 // user intentions
 //
-	AngleVectors (sv_player->v.v_angle, forward, right, up);
+	AngleVectors (sv_player->v->v_angle, forward, right, up);
 
 	for (i=0 ; i<3 ; i++)
 		wishvel[i] = forward[i]*cmd.forwardmove + right[i]*cmd.sidemove;
@@ -4970,14 +4970,14 @@ void SV_WaterMove (void)
 
 void SV_WaterJump (void)
 {
-	if (sv.time > sv_player->v.teleport_time
-	|| !sv_player->v.waterlevel)
+	if (sv.time > sv_player->v->teleport_time
+	|| !sv_player->v->waterlevel)
 	{
-		sv_player->v.flags = (int)sv_player->v.flags & ~FL_WATERJUMP;
-		sv_player->v.teleport_time = 0;
+		sv_player->v->flags = (int)sv_player->v->flags & ~FL_WATERJUMP;
+		sv_player->v->teleport_time = 0;
 	}
-	sv_player->v.velocity[0] = sv_player->v.movedir[0];
-	sv_player->v.velocity[1] = sv_player->v.movedir[1];
+	sv_player->v->velocity[0] = sv_player->v->movedir[0];
+	sv_player->v->velocity[1] = sv_player->v->movedir[1];
 }
 
 
@@ -4989,9 +4989,9 @@ void SV_ClientThink (void)
 	cmd = host_client->lastcmd;
 	sv_player = host_client->edict;
 
-	sv_player->v.movement[0] = cmd.forwardmove;
-	sv_player->v.movement[1] = cmd.sidemove;
-	sv_player->v.movement[2] = cmd.upmove;
+	sv_player->v->movement[0] = cmd.forwardmove;
+	sv_player->v->movement[1] = cmd.sidemove;
+	sv_player->v->movement[2] = cmd.upmove;
 
 	if (SV_PlayerPhysicsQC)
 	{
@@ -5001,37 +5001,37 @@ void SV_ClientThink (void)
 		return;
 	}
 
-	if (sv_player->v.movetype == MOVETYPE_NONE)
+	if (sv_player->v->movetype == MOVETYPE_NONE)
 		return;
 	
-	onground = (int)sv_player->v.flags & FL_ONGROUND;
+	onground = (int)sv_player->v->flags & FL_ONGROUND;
 
-	origin = sv_player->v.origin;
-	velocity = sv_player->v.velocity;
+	origin = sv_player->v->origin;
+	velocity = sv_player->v->velocity;
 
 //	DropPunchAngle ();
 	
 //
 // if dead, behave differently
 //
-	if (sv_player->v.health <= 0)
+	if (sv_player->v->health <= 0)
 		return;
 
 //
 // angles
 // show 1/3 the pitch angle and all the roll angle
-	angles = sv_player->v.angles;
+	angles = sv_player->v->angles;
 	
-	VectorCopy (sv_player->v.v_angle, v_angle);
-//	VectorAdd (sv_player->v.v_angle, sv_player->v.punchangle, v_angle);
-	angles[ROLL] = V_CalcRoll (sv_player->v.angles, sv_player->v.velocity)*4;
-	if (!sv_player->v.fixangle)
+	VectorCopy (sv_player->v->v_angle, v_angle);
+//	VectorAdd (sv_player->v->v_angle, sv_player->v->punchangle, v_angle);
+	angles[ROLL] = V_CalcRoll (sv_player->v->angles, sv_player->v->velocity)*4;
+	if (!sv_player->v->fixangle)
 	{
 		angles[PITCH] = -v_angle[PITCH]/3;
 		angles[YAW] = v_angle[YAW];
 	}
 
-	if ( (int)sv_player->v.flags & FL_WATERJUMP )
+	if ( (int)sv_player->v->flags & FL_WATERJUMP )
 	{
 		SV_WaterJump ();
 		return;
@@ -5039,8 +5039,8 @@ void SV_ClientThink (void)
 //
 // walk
 //
-	if ( (sv_player->v.waterlevel >= 2)
-	&& (sv_player->v.movetype != MOVETYPE_NOCLIP) )
+	if ( (sv_player->v->waterlevel >= 2)
+	&& (sv_player->v->movetype != MOVETYPE_NOCLIP) )
 	{
 		SV_WaterMove ();
 		return;

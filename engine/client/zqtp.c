@@ -797,6 +797,13 @@ static char *Macro_Match_Type (void)
 	return "ffa";
 }
 
+static char *Macro_Version (void)
+{
+	/*	you probably don't need date, but it's included as this is likly to be used by
+		q2 servers checking for cheats. */
+	return va("%.2f "DISTRIBUTION" ["__DATE__"] (%i)", VERSION, build_number());
+}
+
 /*
 $droploc
 Tells location of the dropped flag.
@@ -846,6 +853,7 @@ $triggermatch is the last chat message that exec'd a msg_trigger.
 
 static void TP_InitMacros(void)
 {
+	Cmd_AddMacro("version", Macro_Version, false);
 	Cmd_AddMacro("qt", Macro_Quote, false);
 	Cmd_AddMacro("latency", Macro_Latency, false);
 	Cmd_AddMacro("health", Macro_Health, true);
@@ -1225,7 +1233,7 @@ static char *TP_LocationName (vec3_t location)
 	}
 
 	recursive = true;
-	Cmd_ExpandString (locdata[minnum].name, buf, sizeof(buf), Cmd_ExecLevel);
+	Cmd_ExpandString (locdata[minnum].name, buf, sizeof(buf), Cmd_ExecLevel, false);
 	recursive = false;
 
 	return buf;
@@ -2649,7 +2657,7 @@ static void CL_Say (qboolean team, char *extra)
 		!strchr(s, '\x0d') /* explicit $\ in message overrides cl_fakename */)
 	{
 		char buf[1024];
-		Cmd_ExpandString (cl_fakename.string, buf, sizeof(buf), Cmd_ExecLevel);
+		Cmd_ExpandString (cl_fakename.string, buf, sizeof(buf), Cmd_ExecLevel, true);
 		strcpy (buf, TP_ParseMacroString (buf));
 		Q_snprintfz (sendtext, sizeof(sendtext), "\x0d%s: ", TP_ParseFunChars(buf, true));
 	}

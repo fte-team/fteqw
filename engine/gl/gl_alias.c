@@ -696,7 +696,7 @@ static galiastexnum_t *GL_ChooseSkin(galiasinfo_t *inf, char *modelname, entity_
 			}
 
 			cm->texnum.bump = texnums[cm->skinnum].bump;	//can't colour bumpmapping
-			if ((!texnums || skinname!=modelname) && e->scoreboard && e->scoreboard->skin)
+			if ((!texnums || !strcmp(modelname, "progs/player.mdl")) && e->scoreboard && e->scoreboard->skin)
 			{
 				original = Skin_Cache8(e->scoreboard->skin);
 				inwidth = e->scoreboard->skin->width;
@@ -706,6 +706,7 @@ static galiastexnum_t *GL_ChooseSkin(galiasinfo_t *inf, char *modelname, entity_
 			{
 				original = NULL;
 				inwidth = 0;
+				inheight = 0;
 			}
 			if (!original)
 			{
@@ -771,7 +772,7 @@ static galiastexnum_t *GL_ChooseSkin(galiasinfo_t *inf, char *modelname, entity_
 				fracstep = tinwidth*0x10000/scaled_width;
 				for (i=0 ; i<scaled_height ; i++, out += scaled_width)
 				{
-					inrow = original + inwidth*(i*tinheight/scaled_height);
+					inrow = original + inwidth*(i*inheight/scaled_height);
 					frac = fracstep >> 1;
 					for (j=0 ; j<scaled_width ; j+=4)
 					{
@@ -798,7 +799,7 @@ static galiastexnum_t *GL_ChooseSkin(galiasinfo_t *inf, char *modelname, entity_
 				fracstep = tinwidth*0x10000/scaled_width;
 				for (i=0 ; i<scaled_height ; i++, out += scaled_width)
 				{
-					inrow = original + inwidth*(i*tinheight/scaled_height);
+					inrow = original + inwidth*(i*inheight/scaled_height);
 					frac = fracstep >> 1;
 					for (j=0 ; j<scaled_width ; j+=1)
 					{
@@ -2744,7 +2745,7 @@ typedef struct {
 //This is a hack. It uses an assuption about q3 player models.
 void GL_ParseQ3SkinFile(char *out, char *surfname, char *modelname)
 {
-	char *f, *p;
+	const char *f, *p;
 	char line[256];
 	COM_StripExtension(modelname, line);
 	strcat(line, "_default.skin");

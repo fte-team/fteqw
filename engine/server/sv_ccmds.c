@@ -299,8 +299,8 @@ void SV_God_f (void)
 	if (!SV_SetPlayer ())
 		return;
 
-	sv_player->v.flags = (int)sv_player->v.flags ^ FL_GODMODE;
-	if ((int)sv_player->v.flags & FL_GODMODE)
+	sv_player->v->flags = (int)sv_player->v->flags ^ FL_GODMODE;
+	if ((int)sv_player->v->flags & FL_GODMODE)
 		SV_ClientTPrintf (host_client, PRINT_HIGH, STL_GODON);
 	else
 		SV_ClientTPrintf (host_client, PRINT_HIGH, STL_GODOFF);			
@@ -318,14 +318,14 @@ void SV_Noclip_f (void)
 	if (!SV_SetPlayer ())
 		return;
 
-	if (sv_player->v.movetype != MOVETYPE_NOCLIP)
+	if (sv_player->v->movetype != MOVETYPE_NOCLIP)
 	{
-		sv_player->v.movetype = MOVETYPE_NOCLIP;
+		sv_player->v->movetype = MOVETYPE_NOCLIP;
 		SV_ClientTPrintf (host_client, PRINT_HIGH, STL_NOCLIPON);
 	}
 	else
 	{
-		sv_player->v.movetype = MOVETYPE_WALK;
+		sv_player->v->movetype = MOVETYPE_WALK;
 		SV_ClientTPrintf (host_client, PRINT_HIGH, STL_NOCLIPOFF);
 	}
 }
@@ -373,23 +373,23 @@ void SV_Give_f (void)
 	case '7':
 	case '8':
 	case '9':
-		sv_player->v.items = (int)sv_player->v.items | IT_SHOTGUN<< (t[0] - '2');
+		sv_player->v->items = (int)sv_player->v->items | IT_SHOTGUN<< (t[0] - '2');
 		break;
 	
 	case 's':
-		sv_player->v.ammo_shells = v;
+		sv_player->v->ammo_shells = v;
 		break;		
 	case 'n':
-		sv_player->v.ammo_nails = v;
+		sv_player->v->ammo_nails = v;
 		break;		
 	case 'r':
-		sv_player->v.ammo_rockets = v;
+		sv_player->v->ammo_rockets = v;
 		break;		
 	case 'h':
-		sv_player->v.health = v;
+		sv_player->v->health = v;
 		break;		
 	case 'c':
-		sv_player->v.ammo_cells = v;
+		sv_player->v->ammo_cells = v;
 		break;
 	default:
 		{
@@ -1086,7 +1086,7 @@ void SV_Heartbeat_f (void)
 	svs.last_heartbeat = -9999;
 }
 
-void SV_SendServerInfoChange(char *key, char *value)
+void SV_SendServerInfoChange(char *key, const char *value)
 {
 	if (!sv.state)
 		return;

@@ -375,7 +375,7 @@ static void Mesh_SetShaderpassState ( shaderpass_t *pass, qboolean mtex )
 	}
 	else
 	{
-//		qglDisable (GL_BLEND);
+		qglDisable (GL_BLEND);
 	}
 
 	if (pass->flags & SHADER_PASS_ALPHAFUNC)
@@ -397,10 +397,10 @@ static void Mesh_SetShaderpassState ( shaderpass_t *pass, qboolean mtex )
 	}
 	else
 	{
-//		qglDisable (GL_ALPHA_TEST);
+		qglDisable (GL_ALPHA_TEST);
 	}
 
-//	qglDepthFunc (pass->depthfunc);
+	qglDepthFunc (pass->depthfunc);
 
 	if (pass->flags & SHADER_PASS_DEPTHWRITE)
 	{
@@ -408,7 +408,7 @@ static void Mesh_SetShaderpassState ( shaderpass_t *pass, qboolean mtex )
 	}
 	else
 	{
-//		qglDepthMask (GL_FALSE);
+		qglDepthMask (GL_FALSE);
 	}
 }
 

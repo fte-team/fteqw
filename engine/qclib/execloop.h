@@ -179,7 +179,7 @@ reeval:
 		OPC->_float = (float)(!(OPA->function & ~0xff000000));
 		break;
 	case OP_NOT_ENT:
-		OPC->_float = (float)(PROG_TO_EDICT(OPA->edict) == (edictrun_t *)sv_edicts);
+		OPC->_float = (float)(PROG_TO_EDICT(progfuncs, OPA->edict) == (edictrun_t *)sv_edicts);
 		break;
 
 	case OP_EQ_F:
@@ -385,7 +385,7 @@ reeval:
 
 	//get a pointer to a field var
 	case OP_ADDRESS:
-		ed = PROG_TO_EDICT(OPA->edict);
+		ed = PROG_TO_EDICT(progfuncs, OPA->edict);
 #ifdef PARANOID
 		NUM_FOR_EDICT(ed);		// make sure it's in range
 #endif
@@ -404,7 +404,7 @@ reeval:
 	case OP_LOAD_ENT:
 	case OP_LOAD_S:
 	case OP_LOAD_FNC:
-		ed = PROG_TO_EDICT(OPA->edict);
+		ed = PROG_TO_EDICT(progfuncs, OPA->edict);
 #ifdef PARANOID
 		NUM_FOR_EDICT(ed);		// make sure it's in range
 #endif
@@ -413,7 +413,7 @@ reeval:
 		break;
 
 	case OP_LOAD_V:
-		ed = PROG_TO_EDICT(OPA->edict);
+		ed = PROG_TO_EDICT(progfuncs, OPA->edict);
 #ifdef PARANOID
 		NUM_FOR_EDICT(ed);		// make sure it's in range
 #endif
@@ -650,7 +650,7 @@ reeval:
 	
 
 	//array/structure reading/riting.
-	case OP_GLOBALADDRESS:		
+	case OP_GLOBALADDRESS:
 		OPC->_int = (int)(&((int)(OPA->_int)) + OPB->_int);
 		break;
 	case OP_POINTER_ADD:	//pointer to 32 bit (remember to *3 for vectors)
@@ -692,26 +692,11 @@ reeval:
 	case OP_LOADP_ENT:
 	case OP_LOADP_S:
 	case OP_LOADP_FNC:
-#ifdef PRBOUNDSCHECK
-		if (OPB->_int < 0 || OPB->_int >= pr_edict_size/4)
-		{
-			Host_Error("Progs attempted to read an invalid field in an edict (%i)\n", OPB->_int);
-			return;
-		}
-#endif
 		ptr = (eval_t *)(((int)(OPA->_int)) + OPB->_int);
 		OPC->_int = ptr->_int;
 		break;
 
 	case OP_LOADP_V:
-#ifdef PRBOUNDSCHECK
-		if (OPB->_int < 0 || OPB->_int + 2 >= pr_edict_size/4)
-		{
-			Host_Error("Progs attempted to read an invalid field in an edict (%i)\n", OPB->_int);
-			return;
-		}
-#endif
-
 		ptr = (eval_t *)(((int)(OPA->_int)) + OPB->_int);
 		OPC->vector[0] = ptr->vector[0];
 		OPC->vector[1] = ptr->vector[1];
@@ -763,7 +748,7 @@ reeval:
 		break;
 
 	case OP_THINKTIME:
-		externs->thinktimeop(progfuncs, (struct edict_s *)PROG_TO_EDICT(OPA->edict), OPB->_float);
+		externs->thinktimeop(progfuncs, (struct edict_s *)PROG_TO_EDICT(progfuncs, OPA->edict), OPB->_float);
 		break;
 
 
@@ -993,7 +978,7 @@ reeval:
 		break;
 
 	case OP_BOUNDCHECK:
-		if (OPA->_int < st->c || OPA->_int >= st->b)
+		if ((unsigned int)OPA->_int < (unsigned int)st->c || (unsigned int)OPA->_int >= (unsigned int)st->b)
 		{
 			pr_xstatement = st-pr_statements;
 			PR_RunError(progfuncs, "Progs boundcheck failed. Value is %i.", OPA->_int);

@@ -2,6 +2,12 @@
 #include <stdlib.h>
 #include <string.h>
 
+#ifndef _WIN32
+#ifndef stricmp 
+#define stricmp strcasecmp
+#endif
+#endif
+
 void Hash_InitTable(hashtable_t *table, int numbucks, void *mem)
 {
 	table->numbuckets = numbucks;

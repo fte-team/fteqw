@@ -282,9 +282,9 @@ void *Z_BaseTagMalloc (int size, int tag, qboolean clear)
 	vsprintf (buffer, descrip,argptr);
 	va_end (argptr);
 
-	nt = malloc(size + sizeof(zone_t)+strlen(buffer)+1 + ZONEDEBUG*2);
+	nt = (zone_t*)malloc(size + sizeof(zone_t)+strlen(buffer)+1 + ZONEDEBUG*2);
 #else
-	nt = malloc(size + sizeof(zone_t)+ ZONEDEBUG*2);
+	nt = (zone_t*)malloc(size + sizeof(zone_t)+ ZONEDEBUG*2);
 #endif
 	if (!nt)
 		Sys_Error("Z_BaseTagMalloc: failed on allocation of %i bytes", size);
@@ -335,7 +335,7 @@ void *Z_MallocNamed (int size, char *file, int lineno)
 void *Z_Malloc(int size)
 {
 	qbyte *buf;
-	buf = Z_TagMalloc(size, 1);
+	buf = (qbyte*)Z_TagMalloc(size, 1);
 	if (!buf)
 		Sys_Error("Z_Malloc: Failed on allocation of %i bytes", size);
 	return buf;
@@ -1169,7 +1169,7 @@ void *Hunk_TempAllocMore (int size)
 #ifdef NOHIGH
 #if TEMPDEBUG>0
 	hnktemps_t *nt;
-	nt = malloc(size + sizeof(hnktemps_t) + TEMPDEBUG*2);
+	nt = (hnktemps_t*)malloc(size + sizeof(hnktemps_t) + TEMPDEBUG*2);
 	nt->next = hnktemps;
 	nt->len = size;
 	hnktemps = nt;
@@ -1181,7 +1181,7 @@ void *Hunk_TempAllocMore (int size)
 	return buf;
 #else
 	hnktemps_t *nt;
-	nt = malloc(size + sizeof(hnktemps_t));
+	nt = (hnktemps_t*)malloc(size + sizeof(hnktemps_t));
 	nt->next = hnktemps;
 	hnktemps = nt;
 	buf = (void *)(nt+1);
@@ -1321,7 +1321,7 @@ void *Cache_Alloc (cache_user_t *c, int size, char *name)
 
 //	size = (size + 15) & ~15;
 
-	nt = malloc(size + sizeof(cache_system_t) + CACHEDEBUG*2);
+	nt = (cache_system_t*)malloc(size + sizeof(cache_system_t) + CACHEDEBUG*2);
 	if (!nt)
 		Sys_Error("Cache_Alloc: failed on allocation of %i bytes", size);
 	nt->next = cache_head;
@@ -1755,7 +1755,7 @@ void Memory_Init (void *buf, int size)
 	int zonesize = DYNAMIC_SIZE;
 #endif
 
-	hunk_base = buf;
+	hunk_base = (qbyte*)buf;
 	hunk_size = size;
 	hunk_low_used = 0;
 	hunk_high_used = 0;

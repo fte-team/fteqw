@@ -70,9 +70,9 @@ cvar_t	registered = {"registered","0"};
 
 qboolean	com_modified;	// set true if using non-id files
 
-int		static_registered = 1;	// only for startup check, then set
+qboolean		static_registered = true;	// only for startup check, then set
 
-qboolean		msg_suppress_1 = 0;
+qboolean		msg_suppress_1 = false;
 
 void COM_InitFilesystem (void);
 void COM_Path_f (void);
@@ -604,7 +604,7 @@ void MSG_WriteChar (sizebuf_t *sb, int c)
 		Sys_Error ("MSG_WriteChar: range error");
 #endif
 
-	buf = SZ_GetSpace (sb, 1);
+	buf = (qbyte*)SZ_GetSpace (sb, 1);
 	buf[0] = c;
 }
 
@@ -617,7 +617,7 @@ void MSG_WriteByte (sizebuf_t *sb, int c)
 		Sys_Error ("MSG_WriteByte: range error");
 #endif
 
-	buf = SZ_GetSpace (sb, 1);
+	buf = (qbyte*)SZ_GetSpace (sb, 1);
 	buf[0] = c;
 }
 
@@ -630,7 +630,7 @@ void MSG_WriteShort (sizebuf_t *sb, int c)
 		Sys_Error ("MSG_WriteShort: range error");
 #endif
 
-	buf = SZ_GetSpace (sb, 2);
+	buf = (qbyte*)SZ_GetSpace (sb, 2);
 	buf[0] = c&0xff;
 	buf[1] = c>>8;
 }
@@ -639,7 +639,7 @@ void MSG_WriteLong (sizebuf_t *sb, int c)
 {
 	qbyte	*buf;
 	
-	buf = SZ_GetSpace (sb, 4);
+	buf = (qbyte*)SZ_GetSpace (sb, 4);
 	buf[0] = c&0xff;
 	buf[1] = (c>>8)&0xff;
 	buf[2] = (c>>16)&0xff;
@@ -661,7 +661,7 @@ void MSG_WriteFloat (sizebuf_t *sb, float f)
 	SZ_Write (sb, &dat.l, 4);
 }
 
-void MSG_WriteString (sizebuf_t *sb, char *s)
+void MSG_WriteString (sizebuf_t *sb, const char *s)
 {
 	if (!s)
 		SZ_Write (sb, "", 1);
@@ -1318,7 +1318,7 @@ void SZ_Print (sizebuf_t *buf, const char *data)
 	else
 	{
 		qbyte *msg;
-		msg = SZ_GetSpace(buf, len-1);
+		msg = (qbyte*)SZ_GetSpace(buf, len-1);
 		if (msg == buf->data)	//whoops. SZ_GetSpace can return buf->data if it overflowed.
 			msg++;
 		Q_memcpy (msg-1,data,len); // write over trailing 0
@@ -1400,7 +1400,7 @@ void COM_CleanUpPath(char *str)
 			critisize = 2;
 		}
 	}
-	while (dots = strstr(str, ".."))
+	while ((dots = strstr(str, "..")))
 	{
 		for (slash = dots-2; slash >= str; slash--)
 		{
@@ -1643,7 +1643,7 @@ char *COM_StringParse (char *data, qboolean expandmacros, qboolean qctokenize)
 {
 	int		c;
 	int		len;
-	unsigned char *s;
+	char *s;
 	
 	len = 0;
 	com_token[0] = 0;
@@ -1807,7 +1807,7 @@ skipwhite:
 
 			for (i = 1; i < sizeof(name); i++)
 			{
-				if (s[i] <= ' ' || s[i] == '$')
+				if (((unsigned char*)s)[i] <= ' ' || s[i] == '$')
 					break;
 			}
 
@@ -1833,7 +1833,7 @@ skipwhite:
 	return data;
 }
 
-char *COM_ParseToken (char *data)
+const char *COM_ParseToken (const char *data)
 {
 	int		c;
 	int		len;
@@ -2101,7 +2101,7 @@ void COM_CheckRegistered (void)
 	int			i;
 
 	COM_FOpenFile("gfx/pop.lmp", &h);
-	static_registered = 0;
+	static_registered = false;
 
 	if (!h)
 	{
@@ -2121,7 +2121,7 @@ void COM_CheckRegistered (void)
 		if (pop[i] != (unsigned short)BigShort (check[i]))
 			Sys_Error ("Corrupted data file.");
 	
-	static_registered = 1;
+	static_registered = true;
 	Con_TPrintf (TL_REGISTEREDVERSION);
 }
 
@@ -2148,7 +2148,7 @@ void COM_InitArgv (int argc, char **argv)	//not allowed to tprint
 		len = ftell(f);
 		fseek(f, 0, SEEK_SET);
 
-		buffer = malloc(len+1);
+		buffer = (char*)malloc(len+1);
 		fread(buffer, 1, len, f);
 		buffer[len] = '\0';
 
@@ -2403,13 +2403,14 @@ char *Com_ReadFileInZip(zipfile_t *zip, int index, char *buffer);
 void *com_pathforfile;	//fread and stuff is preferable if null.
 #endif
 
-typedef struct searchpath_s
-{
-	enum {SPT_OS, SPT_PACK
+typedef enum {SPT_OS, SPT_PACK
 #ifdef ZLIB
 		, SPT_ZIP
 #endif
-	} type;
+} searchpathtype_t;
+typedef struct searchpath_s
+{
+	searchpathtype_t type;
 	char	filename[MAX_OSPATH];
 	union {
 		pack_t	*pack;		// only one of filename / pack will be used
@@ -2665,7 +2666,7 @@ int FS_RebuildOSFSHash(char *filename, int filesize, void *data)
 	}
 	if (!Hash_GetInsensative(&filesystemhash, filename))
 	{
-		bucket_t *bucket = BZ_Malloc(sizeof(bucket_t) + strlen(filename)+1);
+		bucket_t *bucket = (bucket_t*)BZ_Malloc(sizeof(bucket_t) + strlen(filename)+1);
 		strcpy((char *)(bucket+1), filename);
 #ifdef _WIN32
 		Q_strlwr((char *)(bucket+1));
@@ -2710,7 +2711,7 @@ void FS_RebuildFSHash(void)
 	if (!filesystemhash.numbuckets)
 	{
 		filesystemhash.numbuckets = 1024;
-		filesystemhash.bucket = BZ_Malloc(Hash_BytesForBuckets(filesystemhash.numbuckets));
+		filesystemhash.bucket = (bucket_t**)BZ_Malloc(Hash_BytesForBuckets(filesystemhash.numbuckets));
 	}
 	else
 	{
@@ -3041,7 +3042,7 @@ int FS_FLocateFile(char *filename, FSLF_ReturnType_e returntype, flocation_t *lo
 	{
 		if (com_fschanged)
 			FS_RebuildFSHash();
-		pf = Hash_GetInsensative(&filesystemhash, filename);
+		pf = (packfile_t*)Hash_GetInsensative(&filesystemhash, filename);
 		if (!pf)
 			goto fail;
 	}
@@ -3272,7 +3273,7 @@ Allways appends a 0 qbyte to the loaded data.
 */
 qbyte *COM_LoadFile (char *path, int usehunk)
 {
-	char *buf;
+	qbyte *buf;
 	FILE *f;
 	int len;
 	char	base[32];
@@ -3298,24 +3299,24 @@ qbyte *COM_LoadFile (char *path, int usehunk)
 	COM_FileBase (path, base);
 
 	if (usehunk == 0)
-		buf = Z_Malloc (len+1);
+		buf = (qbyte*)Z_Malloc (len+1);
 	else if (usehunk == 1)
-		buf = Hunk_AllocName (len+1, base);
+		buf = (qbyte*)Hunk_AllocName (len+1, base);
 	else if (usehunk == 2)
-		buf = Hunk_TempAlloc (len+1);
+		buf = (qbyte*)Hunk_TempAlloc (len+1);
 	else if (usehunk == 3)
-		buf = Cache_Alloc (loadcache, len+1, base);
+		buf = (qbyte*)Cache_Alloc (loadcache, len+1, base);
 	else if (usehunk == 4)
 	{
 		if (len+1 > loadsize)
-			buf = Hunk_TempAlloc (len+1);
+			buf = (qbyte*)Hunk_TempAlloc (len+1);
 		else
 			buf = loadbuf;
 	}
 	else if (usehunk == 5)
-		buf = BZ_Malloc(len+1);
+		buf = (qbyte*)BZ_Malloc(len+1);
 	else if (usehunk == 6)
-		buf = Hunk_TempAllocMore (len+1);
+		buf = (qbyte*)Hunk_TempAllocMore (len+1);
 	else
 	{
 		Sys_Error ("COM_LoadFile: bad usehunk");
@@ -3562,7 +3563,7 @@ pack_t *COM_LoadPackFile (char *packfile)
 //	if (numpackfiles != PAK0_COUNT)
 //		com_modified = true;	// not the original file
 
-	newfiles = Z_Malloc (numpackfiles * sizeof(packfile_t));
+	newfiles = (packfile_t*)Z_Malloc (numpackfiles * sizeof(packfile_t));
 
 	fseek (packhandle, header.dirofs, SEEK_SET);
 //	fread (&info, 1, header.dirlen, packhandle);
@@ -3573,7 +3574,7 @@ pack_t *COM_LoadPackFile (char *packfile)
 
 //	CRC_Init (&crc);
 
-	pack = Z_Malloc (sizeof (pack_t));
+	pack = (pack_t*)Z_Malloc (sizeof (pack_t));
 #ifdef HASH_FILESYSTEM
 	Hash_InitTable(&pack->hash, numpackfiles+1, Z_Malloc(Hash_BytesForBuckets(numpackfiles+1)));
 #endif
@@ -3674,7 +3675,7 @@ qboolean COM_LoadMapPackFile (char *filename, int ofs)
 	if (!packhandle)
 	{
 		Con_Printf("Couldn't reopen file\n");
-		return -1;
+		return false;
 	}
 	fseek(packhandle, loc.offset, SEEK_SET);
 
@@ -3692,11 +3693,11 @@ qboolean COM_LoadMapPackFile (char *filename, int ofs)
 
 	numpackfiles = header.dirlen / sizeof(dpackfile_t);
 
-	newfiles = Z_Malloc (numpackfiles * sizeof(packfile_t));
+	newfiles = (packfile_t*)Z_Malloc (numpackfiles * sizeof(packfile_t));
 
 	fseek (packhandle, header.dirofs+fstart, SEEK_SET);
 
-	pack = Z_Malloc (sizeof (pack_t));
+	pack = (pack_t*)Z_Malloc (sizeof (pack_t));
 #ifdef HASH_FILESYSTEM
 	Hash_InitTable(&pack->hash, numpackfiles+1, Z_Malloc(Hash_BytesForBuckets(numpackfiles+1)));
 #endif
@@ -3723,7 +3724,7 @@ qboolean COM_LoadMapPackFile (char *filename, int ofs)
 	
 	Con_TPrintf (TL_ADDEDPACKFILE, filename, numpackfiles);
 
-	search = Z_Malloc (sizeof(searchpath_t));
+	search = (searchpath_t*)Z_Malloc (sizeof(searchpath_t));
 	search->type = SPT_PACK;
 	*search->filename = '*';
 	strcpy (search->filename+1, filename);
@@ -3798,11 +3799,11 @@ qboolean COM_LoadWadFile (char *wadname)
 
 	numpackfiles = header.dirlen;
 
-	newfiles = Z_Malloc (numpackfiles * sizeof(packfile_t));
+	newfiles = (packfile_t*)Z_Malloc (numpackfiles * sizeof(packfile_t));
 
 	fseek (packhandle, header.dirofs+fstart, SEEK_SET);
 
-	pack = Z_Malloc (sizeof (pack_t));
+	pack = (pack_t*)Z_Malloc (sizeof (pack_t));
 #ifdef HASH_FILESYSTEM
 	Hash_InitTable(&pack->hash, numpackfiles+1, Z_Malloc(Hash_BytesForBuckets(numpackfiles+1)));
 #endif
@@ -3928,7 +3929,7 @@ newsection:
 
 	Con_Printf ("Added wad file %s\n", wadname, numpackfiles);
 
-	search = Z_Malloc (sizeof(searchpath_t));
+	search = (searchpath_t*)Z_Malloc (sizeof(searchpath_t));
 	search->type = SPT_PACK;
 	strcpy (search->filename, wadname);
 	search->u.pack = pack;
@@ -4087,7 +4088,7 @@ void COM_AddPacks (char *descriptor)
 		pak = COM_LoadPackFile (pakfile);
 		if (!pak)
 			break;
-		search = Z_Malloc (sizeof(searchpath_t));
+		search = (searchpath_t*)Z_Malloc (sizeof(searchpath_t));
 		search->type = SPT_PACK;
 		strcpy (search->filename, pakfile);
 		search->u.pack = pak;
@@ -4115,7 +4116,7 @@ int COM_AddPacksWild (char *descriptor, int size, void *param)
 	pak = COM_LoadPackFile (pakfile);
 	if (!pak)
 		return true;
-	search = Z_Malloc (sizeof(searchpath_t));
+	search = (searchpath_t*)Z_Malloc (sizeof(searchpath_t));
 	search->type = SPT_PACK;
 	strcpy (search->filename, pakfile);
 	search->u.pack = pak;
@@ -4140,7 +4141,7 @@ void COM_AddZips (char *descriptor)
 		zip = COM_LoadZipFile (pakfile);
 		if (!zip)
 			break;
-		search = Z_Malloc (sizeof(searchpath_t));
+		search = (searchpath_t*)Z_Malloc (sizeof(searchpath_t));
 		search->type = SPT_ZIP;
 		Q_strncpyz (search->filename, pakfile, sizeof(search->filename));
 		search->u.zip = zip;
@@ -4222,7 +4223,7 @@ void COM_AddGameDirectory (char *dir)
 //
 // add the directory to the search path
 //
-	search = Z_Malloc (sizeof(searchpath_t));
+	search = (searchpath_t*)Z_Malloc (sizeof(searchpath_t));
 	search->type = SPT_OS;
 	strcpy (search->filename, dir);
 	search->next = com_searchpaths;
@@ -4394,7 +4395,7 @@ void COM_Gamedir (char *dir)
 		//
 		// add the directory to the search path
 		//
-		search = Z_Malloc (sizeof(searchpath_t));
+		search = (searchpath_t*)Z_Malloc (sizeof(searchpath_t));
 		search->type = SPT_OS;
 		strcpy (search->filename, com_gamedir);
 		search->next = com_searchpaths;
@@ -4563,7 +4564,7 @@ Searches the string for the given
 key and returns the associated value, or an empty string.
 ===============
 */
-char *Info_ValueForKey (char *s, char *key)
+char *Info_ValueForKey (char *s, const char *key)
 {
 	char	pkey[1024];
 	static	char value[4][1024];	// use two buffers so compares
@@ -4625,7 +4626,7 @@ char *Info_ValueForKey (char *s, char *key)
 	}
 }
 
-void Info_RemoveKey (char *s, char *key)
+void Info_RemoveKey (char *s, const char *key)
 {
 	char	*start;
 	char	pkey[1024];
@@ -4762,9 +4763,9 @@ void Info_RemoveNonStarKeys (char *start)
 
 }
 
-void Info_SetValueForStarKey (char *s, char *key, char *value, int maxsize)
+void Info_SetValueForStarKey (char *s, const char *key, const char *value, int maxsize)
 {
-	char	new[1024], *v;
+	char	newv[1024], *v;
 	int		c;
 #ifdef SERVERONLY
 	extern cvar_t sv_highchars;
@@ -4809,9 +4810,9 @@ void Info_SetValueForStarKey (char *s, char *key, char *value, int maxsize)
 	if (!value || !strlen(value))
 		return;
 
-	_snprintf (new, sizeof(new), "\\%s\\%s", key, value);
+	_snprintf (newv, sizeof(newv), "\\%s\\%s", key, value);
 
-	if ((int)(strlen(new) + strlen(s) + 1) > maxsize)
+	if ((int)(strlen(newv) + strlen(s) + 1) > maxsize)
 	{
 		Con_TPrintf (TL_INFOSTRINGTOOLONG);
 		return;
@@ -4819,7 +4820,7 @@ void Info_SetValueForStarKey (char *s, char *key, char *value, int maxsize)
 
 	// only copy ascii values
 	s += strlen(s);
-	v = new;
+	v = newv;
 	while (*v)
 	{
 		c = (unsigned char)*v++;
@@ -4847,7 +4848,7 @@ void Info_SetValueForStarKey (char *s, char *key, char *value, int maxsize)
 	*s = 0;
 }
 
-void Info_SetValueForKey (char *s, char *key, char *value, int maxsize)
+void Info_SetValueForKey (char *s, const char *key, const char *value, int maxsize)
 {
 	if (key[0] == '*')
 	{

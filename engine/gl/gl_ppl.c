@@ -1620,7 +1620,7 @@ static void PPL_BaseTextureChain(msurface_t *first)
 				{
 					redraw = mb.fog != s->fog || mb.infokey != vi|| mb.shader->flags&SHADER_DEFORMV_BULGE;
 
-					if (redraw)
+					if (redraw)// || numIndexes + s->mesh->numindexes > MAX_ARRAY_INDEXES)
 					{
 						if (mb.mesh)
 							R_RenderMeshBuffer ( &mb, false );
@@ -2409,7 +2409,7 @@ void PPL_LightBModelTextures(entity_t *e, dlight_t *light, vec3_t colour)
 //draw the bumps on the models for each light.
 void PPL_DrawEntLighting(dlight_t *light, vec3_t colour)
 {
-	int		i;
+	int		i, j;
 
 	PPL_LightTextures(cl.worldmodel, r_worldentity.origin, light, colour);
 
@@ -2420,28 +2420,37 @@ void PPL_DrawEntLighting(dlight_t *light, vec3_t colour)
 	{
 		currententity = &cl_visedicts[i];
 
-		if (cl.viewentity[r_refdef.currentplayernum] && currententity->keynum == cl.viewentity[r_refdef.currentplayernum])
-			continue;
+		if (r_inmirror)
+		{
+			if (currententity->flags & Q2RF_WEAPONMODEL)
+				continue;
+		}
+		else
+		{
+			j = currententity->keynum;
+			while(j)
+			{
+				
+				if (j == (cl.viewentity[r_refdef.currentplayernum]?cl.viewentity[r_refdef.currentplayernum]:(cl.playernum[r_refdef.currentplayernum]+1)))
+					break;
 
-		if (!Cam_DrawPlayer(0, currententity->keynum-1))
-			continue;
+				j = cl.lerpents[j].tagent;
+			}
+			if (j)
+				continue;
 
+			if (cl.viewentity[r_refdef.currentplayernum] && currententity->keynum == cl.viewentity[r_refdef.currentplayernum])
+				continue;
+			if (!Cam_DrawPlayer(0, currententity->keynum-1))
+				continue;
+		}
+
+		if (currententity->flags & Q2RF_BEAM)
+		{
+			continue;
+		}
 		if (!currententity->model)
 			continue;
-
-		if (cls.allow_anyparticles || currententity->visframe)	//allowed or static
-		{
-			if (currententity->model->particleeffect>=0)
-			{
-				if (currententity->model->particleengulphs)
-				{
-					if (gl_part_flame.value)
-					{
-						continue;
-					}
-				}
-			}
-		}
 
 		switch (currententity->model->type)
 		{
@@ -3537,7 +3546,7 @@ void PPL_DrawBrushModel(dlight_t *dl, entity_t *e)
 
 void PPL_DrawShadowMeshes(dlight_t *dl)
 {
-	int		i;
+	int		i, j;
 
 	if (!r_drawentities.value)
 		return;
@@ -3547,17 +3556,40 @@ void PPL_DrawShadowMeshes(dlight_t *dl)
 	{
 		currententity = &cl_visedicts[i];
 
-		if (cl.viewentity[r_refdef.currentplayernum] && currententity->keynum == cl.viewentity[r_refdef.currentplayernum])
-			continue;
-
-		if (!currententity->model)
-			continue;
-
-		if (dl->key == currententity->keynum)
-			continue;
-
 		if (currententity->flags & Q2RF_WEAPONMODEL)
 			continue;	//weapon models don't cast shadows.
+
+		if (r_inmirror)
+		{
+			if (currententity->flags & Q2RF_WEAPONMODEL)
+				continue;
+		}
+		else
+		{
+			j = currententity->keynum;
+			while(j)
+			{
+				
+				if (j == (cl.viewentity[r_refdef.currentplayernum]?cl.viewentity[r_refdef.currentplayernum]:(cl.playernum[r_refdef.currentplayernum]+1)))
+					break;
+
+				j = cl.lerpents[j].tagent;
+			}
+			if (j)
+				continue;
+
+			if (cl.viewentity[r_refdef.currentplayernum] && currententity->keynum == cl.viewentity[r_refdef.currentplayernum])
+				continue;
+			if (!Cam_DrawPlayer(0, currententity->keynum-1))
+				continue;
+		}
+
+		if (currententity->flags & Q2RF_BEAM)
+		{
+			continue;
+		}
+		if (!currententity->model)
+			continue;
 
 		if (cls.allow_anyparticles || currententity->visframe)	//allowed or static
 		{

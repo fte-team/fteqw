@@ -1,7 +1,7 @@
 [Project]
 FileName=FTEQuake.dev
 Name=FTEQuake
-UnitCount=143
+UnitCount=142
 Type=0
 Ver=1
 ObjFiles=""
@@ -20,7 +20,7 @@ ObjectOutput=../../build
 OverrideOutput=0
 OverrideOutputName=FTEQuake.exe
 HostApplication=
-Folders=Client,Common,gl,inet,nq,qclib,server,x
+Folders=Client,Common,gl,inet,nq,qclib,server
 CommandLine=-basedir d:\quake\
 IncludeVersionInfo=1
 SupportXPThemes=0
@@ -211,7 +211,7 @@ BuildCmd=
 Major=2
 Minor=5
 Release=5
-Build=32
+Build=36
 LanguageID=2057
 CharsetID=1252
 CompanyName=
@@ -1423,9 +1423,9 @@ OverrideBuildCmd=0
 BuildCmd=
 
 [Unit139]
-FileName=..\qux\m_x.c
+FileName=..\client\pr_menu.c
 CompileCpp=0
-Folder=x
+Folder=Client
 Compile=1
 Link=1
 Priority=1000
@@ -1433,9 +1433,9 @@ OverrideBuildCmd=0
 BuildCmd=
 
 [Unit140]
-FileName=..\qux\x_reqs.c
+FileName=..\common\plugin.c
 CompileCpp=0
-Folder=x
+Folder=Common
 Compile=1
 Link=1
 Priority=1000
@@ -1443,9 +1443,9 @@ OverrideBuildCmd=0
 BuildCmd=
 
 [Unit141]
-FileName=..\qux\x_res.c
+FileName=..\client\pr_csqc.c
 CompileCpp=0
-Folder=x
+Folder=Client
 Compile=1
 Link=1
 Priority=1000
@@ -1453,9 +1453,9 @@ OverrideBuildCmd=0
 BuildCmd=
 
 [Unit142]
-FileName=..\client\pr_menu.c
+FileName=..\gl\gl_shader.c
 CompileCpp=0
-Folder=Client
+Folder=gl
 Compile=1
 Link=1
 Priority=1000

@@ -1103,17 +1103,21 @@ void CL_SendCmd (float frametime)
 	}
 #endif
 
+	if (msecs>150)	//q2 has 200 slop.
+		msecs=150;
+
 	msecs += frametime*1000;
 //	Con_Printf("%f\n", msecs);
 
-	if (msecs>1000)	//come on... That's just stupid.
-		msecs=1000;
 	if (msecs<0)
 		msecs=0;	//erm.
 
+//	if (cls.state < ca_active)
+//		msecs = 0;
+
 	msecstouse = (int)msecs;	//casts round down.
 
-	if (!CL_FilterTime(msecstouse, cl_netfps.value<=0?cl_maxfps.value:cl_netfps.value) && msecstouse<255)
+	if (!CL_FilterTime(msecstouse, cl_netfps.value<=0?cl_maxfps.value:cl_netfps.value) && msecstouse<255 && cls.state == ca_active)
 	{
 		usercmd_t new;
 
@@ -1154,6 +1158,8 @@ void CL_SendCmd (float frametime)
 
 	if (msecstouse > 255)
 		msecstouse = 255;
+
+//	Con_Printf("sending %i msecs\n", msecstouse);
 
 	for (plnum = 0; plnum < cl.splitclients; plnum++)
 	{

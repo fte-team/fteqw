@@ -108,7 +108,7 @@ void Sbar_TeamOverlay (void);
 void Sbar_MiniDeathmatchOverlay (void);
 void Sbar_ChatModeOverlay(void);
 
-void Draw_FunString(int x, int y, char *str)
+void Draw_FunString(int x, int y, unsigned char *str)
 {
 	int ext = COLOR_WHITE<<8;
 	int extstack[4];
@@ -175,7 +175,7 @@ void Draw_FunString(int x, int y, char *str)
 	}
 }
 
-void Draw_FunStringLen(int x, int y, char *str, int len)
+void Draw_FunStringLen(int x, int y, unsigned char *str, int len)
 {
 	int ext = COLOR_WHITE<<8;
 	int extstack[4];

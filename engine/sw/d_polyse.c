@@ -20,6 +20,22 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 // d_polyset.c: routines for drawing sets of polygons sharing the same
 // texture (used for Alias models)
 
+/*
+There are three ways to draw a triangle, reflecting the three possible values of trivial accept.
+accept 0 draws spanned triangles. The triangles are clipped to the screen before the spans are generated. Hrm.
+accept 1 draws triangle spans. There's no clipping to the screen except the 8 bounding box points.
+accept 3 compleatly on screen. Triangles are not spanned but recursivly subdivided to fill.
+
+0 is used on meshes that arn't fully on screen
+1 is used for near meshes
+3 is used for more distant meshes.
+
+Note that the C routines cover all methods as does the asm. However, the asm doesn't support any blending or any depth other than 8bit.
+C functions ending C are for C drawing only and shouldn't branch into the asm. Functions ending ASM will never be used in the pure C code.
+
+Texture coords are 16.16, not 0-1. Alternate skins thus need prescaling, but can be over-sized without too many changes.
+*/
+
 //changes include stvertexes now being seperatly number from the triangles.
 //this allows q2 models to be supported.
 #include "quakedef.h"
@@ -131,11 +147,10 @@ void D_PolysetCalcGradientsC (int skinwidth);
 void D_PolysetCalcGradientsAsm (int skinwidth);
 void D_DrawSubdiv (void);
 void D_DrawSubdivC (void);
-void D_DrawSubdiv32C (void);
 void D_DrawNonSubdiv (void);
 void D_DrawNonSubdivC (void);
 void D_DrawNonSubdiv32C (void);
-void D_PolysetRecursiveTriangle (int *p1, int *p2, int *p3);
+void D_PolysetRecursiveTriangleC (int *p1, int *p2, int *p3);
 void D_PolysetSetEdgeTable (void);
 void D_RasterizeAliasPolySmooth8Asm (void);
 void D_RasterizeAliasPolySmooth8C (void);
@@ -1172,7 +1187,7 @@ void D_PolysetDraw32 (void)
 
 	if (r_affinetridesc.drawtype)
 	{
-		D_DrawSubdiv32C ();
+		D_DrawSubdivC ();
 	}
 	else
 	{
@@ -1263,6 +1278,9 @@ void D_PolysetDrawFinalVertsC (finalvert_t *fv, int numverts)
 ================
 D_DrawSubdiv
 ================
+
+recursivly draws triangles (as opposed to spanned triangles).
+used on distant models as it's cheaper than generating spans on small models.
 */
 void D_DrawSubdivC (void)
 {
@@ -1272,7 +1290,10 @@ void D_DrawSubdivC (void)
 	int				lnumtriangles;
 
 	void (*drawfnc) (int *p1, int *p2, int *p3);
+	
+	mstvert_t		*pst, *stv;
 
+	pst = r_affinetridesc.pstverts;
 	pfv = r_affinetridesc.pfinalverts;
 	ptri = r_affinetridesc.ptriangles;
 	lnumtriangles = r_affinetridesc.numtriangles;
@@ -1294,7 +1315,7 @@ void D_DrawSubdivC (void)
 	}
 	else
 #endif
-		drawfnc = D_PolysetRecursiveTriangle;
+		drawfnc = D_PolysetRecursiveTriangleC;
 
 	for (i=0 ; i<lnumtriangles ; i++)
 	{
@@ -1310,42 +1331,68 @@ void D_DrawSubdivC (void)
 			continue;
 		}
 
-		d_pcolormap = &((qbyte *)acolormap)[index0->v[4] & 0xFF00];
+		stv = pst + ptri[i].st_index[0];
+		index0->v[2] = stv->s;
+		index0->v[3] = stv->t;
 
-		D_PolysetRecursiveTriangle(index0->v, index1->v, index2->v);
-	}
-}
+		stv = pst + ptri[i].st_index[1];
+		index1->v[2] = stv->s;
+		index1->v[3] = stv->t;
 
-void D_DrawSubdiv32C (void)
-{
-	mtriangle_t		*ptri;
-	finalvert_t		*pfv, *index0, *index1, *index2;
-	mstvert_t		*pst;
-	int				i;
-	int				lnumtriangles;
+		stv = pst + ptri[i].st_index[2];
+		index2->v[2] = stv->s;
+		index2->v[3] = stv->t;
 
-	pst = r_affinetridesc.pstverts;
-	pfv = r_affinetridesc.pfinalverts;
-	ptri = r_affinetridesc.ptriangles;
-	lnumtriangles = r_affinetridesc.numtriangles;
 
-	for (i=0 ; i<lnumtriangles ; i++)
-	{
-		index0 = pfv + ptri[i].xyz_index[0];
-		index1 = pfv + ptri[i].xyz_index[1];
-		index2 = pfv + ptri[i].xyz_index[2];
-
-		if (((index0->v[1]-index1->v[1]) *	//is this back face culling?
-			 (index0->v[0]-index2->v[0]) -
-			 (index0->v[0]-index1->v[0]) * 
-			 (index0->v[1]-index2->v[1])) >= 0)
 		{
-			continue;
+			int z;
+			short *zbuf;
+			z = index0->v[5]>>16;
+			zbuf = zspantable[index0->v[1]] + index0->v[0];
+			if (z >= *zbuf)
+			{
+				int		pix;
+				
+				*zbuf = z;
+				pix = skintable[index0->v[3]>>16][index0->v[2]>>16];
+				pix = ((qbyte *)acolormap)[pix + (index0->v[4] & 0xFF00) ];
+				d_viewbuffer[d_scantable[index0->v[1]] + index0->v[0]] = pix;//Trans(d_viewbuffer[d_scantable[index0->v[1]] + index0->v[0]], pix);
+			}
+		}
+		{
+			int z;
+			short *zbuf;
+			z = index1->v[5]>>16;
+			zbuf = zspantable[index1->v[1]] + index1->v[0];
+			if (z >= *zbuf)
+			{
+				int		pix;
+				
+				*zbuf = z;
+				pix = skintable[index1->v[3]>>16][index1->v[2]>>16];
+				pix = ((qbyte *)acolormap)[pix + (index0->v[4] & 0xFF00) ];
+				d_viewbuffer[d_scantable[index1->v[1]] + index1->v[0]] = pix;//Trans(d_viewbuffer[d_scantable[index0->v[1]] + index0->v[0]], pix);
+			}
+		}
+		{
+			int z;
+			short *zbuf;
+			z = index2->v[5]>>16;
+			zbuf = zspantable[index2->v[1]] + index2->v[0];
+			if (z >= *zbuf)
+			{
+				int		pix;
+				
+				*zbuf = z;
+				pix = skintable[index2->v[3]>>16][index2->v[2]>>16];
+				pix = ((qbyte *)acolormap)[pix + (index0->v[4] & 0xFF00) ];
+				d_viewbuffer[d_scantable[index2->v[1]] + index2->v[0]] = pix;//Trans(d_viewbuffer[d_scantable[index0->v[1]] + index0->v[0]], pix);
+			}
 		}
 
 		d_pcolormap = &((qbyte *)acolormap)[index0->v[4] & 0xFF00];
 
-		D_PolysetRecursiveTriangle32Trans(index0->v, index1->v, index2->v);
+		drawfnc(index0->v, index1->v, index2->v);
 	}
 }
 
@@ -1471,13 +1518,12 @@ void D_DrawNonSubdiv32C (void)
 	}
 }
 
-#if	!id386
 /*
 ================
 D_PolysetRecursiveTriangle
 ================
 */
-void D_PolysetRecursiveTriangle (int *lp1, int *lp2, int *lp3)
+void D_PolysetRecursiveTriangleC (int *lp1, int *lp2, int *lp3)
 {
 	int		*temp;
 	int		d;
@@ -1550,11 +1596,9 @@ split:
 
 nodraw:
 // recursively continue
-	D_PolysetRecursiveTriangle (lp3, lp1, new);
-	D_PolysetRecursiveTriangle (lp3, new, lp2);
+	D_PolysetRecursiveTriangleC (lp3, lp1, new);
+	D_PolysetRecursiveTriangleC (lp3, new, lp2);
 }
-
-#endif	// !id386
 
 
 /*

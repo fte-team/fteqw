@@ -517,7 +517,7 @@ void SV_MulticastProtExt(vec3_t origin, multicast_t to, int dimension_mask, int 
 					leafnum = CM_PointLeafnum (client->q2edict->s.origin);
 				else
 #endif
-					leafnum = CM_PointLeafnum (client->edict->v.origin);
+					leafnum = CM_PointLeafnum (client->edict->v->origin);
 				cluster = CM_LeafCluster (leafnum);
 				area2 = CM_LeafArea (leafnum);
 				if (!CM_AreasConnected (area1, area2))
@@ -605,17 +605,17 @@ void SV_MulticastProtExt(vec3_t origin, multicast_t to, int dimension_mask, int 
 			}
 
 			if (svprogfuncs)
-				if (!((int)client->edict->v.dimension_see & dimension_mask))
+				if (!((int)client->edict->v->dimension_see & dimension_mask))
 					continue;
 
 			if (to == MULTICAST_PHS_R || to == MULTICAST_PHS) {
 				vec3_t delta;
-				VectorSubtract(origin, client->edict->v.origin, delta);
+				VectorSubtract(origin, client->edict->v->origin, delta);
 				if (Length(delta) <= 1024)
 					goto inrange;
 			}
 
-			leaf = Mod_PointInLeaf (client->edict->v.origin, sv.worldmodel);
+			leaf = Mod_PointInLeaf (client->edict->v->origin, sv.worldmodel);
 			if (leaf)
 			{
 				// -1 is because pvs rows are 1 based, not 0 based like leafs
@@ -765,14 +765,14 @@ void SV_StartSound (edict_t *entity, int channel, char *sample, int volume,
 		channel |= SND_ATTENUATION;
 
 	// use the entity origin unless it is a bmodel
-	if (entity->v.solid == SOLID_BSP)
+	if (entity->v->solid == SOLID_BSP)
 	{
 		for (i=0 ; i<3 ; i++)
-			origin[i] = entity->v.origin[i]+0.5*(entity->v.mins[i]+entity->v.maxs[i]);
+			origin[i] = entity->v->origin[i]+0.5*(entity->v->mins[i]+entity->v->maxs[i]);
 	}
 	else
 	{
-		VectorCopy (entity->v.origin, origin);
+		VectorCopy (entity->v->origin, origin);
 	}
 
 	MSG_WriteByte (&sv.multicast, svc_sound);
@@ -798,9 +798,9 @@ void SV_StartSound (edict_t *entity, int channel, char *sample, int volume,
 		MSG_WriteCoord (&sv.nqmulticast, origin[i]);
 #endif
 	if (use_phs)
-		SV_MulticastProtExt(origin, reliable ? MULTICAST_PHS_R : MULTICAST_PHS, entity->v.dimension_seen, 0, 0);
+		SV_MulticastProtExt(origin, reliable ? MULTICAST_PHS_R : MULTICAST_PHS, entity->v->dimension_seen, 0, 0);
 	else
-		SV_MulticastProtExt(origin, reliable ? MULTICAST_ALL_R : MULTICAST_ALL, entity->v.dimension_seen, 0, 0);
+		SV_MulticastProtExt(origin, reliable ? MULTICAST_ALL_R : MULTICAST_ALL, entity->v->dimension_seen, 0, 0);
 }
 
 /*
@@ -853,26 +853,26 @@ void SV_WriteEntityDataToMessage (client_t *client, sizebuf_t *msg, int pnum)
 	ent = client->edict;
 
 	// send a damage message if the player got hit this frame
-	if (ent->v.dmg_take || ent->v.dmg_save)
+	if (ent->v->dmg_take || ent->v->dmg_save)
 	{
-		other = PROG_TO_EDICT(svprogfuncs, ent->v.dmg_inflictor);
+		other = PROG_TO_EDICT(svprogfuncs, ent->v->dmg_inflictor);
 		if (pnum)
 		{
 			MSG_WriteByte(msg, svc_choosesplitclient);
 			MSG_WriteByte(msg, pnum);
 		}
 		MSG_WriteByte (msg, svc_damage);
-		MSG_WriteByte (msg, ent->v.dmg_save);
-		MSG_WriteByte (msg, ent->v.dmg_take);
+		MSG_WriteByte (msg, ent->v->dmg_save);
+		MSG_WriteByte (msg, ent->v->dmg_take);
 		for (i=0 ; i<3 ; i++)
-			MSG_WriteCoord (msg, other->v.origin[i] + 0.5*(other->v.mins[i] + other->v.maxs[i]));
+			MSG_WriteCoord (msg, other->v->origin[i] + 0.5*(other->v->mins[i] + other->v->maxs[i]));
 	
-		ent->v.dmg_take = 0;
-		ent->v.dmg_save = 0;
+		ent->v->dmg_take = 0;
+		ent->v->dmg_save = 0;
 	}
 
 	// a fixangle might get lost in a dropped packet.  Oh well.
-	if ( ent->v.fixangle )
+	if ( ent->v->fixangle )
 	{
 		if (pnum)
 		{
@@ -881,8 +881,8 @@ void SV_WriteEntityDataToMessage (client_t *client, sizebuf_t *msg, int pnum)
 		}
 		MSG_WriteByte (msg, svc_setangle);
 		for (i=0 ; i < 3 ; i++)
-			MSG_WriteAngle (msg, ent->v.angles[i] );
-		ent->v.fixangle = 0;
+			MSG_WriteAngle (msg, ent->v->angles[i] );
+		ent->v->fixangle = 0;
 	}
 }
 
@@ -960,10 +960,10 @@ void SV_WriteClientdataToMessage (client_t *client, sizebuf_t *msg)
 #define	SU_ARMOR		(1<<13)
 #define	SU_WEAPON		(1<<14)
 
-	if (ent->v.view_ofs[2] != DEFAULT_VIEWHEIGHT)
+	if (ent->v->view_ofs[2] != DEFAULT_VIEWHEIGHT)
 		bits |= SU_VIEWHEIGHT;
 		
-//	if (ent->v.idealpitch)
+//	if (ent->v->idealpitch)
 //		bits |= SU_IDEALPITCH;
 
 // stuff the sigil bits into the high bits of items for sbar, or else
@@ -971,34 +971,34 @@ void SV_WriteClientdataToMessage (client_t *client, sizebuf_t *msg)
 //	val = GetEdictFieldValue(ent, "items2", &items2cache);
 
 //	if (val)
-//		items = (int)ent->v.items | ((int)val->_float << 23);
+//		items = (int)ent->v->items | ((int)val->_float << 23);
 //	else
-		items = (int)ent->v.items | ((int)pr_global_struct->serverflags << 28);
+		items = (int)ent->v->items | ((int)pr_global_struct->serverflags << 28);
 	
 
 	bits |= SU_ITEMS;
 	
-	if ( (int)ent->v.flags & FL_ONGROUND)
+	if ( (int)ent->v->flags & FL_ONGROUND)
 		bits |= SU_ONGROUND;
 	
-	if ( ent->v.waterlevel >= 2)
+	if ( ent->v->waterlevel >= 2)
 		bits |= SU_INWATER;
 	
 	for (i=0 ; i<3 ; i++)
 	{
-//		if (ent->v.punchangle[i])
+//		if (ent->v->punchangle[i])
 //			bits |= (SU_PUNCH1<<i);
-		if (ent->v.velocity[i])
+		if (ent->v->velocity[i])
 			bits |= (SU_VELOCITY1<<i);
 	}
 	
-	if (ent->v.weaponframe)
+	if (ent->v->weaponframe)
 		bits |= SU_WEAPONFRAME;
 
-	if (ent->v.armorvalue)
+	if (ent->v->armorvalue)
 		bits |= SU_ARMOR;
 
-//	if (ent->v.weapon)
+//	if (ent->v->weapon)
 		bits |= SU_WEAPON;
 
 // send the data
@@ -1007,55 +1007,55 @@ void SV_WriteClientdataToMessage (client_t *client, sizebuf_t *msg)
 	MSG_WriteShort (msg, bits);
 
 	if (bits & SU_VIEWHEIGHT)
-		MSG_WriteChar (msg, ent->v.view_ofs[2]);
+		MSG_WriteChar (msg, ent->v->view_ofs[2]);
 
 //	if (bits & SU_IDEALPITCH)
-//		MSG_WriteChar (msg, ent->v.idealpitch);
+//		MSG_WriteChar (msg, ent->v->idealpitch);
 
 	for (i=0 ; i<3 ; i++)
 	{
 //		if (bits & (SU_PUNCH1<<i))
-//			MSG_WriteChar (msg, ent->v.punchangle[i]);
+//			MSG_WriteChar (msg, ent->v->punchangle[i]);
 		if (bits & (SU_VELOCITY1<<i))
-			MSG_WriteChar (msg, ent->v.velocity[i]/16);
+			MSG_WriteChar (msg, ent->v->velocity[i]/16);
 	}
 
 // [always sent]	if (bits & SU_ITEMS)
 	MSG_WriteLong (msg, items);
 
 	if (bits & SU_WEAPONFRAME)
-		MSG_WriteByte (msg, ent->v.weaponframe);
+		MSG_WriteByte (msg, ent->v->weaponframe);
 	if (bits & SU_ARMOR)
 	{
-		if (ent->v.armorvalue>255)
+		if (ent->v->armorvalue>255)
 			MSG_WriteByte (msg, 255);
 		else
-			MSG_WriteByte (msg, ent->v.armorvalue);
+			MSG_WriteByte (msg, ent->v->armorvalue);
 	}
 	if (bits & SU_WEAPON)
-		MSG_WriteByte (msg, SV_ModelIndex(ent->v.weaponmodel + svprogfuncs->stringtable));
+		MSG_WriteByte (msg, SV_ModelIndex(ent->v->weaponmodel + svprogfuncs->stringtable));
 	
-	MSG_WriteShort (msg, ent->v.health);
-	MSG_WriteByte (msg, ent->v.currentammo);
-	MSG_WriteByte (msg, ent->v.ammo_shells);
-	MSG_WriteByte (msg, ent->v.ammo_nails);
-	MSG_WriteByte (msg, ent->v.ammo_rockets);
-	MSG_WriteByte (msg, ent->v.ammo_cells);
+	MSG_WriteShort (msg, ent->v->health);
+	MSG_WriteByte (msg, ent->v->currentammo);
+	MSG_WriteByte (msg, ent->v->ammo_shells);
+	MSG_WriteByte (msg, ent->v->ammo_nails);
+	MSG_WriteByte (msg, ent->v->ammo_rockets);
+	MSG_WriteByte (msg, ent->v->ammo_cells);
 	
-	//if (other && other->v.weapon)		
-		//MSG_WriteByte (msg, other->v.weapon);
+	//if (other && other->v->weapon)		
+		//MSG_WriteByte (msg, other->v->weapon);
 	//else
 	//{
 
 	if (standard_quake)
 	{
-		MSG_WriteByte (msg, ent->v.weapon);
+		MSG_WriteByte (msg, ent->v->weapon);
 	}
 	else
 	{
 		for(i=0;i<32;i++)
 		{
-			if ( ((int)ent->v.weapon) & (1<<i) )
+			if ( ((int)ent->v->weapon) & (1<<i) )
 			{
 				MSG_WriteByte (msg, i);
 				break;
@@ -1158,27 +1158,27 @@ void SV_UpdateClientStats (client_t *client, int pnum)
 	if (client->spectator && client->spec_track > 0)
 		ent = svs.clients[client->spec_track - 1].edict;
 
-	stats[STAT_HEALTH] = ent->v.health;
-	stats[STAT_WEAPON] = SV_ModelIndex(PR_GetString(svprogfuncs, ent->v.weaponmodel));
-	stats[STAT_AMMO] = ent->v.currentammo;
-	stats[STAT_ARMOR] = ent->v.armorvalue;
-	stats[STAT_SHELLS] = ent->v.ammo_shells;
-	stats[STAT_NAILS] = ent->v.ammo_nails;
-	stats[STAT_ROCKETS] = ent->v.ammo_rockets;
-	stats[STAT_CELLS] = ent->v.ammo_cells;
+	stats[STAT_HEALTH] = ent->v->health;
+	stats[STAT_WEAPON] = SV_ModelIndex(PR_GetString(svprogfuncs, ent->v->weaponmodel));
+	stats[STAT_AMMO] = ent->v->currentammo;
+	stats[STAT_ARMOR] = ent->v->armorvalue;
+	stats[STAT_SHELLS] = ent->v->ammo_shells;
+	stats[STAT_NAILS] = ent->v->ammo_nails;
+	stats[STAT_ROCKETS] = ent->v->ammo_rockets;
+	stats[STAT_CELLS] = ent->v->ammo_cells;
 	if (!client->spectator)
-		stats[STAT_ACTIVEWEAPON] = ent->v.weapon;
+		stats[STAT_ACTIVEWEAPON] = ent->v->weapon;
 
 	// stuff the sigil bits into the high bits of items for sbar
 	if (pr_items2)
-		stats[STAT_ITEMS] = (int)ent->v.items | ((int)ent->v.items2 << 23);
+		stats[STAT_ITEMS] = (int)ent->v->items | ((int)ent->v->items2 << 23);
 	else
-		stats[STAT_ITEMS] = (int)ent->v.items | ((int)pr_global_struct->serverflags << 28);
+		stats[STAT_ITEMS] = (int)ent->v->items | ((int)pr_global_struct->serverflags << 28);
 
-	stats[STAT_VIEWHEIGHT] = ent->v.view_ofs[2];
+	stats[STAT_VIEWHEIGHT] = ent->v->view_ofs[2];
 #ifdef PEXT_VIEW2	
-	if (ent->v.view2)
-		stats[STAT_VIEW2] = NUM_FOR_EDICT(svprogfuncs, PROG_TO_EDICT(svprogfuncs, ent->v.view2));
+	if (ent->v->view2)
+		stats[STAT_VIEW2] = NUM_FOR_EDICT(svprogfuncs, PROG_TO_EDICT(svprogfuncs, ent->v->view2));
 	else
 		stats[STAT_VIEW2] = 0;
 #endif
@@ -1381,7 +1381,7 @@ void SV_UpdateToReliableMessages (void)
 		{
 			if (!host_client->state && host_client->name[0])	//if this is a bot
 			{
-				if (host_client->old_frags != (int)host_client->edict->v.frags)
+				if (host_client->old_frags != (int)host_client->edict->v->frags)
 				{
 					for (j=0, client = svs.clients ; j<MAX_CLIENTS ; j++, client++)
 					{
@@ -1389,7 +1389,7 @@ void SV_UpdateToReliableMessages (void)
 							continue;
 						ClientReliableWrite_Begin(client, svc_updatefrags, 4);
 						ClientReliableWrite_Byte(client, i);
-						ClientReliableWrite_Short(client, host_client->edict->v.frags);
+						ClientReliableWrite_Short(client, host_client->edict->v->frags);
 					}
 
 					if (sv.mvdrecording)
@@ -1397,10 +1397,10 @@ void SV_UpdateToReliableMessages (void)
 						MVDWrite_Begin(dem_all, 0, 4);
 						MSG_WriteByte((sizebuf_t*)demo.dbuf, svc_updatefrags);
 						MSG_WriteByte((sizebuf_t*)demo.dbuf, i);
-						MSG_WriteShort((sizebuf_t*)demo.dbuf, host_client->edict->v.frags);
+						MSG_WriteShort((sizebuf_t*)demo.dbuf, host_client->edict->v->frags);
 					}
 
-					host_client->old_frags = host_client->edict->v.frags;
+					host_client->old_frags = host_client->edict->v->frags;
 				}
 			}
 			continue;
@@ -1412,7 +1412,7 @@ void SV_UpdateToReliableMessages (void)
 				host_client->sendinfo = false;
 				SV_FullClientUpdate (host_client, &sv.reliable_datagram);
 			}
-			if (host_client->old_frags != (int)host_client->edict->v.frags)
+			if (host_client->old_frags != (int)host_client->edict->v->frags)
 			{
 				for (j=0, client = svs.clients ; j<MAX_CLIENTS ; j++, client++)
 				{
@@ -1422,7 +1422,7 @@ void SV_UpdateToReliableMessages (void)
 						continue;
 					ClientReliableWrite_Begin(client, svc_updatefrags, 4);
 					ClientReliableWrite_Byte(client, i);
-					ClientReliableWrite_Short(client, host_client->edict->v.frags);
+					ClientReliableWrite_Short(client, host_client->edict->v->frags);
 				}
 
 				if (sv.mvdrecording)
@@ -1430,10 +1430,10 @@ void SV_UpdateToReliableMessages (void)
 					MVDWrite_Begin(dem_all, 0, 4);
 					MSG_WriteByte((sizebuf_t*)demo.dbuf, svc_updatefrags);
 					MSG_WriteByte((sizebuf_t*)demo.dbuf, i);
-					MSG_WriteShort((sizebuf_t*)demo.dbuf, host_client->edict->v.frags);
+					MSG_WriteShort((sizebuf_t*)demo.dbuf, host_client->edict->v->frags);
 				}
 
-				host_client->old_frags = host_client->edict->v.frags;
+				host_client->old_frags = host_client->edict->v->frags;
 			}
 		}
 
@@ -1443,7 +1443,7 @@ void SV_UpdateToReliableMessages (void)
 			// maxspeed/entgravity changes
 			ent = host_client->edict;
 			
-			newval = ent->v.gravity*sv_gravity.value;
+			newval = ent->v->gravity*sv_gravity.value;
 			if (progstype == PROG_NQ)
 			{
 				if (!newval)
@@ -1456,14 +1456,14 @@ void SV_UpdateToReliableMessages (void)
 				ClientReliableWrite_Float(sp, newval/movevars.gravity);	//lie to the client in a cunning way
 				host_client->entgravity = newval;
 			}
-			newval = ent->v.maxspeed;
+			newval = ent->v->maxspeed;
 			if (progstype == PROG_NQ)
 			{
 				if (!newval)
 					newval = sv_maxspeed.value;
 			}
-			if (ent->v.hasted)
-				newval*=ent->v.hasted;
+			if (ent->v->hasted)
+				newval*=ent->v->hasted;
 	#ifdef SVCHAT	//enforce a no moving time when chatting. Prevent client prediction going mad.
 			if (host_client->chat.active)
 				newval = 0;
@@ -1781,19 +1781,19 @@ void SV_SendMVDMessage(void)
 		ent = c->edict;
 		memset (stats, 0, sizeof(stats));
 
-		stats[STAT_HEALTH] = ent->v.health;
-		stats[STAT_WEAPON] = SV_ModelIndex(PR_GetString(svprogfuncs, ent->v.weaponmodel));
-		stats[STAT_AMMO] = ent->v.currentammo;
-		stats[STAT_ARMOR] = ent->v.armorvalue;
-		stats[STAT_SHELLS] = ent->v.ammo_shells;
-		stats[STAT_NAILS] = ent->v.ammo_nails;
-		stats[STAT_ROCKETS] = ent->v.ammo_rockets;
-		stats[STAT_CELLS] = ent->v.ammo_cells;
-		stats[STAT_ACTIVEWEAPON] = ent->v.weapon;
+		stats[STAT_HEALTH] = ent->v->health;
+		stats[STAT_WEAPON] = SV_ModelIndex(PR_GetString(svprogfuncs, ent->v->weaponmodel));
+		stats[STAT_AMMO] = ent->v->currentammo;
+		stats[STAT_ARMOR] = ent->v->armorvalue;
+		stats[STAT_SHELLS] = ent->v->ammo_shells;
+		stats[STAT_NAILS] = ent->v->ammo_nails;
+		stats[STAT_ROCKETS] = ent->v->ammo_rockets;
+		stats[STAT_CELLS] = ent->v->ammo_cells;
+		stats[STAT_ACTIVEWEAPON] = ent->v->weapon;
 		
 
 		// stuff the sigil bits into the high bits of items for sbar
-		stats[STAT_ITEMS] = (int)ent->v.items | ((int)pr_global_struct->serverflags << 28);
+		stats[STAT_ITEMS] = (int)ent->v->items | ((int)pr_global_struct->serverflags << 28);
 
 		for (j=0 ; j<MAX_QW_STATS ; j++)
 			if (stats[j] != demo.stats[i][j])

@@ -8,54 +8,75 @@ typedef struct prmemb_s {
 } prmemb_t;
 void *PRHunkAlloc(progfuncs_t *progfuncs, int ammount)
 {
-	if (!progshunk)
-	{
-		prmemb_t *mem;
-		ammount = sizeof(prmemb_t)+((ammount + 3)&~3);
-		mem = memalloc(ammount);
-		memset(mem, 0, ammount);
-		mem->prev = memb;
-		if (!memb)
-			mem->level = 1;
-		else
-			mem->level = ((prmemb_t *)memb)->level+1;
-		memb = mem;
+	prmemb_t *mem;
+	ammount = sizeof(prmemb_t)+((ammount + 3)&~3);
+	mem = memalloc(ammount);
+	memset(mem, 0, ammount);
+	mem->prev = memb;
+	if (!memb)
+		mem->level = 1;
+	else
+		mem->level = ((prmemb_t *)memb)->level+1;
+	memb = mem;
 
-		return ((char *)mem)+sizeof(prmemb_t);
-	}
-	hunkused+=ammount;	
-	if (hunkused > hunksize)
-		Sys_Error("QCLIB: Out of hunk");
-
-	memset(progshunk + hunkused-ammount, 0, ammount);
-	return progshunk + hunkused-ammount;
+	return ((char *)mem)+sizeof(prmemb_t);
 }
 
 int PRHunkMark(progfuncs_t *progfuncs)
 {
-	if (!progshunk)
-	{
-		return ((prmemb_t *)memb)->level;
-	}
-	return hunkused;
+	return ((prmemb_t *)memb)->level;
 }
 void PRHunkFree(progfuncs_t *progfuncs, int mark)
 {
-	if (!progshunk)
+	prmemb_t *omem;
+	while(memb)
 	{
-		prmemb_t *omem;
-		while(memb)
-		{
-			if (memb->level <= mark)
-				return;
+		if (memb->level <= mark)
+			return;
 
-			omem = memb;
-			memb = memb->prev;
-			memfree(omem);
-		}
-		return;
+		omem = memb;
+		memb = memb->prev;
+		memfree(omem);
 	}
-	hunkused = mark;
+	return;
+}
+
+//for 64bit systems. :)
+//addressable memory is memory available to the vm itself for writing.
+//once allocated, it cannot be freed for the lifetime of the VM.
+void *PRAddressableAlloc(progfuncs_t *progfuncs, int ammount)
+{
+	ammount = (ammount + 4)&~3;	//round up to 4
+	if (addressableused + ammount > addressablesize)
+		Sys_Error("Not enough addressable memory for progs VM");
+
+	addressableused += ammount;
+
+#ifdef _WIN32
+	if (!VirtualAlloc (addressablehunk, addressableused, MEM_COMMIT, PAGE_READWRITE))
+		Sys_Error("VirtualAlloc failed. Blame windows.");
+#endif
+
+	return &addressablehunk[addressableused-ammount];
+}
+void PRAddressableFlush(progfuncs_t *progfuncs, int totalammount)
+{
+	addressableused = 0;
+	if (totalammount < 0)	//flush
+	{
+		totalammount = addressablesize;
+//		return;
+	}
+
+	if (addressablehunk)
+#ifdef _WIN32
+		VirtualFree(addressablehunk, 0, MEM_RELEASE);	//doesn't this look complicated? :p
+	addressablehunk = VirtualAlloc (NULL, totalammount, MEM_RESERVE, PAGE_NOACCESS);
+#else
+		free(addressablehunk);
+	addressablehunk = malloc(totalammount);	//linux will allocate-on-use anyway, which is handy.
+#endif
+	addressablesize = totalammount;
 }
 
 int PR_InitEnts(progfuncs_t *progfuncs, int max_ents)
@@ -64,26 +85,25 @@ int PR_InitEnts(progfuncs_t *progfuncs, int max_ents)
 
 	sv_num_edicts = 0;
 
-	pr_edict_size += externs->edictsize;
-
-	pr_max_edict_size = pr_edict_size;
+	max_fields_size = fields_size;
 
 	prinst->edicttable = PRHunkAlloc(progfuncs, maxedicts*sizeof(struct edicts_s *));
-	sv_edicts = PRHunkAlloc(progfuncs, pr_edict_size);
+	sv_edicts = PRHunkAlloc(progfuncs, externs->edictsize);
 	prinst->edicttable[0] = sv_edicts;
+	((edictrun_t*)prinst->edicttable[0])->fields = PRAddressableAlloc(progfuncs, max_fields_size);
 	sv_num_edicts = 1;
 
-	return pr_edict_size;
+	return max_fields_size;
 }
 char tempedicts[2048];	//used as a safty buffer
-void PR_Configure (progfuncs_t *progfuncs, void *mem, int mem_size, int max_progs)	//can be used to wipe all memory
+void PR_Configure (progfuncs_t *progfuncs, int addressable_size, int max_progs)	//can be used to wipe all memory
 {
 	int i;
 	edictrun_t *e;
 
 //	int a;
-	pr_max_edict_size=0;
-	pr_edict_size = 0;
+	max_fields_size=0;
+	fields_size = 0;
 	progfuncs->stringtable = 0;
 	QC_StartShares(progfuncs);
 	QC_InitShares(progfuncs);
@@ -98,25 +118,9 @@ void PR_Configure (progfuncs_t *progfuncs, void *mem, int mem_size, int max_prog
 	}
 
 	PRHunkFree(progfuncs, 0);	//clear mem - our hunk may not be a real hunk.
-
-//three conditions.
-//mem + size uses new hunk space
-//size>=0 uses previous hunk space
-//size < 0 uses memalloc for mem, then emulates a hunk.
-	if (mem == NULL)
-	{
-		if (mem_size < 0)
-		{
-			progshunk = NULL;
-			hunksize = 0;
-		}
-	}
-	else
-	{
-		progshunk = mem;
-		hunksize = mem_size;
-	}
-	hunkused = 0;
+	if (addressable_size<0)
+		addressable_size = 8*1024*1024;
+	PRAddressableFlush(progfuncs, addressable_size);
 
 	pr_progstate = PRHunkAlloc(progfuncs, sizeof(progstate_t) * max_progs);
 
@@ -134,6 +138,7 @@ void PR_Configure (progfuncs_t *progfuncs, void *mem, int mem_size, int max_prog
 	maxedicts = 1;
 	sv_num_edicts = 1;	//set up a safty buffer so things won't go horribly wrong too often
 	sv_edicts=(struct edict_s *)tempedicts;
+	((edictrun_t*)sv_edicts)->readonly = true;
 }
 
 
@@ -221,7 +226,7 @@ eval_t *PR_FindGlobal(progfuncs_t *progfuncs, char *globname, progsnum_t pnum)
 
 void SetGlobalEdict(progfuncs_t *progfuncs, struct edict_s *ed, int ofs)
 {
-	((int*)pr_globals)[ofs] = EDICT_TO_PROG(ed);
+	((int*)pr_globals)[ofs] = EDICT_TO_PROG(progfuncs, ed);
 }
 
 char *PR_VarString (progfuncs_t *progfuncs, int	first)
@@ -255,9 +260,7 @@ eval_t *GetEdictFieldValue(progfuncs_t *progfuncs, struct edict_s *ed, char *nam
 		var = ED_FindField(progfuncs, name);
 		if (!var)
 			return NULL;
-		return (eval_t *)&(
-			((int*)((char *)ed + externs->edictsize))
-			[var->ofs]);
+		return (eval_t *) &(((int*)(((edictrun_t*)ed)->fields))[var->ofs]);
 	}
 	if (!cache->varname)
 	{
@@ -269,24 +272,20 @@ eval_t *GetEdictFieldValue(progfuncs_t *progfuncs, struct edict_s *ed, char *nam
 			return NULL;
 		}
 		cache->ofs32 = var;
-		return (eval_t *)
-			&((int*)((char *)ed + externs->edictsize))
-			[var->ofs];
+		return (eval_t *) &(((int*)(((edictrun_t*)ed)->fields))[var->ofs]);
 	}
 	if (cache->ofs32 == NULL)
 		return NULL;
-	return (eval_t *)
-		&((int*)((char *)ed + externs->edictsize))
-		[cache->ofs32->ofs];
+	return (eval_t *) &(((int*)(((edictrun_t*)ed)->fields))[cache->ofs32->ofs]);
 }
 
 struct edict_s *ProgsToEdict (progfuncs_t *progfuncs, int progs)
 {
-	return (struct edict_s *)PROG_TO_EDICT(progs);
+	return (struct edict_s *)PROG_TO_EDICT(progfuncs, progs);
 }
 int EdictToProgs (progfuncs_t *progfuncs, struct edict_s *ed)
 {
-	return EDICT_TO_PROG(ed);
+	return EDICT_TO_PROG(progfuncs, ed);
 }
 
 
@@ -505,7 +504,7 @@ progfuncs_t * InitProgs(progexterns_t *ext)
 #undef memalloc
 #undef pr_trace
 	funcs = ext->memalloc(sizeof(progfuncs_t));	
-	memcpy(funcs, &deffuncs, sizeof(progfuncs_t));	
+	memcpy(funcs, &deffuncs, sizeof(progfuncs_t));
 
 	funcs->prinst = ext->memalloc(sizeof(prinst_t));
 	memset(funcs->prinst,0, sizeof(prinst_t));

@@ -60,7 +60,7 @@ typedef struct cvar_s
 	char		*string;
 	char		*latched_string;	// for CVAR_LATCH vars
 	int			flags;
-	qboolean	modified;	// set each time the cvar is changed
+	int			modified;	// increased each time the cvar is changed
 	float		value;
 	struct cvar_s *next;
 
@@ -72,7 +72,7 @@ typedef struct cvar_s
 
 typedef struct cvar_group_s
 {
-	char *name;
+	const char *name;
 	struct cvar_group_s *next;
 
 	cvar_t *cvars;
@@ -98,18 +98,18 @@ typedef struct cvar_group_s
 #define CVAR_LATCHMASK		(CVAR_LATCH|CVAR_RENDERERLATCH|CVAR_SERVEROVERRIDE|CVAR_CHEAT|CVAR_SEMICHEAT)	//you're only allowed one of these.
 #define CVAR_NEEDDEFAULT	CVAR_CHEAT
 
-cvar_t *Cvar_Get (char *var_name, char *value, int flags, char *groupname);
+cvar_t *Cvar_Get (const char *var_name, const char *value, int flags, const char *groupname);
 
-void Cvar_LockFromServer(cvar_t *var, char *str);
+void Cvar_LockFromServer(cvar_t *var, const char *str);
 
-void 	Cvar_Register (cvar_t *variable, char *cvargroup);
+void 	Cvar_Register (cvar_t *variable, const char *cvargroup);
 // registers a cvar that allready has the name, string, and optionally the
 // archive elements set.
 
 //#define Cvar_RegisterVariable(x) Cvar_Register(x,__FILE__);
 
-cvar_t	*Cvar_ForceSet (cvar_t *var, char *value);
-cvar_t 	*Cvar_Set (cvar_t *var, char *value);
+cvar_t	*Cvar_ForceSet (cvar_t *var, const char *value);
+cvar_t 	*Cvar_Set (cvar_t *var, const char *value);
 // equivelant to "<name> <variable>" typed at the console
 
 void	Cvar_SetValue (cvar_t *var, float value);
@@ -118,13 +118,13 @@ void	Cvar_SetValue (cvar_t *var, float value);
 void Cvar_ApplyLatches(int latchflag);
 //sets vars to thier latched values
 
-float	Cvar_VariableValue (char *var_name);
+float	Cvar_VariableValue (const char *var_name);
 // returns 0 if not defined or non numeric
 
-char	*Cvar_VariableString (char *var_name);
+char	*Cvar_VariableString (const char *var_name);
 // returns an empty string if not defined
 
-char 	*Cvar_CompleteVariable (char *partial);
+char 	*Cvar_CompleteVariable (const char *partial);
 // attempts to match a partial variable name for command line completion
 // returns NULL if nothing fits
 
@@ -137,7 +137,7 @@ void 	Cvar_WriteVariables (FILE *f, qboolean all);
 // Writes lines containing "set variable value" for all variables
 // with the archive flag set to true.
 
-cvar_t *Cvar_FindVar (char *var_name);
+cvar_t *Cvar_FindVar (const char *var_name);
 
 void Cvar_Shutdown(void);
 

@@ -1200,7 +1200,7 @@ void CMod_LoadTexInfo (lump_t *l)	//yes I know these load from the same place
 		{
 			for (lwr = in->texture; *lwr; lwr++)
 			{
-				if (*lwr >= 'A' || *lwr <= 'Z')
+				if (*lwr >= 'A' && *lwr <= 'Z')
 					*lwr = *lwr - 'A' + 'a';
 			}
 			_snprintf (name, sizeof(name), "textures/%s.wal", in->texture);
@@ -1224,7 +1224,7 @@ void CMod_LoadTexInfo (lump_t *l)	//yes I know these load from the same place
 			loadmodel->textures[texcount++] = out->texture;
 		}
 #if !defined(SERVERONLY) && defined(RGLQUAKE)
-		else if (out->flags & SURF_SKY)
+		else if (out->flags & SURF_SKY && skytexturenum>=0)
 			out->texture = loadmodel->textures[skytexturenum];
 #endif
 	}

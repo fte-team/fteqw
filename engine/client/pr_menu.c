@@ -14,6 +14,7 @@ typedef struct menuedict_s
 	float		freetime; // sv.time when the object was freed
 	int			entnum;
 	qboolean	readonly;	//world
+	void		*fields;
 } menuedict_t;
 
 #define	RETURN_SSTRING(s) (*(char **)&((int *)pr_globals)[OFS_RETURN] = PR_SetString(prinst, s))	//static - exe will not change it.
@@ -1399,7 +1400,7 @@ void MP_Init (void)
 	if (!menuprogs)
 	{
 		menuprogs = InitProgs(&menuprogparms);
-		PR_Configure(menuprogs, NULL, -1, 1);
+		PR_Configure(menuprogs, -1, 1);
 		if (PR_LoadProgs(menuprogs, "menu.dat", 10020, NULL, 0) < 0) //no per-progs builtins.
 		{
 			//failed to load or something

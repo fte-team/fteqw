@@ -270,7 +270,7 @@ qboolean R_AliasCheckBBox (void)
 	{
 		if (minz > (r_aliastransition + (pmdl->size * r_resfudge)))
 		{
-//			currententity->trivial_accept |= 2;
+			currententity->trivial_accept |= 2;
 		}
 	}
 
@@ -601,12 +601,12 @@ void R_AliasPrepareUnclippedPoints (void)
 	{
 		if (r_pixbytes == 4)
 			D_PolysetDrawFinalVerts32Trans (pfinalverts, r_anumverts);
-#if id386
+#if 0//id386
 		else if (t_state & TT_ONE)
 			D_PolysetDrawFinalVertsAsm (pfinalverts, r_anumverts);
 #endif
-		else
-			D_PolysetDrawFinalVertsC (pfinalverts, r_anumverts);
+//		else
+//			D_PolysetDrawFinalVertsC (pfinalverts, r_anumverts);
 	}
 
 	r_affinetridesc.pfinalverts = pfinalverts;
@@ -616,7 +616,7 @@ void R_AliasPrepareUnclippedPoints (void)
 
 	if (r_pixbytes == 4)
 		D_PolysetDraw32 ();
-#if id386
+#if 0//id386
 	else if (t_state & TT_ONE)
 		D_PolysetDrawAsm ();
 #endif

@@ -188,7 +188,8 @@ typedef struct shadercache_s {
 } shadercache_t;
 
 static shadercache_t *shader_hash[HASH_SIZE];
-//static char shaderbuf[MAX_QPATH * 256];
+static char shaderbuf[MAX_QPATH * 256];
+int shaderbuflen;
 
 shader_t	r_shaders[MAX_SHADERS];
 
@@ -896,20 +897,25 @@ static shaderkey_t shaderpasskeys[] =
 
 int Shader_InitCallback (char *name, int size, void *param)
 {
-	Shader_MakeCache(name+8);
+	name+=8;	//skip the scripts/ part
+	strcpy(shaderbuf+shaderbuflen, name);
+	Shader_MakeCache(shaderbuf+shaderbuflen);
+	shaderbuflen += strlen(name)+1;
 
 	return true;
 }
 
 qboolean Shader_Init (void)
 {
+	shaderbuflen = 0;
+
+	Con_Printf ( "Initializing Shaders:\n" );
+
 	COM_EnumerateFiles("scripts/*.shader", Shader_InitCallback, NULL);
 
 	/*
 	char *dirptr;
 	int i, dirlen, numdirs;
-
-	Con_Printf ( "Initializing Shaders:\n" );
 
 	numdirs = FS_GetFileList ( "scripts", "shader", shaderbuf, sizeof(shaderbuf) );
 	if ( !numdirs ) {
@@ -1699,13 +1705,13 @@ void Shader_DefaultBSP(char *shortname, shader_t *s)
 	pass->rgbgen = RGB_GEN_IDENTITY;
 	pass->numMergedPasses = 2;
 
-	if ( qglMTexCoord2fSGIS )
+/*	if ( qglMTexCoord2fSGIS )
 	{
 		pass->numMergedPasses = 2;
 		pass->flush = R_RenderMeshMultitextured;
 	}
 	else
-	{
+*/	{
 		pass->numMergedPasses = 1;
 		pass->flush = R_RenderMeshGeneric;
 	}

@@ -607,7 +607,7 @@ iwboolean IWebAllowUpLoad(char *fname, char *uname)	//called for partial write a
 	return false;
 }
 
-iwboolean	FTP_StringToAdr (char *s, qbyte ip[4], qbyte port[2])
+iwboolean	FTP_StringToAdr (const char *s, qbyte ip[4], qbyte port[2])
 {
 	s = COM_ParseToken(s);
 	ip[0] = atoi(com_token);

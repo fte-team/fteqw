@@ -186,13 +186,12 @@ void Cbuf_AddText (const char *text, int level)
 
 	if (!cmd_text[level].buf.maxsize)
 	{
-		cmd_text[level].buf.data = Z_Malloc(8192);
+		cmd_text[level].buf.data = (qbyte*)Z_Malloc(8192);
 		cmd_text[level].buf.maxsize = 8192;
 	}
 	if (cmd_text[level].buf.cursize + l >= cmd_text[level].buf.maxsize)
 	{
 		int newmax;
-		char *newbuf;
 
 		newmax = cmd_text[level].buf.maxsize*2;
 
@@ -203,8 +202,7 @@ void Cbuf_AddText (const char *text, int level)
 		}
 		while (newmax < cmd_text[level].buf.cursize + l)
 			newmax*=2;
-		newbuf = Z_Malloc(newmax);
-		cmd_text[level].buf.data = Z_Malloc(newmax);
+		cmd_text[level].buf.data = (qbyte*)Z_Malloc(newmax);
 		cmd_text[level].buf.maxsize = newmax;
 	}
 	SZ_Write (&cmd_text[level].buf, text, Q_strlen (text));
@@ -235,7 +233,7 @@ void Cbuf_InsertText (const char *text, int level)
 	templen = cmd_text[level].buf.cursize;
 	if (templen)
 	{
-		temp = Z_Malloc (templen+1);
+		temp = (char*)Z_Malloc (templen+1);
 		Q_memcpy (temp, cmd_text[level].buf.data, templen);
 		SZ_Clear (&cmd_text[level].buf);
 	}
@@ -315,7 +313,7 @@ start:
 char *Cbuf_StripText(int level)	//remove all text in the command buffer and return it (so it can be readded later)
 {
 	char *buf;
-	buf = Z_Malloc(cmd_text[level].buf.cursize+1);
+	buf = (char*)Z_Malloc(cmd_text[level].buf.cursize+1);
 	Q_memcpy (buf, cmd_text[level].buf.data, cmd_text[level].buf.cursize);
 	cmd_text[level].buf.cursize = 0;
 	return buf;
@@ -422,7 +420,7 @@ void Cmd_StuffCmds (void)
 	if (!s)
 		return;
 		
-	text = Z_Malloc (s+1);
+	text = (char*)Z_Malloc (s+1);
 	text[0] = 0;
 	for (i=1 ; i<com_argc ; i++)
 	{
@@ -434,7 +432,7 @@ void Cmd_StuffCmds (void)
 	}
 	
 // pull out the commands
-	build = Z_Malloc (s+1);
+	build = (char*)Z_Malloc (s+1);
 	build[0] = 0;
 	
 	for (i=0 ; i<s-1 ; i++)
@@ -530,7 +528,7 @@ char *CopyString (char *in)
 {
 	char	*out;
 	
-	out = Z_Malloc (strlen(in)+1);
+	out = (char*)Z_Malloc (strlen(in)+1);
 	strcpy (out, in);
 	return out;
 }
@@ -658,7 +656,7 @@ void Cmd_Alias_f (void)
 
 	if (!a)
 	{
-		a = Z_Malloc (sizeof(cmdalias_t));
+		a = (cmdalias_t*)Z_Malloc (sizeof(cmdalias_t));
 		a->next = cmd_alias;
 		cmd_alias = a;
 	}
@@ -715,7 +713,7 @@ void Cmd_Alias_f (void)
 			}
 			if (a->value)
 			{
-				newv = Z_Malloc(strlen(a->value) + strlen(s) + 2);
+				newv = (char*)Z_Malloc(strlen(a->value) + strlen(s) + 2);
 				sprintf(newv, "%s;%s", a->value, s);
 				Z_Free(a->value);
 				a->value = newv;
@@ -1031,7 +1029,7 @@ If not SERVERONLY, also expands $macro expressions
 Note: dest must point to a 1024 byte buffer
 ================
 */
-char *Cmd_ExpandString (char *data, char *dest, int destlen, int maxaccesslevel)
+char *Cmd_ExpandString (char *data, char *dest, int destlen, int maxaccesslevel, qboolean expandmacros)
 {
 	unsigned int	c;
 	char	buf[255];
@@ -1054,7 +1052,7 @@ char *Cmd_ExpandString (char *data, char *dest, int destlen, int maxaccesslevel)
 		{
 			data++;
 
-			striptrailing = *data == '-';
+			striptrailing = (*data == '-')?true:false;
 
 			// Copy the text after '$' to a temp buffer
 			i = 0;
@@ -1075,7 +1073,7 @@ char *Cmd_ExpandString (char *data, char *dest, int destlen, int maxaccesslevel)
 						bestvar = var;
 				}
 #ifndef SERVERONLY
-				if ((str = TP_MacroString (buf+striptrailing, &macro_length)))
+				if (expandmacros && (str = TP_MacroString (buf+striptrailing, &macro_length)))
 					bestmacro = str;
 #endif
 			}
@@ -1181,7 +1179,7 @@ void Cmd_TokenizeString (char *text, qboolean expandmacros, qboolean qctokenize)
 
 		if (cmd_argc < MAX_ARGS)
 		{
-			cmd_argv[cmd_argc] = Z_Malloc (Q_strlen(com_token)+1);
+			cmd_argv[cmd_argc] = (char*)Z_Malloc (Q_strlen(com_token)+1);
 			Q_strcpy (cmd_argv[cmd_argc], com_token);
 			cmd_argc++;
 		}
@@ -1219,7 +1217,7 @@ qboolean	Cmd_AddCommand (char *cmd_name, xcommand_t function)
 		}
 	}
 
-	cmd = Hunk_AllocName (sizeof(cmd_function_t), cmd_name);
+	cmd = (cmd_function_t*)Hunk_AllocName (sizeof(cmd_function_t), cmd_name);
 	cmd->name = cmd_name;
 	cmd->function = function;
 	cmd->next = cmd_functions;
@@ -1250,7 +1248,7 @@ qboolean Cmd_AddRemCommand (char *cmd_name, xcommand_t function)
 		}
 	}
 
-	cmd = Z_Malloc (sizeof(cmd_function_t)+strlen(cmd_name)+1);
+	cmd = (cmd_function_t*)Z_Malloc (sizeof(cmd_function_t)+strlen(cmd_name)+1);
 	cmd->name = (char*)(cmd+1);
 	strcpy(cmd->name, cmd_name);
 	cmd->function = function;
@@ -1486,7 +1484,7 @@ char *Cmd_CompleteCommand (char *partial, qboolean fullonly, int matchnum)
 	if (matchnum == -1)
 		len++;
 
-	match.allowcutdown = !fullonly;
+	match.allowcutdown = !fullonly?true:false;
 	match.cutdown = false;
 	if (matchnum)
 		match.matchnum = matchnum;
@@ -1611,8 +1609,8 @@ void	Cmd_ExecuteString (char *text, int level)
 
 	Cmd_ExecLevel = level;
 
-	text = Cmd_ExpandString(text, dest, sizeof(dest), level);
-	Cmd_TokenizeString (text, level == RESTRICT_LOCAL, false);
+	text = Cmd_ExpandString(text, dest, sizeof(dest), level, !Cmd_FromServer()?true:false);
+	Cmd_TokenizeString (text, level == RESTRICT_LOCAL?true:false, false);
 			
 // execute the command line
 	if (!Cmd_Argc())
@@ -1785,38 +1783,38 @@ tempstack_t *If_Token_GetMark (void)
 }
 
 
-char *retstring(char *s)
+const char *retstring(const char *s)
 {
 //	return s;
 	tempstack_t *ret;
-	ret = Z_Malloc(sizeof(tempstack_t)+strlen(s));
+	ret = (tempstack_t*)Z_Malloc(sizeof(tempstack_t)+strlen(s));
 	ret->next = ifstack;
 	ifstack=ret;
 	strcpy(ret->str, s);
 	return ret->str;
 }
-char *retfloat(float f)
+const char *retfloat(float f)
 {
 	char s[1024];
 	tempstack_t *ret;
 	if (!f)
 		return "";
 	sprintf(s, "%f", f);
-	ret = Z_Malloc(sizeof(tempstack_t)+strlen(s));
+	ret = (tempstack_t*)Z_Malloc(sizeof(tempstack_t)+strlen(s));
 	ret->next = ifstack;
 	ifstack=ret;
 	strcpy(ret->str, s);
 	return ret->str;
 }
-qboolean is_numeric (char *c)
+qboolean is_numeric (const char *c)
 {	
 	return (*c >= '0' && *c <= '9') ||
 		((*c == '-' || *c == '+') && (c[1] == '.' || (c[1]>='0' && c[1]<='9'))) ||
-		(*c == '.' && (c[1]>='0' && c[1]<='9'));
+		(*c == '.' && (c[1]>='0' && c[1]<='9'))?true:false;
 }
-char *If_Token(char *func, char **end)
+const char *If_Token(const char *func, const char **end)
 {	
-	char *s, *s2;
+	const char *s, *s2;
 	cvar_t *var;
 	int level;
 	while(*func <= ' ' && *func)
@@ -2036,7 +2034,7 @@ void Cbuf_ExecBlock(int level)
 			if (exectext)
 			{
 				char *newv;
-				newv = Z_Malloc(strlen(exectext) + strlen(line) + 2);
+				newv = (char*)Z_Malloc(strlen(exectext) + strlen(line) + 2);
 				sprintf(newv, "%s;%s", exectext, line);
 				Z_Free(exectext);
 				exectext = newv;
@@ -2107,8 +2105,9 @@ void Cbuf_SkipBlock(int level)
 void Cmd_if_f(void)
 {
 	char *text = Cmd_Args();
-	char *ret, *ws;
+	const char *ret;
 	char *end;
+	char *ws;
 	int level;
 	qboolean trueblock=false;
 	tempstack_t *ts;
@@ -2124,7 +2123,7 @@ void Cmd_if_f(void)
 
 elseif:
 //	Con_Printf("if %s\n", text);
-	for(ret = If_Token(text, &end); *ret; ret++) {if (*ret != '0' && *ret != '.')break;}
+	for(ret = If_Token(text, (const char **)&end); *ret; ret++) {if (*ret != '0' && *ret != '.')break;}
 	if (!end)
 	{
 		Con_TPrintf(TL_IFSYNTAXERROR);
@@ -2210,20 +2209,41 @@ skipblock:
 void Cmd_set_f(void)
 {
 	cvar_t *var;
-	char *end;
-	char *text = Cmd_Args();
+	const char *end;
+	const char *text;
+	int forceflags = 0;
+
 	if (Cmd_Argc()<3)
 	{
 		Con_TPrintf(TL_SETSYNTAX);
 		return;
 	}
 
-	while(*text <= ' ')	//first whitespace
-		text++;
-	while(*text > ' ')	//first var
-		text++;
-	while(*text <= ' ')	//second whitespace
-		text++;
+	var = Cvar_Get (Cmd_Argv(1), "0", 0, "Custom variables");
+
+	if (Cmd_FromServer())	//AAHHHH!!!
+	{
+		text = Cmd_Argv(3);
+		if (!strcmp(text, "u"))
+			forceflags = CVAR_USERINFO;
+		else if (!strcmp(text, "s"))
+			forceflags = CVAR_SERVERINFO;
+		else if (*text) //err
+			return;
+		text = Cmd_Argv(2);
+	}
+	else
+	{
+		text = Cmd_Args();
+		forceflags = 0;
+
+		while(*text <= ' ' && *text)	//first whitespace
+			text++;
+		while(*text > ' ')	//first var
+			text++;
+		while(*text <= ' ' && *text)	//second whitespace
+			text++;
+	}
 
 	//second var
 	var = Cvar_FindVar (Cmd_Argv(1));
@@ -2236,11 +2256,20 @@ void Cmd_set_f(void)
 			return;
 		}
 
-		text = If_Token(text, &end);
 		if (Cmd_FromServer())
+		{
+			if (forceflags)
+			{
+				var->flags &=~(CVAR_USERINFO|CVAR_SERVERINFO);
+				var->flags |= forceflags;
+			}
 			Cvar_LockFromServer(var, text);
+		}
 		else
+		{
+			text = If_Token(text, &end);
 			Cvar_Set(var, text);
+		}
 	}
 	else
 	{

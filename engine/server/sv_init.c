@@ -143,16 +143,16 @@ baseline will be transmitted
 			continue;
 		// create baselines for all player slots,
 		// and any other edict that has a visible model
-		if (entnum > MAX_CLIENTS && !svent->v.modelindex)
+		if (entnum > MAX_CLIENTS && !svent->v->modelindex)
 			continue;
 
 	//
 	// create entity baseline
 	//
-		VectorCopy (svent->v.origin, svent->baseline.origin);
-		VectorCopy (svent->v.angles, svent->baseline.angles);
-		svent->baseline.frame = svent->v.frame;
-		svent->baseline.skinnum = svent->v.skin;
+		VectorCopy (svent->v->origin, svent->baseline.origin);
+		VectorCopy (svent->v->angles, svent->baseline.angles);
+		svent->baseline.frame = svent->v->frame;
+		svent->baseline.skinnum = svent->v->skin;
 		if (entnum > 0 && entnum <= MAX_CLIENTS)
 		{
 			svent->baseline.colormap = entnum;
@@ -162,7 +162,7 @@ baseline will be transmitted
 		{
 			svent->baseline.colormap = 0;
 			svent->baseline.modelindex =
-				SV_ModelIndex(PR_GetString(svent->v.model))&255;
+				SV_ModelIndex(PR_GetString(svent->v->model))&255;
 		}
 #ifdef PEXT_SCALE
 		svent->baseline.scale = 1;
@@ -220,16 +220,16 @@ void SVNQ_CreateBaseline (void)
 			continue;
 		// create baselines for all player slots,
 		// and any other edict that has a visible model
-		if (entnum > sv.allocated_client_slots && !svent->v.modelindex)
+		if (entnum > sv.allocated_client_slots && !svent->v->modelindex)
 			continue;
 
 	//
 	// create entity baseline
 	//
-		VectorCopy (svent->v.origin, svent->baseline.origin);
-		VectorCopy (svent->v.angles, svent->baseline.angles);
-		svent->baseline.frame = svent->v.frame;
-		svent->baseline.skinnum = svent->v.skin;
+		VectorCopy (svent->v->origin, svent->baseline.origin);
+		VectorCopy (svent->v->angles, svent->baseline.angles);
+		svent->baseline.frame = svent->v->frame;
+		svent->baseline.skinnum = svent->v->skin;
 		if (entnum > 0 && entnum <= sv.allocated_client_slots)
 		{
 			if (entnum > 0 && entnum <= 16)
@@ -243,7 +243,7 @@ void SVNQ_CreateBaseline (void)
 		{
 			svent->baseline.colormap = 0;
 			svent->baseline.modelindex =
-				SV_ModelIndex(PR_GetString(svprogfuncs, svent->v.model));
+				SV_ModelIndex(PR_GetString(svprogfuncs, svent->v->model));
 		}
 		svent->baseline.modelindex&=255;
 	}
@@ -864,18 +864,18 @@ void SV_SpawnServer (char *server, char *startspot, qboolean noents, qboolean us
 		eval_t *eval;
 		ent = EDICT_NUM(svprogfuncs, 0);
 		ent->isfree = false;
-		ent->v.model = PR_SetString(svprogfuncs, sv.worldmodel->name);
-		ent->v.modelindex = 1;		// world model
-		ent->v.solid = SOLID_BSP;
-		ent->v.movetype = MOVETYPE_PUSH;
+		ent->v->model = PR_SetString(svprogfuncs, sv.worldmodel->name);
+		ent->v->modelindex = 1;		// world model
+		ent->v->solid = SOLID_BSP;
+		ent->v->movetype = MOVETYPE_PUSH;
 
 		if (progstype == PROG_QW && pr_imitatemvdsv.value>0)
 		{
-			ent->v.targetname = PR_SetString(svprogfuncs, "mvdsv");
+			ent->v->targetname = PR_SetString(svprogfuncs, "mvdsv");
 			s = DISTRIBUTIONLONG;
-			ent->v.netname = PR_NewString(svprogfuncs, va("%s %f %s, build %d\nBuild date: " __DATE__ ", " __TIME__ "", DISTRIBUTIONLONG, VERSION, PLATFORM, build_number()));
-			ent->v.impulse = 0;//QWE_VERNUM;
-			ent->v.items = 103;
+			ent->v->netname = PR_NewString(svprogfuncs, va("%s %f %s, build %d\nBuild date: " __DATE__ ", " __TIME__ "", DISTRIBUTIONLONG, VERSION, PLATFORM, build_number()));
+			ent->v->impulse = 0;//QWE_VERNUM;
+			ent->v->items = 103;
 		}
 
 
@@ -1004,7 +1004,7 @@ void SV_SpawnServer (char *server, char *startspot, qboolean noents, qboolean us
 	{
 		eval_t *val;
 		ent = EDICT_NUM(svprogfuncs, 0);
-		ent->v.angles[0] = ent->v.angles[1] = ent->v.angles[2] = 0;
+		ent->v->angles[0] = ent->v->angles[1] = ent->v->angles[2] = 0;
 		val = svprogfuncs->GetEdictFieldValue(svprogfuncs, ent, "message", NULL);
 		if (val)
 		{

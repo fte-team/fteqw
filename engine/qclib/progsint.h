@@ -83,6 +83,7 @@ extern	QCC_opcode_t	pr_opcodes[];		// sized by initialization
 int PRHunkMark(progfuncs_t *progfuncs);
 void PRHunkFree(progfuncs_t *progfuncs, int mark);
 void *PRHunkAlloc(progfuncs_t *progfuncs, int size);
+void *PRAddressableAlloc(progfuncs_t *progfuncs, int ammount);
 
 //void *HunkAlloc (int size);
 char *VARGS qcva (char *text, ...);
@@ -96,7 +97,7 @@ int PR_ToggleBreakpoint(progfuncs_t *progfuncs, char *filename, int linenum, int
 void    StripExtension (char *path);
 
 
-#define edvars(ed) (((char *)ed)+externs->edictsize)	//pointer to the field vars, given an edict
+#define edvars(ed) (((edictrun_t*)ed)->fields)	//pointer to the field vars, given an edict
 
 
 
@@ -133,6 +134,7 @@ typedef struct edictrun_s
 	float		freetime;			// realtime when the object was freed	
 	int entnum;
 	pbool	readonly;	//causes error when QC tries writing to it. (quake's world entity)
+	void	*fields;
 
 // other fields from progs come immediately after
 } edictrun_t;
@@ -246,8 +248,8 @@ int NUM_FOR_EDICT(progfuncs_t *progfuncs, struct edict_s *e);
 
 //#define	NEXT_EDICT(e) ((edictrun_t *)( (byte *)e + pr_edict_size))
 
-#define	EDICT_TO_PROG(e) ((qbyte *)e - (qbyte *)sv_edicts)
-#define PROG_TO_EDICT(e) ((edictrun_t *)((qbyte *)sv_edicts + e))
+#define	EDICT_TO_PROG(pf, e) (((edictrun_t*)e)->entnum)
+#define PROG_TO_EDICT(pf, e) ((struct edictrun_s *)prinst->edicttable[e])
 
 //============================================================================
 
@@ -396,19 +398,19 @@ var(evalc_t, spawnflagscache);
 
 
 
-var(int, pr_edict_size);	// in bytes
-#define pr_edict_size prinst->pr_edict_size
-var(int, pr_max_edict_size);
-#define pr_max_edict_size prinst->pr_max_edict_size
+var(int, fields_size);	// in bytes
+#define fields_size prinst->fields_size
+var(int, max_fields_size);
+#define max_fields_size prinst->max_fields_size
 
 
 //initlib.c
-var(char *, progshunk);
-#define progshunk prinst->progshunk
-var(int, hunkused);
-#define hunkused prinst->hunkused
-var(int, hunksize);
-#define hunksize prinst->hunksize
+var(char *, addressablehunk);
+#define addressablehunk prinst->addressablehunk
+var(int, addressableused);
+#define addressableused prinst->addressableused
+var(int, addressablesize);
+#define addressablesize prinst->addressablesize
 
 
 var(extensionbuiltin_t *, extensionbuiltin);
@@ -426,7 +428,7 @@ ddef32_t *ED_FindGlobalFromProgs32 (progfuncs_t *progfuncs, char *name, progsnum
 fdef_t *ED_FindField (progfuncs_t *progfuncs, char *name);
 dfunction_t *ED_FindFunction (progfuncs_t *progfuncs, char *name, int *pnum, int fromprogs);
 func_t PR_FindFunc(progfuncs_t *progfncs, char *funcname, progsnum_t pnum);
-void PR_Configure (progfuncs_t *progfncs, void *mem, int mem_size, int max_progs);
+void PR_Configure (progfuncs_t *progfncs, int addressable_size, int max_progs);
 int PR_InitEnts(progfuncs_t *progfncs, int maxents);
 char *PR_ValueString (progfuncs_t *progfuncs, etype_t type, eval_t *val);
 

@@ -35,7 +35,7 @@ QUX_DIR=$(BASE_DIR)/qux
 RELEASE_DIR=$(BASE_DIR)/release
 DEBUG_DIR=$(BASE_DIR)/debug
 
-DO_CC=$(CC) $(BASE_CFLAGS) $(WCFLAGS) -o $@ -c $< $(CFLAGS)
+DO_CC=$(CC) $(CFLAGS) $(BASE_CFLAGS) $(WCFLAGS) -o $@ -c $<
 ifeq ($(USEASM),true)
 	ifdef windir
 		DO_AS=$(CC) $(BASE_CFLAGS) $(WCFLAGS) -x assembler-with-cpp -o $@ -c $< $(CFLAGS)
@@ -542,13 +542,13 @@ debugdir:
 	@-mkdir $(OUT_DIR)
 endif
 
-ifneq ($(shell grep all ../plugins/Makefile),)
 plugins:
+	ifneq ($(shell grep all ../plugins/Makefile),)
 	$(MAKE) -C ../plugins
-else
-plugins:
+	else
 	@-echo no plugins directory installed
-endif
+	endif
+plugins:
 
 help:
 	@-echo "Specfic targets:"

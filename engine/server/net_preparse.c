@@ -110,12 +110,12 @@ void NPP_Flush(void)
 
 					ClientReliableCheckBlock(cl, 7);
 					ClientReliableWrite_Byte(cl, svc_intermission);
-					ClientReliableWrite_Coord(cl, cl->edict->v.origin[0]);
-					ClientReliableWrite_Coord(cl, cl->edict->v.origin[1]);
-					ClientReliableWrite_Coord(cl, cl->edict->v.origin[2]+cl->edict->v.view_ofs[2]);
-					ClientReliableWrite_Angle(cl, cl->edict->v.angles[0]);
-					ClientReliableWrite_Angle(cl, cl->edict->v.angles[1]);
-					ClientReliableWrite_Angle(cl, cl->edict->v.angles[2]);
+					ClientReliableWrite_Coord(cl, cl->edict->v->origin[0]);
+					ClientReliableWrite_Coord(cl, cl->edict->v->origin[1]);
+					ClientReliableWrite_Coord(cl, cl->edict->v->origin[2]+cl->edict->v->view_ofs[2]);
+					ClientReliableWrite_Angle(cl, cl->edict->v->angles[0]);
+					ClientReliableWrite_Angle(cl, cl->edict->v->angles[1]);
+					ClientReliableWrite_Angle(cl, cl->edict->v->angles[2]);
 
 				}
 			}
@@ -741,8 +741,8 @@ void NPP_QWFlush(void)
 					ang[2] = (*(qbyte*)&buffer[7+2])*360.0/255;
 
 					//move nq players to origin + angle
-					VectorCopy(cl->edict->v.origin, org);
-					VectorCopy(cl->edict->v.angles, ang);
+					VectorCopy(cl->edict->v->origin, org);
+					VectorCopy(cl->edict->v->angles, ang);
 				}
 			}
 		}
@@ -763,7 +763,7 @@ void NPP_QWFlush(void)
 			short data;
 			float org[3];
 			edict_t *ent = EDICT_NUM(svprogfuncs, (*(short*)&buffer[1]));
-			VectorCopy(ent->v.origin, org);
+			VectorCopy(ent->v->origin, org);
 			
 			data = LittleShort((short)(org[0]*8));
 			NPP_AddData(&data, sizeof(short));

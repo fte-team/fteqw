@@ -458,11 +458,11 @@ qbyte *W_GetTexture(char *name, int *width, int *height, qboolean *usesalpha)//r
 	return NULL;
 }
 
-char *COM_ParseToken (char *data);
+
 //extern model_t	*loadmodel;
 
 char wads[4096];
-void Mod_ParseInfoFromEntityLump(char *data)	//actually, this should be in the model code.
+void Mod_ParseInfoFromEntityLump(const char *data)	//actually, this should be in the model code.
 {
 	extern model_t *loadmodel;
 	char key[128];

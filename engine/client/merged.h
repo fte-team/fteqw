@@ -108,7 +108,7 @@ extern int (*Mod_TagNumForName)						(struct model_s *model, char *name);
 
 #undef FNC
 
-void Draw_FunString(int x, int y, char *str);
+void Draw_FunString(int x, int y, unsigned char *str);
 
 
 #ifdef SERVERONLY

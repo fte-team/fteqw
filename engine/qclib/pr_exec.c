@@ -436,7 +436,7 @@ char *EvaluateDebugString(progfuncs_t *progfuncs, char *key)
 		if (c)*c = '.';
 		if (!fdef)
 			return "(Bad string)";
-		val = (eval_t *) (((char *)PROG_TO_EDICT(val->_int) + externs->edictsize) + fdef->ofs*4);		
+		val = (eval_t *) (((char *)PROG_TO_EDICT(progfuncs, val->_int) + externs->edictsize) + fdef->ofs*4);		
 		def->type = fdef->type;
 	}
 	
@@ -472,7 +472,7 @@ char *EvaluateDebugString(progfuncs_t *progfuncs, char *key)
 			break;
 */
 		case ev_entity:
-			*(int *)val = EDICT_TO_PROG(EDICT_NUM(progfuncs, atoi (assignment)));
+			*(int *)val = EDICT_TO_PROG(progfuncs, EDICT_NUM(progfuncs, atoi (assignment)));
 			break;
 
 		case ev_field:

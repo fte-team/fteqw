@@ -328,7 +328,7 @@ static qboolean SV_POP3_RunClient(svpop3client_t *cl)	//true means client should
 {
 	int read;
 	char *nl;
-	char *token;
+	const char *token;
 	int blankline;
 
 	if (cl->messagelump)

@@ -370,7 +370,7 @@ void Q1BSP_RFindTouchedLeafs (edict_t *ent, mnode_t *node)
 // NODE_MIXED
 
 	splitplane = node->plane;
-	sides = BOX_ON_PLANE_SIDE(ent->v.absmin, ent->v.absmax, splitplane);
+	sides = BOX_ON_PLANE_SIDE(ent->v->absmin, ent->v->absmax, splitplane);
 	
 // recurse down the contacted sides
 	if (sides & 1)
@@ -382,7 +382,7 @@ void Q1BSP_RFindTouchedLeafs (edict_t *ent, mnode_t *node)
 void Q1BSP_FindTouchedLeafs(edict_t *ent)
 {
 	ent->num_leafs = 0;
-	if (ent->v.modelindex)
+	if (ent->v->modelindex)
 		Q1BSP_RFindTouchedLeafs (ent, sv.worldmodel->nodes);
 }
 

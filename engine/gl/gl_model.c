@@ -719,10 +719,10 @@ qbyte	*mod_base;
 #endif
 
 char *advtexturedesc;
-char *mapsection;
-char *defaultsection;
+const char *mapsection;
+const char *defaultsection;
 
-static char *GLMod_TD_LeaveSection(char *file)
+static const char *GLMod_TD_LeaveSection(const char *file)
 {	//recursive routine to find the next }
 	while(file)
 	{
@@ -735,7 +735,7 @@ static char *GLMod_TD_LeaveSection(char *file)
 	return NULL;
 }
 
-static char *GLMod_TD_Section(char *file, char *sectionname)
+static const char *GLMod_TD_Section(const char *file, const char *sectionname)
 {	//position within the open brace.
 	while(file)
 	{
@@ -778,7 +778,7 @@ void GLMod_InitTextureDescs(char *mapname)
 		defaultsection = GLMod_TD_Section(advtexturedesc, "default");
 	}
 }
-void GLMod_LoadAdvancedTextureSection(char *section, char *name, int *base, int *norm, int *luma, int *gloss, int *alphamode, qboolean *cull) //fixme: add gloss
+void GLMod_LoadAdvancedTextureSection(const char *section, char *name, int *base, int *norm, int *luma, int *gloss, int *alphamode, qboolean *cull) //fixme: add gloss
 {
 	char stdname[MAX_QPATH] = "";
 	char flatname[MAX_QPATH] = "";

@@ -947,7 +947,7 @@ void VARGS SV_ClientTPrintf (client_t *cl, int level, translation_t text, ...);
 void VARGS SV_BroadcastPrintf (int level, char *fmt, ...);
 void VARGS SV_BroadcastTPrintf (int level, translation_t fmt, ...);
 void VARGS SV_BroadcastCommand (char *fmt, ...);
-void SV_SendServerInfoChange(char *key, char *value);
+void SV_SendServerInfoChange(char *key, const char *value);
 void SV_SendMessagesToAll (void);
 void SV_FindModelNumbers (void);
 

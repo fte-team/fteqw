@@ -196,9 +196,9 @@ int QC_RegisterFieldVar(progfuncs_t *progfuncs, unsigned int type, char *name, i
 
 	int fnum;
 
-	if (!name)
-	{
-		progfuncs->fieldadjust = pr_edict_size/4;
+	if (!name)	//engine can use this to offset all progs fields
+	{			//which fixes constant field offsets (some ktpro arrays)
+		progfuncs->fieldadjust = fields_size/4;
 		return 0;
 	}
 
@@ -277,12 +277,12 @@ int QC_RegisterFieldVar(progfuncs_t *progfuncs, unsigned int type, char *name, i
 		field[fnum].ofs = ofs = requestedpos/4;
 	}
 	else
-		field[fnum].ofs = ofs = pr_edict_size/4;
+		field[fnum].ofs = ofs = fields_size/4;
 //	if (type != ev_vector)
-		if (pr_edict_size < (ofs+type_size[type])*4)
-			pr_edict_size = (ofs+type_size[type])*4;
+		if (fields_size < (ofs+type_size[type])*4)
+			fields_size = (ofs+type_size[type])*4;
 
-	if (pr_max_edict_size && pr_edict_size > pr_max_edict_size)
+	if (max_fields_size && fields_size > max_fields_size)
 		Sys_Error("Allocated too many additional fields after ents were inited.");
 	field[fnum].type = type;
 

@@ -444,6 +444,40 @@ void Cam_Track(int pnum, usercmd_t *cmd)
 	}
 }
 
+void Cam_TrackCrosshairedPlayer(int pnum)
+{
+	frame_t *frame;
+	player_state_t *player;
+	int i;
+	float dot = 0.1, bestdot;
+	int best = -1;
+	vec3_t selforg;
+	vec3_t dir;
+
+	frame = &cl.frames[cl.validsequence & UPDATE_MASK];
+	player = frame->playerstate + cl.playernum[pnum];
+	VectorCopy(player->origin, selforg);
+
+	for (i = 0; i < MAX_CLIENTS; i++)
+	{
+		player = frame->playerstate + i;
+		VectorSubtract(player->origin, selforg, dir);
+		VectorNormalize(dir);
+		dot = DotProduct(vpn, dir);
+		if (dot > bestdot)
+		{
+			bestdot = dot;
+			best = i;
+		}
+	}
+	Con_Printf("Track %i? %f\n", best, bestdot);
+	if (best != -1)	//did we actually get someone?
+	{
+		autocam[pnum]++;
+		Cam_Lock(pnum, best);
+	}
+}
+
 void Cam_FinishMove(int pnum, usercmd_t *cmd)
 {
 	int i;
@@ -478,7 +512,12 @@ void Cam_FinishMove(int pnum, usercmd_t *cmd)
 	{
 		oldbuttons[pnum] &= ~BUTTON_ATTACK;
 		if (!autocam[pnum])
+		{
+			if ((cmd->buttons & BUTTON_JUMP) && !(oldbuttons[pnum] & BUTTON_JUMP))
+				Cam_TrackCrosshairedPlayer(pnum);
+			oldbuttons[pnum] = (oldbuttons[pnum]&~BUTTON_JUMP) | (cmd->buttons & BUTTON_JUMP);
 			return;
+		}
 	}
 
 	if (autocam[pnum] && cl_hightrack.value) 

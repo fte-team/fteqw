@@ -28,7 +28,7 @@ entity_state_t *CL_FindPacketEntity(int num);
 #ifdef Q2CLIENT
 typedef enum
 {
-	Q2TE_GUNSHOT,
+	Q2TE_GUNSHOT,	//0
 	Q2TE_BLOOD,
 	Q2TE_BLASTER,
 	Q2TE_RAILTRAIL,
@@ -38,7 +38,7 @@ typedef enum
 	Q2TE_ROCKET_EXPLOSION,
 	Q2TE_GRENADE_EXPLOSION,
 	Q2TE_SPARKS,
-	Q2TE_SPLASH,
+	Q2TE_SPLASH,	//10
 	Q2TE_BUBBLETRAIL,
 	Q2TE_SCREEN_SPARKS,
 	Q2TE_SHIELD_SPARKS,
@@ -48,7 +48,7 @@ typedef enum
 	Q2TE_ROCKET_EXPLOSION_WATER,
 	Q2TE_GRENADE_EXPLOSION_WATER,
 	Q2TE_MEDIC_CABLE_ATTACK,
-	Q2TE_BFG_EXPLOSION,
+	Q2TE_BFG_EXPLOSION,	//20
 	Q2TE_BFG_BIGEXPLOSION,
 	Q2TE_BOSSTPORT,			// used as '22' in a map, so DON'T RENUMBER!!!
 	Q2TE_BFG_LASER,
@@ -59,7 +59,7 @@ typedef enum
 	Q2TE_PLASMA_EXPLOSION,
 	Q2TE_TUNNEL_SPARKS,
 //ROGUE
-	Q2TE_BLASTER2,
+	Q2TE_BLASTER2,	//30
 	Q2TE_RAILTRAIL2,
 	Q2TE_FLAME,
 	Q2TE_LIGHTNING,
@@ -69,7 +69,7 @@ typedef enum
 	Q2TE_FORCEWALL,
 	Q2TE_HEATBEAM,
 	Q2TE_MONSTER_HEATBEAM,
-	Q2TE_STEAM,
+	Q2TE_STEAM,		//40
 	Q2TE_BUBBLETRAIL2,
 	Q2TE_MOREBLOOD,
 	Q2TE_HEATBEAM_SPARKS,
@@ -79,7 +79,7 @@ typedef enum
 	Q2TE_TRACKER_EXPLOSION,
 	Q2TE_TELEPORT_EFFECT,
 	Q2TE_DBALL_GOAL,
-	Q2TE_WIDOWBEAMOUT,
+	Q2TE_WIDOWBEAMOUT,	//50
 	Q2TE_NUKEBLAST,
 	Q2TE_WIDOWSPLASH,
 	Q2TE_EXPLOSION1_BIG,
@@ -1701,36 +1701,32 @@ void CLQ2_ParseTEnt (void)
 		ent = CL_ParseLightning (cl_mod_lightning);
 		S_StartSound (NULL, ent, CHAN_WEAPON, cl_sfx_lightning, 1, ATTN_NORM, 0);
 		break;
-
+*/
 	case Q2TE_DEBUGTRAIL:
-		MSG_ReadPos (&net_message, pos);
-		MSG_ReadPos (&net_message, pos2);
-		CL_DebugTrail (pos, pos2);
+		MSG_ReadPos (pos);
+		MSG_ReadPos (pos2);
+		P_ParticleTrail(pos, pos2, P_AllocateParticleType("te_debugtrail"), NULL);
 		break;
 
 	case Q2TE_PLAIN_EXPLOSION:
-		MSG_ReadPos (&net_message, pos);
+		MSG_ReadPos (pos);
 
 		ex = CL_AllocExplosion ();
-		VectorCopy (pos, ex->ent.origin);
-		ex->type = ex_poly;
-		ex->ent.flags = Q2RF_FULLBRIGHT;
-		ex->start = cl.frame.servertime - 100;
+		VectorCopy (pos, ex->origin);
+//		ex->type = ex_poly;
+		ex->flags = Q2RF_FULLBRIGHT;
 		ex->light = 350;
 		ex->lightcolor[0] = 1.0;
 		ex->lightcolor[1] = 0.5;
 		ex->lightcolor[2] = 0.5;
-		ex->ent.angles[1] = rand() % 360;
-		ex->ent.model = cl_mod_explo4;
-		if (frand() < 0.5)
-			ex->baseframe = 15;
-		ex->frames = 15;
-		if (type == TE_ROCKET_EXPLOSION_WATER)
-			S_StartSound (pos, 0, 0, cl_sfx_watrexp, 1, ATTN_NORM, 0);
-		else
-			S_StartSound (pos, 0, 0, cl_sfx_rockexp, 1, ATTN_NORM, 0);
+		ex->angles[1] = rand() % 360;
+		ex->model = Mod_ForName (q2tentmodels[q2cl_mod_explo4].modelname, false);
+		if (rand() < RAND_MAX/2)
+			ex->firstframe = 15;
+		ex->numframes = 15;
+		Q2S_StartSound (pos, 0, 0, S_PrecacheSound("weapons/rocklx1a.wav"), 1, ATTN_NORM, 0);
 		break;
-
+/*
 	case Q2TE_FLASHLIGHT:
 		MSG_ReadPos(&net_message, pos);
 		ent = MSG_ReadShort(&net_message);

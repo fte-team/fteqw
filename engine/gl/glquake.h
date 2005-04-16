@@ -54,7 +54,7 @@ void GLR_DrawAlphaSurfaces (void);
 void GL_FlushSkinCache(void);
 void GL_GAliasFlushSkinCache(void);
 
-void PPL_LoadSpecularFragmentProgram(void);
+void PPL_CreateShaderObjects(void);
 void PPL_BaseBModelTextures(entity_t *e);
 
 #ifdef RUNTIMELIGHTING
@@ -719,24 +719,25 @@ extern PFNGLBINDPROGRAMARBPROC qglBindProgramARB;
 extern PFNGLGENPROGRAMSARBPROC qglGenProgramsARB;
 
 //glslang - arb_shader_objects
-extern PFNGLCREATEPROGRAMOBJECTARBPROC  qglCreateProgramObjectARB;
-extern PFNGLDELETEOBJECTARBPROC         qglDeleteObjectARB;
-extern PFNGLUSEPROGRAMOBJECTARBPROC     qglUseProgramObjectARB;
-extern PFNGLCREATESHADEROBJECTARBPROC   qglCreateShaderObjectARB;
-extern PFNGLSHADERSOURCEARBPROC         qglShaderSourceARB;
-extern PFNGLCOMPILESHADERARBPROC        qglCompileShaderARB;
-extern PFNGLGETOBJECTPARAMETERIVARBPROC qglGetObjectParameterivARB;
-extern PFNGLATTACHOBJECTARBPROC         qglAttachObjectARB;
-extern PFNGLGETINFOLOGARBPROC           qglGetInfoLogARB;
-extern PFNGLLINKPROGRAMARBPROC          qglLinkProgramARB;
-extern PFNGLGETUNIFORMLOCATIONARBPROC   qglGetUniformLocationARB;
-extern PFNGLUNIFORM4FARBPROC            qglUniform4fARB;
-extern PFNGLUNIFORM1IARBPROC            qglUniform1iARB;
-extern PFNGLUNIFORM1FARBPROC            qglUniform1fARB;
+extern PFNGLCREATEPROGRAMOBJECTARBPROC	qglCreateProgramObjectARB;
+extern PFNGLDELETEOBJECTARBPROC			qglDeleteObjectARB;
+extern PFNGLUSEPROGRAMOBJECTARBPROC		qglUseProgramObjectARB;
+extern PFNGLCREATESHADEROBJECTARBPROC	qglCreateShaderObjectARB;
+extern PFNGLSHADERSOURCEARBPROC			qglShaderSourceARB;
+extern PFNGLCOMPILESHADERARBPROC		qglCompileShaderARB;
+extern PFNGLGETOBJECTPARAMETERIVARBPROC	qglGetObjectParameterivARB;
+extern PFNGLATTACHOBJECTARBPROC			qglAttachObjectARB;
+extern PFNGLGETINFOLOGARBPROC			qglGetInfoLogARB;
+extern PFNGLLINKPROGRAMARBPROC			qglLinkProgramARB;
+extern PFNGLGETUNIFORMLOCATIONARBPROC	qglGetUniformLocationARB;
+extern PFNGLUNIFORM4FARBPROC			qglUniform4fARB;
+extern PFNGLUNIFORM3FARBPROC			qglUniform3fARB;
+extern PFNGLUNIFORM3FVARBPROC			qglUniform3fvARB;
+extern PFNGLUNIFORM1IARBPROC			qglUniform1iARB;
+extern PFNGLUNIFORM1FARBPROC			qglUniform1fARB;
 
 //glslang helper api
-GLhandleARB GLSlang_CreateShader (char *shadersource, int shadertype);
-GLhandleARB GLSlang_CreateProgram (GLhandleARB vert, GLhandleARB frag);
+GLhandleARB GLSlang_CreateProgram (char *precompilerconstants, char *vert, char *frag);
 GLint GLSlang_GetUniformLocation (int prog, char *name);
 #define GLSlang_UseProgram(prog) qglUseProgramObjectARB(prog);
 #define GLSlang_SetUniform1i(uni, parm0) qglUniform1iARB(uni, parm0);

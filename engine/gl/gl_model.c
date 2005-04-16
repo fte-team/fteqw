@@ -95,8 +95,6 @@ extern cvar_t r_loadlits;
 extern cvar_t gl_specular;
 #endif
 extern cvar_t r_fb_bmodels;
-extern cvar_t gl_subdivide_size;
-extern cvar_t gl_subdivide_water;
 
 
 #ifdef RUNTIMELIGHTING
@@ -1850,9 +1848,6 @@ void GLMod_LoadFaces (lump_t *l)
 		if (!Q_strncmp(out->texinfo->texture->name,"sky",3))	// sky
 		{
 			out->flags |= (SURF_DRAWSKY | SURF_DRAWTILED);
-#ifndef QUAKE2
-			GL_SubdivideSurface (out, gl_subdivide_size.value);	// cut up polygon for warps
-#endif
 			continue;
 		}
 		
@@ -1864,7 +1859,6 @@ void GLMod_LoadFaces (lump_t *l)
 				out->extents[i] = 16384;
 				out->texturemins[i] = -8192;
 			}
-			GL_SubdivideSurface (out, (gl_subdivide_water.value?gl_subdivide_water.value:gl_subdivide_size.value));	// cut up polygon for warps
 			continue;
 		}
 
@@ -2306,12 +2300,12 @@ void GLMod_MakeHull0 (void)
 	dclipnode_t *out;
 	int			i, j, count;
 	hull_t		*hull;
-	
+
 	hull = &loadmodel->hulls[0];	
-	
+
 	in = loadmodel->nodes;
 	count = loadmodel->numnodes;
-	out = Hunk_AllocName ( count*sizeof(*out), loadname);	
+	out = Hunk_AllocName ( count*sizeof(*out), loadname);
 
 	hull->clipnodes = out;
 	hull->firstclipnode = 0;

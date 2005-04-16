@@ -526,36 +526,44 @@ pbool QCC_PR_Precompiler(void)
 		}
 		else if (!strncmp(directive, "include", 7))
 		{		
+			byte sm;
+
 			pr_file_p=directive+7;
 
 			while(*pr_file_p <= ' ')
 				pr_file_p++;
 
-			*msg = '\0';
+			strncpy(msg, compilingfile, sizeof(msg));
+			msg[sizeof(msg)-1] = '\0';
 			if (*pr_file_p == '\"')
-			{
-				pr_file_p++;
-				for (a=0;a<1023;a++)
-				{
-					if (*pr_file_p == '\"')
-						break;
-					msg[a] = *pr_file_p++;
-				}
-				msg[a] = '\0';
-			}
+				sm = '\"';
 			else if (*pr_file_p == '<')
-			{
-				pr_file_p++;
-				for (a=0;a<1023;a++)
-				{
-					if (*pr_file_p == '>')
-						break;
-					msg[a] = *pr_file_p++;
-				}
-				msg[a] = '\0';
-			}
+				sm = '>';
 			else
+			{
 				QCC_PR_ParseError(0, "Not a string literal");
+				sm = 0;
+			}
+
+			//msg already contains the current file name
+			for (a = strlen(msg)-1; a > 0; a--)
+			{
+				if (msg[a] == '/' || msg[a] == '\\')	//eeeevil windows.
+				{
+					a++;
+					break;
+				}
+			}
+
+			pr_file_p++;
+			for (;a<1023;a++)
+			{
+				if (*pr_file_p == sm)
+					break;
+				msg[a] = *pr_file_p++;
+			}
+			msg[a] = '\0';
+
 			printf("Including: %s\n", msg);
 			QCC_Include(msg);
 
@@ -709,6 +717,43 @@ pbool QCC_PR_Precompiler(void)
 				strcpy(destfile, qcc_token);
 				printf("Outputfile: %s\n", destfile);
 			}
+			else if (!QC_strcasecmp(qcc_token, "keyword") || !QC_strcasecmp(qcc_token, "flag"))
+			{
+				char *s;
+				int st;
+				s = QCC_COM_Parse(msg);
+				if (!QC_strcasecmp(qcc_token, "enable") || !QC_strcasecmp(qcc_token, "on"))
+					st = 0;
+				else if (!QC_strcasecmp(qcc_token, "disable") || !QC_strcasecmp(qcc_token, "off"))
+					st = 1;
+				else
+				{
+					QCC_PR_ParseWarning(WARN_BADPRAGMA, "compiler flag state not recognised");
+					st = -1;
+				}
+				if (st < 0)
+					QCC_PR_ParseWarning(WARN_BADPRAGMA, "warning id not recognised");
+				else
+				{
+					int f;
+					s = QCC_COM_Parse(s);
+
+					for (f = 0; compiler_flag[f].enabled; f++)
+					{
+						if (!QC_strcasecmp(compiler_flag[f].abbrev, qcc_token))
+						{
+							if (compiler_flag[f].flags & FLAG_MIDCOMPILE)
+								*compiler_flag[f].enabled = st;
+							else
+								QCC_PR_ParseWarning(WARN_BADPRAGMA, "Cannot enable/disable keyword/flag via a pragma");
+							break;
+						}
+					}
+					if (!compiler_flag[f].enabled)
+						QCC_PR_ParseWarning(WARN_BADPRAGMA, "keyword/flag not recognised");
+
+				}
+			}
 			else if (!QC_strcasecmp(qcc_token, "warning"))
 			{
 				int st;
@@ -721,7 +766,10 @@ pbool QCC_PR_Precompiler(void)
 				else if (!stricmp(qcc_token, "toggle"))
 					st = 2;
 				else
+				{
+					QCC_PR_ParseWarning(WARN_BADPRAGMA, "warning state not recognised");
 					st = -1;
+				}
 				if (st>=0)
 				{
 					int wn;

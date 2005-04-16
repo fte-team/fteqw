@@ -356,7 +356,7 @@ void SV_EmitCSQCUpdate(client_t *client, sizebuf_t *msg)
 			//FIXME: Add a developer mode to write the length of each entity.
 			SZ_Write(msg, csqcmsgbuffer.data, csqcmsgbuffer.cursize);
 
-			Con_Printf("Sending update packet %i\n", ent->entnum);
+//			Con_Printf("Sending update packet %i\n", ent->entnum);
 		}
 		else if (sv.csqcentversion[ent->entnum])
 		{	//Don't want to send.
@@ -368,7 +368,7 @@ void SV_EmitCSQCUpdate(client_t *client, sizebuf_t *msg)
 
 			mask = (unsigned)ent->entnum | 0x8000;
 			MSG_WriteShort(msg, mask);
-			Con_Printf("Sending remove 2 packet\n");
+//			Con_Printf("Sending remove 2 packet\n");
 		}
 		client->csqcentversions[ent->entnum] = sv.csqcentversion[ent->entnum];
 		client->csqcentsequence[ent->entnum] = currentsequence;
@@ -392,7 +392,7 @@ void SV_EmitCSQCUpdate(client_t *client, sizebuf_t *msg)
 					MSG_WriteByte(msg, svc_csqcentities);
 				}
 
-				Con_Printf("Sending remove packet %i\n", en);
+//				Con_Printf("Sending remove packet %i\n", en);
 				mask = (unsigned)en | 0x8000;
 				MSG_WriteShort(msg, mask);
 
@@ -1450,7 +1450,7 @@ void SV_WritePlayersToClient (client_t *client, edict_t *clent, qbyte *pvs, size
 
 		if (progstype != PROG_QW)
 		{
-			if (progstype == PROG_H2 && (int)ent->v->effects & EF_NODRAW && ent != clent)
+			if (progstype == PROG_H2 && (int)ent->v->effects & H2EF_NODRAW && ent != clent)
 				continue;
 
 			if ((int)ent->v->effects & EF_MUZZLEFLASH)
@@ -1502,7 +1502,7 @@ void SV_WritePlayersToClient (client_t *client, edict_t *clent, qbyte *pvs, size
 			clst.velocity = vent->v->velocity;
 			clst.effects = ent->v->effects;
 
-			if (((int)vent->v->effects & EF_NODRAW) && progstype == PROG_H2)
+			if (progstype == PROG_H2 && ((int)vent->v->effects & H2EF_NODRAW))
 			{
 				clst.effects = 0;
 				clst.modelindex = 0;
@@ -2095,7 +2095,7 @@ void SV_WriteEntitiesToClient (client_t *client, sizebuf_t *msg, qboolean ignore
 		state->fatness = clent->v->fatness;
 #endif
 
-		if (state->effects & EF_FLAG1)
+		if (state->effects & QWEF_FLAG1)
 		{
 			memcpy(&pack->entities[pack->num_entities], state, sizeof(*state));
 			state = &pack->entities[pack->num_entities];
@@ -2105,7 +2105,7 @@ void SV_WriteEntitiesToClient (client_t *client, sizebuf_t *msg, qboolean ignore
 			state->number++;
 			state->skinnum = 0;
 		}
-		else if (state->effects & EF_FLAG2)
+		else if (state->effects & QWEF_FLAG2)
 		{
 			memcpy(&pack->entities[pack->num_entities], state, sizeof(*state));
 			state = &pack->entities[pack->num_entities];
@@ -2131,7 +2131,7 @@ void SV_WriteEntitiesToClient (client_t *client, sizebuf_t *msg, qboolean ignore
 
 		if (progstype != PROG_QW)
 		{
-			if (progstype == PROG_H2 && (int)ent->v->effects & EF_NODRAW)
+			if (progstype == PROG_H2 && (int)ent->v->effects & H2EF_NODRAW)
 				continue;
 			if ((int)ent->v->effects & EF_MUZZLEFLASH)
 			{

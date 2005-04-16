@@ -33,17 +33,6 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 
 #include <ctype.h>
 
-//imap exports
-extern void IMAP_CreateConnection(char *servername, char *username, char *password);
-extern cvar_t imap_checkfrequency;
-extern void IMAP_Think (void);
-
-//pop3
-extern void POP3_CreateConnection(char *servername, char *username, char *password);
-extern cvar_t pop3_checkfrequency;
-extern void POP3_Think (void);
-
-
 // we need to declare some mouse variables here, because the menu system
 // references them even when on a unix system.
 
@@ -114,6 +103,7 @@ cvar_t	r_rocketlight	= {"r_rocketlight",	"1"};
 cvar_t	r_lightflicker	= {"r_lightflicker",	"1"};
 cvar_t	cl_r2g			= {"cl_r2g",	"0"};
 cvar_t	r_powerupglow	= {"r_powerupglow", "1"};
+cvar_t	v_powerupshell	= {"v_powerupshell", "0"};
 cvar_t	cl_gibfilter	= {"cl_gibfilter", "0"};
 cvar_t	cl_deadbodyfilter	= {"cl_deadbodyfilter", "0"};
 
@@ -366,8 +356,10 @@ void CL_SendConnectPacket (
 
 	fteprotextsupported &= ftepext;
 
+#ifdef Q2CLIENT
 	if (cls.q2server)
 		fteprotextsupported = 0;
+#endif
 
 	cls.fteprotocolextensions = fteprotextsupported;
 #endif
@@ -964,6 +956,8 @@ void CL_Disconnect (void)
 
 	COM_FlushTempoaryPacks();
 
+	cl.spectator = 0;
+
 #ifdef NQPROT
 	cls.signon=0;
 	NET_Close(cls.netcon);
@@ -1084,7 +1078,7 @@ void CL_Color_f (void)
 		return;
 	}
 
-	if (Cmd_FromServer())
+	if (Cmd_FromGamecode())
 		server_owns_colour = true;
 	else
 		server_owns_colour = false;
@@ -1200,6 +1194,8 @@ void CL_CheckServerInfo(void)
 
 
 	cls.maxfps = atof(Info_ValueForKey(cl.serverinfo, "maxfps"));
+	if (cls.maxfps < 20)
+		cls.maxfps = 72;
 
 	if (!atoi(Info_ValueForKey(cl.serverinfo, "deathmatch")))
 		cls.gamemode = GAME_COOP;
@@ -1265,7 +1261,7 @@ void CL_FullServerinfo_f (void)
 	char *p;
 	float v;
 
-	if (!Cmd_FromServer())
+	if (!Cmd_FromGamecode())
 	{
 		Con_Printf("Hey! fullserverinfo is meant to come from the server!\n");
 		return;
@@ -1428,7 +1424,7 @@ void CL_Packet_f (void)
 		return;
 	}
 
-	if (Cmd_FromServer())	//some mvd servers stuffcmd a packet command which lets them know which ip the client is from.
+	if (Cmd_FromGamecode())	//some mvd servers stuffcmd a packet command which lets them know which ip the client is from.
 	{						//unfortunatly, 50% of servers are badly configured.
 		if (adr.type == NA_IP)
 			if (adr.ip[0] == 127)
@@ -1441,7 +1437,7 @@ void CL_Packet_f (void)
 				adr.ip[2] = cls.netchan.remote_address.ip[2];
 				adr.ip[3] = cls.netchan.remote_address.ip[3];
 				adr.port = cls.netchan.remote_address.port;
-				Con_Printf ("^b^1Server is broken. Ignoring 'realip' packet request\n");
+				Con_Printf ("^b^1Server is broken. Trying to send to server instead.\n");
 
 			}
 
@@ -1839,7 +1835,9 @@ client_connect:	//fixme: make function
 #ifdef NQPROT
 		cls.netchan.qsocket = cls.netcon;
 #endif
+#ifdef Q3CLIENT
 		if (cls.q2server < 2)
+#endif
 			CL_SendClientCommand(true, "new");
 		cls.state = ca_connected;
 		Con_TPrintf (TLC_CONNECTED);
@@ -2093,7 +2091,7 @@ void CL_Download_f (void)
 #ifdef WEBCLIENT
 	if (!strnicmp(url, "http://", 7) || !strnicmp(url, "ftp://", 6))
 	{
-		if (Cmd_FromServer())
+		if (Cmd_IsInsecure())
 			return;
 		HTTP_CL_Get(url, Cmd_Argv(2));//"test.txt");
 		return;
@@ -2123,7 +2121,7 @@ void CL_Download_f (void)
 		return;
 	}
 
-	if (Cmd_FromServer())	//mark server specified downloads.
+	if (Cmd_IsInsecure())	//mark server specified downloads.
 	{
 		if (!strncmp(url, "game", 4) || !strcmp(url, "progs.dat") || !strcmp(url, "menu.dat") || !strcmp(url, "csqc.dat") || !strcmp(url, "qwprogs.dat") || strstr(url, "..") || strstr(url, ".dll") || strstr(url, ".so"))
 		{	//yes, I know the user can use a different progs from the one that is specified. If you leave it blank there will be no problem. (server isn't allowed to stuff progs cvar)
@@ -2215,17 +2213,6 @@ void CL_FTP_f(void)
 void CL_IRC_f(void)
 {	
 	IRC_Command(Cmd_Args()); 
-}
-#endif
-#ifdef EMAILCLIENT
-void CL_IMAPPoll_f(void)
-{	
-	IMAP_CreateConnection(Cmd_Argv(1), Cmd_Argv(2), Cmd_Argv(3)); 
-}
-
-void CL_POP3Poll_f(void)
-{	
-	POP3_CreateConnection(Cmd_Argv(1), Cmd_Argv(2), Cmd_Argv(3)); 
 }
 #endif
 
@@ -2322,6 +2309,7 @@ void CL_Init (void)
 	Cvar_Register (&r_lightflicker, "Item effects");
 	Cvar_Register (&cl_r2g, "Item effects");
 	Cvar_Register (&r_powerupglow, "Item effects");
+	Cvar_Register (&r_powerupglow, "v_powerupshell");
 
 	Cvar_Register (&cl_gibfilter, "Item effects");
 	Cvar_Register (&cl_deadbodyfilter, "Item effects");
@@ -2357,14 +2345,6 @@ void CL_Init (void)
 #endif
 #ifdef WEBCLIENT
 	Cmd_AddCommand ("ftp", CL_FTP_f);
-#endif
-
-#ifdef EMAILCLIENT
-	Cvar_Register (&imap_checkfrequency,	"Email notifications");
-	Cmd_AddCommand ("imapaccount", CL_IMAPPoll_f);
-
-	Cvar_Register (&pop3_checkfrequency,	"Email notifications");
-	Cmd_AddCommand ("pop3account", CL_POP3Poll_f);
 #endif
 
 	Cmd_AddCommand ("version", CL_Version_f);
@@ -2584,7 +2564,7 @@ extern qboolean recordingdemo;
 extern cvar_t cl_netfps;
 int		nopacketcount;
 void SNDDMA_SetUnderWater(qboolean underwater);
-qboolean CL_FilterTime (double time, float wantfps);
+float CL_FilterTime (double time, float wantfps);
 void Host_Frame (float time)
 {
 	static double		time1 = 0;
@@ -2593,6 +2573,7 @@ void Host_Frame (float time)
 	int			pass1, pass2, pass3;
 //	float fps;
 	float realframetime;
+	static float spare;
 
 	RSpeedLocals();
 
@@ -2625,10 +2606,6 @@ void Host_Frame (float time)
 #ifdef IRCCLIENT
 	IRC_Frame();
 #endif
-#ifdef EMAILCLIENT
-	IMAP_Think();
-	POP3_Think();
-#endif
 
 #ifdef PLUGINS
 	Plug_Tick();
@@ -2641,18 +2618,6 @@ void Host_Frame (float time)
 
 	if (cl.paused)
 		cl.gametimemark += time;
-
-
-#if defined(NQPROT) || defined(Q2CLIENT)
-#if defined(NQPROT) && defined(Q2CLIENT)
-	if (cls.q2server || cls.demoplayback == DPB_NETQUAKE)
-#elif defined(NQPROT)
-	if (cls.demoplayback == DPB_NETQUAKE)
-#elif defined(Q2CLIENT)
-	if (cls.q2server)
-#endif
-		cl.time += time;
-#endif
 
 
 
@@ -2678,12 +2643,34 @@ void Host_Frame (float time)
 	}
 	else
 	{
-		if (!CL_FilterTime((realtime - oldrealtime)*1000, cl_maxfps.value>0?cl_maxfps.value:cl_netfps.value))
+		realtime += spare/1000;	//don't use it all!
+		spare = CL_FilterTime((realtime - oldrealtime)*1000, cl_maxfps.value>0?cl_maxfps.value:cl_netfps.value);
+		if (!spare)
 			return;
+		if (spare < 0 || cls.state < ca_onserver)
+			spare = 0;	//uncapped.
+		if (spare > 10)
+			spare = 10;
+
+		realtime -= spare/1000;	//don't use it all!
 	}
 
 	host_frametime = (realtime - oldrealtime)*cl.gamespeed;
 	oldrealtime = realtime;
+
+
+#if defined(NQPROT) || defined(Q2CLIENT)
+#if defined(NQPROT) && defined(Q2CLIENT)
+	if (cls.q2server || cls.demoplayback == DPB_NETQUAKE)
+#elif defined(NQPROT)
+	if (cls.demoplayback == DPB_NETQUAKE)
+#elif defined(Q2CLIENT)
+	if (cls.q2server)
+#endif
+		cl.time += host_frametime;
+#endif
+
+
 //	if (host_frametime > 0.2)
 //		host_frametime = 0.2;
 		
@@ -2745,7 +2732,7 @@ void Host_Frame (float time)
 		}
 	}
 
-	RSpeedEnd(RSPEED_CLIENT);
+	RSpeedEnd(RSPEED_PROTOCOL);
 
 	// update video
 	if (host_speeds.value)
@@ -2755,6 +2742,13 @@ void Host_Frame (float time)
 	if (SCR_UpdateScreen)
 	{
 		extern mleaf_t	*r_viewleaf;
+		extern cvar_t scr_chatmodecvar;
+
+		if (scr_chatmodecvar.value && !cl.intermission)
+			scr_chatmode = (cl.spectator&&cl.splitclients<2&&cls.state == ca_active)?2:1;
+		else
+			scr_chatmode = 0;
+
 		SCR_UpdateScreen ();
 		if (cls.state >= ca_active && r_viewleaf)
 			SNDDMA_SetUnderWater(r_viewleaf->contents <= Q1CONTENTS_WATER);

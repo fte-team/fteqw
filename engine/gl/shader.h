@@ -176,6 +176,14 @@ typedef struct shaderpass_s {
 	} flags;
 } shaderpass_t;
 
+typedef struct
+{
+	mesh_t			meshes[5];
+
+	int				farbox_textures[6];
+	int				nearbox_textures[6];
+} skydome_t;
+
 typedef struct shader_s {
 	int numpasses;	//careful... 0 means it's not loaded... and not actually a proper shader.
 	struct shader_s *next;
@@ -209,17 +217,14 @@ typedef struct shader_s {
 
 	shadersort_t sort;
 
+	skydome_t	*skydome;
+
 	meshfeatures_t features;
 
 	int registration_sequence;
 } shader_t;
 
 
-
-
-void GLR_MeshInit(void);
-void GL_DrawMesh(mesh_t *mesh, shader_t *shader, int texturenum, int lmtexturenum);
-void GL_DrawMeshBump(mesh_t *mesh, int texturenum, int lmtexturenum, int bumpnum, int deluxnum);
 
 
 void R_RenderMeshGeneric ( meshbuffer_t *mb, shaderpass_t *pass );

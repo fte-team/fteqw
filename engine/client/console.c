@@ -290,7 +290,7 @@ void QT_Create(char *command)
 
 void Con_QTerm_f(void)
 {
-	if(Cmd_FromServer())
+	if(Cmd_IsInsecure())
 		Con_Printf("Server tried stuffcmding a restricted commandqterm %s\n", Cmd_Args());
 	else
 		QT_Create(Cmd_Args());
@@ -411,7 +411,10 @@ void Con_ResizeCon (console_t *con)
 	int		i, j, width, oldwidth, oldtotallines, numlines, numchars;
 	unsigned short	tbuf[CON_TEXTSIZE];	
 
-	width = (vid.width >> 3) - 2;
+	if (scr_chatmode == 2)
+		width = (vid.width >> 4) - 2;
+	else
+		width = (vid.width >> 3) - 2;
 
 	if (width == con->linewidth)
 		return;

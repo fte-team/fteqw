@@ -349,7 +349,7 @@ void GLR_PushDlights (void)
 
 	
 	l = cl_dlights;
-	for (i=0 ; i<MAX_DLIGHTS ; i++, l++)
+	for (i=0 ; i<MAX_SWLIGHTS ; i++, l++)
 	{
 		if (!l->radius || l->nodynamic)
 			continue;
@@ -359,7 +359,7 @@ void GLR_PushDlights (void)
 /*
 	if (cl.worldmodel->fromgame == fg_quake3)
 	{
-		for (i=0 ; i<MAX_DLIGHTS ; i++, l++)
+		for (i=0 ; i<MAX_SWLIGHTS ; i++, l++)
 		{
 			if (l->die < cl.time || !l->radius)
 				continue;
@@ -369,7 +369,7 @@ void GLR_PushDlights (void)
 	}
 	if (cl.worldmodel->fromgame == fg_quake2)
 	{
-		for (i=0 ; i<MAX_DLIGHTS ; i++, l++)
+		for (i=0 ; i<MAX_SWLIGHTS ; i++, l++)
 		{
 			if (l->die < cl.time || !l->radius)
 				continue;

@@ -273,8 +273,10 @@ static ov_callbacks callbacks = {
 qboolean OV_StartDecode(unsigned char *start, unsigned long length, ovdecoderbuffer_t *buffer)
 {
 #ifdef WINDOWSDYNAMICLINK
-	if (!oggvorbislibrary)
+	static qboolean tried;
+	if (!oggvorbislibrary && !tried)
 	{
+		tried = true;
 		oggvorbislibrary = LoadLibrary("vorbisfile.dll");
 		if (!oggvorbislibrary)
 		{
@@ -304,7 +306,7 @@ qboolean OV_StartDecode(unsigned char *start, unsigned long length, ovdecoderbuf
   /* Print the comments plus a few lines about the bitstream we're
      decoding */
   {
-    char **ptr=p_ov_comment(&buffer->vf,-1)->user_comments;
+//    char **ptr=p_ov_comment(&buffer->vf,-1)->user_comments;
     vorbis_info *vi=p_ov_info(&buffer->vf,-1);
 
 	if (vi->channels < 1 || vi->channels > 2)
@@ -316,16 +318,16 @@ qboolean OV_StartDecode(unsigned char *start, unsigned long length, ovdecoderbuf
 	buffer->mediasc.stereo = vi->channels-1;
 	buffer->mediasc.loopstart = -1;
 	buffer->srcspeed = vi->rate;
-
+/*
     while(*ptr){
       Con_Printf("%s\n",*ptr);
-      ++ptr;
+      ptr++;
     }
     Con_Printf("\nBitstream is %d channel, %ldHz\n",vi->channels,vi->rate);
     Con_Printf("\nDecoded length: %ld samples\n",
 	    (long)p_ov_pcm_total(&buffer->vf,-1));
     Con_Printf("Encoded by: %s\n\n",p_ov_comment(&buffer->vf,-1)->vendor);
-  }
+*/  }
 	return true;
 }
 #endif

@@ -840,7 +840,6 @@ int Matrix3_Compare(mat3_t in, mat3_t out)
 extern model_t		*currentmodel;
 
 #define clamp(v,min,max) (v) = (((v)<(min))?(min):(((v)>(max))?(max):(v)))
-#define bound(min,v,max) (((v)<(min))?(min):(((v)>(max))?(max):(v)))
 
 extern qbyte FloatToByte( float x );
 
@@ -2802,7 +2801,7 @@ void R_FinishMeshBuffer ( meshbuffer_t *mb )
 
 		qglEnable ( GL_BLEND );
 		qglDisable ( GL_ALPHA_TEST );
-		qglDepthMask ( GL_FALSE );
+//		qglDepthMask ( GL_FALSE );
 
 //FIZME
 //		if ( dlight ) {

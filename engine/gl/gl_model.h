@@ -93,12 +93,14 @@ m*_t structures are in-memory
 #define	EF_MUZZLEFLASH 			2
 #define	EF_BRIGHTLIGHT 			4
 #define	EF_DIMLIGHT 			8
-#define	EF_FLAG1	 			16
-#define	EF_FLAG2	 			32
+#define	QWEF_FLAG1	 			16	//only applies to player entities
+#define NQEF_NODRAW				16	//so packet entities are free to get this instead
+#define	QWEF_FLAG2	 			32	//only applies to player entities
+#define NQEF_ADDATIVE			32	//so packet entities are free to get this instead
 #define EF_BLUE					64
 #define EF_RED					128
 
-#define	EF_NODRAW				0x80	//this is going to get complicated...
+#define	H2EF_NODRAW				0x80	//this is going to get complicated...
 
 /*
 ==============================================================================
@@ -253,9 +255,6 @@ typedef struct msurface_s
 #endif
 	mesh_t		*mesh;
 	entity_t	*ownerent;
-	glpoly_t	*polys;				// multiple if warped
-//	vec3_t		center;	//adverage
-//	float		radius;	//max dist from center
 	struct	msurface_s	*texturechain;
 
 	vec3_t normal;

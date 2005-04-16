@@ -184,6 +184,9 @@ void Draw_FunStringLen(int x, int y, unsigned char *str, int len)
 
 	while(*str)
 	{
+		if (--len< 0)
+			break;
+
 		if (*str == '^')
 		{
 			str++;
@@ -239,8 +242,6 @@ void Draw_FunStringLen(int x, int y, unsigned char *str, int len)
 		}
 		Draw_ColouredCharacter (x, y, (*str++) + ext);
 		x += 8;
-		if (--len< 0)
-			break;
 	}
 }
 
@@ -1610,7 +1611,7 @@ void Sbar_Draw (void)
 
 	for (pnum = 0; pnum < cl.splitclients; pnum++)
 	{
-		if (cl.splitclients>1)
+		if (cl.splitclients>1 || scr_chatmode)
 		{
 			SCR_VRectForPlayer(&sbar_rect, pnum);
 		}
@@ -2069,7 +2070,9 @@ void Sbar_ChatModeOverlay(void)
 // scores	
 	Sbar_SortFrags (true);
 
-	if (cl.playernum[0]>=0 && cl.playernum[0]<MAX_CLIENTS)
+	if (Cam_TrackNum(0)>=0)
+		Q_strncpyz (team, Info_ValueForKey(cl.players[Cam_TrackNum(0)].userinfo, "team"), sizeof(team));
+	else if (cl.playernum[0]>=0 && cl.playernum[0]<MAX_CLIENTS)
 		Q_strncpyz (team, Info_ValueForKey(cl.players[cl.playernum[0]].userinfo, "team"), sizeof(team));
 	else
 		*team = '\0';
@@ -2108,7 +2111,12 @@ void Sbar_ChatModeOverlay(void)
 			Draw_Fill ( x, y, 8, 4, top);
 		Draw_Fill ( x, y+4, 8, 4, bottom);
 
-		if (k == cl.playernum[0] && 0)
+		if (cl.spectator && k == Cam_TrackNum(0))
+		{
+			Draw_Character ( x, y, 16);
+			Draw_Character ( x+vid.width/2-16, y, 17);
+		}
+		else if (!cl.spectator && k == cl.playernum[0])
 		{
 			Draw_Character ( x, y, 16);
 			Draw_Character ( x+vid.width/2-16, y, 17);

@@ -42,7 +42,7 @@ void Cache_FreeHigh (int new_high_hunk);
 
 //must be multiple of 4.
 #define TEMPDEBUG 4
-#define ZONEDEBUG 64
+#define ZONEDEBUG 4
 #define HUNKDEBUG 4
 #define CACHEDEBUG 4
 

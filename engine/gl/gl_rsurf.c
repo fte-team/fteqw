@@ -66,7 +66,6 @@ extern cvar_t r_loadlits;
 extern cvar_t r_stainfadetime;
 extern cvar_t r_stainfadeammount;
 
-extern cvar_t gl_waterripples;
 extern cvar_t gl_lightmapmode;
 
 
@@ -383,7 +382,7 @@ void GLR_AddDynamicLights (msurface_t *surf)
 	tmax = (surf->extents[1]>>4)+1;
 	tex = surf->texinfo;
 
-	for (lnum=0 ; lnum<MAX_DLIGHTS ; lnum++)
+	for (lnum=0 ; lnum<MAX_SWLIGHTS ; lnum++)
 	{
 		if ( !(surf->dlightbits & (1<<lnum) ) )
 			continue;		// not lit by this light
@@ -451,7 +450,7 @@ void GLR_AddDynamicLightNorms (msurface_t *surf)
 	tmax = (surf->extents[1]>>4)+1;
 	tex = surf->texinfo;
 
-	for (lnum=0 ; lnum<MAX_DLIGHTS ; lnum++)
+	for (lnum=0 ; lnum<MAX_SWLIGHTS ; lnum++)
 	{
 		if ( !(surf->dlightbits & (1<<lnum) ) )
 			continue;		// not lit by this light
@@ -525,7 +524,7 @@ void GLR_AddDynamicLightsColours (msurface_t *surf)
 	tmax = (surf->extents[1]>>4)+1;
 	tex = surf->texinfo;
 
-	for (lnum=0 ; lnum<MAX_DLIGHTS ; lnum++)
+	for (lnum=0 ; lnum<MAX_SWLIGHTS ; lnum++)
 	{
 		if ( !(surf->dlightbits & (1<<lnum) ) )
 			continue;		// not lit by this light
@@ -1753,11 +1752,14 @@ DrawGLWaterPoly
 Warp the vertex coordinates
 ================
 */
-static void DrawGLWaterPoly (glpoly_t *p)
+static void DrawGLWaterPoly (mesh_t *p)
 {
+	Sys_Error("DrawGLWaterPoly needs work");
+/*
 	int		i;
 	float	*v;
 	vec3_t	nv;
+	
 
 	GL_DisableMultitexture();
 
@@ -1774,38 +1776,18 @@ static void DrawGLWaterPoly (glpoly_t *p)
 		qglVertex3fv (nv);
 	}
 	qglEnd ();
+*/
 }
-#if 0
-static void DrawGLWaterPolyLightmap (glpoly_t *p)
-{
-	int		i;
-	float	*v;
-	vec3_t	nv;
 
-	GL_DisableMultitexture();
-
-	glBegin (GL_TRIANGLE_FAN);
-	v = p->verts[0];
-	for (i=0 ; i<p->numverts ; i++, v+= VERTEXSIZE)
-	{
-		glTexCoord2f (v[5], v[6]);
-
-		nv[0] = v[0] + 8*sin(v[1]*0.05+realtime)*sin(v[2]*0.05+realtime);
-		nv[1] = v[1] + 8*sin(v[0]*0.05+realtime)*sin(v[2]*0.05+realtime);
-		nv[2] = v[2];
-
-		glVertex3fv (nv);
-	}
-	glEnd ();
-}
-#endif
 /*
 ================
 DrawGLPoly
 ================
 */
-static void DrawGLPoly (glpoly_t *p)
+static void DrawGLPoly (mesh_t *p)
 {
+	Sys_Error("DrawGLWaterPoly needs work");
+	/*
 	int		i;
 	float	*v;
 
@@ -1821,6 +1803,7 @@ static void DrawGLPoly (glpoly_t *p)
 		qglEnd ();
 		p=p->next;
 	}
+	*/
 }
 
 
@@ -1953,9 +1936,9 @@ void R_RenderBrushPoly (msurface_t *fa)
 	if (((r_viewleaf->contents==Q1CONTENTS_EMPTY && (fa->flags & SURF_UNDERWATER)) ||
 		(r_viewleaf->contents!=Q1CONTENTS_EMPTY && !(fa->flags & SURF_UNDERWATER)))
 		&& !(fa->flags & SURF_DONTWARP))
-		DrawGLWaterPoly (fa->polys);
+		DrawGLWaterPoly (fa->mesh);
 	else
-		DrawGLPoly (fa->polys);
+		DrawGLPoly (fa->mesh);
 }
 
 /*
@@ -1971,7 +1954,7 @@ void R_RenderDynamicLightmaps (msurface_t *fa)
 	glRect_t    *theRect;
 	int smax, tmax;
 
-	if (!fa->polys)
+	if (!fa->mesh)
 		return;
 
 	c_brush_polys++;
@@ -2110,14 +2093,6 @@ void GLR_DrawWaterSurfaces (void)
 		GL_TexEnv(GL_MODULATE);
 	}
 
-	if (gl_waterripples.value)
-	{
-		qglTexGeni(GL_S, GL_TEXTURE_GEN_MODE, GL_SPHERE_MAP);
-		qglTexGeni(GL_T, GL_TEXTURE_GEN_MODE, GL_SPHERE_MAP);
-		qglEnable(GL_TEXTURE_GEN_S);
-		qglEnable(GL_TEXTURE_GEN_T);
-	}
-
 	for (i=0 ; i<cl.worldmodel->numtextures ; i++)
 	{
 		t = cl.worldmodel->textures[i];
@@ -2143,10 +2118,6 @@ void GLR_DrawWaterSurfaces (void)
 		qglColor4f (1,1,1,1);
 		qglDisable (GL_BLEND);
 	}
-
-	qglDisable(GL_TEXTURE_GEN_S);
-	qglDisable(GL_TEXTURE_GEN_T);
-
 }
 
 
@@ -2192,6 +2163,8 @@ static void GLR_DrawAlphaSurface(msurface_t	*s)
 		}
 		else
 		{
+			Sys_Error("GLR_DrawAlphaSurface needs work");
+			/*
 			if (gl_mtexable)
 			{
 				int i;
@@ -2220,12 +2193,13 @@ static void GLR_DrawAlphaSurface(msurface_t	*s)
 				GL_DisableMultitexture();
 			}
 			else
+			*/
 			{
 				if (s->samples)	//could do true vertex lighting... ?
 					qglColor4ub (*s->samples,*s->samples,*s->samples,255);
 				else
 					qglColor4f (1,1,1,1);
-				DrawGLPoly (s->polys);
+				DrawGLPoly (s->mesh);
 			}
 		}
 
@@ -2238,7 +2212,7 @@ static void GLR_DrawAlphaSurface(msurface_t	*s)
 //	else if(s->texinfo->flags & SURF_FLOWING)			// PGM	9/16/98
 //		DrawGLFlowingPoly (s);							// PGM
 	else
-		DrawGLPoly (s->polys);
+		DrawGLPoly (s->mesh);
 
 	qglPopMatrix();
 }
@@ -2283,7 +2257,8 @@ void GLR_DrawAlphaSurfaces (void)
 				qglPushMatrix();
 				R_RotateForEntity(currententity);
 			}
-
+			Sys_Error("GLR_DrawAlphaSurfaces needs work");
+/*
 			if (gl_mtexable)
 			{
 				int i;
@@ -2313,12 +2288,13 @@ void GLR_DrawAlphaSurfaces (void)
 				GL_DisableMultitexture();
 			}
 			else
+*/
 			{
 				if (s->samples)	//could do true vertex lighting... ?
 					qglColor4ub (*s->samples,*s->samples,*s->samples,255);
 				else
 					qglColor4f (1,1,1,1);
-				DrawGLPoly (s->polys);
+				DrawGLPoly (s->mesh);
 				qglColor4f (1,1,1,1);
 			}
 			continue;
@@ -2784,7 +2760,7 @@ static void R_DrawBrushModel (entity_t *e)
 // instanced model
 	if (currentmodel->firstmodelsurface != 0 && !r_flashblend.value)
 	{
-		for (k=0 ; k<MAX_DLIGHTS ; k++)
+		for (k=0 ; k<MAX_SWLIGHTS ; k++)
 		{
 			if ((cl_dlights[k].die < cl.time) ||
 				(!cl_dlights[k].radius))
@@ -2867,6 +2843,8 @@ static void GLR_RecursiveWorldNode (mnode_t *node)
 	mleaf_t		*pleaf;
 	double		dot;
 
+start:
+
 	if (node->contents == Q1CONTENTS_SOLID)
 		return;		// solid
 
@@ -2874,7 +2852,7 @@ static void GLR_RecursiveWorldNode (mnode_t *node)
 		return;
 	if (R_CullBox (node->minmaxs, node->minmaxs+3))
 		return;
-	
+
 // if a leaf node, draw stuff
 	if (node->contents < 0)
 	{
@@ -2944,15 +2922,8 @@ static void GLR_RecursiveWorldNode (mnode_t *node)
 				if (surf->visframe != r_framecount)
 					continue;
 
-//				surf->visframe = -1;
-
-				// don't backface underwater surfaces, because they warp
-				if ( !(surf->flags & SURF_UNDERWATER) && ( (dot < 0) ^ !!(surf->flags & SURF_PLANEBACK)) )
-					continue;		// wrong side
-				if ( !(((r_viewleaf->contents==Q1CONTENTS_EMPTY && (surf->flags & SURF_UNDERWATER)) ||
-					(r_viewleaf->contents!=Q1CONTENTS_EMPTY && !(surf->flags & SURF_UNDERWATER)))
-					&& !(surf->flags & SURF_DONTWARP)) && ( (dot < 0) ^ !!(surf->flags & SURF_PLANEBACK)) )
-					continue;		// wrong side
+//				if (((dot < 0) ^ !!(surf->flags & SURF_PLANEBACK)))
+//					continue;		// wrong side
 
 				R_RenderDynamicLightmaps (surf);
 				// if sorting by texture, just store it out
@@ -2972,7 +2943,9 @@ static void GLR_RecursiveWorldNode (mnode_t *node)
 	}
 
 // recurse down the back side
-	GLR_RecursiveWorldNode (node->children[!side]);
+	//GLR_RecursiveWorldNode (node->children[!side]);
+	node = node->children[!side];
+	goto start;
 }
 
 #ifdef Q2BSPS
@@ -3106,7 +3079,7 @@ static void GLR_LeafWorldNode (void)
 		{
 			if (! (areabits[pleaf->area>>3] & (1<<(pleaf->area&7)) ) )
 			{
-	//			continue;		// not visible
+				continue;		// not visible
 			}
 		}
 
@@ -3138,34 +3111,9 @@ static void GLR_LeafWorldNode (void)
 			if ( surf->visframe != r_framecount )	//sufraces exist in multiple leafs.
 			{
 				surf->visframe = r_framecount;
-//				if (surf->mesh)
-//				{
-//					GL_DrawMesh(surf->mesh, NULL, surf->texinfo->texture->gl_texturenum, lightmap_textures+ surf->lightmaptexturenum);
-//				}
-//				else
-//					R_DrawSequentialPoly ( surf );
 
-
-
-			/*	if (surf->flags & SURF_DRAWALPHA)
-				{	// add to the translucent chain
-					surf->nextalphasurface = r_alpha_surfaces;
-					r_alpha_surfaces = surf;
-					surf->ownerent = &r_worldentity;
-					continue;
-				}
-				else*/
-				{
-				/*	if (surf->texinfo->flags & (SURF_TRANS33|SURF_TRANS66))
-					{	// add to the translucent chain
-						surf->nextalphasurface = r_alpha_surfaces;
-						r_alpha_surfaces = surf;
-						surf->ownerent = &r_worldentity;
-						continue;
-					}*/
-					surf->texturechain = surf->texinfo->texture->texturechain;
-					surf->texinfo->texture->texturechain = surf;
-				}
+				surf->texturechain = surf->texinfo->texture->texturechain;
+				surf->texinfo->texture->texturechain = surf;
 			}
 		} while (--i);
 
@@ -3549,7 +3497,6 @@ void BuildSurfaceDisplayList (msurface_t *fa)
 	int			vertpage;
 	float		*vec;
 	float		s, t;
-	glpoly_t	*poly;
 	int	lm;
 
 // reconstruct the polygon
@@ -3559,8 +3506,8 @@ void BuildSurfaceDisplayList (msurface_t *fa)
 
 	if (lnumverts<3)
 		return;	//q3 map.
-#ifdef Q3SHADERS
-	if (fa->texinfo->texture->shader)
+//#ifdef Q3SHADERS
+//	if (fa->texinfo->texture->shader)
 	{	//build a nice mesh instead of a poly.
 		int size = sizeof(mesh_t) + sizeof(index_t)*(lnumverts-2)*3 + (sizeof(vec4_t) + sizeof(vec3_t) + 2*sizeof(vec2_t) + sizeof(byte_vec4_t))*lnumverts;
 		mesh_t *mesh;
@@ -3635,10 +3582,11 @@ void BuildSurfaceDisplayList (msurface_t *fa)
 
 		return;
 	}
-#endif
+//#endif
 	//
 	// draw texture
 	//
+	/*
 	poly = Hunk_AllocName (sizeof(glpoly_t) + (lnumverts-4) * VERTEXSIZE*sizeof(float), "SDList");
 	poly->next = fa->polys;
 	fa->polys = poly;
@@ -3685,19 +3633,8 @@ void BuildSurfaceDisplayList (msurface_t *fa)
 		poly->verts[i][6] = t;
 
 #ifdef SPECULAR
-/*		if (currentmodel->deluxdata&&fa->samples)
-		{
-			qbyte *dlm = fa->samples - currentmodel->lightdata + currentmodel->deluxdata;
-			dlm += lm;
-			poly->verts[i][7] = (dlm[0]-127)/128.0f;
-			poly->verts[i][8] = (dlm[1]-127)/128.0f;
-			poly->verts[i][9] = (dlm[2]-127)/128.0f;
-		}
-		else*/
-			if (fa->flags & SURF_PLANEBACK)
-		{
-				VectorNegate(fa->plane->normal, (poly->verts[i]+7));
-		}
+		if (fa->flags & SURF_PLANEBACK)
+			VectorNegate(fa->plane->normal, (poly->verts[i]+7));
 		else
 			VectorCopy(fa->plane->normal, (poly->verts[i]+7));
 #endif
@@ -3743,31 +3680,8 @@ void BuildSurfaceDisplayList (msurface_t *fa)
 		}
 	}
 
-#ifdef SHADERS	//adjust the s + t coords so we can rotate around the center of the texture rather than the center of the world.
-	s=0;t=0;
-	for (i=0 ; i<lnumverts ; i++)
-	{
-		s+=poly->verts[i][3];
-		t+=poly->verts[i][4];
-	}
-	poly->texcenter[0] = s/lnumverts;
-	poly->texcenter[1] = t/lnumverts;
-	
-	s = (int)poly->texcenter[0];
-	t = (int)poly->texcenter[1];
-	if (s <=0)s--;
-	if (t <=0)t--;
-	poly->texcenter[0] -= s;
-	poly->texcenter[1] -= t;
-	for (i=0 ; i<lnumverts ; i++)
-	{
-		poly->verts[i][3] -= s;
-		poly->verts[i][4] -= t;
-	}
-#endif
-
 	poly->numverts = lnumverts;
-
+	*/
 }
 
 /*
@@ -3781,21 +3695,20 @@ void GL_CreateSurfaceLightmap (msurface_t *surf)
 	qbyte	*base, *luxbase; stmap *stainbase;
 
 	if (surf->flags & (SURF_DRAWSKY|SURF_DRAWTURB))
-	{
 		surf->lightmaptexturenum = -1;
-		return;
-	}
-	if (currentmodel->fromgame == fg_halflife)
-		if (surf->texinfo->flags & TEX_SPECIAL)
-		{
-			surf->lightmaptexturenum = -1;
-			return;	//it comes in stupid sizes.
-		}
+	if (surf->texinfo->flags & TEX_SPECIAL)
+		surf->lightmaptexturenum = -1;
 	if (surf->lightmaptexturenum<0)
 		return;
 
 	smax = (surf->extents[0]>>4)+1;
 	tmax = (surf->extents[1]>>4)+1;
+
+	if (smax > LMBLOCK_WIDTH || tmax > LMBLOCK_HEIGHT || smax <= 0 || tmax <= 0)
+	{	//whoa, buggy.
+		surf->lightmaptexturenum = -1;
+		return;
+	}
 
 	if (currentmodel->fromgame == fg_quake3)
 		GLFillBlock(surf->lightmaptexturenum, smax, tmax, surf->light_s, surf->light_t);
@@ -3947,7 +3860,7 @@ void GL_BuildLightmaps (void)
 
 			GL_CreateSurfaceLightmap (m->surfaces + i);
 			P_EmitSkyEffectTris(m, &m->surfaces[i]);
-			if (m->surfaces[i].polys)	//there are some surfaces that have a display list already (the subdivided ones)
+			if (m->surfaces[i].mesh)	//there are some surfaces that have a display list already (the subdivided ones)
 				continue;
 			BuildSurfaceDisplayList (m->surfaces + i);
 		}

@@ -139,13 +139,13 @@ void Media_Seek (float time)
 #endif
 	for (sc = sndcardinfo; sc; sc=sc->next)
 	{
-		sc->channel[MAX_DYNAMIC_CHANNELS + NUM_AMBIENTS].pos += sc->sn.speed*time;
-		sc->channel[MAX_DYNAMIC_CHANNELS + NUM_AMBIENTS].end += sc->sn.speed*time;
+		sc->channel[NUM_AMBIENTS].pos += sc->sn.speed*time;
+		sc->channel[NUM_AMBIENTS].end += sc->sn.speed*time;
 
-		if (sc->channel[MAX_DYNAMIC_CHANNELS + NUM_AMBIENTS].pos < 0)
+		if (sc->channel[NUM_AMBIENTS].pos < 0)
 		{
-			sc->channel[MAX_DYNAMIC_CHANNELS + NUM_AMBIENTS].end -= sc->channel[MAX_DYNAMIC_CHANNELS + NUM_AMBIENTS].pos;
-			sc->channel[MAX_DYNAMIC_CHANNELS + NUM_AMBIENTS].pos=0;
+			sc->channel[NUM_AMBIENTS].end -= sc->channel[NUM_AMBIENTS].pos;
+			sc->channel[NUM_AMBIENTS].pos=0;
 		}
 		//if we seek over the end, ignore it. The sound playing code will spot that.
 	}
@@ -232,15 +232,17 @@ void Media_Clear (void)
 	soundcardinfo_t *sc;
 	for (sc = sndcardinfo; sc; sc=sc->next)
 	{
-		sc->channel[MAX_DYNAMIC_CHANNELS + NUM_AMBIENTS].end = 0;
-		s = sc->channel[MAX_DYNAMIC_CHANNELS + NUM_AMBIENTS].sfx;
-		sc->channel[MAX_DYNAMIC_CHANNELS + NUM_AMBIENTS].sfx = NULL;
+		sc->channel[NUM_AMBIENTS].end = 0;
+		s = sc->channel[NUM_AMBIENTS].sfx;
+		sc->channel[NUM_AMBIENTS].sfx = NULL;
 
 		if (s)
 		if (s->decoder)
 		if (!S_IsPlayingSomewhere(s))	//if we aint playing it elsewhere, free it compleatly.
 		{
 			s->decoder->abort(s);
+			if (s->cache.data)
+				Cache_Free(&s->cache);
 		}
 	}
 }
@@ -1437,7 +1439,7 @@ void Media_RecordFilm_f (void)
 		return;
 	}
 
-	if (Cmd_FromServer())	//err... don't think so sony.
+	if (Cmd_IsInsecure())	//err... don't think so sony.
 		return;
 
 	if (!aviinited)

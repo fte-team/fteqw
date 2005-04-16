@@ -924,6 +924,9 @@ void Editor_Draw(void)
 
 int QCLibEditor(char *filename, int line, int nump, char **parms)
 {
+	editprogfuncs = svprogfuncs;
+
+
 	if (editormodal || !developer.value)
 		return line;	//whoops
 

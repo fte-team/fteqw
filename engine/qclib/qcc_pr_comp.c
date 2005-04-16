@@ -4492,6 +4492,29 @@ void QCC_PR_GotoStatement (QCC_dstatement_t *patch2, char *labelname)
 	num_gotos++;
 }
 
+pbool QCC_PR_StatementBlocksMatch(QCC_dstatement_t *p1, int p1count, QCC_dstatement_t *p2, int p2count)
+{
+	if (p1count != p2count)
+		return false;
+
+	while(p1count>0)
+	{
+		if (p1->op != p2->op)
+			return false;
+		if (p1->a != p2->a)
+			return false;
+		if (p1->b != p2->b)
+			return false;
+		if (p1->c != p2->c)
+			return false;
+		p1++;
+		p2++;
+		p1count--;
+	}
+
+	return true;
+}
+
 /*
 ============
 PR_ParseStatement
@@ -4870,7 +4893,7 @@ void QCC_PR_ParseStatement (void)
 			int lastwasreturn;
 			lastwasreturn = statements[numstatements-1].op == OP_RETURN || statements[numstatements-1].op == OP_DONE;
 
-			//nothing jumped to it, so it's not a problem!
+			//the last statement of the if was a return, so we don't need the goto at the end
 			if (lastwasreturn && opt_compound_jumps && !QCC_AStatementJumpsTo(numstatements, patch1-statements, numstatements))
 			{
 //				QCC_PR_ParseWarning(0, "optimised the else");
@@ -4885,6 +4908,9 @@ void QCC_PR_ParseStatement (void)
 				patch1->b = &statements[numstatements] - patch1;
 				QCC_PR_ParseStatement ();
 				patch2->a = &statements[numstatements] - patch2;
+
+				if (QCC_PR_StatementBlocksMatch(patch1+1, patch2-patch1, patch2+1, &statements[numstatements] - patch2))
+					QCC_PR_ParseWarning(0, "Two identical blocks each side of an else");
 			}
 		}
 		else

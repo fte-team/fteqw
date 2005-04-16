@@ -451,7 +451,6 @@ void M_Menu_ParticleSets_f (void)
 
 	info->command[0] = "r_particlesdesc";
 	info->ext[0] = ".cfg";
-	info->command[1] = "playdemo";
 	info->numext = 1;
 
 	MC_AddWhiteText(menu, 24, 8, "Choose a Particle Set", false);

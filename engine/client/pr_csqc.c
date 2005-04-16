@@ -42,6 +42,9 @@ cvar_t	cl_csqcdebug = {"cl_csqcdebug", "0"};	//prints entity numbers which arriv
 	globalvector(trace_plane_normal,	"trace_plane_normal");	/*vector	written by traceline*/	\
 	globalfloat(trace_plane_dist,		"trace_plane_dist");	/*float		written by traceline*/	\
 	globalentity(trace_ent,				"trace_ent");			/*entity	written by traceline*/	\
+	\
+	globalfloat(player_localentnum,	"player_localentnum");	/*float		the entity number of the local player*/	\
+
 
 typedef struct {
 #define globalfloat(name,qcname) float *name
@@ -78,8 +81,12 @@ void CSQC_FindGlobals(void)
 #undef globalentity
 #undef globalstring
 #undef globalfunction
+
 	if (csqcg.time)
 		*csqcg.time = Sys_DoubleTime();
+
+	if (csqcg.player_localentnum)
+		*csqcg.player_localentnum = cl.playernum[0]+1;
 }
 
 

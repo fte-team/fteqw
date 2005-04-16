@@ -717,6 +717,7 @@ fixedorg:
 	}
 out:
 	CL_CalcCrouch (pnum);
+	cl.waterlevel[pnum] = pmove.waterlevel;
 }
 
 void CL_PredictMove (void)

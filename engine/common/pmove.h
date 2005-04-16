@@ -38,45 +38,13 @@ typedef struct
 	vec3_t	angles;
 	model_t	*model;		// only for bsp models
 	vec3_t	mins, maxs;	// only for non-bsp models
-	int		info;		// for client or server to identify
-	int		nonsolid:1;
-	int		notouch:1;
+	unsigned short	info;		// for client or server to identify
+	qbyte		nonsolid;
+	qbyte		notouch;
 } physent_t;
 
 typedef struct
 {
-/*	int		sequence;	// just for debugging prints
-
-	// player state
-	vec3_t	origin;
-	vec3_t	angles;
-	vec3_t	velocity;
-	int		oldbuttons;
-	float		waterjumptime;
-	qboolean	dead;
-	int		spectator;
-
-	int hullnum;
-
-	// world state
-	int		numphysent;
-	physent_t	physents[MAX_PHYSENTS];	// 0 should be the world
-
-	// input
-	usercmd_t	cmd;
-
-	// results
-	int		numtouch;
-	int		touchindex[MAX_PHYSENTS];
-	qboolean onground;
-	int groundent;
-
-	int waterlevel;
-	int watertype;
-
-	pmtype_t pm_type;*/
-
-
 	int			sequence;	// just for debugging prints
 
 	// player state

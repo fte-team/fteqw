@@ -40,6 +40,8 @@ struct mplane_s;
 extern vec3_t vec3_origin;
 extern	int nanmask;
 
+#define bound(min,num,max) ((num) >= (min) ? ((num) < (max) ? (num) : (max)) : (min))
+
 #define	IS_NAN(x) (((*(int *)&x)&nanmask)==nanmask)
 
 #define DotProduct(x,y) (x[0]*y[0]+x[1]*y[1]+x[2]*y[2])

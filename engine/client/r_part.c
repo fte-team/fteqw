@@ -287,7 +287,7 @@ qboolean P_DescriptionIsLoaded(char *name)
 
 static void P_SetModified(void)	//called when the particle system changes (from console).
 {
-	if (Cmd_FromServer())
+	if (Cmd_FromGamecode())
 		return;	//server stuffed particle descriptions don't count.
 
 	f_modified_particles = true;
@@ -608,13 +608,25 @@ void P_ParticleEffect_f(void)
 
 		// old names
 		else if (!strcmp(var, "areaspread"))
+		{
+			Con_DPrintf("areaspread is deprechiated, use spawnorg\n");
 			ptype->areaspread = atof(value);
+		}
 		else if (!strcmp(var, "areaspreadvert"))
+		{
+			Con_DPrintf("areaspreadvert is deprechiated, use spawnorg\n");
 			ptype->areaspreadvert = atof(value);
+		}
 		else if (!strcmp(var, "offsetspread"))
+		{
+			Con_DPrintf("offsetspread is deprechiated, use spawnvel\n");
 			ptype->offsetspread = atof(value);
+		}
 		else if (!strcmp(var, "offsetspreadvert"))
+		{
+			Con_DPrintf("offsetspreadvert is deprechiated, use spawnvel\n");
 			ptype->offsetspreadvert  = atof(value);
+		}
 
 		// new names
 		else if (!strcmp(var, "spawnorg"))
@@ -1170,7 +1182,20 @@ void P_NewServer(void)
 		Cbuf_AddText(particle_set_highfps, RESTRICT_SERVER);
 	else
 	{
-		Cbuf_AddText(va("exec %s.cfg\n", r_particlesdesc.string), RESTRICT_LOCAL);
+		char *file = COM_LoadMallocFile(va("particles/%s.cfg", r_particlesdesc.string));
+		if (!file)
+			file = COM_LoadMallocFile(va("%s.cfg", r_particlesdesc.string));
+		if (file)
+		{
+			Cbuf_AddText(file, RESTRICT_LOCAL);
+			Cbuf_AddText("\n", RESTRICT_LOCAL);	//I'm paranoid.
+			BZ_Free(file);
+		}
+		else
+		{
+			Con_Printf("Couldn't find particle description, using spikeset\n");
+			Cbuf_AddText(particle_set_spikeset, RESTRICT_SERVER);
+		}
 /*#if defined(_DEBUG) && defined(WIN32)	//expand the particles cfg into a C style quoted string, and copy to clipboard so I can paste it in.
 		{
 			char *TL_ExpandToCString(char *in);

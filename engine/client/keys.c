@@ -931,7 +931,7 @@ void Key_BindLevel_f (void)
 		return;
 	}
 
-	if (Cmd_FromServer())
+	if (Cmd_IsInsecure())
 	{
 		Con_Printf("Server attempted usage of bindat\n");
 		return;

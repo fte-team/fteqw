@@ -106,6 +106,8 @@ PFNGLGETINFOLOGARBPROC           qglGetInfoLogARB;
 PFNGLLINKPROGRAMARBPROC          qglLinkProgramARB;
 PFNGLGETUNIFORMLOCATIONARBPROC   qglGetUniformLocationARB;
 PFNGLUNIFORM4FARBPROC            qglUniform4fARB;
+PFNGLUNIFORM3FARBPROC            qglUniform3fARB;
+PFNGLUNIFORM3FVARBPROC           qglUniform3fvARB;
 PFNGLUNIFORM1IARBPROC            qglUniform1iARB;
 PFNGLUNIFORM1FARBPROC            qglUniform1fARB;
 
@@ -339,6 +341,8 @@ void GL_CheckExtensions (void *(*getglfunction) (char *name))
 		qglLinkProgramARB			= (void *)getglext("glLinkProgramARB");
 		qglGetUniformLocationARB	= (void *)getglext("glGetUniformLocationARB");
 		qglUniform4fARB				= (void *)getglext("glUniform4fARB");
+		qglUniform3fARB				= (void *)getglext("glUniform3fARB");
+		qglUniform3fvARB			= (void *)getglext("glUniform3fvARB");
 		qglUniform1iARB				= (void *)getglext("glUniform1iARB");
 		qglUniform1fARB				= (void *)getglext("glUniform1fARB");
 
@@ -349,29 +353,21 @@ void GL_CheckExtensions (void *(*getglfunction) (char *name))
 
 // glslang helper api function definitions
 // type should be GL_FRAGMENT_SHADER_ARB or GL_VERTEX_SHADER_ARB
-GLhandleARB GLSlang_CreateShader (char *shadersource, int shadertype)
+GLhandleARB GLSlang_CreateShader (char *precompilerconstants, char *shadersource, GLenum shadertype)
 {
 	GLhandleARB shader;
-	GLenum      type;
 	GLint       compiled;
 	char        str[1024];
 
-	switch (shadertype)
-	{
-	case 0:
-		type = GL_FRAGMENT_SHADER_ARB;
-		break;
-	case 1:
-		type = GL_VERTEX_SHADER_ARB;
-		break;
-	default:
-		return -1;
-		break;
-	}
+	char *prstrings[2];
+	if (!precompilerconstants)
+		precompilerconstants = "";
+	prstrings[0] = precompilerconstants;
+	prstrings[1] = shadersource;
 
-	shader = qglCreateShaderObjectARB(type);
+	shader = qglCreateShaderObjectARB(shadertype);
 
-	qglShaderSourceARB(shader, 1, (const GLcharARB**)&shadersource, NULL);
+	qglShaderSourceARB(shader, 2, (const GLcharARB**)prstrings, NULL);
 	qglCompileShaderARB(shader);
 
 	qglGetObjectParameterivARB(shader, GL_OBJECT_COMPILE_STATUS_ARB, &compiled);
@@ -380,23 +376,23 @@ GLhandleARB GLSlang_CreateShader (char *shadersource, int shadertype)
 		qglGetInfoLogARB(shader, sizeof(str), NULL, str);
 		switch (shadertype)
 		{
-		case 0:
+		case GL_FRAGMENT_SHADER_ARB:
 			Con_Printf("Fragment shader compilation error:\n----------\n%s\n----------\n", str);
 			break;
-		case 1:
+		case GL_VERTEX_SHADER_ARB:
 			Con_Printf("Vertex shader compilation error:\n----------\n%s\n----------\n", str);
 			break;
 		default:
 			Con_Printf("Shader_CreateShader: This shouldn't happen ever\n");
 			break;
 		}
-		return -1;
+		return 0;
 	}
 
 	return shader;
 }
 
-GLhandleARB GLSlang_CreateProgram (GLhandleARB vert, GLhandleARB frag)
+GLhandleARB GLSlang_CreateProgramObject (GLhandleARB vert, GLhandleARB frag)
 {
 	GLhandleARB program;
 	GLint       linked;
@@ -418,6 +414,21 @@ GLhandleARB GLSlang_CreateProgram (GLhandleARB vert, GLhandleARB frag)
 	}
 
 	return program;
+}
+
+GLhandleARB GLSlang_CreateProgram(char *precompilerconstants, char *vert, char *frag)
+{
+	GLhandleARB vs;
+	GLhandleARB fs;
+
+	if (!gl_config.arb_shader_objects)
+		return 0;
+
+	vs = GLSlang_CreateShader(precompilerconstants, vert, GL_VERTEX_SHADER_ARB);
+	fs = GLSlang_CreateShader(precompilerconstants, frag, GL_FRAGMENT_SHADER_ARB);
+	if (!vs || !fs)
+		return 0;
+	return GLSlang_CreateProgramObject(vs, fs);
 }
 
 GLint GLSlang_GetUniformLocation (int prog, char *name)

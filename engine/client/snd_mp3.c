@@ -158,8 +158,9 @@ sfxcache_t *S_LoadMP3Sound (sfx_t *s)
 		}
 	}
 
-	if (!s->decoder)
-		s->decoder = Z_Malloc(sizeof(decoderbuffer_t) + sizeof(sfxdecode_t));
+	if (s->decoder)
+		Sys_Error("Decoding already decoding file\n");
+	s->decoder = Z_Malloc(sizeof(decoderbuffer_t) + sizeof(sfxdecode_t));
 	buffer = (decoderbuffer_t*)(s->decoder+1);
 
 	buffer->mp3aswavpos=0;
@@ -182,6 +183,8 @@ sfxcache_t *S_LoadMP3Sound (sfx_t *s)
 	}
 
 	s->decoder->decodemore(s, 100);
+	if (!s->decoder)	//wow, short file. :/
+		return s->cache.data;
 
 	s->cache.fake=true;
 	return buffer->s->cache.data;
@@ -387,7 +390,7 @@ enum mad_flow error(void *data,
 	  stream->error, mad_stream_errorstr(stream),
 	  stream->this_frame - buffer->start);
 
-//  buffer->failed = true;
+  buffer->failed = true;
 
   return MAD_FLOW_IGNORE;
 }
@@ -438,7 +441,7 @@ int DecodeSomeMP3(sfx_t *s, int minlength)
 	if (!dec->start)
 		return 1;
 
-	while(dec->mp3sc.length < minlength)
+	while(dec->mp3sc.length <= minlength)
 	{
 		if (!mymad_run(&dec->decoder) || dec->failed)
 		{
@@ -455,9 +458,9 @@ int DecodeSomeMP3(sfx_t *s, int minlength)
 
 				s->cache.fake = false;	//give it a true cache now, and hope that we don't need to free it while it's still playing.
 				s->cache.data=NULL;
-				newmem = Cache_Alloc(&s->cache, dec->mp3aswavbuflen+sizeof(sfxcache_t), s->name);
 				if (dec->mp3aswavdata)
 				{
+					newmem = Cache_Alloc(&s->cache, dec->mp3aswavbuflen+sizeof(sfxcache_t), s->name);
 					memcpy(newmem, dec->mp3aswavdata, dec->mp3aswavbuflen+sizeof(sfxcache_t));
 					BZ_Free(dec->mp3aswavdata);
 				}

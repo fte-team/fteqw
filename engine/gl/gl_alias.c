@@ -1128,6 +1128,9 @@ void R_DrawGAliasModel (entity_t *e)
 //	if (e->flags & Q2RF_VIEWERMODEL && e->keynum == cl.playernum[r_refdef.currentplayernum]+1)
 //		return;
 
+	if (r_secondaryview && e->flags & Q2RF_WEAPONMODEL)
+		return;
+
 	{
 		extern int cl_playerindex;
 	if (e->scoreboard && e->model == cl.model_precache[cl_playerindex])

@@ -603,20 +603,24 @@ void S_PaintChannels(soundcardinfo_t *sc, int endtime)
 
 			if (ch->sfx->decoder)
 			{
+				int len_diff;
 				soundcardinfo_t *sndc;
 #define qmax(x, y) (x>y)?(x):(y)
+				len_diff = scache->length;
 				ch->sfx->decoder->decodemore(ch->sfx, 
-						ch->pos + end-ltime+1000);
+						ch->pos + endtime-ltime+1000);
 						//ch->pos + qmax(end-ltime+1000, 1000));	//try to exceed by a little.
+
 				scache = S_LoadSound (ch->sfx);
 				if (!scache)
 					continue;
+				len_diff = scache->length - len_diff;
 
 				for (sndc = sndcardinfo; sndc; sndc=sndc->next)
 				{
 					for (j = 0; j < sndc->total_chans; j++)
 						if (sndc->channel[j].sfx == ch->sfx)	//extend all of these.
-							ch->end = ltime + (scache->length - ch->pos);
+							ch->end += len_diff;
 				}
 			}
 

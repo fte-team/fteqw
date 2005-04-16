@@ -163,6 +163,23 @@ void InsertLinkAfter (link_t *l, link_t *after)
 ============================================================================
 */
 
+void Q_strncpyz(char *d, const char *s, int n)
+{
+	int i;
+	n--;
+	if (n < 0)
+		return;	//this could be an error
+
+	for (i=0; *s; i++)
+	{
+		if (i == n)
+			break;
+		*d++ = *s++;
+	}
+	*d='\0';
+}
+
+
 #if 0
 void Q_memset (void *dest, int fill, int count)
 {

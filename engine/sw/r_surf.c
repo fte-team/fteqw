@@ -26,11 +26,15 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 #include "d_local.h"
 #endif
 
-#define MAX_DECALS (1<<8)
+
+//#define MAX_DECALS (1<<8)
+
+#if MAX_DECALS
 decal_t decals[MAX_DECALS];
 int nextdecal;
 
 void SWR_AddDecal(vec3_t org);
+#endif
 
 drawsurf_t	r_drawsurf;
 
@@ -209,7 +213,9 @@ void SWR_AddStain(vec3_t org, float red, float green, float blue, float radius)
 	int i;
 	float parms[5];
 
+#if MAX_DECALS
 	SWR_AddDecal(org);
+#endif
 
 	if (red != green && red != blue)	//sw only does luminance of stain maps
 		return;							//a mix would look wrong.
@@ -409,6 +415,7 @@ void SWR_BuildLightmaps(void)
 #endif
 
 //retrieves the next decal to be used, unlinking if needed.
+#if MAX_DECALS
 decal_t *R_GetFreeDecal(void)
 {
 	decal_t *dec = &decals[nextdecal];
@@ -429,15 +436,20 @@ decal_t *R_GetFreeDecal(void)
 
 	return dec;
 }
+#endif
 
 void R_WipeDecals(void)
 {
+#if MAX_DECALS
 	int i;
 
 	memset(decals, 0, sizeof(decals));
 	for (i=0 ; i<cl.worldmodel->numsurfaces ; i++)
 		cl.worldmodel->surfaces[i].decal = NULL;
+#endif
 }
+
+#if MAX_DECALS
 
 static vec3_t decalorg;
 static float decalradius;
@@ -598,9 +610,7 @@ void SWR_DrawDecal8(decal_t *dec)
 	*/
 }
 
-
-
-
+#endif
 
 
 
@@ -629,7 +639,7 @@ void SWR_AddDynamicLights (void)
 	tmax = (surf->extents[1]>>4)+1;
 	tex = surf->texinfo;
 
-	for (lnum=0 ; lnum<MAX_DLIGHTS ; lnum++)
+	for (lnum=0 ; lnum<MAX_SWLIGHTS ; lnum++)
 	{
 		if ( !(surf->dlightbits & (1<<lnum) ) )
 			continue;		// not lit by this light
@@ -695,7 +705,7 @@ void SWR_AddDynamicLightsRGB (void)
 	tmax = (surf->extents[1]>>4)+1;
 	tex = surf->texinfo;
 
-	for (lnum=0 ; lnum<MAX_DLIGHTS ; lnum++)
+	for (lnum=0 ; lnum<MAX_SWLIGHTS ; lnum++)
 	{
 		if ( !(surf->dlightbits & (1<<lnum) ) )
 			continue;		// not lit by this light
@@ -1067,7 +1077,9 @@ void R_DrawSurface (void)
 	unsigned char	*pcolumndest;
 	void			(*pblockdrawer)(void);
 	texture_t		*mt;
+#if MAX_DECALS
 	decal_t			*dec;
+#endif
 
 // calculate the lightings
 	SWR_BuildLightMap ();
@@ -1142,6 +1154,7 @@ void R_DrawSurface (void)
 		pcolumndest += horzblockstep;
 	}
 
+#if MAX_DECALS
 	if (r_drawsurf.surf->decal && !r_drawsurf.surfmip)
 	{
 		if (r_pixbytes == 1 || r_pixbytes == 4)
@@ -1157,6 +1170,7 @@ void R_DrawSurface (void)
 			}
 		}
 	}
+#endif
 }
 
 void R_DrawSurface32 (void)

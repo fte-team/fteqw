@@ -32,6 +32,7 @@ extern	cvar_t	r_rocketlight;
 extern	cvar_t	r_lightflicker;
 extern	cvar_t	cl_r2g;
 extern	cvar_t	r_powerupglow;
+extern	cvar_t	v_powerupshell;
 
 extern	cvar_t	cl_gibfilter, cl_deadbodyfilter;
 extern int cl_playerindex;
@@ -1356,6 +1357,27 @@ void CL_LinkPacketEntities (void)
 	{
 		s1 = &pack->entities[pnum];
 
+		ent = &cl_visedicts[cl_numvisedicts];
+#ifdef Q3SHADERS
+		ent->forcedshader = NULL;
+#endif
+
+		//figure out the lerp factor
+		if (!cl.lerpents[s1->number].lerprate)
+			ent->lerptime = 0;
+		else
+			ent->lerptime = 1-(cl.time-cl.lerpents[s1->number].lerptime)/cl.lerpents[s1->number].lerprate;
+		if (ent->lerptime<0)
+			ent->lerptime=0;
+		if (ent->lerptime>1)
+			ent->lerptime=1;
+		f = ent->lerptime;
+
+		// calculate origin
+		for (i=0 ; i<3 ; i++)
+			ent->origin[i] = s1->origin[i] +
+			f * (cl.lerpents[s1->number].origin[i] - s1->origin[i]);
+
 		//bots or powerup glows. Bots always glow, powerups can be disabled
 		if (s1->modelindex != cl_playerindex && r_powerupglow.value);
 		{
@@ -1391,8 +1413,6 @@ void CL_LinkPacketEntities (void)
 			continue;
 		}
 
-
-		ent = &cl_visedicts[cl_numvisedicts];
 		cl_numvisedicts++;
 		ent->visframe = 0;
 
@@ -1404,6 +1424,8 @@ void CL_LinkPacketEntities (void)
 			ent->model = model;
 
 		ent->flags = 0;
+		if (s1->effects & NQEF_ADDATIVE)
+			ent->flags |= Q2RF_ADDATIVE;
 
 		// set colormap
 		if (s1->colormap && (s1->colormap <= MAX_CLIENTS)
@@ -1428,19 +1450,6 @@ void CL_LinkPacketEntities (void)
 		ent->frame = s1->frame;
 		ent->oldframe = cl.lerpents[s1->number].frame;
 
-		if (!cl.lerpents[s1->number].lerprate)
-		{
-			ent->lerptime = 0;
-		}
-		else
-		{
-			ent->lerptime = 1-(cl.time-cl.lerpents[s1->number].lerptime)/cl.lerpents[s1->number].lerprate;
-		}
-
-		if (ent->lerptime<0)ent->lerptime=0;
-		if (ent->lerptime>1)ent->lerptime=1;
-
-		f = ent->lerptime;
 
 //		f = (sin(realtime)+1)/2;
 
@@ -1460,11 +1469,6 @@ void CL_LinkPacketEntities (void)
 		//set trans
 		ent->fatness = s1->fatness;
 #endif
-
-		// calculate origin
-		for (i=0 ; i<3 ; i++)
-			ent->origin[i] = s1->origin[i] +
-			f * (cl.lerpents[s1->number].origin[i] - s1->origin[i]);
 
 		// rotate binary objects locally
 		if (model && model->flags & EF_ROTATE)
@@ -1543,7 +1547,22 @@ void CL_LinkPacketEntities (void)
 			}
 
 		if (model->particletrail>=0)
+		{
+//			Con_Printf("(%f %f %f) (%f %f %f)\n", ent->origin[0], ent->origin[1], ent->origin[2], old_origin[0], old_origin[1], old_origin[2]);
+/*
+			if (ent->origin[0] == old_origin[0] || ent->origin[1] == old_origin[1] || ent->origin[2] == old_origin[2])
+			{
+				if (ent->origin[0] == old_origin[0] && ent->origin[1] == old_origin[1] && ent->origin[2] == old_origin[2])
+				{
+					Con_Printf("Total match!!\n");
+				}
+				else
+					Con_Printf("impartial match!!\n");
+			}*/
+
+
 			P_ParticleTrail (old_origin, ent->origin, model->particletrail, &cl.lerpents[s1->number].trailstate);
+		}
 
 		//dlights are not so customisable.
 		if (r_rocketlight.value)
@@ -1902,7 +1921,10 @@ void CL_ParsePlayerinfo (void)
 	else
 		state->weaponframe = 0;
 
-	state->hullnum = 1;
+	if (cl.worldmodel && cl.worldmodel->fromgame == fg_quake && cl.worldmodel->fromgame == fg_halflife)
+		state->hullnum = 1;
+	else
+		state->hullnum = 56;
 	state->scale = 1;
 	state->trans = 1;
 	state->fatness = 0;
@@ -1929,8 +1951,6 @@ void CL_ParsePlayerinfo (void)
 			if (flags & PF_HULLSIZE_Z)
 				state->hullnum = MSG_ReadByte();
 		}
-		else
-			state->hullnum = 1;
 	//should be passed to player move func.
 #endif
 
@@ -2259,9 +2279,9 @@ void CL_LinkPlayers (void)
 		if (cl.worldmodel->fromgame == fg_halflife)
 			ent->origin[2]-=12;
 
-		if (state->effects & EF_FLAG1)
+		if (state->effects & QWEF_FLAG1)
 			CL_AddFlagModels (ent, 0);
-		else if (state->effects & EF_FLAG2)
+		else if (state->effects & QWEF_FLAG2)
 			CL_AddFlagModels (ent, 1);
 		else if (info->vweapindex)
 			CL_AddVWeapModel (ent, info->vweapindex);
@@ -2269,7 +2289,9 @@ void CL_LinkPlayers (void)
 	}
 }
 
-
+#ifdef Q3SHADERS	//fixme: do better.
+#include "shader.h"
+#endif
 
 void CL_LinkViewModel(void)
 {
@@ -2348,6 +2370,32 @@ void CL_LinkViewModel(void)
 #define	Q2RF_DEPTHHACK			16		// for view weapon Z crunching
 
 	ent.flags = Q2RF_WEAPONMODEL|Q2RF_DEPTHHACK;
+
+	V_AddEntity(&ent);
+
+	if (!v_powerupshell.value)
+		return;
+
+	if (cl.stats[r_refdef.currentplayernum][STAT_ITEMS] & IT_QUAD)
+		ent.flags |= Q2RF_SHELL_BLUE;
+
+	if (!(ent.flags & (Q2RF_SHELL_RED|Q2RF_SHELL_GREEN|Q2RF_SHELL_BLUE)))
+		return;
+
+	ent.fatness = 0.5;
+	ent.alpha *= 0.1;
+#ifdef Q3SHADERS	//fixme: do better.
+	//fixme: this is woefully gl specific. :(
+	if (qrenderer == QR_OPENGL)
+	{
+		extern void Shader_DefaultSkinShell(char *shortname, shader_t *s);
+		ent.shaderRGBA[0] = (!!(ent.flags & Q2RF_SHELL_RED)) * 255;
+		ent.shaderRGBA[1] = (!!(ent.flags & Q2RF_SHELL_GREEN)) * 255;
+		ent.shaderRGBA[2] = (!!(ent.flags & Q2RF_SHELL_BLUE)) * 255;
+		ent.shaderRGBA[3] = ent.alpha*255;
+		ent.forcedshader = R_RegisterCustom("q2/shell", Shader_DefaultSkinShell);
+	}
+#endif
 
 	V_AddEntity(&ent);
 }
@@ -2588,11 +2636,11 @@ void CL_EmitEntities (void)
 
 	CL_SwapEntityLists();
 
-	CL_LinkViewModel ();
 	CL_LinkPlayers ();
 	CL_LinkPacketEntities ();
 	CL_LinkProjectiles ();
 	CL_UpdateTEnts ();
+	CL_LinkViewModel ();
 }
 
 

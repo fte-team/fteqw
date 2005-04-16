@@ -473,7 +473,7 @@ static char *Macro_Powerups (void)
 	}
 
 	effects = cl.frames[cl.parsecount&UPDATE_MASK].playerstate[cl.playernum[SP]].effects;
-	if ( (effects & (EF_FLAG1|EF_FLAG2)) ||		// CTF
+	if ( (effects & (QWEF_FLAG1|QWEF_FLAG2)) ||		// CTF
 		(cl.teamfortress && cl.stats[SP][STAT_ITEMS] & (IT_KEY1|IT_KEY2)) ) // TF
 	{
 		if (macro_buf[0])

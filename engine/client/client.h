@@ -211,7 +211,21 @@ typedef struct
 //
 // client_state_t should hold all pieces of the client state
 //
-#define	MAX_DLIGHTS		256
+#define MAX_SWLIGHTS		32	//sw lighting, aka: r_dynamic, uses unsigned ints as a mask for cached lit flags.	 We could increase this on 64bit platforms or by just using more fields.
+
+#ifdef RGLQUAKE
+#define	MAX_RTLIGHTS		256	//r_shadow_realtime_world needs a LOT of lights.
+#else
+#define	MAX_RTLIGHTS		0	//but sw rendering doesn't have that.
+#endif
+
+#if MAX_SWLIGHTS > MAX_RTLIGHTS
+#define MAX_DLIGHTS			MAX_SWLIGHTS
+#else
+#define MAX_DLIGHTS			MAX_RTLIGHTS
+#endif
+
+
 typedef struct dlight_s
 {
 	int		key;				// so entities can reuse same entry
@@ -501,6 +515,7 @@ typedef struct
 #endif
 	qboolean gamedirchanged;
 
+	int waterlevel[MAX_SPLITS];	//for smartjump
 
 	char		q2statusbar[1024];
 	char		q2layout[1024];

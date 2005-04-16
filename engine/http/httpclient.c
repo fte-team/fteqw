@@ -466,6 +466,7 @@ qboolean HTTP_CL_Get(char *url, char *localfile)
 
 	httpcl = con;
 
+	HTTP_CL_Think();
 
 	return true;
 }

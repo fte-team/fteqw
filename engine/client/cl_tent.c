@@ -808,7 +808,7 @@ void CL_ParseTEnt (void)
 		CL_ParseStream (type);
 		break;
 
-	case 50:	//TE_BLOOD
+	case DPTE_BLOOD:
 		pos[0] = MSG_ReadCoord ();
 		pos[1] = MSG_ReadCoord ();
 		pos[2] = MSG_ReadCoord ();
@@ -824,7 +824,7 @@ void CL_ParseTEnt (void)
 		}
 		break;
 
-	case 51://TE_SPARK
+	case DPTE_SPARK:
 		pos[0] = MSG_ReadCoord ();
 		pos[1] = MSG_ReadCoord ();
 		pos[2] = MSG_ReadCoord ();
@@ -840,7 +840,7 @@ void CL_ParseTEnt (void)
 		}
 		break;
 
-	case 72://TE_SMALLFLASH
+	case DPTE_SMALLFLASH:
 		pos[0] = MSG_ReadCoord ();
 		pos[1] = MSG_ReadCoord ();
 		pos[2] = MSG_ReadCoord ();
@@ -856,7 +856,7 @@ void CL_ParseTEnt (void)
 		dl->color[2] = 0.4;
 		break;
 
-	case 73://TE_CUSTOMFLASH
+	case DPTE_CUSTOMFLASH:
 		pos[0] = MSG_ReadCoord ();
 		pos[1] = MSG_ReadCoord ();
 		pos[2] = MSG_ReadCoord ();
@@ -876,7 +876,7 @@ void CL_ParseTEnt (void)
 		
 		break;
 
-	case 74://TE_FLAMEJET
+	case DPTE_FLAMEJET:
 		// origin
 		pos[0] = MSG_ReadCoord ();
 		pos[1] = MSG_ReadCoord ();
@@ -894,7 +894,7 @@ void CL_ParseTEnt (void)
 			P_RunParticleEffect (pos, pos2, 232, cnt);
 		break;
 
-	case 75://TE_PLASMABURN
+	case DPTE_PLASMABURN:
 		// origin
 		pos[0] = MSG_ReadCoord ();
 		pos[1] = MSG_ReadCoord ();
@@ -919,38 +919,37 @@ void CL_ParseTEnt (void)
 
 	case 76:
 #pragma message("CL_ParseTEnt: effect 76 not implemented")
-pos[0] = MSG_ReadCoord ();
-pos[1] = MSG_ReadCoord ();
-pos[2] = MSG_ReadCoord ();
+		pos[0] = MSG_ReadCoord ();
+		pos[1] = MSG_ReadCoord ();
+		pos[2] = MSG_ReadCoord ();
 
-pos2[0] = MSG_ReadCoord ();
-pos2[1] = MSG_ReadCoord ();
-pos2[2] = MSG_ReadCoord ();
+		pos2[0] = MSG_ReadCoord ();
+		pos2[1] = MSG_ReadCoord ();
+		pos2[2] = MSG_ReadCoord ();
 
-//sigh...
-MSG_ReadCoord ();
-MSG_ReadCoord ();
-MSG_ReadCoord ();
+		//sigh...
+		MSG_ReadCoord ();
+		MSG_ReadCoord ();
+		MSG_ReadCoord ();
 
-CLQ2_RailTrail (pos, pos2);
+		CLQ2_RailTrail (pos, pos2);
 		break;
 
 	case 79:
-#pragma message("CL_ParseTEnt: effect 79 not implemented")
-pos[0] = MSG_ReadCoord ();
-pos[1] = MSG_ReadCoord ();
-pos[2] = MSG_ReadCoord ();
+		pos[0] = MSG_ReadCoord ();
+		pos[1] = MSG_ReadCoord ();
+		pos[2] = MSG_ReadCoord ();
 
-//dir
-pos2[0] = MSG_ReadCoord ();
-pos2[1] = MSG_ReadCoord ();
-pos2[2] = MSG_ReadCoord ();
-cnt = MSG_ReadByte ();
+		//dir
+		pos2[0] = MSG_ReadCoord ();
+		pos2[1] = MSG_ReadCoord ();
+		pos2[2] = MSG_ReadCoord ();
+		cnt = MSG_ReadByte ();
 
-{
-	extern int pt_plasma;
-	P_RunParticleEffectType(pos, pos2, cnt, pt_plasma);
-}
+		{
+			extern int pt_plasma;
+			P_RunParticleEffectType(pos, pos2, cnt, pt_plasma);
+		}
 		break;
 
 	default:		

@@ -1320,9 +1320,6 @@ void CMod_LoadFaces (lump_t *l)
 		out->firstedge = LittleLong(in->firstedge);
 		out->numedges = LittleShort(in->numedges);		
 		out->flags = 0;
-#if defined(RGLQUAKE)
-		out->polys = NULL;
-#endif
 
 		planenum = LittleShort(in->planenum);
 		side = LittleShort(in->side);
@@ -1377,10 +1374,6 @@ void CMod_LoadFaces (lump_t *l)
 				out->extents[i] = 16384;
 				out->texturemins[i] = -8192;
 			}
-#ifdef RGLQUAKE
-			if (qrenderer == QR_OPENGL)
-				GL_SubdivideSurface (out, 64);	// cut up polygon for warps
-#endif
 		}
 		
 	}
@@ -2346,19 +2339,10 @@ continue;
 			if (map_surfaces[in->shadernum].c.flags & Q3SURF_SKIP)
 				Con_Printf("Surface skip\n");
 			out->mesh = NULL;
-			out->polys = NULL;
 		}
 		else if (in->facetype == MST_PATCH)
 		{
 			out->mesh = GL_CreateMeshForPatch(loadmodel, in);
-
-#ifdef Q3SHADERS
-			if (!out->texinfo->texture->shader)
-			{
-				out->polys = GL_MeshToGLPoly(out->mesh);
-				out->mesh = NULL;
-			}
-#endif
 		}
 		else if (in->facetype == MST_PLANAR || in->facetype == MST_TRIANGLE_SOUP)
 		{
@@ -2367,7 +2351,6 @@ continue;
 			if (numindexes%3)
 				Host_Error("mesh indexes should be multiples of 3");
 
-#ifdef Q3SHADERS
 			out->mesh = Hunk_Alloc(sizeof(mesh_t) + (sizeof(vec3_t)) * numverts);
 			out->mesh->normals_array= map_normals_array + LittleLong(in->firstvertex);
 			out->mesh->colors_array	= map_colors_array + LittleLong(in->firstvertex);
@@ -2378,40 +2361,6 @@ continue;
 
 			out->mesh->numindexes = numindexes;
 			out->mesh->numvertexes = numverts;
-#else
-
-			p = Hunk_AllocName (polysize*numindexes/3, "SDList");
-			fv = LittleLong(in->firstvertex);
-			fi = LittleLong(in->firstindex);
-			for (gv = 0; gv < numindexes; )
-			{
-				for (v = gv; v < gv+3; v++)
-				{
-					rv = fv+map_surfindexes[fi+v];
-					p->verts[v%3][0] = map_verts[rv][0];
-					p->verts[v%3][1] = map_verts[rv][1];
-					p->verts[v%3][2] = map_verts[rv][2];
-					p->verts[v%3][3] = map_vertstmexcoords[rv][0];
-					p->verts[v%3][4] = map_vertstmexcoords[rv][1];
-					p->verts[v%3][5] = map_vertlstmexcoords[rv][0];
-					p->verts[v%3][6] = map_vertlstmexcoords[rv][1];
-				}
-				gv+=3;
-
-				p->next = out->polys;
-				p->numverts = 3;
-				out->polys = p;
-				p = (glpoly_t *)((char *)p + polysize);
-			}
-#endif
-
-#ifdef Q3SHADERS
-			if (!out->texinfo->texture->shader)
-			{
-				out->polys = GL_MeshToGLPoly(out->mesh);
-				out->mesh = NULL;
-			}
-#endif
 		}
 		else
 		{

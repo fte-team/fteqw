@@ -162,10 +162,6 @@ char *Cvar_CompleteVariable (char *partial)
 */
 
 
-#ifdef SERVERONLY
-void SV_SendServerInfoChange(char *key, char *value);
-#endif
-
 /*
 ============
 Cvar_Set
@@ -255,17 +251,19 @@ cvar_t *Cvar_SetCore (cvar_t *var, const char *value, qboolean force)
 	}
 #endif
 
-	if (var->string)
-	{
-		if (strcmp(var->string, value))
-			var->modified++;	//only modified if it changed.
-
-		Z_Free (var->string);	// free the old value string
-	}
+	latch = var->string;
 	
 	var->string = (char*)Z_Malloc (Q_strlen(value)+1);
 	Q_strcpy (var->string, value);
 	var->value = Q_atof (var->string);
+
+	if (latch)
+	{
+		if (strcmp(latch, value))
+			var->modified++;	//only modified if it changed.
+
+		Z_Free (latch);	// free the old value string
+	}
 
 	if (var->latched_string)	//we may as well have this here.
 	{
@@ -554,7 +552,7 @@ qboolean	Cvar_Command (int level)
 		return true;
 	}
 
-	if (v->flags & CVAR_NOTFROMSERVER && Cmd_FromServer())
+	if (v->flags & CVAR_NOTFROMSERVER && Cmd_FromGamecode())
 	{
 		Con_Printf ("Server tried setting %s cvar\n", v->name);
 		return true;
@@ -587,7 +585,7 @@ qboolean	Cvar_Command (int level)
 
 	if (v->flags & CVAR_SERVEROVERRIDE)
 	{
-		if (Cmd_FromServer())
+		if (Cmd_FromGamecode())
 		{
 			if (!strcmp(v->defaultstr, str))	//returning to default
 			{
@@ -603,7 +601,7 @@ qboolean	Cvar_Command (int level)
 		}
 		//let cvar_set latch if needed.
 	}
-	else if (Cmd_FromServer())
+	else if (Cmd_FromGamecode())
 	{
 		Cvar_LockFromServer(v, str);
 		return true;

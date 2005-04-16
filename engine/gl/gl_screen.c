@@ -61,7 +61,8 @@ void RSpeedShow(void)
 
 	memset(RSpNames, 0, sizeof(RSpNames));
 	RSpNames[RSPEED_TOTALREFRESH] = "Total refresh";
-	RSpNames[RSPEED_CLIENT] = "Protocol and entity setup";
+	RSpNames[RSPEED_PROTOCOL] = "Protocol";
+	RSpNames[RSPEED_LINKENTITIES] = "Entity setup";
 	RSpNames[RSPEED_WORLDNODE] = "World walking";
 	RSpNames[RSPEED_WORLD] = "World rendering";
 	RSpNames[RSPEED_DYNAMIC] = "Lightmap updates";
@@ -69,6 +70,8 @@ void RSpeedShow(void)
 	RSpNames[RSPEED_PARTICLESDRAW] = "Particle drawing";
 	RSpNames[RSPEED_2D] = "2d elements";
 	RSpNames[RSPEED_SERVER] = "Server";
+
+	RSpNames[RSPEED_DRAWENTITIES] = "Entity rendering";
 
 	RSpNames[RSPEED_PALETTEFLASHES] = "Palette flashes";
 	RSpNames[RSPEED_STENCILSHADOWS] = "Stencil Shadows";
@@ -245,9 +248,6 @@ void GLSCR_UpdateScreen (void)
 		oldfov = scr_fov.value;
 		vid.recalc_refdef = true;
 	}
-
-	if (scr_chatmode != scr_chatmodecvar.value)
-		vid.recalc_refdef = true;
 
 	if (vid.recalc_refdef || scr_viewsize.modified)
 		SCR_CalcRefdef ();

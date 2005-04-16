@@ -36,8 +36,8 @@ extern float	pm_stepheight;
 
 struct trace_s;
 struct q2trace_s;
-struct pmove_s;
-typedef struct pmove_s pmove_t;
+struct q2pmove_s;
+typedef struct q2pmove_s q2pmove_t;
 
 
 

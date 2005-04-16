@@ -118,11 +118,13 @@ void	Cmd_ExecuteString (char *text, int restrictionlevel);
 #define RESTRICT_MIN		1	//rcon get's 63, local always gets 64
 
 #define RESTRICT_LOCAL	RESTRICT_MAX
-#define RESTRICT_SERVER	RESTRICT_MAX+1
+#define RESTRICT_INSECURE	RESTRICT_MAX+1
+#define RESTRICT_SERVER	RESTRICT_MAX+2
 #define RESTRICT_RCON	rcon_level.value
 #define RESTRICT_PROGS	RESTRICT_MAX-2
 
-#define Cmd_FromServer() (Cmd_ExecLevel>=RESTRICT_SERVER)
+#define Cmd_FromGamecode() (Cmd_ExecLevel>=RESTRICT_SERVER)	//cheat provention
+#define Cmd_IsInsecure() (Cmd_ExecLevel>=RESTRICT_INSECURE)	//prevention from the server from breaking/crashing/wiping us.
 
 // Parses a single line of text into arguments and tries to execute it
 // as if it was typed at the console

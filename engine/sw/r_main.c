@@ -1191,7 +1191,7 @@ void R_DrawBEntitiesOnList (void)
 				// instanced model
 					if (clmodel->firstmodelsurface != 0)
 					{
-						for (k=0 ; k<MAX_DLIGHTS ; k++)
+						for (k=0 ; k<MAX_SWLIGHTS ; k++)
 						{
 							if ((cl_dlights[k].die < cl.time) ||
 								(!cl_dlights[k].radius))

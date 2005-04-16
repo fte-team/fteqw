@@ -206,7 +206,7 @@ typedef struct
     int		sequence;
     int		frame;					/* Current animation sequence and frame */
     float	frametime;				/* Time of last frame drawn */
-    qbyte	controller[4];				/* Position of bone controllers */
+    float	controller[4];				/* Position of bone controllers */
     vec4_t	adjust;
 
     /* Static pointers */

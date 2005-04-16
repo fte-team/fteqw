@@ -595,9 +595,15 @@ enum {
 	TE_CHAINLIGHTNING		= 81
 };
 
-#define NQTE_EXPLOSION2	12
-#define NQTE_BEAM		13
+#define NQTE_EXPLOSION2		12
+#define NQTE_BEAM			13
 
+#define DPTE_BLOOD			50
+#define DPTE_SPARK			51
+#define DPTE_SMALLFLASH		72
+#define DPTE_CUSTOMFLASH	73
+#define DPTE_FLAMEJET		74
+#define DPTE_PLASMABURN		75
 
 #define TE_SEEF_BRIGHTFIELD	200
 #define TE_SEEF_DARKLIGHT	201
@@ -838,6 +844,7 @@ typedef struct q1usercmd_s
 #define	Q2RF_TRANSLUCENT		32
 #define	Q2RF_FRAMELERP			64
 #define Q2RF_BEAM				128
+
 #define	Q2RF_CUSTOMSKIN			256		// skin is an index in image_precache
 #define	Q2RF_GLOW				512		// pulse lighting for bonus items
 #define Q2RF_SHELL_RED			1024
@@ -850,6 +857,8 @@ typedef struct q1usercmd_s
 #define	Q2RF_SHELL_HALF_DAM		0x00020000
 #define Q2RF_USE_DISGUISE		0x00040000
 //ROGUE
+
+#define Q2RF_ADDATIVE			0x00080000
 
 // player_state_t->refdef flags
 #define	Q2RDF_UNDERWATER		1		// warp the screen as apropriate

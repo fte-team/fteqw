@@ -73,8 +73,6 @@ typedef struct edict_s
 	//the rest is free for adaption
 	link_t		area;				// linked to a division node or leaf
 
-	int solidtype;
-	
 	int			num_leafs;
 	short		leafnums[MAX_ENT_LEAFS];
 	int areanum;	//q2bsp
@@ -82,6 +80,8 @@ typedef struct edict_s
 	int headnode;	//q2bsp
 
 	entity_state_t	baseline;
+
+	qbyte solidtype;	//relinks entities if thier solidity changed
 
 	unsigned short tagent;
 	unsigned short tagindex;

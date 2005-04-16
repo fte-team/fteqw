@@ -520,6 +520,7 @@ char *particle_set_spikeset =
 "	stains 0\n"
 "	blend add\n"
 "	areaspread 6\n"
+"	up -8\n"
 "	areaspreadvert 0\n"
 "	spawnmode box\n"
 "	offsetspread -15\n"

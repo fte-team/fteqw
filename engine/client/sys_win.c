@@ -1156,7 +1156,7 @@ int WINAPI WinMain (HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLin
 
 			SetHookState(sys_disableWinKeys.value);
 
-			Sleep(0);
+//			Sleep(0);
 		}
 	}
 

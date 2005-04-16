@@ -267,7 +267,7 @@ static void Shader_ParseVector ( char **ptr, vec3_t v )
 	}
 }
 
-/*static void Shader_ParseSkySides ( char **ptr, image_t *images )
+static void Shader_ParseSkySides ( char **ptr, int *images )
 {
 	int i;
 	char *token;
@@ -285,7 +285,7 @@ static void Shader_ParseVector ( char **ptr, vec3_t v )
 		}
 	}
 }
-*/
+
 static void Shader_ParseFunc ( char **ptr, shaderfunc_t *func )
 {
 	char *token;
@@ -428,8 +428,7 @@ static void Shader_DeformVertexes ( shader_t *shader, shaderpass_t *pass, char *
 
 static void Shader_SkyParms ( shader_t *shader, shaderpass_t *pass, char **ptr )
 {
-	//FIZME: skydomes?
-/*	int	i;
+	int	i;
 	skydome_t *skydome;
 	float skyheight;
 
@@ -455,8 +454,8 @@ static void Shader_SkyParms ( shader_t *shader, shaderpass_t *pass, char **ptr )
 
 	Shader_ParseSkySides ( ptr, skydome->nearbox_textures );
 
-	R_CreateSkydome ( shader, skyheight );
-*/
+//	R_CreateSkydome ( shader, skyheight );
+
 	shader->flags |= SHADER_SKY;
 	shader->sort = SHADER_SORT_SKY;
 }
@@ -1053,14 +1052,17 @@ void Shader_Free (shader_t *shader)
 	shaderpass_t *pass;
 
 	if ( shader->flags & SHADER_SKY ) {
-/*		for ( i = 0; i < 5; i++ ) {
-			Z_Free ( shader->skydome->meshes[i].xyz_array );
-			Z_Free ( shader->skydome->meshes[i].normals_array );
-			Z_Free ( shader->skydome->meshes[i].st_array );
+		for ( i = 0; i < 5; i++ ) {
+			if (shader->skydome->meshes[i].xyz_array)
+			{
+				Z_Free ( shader->skydome->meshes[i].xyz_array );
+				Z_Free ( shader->skydome->meshes[i].normals_array );
+				Z_Free ( shader->skydome->meshes[i].st_array );
+			}
 		}
 
 		Z_Free ( shader->skydome );
-*/	}
+	}
 
 	pass = shader->passes;
 	for ( i = 0; i < shader->numpasses; i++, pass++ ) {

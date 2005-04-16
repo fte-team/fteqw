@@ -470,7 +470,6 @@ Cmd_Exec_f
 void Cmd_Exec_f (void)
 {
 	char	*f;
-	int		mark;
 	char	name[256];
 
 	if (Cmd_Argc () != 2)
@@ -491,9 +490,7 @@ void Cmd_Exec_f (void)
 	else
 		Q_strncpyz(name, Cmd_Argv(1), sizeof(name));
 
-	// FIXME: is this safe freeing the hunk here???
-	mark = Hunk_LowMark ();
-	f = (char *)COM_LoadHunkFile (name);
+	f = (char *)COM_LoadMallocFile(name);
 	if (!f)
 	{
 		Con_TPrintf (TL_EXECFAILED,name);
@@ -501,10 +498,10 @@ void Cmd_Exec_f (void)
 	}
 	if (cl_warncmd.value || developer.value)
 		Con_TPrintf (TL_EXECING,name);
-	
+
 	Cbuf_InsertText ("\n", Cmd_ExecLevel);	//well this is inefficient...
 	Cbuf_InsertText (f, Cmd_ExecLevel);
-	Hunk_FreeToLowMark (mark);
+	BZ_Free(f);
 }
 
 
@@ -571,7 +568,7 @@ void Cmd_Alias_f (void)
 
 	if (Cmd_Argc() == 1)	//list em all.
 	{
-		if (Cmd_FromServer())
+		if (Cmd_FromGamecode())
 		{
 			if (Cmd_ExecLevel==RESTRICT_SERVER)
 			{
@@ -609,7 +606,7 @@ void Cmd_Alias_f (void)
 	{
 		if (Cvar_FindVar (s))
 		{
-			if (Cmd_FromServer())
+			if (Cmd_FromGamecode())
 			{
 				_snprintf(cmd, sizeof(cmd), "%s_a", s);
 				Con_Printf ("Can't register alias, %s is a cvar\nAlias has been named %s instead\n", s, cmd);
@@ -625,7 +622,7 @@ void Cmd_Alias_f (void)
 	// check for overlap with a command
 		if (Cmd_Exists (s))
 		{
-			if (Cmd_FromServer())
+			if (Cmd_FromGamecode())
 			{
 				_snprintf(cmd, sizeof(cmd), "%s_a", s);
 				Con_Printf ("Can't register alias, %s is a command\nAlias has been named %s instead\n", s, cmd);
@@ -660,7 +657,7 @@ void Cmd_Alias_f (void)
 		a->next = cmd_alias;
 		cmd_alias = a;
 	}
-	if (Cmd_FromServer())
+	if (Cmd_FromGamecode())
 		a->flags |= ALIAS_FROMSERVER;
 	else
 		a->flags &= ~ALIAS_FROMSERVER;
@@ -756,7 +753,7 @@ void Cmd_Alias_f (void)
 			}
 		}
 	}
-	if (Cmd_FromServer())
+	if (Cmd_FromGamecode())
 	{
 		a->execlevel = RESTRICT_SERVER;	//server-set aliases MUST run at the server's level.
 		a->restriction = 1;				//and be runnable at the user's level
@@ -1609,7 +1606,7 @@ void	Cmd_ExecuteString (char *text, int level)
 
 	Cmd_ExecLevel = level;
 
-	text = Cmd_ExpandString(text, dest, sizeof(dest), level, !Cmd_FromServer()?true:false);
+	text = Cmd_ExpandString(text, dest, sizeof(dest), level, !Cmd_IsInsecure()?true:false);
 	Cmd_TokenizeString (text, level == RESTRICT_LOCAL?true:false, false);
 			
 // execute the command line
@@ -1663,7 +1660,7 @@ void	Cmd_ExecuteString (char *text, int level)
 
 			Cbuf_InsertText (a->value, level);
 
-			if (Cmd_FromServer())
+			if (Cmd_FromGamecode())
 				return;	//don't do the cmd_argc/cmd_argv stuff. When it's from the server, we had a tendancy to lock aliases, so don't set them anymore.
 
 			Cbuf_InsertText (va("set cmd_argc \"%i\"\n", cmd_argc), level);
@@ -2221,7 +2218,7 @@ void Cmd_set_f(void)
 
 	var = Cvar_Get (Cmd_Argv(1), "0", 0, "Custom variables");
 
-	if (Cmd_FromServer())	//AAHHHH!!!
+	if (Cmd_FromGamecode())	//AAHHHH!!! Q2 set command is different
 	{
 		text = Cmd_Argv(3);
 		if (!strcmp(text, "u"))
@@ -2250,13 +2247,13 @@ void Cmd_set_f(void)
 
 	if (var)
 	{
-		if (var->flags & CVAR_NOTFROMSERVER && Cmd_FromServer())
+		if (var->flags & CVAR_NOTFROMSERVER && Cmd_FromGamecode())
 		{
 			Con_Printf ("Server tried setting %s cvar\n", var->name);
 			return;
 		}
 
-		if (Cmd_FromServer())
+		if (Cmd_FromGamecode())
 		{
 			if (forceflags)
 			{
@@ -2274,7 +2271,7 @@ void Cmd_set_f(void)
 	else
 	{
 		text = If_Token(text, &end);
-		if (Cmd_FromServer())
+		if (Cmd_FromGamecode())
 		{
 			var = Cvar_Get(Cmd_Argv(1), "", 0, "Game variables");
 			Cvar_LockFromServer(var, text);
@@ -2283,7 +2280,7 @@ void Cmd_set_f(void)
 			var = Cvar_Get(Cmd_Argv(1), text, 0, "User variables");
 	}
 
-	if (!Cmd_FromServer())
+	if (!Cmd_FromGamecode())
 		if (!stricmp(Cmd_Argv(0), "seta"))
 			var->flags |= CVAR_ARCHIVE|CVAR_USERCREATED;
 }
@@ -2308,7 +2305,7 @@ void Cvar_Inc_f (void)
 		Con_Printf ("Unknown variable \"%s\"\n", Cmd_Argv(1));
 		return;
 	}
-	if (var->flags & CVAR_NOTFROMSERVER && Cmd_FromServer())
+	if (var->flags & CVAR_NOTFROMSERVER && Cmd_FromGamecode())
 	{
 		Con_Printf ("Server tried setting %s cvar\n", var->name);
 		return;

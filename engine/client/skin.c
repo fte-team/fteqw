@@ -149,9 +149,11 @@ void Skin_Find (player_info_t *sc)
 	if (s)
 	{
 		*s = '\0';
+#ifdef Q2CLIENT
 		if (cls.q2server)
 			model = Mod_ForName(va("players/%s/tris.mdl", name), false);
 		else
+#endif
 			model = Mod_ForName(va("models/players/%s.mdl", name), false);
 		if (model->type == mod_dummy)
 			model = NULL;
@@ -262,9 +264,11 @@ qbyte	*Skin_Cache8 (skin_t *skin)
 		return out;
 	}
 
+#ifdef Q2CLIENT
 	if (cls.q2server)
 		sprintf (name, "players/%s.pcx", skin->name);
 	else
+#endif
 		sprintf (name, "skins/%s.pcx", skin->name);
 	raw = COM_LoadTempFile (name);
 	if (!raw)

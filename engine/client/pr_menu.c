@@ -77,8 +77,13 @@ void PF_coredump (progfuncs_t *prinst, struct globalvars_s *pr_globals);
 void PF_traceon (progfuncs_t *prinst, struct globalvars_s *pr_globals);
 void PF_traceoff (progfuncs_t *prinst, struct globalvars_s *pr_globals);
 void PF_eprint (progfuncs_t *prinst, struct globalvars_s *pr_globals);
+void search_close_progs(progfuncs_t *prinst, qboolean complain);
+void PF_search_begin (progfuncs_t *prinst, struct globalvars_s *pr_globals);
+void PF_search_end (progfuncs_t *prinst, struct globalvars_s *pr_globals);
+void PF_search_getsize (progfuncs_t *prinst, struct globalvars_s *pr_globals);
+void PF_search_getfilename (progfuncs_t *prinst, struct globalvars_s *pr_globals);
 
-void PF_fclose_progs (progfuncs_t *prinst);
+void PR_fclose_progs (progfuncs_t *prinst);
 char *PF_VarString (progfuncs_t *prinst, int	first, struct globalvars_s *pr_globals);
 
 //new generic functions.
@@ -176,191 +181,6 @@ void PF_mod (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
 	G_FLOAT(OFS_RETURN) = (float)(((int)G_FLOAT(OFS_PARM0))%((int)G_FLOAT(OFS_PARM1)));
 }
-
-typedef struct prvmsearch_s {
-	int handle;
-	progfuncs_t *fromprogs;	//share across menu/server
-	int entries;
-	char **names;
-	int *sizes;
-
-	struct prvmsearch_s *next;
-} prvmsearch_t;
-prvmsearch_t *prvmsearches;
-int prvm_nextsearchhandle;
-
-void search_close (progfuncs_t *prinst, int handle)
-{
-	int i;
-	prvmsearch_t *prev, *s;
-
-	prev = NULL;
-	for (s = prvmsearches; s; )
-	{
-		if (s->handle == handle)
-		{	//close it down.
-			if (s->fromprogs != prinst)
-			{
-				Con_Printf("Handle wasn't valid with that progs\n");
-				return;
-			}
-			if (prev)
-				prev->next = s->next;
-			else
-				prvmsearches = s->next;
-
-			for (i = 0; i < s->entries; i++)
-			{
-				BZ_Free(s->names[i]);
-			}
-			BZ_Free(s->names);
-			BZ_Free(s->sizes);
-			BZ_Free(s);
-
-			return;
-		}
-
-		prev = s;
-		s = s->next;
-	}
-}
-//a progs was closed... hunt down it's searches, and warn about any searches left open.
-void search_close_progs(progfuncs_t *prinst, qboolean complain)
-{
-	int i;
-	prvmsearch_t *prev, *s;
-
-	prev = NULL;
-	for (s = prvmsearches; s; )
-	{
-		if (s->fromprogs == prinst)
-		{	//close it down.
-
-			if (complain)
-				Con_Printf("Warning: Progs search was still active\n");
-			if (prev)
-				prev->next = s->next;
-			else
-				prvmsearches = s->next;
-
-			for (i = 0; i < s->entries; i++)
-			{
-				BZ_Free(s->names[i]);
-			}
-			BZ_Free(s->names);
-			BZ_Free(s->sizes);
-			BZ_Free(s);
-
-			if (prev)
-				s = prev->next;
-			else
-				s = prvmsearches;
-			continue;
-		}
-
-		prev = s;
-		s = s->next;
-	}
-
-	if (!prvmsearches)
-		prvm_nextsearchhandle = 0;	//might as well.
-}
-
-int search_enumerate(char *name, int fsize, void *parm)
-{
-	prvmsearch_t *s = parm;
-
-	s->names = BZ_Realloc(s->names, ((s->entries+64)&~63) * sizeof(char*));
-	s->sizes = BZ_Realloc(s->sizes, ((s->entries+64)&~63) * sizeof(int));
-	s->names[s->entries] = BZ_Malloc(strlen(name)+1);
-	strcpy(s->names[s->entries], name);
-	s->sizes[s->entries] = fsize;
-
-	s->entries++;
-	return true;
-}
-
-//float	search_begin(string pattern, float caseinsensitive, float quiet) = #74;
-void PF_search_begin (progfuncs_t *prinst, struct globalvars_s *pr_globals)
-{	//< 0 for error, > 0 for handle.
-	char *pattern = PR_GetStringOfs(prinst, OFS_PARM0);
-//	qboolean caseinsensative = G_FLOAT(OFS_PARM1);
-//	qboolean quiet = G_FLOAT(OFS_PARM2);
-	prvmsearch_t *s;
-
-	s = BZ_Malloc(sizeof(*s));
-	s->fromprogs = prinst;
-	s->handle = prvm_nextsearchhandle++;
-
-	COM_EnumerateFiles(pattern, search_enumerate, s);
-
-	if (s->entries==0)
-	{
-		BZ_Free(s);
-		G_FLOAT(OFS_RETURN) = -1;
-		return;
-	}
-	s->next = prvmsearches;
-	prvmsearches = s;
-	G_FLOAT(OFS_RETURN) = s->handle;
-}
-//void	search_end(float handle) = #75;
-void PF_search_end (progfuncs_t *prinst, struct globalvars_s *pr_globals)
-{
-	int handle = G_FLOAT(OFS_PARM0);
-	search_close(prinst, handle);
-}
-//float	search_getsize(float handle) = #76;
-void PF_search_getsize (progfuncs_t *prinst, struct globalvars_s *pr_globals)
-{
-	int handle = G_FLOAT(OFS_PARM0);
-	prvmsearch_t *s;
-	G_FLOAT(OFS_RETURN) = -1;
-	for (s = prvmsearches; s; s = s->next)
-	{
-		if (s->handle == handle)
-		{	//close it down.
-			if (s->fromprogs != prinst)
-			{
-				Con_Printf("Handle wasn't valid with that progs\n");
-				return;
-			}
-
-			G_FLOAT(OFS_RETURN) = s->entries;
-			return;
-		}
-	}
-}
-//string	search_getfilename(float handle, float num) = #77;
-void PF_search_getfilename (progfuncs_t *prinst, struct globalvars_s *pr_globals)
-{
-	int handle = G_FLOAT(OFS_PARM0);
-	int num = G_FLOAT(OFS_PARM1);
-	prvmsearch_t *s;
-	G_INT(OFS_RETURN) = 0;
-
-	for (s = prvmsearches; s; s = s->next)
-	{
-		if (s->handle == handle)
-		{	//close it down.
-			if (s->fromprogs != prinst)
-			{
-				Con_Printf("Search handle wasn't valid with that progs\n");
-				return;
-			}
-
-			if (num < 0 || num >= s->entries)
-				return;
-			G_INT(OFS_RETURN) = (int)(s->names[num] - prinst->stringtable);
-			return;
-		}
-	}
-
-	Con_Printf("Search handle wasn't valid\n");
-}
-
-
-
 
 
 
@@ -1297,7 +1117,7 @@ void MP_Shutdown (void)
 	if (temp && !inmenuprogs)
 		PR_ExecuteProgram(menuprogs, temp);
 
-	PF_fclose_progs(menuprogs);
+	PR_fclose_progs(menuprogs);
 	search_close_progs(menuprogs, true);
 
 	CloseProgs(menuprogs);

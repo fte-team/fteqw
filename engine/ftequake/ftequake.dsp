@@ -106,7 +106,7 @@ LINK32=link.exe
 # PROP Ignore_Export_Lib 0
 # PROP Target_Dir ""
 # ADD BASE CPP /nologo /W3 /Gm /GX /ZI /Od /D "WIN32" /D "_DEBUG" /D "_WINDOWS" /D "_MBCS" /YX /FD /GZ /c
-# ADD CPP /nologo /G5 /ML /W3 /GX /ZI /Od /I "..\client" /I "../common" /I "../server" /I "../gl" /I "../sw" /I "../qclib" /I "../libs" /I "../libs/dxsdk7/include" /D "_DEBUG" /D "GLQUAKE" /D "WIN32" /D "_WINDOWS" /D "AVAIL_OGGVORBIS" /FR".\GLDebug/" /Fp".\GLDebug/qwcl.pch" /Yu"quakedef.h" /Fo".\GLDebug/" /Fd".\GLDebug/" /FD /c
+# ADD CPP /nologo /G5 /ML /W3 /GX /ZI /Od /I "..\client" /I "../common" /I "../server" /I "../gl" /I "../sw" /I "../qclib" /I "../libs" /I "../libs/dxsdk7/include" /D "_DEBUG" /D "GLQUAKE" /D "WIN32" /D "_WINDOWS" /FR".\GLDebug/" /Fp".\GLDebug/qwcl.pch" /Yu"quakedef.h" /Fo".\GLDebug/" /Fd".\GLDebug/" /FD /c
 # SUBTRACT CPP /X
 # ADD BASE MTL /nologo /D "_DEBUG" /mktyplib203 /win32
 # ADD MTL /nologo /D "_DEBUG" /mktyplib203 /win32
@@ -1311,6 +1311,10 @@ SOURCE=..\client\keys.c
 
 !ENDIF 
 
+# End Source File
+# Begin Source File
+
+SOURCE=..\client\m_download.c
 # End Source File
 # Begin Source File
 
@@ -5083,11 +5087,6 @@ SOURCE=..\common\md4.c
 # End Source File
 # Begin Source File
 
-SOURCE=..\common\md5.c
-# ADD CPP /Yu
-# End Source File
-# Begin Source File
-
 SOURCE=..\common\net_chan.c
 # End Source File
 # Begin Source File
@@ -7702,39 +7701,6 @@ SOURCE=..\http\httpserver.c
 # End Source File
 # Begin Source File
 
-SOURCE=..\email\imapnoti.c
-
-!IF  "$(CFG)" == "ftequake - Win32 Release"
-
-!ELSEIF  "$(CFG)" == "ftequake - Win32 Debug"
-
-!ELSEIF  "$(CFG)" == "ftequake - Win32 GLDebug"
-
-!ELSEIF  "$(CFG)" == "ftequake - Win32 GLRelease"
-
-!ELSEIF  "$(CFG)" == "ftequake - Win32 MDebug"
-
-!ELSEIF  "$(CFG)" == "ftequake - Win32 MRelease"
-
-!ELSEIF  "$(CFG)" == "ftequake - Win32 MinGLDebug"
-
-!ELSEIF  "$(CFG)" == "ftequake - Win32 MinGLRelease"
-
-!ELSEIF  "$(CFG)" == "ftequake - Win32 Debug Dedicated Server"
-
-!ELSEIF  "$(CFG)" == "ftequake - Win32 Release Dedicated Server"
-
-!ELSEIF  "$(CFG)" == "ftequake - Win32 MinSW"
-
-!ELSEIF  "$(CFG)" == "ftequake - Win32 GLDebugQ3"
-
-# SUBTRACT CPP /YX /Yc /Yu
-
-!ENDIF 
-
-# End Source File
-# Begin Source File
-
 SOURCE=..\irc\ircclient.c
 
 !IF  "$(CFG)" == "ftequake - Win32 Release"
@@ -7774,105 +7740,6 @@ SOURCE=..\http\iweb.h
 
 SOURCE=..\http\iwebiface.c
 # SUBTRACT CPP /YX /Yc /Yu
-# End Source File
-# Begin Source File
-
-SOURCE=..\email\pop3noti.c
-
-!IF  "$(CFG)" == "ftequake - Win32 Release"
-
-!ELSEIF  "$(CFG)" == "ftequake - Win32 Debug"
-
-!ELSEIF  "$(CFG)" == "ftequake - Win32 GLDebug"
-
-!ELSEIF  "$(CFG)" == "ftequake - Win32 GLRelease"
-
-!ELSEIF  "$(CFG)" == "ftequake - Win32 MDebug"
-
-!ELSEIF  "$(CFG)" == "ftequake - Win32 MRelease"
-
-!ELSEIF  "$(CFG)" == "ftequake - Win32 MinGLDebug"
-
-!ELSEIF  "$(CFG)" == "ftequake - Win32 MinGLRelease"
-
-!ELSEIF  "$(CFG)" == "ftequake - Win32 Debug Dedicated Server"
-
-!ELSEIF  "$(CFG)" == "ftequake - Win32 Release Dedicated Server"
-
-!ELSEIF  "$(CFG)" == "ftequake - Win32 MinSW"
-
-!ELSEIF  "$(CFG)" == "ftequake - Win32 GLDebugQ3"
-
-# SUBTRACT CPP /YX /Yc /Yu
-
-!ENDIF 
-
-# End Source File
-# Begin Source File
-
-SOURCE=..\email\sv_pop3.c
-
-!IF  "$(CFG)" == "ftequake - Win32 Release"
-
-!ELSEIF  "$(CFG)" == "ftequake - Win32 Debug"
-
-!ELSEIF  "$(CFG)" == "ftequake - Win32 GLDebug"
-
-!ELSEIF  "$(CFG)" == "ftequake - Win32 GLRelease"
-
-!ELSEIF  "$(CFG)" == "ftequake - Win32 MDebug"
-
-!ELSEIF  "$(CFG)" == "ftequake - Win32 MRelease"
-
-!ELSEIF  "$(CFG)" == "ftequake - Win32 MinGLDebug"
-
-!ELSEIF  "$(CFG)" == "ftequake - Win32 MinGLRelease"
-
-!ELSEIF  "$(CFG)" == "ftequake - Win32 Debug Dedicated Server"
-
-!ELSEIF  "$(CFG)" == "ftequake - Win32 Release Dedicated Server"
-
-!ELSEIF  "$(CFG)" == "ftequake - Win32 MinSW"
-
-!ELSEIF  "$(CFG)" == "ftequake - Win32 GLDebugQ3"
-
-# SUBTRACT CPP /YX /Yc /Yu
-
-!ENDIF 
-
-# End Source File
-# Begin Source File
-
-SOURCE=..\email\sv_smtp.c
-
-!IF  "$(CFG)" == "ftequake - Win32 Release"
-
-!ELSEIF  "$(CFG)" == "ftequake - Win32 Debug"
-
-!ELSEIF  "$(CFG)" == "ftequake - Win32 GLDebug"
-
-!ELSEIF  "$(CFG)" == "ftequake - Win32 GLRelease"
-
-!ELSEIF  "$(CFG)" == "ftequake - Win32 MDebug"
-
-!ELSEIF  "$(CFG)" == "ftequake - Win32 MRelease"
-
-!ELSEIF  "$(CFG)" == "ftequake - Win32 MinGLDebug"
-
-!ELSEIF  "$(CFG)" == "ftequake - Win32 MinGLRelease"
-
-!ELSEIF  "$(CFG)" == "ftequake - Win32 Debug Dedicated Server"
-
-!ELSEIF  "$(CFG)" == "ftequake - Win32 Release Dedicated Server"
-
-!ELSEIF  "$(CFG)" == "ftequake - Win32 MinSW"
-
-!ELSEIF  "$(CFG)" == "ftequake - Win32 GLDebugQ3"
-
-# SUBTRACT CPP /YX /Yc /Yu
-
-!ENDIF 
-
 # End Source File
 # Begin Source File
 
@@ -8120,6 +7987,10 @@ SOURCE=..\common\bothdefs.h
 # Begin Source File
 
 SOURCE=..\client\client.h
+# End Source File
+# Begin Source File
+
+SOURCE=..\common\cvar.h
 # End Source File
 # Begin Source File
 

@@ -875,6 +875,7 @@ void R_LoadRTLights(void)
 	float radius;
 	vec3_t rgb;
 
+	//delete all old lights
 	for (i=0 ; i<MAX_DLIGHTS ; i++)
 	{
 		cl_dlights[i].radius = 0;

@@ -1061,7 +1061,7 @@ TRACE(("dbg: GLDraw_ReInit: Allocating upload buffers\n"));
 	qglClearColor (1,0,0,0);
 
 	TRACE(("dbg: GLDraw_ReInit: PPL_LoadSpecularFragmentProgram\n"));
-	PPL_LoadSpecularFragmentProgram();
+	PPL_CreateShaderObjects();
 
 #ifdef PLUGINS
 	Plug_DrawReloadImages();
@@ -1643,14 +1643,20 @@ void GLDraw_ConsoleBackground (int lines)
 	y = (vid.height * 3) >> 2;
 	conback->width = vid.conwidth;
 	conback->height = vid.conheight;
+	if (scr_chatmode == 2)
+	{
+		y=0;
+		conback->height>>=1;
+		conback->width>>=1;
+	}
 	if (lines > y)
 	{
 		qglColor3f (1,1,1);
-		GLDraw_Pic(0, lines-vid.height, conback);
+		GLDraw_Pic(0, lines-conback->height, conback);
 	}
 	else
 	{
-		GLDraw_AlphaPic (0, lines - vid.height, conback, (float)(1.2 * lines)/y);
+		GLDraw_AlphaPic (0, lines - conback->height, conback, (float)(1.2 * lines)/y);
 	}
 }
 
@@ -2343,24 +2349,24 @@ void GL_ResampleTexture (unsigned *in, int inwidth, int inheight, unsigned *out,
 	for (i=0 ; i<outheight ; i++, out += outwidth)
 	{
 		inrow = in + inwidth*(i*inheight/outheight);
-		frac = fracstep >> 1;
+		frac = outwidth*fracstep;
 		j=outwidth-4;
 		while (j&3)
 		{
 			out[j] = inrow[frac>>16];
-			frac += fracstep;
+			frac -= fracstep;
 			j--;
 		}
 		for ( ; j>=0 ; j-=4)
 		{
-			out[j] = inrow[frac>>16];
-			frac += fracstep;
-			out[j+1] = inrow[frac>>16];
-			frac += fracstep;
-			out[j+2] = inrow[frac>>16];
-			frac += fracstep;
 			out[j+3] = inrow[frac>>16];
-			frac += fracstep;
+			frac -= fracstep;
+			out[j+2] = inrow[frac>>16];
+			frac -= fracstep;
+			out[j+1] = inrow[frac>>16];
+			frac -= fracstep;
+			out[j+0] = inrow[frac>>16];
+			frac -= fracstep;
 		}
 	}
 }

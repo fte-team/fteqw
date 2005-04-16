@@ -68,8 +68,6 @@ int main(int argc, char **argv)
 	{
 		FTP_ServerRun(1);
 		HTTP_ServerPoll(1);
-//		SV_POP3(1);
-//		SV_SMTP(1);
 		Sleep(1);
 	}
 }
@@ -312,8 +310,6 @@ IWEBFILE *IWebFOpenRead(char *name)					//fread(name, "rb");
 #ifndef CLIENTONLY
 cvar_t ftpserver = {"sv_ftp", "0"};
 cvar_t httpserver = {"sv_http", "0"};
-cvar_t pop3server = {"sv_pop3", "0"};
-cvar_t smtpserver = {"sv_smtp", "0"};
 cvar_t sv_readlevel = {"sv_readlevel", "0"};	//default to allow anyone
 cvar_t sv_writelevel = {"sv_writelevel", "35"};	//allowed to write to uploads/uname
 cvar_t sv_fulllevel = {"sv_fulllevel", "51"};	//allowed to write anywhere, replace any file...
@@ -368,21 +364,12 @@ void IWebInit(void)
 	Cvar_Register(&ftpserver, "Internet Server Access");
 	Cvar_Register(&httpserver, "Internet Server Access");
 #endif
-
-#ifdef EMAILSERVER
-	Cvar_Register(&pop3server, "Internet Server Access");
-	Cvar_Register(&smtpserver, "Internet Server Access");
-#endif
 }
 void IWebRun(void)
 {
 #ifdef WEBSERVER
 	FTP_ServerRun(ftpserver.value!= 0);
 	HTTP_ServerPoll(httpserver.value!=0);
-#endif
-#ifdef EMAILSERVER
-	SV_POP3(pop3server.value!=0);
-	SV_SMTP(smtpserver.value!=0);
 #endif
 }
 void IWebShutdown(void)

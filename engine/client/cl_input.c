@@ -34,6 +34,7 @@ cvar_t	cl_c2sImpulseBackup = {"cl_c2sImpulseBackup","3"};
 
 cvar_t	cl_netfps = {"cl_netfps", "0"};
 
+cvar_t	cl_smartjump = {"cl_smartjump", "1"};
 
 
 /*
@@ -189,8 +190,40 @@ void IN_AttackUp(void) {KeyUp(&in_attack);}
 
 void IN_UseDown (void) {KeyDown(&in_use);}
 void IN_UseUp (void) {KeyUp(&in_use);}
-void IN_JumpDown (void) {KeyDown(&in_jump);}
-void IN_JumpUp (void) {KeyUp(&in_jump);}
+void IN_JumpDown (void)
+{
+	qboolean condition;
+
+
+	int pnum;
+	char *c;
+	c = Cmd_Argv(0);
+	pnum = atoi(c+strlen(c)-1);
+	if (pnum)pnum--;
+	
+
+
+	condition = (cls.state == ca_active && cl_smartjump.value);
+#ifdef Q2CLIENT
+	if (condition && cls.q2server)
+		KeyDown(&in_up);
+	else
+#endif
+		if (condition && cl.stats[pnum][STAT_HEALTH] > 0 && !cls.demoplayback && !cl.spectator && 
+		cl.waterlevel[pnum] >= 2 && (!cl.teamfortress || !(in_forward.state[pnum] & 1))
+	)
+		KeyDown(&in_up);
+	else if (condition && cl.spectator && Cam_TrackNum(pnum) == -1)
+		KeyDown(&in_up);
+	else
+		KeyDown(&in_jump);
+}
+void IN_JumpUp (void)
+{
+	if (cl_smartjump.value)
+		KeyUp(&in_up);
+	KeyUp(&in_jump);
+}
 
 
 void IN_Button3Down(void) {KeyDown(&in_button3);}
@@ -800,18 +833,18 @@ void AddComponant(vec3_t angles, vec3_t dest, float fm, float rm, float um)
 }
 
 #define bound(n,v,x) v<n?n:(v>x?x:v)
-qboolean CL_FilterTime (double time, float wantfps)
+float CL_FilterTime (double time, float wantfps)	//now returns the extra time not taken in this slot. Note that negative 1 means uncapped.
 {
 	extern cvar_t rate;
 	float fps, fpscap;
 
 	if (cls.timedemo) 
-		return true;
+		return -1;
 
 	if (cls.demoplayback != DPB_NONE)
 	{
 		if (!wantfps)
-			return true;
+			return -1;
 		fps = max (30.0, wantfps);
 	}
 	else
@@ -832,7 +865,7 @@ qboolean CL_FilterTime (double time, float wantfps)
 	if (time < 1000 / fps)
 		return false;
 
-	return true;
+	return time - (1000 / fps);
 }
 
 qboolean allowindepphys;
@@ -1270,8 +1303,10 @@ void CL_SendCmd (float frametime)
 
 			Cam_FinishMove(plnum, cmd);
 
+#ifdef Q2CLIENT
 			if (cls.q2server && cmd->buttons)
 				cmd->buttons |= 128;
+#endif
 
 			for (i=0 ; i<3 ; i++)
 				cmd->angles[i] = ((int)(cl.viewangles[plnum][i]*65536.0/360)&65535);
@@ -1504,6 +1539,8 @@ void CL_InitInput (void)
 	Cvar_Register (&cl_c2sImpulseBackup, inputnetworkcvargroup);
 	Cvar_Register (&cl_c2spps, inputnetworkcvargroup);
 	Cvar_Register (&cl_netfps, inputnetworkcvargroup);
+
+	Cvar_Register (&cl_smartjump, inputnetworkcvargroup);
 }
 
 /*

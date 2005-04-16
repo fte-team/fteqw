@@ -455,7 +455,7 @@ void V_cshift_f (void)
 		Con_Printf("v_cshift: v_cshift <r> <g> <b> <alpha>\n");
 		return;
 	}
-	if (Cmd_FromServer())
+	if (Cmd_FromGamecode())
 	{
 		cl.cshifts[CSHIFT_SERVER].destcolor[0] = atoi(Cmd_Argv(1));
 		cl.cshifts[CSHIFT_SERVER].destcolor[1] = atoi(Cmd_Argv(2));
@@ -479,7 +479,7 @@ When you run over an item, the server sends this command
 */
 void V_BonusFlash_f (void)
 {
-	if (v_bonusflash.value || !Cmd_FromServer())
+	if (v_bonusflash.value || !Cmd_FromGamecode())
 	{
 		cl.cshifts[CSHIFT_BONUS].destcolor[0] = 215;
 		cl.cshifts[CSHIFT_BONUS].destcolor[1] = 186;
@@ -1250,6 +1250,12 @@ void SCR_VRectForPlayer(vrect_t *vrect, int pnum)
 		vrect->height = scr_vrect.height;
 		vrect->x = scr_vrect.x;
 		vrect->y = scr_vrect.y;
+
+		if (scr_chatmode == 2)
+		{
+			vrect->height/=2;
+			vrect->y += vrect->height;
+		}
 		break;
 
 	case 2:	//horizontal bands
@@ -1309,6 +1315,30 @@ void V_RenderPlayerViews(int plnum)
 	else
 #endif
 		R_RenderView ();
+
+	if (scr_chatmode == 2)
+	{
+		extern vec3_t desired_position[MAX_SPLITS];
+		vec3_t dir;
+		extern void vectoangles(vec3_t vec, vec3_t ang);
+
+		gl_ztrickdisabled|=16;
+		r_refdef.vrect.y -= r_refdef.vrect.height;
+		vid.recalc_refdef=true;
+		r_secondaryview = 2;
+
+		VectorSubtract(r_refdef.vieworg, desired_position[plnum], dir);
+		vectoangles(dir, r_refdef.viewangles);
+		r_refdef.viewangles[0] = -r_refdef.viewangles[0];	//flip the pitch. :(
+
+
+		VectorCopy(desired_position[plnum], r_refdef.vieworg);
+		R_RenderView ();
+		vid.recalc_refdef=true;
+		r_secondaryview = false;
+	}
+	else
+		gl_ztrickdisabled&=~16;
 	
 	r_secondaryview = 2;
 
@@ -1438,6 +1468,7 @@ void V_RenderView (void)
 
 	if (cl.worldmodel)
 	{
+		RSpeedMark();
 		CL_AllowIndependantSendCmd(false);
 
 		//work out which packet entities are solid
@@ -1456,6 +1487,8 @@ void V_RenderView (void)
 		CL_EmitEntities ();
 
 		CL_AllowIndependantSendCmd(true);
+
+		RSpeedEnd(RSPEED_LINKENTITIES);
 	}
 
 	view_frame = &cl.frames[cls.netchan.incoming_sequence & UPDATE_MASK];

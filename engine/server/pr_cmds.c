@@ -62,6 +62,7 @@ evalc_t evalc_idealpitch, evalc_pitch_speed;
 int pr_teamfield;
 
 void PR_ClearThreads(void);
+void PR_fclose_progs(progfuncs_t*);
 
 
 typedef struct {
@@ -374,6 +375,7 @@ void Q_SetProgsParms(qboolean forcompiler)
 		PR_RegisterSVBuiltins();
 	}
 	PR_ClearThreads();
+	PR_fclose_progs(svprogfuncs);
 
 //	svs.numprogs = 0;
 
@@ -382,6 +384,7 @@ void Q_SetProgsParms(qboolean forcompiler)
 void PR_Deinit(void)
 {
 	PR_ClearThreads();
+	PR_fclose_progs(svprogfuncs);
 	if (svprogfuncs)
 		CloseProgs(svprogfuncs);
 	svprogfuncs=NULL;
@@ -1809,6 +1812,7 @@ void PF_setmodel (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 			mod = sv.models[i];
 			if (mod)
 			{
+				mod = Mod_ForName (m, false);
 				VectorCopy (mod->mins, e->v->mins);
 				VectorCopy (mod->maxs, e->v->maxs);
 				VectorSubtract (mod->maxs, mod->mins, e->v->size);
@@ -1834,7 +1838,7 @@ void PF_setmodel (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 		{
 			if (sv.models[i])
 			{
-				mod = Mod_ForName (m, true);
+				mod = Mod_ForName (m, false);
 				VectorCopy (mod->mins, e->v->mins);
 				VectorCopy (mod->maxs, e->v->maxs);
 				VectorSubtract (mod->maxs, mod->mins, e->v->size);
@@ -1931,6 +1935,24 @@ void PF_sprint (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 	client = &svs.clients[entnum-1];
 	
 	SV_ClientPrintf (client, level, "%s", s);
+}
+
+//When a client is backbuffered, it's generally not a brilliant plan to send a bazillion stuffcmds. You have been warned.
+//This handy function will let the mod know when it shouldn't send more. (use instead of a timer, and you'll never get clients overflowing. yay.)
+void PF_isbackbuffered (progfuncs_t *prinst, struct globalvars_s *pr_globals)
+{
+	int			entnum;
+	client_t	*client;
+
+	entnum = G_EDICTNUM(prinst, OFS_PARM0);
+	if (entnum < 1 || entnum > sv.allocated_client_slots)
+	{
+		Con_Printf ("PF_isbackbuffered: Not a client\n");
+		return;
+	}
+	client = &svs.clients[entnum-1];
+
+	G_FLOAT(OFS_RETURN) = client->num_backbuf>0;
 }
 
 
@@ -5158,8 +5180,9 @@ void PF_strstrofs (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 	else
 		G_FLOAT(OFS_RETURN) = match - instr;
 }
-//FTE_STRINGS
 
+//FTE_STRINGS
+//returns characture at position X
 void PF_str2chr (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
 	char *instr = PR_GetStringOfs(prinst, OFS_PARM0);
@@ -5173,6 +5196,9 @@ void PF_str2chr (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 	else
 		G_FLOAT(OFS_RETURN) = instr[ofs];
 }
+
+//FTE_STRINGS
+//returns a string containing one characture per parameter (up to the qc max params of 8).
 void PF_chr2str (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
 	int i;
@@ -5255,6 +5281,8 @@ static int chrchar_alpha(int i, int basec, int baset, int convc, int convt)
 	}
 	return i + basec + baset;
 }
+//FTE_STRINGS
+//bulk convert a string. change case or colouring.
 void PF_strconv (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
 	int ccase = G_FLOAT(OFS_PARM0);	//0 same, 1 lower, 2 upper
@@ -5300,6 +5328,39 @@ void PF_strconv (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 	*result = '\0';
 }
 
+//FTE_STRINGS
+//C style strncmp (compare first n charactures - case sensative. Note that there is no strcmp provided)
+void PF_strncmp (progfuncs_t *prinst, struct globalvars_s *pr_globals)
+{
+	char *a = PR_GetStringOfs(prinst, OFS_PARM0);
+	char *b = PR_GetStringOfs(prinst, OFS_PARM1);
+	float len = G_FLOAT(OFS_PARM2);
+
+	G_FLOAT(OFS_RETURN) = strncmp(a, b, len);
+}
+
+//FTE_STRINGS
+//C style strcasecmp (case insensative string compare)
+void PF_strcasecmp (progfuncs_t *prinst, struct globalvars_s *pr_globals)
+{
+	char *a = PR_GetStringOfs(prinst, OFS_PARM0);
+	char *b = PR_GetStringOfs(prinst, OFS_PARM1);
+
+	G_FLOAT(OFS_RETURN) = stricmp(a, b);
+}
+
+//FTE_STRINGS
+//C style strncasecmp (compare first n charactures - case insensative)
+void PF_strncasecmp (progfuncs_t *prinst, struct globalvars_s *pr_globals)
+{
+	char *a = PR_GetStringOfs(prinst, OFS_PARM0);
+	char *b = PR_GetStringOfs(prinst, OFS_PARM1);
+	float len = G_FLOAT(OFS_PARM2);
+
+	G_FLOAT(OFS_RETURN) = strnicmp(a, b, len);
+}
+
+//uses qw style \key\value strings
 void PF_infoadd (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
 	char *info = PR_GetStringOfs(prinst, OFS_PARM0);
@@ -5314,6 +5375,8 @@ void PF_infoadd (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 
 	RETURN_SSTRING(temp);
 }
+
+//uses qw style \key\value strings
 void PF_infoget (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
 	char *info = PR_GetStringOfs(prinst, OFS_PARM0);
@@ -5326,31 +5389,6 @@ void PF_infoget (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 	strcpy(temp, key);
 	RETURN_SSTRING(temp);
 }
-void PF_strncmp (progfuncs_t *prinst, struct globalvars_s *pr_globals)
-{
-	char *a = PR_GetStringOfs(prinst, OFS_PARM0);
-	char *b = PR_GetStringOfs(prinst, OFS_PARM1);
-	float len = G_FLOAT(OFS_PARM2);
-
-	G_FLOAT(OFS_RETURN) = strncmp(a, b, len);
-}
-void PF_strcasecmp (progfuncs_t *prinst, struct globalvars_s *pr_globals)
-{
-	char *a = PR_GetStringOfs(prinst, OFS_PARM0);
-	char *b = PR_GetStringOfs(prinst, OFS_PARM1);
-
-	G_FLOAT(OFS_RETURN) = stricmp(a, b);
-}
-void PF_strncasecmp (progfuncs_t *prinst, struct globalvars_s *pr_globals)
-{
-	char *a = PR_GetStringOfs(prinst, OFS_PARM0);
-	char *b = PR_GetStringOfs(prinst, OFS_PARM1);
-	float len = G_FLOAT(OFS_PARM2);
-
-	G_FLOAT(OFS_RETURN) = strnicmp(a, b, len);
-}
-
-
 
 //back to frik_file support.
 
@@ -5582,9 +5620,195 @@ void PF_fcloseall (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 	}
 }
 
-void PF_fclose_progs (progfuncs_t *prinst)
+
+
+typedef struct prvmsearch_s {
+	int handle;
+	progfuncs_t *fromprogs;	//share across menu/server
+	int entries;
+	char **names;
+	int *sizes;
+
+	struct prvmsearch_s *next;
+} prvmsearch_t;
+prvmsearch_t *prvmsearches;
+int prvm_nextsearchhandle;
+
+void search_close (progfuncs_t *prinst, int handle)
+{
+	int i;
+	prvmsearch_t *prev, *s;
+
+	prev = NULL;
+	for (s = prvmsearches; s; )
+	{
+		if (s->handle == handle)
+		{	//close it down.
+			if (s->fromprogs != prinst)
+			{
+				Con_Printf("Handle wasn't valid with that progs\n");
+				return;
+			}
+			if (prev)
+				prev->next = s->next;
+			else
+				prvmsearches = s->next;
+
+			for (i = 0; i < s->entries; i++)
+			{
+				BZ_Free(s->names[i]);
+			}
+			BZ_Free(s->names);
+			BZ_Free(s->sizes);
+			BZ_Free(s);
+
+			return;
+		}
+
+		prev = s;
+		s = s->next;
+	}
+}
+//a progs was closed... hunt down it's searches, and warn about any searches left open.
+void search_close_progs(progfuncs_t *prinst, qboolean complain)
+{
+	int i;
+	prvmsearch_t *prev, *s;
+
+	prev = NULL;
+	for (s = prvmsearches; s; )
+	{
+		if (s->fromprogs == prinst)
+		{	//close it down.
+
+			if (complain)
+				Con_Printf("Warning: Progs search was still active\n");
+			if (prev)
+				prev->next = s->next;
+			else
+				prvmsearches = s->next;
+
+			for (i = 0; i < s->entries; i++)
+			{
+				BZ_Free(s->names[i]);
+			}
+			BZ_Free(s->names);
+			BZ_Free(s->sizes);
+			BZ_Free(s);
+
+			if (prev)
+				s = prev->next;
+			else
+				s = prvmsearches;
+			continue;
+		}
+
+		prev = s;
+		s = s->next;
+	}
+
+	if (!prvmsearches)
+		prvm_nextsearchhandle = 0;	//might as well.
+}
+
+int search_enumerate(char *name, int fsize, void *parm)
+{
+	prvmsearch_t *s = parm;
+
+	s->names = BZ_Realloc(s->names, ((s->entries+64)&~63) * sizeof(char*));
+	s->sizes = BZ_Realloc(s->sizes, ((s->entries+64)&~63) * sizeof(int));
+	s->names[s->entries] = BZ_Malloc(strlen(name)+1);
+	strcpy(s->names[s->entries], name);
+	s->sizes[s->entries] = fsize;
+
+	s->entries++;
+	return true;
+}
+
+//float	search_begin(string pattern, float caseinsensitive, float quiet) = #74;
+void PF_search_begin (progfuncs_t *prinst, struct globalvars_s *pr_globals)
+{	//< 0 for error, > 0 for handle.
+	char *pattern = PR_GetStringOfs(prinst, OFS_PARM0);
+//	qboolean caseinsensative = G_FLOAT(OFS_PARM1);
+//	qboolean quiet = G_FLOAT(OFS_PARM2);
+	prvmsearch_t *s;
+
+	s = BZ_Malloc(sizeof(*s));
+	s->fromprogs = prinst;
+	s->handle = prvm_nextsearchhandle++;
+
+	COM_EnumerateFiles(pattern, search_enumerate, s);
+
+	if (s->entries==0)
+	{
+		BZ_Free(s);
+		G_FLOAT(OFS_RETURN) = -1;
+		return;
+	}
+	s->next = prvmsearches;
+	prvmsearches = s;
+	G_FLOAT(OFS_RETURN) = s->handle;
+}
+//void	search_end(float handle) = #75;
+void PF_search_end (progfuncs_t *prinst, struct globalvars_s *pr_globals)
+{
+	int handle = G_FLOAT(OFS_PARM0);
+	search_close(prinst, handle);
+}
+//float	search_getsize(float handle) = #76;
+void PF_search_getsize (progfuncs_t *prinst, struct globalvars_s *pr_globals)
+{
+	int handle = G_FLOAT(OFS_PARM0);
+	prvmsearch_t *s;
+	G_FLOAT(OFS_RETURN) = -1;
+	for (s = prvmsearches; s; s = s->next)
+	{
+		if (s->handle == handle)
+		{	//close it down.
+			if (s->fromprogs != prinst)
+			{
+				Con_Printf("Handle wasn't valid with that progs\n");
+				return;
+			}
+
+			G_FLOAT(OFS_RETURN) = s->entries;
+			return;
+		}
+	}
+}
+//string	search_getfilename(float handle, float num) = #77;
+void PF_search_getfilename (progfuncs_t *prinst, struct globalvars_s *pr_globals)
+{
+	int handle = G_FLOAT(OFS_PARM0);
+	int num = G_FLOAT(OFS_PARM1);
+	prvmsearch_t *s;
+	G_INT(OFS_RETURN) = 0;
+
+	for (s = prvmsearches; s; s = s->next)
+	{
+		if (s->handle == handle)
+		{	//close it down.
+			if (s->fromprogs != prinst)
+			{
+				Con_Printf("Search handle wasn't valid with that progs\n");
+				return;
+			}
+
+			if (num < 0 || num >= s->entries)
+				return;
+			G_INT(OFS_RETURN) = (int)(s->names[num] - prinst->stringtable);
+			return;
+		}
+	}
+
+	Con_Printf("Search handle wasn't valid\n");
+}
+
+//closes filesystem type stuff for when a progs has stopped needing it.
+void PR_fclose_progs (progfuncs_t *prinst)
 {
 	PF_fcloseall(prinst, PR_globals(prinst, PR_CURRENT));
+	search_close_progs(prinst, true);
 }
 
 
@@ -5665,6 +5889,7 @@ lh_extension_t QSG_Extensions[] = {
 	{"FRIK_FILE",						11, NULL, {"stof", "fopen","fclose","fgets","fputs","strlen","strcat","substring","stov","strzone","strunzone"}},
 	{"FTE_CALLTIMEOFDAY",				1,	NULL, {"calltimeofday"}},
 	{"FTE_FORCEINFOKEY",				1,	NULL, {"forceinfokey"}},
+	{"FTE_ISBACKBUFFERED",				1,	NULL, {"isbackbuffered"}},
 #ifndef NOMEDIA
 	{"FTE_MEDIA_AVI"},	//playfilm supports avi files.
 	{"FTE_MEDIA_CIN"},	//playfilm command supports q2 cin files.
@@ -5910,7 +6135,14 @@ void PF_Tokenize  (progfuncs_t *prinst, struct globalvars_s *pr_globals)			//84	
 void PF_ArgV  (progfuncs_t *prinst, struct globalvars_s *pr_globals)				//86			//string(float num) argv;
 {
 	char *dest = PF_TempStr();
-	strcpy(dest, Cmd_Argv(G_FLOAT(OFS_PARM0)));
+	int i = G_FLOAT(OFS_PARM0);
+	if (i < 0)
+	{
+		PR_BIError(prinst, "pr_argv with i < 0");
+		G_INT(OFS_RETURN) = 0;
+		return;
+	}
+	strcpy(dest, Cmd_Argv(i));
 	RETURN_CSTRING(dest);
 }
 
@@ -7345,20 +7577,88 @@ void PF_te_beam(progfuncs_t *prinst, struct globalvars_s *pr_globals)
 //DP_TE_SPARK
 void PF_te_spark(progfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
-#pragma message("PF_te_spark not implemented yet.")
+	float *org = G_VECTOR(OFS_PARM0);
+
+	if (G_FLOAT(OFS_PARM2) < 1)
+		return;
+
+	MSG_WriteByte(&sv.multicast, svc_temp_entity);
+	MSG_WriteByte(&sv.multicast, DPTE_SPARK);
+	// origin
+	MSG_WriteCoord(&sv.multicast, org[0]);
+	MSG_WriteCoord(&sv.multicast, org[1]);
+	MSG_WriteCoord(&sv.multicast, org[2]);
+	// velocity
+	MSG_WriteByte(&sv.multicast, bound(-128, (int) G_VECTOR(OFS_PARM1)[0], 127));
+	MSG_WriteByte(&sv.multicast, bound(-128, (int) G_VECTOR(OFS_PARM1)[1], 127));
+	MSG_WriteByte(&sv.multicast, bound(-128, (int) G_VECTOR(OFS_PARM1)[2], 127));
+	// count
+	MSG_WriteByte(&sv.multicast, bound(0, (int) G_FLOAT(OFS_PARM2), 255));
+
+//the nq version
+#ifdef NQPROT
+	MSG_WriteByte(&sv.nqmulticast, svc_temp_entity);
+	MSG_WriteByte(&sv.nqmulticast, DPTE_SPARK);
+	// origin
+	MSG_WriteCoord(&sv.nqmulticast, org[0]);
+	MSG_WriteCoord(&sv.nqmulticast, org[1]);
+	MSG_WriteCoord(&sv.nqmulticast, org[2]);
+	// velocity
+	MSG_WriteByte(&sv.nqmulticast, bound(-128, (int) G_VECTOR(OFS_PARM1)[0], 127));
+	MSG_WriteByte(&sv.nqmulticast, bound(-128, (int) G_VECTOR(OFS_PARM1)[1], 127));
+	MSG_WriteByte(&sv.nqmulticast, bound(-128, (int) G_VECTOR(OFS_PARM1)[2], 127));
+	// count
+	MSG_WriteByte(&sv.nqmulticast, bound(0, (int) G_FLOAT(OFS_PARM2), 255));
+#endif
+	SV_Multicast(org, MULTICAST_PVS);
 }
 
 // #416 void(vector org) te_smallflash (DP_TE_SMALLFLASH)
 void PF_te_smallflash(progfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
 	float *org = G_VECTOR(OFS_PARM0);
-	SV_point_tempentity(org, 72, 0);
+	SV_point_tempentity(org, DPTE_SMALLFLASH, 0);
 }
 
 // #417 void(vector org, float radius, float lifetime, vector color) te_customflash (DP_TE_CUSTOMFLASH)
 void PF_te_customflash(progfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
-#pragma message("PF_te_customflash not implemented yet.")
+	float *org = G_VECTOR(OFS_PARM0);
+
+	if (G_FLOAT(OFS_PARM1) < 8 || G_FLOAT(OFS_PARM2) < (1.0 / 256.0))
+		return;
+	MSG_WriteByte(&sv.multicast, svc_temp_entity);
+	MSG_WriteByte(&sv.multicast, DPTE_CUSTOMFLASH);
+	// origin
+	MSG_WriteCoord(&sv.multicast, G_VECTOR(OFS_PARM0)[0]);
+	MSG_WriteCoord(&sv.multicast, G_VECTOR(OFS_PARM0)[1]);
+	MSG_WriteCoord(&sv.multicast, G_VECTOR(OFS_PARM0)[2]);
+	// radius
+	MSG_WriteByte(&sv.multicast, bound(0, G_FLOAT(OFS_PARM1) / 8 - 1, 255));
+	// lifetime
+	MSG_WriteByte(&sv.multicast, bound(0, G_FLOAT(OFS_PARM2) / 256 - 1, 255));
+	// color
+	MSG_WriteByte(&sv.multicast, bound(0, G_VECTOR(OFS_PARM3)[0] * 255, 255));
+	MSG_WriteByte(&sv.multicast, bound(0, G_VECTOR(OFS_PARM3)[1] * 255, 255));
+	MSG_WriteByte(&sv.multicast, bound(0, G_VECTOR(OFS_PARM3)[2] * 255, 255));
+
+#ifdef NQPROT
+	MSG_WriteByte(&sv.nqmulticast, svc_temp_entity);
+	MSG_WriteByte(&sv.nqmulticast, DPTE_CUSTOMFLASH);
+	// origin
+	MSG_WriteCoord(&sv.nqmulticast, G_VECTOR(OFS_PARM0)[0]);
+	MSG_WriteCoord(&sv.nqmulticast, G_VECTOR(OFS_PARM0)[1]);
+	MSG_WriteCoord(&sv.nqmulticast, G_VECTOR(OFS_PARM0)[2]);
+	// radius
+	MSG_WriteByte(&sv.nqmulticast, bound(0, G_FLOAT(OFS_PARM1) / 8 - 1, 255));
+	// lifetime
+	MSG_WriteByte(&sv.nqmulticast, bound(0, G_FLOAT(OFS_PARM2) / 256 - 1, 255));
+	// color
+	MSG_WriteByte(&sv.nqmulticast, bound(0, G_VECTOR(OFS_PARM3)[0] * 255, 255));
+	MSG_WriteByte(&sv.nqmulticast, bound(0, G_VECTOR(OFS_PARM3)[1] * 255, 255));
+	MSG_WriteByte(&sv.nqmulticast, bound(0, G_VECTOR(OFS_PARM3)[2] * 255, 255));
+#endif
+	SV_Multicast(org, MULTICAST_PVS);
 }
 
 //#408 void(vector mincorner, vector maxcorner, vector vel, float howmany, float color, float gravityflag, float randomveljitter) te_particlecube (DP_TE_PARTICLECUBE)
@@ -7715,27 +8015,6 @@ void PF_ChangePic(progfuncs_t *prinst, struct globalvars_s *pr_globals)
 		}
 	}
 }
-
-//DP_QC_FS_SEARCH
-void PF_Search_Begin(progfuncs_t *prinst, struct globalvars_s *pr_globals)
-{
-	G_INT(OFS_RETURN) = 0;
-}
-void PF_Search_End(progfuncs_t *prinst, struct globalvars_s *pr_globals)
-{
-	G_INT(OFS_RETURN) = 0;
-}
-void PF_Search_GetSize(progfuncs_t *prinst, struct globalvars_s *pr_globals)
-{
-	G_INT(OFS_RETURN) = 0;
-}
-void PF_SearchGetFileName(progfuncs_t *prinst, struct globalvars_s *pr_globals)
-{
-	G_INT(OFS_RETURN) = 0;
-}
-
-
-
 
 
 
@@ -8139,6 +8418,7 @@ BuiltinList_t BuiltinList[] = {				//nq	qw		h2		ebfs
 	{"clientstat",		PF_clientstat,		0,		0,		0,		232},
 	{"runclientphys",	PF_runclientphys,	0,		0,		0,		233},
 //END EXT_CSQC
+	{"isbackbuffered",	PF_isbackbuffered,	0,		0,		0,		234},
 
 //end fte extras
 
@@ -8194,10 +8474,10 @@ BuiltinList_t BuiltinList[] = {				//nq	qw		h2		ebfs
 
 	{"setattachment",	PF_setattachment,	0,		0,		0,		443},// #443 void(entity e, entity tagentity, string tagname) setattachment (DP_GFX_QUAKE3MODELTAGS)
 
-	{"search_begin",	PF_Search_Begin,	0,		0,		0,		444},
-	{"search_end",		PF_Search_End,		0,		0,		0,		445},
-	{"search_getsize",	PF_Search_GetSize,	0,		0,		0,		446},
-	{"search_getfilename", PF_SearchGetFileName,0,	0,		0,		447},
+	{"search_begin",	PF_search_begin,	0,		0,		0,		444},
+	{"search_end",		PF_search_end,		0,		0,		0,		445},
+	{"search_getsize",	PF_search_getsize,	0,		0,		0,		446},
+	{"search_getfilename", PF_search_getfilename,0,	0,		0,		447},
 //DP_QC_CVAR_STRING
 	{"dp_cvar_string",	PF_cvar_string,		0,		0,		0,		448},// #448 string(float n) cvar_string
 

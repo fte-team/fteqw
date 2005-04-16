@@ -152,8 +152,6 @@ int scenepp_ww_parm_ampscalef;
 // processing shaders
 void GL_InitSceneProcessingShaders (void)
 {
-	int vert, frag;
-
 	char *genericvert = "\
 		varying vec2 v_texCoord0;\
 		varying vec2 v_texCoord1;\
@@ -196,10 +194,7 @@ void GL_InitSceneProcessingShaders (void)
 	if (qglGetError())
 		Con_Printf("GL Error before initing shader object\n");
 
-	vert = GLSlang_CreateShader(genericvert,	1);//GL_VERTEX_SHADER_ARB);
-	frag = GLSlang_CreateShader(wwfrag,			0);//GL_FRAGMENT_SHADER_ARB);
-
-	scenepp_ww_program = GLSlang_CreateProgram(vert, frag);
+	scenepp_ww_program = GLSlang_CreateProgram(NULL, genericvert, wwfrag);
 
 	if (!scenepp_ww_program)
 		return;
@@ -508,10 +503,16 @@ void R_DrawSpriteModel (entity_t *e)
 
     GL_Bind(frame->gl_texturenum);
 
-	if (e->alpha<1)
+	if (e->flags & Q2RF_ADDATIVE)
 	{
 		qglEnable(GL_BLEND);
-		qglTexEnvf(GL_TEXTURE_ENV, GL_TEXTURE_ENV_MODE, GL_MODULATE);
+		qglTexEnvi(GL_TEXTURE_ENV, GL_TEXTURE_ENV_MODE, GL_MODULATE);
+		qglBlendFunc(GL_SRC_ALPHA, GL_ONE);
+	}
+	else if (e->alpha<1)
+	{
+		qglEnable(GL_BLEND);
+		qglTexEnvi(GL_TEXTURE_ENV, GL_TEXTURE_ENV_MODE, GL_MODULATE);
 	}
 	else
 		qglEnable (GL_ALPHA_TEST);
@@ -543,6 +544,9 @@ void R_DrawSpriteModel (entity_t *e)
 
 	qglDisable(GL_BLEND);
 	qglDisable (GL_ALPHA_TEST);
+
+	if (e->flags & Q2RF_ADDATIVE)	//back to regular blending for us!
+		qglBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
 }
 #if 0
 extern int gldepthfunc;
@@ -715,7 +719,7 @@ R_DrawEntitiesOnList
 */
 void GLR_DrawEntitiesOnList (void)
 {
-	int		i;
+	int		i, j;
 
 	if (!r_drawentities.value)
 		return;
@@ -725,17 +729,39 @@ void GLR_DrawEntitiesOnList (void)
 	{
 		currententity = &cl_visedicts[i];
 
-		if (cl.viewentity[r_refdef.currentplayernum] && currententity->keynum == cl.viewentity[r_refdef.currentplayernum])
-			continue;
+		if (r_inmirror)
+		{
+			if (currententity->flags & Q2RF_WEAPONMODEL)
+				continue;
+		}
+		else
+		{
+			j = currententity->keynum;
+			while(j)
+			{
+				
+				if (j == (cl.viewentity[r_refdef.currentplayernum]?cl.viewentity[r_refdef.currentplayernum]:(cl.playernum[r_refdef.currentplayernum]+1)))
+					break;
 
-		if (!Cam_DrawPlayer(0, currententity->keynum-1))
-			continue;
+				j = cl.lerpents[j].tagent;
+			}
+			if (j)
+				continue;
+
+			if (cl.viewentity[r_refdef.currentplayernum] && currententity->keynum == cl.viewentity[r_refdef.currentplayernum])
+				continue;
+			if (!Cam_DrawPlayer(0, currententity->keynum-1))
+				continue;
+		}
 
 		if (currententity->flags & Q2RF_BEAM)
+		{
+			R_DrawBeam(currententity);
 			continue;
-
+		}
 		if (!currententity->model)
 			continue;
+
 
 		if (cls.allow_anyparticles || currententity->visframe)	//allowed or static
 		{
@@ -787,12 +813,36 @@ void GLR_DrawEntitiesOnList (void)
 	{
 		currententity = &cl_visedicts[i];
 
-		if (cl.viewentity[r_refdef.currentplayernum] && currententity->keynum == cl.viewentity[r_refdef.currentplayernum])
-			continue;
+		if (r_inmirror)
+		{
+			if (currententity->flags & Q2RF_WEAPONMODEL)
+				continue;
+		}
+		else
+		{
+			j = currententity->keynum;
+			while(j)
+			{
+				
+				if (j == (cl.viewentity[r_refdef.currentplayernum]?cl.viewentity[r_refdef.currentplayernum]:(cl.playernum[r_refdef.currentplayernum]+1)))
+					break;
+
+				j = cl.lerpents[j].tagent;
+			}
+			if (j)
+				continue;
+
+			if (cl.viewentity[r_refdef.currentplayernum] && currententity->keynum == cl.viewentity[r_refdef.currentplayernum])
+				continue;
+			if (!Cam_DrawPlayer(0, currententity->keynum-1))
+				continue;
+		}
 
 		if (currententity->flags & Q2RF_BEAM)
+		{
+			R_DrawBeam(currententity);
 			continue;
-
+		}
 		if (!currententity->model)
 			continue;
 
@@ -1335,7 +1385,7 @@ void R_SetupGL (void)
 	qglLoadIdentity ();
 
 	screenaspect = (float)r_refdef.vrect.width/r_refdef.vrect.height;
-	if (!r_shadows.value || !gl_canstencil)//gl_nv_range_clamp)
+	if ((!r_shadows.value || !gl_canstencil) && gl_maxdist.value>0)//gl_nv_range_clamp)
 	{
 //		yfov = 2*atan((float)r_refdef.vrect.height/r_refdef.vrect.width)*180/M_PI;
 //		yfov = (2.0 * tan (scr_fov.value/360*M_PI)) / screenaspect;
@@ -1636,9 +1686,9 @@ void R_MirrorAddPlayerModels (void)
 
 	VectorCopy(cl.simorg[0], ent->origin);
 
-	if (state->effects & EF_FLAG1)
+	if (state->effects & QWEF_FLAG1)
 		CL_AddFlagModels (ent, 0);
-	else if (state->effects & EF_FLAG2)
+	else if (state->effects & QWEF_FLAG2)
 		CL_AddFlagModels (ent, 1);
 
 	if (info->vweapindex)
@@ -1954,7 +2004,7 @@ void GLR_RenderView (void)
 	//	Con_Printf ("%3i ms  %4i wpoly %4i epoly\n", (int)((time2-time1)*1000), c_brush_polys, c_alias_polys); 
 	}
 
-	if (!gl_config.arb_shader_objects)
+	if (!scenepp_ww_program)
 		return;
 
 	// SCENE POST PROCESSING

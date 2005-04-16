@@ -142,7 +142,6 @@ extern	cvar_t	gl_maxdist;
 #ifdef SPECULAR
 cvar_t		gl_specular = {"gl_specular", "0"};
 #endif
-cvar_t		gl_waterripples = {"gl_waterripples", "0"};
 cvar_t		gl_detail = {"gl_detail", "0", NULL, CVAR_ARCHIVE};
 cvar_t		r_shadows = {"r_shadows", "0", NULL, CVAR_ARCHIVE|CVAR_RENDERERLATCH};
 cvar_t		r_shadow_realtime_world = {"r_shadow_realtime_world", "0", NULL, CVAR_CHEAT};
@@ -239,8 +238,6 @@ cvar_t	gl_ztrick = {"gl_ztrick","1"};
 cvar_t	gl_lerpimages = {"gl_lerpimages", "1"};
 extern cvar_t r_waterlayers;
 cvar_t			gl_triplebuffer = {"gl_triplebuffer", "1", NULL, CVAR_ARCHIVE};
-cvar_t			gl_subdivide_size = {"gl_subdivide_size", "128", NULL, CVAR_ARCHIVE};
-cvar_t			gl_subdivide_water = {"gl_subdivide_water", "0", NULL, CVAR_ARCHIVE};
 cvar_t			vid_hardwaregamma = {"vid_hardwaregamma", "1", NULL, CVAR_ARCHIVE};
 void GLRenderer_Init(void)
 {
@@ -249,10 +246,6 @@ void GLRenderer_Init(void)
 	Cvar_Register (&gl_triplebuffer, GLRENDEREROPTIONS);
 
 	Cvar_Register (&vid_hardwaregamma, GLRENDEREROPTIONS);
-
-	//model
-	Cvar_Register (&gl_subdivide_size, GLRENDEREROPTIONS);
-	Cvar_Register (&gl_subdivide_water, GLRENDEREROPTIONS);
 
 //renderer
 	Cvar_Register (&r_novis, GLRENDEREROPTIONS);
@@ -311,7 +304,6 @@ void GLRenderer_Init(void)
 #ifdef WATERLAYERS
 	Cvar_Register (&r_waterlayers, GRAPHICALNICETIES);
 #endif
-	Cvar_Register (&gl_waterripples, GRAPHICALNICETIES);
 
 	Cvar_Register (&gl_nobind, GLRENDEREROPTIONS);
 	Cvar_Register (&gl_max_size, GLRENDEREROPTIONS);

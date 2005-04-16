@@ -72,6 +72,8 @@ typedef struct entity_s
 											//  that splits bmodel, or NULL if
 											//  not split
 
+	float	bonecontrols[4];
+
 	int flags;
 
 #ifdef Q3SHADERS
@@ -340,10 +342,11 @@ extern cvar_t   r_palconvwrite;
 
 enum {
 	RSPEED_TOTALREFRESH,
-	RSPEED_CLIENT,
+	RSPEED_LINKENTITIES,
+	RSPEED_PROTOCOL,
 	RSPEED_WORLDNODE,
 	RSPEED_WORLD,
-	RSPEED_ENTITIES,
+	RSPEED_DRAWENTITIES,
 	RSPEED_STENCILSHADOWS,
 	RSPEED_FULLBRIGHTS,
 	RSPEED_DYNAMIC,

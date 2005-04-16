@@ -35,7 +35,7 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 #define BUTTON_ATTACK 1
 #define MAX_ANGLE_TURN 10
 
-static vec3_t desired_position[MAX_SPLITS]; // where the camera wants to be
+vec3_t desired_position[MAX_SPLITS]; // where the camera wants to be
 static qboolean locked[MAX_SPLITS];
 static int oldbuttons[MAX_SPLITS];
 
@@ -106,8 +106,8 @@ qboolean Cam_DrawPlayer(int pnum, int playernum)
 {
 //	if (playernum == cl.playernum[pnum])
 //		return false;
-	if (cl.spectator && autocam[pnum] && locked[pnum] && cl_chasecam.value && 
-		spec_track[pnum] == playernum)
+	if (cl.spectator && autocam[pnum] && locked[pnum] && (cl_chasecam.value||scr_chatmode==2) && 
+		spec_track[pnum] == playernum && r_secondaryview != 2)
 		return false;
 	return true;
 }
@@ -351,7 +351,7 @@ static void Cam_CheckHighTarget(int pnum)
 	else
 		Cam_Unlock(pnum);
 }
-	
+
 // ZOID
 //
 // Take over the user controls and track a player.
@@ -396,52 +396,56 @@ void Cam_Track(int pnum, usercmd_t *cmd)
 		}
 	}
 	else
+	{
 		cam_lastviewtime[pnum] = realtime;
-	
-	// couldn't track for some reason
+	}
+
+	//tracking failed.
 	if (!locked[pnum] || !autocam[pnum])
 		return;
 
-	if (cl_chasecam.value)
+
+	if (cl_chasecam.value || scr_chatmode == 2)
 	{
+		if (scr_chatmode != 2)
+			cam_lastviewtime[pnum] = realtime;
+
 		cmd->forwardmove = cmd->sidemove = cmd->upmove = 0;
 
 		VectorCopy(player->viewangles, cl.viewangles[pnum]);
-		VectorCopy(player->origin, desired_position[pnum]);
-		if (memcmp(&desired_position[pnum], &self->origin, sizeof(desired_position[pnum])) != 0)
+		if (memcmp(player->origin, &self->origin, sizeof(player->origin)) != 0)
 		{
 			MSG_WriteByte (&cls.netchan.message, clc_tmove);
-			MSG_WriteCoord (&cls.netchan.message, desired_position[pnum][0]);
-			MSG_WriteCoord (&cls.netchan.message, desired_position[pnum][1]);
-			MSG_WriteCoord (&cls.netchan.message, desired_position[pnum][2]);
+			MSG_WriteCoord (&cls.netchan.message, player->origin[0]);
+			MSG_WriteCoord (&cls.netchan.message, player->origin[1]);
+			MSG_WriteCoord (&cls.netchan.message, player->origin[2]);
 			// move there locally immediately
-			VectorCopy(desired_position[pnum], self->origin);
+			VectorCopy(player->origin, self->origin);
 		}
 		self->weaponframe = player->weaponframe;
 
+		return;
 	}
-	else
-	{
-		// Ok, move to our desired position and set our angles to view
-		// the player
-		VectorSubtract(desired_position[pnum], self->origin, vec);
-		len = vlen(vec);
-		cmd->forwardmove = cmd->sidemove = cmd->upmove = 0;
-		if (len > 16)
-		{ // close enough?
-			MSG_WriteByte (&cls.netchan.message, clc_tmove);
-			MSG_WriteCoord (&cls.netchan.message, desired_position[pnum][0]);
-			MSG_WriteCoord (&cls.netchan.message, desired_position[pnum][1]);
-			MSG_WriteCoord (&cls.netchan.message, desired_position[pnum][2]);
-		}
-
-		// move there locally immediately
-		VectorCopy(desired_position[pnum], self->origin);
-
-		VectorSubtract(player->origin, desired_position[pnum], vec);
-		vectoangles(vec, cl.viewangles[pnum]);
-		cl.viewangles[pnum][0] = -cl.viewangles[pnum][0];
+	
+	// Ok, move to our desired position and set our angles to view
+	// the player
+	VectorSubtract(desired_position[pnum], self->origin, vec);
+	len = vlen(vec);
+	cmd->forwardmove = cmd->sidemove = cmd->upmove = 0;
+	if (len > 16)
+	{ // close enough?
+		MSG_WriteByte (&cls.netchan.message, clc_tmove);
+		MSG_WriteCoord (&cls.netchan.message, desired_position[pnum][0]);
+		MSG_WriteCoord (&cls.netchan.message, desired_position[pnum][1]);
+		MSG_WriteCoord (&cls.netchan.message, desired_position[pnum][2]);
 	}
+
+	// move there locally immediately
+	VectorCopy(desired_position[pnum], self->origin);
+
+	VectorSubtract(player->origin, desired_position[pnum], vec);
+	vectoangles(vec, cl.viewangles[pnum]);
+	cl.viewangles[pnum][0] = -cl.viewangles[pnum][0];
 }
 
 void Cam_TrackCrosshairedPlayer(int pnum)
@@ -449,7 +453,7 @@ void Cam_TrackCrosshairedPlayer(int pnum)
 	frame_t *frame;
 	player_state_t *player;
 	int i;
-	float dot = 0.1, bestdot;
+	float dot = 0.1, bestdot=0;
 	int best = -1;
 	vec3_t selforg;
 	vec3_t dir;

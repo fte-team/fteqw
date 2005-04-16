@@ -704,6 +704,7 @@ enum {
 #define FLAG_ASDEFAULT		2
 #define FLAG_SETINGUI		4
 #define FLAG_HIDDENINGUI	8
+#define FLAG_MIDCOMPILE		16	//option can be changed mid-compile with the special pragma
 typedef struct {
 	pbool *enabled;
 	char *abbrev;

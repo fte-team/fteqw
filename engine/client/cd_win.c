@@ -227,6 +227,9 @@ void CDAudio_Resume(void)
 
 	if (!wasPlaying)
 		return;
+
+	if (!cdvolume)
+		return;
 	
     mciPlayParms.dwFrom = MCI_MAKE_TMSF(playTrack, 0, 0, 0);
     mciPlayParms.dwTo = MCI_MAKE_TMSF(playTrack + 1, 0, 0, 0);

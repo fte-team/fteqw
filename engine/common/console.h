@@ -79,6 +79,8 @@ extern	console_t	*con_current;			// point to either con_main or con_chat
 
 extern	int			con_ormask;
 
+extern int scr_chatmode;
+
 //extern int con_totallines;
 extern qboolean con_initialized;
 extern qbyte *con_chars;

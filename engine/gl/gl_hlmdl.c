@@ -373,11 +373,11 @@ void HL_CalcBoneAdj(hlmodel_t *model)
 
         if(control[i].type & 0x8000)
         {
-            value = model->controller[j] * (360.0 / 256.0) + control[i].start;
+            value = model->controller[j] + control[i].start;
         }
         else
         {
-            value = model->controller[j] / 255.0;
+            value = model->controller[j];
             if(value < 0)
                 value = 0;
             else if(value > 1.0)
@@ -482,10 +482,10 @@ void R_DrawHLModel(entity_t	*curent)
     sequence = (hlmdl_sequencelist_t *) ((qbyte *) model.header + model.header->seqindex) +
                                      model.sequence;
 
-	model.controller[0] = 127;
-	model.controller[1] = 127;
-	model.controller[2] = 127;
-	model.controller[3] = 127;
+	model.controller[0] = curent->bonecontrols[0];
+	model.controller[1] = curent->bonecontrols[1];
+	model.controller[2] = curent->bonecontrols[2];
+	model.controller[3] = curent->bonecontrols[3];
 	model.controller[4] = 0;//sin(cl.time)*127+127;
 
 	model.frametime += (cl.time - cl.lerpents[curent->keynum].framechange)*sequence->timing;

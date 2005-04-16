@@ -1241,6 +1241,8 @@ void CL_TimeDemo_f (void)
 	if (cls.state != ca_demostart)
 		return;
 
+	CL_ReadPackets();
+
 // cls.td_starttime will be grabbed at the second frame of the demo, so
 // all the loading time doesn't get counted
 	

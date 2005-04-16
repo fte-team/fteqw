@@ -479,8 +479,8 @@ C(D_PolysetCalcGradientsAsm):
 #define lp2	8+16
 #define lp3	12+16
 
-.globl C(D_PolysetRecursiveTriangle)
-C(D_PolysetRecursiveTriangle):
+.globl C(D_PolysetRecursiveTriangleAsm)
+C(D_PolysetRecursiveTriangleAsm):
 	pushl	%ebp				// preserve caller stack frame pointer
 	pushl	%esi				// preserve register variables
 	pushl	%edi
@@ -713,18 +713,18 @@ LDraw:
 LNoDraw:
 
 //// recursively continue
-//	D_PolysetRecursiveTriangle (lp3, lp1, new);
+//	D_PolysetRecursiveTriangleAsm (lp3, lp1, new);
 	pushl	%esp
 	pushl	%ebx
 	pushl	%edi
-	call	C(D_PolysetRecursiveTriangle)
+	call	C(D_PolysetRecursiveTriangleAsm)
 
-//	D_PolysetRecursiveTriangle (lp3, new, lp2);
+//	D_PolysetRecursiveTriangleAsm (lp3, new, lp2);
 	movl	%esp,%ebx
 	pushl	%esi
 	pushl	%ebx
 	pushl	%edi
-	call	C(D_PolysetRecursiveTriangle)
+	call	C(D_PolysetRecursiveTriangleAsm)
 	addl	$24,%esp
 
 LDone:
@@ -1188,7 +1188,7 @@ Llooptop:
 #ifdef ONSEAMSTUFF
 //		if (ptri[i].facesfront)
 //		{
-//			D_PolysetRecursiveTriangle(index0->v, index1->v, index2->v);
+//			D_PolysetRecursiveTriangleAsm(index0->v, index1->v, index2->v);
 	movl	mtri_facesfront-16(%ebx,%ebp,),%eax
 	testl	%eax,%eax
 	jz		Lfacesback
@@ -1197,7 +1197,7 @@ Llooptop:
 	pushl	%edx
 	pushl	%esi
 	pushl	%ecx
-	call	C(D_PolysetRecursiveTriangle)
+	call	C(D_PolysetRecursiveTriangleAsm)
 
 	subl	$16,%ebp
 	jnz		Llooptop
@@ -1247,7 +1247,7 @@ Lp13:
 	pushl	%edx
 	pushl	%esi
 	pushl	%ecx
-	call	C(D_PolysetRecursiveTriangle)
+	call	C(D_PolysetRecursiveTriangleAsm)
 
 //			index0->v[2] = s0;
 //			index1->v[2] = s1;

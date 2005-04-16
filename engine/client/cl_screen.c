@@ -673,9 +673,6 @@ void SCR_CalcRefdef (void)
 	int             h;
 	qboolean		full = false;
 
-	scr_chatmode = scr_chatmodecvar.value;
-
-
 	scr_fullupdate = 0;             // force a background redraw
 	vid.recalc_refdef = 0;
 	scr_viewsize.modified = false;
@@ -716,7 +713,7 @@ void SCR_CalcRefdef (void)
 	else
 		sb_lines = 24+16+8;
 
-	if (scr_viewsize.value >= 100.0) {
+	if (scr_viewsize.value >= 100.0 || scr_chatmode) {
 		full = true;
 		size = 100.0;
 	} else
@@ -755,9 +752,11 @@ void SCR_CalcRefdef (void)
 
 	if (scr_chatmode)
 	{
-		r_refdef.vrect.height= r_refdef.vrect.y=vid.height/2;
+		if (scr_chatmode != 2)
+			r_refdef.vrect.height= r_refdef.vrect.y=vid.height/2;
 		r_refdef.vrect.width = r_refdef.vrect.x=vid.width/2;
-		sb_lines=0;
+		if (r_refdef.vrect.width<320 || r_refdef.vrect.height<200)	//disable hud if too small
+			sb_lines=0;
 	}
 
 	r_refdef.fov_x = scr_fov.value;
@@ -995,6 +994,15 @@ void SCR_DrawFPS (void)
 	if (show_fps.value == 2)	//alternate mode that displays the lowest noticed
 	{
 		if (lastfps > 1/host_frametime)
+		{
+			lastfps = 1/host_frametime;
+			fps_count = 0;
+			lastframetime = t;
+		}
+	}
+	else if (show_fps.value == 3)	//alternate mode that displays the highest noticed
+	{
+		if (lastfps < 1/host_frametime)
 		{
 			lastfps = 1/host_frametime;
 			fps_count = 0;
@@ -1790,25 +1798,26 @@ void SCR_TileClear (void)
 	}
 	else
 	{
-		if (r_refdef.vrect.x > 0) {
+		if (scr_vrect.x > 0) {
 			// left
-			Draw_TileClear (0, 0, r_refdef.vrect.x, vid.height - sb_lines);
+			Draw_TileClear (0, 0, scr_vrect.x, vid.height - sb_lines);
 			// right
-			Draw_TileClear (r_refdef.vrect.x + r_refdef.vrect.width, 0, 
-				vid.width - r_refdef.vrect.x + r_refdef.vrect.width, 
+			Draw_TileClear (scr_vrect.x + scr_vrect.width, 0, 
+				vid.width - scr_vrect.x + scr_vrect.width, 
 				vid.height - sb_lines);
 		}
-		if (r_refdef.vrect.y > 0) {
+		if (scr_vrect.y > 0)
+		{
 			// top
-			Draw_TileClear (r_refdef.vrect.x, 0, 
-				r_refdef.vrect.x + r_refdef.vrect.width, 
-				r_refdef.vrect.y);
+			Draw_TileClear (scr_vrect.x, 0, 
+				scr_vrect.x + scr_vrect.width, 
+				scr_vrect.y);
 			// bottom
-			Draw_TileClear (r_refdef.vrect.x,
-				r_refdef.vrect.y + r_refdef.vrect.height, 
-				r_refdef.vrect.width, 
-				vid.height - sb_lines - 
-				(r_refdef.vrect.height + r_refdef.vrect.y));
+			Draw_TileClear (scr_vrect.x,
+				scr_vrect.y + scr_vrect.height, 
+				scr_vrect.width, 
+				vid.height - cl_sbar.value?sb_lines:0 - 
+				(scr_vrect.height + scr_vrect.y));
 		}
 	}
 }

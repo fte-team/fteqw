@@ -67,8 +67,6 @@ void SWSCR_UpdateScreen (void)
 
 #ifdef _WIN32
 	{	// don't suck up any cpu if minimized
-		extern int Minimized;
-
 		if (Minimized)
 			return;
 	}
@@ -90,9 +88,6 @@ void SWSCR_UpdateScreen (void)
 		oldfov = scr_fov.value;
 		vid.recalc_refdef = true;
 	}
-	
-	if (scr_chatmode != scr_chatmodecvar.value)
-		vid.recalc_refdef = true;
 
 	if (oldsbar != cl_sbar.value)
 	{

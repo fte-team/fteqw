@@ -145,9 +145,6 @@ CLIENT_OBJS = $(CLIENT_ASM_OBJS) \
 	view.o	\
 	wad.o			\
 				\
-	pop3noti.o		\
-	imapnoti.o		\
-				\
 	ftpclient.o		\
 	httpclient.o 	\
 				\
@@ -261,9 +258,7 @@ SERVER_OBJS = 		\
 	g72x.o		\
 	webgen.o		\
 	ftpserver.o		\
-	httpserver.o 	\
-	sv_pop3.o 		\
-	sv_smtp.o
+	httpserver.o 
 
 SERVERONLY_OBJS =		\
 	svmodel.o		\
@@ -281,7 +276,6 @@ COMMON_OBJS = $(COMMON_ASM_OBJS) \
 	mathlib.o 		\
 	huff.o		\
 	md4.o 		\
-	md5.o 		\
 	net_chan.o 		\
 	net_wins.o 		\
 	zone.o 		\

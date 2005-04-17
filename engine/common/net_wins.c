@@ -166,7 +166,7 @@ void NetadrToSockadr (netadr_t *a, struct sockaddr_qstorage *s)
 		memset (s, 0, sizeof(struct sockaddr_in));
 		((struct sockaddr_in6*)s)->sin6_family = AF_INET6;
 
-		memcpy(&((struct sockaddr_in6*)s)->sin6_addr, 0, sizeof(struct in6_addr));
+		memcpy(&((struct sockaddr_in6*)s)->sin6_addr, a->ip6, sizeof(struct in6_addr));
 		((struct sockaddr_in6*)s)->sin6_port = a->port;
 		break;
 #endif
@@ -461,6 +461,7 @@ qboolean	NET_StringToSockaddr (char *s, struct sockaddr_qstorage *sadr)
 			case AF_INET6:
 				if (((struct sockaddr_in *)sadr)->sin_family == AF_INET6)
 					break;	//first one should be best...
+				//fallthrough
 			case AF_INET:
 				memcpy(sadr, addrinfo->ai_addr, addrinfo->ai_addrlen);
 				if (pos->ai_family == AF_INET)
@@ -470,7 +471,7 @@ qboolean	NET_StringToSockaddr (char *s, struct sockaddr_qstorage *sadr)
 		}
 dblbreak:
 		pfreeaddrinfo (addrinfo);
-		if (!((struct sockaddr*)sadr)->sa_family)
+		if (!((struct sockaddr*)sadr)->sa_family)	//none suitablefound
 			return false;
 	}
 	else
@@ -716,6 +717,7 @@ void NET_SendPacket (netsrc_t netsrc, int length, void *data, netadr_t to)
 	int ret;
 	struct sockaddr_qstorage	addr;
 	int socket;
+	int size;
 
 	if (to.type == NA_LOOPBACK)
 	{
@@ -767,7 +769,30 @@ void NET_SendPacket (netsrc_t netsrc, int length, void *data, netadr_t to)
 	
 	NetadrToSockadr (&to, &addr);
 
-	ret = sendto (socket, data, length, 0, (struct sockaddr*)&addr, sizeof(addr) );
+	switch(to.type)
+	{
+	default:
+		size = 0;	//should cause an error. :)
+		break;
+#ifdef USEIPX	//who uses ipx nowadays anyway?
+	case NA_BROADCAST_IPX:
+	case NA_IPX:
+		size = sizeof(struct sockaddr_ipx);
+		break;
+#endif
+	case NA_BROADCAST_IP:
+	case NA_IP:
+		size = sizeof(struct sockaddr_ip);
+		break;
+#ifdef IPPROTO_IPV6
+	case NA_BROADCAST_IP6:
+	case NA_IPV6:
+		size = sizeof(struct sockaddr_ip6);
+		break;
+#endif
+	}
+
+	ret = sendto (socket, data, length, 0, (struct sockaddr*)&addr, size );
 	if (ret == -1)
 	{
 // wouldblock is silent
@@ -982,15 +1007,15 @@ qboolean NET_Sleep(int msec, qboolean stdinissocket)
 	FD_ZERO(&fdset);
 
 	if (stdinissocket)
-		FD_SET(0, &fdset);
+		FD_SET(0, &fdset);	//stdin tends to be socket 0
 
 	i = 0;
-	if (svs.socketip)
+	if (svs.socketip!=INVALID_SOCKET)
 	{
 		FD_SET(svs.socketip, &fdset); // network socket
 		i = svs.socketip;
 	}
-	if (svs.socketip6)
+	if (svs.socketip6!=INVALID_SOCKET)
 	{
 		FD_SET(svs.socketip6, &fdset); // network socket
 		if (svs.socketip6 > i)
@@ -998,7 +1023,7 @@ qboolean NET_Sleep(int msec, qboolean stdinissocket)
 		i = svs.socketip6;
 	}
 #ifdef USEIPX
-	if (svs.socketipx)
+	if (svs.socketipx!=INVALID_SOCKET)
 	{
 		FD_SET(svs.socketipx, &fdset); // network socket
 		if (svs.socketipx > i)
@@ -1028,6 +1053,7 @@ void NET_GetLocalIP6Address (int socket)
 //	NET_StringToAdr (buff, &adr);
 
 	namelen = sizeof(address);
+	memset(&address, 0, sizeof(address));
 	if (getsockname (socket, (struct sockaddr *)&address, &namelen) == -1)
 		Sys_Error ("NET_Init: getsockname:", strerror(qerrno));
 
@@ -1126,6 +1152,26 @@ void NET_Init (void)
 #endif
 	Con_TPrintf(TL_UDPINITED);
 
+#ifndef SERVERONLY
+	cls.socketip = INVALID_SOCKET;
+#ifdef IPPROTO_IPV6
+	cls.socketip6 = INVALID_SOCKET;
+#endif
+#ifdef USEIPX
+	cls.socketipx = INVALID_SOCKET;
+#endif
+#endif
+
+#ifndef CLIENTONLY
+	svs.socketip = INVALID_SOCKET;
+#ifdef IPPROTO_IPV6
+	svs.socketip6 = INVALID_SOCKET;
+#endif
+#ifdef USEIPX
+	svs.socketipx = INVALID_SOCKET;
+#endif
+#endif
+
 #ifdef NQPROT
 	NQ_NET_Init();
 #endif
@@ -1170,21 +1216,21 @@ void NET_InitClient(void)
 
 void NET_CloseServer(void)
 {
-	if (svs.socketip)
+	if (svs.socketip != INVALID_SOCKET)
 	{
 		UDP_CloseSocket(svs.socketip);
-		svs.socketip = 0;
+		svs.socketip = INVALID_SOCKET;
 	}
-	if (svs.socketip6)
+	if (svs.socketip6 != INVALID_SOCKET)
 	{
 		UDP_CloseSocket(svs.socketip);
-		svs.socketip = 0;
+		svs.socketip = INVALID_SOCKET;
 	}
 #ifdef USEIPX
-	if (svs.socketipx)
+	if (svs.socketipx != INVALID_SOCKET)
 	{
 		IPX_CloseSocket(svs.socketipx);
-		svs.socketipx = 0;
+		svs.socketipx = INVALID_SOCKET;
 	}
 #endif
 
@@ -1214,13 +1260,13 @@ void NET_InitServer(void)
 		//
 		// open the single socket to be used for all communications
 		//
-		if (!svs.socketip)
+		if (svs.socketip == INVALID_SOCKET)
 		{
 			svs.socketip = UDP_OpenSocket (port, false);
 			NET_GetLocalIPAddress (svs.socketip);
 		}
 #ifdef IPPROTO_IPV6
-		if (!svs.socketip6)
+		if (svs.socketip6 == INVALID_SOCKET)
 		{
 			svs.socketip6 = UDP6_OpenSocket (port, false);
 			if (svs.socketip6)
@@ -1228,7 +1274,7 @@ void NET_InitServer(void)
 		}
 #endif
 #ifdef USEIPX
-		if (!svs.socketipx)
+		if (svs.socketipx == INVALID_SOCKET)
 		{
 			svs.socketipx = IPX_OpenSocket (port, false);
 			NET_GetLocalIPXAddress (svs.socketipx);

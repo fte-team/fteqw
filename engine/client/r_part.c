@@ -38,7 +38,6 @@ The engine has a few builtins.
 #include "r_partset.h"
 
 int pt_explosion,
-	pt_emp,
 	pt_pointfile,
 	pt_entityparticles,
 	pt_darkfield,
@@ -1044,8 +1043,7 @@ void P_InitParticles (void)
 	Cvar_Register(&r_grenadetrail, particlecvargroupname);
 
 	pt_explosion		= P_AllocateParticleType("te_explosion");
-	pt_emp				= P_AllocateParticleType("te_emp");
-	pt_pointfile		= P_AllocateParticleType("te_pointfile");
+	pt_pointfile		= P_AllocateParticleType("pe_pointfile");
 	pt_entityparticles	= P_AllocateParticleType("ef_entityparticles");
 	pt_darkfield		= P_AllocateParticleType("ef_darkfield");
 	pt_blob				= P_AllocateParticleType("te_blob");
@@ -1075,8 +1073,8 @@ void P_InitParticles (void)
 	rt_lightning3		= P_AllocateParticleType("t_lightning3");
 
 
-	pt_spark			= P_AllocateParticleType("pe_spark");
-	pt_plasma			= P_AllocateParticleType("pe_plasma");
+	pt_spark			= P_AllocateParticleType("te_spark");
+	pt_plasma			= P_AllocateParticleType("te_plasma");
 
 	pe_default			= P_AllocateParticleType("pe_default");
 	pe_size2			= P_AllocateParticleType("pe_size2");

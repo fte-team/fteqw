@@ -1,0 +1,4 @@
+
+all:
+	@-echo "Please use GNU's make utility instead (gmake)."
+	@-echo "You will also need a working version of gcc installed."

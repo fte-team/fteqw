@@ -10,14 +10,17 @@ ifeq ($(FTE_TARGET),) 	#user didn't specify prefered target
 	else
 		ifeq ($(shell uname),Linux)
 			FTE_TARGET=linux
+		endif
 		ifeq ($(shell uname),FreeBSD)
 			FTE_TARGET=bsd
+		endif
 		ifeq ($(shell uname),NetBSD)
 			FTE_TARGET=bsd
+		endif
 		ifeq ($(shell uname),OpenBSD)
 			FTE_TARGET=bsd
-		#else I've no idea what it is you're running
 		endif
+		#else I've no idea what it is you're running
 	endif
 
 	FTE_TARGET ?= sdl	#so go for sdl.

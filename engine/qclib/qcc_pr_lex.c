@@ -723,9 +723,9 @@ pbool QCC_PR_Precompiler(void)
 				int st;
 				s = QCC_COM_Parse(msg);
 				if (!QC_strcasecmp(qcc_token, "enable") || !QC_strcasecmp(qcc_token, "on"))
-					st = 0;
-				else if (!QC_strcasecmp(qcc_token, "disable") || !QC_strcasecmp(qcc_token, "off"))
 					st = 1;
+				else if (!QC_strcasecmp(qcc_token, "disable") || !QC_strcasecmp(qcc_token, "off"))
+					st = 0;
 				else
 				{
 					QCC_PR_ParseWarning(WARN_BADPRAGMA, "compiler flag state not recognised");
@@ -2020,6 +2020,7 @@ int QCC_PR_CheakCompConst(void)
 
 					for (p = 0; p < param; p++)
 					{
+
 						if (!STRCMP(qcc_token, c->params[p]))
 						{
 							strcat(buffer, paramoffset[p]);
@@ -2070,8 +2071,6 @@ int QCC_PR_CheakCompConst(void)
 		time( &long_time );
 		strftime( retbuf, sizeof(retbuf),
 			 "\"%a %d %b %Y\"", localtime( &long_time ));
-
-
 
 		pr_file_p = retbuf;
 		QCC_PR_Lex();	//translate the macro's value

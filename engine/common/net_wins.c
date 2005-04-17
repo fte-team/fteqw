@@ -782,12 +782,12 @@ void NET_SendPacket (netsrc_t netsrc, int length, void *data, netadr_t to)
 #endif
 	case NA_BROADCAST_IP:
 	case NA_IP:
-		size = sizeof(struct sockaddr_ip);
+		size = sizeof(struct sockaddr_in);
 		break;
 #ifdef IPPROTO_IPV6
 	case NA_BROADCAST_IP6:
 	case NA_IPV6:
-		size = sizeof(struct sockaddr_ip6);
+		size = sizeof(struct sockaddr_in6);
 		break;
 #endif
 	}

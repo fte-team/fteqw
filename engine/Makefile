@@ -10,6 +10,12 @@ ifeq ($(FTE_TARGET),) 	#user didn't specify prefered target
 	else
 		ifeq ($(shell uname),Linux)
 			FTE_TARGET=linux
+		ifeq ($(shell uname),FreeBSD)
+			FTE_TARGET=bsd
+		ifeq ($(shell uname),NetBSD)
+			FTE_TARGET=bsd
+		ifeq ($(shell uname),OpenBSD)
+			FTE_TARGET=bsd
 		#else I've no idea what it is you're running
 		endif
 	endif
@@ -365,6 +371,49 @@ endif
 	MB_DIR=m_mgw
 	MCL_DIR=mcl_mgw
 
+endif
+ifeq ($(FTE_TARGET),bsd)
+	#mostly uses the linux stuff.
+	#oss, X, etc.
+
+	SV_DIR=sv_linux
+	SV_LDFLAGS=-lz
+
+ifeq ($(USEASM),true)
+	GLCL_OBJS=$(GL_OBJS) $(GLQUAKE_OBJS) gl_vidlinuxglx.o snd_linux.o cd_null.o sys_linux.o sys_dosa.o
+else
+	GLCL_OBJS=$(GL_OBJS) $(GLQUAKE_OBJS) gl_vidlinuxglx.o snd_linux.o cd_null.o sys_linux.o
+endif
+	GL_EXE_NAME=../fteqw.gl
+	GLCL_EXE_NAME=../fteqwcl.gl
+	GL_LDFLAGS=$(GLLDFLAGS) $(GLXLDFLAGS)
+	GL_CFLAGS=$(GLCFLAGS)
+	GLB_DIR=gl_bsd
+	GLCL_DIR=glcl_bsd
+
+ifeq ($(USEASM),true)
+	SWCL_OBJS=$(SOFTWARE_OBJS) vid_x.o snd_linux.o cd_null.o sys_linux.o sys_dosa.o
+else
+	SWCL_OBJS=$(SOFTWARE_OBJS) vid_x.o snd_linux.o cd_null.o sys_linux.o
+endif
+	SW_EXE_NAME=../fteqw.sw
+	SWCL_EXE_NAME=../fteqwcl.sw
+	SW_LDFLAGS=$(SWLDFLAGS) $(XLDFLAGS)
+	SW_CFLAGS=$(SWCFLAGS)
+	SWB_DIR=sw_bsd
+	SWCL_DIR=swcl_bsd
+
+ifeq ($(USEASM),true)
+	MCL_OBJS=$(GLQUAKE_OBJS) $(SOFTWARE_OBJS) gl_vidlinuxglx.o vid_x.o snd_linux.o cd_null.o sys_linux.o sys_dosa.o
+else
+	MCL_OBJS=$(GLQUAKE_OBJS) $(SOFTWARE_OBJS) gl_vidlinuxglx.o vid_x.o snd_linux.o cd_null.o sys_linux.o
+endif
+	M_EXE_NAME=../fteqw
+	MCL_EXE_NAME=../fteqwcl
+	M_LDFLAGS=$(GLLDFLAGS) $(GLXLDFLAGS)
+	M_CFLAGS=$(SWCFLAGS) $(GLCFLAGS)
+	MB_DIR=m_bsd
+	MCL_DIR=mcl_bsd
 endif
 ifeq ($(FTE_TARGET),linux)
 

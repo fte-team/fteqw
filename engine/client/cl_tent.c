@@ -1716,7 +1716,7 @@ void CLQ2_ParseTEnt (void)
 	case Q2TE_DEBUGTRAIL:
 		MSG_ReadPos (pos);
 		MSG_ReadPos (pos2);
-		P_ParticleTrail(pos, pos2, P_AllocateParticleType("te_debugtrail"), NULL);
+		P_ParticleTrail(pos, pos2, P_AllocateParticleType("t_debugtrail"), NULL);
 		break;
 
 	case Q2TE_PLAIN_EXPLOSION:

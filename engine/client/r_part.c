@@ -1082,9 +1082,6 @@ void P_InitParticles (void)
 	pe_size2			= P_AllocateParticleType("pe_size2");
 	pe_size3			= P_AllocateParticleType("pe_size3");
 
-	pt_spark			= P_AllocateParticleType("pe_spark");
-	pt_plasma			= P_AllocateParticleType("pe_plasma");
-
 	rt_gib				= P_AllocateParticleType("t_gib");
 	rt_grenade			= P_AllocateParticleType("t_grenade");
 }

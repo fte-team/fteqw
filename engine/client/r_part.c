@@ -1072,16 +1072,12 @@ void P_InitParticles (void)
 	rt_lightning2		= P_AllocateParticleType("t_lightning2");
 	rt_lightning3		= P_AllocateParticleType("t_lightning3");
 
-
 	pt_spark			= P_AllocateParticleType("te_spark");
 	pt_plasma			= P_AllocateParticleType("te_plasma");
 
 	pe_default			= P_AllocateParticleType("pe_default");
 	pe_size2			= P_AllocateParticleType("pe_size2");
 	pe_size3			= P_AllocateParticleType("pe_size3");
-
-	rt_gib				= P_AllocateParticleType("t_gib");
-	rt_grenade			= P_AllocateParticleType("t_grenade");
 }
 
 

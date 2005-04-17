@@ -26,15 +26,11 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 #include <libc.h>
 #endif
 
-#if defined(__linux__) || defined(sun) || defined(__CYGWIN__)
 #include <sys/stat.h>
 #include <unistd.h>
 #include <sys/time.h>
 #include <errno.h>
 #include <fcntl.h>
-#else
-#include <sys/dir.h>
-#endif
 
 cvar_t	sys_nostdout = {"sys_nostdout","0"};
 cvar_t	sys_extrasleep = {"sys_extrasleep","0"};

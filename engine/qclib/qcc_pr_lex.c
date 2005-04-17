@@ -526,7 +526,7 @@ pbool QCC_PR_Precompiler(void)
 		}
 		else if (!strncmp(directive, "include", 7))
 		{		
-			byte sm;
+			char sm;
 
 			pr_file_p=directive+7;
 

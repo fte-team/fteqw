@@ -1,6 +1,6 @@
 #define PROGSUSED
 #include "progsint.h"
-#include <malloc.h>
+#include <stdlib.h>
 
 typedef struct prmemb_s {
 	struct prmemb_s *prev;

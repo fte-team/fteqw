@@ -508,6 +508,15 @@ void P_ParticleEffect_f(void)
 			ptype->rgb[1] = atof(value)/255;
 		else if (!strcmp(var, "blue"))
 			ptype->rgb[2] = atof(value)/255;
+		else if (!strcmp(var, "rgb"))
+		{
+			ptype->rgb[0] = ptype->rgb[1] = ptype->rgb[2] = atof(value)/255;
+			if (Cmd_Argc()>3)
+			{
+				ptype->rgb[1] = atof(Cmd_Argv(2))/255;
+				ptype->rgb[2] = atof(Cmd_Argv(3))/255;
+			}
+		}
 
 		else if (!strcmp(var, "reddelta"))
 		{
@@ -527,6 +536,17 @@ void P_ParticleEffect_f(void)
 			if (!ptype->rgbchangetime)
 				ptype->rgbchangetime = ptype->die;
 		}
+		else if (!strcmp(var, "rgbdelta"))
+		{
+			ptype->rgbchange[0] = ptype->rgbchange[1] = ptype->rgbchange[2] = atof(value)/255;
+			if (Cmd_Argc()>3)
+			{
+				ptype->rgbchange[1] = atof(Cmd_Argv(2))/255;
+				ptype->rgbchange[2] = atof(Cmd_Argv(3))/255;
+			}
+			if (!ptype->rgbchangetime)
+				ptype->rgbchangetime = ptype->die;
+		}
 		else if (!strcmp(var, "rgbdeltatime"))
 			ptype->rgbchangetime = atof(value);
 
@@ -536,9 +556,25 @@ void P_ParticleEffect_f(void)
 			ptype->rgbrand[1] = atof(value)/255;
 		else if (!strcmp(var, "bluerand"))
 			ptype->rgbrand[2] = atof(value)/255;
+		else if (!strcmp(var, "rgbrand"))
+		{
+			ptype->rgbrand[0] = ptype->rgbrand[1] = ptype->rgbrand[2] = atof(value)/255;
+			if (Cmd_Argc()>3)
+			{
+				ptype->rgbrand[1] = atof(Cmd_Argv(2))/255;
+				ptype->rgbrand[2] = atof(Cmd_Argv(3))/255;
+			}
+		}
 
 		else if (!strcmp(var, "rgbrandsync"))
+		{
 			ptype->rgbrandsync[0] = ptype->rgbrandsync[1] = ptype->rgbrandsync[2] = atof(value);
+			if (Cmd_Argc()>3)
+			{
+				ptype->rgbrandsync[1] = atof(Cmd_Argv(2));
+				ptype->rgbrandsync[2] = atof(Cmd_Argv(3));
+			}
+		}
 		else if (!strcmp(var, "redrandsync"))
 			ptype->rgbrandsync[0] = atof(value);
 		else if (!strcmp(var, "greenrandsync"))
@@ -722,7 +758,7 @@ void P_ParticleEffect_f(void)
 				if (Cmd_Argc()>4)	//have we alpha and scale changes?
 				{
 					ptype->ramp[ptype->rampindexes].alpha = atof(Cmd_Argv(4));
-					if (Cmd_Argc()>4)	//have we scale changes?
+					if (Cmd_Argc()>5)	//have we scale changes?
 						ptype->ramp[ptype->rampindexes].scale = atof(Cmd_Argv(5));
 					else
 						ptype->ramp[ptype->rampindexes].scale = ptype->scaledelta;

@@ -231,7 +231,7 @@ void Sys_SendKeyEvents(void)
 			switch(qrenderer)
 			{
 #ifdef RGLQUAKE
-			case QR_OPENLGL:
+			case QR_OPENGL:
 				glwidth = event.resize.w;
 				glheight = event.resize.h;
 				break;

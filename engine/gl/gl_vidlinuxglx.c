@@ -482,7 +482,8 @@ printf("GLVID_Shutdown");
 	if (old_windowed_mouse)
 		uninstall_grabs();
 
-	qglXDestroyContext(vid_dpy, ctx);
+	if (ctx)
+		qglXDestroyContext(vid_dpy, ctx);
 	
 #ifdef WITH_VMODE
 	if (origionalapplied)
@@ -822,6 +823,12 @@ qboolean GLVID_Init (rendererstate_t *info, unsigned char *palette)
 #endif
 
 	ctx = qglXCreateContext(vid_dpy, visinfo, NULL, True);
+	if (!ctx)
+	{
+		Con_Printf("Failed to create GLX context.\n");
+		GLVID_Shutdown();
+		return false;
+	}
 
 	qglXMakeCurrent(vid_dpy, vid_window, ctx);
 

@@ -1,0 +1,35 @@
+#just a stub to make things easier.
+#you still need gmake and gcc.
+
+all:
+	gmake all
+
+help:
+	gmake help
+
+clean:
+	gmake clean
+
+gl-dbg:
+	gmake gl-dbg
+
+sw-dbg:
+	gmake sw-dbg
+
+m-dbg:
+	gmake m-dbg
+
+sv-dbg:
+	gmake sv-dbg
+
+gl-rel:
+	gmake gl-rel
+
+sw-dbg:
+	gmake sw-rel
+
+m-dbg:
+	gmake m-rel
+
+sv-dbg:
+	gmake sv-rel

@@ -564,7 +564,7 @@ void	GLVID_ShiftPalette (unsigned char *palette)
 	
 //	VID_SetPalette (palette);
 
-	if (ActiveApp && vid_hardwaregamma.value)	//this is needed because ATI drivers don't work properly (or when task-switched out).
+	if (origionalapplied && ActiveApp && vid_hardwaregamma.value)	//this is needed because ATI drivers don't work properly (or when task-switched out).
 	{
 		if (gammaworks)
 		{	//we have hardware gamma applied - if we're doing a BF, we don't want to reset to the default gamma (yuck)
@@ -826,7 +826,7 @@ qboolean GLVID_Init (rendererstate_t *info, unsigned char *palette)
 		if (rampsize != 256)
 		{
 			origionalapplied = false;
-			Con_Printf("Gamma ramps are not of 256 componants.\n");
+			Con_Printf("Gamma ramps are not of 256 componants (but %i).\n", rampsize);
 		}
 		else
 			origionalapplied = XF86VidModeGetGammaRamp(vid_dpy, scrnum, 256, origionalramps[0], origionalramps[1], origionalramps[2]);

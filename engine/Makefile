@@ -127,6 +127,7 @@ CLIENT_OBJS = $(CLIENT_ASM_OBJS) \
 	image.o	\
 	keys.o	\
 	menu.o	\
+	m_download.o	\
 	m_master.o	\
 	m_multi.o	\
 	m_items.o	\
@@ -389,8 +390,8 @@ else
 endif
 	GL_EXE_NAME=../fteqw.gl
 	GLCL_EXE_NAME=../fteqwcl.gl
-	GL_LDFLAGS=$(GLLDFLAGS) $(GLXLDFLAGS)
-	GL_CFLAGS=$(GLCFLAGS)
+	GL_LDFLAGS= -L/usr/local/lib $(GLLDFLAGS) $(GLXLDFLAGS)
+	GL_CFLAGS=$(GLCFLAGS) -I/usr/local/include
 	GLB_DIR=gl_bsd
 	GLCL_DIR=glcl_bsd
 
@@ -401,8 +402,8 @@ else
 endif
 	SW_EXE_NAME=../fteqw.sw
 	SWCL_EXE_NAME=../fteqwcl.sw
-	SW_LDFLAGS=$(SWLDFLAGS) $(XLDFLAGS)
-	SW_CFLAGS=$(SWCFLAGS)
+	SW_LDFLAGS=-L/usr/local/lib $(SWLDFLAGS) $(XLDFLAGS)
+	SW_CFLAGS=$(SWCFLAGS) -I/usr/local/include
 	SWB_DIR=sw_bsd
 	SWCL_DIR=swcl_bsd
 

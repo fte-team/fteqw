@@ -6,10 +6,13 @@
 
 
 
-#if defined(_WIN32) && !defined(STATICVORBIS)
+#if defined(_WIN32)
 #define WINDOWSDYNAMICLINK
 #include <windows.h>
 HINSTANCE oggvorbislibrary;
+#else
+#include <dlfcn.h>
+void *oggvorbislibrary;
 #endif
 
 int (*p_ov_open_callbacks) (void *datasource, OggVorbis_File *vf, char *initial, long ibytes, ov_callbacks callbacks);
@@ -41,7 +44,7 @@ typedef struct {
 
 int OV_DecodeSome(sfx_t *s, int minlength);
 void OV_CancelDecoder(sfx_t *s);
-int OV_StartDecode(unsigned char *start, unsigned long length, ovdecoderbuffer_t *buffer);
+qboolean OV_StartDecode(unsigned char *start, unsigned long length, ovdecoderbuffer_t *buffer);
 
 qbyte *COM_LoadFile (char *path, int usehunk);
 
@@ -272,9 +275,9 @@ static ov_callbacks callbacks = {
 };
 qboolean OV_StartDecode(unsigned char *start, unsigned long length, ovdecoderbuffer_t *buffer)
 {
-#ifdef WINDOWSDYNAMICLINK
 	static qboolean tried;
 	if (!oggvorbislibrary && !tried)
+#ifdef WINDOWSDYNAMICLINK
 	{
 		tried = true;
 		oggvorbislibrary = LoadLibrary("vorbisfile.dll");
@@ -291,7 +294,21 @@ qboolean OV_StartDecode(unsigned char *start, unsigned long length, ovdecoderbuf
 		p_ov_read			= (void *)GetProcAddress(oggvorbislibrary, "ov_read");
 	}
 #else
-	p_ov_open_callbacks = ov_open_callbacks;
+	{
+		tried = true;
+		oggvorbislibrary = dlopen("libvorbisfile.so", RTLD_LOCAL | RTLD_LAZY);
+		if (!oggvorbislibrary)
+		{
+			Con_Printf("Couldn't load DLL: \"vorbisfile.dll\".\n");
+			return false;
+		}
+		p_ov_open_callbacks	= (void *)dlsym(oggvorbislibrary, "ov_open_callbacks");
+		p_ov_comment		= (void *)dlsym(oggvorbislibrary, "ov_comment");
+		p_ov_pcm_total		= (void *)dlsym(oggvorbislibrary, "ov_pcm_total");
+		p_ov_clear		= (void *)dlsym(oggvorbislibrary, "ov_clear");
+		p_ov_info		= (void *)dlsym(oggvorbislibrary, "ov_info");
+		p_ov_read		= (void *)dlsym(oggvorbislibrary, "ov_read");
+	}
 #endif
 
 	buffer->start = start;

@@ -47,7 +47,7 @@ int snd_speed;
 #include <sys/mman.h>
 #include <sys/shm.h>
 #include <sys/wait.h>
-#include <linux/soundcard.h>
+#include <sys/soundcard.h>
 #include <stdio.h>
 #include "quakedef.h"
 

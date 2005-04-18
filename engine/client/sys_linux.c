@@ -171,7 +171,6 @@ void Sys_Error (const char *error, ...)
     va_end (argptr);
 	fprintf(stderr, "Error: %s\n", string);
 
-	*(int*)NULL = 0;
 	
 	
 	Host_Shutdown ();

@@ -31,7 +31,7 @@ typedef struct package_s {
 
 typedef struct {
 	menucustom_t *list;
-	char intermediatefilename[MAX_PATH];
+	char intermediatefilename[MAX_QPATH];
 	int parsedsourcenum;
 
 	int firstpackagenum;

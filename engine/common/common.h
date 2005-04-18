@@ -20,7 +20,6 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 // comndef.h  -- general definitions
 
 typedef unsigned char 		qbyte;
-#define _DEF_BYTE_
 
 // KJB Undefined true and false defined in SciTech's DEBUG.H header
 #undef true

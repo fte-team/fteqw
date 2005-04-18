@@ -1400,7 +1400,6 @@ void CLQ2_AddPacketEntities (q2frame_t *frame)
 // pmm
 //======
 		ent.oldframe = cent->prev.frame;
-		ent.lerptime = 1.0 - cl.lerpfrac;
 		ent.lerpfrac = cl.lerpfrac;
 
 		if (renderfx & (Q2RF_FRAMELERP|Q2RF_BEAM))
@@ -1915,7 +1914,7 @@ void CLQ2_AddViewWeapon (q2player_state_t *ps, q2player_state_t *ops)
 	}
 
 	gun.flags = Q2RF_MINLIGHT | Q2RF_DEPTHHACK | Q2RF_WEAPONMODEL;
-	gun.lerptime = 1.0 - cl.lerpfrac;
+	gun.lerpfrac = cl.lerpfrac;
 	VectorCopy (gun.origin, gun.oldorigin);	// don't lerp at all
 	V_AddEntity (&gun);
 #endif

@@ -1578,7 +1578,7 @@ void R_Clear (void)
 			qglClear (GL_DEPTH_BUFFER_BIT);
 		gldepthmin = 0;
 		gldepthmax = 1;
-		qglDepthFunc (gldepthfunc=GL_LEQUAL);
+		qglDepthFunc (gldepthfunc=GL_GEQUAL);
 	}
 
 	qglDepthRange (gldepthmin, gldepthmax);
@@ -1590,7 +1590,7 @@ void R_Clear (void)
 R_Mirror
 =============
 */
-
+/*
 void CL_AddFlagModels (entity_t *ent, int team);
 void R_MirrorAddPlayerModels (void)
 {
@@ -1695,7 +1695,7 @@ void R_MirrorAddPlayerModels (void)
 		CL_AddVWeapModel(ent, info->vweapindex);
 
 }
-
+*/
 
 void R_Mirror (void)
 {

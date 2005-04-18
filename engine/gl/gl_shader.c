@@ -908,7 +908,7 @@ qboolean Shader_Init (void)
 {
 	shaderbuflen = 0;
 
-	Con_Printf ( "Initializing Shaders:\n" );
+	Con_Printf ( "Initializing Shaders.\n" );
 
 	COM_EnumerateFiles("scripts/*.shader", Shader_InitCallback, NULL);
 

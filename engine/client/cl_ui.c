@@ -341,7 +341,7 @@ void VQ3_AddEntity(const q3refEntity_t *q3)
 	ent.angles[1] = (atan2(q3->axis[0][1], q3->axis[0][0]) * 180 / M_PI);
 	ent.angles[2] = 0;//(atan2(q3->axis[2][1], q3->axis[2][0]) * 180 / M_PI);;
 	memcpy(ent.axis, q3->axis, sizeof(q3->axis));
-	ent.lerpfrac = ent.lerptime = q3->backlerp;
+	ent.lerpfrac = q3->backlerp;
 	ent.alpha = 1;
 	ent.scale = 1;
 #ifdef Q3SHADERS

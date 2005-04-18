@@ -1111,6 +1111,12 @@ void GLDraw_DeInit (void)
 #endif
 }
 
+void GL_DrawAliasMesh (mesh_t *mesh, int texnum);
+
+void GL_DrawMesh(mesh_t *msh, int texturenum)
+{
+	GL_DrawAliasMesh(msh, texturenum);
+}
 
 
 /*
@@ -1135,7 +1141,6 @@ void GLDraw_Character (int x, int y, unsigned int num)
 	if (num == 32)
 		return;		// space
 
-#ifndef Q3SHADERS
 	num &= 255;
 
 	row = num>>4;
@@ -1165,10 +1170,11 @@ void GLDraw_Character (int x, int y, unsigned int num)
 	draw_mesh_st[3][1] = frow+size;
 
 	if (num&CON_2NDCHARSETTEXT)
-		GL_DrawMesh(&draw_mesh, NULL, char_tex2, 0);
+		GL_DrawMesh(&draw_mesh, char_tex2);
 	else
-		GL_DrawMesh(&draw_mesh, NULL, char_texture, 0);
-#else
+		GL_DrawMesh(&draw_mesh, char_texture);
+
+/*#else
 	
 	if (num&CON_2NDCHARSETTEXT)
 		GL_Bind (char_tex2);
@@ -1197,7 +1203,7 @@ void GLDraw_Character (int x, int y, unsigned int num)
 	qglVertex2f (x, y+8);
 	qglEnd ();
 
-#endif
+#endif*/
 }
 
 void GLDraw_ColouredCharacter (int x, int y, unsigned int num)
@@ -1404,7 +1410,6 @@ void GLDraw_Pic (int x, int y, mpic_t *pic)
 		Scrap_Upload ();
 	gl = (glpic_t *)pic->data;
 
-#ifndef Q3SHADERS
 	draw_mesh_xyz[0][0] = x;
 	draw_mesh_xyz[0][1] = y;
 	draw_mesh_st[0][0] = gl->sl;
@@ -1425,22 +1430,7 @@ void GLDraw_Pic (int x, int y, mpic_t *pic)
 	draw_mesh_st[3][0] = gl->sl;
 	draw_mesh_st[3][1] = gl->th;
 
-	GL_DrawMesh(&draw_mesh, NULL, gl->texnum, 0);
-#else
-
-	qglColor4f (1,1,1,1);
-	GL_Bind (gl->texnum);
-	qglBegin (GL_QUADS);
-	qglTexCoord2f (gl->sl, gl->tl);
-	qglVertex2f (x, y);
-	qglTexCoord2f (gl->sh, gl->tl);
-	qglVertex2f (x+pic->width, y);
-	qglTexCoord2f (gl->sh, gl->th);
-	qglVertex2f (x+pic->width, y+pic->height);
-	qglTexCoord2f (gl->sl, gl->th);
-	qglVertex2f (x, y+pic->height);
-	qglEnd ();
-#endif
+	GL_DrawMesh(&draw_mesh, gl->texnum);
 }
 
 void GLDraw_ScalePic (int x, int y, int width, int height, mpic_t *pic)
@@ -1519,19 +1509,6 @@ void GLDraw_SubPic(int x, int y, mpic_t *pic, int srcx, int srcy, int width, int
 	newtl = gl->tl + (srcy*oldglheight)/pic->height;
 	newth = newtl + (height*oldglheight)/pic->height;
 
-#ifdef Q3SHADERS
-	GL_Bind (gl->texnum);
-	qglBegin (GL_QUADS);
-	qglTexCoord2f (newsl, newtl);
-	qglVertex2f (x, y);
-	qglTexCoord2f (newsh, newtl);
-	qglVertex2f (x+width, y);
-	qglTexCoord2f (newsh, newth);
-	qglVertex2f (x+width, y+height);
-	qglTexCoord2f (newsl, newth);
-	qglVertex2f (x, y+height);
-	qglEnd ();
-#else
 	draw_mesh_xyz[0][0] = x;
 	draw_mesh_xyz[0][1] = y;
 	draw_mesh_st[0][0] = newsl;
@@ -1552,8 +1529,7 @@ void GLDraw_SubPic(int x, int y, mpic_t *pic, int srcx, int srcy, int width, int
 	draw_mesh_st[3][0] = newsl;
 	draw_mesh_st[3][1] = newth;
 
-	GL_DrawMesh(&draw_mesh, NULL, gl->texnum, 0);
-#endif
+	GL_DrawMesh(&draw_mesh, gl->texnum);
 }
 
 /*
@@ -1814,19 +1790,6 @@ void GLDraw_Image(float x, float y, float w, float h, float s1, float t1, float 
 	t2 = t1 + (t2-t1)*gl->th;
 	t1 += gl->tl;
 
-#ifdef Q3SHADERS
-	GL_Bind (gl->texnum);
-	qglBegin (GL_QUADS);
-	qglTexCoord2f (s1, t1);
-	qglVertex2f (x, y);
-	qglTexCoord2f (s2, t1);
-	qglVertex2f (x+w, y);
-	qglTexCoord2f (s2, t2);
-	qglVertex2f (x+w, y+h);
-	qglTexCoord2f (s1, t2);
-	qglVertex2f (x, y+h);
-	qglEnd ();
-#else
 	draw_mesh_xyz[0][0] = x;
 	draw_mesh_xyz[0][1] = y;
 	draw_mesh_st[0][0] = s1;
@@ -1847,8 +1810,7 @@ void GLDraw_Image(float x, float y, float w, float h, float s1, float t1, float 
 	draw_mesh_st[3][0] = s1;
 	draw_mesh_st[3][1] = t2;
 
-	GL_DrawMesh(&draw_mesh, NULL, gl->texnum, 0);
-#endif
+	GL_DrawMesh(&draw_mesh, gl->texnum);
 }
 
 //=============================================================================

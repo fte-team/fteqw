@@ -4167,6 +4167,8 @@ void PPL_DrawWorld (void)
 
 void PPL_CreateShaderObjects(void)
 {
+#ifdef PPL
 	PPL_CreateLightTexturesProgram();
+#endif
 	PPL_LoadSpecularFragmentProgram();
 }

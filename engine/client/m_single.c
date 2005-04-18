@@ -150,7 +150,9 @@ void M_Menu_Load_f (void)
 void M_Menu_SinglePlayer_f (void)
 {
 	int mgt;
+#ifndef CLIENTONLY
 	menubutton_t *b;
+#endif
 	menu_t *menu;
 	mpic_t *p;
 

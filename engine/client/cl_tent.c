@@ -2084,7 +2084,7 @@ void CL_UpdateExplosions (void)
 		ent->model = ex->model;
 		ent->frame = (int)f+firstframe;
 		ent->oldframe = of+firstframe;
-		ent->lerptime = 1-(f - (int)f);
+		ent->lerpfrac = 1-(f - (int)f);
 		ent->alpha = 1.0 - f/(numframes);
 		ent->flags = ex->flags;
 	}

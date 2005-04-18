@@ -786,7 +786,7 @@ void R_AliasSetupFrame (void)
 		oframe = 0;
 	}
 
-	bl = currententity->lerptime;
+	bl = currententity->lerpfrac;
 	fl = 1.0 - bl;
 
 	for (i = 0; i < 3; i++)

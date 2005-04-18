@@ -3503,7 +3503,7 @@ int COM_EnumeratePackFiles (pack_t *zip, char *match, int (*func)(char *, int, v
 
 	for (num = 0; num<(int)zip->numfiles; num++)
 	{
-		if (wildcmp(zip->files[num].name, match))
+		if (wildcmp(match, zip->files[num].name))
 		{
 			if (!func(zip->files[num].name, zip->files[num].filelen, parm))
 				return false;
@@ -4064,7 +4064,7 @@ int COM_EnumerateZipFiles (zipfile_t *zip, char *match, int (*func)(char *, int,
 
 	for (num = 0; num<(int)zip->numfiles; num++)
 	{
-		if (wildcmp(zip->files[num].name, match))
+		if (wildcmp(match, zip->files[num].name))
 		{
 			if (!func(zip->files[num].name, zip->files[num].filelen, parm))
 				return false;

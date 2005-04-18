@@ -384,9 +384,11 @@ void Q_SetProgsParms(qboolean forcompiler)
 void PR_Deinit(void)
 {
 	PR_ClearThreads();
-	PR_fclose_progs(svprogfuncs);
 	if (svprogfuncs)
+	{
+		PR_fclose_progs(svprogfuncs);
 		CloseProgs(svprogfuncs);
+	}
 	svprogfuncs=NULL;
 }
 

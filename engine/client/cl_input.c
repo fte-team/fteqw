@@ -832,7 +832,6 @@ void AddComponant(vec3_t angles, vec3_t dest, float fm, float rm, float um)
 	VectorMA(dest, um, u, dest);
 }
 
-#define bound(n,v,x) v<n?n:(v>x?x:v)
 float CL_FilterTime (double time, float wantfps)	//now returns the extra time not taken in this slot. Note that negative 1 means uncapped.
 {
 	extern cvar_t rate;

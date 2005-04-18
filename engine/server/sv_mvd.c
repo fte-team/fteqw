@@ -1940,13 +1940,7 @@ int MVD_StreamStartListening(int port)
 
 	unsigned int nonblocking = true;
 
-	address.sin_family = AF_INET;
-	if (gethostname(name, sizeof(name)) == -1)
-		return INVALID_SOCKET;
-	hent = gethostbyname(name);
-	if (!hent)
-		return INVALID_SOCKET;
-	address.sin_addr.s_addr = *(int *)(hent->h_addr_list[0]);
+	address.sin_addr.s_addr = INADDR_ANY;
 	address.sin_port = htons((u_short)port);
 
 
@@ -1981,7 +1975,7 @@ void SV_MVDStream_Poll(void)
 	struct sockaddr_qstorage addr;
 	int addrlen;
 	qboolean wanted;
-	if (!sv.state)
+	if (!sv.state || !mvd_streamport.value)
 		wanted = false;
 	else if (listenport && (int)mvd_streamport.value != listenport)	//easy way to switch... disable for a frame. :)
 	{

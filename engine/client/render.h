@@ -94,7 +94,6 @@ typedef struct entity_s
 	int abslight;
 #endif
 	float lerpfrac;
-	float lerptime;
 	int oldframe;
 } entity_t;
 

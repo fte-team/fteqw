@@ -1150,9 +1150,12 @@ void R_DrawGAliasModel (entity_t *e)
 		if (R_CullBox (mins, maxs))
 			return;
 
-	if (!(r_refdef.flags & 1))	//RDF_NOWORLDMODEL
+	if (!(r_refdef.flags & Q2RDF_NOWORLDMODEL))
 	{
-		cl.worldmodel->funcs.LightPointValues(e->origin, shadelight, ambientlight, lightdir);
+		if (e->flags & Q2RF_WEAPONMODEL)
+			cl.worldmodel->funcs.LightPointValues(r_refdef.vieworg, shadelight, ambientlight, lightdir);
+		else
+			cl.worldmodel->funcs.LightPointValues(e->origin, shadelight, ambientlight, lightdir);
 	}
 	else
 	{
@@ -1423,7 +1426,7 @@ void R_DrawGAliasModel (entity_t *e)
 	memset(&mesh, 0, sizeof(mesh));
 	for(; inf; ((inf->nextsurf)?(inf = (galiasinfo_t*)((char *)inf + inf->nextsurf)):(inf=NULL)))
 	{
-		if (R_GAliasBuildMesh(&mesh, inf, e->frame, e->oldframe, e->lerptime, e->alpha) && r_vertexdlights.value)
+		if (R_GAliasBuildMesh(&mesh, inf, e->frame, e->oldframe, e->lerpfrac, e->alpha) && r_vertexdlights.value)
 			R_GAliasAddDlights(&mesh, e->origin, e->angles);
 
 		c_alias_polys += mesh.numindexes/3;
@@ -1676,11 +1679,7 @@ void R_DrawGAliasModelLighting (entity_t *e, vec3_t lightpos, vec3_t colours, fl
 
 		GL_LightMesh(&mesh, lightdir, colours, radius);
 
-#ifdef Q3SHADERS
 		GL_DrawAliasMesh(&mesh, 0);
-#else
-		GL_DrawMesh(&mesh, NULL, 0, 0);
-#endif
 
 		if (inf->nextsurf)
 			inf = (galiasinfo_t*)((char *)inf + inf->nextsurf);
@@ -1732,7 +1731,7 @@ void R_DrawGAliasShadowVolume(entity_t *e, vec3_t lightpos, float radius)
 	{
 		if (inf->ofs_trineighbours)
 		{
-			R_GAliasBuildMesh(&mesh, inf, e->frame, e->oldframe, e->lerptime, e->alpha);
+			R_GAliasBuildMesh(&mesh, inf, e->frame, e->oldframe, e->lerpfrac, e->alpha);
 			R_CalcFacing(&mesh, lightorg);
 			R_ProjectShadowVolume(&mesh, lightorg);
 			R_DrawShadowVolume(&mesh);

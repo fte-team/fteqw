@@ -543,6 +543,9 @@ void GL_Init(void *(*getglfunction) (char *name))
 	gl_extensions = qglGetString (GL_EXTENSIONS);
 	Con_DPrintf ("GL_EXTENSIONS: %s\n", gl_extensions);
 
+	if (!gl_extensions)
+		Sys_Error("no extensions\n");
+
 	GL_CheckExtensions (getglfunction);
 
 	qglClearColor (0,0,0,0);	//clear to black so that it looks a little nicer on start.

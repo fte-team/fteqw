@@ -353,12 +353,13 @@ void CL_ParseDelta (entity_state_t *from, entity_state_t *to, int bits, qboolean
 	if (to->frame != from->frame)
 		cl.lerpents[to->number].framechange = cl.time;	//marked for hl models
 #endif
-	if (to->modelindex != from->modelindex || to->number != from->number || VectorLength(move)>128)	//model changed... or entity changed...
+	if (to->modelindex != from->modelindex || to->number != from->number || VectorLength(move)>500)	//model changed... or entity changed...
 	{
 #ifdef HALFLIFEMODELS
 		cl.lerpents[to->number].framechange = cl.time;	//marked for hl models
 #endif
 		cl.lerpents[to->number].lerptime = -10;
+		cl.lerpents[to->number].lerprate = 0;
 
 		if (!new)
 			return;
@@ -377,18 +378,20 @@ void CL_ParseDelta (entity_state_t *from, entity_state_t *to, int bits, qboolean
 //1: stepping monsters. These have frames and tick at 10fps.
 //2: physics. Objects moving acording to gravity.
 //3: both. This is really awkward. And I'm really lazy.
+//the real solution would be to seperate the two.
 		cl.lerpents[to->number].lerprate = cl.time-cl.lerpents[to->number].lerptime;	//time per update
+//		Con_Printf("%f=%f-%f\n", cl.lerpents[to->number].lerprate, cl.time, cl.lerpents[to->number].lerptime);
 		cl.lerpents[to->number].frame = from->frame;
 		cl.lerpents[to->number].lerptime = cl.time;
 
-		if (cl.lerpents[to->number].lerprate>0.5)
-			cl.lerpents[to->number].lerprate=0.1;
+		if (cl.lerpents[to->number].lerprate>0.2)
+			cl.lerpents[to->number].lerprate=0.2;
 
 		//store this off for new ents to use.
 		if (new)
-			cl.lerpents[to->number].lerptime = newlerprate;
+			cl.lerpents[to->number].lerprate = newlerprate;
 		if (to->frame == from->frame && !new) //(h2 runs at 20fps)
-			newlerprate = cl.time-cl.lerpents[to->number].lerptime;
+			newlerprate = cl.lerpents[to->number].lerprate;
 	}
 }
 
@@ -1363,20 +1366,23 @@ void CL_LinkPacketEntities (void)
 #endif
 
 		//figure out the lerp factor
-		if (!cl.lerpents[s1->number].lerprate)
-			ent->lerptime = 0;
+		if (cl.lerpents[s1->number].lerprate<=0)
+			ent->lerpfrac = 0;
 		else
-			ent->lerptime = 1-(cl.time-cl.lerpents[s1->number].lerptime)/cl.lerpents[s1->number].lerprate;
-		if (ent->lerptime<0)
-			ent->lerptime=0;
-		if (ent->lerptime>1)
-			ent->lerptime=1;
-		f = ent->lerptime;
+			ent->lerpfrac = 1-(cl.time-cl.lerpents[s1->number].lerptime)/cl.lerpents[s1->number].lerprate;
+		if (ent->lerpfrac<0)
+			ent->lerpfrac=0;
+		if (ent->lerpfrac>1)
+			ent->lerpfrac=1;
+		f = 1-ent->lerpfrac;
+
+//		if (cl_nolerp.value)
+//			f = 1;
 
 		// calculate origin
 		for (i=0 ; i<3 ; i++)
-			ent->origin[i] = s1->origin[i] +
-			f * (cl.lerpents[s1->number].origin[i] - s1->origin[i]);
+			ent->origin[i] = cl.lerpents[s1->number].origin[i] +
+			f * (s1->origin[i] - cl.lerpents[s1->number].origin[i]);
 
 		//bots or powerup glows. Bots always glow, powerups can be disabled
 		if (s1->modelindex != cl_playerindex && r_powerupglow.value);
@@ -2194,12 +2200,14 @@ void CL_LinkPlayers (void)
 		ent->oldframe = state->oldframe;
 		if (state->lerpstarttime)
 		{
-			ent->lerptime = 1-(realtime - state->lerpstarttime)*10;
-			if (ent->lerptime < 0)
-				ent->lerptime = 0;
+			ent->lerpfrac = 1-(realtime - state->lerpstarttime)*10;
+			if (ent->lerpfrac < 0)
+				ent->lerpfrac = 0;
+			if (ent->lerpfrac > 1)
+				ent->lerpfrac = 1;
 		}
 		else
-			ent->lerptime = 0;
+			ent->lerpfrac = 0;
 
 		ent->colormap = info->translations;
 		if (state->modelindex == cl_playerindex)
@@ -2362,9 +2370,9 @@ void CL_LinkViewModel(void)
 		oldframe[r_refdef.currentplayernum] = ent.oldframe = ent.frame;
 		lerptime[r_refdef.currentplayernum] = realtime;
 	}
-	ent.lerptime = 1-(realtime-lerptime[r_refdef.currentplayernum])*10;
-	if (ent.lerptime<0)ent.lerptime=0;
-	if (ent.lerptime>1)ent.lerptime=1;
+	ent.lerpfrac = 1-(realtime-lerptime[r_refdef.currentplayernum])*10;
+	if (ent.lerpfrac<0)ent.lerpfrac=0;
+	if (ent.lerpfrac>1)ent.lerpfrac=1;
 #define	Q2RF_VIEWERMODEL		2		// don't draw through eyes, only mirrors
 #define	Q2RF_WEAPONMODEL		4		// only draw through eyes
 #define	Q2RF_DEPTHHACK			16		// for view weapon Z crunching

@@ -2865,7 +2865,7 @@ void Host_Init (quakeparms_t *parms)
 	Con_Init ();	
 	M_Init ();	
  
-#ifdef __linux__
+#ifndef _WIN32
 	IN_Init ();
 	CDAudio_Init ();
 //	VID_Init (host_basepal);

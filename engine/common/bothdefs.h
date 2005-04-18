@@ -215,10 +215,18 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 
 #define ENGINEWEBSITE "http://fte.quakesrc.org/"
 
-#ifdef _WIN32
+#if defined(_WIN32)
 #define PLATFORM	"Win32"
-#else
+#elif defined(__linux__)
 #define PLATFORM	"Linux"
+#elif defined(__FreeBSD__)
+#define PLATFORM	"FreeBSD"
+#elif defined(__OpenBSD__)
+#define PLATFORM	"OpenBSD"
+#elif defined(__NetBSD__)
+#define PLATFORM	"NetBSD"
+#else
+#define PLATFORM	"Unknown"
 #endif
 
 

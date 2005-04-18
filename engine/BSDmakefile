@@ -25,11 +25,11 @@ sv-dbg:
 gl-rel:
 	gmake gl-rel
 
-sw-dbg:
+sw-rel:
 	gmake sw-rel
 
-m-dbg:
+m-rel:
 	gmake m-rel
 
-sv-dbg:
+sv-rel:
 	gmake sv-rel

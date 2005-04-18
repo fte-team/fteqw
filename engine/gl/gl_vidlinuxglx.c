@@ -70,7 +70,7 @@ static float old_windowed_mouse = 0;
 
 
 #ifdef WITH_VMODE
-static qboolean vidmode_ext = false;
+static int vidmode_ext = 0;
 static XF86VidModeModeInfo **vidmodes;
 static int num_vidmodes;
 static qboolean vidmode_active = false;
@@ -715,14 +715,14 @@ qboolean GLVID_Init (rendererstate_t *info, unsigned char *palette)
 
 #ifdef WITH_VMODE	//find out if it's supported on this pc.
 	MajorVersion = MinorVersion = 0;
-	if (!XF86VidModeQueryVersion(vid_dpy, &MajorVersion, &MinorVersion))
+	if (COM_CheckParm("-novmode") || !XF86VidModeQueryVersion(vid_dpy, &MajorVersion, &MinorVersion))
 	{
-		vidmode_ext = false;
+		vidmode_ext = 0;
 	}
 	else
 	{
 		Con_Printf("Using XF86-VidModeExtension Ver. %d.%d\n", MajorVersion, MinorVersion);
-		vidmode_ext = true;
+		vidmode_ext = MajorVersion;
 	}
 #endif
 
@@ -819,7 +819,20 @@ qboolean GLVID_Init (rendererstate_t *info, unsigned char *palette)
 	XFlush(vid_dpy);
 	
 #ifdef WITH_VMODE
-	origionalapplied = XF86VidModeGetGammaRamp(vid_dpy, scrnum, 256, origionalramps[0], origionalramps[1], origionalramps[2]);
+	if (vidmode_ext >= 2)
+	{
+		int rampsize = 256;
+		XF86VidModeGetGammaRampSize(vid_dpy, scrnum, &rampsize);
+		if (rampsize != 256)
+		{
+			origionalapplied = false;
+			Con_Printf("Gamma ramps are not of 256 componants.\n");
+		}
+		else
+			origionalapplied = XF86VidModeGetGammaRamp(vid_dpy, scrnum, 256, origionalramps[0], origionalramps[1], origionalramps[2]);
+	}
+	else
+		origionalapplied = false;
 #endif
 
 	ctx = qglXCreateContext(vid_dpy, visinfo, NULL, True);

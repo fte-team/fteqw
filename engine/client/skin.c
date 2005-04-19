@@ -300,6 +300,12 @@ qbyte	*Skin_Cache8 (skin_t *skin)
 		Con_Printf ("Bad skin %s\n", name);
 		return NULL;
 	}
+
+	skin->cachedbpp = 8;
+
+	pcx->xmax = (unsigned short)LittleShort(pcx->xmax);
+	pcx->ymax = (unsigned short)LittleShort(pcx->ymax);
+
 	if (qrenderer == QR_SOFTWARE)
 	{
 		skin->width = 320;
@@ -310,10 +316,6 @@ qbyte	*Skin_Cache8 (skin_t *skin)
 		skin->width = pcx->xmax+1;
 		skin->height = pcx->ymax;
 	}
-	skin->cachedbpp = 8;
-
-	pcx->xmax = (unsigned short)LittleShort(pcx->xmax);
-	pcx->ymax = (unsigned short)LittleShort(pcx->ymax);
 	
 	out = Cache_Alloc (&skin->cache, skin->width*skin->height, skin->name);
 	if (!out)

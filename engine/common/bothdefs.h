@@ -45,7 +45,28 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 	#endif
 	#define AVAIL_MASM
 
-	//#define AVAIL_DX7
+
+#ifdef NO_PNG
+	#undef AVAIL_PNGLIB
+#endif
+#ifdef NO_JPEG
+	#undef AVAIL_JPEGLIB
+#endif
+#ifdef NO_ZLIB
+	#undef AVAIL_ZLIB
+#endif
+#ifdef NO_MAD
+	#undef 	AVAIL_MP3
+#endif
+#ifdef NO_OGG
+	#undef AVAIL_OGGVORBIS
+#endif
+#if defined(NO_D3D) || !defined(_WIN32)
+	#undef AVAIL_DX7
+#endif
+#if defined(NO_MASM) || !defined(_WIN32)
+	#undef AVAIL_MASM
+#endif
 
 
 //set any additional defines or libs in win32

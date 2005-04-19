@@ -1927,7 +1927,7 @@ static void *Q1_LoadFrameGroup (daliasframetype_t *pframetype, int *seamremaps)
 		case ALIAS_GROUP:
 			ingroup = (daliasgroup_t *)(pframetype+1);
 
-			pose = (galiaspose_t *)Hunk_Alloc(ingroup->numframes*(sizeof(galiaspose_t) + sizeof(vec3_t)*2*galias->numverts));
+			pose = (galiaspose_t *)Hunk_Alloc(LittleLong(ingroup->numframes)*(sizeof(galiaspose_t) + sizeof(vec3_t)*2*galias->numverts));
 			frame->poseofs = (char *)pose - (char *)frame;
 			frame->numposes = LittleLong(ingroup->numframes);
 			galias->groups++;

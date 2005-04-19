@@ -98,7 +98,7 @@ typedef struct {
 	qboolean arb_texture_cube_map;
 
 	qboolean arb_texture_compression;
-	qboolean arb_fragment_program;
+//	qboolean arb_fragment_program;
 	qboolean arb_shader_objects;
 	qboolean ext_stencil_wrap;
 	int maxtmus;	//max texture units
@@ -712,11 +712,13 @@ extern BOOL  (WINAPI *qwglMakeCurrent)(HDC, HGLRC);
 extern BOOL  (WINAPI *qSwapBuffers)(HDC);
 #endif
 
+/*
 extern qboolean gl_arb_fragment_program;
 extern PFNGLPROGRAMSTRINGARBPROC qglProgramStringARB;
 extern PFNGLGETPROGRAMIVARBPROC qglGetProgramivARB;
 extern PFNGLBINDPROGRAMARBPROC qglBindProgramARB;
 extern PFNGLGENPROGRAMSARBPROC qglGenProgramsARB;
+*/
 
 //glslang - arb_shader_objects
 extern PFNGLCREATEPROGRAMOBJECTARBPROC	qglCreateProgramObjectARB;

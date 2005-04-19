@@ -1139,8 +1139,8 @@ void MP_Shutdown (void)
 
 int COM_FileSize(char *path);
 pbool QC_WriteFile(char *name, void *data, int len);
-void *VARGS PR_Malloc(int size);	//these functions should be tracked by the library reliably, so there should be no need to track them ourselves.
-void VARGS PR_Free(void *mem);
+void *VARGS PR_CB_Malloc(int size);	//these functions should be tracked by the library reliably, so there should be no need to track them ourselves.
+void VARGS PR_CB_Free(void *mem);
 
 //Any menu builtin error or anything like that will come here.
 void VARGS Menu_Abort (char *format, ...)
@@ -1198,8 +1198,8 @@ void MP_Init (void)
 	menuprogparms.builtinsfor = NULL;//builtin_t *(*builtinsfor) (int num);	//must return a pointer to the builtins that were used before the state was saved.
 	menuprogparms.loadcompleate = NULL;//void (*loadcompleate) (int edictsize);	//notification to reset any pointers.
 
-	menuprogparms.memalloc = PR_Malloc;//void *(*memalloc) (int size);	//small string allocation	malloced and freed randomly
-	menuprogparms.memfree = PR_Free;//void (*memfree) (void * mem);
+	menuprogparms.memalloc = PR_CB_Malloc;//void *(*memalloc) (int size);	//small string allocation	malloced and freed randomly
+	menuprogparms.memfree = PR_CB_Free;//void (*memfree) (void * mem);
 
 
 	menuprogparms.globalbuiltins = menu_builtins;//builtin_t *globalbuiltins;	//these are available to all progs

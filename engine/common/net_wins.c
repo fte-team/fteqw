@@ -33,6 +33,10 @@ struct sockaddr;
 #include "ws2tcpip.h"
 #endif
 
+#ifndef _WIN32	//for mac
+#include <sys/time.h>
+#endif
+
 #define EWOULDBLOCK	WSAEWOULDBLOCK
 #define EMSGSIZE	WSAEMSGSIZE
 #define ECONNRESET	WSAECONNRESET

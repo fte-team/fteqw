@@ -278,11 +278,11 @@ builtin_t pr_builtin[];
 extern int pr_numbuiltins;
 
 //a little loop so we can keep track of used mem
-void *VARGS PR_Malloc(int size)
+void *VARGS PR_CB_Malloc(int size)
 {
 	return BZ_Malloc(size);//Z_TagMalloc (size, 100);
 }
-void VARGS PR_Free(void *mem)
+void VARGS PR_CB_Free(void *mem)
 {
 	BZ_Free(mem);
 }
@@ -353,8 +353,8 @@ void Q_SetProgsParms(qboolean forcompiler)
 	svprogparms.builtinsfor = NULL;//builtin_t *(*builtinsfor) (int num);	//must return a pointer to the builtins that were used before the state was saved.
 	svprogparms.loadcompleate = NULL;//void (*loadcompleate) (int edictsize);	//notification to reset any pointers.
 
-	svprogparms.memalloc = PR_Malloc;//void *(*memalloc) (int size);	//small string allocation	malloced and freed randomly
-	svprogparms.memfree = PR_Free;//void (*memfree) (void * mem);
+	svprogparms.memalloc = PR_CB_Malloc;//void *(*memalloc) (int size);	//small string allocation	malloced and freed randomly
+	svprogparms.memfree = PR_CB_Free;//void (*memfree) (void * mem);
 
 
 	svprogparms.globalbuiltins = pr_builtin;//builtin_t *globalbuiltins;	//these are available to all progs

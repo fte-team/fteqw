@@ -84,12 +84,12 @@ void (APIENTRY *qglStencilOp) (GLenum fail, GLenum zfail, GLenum zpass);
 void (APIENTRY *qglStencilFunc) (GLenum func, GLint ref, GLuint mask);
 void (APIENTRY *qglPushAttrib) (GLbitfield mask);
 void (APIENTRY *qglPopAttrib) (void);
-
+/*
 PFNGLPROGRAMSTRINGARBPROC qglProgramStringARB;
 PFNGLGETPROGRAMIVARBPROC qglGetProgramivARB;
 PFNGLBINDPROGRAMARBPROC qglBindProgramARB;
 PFNGLGENPROGRAMSARBPROC qglGenProgramsARB;
-
+*/
 PFNGLLOCKARRAYSEXTPROC qglLockArraysEXT;
 PFNGLUNLOCKARRAYSEXTPROC qglUnlockArraysEXT;
 
@@ -195,10 +195,12 @@ void GL_CheckExtensions (void *(*getglfunction) (char *name))
 	qglPNTrianglesiATI = NULL;
 
 	//fragment programs
+/*	gl_config.arb_fragment_program = false;
 	qglProgramStringARB = NULL;
 	qglGetProgramivARB = NULL;
 	qglBindProgramARB = NULL;
 	qglGenProgramsARB = NULL;
+*/
 
 	gl_config.arb_texture_non_power_of_two = false;
 	gl_config.sgis_generate_mipmap = false;
@@ -211,7 +213,6 @@ void GL_CheckExtensions (void *(*getglfunction) (char *name))
 	gl_config.arb_texture_env_dot3 = false;
 	gl_config.arb_texture_cube_map = false;
 
-	gl_config.arb_fragment_program = false;
 	gl_config.arb_shader_objects = false;
 
 	if (strstr(gl_extensions, "GL_ARB_texture_non_power_of_two"))
@@ -311,7 +312,7 @@ void GL_CheckExtensions (void *(*getglfunction) (char *name))
 	if (gl_mtexarbable && gl_config.arb_texture_cube_map && gl_config.arb_texture_env_combine && gl_config.arb_texture_env_dot3 && !COM_CheckParm("-nobump") && gl_bump.value)
 		gl_bumpmappingpossible = true;
 
-	
+/*
 	if (!!strstr(gl_extensions, "GL_ARB_fragment_program"))
 	{
 		gl_config.arb_fragment_program = true;
@@ -320,6 +321,7 @@ void GL_CheckExtensions (void *(*getglfunction) (char *name))
 		qglBindProgramARB = (void *)getglext("glBindProgramARB");
 		qglGenProgramsARB = (void *)getglext("glGenProgramsARB");
 	}
+*/
 
 	// glslang
 	//the gf2 to gf4 cards emulate vertex_shader and thus supports shader_objects.

@@ -497,6 +497,14 @@ static char *Macro_LastDeath (void)
 		return tp_name_someplace.string;
 }
 
+static char *Macro_Mapname (void)
+{
+	if (vars.deathtrigger_time)
+		return vars.lastdeathloc;
+	else
+		return tp_name_someplace.string;
+}
+
 
 static char *Macro_Location2 (void)
 {
@@ -890,6 +898,7 @@ static void TP_InitMacros(void)
 	Cmd_AddMacro("pointloc", Macro_PointLocation, true);
 	Cmd_AddMacro("matchname", Macro_Match_Name, false);
 	Cmd_AddMacro("matchtype", Macro_Match_Type, false);
+	Cmd_AddMacro("mapname", Macro_Mapname, false);
 
 //	Cmd_AddMacro("droploc", Macro_LastDrop, true);
 //	Cmd_AddMacro("droptime", Macro_LastDropTime, true);

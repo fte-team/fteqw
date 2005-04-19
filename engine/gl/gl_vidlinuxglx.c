@@ -20,7 +20,7 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 #include <termios.h>
 #include <sys/ioctl.h>
 #include <sys/stat.h>
-#ifndef __CYGWIN__
+#ifdef __linux__
 #include <sys/vt.h>
 #endif
 #include <stdarg.h>
@@ -843,7 +843,12 @@ qboolean GLVID_Init (rendererstate_t *info, unsigned char *palette)
 		return false;
 	}
 
-	qglXMakeCurrent(vid_dpy, vid_window, ctx);
+	if (!qglXMakeCurrent(vid_dpy, vid_window, ctx))
+	{
+		Con_Printf("glXMakeCurrent failed\n");
+		GLVID_Shutdown();
+		return false;
+	}
 
 	glwidth = info->width;
 	glheight = info->height;

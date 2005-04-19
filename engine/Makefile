@@ -320,7 +320,7 @@ ifdef windir
 SW_LDFLAGS=$(SWLDFLAGS) -lmingw32 -lwsock32 -lSDLmain -lSDL
 else
 #pthread is needed because of SDL.
-SW_LDFLAGS=$(SWLDFLAGS) `sdl-config --libs` -lpng -ljpeg -lSDLmain
+SW_LDFLAGS=$(SWLDFLAGS) `sdl-config --libs` -lpng -ljpeg
 endif
 SW_CFLAGS=$(SWCFLAGS) `sdl-config --cflags`
 SWB_DIR=sw_sdl

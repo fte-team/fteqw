@@ -4542,7 +4542,16 @@ void COM_InitFilesystem (void)
 						COM_AddGameDirectory (va("%s/baseq3", com_basedir) );
 					}
 					else
+					{	
+						f = fopen(va("%s/base/assets0.pk3", com_basedir), "rb");
+						if (f)
+						{
+							fclose(f);
+							COM_AddGameDirectory (va("%s/base", com_basedir) );
+						}
+						else
 						COM_AddGameDirectory (va("%s/id1", com_basedir) );	//ah well, id1 it is, they mustve unpacked it.
+					}
 				}
 			}
 		}

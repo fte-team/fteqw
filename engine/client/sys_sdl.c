@@ -223,7 +223,7 @@ int main(int argc, char **argv)
 
 	TL_InitLanguages();
 
-	parms.memsize = 0x0800000;
+	parms.memsize = 0x2000000;
 
 	if (parms.memsize < 0x0800000)
 		parms.memsize = 0x0800000;

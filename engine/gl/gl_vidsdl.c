@@ -243,6 +243,10 @@ void	GLVID_SetPalette (unsigned char *palette)
 		}
 		d_8to24rgbtable[255] &= 0xffffff;	// 255 is transparent
 	}
+
+	if (LittleLong(1) != 1)
+		for (i=0 ; i<256 ; i++)
+			d_8to24rgbtable[i] = LittleLong(d_8to24rgbtable[i]);
 }
 void	GLVID_ShiftPalette (unsigned char *palette)
 {

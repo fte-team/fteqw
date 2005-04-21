@@ -623,12 +623,29 @@ typedef struct
 	qbyte			diffuse[3];
 	qbyte			direction[2];
 } dq3gridlight_t;
+
+typedef struct
+{
+	unsigned char	ambient[4][3];
+	unsigned char	diffuse[4][3];
+	unsigned char	styles[4];
+	unsigned char	direction[2];
+} rbspgridlight_t;
+
+//q3 based
 typedef struct {
 	vec3_t gridBounds;
 	vec3_t gridMins;
 	vec3_t gridSize;
 	int numlightgridelems;
-	dq3gridlight_t lightgrid[1];
+//rbsp specific
+	rbspgridlight_t *rbspelements;
+	unsigned short *rbspindexes;
+//non-rbsp specific
+	dq3gridlight_t *lightgrid;
+
+	//the reason rbsp is seperate from the non-rbsp is because it allows better memory compression.
+	//I chose not to expand at loadtime because q3 would suffer from greater cache misses.
 } q3lightgridinfo_t;
 
 

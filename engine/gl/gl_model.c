@@ -645,6 +645,7 @@ couldntload:
 		GLMod_LoadSpriteModel (mod, buf);
 		break;
 #ifdef Q2BSPS
+	case ('R'<<0)+('B'<<8)+('S'<<16)+('P'<<24):
 	case IDBSPHEADER:	//looks like id switched to have proper ids
 		Mod_LoadQ2BrushModel (mod, buf);
 		break;

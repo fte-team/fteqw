@@ -410,6 +410,7 @@ enum Q3LUMP
 	Q3LUMP_LIGHTMAPS	=14,
 	Q3LUMP_LIGHTGRID	=15,
 	Q3LUMP_VISIBILITY	=16,
+	RBSPLUMP_LIGHTINDEXES=17,
 	Q3LUMPS_TOTAL
 };
 
@@ -591,6 +592,12 @@ typedef struct
 	int planenum;
 	int texinfo;
 } q3dbrushside_t;
+typedef struct
+{
+	int planenum;
+	int texinfo;
+	int facenum;
+} rbspbrushside_t;
 
 typedef struct
 {
@@ -694,6 +701,14 @@ typedef struct
 	unsigned char color[4];
 } q3dvertex_t;
 
+typedef struct
+{
+	float point[3];
+	float texcoords[5][2];
+	float normal[3];
+	unsigned char color[4][4];
+} rbspvertex_t;
+
 struct Q3FOG
 {
 	char shadername[64] ; 	
@@ -730,3 +745,25 @@ typedef struct
 	int patchwidth;
 	int patchheight;
 } q3dface_t;
+
+typedef struct
+{
+	int shadernum;
+	int fognum;
+	int facetype;
+	int firstvertex;
+	int num_vertices;
+	int firstindex;
+	int num_indexes;
+	unsigned char lm_styles[4];
+	unsigned char vt_styles[4];
+	int lightmapnum[4];
+	int lightmap_offs[2][4]; 
+	int lightmap_width;
+	int lightmap_height;
+	float lightmap_origin[3];
+	float lightmap_vecs[2][3];
+	float normal[3];
+	int patchwidth;
+	int patchheight;
+} rbspface_t;

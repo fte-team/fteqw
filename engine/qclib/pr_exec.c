@@ -436,7 +436,7 @@ char *EvaluateDebugString(progfuncs_t *progfuncs, char *key)
 		if (c)*c = '.';
 		if (!fdef)
 			return "(Bad string)";
-		val = (eval_t *) (((char *)PROG_TO_EDICT(progfuncs, val->_int) + externs->edictsize) + fdef->ofs*4);		
+		val = (eval_t *) (((char *)PROG_TO_EDICT(progfuncs, val->_int)->fields) + fdef->ofs*4);		
 		def->type = fdef->type;
 	}
 	

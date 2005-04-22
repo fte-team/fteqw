@@ -27,6 +27,8 @@ char *QCC_ReadFile (char *fname, void *buffer, int len);
 int QCC_FileSize (char *fname);
 pbool QCC_WriteFile (char *name, void *data, int len);
 
+char finddef[256];
+
 void RunCompiler(char *args);
 
 HINSTANCE ghInstance;
@@ -40,6 +42,8 @@ HWND mdibox;
 HWND outputwindow;
 HWND outputbox;
 HWND projecttree;
+HWND gotodefbox;
+HWND gotodefaccept;
 
 FILE *logfile;
 
@@ -1485,19 +1489,29 @@ static LONG CALLBACK MainWndProc(HWND hWnd,UINT message,
 
 			// Create the MDI client window.
 
-			if (mdibox)
-				break;
-
 			mdibox = CreateWindow( "MDICLIENT", (LPCTSTR) NULL,
-			WS_CHILD | WS_CLIPCHILDREN | WS_VSCROLL | WS_HSCROLL,
-			0, 0, 320, 200, hWnd, (HMENU) 0xCAC, ghInstance, (LPSTR) &ccs);
+					WS_CHILD | WS_CLIPCHILDREN | WS_VSCROLL | WS_HSCROLL,
+					0, 0, 320, 200, hWnd, (HMENU) 0xCAC, ghInstance, (LPSTR) &ccs);
 			ShowWindow(mdibox, SW_SHOW);
 
 			projecttree = CreateWindow(WC_TREEVIEW, (LPCTSTR) NULL,
-			WS_CHILD | WS_CLIPCHILDREN | WS_VSCROLL | WS_HSCROLL
-				|	TVS_HASBUTTONS |TVS_LINESATROOT|TVS_HASLINES,
+					WS_CHILD | WS_CLIPCHILDREN | WS_VSCROLL | WS_HSCROLL
+					|	TVS_HASBUTTONS |TVS_LINESATROOT|TVS_HASLINES,
 			0, 0, 320, 200, hWnd, (HMENU) 0xCAC, ghInstance, (LPSTR) &ccs);
 			ShowWindow(projecttree, SW_SHOW);
+
+			if (projecttree)
+			{
+				gotodefbox = CreateWindowEx(WS_EX_CLIENTEDGE, "EDIT", (LPCTSTR) NULL,
+						WS_CHILD | WS_CLIPCHILDREN | ES_WANTRETURN,
+						0, 0, 320, 200, hWnd, (HMENU) 0xCAC, ghInstance, (LPSTR) NULL);
+				ShowWindow(gotodefbox, SW_SHOW);
+
+				gotodefaccept = CreateWindowEx(WS_EX_CLIENTEDGE, "BUTTON", "GO",
+						WS_CHILD | WS_CLIPCHILDREN | BS_DEFPUSHBUTTON,
+						0, 0, 320, 200, hWnd, (HMENU) 0x4404, ghInstance, (LPSTR) NULL);
+				ShowWindow(gotodefaccept, SW_SHOW);
+			}
 		}
 		break;
 
@@ -1509,7 +1523,10 @@ static LONG CALLBACK MainWndProc(HWND hWnd,UINT message,
 		GetClientRect(mainwindow, &rect);
 		if (projecttree)
 		{
-			SetWindowPos(projecttree, NULL, 0, 0, 192, rect.bottom-rect.top - 32, 0);
+			SetWindowPos(projecttree, NULL, 0, 0, 192, rect.bottom-rect.top - 34 - 24, 0);
+
+			SetWindowPos(gotodefbox, NULL, 0, rect.bottom-rect.top - 33 - 24, 160, 24, 0);
+			SetWindowPos(gotodefaccept, NULL, 160, rect.bottom-rect.top - 33 - 24, 32, 24, 0);
 			SetWindowPos(mdibox?mdibox:outputbox, NULL, 192, 0, rect.right-rect.left-192, rect.bottom-rect.top - 32, 0);
 		}
 		else
@@ -1528,6 +1545,11 @@ static LONG CALLBACK MainWndProc(HWND hWnd,UINT message,
 		return TRUE;
 		break;
 	case WM_COMMAND:
+		if (wParam == 0x4404)
+		{
+			GetWindowText(gotodefbox, finddef, sizeof(finddef)-1);
+			return true;
+		}
 		if (LOWORD(wParam)>0 && LOWORD(wParam) <= NUMBUTTONS)
 		{
 			if (LOWORD(wParam))
@@ -1552,7 +1574,9 @@ static LONG CALLBACK MainWndProc(HWND hWnd,UINT message,
 				GenericMenu(wParam);
 			break;
 		}
+		break;
 	case WM_NOTIFY:
+		if (lParam)
 		{
 			NMHDR *nm;
 			HANDLE item;
@@ -2207,6 +2231,12 @@ int WINAPI WinMain (HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLin
 				buttons[ID_QUIT].washit = false;
 				DestroyWindow(mainwindow);
 			}
+		}
+
+		if (*finddef)
+		{
+			GoToDefinition(finddef);
+			*finddef = '\0';
 		}
 
 		Sleep(10);

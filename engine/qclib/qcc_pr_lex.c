@@ -1093,8 +1093,10 @@ void QCC_PR_LexString (void)
 		}
 		else if (c == 0x7C && flag_acc)	//reacc support... reacc is strange.
 			c = '\n';
+		else
+			c |= texttype;
 
-		pr_token[len] = c|texttype;
+		pr_token[len] = c;
 		len++;
 		if (len >= sizeof(pr_token)-1)
 			QCC_Error(ERR_INVALIDSTRINGIMMEDIATE, "String length exceeds %i", sizeof(pr_token)-1);

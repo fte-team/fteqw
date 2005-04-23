@@ -1742,6 +1742,13 @@ QCC_def_t *QCC_PR_Statement ( QCC_opcode_t *op, QCC_def_t *var_a, QCC_def_t *var
 		}
 	}
 
+	if ((op - pr_opcodes >= OP_LOAD_F && op - pr_opcodes <= OP_LOAD_FNC) ||
+		op - pr_opcodes == OP_LOAD_I)
+	{
+		if (var_b->constant == 2)
+			var_c->constant = true;
+	}
+
 	if (!var_c)
 	{
 		if (var_a)
@@ -7178,7 +7185,8 @@ void QCC_PR_ParseDefs (char *classname)
 	int			i;
 	pbool shared=false;
 	pbool externfnc=false;
-	pbool constant = true;
+	pbool isconstant = false;
+	pbool isvar = false;
 	pbool noref = false;
 	pbool nosave = false;
 	pbool allocatenew = true;
@@ -7448,9 +7456,9 @@ void QCC_PR_ParseDefs (char *classname)
 				QCC_PR_ParseError (ERR_NOSHAREDLOCALS, "Cannot have shared locals");
 		}
 		else if (QCC_PR_CheckKeyword(keyword_const, "const"))
-			constant = true;
+			isconstant = true;
 		else if (QCC_PR_CheckKeyword(keyword_var, "var"))
-			constant = false;
+			isvar = false;
 		else if (QCC_PR_CheckKeyword(keyword_noref, "noref"))
 			noref=true;
 		else if (QCC_PR_CheckKeyword(keyword_nosave, "nosave"))
@@ -7796,7 +7804,10 @@ void QCC_PR_ParseDefs (char *classname)
 	
 			else if (type->type == ev_function)
 			{
-				def->constant = constant;
+				if (isvar)
+					def->constant = false;
+				else
+					def->constant = true;
 				if (QCC_PR_CheckToken("0"))
 				{
 					def->constant = 0;
@@ -7860,7 +7871,7 @@ void QCC_PR_ParseDefs (char *classname)
 					continue;
 				}
 				if (!def->constant)
-					QCC_PR_ParseError(0, "Functions must be constant");
+					QCC_PR_ParseError(0, "Initialised functions must be constant");
 
 				def->references++;
 				pr_scope = def;
@@ -7901,7 +7912,10 @@ void QCC_PR_ParseDefs (char *classname)
 				int arraypart, partnum;
 				QCC_type_t *parttype;
 				def->initialized = 1;
-				def->constant = constant;
+				if (isvar)
+					def->constant = true;
+				else
+					def->constant = false;
 //				if (constant)
 //					QCC_PR_ParseError("const used on a struct isn't useful");
 				
@@ -8070,7 +8084,11 @@ void QCC_PR_ParseDefs (char *classname)
 
 			else if (type->type == ev_integer)	//handle these differently, because they may need conversions
 			{
-				def->constant = constant;
+				if (isvar)
+					def->constant = false;
+				else
+					def->constant = true;
+
 				def->initialized = 1;
 				memcpy (qcc_pr_globals + def->ofs, &pr_immediate, 4*type_size[pr_immediate_type->type]);
 				QCC_PR_Lex ();
@@ -8100,7 +8118,10 @@ void QCC_PR_ParseDefs (char *classname)
 
 							d->type = type_string;
 							d->name = "IMMEDIATE";
-							d->constant = constant;
+							if (isvar)
+								d->constant = false;
+							else
+								d->constant = true;
 							d->initialized = 1;
 							d->scope = NULL;
 
@@ -8121,7 +8142,10 @@ void QCC_PR_ParseDefs (char *classname)
 				}
 				else if (arraysize<=1)
 				{
-					def->constant = constant;
+					if (isvar)
+						def->constant = false;
+					else
+						def->constant = true;
 					def->initialized = 1;
 					(((int *)qcc_pr_globals)[def->ofs]) = QCC_CopyString(pr_immediate_string);
 					QCC_PR_Lex ();
@@ -8157,13 +8181,17 @@ void QCC_PR_ParseDefs (char *classname)
 				}
 				else if (arraysize<=1)
 				{
-					def->constant = constant;
+					if (isvar)
+						def->constant = false;
+					else
+						def->constant = true;
+
 					def->initialized = 1;
 
 					if (pr_immediate_type->type != ev_float)
 						QCC_PR_ParseError (ERR_BADIMMEDIATETYPE, "wrong immediate type for %s", name);
 
-					if (constant && opt_dupconstdefs)
+					if (def->constant && opt_dupconstdefs)
 					{
 						if (def->ofs == oldglobals)
 						{
@@ -8209,7 +8237,10 @@ void QCC_PR_ParseDefs (char *classname)
 				}
 				else if (arraysize<=1)
 				{
-					def->constant = constant;
+					if (isvar)
+						def->constant = false;
+					else
+						def->constant = true;
 					def->initialized = 1;
 					(((float *)qcc_pr_globals)[def->ofs+0]) = pr_immediate.vector[0];
 					(((float *)qcc_pr_globals)[def->ofs+1]) = pr_immediate.vector[1];
@@ -8244,7 +8275,6 @@ void QCC_PR_ParseDefs (char *classname)
 					def->name = name;
 					def->initialized = true;
 				}
-				constant = true;
 			}
 			else if (pr_token_type != tt_immediate)
 				QCC_PR_ParseError (ERR_BADIMMEDIATETYPE, "not an immediate for %s - %s", name, pr_token);
@@ -8252,11 +8282,22 @@ void QCC_PR_ParseDefs (char *classname)
 				QCC_PR_ParseError (ERR_BADIMMEDIATETYPE, "wrong immediate type for %s - %s", name, pr_token);
 			else
 				memcpy (qcc_pr_globals + def->ofs, &pr_immediate, 4*type_size[pr_immediate_type->type]);
-	
-			def->constant = constant;
+
+			if (isvar)
+				def->constant = false;
+			else
+				def->constant = true;
 			def->initialized = true;
 			QCC_PR_Lex ();
 		}
+		else
+		{
+			if (isconstant && type->type == ev_field)
+				def->constant = 2;	//special flag on fields, 2, makes the pointer obtained from them also constant.
+			else
+				def->constant = isconstant;
+		}
+
 		
 	} while (QCC_PR_CheckToken (","));
 

@@ -47,9 +47,14 @@ netadr_t	master_adr[MAX_MASTERS];	// address of group servers
 
 client_t	*host_client;			// current client
 
-cvar_t	sv_mintic = {"sv_mintic","0.03"};	// bound the size of the
-cvar_t	sv_maxtic = {"sv_maxtic","0.1"};	// physics time tic 
-cvar_t	sv_nailhack = {"sv_nailhack","0"};	// physics time tic 
+// bound the size of the physics time tic
+#ifdef SERVERONLY
+cvar_t	sv_mintic = {"sv_mintic","0.03"};
+#else
+cvar_t	sv_mintic = {"sv_mintic","0"};	//client builds can think as often as they want.
+#endif
+cvar_t	sv_maxtic = {"sv_maxtic","0.1"};
+cvar_t	sv_nailhack = {"sv_nailhack","0"};
 
 
 cvar_t	timeout = {"timeout","65"};		// seconds without any message

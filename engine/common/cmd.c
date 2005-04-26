@@ -2135,7 +2135,7 @@ skipws:
 	for (ws = end + strlen(end)-1; ws >= end && *ws <= ' '; ws--)	//skip trailing
 		*ws = '\0';
 
-	if (!strcmp(end, "then"))	//sigh... trying to make fuhquake's ifs work.
+	if (!strncmp(end, "then", 4))	//sigh... trying to make fuhquake's ifs work.
 	{
 		end+=4;
 		goto skipws;

@@ -52,6 +52,7 @@ cvar_t	cl_sbar		= {"cl_sbar", "0", NULL, CVAR_ARCHIVE};
 cvar_t	cl_hudswap	= {"cl_hudswap", "0", NULL, CVAR_ARCHIVE};
 cvar_t	cl_maxfps	= {"cl_maxfps", "-1", NULL, CVAR_ARCHIVE};
 cvar_t	cl_nopext	= {"cl_nopext", "0", NULL, CVAR_ARCHIVE};
+cvar_t	cl_nolerp	= {"cl_nolerp", "1"};
 
 cvar_t	cfg_save_name = {"cfg_save_name", "fte", NULL, CVAR_ARCHIVE};
 
@@ -2310,10 +2311,12 @@ void CL_Init (void)
 	Cvar_Register (&r_lightflicker, "Item effects");
 	Cvar_Register (&cl_r2g, "Item effects");
 	Cvar_Register (&r_powerupglow, "Item effects");
-	Cvar_Register (&r_powerupglow, "v_powerupshell");
+	Cvar_Register (&v_powerupshell, "Item effects");
 
 	Cvar_Register (&cl_gibfilter, "Item effects");
 	Cvar_Register (&cl_deadbodyfilter, "Item effects");
+
+	Cvar_Register (&cl_nolerp, "Item effects");
 
 	//
 	// info mirrors
@@ -2421,7 +2424,7 @@ void CL_Init (void)
 #ifdef _WINDOWS
 	Cmd_AddCommand ("windows", CL_Windows_f);
 #endif
-}
+} 
 
 
 /*
@@ -2902,6 +2905,8 @@ void Host_Init (quakeparms_t *parms)
 	//	Con_Printf ("Exe: "__TIME__" "__DATE__"\n");
 	Con_TPrintf (TL_HEAPSIZE, parms->memsize/ (1024*1024.0));
 
+	Cbuf_AddText ("cl_warncmd 0\n", RESTRICT_LOCAL);
+
 	Cbuf_AddText ("+mlook\n", RESTRICT_LOCAL);		//fixme: this is bulky, only exec one of these.
 
 	//who should we imitate?
@@ -2976,10 +2981,20 @@ void Host_Init (quakeparms_t *parms)
 #ifndef NOMEDIA
 	if (!cls.demofile && !cls.state && !media_filmtype)
 	{
-		if (COM_FDepthFile("video/idlogo.roq", true) > COM_FDepthFile("video/idlog.cin", true))
-			Media_PlayFilm("video/idlog.cin");
-		else
+		int ol_depth;
+		int idcin_depth;
+		int idroq_depth;
+
+		idcin_depth = COM_FDepthFile("video/idlog.cin", true);	//q2
+		idroq_depth = COM_FDepthFile("video/idlogo.roq", true);	//q2
+		ol_depth = COM_FDepthFile("video/openinglogos.roq", true);	//jk2
+
+		if (ol_depth <= idroq_depth || ol_depth <= idcin_depth)
+			Media_PlayFilm("video/openinglogos.roq");
+		else if (idroq_depth <= idcin_depth)
 			Media_PlayFilm("video/idlogo.roq");	
+		else if (idcin_depth)
+			Media_PlayFilm("video/idlog.cin");
 	}
 #endif
 

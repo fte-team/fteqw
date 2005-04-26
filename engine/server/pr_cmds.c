@@ -1783,10 +1783,13 @@ void PF_setmodel (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 	if (m[0] == '*' || (*m&&progstype == PROG_H2))
 	{
 		mod = Mod_ForName (m, true);
-		VectorCopy (mod->mins, e->v->mins);
-		VectorCopy (mod->maxs, e->v->maxs);
-		VectorSubtract (mod->maxs, mod->mins, e->v->size);
-		SV_LinkEdict (e, false);
+		if (mod)
+		{
+			VectorCopy (mod->mins, e->v->mins);
+			VectorCopy (mod->maxs, e->v->maxs);
+			VectorSubtract (mod->maxs, mod->mins, e->v->size);
+			SV_LinkEdict (e, false);
+		}
 
 		return;
 	}
@@ -1815,10 +1818,13 @@ void PF_setmodel (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 			if (mod)
 			{
 				mod = Mod_ForName (m, false);
-				VectorCopy (mod->mins, e->v->mins);
-				VectorCopy (mod->maxs, e->v->maxs);
-				VectorSubtract (mod->maxs, mod->mins, e->v->size);
-				SV_LinkEdict (e, false);
+				if (mod)
+				{
+					VectorCopy (mod->mins, e->v->mins);
+					VectorCopy (mod->maxs, e->v->maxs);
+					VectorSubtract (mod->maxs, mod->mins, e->v->size);
+					SV_LinkEdict (e, false);
+				}
 			}
 			else
 			{
@@ -1841,10 +1847,13 @@ void PF_setmodel (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 			if (sv.models[i])
 			{
 				mod = Mod_ForName (m, false);
-				VectorCopy (mod->mins, e->v->mins);
-				VectorCopy (mod->maxs, e->v->maxs);
-				VectorSubtract (mod->maxs, mod->mins, e->v->size);
-				SV_LinkEdict (e, false);
+				if (mod)
+				{
+					VectorCopy (mod->mins, e->v->mins);
+					VectorCopy (mod->maxs, e->v->maxs);
+					VectorSubtract (mod->maxs, mod->mins, e->v->size);
+					SV_LinkEdict (e, false);
+				}
 			}
 			//qw was fixed - it never sets the size of an alias model.
 		}
@@ -3002,9 +3011,9 @@ void PF_localcmd (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 	
 	str = PR_GetStringOfs(prinst, OFS_PARM0);	
 	if (!strcmp(str, "host_framerate 0\n"))
-		Cbuf_AddText ("sv_mintic 0\n", RESTRICT_SERVER);	//hmm... do this better...
+		Cbuf_AddText ("sv_mintic 0\n", RESTRICT_INSECURE);	//hmm... do this better...
 	else
-		Cbuf_AddText (str, RESTRICT_SERVER);
+		Cbuf_AddText (str, RESTRICT_INSECURE);
 }
 
 /*

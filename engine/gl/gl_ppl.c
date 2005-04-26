@@ -990,7 +990,7 @@ static void PPL_BaseChain_NPR_Sketch(msurface_t *first)
 		r_drawflat.modified = false;
 		for (i = 0; i < sizeof(textures)/sizeof(textures[0]); i++)
 		{
-			textures[i] = Mod_LoadHiResTexture(va("sketch%i", i+1), true, false, false);
+			textures[i] = Mod_LoadHiResTexture(va("sketch%i", i+1), "sketch", true, false, false);
 			if (!textures[i])
 			{
 				int data[128*128];
@@ -1714,7 +1714,7 @@ void PPL_CreateLightTexturesProgram(void)
 
 	char *frag =
 		"uniform sampler2D baset;\n"
-		"#ifdef BUMP\n"
+		"#if defined(BUMP) || defined(SPECULAR)\n"
 		"uniform sampler2D bumpt;\n"
 		"#endif\n"
 		"#ifdef SPECULAR\n"
@@ -1736,9 +1736,11 @@ void PPL_CreateLightTexturesProgram(void)
 		"{\n"
 		"#ifdef BUMP\n"
 		"	vec3 bases = vec3(texture2D(baset, tcbase));\n"
-		"	vec3 bumps = vec3(texture2D(bumpt, tcbase)) * 2.0 - 1.0;\n"
 		"#else\n"
 		"	vec3 diff = vec3(texture2D(baset, tcbase));\n"
+		"#endif\n"
+		"#if defined(BUMP) || defined(SPECULAR)\n"
+		"	vec3 bumps = vec3(texture2D(bumpt, tcbase)) * 2.0 - 1.0;\n"
 		"#endif\n"
 		"#ifdef SPECULAR\n"
 		"	vec3 specs = vec3(texture2D(speculart, tcbase));\n"

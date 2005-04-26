@@ -33,6 +33,7 @@ extern	cvar_t	r_lightflicker;
 extern	cvar_t	cl_r2g;
 extern	cvar_t	r_powerupglow;
 extern	cvar_t	v_powerupshell;
+extern	cvar_t	cl_nolerp;
 
 extern	cvar_t	cl_gibfilter, cl_deadbodyfilter;
 extern int cl_playerindex;
@@ -367,13 +368,26 @@ void CL_ParseDelta (entity_state_t *from, entity_state_t *to, int bits, qboolean
 	}
 	if (to->frame != from->frame || move[0] || move[1] || move[2])
 	{
-		cl.lerpents[to->number].origin[0] = from->origin[0];
-		cl.lerpents[to->number].origin[1] = from->origin[1];
-		cl.lerpents[to->number].origin[2] = from->origin[2];
+		if (new)	//lerp from the new position instead of old, so no lerp
+		{
+			cl.lerpents[to->number].origin[0] = to->origin[0];
+			cl.lerpents[to->number].origin[1] = to->origin[1];
+			cl.lerpents[to->number].origin[2] = to->origin[2];
 
-		cl.lerpents[to->number].angles[0] = from->angles[0];
-		cl.lerpents[to->number].angles[1] = from->angles[1];
-		cl.lerpents[to->number].angles[2] = from->angles[2];
+			cl.lerpents[to->number].angles[0] = to->angles[0];
+			cl.lerpents[to->number].angles[1] = to->angles[1];
+			cl.lerpents[to->number].angles[2] = to->angles[2];
+		}
+		else
+		{
+			cl.lerpents[to->number].origin[0] = from->origin[0];
+			cl.lerpents[to->number].origin[1] = from->origin[1];
+			cl.lerpents[to->number].origin[2] = from->origin[2];
+
+			cl.lerpents[to->number].angles[0] = from->angles[0];
+			cl.lerpents[to->number].angles[1] = from->angles[1];
+			cl.lerpents[to->number].angles[2] = from->angles[2];
+		}
 //we have three sorts of movement.
 //1: stepping monsters. These have frames and tick at 10fps.
 //2: physics. Objects moving acording to gravity.
@@ -1376,8 +1390,8 @@ void CL_LinkPacketEntities (void)
 			ent->lerpfrac=1;
 		f = 1-ent->lerpfrac;
 
-//		if (cl_nolerp.value)
-//			f = 1;
+		if (cl_nolerp.value)
+			f = 1;
 
 		// calculate origin
 		for (i=0 ; i<3 ; i++)
@@ -1759,7 +1773,7 @@ static int MVD_TranslateFlags(int src)
 CL_ParsePlayerinfo
 ===================
 */
-extern int parsecountmod;
+extern int parsecountmod, oldparsecountmod;
 extern double parsecounttime;
 int lastplayerinfo;
 void CL_ParsePlayerinfo (void)
@@ -1767,7 +1781,7 @@ void CL_ParsePlayerinfo (void)
 	int			msec;
 	unsigned int			flags;
 	player_info_t	*info;
-	player_state_t	*state;
+	player_state_t	*state, *oldstate;
 	int			num;
 	int			i;
 	int new;
@@ -1779,6 +1793,7 @@ void CL_ParsePlayerinfo (void)
 
 	info = &cl.players[num];
 
+	oldstate = &cl.frames[oldparsecountmod].playerstate[num];
 	state = &cl.frames[parsecountmod].playerstate[num];
 
 	if (cls.demoplayback == DPB_MVD)
@@ -1850,6 +1865,7 @@ void CL_ParsePlayerinfo (void)
 
 		state->pm_type = PM_NORMAL;
 
+		TP_ParsePlayerInfo(oldstate, state, info);
 		return;
 	}
 
@@ -2024,6 +2040,8 @@ guess_pm_type:
 			state->pm_type = PM_DEAD;
 		else
 			state->pm_type = PM_NORMAL;
+
+		TP_ParsePlayerInfo(oldstate, state, info);
 	}
 
 }
@@ -2386,6 +2404,8 @@ void CL_LinkViewModel(void)
 
 	if (cl.stats[r_refdef.currentplayernum][STAT_ITEMS] & IT_QUAD)
 		ent.flags |= Q2RF_SHELL_BLUE;
+	if (cl.stats[r_refdef.currentplayernum][STAT_ITEMS] & IT_INVULNERABILITY)
+		ent.flags |= Q2RF_SHELL_RED;
 
 	if (!(ent.flags & (Q2RF_SHELL_RED|Q2RF_SHELL_GREEN|Q2RF_SHELL_BLUE)))
 		return;

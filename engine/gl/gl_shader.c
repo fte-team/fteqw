@@ -281,7 +281,7 @@ static void Shader_ParseSkySides ( char **ptr, int *images )
 			images[i] = 0;
 		} else {
 			Com_sprintf ( path, sizeof(path), "%s_%s", token, suf[i] );
-			images[i] = Mod_LoadHiResTexture ( path, true, false, true);//|IT_SKY );
+			images[i] = Mod_LoadHiResTexture ( path, NULL, true, false, true);//|IT_SKY );
 		}
 	}
 }
@@ -342,7 +342,7 @@ static int Shader_FindImage ( char *name, int flags )
 	if ( !Q_stricmp (name, "$whiteimage") ) {
 		return 0;
 	} else {
-		return Mod_LoadHiResTexture(name, !!(flags & IT_NOMIPMAP), true, true);//GL_FindImage ( name, flags );
+		return Mod_LoadHiResTexture(name, NULL, !!(flags & IT_NOMIPMAP), true, true);//GL_FindImage ( name, flags );
     }
 }
 
@@ -896,7 +896,6 @@ static shaderkey_t shaderpasskeys[] =
 
 int Shader_InitCallback (char *name, int size, void *param)
 {
-	name+=8;	//skip the scripts/ part
 	strcpy(shaderbuf+shaderbuflen, name);
 	Shader_MakeCache(shaderbuf+shaderbuflen);
 	shaderbuflen += strlen(name)+1;
@@ -947,7 +946,7 @@ static void Shader_MakeCache ( char *path )
 	shadercache_t *cache;
 	int size;
 
-	Com_sprintf( filename, sizeof(filename), "scripts/%s", path );
+	Com_sprintf( filename, sizeof(filename), "%s", path );
 	Con_DPrintf ( "...loading '%s'\n", filename );
 
 	size = FS_LoadFile ( filename, (void **)&buf );
@@ -1722,7 +1721,7 @@ void Shader_DefaultBSP(char *shortname, shader_t *s)
 	pass = &s->passes[1];
 	pass->flags = SHADER_PASS_BLEND | SHADER_PASS_NOCOLORARRAY;
 	pass->tcgen = TC_GEN_BASE;
-	pass->anim_frames[0] = Mod_LoadHiResTexture(shortname, true, false, true);//GL_FindImage (shortname, 0);
+	pass->anim_frames[0] = Mod_LoadHiResTexture(shortname, NULL, true, false, true);//GL_FindImage (shortname, 0);
 	pass->blendsrc = GL_ZERO;
 	pass->blenddst = GL_SRC_COLOR;
 	pass->blendmode = GL_MODULATE;
@@ -1751,7 +1750,7 @@ void Shader_DefaultBSPVertex(char *shortname, shader_t *s)
 	shaderpass_t *pass;
 	pass = &s->passes[0];
 	pass->tcgen = TC_GEN_BASE;
-	pass->anim_frames[0] = Mod_LoadHiResTexture(shortname, true, false, true);//GL_FindImage (shortname, 0);
+	pass->anim_frames[0] = Mod_LoadHiResTexture(shortname, NULL, true, false, true);//GL_FindImage (shortname, 0);
 	pass->depthfunc = GL_LEQUAL;
 	pass->flags = SHADER_PASS_DEPTHWRITE;
 	pass->rgbgen = RGB_GEN_VERTEX;
@@ -1780,7 +1779,7 @@ void Shader_DefaultBSPFlare(char *shortname, shader_t *s)
 	pass->blendsrc = GL_ONE;
 	pass->blenddst = GL_ONE;
 	pass->blendmode = GL_MODULATE;
-	pass->anim_frames[0] = Mod_LoadHiResTexture(shortname, true, true, true);//GL_FindImage (shortname, 0);
+	pass->anim_frames[0] = Mod_LoadHiResTexture(shortname, NULL, true, true, true);//GL_FindImage (shortname, 0);
 	pass->depthfunc = GL_LEQUAL;
 	pass->rgbgen = RGB_GEN_VERTEX;
 	pass->alphagen = ALPHA_GEN_IDENTITY;
@@ -1806,7 +1805,7 @@ void Shader_DefaultSkin(char *shortname, shader_t *s)
 	shaderpass_t *pass;
 	pass = &s->passes[0];
 	pass->flags = SHADER_PASS_DEPTHWRITE;
-	pass->anim_frames[0] = Mod_LoadHiResTexture(shortname, true, true, true);//GL_FindImage (shortname, 0);
+	pass->anim_frames[0] = Mod_LoadHiResTexture(shortname, NULL, true, true, true);//GL_FindImage (shortname, 0);
 	pass->depthfunc = GL_LEQUAL;
 	pass->rgbgen = RGB_GEN_LIGHTING_DIFFUSE;
 	pass->numtcmods = 0;
@@ -1832,7 +1831,7 @@ void Shader_DefaultSkinShell(char *shortname, shader_t *s)
 	shaderpass_t *pass;
 	pass = &s->passes[0];
 	pass->flags = SHADER_PASS_DEPTHWRITE | SHADER_PASS_BLEND;
-	pass->anim_frames[0] = Mod_LoadHiResTexture(shortname, true, true, true);//GL_FindImage (shortname, 0);
+	pass->anim_frames[0] = Mod_LoadHiResTexture(shortname, NULL, true, true, true);//GL_FindImage (shortname, 0);
 	pass->depthfunc = GL_LEQUAL;
 	pass->rgbgen = RGB_GEN_ENTITY;
 	pass->alphagen = ALPHA_GEN_ENTITY;
@@ -1864,7 +1863,7 @@ void Shader_Default2D(char *shortname, shader_t *s)
 	pass->blendsrc = GL_SRC_ALPHA;
 	pass->blenddst = GL_ONE_MINUS_SRC_ALPHA;
 	pass->blendmode = GL_MODULATE;
-	pass->anim_frames[0] = Mod_LoadHiResTexture(shortname, false, true, true);//GL_FindImage (shortname, IT_NOPICMIP|IT_NOMIPMAP);
+	pass->anim_frames[0] = Mod_LoadHiResTexture(shortname, NULL, false, true, true);//GL_FindImage (shortname, IT_NOPICMIP|IT_NOMIPMAP);
 	pass->depthfunc = GL_LEQUAL;
 	pass->rgbgen = RGB_GEN_VERTEX;
 	pass->alphagen = ALPHA_GEN_VERTEX;
@@ -1927,7 +1926,7 @@ int R_LoadShader ( char *name, void(*defaultgen)(char *name, shader_t*))
 	Shader_GetPathAndOffset( shortname, &ts, &offset );
 
 	if ( ts ) {
-		Com_sprintf ( path, sizeof(path), "scripts/%s", ts );
+		Com_sprintf ( path, sizeof(path), "%s", ts );
 		length = FS_LoadFile ( path, (void **)&buf );
 	}
 

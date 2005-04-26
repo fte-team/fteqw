@@ -345,4 +345,9 @@ trace_t PM_PlayerTrace (vec3_t start, vec3_t end)
 	return total;
 }
 
-
+//for use outside the pmove code. lame, but works.
+trace_t PM_TraceLine (vec3_t start, vec3_t end)
+{
+	pmove.hullnum = 0;
+	return PM_PlayerTrace(start, end);
+}

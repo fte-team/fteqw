@@ -1176,7 +1176,7 @@ void V_CalcRefdef (int pnum)
 		view->model = NULL;
 	else
 #endif
-	if (view_message && view_message->flags & (PF_GIB|PF_DEAD) )
+	if (!view_message || view_message->flags & (PF_GIB|PF_DEAD) )
  		view->model = NULL;
  	else
 		view->model = cl.model_precache[cl.stats[pnum][STAT_WEAPON]];

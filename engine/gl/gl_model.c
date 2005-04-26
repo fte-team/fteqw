@@ -861,12 +861,12 @@ TRACE(("dbg: GLMod_LoadAdvancedTextureSection: %s\n", name));
 		*base = 0;
 		*norm = 0;
 		if (!*norm && *normname)
-			*norm = Mod_LoadHiResTexture(normname, true, false, false);
+			*norm = Mod_LoadHiResTexture(normname, NULL, true, false, false);
 		if (!*norm && *bumpname)
-			*norm = Mod_LoadBumpmapTexture(bumpname);
+			*norm = Mod_LoadBumpmapTexture(bumpname, NULL);
 
 		if (*norm && *flatname)
-			*base = Mod_LoadHiResTexture(flatname, true, false, true);
+			*base = Mod_LoadHiResTexture(flatname, NULL, true, false, true);
 	}
 	else
 	{
@@ -875,14 +875,14 @@ TRACE(("dbg: GLMod_LoadAdvancedTextureSection: %s\n", name));
 			*norm = 0;
 	}
 	if (!*base && *stdname)
-		*base = Mod_LoadHiResTexture(stdname, true, false, true);
+		*base = Mod_LoadHiResTexture(stdname, NULL, true, false, true);
 	if (!*base && *flatname)
-		*base = Mod_LoadHiResTexture(flatname, true, false, true);
+		*base = Mod_LoadHiResTexture(flatname, NULL, true, false, true);
 	if (luma && *lumaname)
-		*luma = Mod_LoadHiResTexture(lumaname, true, true, true);
+		*luma = Mod_LoadHiResTexture(lumaname, NULL, true, true, true);
 
 	if (*norm && gloss && *glossname && gl_specular.value)
-		*gloss = Mod_LoadHiResTexture(glossname, true, false, true);
+		*gloss = Mod_LoadHiResTexture(glossname, NULL, true, false, true);
 }
 
 void GLMod_LoadAdvancedTexture(char *name, int *base, int *norm, int *luma, int *gloss, int *alphamode, qboolean *cull)	//fixme: add gloss
@@ -1000,8 +1000,9 @@ TRACE(("dbg: GLMod_LoadTextures: inittexturedescs\n"));
 				base = W_ConvertWAD3Texture(mt, &mt->width, &mt->height, &alphaed);	//convert texture to 32 bit.
 				tx->alphaed = alphaed;
 				texture_mode = GL_LINEAR_MIPMAP_NEAREST; //_LINEAR;
-				if (!(tx->gl_texturenum = Mod_LoadReplacementTexture(mt->name, true, alphaed, true)))
-					tx->gl_texturenum = GL_LoadTexture32 (mt->name, tx->width, tx->height, (unsigned int *)base, true, alphaed);
+				if (!(tx->gl_texturenum = Mod_LoadReplacementTexture(mt->name, loadname, true, alphaed, true)))
+					if (!(tx->gl_texturenum = Mod_LoadReplacementTexture(mt->name, "bmodels", true, alphaed, true)))
+						tx->gl_texturenum = GL_LoadTexture32 (mt->name, tx->width, tx->height, (unsigned int *)base, true, alphaed);
 
 				*tx->name = *mt->name;
 				texture_mode = GL_LINEAR;
@@ -1009,16 +1010,19 @@ TRACE(("dbg: GLMod_LoadTextures: inittexturedescs\n"));
 			else
 			{
 				texture_mode = GL_LINEAR_MIPMAP_NEAREST; //_LINEAR;
-				if (!(tx->gl_texturenum = Mod_LoadReplacementTexture(mt->name, true, false, true)))
-					tx->gl_texturenum = GL_LoadTexture (mt->name, tx->width, tx->height, base, true, false);
+				if (!(tx->gl_texturenum = Mod_LoadReplacementTexture(mt->name, loadname, true, false, true)))
+					if (!(tx->gl_texturenum = Mod_LoadReplacementTexture(mt->name, "bmodels", true, false, true)))
+						tx->gl_texturenum = GL_LoadTexture (mt->name, tx->width, tx->height, base, true, false);
 				texture_mode = GL_LINEAR;
 
 				if (r_fb_bmodels.value)
 				{
 					_snprintf(altname, sizeof(altname)-1, "%s_luma", mt->name);
-					if (gl_load24bit.value && r_fb_bmodels.value)
+					if (gl_load24bit.value)
 					{
-						tx->gl_texturenumfb = Mod_LoadReplacementTexture(altname, true, false, true);
+						tx->gl_texturenumfb = Mod_LoadReplacementTexture(altname, loadname, true, false, true);
+						if (!tx->gl_texturenumfb)
+							tx->gl_texturenumfb = Mod_LoadReplacementTexture(altname, "bmodels", true, false, true);
 					}
 					if (!tx->gl_texturenumfb)	//generate one (if possible).
 						tx->gl_texturenumfb = GL_LoadTextureFB(altname, tx->width, tx->height, base, true, true);
@@ -1032,14 +1036,18 @@ TRACE(("dbg: GLMod_LoadTextures: inittexturedescs\n"));
 				if (gl_bump.value<2)	//set to 2 to have faster loading.
 				{
 					_snprintf(altname, sizeof(altname)-1, "%s_norm", mt->name);
-					tx->gl_texturenumbumpmap = Mod_LoadHiResTexture(altname, true, false, false);
+					tx->gl_texturenumbumpmap = Mod_LoadHiResTexture(altname, loadname, true, false, false);
+					if (!tx->gl_texturenumbumpmap)
+						tx->gl_texturenumbumpmap = Mod_LoadHiResTexture(altname, "bmodels", true, false, false);
 				}
 				if (!tx->gl_texturenumbumpmap)
 				{
 					if (gl_load24bit.value)
 					{
 						_snprintf(altname, sizeof(altname)-1, "%s_bump", mt->name);
-						tx->gl_texturenumbumpmap = Mod_LoadBumpmapTexture(altname);
+						tx->gl_texturenumbumpmap = Mod_LoadBumpmapTexture(altname, loadname);
+						if (!tx->gl_texturenumbumpmap)
+							tx->gl_texturenumbumpmap = Mod_LoadBumpmapTexture(altname, "bmodels");
 					}
 					else
 						_snprintf(altname, sizeof(altname)-1, "%s_bump", mt->name);
@@ -1058,7 +1066,9 @@ TRACE(("dbg: GLMod_LoadTextures: inittexturedescs\n"));
 				if (gl_specular.value && gl_load24bit.value)
 				{
 					_snprintf(altname, sizeof(altname)-1, "%s_gloss", mt->name);
-					tx->gl_texturenumspec = Mod_LoadHiResTexture(altname, true, false, false);
+					tx->gl_texturenumspec = Mod_LoadHiResTexture(altname, loadname, true, false, false);
+					if (!tx->gl_texturenumspec)
+						tx->gl_texturenumspec = Mod_LoadHiResTexture(altname, "bmodels", true, false, false);
 				}
 			}
 		}
@@ -1208,14 +1218,17 @@ void GLMod_NowLoadExternal(void)
 					tx->alphaed = alphaed;
 				}
 				
-				if (!(tx->gl_texturenum = Mod_LoadHiResTexture(tx->name, true, false, true)))
-					tx->gl_texturenum = Mod_LoadReplacementTexture("light1_4", true, false, true);
+				if (!(tx->gl_texturenum = Mod_LoadHiResTexture(tx->name, loadname, true, false, true)))
+					if (!(tx->gl_texturenum = Mod_LoadHiResTexture(tx->name, "bmodels", true, false, true)))
+						tx->gl_texturenum = Mod_LoadReplacementTexture("light1_4", NULL, true, false, true);	//a fallback. :/
 				texture_mode = GL_LINEAR;
 			}
 		}
 		if (!tx->gl_texturenumbumpmap && *tx->name != '{' && gl_bumpmappingpossible && cls.allow_bump)
 		{
-			tx->gl_texturenumbumpmap = Mod_LoadBumpmapTexture(va("%s_bump", tx->name));
+			tx->gl_texturenumbumpmap = Mod_LoadBumpmapTexture(va("%s_bump", tx->name), loadname);
+			if (!tx->gl_texturenumbumpmap)
+				tx->gl_texturenumbumpmap = Mod_LoadBumpmapTexture(va("%s_bump", tx->name), "bmodels");
 			if (!tx->gl_texturenumbumpmap)
 			{
 				qbyte *data;
@@ -2824,7 +2837,7 @@ void * GLMod_LoadSpriteFrame (void * pin, mspriteframe_t **ppframe, int framenum
 
 	COM_StripExtension(loadmodel->name, name);
 	strcat(name, va("_%i", framenum));
-	pspriteframe->gl_texturenum = Mod_LoadReplacementTexture(name, true, true, true);
+	pspriteframe->gl_texturenum = Mod_LoadReplacementTexture(name, "sprites", true, true, true);
 	if (version == SPRITE32_VERSION)
 	{
 		size *= 4;
@@ -3023,7 +3036,7 @@ void GLMod_LoadSprite2Model (model_t *mod, void *buffer)
 
 		frame = psprite->frames[i].frameptr = Hunk_AllocName(sizeof(mspriteframe_t), loadname);
 
-		frame->gl_texturenum = Mod_LoadHiResTexture(pframetype->name, true, true, true);
+		frame->gl_texturenum = Mod_LoadHiResTexture(pframetype->name, NULL, true, true, true);
 		frame->width = LittleLong(pframetype->width);
 		frame->height = LittleLong(pframetype->height);
 		origin[0] = LittleLong (pframetype->origin_x);

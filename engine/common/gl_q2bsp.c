@@ -988,8 +988,9 @@ void *Mod_LoadWall(char *name)
 			tex->height = height;
 
 			texture_mode = GL_LINEAR_MIPMAP_NEAREST; //_LINEAR;
-			if (!(tex->gl_texturenum = Mod_LoadReplacementTexture(name, true, false, true)))
-				tex->gl_texturenum = GL_LoadTexture32 (name, width, height, (unsigned int *)in, true, false);
+			if (!(tex->gl_texturenum = Mod_LoadReplacementTexture(name, loadname, true, false, true)))
+				if (!(tex->gl_texturenum = Mod_LoadReplacementTexture(name, "bmodels", true, false, true)))
+					tex->gl_texturenum = GL_LoadTexture32 (name, width, height, (unsigned int *)in, true, false);
 			texture_mode = GL_LINEAR;
 		}
 		else
@@ -1070,8 +1071,9 @@ void *Mod_LoadWall(char *name)
 		tex->height = wal->height;
 
 		texture_mode = GL_LINEAR_MIPMAP_NEAREST; //_LINEAR;
-		if (!(tex->gl_texturenum = Mod_LoadReplacementTexture(wal->name, true, false, true)))
-			tex->gl_texturenum = GL_LoadTexture8Pal24 (wal->name, tex->width, tex->height, (qbyte *)wal+wal->offsets[0], d_q28to24table, true, false);
+		if (!(tex->gl_texturenum = Mod_LoadReplacementTexture(wal->name, loadname, true, false, true)))
+			if (!(tex->gl_texturenum = Mod_LoadReplacementTexture(wal->name, "bmodels", true, false, true)))
+				tex->gl_texturenum = GL_LoadTexture8Pal24 (wal->name, tex->width, tex->height, (qbyte *)wal+wal->offsets[0], d_q28to24table, true, false);
 
 		in = Hunk_TempAllocMore(wal->width*wal->height);
 		oin = (qbyte *)wal+wal->offsets[0];
@@ -1887,12 +1889,16 @@ void CModQ3_LoadShaders (lump_t *l)
 		loadmodel->texinfo[i].texture = Hunk_Alloc(sizeof(texture_t));
 		Q_strncpyz(loadmodel->texinfo[i].texture->name, in->shadername, sizeof(loadmodel->texinfo[i].texture->name));
 #ifdef RGLQUAKE
+#ifndef Q3SHADERS
 		if (qrenderer == QR_OPENGL)
 		{
-			loadmodel->texinfo[i].texture->gl_texturenum = Mod_LoadHiResTexture(in->shadername, true, false, true);
+			loadmodel->texinfo[i].texture->gl_texturenum = Mod_LoadHiResTexture(in->shadername, loadname, true, false, true);
+			if (!loadmodel->texinfo[i].texture->gl_texturenum)
+				loadmodel->texinfo[i].texture->gl_texturenum = Mod_LoadHiResTexture(in->shadername, "bmodels", true, false, true);
 			loadmodel->texinfo[i].texture->gl_texturenumfb = 0;
 			loadmodel->texinfo[i].texture->gl_texturenumbumpmap = 0;
 		}
+#endif
 #endif
 		loadmodel->textures[i] = loadmodel->texinfo[i].texture;
 
@@ -2551,7 +2557,7 @@ continue;
 				out->texinfo->texture->shader = R_RegisterShader(out->texinfo->texture->name);
 		}
 
-		if (in->fognum == -1 || !map_numfogs)
+		if (in->fognum < 0 || in->fognum >= map_numfogs)
 			out->fog = NULL;
 		else
 			out->fog = map_fogs + in->fognum;

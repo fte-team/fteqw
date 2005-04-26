@@ -1828,6 +1828,7 @@ void SCR_TileClear (void)
 void SCR_DrawTwoDimensional(int uimenu, qboolean nohud)
 {
 	RSpeedMark();
+
 	//
 	// draw any areas not covered by the refresh
 	//

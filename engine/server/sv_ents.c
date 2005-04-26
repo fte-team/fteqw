@@ -111,8 +111,8 @@ int		numlight;
 extern	int sv_lightningmodel;
 #endif
 
-edict_t *csqcent[MAX_EDICTS];
-int csqcnuments;
+static edict_t *csqcent[MAX_EDICTS];
+static int csqcnuments;
 
 qboolean SV_AddNailUpdate (edict_t *ent)
 {

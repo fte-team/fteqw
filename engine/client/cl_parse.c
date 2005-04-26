@@ -582,8 +582,10 @@ void Model_NextDownload (void)
 		Mod_NowLoadExternal();
 	}
 
+	
 	// all done
 	R_NewMap ();
+
 	Hunk_Check ();		// make sure nothing is hurt
 #ifdef Q2CLIENT
 	if (cls.q2server)
@@ -2946,7 +2948,7 @@ extern cvar_t cl_chatsound, cl_nofake;
 	return true;
 }
 
-char printtext[2048];
+char printtext[4096];
 void CL_ParsePrint(char *msg, int level)
 {
 	if (strlen(printtext) + strlen(msg) >= sizeof(printtext))
@@ -3014,13 +3016,10 @@ int getplayerid(char *msg)
 	return -1;
 }
 
-int getplayerchatcolour(char *msg)
+int CL_PlayerChatColour(int id)
 {
-	int id;
+	char *msg;
 	int c;
-	id = getplayerid(msg);
-	if (id == -1)	//not a user/server
-		return 1;
 
 	//primary override.
 	msg = Info_ValueForKey(cl.players[id].userinfo, "tc");
@@ -3043,6 +3042,16 @@ int getplayerchatcolour(char *msg)
 		}
 	}
 	return cl.players[id].userid;
+}
+
+int getplayerchatcolour(char *msg)
+{
+	int id;
+	id = getplayerid(msg);
+	if (id == -1)	//not a user/server
+		return 1;
+
+	return CL_PlayerChatColour(id);
 }
 
 #define SHOWNET(x) if(cl_shownet.value==2)Con_Printf ("%3i:%s\n", msg_readcount-1, x);
@@ -3142,6 +3151,9 @@ void CL_ParseServerMessage (void)
 			s = MSG_ReadString ();
 			if (i == PRINT_CHAT)
 			{
+				if (TP_SuppressMessage(s))
+					break;	//if this was unseen-sent from us, ignore it.
+
 				if (CL_ParseChat(s))
 				{
 					CL_ParsePrint(s, i);

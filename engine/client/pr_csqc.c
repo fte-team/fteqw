@@ -6,9 +6,10 @@
 #include "glquake.h"	//evil to include this
 #endif
 
-progfuncs_t *csqcprogs;
+static progfuncs_t *csqcprogs;
 
-unsigned int csqcchecksum;
+static unsigned int csqcchecksum;
+static qboolean csqcwantskeys;
 
 cvar_t	pr_csmaxedicts = {"pr_csmaxedicts", "3072"};
 cvar_t	cl_csqcdebug = {"cl_csqcdebug", "0"};	//prints entity numbers which arrive (so I can tell people not to apply it to players...)
@@ -21,6 +22,7 @@ cvar_t	cl_csqcdebug = {"cl_csqcdebug", "0"};	//prints entity numbers which arriv
 	globalfunction(keyup_function,		"CSQC_KeyUp");	\
 	globalfunction(parse_stuffcmd,		"CSQC_Parse_StuffCmd");	\
 	globalfunction(parse_centerprint,	"CSQC_Parse_CenterPrint");	\
+	globalfunction(input_event,			"CSQC_InputEvent");	\
 	\
 	globalfunction(ent_update,			"CSQC_Ent_Update");	\
 	globalfunction(ent_remove,			"CSQC_Ent_Remove");	\
@@ -28,6 +30,8 @@ cvar_t	cl_csqcdebug = {"cl_csqcdebug", "0"};	//prints entity numbers which arriv
 	/*These are pointers to the csqc's globals.*/	\
 	globalfloat(time,					"time");				/*float		Written before entering most qc functions*/	\
 	globalentity(self,					"self");				/*entity	Written before entering most qc functions*/	\
+	\
+	globalfloat(maxclients,				"maxclients");			/*float		*/	\
 	\
 	globalvector(forward,				"v_forward");			/*vector	written by anglevectors*/	\
 	globalvector(right,					"v_right");				/*vector	written by anglevectors*/	\
@@ -43,7 +47,30 @@ cvar_t	cl_csqcdebug = {"cl_csqcdebug", "0"};	//prints entity numbers which arriv
 	globalfloat(trace_plane_dist,		"trace_plane_dist");	/*float		written by traceline*/	\
 	globalentity(trace_ent,				"trace_ent");			/*entity	written by traceline*/	\
 	\
-	globalfloat(player_localentnum,	"player_localentnum");	/*float		the entity number of the local player*/	\
+	globalfloat(clientcommandframe,		"clientcommandframe");	\
+	globalfloat(servercommandframe,		"servercommandframe");	\
+	\
+	globalfloat(player_localentnum,		"player_localentnum");	/*float		the entity number of the local player*/	\
+	\
+	globalvector(pmove_org,				"pmove_org");			\
+	globalvector(pmove_vel,				"pmove_vel");			\
+	globalvector(pmove_mins,			"pmove_mins");			\
+	globalvector(pmove_maxs,			"pmove_maxs");			\
+	globalfloat(input_timelength,		"input_timelength");	\
+	globalvector(input_angles,			"input_angles");		\
+	globalvector(input_movevalues,		"input_movevalues");	\
+	globalfloat(input_buttons,			"input_buttons");		\
+	\
+	globalfloat(movevar_gravity,		"movevar_gravity");		\
+	globalfloat(movevar_stopspeed,		"movevar_stopspeed");	\
+	globalfloat(movevar_maxspeed,		"movevar_maxspeed");	\
+	globalfloat(movevar_spectatormaxspeed,"movevar_spectatormaxspeed");	\
+	globalfloat(movevar_accelerate,		"movevar_accelerate");		\
+	globalfloat(movevar_airaccelerate,	"movevar_airaccelerate");	\
+	globalfloat(movevar_wateraccelerate,"movevar_wateraccelerate");	\
+	globalfloat(movevar_friction,		"movevar_friction");		\
+	globalfloat(movevar_waterfriction,	"movevar_waterfriction");	\
+	globalfloat(movevar_entgravity,		"movevar_entgravity");		\
 
 
 typedef struct {
@@ -64,9 +91,10 @@ typedef struct {
 } csqcglobals_t;
 static csqcglobals_t csqcg;
 
+#define plnum 0
 
 
-void CSQC_FindGlobals(void)
+static void CSQC_FindGlobals(void)
 {
 #define globalfloat(name,qcname) csqcg.name = (float*)PR_FindGlobal(csqcprogs, qcname, 0);
 #define globalvector(name,qcname) csqcg.name = (float*)PR_FindGlobal(csqcprogs, qcname, 0);
@@ -86,7 +114,10 @@ void CSQC_FindGlobals(void)
 		*csqcg.time = Sys_DoubleTime();
 
 	if (csqcg.player_localentnum)
-		*csqcg.player_localentnum = cl.playernum[0]+1;
+		*csqcg.player_localentnum = cl.playernum[plnum]+1;
+
+	if (csqcg.maxclients)
+		*csqcg.maxclients = MAX_CLIENTS;
 }
 
 
@@ -94,6 +125,7 @@ void CSQC_FindGlobals(void)
 //this is the list for all the csqc fields.
 //(the #define is so the list always matches the ones pulled out)
 #define csqcfields	\
+	fieldfloat(entnum);		\
 	fieldfloat(modelindex);	\
 	fieldvector(origin);	\
 	fieldvector(angles);	\
@@ -138,10 +170,10 @@ typedef struct csqcedict_s
 	//add whatever you wish here
 } csqcedict_t;
 
-csqcedict_t *csqc_edicts;	//consider this 'world'
+static csqcedict_t *csqc_edicts;	//consider this 'world'
 
 
-void CSQC_InitFields(void)
+static void CSQC_InitFields(void)
 {	//CHANGING THIS FUNCTION REQUIRES CHANGES TO csqcentvars_t
 #define fieldfloat(name) PR_RegisterFieldVar(csqcprogs, ev_float, #name, (int)&((csqcentvars_t*)0)->name, -1)
 #define fieldvector(name) PR_RegisterFieldVar(csqcprogs, ev_vector, #name, (int)&((csqcentvars_t*)0)->name, -1)
@@ -156,12 +188,12 @@ csqcfields
 #undef fieldfunction
 }
 
-csqcedict_t *csqcent[MAX_EDICTS];
+static csqcedict_t *csqcent[MAX_EDICTS];
 
 #define	RETURN_SSTRING(s) (*(char **)&((int *)pr_globals)[OFS_RETURN] = PR_SetString(prinst, s))	//static - exe will not change it.
 char *PF_TempStr(void);
 
-int csqcentsize;
+static int csqcentsize;
 
 //pr_cmds.c builtins that need to be moved to a common.
 void VARGS PR_BIError(progfuncs_t *progfuncs, char *format, ...);
@@ -218,6 +250,8 @@ void PF_traceon (progfuncs_t *prinst, struct globalvars_s *pr_globals);
 void PF_traceoff (progfuncs_t *prinst, struct globalvars_s *pr_globals);
 void PF_eprint (progfuncs_t *prinst, struct globalvars_s *pr_globals);
 
+void PF_registercvar (progfuncs_t *prinst, struct globalvars_s *pr_globals);
+
 void PF_strstrofs (progfuncs_t *prinst, struct globalvars_s *pr_globals);
 void PF_str2chr (progfuncs_t *prinst, struct globalvars_s *pr_globals);
 void PF_chr2str (progfuncs_t *prinst, struct globalvars_s *pr_globals);
@@ -239,6 +273,7 @@ void PF_CL_drawfill (progfuncs_t *prinst, struct globalvars_s *pr_globals);
 void PF_CL_drawsetcliparea (progfuncs_t *prinst, struct globalvars_s *pr_globals);
 void PF_CL_drawresetcliparea (progfuncs_t *prinst, struct globalvars_s *pr_globals);
 void PF_CL_drawgetimagesize (progfuncs_t *prinst, struct globalvars_s *pr_globals);
+
 
 #define MAXTEMPBUFFERLEN	1024
 
@@ -415,8 +450,8 @@ static void PF_R_ClearScene (progfuncs_t *prinst, struct globalvars_s *pr_global
 
 	CL_SwapEntityLists();
 
-	view_frame = &cl.frames[cls.netchan.incoming_sequence & UPDATE_MASK];
-	view_message = &view_frame->playerstate[cl.playernum[0]];
+	view_frame = NULL;//&cl.frames[cls.netchan.incoming_sequence & UPDATE_MASK];
+	view_message = NULL;//&view_frame->playerstate[cl.playernum[plnum]];
 	V_CalcRefdef(0);	//set up the defaults (for player 0)
 	/*
 	VectorCopy(cl.simangles[0], r_refdef.viewangles);
@@ -553,6 +588,12 @@ static void PF_R_RenderScene(progfuncs_t *prinst, struct globalvars_s *pr_global
 {
 	if (cl.worldmodel)
 		R_PushDlights ();
+/*
+	if (cl_csqcdebug.value)
+	Con_Printf("%f %f %f\n",	r_refdef.vieworg[0],
+								r_refdef.vieworg[1],
+								r_refdef.vieworg[2]);
+	*/
 
 #ifdef RGLQUAKE
 	if (qrenderer == QR_OPENGL)
@@ -562,6 +603,10 @@ static void PF_R_RenderScene(progfuncs_t *prinst, struct globalvars_s *pr_global
 		qglDisable(GL_BLEND);
 	}
 #endif
+
+	VectorCopy (r_refdef.vieworg, cl.viewent[0].origin);
+	CalcGunAngle(0);
+
 	R_RenderView();
 #ifdef RGLQUAKE
 	if (qrenderer == QR_OPENGL)
@@ -587,14 +632,14 @@ static void PF_R_RenderScene(progfuncs_t *prinst, struct globalvars_s *pr_global
 static void PF_cs_getstatf(progfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
 	int stnum = G_FLOAT(OFS_PARM0);
-	float val = *(float*)&cl.stats[0][stnum];	//copy float into the stat
+	float val = *(float*)&cl.stats[plnum][stnum];	//copy float into the stat
 	G_FLOAT(OFS_RETURN) = val;
 }
 static void PF_cs_getstati(progfuncs_t *prinst, struct globalvars_s *pr_globals)
 {	//convert an int stat into a qc float.
 
 	int stnum = G_FLOAT(OFS_PARM0);
-	int val = cl.stats[0][stnum];
+	int val = cl.stats[plnum][stnum];
 	if (*prinst->callargc > 1)
 	{
 		int first, count;
@@ -911,10 +956,221 @@ static void PF_cs_particlesloaded (progfuncs_t *prinst, struct globalvars_s *pr_
 	G_FLOAT(OFS_RETURN) = P_DescriptionIsLoaded(effectname);
 }
 
+//get the input commands, and stuff them into some globals.
+static void PF_cs_getinputstate (progfuncs_t *prinst, struct globalvars_s *pr_globals)
+{
+	int f;
+	usercmd_t *cmd;
+
+	f = G_FLOAT(OFS_PARM0);
+	if (f > cls.netchan.outgoing_sequence)
+	{
+		G_FLOAT(OFS_RETURN) = false;
+		return;
+	}
+	if (f < cls.netchan.outgoing_sequence - UPDATE_MASK || f < 0)
+	{
+		G_FLOAT(OFS_RETURN) = false;
+		return;
+	}
+	
+	// save this command off for prediction
+	cmd = &cl.frames[f&UPDATE_MASK].cmd[plnum];
+
+	if (csqcg.input_timelength)
+		*csqcg.input_timelength = cmd->msec/1000.0f;
+	if (csqcg.input_angles)
+	{
+		csqcg.input_angles[0] = SHORT2ANGLE(cmd->angles[0]);
+		csqcg.input_angles[1] = SHORT2ANGLE(cmd->angles[1]);
+		csqcg.input_angles[2] = SHORT2ANGLE(cmd->angles[2]);
+	}
+	if (csqcg.input_movevalues)
+	{
+		csqcg.input_movevalues[0] = cmd->forwardmove;
+		csqcg.input_movevalues[1] = cmd->sidemove;
+		csqcg.input_movevalues[2] = cmd->upmove;
+	}
+	if (csqcg.input_buttons)
+		*csqcg.input_buttons = cmd->buttons;
+
+	G_FLOAT(OFS_RETURN) = true;
+}
+#define ANGLE2SHORT(x) ((x/360.0)*65535)
+//read lots of globals, run the default player physics, write lots of globals.
+static void PF_cs_runplayerphysics (progfuncs_t *prinst, struct globalvars_s *pr_globals)
+{
+	int msecs;
+	extern vec3_t	player_mins;
+	extern vec3_t	player_maxs;
+/*
+	int			sequence;	// just for debugging prints
+
+	// player state
+	vec3_t		origin;
+	vec3_t		angles;
+	vec3_t		velocity;
+	qboolean		jump_held;
+	int			jump_msec;	// msec since last jump
+	float		waterjumptime;
+	int			pm_type;
+	int			hullnum;
+
+	// world state
+	int			numphysent;
+	physent_t	physents[MAX_PHYSENTS];	// 0 should be the world
+
+	// input
+	usercmd_t	cmd;
+
+	qboolean onladder;
+
+	// results
+	int			numtouch;
+	int			touchindex[MAX_PHYSENTS];
+	qboolean		onground;
+	int			groundent;		// index in physents array, only valid
+								// when onground is true
+	int			waterlevel;
+	int			watertype;
+} playermove_t;
+
+typedef struct {
+	float	gravity;
+	float	stopspeed;
+	float	maxspeed;
+	float	spectatormaxspeed;
+	float	accelerate;
+	float	airaccelerate;
+	float	wateraccelerate;
+	float	friction;
+	float	waterfriction;
+	float	entgravity;
+	float	bunnyspeedcap;
+	float	ktjump;
+	qboolean	slidefix;
+	qboolean	airstep;
+	qboolean	walljump;
+
+
+	*/
+
+	pmove.sequence = *csqcg.clientcommandframe;
+	pmove.pm_type = PM_NORMAL;
+
+//set up the movement command
+	msecs = *csqcg.input_timelength*1000 + 0.5f;
+	//precision inaccuracies. :(
+	pmove.angles[0] = ANGLE2SHORT(csqcg.input_angles[0]);
+	pmove.angles[1] = ANGLE2SHORT(csqcg.input_angles[1]);
+	pmove.angles[2] = ANGLE2SHORT(csqcg.input_angles[2]);
+	pmove.cmd.forwardmove = csqcg.input_movevalues[0];
+	pmove.cmd.sidemove = csqcg.input_movevalues[1];
+	pmove.cmd.upmove = csqcg.input_movevalues[2];
+
+	VectorCopy(csqcg.pmove_org, pmove.origin);
+	VectorCopy(csqcg.pmove_vel, pmove.velocity);
+	VectorCopy(csqcg.pmove_maxs, player_maxs);
+	VectorCopy(csqcg.pmove_mins, player_mins);
+	pmove.hullnum = 1;
+
+
+	while(msecs)
+	{
+		pmove.cmd.msec = msecs;
+		if (pmove.cmd.msec > 50)
+			pmove.cmd.msec = 50;
+		msecs -= pmove.cmd.msec;
+		PM_PlayerMove(1);
+	}
+
+
+	VectorCopy(pmove.origin, csqcg.pmove_org);
+	VectorCopy(pmove.velocity, csqcg.pmove_vel);
+}
+
+static void CheckSendPings(void)
+{	//quakeworld sends a 'pings' client command to retrieve the frequently updating stuff
+	if (realtime - cl.last_ping_request > 2)
+	{
+		cl.last_ping_request = realtime;
+		CL_SendClientCommand(false, "pings");
+	}
+}
+
+//string(float pnum, string keyname)
+static void PF_cs_getplayerkey (progfuncs_t *prinst, struct globalvars_s *pr_globals)
+{
+	char *ret;
+	int pnum = G_FLOAT(OFS_PARM0);
+	char *keyname = PR_GetStringOfs(prinst, OFS_PARM1);
+	if (pnum < 0)
+	{
+		Sbar_SortFrags(false);
+		if (pnum >= -scoreboardlines)
+		{//sort by 
+			pnum = fragsort[-(pnum+1)];
+		}
+	}
+
+	if (pnum < 0 || pnum >= MAX_CLIENTS)
+		ret = "";
+	else if (!*cl.players[pnum].userinfo)
+		ret = "";
+	else if (!strcmp(keyname, "ping"))
+	{
+		CheckSendPings();
+
+		ret = PF_TempStr();
+		sprintf(ret, "%i", cl.players[pnum].ping);
+	}
+	else if (!strcmp(keyname, "frags"))
+	{
+		ret = PF_TempStr();
+		sprintf(ret, "%i", cl.players[pnum].frags);
+	}
+	else if (!strcmp(keyname, "pl"))	//packet loss
+	{
+		CheckSendPings();
+
+		ret = PF_TempStr();
+		sprintf(ret, "%i", cl.players[pnum].pl);
+	}
+	else if (!strcmp(keyname, "entertime"))	//packet loss
+	{
+		ret = PF_TempStr();
+		sprintf(ret, "%i", cl.players[pnum].entertime);
+	}
+	else
+	{
+		ret = Info_ValueForKey(cl.players[pnum].userinfo, keyname);
+	}
+	if (*ret)
+		G_INT(OFS_RETURN) = 0;
+	else
+		RETURN_SSTRING(ret);
+}
+
+extern int mouseusedforgui, mousecursor_x, mousecursor_y;
+static void PF_cs_setwantskeys (progfuncs_t *prinst, struct globalvars_s *pr_globals)
+{
+	qboolean wants = G_FLOAT(OFS_PARM0);
+	csqcwantskeys = wants;
+	mouseusedforgui = wants;
+}
+
+static void PF_cs_getmousepos (progfuncs_t *prinst, struct globalvars_s *pr_globals)
+{
+	G_FLOAT(OFS_RETURN+0) = mousecursor_x;
+	G_FLOAT(OFS_RETURN+1) = mousecursor_y;
+	G_FLOAT(OFS_RETURN+2) = 0;
+}
+
+
 #define PF_FixTen PF_Fixme,PF_Fixme,PF_Fixme,PF_Fixme,PF_Fixme,PF_Fixme,PF_Fixme,PF_Fixme,PF_Fixme,PF_Fixme
 
 //warning: functions that depend on globals are bad, mkay?
-builtin_t csqc_builtins[] = {
+static builtin_t csqc_builtins[] = {
 //0
 	PF_Fixme,
 	PF_makevectors,
@@ -1025,7 +1281,7 @@ PF_Fixme,
 PF_Fixme,
 PF_Fixme,
 PF_Fixme,
-PF_Fixme,
+PF_registercvar,
 PF_Fixme,
 
 PF_Fixme,
@@ -1111,7 +1367,17 @@ PF_cs_pointparticles,
 PF_cs_particlesloaded,
 
 //160
-PF_FixTen,
+PF_cs_getinputstate,
+PF_cs_runplayerphysics,
+PF_cs_getplayerkey,
+PF_cs_setwantskeys,
+PF_cs_getmousepos,
+
+PF_Fixme,
+PF_Fixme,
+PF_Fixme,
+PF_Fixme,
+PF_Fixme,
 
 //170
 PF_FixTen,
@@ -1217,15 +1483,15 @@ PF_Fixme,
 PF_Fixme,
 PF_Fixme,
 };
-int csqc_numbuiltins = sizeof(csqc_builtins)/sizeof(csqc_builtins[0]);
+static int csqc_numbuiltins = sizeof(csqc_builtins)/sizeof(csqc_builtins[0]);
 
 
 
 
 
-jmp_buf csqc_abort;
-progparms_t csqcprogparms;
-int num_csqc_edicts;
+static jmp_buf csqc_abort;
+static progparms_t csqcprogparms;
+static int num_csqc_edicts;
 
 
 
@@ -1391,10 +1657,32 @@ qboolean CSQC_DrawView(void)
 	if (cl.worldmodel)
 		R_LessenStains();
 
+	if (csqcg.clientcommandframe)
+		*csqcg.clientcommandframe = cls.netchan.outgoing_sequence;
+	if (csqcg.servercommandframe)
+		*csqcg.servercommandframe = cls.netchan.incoming_sequence;
+
 	if (csqcg.time)
 		*csqcg.time = Sys_DoubleTime();
 
 	PR_ExecuteProgram(csqcprogs, csqcg.draw_function);
+
+	return true;
+}
+
+qboolean CSQC_KeyPress(int key, qboolean down)
+{
+	void *pr_globals;
+
+	if (!csqcprogs || !csqcwantskeys)
+		return false;
+
+	pr_globals = PR_globals(csqcprogs, PR_CURRENT);
+	G_FLOAT(OFS_PARM0) = key;
+	G_FLOAT(OFS_PARM1) = !down;
+	G_FLOAT(OFS_PARM2) = 0;
+
+	PR_ExecuteProgram (csqcprogs, csqcg.input_event);
 
 	return true;
 }
@@ -1445,13 +1733,15 @@ void CSQC_ParseEntities(void)
 	if (!csqcprogs)
 		Host_EndGame("CSQC needs to be initialized for this server.\n");
 
-	if (!csqcg.ent_update)
+	if (!csqcg.ent_update || !csqcg.self)
 		Host_EndGame("CSQC is unable to parse entities\n");
 
 	pr_globals = PR_globals(csqcprogs, PR_CURRENT);
 
 	if (csqcg.time)
 		*csqcg.time = Sys_DoubleTime();
+	if (csqcg.servercommandframe)
+		*csqcg.servercommandframe = cls.netchan.incoming_sequence;
 
 	for(;;)
 	{
@@ -1471,13 +1761,13 @@ void CSQC_ParseEntities(void)
 				Con_Printf("Remove %i\n", entnum);
 
 			ent = csqcent[entnum];
+			csqcent[entnum] = NULL;
 
 			if (!ent)	//hrm.
 				continue;
 
 			*csqcg.self = EDICT_TO_PROG(csqcprogs, (void*)ent);
 			PR_ExecuteProgram(csqcprogs, csqcg.ent_remove);
-			csqcent[entnum] = NULL;
 			//the csqc is expected to call the remove builtin.
 		}
 		else
@@ -1496,6 +1786,7 @@ void CSQC_ParseEntities(void)
 			{
 				ent = (csqcedict_t*)ED_Alloc(csqcprogs);
 				csqcent[entnum] = ent;
+				ent->v->entnum = entnum;
 				G_FLOAT(OFS_PARM0) = true;
 
 				if (cl_csqcdebug.value)

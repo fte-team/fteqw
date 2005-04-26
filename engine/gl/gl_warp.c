@@ -265,13 +265,26 @@ void R_DrawSkyChain (msurface_t *s)
 R_LoadSkys
 ==================
 */
-static char	*suf[6] = {"rt", "bk", "lf", "ft", "up", "dn"};
+static char	*skyname_suffix[][6] = {
+	{"px", "py", "nx", "ny", "pz", "nz"},
+	{"posx", "posy", "negx", "negy", "posz", "negz"},
+	{"rt", "bk", "lf", "ft", "up", "dn"}
+};
+
+static char *skyname_pattern[] = {
+	"%s_%s",
+	"%s%s",
+	"env/%s%s",
+	"gfx/env/%s%s"
+};
+
 int skyboxtex[6];
 void R_LoadSkys (void)
 {
 	int		i;
 	char	name[MAX_QPATH];
 	char *boxname;
+	int p, s;
 
 	if (*gl_skyboxname.string)
 		boxname = gl_skyboxname.string;	//user forced
@@ -288,10 +301,15 @@ void R_LoadSkys (void)
 		for(;;)
 		{
 			for (i=0 ; i<6 ; i++)
-			{		
-				_snprintf (name, sizeof(name), "env/%s%s.tga", boxname, suf[i]);
-
-				skyboxtex[i] = Mod_LoadHiResTexture(name, false, false, true);
+			{
+				for (p = 0; p < sizeof(skyname_pattern)/sizeof(skyname_pattern[0]); p++)
+				{
+					for (s = 0; s < sizeof(skyname_suffix)/sizeof(skyname_suffix[0]); s++)
+					{
+						_snprintf (name, sizeof(name), skyname_pattern[p], boxname, skyname_suffix[s][i]);
+						skyboxtex[i] = Mod_LoadHiResTexture(name, NULL, false, false, true);
+					}
+				}
 				if (!skyboxtex[i])
 					break;
 
@@ -876,7 +894,7 @@ void GLR_InitSky (texture_t *mt)
 
 	sprintf(name, "%s_solid", mt->name);
 	Q_strlwr(name);
-	solidskytexture = Mod_LoadReplacementTexture(name, true, false, true);
+	solidskytexture = Mod_LoadReplacementTexture(name, NULL, true, false, true);
 	if (!solidskytexture)
 		solidskytexture = GL_LoadTexture32(name, 128, 128, trans, true, false);
 /*
@@ -901,7 +919,7 @@ void GLR_InitSky (texture_t *mt)
 
 	sprintf(name, "%s_trans", mt->name);
 	Q_strlwr(name);
-	alphaskytexture = Mod_LoadReplacementTexture(name, true, true, true);
+	alphaskytexture = Mod_LoadReplacementTexture(name, NULL, true, true, true);
 	if (!alphaskytexture)
 		alphaskytexture = GL_LoadTexture32(name, 128, 128, trans, true, true);
 /*

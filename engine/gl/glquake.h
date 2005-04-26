@@ -321,10 +321,10 @@ void R_DrawWorld (void);
 void GL_BuildLightmaps (void);
 
 void GL_LoadShaders(void);
-int Mod_LoadReplacementTexture(char *name, qboolean mipmap, qboolean alpha, qboolean gammaadjust);
+int Mod_LoadReplacementTexture(char *name, char *subpath, qboolean mipmap, qboolean alpha, qboolean gammaadjust);
 extern int image_width, image_height;
-int Mod_LoadHiResTexture(char *name, qboolean mipmap, qboolean alpha, qboolean gammaadjust);
-int Mod_LoadBumpmapTexture(char *name);
+int Mod_LoadHiResTexture(char *name, char *subpath, qboolean mipmap, qboolean alpha, qboolean gammaadjust);
+int Mod_LoadBumpmapTexture(char *name, char *subpath);
 
 #define	LMBLOCK_WIDTH		128
 #define	LMBLOCK_HEIGHT		128

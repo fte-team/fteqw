@@ -1313,6 +1313,11 @@ void Key_Event (int key, qboolean down)
 	{
 		if (UI_KeyPress(key, down) && down)	//UI is allowed to take these keydowns. Keyups are always maintained.
 			return;
+
+#ifdef CSQC_DAT
+		if (CSQC_KeyPress(key, down))	//give csqc a chance to handle it.
+			return;
+#endif
 	}
 
 

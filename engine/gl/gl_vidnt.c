@@ -209,16 +209,36 @@ qboolean GLInitialise (char *renderer)
 
 	strcpy(opengldllname, renderer);
 
-	Con_Printf ("Loading renderer dll %s\n", renderer);
-	hInstGL = LoadLibrary(opengldllname);
+	if (*renderer)
+	{
+		Con_DPrintf ("Loading renderer dll \"%s\"", renderer);
+		hInstGL = LoadLibrary(opengldllname);
+
+		if (hInstGL)
+			Con_DPrintf (" Success\n");
+		else
+			Con_DPrintf (" Failed\n");
+	}
+	else
+		hInstGL = NULL;
 	
 	if (!hInstGL)
 	{
-		hInstGL = LoadLibrary("opengl32");
+		strcpy(opengldllname, "opengl32");
+		Con_DPrintf ("Loading renderer dll \"%s\"", opengldllname);
+		hInstGL = LoadLibrary(opengldllname);
+
+		if (hInstGL)
+			Con_DPrintf (" Success\n");
+		else
+			Con_DPrintf (" Failed\n");
 	}
 	if (!hInstGL)
 	{
-		Con_Printf ("Couldn't load %s\n", opengldllname);
+		if (*renderer)
+			Con_Printf ("Couldn't load %s or %s\n", renderer, opengldllname);
+		else
+			Con_Printf ("Couldn't load %s\n", opengldllname);
 		return false;
 	}
 

@@ -1066,7 +1066,7 @@ void GL_DrawAliasMesh (mesh_t *mesh, int texnum)
 
 	qglDepthFunc(gldepthfunc);
 	qglDepthMask(1);
-	
+
 	GL_Bind(texnum);
 	if (gldepthmin == 0.5) 
 		qglCullFace ( GL_BACK );
@@ -2001,27 +2001,26 @@ static void *Q1_LoadSkins (daliasskintype_t *pskintype, qboolean alpha)
 			outskin->skinwidth = pq1inmodel->skinwidth;
 			outskin->skinheight = pq1inmodel->skinheight;
 
-			sprintf(skinname, "%s_%i", loadname, i);
-			texture = Mod_LoadReplacementTexture(skinname, true, false, true);
-			if (!texture)
+			//LH's naming scheme ("models" is likly to be ignored)
+			_snprintf(skinname, sizeof(skinname), "%s_%i", loadmodel->name, i);
+			texture = Mod_LoadReplacementTexture(skinname, "models", true, false, true);
+			if (texture)
 			{
-				sprintf(skinname, "textures/models/%s_%i", loadname, i);
-				texture = Mod_LoadReplacementTexture(skinname, true, false, true);
+				_snprintf(skinname, sizeof(skinname), "%s_%i_luma", loadmodel->name, i);
+				texture = Mod_LoadReplacementTexture(skinname, "models", true, false, true);
+			}
+			else
+			{
+				sprintf(skinname, "%s_%i", loadname, i);
+				texture = Mod_LoadReplacementTexture(skinname, "models", true, false, true);
 				if (texture && r_fb_models.value)
 				{
-					sprintf(skinname, "textures/models/%s_%i_luma", loadname, i);
-					fbtexture = Mod_LoadReplacementTexture(skinname, true, true, true);
+					sprintf(skinname, "%s_%i_luma", loadname, i);
+					fbtexture = Mod_LoadReplacementTexture(skinname, "models", true, true, true);
 				}
 				else
 					fbtexture = 0;
 			}
-			else if (texture && r_fb_models.value)
-			{
-				sprintf(skinname, "%s_%i_luma", loadname, i);
-				fbtexture = Mod_LoadReplacementTexture(skinname, true, true, true);
-			}
-			else
-				fbtexture = 0;
 
 			if (!texture)
 			{
@@ -2065,18 +2064,34 @@ static void *Q1_LoadSkins (daliasskintype_t *pskintype, qboolean alpha)
 			outskin->ofstexels = 0;
 			for (t = 0; t < outskin->texnums; t++,data+=s, texnums++)
 			{
-				sprintf(skinname, "%s_%i%c", loadname, i, t+'a');
-				texture = Mod_LoadReplacementTexture(skinname, true, false, true);
-				if (texture)
+				texture = 0;
+				fbtexture = 0;
+
+				//LH naming scheme
+				if (!texture)
 				{
-					texnums->base = texture;
-					if (r_fb_models.value)
-					{
-						sprintf(skinname, "%s_%i%c_luma", loadname, i, t+'a');
-						texnums->fullbright = Mod_LoadReplacementTexture(skinname, true, true, true);
-					}
+					sprintf(skinname, "%s_%i_%i", loadmodel->name, i, t);
+					texture = Mod_LoadReplacementTexture(skinname, "models", true, false, true);
 				}
-				else
+				if (!fbtexture && r_fb_models.value)
+				{
+					sprintf(skinname, "%s_%i_%i_luma", loadmodel->name, i, t);
+					fbtexture = Mod_LoadReplacementTexture(skinname, "models", true, true, true);
+				}
+
+				//Fuhquake naming scheme
+				if (!texture)
+				{
+					sprintf(skinname, "%s_%i_%i", loadname, i, t);
+					texture = Mod_LoadReplacementTexture(skinname, "models", true, false, true);
+				}
+				if (!fbtexture && r_fb_models.value)
+				{
+					sprintf(skinname, "%s_%i_%i_luma", loadname, i, t);
+					fbtexture = Mod_LoadReplacementTexture(skinname, "models", true, true, true);
+				}
+
+				if (!texture || (!fbtexture && r_fb_models.value))
 				{
 					if (t == 0)
 					{
@@ -2087,47 +2102,24 @@ static void *Q1_LoadSkins (daliasskintype_t *pskintype, qboolean alpha)
 						saved = BZ_Malloc(s);
 					memcpy(saved, pskintype+1, s);
 					GLMod_FloodFillSkin(saved, outskin->skinwidth, outskin->skinheight);
-					sprintf(skinname, "%s_%i%c", loadname, i, t+'a');
-					texnums->base = GL_LoadTexture(skinname, outskin->skinwidth, outskin->skinheight, saved, true, alpha);
-
-					if (gl_bumpmappingpossible)
+					if (!texture)
 					{
-						char name[MAX_QPATH];
-						COM_StripExtension(skinname, name);	//go for the normalmap
-						strcat(name, "_norm");
-						texnums->bump = Mod_LoadHiResTexture(name, true, true, false);
-						if (!texnums->bump)
-						{
-							strcpy(name, loadmodel->name);
-							COM_StripExtension(COM_SkipPath(skinname), COM_SkipPath(name));
-							strcat(name, "_norm");
-							texnums->bump = Mod_LoadHiResTexture(name, true, true, false);
-							if (!texnums->bump)
-							{
-								COM_StripExtension(skinname, name);	//bother, go for heightmap and convert
-								strcat(name, "_bump");
-								texnums->bump = Mod_LoadBumpmapTexture(name);
-								if (!texnums->bump)
-								{
-									strcpy(name, loadmodel->name);
-									strcpy(COM_SkipPath(name), COM_SkipPath(skinname));	//eviile eh?
-									COM_StripExtension(name, name);
-									strcat(name, "_bump");
-									texnums->bump = Mod_LoadBumpmapTexture(name);
-								}
-							}
-						}
+						sprintf(skinname, "%s_%i_%i", loadname, i, t);
+						texture = GL_LoadTexture(skinname, outskin->skinwidth, outskin->skinheight, saved, true, alpha);
 					}
 
-					if (r_fb_models.value)
+
+					if (!fbtexture && r_fb_models.value)
 					{
-						sprintf(skinname, "%s_%i%c_luma", loadname, i, t+'a');
-						texnums->fullbright = GL_LoadTextureFB(skinname, outskin->skinwidth, outskin->skinheight, saved, true, true);
+						sprintf(skinname, "%s_%i_%i_luma", loadname, i, t);
+						fbtexture = GL_LoadTextureFB(skinname, outskin->skinwidth, outskin->skinheight, saved, true, true);
 					}
 
 					if (t != 0)	//only keep the first.
 						BZ_Free(saved);
 				}
+				texnums->base = texture;
+				texnums->fullbright = fbtexture;
 			}	
 			pskintype = (daliasskintype_t *)data;
 			break;
@@ -2360,7 +2352,7 @@ static void Q2_LoadSkins(char *skins)
 		outskin->texnums=1;
 
 		COM_CleanUpPath(skins);	//blooming tanks.
-		texnums->base = Mod_LoadReplacementTexture(skins, true, false, true);
+		texnums->base = Mod_LoadReplacementTexture(skins, "models", true, false, true);
 		outskin->skinwidth = 0;
 		outskin->skinheight = 0;
 		outskin->skinspeed = 0;
@@ -3251,7 +3243,7 @@ void GLMod_LoadZymoticModel(model_t *mod, void *buffer)
 		root[i].numskins = 1;
 		skin->ofstexnums = (char *)texnums - (char *)skin;
 		skin->texnums = 1;
-		texnums->base = Mod_LoadHiResTexture(shadername, true, true, true);
+		texnums->base = Mod_LoadHiResTexture(shadername, "models", true, true, true);
 	}
 
 

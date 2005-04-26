@@ -275,7 +275,7 @@ int Doom_LoadFlat(char *name)
 
 	sprintf(texname, "flat-%-.8s", name);
 	Q_strlwr(texname);
-	tex = Mod_LoadReplacementTexture(texname, true, false, true);
+	tex = Mod_LoadReplacementTexture(texname, "flats", true, false, true);
 	if (tex)
 		return tex;
 
@@ -1173,7 +1173,7 @@ static int Doom_LoadPatch(char *name)
 			return texnum;
 	}
 	//all else failed.
-	gldoomtextures[texnum].gltexture = Mod_LoadHiResTexture(name, true, false, true);
+	gldoomtextures[texnum].gltexture = Mod_LoadHiResTexture(name, "patches", true, false, true);
 	gldoomtextures[texnum].width = image_width;
 	gldoomtextures[texnum].height = image_height;
 	return texnum;

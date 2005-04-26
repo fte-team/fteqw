@@ -2388,7 +2388,10 @@ typedef struct
 #define	MAX_FILES_IN_PACK	2048
 
 char	com_gamedir[MAX_OSPATH];
-char	com_basedir[MAX_OSPATH];
+char	*com_basedir;
+
+char	com_quakedir[MAX_OSPATH];
+char	com_homedir[MAX_OSPATH];
 
 #define ZEXPORT VARGS
 
@@ -2792,258 +2795,7 @@ Sets com_filesize and one of handle or file
 ===========
 */
 int file_from_pak; // global indicating file came from pack file ZOID
-#if 0
-/*
-int COM_FOpenFile2 (char *sensativename, FILE **file, qboolean compressedokay)
-{
-	searchpath_t	*search;
-	char		netpath[MAX_OSPATH];
-	int			findtime;
-	char		filename[MAX_QPATH];
 
-	Q_strncpyz(filename, sensativename, sizeof(filename));
-	Q_strlwr(filename);
-
-	if (filename[strlen(filename)-1] == '/')
-	{
-		*file = NULL;
-		com_filesize = -1;
-#ifdef ZLIB
-		com_pathforfile=NULL;
-#endif
-		return -1;
-	}
-
-	if (com_fs_cache.value && !developer.value)
-	{
-		if (com_fschanged)
-			FS_RebuildFSHash();
-
-		if (filesystemhash.numbuckets)
-		{
-			void *value;
-			value = Hash_Get(&filesystemhash, filename);
-
-			if (!value)	//we don't know about a file by this name
-			{
-				Con_DPrintf ("FindFile: don't know %s\n", filename);
-		
-				*file = NULL;
-				com_filesize = -1;
-#ifdef ZLIB
-				com_pathforfile=NULL;
-#endif
-				return -1;
-			}
-
-			for (search = com_searchpaths ; search ; search = search->next)
-			{
-				switch (search->type)
-				{
-				case SPT_PACK:
-					{
-						pack_t		*pak;
-						packfile_t *pf = value;
-						pak = search->u.pack;
-						if (pf >= pak->files && pf < pak->files+pak->numfiles)	//is the range right?
-						{
-							//is in this pack file
-							Con_DPrintf ("PackFile: %s : %s\n",pak->filename, filename);
-
-					// open a new file on the pakfile
-							*file = fopen (pak->filename, "rb");
-							if (!*file)
-								Sys_Error ("Couldn't reopen %s", pak->filename);	
-							fseek (*file, pf->filepos, SEEK_SET);
-							com_filesize = pf->filelen;
-
-							file_from_pak = 1;
-#ifdef ZLIB
-							com_pathforfile=NULL;
-#endif
-							return com_filesize;
-						}
-					}
-					break;
-#ifdef ZLIB
-				case SPT_ZIP:
-					{
-						zipfile_t	*zip;
-						packfile_t *pfile = value;
-						zip = search->u.zip;
-						if (pfile >= zip->files && pfile < zip->files+zip->numfiles)	//is the pointer to within the list?
-						{
-							Con_DPrintf ("ZipFile: %s : %s\n",zip->filename, filename);
-
-							file_from_pak = 2;
-							com_filenum = pfile	- zip->files;
-							com_filesize = pfile->filelen ;
-							if (!compressedokay)
-							{
-								unzLocateFileMy (zip->handle, com_filenum, zip->files[com_filenum].filepos);
-								if ((*file = unzOpenCurrentFileFile(zip->handle, search->filename)))	//phew!
-								{											
-									com_pathforfile = NULL;
-									return pfile->filelen;
-								}
-								Con_TPrintf(TL_COMPRESSEDFILEOPENFAILED, filename);
-								break;
-							}
-							else
-							{
-								*file = NULL;
-								com_pathforfile = search;
-								return pfile->filelen;
-							}
-						}
-					}
-					break;
-#endif
-				case SPT_OS:
-					if (value == search)	//hash tables refer to the searchpath.
-					{
-						sprintf (netpath, "%s/%s",search->filename, filename);
-				
-						findtime = Sys_FileTime (netpath);
-						if (findtime == -1)
-							break;
-
-						Con_DPrintf ("FindFile: %s\n",netpath);
-
-						*file = fopen (netpath, "rb");
-						file_from_pak = 0;
-#ifdef ZLIB
-						com_pathforfile=NULL;
-#endif
-						return COM_filelength (*file);
-					}
-					break;
-				}
-			}
-
-			Con_Printf ("FindFile: can't find %s\n", filename);
-
-			*file = NULL;
-			com_filesize = -1;
-			return -1;
-		}
-	}
-
-//
-// search through the path, one element at a time
-//
-	for (search = com_searchpaths ; search ; search = search->next)
-	{
-	// is the element a pak file?
-		switch (search->type)
-		{
-		case SPT_PACK:
-			{
-				int i;
-				pack_t		*pak;
-
-			// look through all the pak file elements
-				pak = search->u.pack;
-				for (i=0 ; i<pak->numfiles ; i++)
-				{
-					if (!strcmp (pak->files[i].name, filename))
-					{	// found it!
-						Con_DPrintf ("PackFile: %s : %s\n",pak->filename, filename);
-
-					// open a new file on the pakfile
-						*file = fopen (pak->filename, "rb");
-						if (!*file)
-							Sys_Error ("Couldn't reopen %s", pak->filename);	
-						fseek (*file, pak->files[i].filepos, SEEK_SET);
-						com_filesize = pak->files[i].filelen;
-						file_from_pak = 1;
-	#ifdef ZLIB
-						com_pathforfile=NULL;
-	#endif
-						return com_filesize;
-					}
-				}
-			}
-			break;
-#ifdef ZLIB
-		case SPT_ZIP:
-			{
-				packfile_t *pfile;
-				zipfile_t	*zip = search->u.zip;
-				if ((pfile = Com_FileInZip(zip, filename)))
-				{
-					file_from_pak = 2;
-					com_filenum = pfile	- zip->files;
-					com_filesize = pfile->filelen ;
-					if (!compressedokay)
-					{
-						unzLocateFileMy (zip->handle, com_filenum, zip->files[com_filenum].filepos);
-						if ((*file = unzOpenCurrentFileFile(zip->handle, search->filename)))	//phew!
-						{											
-							com_pathforfile = NULL;
-							return pfile->filelen;
-						}
-
-						//this code copies it to a temp file for ultimate hackage.
-						{
-							char *buf;
-							FILE *f = tmpfile();
-							buf = BZ_Malloc(pfile->filelen);
-							Com_ReadFileInZip(zip, buf);
-							fwrite(buf, 1, pfile->filelen, f);
-							fseek(f, 0, SEEK_SET);
-
-							*file = f;
-							com_pathforfile = search;
-							return pfile->filelen;
-						}
-						Con_TPrintf(TL_COMPRESSEDFILEOPENFAILED, filename);
-						continue;
-					}								
-					*file = NULL;
-					com_pathforfile = search;
-					return pfile->filelen;
-				}
-			}
-			break;
-#endif
-		case SPT_OS:
-	// check a file in the directory tree
-			if (!static_registered)
-			{	// if not a registered version, don't ever go beyond base
-				if ( strchr (filename, '/') || strchr (filename,'\\'))
-					continue;
-			}
-			
-			_snprintf (netpath, sizeof(netpath)-1, "%s/%s",search->filename, filename);
-			
-			findtime = Sys_FileTime (netpath);
-			if (findtime == -1)
-				continue;
-
-			Con_DPrintf ("FindFile: %s\n",netpath);
-
-			*file = fopen (netpath, "rb");
-			file_from_pak = 0;
-#ifdef ZLIB
-			com_pathforfile=NULL;
-#endif
-			return COM_filelength (*file);
-		default:
-			Sys_Error("COM_FOpenFile2: bad searchpath type\n");
-			break;
-		}
-		
-	}
-	
-	//Con_DPrintf ("FindFile: can't find %s\n", filename);
-	
-	*file = NULL;
-	com_filesize = -1;
-	return -1;
-}
-*/
-#endif
 //if loc is valid, loc->search is always filled in, the others are filled on success.
 //returns -1 if couldn't find.
 int FS_FLocateFile(char *filename, FSLF_ReturnType_e returntype, flocation_t *loc)
@@ -4265,6 +4017,8 @@ void COM_AddGameDirectory (char *dir)
 	Sys_EnumerateFiles(com_gamedir, "*.pk3", COM_AddZipsWild, NULL);
 	//don't do zips. we could, but don't. it's not a great idea.
 #endif
+
+	com_fschanged = true;
 }
 
 char *COM_NextPath (char *prevpath)
@@ -4332,7 +4086,7 @@ Sets the gamedir and path to a different directory.
 */
 void COM_Gamedir (char *dir)
 {
-	searchpath_t	*search, *next;
+	searchpath_t	*next;
 
 	if (strstr(dir, "..") || strstr(dir, "/")
 		|| strstr(dir, "\\") || strstr(dir, ":") )
@@ -4399,46 +4153,10 @@ void COM_Gamedir (char *dir)
 	//
 	Cache_Flush ();
 
-	sprintf (com_gamedir, "%s/%s", com_basedir, dir);
+	COM_AddGameDirectory(va("%s/%s", com_quakedir, dir));
+	if (*com_homedir)
+		COM_AddGameDirectory(va("%s/%s", com_homedir, dir));
 
-	for (search = com_searchpaths; search; search = search->next)	//see if it's already loaded (base paths)
-	{
-		if (!strcmp(search->filename, com_gamedir))
-			break;
-	}
-
-	if (!search)	//was already part of the basic.
-	{
-		//
-		// add the directory to the search path
-		//
-		search = (searchpath_t*)Z_Malloc (sizeof(searchpath_t));
-		search->type = SPT_OS;
-		strcpy (search->filename, com_gamedir);
-		search->next = com_searchpaths;
-		com_searchpaths = search;
-
-		COM_AddPacks("%s/pak%i.pak");
-
-#ifdef ZLIB
-		COM_AddZips("%s/pak%i.zip");
-		COM_AddZips("%s/pak%i.pk3");
-#endif
-
-#ifdef DOOMWADS
-		COM_AddWad("doom.wad");
-		COM_AddWad("doom2.wad");
-		COM_AddWad("dv.wad");
-#endif
-
-		Sys_EnumerateFiles(com_gamedir, "*.pak", COM_AddPacksWild, NULL);
-#ifdef ZLIB
-		Sys_EnumerateFiles(com_gamedir, "*.pk3", COM_AddZipsWild, NULL);
-		//don't do zips. we could, but don't. it's not a great idea.
-#endif
-
-		com_fschanged = true;
-	}
 
 #ifndef SERVERONLY
 	{
@@ -4452,11 +4170,11 @@ void COM_Gamedir (char *dir)
 		if ((f = fopen(fn, "r")) != NULL)
 		{
 			fclose(f);
-			Cbuf_InsertText("cl_warncmd 1\n", RESTRICT_LOCAL);
-			Cbuf_InsertText("exec frontend.cfg\n", RESTRICT_LOCAL);
-			Cbuf_InsertText("exec fte.cfg\n", RESTRICT_LOCAL);
-			Cbuf_InsertText("exec config.cfg\n", RESTRICT_LOCAL);
-			Cbuf_InsertText("cl_warncmd 0\n", RESTRICT_LOCAL);
+			Cbuf_InsertText("cl_warncmd 0\n"
+							"exec config.cfg\n"
+							"exec fte.cfg\n"
+							"exec frontend.cfg\n"
+							"cl_warncmd 1\n", RESTRICT_LOCAL);
 		}
 	}
 
@@ -4474,6 +4192,18 @@ void COM_Gamedir (char *dir)
 #endif
 }
 
+typedef struct {
+	char *file;
+	char *path;
+} potentialgamepath_t;
+
+potentialgamepath_t pgp[] = {
+	{"%s/id1/pak0.pak",		"%s/id1"},		//quake1
+	{"%s/baseq2/pak0.pak",	"%s/baseq2"},	//quake2
+	{"%s/data1/pak0.pak",	"%s/data1"},	//hexen2
+	{"%s/baseq3/pak0.pk3",	"%s/baseq3"},	//quake3
+	{"%s/base/assets0.pk3",	"%s/base"}		//jk2
+};
 /*
 ================
 COM_InitFilesystem
@@ -4484,15 +4214,55 @@ void COM_InitFilesystem (void)
 	FILE *f;
 	int		i;
 
+	char *ev;
+
+
 //
 // -basedir <path>
 // Overrides the system supplied base directory (under id1)
 //
 	i = COM_CheckParm ("-basedir");
 	if (i && i < com_argc-1)
-		strcpy (com_basedir, com_argv[i+1]);
+		strcpy (com_quakedir, com_argv[i+1]);
 	else
-		strcpy (com_basedir, host_parms.basedir);
+		strcpy (com_quakedir, host_parms.basedir);
+
+#ifdef _WIN32
+	{	//win32 sucks.
+		ev = getenv("HOMEDRIVE");
+		if (ev)
+			strcpy(com_homedir, ev);
+		else
+			strcpy(com_homedir, "");
+		ev = getenv("HOMEPATH");
+		if (ev)
+			strcat(com_homedir, ev);
+		else
+			strcat(com_homedir, "/");
+	}
+#else
+	if (!ev)
+	{	//yay for unix!.
+		ev = getenv("HOME");
+		if (ev)
+			Q_strncpyz(com_homedir, ev, sizeof(com_homedir));
+		else
+			*com_homedir = *"";
+	}
+#endif
+
+	if (!COM_CheckParm("-usehome"))
+		*com_homedir = '\0';
+
+	if (*com_homedir)
+	{
+		strcat(com_homedir, "/.fte/");
+		com_basedir = com_homedir;
+	}
+	else
+	{
+		com_basedir = com_quakedir;
+	}
 
 //
 // start up with id1 by default
@@ -4502,7 +4272,7 @@ void COM_InitFilesystem (void)
 	{
 		do	//use multiple -basegames
 		{
-			COM_AddGameDirectory (va("%s/%s", com_basedir, com_argv[i+1]) );
+			COM_AddGameDirectory (va("%s/%s", com_quakedir, com_argv[i+1]) );
 
 			i = COM_CheckNextParm ("-basegame", i);
 		}
@@ -4510,53 +4280,25 @@ void COM_InitFilesystem (void)
 	}
 	else
 	{
-		//if there is no pak0.pak file in id1, and baseq2 has one, use that instead.
-		f = fopen(va("%s/id1/pak0.pak", com_basedir), "rb");
-		if (f)
+		for (i = 0; i < sizeof(pgp)/sizeof(pgp[0]); i++)
 		{
-			fclose(f);
-			COM_AddGameDirectory (va("%s/id1", com_basedir) );
-		}
-		else
-		{
-			f = fopen(va("%s/baseq2/pak0.pak", com_basedir), "rb");
+			f = fopen(va(pgp[i].file, com_quakedir), "rb");
 			if (f)
 			{
 				fclose(f);
-				COM_AddGameDirectory (va("%s/baseq2", com_basedir) );
-			}
-			else
-			{	//hexen2.
-				f = fopen(va("%s/data1/pak0.pak", com_basedir), "rb");
-				if (f)
-				{
-					fclose(f);
-					COM_AddGameDirectory (va("%s/data1", com_basedir) );
-				}
-				else
-				{//quake3, we don't have full support for this, so...
-					f = fopen(va("%s/baseq3/pak0.pk3", com_basedir), "rb");
-					if (f)
-					{
-						fclose(f);
-						COM_AddGameDirectory (va("%s/baseq3", com_basedir) );
-					}
-					else
-					{	
-						f = fopen(va("%s/base/assets0.pk3", com_basedir), "rb");
-						if (f)
-						{
-							fclose(f);
-							COM_AddGameDirectory (va("%s/base", com_basedir) );
-						}
-						else
-						COM_AddGameDirectory (va("%s/id1", com_basedir) );	//ah well, id1 it is, they mustve unpacked it.
-					}
-				}
+				COM_AddGameDirectory (va(pgp[i].path, com_quakedir));
+				break;
 			}
 		}
+		if (i == sizeof(pgp)/sizeof(pgp[0]))
+			COM_AddGameDirectory (va(pgp[0].path, com_quakedir));	//just use the first. The assumption is that they unpacked thier data and deleted the pak files.
 	}
-	COM_AddGameDirectory (va("%s/qw", com_basedir) );
+
+	COM_AddGameDirectory (va("%s/qw", com_quakedir) );
+	COM_AddGameDirectory (va("%s/fte", com_quakedir) );
+
+	if (*com_homedir)
+		COM_AddGameDirectory (va("%s/fte", com_homedir) );
 
 	// any set gamedirs will be freed up to here
 	com_base_searchpaths = com_searchpaths;
@@ -4564,7 +4306,7 @@ void COM_InitFilesystem (void)
 	i = COM_CheckParm ("-game");	//effectivly replace with +gamedir x (But overridable)
 	if (i && i < com_argc-1)
 	{
-		COM_AddGameDirectory (va("%s/%s", com_basedir, com_argv[i+1]) );
+		COM_AddGameDirectory (va("%s/%s", com_quakedir, com_argv[i+1]) );
 
 #ifndef CLIENTONLY
 		Info_SetValueForStarKey (svs.info, "*gamedir", com_argv[i+1], MAX_SERVERINFO_STRING);

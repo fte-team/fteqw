@@ -214,6 +214,11 @@ typedef struct part_type_s {
 	particle_t	*particles;
 	beamseg_t *beams;
 	skytris_t *skytris;
+
+	unsigned int flags;
+#define PT_VELOCITY	1
+#define PT_FRICTION 2
+#define PT_CHANGESCOLOUR 4
 } part_type_t;
 int numparticletypes;
 part_type_t *part_type;
@@ -788,6 +793,14 @@ void P_ParticleEffect_f(void)
 	if (ptype->clipcount < 1)
 		ptype->clipcount = 1;
 
+	ptype->flags = 0;
+	//if there is a chance that it moves
+	if (ptype->randomvel || ptype->gravity || ptype->veladd || ptype->offsetspread || ptype->offsetspreadvert)
+		ptype->flags |= PT_VELOCITY;
+	//if it has friction
+	if (ptype->friction)
+		ptype->flags |= PT_FRICTION;
+
 	if (ptype->rampmode && !ptype->ramp)
 	{
 		ptype->rampmode = RAMP_NONE;
@@ -803,7 +816,7 @@ void P_ParticleEffect_f(void)
 	{
 		if (strcmp(ptype->texname, "default"))
 		{
-			ptype->texturenum = Mod_LoadHiResTexture(ptype->texname, true, true, true);
+			ptype->texturenum = Mod_LoadHiResTexture(ptype->texname, "particles", true, true, true);
 		
 			if (!ptype->texturenum)
 			{
@@ -1151,7 +1164,7 @@ void P_ClearParticles (void)
 		{
 			if (*part_type[i].texname)
 			{
-				part_type[i].texturenum = Mod_LoadHiResTexture(part_type[i].texname, true, true, true);
+				part_type[i].texturenum = Mod_LoadHiResTexture(part_type[i].texname, "particles", true, true, true);
 				if (!part_type[i].texturenum)
 					part_type[i].texturenum = explosiontexture;
 			}
@@ -3133,9 +3146,8 @@ void DrawParticleTypes (void texturedparticles(particle_t *,part_type_t*), void 
 
 	kill_list = kill_first = NULL;
 
-	for (i = 0; i < numparticletypes; i++)
+	for (i = 0, type = &part_type[i]; i < numparticletypes; i++, type++)
 	{
-		type = &part_type[i];
 		if (!type->particles)
 			continue;
 
@@ -3262,13 +3274,19 @@ void DrawParticleTypes (void texturedparticles(particle_t *,part_type_t*), void 
 				break;
 			}
 			VectorCopy(p->org, oldorg);
-			p->org[0] += p->vel[0]*pframetime;
-			p->org[1] += p->vel[1]*pframetime;
-			p->org[2] += p->vel[2]*pframetime;
-			p->vel[0] -= friction[0]*p->vel[0];
-			p->vel[1] -= friction[1]*p->vel[1];
-			p->vel[2] -= friction[2]*p->vel[2];
-			p->vel[2] -= grav;
+			if (type->flags & PT_VELOCITY)
+			{
+				p->org[0] += p->vel[0]*pframetime;
+				p->org[1] += p->vel[1]*pframetime;
+				p->org[2] += p->vel[2]*pframetime;
+				if (type->flags & PT_FRICTION)
+				{
+					p->vel[0] -= friction[0]*p->vel[0];
+					p->vel[1] -= friction[1]*p->vel[1];
+					p->vel[2] -= friction[2]*p->vel[2];
+				}
+				p->vel[2] -= grav;
+			}
 
 			p->angle += p->rotationspeed*pframetime;
 

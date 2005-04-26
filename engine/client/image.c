@@ -1615,7 +1615,7 @@ int GL_LoadTexture8Bump (char *identifier, int width, int height, unsigned char 
 
 int image_width, image_height;
 qbyte *COM_LoadFile (char *path, int usehunk);
-int Mod_LoadHiResTexture(char *name, qboolean mipmap, qboolean alpha, qboolean colouradjust)
+int Mod_LoadHiResTexture(char *name, char *subpath, qboolean mipmap, qboolean alpha, qboolean colouradjust)
 {
 	qboolean alphaed;
 	char *buf, *data;
@@ -1638,11 +1638,9 @@ int Mod_LoadHiResTexture(char *name, qboolean mipmap, qboolean alpha, qboolean c
 
 	static char *path[] ={
 		"%s%s",
-		"textures/%s/%s%s",	//this is special... It's special name is Mr Ben Ian Graham Hacksworth.
+		"textures/%s/%s%s",	//this is special... It uses the subpath parameter.
 		"textures/%s%s",
-		"override/%s%s",
-		"pics/%s%s",	//quake2 sort of path.
-		"progs/%s%s"
+		"override/%s%s"
 	};
 
 	int i, e;
@@ -1672,14 +1670,9 @@ int Mod_LoadHiResTexture(char *name, qboolean mipmap, qboolean alpha, qboolean c
 		{
 			if (i == 1)
 			{
-				char map [MAX_QPATH*2];
-#ifndef CLIENTONLY
-				if (*sv.name)	//server loads before the client knows what's happening. I suppose we could have some sort of param...
-					Q_strncpyz(map, sv.name, sizeof(map));
-				else
-#endif
-					COM_FileBase(cl.model_name[1], map);
-				_snprintf(fname, sizeof(fname)-1, path[i], map, nicename, extensions[e]);
+				if (!subpath)
+					continue;
+				_snprintf(fname, sizeof(fname)-1, path[i], subpath, COM_SkipPath(nicename), extensions[e]);
 			}
 			else
 				_snprintf(fname, sizeof(fname)-1, path[i], nicename, extensions[e]);
@@ -1714,14 +1707,14 @@ int Mod_LoadHiResTexture(char *name, qboolean mipmap, qboolean alpha, qboolean c
 		return GL_LoadTexture32 (name, image_width, image_height, (unsigned*)data, mipmap, alphaed);
 	return 0;	
 }
-int Mod_LoadReplacementTexture(char *name, qboolean mipmap, qboolean alpha, qboolean gammaadjust)
+int Mod_LoadReplacementTexture(char *name, char *subpath, qboolean mipmap, qboolean alpha, qboolean gammaadjust)
 {
 	if (!gl_load24bit.value)
 		return 0;
-	return Mod_LoadHiResTexture(name, mipmap, alpha, gammaadjust);
+	return Mod_LoadHiResTexture(name, subpath, mipmap, alpha, gammaadjust);
 }
 
-int Mod_LoadBumpmapTexture(char *name)
+int Mod_LoadBumpmapTexture(char *name, char *subpath)
 {
 	char *buf, *data;
 	int len;
@@ -1737,9 +1730,7 @@ int Mod_LoadBumpmapTexture(char *name)
 		"%s%s",
 		"textures/%s/%s%s",	//this is special... It's special name is Mr Ben Ian Graham Hacksworth.
 		"textures/%s%s",
-		"override/%s%s",
-		"pics/%s%s",	//quake2 sort of path.
-		"progs/%s%s"
+		"override/%s%s"
 	};
 
 	int i, e;

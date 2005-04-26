@@ -1503,7 +1503,7 @@ static LONG CALLBACK MainWndProc(HWND hWnd,UINT message,
 			if (projecttree)
 			{
 				gotodefbox = CreateWindowEx(WS_EX_CLIENTEDGE, "EDIT", (LPCTSTR) NULL,
-						WS_CHILD | WS_CLIPCHILDREN | ES_WANTRETURN,
+						WS_CHILD | WS_CLIPCHILDREN,
 						0, 0, 320, 200, hWnd, (HMENU) 0xCAC, ghInstance, (LPSTR) NULL);
 				ShowWindow(gotodefbox, SW_SHOW);
 

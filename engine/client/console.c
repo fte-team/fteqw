@@ -1115,6 +1115,7 @@ breakout:
 	}
 }
 
+#include "glquake.h"
 /*
 ================
 Con_DrawConsole
@@ -1149,10 +1150,15 @@ void Con_DrawConsole (int lines, qboolean noback)
 		QT_Update();
 #endif
 
+	if (qglGetError())
+		return;
+
 // draw the background
 	if (!noback)
 		Draw_ConsoleBackground (lines);
 
+	if (qglGetError())
+		return;
 // draw the text
 	con_current->vislines = lines;
 	
@@ -1171,6 +1177,9 @@ void Con_DrawConsole (int lines, qboolean noback)
 		y -= 8;
 		rows--;
 	}
+	
+	if (qglGetError())
+		return;
 	
 	row = curcon->display;
 	for (i=0 ; i<rows ; i++, y-=8, row--)
@@ -1191,6 +1200,9 @@ void Con_DrawConsole (int lines, qboolean noback)
 
 	progresstext = NULL;
 	progresspercent = 0;
+	
+	if (qglGetError())
+		return;
 
 	// draw the download bar
 	// figure out width
@@ -1258,9 +1270,16 @@ void Con_DrawConsole (int lines, qboolean noback)
 
 		Draw_ColouredCharacter ((n+1+x)*8, y, (unsigned char)'\x83' | M_COLOR_WHITE);
 	}
+	
+	if (qglGetError())
+		return;
 
 // draw the input prompt, user text, and cursor if desired
 	Con_DrawInput ();
+
+	
+	if (qglGetError())
+		return;
 }
 
 

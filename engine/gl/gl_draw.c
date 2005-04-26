@@ -31,10 +31,8 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 int glx, gly, glwidth, glheight;
 
 mesh_t	draw_mesh;
-vec4_t	draw_mesh_xyz[4];
-vec3_t	draw_mesh_normals[4];	
+vec4_t	draw_mesh_xyz[4];	
 vec2_t	draw_mesh_st[4];
-vec2_t	draw_mesh_lmst[4];
 byte_vec4_t	draw_mesh_colors[4];
 
 qbyte				*uploadmemorybuffer;
@@ -236,11 +234,11 @@ qboolean Draw_RealPicFromWad (mpic_t	*out, char *name)
 	}
 
 	//standard names substitution
-	texnum = Mod_LoadReplacementTexture(name, false, true, false);
+	texnum = Mod_LoadReplacementTexture(name, "wad", false, true, false);
 	if (!in && !texnum)	//try a q2 texture
 	{
 		sprintf(name2, "pics/%s", name);
-		texnum = Mod_LoadHiResTexture(name2, false, true, false);
+		texnum = Mod_LoadHiResTexture(name2, NULL, false, true, false);
 		qglDisable(GL_ALPHA_TEST);
 		qglEnable(GL_BLEND);	//make sure.
 	}
@@ -365,7 +363,7 @@ mpic_t	*GLDraw_SafeCachePic (char *path)
 			{
 				pic->pic.height = height;
 				gl = (glpic_t *)pic->pic.data;
-				if (!(gl->texnum = Mod_LoadReplacementTexture(alternatename, false, true, false)))
+				if (!(gl->texnum = Mod_LoadReplacementTexture(alternatename, "pics", false, true, false)))
 					gl->texnum = GL_LoadTexture32(path, pic->pic.width, pic->pic.height, (unsigned *)mem, false, false);
 				gl->sl = 0;
 				gl->sh = 1;
@@ -406,7 +404,7 @@ mpic_t	*GLDraw_SafeCachePic (char *path)
 			if (mem)
 			{
 				gl = (glpic_t *)pic->pic.data;
-				if (!(gl->texnum = Mod_LoadReplacementTexture(alternatename, false, true, false)))
+				if (!(gl->texnum = Mod_LoadReplacementTexture(alternatename, NULL, false, true, false)))
 					gl->texnum = GL_LoadTexture32(path, pic->pic.width, pic->pic.height, (unsigned *)mem, false, true);
 				gl->sl = 0;
 				gl->sh = 1;
@@ -435,7 +433,7 @@ mpic_t	*GLDraw_SafeCachePic (char *path)
 			{
 				pic->pic.height = height;
 				gl = (glpic_t *)pic->pic.data;
-				if (!(gl->texnum = Mod_LoadReplacementTexture(alternatename, false, true, false)))
+				if (!(gl->texnum = Mod_LoadReplacementTexture(alternatename, NULL, false, true, false)))
 					gl->texnum = GL_LoadTexture32(path, pic->pic.width, pic->pic.height, (unsigned *)mem, false, false);
 				gl->sl = 0;
 				gl->sh = 1;
@@ -510,7 +508,7 @@ mpic_t	*GLDraw_SafeCachePic (char *path)
 	pic->pic.height = qpic->height;
 
 	gl = (glpic_t *)pic->pic.data;
-	if (!(gl->texnum = Mod_LoadReplacementTexture(path, false, true, false)))
+	if (!(gl->texnum = Mod_LoadReplacementTexture(path, NULL, false, true, false)))
 		gl->texnum = GL_LoadPicTexture (qpic);
 	gl->sl = 0;
 	gl->sh = 1;
@@ -744,12 +742,12 @@ TRACE(("dbg: GLDraw_ReInit: Allocating upload buffers\n"));
 	image_width = 0;
 	image_height = 0;
 	TRACE(("dbg: GLDraw_ReInit: looking for conchars\n"));
-	if (!(char_texture=Mod_LoadReplacementTexture("gfx/conchars.lmp", false, true, false))) //no high res
+	if (!(char_texture=Mod_LoadReplacementTexture("gfx/conchars.lmp", NULL, false, true, false))) //no high res
 	{
 		if (!draw_chars)	//or low res.
 		{
-			if (!(char_texture=Mod_LoadHiResTexture("pics/conchars.pcx", false, true, false)))	//try low res q2 path
-			if (!(char_texture=Mod_LoadHiResTexture("gfx/2d/bigchars.tga", false, true, false)))	//try low res q2 path
+			if (!(char_texture=Mod_LoadHiResTexture("pics/conchars.pcx", NULL, false, true, false)))	//try low res q2 path
+			if (!(char_texture=Mod_LoadHiResTexture("gfx/2d/bigchars.tga", NULL, false, true, false)))	//try low res q2 path
 			{
 
 				//gulp... so it's come to this has it? rework the hexen2 conchars into the q1 system.
@@ -911,7 +909,7 @@ TRACE(("dbg: GLDraw_ReInit: Allocating upload buffers\n"));
 
 
 	TRACE(("dbg: GLDraw_ReInit: gfx/conchars2.lmp\n"));
-	if (!(char_tex2=Mod_LoadReplacementTexture("gfx/conchars2.lmp", false, true, false)))
+	if (!(char_tex2=Mod_LoadReplacementTexture("gfx/conchars2.lmp", NULL, false, true, false)))
 	{
 		if (!draw_chars)
 			char_tex2 = char_texture;
@@ -996,13 +994,13 @@ TRACE(("dbg: GLDraw_ReInit: Allocating upload buffers\n"));
 	qglTexParameterf(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
 
 	gl = (glpic_t *)conback->data;
-	if (!(gl->texnum=Mod_LoadReplacementTexture("gfx/conback.lmp", false, true, false)))
+	if (!(gl->texnum=Mod_LoadReplacementTexture("gfx/conback.lmp", NULL, false, true, false)))
 	{
 		if (!ncdata)	//no fallback
 		{
-			if (!(gl->texnum=Mod_LoadHiResTexture("pics/conback.pcx", false, true, false)))
-				if (!(gl->texnum=Mod_LoadReplacementTexture("gfx/menu/conback.lmp", false, true, false)))
-					if (!(gl->texnum=Mod_LoadReplacementTexture("textures/sfx/logo512.jpg", false, false, false)))
+			if (!(gl->texnum=Mod_LoadHiResTexture("pics/conback.pcx", NULL, false, true, false)))
+				if (!(gl->texnum=Mod_LoadReplacementTexture("gfx/menu/conback.lmp", NULL, false, true, false)))
+					if (!(gl->texnum=Mod_LoadReplacementTexture("textures/sfx/logo512.jpg", NULL, false, false, false)))
 					{
 						int data = 0;
 						gl->texnum = GL_LoadTexture32("gfx/conback.lmp", 1, 1, (unsigned int *)&data, false, false);
@@ -1054,7 +1052,7 @@ TRACE(("dbg: GLDraw_ReInit: Allocating upload buffers\n"));
 	if (!draw_backtile)
 		draw_backtile = Draw_SafeCachePic ("gfx/menu/backtile.lmp");
 
-	detailtexture = Mod_LoadReplacementTexture("textures/detail", true, false, false);
+	detailtexture = Mod_LoadReplacementTexture("textures/detail", NULL, true, false, false);
 
 	inited15to8 = false;
 
@@ -1087,9 +1085,9 @@ void GLDraw_Init (void)
 
 	draw_mesh.numvertexes = 4;
 	draw_mesh.xyz_array = draw_mesh_xyz;
-	draw_mesh.normals_array = draw_mesh_normals;
+	draw_mesh.normals_array = NULL;
 	draw_mesh.st_array = draw_mesh_st;
-	draw_mesh.lmst_array = draw_mesh_lmst;
+	draw_mesh.lmst_array = NULL;
 
 }
 void GLDraw_DeInit (void)
@@ -1287,9 +1285,7 @@ void GLDraw_Crosshair(void)
 		if (crosshairimage.modified)
 		{
 			crosshairimage.modified = false;
-			externalhair = Mod_LoadHiResTexture (va("crosshairs/%s", crosshairimage.string), false, true, true);
-			if (!externalhair)
-				externalhair = Mod_LoadHiResTexture (crosshairimage.string, false, true, true);
+			externalhair = Mod_LoadHiResTexture (crosshairimage.string, "crosshairs", false, true, true);
 		}
 		GL_Bind (externalhair);
 
@@ -1874,7 +1870,7 @@ void GL_Set2D (void)
 	if (gl_font.modified)
 	{
 		gl_font.modified = 0;
-		if (!*gl_font.string || !(char_texture=Mod_LoadHiResTexture(va("fonts/%s", gl_font.string), false, true, true)))
+		if (!*gl_font.string || !(char_texture=Mod_LoadHiResTexture(gl_font.string, "fonts", false, true, true)))
 		{
 			char_texture = default_char_texture;
 			custom_char_instep = default_char_instep;
@@ -1889,7 +1885,7 @@ void GL_Set2D (void)
 	{
 		int newtex = 0;
 		gl_conback.modified = 0;
-		if (!*gl_conback.string || !(newtex=Mod_LoadHiResTexture(va("conbacks/%s", gl_conback.string), false, true, true)))
+		if (!*gl_conback.string || !(newtex=Mod_LoadHiResTexture(gl_conback.string, "conbacks", false, true, true)))
 			conback = default_conback;
 		else
 		{

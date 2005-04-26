@@ -637,7 +637,7 @@ void StartQuakeServer(void)
 	parms.argc = com_argc;
 	parms.argv = com_argv;
 
-	parms.memsize = 12*1024*1024;
+	parms.memsize = 32*1024*1024;
 
 	if ((t = COM_CheckParm ("-heapsize")) != 0 &&
 		t + 1 < com_argc)

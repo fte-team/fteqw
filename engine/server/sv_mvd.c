@@ -22,8 +22,6 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 #ifndef CLIENTONLY
 #include "winquake.h"
 
-#define Q_strncatz strncat
-
 void SV_MVDStop_f (void);
 
 #define demo_size_padding 0x1000
@@ -1931,9 +1929,7 @@ void SV_MVDEasyRecord_f (void)
 
 int MVD_StreamStartListening(int port)
 {
-	char name[256];
 	int sock;
-	struct hostent *hent;
 	
 	struct sockaddr_in	address;
 //	int fromlen;

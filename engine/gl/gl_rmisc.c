@@ -942,8 +942,10 @@ R_NewMap
 */
 void GLR_NewMap (void)
 {
+	char namebuf[MAX_QPATH];
 	extern cvar_t host_mapname;
 	int		i;
+
 /*
 	if (cl.worldmodel->fromgame == fg_quake3 && cls.netchan.remote_address.type != NA_LOOPBACK)
 	{
@@ -965,7 +967,9 @@ void GLR_NewMap (void)
 	VectorInverse(r_worldentity.axis[1]);
 	r_worldentity.model = cl.worldmodel;
 
-	Cvar_Set(&host_mapname, cl.worldmodel->name);
+
+	COM_StripExtension(COM_SkipPath(cl.worldmodel->name), namebuf);
+	Cvar_Set(&host_mapname, namebuf);
 
 // clear out efrags in case the level hasn't been reloaded
 // FIXME: is this one short?

@@ -1516,6 +1516,8 @@ void R_ModifyColor ( meshbuffer_t *mb, shaderpass_t *pass )
 		vec3_t diff, viewtofog, fog_vpn;
 
 		fogplane = mb->fog->visibleplane;
+		if (!fogplane)
+			return;
 		dist = PlaneDiff ( r_origin, fogplane );
 
 		if ( shader->flags & SHADER_SKY ) 

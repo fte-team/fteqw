@@ -1532,7 +1532,7 @@ void R_RenderScene (void)
 R_Clear
 =============
 */
-int gldepthfunc;
+int gldepthfunc = GL_LEQUAL;
 void R_Clear (void)
 {
 	if (r_mirroralpha.value != 1.0)
@@ -1543,7 +1543,7 @@ void R_Clear (void)
 			qglClear (GL_DEPTH_BUFFER_BIT);
 		gldepthmin = 0;
 		gldepthmax = 0.5;
-		qglDepthFunc (gldepthfunc=GL_LEQUAL);
+		gldepthfunc=GL_LEQUAL;
 	}
 #ifdef SIDEVIEWS
 	else if (gl_ztrick.value && !gl_ztrickdisabled)
@@ -1561,13 +1561,13 @@ void R_Clear (void)
 		{
 			gldepthmin = 0;
 			gldepthmax = 0.49999;
-			qglDepthFunc (gldepthfunc=GL_LEQUAL);
+			gldepthfunc=GL_LEQUAL;
 		}
 		else
 		{
 			gldepthmin = 1;
 			gldepthmax = 0.5;
-			qglDepthFunc (gldepthfunc=GL_GEQUAL);
+			gldepthfunc=GL_GEQUAL;
 		}
 	}
 	else
@@ -1578,9 +1578,10 @@ void R_Clear (void)
 			qglClear (GL_DEPTH_BUFFER_BIT);
 		gldepthmin = 0;
 		gldepthmax = 1;
-		qglDepthFunc (gldepthfunc=GL_GEQUAL);
+		gldepthfunc=GL_LEQUAL;
 	}
 
+	qglDepthFunc (gldepthfunc);
 	qglDepthRange (gldepthmin, gldepthmax);
 }
 
@@ -1873,6 +1874,9 @@ void GLR_RenderView (void)
 	extern msurface_t  *r_alpha_surfaces;
 	double	time1 = 0, time2;
 
+	if (qglGetError())
+		Con_Printf("GL Error before drawing scene\n");
+
 	if (r_norefresh.value || !glwidth || !glheight)
 	{
 		GL_DoSwap();
@@ -2004,6 +2008,9 @@ void GLR_RenderView (void)
 	//	Con_Printf ("%3i ms  %4i wpoly %4i epoly\n", (int)((time2-time1)*1000), c_brush_polys, c_alias_polys); 
 	}
 
+	if (qglGetError())
+		Con_Printf("GL Error drawing scene\n");
+
 	if (!scenepp_ww_program)
 		return;
 
@@ -2023,9 +2030,6 @@ void GLR_RenderView (void)
 		{
 			vheight *= 2;
 		}
-
-		if (qglGetError())
-			Con_Printf("GL Error before drawing with shaderobjects\n");
 
 		// get the maxtexcoords while we're at it
 		vs = glwidth / vwidth;

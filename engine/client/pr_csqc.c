@@ -1678,8 +1678,8 @@ qboolean CSQC_KeyPress(int key, qboolean down)
 		return false;
 
 	pr_globals = PR_globals(csqcprogs, PR_CURRENT);
-	G_FLOAT(OFS_PARM0) = key;
-	G_FLOAT(OFS_PARM1) = !down;
+	G_FLOAT(OFS_PARM0) = !down;
+	G_FLOAT(OFS_PARM1) = key;
 	G_FLOAT(OFS_PARM2) = 0;
 
 	PR_ExecuteProgram (csqcprogs, csqcg.input_event);

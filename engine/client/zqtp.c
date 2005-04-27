@@ -1055,18 +1055,18 @@ static char *Macro_LastSeenPowerup(void)
 	{
 		macro_buf[0] = 0;
 		if (vars.enemy_powerups & TP_QUAD)
-			Q_strncatz(macro_buf, tp_name_quad.string);
+			Q_strncatz2(macro_buf, tp_name_quad.string);
 		if (vars.enemy_powerups & TP_PENT)
 		{
 			if (macro_buf[0])  
-				Q_strncatz(macro_buf, tp_name_separator.string);
-			Q_strncatz(macro_buf, tp_name_pent.string);
+				Q_strncatz2(macro_buf, tp_name_separator.string);
+			Q_strncatz2(macro_buf, tp_name_pent.string);
 		}
 		if (vars.enemy_powerups & TP_RING)
 		{
 			if (macro_buf[0])  
-				Q_strncatz(macro_buf, tp_name_separator.string);
-			Q_strncatz(macro_buf, tp_name_ring.string);
+				Q_strncatz2(macro_buf, tp_name_separator.string);
+			Q_strncatz2(macro_buf, tp_name_ring.string);
 		}
 	}
 	return macro_buf;
@@ -2795,10 +2795,10 @@ static void TP_FindPoint (void) {
 				name = teammate ? tp_name_teammate.string : tp_name_enemy.string;
 		}
 		if (beststate->effects & EF_BLUE)
-			Q_strncatz(buf, tp_name_quaded.string);
+			Q_strncatz2(buf, tp_name_quaded.string);
 		if (beststate->effects & EF_RED)
-			Q_strncatz(buf, va("%s%s", buf[0] ? " " : "", tp_name_pented.string));
-		Q_strncatz(buf, va("%s%s", buf[0] ? " " : "", name));
+			Q_strncatz2(buf, va("%s%s", buf[0] ? " " : "", tp_name_pented.string));
+		Q_strncatz2(buf, va("%s%s", buf[0] ? " " : "", name));
 		Q_strncpyz (vars.pointname, buf, sizeof(vars.pointname));
 		Q_strncpyz (vars.pointloc, TP_LocationName (beststate->origin), sizeof(vars.pointloc));
 

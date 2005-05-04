@@ -651,7 +651,7 @@ reeval:
 
 	//array/structure reading/riting.
 	case OP_GLOBALADDRESS:
-		OPC->_int = (int)(&((int)(OPA->_int)) + OPB->_int);
+		OPC->_int = (int)(&OPA->_int) + OPB->_int);
 		break;
 	case OP_POINTER_ADD:	//pointer to 32 bit (remember to *3 for vectors)
 		OPC->_int = OPA->_int + OPB->_int*4;
@@ -663,12 +663,12 @@ reeval:
 	case OP_LOADA_ENT:
 	case OP_LOADA_S:
 	case OP_LOADA_FNC:
-		ptr = (eval_t *)(&((int)(OPA->_int)) + OPB->_int);
+		ptr = (eval_t *)(&OPA->_int + OPB->_int);
 		OPC->_int = ptr->_int;
 		break;
 
 	case OP_LOADA_V:
-		ptr = (eval_t *)(&((int)(OPA->_int)) + OPB->_int);
+		ptr = (eval_t *)(&OPA->_int + OPB->_int);
 		OPC->vector[0] = ptr->vector[0];
 		OPC->vector[1] = ptr->vector[1];
 		OPC->vector[2] = ptr->vector[2];
@@ -683,7 +683,7 @@ reeval:
 		OPC->_int = OPA->_int - OPB->_int;
 		break;
 	case OP_LOADP_C:	//load character from a string
-		ptr = (eval_t *)(((int)(OPA->_int)) + (int)OPB->_float);
+		ptr = (eval_t *)(OPA->_int + (int)OPB->_float);
 		OPC->_float = *(unsigned char *)ptr;
 		break;
 	case OP_LOADP_I:
@@ -692,12 +692,12 @@ reeval:
 	case OP_LOADP_ENT:
 	case OP_LOADP_S:
 	case OP_LOADP_FNC:
-		ptr = (eval_t *)(((int)(OPA->_int)) + OPB->_int);
+		ptr = (eval_t *)(OPA->_int + OPB->_int);
 		OPC->_int = ptr->_int;
 		break;
 
 	case OP_LOADP_V:
-		ptr = (eval_t *)(((int)(OPA->_int)) + OPB->_int);
+		ptr = (eval_t *)(OPA->_int + OPB->_int);
 		OPC->vector[0] = ptr->vector[0];
 		OPC->vector[1] = ptr->vector[1];
 		OPC->vector[2] = ptr->vector[2];

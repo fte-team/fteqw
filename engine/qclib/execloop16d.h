@@ -651,7 +651,7 @@ reeval:
 
 	//array/structure reading/riting.
 	case OP_GLOBALADDRESS:
-		OPC->_int = (int)(&OPA->_int) + OPB->_int);
+		OPC->_int = (int)(&OPA->_int) + OPB->_int;
 		break;
 	case OP_POINTER_ADD:	//pointer to 32 bit (remember to *3 for vectors)
 		OPC->_int = OPA->_int + OPB->_int*4;

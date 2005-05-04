@@ -525,7 +525,8 @@ pbool QCC_PR_Precompiler(void)
 			}
 		}
 		else if (!strncmp(directive, "include", 7))
-		{		
+		{
+			int rellen;
 			char sm;
 
 			pr_file_p=directive+7;
@@ -555,17 +556,27 @@ pbool QCC_PR_Precompiler(void)
 				}
 			}
 
+			rellen = a;
+
 			pr_file_p++;
 			for (;a<1023;a++)
 			{
-				if (*pr_file_p == sm)
+				if (*pr_file_p == sm || !*pr_file_p)
 					break;
 				msg[a] = *pr_file_p++;
 			}
 			msg[a] = '\0';
 
-			printf("Including: %s\n", msg);
-			QCC_Include(msg);
+			a = 0;
+			if (externs->FileSize(msg)<0)
+			{
+				if (externs->FileSize(msg+rellen)>=0)
+					a = rellen;
+				
+			}
+
+			printf("Including: %s\n", msg+a);
+			QCC_Include(msg+a);
 
 			pr_file_p++;
 
@@ -1529,7 +1540,7 @@ pbool QCC_PR_SimpleGetToken (void)
 	}
 
 	i = 0;
-	while ( (c = *pr_file_p) > ' ' && c != ',' && c != ';' && c != ')' && c != '(')
+	while ( (c = *pr_file_p) > ' ' && c != ',' && c != ';' && c != ')' && c != '(' && c != ']' && (c != '.' || pr_file_p[1] != '.'))
 	{
 		pr_token[i] = c;
 		i++;
@@ -2785,8 +2796,6 @@ QCC_type_t *QCC_PR_ParseFunctionTypeReacc (int newtype, QCC_type_t *returntype)
 	char	*name;
 	char	argname[64];
 	int definenames = !recursivefunctiontype;
-
-	pbool usesvariants = false;
 
 	recursivefunctiontype++;
 

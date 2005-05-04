@@ -1597,7 +1597,7 @@ static LONG CALLBACK MainWndProc(HWND hWnd,UINT message,
 					i.pszText = itemtext;
 					i.cchTextMax = sizeof(itemtext)-1;
 					if (!TreeView_GetItem(projecttree, &i))
-						return;
+						return 0;
 					strcpy(filename, i.pszText);
 					while(item)
 					{

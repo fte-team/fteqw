@@ -1081,7 +1081,7 @@ static void QCC_RemapLockedTemps(int firststatement, int laststatement)
 	t = functemps;
 	while(t)
 	{
-		if (t->scope)
+		if (t->scope || opt_locals_marshalling)
 		{
 			QCC_RemapLockedTemp(t, firststatement, laststatement);
 			t->scope = NULL;
@@ -6009,7 +6009,12 @@ void QCC_Marshal_Locals(int first, int laststatement)
 	unsigned int newofs;
 
 	if (!opt_overlaptemps)	//clear these after each function. we arn't overlapping them so why do we need to keep track of them?
+	{
+		temp_t *t;
+		for (t = functemps; t; t = t->next)
+			QCC_FreeOffset(t->ofs, t->size);
 		functemps = NULL;
+	}
 
 	if (!pr.localvars)	//nothing to marshal
 	{
@@ -6052,6 +6057,9 @@ void QCC_Marshal_Locals(int first, int laststatement)
 	{
 		if (local->constant)
 			continue;
+
+		if (((int*)qcc_pr_globals)[local->ofs])
+			QCC_PR_ParseError(ERR_INTERNAL, "Marshall of a set value");
 
 		newofs -= local->type->size*local->arraysize;
 		if (local->arraysize>1)
@@ -6787,6 +6795,7 @@ QCC_def_t *QCC_PR_DummyDef(QCC_type_t *type, char *name, QCC_def_t *scope, int a
 				case ev_integer:
 				case ev_struct:
 				case ev_union:
+				case ev_variant:	//for lack of any better alternative
 					sprintf(newname, "%s%s.%s", name, array, parttype->name);
 					QCC_PR_DummyDef(parttype, newname, scope, 1, ofs + type->size*a + parttype->ofs, false);
 					break;
@@ -7109,6 +7118,7 @@ QCC_def_t *QCC_PR_DummyFieldDef(QCC_type_t *type, char *name, QCC_def_t *scope, 
 				case ev_field:
 				case ev_pointer:
 				case ev_integer:
+				case ev_variant:
 					if (*name)
 						sprintf(newname, "%s%s.%s", name, array, parttype->name);
 					else
@@ -7458,7 +7468,7 @@ void QCC_PR_ParseDefs (char *classname)
 		else if (QCC_PR_CheckKeyword(keyword_const, "const"))
 			isconstant = true;
 		else if (QCC_PR_CheckKeyword(keyword_var, "var"))
-			isvar = false;
+			isvar = true;
 		else if (QCC_PR_CheckKeyword(keyword_noref, "noref"))
 			noref=true;
 		else if (QCC_PR_CheckKeyword(keyword_nosave, "nosave"))

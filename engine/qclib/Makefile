@@ -2,7 +2,8 @@ QCC_OBJS=qccmain.o qcc_cmdlib.o qcc_pr_comp.o qcc_pr_lex.o comprout.o hash.o qcd
 GTKGUI_OBJS=qcc_gtk.o qccguistuff.c
 
 CC=gcc -Wall -DQCCONLY
-DO_CC=$(CC) $(BASE_CFLAGS) -DUSEGUI -o $@ -c $< $(CFLAGS)  `pkg-config --cflags gtk+-2.0`
+
+DO_CC=$(CC) $(BASE_CFLAGS) -DUSEGUI -o $@ -c $< $(CFLAGS)
 
 all: qcc
 
@@ -44,7 +45,7 @@ qccguistuff.o: qccguistuff.c qcc.h
 	$(DO_CC)
 
 qcc_gtk.o: qcc_gtk.c qcc.h
-	$(DO_CC)
+	$(DO_CC) `pkg-config --cflags gtk+-2.0`
 
 gtkgui: $(QCC_OBJS) $(GTKGUI_OBJS)
 	$(CC) $(BASE_CFLAGS) -DQCCONLY -DUSEGUI -o fteqccgui.bin -O3 $(GTKGUI_OBJS) $(QCC_OBJS) `pkg-config --libs gtk+-2.0`

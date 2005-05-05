@@ -1140,7 +1140,7 @@ void CLNQ_ParseEntity(unsigned int bits)
 
 
 	if (!from || state->modelindex != from->modelindex || state->number != from->number)	//model changed... or entity changed...
-		cl.lerpents[state->number].lerptime = -10;
+		cl.lerpents[state->number].lerprate = newlerprate;
 	else if (state->frame != from->frame || state->origin[0] != from->origin[0] || state->origin[1] != from->origin[1] || state->origin[2] != from->origin[2])
 	{
 		cl.lerpents[state->number].origin[0] = from->origin[0];
@@ -1158,26 +1158,16 @@ void CLNQ_ParseEntity(unsigned int bits)
 		cl.lerpents[state->number].frame = from->frame;
 		cl.lerpents[state->number].lerptime = cl.time;
 
-		if (cl.lerpents[state->number].lerprate>0.5)
-			cl.lerpents[state->number].lerprate=0.1;
+		if (cl.lerpents[state->number].lerprate>0.2)
+			cl.lerpents[state->number].lerprate=0.2;
 
 		//store this off for new ents to use.
 //		if (new)
-//			cl.lerpents[state->number].lerptime = newlerprate;
+//			cl.lerpents[state->number].lerprate = newlerprate;
 //		else
 		if (state->frame == from->frame)
-			newlerprate = cl.time-cl.lerpents[state->number].lerptime;
+			newlerprate = cl.lerpents[state->number].lerprate;
 	}
-
-
-/*
-	if (num == cl.viewentity)
-	{
-		cl.frames[cls.netchan.incoming_sequence&UPDATE_MASK].playerstate[cl.playernum[0]].velocity[0] = state->origin[0] - cl.frames[cls.netchan.incoming_sequence&UPDATE_MASK].playerstate[cl.playernum[0]].origin[0];
-		cl.frames[cls.netchan.incoming_sequence&UPDATE_MASK].playerstate[cl.playernum[0]].velocity[1] = state->origin[1] - cl.frames[cls.netchan.incoming_sequence&UPDATE_MASK].playerstate[cl.playernum[0]].origin[1];
-		cl.frames[cls.netchan.incoming_sequence&UPDATE_MASK].playerstate[cl.playernum[0]].velocity[2] = state->origin[2] - cl.frames[cls.netchan.incoming_sequence&UPDATE_MASK].playerstate[cl.playernum[0]].origin[2];
-		VectorCopy(state->origin, cl.frames[cls.netchan.incoming_sequence&UPDATE_MASK].playerstate[cl.playernum[0]].origin);
-	}*/
 }
 #endif
 #ifdef PEXT_SETVIEW
@@ -1381,14 +1371,14 @@ void CL_LinkPacketEntities (void)
 
 		//figure out the lerp factor
 		if (cl.lerpents[s1->number].lerprate<=0)
-			ent->lerpfrac = 0;
+			ent->lerpfrac = 1;
 		else
-			ent->lerpfrac = 1-(cl.time-cl.lerpents[s1->number].lerptime)/cl.lerpents[s1->number].lerprate;
+			ent->lerpfrac = (cl.time-cl.lerpents[s1->number].lerptime)/cl.lerpents[s1->number].lerprate;
 		if (ent->lerpfrac<0)
 			ent->lerpfrac=0;
 		if (ent->lerpfrac>1)
 			ent->lerpfrac=1;
-		f = 1-ent->lerpfrac;
+		f = ent->lerpfrac;
 
 		if (cl_nolerp.value)
 			f = 1;
@@ -1526,7 +1516,7 @@ void CL_LinkPacketEntities (void)
 			CL_RotateAroundTag(ent, s1->number, cl.lerpents[s1->number].tagent, cl.lerpents[s1->number].tagindex);
 		}
 
-		if (ent->keynum <= MAX_CLIENTS)
+		if (ent->keynum <= MAX_CLIENTS && cls.demoplayback != DPB_NETQUAKE && (!cls.netcon || cls.netcon->qwprotocol))
 			ent->keynum += MAX_EDICTS;
 
 		// add automatic particle trails

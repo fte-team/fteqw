@@ -5048,11 +5048,21 @@ void QCC_PR_ParseStatement (void)
 			else
 			{
 				if (pr_casesdef[i]->type->type != e->type->type)
-					QCC_PR_ParseWarning(WARN_SWITCHTYPEMISMATCH, "switch case type mismatch");
+				{
+					if (e->type->type == ev_integer && pr_casesdef[i]->type->type == ev_float)
+						pr_casesdef[i] = QCC_MakeIntDef((int)qcc_pr_globals[pr_casesdef[i]->ofs]);
+					else
+						QCC_PR_ParseWarning(WARN_SWITCHTYPEMISMATCH, "switch case type mismatch");
+				}
 				if (pr_casesdef2[i])
 				{
 					if (pr_casesdef2[i]->type->type != e->type->type)
-						QCC_PR_ParseWarning(WARN_SWITCHTYPEMISMATCH, "switch caserange type mismatch");
+					{
+						if (e->type->type == ev_integer && pr_casesdef[i]->type->type == ev_float)
+							pr_casesdef2[i] = QCC_MakeIntDef((int)qcc_pr_globals[pr_casesdef2[i]->ofs]);
+						else
+							QCC_PR_ParseWarning(WARN_SWITCHTYPEMISMATCH, "switch caserange type mismatch");
+					}
 
 					if (hcstyle)
 					{
@@ -5063,13 +5073,24 @@ void QCC_PR_ParseStatement (void)
 					{
 						QCC_def_t *e3;
 
-						if (e->type->type != ev_float)
+						if (e->type->type == ev_float)
+						{
+							e2 = QCC_PR_Statement (&pr_opcodes[OP_GE], e, pr_casesdef[i], NULL);
+							e3 = QCC_PR_Statement (&pr_opcodes[OP_LE], e, pr_casesdef2[i], NULL);
+							e2 = QCC_PR_Statement (&pr_opcodes[OP_AND], e2, e3, NULL);
+							QCC_FreeTemp(QCC_PR_Statement (&pr_opcodes[OP_IF], e2, 0, &patch3));
+							patch3->b = &statements[pr_cases[i]] - patch3;
+						}
+						else if (e->type->type == ev_integer)
+						{
+							e2 = QCC_PR_Statement (&pr_opcodes[OP_GE_I], e, pr_casesdef[i], NULL);
+							e3 = QCC_PR_Statement (&pr_opcodes[OP_LE_I], e, pr_casesdef2[i], NULL);
+							e2 = QCC_PR_Statement (&pr_opcodes[OP_AND], e2, e3, NULL);
+							QCC_FreeTemp(QCC_PR_Statement (&pr_opcodes[OP_IF], e2, 0, &patch3));
+							patch3->b = &statements[pr_cases[i]] - patch3;
+						}
+						else
 							QCC_PR_ParseWarning(WARN_SWITCHTYPEMISMATCH, "switch caserange MUST be a float");
-						e2 = QCC_PR_Statement (&pr_opcodes[OP_GE], e, pr_casesdef[i], NULL);
-						e3 = QCC_PR_Statement (&pr_opcodes[OP_LE], e, pr_casesdef2[i], NULL);
-						e2 = QCC_PR_Statement (&pr_opcodes[OP_AND], e2, e3, NULL);
-						QCC_FreeTemp(QCC_PR_Statement (&pr_opcodes[OP_IF], e2, 0, &patch3));
-						patch3->b = &statements[pr_cases[i]] - patch3;
 					}
 				}
 				else

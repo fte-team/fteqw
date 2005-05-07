@@ -1373,12 +1373,12 @@ void CL_LinkPacketEntities (void)
 		if (cl.lerpents[s1->number].lerprate<=0)
 			ent->lerpfrac = 1;
 		else
-			ent->lerpfrac = (cl.time-cl.lerpents[s1->number].lerptime)/cl.lerpents[s1->number].lerprate;
+			ent->lerpfrac = 1-(cl.time-cl.lerpents[s1->number].lerptime)/cl.lerpents[s1->number].lerprate;
 		if (ent->lerpfrac<0)
 			ent->lerpfrac=0;
 		if (ent->lerpfrac>1)
 			ent->lerpfrac=1;
-		f = ent->lerpfrac;
+		f = 1-ent->lerpfrac;
 
 		if (cl_nolerp.value)
 			f = 1;

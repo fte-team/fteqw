@@ -1329,7 +1329,7 @@ void UI_Start (void)
 			keycatcher = 0;
 		else if (apiversion != 4)	//make sure we can run the thing
 		{
-			Con_Print("VM uses incompatable API version\n");
+			Con_Printf("User-Interface VM uses incompatable API version (%i)\n", apiversion);
 			VM_Destroy(uivm);
 			VMUI_fcloseall(0);
 			uivm = NULL;

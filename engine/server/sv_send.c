@@ -1444,7 +1444,7 @@ void SV_UpdateToReliableMessages (void)
 			ent = host_client->edict;
 			
 			newval = ent->v->gravity*sv_gravity.value;
-			if (progstype == PROG_NQ)
+			if (progstype != PROG_QW)
 			{
 				if (!newval)
 					newval = 1;
@@ -1457,7 +1457,7 @@ void SV_UpdateToReliableMessages (void)
 				host_client->entgravity = newval;
 			}
 			newval = ent->v->maxspeed;
-			if (progstype == PROG_NQ)
+			if (progstype != PROG_QW)
 			{
 				if (!newval)
 					newval = sv_maxspeed.value;

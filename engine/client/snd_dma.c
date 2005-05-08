@@ -435,7 +435,7 @@ void S_Init (void)
 		Con_Printf("Sound is already initialized\n");
 		return;
 	}
-	Con_Printf("\nSound Initialization\n");
+	Con_DPrintf("\nSound Initialization\n");
 
 	if (COM_CheckParm("-nosound"))
 	{

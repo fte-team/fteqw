@@ -810,6 +810,7 @@ typedef enum multicast_e
 
 
 //shared with qc
+#define MSG_PRERELONE	-100
 #define	MSG_BROADCAST	0		// unreliable to all
 #define	MSG_ONE			1		// reliable to one (msg_entity)
 #define	MSG_ALL			2		// reliable to all

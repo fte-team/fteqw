@@ -395,6 +395,7 @@ void PR_Deinit(void)
 
 #define QW_PROGHEADER_CRC	54730
 #define NQ_PROGHEADER_CRC	5927
+#define PREREL_PROGHEADER_CRC	26940	//prerelease
 #define H2_PROGHEADER_CRC	38488	//basic hexen2
 #define H2MP_PROGHEADER_CRC	26905	//hexen2 mission pack uses slightly different defs... *sigh*...
 
@@ -416,7 +417,7 @@ void PR_LoadGlabalStruct(void)
 	globalfloat		(true, time);
 	globalfloat		(true, frametime);
 	globalint		(false, newmis);	//not always in nq.
-	globalfloat		(true, force_retouch);
+	globalfloat		(false, force_retouch);
 	globalstring	(true, mapname);
 	globalfloat		(false, deathmatch);
 	globalfloat		(false, coop);
@@ -454,7 +455,7 @@ void PR_LoadGlabalStruct(void)
 	globalint		(true, trace_ent);
 	globalfloat		(true, trace_inopen);
 	globalfloat		(true, trace_inwater);
-	globalint		(true, msg_entity);
+	globalint		(false, msg_entity);
 	globalfunc		(false, main);
 	globalfunc		(true, StartFrame);
 	globalfunc		(true, PlayerPreThink);
@@ -615,14 +616,19 @@ progsnum_t AddProgs(char *name)
 					num = PR_LoadProgs (svprogfuncs, name, H2MP_PROGHEADER_CRC, NULL, 0);
 				if (num == -1)	//don't commit if bad.
 				{
-					progstype = PROG_UNKNOWN;
-					num = PR_LoadProgs (svprogfuncs, name, 0, NULL, 0);
-					if (num == -1)	//don't commit if bad.
+					progstype = PROG_PREREL;
+					num = PR_LoadProgs (svprogfuncs, name, PREREL_PROGHEADER_CRC, NULL, 0);
+					if (num == -1)
 					{
-						progstype = PROG_NONE;
+						progstype = PROG_UNKNOWN;
+						num = PR_LoadProgs (svprogfuncs, name, 0, NULL, 0);
+						if (num == -1)	//don't commit if bad.
+						{
+							progstype = PROG_NONE;
+						}
+						else
+							Cvar_Set(&qc_nonetaccess, "1");	//just in case
 					}
-					else
-						Cvar_Set(&qc_nonetaccess, "1");	//just in case
 				}
 			}
 		}
@@ -640,6 +646,9 @@ progsnum_t AddProgs(char *name)
 				break;
 			case PROG_H2:
 				Con_Printf("Using H2 progs\n");
+				break;
+			case PROG_PREREL:
+				Con_Printf("Using prerelease progs\n");
 				break;
 			default:
 				Con_Printf("Using unknown progs, assuming NQ\n");
@@ -1888,7 +1897,7 @@ void PF_bprint (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 	if (sv.demofile)
 		return;
 	
-	if (progstype == PROG_NQ)
+	if (progstype != PROG_QW)
 	{
 		level = PRINT_HIGH;
 
@@ -4080,6 +4089,12 @@ sizebuf_t *WriteDest (int		dest)
 {
 	switch (dest)
 	{
+	case MSG_PRERELONE:
+		{
+		int entnum;
+		entnum = PR_globals(svprogfuncs, PR_CURRENT)->param[0].i;
+		return &svs.clients[entnum-1].netchan.message;
+		}
 	case MSG_BROADCAST:
 		return &sv.datagram;
 	
@@ -4122,6 +4137,13 @@ sizebuf_t *NQWriteDest (int dest)
 {
 	switch (dest)
 	{
+	case MSG_PRERELONE:
+		{
+		int entnum;
+		entnum = PR_globals(svprogfuncs, PR_CURRENT)->param[0].i;
+		return &svs.clients[entnum-1].netchan.message;
+		}
+
 	case MSG_BROADCAST:
 		return &sv.nqdatagram;
 	
@@ -4167,8 +4189,6 @@ client_t *Write_GetClient(void)
 {
 	int		entnum;
 	edict_t	*ent;
-
-//	struct globalvars_s *pr_globals = pr_netglob;
 
 	ent = PROG_TO_EDICT(pr_netprogfuncs, pr_global_struct->msg_entity);
 	entnum = NUM_FOR_EDICT(pr_netprogfuncs, ent);
@@ -4503,6 +4523,71 @@ void PF_WriteString2 (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 	G_FLOAT(OFS_PARM1) = old;
 }
 
+void PF_Single_WriteByte (progfuncs_t *prinst, struct globalvars_s *pr_globals)
+{
+	NPP_NQWriteByte(MSG_PRERELONE, (qbyte)G_FLOAT(OFS_PARM1));
+}
+void PF_Single_WriteChar (progfuncs_t *prinst, struct globalvars_s *pr_globals)
+{
+	NPP_NQWriteChar(MSG_PRERELONE, (char)G_FLOAT(OFS_PARM1));
+}
+void PF_Single_WriteShort (progfuncs_t *prinst, struct globalvars_s *pr_globals)
+{
+	NPP_NQWriteShort(MSG_PRERELONE, (short)G_FLOAT(OFS_PARM1));
+}
+void PF_Single_WriteLong (progfuncs_t *prinst, struct globalvars_s *pr_globals)
+{
+	NPP_NQWriteLong(MSG_PRERELONE, G_FLOAT(OFS_PARM1));
+}
+void PF_Single_WriteAngle (progfuncs_t *prinst, struct globalvars_s *pr_globals)
+{
+	NPP_NQWriteAngle(MSG_PRERELONE, G_FLOAT(OFS_PARM1));
+}
+void PF_Single_WriteCoord (progfuncs_t *prinst, struct globalvars_s *pr_globals)
+{
+	NPP_NQWriteCoord(MSG_PRERELONE, G_FLOAT(OFS_PARM1));
+}
+void PF_Single_WriteString (progfuncs_t *prinst, struct globalvars_s *pr_globals)
+{
+	NPP_NQWriteString(MSG_PRERELONE, PF_VarString(prinst, 1, pr_globals));
+}
+void PF_Single_WriteEntity (progfuncs_t *prinst, struct globalvars_s *pr_globals)
+{
+	NPP_NQWriteEntity(MSG_PRERELONE, (short)G_EDICTNUM(prinst, OFS_PARM1));
+}
+
+void PF_Broadcast_WriteByte (progfuncs_t *prinst, struct globalvars_s *pr_globals)
+{
+	NPP_NQWriteByte(MSG_BROADCAST, (qbyte)G_FLOAT(OFS_PARM0));
+}
+void PF_Broadcast_WriteChar (progfuncs_t *prinst, struct globalvars_s *pr_globals)
+{
+	NPP_NQWriteChar(MSG_BROADCAST, (char)G_FLOAT(OFS_PARM0));
+}
+void PF_Broadcast_WriteShort (progfuncs_t *prinst, struct globalvars_s *pr_globals)
+{
+	NPP_NQWriteShort(MSG_BROADCAST, (short)G_FLOAT(OFS_PARM0));
+}
+void PF_Broadcast_WriteLong (progfuncs_t *prinst, struct globalvars_s *pr_globals)
+{
+	NPP_NQWriteLong(MSG_BROADCAST, G_FLOAT(OFS_PARM0));
+}
+void PF_Broadcast_WriteAngle (progfuncs_t *prinst, struct globalvars_s *pr_globals)
+{
+	NPP_NQWriteAngle(MSG_BROADCAST, G_FLOAT(OFS_PARM0));
+}
+void PF_Broadcast_WriteCoord (progfuncs_t *prinst, struct globalvars_s *pr_globals)
+{
+	NPP_NQWriteCoord(MSG_BROADCAST, G_FLOAT(OFS_PARM0));
+}
+void PF_Broadcast_WriteString (progfuncs_t *prinst, struct globalvars_s *pr_globals)
+{
+	NPP_NQWriteString(MSG_BROADCAST, PF_VarString(prinst, 0, pr_globals));
+}
+void PF_Broadcast_WriteEntity (progfuncs_t *prinst, struct globalvars_s *pr_globals)
+{
+	NPP_NQWriteEntity(MSG_BROADCAST, (short)G_EDICTNUM(prinst, OFS_PARM0));
+}
 
 //======================================================
 
@@ -8214,6 +8299,25 @@ BuiltinList_t BuiltinList[] = {				//nq	qw		h2		ebfs
 	{"writestring",		PF_WriteString,		58,		58,		58},	//58
 	{"writeentity",		PF_WriteEntity,		59,		59,		59},	//59
 
+	{"swritebyte",		PF_Single_WriteByte},	//52
+	{"swritechar",		PF_Single_WriteChar},	//53
+	{"swriteshort",		PF_Single_WriteShort},	//54
+	{"swritelong",		PF_Single_WriteLong},	//55
+	{"swritecoord",		PF_Single_WriteCoord},	//56
+	{"swriteangle",		PF_Single_WriteAngle},	//57
+	{"swritestring",	PF_Single_WriteString},	//58
+	{"swriteentity",	PF_Single_WriteEntity},
+
+	{"bwritebyte",		PF_Broadcast_WriteByte},	//59
+	{"bwritechar",		PF_Broadcast_WriteChar},	//60
+	{"bwriteshort",		PF_Broadcast_WriteShort},	//61
+	{"bwritelong",		PF_Broadcast_WriteLong},	//62
+	{"bwritecoord",		PF_Broadcast_WriteCoord},	//63
+	{"bwriteangle",		PF_Broadcast_WriteAngle},	//64
+	{"bwritestring",	PF_Broadcast_WriteString},	//65
+	{"bwriteentity",	PF_Broadcast_WriteEntity},	//66
+
+
 	{"printfloat",		PF_printf,			0,		0,		60},	//60
 
 	{"sin",				PF_Sin,				0,		0,		62,		60},	//60
@@ -8562,6 +8666,27 @@ void PR_ResetBuiltins(progstype_t type)	//fix all nulls to PF_FIXME and add any 
 		}
 		else
 			builtincount[i]=100;
+	}
+
+	if (type == PROG_PREREL)
+	{
+		pr_builtin[52] = PF_Single_WriteByte;
+		pr_builtin[53] = PF_Single_WriteChar;
+		pr_builtin[54] = PF_Single_WriteShort;
+		pr_builtin[55] = PF_Single_WriteLong;
+		pr_builtin[56] = PF_Single_WriteCoord;
+		pr_builtin[57] = PF_Single_WriteAngle;
+		pr_builtin[58] = PF_Single_WriteString;
+		//lack of writeentity is intentional (prerel doesn't have it.
+
+		pr_builtin[59] = PF_Broadcast_WriteByte;
+		pr_builtin[60] = PF_Broadcast_WriteChar;
+		pr_builtin[61] = PF_Broadcast_WriteShort;
+		pr_builtin[62] = PF_Broadcast_WriteLong;
+		pr_builtin[63] = PF_Broadcast_WriteCoord;
+		pr_builtin[64] = PF_Broadcast_WriteAngle;
+		pr_builtin[65] = PF_Broadcast_WriteString;
+		pr_builtin[66] = PF_Broadcast_WriteEntity;
 	}
 
 	if (!pr_compatabilitytest.value)

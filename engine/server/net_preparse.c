@@ -87,7 +87,7 @@ void NPP_Flush(void)
 		NPP_SetInfo(&svs.clients[buffer[1]], "topcolor", va("%i", buffer[2]/16));
 		break;
 	case svc_intermission:
-		if (writedest == &sv.reliable_datagram)
+//		if (writedest == &sv.reliable_datagram)
 		{
 			client_t *cl;
 			int i;
@@ -108,7 +108,7 @@ void NPP_Flush(void)
 						cl->nextservertimeupdate = sv.time+10;
 					}
 
-					ClientReliableCheckBlock(cl, 7);
+					ClientReliableCheckBlock(cl, 16);
 					ClientReliableWrite_Byte(cl, svc_intermission);
 					ClientReliableWrite_Coord(cl, cl->edict->v->origin[0]);
 					ClientReliableWrite_Coord(cl, cl->edict->v->origin[1]);
@@ -123,6 +123,7 @@ void NPP_Flush(void)
 			protocollen=0;
 			writedest = NULL;
 		}
+		break;
 //	case svc_finale:	
 //		bufferlen = 0;
 //		break;

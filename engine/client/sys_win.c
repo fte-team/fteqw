@@ -201,8 +201,11 @@ void VARGS Sys_DebugLog(char *file, char *fmt, ...)
 	}
 #endif
 	fd = fopen(file, "ab");
-	fprintf(fd, "%s", data);
-	fclose(fd);
+	if (fd)
+	{
+		fprintf(fd, "%s", data);
+		fclose(fd);
+	}
 };
 
 int *debug;
@@ -751,6 +754,9 @@ char *Sys_ConsoleInput (void)
 	HANDLE	th;
 	char	*clipText, *textCopied;
 
+	if (!hinput)
+		return;
+
 	for ( ;; )
 	{
 		if (!GetNumberOfConsoleInputEvents (hinput, &numevents))
@@ -868,6 +874,9 @@ qboolean Sys_InitTerminal (void)
 void Sys_CloseTerminal (void)
 {
 	FreeConsole();
+
+	hinput = NULL;
+	houtput = NULL;
 }
 
 
@@ -883,7 +892,7 @@ void Sys_SendKeyEvents (void)
 {
     MSG        msg;
 
-	if (!qrenderer)
+	if (isDedicated)
 	{
 #ifndef CLIENTONLY
 		SV_GetConsoleCommands ();

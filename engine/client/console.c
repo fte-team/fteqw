@@ -1150,15 +1150,10 @@ void Con_DrawConsole (int lines, qboolean noback)
 		QT_Update();
 #endif
 
-	if (qglGetError())
-		return;
-
 // draw the background
 	if (!noback)
 		Draw_ConsoleBackground (lines);
 
-	if (qglGetError())
-		return;
 // draw the text
 	con_current->vislines = lines;
 	
@@ -1178,9 +1173,7 @@ void Con_DrawConsole (int lines, qboolean noback)
 		rows--;
 	}
 	
-	if (qglGetError())
-		return;
-	
+
 	row = curcon->display;
 	for (i=0 ; i<rows ; i++, y-=8, row--)
 	{
@@ -1201,9 +1194,6 @@ void Con_DrawConsole (int lines, qboolean noback)
 	progresstext = NULL;
 	progresspercent = 0;
 	
-	if (qglGetError())
-		return;
-
 	// draw the download bar
 	// figure out width
 	if (cls.downloadmethod)
@@ -1271,15 +1261,9 @@ void Con_DrawConsole (int lines, qboolean noback)
 		Draw_ColouredCharacter ((n+1+x)*8, y, (unsigned char)'\x83' | M_COLOR_WHITE);
 	}
 	
-	if (qglGetError())
-		return;
-
 // draw the input prompt, user text, and cursor if desired
 	Con_DrawInput ();
 
-	
-	if (qglGetError())
-		return;
 }
 
 

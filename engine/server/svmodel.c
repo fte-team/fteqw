@@ -276,9 +276,9 @@ model_t *Mod_LoadModel (model_t *mod, qboolean crash)
 		break;
 #endif
 
-
-	case 29:
-	case 30:
+	case BSPVERSIONPREREL:
+	case BSPVERSION:
+	case BSPVERSIONHL:
 		Mod_LoadBrushModel (mod, buf);
 		break;
 
@@ -1224,7 +1224,7 @@ void Mod_LoadBrushModel (model_t *mod, void *buffer)
 	i = LittleLong (header->version);
 
 
-	if (i == BSPVERSION)
+	if (i == BSPVERSION || i == BSPVERSIONPREREL)
 		loadmodel->fromgame = fg_quake;
 	else if (i == BSPVERSIONHL)
 		loadmodel->fromgame = fg_halflife;

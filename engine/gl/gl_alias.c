@@ -1925,6 +1925,7 @@ static void *Q1_LoadFrameGroup (daliasframetype_t *pframetype, int *seamremaps)
 			pframetype = (daliasframetype_t *)&pinframe[pq1inmodel->numverts];
 			break;
 		case ALIAS_GROUP:
+		case ALIAS_GROUP_SWAPPED: // prerelease
 			ingroup = (daliasgroup_t *)(pframetype+1);
 
 			pose = (galiaspose_t *)Hunk_Alloc(LittleLong(ingroup->numframes)*(sizeof(galiaspose_t) + sizeof(vec3_t)*2*galias->numverts));

@@ -669,6 +669,7 @@ couldntload:
 
 	case 30:	//hl
 	case 29:	//q1
+	case 28:
 		GLMod_LoadBrushModel (mod, buf);
 		break;
 #ifdef ZYMOTICMODELS
@@ -2546,7 +2547,7 @@ void GLMod_LoadBrushModel (model_t *mod, void *buffer)
 
 	i = LittleLong (header->version);
 
-	if (i == BSPVERSION)
+	if (i == BSPVERSION || i == BSPVERSIONPREREL)
 		loadmodel->fromgame = fg_quake;
 	else if (i == BSPVERSIONHL)	//halflife support
 		loadmodel->fromgame = fg_halflife;

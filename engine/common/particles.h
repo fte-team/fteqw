@@ -2,7 +2,6 @@
 #define _PARTICLES_H_
 
 extern int pt_explosion,
-	pt_emp,
 	pt_pointfile,
 	pt_entityparticles,
 	pt_darkfield,

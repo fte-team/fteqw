@@ -398,6 +398,7 @@ model_t *SWMod_LoadModel (model_t *mod, qboolean crash)
 
 	case BSPVERSIONHL:
 	case BSPVERSION:	//hmm.
+	case BSPVERSIONPREREL:
 		SWMod_LoadBrushModel (mod, buf);
 		break;
 
@@ -1887,7 +1888,7 @@ void SWMod_LoadBrushModel (model_t *mod, void *buffer)
 
 	i = LittleLong (header->version);
 
-	if (i == BSPVERSION)
+	if (i == BSPVERSION || i == BSPVERSIONPREREL)
 		loadmodel->fromgame = fg_quake;
 	else if (i == BSPVERSIONHL)
 		loadmodel->fromgame = fg_halflife;

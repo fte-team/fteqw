@@ -727,6 +727,9 @@ int Key_StringToKeynum (char *str, int *modifier)
 	if (!str[1])	//single char.
 		return str[0];
 
+	if (!strncmp(str, "K_", 2))
+		str+=2;
+
 	for (kn=keynames ; kn->name ; kn++)
 	{
 		if (!Q_strcasecmp(str,kn->name))
@@ -1221,6 +1224,12 @@ void Key_Event (int key, qboolean down)
 		if (UI_KeyPress(key, down))	//Allow the UI to see the escape key. It is possible that a developer may get stuck at a menu.
 			return;
 
+#ifdef CSQC_DAT
+		if (key_dest == key_game)
+			if (CSQC_KeyPress(key, down))	//give csqc a chance to handle it.
+				return;
+#endif
+
 		if (!down)
 		{
 			if (key_dest == key_menu)
@@ -1313,7 +1322,6 @@ void Key_Event (int key, qboolean down)
 	{
 		if (UI_KeyPress(key, down) && down)	//UI is allowed to take these keydowns. Keyups are always maintained.
 			return;
-
 #ifdef CSQC_DAT
 		if (CSQC_KeyPress(key, down))	//give csqc a chance to handle it.
 			return;

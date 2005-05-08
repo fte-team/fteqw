@@ -1217,17 +1217,22 @@ void MP_Init (void)
 	menutime = Sys_DoubleTime();
 	if (!menuprogs)
 	{
+		Con_DPrintf("Initializing menu.dat\n");
 		menuprogs = InitProgs(&menuprogparms);
 		PR_Configure(menuprogs, -1, 1);
 		if (PR_LoadProgs(menuprogs, "menu.dat", 10020, NULL, 0) < 0) //no per-progs builtins.
 		{
 			//failed to load or something
+//			CloseProgs(menuprogs);
+//			menuprogs = NULL;
 			M_Init_Internal();
 			return;
 		}
 		if (setjmp(mp_abort))
 		{
 			M_Init_Internal();
+			Con_DPrintf("Failed to initialize menu.dat\n");
+			inmenuprogs = false;
 			return;
 		}
 		inmenuprogs++;
@@ -1253,6 +1258,8 @@ void MP_Init (void)
 		if (mp_init_function)
 			PR_ExecuteProgram(menuprogs, mp_init_function);
 		inmenuprogs--;
+
+		Con_DPrintf("Initialized menu.dat\n");
 	}
 }
 

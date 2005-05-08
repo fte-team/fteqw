@@ -1009,6 +1009,11 @@ void SCR_DrawFPS (void)
 			lastframetime = t;
 		}
 	}
+	else if (show_fps.value == 4)	//alternate mode that displays the highest noticed
+	{
+		lastfps = 1/host_frametime;
+		lastframetime = t;
+	}
 
 	sprintf(str, "%3.1f FPS", lastfps);
 	SCR_StringXY(str, show_fps_x.value, show_fps_y.value);

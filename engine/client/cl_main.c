@@ -50,7 +50,7 @@ cvar_t	cl_shownet = {"cl_shownet","0"};	// can be 0, 1, or 2
 
 cvar_t	cl_sbar		= {"cl_sbar", "0", NULL, CVAR_ARCHIVE};
 cvar_t	cl_hudswap	= {"cl_hudswap", "0", NULL, CVAR_ARCHIVE};
-cvar_t	cl_maxfps	= {"cl_maxfps", "-1", NULL, CVAR_ARCHIVE};
+cvar_t	cl_maxfps	= {"cl_maxfps", "1000", NULL, CVAR_ARCHIVE};
 cvar_t	cl_nopext	= {"cl_nopext", "0", NULL, CVAR_ARCHIVE};
 cvar_t	cl_nolerp	= {"cl_nolerp", "1"};
 
@@ -2694,12 +2694,12 @@ void Host_Frame (float time)
 
 	cls.framecount++;
 
+	RSpeedRemark();
+
 #ifdef NQPROT
 	NET_Poll();
 #endif
 
-
-	RSpeedRemark();
 
 	CL_UseIndepPhysics(!!cl_indepphysics.value);
 
@@ -2736,13 +2736,13 @@ void Host_Frame (float time)
 		}
 	}
 
+	TP_CheckVars();
 	RSpeedEnd(RSPEED_PROTOCOL);
 
 	// update video
 	if (host_speeds.value)
 		time1 = Sys_DoubleTime ();
 
-	TP_CheckVars();
 	if (SCR_UpdateScreen)
 	{
 		extern mleaf_t	*r_viewleaf;

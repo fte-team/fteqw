@@ -377,7 +377,7 @@ cvar_t	sv_demoNoVis = {"sv_demoNoVis", ""};
 cvar_t	sv_demoMaxSize = {"sv_demoMaxSize", ""};
 cvar_t	sv_demoExtraNames = {"sv_demoExtraNames", ""};
 
-cvar_t mvd_streamport = {"mvd_streamport", "27515"};
+cvar_t mvd_streamport = {"mvd_streamport", "0"};
 
 cvar_t			sv_demoPrefix = {"sv_demoPrefix", ""};
 cvar_t			sv_demoSuffix = {"sv_demoSuffix", ""};

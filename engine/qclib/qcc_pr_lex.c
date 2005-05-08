@@ -1540,7 +1540,7 @@ pbool QCC_PR_SimpleGetToken (void)
 	}
 
 	i = 0;
-	while ( (c = *pr_file_p) > ' ' && c != ',' && c != ';' && c != ')' && c != '(' && c != ']' && (c != '.' || pr_file_p[1] != '.'))
+	while ( (c = *pr_file_p) > ' ' && c != ',' && c != ';' && c != ')' && c != '(' && c != ']')
 	{
 		pr_token[i] = c;
 		i++;

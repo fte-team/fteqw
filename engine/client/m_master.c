@@ -702,7 +702,7 @@ void M_SListKey(int key)
 		if (slist_option<0)
 			slist_option=0;
 
-		if (slist_type == SLISTTYPE_SERVERS)
+		if (slist_type == SLISTTYPE_SERVERS || slist_type == SLISTTYPE_FAVORITES)
 			SListOptionChanged(M_FindCurrentServer());	//go for these early.
 	}
 	else if (key == K_DOWNARROW)
@@ -711,7 +711,7 @@ void M_SListKey(int key)
 		if (slist_option >= slist_numoptions)
 			slist_option = slist_numoptions-1;
 
-		if (slist_type == SLISTTYPE_SERVERS)
+		if (slist_type == SLISTTYPE_SERVERS || slist_type == SLISTTYPE_FAVORITES)
 			SListOptionChanged(M_FindCurrentServer());	//go for these early.
 	}
 	else if (key == K_PGDN)
@@ -720,7 +720,7 @@ void M_SListKey(int key)
 		if (slist_option >= slist_numoptions)
 			slist_option = slist_numoptions-1;
 
-		if (slist_type == SLISTTYPE_SERVERS)
+		if (slist_type == SLISTTYPE_SERVERS || slist_type == SLISTTYPE_FAVORITES)
 			SListOptionChanged(M_FindCurrentServer());	//go for these early.
 	}
 	else if (key == K_PGUP)
@@ -729,14 +729,14 @@ void M_SListKey(int key)
 		if (slist_option<0)
 			slist_option=0;
 
-		if (slist_type == SLISTTYPE_SERVERS)
+		if (slist_type == SLISTTYPE_SERVERS || slist_type == SLISTTYPE_FAVORITES)
 			SListOptionChanged(M_FindCurrentServer());	//go for these early.
 	}
 	else if (key == 'r')
 		MasterInfo_Begin();
 	else if (key == K_SPACE)
 	{
-		if (slist_type == SLISTTYPE_SERVERS)
+		if (slist_type == SLISTTYPE_SERVERS || slist_type == SLISTTYPE_FAVORITES)
 		{
 			selectedserver.inuse = !selectedserver.inuse;
 			if (selectedserver.inuse)

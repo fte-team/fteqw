@@ -47,7 +47,7 @@ void PR_RunThreads(void);
 
 extern int compileactive;
 
-typedef enum {PROG_NONE, PROG_QW, PROG_NQ, PROG_H2, PROG_UNKNOWN} progstype_t;
+typedef enum {PROG_NONE, PROG_QW, PROG_NQ, PROG_H2, PROG_PREREL, PROG_UNKNOWN} progstype_t;	//unknown obtains NQ behaviour
 extern progstype_t progstype;
                                  
 

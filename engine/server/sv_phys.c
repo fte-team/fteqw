@@ -1937,6 +1937,7 @@ SV_Physics
 qboolean SV_Physics (void)
 {
 	int		i;
+	qboolean retouch;
 	edict_t	*ent;
 	static double	old_time;
 
@@ -2004,6 +2005,9 @@ qboolean SV_Physics (void)
 
 	PR_RunThreads();
 
+
+	retouch = (pr_nqglobal_struct->force_retouch && *pr_nqglobal_struct->force_retouch);
+
 //
 // treat each object in turn
 // even the world gets a chance to think
@@ -2019,7 +2023,7 @@ qboolean SV_Physics (void)
 //			Con_Printf("Entity \"%s\" improperly changed solid type\n", svprogfuncs->stringtable+ent->v->classname);
 			SV_LinkEdict (ent, true);	// a change of solidity should always relink the edict. someone messed up.
 		}
-		else if (pr_global_struct->force_retouch)
+		else if (retouch)
 			SV_LinkEdict (ent, true);	// force retouch even for stationary
 
 		if (i > 0 && i <= sv.allocated_client_slots)
@@ -2043,7 +2047,7 @@ qboolean SV_Physics (void)
 		SV_RunNewmis ();
 	}
 	
-	if (pr_global_struct->force_retouch)
+	if (retouch)
 		pr_global_struct->force_retouch-=1;	
 
 	if (EndFrameQC)

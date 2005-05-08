@@ -5090,7 +5090,7 @@ void QCC_PR_ParseStatement (void)
 							patch3->b = &statements[pr_cases[i]] - patch3;
 						}
 						else
-							QCC_PR_ParseWarning(WARN_SWITCHTYPEMISMATCH, "switch caserange MUST be a float");
+							QCC_PR_ParseWarning(WARN_SWITCHTYPEMISMATCH, "switch caserange MUST be a float or integer");
 					}
 				}
 				else

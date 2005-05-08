@@ -1430,7 +1430,7 @@ void SV_WritePlayersToClient (client_t *client, edict_t *clent, qbyte *pvs, size
 	{
 		isbot = !cl->state && cl->name[0];
 		if (cl->state != cs_spawned)	//this includes bots
-			if (!isbot || progstype != PROG_NQ)	//unless they're NQ bots...
+			if (!isbot || progstype == PROG_QW)	//unless they're NQ bots...
 				continue;
 
 		ent = cl->edict;

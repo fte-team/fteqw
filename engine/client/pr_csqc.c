@@ -14,6 +14,7 @@ static qboolean csqcwantskeys;
 cvar_t	pr_csmaxedicts = {"pr_csmaxedicts", "3072"};
 cvar_t	cl_csqcdebug = {"cl_csqcdebug", "0"};	//prints entity numbers which arrive (so I can tell people not to apply it to players...)
 
+//If I do it like this, I'll never forget to register something...
 #define csqcglobals	\
 	globalfunction(init_function,		"CSQC_Init");	\
 	globalfunction(shutdown_function,	"CSQC_Shutdown");	\
@@ -608,6 +609,7 @@ static void PF_R_RenderScene(progfuncs_t *prinst, struct globalvars_s *pr_global
 	CalcGunAngle(0);
 
 	R_RenderView();
+
 #ifdef RGLQUAKE
 	if (qrenderer == QR_OPENGL)
 	{
@@ -1146,9 +1148,9 @@ static void PF_cs_getplayerkey (progfuncs_t *prinst, struct globalvars_s *pr_glo
 		ret = Info_ValueForKey(cl.players[pnum].userinfo, keyname);
 	}
 	if (*ret)
-		G_INT(OFS_RETURN) = 0;
-	else
 		RETURN_SSTRING(ret);
+	else
+		G_INT(OFS_RETURN) = 0;
 }
 
 extern int mouseusedforgui, mousecursor_x, mousecursor_y;
@@ -1679,7 +1681,7 @@ qboolean CSQC_KeyPress(int key, qboolean down)
 
 	pr_globals = PR_globals(csqcprogs, PR_CURRENT);
 	G_FLOAT(OFS_PARM0) = !down;
-	G_FLOAT(OFS_PARM1) = key;
+	G_FLOAT(OFS_PARM1) = MP_TranslateFTEtoDPCodes(key);
 	G_FLOAT(OFS_PARM2) = 0;
 
 	PR_ExecuteProgram (csqcprogs, csqcg.input_event);

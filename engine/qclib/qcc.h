@@ -66,7 +66,7 @@ extern int MAX_CONSTANTS;
 #define MAXCONSTANTLENGTH 32
 #define MAXCONSTANTVALUELENGTH 256
 #define MAXCONSTANTPARAMLENGTH 32
-#define MAXCONSTANTPARAMS 4
+#define MAXCONSTANTPARAMS 8
 
 typedef enum {QCF_STANDARD, QCF_HEXEN2, QCF_FTE, QCF_FTEDEBUG, QCF_KK7} qcc_targetformat_t;
 extern qcc_targetformat_t qcc_targetformat;

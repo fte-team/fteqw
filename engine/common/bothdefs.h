@@ -105,7 +105,7 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 		#define ZYMOTICMODELS	//zymotic skeletal models.
 		#define HUFFNETWORK		//huffman network compression
 		#define HALFLIFEMODELS	//halflife model support (experimental)
-		#define DOOMWADS		//doom wad/map/sprite support
+//		#define DOOMWADS		//doom wad/map/sprite support
 		//#define WOLF3DSUPPORT	//wolfenstein3d map support (not started yet)
 		#define Q2BSPS			//quake 2 bsp support
 		#define Q3BSPS			//quake 3 bsp support

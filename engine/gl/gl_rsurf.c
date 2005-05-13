@@ -3077,10 +3077,10 @@ static void GLR_LeafWorldNode (void)
 		// check for door connected areas
 //		if ( areabits )
 		{
-			if (! (areabits[pleaf->area>>3] & (1<<(pleaf->area&7)) ) )
-			{
-				continue;		// not visible
-			}
+//			if (! (areabits[pleaf->area>>3] & (1<<(pleaf->area&7)) ) )
+//			{
+//				continue;		// not visible
+//			}
 		}
 
 		clipflags = 15;		// 1 | 2 | 4 | 8
@@ -3509,11 +3509,11 @@ void BuildSurfaceDisplayList (msurface_t *fa)
 //#ifdef Q3SHADERS
 //	if (fa->texinfo->texture->shader)
 	{	//build a nice mesh instead of a poly.
-		int size = sizeof(mesh_t) + sizeof(index_t)*(lnumverts-2)*3 + (sizeof(vec4_t) + sizeof(vec3_t) + 2*sizeof(vec2_t) + sizeof(byte_vec4_t))*lnumverts;
+		int size = sizeof(mesh_t) + sizeof(index_t)*(lnumverts-2)*3 + (sizeof(vec3_t) + sizeof(vec3_t) + 2*sizeof(vec2_t) + sizeof(byte_vec4_t))*lnumverts;
 		mesh_t *mesh;
 
 		fa->mesh = mesh = Hunk_Alloc(size);
-		mesh->xyz_array = (vec4_t*)(mesh + 1);
+		mesh->xyz_array = (vec3_t*)(mesh + 1);
 		mesh->normals_array = (vec3_t*)(mesh->xyz_array + lnumverts);
 		mesh->st_array = (vec2_t*)(mesh->normals_array + lnumverts);
 		mesh->lmst_array = (vec2_t*)(mesh->st_array + lnumverts);
@@ -3704,7 +3704,7 @@ void GL_CreateSurfaceLightmap (msurface_t *surf)
 	smax = (surf->extents[0]>>4)+1;
 	tmax = (surf->extents[1]>>4)+1;
 
-	if (smax > LMBLOCK_WIDTH || tmax > LMBLOCK_HEIGHT || smax <= 0 || tmax <= 0)
+	if (smax > LMBLOCK_WIDTH || tmax > LMBLOCK_HEIGHT || smax < 0 || tmax < 0)
 	{	//whoa, buggy.
 		surf->lightmaptexturenum = -1;
 		return;

@@ -14,6 +14,7 @@
 #define HLPOLYHEADER	(('T' << 24) + ('S' << 16) + ('D' << 8) + 'I')	/* little-endian "IDST" */
 #define HLMDLHEADER		"IDST"
 
+typedef vec_t vec4_t[4];
 /*
  -----------------------------------------------------------------------------------------------------------------------
     main model header
@@ -207,7 +208,7 @@ typedef struct
     int		frame;					/* Current animation sequence and frame */
     float	frametime;				/* Time of last frame drawn */
     float	controller[4];				/* Position of bone controllers */
-    vec4_t	adjust;
+    float	adjust[4];
 
     /* Static pointers */
     hlmdl_header_t			*header;

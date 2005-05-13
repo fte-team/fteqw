@@ -669,7 +669,7 @@ couldntload:
 
 	case 30:	//hl
 	case 29:	//q1
-	case 28:
+	case 28:	//prerel
 		GLMod_LoadBrushModel (mod, buf);
 		break;
 #ifdef ZYMOTICMODELS
@@ -2807,7 +2807,7 @@ void GLMod_FloodFillSkin( qbyte *skin, int skinwidth, int skinheight )
 Mod_LoadSpriteFrame
 =================
 */
-void * GLMod_LoadSpriteFrame (void * pin, mspriteframe_t **ppframe, int framenum, int version)
+void * GLMod_LoadSpriteFrame (void * pin, mspriteframe_t **ppframe, int framenum, int version, unsigned char *palette)
 {
 	dspriteframe_t		*pinframe;
 	mspriteframe_t		*pspriteframe;
@@ -2839,15 +2839,25 @@ void * GLMod_LoadSpriteFrame (void * pin, mspriteframe_t **ppframe, int framenum
 	COM_StripExtension(loadmodel->name, name);
 	strcat(name, va("_%i", framenum));
 	pspriteframe->gl_texturenum = Mod_LoadReplacementTexture(name, "sprites", true, true, true);
+
 	if (version == SPRITE32_VERSION)
 	{
 		size *= 4;
-		if (!pspriteframe->gl_texturenum) pspriteframe->gl_texturenum = GL_LoadTexture32 (name, width, height, (unsigned *)(pinframe + 1), true, true);
+		if (!pspriteframe->gl_texturenum)
+			pspriteframe->gl_texturenum = GL_LoadTexture32 (name, width, height, (unsigned *)(pinframe + 1), true, true);
 	}
-	else	
-		if (!pspriteframe->gl_texturenum) pspriteframe->gl_texturenum = GL_LoadTexture (name, width, height, (qbyte *)(pinframe + 1), true, true);
+	else if (version == SPRITEHL_VERSION)
+	{
+		if (!pspriteframe->gl_texturenum)
+			pspriteframe->gl_texturenum = GL_LoadTexture8Pal32 (name, width, height, (unsigned *)(pinframe + 1), palette, true, true);
+	}
+	else
+	{
+		if (!pspriteframe->gl_texturenum)
+			pspriteframe->gl_texturenum = GL_LoadTexture (name, width, height, (qbyte *)(pinframe + 1), true, true);
+	}
 
-	return (void *)((qbyte *)pinframe + sizeof (dspriteframe_t) + size);
+	return (void *)((qbyte *)(pinframe+1) + size);
 }
 
 
@@ -2856,7 +2866,7 @@ void * GLMod_LoadSpriteFrame (void * pin, mspriteframe_t **ppframe, int framenum
 Mod_LoadSpriteGroup
 =================
 */
-void * GLMod_LoadSpriteGroup (void * pin, mspriteframe_t **ppframe, int framenum, int version)
+void * GLMod_LoadSpriteGroup (void * pin, mspriteframe_t **ppframe, int framenum, int version, unsigned char *palette)
 {
 	dspritegroup_t		*pingroup;
 	mspritegroup_t		*pspritegroup;
@@ -2896,7 +2906,7 @@ void * GLMod_LoadSpriteGroup (void * pin, mspriteframe_t **ppframe, int framenum
 
 	for (i=0 ; i<numframes ; i++)
 	{
-		ptemp = GLMod_LoadSpriteFrame (ptemp, &pspritegroup->frames[i], framenum * 100 + i, version);
+		ptemp = GLMod_LoadSpriteFrame (ptemp, &pspritegroup->frames[i], framenum * 100 + i, version, palette);
 	}
 
 	return ptemp;
@@ -2916,14 +2926,26 @@ void GLMod_LoadSpriteModel (model_t *mod, void *buffer)
 	int					numframes;
 	int					size;
 	dspriteframetype_t	*pframetype;
+	int rendertype=0;
+	unsigned char pal[256*4];
+	int sptype;
 	
 	pin = (dsprite_t *)buffer;
 
 	version = LittleLong (pin->version);
-	if (version != SPRITE32_VERSION)
 	if (version != SPRITE_VERSION)
+	if (version != SPRITE32_VERSION)
+	if (version != SPRITEHL_VERSION)
 		Sys_Error ("%s has wrong version number "
 				 "(%i should be %i)", mod->name, version, SPRITE_VERSION);
+
+	sptype = LittleLong (pin->type);
+
+	if (pin->version == SPRITEHL_VERSION)
+	{
+		pin = (dsprite_t*)((char*)pin + 4);
+		rendertype = LittleLong (pin->type);
+	}
 
 	numframes = LittleLong (pin->numframes);
 
@@ -2932,8 +2954,8 @@ void GLMod_LoadSpriteModel (model_t *mod, void *buffer)
 	psprite = Hunk_AllocName (size, loadname);
 
 	mod->cache.data = psprite;
+	psprite->type = sptype;
 
-	psprite->type = LittleLong (pin->type);
 	psprite->maxwidth = LittleLong (pin->width);
 	psprite->maxheight = LittleLong (pin->height);
 	psprite->beamlength = LittleFloat (pin->beamlength);
@@ -2944,7 +2966,28 @@ void GLMod_LoadSpriteModel (model_t *mod, void *buffer)
 	mod->maxs[0] = mod->maxs[1] = psprite->maxwidth/2;
 	mod->mins[2] = -psprite->maxheight/2;
 	mod->maxs[2] = psprite->maxheight/2;
-	
+
+	if (pin->version == SPRITEHL_VERSION)
+	{
+		int i;
+		short *numi = (short*)(pin+1);
+		unsigned char *src = (unsigned char *)(numi+1);
+		if (*numi != 256)
+			Sys_Error("%s has wrong number of palette indexes (we only support 256)\n", mod->name);
+
+		for (i = 0; i < 256; i++)
+		{
+			pal[i*4+0] = *src++;
+			pal[i*4+1] = *src++;
+			pal[i*4+2] = *src++;
+			pal[i*4+3] = 255;
+		}
+
+		pframetype = (dspriteframetype_t *)(src);
+	}
+	else
+		pframetype = (dspriteframetype_t *)(pin + 1);
+
 //
 // load the frames
 //
@@ -2952,8 +2995,6 @@ void GLMod_LoadSpriteModel (model_t *mod, void *buffer)
 		Sys_Error ("Mod_LoadSpriteModel: Invalid # of frames: %d\n", numframes);
 
 	mod->numframes = numframes;
-
-	pframetype = (dspriteframetype_t *)(pin + 1);
 
 	for (i=0 ; i<numframes ; i++)
 	{
@@ -2966,13 +3007,13 @@ void GLMod_LoadSpriteModel (model_t *mod, void *buffer)
 		{
 			pframetype = (dspriteframetype_t *)
 					GLMod_LoadSpriteFrame (pframetype + 1,
-										 &psprite->frames[i].frameptr, i, version);
+										 &psprite->frames[i].frameptr, i, version, pal);
 		}
 		else
 		{
 			pframetype = (dspriteframetype_t *)
 					GLMod_LoadSpriteGroup (pframetype + 1,
-										 &psprite->frames[i].frameptr, i, version);
+										 &psprite->frames[i].frameptr, i, version, pal);
 		}
 	}
 

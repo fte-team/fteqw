@@ -1258,6 +1258,7 @@ void CL_ParseServerData (void)
 			cl.frames[i].playerstate[cl.playernum[0]].pm_type = PM_SPECTATOR;
 
 		cl.splitclients = 1;
+		CL_RegisterSplitCommands();
 	}
 	else
 	{
@@ -1284,6 +1285,7 @@ void CL_ParseServerData (void)
 				Host_EndGame("Server sent us too many alternate clients\n");
 		}
 		cl.splitclients = clnum+1;
+		CL_RegisterSplitCommands();
 	}
 
 	// get the full level name
@@ -1389,6 +1391,7 @@ void CLQ2_ParseServerData (void)
 	// parse player entity number
 	cl.playernum[0] = MSG_ReadShort ();
 	cl.splitclients = 1;
+	CL_RegisterSplitCommands();
 	cl.spectator = false;
 
 	// get the full level name
@@ -1475,6 +1478,7 @@ void CLNQ_ParseServerData(void)		//Doesn't change gamedir - use with caution.
 	}
 
 	cl.splitclients = 1;
+	CL_RegisterSplitCommands();
 
 	/*cl.gametype =*/ MSG_ReadByte ();
 

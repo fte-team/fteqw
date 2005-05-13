@@ -69,6 +69,7 @@ void (APIENTRY *qglVertex3fv) (const GLfloat *v);
 void (APIENTRY *qglViewport) (GLint x, GLint y, GLsizei width, GLsizei height);
 void (APIENTRY *qglGetTexLevelParameteriv) (GLenum target, GLint level, GLenum pname, GLint *params);
 
+void (APIENTRY *qglDrawRangeElements) (GLenum, GLuint, GLuint, GLsizei, GLenum, const GLvoid *);
 void (APIENTRY *qglDrawElements) (GLenum mode, GLsizei count, GLenum type, const GLvoid *indices);
 void (APIENTRY *qglArrayElement) (GLint i);
 void (APIENTRY *qglVertexPointer) (GLint size, GLenum type, GLsizei stride, const GLvoid *pointer);
@@ -523,6 +524,8 @@ void GL_Init(void *(*getglfunction) (char *name))
 	qglDrawArrays			= (void *)getglcore("glDrawArrays");
 	qglEnableClientState	= (void *)getglcore("glEnableClientState");
 	qglDisableClientState	= (void *)getglcore("glDisableClientState");
+
+	qglDrawRangeElements	= (void *)getglext("glDrawRangeElements");
 
 	//fixme: definatly make non-core
 	qglStencilOp		= (void *)getglcore("glStencilOp");

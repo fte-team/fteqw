@@ -143,6 +143,7 @@ extern	cvar_t	gl_maxdist;
 cvar_t		gl_specular = {"gl_specular", "0"};
 #endif
 cvar_t		gl_detail = {"gl_detail", "0", NULL, CVAR_ARCHIVE};
+cvar_t		gl_overbright = {"gl_overbright", "0", NULL, CVAR_ARCHIVE};
 cvar_t		r_shadows = {"r_shadows", "0", NULL, CVAR_ARCHIVE|CVAR_RENDERERLATCH};
 cvar_t		r_shadow_realtime_world = {"r_shadow_realtime_world", "0", NULL, CVAR_CHEAT};
 cvar_t		r_noaliasshadows = {"r_noaliasshadows", "0", NULL, CVAR_ARCHIVE};
@@ -315,6 +316,7 @@ void GLRenderer_Init(void)
 	Cvar_Register (&gl_compress, GLRENDEREROPTIONS);
 	Cvar_Register (&gl_driver, GLRENDEREROPTIONS);
 	Cvar_Register (&gl_detail, GRAPHICALNICETIES);
+	Cvar_Register (&gl_overbright, GRAPHICALNICETIES);
 	Cvar_Register (&gl_dither, GRAPHICALNICETIES);
 	Cvar_Register (&r_fb_models, GRAPHICALNICETIES);
 	Cvar_Register (&r_fb_bmodels, GRAPHICALNICETIES);

@@ -182,7 +182,22 @@ static void VARGS Q_snprintfz (char *dest, size_t size, char *fmt, ...)
 	\
 	TP_CVAR(tp_name_enemy,			"enemy");	\
 	TP_CVAR(tp_name_teammate,		"");	\
-	TP_CVAR(tp_name_eyes,			"eyes")
+	TP_CVAR(tp_name_eyes,			"eyes");	\
+	\
+	TP_CVAR(loc_name_seperator,		"-");	\
+	TP_CVAR(loc_name_ssg,		"ssg");	\
+	TP_CVAR(loc_name_ng,		"ng");	\
+	TP_CVAR(loc_name_sng,		"sng");	\
+	TP_CVAR(loc_name_gl,		"gl");	\
+	TP_CVAR(loc_name_rl,		"rl");	\
+	TP_CVAR(loc_name_lg,		"lg");	\
+	TP_CVAR(loc_name_ga,		"ga");	\
+	TP_CVAR(loc_name_ya,		"ya");	\
+	TP_CVAR(loc_name_ra,		"ra");	\
+	TP_CVAR(loc_name_quad,		"quad");	\
+	TP_CVAR(loc_name_pent,		"pent");	\
+	TP_CVAR(loc_name_ring,		"ring");	\
+	TP_CVAR(loc_name_suit,		"suit")
 
 //create the globals for all the TP cvars.
 #define TP_CVAR(name,def) cvar_t	name = {#name, def}

@@ -4201,6 +4201,7 @@ potentialgamepath_t pgp[] = {
 	{"%s/id1/pak0.pak",		"%s/id1"},		//quake1
 	{"%s/baseq2/pak0.pak",	"%s/baseq2"},	//quake2
 	{"%s/data1/pak0.pak",	"%s/data1"},	//hexen2
+	{"%s/data/data.pk3",	"%s/data"},		//nexuiz
 	{"%s/baseq3/pak0.pk3",	"%s/baseq3"},	//quake3
 	{"%s/base/assets0.pk3",	"%s/base"}		//jk2
 };

@@ -207,7 +207,7 @@ void R_DrawSkyChain (msurface_t *s)
 		qglDisableClientState( GL_COLOR_ARRAY );
 		for (fa=s ; fa ; fa=fa->texturechain)
 		{
-			qglVertexPointer(3, GL_FLOAT, 16, fa->mesh->xyz_array);
+			qglVertexPointer(3, GL_FLOAT, 0, fa->mesh->xyz_array);
 			qglDrawElements(GL_TRIANGLES, fa->mesh->numindexes, GL_UNSIGNED_INT, fa->mesh->indexes);
 		}
 		R_IBrokeTheArrays();
@@ -591,7 +591,7 @@ void R_DrawSkyBoxChain (msurface_t *s)
 #define skygridyrecip (1.0f / (skygridy))
 #define skysphere_numverts (skygridx1 * skygridy1)
 #define skysphere_numtriangles (skygridx * skygridy * 2)
-static float skysphere_vertex4f[skysphere_numverts * 4];
+static float skysphere_vertex3f[skysphere_numverts * 3];
 static float skysphere_texcoord2f[skysphere_numverts * 2];
 static int skysphere_element3i[skysphere_numtriangles * 3];
 mesh_t skymesh;
@@ -621,7 +621,7 @@ static void skyspherecalc(int skytype)
 	skymesh.indexes = skysphere_element3i;
 	skymesh.st_array = (void*)skysphere_texcoord2f;
 	skymesh.lmst_array = (void*)skysphere_texcoord2f;
-	skymesh.xyz_array = (void*)skysphere_vertex4f;
+	skymesh.xyz_array = (void*)skysphere_vertex3f;
 
 	skymesh.numindexes = skysphere_numtriangles * 3;
 	skymesh.numvertexes = skysphere_numverts;
@@ -629,7 +629,7 @@ static void skyspherecalc(int skytype)
 	dx = 16;
 	dy = 16;
 	dz = 16 / 3;
-	vertex3f = skysphere_vertex4f;
+	vertex3f = skysphere_vertex3f;
 	texcoord2f = skysphere_texcoord2f;
 	for (j = 0;j <= skygridy;j++)
 	{
@@ -649,7 +649,6 @@ static void skyspherecalc(int skytype)
 			*vertex3f++ = v[0];
 			*vertex3f++ = v[1];
 			*vertex3f++ = v[2];
-			vertex3f++;
 		}
 	}
 	e = skysphere_element3i;

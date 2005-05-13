@@ -935,6 +935,25 @@ void CL_ParseTEnt (void)
 		CLQ2_RailTrail (pos, pos2);
 		break;
 
+	case DPTE_SMOKE:
+		//org
+		pos[0] = MSG_ReadCoord ();
+		pos[0] = MSG_ReadCoord ();
+		pos[0] = MSG_ReadCoord ();
+
+		//dir
+		pos2[0] = MSG_ReadCoord ();
+		pos2[0] = MSG_ReadCoord ();
+		pos2[0] = MSG_ReadCoord ();
+
+		//count
+		cnt = MSG_ReadByte ();
+		{
+			extern int pt_smoke;
+			P_RunParticleEffectType(pos, pos2, cnt, pt_smoke);
+		}
+		break;
+
 	case 79:
 		pos[0] = MSG_ReadCoord ();
 		pos[1] = MSG_ReadCoord ();

@@ -432,6 +432,7 @@ void SV_Map_f (void)
 	qboolean issamelevel = false;
 	qboolean newunit = false;
 	qboolean cinematic = false;
+	qboolean waschangelevel = false;
 	int i;
 	char *startspot;
 
@@ -443,6 +444,8 @@ void SV_Map_f (void)
 
 	strcpy (level, Cmd_Argv(1));
 	startspot = ((Cmd_Argc() == 2)?NULL:Cmd_Argv(2));
+
+	waschangelevel = !strcmp(Cmd_Argv(0), "changelevel");
 
 	nextserver = strchr(level, '+');
 	if (nextserver)
@@ -545,7 +548,11 @@ void SV_Map_f (void)
 #endif
 
 	if (newunit || !startspot || !SV_LoadLevelCache(level, startspot, false))
+	{
+		if (waschangelevel && !startspot)
+			startspot = "";
 		SV_SpawnServer (level, startspot, false, cinematic);
+	}
 
 	SV_BroadcastCommand ("reconnect\n");
 

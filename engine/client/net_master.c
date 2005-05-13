@@ -57,6 +57,41 @@ master_t *master;
 player_t *mplayers;
 serverinfo_t *firstserver;
 
+static serverinfo_t **visibleservers;
+static int numvisibleservers;
+static int maxvisibleservers;
+
+static qboolean needsort;
+
+static hostcachekey_t sortfield;
+static qboolean decreasingorder;
+
+
+
+
+typedef struct {
+	hostcachekey_t fieldindex;
+
+	float operandi;
+	char *operands;
+
+	qboolean or;
+	int compareop;
+} visrules_t;
+#define MAX_VISRULES 8
+visrules_t visrules[MAX_VISRULES];
+int numvisrules;
+
+
+
+
+#define SLIST_MAXKEYS 64
+char slist_keyname[SLIST_MAXKEYS][MAX_INFO_KEY];
+int slist_customkeys;
+
+
+
+
 
 #define POLLUDPSOCKETS 64	//it's big so we can have lots of messages when behind a firewall. Basically if a firewall only allows replys, and only remembers 3 servers per socket, we need this big cos it can take a while for a packet to find a fast optimised route and we might be waiting for a few secs for a reply the first time around.
 SOCKET pollsocketsUDP[POLLUDPSOCKETS];
@@ -72,6 +107,374 @@ int lastpollsockIPX;
 
 
 void NetadrToSockadr (netadr_t *a, struct sockaddr_qstorage *s);
+
+void Master_HideServer(serverinfo_t *server)
+{
+	int i, j;
+	for (i = 0; i < numvisibleservers;)
+	{
+		if (visibleservers[i] == server)
+		{
+			for (j = i; j < numvisibleservers-1; j++)
+				visibleservers[j] = visibleservers[j+1];
+			visibleservers--;
+		}
+		else
+			 i++;
+	}
+	server->insortedlist = false;
+}
+
+void Master_InsertAt(serverinfo_t *server, int pos)
+{
+	int i;
+	for (i = numvisibleservers; i > pos; i--)
+	{
+		visibleservers[i] = visibleservers[i-1];
+	}
+	visibleservers[pos] = server;
+	numvisibleservers++;
+
+	server->insortedlist = true;
+}
+
+qboolean Master_CompareInteger(int a, int b, slist_test_t rule)
+{
+	switch(rule)
+	{
+	case SLIST_TEST_CONTAINS:
+		return a&b;
+	case SLIST_TEST_NOTCONTAIN:
+		return !(a&b);
+	case SLIST_TEST_LESSEQUAL:
+		return a<=b;
+	case SLIST_TEST_LESS:
+		return a<b;
+	case SLIST_TEST_EQUAL:
+		return a==b;
+	case SLIST_TEST_GREATER:
+		return a>b;
+	case SLIST_TEST_GREATEREQUAL:
+		return a>=b;
+	case SLIST_TEST_NOTEQUAL:
+		return a!=b;
+	}
+	return false;
+}
+qboolean Master_CompareString(char *a, char *b, slist_test_t rule)
+{
+	switch(rule)
+	{
+	case SLIST_TEST_CONTAINS:
+		return !!strstr(a, b);
+	case SLIST_TEST_NOTCONTAIN:
+		return !strstr(a, b);
+	case SLIST_TEST_LESSEQUAL:
+		return strcmp(a, b)<=0;
+	case SLIST_TEST_LESS:
+		return strcmp(a, b)<0;
+	case SLIST_TEST_EQUAL:
+		return strcmp(a, b)==0;
+	case SLIST_TEST_GREATER:
+		return strcmp(a, b)>0;
+	case SLIST_TEST_GREATEREQUAL:
+		return strcmp(a, b)>=0;
+	case SLIST_TEST_NOTEQUAL:
+		return strcmp(a, b)!=0;
+	}
+	return false;
+}
+
+qboolean Master_ServerIsGreater(serverinfo_t *a, serverinfo_t *b)
+{
+	switch(sortfield)
+	{
+	case SLKEY_PING:
+		return Master_CompareInteger(a->ping, b->ping, SLIST_TEST_LESS);
+	case SLKEY_NUMPLAYERS:
+		return Master_CompareInteger(a->players, b->players, SLIST_TEST_LESS);
+	case SLKEY_MAXPLAYERS:
+		return Master_CompareInteger(a->maxplayers, b->maxplayers, SLIST_TEST_LESS);
+	case SLKEY_MAP:
+		return Master_CompareString(a->map, b->map, SLIST_TEST_LESS);
+	case SLKEY_GAMEDIR:
+		return Master_CompareString(a->gamedir, b->gamedir, SLIST_TEST_LESS);
+	case SLKEY_NAME:
+		return Master_CompareString(a->name, b->name, SLIST_TEST_LESS);
+	}
+	return false;
+}
+
+qboolean Master_PassesMasks(serverinfo_t *a)
+{
+	int i;
+	//always filter out dead unresponsive servers.
+	if (!a->ping)
+		return false;
+
+	for (i = 0; i < numvisrules; i++)
+	{
+		switch(visrules[i].fieldindex)
+		{
+		case SLKEY_PING:
+			if (!Master_CompareInteger(a->ping, visrules[i].operandi, visrules[i].compareop))
+				return false;
+			break;
+		case SLKEY_NUMPLAYERS:
+			if (!Master_CompareInteger(a->players, visrules[i].operandi, visrules[i].compareop))
+				return false;
+			break;
+		case SLKEY_MAXPLAYERS:
+			if (!Master_CompareInteger(a->maxplayers, visrules[i].operandi, visrules[i].compareop))
+				return false;
+			break;
+
+		case SLKEY_MAP:
+			if (!Master_CompareString(a->map, visrules[i].operands, visrules[i].compareop))
+				return false;
+			break;
+		case SLKEY_NAME:
+			if (!Master_CompareString(a->name, visrules[i].operands, visrules[i].compareop))
+				return false;
+			break;
+		case SLKEY_GAMEDIR:
+			if (!Master_CompareString(a->gamedir, visrules[i].operands, visrules[i].compareop))
+				return false;
+			break;
+		}
+	}
+
+	return true;
+}
+
+void Master_ClearMasks(void)
+{
+	numvisrules = 0;
+}
+
+void Master_SetMaskString(qboolean or, hostcachekey_t field, char *param, slist_test_t testop)
+{
+	if (numvisrules == MAX_VISRULES)
+		return;	//just don't add it.
+
+	visrules[numvisrules].fieldindex = field;
+	visrules[numvisrules].compareop = testop;
+	visrules[numvisrules].operands = param;
+	visrules[numvisrules].or = or;
+	numvisrules++;
+}
+void Master_SetMaskInteger(qboolean or, hostcachekey_t field, int param, slist_test_t testop)
+{
+	if (numvisrules == MAX_VISRULES)
+		return;	//just don't add it.
+
+	visrules[numvisrules].fieldindex = field;
+	visrules[numvisrules].compareop = testop;
+	visrules[numvisrules].operandi = param;
+	visrules[numvisrules].or = or;
+	numvisrules++;
+}
+void Master_SetSortField(hostcachekey_t field, qboolean descending)
+{
+	sortfield = field;
+	decreasingorder = descending;
+}
+hostcachekey_t Master_GetSortField(void)
+{
+	return sortfield;
+}
+qboolean Master_GetSortDescending(void)
+{
+	return decreasingorder;
+}
+
+void Master_ShowServer(serverinfo_t *server)
+{
+	int i;
+	if (!numvisibleservers)
+	{
+		Master_InsertAt(server, 0);
+		return;
+	}
+
+	if (!decreasingorder)
+	{
+		for (i = 0; i < numvisibleservers; i++)
+		{
+			if (!Master_ServerIsGreater(server, visibleservers[i]))
+			{
+				Master_InsertAt(server, i);
+				return;
+			}
+		}
+
+	}
+	else
+	{
+		for (i = 0; i < numvisibleservers; i++)
+		{
+			if (Master_ServerIsGreater(server, visibleservers[i]))
+			{
+				Master_InsertAt(server, i);
+				return;
+			}
+		}
+	}
+
+	Master_InsertAt(server, numvisibleservers);
+}
+
+void Master_ResortServer(serverinfo_t *server)
+{
+	if (server->insortedlist)
+	{
+		if (!Master_PassesMasks(server))
+			Master_HideServer(server);
+	}
+	else
+	{
+		if (Master_PassesMasks(server))
+			Master_ShowServer(server);
+	}
+}
+
+void Master_SortServers(void)
+{
+	serverinfo_t *server;
+
+	int total = Master_TotalCount();
+	if (maxvisibleservers < total)
+	{
+		maxvisibleservers = total;
+		visibleservers = BZ_Realloc(visibleservers, maxvisibleservers*sizeof(serverinfo_t*));
+	}
+
+	{
+		numvisibleservers = 0;
+		for (server = firstserver; server; server = server->next)
+			server->insortedlist = false;
+	}
+
+	for (server = firstserver; server; server = server->next)
+	{
+		Master_ResortServer(server);
+	}
+
+	needsort = false;
+}
+
+serverinfo_t *Master_SortedServer(int idx)
+{
+	if (needsort)
+		Master_SortServers();
+
+	if (idx < 0 || idx >= numvisibleservers)
+		return NULL;
+
+	return visibleservers[idx];
+}
+
+int Master_NumSorted(void)
+{
+//	if (needsort)
+		Master_SortServers();
+
+	return numvisibleservers;
+}
+
+
+
+float Master_ReadKeyFloat(serverinfo_t *server, int keynum)
+{
+	if (!server)
+		return -1;
+	else if (keynum < SLKEY_CUSTOM)
+	{
+		switch(keynum)
+		{
+		case SLKEY_PING:
+			return server->ping;
+		case SLKEY_NUMPLAYERS:
+			return server->players;
+		case SLKEY_MAXPLAYERS:
+			return server->maxplayers;
+
+		default:
+			return atof(Master_ReadKeyString(server, keynum));
+		}
+	}
+	else if (server->moreinfo)
+		return atof(Info_ValueForKey(server->moreinfo->info, slist_keyname[keynum-SLKEY_CUSTOM]));
+
+	return 0;
+}
+
+char *Master_ReadKeyString(serverinfo_t *server, int keynum)
+{
+	if (keynum < SLKEY_CUSTOM)
+	{
+		switch(keynum)
+		{
+		case SLKEY_MAP:
+			return server->map;
+		case SLKEY_NAME:
+			return server->name;
+		case SLKEY_ADDRESS:
+			return NET_AdrToString(server->adr);
+		case SLKEY_GAMEDIR:
+			return server->gamedir;
+
+		default:
+			{
+				static char s[64];
+				sprintf(s, "%f", Master_ReadKeyFloat(server, keynum));
+				return s;
+			}
+		}
+	}
+	else if (server->moreinfo)
+		return Info_ValueForKey(server->moreinfo->info, slist_keyname[keynum-SLKEY_CUSTOM]);
+
+	return "";
+}
+
+int Master_KeyForName(char *keyname)
+{
+	int i;
+	if (!strcmp(keyname, "map"))
+		return SLKEY_MAP;
+	else if (!strcmp(keyname, "ping"))
+		return SLKEY_PING;
+	else if (!strcmp(keyname, "name"))
+		return SLKEY_NAME;
+	else if (!strcmp(keyname, "address") || !strcmp(keyname, "cname"))
+		return SLKEY_ADDRESS;
+	else if (!strcmp(keyname, "maxplayers"))
+		return SLKEY_MAXPLAYERS;
+	else if (!strcmp(keyname, "numplayers"))
+		return SLKEY_NUMPLAYERS;
+	else if (!strcmp(keyname, "gamedir") || !strcmp(keyname, "game") || !strcmp(keyname, "*gamedir") || !strcmp(keyname, "mod"))
+		return SLKEY_GAMEDIR;
+
+	else if (slist_customkeys == SLIST_MAXKEYS)
+		return SLKEY_TOOMANY;
+	else
+	{
+		for (i = 0; i < slist_customkeys; i++)
+		{
+			if (!strcmp(slist_keyname[i], keyname))
+			{
+				return i + SLKEY_CUSTOM;
+			}
+		}
+		Q_strncpyz(slist_keyname[slist_customkeys], keyname, MAX_INFO_KEY);
+	
+		slist_customkeys++;
+
+		return slist_customkeys-1 + SLKEY_CUSTOM;
+	}
+}
+
 
 
 
@@ -641,7 +1044,7 @@ void MasterInfo_Begin(void)
 void Master_QueryServer(serverinfo_t *server)
 {
 	char	data[2048];
-	server->sends++;
+	server->sends--;
 	server->refreshtime = Sys_DoubleTime();
 	sprintf(data, "%c%c%c%cstatus", 255, 255, 255, 255);
 	NET_SendPollPacket (strlen(data), data, server->adr);
@@ -665,7 +1068,7 @@ void CL_QueryServers(void)
 
 	if (op == 0)
 	{
-		if (server->sends < 1)
+		if (server->sends > 0)
 		{
 			Master_QueryServer(server);
 		}
@@ -967,7 +1370,7 @@ void CL_MasterListParse(qboolean isq2)
 		info->adr.port = (int)((short)(p1 + (p2<<8)));
 		if ((old = Master_InfoForServer(info->adr)))	//remove if the server already exists.
 		{
-			old->sends = 0;	//reset.
+			old->sends = 1;	//reset.
 			Z_Free(info);
 		}
 		else

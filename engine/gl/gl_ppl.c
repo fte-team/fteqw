@@ -15,6 +15,7 @@ extern int		*lightmap_textures;
 extern int		lightmap_bytes;		// 1, 2, or 4
 
 extern cvar_t		gl_detail;
+extern cvar_t		gl_overbright;
 extern cvar_t		r_fb_bmodels;
 extern cvar_t		gl_part_flame;
 
@@ -30,6 +31,8 @@ extern cvar_t gl_schematics;
 extern cvar_t r_drawflat;
 extern cvar_t r_wallcolour;
 extern cvar_t r_floorcolour;
+
+int overbright;
 
 extern lightmapinfo_t **lightmap;
 
@@ -277,9 +280,10 @@ static void PPL_BaseChain_NoBump_2TMU(msurface_t *s, texture_t *tex)
 		qglClientActiveTextureARB(GL_TEXTURE1_ARB);
 		qglTexCoordPointer(2, GL_FLOAT, 0, s->mesh->lmst_array);
 
-		qglVertexPointer(3, GL_FLOAT, sizeof(vec4_t), s->mesh->xyz_array);
+		qglVertexPointer(3, GL_FLOAT, 0, s->mesh->xyz_array);
 
-		qglDrawElements(GL_TRIANGLES, s->mesh->numindexes, GL_UNSIGNED_INT, s->mesh->indexes);
+		qglDrawRangeElements(GL_TRIANGLES, 0, s->mesh->numvertexes, s->mesh->numindexes, GL_UNSIGNED_INT, s->mesh->indexes);
+		//qglDrawElements(GL_TRIANGLES, s->mesh->numindexes, GL_UNSIGNED_INT, s->mesh->indexes);
 	}
 
 	qglDisable(GL_TEXTURE_2D);
@@ -288,6 +292,195 @@ static void PPL_BaseChain_NoBump_2TMU(msurface_t *s, texture_t *tex)
 	GL_SelectTexture(GL_TEXTURE0_ARB);
 	qglDisableClientState(GL_TEXTURE_COORD_ARRAY);
 }
+
+static void PPL_BaseChain_NoBump_2TMU_Overbright(msurface_t *s, texture_t *tex)
+{	//doesn't merge surfaces, but tells gl to do each vertex arrayed surface individually, which means no vertex copying.
+	int vi;
+	glRect_t    *theRect;
+
+	PPL_EnableVertexArrays();
+
+	if (tex->alphaed)
+	{
+		qglEnable(GL_BLEND);
+		GL_TexEnv(GL_MODULATE);
+	}
+	else
+	{
+		qglDisable(GL_BLEND);
+		GL_TexEnv(GL_REPLACE);
+	}
+
+
+	GL_MBind(GL_TEXTURE0_ARB, tex->gl_texturenum);
+	qglEnableClientState(GL_TEXTURE_COORD_ARRAY);
+
+	GL_SelectTexture(GL_TEXTURE1_ARB);
+	qglEnableClientState(GL_TEXTURE_COORD_ARRAY);
+
+
+	if (overbright != 1)
+	{
+		GL_TexEnv(GL_COMBINE_ARB);
+		qglTexEnvi(GL_TEXTURE_ENV, GL_SOURCE0_RGB_ARB, GL_TEXTURE);
+		qglTexEnvi(GL_TEXTURE_ENV, GL_SOURCE1_RGB_ARB, GL_PREVIOUS_ARB);
+		qglTexEnvi(GL_TEXTURE_ENV, GL_COMBINE_RGB_ARB, GL_MODULATE);
+		qglTexEnvi(GL_TEXTURE_ENV, GL_RGB_SCALE_ARB, overbright);	//this is the key
+	}
+
+	vi = -1;
+	for (; s ; s=s->texturechain)
+	{
+		if (vi != s->lightmaptexturenum)
+		{
+			if (vi<0)
+				qglEnable(GL_TEXTURE_2D);
+			vi = s->lightmaptexturenum;
+
+			if (vi>=0)
+			{
+				GL_Bind(lightmap_textures[vi] );
+				if (lightmap[vi]->modified)
+				{
+					lightmap[vi]->modified = false;
+					theRect = &lightmap[vi]->rectchange;
+					qglTexSubImage2D(GL_TEXTURE_2D, 0, 0, theRect->t, 
+						LMBLOCK_WIDTH, theRect->h, gl_lightmap_format, GL_UNSIGNED_BYTE,
+						lightmap[vi]->lightmaps+(theRect->t) *LMBLOCK_WIDTH*lightmap_bytes);
+					theRect->l = LMBLOCK_WIDTH;
+					theRect->t = LMBLOCK_HEIGHT;
+					theRect->h = 0;
+					theRect->w = 0;
+				}
+			}
+			else
+				qglDisable(GL_TEXTURE_2D);
+		}
+
+		qglClientActiveTextureARB(GL_TEXTURE0_ARB);
+		qglTexCoordPointer(2, GL_FLOAT, 0, s->mesh->st_array);
+		qglClientActiveTextureARB(GL_TEXTURE1_ARB);
+		qglTexCoordPointer(2, GL_FLOAT, 0, s->mesh->lmst_array);
+
+		qglVertexPointer(3, GL_FLOAT, 0, s->mesh->xyz_array);
+
+		qglDrawRangeElements(GL_TRIANGLES, 0, s->mesh->numvertexes, s->mesh->numindexes, GL_UNSIGNED_INT, s->mesh->indexes);
+	}
+
+	if (overbright != 1)
+	{
+		qglTexEnvi(GL_TEXTURE_ENV, GL_RGB_SCALE_ARB, 1);	//just in case
+		GL_TexEnv(GL_MODULATE);
+	}
+
+	qglDisable(GL_TEXTURE_2D);
+	qglDisableClientState(GL_TEXTURE_COORD_ARRAY);
+
+	GL_SelectTexture(GL_TEXTURE0_ARB);
+	qglDisableClientState(GL_TEXTURE_COORD_ARRAY);
+}
+
+/*
+static void PPL_BaseChain_NoBump_2TMU_TEST(msurface_t *s, texture_t *tex)
+{	//this was just me testing efficiency between arrays/glbegin.
+	int vi, i;
+	glRect_t    *theRect;
+
+	PPL_EnableVertexArrays();
+
+	if (tex->alphaed)
+	{
+		qglEnable(GL_BLEND);
+		GL_TexEnv(GL_MODULATE);
+	}
+	else
+	{
+		qglDisable(GL_BLEND);
+		GL_TexEnv(GL_REPLACE);
+	}
+
+	qglCullFace(GL_BACK);
+
+
+	GL_MBind(GL_TEXTURE0_ARB, tex->gl_texturenum);
+
+	GL_SelectTexture(GL_TEXTURE1_ARB);
+	GL_TexEnv(GL_MODULATE);
+
+	vi = -1;
+	for (; s ; s=s->texturechain)
+	{
+		if (vi != s->lightmaptexturenum)
+		{
+			if (vi<0)
+				qglEnable(GL_TEXTURE_2D);
+			vi = s->lightmaptexturenum;
+
+			if (vi>=0)
+			{
+				GL_Bind(lightmap_textures[vi] );
+				if (lightmap[vi]->modified)
+				{
+					lightmap[vi]->modified = false;
+					theRect = &lightmap[vi]->rectchange;
+					qglTexSubImage2D(GL_TEXTURE_2D, 0, 0, theRect->t, 
+						LMBLOCK_WIDTH, theRect->h, gl_lightmap_format, GL_UNSIGNED_BYTE,
+						lightmap[vi]->lightmaps+(theRect->t) *LMBLOCK_WIDTH*lightmap_bytes);
+					theRect->l = LMBLOCK_WIDTH;
+					theRect->t = LMBLOCK_HEIGHT;
+					theRect->h = 0;
+					theRect->w = 0;
+				}
+			}
+			else
+				qglDisable(GL_TEXTURE_2D);
+		}
+
+		qglBegin(GL_POLYGON);
+		switch(s->mesh->numvertexes)
+		{
+		default:
+			for (i = s->mesh->numvertexes-1; i >= 6; i--)
+			{
+				qglMultiTexCoord2fARB(GL_TEXTURE0_ARB, s->mesh->st_array[i][0], s->mesh->st_array[i][1]);
+				qglMultiTexCoord2fARB(GL_TEXTURE1_ARB, s->mesh->lmst_array[i][0], s->mesh->lmst_array[i][1]);
+				qglVertex3fv(s->mesh->xyz_array[i]);
+			}
+		case 6:
+			qglMultiTexCoord2fARB(GL_TEXTURE0_ARB, s->mesh->st_array[5][0], s->mesh->st_array[5][1]);
+			qglMultiTexCoord2fARB(GL_TEXTURE1_ARB, s->mesh->lmst_array[5][0], s->mesh->lmst_array[5][1]);
+			qglVertex3fv(s->mesh->xyz_array[5]);
+		case 5:
+			qglMultiTexCoord2fARB(GL_TEXTURE0_ARB, s->mesh->st_array[4][0], s->mesh->st_array[4][1]);
+			qglMultiTexCoord2fARB(GL_TEXTURE1_ARB, s->mesh->lmst_array[4][0], s->mesh->lmst_array[4][1]);
+			qglVertex3fv(s->mesh->xyz_array[4]);
+		case 4:
+			qglMultiTexCoord2fARB(GL_TEXTURE0_ARB, s->mesh->st_array[3][0], s->mesh->st_array[3][1]);
+			qglMultiTexCoord2fARB(GL_TEXTURE1_ARB, s->mesh->lmst_array[3][0], s->mesh->lmst_array[3][1]);
+			qglVertex3fv(s->mesh->xyz_array[3]);
+		case 3:
+			qglMultiTexCoord2fARB(GL_TEXTURE0_ARB, s->mesh->st_array[2][0], s->mesh->st_array[2][1]);
+			qglMultiTexCoord2fARB(GL_TEXTURE1_ARB, s->mesh->lmst_array[2][0], s->mesh->lmst_array[2][1]);
+			qglVertex3fv(s->mesh->xyz_array[2]);
+		case 2:
+			qglMultiTexCoord2fARB(GL_TEXTURE0_ARB, s->mesh->st_array[1][0], s->mesh->st_array[1][1]);
+			qglMultiTexCoord2fARB(GL_TEXTURE1_ARB, s->mesh->lmst_array[1][0], s->mesh->lmst_array[1][1]);
+			qglVertex3fv(s->mesh->xyz_array[1]);
+		case 1:
+			qglMultiTexCoord2fARB(GL_TEXTURE0_ARB, s->mesh->st_array[0][0], s->mesh->st_array[0][1]);
+			qglMultiTexCoord2fARB(GL_TEXTURE1_ARB, s->mesh->lmst_array[0][0], s->mesh->lmst_array[0][1]);
+			qglVertex3fv(s->mesh->xyz_array[0]);
+		case 0:
+			break;
+		}
+		qglEnd();
+	}
+
+	qglDisable(GL_TEXTURE_2D);
+
+	GL_SelectTexture(GL_TEXTURE0_ARB);
+}
+*/
 
 static void PPL_BaseChain_Bump_2TMU(msurface_t *first, texture_t *tex)
 {
@@ -1194,9 +1387,9 @@ static void PPL_BaseTextureChain(msurface_t *first)
 
 				if (s->mesh)
 				{
-					redraw = mb.fog != s->fog || mb.infokey != vi|| mb.shader->flags&SHADER_DEFORMV_BULGE;
+					redraw = mb.fog != s->fog || mb.infokey != vi|| mb.shader->flags&SHADER_DEFORMV_BULGE || R_MeshWillExceed(s->mesh);
 
-					if (redraw)// || numIndexes + s->mesh->numindexes > MAX_ARRAY_INDEXES)
+					if (redraw)
 					{
 						if (mb.mesh)
 							R_RenderMeshBuffer ( &mb, false );
@@ -1265,7 +1458,9 @@ static void PPL_BaseTextureChain(msurface_t *first)
 		}
 		else
 		{
-			PPL_BaseChain_NoBump_2TMU(first, t);
+//			PPL_BaseChain_NoBump_2TMU_TEST(first, t);
+//			PPL_BaseChain_NoBump_2TMU(first, t);
+			PPL_BaseChain_NoBump_2TMU_Overbright(first, t);
 		}
 	}
 }
@@ -1325,6 +1520,13 @@ void PPL_BaseTextures(model_t *model)
 	qglBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
 
 	qglShadeModel(GL_FLAT);
+
+	if (gl_overbright.value>=2)
+		overbright = 4;
+	else if (gl_overbright.value)
+		overbright = 2;
+	else
+		overbright = 1;
 
 	currentmodel = model;
 	currententity->alpha = 1;
@@ -2476,6 +2678,9 @@ void PPL_SchematicsTextureChain(msurface_t *first)
 	const float size = 0.0625;
 	float frow, fcol;
 	int e, en;
+
+	if (!cl.worldmodel->surfedges)
+		return;
 
 	qglEnable(GL_ALPHA_TEST);
 
@@ -4010,13 +4215,14 @@ void PPL_DrawWorld (void)
 	vec3_t mins, maxs;
 
 	int maxshadowlights = gl_maxshadowlights.value;
-
+/*
 	if (!lightmap)
 	{
 		R_PreNewMap();
 		R_NewMap();
 		return;	// :/
 	}
+	*/
 
 	if (maxshadowlights < 1)
 		maxshadowlights = 1;
@@ -4165,7 +4371,6 @@ void PPL_DrawWorld (void)
 
 	R_IBrokeTheArrays();
 }
-#endif
 
 void PPL_CreateShaderObjects(void)
 {
@@ -4174,3 +4379,5 @@ void PPL_CreateShaderObjects(void)
 #endif
 	PPL_LoadSpecularFragmentProgram();
 }
+
+#endif

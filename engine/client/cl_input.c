@@ -1456,6 +1456,131 @@ static char	*VARGS vahunk(char *format, ...)
 	return ret;	
 }
 
+void CL_RegisterSplitCommands(void)
+{
+	static int oldsplit;
+	char spn[8];
+	int sp;
+	for (sp = 0; sp < MAX_SPLITS; sp++)
+	{
+		if (sp)
+			sprintf(spn, "%i", sp+1);
+		else
+			*spn = '\0';
+		if (sp < cl.splitclients)
+		{
+			if (oldsplit & (1<<sp))
+				continue;
+			oldsplit |= (1<<sp);
+
+			Cmd_AddRemCommand (vahunk("+moveup%s",		spn),	IN_UpDown);
+			Cmd_AddRemCommand (vahunk("-moveup%s",		spn),	IN_UpUp);
+			Cmd_AddRemCommand (vahunk("+movedown%s",	spn),	IN_DownDown);
+			Cmd_AddRemCommand (vahunk("-movedown%s",	spn),	IN_DownUp);
+			Cmd_AddRemCommand (vahunk("+left%s",		spn),	IN_LeftDown);
+			Cmd_AddRemCommand (vahunk("-left%s",		spn),	IN_LeftUp);
+			Cmd_AddRemCommand (vahunk("+right%s",		spn),	IN_RightDown);
+			Cmd_AddRemCommand (vahunk("-right%s",		spn),	IN_RightUp);
+			Cmd_AddRemCommand (vahunk("+forward%s",		spn),	IN_ForwardDown);
+			Cmd_AddRemCommand (vahunk("-forward%s",		spn),	IN_ForwardUp);
+			Cmd_AddRemCommand (vahunk("+back%s",		spn),	IN_BackDown);
+			Cmd_AddRemCommand (vahunk("-back%s",		spn),	IN_BackUp);
+			Cmd_AddRemCommand (vahunk("+lookup%s",		spn),	IN_LookupDown);
+			Cmd_AddRemCommand (vahunk("-lookup%s",		spn),	IN_LookupUp);
+			Cmd_AddRemCommand (vahunk("+lookdown%s",	spn),	IN_LookdownDown);
+			Cmd_AddRemCommand (vahunk("-lookdown%s",	spn),	IN_LookdownUp);
+			Cmd_AddRemCommand (vahunk("+strafe%s",		spn),	IN_StrafeDown);
+			Cmd_AddRemCommand (vahunk("-strafe%s",		spn),	IN_StrafeUp);
+			Cmd_AddRemCommand (vahunk("+moveleft%s",	spn),	IN_MoveleftDown);
+			Cmd_AddRemCommand (vahunk("-moveleft%s",	spn),	IN_MoveleftUp);
+			Cmd_AddRemCommand (vahunk("+moveright%s",	spn),	IN_MoverightDown);
+			Cmd_AddRemCommand (vahunk("-moveright%s",	spn),	IN_MoverightUp);
+			Cmd_AddRemCommand (vahunk("+speed%s",		spn),	IN_SpeedDown);
+			Cmd_AddRemCommand (vahunk("-speed%s",		spn),	IN_SpeedUp);
+			Cmd_AddRemCommand (vahunk("+attack%s",		spn),	IN_AttackDown);
+			Cmd_AddRemCommand (vahunk("-attack%s",		spn),	IN_AttackUp);
+			Cmd_AddRemCommand (vahunk("+use%s",			spn),	IN_UseDown);
+			Cmd_AddRemCommand (vahunk("-use%s",			spn),	IN_UseUp);
+			Cmd_AddRemCommand (vahunk("+jump%s",		spn),	IN_JumpDown);
+			Cmd_AddRemCommand (vahunk("-jump%s",		spn),	IN_JumpUp);
+			Cmd_AddRemCommand (vahunk("impulse%s",		spn),	IN_Impulse);
+			Cmd_AddRemCommand (vahunk("+klook%s",		spn),	IN_KLookDown);
+			Cmd_AddRemCommand (vahunk("-klook%s",		spn),	IN_KLookUp);
+			Cmd_AddRemCommand (vahunk("+mlook%s",		spn),	IN_MLookDown);
+			Cmd_AddRemCommand (vahunk("-mlook%s",		spn),	IN_MLookUp);
+
+
+			Cmd_AddRemCommand (vahunk("+button3%s",	spn),	IN_Button3Down);
+			Cmd_AddRemCommand (vahunk("-button3%s",	spn),	IN_Button3Up);
+			Cmd_AddRemCommand (vahunk("+button4%s",	spn),	IN_Button4Down);
+			Cmd_AddRemCommand (vahunk("-button4%s",	spn),	IN_Button4Up);
+			Cmd_AddRemCommand (vahunk("+button5%s",	spn),	IN_Button5Down);
+			Cmd_AddRemCommand (vahunk("-button5%s",	spn),	IN_Button5Up);
+			Cmd_AddRemCommand (vahunk("+button6%s",	spn),	IN_Button6Down);
+			Cmd_AddRemCommand (vahunk("-button6%s",	spn),	IN_Button6Up);
+			Cmd_AddRemCommand (vahunk("+button7%s",	spn),	IN_Button7Down);
+			Cmd_AddRemCommand (vahunk("-button7%s",	spn),	IN_Button7Up);
+			Cmd_AddRemCommand (vahunk("+button8%s",	spn),	IN_Button8Down);
+			Cmd_AddRemCommand (vahunk("-button8%s",	spn),	IN_Button8Up);
+		}
+		else
+		{
+			if (!(oldsplit & (1<<sp)))
+				continue;
+			oldsplit &= ~(1<<sp);
+
+			Cmd_RemoveCommand (vahunk("+moveup%s",		spn));
+			Cmd_RemoveCommand (vahunk("-moveup%s",		spn));
+			Cmd_RemoveCommand (vahunk("+movedown%s",	spn));
+			Cmd_RemoveCommand (vahunk("-movedown%s",	spn));
+			Cmd_RemoveCommand (vahunk("+left%s",		spn));
+			Cmd_RemoveCommand (vahunk("-left%s",		spn));
+			Cmd_RemoveCommand (vahunk("+right%s",		spn));
+			Cmd_RemoveCommand (vahunk("-right%s",		spn));
+			Cmd_RemoveCommand (vahunk("+forward%s",		spn));
+			Cmd_RemoveCommand (vahunk("-forward%s",		spn));
+			Cmd_RemoveCommand (vahunk("+back%s",		spn));
+			Cmd_RemoveCommand (vahunk("-back%s",		spn));
+			Cmd_RemoveCommand (vahunk("+lookup%s",		spn));
+			Cmd_RemoveCommand (vahunk("-lookup%s",		spn));
+			Cmd_RemoveCommand (vahunk("+lookdown%s",	spn));
+			Cmd_RemoveCommand (vahunk("-lookdown%s",	spn));
+			Cmd_RemoveCommand (vahunk("+strafe%s",		spn));
+			Cmd_RemoveCommand (vahunk("-strafe%s",		spn));
+			Cmd_RemoveCommand (vahunk("+moveleft%s",	spn));
+			Cmd_RemoveCommand (vahunk("-moveleft%s",	spn));
+			Cmd_RemoveCommand (vahunk("+moveright%s",	spn));
+			Cmd_RemoveCommand (vahunk("-moveright%s",	spn));
+			Cmd_RemoveCommand (vahunk("+speed%s",		spn));
+			Cmd_RemoveCommand (vahunk("-speed%s",		spn));
+			Cmd_RemoveCommand (vahunk("+attack%s",		spn));
+			Cmd_RemoveCommand (vahunk("-attack%s",		spn));
+			Cmd_RemoveCommand (vahunk("+use%s",			spn));
+			Cmd_RemoveCommand (vahunk("-use%s",			spn));
+			Cmd_RemoveCommand (vahunk("+jump%s",		spn));
+			Cmd_RemoveCommand (vahunk("-jump%s",		spn));
+			Cmd_RemoveCommand (vahunk("impulse%s",		spn));
+			Cmd_RemoveCommand (vahunk("+klook%s",		spn));
+			Cmd_RemoveCommand (vahunk("-klook%s",		spn));
+			Cmd_RemoveCommand (vahunk("+mlook%s",		spn));
+			Cmd_RemoveCommand (vahunk("-mlook%s",		spn));
+
+
+			Cmd_RemoveCommand (vahunk("+button3%s",	spn));
+			Cmd_RemoveCommand (vahunk("-button3%s",	spn));
+			Cmd_RemoveCommand (vahunk("+button4%s",	spn));
+			Cmd_RemoveCommand (vahunk("-button4%s",	spn));
+			Cmd_RemoveCommand (vahunk("+button5%s",	spn));
+			Cmd_RemoveCommand (vahunk("-button5%s",	spn));
+			Cmd_RemoveCommand (vahunk("+button6%s",	spn));
+			Cmd_RemoveCommand (vahunk("-button6%s",	spn));
+			Cmd_RemoveCommand (vahunk("+button7%s",	spn));
+			Cmd_RemoveCommand (vahunk("-button7%s",	spn));
+			Cmd_RemoveCommand (vahunk("+button8%s",	spn));
+			Cmd_RemoveCommand (vahunk("-button8%s",	spn));
+		}
+	}
+}
 
 /*
 ============
@@ -1464,72 +1589,8 @@ CL_InitInput
 */
 void CL_InitInput (void)
 {
-	int sp;
-	char spn[8];
-	qboolean nosplits = COM_CheckParm("-nosplit");
 #define inputnetworkcvargroup "client networking options"
-	//controls for player2
-	for (sp = MAX_SPLITS-1; sp >=0; sp--)
-	{
-		if (sp)
-		{
-			if (nosplits)
-				continue;
-			sprintf(spn, "%i", sp+1);
-		}
-		else
-			*spn = '\0';
-
-		Cmd_AddCommand (vahunk("+moveup%s",		spn),	IN_UpDown);
-		Cmd_AddCommand (vahunk("-moveup%s",		spn),	IN_UpUp);
-		Cmd_AddCommand (vahunk("+movedown%s",	spn),	IN_DownDown);
-		Cmd_AddCommand (vahunk("-movedown%s",	spn),	IN_DownUp);
-		Cmd_AddCommand (vahunk("+left%s",		spn),	IN_LeftDown);
-		Cmd_AddCommand (vahunk("-left%s",		spn),	IN_LeftUp);
-		Cmd_AddCommand (vahunk("+right%s",		spn),	IN_RightDown);
-		Cmd_AddCommand (vahunk("-right%s",		spn),	IN_RightUp);
-		Cmd_AddCommand (vahunk("+forward%s",	spn),	IN_ForwardDown);
-		Cmd_AddCommand (vahunk("-forward%s",	spn),	IN_ForwardUp);
-		Cmd_AddCommand (vahunk("+back%s",		spn),	IN_BackDown);
-		Cmd_AddCommand (vahunk("-back%s",		spn),	IN_BackUp);
-		Cmd_AddCommand (vahunk("+lookup%s",		spn),	IN_LookupDown);
-		Cmd_AddCommand (vahunk("-lookup%s",		spn),	IN_LookupUp);
-		Cmd_AddCommand (vahunk("+lookdown%s",	spn),	IN_LookdownDown);
-		Cmd_AddCommand (vahunk("-lookdown%s",	spn),	IN_LookdownUp);
-		Cmd_AddCommand (vahunk("+strafe%s",		spn),	IN_StrafeDown);
-		Cmd_AddCommand (vahunk("-strafe%s",		spn),	IN_StrafeUp);
-		Cmd_AddCommand (vahunk("+moveleft%s",	spn),	IN_MoveleftDown);
-		Cmd_AddCommand (vahunk("-moveleft%s",	spn),	IN_MoveleftUp);
-		Cmd_AddCommand (vahunk("+moveright%s",	spn),	IN_MoverightDown);
-		Cmd_AddCommand (vahunk("-moveright%s",	spn),	IN_MoverightUp);
-		Cmd_AddCommand (vahunk("+speed%s",		spn),	IN_SpeedDown);
-		Cmd_AddCommand (vahunk("-speed%s",		spn),	IN_SpeedUp);
-		Cmd_AddCommand (vahunk("+attack%s",		spn),	IN_AttackDown);
-		Cmd_AddCommand (vahunk("-attack%s",		spn),	IN_AttackUp);
-		Cmd_AddCommand (vahunk("+use%s",		spn),	IN_UseDown);
-		Cmd_AddCommand (vahunk("-use%s",		spn),	IN_UseUp);
-		Cmd_AddCommand (vahunk("+jump%s",		spn),	IN_JumpDown);
-		Cmd_AddCommand (vahunk("-jump%s",		spn),	IN_JumpUp);
-		Cmd_AddCommand (vahunk("impulse%s",		spn),	IN_Impulse);
-		Cmd_AddCommand (vahunk("+klook%s",		spn),	IN_KLookDown);
-		Cmd_AddCommand (vahunk("-klook%s",		spn),	IN_KLookUp);
-		Cmd_AddCommand (vahunk("+mlook%s",		spn),	IN_MLookDown);
-		Cmd_AddCommand (vahunk("-mlook%s",		spn),	IN_MLookUp);
-
-
-		Cmd_AddCommand (vahunk("+button3%s",	spn),	IN_Button3Down);
-		Cmd_AddCommand (vahunk("-button3%s",	spn),	IN_Button3Up);
-		Cmd_AddCommand (vahunk("+button4%s",	spn),	IN_Button4Down);
-		Cmd_AddCommand (vahunk("-button4%s",	spn),	IN_Button4Up);
-		Cmd_AddCommand (vahunk("+button5%s",	spn),	IN_Button5Down);
-		Cmd_AddCommand (vahunk("-button5%s",	spn),	IN_Button5Up);
-		Cmd_AddCommand (vahunk("+button6%s",	spn),	IN_Button6Down);
-		Cmd_AddCommand (vahunk("-button6%s",	spn),	IN_Button6Up);
-		Cmd_AddCommand (vahunk("+button7%s",	spn),	IN_Button7Down);
-		Cmd_AddCommand (vahunk("-button7%s",	spn),	IN_Button7Up);
-		Cmd_AddCommand (vahunk("+button8%s",	spn),	IN_Button8Down);
-		Cmd_AddCommand (vahunk("-button8%s",	spn),	IN_Button8Up);
-	}
+	CL_RegisterSplitCommands();
 
 	Cmd_AddCommand("rotate", IN_Rotate_f);
 

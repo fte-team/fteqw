@@ -482,9 +482,9 @@ void CL_ParsePacketEntities (qboolean delta)
 
 		if ((from & UPDATE_MASK) != (oldpacket & UPDATE_MASK)) {
 			Con_DPrintf ("WARNING: from mismatch\n");
-			FlushEntityPacket ();
-			cl.validsequence = 0;
-			return;
+//			FlushEntityPacket ();
+//			cl.validsequence = 0;
+//			return;
 		}
 
 		if (cls.netchan.outgoing_sequence - oldpacket >= UPDATE_BACKUP - 1) {
@@ -1502,7 +1502,7 @@ void CL_LinkPacketEntities (void)
 					a1 -= 360;
 				if (a1 - a2 < -180)
 					a1 += 360;
-				angles[i] = a2 + f * (a1 - a2);
+				angles[i] = a1 + f * (a2 - a1);
 			}
 		}
 
@@ -1516,7 +1516,11 @@ void CL_LinkPacketEntities (void)
 			CL_RotateAroundTag(ent, s1->number, cl.lerpents[s1->number].tagent, cl.lerpents[s1->number].tagindex);
 		}
 
-		if (ent->keynum <= MAX_CLIENTS && cls.demoplayback != DPB_NETQUAKE && (!cls.netcon || cls.netcon->qwprotocol))
+		if (ent->keynum <= MAX_CLIENTS
+#ifdef NQPROT
+			&& cls.demoplayback != DPB_NETQUAKE && (!cls.netcon || cls.netcon->qwprotocol)
+#endif
+			)
 			ent->keynum += MAX_EDICTS;
 
 		// add automatic particle trails

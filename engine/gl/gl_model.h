@@ -50,7 +50,7 @@ typedef int index_t;
 typedef struct mesh_s
 {
     int				numvertexes;
-	vec4_t			*xyz_array;
+	vec3_t			*xyz_array;
 	vec3_t			*normals_array;
 	vec2_t			*st_array;
 	vec2_t			*lmst_array;
@@ -73,7 +73,7 @@ struct meshbuffer_s;
 
 void R_PushMesh ( mesh_t *mesh, int features );
 void R_RenderMeshBuffer ( struct meshbuffer_s *mb, qboolean shadowpass );
-
+qboolean R_MeshWillExceed(mesh_t *mesh);
 
 extern int gl_canbumpmap;
 

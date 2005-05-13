@@ -513,9 +513,11 @@ sndinitstat SNDDMA_InitDirect (soundcardinfo_t *sc)
 	dsnd_guids=0;
 	dsndguid=NULL;
 	dsndcard="DirectSound";
-	if (snd_multipledevices)
 	if (pDirectSoundEnumerate)
 		pDirectSoundEnumerate(&DSEnumCallback, NULL);
+	if (!snd_multipledevices)
+		dsndguid=NULL;
+
 	aimedforguid++;
 
 	if (!dsndguid)	//no more...
@@ -523,11 +525,15 @@ sndinitstat SNDDMA_InitDirect (soundcardinfo_t *sc)
 			return SIS_NOMORE;
  //EAX attempt
 #ifndef MINIMAL
-	CoInitialize(NULL);
-	if (FAILED(CoCreateInstance( &CLSID_EAXDirectSound, NULL, CLSCTX_INPROC_SERVER, &IID_IDirectSound, (void **)&sc->pDS )))
-		sc->pDS=NULL;
-	else
-		IDirectSound_Initialize(sc->pDS, dsndguid);
+	sc->pDS = NULL;
+	if (snd_eax.value)
+	{
+		CoInitialize(NULL);
+		if (FAILED(CoCreateInstance( &CLSID_EAXDirectSound, dsndguid, CLSCTX_INPROC_SERVER, &IID_IDirectSound, (void **)&sc->pDS )))
+			sc->pDS=NULL;
+		else
+			IDirectSound_Initialize(sc->pDS, dsndguid);
+	}
 
 	if (!sc->pDS)
 #endif
@@ -548,7 +554,7 @@ sndinitstat SNDDMA_InitDirect (soundcardinfo_t *sc)
 //			{
 				Con_SafePrintf (": failure\n"
 								"  hardware already in use\n"
-								"  Close the app then use snd_restart\n");
+								"  Close the other app then use snd_restart\n");
 				return SIS_NOTAVAIL;
 //			}
 		}
@@ -1016,7 +1022,7 @@ int SNDDMA_Init(soundcardinfo_t *sc)
 				sc->snd_isdirect = true;
 
 				if (snd_firsttime)
-					Con_SafePrintf ("%s initialized\n", sc->name);
+					Con_DPrintf ("%s initialized\n", sc->name);
 
 				return 1;
 			}
@@ -1025,7 +1031,7 @@ int SNDDMA_Init(soundcardinfo_t *sc)
 			else
 			{
 				sc->snd_isdirect = false;
-				Con_SafePrintf ("DirectSound failed to init\n");				
+				Con_DPrintf ("DirectSound failed to init\n");				
 			}
 		}
 	}

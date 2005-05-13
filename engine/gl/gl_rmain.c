@@ -1908,9 +1908,6 @@ void GLR_RenderView (void)
 	    qglPNTrianglesfATI(GL_PN_TRIANGLES_TESSELATION_LEVEL_ATI, gl_ati_truform_tesselation.value);
 	}
 
-
-
-
 	if (gl_finish.value)
 	{
 		RSpeedMark();
@@ -2011,12 +2008,10 @@ void GLR_RenderView (void)
 	if (qglGetError())
 		Con_Printf("GL Error drawing scene\n");
 
-	if (!scenepp_ww_program)
-		return;
-
 	// SCENE POST PROCESSING
 	// we check if we need to use any shaders - currently it's just waterwarp
-	if ( (r_waterwarp.value && r_viewleaf && r_viewleaf->contents <= Q1CONTENTS_WATER))
+	if (scenepp_ww_program)
+	if ((r_waterwarp.value && r_viewleaf && r_viewleaf->contents <= Q1CONTENTS_WATER))
 	{
 		float vwidth = 1, vheight = 1;
 		float vs, vt;

@@ -377,4 +377,7 @@ int rquant[RQUANT_MAX];
 #define RSpeedLocals() int rsp
 #define RSpeedMark() int rsp = r_speeds.value?Sys_DoubleTime()*1000000:0
 #define RSpeedRemark() rsp = r_speeds.value?Sys_DoubleTime()*1000000:0
+
+//extern void (_stdcall *qglFinish) (void);
+//#define RSpeedEnd(spt) do {qglFinish(); rspeeds[spt] += r_speeds.value?Sys_DoubleTime()*1000000 - rsp:0;}while (0)
 #define RSpeedEnd(spt) rspeeds[spt] += r_speeds.value?Sys_DoubleTime()*1000000 - rsp:0

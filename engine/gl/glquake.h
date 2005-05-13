@@ -712,6 +712,8 @@ extern BOOL  (WINAPI *qwglMakeCurrent)(HDC, HGLRC);
 extern BOOL  (WINAPI *qSwapBuffers)(HDC);
 #endif
 
+extern void (APIENTRY *qglDrawRangeElements) (GLenum, GLuint, GLuint, GLsizei, GLenum, const GLvoid *);
+
 /*
 extern qboolean gl_arb_fragment_program;
 extern PFNGLPROGRAMSTRINGARBPROC qglProgramStringARB;

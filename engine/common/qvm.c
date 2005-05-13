@@ -963,7 +963,7 @@ vm_t *VM_Create(vm_t *vm, const char *name, sys_call_t syscall, sys_callex_t sys
 	{
 		if((vm->hInst=Sys_LoadDLL(name, (void**)&vm->vmMain, syscall)))
 		{
-			Con_Printf("Creating native machine \"%s\"\n", name);
+			Con_DPrintf("Creating native machine \"%s\"\n", name);
 			vm->type=VM_NATIVE;
 			return vm;
 		}
@@ -972,7 +972,7 @@ vm_t *VM_Create(vm_t *vm, const char *name, sys_call_t syscall, sys_callex_t sys
 
 	if((vm->hInst=QVM_Load(name, syscallex)))
 	{
-		Con_Printf("Creating virtual machine \"%s\"\n", name);
+		Con_DPrintf("Creating virtual machine \"%s\"\n", name);
 		vm->type=VM_BYTECODE;
 		return vm;
 	}

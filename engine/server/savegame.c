@@ -698,6 +698,8 @@ void SV_SaveLevelCache(qboolean dontharmgame)
 	sprintf (name, "%s/saves/%s", com_gamedir, cache->mapname);
 	COM_DefaultExtension (name, ".lvc");
 
+	COM_CreatePath(name);
+
 	if (!dontharmgame)	//save game in progress
 		Con_TPrintf (STL_SAVEGAMETO, name);
 
@@ -712,7 +714,6 @@ void SV_SaveLevelCache(qboolean dontharmgame)
 		return;
 	}
 #endif
-
 
 	f = fopen (name, "wb");
 	if (!f)

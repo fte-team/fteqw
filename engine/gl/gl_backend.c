@@ -223,10 +223,10 @@ vec3_t			*trNormalsArray;
 vec2_t			*coordsArray;
 vec2_t			*lightmapCoordsArray;
 
-vec4_t			vertexArray[MAX_ARRAY_VERTS*2];
+vec3_t			vertexArray[MAX_ARRAY_VERTS*2];
 vec3_t			normalsArray[MAX_ARRAY_VERTS];
 
-vec4_t			tempVertexArray[MAX_ARRAY_VERTS];
+vec3_t			tempVertexArray[MAX_ARRAY_VERTS];
 vec3_t			tempNormalsArray[MAX_ARRAY_VERTS];
 index_t			tempIndexesArray[MAX_ARRAY_INDEXES];
 
@@ -362,8 +362,8 @@ void R_PushMesh ( mesh_t *mesh, int features )
 		numverts = MAX_ARRAY_VERTS - numVerts;
 	}
 
-	memcpy ( currentVertex, mesh->xyz_array, numverts * sizeof(vec4_t) );
-	currentVertex += numverts * 4;
+	memcpy ( currentVertex, mesh->xyz_array, numverts * sizeof(vec3_t) );
+	currentVertex += numverts * 3;
 
 	if ( mesh->normals_array && (features & MF_NORMALS) ) {
 		memcpy ( currentNormal, mesh->normals_array, numverts * sizeof(vec3_t) );
@@ -402,6 +402,14 @@ void R_PushMesh ( mesh_t *mesh, int features )
 }
 
 
+qboolean R_MeshWillExceed(mesh_t *mesh)
+{
+	if (numVerts + mesh->numvertexes > MAX_ARRAY_VERTS)
+		return true;
+	if (numIndexes + mesh->numindexes > MAX_ARRAY_INDEXES)
+		return true;
+	return false;
+}
 
 extern index_t			r_quad_indexes[6];// = { 0, 1, 2, 0, 2, 3 };
 
@@ -487,7 +495,7 @@ qboolean varrayactive;
 void R_IBrokeTheArrays(void)
 {
 	varrayactive = true;
-	qglVertexPointer( 3, GL_FLOAT, 16, vertexArray );	// padded for SIMD
+	qglVertexPointer( 3, GL_FLOAT, 0, vertexArray );
 	qglColorPointer( 4, GL_UNSIGNED_BYTE, 0, colorArray );
 
 	qglEnableClientState( GL_VERTEX_ARRAY );

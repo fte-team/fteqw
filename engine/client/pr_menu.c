@@ -601,29 +601,77 @@ static void PF_CopyEntity (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 	memcpy(out->fields, in->fields, menuentsize);
 }
 
+#ifdef CL_MASTER
+#include "cl_master.h"
+
+typedef enum{
+	SLIST_HOSTCACHEVIEWCOUNT,
+	SLIST_HOSTCACHETOTALCOUNT,
+	SLIST_MASTERQUERYCOUNT,
+	SLIST_MASTERREPLYCOUNT,
+	SLIST_SERVERQUERYCOUNT,
+	SLIST_SERVERREPLYCOUNT,
+	SLIST_SORTFIELD,
+	SLIST_SORTDESCENDING
+} hostcacheglobal_t;
+
 void PF_gethostcachevalue (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
-	#pragma message ("PF_gethostcachevalue: stub")
+	hostcacheglobal_t hcg = G_FLOAT(OFS_PARM0);
 	G_FLOAT(OFS_RETURN) = 0;
-}
+	switch(hcg)
+	{
+	case SLIST_HOSTCACHEVIEWCOUNT:
+		G_FLOAT(OFS_RETURN) = Master_NumSorted();
+		return;
+	case SLIST_HOSTCACHETOTALCOUNT:
+		CL_QueryServers();
+		NET_CheckPollSockets();
+		G_FLOAT(OFS_RETURN) = Master_TotalCount();
+		return;
 
-void PF_gethostcachestring (progfuncs_t *prinst, struct globalvars_s *pr_globals)
-{
-	#pragma message ("PF_gethostcachestring: stub")
-	G_INT(OFS_RETURN) = 0;
+	case SLIST_MASTERQUERYCOUNT:
+	case SLIST_MASTERREPLYCOUNT:
+	case SLIST_SERVERQUERYCOUNT:
+	case SLIST_SERVERREPLYCOUNT:
+		G_FLOAT(OFS_RETURN) = 0;
+		return;
+
+	case SLIST_SORTFIELD:
+		G_FLOAT(OFS_RETURN) = Master_GetSortField();
+		return;
+	case SLIST_SORTDESCENDING:
+		G_FLOAT(OFS_RETURN) = Master_GetSortDescending();
+		return;
+	default:
+		return;
+	}
 }
 
 //void 	resethostcachemasks(void) = #615;
 void PF_M_resethostcachemasks(progfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
+	Master_ClearMasks();
 }
 //void 	sethostcachemaskstring(float mask, float fld, string str, float op) = #616;
 void PF_M_sethostcachemaskstring(progfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
+	int mask = G_FLOAT(OFS_PARM0);
+	int field = G_FLOAT(OFS_PARM1);
+	char *str = PR_GetStringOfs(prinst, OFS_PARM2);
+	int op = G_FLOAT(OFS_PARM3);
+
+	Master_SetMaskString(mask, field, str, op);
 }
 //void	sethostcachemasknumber(float mask, float fld, float num, float op) = #617;
 void PF_M_sethostcachemasknumber(progfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
+	int mask = G_FLOAT(OFS_PARM0);
+	int field = G_FLOAT(OFS_PARM1);
+	int str = G_FLOAT(OFS_PARM2);
+	int op = G_FLOAT(OFS_PARM3);
+
+	Master_SetMaskInteger(mask, field, str, op);
 }
 //void 	resorthostcache(void) = #618;
 void PF_M_resorthostcache(progfuncs_t *prinst, struct globalvars_s *pr_globals)
@@ -632,24 +680,77 @@ void PF_M_resorthostcache(progfuncs_t *prinst, struct globalvars_s *pr_globals)
 //void	sethostcachesort(float fld, float descending) = #619;
 void PF_M_sethostcachesort(progfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
+	Master_SetSortField(G_FLOAT(OFS_PARM0), G_FLOAT(OFS_PARM1));
 }
 //void	refreshhostcache(void) = #620;
 void PF_M_refreshhostcache(progfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
+	MasterInfo_Begin();
 }
 //float	gethostcachenumber(float fld, float hostnr) = #621;
 void PF_M_gethostcachenumber(progfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
+	float ret = 0;
+	int keynum = G_FLOAT(OFS_PARM0);
+	int svnum = G_FLOAT(OFS_PARM1);
+	serverinfo_t *sv;
+	sv = Master_SortedServer(svnum);
+
+	ret = Master_ReadKeyFloat(sv, keynum);
+
+	G_FLOAT(OFS_RETURN) = ret;
 }
+void PF_gethostcachestring (progfuncs_t *prinst, struct globalvars_s *pr_globals)
+{
+	char *keyname = PF_TempStr();
+	char *ret = "";
+	int keynum = G_FLOAT(OFS_PARM0);
+	int svnum = G_FLOAT(OFS_PARM1);
+	serverinfo_t *sv;
+	sv = Master_SortedServer(svnum);
+
+	ret = Master_ReadKeyString(sv, keynum);
+
+	Q_strncpyz(keyname, ret, MAXTEMPBUFFERLEN);
+	RETURN_SSTRING(keyname);
+}
+
 //float	gethostcacheindexforkey(string key) = #622;
 void PF_M_gethostcacheindexforkey(progfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
+	int i;
+	char *keyname = PR_GetStringOfs(prinst, OFS_PARM0);
+
+	G_FLOAT(OFS_RETURN) = Master_KeyForName(keyname);
 }
 //void	addwantedhostcachekey(string key) = #623;
 void PF_M_addwantedhostcachekey(progfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
+	PF_M_gethostcacheindexforkey(prinst, pr_globals);
 }
+#else
 
+void PF_gethostcachevalue (progfuncs_t *prinst, struct globalvars_s *pr_globals){G_FLOAT(OFS_RETURN) = 0;}
+void PF_gethostcachestring (progfuncs_t *prinst, struct globalvars_s *pr_globals) {G_INT(OFS_RETURN) = 0;}
+//void 	resethostcachemasks(void) = #615;
+void PF_M_resethostcachemasks(progfuncs_t *prinst, struct globalvars_s *pr_globals){}
+//void 	sethostcachemaskstring(float mask, float fld, string str, float op) = #616;
+void PF_M_sethostcachemaskstring(progfuncs_t *prinst, struct globalvars_s *pr_globals){}
+//void	sethostcachemasknumber(float mask, float fld, float num, float op) = #617;
+void PF_M_sethostcachemasknumber(progfuncs_t *prinst, struct globalvars_s *pr_globals){}
+//void 	resorthostcache(void) = #618;
+void PF_M_resorthostcache(progfuncs_t *prinst, struct globalvars_s *pr_globals){}
+//void	sethostcachesort(float fld, float descending) = #619;
+void PF_M_sethostcachesort(progfuncs_t *prinst, struct globalvars_s *pr_globals){}
+//void	refreshhostcache(void) = #620;
+void PF_M_refreshhostcache(progfuncs_t *prinst, struct globalvars_s *pr_globals) {}
+//float	gethostcachenumber(float fld, float hostnr) = #621;
+void PF_M_gethostcachenumber(progfuncs_t *prinst, struct globalvars_s *pr_globals){G_FLOAT(OFS_RETURN) = 0;}
+//float	gethostcacheindexforkey(string key) = #622;
+void PF_M_gethostcacheindexforkey(progfuncs_t *prinst, struct globalvars_s *pr_globals){G_FLOAT(OFS_RETURN) = 0;}
+//void	addwantedhostcachekey(string key) = #623;
+void PF_M_addwantedhostcachekey(progfuncs_t *prinst, struct globalvars_s *pr_globals){}
+#endif
 
 
 void PF_localsound (progfuncs_t *prinst, struct globalvars_s *pr_globals)

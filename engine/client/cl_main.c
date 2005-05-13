@@ -483,6 +483,7 @@ void CL_SendConnectPacket (
 		NET_SendPacket (NS_CLIENT, strlen(data), data, adr);
 
 	cl.splitclients = 0;
+	CL_RegisterSplitCommands();
 }
 
 /*

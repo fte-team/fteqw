@@ -2571,6 +2571,14 @@ SOURCE=..\client\zqtp.c
 # PROP Default_Filter ""
 # Begin Source File
 
+SOURCE=..\gl\doomclip.c
+# End Source File
+# Begin Source File
+
+SOURCE=..\gl\doommap.h
+# End Source File
+# Begin Source File
+
 SOURCE=..\gl\gl_alias.c
 
 !IF  "$(CFG)" == "ftequake - Win32 Release"

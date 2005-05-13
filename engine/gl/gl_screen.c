@@ -97,6 +97,8 @@ void RSpeedShow(void)
 		s = va("%i %-30s", samplerquant[i], RQntNames[i]);
 		Draw_String(vid.width-strlen(s)*8, (i+RSPEED_MAX)*8, s);
 	}
+	s = va("%f %-30s", 100000000.0f/samplerspeeds[RSPEED_TOTALREFRESH], "Framerate");
+	Draw_String(vid.width-strlen(s)*8, (i+RSPEED_MAX)*8, s);
 
 	if (framecount++>=100)
 	{
@@ -269,7 +271,10 @@ void GLSCR_UpdateScreen (void)
 	else
 #endif
 		if (cl.worldmodel && uimenu != 1)
+		{
 		V_RenderView ();
+		Q1BSP_TestClipDecal();
+		}
 	else
 		GL_DoSwap();
 

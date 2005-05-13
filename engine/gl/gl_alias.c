@@ -58,7 +58,7 @@ int numTempColours;
 byte_vec4_t *tempColours;
 
 int numTempVertexCoords;
-vec4_t *tempVertexCoords;
+vec3_t *tempVertexCoords;
 
 int numTempNormals;
 vec3_t *tempNormals;
@@ -179,14 +179,11 @@ static void R_LerpFrames(mesh_t *mesh, galiaspose_t *p1, galiaspose_t *p2, float
 	if (p1v == p2v || r_nolerp.value)
 	{
 		mesh->normals_array = (vec3_t*)((char *)p1 + p1->ofsnormals);
+		mesh->xyz_array = p1v;
 		if (r_nolightdir.value)
 		{
 			for (i = 0; i < mesh->numvertexes; i++)
 			{
-				mesh->xyz_array[i][0] = p1v[i][0];
-				mesh->xyz_array[i][1] = p1v[i][1];
-				mesh->xyz_array[i][2] = p1v[i][2];
-
 				mesh->colors_array[i][0] = /*ambientlight[0]/2*/+shadelight[0];
 				mesh->colors_array[i][1] = /*ambientlight[1]/2*/+shadelight[1];
 				mesh->colors_array[i][2] = /*ambientlight[2]/2*/+shadelight[2];
@@ -197,10 +194,6 @@ static void R_LerpFrames(mesh_t *mesh, galiaspose_t *p1, galiaspose_t *p2, float
 		{
 			for (i = 0; i < mesh->numvertexes; i++)
 			{
-				mesh->xyz_array[i][0] = p1v[i][0];
-				mesh->xyz_array[i][1] = p1v[i][1];
-				mesh->xyz_array[i][2] = p1v[i][2];
-
 				l = DotProduct(mesh->normals_array[i], shadevector);
 
 				temp = l*ambientlight[0]+shadelight[0];
@@ -276,11 +269,25 @@ static void R_LerpFrames(mesh_t *mesh, galiaspose_t *p1, galiaspose_t *p2, float
 	}
 	if (expand)
 	{
-		for (i = 0; i < mesh->numvertexes; i++)
+		if (mesh->xyz_array == p1v)
 		{
-			mesh->xyz_array[i][0] += mesh->normals_array[i][0]*expand;
-			mesh->xyz_array[i][1] += mesh->normals_array[i][1]*expand;
-			mesh->xyz_array[i][2] += mesh->normals_array[i][2]*expand;
+			mesh->xyz_array = tempVertexCoords;
+			for (i = 0; i < mesh->numvertexes; i++)
+			{
+				mesh->xyz_array[i][0] = p1v[i][0] + mesh->normals_array[i][0]*expand;
+				mesh->xyz_array[i][1] = p1v[i][1] + mesh->normals_array[i][1]*expand;
+				mesh->xyz_array[i][2] = p1v[i][2] + mesh->normals_array[i][2]*expand;
+			}
+
+		}
+		else
+		{
+			for (i = 0; i < mesh->numvertexes; i++)
+			{
+				mesh->xyz_array[i][0] += mesh->normals_array[i][0]*expand;
+				mesh->xyz_array[i][1] += mesh->normals_array[i][1]*expand;
+				mesh->xyz_array[i][2] += mesh->normals_array[i][2]*expand;
+			}
 		}
 	}
 }
@@ -341,7 +348,7 @@ static void R_BuildSkeletalMesh(mesh_t *mesh, float *plerp, float **pose, int po
 	v = weights;
 	for (i = 0;i < numweights;i++, v++)
 	{
-		out = outhead + v->vertexindex * 4;
+		out = outhead + v->vertexindex * 3;
 		matrix = bonepose[v->boneindex];
 		// FIXME: this can very easily be optimized with SSE or 3DNow
 		out[0] += v->org[0] * matrix[0] + v->org[1] * matrix[1] + v->org[2] * matrix[ 2] + v->org[3] * matrix[ 3];
@@ -893,7 +900,7 @@ static void R_ProjectShadowVolume(mesh_t *mesh, vec3_t lightpos)
 {
 	int numverts = mesh->numvertexes;
 	int i;
-	vec4_t *input = mesh->xyz_array;
+	vec3_t *input = mesh->xyz_array;
 	vec3_t *projected;
 	if (numProjectedShadowVerts < numverts)
 	{
@@ -915,7 +922,7 @@ static void R_DrawShadowVolume(mesh_t *mesh)
 {
 	int t;
 	vec3_t *proj = ProjectedShadowVerts;
-	vec4_t *verts = mesh->xyz_array;
+	vec3_t *verts = mesh->xyz_array;
 	index_t *indexes = mesh->indexes;
 	int *neighbours = mesh->trneighbors;
 	int numtris = mesh->numindexes/3;
@@ -990,7 +997,7 @@ void GL_DrawAliasMesh_Sketch (mesh_t *mesh)
 
 	qglDisable(GL_TEXTURE_2D);
 
-	qglVertexPointer(3, GL_FLOAT, 16, mesh->xyz_array);
+	qglVertexPointer(3, GL_FLOAT, 0, mesh->xyz_array);
 	qglEnableClientState( GL_VERTEX_ARRAY );
 
 	if (mesh->normals_array && qglNormalPointer)	//d3d wrapper doesn't support normals, and this is only really needed for truform
@@ -1075,7 +1082,7 @@ void GL_DrawAliasMesh (mesh_t *mesh, int texnum)
 
 	GL_TexEnv(GL_MODULATE);
 
-	qglVertexPointer(3, GL_FLOAT, 16, mesh->xyz_array);
+	qglVertexPointer(3, GL_FLOAT, 0, mesh->xyz_array);
 	qglEnableClientState( GL_VERTEX_ARRAY );
 
 	if (mesh->normals_array && qglNormalPointer)	//d3d wrapper doesn't support normals, and this is only really needed for truform
@@ -1595,7 +1602,7 @@ void GL_LightMesh (mesh_t *mesh, vec3_t lightpos, vec3_t colours, float radius)
 	vec3_t dir;
 	int i;
 	float dot;
-	vec4_t *xyz = mesh->xyz_array;
+	vec3_t *xyz = mesh->xyz_array;
 	vec3_t *normals = mesh->normals_array;
 	byte_vec4_t *out = mesh->colors_array;
 
@@ -1924,6 +1931,7 @@ static void *Q1_LoadFrameGroup (daliasframetype_t *pframetype, int *seamremaps)
 
 			pframetype = (daliasframetype_t *)&pinframe[pq1inmodel->numverts];
 			break;
+
 		case ALIAS_GROUP:
 		case ALIAS_GROUP_SWAPPED: // prerelease
 			ingroup = (daliasgroup_t *)(pframetype+1);
@@ -2003,6 +2011,7 @@ static void *Q1_LoadSkins (daliasskintype_t *pskintype, qboolean alpha)
 			outskin->skinheight = pq1inmodel->skinheight;
 
 			//LH's naming scheme ("models" is likly to be ignored)
+			fbtexture = 0;
 			_snprintf(skinname, sizeof(skinname), "%s_%i", loadmodel->name, i);
 			texture = Mod_LoadReplacementTexture(skinname, "models", true, false, true);
 			if (texture)
@@ -2019,8 +2028,6 @@ static void *Q1_LoadSkins (daliasskintype_t *pskintype, qboolean alpha)
 					sprintf(skinname, "%s_%i_luma", loadname, i);
 					fbtexture = Mod_LoadReplacementTexture(skinname, "models", true, true, true);
 				}
-				else
-					fbtexture = 0;
 			}
 
 			if (!texture)
@@ -2933,12 +2940,12 @@ void GL_LoadQ3Model(model_t *mod, void *buffer)
 				texnum->shader = R_RegisterSkin(inshader->name);
 #else
 
-				texnum->base = Mod_LoadHiResTexture(inshader->name, true, true, true);
+				texnum->base = Mod_LoadHiResTexture(inshader->name, "models", true, true, true);
 				if (!texnum->base)
 				{
 					strcpy(name, loadmodel->name);
 					strcpy(COM_SkipPath(name), COM_SkipPath(inshader->name));	//eviile eh?
-					texnum->base = Mod_LoadHiResTexture(name, true, true, true);
+					texnum->base = Mod_LoadHiResTexture(name, "models", true, true, true);
 				}
 
 				texnum->bump = 0;
@@ -2946,25 +2953,25 @@ void GL_LoadQ3Model(model_t *mod, void *buffer)
 				{
 					COM_StripExtension(inshader->name, name);	//go for the normalmap
 					strcat(name, "_norm");
-					texnum->bump = Mod_LoadHiResTexture(name, true, true, false);
+					texnum->bump = Mod_LoadHiResTexture(name, "models", true, true, false);
 					if (!texnum->bump)
 					{
 						strcpy(name, loadmodel->name);
 						COM_StripExtension(COM_SkipPath(inshader->name), COM_SkipPath(name));
 						strcat(name, "_norm");
-						texnum->bump = Mod_LoadHiResTexture(name, true, true, false);
+						texnum->bump = Mod_LoadHiResTexture(name, "models", true, true, false);
 						if (!texnum->bump)
 						{
 							COM_StripExtension(inshader->name, name);	//bother, go for heightmap and convert
 							strcat(name, "_bump");
-							texnum->bump = Mod_LoadBumpmapTexture(name);
+							texnum->bump = Mod_LoadBumpmapTexture(name, "models");
 							if (!texnum->bump)
 							{
 								strcpy(name, loadmodel->name);
 								strcpy(COM_SkipPath(name), COM_SkipPath(inshader->name));	//eviile eh?
 								COM_StripExtension(name, name);
 								strcat(name, "_bump");
-								texnum->bump = Mod_LoadBumpmapTexture(name);
+								texnum->bump = Mod_LoadBumpmapTexture(name, "models");
 							}
 						}
 					}
@@ -2973,14 +2980,14 @@ void GL_LoadQ3Model(model_t *mod, void *buffer)
 				{
 					COM_StripExtension(inshader->name, name);	//go for the normalmap
 					strcat(name, "_luma");
-					texnum->fullbright = Mod_LoadHiResTexture(name, true, true, true);
+					texnum->fullbright = Mod_LoadHiResTexture(name, "models", true, true, true);
 					if (!texnum->base)
 					{
 						strcpy(name, loadmodel->name);
 						strcpy(COM_SkipPath(name), COM_SkipPath(inshader->name));	//eviile eh?
 						COM_StripExtension(name, name);
 						strcat(name, "_luma");
-						texnum->fullbright = Mod_LoadBumpmapTexture(name);
+						texnum->fullbright = Mod_LoadBumpmapTexture(name, "models");
 					}
 				}
 #endif

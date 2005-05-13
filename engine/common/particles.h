@@ -59,23 +59,36 @@ extern int rt_rocket_trail,
 // !!! if this is changed, it must be changed in d_ifacea.h too !!!
 typedef struct particle_s
 {
+	struct particle_s	*next;
+	float		die;
+
 // driver-usable fields
 	vec3_t		org;
-	float		color;
+	float		color;	//used by sw renderer. To be removed.
 	vec3_t		rgb;
 	float		alpha;
 	float		scale;
 
-	vec3_t		vel;
+	vec3_t		vel;	//renderer uses for sparks
 	float		angle;
-	float		rotationspeed;
 	float		nextemit;
 
 // drivers never touch the following fields
-
-	struct particle_s	*next;
-	float		die;
+	float		rotationspeed;
 } particle_t;
+
+typedef struct clippeddecal_s
+{
+	struct clippeddecal_s	*next;
+	float		die;
+
+	vec3_t		center;
+	vec3_t		vertex[3];
+	vec2_t		texcoords[3];
+
+	vec3_t		rgb;
+	float		alpha;
+} clippeddecal_t;
 
 #define BS_LASTSEG 0x1 // no draw to next, no delete
 #define BS_DEAD    0x2 // segment is dead
@@ -83,8 +96,9 @@ typedef struct particle_s
 
 typedef struct beamseg_s
 {
-	particle_t *p; 
 	struct beamseg_s *next;  // next in beamseg list
+
+	particle_t *p; 
 	int    flags;            // flags for beamseg
 	vec3_t dir;
 

@@ -2695,10 +2695,7 @@ static void PF_traceboxh2 (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 	pr_global_struct->trace_fraction = trace.fraction;
 	pr_global_struct->trace_inwater = trace.inwater;
 	pr_global_struct->trace_inopen = trace.inopen;
-//	if (trace.fraction != 1)
-//		VectorMA (trace.endpos, 4, trace.plane.normal, P_VEC(trace_endpos));
-//	else
-		VectorCopy (trace.endpos, P_VEC(trace_endpos));
+	VectorCopy (trace.endpos, P_VEC(trace_endpos));
 	VectorCopy (trace.plane.normal, P_VEC(trace_plane_normal));
 	pr_global_struct->trace_plane_dist =  trace.plane.dist;	
 	if (trace.ent)
@@ -3053,9 +3050,7 @@ static void PF_cvar (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 void PF_cvar_string (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
 	char	*str;
-	
 	str = PR_GetStringOfs(prinst, OFS_PARM0);
-	
 	RETURN_CSTRING(Cvar_VariableString (str));
 }
 
@@ -3373,13 +3368,14 @@ void PF_precache_sound (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 	char	*s;
 	int		i;
 	
+	s = PR_GetStringOfs(prinst, OFS_PARM0);
+/*
 	if (sv.state != ss_loading)
 	{
-		PR_BIError (prinst, "PF_Precache_*: Precache can only be done in spawn functions");
+		PR_BIError (prinst, "PF_Precache_*: Precache can only be done in spawn functions (%s)", s);
 		return;
 	}
-
-	s = PR_GetStringOfs(prinst, OFS_PARM0);
+*/
 	G_INT(OFS_RETURN) = G_INT(OFS_PARM0);
 
 	if (s[0] <= ' ')
@@ -3405,15 +3401,16 @@ void PF_precache_model (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
 	char	*s;
 	int		i;
-	
+
+	s = PR_GetStringOfs(prinst, OFS_PARM0);
+/*
 	if (sv.state != ss_loading)
 	{
-		PR_BIError (prinst, "PF_Precache_*: Precache can only be done in spawn functions");
+		PR_BIError (prinst, "PF_Precache_*: Precache can only be done in spawn functions (%s)", s);
 		G_FLOAT(OFS_RETURN) = 1;
 		return;
 	}
-		
-	s = PR_GetStringOfs(prinst, OFS_PARM0);
+*/	
 	G_INT(OFS_RETURN) = G_INT(OFS_PARM0);
 
 	if (s[0] <= ' ')
@@ -8260,7 +8257,7 @@ BuiltinList_t BuiltinList[] = {				//nq	qw		h2		ebfs
 //FIXME: distinguish between qw and nq parameters here?
 	{"sprint",			PF_sprint,			24,		24,		24},	// void(entity client, string s) sprint = #24;
 	{"dprint",			PF_dprint,			25,		0,		25},	// void(string s) dprint				= #25;
-	{"print",			PF_print,			0,		25,		25},	// void(string s) print				= #25;
+	{"print",			PF_print,			0,		25,		0},		// void(string s) print				= #25;
 	{"ftos",			PF_ftos,			26,		26,		26},	// void(string s) ftos				= #26;
 	{"vtos",			PF_vtos,			27,		27,		27},	// void(string s) vtos				= #27;
 	{"coredump",		PF_coredump,		28,		28,		28},	//28

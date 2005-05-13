@@ -594,7 +594,7 @@ char *PR_UglyValueString (progfuncs_t *progfuncs, etype_t type, eval_t *val)
 		_snprintf (line, sizeof(line), "%s", val->string+progfuncs->stringtable);
 		break;
 	case ev_entity:	
-		sprintf (line, "%i", NUM_FOR_EDICT(progfuncs, (struct edict_s *)PROG_TO_EDICT(progfuncs, val->edict)));
+		sprintf (line, "%i", val->_int);
 		break;
 	case ev_function:
 		i = (val->function & 0xff000000)>>24;
@@ -1049,7 +1049,7 @@ pbool	ED_ParseEpair (progfuncs_t *progfuncs, void *base, ddefXX_t *key, char *s,
 		break;
 		
 	case ev_entity:
-		*(int *)d = EDICT_TO_PROG(progfuncs, EDICT_NUM(progfuncs, atoi (s)));
+		*(int *)d = atoi (s);
 		break;
 
 	case ev_field:
@@ -2093,7 +2093,7 @@ char *SaveEnt (progfuncs_t *progfuncs, char *buf, int *size, struct edict_s *ed)
 		if (name[strlen(name)-2] == '_')
 			continue;	// skip _x, _y, _z vars
 			
-		v = (int *)(((char *)ed + externs->edictsize) + d->ofs*4);
+		v = (int*)((edictrun_t*)ed)->fields + d->ofs;
 
 	// if the value is still all 0, skip the field
 		type = d->type & ~DEF_SAVEGLOBAL;

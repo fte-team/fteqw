@@ -1010,14 +1010,25 @@ void SV_PreSpawn_f (void)
 	else
 	{
 		if (sv.democausesreconnect)
-			SZ_Write (&host_client->netchan.message, 
-				sv.demosignon_buffers[buf],
-				sv.demosignon_buffer_size[buf]);
+		{
+			if (host_client->netchan.message.cursize+sv.signon_buffer_size[buf] < host_client->netchan.message.maxsize)
+			{
+				SZ_Write (&host_client->netchan.message, 
+					sv.demosignon_buffers[buf],
+					sv.demosignon_buffer_size[buf]);
+				buf++;
+			}
+		}
 		else
-			SZ_Write (&host_client->netchan.message, 
-				sv.signon_buffers[buf],
-				sv.signon_buffer_size[buf]);
-		buf++;
+		{
+			if (host_client->netchan.message.cursize+sv.signon_buffer_size[buf] < host_client->netchan.message.maxsize)
+			{
+				SZ_Write (&host_client->netchan.message, 
+					sv.signon_buffers[buf],
+					sv.signon_buffer_size[buf]);
+					buf++;
+			}
+		}
 	}
 	if (buf == bufs+sv.numextrastatics+sv.num_edicts+255)
 	{	// all done prespawning

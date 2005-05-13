@@ -31,7 +31,7 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 int glx, gly, glwidth, glheight;
 
 mesh_t	draw_mesh;
-vec4_t	draw_mesh_xyz[4];	
+vec3_t	draw_mesh_xyz[4];	
 vec2_t	draw_mesh_st[4];
 byte_vec4_t	draw_mesh_colors[4];
 
@@ -3247,6 +3247,30 @@ void GL_Upload8Pal24 (qbyte *data, qbyte *pal, int width, int height,  qboolean 
 	}
 	GL_Upload32 (NULL, (unsigned*)trans, width, height, mipmap, alpha);
 }
+void GL_Upload8Pal32 (qbyte *data, qbyte *pal, int width, int height,  qboolean mipmap, qboolean alpha)
+{
+	qbyte		*trans = uploadmemorybufferintermediate;
+	int			i, s;
+	qboolean	noalpha;
+	int			p;
+	extern qbyte gammatable[256];
+
+	s = width*height;
+	if (s > sizeofuploadmemorybufferintermediate/4)
+		Sys_Error("GL_Upload8Pal32: image too big (%i*%i)", width, height);
+
+	if (s&3)
+		Sys_Error ("GL_Upload8: s&3");
+	for (i=0 ; i<s ; i+=1)
+	{
+		trans[(i<<2)+0] = gammatable[pal[data[i]*4+0]];
+		trans[(i<<2)+1] = gammatable[pal[data[i]*4+1]];
+		trans[(i<<2)+2] = gammatable[pal[data[i]*4+2]];
+		trans[(i<<2)+3] = gammatable[pal[data[i]*4+3]];
+	}
+
+	GL_Upload32 (NULL, (unsigned*)trans, width, height, mipmap, true);
+}
 /*
 ================
 GL_LoadTexture
@@ -3363,6 +3387,40 @@ int GL_LoadTexture8Pal24 (char *identifier, int width, int height, qbyte *data, 
 	GL_Bind(texture_extension_number );
 
 	GL_Upload8Pal24 (data, palette24, width, height, mipmap, alpha);
+
+	texture_extension_number++;
+
+	return texture_extension_number-1;
+}
+int GL_LoadTexture8Pal32 (char *identifier, int width, int height, qbyte *data, qbyte *palette32, qboolean mipmap, qboolean alpha)
+{
+	gltexture_t	*glt;
+
+		// see if the texture is allready present
+	if (identifier[0])
+	{
+		glt = GL_MatchTexture(identifier, 32, width, height);
+		if (glt)
+			return glt->texnum;
+	}
+
+	glt = BZ_Malloc(sizeof(*glt)+sizeof(bucket_t));
+	glt->next = gltextures;
+	gltextures = glt;
+
+
+	strcpy (glt->identifier, identifier);
+	glt->texnum = texture_extension_number;
+	glt->width = width;
+	glt->height = height;
+	glt->bpp = 32;
+	glt->mipmap = mipmap;
+
+	Hash_Add(&gltexturetable, glt->identifier, glt, (bucket_t*)(glt+1));
+
+	GL_Bind(texture_extension_number );
+
+	GL_Upload8Pal32 (data, palette32, width, height, mipmap, alpha);
 
 	texture_extension_number++;
 

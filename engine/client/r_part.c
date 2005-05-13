@@ -55,7 +55,8 @@ int pt_explosion,
 	pt_superbullet,
 	pt_bullet,
 	pt_spark,
-	pt_plasma;
+	pt_plasma,
+	pt_smoke;
 
 int pe_default,
 	pe_size2,
@@ -86,20 +87,23 @@ void P_ReadPointFile_f (void);
 #define MAX_BEAMS                2048   // default max # of beam segments
 #define MAX_PARTICLES			32768	// default max # of particles at one
 										//  time
+#define MAX_DECALS				32768	// this is going to be expensive
 
 //int		ramp1[8] = {0x6f, 0x6d, 0x6b, 0x69, 0x67, 0x65, 0x63, 0x61};
 //int		ramp2[8] = {0x6f, 0x6e, 0x6d, 0x6c, 0x6b, 0x6a, 0x68, 0x66};
 //int		ramp3[8] = {0x6d, 0x6b, 6,	  5,    4,    3,    2,    1};
 
 particle_t	*free_particles;
-
 particle_t	*particles;	//contains the initial list of alloced particles.
 int			r_numparticles;
 
 beamseg_t   *free_beams;
-
 beamseg_t   *beams;
 int			r_numbeams;
+
+clippeddecal_t	*free_decals;
+clippeddecal_t	*decals;
+int			r_numdecals;
 
 vec3_t			r_pright, r_pup, r_ppn;
 
@@ -190,7 +194,7 @@ typedef struct part_type_s {
 
 	float offsetup; // make this into a vec3_t later with dir, possibly for mdls
 
-	enum {SM_BOX, SM_CIRCLE, SM_BALL, SM_SPIRAL, SM_TRACER, SM_TELEBOX, SM_LAVASPLASH, SM_UNICIRCLE, SM_FIELD} spawnmode;	
+	enum {SM_BOX, SM_CIRCLE, SM_BALL, SM_SPIRAL, SM_TRACER, SM_TELEBOX, SM_LAVASPLASH, SM_UNICIRCLE, SM_FIELD, SM_DECAL} spawnmode;	
 	//box = even spread within the area
 	//circle = around edge of a circle
 	//ball = filled sphere
@@ -212,6 +216,7 @@ typedef struct part_type_s {
 
 	int loaded;
 	particle_t	*particles;
+	clippeddecal_t *clippeddecals;
 	beamseg_t *beams;
 	skytris_t *skytris;
 
@@ -617,6 +622,8 @@ void P_ParticleEffect_f(void)
 				ptype->spawnmode = SM_UNICIRCLE;
 			else if (!strcmp(value, "syncfield"))
 				ptype->spawnmode = SM_FIELD;
+			else if (!strcmp(value, "decal"))
+				ptype->spawnmode = SM_DECAL;
 			else
 				ptype->spawnmode = SM_BOX;
 
@@ -1062,11 +1069,16 @@ void P_InitParticles (void)
 
 	r_numbeams = MAX_BEAMS;
 
+	r_numdecals = MAX_DECALS;
+
 	particles = (particle_t *)
 			Hunk_AllocName (r_numparticles * sizeof(particle_t), "particles");
 
 	beams = (beamseg_t *)
 			Hunk_AllocName (r_numbeams * sizeof(beamseg_t), "beams");
+
+	decals = (clippeddecal_t *)
+			Hunk_AllocName (r_numdecals * sizeof(clippeddecal_t), "decals");
 	
 	Cmd_AddCommand("pointfile", P_ReadPointFile_f);	//load the leak info produced from qbsp into the particle system to show a line. :)
 
@@ -1123,6 +1135,7 @@ void P_InitParticles (void)
 
 	pt_spark			= P_AllocateParticleType("te_spark");
 	pt_plasma			= P_AllocateParticleType("te_plasma");
+	pt_smoke			= P_AllocateParticleType("te_smoke");
 
 	pe_default			= P_AllocateParticleType("pe_default");
 	pe_size2			= P_AllocateParticleType("pe_size2");
@@ -1140,13 +1153,16 @@ void P_ClearParticles (void)
 	int		i;
 	
 	free_particles = &particles[0];
-
 	for (i=0 ;i<r_numparticles ; i++)
 		particles[i].next = &particles[i+1];
 	particles[r_numparticles-1].next = NULL;
 
-	free_beams = &beams[0];
+	free_decals = &decals[0];
+	for (i=0 ;i<r_numdecals ; i++)
+		decals[i].next = &decals[i+1];
+	decals[r_numdecals-1].next = NULL;
 
+	free_beams = &beams[0];
 	for (i=0 ;i<r_numbeams ; i++)
 	{
 		beams[i].p = NULL;
@@ -1675,6 +1691,7 @@ int P_RunParticleEffectTypeString (vec3_t org, vec3_t dir, float count, char *na
 	return P_RunParticleEffectType(org, dir, count, type);
 }
 
+int Q1BSP_ClipDecal(vec3_t center, vec3_t normal, vec3_t tangent, float size, float **out);
 int P_RunParticleEffectType (vec3_t org, vec3_t dir, float count, int typenum)
 {
 	part_type_t *ptype = &part_type[typenum];
@@ -1689,6 +1706,88 @@ int P_RunParticleEffectType (vec3_t org, vec3_t dir, float count, int typenum)
 
 	if (!ptype->loaded)
 		return 1;
+
+	if (ptype->spawnmode == SM_DECAL)
+	{
+		clippeddecal_t *d;
+		int decalcount;
+		float dist;
+		vec3_t tangent, t2;
+		vec3_t vec={0.5, 0.5, 0.5};
+		static vec3_t up = {0,0.73,-0.73};
+		float *decverts;
+		int i;
+
+		if (!free_decals)
+			return 0;
+
+		if (!dir)
+			dir = up;
+
+		VectorNormalize(vec);
+		CrossProduct(dir, vec, tangent);
+		CrossProduct(dir, tangent, t2);
+
+		decalcount = Q1BSP_ClipDecal(org, dir, tangent, ptype->scale, &decverts);
+		while(decalcount)
+		{
+			if (!free_decals)
+				break;
+
+			d = free_decals;
+			free_decals = d->next;
+			d->next = ptype->clippeddecals;
+			ptype->clippeddecals = d;
+
+			VectorCopy((decverts+0), d->vertex[0]);
+			VectorCopy((decverts+3), d->vertex[1]);
+			VectorCopy((decverts+6), d->vertex[2]);
+
+			for (i = 0; i < 3; i++)
+			{
+				VectorSubtract(d->vertex[i], org, vec);
+				dist = DotProduct(vec, dir)/ptype->scale;
+				d->texcoords[i][0] = ((DotProduct(vec, t2)*(1-dist))/ptype->scale)+0.5;
+				d->texcoords[i][1] = ((DotProduct(vec, tangent)*(1-dist))/ptype->scale)+0.5;
+			}
+
+			d->die = ptype->randdie*frandom();
+
+			if (ptype->die)
+				d->alpha = ptype->alpha-d->die*(ptype->alpha/ptype->die)*ptype->alphachange;
+			else
+				d->alpha = ptype->alpha;
+
+			if (ptype->colorindex >= 0)
+			{
+				int cidx;
+				cidx = ptype->colorrand > 0 ? rand() % ptype->colorrand : 0;
+				cidx = ptype->colorindex + cidx;
+				if (cidx > 255)
+					d->alpha = d->alpha / 2; // Hexen 2 style transparency
+				cidx = d_8to24rgbtable[cidx & 0xff];
+				d->rgb[0] = (cidx & 0xff) * (1/255.0);
+				d->rgb[1] = (cidx >> 8 & 0xff) * (1/255.0);
+				d->rgb[2] = (cidx >> 16 & 0xff) * (1/255.0);
+			}
+			else
+				VectorCopy(ptype->rgb, d->rgb);
+			vec[2] = frandom();
+			vec[0] = vec[2]*ptype->rgbrandsync[0] + frandom()*(1-ptype->rgbrandsync[0]);
+			vec[1] = vec[2]*ptype->rgbrandsync[1] + frandom()*(1-ptype->rgbrandsync[1]);
+			vec[2] = vec[2]*ptype->rgbrandsync[2] + frandom()*(1-ptype->rgbrandsync[2]);
+			d->rgb[0] += vec[0]*ptype->rgbrand[0] + ptype->rgbchange[0]*d->die;
+			d->rgb[1] += vec[1]*ptype->rgbrand[1] + ptype->rgbchange[1]*d->die;
+			d->rgb[2] += vec[2]*ptype->rgbrand[2] + ptype->rgbchange[2]*d->die;
+
+			d->die = particletime + ptype->die - d->die;
+
+			decverts += 3*3;
+			decalcount--;
+		}
+
+		return 0;
+	}
 
 	// get msvc to shut up
 	j = k = l = 0;
@@ -3002,6 +3101,37 @@ void GL_DrawParticleBeam_Untextured(beamseg_t *b, part_type_t *type)
 //	qglEnd();
 }
 
+void GL_DrawClippedDecal(clippeddecal_t *d, part_type_t *type)
+{
+	if (lasttype != type)
+	{
+		lasttype = type;
+		qglEnd();
+		qglEnable(GL_TEXTURE_2D);
+		GL_Bind(type->texturenum);
+		if (type->blendmode == BM_ADD)		//addative
+			qglBlendFunc(GL_SRC_ALPHA, GL_ONE);
+//		else if (type->blendmode == BM_SUBTRACT)	//subtractive
+//			qglBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+		else
+			qglBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+		qglShadeModel(GL_SMOOTH);
+		qglBegin(GL_TRIANGLES);
+	}
+
+	qglColor4f(d->rgb[0],
+		  d->rgb[1],
+		  d->rgb[2],
+		  d->alpha);
+
+	qglTexCoord2fv(d->texcoords[0]);
+	qglVertex3fv(d->vertex[0]);
+	qglTexCoord2fv(d->texcoords[1]);
+	qglVertex3fv(d->vertex[1]);
+	qglTexCoord2fv(d->texcoords[2]);
+	qglVertex3fv(d->vertex[2]);
+}
+
 #endif
 #ifdef SWQUAKE
 void SWD_DrawParticleSpark(particle_t *p, part_type_t *type)
@@ -3102,7 +3232,7 @@ void SWD_DrawParticleBeam(beamseg_t *beam, part_type_t *type)
 }
 #endif
 
-void DrawParticleTypes (void texturedparticles(particle_t *,part_type_t*), void sparklineparticles(particle_t*,part_type_t*), void sparkfanparticles(particle_t*,part_type_t*), void beamparticlest(beamseg_t*,part_type_t*), void beamparticlesut(beamseg_t*,part_type_t*))
+void DrawParticleTypes (void texturedparticles(particle_t *,part_type_t*), void sparklineparticles(particle_t*,part_type_t*), void sparkfanparticles(particle_t*,part_type_t*), void beamparticlest(beamseg_t*,part_type_t*), void beamparticlesut(beamseg_t*,part_type_t*), void drawdecalparticles(clippeddecal_t*,part_type_t*))
 {
 	RSpeedMark();
 
@@ -3114,11 +3244,14 @@ void DrawParticleTypes (void texturedparticles(particle_t *,part_type_t*), void 
 	vec3_t stop, normal;
 	part_type_t *type;
 	particle_t		*p, *kill;
+	clippeddecal_t *d, *dkill;
 	ramp_t *ramp;
 	float grav;
 	vec3_t friction;
 	float dist;
-	particle_t *kill_list, *kill_first;
+	particle_t *kill_list, *kill_first;	//the kill list is to stop particles from being freed and reused whilst still in this loop
+										//which is bad because beams need to find out when particles died. Reuse can do wierd things.
+										//remember that they're not drawn instantly either.
 	beamseg_t *b, *bkill;
 
 	int traces=r_particle_tracelimit.value;
@@ -3148,6 +3281,70 @@ void DrawParticleTypes (void texturedparticles(particle_t *,part_type_t*), void 
 
 	for (i = 0, type = &part_type[i]; i < numparticletypes; i++, type++)
 	{
+		if (type->clippeddecals)
+		{
+		/*	for ( ;; ) 
+			{
+				dkill = type->clippeddecals;
+				if (dkill && dkill->die < particletime)
+				{
+					type->clippeddecals = dkill->next;
+					free_decals = 
+
+
+					dkill->next = (clippeddecal_t *)kill_list;
+					kill_list = (particle_t*)dkill;
+					if (!kill_first)
+						kill_first = kill_list;
+					continue;
+				}
+				break;
+			}*/
+			for (d=type->clippeddecals ; d ; d=d->next)
+			{
+		/*		for ( ;; )
+				{
+					dkill = d->next;
+					if (dkill && dkill->die < particletime)
+					{
+						d->next = dkill->next;
+						dkill->next = (clippeddecal_t *)kill_list;
+						kill_list = (particle_t*)dkill;
+						if (!kill_first)
+							kill_first = kill_list;
+						continue;
+					}
+					break;
+				}
+*/
+
+
+				switch (type->rampmode)
+				{
+				case RAMP_ABSOLUTE:
+					ramp = type->ramp + (int)(type->rampindexes * (type->die - (d->die - particletime)) / type->die);
+					VectorCopy(ramp->rgb, d->rgb);
+					d->alpha = ramp->alpha;
+					break;
+				case RAMP_DELTA:	//particle ramps
+					ramp = type->ramp + (int)(type->rampindexes * (type->die - (d->die - particletime)) / type->die);
+					VectorMA(d->rgb, pframetime, ramp->rgb, d->rgb);
+					d->alpha -= pframetime*ramp->alpha;
+					break;
+				case RAMP_NONE:	//particle changes acording to it's preset properties.
+					if (particletime < (d->die-type->die+type->rgbchangetime))
+					{
+						d->rgb[0] += pframetime*type->rgbchange[0];
+						d->rgb[1] += pframetime*type->rgbchange[1];
+						d->rgb[2] += pframetime*type->rgbchange[2];
+					}
+					d->alpha -= pframetime*(type->alpha/type->die)*type->alphachange;
+				}
+
+				drawdecalparticles(d, type);
+			}
+		}
+
 		if (!type->particles)
 			continue;
 
@@ -3457,10 +3654,6 @@ void DrawParticleTypes (void texturedparticles(particle_t *,part_type_t*), void 
 
 	RSpeedEnd(RSPEED_PARTICLES);
 
-	RSpeedRemark();
-	RQ_RenderDistAndClear();
-	RSpeedEnd(RSPEED_PARTICLESDRAW);
-
 	// lazy delete for particles is done here
 	if (kill_list)
 	{
@@ -3478,6 +3671,8 @@ R_DrawParticles
 */
 void P_DrawParticles (void)
 {
+	RSpeedMark();
+
 	P_AddRainParticles();
 #if defined(RGLQUAKE)
 	if (qrenderer == QR_OPENGL)
@@ -3490,14 +3685,23 @@ void P_DrawParticles (void)
 		GL_TexEnv(GL_MODULATE);
 		qglBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
 
+		if (qglPolygonOffset)
+			qglPolygonOffset(-1, 0);
+		qglEnable(GL_POLYGON_OFFSET_FILL);
 		qglBegin(GL_QUADS);
-
 		if (r_drawflat.value == 2)
-			DrawParticleTypes(GL_DrawSketchParticle, GL_DrawSketchSparkParticle, GL_DrawSketchSparkParticle, GL_DrawParticleBeam_Textured, GL_DrawParticleBeam_Untextured);//GL_DrawParticleBeam_Sketched, GL_DrawParticleBeam_Sketched);
+			DrawParticleTypes(GL_DrawSketchParticle, GL_DrawSketchSparkParticle, GL_DrawSketchSparkParticle, GL_DrawParticleBeam_Textured, GL_DrawParticleBeam_Untextured, GL_DrawClippedDecal);
 		else
-			DrawParticleTypes(GL_DrawTexturedParticle, GL_DrawSparkedParticle, GL_DrawTrifanParticle, GL_DrawParticleBeam_Textured, GL_DrawParticleBeam_Untextured);
-
+			DrawParticleTypes(GL_DrawTexturedParticle, GL_DrawSparkedParticle, GL_DrawTrifanParticle, GL_DrawParticleBeam_Textured, GL_DrawParticleBeam_Untextured, GL_DrawClippedDecal);
 		qglEnd();
+		qglDisable(GL_POLYGON_OFFSET_FILL);
+
+		RSpeedRemark();
+		qglBegin(GL_QUADS);
+		RQ_RenderDistAndClear();
+		qglEnd();
+		RSpeedEnd(RSPEED_PARTICLESDRAW);
+
 		qglEnable(GL_TEXTURE_2D);
 
 		GL_TexEnv(GL_MODULATE);
@@ -3510,9 +3714,13 @@ void P_DrawParticles (void)
 #ifdef SWQUAKE
 	if (qrenderer == QR_SOFTWARE)
 	{
+		DrawParticleTypes(SWD_DrawParticleBlob, SWD_DrawParticleSpark, SWD_DrawParticleSpark, SWD_DrawParticleBeam, SWD_DrawParticleBeam, NULL);
+
+		RSpeedRemark();
 		D_StartParticles();
-		DrawParticleTypes(SWD_DrawParticleBlob, SWD_DrawParticleSpark, SWD_DrawParticleSpark, SWD_DrawParticleBeam, SWD_DrawParticleBeam);
+		RQ_RenderDistAndClear();
 		D_EndParticles();
+		RSpeedEnd(RSPEED_PARTICLESDRAW);
 		return;
 	}
 #endif

@@ -440,7 +440,7 @@ enum clcq2_ops_e
 #ifdef PEXT_BIGORIGINS
 #define U_ORIGINDBL	(1<<10)	//use an extra qbyte for origin parts, cos one of them is off
 #endif
-
+#define U_VIEWMODEL (1<<11) //glue to the player's view
 
 #endif
 
@@ -604,6 +604,8 @@ enum {
 #define DPTE_CUSTOMFLASH	73
 #define DPTE_FLAMEJET		74
 #define DPTE_PLASMABURN		75
+
+#define DPTE_SMOKE			77
 
 #define TE_SEEF_BRIGHTFIELD	200
 #define TE_SEEF_DARKLIGHT	201

@@ -2145,7 +2145,7 @@ void SV_WriteEntitiesToClient (client_t *client, sizebuf_t *msg, qboolean ignore
 			}
 		}
 
-		if (!ignorepvs)
+/*		if (!ignorepvs)
 		{
 			//branch out to the pvs testing.
 			if (ent->tagent)
@@ -2165,7 +2165,7 @@ void SV_WriteEntitiesToClient (client_t *client, sizebuf_t *msg, qboolean ignore
 					continue;
 			}
 		}
-
+*/
 
 
 

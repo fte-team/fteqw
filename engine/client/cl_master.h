@@ -18,6 +18,31 @@
 #define MT_MASTERQ2		8	//query
 
 
+typedef enum{
+	SLKEY_PING,
+	SLKEY_MAP,
+	SLKEY_NAME,
+	SLKEY_ADDRESS,
+	SLKEY_NUMPLAYERS,
+	SLKEY_MAXPLAYERS,
+	SLKEY_GAMEDIR,
+
+	SLKEY_TOOMANY,
+	SLKEY_CUSTOM
+} hostcachekey_t;
+
+typedef enum {
+	SLIST_TEST_CONTAINS,
+	SLIST_TEST_NOTCONTAIN,
+	SLIST_TEST_LESSEQUAL,
+	SLIST_TEST_LESS,
+	SLIST_TEST_EQUAL,
+	SLIST_TEST_GREATER,
+	SLIST_TEST_GREATEREQUAL,
+	SLIST_TEST_NOTEQUAL
+} slist_test_t;
+
+
 //contains info about a server in greater detail. Could be too mem intensive.
 typedef struct serverdetailedinfo_s {
 	char info[MAX_SERVERINFO_STRING];
@@ -41,8 +66,13 @@ typedef struct serverinfo_s {
 	char name[64];	//hostname.
 	netadr_t adr;
 
-	short players;
-	short maxplayers;
+	unsigned char players;
+	unsigned char maxplayers;
+	qbyte special;	//flags
+	qbyte sends;
+	qbyte insortedlist;
+
+	unsigned short ping;
 
 	short tl;
 	short fl;
@@ -50,9 +80,6 @@ typedef struct serverinfo_s {
 	char map[8+1];
 
 	float refreshtime;
-	qbyte special;	//flags
-	unsigned short ping;
-	int sends;
 
 	serverdetailedinfo_t *moreinfo;
 
@@ -99,3 +126,15 @@ serverinfo_t *Master_InfoForNum (int num);
 int Master_TotalCount(void);
 void Master_QueryServer(serverinfo_t *server);
 void MasterInfo_WriteServers(void);
+
+int Master_KeyForName(char *keyname);
+float Master_ReadKeyFloat(serverinfo_t *server, int keynum);
+char *Master_ReadKeyString(serverinfo_t *server, int keynum);
+
+void Master_SetSortField(hostcachekey_t field, qboolean descending);
+hostcachekey_t Master_GetSortField(void);
+qboolean Master_GetSortDescending(void);
+
+int Master_NumSorted(void);
+void Master_ClearMasks(void);
+serverinfo_t *Master_SortedServer(int idx);

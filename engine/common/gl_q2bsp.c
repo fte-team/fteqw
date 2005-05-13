@@ -332,7 +332,7 @@ int		c_pointcontents;
 int		c_traces, c_brush_traces;
 
 
-vec4_t		*map_verts;	//3points + pad (I'm not entirly sure of the need for the pad, maybe it's just faster)
+vec3_t		*map_verts;	//3points
 int			numvertexes;
 
 vec2_t		*map_vertstmexcoords;
@@ -435,7 +435,7 @@ qboolean BoundsIntersect (vec3_t mins1, vec3_t maxs1, vec3_t mins2, vec3_t maxs2
 Patch_FlatnessTest
 ===============
 */
-static int Patch_FlatnessTest ( float maxflat, vec4_t point0, vec4_t point1, vec4_t point2 )
+static int Patch_FlatnessTest ( float maxflat, const vec3_t point0, const vec3_t point1, const vec3_t point2 )
 {
 	vec3_t v1, v2, v3;
 	vec3_t t, n;
@@ -473,7 +473,7 @@ static int Patch_FlatnessTest ( float maxflat, vec4_t point0, vec4_t point1, vec
 Patch_GetFlatness
 ===============
 */
-void Patch_GetFlatness ( float maxflat, vec4_t *points, int *patch_cp, int *flat )
+void Patch_GetFlatness ( float maxflat, const vec3_t *points, int *patch_cp, int *flat )
 {
 	int i, p, u, v;
 
@@ -528,7 +528,7 @@ static void Patch_Evaluate_QuadricBezier ( float t, vec4_t point0, vec4_t point1
 Patch_Evaluate
 ===============
 */
-void Patch_Evaluate ( vec4_t *p, int *numcp, int *tess, vec4_t *dest )
+void Patch_Evaluate ( const vec4_t *p, const int *numcp, const int *tess, vec4_t *dest )
 {
 	int num_patches[2], num_tess[2];
 	int index[3], dstpitch, i, u, v, x, y;
@@ -725,10 +725,10 @@ void CM_CreateBrush ( q2cbrush_t *brush, vec3_t *verts, q2mapsurface_t *surface 
 	}
 }
 
-void CM_CreatePatch ( q3cpatch_t *patch, int numverts, vec4_t *verts, int *patch_cp )
+void CM_CreatePatch ( q3cpatch_t *patch, int numverts, const vec3_t *verts, int *patch_cp )
 {
     int step[2], size[2], flat[2], i, u, v;
-	vec4_t points[MAX_CM_PATCH_VERTS];
+	vec4_t points[MAX_CM_PATCH_VERTS], pointss[MAX_CM_PATCH_VERTS];
 	vec3_t tverts[4], tverts2[4];
 	q2cbrush_t *brush;
 	mplane_t mainplane;
@@ -746,8 +746,10 @@ void CM_CreatePatch ( q3cpatch_t *patch, int numverts, vec4_t *verts, int *patch
 		return;
 	}
 
+	for (i = 0; i < numverts; i++)
+		VectorCopy(verts[i], pointss[i]);
 // fill in
-	Patch_Evaluate ( verts, patch_cp, step, points );
+	Patch_Evaluate ( pointss, patch_cp, step, points );
 
 	patch->brushes = brush = map_brushes + numbrushes;
 	patch->numbrushes = 0;
@@ -1857,7 +1859,7 @@ void CModQ3_LoadSubmodels (lump_t *l)
 	}
 }
 
-void CModQ3_LoadShaders (lump_t *l)
+void CModQ3_LoadShaders (lump_t *l, qboolean useshaders)
 {
 	dq3shader_t	*in;
 	q2mapsurface_t	*out;
@@ -1889,8 +1891,7 @@ void CModQ3_LoadShaders (lump_t *l)
 		loadmodel->texinfo[i].texture = Hunk_Alloc(sizeof(texture_t));
 		Q_strncpyz(loadmodel->texinfo[i].texture->name, in->shadername, sizeof(loadmodel->texinfo[i].texture->name));
 #ifdef RGLQUAKE
-#ifndef Q3SHADERS
-		if (qrenderer == QR_OPENGL)
+		if (qrenderer == QR_OPENGL && !useshaders)
 		{
 			loadmodel->texinfo[i].texture->gl_texturenum = Mod_LoadHiResTexture(in->shadername, loadname, true, false, true);
 			if (!loadmodel->texinfo[i].texture->gl_texturenum)
@@ -1898,7 +1899,6 @@ void CModQ3_LoadShaders (lump_t *l)
 			loadmodel->texinfo[i].texture->gl_texturenumfb = 0;
 			loadmodel->texinfo[i].texture->gl_texturenumbumpmap = 0;
 		}
-#endif
 #endif
 		loadmodel->textures[i] = loadmodel->texinfo[i].texture;
 
@@ -1918,7 +1918,7 @@ void CModQ3_LoadShaders (lump_t *l)
 void CModQ3_LoadVertexes (lump_t *l)
 {
 	q3dvertex_t	*in;
-	vec4_t		*out;
+	vec3_t		*out;
 	vec3_t		*nout;
 	int			i, count, j;
 	vec2_t		*lmout, *stout;
@@ -1966,7 +1966,7 @@ void CModQ3_LoadVertexes (lump_t *l)
 void CModRBSP_LoadVertexes (lump_t *l)
 {
 	rbspvertex_t	*in;
-	vec4_t		*out;
+	vec3_t		*out;
 	vec3_t		*nout;
 	int			i, count, j;
 	vec2_t		*lmout, *stout;
@@ -2222,7 +2222,7 @@ mesh_t *GL_CreateMeshForPatch (model_t *mod, int patchwidth, int patchheight, in
     int numindexes, patch_cp[2], step[2], size[2], flat[2], i, u, v, p;
 	vec4_t colors[MAX_ARRAY_VERTS], points[MAX_ARRAY_VERTS], normals[MAX_ARRAY_VERTS],
 		lm_st[MAX_ARRAY_VERTS], tex_st[MAX_ARRAY_VERTS];
-	vec4_t c, colors2[MAX_ARRAY_VERTS], normals2[MAX_ARRAY_VERTS], lm_st2[MAX_ARRAY_VERTS], tex_st2[MAX_ARRAY_VERTS];
+	vec4_t c, colors2[MAX_ARRAY_VERTS], points2[MAX_ARRAY_VERTS], normals2[MAX_ARRAY_VERTS], lm_st2[MAX_ARRAY_VERTS], tex_st2[MAX_ARRAY_VERTS];
 	mesh_t *mesh;
 	index_t	*indexes;
 	float subdivlevel;
@@ -2247,7 +2247,7 @@ mesh_t *GL_CreateMeshForPatch (model_t *mod, int patchwidth, int patchheight, in
 	}
 
 // find the degree of subdivision in the u and v directions
-	Patch_GetFlatness ( subdivlevel, points, patch_cp, flat );
+	Patch_GetFlatness ( subdivlevel, map_verts+firstvert, patch_cp, flat );
 
 // allocate space for mesh
 	step[0] = (1 << flat[0]);
@@ -2263,7 +2263,7 @@ mesh_t *GL_CreateMeshForPatch (model_t *mod, int patchwidth, int patchheight, in
 	mesh = (mesh_t *)Hunk_TempAllocMore ( sizeof(mesh_t));
 
 	mesh->numvertexes = numverts;
-	mesh->xyz_array = Hunk_TempAllocMore ( numverts * sizeof(vec4_t));
+	mesh->xyz_array = Hunk_TempAllocMore ( numverts * sizeof(vec3_t));
 	mesh->normals_array = Hunk_TempAllocMore ( numverts * sizeof(vec3_t));
 	mesh->st_array = Hunk_TempAllocMore ( numverts * sizeof(vec2_t));
 	mesh->lmst_array = Hunk_TempAllocMore ( numverts * sizeof(vec2_t));
@@ -2273,7 +2273,7 @@ mesh_t *GL_CreateMeshForPatch (model_t *mod, int patchwidth, int patchheight, in
 	mesh->patchHeight = size[1];
 
 // fill in
-	Patch_Evaluate ( points, patch_cp, step, mesh->xyz_array );
+	Patch_Evaluate ( points, patch_cp, step, points2 );
 	Patch_Evaluate ( colors, patch_cp, step, colors2 );
 	Patch_Evaluate ( normals, patch_cp, step, normals2 );
 	Patch_Evaluate ( lm_st, patch_cp, step, lm_st2 );
@@ -2281,6 +2281,7 @@ mesh_t *GL_CreateMeshForPatch (model_t *mod, int patchwidth, int patchheight, in
 
 	for (i = 0; i < numverts; i++)
 	{
+		VectorCopy ( points2[i], mesh->xyz_array[i] );
 		VectorNormalize2 ( normals2[i], mesh->normals_array[i] );
 		ColorNormalize ( colors2[i], c );
 		Vector4Scale ( c, 255.0, mesh->colors_array[i] );
@@ -2333,8 +2334,8 @@ mesh_t *GL_CreateMeshForPatch (model_t *mod, int patchwidth, int patchheight, in
 #endif
 
 
-
-void CModQ3_LoadRFaces (lump_t *l)
+mesh_t nullmesh;
+void CModQ3_LoadRFaces (lump_t *l, qboolean useshaders)
 {
 #ifndef Q3SHADERS
 	int polysize = sizeof(glpoly_t) - VERTEXSIZE*sizeof(float);
@@ -2352,12 +2353,7 @@ void CModQ3_LoadRFaces (lump_t *l)
 	int numverts, numindexes;
 	int fv;
 
-	mesh_t *mesh;
-
-	extern cvar_t gl_shadeq3;
-
-	int shaders = gl_shadeq3.value;
-	
+	mesh_t *mesh;	
 
 	in = (void *)(mod_base + l->fileofs);
 	if (l->filelen % sizeof(*in))
@@ -2405,7 +2401,7 @@ continue;
 			out->flags |= SURF_DRAWSKY;
 
 #ifdef Q3SHADERS
-		if (!out->texinfo->texture->shader && shaders)
+		if (!out->texinfo->texture->shader && useshaders)
 		{
 			extern cvar_t r_vertexlight;
 			if (in->facetype == MST_FLARE)
@@ -2423,9 +2419,7 @@ continue;
 #endif
 		if (map_surfaces[in->shadernum].c.flags & (Q3SURF_NODRAW | Q3SURF_SKIP))
 		{
-			if (map_surfaces[in->shadernum].c.flags & Q3SURF_SKIP)
-				Con_Printf("Surface skip\n");
-			out->mesh = NULL;
+			out->mesh = &nullmesh;
 		}
 		else if (in->facetype == MST_PATCH)
 		{
@@ -2455,7 +2449,7 @@ continue;
 			extern index_t r_quad_indexes[6];
 
 			mesh = out->mesh = (mesh_t *)Hunk_Alloc ( sizeof(mesh_t));
-			mesh->xyz_array = (vec4_t *)Hunk_Alloc ( sizeof(vec4_t));
+			mesh->xyz_array = (vec3_t *)Hunk_Alloc ( sizeof(vec3_t));
 			mesh->numvertexes = 1;
 			mesh->indexes = r_quad_indexes;
 			mesh->numindexes = 6;
@@ -2475,7 +2469,7 @@ continue;
 	}
 }
 
-void CModRBSP_LoadRFaces (lump_t *l)
+void CModRBSP_LoadRFaces (lump_t *l, qboolean useshaders)
 {
 #ifndef Q3SHADERS
 	int polysize = sizeof(glpoly_t) - VERTEXSIZE*sizeof(float);
@@ -2494,10 +2488,6 @@ void CModRBSP_LoadRFaces (lump_t *l)
 	int fv;
 
 	mesh_t *mesh;
-
-	extern cvar_t gl_shadeq3;
-
-	int shaders = gl_shadeq3.value;
 	
 
 	in = (void *)(mod_base + l->fileofs);
@@ -2546,7 +2536,7 @@ continue;
 			out->flags |= SURF_DRAWSKY;
 
 #ifdef Q3SHADERS
-		if (!out->texinfo->texture->shader && shaders)
+		if (!out->texinfo->texture->shader && useshaders)
 		{
 			extern cvar_t r_vertexlight;
 			if (in->facetype == MST_FLARE)
@@ -2596,7 +2586,7 @@ continue;
 			extern index_t r_quad_indexes[6];
 
 			mesh = out->mesh = (mesh_t *)Hunk_Alloc ( sizeof(mesh_t));
-			mesh->xyz_array = (vec4_t *)Hunk_Alloc ( sizeof(vec4_t));
+			mesh->xyz_array = (vec3_t *)Hunk_Alloc ( sizeof(vec3_t));
 			mesh->numvertexes = 1;
 			mesh->indexes = r_quad_indexes;
 			mesh->numindexes = 6;
@@ -3121,6 +3111,8 @@ void CMQ3_CalcPHS (void)
 
 	map_q3phs->rowsize = map_q3pvs->rowsize;
 	map_q3phs->numclusters = numclusters = map_q3pvs->numclusters;
+	if (!numclusters)
+		return;
 
 	vcount = 0;
 	for (i=0 ; i<numclusters ; i++)
@@ -3327,6 +3319,7 @@ q2cmodel_t *CM_LoadMap (char *name, char *filein, qboolean clientload, unsigned 
 	q2dheader_t		header;
 	int				length;
 	static unsigned	last_checksum;
+	qboolean useshaders;
 
 	// free old stuff
 	numplanes = 0;
@@ -3377,6 +3370,16 @@ q2cmodel_t *CM_LoadMap (char *name, char *filein, qboolean clientload, unsigned 
 	case 1: //rbsp
 	case Q3BSPVERSION+1:	//rtcw
 	case Q3BSPVERSION:
+
+#ifdef Q3SHADERS
+		{
+			extern cvar_t gl_shadeq3;
+			useshaders = gl_shadeq3.value;
+		}
+#else
+		useshaders = false;
+#endif
+
 		mapisq3 = true;
 		loadmodel->fromgame = fg_quake3;
 		for (i=0 ; i<Q3LUMPS_TOTAL ; i++)
@@ -3417,7 +3420,7 @@ q2cmodel_t *CM_LoadMap (char *name, char *filein, qboolean clientload, unsigned 
 #endif
 		case QR_NONE:	//dedicated only
 			mapisq3 = true;
-			CModQ3_LoadShaders		(&header.lumps[Q3LUMP_SHADERS]);
+			CModQ3_LoadShaders		(&header.lumps[Q3LUMP_SHADERS], useshaders);
 			CModQ3_LoadPlanes		(&header.lumps[Q3LUMP_PLANES]);
 			CModQ3_LoadLeafBrushes	(&header.lumps[Q3LUMP_LEAFBRUSHES]);
 			CModQ3_LoadBrushes		(&header.lumps[Q3LUMP_BRUSHES]);
@@ -3451,9 +3454,9 @@ q2cmodel_t *CM_LoadMap (char *name, char *filein, qboolean clientload, unsigned 
 					map_numfogs = 0;
 #endif
 				if (header.version == 1)
-					CModRBSP_LoadRFaces	(&header.lumps[Q3LUMP_SURFACES]);
+					CModRBSP_LoadRFaces	(&header.lumps[Q3LUMP_SURFACES], useshaders);
 				else
-					CModQ3_LoadRFaces	(&header.lumps[Q3LUMP_SURFACES]);
+					CModQ3_LoadRFaces	(&header.lumps[Q3LUMP_SURFACES], useshaders);
 				CModQ3_LoadMarksurfaces (&header.lumps[Q3LUMP_LEAFSURFACES]);	//fixme: duplicated loading.
 			}
 #endif

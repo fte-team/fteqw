@@ -14,7 +14,6 @@
 #define HLPOLYHEADER	(('T' << 24) + ('S' << 16) + ('D' << 8) + 'I')	/* little-endian "IDST" */
 #define HLMDLHEADER		"IDST"
 
-typedef vec_t vec4_t[4];
 /*
  -----------------------------------------------------------------------------------------------------------------------
     main model header

@@ -1,9 +1,9 @@
 #include "quakedef.h"
 #include "glquake.h"
 
-#include "doommap.h"
-
 #ifdef DOOMWADS
+
+#include "doommap.h"
 
 vec_t VectorNormalize2 (vec3_t v, vec3_t out);
 int SignbitsForPlane (mplane_t *out);

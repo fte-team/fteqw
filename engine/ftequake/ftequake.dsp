@@ -2572,6 +2572,7 @@ SOURCE=..\client\zqtp.c
 # Begin Source File
 
 SOURCE=..\gl\doomclip.c
+# PROP Exclude_From_Build 1
 # End Source File
 # Begin Source File
 
@@ -3336,6 +3337,8 @@ SOURCE=..\gl\glmod_doom.c
 !ELSEIF  "$(CFG)" == "ftequake - Win32 GLRelease"
 
 !ELSEIF  "$(CFG)" == "ftequake - Win32 MDebug"
+
+# PROP Exclude_From_Build 1
 
 !ELSEIF  "$(CFG)" == "ftequake - Win32 MRelease"
 

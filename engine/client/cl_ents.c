@@ -276,8 +276,6 @@ void CL_ParseDelta (entity_state_t *from, entity_state_t *to, int bits, qboolean
 		if (bits&(1<<i))
 			bitcounts[i]++;
 
-	to->flags = bits;
-
 #ifdef PROTOCOLEXTENSIONS
 	if (bits & U_EVENMORE && cls.fteprotocolextensions)
 		morebits = MSG_ReadByte ();
@@ -337,7 +335,7 @@ void CL_ParseDelta (entity_state_t *from, entity_state_t *to, int bits, qboolean
 #endif
 
 	if (morebits & U_DRAWFLAGS && cls.fteprotocolextensions & PEXT_HEXEN2)
-		to->drawflags = MSG_ReadByte();
+		to->hexen2flags = MSG_ReadByte();
 	if (morebits & U_ABSLIGHT && cls.fteprotocolextensions & PEXT_HEXEN2)
 		to->abslight = MSG_ReadByte();
 
@@ -347,6 +345,28 @@ void CL_ParseDelta (entity_state_t *from, entity_state_t *to, int bits, qboolean
 		to->number += 1024;
 	if (morebits & U_MODELDBL)
 		to->modelindex += 256;
+
+	if (morebits & U_DPFLAGS)// && cls.fteprotocolextensions & PEXT_DPFLAGS)
+	{
+		// these are bits for the 'flags' field of the entity_state_t
+#define RENDER_STEP 1
+#define RENDER_GLOWTRAIL 2
+#define RENDER_VIEWMODEL 4
+#define RENDER_EXTERIORMODEL 8
+#define RENDER_LOWPRECISION 16 // send as low precision coordinates to save bandwidth
+#define RENDER_COLORMAPPED 32
+#define RENDER_SHADOW 65536 // cast shadow
+#define RENDER_LIGHT 131072 // receive light
+#define RENDER_TRANSPARENT 262144 // can't light during opaque stage
+
+
+		i = MSG_ReadByte();
+		to->flags = 0;
+		if (i & RENDER_VIEWMODEL)
+			to->flags |= Q2RF_WEAPONMODEL|Q2RF_MINLIGHT|Q2RF_DEPTHHACK;
+		if (i & RENDER_EXTERIORMODEL)
+			to->flags |= Q2RF_EXTERNALMODEL;
+	}
 
 	VectorSubtract(to->origin, from->origin, move);
 
@@ -755,7 +775,10 @@ void DP5_ParseDelta(entity_state_t *s)
 	}
 	if (bits & E5_FULLUPDATE)
 	{
+		int num;
+		num = s->number;
 		*s = defaultstate;
+		s->number = num;
 //		s->active = true;
 	}
 	if (bits & E5_FLAGS)
@@ -823,10 +846,8 @@ void DP5_ParseDelta(entity_state_t *s)
 		s->colormap = MSG_ReadByte();
 	if (bits & E5_ATTACHMENT)
 	{
-		MSG_ReadShort();
-		MSG_ReadByte();
-//		s->tagentity = (unsigned short) MSG_ReadShort();
-//		s->tagindex = MSG_ReadByte();
+		cl.lerpents[s->number].tagent = MSG_ReadShort();
+		cl.lerpents[s->number].tagindex = MSG_ReadByte();
 	}
 	if (bits & E5_LIGHT)
 	{
@@ -917,9 +938,8 @@ void CLNQ_ParseDarkPlaces5Entities(void)	//the things I do.. :o(
 		to = &pack->entities[pack->num_entities];
 		pack->num_entities++;
 		memcpy(to, from, sizeof(*to));
-		DP5_ParseDelta(to);
-
 		to->number = read;
+		DP5_ParseDelta(to);
 
 		if (!from || to->modelindex != from->modelindex || to->number != from->number)	//model changed... or entity changed...
 			cl.lerpents[to->number].lerptime = -10;
@@ -1282,7 +1302,8 @@ void CL_RotateAroundTag(entity_t *ent, int num, int tagent, int tagnum)
 		}
 		else	//hrm.
 		{
-//			memcpy(axis, ent->axis, sizeof(temp));
+			memcpy(ent->axis, axis, sizeof(temp));
+			VectorCopy(org, ent->origin);
 		}
 
 
@@ -1326,6 +1347,8 @@ void V_AddLerpEntity(entity_t *in)	//a convienience function
 	{
 		ent->origin[i] = in->origin[i]*fwds + in->oldorigin[i]*back;
 	}
+
+	ent->lerpfrac = 1 - ent->lerpfrac;
 
 	ent->angles[0]*=-1;
 	AngleVectors(ent->angles, ent->axis[0], ent->axis[1], ent->axis[2]);
@@ -1433,7 +1456,7 @@ void CL_LinkPacketEntities (void)
 		else
 			ent->model = model;
 
-		ent->flags = 0;
+		ent->flags = s1->flags;
 		if (s1->effects & NQEF_ADDATIVE)
 			ent->flags |= Q2RF_ADDATIVE;
 
@@ -1454,7 +1477,7 @@ void CL_LinkPacketEntities (void)
 		ent->skinnum = s1->skinnum;
 
 		ent->abslight = s1->abslight;
-		ent->drawflags = s1->drawflags;
+		ent->drawflags = s1->hexen2flags;
 
 		// set frame
 		ent->frame = s1->frame;

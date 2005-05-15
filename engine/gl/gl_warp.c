@@ -51,6 +51,8 @@ extern cvar_t r_fastskycolour;
 char defaultskybox[MAX_QPATH];
 qboolean reloadskybox;
 
+int skyboxtex[6];
+
 void R_DrawSkyBox (msurface_t *s);
 void BoundPoly (int numverts, float *verts, vec3_t mins, vec3_t maxs)
 {
@@ -192,6 +194,14 @@ void R_DrawSkyChain (msurface_t *s)
 
 	GL_DisableMultitexture();
 
+	if (!solidskytexture&&!usingskybox)
+	{
+		int i;
+		if (s->texinfo->texture->shader && s->texinfo->texture->shader->skydome)
+			for (i = 0; i < 6; i++)
+				skyboxtex[i] = s->texinfo->texture->shader->skydome->farbox_textures[i];		
+	}
+
 	if (r_fastsky.value||(!solidskytexture&&!usingskybox))	//this is for visability only... we'd otherwise not stoop this low (and this IS low)
 	{
 		int fc;
@@ -278,7 +288,6 @@ static char *skyname_pattern[] = {
 	"gfx/env/%s%s"
 };
 
-int skyboxtex[6];
 void R_LoadSkys (void)
 {
 	int		i;

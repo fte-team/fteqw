@@ -1694,6 +1694,13 @@ void	Cmd_ExecuteString (char *text, int level)
 		return;
 #endif
 
+#ifndef SERVERONLY
+#ifdef CSQC_DAT
+	if (CSQC_ConsoleCommand(text))
+		return;
+#endif
+#endif
+
 #ifndef CLIENTONLY
 	if (sv.state)
 	{
@@ -1704,15 +1711,16 @@ void	Cmd_ExecuteString (char *text, int level)
 
 #ifdef VM_CG
 	if (CG_Command())
-		;
-	else 
+		return;
 #endif
 #ifdef Q2CLIENT
-		if (cls.q2server)
+	if (cls.q2server)
+	{
 		Cmd_ForwardToServer();
-	else 
+		return;
+	}
 #endif
-		if (cl_warncmd.value || developer.value)
+	if (cl_warncmd.value || developer.value)
 		Con_TPrintf (TL_COMMANDNOTDEFINED, Cmd_Argv(0));
 }
 

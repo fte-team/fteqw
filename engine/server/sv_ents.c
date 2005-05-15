@@ -519,10 +519,13 @@ void SV_WriteDelta (entity_state_t *from, entity_state_t *to, sizebuf_t *msg, qb
 		evenmorebits |= U_FATNESS;
 #endif
 
-	if ( to->drawflags != from->drawflags && protext & PEXT_HEXEN2)
+	if ( to->hexen2flags != from->hexen2flags && protext & PEXT_HEXEN2)
 		evenmorebits |= U_DRAWFLAGS;
 	if ( to->abslight != from->abslight && protext & PEXT_HEXEN2)
 		evenmorebits |= U_ABSLIGHT;
+
+	if (to->dpflags)
+		evenmorebits |= U_DPFLAGS;
 
 	if (evenmorebits&0xff00)
 		evenmorebits |= U_YETMORE;
@@ -600,9 +603,12 @@ void SV_WriteDelta (entity_state_t *from, entity_state_t *to, sizebuf_t *msg, qb
 #endif
 
 	if (evenmorebits & U_DRAWFLAGS)
-		MSG_WriteByte (msg, to->drawflags);
+		MSG_WriteByte (msg, to->hexen2flags);
 	if (evenmorebits & U_ABSLIGHT)
 		MSG_WriteByte (msg, to->abslight);
+
+	if (evenmorebits & U_DPFLAGS)
+		MSG_WriteByte (msg, to->dpflags);
 }
 
 /*
@@ -2080,7 +2086,7 @@ void SV_WriteEntitiesToClient (client_t *client, sizebuf_t *msg, qboolean ignore
 		state->colormap = clent->v->colormap;
 		state->skinnum = clent->v->skin;
 		state->effects = clent->v->effects;
-		state->drawflags = clent->v->drawflags;
+		state->hexen2flags = clent->v->drawflags;
 		state->abslight = clent->v->abslight;
 
 #ifdef PEXT_SCALE
@@ -2131,8 +2137,6 @@ void SV_WriteEntitiesToClient (client_t *client, sizebuf_t *msg, qboolean ignore
 
 		if (progstype != PROG_QW)
 		{
-			if (progstype == PROG_H2 && (int)ent->v->effects & H2EF_NODRAW)
-				continue;
 			if ((int)ent->v->effects & EF_MUZZLEFLASH)
 			{
 				if (needcleanup < e)
@@ -2280,6 +2284,32 @@ void SV_WriteEntitiesToClient (client_t *client, sizebuf_t *msg, qboolean ignore
 			}
 		}
 
+// these are bits for the 'flags' field of the entity_state_t
+#define RENDER_STEP 1
+#define RENDER_GLOWTRAIL 2
+#define RENDER_VIEWMODEL 4
+#define RENDER_EXTERIORMODEL 8
+#define RENDER_LOWPRECISION 16 // send as low precision coordinates to save bandwidth
+#define RENDER_COLORMAPPED 32
+
+		state->dpflags = 0;
+		if (ent->v->viewmodelforclient)
+		{
+			if (ent->v->viewmodelforclient == EDICT_TO_PROG(svprogfuncs, client->edict))
+				state->dpflags |= RENDER_VIEWMODEL;
+//			else
+//			{	//noone else sees it.
+//				pack->num_entities--;
+//				continue;
+//			}
+		}
+		if (ent->v->exteriormodeltoclient)
+		{
+			if (ent->v->exteriormodeltoclient == EDICT_TO_PROG(svprogfuncs, client->edict))
+				state->dpflags |= RENDER_VIEWMODEL;
+			//everyone else sees it normally.
+		}
+
 		state->number = e;
 		state->flags = 0;
 		VectorCopy (ent->v->origin, state->origin);
@@ -2289,7 +2319,7 @@ void SV_WriteEntitiesToClient (client_t *client, sizebuf_t *msg, qboolean ignore
 		state->colormap = ent->v->colormap;
 		state->skinnum = ent->v->skin;
 		state->effects = ent->v->effects;
-		state->drawflags = ent->v->drawflags;
+		state->hexen2flags = ent->v->drawflags;
 		state->abslight = (int)(ent->v->abslight*255) & 255;
 		if ((int)ent->v->flags & FL_CLASS_DEPENDENT && client->playerclass)
 		{
@@ -2307,17 +2337,32 @@ void SV_WriteEntitiesToClient (client_t *client, sizebuf_t *msg, qboolean ignore
 		if (state->effects & EF_FULLBRIGHT)
 		{
 			state->abslight = 255;
-			state->drawflags |= MLS_ABSLIGHT;
+			state->hexen2flags |= MLS_ABSLIGHT;
 		}
 		if (progstype != PROG_QW)	//don't send extra nq effects to a qw client.
+		{
+			//EF_NODRAW doesn't draw the model.
+			//The client still needs to know about it though, as it might have other effects on it.
+			if (progstype == PROG_H2)
+			{
+				if (state->effects & H2EF_NODRAW)
+					state->modelindex = 0;
+			}
+			else
+			{
+				if (state->effects & NQEF_NODRAW)
+					state->modelindex = 0;
+			}
+
 			state->effects &= EF_BRIGHTLIGHT | EF_DIMLIGHT;
+		}
 
 #ifdef PEXT_SCALE
 		state->scale = ent->v->scale;
 #endif
 #ifdef PEXT_TRANS
 		state->trans = ent->v->alpha;
-		if (!state->trans)
+		if (!ent->v->alpha)
 			state->trans = 1;
 
 		//QSG_DIMENSION_PLANES - if the only shared dimensions are ghost dimensions, Set half alpha.

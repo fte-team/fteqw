@@ -208,7 +208,7 @@ int QC_RegisterFieldVar(progfuncs_t *progfuncs, unsigned int type, char *name, i
 	//look for an existing match
 	for (i = 0; i < numfields; i++)
 	{		
-		if (!strcmp(name, field[i].s_name))
+		if (!strcmp(name, field[i].name))
 		{
 			if (field[i].type != type)
 			{
@@ -239,7 +239,7 @@ int QC_RegisterFieldVar(progfuncs_t *progfuncs, unsigned int type, char *name, i
 	//try to add a new one
 	fnum = numfields;
 	numfields++;
-	field[fnum].s_name = name;	
+	field[fnum].name = name;	
 	if (type == ev_vector)	//resize with the following floats (this is where I think I went wrong)
 	{
 		char *n;		
@@ -265,7 +265,7 @@ int QC_RegisterFieldVar(progfuncs_t *progfuncs, unsigned int type, char *name, i
 			{
 				if (type == ev_float && field[i].type == ev_vector)	//check names
 				{
-					if (strncmp(field[i].s_name, name, strlen(field[i].s_name)))
+					if (strncmp(field[i].name, name, strlen(field[i].name)))
 						Sys_Error("Duplicated offset");
 				}
 				else
@@ -294,7 +294,7 @@ int QC_RegisterFieldVar(progfuncs_t *progfuncs, unsigned int type, char *name, i
 
 
 //called if a global is defined as a field
-void QC_AddSharedFieldVar(progfuncs_t *progfuncs, int num)
+void QC_AddSharedFieldVar(progfuncs_t *progfuncs, int num, char *stringtable)
 {
 //	progstate_t *p;
 //	int pnum;
@@ -323,14 +323,14 @@ void QC_AddSharedFieldVar(progfuncs_t *progfuncs, int num)
 	case 16:
 		for (i=1 ; i<pr_progs->numfielddefs; i++)
 		{
-			if (!strcmp(pr_fielddefs16[i].s_name, pr_globaldefs16[num].s_name))
+			if (!strcmp(pr_fielddefs16[i].s_name+stringtable, pr_globaldefs16[num].s_name+stringtable))
 			{
-				*(int *)&pr_globals[pr_globaldefs16[num].ofs] = QC_RegisterFieldVar(progfuncs, pr_fielddefs16[i].type, pr_globaldefs16[num].s_name, -1, *(int *)&pr_globals[pr_globaldefs16[num].ofs])-progfuncs->fieldadjust;
+				*(int *)&pr_globals[pr_globaldefs16[num].ofs] = QC_RegisterFieldVar(progfuncs, pr_fielddefs16[i].type, pr_globaldefs16[num].s_name+stringtable, -1, *(int *)&pr_globals[pr_globaldefs16[num].ofs])-progfuncs->fieldadjust;
 				return;
 			}
 		}
 
-		s = pr_globaldefs16[num].s_name;
+		s = pr_globaldefs16[num].s_name+stringtable;
 
 		for (i = 0; i < numfields; i++)
 		{
@@ -349,14 +349,14 @@ void QC_AddSharedFieldVar(progfuncs_t *progfuncs, int num)
 	case 32:
 		for (i=1 ; i<pr_progs->numfielddefs; i++)
 		{
-			if (!strcmp(pr_fielddefs32[i].s_name, pr_globaldefs32[num].s_name))
+			if (!strcmp(pr_fielddefs32[i].s_name+stringtable, pr_globaldefs32[num].s_name+stringtable))
 			{
-				*(int *)&pr_globals[pr_globaldefs32[num].ofs] = QC_RegisterFieldVar(progfuncs, pr_fielddefs32[i].type, pr_globaldefs32[num].s_name, -1, *(int *)&pr_globals[pr_globaldefs32[num].ofs])-progfuncs->fieldadjust;
+				*(int *)&pr_globals[pr_globaldefs32[num].ofs] = QC_RegisterFieldVar(progfuncs, pr_fielddefs32[i].type, pr_globaldefs32[num].s_name+stringtable, -1, *(int *)&pr_globals[pr_globaldefs32[num].ofs])-progfuncs->fieldadjust;
 				return;
 			}
 		}
 
-		s = pr_globaldefs32[num].s_name;
+		s = pr_globaldefs32[num].s_name+stringtable;
 
 		for (i = 0; i < numfields; i++)
 		{
@@ -370,7 +370,7 @@ void QC_AddSharedFieldVar(progfuncs_t *progfuncs, int num)
 
 		//oh well, must be a parameter.
 		if (*(int *)&pr_globals[pr_globaldefs32[num].ofs])
-			Sys_Error("QCLIB: Global field var with no matching field \"%s\", from offset %i", pr_globaldefs32[num].s_name, *(int *)&pr_globals[pr_globaldefs32[num].ofs]);
+			Sys_Error("QCLIB: Global field var with no matching field \"%s\", from offset %i", pr_globaldefs32[num].s_name+stringtable, *(int *)&pr_globals[pr_globaldefs32[num].ofs]);
 		return;
 	default:
 		Sys_Error("Bad bits");

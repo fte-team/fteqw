@@ -59,6 +59,7 @@ void *PRAddressableAlloc(progfuncs_t *progfuncs, int ammount)
 
 	return &addressablehunk[addressableused-ammount];
 }
+
 void PRAddressableFlush(progfuncs_t *progfuncs, int totalammount)
 {
 	addressableused = 0;
@@ -255,8 +256,8 @@ char *PR_VarString (progfuncs_t *progfuncs, int	first)
 	{
 		if (G_STRING(OFS_PARM0+i*3))
 		{
-			s=G_STRING((OFS_PARM0+i*3));
-			strcat (out, G_STRING((OFS_PARM0+i*3)));
+			s=G_STRING((OFS_PARM0+i*3)) + progfuncs->stringtable;
+			strcat (out, s);
 
 //#ifdef PARANOID
 			if (strlen(out)+1 >= sizeof(out))
@@ -448,7 +449,7 @@ __declspec(dllexport)
 #endif 
 void CloseProgs(progfuncs_t *inst)
 {
-	extensionbuiltin_t *eb;
+//	extensionbuiltin_t *eb;
 	void (VARGS *f) (void *);
 
 	int i;
@@ -468,13 +469,15 @@ void CloseProgs(progfuncs_t *inst)
 	}
 
 	PRHunkFree(inst, 0);
+
+/*
 	while(inst->prinst->extensionbuiltin)
 	{
 		eb = inst->prinst->extensionbuiltin->prev;
 		f(inst->prinst->extensionbuiltin);
 		inst->prinst->extensionbuiltin = eb;
 	}
-
+*/
 	if (inst->prinst->field)
 		f(inst->prinst->field);
 	if (inst->prinst->shares)
@@ -485,12 +488,14 @@ void CloseProgs(progfuncs_t *inst)
 
 void RegisterBuiltin(progfuncs_t *progfuncs, char *name, builtin_t func)
 {
+/*
 	extensionbuiltin_t *eb;
 	eb = memalloc(sizeof(extensionbuiltin_t));
 	eb->prev = progfuncs->prinst->extensionbuiltin;
 	progfuncs->prinst->extensionbuiltin = eb;
 	eb->name = name;
 	eb->func = func;
+*/
 }
 
 #ifndef WIN32

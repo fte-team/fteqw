@@ -112,7 +112,7 @@ struct progfuncs_s {
 	int		*callargc;	//number of args of built-in call
 	void	(*RegisterBuiltin)			(progfuncs_t *prinst, char *, builtin_t);
 
-	int stringtable;	//qc strings are all relative. add to a qc string. this is required for support of frikqcc progs that strip string immediates.
+	char *stringtable;	//qc strings are all relative. add to a qc string. this is required for support of frikqcc progs that strip string immediates.
 	int fieldadjust;	//FrikQCC style arrays can cause problems due to field remapping. This causes us to leave gaps but offsets identical.
 
 	struct qcthread_s *(*Fork)			(progfuncs_t *prinst);
@@ -165,7 +165,7 @@ typedef struct progexterns_s {
 } progparms_t, progexterns_t;
 
 void QC_AddSharedVar(progfuncs_t *progfuncs, int start, int size);
-void QC_AddSharedFieldVar(progfuncs_t *progfuncs, int num);
+void QC_AddSharedFieldVar(progfuncs_t *progfuncs, int num, char *relstringtable);
 
 #if defined(QCLIBDLL_EXPORTS)
 __declspec(dllexport)
@@ -257,7 +257,7 @@ typedef union eval_s
 #define G_PROG(o) (*(progsnum_t *)&((float *)pr_globals)[o])	//simply so it's nice and easy to change...
 
 #define PR_GetString(p,s) (s?s + p->stringtable:"")
-#define PR_GetStringOfs(p,o) (G_INT(o)?(char *)G_INT(o) + p->stringtable:"")
+#define PR_GetStringOfs(p,o) (G_INT(o)?G_INT(o) + p->stringtable:"")
 #define PR_SetString(p, s) ((s&&*s)?(s - p->stringtable):0)
 #define PR_NewString(p, s) (PR_AddString(p, s) - p->stringtable)
 

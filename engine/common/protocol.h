@@ -62,6 +62,7 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 #define PEXT_CSQC				0x40000000	//csqc additions
 #endif
 
+#define PEXT_DPFLAGS			0x80000000	//extra flags for viewmodel/externalmodel and possible other persistant style flags.
 
 
 //ZQuake transparent protocol extensions.
@@ -440,7 +441,8 @@ enum clcq2_ops_e
 #ifdef PEXT_BIGORIGINS
 #define U_ORIGINDBL	(1<<10)	//use an extra qbyte for origin parts, cos one of them is off
 #endif
-#define U_VIEWMODEL (1<<11) //glue to the player's view
+
+#define U_DPFLAGS (1<<11)
 
 #endif
 
@@ -600,6 +602,7 @@ enum {
 
 #define DPTE_BLOOD			50
 #define DPTE_SPARK			51
+#define DPTE_BLOODSHOWER	52
 #define DPTE_SMALLFLASH		72
 #define DPTE_CUSTOMFLASH	73
 #define DPTE_FLAMEJET		74
@@ -674,8 +677,9 @@ typedef struct entity_state_s
 	float fatness;
 #endif
 
-	int		drawflags;
-	int		abslight;
+	qbyte	hexen2flags;
+	qbyte	abslight;
+	qbyte	dpflags;
 } entity_state_t;
 #else
 typedef struct entity_state_s
@@ -698,7 +702,6 @@ typedef struct entity_state_s
 	int		sound;			//q2
 	int		event;			//q2
 
-	int		solid;
 
 #ifdef PEXT_SCALE
 	float	scale;
@@ -709,8 +712,10 @@ typedef struct entity_state_s
 #ifdef PEXT_FATNESS
 	float	fatness;
 #endif
-	int		drawflags;
-	int		abslight;
+	qbyte	hexen2flags;
+	qbyte	abslight;
+	qbyte	dpflags;
+	qbyte	solid;
 } entity_state_t;
 #endif
 
@@ -839,7 +844,7 @@ typedef struct q1usercmd_s
 
 // entity_state_t->renderfx flags
 #define	Q2RF_MINLIGHT			1		// allways have some light (viewmodel)
-#define	Q2RF_VIEWERMODEL		2		// don't draw through eyes, only mirrors
+#define	Q2RF_EXTERNALMODEL		2		// don't draw through eyes, only mirrors
 #define	Q2RF_WEAPONMODEL		4		// only draw through eyes
 #define	Q2RF_FULLBRIGHT			8		// allways draw full intensity
 #define	Q2RF_DEPTHHACK			16		// for view weapon Z crunching

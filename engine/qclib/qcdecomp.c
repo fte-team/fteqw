@@ -42,8 +42,8 @@ QCC_type_t *QCC_PR_NewType (char *name, int basictype);
 
 jmp_buf decompilestatementfailure;
 
-#if 0
-bool Decompile(progfuncs_t *progfuncs, char *fname)
+#if 1
+pbool Decompile(progfuncs_t *progfuncs, char *fname)
 {
 	return false;
 }
@@ -943,7 +943,7 @@ pbool Decompile(progfuncs_t *progfuncs, char *fname)
 
 		case ev_function:
 //wierd			
-			WriteAsmStatements(progfuncs, &progs, ((int *)progs.globals)[pr_globaldefs16[i].ofs], f, pr_globaldefs16[i].s_name);
+			WriteAsmStatements(progfuncs, &progs, ((int *)progs.globals)[pr_globaldefs16[i].ofs], f, pr_globaldefs16[i].s_name+progfuncs->stringtable);
 			break;
 			
 		case ev_pointer:

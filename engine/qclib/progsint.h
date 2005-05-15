@@ -90,7 +90,7 @@ char *VARGS qcva (char *text, ...);
 void QC_InitShares(progfuncs_t *progfuncs);
 void QC_StartShares(progfuncs_t *progfuncs);
 void QC_AddSharedVar(progfuncs_t *progfuncs, int num, int type);
-void QC_AddSharedFieldVar(progfuncs_t *progfuncs, int num);
+void QC_AddSharedFieldVar(progfuncs_t *progfuncs, int num, char *stringtable);
 int QC_RegisterFieldVar(progfuncs_t *progfuncs, unsigned int type, char *name, int requestedpos, int origionalofs);
 pbool Decompile(progfuncs_t *progfuncs, char *fname);
 int PR_ToggleBreakpoint(progfuncs_t *progfuncs, char *filename, int linenum, int flag);
@@ -413,8 +413,8 @@ var(int, addressablesize);
 #define addressablesize prinst->addressablesize
 
 
-var(extensionbuiltin_t *, extensionbuiltin);
-#define extensionbuiltin prinst->extensionbuiltin
+//var(extensionbuiltin_t *, extensionbuiltin);
+//#define extensionbuiltin prinst->extensionbuiltin
 
 	struct edict_s **edicttable;
 } prinst_t;

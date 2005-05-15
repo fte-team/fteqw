@@ -361,7 +361,7 @@ typedef struct fdef_s
 								// the variable needs to be saved in savegames
 	unsigned int	ofs;
 	unsigned int	requestedofs;
-	string_t		s_name;
+	char *		name;
 } fdef_t;
 
 typedef void *ddefXX_t;

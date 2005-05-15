@@ -407,7 +407,7 @@ void PR_LoadGlabalStruct(void)
 	nqglobalvars_t *pr_globals = pr_nqglobal_struct;
 #define globalfloat(need,name) ((nqglobalvars_t*)pr_nqglobal_struct)->name = (float *)PR_FindGlobal(svprogfuncs, #name, 0);	if (need && !((nqglobalvars_t*)pr_globals)->name) SV_Error("Could not find \""#name"\" export in progs\n");
 #define globalint(need,name) ((nqglobalvars_t*)pr_globals)->name = (int *)PR_FindGlobal(svprogfuncs, #name, 0);	if (need && !((nqglobalvars_t*)pr_globals)->name) SV_Error("Could not find export \""#name"\" in progs\n");
-#define globalstring(need,name) ((nqglobalvars_t*)pr_globals)->name = (char **)PR_FindGlobal(svprogfuncs, #name, 0);	if (need && !((nqglobalvars_t*)pr_globals)->name) SV_Error("Could not find export \""#name"\" in progs\n");
+#define globalstring(need,name) ((nqglobalvars_t*)pr_globals)->name = (int *)PR_FindGlobal(svprogfuncs, #name, 0);	if (need && !((nqglobalvars_t*)pr_globals)->name) SV_Error("Could not find export \""#name"\" in progs\n");
 #define globalvec(need,name) ((nqglobalvars_t*)pr_globals)->V_##name = (vec3_t *)PR_FindGlobal(svprogfuncs, #name, 0);	if (need && !((nqglobalvars_t*)pr_globals)->V_##name) SV_Error("Could not find export \""#name"\" in progs\n");
 #define globalfunc(need,name) ((nqglobalvars_t*)pr_globals)->name = (func_t *)PR_FindGlobal(svprogfuncs, #name, 0);	if (need && !((nqglobalvars_t*)pr_globals)->name) SV_Error("Could not find export \""#name"\" in progs\n");
 //			globalint(pad);
@@ -1434,10 +1434,10 @@ char *PF_VarString (progfuncs_t *prinst, int	first, globalvars_t *pr_globals)
 
 
 //#define	RETURN_EDICT(pf, e) (((int *)pr_globals)[OFS_RETURN] = EDICT_TO_PROG(pf, e))
-#define	RETURN_SSTRING(s) (*(char **)&((int *)pr_globals)[OFS_RETURN] = PR_SetString(prinst, s))	//static - exe will not change it.
-#define	RETURN_TSTRING(s) (*(char **)&((int *)pr_globals)[OFS_RETURN] = PR_SetString(prinst, s))	//temp (static but cycle buffers?)
-#define	RETURN_CSTRING(s) (*(char **)&((int *)pr_globals)[OFS_RETURN] = PR_SetString(prinst, s))	//semi-permanant. (hash tables?)
-#define	RETURN_PSTRING(s) (*(char **)&((int *)pr_globals)[OFS_RETURN] = PR_NewString(prinst, s))	//permanant
+#define	RETURN_SSTRING(s) (((int *)pr_globals)[OFS_RETURN] = PR_SetString(prinst, s))	//static - exe will not change it.
+#define	RETURN_TSTRING(s) (((int *)pr_globals)[OFS_RETURN] = PR_SetString(prinst, s))	//temp (static but cycle buffers?)
+#define	RETURN_CSTRING(s) (((int *)pr_globals)[OFS_RETURN] = PR_SetString(prinst, s))	//semi-permanant. (hash tables?)
+#define	RETURN_PSTRING(s) (((int *)pr_globals)[OFS_RETURN] = PR_NewString(prinst, s))	//permanant
 
 /*
 ===============================================================================
@@ -3322,7 +3322,8 @@ void PF_FindString (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
 	int		e;	
 	int		f;
-	char	*s, *t;
+	char	*s;
+	string_t t;
 	edict_t	*ed;
 	
 	e = G_EDICTNUM(prinst, OFS_PARM0);
@@ -4760,7 +4761,7 @@ void PF_makestatic (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 		state->colormap = ent->v->colormap;
 		state->skinnum = ent->v->skin;
 		state->effects = ent->v->effects;
-		state->drawflags = ent->v->drawflags;
+		state->hexen2flags = ent->v->drawflags;
 		state->abslight = (int)(ent->v->abslight*255) & 255;
 		state->trans = ent->v->alpha;
 		if (!state->trans)
@@ -5659,7 +5660,7 @@ void PF_fgets (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 	if (!pr_string_temp[0] && !*s)
 		G_INT(OFS_RETURN) = 0;	//EOF
 	else
-		G_INT(OFS_RETURN) = (int)pr_string_temp - prinst->stringtable;
+		G_INT(OFS_RETURN) = pr_string_temp - prinst->stringtable;
 }
 
 void PF_fputs (progfuncs_t *prinst, struct globalvars_s *pr_globals)
@@ -5935,6 +5936,7 @@ lh_extension_t QSG_Extensions[] = {
 #endif
 	{"DP_EF_BLUE"},						//hah!! This is QuakeWorld!!!
 	{"DP_EF_FULLBRIGHT"},				//Rerouted to hexen2 support.
+	{"DP_EF_NODRAW"},					//implemented by sending it with no modelindex
 	{"DP_EF_RED"},
 	{"DP_EXTRA_TEMPSTRING"},			//ftos returns 16 temp buffers.
 	{"DP_HALFLIFE_MAP_CVAR"},
@@ -8919,6 +8921,8 @@ void PR_RegisterFields(void)	//it's just easier to do it this way.
 	//dp extra fields
 	fieldentity(nodrawtoclient);
 	fieldentity(drawonlytoclient);
+	fieldentity(viewmodelforclient);
+	fieldentity(exteriormodeltoclient);
 
 	//UDC_EXTEFFECT... yuckie
 	PR_RegisterFieldVar(svprogfuncs, ev_float, "fieldcolor", (int)&((entvars_t*)0)->seefcolour, -1);

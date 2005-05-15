@@ -428,6 +428,7 @@ static void R_GAliasAddDlights(mesh_t *mesh, vec3_t org, vec3_t angles)
 static qboolean R_GAliasBuildMesh(mesh_t *mesh, galiasinfo_t *inf, int frame1, int frame2, float lerp, float alpha)
 {
 	galiasgroup_t *g1, *g2;
+
 	if (!inf->groups)
 	{
 		Con_DPrintf("Model with no frames (%s)\n", currententity->model->name);
@@ -481,17 +482,19 @@ static qboolean R_GAliasBuildMesh(mesh_t *mesh, galiasinfo_t *inf, int frame1, i
 		numTempVertexCoords = inf->numverts;
 	}
 
+	mesh->numvertexes = inf->numverts;
 	mesh->indexes = (index_t*)((char *)inf + inf->ofs_indexes);
 	mesh->numindexes = inf->numindexes;
+
+	if (inf->sharesverts)
+		return false;	//don't generate the new vertex positions. We still have them all.
+
+
 	mesh->st_array = (vec2_t*)((char *)inf + inf->ofs_st_array);
 	mesh->lmst_array = NULL;
 	mesh->colors_array = tempColours;
 	mesh->xyz_array = tempVertexCoords;
-	mesh->numvertexes = inf->numverts;
 	mesh->trneighbors = (int *)((char *)inf + inf->ofs_trineighbours);
-
-	if (inf->sharesverts)
-		return false;	//don't generate the new vertex positions. We still have them all.
 
 	mesh->normals_array = tempNormals;
 
@@ -1874,6 +1877,73 @@ void GL_GenerateNormals(float *orgs, float *normals, int *indicies, int numtris,
 }
 
 
+int skinfilecount;
+
+int GL_BuildSkinFileList(char *modelname)
+{
+	char skinfilename[MAX_QPATH];
+	for (skinfilecount = 0; ; skinfilecount++)
+	{
+		_snprintf(skinfilename, sizeof(skinfilename)-1, "%s_%i.skin", modelname, skinfilecount);
+		if (!COM_FCheckExists(skinfilename))
+			break;
+	}
+
+	return skinfilecount;
+}
+
+//This is a hack. It uses an assuption about q3 player models.
+void GL_ParseQ3SkinFile(char *out, char *surfname, char *modelname)
+{
+	const char *f, *p;
+	char line[256];
+	COM_StripExtension(modelname, line);
+	strcat(line, "_default.skin");
+
+	f = COM_LoadTempFile2(line);
+	while(f)
+	{
+		f = COM_ParseToken(f);
+		if (!f)
+			return;
+		while(*f == ' ' || *f == '\t')
+			f++;
+		if (*f == ',')
+		{
+			if (!strcmp(com_token, surfname))
+			{
+				f++;
+				COM_ParseToken(f);
+				strcpy(out, com_token);
+				return;
+			}
+		}
+
+		p = strchr(f, '\n');
+		if (!p)
+			f = f+strlen(f);
+		else
+			f = p+1;
+		if (!*f)
+			break;
+	}
+}
+
+galiasskin_t *GL_LoadSkinFile(int *count, char *shadername, int skinnumber, unsigned char *rawdata, int width, int height, unsigned char *palette)
+{
+	galiasskin_t *skin;
+	galiastexnum_t *texnums;
+
+	skin = Hunk_Alloc(sizeof(*skin)+sizeof(*texnums));
+	texnums = (galiastexnum_t *)(skin+1);	//texnums is seperate for skingroups/animating skins... Which this format doesn't support.
+	*count = 1;
+	skin->ofstexnums = (char *)texnums - (char *)skin;
+	skin->texnums = 1;
+	texnums->base = Mod_LoadHiResTexture(shadername, "models", true, true, true);
+
+	return skin;
+}
+
 
 //Q1 model loading
 #if 1
@@ -2744,43 +2814,6 @@ typedef struct {
 } md3Shader_t;
 //End of Tenebrae 'assistance'
 
-//This is a hack. It uses an assuption about q3 player models.
-void GL_ParseQ3SkinFile(char *out, char *surfname, char *modelname)
-{
-	const char *f, *p;
-	char line[256];
-	COM_StripExtension(modelname, line);
-	strcat(line, "_default.skin");
-
-	f = COM_LoadTempFile2(line);
-	while(f)
-	{
-		f = COM_ParseToken(f);
-		if (!f)
-			return;
-		while(*f == ' ' || *f == '\t')
-			f++;
-		if (*f == ',')
-		{
-			if (!strcmp(com_token, surfname))
-			{
-				f++;
-				COM_ParseToken(f);
-				strcpy(out, com_token);
-				return;
-			}
-		}
-
-		p = strchr(f, '\n');
-		if (!p)
-			f = f+strlen(f);
-		else
-			f = p+1;
-		if (!*f)
-			break;
-	}
-}
-
 void GL_LoadQ3Model(model_t *mod, void *buffer)
 {
 	int hunkstart, hunkend, hunktotal;
@@ -3026,7 +3059,9 @@ void GL_LoadQ3Model(model_t *mod, void *buffer)
 
 	hunkend = Hunk_LowMark ();
 
-	mod->flags = Mod_ReadFlagsFromMD1(mod->name, 0);
+	mod->flags = LittleLong(header->flags);
+	if (!mod->flags)
+		mod->flags = Mod_ReadFlagsFromMD1(mod->name, 0);
 
 	Hunk_Alloc(0);
 	hunktotal = hunkend - hunkstart;
@@ -3116,7 +3151,6 @@ void GLMod_LoadZymoticModel(model_t *mod, void *buffer)
 	zymvertex_t	*intrans;
 
 	galiasskin_t *skin;
-	galiastexnum_t *texnums;
 
 	galiasbone_t *bone;
 	zymbone_t *inbone;
@@ -3245,13 +3279,9 @@ void GLMod_LoadZymoticModel(model_t *mod, void *buffer)
 		root[i].groups = header->numscenes;
 		root[i].groupofs = (char*)grp - (char*)&root[i];
 
-		skin = Hunk_Alloc(sizeof(*skin)+sizeof(*texnums));
-		texnums = (galiastexnum_t *)(skin+1);	//texnums is seperate for skingroups/animating skins... Which this format doesn't support.
+		skin = GL_LoadSkinFile(&root[i].numskins, shadername, i, NULL, 0, 0, NULL);
+
 		root[i].ofsskins = (char *)skin - (char *)&root[i];
-		root[i].numskins = 1;
-		skin->ofstexnums = (char *)texnums - (char *)skin;
-		skin->texnums = 1;
-		texnums->base = Mod_LoadHiResTexture(shadername, "models", true, true, true);
 	}
 
 
@@ -3271,13 +3301,13 @@ void GLMod_LoadZymoticModel(model_t *mod, void *buffer)
 		root[i].nextsurf = sizeof(galiasinfo_t);
 	for (i = 1; i < header->numshaders; i++)
 	{
-
 		root[i].sharesverts = true;
 		root[i].numbones = root[0].numbones;
-		root[i].numindexes = root[0].numindexes;
 		root[i].numverts = root[0].numverts;
 
 		root[i].ofsbones = root[0].ofsbones;
+
+		root[i-1].nextsurf = sizeof(*root);
 	}
 
 //

@@ -110,10 +110,10 @@ void PR_StackTrace (progfuncs_t *progfuncs)
 
 				printf ("<%s>\n", pr_progstate[progs].filename);
 			}
-			if (!*f->s_file)
+			if (!f->s_file)
 				printf ("stripped     : %s\n", f->s_name);
 			else
-				printf ("%12s : %s\n", f->s_file, f->s_name);
+				printf ("%12s : %s\n", f->s_file+progfuncs->stringtable, f->s_name+progfuncs->stringtable);
 
 #ifdef STACKTRACE
 
@@ -127,7 +127,7 @@ void PR_StackTrace (progfuncs_t *progfuncs)
 				}
 				else
 				{
-					printf("    %s: %s\n", local->s_name, PR_ValueString(progfuncs, local->type, (eval_t*)(globalbase - f->locals+arg)));
+					printf("    %s: %s\n", local->s_name+progfuncs->stringtable, PR_ValueString(progfuncs, local->type, (eval_t*)(globalbase - f->locals+arg)));
 					if (local->type == ev_vector)
 						arg+=2;
 				}
@@ -330,7 +330,7 @@ ddef32_t *ED_FindLocalOrGlobal(progfuncs_t *progfuncs, char *name, eval_t **val)
 			def16 = ED_GlobalAtOfs16(progfuncs, pr_xfunction->parm_start+i);
 			if (!def16)
 				continue;
-			if (!strcmp(def16->s_name, name))
+			if (!strcmp(def16->s_name+progfuncs->stringtable, name))
 			{
 				*val = (eval_t *)&pr_progstate[pr_typecurrent].globals[pr_xfunction->parm_start+i];
 
@@ -358,7 +358,7 @@ ddef32_t *ED_FindLocalOrGlobal(progfuncs_t *progfuncs, char *name, eval_t **val)
 			def32 = ED_GlobalAtOfs32(progfuncs, pr_xfunction->parm_start+i);
 			if (!def32)
 				continue;
-			if (!strcmp(def32->s_name, name))
+			if (!strcmp(def32->s_name+progfuncs->stringtable, name))
 			{
 				*val = (eval_t *)&pr_progstate[pr_typecurrent].globals[pr_xfunction->parm_start+i];
 
@@ -642,7 +642,7 @@ int PR_ToggleBreakpoint(progfuncs_t *progfuncs, char *filename, int linenum, int
 		{
 			for (f = pr_progstate[pn].functions, fl = 0; fl < pr_progstate[pn].progs->numfunctions; f++, fl++)
 			{
-				if (!strcmp(f->s_name, filename))
+				if (!strcmp(f->s_name+progfuncs->stringtable, filename))
 				{
 					i = f->first_statement;
 					switch(pr_progstate[pn].intsize)

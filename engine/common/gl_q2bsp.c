@@ -750,7 +750,14 @@ void CM_CreatePatch ( q3cpatch_t *patch, int numverts, const vec3_t *verts, int 
 		VectorCopy(verts[i], pointss[i]);
 // fill in
 	Patch_Evaluate ( pointss, patch_cp, step, points );
-
+/*
+	for (i = 0; i < numverts; i++)
+	{
+		points[i][0] = (int)(points[i][0]*20)/20.0f;
+		points[i][1] = (int)(points[i][1]*20)/20.0f;
+		points[i][2] = (int)(points[i][2]*20)/20.0f;
+	}
+*/
 	patch->brushes = brush = map_brushes + numbrushes;
 	patch->numbrushes = 0;
 
@@ -1898,20 +1905,18 @@ void CModQ3_LoadShaders (lump_t *l, qboolean useshaders)
 				loadmodel->texinfo[i].texture->gl_texturenum = Mod_LoadHiResTexture(in->shadername, "bmodels", true, false, true);
 			loadmodel->texinfo[i].texture->gl_texturenumfb = 0;
 			loadmodel->texinfo[i].texture->gl_texturenumbumpmap = 0;
+
+			if (!strncmp(in->shadername, "textures/skies/", 15))
+			{
+				loadmodel->texinfo[i].flags |= SURF_SKY;
+				skytexturenum = i;
+			}
 		}
 #endif
 		loadmodel->textures[i] = loadmodel->texinfo[i].texture;
 
 		out->c.flags = LittleLong ( in->surfflags );
 		out->c.value = LittleLong ( in->contents );
-
-#if !defined(SERVERONLY) && defined(RGLQUAKE)
-		if (!strncmp(in->shadername, "textures/skies/", 15))
-		{
-			loadmodel->texinfo[i].flags |= SURF_SKY;
-			skytexturenum = i;
-		}
-#endif
 	}
 }
 
@@ -2410,6 +2415,13 @@ continue;
 				out->texinfo->texture->shader = R_RegisterShader_Vertex (out->texinfo->texture->name);
 			else
 				out->texinfo->texture->shader = R_RegisterShader(out->texinfo->texture->name);
+
+
+			if (out->texinfo->texture->shader->flags & SHADER_SKY)
+			{
+				out->texinfo->flags |= SURF_SKY;
+				skytexturenum = out->texinfo - loadmodel->texinfo;
+			}
 		}
 
 		if (in->fognum == -1 || !map_numfogs)
@@ -4209,7 +4221,7 @@ void CM_ClipBoxToBrush (vec3_t mins, vec3_t maxs, vec3_t p1, vec3_t p2,
 		}
 		else
 		{	// leave
-			f = (d1+DIST_EPSILON) / (d1-d2);
+			f = (d1/*+DIST_EPSILON*/) / (d1-d2);
 			if (f < leavefrac)
 				leavefrac = f;
 		}
@@ -4222,7 +4234,7 @@ void CM_ClipBoxToBrush (vec3_t mins, vec3_t maxs, vec3_t p1, vec3_t p2,
 			trace->allsolid = true;
 		return;
 	}
-	if (enterfrac < leavefrac)
+	if (enterfrac - (1.0f / 1024.0f) < leavefrac)
 	{
 		if (enterfrac > -1 && enterfrac < trace->fraction)
 		{
@@ -4313,7 +4325,7 @@ void CM_ClipBoxToPatch (vec3_t mins, vec3_t maxs, vec3_t p1, vec3_t p2,
 		}
 		else
 		{	// leave
-			f = (d1 + DIST_EPSILON) / (d1-d2);
+			f = (d1 /*+ DIST_EPSILON*/) / (d1-d2);
 			if (f < leavefrac)
 				leavefrac = f;
 		}
@@ -4322,7 +4334,7 @@ void CM_ClipBoxToPatch (vec3_t mins, vec3_t maxs, vec3_t p1, vec3_t p2,
 	if (!startout)
 		return;		// original point is inside the patch
 
-	if (enterfrac <= leavefrac)
+	if (enterfrac - (1.0f / 1024.0f) <= leavefrac)
 	{
 		if (leadside && leadside->surface
 			&& enterfrac < trace->fraction)
@@ -4503,7 +4515,7 @@ void CM_TraceToLeaf (int leafnum)
 		for (j = 0; j < patch->numbrushes; j++)
 		{
 			CM_ClipBoxToPatch (trace_mins, trace_maxs, trace_start, trace_end, &trace_trace, &patch->brushes[j]);
-			if (!trace_trace.fraction)
+			if (trace_trace.fraction<=0)
 				return;
 		}
 	}
@@ -4800,9 +4812,9 @@ trace_t		CM_BoxTrace (vec3_t start, vec3_t end,
 	else
 	{
 		trace_ispoint = false;
-		trace_extents[0] = -trace_mins[0] > trace_maxs[0] ? -trace_mins[0] : trace_maxs[0];
-		trace_extents[1] = -trace_mins[1] > trace_maxs[1] ? -trace_mins[1] : trace_maxs[1];
-		trace_extents[2] = -trace_mins[2] > trace_maxs[2] ? -trace_mins[2] : trace_maxs[2];
+		trace_extents[0] = (-trace_mins[0] > trace_maxs[0] ? -trace_mins[0] : trace_maxs[0])+0.1;
+		trace_extents[1] = (-trace_mins[1] > trace_maxs[1] ? -trace_mins[1] : trace_maxs[1])+0.1;
+		trace_extents[2] = (-trace_mins[2] > trace_maxs[2] ? -trace_mins[2] : trace_maxs[2])+0.1;
 #if ADJ
 		if (-mins[2] != maxs[2])	//be prepared to move the thing up to counter the different min/max
 		{

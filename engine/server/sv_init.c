@@ -478,7 +478,7 @@ void SV_SpawnServer (char *server, char *startspot, qboolean noents, qboolean us
 	func_t f;
 	char *file;
 
-	gametype_e oldgametype;
+	gametype_e newgametype;
 
 	edict_t		*ent;
 #ifdef Q2SERVER
@@ -724,34 +724,25 @@ void SV_SpawnServer (char *server, char *startspot, qboolean noents, qboolean us
 
 	sv.state = ss_loading;
 
-	oldgametype = svs.gametype;
+	newgametype = svs.gametype;
 #ifdef Q3SERVER
 	if (SVQ3_InitGame())
-		svs.gametype = GT_QUAKE3;
+		newgametype = GT_QUAKE3;
 	else
 #endif
 #ifdef Q2SERVER
 	if ((sv.worldmodel->fromgame == fg_quake2 || sv.worldmodel->fromgame == fg_quake3) && !*progs.string && SVQ2_InitGameProgs())	//these are the rules for running a q2 server
-		svs.gametype = GT_QUAKE2;	//we loaded the dll
+		newgametype = GT_QUAKE2;	//we loaded the dll
 	else
 #endif
 	{
-		svs.gametype = GT_PROGS;	//let's just hope this loads.
+		newgametype = GT_PROGS;	//let's just hope this loads.
 		Q_InitProgs();
 	}
 
-#ifdef Q3SERVER
-	if (svs.gametype != GT_QUAKE3)
-		SVQ3_ShutdownGame();
-#endif
-#ifdef Q2SERVER
-	if (svs.gametype != GT_QUAKE2)	//we don't want the q2 stuff anymore.
-		SVQ2_ShutdownGameProgs ();
-#endif
-
 //	if ((sv.worldmodel->fromgame == fg_quake2 || sv.worldmodel->fromgame == fg_quake3) && !*progs.string && SVQ2_InitGameProgs())	//full q2 dll decision in one if statement
 
-	if (oldgametype != svs.gametype)
+	if (newgametype != svs.gametype)
 	{
 		for (i=0 ; i<MAX_CLIENTS ; i++)	//server type changed, so we need to drop all clients. :(
 		{
@@ -761,6 +752,17 @@ void SV_SpawnServer (char *server, char *startspot, qboolean noents, qboolean us
 			svs.clients[i].name[0] = '\0';						//kill all bots
 		}
 	}
+	svs.gametype = newgametype;
+
+#ifdef Q3SERVER
+	if (newgametype != GT_QUAKE3)
+		SVQ3_ShutdownGame();
+#endif
+#ifdef Q2SERVER
+	if (newgametype != GT_QUAKE2)	//we don't want the q2 stuff anymore.
+		SVQ2_ShutdownGameProgs ();
+#endif
+
 
 	sv.models[1] = sv.worldmodel;
 	if (svs.gametype == GT_PROGS)

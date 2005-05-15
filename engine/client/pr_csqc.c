@@ -19,11 +19,10 @@ cvar_t	cl_csqcdebug = {"cl_csqcdebug", "0"};	//prints entity numbers which arriv
 	globalfunction(init_function,		"CSQC_Init");	\
 	globalfunction(shutdown_function,	"CSQC_Shutdown");	\
 	globalfunction(draw_function,		"CSQC_UpdateView");	\
-	globalfunction(keydown_function,	"CSQC_KeyDown");	\
-	globalfunction(keyup_function,		"CSQC_KeyUp");	\
 	globalfunction(parse_stuffcmd,		"CSQC_Parse_StuffCmd");	\
 	globalfunction(parse_centerprint,	"CSQC_Parse_CenterPrint");	\
 	globalfunction(input_event,			"CSQC_InputEvent");	\
+	globalfunction(console_command,		"CSQC_ConsoleCommand");	\
 	\
 	globalfunction(ent_update,			"CSQC_Ent_Update");	\
 	globalfunction(ent_remove,			"CSQC_Ent_Remove");	\
@@ -191,7 +190,7 @@ csqcfields
 
 static csqcedict_t *csqcent[MAX_EDICTS];
 
-#define	RETURN_SSTRING(s) (*(char **)&((int *)pr_globals)[OFS_RETURN] = PR_SetString(prinst, s))	//static - exe will not change it.
+#define	RETURN_SSTRING(s) (((int *)pr_globals)[OFS_RETURN] = PR_SetString(prinst, s))	//static - exe will not change it.
 char *PF_TempStr(void);
 
 static int csqcentsize;
@@ -1689,6 +1688,23 @@ qboolean CSQC_KeyPress(int key, qboolean down)
 	return true;
 }
 
+qboolean CSQC_ConsoleCommand(char *cmd)
+{
+	void *pr_globals;
+	char *str;
+	if (!csqcprogs || !csqcg.console_command)
+		return false;
+
+	str = PF_TempStr();
+	Q_strncpyz(str, cmd, MAXTEMPBUFFERLEN);
+
+	pr_globals = PR_globals(csqcprogs, PR_CURRENT);
+	(((string_t *)pr_globals)[OFS_PARM0] = PR_SetString(csqcprogs, str));
+
+	PR_ExecuteProgram (csqcprogs, csqcg.console_command);
+	return true;
+}
+
 qboolean CSQC_StuffCmd(char *cmd)
 {
 	void *pr_globals;
@@ -1700,7 +1716,7 @@ qboolean CSQC_StuffCmd(char *cmd)
 	Q_strncpyz(str, cmd, MAXTEMPBUFFERLEN);
 
 	pr_globals = PR_globals(csqcprogs, PR_CURRENT);
-	(*(char **)&((int *)pr_globals)[OFS_PARM0] = PR_SetString(csqcprogs, str));
+	(((string_t *)pr_globals)[OFS_PARM0] = PR_SetString(csqcprogs, str));
 
 	PR_ExecuteProgram (csqcprogs, csqcg.parse_stuffcmd);
 	return true;
@@ -1716,7 +1732,7 @@ qboolean CSQC_CenterPrint(char *cmd)
 	Q_strncpyz(str, cmd, MAXTEMPBUFFERLEN);
 
 	pr_globals = PR_globals(csqcprogs, PR_CURRENT);
-	(*(char **)&((int *)pr_globals)[OFS_PARM0] = PR_SetString(csqcprogs, str));
+	(((string_t *)pr_globals)[OFS_PARM0] = PR_SetString(csqcprogs, str));
 
 	PR_ExecuteProgram (csqcprogs, csqcg.parse_centerprint);
 	return G_FLOAT(OFS_RETURN);

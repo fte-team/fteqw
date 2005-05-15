@@ -17,7 +17,7 @@ typedef struct menuedict_s
 	void		*fields;
 } menuedict_t;
 
-#define	RETURN_SSTRING(s) (*(char **)&((int *)pr_globals)[OFS_RETURN] = PR_SetString(prinst, s))	//static - exe will not change it.
+#define	RETURN_SSTRING(s) (((int *)pr_globals)[OFS_RETURN] = PR_SetString(prinst, s))	//static - exe will not change it.
 char *PF_TempStr(void);
 #define MAXTEMPBUFFERLEN	4096
 

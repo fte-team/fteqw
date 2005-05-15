@@ -330,16 +330,16 @@ void CL_ParseBeam (int tent)
 			return;
 		}
 	default:
-		m = Mod_ForName("progs/bolt.mdl", true);
+		m = Mod_ForName("progs/bolt.mdl", false);
 		break;
 	case 1:
 		if (ent < 0 && ent >= -MAX_CLIENTS)	//based on the railgun concept - this adds a rogue style TE_BEAM effect.
 			m = Mod_ForName("progs/beam.mdl", false);	//remember to precache!
 		else
-			m = Mod_ForName("progs/bolt2.mdl", true);
+			m = Mod_ForName("progs/bolt2.mdl", false);
 		break;
 	case 2:
-		m = Mod_ForName("progs/bolt3.mdl", true);
+		m = Mod_ForName("progs/bolt3.mdl", false);
 		break;
 #ifdef Q2CLIENT
 	case 3:
@@ -837,6 +837,30 @@ void CL_ParseTEnt (void)
 		{
 			extern int pt_spark;
 			P_RunParticleEffectType(pos, pos2, cnt, pt_spark);
+		}
+		break;
+
+	case DPTE_BLOODSHOWER:
+		pos[0] = MSG_ReadCoord ();
+		pos[1] = MSG_ReadCoord ();
+		pos[2] = MSG_ReadCoord ();
+
+		pos2[0] = MSG_ReadCoord ();
+		pos2[1] = MSG_ReadCoord ();
+		pos2[2] = MSG_ReadCoord ();
+
+		cnt = MSG_ReadCoord ();	//speed
+
+		cnt = MSG_ReadShort ();
+
+		{
+#pragma message("CL_ParseTEnt: effect DPTE_BLOODSHOWER not implemented")
+/*
+			extern int pt_bloodshower;
+			VectorAdd(pos, pos2, pos);
+			VectorScale(pos, 0.5, pos);
+			P_RunParticleEffectType(pos, NULL, cnt, pt_bloodshower);
+*/
 		}
 		break;
 

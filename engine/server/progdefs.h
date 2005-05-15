@@ -198,6 +198,8 @@ typedef struct entvars_s
 	//dp extra fields
 	int		nodrawtoclient;
 	int		drawonlytoclient;
+	int		viewmodelforclient;
+	int		exteriormodeltoclient;
 
 	//EXT_DIMENSION_VISIBLE
 	float	dimension_see;

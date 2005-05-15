@@ -107,9 +107,10 @@ void GLR_StainSurf (msurface_t *surf, float *parms)
 
 
 
-
-
 	stmap *stainbase;
+
+	if (surf->lightmaptexturenum < 0)
+		return;
 
 	smax = (surf->extents[0]>>4)+1;
 	tmax = (surf->extents[1]>>4)+1;
@@ -1784,9 +1785,14 @@ static void DrawGLWaterPoly (mesh_t *p)
 DrawGLPoly
 ================
 */
-static void DrawGLPoly (mesh_t *p)
+static void DrawGLPoly (mesh_t *mesh)
 {
-	Sys_Error("DrawGLWaterPoly needs work");
+//	GL_DrawAliasMesh 
+	qglVertexPointer(3, GL_FLOAT, 0, mesh->xyz_array);
+	qglEnableClientState( GL_VERTEX_ARRAY );
+	qglDrawElements(GL_TRIANGLES, mesh->numindexes, GL_UNSIGNED_INT, mesh->indexes);
+	R_IBrokeTheArrays();
+
 	/*
 	int		i;
 	float	*v;

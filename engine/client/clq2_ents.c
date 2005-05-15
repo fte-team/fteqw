@@ -1533,7 +1533,7 @@ void CLQ2_AddPacketEntities (q2frame_t *frame)
 
 		if (s1->number == cl.playernum[0]+1)	//woo! this is us!
 		{
-			ent.flags |= Q2RF_VIEWERMODEL;	// only draw from mirrors
+			ent.flags |= Q2RF_EXTERNALMODEL;	// only draw from mirrors
 
 			if (effects & Q2EF_FLAG1)
 				V_AddLight (ent.origin, 225, 0.2, 0.05, 0.05);
@@ -1914,7 +1914,7 @@ void CLQ2_AddViewWeapon (q2player_state_t *ps, q2player_state_t *ops)
 	}
 
 	gun.flags = Q2RF_MINLIGHT | Q2RF_DEPTHHACK | Q2RF_WEAPONMODEL;
-	gun.lerpfrac = cl.lerpfrac;
+	gun.lerpfrac = 1-cl.lerpfrac;
 	VectorCopy (gun.origin, gun.oldorigin);	// don't lerp at all
 	V_AddEntity (&gun);
 #endif

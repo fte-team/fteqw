@@ -14,5 +14,5 @@ typedef int pbool;
 #endif
 typedef int progsnum_t;
 typedef int func_t;
-typedef char *string_t;
+typedef int string_t;
 

@@ -2080,7 +2080,7 @@ void CL_ParseStatic (int version)
 	ent->oldframe = ent->frame = es.frame;
 	ent->colormap = vid.colormap;
 	ent->skinnum = es.skinnum;
-	ent->drawflags = es.drawflags;
+	ent->drawflags = es.hexen2flags;
 
 #ifdef PEXT_SCALE
 	ent->scale = es.scale;

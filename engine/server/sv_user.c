@@ -1011,7 +1011,7 @@ void SV_PreSpawn_f (void)
 	{
 		if (sv.democausesreconnect)
 		{
-			if (host_client->netchan.message.cursize+sv.signon_buffer_size[buf] < host_client->netchan.message.maxsize)
+			if (host_client->netchan.message.cursize+sv.signon_buffer_size[buf]+30 < host_client->netchan.message.maxsize)
 			{
 				SZ_Write (&host_client->netchan.message, 
 					sv.demosignon_buffers[buf],
@@ -1021,7 +1021,7 @@ void SV_PreSpawn_f (void)
 		}
 		else
 		{
-			if (host_client->netchan.message.cursize+sv.signon_buffer_size[buf] < host_client->netchan.message.maxsize)
+			if (host_client->netchan.message.cursize+sv.signon_buffer_size[buf]+30 < host_client->netchan.message.maxsize)
 			{
 				SZ_Write (&host_client->netchan.message, 
 					sv.signon_buffers[buf],

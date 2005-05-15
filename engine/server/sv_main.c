@@ -341,9 +341,11 @@ void SV_DropClient (client_t *drop)
 	SV_WipeChat(drop);
 #endif
 #ifdef Q2SERVER
-	if (ge)
-		ge->ClientDisconnect(drop->q2edict);
+	if (drop->isq2client==1)
+		if (ge)
+			ge->ClientDisconnect(drop->q2edict);
 #endif
+	if (drop->isq2client == 0)
 	if (svprogfuncs)
 	{
 		if (drop->state == cs_spawned)

@@ -1186,7 +1186,7 @@ void IRC_Command(char *imsg)
 		{
 			if (ircclient)
 			{
-				printf("You are already connected\nPlease /quit first");
+				printf("You are already connected\nPlease /quit first\n");
 				return;
 			}
 			msg = COM_Parse(msg);

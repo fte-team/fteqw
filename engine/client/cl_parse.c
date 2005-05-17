@@ -598,7 +598,7 @@ void Model_NextDownload (void)
 	{
 	// done with modellist, request first of static signon messages
 //		CL_SendClientCommand("prespawn %i 0 %i", cl.servercount, cl.worldmodel->checksum2);
-		CL_SendClientCommand(true, prespawn_name, cl.servercount, cl.worldmodel->checksum2);
+		CL_SendClientCommand(true, prespawn_name, cl.servercount, LittleLong(cl.worldmodel->checksum2));
 	}
 }
 

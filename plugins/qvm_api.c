@@ -82,7 +82,7 @@ retry:
 				tokens++;
 				break;
 			case 'c':
-				_int = va_arg(vargs, char);
+				_int = va_arg(vargs, int);
 				if (--maxlen < 0) 
 					{*buffer++='\0';return tokens;}
 				*buffer++ = _int;
@@ -136,7 +136,7 @@ retry:
 				tokens++;
 				break;
 			case 'f':
-				_float = va_arg(vargs, float);
+				_float = va_arg(vargs, double);
 
 //integer part.
 				_int = (int)_float;

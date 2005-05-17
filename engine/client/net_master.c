@@ -49,7 +49,7 @@ typedef int SOCKET;
 cvar_t slist_cacheinfo = {"slist_cacheinfo", "0"};	//this proves dangerous, memory wise.
 cvar_t slist_writeserverstxt = {"slist_writeservers", "0"};
 
-void CL_MasterListParse(qboolean isq2, qboolean slashpad);
+void CL_MasterListParse(int type, qboolean slashpad);
 void CL_QueryServers(void);
 int CL_ReadServerInfo(char *msg, int servertype, qboolean favorite);
 

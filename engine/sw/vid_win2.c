@@ -723,7 +723,7 @@ err_t SWimp_SetMode( rendererstate_t *info )
 			{
 				// mode is legal but not as fullscreen
 				fullscreen = false;
-				retval = err_invalid_fullscreen;
+				retval = err_ok;
 			}
 			else
 			{
@@ -892,7 +892,6 @@ qboolean SWVID_Init (rendererstate_t *info, unsigned char *palette)
 
 	if (SWimp_SetMode(info))
 	{
-		Sys_Error("Failed to set video mode\n");
 		return false;
 	}
 	SWimp_SetPalette(palette);

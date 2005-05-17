@@ -683,7 +683,7 @@ void CLNQ_SendMove (usercmd_t		*cmd, int pnum)
 
 	MSG_WriteByte (&buf, clc_move);
 
-	MSG_WriteFloat (&buf, cl.time);	// so server can get ping times
+	MSG_WriteFloat (&buf, cl.gametime);	// so server can get ping times
 
 	for (i=0 ; i<3 ; i++)
 		MSG_WriteAngle (&buf, cl.viewangles[pnum][i]);

@@ -512,7 +512,7 @@ static qboolean R_GAliasBuildMesh(mesh_t *mesh, galiasinfo_t *inf, int frame1, i
 		float *pose[4];
 		float mlerp;	//minor lerp, poses within a group.
 
-		mlerp = cl.time*g1->rate;
+		mlerp = (cl.time-cl.lerpents[currententity->keynum].lerptime)*g1->rate;
 		frame1=mlerp;
 		frame2=frame1+1;
 		mlerp-=frame1;
@@ -526,7 +526,7 @@ static qboolean R_GAliasBuildMesh(mesh_t *mesh, galiasinfo_t *inf, int frame1, i
 		if (plerp[l]>0)
 			pose[l++] = (float *)((char *)g1 + g1->poseofs + sizeof(float)*inf->numbones*12*frame2);
 
-		mlerp = cl.time*g2->rate;
+		mlerp = (cl.time-cl.lerpents[currententity->keynum].lerptime)*g2->rate;
 		frame1=mlerp;
 		frame2=frame1+1;
 		mlerp-=frame1;
@@ -1067,6 +1067,25 @@ void GL_DrawAliasMesh_Sketch (mesh_t *mesh)
 #endif
 }
 
+//called from sprite code.
+/*
+void GL_KnownState(void)
+{
+	extern int gldepthfunc;
+	qglDepthFunc(gldepthfunc);
+	qglDepthMask(1);
+	if (gldepthmin == 0.5) 
+		qglCullFace ( GL_BACK );
+	else
+		qglCullFace ( GL_FRONT );
+
+	GL_TexEnv(GL_MODULATE);
+
+	qglEnable (GL_BLEND);
+	qglBlendFunc (GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+}
+*/
+
 void GL_DrawAliasMesh (mesh_t *mesh, int texnum)
 {
 	extern int gldepthfunc;
@@ -1292,7 +1311,12 @@ void R_DrawGAliasModel (entity_t *e)
 		qglDepthRange (gldepthmin, gldepthmin + 0.3*(gldepthmax-gldepthmin));
 
 //	glColor3f( 1,1,1);
-	if ((e->model->flags & EF_SPECIAL_TRANS))	//hexen2 flags.
+	if (e->flags & Q2RF_ADDATIVE)
+	{
+		qglEnable (GL_BLEND);
+		qglBlendFunc(GL_ONE, GL_ONE);
+	}
+	else if ((e->model->flags & EF_SPECIAL_TRANS))	//hexen2 flags.
 	{
 		qglEnable (GL_BLEND);
 		qglBlendFunc (GL_ONE_MINUS_SRC_ALPHA, GL_SRC_ALPHA);
@@ -1304,21 +1328,17 @@ void R_DrawGAliasModel (entity_t *e)
 		qglEnable (GL_BLEND);
 		qglBlendFunc (GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
 		e->alpha = r_wateralpha.value;
-//		qglColor4f( 1,1,1,r_wateralpha.value);
 	}
 	else if ((e->model->flags & EF_TRANSPARENT))
 	{
 		qglEnable (GL_BLEND);
 		qglBlendFunc (GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
-//		qglColor3f( 1,1,1);
 	}
 	else if ((e->model->flags & EF_HOLEY))
 	{
 		qglEnable (GL_ALPHA_TEST);
 //		qglEnable (GL_BLEND);
 		qglBlendFunc (GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
-
-//		qglColor3f( 1,1,1);
 	}
 	else if (e->alpha < 1)
 	{
@@ -1479,6 +1499,12 @@ void R_DrawGAliasModel (entity_t *e)
 		else if (skin->shader)
 		{
 			meshbuffer_t mb;
+			int olddst = skin->shader->numpasses?skin->shader->passes[0].blenddst:0;
+
+			if (e->flags & Q2RF_ADDATIVE && skin->shader->numpasses)
+			{	//hack the shader into submition.
+				skin->shader->passes[0].blenddst = GL_ONE;
+			}
 
 			mb.entity = &r_worldentity;
 			mb.shader = skin->shader;
@@ -1492,6 +1518,11 @@ void R_DrawGAliasModel (entity_t *e)
 			R_PushMesh(&mesh, skin->shader->features | MF_NONBATCHED | MF_COLORS);
 
 			R_RenderMeshBuffer ( &mb, false );
+
+			if (e->flags & Q2RF_ADDATIVE && skin->shader->numpasses)
+			{	//hack the shader into submition.
+				skin->shader->passes[0].blenddst = olddst;
+			}
 		}
 #endif
 		else

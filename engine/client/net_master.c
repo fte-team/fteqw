@@ -49,7 +49,7 @@ typedef int SOCKET;
 cvar_t slist_cacheinfo = {"slist_cacheinfo", "0"};	//this proves dangerous, memory wise.
 cvar_t slist_writeserverstxt = {"slist_writeservers", "0"};
 
-void CL_MasterListParse(qboolean isq2);
+void CL_MasterListParse(qboolean isq2, qboolean slashpad);
 void CL_QueryServers(void);
 int CL_ReadServerInfo(char *msg, int servertype, qboolean favorite);
 
@@ -506,7 +506,7 @@ void Master_AddMaster (char *address, int type, char *description)
 
 	for (mast = master; mast; mast = mast->next)
 	{
-		if (NET_CompareAdr(mast->adr, adr))	//already exists.
+		if (NET_CompareAdr(mast->adr, adr) && mast->type == type)	//already exists.
 			return;
 	}
 	mast = Z_Malloc(sizeof(master_t)+strlen(description));
@@ -564,11 +564,15 @@ qboolean Master_LoadMasterList (char *filename, int defaulttype, int depth)
 			servertype = MT_SINGLEQW;
 		else if (!strcmp(com_token, "single:q2"))
 			servertype = MT_SINGLEQ2;
+		else if (!strcmp(com_token, "single:dp"))
+			servertype = MT_SINGLEDP;
 		else if (!strcmp(com_token, "single:nq") || !strcmp(com_token, "single:q1"))
 			servertype = MT_SINGLENQ;
 		else if (!strcmp(com_token, "single"))
 			servertype = MT_SINGLEQW;
 
+		else if (!strcmp(com_token, "master:dp"))
+			servertype = MT_MASTERDP;
 		else if (!strcmp(com_token, "master:qw"))
 			servertype = MT_MASTERQW;
 		else if (!strcmp(com_token, "master:q2"))
@@ -582,6 +586,8 @@ qboolean Master_LoadMasterList (char *filename, int defaulttype, int depth)
 			servertype = MT_BCASTQ2;
 		else if (!strcmp(com_token, "bcast:nq"))
 			servertype = MT_BCASTNQ;
+		else if (!strcmp(com_token, "bcast:dp"))
+			servertype = MT_BCASTDP;
 		else if (!strcmp(com_token, "bcast"))
 			servertype = MT_BCASTQW;
 
@@ -753,10 +759,21 @@ int NET_CheckPollSockets(void)
 				CL_ReadServerInfo(MSG_ReadString(), MT_SINGLEQ2, false);
 				continue;
 			}
+			else if (!strncmp(s, "getserversResponse\\", 19))	//parse a bit more...
+			{
+				msg_readcount = c+18-1;
+				CL_MasterListParse(SS_DARKPLACES, true);
+				continue;
+			}
 			else if (!strncmp(s, "servers", 6))	//parse a bit more...
 			{
 				msg_readcount = c+7;
-				CL_MasterListParse(true);
+				CL_MasterListParse(SS_QUAKE2, false);
+				continue;
+			}
+			else if (!strcmp(s, "infoResponse"))	//parse a bit more...
+			{
+				CL_ReadServerInfo(MSG_ReadString(), MT_SINGLEDP, false);
 				continue;
 			}
 			msg_readcount = c;
@@ -772,7 +789,7 @@ int NET_CheckPollSockets(void)
 
 			if (c == M2C_MASTER_REPLY)	//qw master reply.
 			{		
-				CL_MasterListParse(false);
+				CL_MasterListParse(false, false);
 				continue;
 			}
 		}
@@ -832,7 +849,6 @@ void SListOptionChanged(serverinfo_t *newserver)
 {
 	if (selectedserver.inuse)
 	{
-		char data[16];
 		serverinfo_t *oldserver;
 
 		selectedserver.detail = NULL;
@@ -870,9 +886,9 @@ void SListOptionChanged(serverinfo_t *newserver)
 		strcpy(newserver->moreinfo->info, "");
 		Info_SetValueForKey(newserver->moreinfo->info, "hostname", newserver->name, sizeof(newserver->moreinfo->info));
 
-		newserver->refreshtime = Sys_DoubleTime();
-		sprintf(data, "%c%c%c%cstatus", 255, 255, 255, 255);
-		NET_SendPollPacket (strlen(data), data, newserver->adr);
+
+		newserver->sends++;
+		Master_QueryServer(newserver);
 	}
 }
 
@@ -880,6 +896,7 @@ void SListOptionChanged(serverinfo_t *newserver)
 //don't try sending to servers we don't support
 void MasterInfo_Request(master_t *mast, qboolean evenifwedonthavethefiles)
 {
+	char *str;
 	if (!mast)
 		return;
 	switch(mast->type)
@@ -905,6 +922,15 @@ void MasterInfo_Request(master_t *mast, qboolean evenifwedonthavethefiles)
 		*((int *)net_message.data) = BigLong(NETFLAG_CTL | (net_message.cursize & NETFLAG_LENGTH_MASK));
 		NET_SendPollPacket(net_message.cursize, net_message.data, mast->adr);
 		SZ_Clear(&net_message);
+		break;
+	case MT_MASTERDP:
+		str = va("%c%c%c%cgetservers %s %u empty full\x0A\n", 255, 255, 255, 255, "Nexuiz", 3);
+		NET_SendPollPacket (strlen(str), str, mast->adr);
+		break;
+	case MT_SINGLEDP:
+	case MT_BCASTDP:
+		str = va("%c%c%c%cgetinfo", 255, 255, 255, 255);
+		NET_SendPollPacket (strlen(str), str, mast->adr);
 		break;
 #endif
 	case MT_MASTERQW:
@@ -943,6 +969,9 @@ void MasterInfo_WriteServers(void)
 			break;
 		case MT_MASTERQ2:
 			typename = "master:q2";
+			break;
+		case MT_MASTERDP:
+			typename = "master:dp";
 			break;
 		case MT_BCASTQW:
 			typename = "bcast:qw";
@@ -1033,6 +1062,13 @@ void MasterInfo_Begin(void)
 			Master_AddMaster("192.246.40.37:27900",			MT_MASTERQ2, "id q2 Master.");
 		}
 
+		Master_AddMaster("ghdigital.com:27950",				MT_MASTERDP, "DarkPlaces Master: Nexuiz");
+		Master_AddMaster("dpmaster.deathmask.net:27950",	MT_MASTERDP, "DarkPlaces Master: Nexuiz");
+		Master_AddMaster("12.166.196.192:27950",			MT_MASTERDP, "DarkPlaces Master: Nexuiz");
+
+		Master_AddMaster("255.255.255.255:26000",			MT_BCASTDP, "Nearby DarkPlaces servers");
+
+
 	}
 
 	for (mast = master; mast; mast=mast->next)
@@ -1046,7 +1082,10 @@ void Master_QueryServer(serverinfo_t *server)
 	char	data[2048];
 	server->sends--;
 	server->refreshtime = Sys_DoubleTime();
-	sprintf(data, "%c%c%c%cstatus", 255, 255, 255, 255);
+	if (server->special & SS_DARKPLACES)
+		sprintf(data, "%c%c%c%cgetinfo", 255, 255, 255, 255);
+	else
+		sprintf(data, "%c%c%c%cstatus", 255, 255, 255, 255);
 	NET_SendPollPacket (strlen(data), data, server->adr);
 }
 //send a packet to each server in sequence.
@@ -1199,7 +1238,9 @@ int CL_ReadServerInfo(char *msg, int servertype, qboolean favorite)
 		info->special |= SS_FTESERVER;
 
 
-	if (servertype == MT_SINGLEQ2)
+	if (servertype == MT_SINGLEDP)
+		info->special |= SS_DARKPLACES;
+	else if (servertype == MT_SINGLEQ2)
 		info->special |= SS_QUAKE2;
 	else if (servertype == MT_SINGLENQ)
 		info->special |= SS_NETQUAKE;
@@ -1218,7 +1259,7 @@ int CL_ReadServerInfo(char *msg, int servertype, qboolean favorite)
 	info->tl = atoi(Info_ValueForKey(msg, "timelimit"));
 	info->fl = atoi(Info_ValueForKey(msg, "fraglimit"));
 
-	if (servertype == MT_SINGLEQ2)
+	if (servertype == MT_SINGLEQ2 || servertype == MT_SINGLEDP)
 	{
 		Q_strncpyz(info->gamedir,	Info_ValueForKey(msg, "gamename"),	sizeof(info->gamedir));
 		Q_strncpyz(info->map,		Info_ValueForKey(msg, "mapname"),	sizeof(info->map));
@@ -1346,7 +1387,7 @@ int CL_ReadServerInfo(char *msg, int servertype, qboolean favorite)
 }
 
 //rewrite to scan for existing server instead of wiping all.
-void CL_MasterListParse(qboolean isq2)
+void CL_MasterListParse(int type, qboolean slashpad)
 {
 	serverinfo_t *info;
 	serverinfo_t *last, *old;
@@ -1356,8 +1397,14 @@ void CL_MasterListParse(qboolean isq2)
 
 	last = firstserver;
 
-	while(msg_readcount+1 < net_message.cursize)
+	while(msg_readcount+6 < net_message.cursize)
 	{
+		if (slashpad)
+		{
+			if (MSG_ReadByte() != '\\')
+				break;
+		}
+
 		info = Z_Malloc(sizeof(serverinfo_t));
 		info->adr.type = NA_IP;
 		info->adr.ip[0] = MSG_ReadByte();
@@ -1368,6 +1415,11 @@ void CL_MasterListParse(qboolean isq2)
 		p1 = MSG_ReadByte();
 		p2 = MSG_ReadByte();
 		info->adr.port = (int)((short)(p1 + (p2<<8)));
+		if (!info->adr.port)
+		{
+			Z_Free(info);
+			break;
+		}
 		if ((old = Master_InfoForServer(info->adr)))	//remove if the server already exists.
 		{
 			old->sends = 1;	//reset.
@@ -1375,7 +1427,8 @@ void CL_MasterListParse(qboolean isq2)
 		}
 		else
 		{
-			info->special = isq2?SS_QUAKE2:0;
+			info->sends = 1;
+			info->special = type;
 			info->refreshtime = 0;
 
 			sprintf(info->name, "%s", NET_AdrToString(info->adr));

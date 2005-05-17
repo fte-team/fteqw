@@ -47,7 +47,7 @@
 #define ioctlsocket ioctl
 #endif
 
-
+int ftpfilelistsocket;
 
 char *COM_ParseOut (char *data, char *out, int outlen);
 
@@ -134,7 +134,7 @@ void FTP_ServerShutdown(void)
 
 static int SendFileNameTo(char *fname, int size, void *param)
 {
-	int socket = (int)param;	//64->32... this is safe due to where it's called from. It's just not so portable.
+	int socket = ftpfilelistsocket;	//64->32... this is safe due to where it's called from. It's just not so portable.
 //	int i;
 	char buffer[256+1];
 	char *slash;
@@ -565,7 +565,8 @@ iwboolean FTP_ServerThinkForConnection(FTPclient_t *cl)
 			strcat(buffer, "*");
 			QueueMessage (cl, "125 Opening FAKE ASCII mode data connection for file.\r\n");
 
-			COM_EnumerateFiles(buffer, SendFileNameTo, (void*)cl->datasock);	//32->64 this is safe
+			ftpfilelistsocket = cl->datasock;
+			COM_EnumerateFiles(buffer, SendFileNameTo, NULL);
 
 			QueueMessage (cl, "226 Transfer complete.\r\n");
 

@@ -85,7 +85,7 @@ struct progfuncs_s {
 	struct edict_s	*(*restoreent)		(progfuncs_t *prinst, char *buf, int *size, struct edict_s *ed);	//will restore the entity that had it's values saved (can use NULL for ed)
 
 	union eval_s	*(*FindGlobal)		(progfuncs_t *prinst, char *name, progsnum_t num);	//find a pointer to the globals value
-	char	*(*AddString)				(progfuncs_t *prinst, char *val);	//dump a string into the progs memory (for setting globals and whatnot)
+	char	*(*AddString)				(progfuncs_t *prinst, char *val, int minlength);	//dump a string into the progs memory (for setting globals and whatnot)
 	void	*(*Tempmem)					(progfuncs_t *prinst, int ammount, char *whatfor);	//grab some mem for as long as the progs stays loaded (for strings)
 
 	union eval_s	*(*GetEdictFieldValue)	(progfuncs_t *prinst, struct edict_s *ent, char *name, evalc_t *s); //get an entityvar (cache it) and return the possible values
@@ -234,7 +234,7 @@ typedef union eval_s
 
 #define PR_FindFunction(pf, name, num)						(*pf->FindFunction)			(pf, name, num)
 #define PR_FindGlobal(pf, name, progs)						(*pf->FindGlobal)			(pf, name, progs)
-#define PR_AddString(pf, ed)								(*pf->AddString)			(pf, ed)
+#define PR_AddString(pf, ed, len)							(*pf->AddString)			(pf, ed, len)
 #define PR_Alloc(pf,size)									(*pf->Tempmem)				(pf, size)
 
 #define PROG_TO_EDICT(pf, ed)								(*pf->ProgsToEdict)			(pf, ed)
@@ -259,7 +259,7 @@ typedef union eval_s
 #define PR_GetString(p,s) (s?s + p->stringtable:"")
 #define PR_GetStringOfs(p,o) (G_INT(o)?G_INT(o) + p->stringtable:"")
 #define PR_SetString(p, s) ((s&&*s)?(s - p->stringtable):0)
-#define PR_NewString(p, s) (PR_AddString(p, s) - p->stringtable)
+#define PR_NewString(p, s, l) (PR_AddString(p, s, l) - p->stringtable)
 
 #define ev_prog ev_integer
 

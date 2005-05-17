@@ -806,6 +806,13 @@ void PR_BreakPoint_f(void)
 
 }
 
+#ifdef _DEBUG
+void QCLibTest(void)
+{
+	PR_TestForWierdness(svprogfuncs);
+}
+#endif
+
 typedef char char32[32];
 char32 sv_addonname[MAXADDONS];
 void PR_Init(void)
@@ -815,7 +822,9 @@ void PR_Init(void)
 	Cmd_AddCommand ("decompile", PR_Decompile_f);
 	Cmd_AddCommand ("compile", PR_Compile_f);
 	Cmd_AddCommand ("applycompile", PR_ApplyCompilation_f);
-	
+#ifdef _DEBUG
+	Cmd_AddCommand ("svtestprogs", QCLibTest);
+#endif
 	Cvar_Register(&pr_maxedicts, cvargroup_progs);
 	Cvar_Register(&pr_imitatemvdsv, cvargroup_progs);
 	Cvar_Register(&pr_fixbrokenqccarrays, cvargroup_progs);
@@ -1393,7 +1402,7 @@ int PR_SizeOfFile(char *filename)
 	prnumforfile=svs.numprogs-1;
 	while(prnumforfile>=0)
 	{
-		if ((qbyte *)svprogfuncs->filefromprogs(svprogfuncs, prnumforfile, filename, &com_filesize, NULL)==(qbyte *)0xffffffff)
+		if ((qbyte *)svprogfuncs->filefromprogs(svprogfuncs, prnumforfile, filename, &com_filesize, NULL)==(qbyte *)-1)
 			return com_filesize;
 		prnumforfile--;
 	}
@@ -1437,7 +1446,7 @@ char *PF_VarString (progfuncs_t *prinst, int	first, globalvars_t *pr_globals)
 #define	RETURN_SSTRING(s) (((int *)pr_globals)[OFS_RETURN] = PR_SetString(prinst, s))	//static - exe will not change it.
 #define	RETURN_TSTRING(s) (((int *)pr_globals)[OFS_RETURN] = PR_SetString(prinst, s))	//temp (static but cycle buffers?)
 #define	RETURN_CSTRING(s) (((int *)pr_globals)[OFS_RETURN] = PR_SetString(prinst, s))	//semi-permanant. (hash tables?)
-#define	RETURN_PSTRING(s) (((int *)pr_globals)[OFS_RETURN] = PR_NewString(prinst, s))	//permanant
+#define	RETURN_PSTRING(s) (((int *)pr_globals)[OFS_RETURN] = PR_NewString(prinst, s, 0))	//permanant
 
 /*
 ===============================================================================
@@ -1459,6 +1468,7 @@ void PF_externcall (progfuncs_t *prinst, globalvars_t *pr_globals)	//this func c
 	int progsnum;
 	char *funcname;	
 	int i;
+	string_t failedst = G_INT(OFS_PARM1);
 	func_t f;
 
 	progsnum = G_PROG(OFS_PARM0);
@@ -1484,7 +1494,7 @@ void PF_externcall (progfuncs_t *prinst, globalvars_t *pr_globals)	//this func c
 
 		for (i = OFS_PARM0; i < OFS_PARM6; i+=3)
 			VectorCopy(G_VECTOR(i+(1*3)), G_VECTOR(i));		
-		G_INT(OFS_PARM0) = (int)funcname;
+		G_INT(OFS_PARM0) = failedst;
 
 		(*prinst->pr_trace)++;	//continue debugging
 		PR_ExecuteProgram(prinst, f);
@@ -1768,11 +1778,11 @@ void PF_setmodel (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 				break;
 			}
 		}
-		if (i==MAX_MODELS || !*sv.model_precache[i])
+		if (i==MAX_MODELS || !sv.model_precache[i])
 		{
 			if (i!=MAX_MODELS && sv.state == ss_loading)
 			{
-				Q_strncpyz(sv.model_precache[i], m, sizeof(sv.model_precache[i]));
+				sv.model_precache[i] = PR_AddString(prinst, m, 0);
 				if (!strcmp(m + strlen(m) - 4, ".bsp"))
 					sv.models[i] = Mod_FindName(sv.model_precache[i]);
 				Con_Printf("WARNING: SV_ModelIndex: model %s not precached", m);
@@ -3422,14 +3432,14 @@ void PF_precache_model (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 
 	for (i=1 ; i<MAX_MODELS ; i++)
 	{
-		if (!*sv.model_precache[i])
+		if (!sv.model_precache[i])
 		{
-			if (strlen(s)>=sizeof(sv.model_precache[i])-1)
+			if (strlen(s)>=MAX_QPATH-1)	//probably safest to keep this.
 			{
 				PR_BIError (prinst, "Precache name too long");
 				return;
 			}
-			strcpy(sv.model_precache[i], s);
+			sv.model_precache[i] = PR_AddString(prinst, s, 0);
 			if (!strcmp(s + strlen(s) - 4, ".bsp"))
 				sv.models[i] = Mod_FindName(sv.model_precache[i]);
 
@@ -5390,7 +5400,7 @@ void PF_strconv (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 	if (len >= MAXTEMPBUFFERLEN)
 		len = MAXTEMPBUFFERLEN-1;
 
-	RETURN_SSTRING(result);
+	RETURN_SSTRING(((char*)result));
 
 	for (i = 0; i < len; i++, string++, result++)	//do this backwards
 	{
@@ -8923,6 +8933,9 @@ void PR_RegisterFields(void)	//it's just easier to do it this way.
 	fieldentity(drawonlytoclient);
 	fieldentity(viewmodelforclient);
 	fieldentity(exteriormodeltoclient);
+
+	fieldfloat(glowsize);
+	fieldfloat(glowcolor);
 
 	//UDC_EXTEFFECT... yuckie
 	PR_RegisterFieldVar(svprogfuncs, ev_float, "fieldcolor", (int)&((entvars_t*)0)->seefcolour, -1);

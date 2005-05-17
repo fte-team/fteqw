@@ -4,18 +4,24 @@
 #define SS_NETQUAKE		4
 #define SS_FAVORITE		8	//filter all others.
 #define SS_KEEPINFO		16
+#define SS_DARKPLACES	32
 
 
 //despite not supporting nq or q2, we still load them. We just filter them. This is to make sure we properly write the listing files.
-#define MT_BAD			0	//this would be an error
-#define MT_BCASTQW		1	//-1status
-#define MT_BCASTQ2		2	//-1status
-#define MT_BCASTNQ		3	//see code
-#define MT_SINGLEQW		4	//-1status
-#define MT_SINGLEQ2		5	//-1status
-#define MT_SINGLENQ		6	//see code.
-#define MT_MASTERQW		7	//c\n\0
-#define MT_MASTERQ2		8	//query
+enum {
+	MT_BAD,			//this would be an error
+	MT_BCASTQW,		//-1status
+	MT_BCASTQ2,		//-1status
+	MT_BCASTNQ,		//see code
+	MT_BCASTDP,
+	MT_SINGLEQW,	//-1status
+	MT_SINGLEQ2,	//-1status
+	MT_SINGLENQ,	//see code.
+	MT_SINGLEDP,
+	MT_MASTERQW,	//c\n\0
+	MT_MASTERQ2,	//query
+	MT_MASTERDP		//-1getservers %s 3 empty full\x0A
+};
 
 
 typedef enum{

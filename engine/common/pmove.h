@@ -92,6 +92,7 @@ typedef struct {
 	qboolean	slidefix;
 	qboolean	airstep;
 	qboolean	walljump;
+	qboolean	slidyslopes;
 } movevars_t;
 
 

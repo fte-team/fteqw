@@ -129,7 +129,7 @@ typedef struct
 		};
 #endif
 		struct {
-			char		model_precache[MAX_MODELS][MAX_QPATH];	// NULL terminated
+			char		*model_precache[MAX_MODELS];	// NULL terminated
 			char		sound_precache[MAX_SOUNDS][MAX_QPATH];	// NULL terminated
 			char		image_precache[Q2MAX_IMAGES][MAX_QPATH];
 			char		*lightstyles[MAX_LIGHTSTYLES];
@@ -379,8 +379,10 @@ typedef struct client_s
 #endif
 
 	int				playerclass;
-	char			team[32];
-	char			name[32];			// for printing to other people
+	char			teambuf[32];
+	char			*team;
+	char			*name;
+	char			namebuf[32];			// for printing to other people
 										// extracted from userinfo
 	int				messagelevel;		// for filtering printed messages
 

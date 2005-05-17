@@ -524,6 +524,9 @@ void SV_WriteDelta (entity_state_t *from, entity_state_t *to, sizebuf_t *msg, qb
 	if ( to->abslight != from->abslight && protext & PEXT_HEXEN2)
 		evenmorebits |= U_ABSLIGHT;
 
+	if (to->glowsize)
+		to->dpflags |= 4;
+
 	if (to->dpflags)
 		evenmorebits |= U_DPFLAGS;
 
@@ -1708,7 +1711,10 @@ int glowsize, glowcolor;
 			if (!(ent->baseline.trans == 1 && !ent->v->alpha))
 				bits |= DPU_ALPHA;
 		if (ent->baseline.scale != ent->v->scale)
-			bits |= DPU_SCALE;
+		{
+			if (ent->v->scale != 0 || ent->baseline.scale != 1)
+				bits |= DPU_SCALE;
+		}
 
 		if ((ent->baseline.effects&0xff00) != ((int)eff & 0xff00))
 			bits |= DPU_EFFECTS2;
@@ -2336,10 +2342,9 @@ void SV_WriteEntitiesToClient (client_t *client, sizebuf_t *msg, qboolean ignore
 
 		if (state->effects & EF_FULLBRIGHT)
 		{
-			state->abslight = 255;
-			state->hexen2flags |= MLS_ABSLIGHT;
+			state->hexen2flags |= MLS_FULLBRIGHT;
 		}
-		if (progstype != PROG_QW)	//don't send extra nq effects to a qw client.
+		if (progstype != PROG_QW && state->effects)	//don't send extra nq effects to a qw client.
 		{
 			//EF_NODRAW doesn't draw the model.
 			//The client still needs to know about it though, as it might have other effects on it.
@@ -2354,7 +2359,7 @@ void SV_WriteEntitiesToClient (client_t *client, sizebuf_t *msg, qboolean ignore
 					state->modelindex = 0;
 			}
 
-			state->effects &= EF_BRIGHTLIGHT | EF_DIMLIGHT;
+			state->effects &= EF_BRIGHTLIGHT | EF_DIMLIGHT | NQEF_ADDATIVE | EF_RED | EF_BLUE;
 		}
 
 #ifdef PEXT_SCALE
@@ -2364,6 +2369,9 @@ void SV_WriteEntitiesToClient (client_t *client, sizebuf_t *msg, qboolean ignore
 		state->trans = ent->v->alpha;
 		if (!ent->v->alpha)
 			state->trans = 1;
+
+		state->glowsize = ent->v->glowsize*0.25;
+		state->glowcolour = ent->v->glowcolor;
 
 		//QSG_DIMENSION_PLANES - if the only shared dimensions are ghost dimensions, Set half alpha.
 		if (client->edict)

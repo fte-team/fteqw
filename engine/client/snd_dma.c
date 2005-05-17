@@ -736,8 +736,6 @@ void SND_Spatialize(soundcardinfo_t *sc, channel_t *ch)
 	{
 		scale = 1 + (dotright*sin(sc->yaw[i]*M_PI/180) + dotforward*cos(sc->yaw[i]*M_PI/180));// - dotup*cos(sc->pitch[0])*2;
 		scale = (1.0 - dist) * scale * sc->dist[i];
-//		if (scale < 0.5)
-//			scale = 0.5;
 		ch->vol[i] = (int) (ch->master_vol * scale);
 		if (ch->vol[i] < 0)
 			ch->vol[i] = 0;

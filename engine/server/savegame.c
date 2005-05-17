@@ -620,7 +620,7 @@ qboolean SV_LoadLevelCache(char *level, char *startspot, qboolean ignoreplayers)
 	if (!ignoreplayers)
 	{
 		eval = PR_FindGlobal(svprogfuncs, "startspot", 0);
-		if (eval) eval->_int = (int)PR_NewString(svprogfuncs, startspot);
+		if (eval) eval->_int = (int)PR_NewString(svprogfuncs, startspot, 0);
 
 		eval = PR_FindGlobal(svprogfuncs, "ClientReEnter", 0);
 		if (eval)

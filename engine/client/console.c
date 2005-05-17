@@ -66,6 +66,7 @@ float		con_cursorspeed = 4;
 
 cvar_t		con_numnotifylines = {"con_notifylines","4"};		//max lines to show
 cvar_t		con_notifytime = {"con_notifytime","3"};		//seconds
+cvar_t		con_centernotify = {"con_centernotify", "0"};
 cvar_t		con_displaypossabilities = {"con_displaypossabilities", "1"};
 
 #define	NUM_CON_TIMES 24
@@ -507,6 +508,7 @@ void Con_Init (void)
 // register our commands
 //
 	Cvar_Register (&con_notifytime, "Console controls");
+	Cvar_Register (&con_centernotify, "Console controls");
 	Cvar_Register (&con_numnotifylines, "Console controls");
 	Cvar_Register (&con_displaypossabilities, "Console controls");
 
@@ -960,6 +962,7 @@ void Con_DrawNotify (void)
 	char	*s;
 	int		skip;
 	int maxlines;
+	int inset;
 
 	int mask=CON_WHITEMASK;
 	int maskstack[4];
@@ -979,25 +982,59 @@ void Con_DrawNotify (void)
 		maxlines = NUM_CON_TIMES;
 
 	v = 0;
-	for (i= con->current-maxlines+1 ; i<=con->current ; i++)
+	if (con_centernotify.value)
 	{
-		if (i < 0)
-			continue;
-		time = con_times[i % NUM_CON_TIMES];
-		if (time == 0)
-			continue;
-		time = realtime - time;
-		if (time > con_notifytime.value)
-			continue;
-		text = con->text + (i % con->totallines)*con->linewidth;
-		
-		clearnotify = 0;
-		scr_copytop = 1;
+		for (i= con->current-maxlines+1 ; i<=con->current ; i++)
+		{
+			if (i < 0)
+				continue;
+			time = con_times[i % NUM_CON_TIMES];
+			if (time == 0)
+				continue;
+			time = realtime - time;
+			if (time > con_notifytime.value)
+				continue;
+			text = con->text + (i % con->totallines)*con->linewidth;
+			
+			clearnotify = 0;
+			scr_copytop = 1;
 
-		for (x = 0 ; x < con->linewidth ; x++)
-			Draw_ColouredCharacter ( (x+1)<<3, v, text[x]);
+			for (x = con->linewidth-1 ; x >= 0 ; x--)
+			{
+				if ((text[x]&0xff) != ' ')
+					break;
+			}
+			inset = con->linewidth*4-x*4;
 
-		v += 8;
+			for (x = 0 ; x < con->linewidth ; x++)
+				Draw_ColouredCharacter ( inset + ((x+1)<<3), v, text[x]);
+
+			v += 8;
+		}
+
+	}
+	else
+	{
+		for (i= con->current-maxlines+1 ; i<=con->current ; i++)
+		{
+			if (i < 0)
+				continue;
+			time = con_times[i % NUM_CON_TIMES];
+			if (time == 0)
+				continue;
+			time = realtime - time;
+			if (time > con_notifytime.value)
+				continue;
+			text = con->text + (i % con->totallines)*con->linewidth;
+			
+			clearnotify = 0;
+			scr_copytop = 1;
+
+			for (x = 0 ; x < con->linewidth ; x++)
+				Draw_ColouredCharacter ( (x+1)<<3, v, text[x]);
+
+			v += 8;
+		}
 	}
 
 

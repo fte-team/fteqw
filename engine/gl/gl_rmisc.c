@@ -127,8 +127,10 @@ static qbyte	exptexture[16][16] =
 };
 void R_InitParticleTexture (void)
 {
+#define PARTICLETEXTURESIZE 64
 	int		x,y;
-	qbyte	data[16*16][4];
+	float dx, dy, d;
+	qbyte	data[PARTICLETEXTURESIZE*PARTICLETEXTURESIZE][4];
 
 	//
 	// particle texture
@@ -173,6 +175,26 @@ void R_InitParticleTexture (void)
 
 	qglTexEnvf(GL_TEXTURE_ENV, GL_TEXTURE_ENV_MODE, GL_MODULATE);
 
+	qglTexParameterf(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+	qglTexParameterf(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+
+
+	memset(data, 255, sizeof(data));
+	for (y = 0;y < PARTICLETEXTURESIZE;y++)
+	{
+		dy = (y - 0.5f*PARTICLETEXTURESIZE) / (PARTICLETEXTURESIZE*0.5f-1);
+		for (x = 0;x < PARTICLETEXTURESIZE;x++)
+		{
+			dx = (x - 0.5f*PARTICLETEXTURESIZE) / (PARTICLETEXTURESIZE*0.5f-1);
+			d = 256 * (1 - (dx*dx+dy*dy));
+			d = bound(0, d, 255);
+			data[y*PARTICLETEXTURESIZE+x][3] = (qbyte) d;
+		}
+	}
+	balltexture = texture_extension_number++;
+    GL_Bind(balltexture);
+	qglTexImage2D (GL_TEXTURE_2D, 0, gl_alpha_format, PARTICLETEXTURESIZE, PARTICLETEXTURESIZE, 0, GL_RGBA, GL_UNSIGNED_BYTE, data);
+	qglTexEnvf(GL_TEXTURE_ENV, GL_TEXTURE_ENV_MODE, GL_MODULATE);
 	qglTexParameterf(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
 	qglTexParameterf(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
 }

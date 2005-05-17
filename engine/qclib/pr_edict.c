@@ -950,13 +950,17 @@ void ED_Count (progfuncs_t *progfuncs)
 ED_NewString
 =============
 */
-char *ED_NewString (progfuncs_t *progfuncs, char *string)
+char *ED_NewString (progfuncs_t *progfuncs, char *string, int minlength)
 {
 	char	*new, *new_p;
 	int		i,l;
+
+	minlength++;
 	
 	l = strlen(string) + 1;
-	new = PRHunkAlloc (progfuncs, l);
+	if (l < minlength)
+		l = minlength;
+	new = PRAddressableAlloc (progfuncs, l);
 	new_p = new;
 
 	for (i=0 ; i< l ; i++)
@@ -1023,7 +1027,7 @@ pbool	ED_ParseEpair (progfuncs_t *progfuncs, void *base, ddefXX_t *key, char *s,
 	switch (type)
 	{
 	case ev_string:
-		st = ED_NewString (progfuncs, s)-progfuncs->stringtable;
+		st = ED_NewString (progfuncs, s, 0)-progfuncs->stringtable;
 		*(string_t *)d = st;
 		break;
 		
@@ -1687,6 +1691,7 @@ int LoadEnts(progfuncs_t *progfuncs, char *file, float killonspawnflags)
 					Sys_Error("Edict was not allocated\n");
 					prinst->edicttable[num] = *(struct edict_s **)&ed = (void*)memalloc(externs->edictsize);
 					ed->fields = PRAddressableAlloc(progfuncs, fields_size);
+					ED_ClearEdict(progfuncs, ed);
 					ed->entnum = num;
 				}
 			}
@@ -1780,6 +1785,7 @@ int LoadEnts(progfuncs_t *progfuncs, char *file, float killonspawnflags)
 					{
 						prinst->edicttable[num] = *(struct edict_s **)&ed = (void*)memalloc(externs->edictsize);
 						ed->fields = PRAddressableAlloc(progfuncs, fields_size);
+						ED_ClearEdict(progfuncs, ed);
 						ed->entnum = num;
 						ed->isfree = true;
 					}
@@ -1938,6 +1944,7 @@ int LoadEnts(progfuncs_t *progfuncs, char *file, float killonspawnflags)
 					{
 						prinst->edicttable[numents] = *(struct edict_s **)&ed = (void*)memalloc(externs->edictsize);
 						ed->fields = PRAddressableAlloc(progfuncs, fields_size);
+						ED_ClearEdict(progfuncs, ed);
 						ed->entnum = numents;
 						ed->isfree = true;
 					}
@@ -1963,6 +1970,7 @@ int LoadEnts(progfuncs_t *progfuncs, char *file, float killonspawnflags)
 					{
 						prinst->edicttable[num] = *(struct edict_s **)&ed = (void*)memalloc(externs->edictsize);
 						ed->fields = PRAddressableAlloc(progfuncs, fields_size);
+						ED_ClearEdict(progfuncs, ed);
 						ed->entnum = num;
 						ed->isfree = true;
 					}
@@ -2172,6 +2180,40 @@ pbool PR_TestRecompile(progfuncs_t *progfuncs)
 		return true;
 	return false;
 }
+
+#ifdef _DEBUG
+//this is for debugging.
+//I'm using this to detect incorrect string types while converting 32bit string pointers with bias to bound indexes.
+void PR_TestForWierdness(progfuncs_t *progfuncs)
+{
+	unsigned int i;
+	int e;
+	edictrun_t *ed;
+	for (i = 0; i < pr_progs->numglobaldefs; i++)
+	{
+		if ((pr_globaldefs16[i].type&~(DEF_SHARED|DEF_SAVEGLOBAL)) == ev_string)
+		{
+			if (G_INT(pr_globaldefs16[i].ofs) < 0 || G_INT(pr_globaldefs16[i].ofs) >= addressableused)
+				printf("String type irregularity on \"%s\" \"%s\"\n", pr_globaldefs16[i].s_name+progfuncs->stringtable, G_INT(pr_globaldefs16[i].ofs)+progfuncs->stringtable);
+		}
+	}
+
+	for (i = 0; i < numfields; i++)
+	{
+		if ((field[i].type&~(DEF_SHARED|DEF_SAVEGLOBAL)) == ev_string)
+		{
+			for (e = 0; e < sv_num_edicts; e++)
+			{
+				ed = EDICT_NUM(progfuncs, e);
+				if (ed->isfree)
+					continue;
+				if (((int *)ed->fields)[field[i].ofs] < 0 || ((int *)ed->fields)[field[i].ofs] >= addressableused)
+					printf("String type irregularity \"%s\" \"%s\"\n", field[i].name, ((int *)ed->fields)[field[i].ofs]+progfuncs->stringtable);
+			}
+		}
+	}
+}
+#endif
 
 char *decode(int complen, int len, int method, char *info, char *buffer);
 /*

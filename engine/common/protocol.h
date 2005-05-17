@@ -652,36 +652,6 @@ enum {
 // entity_state_t is the information conveyed from the server
 // in an update message
 
-//FIXME: split the q2 vars.
-#ifdef SERVERONLY
-typedef struct entity_state_s
-{
-	int		number;			// edict index
-
-	int		flags;			// nolerp, etc
-	vec3_t	origin;
-	vec3_t	angles;
-	int		modelindex;
-	int		frame;
-	int		colormap;
-	int		skinnum;
-	int		effects;
-
-#ifdef PEXT_SCALE
-	float	scale;
-#endif
-#ifdef PEXT_TRANS
-	float	trans;
-#endif
-#ifdef PEXT_FATNESS
-	float fatness;
-#endif
-
-	qbyte	hexen2flags;
-	qbyte	abslight;
-	qbyte	dpflags;
-} entity_state_t;
-#else
 typedef struct entity_state_s
 {
 	int		number;			// edict index
@@ -690,13 +660,13 @@ typedef struct entity_state_s
 	vec3_t	origin;
 	vec3_t	old_origin;		//q2
 	vec3_t	angles;
-	int		modelindex;
-	int		modelindex2;	//q2
-	int		modelindex3;	//q2
-	int		modelindex4;	//q2
-	int		frame;
-	int		colormap;
-	int		skinnum;
+	unsigned short		modelindex;
+	unsigned short		modelindex2;	//q2
+	unsigned short		modelindex3;	//q2
+	unsigned short		modelindex4;	//q2
+	unsigned short		frame;
+	unsigned short		colormap;
+	unsigned short		skinnum;
 	int		effects;
 	int		renderfx;		//q2
 	int		sound;			//q2
@@ -716,8 +686,11 @@ typedef struct entity_state_s
 	qbyte	abslight;
 	qbyte	dpflags;
 	qbyte	solid;
+
+	qbyte glowsize;
+	qbyte glowcolour;
 } entity_state_t;
-#endif
+
 
 #define MAX_EXTENDED_PACKET_ENTITIES	256	//sanity limit.
 #define	MAX_STANDARD_PACKET_ENTITIES	64	// doesn't count nails

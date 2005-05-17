@@ -718,7 +718,6 @@ void PF_gethostcachestring (progfuncs_t *prinst, struct globalvars_s *pr_globals
 //float	gethostcacheindexforkey(string key) = #622;
 void PF_M_gethostcacheindexforkey(progfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
-	int i;
 	char *keyname = PR_GetStringOfs(prinst, OFS_PARM0);
 
 	G_FLOAT(OFS_RETURN) = Master_KeyForName(keyname);

@@ -1379,7 +1379,7 @@ void SV_UpdateToReliableMessages (void)
 	{
 		if (host_client->state != cs_spawned)
 		{
-			if (!host_client->state && host_client->name[0])	//if this is a bot
+			if (!host_client->state && host_client->name && host_client->name[0])	//if this is a bot
 			{
 				if (host_client->old_frags != (int)host_client->edict->v->frags)
 				{

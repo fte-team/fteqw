@@ -755,7 +755,7 @@ char *Sys_ConsoleInput (void)
 	char	*clipText, *textCopied;
 
 	if (!hinput)
-		return;
+		return NULL;
 
 	for ( ;; )
 	{

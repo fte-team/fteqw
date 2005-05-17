@@ -115,10 +115,10 @@ qboolean M_IsFiltered(serverinfo_t *server)	//figure out if we should filter a s
 #ifdef NQPROT
 	if (sb_hidenetquake.value)
 #endif
-		if (server->special & SS_NETQUAKE)
+		if (server->special & (SS_NETQUAKE|SS_DARKPLACES))
 			return true;
 	if (sb_hidequakeworld.value)
-		if (!(server->special & (SS_QUAKE2|SS_NETQUAKE)))
+		if (!(server->special & (SS_QUAKE2|SS_NETQUAKE|SS_DARKPLACES)))
 			return true;
 	if (sb_hideempty.value)
 		if (!server->players)

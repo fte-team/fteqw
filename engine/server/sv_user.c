@@ -69,6 +69,7 @@ cvar_t	pr_allowbutton1 = {"pr_allowbutton1", "1", NULL, CVAR_LATCH};
 extern cvar_t	pm_bunnyspeedcap;
 extern cvar_t	pm_ktjump;
 extern cvar_t	pm_slidefix;
+extern cvar_t	pm_slidyslopes;
 extern cvar_t	pm_airstep;
 extern cvar_t	pm_walljump;
 
@@ -778,11 +779,11 @@ void SV_Modellist_f (void)
 	else
 	{
 		for (i = 1+n;
-			*sv.model_precache[i] && (((n&255)==0)||(host_client->netchan.message.cursize < (MAX_QWMSGLEN/2)));	//make sure we don't send a 0 next...
+			sv.model_precache[i] && (((n&255)==0)||(host_client->netchan.message.cursize < (MAX_QWMSGLEN/2)));	//make sure we don't send a 0 next...
 			i++, n++)
 			MSG_WriteString (&host_client->netchan.message, sv.model_precache[i]);
 
-		if (!*sv.model_precache[i])
+		if (!sv.model_precache[i])
 			n = 0;
 	}
 
@@ -3038,7 +3039,7 @@ void SVNQ_Spawn_f (void)
 	}
 	else
 	{
-		memset (&ent->v, 0, pr_edict_size-svprogparms.edictsize);
+		memset (ent->v, 0, pr_edict_size);
 		ED_Spawned(ent);
 
 		ent->v->colormap = NUM_FOR_EDICT(svprogfuncs, ent);
@@ -3803,6 +3804,7 @@ void SV_RunCmd (usercmd_t *ucmd, qboolean recurse)
 		movevars.slidefix = (pm_slidefix.value != 0);
 		movevars.airstep = (pm_airstep.value != 0);
 		movevars.walljump = (pm_walljump.value);
+		movevars.slidyslopes = (pm_slidyslopes.value!=0);
 
 		for (i=0 ; i<3 ; i++)
 		{
@@ -3956,6 +3958,7 @@ void SV_RunCmd (usercmd_t *ucmd, qboolean recurse)
 	movevars.slidefix = (pm_slidefix.value != 0);
 	movevars.airstep = (pm_airstep.value != 0);
 	movevars.walljump = (pm_walljump.value);
+	movevars.slidyslopes = (pm_slidyslopes.value!=0);
 
 	if (sv_player->v->hasted)
 		movevars.maxspeed*=sv_player->v->hasted;

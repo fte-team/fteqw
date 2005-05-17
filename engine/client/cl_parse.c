@@ -1471,10 +1471,9 @@ void CLNQ_ParseServerData(void)		//Doesn't change gamedir - use with caution.
 		Host_EndGame ("Server returned version %i, not %i\nYou will need to use a different client.", protover, NQ_PROTOCOL_VERSION);
 	}
 	
-	if (MSG_ReadByte() > MAX_SCOREBOARD)
+	if (MSG_ReadByte() > MAX_CLIENTS)
 	{
-		Con_TPrintf (TLC_BAD_MAXCLIENTS);
-		return;
+		Con_Printf ("Warning, this server supports more than 32 clients, additional clients will do bad things\n");
 	}
 
 	cl.splitclients = 1;
@@ -3745,7 +3744,7 @@ void CLNQ_ParseServerMessage (void)
 				if (CL_ParseChat(s+1))
 				{
 					CL_ParsePrint(s+1, 3);
-					Con_TPrintf (TL_ST, Translate(s));
+					Con_Printf ("^3%s", Translate(s+1));
 				}
 			}
 			else
@@ -3873,12 +3872,16 @@ void CLNQ_ParseServerMessage (void)
 		case svc_updatename:
 			Sbar_Changed ();
 			i = MSG_ReadByte ();
+			if (i >= MAX_CLIENTS)
+				Host_EndGame ("CL_ParseServerMessage: svc_updatename > MAX_CLIENTS");
 			strcpy(cl.players[i].name, MSG_ReadString());
 			break;
 
 		case svc_updatefrags:
 			Sbar_Changed ();
 			i = MSG_ReadByte ();
+			if (i >= MAX_CLIENTS)
+				Host_EndGame ("CL_ParseServerMessage: svc_updatefrags > MAX_CLIENTS");
 			cl.players[i].frags = MSG_ReadShort();
 			break;
 		case svc_updatecolors:
@@ -3886,8 +3889,8 @@ void CLNQ_ParseServerMessage (void)
 			int a;
 			Sbar_Changed ();
 			i = MSG_ReadByte ();
-			if (i >= MAX_SCOREBOARD)
-				Host_Error ("CL_ParseServerMessage: svc_updatecolors > MAX_SCOREBOARD");
+			if (i >= MAX_CLIENTS)
+				Host_EndGame ("CL_ParseServerMessage: svc_updatecolors > MAX_CLIENTS");
 			a = MSG_ReadByte ();
 			//FIXME:!!!!
 

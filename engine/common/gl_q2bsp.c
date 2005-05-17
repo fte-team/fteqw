@@ -320,7 +320,7 @@ static int	mapisq3;
 cvar_t		map_noareas			= {"map_noareas", "1"};	//1 for lack of mod support.
 cvar_t		map_noCurves		= {"map_noCurves", "0", NULL, CVAR_CHEAT};
 cvar_t		map_autoopenportals	= {"map_autoopenportals", "1"};	//1 for lack of mod support.
-cvar_t		r_subdivisions		= {"r_subdivisions", "1"};
+cvar_t		r_subdivisions		= {"r_subdivisions", "2"};
 
 int		CM_NumInlineModels (void);
 q2cmodel_t	*CM_InlineModel (char *name);
@@ -5388,5 +5388,6 @@ void CM_Init(void)	//register cvars.
 	Cvar_Register(&map_noareas, MAPOPTIONS);
 	Cvar_Register(&map_noCurves, MAPOPTIONS);
 	Cvar_Register(&map_autoopenportals, MAPOPTIONS);
+	Cvar_Register(&r_subdivisions, MAPOPTIONS);
 }
 #endif

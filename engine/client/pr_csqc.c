@@ -180,7 +180,7 @@ static void CSQC_InitFields(void)
 #define fieldentity(name) PR_RegisterFieldVar(csqcprogs, ev_entity, #name, (int)&((csqcentvars_t*)0)->name, -1)
 #define fieldstring(name) PR_RegisterFieldVar(csqcprogs, ev_string, #name, (int)&((csqcentvars_t*)0)->name, -1)
 #define fieldfunction(name) PR_RegisterFieldVar(csqcprogs, ev_function, #name, (int)&((csqcentvars_t*)0)->name, -1)
-csqcfields
+csqcfields	//any *64->int32 casts are erroneous, it's biased off NULL.
 #undef fieldfloat
 #undef fieldvector
 #undef fieldentity
@@ -190,7 +190,7 @@ csqcfields
 
 static csqcedict_t *csqcent[MAX_EDICTS];
 
-#define	RETURN_SSTRING(s) (((int *)pr_globals)[OFS_RETURN] = PR_SetString(prinst, s))	//static - exe will not change it.
+#define	RETURN_SSTRING(s) (((string_t *)pr_globals)[OFS_RETURN] = PR_SetString(prinst, s))	//static - exe will not change it.
 char *PF_TempStr(void);
 
 static int csqcentsize;
@@ -1655,6 +1655,7 @@ qboolean CSQC_DrawView(void)
 
 	r_secondaryview = 0;
 
+	DropPunchAngle (0);
 	if (cl.worldmodel)
 		R_LessenStains();
 

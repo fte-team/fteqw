@@ -3251,8 +3251,6 @@ void GL_Upload8Pal32 (qbyte *data, qbyte *pal, int width, int height,  qboolean 
 {
 	qbyte		*trans = uploadmemorybufferintermediate;
 	int			i, s;
-	qboolean	noalpha;
-	int			p;
 	extern qbyte gammatable[256];
 
 	s = width*height;

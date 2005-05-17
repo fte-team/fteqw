@@ -624,14 +624,13 @@ void PM_AirMove (void)
 		PM_Accelerate (wishdir, wishspeed, movevars.accelerate);
 		pmove.velocity[2] -= movevars.entgravity * movevars.gravity * frametime;
 
-		if (!movevars.slidefix)
-			pmove.velocity[2] = 0;
-
-		if (!pmove.velocity[0] && !pmove.velocity[1])
+		if (!pmove.velocity[0] && !pmove.velocity[1] && !movevars.slidyslopes)
 		{
 			pmove.velocity[2] = 0;
 			return;
 		}
+		else if (!movevars.slidefix && !movevars.slidyslopes)
+			pmove.velocity[2] = 0;
 
 		PM_StepSlideMove ();
 	}

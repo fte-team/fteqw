@@ -228,7 +228,7 @@ void PR_Profile_f (void);
 struct edict_s *ED_Alloc (progfuncs_t *progfuncs);
 void ED_Free (progfuncs_t *progfuncs, struct edict_s *ed);
 
-char *ED_NewString (progfuncs_t *progfuncs, char *string);
+char *ED_NewString (progfuncs_t *progfuncs, char *string, int minlength);
 // returns a copy of the string allocated from the server's string heap
 
 void ED_Print (progfuncs_t *progfuncs, struct edict_s *ed);

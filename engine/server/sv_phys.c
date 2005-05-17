@@ -56,6 +56,7 @@ cvar_t	sv_waterfriction	 = { "sv_waterfriction", "4"};
 cvar_t	pm_ktjump			 = {"pm_ktjump", "", NULL, CVAR_SERVERINFO};
 cvar_t	pm_bunnyspeedcap	 = {"pm_bunnyspeedcap", "", NULL, CVAR_SERVERINFO};
 cvar_t	pm_slidefix			 = {"pm_slidefix", "", NULL, CVAR_SERVERINFO};
+cvar_t	pm_slidyslopes		 = {"pm_slidyslopes", "", NULL, CVAR_SERVERINFO};
 cvar_t	pm_airstep			 = {"pm_airstep", "", NULL, CVAR_SERVERINFO}; 
 cvar_t	pm_walljump			 = {"pm_walljump", "", NULL, CVAR_SERVERINFO}; 
 
@@ -1738,24 +1739,24 @@ void SV_Physics_Client (edict_t	*ent, int num)
 		if (!SV_CheckWater (ent) && ! ((int)ent->v->flags & FL_WATERJUMP) )
 			SV_AddGravity (ent, ent->v->gravity);
 
-		if (fabs(oldvel - ent->v->velocity[0])> 100)
-			Con_Printf("grav: %f -> %f\n", oldvel, ent->v->velocity[0]);
+//		if (fabs(oldvel - ent->v->velocity[0])> 100)
+//			Con_Printf("grav: %f -> %f\n", oldvel, ent->v->velocity[0]);
 
-		if (SV_TestEntityPosition(ent))
-			Con_Printf("Player starts stuck\n");
+//		if (SV_TestEntityPosition(ent))
+//			Con_Printf("Player starts stuck\n");
 
 		SV_CheckStuck (ent);
 
-		if (SV_TestEntityPosition(ent))
-			Con_Printf("becomes stuck\n");
+//		if (SV_TestEntityPosition(ent))
+//			Con_Printf("becomes stuck\n");
 
 		SV_WalkMove (ent);
 
-		if (SV_TestEntityPosition(ent))
-			Con_Printf("Player ends stuck\n");
+//		if (SV_TestEntityPosition(ent))
+//			Con_Printf("Player ends stuck\n");
 
-		if (fabs(oldvel - ent->v->velocity[0])> 100)
-			Con_Printf("walk: %f -> %f\n", oldvel, ent->v->velocity[0]);
+//		if (fabs(oldvel - ent->v->velocity[0])> 100)
+//			Con_Printf("walk: %f -> %f\n", oldvel, ent->v->velocity[0]);
 
 		break;
 

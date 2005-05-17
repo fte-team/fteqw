@@ -177,8 +177,8 @@ plugin_t *Plug_Load(char *file)
 		newplug->next = plugs;
 		plugs = newplug;
 
-		argarray = (long)"Plug_GetEngineFunction";
-		VM_Call(newplug->vm, 0, Plug_FindBuiltin(NULL, ~0, &argarray));
+		argarray = 0;
+		VM_Call(newplug->vm, 0, Plug_FindBuiltin("Plug_GetEngineFunction", ~0, &argarray));
 
 		if (newplug->reschange)
 			VM_Call(newplug->vm, newplug->reschange, vid.width, vid.height);

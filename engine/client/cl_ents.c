@@ -782,7 +782,14 @@ void DP5_ParseDelta(entity_state_t *s)
 //		s->active = true;
 	}
 	if (bits & E5_FLAGS)
-		s->flags = MSG_ReadByte();
+	{
+		int i = MSG_ReadByte();
+		s->flags = 0;
+		if (i & 4)
+			s->flags |= Q2RF_WEAPONMODEL|Q2RF_MINLIGHT|Q2RF_DEPTHHACK;
+		if  (i & 8)
+			s->flags |= Q2RF_EXTERNALMODEL;
+	}
 	if (bits & E5_ORIGIN)
 	{
 		if (bits & E5_ORIGIN32)
@@ -922,7 +929,7 @@ void CLNQ_ParseDarkPlaces5Entities(void)	//the things I do.. :o(
 			}
 		}
 
-		from->flags = 0x80000000;
+		from->flags |= 0x80000000;
 		if (remove)
 		{
 			continue;

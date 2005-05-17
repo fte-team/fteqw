@@ -76,6 +76,7 @@ void PRAddressableFlush(progfuncs_t *progfuncs, int totalammount)
 #else
 		free(addressablehunk);
 	addressablehunk = malloc(totalammount);	//linux will allocate-on-use anyway, which is handy.
+//	memset(addressablehunk, 0xff, totalammount);
 #endif
 	addressablesize = totalammount;
 }
@@ -92,6 +93,7 @@ int PR_InitEnts(progfuncs_t *progfuncs, int max_ents)
 	sv_edicts = PRHunkAlloc(progfuncs, externs->edictsize);
 	prinst->edicttable[0] = sv_edicts;
 	((edictrun_t*)prinst->edicttable[0])->fields = PRAddressableAlloc(progfuncs, max_fields_size);
+	ED_ClearEdict(progfuncs, sv_edicts);
 	sv_num_edicts = 1;
 
 	return max_fields_size;

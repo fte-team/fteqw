@@ -35,6 +35,9 @@
 #error Bad cont size
 #endif
 
+#define ENGINEPOINTER(p) ((char*)(p) - progfuncs->stringtable)
+#define QCPOINTER(p) (eval_t *)(p->_int+progfuncs->stringtable)
+#define QCPOINTERM(p) (eval_t *)((p)+progfuncs->stringtable)
 
 //rely upon just st
 {
@@ -286,15 +289,15 @@ reeval:
 
 	//store a value to a pointer
 	case OP_STOREP_IF:
-		ptr = (eval_t *)(OPB->_int);
+		ptr = QCPOINTER(OPB);
 		ptr->_float = (float)OPA->_int;
 		break;
 	case OP_STOREP_FI:
-		ptr = (eval_t *)(OPB->_int);
+		ptr = QCPOINTER(OPB);
 		ptr->_int = (int)OPA->_float;
 		break;
 	case OP_STOREP_I:
-		ptr = (eval_t *)(OPB->_int);
+		ptr = QCPOINTER(OPB);
 		ptr->_int = OPA->_int;
 		break;
 	case OP_STOREP_F:
@@ -302,18 +305,18 @@ reeval:
 	case OP_STOREP_FLD:		// integers
 	case OP_STOREP_S:
 	case OP_STOREP_FNC:		// pointers
-		ptr = (eval_t *)(OPB->_int);
+		ptr = QCPOINTER(OPB);
 		ptr->_int = OPA->_int;
 		break;
 	case OP_STOREP_V:
-		ptr = (eval_t *)(OPB->_int);
+		ptr = QCPOINTER(OPB);
 		ptr->vector[0] = OPA->vector[0];
 		ptr->vector[1] = OPA->vector[1];
 		ptr->vector[2] = OPA->vector[2];
 		break;
 
 	case OP_STOREP_C:	//store character in a string
-		ptr = (eval_t *)(OPB->_int);
+		ptr = QCPOINTER(OPB);
 		*(unsigned char *)ptr = (char)OPA->_float;
 		break;
 
@@ -326,11 +329,11 @@ reeval:
 		OPB->vector[2] *= OPA->_float;
 		break;
 	case OP_MULSTOREP_F: // e.f *= f
-		ptr = (eval_t *)(OPB->_int);
+		ptr = QCPOINTER(OPB);
 		OPC->_float = (ptr->_float *= OPA->_float);
 		break;
 	case OP_MULSTOREP_V: // e.v *= f
-		ptr = (eval_t *)(OPB->_int);
+		ptr = QCPOINTER(OPB);
 		OPC->vector[0] = (ptr->vector[0] *= OPA->_float);
 		OPC->vector[0] = (ptr->vector[1] *= OPA->_float);
 		OPC->vector[0] = (ptr->vector[2] *= OPA->_float);
@@ -340,7 +343,7 @@ reeval:
 		OPB->_float /= OPA->_float;
 		break;
 	case OP_DIVSTOREP_F: // e.f /= f
-		ptr = (eval_t *)(OPB->_int);
+		ptr = QCPOINTER(OPB);
 		OPC->_float = (ptr->_float /= OPA->_float);
 		break;
 
@@ -353,11 +356,11 @@ reeval:
 		OPB->vector[2] += OPA->vector[2];
 		break;
 	case OP_ADDSTOREP_F: // e.f += f
-		ptr = (eval_t *)(OPB->_int);
+		ptr = QCPOINTER(OPB);
 		OPC->_float = (ptr->_float += OPA->_float);
 		break;
 	case OP_ADDSTOREP_V: // e.v += v
-		ptr = (eval_t *)(OPB->_int);
+		ptr = QCPOINTER(OPB);
 		OPC->vector[0] = (ptr->vector[0] += OPA->vector[0]);
 		OPC->vector[1] = (ptr->vector[1] += OPA->vector[1]);
 		OPC->vector[2] = (ptr->vector[2] += OPA->vector[2]);
@@ -372,11 +375,11 @@ reeval:
 		OPB->vector[2] -= OPA->vector[2];
 		break;
 	case OP_SUBSTOREP_F: // e.f -= f
-		ptr = (eval_t *)(OPB->_int);
+		ptr = QCPOINTER(OPB);
 		OPC->_float = (ptr->_float -= OPA->_float);
 		break;
 	case OP_SUBSTOREP_V: // e.v -= v
-		ptr = (eval_t *)(OPB->_int);
+		ptr = QCPOINTER(OPB);
 		OPC->vector[0] = (ptr->vector[0] -= OPA->vector[0]);
 		OPC->vector[1] = (ptr->vector[1] -= OPA->vector[1]);
 		OPC->vector[2] = (ptr->vector[2] -= OPA->vector[2]);
@@ -394,7 +397,7 @@ reeval:
 			pr_xstatement = st-pr_statements;
 			PR_RunError (progfuncs, "assignment to read-only entity in %s", pr_xfunction->s_name);
 		}
-		OPC->_int = (int)(((int *)edvars(ed)) + OPB->_int + progfuncs->fieldadjust);
+		OPC->_int = ENGINEPOINTER((((int *)edvars(ed)) + OPB->_int + progfuncs->fieldadjust));
 		break;
 
 	//load a field to a value
@@ -533,9 +536,9 @@ reeval:
 				i -= externs->numglobalbuiltins;
 				if (i >= current_progstate->numbuiltins)
 				{
-					if (newf->first_statement == -0x7fffffff)
-						((builtin_t)newf->profile) (progfuncs, (struct globalvars_s *)current_progstate->globals);
-					else
+//					if (newf->first_statement == -0x7fffffff)
+//						((builtin_t)newf->profile) (progfuncs, (struct globalvars_s *)current_progstate->globals);
+//					else
 						PR_RunError (progfuncs, "Bad builtin call number - %i", -newf->first_statement);
 				}
 				else
@@ -651,7 +654,7 @@ reeval:
 
 	//array/structure reading/riting.
 	case OP_GLOBALADDRESS:
-		OPC->_int = (int)(&OPA->_int) + OPB->_int;
+		OPC->_int = ENGINEPOINTER(&OPA->_int + OPB->_int/4);
 		break;
 	case OP_POINTER_ADD:	//pointer to 32 bit (remember to *3 for vectors)
 		OPC->_int = OPA->_int + OPB->_int*4;
@@ -683,7 +686,7 @@ reeval:
 		OPC->_int = OPA->_int - OPB->_int;
 		break;
 	case OP_LOADP_C:	//load character from a string
-		ptr = (eval_t *)(OPA->_int + (int)OPB->_float);
+		ptr = QCPOINTERM(OPA->_int + (int)OPB->_float);
 		OPC->_float = *(unsigned char *)ptr;
 		break;
 	case OP_LOADP_I:
@@ -692,12 +695,12 @@ reeval:
 	case OP_LOADP_ENT:
 	case OP_LOADP_S:
 	case OP_LOADP_FNC:
-		ptr = (eval_t *)(OPA->_int + OPB->_int);
+		ptr = QCPOINTERM(OPA->_int + OPB->_int);
 		OPC->_int = ptr->_int;
 		break;
 
 	case OP_LOADP_V:
-		ptr = (eval_t *)(OPA->_int + OPB->_int);
+		ptr = QCPOINTERM(OPA->_int + OPB->_int);
 		OPC->vector[0] = ptr->vector[0];
 		OPC->vector[1] = ptr->vector[1];
 		OPC->vector[2] = ptr->vector[2];
@@ -756,14 +759,14 @@ reeval:
 		OPB->_float = (float)((int)OPB->_float | (int)OPA->_float);
 		break;
 	case OP_BITSETP: // .b (+) a
-		ptr = (eval_t *)(OPB->_int);
+		ptr = QCPOINTER(OPB);
 		ptr->_float = (float)((int)ptr->_float | (int)OPA->_float);
 		break;
 	case OP_BITCLR: // b (-) a
 		OPB->_float = (float)((int)OPB->_float & ~((int)OPA->_float));
 		break;
 	case OP_BITCLRP: // .b (-) a
-		ptr = (eval_t *)(OPB->_int);
+		ptr = QCPOINTER(OPB);
 		ptr->_float = (float)((int)ptr->_float & ~((int)OPA->_float));
 		break;
 
@@ -1041,3 +1044,7 @@ reeval:
 #undef dstatement_t
 #undef sofs
 #undef uofs
+
+#undef ENGINEPOINTER
+#undef QCPOINTER
+#undef QCPOINTERM

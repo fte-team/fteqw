@@ -242,8 +242,7 @@ void SVNQ_CreateBaseline (void)
 		else
 		{
 			svent->baseline.colormap = 0;
-			svent->baseline.modelindex =
-				SV_ModelIndex(PR_GetString(svprogfuncs, svent->v->model));
+			svent->baseline.modelindex = svent->v->modelindex;
 		}
 		svent->baseline.modelindex&=255;
 	}
@@ -768,12 +767,12 @@ void SV_SpawnServer (char *server, char *startspot, qboolean noents, qboolean us
 	if (svs.gametype == GT_PROGS)
 	{
 		strcpy(sv.sound_precache[0], "");
-		strcpy(sv.model_precache[0], "");
+		sv.model_precache[0] = "";
 
-		strcpy(sv.model_precache[1], sv.modelname);
+		sv.model_precache[1] = PR_AddString(svprogfuncs, sv.modelname, 0);
 		for (i=1 ; i<sv.worldmodel->numsubmodels ; i++)
 		{
-			strcpy(sv.model_precache[1+i], localmodels[i]);
+			sv.model_precache[1+i] = PR_AddString(svprogfuncs, localmodels[i], 0);
 			sv.models[i+1] = Mod_ForName (localmodels[i], false);
 		}
 
@@ -799,6 +798,12 @@ void SV_SpawnServer (char *server, char *startspot, qboolean noents, qboolean us
 	SCR_BeginLoadingPlaque();
 #endif
 
+	for (i=0 ; i<MAX_CLIENTS ; i++)
+	{
+		svs.clients[i].name = svs.clients[i].namebuf;
+		svs.clients[i].team = svs.clients[i].teambuf;
+	}
+
 	switch (svs.gametype)
 	{
 	case GT_PROGS:
@@ -819,6 +824,9 @@ void SV_SpawnServer (char *server, char *startspot, qboolean noents, qboolean us
 
 			if (!svs.clients[i].state && svs.clients[i].name[0])	//this is a bot.
 				svs.clients[i].name[0] = '\0';						//make it go away
+
+			svs.clients[i].name = PR_AddString(svprogfuncs, svs.clients[i].namebuf, sizeof(svs.clients[i].namebuf));
+			svs.clients[i].team = PR_AddString(svprogfuncs, svs.clients[i].teambuf, sizeof(svs.clients[i].teambuf));
 
 #ifdef PEXT_CSQC
 			memset(svs.clients[i].csqcentsequence, 0, sizeof(svs.clients[i].csqcentsequence));
@@ -846,6 +854,12 @@ void SV_SpawnServer (char *server, char *startspot, qboolean noents, qboolean us
 #endif
 	}
 
+	for (i=0 ; i<MAX_CLIENTS ; i++)
+	{
+		Q_strncpyz(svs.clients[i].name, Info_ValueForKey(svs.clients[i].userinfo, "name"), sizeof(svs.clients[i].namebuf));
+		Q_strncpyz(svs.clients[i].team, Info_ValueForKey(svs.clients[i].userinfo, "team"), sizeof(svs.clients[i].teambuf));
+	}
+
 #ifndef SERVERONLY
 	current_loading_size+=10;
 	SCR_BeginLoadingPlaque();
@@ -862,26 +876,24 @@ void SV_SpawnServer (char *server, char *startspot, qboolean noents, qboolean us
 	if (svprogfuncs)
 	{
 		extern cvar_t coop, pr_imitatemvdsv;
-		char *s;
 		eval_t *eval;
 		ent = EDICT_NUM(svprogfuncs, 0);
 		ent->isfree = false;
-		ent->v->model = PR_SetString(svprogfuncs, sv.worldmodel->name);
+		ent->v->model = PR_NewString(svprogfuncs, sv.worldmodel->name, 0);
 		ent->v->modelindex = 1;		// world model
 		ent->v->solid = SOLID_BSP;
 		ent->v->movetype = MOVETYPE_PUSH;
 
 		if (progstype == PROG_QW && pr_imitatemvdsv.value>0)
 		{
-			ent->v->targetname = PR_SetString(svprogfuncs, "mvdsv");
-			s = DISTRIBUTIONLONG;
-			ent->v->netname = PR_NewString(svprogfuncs, va("%s %f %s, build %d\nBuild date: " __DATE__ ", " __TIME__ "", DISTRIBUTIONLONG, VERSION, PLATFORM, build_number()));
+			ent->v->targetname = PR_NewString(svprogfuncs, "mvdsv", 0);
+			ent->v->netname = PR_NewString(svprogfuncs, va("%s %f %s, build %d\nBuild date: " __DATE__ ", " __TIME__ "", DISTRIBUTIONLONG, VERSION, PLATFORM, build_number()), 0);
 			ent->v->impulse = 0;//QWE_VERNUM;
 			ent->v->items = 103;
 		}
 
 
-		pr_global_struct->mapname = PR_SetString(svprogfuncs, sv.name);
+		pr_global_struct->mapname = PR_NewString(svprogfuncs, sv.name, 0);
 		// serverflags are for cross level information (sigils)
 		pr_global_struct->serverflags = svs.serverflags;
 		pr_global_struct->time = 0.1;	//HACK!!!! A few QuakeC mods expect time to be non-zero in spawn funcs - like prydon gate...
@@ -911,7 +923,7 @@ void SV_SpawnServer (char *server, char *startspot, qboolean noents, qboolean us
 			else if (pr_nqglobal_struct->deathmatch)
 				pr_global_struct->deathmatch = deathmatch.value;
 		}
-		
+
 		if (progstype == PROG_QW)
 			// run the frame start qc function to let progs check cvars
 			SV_ProgStartFrame ();	//prydon gate seems to fail because of this allowance
@@ -1077,7 +1089,7 @@ void SV_SpawnServer (char *server, char *startspot, qboolean noents, qboolean us
 	{
 		eval_t *eval;
 		eval = PR_FindGlobal(svprogfuncs, "startspot", 0);
-		if (eval) eval->string = PR_NewString(svprogfuncs, startspot);
+		if (eval) eval->string = PR_NewString(svprogfuncs, startspot, 0);
 	}
 
 	if (Cmd_AliasExist("f_svnewmap", RESTRICT_LOCAL))

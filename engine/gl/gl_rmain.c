@@ -59,6 +59,7 @@ qboolean	envmap;				// true during envmap command capture
 
 int			particletexture;	// little dot for particles
 int			explosiontexture;
+int			balltexture;
 int			playertextures;		// up to 16 color translated skins
 
 int			mirrortexturenum;	// quake texturenum, not gltexturenum
@@ -502,6 +503,22 @@ void R_DrawSpriteModel (entity_t *e)
 	GL_DisableMultitexture();
 
     GL_Bind(frame->gl_texturenum);
+
+	{
+		extern int gldepthfunc;
+		qglDepthFunc(gldepthfunc);
+		qglDepthMask(1);
+		if (gldepthmin == 0.5) 
+			qglCullFace ( GL_BACK );
+		else
+			qglCullFace ( GL_FRONT );
+
+		GL_TexEnv(GL_MODULATE);
+
+		qglBlendFunc (GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+		qglDisable (GL_ALPHA_TEST);
+		qglDisable(GL_BLEND);
+	}
 
 	if (e->flags & Q2RF_ADDATIVE)
 	{

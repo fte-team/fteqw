@@ -446,7 +446,7 @@ char *EvaluateDebugString(progfuncs_t *progfuncs, char *key)
 		switch (def->type&~DEF_SAVEGLOBAL)
 		{
 		case ev_string:
-			*(string_t *)val = ED_NewString (progfuncs, assignment)-progfuncs->stringtable;
+			*(string_t *)val = ED_NewString (progfuncs, assignment, 0)-progfuncs->stringtable;
 			break;
 			
 		case ev_float:
@@ -565,7 +565,7 @@ int PR_ToggleBreakpoint(progfuncs_t *progfuncs, char *filename, int linenum, int
 
 			for (f = pr_progstate[pn].functions, fl = 0; fl < pr_progstate[pn].progs->numfunctions; f++, fl++)
 			{
-				if (!stricmp(f->s_file, filename))
+				if (!stricmp(f->s_file+progfuncs->stringtable, filename))
 				{
 					for (i = f->first_statement; ; i++)
 					{
@@ -713,7 +713,7 @@ int ShowStep(progfuncs_t *progfuncs, int statement)
 //	return statement;
 //	texture realcursortex;
 static int lastline = 0;
-static char *lastfile = NULL;
+static char *lastfile = 0;
 
 	int pn = pr_typecurrent;
 	int i;
@@ -721,11 +721,11 @@ static char *lastfile = NULL;
 
 	if (f && pr_progstate[pn].linenums && externs->useeditor)
 	{
-		if (lastline == pr_progstate[pn].linenums[statement] && lastfile == f->s_file)
+		if (lastline == pr_progstate[pn].linenums[statement] && lastfile == f->s_file+progfuncs->stringtable)
 			return statement;	//no info/same line as last time
 
 		lastline = pr_progstate[pn].linenums[statement];
-		lastfile = f->s_file;
+		lastfile = f->s_file+progfuncs->stringtable;
 
 		lastline = externs->useeditor(lastfile, lastline, 0, NULL);
 
@@ -747,7 +747,7 @@ static char *lastfile = NULL;
 	else if (f)	//annoying.
 	{
 		if (externs->useeditor)
-			externs->useeditor(f->s_file, -1, 0, &f->s_name);
+			externs->useeditor(f->s_file+progfuncs->stringtable, -1, 0, NULL);
 		return statement;
 	}
 	
@@ -923,10 +923,6 @@ void PR_ExecuteProgram (progfuncs_t *progfuncs, func_t fnum)
 
 	prinst->exitdepth = oldexitdepth;
 }
-
-
-
-
 
 
 

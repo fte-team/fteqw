@@ -329,6 +329,29 @@ static int CheckAssosiation(char *name, int from)
 	return orig;
 }
 
+#ifdef RGLQUAKE
+void P_LoadTexture(part_type_t *ptype, qboolean warn)
+{
+	if (strcmp(ptype->texname, "default"))
+	{
+		ptype->texturenum = Mod_LoadHiResTexture(ptype->texname, "particles", true, true, true);
+	
+		if (!ptype->texturenum)
+		{
+			if (warn)
+				Con_DPrintf("Couldn't load texture %s for particle effect %s\n", ptype->texname, ptype->name);
+
+			if (strstr(ptype->texname, "glow") || strstr(ptype->texname, "ball"))
+				ptype->texturenum = balltexture;
+			else
+				ptype->texturenum = explosiontexture;
+		}
+	}
+	else
+		ptype->texturenum = explosiontexture;
+}
+#endif
+
 //Uses FTE's multiline console stuff.
 //This is the function that loads the effect descriptions (via console).
 void P_ParticleEffect_f(void)
@@ -821,18 +844,7 @@ void P_ParticleEffect_f(void)
 #ifdef RGLQUAKE
 	if (qrenderer == QR_OPENGL)
 	{
-		if (strcmp(ptype->texname, "default"))
-		{
-			ptype->texturenum = Mod_LoadHiResTexture(ptype->texname, "particles", true, true, true);
-		
-			if (!ptype->texturenum)
-			{
-				Con_DPrintf("Couldn't load texture %s for particle effect %s\n", ptype->texname, ptype->name);
-				ptype->texturenum = explosiontexture;
-			}
-		}
-		else
-			ptype->texturenum = explosiontexture;
+		P_LoadTexture(ptype, true);
 	}
 #endif
 }
@@ -1178,18 +1190,14 @@ void P_ClearParticles (void)
 	{
 		for (i = 0; i < numparticletypes; i++)
 		{
-			if (*part_type[i].texname)
-			{
-				part_type[i].texturenum = Mod_LoadHiResTexture(part_type[i].texname, "particles", true, true, true);
-				if (!part_type[i].texturenum)
-					part_type[i].texturenum = explosiontexture;
-			}
+			P_LoadTexture(&part_type[i], false);
 		}
 	}
 #endif
 
 	for (i = 0; i < numparticletypes; i++)
 	{
+		part_type[i].clippeddecals = NULL;
 		part_type[i].particles = NULL;
 		part_type[i].beams = NULL;
 		part_type[i].skytris = NULL;

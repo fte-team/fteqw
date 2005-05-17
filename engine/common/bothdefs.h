@@ -290,9 +290,6 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 // fall over
 #define	ROLL	2
 
-
-#define	MAX_SCOREBOARD		16		// max numbers of players
-
 #define	SOUND_CHANNELS		8
 
 

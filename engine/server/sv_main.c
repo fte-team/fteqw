@@ -1496,7 +1496,14 @@ void SVC_DirectConnect
 #endif
 	
 
-	*newcl = temp;
+	{
+		char *n, *t;
+		n = newcl->name;
+		t = newcl->team;
+		*newcl = temp;
+		newcl->name = n;
+		newcl->team = t;
+	}
 
 	newcl->zquake_extensions = atoi(Info_ValueForKey(newcl->userinfo, "*z_ext"));
 
@@ -2918,6 +2925,7 @@ void SV_InitLocal (void)
 	extern	cvar_t	pm_slidefix;
 	extern	cvar_t	pm_airstep;
 	extern	cvar_t	pm_walljump;
+	extern	cvar_t	pm_slidyslopes;
 
 	SV_InitOperatorCommands	();
 	SV_UserInit ();
@@ -2980,6 +2988,7 @@ void SV_InitLocal (void)
 	Cvar_Register (&pm_bunnyspeedcap,		cvargroup_serverphysics);
 	Cvar_Register (&pm_ktjump,				cvargroup_serverphysics);
 	Cvar_Register (&pm_slidefix,			cvargroup_serverphysics);
+	Cvar_Register (&pm_slidyslopes,			cvargroup_serverphysics);
 	Cvar_Register (&pm_airstep,				cvargroup_serverphysics);
 	Cvar_Register (&pm_walljump,			cvargroup_serverphysics);
 
@@ -3327,7 +3336,7 @@ void SV_ExtractFromUserinfo (client_t *cl)
 
 	val = Info_ValueForKey (cl->userinfo, "team");
 	val[40] = 0;	//trim to smallish length now (to allow for adding more.
-	Q_strncpyz (cl->team, val, sizeof(cl->team));
+	Q_strncpyz (cl->team, val, sizeof(cl->teambuf));
 
 	// name for C code
 	val = Info_ValueForKey (cl->userinfo, "name");
@@ -3351,8 +3360,8 @@ void SV_ExtractFromUserinfo (client_t *cl)
 				break;
 		}
 		if (i != MAX_CLIENTS) { // dup name
-			if (strlen(newname) > sizeof(cl->name) - 1)
-				newname[sizeof(cl->name) - 4] = 0;
+			if (strlen(newname) > sizeof(cl->namebuf) - 1)
+				newname[sizeof(cl->namebuf) - 4] = 0;
 			p = newname;
 
 			if (newname[0] == '(')
@@ -3370,7 +3379,7 @@ void SV_ExtractFromUserinfo (client_t *cl)
 			break;
 	}
 	
-	if (strncmp(newname, cl->name, sizeof(cl->name)-1))
+	if (strncmp(newname, cl->name, sizeof(cl->namebuf)-1))
 	{		
 		if (cl->ismuted)
 			SV_ClientTPrintf (cl, PRINT_HIGH, STL_NONAMEASMUTE);
@@ -3394,7 +3403,7 @@ void SV_ExtractFromUserinfo (client_t *cl)
 			{				
 				SV_BroadcastTPrintf (PRINT_HIGH, STL_CLIENTNAMECHANGE, cl->name, val);
 			}
-			Q_strncpyz (cl->name, newname, sizeof(cl->name));
+			Q_strncpyz (cl->name, newname, sizeof(cl->namebuf));
 
 
 #ifdef SVRANKING

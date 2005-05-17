@@ -693,9 +693,9 @@ float MSG_FromCoord(coorddata c, int bytes)
 	switch(bytes)
 	{
 	case 2:	//encode 1/8th precision, giving -4096 to 4096 map sizes
-		return c.b2/8.0f;
+		return LittleShort(c.b2)/8.0f;
 	case 4:
-		return c.f;
+		return LittleFloat(c.f);
 	default:
 		Sys_Error("MSG_ToCoord: not a sane coordsize");
 		return 0;
@@ -707,10 +707,10 @@ coorddata MSG_ToCoord(float f, int bytes)	//return value should be treated as (c
 	switch(bytes)
 	{
 	case 2:
-		r.b2 = f*8;
+		r.b2 = LittleShort(f*8);
 		break;
 	case 4:
-		r.f = f;
+		r.f = LittleFloat(f);
 		break;
 	default:
 		Sys_Error("MSG_ToCoord: not a sane coordsize");

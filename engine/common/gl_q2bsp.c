@@ -3014,12 +3014,12 @@ int CM_GetQ2Palette (void)
 	char *f = (void *)COM_LoadMallocFile("pics/colormap.pcx");
 	if (!f)
 	{
-		Con_Printf ("Couldn't find pics/colormap.pcx");
+		Con_Printf ("Couldn't find pics/colormap.pcx\n");
 		return -1;
 	}
 	if (!ReadPCXPalette(f, com_filesize, d_q28to24table))
 	{
-		Con_Printf ("Couldn't read pics/colormap.pcx");
+		Con_Printf ("Couldn't read pics/colormap.pcx\n");
 		BZ_Free(f);
 		return -1;
 	}

@@ -1414,7 +1414,7 @@ void CL_MasterListParse(int type, qboolean slashpad)
 
 		p1 = MSG_ReadByte();
 		p2 = MSG_ReadByte();
-		info->adr.port = (int)((short)(p1 + (p2<<8)));
+		info->adr.port = htons((p1<<8)|p2);
 		if (!info->adr.port)
 		{
 			Z_Free(info);

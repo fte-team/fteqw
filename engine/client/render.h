@@ -290,6 +290,7 @@ qbyte *ReadPNGFile(qbyte *buf, int length, int *width, int *height);
 qbyte *ReadPCXPalette(qbyte *buf, int len, qbyte *out);
 
 void BoostGamma(qbyte *rgba, int width, int height);
+void SaturateR8G8B8(qbyte *data, int size, float sat);
 
 void CL_NewDlightRGB (int key, float x, float y, float z, float radius, float time,
 				   float r, float g, float b);
@@ -337,7 +338,7 @@ extern	cvar_t	gl_playermip;
 extern	cvar_t	r_palconvbits;
 extern cvar_t   r_palconvwrite;
 
-
+extern  cvar_t	r_lightmap_saturation;
 
 enum {
 	RSPEED_TOTALREFRESH,

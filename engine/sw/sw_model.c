@@ -901,6 +901,9 @@ void SWMod_LoadLighting (lump_t *l)
 				dest+=3;
 			}
 		}
+
+		if (r_lightmap_saturation.value != 1.0f)
+			SaturateR8G8B8(loadmodel->lightdata, l->filelen, r_lightmap_saturation.value);
 	}
 	else
 	{

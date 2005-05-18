@@ -1486,7 +1486,15 @@ void GLMod_LoadLighting (lump_t *l)
 #endif
 
 	if (loadmodel->lightdata)
+	{
+		if (loadmodel->rgblighting && r_lightmap_saturation.value != 1.0f)
+		{
+			// desaturate lightmap according to cvar
+			SaturateR8G8B8(loadmodel->lightdata, l->filelen, r_lightmap_saturation.value);
+		}
+
 		return;
+	}
 
 	loadmodel->lightdata = Hunk_AllocName ( l->filelen, loadname);
 
@@ -1500,6 +1508,9 @@ void GLMod_LoadLighting (lump_t *l)
 		{
 			*out++ = lmgamma[*in++];
 		}
+
+		if (loadmodel->rgblighting && r_lightmap_saturation.value != 1.0f)
+			SaturateR8G8B8(loadmodel->lightdata, l->filelen, r_lightmap_saturation.value);
 	}
 	//memcpy (loadmodel->lightdata, mod_base + l->fileofs, l->filelen);
 }

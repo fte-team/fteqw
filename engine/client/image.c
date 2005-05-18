@@ -1545,8 +1545,72 @@ qbyte *ReadBMPFile(qbyte *buf, int length, int *width, int *height)
 	return NULL;
 }*/
 
+// saturate function, stolen from jitspoe
+void SaturateR8G8B8(qbyte *data, int size, float sat)
+{
+	int i;
+	float r, g, b, v;
 
+	if (sat > 1)
+	{
+		for(i=0; i < size; i+=3)
+		{
+			r = data[i];
+			g = data[i+1];
+			b = data[i+2];
 
+			v = r * 0.30 + g * 0.59 + b * 0.11;
+			r = v + (r - v) * sat;
+			g = v + (g - v) * sat;
+			b = v + (b - v) * sat;
+
+			// bounds check
+			if (r < 0)
+				r = 0;
+			else if (r > 255)
+				r = 255;
+
+			if (g < 0)
+				g = 0;
+			else if (g > 255)
+				g = 255;
+
+			if (b < 0)
+				b = 0;
+			else if (b > 255)
+				b = 255;
+
+			// scale down to avoid overbright lightmaps
+			v = v / (r * 0.30 + g * 0.59 + b * 0.11);
+			if (v > 1)
+				v = 1;
+			else
+				v *= v;
+			
+			data[i]   = r*v;
+			data[i+1] = g*v;
+			data[i+2] = b*v;
+		}
+	}
+	else // avoid bounds check for desaturation
+	{
+		if (sat < 0)
+			sat = 0;
+
+		for(i=0; i < size; i+=3)
+		{
+			r = data[i];
+			g = data[i+1];
+			b = data[i+2];
+
+			v = r * 0.30 + g * 0.59 + b * 0.11;
+
+			data[i]   = v + (r - v) * sat;
+			data[i+1] = v + (g - v) * sat;
+			data[i+2] = v + (b - v) * sat;
+		}
+	}
+}
 
 void BoostGamma(qbyte *rgba, int width, int height)
 {

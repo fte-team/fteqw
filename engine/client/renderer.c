@@ -208,6 +208,8 @@ cvar_t r_transtablewrite = {"r_transtablewrite", "1"};
 cvar_t r_palconvbits = {"r_palconvbits", "565"};
 cvar_t r_palconvwrite = {"r_palconvwrite", "1"};
 
+cvar_t r_lightmap_saturation = {"r_lightmap_saturation", "1"};
+
 extern cvar_t bul_text1;
 extern cvar_t bul_text2;
 extern cvar_t bul_text3;
@@ -240,6 +242,7 @@ cvar_t	gl_lerpimages = {"gl_lerpimages", "1"};
 extern cvar_t r_waterlayers;
 cvar_t			gl_triplebuffer = {"gl_triplebuffer", "1", NULL, CVAR_ARCHIVE};
 cvar_t			vid_hardwaregamma = {"vid_hardwaregamma", "1", NULL, CVAR_ARCHIVE};
+
 void GLRenderer_Init(void)
 {
 	extern cvar_t gl_contrast;
@@ -432,7 +435,6 @@ void Renderer_Init(void)
 	SWRenderer_Init();
 #endif
 
-
 	//but register ALL vid_ commands.
 	Cvar_Register (&vid_wait, VIDCOMMANDGROUP);
 	Cvar_Register (&vid_nopageflip, VIDCOMMANDGROUP);
@@ -501,6 +503,7 @@ void Renderer_Init(void)
 	Cvar_Register (&r_netgraph, SCREENOPTIONS);
 
 	Cvar_Register (&r_dynamic, GRAPHICALNICETIES);
+	Cvar_Register (&r_lightmap_saturation, GRAPHICALNICETIES);
 
 	Cvar_Register (&r_nolerp, GRAPHICALNICETIES);
 	Cvar_Register (&r_nolightdir, GRAPHICALNICETIES);

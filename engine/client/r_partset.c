@@ -131,7 +131,7 @@ char *particle_set_spikeset =
 #endif
 
 //TeamFortress railgun (by model - this is also the effect used with the TE_LIGHTNING1 extension)
-"r_part t_railtrail\n"
+"r_part te_railtrail\n"
 "{\n"
 "	texture \"particles/b_rocket3\"\n"
 "	step 15\n"
@@ -145,10 +145,10 @@ char *particle_set_spikeset =
 "	isbeam\n"
 "	spawnmode spiral\n"
 "	offsetspread	100\n"
-"	cliptype t_railtrail\n"
+"	cliptype te_railtrail\n"
 "	friction 0.7\n"
 "}\n"
-"r_trail progs/e_spike1.mdl t_railtrail\n"
+"r_trail progs/e_spike1.mdl te_railtrail\n"
 
 
 "r_part t_grenade\n"

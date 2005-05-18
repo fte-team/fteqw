@@ -122,6 +122,7 @@ typedef struct
 	float	endtime;
 	float	alpha;
 	vec3_t	start, end;
+	int		particleeffect;
 } beam_t;
 
 beam_t		cl_beams[MAX_BEAMS];
@@ -309,6 +310,7 @@ void CL_ParseBeam (int tent)
 	beam_t	*b;
 
 	model_t *m;
+	int btype, etype;
 
 	ent = MSG_ReadShort ();
 	
@@ -320,7 +322,6 @@ void CL_ParseBeam (int tent)
 	end[1] = MSG_ReadCoord ();
 	end[2] = MSG_ReadCoord ();
 
-
 	switch(tent)
 	{
 	case 0:
@@ -331,27 +332,42 @@ void CL_ParseBeam (int tent)
 		}
 	default:
 		m = Mod_ForName("progs/bolt.mdl", false);
+		btype = rt_lightning1;
+		etype = pt_lightning1_end;
 		break;
 	case 1:
 		if (ent < 0 && ent >= -MAX_CLIENTS)	//based on the railgun concept - this adds a rogue style TE_BEAM effect.
+		{
 			m = Mod_ForName("progs/beam.mdl", false);	//remember to precache!
+			btype = P_FindParticleType("te_beam");
+		}
 		else
+		{
 			m = Mod_ForName("progs/bolt2.mdl", false);
+			btype = rt_lightning2;
+			etype = pt_lightning2_end;
+		}
 		break;
 	case 2:
 		m = Mod_ForName("progs/bolt3.mdl", false);
+		btype = rt_lightning3;
+		etype = pt_lightning3_end;
 		break;
 #ifdef Q2CLIENT
 	case 3:
 		m = Mod_ForName(q2tentmodels[q2cl_mod_parasite_segment].modelname, false);
+		btype = P_FindParticleType("te_parasite_attack");
+		etype = P_FindParticleType("te_parasite_attack_end");
 		break;
 	case 4:
 		m = Mod_ForName(q2tentmodels[q2cl_mod_grapple_cable].modelname, false);
+		btype = P_FindParticleType("te_grapple_cable");
+		etype = P_FindParticleType("te_grapple_cable_end");
 		break;
 #endif
 	}
 
-	if (tent <= 2 && cls.state == ca_active)
+	if (tent <= 2 && cls.state == ca_active && etype >= 0)
 	{
 		vec3_t impact, normal;
 		vec3_t extra;
@@ -360,7 +376,7 @@ void CL_ParseBeam (int tent)
 		VectorMA(end, 4, normal, extra);	//extend the end-point by four
 		if (TraceLineN(start, extra, impact, normal))
 		{
-			P_RunParticleEffectTypeString(impact, normal, 1, "te_lightningend"); 
+			P_RunParticleEffectType(impact, normal, 1, etype); 
 			R_AddDecals(end);
 			R_AddStain(end, -10, -10, -10, 20);
 		}
@@ -379,6 +395,7 @@ void CL_ParseBeam (int tent)
 	b->flags |= /*STREAM_ATTACHED|*/1;
 	b->endtime = cl.time + 0.2;
 	b->alpha = 1;
+	b->particleeffect = btype;
 	VectorCopy (start, b->start);
 	VectorCopy (end, b->end);
 }
@@ -430,20 +447,26 @@ void CL_ParseStream (int type)
 	case TE_STREAM_ICECHUNKS:
 		b->model = 	Mod_ForName("models/stice.mdl", true);
 		b->flags |= 2;
+		b->particleeffect = P_AllocateParticleType("te_stream_icechunks");
 		R_AddStain(end, -10, -10, 0, 20);
 		break;
 	case TE_STREAM_SUNSTAFF1:
 		b->model = Mod_ForName("models/stsunsf1.mdl", true);
-		b2 = CL_NewBeam(ent, tag+128);
-		if (b2)
+		b->particleeffect = P_AllocateParticleType("te_stream_sunstaff1");
+		if (b->particleeffect < 0)
 		{
-			memcpy(b2, b, sizeof(*b2));
-			b2->model = Mod_ForName("models/stsunsf2.mdl", true);
-			b2->alpha = 0.5;
+			b2 = CL_NewBeam(ent, tag+128);
+			if (b2)
+			{
+				memcpy(b2, b, sizeof(*b2));
+				b2->model = Mod_ForName("models/stsunsf2.mdl", true);
+				b2->alpha = 0.5;
+			}
 		}
 		break;
 	case TE_STREAM_SUNSTAFF2:
 		b->model = 	Mod_ForName("models/stsunsf1.mdl", true);
+		b->particleeffect = P_AllocateParticleType("te_stream_sunstaff2");
 		R_AddStain(end, -10, -10, -10, 20);
 		break;
 	}
@@ -818,10 +841,8 @@ void CL_ParseTEnt (void)
 		pos2[2] = MSG_ReadChar ();
 
 		cnt = MSG_ReadByte ();
-		{
-			extern int pt_spark;
-			P_RunParticleEffectType(pos, pos2, cnt, pt_blood);
-		}
+
+		P_RunParticleEffectType(pos, pos2, cnt, pt_blood);
 		break;
 
 	case DPTE_SPARK:
@@ -1759,7 +1780,7 @@ void CLQ2_ParseTEnt (void)
 	case Q2TE_DEBUGTRAIL:
 		MSG_ReadPos (pos);
 		MSG_ReadPos (pos2);
-		P_ParticleTrail(pos, pos2, P_AllocateParticleType("t_debugtrail"), NULL);
+		P_ParticleTrail(pos, pos2, P_AllocateParticleType("te_debugtrail"), NULL);
 		break;
 
 	case Q2TE_PLAIN_EXPLOSION:
@@ -1876,10 +1897,10 @@ void CLQ2_ParseTEnt (void)
 	case Q2TE_DBALL_GOAL:
 		MSG_ReadPos (pos);
 		if (P_RunParticleEffectType(pos, NULL, 1, pt_teleportsplash))
-			P_RunParticleEffect(pos, NULL, 7, 768);
+			P_RunParticleEffect(pos, NULL, 8, 768);
 		// This effect won't match ---
 		// Color should be 7+(rand()%8)
-		// not 7&~7+(rand()%8)
+		// not 8&~7+(rand()%8)
 		break;
 /*
 	case Q2TE_WIDOWBEAMOUT:
@@ -1939,7 +1960,6 @@ CL_UpdateBeams
 */
 void CL_UpdateBeams (void)
 {
-	extern int rt_lightning1;
 	int			i;
 	beam_t		*b;
 	vec3_t		dist, org;
@@ -2033,7 +2053,9 @@ void CL_UpdateBeams (void)
 		}
 */
 //		if (part_type[rt_lightning1].loaded)
-		if (!P_ParticleTrail(b->start, b->end, rt_lightning1, NULL))
+//		if (!P_ParticleTrail(b->start, b->end, rt_lightning1, NULL))
+//			continue;
+		if (b->particleeffect >= 0 && !P_ParticleTrail(b->start, b->end, b->particleeffect, NULL))
 			continue;
 
 	// add new entities for the lightning

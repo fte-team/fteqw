@@ -70,7 +70,10 @@ int rt_blastertrail,
 	rt_gib,
 	rt_lightning1,
 	rt_lightning2,
-	rt_lightning3;
+	rt_lightning3,
+	pt_lightning1_end,
+	pt_lightning2_end,
+	pt_lightning3_end;
 
 //triangle fan sparks use these.
 static double sint[7] = {0.000000, 0.781832,  0.974928,  0.433884, -0.433884, -0.974928, -0.781832};
@@ -87,7 +90,7 @@ void P_ReadPointFile_f (void);
 #define MAX_BEAMS                2048   // default max # of beam segments
 #define MAX_PARTICLES			32768	// default max # of particles at one
 										//  time
-#define MAX_DECALS				32768	// this is going to be expensive
+#define MAX_DECALS				 4096	// this is going to be expensive
 
 //int		ramp1[8] = {0x6f, 0x6d, 0x6b, 0x69, 0x67, 0x65, 0x63, 0x61};
 //int		ramp2[8] = {0x6f, 0x6e, 0x6d, 0x6c, 0x6b, 0x6a, 0x68, 0x66};
@@ -133,12 +136,6 @@ typedef struct skytris_s {
 	msurface_t *face;
 } skytris_t;
 
-
-
-
-
-
-
 //these could be deltas or absolutes depending on ramping mode.
 typedef struct {
 	vec3_t rgb;
@@ -166,7 +163,7 @@ typedef struct part_type_s {
 	float offsetspreadvert;
 	float randomvelvert;
 	float randscale;
-	qboolean isbeam;
+	enum {PT_NORMAL, PT_BEAM, PT_DECAL} type;
 	enum {BM_MERGE, BM_ADD, BM_SUBTRACT} blendmode;
 
 	float rotationstartmin, rotationstartrand;
@@ -194,7 +191,7 @@ typedef struct part_type_s {
 
 	float offsetup; // make this into a vec3_t later with dir, possibly for mdls
 
-	enum {SM_BOX, SM_CIRCLE, SM_BALL, SM_SPIRAL, SM_TRACER, SM_TELEBOX, SM_LAVASPLASH, SM_UNICIRCLE, SM_FIELD, SM_DECAL} spawnmode;	
+	enum {SM_BOX, SM_CIRCLE, SM_BALL, SM_SPIRAL, SM_TRACER, SM_TELEBOX, SM_LAVASPLASH, SM_UNICIRCLE, SM_FIELD} spawnmode;	
 	//box = even spread within the area
 	//circle = around edge of a circle
 	//ball = filled sphere
@@ -272,7 +269,7 @@ int P_ParticleTypeForName(char *name)
 	return to;
 }
 
-static int P_FindParticleType(char *name)	//checks if particle description 'name' exists, returns -1 if not.
+int P_FindParticleType(char *name)	//checks if particle description 'name' exists, returns -1 if not.
 {
 	int i;
 	for (i = 0; i < numparticletypes; i++)
@@ -645,15 +642,25 @@ void P_ParticleEffect_f(void)
 				ptype->spawnmode = SM_UNICIRCLE;
 			else if (!strcmp(value, "syncfield"))
 				ptype->spawnmode = SM_FIELD;
-			else if (!strcmp(value, "decal"))
-				ptype->spawnmode = SM_DECAL;
 			else
 				ptype->spawnmode = SM_BOX;
 
 		}
-		else if (!strcmp(var, "isbeam"))
-			ptype->isbeam = true;
+		else if (!strcmp(var, "type"))
+		{
+			if (!strcmp(value, "beam"))
+				ptype->type = PT_BEAM;
+			else if (!strcmp(value, "decal"))
+				ptype->type = PT_DECAL;
+			else
+				ptype->type = PT_NORMAL;
 
+		}
+		else if (!strcmp(var, "isbeam"))
+		{
+			Con_DPrintf("isbeam is deprechiated, use type beam\n");
+			ptype->type = PT_BEAM;
+		}
 		else if (!strcmp(var, "cliptype"))
 		{
 			assoc = P_ParticleTypeForName(value);//careful - this can realloc all the particle types
@@ -1134,16 +1141,20 @@ void P_InitParticles (void)
 	pt_spike			= P_AllocateParticleType("te_spike");
 	pt_superspike		= P_AllocateParticleType("te_superspike");
 
-	rt_railtrail		= P_AllocateParticleType("t_railtrail");
+	rt_railtrail		= P_AllocateParticleType("te_railtrail");
+	rt_bubbletrail		= P_AllocateParticleType("te_bubbletrail");
 	rt_blastertrail		= P_AllocateParticleType("t_blastertrail");
-	rt_bubbletrail		= P_AllocateParticleType("t_bubbletrail");
 	rt_rocket			= P_AllocateParticleType("t_rocket");
 	rt_grenade			= P_AllocateParticleType("t_grenade");
 	rt_gib				= P_AllocateParticleType("t_gib");
 
-	rt_lightning1		= P_AllocateParticleType("t_lightning1");
-	rt_lightning2		= P_AllocateParticleType("t_lightning2");
-	rt_lightning3		= P_AllocateParticleType("t_lightning3");
+	rt_lightning1		= P_AllocateParticleType("te_lightning1");
+	rt_lightning2		= P_AllocateParticleType("te_lightning2");
+	rt_lightning3		= P_AllocateParticleType("te_lightning3");
+
+	pt_lightning1_end	= P_AllocateParticleType("te_lightning1_end");
+	pt_lightning2_end	= P_AllocateParticleType("te_lightning2_end");
+	pt_lightning3_end	= P_AllocateParticleType("te_lightning3_end");
 
 	pt_spark			= P_AllocateParticleType("te_spark");
 	pt_plasma			= P_AllocateParticleType("te_plasma");
@@ -1715,7 +1726,7 @@ int P_RunParticleEffectType (vec3_t org, vec3_t dir, float count, int typenum)
 	if (!ptype->loaded)
 		return 1;
 
-	if (ptype->spawnmode == SM_DECAL)
+	if (ptype->type == PT_DECAL)
 	{
 		clippeddecal_t *d;
 		int decalcount;
@@ -1780,6 +1791,7 @@ int P_RunParticleEffectType (vec3_t org, vec3_t dir, float count, int typenum)
 			}
 			else
 				VectorCopy(ptype->rgb, d->rgb);
+
 			vec[2] = frandom();
 			vec[0] = vec[2]*ptype->rgbrandsync[0] + frandom()*(1-ptype->rgbrandsync[0]);
 			vec[1] = vec[2]*ptype->rgbrandsync[1] + frandom()*(1-ptype->rgbrandsync[1]);
@@ -1811,7 +1823,7 @@ int P_RunParticleEffectType (vec3_t org, vec3_t dir, float count, int typenum)
 		{
 		case SM_UNICIRCLE:
 			m = (count*ptype->count);
-			if (ptype->isbeam)
+			if (ptype->type == PT_BEAM)
 				m--;
 
 			if (m < 1)
@@ -1855,7 +1867,7 @@ int P_RunParticleEffectType (vec3_t org, vec3_t dir, float count, int typenum)
 			if (!free_particles)
 				break;
 			p = free_particles;
-			if (ptype->isbeam)
+			if (ptype->type == PT_BEAM)
 			{
 				if (!free_beams)
 					break;
@@ -2049,7 +2061,7 @@ int P_RunParticleEffectType (vec3_t org, vec3_t dir, float count, int typenum)
 		}
 
 		// update beam list
-		if (ptype->isbeam)
+		if (ptype->type == PT_BEAM)
 		{
 			if (b)
 			{
@@ -2373,7 +2385,7 @@ int P_ParticleTrail (vec3_t startpos, vec3_t end, int type, trailstate_t *ts)
 		}
 
 		p = free_particles;
-		if (ptype->isbeam)
+		if (ptype->type == PT_BEAM)
 		{
 			if (!free_beams)
 			{
@@ -2518,7 +2530,7 @@ int P_ParticleTrail (vec3_t startpos, vec3_t end, int type, trailstate_t *ts)
 		ts->lastdist = len;
 
 		// update beamseg list
-		if (ptype->isbeam)
+		if (ptype->type == PT_BEAM)
 		{
 			if (b)
 			{
@@ -2554,7 +2566,7 @@ int P_ParticleTrail (vec3_t startpos, vec3_t end, int type, trailstate_t *ts)
 			}
 		}
 	}
-	else if (ptype->isbeam)
+	else if (ptype->type == PT_BEAM)
 	{
 		if (b)
 		{
@@ -3356,7 +3368,7 @@ void DrawParticleTypes (void texturedparticles(particle_t *,part_type_t*), void 
 		if (!type->particles)
 			continue;
 
-		if (type->isbeam)
+		if (type->type == PT_BEAM)
 		{
 			if (*type->texname)
 				pdraw = beamparticlest;
@@ -3377,7 +3389,7 @@ void DrawParticleTypes (void texturedparticles(particle_t *,part_type_t*), void 
 		{
 			while ((p=type->particles))
 			{
-				if (!type->isbeam)
+				if (type->type == PT_NORMAL)
 					RQ_AddDistReorder(pdraw, p, type, p->org);
 
 				type->particles = p->next;
@@ -3551,7 +3563,7 @@ void DrawParticleTypes (void texturedparticles(particle_t *,part_type_t*), void 
 						p->vel[1] *= type->clipbounce;
 						p->vel[2] *= type->clipbounce;
 
-						if (!*type->texname && Length(p->vel)<1000*pframetime && !type->isbeam)
+						if (!*type->texname && Length(p->vel)<1000*pframetime && type->type == PT_NORMAL)
 							p->die = -1;
 					}
 					else
@@ -3577,7 +3589,7 @@ void DrawParticleTypes (void texturedparticles(particle_t *,part_type_t*), void 
 				}
 			}
 
-			if (!type->isbeam)
+			if (type->type == PT_NORMAL)
 				RQ_AddDistReorder((void*)pdraw, p, type, p->org);
 		}
 

@@ -30,7 +30,10 @@ extern int rt_blastertrail,
 	rt_gib,
 	rt_lightning1,
 	rt_lightning2,
-	rt_lightning3;
+	rt_lightning3,
+	pt_lightning1_end,
+	pt_lightning2_end,
+	pt_lightning3_end;
 
 /*
 extern int rt_rocket_trail,
@@ -120,6 +123,8 @@ void P_NewServer(void);
 //allocate a new effect
 int P_ParticleTypeForName(char *name);
 int P_AllocateParticleType(char *name);	//find one if it exists, or create if it doesn't.
+int P_FindParticleType(char *name); //checks if particle description 'name' exists, returns -1 if not.
+
 qboolean P_DescriptionIsLoaded(char *name);	//returns true if it's usable.
 
 void P_SkyTri(float *v1, float *v2, float *v3, struct msurface_s *surf);

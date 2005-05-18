@@ -1961,8 +1961,8 @@ int P_RunParticleEffectType (vec3_t org, vec3_t dir, float count, int typenum)
 				break;
 			case SM_LAVASPLASH:
 				// calc directions, org with temp vector
-				ofsvec[0] = k*spawnspc + (rand()%spawnspc);
-				ofsvec[1] = j*spawnspc + (rand()%spawnspc);
+				ofsvec[0] = k + (rand()%spawnspc);
+				ofsvec[1] = j + (rand()%spawnspc);
 				ofsvec[2] = 256;
 
 				arsvec[0] = ofsvec[0];
@@ -1972,14 +1972,14 @@ int P_RunParticleEffectType (vec3_t org, vec3_t dir, float count, int typenum)
 				VectorNormalize(ofsvec);
 				VectorScale(ofsvec, 1.0-(frandom())*m, ofsvec);
 
-				// advance splash loop (fix this)
-				j++;
+				// advance splash loop
+				j += spawnspc;
 				if (j >= ptype->areaspread)
 				{
 					j = -ptype->areaspread;
-					k++;
+					k += spawnspc;
 					if (k >= ptype->areaspread)
-					k = -ptype->areaspread;
+						k = -ptype->areaspread;
 				}
 				break;
 			case SM_UNICIRCLE:

@@ -1386,7 +1386,7 @@ char *particle_set_faithful =
 "	colorindex 224\n"
 "	colorrand 8\n"
 "	gravity 40\n"
-"	areaspread 16\n"
+"	areaspread 128\n"
 "	areaspreadvert 63\n"
 "	offsetspread 113\n"
 "	offsetspreadvert 113\n"

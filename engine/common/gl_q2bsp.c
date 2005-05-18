@@ -1100,15 +1100,15 @@ void *Mod_LoadWall(char *name)
 		qbyte *out;
 
 		tex = Hunk_AllocName(sizeof(texture_t) + wal->width*r_pixbytes*wal->height/64*85, ln);
-		tex->width = wal->width;
-		tex->height = wal->height;
+		tex->width = LittleLong(wal->width);
+		tex->height = LittleLong(wal->height);
 
 		tex->pixbytes = r_pixbytes;
 		for (i = 0; i < MIPLEVELS; i++)
-			tex->offsets[i] = (wal->offsets[i] - sizeof(*wal))*tex->pixbytes + sizeof(*tex);
+			tex->offsets[i] = (LittleLong(wal->offsets[i]) - sizeof(*wal))*tex->pixbytes + sizeof(*tex);
 
 		out = (qbyte *)(tex+1);
-		in = (qbyte *)wal+wal->offsets[0];
+		in = (qbyte *)wal+LittleLong(wal->offsets[0]);
 
 		if (tex->pixbytes == 4)
 		{

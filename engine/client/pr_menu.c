@@ -395,6 +395,7 @@ void PF_CL_drawpic (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 	float alpha = G_FLOAT(OFS_PARM4);
 	float flag = G_FLOAT(OFS_PARM5);
 
+#ifdef RGLQUAKE
 	if (qrenderer == QR_OPENGL)
 	{
 		if (flag == 1)
@@ -406,14 +407,17 @@ void PF_CL_drawpic (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 		else
 			qglBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
 	}
+#endif
 
 	if (Draw_ImageColours)
 		Draw_ImageColours(rgb[0], rgb[1], rgb[2], alpha);
 	if (Draw_Image)
 		Draw_Image(pos[0], pos[1], size[0], size[1], 0, 0, 1, 1, p);
 
+#ifdef RGLQUAKE
 	if (qrenderer == QR_OPENGL)
 		qglBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+#endif
 
 	G_FLOAT(OFS_RETURN) = 1;
 }

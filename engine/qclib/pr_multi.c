@@ -247,7 +247,8 @@ int QC_RegisterFieldVar(progfuncs_t *progfuncs, unsigned int type, char *name, i
 
 		n=PRHunkAlloc(progfuncs, namelen);
 		sprintf(n, "%s_x", name);
-		field[fnum].ofs = ofs = QC_RegisterFieldVar(progfuncs, ev_float, n, requestedpos, -1);
+		ofs = QC_RegisterFieldVar(progfuncs, ev_float, n, requestedpos, -1);
+		field[fnum].ofs = ofs;
 
 		n=PRHunkAlloc(progfuncs, namelen);
 		sprintf(n, "%s_y", name);

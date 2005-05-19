@@ -627,6 +627,7 @@ qboolean NET_GetPacket (netsrc_t netsrc)
 	int		fromlen;
 	int i;
 	int		socket;
+	int err;
 
 	if (NET_GetLoopPacket(netsrc, &net_from, &net_message))
 		return true;
@@ -661,7 +662,7 @@ qboolean NET_GetPacket (netsrc_t netsrc)
 				socket = cls.socketipx;
 #endif
 		}
-		if (!socket)
+		if (socket == INVALID_SOCKET)
 			continue;
 
 		fromlen = sizeof(from);
@@ -669,16 +670,18 @@ qboolean NET_GetPacket (netsrc_t netsrc)
 
 		if (ret == -1)
 		{
-			if (qerrno == EWOULDBLOCK)
+			err = qerrno;
+
+			if (err == EWOULDBLOCK)
 				continue;
-			if (qerrno == EMSGSIZE)
+			if (err == EMSGSIZE)
 			{
 				SockadrToNetadr (&from, &net_from);
 				Con_TPrintf (TL_OVERSIZEPACKETFROM,
 					NET_AdrToString (net_from));
 				continue;
 			}
-			if (qerrno == ECONNABORTED || qerrno == ECONNRESET)
+			if (err == ECONNABORTED || err == ECONNRESET)
 			{
 				Con_TPrintf (TL_CONNECTIONLOSTORABORTED);	//server died/connection lost.
 #ifndef SERVERONLY
@@ -695,7 +698,7 @@ qboolean NET_GetPacket (netsrc_t netsrc)
 			}
 
 
-			Con_TPrintf (TL_NETGETPACKETERROR, strerror(qerrno));
+			Con_Printf ("NET_GetPacket: Error (%i): %s\n", err, strerror(err));
 			continue;
 		}
  		SockadrToNetadr (&from, &net_from);
@@ -837,7 +840,7 @@ int maxport = port + 100;
 		if (setsockopt(newsocket, SOL_SOCKET, SO_BROADCAST, (char *)&_true, sizeof(_true)) == -1)
 		{
 			Con_Printf("Cannot create broadcast socket\n");
-			return 0;
+			return INVALID_SOCKET;
 		}
 	}
 
@@ -884,7 +887,7 @@ int maxport = port + 100;
 	if ((newsocket = socket (PF_INET6, SOCK_DGRAM, 0)) == -1)
 	{
 		Con_Printf("IPV6 is not supported: %s\n", strerror(qerrno));
-		return 0;
+		return INVALID_SOCKET;
 	}
 
 	if (ioctlsocket (newsocket, FIONBIO, &_true) == -1)
@@ -898,7 +901,7 @@ int maxport = port + 100;
 //		{
 			Con_Printf("Cannot create broadcast socket\n");
 			closesocket(newsocket);
-			return 0;
+			return INVALID_SOCKET;
 //		}
 	}
 
@@ -952,14 +955,14 @@ int IPX_OpenSocket (int port, qboolean bcast)
 	{
 		if (qerrno != EAFNOSUPPORT)
 			Con_Printf ("WARNING: IPX_Socket: socket: %s\n", qerrno);
-		return 0;
+		return INVALID_SOCKET;
 	}
 
 	// make it non-blocking
 	if (ioctlsocket (newsocket, FIONBIO, &_true) == -1)
 	{
 		Con_Printf ("WARNING: IPX_Socket: ioctl FIONBIO: %s\n", qerrno);
-		return 0;
+		return INVALID_SOCKET;
 	}
 
 	if (bcast)
@@ -968,7 +971,7 @@ int IPX_OpenSocket (int port, qboolean bcast)
 		if (setsockopt(newsocket, SOL_SOCKET, SO_BROADCAST, (char *)&_true, sizeof(_true)) == -1)
 		{
 			Con_Printf ("WARNING: IPX_Socket: setsockopt SO_BROADCAST: %s\n", qerrno);
-			return 0;
+			return INVALID_SOCKET;
 		}
 	}
 
@@ -984,7 +987,7 @@ int IPX_OpenSocket (int port, qboolean bcast)
 	{
 		Con_Printf ("WARNING: IPX_Socket: bind: %i\n", qerrno);
 		closesocket (newsocket);
-		return 0;
+		return INVALID_SOCKET;
 	}
 
 	return newsocket;
@@ -1019,6 +1022,7 @@ qboolean NET_Sleep(int msec, qboolean stdinissocket)
 		FD_SET(svs.socketip, &fdset); // network socket
 		i = svs.socketip;
 	}
+#ifdef IPPROTO_IPV6
 	if (svs.socketip6!=INVALID_SOCKET)
 	{
 		FD_SET(svs.socketip6, &fdset); // network socket
@@ -1026,6 +1030,7 @@ qboolean NET_Sleep(int msec, qboolean stdinissocket)
 			i = svs.socketip6;
 		i = svs.socketip6;
 	}
+#endif
 #ifdef USEIPX
 	if (svs.socketipx!=INVALID_SOCKET)
 	{
@@ -1158,22 +1163,14 @@ void NET_Init (void)
 
 #ifndef SERVERONLY
 	cls.socketip = INVALID_SOCKET;
-#ifdef IPPROTO_IPV6
 	cls.socketip6 = INVALID_SOCKET;
-#endif
-#ifdef USEIPX
 	cls.socketipx = INVALID_SOCKET;
-#endif
 #endif
 
 #ifndef CLIENTONLY
 	svs.socketip = INVALID_SOCKET;
-#ifdef IPPROTO_IPV6
 	svs.socketip6 = INVALID_SOCKET;
-#endif
-#ifdef USEIPX
 	svs.socketipx = INVALID_SOCKET;
-#endif
 #endif
 
 #ifdef NQPROT
@@ -1225,11 +1222,13 @@ void NET_CloseServer(void)
 		UDP_CloseSocket(svs.socketip);
 		svs.socketip = INVALID_SOCKET;
 	}
+#ifdef IPPROTO_IPV6
 	if (svs.socketip6 != INVALID_SOCKET)
 	{
-		UDP_CloseSocket(svs.socketip);
-		svs.socketip = INVALID_SOCKET;
+		UDP_CloseSocket(svs.socketip6);
+		svs.socketip6 = INVALID_SOCKET;
 	}
+#endif
 #ifdef USEIPX
 	if (svs.socketipx != INVALID_SOCKET)
 	{
@@ -1267,13 +1266,14 @@ void NET_InitServer(void)
 		if (svs.socketip == INVALID_SOCKET)
 		{
 			svs.socketip = UDP_OpenSocket (port, false);
-			NET_GetLocalIPAddress (svs.socketip);
+			if (svs.socketip6 != INVALID_SOCKET)
+				NET_GetLocalIPAddress (svs.socketip);
 		}
 #ifdef IPPROTO_IPV6
 		if (svs.socketip6 == INVALID_SOCKET)
 		{
 			svs.socketip6 = UDP6_OpenSocket (port, false);
-			if (svs.socketip6)
+			if (svs.socketip6 != INVALID_SOCKET)
 				NET_GetLocalIP6Address (svs.socketip6);
 		}
 #endif
@@ -1307,7 +1307,9 @@ void	NET_Shutdown (void)
 #endif
 #ifndef SERVERONLY
 	UDP_CloseSocket (cls.socketip);
+#ifdef IPPROTO_IPV6
 	UDP_CloseSocket (cls.socketip6);
+#endif
 #ifdef USEIPX
 	IPX_CloseSocket (cls.socketipx);
 #endif

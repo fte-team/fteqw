@@ -1278,6 +1278,11 @@ void R_DrawGAliasModel (entity_t *e)
 		shadelight[0] = shadelight[1] = shadelight[2] = e->abslight;
 		ambientlight[0] = ambientlight[1] = ambientlight[2] = 0;
 	}
+	if ((e->drawflags & MLS_MASKIN) == MLS_FULLBRIGHT)
+	{
+		shadelight[0] = shadelight[1] = shadelight[2] = 255;
+		ambientlight[0] = ambientlight[1] = ambientlight[2] = 0;
+	}
 
 //#define SHOWLIGHTDIR
 	{	//lightdir is absolute, shadevector is relative
@@ -1924,29 +1929,99 @@ int GL_BuildSkinFileList(char *modelname)
 }
 
 //This is a hack. It uses an assuption about q3 player models.
-void GL_ParseQ3SkinFile(char *out, char *surfname, char *modelname)
+void GL_ParseQ3SkinFile(char *out, char *surfname, char *modelname, int skinnum)
 {
-	const char *f, *p;
+	const char *f = NULL, *p;
+	int len;
 	char line[256];
-	COM_StripExtension(modelname, line);
-	strcat(line, "_default.skin");
 
-	f = COM_LoadTempFile2(line);
+	if (!f)
+	{
+		strcpy(line, modelname);
+		strcat(line, "_0.skin");
+		f = COM_LoadTempFile2(line);
+	}
+
+	if (!f)
+	{
+		if (skinnum == 4)
+		{
+			COM_StripExtension(modelname, line);
+			strcat(line, "_yellow.skin");
+			f = COM_LoadTempFile2(line);
+		}
+		else if (skinnum == 3)
+		{
+			COM_StripExtension(modelname, line);
+			strcat(line, "_green.skin");
+			f = COM_LoadTempFile2(line);
+		}
+		else if (skinnum == 2)
+		{
+			COM_StripExtension(modelname, line);
+			strcat(line, "_red.skin");
+			f = COM_LoadTempFile2(line);
+		}
+		else if (skinnum == 1)
+		{
+			COM_StripExtension(modelname, line);
+			strcat(line, "_blue.skin");
+			f = COM_LoadTempFile2(line);
+		}
+		if (!f)
+		{
+			COM_StripExtension(modelname, line);
+			strcat(line, "_default.skin");
+			f = COM_LoadTempFile2(line);
+		}
+	}
+
 	while(f)
 	{
 		f = COM_ParseToken(f);
 		if (!f)
 			return;
-		while(*f == ' ' || *f == '\t')
-			f++;
-		if (*f == ',')
+		if (!strcmp(com_token, "replace"))
 		{
-			if (!strcmp(com_token, surfname))
+			f = COM_ParseToken(f);
+
+			len = strlen(com_token);
+
+			//copy surfname -> out, until we meet the part we need to replace
+			while(*surfname)
 			{
+				if (!strncmp(com_token, surfname, len))
+					//found it
+				{
+					surfname+=len;
+					f = COM_ParseToken(f);
+					p = com_token;
+					while(*p)	//copy the replacement
+						*out++ = *p++;
+
+					while(*surfname)	//copy the remaining
+						*out++ = *surfname++;
+					*out++ = '\0';	//we didn't find it.
+					return;
+				}
+				*out++ = *surfname++;
+			}
+			*out++ = '\0';	//we didn't find it.
+			return;
+		}
+		else
+		{
+			while(*f == ' ' || *f == '\t')
 				f++;
-				COM_ParseToken(f);
-				strcpy(out, com_token);
-				return;
+			if (*f == ',')
+			{
+				if (!strcmp(com_token, surfname))
+				{
+					f++;
+					COM_ParseToken(f);
+					strcpy(out, com_token);
+					return;
+				}
 			}
 		}
 
@@ -1960,26 +2035,22 @@ void GL_ParseQ3SkinFile(char *out, char *surfname, char *modelname)
 	}
 }
 
-galiasskin_t *GL_LoadSkinFile(int *count, char *shadername, int skinnumber, unsigned char *rawdata, int width, int height, unsigned char *palette)
+static model_t *loadmodel;
+
+void GL_LoadSkinFile(galiastexnum_t *texnum, char *surfacename, int skinnumber, unsigned char *rawdata, int width, int height, unsigned char *palette)
 {
-	galiasskin_t *skin;
-	galiastexnum_t *texnums;
+	char shadername[MAX_QPATH];
+	Q_strncpyz(shadername, surfacename, sizeof(shadername));
 
-	skin = Hunk_Alloc(sizeof(*skin)+sizeof(*texnums));
-	texnums = (galiastexnum_t *)(skin+1);	//texnums is seperate for skingroups/animating skins... Which this format doesn't support.
-	*count = 1;
-	skin->ofstexnums = (char *)texnums - (char *)skin;
-	skin->texnums = 1;
-	texnums->base = Mod_LoadHiResTexture(shadername, "models", true, true, true);
+	GL_ParseQ3SkinFile(shadername, surfacename, loadmodel->name, skinnumber);
 
-	return skin;
+	texnum->base = Mod_LoadHiResTexture(shadername, "models", true, true, true);
 }
 
 
 //Q1 model loading
 #if 1
 static galiasinfo_t *galias;
-static model_t *loadmodel;
 static dmdl_t *pq1inmodel;
 #define NUMVERTEXNORMALS	162
 extern float	r_avertexnormals[NUMVERTEXNORMALS][3];
@@ -2999,7 +3070,7 @@ void GL_LoadQ3Model(model_t *mod, void *buffer)
 				skin->skinspeed = 0;
 
 				if (!*inshader->name)	//'fix' the shader by looking the surface name up in a skin file. This isn't perfect, but it does the job for basic models.
-					GL_ParseQ3SkinFile(inshader->name, surf->name, loadmodel->name);
+					GL_ParseQ3SkinFile(inshader->name, surf->name, loadmodel->name, 0);
 #ifdef Q3SHADERS
 				texnum->shader = R_RegisterSkin(inshader->name);
 #else
@@ -3129,7 +3200,7 @@ typedef struct zymtype1header_s
 	float mins[3], maxs[3], radius; // for clipping uses
 	int numverts;
 	int numtris;
-	int numshaders;
+	int numsurfaces;
 	int numbones; // this may be zero in the vertex morph format (undecided)
 	int numscenes; // 0 in skeletal scripted models
 
@@ -3142,7 +3213,7 @@ typedef struct zymtype1header_s
 	zymlump_t lump_verts; // zymvertex_t vert[numvertices]; // see vertex struct
 	zymlump_t lump_texcoords; // float texcoords[numvertices][2];
 	zymlump_t lump_render; // int renderlist[rendersize]; // sorted by shader with run lengths (int count), shaders are sequentially used, each run can be used with glDrawElements (each triangle is 3 int indices)
-	zymlump_t lump_shaders; // char shadername[numshaders][32]; // shaders used on this model
+	zymlump_t lump_surfnames; // char shadername[numsurfaces][32]; // shaders used on this model
 	zymlump_t lump_trizone; // byte trizone[numtris]; // see trizone explanation
 } zymtype1header_t;
 
@@ -3172,7 +3243,7 @@ typedef struct zymvertex_s
 //but only one set of transforms are ever generated.
 void GLMod_LoadZymoticModel(model_t *mod, void *buffer)
 {
-	int i;
+	int i, j;
 	int hunkstart, hunkend, hunktotal;
 
 	zymtype1header_t *header;
@@ -3182,6 +3253,7 @@ void GLMod_LoadZymoticModel(model_t *mod, void *buffer)
 	zymvertex_t	*intrans;
 
 	galiasskin_t *skin;
+	galiastexnum_t *texnum;
 
 	galiasbone_t *bone;
 	zymbone_t *inbone;
@@ -3200,7 +3272,9 @@ void GLMod_LoadZymoticModel(model_t *mod, void *buffer)
 	int *renderlist, count;
 	index_t *indexes;
 
-	char *shadername;
+	char *surfname;
+
+	int skinfiles;
 
 
 	loadmodel=mod;
@@ -3221,10 +3295,10 @@ void GLMod_LoadZymoticModel(model_t *mod, void *buffer)
 	if (!header->numverts)
 		Sys_Error("GLMod_LoadZymoticModel: no vertexes\n");
 
-	if (!header->numshaders)
-		Sys_Error("GLMod_LoadZymoticModel: no textures\n");
+	if (!header->numsurfaces)
+		Sys_Error("GLMod_LoadZymoticModel: no surfaces\n");
 
-	root = Hunk_AllocName(sizeof(galiasinfo_t)*header->numshaders, loadname);
+	root = Hunk_AllocName(sizeof(galiasinfo_t)*header->numsurfaces, loadname);
 
 	root->numtransforms = header->lump_verts.length/sizeof(zymvertex_t);
 	transforms = Hunk_Alloc(root->numtransforms*sizeof(*transforms));
@@ -3269,7 +3343,7 @@ void GLMod_LoadZymoticModel(model_t *mod, void *buffer)
 	root->ofsbones = (char *)bone - (char *)root;
 
 	renderlist = (int*)((char*)header + header->lump_render.start);
-	for (i = 0;i < header->numshaders; i++)
+	for (i = 0;i < header->numsurfaces; i++)
 	{
 		count = BigLong(*renderlist++);
 		count *= 3;
@@ -3288,13 +3362,13 @@ void GLMod_LoadZymoticModel(model_t *mod, void *buffer)
 	if (renderlist != (int*)((char*)header + header->lump_render.start + header->lump_render.length))
 		Sys_Error("Render list appears corrupt.");
 
-	grp = Hunk_Alloc(sizeof(*grp)*header->numscenes*header->numshaders);
+	grp = Hunk_Alloc(sizeof(*grp)*header->numscenes*header->numsurfaces);
 	matrix = Hunk_Alloc(header->lump_poses.length);
 	inmatrix = (float*)((char*)header + header->lump_poses.start);
 	for (i = 0; i < header->lump_poses.length/4; i++)
 		matrix[i] = BigFloat(inmatrix[i]);
 	inscene = (zymscene_t*)((char*)header + header->lump_scenes.start);
-	shadername = ((char*)header + header->lump_shaders.start);
+	surfname = ((char*)header + header->lump_surfnames.start);
 
 	stcoords = Hunk_Alloc(root[0].numverts*sizeof(vec2_t));
 	inst = (vec2_t *)((char *)header + header->lump_texcoords.start);
@@ -3303,15 +3377,28 @@ void GLMod_LoadZymoticModel(model_t *mod, void *buffer)
 		stcoords[i][0] = BigFloat(inst[i][0]);
 		stcoords[i][1] = 1-BigFloat(inst[i][1]);	//hmm. upside down skin coords?
 	}
-	for (i = 0; i < header->numshaders; i++, shadername+=32)
+	
+	skinfiles = GL_BuildSkinFileList(loadmodel->name);
+	if (skinfiles < 1)
+		skinfiles = 1;
+
+	for (i = 0; i < header->numsurfaces; i++, surfname+=32)
 	{
 		root[i].ofs_st_array = (char*)stcoords - (char*)&root[i];
 
 		root[i].groups = header->numscenes;
 		root[i].groupofs = (char*)grp - (char*)&root[i];
 
-		skin = GL_LoadSkinFile(&root[i].numskins, shadername, i, NULL, 0, 0, NULL);
+		skin = Hunk_Alloc((sizeof(galiasskin_t)+sizeof(galiastexnum_t))*skinfiles);
+		texnum = (galiastexnum_t*)(skin+skinfiles);
+		for (j = 0; j < skinfiles; j++, texnum++)
+		{
+			skin[j].texnums = 1;	//non-sequenced skins.
+			skin[j].ofstexnums = (char *)texnum - (char *)&skin[j];
 
+			GL_LoadSkinFile(texnum, surfname, j, NULL, 0, 0, NULL);
+		}
+		root[i].numskins = j;
 		root[i].ofsskins = (char *)skin - (char *)&root[i];
 	}
 
@@ -3328,9 +3415,9 @@ void GLMod_LoadZymoticModel(model_t *mod, void *buffer)
 	if (inscene != (zymscene_t*)((char*)header + header->lump_scenes.start+header->lump_scenes.length))
 		Sys_Error("scene list appears corrupt.");
 
-	for (i = 0; i < header->numshaders-1; i++)
+	for (i = 0; i < header->numsurfaces-1; i++)
 		root[i].nextsurf = sizeof(galiasinfo_t);
-	for (i = 1; i < header->numshaders; i++)
+	for (i = 1; i < header->numsurfaces; i++)
 	{
 		root[i].sharesverts = true;
 		root[i].numbones = root[0].numbones;

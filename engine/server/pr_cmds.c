@@ -3508,7 +3508,11 @@ void PF_WeapIndex (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 
 void PF_coredump (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
-//	ED_PrintEdicts ();
+	int size = 1024*1024*8;
+	char *buffer = BZ_Malloc(size);
+	prinst->save_ents(prinst, buffer, &size, 3);
+	COM_WriteFile("ssqccore.txt", buffer, size);
+	BZ_Free(buffer);
 }
 
 void PF_traceon (progfuncs_t *prinst, struct globalvars_s *pr_globals)
@@ -4648,6 +4652,7 @@ void SV_point_tempentity (vec3_t o, int type, int count)	//count (usually 1) is 
 		SV_Error("SV_point_tempentity - type is a beam\n");
 	default:
 		MSG_WriteByte (&sv.multicast, type);
+		MSG_WriteByte (&sv.nqmulticast, type);
 	}
 	MSG_WriteCoord (&sv.multicast, o[0]);
 	MSG_WriteCoord (&sv.multicast, o[1]);
@@ -8934,8 +8939,9 @@ void PR_RegisterFields(void)	//it's just easier to do it this way.
 	fieldentity(viewmodelforclient);
 	fieldentity(exteriormodeltoclient);
 
-	fieldfloat(glowsize);
-	fieldfloat(glowcolor);
+	fieldfloat(glow_size);
+	fieldfloat(glow_color);
+	fieldfloat(glow_trail);
 
 	//UDC_EXTEFFECT... yuckie
 	PR_RegisterFieldVar(svprogfuncs, ev_float, "fieldcolor", (int)&((entvars_t*)0)->seefcolour, -1);

@@ -2204,7 +2204,7 @@ void PR_TestForWierdness(progfuncs_t *progfuncs)
 		{
 			for (e = 0; e < sv_num_edicts; e++)
 			{
-				ed = EDICT_NUM(progfuncs, e);
+				ed = (edictrun_t*)EDICT_NUM(progfuncs, e);
 				if (ed->isfree)
 					continue;
 				if (((int *)ed->fields)[field[i].ofs] < 0 || ((int *)ed->fields)[field[i].ofs] >= addressableused)

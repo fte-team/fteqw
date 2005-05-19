@@ -707,7 +707,7 @@ coorddata MSG_ToCoord(float f, int bytes)	//return value should be treated as (c
 	switch(bytes)
 	{
 	case 2:
-		r.b2 = LittleShort(f*8);
+		r.b2 = LittleShort((short)(f*8));
 		break;
 	case 4:
 		r.f = LittleFloat(f);

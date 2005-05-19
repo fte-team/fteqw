@@ -715,10 +715,10 @@ void CM_CreateBrush ( q2cbrush_t *brush, vec3_t *verts, q2mapsurface_t *surface 
 			side = &map_brushsides[numbrushsides++];
 			side->plane = plane;
 
-			if (DotProduct(plane->normal, mainplane.normal) >= 0)
+//			if (DotProduct(plane->normal, mainplane.normal) >= 0)
 				side->surface = surface;
-			else
-				side->surface = NULL;	// don't clip against this side
+//			else
+//				side->surface = NULL;	// don't clip against this side
 
 			brush->numsides++;
 		}
@@ -4142,6 +4142,8 @@ vec3_t	trace_start, trace_end;
 vec3_t	trace_mins, trace_maxs;
 vec3_t	trace_extents;
 vec3_t	trace_absmins, trace_absmaxs;
+float	trace_truefraction;
+float	trace_nearfraction;
 
 trace_t	trace_trace;
 int		trace_contents;
@@ -4165,8 +4167,9 @@ void CM_ClipBoxToBrush (vec3_t mins, vec3_t maxs, vec3_t p1, vec3_t p2,
 	float		f;
 	q2cbrushside_t	*side, *leadside;
 
+	float nearfrac=0;
 	enterfrac = -1;
-	leavefrac = 1;
+	leavefrac = 2;
 	clipplane = NULL;
 
 	if (!brush->numsides)
@@ -4224,17 +4227,18 @@ void CM_ClipBoxToBrush (vec3_t mins, vec3_t maxs, vec3_t p1, vec3_t p2,
 		// crosses face
 		if (d1 > d2)
 		{	// enter
-			f = (d1-DIST_EPSILON) / (d1-d2);
+			f = (d1) / (d1-d2);
 			if (f > enterfrac)
 			{
 				enterfrac = f;
+				nearfrac = (d1-DIST_EPSILON) / (d1-d2);
 				clipplane = plane;
 				leadside = side;
 			}
 		}
 		else
 		{	// leave
-			f = (d1/*+DIST_EPSILON*/) / (d1-d2);
+			f = (d1) / (d1-d2);
 			if (f < leavefrac)
 				leavefrac = f;
 		}
@@ -4247,13 +4251,16 @@ void CM_ClipBoxToBrush (vec3_t mins, vec3_t maxs, vec3_t p1, vec3_t p2,
 			trace->allsolid = true;
 		return;
 	}
-	if (enterfrac - (1.0f / 1024.0f) < leavefrac)
+	if (enterfrac <= leavefrac)
 	{
-		if (enterfrac > -1 && enterfrac < trace->fraction)
+		if (enterfrac > -1 && enterfrac <= trace_truefraction)
 		{
 			if (enterfrac < 0)
 				enterfrac = 0;
-			trace->fraction = enterfrac;
+
+			trace_nearfraction = nearfrac;
+			trace_truefraction = enterfrac;
+
 			trace->plane.dist = clipplane->dist;
 			VectorCopy(clipplane->normal, trace->plane.normal);
 			trace->surface = &(leadside->surface->c);
@@ -4267,7 +4274,7 @@ void CM_ClipBoxToPatch (vec3_t mins, vec3_t maxs, vec3_t p1, vec3_t p2,
 {
 	int			i, j;
 	mplane_t	*plane, *clipplane;
-	float		enterfrac, leavefrac;
+	float		enterfrac, leavefrac, nearfrac = 0;
 	vec3_t		ofs;
 	float		d1, d2;
 	float dist;
@@ -4281,7 +4288,7 @@ void CM_ClipBoxToPatch (vec3_t mins, vec3_t maxs, vec3_t p1, vec3_t p2,
 	c_brush_traces++;
 
 	enterfrac = -1;
-	leavefrac = 1;
+	leavefrac = 2;
 	clipplane = NULL;
 	startout = false;
 	leadside = NULL;
@@ -4328,38 +4335,45 @@ void CM_ClipBoxToPatch (vec3_t mins, vec3_t maxs, vec3_t p1, vec3_t p2,
 		// crosses face
 		if (d1 > d2)
 		{	// enter
-			f = (d1-DIST_EPSILON) / (d1-d2);
+			f = (d1) / (d1-d2);
 			if (f > enterfrac)
 			{
 				enterfrac = f;
+				nearfrac = (d1-DIST_EPSILON) / (d1-d2);
 				clipplane = plane;
 				leadside = side;
 			}
 		}
 		else
 		{	// leave
-			f = (d1 /*+ DIST_EPSILON*/) / (d1-d2);
+			f = (d1) / (d1-d2);
 			if (f < leavefrac)
 				leavefrac = f;
 		}
 	}
 
 	if (!startout)
+	{
+		trace->startsolid = true;
 		return;		// original point is inside the patch
+	}
 
-	if (enterfrac - (1.0f / 1024.0f) <= leavefrac)
+	if (nearfrac <= leavefrac)
 	{
 		if (leadside && leadside->surface
-			&& enterfrac < trace->fraction)
+			&& enterfrac <= trace_truefraction)
 		{
 			if (enterfrac < 0)
 				enterfrac = 0;
-			trace->fraction = enterfrac;
+			trace_truefraction = enterfrac;
+			trace_nearfraction = nearfrac;
 			trace->plane.dist = clipplane->dist;
 			VectorCopy(clipplane->normal, trace->plane.normal);
 			trace->surface = &leadside->surface->c;
 			trace->contents = brush->contents;
 		}
+		else if (enterfrac < trace_truefraction)
+			leavefrac=0;
 	}
 }
 
@@ -4505,7 +4519,7 @@ void CM_TraceToLeaf (int leafnum)
 		if ( !(b->contents & trace_contents))
 			continue;
 		CM_ClipBoxToBrush (trace_mins, trace_maxs, trace_start, trace_end, &trace_trace, b);
-		if (!trace_trace.fraction)
+		if (trace_nearfraction <= 0)
 			return;
 	}
 
@@ -4528,7 +4542,7 @@ void CM_TraceToLeaf (int leafnum)
 		for (j = 0; j < patch->numbrushes; j++)
 		{
 			CM_ClipBoxToPatch (trace_mins, trace_maxs, trace_start, trace_end, &trace_trace, &patch->brushes[j]);
-			if (trace_trace.fraction<=0)
+			if (trace_nearfraction<=0)
 				return;
 		}
 	}
@@ -4614,7 +4628,7 @@ void CM_RecursiveHullCheck (int num, float p1f, float p2f, vec3_t p1, vec3_t p2)
 	int			side;
 	float		midf;
 
-	if (trace_trace.fraction <= p1f)
+	if (trace_truefraction <= p1f)
 		return;		// already hit something nearer
 
 	// if < 0, we are in a leaf node
@@ -4741,6 +4755,8 @@ trace_t		CM_BoxTrace (vec3_t start, vec3_t end,
 
 	// fill in a default trace
 	memset (&trace_trace, 0, sizeof(trace_trace));
+	trace_truefraction = 1;
+	trace_nearfraction = 1;
 	trace_trace.fraction = 1;
 	trace_trace.surface = &(nullsurface.c);
 
@@ -4825,9 +4841,9 @@ trace_t		CM_BoxTrace (vec3_t start, vec3_t end,
 	else
 	{
 		trace_ispoint = false;
-		trace_extents[0] = (-trace_mins[0] > trace_maxs[0] ? -trace_mins[0] : trace_maxs[0])+0.1;
-		trace_extents[1] = (-trace_mins[1] > trace_maxs[1] ? -trace_mins[1] : trace_maxs[1])+0.1;
-		trace_extents[2] = (-trace_mins[2] > trace_maxs[2] ? -trace_mins[2] : trace_maxs[2])+0.1;
+		trace_extents[0] = -trace_mins[0] > trace_maxs[0] ? -trace_mins[0] : trace_maxs[0]+1;
+		trace_extents[1] = -trace_mins[1] > trace_maxs[1] ? -trace_mins[1] : trace_maxs[1]+1;
+		trace_extents[2] = -trace_mins[2] > trace_maxs[2] ? -trace_mins[2] : trace_maxs[2]+1;
 #if ADJ
 		if (-mins[2] != maxs[2])	//be prepared to move the thing up to counter the different min/max
 		{
@@ -4848,12 +4864,16 @@ trace_t		CM_BoxTrace (vec3_t start, vec3_t end,
 	//
 	CM_RecursiveHullCheck (headnode, 0, 1, trace_start, trace_end);
 
-	if (trace_trace.fraction == 1)
+	if (trace_nearfraction == 1)
 	{
+		trace_trace.fraction = 1;
 		VectorCopy (trace_end, trace_trace.endpos);
 	}
 	else
 	{
+		if (trace_nearfraction<0)
+			trace_nearfraction=0;
+		trace_trace.fraction = trace_nearfraction;
 		for (i=0 ; i<3 ; i++)
 			trace_trace.endpos[i] = trace_start[i] + trace_trace.fraction * (trace_end[i] - trace_start[i]);
 	}
@@ -4928,17 +4948,17 @@ trace_t		CM_TransformedBoxTrace (vec3_t start, vec3_t end,
 		trace.plane.normal[0] = DotProduct (temp, forward);
 		trace.plane.normal[1] = -DotProduct (temp, right);
 		trace.plane.normal[2] = DotProduct (temp, up);
-	}
 
-	if (trace.fraction == 1)
-	{
-		VectorCopy(end, trace.endpos);
-	}
-	else
-	{
-		trace.endpos[0] = start[0] + trace.fraction * (end[0] - start[0]);
-		trace.endpos[1] = start[1] + trace.fraction * (end[1] - start[1]);
-		trace.endpos[2] = start[2] + trace.fraction * (end[2] - start[2]);
+		if (trace.fraction == 1)
+		{
+			VectorCopy(end, trace.endpos);
+		}
+		else
+		{
+			trace.endpos[0] = start[0] + trace.fraction * (end[0] - start[0]);
+			trace.endpos[1] = start[1] + trace.fraction * (end[1] - start[1]);
+			trace.endpos[2] = start[2] + trace.fraction * (end[2] - start[2]);
+		}
 	}
 
 	return trace;

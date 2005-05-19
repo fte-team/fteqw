@@ -289,7 +289,7 @@ void SVNQ_New_f (void)
 
 	MSG_WriteString (&host_client->netchan.message,message);
 
-	for (i = 1; *sv.model_precache[i] ; i++)
+	for (i = 1; sv.model_precache[i] ; i++)
 		MSG_WriteString (&host_client->netchan.message, sv.model_precache[i]);
 	MSG_WriteByte (&host_client->netchan.message, 0);
 
@@ -3348,6 +3348,10 @@ ucmd_t nqucmds[] =
 	{"ping",		NULL},
 	{"ban",			NULL},
 	{"vote",		SV_Vote_f},
+
+	{"playermodel",	NULL},
+	{"playerskin",	NULL},
+	{"rate",		NULL},
 
 #ifdef SVRANKING
 	{"topten",		Rank_ListTop10_f},

@@ -1746,7 +1746,12 @@ void SVC_DirectConnect
 void SV_ClearClient(client_t *cl)
 {
 	client_frame_t *frames = cl->frames;
+	char *on, *ot;
+	on = cl->name;
+	ot = cl->team;
 	memset(cl, 0, sizeof(client_t));
+	cl->name = on;
+	cl->team = ot;
 	cl->frames = frames;
 	if (frames)
 		memset(frames, 0, sizeof(client_frame_t)*UPDATE_BACKUP);

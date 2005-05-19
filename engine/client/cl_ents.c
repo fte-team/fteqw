@@ -873,10 +873,8 @@ void DP5_ParseDelta(entity_state_t *s)
 	}
 	if (bits & E5_GLOW)
 	{
-		MSG_ReadByte();
-		MSG_ReadByte();
-//		s->glowsize = MSG_ReadByte();
-//		s->glowcolor = MSG_ReadByte();
+		s->glowsize = MSG_ReadByte();
+		s->glowcolour = MSG_ReadByte();
 	}
 }
 
@@ -925,16 +923,15 @@ void CLNQ_ParseDarkPlaces5Entities(void)	//the things I do.. :o(
 			if (read == oldpack->entities[oldi].number)
 			{
 				from = &oldpack->entities[oldi];
+				from->flags |= 0x80000000;	//so we don't copy it.
 				break;
 			}
 		}
 
-		from->flags |= 0x80000000;
 		if (remove)
 		{
 			continue;
 		}
-
 
 		if (pack->num_entities==pack->max_entities)
 		{
@@ -947,6 +944,7 @@ void CLNQ_ParseDarkPlaces5Entities(void)	//the things I do.. :o(
 		memcpy(to, from, sizeof(*to));
 		to->number = read;
 		DP5_ParseDelta(to);
+		to->flags &= ~0x80000000;
 
 		if (!from || to->modelindex != from->modelindex || to->number != from->number)	//model changed... or entity changed...
 			cl.lerpents[to->number].lerptime = -10;
@@ -967,8 +965,8 @@ void CLNQ_ParseDarkPlaces5Entities(void)	//the things I do.. :o(
 			cl.lerpents[to->number].frame = from->frame;
 			cl.lerpents[to->number].lerptime = cl.time;
 
-			if (cl.lerpents[to->number].lerprate>0.5)
-				cl.lerpents[to->number].lerprate=0.1;
+			if (cl.lerpents[to->number].lerprate>0.2)
+				cl.lerpents[to->number].lerprate=0.2;
 
 			//store this off for new ents to use.
 	//		if (new)
@@ -977,8 +975,6 @@ void CLNQ_ParseDarkPlaces5Entities(void)	//the things I do.. :o(
 			if (to->frame == from->frame)
 				newlerprate = cl.time-cl.lerpents[to->number].lerptime;
 		}
-
-		to->flags &= ~0x80000000;
 	}
 
 	//the pack has all the new ones in it, now copy the old ones in that wern't removed (or changed).
@@ -1967,7 +1963,7 @@ void CL_ParsePlayerinfo (void)
 	else
 		state->weaponframe = 0;
 
-	if (cl.worldmodel && cl.worldmodel->fromgame == fg_quake && cl.worldmodel->fromgame == fg_halflife)
+	if (cl.worldmodel && (cl.worldmodel->fromgame == fg_quake || cl.worldmodel->fromgame == fg_halflife))
 		state->hullnum = 1;
 	else
 		state->hullnum = 56;

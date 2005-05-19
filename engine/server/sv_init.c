@@ -456,7 +456,8 @@ void SV_UnspawnServer (void)	//terminate the running server.
 	for (i = 0; i < MAX_CLIENTS; i++)
 	{
 		svs.clients[i].state = 0;
-		*svs.clients[i].name = '\0';
+		*svs.clients[i].namebuf = '\0';
+		svs.clients[i].name = NULL;
 	}
 	NET_CloseServer ();
 }
@@ -561,11 +562,14 @@ void SV_SpawnServer (char *server, char *startspot, qboolean noents, qboolean us
 	Mod_ClearAll ();
 	Hunk_FreeToLowMark (host_hunklevel);
 
-	for (i = 0; i < MAX_LIGHTSTYLES; i++)
+	if (svs.gametype == GT_PROGS)
 	{
-		if (sv.lightstyles[i])
-			Z_Free(sv.lightstyles[i]);
-		sv.lightstyles[i] = NULL;
+		for (i = 0; i < MAX_LIGHTSTYLES; i++)
+		{
+			if (sv.lightstyles[i])
+				Z_Free(sv.lightstyles[i]);
+			sv.lightstyles[i] = NULL;
+		}
 	}
 
 	// wipe the entire per-level structure
@@ -748,7 +752,7 @@ void SV_SpawnServer (char *server, char *startspot, qboolean noents, qboolean us
 			if (svs.clients[i].state)
 				SV_DropClient(&svs.clients[i]);
 
-			svs.clients[i].name[0] = '\0';						//kill all bots
+			svs.clients[i].namebuf[0] = '\0';						//kill all bots
 		}
 	}
 	svs.gametype = newgametype;
@@ -1028,10 +1032,10 @@ void SV_SpawnServer (char *server, char *startspot, qboolean noents, qboolean us
 				sprintf(sv.mapname, "%s", PR_GetString(svprogfuncs, val->string));
 		}
 		ent->readonly = true;	//lock it down!
-	}
 
-	// look up some model indexes for specialized message compression
-	SV_FindModelNumbers ();
+		// look up some model indexes for specialized message compression
+		SV_FindModelNumbers ();
+	}
 
 #ifndef SERVERONLY
 	current_loading_size+=10;
@@ -1058,7 +1062,8 @@ void SV_SpawnServer (char *server, char *startspot, qboolean noents, qboolean us
 
 	// create a baseline for more efficient communications
 //	SV_CreateBaseline ();
-	SVNQ_CreateBaseline();
+	if (svprogfuncs)
+		SVNQ_CreateBaseline();
 	sv.signon_buffer_size[sv.num_signon_buffers-1] = sv.signon.cursize;
 
 	// all spawning is completed, any further precache statements

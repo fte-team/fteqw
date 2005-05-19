@@ -1590,6 +1590,7 @@ CL_InitInput
 void CL_InitInput (void)
 {
 #define inputnetworkcvargroup "client networking options"
+	cl.splitclients = 1;
 	CL_RegisterSplitCommands();
 
 	Cmd_AddCommand("rotate", IN_Rotate_f);

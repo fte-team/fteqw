@@ -1655,7 +1655,6 @@ void SVNQ_EmitEntity(sizebuf_t *msg, edict_t *ent, int entnum)
 int i, eff;	
 float miss;
 unsigned int bits=0;
-eval_t *val;
 
 int glowsize, glowcolor;
 
@@ -1720,17 +1719,9 @@ int glowsize, glowcolor;
 			bits |= DPU_EFFECTS2;
 
 
-		val = svprogfuncs->GetEdictFieldValue(svprogfuncs, ent, "glow_size", NULL);	//ouch.. null...
-		if (val)
-			glowsize = val->_float*0.25f;
-		else
-			glowsize = 0;
-		val = svprogfuncs->GetEdictFieldValue(svprogfuncs, ent, "glow_color", NULL);	//ouch.. null...
-		if (val)
-			glowcolor = val->_float;
-		else
-			glowcolor = 0;
-		
+		glowsize = ent->v->glow_size*0.25f;
+		glowcolor = ent->v->glow_color;
+
 		if (0 != glowsize)
 			bits |= DPU_GLOWSIZE;
 		if (0 != glowcolor)
@@ -2370,8 +2361,8 @@ void SV_WriteEntitiesToClient (client_t *client, sizebuf_t *msg, qboolean ignore
 		if (!ent->v->alpha)
 			state->trans = 1;
 
-		state->glowsize = ent->v->glowsize*0.25;
-		state->glowcolour = ent->v->glowcolor;
+		state->glowsize = ent->v->glow_size*0.25;
+		state->glowcolour = ent->v->glow_color;
 
 		//QSG_DIMENSION_PLANES - if the only shared dimensions are ghost dimensions, Set half alpha.
 		if (client->edict)

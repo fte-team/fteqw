@@ -1557,6 +1557,9 @@ void CLNQ_ParseServerData(void)		//Doesn't change gamedir - use with caution.
 	
 	R_NewMap ();
 
+	if (cls.demoplayback)
+		CSQC_Init(0);
+
 	SCR_EndLoadingPlaque();
 
 	Hunk_Check ();		// make sure nothing is hurt

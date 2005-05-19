@@ -829,7 +829,7 @@ void SV_FindModelNumbers (void)
 	
 	for (i=0 ; i<MAX_MODELS ; i++)
 	{
-		if (!*sv.model_precache[i])
+		if (!sv.model_precache[i])
 			break;
 		if (!strcmp(sv.model_precache[i],"progs/spike.mdl"))
 			sv_nailmodel = i;

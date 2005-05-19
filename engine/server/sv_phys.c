@@ -274,9 +274,6 @@ int SV_FlyMove (edict_t *ent, float time, trace_t *steptrace)
 		for (i=0 ; i<3 ; i++)
 			end[i] = ent->v->origin[i] + time_left * ent->v->velocity[i];
 
-		if (SV_TestEntityPosition(ent))
-			Con_Printf("stuck point 1a\n");
-
 		trace = SV_Move (ent->v->origin, ent->v->mins, ent->v->maxs, end, false, ent);
 
 		if (trace.startsolid)
@@ -1541,16 +1538,10 @@ void SV_WalkMove (edict_t *ent)
 	VectorCopy (ent->v->origin, start_origin);
 	VectorCopy (ent->v->velocity, start_velocity);
 
-	if (SV_TestEntityPosition(ent))
-		Con_Printf("stuck point 0\n");
-
 	clip = SV_FlyMove (ent, host_frametime, NULL);
 
 	SV_SetOnGround (ent);
 	SV_CheckVelocity(ent);
-
-	if (SV_TestEntityPosition(ent))
-		Con_Printf("stuck point 1\n");
 
 	VectorCopy(ent->v->origin, originalmove_origin);
 	VectorCopy(ent->v->velocity, originalmove_velocity);
@@ -1594,16 +1585,10 @@ void SV_WalkMove (edict_t *ent)
 		// FIXME: don't link?
 		SV_PushEntity(ent, upmove);
 
-		if (SV_TestEntityPosition(ent))
-			Con_Printf("stuck point 2\n");
-	
 		// move forward
 		ent->v->velocity[2] = 0;
 		clip = SV_FlyMove (ent, host_frametime, &steptrace);
 		ent->v->velocity[2] += start_velocity[2];
-
-		if (SV_TestEntityPosition(ent))
-			Con_Printf("stuck point 3\n");
 	
 		SV_CheckVelocity(ent);
 	
@@ -1633,9 +1618,6 @@ void SV_WalkMove (edict_t *ent)
 //			Con_Printf("wall\n");
 			SV_WallFriction (ent, &steptrace);
 		}
-
-		if (SV_TestEntityPosition(ent))
-			Con_Printf("stuck point 4\n");
 	}
 	else if (/*!sv_gameplayfix_stepdown.integer || */!oldonground || start_velocity[2] > 0 || ((int)ent->v->flags & FL_ONGROUND) || ent->v->waterlevel >= 2)
 		return;
@@ -1645,9 +1627,6 @@ void SV_WalkMove (edict_t *ent)
 	downmove[2] = -pm_stepheight + start_velocity[2]*host_frametime;
 	// FIXME: don't link?
 	downtrace = SV_PushEntity (ent, downmove);
-
-	if (SV_TestEntityPosition(ent))
-		Con_Printf("stuck point 5\n");
 
 	if (downtrace.fraction < 1 && downtrace.plane.normal[2] > 0.7)
 	{
@@ -1674,9 +1653,6 @@ void SV_WalkMove (edict_t *ent)
 
 	SV_SetOnGround (ent);
 	SV_CheckVelocity(ent);
-
-	if (SV_TestEntityPosition(ent))
-		Con_Printf("stuck point 6\n");
 }
 
 
@@ -1739,25 +1715,8 @@ void SV_Physics_Client (edict_t	*ent, int num)
 		if (!SV_CheckWater (ent) && ! ((int)ent->v->flags & FL_WATERJUMP) )
 			SV_AddGravity (ent, ent->v->gravity);
 
-//		if (fabs(oldvel - ent->v->velocity[0])> 100)
-//			Con_Printf("grav: %f -> %f\n", oldvel, ent->v->velocity[0]);
-
-//		if (SV_TestEntityPosition(ent))
-//			Con_Printf("Player starts stuck\n");
-
 		SV_CheckStuck (ent);
-
-//		if (SV_TestEntityPosition(ent))
-//			Con_Printf("becomes stuck\n");
-
 		SV_WalkMove (ent);
-
-//		if (SV_TestEntityPosition(ent))
-//			Con_Printf("Player ends stuck\n");
-
-//		if (fabs(oldvel - ent->v->velocity[0])> 100)
-//			Con_Printf("walk: %f -> %f\n", oldvel, ent->v->velocity[0]);
-
 		break;
 
 	case MOVETYPE_FOLLOW:

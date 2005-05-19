@@ -1167,6 +1167,11 @@ static void PF_cs_getmousepos (progfuncs_t *prinst, struct globalvars_s *pr_glob
 	G_FLOAT(OFS_RETURN+2) = 0;
 }
 
+static void PF_checkextension (progfuncs_t *prinst, struct globalvars_s *pr_globals)
+{
+	G_FLOAT(OFS_RETURN) = 0;
+}
+
 
 #define PF_FixTen PF_Fixme,PF_Fixme,PF_Fixme,PF_Fixme,PF_Fixme,PF_Fixme,PF_Fixme,PF_Fixme,PF_Fixme,PF_Fixme
 
@@ -1291,7 +1296,7 @@ PF_Fixme,
 PF_Fixme,
 PF_Fixme,
 //100
-PF_Fixme,
+PF_checkextension,
 PF_Fixme,
 PF_Fixme,
 PF_Fixme,
@@ -1515,10 +1520,11 @@ void VARGS CSQC_Abort (char *format, ...)	//an error occured.
 
 
 {
-	static char buffer[1024*1024*8];
-	int size = sizeof buffer;
+	int size = 1024*1024*8;
+	char *buffer = BZ_Malloc(size);
 	csqcprogs->save_ents(csqcprogs, buffer, &size, 3);
 	COM_WriteFile("csqccore.txt", buffer, size);
+	BZ_Free(buffer);
 }
 
 	Host_EndGame("csqc error");
@@ -1543,9 +1549,10 @@ qbyte *CSQC_PRLoadFile (char *path, void *buffer, int bufsize)
 	//pretend it doesn't 
 	file = COM_LoadStackFile(path, buffer, bufsize);
 
-	if (!strcmp(path, "csprogs.dat"))	//Fail to load any csprogs who's checksum doesn't match.
-		if (Com_BlockChecksum(buffer, com_filesize) != csqcchecksum)
-			return NULL;
+	if (!cls.demoplayback)	//allow any csqc when playing a demo
+		if (!strcmp(path, "csprogs.dat"))	//Fail to load any csprogs who's checksum doesn't match.
+			if (Com_BlockChecksum(buffer, com_filesize) != csqcchecksum)
+				return NULL;
 
 	return file;
 }

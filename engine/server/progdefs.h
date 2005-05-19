@@ -201,8 +201,9 @@ typedef struct entvars_s
 	int		viewmodelforclient;
 	int		exteriormodeltoclient;
 
-	float	glowsize;
-	float	glowcolor;
+	float	glow_size;
+	float	glow_color;
+	float	glow_trail;
 
 	//EXT_DIMENSION_VISIBLE
 	float	dimension_see;

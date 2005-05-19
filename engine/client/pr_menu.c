@@ -393,12 +393,27 @@ void PF_CL_drawpic (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 	float *size = G_VECTOR(OFS_PARM2);
 	float *rgb = G_VECTOR(OFS_PARM3);
 	float alpha = G_FLOAT(OFS_PARM4);
-//	float flag = G_FLOAT(OFS_PARM5);
+	float flag = G_FLOAT(OFS_PARM5);
+
+	if (qrenderer == QR_OPENGL)
+	{
+		if (flag == 1)
+			qglBlendFunc(GL_SRC_ALPHA, GL_ONE);
+		else if(flag == 2)
+			qglBlendFunc(GL_DST_COLOR, GL_ZERO);
+		else if(flag == 3)
+			qglBlendFunc(GL_DST_COLOR,GL_SRC_COLOR);
+		else
+			qglBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+	}
 
 	if (Draw_ImageColours)
 		Draw_ImageColours(rgb[0], rgb[1], rgb[2], alpha);
 	if (Draw_Image)
 		Draw_Image(pos[0], pos[1], size[0], size[1], 0, 0, 1, 1, p);
+
+	if (qrenderer == QR_OPENGL)
+		qglBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
 
 	G_FLOAT(OFS_RETURN) = 1;
 }

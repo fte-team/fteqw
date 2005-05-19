@@ -842,7 +842,7 @@ void SV_PreSpawn_f (void)
 //		Con_DPrintf("Client check = %d\n", check);
 
 		if (sv_mapcheck.value && check != sv.worldmodel->checksum &&
-			check != sv.worldmodel->checksum2)
+			check != LittleLong(sv.worldmodel->checksum2))
 		if (!sv.demofile || (sv.demofile && !sv.democausesreconnect))	//demo playing causes no check. If it's the return level, check anyway to avoid that loophole.
 		{
 			SV_ClientTPrintf (host_client, PRINT_HIGH, 

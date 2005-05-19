@@ -1251,8 +1251,8 @@ void Mod_LoadBrushModel (model_t *mod, void *buffer)
 
 		if (i == LUMP_VISIBILITY || i == LUMP_LEAFS || i == LUMP_NODES)
 			continue;
-		mod->checksum2 ^= LittleLong(Com_BlockChecksum(mod_base + header->lumps[i].fileofs, 
-			header->lumps[i].filelen));
+		mod->checksum2 ^= Com_BlockChecksum(mod_base + header->lumps[i].fileofs, 
+			header->lumps[i].filelen);
 	}
 
 //	Mod_LoadVertexes (&header->lumps[LUMP_VERTEXES]);

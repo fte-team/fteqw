@@ -1102,7 +1102,6 @@ void WritePCXfile (char *filename, qbyte *data, int width, int height,
 LoadPCX
 ============
 */
-//fixme: endian issues?
 qbyte *ReadPCXFile(qbyte *buf, int length, int *width, int *height)
 {
 	pcx_t	*pcx;
@@ -1116,36 +1115,43 @@ qbyte *ReadPCXFile(qbyte *buf, int length, int *width, int *height)
 
 	qbyte	*pcx_rgb;
 
+	unsigned short xmin, ymin, xmax, ymax;
+
 //
 // parse the PCX file
 //	
 
-	pcx = (pcx_t *)buf;
+	pcx = (pcx_t *)buf; 
+
+	xmin = LittleShort(pcx->xmin);
+	ymin = LittleShort(pcx->ymin);
+	xmax = LittleShort(pcx->xmax);
+	ymax = LittleShort(pcx->ymax);
 
 	if (pcx->manufacturer != 0x0a
 		|| pcx->version != 5
 		|| pcx->encoding != 1
 		|| pcx->bits_per_pixel != 8
-		|| pcx->xmax >= 1024
-		|| pcx->ymax >= 1024)
+		|| xmax >= 1024
+		|| ymax >= 1024)
 	{		
 		return NULL;
 	}
 
-	*width = pcx->xmax-pcx->xmin+1;
-	*height = pcx->ymax-pcx->ymin+1;
+	*width = xmax-xmin+1;
+	*height = ymax-ymin+1;
 
 	palette = buf + length-768;
 
 	data = (char *)(pcx+1);
 
-	count = (pcx->xmax+1) * (pcx->ymax+1);
+	count = (xmax+1) * (ymax+1);
 	pcx_rgb = BZ_Malloc( count * 4);
 
-	for (y=0 ; y<=pcx->ymax ; y++)
+	for (y=0 ; y<=ymax ; y++)
 	{
-		pix = pcx_rgb + 4*y*(pcx->xmax+1);
-		for (x=0 ; x<=pcx->xmax ; )
+		pix = pcx_rgb + 4*y*(xmax+1);
+		for (x=0 ; x<=xmax ; )
 		{
 			dataByte = *data;
 			data++;
@@ -1176,7 +1182,6 @@ qbyte *ReadPCXFile(qbyte *buf, int length, int *width, int *height)
 	return pcx_rgb;
 }
 
-//fixme: endian issues?
 qbyte *ReadPCXData(qbyte *buf, int length, int width, int height, qbyte *result)
 {
 	pcx_t	*pcx;
@@ -1188,11 +1193,18 @@ qbyte *ReadPCXData(qbyte *buf, int length, int width, int height, qbyte *result)
 	int		count;
 	qbyte *data;
 
+	unsigned short xmin, ymin, xmax, ymax;
+
 //
 // parse the PCX file
 //	
 
 	pcx = (pcx_t *)buf;
+
+	xmin = LittleShort(pcx->xmin);
+	ymin = LittleShort(pcx->ymin);
+	xmax = LittleShort(pcx->xmax);
+	ymax = LittleShort(pcx->ymax);
 
 	if (pcx->manufacturer != 0x0a
 		|| pcx->version != 5
@@ -1202,8 +1214,8 @@ qbyte *ReadPCXData(qbyte *buf, int length, int width, int height, qbyte *result)
 		return NULL;
 	}
 
-	if (width != pcx->xmax-pcx->xmin+1 ||
-		height > pcx->ymax-pcx->ymin+1)
+	if (width != xmax-xmin+1 ||
+		height > ymax-ymin+1)
 		return NULL;
 
 
@@ -1211,12 +1223,12 @@ qbyte *ReadPCXData(qbyte *buf, int length, int width, int height, qbyte *result)
 
 	data = (char *)(pcx+1);
 
-	count = (pcx->xmax+1) * (pcx->ymax+1);
+	count = (xmax+1) * (ymax+1);
 
 	for (y=0 ; y<height ; y++)
 	{
-		pix = result + y*(pcx->xmax+1);
-		for (x=0 ; x<=pcx->xmax ; )
+		pix = result + y*(xmax+1);
+		for (x=0 ; x<=xmax ; )
 		{
 			dataByte = *data;
 			data++;
@@ -1241,7 +1253,6 @@ qbyte *ReadPCXData(qbyte *buf, int length, int width, int height, qbyte *result)
 	return result;
 }
 
-//fixme: endian issues?
 qbyte *ReadPCXPalette(qbyte *buf, int len, qbyte *out)
 {
 	pcx_t	*pcx;
@@ -1257,8 +1268,8 @@ qbyte *ReadPCXPalette(qbyte *buf, int len, qbyte *out)
 		|| pcx->version != 5
 		|| pcx->encoding != 1
 		|| pcx->bits_per_pixel != 8
-		|| pcx->xmax >= 1024
-		|| pcx->ymax >= 1024)
+		|| LittleShort(pcx->xmax) >= 1024
+		|| LittleShort(pcx->ymax) >= 1024)
 	{		
 		return NULL;
 	}

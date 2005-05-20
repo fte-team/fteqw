@@ -223,7 +223,6 @@ void GL_CheckExtensions (void *(*getglfunction) (char *name))
 
 	if (strstr(gl_extensions, "GL_ARB_multitexture") && !COM_CheckParm("-noamtex"))
 	{	//ARB multitexture is the popular choice.
-		Con_SafePrintf("ARB Multitexture extensions found. Use -noamtex to disable.\n");
 		qglActiveTextureARB = (void *) getglext("glActiveTextureARB");
 		qglClientActiveTextureARB = (void *) getglext("glClientActiveTextureARB");
 		qglMultiTexCoord2fARB = (void *) getglext("glMultiTexCoord2fARB");
@@ -241,12 +240,17 @@ void GL_CheckExtensions (void *(*getglfunction) (char *name))
 		if (!qglActiveTextureARB || !qglClientActiveTextureARB || !qglMultiTexCoord2fARB || !qglMultiTexCoord3fARB)
 		{
 			qglActiveTextureARB = NULL;
+			qglClientActiveTextureARB = NULL;
 			qglMultiTexCoord2fARB = NULL;
 			qglMultiTexCoord3fARB = NULL;
 			qglMTexCoord2fSGIS = NULL;
 			qglSelectTextureSGIS = NULL;
 			gl_mtexable=false;
 			gl_mtexarbable = false;
+		}
+		else
+		{
+			Con_SafePrintf("ARB Multitexture extensions found. Use -noamtex to disable.\n");
 		}
 
 	}

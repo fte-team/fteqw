@@ -10,17 +10,8 @@ ifeq ($(FTE_TARGET),) 	#user didn't specify prefered target
 	else
 		ifeq ($(shell uname),Linux)
 			FTE_TARGET=linux
-		endif
-		ifeq ($(shell uname),FreeBSD)
-			FTE_TARGET=bsd
-		endif
-		ifeq ($(shell uname),NetBSD)
-			FTE_TARGET=bsd
-		endif
-		ifeq ($(shell uname),OpenBSD)
-			FTE_TARGET=bsd
-		endif
 		#else I've no idea what it is you're running
+		endif
 	endif
 
 	FTE_TARGET ?= sdl	#so go for sdl.
@@ -44,7 +35,7 @@ QUX_DIR=$(BASE_DIR)/qux
 RELEASE_DIR=$(BASE_DIR)/release
 DEBUG_DIR=$(BASE_DIR)/debug
 
-DO_CC=$(CC) $(CFLAGS) $(BASE_CFLAGS) $(WCFLAGS) -o $@ -c $<
+DO_CC=$(CC) $(BASE_CFLAGS) $(WCFLAGS) -o $@ -c $< $(CFLAGS)
 ifeq ($(USEASM),true)
 	ifdef windir
 		DO_AS=$(CC) $(BASE_CFLAGS) $(WCFLAGS) -x assembler-with-cpp -o $@ -c $< $(CFLAGS)
@@ -52,7 +43,6 @@ ifeq ($(USEASM),true)
 		DO_AS=$(CC) $(BASE_CFLAGS) $(WCFLAGS) -x assembler-with-cpp -DELF -o $@ -c $< $(CFLAGS)
 	endif
 endif
-BASELDFLAGS=-lm
 BASELDFLAGS=-lm  -lz
 GLXLDFLAGS=-L/usr/X11R6/lib -lX11 -lXext -lpng -ljpeg -lXxf86vm
 GLSLDFLAGS=-L/usr/X11R6/lib -lMesaGL -lglide -lvga
@@ -127,7 +117,6 @@ CLIENT_OBJS = $(CLIENT_ASM_OBJS) \
 	image.o	\
 	keys.o	\
 	menu.o	\
-	m_download.o	\
 	m_master.o	\
 	m_multi.o	\
 	m_items.o	\
@@ -155,10 +144,16 @@ CLIENT_OBJS = $(CLIENT_ASM_OBJS) \
 	view.o	\
 	wad.o			\
 				\
+	pop3noti.o		\
+	imapnoti.o		\
+				\
 	ftpclient.o		\
 	httpclient.o 	\
 				\
 				\
+	m_x.o			\
+	x_reqs.o		\
+	x_res.o		\
 	pr_menu.o
 
 
@@ -268,12 +263,12 @@ SERVER_OBJS = 		\
 	g72x.o		\
 	webgen.o		\
 	ftpserver.o		\
-	httpserver.o 
+	httpserver.o
 
 SERVERONLY_OBJS =		\
 	svmodel.o		\
 	sv_sys_unix.o
-
+	
 WINDOWSSERVERONLY_OBJS = \
 	svmodel.o	\
 	sv_sys_win.o
@@ -299,7 +294,7 @@ COMMON_OBJS = $(COMMON_ASM_OBJS) \
 	q1bsp.o		\
 	q2pmove.o
 
-
+	
 #the defaults for sdl come first
 GLCL_OBJS=$(GL_OBJS) $(GLQUAKE_OBJS) gl_vidsdl.o snd_sdl.o cd_sdl.o sys_sdl.o in_sdl.o
 GL_EXE_NAME=../fteqw_sdl.gl
@@ -320,7 +315,7 @@ ifdef windir
 SW_LDFLAGS=$(SWLDFLAGS) -lmingw32 -lwsock32 -lSDLmain -lSDL
 else
 #pthread is needed because of SDL.
-SW_LDFLAGS=$(SWLDFLAGS) `sdl-config --libs` -lpng -ljpeg
+SW_LDFLAGS=$(SWLDFLAGS) `sdl-config --libs` -lpng -ljpeg -lSDLmain
 endif
 SW_CFLAGS=$(SWCFLAGS) `sdl-config --cflags`
 SWB_DIR=sw_sdl
@@ -329,16 +324,16 @@ SWCL_DIR=swcl_sdl
 SV_OBJS=$(COMMON_OBJS) $(NQPROT_OBJS) $(SERVER_OBJS) $(PROGS_OBJS) $(SERVERONLY_OBJS)
 SV_EXE_NAME=../fteqw.sv
 SV_CFLAGS=$(SERVER_ONLY_CFLAGS)
-
+	
 #specific targets override those defaults as needed.
-
+	
 ifeq ($(FTE_TARGET),win32)
 	LIBS_DIR = $(BASE_DIR)/libs
 	SV_EXE_NAME=../fteqwsv.exe
 	SV_LDFLAGS=libs/zlib.lib -lwsock32
 	SV_DIR=sv_mingw
 	SV_OBJS=$(COMMON_OBJS) $(NQPROT_OBJS) $(SERVER_OBJS) $(PROGS_OBJS) $(WINDOWSSERVERONLY_OBJS)
-
+	
 ifeq ($(USEASM),true)
 	GLCL_OBJS=$(GL_OBJS) $(GLQUAKE_OBJS) gl_vidnt.o snd_win.o cd_win.o in_win.o sys_win.o sys_dosa.o
 else
@@ -375,49 +370,6 @@ endif
 	MB_DIR=m_mgw
 	MCL_DIR=mcl_mgw
 
-endif
-ifeq ($(FTE_TARGET),bsd)
-	#mostly uses the linux stuff.
-	#oss, X, etc.
-
-	SV_DIR=sv_linux
-	SV_LDFLAGS=-lz
-
-ifeq ($(USEASM),true)
-	GLCL_OBJS=$(GL_OBJS) $(GLQUAKE_OBJS) gl_vidlinuxglx.o snd_linux.o cd_null.o sys_linux.o sys_dosa.o
-else
-	GLCL_OBJS=$(GL_OBJS) $(GLQUAKE_OBJS) gl_vidlinuxglx.o snd_linux.o cd_null.o sys_linux.o
-endif
-	GL_EXE_NAME=../fteqw.gl
-	GLCL_EXE_NAME=../fteqwcl.gl
-	GL_LDFLAGS= -L/usr/local/lib $(GLLDFLAGS) $(GLXLDFLAGS)
-	GL_CFLAGS=$(GLCFLAGS) -I/usr/local/include
-	GLB_DIR=gl_bsd
-	GLCL_DIR=glcl_bsd
-
-ifeq ($(USEASM),true)
-	SWCL_OBJS=$(SOFTWARE_OBJS) vid_x.o snd_linux.o cd_null.o sys_linux.o sys_dosa.o
-else
-	SWCL_OBJS=$(SOFTWARE_OBJS) vid_x.o snd_linux.o cd_null.o sys_linux.o
-endif
-	SW_EXE_NAME=../fteqw.sw
-	SWCL_EXE_NAME=../fteqwcl.sw
-	SW_LDFLAGS=-L/usr/local/lib $(SWLDFLAGS) $(XLDFLAGS)
-	SW_CFLAGS=$(SWCFLAGS) -I/usr/local/include
-	SWB_DIR=sw_bsd
-	SWCL_DIR=swcl_bsd
-
-ifeq ($(USEASM),true)
-	MCL_OBJS=$(GLQUAKE_OBJS) $(SOFTWARE_OBJS) gl_vidlinuxglx.o vid_x.o snd_linux.o cd_null.o sys_linux.o sys_dosa.o
-else
-	MCL_OBJS=$(GLQUAKE_OBJS) $(SOFTWARE_OBJS) gl_vidlinuxglx.o vid_x.o snd_linux.o cd_null.o sys_linux.o
-endif
-	M_EXE_NAME=../fteqw
-	MCL_EXE_NAME=../fteqwcl
-	M_LDFLAGS=$(GLLDFLAGS) $(GLXLDFLAGS)
-	M_CFLAGS=$(SWCFLAGS) $(GLCFLAGS)
-	MB_DIR=m_bsd
-	MCL_DIR=mcl_bsd
 endif
 ifeq ($(FTE_TARGET),linux)
 
@@ -473,24 +425,19 @@ VPATH = $(BASE_DIR) : $(CLIENT_DIR) : $(GL_DIR) : $(COMMON_DIR) : $(SW_DIR) : $(
 
 
 $(OUT_DIR)/%.o : %.c
-	$(DO_CC) -I$(OUT_DIR)
+	$(DO_CC)
 
 ifeq ($(USEASM),true)
 $(OUT_DIR)/%.o : %.s sw/*.h
 	$(DO_AS)
 endif
 
-#enables use of precompiled headers in gcc 3.4 onwards.
-$(OUT_DIR)/quakedef.h.gch : quakedef.h
-	$(CC) -x c $(BASE_CFLAGS) $(WCFLAGS) -o $@ -c $< $(CFLAGS)
-
 #addprefix is to add the ./release/server/ part of the object name
 #foreach is needed as the OBJS is a list of variable names containing object lists.
 #which is needed as windows sucks too much for the chaining to carry a full list.
 #god knows how gcc loads the list properly.
 #or at least I hope he does. It makes no sence to mortals.
-
-$(OUT_DIR)/$(EXE_NAME):   $(OUT_DIR)/quakedef.h.gch    $(addprefix $(OUT_DIR)/, $(CUSTOMOBJS) $(foreach ol, $(OBJS), $($(ol))))
+$(OUT_DIR)/$(EXE_NAME):       $(addprefix $(OUT_DIR)/, $(CUSTOMOBJS) $(foreach ol, $(OBJS), $($(ol)))) 
 	$(CC) $(WCFLAGS) -o $@ $(addprefix $(OUT_DIR)/, $(CUSTOMOBJS) $(foreach ol, $(OBJS), $($(ol)))) $(LDFLAGS) $(CFLAGS)
 
 _out-rel:
@@ -519,7 +466,7 @@ sv-rel:
 	$(MAKE) sv-tmp TYPE=_out-rel OUT_DIR="$(RELEASE_DIR)/$(SV_DIR)"
 sv-dbg:
 	$(MAKE) sv-tmp TYPE=_out-dbg OUT_DIR="$(DEBUG_DIR)/$(SV_DIR)"
-
+ 
 
 
 
@@ -589,13 +536,13 @@ debugdir:
 	@-mkdir $(OUT_DIR)
 endif
 
+ifneq ($(shell grep all ../plugins/Makefile),)
 plugins:
-	ifneq ($(shell grep all ../plugins/Makefile),)
 	$(MAKE) -C ../plugins
-	else
-	@-echo no plugins directory installed
-	endif
+else
 plugins:
+	@-echo no plugins directory installed
+endif	
 
 help:
 	@-echo "Specfic targets:"

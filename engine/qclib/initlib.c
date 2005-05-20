@@ -389,7 +389,10 @@ progfuncs_t deffuncs = {
 
 	0,
 
-	QC_RegisterFieldVar
+	QC_RegisterFieldVar,
+
+	0,
+	0
 };
 #undef printf
 

@@ -122,6 +122,9 @@ struct progfuncs_s {
 	int lastcalledbuiltinnumber;
 
 	int (*RegisterFieldVar)				(progfuncs_t *prinst, unsigned int type, char *name, int requestedpos, int origionalofs);
+
+	char	*tempstringbase;
+	int		tempstringnum;
 };
 
 typedef struct progexterns_s {

@@ -18,7 +18,7 @@ typedef struct menuedict_s
 } menuedict_t;
 
 #define	RETURN_SSTRING(s) (((int *)pr_globals)[OFS_RETURN] = PR_SetString(prinst, s))	//static - exe will not change it.
-char *PF_TempStr(void);
+char *PF_TempStr(progfuncs_t *prinst);
 #define MAXTEMPBUFFERLEN	4096
 
 int menuentsize;
@@ -551,7 +551,7 @@ int MP_TranslateDPtoFTECodes(int code);
 void PF_CL_keynumtostring (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
 	int code = G_FLOAT(OFS_PARM0);
-	char *keyname = PF_TempStr();
+	char *keyname = PF_TempStr(prinst);
 
 	code = MP_TranslateDPtoFTECodes (code);
 
@@ -565,7 +565,7 @@ void PF_CL_findkeysforcommand (progfuncs_t *prinst, struct globalvars_s *pr_glob
 {
 	char *cmdname = PR_GetStringOfs(prinst, OFS_PARM0);
 	int keynums[2];
-	char *keyname = PF_TempStr();
+	char *keyname = PF_TempStr(prinst);
 
 	M_FindKeysForCommand(cmdname, keynums);
 
@@ -721,7 +721,7 @@ void PF_M_gethostcachenumber(progfuncs_t *prinst, struct globalvars_s *pr_global
 }
 void PF_gethostcachestring (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
-	char *keyname = PF_TempStr();
+	char *keyname = PF_TempStr(prinst);
 	char *ret = "";
 	int keynum = G_FLOAT(OFS_PARM0);
 	int svnum = G_FLOAT(OFS_PARM1);
@@ -926,7 +926,7 @@ void PF_altstr_prepare(progfuncs_t *prinst, struct globalvars_s *pr_globals)
 
 	instr = PR_GetStringOfs(prinst, OFS_PARM0 );
 	//VM_CheckEmptyString( instr );
-	outstr = PF_TempStr();
+	outstr = PF_TempStr(prinst);
 
 	for( out = outstr, in = instr, size = MAXTEMPBUFFERLEN - 1 ; size && *in ; size--, in++, out++ )
 		if( *in == '\'' ) {
@@ -964,7 +964,7 @@ void PF_altstr_get(progfuncs_t *prinst, struct globalvars_s *pr_globals)
 		return;
 	}
 
-    outstr = PF_TempStr();
+    outstr = PF_TempStr(prinst);
 	for( out = outstr, size = MAXTEMPBUFFERLEN - 1 ; size && *pos ; size--, pos++, out++ )
 		if( *pos == '\\' ) {
 			if( !*++pos )
@@ -997,7 +997,7 @@ void PF_altstr_set(progfuncs_t *prinst, struct globalvars_s *pr_globals)
 	str = PR_GetStringOfs(prinst, OFS_PARM2 );
 	//VM_CheckEmptyString( str );
 
-	outstr = out = PF_TempStr();
+	outstr = out = PF_TempStr(prinst);
 	for( num = num * 2 + 1, in = altstr; *in && num; *out++ = *in++ )
 		if( *in == '\\' && !*++in )
 			break;
@@ -1355,6 +1355,8 @@ void MP_Init (void)
 			return;
 		}
 		inmenuprogs++;
+
+		PF_InitTempStrings(menuprogs);
 
 		mp_time = (float*)PR_FindGlobal(menuprogs, "time", 0);
 		if (mp_time)

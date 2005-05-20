@@ -191,7 +191,7 @@ csqcfields	//any *64->int32 casts are erroneous, it's biased off NULL.
 static csqcedict_t *csqcent[MAX_EDICTS];
 
 #define	RETURN_SSTRING(s) (((string_t *)pr_globals)[OFS_RETURN] = PR_SetString(prinst, s))	//static - exe will not change it.
-char *PF_TempStr(void);
+char *PF_TempStr(progfuncs_t *prinst);
 
 static int csqcentsize;
 
@@ -656,7 +656,7 @@ static void PF_cs_getstats(progfuncs_t *prinst, struct globalvars_s *pr_globals)
 	int stnum = G_FLOAT(OFS_PARM0);
 	char *out;
 
-	out = PF_TempStr();
+	out = PF_TempStr(prinst);
 
 	//the network protocol byteswaps
 
@@ -890,7 +890,7 @@ static void PF_ReadCoord(progfuncs_t *prinst, struct globalvars_s *pr_globals)
 
 static void PF_ReadString(progfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
-	char *str = PF_TempStr();
+	char *str = PF_TempStr(prinst);
 	char *read = MSG_ReadString();
 
 	Q_strncpyz(str, read, MAXTEMPBUFFERLEN);
@@ -1122,24 +1122,24 @@ static void PF_cs_getplayerkey (progfuncs_t *prinst, struct globalvars_s *pr_glo
 	{
 		CheckSendPings();
 
-		ret = PF_TempStr();
+		ret = PF_TempStr(prinst);
 		sprintf(ret, "%i", cl.players[pnum].ping);
 	}
 	else if (!strcmp(keyname, "frags"))
 	{
-		ret = PF_TempStr();
+		ret = PF_TempStr(prinst);
 		sprintf(ret, "%i", cl.players[pnum].frags);
 	}
 	else if (!strcmp(keyname, "pl"))	//packet loss
 	{
 		CheckSendPings();
 
-		ret = PF_TempStr();
+		ret = PF_TempStr(prinst);
 		sprintf(ret, "%i", cl.players[pnum].pl);
 	}
 	else if (!strcmp(keyname, "entertime"))	//packet loss
 	{
-		ret = PF_TempStr();
+		ret = PF_TempStr(prinst);
 		sprintf(ret, "%i", cl.players[pnum].entertime);
 	}
 	else
@@ -1629,6 +1629,8 @@ qboolean CSQC_Init (unsigned int checksum)
 			return false;
 		}
 
+		PF_InitTempStrings(csqcprogs);
+
 		memset(csqcent, 0, sizeof(csqcent));
 		
 		csqcentsize = PR_InitEnts(csqcprogs, pr_csmaxedicts.value);
@@ -1703,7 +1705,7 @@ qboolean CSQC_ConsoleCommand(char *cmd)
 	if (!csqcprogs || !csqcg.console_command)
 		return false;
 
-	str = PF_TempStr();
+	str = PF_TempStr(csqcprogs);
 	Q_strncpyz(str, cmd, MAXTEMPBUFFERLEN);
 
 	pr_globals = PR_globals(csqcprogs, PR_CURRENT);
@@ -1720,7 +1722,7 @@ qboolean CSQC_StuffCmd(char *cmd)
 	if (!csqcprogs || !csqcg.parse_stuffcmd)
 		return false;
 
-	str = PF_TempStr();
+	str = PF_TempStr(csqcprogs);
 	Q_strncpyz(str, cmd, MAXTEMPBUFFERLEN);
 
 	pr_globals = PR_globals(csqcprogs, PR_CURRENT);
@@ -1736,7 +1738,7 @@ qboolean CSQC_CenterPrint(char *cmd)
 	if (!csqcprogs || !csqcg.parse_centerprint)
 		return false;
 
-	str = PF_TempStr();
+	str = PF_TempStr(csqcprogs);
 	Q_strncpyz(str, cmd, MAXTEMPBUFFERLEN);
 
 	pr_globals = PR_globals(csqcprogs, PR_CURRENT);

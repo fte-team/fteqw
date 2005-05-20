@@ -122,7 +122,7 @@ qboolean SV_AddNailUpdate (edict_t *ent)
 	if (sv_nailhack.value)
 		return false;
 
-	demonails = true;
+	demonails = false;
 
 	if (numnails == MAX_NAILS)
 		return true;

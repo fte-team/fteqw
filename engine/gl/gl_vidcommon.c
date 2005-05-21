@@ -163,6 +163,11 @@ int		texture_mode = GL_LINEAR;
 
 int		texture_extension_number = 1;
 
+void GL_DrawRangeElementsEmul(GLenum mode, GLuint start, GLuint end, GLsizei count, GLenum type, const GLvoid *indices)
+{
+	glDrawElements(mode, count, type, indices);
+}
+
 #define getglcore getglfunction
 #define getglext(name) getglfunction(name)
 void GL_CheckExtensions (void *(*getglfunction) (char *name))
@@ -237,12 +242,11 @@ void GL_CheckExtensions (void *(*getglfunction) (char *name))
 		mtexid0 = GL_TEXTURE0_ARB;
 		mtexid1 = GL_TEXTURE1_ARB;
 
-		if (!qglActiveTextureARB || !qglClientActiveTextureARB || !qglMultiTexCoord2fARB || !qglMultiTexCoord3fARB)
+		if (!qglActiveTextureARB || !qglClientActiveTextureARB || !qglMultiTexCoord2fARB)
 		{
 			qglActiveTextureARB = NULL;
 			qglClientActiveTextureARB = NULL;
 			qglMultiTexCoord2fARB = NULL;
-			qglMultiTexCoord3fARB = NULL;
 			qglMTexCoord2fSGIS = NULL;
 			qglSelectTextureSGIS = NULL;
 			gl_mtexable=false;
@@ -530,6 +534,10 @@ void GL_Init(void *(*getglfunction) (char *name))
 	qglDisableClientState	= (void *)getglcore("glDisableClientState");
 
 	qglDrawRangeElements	= (void *)getglext("glDrawRangeElements");
+	if (qglDrawRangeElements == 0)
+	{
+		qglDrawRangeElements = GL_DrawRangeElementsEmul;
+	}
 
 	//fixme: definatly make non-core
 	qglStencilOp		= (void *)getglcore("glStencilOp");

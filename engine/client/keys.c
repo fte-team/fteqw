@@ -424,7 +424,7 @@ void Key_Console (int key)
 
 	if (key == K_SPACE && con_current->commandcompletion)
 	{
-		if (keydown[K_SHIFT] && /*key_lines[edit_line][1] == '/' &&*/ !strchr(key_lines[edit_line], ' '))
+		if (keydown[K_SHIFT] && Cmd_CompleteCommand(key_lines[edit_line]+1, true, con_current->commandcompletion))
 		{
 			CompleteCommand (true);
 			return;

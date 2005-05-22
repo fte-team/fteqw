@@ -3,7 +3,7 @@
 #define PROGSUSED
 struct edict_s;
 #include "progsint.h"
-#include "crc.h"
+//#include "crc.h"
 
 /*int maxedicts;
 

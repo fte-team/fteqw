@@ -36,12 +36,12 @@ extern progfuncs_t *qccprogfuncs;
 void *qccHunkAlloc(size_t mem);
 void qccClearHunk(void);
 
-extern short   (*BigShort) (short l);
-extern short   (*LittleShort) (short l);
-extern long     (*BigLong) (long l);
-extern long     (*LittleLong) (long l);
-extern float   (*BigFloat) (float l);
-extern float   (*LittleFloat) (float l);
+extern short   (*PRBigShort) (short l);
+extern short   (*PRLittleShort) (short l);
+extern long     (*PRBigLong) (long l);
+extern long     (*PRLittleLong) (long l);
+extern float   (*PRBigFloat) (float l);
+extern float   (*PRLittleFloat) (float l);
 
 
 #define	MAX_ERRORS		10

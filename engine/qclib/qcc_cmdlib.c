@@ -17,6 +17,99 @@ char **myargv;
 char	qcc_token[1024];
 int		qcc_eof;
 
+/*
+============================================================================
+
+					BYTE ORDER FUNCTIONS
+
+============================================================================
+*/
+short   (*PRBigShort) (short l);
+short   (*PRLittleShort) (short l);
+long     (*PRBigLong) (long l);
+long     (*PRLittleLong) (long l);
+float   (*PRBigFloat) (float l);
+float   (*PRLittleFloat) (float l);
+
+
+short   QCC_SwapShort (short l)
+{
+	qbyte    b1,b2;
+
+	b1 = l&255;
+	b2 = (l>>8)&255;
+
+	return (b1<<8) + b2;
+}
+
+short   QCC_Short (short l)
+{
+	return l;
+}
+
+
+long    QCC_SwapLong (long l)
+{
+	qbyte    b1,b2,b3,b4;
+
+	b1 = l&255;
+	b2 = (l>>8)&255;
+	b3 = (l>>16)&255;
+	b4 = (l>>24)&255;
+
+	return ((long)b1<<24) + ((long)b2<<16) + ((long)b3<<8) + b4;
+}
+
+long    QCC_Long (long l)
+{
+	return l;
+}
+
+
+float	QCC_SwapFloat (float l)
+{
+	union {qbyte b[4]; float f;} in, out;
+	
+	in.f = l;
+	out.b[0] = in.b[3];
+	out.b[1] = in.b[2];
+	out.b[2] = in.b[1];
+	out.b[3] = in.b[0];
+	
+	return out.f;
+}
+
+float	QCC_Float (float l)
+{
+	return l;
+}
+
+void SetEndian(void)
+{
+	union {qbyte b[2]; unsigned short s;} ed;
+	ed.s = 255;
+	if (ed.b[0] == 255)
+	{
+		PRBigShort		= QCC_SwapShort;
+		PRLittleShort	= QCC_Short;
+		PRBigLong		= QCC_SwapLong;
+		PRLittleLong	= QCC_Long;
+		PRBigFloat		= QCC_SwapFloat;
+		PRLittleFloat	= QCC_Float;
+	}
+	else
+	{
+		PRBigShort		= QCC_Short;
+		PRLittleShort	= QCC_SwapShort;
+		PRBigLong		= QCC_Long;
+		PRLittleLong	= QCC_SwapLong;
+		PRBigFloat		= QCC_Float;
+		PRLittleFloat	= QCC_SwapFloat;
+	}
+}
+
+
+
 #ifndef MINIMAL
 /*
 ================
@@ -603,137 +696,6 @@ long ParseNum (char *str)
 
 
 
-/*
-============================================================================
-
-					BYTE ORDER FUNCTIONS
-
-============================================================================
-*/
-
-#ifdef __BIG_ENDIAN__
-
-short   QCC_LittleShort (short l)
-{
-	qbyte    b1,b2;
-
-	b1 = l&255;
-	b2 = (l>>8)&255;
-
-	return (b1<<8) + b2;
-}
-
-short   QCC_BigShort (short l)
-{
-	return l;
-}
-
-
-long    QCC_LittleLong (long l)
-{
-	qbyte    b1,b2,b3,b4;
-
-	b1 = l&255;
-	b2 = (l>>8)&255;
-	b3 = (l>>16)&255;
-	b4 = (l>>24)&255;
-
-	return ((long)b1<<24) + ((long)b2<<16) + ((long)b3<<8) + b4;
-}
-
-long    QCC_BigLong (long l)
-{
-	return l;
-}
-
-
-float	QCC_LittleFloat (float l)
-{
-	union {qbyte b[4]; float f;} in, out;
-	
-	in.f = l;
-	out.b[0] = in.b[3];
-	out.b[1] = in.b[2];
-	out.b[2] = in.b[1];
-	out.b[3] = in.b[0];
-	
-	return out.f;
-}
-
-float	QCC_BigFloat (float l)
-{
-	return l;
-}
-
-
-#else
-
-
-short   QCC_BigShort (short l)
-{
-	qbyte    b1,b2;
-
-	b1 = l&255;
-	b2 = (l>>8)&255;
-
-	return (b1<<8) + b2;
-}
-
-short   QCC_LittleShort (short l)
-{
-	return l;
-}
-
-
-long    QCC_BigLong (long l)
-{
-	qbyte    b1,b2,b3,b4;
-
-	b1 = (qbyte)(l&255);
-	b2 = (qbyte)((l>>8)&255);
-	b3 = (qbyte)((l>>16)&255);
-	b4 = (qbyte)((l>>24)&255);
-
-	return ((long)b1<<24) + ((long)b2<<16) + ((long)b3<<8) + b4;
-}
-
-long    QCC_LittleLong (long l)
-{
-	return l;
-}
-
-float	QCC_BigFloat (float l)
-{
-	union {qbyte b[4]; float f;} in, out;
-	
-	in.f = l;
-	out.b[0] = in.b[3];
-	out.b[1] = in.b[2];
-	out.b[2] = in.b[1];
-	out.b[3] = in.b[0];
-	
-	return out.f;
-}
-
-float	QCC_LittleFloat (float l)
-{
-	return l;
-}
-
-#endif
-
-void SetEndian(void)
-{
-	if (!BigShort)
-	{
-		BigShort = QCC_BigShort;
-		LittleShort = QCC_LittleShort;
-		BigLong = QCC_BigLong;
-		LittleLong = QCC_LittleLong;
-		BigFloat = QCC_BigFloat;
-		LittleFloat = QCC_LittleFloat;
-	}
-}
 
 
 

@@ -395,10 +395,10 @@ int WriteSourceFiles(int h, dprograms_t *progs, pbool sourceaswell)
 			continue;
 
 		SafeWrite(h, f->filename, strlen(f->filename)+1);
-		i = LittleLong(f->size);
+		i = PRLittleLong(f->size);
 		SafeWrite(h, &i, sizeof(int));
 
-		i = LittleLong(encrpytmode);
+		i = PRLittleLong(encrpytmode);
 		SafeWrite(h, &i, sizeof(int));
 
 		if (encrpytmode)
@@ -794,7 +794,7 @@ strofs = (strofs+3)&~3;
 		len = QC_encode(progfuncs, strofs*sizeof(char), 2, (char *)strings, h);	//write
 		i = SafeSeek (h, 0, SEEK_CUR);
 		SafeSeek(h, progs.ofs_strings, SEEK_SET);//seek back
-		len = LittleLong(len);
+		len = PRLittleLong(len);
 		SafeWrite (h, &len, sizeof(int));	//write size.
 		SafeSeek(h, i, SEEK_SET);
 	}
@@ -822,10 +822,10 @@ strofs = (strofs+3)&~3;
 	case 32:
 		for (i=0 ; i<numstatements ; i++)
 		{
-			statements[i].op = LittleLong/*LittleShort*/(statements[i].op);
-			statements[i].a = LittleLong/*LittleShort*/(statements[i].a);
-			statements[i].b = LittleLong/*LittleShort*/(statements[i].b);
-			statements[i].c = LittleLong/*LittleShort*/(statements[i].c);
+			statements[i].op = PRLittleLong/*PRLittleShort*/(statements[i].op);
+			statements[i].a = PRLittleLong/*PRLittleShort*/(statements[i].a);
+			statements[i].b = PRLittleLong/*PRLittleShort*/(statements[i].b);
+			statements[i].c = PRLittleLong/*PRLittleShort*/(statements[i].c);
 		}
 		
 		if (progs.blockscompressed&1)
@@ -834,7 +834,7 @@ strofs = (strofs+3)&~3;
 			len = QC_encode(progfuncs, numstatements*sizeof(QCC_dstatement32_t), 2, (char *)statements, h);	//write
 			i = SafeSeek (h, 0, SEEK_CUR);
 			SafeSeek(h, progs.ofs_statements, SEEK_SET);//seek back
-			len = LittleLong(len);
+			len = PRLittleLong(len);
 			SafeWrite (h, &len, sizeof(int));	//write size.
 			SafeSeek(h, i, SEEK_SET);
 		}
@@ -845,19 +845,19 @@ strofs = (strofs+3)&~3;
 #define statements16 ((QCC_dstatement16_t*) statements)
 		for (i=0 ; i<numstatements ; i++)	//resize as we go - scaling down
 		{
-			statements16[i].op = LittleShort((unsigned short)statements[i].op);
+			statements16[i].op = PRLittleShort((unsigned short)statements[i].op);
 			if (statements[i].a < 0)
-				statements16[i].a = LittleShort((short)statements[i].a);
+				statements16[i].a = PRLittleShort((short)statements[i].a);
 			else
-				statements16[i].a = (unsigned short)LittleShort((unsigned short)statements[i].a);
+				statements16[i].a = (unsigned short)PRLittleShort((unsigned short)statements[i].a);
 			if (statements[i].b < 0)
-				statements16[i].b = LittleShort((short)statements[i].b);
+				statements16[i].b = PRLittleShort((short)statements[i].b);
 			else
-				statements16[i].b = (unsigned short)LittleShort((unsigned short)statements[i].b);
+				statements16[i].b = (unsigned short)PRLittleShort((unsigned short)statements[i].b);
 			if (statements[i].c < 0)
-				statements16[i].c = LittleShort((short)statements[i].c);
+				statements16[i].c = PRLittleShort((short)statements[i].c);
 			else
-				statements16[i].c = (unsigned short)LittleShort((unsigned short)statements[i].c);
+				statements16[i].c = (unsigned short)PRLittleShort((unsigned short)statements[i].c);
 		}
 		
 		if (progs.blockscompressed&1)
@@ -866,7 +866,7 @@ strofs = (strofs+3)&~3;
 			len = QC_encode(progfuncs, numstatements*sizeof(QCC_dstatement16_t), 2, (char *)statements16, h);	//write
 			i = SafeSeek (h, 0, SEEK_CUR);
 			SafeSeek(h, progs.ofs_statements, SEEK_SET);//seek back
-			len = LittleLong(len);
+			len = PRLittleLong(len);
 			SafeWrite (h, &len, sizeof(int));	//write size.
 			SafeSeek(h, i, SEEK_SET);
 		}
@@ -881,12 +881,12 @@ strofs = (strofs+3)&~3;
 	progs.numfunctions = numfunctions;
 	for (i=0 ; i<numfunctions ; i++)
 	{
-		functions[i].first_statement = LittleLong (functions[i].first_statement);
-		functions[i].parm_start = LittleLong (functions[i].parm_start);
-		functions[i].s_name = LittleLong (functions[i].s_name);
-		functions[i].s_file = LittleLong (functions[i].s_file);
-		functions[i].numparms = LittleLong ((functions[i].numparms>MAX_PARMS)?MAX_PARMS:functions[i].numparms);
-		functions[i].locals = LittleLong (functions[i].locals);
+		functions[i].first_statement = PRLittleLong (functions[i].first_statement);
+		functions[i].parm_start = PRLittleLong (functions[i].parm_start);
+		functions[i].s_name = PRLittleLong (functions[i].s_name);
+		functions[i].s_file = PRLittleLong (functions[i].s_file);
+		functions[i].numparms = PRLittleLong ((functions[i].numparms>MAX_PARMS)?MAX_PARMS:functions[i].numparms);
+		functions[i].locals = PRLittleLong (functions[i].locals);
 	}
 
 	if (progs.blockscompressed&8)
@@ -895,7 +895,7 @@ strofs = (strofs+3)&~3;
 		len = QC_encode(progfuncs, numfunctions*sizeof(QCC_dfunction_t), 2, (char *)functions, h);	//write
 		i = SafeSeek (h, 0, SEEK_CUR);
 		SafeSeek(h, progs.ofs_functions, SEEK_SET);//seek back
-		len = LittleLong(len);
+		len = PRLittleLong(len);
 		SafeWrite (h, &len, sizeof(int));	//write size.
 		SafeSeek(h, i, SEEK_SET);
 	}
@@ -909,9 +909,9 @@ strofs = (strofs+3)&~3;
 		progs.numglobaldefs = numglobaldefs;
 		for (i=0 ; i<numglobaldefs ; i++)
 		{
-			qcc_globals[i].type = LittleLong/*LittleShort*/ (qcc_globals[i].type);
-			qcc_globals[i].ofs = LittleLong/*LittleShort*/ (qcc_globals[i].ofs);
-			qcc_globals[i].s_name = LittleLong (qcc_globals[i].s_name);
+			qcc_globals[i].type = PRLittleLong/*PRLittleShort*/ (qcc_globals[i].type);
+			qcc_globals[i].ofs = PRLittleLong/*PRLittleShort*/ (qcc_globals[i].ofs);
+			qcc_globals[i].s_name = PRLittleLong (qcc_globals[i].s_name);
 		}
 
 		if (progs.blockscompressed&2)
@@ -920,7 +920,7 @@ strofs = (strofs+3)&~3;
 			len = QC_encode(progfuncs, numglobaldefs*sizeof(QCC_ddef_t), 2, (char *)qcc_globals, h);	//write
 			i = SafeSeek (h, 0, SEEK_CUR);
 			SafeSeek(h, progs.ofs_globaldefs, SEEK_SET);//seek back
-			len = LittleLong(len);
+			len = PRLittleLong(len);
 			SafeWrite (h, &len, sizeof(int));	//write size.
 			SafeSeek(h, i, SEEK_SET);
 		}
@@ -932,9 +932,9 @@ strofs = (strofs+3)&~3;
 
 		for (i=0 ; i<numfielddefs ; i++)
 		{
-			fields[i].type = LittleLong/*LittleShort*/ (fields[i].type);
-			fields[i].ofs = LittleLong/*LittleShort*/ (fields[i].ofs);
-			fields[i].s_name = LittleLong (fields[i].s_name);
+			fields[i].type = PRLittleLong/*PRLittleShort*/ (fields[i].type);
+			fields[i].ofs = PRLittleLong/*PRLittleShort*/ (fields[i].ofs);
+			fields[i].s_name = PRLittleLong (fields[i].s_name);
 		}
 
 		if (progs.blockscompressed&4)
@@ -943,7 +943,7 @@ strofs = (strofs+3)&~3;
 			len = QC_encode(progfuncs, numfielddefs*sizeof(QCC_ddef_t), 2, (char *)fields, h);	//write
 			i = SafeSeek (h, 0, SEEK_CUR);
 			SafeSeek(h, progs.ofs_fielddefs, SEEK_SET);//seek back
-			len = LittleLong(len);
+			len = PRLittleLong(len);
 			SafeWrite (h, &len, sizeof(int));	//write size.
 			SafeSeek(h, i, SEEK_SET);
 		}
@@ -957,9 +957,9 @@ strofs = (strofs+3)&~3;
 		progs.numglobaldefs = numglobaldefs;
 		for (i=0 ; i<numglobaldefs ; i++)
 		{
-			qcc_globals16[i].type = (unsigned short)LittleShort ((unsigned short)qcc_globals[i].type);
-			qcc_globals16[i].ofs = (unsigned short)LittleShort ((unsigned short)qcc_globals[i].ofs);
-			qcc_globals16[i].s_name = LittleLong (qcc_globals[i].s_name);
+			qcc_globals16[i].type = (unsigned short)PRLittleShort ((unsigned short)qcc_globals[i].type);
+			qcc_globals16[i].ofs = (unsigned short)PRLittleShort ((unsigned short)qcc_globals[i].ofs);
+			qcc_globals16[i].s_name = PRLittleLong (qcc_globals[i].s_name);
 		}
 
 		if (progs.blockscompressed&2)
@@ -968,7 +968,7 @@ strofs = (strofs+3)&~3;
 			len = QC_encode(progfuncs, numglobaldefs*sizeof(QCC_ddef16_t), 2, (char *)qcc_globals16, h);	//write
 			i = SafeSeek (h, 0, SEEK_CUR);
 			SafeSeek(h, progs.ofs_globaldefs, SEEK_SET);//seek back
-			len = LittleLong(len);
+			len = PRLittleLong(len);
 			SafeWrite (h, &len, sizeof(int));	//write size.
 			SafeSeek(h, i, SEEK_SET);
 		}
@@ -980,9 +980,9 @@ strofs = (strofs+3)&~3;
 
 		for (i=0 ; i<numfielddefs ; i++)
 		{
-			fields16[i].type = (unsigned short)LittleShort ((unsigned short)fields[i].type);
-			fields16[i].ofs = (unsigned short)LittleShort ((unsigned short)fields[i].ofs);
-			fields16[i].s_name = LittleLong (fields[i].s_name);
+			fields16[i].type = (unsigned short)PRLittleShort ((unsigned short)fields[i].type);
+			fields16[i].ofs = (unsigned short)PRLittleShort ((unsigned short)fields[i].ofs);
+			fields16[i].s_name = PRLittleLong (fields[i].s_name);
 		}
 
 		if (progs.blockscompressed&4)
@@ -991,7 +991,7 @@ strofs = (strofs+3)&~3;
 			len = QC_encode(progfuncs, numfielddefs*sizeof(QCC_ddef16_t), 2, (char *)fields16, h);	//write
 			i = SafeSeek (h, 0, SEEK_CUR);
 			SafeSeek(h, progs.ofs_fielddefs, SEEK_SET);//seek back
-			len = LittleLong(len);
+			len = PRLittleLong(len);
 			SafeWrite (h, &len, sizeof(int));	//write size.
 			SafeSeek(h, i, SEEK_SET);
 		}
@@ -1006,7 +1006,7 @@ strofs = (strofs+3)&~3;
 	progs.numglobals = numpr_globals;
 
 	for (i=0 ; (unsigned)i<numpr_globals ; i++)
-		((int *)qcc_pr_globals)[i] = LittleLong (((int *)qcc_pr_globals)[i]);
+		((int *)qcc_pr_globals)[i] = PRLittleLong (((int *)qcc_pr_globals)[i]);
 
 	if (progs.blockscompressed&32)
 	{		
@@ -1014,7 +1014,7 @@ strofs = (strofs+3)&~3;
 		len = QC_encode(progfuncs, numpr_globals*4, 2, (char *)qcc_pr_globals, h);	//write
 		i = SafeSeek (h, 0, SEEK_CUR);
 		SafeSeek(h, progs.ofs_globals, SEEK_SET);//seek back
-		len = LittleLong(len);
+		len = PRLittleLong(len);
 		SafeWrite (h, &len, sizeof(int));	//write size.
 		SafeSeek(h, i, SEEK_SET);
 	}
@@ -1069,7 +1069,7 @@ strofs = (strofs+3)&~3;
 				len = QC_encode(progfuncs, numstatements*sizeof(int), 2, (char *)statement_linenums, h);	//write
 				i = SafeSeek (h, 0, SEEK_CUR);
 				SafeSeek(h, progs.ofslinenums, SEEK_SET);//seek back
-				len = LittleLong(len);
+				len = PRLittleLong(len);
 				SafeWrite (h, &len, sizeof(int));	//write size.
 				SafeSeek(h, i, SEEK_SET);
 			}
@@ -1088,7 +1088,7 @@ strofs = (strofs+3)&~3;
 				len = QC_encode(progfuncs, sizeof(QCC_type_t)*numtypeinfos, 2, (char *)qcc_typeinfo, h);	//write
 				i = SafeSeek (h, 0, SEEK_CUR);
 				SafeSeek(h, progs.ofs_types, SEEK_SET);//seek back#
-				len = LittleLong(len);
+				len = PRLittleLong(len);
 				SafeWrite (h, &len, sizeof(int));	//write size.
 				SafeSeek(h, i, SEEK_SET);
 			}
@@ -1115,7 +1115,7 @@ strofs = (strofs+3)&~3;
 // qbyte swap the header and write it out
 
 	for (i=0 ; i<sizeof(progs)/4 ; i++)
-		((int *)&progs)[i] = LittleLong ( ((int *)&progs)[i] );		
+		((int *)&progs)[i] = PRLittleLong ( ((int *)&progs)[i] );		
 
 	
 	SafeSeek (h, 0, SEEK_SET);
@@ -1952,8 +1952,8 @@ void QCC_PackFile (char *src, char *name)
 		return;
 	}
 
-	pf->filepos = LittleLong (SafeSeek (packhandle, 0, SEEK_CUR));
-	pf->filelen = LittleLong (remaining);
+	pf->filepos = PRLittleLong (SafeSeek (packhandle, 0, SEEK_CUR));
+	pf->filelen = PRLittleLong (remaining);
 	strcpy (pf->name, name);
 	printf ("%64s : %7i\n", pf->name, remaining);
 
@@ -1966,8 +1966,8 @@ void QCC_PackFile (char *src, char *name)
 	in = SafeOpenRead (src);
 	remaining = filelength (in);
 
-	pf->filepos = LittleLong (lseek (packhandle, 0, SEEK_CUR));
-	pf->filelen = LittleLong (remaining);
+	pf->filepos = PRLittleLong (lseek (packhandle, 0, SEEK_CUR));
+	pf->filelen = PRLittleLong (remaining);
 	strcpy (pf->name, name);
 	printf ("%64s : %7i\n", pf->name, remaining);
 
@@ -2127,8 +2127,8 @@ void _QCC_CopyFiles (int blocknum, int copytype, char *srcdir, char *destdir)
 		header.id[2] = 'C';
 		header.id[3] = 'K';
 		dirlen = (qbyte *)pf - (qbyte *)pfiles;
-		header.dirofs = LittleLong(SafeSeek (packhandle, 0, SEEK_CUR));
-		header.dirlen = LittleLong(dirlen);
+		header.dirofs = PRLittleLong(SafeSeek (packhandle, 0, SEEK_CUR));
+		header.dirlen = PRLittleLong(dirlen);
 		
 		SafeWrite (packhandle, pfiles, dirlen);
 	
@@ -2576,6 +2576,8 @@ void QCC_main (int argc, char **argv)	//as part of the quake engine
 #endif
 	char *s;
 
+	SetEndian();
+
 	myargc = argc;
 	myargv = argv;
 
@@ -2651,8 +2653,6 @@ void QCC_main (int argc, char **argv)	//as part of the quake engine
 		externs->WriteFile("qcc.cfg", s, strlen(s));
 	}
 	*/
-
-	SetEndian();
 
 	strcpy(QCC_copyright, "This file was created with ForeThought's modified QuakeC compiler\nThanks to ID Software");
 	for (p = 0; p < 5; p++)
@@ -3267,13 +3267,6 @@ void new_QCC_ContinueCompile(void)
 
 #ifdef QCCONLY
 progfuncs_t *progfuncs;
-
-short   (*BigShort) (short l);
-short   (*LittleShort) (short l);
-long     (*BigLong) (long l);
-long     (*LittleLong) (long l);
-float   (*BigFloat) (float l);
-float   (*LittleFloat) (float l);
 
 /*
 ==============

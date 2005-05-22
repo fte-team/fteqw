@@ -43,6 +43,8 @@ typedef struct {
 #define sizeofevalc sizeof(evalc_t)
 typedef enum {ev_void, ev_string, ev_float, ev_vector, ev_entity, ev_field, ev_function, ev_pointer, ev_integer, ev_variant, ev_struct, ev_union} etype_t;
 
+//the number of pointers to variables (as opposed to functions - those are fine) in these structures is excessive.
+//Many of the functions are also obsolete.
 struct progfuncs_s {
 	int progsversion;	//PROGSTRUCT_VERSION
 
@@ -51,15 +53,15 @@ struct progfuncs_s {
 	progsnum_t	(*LoadProgs)			(progfuncs_t *prinst, char *s, int headercrc, builtin_t *builtins, int numbuiltins);	//load a progs
 	int		(*InitEnts)					(progfuncs_t *prinst, int max_ents);	//returns size of edicts for use with nextedict macro
 	void	(*ExecuteProgram)			(progfuncs_t *prinst, func_t fnum);	//start execution
-	pbool	(*SwitchProgs)				(progfuncs_t *prinst, progsnum_t num);	//switch to a different progs - my aim is to make this obsolete
+	pbool	(*SwitchProgs)				(progfuncs_t *prinst, progsnum_t num);	//switch to a different progs - this should be obsolete.
 	struct globalvars_s	*(*globals)		(progfuncs_t *prinst, progsnum_t num);	//get the globals of a progs
-	struct entvars_s	*(*entvars)		(progfuncs_t *prinst, struct edict_s *ent);	//return a pointer to the entvars of an ent
+	struct entvars_s	*(*entvars)		(progfuncs_t *prinst, struct edict_s *ent);	//return a pointer to the entvars of an ent. can be achieved via the edict_t structure instead, so obsolete.
 
 	void	(VARGS *RunError)			(progfuncs_t *prinst, char *msg, ...);		//builtins call this to say there was a problem
 	void	(*PrintEdict)				(progfuncs_t *prinst, struct edict_s *ed);	//get a listing of all vars on an edict (sent back via 'print')
 
-	struct edict_s	*(*ED_Alloc)		(progfuncs_t *prinst);
-	void	(*ED_Free)					(progfuncs_t *prinst, struct edict_s *ed);
+	struct edict_s	*(*EntAlloc)		(progfuncs_t *prinst);
+	void	(*EntFree)					(progfuncs_t *prinst, struct edict_s *ed);
 
 	struct edict_s	*(*EDICT_NUM)		(progfuncs_t *prinst, int n);		//get the nth edict
 	int		(*NUM_FOR_EDICT)			(progfuncs_t *prinst, struct edict_s *e);	//so you can find out what that 'n' will be
@@ -68,7 +70,7 @@ struct progfuncs_s {
 
 	char	*(*VarString)				(progfuncs_t *prinst, int	first);	//returns a string made up of multiple arguments
 
-	struct progstate_s **progstate;	//these are so the macros work properly
+	struct progstate_s **progstate;	//internal to the library.
 
 	func_t	(*FindFunction)				(progfuncs_t *prinst, char *funcname, progsnum_t num);
 
@@ -86,7 +88,7 @@ struct progfuncs_s {
 
 	union eval_s	*(*FindGlobal)		(progfuncs_t *prinst, char *name, progsnum_t num);	//find a pointer to the globals value
 	char	*(*AddString)				(progfuncs_t *prinst, char *val, int minlength);	//dump a string into the progs memory (for setting globals and whatnot)
-	void	*(*Tempmem)					(progfuncs_t *prinst, int ammount, char *whatfor);	//grab some mem for as long as the progs stays loaded (for strings)
+	void	*(*Tempmem)					(progfuncs_t *prinst, int ammount, char *whatfor);	//grab some mem for as long as the progs stays loaded
 
 	union eval_s	*(*GetEdictFieldValue)	(progfuncs_t *prinst, struct edict_s *ent, char *name, evalc_t *s); //get an entityvar (cache it) and return the possible values
 	struct edict_s	*(*ProgsToEdict)	(progfuncs_t *prinst, int progs);	//edicts are stored as ints and need to be adjusted
@@ -115,16 +117,16 @@ struct progfuncs_s {
 	char *stringtable;	//qc strings are all relative. add to a qc string. this is required for support of frikqcc progs that strip string immediates.
 	int fieldadjust;	//FrikQCC style arrays can cause problems due to field remapping. This causes us to leave gaps but offsets identical.
 
-	struct qcthread_s *(*Fork)			(progfuncs_t *prinst);
+	struct qcthread_s *(*Fork)			(progfuncs_t *prinst);	//returns a pointer to a thread which can be resumed via RunThread.
 	void	(*RunThread)				(progfuncs_t *prinst, struct qcthread_s *thread);
-	void	(*AbortStack)				(progfuncs_t *prinst);
+	void	(*AbortStack)				(progfuncs_t *prinst);	//annigilates the current stack, positioning on a return statement. It is expected that this is only used via a builtin!
 
-	int lastcalledbuiltinnumber;
+	int lastcalledbuiltinnumber;			//useful with non-implemented opcodes.
 
 	int (*RegisterFieldVar)				(progfuncs_t *prinst, unsigned int type, char *name, int requestedpos, int origionalofs);
 
-	char	*tempstringbase;
-	int		tempstringnum;
+	char	*tempstringbase;				//for engine's use. Store your base tempstring pointer here.
+	int		tempstringnum;			//for engine's use.
 };
 
 typedef struct progexterns_s {
@@ -140,10 +142,10 @@ typedef struct progexterns_s {
 
 	void (*entspawn) (struct edict_s *ent);	//ent has been spawned, but may not have all the extra variables (that may need to be set) set
 	pbool (*entcanfree) (struct edict_s *ent);	//return true to stop ent from being freed
-	void (*stateop) (progfuncs_t *prinst, float var, func_t func);
-	void (*cstateop) (progfuncs_t *prinst, float vara, float varb, func_t currentfunc);
-	void (*cwstateop) (progfuncs_t *prinst, float vara, float varb, func_t currentfunc);
-	void (*thinktimeop) (progfuncs_t *prinst, struct edict_s *ent, float varb);
+	void (*stateop) (progfuncs_t *prinst, float var, func_t func);	//what to do on qc's state opcode.
+	void (*cstateop) (progfuncs_t *prinst, float vara, float varb, func_t currentfunc);		//a hexen2 opcode.
+	void (*cwstateop) (progfuncs_t *prinst, float vara, float varb, func_t currentfunc);	//a hexen2 opcode.
+	void (*thinktimeop) (progfuncs_t *prinst, struct edict_s *ent, float varb);			//a hexen2 opcode.
 
 
 	//used when loading a game
@@ -159,12 +161,12 @@ typedef struct progexterns_s {
 
 	enum {PR_NOCOMPILE, PR_COMPILENEXIST, PR_COMPILEEXISTANDCHANGED, PR_COMPILECHANGED, PR_COMPILEALWAYS, PR_COMPILEIGNORE} autocompile;
 
-	double *gametime;
+	double *gametime;	//used to prevent the vm from reusing an entity faster than 2 secs.
 
-	struct edict_s **sv_edicts;
-	int *sv_num_edicts;
+	struct edict_s **sv_edicts;	//pointer to the engine's reference to world.
+	int *sv_num_edicts;		//pointer to the engine's edict count.
 
-	int (*useeditor) (char *filename, int line, int nump, char **parms);
+	int (*useeditor) (char *filename, int line, int nump, char **parms);	//called on syntax errors or step-by-step debugging.
 } progparms_t, progexterns_t;
 
 void QC_AddSharedVar(progfuncs_t *progfuncs, int start, int size);
@@ -209,8 +211,8 @@ typedef union eval_s
 
 #define PR_RegisterFieldVar(pf,type,name,reqofs,qcofs)		(*pf->RegisterFieldVar)		(pf,type,name,reqofs,qcofs)
 
-#define ED_Alloc(pf)										(*pf->ED_Alloc)				(pf)
-#define ED_Free(pf, ed)										(*pf->ED_Free)				(pf, ed)
+#define ED_Alloc(pf)										(*pf->EntAlloc)				(pf)
+#define ED_Free(pf, ed)										(*pf->EntFree)				(pf, ed)
 
 #define PR_LoadEnts(pf, s, kf)								(*pf->load_ents)			(pf, s, kf)
 #define PR_SaveEnts(pf, buf, size, mode)					(*pf->save_ents)			(pf, buf, size, mode)
@@ -230,11 +232,6 @@ typedef union eval_s
 
 #define PR_PrintEdict(pf,ed)								(*pf->PrintEdict)			(pf, ed)
 
-//#define sv_edicts			(*progfuncs->sv_edicts)
-//#define current_progstate	(*progfuncs->progstate)
-
-//#define pr_num_edicts		(*progfuncs->sv_num_edicts)
-
 #define PR_FindFunction(pf, name, num)						(*pf->FindFunction)			(pf, name, num)
 #define PR_FindGlobal(pf, name, progs)						(*pf->FindGlobal)			(pf, name, progs)
 #define PR_AddString(pf, ed, len)							(*pf->AddString)			(pf, ed, len)
@@ -250,6 +247,7 @@ typedef union eval_s
 
 
 //builtin funcs (which operate on globals)
+//To use these outside of builtins, you will likly have to use the 'globals' method.
 #define	G_FLOAT(o) (((float *)pr_globals)[o])
 #define	G_FLOAT2(o) (((float *)pr_globals)[OFS_PARM0 + o*3])
 #define	G_INT(o) (((int *)pr_globals)[o])
@@ -261,6 +259,7 @@ typedef union eval_s
 
 #define PR_GetString(p,s) (s?s + p->stringtable:"")
 #define PR_GetStringOfs(p,o) (G_INT(o)?G_INT(o) + p->stringtable:"")
+#define PR_SetStringOfs(p,o,s) (G_INT(o) = s - p->stringtable)
 #define PR_SetString(p, s) ((s&&*s)?(s - p->stringtable):0)
 #define PR_NewString(p, s, l) (PR_AddString(p, s, l) - p->stringtable)
 

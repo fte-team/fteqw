@@ -2311,7 +2311,7 @@ retry:
 // byte swap the header
 #ifndef NOENDIAN
 	for (i=0 ; i<sizeof(*pr_progs)/4 ; i++)
-		((int *)pr_progs)[i] = LittleLong ( ((int *)pr_progs)[i] );
+		((int *)pr_progs)[i] = PRLittleLong ( ((int *)pr_progs)[i] );
 #endif
 
 	if (pr_progs->version == PROG_VERSION)
@@ -2413,7 +2413,7 @@ retry:
 				Sys_Error("Bad intsize");
 			}
 			s = PRHunkAlloc(progfuncs, len);
-			QC_decode(progfuncs, LittleLong(*(int *)pr_statements16), len, 2, (char *)(((int *)pr_statements16)+1), s);
+			QC_decode(progfuncs, PRLittleLong(*(int *)pr_statements16), len, 2, (char *)(((int *)pr_statements16)+1), s);
 
 			current_progstate->statements = (dstatement16_t *)s;
 		}
@@ -2431,7 +2431,7 @@ retry:
 				Sys_Error("Bad intsize");
 			}			
 			s = PRHunkAlloc(progfuncs, len);
-			QC_decode(progfuncs, LittleLong(*(int *)pr_globaldefs16), len, 2, (char *)(((int *)pr_globaldefs16)+1), s);
+			QC_decode(progfuncs, PRLittleLong(*(int *)pr_globaldefs16), len, 2, (char *)(((int *)pr_globaldefs16)+1), s);
 
 			gd16 = *(ddef16_t**)&current_progstate->globaldefs = (ddef16_t *)s;
 		}
@@ -2449,7 +2449,7 @@ retry:
 				Sys_Error("Bad intsize");
 			}			
 			s = PRHunkAlloc(progfuncs, len);
-			QC_decode(progfuncs, LittleLong(*(int *)pr_fielddefs16), len, 2, (char *)(((int *)pr_fielddefs16)+1), s);
+			QC_decode(progfuncs, PRLittleLong(*(int *)pr_fielddefs16), len, 2, (char *)(((int *)pr_fielddefs16)+1), s);
 
 			*(ddef16_t**)&current_progstate->fielddefs = (ddef16_t *)s;
 		}
@@ -2457,7 +2457,7 @@ retry:
 		{
 			len=sizeof(dfunction_t)*pr_progs->numfunctions;
 			s = PRHunkAlloc(progfuncs, len);
-			QC_decode(progfuncs, LittleLong(*(int *)pr_functions), len, 2, (char *)(((int *)pr_functions)+1), s);
+			QC_decode(progfuncs, PRLittleLong(*(int *)pr_functions), len, 2, (char *)(((int *)pr_functions)+1), s);
 
 			fnc = pr_functions = (dfunction_t *)s;
 		}
@@ -2465,7 +2465,7 @@ retry:
 		{
 			len=sizeof(char)*pr_progs->numstrings;
 			s = PRHunkAlloc(progfuncs, len);
-			QC_decode(progfuncs, LittleLong(*(int *)pr_strings), len, 2, (char *)(((int *)pr_strings)+1), s);
+			QC_decode(progfuncs, PRLittleLong(*(int *)pr_strings), len, 2, (char *)(((int *)pr_strings)+1), s);
 
 			pr_strings = (char *)s;
 		}
@@ -2473,7 +2473,7 @@ retry:
 		{
 			len=sizeof(float)*pr_progs->numglobals;
 			s = PRHunkAlloc(progfuncs, len);
-			QC_decode(progfuncs, LittleLong(*(int *)pr_globals), len, 2, (char *)(((int *)pr_globals)+1), s);
+			QC_decode(progfuncs, PRLittleLong(*(int *)pr_globals), len, 2, (char *)(((int *)pr_globals)+1), s);
 
 			glob = pr_globals = (float *)s;
 		}
@@ -2481,7 +2481,7 @@ retry:
 		{
 			len=sizeof(int)*pr_progs->numstatements;
 			s = PRHunkAlloc(progfuncs, len);
-			QC_decode(progfuncs, LittleLong(*(int *)pr_linenums), len, 2, (char *)(((int *)pr_linenums)+1), s);
+			QC_decode(progfuncs, PRLittleLong(*(int *)pr_linenums), len, 2, (char *)(((int *)pr_linenums)+1), s);
 
 			pr_linenums = (int *)s;			
 		}
@@ -2489,7 +2489,7 @@ retry:
 		{			
 			len=sizeof(typeinfo_t)*pr_progs->numtypes;
 			s = PRHunkAlloc(progfuncs, len);
-			QC_decode(progfuncs, LittleLong(*(int *)pr_types), len, 2, (char *)(((int *)pr_types)+1), s);
+			QC_decode(progfuncs, PRLittleLong(*(int *)pr_types), len, 2, (char *)(((int *)pr_types)+1), s);
 
 			pr_types = (typeinfo_t *)s;
 		}
@@ -2563,12 +2563,12 @@ retry:
 	for (i=0 ; i<pr_progs->numfunctions; i++)
 	{
 #ifndef NOENDIAN
-		fnc[i].first_statement	= LittleLong (fnc[i].first_statement);
-		fnc[i].parm_start	= LittleLong (fnc[i].parm_start);
-		fnc[i].s_name	= (string_t)LittleLong ((long)fnc[i].s_name);
-		fnc[i].s_file	= (string_t)LittleLong ((long)fnc[i].s_file);
-		fnc[i].numparms	= LittleLong (fnc[i].numparms);
-		fnc[i].locals	= LittleLong (fnc[i].locals);
+		fnc[i].first_statement	= PRLittleLong (fnc[i].first_statement);
+		fnc[i].parm_start	= PRLittleLong (fnc[i].parm_start);
+		fnc[i].s_name	= (string_t)PRLittleLong ((long)fnc[i].s_name);
+		fnc[i].s_file	= (string_t)PRLittleLong ((long)fnc[i].s_file);
+		fnc[i].numparms	= PRLittleLong (fnc[i].numparms);
+		fnc[i].locals	= PRLittleLong (fnc[i].locals);
 #endif
 /*		if (!strncmp(fnc[i].s_name+pr_strings, "ext_", 4))
 		{
@@ -2599,7 +2599,7 @@ retry:
 	//actual global values
 #ifndef NOENDIAN
 	for (i=0 ; i<pr_progs->numglobals ; i++)
-		((int *)glob)[i] = LittleLong (((int *)glob)[i]);
+		((int *)glob)[i] = PRLittleLong (((int *)glob)[i]);
 #endif	
 
 	if (pr_types)
@@ -2607,13 +2607,13 @@ retry:
 		for (i=0 ; i<pr_progs->numtypes ; i++)
 		{	
 #ifndef NOENDIAN
-			pr_types[i].type = LittleLong(current_progstate->types[i].type);
-			pr_types[i].next = LittleLong(current_progstate->types[i].next);
-			pr_types[i].aux_type = LittleLong(current_progstate->types[i].aux_type);
-			pr_types[i].num_parms = LittleLong(current_progstate->types[i].num_parms);
-			pr_types[i].ofs = LittleLong(current_progstate->types[i].ofs);
-			pr_types[i].size = LittleLong(current_progstate->types[i].size);
-			pr_types[i].name = (string_t)LittleLong((long)current_progstate->types[i].name);
+			pr_types[i].type = PRLittleLong(current_progstate->types[i].type);
+			pr_types[i].next = PRLittleLong(current_progstate->types[i].next);
+			pr_types[i].aux_type = PRLittleLong(current_progstate->types[i].aux_type);
+			pr_types[i].num_parms = PRLittleLong(current_progstate->types[i].num_parms);
+			pr_types[i].ofs = PRLittleLong(current_progstate->types[i].ofs);
+			pr_types[i].size = PRLittleLong(current_progstate->types[i].size);
+			pr_types[i].name = (string_t)PRLittleLong((long)current_progstate->types[i].name);
 #endif
 			pr_types[i].name += stringadjust;
 		}
@@ -2630,9 +2630,9 @@ retry:
 		for (i=0 ; i<pr_progs->numglobaldefs ; i++)
 		{
 #ifndef NOENDIAN
-			gd16[i].type = LittleShort (gd16[i].type);
-			gd16[i].ofs = LittleShort (gd16[i].ofs);
-			gd16[i].s_name = (string_t)LittleLong ((long)gd16[i].s_name);
+			gd16[i].type = PRLittleShort (gd16[i].type);
+			gd16[i].ofs = PRLittleShort (gd16[i].ofs);
+			gd16[i].s_name = (string_t)PRLittleLong ((long)gd16[i].s_name);
 #endif
 			gd16[i].s_name += stringadjust;
 		}
@@ -2641,9 +2641,9 @@ retry:
 		for (i=0 ; i<pr_progs->numfielddefs ; i++)
 		{
 #ifndef NOENDIAN
-			fld16[i].type = LittleShort (fld16[i].type);
-			fld16[i].ofs = LittleShort (fld16[i].ofs);
-			fld16[i].s_name = (string_t)LittleLong ((long)fld16[i].s_name);
+			fld16[i].type = PRLittleShort (fld16[i].type);
+			fld16[i].ofs = PRLittleShort (fld16[i].ofs);
+			fld16[i].s_name = (string_t)PRLittleLong ((long)fld16[i].s_name);
 #endif
 			if (reorg)
 			{
@@ -2666,9 +2666,9 @@ retry:
 		for (i=0 ; i<pr_progs->numglobaldefs ; i++)
 		{
 #ifndef NOENDIAN
-			pr_globaldefs32[i].type = LittleLong (pr_globaldefs32[i].type);
-			pr_globaldefs32[i].ofs = LittleLong (pr_globaldefs32[i].ofs);
-			pr_globaldefs32[i].s_name = (string_t)LittleLong ((long)pr_globaldefs32[i].s_name);
+			pr_globaldefs32[i].type = PRLittleLong (pr_globaldefs32[i].type);
+			pr_globaldefs32[i].ofs = PRLittleLong (pr_globaldefs32[i].ofs);
+			pr_globaldefs32[i].s_name = (string_t)PRLittleLong ((long)pr_globaldefs32[i].s_name);
 #endif
 			pr_globaldefs32[i].s_name += stringadjust;
 		}
@@ -2676,9 +2676,9 @@ retry:
 		for (i=0 ; i<pr_progs->numfielddefs ; i++)
 		{
 	#ifndef NOENDIAN
-			pr_fielddefs32[i].type = LittleLong (pr_fielddefs32[i].type);
-			pr_fielddefs32[i].ofs = LittleLong (pr_fielddefs32[i].ofs);
-			pr_fielddefs32[i].s_name = (string_t)LittleLong ((long)pr_fielddefs32[i].s_name);
+			pr_fielddefs32[i].type = PRLittleLong (pr_fielddefs32[i].type);
+			pr_fielddefs32[i].ofs = PRLittleLong (pr_fielddefs32[i].ofs);
+			pr_fielddefs32[i].s_name = (string_t)PRLittleLong ((long)pr_fielddefs32[i].s_name);
 	#endif
 
 			if (reorg)
@@ -2705,10 +2705,10 @@ retry:
 		for (i=0 ; i<pr_progs->numstatements ; i++)
 		{
 #ifndef NOENDIAN
-			st16[i].op = LittleShort(st16[i].op);
-			st16[i].a = LittleShort(st16[i].a);
-			st16[i].b = LittleShort(st16[i].b);
-			st16[i].c = LittleShort(st16[i].c);
+			st16[i].op = PRLittleShort(st16[i].op);
+			st16[i].a = PRLittleShort(st16[i].a);
+			st16[i].b = PRLittleShort(st16[i].b);
+			st16[i].c = PRLittleShort(st16[i].c);
 #endif
 			if (st16[i].op >= OP_CALL1 && st16[i].op <= OP_CALL8)
 			{
@@ -2731,10 +2731,10 @@ retry:
 		for (i=0 ; i<pr_progs->numstatements ; i++)
 		{
 #ifndef NOENDIAN
-			pr_statements32[i].op = LittleLong(pr_statements32[i].op);
-			pr_statements32[i].a = LittleLong(pr_statements32[i].a);
-			pr_statements32[i].b = LittleLong(pr_statements32[i].b);
-			pr_statements32[i].c = LittleLong(pr_statements32[i].c);
+			pr_statements32[i].op = PRLittleLong(pr_statements32[i].op);
+			pr_statements32[i].a = PRLittleLong(pr_statements32[i].a);
+			pr_statements32[i].b = PRLittleLong(pr_statements32[i].b);
+			pr_statements32[i].c = PRLittleLong(pr_statements32[i].c);
 #endif
 			if (pr_statements32[i].op >= OP_CALL1 && pr_statements32[i].op <= OP_CALL8)
 			{
@@ -2756,10 +2756,10 @@ retry:
 		for (i=0 ; i<pr_progs->numstatements ; i++)
 		{
 #ifndef NOENDIAN
-			pr_statements32[i].op = LittleLong(pr_statements32[i].op);
-			pr_statements32[i].a = LittleLong(pr_statements32[i].a);
-			pr_statements32[i].b = LittleLong(pr_statements32[i].b);
-			pr_statements32[i].c = LittleLong(pr_statements32[i].c);
+			pr_statements32[i].op = PRLittleLong(pr_statements32[i].op);
+			pr_statements32[i].a = PRLittleLong(pr_statements32[i].a);
+			pr_statements32[i].b = PRLittleLong(pr_statements32[i].b);
+			pr_statements32[i].c = PRLittleLong(pr_statements32[i].c);
 #endif
 			if (pr_statements32[i].op >= OP_CALL1 && pr_statements32[i].op <= OP_CALL8)
 			{

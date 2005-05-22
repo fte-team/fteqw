@@ -539,6 +539,8 @@ progfuncs_t * InitProgs(progexterns_t *ext)
 	funcs->callargc = &funcs->pr_argc;
 
 	funcs->parms = ext;
+
+	SetEndian();
 	
 	return funcs;
 }

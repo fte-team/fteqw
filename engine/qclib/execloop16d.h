@@ -987,8 +987,8 @@ reeval:
 			PR_RunError(progfuncs, "Progs boundcheck failed. Value is %i.", OPA->_int);
 		}
 		break;
-	case OP_PUSH:
-		OPC->_int = (int)&localstack[localstack_used+pr_spushed];
+/*	case OP_PUSH:
+		OPC->_int = ENGINEPOINTER(&localstack[localstack_used+pr_spushed]);
 		pr_spushed += OPA->_int;
 		if (pr_spushed + localstack_used >= LOCALSTACK_SIZE)
 		{
@@ -1006,13 +1006,13 @@ reeval:
 			PR_RunError(progfuncs, "Progs poped more than it pushed");
 		}
 		break;
-
+*/
 	default:					
 		if (st->op & 0x8000)	//break point!
 		{
 			pr_xstatement = s = st-pr_statements;
 
-			printf("Break point hit in %s.\n", pr_xfunction->s_name);
+			printf("Break point hit in %s.\n", pr_xfunction->s_name+progfuncs->stringtable);
 			if (pr_trace<1)
 				pr_trace=1;	//this is what it's for
 

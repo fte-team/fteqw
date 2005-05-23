@@ -163,9 +163,9 @@ int		texture_mode = GL_LINEAR;
 
 int		texture_extension_number = 1;
 
-void GL_DrawRangeElementsEmul(GLenum mode, GLuint start, GLuint end, GLsizei count, GLenum type, const GLvoid *indices)
+void APIENTRY GL_DrawRangeElementsEmul(GLenum mode, GLuint start, GLuint end, GLsizei count, GLenum type, const GLvoid *indices)
 {
-	glDrawElements(mode, count, type, indices);
+	qglDrawElements(mode, count, type, indices);
 }
 
 #define getglcore getglfunction

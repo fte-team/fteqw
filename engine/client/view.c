@@ -55,6 +55,7 @@ cvar_t	lcd_x = {"lcd_x", "0"};	// FIXME: make this work sometime...
 
 cvar_t	cl_rollspeed = {"cl_rollspeed", "200"};
 cvar_t	cl_rollangle = {"cl_rollangle", "2.0"};
+cvar_t	v_deathtilt = {"cl_deathtilt", "1"};
 
 cvar_t	cl_bob = {"cl_bob","0.02"};
 cvar_t	cl_bobcycle = {"cl_bobcycle","0.6"};
@@ -94,6 +95,7 @@ cvar_t	v_ringcshift = {"v_ringcshift", "0"};
 cvar_t	v_pentcshift = {"v_pentcshift", "0"};
 
 cvar_t	v_viewheight = {"v_viewheight", "0"};
+
 
 extern cvar_t cl_chasecam;
 
@@ -1088,7 +1090,7 @@ void V_CalcRefdef (int pnum)
 	r_refdef.currentplayernum = pnum;
 
 #ifdef Q2CLIENT
-	if (cls.q2server)
+	if (cls.protocol == CP_QUAKE2)
 		return;
 #endif
 
@@ -1122,21 +1124,16 @@ void V_CalcRefdef (int pnum)
 	V_CalcViewRoll (pnum);
 	V_AddIdle (pnum);
 
-#ifdef Q2CLIENT
-	if (!cls.q2server)
-#endif
-	{
-		if (view_message && view_message->flags & PF_GIB)
-			r_refdef.vieworg[2] += 8;	// gib view height
-		else if (view_message && view_message->flags & PF_DEAD)
-			r_refdef.vieworg[2] -= 16;	// corpse view height
-		else
-			r_refdef.vieworg[2] += cl.viewheight[pnum];
+	if (view_message && view_message->flags & PF_GIB)
+		r_refdef.vieworg[2] += 8;	// gib view height
+	else if (view_message && view_message->flags & PF_DEAD)
+		r_refdef.vieworg[2] -= 16;	// corpse view height
+	else
+		r_refdef.vieworg[2] += cl.viewheight[pnum];
 
-		r_refdef.vieworg[2] += cl.crouch[pnum];
-	}
+	r_refdef.vieworg[2] += cl.crouch[pnum];
 
-	if (view_message && view_message->flags & PF_DEAD)		// PF_GIB will also set PF_DEAD
+	if (view_message && view_message->flags & PF_DEAD && v_deathtilt.value)		// PF_GIB will also set PF_DEAD
 	{
 		if (!cl.spectator || !cl_chasecam.value)
 			r_refdef.viewangles[ROLL] = 80;	// dead view angle
@@ -1171,11 +1168,6 @@ void V_CalcRefdef (int pnum)
 	else if (scr_viewsize.value == 80)
 		view->origin[2] += 0.5;
 
-#ifdef Q2CLIENT
-	if (cls.q2server)
-		view->model = NULL;
-	else
-#endif
 	if (!view_message || view_message->flags & (PF_GIB|PF_DEAD) )
  		view->model = NULL;
  	else
@@ -1288,7 +1280,7 @@ void V_RenderPlayerViews(int plnum)
 	SCR_VRectForPlayer(&r_refdef.vrect, plnum);
 	view_message = &view_frame->playerstate[cl.playernum[plnum]];
 #ifdef NQPROT
-	if (cls.netcon)
+	if (cls.protocol == CP_NETQUAKE)
 		view_message->weaponframe = cl.stats[0][STAT_WEAPONFRAME];
 #endif
 	cl.simangles[plnum][ROLL] = 0;	// FIXME @@@ 

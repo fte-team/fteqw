@@ -150,7 +150,7 @@ void Skin_Find (player_info_t *sc)
 	{
 		*s = '\0';
 #ifdef Q2CLIENT
-		if (cls.q2server)
+		if (cls.protocol == CP_QUAKE2)
 			model = Mod_ForName(va("players/%s/tris.mdl", name), false);
 		else
 #endif
@@ -265,7 +265,7 @@ qbyte	*Skin_Cache8 (skin_t *skin)
 	}
 
 #ifdef Q2CLIENT
-	if (cls.q2server)
+	if (cls.protocol == CP_QUAKE2)
 		sprintf (name, "players/%s.pcx", skin->name);
 	else
 #endif

@@ -269,10 +269,10 @@ int			numplanes;
 mplane_t	map_planes[MAX_Q2MAP_PLANES+6];		// extra for box hull
 
 int			numnodes;
-mnode_t		map_nodes[MAX_Q2MAP_NODES+6];		// extra for box hull
+mnode_t		map_nodes[MAX_MAP_NODES+6];		// extra for box hull
 
 int			numleafs = 1;	// allow leaf funcs to be called without a map
-mleaf_t		map_leafs[MAX_Q2MAP_LEAFS];
+mleaf_t		map_leafs[MAX_MAP_LEAFS];
 int			emptyleaf;
 
 int			numleafbrushes;
@@ -1433,7 +1433,7 @@ void CMod_LoadNodes (lump_t *l)
 
 	if (count < 1)
 		Host_Error ("Map has no nodes");
-	if (count > MAX_Q2MAP_NODES)
+	if (count > MAX_MAP_NODES)
 		Host_Error ("Map has too many nodes");
 
 	out = map_nodes;
@@ -2173,6 +2173,33 @@ void CModQ3_LoadFogs (lump_t *l)
 	if (count)
 		GL_InitFogTexture();
 }
+
+mfog_t *CM_FogForOrigin(vec3_t org)
+{
+	int i, j;
+	mfog_t 	*ret = map_fogs;
+	float dot;
+	if (!cl.worldmodel || cl.worldmodel->fromgame != fg_quake3)
+		return NULL;
+
+	for ( i=0 ; i<map_numfogs ; i++, ret++)
+	{
+		if (!ret->numplanes)
+			continue;
+		for (j = 0; j < ret->numplanes; j++)
+		{
+			dot = DotProduct(ret->planes[j]->normal, org);
+			if (dot - ret->planes[j]->dist > 0)
+				break;
+		}
+		if (j == ret->numplanes)
+		{
+			return ret;
+		}
+	}
+
+	return NULL;
+}
 #endif
 
 //Convert a patch in to a list of glpolys
@@ -2352,6 +2379,32 @@ mesh_t *GL_CreateMeshForPatch (model_t *mod, int patchwidth, int patchheight, in
 #endif
 
 
+void CModQ3_SortShaders(void)
+{
+	texture_t *textemp;
+	int i, j;
+	//sort loadmodel->textures
+	//correct pointers in loadmodel->texinfo
+/*
+	for (i = 0; i < numtexinfo; i++)
+	{
+		for (j = i+1; j < numtexinfo; j++)
+		{
+			if (!loadmodel->textures[i]->shader || (loadmodel->textures[j]->shader && loadmodel->textures[j]->shader->sort > loadmodel->textures[i]->shader->sort))
+			{
+				textemp = loadmodel->textures[j];
+				loadmodel->textures[j] = loadmodel->textures[i];
+				loadmodel->textures[i] = textemp;
+
+				textemp = loadmodel->texinfo[j].texture;
+				loadmodel->texinfo[j].texture = loadmodel->texinfo[i].texture;
+				loadmodel->texinfo[i].texture = textemp;
+			}
+		}
+	}
+	*/
+}
+
 mesh_t nullmesh;
 void CModQ3_LoadRFaces (lump_t *l, qboolean useshaders)
 {
@@ -2492,6 +2545,9 @@ continue;
 			out->dlightbits = (unsigned int)COLOR_RGB ( r, g, b );
 */		}
 	}
+
+	if (useshaders)
+		CModQ3_SortShaders();
 }
 
 void CModRBSP_LoadRFaces (lump_t *l, qboolean useshaders)
@@ -2629,6 +2685,9 @@ continue;
 			out->dlightbits = (unsigned int)COLOR_RGB ( r, g, b );
 */		}
 	}
+
+	if (useshaders)
+		CModQ3_SortShaders();
 }
 #endif
 
@@ -2758,11 +2817,9 @@ void CModQ3_LoadLeafs (lump_t *l)
 	if (count < 1)
 		Host_Error ("Map with no leafs");
 	// need to save space for box planes
-	if (count > MAX_Q2MAP_PLANES)
-		Host_Error ("Map has too many planes");
 
 	if (count > MAX_MAP_LEAFS)
-		Host_Error("Too many nodes on map");
+		Host_Error("Too many leaves on map");
 
 	out = map_leafs;	
 	numleafs = count;
@@ -2842,6 +2899,9 @@ void CModQ3_LoadPlanes (lump_t *l)
 	count = l->filelen / sizeof(*in);
 	out = map_planes;//Hunk_AllocName ( count*2*sizeof(*out), loadname);	
 
+	if (count > MAX_MAP_PLANES)
+		Host_Error("Too many planes on map");
+
 	numplanes = count;
 	
 	loadmodel->planes = out;
@@ -2872,7 +2932,7 @@ void CModQ3_LoadLeafBrushes (lump_t *l)
 	count = l->filelen / sizeof(*in);
 
 	if (count < 1)
-		Host_Error ("Map with no planes");
+		Host_Error ("Map with no leafbrushes");
 	// need to save space for box planes
 	if (count > MAX_Q2MAP_LEAFBRUSHES)
 		Host_Error ("Map has too many leafbrushes");
@@ -2948,16 +3008,34 @@ void CModRBSP_LoadBrushSides (lump_t *l)
 
 void CModQ3_LoadVisibility (lump_t *l)
 {
-	numvisibility = l->filelen;
-	if (l->filelen > MAX_Q2MAP_VISIBILITY+sizeof(int)*2)
-		Host_Error ("Map has too large visibility lump");
+	if (l->filelen == 0)
+	{
+		int i;
+		numclusters = 0;
+		for (i = 0; i < loadmodel->numleafs; i++)
+			if (numclusters <= loadmodel->leafs[i].cluster)
+				numclusters = loadmodel->leafs[i].cluster+1;
 
-	loadmodel->vis = (q2dvis_t *)map_q3pvs;
+		numclusters++;
 
-	memcpy (map_visibility, cmod_base + l->fileofs, l->filelen);
+		memset (map_visibility, 0xff, sizeof(map_visibility));
+		map_q3pvs->numclusters = numclusters;
+		numvisibility = 0;
+		map_q3pvs->rowsize = (map_q3pvs->numclusters+7)/8;
+	}
+	else
+	{
+		numvisibility = l->filelen;
+		if (l->filelen > MAX_Q2MAP_VISIBILITY)
+			Host_Error ("Map has too large visibility lump");
 
-	numclusters = map_q3pvs->numclusters = LittleLong (map_q3pvs->numclusters);
-	map_q3pvs->rowsize = LittleLong (map_q3pvs->rowsize);
+		loadmodel->vis = (q2dvis_t *)map_q3pvs;
+
+		memcpy (map_visibility, cmod_base + l->fileofs, l->filelen);
+
+		numclusters = map_q3pvs->numclusters = LittleLong (map_q3pvs->numclusters);
+		map_q3pvs->rowsize = LittleLong (map_q3pvs->rowsize);
+	}
 }
 
 #ifndef SERVERONLY
@@ -3767,7 +3845,7 @@ int		CM_NumClusters (void)
 
 int		CM_ClusterSize (void)
 {
-	return map_q3pvs->rowsize ? map_q3pvs->rowsize : MAX_Q2MAP_LEAFS / 8;
+	return map_q3pvs->rowsize ? map_q3pvs->rowsize : MAX_MAP_LEAFS / 8;
 }
 
 int		CM_NumInlineModels (void)
@@ -3841,7 +3919,7 @@ void CM_InitBoxHull (void)
 
 	box_headnode = numnodes;
 	box_planes = &map_planes[numplanes];
-	if (numnodes+6 > MAX_Q2MAP_NODES
+	if (numnodes+6 > MAX_MAP_NODES
 		|| numbrushes+1 > MAX_Q2MAP_BRUSHES
 		|| numleafbrushes+1 > MAX_Q2MAP_LEAFBRUSHES
 		|| numbrushsides+6 > MAX_Q2MAP_BRUSHSIDES
@@ -4948,17 +5026,17 @@ trace_t		CM_TransformedBoxTrace (vec3_t start, vec3_t end,
 		trace.plane.normal[0] = DotProduct (temp, forward);
 		trace.plane.normal[1] = -DotProduct (temp, right);
 		trace.plane.normal[2] = DotProduct (temp, up);
+	}
 
-		if (trace.fraction == 1)
-		{
-			VectorCopy(end, trace.endpos);
-		}
-		else
-		{
-			trace.endpos[0] = start[0] + trace.fraction * (end[0] - start[0]);
-			trace.endpos[1] = start[1] + trace.fraction * (end[1] - start[1]);
-			trace.endpos[2] = start[2] + trace.fraction * (end[2] - start[2]);
-		}
+	if (trace.fraction == 1)
+	{
+		VectorCopy(end, trace.endpos);
+	}
+	else
+	{
+		trace.endpos[0] = start[0] + trace.fraction * (end[0] - start[0]);
+		trace.endpos[1] = start[1] + trace.fraction * (end[1] - start[1]);
+		trace.endpos[2] = start[2] + trace.fraction * (end[2] - start[2]);
 	}
 
 	return trace;
@@ -5077,8 +5155,8 @@ void CM_DecompressVis (qbyte *in, qbyte *out)
 	} while (out_p - out < row);
 }
 
-qbyte	pvsrow[MAX_Q2MAP_LEAFS/8];
-qbyte	phsrow[MAX_Q2MAP_LEAFS/8];
+qbyte	pvsrow[MAX_MAP_LEAFS/8];
+qbyte	phsrow[MAX_MAP_LEAFS/8];
 
 
 

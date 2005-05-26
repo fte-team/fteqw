@@ -195,6 +195,7 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 #define svcnq_effect2		53		// [vector] org [short] modelindex [short] startframe [byte] framecount [byte] framerate
 #define svc_updatepl		53		// [qbyte] [qbyte]
 
+#define	svcdp_precache		54		// [short] precacheindex [string] filename, precacheindex is + 0 for modelindex and +32768 for soundindex
 #define svc_nails2			54		//qwe - [qbyte] num [52 bits] nxyzpy 8 12 12 12 4 8 
 
 
@@ -242,6 +243,8 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 #ifdef PEXT_CSQC
 #define svc_csqcentities	76	//entity lump for csqc
 #endif
+
+#define svc_precache		77
 
 #define svc_invalid			256
 
@@ -603,6 +606,7 @@ enum {
 #define DPTE_BLOOD			50
 #define DPTE_SPARK			51
 #define DPTE_BLOODSHOWER	52
+#define DPTE_PARTICLECUBE	54
 #define DPTE_SMALLFLASH		72
 #define DPTE_CUSTOMFLASH	73
 #define DPTE_FLAMEJET		74

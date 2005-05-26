@@ -37,6 +37,8 @@ cvar_t	cl_netfps = {"cl_netfps", "0"};
 cvar_t	cl_smartjump = {"cl_smartjump", "1"};
 
 
+usercmd_t independantphysics[MAX_SPLITS];
+
 /*
 ===============================================================================
 
@@ -205,7 +207,7 @@ void IN_JumpDown (void)
 
 	condition = (cls.state == ca_active && cl_smartjump.value);
 #ifdef Q2CLIENT
-	if (condition && cls.q2server)
+	if (condition && cls.protocol == CP_QUAKE2)
 		KeyDown(&in_up);
 	else
 #endif
@@ -461,43 +463,38 @@ CL_BaseMove
 Send the intended movement message to the server
 ================
 */
-void CL_BaseMove (usercmd_t *cmd, int pnum)
+void CL_BaseMove (usercmd_t *cmd, int pnum, float extra, float wantfps)
 {
-	CL_AdjustAngles (pnum);
-	
-	VectorCopy (cl.viewangles[pnum], cmd->angles);
+	float scale = 1;//extra/1000.0f * 1/wantfps;
+
+//
+// adjust for speed key
+//
+	if (in_speed.state[pnum] & 1)
+		scale *= cl_movespeedkey.value;
+
 	if (in_strafe.state[pnum] & 1)
 	{
-		cmd->sidemove += cl_sidespeed.value * CL_KeyState (&in_right, pnum);
-		cmd->sidemove -= cl_sidespeed.value * CL_KeyState (&in_left, pnum);
+		cmd->sidemove += scale*cl_sidespeed.value * CL_KeyState (&in_right, pnum);
+		cmd->sidemove -= scale*cl_sidespeed.value * CL_KeyState (&in_left, pnum);
 	}
 
-	cmd->sidemove += cl_sidespeed.value * CL_KeyState (&in_moveright, pnum);
-	cmd->sidemove -= cl_sidespeed.value * CL_KeyState (&in_moveleft, pnum);
+	cmd->sidemove += scale*cl_sidespeed.value * CL_KeyState (&in_moveright, pnum);
+	cmd->sidemove -= scale*cl_sidespeed.value * CL_KeyState (&in_moveleft, pnum);
 
 #ifdef IN_XFLIP
 	if(in_xflip.value) cmd->sidemove *= -1;
 #endif
 
 
-	cmd->upmove += cl_upspeed.value * CL_KeyState (&in_up, pnum);
-	cmd->upmove -= cl_upspeed.value * CL_KeyState (&in_down, pnum);
+	cmd->upmove += scale*cl_upspeed.value * CL_KeyState (&in_up, pnum);
+	cmd->upmove -= scale*cl_upspeed.value * CL_KeyState (&in_down, pnum);
 
 	if (! (in_klook.state[pnum] & 1) )
 	{	
-		cmd->forwardmove += cl_forwardspeed.value * CL_KeyState (&in_forward, pnum);
-		cmd->forwardmove -= cl_backspeed.value * CL_KeyState (&in_back, pnum);
-	}	
-
-//
-// adjust for speed key
-//
-	if (in_speed.state[pnum] & 1)
-	{
-		cmd->forwardmove *= cl_movespeedkey.value;
-		cmd->sidemove *= cl_movespeedkey.value;
-		cmd->upmove *= cl_movespeedkey.value;
-	}	
+		cmd->forwardmove += scale*cl_forwardspeed.value * CL_KeyState (&in_forward, pnum);
+		cmd->forwardmove -= scale*cl_backspeed.value * CL_KeyState (&in_back, pnum);
+	}
 }
 
 int MakeChar (int i)
@@ -513,7 +510,7 @@ void CL_ClampPitch (int pnum)
 {
 #ifdef Q2CLIENT
 	float	pitch;
-	if (cls.q2server)
+	if (cls.protocol == CP_QUAKE2)
 	{
 		pitch = SHORT2ANGLE(cl.q2frame.playerstate.pmove.delta_angles[PITCH]);
 		if (pitch > 180)
@@ -572,12 +569,8 @@ void CL_FinishMove (usercmd_t *cmd, int msecs, int pnum)
 	cmd->buttons = bits;
 
 	// send milliseconds of time to apply the move
-	ms = msecs;//host_frametime * 1000;
-//	if (ms > 250)
-//		ms = 100;		// time was unreasonable
-	cmd->msec = ms;
+	cmd->msec = msecs;
 
-	//VectorCopy (cl.viewangles, cmd->angles);
 	for (i=0 ; i<3 ; i++)
 		cmd->angles[i] = ((int)(cl.viewangles[pnum][i]*65536.0/360)&65535);
 
@@ -589,17 +582,10 @@ void CL_FinishMove (usercmd_t *cmd, int msecs, int pnum)
 	}
 	else
 		cmd->impulse = 0;
-
-
-//
-// chop down so no extra bits are kept that the server wouldn't get
-//
-	cmd->forwardmove = MakeChar (cmd->forwardmove);
-	cmd->sidemove = MakeChar (cmd->sidemove);
-	cmd->upmove = MakeChar (cmd->upmove);
 }
 
 cvar_t cl_prydoncursor = {"cl_prydoncursor", "0"};
+void ML_UnProject(vec3_t in, vec3_t out, vec3_t viewangles, vec3_t vieworg, float wdivh, float fovy);
 void CL_UpdatePrydonCursor(float cursor_screen[2], vec3_t cursor_start, vec3_t cursor_impact, int *entnum)
 {
 	float modelview[16];
@@ -648,10 +634,11 @@ void CL_UpdatePrydonCursor(float cursor_screen[2], vec3_t cursor_start, vec3_t c
 
 
 	VectorCopy(cl.simorg[0], cursor_start);
-	temp[0] = cursor_screen[2] * scale[2];
-	temp[1] = cursor_screen[0] * scale[0];
-	temp[2] = cursor_screen[1] * scale[1];
+	temp[0] = cursor_screen[0];
+	temp[1] = cursor_screen[1];
+	temp[2] = 1;
 
+//	ML_UnProject(temp, cursor_end, cl.viewangles[0], cl.simorg[0], vid.width/vid.height, 90);
 	ML_ModelViewMatrix(modelview, cl.viewangles[0], cl.simorg[0]);
 	Matrix4_Transform3(modelview, temp, cursor_end);
 
@@ -663,34 +650,42 @@ void CL_UpdatePrydonCursor(float cursor_screen[2], vec3_t cursor_start, vec3_t c
 //	CL_SelectTraceLine(cursor_start, cursor_end, cursor_impact, entnum);
 	// makes sparks where cursor is
 	//CL_SparkShower(cl.cmd.cursor_impact, cl.cmd.cursor_normal, 5, 0);
+	P_RunParticleEffectType(cursor_impact, vec3_origin, 1, 0);
+//P_ParticleTrail(cursor_start, cursor_impact, 0, NULL);
 }
 
 #ifdef NQPROT
-void CLNQ_SendMove (usercmd_t		*cmd, int pnum)
+void CLNQ_SendMove (usercmd_t		*cmd, int pnum, sizebuf_t *buf)
 {
 	int bits;
 	int i;
-	sizebuf_t	buf;
-	qbyte	data[128];
 
 	float cursor_screen[2];
 	vec3_t cursor_start, cursor_impact;
 	int cursor_entitynumber=0;//I hate warnings as errors
-	
-	buf.maxsize = 128;
-	buf.cursize = 0;
-	buf.data = data;
 
-	MSG_WriteByte (&buf, clc_move);
+	if (cls.demoplayback!=DPB_NONE)
+		return;	//err... don't bother... :)
+//
+// allways dump the first two message, because it may contain leftover inputs
+// from the last level
+//
+	if (++cl.movemessages <= 2)
+		return;
 
-	MSG_WriteFloat (&buf, cl.gametime);	// so server can get ping times
+	MSG_WriteByte (buf, clc_move);
+
+	if (nq_dp_protocol>=7)
+		MSG_WriteLong(buf, 0);
+
+	MSG_WriteFloat (buf, cl.gametime);	// so server can get ping times
 
 	for (i=0 ; i<3 ; i++)
-		MSG_WriteAngle (&buf, cl.viewangles[pnum][i]);
+		MSG_WriteAngle (buf, cl.viewangles[pnum][i]);
 	
-	MSG_WriteShort (&buf, cmd->forwardmove);
-	MSG_WriteShort (&buf, cmd->sidemove);
-	MSG_WriteShort (&buf, cmd->upmove);
+	MSG_WriteShort (buf, cmd->forwardmove);
+	MSG_WriteShort (buf, cmd->sidemove);
+	MSG_WriteShort (buf, cmd->upmove);
 
 //
 // send button bits
@@ -707,77 +702,58 @@ void CLNQ_SendMove (usercmd_t		*cmd, int pnum)
 	if (in_button7.state[pnum] & 3)	bits |=  64; in_button7.state[pnum] &= ~2;
 	if (in_button8.state[pnum] & 3)	bits |= 128; in_button8.state[pnum] &= ~2;
 
-	if (nq_dp_protocol == 6)
+	if (nq_dp_protocol >= 6)
 	{
 		CL_UpdatePrydonCursor(cursor_screen, cursor_start, cursor_impact, &cursor_entitynumber);
-		MSG_WriteLong (&buf, bits);
+		MSG_WriteLong (buf, bits);
 	}
 	else
-		MSG_WriteByte (&buf, bits);
+		MSG_WriteByte (buf, bits);
 
 	if (in_impulsespending[pnum])
 	{
 		in_nextimpulse[pnum]++;
 		in_impulsespending[pnum]--;
-		MSG_WriteByte(&buf, in_impulse[pnum][(in_nextimpulse[pnum]-1)%IN_IMPULSECACHE]);
+		MSG_WriteByte(buf, in_impulse[pnum][(in_nextimpulse[pnum]-1)%IN_IMPULSECACHE]);
 	}
 	else
-		MSG_WriteByte (&buf, 0);
+		MSG_WriteByte (buf, 0);
 
 
-	if (nq_dp_protocol == 6)
+	if (nq_dp_protocol >= 6)
 	{
-		MSG_WriteShort (&buf, cursor_screen[0] * 32767.0f);
-		MSG_WriteShort (&buf, cursor_screen[1] * 32767.0f);
-		MSG_WriteFloat (&buf, cursor_start[0]);
-		MSG_WriteFloat (&buf, cursor_start[1]);
-		MSG_WriteFloat (&buf, cursor_start[2]);
-		MSG_WriteFloat (&buf, cursor_impact[0]);
-		MSG_WriteFloat (&buf, cursor_impact[1]);
-		MSG_WriteFloat (&buf, cursor_impact[2]);
-		MSG_WriteShort (&buf, cursor_entitynumber);
-	}
-
-
-
-//
-// deliver the message
-//
-	if (cls.demoplayback!=DPB_NONE)
-		return;	//err... don't bother... :)
-
-//
-// allways dump the first two message, because it may contain leftover inputs
-// from the last level
-//
-	if (++cl.movemessages <= 2)
-		return;
-	
-	if (NET_SendUnreliableMessage (cls.netcon, &buf) == -1)
-	{
-		Con_Printf ("CL_SendMove: lost server connection\n");
-		CL_Disconnect ();
+		MSG_WriteShort (buf, cursor_screen[0] * 32767.0f);
+		MSG_WriteShort (buf, cursor_screen[1] * 32767.0f);
+		MSG_WriteFloat (buf, cursor_start[0]);
+		MSG_WriteFloat (buf, cursor_start[1]);
+		MSG_WriteFloat (buf, cursor_start[2]);
+		MSG_WriteFloat (buf, cursor_impact[0]);
+		MSG_WriteFloat (buf, cursor_impact[1]);
+		MSG_WriteFloat (buf, cursor_impact[2]);
+		MSG_WriteShort (buf, cursor_entitynumber);
 	}
 }
+
 void CLNQ_SendCmd(void)
 {
 	extern int cl_latestframenum, nq_dp_protocol;
-	usercmd_t		cmd;
+	sizebuf_t unrel;
+	char unrel_buf[256];
 
 	if (cls.state <= ca_connected)
 		return;
 
+	memset(&unrel, 0, sizeof(unrel));
+	unrel.data = unrel_buf;
+	unrel.maxsize = sizeof(unrel_buf);
+
 	if (cls.signon == 4)
 	{
-		memset(&cmd, 0, sizeof(cmd));
-	// get basic movement from keyboard
-		CL_BaseMove (&cmd, 0);
-	
-	// allow mice or other external controllers to add to the move
-		IN_Move (&cmd, 0);
-	
 	// send the unreliable message
-		CLNQ_SendMove (&cmd, 0);
+		if (independantphysics[0].impulse && !cls.netchan.message.cursize)
+			CLNQ_SendMove (&independantphysics[0], 0, &cls.netchan.message);
+		else
+			CLNQ_SendMove (&independantphysics[0], 0, &unrel);
 	}
 
 	if (name.modified)
@@ -792,45 +768,12 @@ void CLNQ_SendCmd(void)
 		MSG_WriteLong(&cls.netchan.message, cl_latestframenum);
 	}
 
-	
-// send the reliable message
-	if (!cls.netchan.message.cursize)
-		return;		// no message at all
-	
-	if (!NET_CanSendMessage (cls.netcon))
-	{
-		Con_DPrintf ("CL_WriteToServer: can't send\n");
-		return;
-	}
+	Netchan_Transmit(&cls.netchan, unrel.cursize, unrel.data, 2500);
 
-	if (NET_SendMessage (cls.netcon, &cls.netchan.message) == -1)
-		Host_EndGame ("CL_WriteToServer: lost server connection");
-
-	SZ_Clear (&cls.netchan.message);
+	memset(&independantphysics[0], 0, sizeof(independantphysics[0]));
+	cl.allowsendpacket = false;
 }
 #endif
-
-
-//returns result in the form of the 
-void ComponantVectors(vec3_t angles, vec3_t move, vec3_t result, float multi)
-{
-	vec3_t f, r, u;
-	AngleVectors(angles, f, r, u);
-
-	result[0] = DotProduct (move, f)*multi;
-	result[1] = DotProduct (move, r)*multi;
-	result[2] = DotProduct (move, u)*multi;
-}
-
-void AddComponant(vec3_t angles, vec3_t dest, float fm, float rm, float um)
-{
-	vec3_t f, r, u;
-	AngleVectors(angles, f, r, u);
-
-	VectorMA(dest, fm, f, dest);
-	VectorMA(dest, rm, r, dest);
-	VectorMA(dest, um, u, dest);
-}
 
 float CL_FilterTime (double time, float wantfps)	//now returns the extra time not taken in this slot. Note that negative 1 means uncapped.
 {
@@ -1016,7 +959,6 @@ void CL_UseIndepPhysics(qboolean allow)
 CL_SendCmd
 =================
 */
-usercmd_t independantphysics[MAX_SPLITS];
 vec3_t accum[MAX_SPLITS];
 void CL_SendCmd (float frametime)
 {
@@ -1030,6 +972,7 @@ void CL_SendCmd (float frametime)
 	int firstsize;
 	int extramsec;
 	vec3_t v;
+	float wantfps;
 
 	qbyte lightlev;
 
@@ -1082,8 +1025,9 @@ void CL_SendCmd (float frametime)
 			cmd->msec = frametime*1000;
 			independantphysics[0].msec = 0;
 
-				// get basic movement from keyboard
-			CL_BaseMove (cmd, 0);
+			CL_AdjustAngles (plnum);
+			// get basic movement from keyboard
+			CL_BaseMove (cmd, 0, 1, 1);
 
 			// allow mice or other external controllers to add to the move
 			IN_Move (cmd, 0);
@@ -1127,14 +1071,6 @@ void CL_SendCmd (float frametime)
 		}
 	}
 
-#ifdef NQPROT
-	if (cls.netcon && !cls.netcon->qwprotocol)
-	{
-		CLNQ_SendCmd ();
-		return;
-	}
-#endif
-
 	if (msecs>150)	//q2 has 200 slop.
 		msecs=150;
 
@@ -1144,66 +1080,57 @@ void CL_SendCmd (float frametime)
 	if (msecs<0)
 		msecs=0;	//erm.
 
+
 //	if (cls.state < ca_active)
 //		msecs = 0;
 
 	msecstouse = (int)msecs;	//casts round down.
-
-	if (!CL_FilterTime(msecstouse, cl_netfps.value<=0?cl_maxfps.value:cl_netfps.value) && msecstouse<255 && cls.state == ca_active)
-	{
-		usercmd_t new;
-
-		for (plnum = 0; plnum < cl.splitclients; plnum++)
-		{
-			cmd = &new;
-			memset(cmd, 0, sizeof(new));
-
-		// get basic movement from keyboard
-			CL_BaseMove (cmd, plnum);
-
-		// allow mice or other external controllers to add to the move
-			IN_Move (cmd, plnum);
-
-			if (cl.spectator)
-				Cam_Track(plnum, cmd);
-
-			cmd->msec = msecstouse;
-			extramsec = msecstouse - independantphysics[plnum].msec;
-
-			//acumulate this frame.
-			AddComponant(cl.viewangles[plnum], accum[plnum], cmd->forwardmove*extramsec, cmd->sidemove*extramsec, cmd->upmove*extramsec);
-
-			//evaluate from accum
-			ComponantVectors(cl.viewangles[plnum], accum[plnum], v, 1.0f/msecstouse);
-			independantphysics[plnum].forwardmove	= v[0];//MakeChar(v[0]);
-			independantphysics[plnum].sidemove		= v[1];//MakeChar(v[1]);
-			independantphysics[plnum].upmove		= v[2];//MakeChar(v[2]);
-
-			for (i=0 ; i<3 ; i++)
-				independantphysics[plnum].angles[i] = ((int)(cl.viewangles[plnum][i]*65536.0/360)&65535);
-
-			independantphysics[plnum].msec = msecstouse;
-			independantphysics[plnum].buttons |= cmd->buttons;
-		}
-		return;
-	}
-
 	if (msecstouse > 255)
 		msecstouse = 255;
 
-//	Con_Printf("sending %i msecs\n", msecstouse);
+	wantfps = cl_netfps.value<=0?cl_maxfps.value:cl_netfps.value;
+	if (wantfps < cls.maxfps ? max (30.0, cls.maxfps) : 0x7fff)
+		wantfps = cls.maxfps ? max (30.0, cls.maxfps) : 0x7fff;
 
 	for (plnum = 0; plnum < cl.splitclients; plnum++)
 	{
-		// save this command off for prediction
-		i = cls.netchan.outgoing_sequence & UPDATE_MASK;
-		cmd = &cl.frames[i].cmd[plnum];
-		memcpy(cmd, &independantphysics[plnum], sizeof(*cmd));
-		cl.frames[i].senttime = realtime;
-		cl.frames[i].receivedtime = -1;		// we haven't gotten a reply yet
+//		CL_BaseMove (&independantphysics[plnum], plnum, (msecstouse - independantphysics[plnum].msec), wantfps);
+		CL_AdjustAngles (plnum);
+		IN_Move (&independantphysics[plnum], plnum);
+		
+		for (i=0 ; i<3 ; i++)
+			independantphysics[plnum].angles[i] = ((int)(cl.viewangles[plnum][i]*65536.0/360)&65535);
 
-		memset(&independantphysics[plnum], 0, sizeof(independantphysics[plnum]));
+		if (!independantphysics[plnum].msec)
+		{
+			CL_BaseMove (&independantphysics[plnum], plnum, (msecstouse - independantphysics[plnum].msec), wantfps);
+			CL_FinishMove(&independantphysics[plnum], msecstouse, plnum);
+		}
+
+		// if we are spectator, try autocam
+		if (cl.spectator)
+			Cam_Track(plnum, cmd);
+		Cam_FinishMove(plnum, cmd);
+		independantphysics[plnum].msec = msecstouse;
 	}
+
+	if (!CL_FilterTime(msecstouse, cl_netfps.value<=0?cl_maxfps.value:cl_netfps.value) && msecstouse<255 && cls.state == ca_active)
+	{
+		return;
+	}
+
+#ifdef NQPROT
+	if (cls.protocol == CP_NETQUAKE)
+	{
+		if (!cl.allowsendpacket)
+			return;
+		msecs -= msecstouse;
+		CLNQ_SendCmd ();
+		return;
+	}
+#endif
+
+//	Con_Printf("sending %i msecs\n", msecstouse);
 
 	seq_hash = cls.netchan.outgoing_sequence;
 
@@ -1216,7 +1143,7 @@ void CL_SendCmd (float frametime)
 	if (1)	//wait for server data before sending clc_move stuff? nope, mvdsv doesn't like that.
 	{
 #ifdef Q2CLIENT
-		if (cls.q2server)
+		if (cls.protocol == CP_QUAKE2)
 		{
 			i = cls.netchan.outgoing_sequence & UPDATE_MASK;
 			cmd = &cl.frames[i].cmd[plnum];
@@ -1267,60 +1194,13 @@ void CL_SendCmd (float frametime)
 		{
 			i = cls.netchan.outgoing_sequence & UPDATE_MASK;
 			cmd = &cl.frames[i].cmd[plnum];
-
-			// get basic movement from keyboard
-			CL_BaseMove (cmd, plnum);
-
-			// allow mice or other external controllers to add to the move
-			IN_Move (cmd, plnum);
-
-			/*
-			if (cl_minmsec.value>200)
-				cl_minmsec.value=200;
-
-			if (!(msecstouse > cl_minmsec.value))
-			{
-				cmd->msec = msecstouse;
-				for (i=0 ; i<3 ; i++)
-					cmd->angles[i] = ((int)(cl.viewangles[i]*65536.0/360)&65535);
-				cmd->forwardmove = MakeChar (cmd->forwardmove);
-				cmd->sidemove = MakeChar (cmd->sidemove);
-				cmd->upmove = MakeChar (cmd->upmove);
-
-				if (!dropcount)
-					cls.netchan.outgoing_sequence++;
-				dropcount = true;
-				return;
-			}
-			else*/
-
-			// if we are spectator, try autocam
-			if (cl.spectator)
-				Cam_Track(plnum, cmd);
-
-			CL_FinishMove(cmd, msecstouse, plnum);
-
-			Cam_FinishMove(plnum, cmd);
+			*cmd = independantphysics[plnum];
+			memset(&independantphysics[plnum], 0, sizeof(independantphysics[plnum]));
 
 #ifdef Q2CLIENT
-			if (cls.q2server && cmd->buttons)
-				cmd->buttons |= 128;
+			if (cls.protocol == CP_QUAKE2 && cmd->buttons)
+				cmd->buttons |= 128;	//fixme: this isn't really what's meant by the anykey.
 #endif
-
-			for (i=0 ; i<3 ; i++)
-				cmd->angles[i] = ((int)(cl.viewangles[plnum][i]*65536.0/360)&65535);
-
-			extramsec = msecstouse - independantphysics[plnum].msec;
-			//add this frame to accum
-			AddComponant(cl.viewangles[plnum], accum[plnum], cmd->forwardmove*extramsec, cmd->sidemove*extramsec, cmd->upmove*extramsec);
-
-			//evaluate from accum
-			ComponantVectors(cl.viewangles[plnum], accum[plnum], v, 1.0f/msecstouse);
-			cmd->forwardmove	= v[0];
-			cmd->sidemove		= v[1];
-			cmd->upmove		= v[2];
-
-			memset(accum[plnum], 0, sizeof(accum[plnum]));	//clear accum
 
 			if (plnum)
 				MSG_WriteByte (&buf, clc_move);
@@ -1355,7 +1235,7 @@ void CL_SendCmd (float frametime)
 	// calculate a checksum over the move commands
 
 #ifdef Q2CLIENT
-		if (cls.q2server)
+		if (cls.protocol == CP_QUAKE2)
 			buf.data[checksumIndex] = Q2COM_BlockSequenceCRCByte(
 				buf.data + checksumIndex + 1, firstsize - checksumIndex - 1,
 				seq_hash);
@@ -1368,14 +1248,14 @@ void CL_SendCmd (float frametime)
 
 	// request delta compression of entities
 #ifdef Q2CLIENT
-	if (!cls.q2server)
+	if (cls.protocol == CP_QUAKEWORLD)
 #endif
 		if (cls.netchan.outgoing_sequence - cl.validsequence >= UPDATE_BACKUP-1)
 			cl.validsequence = 0;
 
 	if (
 #ifdef Q2CLIENT
-		!cls.q2server && 
+		cls.protocol == CP_QUAKEWORLD && 
 #endif
 		cl.validsequence && !cl_nodelta.value && cls.state == ca_active &&
 		!cls.demorecording)

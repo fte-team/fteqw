@@ -145,6 +145,7 @@ entity_t		cl_visedicts_list[2][MAX_VISEDICTS];
 
 double			connect_time = -1;		// for connection retransmits
 int				connect_type = 0;
+int				connect_tries = 0;	//increased each try, every fourth trys nq connect packets.
 
 quakeparms_t host_parms;
 
@@ -359,7 +360,7 @@ void CL_SendConnectPacket (
 	fteprotextsupported &= ftepext;
 
 #ifdef Q2CLIENT
-	if (cls.q2server)
+	if (cls.protocol == CP_QUAKE2)
 		fteprotextsupported = 0;
 #endif
 
@@ -368,11 +369,7 @@ void CL_SendConnectPacket (
 
 	t1 = Sys_DoubleTime ();
 
-	if (
-#ifdef NQPROT
-			!cls.netcon &&
-#endif
-			!NET_StringToAdr (cls.servername, &adr))
+	if (!NET_StringToAdr (cls.servername, &adr))
 	{
 		Con_TPrintf (TLC_BADSERVERADDRESS);
 		connect_time = -1;
@@ -416,7 +413,7 @@ void CL_SendConnectPacket (
 		clients = MAX_SPLITS;
 
 #ifdef Q2CLIENT
-	if (cls.q2server)	//sorry - too lazy.
+	if (cls.protocol == CP_QUAKE2)	//sorry - too lazy.
 		clients = 1;
 #endif
 
@@ -434,7 +431,7 @@ void CL_SendConnectPacket (
 		strcat(data, va("%i", clients));
 	
 #ifdef Q2CLIENT
-	if (cls.q2server)
+	if (cls.protocol == CP_QUAKE2)
 		strcat(data, va(" %i", PROTOCOL_VERSION_Q2));
 	else
 #endif
@@ -467,20 +464,8 @@ void CL_SendConnectPacket (
 	else
 #endif
 		cls.netchan.compress = false;
-#ifdef NQPROT
-	if (cls.netcon)
-	{
-		sizebuf_t msg;
-		msg.allowoverflow = false;
-		msg.cursize = strlen(data);
-		msg.data = data;
-		msg.maxsize = sizeof(data);
-		msg.overflowed = false;
-		NET_SendMessage(cls.netcon, &msg);
-	}
-	else
-#endif
-		NET_SendPacket (NS_CLIENT, strlen(data), data, adr);
+
+	NET_SendPacket (NS_CLIENT, strlen(data), data, adr);
 
 	cl.splitclients = 0;
 	CL_RegisterSplitCommands();
@@ -514,14 +499,14 @@ void CL_CheckForResend (void)
 #endif
 #ifdef Q2CLIENT
 		case GT_QUAKE2:
-			cls.q2server = true;
+			cls.protocol = CP_QUAKE2;
 			break;
 #endif
 		default:
-			cls.q2server = false;
+			cls.protocol = CP_QUAKEWORLD;
 			break;
 		}
-			
+
 		CL_SendConnectPacket (svs.fteprotocolextensions, false);
 		return;
 	}
@@ -531,6 +516,7 @@ void CL_CheckForResend (void)
 		return;
 	if (cls.state != ca_disconnected)
 		return;
+	/*
 #ifdef NQPROT
 	if (connect_type)
 	{
@@ -545,6 +531,7 @@ void CL_CheckForResend (void)
 		return;
 	}
 #endif
+	*/
 	if (connect_time && realtime - connect_time < 5.0)
 		return;
 
@@ -568,34 +555,46 @@ void CL_CheckForResend (void)
 
 	connect_time = realtime+t2-t1;	// for retransmit requests
 
-	Con_TPrintf (TLC_CONNECTINGTO, cls.servername);
-	sprintf (data, "%c%c%c%cgetchallenge\n", 255, 255, 255, 255);
-	NET_SendPacket (NS_CLIENT, strlen(data), data, adr);
+#ifdef NQPROT
+	if (connect_type || ((connect_tries&3)==3))
+	{
+		sizebuf_t sb;
+		memset(&sb, 0, sizeof(sb));
+		sb.data = data;
+		sb.maxsize = sizeof(data);
+
+		Con_TPrintf (TLC_CONNECTINGTO, cls.servername);
+
+		MSG_WriteLong(&sb, BigLong(NETFLAG_CTL | (strlen(NET_GAMENAME_NQ)+7)));
+		MSG_WriteByte(&sb, CCREQ_CONNECT);
+		MSG_WriteString(&sb, NET_GAMENAME_NQ);
+		MSG_WriteByte(&sb, NET_PROTOCOL_VERSION);
+		NET_SendPacket (NS_CLIENT, sb.cursize, sb.data, adr);
+	}
+	else
+#endif
+	{
+		Con_TPrintf (TLC_CONNECTINGTO, cls.servername);
+		sprintf (data, "%c%c%c%cgetchallenge\n", 255, 255, 255, 255);
+		NET_SendPacket (NS_CLIENT, strlen(data), data, adr);
+	}
+
+	connect_tries++;
 }
 
 void CL_BeginServerConnect(void)
 {
-#ifdef NQPROT
-	if (cls.netcon)
-	{
-		NET_Close(cls.netcon);
-		cls.netcon = cls.netchan.qsocket = NULL;
-	}
-#endif
 	connect_time = 0;
-	connect_type=0;
+	connect_type = 0;
+	connect_tries = 0;
 	CL_CheckForResend();
 }
 #ifdef NQPROT
 void CLNQ_BeginServerConnect(void)
 {
-	if (cls.netcon)
-	{
-		NET_Close(cls.netcon);
-		cls.netcon = NULL;
-	}
 	connect_time = 0;
-	connect_type=1;
+	connect_type = 1;
+	connect_tries = 0;
 	CL_CheckForResend();
 }
 #endif
@@ -840,6 +839,10 @@ void CL_ClearState (void)
 		cl.viewheight[i] = DEFAULT_VIEWHEIGHT;
 	cl.minpitch = -70;
 	cl.maxpitch = 80;
+
+	cl.oldgametime = 0;
+	cl.gametime = 0;
+	cl.gametimemark = 0;
 }
 
 /*
@@ -877,36 +880,33 @@ void CL_Disconnect (void)
 		if (cls.demorecording)
 			CL_Stop_f ();
 
+		switch(cls.protocol)
+		{
 #ifdef NQPROT
-		if (cls.netcon)
-		{
-			sizebuf_t msg;
+		case CP_NETQUAKE:
 			final[0] = clc_disconnect;			
-			msg.data = final;
-			msg.cursize = 1;
-			msg.maxsize = 10;
-			NET_SendMessage(cls.netcon, &msg);
-			NET_SendMessage(cls.netcon, &msg);
-			NET_SendMessage(cls.netcon, &msg);
-		}
-		else
+			Netchan_Transmit (&cls.netchan, 1, final, 2500);
+			Netchan_Transmit (&cls.netchan, 1, final, 2500);
+			Netchan_Transmit (&cls.netchan, 1, final, 2500);
+			break;
 #endif
-		{
 #ifdef Q2CLIENT
-			if (cls.q2server)
-			{
-				final[0] = clcq2_stringcmd;
-				strcpy (final+1, "disconnect");
-			}
-			else
+		case CP_QUAKE2:
+			final[0] = clcq2_stringcmd;
+			strcpy (final+1, "disconnect");
+			Netchan_Transmit (&cls.netchan, strlen(final)+1, final, 2500);
+			Netchan_Transmit (&cls.netchan, strlen(final)+1, final, 2500);
+			Netchan_Transmit (&cls.netchan, strlen(final)+1, final, 2500);
+			break;
+
 #endif
-			{
-				final[0] = clc_stringcmd;
-				strcpy (final+1, "drop");
-			}
+		case CP_QUAKEWORLD:
+			final[0] = clc_stringcmd;
+			strcpy (final+1, "drop");
 			Netchan_Transmit (&cls.netchan, strlen(final)+1, final, 2500);
 			Netchan_Transmit (&cls.netchan, strlen(final)+1, final, 2500);
 			Netchan_Transmit (&cls.netchan, strlen(final)+1, final, 2500);
+			break;
 		}
 
 		cls.state = ca_disconnected;
@@ -963,8 +963,6 @@ void CL_Disconnect (void)
 
 #ifdef NQPROT
 	cls.signon=0;
-	NET_Close(cls.netcon);
-	cls.netcon = NULL;
 #endif
 	CL_StopUpload();
 
@@ -973,9 +971,7 @@ void CL_Disconnect (void)
 #endif
 		SCR_EndLoadingPlaque();
 
-#ifdef Q2CLIENT
-	cls.q2server = 0;
-#endif
+	cls.protocol = CP_UNKNOWN;
 }
 
 #undef serverrunning
@@ -1121,7 +1117,7 @@ void CL_Color_f (void)
 	else
 		Cvar_Set (&bottomcolor, num);
 #ifdef NQPROT
-	if (cls.netcon)
+	if (cls.protocol == CP_NETQUAKE)
 		Cmd_ForwardToServer();
 #endif
 }
@@ -1391,7 +1387,7 @@ void CL_SetInfo_f (void)
 	if (cls.state >= ca_connected)
 	{
 #ifdef Q2CLIENT
-		if (cls.q2server)
+		if (cls.protocol == CP_QUAKE2)
 			cls.resendinfo = true;
 		else
 #endif
@@ -1612,7 +1608,7 @@ void CL_Reconnect_f (void)
 	if (cls.downloadqw)  // don't change when downloading
 		return;
 #ifdef NQPROT
-	if (cls.netcon)
+	if (cls.protocol == CP_NETQUAKE)
 	{
 		CL_Changing_f();
 		return;
@@ -1687,6 +1683,7 @@ void CL_ConnectionlessPacket (void)
 			if (*s2)
 			{//and if it's not, we're unlikly to be compatable with whatever it is that's talking at us.
 #ifdef NQPROT
+				cls.protocol = CP_NETQUAKE;
 				CL_ConnectToDarkPlaces(s+9, net_from);
 #else
 				Con_Printf("\nUnable connect to DarkPlaces\n");
@@ -1695,7 +1692,7 @@ void CL_ConnectionlessPacket (void)
 			}
 
 #ifdef Q2CLIENT
-			cls.q2server = true;
+			cls.protocol = CP_QUAKE2;
 #else
 			Con_Printf("\nUnable to connect to Quake2\n");
 #endif
@@ -1713,7 +1710,7 @@ void CL_ConnectionlessPacket (void)
 			goto client_connect;
 		}
 		else
-			cls.q2server = false;
+			cls.protocol = CP_QUAKEWORLD;
 #endif
 		cls.challenge = atoi(s);
 
@@ -1736,7 +1733,7 @@ void CL_ConnectionlessPacket (void)
 		return;
 	}
 #ifdef Q2CLIENT
-	if (cls.q2server)
+	if (cls.protocol == CP_QUAKE2)
 	{
 		char *nl;
 		msg_readcount--;
@@ -1791,16 +1788,12 @@ void CL_ConnectionlessPacket (void)
 		COM_Parse(s);
 		if (!strcmp(com_token, "ccept"))
 		{
-			cls.netcon = Datagram_ConnectToDarkPlacesServer(&net_from);
-
-			SockadrToNetadr(&cls.netcon->addr, &net_from);
-			Netchan_Setup(cls.netcon->socket, &cls.netchan, net_from, cls.qport);
-			cls.netchan.qsocket = cls.netcon;
+			Netchan_Setup(NS_CLIENT, &cls.netchan, net_from, cls.qport);
 			Con_DPrintf ("CL_EstablishConnection: connected to %s\n", cls.servername);
 			
-			cls.netchan.qsocket = cls.netcon;
 
 			cls.netchan.isnqprotocol = true;
+			cls.protocol = CP_NETQUAKE;
 			
 			cls.demonum = -1;			// not in the demo loop now
 			cls.state = ca_connected;
@@ -1835,9 +1828,6 @@ client_connect:	//fixme: make function
 		compress = cls.netchan.compress;
 		Netchan_Setup (NS_CLIENT, &cls.netchan, net_from, cls.qport);
 		cls.netchan.compress = compress;
-#ifdef NQPROT
-		cls.netchan.qsocket = cls.netcon;
-#endif
 #ifdef Q3CLIENT
 		if (cls.q2server < 2)
 #endif
@@ -1853,8 +1843,8 @@ client_connect:	//fixme: make function
 		char	cmdtext[2048];
 
 		Con_TPrintf (TLC_CONLESS_CONCMD);
-		if (net_from.type != net_local_ipadr.type
-			|| ((*(unsigned *)net_from.ip != *(unsigned *)net_local_ipadr.ip) && (*(unsigned *)net_from.ip != htonl(INADDR_LOOPBACK))))
+		if (net_from.type != net_local_cl_ipadr.type
+			|| ((*(unsigned *)net_from.ip != *(unsigned *)net_local_cl_ipadr.ip) && (*(unsigned *)net_from.ip != htonl(INADDR_LOOPBACK))))
 		{
 			Con_TPrintf (TLC_CMDFROMREMOTE);
 			return;
@@ -1940,6 +1930,46 @@ client_connect:	//fixme: make function
 	Con_TPrintf (TLC_CONLESSPACKET_UNKNOWN, c);
 }
 
+#ifdef NQPROT
+void CLNQ_ConnectionlessPacket(void)
+{
+	char *s;
+	int length;
+
+	MSG_BeginReading ();
+	length = BigLong(MSG_ReadLong ());
+	if (!(length & NETFLAG_CTL))
+		return;	//not an nq control packet.
+	length &= NETFLAG_LENGTH_MASK;
+	if (length != net_message.cursize)
+		return;	//not an nq packet.
+
+	switch(MSG_ReadByte())
+	{
+	case CCREP_ACCEPT:
+		if (cls.state >= ca_connected)
+		{
+			if (cls.demoplayback == DPB_NONE)
+				Con_TPrintf (TLC_DUPCONNECTION);
+			return;
+		}
+		net_from.port = htons(MSG_ReadLong());
+		Netchan_Setup (NS_CLIENT, &cls.netchan, net_from, cls.qport);
+		cls.netchan.isnqprotocol = true;
+		cls.netchan.compress = 0;
+		cls.protocol = CP_NETQUAKE;
+		cls.state = ca_connected;
+		Con_TPrintf (TLC_CONNECTED);
+		allowremotecmd = false; // localid required now for remote cmds
+		return;
+
+	case CCREP_REJECT:
+		s = MSG_ReadString();
+		Con_Printf("Connect failed\n%s\n");
+		return;
+	}
+}
+#endif
 
 /*
 =================
@@ -1954,6 +1984,7 @@ void CL_ReadPackets (void)
 #ifdef NQPROT
 		if (cls.demoplayback == DPB_NETQUAKE)
 		{
+			MSG_BeginReading ();
 			cls.netchan.last_received = realtime;
 			CLNQ_ParseServerMessage ();
 			continue;
@@ -1983,84 +2014,65 @@ void CL_ReadPackets (void)
 			continue;
 		}
 
+		if (cls.state == ca_disconnected)
+		{	//connect to nq servers, but don't get confused with sequenced packets.
+#ifdef NQPROT
+			CLNQ_ConnectionlessPacket ();
+#endif
+			continue;	//ignore it. We arn't connected.
+		}
+
 		//
 		// packet from server
 		//
 		if (!cls.demoplayback && 
 			!NET_CompareAdr (net_from, cls.netchan.remote_address))
 		{
-			Con_DPrintf ("%s:sequenced packet without connection\n"
+			Con_DPrintf ("%s:sequenced packet from wrong server\n"
 				,NET_AdrToString(net_from));
 			continue;
 		}
-		if (cls.state == ca_disconnected)
-			continue;	//ignore it. We arn't connected.
 
-#ifdef Q3CLIENT
-		if (cls.q2server == 2)
+		switch(cls.protocol)
 		{
+#ifdef Q3CLIENT
+		case CP_QUAKE3:
 			CLQ3_ParseServerMessage();
-			continue;
-		}
+			break;
 #endif
-
-		if (cls.demoplayback == DPB_MVD)
-			MSG_BeginReading();
-		else if (!Netchan_Process(&cls.netchan))
-			continue;		// wasn't accepted for some reason
-
+#ifdef NQPROT
+		case CP_NETQUAKE:
+			switch(NQNetChan_Process(&cls.netchan))
+			{
+			case 0:
+				break;
+			case 1:
+				cls.netchan.incoming_sequence = cls.netchan.outgoing_sequence - 3;
+			case 2:
+				CLNQ_ParseServerMessage ();
+				break;
+			}
+			break;
+#endif
 #ifdef Q2CLIENT
-		if (cls.q2server)
+		case CP_QUAKE2:
+			if (!Netchan_Process(&cls.netchan))
+				continue;		// wasn't accepted for some reason
 			CLQ2_ParseServerMessage ();
-		else
+			break;
 #endif
+		case CP_QUAKEWORLD:
+			if (cls.demoplayback == DPB_MVD)
+				MSG_BeginReading();
+			else if (!Netchan_Process(&cls.netchan))
+				continue;		// wasn't accepted for some reason
 			CL_ParseServerMessage ();
+			break;
+		}
 
 //		if (cls.demoplayback && cls.state >= ca_active && !CL_DemoBehind())
 //			return;
 	}
-#ifdef NQPROT
-	while(CLNQ_GetMessage()>0)
-	{
-		//allow qw protocol over nq transports
-		if (cls.netcon->qwprotocol)
-		{			
-			if (*(int *)net_message.data == -1)
-			{
-				CL_ConnectionlessPacket ();
-				continue;
-			}
-
-			if (net_message.cursize < 8)
-			{
-				Con_TPrintf (TL_RUNTPACKET,NET_AdrToString(net_from));
-				continue;
-			}
-
-			if (cls.state == ca_disconnected)
-				continue;	//ignore it. We arn't connected.
-			
-			memcpy(&cls.netchan.remote_address, &net_from, sizeof(net_from));
-			if (!Netchan_Process(&cls.netchan))			
-				continue;		// wasn't accepted for some reason
-//			MSG_BeginReading();
-//			MSG_ReadLong();
-//			MSG_ReadLong();
-
-#ifdef Q2CLIENT
-				if (cls.q2server)
-				CLQ2_ParseServerMessage ();
-			else
-#endif
-				CL_ParseServerMessage ();
-		}
-		else
-		{
-			cls.netchan.last_received = realtime;
-			CLNQ_ParseServerMessage ();
-		}
-	}
-#endif
 
 	//
 	// check timeout
@@ -2096,7 +2108,7 @@ void CL_Download_f (void)
 	{
 		if (Cmd_IsInsecure())
 			return;
-		HTTP_CL_Get(url, Cmd_Argv(2));//"test.txt");
+		HTTP_CL_Get(url, Cmd_Argv(2), NULL);//"test.txt");
 		return;
 	}
 #endif
@@ -2209,7 +2221,7 @@ void CL_ServerInfo_f(void)
 #ifdef WEBCLIENT
 void CL_FTP_f(void)
 {	
-	FTP_Client_Command(Cmd_Args()); 
+	FTP_Client_Command(Cmd_Args(), NULL); 
 }
 #endif
 #ifdef IRCCLIENT
@@ -2664,14 +2676,8 @@ void Host_Frame (float time)
 	oldrealtime = realtime;
 
 
-#if defined(NQPROT) || defined(Q2CLIENT)
-#if defined(NQPROT) && defined(Q2CLIENT)
-	if (cls.q2server || cls.demoplayback == DPB_NETQUAKE)
-#elif defined(NQPROT)
-	if (cls.demoplayback == DPB_NETQUAKE)
-#elif defined(Q2CLIENT)
-	if (cls.q2server)
-#endif
+#if defined(Q2CLIENT)
+	if (cls.protocol == CP_QUAKE2)
 		cl.time += host_frametime;
 #endif
 
@@ -2696,11 +2702,6 @@ void Host_Frame (float time)
 	cls.framecount++;
 
 	RSpeedRemark();
-
-#ifdef NQPROT
-	NET_Poll();
-#endif
-
 
 	CL_UseIndepPhysics(!!cl_indepphysics.value);
 
@@ -2791,10 +2792,6 @@ void Host_Frame (float time)
 
 	// process console commands
 	Cbuf_Execute ();
-
-#ifdef NQPROT
-	NET_Poll();
-#endif
 
 	if (cls.downloadtype == dl_none && !*cls.downloadname && cl.downloadlist)
 	{

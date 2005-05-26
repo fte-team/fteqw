@@ -3166,7 +3166,7 @@ void R_DrawWorld (void)
 			int leafnum;
 			int clientarea;
 			int CM_WriteAreaBits (qbyte *buffer, int area);
-			if (cls.q2server)	//we can get server sent info
+			if (cls.protocol == CP_QUAKE2)	//we can get server sent info
 				memcpy(areabits, cl.q2frame.areabits, sizeof(areabits));
 			else
 			{	//generate the info each frame.

@@ -339,7 +339,7 @@ void M_Menu_Keys_f (void)
 	m_entersound = true;
 
 #ifdef Q2CLIENT
-	if (cls.q2server)
+	if (cls.protocol == CP_QUAKE2)
 		bindnames = q2bindnames;
 	else
 #endif

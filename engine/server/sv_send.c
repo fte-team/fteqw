@@ -83,7 +83,7 @@ void SV_FlushRedirect (void)
 			spare = s[chop];
 			s[chop] = '\0';
 
-			ClientReliableWrite_Begin (host_client, host_client->isq2client?svcq2_print:svc_print, chop+3);
+			ClientReliableWrite_Begin (host_client, host_client->protocol==SCP_QUAKE2?svcq2_print:svc_print, chop+3);
 			ClientReliableWrite_Byte (host_client, PRINT_HIGH);
 			ClientReliableWrite_String (host_client, s);
 
@@ -91,7 +91,7 @@ void SV_FlushRedirect (void)
 			totallen -= chop;
 			s[0] = spare;
 		}
-		ClientReliableWrite_Begin (host_client, host_client->isq2client?svcq2_print:svc_print, strlen(s)+3);
+		ClientReliableWrite_Begin (host_client, host_client->protocol==SCP_QUAKE2?svcq2_print:svc_print, strlen(s)+3);
 		ClientReliableWrite_Byte (host_client, PRINT_HIGH);
 		ClientReliableWrite_String (host_client, s);
 	}
@@ -223,9 +223,9 @@ EVENT MESSAGES
 
 static void SV_PrintToClient(client_t *cl, int level, char *string)
 {
-	ClientReliableWrite_Begin (cl, cl->isq2client?svcq2_print:svc_print, strlen(string)+3);
+	ClientReliableWrite_Begin (cl, cl->protocol==SCP_QUAKE2?svcq2_print:svc_print, strlen(string)+3);
 #ifdef NQPROT
-	if (cl->nqprot)
+	if (!ISQWCLIENT(cl))
 	{
 		if (level == PRINT_CHAT)
 			ClientReliableWrite_Byte (cl, 1);
@@ -416,7 +416,7 @@ void VARGS SV_BroadcastCommand (char *fmt, ...)
 			continue;
 		if (cl->state>=cs_connected)
 		{
-			ClientReliableWrite_Begin(cl, cl->isq2client?svcq2_stufftext:svc_stufftext, strlen(string)+2);
+			ClientReliableWrite_Begin(cl, ISQ2CLIENT(cl)?svcq2_stufftext:svc_stufftext, strlen(string)+2);
 			ClientReliableWrite_String (cl, string);
 		}
 	}
@@ -527,7 +527,7 @@ void SV_MulticastProtExt(vec3_t origin, multicast_t to, int dimension_mask, int 
 			}
 
 #ifdef NQPROT
-			if (client->nqprot)
+			if (!ISQWCLIENT(client))
 			{
 				if (reliable)
 				{
@@ -604,16 +604,15 @@ void SV_MulticastProtExt(vec3_t origin, multicast_t to, int dimension_mask, int 
 				continue;
 			}
 
-			if (svprogfuncs)
-				if (!((int)client->edict->v->dimension_see & dimension_mask))
-					continue;
-
 			if (to == MULTICAST_PHS_R || to == MULTICAST_PHS) {
 				vec3_t delta;
 				VectorSubtract(origin, client->edict->v->origin, delta);
 				if (Length(delta) <= 1024)
 					goto inrange;
 			}
+			else if (svprogfuncs)
+				if (!((int)client->edict->v->dimension_see & dimension_mask))
+					continue;
 
 			leaf = Mod_PointInLeaf (client->edict->v->origin, sv.worldmodel);
 			if (leaf)
@@ -629,7 +628,7 @@ void SV_MulticastProtExt(vec3_t origin, multicast_t to, int dimension_mask, int 
 
 	inrange:
 	#ifdef NQPROT
-			if (client->nqprot)
+			if (!ISQWCLIENT(client))
 			{
 				if (reliable) {
 					ClientReliableCheckBlock(client, sv.nqmulticast.cursize);
@@ -905,6 +904,7 @@ void SV_WriteClientdataToMessage (client_t *client, sizebuf_t *msg)
 
 
 	// send the chokecount for r_netgraph
+	if (ISQWCLIENT(client))
 	if (client->chokecount)
 	{
 		MSG_WriteByte (msg, svc_chokecount);
@@ -915,12 +915,14 @@ void SV_WriteClientdataToMessage (client_t *client, sizebuf_t *msg)
 	for (split = client; split; split=split->controlled, pnum++)
 		SV_WriteEntityDataToMessage(split, msg, pnum);
 
+	MSG_WriteByte (msg, svc_time);
+	MSG_WriteFloat(msg, sv.physicstime);
+	client->nextservertimeupdate = sv.physicstime;
+
 	// Z_EXT_TIME protocol extension
 	// every now and then, send an update so that extrapolation
 	// on client side doesn't stray too far off
-#ifdef NQPROT
-	if (!client->nqprot)
-#endif
+	if (ISQWCLIENT(client))
 	if (client->zquake_extensions & Z_EXT_SERVERTIME && sv.time - client->nextservertimeupdate > 0)
 	{
 		MSG_WriteByte (msg, svc_updatestatlong);
@@ -930,17 +932,16 @@ void SV_WriteClientdataToMessage (client_t *client, sizebuf_t *msg)
 		client->nextservertimeupdate = sv.time+10;
 	}
 
-
 #ifdef NQPROT
-	if (!client->nqprot)
+	if (ISQWCLIENT(client))
 		return;
 
 	ent = client->edict;
 
 
 	MSG_WriteByte (msg, svc_time);
-	MSG_WriteFloat(msg, sv.time);
-	client->nextservertimeupdate = sv.time+10;
+	MSG_WriteFloat(msg, sv.physicstime);
+	client->nextservertimeupdate = sv.physicstime;
 
 
 	bits = 0;
@@ -1223,12 +1224,13 @@ void SV_UpdateClientStats (client_t *client, int pnum)
 		{
 			client->stats[i] = stats[i];
 #ifdef NQPROT
-			if (client->nqprot)
+			if (!ISQWCLIENT(client))
 			{
 				ClientReliableWrite_Begin(client, svc_updatestat, 3);
 				ClientReliableWrite_Byte(client, i);
 				ClientReliableWrite_Long(client, stats[i]);
-			} else
+			}
+			else
 #endif
 			
 			if (pnum)
@@ -1284,7 +1286,7 @@ qboolean SV_SendClientDatagram (client_t *client)
 
 	if (sv.worldmodel && !client->controller)
 	{
-		if (client->isq2client)
+		if (ISQ2CLIENT(client))
 		{
 			SV_BuildClientFrame (client);
 
@@ -1314,7 +1316,7 @@ qboolean SV_SendClientDatagram (client_t *client)
 
 	// send deltas over reliable stream
 	if (sv.worldmodel)
-		if (!client->isq2client && Netchan_CanReliable (&client->netchan, SV_RateForClient(client)))
+		if (!ISQ2CLIENT(client) && Netchan_CanReliable (&client->netchan, SV_RateForClient(client)))
 		{
 			int pnum=1;
 			client_t *c;
@@ -1405,7 +1407,7 @@ void SV_UpdateToReliableMessages (void)
 			}
 			continue;
 		}
-		if (!host_client->isq2client)
+		if (!ISQ2CLIENT(host_client))
 		{
 			if (host_client->sendinfo)
 			{
@@ -1435,66 +1437,65 @@ void SV_UpdateToReliableMessages (void)
 
 				host_client->old_frags = host_client->edict->v->frags;
 			}
-		}
 
-		if (svprogfuncs)
-		{
-			extern cvar_t sv_gravity;
-			// maxspeed/entgravity changes
-			ent = host_client->edict;
-			
-			newval = ent->v->gravity*sv_gravity.value;
-			if (progstype != PROG_QW)
 			{
-				if (!newval)
-					newval = 1;
-			}
-
-			if (host_client->entgravity != newval)
-			{
-				sp = SV_SplitClientDest(host_client, svc_entgravity, 5);
-				ClientReliableWrite_Float(sp, newval/movevars.gravity);	//lie to the client in a cunning way
-				host_client->entgravity = newval;
-			}
-			newval = ent->v->maxspeed;
-			if (progstype != PROG_QW)
-			{
-				if (!newval)
-					newval = sv_maxspeed.value;
-			}
-			if (ent->v->hasted)
-				newval*=ent->v->hasted;
-	#ifdef SVCHAT	//enforce a no moving time when chatting. Prevent client prediction going mad.
-			if (host_client->chat.active)
-				newval = 0;
-	#endif
-			if (host_client->maxspeed != newval)
-			{	//MSVC can really suck at times (optimiser bug)
-
-				if (host_client->controller)
-				{	//this is a slave client.
-					//find the right number and send.
-					int pnum = 0;
-					client_t *sp;
-					for (sp = host_client->controller; sp; sp = sp->controlled)
-					{
-						if (sp == host_client)
-							break;
-						pnum++;
-					}
-					sp = host_client->controller;
-
-					ClientReliableWrite_Begin (sp, svc_choosesplitclient, 7);
-					ClientReliableWrite_Byte (sp, pnum);
-					ClientReliableWrite_Byte (sp, svc_maxspeed);
-					ClientReliableWrite_Float(sp, newval);
-				}
-				else
+				extern cvar_t sv_gravity;
+				// maxspeed/entgravity changes
+				ent = host_client->edict;
+				
+				newval = ent->v->gravity*sv_gravity.value;
+				if (progstype != PROG_QW)
 				{
-					ClientReliableWrite_Begin(host_client, svc_maxspeed, 5);
-					ClientReliableWrite_Float(host_client, newval);
+					if (!newval)
+						newval = 1;
 				}
-				host_client->maxspeed = newval;
+
+				if (host_client->entgravity != newval)
+				{
+					sp = SV_SplitClientDest(host_client, svc_entgravity, 5);
+					ClientReliableWrite_Float(sp, newval/movevars.gravity);	//lie to the client in a cunning way
+					host_client->entgravity = newval;
+				}
+				newval = ent->v->maxspeed;
+				if (progstype != PROG_QW)
+				{
+					if (!newval)
+						newval = sv_maxspeed.value;
+				}
+				if (ent->v->hasted)
+					newval*=ent->v->hasted;
+		#ifdef SVCHAT	//enforce a no moving time when chatting. Prevent client prediction going mad.
+				if (host_client->chat.active)
+					newval = 0;
+		#endif
+				if (host_client->maxspeed != newval)
+				{	//MSVC can really suck at times (optimiser bug)
+
+					if (host_client->controller)
+					{	//this is a slave client.
+						//find the right number and send.
+						int pnum = 0;
+						client_t *sp;
+						for (sp = host_client->controller; sp; sp = sp->controlled)
+						{
+							if (sp == host_client)
+								break;
+							pnum++;
+						}
+						sp = host_client->controller;
+
+						ClientReliableWrite_Begin (sp, svc_choosesplitclient, 7);
+						ClientReliableWrite_Byte (sp, pnum);
+						ClientReliableWrite_Byte (sp, svc_maxspeed);
+						ClientReliableWrite_Float(sp, newval);
+					}
+					else
+					{
+						ClientReliableWrite_Begin(host_client, svc_maxspeed, 5);
+						ClientReliableWrite_Float(host_client, newval);
+					}
+					host_client->maxspeed = newval;
+				}
 			}
 		}
 	}
@@ -1512,8 +1513,10 @@ void SV_UpdateToReliableMessages (void)
 	if (sv.nqdatagram.overflowed)
 		SZ_Clear (&sv.nqdatagram);
 #endif
+#ifdef Q2SERVER
 	if (sv.q2datagram.overflowed)
 		SZ_Clear (&sv.q2datagram);
+#endif
 
 	// append the broadcast messages to each client messages
 	for (j=0, client = svs.clients ; j<MAX_CLIENTS ; j++, client++)
@@ -1522,8 +1525,23 @@ void SV_UpdateToReliableMessages (void)
 			continue;	// reliables go to all connected or spawned
 		if (client->controller)
 			continue;	//splitscreen
+
+#ifdef Q2SERVER
+		if (ISQ2CLIENT(client))
+		{
+			ClientReliableCheckBlock(client, sv.q2reliable_datagram.cursize);
+			ClientReliableWrite_SZ(client, sv.q2reliable_datagram.data, sv.q2reliable_datagram.cursize);
+
+			if (client->state != cs_spawned)
+				continue;	// datagrams only go to spawned
+			SZ_Write (&client->datagram
+				, sv.q2datagram.data
+				, sv.q2datagram.cursize);
+		}
+		else
+#endif
 #ifdef NQPROT
-		if (client->nqprot)
+		if (!ISQWCLIENT(client))
 		{
 			ClientReliableCheckBlock(client, sv.nqreliable_datagram.cursize);
 			ClientReliableWrite_SZ(client, sv.nqreliable_datagram.data, sv.nqreliable_datagram.cursize);
@@ -1536,18 +1554,6 @@ void SV_UpdateToReliableMessages (void)
 		}
 		else
 #endif
-			 if (client->isq2client)
-		{
-			ClientReliableCheckBlock(client, sv.q2reliable_datagram.cursize);
-			ClientReliableWrite_SZ(client, sv.q2reliable_datagram.data, sv.q2reliable_datagram.cursize);
-
-			if (client->state != cs_spawned)
-				continue;	// datagrams only go to spawned
-			SZ_Write (&client->datagram
-				, sv.q2datagram.data
-				, sv.q2datagram.cursize);
-		}
-		else
 		{
 			ClientReliableCheckBlock(client, sv.reliable_datagram.cursize);
 			ClientReliableWrite_SZ(client, sv.reliable_datagram.data, sv.reliable_datagram.cursize);
@@ -1690,6 +1696,12 @@ void SV_SendClientMessages (void)
 
 		// only send messages if the client has sent one
 		// and the bandwidth is not choked
+		if (ISNQCLIENT(c))
+		{	//nq clients get artificial choke too
+			c->send_message = false;
+			if (c->nextservertimeupdate != sv.physicstime)
+				c->send_message = true;
+		}
 		if (!c->send_message)
 			continue;
 		c->send_message = false;	// try putting this after choke?

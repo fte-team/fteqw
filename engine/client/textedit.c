@@ -156,8 +156,6 @@ void CloseEditor(void)
 	key_dest = key_console;
 	editoractive = false;
 
-	editprogfuncs = NULL;
-
 	if (!firstblock)
 		return;
 	OpenEditorFile[0] = '\0';
@@ -170,6 +168,7 @@ void CloseEditor(void)
 	}
 
 	madechanges = false;
+	editormodal = false;
 
 	firstblock = NULL;
 
@@ -389,6 +388,11 @@ void Editor_Key(int key)
 		switch(key)
 		{
 		case K_ESCAPE:
+			if (editprogfuncs)
+				*editprogfuncs->pr_trace = 0;
+			useeval = false;
+			break;
+		case K_F3:
 			useeval = false;
 			break;
 		case K_DEL:
@@ -502,9 +506,9 @@ void Editor_Key(int key)
 		{
 			int f = 0;
 #ifndef CLIENTONLY
-		if (svprogfuncs)
+		if (editprogfuncs)
 		{
-			if (svprogfuncs->ToggleBreak(svprogfuncs, OpenEditorFile+strlen(com_gamedir)+1, cursorlinenum, 2))
+			if (editprogfuncs->ToggleBreak(editprogfuncs, OpenEditorFile+4, cursorlinenum, 2))
 				f |= 1;
 			else
 				f |= 2;
@@ -924,9 +928,6 @@ void Editor_Draw(void)
 
 int QCLibEditor(char *filename, int line, int nump, char **parms)
 {
-	editprogfuncs = svprogfuncs;
-
-
 	if (editormodal || !developer.value)
 		return line;	//whoops
 
@@ -979,6 +980,8 @@ int QCLibEditor(char *filename, int line, int nump, char **parms)
 		}
 	}
 
+	editprogfuncs = svprogfuncs;
+
 	for (cursorlinenum = 1, cursorblock = firstblock; cursorlinenum < line && cursorblock->next; cursorlinenum++)
 		cursorblock=cursorblock->next;
 
@@ -988,7 +991,7 @@ int QCLibEditor(char *filename, int line, int nump, char **parms)
 	{
 		editormodal = true;
 
-		while(editormodal && editoractive)
+		while(editormodal && editoractive && editprogfuncs)
 		{
 			key_dest = key_editor;
 			scr_disabled_for_loading=false;

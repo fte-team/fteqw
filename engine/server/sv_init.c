@@ -520,11 +520,7 @@ void SV_SpawnServer (char *server, char *startspot, qboolean noents, qboolean us
 
 		for (i = 0; i < MAX_CLIENTS; i++)
 		{
-			if (svs.clients[i].state
-#ifdef NQPROT
-                 && !svs.clients[i].nqprot
-#endif
-                 )
+			if (svs.clients[i].state && ISQWCLIENT(&svs.clients[i]))
 				ReloadRanking(&svs.clients[i], svs.clients[i].name);
 
 			if (svs.clients[i].spawninfo)	//don't remember this stuff.

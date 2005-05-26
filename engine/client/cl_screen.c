@@ -702,7 +702,7 @@ void SCR_CalcRefdef (void)
 		size = scr_viewsize.value;
 
 #ifdef Q2CLIENT
-	if (cls.q2server)
+	if (cls.protocol == CP_QUAKE2)	//q2 never has a hud.
 		sb_lines = 0;
 	else
 #endif

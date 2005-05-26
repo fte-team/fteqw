@@ -897,7 +897,7 @@ void ML_ProjectionMatrix(float *proj, float wdivh, float fovy)
 }
 
 //screen->3d
-/*
+
 void ML_UnProject(vec3_t in, vec3_t out, vec3_t viewangles, vec3_t vieworg, float wdivh, float fovy)
 {
 	float modelview[16];
@@ -924,7 +924,7 @@ void ML_UnProject(vec3_t in, vec3_t out, vec3_t viewangles, vec3_t vieworg, floa
 		out[1] = (1+v[1])/2;
 		out[2] = (1+v[2])/2;
 	}
-}*/
+}
 
 //returns fractions of screen.
 //uses GL style rotations and translations and stuff.

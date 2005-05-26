@@ -1300,7 +1300,7 @@ void SV_WritePlayersToClient (client_t *client, edict_t *clent, qbyte *pvs, size
 
 
 #ifdef NQPROT
-	if (client->nqprot)
+	if (!ISQWCLIENT(client))
 		return;
 #endif
 
@@ -1658,12 +1658,6 @@ unsigned int bits=0;
 
 int glowsize, glowcolor;
 
-	if (ent->v->modelindex >= 256)	//as much as protocols can handle
-		return;
-
-	if (entnum >= 768)		//too many for a conventional nq client.
-		return;
-
 	for (i=0 ; i<3 ; i++)
 	{				
 		miss = ent->v->origin[i] - ent->baseline.origin[i];
@@ -1697,14 +1691,14 @@ int glowsize, glowcolor;
 	if ((ent->baseline.effects & 0x00ff) != ((int)eff & 0x00ff))
 		bits |= NQU_EFFECTS;	
 
-	if (/*ent->baseline.modelindex !=*/ ent->v->modelindex)
+	if (ent->baseline.modelindex != ent->v->modelindex)
 		bits |= NQU_MODEL;
 
 	if (entnum >= 256)
 		bits |= NQU_LONGENTITY;
 
 
-//	if (usedpextensions)
+	if (1)
 	{
 		if (ent->baseline.trans != ent->v->alpha)
 			if (!(ent->baseline.trans == 1 && !ent->v->alpha))
@@ -1715,8 +1709,16 @@ int glowsize, glowcolor;
 				bits |= DPU_SCALE;
 		}
 
+		if (ent->v->modelindex >= 256)	//as much as protocols can handle
+			bits |= DPU_MODEL2;
+
 		if ((ent->baseline.effects&0xff00) != ((int)eff & 0xff00))
 			bits |= DPU_EFFECTS2;
+
+		if (ent->v->exteriormodeltoclient == EDICT_TO_PROG(svprogfuncs, host_client->edict))
+			bits |= DPU_EXTERIORMODEL;
+		if (ent->v->viewmodelforclient == EDICT_TO_PROG(svprogfuncs, host_client->edict))
+			bits |= DPU_VIEWMODEL;
 
 
 		glowsize = ent->v->glow_size*0.25f;
@@ -1727,14 +1729,21 @@ int glowsize, glowcolor;
 		if (0 != glowcolor)
 			bits |= DPU_GLOWCOLOR;
 	}
+	else
+	{
+		if (ent->v->modelindex >= 256)	//as much as protocols can handle
+			return;
+		if (entnum >= 768)		//too many for a conventional nq client.
+			return;
+	}
 
 
-	if (bits & 0xFF00)
-		bits |= NQU_MOREBITS;
-	if (bits & 0xFF0000)
-		bits |= DPU_EXTEND1;
 	if (bits & 0xFF000000)
 		bits |= DPU_EXTEND2;
+	if (bits & 0xFF0000)
+		bits |= DPU_EXTEND1;
+	if (bits & 0xFF00)
+		bits |= NQU_MOREBITS;
 
 
 //
@@ -1932,7 +1941,7 @@ void SV_WriteEntitiesToClient (client_t *client, sizebuf_t *msg, qboolean ignore
 	client_frame_t	*frame;
 	entity_state_t	*state;
 #ifdef NQPROT
-	int nqprot = client->nqprot;
+	int nqprot = !ISQWCLIENT(client);
 #endif
 
 	client_t *split;
@@ -1987,6 +1996,8 @@ void SV_WriteEntitiesToClient (client_t *client, sizebuf_t *msg, qboolean ignore
 		clent = NULL;
 
 	pvs = fatpvs;
+
+	host_client = client;
 
 	// send over the players in the PVS
 	SV_WritePlayersToClient (client, clent, pvs, msg);
@@ -2146,10 +2157,14 @@ void SV_WriteEntitiesToClient (client_t *client, sizebuf_t *msg, qboolean ignore
 			}
 		}
 
-/*		if (!ignorepvs)
+		if (!ignorepvs && ent != clent)
 		{
 			//branch out to the pvs testing.
-			if (ent->tagent)
+			if (ent->v->viewmodelforclient == EDICT_TO_PROG(svprogfuncs, client->edict))
+			{
+				//unconditional
+			}
+			else if (ent->tagent)
 			{
 				edict_t *p = ent;
 				int c = 10;
@@ -2166,7 +2181,7 @@ void SV_WriteEntitiesToClient (client_t *client, sizebuf_t *msg, qboolean ignore
 					continue;
 			}
 		}
-*/
+
 
 
 
@@ -2205,7 +2220,9 @@ void SV_WriteEntitiesToClient (client_t *client, sizebuf_t *msg, qboolean ignore
 #ifdef NQPROT
 		if (nqprot)
 		{
-			SVNQ_EmitEntity(msg, ent, e);			
+			if (msg->cursize + 32 > msg->maxsize)
+				break;
+			SVNQ_EmitEntity(msg, ent, e);
 			continue;
 		}
 #endif

@@ -106,19 +106,32 @@ void CDAudio_Play(int track, qboolean looping)
 	MCI_STATUS_PARMS	mciStatusParms;
 
 	if (!enabled)
+	{
+#ifndef NOMEDIA
+		Media_FakeTrack(track, looping);
+#endif
 		return;
+	}
 	
 	if (!cdValid)
 	{
 		CDAudio_GetAudioDiskInfo();
-		if (!cdValid)	
+		if (!cdValid)
+		{
+#ifndef NOMEDIA
+			Media_FakeTrack(track, looping);
+#endif
 			return;
+		}
 	}
 
 	track = remap[track];
 
 	if (track < 1 || track > maxTrack)
 	{
+#ifndef NOMEDIA
+		Media_FakeTrack(track, looping);
+#endif
 		Con_DPrintf("CDAudio: Bad track number %u.\n", track);
 		return;
 	}
@@ -307,6 +320,12 @@ static void CD_f (void)
 		return;
 	}
 
+	if (Q_strcasecmp(command, "loop") == 0)
+	{
+		CDAudio_Play((qbyte)Q_atoi(Cmd_Argv (2)), true);
+		return;
+	}
+
 	if (!cdValid)
 	{
 		CDAudio_GetAudioDiskInfo();
@@ -315,12 +334,6 @@ static void CD_f (void)
 			Con_Printf("No CD in player.\n");
 			return;
 		}
-	}
-
-	if (Q_strcasecmp(command, "loop") == 0)
-	{
-		CDAudio_Play((qbyte)Q_atoi(Cmd_Argv (2)), true);
-		return;
 	}
 
 	if (Q_strcasecmp(command, "stop") == 0)

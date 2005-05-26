@@ -284,9 +284,13 @@ typedef struct
 {
 // connection information
 	cactive_t	state;
-#ifdef Q2CLIENT
-	qboolean q2server;
-#endif
+
+	enum {
+		CP_UNKNOWN,
+		CP_QUAKEWORLD,
+		CP_NETQUAKE,
+		CP_QUAKE2
+	} protocol;
 
 	qboolean resendinfo;
 
@@ -362,7 +366,6 @@ typedef struct
 #endif
 	unsigned long z_ext;
 #ifdef NQPROT
-	struct qsocket_s *netcon;
 	int signon;
 #endif
 	translation_t language;
@@ -402,6 +405,7 @@ typedef struct
 
 	float		gamespeed;
 	qboolean	csqcdebug;
+	qboolean	allowsendpacket;
 
 	char		serverinfo[MAX_SERVERINFO_STRING];
 
@@ -448,6 +452,8 @@ typedef struct
 								// is rendering at.  allways <= realtime
 	float gametime;
 	float gametimemark;
+	float oldgametime;	//used as the old time to lerp cl.time from.
+						//if it's 0, cl.time will casually increase.
 
 	vec3_t		simorg[MAX_SPLITS];
 	vec3_t		simvel[MAX_SPLITS];
@@ -664,7 +670,7 @@ void CL_ClampPitch (int pnum);
 
 int  CL_ReadFromServer (void);
 void CL_WriteToServer (usercmd_t *cmd);
-void CL_BaseMove (usercmd_t *cmd, int pnum);
+void CL_BaseMove (usercmd_t *cmd, int pnum, float extra, float wantfps);
 
 
 float CL_KeyState (kbutton_t *key, int pnum);

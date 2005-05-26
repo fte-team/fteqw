@@ -488,14 +488,7 @@ void Master_AddMaster (char *address, int type, char *description)
 		Con_Printf("Failed to resolve address \"%s\"\n", address);
 		return;
 	}
-/*
-	if (type == MT_SINGLEQW || type == MT_SINGLENQ || type == MT_SINGLEQ2)	//single servers are added to the serverlist as well as the masters list
-	{
-		net_from = adr;
-		CL_ReadServerInfo(va("\\hostname\\%s", description), MT_SINGLEQ2, true);
-//		return;
-	}
-*/
+
 	if (type < MT_SINGLEQW)	//broadcasts
 	{
 		if (adr.type == NA_IP)
@@ -509,10 +502,32 @@ void Master_AddMaster (char *address, int type, char *description)
 		if (NET_CompareAdr(mast->adr, adr) && mast->type == type)	//already exists.
 			return;
 	}
-	mast = Z_Malloc(sizeof(master_t)+strlen(description));
+	mast = Z_Malloc(sizeof(master_t)+strlen(description)+1+strlen(address)+1);
 	mast->adr = adr;
+	mast->address = mast->name + strlen(description)+1;
 	mast->type = type;
 	strcpy(mast->name, description);
+	strcpy(mast->address, address);
+
+	mast->next = master;
+	master = mast;
+}
+
+void Master_AddMasterHTTP (char *address, int servertype, char *description)
+{
+	master_t *mast;
+
+	for (mast = master; mast; mast = mast->next)
+	{
+		if (!strcmp(mast->address, address) && mast->type == MT_MASTERHTTP)	//already exists.
+			return;
+	}
+	mast = Z_Malloc(sizeof(master_t)+strlen(description)+1+strlen(address)+1);
+	mast->address = mast->name + strlen(description)+1;
+	mast->type = MT_MASTERHTTP;
+	mast->servertype = servertype;
+	strcpy(mast->name, description);
+	strcpy(mast->address, address);
 
 	mast->next = master;
 	master = mast;
@@ -892,11 +907,63 @@ void SListOptionChanged(serverinfo_t *newserver)
 	}
 }
 
+#ifdef WEBCLIENT
+void MasterInfo_ProcessHTTP(char *name, qboolean success)
+{
+	netadr_t adr;
+	char *s;
+	char *el;
+	serverinfo_t *info;
+	if (!success)
+		return;
+
+	el = COM_LoadTempFile(name);
+	while(*el)
+	{
+		s = el;
+		while(*s <= ' ' && *s != '\n' && *s)
+			s++;
+		el = strchr(s, '\n');
+		if (!el)
+			el = s + strlen(s);
+		else if (el>s && el[-1] == '\r')
+			el[-1] = '\0';
+
+		if (*s == '#')	//hash is a comment, apparently.
+			continue;
+		*el = '\0';
+		el++;
+
+		if (!NET_StringToAdr(s, &adr))
+			continue;
+
+		if ((info = Master_InfoForServer(adr)))	//remove if the server already exists.
+		{
+			info->sends = 1;	//reset.
+		}
+		else
+		{
+			info = Z_Malloc(sizeof(serverinfo_t));
+			info->adr = adr;
+			info->sends = 1;
+			info->special = SS_NETQUAKE;
+			info->refreshtime = 0;
+
+			sprintf(info->name, "%s", NET_AdrToString(info->adr));
+
+			info->next = firstserver;
+			firstserver = info;
+		}
+	}
+
+	Sys_remove(va("%s/%s", com_gamedir, name));
+}
+#endif
 
 //don't try sending to servers we don't support
 void MasterInfo_Request(master_t *mast, qboolean evenifwedonthavethefiles)
 {
-	char *str;
+	static int mastersequence;
 	if (!mast)
 		return;
 	switch(mast->type)
@@ -924,13 +991,19 @@ void MasterInfo_Request(master_t *mast, qboolean evenifwedonthavethefiles)
 		SZ_Clear(&net_message);
 		break;
 	case MT_MASTERDP:
-		str = va("%c%c%c%cgetservers %s %u empty full\x0A\n", 255, 255, 255, 255, "Nexuiz", 3);
-		NET_SendPollPacket (strlen(str), str, mast->adr);
+		{
+			char *str;
+			str = va("%c%c%c%cgetservers %s %u empty full\x0A\n", 255, 255, 255, 255, com_gamename.string, 3);
+			NET_SendPollPacket (strlen(str), str, mast->adr);
+		}
 		break;
 	case MT_SINGLEDP:
 	case MT_BCASTDP:
-		str = va("%c%c%c%cgetinfo", 255, 255, 255, 255);
-		NET_SendPollPacket (strlen(str), str, mast->adr);
+		{
+			char *str;
+			str = va("%c%c%c%cgetinfo", 255, 255, 255, 255);
+			NET_SendPollPacket (strlen(str), str, mast->adr);
+		}
 		break;
 #endif
 	case MT_MASTERQW:
@@ -942,6 +1015,11 @@ void MasterInfo_Request(master_t *mast, qboolean evenifwedonthavethefiles)
 			NET_SendPollPacket (6, "query", mast->adr);
 		break;
 #endif
+	case MT_MASTERHTTP:
+#ifdef WEBCLIENT
+		HTTP_CL_Get(mast->address, va("master_%i_%i.tmp", mastersequence++, mast->servertype), MasterInfo_ProcessHTTP);
+#endif
+		break;
 	}
 }
 
@@ -1033,20 +1111,8 @@ void MasterInfo_Begin(void)
 	if (!Master_LoadMasterList("masters.txt",			MT_MASTERQW, 5))
 	{
 		Master_LoadMasterList("servers.txt",			MT_SINGLEQW, 1);
-//		if (q1servers)
-		{
-			Master_AddMaster("255.255.255.255:26000",		MT_BCASTNQ, "Nearby Quake1 servers");
-			Master_AddMaster("255.255.255.255:27500",		MT_BCASTQW, "Nearby QuakeWorld UDP servers.");
-		}
 
-//		if (q2servers)
-		{
-			Master_AddMaster("255.255.255.255:27910",		MT_BCASTQ2, "Nearby Quake2 UDP servers.");
-			Master_AddMaster("00000000:ffffffffffff:27910",	MT_BCASTQ2, "Nearby Quake2 IPX servers.");
-		}
-
-
-//		if (q1servers)
+//		if (q1servers)	//qw master servers
 		{
 			Master_AddMaster("192.246.40.37:27000",			MT_MASTERQW, "id Limbo");
 			Master_AddMaster("192.246.40.37:27002",			MT_MASTERQW, "id CTF");
@@ -1055,20 +1121,28 @@ void MasterInfo_Begin(void)
 			Master_AddMaster("192.246.40.37:27006",			MT_MASTERQW, "id Deathmatch Only");
 			Master_AddMaster("150.254.66.120:27000",		MT_MASTERQW, "Poland's master server.");
 			Master_AddMaster("62.112.145.129:27000",		MT_MASTERQW, "Ocrana master server.");
+
+			Master_AddMaster("255.255.255.255:27500",		MT_BCASTQW, "Nearby QuakeWorld UDP servers.");
 		}
 
-//		if (q2servers)
+//		if (q1servers)	//nq master servers
 		{
+			Master_AddMasterHTTP("http://www.gameaholic.com/servers/qspy-quake",SS_NETQUAKE, "gameaholic's NQ master");
+			Master_AddMaster("255.255.255.255:26000",		MT_BCASTNQ, "Nearby Quake1 servers");
+
+			Master_AddMaster("ghdigital.com:27950",				MT_MASTERDP, "DarkPlaces Master 1");
+			Master_AddMaster("dpmaster.deathmask.net:27950",	MT_MASTERDP, "DarkPlaces Master 2");
+			Master_AddMaster("12.166.196.192:27950",			MT_MASTERDP, "DarkPlaces Master 3");
+
+			Master_AddMaster("255.255.255.255:26000",			MT_BCASTDP, "Nearby DarkPlaces servers");
+		}
+
+//		if (q2servers)	//q2
+		{
+			Master_AddMaster("255.255.255.255:27910",		MT_BCASTQ2, "Nearby Quake2 UDP servers.");
+			Master_AddMaster("00000000:ffffffffffff:27910",	MT_BCASTQ2, "Nearby Quake2 IPX servers.");
 			Master_AddMaster("192.246.40.37:27900",			MT_MASTERQ2, "id q2 Master.");
 		}
-
-		Master_AddMaster("ghdigital.com:27950",				MT_MASTERDP, "DarkPlaces Master: Nexuiz");
-		Master_AddMaster("dpmaster.deathmask.net:27950",	MT_MASTERDP, "DarkPlaces Master: Nexuiz");
-		Master_AddMaster("12.166.196.192:27950",			MT_MASTERDP, "DarkPlaces Master: Nexuiz");
-
-		Master_AddMaster("255.255.255.255:26000",			MT_BCASTDP, "Nearby DarkPlaces servers");
-
-
 	}
 
 	for (mast = master; mast; mast=mast->next)
@@ -1084,6 +1158,22 @@ void Master_QueryServer(serverinfo_t *server)
 	server->refreshtime = Sys_DoubleTime();
 	if (server->special & SS_DARKPLACES)
 		sprintf(data, "%c%c%c%cgetinfo", 255, 255, 255, 255);
+	else if (server->special & SS_NETQUAKE)
+	{
+#ifdef NQPROT
+		SZ_Clear(&net_message);
+		net_message.packing = SZ_RAWBYTES;
+		net_message.currentbit = 0;
+		MSG_WriteLong(&net_message, 0);// save space for the header, filled in later
+		MSG_WriteByte(&net_message, CCREQ_SERVER_INFO);
+		MSG_WriteString(&net_message, NET_GAMENAME_NQ);	//look for either sort of server
+		MSG_WriteByte(&net_message, NET_PROTOCOL_VERSION);
+		*((int *)net_message.data) = BigLong(NETFLAG_CTL | (net_message.cursize & NETFLAG_LENGTH_MASK));
+		NET_SendPollPacket(net_message.cursize, net_message.data, server->adr);
+		SZ_Clear(&net_message);
+#endif
+		return;
+	}
 	else
 		sprintf(data, "%c%c%c%cstatus", 255, 255, 255, 255);
 	NET_SendPollPacket (strlen(data), data, server->adr);
@@ -1255,6 +1345,8 @@ int CL_ReadServerInfo(char *msg, int servertype, qboolean favorite)
 
 	info->players = 0;
 	info->maxplayers = atoi(Info_ValueForKey(msg, "maxclients"));
+	if (!info->maxplayers)
+		info->maxplayers = atoi(Info_ValueForKey(msg, "sv_maxclients"));
 
 	info->tl = atoi(Info_ValueForKey(msg, "timelimit"));
 	info->fl = atoi(Info_ValueForKey(msg, "fraglimit"));
@@ -1414,7 +1506,7 @@ void CL_MasterListParse(int type, qboolean slashpad)
 
 		p1 = MSG_ReadByte();
 		p2 = MSG_ReadByte();
-		info->adr.port = htons((p1<<8)|p2);
+		info->adr.port = htons((unsigned short)((p1<<8)|p2));
 		if (!info->adr.port)
 		{
 			Z_Free(info);

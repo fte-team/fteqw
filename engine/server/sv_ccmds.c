@@ -141,31 +141,21 @@ Make a master server current
 */
 void SV_SetMaster_f (void)
 {
-	char	data[2];
 	int		i;
 
 	Cvar_Set(&sv_public, "1");	//go public.
 
-	memset (&master_adr, 0, sizeof(master_adr));
+	Master_ClearAll();
+
+	if (!strcmp(Cmd_Argv(1), "none"))
+	{
+		Con_Printf ("Entering no-master mode\n");
+		return;
+	}
 
 	for (i=1 ; i<Cmd_Argc() ; i++)
 	{
-		if (!strcmp(Cmd_Argv(i), "none") || !NET_StringToAdr (Cmd_Argv(i), &master_adr[i-1]))
-		{
-			Con_TPrintf (STL_NOMASTERMODE);
-			return;
-		}
-		if (master_adr[i-1].port == 0)
-			master_adr[i-1].port = BigShort (27000);
-
-		Con_TPrintf (STL_MASTERAT, NET_AdrToString (master_adr[i-1]));
-
-		Con_TPrintf (STL_SENDINGPING);
-
-		data[0] = A2A_PING;
-		data[1] = 0;
-		if (sv.state)
-			NET_SendPacket (NS_SERVER, 2, data, master_adr[i-1]);
+		Master_Add(Cmd_Argv(i));
 	}
 
 	svs.last_heartbeat = -99999;
@@ -846,7 +836,7 @@ void SV_StuffToClient_f(void)
 
 	while((cl = SV_GetClientForString(clientname, &clnum)))
 	{
-		if (cl->isq2client)
+		if (cl->protocol == SCP_QUAKE2)
 			ClientReliableWrite_Begin (cl, svcq2_stufftext, 3+strlen(str) + (key?strlen(key)+6:0));
 		else
 			ClientReliableWrite_Begin (cl, svc_stufftext, 3+strlen(str) + (key?strlen(key)+6:0));
@@ -895,8 +885,8 @@ void SV_Status_f (void)
 
 	if (!sv.state)
 	{
-		if (net_local_ipadr.type != NA_LOOPBACK)
-			Con_Printf ("ip address       : %s\n",NET_AdrToString (net_local_ipadr));
+		if (net_local_sv_ipadr.type != NA_LOOPBACK)
+			Con_Printf ("ip address       : %s\n",NET_AdrToString (net_local_sv_ipadr));
 
 		Con_Printf("Server is not running\n");
 		return;
@@ -911,8 +901,8 @@ void SV_Status_f (void)
 	avg = 1000*svs.stats.latched_active / STATFRAMES;
 	pak = (float)svs.stats.latched_packets/ STATFRAMES;
 
-	if (net_local_ipadr.type != NA_LOOPBACK)
-		Con_Printf ("ip address       : %s\n",NET_AdrToString (net_local_ipadr));
+	if (net_local_sv_ipadr.type != NA_LOOPBACK)
+		Con_Printf ("ip address       : %s\n",NET_AdrToString (net_local_sv_ipadr));
 	Con_Printf ("cpu utilization  : %3i%%\n",(int)cpu);
 	Con_Printf ("avg response time: %i ms\n",(int)avg);
 	Con_Printf ("packets/frame    : %5.2f\n", pak);	//not relevent as a limit.

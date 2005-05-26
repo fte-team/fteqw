@@ -67,6 +67,7 @@ static char	*safeargvs[NUM_SAFE_ARGVS] =
 	{"-stdvid", "-nolan", "-nosound", "-nocdaudio", "-nojoy", "-nomouse"};
 
 cvar_t	registered = {"registered","0"};
+cvar_t	com_gamename = {"com_gamename", ""};
 
 qboolean	com_modified;	// set true if using non-id files
 
@@ -748,7 +749,7 @@ void MSG_WriteDeltaUsercmd (sizebuf_t *buf, usercmd_t *from, usercmd_t *cmd)
 //
 	bits = 0;
 #ifdef Q2CLIENT
-	if (cls.q2server)
+	if (cls.protocol == CP_QUAKE2)
 	{
 		if (cmd->angles[0] != from->angles[0])
 			bits |= Q2CM_ANGLE1;
@@ -4065,7 +4066,7 @@ char *COM_GetPathInfo (int i, int *crc)
 
 #ifdef WEBSERVER
 	if (httpserver.value)
-		protocol = va("http://%s/", NET_AdrToString (net_local_ipadr));
+		protocol = va("http://%s/", NET_AdrToString (net_local_sv_ipadr));
 	else
 #endif
 		protocol = "qw://";
@@ -4205,6 +4206,39 @@ potentialgamepath_t pgp[] = {
 	{"%s/baseq3/pak0.pk3",	"%s/baseq3"},	//quake3
 	{"%s/base/assets0.pk3",	"%s/base"}		//jk2
 };
+
+
+typedef struct {
+	char *gamename;	//sent to the master server when this is the current gamemode.
+	char *exename;	//used if the exe name contains this
+	char *argname;	//used if this was used as a parameter.
+	char *auniquefile;	//used if this file is relative from the gamedir
+
+	char *dir1;
+	char *dir2;
+	char *dir3;
+	char *dir4;
+} gamemode_info_t;
+gamemode_info_t gamemode_info[] = {
+//note that there is no basic 'fte' gamemode, this is because we aim for network compatability. Darkplaces-Quake is the closest we get.
+//this is to avoid having too many gamemodes anyway.
+	{"Darkplaces-Hipnotic",	"hipnotic",		"-hipnotic",	"hipnotic/pak0.pak","id1",		"qw",	"hipnotic",	"fte"},
+	{"Darkplaces-Rogue",	"rogue",		"-rogue",		"rogue/pak0.pak",	"id1",		"qw",	"rogue",	"fte"},
+	{"Nexuiz",				"nexuiz",		"-nexuiz",		"data/data.pk3",	"id1",		"qw",	"data",		"fte"},
+
+	{"Darkplaces-Quake",	"darkplaces",	"-quake",		"id1/pak0.pak",		"id1",		"qw",				"fte"},
+
+	//supported commercial mods (some are currently only partially supported)
+	{"FTE-Hexen2",			"hexen",		"-hexen2",		"data1/pak0.pak",	"data1",						"fte"},
+	{"FTE-Quake2",			"q2",			"-q2",			"baseq2/pak0.pak",	"baseq2",						"fte"},
+	{"FTE-Quake3",			"q3",			"-q3",			"baseq3/pak0.pk3",	"baseq3",						"fte"},
+
+	{"FTE-JK2",				"jk2",			"-jk2",			"base/assets0.pk3",	"base",							"fte"},
+
+	{NULL}
+};
+
+
 /*
 ================
 COM_InitFilesystem
@@ -4218,6 +4252,9 @@ void COM_InitFilesystem (void)
 	char *ev;
 
 
+	int gamenum=-1;
+	char *check;
+
 //
 // -basedir <path>
 // Overrides the system supplied base directory (under id1)
@@ -4227,6 +4264,44 @@ void COM_InitFilesystem (void)
 		strcpy (com_quakedir, com_argv[i+1]);
 	else
 		strcpy (com_quakedir, host_parms.basedir);
+
+
+
+	Cvar_Register(&com_gamename, "evil hacks");
+	//identify the game from a telling file
+	for (i = 0; gamemode_info[i].gamename; i++)
+	{
+		f = fopen(va("%s/%s", com_quakedir, gamemode_info[i].auniquefile), "rb");
+		if (f)
+		{
+			fclose(f);
+			gamenum = i;
+			break;
+		}
+	}
+	//use the game based on an exe name over the filesystem one.
+	for (i = 0; gamemode_info[i].gamename; i++)
+	{
+		if (strstr(com_argv[0], gamemode_info[i].exename))
+			gamenum = i;
+	}
+	//use the game based on an parameter over all else.
+	for (i = 0; gamemode_info[i].gamename; i++)
+	{
+		if (COM_CheckParm(gamemode_info[i].argname))
+			gamenum = i;
+	}
+
+	if (gamenum<0)
+	{
+		for (i = 0; gamemode_info[i].gamename; i++)
+		{
+			if (!strcmp(gamemode_info[i].argname, "-quake"))
+				gamenum = i;
+		}
+	}
+	Cvar_Set(&com_gamename, gamemode_info[gamenum].gamename);
+
 
 #ifdef _WIN32
 	{	//win32 sucks.
@@ -4281,22 +4356,15 @@ void COM_InitFilesystem (void)
 	}
 	else
 	{
-		for (i = 0; i < sizeof(pgp)/sizeof(pgp[0]); i++)
-		{
-			f = fopen(va(pgp[i].file, com_quakedir), "rb");
-			if (f)
-			{
-				fclose(f);
-				COM_AddGameDirectory (va(pgp[i].path, com_quakedir));
-				break;
-			}
-		}
-		if (i == sizeof(pgp)/sizeof(pgp[0]))
-			COM_AddGameDirectory (va(pgp[0].path, com_quakedir));	//just use the first. The assumption is that they unpacked thier data and deleted the pak files.
+		if (gamemode_info[gamenum].dir1)
+			COM_AddGameDirectory (va("%s/%s", com_quakedir, gamemode_info[gamenum].dir1));
+		if (gamemode_info[gamenum].dir2)
+			COM_AddGameDirectory (va("%s/%s", com_quakedir, gamemode_info[gamenum].dir2));
+		if (gamemode_info[gamenum].dir3)
+			COM_AddGameDirectory (va("%s/%s", com_quakedir, gamemode_info[gamenum].dir3));
+		if (gamemode_info[gamenum].dir4)
+			COM_AddGameDirectory (va("%s/%s", com_quakedir, gamemode_info[gamenum].dir4));
 	}
-
-	COM_AddGameDirectory (va("%s/qw", com_quakedir) );
-	COM_AddGameDirectory (va("%s/fte", com_quakedir) );
 
 	if (*com_homedir)
 		COM_AddGameDirectory (va("%s/fte", com_homedir) );
@@ -4314,8 +4382,6 @@ void COM_InitFilesystem (void)
 #endif
 	}
 }
-
-
 
 /*
 =====================================================================

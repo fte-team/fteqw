@@ -813,6 +813,12 @@ void PR_BreakPoint_f(void)
 #ifdef _DEBUG
 void QCLibTest(void)
 {
+	int size = 1024*1024*8;
+	char *buffer = BZ_Malloc(size);
+	svprogfuncs->save_ents(svprogfuncs, buffer, &size, 3);
+	COM_WriteFile("ssqccore.txt", buffer, size);
+	BZ_Free(buffer);
+
 	PR_TestForWierdness(svprogfuncs);
 }
 #endif
@@ -3408,6 +3414,19 @@ void PF_precache_sound (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 		if (!*sv.sound_precache[i])
 		{
 			strcpy(sv.sound_precache[i], s);
+
+
+			if (sv.state != ss_loading)
+			{
+				MSG_WriteByte(&sv.reliable_datagram, svc_precache);
+				MSG_WriteShort(&sv.reliable_datagram, i+32768);
+				MSG_WriteString(&sv.reliable_datagram, s);
+#ifdef NQPROT
+				MSG_WriteByte(&sv.nqreliable_datagram, svcdp_precache);
+				MSG_WriteShort(&sv.nqreliable_datagram, i+32768);
+				MSG_WriteString(&sv.nqreliable_datagram, s);
+#endif
+			}
 			return;
 		}
 		if (!strcmp(sv.sound_precache[i], s))
@@ -3450,6 +3469,18 @@ void PF_precache_model (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 			sv.model_precache[i] = PR_AddString(prinst, s, 0);
 			if (!strcmp(s + strlen(s) - 4, ".bsp"))
 				sv.models[i] = Mod_FindName(sv.model_precache[i]);
+
+			if (sv.state != ss_loading)
+			{
+				MSG_WriteByte(&sv.reliable_datagram, svc_precache);
+				MSG_WriteShort(&sv.reliable_datagram, i);
+				MSG_WriteString(&sv.reliable_datagram, s);
+#ifdef NQPROT
+				MSG_WriteByte(&sv.nqreliable_datagram, svcdp_precache);
+				MSG_WriteShort(&sv.nqreliable_datagram, i);
+				MSG_WriteString(&sv.nqreliable_datagram, s);
+#endif
+			}
 
 			return;
 		}
@@ -3582,16 +3613,16 @@ void PF_walkmove (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 //	oldf = pr_xfunction;
 	oldself = pr_global_struct->self;
 
-	if (!dist)
-	{
-		G_FLOAT(OFS_RETURN) = !SV_TestEntityPosition(ent);
-	}
-	else if (!SV_TestEntityPosition(ent))
-	{
+//	if (!dist)
+//	{
+//		G_FLOAT(OFS_RETURN) = !SV_TestEntityPosition(ent);
+//	}
+//	else if (!SV_TestEntityPosition(ent))
+//	{
 		G_FLOAT(OFS_RETURN) = SV_movestep(ent, move, true, false, settrace);
-		if (SV_TestEntityPosition(ent))
-			Con_Printf("Entity became stuck\n");
-	}
+//		if (SV_TestEntityPosition(ent))
+//			Con_Printf("Entity became stuck\n");
+//	}
 	
 	
 // restore program state
@@ -4527,7 +4558,7 @@ void PF_WriteEntity (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 void PF_WriteString2 (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
 	int old;
-	char *str = PF_VarString(prinst, 1, pr_globals);
+	char *str;
 	
 	if (G_FLOAT(OFS_PARM0) != MSG_CSQC && (qc_nonetaccess.value || sv.demofile))
 		return;
@@ -6024,6 +6055,8 @@ lh_extension_t QSG_Extensions[] = {
 	//reuses the FRIK_FILE builtins (with substring extension)
 	{"FTE_STRINGS",						18, NULL, {"stof", "strlen","strcat","substring","stov","strzone","strunzone",
 												   "strstrofs", "str2chr", "chr2str", "strconv", "infoadd", "infoget", "strncmp", "strcasecmp", "strncasecmp"}},
+
+	{"HYDR_WRITESTRING2",				1,	NULL, {"writestring2"}},
 
 	{"KRIMZON_SV_PARSECLIENTCOMMAND",	3,	NULL, {"clientcommand", "tokenize", "argv"}},	//very very similar to the mvdsv system.
 	{"QSG_CVARSTRING",					1,	NULL, {"cvar_string"}},
@@ -7781,13 +7814,105 @@ void PF_te_customflash(progfuncs_t *prinst, struct globalvars_s *pr_globals)
 //#408 void(vector mincorner, vector maxcorner, vector vel, float howmany, float color, float gravityflag, float randomveljitter) te_particlecube (DP_TE_PARTICLECUBE)
 void PF_te_particlecube(progfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
-#pragma message("PF_te_particlecube not implemented yet.")
+	float *min = G_VECTOR(OFS_PARM0);
+	float *max = G_VECTOR(OFS_PARM1);
+	float *dir = G_VECTOR(OFS_PARM2);
+	float count = G_FLOAT(OFS_PARM3);
+	float color = G_FLOAT(OFS_PARM4);
+	float gravityflag = G_FLOAT(OFS_PARM5);
+	float randomveljitter = G_FLOAT(OFS_PARM6);
+
+	vec3_t org;
+
+	if (count < 1)
+		return;
+
+	// [vector] min [vector] max [vector] dir [short] count [byte] color [byte] gravity [coord] randomvel
+
+	MSG_WriteByte (&sv.multicast, svc_temp_entity);
+	MSG_WriteByte (&sv.multicast, DPTE_PARTICLECUBE);
+	MSG_WriteCoord(&sv.multicast, min[0]);
+	MSG_WriteCoord(&sv.multicast, min[1]);
+	MSG_WriteCoord(&sv.multicast, min[2]);
+	MSG_WriteCoord(&sv.multicast, max[0]);
+	MSG_WriteCoord(&sv.multicast, max[1]);
+	MSG_WriteCoord(&sv.multicast, max[2]);
+	MSG_WriteCoord(&sv.multicast, dir[0]);
+	MSG_WriteCoord(&sv.multicast, dir[1]);
+	MSG_WriteCoord(&sv.multicast, dir[2]);
+	MSG_WriteShort(&sv.multicast, bound(0, count, 65535));
+	MSG_WriteByte (&sv.multicast, bound(0, color, 255));
+	MSG_WriteByte (&sv.multicast, (int)gravityflag!=0);
+	MSG_WriteCoord(&sv.multicast, randomveljitter);
+
+#ifdef NQPROT
+	MSG_WriteByte (&sv.nqmulticast, svc_temp_entity);
+	MSG_WriteByte (&sv.nqmulticast, DPTE_PARTICLECUBE);
+	MSG_WriteCoord(&sv.nqmulticast, min[0]);
+	MSG_WriteCoord(&sv.nqmulticast, min[1]);
+	MSG_WriteCoord(&sv.nqmulticast, min[2]);
+	MSG_WriteCoord(&sv.nqmulticast, max[0]);
+	MSG_WriteCoord(&sv.nqmulticast, max[1]);
+	MSG_WriteCoord(&sv.nqmulticast, max[2]);
+	MSG_WriteCoord(&sv.nqmulticast, dir[0]);
+	MSG_WriteCoord(&sv.nqmulticast, dir[1]);
+	MSG_WriteCoord(&sv.nqmulticast, dir[2]);
+	MSG_WriteShort(&sv.nqmulticast, bound(0, count, 65535));
+	MSG_WriteByte (&sv.nqmulticast, bound(0, color, 255));
+	MSG_WriteByte (&sv.nqmulticast, (int)gravityflag!=0);
+	MSG_WriteCoord(&sv.nqmulticast, randomveljitter);
+#endif
+
+	VectorAdd(min, max, org);
+	VectorScale(org, 0.5, org);
+	SV_Multicast(org, MULTICAST_PVS);
 }
 
 // #406 void(vector mincorner, vector maxcorner, float explosionspeed, float howmany) te_bloodshower (DP_TE_BLOODSHOWER)
 void PF_te_bloodshower(progfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
-#pragma message("PF_te_bloodshower not implemented yet.")
+	// [vector] min [vector] max [coord] explosionspeed [short] count
+	float *min = G_VECTOR(OFS_PARM0);
+	float *max = G_VECTOR(OFS_PARM1);
+	float speed = G_FLOAT(OFS_PARM2);
+	float count = G_FLOAT(OFS_PARM3);
+	vec3_t org;
+
+	MSG_WriteByte(&sv.multicast, svc_temp_entity);
+	MSG_WriteByte(&sv.multicast, DPTE_BLOODSHOWER);
+	// min
+	MSG_WriteCoord(&sv.multicast, min[0]);
+	MSG_WriteCoord(&sv.multicast, min[1]);
+	MSG_WriteCoord(&sv.multicast, min[2]);
+	// max
+	MSG_WriteCoord(&sv.multicast, max[0]);
+	MSG_WriteCoord(&sv.multicast, max[1]);
+	MSG_WriteCoord(&sv.multicast, max[2]);
+	// speed
+	MSG_WriteCoord(&sv.multicast, speed);
+	// count
+	MSG_WriteShort(&sv.multicast, bound(0, count, 65535));
+
+#ifdef NQPROT
+	MSG_WriteByte(&sv.nqmulticast, svc_temp_entity);
+	MSG_WriteByte(&sv.nqmulticast, DPTE_BLOODSHOWER);
+	// min
+	MSG_WriteCoord(&sv.nqmulticast, min[0]);
+	MSG_WriteCoord(&sv.nqmulticast, min[1]);
+	MSG_WriteCoord(&sv.nqmulticast, min[2]);
+	// max
+	MSG_WriteCoord(&sv.nqmulticast, max[0]);
+	MSG_WriteCoord(&sv.nqmulticast, max[1]);
+	MSG_WriteCoord(&sv.nqmulticast, max[2]);
+	// speed
+	MSG_WriteCoord(&sv.nqmulticast, speed);
+	// count
+	MSG_WriteShort(&sv.nqmulticast, bound(0, count, 65535));
+#endif
+
+	VectorAdd(min, max, org);
+	VectorScale(org, 0.5, org);
+	SV_Multicast(org, MULTICAST_PVS);	//fixme: should this be phs instead?
 }
 
 //DP_SV_EFFECT

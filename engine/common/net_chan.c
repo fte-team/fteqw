@@ -231,6 +231,104 @@ qboolean Netchan_CanReliable (netchan_t *chan, int rate)
 qboolean ServerPaused(void);
 #endif
 
+#ifdef NQPROT
+qboolean NQNetChan_Process(netchan_t *chan)
+{
+	int header;
+	int sequence;
+	int drop;
+
+	MSG_BeginReading ();
+
+	header = BigLong(MSG_ReadLong());
+	if (net_message.cursize != (header & NETFLAG_LENGTH_MASK))
+		return false;	//size was wrong, couldn't have been ours.
+
+	if (header & NETFLAG_CTL)
+		return false;	//huh?
+
+	sequence = BigLong(MSG_ReadLong());
+
+	if (header & NETFLAG_ACK)
+	{
+		if (sequence == chan->reliable_sequence)
+		{
+			chan->reliable_start += MAX_NQDATAGRAM;
+			if (chan->reliable_start >= chan->reliable_length)
+			{
+				chan->reliable_length = 0;	//they got the entire message
+				chan->reliable_start = 0;
+			}
+			chan->incoming_reliable_acknowledged = chan->reliable_sequence;
+			chan->reliable_sequence++;
+
+			chan->last_received = realtime;
+		}
+		else if (sequence < chan->reliable_sequence)
+			Con_DPrintf("Stale ack recieved\n");
+		else if (sequence > chan->reliable_sequence)
+			Con_Printf("Future ack recieved\n");
+
+		return false;	//don't try execing the 'payload'. I hate ack packets.
+	}
+
+	if (header & NETFLAG_UNRELIABLE)
+	{
+		if (sequence < chan->incoming_unreliable)
+		{
+			Con_DPrintf("Stale datagram recieved\n");
+			return false;
+		}
+		drop = sequence - chan->incoming_unreliable - 1;
+		if (drop > 0)
+			Con_DPrintf("Dropped %i datagrams\n", drop);
+		chan->incoming_unreliable = sequence;
+
+		chan->last_received = realtime;
+
+		chan->incoming_acknowledged++;
+		return 1;
+	}
+	if (header & NETFLAG_DATA)
+	{
+		int runt[2];
+		//always reply. a stale sequence probably means our ack got lost.
+		runt[0] = BigLong(NETFLAG_ACK | 8);
+		runt[1] = BigLong(sequence);
+		NET_SendPacket (chan->sock, 8, runt, net_from);
+
+		chan->last_received = realtime;
+		if (sequence == chan->incoming_reliable_sequence)
+		{
+			chan->incoming_reliable_sequence++;
+
+			if (chan->in_reliable_length + net_message.cursize-8 >= sizeof(chan->in_reliable_buf))
+			{
+				chan->fatal_error = true;
+				return false;
+			}
+
+			memcpy(chan->in_reliable_buf + chan->in_reliable_length, net_message.data+8, net_message.cursize-8);
+			chan->in_reliable_length += net_message.cursize-8;
+
+			if (header & NETFLAG_EOM)
+			{
+				SZ_Clear(&net_message);
+				SZ_Write(&net_message, chan->in_reliable_buf, chan->in_reliable_length);
+				chan->in_reliable_length = 0;
+				MSG_BeginReading();
+				return 2;	//we can read it now
+			}
+		}
+		else
+			Con_DPrintf("Stale reliable (%i)\n", sequence);
+		return false;
+	}
+
+	return false;	//not supported.
+}
+#endif
+
 /*
 ===============
 Netchan_Transmit
@@ -250,34 +348,62 @@ void Netchan_Transmit (netchan_t *chan, int length, qbyte *data, int rate)
 	int			i;
 
 #ifdef NQPROT
-	if (chan->qsocket && !chan->qsocket->qwprotocol)
+	if (chan->isnqprotocol)
 	{
-		if (!NET_CanSendMessage (chan->qsocket))
-			return;
-		if (!chan->reliable_length && chan->message.cursize)
-		{
-			memcpy (chan->reliable_buf, chan->message_buf, chan->message.cursize);
-			chan->reliable_length = chan->message.cursize;
-			chan->message.cursize = 0;
-			chan->reliable_sequence ^= 1;
-			send_reliable = true;
-		}
-
 		send.data = send_buf;
 		send.maxsize = MAX_NQMSGLEN + PACKET_HEADER;
 		send.cursize = 0;
 
-		chan->outgoing_sequence++;
-		chan->last_reliable_sequence = chan->outgoing_sequence;
+		//send out the unreliable
+		if (length)
+		{
+			MSG_WriteLong(&send, 0);
+			MSG_WriteLong(&send, BigLong(chan->outgoing_unreliable));
+			chan->outgoing_unreliable++;
 
-		SZ_Write (&send, chan->reliable_buf, chan->reliable_length);
+			SZ_Write (&send, data, length);
 
-		SZ_Write (&send, data, length);		
+			*(int*)send_buf = BigLong(NETFLAG_UNRELIABLE | send.cursize);
+			NET_SendPacket (chan->sock, send.cursize, send.data, chan->remote_address);
 
-		NET_SendMessage(chan->qsocket, &send);
+			if (chan->cleartime < realtime)
+				chan->cleartime = realtime + send.cursize/(float)rate;
+			else
+				chan->cleartime += send.cursize/(float)rate;
 
-		chan->message.cursize = 0;
-		chan->reliable_length = 0;
+			send.cursize = 0;
+		}
+
+		if (!chan->reliable_length && chan->message.cursize)
+		{
+			memcpy (chan->reliable_buf, chan->message_buf, chan->message.cursize);
+			chan->reliable_length = chan->message.cursize;
+			chan->reliable_start = 0;
+			chan->message.cursize = 0;
+		}
+
+		i = chan->reliable_length - chan->reliable_start;
+		if (i>0)
+		{
+			MSG_WriteLong(&send, 0);
+			MSG_WriteLong(&send, BigLong(chan->reliable_sequence));
+			if (i > MAX_NQDATAGRAM)
+				i = MAX_NQDATAGRAM;
+
+			SZ_Write (&send, chan->reliable_buf+chan->reliable_start, i);
+
+
+			if (chan->reliable_start+i == chan->reliable_length)
+				*(int*)send_buf = BigLong(NETFLAG_DATA | NETFLAG_EOM | send.cursize);
+			else
+				*(int*)send_buf = BigLong(NETFLAG_DATA | send.cursize);
+			NET_SendPacket (chan->sock, send.cursize, send.data, chan->remote_address);
+
+			if (chan->cleartime < realtime)
+				chan->cleartime = realtime + send.cursize/(float)rate;
+			else
+				chan->cleartime += send.cursize/(float)rate;
+		}
 		return;
 	}
 #endif
@@ -358,12 +484,7 @@ void Netchan_Transmit (netchan_t *chan, int length, qbyte *data, int rate)
 	if (!cls.demoplayback)
 #endif
 	{
-#ifdef NQPROT
-		if (chan->qsocket)
-			NET_SendUnreliableMessage(chan->qsocket, &send);	//qw protocol adds it's own reliability.
-		else
-#endif
-			NET_SendPacket (chan->sock, send.cursize, send.data, chan->remote_address);
+		NET_SendPacket (chan->sock, send.cursize, send.data, chan->remote_address);
 	}
 
 	if (chan->cleartime < realtime)

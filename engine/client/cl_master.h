@@ -10,6 +10,7 @@
 //despite not supporting nq or q2, we still load them. We just filter them. This is to make sure we properly write the listing files.
 enum {
 	MT_BAD,			//this would be an error
+	MT_MASTERHTTP,	//an http/ftp based master server
 	MT_BCASTQW,		//-1status
 	MT_BCASTQ2,		//-1status
 	MT_BCASTNQ,		//see code
@@ -95,7 +96,9 @@ typedef struct serverinfo_s {
 typedef struct master_s{
 	struct master_s *next;
 	netadr_t adr;
+	char *address;
 	int type;
+	int servertype;	//filled in for http servers
 	char name[1];
 } master_t;
 

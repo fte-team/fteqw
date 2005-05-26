@@ -51,7 +51,8 @@ struct sockaddr_qstorage
 };
 
 
-extern	netadr_t	net_local_ipadr;
+extern	netadr_t	net_local_sv_ipadr;
+extern	netadr_t	net_local_cl_ipadr;
 extern	netadr_t	net_from;		// address of who sent the packet
 extern	sizebuf_t	net_message;
 //#define	MAX_UDP_PACKET	(MAX_MSGLEN*2)	// one more than msg + header
@@ -112,12 +113,14 @@ typedef struct
 //	double		rate;				// seconds / qbyte
 
 // sequencing variables
+	int			incoming_unreliable;	//dictated by the other end.
 	int			incoming_sequence;
 	int			incoming_acknowledged;
 	int			incoming_reliable_acknowledged;	// single bit
 
 	int			incoming_reliable_sequence;		// single bit, maintained local
 
+	int			outgoing_unreliable;
 	int			outgoing_sequence;
 	int			reliable_sequence;			// single bit
 	int			last_reliable_sequence;		// sequence number of last send
@@ -126,7 +129,9 @@ typedef struct
 	sizebuf_t	message;		// writing buffer to send to server
 	qbyte		message_buf[MAX_OVERALLMSGLEN];
 
+	//nq has message truncation.
 	int			reliable_length;
+	int			reliable_start;
 	qbyte		reliable_buf[MAX_OVERALLMSGLEN];	// unacked reliable message
 
 // time and size data to calculate bandwidth
@@ -134,16 +139,10 @@ typedef struct
 	double		outgoing_time[MAX_LATENT];
 	qboolean	compress;
 
-#ifdef Q3CLIENT
-	int inLength;
-	char inBuffer[MAX_UDP_PACKET];
-	int inFragmentSequence;
-
-	qboolean outFragment;
-	int outLength;
-	int outStart;
-	char outBuffer[MAX_UDP_PACKET];
-#endif
+	//nq servers must recieve truncated packets.
+	int in_reliable_length;
+	char in_reliable_buf[MAX_OVERALLMSGLEN];
+	int in_reliable_start;
 } netchan_t;
 
 extern	int	net_drop;		// packets dropped before this one
@@ -168,7 +167,31 @@ int Huff_GetByte(qbyte *buffer, int *count);
 #endif
 
 #ifdef NQPROT
-#include "../nqnet/nqnet.h"
+//taken from nq's net.h
+//refer to that for usage info. :)
+
+#define NETFLAG_LENGTH_MASK	0x0000ffff
+#define NETFLAG_DATA		0x00010000
+#define NETFLAG_ACK			0x00020000
+#define NETFLAG_NAK			0x00040000
+#define NETFLAG_EOM			0x00080000
+#define NETFLAG_UNRELIABLE	0x00100000
+#define NETFLAG_CTL			0x80000000
+
+#define NET_GAMENAME_NQ		"QUAKE"
+#define NET_PROTOCOL_VERSION	3
+
+
+#define CCREQ_CONNECT		0x01
+#define CCREQ_SERVER_INFO	0x02
+#define CCREQ_PLAYER_INFO	0x03
+#define CCREQ_RULE_INFO		0x04
+
+#define CCREP_ACCEPT		0x81
+#define CCREP_REJECT		0x82
+#define CCREP_SERVER_INFO	0x83
+#define CCREP_PLAYER_INFO	0x84
+#define CCREP_RULE_INFO		0x85
 #endif
 
 int UDP_OpenSocket (int port, qboolean bcast);

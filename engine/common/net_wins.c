@@ -77,8 +77,12 @@ struct sockaddr;
 #define qerrno errno	//linux and single threaded oses are happy with errno as a global
 #endif
 
-netadr_t	net_local_ipadr;
-netadr_t	net_local_ip6adr;
+netadr_t	net_local_cl_ipadr;
+netadr_t	net_local_cl_ip6adr;
+netadr_t	net_local_cl_ipxadr;
+netadr_t	net_local_sv_ipadr;
+netadr_t	net_local_sv_ip6adr;
+netadr_t	net_local_sv_ipxadr;
 
 netadr_t	net_from;
 sizebuf_t	net_message;
@@ -1049,31 +1053,7 @@ qboolean NET_Sleep(int msec, qboolean stdinissocket)
 }
 #endif
 
-void NET_GetLocalIP6Address (int socket)
-{
-//	char	buff[512];
-	struct sockaddr_qstorage	address;
-	int		namelen;
-//	netadr_t adr;
-
-//	gethostname(buff, 512);
-//	buff[512-1] = 0;
-
-//	NET_StringToAdr (buff, &adr);
-
-	namelen = sizeof(address);
-	memset(&address, 0, sizeof(address));
-	if (getsockname (socket, (struct sockaddr *)&address, &namelen) == -1)
-		Sys_Error ("NET_Init: getsockname:", strerror(qerrno));
-
-	SockadrToNetadr(&address, &net_local_ip6adr);
-/*	if (!*(int*)net_local_ip6adr.ip)	//socket was set to auto
-		*(int *)net_local_ip6adr.ip = *(int *)adr.ip;	//change it to what the machine says it is, rather than the socket.
-*/
-	Con_TPrintf(TL_IPADDRESSIS, NET_AdrToString (net_local_ip6adr) );
-}
-
-void NET_GetLocalIPAddress (int socket)
+void NET_GetLocalAddress (int socket, netadr_t *out)
 {
 	char	buff[512];
 	struct sockaddr_qstorage	address;
@@ -1089,39 +1069,11 @@ void NET_GetLocalIPAddress (int socket)
 	if (getsockname (socket, (struct sockaddr *)&address, &namelen) == -1)
 		Sys_Error ("NET_Init: getsockname:", strerror(qerrno));
 
-	SockadrToNetadr(&address, &net_local_ipadr);
-	if (!*(int*)net_local_ipadr.ip)	//socket was set to auto
-		*(int *)net_local_ipadr.ip = *(int *)adr.ip;	//change it to what the machine says it is, rather than the socket.
+	SockadrToNetadr(&address, out);
+	if (!*(int*)out->ip)	//socket was set to auto
+		*(int *)out->ip = *(int *)adr.ip;	//change it to what the machine says it is, rather than the socket.
 
-	Con_TPrintf(TL_IPADDRESSIS, NET_AdrToString (net_local_ipadr) );
-}
-
-void NET_GetLocalIPXAddress (int socket)
-{
-	//we don't really care... this is for lans
-/*	char	buff[512];
-	struct sockaddr	address;
-	int		namelen;
-	netadr_t adr;
-
-	gethostname(buff, 512);
-	buff[512-1] = 0;
-
-	NET_StringToAdr (buff, &adr);
-
-	namelen = sizeof(address);
-	if (getsockname (socket, (struct sockaddr *)&address, &namelen) == -1)
-		Sys_Error ("NET_Init: getsockname:", strerror(qerrno));
-
-	SockadrToNetadr(&address, &net_local_adr);
-	if (!*(int*)net_local_ipadr.ip)
-		*(int *)net_local_ipadr.ip = *(int *)adr.ip;
-
-	if (net_local_adr.type == NA_IP)
-		Con_TPrintf(TL_IPADDRESSIS, NET_AdrToString (net_local_adr) );
-	else
-		Con_Printf("IPX Address: %s\n", NET_AdrToString (net_local_adr) );
-		*/
+	Con_TPrintf(TL_IPADDRESSIS, NET_AdrToString (*out) );
 }
 
 /*
@@ -1172,10 +1124,6 @@ void NET_Init (void)
 	svs.socketip6 = INVALID_SOCKET;
 	svs.socketipx = INVALID_SOCKET;
 #endif
-
-#ifdef NQPROT
-	NQ_NET_Init();
-#endif
 }
 #ifndef SERVERONLY
 void NET_InitClient(void)
@@ -1208,7 +1156,7 @@ void NET_InitClient(void)
 	//
 	// determine my name & address
 	//
-	NET_GetLocalIPAddress (cls.socketip);
+	NET_GetLocalAddress (cls.socketip, &net_local_cl_ipadr);
 
 	Con_TPrintf(TL_CLIENTPORTINITED);
 }
@@ -1237,7 +1185,9 @@ void NET_CloseServer(void)
 	}
 #endif
 
-	net_local_ipadr.type = NA_LOOPBACK;
+	net_local_sv_ipadr.type = NA_LOOPBACK;
+	net_local_sv_ip6adr.type = NA_LOOPBACK;
+	net_local_sv_ipxadr.type = NA_LOOPBACK;
 }
 
 void NET_InitServer(void)
@@ -1266,22 +1216,23 @@ void NET_InitServer(void)
 		if (svs.socketip == INVALID_SOCKET)
 		{
 			svs.socketip = UDP_OpenSocket (port, false);
-			if (svs.socketip6 != INVALID_SOCKET)
-				NET_GetLocalIPAddress (svs.socketip);
+			if (svs.socketip != INVALID_SOCKET)
+				NET_GetLocalAddress (svs.socketip, &net_local_sv_ipadr);
 		}
 #ifdef IPPROTO_IPV6
 		if (svs.socketip6 == INVALID_SOCKET)
 		{
 			svs.socketip6 = UDP6_OpenSocket (port, false);
 			if (svs.socketip6 != INVALID_SOCKET)
-				NET_GetLocalIP6Address (svs.socketip6);
+				NET_GetLocalAddress (svs.socketip6, &net_local_sv_ip6adr);
 		}
 #endif
 #ifdef USEIPX
 		if (svs.socketipx == INVALID_SOCKET)
 		{
 			svs.socketipx = IPX_OpenSocket (port, false);
-			NET_GetLocalIPXAddress (svs.socketipx);
+			if (svs.socketipx != INVALID_SOCKET)
+				NET_GetLocalAddress (svs.socketipx, &net_local_sv_ipxadr);
 		}
 #endif
 	}
@@ -1313,9 +1264,6 @@ void	NET_Shutdown (void)
 #ifdef USEIPX
 	IPX_CloseSocket (cls.socketipx);
 #endif
-#endif
-#ifdef NQPROT
-	NQ_NET_Shutdown();
 #endif
 #ifdef _WIN32
 #ifdef SERVERTONLY

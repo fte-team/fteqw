@@ -93,11 +93,7 @@ void NPP_Flush(void)
 			int i;
 			for (i = 0, cl = svs.clients; i < sv.allocated_client_slots; i++, cl++)
 			{
-				if (cl->state == cs_spawned
-#ifdef NQPROT
-					&& !cl->nqprot
-#endif
-					)
+				if (cl->state == cs_spawned && ISQWCLIENT(cl))
 				{
 					if (cl->zquake_extensions & Z_EXT_SERVERTIME)
 					{
@@ -167,11 +163,7 @@ void NPP_Flush(void)
 	if (cldest)
 	{
 		if (!requireextension || cldest->fteprotocolextensions & requireextension)
-#ifdef NQPROT
-		if (bufferlen && !cldest->nqprot)
-#else
-		if (bufferlen)
-#endif
+		if (bufferlen && ISQWCLIENT(cldest))
 		{
 			ClientReliableCheckBlock(cldest, bufferlen);
 			ClientReliableWrite_SZ(cldest, buffer, bufferlen);
@@ -257,7 +249,7 @@ void NPP_NQWriteByte(int dest, qbyte data)	//replacement write func (nq to qw)
 #ifdef NQPROT
 	if (dest == MSG_ONE) {
 		client_t *cl = Write_GetClient();
-		if (cl && cl->nqprot)
+		if (cl && !ISQWCLIENT(cl))
 		{			
 			ClientReliableCheckBlock(cl, sizeof(qbyte));
 			ClientReliableWrite_Byte(cl, data);
@@ -516,7 +508,7 @@ NPP_CheckDest(dest);
 #ifdef NQPROT
 	if (dest == MSG_ONE) {
 		client_t *cl = Write_GetClient();
-		if (cl && cl->nqprot)
+		if (cl && !ISQWCLIENT(cl))
 		{			
 			ClientReliableCheckBlock(cl, sizeof(short));
 			ClientReliableWrite_Short(cl, data);
@@ -539,7 +531,7 @@ void NPP_NQWriteLong(int dest, long data)	//replacement write func (nq to qw)
 #ifdef NQPROT
 	if (dest == MSG_ONE) {
 		client_t *cl = Write_GetClient();
-		if (cl && cl->nqprot)
+		if (cl && !ISQWCLIENT(cl))
 		{			
 			ClientReliableCheckBlock(cl, sizeof(long));
 			ClientReliableWrite_Long(cl, data);
@@ -563,7 +555,7 @@ NPP_CheckDest(dest);
 	if (dest == MSG_ONE)
 	{
 		client_t *cl = Write_GetClient();
-		if (cl && cl->nqprot)
+		if (cl && !ISQWCLIENT(cl))
 		{			
 			ClientReliableCheckBlock(cl, sizeof(char));
 			ClientReliableWrite_Angle(cl, in);
@@ -587,7 +579,7 @@ NPP_CheckDest(dest);
 #ifdef NQPROT
 	if (dest == MSG_ONE) {
 		client_t *cl = Write_GetClient();
-		if (cl && cl->nqprot)
+		if (cl && !ISQWCLIENT(cl))
 		{			
 			ClientReliableCheckBlock(cl, sizeof(float));
 			ClientReliableWrite_Coord(cl, in);
@@ -617,7 +609,7 @@ NPP_CheckDest(dest);
 #ifdef NQPROT
 	if (dest == MSG_ONE) {
 		client_t *cl = Write_GetClient();
-		if (cl && cl->nqprot)
+		if (cl && !ISQWCLIENT(cl))
 		{			
 			ClientReliableCheckBlock(cl, strlen(data)+1);
 			ClientReliableWrite_String(cl, data);
@@ -655,7 +647,7 @@ NPP_CheckDest(dest);
 #ifdef NQPROT
 	if (dest == MSG_ONE) {
 		client_t *cl = Write_GetClient();
-		if (cl && cl->nqprot)
+		if (cl && !ISQWCLIENT(cl))
 		{			
 			ClientReliableCheckBlock(cl, sizeof(short));
 			ClientReliableWrite_Short(cl, data);
@@ -717,13 +709,13 @@ void NPP_QWFlush(void)
 		break;
 		//ignore these.
 	case svc_intermission:
-		if (writedest == &sv.reliable_datagram)
+//		if (writedest == &sv.reliable_datagram)
 		{
 			client_t *cl;
 			int i;
 			for (i = 0, cl = svs.clients; i < sv.allocated_client_slots; i++, cl++)
 			{
-				if (cl->state == cs_spawned && cl->nqprot)
+				if (cl->state == cs_spawned && !ISQWCLIENT(cl))
 				{
 					vec3_t org, ang;
 
@@ -748,8 +740,9 @@ void NPP_QWFlush(void)
 					ang[2] = (*(qbyte*)&buffer[7+2])*360.0/255;
 
 					//move nq players to origin + angle
-					VectorCopy(cl->edict->v->origin, org);
-					VectorCopy(cl->edict->v->angles, ang);
+					VectorCopy(org, cl->edict->v->origin);
+					VectorCopy(ang, cl->edict->v->angles);
+					cl->edict->v->angles[0]*=-1;
 				}
 			}
 		}
@@ -758,7 +751,7 @@ void NPP_QWFlush(void)
 		writedest = NULL;
 //	case svc_finale:	
 //		bufferlen = 0;
-//		break;
+		break;
 	case svc_setview:
 		requireextension = PEXT_SETVIEW;
 //		bufferlen = 0;
@@ -854,7 +847,7 @@ void NPP_QWFlush(void)
 	if (cldest)
 	{
 		if (!requireextension || cldest->fteprotocolextensions & requireextension)
-		if (bufferlen && cldest->nqprot)
+		if (bufferlen && !ISQWCLIENT(cldest))
 		{
 			ClientReliableCheckBlock(cldest, bufferlen);
 			ClientReliableWrite_SZ(cldest, buffer, bufferlen);
@@ -937,7 +930,7 @@ void NPP_QWWriteByte(int dest, qbyte data)	//replacement write func (nq to qw)
 #ifdef NQPROT
 	if (dest == MSG_ONE) {
 		client_t *cl = Write_GetClient();
-		if (cl && !cl->nqprot)
+		if (cl && ISQWCLIENT(cl))
 		{			
 			ClientReliableCheckBlock(cl, sizeof(qbyte));
 			ClientReliableWrite_Byte(cl, data);
@@ -1085,7 +1078,7 @@ void NPP_QWWriteChar(int dest, char data)	//replacement write func (nq to qw)
 #ifdef NQPROT
 	if (dest == MSG_ONE) {
 		client_t *cl = Write_GetClient();
-		if (cl && !cl->nqprot)
+		if (cl && ISQWCLIENT(cl))
 		{			
 			ClientReliableCheckBlock(cl, sizeof(char));
 			ClientReliableWrite_Char(cl, data);
@@ -1110,7 +1103,7 @@ NPP_QWCheckDest(dest);
 #ifdef NQPROT
 	if (dest == MSG_ONE) {
 		client_t *cl = Write_GetClient();
-		if (cl && !cl->nqprot)
+		if (cl && ISQWCLIENT(cl))
 		{			
 			ClientReliableCheckBlock(cl, sizeof(short));
 			ClientReliableWrite_Short(cl, data);
@@ -1133,7 +1126,7 @@ void NPP_QWWriteLong(int dest, long data)	//replacement write func (nq to qw)
 #ifdef NQPROT
 	if (dest == MSG_ONE) {
 		client_t *cl = Write_GetClient();
-		if (cl && !cl->nqprot)
+		if (cl && ISQWCLIENT(cl))
 		{			
 			ClientReliableCheckBlock(cl, sizeof(long));
 			ClientReliableWrite_Long(cl, data);
@@ -1156,7 +1149,7 @@ NPP_QWCheckDest(dest);
 #ifdef NQPROT
 	if (dest == MSG_ONE) {
 		client_t *cl = Write_GetClient();
-		if (cl && !cl->nqprot)
+		if (cl && ISQWCLIENT(cl))
 		{			
 			ClientReliableCheckBlock(cl, sizeof(char));
 			ClientReliableWrite_Angle(cl, in);
@@ -1179,7 +1172,7 @@ void NPP_QWWriteCoord(int dest, float in)	//replacement write func (nq to qw)
 #ifdef NQPROT
 	if (dest == MSG_ONE) {
 		client_t *cl = Write_GetClient();
-		if (cl && !cl->nqprot)
+		if (cl && ISQWCLIENT(cl))
 		{
 			ClientReliableCheckBlock(cl, sizeof(float));
 			ClientReliableWrite_Coord(cl, in);
@@ -1209,7 +1202,7 @@ void NPP_QWWriteString(int dest, char *data)	//replacement write func (nq to qw)
 #ifdef NQPROT
 	if (dest == MSG_ONE) {
 		client_t *cl = Write_GetClient();
-		if (cl && !cl->nqprot)
+		if (cl && ISQWCLIENT(cl))
 		{			
 			ClientReliableCheckBlock(cl, strlen(data)+1);
 			ClientReliableWrite_String(cl, data);
@@ -1232,7 +1225,7 @@ NPP_QWCheckDest(dest);
 #ifdef NQPROT
 	if (dest == MSG_ONE) {
 		client_t *cl = Write_GetClient();
-		if (cl && !cl->nqprot)
+		if (cl && ISQWCLIENT(cl))
 		{			
 			ClientReliableCheckBlock(cl, sizeof(short));
 			ClientReliableWrite_Short(cl, data);

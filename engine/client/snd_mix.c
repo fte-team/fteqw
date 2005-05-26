@@ -607,9 +607,12 @@ void S_PaintChannels(soundcardinfo_t *sc, int endtime)
 				soundcardinfo_t *sndc;
 #define qmax(x, y) (x>y)?(x):(y)
 				len_diff = scache->length;
+//				start = ch->end - scache->length;
+//				samples = end - start;
+
 				ch->sfx->decoder->decodemore(ch->sfx, 
-						ch->pos + endtime-ltime+1000);
-						//ch->pos + qmax(end-ltime+1000, 1000));	//try to exceed by a little.
+					end - (ch->end - scache->length) + 1);
+//						ch->pos + end-ltime+1);
 
 				scache = S_LoadSound (ch->sfx);
 				if (!scache)

@@ -975,7 +975,7 @@ void SV_Loadgame_f (void)
 		if (cl->state <= cs_zombie)
 			continue;
 
-		if (cl->isq2client)
+		if (cl->protocol == SCP_QUAKE2)
 			MSG_WriteByte (&cl->netchan.message, svcq2_stufftext);
 		else
 			MSG_WriteByte (&cl->netchan.message, svc_stufftext);

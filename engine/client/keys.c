@@ -357,8 +357,8 @@ void Con_ExecuteLine(console_t *con, char *line)
 	else if (Cmd_IsCommand(line))
 		Cbuf_AddText (line, RESTRICT_LOCAL);	// valid command
 #ifdef Q2CLIENT
-	else if (cls.q2server)
-		Cbuf_AddText (line, RESTRICT_LOCAL);	// send the command to the server, and let the server convert to chat
+	else if (cls.protocol == CP_QUAKE2)
+		Cbuf_AddText (line, RESTRICT_LOCAL);	// send the command to the server via console, and let the server convert to chat
 #endif
 	else
 	{	// convert to a chat message

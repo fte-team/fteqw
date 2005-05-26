@@ -152,8 +152,11 @@ int OV_DecodeSome(sfx_t *s, int minlength)
 	ovdecoderbuffer_t *dec = s->decoder->buf;
 	int bytesread;
 
+	Con_Printf("Minlength = %03i   ", minlength);
+
 	if (dec->mediaaswavbuflen < dec->mediaaswavpos+minlength+11050)	//expand if needed.
 	{
+		Con_Printf("Expand buffer\n");
 		dec->mediaaswavbuflen += minlength+22100;
 		dec->mediaaswavdata = BZ_Realloc(dec->mediaaswavdata, dec->mediaaswavbuflen);
 		s->cache.data = dec->mediaaswavdata;
@@ -168,6 +171,7 @@ int OV_DecodeSome(sfx_t *s, int minlength)
 
 	if (minlength < sc->length)
 	{
+		Con_Printf("No need for decode\n");
 		//done enough for now, don't whizz through the lot
 		return 0;
 	}
@@ -176,7 +180,10 @@ int OV_DecodeSome(sfx_t *s, int minlength)
 	{
 		bytesread = p_ov_read(&dec->vf, dec->mediaaswavdata+dec->mediaaswavpos, dec->mediaaswavbuflen-dec->mediaaswavpos, bigendianp, 2, 1, &current_section);
 		if (bytesread <= 0)
+		{
+			Con_Printf("ogg decoding failed\n");
 			return 0;
+		}
 
 		if (snd_speed != dec->srcspeed)
 		{	//resample
@@ -198,7 +205,10 @@ int OV_DecodeSome(sfx_t *s, int minlength)
 		dec->mediasc.length = sc->length;
 
 		if (minlength<=sc->length)
+		{
+			Con_Printf("Reached length\n");
 			return 1;
+		}
 	}
 }
 void OV_CancelDecoder(sfx_t *s)

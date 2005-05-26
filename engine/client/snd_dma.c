@@ -85,6 +85,7 @@ cvar_t _snd_mixahead = {"_snd_mixahead", "0.2", NULL, CVAR_ARCHIVE};
 cvar_t snd_leftisright = {"snd_leftisright", "0", NULL, CVAR_ARCHIVE};
 cvar_t snd_eax = {"snd_eax", "0"};
 cvar_t snd_speakers = {"snd_numspeakers", "2"};
+cvar_t	snd_playersoundvolume = {"snd_localvolume", "1"};	//sugested by crunch
 
 cvar_t	snd_capture = {"snd_capture", "0"};
 
@@ -494,6 +495,8 @@ void S_Init (void)
 
 	Cvar_Register(&snd_inactive,		"Sound controls");
 
+	Cvar_Register(&snd_playersoundvolume,		"Sound controls");
+
 	if (host_parms.memsize < 0x800000)
 	{
 		Cvar_Set (&loadas8bit, "1");
@@ -716,7 +719,7 @@ void SND_Spatialize(soundcardinfo_t *sc, channel_t *ch)
 	{
 		for (i = 0; i < sc->sn.numchannels; i++)
 		{
-			ch->vol[i] = ch->master_vol;
+			ch->vol[i] = ch->master_vol * snd_playersoundvolume.value;
 			ch->delay[i] = 0;
 		}
 		return;

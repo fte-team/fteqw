@@ -62,6 +62,9 @@ typedef struct FTPclientconn_s{
 	IWEBFILE *f;
 
 	struct FTPclientconn_s *next;
+
+	void (*NotifyFunction)(char *localfile, qboolean sucess);	//called when failed or succeeded, and only if it got a connection in the first place.
+																//ftp doesn't guarentee it for anything other than getting though. :(
 } FTPclientconn_t;
 
 FTPclientconn_t *FTPclientconn;
@@ -504,6 +507,12 @@ iwboolean FTP_ClientConnThink (FTPclientconn_t *con)	//true to kill con
 				closesocket(con->datasock);
 				con->datasock = INVALID_SOCKET;
 
+				if (con->NotifyFunction)
+				{
+					con->NotifyFunction(con->localfile, false);
+					con->NotifyFunction = NULL;
+				}
+
 				if (con->transfersize != -1 && con->transfered != con->transfersize)
 				{
 					IWebPrintf("Transfer corrupt\nTransfered %i of %i bytes\n", con->transfered, con->transfersize);
@@ -652,6 +661,9 @@ void FTP_ClientThink (void)
 	{
 		if (FTP_ClientConnThink(con))
 		{
+			if (con->NotifyFunction)
+				con->NotifyFunction(con->localfile, false);
+
 			if (cls.downloadmethod == DL_FTP && !strcmp(cls.downloadname, con->localfile))
 			{	//this was us
 				cls.downloadmethod = DL_NONE;
@@ -691,7 +703,7 @@ FTPclientconn_t *FTP_FindControl(void)
 	}
 	return NULL;
 }
-void FTP_Client_Command (char *cmd)
+qboolean FTP_Client_Command (char *cmd, void (*NotifyFunction)(char *localfile, qboolean sucess))
 {
 	char command[64];
 	char server[MAX_OSPATH];
@@ -716,10 +728,14 @@ void FTP_Client_Command (char *cmd)
 					if (cmd)
 						Q_strncpyz(con->pwd, command, sizeof(con->pwd));
 				}
+
+				return true;
 			}
 			else
 				Con_Printf("FTP connect failed\n");
 		}
+
+		return false;
 	}
 	else if (!stricmp(command, "download"))
 	{
@@ -728,8 +744,9 @@ void FTP_Client_Command (char *cmd)
 		if (!con)
 		{
 			Con_Printf("FTP: Couldn't connect\n");
-			return;
+			return false;
 		}
+		con->NotifyFunction = NotifyFunction;
 		*con->server = '\0';
 		con->type = ftp_getting;
 		cmd = COM_ParseOut(cmd, server, sizeof(server));
@@ -738,6 +755,8 @@ void FTP_Client_Command (char *cmd)
 
 		if ((cmd = COM_ParseOut(cmd, server, sizeof(server))))
 			Q_strncpyz(con->localfile, server, sizeof(con->localfile));
+
+		return true;
 	}
 	else if (!stricmp(command, "quit"))
 	{
@@ -753,6 +772,8 @@ void FTP_Client_Command (char *cmd)
 		}
 		else
 			Con_Printf("No main FTP connection\n");
+
+		return true;
 	}
 	else if (!stricmp(command, "list"))
 	{
@@ -760,16 +781,18 @@ void FTP_Client_Command (char *cmd)
 		if (!con)
 		{
 			Con_Printf("Not connected\n");
-			return;
+			return false;
 		}
 
 		new = FTP_DuplicateConnection(con);
 		if (!new)
 		{
 			Con_Printf("Failed duplicate connection\n");
-			return;
+			return false;
 		}
 		new->type = ftp_listing;
+		new->NotifyFunction = NotifyFunction;
+		return true;
 	}
 	else if (!stricmp(command, "get"))
 	{
@@ -777,25 +800,27 @@ void FTP_Client_Command (char *cmd)
 		if (!con)
 		{
 			Con_Printf("Not connected\n");
-			return;
+			return false;
 		}
 
 		cmd = COM_ParseOut(cmd, command, sizeof(command));
 		if (!cmd)
 		{
 			Con_Printf("No file specified\n");
-			return;
+			return false;
 		}
 
 		new = FTP_DuplicateConnection(con);
 		if (!new)
 		{
 			Con_Printf("Failed duplicate connection\n");
-			return;
+			return false;
 		}
+		new->NotifyFunction = NotifyFunction;
 		new->type = ftp_getting;
 		sprintf(new->file, command);
 		sprintf(new->localfile, "%s%s", new->path, command);
+		return true;
 	}
 	else if (!stricmp(command, "put"))
 	{
@@ -803,25 +828,28 @@ void FTP_Client_Command (char *cmd)
 		if (!con)
 		{
 			Con_Printf("Not connected\n");
-			return;
+			return false;
 		}
 
 		cmd = COM_ParseOut(cmd, command, sizeof(command));
 		if (!cmd)
 		{
 			Con_Printf("No file specified\n");
-			return;
+			return false;
 		}
 
 		new = FTP_DuplicateConnection(con);
 		if (!new)
 		{
 			Con_Printf("Failed duplicate connection\n");
-			return;
+			return false;
 		}
+		new->NotifyFunction = NotifyFunction;
 		new->type = ftp_putting;
 		sprintf(new->file, command);
 		sprintf(new->localfile, "%s%s", new->path, command);
+
+		return true;
 	}
 	else if (!stricmp(command, "cwd"))
 	{
@@ -829,9 +857,10 @@ void FTP_Client_Command (char *cmd)
 		if (!con)
 		{
 			Con_Printf("Not connected\n");
-			return;
+			return false;
 		}
 		Con_Printf("%s\n", con->path);
+		return true;
 	}
 	else if (!stricmp(command, "cd"))
 	{
@@ -840,7 +869,7 @@ void FTP_Client_Command (char *cmd)
 		if (!con)
 		{
 			Con_Printf("Not connected\n");
-			return;
+			return false;
 		}
 
 		cmd = COM_ParseOut(cmd, command, sizeof(command));
@@ -854,7 +883,8 @@ void FTP_Client_Command (char *cmd)
 		}
 
 		msg = va("CWD %s%s\r\n", con->pathprefix, con->path);
-		send(con->controlsock, msg, strlen(msg), 0);
+		if (send(con->controlsock, msg, strlen(msg), 0)==strlen(msg))
+			return true;
 	}
 	else
 		Con_Printf("Unrecognised FTP command\n");
@@ -863,6 +893,8 @@ void FTP_Client_Command (char *cmd)
 	com = COM_ParseOut(com, command, sizeof(command));
 	com = COM_ParseOut(com, command, sizeof(command));
 	*/
+
+	return false;
 }
 
 #endif

@@ -143,6 +143,7 @@ typedef struct
 		float light;
 		float lightcolor[3];
 	float	start;
+	float	framerate;
 	model_t	*model;
 	int skinnum;
 } explosion_t;
@@ -259,6 +260,7 @@ explosion_t *CL_AllocExplosion (void)
 		if (!cl_explosions[i].model)
 		{
 			cl_explosions[i].firstframe = -1;
+			cl_explosions[i].framerate = 10;
 			return &cl_explosions[i];
 		}
 // find the oldest explosion
@@ -272,6 +274,7 @@ explosion_t *CL_AllocExplosion (void)
 			index = i;
 		}
 	cl_explosions[index].firstframe = -1;
+	cl_explosions[index].framerate = 10;
 	return &cl_explosions[index];
 }
 
@@ -367,7 +370,7 @@ void CL_ParseBeam (int tent)
 #endif
 	}
 
-	if (tent <= 2 && cls.state == ca_active && etype >= 0)
+	if (cls.state == ca_active && etype >= 0)
 	{
 		vec3_t impact, normal;
 		vec3_t extra;
@@ -1271,6 +1274,7 @@ void CL_ParseEffect (qboolean effect2)
 	ex->model = cl.model_precache[modelindex];
 	ex->firstframe = startframe;
 	ex->numframes = framecount;
+	ex->framerate = framerate;
 
 	ex->angles[0] = 0;
 	ex->angles[1] = 0;
@@ -2115,7 +2119,7 @@ void CL_UpdateExplosions (void)
 	{
 		if (!ex->model)
 			continue;
-		f = 10*(cl.time - ex->start);
+		f = ex->framerate*(cl.time - ex->start);
 		if (ex->firstframe >= 0)
 		{
 			firstframe = ex->firstframe;

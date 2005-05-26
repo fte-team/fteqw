@@ -209,6 +209,7 @@ extern qboolean noclip_anglehack;
 //
 extern	quakeparms_t host_parms;
 
+extern	cvar_t		com_gamename;
 extern	cvar_t		sys_ticrate;
 extern	cvar_t		sys_nostdout;
 extern	cvar_t		developer;

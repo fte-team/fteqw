@@ -1102,13 +1102,13 @@ void SV_Physics_Step (edict_t *ent)
 {
 	qboolean	hitsound;
 
+	if (ent->v->velocity[2] >= (1.0 / 32.0) && ((int)ent->v->flags & FL_ONGROUND))
+		ent->v->flags = (int)ent->v->flags & ~FL_ONGROUND;
+
 // frefall if not onground
 	if ( ! ((int)ent->v->flags & (FL_ONGROUND | FL_FLY | FL_SWIM) ) )
 	{
-		if (ent->v->velocity[2] < movevars.gravity*-0.1)
-			hitsound = true;
-		else
-			hitsound = false;
+		hitsound = ent->v->velocity[2] < movevars.gravity*-0.1;
 
 		SV_AddGravity (ent, 1.0);
 		SV_CheckVelocity (ent);
@@ -1345,7 +1345,7 @@ SV_WalkMove
 Only used by players
 ======================
 */
-/*
+#if 0
 #define	SMSTEPSIZE	4
 void SV_WalkMove (edict_t *ent)
 {
@@ -1502,7 +1502,7 @@ void SV_WalkMove (edict_t *ent)
 //		Con_Printf("down not good\n");
 	}
 }
-*/
+#else
 
 
 int SV_SetOnGround (edict_t *ent)
@@ -1654,7 +1654,7 @@ void SV_WalkMove (edict_t *ent)
 	SV_SetOnGround (ent);
 	SV_CheckVelocity(ent);
 }
-
+#endif
 
 
 /*
@@ -1814,6 +1814,9 @@ void SV_RunEntity (edict_t *ent)
 		SV_CheckStuck (ent);
 
 		SV_WalkMove (ent);
+
+		if (!(ent->entnum > 0 && ent->entnum <= sv.allocated_client_slots))
+			SV_LinkEdict (ent, true);
 
 		break;
 	default:
@@ -1980,18 +1983,15 @@ qboolean SV_Physics (void)
 		host_frametime = sv_maxtic.value;
 	old_time = realtime;
 
+	sv.physicstime = sv.time;
+
 	pr_global_struct->frametime = host_frametime;
 
 	for (i = 0; i < sv.allocated_client_slots; i++)
 	{
 		host_client = &svs.clients[i];
 		if (host_client->state == cs_spawned)
-		if (sv_nomsec.value || SV_PlayerPhysicsQC
-#ifndef NQPROT
-				)
-#else
-				|| (host_client->nqprot))
-#endif
+		if (sv_nomsec.value || SV_PlayerPhysicsQC || !ISQWCLIENT(host_client))
 			SV_ClientThink();
 	}
 
@@ -2022,12 +2022,7 @@ qboolean SV_Physics (void)
 
 		if (i > 0 && i <= sv.allocated_client_slots)
 		{
-			if (sv_nomsec.value || SV_PlayerPhysicsQC
-#ifndef NQPROT
-				)
-#else
-				|| (svs.clients[i-1].nqprot))
-#endif
+			if (sv_nomsec.value || SV_PlayerPhysicsQC || !ISQWCLIENT(&svs.clients[i-1]))
 			{
 				SV_Physics_Client(ent, i);
 				SV_RunNewmis ();

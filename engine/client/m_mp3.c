@@ -247,6 +247,22 @@ void Media_Clear (void)
 	}
 }
 
+qboolean fakecdactive;
+void Media_FakeTrack(int i, qboolean loop)
+{
+	char trackname[512];
+
+	sprintf(trackname, "sound/cdtracks/track%03i.ogg", i);
+	if (COM_FCheckExists(trackname))
+	{
+		Media_Clear();
+		strcpy(currenttrack.filename, trackname+6);
+
+		fakecdactive = true;
+		media_playing = true;
+	}
+}
+
 //actually, this func just flushes and states that it should be playing. the ambientsound func actually changes the track.
 void Media_Next_f (void)
 {
@@ -727,7 +743,7 @@ char *Media_NextTrack(void)
 
 	if (!loadedtracknames)
 		Media_LoadTrackNames("sound/media.m3u");
-	if (!tracks)
+	if (!tracks && !fakecdactive)
 	{
 		*currenttrack.filename='\0';
 		*currenttrack.nicename='\0';

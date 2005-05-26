@@ -486,6 +486,15 @@ static void Shader_FogParms ( shader_t *shader, shaderpass_t *pass, char **ptr )
 	shader->fog_dist = 1.0f / shader->fog_dist;
 }
 
+static void Shader_SurfaceParm ( shader_t *shader, shaderpass_t *pass, char **ptr )
+{
+	char *token;
+
+	token = Shader_ParseString ( ptr );
+	if ( !Q_stricmp( token, "nodraw" ) )
+		shader->flags = SHADER_NODRAW;
+}
+
 static void Shader_Sort ( shader_t *shader, shaderpass_t *pass, char **ptr )
 {
 	char *token;
@@ -531,6 +540,7 @@ static shaderkey_t shaderkeys[] =
     {"cull",			Shader_Cull },
     {"skyparms",		Shader_SkyParms },
 	{"fogparms",		Shader_FogParms },
+	{"surfaceparm",		Shader_SurfaceParm },
     {"nomipmaps",		Shader_NoMipMaps },
 	{"nopicmip",		Shader_NoPicMip },
 	{"polygonoffset",	Shader_PolygonOffset },
@@ -1263,7 +1273,7 @@ void Shader_SetPassFlush ( shaderpass_t *pass, shaderpass_t *pass2 )
 		return;
 
 	// check if we can use R_RenderMeshCombined
-/*
+
 	if ( gl_config.tex_env_combine || gl_config.nv_tex_env_combine4 )
 	{
 		if ( pass->blendmode == GL_REPLACE )
@@ -1285,9 +1295,7 @@ void Shader_SetPassFlush ( shaderpass_t *pass, shaderpass_t *pass2 )
 			pass->flush = R_RenderMeshCombined;
 		}
 	}
-	else
-	*/
-	if ( qglMTexCoord2fSGIS )
+	else if ( qglMTexCoord2fSGIS )
 	{
 		// check if we can use R_RenderMeshMultitextured
 		if ( pass->blendmode == GL_REPLACE )
@@ -1311,7 +1319,7 @@ void Shader_SetPassFlush ( shaderpass_t *pass, shaderpass_t *pass2 )
 		else if ( pass->blendmode == GL_ADD && 
 			pass2->blendmode == GL_ADD && gl_config.env_add )
 		{
-//			pass->flush = R_RenderMeshCombined;
+			pass->flush = R_RenderMeshCombined;
 		}
 	}
 
@@ -1394,6 +1402,22 @@ void Shader_Finish ( shader_t *s )
 
 	if ( !Q_stricmp (s->name, "flareShader") ) {
 		s->flags |= SHADER_FLARE;
+	}
+
+	if (!s->numpasses && !(s->flags & (SHADER_NODRAW|SHADER_SKY)))
+	{
+		pass = &s->passes[s->numpasses++];
+		pass = &s->passes[0];
+		pass->tcgen = TC_GEN_BASE;
+		pass->anim_frames[0] = Mod_LoadHiResTexture(s->name, NULL, true, false, true);//GL_FindImage (shortname, 0);
+		pass->depthfunc = GL_LEQUAL;
+		pass->flags = SHADER_PASS_DEPTHWRITE;
+		pass->rgbgen = RGB_GEN_VERTEX;
+		pass->alphagen = ALPHA_GEN_IDENTITY;
+		pass->blendmode = GL_MODULATE;
+		pass->numMergedPasses = 1;
+		pass->flush = R_RenderMeshGeneric;
+		Con_Printf("Shader %s with no passes and no surfaceparm nodraw, inserting pass\n", s->name);
 	}
 
 	if ( !s->numpasses && !s->sort ) {
@@ -1707,13 +1731,13 @@ void Shader_DefaultBSP(char *shortname, shader_t *s)
 	pass->rgbgen = RGB_GEN_IDENTITY;
 	pass->numMergedPasses = 2;
 
-/*	if ( qglMTexCoord2fSGIS )
+	if ( qglMTexCoord2fSGIS )
 	{
 		pass->numMergedPasses = 2;
 		pass->flush = R_RenderMeshMultitextured;
 	}
 	else
-*/	{
+	{
 		pass->numMergedPasses = 1;
 		pass->flush = R_RenderMeshGeneric;
 	}
@@ -1823,7 +1847,7 @@ void Shader_DefaultSkin(char *shortname, shader_t *s)
 
 	s->numpasses = 1;
 	s->numdeforms = 0;
-	s->flags = SHADER_PASS_BLEND|SHADER_DEPTHWRITE|SHADER_CULL_FRONT;
+	s->flags = SHADER_BLEND|SHADER_DEPTHWRITE|SHADER_CULL_FRONT;
 	s->features = MF_STCOORDS|MF_NORMALS;
 	s->sort = SHADER_SORT_OPAQUE;
 	s->registration_sequence = 1;//fizme: registration_sequence;

@@ -193,7 +193,7 @@ void R_DrawSkyChain (msurface_t *s)
 	msurface_t	*fa;
 
 	GL_DisableMultitexture();
-
+#ifdef Q3SHADERS
 	if (!solidskytexture&&!usingskybox)
 	{
 		int i;
@@ -201,6 +201,7 @@ void R_DrawSkyChain (msurface_t *s)
 			for (i = 0; i < 6; i++)
 				skyboxtex[i] = s->texinfo->texture->shader->skydome->farbox_textures[i];		
 	}
+#endif
 
 	if (r_fastsky.value||(!solidskytexture&&!usingskybox))	//this is for visability only... we'd otherwise not stoop this low (and this IS low)
 	{

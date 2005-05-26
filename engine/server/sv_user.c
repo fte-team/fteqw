@@ -118,9 +118,7 @@ void SV_New_f (void)
 
 	if (host_client->state == cs_spawned)
 		return;
-#ifdef NQPROT
-	host_client->nqprot = false;
-#endif
+
 /*	splitt delay
 	host_client->state = cs_connected;
 	host_client->connection_started = realtime;
@@ -154,7 +152,7 @@ void SV_New_f (void)
 
 
 	// send the serverdata
-	MSG_WriteByte (&host_client->netchan.message, host_client->isq2client?svcq2_serverdata:svc_serverdata);
+	MSG_WriteByte (&host_client->netchan.message, ISQ2CLIENT(host_client)?svcq2_serverdata:svc_serverdata);
 #ifdef PROTOCOL_VERSION_FTE
 	if (host_client->fteprotocolextensions)//let the client know
 	{
@@ -165,9 +163,9 @@ void SV_New_f (void)
 			MSG_WriteLong (&host_client->netchan.message, host_client->fteprotocolextensions);
 	}
 #endif
-	MSG_WriteLong (&host_client->netchan.message, host_client->isq2client?host_client->isq2client:PROTOCOL_VERSION);
+	MSG_WriteLong (&host_client->netchan.message, ISQ2CLIENT(host_client)?PROTOCOL_VERSION_Q2:PROTOCOL_VERSION);
 	MSG_WriteLong (&host_client->netchan.message, svs.spawncount);
-	if (host_client->isq2client)
+	if (ISQ2CLIENT(host_client))
 		MSG_WriteByte (&host_client->netchan.message, 0);
 	MSG_WriteString (&host_client->netchan.message, gamedir);
 
@@ -190,7 +188,7 @@ void SV_New_f (void)
 		if (sv.state == ss_cinematic)
 			playernum = -1;
 
-		if (host_client->isq2client)
+		if (ISQ2CLIENT(host_client))
 			MSG_WriteShort (&host_client->netchan.message, playernum);
 		else
 			MSG_WriteByte (&host_client->netchan.message, playernum);
@@ -215,7 +213,7 @@ void SV_New_f (void)
 	// game server
 	// 
 #ifdef Q2SERVER
-	if (host_client->isq2client)
+	if (ISQ2CLIENT(host_client))
 	{
 		if (sv.state != ss_cinematic)
 		{
@@ -265,9 +263,7 @@ void SVNQ_New_f (void)
 	extern cvar_t coop;
 	char			message[2048];
 	int i;
-#ifdef NQPROT
-	host_client->nqprot = true;
-#endif
+
 	MSG_WriteByte (&host_client->netchan.message, svc_print);
 #ifdef DISTRIBUTION
 	sprintf (message, "%c\n" DISTRIBUTION " QuakeWorld version %4.2f server\n", 2, VERSION);	
@@ -1325,7 +1321,7 @@ void SV_Begin_f (void)
 	// if we are paused, tell the client
 	if (sv.paused)
 	{
-		if (!host_client->isq2client)
+		if (!ISQ2CLIENT(host_client))
 		{
 			ClientReliableWrite_Begin (host_client, svc_setpause, 2);
 			ClientReliableWrite_Byte (host_client, sv.paused);
@@ -1402,7 +1398,7 @@ void SV_NextDownload_f (void)
 	if (r > 768)
 		r = 768;
 	r = fread (buffer, 1, r, host_client->download);
-	ClientReliableWrite_Begin (host_client, host_client->isq2client?svcq2_download:svc_download, 6+r);
+	ClientReliableWrite_Begin (host_client, ISQ2CLIENT(host_client)?svcq2_download:svc_download, 6+r);
 	ClientReliableWrite_Short (host_client, r);
 
 	host_client->downloadcount += r;
@@ -1623,7 +1619,7 @@ void SV_BeginDownload_f(void)
 		else
 #endif
 		{
-			ClientReliableWrite_Begin (host_client, host_client->isq2client?svcq2_download:svc_download, 4);
+			ClientReliableWrite_Begin (host_client, ISQ2CLIENT(host_client)?svcq2_download:svc_download, 4);
 			ClientReliableWrite_Short (host_client, -1);
 			ClientReliableWrite_Byte (host_client, 0);
 		}
@@ -1670,7 +1666,7 @@ void SV_BeginDownload_f(void)
 		else
 #endif
 		{
-			ClientReliableWrite_Begin (host_client, host_client->isq2client?svcq2_download:svc_download, 4);
+			ClientReliableWrite_Begin (host_client, ISQ2CLIENT(host_client)?svcq2_download:svc_download, 4);
 			ClientReliableWrite_Short (host_client, -1);
 			ClientReliableWrite_Byte (host_client, 0);
 		}
@@ -2044,7 +2040,7 @@ void SV_TogglePause (void)
 	{
 		if (!cl->state)
 			continue;
-		if (!cl->isq2client && !cl->controller)
+		if (!ISQ2CLIENT(host_client) && !cl->controller)
 		{
 			ClientReliableWrite_Begin (cl, svc_setpause, 2);
 			ClientReliableWrite_Byte (cl, sv.paused);
@@ -2920,7 +2916,7 @@ void SV_ExecuteUserCommand (char *s, qboolean fromQC)
 	}
 
 #ifdef Q2SERVER
-	if (host_client->isq2client)
+	if (ISQ2CLIENT(host_client))
 		u = ucmdsq2;
 	else
 #endif
@@ -3156,7 +3152,7 @@ void SVNQ_Begin_f (void)
 	// if we are paused, tell the client
 	if (sv.paused)
 	{
-		if (!host_client->isq2client)
+		if (!ISQ2CLIENT(host_client))
 		{
 			ClientReliableWrite_Begin (host_client, svc_setpause, 2);
 			ClientReliableWrite_Byte (host_client, sv.paused);
@@ -3181,8 +3177,8 @@ void SVNQ_Begin_f (void)
 
 	
 	SZ_Write (&host_client->netchan.message, sv.signon.data, sv.signon.cursize);
-	MSG_WriteByte (&host_client->netchan.message, svc_signonnum);
-	MSG_WriteByte (&host_client->netchan.message, 4);
+//	MSG_WriteByte (&host_client->netchan.message, svc_signonnum);
+//	MSG_WriteByte (&host_client->netchan.message, 4);
 	
 
 	host_client->send_message = true;
@@ -3323,6 +3319,21 @@ void SVNQ_NQColour_f (void)
 	MSG_WriteByte (&sv.nqreliable_datagram, playercolor);
 }
 
+void SVNQ_Ping_f(void)
+{
+	int i;
+	client_t *cl;
+
+	Con_Printf ("Ping times:\n");
+	for (i=0,cl=svs.clients ; i<MAX_CLIENTS ; i++,cl++)
+	{
+		if (!cl->state)
+			continue;
+
+		Con_Printf ("%3i %s\n", SV_CalcPing (cl), cl->name);
+	}
+}
+
 ucmd_t nqucmds[] =
 {
 	{"status",		NULL},
@@ -3345,7 +3356,7 @@ ucmd_t nqucmds[] =
 	{"begin",		SVNQ_Begin_f, true},
 	{"prespawn",	SVNQ_PreSpawn_f, true},
 	{"kick",		NULL},
-	{"ping",		NULL},
+	{"ping",		SVNQ_Ping_f},
 	{"ban",			NULL},
 	{"vote",		SV_Vote_f},
 
@@ -3670,6 +3681,21 @@ int SV_PMTypeForClient (client_t *cl)
 			return PM_SPECTATOR;
 		return PM_OLD_SPECTATOR;
 	}
+
+	if (sv_brokenmovetypes.value)	//this is to mimic standard qw servers, which don't support movetypes other than MOVETYPE_FLY.
+	{								//it prevents bugs from being visible in unsuspecting mods.
+		if (cl->spectator)
+		{
+			if (cl->zquake_extensions & Z_EXT_PM_TYPE_NEW)
+				return PM_SPECTATOR;
+			return PM_OLD_SPECTATOR;
+		}
+
+		if (cl->edict->v->health <= 0)
+			return PM_DEAD;
+		return PM_NORMAL;
+	}
+
 	if (cl->edict->v->movetype == MOVETYPE_NOCLIP)
 	{
 		if (cl->zquake_extensions & Z_EXT_PM_TYPE_NEW)
@@ -3681,11 +3707,7 @@ int SV_PMTypeForClient (client_t *cl)
 		return PM_FLY;
 
 	if (cl->edict->v->movetype == MOVETYPE_NONE)
-	{
-		if (sv_brokenmovetypes.value)
-			return PM_NORMAL;
 		return PM_NONE;
-	}
 
 	if (cl->edict->v->health <= 0)
 		return PM_DEAD;
@@ -4535,8 +4557,10 @@ void SVNQ_ReadClientMove (usercmd_t *move)
 {
 	int		i;
 	int		bits;
+	client_frame_t	*frame;	
 	
-	MSG_ReadFloat ();	//message time (nq uses it to time pings - qw ignores it)
+	frame = &host_client->frames[host_client->netchan.incoming_acknowledged & UPDATE_MASK];
+	frame->ping_time = sv.time - MSG_ReadFloat ();
 	
 
 // read current angles	
@@ -4588,18 +4612,19 @@ void SVNQ_ExecuteClientMessage (client_t *cl)
 	client_frame_t	*frame;	
 	int		seq_hash;
 
-	MSG_BeginReading ();
+	cl->netchan.outgoing_sequence++;
+	cl->netchan.incoming_acknowledged = cl->netchan.outgoing_sequence-1;
 
 	// calc ping time
 	frame = &cl->frames[cl->netchan.incoming_acknowledged & UPDATE_MASK];
-	frame->ping_time = realtime - frame->senttime;
+	frame->ping_time = 999;
 
 	// make sure the reply sequence number matches the incoming
 	// sequence number 
-	if (cl->netchan.incoming_sequence >= cl->netchan.outgoing_sequence)
+//	if (cl->netchan.incoming_sequence >= cl->netchan.outgoing_sequence)
 		cl->netchan.outgoing_sequence = cl->netchan.incoming_sequence;
-	else
-		cl->send_message = false;	// don't reply, sequences have slipped		
+//	else
+//		cl->send_message = false;	// don't reply, sequences have slipped		
 
 	// save time for ping calculations
 	cl->frames[cl->netchan.outgoing_sequence & UPDATE_MASK].senttime = realtime;

@@ -67,8 +67,6 @@ It doesn't use persistant connections.
 
 */
 
-qboolean HTTP_CL_Get(char *url, char *localfile);
-
 typedef struct {
 	int sock;
 
@@ -85,6 +83,9 @@ typedef struct {
 
 	int contentlength;
 
+	IWEBFILE *file;
+
+	void (*NotifyFunction)(char *localfile, qboolean sucess);	//called when failed or succeeded, and only if it got a connection in the first place.
 } http_con_t;
 
 static http_con_t *httpcl;
@@ -213,7 +214,7 @@ static qboolean HTTP_CL_Run(http_con_t *con)
 				if (!*Location)
 					Con_Printf("Server redirected to null location\n");
 				else
-					HTTP_CL_Get(Location, con->filename);
+					HTTP_CL_Get(Location, con->filename, con->NotifyFunction);
 				return false;
 			}
 
@@ -230,7 +231,22 @@ static qboolean HTTP_CL_Run(http_con_t *con)
 			}
 
 			con->bufferused -= ammount;
-			memmove(con->buffer, con->buffer+ammount, con->bufferused);
+
+			con->file = IWebFOpenWrite(con->filename, false);
+			if (!con->file)
+			{
+				Con_Printf("HTTP: Couldn't open file %s\n", con->filename);
+				return false;
+			}
+
+			if (!con->file)
+			{
+				IWebFWrite(con->buffer+ammount, con->bufferused, 1, con->file);
+				con->bufferused = 0;
+			}
+			else
+				memmove(con->buffer, con->buffer+ammount, con->bufferused);
+
 
 			con->state = HC_GETTING;
 
@@ -291,6 +307,24 @@ static qboolean HTTP_CL_Run(http_con_t *con)
 					con->bufferused -= trim;
 				}
 			}
+
+
+			if (con->file && con->chunked)	//we've got a chunk in the buffer
+			{	//write it
+				IWebFWrite(con->buffer, con->chunked, 1, con->file);
+				//and move the unparsed chunk to the front.
+				con->bufferused -= con->chunked;
+				memmove(con->buffer, con->buffer+con->chunked, con->bufferused);
+				con->chunked = 0;
+			}
+		}
+		else
+		{
+			if (con->file)	//we've got a chunk in the buffer
+			{	//write it
+				IWebFWrite(con->buffer, con->chunked, 1, con->file);
+				con->bufferused = 0;
+			}
 		}
 
 		if (!ammount)
@@ -300,9 +334,19 @@ static qboolean HTTP_CL_Run(http_con_t *con)
 			else if (con->bufferused != con->contentlength)
 				Con_Printf("Recieved file isn't the correct length - must be corrupt - %s\n", con->filename);
 			Con_Printf("Retrieved %s\n", con->filename);
-			snprintf(Location, sizeof(Location)-1, "%s/%s", com_gamedir, con->filename);
-			COM_CreatePath(Location);
-			COM_WriteFile(con->filename, con->buffer, con->bufferused);
+			if (con->file)
+				IWebFClose(con->file);
+			else
+			{
+				snprintf(Location, sizeof(Location)-1, "%s/%s", com_gamedir, con->filename);
+				COM_CreatePath(Location);
+				COM_WriteFile(con->filename, con->buffer, con->bufferused);
+			}
+			if (con->NotifyFunction)
+			{
+				con->NotifyFunction(con->filename, true);
+				con->NotifyFunction = NULL;
+			}
 			return false;
 		}
 
@@ -319,6 +363,9 @@ void HTTP_CL_Think(void)
 	{
 		if (!HTTP_CL_Run(con))
 		{
+			if (con->NotifyFunction)
+				con->NotifyFunction(con->filename, false);
+
 			if (cls.downloadmethod == DL_HTTP)
 				cls.downloadmethod = DL_NONE;
 			closesocket(con->sock);
@@ -358,7 +405,7 @@ void HTTP_CL_Think(void)
 	}
 }
 
-qboolean HTTP_CL_Get(char *url, char *localfile)
+qboolean HTTP_CL_Get(char *url, char *localfile, void (*NotifyFunction)(char *localfile, qboolean sucess))
 {
 	unsigned long _true = true;
 	struct sockaddr_qstorage	from;
@@ -393,8 +440,7 @@ qboolean HTTP_CL_Get(char *url, char *localfile)
 		if (!localfile)
 			localfile = uri+1;
 
-		FTP_Client_Command(va("download %s \"%s\" \"%s\"", server, uri+1, localfile));
-		return true;
+		return FTP_Client_Command(va("download %s \"%s\" \"%s\"", server, uri+1, localfile), NotifyFunction);
 	}
 	else
 	{
@@ -458,6 +504,7 @@ qboolean HTTP_CL_Get(char *url, char *localfile)
 	sprintf(con->buffer, "GET %s HTTP/1.1\r\n"	"Host: %s\r\n" "Connection: close\r\n"	"User-Agent: FTE\r\n" "\r\n", uri, server);
 	con->bufferused = strlen(con->buffer);
 	con->contentlength = -1;
+	con->NotifyFunction = NotifyFunction;
 	strcpy(con->filename, localfile);
 
 /*	slash = strchr(con->filename, '?');

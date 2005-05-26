@@ -1714,8 +1714,8 @@ void	Cmd_ExecuteString (char *text, int level)
 		return;
 #endif
 #ifdef Q2CLIENT
-	if (cls.q2server)
-	{
+	if (cls.protocol == CP_QUAKE2)
+	{	//q2 servers convert unknown commands to text.
 		Cmd_ForwardToServer();
 		return;
 	}

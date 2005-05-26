@@ -539,7 +539,7 @@ void CL_PredictMovePNum (int pnum)
 	float *vel;
 	float *org;
 #ifdef Q2CLIENT
-	if (cls.q2server)
+	if (cls.protocol == CP_QUAKE2)
 	{
 		cl.crouch[pnum] = 0;
 		CLQ2_PredictMovement();
@@ -552,9 +552,14 @@ void CL_PredictMovePNum (int pnum)
 
 	if (cl.paused && !cls.demoplayback!=DPB_MVD && (!cl.spectator || !autocam[pnum])) 
 		return;
-#ifdef NQPROT
-	if (cls.demoplayback!=DPB_NETQUAKE)	//don't increase time in nq demos.
-#endif
+
+	if (cl.oldgametime)
+	{
+		cl.time = cl.gametime;
+		if (cl.time > realtime)
+			cl.time = realtime;
+	}
+	else
 	{
 		cl.time = realtime - cls.latency - cl_pushlatency.value*0.001;
 		if (cl.time > realtime)
@@ -614,6 +619,8 @@ void CL_PredictMovePNum (int pnum)
 				if (f<0)f=0;
 				if (f>1)f=1;
 
+				vel = vec3_origin;
+
 				for (i=0 ; i<3 ; i++)
 					lrp[i] = state->origin[i] + 
 							f * (old->origin[i] - state->origin[i]);
@@ -621,10 +628,15 @@ void CL_PredictMovePNum (int pnum)
 				org = lrp;
 			}
 			else
+			{
 				org = state->origin;
+				Con_Printf("No old\n");
+			}
 
 			goto fixedorg;
 		}
+		else
+			Con_Printf("No state\n");
 	}
 #endif
 	if (((cl_nopred.value && cls.demoplayback!=DPB_MVD)|| cl.fixangle))

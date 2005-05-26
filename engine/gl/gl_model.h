@@ -634,7 +634,7 @@ typedef struct
 
 //q3 based
 typedef struct {
-	vec3_t gridBounds;
+	int gridBounds[4];	//3 = 0*1
 	vec3_t gridMins;
 	vec3_t gridSize;
 	int numlightgridelems;

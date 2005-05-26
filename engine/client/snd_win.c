@@ -529,7 +529,7 @@ sndinitstat SNDDMA_InitDirect (soundcardinfo_t *sc)
 	if (snd_eax.value)
 	{
 		CoInitialize(NULL);
-		if (FAILED(CoCreateInstance( &CLSID_EAXDirectSound, dsndguid, CLSCTX_INPROC_SERVER, &IID_IDirectSound, (void **)&sc->pDS )))
+		if (FAILED(CoCreateInstance( &CLSID_EAXDirectSound, NULL, CLSCTX_INPROC_SERVER, &IID_IDirectSound, (void **)&sc->pDS )))
 			sc->pDS=NULL;
 		else
 			IDirectSound_Initialize(sc->pDS, dsndguid);

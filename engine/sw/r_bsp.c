@@ -881,7 +881,7 @@ void R_RenderWorld (void)
 		int clientarea;
 		int CM_WriteAreaBits (qbyte *buffer, int area);
 #ifdef Q2CLIENT
-		if (cls.q2server)
+		if (cls.protocol == CP_QUAKE2)
 			memcpy(areabits, cl.q2frame.areabits, sizeof(areabits));
 		else
 #endif

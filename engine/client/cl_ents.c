@@ -665,9 +665,9 @@ entity_state_t *CL_FindOldPacketEntity(int num)
 	int					pnum;
 	entity_state_t		*s1;
 	packet_entities_t	*pack;
-	if (!cls.netchan.incoming_sequence)
+	if (!cl.validsequence)
 		return NULL;
-	pack = &cl.frames[(cls.netchan.incoming_sequence-1)&UPDATE_MASK].packet_entities;
+	pack = &cl.frames[(cl.validsequence)&UPDATE_MASK].packet_entities;
 
 	for (pnum=0 ; pnum<pack->num_entities ; pnum++)
 	{
@@ -892,9 +892,10 @@ void CLNQ_ParseDarkPlaces5Entities(void)	//the things I do.. :o(
 	int oldi;
 	qboolean remove;
 
-	cl.validsequence = cls.netchan.incoming_sequence++;
-
 	cl_latestframenum = MSG_ReadLong();
+
+	if (nq_dp_protocol >=7)
+	/*cl.servermovesequence =*/ MSG_ReadLong();
 
 	pack = &cl.frames[(cls.netchan.incoming_sequence)&UPDATE_MASK].packet_entities;
 	oldpack = &cl.frames[(cls.netchan.incoming_sequence-1)&UPDATE_MASK].packet_entities;
@@ -1370,7 +1371,7 @@ void CL_LinkPacketEntities (void)
 {
 	entity_t			*ent;
 	packet_entities_t	*pack;
-	entity_state_t		*s1;
+	entity_state_t		*s1, *s2;
 	float				f;
 	model_t				*model;
 	vec3_t				old_origin;
@@ -1382,7 +1383,7 @@ void CL_LinkPacketEntities (void)
 	vec3_t				angles;
 	int flicker;
 
-	pack = &cl.frames[cl.validsequence&UPDATE_MASK].packet_entities;
+	pack = &cl.frames[cls.netchan.incoming_sequence&UPDATE_MASK].packet_entities;
 
 	autorotate = anglemod(100*cl.time);
 
@@ -1544,7 +1545,7 @@ void CL_LinkPacketEntities (void)
 
 		if (ent->keynum <= MAX_CLIENTS
 #ifdef NQPROT
-			&& cls.demoplayback != DPB_NETQUAKE && (!cls.netcon || cls.netcon->qwprotocol)
+			&& cls.protocol != CP_NETQUAKE
 #endif
 			)
 			ent->keynum += MAX_EDICTS;
@@ -2365,7 +2366,7 @@ void CL_LinkViewModel(void)
 		return;
 
 #ifdef Q2CLIENT
-	if (cls.q2server)
+	if (cls.protocol == CP_QUAKE2)
 		return;
 #endif
 
@@ -2673,7 +2674,7 @@ void CL_EmitEntities (void)
 	CL_DecayLights ();
 
 #ifdef Q2CLIENT
-	if (cls.q2server)
+	if (cls.protocol == CP_QUAKE2)
 	{
 		CLQ2_AddEntities();
 		return;

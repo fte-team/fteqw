@@ -34,6 +34,7 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 
 cvar_t	sys_nostdout = {"sys_nostdout","0"};
 cvar_t	sys_extrasleep = {"sys_extrasleep","0"};
+cvar_t	sys_maxtic = {"sys_maxtic", "100"};
 
 qboolean	stdin_ready;
 
@@ -306,10 +307,10 @@ int main(int argc, char *argv[])
 	while (1)
 	{
 		if (do_stdin)
-			stdin_ready = NET_Sleep(100, true);
+			stdin_ready = NET_Sleep(sys_maxtic.value, true);
 		else
 		{	
-			NET_Sleep(100, false);
+			NET_Sleep(sys_maxtic.value, false);
 			stdin_ready = false;
 		}
 

@@ -474,7 +474,7 @@ void M_DrawSources (void)
 	}
 }
 
-#define NUMSLISTOPTIONS (7+7+3)
+#define NUMSLISTOPTIONS (7+7+4)
 	struct {
 		char *title;
 		cvar_t *cvar;
@@ -498,7 +498,8 @@ void M_DrawSources (void)
 
 		{"Max ping",		&sb_maxping,	1},
 		{"GameDir",			&sb_gamedir,	2},
-		{"Using map",		&sb_mapname,	2}
+		{"Using map",		&sb_mapname,	2},
+		{"Game name",		&com_gamename,	2}
 	};
 
 void M_DrawSListOptions (void)
@@ -539,12 +540,14 @@ void M_SListOptions_Key (int key)
 		slist_option--;
 		if (slist_option<0)
 			slist_option=0;
+		return;
 	}
 	else if (key == K_DOWNARROW)
 	{
 		slist_option++;
 		if (slist_option >= slist_numoptions)
 			slist_option = slist_numoptions-1;
+		return;
 	}
 	
 	switch(options[slist_option].type)
@@ -567,7 +570,7 @@ void M_SListOptions_Key (int key)
 			Cvar_SetValue(options[slist_option].cvar, (int)options[slist_option].cvar->value/10);
 		break;
 	case 2:
-		if ((key >= '0' && key <= '9') || (key >= 'a' && key <= 'z') || key == '_')
+		if ((key >= '0' && key <= '9') || (key >= 'a' && key <= 'z') || (key >= 'A' && key <= 'Z')|| key == '_')
 			Cvar_Set(options[slist_option].cvar, va("%s%c", options[slist_option].cvar->string, key));
 		else if (key == K_DEL)
 			Cvar_Set(options[slist_option].cvar, "");

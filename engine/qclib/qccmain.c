@@ -3356,8 +3356,8 @@ int main (int argc, char **argv)
 #endif
 	return !sucess;
 }
-#endif
-#endif
+#endif//usegui
+#endif//qcconly
 
-#endif
+#endif//minimal
 

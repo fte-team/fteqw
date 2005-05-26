@@ -482,46 +482,6 @@ qboolean CL_GetMessage (void)
 	
 	return true;
 }
-#ifdef NQPROT
-int CLNQ_GetMessage (void)
-{
-	int		r;
-	if (!cls.netcon)
-		return 0;
-//	int		i;
-//	float	f;
-
-	while (1)
-	{
-		r = NET_GetMessage (cls.netcon);
-
-		if (r == -1)
-		{			
-			NET_Close(cls.netcon);
-			cls.netcon = cls.netchan.qsocket = NULL;
-		}
-
-		if (cls.netcon)
-			NET_StringToAdr(cls.netcon->address, &net_from);
-		
-		if (r != 1 && r != 2)
-			return r;
-	
-	// discard nop keepalive message
-		if (net_message.cursize == 1 && net_message.data[0] == svc_nop)
-			Con_Printf ("<-- server to client keepalive\n");
-		else
-		{
-/*			if (cls.demorecording)
-				CL_WriteDemoMessage (&net_message);
-*/	
-			return r;
-		}
-	}
-}
-
-#endif
-
 
 /*
 ====================
@@ -1163,7 +1123,7 @@ void CL_PlayDemo_f (void)
 	{
 #ifdef Q2CLIENT
 		cls.demoplayback = DPB_QUAKE2;
-		cls.q2server = true;
+		cls.protocol = CP_QUAKE2;
 #else
 		Con_Printf ("ERROR: cannot play Quake2 demos.\n");
 		CL_StopPlayback();
@@ -1173,7 +1133,7 @@ void CL_PlayDemo_f (void)
 	else
 	{
 #ifdef Q2CLIENT
-		cls.q2server = false;
+		cls.protocol = CP_QUAKEWORLD;
 #endif
 		ft = 0;	//work out if the first line is a int for the track number.
 		while ((c = getc(cls.demofile)) != '\n')
@@ -1192,6 +1152,7 @@ void CL_PlayDemo_f (void)
 			CL_StopPlayback();
 			return;
 #else
+			cls.protocol = CP_NETQUAKE;
 			cls.demoplayback = DPB_NETQUAKE;	//nq demos. :o)
 #endif
 		}

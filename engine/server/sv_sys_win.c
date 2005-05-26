@@ -157,6 +157,7 @@ void CreateSampleService(qboolean create);
 void PR_Deinit(void);
 
 cvar_t	sys_nostdout = {"sys_nostdout","0"};
+cvar_t	sys_maxtic = {"sys_maxtic", "100"};
 
 HWND consolewindowhandle;
 HWND hiddenwindowhandler;
@@ -608,6 +609,7 @@ is marked
 void Sys_Init (void)
 {
 	Cvar_Register (&sys_nostdout, "System controls");
+	Cvar_Register (&sys_maxtic, "System controls");
 
 	Cmd_AddCommand("hide", Sys_HideConsole);
 }
@@ -675,13 +677,12 @@ void ServerMainLoop(void)
 	oldtime = Sys_DoubleTime () - 0.1;
 	while (1)
 	{
-		NET_Sleep(100, false);
+		NET_Sleep(sys_maxtic.value, false);
 
 	// find time passed since last cycle
 		newtime = Sys_DoubleTime ();
 		time = newtime - oldtime;
 		oldtime = newtime;
-
 		SV_Frame (time);
 
 

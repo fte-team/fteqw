@@ -400,7 +400,7 @@ vec3_t			lightspot;
 void GLQ3_LightGrid(vec3_t point, vec3_t res_diffuse, vec3_t res_ambient, vec3_t res_dir)
 {
 	q3lightgridinfo_t *lg = (q3lightgridinfo_t *)cl.worldmodel->lightgrid;
-	int index[4];
+	int index[8];
 	int vi[3];
 	int i, j;
 	float t[8], direction_uv[3];
@@ -414,7 +414,7 @@ void GLQ3_LightGrid(vec3_t point, vec3_t res_diffuse, vec3_t res_ambient, vec3_t
 		res_dir[2] = 0.1;
 	}
 
-//	if (!lg)
+	if (!lg || !lg->lightgrid)
 	{
 		if(res_ambient)
 		{
@@ -438,7 +438,7 @@ void GLQ3_LightGrid(vec3_t point, vec3_t res_diffuse, vec3_t res_ambient, vec3_t
 	for ( i = 0; i < 3; i++ )
 	{
 		vf[i] = (point[i] - lg->gridMins[i]) / lg->gridSize[i];
-		vi[i] = (int)vf[i];
+		vi[i] = (int)(vf[i]);
 		vf[i] = vf[i] - floor(vf[i]);
 		vf2[i] = 1.0f - vf[i];
 	}
@@ -448,9 +448,33 @@ void GLQ3_LightGrid(vec3_t point, vec3_t res_diffuse, vec3_t res_ambient, vec3_t
 	index[2] = index[0] + lg->gridBounds[3];
 	index[3] = index[2] + lg->gridBounds[0];
 
-	for ( i = 0; i < 4; i++ )
+	index[4] = index[0]+(index[0]<(lg->numlightgridelems-1));
+	index[5] = index[1]+(index[1]<(lg->numlightgridelems-1));
+	index[6] = index[2]+(index[2]<(lg->numlightgridelems-1));
+	index[7] = index[3]+(index[3]<(lg->numlightgridelems-1));
+/*
+	qglDisable(GL_TEXTURE_2D);
+	qglDisable(GL_DEPTH_TEST);
+	qglDisable(GL_CULL_FACE);
+	qglColor4f(1,1,1,1);
+	qglBegin(GL_QUADS);
+	for ( i = 0; i < 8; i++ )
 	{
-		if ( index[i] < 0 || index[i] >= (lg->numlightgridelems-1) )
+		vec3_t pos;
+		for(j=0;j<3;j++)
+			pos[j] = (vi[j]
+			+((i&1)/1*(j==0))
+			+((i&2)/2*(j==1))
+			+((i&4)/4*(j==2))
+			
+			)*lg->gridSize[j] + lg->gridMins[j];
+		qglVertex3fv(pos);
+	}
+	qglEnd();
+*/
+	for ( i = 0; i < 8; i++ )
+	{
+		if ( index[i] < 0 || index[i] >= (lg->numlightgridelems) )
 		{
 			res_ambient[0] = 255;	//out of the map
 			res_ambient[1] = 255;
@@ -475,11 +499,11 @@ void GLQ3_LightGrid(vec3_t point, vec3_t res_diffuse, vec3_t res_ambient, vec3_t
 
 		for ( i = 0; i < 4; i++ )
 		{
-			ambient[j] += t[i*2] * lg->lightgrid[ index[i] ].ambient[j];
-			ambient[j] += t[i*2+1] * lg->lightgrid[ index[i] + 1 ].ambient[j];
+			ambient[j] += t[i*2] * lg->lightgrid[ index[i]].ambient[j];
+			ambient[j] += t[i*2+1] * lg->lightgrid[ index[i+4]].ambient[j];
 
-			diffuse[j] += t[i*2] * lg->lightgrid[ index[i] ].diffuse[j];
-			diffuse[j] += t[i*2+1] * lg->lightgrid[ index[i] + 1 ].diffuse[j];
+			diffuse[j] += t[i*2] * lg->lightgrid[ index[i]].diffuse[j];
+			diffuse[j] += t[i*2+1] * lg->lightgrid[ index[i+4]].diffuse[j];
 		}
 	}
 
@@ -489,8 +513,8 @@ void GLQ3_LightGrid(vec3_t point, vec3_t res_diffuse, vec3_t res_ambient, vec3_t
 
 		for ( i = 0; i < 4; i++ )
 		{
-			direction_uv[j] += t[i*2] * lg->lightgrid[ index[i] ].direction[j];
-			direction_uv[j] += t[i*2+1] * lg->lightgrid[ index[i] + 1 ].direction[j];
+			direction_uv[j] += t[i*2] * lg->lightgrid[ index[i]].direction[j];
+			direction_uv[j] += t[i*2+1] * lg->lightgrid[ index[i+4]].direction[j];
 		}
 
 		direction_uv[j] = anglemod ( direction_uv[j] );

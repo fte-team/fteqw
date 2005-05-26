@@ -1592,7 +1592,7 @@ void Sbar_Draw (void)
 
 
 #ifdef Q2CLIENT
-	if (cls.q2server)
+	if (cls.protocol == CP_QUAKE2)
 	{
 		SCR_VRectForPlayer(&sbar_rect, 0);
 
@@ -1890,11 +1890,7 @@ void Sbar_DeathmatchOverlay (int start)
 		skip = 8;
 
 // request new ping times every two second
-	if (realtime - cl.last_ping_request > 2
-#ifdef Q2CLIENT
-		&& !cls.q2server
-#endif
-		)
+	if (realtime - cl.last_ping_request > 2	&& cls.protocol == CP_QUAKEWORLD)
 	{
 		cl.last_ping_request = realtime;
 		CL_SendClientCommand(false, "pings");
@@ -2049,11 +2045,7 @@ void Sbar_ChatModeOverlay(void)
 		skip = 8;
 
 // request new ping times every two second
-	if (realtime - cl.last_ping_request > 2
-#ifdef Q2CLIENT
-		&& !cls.q2server
-#endif
-		)
+	if (realtime - cl.last_ping_request > 2 && cls.protocol == CP_QUAKEWORLD)
 	{
 		cl.last_ping_request = realtime;
 		CL_SendClientCommand(false, "pings");

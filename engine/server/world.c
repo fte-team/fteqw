@@ -369,6 +369,8 @@ void SV_TouchLinks ( edict_t *ent, areanode_t *node )
 	//work out who they are first.
 	for (l = node->trigger_edicts.next ; l != &node->trigger_edicts ; l = next)
 	{
+		if (linkcount == MAX_NODELINKS)
+			break;
 		next = l->next;
 		touch = EDICT_FROM_AREA(l);
 		if (touch == ent)
@@ -389,8 +391,6 @@ void SV_TouchLinks ( edict_t *ent, areanode_t *node )
 			continue;
 
 		nodelinks[linkcount++] = touch;
-		if (linkcount == MAX_NODELINKS)
-			break;
 	}
 
 	old_self = pr_global_struct->self;
@@ -1476,12 +1476,12 @@ void SV_ClipMoveToEntities ( moveclip_t *clip )
 		if (touch->v->solid != SOLID_BSP)
 			angles = vec3_origin;	// boxes don't rotate
 
-/*		if (touch->svflags & SVF_MONSTER)
+		if ((int)touch->v->flags & FL_MONSTER)
 			trace = CM_TransformedBoxTrace (clip->start, clip->end,
-				clip->mins2, clip->maxs2, headnode, clip->contentmask,
-				touch->s.origin, angles);
+				clip->mins2, clip->maxs2, headnode, MASK_PLAYERSOLID,
+				touch->v->origin, angles);
 		else
-*/			trace = CM_TransformedBoxTrace (clip->start, clip->end,
+			trace = CM_TransformedBoxTrace (clip->start, clip->end,
 				clip->mins, clip->maxs, headnode,  MASK_PLAYERSOLID,
 				touch->v->origin, angles);
 

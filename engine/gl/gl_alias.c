@@ -1017,15 +1017,11 @@ void GL_DrawAliasMesh_Sketch (mesh_t *mesh)
 	else
 		qglDisableClientState( GL_COLOR_ARRAY );
 
-	qglEnableClientState( GL_TEXTURE_COORD_ARRAY );
-	qglTexCoordPointer(2, GL_FLOAT, 0, mesh->st_array);
-
 	qglDrawElements(GL_TRIANGLES, mesh->numindexes, GL_UNSIGNED_INT, mesh->indexes);
 
 	qglDisableClientState( GL_VERTEX_ARRAY );
 	qglDisableClientState( GL_COLOR_ARRAY );
 	qglDisableClientState( GL_NORMAL_ARRAY );
-	qglDisableClientState( GL_TEXTURE_COORD_ARRAY );
 
 	qglColor3f(0, 0, 0);
 	qglBegin(GL_LINES);
@@ -1149,6 +1145,11 @@ void R_DrawGAliasModel (entity_t *e)
 	galiastexnum_t *skin;
 	float entScale;
 	vec3_t lightdir;
+
+	vec3_t saveorg;
+#ifdef Q3SHADERS
+	mfog_t *fog;
+#endif
 
 	float	tmatrix[3][4];
 
@@ -1458,6 +1459,16 @@ void R_DrawGAliasModel (entity_t *e)
 	if (qglPNTrianglesfATI && gl_ati_truform.value)
 		qglEnable(GL_PN_TRIANGLES_ATI);
 
+	if (e->flags & Q2RF_WEAPONMODEL)
+	{
+		VectorCopy(currententity->origin, saveorg);
+		VectorCopy(r_refdef.vieworg, currententity->origin);
+	}
+
+#ifdef Q3SHADERS
+	fog = CM_FogForOrigin(currententity->origin);
+#endif
+
 	memset(&mesh, 0, sizeof(mesh));
 	for(; inf; ((inf->nextsurf)?(inf = (galiasinfo_t*)((char *)inf + inf->nextsurf)):(inf=NULL)))
 	{
@@ -1480,7 +1491,7 @@ void R_DrawGAliasModel (entity_t *e)
 
 			mb.entity = &r_worldentity;
 			mb.shader = currententity->forcedshader;
-			mb.fog = NULL;
+			mb.fog = fog;
 			mb.mesh = &mesh;
 			mb.infokey = currententity->keynum;
 			mb.dlightbits = 0;
@@ -1497,7 +1508,6 @@ void R_DrawGAliasModel (entity_t *e)
 
 		if (!skin)
 		{
-			qglEnable(GL_TEXTURE_2D);
 			GL_DrawAliasMesh_Sketch(&mesh);
 		}
 #ifdef Q3SHADERS
@@ -1513,7 +1523,7 @@ void R_DrawGAliasModel (entity_t *e)
 
 			mb.entity = &r_worldentity;
 			mb.shader = skin->shader;
-			mb.fog = NULL;
+			mb.fog = fog;
 			mb.mesh = &mesh;
 			mb.infokey = currententity->keynum;
 			mb.dlightbits = 0;
@@ -1548,6 +1558,9 @@ void R_DrawGAliasModel (entity_t *e)
 			}
 		}
 	}
+
+	if (e->flags & Q2RF_WEAPONMODEL)
+		VectorCopy(saveorg, currententity->origin);
 
 	if (qglPNTrianglesfATI && gl_ati_truform.value)
 		qglDisable(GL_PN_TRIANGLES_ATI);
@@ -2226,6 +2239,12 @@ static void *Q1_LoadSkins (daliasskintype_t *pskintype, qboolean alpha)
 
 			outskin->ofstexnums = (char *)texnums - (char *)outskin;
 
+#ifdef Q3SHADERS
+			sprintf(skinname, "%s_%i", loadname, i);
+			texnums->shader = R_RegisterSkin(skinname);
+#endif
+
+
 			texnums->base = texture;
 			texnums->fullbright = fbtexture;
 
@@ -2298,6 +2317,11 @@ static void *Q1_LoadSkins (daliasskintype_t *pskintype, qboolean alpha)
 					if (t != 0)	//only keep the first.
 						BZ_Free(saved);
 				}
+
+				sprintf(skinname, "%s_%i_%i", loadname, i, t);
+#ifdef Q3SHADERS
+				texnums->shader = R_RegisterSkin(skinname);
+#endif
 				texnums->base = texture;
 				texnums->fullbright = fbtexture;
 			}	

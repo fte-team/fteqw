@@ -488,7 +488,7 @@ void Model_NextDownload (void)
 		cl.worldmodel = NULL;
 	}
 #ifdef Q2CLIENT
-	if (cls.q2server)
+	if (cls.protocol == CP_QUAKE2)
 	{
 		R_SetSky(cl.skyname, 0, r_origin);
 		for (i = 0; i < Q2MAX_IMAGES; i++)
@@ -519,7 +519,7 @@ void Model_NextDownload (void)
 			continue;
 
 #ifdef Q2CLIENT
-		if (cls.q2server && s[0] == '#')	//this is a vweap
+		if (cls.protocol == CP_QUAKE2 && s[0] == '#')	//this is a vweap
 			continue;
 #endif
 
@@ -588,7 +588,7 @@ void Model_NextDownload (void)
 
 	Hunk_Check ();		// make sure nothing is hurt
 #ifdef Q2CLIENT
-	if (cls.q2server)
+	if (cls.protocol == CP_QUAKE2)
 	{
 		cls.downloadnumber = 0;
 		Skin_NextDownload();
@@ -654,7 +654,7 @@ void Sound_NextDownload (void)
 	cl_lightningindex = -1;
 #endif
 #ifdef Q2CLIENT
-	if (cls.q2server)
+	if (cls.protocol == CP_QUAKE2)
 	{
 		cls.downloadnumber = 0;
 		Model_NextDownload();
@@ -1466,6 +1466,15 @@ void CLNQ_ParseServerData(void)		//Doesn't change gamedir - use with caution.
 
 		cls.z_ext = Z_EXT_VIEWHEIGHT;
 	}
+	else if (protover == 3504)
+	{
+		//darkplaces7 (it's a small difference from dp5)
+		nq_dp_protocol = 7;
+		sizeofcoord = 4;
+		sizeofangle = 2;
+
+		cls.z_ext = Z_EXT_VIEWHEIGHT;
+	}
 	else if (protover != NQ_PROTOCOL_VERSION)
 	{
 		Host_EndGame ("Server returned version %i, not %i\nYou will need to use a different client.", protover, NQ_PROTOCOL_VERSION);
@@ -1653,7 +1662,7 @@ void CLNQ_ParseClientdata (int bits)
 	
 	if (bits & SU_VIEWHEIGHT)
 		CL_SetStat(0, STAT_VIEWHEIGHT, MSG_ReadChar ());
-	else if (nq_dp_protocol != 6)
+	else if (nq_dp_protocol < 6)
 		CL_SetStat(0, STAT_VIEWHEIGHT, DEFAULT_VIEWHEIGHT);
 
 	if (bits & SU_IDEALPITCH)
@@ -1678,7 +1687,7 @@ void CLNQ_ParseClientdata (int bits)
 
 		if (bits & (SU_VELOCITY1<<i) )
 		{
-			if (nq_dp_protocol == 5 || nq_dp_protocol == 6)
+			if (nq_dp_protocol >= 5)
 				/*cl.simvel[0][i] =*/ MSG_ReadFloat();
 			else
 			/*cl.mvelocity[0][i] =*/ MSG_ReadChar()/**16*/;
@@ -1693,7 +1702,7 @@ void CLNQ_ParseClientdata (int bits)
 //	cl.onground = (bits & SU_ONGROUND) != 0;
 //	cl.inwater = (bits & SU_INWATER) != 0;
 
-	if (nq_dp_protocol == 6)
+	if (nq_dp_protocol >= 6)
 	{
 	}
 	else if (nq_dp_protocol == 5)
@@ -1733,7 +1742,7 @@ void CLNQ_ParseClientdata (int bits)
 
 	if (bits & DPSU_VIEWZOOM)
 	{
-		if (nq_dp_protocol == 5 || nq_dp_protocol == 6)
+		if (nq_dp_protocol >= 6)
 			i = (unsigned short) MSG_ReadShort();
 		else
 			i = MSG_ReadByte();
@@ -1741,7 +1750,7 @@ void CLNQ_ParseClientdata (int bits)
 			i = 2;
 		CL_SetStat(0, STAT_VIEWZOOM, i);
 	}
-	else if (nq_dp_protocol != 6)
+	else if (nq_dp_protocol < 6)
 		CL_SetStat(0, STAT_VIEWZOOM, 255);
 }
 #endif
@@ -3060,6 +3069,44 @@ int getplayerchatcolour(char *msg)
 	return CL_PlayerChatColour(id);
 }
 
+void CL_ParsePrecache(void)
+{
+	int i = (unsigned short)MSG_ReadShort();
+	char *s = MSG_ReadString();
+	if (i < 32768)
+	{
+		if (i >= 1 && i < MAX_MODELS)
+		{
+			model_t *model;
+			CL_CheckOrDownloadFile(s, true);
+			model = Mod_ForName(s, i == 1);
+			if (!model)
+				Con_Printf("svc_precache: Mod_ForName(\"%s\") failed\n", s);
+			cl.model_precache[i] = model;
+			strcpy (cl.model_name[i], s);
+		}
+		else
+			Con_Printf("svc_precache: model index %i outside range %i...%i\n", i, 1, MAX_MODELS);
+	}
+	else
+	{
+		i -= 32768;
+		if (i >= 1 && i < MAX_SOUNDS)
+		{
+			sfx_t *sfx;
+			CL_CheckOrDownloadFile(va("sounds/%s", s), true);
+			sfx = S_PrecacheSound (s);
+			if (!sfx)
+				Con_Printf("svc_precache: S_PrecacheSound(\"%s\") failed\n", s);
+			cl.sound_precache[i] = sfx;
+			strcpy (cl.sound_name[i], s);
+		}
+		else
+			Con_Printf("svc_precache: sound index %i outside range %i...%i\n", i, 1, MAX_SOUNDS);
+	}
+}
+
+
 #define SHOWNET(x) if(cl_shownet.value==2)Con_Printf ("%3i:%s\n", msg_readcount-1, x);
 #define SHOWNET2(x, y) if(cl_shownet.value==2)Con_Printf ("%3i:%3i:%s\n", msg_readcount-1, y, x);
 /*
@@ -3134,6 +3181,7 @@ void CL_ParseServerMessage (void)
 			return;
 
 		case svc_time:
+			cl.oldgametime = cl.gametime;
 			cl.gametime = MSG_ReadFloat();
 			cl.gametimemark = realtime;
 			break;
@@ -3517,6 +3565,9 @@ void CL_ParseServerMessage (void)
 			CSQC_ParseEntities();
 			break;
 #endif
+		case svc_precache:
+			CL_ParsePrecache();
+			break;
 		}
 	}
 }
@@ -3687,6 +3738,8 @@ void CLNQ_ParseServerMessage (void)
 	CL_ClearProjectiles ();
 	cl.fixangle = false;
 
+	cl.allowsendpacket = true;
+
 //
 // if recording demos, copy the message out
 //
@@ -3697,9 +3750,6 @@ void CLNQ_ParseServerMessage (void)
 
 
 	CL_ParseClientdata ();
-
-
-	MSG_BeginReading ();
 //
 // parse the message
 //
@@ -3759,7 +3809,7 @@ void CLNQ_ParseServerMessage (void)
 			break;
 
 		case svc_disconnect:
-//			CL_Disconnect();
+			CL_Disconnect();
 			break;
 			
 		case svc_centerprint:
@@ -3778,42 +3828,8 @@ void CLNQ_ParseServerMessage (void)
 			vid.recalc_refdef = true;	// leave full screen intermission			
 			break;
 
-		case 54://svc_precache:
-			{
-				int i = (unsigned short)MSG_ReadShort();
-				char *s = MSG_ReadString();
-				if (i < 32768)
-				{
-					if (i >= 1 && i < MAX_MODELS)
-					{
-						model_t *model;
-						CL_CheckOrDownloadFile(s, true);
-						model = Mod_ForName(s, i == 1);
-						if (!model)
-							Con_Printf("svc_precache: Mod_ForName(\"%s\") failed\n", s);
-						cl.model_precache[i] = model;
-						strcpy (cl.model_name[i], s);
-					}
-					else
-						Con_Printf("svc_precache: model index %i outside range %i...%i\n", i, 1, MAX_MODELS);
-				}
-				else
-				{
-					i -= 32768;
-					if (i >= 1 && i < MAX_SOUNDS)
-					{
-						sfx_t *sfx;
-						CL_CheckOrDownloadFile(va("sounds/%s", s), true);
-						sfx = S_PrecacheSound (s);
-						if (!sfx)
-							Con_Printf("svc_precache: S_PrecacheSound(\"%s\") failed\n", s);
-						cl.sound_precache[i] = sfx;
-						strcpy (cl.sound_name[i], s);
-					}
-					else
-						Con_Printf("svc_precache: sound index %i outside range %i...%i\n", i, 1, MAX_SOUNDS);
-				}
-			}
+		case svcdp_precache:
+			CL_ParsePrecache();
 			break;
 
 		case svc_cdtrack:
@@ -3862,14 +3878,17 @@ void CLNQ_ParseServerMessage (void)
 		case svc_time:
 			received_framecount = host_framecount;
 			cl.last_servermessage = realtime;
+			cl.oldgametime = cl.gametime;
 			cl.gametime = MSG_ReadFloat();
 			cl.gametimemark = realtime;
 			if (nq_dp_protocol<5)
 			{
-				cl.validsequence = cls.netchan.incoming_sequence++;
 //				cl.frames[(cls.netchan.incoming_sequence-1)&UPDATE_MASK].packet_entities = cl.frames[cls.netchan.incoming_sequence&UPDATE_MASK].packet_entities;
 				cl.frames[cls.netchan.incoming_sequence&UPDATE_MASK].packet_entities.num_entities=0;
 			}
+			cls.netchan.outgoing_sequence++;
+			cls.netchan.incoming_sequence = cls.netchan.outgoing_sequence-1;
+			cl.validsequence = cls.netchan.incoming_sequence-1;
 			break;
 
 		case svc_updatename:

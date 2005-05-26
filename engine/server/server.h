@@ -106,6 +106,7 @@ typedef struct
 	qboolean	csqcdebug;
 
 	double		time;
+	float	physicstime;	//nq clients do so much better with times sent with physics than real.
 	int framenum;
 	
 	int			lastcheck;			// used by PF_checkclient
@@ -397,10 +398,6 @@ typedef struct client_s
 	int			backbuf_size[MAX_BACK_BUFFERS];
 	qbyte		backbuf_data[MAX_BACK_BUFFERS][MAX_BACKBUFLEN];
 
-#ifdef NQPROT	
-	qboolean nqprot;
-#endif
-
 	double			connection_started;	// or time of disconnect for zombies
 	qboolean		send_message;		// set on frames a datagram arived on
 
@@ -416,12 +413,12 @@ typedef struct client_s
 	int				stats[MAX_CL_STATS];
 
 	union{	//save space
-	client_frame_t	*frames;	// updates can be deltad from here
+		client_frame_t	*frames;	// updates can be deltad from here
 #ifdef Q2SERVER
-	q2client_frame_t	*q2frames;
+		q2client_frame_t	*q2frames;
 #endif
 #ifdef Q3SERVER
-	q3client_frame_t	*q3frames;
+		q3client_frame_t	*q3frames;
 #endif
 	};
 	FILE			*download;			// file being downloaded
@@ -490,7 +487,14 @@ typedef struct client_s
 	unsigned long	fteprotocolextensions;
 #endif
 	unsigned long	zquake_extensions;
-	int isq2client;	//contains protocol version too.
+
+	enum {
+		SCP_BAD,
+		SCP_QUAKEWORLD,
+		SCP_NETQUAKE,
+		SCP_DARKPLACES,
+		SCP_QUAKE2
+	} protocol;
 
 //speed cheat testing
 	int msecs;
@@ -521,6 +525,10 @@ typedef struct client_s
 	int rate;
 	int drate;
 } client_t;
+
+#define ISQWCLIENT(cl) ((cl)->protocol == SCP_QUAKEWORLD)
+#define ISQ2CLIENT(cl) ((cl)->protocol == SCP_QUAKE2)
+#define ISNQCLIENT(cl) ((cl)->protocol == SCP_NETQUAKE || (cl)->protocol == SCP_DARKPLACES)
 
 // a client can leave the server in one of four ways:
 // dropping properly by quiting or disconnecting

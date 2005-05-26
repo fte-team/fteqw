@@ -143,14 +143,14 @@ iwboolean FTP_ServerRun(iwboolean ftpserverwanted);
 qboolean HTTP_ServerPoll(qboolean httpserverwanted);
 
 void HTTP_CL_Think(void);
-qboolean HTTP_CL_Get(char *url, char *localfile);
+qboolean HTTP_CL_Get(char *url, char *localfile, void (*NotifyFunction)(char *localfile, qboolean sucess));
 
 //server interface called from main server routines.
 void IWebInit(void);
 void IWebRun(void);
 void IWebShutdown(void);
 
-void FTP_Client_Command (char *cmd);
+qboolean FTP_Client_Command (char *cmd, void (*NotifyFunction)(char *localfile, qboolean sucess));
 void IRC_Command(char *imsg);
 void FTP_ClientThink (void);
 void IRC_Frame(void);

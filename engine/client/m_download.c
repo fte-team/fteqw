@@ -213,7 +213,7 @@ void M_Download_Draw (int x, int y, struct menucustom_s *c, struct menu_s *m)
 		if (downloadablelist[info->parsedsourcenum])
 		{
 			sprintf(basename, "../dlinfo_%i.inf", info->parsedsourcenum);
-			if (!HTTP_CL_Get(downloadablelist[info->parsedsourcenum], basename))
+			if (!HTTP_CL_Get(downloadablelist[info->parsedsourcenum], basename, NULL))
 				Con_Printf("Could not contact server\n");
 		}
 	}
@@ -317,7 +317,7 @@ qboolean M_Download_Key (struct menucustom_s *c, struct menu_s *m, int key)
 			{
 				if ((p->flags&DPF_WANTTOINSTALL) && !(p->flags&DPF_HAVEAVERSION))
 				{	//if we want it and don't have it:
-					if (HTTP_CL_Get(p->src, va("../%s", p->dest)))
+					if (HTTP_CL_Get(p->src, va("../%s", p->dest), NULL))
 						p->flags|=DPF_HAVEAVERSION;	//FIXME: This is error prone.
 				}
 			}

@@ -1733,15 +1733,11 @@ void R_RenderMeshMultitextured ( meshbuffer_t *mb, shaderpass_t *pass )
 
 	r_numUnits = pass->numMergedPasses;
 
-	R_SetShaderpassState ( pass, true );
-	R_ModifyColor ( mb, pass );
-	R_ModifyTextureCoords ( pass, 0 );
-
 	GL_SelectTexture( mtexid0 );
-	if ( pass->blendmode == GL_REPLACE )
-		GL_TexEnv( GL_REPLACE );
-	else
-		GL_TexEnv( GL_MODULATE );
+	GL_TexEnv( pass->blendmode );
+	R_SetShaderpassState ( pass, true );
+	R_ModifyTextureCoords ( pass, 0 );
+	R_ModifyColor ( mb, pass );
 
 	for ( i = 1, pass++; i < r_numUnits; i++, pass++ )
 	{
@@ -2027,6 +2023,7 @@ void R_RenderFogOnMesh ( shader_t *shader, struct mfog_s *fog )
 	GL_Bind( r_fogtexture );
 
 	qglBlendFunc( GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA );
+	GL_TexEnv(GL_MODULATE);
 
 	if ( !shader->numpasses || shader->fog_dist || (shader->flags & SHADER_SKY) )
 	{
@@ -2173,7 +2170,7 @@ void R_FinishMeshBuffer ( meshbuffer_t *mb )
 
 		qglEnable ( GL_BLEND );
 		qglDisable ( GL_ALPHA_TEST );
-//		qglDepthMask ( GL_FALSE );
+		qglDepthMask ( GL_FALSE );
 
 //FIZME
 //		if ( dlight ) {

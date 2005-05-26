@@ -3303,7 +3303,7 @@ void DrawParticleTypes (void texturedparticles(particle_t *,part_type_t*), void 
 	{
 		if (type->clippeddecals)
 		{
-		/*	for ( ;; ) 
+			for ( ;; ) 
 			{
 				dkill = type->clippeddecals;
 				if (dkill && dkill->die < particletime)
@@ -3319,10 +3319,10 @@ void DrawParticleTypes (void texturedparticles(particle_t *,part_type_t*), void 
 					continue;
 				}
 				break;
-			}*/
+			}
 			for (d=type->clippeddecals ; d ; d=d->next)
 			{
-		/*		for ( ;; )
+				for ( ;; )
 				{
 					dkill = d->next;
 					if (dkill && dkill->die < particletime)
@@ -3336,7 +3336,7 @@ void DrawParticleTypes (void texturedparticles(particle_t *,part_type_t*), void 
 					}
 					break;
 				}
-*/
+
 
 
 				switch (type->rampmode)

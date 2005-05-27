@@ -124,6 +124,7 @@ cvar_t	gl_finish = {"gl_finish","0"};
 cvar_t	gl_contrast = {"gl_contrast", "1"};
 cvar_t	gl_dither = {"gl_dither", "1"};
 cvar_t	gl_maxdist = {"gl_maxdist", "8192"};
+extern cvar_t	gl_motionblur;
 
 extern cvar_t gl_ati_truform;
 extern cvar_t gl_ati_truform_type;
@@ -138,6 +139,7 @@ extern	cvar_t	gl_ztrick;
 extern	cvar_t	scr_fov;
 
 // post processing stuff
+int sceneblur_texture;
 int scenepp_texture;
 int scenepp_texture_warp;
 int scenepp_texture_edge;
@@ -225,6 +227,8 @@ void GL_SetupSceneProcessingTextures (void)
 	int i, x, y;
 	unsigned char pp_warp_tex[PP_WARP_TEX_SIZE*PP_WARP_TEX_SIZE*3];
 	unsigned char pp_edge_tex[PP_AMP_TEX_SIZE*PP_AMP_TEX_SIZE*3];
+
+	sceneblur_texture = texture_extension_number++;
 
 	if (!gl_config.arb_shader_objects)
 		return;
@@ -2143,6 +2147,67 @@ void GLR_RenderView (void)
 
 		if (qglGetError())
 			Con_Printf("GL Error after drawing with shaderobjects\n");
+	}
+
+
+
+	if (gl_motionblur.value>=0 && gl_motionblur.value < 1)
+	{
+		int vwidth = 1, vheight = 1;
+		float vs, vt;
+		while (vwidth < glwidth)
+		{
+			vwidth *= 2;
+		}
+		while (vheight < glheight)
+		{
+			vheight *= 2;
+		}
+
+		qglViewport (glx, gly, glwidth, glheight);
+
+		GL_Bind(sceneblur_texture);
+
+		// go 2d
+		qglMatrixMode(GL_PROJECTION);
+		qglPushMatrix();
+		qglLoadIdentity ();
+		qglOrtho  (0, glwidth, 0, glheight, -99999, 99999);
+		qglMatrixMode(GL_MODELVIEW);
+		qglPushMatrix();
+		qglLoadIdentity ();
+
+		//blend the last frame onto the scene
+		//the maths is because our texture is over-sized (must be power of two)
+		vs = (float)glwidth / vwidth;
+		vt = (float)glheight / vheight;
+		qglDisable (GL_DEPTH_TEST);
+		qglDisable (GL_CULL_FACE);
+		qglDisable (GL_BLEND);
+		qglDisable (GL_ALPHA_TEST);
+		qglEnable(GL_BLEND);
+		qglColor4f(1, 1, 1, gl_motionblur.value);
+		qglBegin(GL_QUADS);
+		qglTexCoord2f(0, 0);
+		qglVertex2f(0, 0);
+		qglTexCoord2f(vs, 0);
+		qglVertex2f(glwidth, 0);
+		qglTexCoord2f(vs, vt);
+		qglVertex2f(glwidth, glheight);
+		qglTexCoord2f(0, vt);
+		qglVertex2f(0, glheight);
+		qglEnd();
+
+		qglMatrixMode(GL_PROJECTION);
+		qglPopMatrix();
+		qglMatrixMode(GL_MODELVIEW);
+		qglPopMatrix();
+
+
+		//copy the image into the texture so that we can play with it next frame too!
+		qglCopyTexImage2D(GL_TEXTURE_2D, 0, GL_RGB, glx, gly, vwidth, vheight, 0);
+		qglTexParameterf(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+		qglTexParameterf(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
 	}
 }
 

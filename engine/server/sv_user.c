@@ -255,7 +255,6 @@ void SV_New_f (void)
 	else
 		MSG_WriteByte (&host_client->netchan.message, 0);
 }
-#define NQ_PROTOCOL_VERSION 15
 #define GAME_DEATHMATCH 0
 #define GAME_COOP 1
 void SVNQ_New_f (void)
@@ -273,8 +272,24 @@ void SVNQ_New_f (void)
 	MSG_WriteString (&host_client->netchan.message,message);
 
 	MSG_WriteByte (&host_client->netchan.message, svc_serverdata);
-	MSG_WriteLong (&host_client->netchan.message, NQ_PROTOCOL_VERSION);
-	MSG_WriteByte (&host_client->netchan.message, 16);
+	switch(host_client->protocol)
+	{
+	case SCP_NETQUAKE:
+		MSG_WriteLong (&host_client->netchan.message, NQ_PROTOCOL_VERSION);
+		MSG_WriteByte (&host_client->netchan.message, 16);
+		break;
+	case SCP_DARKPLACES6:
+		MSG_WriteLong (&host_client->netchan.message, DP6_PROTOCOL_VERSION);
+		MSG_WriteByte (&host_client->netchan.message, sv.allocated_client_slots);
+		break;
+	case SCP_DARKPLACES7:
+		MSG_WriteLong (&host_client->netchan.message, DP7_PROTOCOL_VERSION);
+		MSG_WriteByte (&host_client->netchan.message, sv.allocated_client_slots);
+		break;
+	default:
+		host_client->drop = true;
+		break;
+	}
 
 	if (!coop.value && deathmatch.value)
 		MSG_WriteByte (&host_client->netchan.message, GAME_DEATHMATCH);
@@ -4560,6 +4575,9 @@ void SVNQ_ReadClientMove (usercmd_t *move)
 	client_frame_t	*frame;	
 	
 	frame = &host_client->frames[host_client->netchan.incoming_acknowledged & UPDATE_MASK];
+
+	if (host_client->protocol == SCP_DARKPLACES7)
+		MSG_ReadLong ();
 	frame->ping_time = sv.time - MSG_ReadFloat ();
 	
 

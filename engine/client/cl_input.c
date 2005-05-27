@@ -1109,8 +1109,8 @@ void CL_SendCmd (float frametime)
 
 		// if we are spectator, try autocam
 		if (cl.spectator)
-			Cam_Track(plnum, cmd);
-		Cam_FinishMove(plnum, cmd);
+			Cam_Track(plnum, &independantphysics[plnum]);
+		Cam_FinishMove(plnum, &independantphysics[plnum]);
 		independantphysics[plnum].msec = msecstouse;
 	}
 

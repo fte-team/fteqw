@@ -474,7 +474,7 @@ void Netchan_Transmit (netchan_t *chan, int length, qbyte *data, int rate)
 	{
 		int oldsize = send.cursize;
 		Huff_CompressPacket(&send, (chan->sock == NS_CLIENT)?10:8);
-		Con_Printf("%i becomes %i\n", oldsize, send.cursize);
+//		Con_Printf("%i becomes %i\n", oldsize, send.cursize);
 //		Huff_DecompressPacket(&send, (chan->sock == NS_CLIENT)?10:8);
 	}
 #endif

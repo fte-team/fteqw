@@ -1428,7 +1428,6 @@ void CLQ2_ParseServerData (void)
 
 #ifdef NQPROT
 //FIXME: move to header
-#define NQ_PROTOCOL_VERSION 15
 void CL_KeepaliveMessage(void){}
 void CLNQ_ParseServerData(void)		//Doesn't change gamedir - use with caution.
 {
@@ -1457,7 +1456,7 @@ void CLNQ_ParseServerData(void)		//Doesn't change gamedir - use with caution.
 		sizeofcoord = 4;
 		sizeofangle = 2;
 	}
-	else if (protover == 3503)
+	else if (protover == DP6_PROTOCOL_VERSION)
 	{
 		//darkplaces6 (it's a small difference from dp5)
 		nq_dp_protocol = 6;
@@ -1466,7 +1465,7 @@ void CLNQ_ParseServerData(void)		//Doesn't change gamedir - use with caution.
 
 		cls.z_ext = Z_EXT_VIEWHEIGHT;
 	}
-	else if (protover == 3504)
+	else if (protover == DP7_PROTOCOL_VERSION)
 	{
 		//darkplaces7 (it's a small difference from dp5)
 		nq_dp_protocol = 7;

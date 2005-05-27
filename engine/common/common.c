@@ -4222,11 +4222,10 @@ typedef struct {
 gamemode_info_t gamemode_info[] = {
 //note that there is no basic 'fte' gamemode, this is because we aim for network compatability. Darkplaces-Quake is the closest we get.
 //this is to avoid having too many gamemodes anyway.
+	{"Darkplaces-Quake",	"darkplaces",	"-quake",		"id1/pak0.pak",		"id1",		"qw",				"fte"},
 	{"Darkplaces-Hipnotic",	"hipnotic",		"-hipnotic",	"hipnotic/pak0.pak","id1",		"qw",	"hipnotic",	"fte"},
 	{"Darkplaces-Rogue",	"rogue",		"-rogue",		"rogue/pak0.pak",	"id1",		"qw",	"rogue",	"fte"},
 	{"Nexuiz",				"nexuiz",		"-nexuiz",		"data/data.pk3",	"id1",		"qw",	"data",		"fte"},
-
-	{"Darkplaces-Quake",	"darkplaces",	"-quake",		"id1/pak0.pak",		"id1",		"qw",				"fte"},
 
 	//supported commercial mods (some are currently only partially supported)
 	{"FTE-Hexen2",			"hexen",		"-hexen2",		"data1/pak0.pak",	"data1",						"fte"},

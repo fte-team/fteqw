@@ -329,7 +329,8 @@ void SV_DropClient (client_t *drop)
 			break;
 		case SCP_QUAKEWORLD:
 		case SCP_NETQUAKE:
-		case SCP_DARKPLACES:
+		case SCP_DARKPLACES6:
+		case SCP_DARKPLACES7:
 			MSG_WriteByte (&drop->netchan.message, svc_disconnect);
 			break;
 		}
@@ -491,7 +492,8 @@ int SV_CalcPing (client_t *cl)
 	switch (cl->protocol)
 	{
 	case SCP_NETQUAKE:
-	case SCP_DARKPLACES:
+	case SCP_DARKPLACES6:
+	case SCP_DARKPLACES7:
 	case SCP_QUAKEWORLD:
 		ping = 0;
 		count = 0;
@@ -994,8 +996,8 @@ void SVC_GetChallenge (void)
 		Netchan_OutOfBand(NS_SERVER, net_from, over-buf, buf);
 
 
-		buf = va("challenge %i", svs.challenges[i].challenge);
-		Netchan_OutOfBand(NS_SERVER, net_from, strlen(buf)+1, buf);
+//		buf = va("challenge %i", svs.challenges[i].challenge);
+//		Netchan_OutOfBand(NS_SERVER, net_from, strlen(buf)+1, buf);
 	}
 
 //	Netchan_OutOfBandPrint (net_from, "%c%i", S2C_CHALLENGE, 
@@ -1092,7 +1094,8 @@ void SV_RejectMessage(int protocol, char *format, ...)
 		*(int*)string = BigLong(NETFLAG_CTL|len);
 		NET_SendPacket(NS_SERVER, len, string, net_from);
 		return;
-	case SCP_DARKPLACES:
+	case SCP_DARKPLACES6:
+	case SCP_DARKPLACES7:
 		strcpy(string, "reject ");
 		_vsnprintf (string+7,sizeof(string)-1-7, format,argptr);
 		len = strlen(string);
@@ -1139,7 +1142,8 @@ void SV_AcceptMessage(int protocol)
 		*(int*)sb.data = BigLong(NETFLAG_CTL|sb.cursize);
 		NET_SendPacket(NS_SERVER, sb.cursize, sb.data, net_from);
 		return;
-	case SCP_DARKPLACES:
+	case SCP_DARKPLACES6:
+	case SCP_DARKPLACES7:
 		strcpy(string, "accept");
 		len = strlen(string);
 		break;
@@ -1211,10 +1215,14 @@ client_t *SVC_DirectConnect(void)
 			Con_Printf ("* rejected connect from incompatable client\n");
 			return NULL;
 		}
-
-
 		//it's a darkplaces client.
-		protocol = SCP_DARKPLACES;
+
+		s = Info_ValueForKey(userinfo[0], "protocols");
+		if (strstr(s, "DP7"))
+			protocol = SCP_DARKPLACES7;
+		else
+			protocol = SCP_DARKPLACES6;
+
 		challenge = atoi(Info_ValueForKey(userinfo[0], "challenge"));
 
 		qport = 0;
@@ -1223,10 +1231,7 @@ client_t *SVC_DirectConnect(void)
 	{
 		if (atoi(Cmd_Argv(0)+7))
 		{
-	#ifdef NQPROT
-			if (!socket)
-	#endif		
-				numssclients = atoi(Cmd_Argv(0)+7);
+			numssclients = atoi(Cmd_Argv(0)+7);
 			if (numssclients<1 || numssclients > 4)
 			{
 				SV_RejectMessage (SCP_BAD, "Server is version %4.2f.\n", VERSION);
@@ -1385,9 +1390,6 @@ client_t *SVC_DirectConnect(void)
 				nextuserid--;
 				return NULL;
 			}
-#ifdef NQPROT
-			if (!socket)
-#endif	
 			{
 				Con_Printf ("%s:reconnect\n", NET_AdrToString (adr));
 //				SV_DropClient (cl);

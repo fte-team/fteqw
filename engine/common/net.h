@@ -192,6 +192,12 @@ int Huff_GetByte(qbyte *buffer, int *count);
 #define CCREP_SERVER_INFO	0x83
 #define CCREP_PLAYER_INFO	0x84
 #define CCREP_RULE_INFO		0x85
+
+//server->client protocol info
+#define NQ_PROTOCOL_VERSION 15
+#define DP5_PROTOCOL_VERSION 3502
+#define DP6_PROTOCOL_VERSION 3503
+#define DP7_PROTOCOL_VERSION 3504
 #endif
 
 int UDP_OpenSocket (int port, qboolean bcast);

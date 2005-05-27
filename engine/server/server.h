@@ -491,9 +491,11 @@ typedef struct client_s
 	enum {
 		SCP_BAD,
 		SCP_QUAKEWORLD,
+		SCP_QUAKE2,
 		SCP_NETQUAKE,
-		SCP_DARKPLACES,
-		SCP_QUAKE2
+		SCP_DARKPLACES6,
+		SCP_DARKPLACES7	//extra prediction stuff
+		//note, nq is nq+
 	} protocol;
 
 //speed cheat testing
@@ -528,7 +530,7 @@ typedef struct client_s
 
 #define ISQWCLIENT(cl) ((cl)->protocol == SCP_QUAKEWORLD)
 #define ISQ2CLIENT(cl) ((cl)->protocol == SCP_QUAKE2)
-#define ISNQCLIENT(cl) ((cl)->protocol == SCP_NETQUAKE || (cl)->protocol == SCP_DARKPLACES)
+#define ISNQCLIENT(cl) ((cl)->protocol >= SCP_NETQUAKE)
 
 // a client can leave the server in one of four ways:
 // dropping properly by quiting or disconnecting

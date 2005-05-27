@@ -1,3 +1,5 @@
+#ifdef RGLQUAKE
+
 #include "quakedef.h"
 #include "glquake.h"
 
@@ -84,8 +86,6 @@ extern unsigned int vertexsglbase;
 extern model_t	*loadmodel;
 extern char loadname[];
 
-
-#ifdef RGLQUAKE
 
 #ifdef _MSC_VER
 //#pragma comment (lib, "../../../glbsp/glbsp-2.05/plugin/libglbsp.a")

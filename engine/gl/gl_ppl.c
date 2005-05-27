@@ -1054,7 +1054,7 @@ static void PPL_BaseChain_Specular_FP(msurface_t *s, texture_t *tex)
 		qglClientActiveTextureARB(GL_TEXTURE1_ARB);
 		qglTexCoordPointer(2, GL_FLOAT, 0, s->mesh->lmst_array);
 		
-		qglVertexPointer(3, GL_FLOAT, sizeof(GL_FLOAT)*4, s->mesh->xyz_array);
+		qglVertexPointer(3, GL_FLOAT, 0, s->mesh->xyz_array);
 		qglDrawElements(GL_TRIANGLES, s->mesh->numindexes, GL_UNSIGNED_INT, s->mesh->indexes);
 	}
 
@@ -2078,7 +2078,7 @@ void PPL_LightTexturesFP(model_t *model, vec3_t modelorigin, dlight_t *light, ve
 				qglMultiTexCoord3fARB(GL_TEXTURE3_ARB, s->plane->normal[0], s->plane->normal[1], s->plane->normal[2]);
 
 			qglTexCoordPointer(2, GL_FLOAT, 0, s->mesh->st_array);
-			qglVertexPointer(3, GL_FLOAT, sizeof(float)*4, s->mesh->xyz_array);
+			qglVertexPointer(3, GL_FLOAT, 0, s->mesh->xyz_array);
 			qglDrawElements(GL_TRIANGLES, s->mesh->numindexes, GL_UNSIGNED_INT, s->mesh->indexes);
 
 		}
@@ -2306,7 +2306,7 @@ void PPL_LightBModelTexturesFP(entity_t *e, dlight_t *light, vec3_t colour)
 			qglMultiTexCoord3fARB(GL_TEXTURE3_ARB, s->plane->normal[0], s->plane->normal[1], s->plane->normal[2]);
 
 		qglTexCoordPointer(2, GL_FLOAT, 0, s->mesh->st_array);
-		qglVertexPointer(3, GL_FLOAT, sizeof(float)*4, s->mesh->xyz_array);
+		qglVertexPointer(3, GL_FLOAT, 0, s->mesh->xyz_array);
 		qglDrawElements(GL_TRIANGLES, s->mesh->numindexes, GL_UNSIGNED_INT, s->mesh->indexes);
 
 
@@ -3051,7 +3051,7 @@ void PPL_RecursiveWorldNode_r (mnode_t *node)
 
 				shadowsurfcount++;
 
-				qglVertexPointer(3, GL_FLOAT, sizeof(float)*4, surf->mesh->xyz_array);
+				qglVertexPointer(3, GL_FLOAT, 0, surf->mesh->xyz_array);
 				qglDrawElements(GL_TRIANGLES, surf->mesh->numindexes, GL_UNSIGNED_INT, surf->mesh->indexes);
 
 				//fixme:this only works becuse q1bsps don't have combined meshes yet...
@@ -3226,7 +3226,7 @@ void PPL_RecursiveWorldNodeQ2_r (mnode_t *node)
 				}
 
 				//front face
-				qglVertexPointer(3, GL_FLOAT, sizeof(GLfloat)*4, surf->mesh->xyz_array);
+				qglVertexPointer(3, GL_FLOAT, 0, surf->mesh->xyz_array);
 				qglDrawElements(GL_TRIANGLES, surf->mesh->numindexes, GL_UNSIGNED_INT, surf->mesh->indexes);
 
 				//fixme:this only works becuse q1bsps don't have combined meshes yet...
@@ -3425,7 +3425,7 @@ void PPL_RecursiveWorldNode (dlight_t *dl)
 	if (dl->worldshadowmesh)
 	{
 		qglEnableClientState(GL_VERTEX_ARRAY);
-		qglVertexPointer(3, GL_FLOAT, sizeof(vec3_t), dl->worldshadowmesh->verts);
+		qglVertexPointer(3, GL_FLOAT, 0, dl->worldshadowmesh->verts);
 		qglDrawElements(GL_TRIANGLES, dl->worldshadowmesh->numindicies, GL_UNSIGNED_INT, dl->worldshadowmesh->indicies);
 		return;
 	}
@@ -3568,7 +3568,7 @@ void PPL_DrawBrushModelShadow(dlight_t *dl, entity_t *e)
 		}
 
 			//front face
-		qglVertexPointer(3, GL_FLOAT, 4*sizeof(float), surf->mesh->xyz_array);
+		qglVertexPointer(3, GL_FLOAT, 0, surf->mesh->xyz_array);
 		qglDrawArrays(GL_POLYGON, 0, surf->mesh->numvertexes);
 
 		for (v = 0; v < surf->mesh->numvertexes; v++)

@@ -1152,7 +1152,6 @@ breakout:
 	}
 }
 
-#include "glquake.h"
 /*
 ================
 Con_DrawConsole

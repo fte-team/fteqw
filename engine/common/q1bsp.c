@@ -603,7 +603,6 @@ void Q1BSP_FragmentToMesh (fragmentdecal_t *dec, mesh_t *mesh)
 	}
 }
 
-#include "glquake.h"
 void Q1BSP_ClipDecalToNodes (fragmentdecal_t *dec, mnode_t *node)
 {
 	mplane_t	*splitplane;

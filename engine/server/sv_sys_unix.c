@@ -257,6 +257,7 @@ void Sys_Init (void)
 {
 	Cvar_Register (&sys_nostdout, "System configuration");
 	Cvar_Register (&sys_extrasleep,	"System configuration");
+	Cvar_Register (&sys_maxtic, "System configuration");
 }
 
 /*

@@ -168,12 +168,12 @@ void()  player_axed4 =  [$axattd4, player_run   ] {};
 
 void() player_nail1   =[$nailatt1, player_nail2  ] 
 {
-	if (!self.button0 || intermission_running || self.impulse)
+	if (self.weaponstate == WS_IDLE || intermission_running || self.impulse)
 		{player_run ();return;}
 };
 void() player_nail2   =[$nailatt2, player_nail1  ]
 {
-	if (!self.button0 || intermission_running || self.impulse)
+	if (self.weaponstate == WS_IDLE || intermission_running || self.impulse)
 		{player_run ();return;}
 };
 
@@ -181,12 +181,12 @@ void() player_nail2   =[$nailatt2, player_nail1  ]
 
 void() player_light1   =[$light1, player_light2  ] 
 {
-	if (!self.button0 || intermission_running)
+	if (self.weaponstate == WS_IDLE || intermission_running)
 		{player_run ();return;}
 };
 void() player_light2   =[$light2, player_light1  ]
 {
-	if (!self.button0 || intermission_running)
+	if (self.weaponstate == WS_IDLE || intermission_running)
 		{player_run ();return;}
 };
 
@@ -276,7 +276,7 @@ void()  player_axpain6 =        [       $axpain6,       player_run      ] {};
 
 void() player_pain =
 {
-	if (self.weaponframe)
+	if (self.weaponstate != WS_IDLE)
 		return;
 
 	if (self.invisible_finished > time)

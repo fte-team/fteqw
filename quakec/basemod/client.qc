@@ -514,6 +514,7 @@ void() PutClientInServer =
 	self.effects = 0;
 	self.invincible_time = 0;
 	self.suicide_time = time + 3;
+	self.weaponstate = WS_IDLE;
 
 	DecodeLevelParms ();
 	

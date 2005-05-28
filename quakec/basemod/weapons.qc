@@ -486,10 +486,10 @@ void() W_FireLightning =
 		return;
 	}
 
-	if (self.lsound_time < time)
+	if (self.lightning_sound < time)
 	{
 		sound (self, CHAN_WEAPON, "weapons/lhit.wav", 1, ATTN_NORM);
-		self.lsound_time = time + 0.6;
+		self.lightning_sound = time + 0.6;
 	}
 	VK_smallkick(self);
 
@@ -919,7 +919,7 @@ void() W_Attack =
 	makevectors (self.v_angle);                 // calculate forward angle for velocity
 	self.show_hostile = time + 1;   // wake monsters up
 
-	if (self.weaponframe == 0) // start delay
+	if (self.weaponstate == WS_IDLE) // start delay
 		self.delay = time + 0.1;
 
 	// animations are dealt with here
@@ -1003,10 +1003,16 @@ void() W_Attack =
 		r = 0.7;
 		break;
 	case IT_NAILGUN:
-		if (self.weaponframe & 1)
-			W_FireSpikes(4);
-		else
+		if (self.weaponstate == WS_FIRING1)
+		{
 			W_FireSpikes(-4);
+			self.weaponstate = WS_FIRING2;
+		}
+		else
+		{
+			W_FireSpikes(4);
+			self.weaponstate = WS_FIRING1;
+		}
 
 		r = 0.1;
 		break;
@@ -1027,6 +1033,9 @@ void() W_Attack =
 		r = 0.1;
 		break;
 	}
+
+	if (self.weaponstate == WS_IDLE)
+		self.weaponstate = WS_FIRING1;
 
 	// advance attack time
 	if (self.attack_finished <= time)
@@ -1300,7 +1309,7 @@ void() W_HandlePlayerFrame =
 	case IT_NAILGUN:
 	case IT_SUPER_NAILGUN:
 		// cycle until fire button is released
-		if (self.button0)
+		if (self.weaponstate != WS_IDLE)
  		{
 			self.weaponframe_time = time + 0.1;
   			self.weaponframe = self.weaponframe + 1;
@@ -1313,7 +1322,7 @@ void() W_HandlePlayerFrame =
 		return;
 	case IT_LIGHTNING:
 		// cycle until fire button is released
-		if (self.button0)
+		if (self.weaponstate != WS_IDLE)
 		{
 			self.weaponframe_time = time + 0.1;
 			self.weaponframe = self.weaponframe + 1;
@@ -1368,7 +1377,10 @@ void() W_WeaponFrame =
 		}
 	}
 	else
+	{
 		self.attack_finished = time;
+		self.weaponstate = WS_IDLE;
+	}
 };
 
 /*

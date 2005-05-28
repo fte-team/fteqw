@@ -12,21 +12,23 @@ Suicide timer limit
 Suicide backpack/quad/ring drop
 Condense bprint, sprint, centerprints
 te_explode sprite
+NQ/QW cross compatibility
 
 Todo -
-Track oldbutton presses
+Track oldbutton presses/weaponstate
 Samelevel 4 (exit acts as a spawnpoint teleporter)
-Don't use newmis/spawn projectiles in front
+Generic projectile spawning
+Effects/decal system
 Fix weird deathmatch modes, cvar checking
-sv_gravity change?
+Add monsters back
+Rogue/hipnotic weapons/monsters/hud stuffs
+Q2/Q3 ents
+H2/HL ents
+
+Stray Ideas -
 Advanced heal decay (only decay health that the megahealth added?)
-Effects system, NQ/QW cross compatibility
-Object-oriented?/Unionize?
-Add monsters back?
-H2 ents?
-HL ents?
-Q3 ents?
-Decal system based on visibility from players?
 Clean up backpack pickup prints?
+Decal system based on visibility from players?
 CSQC?
-Rogue/hipnotic weapons/monsters?
+Don't use newmis/spawn projectiles in front?
+sv_gravity change?

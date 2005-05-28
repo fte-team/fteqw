@@ -214,19 +214,12 @@ void(entity targ, entity inflictor, entity attacker, float damage, INTEGER mod) 
 		dir = targ.origin - (inflictor.absmin + inflictor.absmax) * 0.5;
 		dir = normalize(dir);
 		// Set kickback for smaller weapons
-//Zoid -- use normal NQ kickback
-//		// Read: only if it's not yourself doing the damage
-//		if ( (damage < 60) & ((attacker.classname == "player") & (targ.classname == "player")) & ( attacker.netname != targ.netname)) 
-//			targ.velocity = targ.velocity + dir * damage * 11;
-//		else                        
-		// Otherwise, these rules apply to rockets and grenades                        
-		// for blast velocity
-			targ.velocity = targ.velocity + dir * damage * 8;
+		targ.velocity = targ.velocity + dir * damage * 8;
 		
 		// Rocket Jump modifiers
-		if ( (rj > 1) & ((attacker.classname == "player") & (targ.classname == "player")) & ( attacker == targ)) 
-			targ.velocity = targ.velocity + dir * damage * rj;
-
+		if (rj > 1 && attacker == targ) 
+			if (targ.classname == "player")
+				targ.velocity = targ.velocity + dir * damage * rj;
 	}
 
 
@@ -236,10 +229,10 @@ void(entity targ, entity inflictor, entity attacker, float damage, INTEGER mod) 
 		return;
 	if (targ.invincible_finished >= time)
 	{
-		if (self.invincible_sound < time)
+		if (targ.invincible_sound < time)
 		{
 			sound (targ, CHAN_ITEM, "items/protect3.wav", 1, ATTN_NORM);
-			self.invincible_sound = time + 2;
+			targ.invincible_sound = time + 2;
 		}
 		return;
 	}

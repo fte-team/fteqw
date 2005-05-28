@@ -421,6 +421,7 @@ float   EF_FLAG2                = 32;
 // GLQuakeWorld Stuff
 // float 	EF_BLUE		=	64;	// Blue Globe effect for Quad
 // float	EF_RED		=	128;	// Red Globe effect for Pentagram
+
 // messages
 #define MSG_BROADCAST 0 // unreliable to all
 #define MSG_ONE       1 // reliable to one (msg_entity)
@@ -435,12 +436,12 @@ float   EF_FLAG2                = 32;
 #define PRINT_CHAT   3
 
 // multicast sets
-float   MULTICAST_ALL   = 0;            // every client
-float   MULTICAST_PHS   = 1;            // within hearing
-float   MULTICAST_PVS   = 2;            // within sight
-float   MULTICAST_ALL_R = 3;            // every client, reliable
-float   MULTICAST_PHS_R = 4;            // within hearing, reliable
-float   MULTICAST_PVS_R = 5;            // within sight, reliable
+#define MULTICAST_ALL   0 // every client
+#define MULTICAST_PHS   1 // within hearing
+#define MULTICAST_PVS   2 // within sight
+#define MULTICAST_ALL_R 3 // every client, reliable
+#define MULTICAST_PHS_R 4 // within hearing, reliable
+#define MULTICAST_PVS_R 5 // within sight, reliable
 
 
 
@@ -565,8 +566,6 @@ float   AS_MISSILE              = 4;
 // doors, etc
 //
 .vector         dest, dest1, dest2;
-// .float wait, see unions
-// .float delay, see unions
 .entity         trigger_field;  // door's trigger entity
 .string         noise4;
 
@@ -604,6 +603,11 @@ float   intermission_exittime;
 entity newmis;
 #endif
 
+// weaponstate defines
+#define WS_IDLE    0
+#define WS_FIRING1 1
+#define WS_FIRING2 2 // used with nailgun
+
 // unions
 // DO NOT MIX UNION TYPES LIKE I AM DOING
 .union {
@@ -619,14 +623,15 @@ entity newmis;
 	};
 	struct { // fields used with players
 		float weaponframe_time; // weapon frame advance time
+		INTEGER weaponstate;	// firing state of current weapon
 		float suicide_time;     // time to allow suicide after spawn
 		float healdecay; 		// time when health will decay
 		float show_hostile;     // used to alert monsters
-		float lsound_time;	// used for lightning sound playback
+		float lightning_sound;	// used for lightning sound playback
 		float fly_sound;		// used with trigger_push and maintaining wind sound
 	};
 	struct { // fields used with bubbles spawned from drowning
-		float bubble_count;   // keeps track of the number of bubbles
+		INTEGER bubble_count;   // keeps track of the number of bubbles
 	};
 	struct { // fields used with items
 		float healamount;	// amount healed with health item

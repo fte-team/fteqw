@@ -862,6 +862,40 @@ void VARGS CL_SendClientCommand(qboolean reliable, char *format, ...)
 	CL_AllowIndependantSendCmd(oldallow);
 }
 
+int CL_RemoveClientCommands(char *command)
+{
+	clcmdbuf_t *next, *first;
+	int removed = 0;
+
+	CL_AllowIndependantSendCmd(false);
+
+	if (!clientcmdlist)
+		return 0;
+
+	while(!strcmp(clientcmdlist->command, command))
+	{
+		next = clientcmdlist->next;
+		Z_Free(clientcmdlist);
+		clientcmdlist=next;
+		removed++;
+
+		if (!clientcmdlist)
+			return removed;
+	}
+	while(first->next)
+	{
+		if (!strcmp(first->next->command, command))
+		{
+			next = first->next->next;
+			Z_Free(first->next);
+			first->next = next;
+			removed++;
+		}
+	}
+
+	return removed;
+}
+
 void CL_FlushClientCommands(void)
 {
 	clcmdbuf_t *next;
@@ -869,6 +903,7 @@ void CL_FlushClientCommands(void)
 
 	while(clientcmdlist)
 	{
+		Con_DPrintf("Flushed command %s\n", clientcmdlist->command);
 		next = clientcmdlist->next;
 		Z_Free(clientcmdlist);
 		clientcmdlist=next;
@@ -904,13 +939,16 @@ unsigned long _stdcall CL_IndepPhysicsThread(void *param)
 	{
 		EnterCriticalSection(&indepcriticialsection);
 		time = Sys_DoubleTime();
-		CL_SendCmd(time - lasttime);
+		if (cls.state)
+			CL_SendCmd(time - lasttime);
 		lasttime = time;
 		LeaveCriticalSection(&indepcriticialsection);
 
 		fps = cl_netfps.value;
-		if (fps < 0)
-			fps = 0;
+		if (fps < 4)
+			fps = 4;
+		while (fps < 100)
+			fps*=2;
 
 		sleeptime = 1000/fps;
 
@@ -1065,7 +1103,7 @@ void CL_SendCmd (float frametime)
 				MSG_WriteByte (&buf, clc_stringcmd);
 				MSG_WriteString (&buf, clientcmdlist->command);
 			}
-//			Con_Printf("Sending stringcmd %s\n", clientcmdlist->command);
+			Con_DPrintf("Sending stringcmd %s\n", clientcmdlist->command);
 			Z_Free(clientcmdlist);
 			clientcmdlist = next;
 		}

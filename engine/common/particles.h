@@ -59,6 +59,19 @@ extern int rt_rocket_trail,
 	rt_bubbletrail;
 */
 
+struct beamseg_s;
+
+typedef struct trailstate_s {
+	struct trailstate_s **key;  // key to check if ts has been overwriten
+	struct trailstate_s *assoc; // assoc linked trail
+	struct beamseg_s *lastbeam; // last beam pointer (flagged with BS_LASTSEG)
+	union {
+		float lastdist;			// last distance used with particle effect
+		float statetime;		// time to emit effect again
+	};
+	float laststop;				// last stopping point for particle effect
+} trailstate_t;
+
 // !!! if this is changed, it must be changed in d_ifacea.h too !!!
 typedef struct particle_s
 {
@@ -74,8 +87,10 @@ typedef struct particle_s
 
 	vec3_t		vel;	//renderer uses for sparks
 	float		angle;
-	float		nextemit;
-
+	union {
+		float nextemit;
+		trailstate_t *trailstate;
+	};
 // drivers never touch the following fields
 	float		rotationspeed;
 } particle_t;
@@ -146,12 +161,8 @@ void P_BlobExplosion (vec3_t org);	//tarbaby explosion or TF emp.
 void P_ParticleExplosion (vec3_t org);	//rocket explosion (sprite is allocated seperatly :( )
 void P_LavaSplash (vec3_t org);	//cthon dying, or a gas grenade.
 
-typedef struct {
-	float lastdist;
-	struct beamseg_s *lastbeam; // last beam point
-} trailstate_t;
 //the core spawn function for trails. (trailstate can be null)
-int P_ParticleTrail (vec3_t start, vec3_t end, int type, trailstate_t *trailstate);
+int P_ParticleTrail (vec3_t start, vec3_t end, int type, trailstate_t **trailstate);
 
 void P_DefaultTrail (struct model_s *model);	//fills in the default particle properties for a loaded model. Should already have the model flags set.
 

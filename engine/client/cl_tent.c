@@ -123,6 +123,7 @@ typedef struct
 	float	alpha;
 	vec3_t	start, end;
 	int		particleeffect;
+	trailstate_t *trailstate;
 } beam_t;
 
 beam_t		cl_beams[MAX_BEAMS];
@@ -1978,8 +1979,15 @@ void CL_UpdateBeams (void)
 // update lightning
 	for (i=0, b=cl_beams ; i< MAX_BEAMS ; i++, b++)
 	{
-		if (!b->model || b->endtime < cl.time)
+		if (!b->model)
 			continue;
+		
+		if (b->endtime < cl.time)
+		{
+			P_DelinkTrailstate(&b->trailstate);
+			b->model = NULL;
+			continue;
+		}
 
 	// if coming from the player, update the start position
 		if (b->flags & 1 && b->entity == (autocam[0]?spec_track[0]:(cl.playernum[0]+1)))	// entity 0 is the world
@@ -2059,7 +2067,7 @@ void CL_UpdateBeams (void)
 //		if (part_type[rt_lightning1].loaded)
 //		if (!P_ParticleTrail(b->start, b->end, rt_lightning1, NULL))
 //			continue;
-		if (b->particleeffect >= 0 && !P_ParticleTrail(b->start, b->end, b->particleeffect, NULL))
+		if (b->particleeffect >= 0 && !P_ParticleTrail(b->start, b->end, b->particleeffect, &b->trailstate))
 			continue;
 
 	// add new entities for the lightning

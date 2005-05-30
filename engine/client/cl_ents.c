@@ -1568,15 +1568,7 @@ void CL_LinkPacketEntities (void)
 		}
 		if (i == cl_oldnumvisedicts)
 		{
-			trailstate_t *t;
-			t = &cl.lerpents[s1->number].trailstate;
-			t->lastdist = 0;
-			if (t->lastbeam)
-			{
-				t->lastbeam->flags &= ~BS_LASTSEG;
-				t->lastbeam->flags |= BS_NODRAW;
-			}
-			t->lastbeam = NULL;
+			P_DelinkTrailstate(&(cl.lerpents[s1->number].trailstate));
 			continue;		// not in last message
 		}
 

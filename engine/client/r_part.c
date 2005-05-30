@@ -87,10 +87,11 @@ void D_DrawSparkTrans (particle_t *pparticle, vec3_t src, vec3_t dest);
 
 void P_ReadPointFile_f (void);
 
-#define MAX_BEAMS                2048   // default max # of beam segments
+#define MAX_BEAMSEGS             2048   // default max # of beam segments
 #define MAX_PARTICLES			32768	// default max # of particles at one
 										//  time
 #define MAX_DECALS				 4096	// this is going to be expensive
+#define MAX_TRAILSTATES           512   // default max # of trailstates
 
 //int		ramp1[8] = {0x6f, 0x6d, 0x6b, 0x69, 0x67, 0x65, 0x63, 0x61};
 //int		ramp2[8] = {0x6f, 0x6e, 0x6d, 0x6c, 0x6b, 0x6a, 0x68, 0x66};
@@ -107,6 +108,10 @@ int			r_numbeams;
 clippeddecal_t	*free_decals;
 clippeddecal_t	*decals;
 int			r_numdecals;
+
+trailstate_t *trailstates;
+int			ts_cycle; // current cyclic index of trailstates
+int			r_numtrailstates;
 
 vec3_t			r_pright, r_pup, r_ppn;
 
@@ -163,6 +168,9 @@ typedef struct part_type_s {
 	float offsetspreadvert;
 	float randomvelvert;
 	float randscale;
+
+	float timelimit;
+
 	enum {PT_NORMAL, PT_BEAM, PT_DECAL} type;
 	enum {BM_MERGE, BM_ADD, BM_SUBTRACT} blendmode;
 
@@ -661,6 +669,8 @@ void P_ParticleEffect_f(void)
 			Con_DPrintf("isbeam is deprechiated, use type beam\n");
 			ptype->type = PT_BEAM;
 		}
+		else if (!strcmp(var, "timelimit"))
+			ptype->timelimit = atof(value);
 		else if (!strcmp(var, "cliptype"))
 		{
 			assoc = P_ParticleTypeForName(value);//careful - this can realloc all the particle types
@@ -1086,18 +1096,24 @@ void P_InitParticles (void)
 		r_numparticles = MAX_PARTICLES;
 	}
 
-	r_numbeams = MAX_BEAMS;
+	r_numbeams = MAX_BEAMSEGS;
 
 	r_numdecals = MAX_DECALS;
+
+	r_numtrailstates = MAX_TRAILSTATES;
 
 	particles = (particle_t *)
 			Hunk_AllocName (r_numparticles * sizeof(particle_t), "particles");
 
 	beams = (beamseg_t *)
-			Hunk_AllocName (r_numbeams * sizeof(beamseg_t), "beams");
+			Hunk_AllocName (r_numbeams * sizeof(beamseg_t), "beamsegs");
 
 	decals = (clippeddecal_t *)
 			Hunk_AllocName (r_numdecals * sizeof(clippeddecal_t), "decals");
+
+	trailstates = (trailstate_t *)
+			Hunk_AllocName (r_numtrailstates * sizeof(trailstate_t), "trailstates");
+	ts_cycle = 0;
 	
 	Cmd_AddCommand("pointfile", P_ReadPointFile_f);	//load the leak info produced from qbsp into the particle system to show a line. :)
 
@@ -1898,6 +1914,8 @@ int P_RunParticleEffectType (vec3_t org, vec3_t dir, float count, int typenum)
 				p->alpha = ptype->alpha;
 			p->color = 0;
 			p->nextemit = particletime + ptype->emitstart - p->die;
+			if (ptype->emittime < 0)
+				p->trailstate = NULL;
 
 			p->rotationspeed = ptype->rotationmin + frandom()*ptype->rotationrand;
 			p->angle = ptype->rotationstartmin + frandom()*ptype->rotationstartrand;
@@ -2296,15 +2314,81 @@ void CLQ2_RailTrail (vec3_t start, vec3_t end)
 	P_ParticleTrail(start, end, rt_railtrail, NULL);
 }
 
-int P_ParticleTrail (vec3_t startpos, vec3_t end, int type, trailstate_t *ts)
+// Trailstate functions
+void P_CleanTrailstate(trailstate_t *ts)
 {
-	vec3_t	vec, right, up, start;
+	// clear LASTSEG flag from lastbeam so it can be reused
+	if (ts->lastbeam)
+	{
+		ts->lastbeam->flags &= ~BS_LASTSEG;
+		ts->lastbeam->flags |= BS_NODRAW;
+	}
+
+	// clean structure
+	memset(ts, 0, sizeof(trailstate_t));
+}
+
+void P_DelinkTrailstate(trailstate_t **tsk)
+{
+	trailstate_t *ts;
+	trailstate_t *assoc;
+
+	if (*tsk == NULL)
+		return; // not linked to a trailstate
+
+	ts = *tsk;
+
+	if (ts->key != tsk)
+		return; // prevent overwrite
+
+	assoc = ts->assoc; // store assoc
+	P_CleanTrailstate(ts); // clean directly linked trailstate
+
+	// clean trailstates assoc linked
+	while (assoc)
+	{
+		ts = assoc->assoc;
+		P_CleanTrailstate(assoc);
+		assoc = ts;
+	}
+
+	*tsk = NULL; // erase pointer
+}
+
+trailstate_t *P_NewTrailstate(trailstate_t **key)
+{
+	trailstate_t *ts;
+
+	// bounds check here in case r_numtrailstates changed
+	if (ts_cycle >= r_numtrailstates)
+		ts_cycle = 0;
+
+	// get trailstate
+	ts = trailstates + ts_cycle;
+
+	// clear trailstate
+	P_CleanTrailstate(ts);
+
+	// set key
+	ts->key = key;
+
+	// advance index cycle
+	ts_cycle++;
+
+	// return clean trailstate
+	return ts;
+}
+
+int P_ParticleTrail (vec3_t startpos, vec3_t end, int type, trailstate_t **tsk)
+{
+	vec3_t	vec, vstep, right, up, start;
 	float	len;
 	int			tcount;
 	particle_t	*p;
 	part_type_t *ptype = &part_type[type];
 	beamseg_t   *b;
 	beamseg_t   *bfirst;
+	trailstate_t *ts;
 
 	float veladd = -ptype->veladd;
 	float randvel = ptype->randomvel;
@@ -2316,21 +2400,51 @@ int P_ParticleTrail (vec3_t startpos, vec3_t end, int type, trailstate_t *ts)
 		return 1;
 
 	VectorCopy(startpos, start);
-	if (ptype->assoc>=0)
+
+	// trailstate allocation/deallocation
+	if (tsk)
 	{
-		VectorCopy(start, vec);
-		if (ts)
+		// if *tsk = NULL get a new one
+		if (*tsk == NULL)
 		{
-			trailstate_t nts;
-			memcpy(&nts, ts, sizeof(nts));
-			P_ParticleTrail(vec, end, ptype->assoc, &nts);
+			ts = P_NewTrailstate(tsk);
+			*tsk = ts;
 		}
 		else
-			P_ParticleTrail(vec, end, ptype->assoc, NULL);
-	} 
-	else if (!ptype->die)
+		{
+			ts = *tsk;
+
+			if (ts->key != tsk) // trailstate was overwritten
+			{
+				ts = P_NewTrailstate(tsk); // so get a new one
+				*tsk = ts;
+			}
+		}
+	}
+	else
 		ts = NULL;
 
+	if (ptype->assoc>=0)
+	{
+		if (ts)
+			P_ParticleTrail(start, end, ptype->assoc, &(ts->assoc));
+		else
+			P_ParticleTrail(start, end, ptype->assoc, NULL);
+	} 
+
+	// time limit for trails
+	if (ptype->timelimit && ts)
+	{
+		if (ts->statetime > particletime)
+			return 0; // timelimit still in effect
+
+		ts->statetime = particletime + ptype->timelimit; // record old time
+		ts = NULL; // clear trailstate so we don't save length/lastseg
+	}
+
+	if (!ptype->die)
+		ts = NULL;
+	
 	step = 1/ptype->count;
 
 	if (step < 0.01)
@@ -2338,6 +2452,7 @@ int P_ParticleTrail (vec3_t startpos, vec3_t end, int type, trailstate_t *ts)
 
 	VectorSubtract (end, start, vec);
 	len = VectorNormalize (vec);
+	VectorScale(vec, step, vstep);
 
 	// add offset
 	start[2] += ptype->offsetup;
@@ -2351,16 +2466,11 @@ int P_ParticleTrail (vec3_t startpos, vec3_t end, int type, trailstate_t *ts)
 			tdegree = 2*M_PI/ptype->spawnparam1; /* distance per rotation inversed */
 	}
 
+	// store last stop here for lack of a better solution besides vectors
 	if (ts)
 	{
-		stop = ts->lastdist + len;	//when to stop
+		ts->laststop = stop = ts->laststop + len;	//when to stop
 		len = ts->lastdist;
-
-		if (!len)
-		{
-			len = particletime;
-			stop += len;
-		}
 	}
 	else
 	{
@@ -2456,6 +2566,8 @@ int P_ParticleTrail (vec3_t startpos, vec3_t end, int type, trailstate_t *ts)
 
 		VectorCopy (vec3_origin, p->vel);
 		p->nextemit = particletime + ptype->emitstart - p->die;
+		if (ptype->emittime < 0)
+			p->trailstate = NULL; // init trailstate
 
 		p->rotationspeed = ptype->rotationmin + frandom()*ptype->rotationrand;
 		p->angle = ptype->rotationstartmin + frandom()*ptype->rotationstartrand;
@@ -2520,7 +2632,7 @@ int P_ParticleTrail (vec3_t startpos, vec3_t end, int type, trailstate_t *ts)
 			break;
 		}
 
-		VectorMA (start, step, vec, start);
+		VectorAdd (start, vstep, start);
 
 		p->die = particletime + ptype->die - p->die;
 	}
@@ -3392,6 +3504,22 @@ void DrawParticleTypes (void texturedparticles(particle_t *,part_type_t*), void 
 				if (type->type == PT_NORMAL)
 					RQ_AddDistReorder(pdraw, p, type, p->org);
 
+				// make sure emitter runs at least once
+				if (type->emit >= 0 && type->emitstart <= 0)
+					P_RunParticleEffectType(p->org, p->vel, 1, type->emit);
+
+				// make sure stain effect runs
+				if (type->stains && r_bloodstains.value)
+				{
+					if (traces-->0&&tr(oldorg, p->org, stop, normal))
+					{
+						R_AddStain(stop,	(p->rgb[1]*-10+p->rgb[2]*-10),
+											(p->rgb[0]*-10+p->rgb[2]*-10),
+											(p->rgb[0]*-10+p->rgb[1]*-10),
+											30*p->alpha*type->stains);
+					}
+				}
+
 				type->particles = p->next;
 //				p->next = free_particles;
 //				free_particles = p;
@@ -3452,36 +3580,15 @@ void DrawParticleTypes (void texturedparticles(particle_t *,part_type_t*), void 
 		}
 
 		//kill off early ones.
-		for ( ;; ) 
+		if (type->emittime < 0)
 		{
-			kill = type->particles;
-			if (kill && kill->die < particletime)
+			for ( ;; ) 
 			{
-				type->particles = kill->next;
-//				kill->next = free_particles;
-//				free_particles = kill;
-				kill->next = kill_list;
-				kill_list = kill;
-				if (!kill_first)
-					kill_first = kill;
-				continue;
-			}
-			break;
-		}
-
-		grav = type->gravity*pframetime;
-		VectorScale(type->friction, pframetime, friction);
-
-		for (p=type->particles ; p ; p=p->next)
-		{
-			for ( ;; )
-			{
-				kill = p->next;
+				kill = type->particles;
 				if (kill && kill->die < particletime)
 				{
-					p->next = kill->next;
-//					kill->next = free_particles;
-//					free_particles = kill;
+					P_DelinkTrailstate(&kill->trailstate);
+					type->particles = kill->next;
 					kill->next = kill_list;
 					kill_list = kill;
 					if (!kill_first)
@@ -3490,6 +3597,66 @@ void DrawParticleTypes (void texturedparticles(particle_t *,part_type_t*), void 
 				}
 				break;
 			}
+		}
+		else
+		{
+			for ( ;; ) 
+			{
+				kill = type->particles;
+				if (kill && kill->die < particletime)
+				{
+					type->particles = kill->next;
+					kill->next = kill_list;
+					kill_list = kill;
+					if (!kill_first)
+						kill_first = kill;
+					continue;
+				}
+				break;
+			}
+		}
+
+		grav = type->gravity*pframetime;
+		VectorScale(type->friction, pframetime, friction);
+
+		for (p=type->particles ; p ; p=p->next)
+		{
+			if (type->emittime < 0)
+			{
+				for ( ;; )
+				{
+					kill = p->next;
+					if (kill && kill->die < particletime)
+					{
+						P_DelinkTrailstate(&kill->trailstate);
+						p->next = kill->next;
+						kill->next = kill_list;
+						kill_list = kill;
+						if (!kill_first)
+							kill_first = kill;
+						continue;
+					}
+					break;
+				}
+			}
+			else
+			{
+				for ( ;; )
+				{
+					kill = p->next;
+					if (kill && kill->die < particletime)
+					{
+						p->next = kill->next;
+						kill->next = kill_list;
+						kill_list = kill;
+						if (!kill_first)
+							kill_first = kill;
+						continue;
+					}
+					break;
+				}
+			}
+
 			VectorCopy(p->org, oldorg);
 			if (type->flags & PT_VELOCITY)
 			{
@@ -3535,7 +3702,7 @@ void DrawParticleTypes (void texturedparticles(particle_t *,part_type_t*), void 
 			if (type->emit >= 0)
 			{
 				if (type->emittime < 0)
-					P_ParticleTrail(oldorg, p->org, type->emit, NULL);
+					P_ParticleTrail(oldorg, p->org, type->emit, &p->trailstate);
 				else if (p->nextemit < particletime)
 				{
 					p->nextemit = particletime + type->emittime + frandom()*type->emitrand;

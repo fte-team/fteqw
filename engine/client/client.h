@@ -389,7 +389,7 @@ typedef struct {
 	float lerprate;	//inverse rate...
 	vec3_t origin;
 	vec3_t angles;
-	trailstate_t trailstate;	//when to next throw out a trail
+	trailstate_t *trailstate;	//when to next throw out a trail
 	unsigned short frame;
 	unsigned short tagent;
 	unsigned short tagindex;

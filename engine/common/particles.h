@@ -172,4 +172,7 @@ int P_RunParticleEffectTypeString (vec3_t org, vec3_t dir, float count, char *na
 
 void P_EmitSkyEffectTris(struct model_s *mod, struct msurface_s 	*fa);
 
+// trailstate functions
+void P_DelinkTrailstate(trailstate_t **tsk);
+
 #endif

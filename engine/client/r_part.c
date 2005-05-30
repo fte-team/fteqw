@@ -2315,7 +2315,7 @@ void CLQ2_RailTrail (vec3_t start, vec3_t end)
 }
 
 // Trailstate functions
-void P_CleanTrailstate(trailstate_t *ts)
+static void P_CleanTrailstate(trailstate_t *ts)
 {
 	// clear LASTSEG flag from lastbeam so it can be reused
 	if (ts->lastbeam)
@@ -2336,7 +2336,8 @@ void P_DelinkTrailstate(trailstate_t **tsk)
 	if (*tsk == NULL)
 		return; // not linked to a trailstate
 
-	ts = *tsk;
+	ts = *tsk; // store old pointer
+	*tsk = NULL; // clear pointer
 
 	if (ts->key != tsk)
 		return; // prevent overwrite
@@ -2351,11 +2352,9 @@ void P_DelinkTrailstate(trailstate_t **tsk)
 		P_CleanTrailstate(assoc);
 		assoc = ts;
 	}
-
-	*tsk = NULL; // erase pointer
 }
 
-trailstate_t *P_NewTrailstate(trailstate_t **key)
+static trailstate_t *P_NewTrailstate(trailstate_t **key)
 {
 	trailstate_t *ts;
 

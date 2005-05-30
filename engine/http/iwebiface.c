@@ -99,14 +99,14 @@ void COM_EnumerateFiles (char *match, int (*func)(char *, int, void *), void *pa
 	do
 	{
 		if (*fd.cFileName == '.');
-		else if (fd.dwFileAttributes != 16)	//is a directory
+		else if (fd.dwFileAttributes & FILE_ATTRIBUTE_DIRECTORY)	//is a directory
 		{
-			sprintf(file, "%s%s", apath, fd.cFileName);
+			sprintf(file, "%s%s/", apath, fd.cFileName);
 			go = func(file, fd.nFileSizeLow, parm);
 		}
 		else
 		{
-			sprintf(file, "%s%s/", apath, fd.cFileName);
+			sprintf(file, "%s%s", apath, fd.cFileName);
 			go = func(file, fd.nFileSizeLow, parm);
 		}
 	}

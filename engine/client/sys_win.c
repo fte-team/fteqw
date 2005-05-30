@@ -401,11 +401,11 @@ int Sys_EnumerateFiles (char *gpath, char *match, int (*func)(char *, int, void 
 	do
 	{
 		if (*fd.cFileName == '.');	//don't ever find files with a name starting with '.'
-		else if (fd.dwFileAttributes != 16)	//is a directory
+		else if (fd.dwFileAttributes & FILE_ATTRIBUTE_DIRECTORY)	//is a directory
 		{
 			if (wildcmp(match, fd.cFileName))
 			{
-				sprintf(file, "%s%s", apath, fd.cFileName);
+				sprintf(file, "%s%s/", apath, fd.cFileName);
 				go = func(file, fd.nFileSizeLow, parm);
 			}
 		}
@@ -413,7 +413,7 @@ int Sys_EnumerateFiles (char *gpath, char *match, int (*func)(char *, int, void 
 		{
 			if (wildcmp(match, fd.cFileName))
 			{
-				sprintf(file, "%s%s/", apath, fd.cFileName);
+				sprintf(file, "%s%s", apath, fd.cFileName);
 				go = func(file, fd.nFileSizeLow, parm);
 			}
 		}

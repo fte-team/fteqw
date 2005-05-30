@@ -240,18 +240,18 @@ int Sys_EnumerateFiles (char *gpath, char *match, int (*func)(char *, int, void 
     go = true;
 	do
 	{
-		if (fd.dwFileAttributes != 16)	//is a directory
-		{
-			sprintf(file, "%s%s", apath, fd.cFileName);
-			go = func(file, fd.nFileSizeLow, parm);
-		}
-		else
+		if (fd.dwFileAttributes & FILE_ATTRIBUTE_DIRECTORY)	//is a directory
 		{
 			if (*fd.cFileName != '.')
 			{
 				sprintf(file, "%s%s/", apath, fd.cFileName);
 				go = func(file, fd.nFileSizeLow, parm);
 			}
+		}
+		else
+		{
+			sprintf(file, "%s%s", apath, fd.cFileName);
+			go = func(file, fd.nFileSizeLow, parm);
 		}
 	}
 	while(FindNextFile(r, &fd) && go);

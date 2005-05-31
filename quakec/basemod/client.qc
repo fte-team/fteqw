@@ -494,7 +494,6 @@ called each time a player enters a new level
 */
 void() PutClientInServer =
 {
-	dprint("putclientinserver called\n");
 	local   entity spot;
 
 	self.classname = "player";

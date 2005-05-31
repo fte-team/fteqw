@@ -2,7 +2,7 @@
 */
 void (entity targ, entity inflictor, entity attacker, float damage, INTEGER mod) T_Damage;
 void () player_run;
-void(entity bomb, entity attacker, float rad, entity ignore, INTEGER mod) T_RadiusDamage;
+void(entity inflictor, entity attacker, float damage, float radius, entity ignore, INTEGER mod) T_RadiusDamage;
 void(vector org, float damage) SpawnBlood;
 void() SuperDamageSound;
 
@@ -66,20 +66,6 @@ void() W_FireAxe =
 
 //============================================================================
 
-
-vector() wall_velocity =
-{
-	local vector    vel;
-	
-	vel = normalize (self.velocity);
-	vel = normalize(vel + v_up*(random()- 0.5) + v_right*(random()- 0.5));
-	vel = vel + 2*trace_plane_normal;
-	vel = vel * 200;
-	
-	return vel;
-};
-
-
 /*
 ================
 SpawnMeatSpray
@@ -108,19 +94,6 @@ void(vector org, vector vel) SpawnMeatSpray =
 	setmodel (missile, "progs/zom_gib.mdl");
 	setsize (missile, '0 0 0', '0 0 0');            
 	setorigin (missile, org);
-};
-
-/*
-================
-spawn_touchblood
-================
-*/
-void(float damage) spawn_touchblood =
-{
-	local vector    vel;
-
-	vel = wall_velocity () * 0.2;
-	SpawnBlood (self.origin + vel*0.01, damage);
 };
 
 /*
@@ -307,61 +280,6 @@ ROCKETS
 ==============================================================================
 */
 
-void() T_MissileTouch =
-{
-	local float     damg;
-
-//	if (deathmatch == 4)
-//	{
-//	if ( ((other.weapon == 32) || (other.weapon == 16)))
-//		{	
-//			if (random() < 0.1)
-//			{
-//				if (other != world)
-//				{
-//	//				bprint (PRINT_HIGH, "Got here\n");
-//					other.deathtype = "blaze";
-//					T_Damage (other, self, self.owner, 1000 );
-//					T_RadiusDamage (self, self.owner, 1000, other);
-//				}
-//			}
-//		}	
-//	}
-
-	if (other == self.owner)
-		return;         // don't explode on owner
-
-	if (self.voided) {
-		return;
-	}
-	self.voided = 1;
-
-	if (pointcontents(self.origin) == CONTENT_SKY)
-	{
-		remove(self);
-		return;
-	}
-
-	damg = 100 + random()*20;
-	
-	if (other.health)
-		T_Damage (other, self, self.owner, damg, MOD_ROCKET);
-
-	// don't do radius damage to the other, because all the damage
-	// was done in the impact
-
-
-	T_RadiusDamage (self, self.owner, 120, other, MOD_ROCKETRADIUS);
-
-//  sound (self, CHAN_WEAPON, "weapons/r_exp3.wav", 1, ATTN_NORM);
-	self.origin = self.origin - 8 * normalize(self.velocity);
-
-	TE_explosion(self.origin);
-	remove(self);
-};
-
-
-
 /*
 ================
 W_FireRocket
@@ -375,30 +293,15 @@ void() W_FireRocket =
 	sound (self, CHAN_WEAPON, "weapons/sgun1.wav", 1, ATTN_NORM);
 
 	VK_smallkick(self);
-
-	newmis = spawn ();
-	newmis.owner = self;
-	newmis.movetype = MOVETYPE_FLYMISSILE;
-	newmis.solid = SOLID_BBOX;
-		
-// set newmis speed     
-
-	makevectors (self.v_angle);
-	newmis.velocity = aim(self, 1000);
-	newmis.velocity = newmis.velocity * 1000;
-	newmis.angles = vectoangles(newmis.velocity);
-	
-	newmis.touch = T_MissileTouch;
-	newmis.voided = 0;
-	
-// set newmis duration
-	newmis.nextthink = time + 5;
-	newmis.think = SUB_Remove;
-	newmis.classname = "rocket";
-
-	setmodel (newmis, "progs/missile.mdl");
-	setsize (newmis, '0 0 0', '0 0 0');             
-	setorigin (newmis, self.origin + v_forward*8 + '0 0 16');
+	PRJ_FireProjectile(self, 
+		"progs/missile.mdl", 
+		self.origin + v_forward*8 + '0 0 16', 
+		aim(self, 1000) * 1000,
+		PE_EXPLOSION, 
+		100+random()*20, 
+		MOD_ROCKET, 
+		5);
+	PRJ_SetRadiusDamage(120, 160, MOD_ROCKETRADIUS);
 };
 
 /*
@@ -454,6 +357,7 @@ void() W_FireLightning =
 {
 	local   vector          org;
 	local   float           cells;
+	local   INTEGER		expmod;
 
 	if (self.ammo_cells < 1)
 	{
@@ -477,12 +381,12 @@ void() W_FireLightning =
 		cells = self.ammo_cells;
 		self.ammo_cells = 0;
 		W_SetCurrentAmmo ();
+		expmod = MOD_SHAFTWATER;
 		if (self.watertype == CONTENT_SLIME)
-			T_RadiusDamage (self, self, 35*cells, world, MOD_SHAFTSLIME);
+			expmod = MOD_SHAFTSLIME;
 		else if (self.watertype == CONTENT_LAVA)
-			T_RadiusDamage (self, self, 35*cells, world, MOD_SHAFTLAVA);
-		else
-			T_RadiusDamage (self, self, 35*cells, world, MOD_SHAFTWATER);
+			expmod = MOD_SHAFTLAVA;
+		T_RadiusDamage (self, self, 35*cells, 40+35*cells, world, expmod);
 		return;
 	}
 
@@ -505,156 +409,44 @@ void() W_FireLightning =
 	LightningDamage (self.origin, trace_endpos + v_forward*4, self, 30);
 };
 
-
-//=============================================================================
-
-
-void() GrenadeExplode =
-{
-	if (self.voided) {
-		return;
-	}
-	self.voided = 1;
-
-	T_RadiusDamage (self, self.owner, 120, world, MOD_GRENADE);
-
-	TE_explosion(self.origin);
-	remove (self);
-};
-
-void() GrenadeTouch =
-{
-	if (other == self.owner)
-		return;         // don't explode on owner
-	if (other.takedamage == DAMAGE_AIM)
-	{
-		GrenadeExplode();
-		return;
-	}
-	sound (self, CHAN_WEAPON, "weapons/bounce.wav", 1, ATTN_NORM);  // bounce sound
-	if (self.velocity == '0 0 0')
-		self.avelocity = '0 0 0';
-};
-
 /*
 ================
 W_FireGrenade
 ================
 */
 void() W_FireGrenade =
-{       
+{
+	local vector vel;
+
 	if (deathmatch != 4)
 		self.currentammo = self.ammo_rockets = self.ammo_rockets - 1;
 	
 	sound (self, CHAN_WEAPON, "weapons/grenade.wav", 1, ATTN_NORM);
 
-	VK_smallkick(self);
-
-	newmis = spawn ();
-	newmis.voided=0;
-	newmis.owner = self;
-	newmis.movetype = MOVETYPE_BOUNCE;
-	newmis.solid = SOLID_BBOX;
-	newmis.classname = "grenade";
-		
-// set newmis speed     
-
-	makevectors (self.v_angle);
-
 	if (self.v_angle_x)
-		newmis.velocity = v_forward*600 + v_up * 200 + crandom()*v_right*10 + crandom()*v_up*10;
+		vel = v_forward*600 + v_up * 200 + crandom()*v_right*10 + crandom()*v_up*10;
 	else
 	{
-		newmis.velocity = aim(self, 10000);
-		newmis.velocity = newmis.velocity * 600;
-		newmis.velocity_z = 200;
+		vel = aim(self, 10000) * 600;
+		vel_z = 200;
 	}
 
-	newmis.avelocity = '300 300 300';
+	VK_smallkick(self);
+	PRJ_FireProjectile(self, "progs/grenade.mdl", self.origin, vel, PE_EXPLOSIONGROUND, 0, 0, 2.5);
+	PRJ_SetRadiusDamage(120, 160, MOD_GRENADE);
+	PRJ_SetBouncyProjectile();
 
-	newmis.angles = vectoangles(newmis.velocity);
-	
-	newmis.touch = GrenadeTouch;
-	
-// set newmis duration
 	if (deathmatch == 4)
 	{
-		newmis.nextthink = time + 2.5;		
 		self.attack_finished = time + 1.1;
 		T_Damage (self, self, self.owner, 10, MOD_GRENADE);
 	}
-	else
-		newmis.nextthink = time + 2.5;
-
-	newmis.think = GrenadeExplode;
-
-	setmodel (newmis, "progs/grenade.mdl");
-	setsize (newmis, '0 0 0', '0 0 0');             
-	setorigin (newmis, self.origin);
 };
 
 
 //=============================================================================
-
-void() spike_touch;
-void() superspike_touch;
-
-
-/*
-===============
-launch_spike
-
-Used for both the player and the ogre
-===============
-*/
-void(vector org, vector dir) launch_spike =
-{
-	newmis = spawn ();
-	newmis.voided=0;
-	newmis.owner = self;
-	newmis.movetype = MOVETYPE_FLYMISSILE;
-	newmis.solid = SOLID_BBOX;
-
-	newmis.angles = vectoangles(dir);
-	
-	newmis.touch = spike_touch;
-	newmis.classname = "spike";
-	newmis.think = SUB_Remove;
-	newmis.nextthink = time + 6;
-	setmodel (newmis, "progs/spike.mdl");
-	setsize (newmis, VEC_ORIGIN, VEC_ORIGIN);               
-	setorigin (newmis, org);
-
-	newmis.velocity = dir * 1000;
-};
-
-void() W_FireSuperSpikes =
-{
-	local vector    dir;
-	
-	sound (self, CHAN_WEAPON, "weapons/spike2.wav", 1, ATTN_NORM);
-	if (deathmatch != 4) 
-		self.currentammo = self.ammo_nails = self.ammo_nails - 2;
-	dir = aim (self, 1000);
-	launch_spike (self.origin + '0 0 16', dir);
-	newmis.touch = superspike_touch;
-	setmodel (newmis, "progs/s_spike.mdl");
-	setsize (newmis, VEC_ORIGIN, VEC_ORIGIN);               
-	VK_smallkick(self);
-};
-
 void(float ox) W_FireSpikes =
 {
-	local vector    dir;
-	
-	makevectors (self.v_angle);
-	
-	if (self.ammo_nails >= 2 && self.weapon == IT_SUPER_NAILGUN)
-	{
-		W_FireSuperSpikes ();
-		return;
-	}
-
 	if (self.ammo_nails < 1)
 	{
 		self.weapon = W_BestWeapon ();
@@ -665,86 +457,40 @@ void(float ox) W_FireSpikes =
 	sound (self, CHAN_WEAPON, "weapons/rocket1i.wav", 1, ATTN_NORM);
 	if (deathmatch != 4)
 		self.currentammo = self.ammo_nails = self.ammo_nails - 1;
-	dir = aim (self, 1000);
-	launch_spike (self.origin + '0 0 16' + v_right*ox, dir);
 
 	VK_smallkick(self);
+	PRJ_FireProjectile(self,
+		"progs/spike.mdl",
+		self.origin + '0 0 16' + v_right*ox,
+		aim(self, 1000) * 1000,
+		PE_SPIKE,
+		9,
+		MOD_SPIKE,
+		6);
 };
 
-void() spike_touch =
+void() W_FireSuperSpikes =
 {
-	if (other == self.owner)
-		return;
-
-	if (self.voided) {
-		return;
-	}
-	self.voided = 1;
-
-	if (other.solid == SOLID_TRIGGER)
-		return; // trigger field, do nothing
-
-	if (pointcontents(self.origin) == CONTENT_SKY)
+	if (self.ammo_nails < 2)
 	{
-		remove(self);
+		W_FireSpikes(0);
 		return;
 	}
 	
-// hit something that bleeds
-	if (other.takedamage)
-	{
-		spawn_touchblood (9);
-		T_Damage (other, self, self.owner, 9, MOD_SPIKE);
-	}
-	else
-	{
-		if (self.classname == "wizspike")
-			TE_wizspike(self.origin);
-		else if (self.classname == "knightspike")
-			TE_knightspike(self.origin);
-		else
-			TE_spike(self.origin);
-	}
+	sound (self, CHAN_WEAPON, "weapons/spike2.wav", 1, ATTN_NORM);
+	if (deathmatch != 4) 
+		self.currentammo = self.ammo_nails = self.ammo_nails - 2;
 
-	remove(self);
-
+	VK_smallkick(self);
+	PRJ_FireProjectile(self,
+		"progs/s_spike.mdl",
+		self.origin + '0 0 16',
+		aim(self, 1000) * 1000,
+		PE_SUPERSPIKE,
+		18,
+		MOD_SUPERSPIKE,
+		6);
 };
-
-void() superspike_touch =
-{
-	if (other == self.owner)
-		return;
-
-	if (self.voided) {
-		return;
-	}
-	self.voided = 1;
-
-
-	if (other.solid == SOLID_TRIGGER)
-		return; // trigger field, do nothing
-
-	if (pointcontents(self.origin) == CONTENT_SKY)
-	{
-		remove(self);
-		return;
-	}
-	
-// hit something that bleeds
-	if (other.takedamage)
-	{
-		spawn_touchblood (18);
-		T_Damage (other, self, self.owner, 18, MOD_SUPERSPIKE);
-	}
-	else
-	{
-		TE_superspike(self.origin);
-	}
-
-	remove(self);
-
-};
-
 
 /*
 ===============================================================================
@@ -1017,7 +763,7 @@ void() W_Attack =
 		r = 0.1;
 		break;
 	case IT_SUPER_NAILGUN:
-		W_FireSpikes(0);
+		W_FireSuperSpikes();
 		r = 0.1;
 		break;
 	case IT_GRENADE_LAUNCHER:
@@ -1402,5 +1148,4 @@ void() SuperDamageSound =
 	}
 	return;
 };
-
 

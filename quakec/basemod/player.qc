@@ -168,12 +168,12 @@ void()  player_axed4 =  [$axattd4, player_run   ] {};
 
 void() player_nail1   =[$nailatt1, player_nail2  ] 
 {
-	if (self.weaponstate == WS_IDLE || intermission_running || self.impulse)
+	if (self.weaponstate == WS_IDLE || intermission_running)
 		{player_run ();return;}
 };
 void() player_nail2   =[$nailatt2, player_nail1  ]
 {
-	if (self.weaponstate == WS_IDLE || intermission_running || self.impulse)
+	if (self.weaponstate == WS_IDLE || intermission_running)
 		{player_run ();return;}
 };
 

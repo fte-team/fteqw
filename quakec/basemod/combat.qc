@@ -1,8 +1,7 @@
 
-void() T_MissileTouch;
 void() info_player_start;
 void(entity targ, entity attacker, INTEGER mod) ClientObituary;
-void(entity inflictor, entity attacker, float damage, entity ignore, INTEGER mod) T_RadiusDamage;
+void(entity inflictor, entity attacker, float damage, float radius, entity ignore, INTEGER mod) T_RadiusDamage;
 
 /*SERVER
 void() monster_death_use;
@@ -284,13 +283,13 @@ void(entity targ, entity inflictor, entity attacker, float damage, INTEGER mod) 
 T_RadiusDamage
 ============
 */
-void(entity inflictor, entity attacker, float damage, entity ignore, INTEGER mod) T_RadiusDamage =
+void(entity inflictor, entity attacker, float damage, float radius, entity ignore, INTEGER mod) T_RadiusDamage =
 {
 	local   float   points;
 	local   entity  head;
 	local   vector  org;
 
-	head = findradius(inflictor.origin, damage+40);
+	head = findradius(inflictor.origin, radius);
 	
 	while (head)
 	{

@@ -217,7 +217,7 @@ void() barrel_explode =
 	self.takedamage = DAMAGE_NO;
 	self.classname = "explo_box";
 	// did say self.owner, self.enemy should be set by Killed function
-	T_RadiusDamage (self, self.enemy, 160, self, MOD_EXPLOBOX);
+	T_RadiusDamage (self, self.enemy, 160, 200, self, MOD_EXPLOBOX);
 	TE_explosion(self.origin + '0 0 32');
 	remove (self);
 };
@@ -292,75 +292,45 @@ void() misc_explobox2 =
 float SPAWNFLAG_SUPERSPIKE      = 1;
 float SPAWNFLAG_LASER = 2;
 
-void() Laser_Touch =
-{
-	local vector org;
-	
-	if (other == self.owner)
-		return;         // don't explode on owner
-
-	if (pointcontents(self.origin) == CONTENT_SKY)
-	{
-		remove(self);
-		return;
-	}
-	
-	sound (self, CHAN_WEAPON, "enforcer/enfstop.wav", 1, ATTN_STATIC);
-	org = self.origin - 8*normalize(self.velocity);
-
-	if (other.health)
-	{
-		SpawnBlood (org, 15);
-		T_Damage (other, self, self.owner, 15, MOD_LASER);
-	}
-	else
-	{
-		TE_gunshot(org);
-	}
-	
-	remove(self);   
-};
-
-void(vector org, vector vec) LaunchLaser =
-{	
-	if (self.classname == "monster_enforcer")
-		sound (self, CHAN_WEAPON, "enforcer/enfire.wav", 1, ATTN_NORM);
-
-	vec = normalize(vec);
-	
-	newmis = spawn();
-	newmis.owner = self;
-	newmis.movetype = MOVETYPE_FLY;
-	newmis.solid = SOLID_BBOX;
-	newmis.effects = EF_DIMLIGHT;
-
-	setmodel (newmis, "progs/laser.mdl");
-	setsize (newmis, '0 0 0', '0 0 0');             
-
-	setorigin (newmis, org);
-
-	newmis.velocity = vec * 600;
-	newmis.angles = vectoangles(newmis.velocity);
-
-	newmis.nextthink = time + 5;
-	newmis.think = SUB_Remove;
-	newmis.touch = Laser_Touch;
-};
-
 void() spikeshooter_use =
 {
 	if (self.spawnflags & SPAWNFLAG_LASER)
 	{
 		sound (self, CHAN_VOICE, "enforcer/enfire.wav", 1, ATTN_NORM);
-		LaunchLaser (self.origin, self.movedir);
+		PRJ_FireProjectile(self,
+			"progs/laser.mdl",
+			self.origin,
+			self.movedir * 600,
+			PE_LASER,
+			15,
+			MOD_LASER,
+			5);
 	}
 	else
 	{
 		sound (self, CHAN_VOICE, "weapons/spike2.wav", 1, ATTN_NORM);
-		launch_spike (self.origin, self.movedir);
-		newmis.velocity = self.movedir * 500;
 		if (self.spawnflags & SPAWNFLAG_SUPERSPIKE)
-			newmis.touch = superspike_touch;
+		{
+			PRJ_FireProjectile(self,
+				"progs/s_spike.mdl",
+				self.origin,
+				self.movedir * 500,
+				PE_SUPERSPIKE,
+				18,
+				MOD_SUPERSPIKE,
+				6);
+		}
+		else
+		{
+			PRJ_FireProjectile(self,
+				"progs/spike.mdl",
+				self.origin,
+				self.movedir * 500,
+				PE_SPIKE,
+				9,
+				MOD_SPIKE,
+				6);
+		}
 	}
 };
 

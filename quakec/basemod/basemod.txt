@@ -13,11 +13,11 @@ Suicide backpack/quad/ring drop
 Condense bprint, sprint, centerprints
 te_explode sprite
 NQ/QW cross compatibility
+Track oldbutton presses/weaponstate
+Generic projectile spawning
 
 Todo -
-Track oldbutton presses/weaponstate
 Samelevel 4 (exit acts as a spawnpoint teleporter)
-Generic projectile spawning
 Effects/decal system
 Fix weird deathmatch modes, cvar checking
 Add monsters back

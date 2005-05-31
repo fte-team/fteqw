@@ -230,39 +230,6 @@ void(vector org) TE_lightningblood =
 #endif
 };
 
-// view kicks
-void(entity ent) VK_smallkick =
-{
-#ifdef NETQUAKE
-	self.punchangle_x = -2;
-#else
-	msg_entity = ent;
-	WriteByte (MSG_ONE, SVC_SMALLKICK);
-#endif
-}
-
-void(entity ent) VK_bigkick =
-{
-#ifdef NETQUAKE
-	self.punchangle_x = -4;
-#else
-	msg_entity = ent;
-	WriteByte (MSG_ONE, SVC_BIGKICK);
-#endif
-}
-
-// muzzle flash
-void() muzzleflash =
-{
-#ifdef NETQUAKE
-	self.effects |= EF_MUZZLEFLASH;
-#else
-	WriteByte (MSG_MULTICAST, SVC_MUZZLEFLASH);
-	WriteEntity (MSG_MULTICAST, self);
-	multicast (self.origin, MULTICAST_PVS);
-#endif
-};
-
 // function pointers for TE calls
 var void(vector org, float damage) SpawnBlood = _SpawnBlood;
 var void(vector org) TE_explosion = _TE_explosion;
@@ -304,4 +271,49 @@ void() EFF_SetEffects =
 
 	if (eng_support & ENG_TEBLOOD)
 		SpawnBlood = _SpawnBlood_TEBlood; // use TE_Blood builtin instead
+};
+
+// view kicks
+void(entity ent) VK_smallkick =
+{
+#ifdef NETQUAKE
+	self.punchangle_x = -2;
+#else
+	msg_entity = ent;
+	WriteByte (MSG_ONE, SVC_SMALLKICK);
+#endif
+}
+
+void(entity ent) VK_bigkick =
+{
+#ifdef NETQUAKE
+	self.punchangle_x = -4;
+#else
+	msg_entity = ent;
+	WriteByte (MSG_ONE, SVC_BIGKICK);
+#endif
+}
+
+// muzzle flash
+void() muzzleflash =
+{
+#ifdef NETQUAKE
+	self.effects |= EF_MUZZLEFLASH;
+#else
+	WriteByte (MSG_MULTICAST, SVC_MUZZLEFLASH);
+	WriteEntity (MSG_MULTICAST, self);
+	multicast (self.origin, MULTICAST_PVS);
+#endif
+};
+
+// touch blood functions
+void(float damage) spawn_touchblood =
+{
+	local vector    vel;
+
+	vel = normalize (self.velocity);
+	vel = normalize(vel + v_up*(random()- 0.5) + v_right*(random()- 0.5));
+	vel = vel + 2*trace_plane_normal;
+	vel = vel * 0.4;
+	SpawnBlood (self.origin + vel, damage);
 };

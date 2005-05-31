@@ -289,7 +289,6 @@ void            end_sys_fields;                 // flag for structure dumping
 #define MOVETYPE_NOCLIP         8
 #define MOVETYPE_FLYMISSILE     9 // fly with extra size against monsters
 #define MOVETYPE_BOUNCE        10 
-#define MOVETYPE_BOUNCEMISSILE 11 // bounce with extra size
 
 // edict.solid values
 #define SOLID_NOT      0 // no interaction with other objects
@@ -533,7 +532,6 @@ float   AS_MISSILE              = 4;
 //
 // player only fields
 //
-.float          voided;
 .float          walkframe;
 
 // Zoid Additions
@@ -642,6 +640,19 @@ entity newmis;
 	struct { // fields used with monsters
 		float pausetime;		// time to pause for monsters
 		entity movetarget;	// target entity to move to
+	};
+	struct { // fields used with generic projectiles
+		float damage_direct;	// damage done with a direct hit
+		float damage_exp; 	// damage done from radius damage
+		float radius_exp;  	// radius of radius damage
+		INTEGER mod_direct;	// mod type for direct hit
+		INTEGER mod_exp; 		// mod type for radius damage
+		float expire_time;	// time when projectile dies
+		void() proj_think;	// extra think function used with projectile
+		float proj_think_time;	// interval between thinks
+		INTEGER proj_effect;	// effect used with projectile
+		INTEGER voided;		// projectile has been voided
+		float() proj_touch;	// extra touch function used with projectile
 	};
 	// fields used with ambient sounds?
 	/*

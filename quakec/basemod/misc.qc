@@ -305,6 +305,7 @@ void() spikeshooter_use =
 			15,
 			MOD_LASER,
 			5);
+		newmis.effects |= EF_DIMLIGHT;
 	}
 	else
 	{

@@ -129,7 +129,6 @@ entity() FindIntermission =
 	return world; // remove warning
 };
 
-
 void() GotoNextMap =
 {
 	local string newmap;
@@ -149,7 +148,82 @@ void() GotoNextMap =
 	}
 };
 
+void() ExitIntermission=
+{
+// skip any text in deathmatch
+	if (deathmatch)
+	{
+		GotoNextMap ();
+		return;
+	}
+	
+	intermission_exittime = time + 1;
+	intermission_running = intermission_running + 1;
 
+//
+// run some text if at the end of an episode
+//
+	if (intermission_running == 2)
+	{
+		if (world.model == "maps/e1m7.bsp")
+		{
+			ENG_SwitchTrack(2, 3);
+			if (!cvar("registered"))
+			{
+				WriteByte (MSG_ALL, SVC_FINALE);
+				WriteString (MSG_ALL, "As the corpse of the monstrous entity\nChthon sinks back into the lava whence\nit rose, you grip the Rune of Earth\nMagic tightly. Now that you have\nconquered the Dimension of the Doomed,\nrealm of Earth Magic, you are ready to\ncomplete your task in the other three\nhaunted lands of Quake. Or are you? If\nyou don't register Quake, you'll never\nknow what awaits you in the Realm of\nBlack Magic, the Netherworld, and the\nElder World!");
+			}
+			else
+			{
+				WriteByte (MSG_ALL, SVC_FINALE);
+				WriteString (MSG_ALL, "As the corpse of the monstrous entity\nChthon sinks back into the lava whence\nit rose, you grip the Rune of Earth\nMagic tightly. Now that you have\nconquered the Dimension of the Doomed,\nrealm of Earth Magic, you are ready to\ncomplete your task. A Rune of magic\npower lies at the end of each haunted\nland of Quake. Go forth, seek the\ntotality of the four Runes!");
+			}
+			return;
+		}
+		else if (world.model == "maps/e2m6.bsp")
+		{
+			ENG_SwitchTrack(2, 3);
+			WriteByte (MSG_ALL, SVC_FINALE);
+			WriteString (MSG_ALL, "The Rune of Black Magic throbs evilly in\nyour hand and whispers dark thoughts\ninto your brain. You learn the inmost\nlore of the Hell-Mother; Shub-Niggurath!\nYou now know that she is behind all the\nterrible plotting which has led to so\nmuch death and horror. But she is not\ninviolate! Armed with this Rune, you\nrealize that once all four Runes are\ncombined, the gate to Shub-Niggurath's\nPit will open, and you can face the\nWitch-Goddess herself in her frightful\notherworld cathedral.");
+			return;
+		}
+		else if (world.model == "maps/e3m6.bsp")
+		{
+			ENG_SwitchTrack(2, 3);
+			WriteByte (MSG_ALL, SVC_FINALE);
+			WriteString (MSG_ALL, "The charred viscera of diabolic horrors\nbubble viscously as you seize the Rune\nof Hell Magic. Its heat scorches your\nhand, and its terrible secrets blight\nyour mind. Gathering the shreds of your\ncourage, you shake the devil's shackles\nfrom your soul, and become ever more\nhard and determined to destroy the\nhideous creatures whose mere existence\nthreatens the souls and psyches of all\nthe population of Earth.");
+			return;
+		}
+		else if (world.model == "maps/e4m7.bsp")
+		{
+			ENG_SwitchTrack(2, 3);
+			WriteByte (MSG_ALL, SVC_FINALE);
+			WriteString (MSG_ALL, "Despite the awful might of the Elder\nWorld, you have achieved the Rune of\nElder Magic, capstone of all types of\narcane wisdom. Beyond good and evil,\nbeyond life and death, the Rune\npulsates, heavy with import. Patient and\npotent, the Elder Being Shub-Niggurath\nweaves her dire plans to clear off all\nlife from the Earth, and bring her own\nfoul offspring to our world! For all the\ndwellers in these nightmare dimensions\nare her descendants! Once all Runes of\nmagic power are united, the energy\nbehind them will blast open the Gateway\nto Shub-Niggurath, and you can travel\nthere to foil the Hell-Mother's plots\nin person.");
+			return;
+		}
+
+		GotoNextMap();
+	}
+	
+	if (intermission_running == 3)
+	{
+		if (!cvar("registered"))
+		{	// shareware episode has been completed, go to sell screen
+			WriteByte (MSG_ALL, SVC_SELLSCREEN);
+			return;
+		}
+		
+		if ( (serverflags&15) == 15)
+		{
+			WriteByte (MSG_ALL, SVC_FINALE);
+			WriteString (MSG_ALL, "Now, you have all four Runes. You sense\ntremendous invisible forces moving to\nunseal ancient barriers. Shub-Niggurath\nhad hoped to use the Runes Herself to\nclear off the Earth, but now instead,\nyou will use them to enter her home and\nconfront her as an avatar of avenging\nEarth-life. If you defeat her, you will\nbe remembered forever as the savior of\nthe planet. If she conquers, it will be\nas if you had never been born.");
+			return;
+		}
+		
+	}
+
+	GotoNextMap();
+};
 
 /*
 ============
@@ -166,7 +240,7 @@ void() IntermissionThink =
 	if (!self.button0 && !self.button1 && !self.button2)
 		return;
 	
-	GotoNextMap ();
+	ExitIntermission ();
 };
 
 /*
@@ -192,11 +266,9 @@ void() execute_changelevel =
 	pos = FindIntermission ();
 
 // play intermission music
-	WriteByte (MSG_ALL, SVC_CDTRACK);
-	WriteByte (MSG_ALL, 3);
+	ENG_SwitchTrack(3, 3);
+
 #ifdef NETQUAKE
-	WriteByte (MSG_ALL, 3);
-	
 	pos = FindIntermission ();
 
 	other = find (world, classname, "player");
@@ -312,12 +384,28 @@ void(entity ent) CopyToDeadbody =
 // called by ClientKill and DeadThink
 void() respawn =
 {
-	// make a copy of the dead body for appearances sake
-	CopyToDeadbody (self);
-	// set default spawn parms
-	SetNewParms ();
-	// respawn              
-	PutClientInServer ();
+	if (coop)
+	{
+		// make a copy of the dead body for appearances sake
+		CopyToDeadbody (self);
+		// get the spawn parms as they were at level start
+		setspawnparms (self);
+		// respawn		
+		PutClientInServer ();
+	}
+	else if (deathmatch)
+	{
+		// make a copy of the dead body for appearances sake
+		CopyToDeadbody (self);
+		// set default spawn parms
+		SetNewParms ();
+		// respawn		
+		PutClientInServer ();
+	}
+	else
+	{	// restart the entire server
+		localcmd ("restart\n");
+	}
 };
 
 
@@ -347,11 +435,6 @@ void() ClientKill =
 	respawn ();
 };
 
-float(vector v) CheckSpawnPoint =
-{
-	return FALSE;
-};
-
 /*
 ============
 SelectSpawnPoint
@@ -361,18 +444,45 @@ Returns the entity to spawn at
 */
 entity() SelectSpawnPoint =
 {
-	local   entity spot, thing;
-	local   float   numspots, totalspots;
-	local   float   pcount;
+	local entity spot, thing;
+	local float numspots, totalspots;
+	local float pcount;
 	local entity spots;
 
+	if (coop) // coop spawning
+	{
+		if (!spotspawn)
+		{
+			spotspawn = 1;
+			spot = find (world, classname, "info_player_start");
+			if (spot)
+				return spot;
+		}
+		lastspawn = find(lastspawn, classname, "info_player_coop");
+		if (lastspawn)
+			return lastspawn;
+	}
+
+	if (!deathmatch) // single player spawning
+	{
+		if (serverflags)
+		{	// return with a rune to start
+			spot = find (world, classname, "info_player_start2");
+			if (spot)
+				return spot;
+		}
+	
+		spot = find (world, classname, "info_player_start");
+		if (spot)
+			return spot;
+	}
+
+	// QuakeWorld style deathmatch spawning
 	numspots = 0;
 	totalspots = 0;
 	
-// choose a info_player_deathmatch point
-
-// ok, find all spots that don't have players nearby
-
+	// choose a info_player_deathmatch point
+	// ok, find all spots that don't have players nearby
 	spots = world;
 	spot = find (world, classname, "info_player_deathmatch");       
 	while (spot)
@@ -399,7 +509,6 @@ entity() SelectSpawnPoint =
 	totalspots=totalspots - 1;
 	if (!numspots) {
 		// ack, they are all full, just pick one at random
-//		bprint (PRINT_HIGH, "Ackk! All spots are full. Selecting random spawn spot\n");
 		totalspots = rint((random() * totalspots));
 		spot = find (world, classname, "info_player_deathmatch");       
 		while (totalspots > 0) {
@@ -409,13 +518,10 @@ entity() SelectSpawnPoint =
 		return spot;
 	}
 		
-// We now have the number of spots available on the map in numspots
-
+	// We now have the number of spots available on the map in numspots
 	// Generate a random number between 1 and numspots
-
 	numspots = numspots - 1;
-	
-	numspots = rint((random() * numspots ) );
+	numspots = rint((random() * numspots));
 
 	spot = spots;
 	while (numspots > 0) {
@@ -427,63 +533,6 @@ entity() SelectSpawnPoint =
 };
 void() DecodeLevelParms;
 void() PlayerDie;
-
-/*
-===========
-ValidateUser
-
-
-============
-*/
-/*
-float(entity e) ValidateUser =
-{
-
-	local string    s;
-	local string    userclan;
-	local float     rank, rankmin, rankmax;
-
-//
-// if the server has set "clan1" and "clan2", then it
-// is a clan match that will allow only those two clans in
-//
-	s = serverinfo("clan1");
-	if (s)
-	{
-		userclan = masterinfo(e,"clan");
-		if (s == userclan)
-			return true;
-		s = serverinfo("clan2");
-		if (s == userclan)
-			return true;
-		return false;
-	}
-
-//
-// if the server has set "rankmin" and/or "rankmax" then
-// the users rank must be between those two values
-//
-	s = masterinfo (e, "rank");
-	rank = stof (s);
-
-	s = serverinfo("rankmin");
-	if (s)
-	{
-		rankmin = stof (s);
-		if (rank < rankmin)
-			return false;
-	}
-	s = serverinfo("rankmax");
-	if (s)
-	{
-		rankmax = stof (s);
-		if (rankmax < rank)
-			return false;
-	}
-
-	return true;
-};
-*/
 
 /*
 ===========

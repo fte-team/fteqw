@@ -480,6 +480,10 @@ float teamplay;
 
 float skill;
 
+// coop spawning globals
+entity  lastspawn;
+float spotspawn;
+
 //================================================
 
 //

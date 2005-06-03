@@ -1,7 +1,7 @@
 
 // Engine support code (ENG) --
 // Checks to see what extensions are supported by current running engine and
-// has wrappers for builtins based on engine (other than EF_/messages/TE_ effects)
+// has wrappers for builtins based on engine (other than EF_/TE_/viewkick/flash effects)
 
 var float chan_no_phs_add = 0;
 
@@ -114,6 +114,17 @@ string(string cv) stringserverinfokey =
 #define numberclientinfokey(x,y) stof(_infokey(x,y))
 #define stringclientinfokey(x,y) _infokey(x,y)
 #endif
+
+// cdtrack wrapper
+void(float track, float looptrack) ENG_SwitchTrack =
+{
+	WriteByte (MSG_ALL, SVC_CDTRACK);
+	WriteByte (MSG_ALL, track);
+#ifdef NETQUAKE
+	// only NetQuake supports loop track
+	WriteByte (MSG_ALL, looptrack);	
+#endif
+};
 
 // engine check routine
 void() ENG_Check =

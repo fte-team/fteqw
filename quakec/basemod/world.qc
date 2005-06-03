@@ -149,9 +149,6 @@ void() main =
 	precache_file2 ("maps/dm6.bsp");
 };
 
-
-entity  lastspawn;
-
 //=======================
 /*QUAKED worldspawn (0 0 0) ?
 Only used for the world entity.
@@ -167,6 +164,7 @@ World Types:
 void() worldspawn =
 {
 	lastspawn = world;
+	spotspawn = 0;
 
 	ENG_Check();
 

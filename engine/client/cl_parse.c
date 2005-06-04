@@ -2616,7 +2616,7 @@ void CL_SetStat (int pnum, int stat, int value)
 CL_MuzzleFlash
 ==============
 */
-void CL_MuzzleFlash (void)
+void CL_MuzzleFlash (int destsplit)
 {
 	vec3_t		fv, rv, uv;
 	dlight_t	*dl=NULL;
@@ -2632,14 +2632,13 @@ void CL_MuzzleFlash (void)
 	i = MSG_ReadShort ();
 
 	//was it us?
-	if (i == cl.playernum[0])
-	{
-		if (!cl_muzzleflash.value)
-			return;
-	}
+	if (!cl_muzzleflash.value) // remove all muzzleflashes
+		return;
+
+	if (i-1 == cl.playernum[destsplit] && cl_muzzleflash.value == 2)
+		return;
 
 	pack = &cl.frames[cls.netchan.incoming_sequence&UPDATE_MASK].packet_entities;	
-
 
 	for (pnum=0 ; pnum<pack->num_entities ; pnum++)	//try looking for an entity with that id first
 	{
@@ -2657,7 +2656,7 @@ void CL_MuzzleFlash (void)
 		if ((unsigned)(i) <= MAX_CLIENTS && i > 0)
 		{
 			// don't draw our own muzzle flash in gl if flashblending
-			if (i-1 == cl.playernum[0] && r_flashblend.value && qrenderer == QR_OPENGL)
+			if (i-1 == cl.playernum[destsplit] && r_flashblend.value && qrenderer == QR_OPENGL)
 				return;
 
 			pl = &cl.frames[parsecountmod].playerstate[i-1];
@@ -3461,7 +3460,7 @@ void CL_ParseServerMessage (void)
 			break;
 
 		case svc_muzzleflash:
-			CL_MuzzleFlash ();
+			CL_MuzzleFlash (destsplit);
 			break;
 
 		case svc_updateuserinfo:

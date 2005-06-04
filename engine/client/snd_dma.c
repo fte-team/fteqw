@@ -554,7 +554,7 @@ void S_Init (void)
 
 void S_ShutdownCard(soundcardinfo_t *sc)
 {
-#ifndef NODIRECTX
+#if defined(_WIN32) && !defined(NODIRECTX)
 	extern int aimedforguid;
 	aimedforguid = 0;
 #endif

@@ -856,7 +856,8 @@ void ED_Print (progfuncs_t *progfuncs, struct edict_s *ed)
 	{
 		d = &field[i];
 		name = d->name;
-		if (name[strlen(name)-2] == '_')
+		l = strlen(name);
+		if (l >= 2 && name[l-2] == '_')
 			continue;	// skip _x, _y, _z vars
 			
 		v = (int *)((char *)edvars(ed) + d->ofs*4);

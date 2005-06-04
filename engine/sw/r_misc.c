@@ -103,17 +103,19 @@ void R_LineGraph (int x, int y, int h)
 {
 	int		i;
 	qbyte	*dest;
+	unsigned short *dest16;
+	unsigned int *dest32;
 	int		s;
-	int		color;
+	unsigned int color;
 
 // FIXME: should be disabled on no-buffer adapters, or should be in the driver
 	
 //	x += r_refdef.vrect.x;
 //	y += r_refdef.vrect.y;
-	
-	dest = vid.buffer + vid.rowbytes*y + x;
-	
 	s = r_graphheight.value;
+
+	if (h>s)
+		h = s;
 
 	if (h == 10000)
 		color = 0x6f;	// yellow
@@ -123,22 +125,42 @@ void R_LineGraph (int x, int y, int h)
 		color = 0xd0;	// blue
 	else
 		color = 0xff;	// pink
+		
+	switch (r_pixbytes)
+	{
+	case 2: // 16 bpp
+		dest16 = (unsigned short*)vid.buffer + vid.rowbytes*y + x;
 
-	if (h>s)
-		h = s;
-	
-	for (i=0 ; i<h ; i++, dest -= vid.rowbytes*2)
-	{
-		dest[0] = color;
-//		*(dest-vid.rowbytes) = 0x30;
+		// use constant colors instead?
+		color = d_8to16table[color];
+		
+		for (i=0 ; i<h ; i++, dest16 -= vid.rowbytes*2)
+		{
+			dest16[0] = color;
+		//	*(dest-vid.rowbytes) = 0x30;
+		}
+		break;
+	case 4: // 32 bpp
+		dest32 = (unsigned int*)vid.buffer + vid.rowbytes*y + x;
+
+		// use constant colors instead?
+		color = d_8to32table[color];
+		
+		for (i=0 ; i<h ; i++, dest32 -= vid.rowbytes*2)
+		{
+			dest32[0] = color;
+		//	*(dest-vid.rowbytes) = 0x30;
+		}
+		break;
+	default: // 8 bpp
+		dest = vid.buffer + vid.rowbytes*y + x;
+				
+		for (i=0 ; i<h ; i++, dest -= vid.rowbytes*2)
+		{
+			dest[0] = color;
+		//	*(dest-vid.rowbytes) = 0x30;
+		}
 	}
-#if 0
-	for ( ; i<s ; i++, dest -= vid.rowbytes*2)
-	{
-		dest[0] = 0x30;
-		*(dest-vid.rowbytes) = 0x30;
-	}
-#endif
 }
 
 /*

@@ -593,6 +593,8 @@ void SWMod_LoadTextures (lump_t *l)
 		tx->pixbytes = 1;
 		loadmodel->textures[i] = tx;
 
+		tx->parttype = P_ParticleTypeForName(va("tex_%s", tx->name));
+
 		memcpy (tx->name, mt->name, sizeof(tx->name));
 		tx->width = mt->width;
 		tx->height = mt->height;
@@ -600,7 +602,7 @@ void SWMod_LoadTextures (lump_t *l)
 			tx->offsets[j] = mt->offsets[j] + sizeof(texture_t) - sizeof(miptex_t);
 		// the pixels immediately follow the structures
 		memcpy ( tx+1, mt+1, pixels);
-		
+	
 		if (!Q_strncmp(mt->name,"sky",3))
 			R_InitSky (tx);
 #ifdef PEXT_BULLETENS

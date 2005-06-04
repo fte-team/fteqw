@@ -1822,21 +1822,13 @@ static void PPL_GenerateLightArrays(msurface_t *surf, vec3_t relativelightorigin
 
 	shadowlightfaces++;
 
-//	if (varray_vc + surf->mesh->numvertexes*3>MAXARRAYVERTS)
-	{
-		PPL_FlushArrays();
-	}
-
 	v = surf->mesh->xyz_array[0];
 	stw = surf->mesh->st_array[0];
 
-	out = &varray_v[varray_vc];
+	out = &varray_v[0];
 
-	for (vi=0 ; vi<surf->mesh->numvertexes ; vi++, v+=4, stw+=2, out++)
+	for (vi=0 ; vi<surf->mesh->numvertexes ; vi++, v+=3, stw+=2, out++)
 	{
-		out->xyz[0] = v[0];
-		out->xyz[1] = v[1];
-		out->xyz[2] = v[2];
 		out->stw[0] = stw[0];
 		out->stw[1] = stw[1];
 		lightdir[0] = relativelightorigin[0] - v[0];
@@ -1851,14 +1843,11 @@ static void PPL_GenerateLightArrays(msurface_t *surf, vec3_t relativelightorigin
 		out->stl[2] = colour[2]*dist;
 		out->ncm[0] = DotProduct(lightdir, surf->texinfo->vecs[0]);
 		out->ncm[1] = -DotProduct(lightdir, surf->texinfo->vecs[1]);
-		out->ncm[2] = DotProduct(lightdir, surf->normal);
+		if (surf->flags & SURF_PLANEBACK)
+			out->ncm[2] = -DotProduct(lightdir, surf->plane->normal);
+		else
+			out->ncm[2] = DotProduct(lightdir, surf->plane->normal);
 	}
-	for (vi=0 ; vi<surf->mesh->numindexes ; vi++)
-	{
-		varray_i[varray_ic++] = varray_vc+vi;
-	}
-
-	varray_vc += surf->mesh->numvertexes;
 }
 
 //flags
@@ -2009,7 +1998,7 @@ void PPL_LightTexturesFP(model_t *model, vec3_t modelorigin, dlight_t *light, ve
 	qglEnable(GL_BLEND);
 	GL_TexEnv(GL_MODULATE);
 	qglBlendFunc(GL_ONE, GL_ONE);
-
+	qglDisableClientState(GL_COLOR_ARRAY);
 	if (qglGetError())
 		Con_Printf("GL Error early in lighttextures\n");
 
@@ -2029,45 +2018,46 @@ void PPL_LightTexturesFP(model_t *model, vec3_t modelorigin, dlight_t *light, ve
 
 
 		p = 0;
-		if (t->gl_texturenumbumpmap)
+		if (t->gl_texturenumbumpmap && ppl_light_shader[p|PERMUTATION_BUMPMAP])
 			p |= PERMUTATION_BUMPMAP;
-		if (gl_specular.value && t->gl_texturenumspec)
+		if (gl_specular.value && t->gl_texturenumspec && ppl_light_shader[p|PERMUTATION_SPECULAR])
 			p |= PERMUTATION_SPECULAR;
 
 		if (p != lp)
 		{
 			lp = p;
 			GLSlang_UseProgram(ppl_light_shader[p]);
-			qglUniform3fvARB(ppl_light_shader_eyeposition[p], 1, relativeeyeorigin);
+			if (ppl_light_shader_eyeposition[p] != -1)
+				qglUniform3fvARB(ppl_light_shader_eyeposition[p], 1, relativeeyeorigin);
 			qglUniform3fvARB(ppl_light_shader_lightposition[p], 1, relativelightorigin);
 			qglUniform3fvARB(ppl_light_shader_lightcolour[p], 1, colour);
 			qglUniform1fARB(ppl_light_shader_lightradius[p], light->radius);
 		}
 
 
+		if (p & PERMUTATION_BUMPMAP)
+			GL_MBind(GL_TEXTURE1_ARB, t->gl_texturenumbumpmap);
+		if (p & PERMUTATION_SPECULAR)
+			GL_MBind(GL_TEXTURE2_ARB, t->gl_texturenumspec);
+
 		GL_MBind(GL_TEXTURE0_ARB, t->gl_texturenum);
 		qglEnableClientState(GL_TEXTURE_COORD_ARRAY);
-		GL_MBind(GL_TEXTURE1_ARB, t->gl_texturenumbumpmap);
-		GL_MBind(GL_TEXTURE2_ARB, t->gl_texturenumspec);
-		GL_SelectTexture(GL_TEXTURE0_ARB);
 
 		for (; s; s=s->texturechain)
 		{
-//			if (s->shadowframe != r_shadowframe)
-//				continue;
+			if (s->shadowframe != r_shadowframe)
+				continue;
 
-/*
 			if (s->flags & SURF_PLANEBACK)
 			{//inverted normal.
-				if (-DotProduct(s->plane->normal, relativelightorigin)+s->plane->dist > lightradius)
+				if (DotProduct(s->plane->normal, relativelightorigin)-s->plane->dist > lightradius)
 					continue;
 			}
 			else
 			{
-				if (DotProduct(s->plane->normal, relativelightorigin)-s->plane->dist > lightradius)
+				if (-DotProduct(s->plane->normal, relativelightorigin)+s->plane->dist > lightradius)
 					continue;
 			}
-*/
 
 			qglMultiTexCoord3fARB(GL_TEXTURE1_ARB, s->texinfo->vecs[0][0], s->texinfo->vecs[0][1], s->texinfo->vecs[0][2]);
 			qglMultiTexCoord3fARB(GL_TEXTURE2_ARB, -s->texinfo->vecs[1][0], -s->texinfo->vecs[1][1], -s->texinfo->vecs[1][2]);
@@ -2078,9 +2068,9 @@ void PPL_LightTexturesFP(model_t *model, vec3_t modelorigin, dlight_t *light, ve
 				qglMultiTexCoord3fARB(GL_TEXTURE3_ARB, s->plane->normal[0], s->plane->normal[1], s->plane->normal[2]);
 
 			qglTexCoordPointer(2, GL_FLOAT, 0, s->mesh->st_array);
+
 			qglVertexPointer(3, GL_FLOAT, 0, s->mesh->xyz_array);
 			qglDrawElements(GL_TRIANGLES, s->mesh->numindexes, GL_UNSIGNED_INT, s->mesh->indexes);
-
 		}
 
 	}
@@ -2099,7 +2089,7 @@ void PPL_LightTextures(model_t *model, vec3_t modelorigin, dlight_t *light, vec3
 
 	vec3_t relativelightorigin;
 
-	if (ppl_light_shader)
+	if (ppl_light_shader[0])
 	{
 		PPL_LightTexturesFP(model, modelorigin, light, colour);
 		return;
@@ -2193,26 +2183,25 @@ void PPL_LightTextures(model_t *model, vec3_t modelorigin, dlight_t *light, vec3
 				if (s->shadowframe != r_shadowframe)
 					continue;
 
-			/*	if (fabs(s->center[0] - lightorg[0]) > lightradius+s->radius ||
-					fabs(s->center[1] - lightorg[1]) > lightradius+s->radius ||
-					fabs(s->center[2] - lightorg[2]) > lightradius+s->radius)
-					continue;*/
-
-
 				if (s->flags & SURF_PLANEBACK)
 				{//inverted normal.
-					if (-DotProduct(s->plane->normal, relativelightorigin)+s->plane->dist > lightradius)
+					if (DotProduct(s->plane->normal, relativelightorigin)-s->plane->dist > lightradius)
 						continue;
 				}
 				else
 				{
-					if (DotProduct(s->plane->normal, relativelightorigin)-s->plane->dist > lightradius)
+					if (-DotProduct(s->plane->normal, relativelightorigin)+s->plane->dist > lightradius)
 						continue;
 				}
-				
+
 				PPL_GenerateLightArrays(s, relativelightorigin, light, colour);
+
+				qglVertexPointer(3, GL_FLOAT, 0, s->mesh->xyz_array);
+				qglDrawElements(GL_TRIANGLES, s->mesh->numindexes, GL_UNSIGNED_INT, s->mesh->indexes);
+				varray_ic = 0;
+				varray_vc = 0;
+
 			}
-			PPL_FlushArrays();
 		}
 	}
 
@@ -2276,15 +2265,16 @@ void PPL_LightBModelTexturesFP(entity_t *e, dlight_t *light, vec3_t colour)
 			t = GLR_TextureAnimation (tnum);
 
 			p = 0;
-			if (t->gl_texturenumbumpmap)
+			if (t->gl_texturenumbumpmap && ppl_light_shader[p|PERMUTATION_BUMPMAP])
 				p |= PERMUTATION_BUMPMAP;
-			if (gl_specular.value && t->gl_texturenumspec)
+			if (gl_specular.value && t->gl_texturenumspec && ppl_light_shader[p|PERMUTATION_SPECULAR])
 				p |= PERMUTATION_SPECULAR;
 			if (p != lp)
 			{
 				lp = p;
 				GLSlang_UseProgram(ppl_light_shader[p]);
-				qglUniform3fvARB(ppl_light_shader_eyeposition[p], 1, relativeeyeorigin);
+				if (ppl_light_shader_eyeposition[p] != -1)
+					qglUniform3fvARB(ppl_light_shader_eyeposition[p], 1, relativeeyeorigin);
 				qglUniform3fvARB(ppl_light_shader_lightposition[p], 1, relativelightorigin);
 				qglUniform3fvARB(ppl_light_shader_lightcolour[p], 1, colour);
 				qglUniform1fARB(ppl_light_shader_lightradius[p], light->radius);
@@ -2331,7 +2321,7 @@ void PPL_LightBModelTextures(entity_t *e, dlight_t *light, vec3_t colour)
 	qglPushMatrix();
 	R_RotateForEntity(e);
 
-	if (ppl_light_shader)
+	if (ppl_light_shader[0])
 	{
 		PPL_LightBModelTexturesFP(e, light, colour);
 		qglPopMatrix();
@@ -2435,6 +2425,11 @@ void PPL_LightBModelTextures(entity_t *e, dlight_t *light, vec3_t colour)
 						continue;
 				}
 				PPL_GenerateLightArrays(s, relativelightorigin, light, colour);
+
+				qglVertexPointer(3, GL_FLOAT, 0, s->mesh->xyz_array);
+				qglDrawElements(GL_TRIANGLES, s->mesh->numindexes, GL_UNSIGNED_INT, s->mesh->indexes);
+				varray_ic = 0;
+				varray_vc = 0;
 			}
 			PPL_FlushArrays();
 		}
@@ -2615,6 +2610,7 @@ void PPL_DrawEntFullBrights(void)
 {
 	int		i;
 
+	currententity = &r_worldentity;
 //	if (gl_detail.value || (r_fb_bmodels.value && cls.allow_luma))
 		PPL_FullBrights(cl.worldmodel);
 
@@ -2736,11 +2732,17 @@ void PPL_SchematicsTextureChain(msurface_t *first)
 
 					qglTexCoord2f (fcol, frow + size);
 					qglVertex3fv(pos);
-					VectorMA(pos, 8, s->normal, v);
+					if (s->flags & SURF_PLANEBACK)
+						VectorMA(pos, -8, s->plane->normal, v);
+					else
+						VectorMA(pos, 8, s->plane->normal, v);
 					qglTexCoord2f (fcol, frow);
 					qglVertex3fv(v);
 					VectorMA(pos, -8, dir, pos);
-					VectorMA(pos, 8, s->normal, v);
+					if (s->flags & SURF_PLANEBACK)
+						VectorMA(pos, -8, s->plane->normal, v);
+					else
+						VectorMA(pos, 8, s->plane->normal, v);
 					qglTexCoord2f (fcol + size, frow);
 					qglVertex3fv(v);
 					qglTexCoord2f (fcol + size, frow + size);
@@ -2782,14 +2784,23 @@ void PPL_SchematicsTextureChain(msurface_t *first)
 				sl = 0;
 
 			//left side. (find arrowhead part)
-			VectorMA(v1, 4, s->normal, pos);
+			if (s->flags & SURF_PLANEBACK)
+				VectorMA(v1, -4, s->plane->normal, pos);
+			else
+				VectorMA(v1, 4, s->plane->normal, pos);
 
 			VectorMA(pos, 4, dir, v);
-			VectorMA(v, -4, s->normal, v);
+			if (s->flags & SURF_PLANEBACK)
+				VectorMA(v, 4, s->plane->normal, v);
+			else
+				VectorMA(v, -4, s->plane->normal, v);
 			qglVertex3fv(v);
 			qglVertex3fv(pos);
 
-			VectorMA(v, 8, s->normal, v);
+			if (s->flags & SURF_PLANEBACK)
+				VectorMA(v, -8, s->plane->normal, v);
+			else
+				VectorMA(v, 8, s->plane->normal, v);
 			qglVertex3fv(v);
 			qglVertex3fv(pos);
 
@@ -2799,14 +2810,23 @@ void PPL_SchematicsTextureChain(msurface_t *first)
 			qglVertex3fv(pos);
 
 			//right hand side.
-			VectorMA(v2, 4, s->normal, pos);
+			if (s->flags & SURF_PLANEBACK)
+				VectorMA(v2, -4, s->plane->normal, pos);
+			else
+				VectorMA(v2, 4, s->plane->normal, pos);
 
 			VectorMA(pos, -4, dir, v);
-			VectorMA(v, -4, s->normal, v);
+			if (s->flags & SURF_PLANEBACK)
+				VectorMA(v, 4, s->plane->normal, v);
+			else
+				VectorMA(v, -4, s->plane->normal, v);
 			qglVertex3fv(v);
 			qglVertex3fv(pos);
 
-			VectorMA(v, 8, s->normal, v);
+			if (s->flags & SURF_PLANEBACK)
+				VectorMA(v, -8, s->plane->normal, v);
+			else
+				VectorMA(v, 8, s->plane->normal, v);
 			qglVertex3fv(v);
 			qglVertex3fv(pos);
 
@@ -4044,140 +4064,137 @@ void PPL_AddLight(dlight_t *dl)
 
 	qglDisable(GL_TEXTURE_2D);
 	qglTexEnvf(GL_TEXTURE_ENV, GL_TEXTURE_ENV_MODE, GL_REPLACE);
-//	if (1)
-//		goto noshadows;
-
 	qglEnable(GL_SCISSOR_TEST);
-
-
-	qglDisable(GL_BLEND);
-	qglColorMask( GL_FALSE, GL_FALSE, GL_FALSE, GL_FALSE );
-	qglDepthMask(0);
-
-	if (gldepthfunc==GL_LEQUAL)
-		qglDepthFunc(GL_LESS);
-	else
-		qglDepthFunc(GL_GREATER);
-	qglEnable(GL_DEPTH_TEST);
-	qglEnable(GL_STENCIL_TEST);
-
-	sincrw = GL_INCR;
-	sdecrw = GL_DECR;
-	if (gl_config.ext_stencil_wrap)
-	{	//minamlise damage...
-		sincrw = GL_INCR_WRAP_EXT;
-		sdecrw = GL_DECR_WRAP_EXT;
-	}
-//our stencil writes.
-
-#ifdef _DEBUG
-	if (r_shadows.value == 666)	//testing (visible shadow volumes)
+//	if (!((int)r_shadows.value & 4))
 	{
-		if (qglGetError())
-			Con_Printf("GL Error on entities\n");
+		qglDisable(GL_BLEND);
+		qglColorMask( GL_FALSE, GL_FALSE, GL_FALSE, GL_FALSE );
+		qglDepthMask(0);
+
+		if (gldepthfunc==GL_LEQUAL)
+			qglDepthFunc(GL_LESS);
+		else
+			qglDepthFunc(GL_GREATER);
+		qglEnable(GL_DEPTH_TEST);
+		qglEnable(GL_STENCIL_TEST);
+
+		sincrw = GL_INCR;
+		sdecrw = GL_DECR;
+		if (gl_config.ext_stencil_wrap)
+		{	//minamlise damage...
+			sincrw = GL_INCR_WRAP_EXT;
+			sdecrw = GL_DECR_WRAP_EXT;
+		}
+	//our stencil writes.
+
+	#ifdef _DEBUG
+		if (r_shadows.value == 666)	//testing (visible shadow volumes)
+		{
+			if (qglGetError())
+				Con_Printf("GL Error on entities\n");
+			qglColorMask( GL_TRUE, GL_TRUE, GL_TRUE, GL_TRUE );
+			qglColor3f(dl->color[0], dl->color[1], dl->color[2]);
+			qglDisable(GL_STENCIL_TEST);
+			qglPolygonMode(GL_FRONT_AND_BACK, GL_LINE);
+			if (qglGetError())
+				Con_Printf("GL Error on entities\n");
+			PPL_RecursiveWorldNode(dl);
+			if (qglGetError())
+				Con_Printf("GL Error on entities\n");
+			PPL_DrawShadowMeshes(dl);
+			if (qglGetError())
+				Con_Printf("GL Error on entities\n");
+			qglPolygonMode(GL_FRONT_AND_BACK, GL_FILL);
+		}
+		else
+	#endif
+			
+		if (qglStencilOpSeparateATI && !((int)r_shadows.value & 2))//GL_ATI_separate_stencil
+		{
+			qglClearStencil(0);
+			qglClear(GL_STENCIL_BUFFER_BIT);
+			qglDisable(GL_CULL_FACE);
+
+			qglStencilFunc( GL_ALWAYS, 1, ~0 );
+
+			qglStencilOpSeparateATI(GL_BACK, GL_KEEP, sincrw, GL_KEEP);
+			qglStencilOpSeparateATI(GL_FRONT, GL_KEEP, sdecrw, GL_KEEP);
+			PPL_UpdateNodeShadowFrames(lvisb);
+			PPL_RecursiveWorldNode(dl);
+			PPL_DrawShadowMeshes(dl);
+			qglStencilOpSeparateATI(GL_FRONT_AND_BACK, GL_KEEP, GL_KEEP, GL_KEEP);
+
+			qglEnable(GL_CULL_FACE);
+
+			qglStencilFunc( GL_EQUAL, 0, ~0 );
+		}
+		else if (qglActiveStencilFaceEXT && !((int)r_shadows.value & 2))	//NVidias variation on a theme. (GFFX class)
+		{
+			qglClearStencil(0);
+			qglClear(GL_STENCIL_BUFFER_BIT);
+			qglDisable(GL_CULL_FACE);
+
+			qglEnable(GL_STENCIL_TEST_TWO_SIDE_EXT);
+
+			qglActiveStencilFaceEXT(GL_BACK);
+			qglStencilOp(GL_KEEP, sincrw, GL_KEEP);
+			qglStencilFunc( GL_ALWAYS, 1, ~0 );
+
+			qglActiveStencilFaceEXT(GL_FRONT);
+			qglStencilOp(GL_KEEP, sdecrw, GL_KEEP);
+			qglStencilFunc( GL_ALWAYS, 1, ~0 );
+
+			PPL_UpdateNodeShadowFrames(lvisb);
+			PPL_RecursiveWorldNode(dl);
+			PPL_DrawShadowMeshes(dl);
+
+			qglActiveStencilFaceEXT(GL_BACK);
+			qglStencilOp(GL_KEEP, GL_KEEP, GL_KEEP);
+
+			qglActiveStencilFaceEXT(GL_FRONT);
+			qglStencilOp(GL_KEEP, GL_KEEP, GL_KEEP);
+
+			qglDisable(GL_STENCIL_TEST_TWO_SIDE_EXT);
+
+			qglEnable(GL_CULL_FACE);
+
+			qglActiveStencilFaceEXT(GL_BACK);
+			qglStencilFunc( GL_EQUAL, 0, ~0 );
+		}
+		else //your graphics card sucks and lacks efficient stencil shadow techniques.
+		{	//centered around 0. Will only be increased then decreased less.
+			qglClearStencil(0);
+			qglClear(GL_STENCIL_BUFFER_BIT);
+
+			qglEnable(GL_CULL_FACE);
+
+			qglStencilFunc( GL_ALWAYS, 0, ~0 );
+
+			shadowsurfcount = 0;
+			qglCullFace(GL_BACK);
+			qglStencilOp(GL_KEEP, sincrw, GL_KEEP);
+			PPL_UpdateNodeShadowFrames(lvis);
+			PPL_RecursiveWorldNode(dl);
+			PPL_DrawShadowMeshes(dl);
+
+			shadowsurfcount=0;
+			qglCullFace(GL_FRONT);
+			qglStencilOp(GL_KEEP, sdecrw, GL_KEEP);
+			PPL_UpdateNodeShadowFrames(lvis);
+			PPL_RecursiveWorldNode(dl);
+			PPL_DrawShadowMeshes(dl);
+
+			qglStencilFunc( GL_EQUAL, 0, ~0 );
+		}
+	//end stencil writing.
+
+		qglEnable(GL_DEPTH_TEST);
+		qglDepthMask(0);
 		qglColorMask( GL_TRUE, GL_TRUE, GL_TRUE, GL_TRUE );
-		qglColor3f(dl->color[0], dl->color[1], dl->color[2]);
-		qglDisable(GL_STENCIL_TEST);
-		qglPolygonMode(GL_FRONT_AND_BACK, GL_LINE);
-		if (qglGetError())
-			Con_Printf("GL Error on entities\n");
-		PPL_RecursiveWorldNode(dl);
-		if (qglGetError())
-			Con_Printf("GL Error on entities\n");
-		PPL_DrawShadowMeshes(dl);
-		if (qglGetError())
-			Con_Printf("GL Error on entities\n");
-		qglPolygonMode(GL_FRONT_AND_BACK, GL_FILL);
-	}
-	else
-#endif
-		
-	if (qglStencilOpSeparateATI && !((int)r_shadows.value & 2))//GL_ATI_separate_stencil
-	{
-		qglClearStencil(0);
-		qglClear(GL_STENCIL_BUFFER_BIT);
-		qglDisable(GL_CULL_FACE);
-
-		qglStencilFunc( GL_ALWAYS, 1, ~0 );
-
-		qglStencilOpSeparateATI(GL_BACK, GL_KEEP, sincrw, GL_KEEP);
-		qglStencilOpSeparateATI(GL_FRONT, GL_KEEP, sdecrw, GL_KEEP);
-		PPL_UpdateNodeShadowFrames(lvisb);
-		PPL_RecursiveWorldNode(dl);
-		PPL_DrawShadowMeshes(dl);
-		qglStencilOpSeparateATI(GL_FRONT_AND_BACK, GL_KEEP, GL_KEEP, GL_KEEP);
-
-		qglEnable(GL_CULL_FACE);
-
-		qglStencilFunc( GL_EQUAL, 0, ~0 );
-	}
-	else if (qglActiveStencilFaceEXT && !((int)r_shadows.value & 2))	//NVidias variation on a theme. (GFFX class)
-	{
-		qglClearStencil(0);
-		qglClear(GL_STENCIL_BUFFER_BIT);
-		qglDisable(GL_CULL_FACE);
-
-		qglEnable(GL_STENCIL_TEST_TWO_SIDE_EXT);
-
-		qglActiveStencilFaceEXT(GL_BACK);
-		qglStencilOp(GL_KEEP, sincrw, GL_KEEP);
-		qglStencilFunc( GL_ALWAYS, 1, ~0 );
-
-		qglActiveStencilFaceEXT(GL_FRONT);
-		qglStencilOp(GL_KEEP, sdecrw, GL_KEEP);
-		qglStencilFunc( GL_ALWAYS, 1, ~0 );
-
-		PPL_UpdateNodeShadowFrames(lvisb);
-		PPL_RecursiveWorldNode(dl);
-		PPL_DrawShadowMeshes(dl);
-
-		qglActiveStencilFaceEXT(GL_BACK);
-		qglStencilOp(GL_KEEP, GL_KEEP, GL_KEEP);
-
-		qglActiveStencilFaceEXT(GL_FRONT);
-		qglStencilOp(GL_KEEP, GL_KEEP, GL_KEEP);
-
-		qglDisable(GL_STENCIL_TEST_TWO_SIDE_EXT);
-
-		qglEnable(GL_CULL_FACE);
-
-		qglActiveStencilFaceEXT(GL_BACK);
-		qglStencilFunc( GL_EQUAL, 0, ~0 );
-	}
-	else //your graphics card sucks and lacks efficient stencil shadow techniques.
-	{	//centered around 0. Will only be increased then decreased less.
-		qglClearStencil(0);
-		qglClear(GL_STENCIL_BUFFER_BIT);
-
-		qglEnable(GL_CULL_FACE);
-
-		qglStencilFunc( GL_ALWAYS, 0, ~0 );
-
-		shadowsurfcount = 0;
-		qglCullFace(GL_BACK);
-		qglStencilOp(GL_KEEP, sincrw, GL_KEEP);
-		PPL_UpdateNodeShadowFrames(lvis);
-		PPL_RecursiveWorldNode(dl);
-		PPL_DrawShadowMeshes(dl);
-
-		shadowsurfcount=0;
+		qglStencilOp( GL_KEEP, GL_KEEP, GL_KEEP );
 		qglCullFace(GL_FRONT);
-		qglStencilOp(GL_KEEP, sdecrw, GL_KEEP);
-		PPL_UpdateNodeShadowFrames(lvis);
-		PPL_RecursiveWorldNode(dl);
-		PPL_DrawShadowMeshes(dl);
 
-		qglStencilFunc( GL_EQUAL, 0, ~0 );
 	}
-//end stencil writing.
-
-	qglEnable(GL_DEPTH_TEST);
-	qglDepthMask(0);
-	qglColorMask( GL_TRUE, GL_TRUE, GL_TRUE, GL_TRUE );
-	qglStencilOp( GL_KEEP, GL_KEEP, GL_KEEP );
-	qglCullFace(GL_FRONT);
-
-//noshadows:
 	qglColor3f(1,1,1);
 
 	qglEnable(GL_BLEND);

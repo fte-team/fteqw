@@ -1287,7 +1287,7 @@ void P_NewServer(void)
 			Con_Printf("Couldn't find particle description, using spikeset\n");
 			Cbuf_AddText(particle_set_spikeset, RESTRICT_SERVER);
 		}
-/*#if defined(_DEBUG) && defined(WIN32)	//expand the particles cfg into a C style quoted string, and copy to clipboard so I can paste it in.
+#if defined(_DEBUG) && defined(WIN32)	//expand the particles cfg into a C style quoted string, and copy to clipboard so I can paste it in.
 		{
 			char *TL_ExpandToCString(char *in);
 			extern HWND mainwindow;
@@ -1324,7 +1324,7 @@ void P_NewServer(void)
 			SetClipboardData(CF_TEXT, hglbCopy); 
 			CloseClipboard();
 		}
-#endif*/
+#endif
 	}
 }
 
@@ -1471,7 +1471,11 @@ glEnable(GL_DEPTH_TEST);
 				if (Length(vdist) > (1024+512)*frandom())
 					continue;
 
-				VectorMA(org, 0.5, st->face->normal, org);				
+				if (st->face->flags & SURF_PLANEBACK)
+					VectorMA(org, -0.5, st->face->plane->normal, org);
+				else
+					VectorMA(org, 0.5, st->face->plane->normal, org);
+
 				if (!(cl.worldmodel->hulls->funcs.HullPointContents(cl.worldmodel->hulls, org) & FTECONTENTS_SOLID))
 				{
 					if (st->face->flags & SURF_PLANEBACK)
@@ -1726,7 +1730,7 @@ int P_RunParticleEffectTypeString (vec3_t org, vec3_t dir, float count, char *na
 	return P_RunParticleEffectType(org, dir, count, type);
 }
 
-int Q1BSP_ClipDecal(vec3_t center, vec3_t normal, vec3_t tangent, float size, float **out);
+int Q1BSP_ClipDecal(vec3_t center, vec3_t normal, vec3_t tangent, vec3_t tangent2, float size, float **out);
 int P_RunParticleEffectType (vec3_t org, vec3_t dir, float count, int typenum)
 {
 	part_type_t *ptype = &part_type[typenum];
@@ -1763,7 +1767,7 @@ int P_RunParticleEffectType (vec3_t org, vec3_t dir, float count, int typenum)
 		CrossProduct(dir, vec, tangent);
 		CrossProduct(dir, tangent, t2);
 
-		decalcount = Q1BSP_ClipDecal(org, dir, tangent, ptype->scale, &decverts);
+		decalcount = Q1BSP_ClipDecal(org, dir, tangent, t2, ptype->scale, &decverts);
 		while(decalcount)
 		{
 			if (!free_decals)
@@ -1781,9 +1785,8 @@ int P_RunParticleEffectType (vec3_t org, vec3_t dir, float count, int typenum)
 			for (i = 0; i < 3; i++)
 			{
 				VectorSubtract(d->vertex[i], org, vec);
-				dist = DotProduct(vec, dir)/ptype->scale;
-				d->texcoords[i][0] = ((DotProduct(vec, t2)*(1-dist))/ptype->scale)+0.5;
-				d->texcoords[i][1] = ((DotProduct(vec, tangent)*(1-dist))/ptype->scale)+0.5;
+				d->texcoords[i][0] = (DotProduct(vec, t2)/ptype->scale)+0.5;
+				d->texcoords[i][1] = (DotProduct(vec, tangent)/ptype->scale)+0.5;
 			}
 
 			d->die = ptype->randdie*frandom();
@@ -3414,7 +3417,7 @@ void DrawParticleTypes (void texturedparticles(particle_t *,part_type_t*), void 
 	{
 		if (type->clippeddecals)
 		{
-			for ( ;; ) 
+/*			for ( ;; ) 
 			{
 				dkill = type->clippeddecals;
 				if (dkill && dkill->die < particletime)
@@ -3431,9 +3434,9 @@ void DrawParticleTypes (void texturedparticles(particle_t *,part_type_t*), void 
 				}
 				break;
 			}
-			for (d=type->clippeddecals ; d ; d=d->next)
+*/			for (d=type->clippeddecals ; d ; d=d->next)
 			{
-				for ( ;; )
+	/*			for ( ;; )
 				{
 					dkill = d->next;
 					if (dkill && dkill->die < particletime)
@@ -3446,7 +3449,7 @@ void DrawParticleTypes (void texturedparticles(particle_t *,part_type_t*), void 
 						continue;
 					}
 					break;
-				}
+				}*/
 
 
 

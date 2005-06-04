@@ -180,9 +180,7 @@ called to open a channel to a remote system
 void Netchan_Setup (netsrc_t sock, netchan_t *chan, netadr_t adr, int qport)
 {
 	memset (chan, 0, sizeof(*chan));
-#ifdef NQPROT	
-	chan->qsocket = NULL;
-#endif
+
 	chan->sock = sock;
 	chan->remote_address = adr;
 	chan->last_received = realtime;
@@ -302,20 +300,20 @@ qboolean NQNetChan_Process(netchan_t *chan)
 		{
 			chan->incoming_reliable_sequence++;
 
-			if (chan->in_reliable_length + net_message.cursize-8 >= sizeof(chan->in_reliable_buf))
+			if (chan->in_fragment_length + net_message.cursize-8 >= sizeof(chan->in_fragment_buf))
 			{
 				chan->fatal_error = true;
 				return false;
 			}
 
-			memcpy(chan->in_reliable_buf + chan->in_reliable_length, net_message.data+8, net_message.cursize-8);
-			chan->in_reliable_length += net_message.cursize-8;
+			memcpy(chan->in_fragment_buf + chan->in_fragment_length, net_message.data+8, net_message.cursize-8);
+			chan->in_fragment_length += net_message.cursize-8;
 
 			if (header & NETFLAG_EOM)
 			{
 				SZ_Clear(&net_message);
-				SZ_Write(&net_message, chan->in_reliable_buf, chan->in_reliable_length);
-				chan->in_reliable_length = 0;
+				SZ_Write(&net_message, chan->in_fragment_buf, chan->in_fragment_length);
+				chan->in_fragment_length = 0;
 				MSG_BeginReading();
 				return 2;	//we can read it now
 			}

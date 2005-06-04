@@ -92,6 +92,7 @@ pbool opt_stripfunctions;		//if a functions is only ever called directly or by e
 pbool opt_locals_marshalling;	//make the local vars of all functions occupy the same globals.
 pbool opt_logicops;				//don't make conditions enter functions if the return value will be discarded due to a previous value. (C style if statements)
 pbool opt_vectorcalls;			//vectors can be packed into 3 floats, which can yield lower numpr_globals, but cost two more statements per call (only works for q1 calling conventions).
+pbool opt_simplifiedifs;		//if (f != 0) -> if (f). if (f == 0) -> ifnot (f)
 //bool opt_comexprremoval;
 
 //these are the results of the opt_. The values are printed out when compilation is compleate, showing effectivness.
@@ -4860,13 +4861,17 @@ void QCC_PR_ParseStatement (void)
 	
 	if (QCC_PR_CheckKeyword(keyword_if, "if"))
 	{
-		if (QCC_PR_CheckKeyword(keyword_not, "not"))
-		{
-			QCC_PR_Expect ("(");
-			conditional = 1;
-			e = QCC_PR_Expression (TOP_PRIORITY);
-			conditional = 0;
+		pbool negate = QCC_PR_CheckKeyword(keyword_not, "not");
 
+		QCC_PR_Expect ("(");
+		conditional = 1;
+		e = QCC_PR_Expression (TOP_PRIORITY);
+		conditional = 0;
+
+//		negate = negate != 0;
+
+		if (negate)
+		{
 			if (e->type == type_string && flag_ifstring)	//special case, as strings are now pointers, not offsets from string table
 			{
 				QCC_PR_ParseWarning(WARN_IFSTRING_USED, "if not(string) can result in bizzare behaviour");
@@ -4877,11 +4882,6 @@ void QCC_PR_ParseStatement (void)
 		}
 		else
 		{
-			QCC_PR_Expect ("(");
-			conditional = 1;
-			e = QCC_PR_Expression (TOP_PRIORITY);
-			conditional = 0;
-
 			if (e->type == type_string && flag_ifstring)	//special case, as strings are now pointers, not offsets from string table
 			{
 				QCC_PR_ParseWarning(WARN_IFSTRING_USED, "if (string) can result in bizzare behaviour");

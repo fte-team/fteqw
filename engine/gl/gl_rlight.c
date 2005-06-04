@@ -355,34 +355,6 @@ void GLR_PushDlights (void)
 			continue;
 		cl.worldmodel->funcs.MarkLights( l, 1<<i, cl.worldmodel->nodes );
 	}
-
-/*
-	if (cl.worldmodel->fromgame == fg_quake3)
-	{
-		for (i=0 ; i<MAX_SWLIGHTS ; i++, l++)
-		{
-			if (l->die < cl.time || !l->radius)
-				continue;
-			GLR_MarkQ3Lights ( l, 1<<i, cl.worldmodel->nodes );
-		}
-		return;
-	}
-	if (cl.worldmodel->fromgame == fg_quake2)
-	{
-		for (i=0 ; i<MAX_SWLIGHTS ; i++, l++)
-		{
-			if (l->die < cl.time || !l->radius)
-				continue;
-			GLR_MarkQ2Lights ( l, 1<<i, cl.worldmodel->nodes );
-		}
-		return;
-	}
-	for (i=0 ; i<MAX_DLIGHTS ; i++, l++)
-	{
-		if (l->die < cl.time || !l->radius)
-			continue;
-		GLR_MarkLights ( l, 1<<i, cl.worldmodel->nodes );
-	}*/
 }
 
 

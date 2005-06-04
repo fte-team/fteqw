@@ -111,6 +111,7 @@ static cvar_t	vid_height = {"vid_height", "480", NULL, CVAR_ARCHIVE|CVAR_RENDERE
 static cvar_t	vid_refreshrate = {"vid_displayfrequency", "0", NULL, CVAR_ARCHIVE|CVAR_RENDERERLATCH};
 
 cvar_t	gl_motionblur = {"gl_motionblur", "0"};
+cvar_t	gl_motionblurscale = {"gl_motionblurscale", "1"};
 cvar_t	gl_fontedgeclamp = {"gl_fontedgeclamp", "0"};	//gl blends. Set this to 1 to stop the outside of your conchars from being visible
 cvar_t	gl_font = {"gl_font", ""};
 cvar_t	gl_conback = {"gl_conback", ""};
@@ -287,6 +288,7 @@ void GLRenderer_Init(void)
 	Cvar_Register (&gl_ztrick, GLRENDEREROPTIONS);
 
 	Cvar_Register (&gl_motionblur, GLRENDEREROPTIONS);
+	Cvar_Register (&gl_motionblurscale, GLRENDEREROPTIONS);
 	Cvar_Register (&gl_max_size, GLRENDEREROPTIONS);
 	Cvar_Register (&gl_maxdist, GLRENDEREROPTIONS);
 	Cvar_Register (&vid_conwidth, GLRENDEREROPTIONS);
@@ -1647,8 +1649,6 @@ TRACE(("dbg: R_ApplyRenderer: reloading ALL models\n"));
 				UI_Reset();
 				return false;
 			}
-
-			S_ExtraUpdate();
 		}
 
 		loadmodel = cl.worldmodel = cl.model_precache[1];
@@ -1700,8 +1700,11 @@ TRACE(("dbg: R_ApplyRenderer: efrags\n"));
 		break;
 	}
 	
+	TRACE(("dbg: R_ApplyRenderer: S_Restart_f\n"));
 	if (!isDedicated)
 		S_Restart_f();
+
+	TRACE(("dbg: R_ApplyRenderer: done\n"));
 
 	memcpy(&currentrendererstate, newr, sizeof(currentrendererstate));
 	return true;

@@ -227,7 +227,7 @@ qboolean Cmd_IsCommand (char *line)
 			command[i] = s[i];
 	command[i] = 0;
 
-	cmd = Cmd_CompleteCommand (command, true, -1);
+	cmd = Cmd_CompleteCommand (command, true, false, -1);
 	if (!cmd  || strcmp (cmd, command) )
 		return false;		// just a chat message
 	return true;
@@ -282,7 +282,7 @@ void CompleteCommand (qboolean force)
 		int x=0;
 		for (i = 1; ; i++)
 		{
-			cmd = Cmd_CompleteCommand (s, true, i);
+			cmd = Cmd_CompleteCommand (s, true, true, i);
 			if (!cmd)
 				break;
 			if (i == 1)
@@ -293,13 +293,13 @@ void CompleteCommand (qboolean force)
 			Con_Printf("\n");
 	}
 
-	cmd = Cmd_CompleteCommand (s, true, 2);
+	cmd = Cmd_CompleteCommand (s, true, true, 2);
 	if (!cmd || force)
 	{
 		if (!force)
-			cmd = Cmd_CompleteCommand (s, false, 1);
+			cmd = Cmd_CompleteCommand (s, false, true, 1);
 		else
-			cmd = Cmd_CompleteCommand (s, true, con_commandmatch);
+			cmd = Cmd_CompleteCommand (s, true, true, con_commandmatch);
 		if (cmd)
 		{
 			key_lines[edit_line][1] = '/';
@@ -312,7 +312,7 @@ void CompleteCommand (qboolean force)
 
 	//		if (strlen(cmd)>strlen(s))
 			{
-				cmd = Cmd_CompleteCommand (s, true, 0);
+				cmd = Cmd_CompleteCommand (s, true, true, 0);
 				if (cmd && !strcmp(s, cmd))	//also a compleate var
 				{
 					key_lines[edit_line][key_linepos] = ' ';
@@ -323,7 +323,7 @@ void CompleteCommand (qboolean force)
 			return;
 		}
 	}
-	cmd = Cmd_CompleteCommand (s, false, 0);
+	cmd = Cmd_CompleteCommand (s, false, true, 0);
 	if (cmd)
 	{
 		i = key_lines[edit_line][1] == '/'?2:1;
@@ -344,7 +344,7 @@ void CompleteCommand (qboolean force)
 	}
 
 	con_commandmatch++;
-	if (!Cmd_CompleteCommand(s, true, con_commandmatch))
+	if (!Cmd_CompleteCommand(s, true, true, con_commandmatch))
 		con_commandmatch = 1;
 }
 
@@ -424,7 +424,7 @@ void Key_Console (int key)
 
 	if (key == K_SPACE && con_current->commandcompletion)
 	{
-		if (keydown[K_SHIFT] && Cmd_CompleteCommand(key_lines[edit_line]+1, true, con_current->commandcompletion))
+		if (keydown[K_SHIFT] && Cmd_CompleteCommand(key_lines[edit_line]+1, true, true, con_current->commandcompletion))
 		{
 			CompleteCommand (true);
 			return;

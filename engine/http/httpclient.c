@@ -331,7 +331,7 @@ static qboolean HTTP_CL_Run(http_con_t *con)
 		{	//server closed off the connection.
 			if (con->chunksize)
 				Con_Printf("Download was part way through chunking - must be corrupt - %s\n", con->filename);
-			else if (con->bufferused != con->contentlength)
+			else if (con->bufferused != con->contentlength && !con->file)
 				Con_Printf("Recieved file isn't the correct length - must be corrupt - %s\n", con->filename);
 			Con_Printf("Retrieved %s\n", con->filename);
 			if (con->file)

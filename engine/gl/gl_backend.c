@@ -736,15 +736,14 @@ void R_FlushArraysMtex (void)
 		return;
 	}
 
-	GL_MBind( mtexid0, r_texNums[0] );
-	qglEnableClientState( GL_TEXTURE_COORD_ARRAY );
-
 	if ( numColors > 1 ) {
 		qglEnableClientState( GL_COLOR_ARRAY );
 	} else if ( numColors == 1 ) {
 		qglColor4ubv ( colorArray[0] );
 	}
 
+	GL_MBind( mtexid0, r_texNums[0] );
+	qglEnableClientState( GL_TEXTURE_COORD_ARRAY );
 	for ( i = 1; i < r_numUnits; i++ )
 	{
 		GL_MBind( mtexid0 + i, r_texNums[i] );
@@ -1764,15 +1763,15 @@ void R_RenderMeshCombined ( meshbuffer_t *mb, shaderpass_t *pass )
 	R_ModifyColor ( mb, pass );
 
 	GL_SelectTexture( mtexid0 );
-	R_ModifyTextureCoords ( pass, 0 );
 	if ( pass->blendmode == GL_REPLACE )
 		GL_TexEnv( GL_REPLACE );
 	else
 		GL_TexEnv( GL_MODULATE );
+	R_ModifyTextureCoords ( pass, 0 );
 
 	for ( i = 1, pass++; i < r_numUnits; i++, pass++ )
 	{
-		GL_SelectTexture( mtexid1 + i );
+		GL_SelectTexture( mtexid0 + i );
 
 		if ( pass->blendmode )
 		{

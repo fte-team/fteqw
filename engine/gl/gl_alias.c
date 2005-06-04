@@ -182,13 +182,7 @@ static void R_LerpFrames(mesh_t *mesh, galiaspose_t *p1, galiaspose_t *p2, float
 		mesh->xyz_array = p1v;
 		if (r_nolightdir.value)
 		{
-			for (i = 0; i < mesh->numvertexes; i++)
-			{
-				mesh->colors_array[i][0] = /*ambientlight[0]/2*/+shadelight[0];
-				mesh->colors_array[i][1] = /*ambientlight[1]/2*/+shadelight[1];
-				mesh->colors_array[i][2] = /*ambientlight[2]/2*/+shadelight[2];
-				mesh->colors_array[i][3] = alpha;
-			}
+			mesh->colors_array = NULL;
 		}
 		else
 		{
@@ -1469,11 +1463,14 @@ void R_DrawGAliasModel (entity_t *e)
 	fog = CM_FogForOrigin(currententity->origin);
 #endif
 
+	qglColor4f(shadelight[0], shadelight[1], shadelight[2], e->alpha);
+
 	memset(&mesh, 0, sizeof(mesh));
 	for(; inf; ((inf->nextsurf)?(inf = (galiasinfo_t*)((char *)inf + inf->nextsurf)):(inf=NULL)))
 	{
 		if (R_GAliasBuildMesh(&mesh, inf, e->frame, e->oldframe, e->lerpfrac, e->alpha) && r_vertexdlights.value)
-			R_GAliasAddDlights(&mesh, e->origin, e->angles);
+			if (mesh.colors_array)
+				R_GAliasAddDlights(&mesh, e->origin, e->angles);
 
 		c_alias_polys += mesh.numindexes/3;
 
@@ -2238,12 +2235,12 @@ static void *Q1_LoadSkins (daliasskintype_t *pskintype, qboolean alpha)
 			outskin->texnums=1;
 
 			outskin->ofstexnums = (char *)texnums - (char *)outskin;
-
+/*
 #ifdef Q3SHADERS
 			sprintf(skinname, "%s_%i", loadname, i);
 			texnums->shader = R_RegisterSkin(skinname);
 #endif
-
+*/
 
 			texnums->base = texture;
 			texnums->fullbright = fbtexture;
@@ -2317,11 +2314,12 @@ static void *Q1_LoadSkins (daliasskintype_t *pskintype, qboolean alpha)
 					if (t != 0)	//only keep the first.
 						BZ_Free(saved);
 				}
-
-				sprintf(skinname, "%s_%i_%i", loadname, i, t);
+/*
 #ifdef Q3SHADERS
+				sprintf(skinname, "%s_%i_%i", loadname, i, t);
 				texnums->shader = R_RegisterSkin(skinname);
 #endif
+*/
 				texnums->base = texture;
 				texnums->fullbright = fbtexture;
 			}	

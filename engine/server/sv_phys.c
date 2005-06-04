@@ -411,6 +411,8 @@ SV_AddGravity
 */
 void SV_AddGravity (edict_t *ent, float scale)
 {
+	if (!scale && progstype != PROG_QW)
+		scale = 1;
 	ent->v->velocity[2] -= scale * sv_gravity.value/*movevars.gravity*/ * host_frametime;
 }
 

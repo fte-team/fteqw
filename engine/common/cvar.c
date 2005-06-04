@@ -491,7 +491,7 @@ cvar_t *Cvar_Get(const char *name, const char *defaultvalue, int flags, const ch
 	{
 		//allow this to change all < cvar_latch values.
 		//this allows q2 dlls to apply different flags to a cvar without destroying our important ones (like cheat).
-		var->flags = (flags & (CVAR_LATCH-1)) | (var->flags & ~(CVAR_LATCH-1));
+		var->flags = (var->flags & ~(CVAR_NOSET)) | (flags & (CVAR_NOSET|CVAR_SERVERINFO|CVAR_USERINFO|CVAR_ARCHIVE));
 		return var;
 	}
 

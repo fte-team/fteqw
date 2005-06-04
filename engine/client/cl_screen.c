@@ -760,6 +760,10 @@ void SCR_CalcRefdef (void)
 	}
 
 	r_refdef.fov_x = scr_fov.value;
+	if (r_refdef.fov_x < 10)
+		r_refdef.fov_x = 10;
+	else if (r_refdef.fov_x > 170)
+		r_refdef.fov_x = 170;
 	r_refdef.fov_y = CalcFov (r_refdef.fov_x, r_refdef.vrect.width, r_refdef.vrect.height);
 
 

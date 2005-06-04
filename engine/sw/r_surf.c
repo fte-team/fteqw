@@ -27,10 +27,10 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 #endif
 
 
-//#define MAX_DECALS (1<<8)
+//#define MAX_SWDECALS (1<<8)
 
-#if MAX_DECALS
-decal_t decals[MAX_DECALS];
+#if MAX_SWDECALS
+decal_t decals[MAX_SWDECALS];
 int nextdecal;
 
 void SWR_AddDecal(vec3_t org);
@@ -213,7 +213,7 @@ void SWR_AddStain(vec3_t org, float red, float green, float blue, float radius)
 	int i;
 	float parms[5];
 
-#if MAX_DECALS
+#if MAX_SWDECALS
 	SWR_AddDecal(org);
 #endif
 
@@ -415,7 +415,7 @@ void SWR_BuildLightmaps(void)
 #endif
 
 //retrieves the next decal to be used, unlinking if needed.
-#if MAX_DECALS
+#if MAX_SWDECALS
 decal_t *R_GetFreeDecal(void)
 {
 	decal_t *dec = &decals[nextdecal];
@@ -430,7 +430,7 @@ decal_t *R_GetFreeDecal(void)
 
 		dec->owner->cached_dlight = -1;	//get the surface to redraw.
 	}
-	nextdecal = (nextdecal+1)&(MAX_DECALS-1);
+	nextdecal = (nextdecal+1)&(MAX_SWDECALS-1);
 
 	memset(dec, 0, sizeof(decal_t));
 
@@ -440,7 +440,7 @@ decal_t *R_GetFreeDecal(void)
 
 void R_WipeDecals(void)
 {
-#if MAX_DECALS
+#if MAX_SWDECALS
 	int i;
 
 	memset(decals, 0, sizeof(decals));
@@ -449,7 +449,7 @@ void R_WipeDecals(void)
 #endif
 }
 
-#if MAX_DECALS
+#if MAX_SWDECALS
 
 static vec3_t decalorg;
 static float decalradius;
@@ -1077,7 +1077,7 @@ void R_DrawSurface (void)
 	unsigned char	*pcolumndest;
 	void			(*pblockdrawer)(void);
 	texture_t		*mt;
-#if MAX_DECALS
+#if MAX_SWDECALS
 	decal_t			*dec;
 #endif
 
@@ -1154,7 +1154,7 @@ void R_DrawSurface (void)
 		pcolumndest += horzblockstep;
 	}
 
-#if MAX_DECALS
+#if MAX_SWDECALS
 	if (r_drawsurf.surf->decal && !r_drawsurf.surfmip)
 	{
 		if (r_pixbytes == 1 || r_pixbytes == 4)

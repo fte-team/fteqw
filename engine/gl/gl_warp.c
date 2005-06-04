@@ -279,7 +279,10 @@ R_LoadSkys
 static char	*skyname_suffix[][6] = {
 	{"px", "py", "nx", "ny", "pz", "nz"},
 	{"posx", "posy", "negx", "negy", "posz", "negz"},
-	{"rt", "bk", "lf", "ft", "up", "dn"}
+	{"rt", "bk", "lf", "ft", "up", "dn"},
+	{"_px", "_py", "_nx", "_ny", "_pz", "_nz"},
+	{"_posx", "_posy", "_negx", "_negy", "_posz", "_negz"},
+	{"_rt", "_bk", "_lf", "_ft", "_up", "_dn"}
 };
 
 static char *skyname_pattern[] = {
@@ -318,7 +321,11 @@ void R_LoadSkys (void)
 					{
 						_snprintf (name, sizeof(name), skyname_pattern[p], boxname, skyname_suffix[s][i]);
 						skyboxtex[i] = Mod_LoadHiResTexture(name, NULL, false, false, true);
+						if (skyboxtex[i])
+							break;
 					}
+					if (skyboxtex[i])
+						break;
 				}
 				if (!skyboxtex[i])
 					break;
@@ -326,7 +333,7 @@ void R_LoadSkys (void)
 				qglTexParameterf(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
 				qglTexParameterf(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
 			}
-			if (boxname != defaultskybox && i < 6)
+			if (boxname != defaultskybox && i < 6 && *defaultskybox)
 			{
 				boxname = defaultskybox;
 				continue;
@@ -593,10 +600,10 @@ void R_DrawSkyBoxChain (msurface_t *s)
 	R_DrawSkyBox (s);
 }
 
-#define skygridx 32
+#define skygridx 16
 #define skygridx1 (skygridx + 1)
 #define skygridxrecip (1.0f / (skygridx))
-#define skygridy 32
+#define skygridy 16
 #define skygridy1 (skygridy + 1)
 #define skygridyrecip (1.0f / (skygridy))
 #define skysphere_numverts (skygridx1 * skygridy1)

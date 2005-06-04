@@ -617,6 +617,8 @@ void CM_CreateBrush ( q2cbrush_t *brush, vec3_t *verts, q2mapsurface_t *surface 
 	qboolean skip[20];
 	int	numpatchplanes = 0;
 
+	int matchplane;
+
 	// calc absmins & absmaxs
 	ClearBounds ( absmins, absmaxs );
 	for (i = 0; i < 3; i++)
@@ -703,11 +705,22 @@ void CM_CreateBrush ( q2cbrush_t *brush, vec3_t *verts, q2mapsurface_t *surface 
 
 			skip[i] = true;
 
-			if (numplanes == MAX_Q2MAP_PLANES)
-				Host_Error ("CM_CreateBrush: numplanes == MAX_CM_PLANES");
+			for (matchplane = 0; matchplane < numplanes; matchplane++)
+			{
+				if (!memcmp(&map_planes[matchplane], &patchplanes[i], sizeof(patchplanes[i])))
+				{
+					plane = &map_planes[matchplane];
+					break;
+				}
+			}
+			if (matchplane == numplanes)
+			{
+				if (numplanes == MAX_Q2MAP_PLANES)
+					Host_Error ("CM_CreateBrush: numplanes == MAX_CM_PLANES");
 
-			plane = &map_planes[numplanes++];
-			*plane = patchplanes[i];
+				plane = &map_planes[numplanes++];
+				*plane = patchplanes[i];
+			}
 
 			if (numbrushsides == MAX_CM_BRUSHSIDES)
 				Host_Error ("CM_CreateBrush: numbrushsides == MAX_CM_BRUSHSIDES");
@@ -715,10 +728,10 @@ void CM_CreateBrush ( q2cbrush_t *brush, vec3_t *verts, q2mapsurface_t *surface 
 			side = &map_brushsides[numbrushsides++];
 			side->plane = plane;
 
-//			if (DotProduct(plane->normal, mainplane.normal) >= 0)
+			if (DotProduct(plane->normal, mainplane.normal) >= 0)
 				side->surface = surface;
-//			else
-//				side->surface = NULL;	// don't clip against this side
+			else
+				side->surface = NULL;	// don't clip against this side
 
 			brush->numsides++;
 		}

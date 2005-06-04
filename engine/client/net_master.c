@@ -918,6 +918,8 @@ void MasterInfo_ProcessHTTP(char *name, qboolean success)
 		return;
 
 	el = COM_LoadTempFile(name);
+	if (!el)
+		return;
 	while(*el)
 	{
 		s = el;
@@ -1362,12 +1364,16 @@ int CL_ReadServerInfo(char *msg, int servertype, qboolean favorite)
 		Q_strncpyz(info->map,		Info_ValueForKey(msg, "map"),		sizeof(info->map));
 	}
 
+	strcpy(details.info, msg);
+	msg = msg+strlen(msg)+1;
+
+	info->players=details.numplayers = 0;
+	if (!strchr(msg, '\n'))
+		info->players = atoi(Info_ValueForKey(details.info, "clients"));
+	else
 	{
 		int clnum;
-		strcpy(details.info, msg);
-		msg = msg+strlen(msg)+1;
 
-		info->players=details.numplayers = 0;
 		for (clnum=0; clnum < MAX_CLIENTS; clnum++)
 		{
 			nl = strchr(msg, '\n');

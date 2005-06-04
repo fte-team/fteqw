@@ -667,7 +667,7 @@ entity_state_t *CL_FindOldPacketEntity(int num)
 	packet_entities_t	*pack;
 	if (!cl.validsequence)
 		return NULL;
-	pack = &cl.frames[(cl.validsequence)&UPDATE_MASK].packet_entities;
+	pack = &cl.frames[(cls.netchan.incoming_sequence-1)&UPDATE_MASK].packet_entities;
 
 	for (pnum=0 ; pnum<pack->num_entities ; pnum++)
 	{
@@ -962,9 +962,9 @@ void CLNQ_ParseDarkPlaces5Entities(void)	//the things I do.. :o(
 	//1: stepping monsters. These have frames and tick at 10fps.
 	//2: physics. Objects moving acording to gravity.
 	//3: both. This is really awkward. And I'm really lazy.
-			cl.lerpents[to->number].lerprate = cl.time-cl.lerpents[to->number].lerptime;	//time per update
+			cl.lerpents[to->number].lerprate = cl.oldgametime-cl.lerpents[to->number].lerptime;	//time per update
 			cl.lerpents[to->number].frame = from->frame;
-			cl.lerpents[to->number].lerptime = cl.time;
+			cl.lerpents[to->number].lerptime = cl.oldgametime;
 
 			if (cl.lerpents[to->number].lerprate>0.2)
 				cl.lerpents[to->number].lerprate=0.2;
@@ -974,7 +974,7 @@ void CLNQ_ParseDarkPlaces5Entities(void)	//the things I do.. :o(
 	//			cl.lerpents[state->number].lerptime = newlerprate;
 	//		else
 			if (to->frame == from->frame)
-				newlerprate = cl.time-cl.lerpents[to->number].lerptime;
+				newlerprate = cl.lerpents[to->number].lerprate;
 		}
 	}
 
@@ -1319,8 +1319,12 @@ void CL_RotateAroundTag(entity_t *ent, int num, int tagent, int tagnum)
 void V_AddEntity(entity_t *in)
 {
 	entity_t *ent;
+
 	if (cl_numvisedicts == MAX_VISEDICTS)
+	{
+		Con_Printf("Visedict list is full!\n");
 		return;		// object list is full
+	}
 	ent = &cl_visedicts[cl_numvisedicts];
 	cl_numvisedicts++;
 
@@ -1391,6 +1395,11 @@ void CL_LinkPacketEntities (void)
 	{
 		s1 = &pack->entities[pnum];
 
+		if (cl_numvisedicts == MAX_VISEDICTS)
+		{
+			Con_Printf("Too many visible entities\n");
+			break;
+		}
 		ent = &cl_visedicts[cl_numvisedicts];
 #ifdef Q3SHADERS
 		ent->forcedshader = NULL;
@@ -1398,7 +1407,7 @@ void CL_LinkPacketEntities (void)
 
 		//figure out the lerp factor
 		if (cl.lerpents[s1->number].lerprate<=0)
-			ent->lerpfrac = 1;
+			ent->lerpfrac = 0;
 		else
 			ent->lerpfrac = 1-(cl.time-cl.lerpents[s1->number].lerptime)/cl.lerpents[s1->number].lerprate;
 		if (ent->lerpfrac<0)

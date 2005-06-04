@@ -373,7 +373,16 @@ void CL_FinishDownload(char *filename, char *tempname)
 		Skin_FlushSkin(filename);
 	}
 }
+/*
+void MapDownload(char *name, qboolean gotornot)
+{
+	if (gotornot)	//yay
+		return;
 
+
+	CL_EnqueDownload(filename, false, false);
+}
+*/
 /*
 ===============
 CL_CheckOrDownloadFile
@@ -407,6 +416,15 @@ qboolean	CL_CheckOrDownloadFile (char *filename, int nodelay)
 
 	SCR_EndLoadingPlaque();	//release console.
 
+/*	if (1)
+	if (strncmp(filename, "maps/", 5))
+	if (strcmp(filename + strlen(filename)-4, ".bsp"))
+	{
+		char base[MAX_QPATH];
+		COM_FileBase(filename, base);
+		HTTP_CL_Get(va("http://maps.quakeworld.nu/%s/download/", base), filename, MapDownload);
+	}
+*/
 	if (CL_EnqueDownload(filename, false, false))
 		return !nodelay;
 	else
@@ -1314,6 +1332,9 @@ void CL_ParseServerData (void)
 	Con_TPrintf (TLC_LINEBREAK_NEWLEVEL);
 	Con_TPrintf (TLC_PC_PS_NL, 2, str);
 
+	if (CL_RemoveClientCommands("new"))	//mvdsv is really appaling some times.
+		Con_Printf("Multiple 'new' commands?!?!? This server needs reinstalling!\n");
+
 	memset(cl.sound_name, 0, sizeof(cl.sound_name));
 #ifdef PEXT_PK3DOWNLOADS
 	if (cls.fteprotocolextensions & PEXT_PK3DOWNLOADS)	//instead of going for a soundlist, go for the pk3 list instead. The server will make us go for the soundlist after.
@@ -2190,7 +2211,8 @@ void CL_ParseStartSoundPacket(void)
     S_StartSound (ent, channel, cl.sound_precache[sound_num], pos, volume/255.0, attenuation);
 
 
-	TP_CheckPickupSound(cl.sound_name[sound_num], pos);
+	if (ent == cl.playernum[0]+1)
+		TP_CheckPickupSound(cl.sound_name[sound_num], pos);
 }
 
 #ifdef Q2CLIENT
@@ -2296,6 +2318,9 @@ void CLNQ_ParseStartSoundPacket(void)
 		pos[i] = MSG_ReadCoord ();
  
     S_StartSound (ent, channel, cl.sound_precache[sound_num], pos, volume/255.0, attenuation);
+
+	if (ent == cl.playernum[0]+1)
+		TP_CheckPickupSound(cl.sound_name[sound_num], pos);
 }        
 #endif
 
@@ -2632,7 +2657,7 @@ void CL_MuzzleFlash (void)
 		if ((unsigned)(i) <= MAX_CLIENTS && i > 0)
 		{
 			// don't draw our own muzzle flash in gl if flashblending
-			if (i-1 == cl.playernum[0] && r_flashblend.value)
+			if (i-1 == cl.playernum[0] && r_flashblend.value && qrenderer == QR_OPENGL)
 				return;
 
 			pl = &cl.frames[parsecountmod].playerstate[i-1];
@@ -2654,8 +2679,8 @@ void CL_MuzzleFlash (void)
 	dl->color[1] = 0.1;
 	dl->color[2] = 0.05;
 
-	dl->channelfade[0] = 1.5; 
-	dl->channelfade[1] = 0.75; 
+	dl->channelfade[0] = 1.5;
+	dl->channelfade[1] = 0.75;
 	dl->channelfade[2] = 0.375;
 }
 
@@ -3878,6 +3903,7 @@ void CLNQ_ParseServerMessage (void)
 			received_framecount = host_framecount;
 			cl.last_servermessage = realtime;
 			cl.oldgametime = cl.gametime;
+			cl.oldgametimemark = cl.gametimemark;
 			cl.gametime = MSG_ReadFloat();
 			cl.gametimemark = realtime;
 			if (nq_dp_protocol<5)

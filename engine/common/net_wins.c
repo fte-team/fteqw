@@ -119,7 +119,7 @@ void (*pfreeaddrinfo) (struct addrinfo*);
 #endif
 
 
-extern cvar_t sv_public;
+extern cvar_t sv_public, sv_listen;
 
 
 
@@ -1196,7 +1196,7 @@ void NET_InitServer(void)
 	int p;
 	port = PORT_SERVER;
 
-	if (sv_public.value)
+	if (sv_listen.value)
 	{
 		p = COM_CheckParm ("-svport");
 		if (p && p < com_argc)

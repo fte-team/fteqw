@@ -125,6 +125,7 @@ cvar_t	gl_contrast = {"gl_contrast", "1"};
 cvar_t	gl_dither = {"gl_dither", "1"};
 cvar_t	gl_maxdist = {"gl_maxdist", "8192"};
 extern cvar_t	gl_motionblur;
+extern cvar_t	gl_motionblurscale;
 
 extern cvar_t gl_ati_truform;
 extern cvar_t gl_ati_truform_type;
@@ -1776,14 +1777,20 @@ void R_Mirror (void)
 
 		//enable stencil writing
 		qglClearStencil(0);
+		qglClear(GL_STENCIL_BUFFER_BIT);
+		qglDisable(GL_ALPHA_TEST);
 		qglEnable(GL_STENCIL_TEST);
 		qglStencilOp(GL_KEEP, GL_KEEP, GL_REPLACE);	//replace where it passes
 		qglStencilFunc( GL_ALWAYS, 1, ~0 );	//always pass (where z passes set to 1)
 
-		qglColorMask( GL_FALSE, GL_FALSE, GL_FALSE, GL_FALSE );
+		qglColorMask( GL_FALSE, GL_TRUE, GL_FALSE, GL_FALSE );
 		qglDepthMask( GL_FALSE );
+		qglEnableClientState( GL_VERTEX_ARRAY );
 		for (prevs = s; s; s=s->texturechain)	//write the polys to the stencil buffer.
-			R_RenderBrushPoly (s);
+		{
+			qglVertexPointer(3, GL_FLOAT, 0, s->mesh->xyz_array);
+			qglDrawElements(GL_TRIANGLES, s->mesh->numindexes, GL_UNSIGNED_INT, s->mesh->indexes);
+		}
 
 		qglColorMask( GL_TRUE, GL_TRUE, GL_TRUE, GL_TRUE );
 		qglDepthMask( GL_TRUE );
@@ -1820,7 +1827,7 @@ void R_Mirror (void)
 	r_refdef.vieworg[1] = 575;
 	r_refdef.vieworg[2] = 64;
 */
-//	AngleVectors (r_refdef.viewangles, vpn, vright, vup);
+	AngleVectors (r_refdef.viewangles, vpn, vright, vup);
 
 
 	gldepthmin = 0.5;
@@ -1873,6 +1880,7 @@ void R_Mirror (void)
 	qglCullFace(GL_BACK);
 //	cl_numvisedicts = oldvisents;
 	}
+	qglDisable(GL_STENCIL_TEST);
 
 	memcpy(r_refdef.viewangles, oldangles, sizeof(vec3_t));
 	memcpy(r_refdef.vieworg, oldorg, sizeof(vec3_t));
@@ -2154,14 +2162,19 @@ void GLR_RenderView (void)
 	if (gl_motionblur.value>=0 && gl_motionblur.value < 1)
 	{
 		int vwidth = 1, vheight = 1;
-		float vs, vt;
-		while (vwidth < glwidth)
-		{
-			vwidth *= 2;
+		float vs, vt, cs, ct;
+
+		if (gl_config.arb_texture_non_power_of_two)
+		{	//we can use any size, supposedly
+			vwidth = glwidth;
+			vheight = glheight;
 		}
-		while (vheight < glheight)
-		{
-			vheight *= 2;
+		else
+		{	//limit the texture size to square and use padding.
+			while (vwidth < glwidth)
+				vwidth *= 2;
+			while (vheight < glheight)
+				vheight *= 2;
 		}
 
 		qglViewport (glx, gly, glwidth, glheight);
@@ -2179,22 +2192,24 @@ void GLR_RenderView (void)
 
 		//blend the last frame onto the scene
 		//the maths is because our texture is over-sized (must be power of two)
-		vs = (float)glwidth / vwidth;
-		vt = (float)glheight / vheight;
+		cs = vs = (float)glwidth / vwidth * 0.5;
+		ct = vt = (float)glheight / vheight * 0.5;
+		vs *= gl_motionblurscale.value;
+		vt *= gl_motionblurscale.value;
+
 		qglDisable (GL_DEPTH_TEST);
 		qglDisable (GL_CULL_FACE);
-		qglDisable (GL_BLEND);
 		qglDisable (GL_ALPHA_TEST);
 		qglEnable(GL_BLEND);
 		qglColor4f(1, 1, 1, gl_motionblur.value);
 		qglBegin(GL_QUADS);
-		qglTexCoord2f(0, 0);
+		qglTexCoord2f(cs-vs, ct-vt);
 		qglVertex2f(0, 0);
-		qglTexCoord2f(vs, 0);
+		qglTexCoord2f(cs+vs, ct-vt);
 		qglVertex2f(glwidth, 0);
-		qglTexCoord2f(vs, vt);
+		qglTexCoord2f(cs+vs, ct+vt);
 		qglVertex2f(glwidth, glheight);
-		qglTexCoord2f(0, vt);
+		qglTexCoord2f(cs-vs, ct+vt);
 		qglVertex2f(0, glheight);
 		qglEnd();
 

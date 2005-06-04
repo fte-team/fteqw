@@ -551,4 +551,13 @@ typedef void (APIENTRY * PFNGLLOCKARRAYSEXTPROC) (GLint first, GLsizei count);
 typedef void (APIENTRY * PFNGLUNLOCKARRAYSEXTPROC) (void);
 #endif
 
+
+
+#ifndef GL_EXT_texture_filter_anisotropic
+#define GL_EXT_texture_filter_anisotropic 1
+
+#define GL_TEXTURE_MAX_ANISOTROPY_EXT		0x84FE
+#define GL_MAX_TEXTURE_MAX_ANISOTROPY_EXT	0x84FF
+#endif
+
 #endif

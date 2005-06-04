@@ -104,7 +104,8 @@ cvar_t	allow_download_textures = {"allow_download_textures", "1"};
 cvar_t	allow_download_pk3s = {"allow_download_pk3s", "1"};
 cvar_t	allow_download_wads = {"allow_download_wads", "1"};
 
-cvar_t sv_public = {"sv_public", "1"};
+cvar_t sv_public = {"sv_public", "0"};
+cvar_t sv_listen = {"sv_listen", "1"};
 cvar_t sv_highchars = {"sv_highchars", "1"};
 cvar_t sv_loadentfiles = {"sv_loadentfiles", "1"};
 cvar_t sv_maxrate = {"sv_maxrate", "10000"};
@@ -996,7 +997,7 @@ void SVC_GetChallenge (void)
 		Netchan_OutOfBand(NS_SERVER, net_from, over-buf, buf);
 
 
-//		buf = va("challenge %i", svs.challenges[i].challenge);
+//		buf = va("challenge FTE%i", svs.challenges[i].challenge);
 //		Netchan_OutOfBand(NS_SERVER, net_from, strlen(buf)+1, buf);
 	}
 
@@ -2028,7 +2029,10 @@ void SVNQ_ConnectionlessPacket(void)
 	client_t *client;
 	char *str;
 	char buffer[256];
-//	if (net_from.type == NA_LOOPBACK)
+	if (net_from.type == NA_LOOPBACK)
+		return;
+
+	if (sv_listen.value < 2)
 		return;
 
 	MSG_BeginReading();
@@ -2068,33 +2072,7 @@ void SVNQ_ConnectionlessPacket(void)
 		str = va("connect %i %i %i \"\\name\\unconnected\"", NET_PROTOCOL_VERSION, 0, SV_NewChallenge());
 		Cmd_TokenizeString (str, false, false);
 
-		client = SVC_DirectConnect();
-
-		if (client)
-		{
-			SZ_Clear(&sb);
-			MSG_WriteLong(&sb, 0);
-			MSG_WriteByte(&sb, CCREP_ACCEPT);
-			MSG_WriteLong(&sb, BigShort(net_local_sv_ipadr.port));
-			*(int*)sb.data = BigLong(NETFLAG_CTL|sb.cursize);
-			NET_SendPacket(NS_SERVER, sb.cursize, sb.data, net_from);
-
-			//nq supports packet truncation, so give them the full ammount
-			client->netchan.message.maxsize = sizeof(client->netchan.message_buf);
-
-			host_client = client;
-			SVNQ_New_f();
-		}
-		else
-		{
-			SZ_Clear(&sb);
-			MSG_WriteLong(&sb, 0);
-			MSG_WriteByte(&sb, CCREP_REJECT);
-			MSG_WriteString(&sb, "Bugger ye off");
-			*(int*)sb.data = BigLong(NETFLAG_CTL|sb.cursize);
-			NET_SendPacket(NS_SERVER, sb.cursize, sb.data, net_from);
-
-		}
+		SVC_DirectConnect();
 		break;
 	}
 }
@@ -2901,6 +2879,7 @@ void SV_InitLocal (void)
 	Cvar_Register (&sv_resetparms,	cvargroup_servercontrol);
 
 	Cvar_Register (&sv_public,	cvargroup_servercontrol);
+	Cvar_Register (&sv_listen,	cvargroup_servercontrol);
 
 #ifndef SERVERONLY
 	if (isDedicated)
@@ -3145,10 +3124,13 @@ void Master_Heartbeat (void)
 				NET_SendPacket (NS_SERVER, strlen(string), string, sv_masterlist[i].adr);
 				break;
 			case true:
-				Con_Printf ("Sending heartbeat to %s\n", NET_AdrToString (sv_masterlist[i].adr));
+				if (sv_listen.value>=2)	//set listen to 1 to allow qw connections, 2 to allow nq connections too.
 				{
-					char *str = "\377\377\377\377heartbeat DarkPlaces\x0A";
-					NET_SendPacket (NS_SERVER, strlen(str), str, sv_masterlist[i].adr);
+					Con_Printf ("Sending heartbeat to %s\n", NET_AdrToString (sv_masterlist[i].adr));
+					{
+						char *str = "\377\377\377\377heartbeat DarkPlaces\x0A";
+						NET_SendPacket (NS_SERVER, strlen(str), str, sv_masterlist[i].adr);
+					}
 				}
 				break;
 			}

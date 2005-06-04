@@ -834,7 +834,7 @@ void VARGS CL_SendClientCommand(qboolean reliable, char *format, ...)
 //	Con_Printf("Queing stringcmd %s\n", string);
 
 #ifdef Q3CLIENT
-	if (cls.q2server==2)
+	if (cls.protocol == CP_QUAKE3)
 	{
 		CLQ3_SendClientCommand("%s", string);
 		return;
@@ -891,6 +891,8 @@ int CL_RemoveClientCommands(char *command)
 			first->next = next;
 			removed++;
 		}
+		else
+			first = first->next;
 	}
 
 	return removed;
@@ -952,7 +954,8 @@ unsigned long _stdcall CL_IndepPhysicsThread(void *param)
 
 		sleeptime = 1000/fps;
 
-		Sleep(sleeptime);
+		if (sleeptime)
+			Sleep(sleeptime);
 	}
 }
 
@@ -1023,32 +1026,6 @@ void CL_SendCmd (float frametime)
 	int clientcount;
 
 	extern cvar_t cl_maxfps;
-
-#ifdef Q3CLIENT
-	if (cls.q2server==2)
-	{	//guess what? q3 rules don't require network packet limiting!
-		usercmd_t ncmd;
-
-		memset(&ncmd, 0, sizeof(ncmd));
-		ncmd.msec = frametime*1000;
-
-		CL_BaseMove (&ncmd, 0);
-
-		// allow mice or other external controllers to add to the move
-		IN_Move (&ncmd, 0);
-
-		// if we are spectator, try autocam
-		if (cl.spectator)
-			Cam_Track(0, &ncmd);
-
-		CL_FinishMove(&ncmd, (int)(frametime*1000), 0);
-
-		Cam_FinishMove(0, &ncmd);
-
-		CLQ3_SendCmd(&ncmd);
-		return;
-	}
-#endif
 
 	if (cls.demoplayback != DPB_NONE)
 	{
@@ -1152,10 +1129,10 @@ void CL_SendCmd (float frametime)
 		independantphysics[plnum].msec = msecstouse;
 	}
 
-	if (!CL_FilterTime(msecstouse, cl_netfps.value<=0?cl_maxfps.value:cl_netfps.value) && msecstouse<255 && cls.state == ca_active)
-	{
-		return;
-	}
+//	if (!CL_FilterTime(msecstouse, cl_netfps.value<=0?cl_maxfps.value:cl_netfps.value) && msecstouse<255 && cls.state == ca_active)
+//	{
+//		return;
+//	}
 
 #ifdef NQPROT
 	if (cls.protocol == CP_NETQUAKE)
@@ -1164,6 +1141,15 @@ void CL_SendCmd (float frametime)
 			return;
 		msecs -= msecstouse;
 		CLNQ_SendCmd ();
+		return;
+	}
+#endif
+
+#ifdef Q3CLIENT
+	if (cls.protocol == CP_QUAKE3)
+	{
+		CLQ3_SendCmd(&independantphysics[0]);
+		memset(&independantphysics[0], 0, sizeof(independantphysics[0]));
 		return;
 	}
 #endif
@@ -1233,6 +1219,7 @@ void CL_SendCmd (float frametime)
 			i = cls.netchan.outgoing_sequence & UPDATE_MASK;
 			cmd = &cl.frames[i].cmd[plnum];
 			*cmd = independantphysics[plnum];
+			cl.frames[i].senttime = realtime;
 			memset(&independantphysics[plnum], 0, sizeof(independantphysics[plnum]));
 
 #ifdef Q2CLIENT

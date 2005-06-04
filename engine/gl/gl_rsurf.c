@@ -2878,7 +2878,6 @@ start:
 	// deal with model fragments in this leaf
 		if (pleaf->efrags)
 			R_StoreEfrags (&pleaf->efrags);
-
 		return;
 	}
 
@@ -2918,10 +2917,10 @@ start:
 	{
 		surf = cl.worldmodel->surfaces + node->firstsurface;
 
-		if (dot < 0 -BACKFACE_EPSILON)
-			side = SURF_PLANEBACK;
-		else if (dot > BACKFACE_EPSILON)
-			side = 0;
+//		if (dot < 0 -BACKFACE_EPSILON)
+//			side = SURF_PLANEBACK;
+//		else if (dot > BACKFACE_EPSILON)
+//			side = 0;
 		{
 			for ( ; c ; c--, surf++)
 			{
@@ -3855,15 +3854,6 @@ void GL_BuildLightmaps (void)
 		currentmodel = m;
 		for (i=0 ; i<m->numsurfaces ; i++)
 		{
-			fa = &m->surfaces[i];
-			VectorCopy(fa->plane->normal, fa->normal);
-			if (fa->flags & SURF_PLANEBACK)
-			{
-				fa->normal[0]*=-1;
-				fa->normal[1]*=-1;
-				fa->normal[2]*=-1;
-			}
-
 			GL_CreateSurfaceLightmap (m->surfaces + i);
 			P_EmitSkyEffectTris(m, &m->surfaces[i]);
 			if (m->surfaces[i].mesh)	//there are some surfaces that have a display list already (the subdivided ones)

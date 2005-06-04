@@ -631,6 +631,17 @@ void Q1BSP_ClipDecalToNodes (fragmentdecal_t *dec, mnode_t *node)
 	surf = cl.worldmodel->surfaces + node->firstsurface;
 	for (i=0 ; i<node->numsurfaces ; i++, surf++)
 	{
+
+		if (surf->flags & SURF_PLANEBACK)
+		{
+			if (DotProduct(surf->plane->normal, dec->normal) < -0.1)
+				continue;
+		}
+		else
+		{
+			if (-DotProduct(surf->plane->normal, dec->normal) < -0.1)
+				continue;
+		}
 		Q1BSP_FragmentToMesh(dec, surf->mesh);
 	}
 
@@ -638,7 +649,7 @@ void Q1BSP_ClipDecalToNodes (fragmentdecal_t *dec, mnode_t *node)
 	Q1BSP_ClipDecalToNodes (dec, node->children[1]);
 }
 
-int Q1BSP_ClipDecal(vec3_t center, vec3_t normal, vec3_t tangent, float size, float **out)
+int Q1BSP_ClipDecal(vec3_t center, vec3_t normal, vec3_t tangent, vec3_t tangent2, float size, float **out)
 {	//quad marks a full, independant quad
 	int p;
 	fragmentdecal_t dec;
@@ -646,7 +657,7 @@ int Q1BSP_ClipDecal(vec3_t center, vec3_t normal, vec3_t tangent, float size, fl
 	VectorCopy(center, dec.center);
 	VectorCopy(normal, dec.normal);
 	VectorCopy(tangent, dec.tangent1);
-	CrossProduct(tangent, normal, dec.tangent2);
+	VectorCopy(tangent2, dec.tangent2);
 	dec.radius = size/2;
 	dec.numtris = 0;
 

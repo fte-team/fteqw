@@ -554,6 +554,10 @@ void S_Init (void)
 
 void S_ShutdownCard(soundcardinfo_t *sc)
 {
+#ifndef NODIRECTX
+	extern int aimedforguid;
+	aimedforguid = 0;
+#endif
 	if (!fakedma)
 	{		
 		SNDDMA_Shutdown(sc);

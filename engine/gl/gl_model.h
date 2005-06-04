@@ -203,9 +203,6 @@ typedef struct glpoly_s
 {
 	struct	glpoly_s	*next;
 	int		numverts;
-#ifdef SHADERS
-	float	texcenter[2];	//center of texture made by adveraging the tex coords
-#endif
 	float	verts[4][VERTEXSIZE];	// variable sized (xyz s1t1 s2t2 (ldir_xyz)
 } glpoly_t;
 
@@ -221,12 +218,14 @@ typedef struct mfog_s
 } mfog_t;
 #endif
 
+#if MAX_SWDECALS
 typedef struct decal_s {
 	int xpos, ypos;
 	struct msurface_s *owner;
 	struct decal_s *next;
 	struct decal_s *prev;
 } decal_t;
+#endif
 
 
 typedef struct msurface_s
@@ -256,9 +255,9 @@ typedef struct msurface_s
 	mesh_t		*mesh;
 	entity_t	*ownerent;
 	struct	msurface_s	*texturechain;
-
+#if 0
 	vec3_t normal;
-
+#endif
 	mtexinfo_t	*texinfo;
 	
 // lighting info
@@ -276,8 +275,9 @@ typedef struct msurface_s
 	qboolean stained;
 #endif
 	qbyte		*samples;		// [numstyles*surfsize]
-
+#ifdef MAX_SWDECALS
 	decal_t		*decal;
+#endif
 } msurface_t;
 
 typedef struct mnode_s

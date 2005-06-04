@@ -333,7 +333,67 @@ static void PF_makevectors (progfuncs_t *prinst, struct globalvars_s *pr_globals
 	AngleVectors (G_VECTOR(OFS_PARM0), csqcg.forward, csqcg.right, csqcg.up);
 }
 
-static void PF_R_AddEntity(progfuncs_t *prinst, struct globalvars_s *pr_globals)
+void QuaternainToAngleMatrix(float *quat, vec3_t *mat)
+{
+	float xx      = quat[0] * quat[0];
+    float xy      = quat[0] * quat[1];
+    float xz      = quat[0] * quat[2];
+    float xw      = quat[0] * quat[3];
+    float yy      = quat[1] * quat[1];
+    float yz      = quat[1] * quat[2];
+    float yw      = quat[1] * quat[3];
+    float zz      = quat[2] * quat[2];
+    float zw      = quat[2] * quat[3];
+    mat[0][0]  = 1 - 2 * ( yy + zz );
+    mat[0][1]  =     2 * ( xy - zw );
+    mat[0][2]  =     2 * ( xz + yw );
+    mat[1][0]  =     2 * ( xy + zw );
+    mat[1][1]  = 1 - 2 * ( xx + zz );
+    mat[1][2]  =     2 * ( yz - xw );
+    mat[2][0]  =     2 * ( xz - yw );
+    mat[2][1]  =     2 * ( yz + xw );
+    mat[2][2] = 1 - 2 * ( xx + yy );
+}
+
+void quaternion_multiply(float *a, float *b, float *c)
+{
+#define x1 a[0]
+#define y1 a[1]
+#define z1 a[2]
+#define w1 a[3]
+#define x2 b[0]
+#define y2 b[1]
+#define z2 b[2]
+#define w2 b[3]
+	c[0] = w1*x2 + x1*w2 + y1*z2 - z1*y2;
+	c[1] = w1*y2 + y1*w2 + z1*x2 - x1*z2;
+	c[2] = w1*z2 + z1*w2 + x1*y2 - y1*x2;
+	c[3] = w1*w2 - x1*x2 - y1*y2 - z1*z2;
+}
+
+void quaternion_rotation(float pitch, float roll, float yaw, float angle, float *quat)
+{
+	float sin_a, cos_a;
+
+	sin_a = sin( angle / 360 );
+    cos_a = cos( angle / 360 );
+    quat[0]    = pitch	* sin_a;
+    quat[1]    = yaw	* sin_a;
+    quat[2]    = roll	* sin_a;
+    quat[3]    = cos_a;
+}
+
+void EularToQuaternian(vec3_t angles, float *quat)
+{
+  float x[4] = {sin(angles[2]/360), 0, 0, cos(angles[2]/360)};
+  float y[4] = {0, sin(angles[1]/360), 0, cos(angles[1]/360)};
+  float z[4] = {0, 0, sin(angles[0]/360), cos(angles[0]/360)};
+  float t[4];
+  quaternion_multiply(x, y, t);
+  quaternion_multiply(t, z, quat);
+}
+
+void _PF_R_AddEntity(progfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
 	csqcedict_t *in = (void*)G_EDICT(prinst, OFS_PARM0);
 	entity_t ent;
@@ -375,6 +435,7 @@ static void PF_R_AddEntity(progfuncs_t *prinst, struct globalvars_s *pr_globals)
 	ent.angles[0] = in->v->angles[0];
 	ent.angles[1] = in->v->angles[1];
 	ent.angles[2] = in->v->angles[2];
+
 	memcpy(ent.origin, in->v->origin, sizeof(vec3_t));
 	AngleVectors(ent.angles, ent.axis[0], ent.axis[1], ent.axis[2]);
 	VectorInverse(ent.axis[1]);
@@ -384,6 +445,30 @@ static void PF_R_AddEntity(progfuncs_t *prinst, struct globalvars_s *pr_globals)
 	ent.skinnum = in->v->skin;
 
 	V_AddEntity(&ent);
+
+/*
+	{
+		float a[4];
+		float q[4];
+		float r[4];
+		EularToQuaternian(ent.angles, a);
+
+		QuaternainToAngleMatrix(a, ent.axis);
+		ent.origin[0] += 16;
+		V_AddEntity(&ent);
+
+		quaternion_rotation(0, 0, 1, cl.time*360, r);
+		quaternion_multiply(a, r, q);
+		QuaternainToAngleMatrix(q, ent.axis);
+		ent.origin[0] -= 32;
+		ent.angles[1] = cl.time;
+		V_AddEntity(&ent);
+	}
+*/
+}
+void PF_R_AddEntity(progfuncs_t *prinst, struct globalvars_s *pr_globals)
+{
+	_PF_R_AddEntity(prinst, pr_globals);
 }
 
 static void PF_R_AddDynamicLight(progfuncs_t *prinst, struct globalvars_s *pr_globals)
@@ -937,11 +1022,10 @@ static void PF_cs_setsensativityscaler (progfuncs_t *prinst, struct globalvars_s
 
 static void PF_cs_pointparticles (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
-	char *effectname = PR_GetStringOfs(prinst, OFS_PARM0);
+	int effectnum = G_FLOAT(OFS_PARM0);
 	float *org = G_VECTOR(OFS_PARM1);
 	float *vel = G_VECTOR(OFS_PARM2);
 	float count = G_FLOAT(OFS_PARM3);
-	int effectnum = P_AllocateParticleType(effectname);
 
 	if (*prinst->callargc < 3)
 		vel = vec3_origin;
@@ -954,7 +1038,7 @@ static void PF_cs_pointparticles (progfuncs_t *prinst, struct globalvars_s *pr_g
 static void PF_cs_particlesloaded (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
 	char *effectname = PR_GetStringOfs(prinst, OFS_PARM0);
-	G_FLOAT(OFS_RETURN) = P_DescriptionIsLoaded(effectname);
+	G_FLOAT(OFS_RETURN) = P_ParticleTypeForName(effectname);
 }
 
 //get the input commands, and stuff them into some globals.
@@ -1172,6 +1256,26 @@ static void PF_checkextension (progfuncs_t *prinst, struct globalvars_s *pr_glob
 	G_FLOAT(OFS_RETURN) = 0;
 }
 
+void PF_cs_sound(progfuncs_t *prinst, struct globalvars_s *pr_globals)
+{
+	char		*sample;
+	int			channel;
+	csqcedict_t		*entity;
+	int 		volume;
+	float attenuation;
+
+	sfx_t *sfx;
+		
+	entity = G_EDICT(prinst, OFS_PARM0);
+	channel = G_FLOAT(OFS_PARM1);
+	sample = PR_GetStringOfs(prinst, OFS_PARM2);
+	volume = G_FLOAT(OFS_PARM3) * 255;
+	attenuation = G_FLOAT(OFS_PARM4);
+
+	sfx = S_PrecacheSound(sample);
+	if (sfx)
+		S_StartSound(-entity->entnum, channel, sfx, entity->v->origin, volume, attenuation);
+};
 
 #define PF_FixTen PF_Fixme,PF_Fixme,PF_Fixme,PF_Fixme,PF_Fixme,PF_Fixme,PF_Fixme,PF_Fixme,PF_Fixme,PF_Fixme
 
@@ -1186,7 +1290,7 @@ static builtin_t csqc_builtins[] = {
 	PF_Fixme,
 	PF_Fixme, //PF_break,
 	PF_random,
-	PF_Fixme, //PF_sound,
+	PF_cs_sound, //PF_sound,
 	PF_normalize,
 //10
 	PF_error,

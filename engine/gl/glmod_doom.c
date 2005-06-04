@@ -1,9 +1,7 @@
-#ifdef RGLQUAKE
-
 #include "quakedef.h"
-#include "glquake.h"
-
 #ifdef DOOMWADS
+#ifdef RGLQUAKE
+#include "glquake.h"
 
 #include "doommap.h"
 

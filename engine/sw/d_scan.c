@@ -53,8 +53,8 @@ void D_WarpScreen (void)
 	int		column[MAXWIDTH+AMP2*2];
 	float	wratio, hratio;
 
-	w = r_refdef.vrect.width;
-	h = r_refdef.vrect.height;
+	w = WARP_WIDTH;
+	h = WARP_HEIGHT;
 
 	wratio = w / (float)scr_vrect.width;
 	hratio = h / (float)scr_vrect.height;

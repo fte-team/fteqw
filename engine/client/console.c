@@ -911,7 +911,7 @@ void Con_DrawInput (void)
 		if (key_linepos == i)	//cursor is at end
 		{
 			x = text[1] == '/'?2:1;
-			fname = Cmd_CompleteCommand(text+x, true, con_commandmatch);
+			fname = Cmd_CompleteCommand(text+x, true, true, con_commandmatch);
 			if (fname)	//we can compleate it to:
 			{
 				for (p = i-x; fname[p]>' '; p++)

@@ -91,7 +91,6 @@ typedef struct
 
 #ifdef NQPROT
 	qboolean	isnqprotocol;
-	struct qsocket_s *qsocket;
 #endif
 
 	float		last_received;		// for timeouts
@@ -140,9 +139,9 @@ typedef struct
 	qboolean	compress;
 
 	//nq servers must recieve truncated packets.
-	int in_reliable_length;
-	char in_reliable_buf[MAX_OVERALLMSGLEN];
-	int in_reliable_start;
+	int in_fragment_length;
+	char in_fragment_buf[MAX_OVERALLMSGLEN];
+	int in_fragment_start;
 } netchan_t;
 
 extern	int	net_drop;		// packets dropped before this one

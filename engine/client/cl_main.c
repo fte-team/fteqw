@@ -418,7 +418,7 @@ void CL_SendConnectPacket (
 #endif
 
 #ifdef Q3CLIENT
-	if (cls.q2server==2)
+	if (cls.protocol == CP_QUAKE3)
 	{	//q3 requires some very strange things.
 		CLQ3_SendConnectPacket(adr);
 		return;
@@ -494,7 +494,7 @@ void CL_CheckForResend (void)
 		{
 #ifdef Q3CLIENT
 		case GT_QUAKE3:
-			cls.q2server = 2;
+			cls.protocol = CP_QUAKE3;
 			break;
 #endif
 #ifdef Q2CLIENT
@@ -602,11 +602,11 @@ void CL_BeginServerReconnect(void)
 {
 #ifndef CLIENTONLY
 	if (isDedicated)
-#endif
 	{
 		Con_TPrintf (TLC_DEDICATEDCANNOTCONNECT);
 		return;
 	}
+#endif
 	connect_time = 0;	
 	CL_CheckForResend();
 }
@@ -972,6 +972,7 @@ void CL_Disconnect (void)
 		SCR_EndLoadingPlaque();
 
 	cls.protocol = CP_UNKNOWN;
+	cl.servercount = 0;
 }
 
 #undef serverrunning
@@ -1663,7 +1664,7 @@ void CL_ConnectionlessPacket (void)
 		if (!strcmp(com_token, "hallengeResponse"))
 		{
 #ifdef Q3CLIENT
-			cls.q2server = 2;
+			cls.protocol = CP_QUAKE3;
 			cls.challenge = atoi(s+17);
 			CL_SendConnectPacket (0, 0/*, ...*/);
 			return;
@@ -1709,9 +1710,9 @@ void CL_ConnectionlessPacket (void)
 		{
 			goto client_connect;
 		}
+#endif
 		else
 			cls.protocol = CP_QUAKEWORLD;
-#endif
 		cls.challenge = atoi(s);
 
 		for(;;)
@@ -1807,8 +1808,11 @@ void CL_ConnectionlessPacket (void)
 
 	if (c == 'd')	//note - this conflicts with qw masters, our browser uses a different socket.
 	{
-		Con_Printf("Disconnect\n");
-		CL_Disconnect_f();
+		if (cls.demoplayback != DPB_NONE)
+		{
+			Con_Printf("Disconnect\n");
+			CL_Disconnect_f();
+		}
 		return;
 	}
 
@@ -1829,7 +1833,7 @@ client_connect:	//fixme: make function
 		Netchan_Setup (NS_CLIENT, &cls.netchan, net_from, cls.qport);
 		cls.netchan.compress = compress;
 #ifdef Q3CLIENT
-		if (cls.q2server < 2)
+		if (cls.protocol != CP_QUAKE3)
 #endif
 			CL_SendClientCommand(true, "new");
 		cls.state = ca_connected;
@@ -1901,6 +1905,13 @@ client_connect:	//fixme: make function
 		Con_Print (s);
 		return;
 	}
+	if (c == 'r')//dp's reject
+	{
+		s = MSG_ReadString ();
+		Con_Printf("r%s\n", s);
+		return;
+	}
+
 
 	// ping from somewhere
 	if (c == A2A_PING)
@@ -1965,7 +1976,7 @@ void CLNQ_ConnectionlessPacket(void)
 
 	case CCREP_REJECT:
 		s = MSG_ReadString();
-		Con_Printf("Connect failed\n%s\n");
+		Con_Printf("Connect failed\n%s\n", s);
 		return;
 	}
 }
@@ -2356,6 +2367,8 @@ void CL_Init (void)
 	Cvar_Register (&cl_splitscreen, cl_controlgroup);
 
 	Cvar_Register (&host_mapname,		"Scripting");
+
+	Cvar_Register (&cl_indepphysics, cl_controlgroup);
 
 #ifdef IRCCLIENT
 	Cmd_AddCommand ("irc", CL_IRC_f);

@@ -555,9 +555,20 @@ void CL_PredictMovePNum (int pnum)
 
 	if (cl.oldgametime)
 	{
-		cl.time = cl.gametime;
-		if (cl.time > realtime)
-			cl.time = realtime;
+		float want;
+		float off;
+
+		want = cl.oldgametime + realtime - cl.gametimemark;
+		off = (want - cl.time);
+		if (want>cl.time)
+			cl.time = want;
+
+//		Con_Printf("Drifted to %f off by %f\n", cl.time, off);
+		
+		if (cl.time > cl.gametime)
+			cl.time = cl.gametime;
+		if (cl.time < cl.oldgametime)
+			cl.time = cl.oldgametime;
 	}
 	else
 	{
@@ -612,6 +623,31 @@ void CL_PredictMovePNum (int pnum)
 		old = CL_FindOldPacketEntity (cl.viewentity[pnum]);
 		if (state)
 		{
+			float f;
+			extern cvar_t cl_nolerp;
+
+			//figure out the lerp factor
+			if (cl.lerpents[state->number].lerprate<=0)
+				f = 1;
+			else
+				f = (cl.time-cl.lerpents[state->number].lerptime)/cl.lerpents[state->number].lerprate;
+			if (f<0)
+				f=0;
+			if (f>1)
+				f=1;
+
+//			if (cl_nolerp.value)
+//				f = 1;
+
+
+					// calculate origin
+			for (i=0 ; i<3 ; i++)
+				lrp[i] = cl.lerpents[state->number].origin[i] +
+				f * (state->origin[i] - cl.lerpents[state->number].origin[i]);
+
+			org = lrp;
+
+/*
 			if (old)
 			{
 				float f = (cl.time-cl.lerpents[cl.viewentity[pnum]].lerptime)/cl.lerpents[cl.viewentity[pnum]].lerprate;
@@ -632,6 +668,7 @@ void CL_PredictMovePNum (int pnum)
 				org = state->origin;
 				Con_Printf("No old\n");
 			}
+*/
 
 			goto fixedorg;
 		}

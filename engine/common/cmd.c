@@ -490,8 +490,11 @@ void Cmd_Exec_f (void)
 	else
 		Q_strncpyz(name, Cmd_Argv(1), sizeof(name));
 
-	f = (char *)COM_LoadMallocFile(name);
-	if (!f)
+	if ((f = (char *)COM_LoadMallocFile(name)))
+		;
+	else if ((f = (char *)COM_LoadMallocFile(va("%s.cfg", name))))
+		;
+	else
 	{
 		Con_TPrintf (TL_EXECFAILED,name);
 		return;
@@ -1461,7 +1464,7 @@ void Cmd_CompleteCheck(char *check, match_t *match)	//compare cumulative strings
 			strcpy(match->result, check);
 	}
 }
-char *Cmd_CompleteCommand (char *partial, qboolean fullonly, int matchnum)
+char *Cmd_CompleteCommand (char *partial, qboolean fullonly, qboolean caseinsens, int matchnum)
 {
 	extern cvar_group_t *cvar_groups;
 	cmd_function_t	*cmd;
@@ -1490,18 +1493,34 @@ char *Cmd_CompleteCommand (char *partial, qboolean fullonly, int matchnum)
 
 	strcpy(match.result, "");
 
-// check for partial match
-	for (cmd=cmd_functions ; cmd ; cmd=cmd->next)
-		if (!Q_strncmp (partial,cmd->name, len))
-			Cmd_CompleteCheck(cmd->name, &match);
-	for (a=cmd_alias ; a ; a=a->next)
-		if (!Q_strncmp (partial, a->name, len))
-			Cmd_CompleteCheck(a->name, &match);
-	for (grp=cvar_groups ; grp ; grp=grp->next)
-	for (cvar=grp->cvars ; cvar ; cvar=cvar->next)
-		if (!Q_strncmp (partial,cvar->name, len))
-			Cmd_CompleteCheck(cvar->name, &match);
+	// check for partial match
+	if (caseinsens)
+	{
+		for (cmd=cmd_functions ; cmd ; cmd=cmd->next)
+			if (!Q_strncasecmp (partial,cmd->name, len))
+				Cmd_CompleteCheck(cmd->name, &match);
+		for (a=cmd_alias ; a ; a=a->next)
+			if (!Q_strncasecmp (partial, a->name, len))
+				Cmd_CompleteCheck(a->name, &match);
+		for (grp=cvar_groups ; grp ; grp=grp->next)
+		for (cvar=grp->cvars ; cvar ; cvar=cvar->next)
+			if (!Q_strncasecmp (partial,cvar->name, len))
+				Cmd_CompleteCheck(cvar->name, &match);
 
+	}
+	else
+	{
+		for (cmd=cmd_functions ; cmd ; cmd=cmd->next)
+			if (!Q_strncmp (partial,cmd->name, len))
+				Cmd_CompleteCheck(cmd->name, &match);
+		for (a=cmd_alias ; a ; a=a->next)
+			if (!Q_strncmp (partial, a->name, len))
+				Cmd_CompleteCheck(a->name, &match);
+		for (grp=cvar_groups ; grp ; grp=grp->next)
+		for (cvar=grp->cvars ; cvar ; cvar=cvar->next)
+			if (!Q_strncmp (partial,cvar->name, len))
+				Cmd_CompleteCheck(cvar->name, &match);
+	}
 	if (match.matchnum>0)
 		return NULL;
 	if (!*match.result)
@@ -1550,7 +1569,7 @@ void Cmd_ForwardToServer (void)
 		return;		// not really connected
 
 #ifdef Q3CLIENT
-	if (cls.q2server == 2)
+	if (cls.protocol == CP_QUAKE3)
 	{
 		CLQ3_SendClientCommand("%s %s", Cmd_Argv(0), Cmd_Args());
 		return;

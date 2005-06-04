@@ -289,7 +289,8 @@ typedef struct
 		CP_UNKNOWN,
 		CP_QUAKEWORLD,
 		CP_NETQUAKE,
-		CP_QUAKE2
+		CP_QUAKE2,
+		CP_QUAKE3
 	} protocol;
 
 	qboolean resendinfo;
@@ -452,8 +453,8 @@ typedef struct
 								// is rendering at.  allways <= realtime
 	float gametime;
 	float gametimemark;
-	float oldgametime;	//used as the old time to lerp cl.time from.
-						//if it's 0, cl.time will casually increase.
+	float oldgametime;		//used as the old time to lerp cl.time from.
+	float oldgametimemark;	//if it's 0, cl.time will casually increase.
 
 	vec3_t		simorg[MAX_SPLITS];
 	vec3_t		simvel[MAX_SPLITS];

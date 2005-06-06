@@ -1,16 +1,17 @@
 
 // Generic projectile spawning code (PRJ) ---
-
-// projectile effect defines
-#define PE_NONE            0
-#define PE_SPIKE           1
-#define PE_SUPERSPIKE      2
-#define PE_WIZSPIKE        3
-#define PE_KNIGHTSPIKE     4
-#define PE_GUNSHOT         5
-#define PE_EXPLOSION       6
-#define PE_EXPLOSIONGROUND 7
-#define PE_LASER           8
+// projectile effect enumerator
+enum {
+	PE_NONE,
+	PE_SPIKE,
+	PE_SUPERSPIKE,
+	PE_WIZSPIKE,
+	PE_KNIGHTSPIKE,
+	PE_GUNSHOT,
+	PE_EXPLOSION,
+	PE_EXPLOSIONGROUND,
+	PE_LASER
+};
 
 // functions used only by this QC file
 float() _PRJ_Bounce =
@@ -181,4 +182,3 @@ void(entity parent, string modl, vector org, vector vel, INTEGER effect, INTEGER
 	setsize (newmis, VEC_ORIGIN, VEC_ORIGIN);             
 	setorigin (newmis, org);
 };
-

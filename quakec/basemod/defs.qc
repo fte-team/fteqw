@@ -606,9 +606,11 @@ entity newmis;
 #endif
 
 // weaponstate defines
-#define WS_IDLE    0
-#define WS_FIRING1 1
-#define WS_FIRING2 2 // used with nailgun
+enum {
+	WS_IDLE,
+	WS_FIRING1,
+	WS_FIRING2 // used with nailgun
+};
 
 // unions
 // DO NOT MIX UNION TYPES LIKE I AM DOING
@@ -646,17 +648,17 @@ entity newmis;
 		entity movetarget;	// target entity to move to
 	};
 	struct { // fields used with generic projectiles
-		float damage_direct;	// damage done with a direct hit
-		float damage_exp; 	// damage done from radius damage
-		float radius_exp;  	// radius of radius damage
-		INTEGER mod_direct;	// mod type for direct hit
-		INTEGER mod_exp; 		// mod type for radius damage
-		float expire_time;	// time when projectile dies
-		void() proj_think;	// extra think function used with projectile
-		float proj_think_time;	// interval between thinks
+		float damage_direct;		// damage done with a direct hit
+		float damage_exp; 		// damage done from radius damage
+		float radius_exp;  		// radius of radius damage
+		INTEGER mod_direct;		// mod type for direct hit
+		INTEGER mod_exp; 			// mod type for radius damage
+		float expire_time;		// time when projectile dies
+		void() proj_think;		// extra think function used with projectile
+		float proj_think_time;		// interval between thinks
 		INTEGER proj_effect;	// effect used with projectile
-		INTEGER voided;		// projectile has been voided
-		float() proj_touch;	// extra touch function used with projectile
+		INTEGER voided;			// projectile has been voided
+		float() proj_touch;		// extra touch function used with projectile
 	};
 	// fields used with ambient sounds?
 	/*
@@ -798,5 +800,4 @@ void(entity targ, entity inflictor, entity attacker, float damage, INTEGER mod) 
 float (entity e, float healamount, float ignore) T_Heal; // health function
 
 float(entity targ, entity inflictor) CanDamage;
-
 

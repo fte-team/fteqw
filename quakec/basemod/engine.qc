@@ -6,12 +6,15 @@
 var float chan_no_phs_add = 0;
 
 INTEGER eng_support;
-#define ENG_STOF       0x01
-#define ENG_CVARSTRING 0x02
-#define ENG_TEBUILTINS 0x04
-#define ENG_TEBLOOD    0x08
-#define ENG_EFRED      0x10
-#define ENG_EFBLUE     0x20
+
+enumflags {
+	ENG_STOF,
+	ENG_CVARSTRING,
+	ENG_TEBUILTINS,
+	ENG_TEBLOOD,
+	ENG_EFRED,
+	ENG_EFBLUE
+};
 
 // prototypes
 void() EFF_SetEffects;

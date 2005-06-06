@@ -1,30 +1,32 @@
 // client death messages
-#define MOD_NONE             0
-#define MOD_AXE              1
-#define MOD_SHOTGUN          2
-#define MOD_SUPERSHOTGUN     3
-#define MOD_SPIKE            4
-#define MOD_SUPERSPIKE       5
-#define MOD_GRENADE          6
-#define MOD_ROCKET           8
-#define MOD_ROCKETRADIUS     9
-#define MOD_SHAFT           10
-#define MOD_SHAFTWATER      11
-#define MOD_SHAFTSLIME      12
-#define MOD_SHAFTLAVA       13
-#define MOD_TELEFRAG        14
-#define MOD_TELEFRAGDEFLECT 15
-#define MOD_SQUISH          16
-#define MOD_DROWN           17
-#define MOD_SLIME           18
-#define MOD_LAVA            19
-#define MOD_EXPLOBOX        20
-#define MOD_FALL            21
-#define MOD_FIREBALL        22
-#define MOD_EXIT            23
-#define MOD_LASER           24
-#define MOD_SELFWATER       25
-#define MOD_HURT            26
+enum {
+	MOD_NONE,
+	MOD_AXE,
+	MOD_SHOTGUN,
+	MOD_SUPERSHOTGUN,
+	MOD_SPIKE,
+	MOD_SUPERSPIKE,
+	MOD_GRENADE,
+	MOD_ROCKET,
+	MOD_ROCKETRADIUS,
+	MOD_SHAFT,
+	MOD_SHAFTWATER,
+	MOD_SHAFTSLIME,
+	MOD_SHAFTLAVA,
+	MOD_TELEFRAG,
+	MOD_TELEFRAGDEFLECT,
+	MOD_SQUISH,
+	MOD_DROWN,
+	MOD_SLIME,
+	MOD_LAVA,
+	MOD_EXPLOBOX,
+	MOD_FALL,
+	MOD_FIREBALL,
+	MOD_EXIT,
+	MOD_LASER,
+	MOD_SELFWATER,
+	MOD_HURT
+};
 
 void(string targ, INTEGER mod) SuicideMessage =
 {

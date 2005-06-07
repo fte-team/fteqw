@@ -650,7 +650,7 @@ void CL_UpdatePrydonCursor(float cursor_screen[2], vec3_t cursor_start, vec3_t c
 //	CL_SelectTraceLine(cursor_start, cursor_end, cursor_impact, entnum);
 	// makes sparks where cursor is
 	//CL_SparkShower(cl.cmd.cursor_impact, cl.cmd.cursor_normal, 5, 0);
-	P_RunParticleEffectType(cursor_impact, vec3_origin, 1, 0);
+//	P_RunParticleEffectType(cursor_impact, vec3_origin, 1, 0);
 //P_ParticleTrail(cursor_start, cursor_impact, 0, NULL);
 }
 
@@ -1031,29 +1031,40 @@ void CL_SendCmd (float frametime)
 	{
 		if (cls.demoplayback == DPB_MVD)
 		{
+			extern cvar_t cl_splitscreen;
 			i = cls.netchan.outgoing_sequence & UPDATE_MASK;
 			cl.frames[i].senttime = realtime;		// we haven't gotten a reply yet
 			cl.frames[i].receivedtime = -1;		// we haven't gotten a reply yet
-			cmd = &cl.frames[i].cmd[0];
 
-			memset(cmd, 0, sizeof(*cmd));
-			cmd->msec = frametime*1000;
-			independantphysics[0].msec = 0;
+			if (cl.splitclients > cl_splitscreen.value+1)
+			{
+				cl.splitclients = cl_splitscreen.value+1;
+				if (cl.splitclients < 1)
+					cl.splitclients = 1;
+			}
+			for (plnum = 0; plnum < cl.splitclients; plnum++)
+			{
+				cmd = &cl.frames[i].cmd[0];
 
-			CL_AdjustAngles (plnum);
-			// get basic movement from keyboard
-			CL_BaseMove (cmd, 0, 1, 1);
+				memset(cmd, 0, sizeof(*cmd));
+				cmd->msec = frametime*1000;
+				independantphysics[0].msec = 0;
 
-			// allow mice or other external controllers to add to the move
-			IN_Move (cmd, 0);
+				CL_AdjustAngles (plnum);
+				// get basic movement from keyboard
+				CL_BaseMove (cmd, plnum, 1, 1);
 
-			// if we are spectator, try autocam
-			if (cl.spectator)
-				Cam_Track(0, cmd);
+				// allow mice or other external controllers to add to the move
+				IN_Move (cmd, plnum);
 
-			CL_FinishMove(cmd, (int)(frametime*1000), 0);
+				// if we are spectator, try autocam
+				if (cl.spectator)
+					Cam_Track(plnum, cmd);
 
-			Cam_FinishMove(0, cmd);
+				CL_FinishMove(cmd, (int)(frametime*1000), plnum);
+
+				Cam_FinishMove(plnum, cmd);
+			}
 
 			cls.netchan.outgoing_sequence++;
 		}

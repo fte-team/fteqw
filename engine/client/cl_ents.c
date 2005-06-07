@@ -1888,6 +1888,24 @@ void CL_ParsePlayerinfo (void)
 		state->pm_type = PM_NORMAL;
 
 		TP_ParsePlayerInfo(oldstate, state, info);
+
+		if (cl.splitclients < MAX_SPLITS)
+		{
+			extern cvar_t cl_splitscreen;
+			if (cl.splitclients < cl_splitscreen.value+1)
+			{
+				for (i = 0; i < cl.splitclients; i++)
+					if (autocam[i] && spec_track[i] == num)
+						return;
+
+				if (i == cl.splitclients)
+				{
+					autocam[cl.splitclients] = CAM_TRACK;
+					spec_track[cl.splitclients] = num;
+					cl.splitclients++;
+				}
+			}
+		}
 		return;
 	}
 

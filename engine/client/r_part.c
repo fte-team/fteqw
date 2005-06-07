@@ -316,11 +316,7 @@ static int CheckAssosiation(char *name, int from)
 {
 	int to, orig;
 
-	orig = to = P_FindParticleType(name);
-	if (to < 0)
-	{
-		return -1;
-	}
+	orig = to = P_AllocateParticleType(name);
 
 	while(to != -1)
 	{

@@ -210,7 +210,7 @@ void SockadrToNetadr (struct sockaddr_qstorage *s, netadr_t *a)
 #ifdef IPPROTO_IPV6
 	case AF_INET6:
 		a->type = NA_IPV6;
-		memcpy((struct sockaddr_in6 *)&a->ip6, &((struct sockaddr_in6 *)s)->sin6_addr, sizeof(struct sockaddr_in6));
+		memcpy(&a->ip6, &((struct sockaddr_in6 *)s)->sin6_addr, sizeof(a->ip6));
 		a->port = ((struct sockaddr_in6 *)s)->sin6_port;
 		break;
 #endif

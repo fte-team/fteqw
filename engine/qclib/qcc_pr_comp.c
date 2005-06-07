@@ -7255,9 +7255,8 @@ void QCC_PR_ParseDefs (char *classname)
 					QCC_PR_Lex();
 				}
 			}
-			def = QCC_PR_GetDef(type_float, name, pr_scope, true, 1);
-			def->constant = true;
-			G_FLOAT(def->ofs) = v;
+			def = QCC_MakeFloatDef(v);
+			pHash_Add(&globalstable, name, def, qccHunkAlloc(sizeof(bucket_t)));
 			v++;
 
 			if (QCC_PR_CheckToken("}"))
@@ -7315,9 +7314,8 @@ void QCC_PR_ParseDefs (char *classname)
 						QCC_PR_ParseWarning(WARN_ENUMFLAGS_NOTBINARY, "enumflags - value %i not a single bit", (int)v);
 				}
 			}
-			def = QCC_PR_GetDef(type_float, name, pr_scope, true, 1);
-			def->constant = true;
-			G_FLOAT(def->ofs) = v;
+			def = QCC_MakeFloatDef(v);
+			pHash_Add(&globalstable, name, def, qccHunkAlloc(sizeof(bucket_t)));
 			v*=2;
 
 			if (QCC_PR_CheckToken("}"))

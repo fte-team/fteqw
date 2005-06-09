@@ -317,8 +317,8 @@ local entity    bubble;
 	setsize (bubble, '-8 -8 -8', '8 8 8');
 	self.nextthink = time + 0.1;
 	self.think = DeathBubblesSpawn;
-	self.air_finished = self.air_finished + 1;
-	if (self.air_finished >= self.bubble_count)
+	self.bubble_count = self.bubble_count - 1;
+	if (self.bubble_count <= 0)
 		remove(self);
 };
 
@@ -332,7 +332,6 @@ local entity    bubble_spawner;
 	bubble_spawner.solid = SOLID_NOT;
 	bubble_spawner.nextthink = time + 0.1;
 	bubble_spawner.think = DeathBubblesSpawn;
-	bubble_spawner.air_finished = 0;
 	bubble_spawner.owner = self;
 	bubble_spawner.bubble_count = num_bubbles;
 };

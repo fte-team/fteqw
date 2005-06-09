@@ -554,7 +554,7 @@ void() PutClientInServer =
 	self.max_health = 100;
 	self.flags = FL_CLIENT;
 	self.air_finished = time + 12;
-	self.dmg = 2;                   // initial water damage
+	self.waterdmg = 2; // initial water damage
 	self.super_damage_finished = 0;
 	self.radsuit_finished = 0;
 	self.invisible_finished = 0;
@@ -857,8 +857,6 @@ WaterMove
 
 ============
 */
-.float  dmgtime;
-
 void() WaterMove =
 {
 //dprint (ftos(self.waterlevel));
@@ -874,16 +872,16 @@ void() WaterMove =
 		else if (self.air_finished < time + 9)
 			sound (self, CHAN_VOICE, "player/gasp1.wav", 1, ATTN_NORM);
 		self.air_finished = time + 12;
-		self.dmg = 2;
+		self.waterdmg = 2;
 	}
 	else if (self.air_finished < time)
 	{       // drown!
 		if (self.pain_finished < time)
 		{
-			self.dmg = self.dmg + 2;
-			if (self.dmg > 15)
-				self.dmg = 10;
-			T_Damage (self, world, world, self.dmg, MOD_DROWN);
+			self.waterdmg = self.waterdmg + 2;
+			if (self.waterdmg > 15)
+				self.waterdmg = 10;
+			T_Damage (self, world, world, self.waterdmg, MOD_DROWN);
 			self.pain_finished = time + 1;
 		}
 	}

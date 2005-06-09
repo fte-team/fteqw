@@ -1179,7 +1179,7 @@ void() item_sigil =
 	precache_sound ("misc/runekey.wav");
 	self.noise = "misc/runekey.wav";
 
-	switch (self.spawnflags)
+	switch (self.spawnflags & 15)
 	{
 	case 1:
 		precache_model ("progs/end1.mdl");

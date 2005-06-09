@@ -619,6 +619,12 @@ Walking monsters that touch this will jump in the direction of the trigger's ang
 */
 void() trigger_monsterjump =
 {
+	if (deathmatch)
+	{
+		remove(self);
+		return;
+	}
+
 	if (!self.speed)
 		self.speed = 200;
 	if (!self.height)

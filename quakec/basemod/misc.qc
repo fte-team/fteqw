@@ -102,6 +102,7 @@ void() light_globe =
 {
 	precache_model ("progs/s_light.spr");
 	setmodel (self, "progs/s_light.spr");
+	self.alpha = 0.5;
 	makestatic (self);
 };
 
@@ -133,6 +134,7 @@ void() light_flame_large_yellow =
 	precache_model ("progs/flame2.mdl");
 	setmodel (self, "progs/flame2.mdl");
 	self.frame = 1;
+	self.alpha = 0.5;
 	FireAmbient ();
 	makestatic (self);
 };
@@ -144,6 +146,7 @@ void() light_flame_small_yellow =
 {
 	precache_model ("progs/flame2.mdl");
 	setmodel (self, "progs/flame2.mdl");
+	self.alpha = 0.5;
 	FireAmbient ();
 	makestatic (self);
 };
@@ -155,6 +158,7 @@ void() light_flame_small_white =
 {
 	precache_model ("progs/flame2.mdl");
 	setmodel (self, "progs/flame2.mdl");
+	self.alpha = 0.5;
 	FireAmbient ();
 	makestatic (self);
 };
@@ -166,8 +170,22 @@ void() light_flame_small_white =
 Lava Balls
 */
 
-void() fire_fly;
-void() fire_touch;
+void() fire_fly =
+{
+	local vector vel;
+
+	vel_x = (random() * 100) - 50;
+	vel_y = (random() * 100) - 50;
+	vel_z = self.speed + (random() * 200);
+
+	PRJ_FireProjectile (world, "progs/lavaball.mdl", self.origin, vel, PE_NONE, 20, MOD_FIREBALL, 5);
+	newmis.movetype = MOVETYPE_BOUNCE;
+	newmis.alpha = 0.9;
+	
+	self.nextthink = time + (random() * 5) + 3;
+	self.think = fire_fly;
+};
+
 void() misc_fireball =
 {
 	
@@ -177,36 +195,6 @@ void() misc_fireball =
 	self.think = fire_fly;
 	if (!self.speed)
 		self.speed = 1000;
-};
-
-void() fire_fly =
-{
-local entity    fireball;
-
-	fireball = spawn();
-	fireball.solid = SOLID_TRIGGER;
-	fireball.movetype = MOVETYPE_TOSS;
-	fireball.velocity = '0 0 1000';
-	fireball.velocity_x = (random() * 100) - 50;
-	fireball.velocity_y = (random() * 100) - 50;
-	fireball.velocity_z = self.speed + (random() * 200);
-	fireball.classname = "fireball";
-	setmodel (fireball, "progs/lavaball.mdl");
-	setsize (fireball, '0 0 0', '0 0 0');
-	setorigin (fireball, self.origin);
-	fireball.nextthink = time + 5;
-	fireball.think = SUB_Remove;
-	fireball.touch = fire_touch;
-	
-	self.nextthink = time + (random() * 5) + 3;
-	self.think = fire_fly;
-};
-
-
-void() fire_touch =
-{
-	T_Damage (other, world, world, 20, MOD_FIREBALL);
-	remove(self);
 };
 
 //============================================================================
@@ -306,6 +294,7 @@ void() spikeshooter_use =
 			MOD_LASER,
 			5);
 		newmis.effects |= EF_DIMLIGHT;
+		newmis.alpha = 0.5;
 	}
 	else
 	{
@@ -418,7 +407,8 @@ local entity    bubble;
 	bubble.touch = bubble_remove;
 	bubble.classname = "bubble";
 	bubble.frame = 0;
-	bubble.cnt = 0;
+	bubble.bubble_state = 0;
+	bubble.alpha = 0.4;
 	setsize (bubble, '-8 -8 -8', '8 8 8');
 	self.nextthink = time + random() + 0.5;
 	self.think = make_bubbles;
@@ -438,10 +428,10 @@ local entity    bubble;
 	bubble.touch = bubble_remove;
 	bubble.classname = "bubble";
 	bubble.frame = 1;
-	bubble.cnt = 10;
+	bubble.bubble_state = 10;
 	setsize (bubble, '-8 -8 -8', '8 8 8');
 	self.frame = 1;
-	self.cnt = 10;
+	self.bubble_state = 10;
 	if (self.waterlevel != 3)
 		remove (self);
 };
@@ -460,10 +450,10 @@ void() bubble_bob =
 {
 local float             rnd1, rnd2, rnd3;
 
-	self.cnt = self.cnt + 1;
-	if (self.cnt == 4)
+	self.bubble_state = self.bubble_state + 1;
+	if (self.bubble_state == 4)
 		bubble_split();
-	if (self.cnt == 20)
+	if (self.bubble_state == 20)
 		remove(self);
 
 	rnd1 = self.velocity_x + (-10 + (random() * 20));

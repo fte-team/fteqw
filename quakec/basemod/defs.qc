@@ -169,8 +169,6 @@ void            end_sys_globals;                // flag for structure dumping
 .float          nextthink;
 .entity         groundentity;
 
-
-
 // stats
 .float          health;
 .float          frags;
@@ -354,11 +352,6 @@ float   CONTENT_SLIME                   = -4;
 float   CONTENT_LAVA                    = -5;
 float   CONTENT_SKY                             = -6;
 
-float   STATE_TOP               = 0;
-float   STATE_BOTTOM    = 1;
-float   STATE_UP                = 2;
-float   STATE_DOWN              = 3;
-
 vector  VEC_ORIGIN = '0 0 0';
 vector  VEC_HULL_MIN = '-16 -16 -24';
 vector  VEC_HULL_MAX = '16 16 32';
@@ -377,7 +370,6 @@ float   SVC_SELLSCREEN          = 33;
 float   SVC_SMALLKICK           = 34;
 float   SVC_BIGKICK                     = 35;
 float   SVC_MUZZLEFLASH         = 39;
-
 
 float   TE_SPIKE                = 0;
 float   TE_SUPERSPIKE   = 1;
@@ -461,7 +453,6 @@ entity  damage_attacker;        // set by T_Damage
 entity  damage_inflictor;       // set by T_Damage
 INTEGER damage_mod;             // set by T_Damage
 
-
 float   framecount;
 
 //
@@ -486,117 +477,61 @@ float spotspawn;
 
 //================================================
 
-//
-// world fields (FIXME: make globals)
-//
-.string         wad;
-.string         map;
-.float          worldtype;      // 0=medieval 1=metal 2=base
 #define WT_MEDIEVAL 0
 #define WT_METAL    1
 #define WT_BASE     2
 
 //================================================
 
-.string         killtarget;
-
-//
-// quakeed fields
-//
-.float          light_lev;              // not used by game, but parsed by light util
-.float          style;
-
+.string killtarget; // used by anything using SUB_UseTargets (items/triggers/etc)
 
 //
 // monster ai
 //
-.void(entity attacker, float damage)            th_pain;
-.void()         th_die;
-.void()         th_stand;
+.void(entity attacker, float damage) th_pain; // used by secret doors, monsters, players
+.void()         th_die;   // used by anything damagable (doors/buttons/players/monsters/explobox/triggermultiple)
+.void()         th_stand; // used by monsters
 
+// Stuff used by monsters
+/*
 .void()         th_walk;
 .void()         th_run;
 .void()         th_missile;
 .void()         th_melee;
 
-/*
 .entity         oldenemy;
 
 .float  search_time;
 .float  attack_state;
 
-float   AS_STRAIGHT             = 1;
-float   AS_SLIDING              = 2;
-float   AS_MELEE                = 3;
-float   AS_MISSILE              = 4;
+enum
+{
+	AS_NONE,
+	AS_STRAIGHT,
+	AS_SLIDING,
+	AS_MELEE,
+	AS_MISSILE
+};
 */
 
-.float          speed;
-
-//
-// player only fields
-//
-.float          walkframe;
+.float speed; // used with door/plats/fireball spawner, inherited
+.string map; // used with world/trigger_changelevel, inherited
 
 // Zoid Additions
 .float		maxspeed;		// Used to set Maxspeed on a player
 .float		gravity;		// Gravity Multiplier (0 to 1.0)
 
-.float          attack_finished;
-.float          pain_finished;
+.float          attack_finished; // used with lots of stuff...
+.float          pain_finished; // used with monsters/players
 
-.float          invincible_finished;
-.float          invisible_finished;
-.float          super_damage_finished;
-.float          radsuit_finished;
+.float          invincible_finished; // only used for players but object check needed for T_Damage
+.float          super_damage_finished; // only used for players but object check needed for T_Damage
 
-.float          invincible_time, invincible_sound;
-.float          invisible_time, invisible_sound;
-.float          super_time, super_sound;
-.float          rad_time;
-
-.float          jump_flag;              // player jump flag
-.float          swim_flag;              // player swimming sound flag
-.float          air_finished;   // when time > air_finished, start drowning
-
-//
-// object stuff
-//
-.vector         mangle;                 // angle at start
-
-//
-// doors, etc
-//
-.vector         dest, dest1, dest2;
-.entity         trigger_field;  // door's trigger entity
-.string         noise4;
-
-//
-// doors
-//
-.float          dmg;                    // damage done by door when hit
-	
 //
 // misc
 //
-.float          cnt;                    // misc flag
+.float cnt; // misc flag used by trains/dropped pent and quad
 	
-//
-// plats / doors / buttons
-//
-.float          lip;
-.float          state;
-.vector         pos1, pos2;             // top and bottom positions
-.float          height;
-
-//
-// sounds
-//
-
-// heal stuff
-#define H_ROTTEN 1
-#define H_MEGA   2
-
 // intermission
 float   intermission_running;
 float   intermission_exittime;
@@ -604,6 +539,24 @@ float   intermission_exittime;
 #ifdef NETQUAKE
 entity newmis;
 #endif
+
+// extensions
+.float alpha; // DP_ENT_ALPHA
+
+// enums
+// door/plat states
+enum {
+	STATE_TOP,
+	STATE_BOTTOM,
+	STATE_UP,
+	STATE_DOWN
+};
+
+// heal defines
+enumflags {
+	H_ROTTEN,
+	H_MEGA
+};
 
 // weaponstate defines
 enum {
@@ -615,31 +568,62 @@ enum {
 // unions
 // DO NOT MIX UNION TYPES LIKE I AM DOING
 .union {
+	struct { // fields used with world object
+		string wad;
+		float worldtype; 	// world type, 0=medieval 1=metal 2=base
+	};
 	struct { // fields used with triggers/doors/plats
-		float delay; 	// time from activation to firing
-		float wait;  	// time from firing to restarting
-		float t_length; 	// override length to move sideways
-		float t_width; 	// override length to move upwards/downwards
-		void() think1;	// used with SUB_CalcMove
-		vector finaldest; // used with SUB_CalcMove
-		vector finalangle;// used with SUB_CalcMove
-		float count;      // for counting triggers
+		float delay;		// time from activation to firing
+		float wait;			// time from firing to restarting
+		float t_length;		// override length to move sideways
+		float t_width; 		// override length to move upwards/downwards
+		void() think1;		// used with SUB_CalcMove
+		vector finaldest;		// used with SUB_CalcMove
+		vector finalangle;	// used with SUB_CalcMove
+		float count;		// for counting triggers
+		float dmg;			// damage done by door/train/trigger hurt
+		vector mangle;		// initial angle (doors/teleporter/intermission)
+		float lip;			// position adjustment (func_door/func_button)
+		float state;		// object state (doors/buttons/plats)
+		vector pos1;		// top position (doors/buttons/plats)
+		vector pos2;		// bottom position (doors/buttons/plats)
+		float height;		// height (plats/trigger_monsterjump)
+		string noise4;		// extra sound (doors)
+		entity trigger_field;	// used with linking (doors)
+		vector dest1;		// passed to CalcMove (doors)
+		vector dest2;		// passed to CalcMove (doors)
 	};
 	struct { // fields used with players
-		float weaponframe_time; // weapon frame advance time
-		INTEGER weaponstate;	// firing state of current weapon
-		float suicide_time;     // time to allow suicide after spawn
-		float healdecay; 		// time when health will decay
-		float show_hostile;     // used to alert monsters
-		float lightning_sound;	// used for lightning sound playback
-		float fly_sound;		// used with trigger_push and maintaining wind sound
+		float weaponframe_time;		// weapon frame advance time
+		INTEGER weaponstate;		// firing state of current weapon
+		float suicide_time;     	// time to allow suicide after spawn
+		float healdecay; 			// time when health will decay
+		float show_hostile;		// used to alert monsters
+		float lightning_sound;		// used for lightning sound playback
+		float fly_sound;			// used with trigger_push and maintaining wind sound
+		float invincible_time;		// pentagram state
+		float invincible_sound;		// pentagram sound playback
+		float invisible_time;		// ring state
+		float invisible_sound;		// ring sound playback
+		float invisible_finished;	// ring current duration
+		float super_time;			// quad state
+		float super_sound;		// quad sound playback
+		float rad_time;			// rad suit state
+		float radsuit_finished;		// rad suit current duration
+		float dmgtime;			// time slime/lava will damage
+		float swim_flag;			// swim sound playback
+		float air_finished;		// when time > air_finished, start drowning
+		float waterdmg;			// damage water will deal when drowning
+		float walkframe;			// used with walking animation
+		float jump_flag;			// last z velocity used for falling damage
 	};
 	struct { // fields used with bubbles spawned from drowning
 		INTEGER bubble_count;   // keeps track of the number of bubbles
+		INTEGER bubble_state;	// associated with bubble progression
 	};
 	struct { // fields used with items
 		float healamount;	// amount healed with health item
-		float healtype;	// type of health with health item
+		INTEGER healtype;	// type of health with health item
 		string mdl;		// model used with SUB_regen
 		float ammo_count;	// ammo amount 
 	};
@@ -656,9 +640,13 @@ enum {
 		float expire_time;		// time when projectile dies
 		void() proj_think;		// extra think function used with projectile
 		float proj_think_time;		// interval between thinks
-		INTEGER proj_effect;	// effect used with projectile
+		INTEGER proj_effect;		// effect used with projectile
 		INTEGER voided;			// projectile has been voided
 		float() proj_touch;		// extra touch function used with projectile
+	};
+	struct { // fields used with lights
+		float light_lev;	// not used by game, but parsed by light util
+		float style;	// lightstyle to use for light
 	};
 	// fields used with ambient sounds?
 	/*

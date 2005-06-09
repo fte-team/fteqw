@@ -106,6 +106,7 @@ cvar_t	allow_download_wads = {"allow_download_wads", "1"};
 
 cvar_t sv_public = {"sv_public", "0"};
 cvar_t sv_listen = {"sv_listen", "1"};
+cvar_t sv_reportheartbeats = {"sv_reportheartbeats", "1"};
 cvar_t sv_highchars = {"sv_highchars", "1"};
 cvar_t sv_loadentfiles = {"sv_loadentfiles", "1"};
 cvar_t sv_maxrate = {"sv_maxrate", "10000"};
@@ -2880,6 +2881,7 @@ void SV_InitLocal (void)
 
 	Cvar_Register (&sv_public,	cvargroup_servercontrol);
 	Cvar_Register (&sv_listen,	cvargroup_servercontrol);
+	Cvar_Register (&sv_reportheartbeats, cvargroup_servercontrol);
 
 #ifndef SERVERONLY
 	if (isDedicated)
@@ -3120,13 +3122,18 @@ void Master_Heartbeat (void)
 
 					madeqwstring = true;
 				}
-				Con_Printf ("Sending heartbeat to %s\n", NET_AdrToString (sv_masterlist[i].adr));
+
+				if (sv_reportheartbeats.value)
+					Con_Printf ("Sending heartbeat to %s\n", NET_AdrToString (sv_masterlist[i].adr));
+
 				NET_SendPacket (NS_SERVER, strlen(string), string, sv_masterlist[i].adr);
 				break;
 			case true:
 				if (sv_listen.value>=2)	//set listen to 1 to allow qw connections, 2 to allow nq connections too.
 				{
-					Con_Printf ("Sending heartbeat to %s\n", NET_AdrToString (sv_masterlist[i].adr));
+					if (sv_reportheartbeats.value)
+						Con_Printf ("Sending heartbeat to %s\n", NET_AdrToString (sv_masterlist[i].adr));
+
 					{
 						char *str = "\377\377\377\377heartbeat DarkPlaces\x0A";
 						NET_SendPacket (NS_SERVER, strlen(str), str, sv_masterlist[i].adr);
@@ -3189,7 +3196,9 @@ void Master_Shutdown (void)
 			switch(sv_masterlist[i].isdp)
 			{
 			case false:
-				Con_Printf ("Sending heartbeat to %s\n", NET_AdrToString (sv_masterlist[i].adr));
+				if (sv_reportheartbeats.value)
+					Con_Printf ("Sending heartbeat to %s\n", NET_AdrToString (sv_masterlist[i].adr));
+
 				NET_SendPacket (NS_SERVER, strlen(string), string, sv_masterlist[i].adr);
 				break;
 			}

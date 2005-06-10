@@ -490,29 +490,6 @@ float spotspawn;
 //
 .void(entity attacker, float damage) th_pain; // used by secret doors, monsters, players
 .void()         th_die;   // used by anything damagable (doors/buttons/players/monsters/explobox/triggermultiple)
-.void()         th_stand; // used by monsters
-
-// Stuff used by monsters
-/*
-.void()         th_walk;
-.void()         th_run;
-.void()         th_missile;
-.void()         th_melee;
-
-.entity         oldenemy;
-
-.float  search_time;
-.float  attack_state;
-
-enum
-{
-	AS_NONE,
-	AS_STRAIGHT,
-	AS_SLIDING,
-	AS_MELEE,
-	AS_MISSILE
-};
-*/
 
 .float speed; // used with door/plats/fireball spawner, inherited
 .string map; // used with world/trigger_changelevel, inherited
@@ -544,6 +521,16 @@ entity newmis;
 .float alpha; // DP_ENT_ALPHA
 
 // enums
+// monster attack states
+enum
+{
+	AS_NONE,
+	AS_STRAIGHT,
+	AS_SLIDING,
+	AS_MELEE,
+	AS_MISSILE
+};
+
 // door/plat states
 enum {
 	STATE_TOP,
@@ -647,6 +634,16 @@ enum {
 	struct { // fields used with lights
 		float light_lev;	// not used by game, but parsed by light util
 		float style;	// lightstyle to use for light
+	};
+	struct { // fields used with monsters
+		float search_time;	// search time intervals
+		float attack_state;	// current AI attack state
+		void() th_stand;		// standing animation
+		void() th_walk;		// walking animation
+		void() th_run;		// running animation
+		void() th_missile;	// ranged animation
+		void() th_melee;		// melee animation
+		entity oldenemy;		// old enemy
 	};
 	// fields used with ambient sounds?
 	/*

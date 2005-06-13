@@ -139,28 +139,42 @@ qboolean DDRAW_Init(rendererstate_t *info, unsigned char **ppbuffer, int *ppitch
 	PALETTEENTRY palentries[256];
 	DDSURFACEDESC ddsd;
 	DDSCAPS ddscaps;
+	LPDIRECTDRAW lpDirectDraw1;
 
 	HRESULT ddrval;
-	HRESULT (WINAPI *QDirectDrawCreateEx)( GUID FAR *lpGUID, LPVOID  *lplpDD, REFIID  iid, IUnknown FAR * pUnkOuter );
+	HRESULT (WINAPI *QDirectDrawCreate)( GUID FAR *lpGUID, LPVOID  *lplpDD, IUnknown FAR * pUnkOuter );
 
-	hinstDDRAW = LoadLibrary( "ddraw.dll" );
 	if (!hinstDDRAW)
 	{
-		Con_Printf( "Failed to load ddraw.dll");
-		goto fail;
+		hinstDDRAW = LoadLibrary( "ddraw.dll" );
+		if (!hinstDDRAW)
+		{
+			Con_Printf( "Failed to load ddraw.dll");
+			goto fail;
+		}
 	}
 
-	if ( ( QDirectDrawCreateEx = ( HRESULT (WINAPI *)( GUID FAR *, LPVOID *, REFIID, IUnknown FAR * ) ) GetProcAddress( hinstDDRAW, "DirectDrawCreateEx" ) ) == NULL )
+	if ( ( QDirectDrawCreate = ( HRESULT (WINAPI *)( GUID FAR *, LPVOID *, IUnknown FAR * ) ) GetProcAddress( hinstDDRAW, "DirectDrawCreate" ) ) == NULL )
 	{
 		Con_Printf( "*** DirectDrawCreate == NULL ***\n" );
 		goto fail;
 	}
 
-	if ( ( ddrval = QDirectDrawCreateEx( NULL, &lpDirectDraw, &IID_IDirectDraw2, NULL ) ) != DD_OK )
+	if ( ( ddrval = QDirectDrawCreate( NULL, &lpDirectDraw1, NULL ) ) != DD_OK )
 	{
 		Con_Printf( "failed - %s\n", DDrawError( ddrval ) );
 		goto fail;
 	}
+
+	Con_SafePrintf( "...Using ddraw2: ");
+	ddrval=lpDirectDraw1->lpVtbl->QueryInterface(lpDirectDraw1, &IID_IDirectDraw2,(void**)&lpDirectDraw);
+	lpDirectDraw1->lpVtbl->Release(lpDirectDraw1);
+	if (ddrval != DD_OK)
+	{
+		Con_Printf( "failed - %s\n", DDrawError( ddrval ) );
+		goto fail;
+	}
+	Con_SafePrintf( "ok\n" );
 
 #if 1
 	/*
@@ -240,6 +254,11 @@ qboolean DDRAW_Init(rendererstate_t *info, unsigned char **ppbuffer, int *ppitch
 	ddsd.dwFlags = DDSD_CAPS | DDSD_BACKBUFFERCOUNT;
 	ddsd.ddsCaps.dwCaps = DDSCAPS_PRIMARYSURFACE | DDSCAPS_FLIP | DDSCAPS_COMPLEX;
 	ddsd.dwBackBufferCount = 1;
+	ddsd.dwRefreshRate = info->rate;
+	if (ddsd.dwRefreshRate)
+		ddsd.dwFlags |= DDSD_REFRESHRATE;
+
+	Con_Printf("Rate: %i\n", ddsd.dwRefreshRate);
 
 	Con_SafePrintf( "...creating front buffer: ");
 	if ( ( ddrval = lpDirectDraw->lpVtbl->CreateSurface( lpDirectDraw, &ddsd, &lpddsFrontBuffer, NULL ) ) != DD_OK )
@@ -248,6 +267,8 @@ qboolean DDRAW_Init(rendererstate_t *info, unsigned char **ppbuffer, int *ppitch
 		goto fail;
 	}
 	Con_SafePrintf( "ok\n" );
+
+	Con_Printf("Rate: %i\n", ddsd.dwRefreshRate);
 
 #else
 	Con_SafePrintf( "...setting normal mode: ");
@@ -295,6 +316,7 @@ qboolean DDRAW_Init(rendererstate_t *info, unsigned char **ppbuffer, int *ppitch
 	ddsd.dwRefreshRate = info->rate;
 	if (ddsd.dwRefreshRate)
 		ddsd.dwFlags |= DDSD_REFRESHRATE;
+	Con_Printf("Rate: %i\n", ddsd.dwRefreshRate);
 
 	Con_SafePrintf( "...creating front buffer: ");
 	if ( ( ddrval = lpDirectDraw->lpVtbl->CreateSurface( lpDirectDraw, &ddsd, &lpddsFrontBuffer, NULL ) ) != DD_OK )
@@ -303,6 +325,8 @@ qboolean DDRAW_Init(rendererstate_t *info, unsigned char **ppbuffer, int *ppitch
 		goto fail;
 	}
 	Con_SafePrintf( "ok\n" );
+
+	Con_Printf("Rate: %i\n", ddsd.dwRefreshRate);
 #endif
 
 	/*

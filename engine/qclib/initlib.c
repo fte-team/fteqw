@@ -98,7 +98,9 @@ int PR_InitEnts(progfuncs_t *progfuncs, int max_ents)
 
 	return max_fields_size;
 }
-char tempedicts[2048];	//used as a safty buffer
+edictrun_t tempedict;	//used as a safty buffer
+float tempedictfields[2048];
+
 void PR_Configure (progfuncs_t *progfuncs, int addressable_size, int max_progs)	//can be used to wipe all memory
 {
 	int i;
@@ -139,9 +141,12 @@ void PR_Configure (progfuncs_t *progfuncs, int addressable_size, int max_progs)	
 	prinst->reorganisefields = false;
 
 	maxedicts = 1;
+	prinst->edicttable = &sv_edicts;
 	sv_num_edicts = 1;	//set up a safty buffer so things won't go horribly wrong too often
-	sv_edicts=(struct edict_s *)tempedicts;
-	((edictrun_t*)sv_edicts)->readonly = true;
+	sv_edicts=(struct edict_s *)&tempedict;
+	tempedict.readonly = true;
+	tempedict.fields = tempedictfields;
+	tempedict.isfree = false;
 }
 
 

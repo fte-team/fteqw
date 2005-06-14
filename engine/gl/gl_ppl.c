@@ -676,6 +676,7 @@ static void PPL_BaseChain_Bump_4TMU(msurface_t *s, texture_t *tex)
 	qglDisable(GL_TEXTURE_2D);
 
 	GL_SelectTexture(GL_TEXTURE1_ARB);
+	GL_TexEnv(GL_MODULATE);
 	qglDisableClientState(GL_TEXTURE_COORD_ARRAY);
 	qglDisable(GL_TEXTURE_2D);
 
@@ -2250,7 +2251,6 @@ void PPL_LightBModelTexturesFP(entity_t *e, dlight_t *light, vec3_t colour)
 	VectorSubtract(r_refdef.vieworg, e->origin, relativeeyeorigin);
 
 	qglEnable(GL_BLEND);
-	GL_TexEnv(GL_MODULATE);
 	qglBlendFunc(GL_ONE, GL_ONE);
 
 	if (qglGetError())

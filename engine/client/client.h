@@ -384,9 +384,8 @@ typedef struct downloadlist_s {
 
 typedef struct {
 	float lerptime;
-#ifdef HALFLIFEMODELS
 	float framechange;	//marks time of last frame change - for halflife model sequencing.
-#endif
+	float oldframechange;
 	float lerprate;	//inverse rate...
 	vec3_t origin;
 	vec3_t angles;
@@ -787,6 +786,8 @@ qboolean CSQC_DrawView(void);
 void CSQC_Shutdown(void);
 qboolean CSQC_StuffCmd(char *cmd);
 qboolean CSQC_CenterPrint(char *cmd);
+qboolean CSQC_ConsoleCommand(char *cmd);
+qboolean CSQC_KeyPress(int key, qboolean down);
 #endif
 
 //

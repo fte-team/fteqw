@@ -454,6 +454,13 @@ void V_cshift_f (void)
 {
 	if (Cmd_Argc() != 5 && Cmd_Argc() != 1)	//this is actually to warn of a malice bug (and prevent a totally black screen) more than it is to help the user. :/
 	{										//The 1 is so teamfortress can use it to clear.
+		if (Cmd_FromGamecode())	//nehahra does nasty things and becomes unplayable.
+		{
+			cl.cshifts[CSHIFT_SERVER].destcolor[0] = 0;
+			cl.cshifts[CSHIFT_SERVER].destcolor[1] = 0;
+			cl.cshifts[CSHIFT_SERVER].destcolor[2] = 0;
+			cl.cshifts[CSHIFT_SERVER].percent = 0;
+		}
 		Con_Printf("v_cshift: v_cshift <r> <g> <b> <alpha>\n");
 		return;
 	}
@@ -1274,6 +1281,42 @@ void SCR_VRectForPlayer(vrect_t *vrect, int pnum)
 	r_refdef.fov_y = CalcFov(r_refdef.fov_x, vrect->width, vrect->height);
 }
 
+void ML_Project(vec3_t in, vec3_t out, vec3_t viewangles, vec3_t vieworg, float wdivh, float fovy);
+void R_DrawNameTags(void)
+{
+	int i;
+	vec3_t center;
+	vec3_t tagcenter;
+	vec3_t waste, waste2;
+	frame_t *frame;
+	player_state_t *state;
+
+	if (!cl.spectator && !cls.demoplayback)
+		return;
+
+#ifdef RGLQUAKE
+	if (qrenderer == QR_OPENGL)
+		GL_Set2D();
+#endif
+
+	frame = &cl.frames[cl.parsecount&UPDATE_MASK];
+	state = frame->playerstate;
+	for (i = 0; i < MAX_CLIENTS; i++, state++)
+	{
+		if (state->messagenum != cl.parsecount)
+			continue;	// not present this frame
+		if (!TraceLineN(r_refdef.vieworg, state->origin, waste, waste2))
+		{
+			VectorCopy(state->origin, tagcenter);
+			tagcenter[2] += 32;
+			ML_Project(tagcenter, center, r_refdef.viewangles, r_refdef.vieworg, (float)r_refdef.vrect.width/r_refdef.vrect.height, r_refdef.fov_y);
+			if (center[2] > 1)
+				return;
+			Draw_FunString(center[0]*r_refdef.vrect.width+r_refdef.vrect.x, (1-center[1])*r_refdef.vrect.height+r_refdef.vrect.y, cl.players[i].name);
+		}
+	}
+}
+
 void V_RenderPlayerViews(int plnum)
 {
 	int viewnum;
@@ -1306,7 +1349,10 @@ void V_RenderPlayerViews(int plnum)
 		R_RenderView_fisheye();
 	else
 #endif
+	{
 		R_RenderView ();
+		R_DrawNameTags();
+	}
 
 	if (scr_chatmode == 2)
 	{

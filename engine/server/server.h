@@ -489,7 +489,7 @@ typedef struct client_s
 	unsigned long	zquake_extensions;
 
 	enum {
-		SCP_BAD,
+		SCP_BAD,	//don't send (a bot)
 		SCP_QUAKEWORLD,
 		SCP_QUAKE2,
 		SCP_NETQUAKE,
@@ -967,6 +967,10 @@ void SV_FindModelNumbers (void);
 //
 // sv_user.c
 //
+#ifdef NQPROT
+void SVNQ_New_f (void);
+void SVNQ_ExecuteClientMessage (client_t *cl);
+#endif
 void SV_ExecuteClientMessage (client_t *cl);
 void SVQ2_ExecuteClientMessage (client_t *cl);
 int SV_PMTypeForClient (client_t *cl);

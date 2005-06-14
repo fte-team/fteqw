@@ -8,7 +8,7 @@ of the License, or (at your option) any later version.
 
 This program is distributed in the hope that it will be useful,
 but WITHOUT ANY WARRANTY; without even the implied warranty of
-MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
 
 See the GNU General Public License for more details.
 
@@ -59,7 +59,7 @@ typedef struct sfxcache_s
 	int 	loopstart;
 	int 	speed;
 	int 	width;
-	int 	stereo;	
+	int 	stereo;
 	qbyte	data[1];		// variable sized
 } sfxcache_t;
 
@@ -81,7 +81,7 @@ typedef struct
 typedef struct
 {
 	sfx_t	*sfx;			// sfx number
-	int		vol[MAXSOUNDCHANNELS];		// 0-255 volume	
+	int		vol[MAXSOUNDCHANNELS];		// 0-255 volume
 	int		delay[MAXSOUNDCHANNELS];
 	int		end;			// end time in global paintsamples
 	int 	pos;			// sample position in sfx
@@ -139,15 +139,6 @@ channel_t *SND_PickChannel(soundcardinfo_t *sc, int entnum, int entchannel);
 // spatializes a channel
 void SND_Spatialize(soundcardinfo_t *sc, channel_t *ch);
 
-// initializes cycling through a DMA buffer and returns information on it
-int SNDDMA_Init(soundcardinfo_t *sc);
-
-// gets the current DMA position
-int SNDDMA_GetDMAPos(soundcardinfo_t *sc);
-
-// shutdown the DMA xfer.
-void SNDDMA_Shutdown(soundcardinfo_t *sc);
-
 // restart entire sound subsystem
 void S_Restart_f (void);
 
@@ -190,7 +181,7 @@ extern	cvar_t volume;
 extern	cvar_t snd_capture;
 
 extern qboolean	snd_initialized;
-extern qboolean snd_multipledevices;
+extern cvar_t snd_usemultipledevices;
 
 extern int		snd_blocked;
 
@@ -200,59 +191,60 @@ sfxcache_t *S_LoadSound (sfx_t *s);
 wavinfo_t GetWavinfo (char *name, qbyte *wav, int wavlength);
 
 void SND_InitScaletable (void);
-void SNDDMA_Submit(soundcardinfo_t *sc);
 
 void S_AmbientOff (void);
 void S_AmbientOn (void);
 
 
-
-
-
-#ifndef _WIN32
-
+//inititalisation functions.
+typedef int (*sounddriver) (soundcardinfo_t *sc, int cardnum);
+extern sounddriver pDSOUND_InitCard;
+extern sounddriver pALSA_InitCard;
+extern sounddriver pOSS_InitCard;
+extern sounddriver pSDL_InitCard;
+extern sounddriver pWAV_InitCard;
 
 struct soundcardinfo_s { //windows has one defined AFTER directsound
+	char name[256];	//a description of the card.
+	struct soundcardinfo_s *next;
+
+//speaker orientations for spacialisation.
 	float dist[MAX_CHANNELS];
 	float pitch[MAX_CHANNELS];
 	float yaw[MAX_CHANNELS];
 
-	char name[256];
+//info on which sound effects are playing
+	channel_t   channel[MAX_CHANNELS];
+	int			total_chans;
 
+//mixer
+	volatile dma_t sn;	//why is this volatile?
+	qboolean inactive_sound;	//continue mixing for this card even when the window isn't active.
+	qboolean selfpainting;	//allow the sound code to call the right functions when it feels the need (not properly supported).
 
-	qboolean selfpainting;	//allow the sound code to call the right functions when it feels the need.
-							//sdl uses this and runs multithreaded.
+	int	paintedtime;	//used in the mixer
+	int	oldsamplepos;	//fixme: is this still needed?
+	int snd_linear_count;	//used by the mixer.
+	int	buffers;	//used to keep track of buffer wraps for consistant sound
 
-	qboolean inactive_sound;
+	int rawend;	//streaming audio (avi/cin/roq)
+	int rawstart;
 
-	qboolean snd_isdirect;
-	qboolean snd_iswave;
+//callbacks
+	void *(*Lock) (soundcardinfo_t *sc);
+	void (*Unlock) (soundcardinfo_t *sc, void *buffer);
+	void (*Submit) (soundcardinfo_t *sc);
+	void (*Shutdown) (soundcardinfo_t *sc);
+	unsigned int (*GetDMAPos) (soundcardinfo_t *sc);
+	void (*SetWaterDistortion) (soundcardinfo_t *sc, qboolean underwater);
+	void (*Restore) (soundcardinfo_t *sc);
 
-	int   		paintedtime;
-	int	oldsamplepos;
-	int buffers;
-
-	qboolean dsound_init;
-	qboolean wav_init;
-
-	volatile dma_t sn;
-
-	int snd_linear_count;
-
+//driver -specific
+	void *handle;
 	int snd_sent;
 	int snd_completed;
-
 	int audio_fd;
-
-channel_t   channel[MAX_CHANNELS];
-int			total_chans;
-
-int rawend;
-int rawstart;
-
-	struct soundcardinfo_s *next;
 };
-#endif
 
 extern soundcardinfo_t *sndcardinfo;
 

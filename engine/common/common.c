@@ -731,13 +731,17 @@ void MSG_WriteAngle16 (sizebuf_t *sb, float f)
 {
 	MSG_WriteShort (sb, (int)(f*65536/360) & 65535);
 }
+void MSG_WriteAngle8 (sizebuf_t *sb, float f)
+{
+	MSG_WriteByte (sb, (int)(f*256/360) & 255);
+}
 
 void MSG_WriteAngle (sizebuf_t *sb, float f)
 {
 	if (sizeofangle==2)
 		MSG_WriteAngle16(sb, f);
 	else
-		MSG_WriteByte (sb, (int)(f*256/360) & 255);
+		MSG_WriteAngle8 (sb, f);
 }
 
 void MSG_WriteDeltaUsercmd (sizebuf_t *buf, usercmd_t *from, usercmd_t *cmd)
@@ -4223,8 +4227,8 @@ gamemode_info_t gamemode_info[] = {
 //note that there is no basic 'fte' gamemode, this is because we aim for network compatability. Darkplaces-Quake is the closest we get.
 //this is to avoid having too many gamemodes anyway.
 	{"Darkplaces-Quake",	"darkplaces",	"-quake",		"id1/pak0.pak",		"id1",		"qw",				"fte"},
-	{"Darkplaces-Hipnotic",	"hipnotic",		"-hipnotic",	"hipnotic/pak0.pak","id1",		"qw",	"hipnotic",	"fte"},
-	{"Darkplaces-Rogue",	"rogue",		"-rogue",		"rogue/pak0.pak",	"id1",		"qw",	"rogue",	"fte"},
+	{"Darkplaces-Hipnotic",	"hipnotic",		"-hipnotic",	NULL/*"hipnotic/pak0.pak"*/,"id1",		"qw",	"hipnotic",	"fte"},
+	{"Darkplaces-Rogue",	"rogue",		"-rogue",		NULL/*"rogue/pak0.pak",	"id1"*/,		"qw",	"rogue",	"fte"},
 	{"Nexuiz",				"nexuiz",		"-nexuiz",		"data/data.pk3",	"id1",		"qw",	"data",		"fte"},
 
 	//supported commercial mods (some are currently only partially supported)
@@ -4252,7 +4256,6 @@ void COM_InitFilesystem (void)
 
 
 	int gamenum=-1;
-	char *check;
 
 //
 // -basedir <path>
@@ -4270,6 +4273,8 @@ void COM_InitFilesystem (void)
 	//identify the game from a telling file
 	for (i = 0; gamemode_info[i].gamename; i++)
 	{
+		if (!gamemode_info[i].auniquefile)
+			return;
 		f = fopen(va("%s/%s", com_quakedir, gamemode_info[i].auniquefile), "rb");
 		if (f)
 		{

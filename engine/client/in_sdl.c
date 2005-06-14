@@ -212,6 +212,11 @@ int mouse_x, mouse_y;
 void ResetFrameBuffers(void);
 #endif
 
+#ifdef RGLQUAKE
+extern int glwidth;
+extern int glheight;
+#endif
+
 void Sys_SendKeyEvents(void)
 {
 	SDL_Event event;

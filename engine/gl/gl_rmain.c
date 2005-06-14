@@ -1501,6 +1501,10 @@ r_refdef must be set before the first call
 void R_RenderScene (void)
 {
 	qboolean GLR_DoomWorld(void);
+
+	if (!cl.worldmodel)
+		r_refdef.flags |= Q2RDF_NOWORLDMODEL;
+
 	if (!mirror)
 	GLR_SetupFrame ();
 

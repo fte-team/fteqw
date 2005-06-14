@@ -695,6 +695,323 @@ void SV_EmitPacketEntities (client_t *client, packet_entities_t *to, sizebuf_t *
 
 	MSG_WriteShort (msg, 0);	// end of packetentities
 }
+#ifdef NQPROT
+
+// reset all entity fields (typically used if status changed)
+#define E5_FULLUPDATE (1<<0)
+// E5_ORIGIN32=0: short[3] = s->origin[0] * 8, s->origin[1] * 8, s->origin[2] * 8
+// E5_ORIGIN32=1: float[3] = s->origin[0], s->origin[1], s->origin[2]
+#define E5_ORIGIN (1<<1)
+// E5_ANGLES16=0: byte[3] = s->angle[0] * 256 / 360, s->angle[1] * 256 / 360, s->angle[2] * 256 / 360
+// E5_ANGLES16=1: short[3] = s->angle[0] * 65536 / 360, s->angle[1] * 65536 / 360, s->angle[2] * 65536 / 360
+#define E5_ANGLES (1<<2)
+// E5_MODEL16=0: byte = s->modelindex
+// E5_MODEL16=1: short = s->modelindex
+#define E5_MODEL (1<<3)
+// E5_FRAME16=0: byte = s->frame
+// E5_FRAME16=1: short = s->frame
+#define E5_FRAME (1<<4)
+// byte = s->skin
+#define E5_SKIN (1<<5)
+// E5_EFFECTS16=0 && E5_EFFECTS32=0: byte = s->effects
+// E5_EFFECTS16=1 && E5_EFFECTS32=0: short = s->effects
+// E5_EFFECTS16=0 && E5_EFFECTS32=1: int = s->effects
+// E5_EFFECTS16=1 && E5_EFFECTS32=1: int = s->effects
+#define E5_EFFECTS (1<<6)
+// bits >= (1<<8)
+#define E5_EXTEND1 (1<<7)
+
+// byte = s->renderflags
+#define E5_FLAGS (1<<8)
+// byte = bound(0, s->alpha * 255, 255)
+#define E5_ALPHA (1<<9)
+// byte = bound(0, s->scale * 16, 255)
+#define E5_SCALE (1<<10)
+// flag
+#define E5_ORIGIN32 (1<<11)
+// flag
+#define E5_ANGLES16 (1<<12)
+// flag
+#define E5_MODEL16 (1<<13)
+// byte = s->colormap
+#define E5_COLORMAP (1<<14)
+// bits >= (1<<16)
+#define E5_EXTEND2 (1<<15)
+
+// short = s->tagentity
+// byte = s->tagindex
+#define E5_ATTACHMENT (1<<16)
+// short[4] = s->light[0], s->light[1], s->light[2], s->light[3]
+// byte = s->lightstyle
+// byte = s->lightpflags
+#define E5_LIGHT (1<<17)
+// byte = s->glowsize
+// byte = s->glowcolor
+#define E5_GLOW (1<<18)
+// short = s->effects
+#define E5_EFFECTS16 (1<<19)
+// int = s->effects
+#define E5_EFFECTS32 (1<<20)
+// flag
+#define E5_FRAME16 (1<<21)
+// unused
+#define E5_UNUSED22 (1<<22)
+// bits >= (1<<24)
+#define E5_EXTEND3 (1<<23)
+
+// unused
+#define E5_UNUSED24 (1<<24)
+// unused
+#define E5_UNUSED25 (1<<25)
+// unused
+#define E5_UNUSED26 (1<<26)
+// unused
+#define E5_UNUSED27 (1<<27)
+// unused
+#define E5_UNUSED28 (1<<28)
+// unused
+#define E5_UNUSED29 (1<<29)
+// unused
+#define E5_UNUSED30 (1<<30)
+// bits2 > 0
+#define E5_EXTEND4 (1<<31)
+
+
+
+void SVDP_EmitEntity(entity_state_t *from, entity_state_t *to, sizebuf_t *msg, qboolean isnew)
+{
+	int bits;
+	if (!memcmp(from, to, sizeof(entity_state_t)))
+		return;	//didn't change
+
+	bits = 0;
+	if (isnew)
+		bits |= E5_FULLUPDATE;
+
+	if (!VectorCompare(from->origin, to->origin))
+		bits |= E5_ORIGIN;
+	if (!VectorCompare(from->angles, to->angles))
+		bits |= E5_ANGLES;
+	if (from->modelindex != to->modelindex)
+		bits |= E5_MODEL;
+	if (from->frame != to->frame)
+		bits |= E5_FRAME;
+	if (from->skinnum != to->skinnum)
+		bits |= E5_SKIN;
+	if (from->effects != to->effects)
+		bits |= E5_EFFECTS;
+	if (from->flags != to->flags)
+		bits |= E5_FLAGS;
+	if (from->trans != to->trans)
+		bits |= E5_ALPHA;
+//	if (from->scale != to->scale)
+//		bits |= E5_SCALE;
+	if (from->colormap != to->colormap)
+		bits |= E5_COLORMAP;
+//	if (from->tagentity != to->tagentity || o->tagindex != to->tagindex)
+//		bits |= E5_ATTACHMENT;
+//	if (from->light[0] != to->light[0] || o->light[1] != to->light[1] || o->light[2] != to->light[2] || o->light[3] != to->light[3] || o->lightstyle != to->lightstyle || o->lightpflags != to->lightpflags)
+//		bits |= E5_LIGHT;
+//	if (from->glowsize != to->glowsize || o->glowcolor != to->glowcolor)
+//		bits |= E5_GLOW;
+//	if (from->colormod[0] != to->colormod[0] || o->colormod[1] != to->colormod[1] || o->colormod[2] != to->colormod[2])
+//		bits |= E5_COLORMOD;
+
+	if ((bits & E5_ORIGIN) && (/*!(to->flags & RENDER_LOWPRECISION) ||*/ to->origin[0] < -4096 || to->origin[0] >= 4096 || to->origin[1] < -4096 || to->origin[1] >= 4096 || to->origin[2] < -4096 || to->origin[2] >= 4096))
+		bits |= E5_ORIGIN32;
+	if ((bits & E5_ANGLES)/* && !(to->flags & RENDER_LOWPRECISION)*/)
+		bits |= E5_ANGLES16;
+	if ((bits & E5_MODEL) && to->modelindex >= 256)
+		bits |= E5_MODEL16;
+	if ((bits & E5_FRAME) && to->frame >= 256)
+		bits |= E5_FRAME16;
+	if (bits & E5_EFFECTS)
+	{
+		if (to->effects >= 65536)
+			bits |= E5_EFFECTS32;
+		else if (to->effects >= 256)
+			bits |= E5_EFFECTS16;
+	}
+	if (bits >= 256)
+		bits |= E5_EXTEND1;
+	if (bits >= 65536)
+		bits |= E5_EXTEND2;
+	if (bits >= 16777216)
+		bits |= E5_EXTEND3;
+
+	to->bitmask |= bits;
+
+	if (!bits)
+		return;
+
+	MSG_WriteShort(msg, to->number);
+	MSG_WriteByte(msg, bits & 0xFF);
+	if (bits & E5_EXTEND1)
+		MSG_WriteByte(msg, (bits >> 8) & 0xFF);
+	if (bits & E5_EXTEND2)
+		MSG_WriteByte(msg, (bits >> 16) & 0xFF);
+	if (bits & E5_EXTEND3)
+		MSG_WriteByte(msg, (bits >> 24) & 0xFF);
+	if (bits & E5_FLAGS)
+		MSG_WriteByte(msg, to->flags);
+	if (bits & E5_ORIGIN)
+	{
+		if (bits & E5_ORIGIN32)
+		{
+			MSG_WriteFloat(msg, to->origin[0]);
+			MSG_WriteFloat(msg, to->origin[1]);
+			MSG_WriteFloat(msg, to->origin[2]);
+		}
+		else
+		{
+			MSG_WriteShort(msg, to->origin[0]*8);
+			MSG_WriteShort(msg, to->origin[1]*8);
+			MSG_WriteShort(msg, to->origin[2]*8);
+		}
+	}
+	if (bits & E5_ANGLES)
+	{
+		if (bits & E5_ANGLES16)
+		{
+			MSG_WriteAngle16(msg, to->angles[0]);
+			MSG_WriteAngle16(msg, to->angles[1]);
+			MSG_WriteAngle16(msg, to->angles[2]);
+		}
+		else
+		{
+			MSG_WriteAngle8(msg, to->angles[0]);
+			MSG_WriteAngle8(msg, to->angles[1]);
+			MSG_WriteAngle8(msg, to->angles[2]);
+		}
+	}
+	if (bits & E5_MODEL)
+	{
+		if (bits & E5_MODEL16)
+			MSG_WriteShort(msg, to->modelindex);
+		else
+			MSG_WriteByte(msg, to->modelindex);
+	}
+	if (bits & E5_FRAME)
+	{
+		if (bits & E5_FRAME16)
+			MSG_WriteShort(msg, to->frame);
+		else
+			MSG_WriteByte(msg, to->frame);
+	}
+	if (bits & E5_SKIN)
+		MSG_WriteByte(msg, to->skinnum);
+	if (bits & E5_EFFECTS)
+	{
+		if (bits & E5_EFFECTS32)
+			MSG_WriteLong(msg, to->effects);
+		else if (bits & E5_EFFECTS16)
+			MSG_WriteShort(msg, to->effects);
+		else
+			MSG_WriteByte(msg, to->effects);
+	}
+	if (bits & E5_ALPHA)
+		MSG_WriteByte(msg, to->trans*255);
+	if (bits & E5_SCALE)
+		MSG_WriteByte(msg, to->scale);
+	if (bits & E5_COLORMAP)
+		MSG_WriteByte(msg, to->colormap);
+//	if (bits & E5_ATTACHMENT)
+//	{
+//		MSG_WriteShort(msg, to->tagentity);
+//		MSG_WriteByte(msg, to->tagindex);
+//	}
+//	if (bits & E5_LIGHT)
+//	{
+//		MSG_WriteShort(msg, to->light[0]);
+//		MSG_WriteShort(msg, to->light[1]);
+//		MSG_WriteShort(msg, to->light[2]);
+//		MSG_WriteShort(msg, to->light[3]);
+//		MSG_WriteByte(msg, to->lightstyle);
+//		MSG_WriteByte(msg, to->lightpflags);
+//	}
+//	if (bits & E5_GLOW)
+//	{
+//		MSG_WriteByte(msg, to->glowsize);
+//		MSG_WriteByte(msg, to->glowcolor);
+//	}
+//	if (bits & E5_COLORMOD)
+//	{
+//		MSG_WriteByte(msg, to->colormod[0]);
+//		MSG_WriteByte(msg, to->colormod[1]);
+//		MSG_WriteByte(msg, to->colormod[2]);
+//	}
+}
+
+void SVDP_EmitEntitiesUpdate (client_t *client, packet_entities_t *to, sizebuf_t *msg)
+{
+	edict_t	*ent;
+	client_frame_t	*fromframe;
+	packet_entities_t *from;
+	int		oldindex, newindex;
+	int		oldnum, newnum;
+	int		oldmax;
+
+	// this is the frame that we are going to delta update from
+	if (client->delta_sequence != -1)
+	{
+		fromframe = &client->frames[client->delta_sequence & UPDATE_MASK];
+		from = &fromframe->entities;
+		oldmax = from->num_entities;
+	}
+	else
+	{
+		oldmax = 0;	// no delta update
+		from = NULL;
+	}
+	client->delta_sequence++;
+
+	MSG_WriteByte(msg, svcdp_entities);
+	MSG_WriteLong(msg, 0);
+	if (client->protocol == SCP_DARKPLACES7)
+		MSG_WriteLong(msg, 0);
+
+	for (newindex = 0; newindex < to->num_entities; newindex++)
+		to->entities[newindex].bitmask = 0;
+
+	newindex = 0;
+	oldindex = 0;
+//Con_Printf ("---%i to %i ----\n", client->delta_sequence & UPDATE_MASK
+//			, client->netchan.outgoing_sequence & UPDATE_MASK);
+	while (newindex < to->num_entities || oldindex < oldmax)
+	{
+		newnum = newindex >= to->num_entities ? 0x7fff : to->entities[newindex].number;
+		oldnum = oldindex >= oldmax ? 0x7fff : from->entities[oldindex].number;
+
+		if (newnum == oldnum)
+		{	// delta update from old position
+//Con_Printf ("delta %i\n", newnum);
+			SVDP_EmitEntity (&from->entities[oldindex], &to->entities[newindex], msg, false);			
+			oldindex++;
+			newindex++;
+			continue;
+		}
+
+		if (newnum < oldnum)
+		{	// this is a new entity, send it from the baseline
+			ent = EDICT_NUM(svprogfuncs, newnum);
+//Con_Printf ("baseline %i\n", newnum);
+			SVDP_EmitEntity (&ent->baseline, &to->entities[newindex], msg, true);			
+			newindex++;
+			continue;
+		}
+
+		if (newnum > oldnum)
+		{	// the old entity isn't present in the new message
+//Con_Printf ("remove %i\n", oldnum);
+			MSG_WriteShort(msg, oldnum | 0x8000);
+			oldindex++;
+			continue;
+		}
+	}
+
+	MSG_WriteShort(msg, 0x8000);
+}
+#endif
 
 
 int SV_HullNumForPlayer(int h2hull, float *mins, float *maxs)
@@ -1940,9 +2257,6 @@ void SV_WriteEntitiesToClient (client_t *client, sizebuf_t *msg, qboolean ignore
 	edict_t	*clent;
 	client_frame_t	*frame;
 	entity_state_t	*state;
-#ifdef NQPROT
-	int nqprot = !ISQWCLIENT(client);
-#endif
 
 	client_t *split;
 
@@ -2077,7 +2391,7 @@ void SV_WriteEntitiesToClient (client_t *client, sizebuf_t *msg, qboolean ignore
 
 	if (client->viewent
  #ifdef NQPROT
-  && !nqprot
+  && ISQWCLIENT(client)
   #endif
   )	//this entity is watching from outside themselves. The client is tricked into thinking that they themselves are in the view ent, and a new dummy ent (the old them) must be spawned.
 	{
@@ -2132,7 +2446,7 @@ void SV_WriteEntitiesToClient (client_t *client, sizebuf_t *msg, qboolean ignore
 	}
 
 #ifdef NQPROT
-	for (e=(nqprot?1:sv.allocated_client_slots+1) ; e<sv.num_edicts ; e++)
+	for (e=(ISQWCLIENT(client)?sv.allocated_client_slots+1:1) ; e<sv.num_edicts ; e++)
 #else
 	for (e=sv.allocated_client_slots+1 ; e<sv.num_edicts ; e++)
 #endif
@@ -2218,7 +2532,7 @@ void SV_WriteEntitiesToClient (client_t *client, sizebuf_t *msg, qboolean ignore
 			continue;
 
 #ifdef NQPROT
-		if (nqprot)
+		if (client->protocol == SCP_NETQUAKE)
 		{
 			if (msg->cursize + 32 > msg->maxsize)
 				break;
@@ -2226,8 +2540,9 @@ void SV_WriteEntitiesToClient (client_t *client, sizebuf_t *msg, qboolean ignore
 			continue;
 		}
 #endif
-		if (SV_AddNailUpdate (ent))
-			continue;	// added to the special update list
+		if (ISQWCLIENT(client))
+			if (SV_AddNailUpdate (ent))
+				continue;	// added to the special update list
 #ifdef PEXT_LIGHTUPDATES
 		if (client->fteprotocolextensions & PEXT_LIGHTUPDATES)
 			if (SV_AddLightUpdate (ent))
@@ -2397,8 +2712,15 @@ void SV_WriteEntitiesToClient (client_t *client, sizebuf_t *msg, qboolean ignore
 #endif
 	}
 #ifdef NQPROT
-	if (nqprot)
+	if (client->protocol == SCP_NETQUAKE)
 		return;
+
+	if (client->protocol == SCP_DARKPLACES6 || client->protocol == SCP_DARKPLACES7)
+	{
+		SVDP_EmitEntitiesUpdate(client, pack, msg);
+		SV_EmitCSQCUpdate(client, msg);
+		return;
+	}
 #endif
 
 	if (!sv.demostatevalid)

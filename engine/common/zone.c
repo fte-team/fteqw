@@ -947,6 +947,9 @@ Hunk_AllocName
 */
 void *Hunk_AllocName (int size, char *name)
 {
+#ifdef NOHIGH
+	int roundup;
+#endif
 	hunk_t	*h;
 	
 #ifdef PARANOID
@@ -971,7 +974,10 @@ void *Hunk_AllocName (int size, char *name)
 	h = (hunk_t *)(hunk_base + hunk_low_used);
 
 #ifdef NOHIGH
-	if (!VirtualAlloc (hunk_base, hunk_low_used+size+sizeof(hunk_t), MEM_COMMIT, PAGE_READWRITE))
+	roundup = hunk_low_used+size+sizeof(hunk_t);
+	roundup += 1024*64;
+	roundup &= ~(1024*64 - 1);
+	if (!VirtualAlloc (hunk_base, roundup, MEM_COMMIT, PAGE_READWRITE))
 	{
 		char *buf;
 		Hunk_Print(true);

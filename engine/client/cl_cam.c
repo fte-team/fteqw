@@ -132,6 +132,7 @@ void Cam_Unlock(int pnum)
 
 void Cam_Lock(int pnum, int playernum)
 {
+	int i;
 
 	cam_lastviewtime[pnum] = -1000;
 
@@ -148,6 +149,9 @@ void Cam_Lock(int pnum, int playernum)
 	}
 
 	Sbar_Changed();
+
+	for (i = 0; i < MAX_CLIENTS; i++)
+		CL_NewTranslation(i);
 }
 
 trace_t Cam_DoTrace(vec3_t vec1, vec3_t vec2)

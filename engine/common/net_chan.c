@@ -352,26 +352,6 @@ void Netchan_Transmit (netchan_t *chan, int length, qbyte *data, int rate)
 		send.maxsize = MAX_NQMSGLEN + PACKET_HEADER;
 		send.cursize = 0;
 
-		//send out the unreliable
-		if (length)
-		{
-			MSG_WriteLong(&send, 0);
-			MSG_WriteLong(&send, BigLong(chan->outgoing_unreliable));
-			chan->outgoing_unreliable++;
-
-			SZ_Write (&send, data, length);
-
-			*(int*)send_buf = BigLong(NETFLAG_UNRELIABLE | send.cursize);
-			NET_SendPacket (chan->sock, send.cursize, send.data, chan->remote_address);
-
-			if (chan->cleartime < realtime)
-				chan->cleartime = realtime + send.cursize/(float)rate;
-			else
-				chan->cleartime += send.cursize/(float)rate;
-
-			send.cursize = 0;
-		}
-
 		if (!chan->reliable_length && chan->message.cursize)
 		{
 			memcpy (chan->reliable_buf, chan->message_buf, chan->message.cursize);
@@ -389,6 +369,11 @@ void Netchan_Transmit (netchan_t *chan, int length, qbyte *data, int rate)
 				i = MAX_NQDATAGRAM;
 
 			SZ_Write (&send, chan->reliable_buf+chan->reliable_start, i);
+			if (send.cursize + length < send.maxsize)
+			{	//throw the unreliable packet into the same one as the reliable (but not sent reliably)
+				SZ_Write (&send, data, length);
+				length = 0;
+			}
 
 
 			if (chan->reliable_start+i == chan->reliable_length)
@@ -401,6 +386,26 @@ void Netchan_Transmit (netchan_t *chan, int length, qbyte *data, int rate)
 				chan->cleartime = realtime + send.cursize/(float)rate;
 			else
 				chan->cleartime += send.cursize/(float)rate;
+		}
+
+		//send out the unreliable (if still unsent)
+		if (length)
+		{
+			MSG_WriteLong(&send, 0);
+			MSG_WriteLong(&send, BigLong(chan->outgoing_unreliable));
+			chan->outgoing_unreliable++;
+
+			SZ_Write (&send, data, length);
+
+			*(int*)send_buf = BigLong(NETFLAG_UNRELIABLE | send.cursize);
+			NET_SendPacket (chan->sock, send.cursize, send.data, chan->remote_address);
+
+			if (chan->cleartime < realtime)
+				chan->cleartime = realtime + send.cursize/(float)rate;
+			else
+				chan->cleartime += send.cursize/(float)rate;
+
+			send.cursize = 0;
 		}
 		return;
 	}

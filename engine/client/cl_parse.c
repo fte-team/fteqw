@@ -1222,7 +1222,7 @@ void CL_ParseServerData (void)
 	if (cls.fteprotocolextensions & PEXT_FLOATCOORDS)
 	{
 		sizeofcoord = 4;
-		sizeofangle = 1;
+		sizeofangle = 2;
 	}
 	else
 	{
@@ -2386,6 +2386,7 @@ void CL_NewTranslation (int slot)
 
 	char *s;
 	player_info_t	*player;
+	int local;
 
 	if (slot >= MAX_CLIENTS)
 		Sys_Error ("CL_NewTranslation: slot > MAX_CLIENTS");
@@ -2411,7 +2412,15 @@ void CL_NewTranslation (int slot)
 		bottom = player->bottomcolor;
 		if (!cl.splitclients && !(cl.fpd & FPD_NO_FORCE_COLOR))	//no colour/skin forcing in splitscreen.
 		{
-			if (cl.teamplay && !strcmp(player->team, cl.players[cl.playernum[0]].team))
+			if (cl.teamplay && cl.spectator)
+			{
+				local = Cam_TrackNum(0);
+				if (local < 0)
+					local = cl.playernum[0];
+			}
+			else
+				local = cl.playernum[0];
+			if (cl.teamplay && !strcmp(player->team, cl.players[local].team))
 			{
 				if (cl_teamtopcolor>=0)
 					top = cl_teamtopcolor;

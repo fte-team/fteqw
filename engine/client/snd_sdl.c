@@ -3,53 +3,61 @@
 
 #include <SDL.h>
 
-extern cvar_t snd_khz;
-
 #define	SOUND_BUFFER_SIZE			0x0400
 
-int snd_inited;
-
-soundcardinfo_t *sndcardinfo;
-
-int snd_firsttime = 0;
-
-int aimedforguid;
-
-//lamocodec.
-static char buffer[SOUND_BUFFER_SIZE];
-int sndpos;
-
-void SNDDMA_Submit(soundcardinfo_t *sc)
-{	//We already wrote it into the 'dma' buffer (heh, the closest we can get to it at least)
-	//so we now wait for sdl to request it.
-	//yes, this can result in slow sound.
-}
-void SNDDMA_Shutdown(soundcardinfo_t *sc)
+static void SSDL_Shutdown(soundcardinfo_t *sc)
 {
-	if (snd_inited)
-	{
-		snd_inited = false;
-		SDL_CloseAudio();
-	}
+Con_Printf("Shutdown SDL sound\n");
+	SDL_CloseAudio();
+Con_Printf("buffer\n");
+	if (sc->sn.buffer)
+		free(sc->sn.buffer);
+	sc->sn.buffer = NULL;
+Con_Printf("down\n");
 }
-int SNDDMA_GetDMAPos(soundcardinfo_t *sc)
+static unsigned int SSDL_GetDMAPos(soundcardinfo_t *sc)
 {
-	sc->sn.samplepos = (sndpos / (sc->sn.samplebits/8)) % sc->sn.samples;
+	sc->sn.samplepos = (sc->snd_sent / (sc->sn.samplebits/8)) % sc->sn.samples;
 	return sc->sn.samplepos;
 }
 
-void SNDDMA_Paint(void *userdata, qbyte *stream, int len)
+//this function is called from inside SDL.
+//transfer the 'dma' buffer into the buffer it requests.
+static void SSDL_Paint(void *userdata, qbyte *stream, int len)
 {
+	soundcardinfo_t *sc = userdata;
+
 	if (len > SOUND_BUFFER_SIZE)
 		len = SOUND_BUFFER_SIZE;	//whoa nellie!
-	if (len > SOUND_BUFFER_SIZE - sndpos)
+	if (len > SOUND_BUFFER_SIZE - sc->snd_sent)
 	{	//buffer will wrap, fill in the rest
-		memcpy(stream, buffer + sndpos, SOUND_BUFFER_SIZE - sndpos);
-		len -= SOUND_BUFFER_SIZE - sndpos;
-		sndpos = 0;
+		memcpy(stream, sc->sn.buffer + sc->snd_sent, SOUND_BUFFER_SIZE - sc->snd_sent);
+		len -= SOUND_BUFFER_SIZE - sc->snd_sent;
+		sc->snd_sent = 0;
 	}	//and finish from the start
-	memcpy(stream, buffer + sndpos, len);
-	sndpos += len;
+	memcpy(stream, sc->sn.buffer + sc->snd_sent, len);
+	sc->snd_sent += len;
+}
+
+static void *SSDL_LockBuffer(soundcardinfo_t *sc)
+{
+	SDL_LockAudio();
+	return sc->sn.buffer;
+}
+
+static void SSDL_UnlockBuffer(soundcardinfo_t *sc, void *buffer)
+{
+	SDL_UnlockAudio();
+}
+
+static void SSDL_SetUnderWater(soundcardinfo_t *sc, qboolean uw)
+{
+}
+
+
+static void SSDL_Submit(soundcardinfo_t *sc)
+{
+	//SDL will call SSDL_Paint to paint when it's time, and the sound buffer is always there...
 }
 
 
@@ -57,16 +65,15 @@ void S_UpdateCapture(void)	//any ideas how to get microphone input?
 {
 }
 
-int SNDDMA_Init(soundcardinfo_t *sc)
+static int SDL_InitCard(soundcardinfo_t *sc, int cardnum)
 {
 	SDL_AudioSpec desired, obtained;
 
-	if (snd_inited)
+	if (cardnum)
 	{	//our init code actually calls this function multiple times, in the case that the user has multiple sound cards
-//		Con_Printf("Sound was already inited\n");
 		return 2;	//erm. SDL won't allow multiple sound cards anyway.
 	}
-	
+
 Con_Printf("SDL AUDIO INITING\n");
 	if(SDL_InitSubSystem(SDL_INIT_AUDIO | SDL_INIT_NOPARACHUTE))
 	{
@@ -76,24 +83,12 @@ Con_Printf("SDL AUDIO INITING\n");
 
 	memset(&desired, 0, sizeof(desired));
 
-	if (!sc->sn.speed)
-	{
-		if (snd_khz.value >= 45)
-			sc->sn.speed = 48000;
-		else if (snd_khz.value >= 30)	//set by a slider
-			sc->sn.speed = 44100;
-		else if (snd_khz.value >= 20)
-			sc->sn.speed = 22050;
-		else
-			sc->sn.speed = 11025;
-	}
-
 	desired.freq = sc->sn.speed;
 	desired.channels = 2;
 	desired.samples = SOUND_BUFFER_SIZE;
 	desired.format = AUDIO_S16;
-	desired.callback = SNDDMA_Paint;
-	desired.userdata = sc;	
+	desired.callback = SSDL_Paint;
+	desired.userdata = sc;
 
 
 	if ( SDL_OpenAudio(&desired, &obtained) < 0 )
@@ -105,14 +100,18 @@ Con_Printf("SDL AUDIO INITING\n");
 	sc->sn.speed = desired.freq;
 	sc->sn.samplebits = 16;
 	sc->sn.samples = SOUND_BUFFER_SIZE;
-	sc->sn.buffer = buffer;
+	sc->sn.buffer = malloc(SOUND_BUFFER_SIZE*sc->sn.samplebits/8);
 	Con_Printf("Got sound %i-%i\n", obtained.freq, obtained.format);
-	snd_inited = true;
 	SDL_PauseAudio(0);
+
+	sc->Lock		= SSDL_LockBuffer;
+	sc->Unlock		= SSDL_UnlockBuffer;
+	sc->SetWaterDistortion	= SSDL_SetUnderWater;
+	sc->Submit		= SSDL_Submit;
+	sc->Shutdown		= SSDL_Shutdown;
+	sc->GetDMAPos		= SSDL_GetDMAPos;
+
 	return true;
 }
 
-void SNDDMA_SetUnderWater(qboolean underwater)
-{
-}
-
+sounddriver pSDL_InitCard = &SDL_InitCard;

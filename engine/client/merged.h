@@ -103,7 +103,7 @@ extern qbyte	*FNC(Mod_Q1LeafPVS)					(struct mleaf_s *leaf, struct model_s *mode
 extern void	FNC(Mod_NowLoadExternal)				(void);
 
 extern void	FNC(Mod_Think)							(void);
-extern void	(*Mod_GetTag)							(struct model_s *model, int tagnum, int frame, float **org, float **axis);
+extern qboolean	(*Mod_GetTag)						(struct model_s *model, int tagnum, int frame, int frame2, float f2ness, float f1time, float f2time, float *transforms);
 extern int (*Mod_TagNumForName)						(struct model_s *model, char *name);
 
 #undef FNC

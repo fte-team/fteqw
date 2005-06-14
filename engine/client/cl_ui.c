@@ -368,18 +368,11 @@ int VM_LerpTag(void *out, model_t *model, int f1, int f2, float l2, char *tagnam
 	float *ang;
 	float *org;
 
-	float *org1;
-	float *ang1;
-	float *org2;
-	float *ang2;
-
-	float l1;
+	float tr[12];
+	qboolean found;
 
 	org = (float*)out;
 	ang = ((float*)out+3);
-
-	l1 = 1-l2;
-
 
 	if (Mod_GetTag)
 	{
@@ -387,31 +380,25 @@ int VM_LerpTag(void *out, model_t *model, int f1, int f2, float l2, char *tagnam
 			tagnum = Mod_TagNumForName(model, tagname);
 		else
 			tagnum = 0;
-		Mod_GetTag(model, tagnum, f1, &org1, &ang1);
-		Mod_GetTag(model, tagnum, f2, &org2, &ang2);
+		found = Mod_GetTag(model, tagnum, f1, f2, l2, 0, 0, tr);
 	}
 	else
+		found = false;
+
+	if (found)
 	{
-		ang1=ang2=NULL;
-		org1=org2=NULL;	//msvc was warning about this not being present.
-	}
-	if (ang1 && ang2)
-	{
-		org[0] = org1[0]*l1 + org2[0]*l2;
-		org[1] = org1[1]*l1 + org2[1]*l2;
-		org[2] = org1[2]*l1 + org2[2]*l2;
-
-		ang[0] = ang1[0]*l1 + ang2[0]*l2;
-		ang[1] = ang1[1]*l1 + ang2[1]*l2;
-		ang[2] = ang1[2]*l1 + ang2[2]*l2;
-
-		ang[3] = ang1[3]*l1 + ang2[3]*l2;
-		ang[4] = ang1[4]*l1 + ang2[4]*l2;
-		ang[5] = ang1[5]*l1 + ang2[5]*l2;
-
-		ang[6] = ang1[6]*l1 + ang2[6]*l2;
-		ang[7] = ang1[7]*l1 + ang2[7]*l2;
-		ang[8] = ang1[8]*l1 + ang2[8]*l2;
+		ang[0] = tr[0];
+		ang[1] = tr[1];
+		ang[2] = tr[2];
+		org[0] = tr[3];
+		ang[3] = tr[4];
+		ang[4] = tr[5];
+		ang[5] = tr[6];
+		org[1] = tr[7];
+		ang[6] = tr[8];
+		ang[7] = tr[9];
+		ang[8] = tr[10];
+		org[2] = tr[11];
 
 		return true;
 	}

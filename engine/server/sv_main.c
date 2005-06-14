@@ -242,6 +242,16 @@ void VARGS SV_Error (char *error, ...)
 	_vsnprintf (string,sizeof(string)-1, error,argptr);
 	va_end (argptr);
 
+	if (svprogfuncs)
+	{
+		int size = 1024*1024*8;
+		char *buffer = BZ_Malloc(size);
+		svprogfuncs->save_ents(svprogfuncs, buffer, &size, 3);
+		COM_WriteFile("ssqccore.txt", buffer, size);
+		BZ_Free(buffer);
+	}
+
+
 	SV_EndRedirect();
 
 	Con_Printf ("SV_Error: %s\n",string);
@@ -299,8 +309,9 @@ void SV_FinalMessage (char *message)
 
 	for (i=0, cl = svs.clients ; i<MAX_CLIENTS ; i++, cl++)
 		if (cl->state >= cs_spawned)
-			Netchan_Transmit (&cl->netchan, sv.datagram.cursize
-			, sv.datagram.data, 10000);
+			if (ISNQCLIENT(cl) || ISQWCLIENT(cl))
+				Netchan_Transmit (&cl->netchan, sv.datagram.cursize
+						, sv.datagram.data, 10000);
 }
 
 
@@ -997,9 +1008,12 @@ void SVC_GetChallenge (void)
 		}
 		Netchan_OutOfBand(NS_SERVER, net_from, over-buf, buf);
 
-
-//		buf = va("challenge FTE%i", svs.challenges[i].challenge);
-//		Netchan_OutOfBand(NS_SERVER, net_from, strlen(buf)+1, buf);
+		if (sv_listen.value >= 2)
+		{
+		//dp can respond to this (and fte won't get confused because the challenge will be wrong)
+			buf = va("challenge FTE%i", svs.challenges[i].challenge);
+			Netchan_OutOfBand(NS_SERVER, net_from, strlen(buf)+1, buf);
+		}
 	}
 
 //	Netchan_OutOfBandPrint (net_from, "%c%i", S2C_CHALLENGE, 
@@ -1209,6 +1223,8 @@ client_t *SVC_DirectConnect(void)
 
 	if (*(Cmd_Argv(0)+7) == '\\')
 	{
+		if (sv_listen.value < 2)
+			return NULL;
 		Q_strncpyz (userinfo[0], net_message.data + 11, sizeof(userinfo[0])-1);
 
 		if (strcmp(Info_ValueForKey(userinfo[0], "protocol"), "darkplaces 3"))
@@ -1225,7 +1241,15 @@ client_t *SVC_DirectConnect(void)
 		else
 			protocol = SCP_DARKPLACES6;
 
-		challenge = atoi(Info_ValueForKey(userinfo[0], "challenge"));
+		s = Info_ValueForKey(userinfo[0], "challenge");
+		if (!strncmp(s, "FTE", 3))
+			challenge = atoi(s+3);
+		else
+			challenge = atoi(s);
+
+		s = Info_ValueForKey(userinfo[0], "name");
+		if (!*s)
+			Info_SetValueForKey(userinfo[0], "name", "CONNECTING", sizeof(userinfo[0]));
 
 		qport = 0;
 	}
@@ -1434,7 +1458,9 @@ client_t *SVC_DirectConnect(void)
 	SV_FixupName(name, name);
 
 	if (!*name)
+	{
 		name = "Hidden";
+	}
 	else if (!stricmp(name, "console"))
 		name = "Not Console";	//have fun dudes.
 
@@ -2022,12 +2048,12 @@ qboolean SV_ConnectionlessPacket (void)
 	return false;
 }
 
+#ifdef NQPROT
 void SVNQ_ConnectionlessPacket(void)
 {
 	sizebuf_t sb;
 	int header;
 	int length;
-	client_t *client;
 	char *str;
 	char buffer[256];
 	if (net_from.type == NA_LOOPBACK)
@@ -2077,6 +2103,7 @@ void SVNQ_ConnectionlessPacket(void)
 		break;
 	}
 }
+#endif
 
 /*
 ==============================================================================
@@ -2458,7 +2485,7 @@ void SV_CheckTimeouts (void)
 		if (cl->state == cs_connected || cl->state == cs_spawned) {
 			if (!cl->spectator)
 				nclients++;
-			if (cl->netchan.last_received < droptime && cl->netchan.remote_address.type != NA_LOOPBACK) {
+			if (cl->netchan.last_received < droptime && cl->netchan.remote_address.type != NA_LOOPBACK && cl->protocol != SCP_BAD) {
 				SV_BroadcastTPrintf (PRINT_HIGH, STL_CLIENTTIMEDOUT, cl->name);
 				SV_DropClient (cl); 
 				cl->state = cs_free;	// don't bother with zombie state
@@ -3056,7 +3083,7 @@ void Master_Heartbeat (void)
 {
 	char		string[2048];
 	int			active;
-	int			i;
+	int			i, j;
 	qboolean	madeqwstring = false;
 	char	data[2];
 
@@ -3112,9 +3139,9 @@ void Master_Heartbeat (void)
 				{
 					// count active users
 					active = 0;
-					for (i=0 ; i<MAX_CLIENTS ; i++)
-						if (svs.clients[i].state == cs_connected ||
-						svs.clients[i].state == cs_spawned )
+					for (j=0 ; j<MAX_CLIENTS ; j++)
+						if (svs.clients[j].state == cs_connected ||
+						svs.clients[j].state == cs_spawned )
 							active++;
 
 					sprintf (string, "%c\n%i\n%i\n", S2M_HEARTBEAT,

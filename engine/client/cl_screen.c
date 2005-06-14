@@ -106,7 +106,7 @@ extern cvar_t          scr_printspeed;
 extern cvar_t			scr_allowsnap;
 extern cvar_t			scr_sshot_type;
 extern  		cvar_t  crosshair;
-extern cvar_t			con_height;
+extern cvar_t			scr_consize;
 
 qboolean        scr_initialized;                // ready to draw
 
@@ -1259,7 +1259,7 @@ void SCR_SetUpToDrawConsole (void)
 	}
 	else if (key_dest == key_console || scr_chatmode)
 	{
-		scr_conlines = vid.height*con_height.value/100;    // half screen
+		scr_conlines = vid.height*scr_consize.value;    // half screen
 		if (scr_conlines < 32)
 			scr_conlines = 32;	//prevent total loss of console.
 		else if (scr_conlines>vid.height)

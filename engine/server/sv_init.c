@@ -544,11 +544,15 @@ void SV_SpawnServer (char *server, char *startspot, qboolean noents, qboolean us
 	}
 
 	if (sv_bigcoords.value)
+	{
 		sizeofcoord = 4;
+		sizeofangle = 2;
+	}
 	else
+	{
 		sizeofcoord = 2;
-
-	sizeofangle = 1;
+		sizeofangle = 1;
+	}
 
 	VoteFlushAll();
 #ifndef SERVERONLY

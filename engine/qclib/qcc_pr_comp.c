@@ -314,10 +314,10 @@ QCC_opcode_t pr_opcodes[] =
 
  {7, "<THINKTIME>", "THINKTIME",			-1, ASSOC_LEFT,	&type_entity, &type_float, &type_void},
 
- {7, "(+)", "BITSET",						6,	ASSOC_RIGHT,	&type_float, &type_float, &type_float},
- {7, "(+)", "BITSETP",						6,	ASSOC_RIGHT,	&type_pointer, &type_float, &type_float},
- {7, "(-)", "BITCLR",						6,	ASSOC_RIGHT,	&type_float, &type_float, &type_float},
- {7, "(-)", "BITCLRP",						6,	ASSOC_RIGHT,	&type_pointer, &type_float, &type_float},
+ {7, "|=", "BITSET_F",						6,	ASSOC_RIGHT,	&type_float, &type_float, &type_float},
+ {7, "|=", "BITSETP_F",						6,	ASSOC_RIGHT,	&type_pointer, &type_float, &type_float},
+ {7, "(-)", "BITCLR_F",						6,	ASSOC_RIGHT,	&type_float, &type_float, &type_float},
+ {7, "(-)", "BITCLRP_F",					6,	ASSOC_RIGHT,	&type_pointer, &type_float, &type_float},
 
  {7, "<RAND0>", "RAND0",					-1, ASSOC_LEFT,	&type_void, &type_void, &type_float},
  {7, "<RAND1>", "RAND1",					-1, ASSOC_LEFT,	&type_float, &type_void, &type_float},
@@ -477,18 +477,29 @@ QCC_opcode_t pr_opcodes[] =
 
 {7, "<>",	"GADDRESS", -1, ASSOC_LEFT,				&type_float,	&type_float,	&type_float},
 
-{7, "<>",	"GLOAD_I", -1, ASSOC_LEFT,				&type_float,	&type_float,	&type_float},
-{7, "<>",	"GLOAD_F", -1, ASSOC_LEFT,				&type_float,	&type_float,	&type_float},
-{7, "<>",	"GLOAD_FLD", -1, ASSOC_LEFT,				&type_float,	&type_float,	&type_float},
-{7, "<>",	"GLOAD_ENT", -1, ASSOC_LEFT,				&type_float,	&type_float,	&type_float},
-{7, "<>",	"GLOAD_S", -1, ASSOC_LEFT,				&type_float,	&type_float,	&type_float},
-{7, "<>",	"GLOAD_FNC", -1, ASSOC_LEFT,				&type_float,	&type_float,	&type_float},
+{7, "<>",	"GLOAD_I",		-1, ASSOC_LEFT,				&type_float,	&type_float,	&type_float},
+{7, "<>",	"GLOAD_F",		-1, ASSOC_LEFT,				&type_float,	&type_float,	&type_float},
+{7, "<>",	"GLOAD_FLD",	-1, ASSOC_LEFT,				&type_float,	&type_float,	&type_float},
+{7, "<>",	"GLOAD_ENT",	-1, ASSOC_LEFT,				&type_float,	&type_float,	&type_float},
+{7, "<>",	"GLOAD_S",		-1, ASSOC_LEFT,				&type_float,	&type_float,	&type_float},
+{7, "<>",	"GLOAD_FNC",	-1, ASSOC_LEFT,				&type_float,	&type_float,	&type_float},
 
-{7, "<>",	"BOUNDCHECK", -1, ASSOC_LEFT,				&type_float,	&type_float,	&type_float},
+{7, "<>",	"BOUNDCHECK",	-1, ASSOC_LEFT,				&type_float,	&type_float,	&type_float},
 
-{7, "=",	"STOREP_P", 6, ASSOC_RIGHT,				&type_pointer,	&type_pointer,	&type_void},
-{7, "<PUSH>",	"PUSH", -1, ASSOC_RIGHT,			&type_float,	&type_void,		&type_pointer},
-{7, "<POP>",	"POP", -1, ASSOC_RIGHT,				&type_float,	&type_void,		&type_void},
+{7, "=",	"STOREP_P",		6,	ASSOC_RIGHT,				&type_pointer,	&type_pointer,	&type_void},
+{7, "<PUSH>",	"PUSH",		-1, ASSOC_RIGHT,			&type_float,	&type_void,		&type_pointer},
+{7, "<POP>",	"POP",		-1, ASSOC_RIGHT,			&type_float,	&type_void,		&type_void},
+
+ {7, "|=", "BITSET_I",		6,	ASSOC_RIGHT,				&type_integer, &type_integer, &type_integer},
+ {7, "|=", "BITSETP_I",		6,	ASSOC_RIGHT,				&type_pointer, &type_integer, &type_integer},
+ {7, "*=", "MULSTORE_I",	6,	ASSOC_RIGHT_RESULT,		&type_integer, &type_integer, &type_integer},
+ {7, "*=", "MULSTOREP_I",	6,	ASSOC_RIGHT_RESULT,		&type_pointer, &type_integer, &type_vector},
+ {7, "/=", "DIVSTORE_I",	6,	ASSOC_RIGHT_RESULT,		&type_integer, &type_integer, &type_integer},
+ {7, "/=", "DIVSTOREP_I",	6,	ASSOC_RIGHT_RESULT,		&type_pointer, &type_integer, &type_vector},
+ {7, "+=", "ADDSTORE_I",	6,	ASSOC_RIGHT_RESULT,		&type_integer, &type_integer, &type_integer},
+ {7, "+=", "ADDSTOREP_I",	6,	ASSOC_RIGHT_RESULT,		&type_pointer, &type_integer, &type_integer},
+ {7, "-=", "SUBSTORE_I",	6,	ASSOC_RIGHT_RESULT,		&type_integer, &type_integer, &type_integer},
+ {7, "-=", "SUBSTOREP_I",	6,	ASSOC_RIGHT_RESULT,		&type_pointer, &type_vector, &type_vector},
 
  {0, NULL}
 };
@@ -842,13 +853,14 @@ void QCC_FreeOffset(gofs_t ofs, unsigned int size)
 {
 	freeoffset_t *fofs;
 	if (ofs+size == numpr_globals)
-	{
+	{	//fixme: is this a bug?
 		numpr_globals -= size;
 		return;
 	}
 
 	for (fofs = freeofs; fofs; fofs=fofs->next)
 	{
+		//fixme: if this means the last block becomes free, free them all.
 		if (fofs->ofs == ofs + size)
 		{
 			fofs->ofs -= size;
@@ -1328,10 +1340,13 @@ QCC_def_t *QCC_PR_Statement ( QCC_opcode_t *op, QCC_def_t *var_a, QCC_def_t *var
 			QCC_PR_ParseWarning(0, "Result of comparison is constant");
 		break;
 	case OP_EQ_F:
-	case OP_EQ_V:
 	case OP_EQ_S:
 	case OP_EQ_E:
 	case OP_EQ_FNC:
+//		if (opt_shortenifnots)
+//			if (var_b->constant && ((int*)qcc_pr_globals)[var_b->ofs]==0)	// (a == 0) becomes (!a)
+//				op = &pr_opcodes[(op - pr_opcodes) - OP_EQ_F + OP_NOT_F];
+	case OP_EQ_V:
 
 	case OP_NE_F:
 	case OP_NE_V:
@@ -7297,25 +7312,27 @@ void QCC_PR_ParseDefs (char *classname)
 					v = pr_immediate._float;
 					QCC_PR_Lex();
 				}
-
-				bits = 0;
-				i = (int)v;
-				if (i != v)
-					QCC_PR_ParseWarning(WARN_ENUMFLAGS_NOTINTEGER, "enumflags - %f not an integer", v);
-				else
-				{
-					while(i)
-					{
-						if (((i>>1)<<1) != i)
-							bits++;
-						i>>=1;
-					}
-					if (bits != 1)
-						QCC_PR_ParseWarning(WARN_ENUMFLAGS_NOTBINARY, "enumflags - value %i not a single bit", (int)v);
-				}
 			}
+
+			bits = 0;
+			i = (int)v;
+			if (i != v)
+				QCC_PR_ParseWarning(WARN_ENUMFLAGS_NOTINTEGER, "enumflags - %f not an integer", v);
+			else
+			{
+				while(i)
+				{
+					if (((i>>1)<<1) != i)
+						bits++;
+					i>>=1;
+				}
+				if (bits != 1)
+					QCC_PR_ParseWarning(WARN_ENUMFLAGS_NOTBINARY, "enumflags - value %i not a single bit", (int)v);
+			}
+
 			def = QCC_MakeFloatDef(v);
 			pHash_Add(&globalstable, name, def, qccHunkAlloc(sizeof(bucket_t)));
+
 			v*=2;
 
 			if (QCC_PR_CheckToken("}"))

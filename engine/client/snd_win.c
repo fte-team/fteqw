@@ -20,66 +20,23 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 #include "quakedef.h"
 #include "winquake.h"
 
-#ifndef NODIRECTX
-#define iDirectSoundCreate(a,b,c)	pDirectSoundCreate(a,b,c)
-#define iDirectSoundEnumerate(a,b,c)	pDirectSoundEnumerate(a,b)
-
-HRESULT (WINAPI *pDirectSoundCreate)(GUID FAR *lpGUID, LPDIRECTSOUND FAR *lplpDS, IUnknown FAR *pUnkOuter);
-HRESULT (WINAPI *pDirectSoundCaptureCreate)(GUID FAR *lpGUID, LPDIRECTSOUNDCAPTURE FAR *lplpDS, IUnknown FAR *pUnkOuter);
-HRESULT (WINAPI *pDirectSoundEnumerate)(LPDSENUMCALLBACKA lpCallback, LPVOID lpContext );
-#endif
-
 // 64K is > 1 second at 16-bit, 22050 Hz
 #define	WAV_BUFFERS				64
 #define	WAV_MASK				0x3F
 #define	WAV_BUFFER_SIZE			0x0400
 #define SECONDARY_BUFFER_SIZE	0x10000
 
-typedef enum {SIS_SUCCESS, SIS_FAILURE, SIS_NOTAVAIL, SIS_NOMORE} sndinitstat;
+static void WAV_Submit(soundcardinfo_t *sc);
 
-static qboolean	wavonly;
-//static qboolean	dsound_init;
-//static qboolean	wav_init;
-qboolean	snd_firsttime = true;
-static qboolean	primary_format_set;
-
-static int	sample16;
-//static int	snd_sent, snd_completed;
-
-
-/* 
- * Global variables. Must be visible to window-procedure function 
- *  so it can unlock and free the data block after it has been played. 
- */ 
-
-/*
-HANDLE		hData;
-HPSTR		lpData, lpData2;
-
-HGLOBAL		hWaveHdr;
-LPWAVEHDR	lpWaveHdr;
-
-HWAVEOUT    hWaveOut; 
-
-WAVEOUTCAPS	wavecaps;
-
-DWORD	gSndBufSize;
-
-MMTIME		mmstarttime;
-
-LPDIRECTSOUND pDS;
-LPDIRECTSOUNDBUFFER pDSBuf, pDSPBuf;
-*/
-HINSTANCE hInstDS;
-
-sndinitstat SNDDMA_InitDirect (soundcardinfo_t *sc);
-qboolean SNDDMA_InitWav (soundcardinfo_t *sc);
-
-
-
-
-
-soundcardinfo_t *sndcardinfo;
+typedef struct {
+	HWAVEOUT hWaveOut;
+	HANDLE hData;
+	HGLOBAL hWaveHdr;
+	HPSTR lpData;
+	LPWAVEHDR lpWaveHdr;
+//	DWORD		mmstarttime;
+	DWORD gSndBufSize;
+} wavhandle_t;
 
 /*
 ==================
@@ -90,15 +47,17 @@ S_BlockSound
 void S_BlockSound (void)
 {
 	soundcardinfo_t *sc;
+	wavhandle_t *wh;
 	
 	snd_blocked++;
 
 	for (sc = sndcardinfo; sc; sc=sc->next)
 	{
-		if (sc->snd_iswave && !sc->inactive_sound)
+		if (sc->Submit == WAV_Submit && !sc->inactive_sound)
 		{
+			wh = sc->handle;
 			if (snd_blocked == 1)
-				waveOutReset (sc->hWaveOut);
+				waveOutReset (wh->hWaveOut);
 		}
 	}
 }
@@ -116,965 +75,65 @@ void S_UnblockSound (void)
 }
 
 
+static void *WAV_Lock (soundcardinfo_t *sc)
+{
+	return sc->sn.buffer;
+}
+static void WAV_Unlock (soundcardinfo_t *sc, void *buffer)
+{
+}
+
 /*
 ==================
 FreeSound
 ==================
 */
 //per device
-void FreeSound (soundcardinfo_t *sc)
+static void WAV_Shutdown (soundcardinfo_t *sc)
 {
 	int		i;
+	wavhandle_t *wh = sc->handle;
 
-#ifndef NODIRECTX
-	if (sc->EaxKsPropertiesSet)
+	if (!wh)
+		return;
+	sc->handle = NULL;
+
+	waveOutReset (wh->hWaveOut);
+
+	if (wh->lpWaveHdr)
 	{
-		IKsPropertySet_Release(sc->EaxKsPropertiesSet);
+		for (i=0 ; i< WAV_BUFFERS ; i++)
+			waveOutUnprepareHeader (wh->hWaveOut, wh->lpWaveHdr+i, sizeof(WAVEHDR));
 	}
 
-	if (sc->pDSBuf)
+	waveOutClose (wh->hWaveOut);
+
+	if (wh->hWaveHdr)
 	{
-		sc->pDSBuf->lpVtbl->Stop(sc->pDSBuf);
-		sc->pDSBuf->lpVtbl->Release(sc->pDSBuf);
+		GlobalUnlock(wh->hWaveHdr); 
+		GlobalFree(wh->hWaveHdr);
 	}
 
-// only release primary buffer if it's not also the mixing buffer we just released
-	if (sc->pDSPBuf && (sc->pDSBuf != sc->pDSPBuf))
+	if (wh->hData)
 	{
-		sc->pDSPBuf->lpVtbl->Release(sc->pDSPBuf);
+		GlobalUnlock(wh->hData);
+		GlobalFree(wh->hData);
 	}
 
-	if (sc->pDS)
-	{
-		sc->pDS->lpVtbl->SetCooperativeLevel (sc->pDS, mainwindow, DSSCL_NORMAL);
-		sc->pDS->lpVtbl->Release(sc->pDS);
-	}
-#endif
-	if (sc->hWaveOut)
-	{
-		waveOutReset (sc->hWaveOut);
+	wh->hWaveOut = 0;
+	wh->hData = 0;
+	wh->hWaveHdr = 0;
+	wh->lpData = NULL;
+	wh->lpWaveHdr = NULL;
 
-		if (sc->lpWaveHdr)
-		{
-			for (i=0 ; i< WAV_BUFFERS ; i++)
-				waveOutUnprepareHeader (sc->hWaveOut, sc->lpWaveHdr+i, sizeof(WAVEHDR));
-		}
-
-		waveOutClose (sc->hWaveOut);
-
-		if (sc->hWaveHdr)
-		{
-			GlobalUnlock(sc->hWaveHdr); 
-			GlobalFree(sc->hWaveHdr);
-		}
-
-		if (sc->hData)
-		{
-			GlobalUnlock(sc->hData);
-			GlobalFree(sc->hData);
-		}
-
-	}
-
-#ifndef NODIRECTX
-	sc->pDS = NULL;
-	sc->pDSBuf = NULL;
-	sc->pDSPBuf = NULL;
-	sc->EaxKsPropertiesSet = NULL;
-	sc->dsound_init = false;
-#endif
-	sc->hWaveOut = 0;
-	sc->hData = 0;
-	sc->hWaveHdr = 0;
-	sc->lpData = NULL;
-	sc->lpWaveHdr = NULL;
-	sc->wav_init = false;
+	Z_Free(wh);
 }
 
 
-#ifndef NODIRECTX
-const char *dsndcard;
-GUID FAR *dsndguid;
-int dsnd_guids;
-int aimedforguid;
-BOOL (CALLBACK  DSEnumCallback)(GUID FAR *guid, LPCSTR str1, LPCSTR str2, LPVOID parm)
+
+static void WAV_SetUnderWater(soundcardinfo_t *sc, qboolean underwater)
 {
-	if (guid == NULL)
-		return TRUE;
 
-	if (aimedforguid == dsnd_guids)
-	{
-		dsndcard = str1;
-		dsndguid = guid;
-	}
-	dsnd_guids++;
-	return TRUE;
-}
-
-
-/*
-	Direct Sound.
-	These following defs should be moved to winquake.h somewhere.
-
-	We tell DS to use a different wave format. We do this to gain extra channels. >2
-	We still use the old stuff too, when we can for compatability.
-
-	EAX 2 is also supported.
-	This is a global state. Once applied, it's applied for other programs too.
-	We have to do a few special things to try to ensure support in all it's different versions.
-*/
-
-/* new formatTag:*/
-# define WAVE_FORMAT_EXTENSIBLE (0xfffe)
-
-/* Speaker Positions:*/
-# define SPEAKER_FRONT_LEFT              0x1
-# define SPEAKER_FRONT_RIGHT             0x2
-# define SPEAKER_FRONT_CENTER            0x4
-# define SPEAKER_LOW_FREQUENCY           0x8
-# define SPEAKER_BACK_LEFT               0x10
-# define SPEAKER_BACK_RIGHT              0x20
-# define SPEAKER_FRONT_LEFT_OF_CENTER    0x40
-# define SPEAKER_FRONT_RIGHT_OF_CENTER   0x80
-# define SPEAKER_BACK_CENTER             0x100
-# define SPEAKER_SIDE_LEFT               0x200
-# define SPEAKER_SIDE_RIGHT              0x400
-# define SPEAKER_TOP_CENTER              0x800
-# define SPEAKER_TOP_FRONT_LEFT          0x1000
-# define SPEAKER_TOP_FRONT_CENTER        0x2000
-# define SPEAKER_TOP_FRONT_RIGHT         0x4000
-# define SPEAKER_TOP_BACK_LEFT           0x8000
-# define SPEAKER_TOP_BACK_CENTER         0x10000
-# define SPEAKER_TOP_BACK_RIGHT          0x20000
-
-/* Bit mask locations reserved for future use*/
-# define SPEAKER_RESERVED                0x7FFC0000
-
-/* Used to specify that any possible permutation of speaker configurations*/
-# define SPEAKER_ALL                     0x80000000
-
-/* DirectSound Speaker Config*/
-# define KSAUDIO_SPEAKER_MONO            (SPEAKER_FRONT_CENTER)
-# define KSAUDIO_SPEAKER_STEREO          (SPEAKER_FRONT_LEFT | SPEAKER_FRONT_RIGHT)
-# define KSAUDIO_SPEAKER_QUAD            (SPEAKER_FRONT_LEFT | SPEAKER_FRONT_RIGHT | \
-                                         SPEAKER_BACK_LEFT  | SPEAKER_BACK_RIGHT)
-# define KSAUDIO_SPEAKER_SURROUND        (SPEAKER_FRONT_LEFT | SPEAKER_FRONT_RIGHT | \
-                                         SPEAKER_FRONT_CENTER | SPEAKER_BACK_CENTER)
-# define KSAUDIO_SPEAKER_5POINT1         (SPEAKER_FRONT_LEFT | SPEAKER_FRONT_RIGHT | \
-                                         SPEAKER_FRONT_CENTER | SPEAKER_LOW_FREQUENCY | \
-                                         SPEAKER_BACK_LEFT  | SPEAKER_BACK_RIGHT)
-# define KSAUDIO_SPEAKER_7POINT1         (SPEAKER_FRONT_LEFT | SPEAKER_FRONT_RIGHT | \
-                                         SPEAKER_FRONT_CENTER | SPEAKER_LOW_FREQUENCY | \
-                                         SPEAKER_BACK_LEFT | SPEAKER_BACK_RIGHT | \
-                                         SPEAKER_FRONT_LEFT_OF_CENTER | SPEAKER_FRONT_RIGHT_OF_CENTER)
-
-typedef struct {
-	WAVEFORMATEX    Format;	
-	union {
-		WORD wValidBitsPerSample;       /* bits of precision  */
-		WORD wSamplesPerBlock;          /* valid if wBitsPerSample==0 */
-		WORD wReserved;                 /* If neither applies, set to */
-										/* zero. */
-	} Samples;
-	DWORD           dwChannelMask;      /* which channels are */
-										/* present in stream  */
-	GUID            SubFormat;
-} QWAVEFORMATEX;
-
-const static GUID  KSDATAFORMAT_SUBTYPE_PCM = {0x00000001,0x0000,0x0010,
-						{0x80,
-						0x00,
-						0x00,
-						0xaa,
-						0x00,
-						0x38,
-						0x9b,
-						0x71}};
-
-#ifdef _IKsPropertySet_
-const static GUID  CLSID_EAXDIRECTSOUND = {0x4ff53b81, 0x1ce0, 0x11d3,
-{0xaa, 0xb8, 0x0, 0xa0, 0xc9, 0x59, 0x49, 0xd5}};
-const static GUID  DSPROPSETID_EAX20_LISTENERPROPERTIES = {0x306a6a8, 0xb224, 0x11d2, 
-{0x99, 0xe5, 0x0, 0x0, 0xe8, 0xd8, 0xc7, 0x22}};
-
-typedef struct _EAXLISTENERPROPERTIES
-{
-    long lRoom;                    // room effect level at low frequencies
-    long lRoomHF;                  // room effect high-frequency level re. low frequency level
-    float flRoomRolloffFactor;     // like DS3D flRolloffFactor but for room effect
-    float flDecayTime;             // reverberation decay time at low frequencies
-    float flDecayHFRatio;          // high-frequency to low-frequency decay time ratio
-    long lReflections;             // early reflections level relative to room effect
-    float flReflectionsDelay;      // initial reflection delay time
-    long lReverb;                  // late reverberation level relative to room effect
-    float flReverbDelay;           // late reverberation delay time relative to initial reflection
-    unsigned long dwEnvironment;   // sets all listener properties
-    float flEnvironmentSize;       // environment size in meters
-    float flEnvironmentDiffusion;  // environment diffusion
-    float flAirAbsorptionHF;       // change in level per meter at 5 kHz
-    unsigned long dwFlags;         // modifies the behavior of properties
-} EAXLISTENERPROPERTIES, *LPEAXLISTENERPROPERTIES;
-enum
-{
-    EAX_ENVIRONMENT_GENERIC,
-    EAX_ENVIRONMENT_PADDEDCELL,
-    EAX_ENVIRONMENT_ROOM,
-    EAX_ENVIRONMENT_BATHROOM,
-    EAX_ENVIRONMENT_LIVINGROOM,
-    EAX_ENVIRONMENT_STONEROOM,
-    EAX_ENVIRONMENT_AUDITORIUM,
-    EAX_ENVIRONMENT_CONCERTHALL,
-    EAX_ENVIRONMENT_CAVE,
-    EAX_ENVIRONMENT_ARENA,
-    EAX_ENVIRONMENT_HANGAR,
-    EAX_ENVIRONMENT_CARPETEDHALLWAY,
-    EAX_ENVIRONMENT_HALLWAY,
-    EAX_ENVIRONMENT_STONECORRIDOR,
-    EAX_ENVIRONMENT_ALLEY,
-    EAX_ENVIRONMENT_FOREST,
-    EAX_ENVIRONMENT_CITY,
-    EAX_ENVIRONMENT_MOUNTAINS,
-    EAX_ENVIRONMENT_QUARRY,
-    EAX_ENVIRONMENT_PLAIN,
-    EAX_ENVIRONMENT_PARKINGLOT,
-    EAX_ENVIRONMENT_SEWERPIPE,
-    EAX_ENVIRONMENT_UNDERWATER,
-    EAX_ENVIRONMENT_DRUGGED,
-    EAX_ENVIRONMENT_DIZZY,
-    EAX_ENVIRONMENT_PSYCHOTIC,
-
-    EAX_ENVIRONMENT_COUNT
-};
-typedef enum
-{
-    DSPROPERTY_EAXLISTENER_NONE,
-    DSPROPERTY_EAXLISTENER_ALLPARAMETERS,
-    DSPROPERTY_EAXLISTENER_ROOM,
-    DSPROPERTY_EAXLISTENER_ROOMHF,
-    DSPROPERTY_EAXLISTENER_ROOMROLLOFFFACTOR,
-    DSPROPERTY_EAXLISTENER_DECAYTIME,
-    DSPROPERTY_EAXLISTENER_DECAYHFRATIO,
-    DSPROPERTY_EAXLISTENER_REFLECTIONS,
-    DSPROPERTY_EAXLISTENER_REFLECTIONSDELAY,
-    DSPROPERTY_EAXLISTENER_REVERB,
-    DSPROPERTY_EAXLISTENER_REVERBDELAY,
-    DSPROPERTY_EAXLISTENER_ENVIRONMENT,
-    DSPROPERTY_EAXLISTENER_ENVIRONMENTSIZE,
-    DSPROPERTY_EAXLISTENER_ENVIRONMENTDIFFUSION,
-    DSPROPERTY_EAXLISTENER_AIRABSORPTIONHF,
-    DSPROPERTY_EAXLISTENER_FLAGS
-} DSPROPERTY_EAX_LISTENERPROPERTY;
-
-const static GUID DSPROPSETID_EAX20_BUFFERPROPERTIES ={
-    0x306a6a7, 
-    0xb224, 
-    0x11d2, 
-    {0x99, 0xe5, 0x0, 0x0, 0xe8, 0xd8, 0xc7, 0x22}};
-
-const static GUID CLSID_EAXDirectSound ={
-		0x4ff53b81, 
-		0x1ce0, 
-		0x11d3,
-		{0xaa, 0xb8, 0x0, 0xa0, 0xc9, 0x59, 0x49, 0xd5}};
-
-typedef struct _EAXBUFFERPROPERTIES
-{
-    long lDirect;                // direct path level
-    long lDirectHF;              // direct path level at high frequencies
-    long lRoom;                  // room effect level
-    long lRoomHF;                // room effect level at high frequencies
-    float flRoomRolloffFactor;   // like DS3D flRolloffFactor but for room effect
-    long lObstruction;           // main obstruction control (attenuation at high frequencies) 
-    float flObstructionLFRatio;  // obstruction low-frequency level re. main control
-    long lOcclusion;             // main occlusion control (attenuation at high frequencies)
-    float flOcclusionLFRatio;    // occlusion low-frequency level re. main control
-    float flOcclusionRoomRatio;  // occlusion room effect level re. main control
-    long lOutsideVolumeHF;       // outside sound cone level at high frequencies
-    float flAirAbsorptionFactor; // multiplies DSPROPERTY_EAXLISTENER_AIRABSORPTIONHF
-    unsigned long dwFlags;       // modifies the behavior of properties
-} EAXBUFFERPROPERTIES, *LPEAXBUFFERPROPERTIES;
-
-typedef enum
-{
-    DSPROPERTY_EAXBUFFER_NONE,
-    DSPROPERTY_EAXBUFFER_ALLPARAMETERS,
-    DSPROPERTY_EAXBUFFER_DIRECT,
-    DSPROPERTY_EAXBUFFER_DIRECTHF,
-    DSPROPERTY_EAXBUFFER_ROOM,
-    DSPROPERTY_EAXBUFFER_ROOMHF, 
-    DSPROPERTY_EAXBUFFER_ROOMROLLOFFFACTOR,
-    DSPROPERTY_EAXBUFFER_OBSTRUCTION,
-    DSPROPERTY_EAXBUFFER_OBSTRUCTIONLFRATIO,
-    DSPROPERTY_EAXBUFFER_OCCLUSION, 
-    DSPROPERTY_EAXBUFFER_OCCLUSIONLFRATIO,
-    DSPROPERTY_EAXBUFFER_OCCLUSIONROOMRATIO,
-    DSPROPERTY_EAXBUFFER_OUTSIDEVOLUMEHF,
-    DSPROPERTY_EAXBUFFER_AIRABSORPTIONFACTOR,
-    DSPROPERTY_EAXBUFFER_FLAGS
-} DSPROPERTY_EAX_BUFFERPROPERTY; 
-#endif
-
-/*
-==================
-SNDDMA_InitDirect
-
-Direct-Sound support
-==================
-*/
-sndinitstat SNDDMA_InitDirect (soundcardinfo_t *sc)
-{
-	extern cvar_t snd_khz, snd_eax, snd_speakers, snd_inactive;
-	DSBUFFERDESC	dsbuf;
-	DSBCAPS			dsbcaps;
-	DWORD			dwSize, dwWrite;
-	DSCAPS			dscaps;
-	QWAVEFORMATEX	format, pformat; 
-	HRESULT			hresult;
-	int				reps;
-
-	memset ((void *)&sc->sn, 0, sizeof (sc->sn));
-
-	sc->sn.numchannels = 2;
-	sc->sn.samplebits = 16;
-	if (!sc->sn.speed)
-	{
-		if (snd_khz.value >= 45)
-			sc->sn.speed = 48000;
-		else if (snd_khz.value >= 30)	//set by a slider
-			sc->sn.speed = 44100;
-		else if (snd_khz.value >= 20)
-			sc->sn.speed = 22050;
-		else
-			sc->sn.speed = 11025;
-	}
-
-	memset (&format, 0, sizeof(format));
-
-	if (snd_speakers.value >= 5)	//5.1 surround
-	{
-		format.Format.wFormatTag = WAVE_FORMAT_EXTENSIBLE;
-		format.Format.cbSize = 22;
-		memcpy(&format.SubFormat, &KSDATAFORMAT_SUBTYPE_PCM, sizeof(GUID));
-
-		format.dwChannelMask = KSAUDIO_SPEAKER_5POINT1;
-		sc->sn.numchannels = 6;
-	}
-	else if (snd_speakers.value >= 3)	//4 speaker quad
-	{
-		format.Format.wFormatTag = WAVE_FORMAT_EXTENSIBLE;
-		format.Format.cbSize = 22;
-		memcpy(&format.SubFormat, &KSDATAFORMAT_SUBTYPE_PCM, sizeof(GUID));
-
-		format.dwChannelMask = KSAUDIO_SPEAKER_QUAD;
-		sc->sn.numchannels = 4;
-	}
-	else if (snd_speakers.value >= 1.5)	//stereo
-	{
-		format.Format.wFormatTag = WAVE_FORMAT_PCM;
-		format.Format.cbSize = 0;
-		sc->sn.numchannels = 2;
-	}
-	else //mono time
-	{
-		format.Format.wFormatTag = WAVE_FORMAT_PCM;
-		format.Format.cbSize = 0;
-		sc->sn.numchannels = 1;
-	}
- 
-	format.Format.nChannels = sc->sn.numchannels;
-    format.Format.wBitsPerSample = sc->sn.samplebits;
-    format.Format.nSamplesPerSec = sc->sn.speed;
-    format.Format.nBlockAlign = format.Format.nChannels
-		*format.Format.wBitsPerSample / 8;
-    format.Format.nAvgBytesPerSec = format.Format.nSamplesPerSec
-		*format.Format.nBlockAlign;
-
-	if (!hInstDS)
-	{
-		hInstDS = LoadLibrary("dsound.dll");
-		
-		if (hInstDS == NULL)
-		{
-			Con_SafePrintf ("Couldn't load dsound.dll\n");
-			return SIS_FAILURE;
-		}
-
-		pDirectSoundCreate = (void *)GetProcAddress(hInstDS,"DirectSoundCreate");
-
-		if (!pDirectSoundCreate)
-		{
-			Con_SafePrintf ("Couldn't get DS proc addr\n");
-			return SIS_FAILURE;
-		}
-				
-		pDirectSoundEnumerate = (void *)GetProcAddress(hInstDS,"DirectSoundEnumerateA");
-	}
-
-	dsnd_guids=0;
-	dsndguid=NULL;
-	dsndcard="DirectSound";
-	if (pDirectSoundEnumerate)
-		pDirectSoundEnumerate(&DSEnumCallback, NULL);
-	if (!snd_multipledevices)
-		dsndguid=NULL;
-
-	aimedforguid++;
-
-	if (!dsndguid)	//no more...
-		if (aimedforguid != 1)	//not the first device.
-			return SIS_NOMORE;
- //EAX attempt
-#ifndef MINIMAL
-	sc->pDS = NULL;
-	if (snd_eax.value)
-	{
-		CoInitialize(NULL);
-		if (FAILED(CoCreateInstance( &CLSID_EAXDirectSound, NULL, CLSCTX_INPROC_SERVER, &IID_IDirectSound, (void **)&sc->pDS )))
-			sc->pDS=NULL;
-		else
-			IDirectSound_Initialize(sc->pDS, dsndguid);
-	}
-
-	if (!sc->pDS)
-#endif
-	{
-		while ((hresult = iDirectSoundCreate(dsndguid, &sc->pDS, NULL)) != DS_OK)
-		{
-			if (hresult != DSERR_ALLOCATED)
-			{
-				Con_SafePrintf (": create failed\n");
-				return SIS_FAILURE;
-			}
-
-//			if (MessageBox (NULL,
-//							"The sound hardware is in use by another app.\n\n"
-//							"Select Retry to try to start sound again or Cancel to run Quake with no sound.",
-//							"Sound not available",
-//							MB_RETRYCANCEL | MB_SETFOREGROUND | MB_ICONEXCLAMATION) != IDRETRY)
-//			{
-				Con_SafePrintf (": failure\n"
-								"  hardware already in use\n"
-								"  Close the other app then use snd_restart\n");
-				return SIS_NOTAVAIL;
-//			}
-		}
-	}
-	Q_strncpyz(sc->name, dsndcard, sizeof(sc->name));
-
-	dscaps.dwSize = sizeof(dscaps);
-
-	if (DS_OK != sc->pDS->lpVtbl->GetCaps (sc->pDS, &dscaps))
-	{
-		Con_SafePrintf ("Couldn't get DS caps\n");
-	}
-
-	if (dscaps.dwFlags & DSCAPS_EMULDRIVER)
-	{
-		Con_SafePrintf ("No DirectSound driver installed\n");
-		FreeSound (sc);
-		return SIS_FAILURE;
-	}
-
-	if (DS_OK != sc->pDS->lpVtbl->SetCooperativeLevel (sc->pDS, mainwindow, DSSCL_EXCLUSIVE))
-	{
-		Con_SafePrintf ("Set coop level failed\n");
-		FreeSound (sc);
-		return SIS_FAILURE;
-	}
-
-
-// get access to the primary buffer, if possible, so we can set the
-// sound hardware format
-	memset (&dsbuf, 0, sizeof(dsbuf));
-	dsbuf.dwSize = sizeof(DSBUFFERDESC);
-	dsbuf.dwFlags = DSBCAPS_PRIMARYBUFFER|DSBCAPS_CTRLVOLUME;
-	dsbuf.dwBufferBytes = 0;
-	dsbuf.lpwfxFormat = NULL;
-
-	memset(&dsbcaps, 0, sizeof(dsbcaps));
-	dsbcaps.dwSize = sizeof(dsbcaps);
-	primary_format_set = false;
-
-	if (!COM_CheckParm ("-snoforceformat"))
-	{
-		if (DS_OK == sc->pDS->lpVtbl->CreateSoundBuffer(sc->pDS, &dsbuf, &sc->pDSPBuf, NULL))
-		{
-			pformat = format;
-
-			if (DS_OK != sc->pDSPBuf->lpVtbl->SetFormat (sc->pDSPBuf, (WAVEFORMATEX *)&pformat))
-			{
-//				if (snd_firsttime)
-//					Con_SafePrintf ("Set primary sound buffer format: no\n");
-			}
-			else
-//			{
-//				if (snd_firsttime)
-//					Con_SafePrintf ("Set primary sound buffer format: yes\n");
-
-				primary_format_set = true;
-//			}
-		}
-	}
-
-	if (!primary_format_set || !COM_CheckParm ("-primarysound"))
-	{
-	// create the secondary buffer we'll actually work with
-		memset (&dsbuf, 0, sizeof(dsbuf));
-		dsbuf.dwSize = sizeof(DSBUFFERDESC);
-		dsbuf.dwFlags = DSBCAPS_CTRLFREQUENCY;	//dmw 29 may, 2003 removed locsoftware
-		if (snd_inactive.value)
-		{
-			dsbuf.dwFlags |= DSBCAPS_GLOBALFOCUS;
-			sc->inactive_sound = true;
-		}
-		dsbuf.dwBufferBytes = SECONDARY_BUFFER_SIZE;
-		dsbuf.lpwfxFormat = (WAVEFORMATEX *)&format;
-
-		memset(&dsbcaps, 0, sizeof(dsbcaps));
-		dsbcaps.dwSize = sizeof(dsbcaps);
-
-		if (DS_OK != sc->pDS->lpVtbl->CreateSoundBuffer(sc->pDS, &dsbuf, &sc->pDSBuf, NULL))
-		{
-			Con_SafePrintf ("DS:CreateSoundBuffer Failed");
-			FreeSound (sc);
-			return SIS_FAILURE;
-		}
-
-		sc->sn.numchannels = format.Format.nChannels;
-		sc->sn.samplebits = format.Format.wBitsPerSample;
-		sc->sn.speed = format.Format.nSamplesPerSec;
-
-		if (DS_OK != sc->pDSBuf->lpVtbl->GetCaps (sc->pDSBuf, &dsbcaps))
-		{
-			Con_SafePrintf ("DS:GetCaps failed\n");
-			FreeSound (sc);
-			return SIS_FAILURE;
-		}
-
-//		if (snd_firsttime)
-//			Con_SafePrintf ("Using secondary sound buffer\n");
-	}
-	else
-	{
-		if (DS_OK != sc->pDS->lpVtbl->SetCooperativeLevel (sc->pDS, mainwindow, DSSCL_WRITEPRIMARY))
-		{
-			Con_SafePrintf ("Set coop level failed\n");
-			FreeSound (sc);
-			return SIS_FAILURE;
-		}
-
-		if (DS_OK != sc->pDSPBuf->lpVtbl->GetCaps (sc->pDSPBuf, &dsbcaps))
-		{
-			Con_Printf ("DS:GetCaps failed\n");
-			return SIS_FAILURE;
-		}
-
-		sc->pDSBuf = sc->pDSPBuf;
-//		Con_SafePrintf ("Using primary sound buffer\n");
-	}
-
-	sc->gSndBufSize = dsbcaps.dwBufferBytes;
-
-#if 1
-	// Make sure mixer is active
-	sc->pDSBuf->lpVtbl->Play(sc->pDSBuf, 0, 0, DSBPLAY_LOOPING);
-
-/*	if (snd_firsttime)
-		Con_SafePrintf("   %d channel(s)\n"
-		               "   %d bits/sample\n"
-					   "   %d bytes/sec\n",
-					   shm->channels, shm->samplebits, shm->speed);*/
-
-
-// initialize the buffer
-	reps = 0;
-
-	while ((hresult = sc->pDSBuf->lpVtbl->Lock(sc->pDSBuf, 0, sc->gSndBufSize, (void**)&sc->lpData, &dwSize, NULL, NULL, 0)) != DS_OK)
-	{
-		if (hresult != DSERR_BUFFERLOST)
-		{
-			Con_SafePrintf ("SNDDMA_InitDirect: DS::Lock Sound Buffer Failed\n");
-			FreeSound (sc);
-			return SIS_FAILURE;
-		}
-
-		if (++reps > 10000)
-		{
-			Con_SafePrintf ("SNDDMA_InitDirect: DS: couldn't restore buffer\n");
-			FreeSound (sc);
-			return SIS_FAILURE;
-		}
-	}
-
-	memset(sc->lpData, 0, dwSize);
-//		lpData[4] = lpData[5] = 0x7f;	// force a pop for debugging
-
-//	Sleep(500);
-
-	sc->pDSBuf->lpVtbl->Unlock(sc->pDSBuf, sc->lpData, dwSize, NULL, 0);
-
-	/* we don't want anyone to access the buffer directly w/o locking it first. */
-	sc->lpData = NULL; 
-	sc->pDSBuf->lpVtbl->Stop(sc->pDSBuf);
-#endif
-	sc->pDSBuf->lpVtbl->GetCurrentPosition(sc->pDSBuf, &sc->mmstarttime, &dwWrite);
-	sc->pDSBuf->lpVtbl->Play(sc->pDSBuf, 0, 0, DSBPLAY_LOOPING);
-
-	sc->sn.soundalive = true;
-	sc->sn.splitbuffer = false;
-	sc->sn.samples = sc->gSndBufSize/(sc->sn.samplebits/8);
-	sc->sn.samplepos = 0;
-	sc->sn.submission_chunk = 1;
-	sc->sn.buffer = (unsigned char *) sc->lpData;
-	sample16 = (sc->sn.samplebits/8) - 1;
-
-	sc->dsound_init = true;
-
-#ifdef _IKsPropertySet_
-	//attempt at eax support
-	if (snd_eax.value)
-	{
-		int r;
-		DWORD support;
-
-		if (SUCCEEDED(IDirectSoundBuffer_QueryInterface(sc->pDSBuf, &IID_IKsPropertySet, (void*)&sc->EaxKsPropertiesSet)))
-		{
-			r = IKsPropertySet_QuerySupport(sc->EaxKsPropertiesSet, &DSPROPSETID_EAX20_LISTENERPROPERTIES, DSPROPERTY_EAXLISTENER_ALLPARAMETERS, &support);
-			if(!SUCCEEDED(r) || (support&(KSPROPERTY_SUPPORT_GET|KSPROPERTY_SUPPORT_SET))
-					!= (KSPROPERTY_SUPPORT_GET|KSPROPERTY_SUPPORT_SET))
-			{
-				IKsPropertySet_Release(sc->EaxKsPropertiesSet);
-				sc->EaxKsPropertiesSet = NULL;
-				Con_SafePrintf ("EAX 2 not supported\n");
-				return SIS_SUCCESS;//otherwise successful. It can be used for normal sound anyway.
-			}
-
-			//worked. EAX is supported.
-		}
-		else
-		{
-			Con_SafePrintf ("Couldn't get extended properties\n");
-			sc->EaxKsPropertiesSet = NULL;
-		}
-	}
-#endif
-	return SIS_SUCCESS;
-}
-#endif
-void SNDDMA_SetUnderWater(qboolean underwater)
-{
-#ifndef NODIRECTX
-	soundcardinfo_t *sc;
-#ifdef _IKsPropertySet_
-	//attempt at eax support.
-	//EAX is a global thing. Get it going in a game and your media player will be doing it too.
-
-	for (sc = sndcardinfo; sc; sc = sc->next)
-	if (sc->EaxKsPropertiesSet)	//only on ds cards.
-	{
-		EAXLISTENERPROPERTIES ListenerProperties =  {0};
-
-/*		DWORD p;
-		IKsPropertySet_Get(sc->EaxKsPropertiesSet, &DSPROPSETID_EAX20_LISTENERPROPERTIES,
-			DSPROPERTY_EAXLISTENER_ALLPARAMETERS, 0, 0, &ListenerProperties,
-			sizeof(ListenerProperties), &p);
-*/
-		if (underwater)
-		{
-#if 1 //phycotic.
-			ListenerProperties.flEnvironmentSize = 2.8;
-			ListenerProperties.flEnvironmentDiffusion = 0.240;
-			ListenerProperties.lRoom = -374;
-			ListenerProperties.lRoomHF = -150;
-			ListenerProperties.flRoomRolloffFactor = 0;
-			ListenerProperties.flAirAbsorptionHF = -5;
-			ListenerProperties.lReflections = -10000;
-			ListenerProperties.flReflectionsDelay  = 0.053;
-			ListenerProperties.lReverb = 625;
-			ListenerProperties.flReverbDelay = 0.08;
-			ListenerProperties.flDecayTime = 5.096;
-			ListenerProperties.flDecayHFRatio = 0.910;
-			ListenerProperties.dwFlags = 0x3f;
-			ListenerProperties.dwEnvironment = EAX_ENVIRONMENT_PSYCHOTIC;
-#else
-			ListenerProperties.flEnvironmentSize = 5.8;
-			ListenerProperties.flEnvironmentDiffusion = 0;
-			ListenerProperties.lRoom = -374;
-			ListenerProperties.lRoomHF = -2860;
-			ListenerProperties.flRoomRolloffFactor = 0;
-			ListenerProperties.flAirAbsorptionHF = -5;
-			ListenerProperties.lReflections = -889;
-			ListenerProperties.flReflectionsDelay  = 0.024;
-			ListenerProperties.lReverb = 797;
-			ListenerProperties.flReverbDelay = 0.035;
-			ListenerProperties.flDecayTime = 5.568;
-			ListenerProperties.flDecayHFRatio = 0.100;
-			ListenerProperties.dwFlags = 0x3f;
-			ListenerProperties.dwEnvironment = EAX_ENVIRONMENT_UNDERWATER;
-#endif
-		}
-		else
-		{
-			ListenerProperties.flEnvironmentSize = 1;
-			ListenerProperties.flEnvironmentDiffusion = 0;
-			ListenerProperties.lRoom = 0;
-			ListenerProperties.lRoomHF = 0;
-			ListenerProperties.flRoomRolloffFactor = 0;
-			ListenerProperties.flAirAbsorptionHF = 0;
-			ListenerProperties.lReflections = 1000;
-			ListenerProperties.flReflectionsDelay  = 0;
-			ListenerProperties.lReverb = 813;
-			ListenerProperties.flReverbDelay = 0.00;
-			ListenerProperties.flDecayTime = 0.1;
-			ListenerProperties.flDecayHFRatio = 0.1;
-			ListenerProperties.dwFlags = 0x3f;
-			ListenerProperties.dwEnvironment = EAX_ENVIRONMENT_GENERIC;
-		}
-
-//		env = EAX_ENVIRONMENT_UNDERWATER;
-
-		if (FAILED(IKsPropertySet_Set(sc->EaxKsPropertiesSet, &DSPROPSETID_EAX20_LISTENERPROPERTIES,
-					DSPROPERTY_EAXLISTENER_ALLPARAMETERS, 0, 0, &ListenerProperties,
-					sizeof(ListenerProperties))))
-			Con_SafePrintf ("EAX set failed\n");
-	}
-#endif
-#endif
-}
-/*
-==================
-SNDDM_InitWav
-
-Crappy windows multimedia base
-==================
-*/
-qboolean SNDDMA_InitWav (soundcardinfo_t *sc)
-{
-	extern cvar_t snd_khz;
-	WAVEFORMATEX  format; 
-	int				i;
-	HRESULT			hr;
-	
-	sc->snd_sent = 0;
-	sc->snd_completed = 0;
-
-	sc->sn.numchannels = 2;
-	sc->sn.samplebits = 16;
-	
-	if (!sc->sn.speed)
-	{
-		if (snd_khz.value == 48)
-			sc->sn.speed = 48000;
-		else if (snd_khz.value == 44 || snd_khz.value == 44.1)
-			sc->sn.speed = 44100;
-		else if (snd_khz.value == 22 || snd_khz.value == 22.05)
-			sc->sn.speed = 22050;
-		else
-			sc->sn.speed = 11025;
-	}
-
-	memset (&format, 0, sizeof(format));
-	format.wFormatTag = WAVE_FORMAT_PCM;
-	format.nChannels = sc->sn.numchannels;
-	format.wBitsPerSample = sc->sn.samplebits;
-	format.nSamplesPerSec = sc->sn.speed;
-	format.nBlockAlign = format.nChannels
-		*format.wBitsPerSample / 8;
-	format.cbSize = 0;
-	format.nAvgBytesPerSec = format.nSamplesPerSec
-		*format.nBlockAlign; 
-	
-	/* Open a waveform device for output using window callback. */ 
-	while ((hr = waveOutOpen((LPHWAVEOUT)&sc->hWaveOut, WAVE_MAPPER,
-					&format,
-					0, 0L, CALLBACK_NULL)) != MMSYSERR_NOERROR)
-	{
-		if (hr != MMSYSERR_ALLOCATED)
-		{
-			Con_SafePrintf ("waveOutOpen failed\n");
-			return false;
-		}
-
-//		if (MessageBox (NULL,
-//						"The sound hardware is in use by another app.\n\n"
-//					    "Select Retry to try to start sound again or Cancel to run Quake with no sound.",
-//						"Sound not available",
-//						MB_RETRYCANCEL | MB_SETFOREGROUND | MB_ICONEXCLAMATION) != IDRETRY)
-//		{
-			Con_SafePrintf ("waveOutOpen failure;\n"
-							"  hardware already in use\nclose the app, then try using snd_restart\n");
-			return false;
-//		}
-	} 
-
-	/* 
-	 * Allocate and lock memory for the waveform data. The memory 
-	 * for waveform data must be globally allocated with 
-	 * GMEM_MOVEABLE and GMEM_SHARE flags. 
-
-	*/ 
-	sc->gSndBufSize = WAV_BUFFERS*WAV_BUFFER_SIZE;
-	sc->hData = GlobalAlloc(GMEM_MOVEABLE | GMEM_SHARE, sc->gSndBufSize); 
-	if (!sc->hData) 
-	{ 
-		Con_SafePrintf ("Sound: Out of memory.\n");
-		FreeSound (sc);
-		return false; 
-	}
-	sc->lpData = GlobalLock(sc->hData);
-	if (!sc->lpData)
-	{ 
-		Con_SafePrintf ("Sound: Failed to lock.\n");
-		FreeSound (sc);
-		return false; 
-	} 
-	memset (sc->lpData, 0, sc->gSndBufSize);
-
-	/* 
-	 * Allocate and lock memory for the header. This memory must 
-	 * also be globally allocated with GMEM_MOVEABLE and 
-	 * GMEM_SHARE flags. 
-	 */ 
-	sc->hWaveHdr = GlobalAlloc(GMEM_MOVEABLE | GMEM_SHARE, 
-		(DWORD) sizeof(WAVEHDR) * WAV_BUFFERS); 
-
-	if (sc->hWaveHdr == NULL)
-	{ 
-		Con_SafePrintf ("Sound: Failed to Alloc header.\n");
-		FreeSound (sc);
-		return false; 
-	} 
-
-	sc->lpWaveHdr = (LPWAVEHDR) GlobalLock(sc->hWaveHdr); 
-
-	if (sc->lpWaveHdr == NULL)
-	{ 
-		Con_SafePrintf ("Sound: Failed to lock header.\n");
-		FreeSound (sc);
-		return false; 
-	}
-
-	memset (sc->lpWaveHdr, 0, sizeof(WAVEHDR) * WAV_BUFFERS);
-
-	/* After allocation, set up and prepare headers. */ 
-	for (i=0 ; i<WAV_BUFFERS ; i++)
-	{
-		sc->lpWaveHdr[i].dwBufferLength = WAV_BUFFER_SIZE; 
-		sc->lpWaveHdr[i].lpData = sc->lpData + i*WAV_BUFFER_SIZE;
-
-		if (waveOutPrepareHeader(sc->hWaveOut, sc->lpWaveHdr+i, sizeof(WAVEHDR)) !=
-				MMSYSERR_NOERROR)
-		{
-			Con_SafePrintf ("Sound: failed to prepare wave headers\n");
-			FreeSound (sc);
-			return false;
-		}
-	}
-
-	sc->sn.soundalive = true;
-	sc->sn.splitbuffer = false;
-	sc->sn.samples = sc->gSndBufSize/(sc->sn.samplebits/8);
-	sc->sn.samplepos = 0;
-	sc->sn.submission_chunk = 1;
-	sc->sn.buffer = (unsigned char *) sc->lpData;
-	sample16 = (sc->sn.samplebits/8) - 1;
-
-	sc->wav_init = true;
-
-	return true;
-}
-
-/*
-==================
-SNDDMA_Init
-
-Try to find a sound device to mix for.
-Returns false if nothing is found.
-==================
-*/
-
-int SNDDMA_Init(soundcardinfo_t *sc)
-{
-	sndinitstat	stat;
-
-	if (COM_CheckParm ("-wavonly"))
-		wavonly = true;
-
-	sc->inactive_sound = false;	//don't generate sound when the window is inactive.
-
-#ifndef NODIRECTX
-	sc->dsound_init =
-#endif
-		sc->wav_init = 0;
-
-	stat = SIS_FAILURE;	// assume DirectSound won't initialize		
-
-#ifndef NODIRECTX
-	/* Init DirectSound */
-	if (!wavonly)
-	{
-		if (snd_firsttime || sc->snd_isdirect)
-		{
-			stat = SNDDMA_InitDirect (sc);
-
-			if (stat == SIS_SUCCESS)
-			{
-				sc->snd_isdirect = true;
-
-				if (snd_firsttime)
-					Con_DPrintf ("%s initialized\n", sc->name);
-
-				return 1;
-			}
-			else if (stat == SIS_NOMORE)
-				return 2;
-			else
-			{
-				sc->snd_isdirect = false;
-				Con_DPrintf ("DirectSound failed to init\n");				
-			}
-		}
-	}
-#endif
-
-// if DirectSound didn't succeed in initializing, try to initialize
-// waveOut sound, unless DirectSound failed because the hardware is
-// already allocated (in which case the user has already chosen not
-// to have sound)
-#ifndef NODIRECTX
-	if (!sc->dsound_init && (stat != SIS_NOTAVAIL))
-#endif
-	{
-		if (snd_firsttime || sc->snd_iswave)
-		{
-
-			sc->snd_iswave = SNDDMA_InitWav (sc);
-
-			if (sc->snd_iswave)
-			{
-				if (snd_firsttime)
-					Con_SafePrintf ("Wave sound initialized\n");
-			}
-			else
-			{
-				Con_SafePrintf ("Wave sound failed to init\n");
-			}
-		}
-	}
-
-	snd_firsttime = false;
-
-#ifndef NODIRECTX
-	if (!sc->dsound_init && !sc->wav_init)
-#endif
-	{
-		if (snd_firsttime)
-			Con_SafePrintf ("No sound device initialized\n");
-
-		return 2;
-	}
-
-	return 1;
 }
 
 /*
@@ -1086,29 +145,14 @@ inside the recirculating dma buffer, so the mixing code will know
 how many sample are required to fill it up.
 ===============
 */
-int SNDDMA_GetDMAPos(soundcardinfo_t *sc)
+static int WAV_GetDMAPos(soundcardinfo_t *sc)
 {
-	DWORD	mmtime;
 	int		s;
-	DWORD	dwWrite;
 
-#ifndef NODIRECTX
-	if (sc->dsound_init) 
-	{		
-		sc->pDSBuf->lpVtbl->GetCurrentPosition(sc->pDSBuf, &mmtime, &dwWrite);
-		s = mmtime - sc->mmstarttime;
-	}
-	else
-#endif
-		if (sc->wav_init)
-	{
-		s = sc->snd_sent * WAV_BUFFER_SIZE;
-	}
-	else
-		s = 0;
+	s = sc->snd_sent * WAV_BUFFER_SIZE;
 
 
-	s >>= sample16;
+	s >>= (sc->sn.samplebits/8) - 1;
 
 //	s = (s/shm->numchannels % (shm->samples-1))*shm->numchannels;
 
@@ -1117,18 +161,16 @@ int SNDDMA_GetDMAPos(soundcardinfo_t *sc)
 
 /*
 ==============
-SNDDMA_Submit
+WAV_Submit
 
 Send sound to device if buffer isn't really the dma buffer
 ===============
 */
-void SNDDMA_Submit(soundcardinfo_t *sc)
+static void WAV_Submit(soundcardinfo_t *sc)
 {
 	LPWAVEHDR	h;
 	int			wResult;
-
-	if (!sc->wav_init)
-		return;
+	wavhandle_t *wh = sc->handle;
 
 	//
 	// find which sound blocks have completed
@@ -1141,7 +183,7 @@ void SNDDMA_Submit(soundcardinfo_t *sc)
 			break;
 		}
 
-		if ( ! (sc->lpWaveHdr[ sc->snd_completed & WAV_MASK].dwFlags & WHDR_DONE) )
+		if ( ! (wh->lpWaveHdr[ sc->snd_completed & WAV_MASK].dwFlags & WHDR_DONE) )
 		{
 			break;
 		}
@@ -1152,9 +194,9 @@ void SNDDMA_Submit(soundcardinfo_t *sc)
 	//
 	// submit two new sound blocks
 	//
-	while (((sc->snd_sent - sc->snd_completed) >> sample16) < 4)
+	while (((sc->snd_sent - sc->snd_completed) >> ((sc->sn.samplebits/8) - 1)) < 4)
 	{
-		h = sc->lpWaveHdr + ( sc->snd_sent&WAV_MASK );
+		h = wh->lpWaveHdr + ( sc->snd_sent&WAV_MASK );
 
 		sc->snd_sent++;
 		/* 
@@ -1162,212 +204,160 @@ void SNDDMA_Submit(soundcardinfo_t *sc)
 		 * waveOutWrite function returns immediately and waveform 
 		 * data is sent to the output device in the background. 
 		 */ 
-		wResult = waveOutWrite(sc->hWaveOut, h, sizeof(WAVEHDR)); 
+		wResult = waveOutWrite(wh->hWaveOut, h, sizeof(WAVEHDR)); 
 
 		if (wResult != MMSYSERR_NOERROR)
 		{ 
 			Con_SafePrintf ("Failed to write block to device\n");
-			FreeSound (sc);
+			WAV_Shutdown (sc);
 			return; 
 		} 
 	}
 }
 
+
+
 /*
-==============
-SNDDMA_Shutdown
+==================
+SNDDM_InitWav
 
-Reset the sound device for exiting
-===============
+Crappy windows multimedia base
+==================
 */
-void SNDDMA_Shutdown(soundcardinfo_t *sc)
+int WAV_InitCard (soundcardinfo_t *sc, int cardnum)
 {
-	FreeSound (sc);
+	extern cvar_t snd_khz;
+	WAVEFORMATEX  format; 
+	int				i;
+	HRESULT			hr;
+	wavhandle_t *wh;
+
+	if (cardnum != 0)
+		return 2;	//we only support one card, at the moment.
+
+	wh = sc->handle = Z_Malloc(sizeof(wavhandle_t));
+	
+	sc->snd_sent = 0;
+	sc->snd_completed = 0;
+
+	sc->sn.numchannels = 2;
+	sc->sn.samplebits = 16;
+	
+	memset (&format, 0, sizeof(format));
+	format.wFormatTag = WAVE_FORMAT_PCM;
+	format.nChannels = sc->sn.numchannels;
+	format.wBitsPerSample = sc->sn.samplebits;
+	format.nSamplesPerSec = sc->sn.speed;
+	format.nBlockAlign = format.nChannels
+		*format.wBitsPerSample / 8;
+	format.cbSize = 0;
+	format.nAvgBytesPerSec = format.nSamplesPerSec
+		*format.nBlockAlign; 
+	
+	/* Open a waveform device for output using window callback. */ 
+	while ((hr = waveOutOpen((LPHWAVEOUT)&wh->hWaveOut, WAVE_MAPPER,
+					&format,
+					0, 0L, CALLBACK_NULL)) != MMSYSERR_NOERROR)
+	{
+		if (hr != MMSYSERR_ALLOCATED)
+		{
+			Con_SafePrintf ("waveOutOpen failed\n");
+			WAV_Shutdown (sc);
+			return false;
+		}
+
+//		if (MessageBox (NULL,
+//						"The sound hardware is in use by another app.\n\n"
+//					    "Select Retry to try to start sound again or Cancel to run Quake with no sound.",
+//						"Sound not available",
+//						MB_RETRYCANCEL | MB_SETFOREGROUND | MB_ICONEXCLAMATION) != IDRETRY)
+//		{
+			Con_SafePrintf ("waveOutOpen failure;\n"
+							"  hardware already in use\nclose the app, then try using snd_restart\n");
+			WAV_Shutdown (sc);
+			return false;
+//		}
+	} 
+
+	/* 
+	 * Allocate and lock memory for the waveform data. The memory 
+	 * for waveform data must be globally allocated with 
+	 * GMEM_MOVEABLE and GMEM_SHARE flags. 
+
+	*/ 
+	wh->gSndBufSize = WAV_BUFFERS*WAV_BUFFER_SIZE;
+	wh->hData = GlobalAlloc(GMEM_MOVEABLE | GMEM_SHARE, wh->gSndBufSize); 
+	if (!wh->hData) 
+	{ 
+		Con_SafePrintf ("Sound: Out of memory.\n");
+		WAV_Shutdown (sc);
+		return false; 
+	}
+	wh->lpData = GlobalLock(wh->hData);
+	if (!wh->lpData)
+	{ 
+		Con_SafePrintf ("Sound: Failed to lock.\n");
+		WAV_Shutdown (sc);
+		return false; 
+	} 
+	memset (wh->lpData, 0, wh->gSndBufSize);
+
+	/* 
+	 * Allocate and lock memory for the header. This memory must 
+	 * also be globally allocated with GMEM_MOVEABLE and 
+	 * GMEM_SHARE flags. 
+	 */ 
+	wh->hWaveHdr = GlobalAlloc(GMEM_MOVEABLE | GMEM_SHARE, 
+		(DWORD) sizeof(WAVEHDR) * WAV_BUFFERS); 
+
+	if (wh->hWaveHdr == NULL)
+	{ 
+		Con_SafePrintf ("Sound: Failed to Alloc header.\n");
+		WAV_Shutdown (sc);
+		return false; 
+	} 
+
+	wh->lpWaveHdr = (LPWAVEHDR) GlobalLock(wh->hWaveHdr); 
+
+	if (wh->lpWaveHdr == NULL)
+	{ 
+		Con_SafePrintf ("Sound: Failed to lock header.\n");
+		WAV_Shutdown (sc);
+		return false; 
+	}
+
+	memset (wh->lpWaveHdr, 0, sizeof(WAVEHDR) * WAV_BUFFERS);
+
+	/* After allocation, set up and prepare headers. */ 
+	for (i=0 ; i<WAV_BUFFERS ; i++)
+	{
+		wh->lpWaveHdr[i].dwBufferLength = WAV_BUFFER_SIZE; 
+		wh->lpWaveHdr[i].lpData = wh->lpData + i*WAV_BUFFER_SIZE;
+
+		if (waveOutPrepareHeader(wh->hWaveOut, wh->lpWaveHdr+i, sizeof(WAVEHDR)) !=
+				MMSYSERR_NOERROR)
+		{
+			Con_SafePrintf ("Sound: failed to prepare wave headers\n");
+			WAV_Shutdown (sc);
+			return false;
+		}
+	}
+
+	sc->sn.soundalive = true;
+	sc->sn.splitbuffer = false;
+	sc->sn.samples = wh->gSndBufSize/(sc->sn.samplebits/8);
+	sc->sn.samplepos = 0;
+	sc->sn.submission_chunk = 1;
+	sc->sn.buffer = (unsigned char *) wh->lpData;
+
+
+	sc->Lock		= WAV_Lock;
+	sc->Unlock		= WAV_Unlock;
+	sc->SetWaterDistortion = WAV_SetUnderWater;
+	sc->Submit		= WAV_Submit;
+	sc->Shutdown	= WAV_Shutdown;
+	sc->GetDMAPos	= WAV_GetDMAPos;
+
+	return true;
 }
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-#if !defined(NODIRECTX) && defined(VOICECHAT)
-
-
-
-LPDIRECTSOUNDCAPTURE DSCapture;
-LPDIRECTSOUNDCAPTUREBUFFER DSCaptureBuffer;
-long lastreadpos;
-long bufferbytes = 1024*1024;
-
-long inputwidth = 2;
-
-static WAVEFORMATEX  wfxFormat;
-
-int SNDDMA_InitCapture (void)
-{
-	DSCBUFFERDESC bufdesc;
-
-	wfxFormat.wFormatTag = WAVE_FORMAT_PCM;
-    wfxFormat.nChannels = 1;
-    wfxFormat.nSamplesPerSec = 11025;
-	wfxFormat.wBitsPerSample = 8*inputwidth;
-    wfxFormat.nBlockAlign = wfxFormat.nChannels * (wfxFormat.wBitsPerSample / 8);
-	wfxFormat.nAvgBytesPerSec = wfxFormat.nSamplesPerSec * wfxFormat.nBlockAlign;
-    wfxFormat.cbSize = 0;
-
-	bufdesc.dwSize = sizeof(bufdesc);
-	bufdesc.dwBufferBytes = bufferbytes;
-	bufdesc.dwFlags = 0;
-	bufdesc.dwReserved = 0;
-	bufdesc.lpwfxFormat = &wfxFormat;
-
-	if (DSCaptureBuffer)
-	{
-		IDirectSoundCaptureBuffer_Stop(DSCaptureBuffer);
-		IDirectSoundCaptureBuffer_Release(DSCaptureBuffer);
-		DSCaptureBuffer=NULL;
-	}
-	if (DSCapture)
-	{
-		IDirectSoundCapture_Release(DSCapture);
-		DSCapture=NULL;
-	}
-
-
-	if (!hInstDS)
-	{
-		hInstDS = LoadLibrary("dsound.dll");
-		
-		if (hInstDS == NULL)
-		{
-			Con_SafePrintf ("Couldn't load dsound.dll\n");
-			return SIS_FAILURE;
-		}
-
-	}
-	if (!pDirectSoundCaptureCreate)
-	{
-		pDirectSoundCaptureCreate = (void *)GetProcAddress(hInstDS,"DirectSoundCaptureCreate");
-
-		if (!pDirectSoundCreate)
-		{
-			Con_SafePrintf ("Couldn't get DS proc addr\n");
-			return SIS_FAILURE;
-		}
-
-//		pDirectSoundCaptureEnumerate = (void *)GetProcAddress(hInstDS,"DirectSoundCaptureEnumerateA");
-	}
-	pDirectSoundCaptureCreate(NULL, &DSCapture, NULL);
-
-	if (FAILED(IDirectSoundCapture_CreateCaptureBuffer(DSCapture, &bufdesc, &DSCaptureBuffer, NULL)))
-	{
-		Con_SafePrintf ("Couldn't create a capture buffer\n");
-		IDirectSoundCapture_Release(DSCapture);
-		DSCapture=NULL;
-		return SIS_FAILURE;
-	}
-
-	IDirectSoundCaptureBuffer_Start(DSCaptureBuffer, DSBPLAY_LOOPING);
-
-	lastreadpos = 0;
-
-	return SIS_SUCCESS;
-}
-
-void SNDVC_Submit(qbyte *buffer, int samples, int freq, int width);
-void S_UpdateCapture(void)
-{
-	HRESULT hr;
-	LPBYTE lpbuf1 = NULL;
-	LPBYTE lpbuf2 = NULL;
-	DWORD dwsize1 = 0;
-	DWORD dwsize2 = 0;
-
-	DWORD capturePos;
-	DWORD readPos;
-	long  filled;
-	static int update;
-
-	char *pBuffer;
-
-
-//	return;
-
-	if (!snd_capture.value)
-	{
-		if (DSCaptureBuffer)
-		{
-			IDirectSoundCaptureBuffer_Stop(DSCaptureBuffer);
-			IDirectSoundCaptureBuffer_Release(DSCaptureBuffer);
-			DSCaptureBuffer=NULL;
-		}
-		if (DSCapture)
-		{
-			IDirectSoundCapture_Release(DSCapture);
-			DSCapture=NULL;
-		}
-		return;
-	}
-	else if (!DSCaptureBuffer)
-	{
-		SNDDMA_InitCapture();
-		return;
-	}
-
-// Query to see how much data is in buffer.
-	hr = IDirectSoundCaptureBuffer_GetCurrentPosition( DSCaptureBuffer, &capturePos, &readPos );
-	if( hr != DS_OK )
-	{
-		return;
-	}
-	filled = readPos - lastreadpos;
-	if( filled < 0 ) filled += bufferbytes; // unwrap offset
-
-	if (filled > 1400)	//figure out how much we need to empty it by, and if that's enough to be worthwhile.
-		filled = 1400;
-	else if (filled < 1400)
-		return;
-
-	if ((filled/inputwidth) & 1)	//force even numbers of samples
-		filled -= inputwidth;
-
-	pBuffer = BZ_Malloc(filled*inputwidth);
-
-
-	// Lock free space in the DS
-	hr = IDirectSoundCaptureBuffer_Lock ( DSCaptureBuffer, lastreadpos, filled, (void **) &lpbuf1, &dwsize1,
-		(void **) &lpbuf2, &dwsize2, 0);
-	if (hr == DS_OK)
-	{
-		// Copy from DS to the buffer
-		memcpy( pBuffer, lpbuf1, dwsize1);
-		if(lpbuf2 != NULL)
-		{
-			memcpy( pBuffer+dwsize1, lpbuf2, dwsize2);
-		}
-		// Update our buffer offset and unlock sound buffer
- 		lastreadpos = (lastreadpos + dwsize1 + dwsize2) % bufferbytes;
-		IDirectSoundCaptureBuffer_Unlock ( DSCaptureBuffer, lpbuf1, dwsize1, lpbuf2, dwsize2);
-	}
-	else
-	{
-		BZ_Free(pBuffer);
-		return;
-	}
-
-	SNDVC_MicInput(pBuffer, filled, wfxFormat.nSamplesPerSec, inputwidth); 
-	BZ_Free(pBuffer);
-}
-#else
-void S_UpdateCapture(void)
-{
-}
-#endif
+int (*pWAV_InitCard) (soundcardinfo_t *sc, int cardnum) = &WAV_InitCard;

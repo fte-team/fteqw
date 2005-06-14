@@ -162,7 +162,7 @@ cvar_t		gl_lateswap = {"gl_lateswap", "0"};
 cvar_t			scr_sshot_type = {"scr_sshot_type", "jpg"};
 
 
-cvar_t			con_height = {"con_height", "50"};
+cvar_t			scr_consize = {"scr_consize", "0.5"};
 cvar_t          scr_viewsize = {"viewsize","100", NULL, CVAR_ARCHIVE};
 cvar_t          scr_fov = {"fov","90", NULL, CVAR_ARCHIVE}; // 10 - 170
 cvar_t          scr_conspeed = {"scr_conspeed","300"};
@@ -491,7 +491,7 @@ void Renderer_Init(void)
 	Cvar_Register (&scr_centertime, SCREENOPTIONS);
 	Cvar_Register (&scr_printspeed, SCREENOPTIONS);
 	Cvar_Register (&scr_allowsnap, SCREENOPTIONS);
-	Cvar_Register (&con_height, SCREENOPTIONS);
+	Cvar_Register (&scr_consize, SCREENOPTIONS);
 
 	Cvar_Register(&r_bloodstains, GRAPHICALNICETIES);
 
@@ -605,7 +605,7 @@ struct mleaf_s *(*Mod_PointInLeaf)	(float *p, struct model_s *model);
 qbyte	*(*Mod_Q1LeafPVS)			(struct mleaf_s *leaf, struct model_s *model, qbyte *buffer);
 void	(*Mod_NowLoadExternal)		(void);
 void	(*Mod_Think)				(void);
-void	(*Mod_GetTag)				(struct model_s *model, int tagnum, int frame, float **org, float **axis);
+qboolean	(*Mod_GetTag)			(struct model_s *model, int tagnum, int frame, int frame2, float f2ness, float f1time, float f2time, float *transforms);
 int (*Mod_TagNumForName)			(struct model_s *model, char *name);
 
 
@@ -626,7 +626,7 @@ void	(*VID_SetWindowCaption)		(char *msg);
 
 void	(*SCR_UpdateScreen)			(void);
 
-r_qrenderer_t qrenderer=QR_NONE;
+r_qrenderer_t qrenderer=-1;
 char *q_renderername = "Non-Selected renderer";
 
 
@@ -695,7 +695,7 @@ struct {
 	qbyte	*(*Mod_Q1LeafPVS)			(struct mleaf_s *leaf, struct model_s *model, qbyte *buffer);
 	void	(*Mod_NowLoadExternal)		(void);
 	void	(*Mod_Think)				(void);
-	void	(*Mod_GetTag)				(struct model_s *model, int tagnum, int frame, float **org, float **axis);
+	qboolean(*Mod_GetTag)				(model_t *model, int tagnum, int frame1, int frame2, float f2ness, float f1time, float f2time, float *result);
 	int (*Mod_TagNumForName)			(struct model_s *model, char *name);
 
 
@@ -1254,6 +1254,9 @@ void M_Menu_Video_f (void)
 
 void R_SetRenderer(int wanted)
 {
+	qrenderer = wanted;
+	if (wanted<0)
+		wanted=QR_NONE;
 	q_renderername = rendererinfo[wanted].name[0];
 
 	Draw_PicFromWad			= rendererinfo[wanted].Draw_PicFromWad;
@@ -1333,8 +1336,6 @@ void R_SetRenderer(int wanted)
 
 	
 	SCR_UpdateScreen		= rendererinfo[wanted].SCR_UpdateScreen;
-
-	qrenderer = wanted;
 }
 
 static qbyte default_quakepal[768] =
@@ -1845,7 +1846,7 @@ void R_SetRenderer_f (void)
 	}
 	else if (!stricmp(Cmd_Argv(1), "dedicated"))
 	{
-		Cvar_Set(&vid_renderer, "sv");
+		Cvar_Set(&vid_renderer, "dedicated");
 		R_RestartRenderer_f();
 	}
 	else if (!stricmp(Cmd_Argv(1), "SW") || !stricmp(Cmd_Argv(1), "Software"))

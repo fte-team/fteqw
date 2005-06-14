@@ -156,6 +156,9 @@ void Netchan_Setup (netsrc_t sock, netchan_t *chan, netadr_t adr, int qport);
 
 qboolean Netchan_CanPacket (netchan_t *chan, int rate);
 qboolean Netchan_CanReliable (netchan_t *chan, int rate);
+#ifdef NQPROT
+qboolean NQNetChan_Process(netchan_t *chan);
+#endif
 
 #ifdef HUFFNETWORK
 int Huff_PreferedCompressionCRC (void);

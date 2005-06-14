@@ -1135,7 +1135,7 @@ int WINAPI WinMain (HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLin
 #ifndef CLIENTONLY
 		if (isDedicated)
 		{
-			NET_Sleep(100, false);
+			NET_Sleep(50, false);
 
 		// find time passed since last cycle
 			newtime = Sys_DoubleTime ();

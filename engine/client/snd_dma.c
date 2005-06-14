@@ -8,7 +8,7 @@ of the License, or (at your option) any later version.
 
 This program is distributed in the hope that it will be useful,
 but WITHOUT ANY WARRANTY; without even the implied warranty of
-MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
 
 See the GNU General Public License for more details.
 
@@ -20,12 +20,6 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 // snd_dma.c -- main control for any streaming sound output devices
 
 #include "quakedef.h"
-
-#ifndef __CYGWIN__
-
-#ifdef _WIN32
-#include "winquake.h"
-#endif
 
 void S_Play(void);
 void S_PlayVol(void);
@@ -40,13 +34,12 @@ void S_UpdateCard(soundcardinfo_t *sc);
 // Internal sound data & structures
 // =======================================================================
 
+soundcardinfo_t *sndcardinfo;	//the master card.
 
 int				snd_blocked = 0;
 static qboolean	snd_ambient = 1;
 qboolean		snd_initialized = false;
 int				snd_speed;
-
-qboolean snd_multipledevices = false;
 
 vec3_t		listener_origin;
 vec3_t		listener_forward;
@@ -88,6 +81,8 @@ cvar_t snd_speakers = {"snd_numspeakers", "2"};
 cvar_t	snd_playersoundvolume = {"snd_localvolume", "1"};	//sugested by crunch
 
 cvar_t	snd_capture = {"snd_capture", "0"};
+
+cvar_t snd_usemultipledevices = {"snd_multipledevices", "0"};
 
 
 // ====================================================================
@@ -145,6 +140,61 @@ void S_SoundInfo_f(void)
 }
 
 
+sounddriver pDSOUND_InitCard;
+sounddriver pALSA_InitCard;
+sounddriver pOSS_InitCard;
+sounddriver pSDL_InitCard;
+sounddriver pWAV_InitCard;
+
+sounddriver *drivers[] = {
+	&pDSOUND_InitCard,
+	&pALSA_InitCard,
+	&pOSS_InitCard,
+	&pSDL_InitCard,
+	&pWAV_InitCard,
+	NULL
+};
+
+static int SNDDMA_Init(soundcardinfo_t *sc, int *cardnum, int *drivernum)
+{
+	sounddriver *sd;
+	int st = 0;
+
+	memset(sc, 0, sizeof(*sc));
+	if (snd_khz.value >= 45)
+		sc->sn.speed = 48000;
+	else if (snd_khz.value >= 30)	//set by a slider
+		sc->sn.speed = 44100;
+	else if (snd_khz.value >= 20)
+		sc->sn.speed = 22050;
+	else
+		sc->sn.speed = 11025;
+
+	sd = drivers[*drivernum];
+	if (!sd)
+		return 2;	//no more cards.
+	if (!*sd)	//driver not loaded
+		st = 2;
+	else
+		st = (**sd)(sc, *cardnum);
+	if (st == 1)	//worked
+	{
+		*cardnum += 1;	//use the next card next time
+		return st;
+	}
+	else if (st == 0)	//failed, try the next card with this driver.
+	{
+		*cardnum += 1;
+		return SNDDMA_Init(sc, cardnum, drivernum);
+	}
+	else	//card number wasn't valid, try the first card of the next driver
+	{
+		*cardnum = 0;
+		*drivernum += 1;
+		return SNDDMA_Init(sc, cardnum, drivernum);
+	}
+}
+
 /*
 ================
 S_Startup
@@ -153,6 +203,7 @@ S_Startup
 
 void S_Startup (void)
 {
+	int cardnum, drivernum;
 	int warningmessage=0;
 	int		rc;
 	soundcardinfo_t *sc;
@@ -167,28 +218,14 @@ void S_Startup (void)
 
 	if (!fakedma)
 	{
-#if defined(_WIN32) && !defined(NODIRECTX)
-		extern int aimedforguid;	//restart directsound guid aims.
-		aimedforguid=0;
-#endif
-		for(;;)
+		for(cardnum = 0, drivernum = 0;;)
 		{
 			sc = Z_Malloc(sizeof(soundcardinfo_t));
-			if (snd_khz.value >= 45)
-				sc->sn.speed = 48000;
-			else if (snd_khz.value >= 30)	//set by a slider
-				sc->sn.speed = 44100;
-			else if (snd_khz.value >= 20)
-				sc->sn.speed = 22050;
-			else
-				sc->sn.speed = 11025;
-			rc = SNDDMA_Init(sc);
+			rc = SNDDMA_Init(sc, &cardnum, &drivernum);
 
 			if (!rc)	//error stop
 			{
-#ifndef	_WIN32
 				Con_Printf("S_Startup: SNDDMA_Init failed.\n");
-#endif
 				Z_Free(sc);
 				break;
 			}
@@ -255,7 +292,7 @@ void S_Startup (void)
 						warningmessage = true;
 					}
 
-					Z_Free(sc);					
+					Z_Free(sc);
 					continue;
 				}
 			}
@@ -264,35 +301,44 @@ void S_Startup (void)
 
 			sc->next = sndcardinfo;
 			sndcardinfo = sc;
+
+			if (!snd_usemultipledevices.value)
+				break;
 		}
 	}
 
 	sound_started = 1;
 }
 
+void SNDDMA_SetUnderWater(qboolean underwater)
+{
+	soundcardinfo_t *sc;
+
+	for (sc = sndcardinfo; sc; sc=sc->next)
+		sc->SetWaterDistortion(sc, underwater);
+}
+
 void S_Restart_f (void)
-{	
-	extern qboolean snd_firsttime;
+{
 	Cache_Flush();//forget the old sounds.
 
 	if (COM_CheckParm("-nosound"))
 		return;
 
-	S_StopAllSounds (true);	
+	S_StopAllSounds (true);
 
 	S_Shutdown();
 	sound_started = 0;
-	snd_firsttime = true;
 	S_Startup();
 
 	ambient_sfx[AMBIENT_WATER] = S_PrecacheSound ("ambience/water1.wav");
-	ambient_sfx[AMBIENT_SKY] = S_PrecacheSound ("ambience/wind2.wav");	
+	ambient_sfx[AMBIENT_SKY] = S_PrecacheSound ("ambience/wind2.wav");
 
 	S_StopAllSounds (true);
 }
 
 void S_Control_f (void)
-{	
+{
 	int i;
 	char *command;
 	if (Cmd_Argc() < 2)
@@ -304,7 +350,7 @@ void S_Control_f (void)
 	{
 		Cache_Flush();//forget the old sounds.
 
-		S_StopAllSounds (true);	
+		S_StopAllSounds (true);
 
 		S_Shutdown();
 		sound_started = 0;
@@ -313,29 +359,29 @@ void S_Control_f (void)
 	{
 		if (!Q_strcasecmp(Cmd_Argv (2), "off"))
 		{
-			if (snd_multipledevices)
+			if (snd_usemultipledevices.value)
 			{
-				snd_multipledevices = false;
-				S_Restart_f();				
-			}			
+				Cvar_SetValue(&snd_usemultipledevices, 0);
+				S_Restart_f();
+			}
 		}
-		else if (!snd_multipledevices)
+		else if (!snd_usemultipledevices.value)
 		{
-			snd_multipledevices = true;
+			Cvar_SetValue(&snd_usemultipledevices, 1);
 			S_Restart_f();
 		}
 		return;
 	}
 	if (!Q_strcasecmp(command, "single"))
 	{
-		snd_multipledevices = false;
+		Cvar_SetValue(&snd_usemultipledevices, 0);
 		S_Restart_f();
 		return;
 	}
 
 	if (!Q_strcasecmp(command, "rate") || !Q_strcasecmp(command, "speed"))
 	{
-		Cvar_SetValue(&snd_khz, atof(Cmd_Argv (2))/1000);		
+		Cvar_SetValue(&snd_khz, atof(Cmd_Argv (2))/1000);
 		S_Restart_f();
 		return;
 	}
@@ -449,12 +495,6 @@ void S_Init (void)
 //	if (COM_CheckParm("-simsound"))
 //		fakedma = true;
 
-	if (COM_CheckParm ("-nomultipledevices") || COM_CheckParm ("-singlesound"))
-		snd_multipledevices = false;
-
-	if (COM_CheckParm ("-multisound"))
-		snd_multipledevices = true;
-
 	p = COM_CheckParm ("-soundspeed");
 	if (p)
 	{
@@ -462,7 +502,7 @@ void S_Init (void)
 			Cvar_SetValue(&snd_khz, atof(com_argv[p+1])/1000);
 		else
 			Sys_Error ("S_Init: you must specify a speed in KB after -soundspeed");
-	}		
+	}
 
 
 	Cmd_AddCommand("play", S_Play);
@@ -496,6 +536,15 @@ void S_Init (void)
 	Cvar_Register(&snd_inactive,		"Sound controls");
 
 	Cvar_Register(&snd_playersoundvolume,		"Sound controls");
+	Cvar_Register(&snd_usemultipledevices,		"Sound controls");
+
+
+	if (COM_CheckParm ("-nomultipledevices") || COM_CheckParm ("-singlesound"))
+		Cvar_SetValue(&snd_usemultipledevices, 0);
+
+	if (COM_CheckParm ("-multisound"))
+		Cvar_SetValue(&snd_usemultipledevices, 1);
+
 
 	if (host_parms.memsize < 0x800000)
 	{
@@ -559,12 +608,12 @@ void S_ShutdownCard(soundcardinfo_t *sc)
 	aimedforguid = 0;
 #endif
 	if (!fakedma)
-	{		
-		SNDDMA_Shutdown(sc);
-	}	
+	{
+		sc->Shutdown(sc);
+	}
 }
 void S_Shutdown(void)
-{	
+{
 	soundcardinfo_t *sc, *next;
 	for (sc = sndcardinfo; sc; sc=next)
 	{
@@ -608,12 +657,12 @@ sfx_t *S_FindName (char *name)
 
 	if (num_sfx == MAX_SFX)
 		Sys_Error ("S_FindName: out of sfx_t");
-	
+
 	sfx = &known_sfx[i];
 	strcpy (sfx->name, name);
 
 	num_sfx++;
-	
+
 	return sfx;
 }
 
@@ -627,7 +676,7 @@ S_TouchSound
 void S_TouchSound (char *name)
 {
 	sfx_t	*sfx;
-	
+
 	if (!sound_started)
 		return;
 
@@ -649,11 +698,11 @@ sfx_t *S_PrecacheSound (char *name)
 		return NULL;
 
 	sfx = S_FindName (name);
-	
+
 // cache it in
 	if (precache.value &&sndcardinfo)
 		S_LoadSound (sfx);
-	
+
 	return sfx;
 }
 
@@ -701,8 +750,8 @@ channel_t *SND_PickChannel(soundcardinfo_t *sc, int entnum, int entchannel)
 	if (sc->channel[first_to_die].sfx)
 		sc->channel[first_to_die].sfx = NULL;
 
-    return &sc->channel[first_to_die];    
-}       
+    return &sc->channel[first_to_die];
+}
 
 /*
 =================
@@ -732,9 +781,9 @@ void SND_Spatialize(soundcardinfo_t *sc, channel_t *ch)
 // calculate stereo seperation and distance attenuation
 	snd = ch->sfx;
 	VectorSubtract(ch->origin, listener_origin, source_vec);
-	
+
 	dist = VectorNormalize(source_vec) * ch->dist_mult;
-	
+
 	dotright = DotProduct(listener_right, source_vec);
 	dotforward = DotProduct(listener_forward, source_vec);
 	dotup = DotProduct(listener_up, source_vec);
@@ -778,7 +827,7 @@ void S_StartSoundCard(soundcardinfo_t *sc, int entnum, int entchannel, sfx_t *sf
 	target_chan = SND_PickChannel(sc, entnum, entchannel);
 	if (!target_chan)
 		return;
-		
+
 // spatialize
 	memset (target_chan, 0, sizeof(*target_chan));
 	if (!origin)
@@ -809,7 +858,7 @@ void S_StartSoundCard(soundcardinfo_t *sc, int entnum, int entchannel, sfx_t *sf
 	target_chan->pos = startpos;
 	target_chan->end = sc->paintedtime + scache->length;
 	target_chan->looping = false;
-	
+
 // if an identical sound has also been started this frame, offset the pos
 // a bit to keep it from just making the first one louder
 	check = &sc->channel[NUM_AMBIENTS];
@@ -917,12 +966,14 @@ void S_StopAllSoundsC (void)
 
 void S_ClearBuffer (soundcardinfo_t *sc)
 {
+	void *buffer;
+
 	int		clear;
-#if defined(_WIN32) && !defined(NODIRECTX)
-	if (!sound_started || (!sc->sn.buffer && !sc->pDSBuf))
-#else
+//#if defined(_WIN32) && !defined(NODIRECTX)
+//	if (!sound_started || (!sc->sn.buffer && !sc->pDSBuf))
+//#else
 	if (!sound_started || !sc->sn.buffer)
-#endif
+//#endif
 		return;
 
 	if (sc->sn.samplebits == 8)
@@ -930,6 +981,13 @@ void S_ClearBuffer (soundcardinfo_t *sc)
 	else
 		clear = 0;
 
+	buffer = sc->Lock(sc);
+	if (buffer)
+	{
+		Q_memset(sc->sn.buffer, clear, sc->sn.samples * sc->sn.samplebits/8);
+		sc->Unlock(sc, buffer);
+	}
+/*
 #if defined(_WIN32) && !defined(NODIRECTX)
 	if (sc->pDSBuf)
 	{
@@ -960,13 +1018,14 @@ void S_ClearBuffer (soundcardinfo_t *sc)
 		Q_memset(pData, clear, sc->sn.samples * sc->sn.samplebits/8);
 
 		sc->pDSBuf->lpVtbl->Unlock(sc->pDSBuf, pData, dwSize, NULL, 0);
-	
+
 	}
 	else
 #endif
 	{
 		Q_memset(sc->sn.buffer, clear, sc->sn.samples * sc->sn.samplebits/8);
 	}
+*/
 }
 
 /*
@@ -1010,7 +1069,7 @@ void S_StaticSound (sfx_t *sfx, vec3_t origin, float vol, float attenuation)
 		ss->dist_mult = (attenuation/64) / sound_nominal_clip_dist;
 		ss->end = scard->paintedtime + scache->length;
 		ss->looping = true;
-		
+
 		SND_Spatialize (scard, ss);
 	}
 }
@@ -1051,7 +1110,7 @@ void S_UpdateAmbientSounds (soundcardinfo_t *sc)
 
 				scache = S_LoadSound (newmusic);
 				if (scache)
-				{			
+				{
 					chan->sfx = newmusic;
 					chan->pos = 0;
 					chan->end = sc->paintedtime + scache->length+1000;
@@ -1078,11 +1137,11 @@ void S_UpdateAmbientSounds (soundcardinfo_t *sc)
 
 	for (ambient_channel = 0 ; ambient_channel< NUM_AMBIENTS ; ambient_channel++)
 	{
-		chan = &sc->channel[ambient_channel];	
+		chan = &sc->channel[ambient_channel];
 		chan->sfx = ambient_sfx[ambient_channel];
 
 		VectorCopy(listener_origin, chan->origin);
-	
+
 		vol = ambient_level.value * l->ambient_sound_level[ambient_channel];
 		if (vol < 8)
 			vol = 0;
@@ -1100,7 +1159,7 @@ void S_UpdateAmbientSounds (soundcardinfo_t *sc)
 			if (chan->master_vol < vol)
 				chan->master_vol = vol;
 		}
-		
+
 		chan->vol[0] = chan->vol[1] = chan->vol[2] = chan->vol[3] = chan->vol[4] = chan->vol[5] = chan->master_vol;
 	}
 }
@@ -1141,13 +1200,13 @@ void S_UpdateCard(soundcardinfo_t *sc)
 		if (!sc->inactive_sound)
 			return;
 	}
-	
+
 // update general area ambient sound sources
 	S_UpdateAmbientSounds (sc);
 
 	combine = NULL;
 
-// update spatialization for static and dynamic sounds	
+// update spatialization for static and dynamic sounds
 	ch = sc->channel+NUM_AMBIENTS+NUM_MUSICS;
 	for (i=NUM_AMBIENTS+ NUM_MUSICS ; i<sc->total_chans; i++, ch++)
 	{
@@ -1160,7 +1219,7 @@ void S_UpdateCard(soundcardinfo_t *sc)
 
 	// try to combine static sounds with a previous channel of the same
 	// sound effect so we don't mix five torches every frame
-	
+
 		if (i > MAX_DYNAMIC_CHANNELS + NUM_AMBIENTS + NUM_MUSICS)
 		{
 		// see if it can just use the last one
@@ -1180,7 +1239,7 @@ void S_UpdateCard(soundcardinfo_t *sc)
 			for (j=MAX_DYNAMIC_CHANNELS + NUM_AMBIENTS+ NUM_MUSICS ; j<i; j++, combine++)
 				if (combine->sfx == ch->sfx)
 					break;
-					
+
 			if (j == sc->total_chans)
 			{
 				combine = NULL;
@@ -1200,8 +1259,8 @@ void S_UpdateCard(soundcardinfo_t *sc)
 				continue;
 			}
 		}
-	
-		
+
+
 	}
 
 //
@@ -1217,29 +1276,29 @@ void S_UpdateCard(soundcardinfo_t *sc)
 //					Con_Printf ("%i, %i %i %i %i %i %i %s\n", i, ch->vol[0], ch->vol[1], ch->vol[2], ch->vol[3], ch->vol[4], ch->vol[5], ch->sfx->name);
 				total++;
 			}
-		
+
 		Con_Printf ("----(%i)----\n", total);
 	}
 
-// mix some sound	
+// mix some sound
 	S_Update_(sc);
 }
 
 void GetSoundtime(soundcardinfo_t *sc)
 {
-	int		samplepos;	
+	int		samplepos;
 	int		fullsamples;
-	
+
 	fullsamples = sc->sn.samples / sc->sn.numchannels;
 
 // it is possible to miscount buffers if it has wrapped twice between
 // calls to S_Update.  Oh well.
-	samplepos = SNDDMA_GetDMAPos(sc);
+	samplepos = sc->GetDMAPos(sc);
 
 	if (samplepos < sc->oldsamplepos)
 	{
 		sc->buffers++;					// buffer wrapped
-		
+
 		if (sc->paintedtime > 0x40000000)
 		{	// time to chop things off to avoid 32 bit limits
 			sc->buffers = 0;
@@ -1310,28 +1369,12 @@ void S_Update_(soundcardinfo_t *sc)
 	if (endtime - soundtime > samps)
 		endtime = soundtime + samps;
 
-#if defined(_WIN32) && !defined(NODIRECTX)
-// if the buffer was lost or stopped, restore it and/or restart it
-	{
-		DWORD	dwStatus;
-
-		if (sc->pDSBuf)
-		{
-			if (sc->pDSBuf->lpVtbl->GetStatus (sc->pDSBuf, &dwStatus) != DD_OK)
-				Con_Printf ("Couldn't get sound buffer status\n");
-			
-			if (dwStatus & DSBSTATUS_BUFFERLOST)
-				sc->pDSBuf->lpVtbl->Restore (sc->pDSBuf);
-			
-			if (!(dwStatus & DSBSTATUS_PLAYING))
-				sc->pDSBuf->lpVtbl->Play(sc->pDSBuf, 0, 0, DSBPLAY_LOOPING);
-		}
-	}
-#endif
+	if (sc->Restore)
+		sc->Restore(sc);
 
 	S_PaintChannels (sc, endtime);
 
-	SNDDMA_Submit (sc);
+	sc->Submit(sc);
 }
 
 /*
@@ -1348,7 +1391,7 @@ void S_Play(void)
 	int 	i;
 	char name[256];
 	sfx_t	*sfx;
-	
+
 	i = 1;
 	while (i<Cmd_Argc())
 	{
@@ -1373,7 +1416,7 @@ void S_PlayVol(void)
 	float vol;
 	char name[256];
 	sfx_t	*sfx;
-	
+
 	i = 1;
 	while (i<Cmd_Argc())
 	{
@@ -1604,7 +1647,7 @@ void S_RawAudio(int sourceid, qbyte *data, int speed, int samples, int channels,
 			else
 			{
 				int src=0;
-				int pos=0;			
+				int pos=0;
 
 				while (pos++ < samples)
 				{
@@ -1630,7 +1673,7 @@ void S_RawAudio(int sourceid, qbyte *data, int speed, int samples, int channels,
 			else
 			{
 				int src=0;
-				int pos=0;			
+				int pos=0;
 
 				while (pos++ < samples)
 				{
@@ -1664,7 +1707,7 @@ void S_RawAudio(int sourceid, qbyte *data, int speed, int samples, int channels,
 			else
 			{
 				int src=0;
-				int pos=0;			
+				int pos=0;
 
 				while (pos++ < samples)
 				{
@@ -1695,5 +1738,3 @@ void S_RawAudio(int sourceid, qbyte *data, int speed, int samples, int channels,
 			S_StartSoundCard(si, -1, 0, &s->sfx, r_origin, 1, 32767, 0);
 	}
 }
-
-#endif	//cygwin

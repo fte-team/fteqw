@@ -1266,7 +1266,7 @@ void PF_cs_sound(progfuncs_t *prinst, struct globalvars_s *pr_globals)
 
 	sfx_t *sfx;
 		
-	entity = G_EDICT(prinst, OFS_PARM0);
+	entity = (csqcedict_t*)G_EDICT(prinst, OFS_PARM0);
 	channel = G_FLOAT(OFS_PARM1);
 	sample = PR_GetStringOfs(prinst, OFS_PARM2);
 	volume = G_FLOAT(OFS_PARM3) * 255;
@@ -1911,6 +1911,11 @@ void CSQC_ParseEntities(void)
 			{
 				packetsize = MSG_ReadShort();
 				packetstart = msg_readcount;
+			}
+			else
+			{
+				packetsize = 0;
+				packetstart = 0;
 			}
 
 			ent = csqcent[entnum];

@@ -1283,7 +1283,8 @@ void P_NewServer(void)
 			Con_Printf("Couldn't find particle description, using spikeset\n");
 			Cbuf_AddText(particle_set_spikeset, RESTRICT_SERVER);
 		}
-#if defined(_DEBUG) && defined(WIN32)	//expand the particles cfg into a C style quoted string, and copy to clipboard so I can paste it in.
+/*
+#if defined(_DEBUG) && defined(_WIN32)	//expand the particles cfg into a C style quoted string, and copy to clipboard so I can paste it in.
 		{
 			char *TL_ExpandToCString(char *in);
 			extern HWND mainwindow;
@@ -1321,6 +1322,7 @@ void P_NewServer(void)
 			CloseClipboard();
 		}
 #endif
+*/
 	}
 }
 

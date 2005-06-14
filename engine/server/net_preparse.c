@@ -135,10 +135,21 @@ void NPP_Flush(void)
 		}
 		bufferlen = 0;
 		break;
-	case svcdp_showlmp:
 	case svcdp_hidelmp:
-		ignoreprotocol = true;
-		Con_Printf ("Ignoring svc_showlmp\n");
+		requireextension = PEXT_SHOWPIC;
+		buffer[0] = svc_hidepic;
+		break;
+	case svcdp_showlmp:
+		requireextension = PEXT_SHOWPIC;
+		memmove(buffer+2, buffer+1, bufferlen-1);
+		bufferlen++;
+		buffer[0] = svc_showpic;
+		buffer[1] = 0;	//top left
+		//pad the bytes to shorts.
+		buffer[bufferlen] = buffer[bufferlen-1];
+		buffer[bufferlen-1] = 0;
+		buffer[bufferlen+1] = 0;
+		bufferlen+=2;
 		break;
 
 	case svc_temp_entity:
@@ -455,13 +466,15 @@ void NPP_NQWriteByte(int dest, qbyte data)	//replacement write func (nq to qw)
 			if (!data)
 				protocollen = bufferlen;
 			break;
-		case svcdp_showlmp:			// [string] slotname [string] lmpfilename [short] x [short] y
+		case svcdp_showlmp:			// [string] slotname [string] lmpfilename [byte] x [byte] y
+									//note: nehara uses bytes!
+									//and the rest of dp uses shorts. how nasty is that?
 			if (!data)
-			{	//second string, plus 4 bytes.
+			{	//second string, plus 2 bytes.
 				int i;
 				for (i = 0; i < bufferlen; i++)
 					if (!buffer[i])
-						protocollen = bufferlen+4;
+						protocollen = bufferlen+2;
 			}
 			break;
 		}

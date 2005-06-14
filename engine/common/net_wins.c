@@ -430,7 +430,7 @@ qboolean	NET_StringToSockaddr (char *s, struct sockaddr_qstorage *sadr)
 		int len;
 
 		memset(&udp6hint, 0, sizeof(udp6hint));
-		udp6hint.ai_family = 0;//Any... AF_INET6;
+		udp6hint.ai_family = 0;//Any... we check for AF_INET6 or 4
 		udp6hint.ai_socktype = SOCK_DGRAM;
 		udp6hint.ai_protocol = IPPROTO_UDP;
 

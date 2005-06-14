@@ -223,17 +223,33 @@ EVENT MESSAGES
 
 static void SV_PrintToClient(client_t *cl, int level, char *string)
 {
-	ClientReliableWrite_Begin (cl, cl->protocol==SCP_QUAKE2?svcq2_print:svc_print, strlen(string)+3);
-#ifdef NQPROT
-	if (!ISQWCLIENT(cl))
+	switch (cl->protocol)
 	{
+	case SCP_BAD:	//bot
+		break;
+#ifdef Q2SERVER
+	case SCP_QUAKE2:
+		ClientReliableWrite_Begin (cl, svcq2_print, strlen(string)+3);
+		ClientReliableWrite_Byte (cl, level);
+		ClientReliableWrite_String (cl, string);
+		break;
+#endif
+#ifdef NQPROT
+	case SCP_NETQUAKE:
+	case SCP_DARKPLACES6:
+	case SCP_DARKPLACES7:
+		ClientReliableWrite_Begin (cl, svc_print, strlen(string)+3);
 		if (level == PRINT_CHAT)
 			ClientReliableWrite_Byte (cl, 1);
-	}
-	else
+		ClientReliableWrite_String (cl, string);
+		break;
 #endif
+	case SCP_QUAKEWORLD:
+		ClientReliableWrite_Begin (cl, svc_print, strlen(string)+3);
 		ClientReliableWrite_Byte (cl, level);
-	ClientReliableWrite_String (cl, string);
+		ClientReliableWrite_String (cl, string);
+		break;
+	}
 }
 
 
@@ -328,6 +344,8 @@ void VARGS SV_BroadcastPrintf (int level, char *fmt, ...)
 		if (level < cl->messagelevel)
 			continue;
 		if (!cl->state)
+			continue;
+		if (cl->protocol == SCP_BAD)
 			continue;
 
 		if (cl->controller)
@@ -526,9 +544,14 @@ void SV_MulticastProtExt(vec3_t origin, multicast_t to, int dimension_mask, int 
 					continue;
 			}
 
-#ifdef NQPROT
-			if (!ISQWCLIENT(client))
+			switch (client->protocol)
 			{
+			case SCP_BAD:
+				break;
+#ifdef NQPROT
+			case SCP_NETQUAKE:
+			case SCP_DARKPLACES6:
+			case SCP_DARKPLACES7:
 				if (reliable)
 				{
 					ClientReliableCheckBlock(client, sv.nqmulticast.cursize);
@@ -536,16 +559,18 @@ void SV_MulticastProtExt(vec3_t origin, multicast_t to, int dimension_mask, int 
 				}
 				else
 					SZ_Write (&client->datagram, sv.nqmulticast.data, sv.nqmulticast.cursize);
-			}
-			else
+				break;
 #endif
-			     if (reliable)
-			{
-				ClientReliableCheckBlock(client, sv.multicast.cursize);
-				ClientReliableWrite_SZ(client, sv.multicast.data, sv.multicast.cursize);
+			case SCP_QUAKEWORLD:
+			    if (reliable)
+				{
+					ClientReliableCheckBlock(client, sv.multicast.cursize);
+					ClientReliableWrite_SZ(client, sv.multicast.data, sv.multicast.cursize);
+				}
+				else
+					SZ_Write (&client->datagram, sv.multicast.data, sv.multicast.cursize);
+				break;
 			}
-			else
-				SZ_Write (&client->datagram, sv.multicast.data, sv.multicast.cursize);
 		}
 	}
 	else
@@ -914,11 +939,11 @@ void SV_WriteClientdataToMessage (client_t *client, sizebuf_t *msg)
 
 	for (split = client; split; split=split->controlled, pnum++)
 		SV_WriteEntityDataToMessage(split, msg, pnum);
-
+/*
 	MSG_WriteByte (msg, svc_time);
 	MSG_WriteFloat(msg, sv.physicstime);
 	client->nextservertimeupdate = sv.physicstime;
-
+*/
 	// Z_EXT_TIME protocol extension
 	// every now and then, send an update so that extrapolation
 	// on client side doesn't stray too far off
@@ -942,6 +967,7 @@ void SV_WriteClientdataToMessage (client_t *client, sizebuf_t *msg)
 	MSG_WriteByte (msg, svc_time);
 	MSG_WriteFloat(msg, sv.physicstime);
 	client->nextservertimeupdate = sv.physicstime;
+	Con_Printf("%f\n", sv.physicstime);
 
 
 	bits = 0;
@@ -960,6 +986,7 @@ void SV_WriteClientdataToMessage (client_t *client, sizebuf_t *msg)
 #define	SU_WEAPONFRAME	(1<<12)
 #define	SU_ARMOR		(1<<13)
 #define	SU_WEAPON		(1<<14)
+#define	SU_EXTEND1		(1<<15)
 
 	if (ent->v->view_ofs[2] != DEFAULT_VIEWHEIGHT)
 		bits |= SU_VIEWHEIGHT;
@@ -1002,6 +1029,9 @@ void SV_WriteClientdataToMessage (client_t *client, sizebuf_t *msg)
 //	if (ent->v->weapon)
 		bits |= SU_WEAPON;
 
+	if (bits >= 65536)
+		bits |= SU_EXTEND1;
+
 // send the data
 
 	MSG_WriteByte (msg, svc_clientdata);
@@ -1018,11 +1048,19 @@ void SV_WriteClientdataToMessage (client_t *client, sizebuf_t *msg)
 //		if (bits & (SU_PUNCH1<<i))
 //			MSG_WriteChar (msg, ent->v->punchangle[i]);
 		if (bits & (SU_VELOCITY1<<i))
-			MSG_WriteChar (msg, ent->v->velocity[i]/16);
+		{
+			if (client->protocol == SCP_DARKPLACES6 || client->protocol == SCP_DARKPLACES7)
+				MSG_WriteCoord(msg, ent->v->velocity[i]);
+			else
+				MSG_WriteChar (msg, ent->v->velocity[i]/16);
+		}
 	}
 
-// [always sent]	if (bits & SU_ITEMS)
-	MSG_WriteLong (msg, items);
+	if (bits & SU_ITEMS)
+		MSG_WriteLong (msg, items);
+
+	if (client->protocol == SCP_DARKPLACES6 || client->protocol == SCP_DARKPLACES7)
+		return;
 
 	if (bits & SU_WEAPONFRAME)
 		MSG_WriteByte (msg, ent->v->weaponframe);
@@ -1183,6 +1221,8 @@ void SV_UpdateClientStats (client_t *client, int pnum)
 	else
 		stats[STAT_VIEW2] = 0;
 #endif
+
+	stats[STAT_VIEWZOOM] = 255;
 
 	SV_UpdateQCStats(ent, stats);
 
@@ -1526,6 +1566,9 @@ void SV_UpdateToReliableMessages (void)
 		if (client->controller)
 			continue;	//splitscreen
 
+		if (client->protocol == SCP_BAD)
+			continue;	//botclient
+
 #ifdef Q2SERVER
 		if (ISQ2CLIENT(client))
 		{
@@ -1679,6 +1722,13 @@ void SV_SendClientMessages (void)
 					c->backbuf.maxsize = sizeof(c->backbuf_data[c->num_backbuf - 1]);
 				}
 			}
+		}
+
+		if (c->protocol == SCP_BAD)
+		{
+			SZ_Clear (&c->netchan.message);
+			SZ_Clear (&c->datagram);
+			continue;
 		}
 
 		// if the reliable message overflowed,

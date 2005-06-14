@@ -223,7 +223,7 @@ void R_SetVrect (vrect_t *pvrect, vrect_t *pvrectin, int lineadj);
 #if defined(RGLQUAKE)
 
 void	GLMod_Init (void);
-void GLMod_GetTag(struct model_s *model, int tagnum, int frame, float **org, float **axis);
+qboolean GLMod_GetTag(struct model_s *model, int tagnum, int frame, int frame2, float f2ness, float f1time, float f2time, float *result);
 int GLMod_TagNumForName(struct model_s *model, char *name);
 void	GLMod_ClearAll (void);
 struct model_s *GLMod_ForName (char *name, qboolean crash);

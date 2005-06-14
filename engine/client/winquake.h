@@ -78,13 +78,21 @@ extern LPDIRECTDRAWSURFACE	lpFrontBuffer;
 extern LPDIRECTDRAWSURFACE	lpBackBuffer;
 extern LPDIRECTDRAWPALETTE	lpDDPal;
 #endif
-
+/*
 struct soundcardinfo_s {
 	int snd_linear_count;	//change in asm_i386.h. MUST be first
 
 	float pitch[MAXSOUNDCHANNELS];
 	float yaw[MAXSOUNDCHANNELS];
 	float dist[MAXSOUNDCHANNELS];
+
+	void *handle;
+	void *(*Lock) (soundcardinfo_t *sc);
+	void (*Unlock) (soundcardinfo_t *sc, void *buffer);
+	void (*Submit) (soundcardinfo_t *sc);
+	void (*Shutdown) (soundcardinfo_t *sc);
+	unsigned int (*GetDMAPos) (soundcardinfo_t *sc);
+	void (*SetWaterDistortion) (soundcardinfo_t *sc, qboolean underwater);
 
 #ifndef NODIRECTX
 	LPDIRECTSOUND pDS;
@@ -102,20 +110,12 @@ struct soundcardinfo_s {
 	qboolean selfpainting;
 
 	qboolean inactive_sound;
-#ifndef NODIRECTX
-	qboolean snd_isdirect;
-#endif
-	qboolean snd_iswave;
+
 
 	int   		paintedtime;
 	int			oldpaintedtime;
 	int	oldsamplepos;
 	int buffers;
-
-#ifndef NODIRECTX
-	qboolean dsound_init;
-#endif
-	qboolean wav_init;
 
 	dma_t sn;
 
@@ -139,7 +139,7 @@ int			total_chans;
 
 	struct soundcardinfo_s *next;
 };
-
+*/
 
 
 //void	VID_LockBuffer (void);

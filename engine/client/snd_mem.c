@@ -21,8 +21,6 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 
 #include "quakedef.h"
 
-#ifndef __CYGWIN__
-
 #include "winquake.h"
 
 int			cache_full_cycle;
@@ -428,5 +426,3 @@ wavinfo_t GetWavinfo (char *name, qbyte *wav, int wavlength)
 	
 	return info;
 }
-
-#endif

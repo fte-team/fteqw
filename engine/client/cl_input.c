@@ -543,7 +543,7 @@ CL_FinishMove
 */
 void CL_FinishMove (usercmd_t *cmd, int msecs, int pnum)
 {
-	int		ms, i;
+	int	i;
 	int bits;
 
 //
@@ -793,15 +793,10 @@ float CL_FilterTime (double time, float wantfps)	//now returns the extra time no
 	{
 		fpscap = cls.maxfps ? max (30.0, cls.maxfps) : 0x7fff;
 	
-		if (wantfps>0)
-			fps = bound (10.0, wantfps, fpscap);
+		if (wantfps < 1)
+			fps = fpscap;
 		else
-		{
-//			if (com_serveractive)
-//				fps = fpscap;
-//			else
-				fps = bound (30.0, rate.value/80.0, fpscap);
-		}
+			fps = bound (10.0, wantfps, fpscap);
 	}
 
 	if (time < 1000 / fps)
@@ -882,6 +877,7 @@ int CL_RemoveClientCommands(char *command)
 		if (!clientcmdlist)
 			return removed;
 	}
+	first = clientcmdlist;
 	while(first->next)
 	{
 		if (!strcmp(first->next->command, command))
@@ -1011,8 +1007,6 @@ void CL_SendCmd (float frametime)
 	int			lost;
 	int			seq_hash;
 	int firstsize;
-	int extramsec;
-	vec3_t v;
 	float wantfps;
 
 	qbyte lightlev;

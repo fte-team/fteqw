@@ -344,6 +344,7 @@ void CL_ParseBeam (int tent)
 		{
 			m = Mod_ForName("progs/beam.mdl", false);	//remember to precache!
 			btype = P_FindParticleType("te_beam");
+			etype = P_FindParticleType("te_beam_end");
 		}
 		else
 		{

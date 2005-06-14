@@ -68,6 +68,7 @@ cvar_t		con_numnotifylines = {"con_notifylines","4"};		//max lines to show
 cvar_t		con_notifytime = {"con_notifytime","3"};		//seconds
 cvar_t		con_centernotify = {"con_centernotify", "0"};
 cvar_t		con_displaypossabilities = {"con_displaypossabilities", "1"};
+cvar_t		cl_chatmode = {"cl_chatmode", "2"};
 
 #define	NUM_CON_TIMES 24
 float		con_times[NUM_CON_TIMES];	// realtime time the line was generated
@@ -511,6 +512,7 @@ void Con_Init (void)
 	Cvar_Register (&con_centernotify, "Console controls");
 	Cvar_Register (&con_numnotifylines, "Console controls");
 	Cvar_Register (&con_displaypossabilities, "Console controls");
+	Cvar_Register (&cl_chatmode, "Console controls");
 
 	Cmd_AddCommand ("toggleconsole", Con_ToggleConsole_f);
 	Cmd_AddCommand ("togglechat", Con_ToggleChat_f);

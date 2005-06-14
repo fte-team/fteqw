@@ -395,7 +395,7 @@ reeval:
 		if (ed->readonly)
 		{
 			pr_xstatement = st-pr_statements;
-			PR_RunError (progfuncs, "assignment to read-only entity in %s", pr_xfunction->s_name);
+			PR_RunError (progfuncs, "assignment to read-only entity in %s", progfuncs->stringtable + pr_xfunction->s_name);
 		}
 		OPC->_int = ENGINEPOINTER((((int *)edvars(ed)) + OPB->_int + progfuncs->fieldadjust));
 		break;

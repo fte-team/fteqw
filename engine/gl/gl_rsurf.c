@@ -3767,7 +3767,6 @@ void GL_BuildLightmaps (void)
 {
 	int		i, j;
 	model_t	*m;
-	msurface_t *fa;
 
 	r_framecount = 1;		// no dlightcache
 

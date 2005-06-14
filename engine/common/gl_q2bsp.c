@@ -2394,11 +2394,11 @@ mesh_t *GL_CreateMeshForPatch (model_t *mod, int patchwidth, int patchheight, in
 
 void CModQ3_SortShaders(void)
 {
-	texture_t *textemp;
+/*	texture_t *textemp;
 	int i, j;
 	//sort loadmodel->textures
 	//correct pointers in loadmodel->texinfo
-/*
+
 	for (i = 0; i < numtexinfo; i++)
 	{
 		for (j = i+1; j < numtexinfo; j++)

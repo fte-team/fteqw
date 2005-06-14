@@ -198,13 +198,15 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 #define	svcdp_precache		54		// [short] precacheindex [string] filename, precacheindex is + 0 for modelindex and +32768 for soundindex
 #define svc_nails2			54		//qwe - [qbyte] num [52 bits] nxyzpy 8 12 12 12 4 8 
 
-
+#define svcdp_spawnbaseline2	55
 #ifdef PEXT_VIEW2
 #define svc_view2			56
 #endif
 #ifdef PEXT_LIGHTSTYLECOL
 #define svc_lightstylecol	57
 #endif
+
+#define svcdp_entities		57
 
 #ifdef PEXT_BULLETENS
 #define svc_bulletentext	58
@@ -660,6 +662,7 @@ enum {
 typedef struct entity_state_s
 {
 	int		number;			// edict index
+	int		bitmask;		// for dp ents, so lost state can be repeated in replacement packets.
 
 	int		flags;			// nolerp, etc
 	vec3_t	origin;

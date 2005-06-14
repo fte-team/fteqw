@@ -209,8 +209,8 @@ void VARGS PR_RunError (progfuncs_t *progfuncs, char *error, ...)
 
 //editbadfile(pr_strings + pr_xfunction->s_file, -1);
 	
-	pr_depth = 0;		// dump the stack so host_error can shutdown functions	
-	prinst->exitdepth = 0;
+//	pr_depth = 0;		// dump the stack so host_error can shutdown functions	
+//	prinst->exitdepth = 0;
 
 	Abort (string);
 }
@@ -259,7 +259,11 @@ int PR_EnterFunction (progfuncs_t *progfuncs, dfunction_t *f, int progsnum)
 // save off any locals that the new function steps on (to a side place, fromwhere they are restored on exit)
 	c = f->locals;
 	if (localstack_used + c > LOCALSTACK_SIZE)
+	{
+		localstack_used -= pr_spushed;
+		pr_depth--;
 		PR_RunError (progfuncs, "PR_ExecuteProgram: locals stack overflow\n");
+	}
 
 	for (i=0 ; i < c ; i++)
 		localstack[localstack_used+i] = ((int *)pr_globals)[f->parm_start + i];

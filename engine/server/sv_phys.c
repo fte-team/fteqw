@@ -1506,7 +1506,8 @@ void SV_WalkMove (edict_t *ent)
 }
 #else
 
-
+// 1/32 epsilon to keep floating point happy
+#define	DIST_EPSILON	(0.03125)
 int SV_SetOnGround (edict_t *ent)
 {
 	vec3_t end;
@@ -1517,7 +1518,7 @@ int SV_SetOnGround (edict_t *ent)
 	end[1] = ent->v->origin[1];
 	end[2] = ent->v->origin[2] - 1;
 	trace = SV_Move(ent->v->origin, ent->v->mins, ent->v->maxs, end, MOVE_NORMAL, ent);
-	if (trace.fraction < 1 && trace.plane.normal[2] >= 0.7)
+	if (trace.fraction <= DIST_EPSILON && trace.plane.normal[2] >= 0.7)
 	{
 		ent->v->flags = (int)ent->v->flags | FL_ONGROUND;
 		ent->v->groundentity = EDICT_TO_PROG(svprogfuncs, trace.ent);

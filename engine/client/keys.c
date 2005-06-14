@@ -53,6 +53,7 @@ qboolean	keydown[256];
 qboolean deltaused[256][KEY_MODIFIERSTATES];
 
 extern cvar_t con_displaypossabilities;
+extern cvar_t cl_chatmode;
 
 static int KeyModifier (qboolean shift, qboolean alt, qboolean ctrl)
 {
@@ -354,7 +355,7 @@ void Con_ExecuteLine(console_t *con, char *line)
 	con_commandmatch=1;
 	if (line[0] == '\\' || line[0] == '/')
 		Cbuf_AddText (line+1, RESTRICT_LOCAL);	// skip the >
-	else if (Cmd_IsCommand(line))
+	else if (cl_chatmode.value && Cmd_IsCommand(line))
 		Cbuf_AddText (line, RESTRICT_LOCAL);	// valid command
 #ifdef Q2CLIENT
 	else if (cls.protocol == CP_QUAKE2)
@@ -362,7 +363,7 @@ void Con_ExecuteLine(console_t *con, char *line)
 #endif
 	else
 	{	// convert to a chat message
-		if (cls.state >= ca_connected && (strncmp(line, "say ", 4)))
+		if (cl_chatmode.value == 1 || ((cls.state >= ca_connected && cl_chatmode.value == 2) && (strncmp(line, "say ", 4))))
 		{
 			if (keydown[K_CTRL])
 				Cbuf_AddText ("say_team ", RESTRICT_LOCAL);

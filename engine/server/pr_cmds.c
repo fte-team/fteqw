@@ -3022,6 +3022,53 @@ void PF_dropclient (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 	cl->drop = true;
 	return;
 }
+
+	
+
+//DP_QC_BOTCLIENT
+//entity() spawnclient = #454;
+void PF_spawnclient (progfuncs_t *prinst, struct globalvars_s *pr_globals)
+{
+	int i;
+	for (i = 0; i < sv.allocated_client_slots; i++)
+	{
+		if (!*svs.clients[i].name)
+		{
+			svs.clients[i].protocol = SCP_BAD;
+			svs.clients[i].state = cs_spawned;
+			svs.clients[i].netchan.message.allowoverflow = true;
+			svs.clients[i].netchan.message.maxsize = 0;
+			svs.clients[i].datagram.allowoverflow = true;
+			svs.clients[i].datagram.maxsize = 0;
+			RETURN_EDICT(prinst, svs.clients[i].edict);
+			return;
+		}
+	}
+	RETURN_EDICT(prinst, sv.edicts);
+}
+
+//DP_QC_BOTCLIENT
+//float(entity client) clienttype = #455;
+void PF_clienttype (progfuncs_t *prinst, struct globalvars_s *pr_globals)
+{
+	int entnum = G_EDICTNUM(prinst, OFS_PARM0);
+	if (entnum < 1 || entnum > sv.allocated_client_slots)
+	{
+		G_FLOAT(OFS_RETURN) = 3;	//not a client slot
+		return;
+	}
+	entnum--;
+	if (svs.clients[entnum].state < cs_connected)
+	{
+		G_FLOAT(OFS_RETURN) = 0;	//disconnected
+		return;
+	}
+	if (svs.clients[entnum].protocol == SCP_BAD)
+		G_FLOAT(OFS_RETURN) = 2;	//an active, not-bot client.
+	else
+		G_FLOAT(OFS_RETURN) = 1;	//an active, not-bot client.
+}
+
 /*
 =================
 PF_localcmd
@@ -5992,6 +6039,8 @@ lh_extension_t QSG_Extensions[] = {
 	{"DP_EF_FULLBRIGHT"},				//Rerouted to hexen2 support.
 	{"DP_EF_NODRAW"},					//implemented by sending it with no modelindex
 	{"DP_EF_RED"},
+	{"DP_ENT_EXTERIORMODELTOCLIENT"},
+	{"DP_GFX_SKINFILES"},
 	{"DP_HALFLIFE_MAP_CVAR"},
 	{"DP_MONSTERWALK"},
 	{"DP_MOVETYPEBOUNCEMISSILE"},		//I added the code for hexen2 support.
@@ -8288,22 +8337,87 @@ typedef struct {
 	float ang[3][3];
 } md3tag_t;
 
-md3tag_t *SV_GetTags(int modelindex, int *tagcount)
+typedef struct zymlump_s
 {
-	md3Header_t *file;
-	file = (md3Header_t*)COM_LoadTempFile(sv.model_precache[modelindex]);
+	int start;
+	int length;
+} zymlump_t;
+typedef struct zymtype1header_s
+{
+	char id[12]; // "ZYMOTICMODEL", length 12, no termination
+	int type; // 0 (vertex morph) 1 (skeletal pose) or 2 (skeletal scripted)
+	int filesize; // size of entire model file
+	float mins[3], maxs[3], radius; // for clipping uses
+	int numverts;
+	int numtris;
+	int numsurfaces;
+	int numbones; // this may be zero in the vertex morph format (undecided)
+	int numscenes; // 0 in skeletal scripted models
+
+// skeletal pose header
+	// lump offsets are relative to the file
+	zymlump_t lump_scenes; // zymscene_t scene[numscenes]; // name and other information for each scene (see zymscene struct)
+	zymlump_t lump_poses; // float pose[numposes][numbones][6]; // animation data
+	zymlump_t lump_bones; // zymbone_t bone[numbones];
+	zymlump_t lump_vertbonecounts; // int vertbonecounts[numvertices]; // how many bones influence each vertex (separate mainly to make this compress better)
+	zymlump_t lump_verts; // zymvertex_t vert[numvertices]; // see vertex struct
+	zymlump_t lump_texcoords; // float texcoords[numvertices][2];
+	zymlump_t lump_render; // int renderlist[rendersize]; // sorted by shader with run lengths (int count), shaders are sequentially used, each run can be used with glDrawElements (each triangle is 3 int indices)
+	zymlump_t lump_surfnames; // char shadername[numsurfaces][32]; // shaders used on this model
+	zymlump_t lump_trizone; // byte trizone[numtris]; // see trizone explanation
+} zymtype1header_t;
+typedef struct zymbone_s
+{
+	char name[32];
+	int flags;
+	int parent; // parent bone number
+} zymbone_t;
+
+int SV_TagForName(int modelindex, char *tagname)
+{
+	int i;
+	unsigned int *file;
+
+	file = (void*)COM_LoadTempFile(sv.model_precache[modelindex]);
 	if (!file)
 	{
 		Con_Printf("setattachment: \"%s\" is missing\n", sv.model_precache[modelindex]);
-		return NULL;
+		return 0;
 	}
-	if (file->ident != MD3_IDENT)
+
+	if (*file == MD3_IDENT)
 	{
-		Con_DPrintf("setattachment: not an md3 (%s)\n", sv.model_precache[modelindex]);
-		return NULL;
+		md3Header_t *md3 = (md3Header_t*)file;
+		md3tag_t *tag;
+
+		tag = (md3tag_t*)((char*)md3 + md3->ofsTags);
+
+		for (i = 0;i < md3->numTags;i++)
+		{
+			if (!strcmp(tagname, tag[i].name))
+			{
+				return i + 1;
+			}
+		}
 	}
-	*tagcount = file->numTags;
-	return (md3tag_t*)((char*)file + file->ofsTags);
+	else if (!strncmp((char*)file, "ZYMOTICMODEL", 12) && BigLong(file[3]) == 1)
+	{
+		zymtype1header_t *zym = (zymtype1header_t*)file;
+		zymbone_t *tag;
+
+		tag = (zymbone_t*)((char*)zym + BigLong(zym->lump_bones.start));
+
+		for (i = BigLong(zym->numbones)-1;i >=0;i--)
+		{
+			if (!strcmp(tagname, tag[i].name))
+			{
+				return i + 1;
+			}
+		}
+	}
+	else
+		Con_DPrintf("setattachment: %s not supported\n", sv.model_precache[modelindex]);
+	return 0;
 }
 
 void PF_setattachment(progfuncs_t *prinst, struct globalvars_s *pr_globals)
@@ -8315,9 +8429,7 @@ void PF_setattachment(progfuncs_t *prinst, struct globalvars_s *pr_globals)
 	eval_t *te;
 	eval_t *ti;
 
-	int i, modelindex;
-	md3tag_t *model;
-	int tagcount;
+	int modelindex;
 
 	te = prinst->GetEdictFieldValue(prinst, e, "tag_entity", NULL);
 	ti = prinst->GetEdictFieldValue(prinst, e, "tag_index", NULL);
@@ -8328,18 +8440,11 @@ void PF_setattachment(progfuncs_t *prinst, struct globalvars_s *pr_globals)
 	if (tagentity != sv.edicts && tagname && tagname[0])
 	{
 		modelindex = (int)tagentity->v->modelindex;
-		if (modelindex > 0 && modelindex < MAX_MODELS && (model = SV_GetTags(modelindex, &tagcount)))
+		if (modelindex > 0 && modelindex < MAX_MODELS && sv.model_precache[modelindex])
 		{
-			for (i = 0;i < tagcount;i++)
-			{
-				if (!strcmp(tagname, model[i].name))
-				{
-					e->tagindex = i + 1;
-					break;
-				}
-			}
+			e->tagindex = SV_TagForName(modelindex, tagname);
 			if (e->tagindex == 0)
-				Con_DPrintf("setattachment(edict %i, edict %i, string \"%s\"): tried to find tag named \"%s\" on entity %i (model \"%s\") but could not find it\n", NUM_FOR_EDICT(prinst, e), NUM_FOR_EDICT(prinst, tagentity), tagname, tagname, NUM_FOR_EDICT(prinst, tagentity), model->name);
+				Con_DPrintf("setattachment(edict %i, edict %i, string \"%s\"): tried to find tag named \"%s\" on entity %i (model \"%s\") but could not find it\n", NUM_FOR_EDICT(prinst, e), NUM_FOR_EDICT(prinst, tagentity), tagname, tagname, NUM_FOR_EDICT(prinst, tagentity), sv.models[modelindex]->name);
 		}
 		else
 			Con_DPrintf("setattachment(edict %i, edict %i, string \"%s\"): tried to find tag named \"%s\" on entity %i but it has no model\n", NUM_FOR_EDICT(prinst, e), NUM_FOR_EDICT(prinst, tagentity), tagname, tagname, NUM_FOR_EDICT(prinst, tagentity));
@@ -8351,7 +8456,7 @@ void PF_setattachment(progfuncs_t *prinst, struct globalvars_s *pr_globals)
 	MSG_WriteShort(&sv.multicast, e->entnum);
 	MSG_WriteShort(&sv.multicast, e->tagent);
 	MSG_WriteShort(&sv.multicast, e->tagindex);
-
+	
 	SV_MulticastProtExt(vec3_origin, MULTICAST_ALL_R, 0xffffffff, PEXT_SETATTACHMENT, 0);
 
 	if (te)
@@ -8748,6 +8853,9 @@ BuiltinList_t BuiltinList[] = {				//nq	qw		h2		ebfs
 	{"findchainflags",	PF_findchainflags,	0,		0,		0,		450},// #450 entity(.float fld, float match) findchainflags
 
 	{"dropclient",		PF_dropclient,		0,		0,		0,		453},// #453 void(entity player) dropclient
+
+	{"spawnclient",		PF_spawnclient,		0,		0,		0,		454},	//entity() spawnclient = #454;
+	{"clienttype",		PF_clienttype,		0,		0,		0,		455},	//float(entity client) clienttype = #455;
 
 //end other peoples extras
 

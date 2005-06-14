@@ -1801,7 +1801,7 @@ static void TP_TeamColor_f (void)
 	{
 		cl_teamtopcolor = -1;
 		cl_teambottomcolor = -1;
-		if (qrenderer)	//make sure we have the renderer initialised...
+		if (qrenderer>QR_NONE)	//make sure we have the renderer initialised...
 			for (i = 0; i < MAX_CLIENTS; i++)
 				CL_NewTranslation(i);
 		return;
@@ -1826,7 +1826,7 @@ static void TP_TeamColor_f (void)
 		cl_teamtopcolor = top;
 		cl_teambottomcolor = bottom;
 
-		if (qrenderer)	//make sure we have the renderer initialised...
+		if (qrenderer>QR_NONE)	//make sure we have the renderer initialised...
 			for (i = 0; i < MAX_CLIENTS; i++)
 				CL_NewTranslation(i);
 	}
@@ -1852,7 +1852,7 @@ static void TP_EnemyColor_f (void)
 	{
 		cl_enemytopcolor = -1;
 		cl_enemybottomcolor = -1;
-		if (qrenderer)	//make sure we have the renderer initialised...
+		if (qrenderer>QR_NONE)	//make sure we have the renderer initialised...
 			for (i = 0; i < MAX_CLIENTS; i++)
 				CL_NewTranslation(i);
 		return;
@@ -1877,7 +1877,7 @@ static void TP_EnemyColor_f (void)
 		cl_enemytopcolor = top;
 		cl_enemybottomcolor = bottom;
 
-		if (qrenderer)	//make sure we have the renderer initialised...
+		if (qrenderer>QR_NONE)	//make sure we have the renderer initialised...
 			for (i = 0; i < MAX_CLIENTS; i++)
 				CL_NewTranslation(i);
 	}

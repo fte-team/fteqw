@@ -1233,19 +1233,32 @@ float CL_LerpEntityFrac(float lerprate, float lerptime)
 	return f;
 }
 
+float CL_EntLerpFactor(int entnum)
+{
+	float f;
+	if (cl.lerpents[entnum].lerprate<=0)
+		return 0;
+	else
+		f = 1-(cl.time-cl.lerpents[entnum].lerptime)/cl.lerpents[entnum].lerprate;
+	if (f<0)
+		f=0;
+	if (f>1)
+		f=1;
+	return f;
+}
+
 void CL_RotateAroundTag(entity_t *ent, int num, int tagent, int tagnum)
 {
 	entity_state_t *ps;
 	float *org=NULL, *ang=NULL;
 	vec3_t axis[3];
-	vec3_t temp[3];
 	vec3_t destorg;
+	float transform[12], parent[12], result[12], old[12], temp[12];
 
 	int model = 0;	//these two are only initialised because msvc sucks at detecting usage.
 	int frame = 0;
-
-	float *tagorg=NULL;
-	float *tagaxis;
+	int frame2 = cl.lerpents[tagent].frame;
+	float frame2ness;
 
 //	ent->keynum = tagent;
 
@@ -1288,12 +1301,51 @@ void CL_RotateAroundTag(entity_t *ent, int num, int tagent, int tagnum)
 		AngleVectors(ang, axis[0], axis[1], axis[2]);
 		VectorInverse(axis[1]);
 
-		if (Mod_GetTag)
-			Mod_GetTag(cl.model_precache[model], tagnum, frame, &tagorg, &tagaxis);
-		else
-			tagaxis = NULL;
-		if (tagaxis)
+		frame2ness = CL_EntLerpFactor(tagent);
+		if (Mod_GetTag && Mod_GetTag(cl.model_precache[model], tagnum, frame, frame2, frame2ness, cl.time - cl.lerpents[tagent].framechange, cl.time - cl.lerpents[tagent].framechange, transform))
 		{
+			old[0] = ent->axis[0][0];
+			old[1] = ent->axis[1][0];
+			old[2] = ent->axis[2][0];
+			old[3] = ent->origin[0];
+			old[4] = ent->axis[0][1];
+			old[5] = ent->axis[1][1];
+			old[6] = ent->axis[2][1];
+			old[7] = ent->origin[1];
+			old[8] = ent->axis[0][2];
+			old[9] = ent->axis[1][2];
+			old[10] = ent->axis[2][2];
+			old[11] = ent->origin[2];
+
+			parent[0] = axis[0][0];
+			parent[1] = axis[1][0];
+			parent[2] = axis[2][0];
+			parent[3] = org[0];
+			parent[4] = axis[0][1];
+			parent[5] = axis[1][1];
+			parent[6] = axis[2][1];
+			parent[7] = org[1];
+			parent[8] = axis[0][2];
+			parent[9] = axis[1][2];
+			parent[10] = axis[2][2];
+			parent[11] = org[2];
+
+			R_ConcatTransforms((void*)old, (void*)parent, (void*)temp);
+			R_ConcatTransforms((void*)temp, (void*)transform, (void*)result);
+
+			ent->axis[0][0] = result[0];
+			ent->axis[1][0] = result[1];
+			ent->axis[2][0] = result[2];
+			ent->origin[0] = result[3];
+			ent->axis[0][1] = result[4];
+			ent->axis[1][1] = result[5];
+			ent->axis[2][1] = result[6];
+			ent->origin[1] = result[7];
+			ent->axis[0][2] = result[8];
+			ent->axis[1][2] = result[9];
+			ent->axis[2][2] = result[10];
+			ent->origin[2] = result[11];
+/*
 			VectorAdd(org, ent->origin, destorg);
 			VectorMA(destorg, tagorg[0], ent->axis[0], destorg);
 			VectorMA(destorg, tagorg[1], ent->axis[1], destorg);
@@ -1303,14 +1355,13 @@ void CL_RotateAroundTag(entity_t *ent, int num, int tagent, int tagnum)
 //			Con_Printf("Found tag %i\n", cl.lerpents[tagent].tagindex);
 			Matrix3_Multiply(axis, ent->axis, temp);	//the ent->axis here is the result of the parent's transforms
 			Matrix3_Multiply((void*)tagaxis, temp, ent->axis);
+*/
 		}
 		else	//hrm.
 		{
 			memcpy(ent->axis, axis, sizeof(temp));
 			VectorCopy(org, ent->origin);
 		}
-
-
 	}
 //	if (org)
 //		VectorAdd(ent->origin, org, ent->origin);
@@ -1615,6 +1666,7 @@ void CL_LinkPacketEntities (void)
 				{	//hmm. hexen spider gibs...
 					dl = CL_AllocDlight (s1->number);
 					VectorCopy (ent->origin, dl->origin);
+					dl->origin[2] += 1;
 					dl->radius = 200;
 					dl->die = (float)cl.time;
 					dl->color[0] = 0.20;
@@ -2223,15 +2275,15 @@ void CL_LinkPlayers (void)
 		if ((!r_flashblend.value || j != cl.playernum[0]) && r_powerupglow.value)
 		{
 			if ((state->effects & (EF_BLUE | EF_RED)) == (EF_BLUE | EF_RED))
-				CL_NewDlight (j+1, state->origin[0], state->origin[1], state->origin[2], 200 + (rand()&31), 0.1, 3)->noppl = (j != cl.playernum[0]);
+				CL_NewDlight (j+1, state->origin[0], state->origin[1], state->origin[2], 200 + (r_lightflicker.value?(rand()&31):0), 0.1, 3)->noppl = (j != cl.playernum[0]);
 			else if (state->effects & EF_BLUE)
-				CL_NewDlight (j+1, state->origin[0], state->origin[1], state->origin[2], 200 + (rand()&31), 0.1, 1)->noppl = (j != cl.playernum[0]);
+				CL_NewDlight (j+1, state->origin[0], state->origin[1], state->origin[2], 200 + (r_lightflicker.value?(rand()&31):0), 0.1, 1)->noppl = (j != cl.playernum[0]);
 			else if (state->effects & EF_RED)
-				CL_NewDlight (j+1, state->origin[0], state->origin[1], state->origin[2], 200 + (rand()&31), 0.1, 2)->noppl = (j != cl.playernum[0]);
+				CL_NewDlight (j+1, state->origin[0], state->origin[1], state->origin[2], 200 + (r_lightflicker.value?(rand()&31):0), 0.1, 2)->noppl = (j != cl.playernum[0]);
 			else if (state->effects & EF_BRIGHTLIGHT)
-				CL_NewDlight (j+1, state->origin[0], state->origin[1], state->origin[2] + 16, 400 + (rand()&31), 0.1, 0)->noppl = (j != cl.playernum[0]);
+				CL_NewDlight (j+1, state->origin[0], state->origin[1], state->origin[2] + 16, 400 + (r_lightflicker.value?(rand()&31):0), 0.1, 0)->noppl = (j != cl.playernum[0]);
 			else if (state->effects & EF_DIMLIGHT)
-				CL_NewDlight (j+1, state->origin[0], state->origin[1], state->origin[2], 200 + (rand()&31), 0.1, 0)->noppl = (j != cl.playernum[0]);
+				CL_NewDlight (j+1, state->origin[0], state->origin[1], state->origin[2], 200 + (r_lightflicker.value?(rand()&31):0), 0.1, 0)->noppl = (j != cl.playernum[0]);
 		}
 
 		if (state->modelindex < 1)
@@ -2297,12 +2349,12 @@ void CL_LinkPlayers (void)
 		{
 			if (j == cl.playernum[pnum])
 			{
-				if (cl.spectator)
+/*				if (cl.spectator)
 				{
 					cl_numvisedicts--;
 					continue;
 				}
-				angles[0] = -1*cl.viewangles[pnum][0] / 3;
+*/				angles[0] = -1*cl.viewangles[pnum][0] / 3;
 				angles[1] = cl.viewangles[pnum][1];
 				angles[2] = cl.viewangles[pnum][2];
 				ent->origin[0] = cl.simorg[pnum][0];

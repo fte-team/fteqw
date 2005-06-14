@@ -1005,7 +1005,7 @@ void CL_User_f (void)
 	int		i;
 
 #ifndef CLIENTONLY
-	if (isDedicated)
+	if (sv.state)
 	{
 		SV_User_f();
 		return;
@@ -1964,7 +1964,7 @@ void CLNQ_ConnectionlessPacket(void)
 				Con_TPrintf (TLC_DUPCONNECTION);
 			return;
 		}
-		net_from.port = htons(MSG_ReadLong());
+		net_from.port = htons((short)MSG_ReadLong());
 		Netchan_Setup (NS_CLIENT, &cls.netchan, net_from, cls.qport);
 		cls.netchan.isnqprotocol = true;
 		cls.netchan.compress = 0;
@@ -2941,7 +2941,7 @@ void Host_Init (quakeparms_t *parms)
 	Hunk_AllocName (0, "-HOST_HUNKLEVEL-");
 	host_hunklevel = Hunk_LowMark ();
 
-	R_SetRenderer(0);//set the renderer stuff to 'none'...
+	R_SetRenderer(-1);//set the renderer stuff to unset...
 
 	host_initialized = true;
 
@@ -2977,15 +2977,17 @@ void Host_Init (quakeparms_t *parms)
 	if ((i = COM_CheckParm ("-bpp")))
 		Cvar_Set(Cvar_FindVar("vid_bpp"), com_argv[i+1]);
 
-	if (!qrenderer && *vid_renderer.string)
+	if (qrenderer<=0 && *vid_renderer.string)
+	{
+		Cmd_ExecuteString("vid_restart\n", RESTRICT_LOCAL);
+	}
+	if (qrenderer<=0)
 	{
 		Cmd_ExecuteString("vid_restart\n", RESTRICT_LOCAL);
 	}
 
-	if (!qrenderer)
-	{
-		Cmd_ExecuteString("vid_restart\n", RESTRICT_LOCAL);
-	}
+	if (qrenderer == QR_NONE)
+		Con_Printf("Use the setrenderer command to use a gui\n");
 
 	UI_Init();
 

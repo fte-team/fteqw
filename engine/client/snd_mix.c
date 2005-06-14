@@ -21,16 +21,8 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 
 #include "quakedef.h"
 
-#ifndef __CYGWIN__
-
 #ifndef NOSOUNDASM
 #define NOSOUNDASM	//since channels per sound card went to 6 (portable_samplegroup_t was changed)
-#endif
-
-#ifdef _WIN32
-#include "winquake.h"
-#else
-#define DWORD	unsigned long
 #endif
 
 #define	PAINTBUFFER_SIZE	2048
@@ -72,49 +64,16 @@ void S_TransferStereo16 (soundcardinfo_t *sc, int endtime)
 {
 	int		lpos;
 	int		lpaintedtime;
-	DWORD	*pbuf;
-#if defined(_WIN32) && !defined(NODIRECTX)
-	int		reps;
-	DWORD	dwSize=0,dwSize2=0;
-	DWORD	*pbuf2;
-	HRESULT	hresult;
-#endif
+	short	*pbuf;
 	
 	snd_vol = volume.value*256;
 
 	snd_p = (int *) paintbuffer;
 	lpaintedtime = sc->paintedtime;
 
-#if defined(_WIN32) && !defined(NODIRECTX)
-	if (sc->pDSBuf)
-	{
-		reps = 0;
-
-		while ((hresult = sc->pDSBuf->lpVtbl->Lock(sc->pDSBuf, 0, sc->gSndBufSize, (void**)&pbuf, &dwSize, 
-									   (void**)&pbuf2, &dwSize2, 0)) != DS_OK)
-		{
-			if (hresult != DSERR_BUFFERLOST)
-			{
-				Con_Printf ("S_TransferStereo16: DS::Lock Sound Buffer Failed\n");
-				S_ShutdownCard (sc);
-				SNDDMA_Init (sc);
-				return;
-			}
-
-			if (++reps > 10000)
-			{
-				Con_Printf ("S_TransferStereo16: DS: couldn't restore buffer\n");
-				S_ShutdownCard (sc);
-				SNDDMA_Init (sc);
-				return;
-			}
-		}
-	}
-	else
-#endif
-	{
-		pbuf = (DWORD *)sc->sn.buffer;
-	}
+	pbuf = sc->Lock(sc);
+	if (!pbuf)
+		return;
 
 	while (lpaintedtime < endtime)
 	{
@@ -139,10 +98,7 @@ void S_TransferStereo16 (soundcardinfo_t *sc, int endtime)
 		lpaintedtime += (sc->snd_linear_count>>1);		
 	}
 
-#if defined(_WIN32) && !defined(NODIRECTX)
-	if (sc->pDSBuf)
-		sc->pDSBuf->lpVtbl->Unlock(sc->pDSBuf, pbuf, dwSize, NULL, 0);
-#endif
+	sc->Unlock(sc, pbuf);
 }
 
 void Snd_WriteLinearBlastStereo16_4Speaker (soundcardinfo_t *sc)
@@ -195,49 +151,16 @@ void S_Transfer4Speaker16 (soundcardinfo_t *sc, int endtime)
 {
 	int		lpos;
 	int		lpaintedtime;
-	DWORD	*pbuf;
-#if defined(_WIN32) && !defined(NODIRECTX)
-	int		reps;
-	DWORD	dwSize=0,dwSize2=0;
-	DWORD	*pbuf2;
-	HRESULT	hresult;
-#endif
+	short	*pbuf;
 	
 	snd_vol = volume.value*256;
 
 	snd_p = (int *) paintbuffer;
 	lpaintedtime = sc->paintedtime;
 
-#if defined(_WIN32) && !defined(NODIRECTX)
-	if (sc->pDSBuf)
-	{
-		reps = 0;
-
-		while ((hresult = sc->pDSBuf->lpVtbl->Lock(sc->pDSBuf, 0, sc->gSndBufSize, (void**)&pbuf, &dwSize, 
-									  (void**)&pbuf2, &dwSize2, 0)) != DS_OK)
-		{
-			if (hresult != DSERR_BUFFERLOST)
-			{
-				Con_Printf ("S_TransferStereo16: DS::Lock Sound Buffer Failed\n");
-				S_ShutdownCard (sc);
-				SNDDMA_Init (sc);
-				return;
-			}
-
-			if (++reps > 10000)
-			{
-				Con_Printf ("S_TransferStereo16: DS: couldn't restore buffer\n");
-				S_ShutdownCard (sc);
-				SNDDMA_Init (sc);
-				return;
-			}
-		}
-	}
-	else
-#endif
-	{
-		pbuf = (DWORD *)sc->sn.buffer;
-	}
+	pbuf = sc->Lock(sc);
+	if (!pbuf)
+		return;
 
 	while (lpaintedtime < endtime)
 	{
@@ -262,10 +185,7 @@ void S_Transfer4Speaker16 (soundcardinfo_t *sc, int endtime)
 		lpaintedtime += (sc->snd_linear_count>>2);		
 	}
 
-#if defined(_WIN32) && !defined(NODIRECTX)
-	if (sc->pDSBuf)
-		sc->pDSBuf->lpVtbl->Unlock(sc->pDSBuf, pbuf, dwSize, NULL, 0);
-#endif
+	sc->Unlock(sc, pbuf);
 }
 
 void Snd_WriteLinearBlast6Speaker16 (soundcardinfo_t *sc)
@@ -339,49 +259,16 @@ void S_Transfer6Speaker16 (soundcardinfo_t *sc, int endtime)
 {
 	int		lpos;
 	int		lpaintedtime;
-	DWORD	*pbuf;
-#if defined(_WIN32) && !defined(NODIRECTX)
-	int		reps;
-	DWORD	dwSize=0,dwSize2=0;
-	DWORD	*pbuf2;
-	HRESULT	hresult;
-#endif
+	short	*pbuf;
 	
 	snd_vol = volume.value*256;
 
 	snd_p = (int *) paintbuffer;
 	lpaintedtime = sc->paintedtime;
 
-#if defined(_WIN32) && !defined(NODIRECTX)
-	if (sc->pDSBuf)
-	{
-		reps = 0;
-
-		while ((hresult = sc->pDSBuf->lpVtbl->Lock(sc->pDSBuf, 0, sc->gSndBufSize, (void**)&pbuf, &dwSize, 
-									   (void**)&pbuf2, &dwSize2, 0)) != DS_OK)
-		{
-			if (hresult != DSERR_BUFFERLOST)
-			{
-				Con_Printf ("S_TransferStereo16: DS::Lock Sound Buffer Failed\n");
-				S_ShutdownCard (sc);
-				SNDDMA_Init (sc);
-				return;
-			}
-
-			if (++reps > 10000)
-			{
-				Con_Printf ("S_TransferStereo16: DS: couldn't restore buffer\n");
-				S_ShutdownCard (sc);
-				SNDDMA_Init (sc);
-				return;
-			}
-		}
-	}
-	else
-#endif
-	{
-		pbuf = (DWORD *)sc->sn.buffer;
-	}
+	pbuf = sc->Lock(sc);
+	if (!pbuf)
+		return;
 
 	while (lpaintedtime < endtime)
 	{
@@ -406,10 +293,7 @@ void S_Transfer6Speaker16 (soundcardinfo_t *sc, int endtime)
 		lpaintedtime += (sc->snd_linear_count/6);	
 	}
 
-#if defined(_WIN32) && !defined(NODIRECTX)
-	if (sc->pDSBuf)
-		sc->pDSBuf->lpVtbl->Unlock(sc->pDSBuf, pbuf, dwSize, NULL, 0);
-#endif
+	sc->Unlock(sc, pbuf);
 }
 
 void S_TransferPaintBuffer(soundcardinfo_t *sc, int endtime)
@@ -421,13 +305,7 @@ void S_TransferPaintBuffer(soundcardinfo_t *sc, int endtime)
 	int 	step;
 	int		val;
 	int		snd_vol;
-	DWORD	*pbuf;
-#if defined(_WIN32) && !defined(NODIRECTX)
-	int		reps;
-	DWORD	dwSize=0,dwSize2=0;
-	DWORD	*pbuf2;
-	HRESULT	hresult;
-#endif
+	short	*pbuf;
 
 	if (sc->sn.samplebits == 16 && sc->sn.numchannels == 2)
 	{
@@ -456,38 +334,9 @@ void S_TransferPaintBuffer(soundcardinfo_t *sc, int endtime)
 		step = 3 - sc->sn.numchannels;
 	snd_vol = volume.value*256;
 
-	
-
-#if defined(_WIN32) && !defined(NODIRECTX)
-	if (sc->pDSBuf)
-	{
-		reps = 0;
-
-		while ((hresult = sc->pDSBuf->lpVtbl->Lock(sc->pDSBuf, 0, sc->gSndBufSize, (void**)&pbuf, &dwSize, 
-									   (void**)&pbuf2,&dwSize2, 0)) != DS_OK)
-		{
-			if (hresult != DSERR_BUFFERLOST)
-			{
-				Con_Printf ("S_TransferPaintBuffer: DS::Lock Sound Buffer Failed\n");
-				S_ShutdownCard (sc);
-				SNDDMA_Init (sc);
-				return;
-			}
-
-			if (++reps > 10000)
-			{
-				Con_Printf ("S_TransferPaintBuffer: DS: couldn't restore buffer\n");
-				S_ShutdownCard (sc);
-				SNDDMA_Init (sc);
-				return;
-			}
-		}
-	}
-	else
-#endif
-	{
-		pbuf = (DWORD *)sc->sn.buffer;
-	}
+	pbuf = sc->Lock(sc);
+	if (!pbuf)
+		return;
 
 	if (sc->sn.samplebits == 16)
 	{
@@ -520,22 +369,7 @@ void S_TransferPaintBuffer(soundcardinfo_t *sc, int endtime)
 		}
 	}
 
-#if defined(_WIN32) && !defined(NODIRECTX)
-	if (sc->pDSBuf) {
-		DWORD dwNewpos, dwWrite;
-		int il = sc->paintedtime;
-		int ir = endtime - sc->paintedtime;
-		
-		ir += il;
-
-		sc->pDSBuf->lpVtbl->Unlock(sc->pDSBuf, pbuf, dwSize, NULL, 0);
-
-		sc->pDSBuf->lpVtbl->GetCurrentPosition(sc->pDSBuf, &dwNewpos, &dwWrite);
-
-//		if ((dwNewpos >= il) && (dwNewpos <= ir))
-//			Con_Printf("%d-%d p %d c\n", il, ir, dwNewpos);
-	}
-#endif
+	sc->Unlock(sc, pbuf);
 }
 
 
@@ -995,5 +829,3 @@ void SND_PaintChannelFrom16_4Speaker (channel_t *ch, sfxcache_t *sc, int count)
 	
 	ch->pos += count;
 }
-
-#endif

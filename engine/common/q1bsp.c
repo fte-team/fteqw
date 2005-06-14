@@ -459,8 +459,8 @@ int Fragment_ClipPolyToPlane(float *inverts, float *outverts, int incount, float
 	int clippedcount = 0;
 	vec3_t impact;
 
-	float *lastvalid;	//the reason these arn't just an index is because it'd need to be a special case for the first vert.
-	float lastvaliddot;
+	float *lastvalid = NULL;	//the reason these arn't just an index is because it'd need to be a special case for the first vert.
+	float lastvaliddot = 0;
 
 	for (i = 0; i < incount; i++)
 	{
@@ -539,7 +539,6 @@ int Fragment_ClipPolyToPlane(float *inverts, float *outverts, int incount, float
 void Fragment_ClipTriangle(fragmentdecal_t *dec, float *a, float *b, float *c)
 {
 	//emit the triangle, and clip it's fragments.
-	int start, i;
 	int p;
 	float verts[MAXFRAGMENTVERTS*3];
 	float verts2[MAXFRAGMENTVERTS*3];

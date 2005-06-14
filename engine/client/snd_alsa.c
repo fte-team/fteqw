@@ -32,18 +32,82 @@
 
 #include "quakedef.h"
 
-static int			snd_inited;
-static snd_pcm_uframes_t buffer_size;
 
-static const char  *pcmname = NULL;
-static snd_pcm_t   *pcm;
-
-soundcardinfo_t *sndcardinfo;
-
-qboolean snd_firsttime;
-
-int SNDDMA_Init (soundcardinfo_t *sc)
+static unsigned int ALSA_GetDMAPos (soundcardinfo_t *sc)
 {
+	const snd_pcm_channel_area_t *areas;
+	snd_pcm_uframes_t offset;
+	snd_pcm_uframes_t nframes = sc->sn.samples / sc->sn.numchannels;
+
+	snd_pcm_avail_update (sc->handle);
+	snd_pcm_mmap_begin (sc->handle, &areas, &offset, &nframes);
+	offset *= sc->sn.numchannels;
+	nframes *= sc->sn.numchannels;
+	sc->sn.samplepos = offset;
+	sc->sn.buffer = areas->addr;
+	return sc->sn.samplepos;
+}
+
+static void ALSA_Shutdown (soundcardinfo_t *sc)
+{
+	snd_pcm_close (sc->handle);
+}
+
+static void ALSA_Submit (soundcardinfo_t *sc)
+{
+	extern int soundtime;
+	int			state;
+	int			count = sc->paintedtime - soundtime;
+	const snd_pcm_channel_area_t *areas;
+	snd_pcm_uframes_t nframes;
+	snd_pcm_uframes_t offset;
+
+	nframes = count / sc->sn.numchannels;
+
+	snd_pcm_avail_update (sc->handle);
+	snd_pcm_mmap_begin (sc->handle, &areas, &offset, &nframes);
+
+	state = snd_pcm_state (sc->handle);
+
+	switch (state) {
+		case SND_PCM_STATE_PREPARED:
+			snd_pcm_mmap_commit (sc->handle, offset, nframes);
+			snd_pcm_start (sc->handle);
+			break;
+		case SND_PCM_STATE_RUNNING:
+			snd_pcm_mmap_commit (sc->handle, offset, nframes);
+			break;
+		default:
+			break;
+	}
+}
+
+static void *ALSA_LockBuffer(soundcardinfo_t *sc)
+{
+	return sc->sn.buffer;
+}
+
+static void ALSA_UnlockBuffer(soundcardinfo_t *sc, void *buffer)
+{
+}
+
+static void ALSA_SetUnderWater(soundcardinfo_t *sc, qboolean underwater)
+{
+}
+
+void S_UpdateCapture(void)
+{
+}
+
+static int ALSA_InitCard (soundcardinfo_t *sc, int cardnum)
+{
+	snd_pcm_t   *pcm;
+	snd_pcm_uframes_t buffer_size;
+
+	soundcardinfo_t *ec;	//existing card
+	char *pcmname;
+	cvar_t *devname;
+
 	int					 err, i;
 	int					 bps = -1, stereo = -1;
 	unsigned int		 rate = 0;
@@ -54,11 +118,19 @@ int SNDDMA_Init (soundcardinfo_t *sc)
 	snd_pcm_hw_params_alloca (&hw);
 	snd_pcm_sw_params_alloca (&sw);
 
-// COMMANDLINEOPTION: Linux ALSA Sound: -sndpcm <devicename> selects which pcm device to us, default is "default"
-	if ((i=COM_CheckParm("-sndpcm"))!=0)
-		pcmname=com_argv[i+1];
-	if (!pcmname)
-		pcmname = "default";
+	devname = Cvar_Get(va("snd_alsadevice%i", cardnum+1), cardnum==0?"default":"", 0, "Sound controls");
+	pcmname = devname->string;
+
+	if (!*pcmname)
+		return 2;
+
+	for (ec = sndcardinfo; ec; ec = ec->next)
+		if (!strcmp(ec->name, pcmname))
+			break;
+	if (ec)
+		return 2;	//no more
+
+	sc->inactive_sound = true;	//linux sound devices always play sound, even when we're not the active app...
 
 // COMMANDLINEOPTION: Linux ALSA Sound: -sndbits <number> sets sound precision to 8 or 16 bit (email me if you want others added)
 	if ((i=COM_CheckParm("-sndbits")) != 0)
@@ -104,8 +176,7 @@ int SNDDMA_Init (soundcardinfo_t *sc)
 		goto error;
 	}
 
-	err = snd_pcm_hw_params_set_access (pcm, hw,
-										  SND_PCM_ACCESS_MMAP_INTERLEAVED);
+	err = snd_pcm_hw_params_set_access (pcm, hw,  SND_PCM_ACCESS_MMAP_INTERLEAVED);
 	if (0 > err) {
 		Con_Printf ("ALSA: Failure to set noninterleaved PCM access. %s\n"
 					"Note: Interleaved is not supported\n",
@@ -115,12 +186,10 @@ int SNDDMA_Init (soundcardinfo_t *sc)
 
 	switch (bps) {
 		case -1:
-			err = snd_pcm_hw_params_set_format (pcm, hw,
-												  SND_PCM_FORMAT_S16);
+			err = snd_pcm_hw_params_set_format (pcm, hw, SND_PCM_FORMAT_S16);
 			if (0 <= err) {
 				bps = 16;
-			} else if (0 <= (err = snd_pcm_hw_params_set_format (pcm, hw,
-														 SND_PCM_FORMAT_U8))) {
+			} else if (0 <= (err = snd_pcm_hw_params_set_format (pcm, hw, SND_PCM_FORMAT_U8))) {
 				bps = 8;
 			} else {
 				Con_Printf ("ALSA: no useable formats. %s\n",
@@ -149,8 +218,7 @@ int SNDDMA_Init (soundcardinfo_t *sc)
 			err = snd_pcm_hw_params_set_channels (pcm, hw, 2);
 			if (0 <= err) {
 				stereo = 1;
-			} else if (0 <= (err = snd_pcm_hw_params_set_channels (pcm, hw,
-																	 1))) {
+			} else if (0 <= (err = snd_pcm_hw_params_set_channels (pcm, hw, 1))) {
 				stereo = 0;
 			} else {
 				Con_Printf ("ALSA: no usable channels. %s\n",
@@ -261,11 +329,18 @@ int SNDDMA_Init (soundcardinfo_t *sc)
 		goto error;
 	}
 
+	sc->Lock		= ALSA_LockBuffer;
+	sc->Unlock		= ALSA_UnlockBuffer;
+	sc->SetWaterDistortion = ALSA_SetUnderWater;
+	sc->Submit		= ALSA_Submit;
+	sc->Shutdown	= ALSA_Shutdown;
+	sc->GetDMAPos	= ALSA_GetDMAPos;
+
 	sc->sn.samples = buffer_size * sc->sn.numchannels;		// mono samples in buffer
 	sc->sn.speed = rate;
-	SNDDMA_GetDMAPos (sc);		// sets shm->buffer
+	sc->handle = pcm;
+	ALSA_GetDMAPos (sc);		// sets shm->buffer
 
-	snd_inited = 1;
 	return true;
 
 error:
@@ -273,80 +348,6 @@ error:
 	return false;
 }
 
-int SNDDMA_GetDMAPos (soundcardinfo_t *sc)
-{
-	const snd_pcm_channel_area_t *areas;
-	snd_pcm_uframes_t offset;
-	snd_pcm_uframes_t nframes = sc->sn.samples / sc->sn.numchannels;
+int (*pALSA_InitCard) (soundcardinfo_t *sc, int cardnum) = &ALSA_InitCard;
 
-	if (!snd_inited)
-		return 0;
-
-	snd_pcm_avail_update (pcm);
-	snd_pcm_mmap_begin (pcm, &areas, &offset, &nframes);
-	offset *= sc->sn.numchannels;
-	nframes *= sc->sn.numchannels;
-	sc->sn.samplepos = offset;
-	sc->sn.buffer = areas->addr;
-	return sc->sn.samplepos;
-}
-
-void SNDDMA_Shutdown (soundcardinfo_t *sc)
-{
-	if (snd_inited) {
-		snd_pcm_close (pcm);
-		snd_inited = 0;
-	}
-}
-
-/*
-	SNDDMA_Submit
-
-	Send sound to device if buffer isn't really the dma buffer
-*/
-void SNDDMA_Submit (soundcardinfo_t *sc)
-{
-	extern int soundtime;
-	int			state;
-	int			count = sc->paintedtime - soundtime;
-	const snd_pcm_channel_area_t *areas;
-	snd_pcm_uframes_t nframes;
-	snd_pcm_uframes_t offset;
-
-	nframes = count / sc->sn.numchannels;
-
-	snd_pcm_avail_update (pcm);
-	snd_pcm_mmap_begin (pcm, &areas, &offset, &nframes);
-
-	state = snd_pcm_state (pcm);
-
-	switch (state) {
-		case SND_PCM_STATE_PREPARED:
-			snd_pcm_mmap_commit (pcm, offset, nframes);
-			snd_pcm_start (pcm);
-			break;
-		case SND_PCM_STATE_RUNNING:
-			snd_pcm_mmap_commit (pcm, offset, nframes);
-			break;
-		default:
-			break;
-	}
-}
-
-void *S_LockBuffer(soundcardinfo_t *sc)
-{
-	return sc->sn.buffer;
-}
-
-void S_UnlockBuffer(soundcardinfo_t *sc)
-{
-}
-
-void SNDDMA_SetUnderWater(qboolean underwater)
-{
-}
-
-void S_UpdateCapture(void)
-{
-}
 

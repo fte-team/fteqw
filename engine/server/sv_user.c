@@ -3238,13 +3238,25 @@ void SVNQ_PreSpawn_f (void)
 		}
 		else
 		{
-			MSG_WriteByte(&host_client->netchan.message, svc_spawnbaseline);
+			if (host_client->protocol != SCP_NETQUAKE && (state->modelindex > 255 || state->frame > 255))
+			{
+				MSG_WriteByte(&host_client->netchan.message, svcdp_spawnbaseline2);
 
-			MSG_WriteShort (&host_client->netchan.message, e);
+				MSG_WriteShort (&host_client->netchan.message, e);
 
-			MSG_WriteByte (&host_client->netchan.message, state->modelindex&255);
+				MSG_WriteShort (&host_client->netchan.message, state->modelindex);
+				MSG_WriteShort (&host_client->netchan.message, state->frame);
+			}
+			else
+			{
+				MSG_WriteByte(&host_client->netchan.message, svc_spawnbaseline);
 
-			MSG_WriteByte (&host_client->netchan.message, state->frame);
+				MSG_WriteShort (&host_client->netchan.message, e);
+
+				MSG_WriteByte (&host_client->netchan.message, state->modelindex&255);
+				MSG_WriteByte (&host_client->netchan.message, state->frame&255);
+			}
+
 			MSG_WriteByte (&host_client->netchan.message, (int)state->colormap);
 			MSG_WriteByte (&host_client->netchan.message, (int)state->skinnum);
 			for (i=0 ; i<3 ; i++)
@@ -4597,14 +4609,38 @@ void SVNQ_ReadClientMove (usercmd_t *move)
 	move->msec=100;
 	
 // read buttons
-	bits = MSG_ReadByte ();
+	if (host_client->protocol == SCP_DARKPLACES6 || host_client->protocol == SCP_DARKPLACES7)
+		bits = MSG_ReadLong();
+	else
+		bits = MSG_ReadByte ();
 	move->buttons = bits;	
 
 	i = MSG_ReadByte ();
 	if (i)
 		move->impulse = i;
 
-
+	if (host_client->protocol == SCP_DARKPLACES6 || host_client->protocol == SCP_DARKPLACES7)
+	{
+		/*move->cursor_screen[0] = */MSG_ReadShort() * (1.0f / 32767.0f);
+		/*move->cursor_screen[1] = */MSG_ReadShort() * (1.0f / 32767.0f);
+		/*move->cursor_start[0] = */MSG_ReadFloat();
+		/*move->cursor_start[1] = */MSG_ReadFloat();
+		/*move->cursor_start[2] = */MSG_ReadFloat();
+		/*move->cursor_impact[0] = */MSG_ReadFloat();
+		/*move->cursor_impact[1] = */MSG_ReadFloat();
+		/*move->cursor_impact[2] = */MSG_ReadFloat();
+		/*move->cursor_entitynumber = */(unsigned short)MSG_ReadShort();
+/*		if (move->cursor_entitynumber >= prog->max_edicts)
+		{
+			Con_DPrintf("SV_ReadClientMessage: client send bad cursor_entitynumber\n");
+			move->cursor_entitynumber = 0;
+		}
+		// as requested by FrikaC, cursor_trace_ent is reset to world if the
+		// entity is free at time of receipt
+		if (PRVM_EDICT_NUM(move->cursor_entitynumber)->priv.server->free)
+			move->cursor_entitynumber = 0;
+		if (msg_badread) Con_Printf("SV_ReadClientMessage: badread at %s:%i\n", __FILE__, __LINE__);
+*/	}
 
 
 	if (i && SV_FiltureImpulse(i, host_client->trustlevel))
@@ -4656,7 +4692,6 @@ void SVNQ_ExecuteClientMessage (client_t *cl)
 	// mark time so clients will know how much to predict
 	// other players
  	cl->localtime = sv.time;
-	cl->delta_sequence = -1;	// no delta unless requested
 	while (1)
 	{
 		if (msg_badread)

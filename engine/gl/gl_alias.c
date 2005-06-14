@@ -8,6 +8,8 @@
 #define SKELETALMODELS
 #endif
 
+#define MAX_BONES 256
+
 //FIXME
 typedef struct
 {
@@ -119,6 +121,7 @@ typedef struct {
 
 #ifdef SKELETALMODELS
 typedef struct {
+	char name[32];
 	int parent;
 } galiasbone_t;
 
@@ -289,7 +292,7 @@ static void R_LerpFrames(mesh_t *mesh, galiaspose_t *p1, galiaspose_t *p2, float
 #ifdef SKELETALMODELS
 static void R_BuildSkeletalMesh(mesh_t *mesh, float *plerp, float **pose, int poses, galiasbone_t *bones, int bonecount, galisskeletaltransforms_t *weights, int numweights)
 {
-	float bonepose[256][12];
+	float bonepose[MAX_BONES][12];
 	float *outhead;
 	galisskeletaltransforms_t *v;
 
@@ -594,6 +597,7 @@ static galiastexnum_t *GL_ChooseSkin(galiasinfo_t *inf, char *modelname, entity_
 	int frame;
 
 	int tc, bc;
+	int local;
 
 	if (!gl_nocolors.value)
 	{
@@ -607,7 +611,15 @@ static galiastexnum_t *GL_ChooseSkin(galiasinfo_t *inf, char *modelname, entity_
 			//colour forcing
 			if (cl.splitclients<2 && !(cl.fpd & FPD_NO_FORCE_COLOR))	//no colour/skin forcing in splitscreen.
 			{
-				if (cl.teamplay && !strcmp(e->scoreboard->team, cl.players[cl.playernum[0]].team))
+				if (cl.teamplay && cl.spectator)
+				{
+					local = Cam_TrackNum(0);
+					if (local < 0)
+						local = cl.playernum[0];
+				}
+				else
+					local = cl.playernum[0];
+				if (cl.teamplay && !strcmp(e->scoreboard->team, cl.players[local].team))
 				{
 					if (cl_teamtopcolor>=0)
 						tc = cl_teamtopcolor;
@@ -2814,28 +2826,157 @@ typedef struct {
 
 
 
-void GLMod_GetTag(model_t *model, int tagnum, int frame, float **org, float **axis)
+qboolean GLMod_GetTag(model_t *model, int tagnum, int frame1, int frame2, float f2ness, float f1time, float f2time, float *result)
 {
 	galiasinfo_t *inf;
-	md3tag_t *t;
 
-	*org = NULL;
-	*axis = NULL;
+
 	if (!model || model->type != mod_alias)
-		return;
+		return false;
 
 	inf = Mod_Extradata(model);
-	t = (md3tag_t*)((char*)inf + inf->ofstags);
-	if (tagnum <= 0 || tagnum > inf->numtags)
-		return;
-	if (frame < 0 || frame >= inf->numtagframes)
-		return;
-	tagnum--;	//tagnum 0 is 'use my angles/org'
+#ifdef SKELETALMODELS
+	if (inf->numbones)
+	{
+		galiasbone_t *bone;
+		galiasgroup_t *g1, *g2;
 
-	t += tagnum;
-	t += inf->numtags*frame;
-	*org = t->org;
-	*axis = (float*)t->ang;
+		float tempmatrix[12];			//flipped between this and bonematrix
+		float *matrix;	//the matrix for a single bone in a single pose.
+		float m[12];	//combined interpolated version of 'matrix'.
+		int b, k;	//counters
+
+		float *pose[4];	//the per-bone matricies (one for each pose)
+		float plerp[4];	//the ammount of that pose to use (must combine to 1)
+		int numposes = 0;
+
+		if (tagnum <= 0 || tagnum > inf->numbones)
+			return false;
+		tagnum--;	//tagnum 0 is 'use my angles/org'
+
+		if (frame1 < 0 || frame1 >= inf->groups)
+			return false;
+		if (frame2 < 0 || frame2 >= inf->groups)
+		{
+			f2ness = 0;
+			frame2 = frame1;
+		}
+
+		bone = (galiasbone_t*)((char*)inf + inf->ofsbones);
+//the higher level merges old/new anims, but we still need to blend between automated frame-groups.
+		g1 = (galiasgroup_t*)((char *)inf + inf->groupofs + sizeof(galiasgroup_t)*frame1);
+		g2 = (galiasgroup_t*)((char *)inf + inf->groupofs + sizeof(galiasgroup_t)*frame2);
+
+		frame1 = (int)f1time%g1->numposes;
+		frame2 = ((int)f1time+1)%g1->numposes;
+		f1time = f1time - (int)f1time;
+		pose[numposes] = (float *)((char *)g1 + g1->poseofs + sizeof(float)*inf->numbones*12*frame1);
+		plerp[numposes] = (1-f1time) * (1-f2ness);
+		numposes++;
+		if (frame1 != frame2)
+		{
+			pose[numposes] = (float *)((char *)g1 + g1->poseofs + sizeof(float)*inf->numbones*12*frame2);
+			plerp[numposes] = f1time * (1-f2ness);
+			numposes++;
+		}
+		if (f2ness)
+		{
+			frame1 = (int)f2time%g2->numposes;
+			frame2 = ((int)f2time+1)%g2->numposes;
+			f2time = f2time - (int)f2time;
+			pose[numposes] = (float *)((char *)g2 + g2->poseofs + sizeof(float)*inf->numbones*12*frame1);
+			plerp[numposes] = (1-f2time) * f2ness;
+			numposes++;
+			if (frame1 != frame2)
+			{
+				pose[numposes] = (float *)((char *)g2 + g2->poseofs + sizeof(float)*inf->numbones*12*frame2);
+				plerp[numposes] = f2time * f2ness;
+				numposes++;
+			}
+		}
+
+		//set up the identity matrix
+		for (k = 0;k < 12;k++)
+			result[k] = 0;
+		result[0] = 1;
+		result[5] = 1;
+		result[10] = 1;
+		while(tagnum >= 0)
+		{
+			//set up the per-bone transform matrix
+			for (k = 0;k < 12;k++)
+				m[k] = 0;
+			for (b = 0;b < numposes;b++)
+			{
+				matrix = pose[b] + tagnum*12;
+				
+				for (k = 0;k < 12;k++)
+					m[k] += matrix[k] * plerp[b];
+			}
+
+			memcpy(tempmatrix, result, sizeof(tempmatrix));
+			R_ConcatTransforms((void*)m, (void*)tempmatrix, (void*)result);
+
+			tagnum = bone[tagnum].parent;
+		}
+
+		return true;
+	}
+#endif
+	if (inf->numtags)
+	{
+		md3tag_t *t1, *t2;
+
+		if (tagnum <= 0 || tagnum > inf->numtags)
+			return false;
+		if (frame1 < 0 || frame1 >= inf->numtagframes)
+			return false;
+		if (frame2 < 0 || frame2 >= inf->numtagframes)
+			frame2 = frame1;
+		tagnum--;	//tagnum 0 is 'use my angles/org'
+
+		t1 = (md3tag_t*)((char*)inf + inf->ofstags);
+		t1 += tagnum;
+		t1 += inf->numtags*frame1;
+		
+		t2 = (md3tag_t*)((char*)inf + inf->ofstags);
+		t2 += tagnum;
+		t2 += inf->numtags*frame2;
+
+		if (t1 == t2)
+		{
+			result[0]	= t1->ang[0][0];
+			result[1]	= t1->ang[1][0];
+			result[2]	= t1->ang[2][0];
+			result[3]	= t1->org[0];
+			result[4]	= t1->ang[0][1];
+			result[5]	= t1->ang[1][1];
+			result[6]	= t1->ang[2][1];
+			result[7]	= t1->org[1];
+			result[8]	= t1->ang[0][2];
+			result[9]	= t1->ang[1][2];
+			result[10]	= t1->ang[2][2];
+			result[11]	= t1->org[2];
+		}
+		else
+		{
+			float f1ness = 1-f2ness;
+			result[0]	= t1->ang[0][0]*f1ness	+ t2->ang[0][0]*f2ness;
+			result[1]	= t1->ang[1][0]*f1ness	+ t2->ang[1][0]*f2ness;
+			result[2]	= t1->ang[2][0]*f1ness	+ t2->ang[2][0]*f2ness;
+			result[3]	= t1->org[0]*f1ness		+ t2->org[0]*f2ness;
+			result[4]	= t1->ang[0][1]*f1ness	+ t2->ang[0][1]*f2ness;
+			result[5]	= t1->ang[1][1]*f1ness	+ t2->ang[1][1]*f2ness;
+			result[6]	= t1->ang[2][1]*f1ness	+ t2->ang[2][1]*f2ness;
+			result[7]	= t1->org[1]*f1ness		+ t2->org[1]*f2ness;
+			result[8]	= t1->ang[0][2]*f1ness	+ t2->ang[0][2]*f2ness;
+			result[9]	= t1->ang[1][2]*f1ness	+ t2->ang[1][2]*f2ness;
+			result[10]	= t1->ang[2][2]*f1ness	+ t2->ang[2][2]*f2ness;
+			result[11]	= t1->org[2]*f1ness		+ t2->org[2]*f2ness;
+		}
+		return true;
+	}
+	return false;
 }
 
 int GLMod_TagNumForName(model_t *model, char *name)
@@ -2846,14 +2987,27 @@ int GLMod_TagNumForName(model_t *model, char *name)
 
 	if (!model || model->type != mod_alias)
 		return 0;
-
 	inf = Mod_Extradata(model);
+
+#ifdef SKELETALMODELS
+	if (inf->numbones)
+	{
+		galiasbone_t *b;
+		b = (galiasbone_t*)((char*)inf + inf->ofsbones);
+		for (i = 0; i < inf->numbones; i++)
+		{
+			if (!strcmp(b[i].name, name))
+				return i+1;
+		}
+	}
+#endif
 	t = (md3tag_t*)((char*)inf + inf->ofstags);
 	for (i = 0; i < inf->numtags; i++)
 	{
 		if (!strcmp(t[i].name, name))
 			return i+1;
 	}
+
 	return 0;
 }
 
@@ -3361,7 +3515,10 @@ void GLMod_LoadZymoticModel(model_t *mod, void *buffer)
 	bone = Hunk_Alloc(root->numtransforms*sizeof(*transforms));
 	inbone = (zymbone_t*)((char*)header + header->lump_bones.start);
 	for (i = 0; i < root->numbones; i++)
+	{
+		Q_strncpyz(bone[i].name, inbone[i].name, sizeof(bone[i].name));
 		bone[i].parent = BigLong(inbone[i].parent);
+	}
 	root->ofsbones = (char *)bone - (char *)root;
 
 	renderlist = (int*)((char*)header + header->lump_render.start);

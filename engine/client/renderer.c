@@ -263,7 +263,7 @@ void GLRenderer_Init(void)
 	Cvar_Register (&r_shadow_realtime_world, GLRENDEREROPTIONS);
 
 	Cvar_Register (&gl_clear, GLRENDEREROPTIONS);
- 
+
 	Cvar_Register (&gl_cull, GLRENDEREROPTIONS);
 	Cvar_Register (&gl_smoothmodels, GRAPHICALNICETIES);
 	Cvar_Register (&gl_affinemodels, GLRENDEREROPTIONS);
@@ -394,17 +394,17 @@ void	R_InitTextures (void)
 {
 	int		x,y, m;
 	qbyte	*dest;
-	
+
 // create a simple checkerboard texture for the default
 	r_notexture_mip = BZ_Malloc (sizeof(texture_t) + 16*16+8*8+4*4+2*2);
-	
+
 	r_notexture_mip->pixbytes = 1;
 	r_notexture_mip->width = r_notexture_mip->height = 16;
 	r_notexture_mip->offsets[0] = sizeof(texture_t);
 	r_notexture_mip->offsets[1] = r_notexture_mip->offsets[0] + 16*16;
 	r_notexture_mip->offsets[2] = r_notexture_mip->offsets[1] + 8*8;
 	r_notexture_mip->offsets[3] = r_notexture_mip->offsets[2] + 4*4;
-	
+
 	for (m=0 ; m<4 ; m++)
 	{
 		dest = (qbyte *)r_notexture_mip + r_notexture_mip->offsets[m];
@@ -416,7 +416,7 @@ void	R_InitTextures (void)
 				else
 					*dest++ = 0xff;
 			}
-	}	
+	}
 }
 
 
@@ -537,7 +537,7 @@ void Renderer_Init(void)
 
 	Cvar_Register(&bul_norender,	BULLETENVARS);	//find this one first...
 
-	Cmd_AddCommand("bul_make",	R_BulletenForce_f);	
+	Cmd_AddCommand("bul_make",	R_BulletenForce_f);
 
 	P_InitParticles();
 	R_InitTextures();
@@ -570,7 +570,7 @@ void	(*Draw_FadeScreen)			(void);
 void	(*Draw_BeginDisc)			(void);
 void	(*Draw_EndDisc)				(void);
 
-void	(*Draw_Image)							(float x, float y, float w, float h, float s1, float t1, float s2, float t2, mpic_t *pic);	//gl-style scaled/coloured/subpic 
+void	(*Draw_Image)							(float x, float y, float w, float h, float s1, float t1, float s2, float t2, mpic_t *pic);	//gl-style scaled/coloured/subpic
 void	(*Draw_ImageColours)		(float r, float g, float b, float a);
 
 void	(*R_Init)					(void);
@@ -660,7 +660,7 @@ struct {
 	void	(*Draw_BeginDisc)			(void);
 	void	(*Draw_EndDisc)				(void);
 
-	void	(*Draw_Image)				(float x, float y, float w, float h, float s1, float t1, float s2, float t2, mpic_t *pic);	//gl-style scaled/coloured/subpic 
+	void	(*Draw_Image)				(float x, float y, float w, float h, float s1, float t1, float s2, float t2, mpic_t *pic);	//gl-style scaled/coloured/subpic
 	void	(*Draw_ImageColours)		(float r, float g, float b, float a);
 
 	void	(*R_Init)					(void);
@@ -837,7 +837,7 @@ struct {
 			"software",
 		},
 		QR_SOFTWARE,
-		
+
 		SWDraw_PicFromWad,
 		SWDraw_PicFromWad,	//Not supported
 		SWDraw_CachePic,
@@ -916,7 +916,7 @@ struct {
 		SWVID_GetRGBInfo,
 
 		NULL,
-		
+
 		SWSCR_UpdateScreen,
 
 		""
@@ -938,7 +938,7 @@ struct {
 			"hardware",
 		},
 		QR_SOFTWARE,
-		
+
 
 		GLDraw_PicFromWad,
 		GLDraw_SafePicFromWad,
@@ -990,7 +990,7 @@ struct {
 		MediaGL_ShowFrameBGR_24_Flip,
 		MediaGL_ShowFrameRGBA_32,
 		MediaGL_ShowFrame8bit,
-	
+
 
 		GLMod_Init,
 		GLMod_ClearAll,
@@ -1022,7 +1022,7 @@ struct {
 
 		NULL,	//setcaption
 
-	
+
 		GLSCR_UpdateScreen,
 
 		""
@@ -1111,7 +1111,7 @@ qboolean M_VideoApply (union menuoption_s *op,struct menu_s *menu,int key)
 		Cbuf_AddText(va("vid_width %s\n", info->customwidth->text), RESTRICT_LOCAL);
 		Cbuf_AddText(va("vid_height %s\n", info->customheight->text), RESTRICT_LOCAL);
 	}
-	
+
 	if (info->conscalecombo->selectedoption)	//I am aware that this handicaps the menu a bit, but it should be easier for n00bs.
 	{	//set a prefab
 		Cbuf_AddText(va("vid_conwidth %i\n", vid_modes[info->conscalecombo->selectedoption-1].width), RESTRICT_LOCAL);
@@ -1334,7 +1334,7 @@ void R_SetRenderer(int wanted)
 	Mod_TagNumForName 		= rendererinfo[wanted].Mod_TagNumForName;
 
 
-	
+
 	SCR_UpdateScreen		= rendererinfo[wanted].SCR_UpdateScreen;
 }
 
@@ -1588,7 +1588,7 @@ TRACE(("dbg: R_ApplyRenderer: clearing world\n"));
 		else if (svs.gametype == GT_QUAKE2)
 		{
 			q2ent = ge->edicts;
-			
+
 			for (i=0 ; i<ge->num_edicts ; i++, q2ent = (q2edict_t *)((char *)q2ent + ge->edict_size))
 			{
 				if (!q2ent)
@@ -1615,7 +1615,7 @@ TRACE(("dbg: R_ApplyRenderer: clearing world\n"));
 TRACE(("dbg: R_ApplyRenderer: starting on client state\n"));
 	if (cl.worldmodel)
 	{
-		int staticmodelindex[MAX_STATIC_ENTITIES];		
+		int staticmodelindex[MAX_STATIC_ENTITIES];
 
 		for (i = 0; i < cl.num_statics; i++)	//static entities contain pointers to the model index.
 		{
@@ -1700,7 +1700,7 @@ TRACE(("dbg: R_ApplyRenderer: efrags\n"));
 					"OpenGL renderer initialized\n");
 		break;
 	}
-	
+
 	TRACE(("dbg: R_ApplyRenderer: S_Restart_f\n"));
 	if (!isDedicated)
 		S_Restart_f();
@@ -1840,7 +1840,7 @@ void R_SetRenderer_f (void)
 	#ifdef AVAIL_DX7
 					,Cmd_Argv(0)
 	#endif
-#endif		
+#endif
 					);
 		return;
 	}
@@ -1870,7 +1870,7 @@ void R_SetRenderer_f (void)
 			}
 		}
 		Cvar_Set(&vid_renderer, "sw");
-		
+
 		R_RestartRenderer_f();
 
 #endif
@@ -1882,7 +1882,7 @@ void R_SetRenderer_f (void)
 #else
 		if (Cmd_Argc() == 3)	//set gl_driver accordingly.
 			Cvar_Set(&gl_driver, Cmd_Argv(2));
-		
+
 		Cvar_ForceSet(&vid_renderer, "gl");
 
 		if (vid_bpp.value == 8)

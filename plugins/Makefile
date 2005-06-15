@@ -10,5 +10,5 @@ hud:
 	$(MAKE) -C hud
 
 irc:
-	$(MAKE) 0C irc
+	$(MAKE) -C irc
 

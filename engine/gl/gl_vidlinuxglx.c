@@ -8,7 +8,7 @@ of the License, or (at your option) any later version.
 
 This program is distributed in the hope that it will be useful,
 but WITHOUT ANY WARRANTY; without even the implied warranty of
-MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
 
 See the GNU General Public License for more details.
 
@@ -196,33 +196,33 @@ static int XLateKey(XKeyEvent *ev)
 
 	switch(keysym)
 	{
-		case XK_KP_Page_Up:	 
+		case XK_KP_Page_Up:
 		case XK_Page_Up:	 key = K_PGUP; break;
 
-		case XK_KP_Page_Down: 
+		case XK_KP_Page_Down:
 		case XK_Page_Down:	 key = K_PGDN; break;
 
-		case XK_KP_Home: 
+		case XK_KP_Home:
 		case XK_Home:	 key = K_HOME; break;
 
-		case XK_KP_End:  
+		case XK_KP_End:
 		case XK_End:	 key = K_END; break;
 
-		case XK_KP_Left: 
+		case XK_KP_Left:
 		case XK_Left:	 key = K_LEFTARROW; break;
 
-		case XK_KP_Right: 
+		case XK_KP_Right:
 		case XK_Right:	key = K_RIGHTARROW;		break;
 
-		case XK_KP_Down: 
+		case XK_KP_Down:
 		case XK_Down:	 key = K_DOWNARROW; break;
 
-		case XK_KP_Up:   
+		case XK_KP_Up:
 		case XK_Up:		 key = K_UPARROW;	 break;
 
 		case XK_Escape: key = K_ESCAPE;		break;
 
-		case XK_KP_Enter: 
+		case XK_KP_Enter:
 		case XK_Return: key = K_ENTER;		 break;
 
 		case XK_Tab:		key = K_TAB;			 break;
@@ -253,7 +253,7 @@ static int XLateKey(XKeyEvent *ev)
 
 		case XK_BackSpace: key = K_BACKSPACE; break;
 
-		case XK_KP_Delete: 
+		case XK_KP_Delete:
 		case XK_Delete: key = K_DEL; break;
 
 		case XK_Pause:	key = K_PAUSE;		 break;
@@ -261,18 +261,18 @@ static int XLateKey(XKeyEvent *ev)
 		case XK_Shift_L:
 		case XK_Shift_R:	key = K_SHIFT;		break;
 
-		case XK_Execute: 
-		case XK_Control_L: 
+		case XK_Execute:
+		case XK_Control_L:
 		case XK_Control_R:	key = K_CTRL;		 break;
 
-		case XK_Alt_L:	
-		case XK_Meta_L: 
-		case XK_Alt_R:	
+		case XK_Alt_L:
+		case XK_Meta_L:
+		case XK_Alt_R:
 		case XK_Meta_R: key = K_ALT;			break;
 
 		case XK_KP_Begin: key = '5';	break;
 
-		case XK_KP_Insert: 
+		case XK_KP_Insert:
 		case XK_Insert:key = K_INS; break;
 
 		case XK_KP_Multiply: key = '*'; break;
@@ -308,7 +308,7 @@ static int XLateKey(XKeyEvent *ev)
 			if (key >= 'A' && key <= 'Z')
 				key = key - 'A' + 'a';
 			break;
-	} 
+	}
 
 	return key;
 }
@@ -350,7 +350,7 @@ static void uninstall_grabs(void)
 void ClearAllStates (void)
 {
 	int		i;
-	
+
 // send an up event for each key, to make sure the server clears them all
 	for (i=0 ; i<256 ; i++)
 	{
@@ -403,7 +403,7 @@ static void GetEvent(void)
 
 				/* move the mouse to the window center again */
 				XSelectInput(vid_dpy, vid_window, X_MASK & ~PointerMotionMask);
-				XWarpPointer(vid_dpy, None, vid_window, 0, 0, 0, 0, 
+				XWarpPointer(vid_dpy, None, vid_window, 0, 0, 0, 0,
 					(vid.width/2), (vid.height/2));
 				XSelectInput(vid_dpy, vid_window, X_MASK);
 			}
@@ -484,7 +484,7 @@ printf("GLVID_Shutdown");
 
 	if (ctx)
 		qglXDestroyContext(vid_dpy, ctx);
-	
+
 #ifdef WITH_VMODE
 	if (origionalapplied)
 		XF86VidModeSetGammaRamp(vid_dpy, scrnum, 256, origionalramps[0], origionalramps[1], origionalramps[2]);
@@ -535,7 +535,7 @@ void InitSig(void)
 
 static Cursor CreateNullCursor(Display *display, Window root)
 {
-    Pixmap cursormask; 
+    Pixmap cursormask;
     XGCValues xgc;
     GC gc;
     XColor dummycolour;
@@ -561,7 +561,7 @@ void	GLVID_ShiftPalette (unsigned char *palette)
 	extern qboolean gammaworks;
 	extern cvar_t vid_hardwaregamma;
 	extern	unsigned short ramps[3][256];
-	
+
 //	VID_SetPalette (palette);
 
 	if (origionalapplied && ActiveApp && vid_hardwaregamma.value)	//this is needed because ATI drivers don't work properly (or when task-switched out).
@@ -602,7 +602,7 @@ void	GLVID_SetPalette (unsigned char *palette)
 		g = gammatable[pal[1]];
 		b = gammatable[pal[2]];
 		pal += 3;
-		
+
 //		v = (255<<24) + (r<<16) + (g<<8) + (b<<0);
 //		v = (255<<0) + (r<<8) + (g<<16) + (b<<24);
 		v = (255<<24) + (r<<0) + (g<<8) + (b<<16);
@@ -678,7 +678,7 @@ qboolean GLVID_Init (rendererstate_t *info, unsigned char *palette)
 		Con_Printf("Couldn't intialise GLX\nEither your drivers are not installed or you need to specify the library name with the gl_driver cvar\n");
 		return false;
 	}
-	
+
 	vid.maxwarpwidth = WARP_WIDTH;
 	vid.maxwarpheight = WARP_HEIGHT;
 	vid.colormap = host_colormap;
@@ -787,7 +787,7 @@ qboolean GLVID_Init (rendererstate_t *info, unsigned char *palette)
 #ifdef WITH_VMODE	//get rid of borders
 	// fullscreen
 	if (vidmode_active) {
-		mask = CWBackPixel | CWColormap | CWSaveUnder | CWBackingStore | 
+		mask = CWBackPixel | CWColormap | CWSaveUnder | CWBackingStore |
 			CWEventMask | CWOverrideRedirect;
 		attr.override_redirect = True;
 		attr.backing_store = NotUseful;
@@ -817,7 +817,7 @@ qboolean GLVID_Init (rendererstate_t *info, unsigned char *palette)
 	XDefineCursor(vid_dpy, vid_window, CreateNullCursor(vid_dpy, vid_window));
 
 	XFlush(vid_dpy);
-	
+
 #ifdef WITH_VMODE
 	if (vidmode_ext >= 2)
 	{
@@ -893,7 +893,7 @@ void Sys_SendKeyEvents(void)
 #endif
 {
 	if (vid_dpy && vid_window) {
-		while (XPending(vid_dpy)) 
+		while (XPending(vid_dpy))
 			GetEvent();
 	}
 }
@@ -931,6 +931,9 @@ IN_Move
 */
 void IN_MouseMove (usercmd_t *cmd, int pnum)
 {
+	extern int mouseusedforgui, mousecursor_x, mousecursor_y;
+	extern int mousemove_x, mousemove_y;
+
 	if (m_filter.value)
 	{
 		mouse_x = (mouse_x + old_mouse_x) * 0.5;
@@ -942,30 +945,55 @@ void IN_MouseMove (usercmd_t *cmd, int pnum)
 	mouse_x *= sensitivity.value;
 	mouse_y *= sensitivity.value;
 
+	if (mouseusedforgui || (key_dest == key_menu && m_state == m_complex) || UI_MenuState())
+	{
+		mousemove_x += mouse_x;
+		mousemove_y += mouse_y;
+		mousecursor_x += mouse_x;
+		mousecursor_y += mouse_y;
+
+		if (mousecursor_y<0)
+			mousecursor_y=0;
+		if (mousecursor_x<0)
+			mousecursor_x=0;
+
+		if (mousecursor_x >= vid.width)
+			mousecursor_x = vid.width - 1;
+
+		if (mousecursor_y >= vid.height)
+			mousecursor_y = vid.height - 1;
+		mouse_x=mouse_y=0;
+
+		UI_MousePosition(mousecursor_x, mousecursor_y);
+	}
+
 #ifdef IN_XFLIP
 	if(in_xflip.value) mouse_x *= -1;
 #endif
 
+	if (cmd)
+	{
 // add mouse X/Y movement to cmd
-	if ( (in_strafe.state[pnum] & 1) || (lookstrafe.value && (in_mlook.state[pnum] & 1) ))
-		cmd->sidemove += m_side.value * mouse_x;
-	else
-		cl.viewangles[pnum][YAW] -= m_yaw.value * mouse_x;
-	
-	if (in_mlook.state[pnum] & 1)
-		V_StopPitchDrift (pnum);
-		
-	if ( (in_mlook.state[pnum] & 1) && !(in_strafe.state[pnum] & 1))
-	{
-		cl.viewangles[pnum][PITCH] += m_pitch.value * mouse_y;
-		CL_ClampPitch(pnum);
-	}
-	else
-	{
-		if ((in_strafe.state[pnum] & 1) && noclip_anglehack)
-			cmd->upmove -= m_forward.value * mouse_y;
+		if ( (in_strafe.state[pnum] & 1) || (lookstrafe.value && (in_mlook.state[pnum] & 1) ))
+			cmd->sidemove += m_side.value * mouse_x;
 		else
-			cmd->forwardmove -= m_forward.value * mouse_y;
+			cl.viewangles[pnum][YAW] -= m_yaw.value * mouse_x;
+
+		if (in_mlook.state[pnum] & 1)
+			V_StopPitchDrift (pnum);
+
+		if ( (in_mlook.state[pnum] & 1) && !(in_strafe.state[pnum] & 1))
+		{
+			cl.viewangles[pnum][PITCH] += m_pitch.value * mouse_y;
+			CL_ClampPitch(pnum);
+		}
+		else
+		{
+			if ((in_strafe.state[pnum] & 1) && noclip_anglehack)
+				cmd->upmove -= m_forward.value * mouse_y;
+			else
+				cmd->forwardmove -= m_forward.value * mouse_y;
+		}
 	}
 	mouse_x = mouse_y = 0.0;
 }

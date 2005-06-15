@@ -8,7 +8,7 @@ of the License, or (at your option) any later version.
 
 This program is distributed in the hope that it will be useful,
 but WITHOUT ANY WARRANTY; without even the implied warranty of
-MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
 
 See the GNU General Public License for more details.
 
@@ -177,18 +177,18 @@ void Master_Connect_f (void);
 
 float	server_version = 0;	// version of server we connected to
 
-char emodel_name[] = 
+char emodel_name[] =
 	{ 'e' ^ 0xff, 'm' ^ 0xff, 'o' ^ 0xff, 'd' ^ 0xff, 'e' ^ 0xff, 'l' ^ 0xff, 0 };
-char pmodel_name[] = 
+char pmodel_name[] =
 	{ 'p' ^ 0xff, 'm' ^ 0xff, 'o' ^ 0xff, 'd' ^ 0xff, 'e' ^ 0xff, 'l' ^ 0xff, 0 };
-char prespawn_name[] = 
+char prespawn_name[] =
 	{ 'p'^0xff, 'r'^0xff, 'e'^0xff, 's'^0xff, 'p'^0xff, 'a'^0xff, 'w'^0xff, 'n'^0xff,
 		' '^0xff, '%'^0xff, 'i'^0xff, ' '^0xff, '0'^0xff, ' '^0xff, '%'^0xff, 'i'^0xff, 0 };
-char modellist_name[] = 
-	{ 'm'^0xff, 'o'^0xff, 'd'^0xff, 'e'^0xff, 'l'^0xff, 'l'^0xff, 'i'^0xff, 's'^0xff, 't'^0xff, 
+char modellist_name[] =
+	{ 'm'^0xff, 'o'^0xff, 'd'^0xff, 'e'^0xff, 'l'^0xff, 'l'^0xff, 'i'^0xff, 's'^0xff, 't'^0xff,
 		' '^0xff, '%'^0xff, 'i'^0xff, ' '^0xff, '%'^0xff, 'i'^0xff, 0 };
-char soundlist_name[] = 
-	{ 's'^0xff, 'o'^0xff, 'u'^0xff, 'n'^0xff, 'd'^0xff, 'l'^0xff, 'i'^0xff, 's'^0xff, 't'^0xff, 
+char soundlist_name[] =
+	{ 's'^0xff, 'o'^0xff, 'u'^0xff, 'n'^0xff, 'd'^0xff, 'l'^0xff, 'i'^0xff, 's'^0xff, 't'^0xff,
 		' '^0xff, '%'^0xff, 'i'^0xff, ' '^0xff, '%'^0xff, 'i'^0xff, 0 };
 
 /*
@@ -261,7 +261,7 @@ void CL_SendConnectPacket (
 #endif
 						   int compressioncrc
 						  /*, ...*/)	//dmw new parms
-{	
+{
 	netadr_t	adr;
 	char	data[2048];
 	char playerinfo2[MAX_INFO_STRING];
@@ -295,7 +295,7 @@ void CL_SendConnectPacket (
 #ifdef PEXT_TRANS
 	fteprotextsupported |= PEXT_TRANS;
 #endif
-#ifdef PEXT_VIEW2	
+#ifdef PEXT_VIEW2
 	fteprotextsupported |= PEXT_VIEW2;
 #endif
 #ifdef PEXT_BULLETENS
@@ -429,7 +429,7 @@ void CL_SendConnectPacket (
 
 	if (clients>1)	//splitscreen 'connect' command specifies the number of userinfos sent.
 		strcat(data, va("%i", clients));
-	
+
 #ifdef Q2CLIENT
 	if (cls.protocol == CP_QUAKE2)
 		strcat(data, va(" %i", PROTOCOL_VERSION_Q2));
@@ -607,7 +607,7 @@ void CL_BeginServerReconnect(void)
 		return;
 	}
 #endif
-	connect_time = 0;	
+	connect_time = 0;
 	CL_CheckForResend();
 }
 /*
@@ -623,9 +623,9 @@ void CL_Connect_f (void)
 	if (Cmd_Argc() != 2)
 	{
 		Con_TPrintf (TLC_SYNTAX_CONNECT);
-		return;	
+		return;
 	}
-	
+
 	server = Cmd_Argv (1);
 
 	CL_Disconnect_f ();
@@ -649,9 +649,9 @@ void CL_Join_f (void)
 			return;
 		}
 		Con_Printf ("join requires a connection or servername/ip\n");
-		return;	
+		return;
 	}
-	
+
 	server = Cmd_Argv (1);
 
 	CL_Disconnect_f ();
@@ -677,9 +677,9 @@ void CL_Observe_f (void)
 			return;
 		}
 		Con_Printf ("observe requires a connection or servername/ip\n");
-		return;	
+		return;
 	}
-	
+
 	server = Cmd_Argv (1);
 
 	CL_Disconnect_f ();
@@ -698,15 +698,15 @@ void CLNQ_Connect_f (void)
 	if (Cmd_Argc() != 2)
 	{
 		Con_TPrintf (TLC_SYNTAX_CONNECT);
-		return;	
+		return;
 	}
-	
+
 	server = Cmd_Argv (1);
 
 	CL_Disconnect_f ();
 
 	Q_strncpyz (cls.servername, server, sizeof(cls.servername));
-	CLNQ_BeginServerConnect();	
+	CLNQ_BeginServerConnect();
 }
 #endif
 
@@ -759,7 +759,7 @@ void CL_Rcon_f (void)
 		}
 		NET_StringToAdr (rcon_address.string, &to);
 	}
-	
+
 	NET_SendPacket (NS_CLIENT, strlen(message)+1, message
 		, to);
 }
@@ -789,7 +789,7 @@ void CL_ClearState (void)
 
 	Cvar_ApplyLatches(CVAR_SERVEROVERRIDE);
 
-	Con_DPrintf ("Clearing memory\n");	
+	Con_DPrintf ("Clearing memory\n");
 #ifdef PEXT_BULLETENS
 	WipeBulletenTextures ();
 #endif
@@ -799,8 +799,8 @@ void CL_ClearState (void)
 			SV_UnspawnServer();
 		D_FlushCaches ();
 		Mod_ClearAll ();
-	
-		if (host_hunklevel)	// FIXME: check this...			
+
+		if (host_hunklevel)	// FIXME: check this...
 			Hunk_FreeToLowMark (host_hunklevel);
 
 		Cvar_ApplyLatches(CVAR_LATCH);
@@ -820,7 +820,7 @@ void CL_ClearState (void)
 
 	SZ_Clear (&cls.netchan.message);
 
-// clear other arrays	
+// clear other arrays
 	memset (cl_efrags, 0, sizeof(cl_efrags));
 	memset (cl_dlights, 0, sizeof(cl_dlights));
 	memset (cl_lightstyle, 0, sizeof(cl_lightstyle));
@@ -884,7 +884,7 @@ void CL_Disconnect (void)
 		{
 #ifdef NQPROT
 		case CP_NETQUAKE:
-			final[0] = clc_disconnect;			
+			final[0] = clc_disconnect;
 			Netchan_Transmit (&cls.netchan, 1, final, 2500);
 			Netchan_Transmit (&cls.netchan, 1, final, 2500);
 			Netchan_Transmit (&cls.netchan, 1, final, 2500);
@@ -922,7 +922,7 @@ void CL_Disconnect (void)
 	Cam_Reset();
 
 	if (cl.worldmodel)
-	{	
+	{
 #if defined(RUNTIMELIGHTING) && defined(RGLQUAKE)
 		extern model_t *lightmodel;
 		lightmodel = NULL;
@@ -1091,14 +1091,14 @@ void CL_Color_f (void)
 		top = atoi(Cmd_Argv(1));
 		bottom = atoi(Cmd_Argv(2));
 	}
-	
+
 	top &= 15;
 	if (top > 13)
 		top = 13;
 	bottom &= 15;
 	if (bottom > 13)
 		bottom = 13;
-	
+
 	sprintf (num, "%i", top);
 	if (top == 0)
 		*num = '\0';
@@ -1172,7 +1172,7 @@ void CL_CheckServerInfo(void)
 		cls.allow_bump=true;
 #ifdef FISH
 	if (cls.demoplayback || atoi(Info_ValueForKey(cl.serverinfo, "allow_fish")))
-		cls.allow_fish=true;			
+		cls.allow_fish=true;
 #endif
 
 	s = Info_ValueForKey(cl.serverinfo, "fbskins");
@@ -1247,7 +1247,7 @@ void CL_CheckServerInfo(void)
 		cls.allow_anyparticles = false;
 
 	Cvar_ForceCheatVars(cls.allow_semicheats, cls.allow_cheats);
-	
+
 }
 /*
 ==================
@@ -1411,7 +1411,7 @@ void CL_Packet_f (void)
 	int		i, l;
 	char	*in, *out;
 	netadr_t	adr;
-	
+
 	if (Cmd_Argc() != 3)
 	{
 		Con_TPrintf (TLC_PACKET_SYNTAX);
@@ -1527,7 +1527,7 @@ void CL_Startdemos_f (void)
 
 	if (
 #ifndef CLIENTONLY
-		!sv.state && 
+		!sv.state &&
 #endif
 		cls.demonum != -1 && cls.demoplayback==DPB_NONE && !media_filmtype && COM_CheckParm("-demos"))
 	{
@@ -1781,7 +1781,7 @@ void CL_ConnectionlessPacket (void)
 		}
 	}
 #endif
-		
+
 #ifdef NQPROT
 	if (c == 'a')
 	{
@@ -1791,11 +1791,11 @@ void CL_ConnectionlessPacket (void)
 		{
 			Netchan_Setup(NS_CLIENT, &cls.netchan, net_from, cls.qport);
 			Con_DPrintf ("CL_EstablishConnection: connected to %s\n", cls.servername);
-			
+
 
 			cls.netchan.isnqprotocol = true;
 			cls.protocol = CP_NETQUAKE;
-			
+
 			cls.demonum = -1;			// not in the demo loop now
 			cls.state = ca_connected;
 
@@ -1926,7 +1926,7 @@ client_connect:	//fixme: make function
 		data[3] = 0xff;
 		data[4] = A2A_ACK;
 		data[5] = 0;
-		
+
 		NET_SendPacket (NS_CLIENT, 6, &data, net_from);
 		return;
 	}
@@ -2036,7 +2036,7 @@ void CL_ReadPackets (void)
 		//
 		// packet from server
 		//
-		if (!cls.demoplayback && 
+		if (!cls.demoplayback &&
 			!NET_CompareAdr (net_from, cls.netchan.remote_address))
 		{
 			Con_DPrintf ("%s:sequenced packet from wrong server\n"
@@ -2095,7 +2095,7 @@ void CL_ReadPackets (void)
 		CL_Disconnect ();
 		return;
 	}
-	
+
 	if (cls.demoplayback == DPB_MVD)
 		MVD_Interpolate();
 }
@@ -2231,14 +2231,14 @@ void CL_ServerInfo_f(void)
 
 #ifdef WEBCLIENT
 void CL_FTP_f(void)
-{	
-	FTP_Client_Command(Cmd_Args(), NULL); 
+{
+	FTP_Client_Command(Cmd_Args(), NULL);
 }
 #endif
 #ifdef IRCCLIENT
 void CL_IRC_f(void)
-{	
-	IRC_Command(Cmd_Args()); 
+{
+	IRC_Command(Cmd_Args());
 }
 #endif
 
@@ -2275,7 +2275,7 @@ void CL_Init (void)
 	CL_InitCam ();
 	PM_Init ();
 	TP_Init();
-	
+
 //
 // register our commands
 //
@@ -2450,7 +2450,7 @@ void CL_Init (void)
 #ifdef _WINDOWS
 	Cmd_AddCommand ("windows", CL_Windows_f);
 #endif
-} 
+}
 
 
 /*
@@ -2466,7 +2466,7 @@ void VARGS Host_EndGame (char *message, ...)
 	char		string[1024];
 
 	SCR_EndLoadingPlaque();
-	
+
 	va_start (argptr,message);
 	_vsnprintf (string,sizeof(string)-1, message,argptr);
 	va_end (argptr);
@@ -2477,7 +2477,7 @@ void VARGS Host_EndGame (char *message, ...)
 	Con_TPrintf (TL_NL);
 
 	SCR_EndLoadingPlaque();
-	
+
 	CL_Disconnect ();
 
 	Cvar_Set(&cl_shownet, "0");
@@ -2497,16 +2497,16 @@ void VARGS Host_Error (char *error, ...)
 	va_list		argptr;
 	char		string[1024];
 	static	qboolean inerror = false;
-	
+
 	if (inerror)
 		Sys_Error ("Host_Error: recursively entered");
 	inerror = true;
-	
+
 	va_start (argptr,error);
 	_vsnprintf (string,sizeof(string)-1, error,argptr);
 	va_end (argptr);
 	Con_TPrintf (TLC_HOSTFATALERROR,string);
-	
+
 	CL_Disconnect ();
 	cls.demonum = -1;
 
@@ -2542,7 +2542,7 @@ void Host_WriteConfiguration (void)
 			Con_TPrintf (TLC_CONFIGCFG_WRITEFAILED);
 			return;
 		}
-		
+
 		Key_WriteBindings (f);
 		Cvar_WriteVariables (f, false);
 
@@ -2697,7 +2697,7 @@ void Host_Frame (float time)
 
 //	if (host_frametime > 0.2)
 //		host_frametime = 0.2;
-		
+
 	// get new key events
 	Sys_SendKeyEvents ();
 
@@ -2777,7 +2777,7 @@ void Host_Frame (float time)
 
 	if (host_speeds.value)
 		time2 = Sys_DoubleTime ();
-		
+
 	// update audio
 	if (cls.state == ca_active)
 	{
@@ -2876,9 +2876,9 @@ void Host_Init (quakeparms_t *parms)
 
 //	W_LoadWadFile ("gfx.wad");
 	Key_Init ();
-	Con_Init ();	
-	M_Init ();	
- 
+	Con_Init ();
+	M_Init ();
+
 #ifndef _WIN32
 	IN_Init ();
 	CDAudio_Init ();
@@ -2888,7 +2888,7 @@ void Host_Init (quakeparms_t *parms)
 //	R_Init ();
 
 	S_Init ();
-	
+
 	cls.state = ca_disconnected;
 	Sbar_Init ();
 	CL_Init ();
@@ -2977,14 +2977,18 @@ void Host_Init (quakeparms_t *parms)
 	if ((i = COM_CheckParm ("-bpp")))
 		Cvar_Set(Cvar_FindVar("vid_bpp"), com_argv[i+1]);
 
-	if (qrenderer<=0 && *vid_renderer.string)
+//-1 means 'never set'
+	if (qrenderer == -1 && *vid_renderer.string)
 	{
 		Cmd_ExecuteString("vid_restart\n", RESTRICT_LOCAL);
 	}
-	if (qrenderer<=0)
-	{
+	if (qrenderer == -1)
+	{	//we still failed. Try again, but use the default renderer.
+		Cvar_Set(&vid_renderer, "");
 		Cmd_ExecuteString("vid_restart\n", RESTRICT_LOCAL);
 	}
+	if (qrenderer == -1)
+		Sys_Error("No renderer was set!\n");
 
 	if (qrenderer == QR_NONE)
 		Con_Printf("Use the setrenderer command to use a gui\n");
@@ -3005,7 +3009,7 @@ void Host_Init (quakeparms_t *parms)
 		if (ol_depth <= idroq_depth || ol_depth <= idcin_depth)
 			Media_PlayFilm("video/openinglogos.roq");
 		else if (idroq_depth <= idcin_depth)
-			Media_PlayFilm("video/idlogo.roq");	
+			Media_PlayFilm("video/idlogo.roq");
 		else if (idcin_depth)
 			Media_PlayFilm("video/idlog.cin");
 	}
@@ -3045,7 +3049,7 @@ to run quit through here before the final handoff to the sys code.
 void Host_Shutdown(void)
 {
 	static qboolean isdown = false;
-	
+
 	if (isdown)
 	{
 		Sys_Printf ("recursive shutdown\n");
@@ -3055,8 +3059,8 @@ void Host_Shutdown(void)
 
 	UI_Stop();
 
-	Host_WriteConfiguration (); 
-		
+	Host_WriteConfiguration ();
+
 	CDAudio_Shutdown ();
 	S_Shutdown();
 	IN_Shutdown ();

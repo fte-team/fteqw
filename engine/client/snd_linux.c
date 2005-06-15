@@ -71,12 +71,11 @@ static int OSS_InitCard(soundcardinfo_t *sc, int cardnum)
 
 	soundcardinfo_t *ec;
 
-	devname = Cvar_Get("snd_devicename", "/dev/dsp", 0, "Sound controls");
+	devname = Cvar_Get(va("snd_devicename%i", cardnum+1), cardnum?"":"/dev/dsp", 0, "Sound controls");
 	snddev = devname->string;
 
-	for (ec = sndcardinfo; ec; ec = ec->next)
-		if (!strcmp(ec->name, snddev))
-			return 2;
+	if (!*snddev)
+		return 2;
 
 	sc->inactive_sound = true;	//linux sound devices always play sound, even when we're not the active app...
 
@@ -89,24 +88,8 @@ static int OSS_InitCard(soundcardinfo_t *sc, int cardnum)
 	{
 		perror(snddev);
 		Con_Printf("Could not open %s\n", snddev);
-
-		devname = Cvar_Get("snd_devicename2", "", 0, "Sound controls");
-		snddev = devname->string;
-		if (*snddev)	//try a secondary if they named one
-		{
-			printf("Initing sound device %s\n", snddev);
-			sc->audio_fd = open(snddev, O_RDWR | O_NONBLOCK);
-
-			if (sc->audio_fd < 0)
-				Con_Printf("Could not open %s\n", snddev);
-		}
-
-		if (sc->audio_fd < 0)
-		{
-			Con_Printf("Running without sound\n");
-			OSS_Shutdown(sc);
-			return 0;
-		}
+		OSS_Shutdown(sc);
+		return 0;
 	}
 	Q_strncpyz(sc->name, snddev, sizeof(sc->name));
 

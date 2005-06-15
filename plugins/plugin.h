@@ -22,8 +22,8 @@ typedef char *va_list;
 #include <stdarg.h>
 //DLLs need a wrapper to add the extra parameter and call a boring function.
 #define EBUILTIN(t, n, args) extern int BUILTIN_##n; t n args
-#define BUILTINR(t, n, args) int BUILTIN_##n; t n args {return (t)syscall(BUILTIN_##n ARGNAMES);}
-#define BUILTIN(t, n, args) int BUILTIN_##n; t n args {syscall(BUILTIN_##n ARGNAMES);}
+#define BUILTINR(t, n, args) int BUILTIN_##n; t n args {return (t)plugin_syscall(BUILTIN_##n ARGNAMES);}
+#define BUILTIN(t, n, args) int BUILTIN_##n; t n args {plugin_syscall(BUILTIN_##n ARGNAMES);}
 #define CHECKBUILTIN(n) BUILTIN_##n = (int)Plug_GetEngineFunction(#n);
 #define BUILTINISVALID(n) BUILTIN_##n != 0
 #ifdef _WIN32
@@ -31,7 +31,7 @@ typedef char *va_list;
 #else
 #define QDECL
 #endif
-extern int (*syscall)( int arg, ... );
+extern int (*plugin_syscall)( int arg, ... );
 
 #endif
 

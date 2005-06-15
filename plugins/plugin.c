@@ -31,7 +31,7 @@ int vmMain( int command, int arg0, int arg1, int arg2, int arg3, int arg4, int a
 
 
 #ifndef Q3_VM
-int (QDECL *syscall)( int arg, ... );
+int (QDECL *plugin_syscall)( int arg, ... );
 #endif
 
 #define PASSFLOAT(f) *(int*)&(f)
@@ -193,7 +193,7 @@ void Plug_InitStandardBuiltins(void)
 #ifndef Q3_VM
 void dllEntry(int (QDECL *funcptr)(int,...))
 {
-	syscall = funcptr;
+	plugin_syscall = funcptr;
 }
 #endif
 

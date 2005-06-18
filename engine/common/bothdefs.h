@@ -217,7 +217,7 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 	#define VM_CG
 #endif
 
-#if defined(VM_UI) || defined(VM_CG)
+#if defined(VM_UI) || defined(VM_CG) || defined(PLUGINS)
 	#define VM_ANY
 #endif
 

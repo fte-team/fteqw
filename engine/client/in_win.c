@@ -43,6 +43,9 @@ HRESULT (WINAPI *pDirectInputCreate)(HINSTANCE hinst, DWORD dwVersion,
 
 #endif
 
+#define DINPUT_VERSION_DX3 0x0300
+#define DINPUT_VERSION_DX7 0x0700
+
 // mouse variables
 cvar_t	m_filter = {"m_filter","0"};
 cvar_t	m_forcewheel = {"m_forcewheel", "1"};
@@ -151,12 +154,14 @@ DWORD		joy_flags;
 DWORD		joy_numbuttons;
 
 #ifndef NODIRECTX
-static LPDIRECTINPUT		g_pdi;
-static LPDIRECTINPUTDEVICE	g_pMouse;
+// devices
+LPDIRECTINPUT		g_pdi;
+LPDIRECTINPUTDEVICE	g_pMouse;
 
 static HINSTANCE hInstDI;
 
-static qboolean	dinput;
+// current DirectInput version in use, 0 means using no DirectInput
+static int dinput; 
 
 typedef struct MYDATA {
 	LONG  lX;                   // X axis goes here
@@ -166,6 +171,12 @@ typedef struct MYDATA {
 	BYTE  bButtonB;             // Another button goes here
 	BYTE  bButtonC;             // Another button goes here
 	BYTE  bButtonD;             // Another button goes here
+#if (DIRECTINPUT_VERSION >= DINPUT_VERSION_DX7)
+	BYTE  bButtonE;             // DX7 buttons
+	BYTE  bButtonF;             
+	BYTE  bButtonG;             
+	BYTE  bButtonH;
+#endif
 } MYDATA;
 
 static DIOBJECTDATAFORMAT rgodf[] = {
@@ -176,6 +187,12 @@ static DIOBJECTDATAFORMAT rgodf[] = {
   { 0,              FIELD_OFFSET(MYDATA, bButtonB), DIDFT_BUTTON | DIDFT_ANYINSTANCE, 0,},
   { 0,              FIELD_OFFSET(MYDATA, bButtonC), 0x80000000 | DIDFT_BUTTON | DIDFT_ANYINSTANCE, 0,},
   { 0,              FIELD_OFFSET(MYDATA, bButtonD), 0x80000000 | DIDFT_BUTTON | DIDFT_ANYINSTANCE, 0,},
+#if (DIRECTINPUT_VERSION >= DINPUT_VERSION_DX7)
+  { 0,              FIELD_OFFSET(MYDATA, bButtonE), 0x80000000 | DIDFT_BUTTON | DIDFT_ANYINSTANCE, 0,},
+  { 0,              FIELD_OFFSET(MYDATA, bButtonF), 0x80000000 | DIDFT_BUTTON | DIDFT_ANYINSTANCE, 0,},
+  { 0,              FIELD_OFFSET(MYDATA, bButtonG), 0x80000000 | DIDFT_BUTTON | DIDFT_ANYINSTANCE, 0,},
+  { 0,              FIELD_OFFSET(MYDATA, bButtonH), 0x80000000 | DIDFT_BUTTON | DIDFT_ANYINSTANCE, 0,},
+#endif
 };
 
 #define NUM_OBJECTS (sizeof(rgodf) / sizeof(rgodf[0]))
@@ -188,6 +205,19 @@ static DIDATAFORMAT	df = {
 	NUM_OBJECTS,                // number of objects
 	rgodf,                      // and here they are
 };
+
+#if (DIRECTINPUT_VERSION >= DINPUT_VERSION_DX7)
+// DX7 devices
+LPDIRECTINPUT7		g_pdi7;
+LPDIRECTINPUTDEVICE7	g_pMouse7;
+
+// DX7 specific calls
+#define iDirectInputCreateEx(a,b,c,d,e)	pDirectInputCreateEx(a,b,c,d,e)
+
+static HRESULT (WINAPI *pDirectInputCreateEx)(HINSTANCE hinst,
+		DWORD dwVersion, REFIID riidltf, LPVOID *ppvOut, LPUNKNOWN punkOuter);
+#endif
+
 #else
 #define dinput 0
 #endif
@@ -199,7 +229,6 @@ void IN_StartupJoystick (void);
 void Joy_AdvancedUpdate_f (void);
 void IN_JoyMove (usercmd_t *cmd, int pnum);
 
-
 /*
 ===========
 Force_CenterView_f
@@ -209,14 +238,6 @@ void Force_CenterView_f (void)
 {
 	cl.viewangles[0][PITCH] = 0;
 }
-
-
-
-
-
-
-
-
 
 typedef void (*MW_DllFunc1)(void);
 typedef int (*MW_DllFunc2)(HWND);
@@ -307,9 +328,6 @@ void MW_Hook_Message (long buttons)
 	old_buttons = buttons;
 }
 
-
-
-
 /*
 ===========
 IN_UpdateClipCursor
@@ -370,6 +388,24 @@ void IN_ActivateMouse (void)
 	if (mouseinitialized)
 	{
 #ifndef NODIRECTX
+#if (DIRECTINPUT_VERSION >= DINPUT_VERSION_DX7)
+		if (dinput >= DINPUT_VERSION_DX7)
+		{
+			if (g_pMouse7)
+			{
+				if (!dinput_acquired)
+				{
+					IDirectInputDevice7_Acquire(g_pMouse7);
+					dinput_acquired = true;
+				}
+			}
+			else
+			{
+				return;
+			}
+		}
+		else
+#endif
 		if (dinput)
 		{
 			if (g_pMouse)
@@ -430,6 +466,24 @@ void IN_DeactivateMouse (void)
 	if (mouseinitialized)
 	{
 #ifndef NODIRECTX
+#if (DIRECTINPUT_VERSION >= DINPUT_VERSION_DX7)
+		if (dinput >= DINPUT_VERSION_DX7)
+		{
+			if (g_pMouse7)
+			{
+				if (dinput_acquired)
+				{
+					IDirectInputDevice_Unacquire(g_pMouse7);
+					dinput_acquired = false;
+				}
+			}
+			else
+			{
+				return;
+			}
+		}
+		else
+#endif
 		if (dinput)
 		{
 			if (g_pMouse)
@@ -487,7 +541,7 @@ BOOL (FAR PASCAL IN_EnumerateDevices)(LPCDIDEVICEINSTANCE inst, LPVOID parm)
 IN_InitDInput
 ===========
 */
-qboolean IN_InitDInput (void)
+int IN_InitDInput (void)
 {
     HRESULT		hr;
 	DIPROPDWORD	dipdw = {
@@ -507,9 +561,61 @@ qboolean IN_InitDInput (void)
 		if (hInstDI == NULL)
 		{
 			Con_SafePrintf ("Couldn't load dinput.dll\n");
-			return false;
+			return 0;
 		}
 	}
+
+#if (DIRECTINPUT_VERSION >= DINPUT_VERSION_DX7)
+	if (!pDirectInputCreateEx)
+		pDirectInputCreateEx = (void *)GetProcAddress(hInstDI,"DirectInputCreateEx");
+
+	if (pDirectInputCreateEx) // use DirectInput 7
+	{
+		// register with DirectInput and get an IDirectInput to play with.
+		hr = iDirectInputCreateEx(global_hInstance, DINPUT_VERSION_DX7, &IID_IDirectInput7, &g_pdi7, NULL);
+
+		if (FAILED(hr))
+			return 0;
+
+		IDirectInput7_EnumDevices(g_pdi7, 0, &IN_EnumerateDevices, NULL, 0);
+
+		// obtain an interface to the system mouse device.
+		hr = IDirectInput7_CreateDeviceEx(g_pdi7, &GUID_SysMouse, &IID_IDirectInputDevice7, &g_pMouse7, NULL);
+
+		if (FAILED(hr)) {
+			Con_SafePrintf ("Couldn't open DI7 mouse device\n");
+			return 0;
+		}
+
+		// set the data format to "mouse format".
+		hr = IDirectInputDevice7_SetDataFormat(g_pMouse7, &df);
+
+		if (FAILED(hr)) {
+			Con_SafePrintf ("Couldn't set DI7 mouse format\n");
+			return 0;
+		}
+
+		// set the cooperativity level.
+		hr = IDirectInputDevice7_SetCooperativeLevel(g_pMouse7, mainwindow,
+			DISCL_EXCLUSIVE | DISCL_FOREGROUND);
+
+		if (FAILED(hr)) {
+			Con_SafePrintf ("Couldn't set DI7 coop level\n");
+			return 0;
+		}
+
+		// set the buffer size to DINPUT_BUFFERSIZE elements.
+		// the buffer size is a DWORD property associated with the device
+		hr = IDirectInputDevice7_SetProperty(g_pMouse7, DIPROP_BUFFERSIZE, &dipdw.diph);
+
+		if (FAILED(hr)) {
+			Con_SafePrintf ("Couldn't set DI7 buffersize\n");
+			return 0;
+		}
+
+		return DINPUT_VERSION_DX7;
+	}
+#endif
 
 	if (!pDirectInputCreate)
 	{
@@ -517,17 +623,17 @@ qboolean IN_InitDInput (void)
 
 		if (!pDirectInputCreate)
 		{
-			Con_SafePrintf ("Couldn't get DI proc addr\n");
-			return false;
+			Con_SafePrintf ("Couldn't get DI3 proc addr\n");
+			return 0;
 		}
 	}
 
 // register with DirectInput and get an IDirectInput to play with.
-	hr = iDirectInputCreate(global_hInstance, DIRECTINPUT_VERSION, &g_pdi, NULL);
+	hr = iDirectInputCreate(global_hInstance, DINPUT_VERSION_DX3, &g_pdi, NULL);
 
 	if (FAILED(hr))
 	{
-		return false;
+		return 0;
 	}
 	IDirectInput_EnumDevices(g_pdi, 0, &IN_EnumerateDevices, NULL, 0);
 
@@ -536,8 +642,8 @@ qboolean IN_InitDInput (void)
 
 	if (FAILED(hr))
 	{
-		Con_SafePrintf ("Couldn't open DI mouse device\n");
-		return false;
+		Con_SafePrintf ("Couldn't open DI3 mouse device\n");
+		return 0;
 	}
 
 // set the data format to "mouse format".
@@ -545,8 +651,8 @@ qboolean IN_InitDInput (void)
 
 	if (FAILED(hr))
 	{
-		Con_SafePrintf ("Couldn't set DI mouse format\n");
-		return false;
+		Con_SafePrintf ("Couldn't set DI3 mouse format\n");
+		return 0;
 	}
 
 // set the cooperativity level.
@@ -555,8 +661,8 @@ qboolean IN_InitDInput (void)
 
 	if (FAILED(hr))
 	{
-		Con_SafePrintf ("Couldn't set DI coop level\n");
-		return false;
+		Con_SafePrintf ("Couldn't set DI3 coop level\n");
+		return 0;
 	}
 
 
@@ -566,15 +672,31 @@ qboolean IN_InitDInput (void)
 
 	if (FAILED(hr))
 	{
-		Con_SafePrintf ("Couldn't set DI buffersize\n");
-		return false;
+		Con_SafePrintf ("Couldn't set DI3 buffersize\n");
+		return 0;
 	}
 
-	return true;
+	return DINPUT_VERSION_DX3;
 }
 
 void IN_CloseDInput (void)
 {
+#if (DIRECTINPUT_VERSION >= DINPUT_VERSION_DX7)
+	if (g_pMouse7)
+	{
+		if (dinput_acquired)
+			IDirectInputDevice7_Unacquire(g_pMouse7);
+		dinput_acquired = false;
+		IDirectInputDevice7_Release(g_pMouse7);
+
+		g_pMouse7 = NULL;
+	}
+	if (g_pdi7)
+	{
+		IDirectInput7_Release(g_pdi7);
+		g_pdi7 = NULL;
+	}
+#endif
 	if (g_pMouse)
 	{
 		if (dinput_acquired)
@@ -729,7 +851,7 @@ void IN_StartupMouse (void)
 
 		if (dinput)
 		{
-			Con_SafePrintf ("DirectInput initialized\n");
+			Con_SafePrintf ("DirectInput initialized, version %i\n", (dinput >> 8 & 0xFF));
 		}
 		else
 		{
@@ -737,7 +859,7 @@ void IN_StartupMouse (void)
 		}
 	}
 	else
-		dinput = false;
+		dinput = 0;
 
 	if (!dinput)
 #endif
@@ -1098,14 +1220,31 @@ void IN_MouseMove (usercmd_t *cmd, int pnum)
 		{
 			dwElements = 1;
 
-			hr = IDirectInputDevice_GetDeviceData(g_pMouse,
-					sizeof(DIDEVICEOBJECTDATA), &od, &dwElements, 0);
-
-			if ((hr == DIERR_INPUTLOST) || (hr == DIERR_NOTACQUIRED))
+#if (DIRECTINPUT_VERSION >= DINPUT_VERSION_DX7)
+			if (dinput >= DINPUT_VERSION_DX7)
 			{
-				dinput_acquired = true;
-				IDirectInputDevice_Acquire(g_pMouse);
-				break;
+				hr = IDirectInputDevice7_GetDeviceData(g_pMouse7,
+						sizeof(DIDEVICEOBJECTDATA), &od, &dwElements, 0);
+
+				if ((hr == DIERR_INPUTLOST) || (hr == DIERR_NOTACQUIRED))
+				{
+					dinput_acquired = true;
+					IDirectInputDevice7_Acquire(g_pMouse7);
+					break;
+				}
+			}
+			else
+#endif
+			{
+				hr = IDirectInputDevice_GetDeviceData(g_pMouse,
+						sizeof(DIDEVICEOBJECTDATA), &od, &dwElements, 0);
+
+				if ((hr == DIERR_INPUTLOST) || (hr == DIERR_NOTACQUIRED))
+				{
+					dinput_acquired = true;
+					IDirectInputDevice_Acquire(g_pMouse);
+					break;
+				}
 			}
 
 			/* Unable to read data or no data available */
@@ -1136,57 +1275,61 @@ void IN_MouseMove (usercmd_t *cmd, int pnum)
 					}
 					break;
 
-
 				case DIMOFS_BUTTON0:
 					if (od.dwData & 0x80)
-						sysmouse.buttons |= 1;
-					else
-						sysmouse.buttons &= ~1;
+						sysmouse.buttons |= 1; 
+					else 
+						sysmouse.buttons &= ~1; 
 					break;
 
 				case DIMOFS_BUTTON1:
 					if (od.dwData & 0x80)
-						sysmouse.buttons |= (1<<1);
-					else
-						sysmouse.buttons &= ~(1<<1);
+						sysmouse.buttons |= (1 << 1); 
+					else 
+						sysmouse.buttons &= ~(1 << 1); 
 					break;
-					
+
 				case DIMOFS_BUTTON2:
 					if (od.dwData & 0x80)
-						sysmouse.buttons |= (1<<2);
-					else
-						sysmouse.buttons &= ~(1<<2);
+						sysmouse.buttons |= (1 << 2); 
+					else 
+						sysmouse.buttons &= ~(1 << 2); 
 					break;
+
 				case DIMOFS_BUTTON3:
 					if (od.dwData & 0x80)
-						sysmouse.buttons |= (1<<3);
-					else
-						sysmouse.buttons &= ~(1<<3);
+						sysmouse.buttons |= (1 << 3); 
+					else 
+						sysmouse.buttons &= ~(1 << 3); 
 					break;
-#if (DIRECTINPUT_VERSION >= 0x0700)
+
+#if (DIRECTINPUT_VERSION >= DINPUT_VERSION_DX7)
 				case DIMOFS_BUTTON4:
 					if (od.dwData & 0x80)
-						sysmouse.buttons |= (1<<4);
-					else
-						sysmouse.buttons &= ~(1<<4);
+						sysmouse.buttons |= (1 << 4); 
+					else 
+						sysmouse.buttons &= ~(1 << 4); 
 					break;
+
 				case DIMOFS_BUTTON5:
 					if (od.dwData & 0x80)
-						sysmouse.buttons |= (1<<5);
-					else
-						sysmouse.buttons &= ~(1<<5);
+						sysmouse.buttons |= (1 << 5); 
+					else 
+						sysmouse.buttons &= ~(1 << 5); 
 					break;
+
 				case DIMOFS_BUTTON6:
 					if (od.dwData & 0x80)
-						sysmouse.buttons |= (1<<6);
-					else
-						sysmouse.buttons &= ~(1<<6);
+						sysmouse.buttons |= (1 << 6); 
+					else 
+						sysmouse.buttons &= ~(1 << 6); 
 					break;
+
 				case DIMOFS_BUTTON7:
 					if (od.dwData & 0x80)
-						sysmouse.buttons |= (1<<7);
-					else
-						sysmouse.buttons &= ~(1<<7);
+						sysmouse.buttons |= (1 << 7); 
+					else 
+						sysmouse.buttons &= ~(1 << 7); 
 					break;
 #endif
 			}

@@ -264,8 +264,8 @@ void Sys_SendKeyEvents(void)
 		case SDL_MOUSEBUTTONDOWN:
 		case SDL_MOUSEBUTTONUP:
 			//Hmm. SDL allows for 255 buttons...
-			if (event.button.button > 6)
-				event.button.button = 6;
+			if (event.button.button > 10)
+				event.button.button = 10;
 			Key_Event(K_MOUSE1+event.button.button-1, event.button.state);
 			break;
 

@@ -95,14 +95,15 @@ K_MOUSE2,
 K_MOUSE3,
 K_MOUSE4,
 K_MOUSE5,
-
-#define	K_MOUSE6		K_AUX1
-#define	K_MOUSE7		K_AUX2
-#define	K_MOUSE8		K_AUX3
+K_MOUSE6,
+K_MOUSE7,
+K_MOUSE8,
+K_MOUSE9,
+K_MOUSE10,
 
 // JACK: Intellimouse(c) Mouse Wheel Support
 K_MWHEELUP,
-K_MWHEELDOWN,
+K_MWHEELDOWN, // 189
 
 //
 // joystick buttons

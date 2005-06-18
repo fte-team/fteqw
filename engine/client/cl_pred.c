@@ -618,9 +618,8 @@ void CL_PredictMovePNum (int pnum)
 	{
 		entity_state_t *CL_FindOldPacketEntity(int num);
 		entity_state_t *CL_FindPacketEntity(int num);
-		entity_state_t *state, *old;
+		entity_state_t *state;
 		state = CL_FindPacketEntity (cl.viewentity[pnum]);
-		old = CL_FindOldPacketEntity (cl.viewentity[pnum]);
 		if (state)
 		{
 			float f;
@@ -672,8 +671,6 @@ void CL_PredictMovePNum (int pnum)
 
 			goto fixedorg;
 		}
-		else
-			Con_Printf("No state\n");
 	}
 #endif
 	if (((cl_nopred.value && cls.demoplayback!=DPB_MVD)|| cl.fixangle))

@@ -968,7 +968,8 @@ int Plug_Net_TCPConnect(void *offset, unsigned int mask, const long *arg)
 
 	netadr_t a;
 
-	NET_StringToAdr(localip, &a);
+	if (!NET_StringToAdr(localip, &a))
+		return -1;
 	NetadrToSockadr(&a, &to);
 	if (((struct sockaddr_in*)&to)->sin_family == AF_INET && !((struct sockaddr_in*)&to)->sin_port)
 		((struct sockaddr_in*)&to)->sin_port = htons(localport);
@@ -1082,8 +1083,20 @@ void Plug_List_f(void);
 void Plug_Close_f(void);
 void Plug_Load_f(void)
 {
-	if (!Plug_Load(Cmd_Argv(1)))
-		Con_Printf("Couldn't load plugin %s\n", Cmd_Argv(1));
+	char *plugin;
+	plugin = Cmd_Argv(1);
+	if (!*plugin)
+	{
+		Con_Printf("Loads a plugin\n");
+		Con_Printf("plug_load [pluginpath]\n");
+		Con_Printf("example pluginpath: plugins/blahx86.so\n");
+		return;
+	}
+	if (!Plug_Load(plugin))
+	{
+		if (!Plug_Load(va("plugins/%s", plugin)))
+			Con_Printf("Couldn't load plugin %s\n", Cmd_Argv(1));
+	}
 }
 
 void Plug_Init(void)
@@ -1327,6 +1340,17 @@ void Plug_Close_f(void)
 			return;
 		}
 	}
+
+	name = va("plugins/%s", name);
+	for (plug = plugs; plug; plug = plug->next)
+	{
+		if (!strcmp(plug->name, name))
+		{
+			Plug_Close(plug);
+			return;
+		}
+	}
+	Con_Printf("Plugin %s does not appear to be loaded\n", Cmd_Argv(1));
 }
 
 void Plug_CloseAll_f(void)

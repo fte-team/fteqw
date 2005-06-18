@@ -2224,13 +2224,14 @@ static void *Q1_LoadSkins (daliasskintype_t *pskintype, qboolean alpha)
 				}
 			}
 
+			texnums = Hunk_Alloc(sizeof(*texnums)+s);
+			saved = (qbyte*)(texnums+1);
+			outskin->ofstexels = (qbyte *)(saved) - (qbyte *)outskin;
+			memcpy(saved, pskintype+1, s);
+			GLMod_FloodFillSkin(saved, outskin->skinwidth, outskin->skinheight);
+
 			if (!texture)
 			{
-				texnums = Hunk_Alloc(sizeof(*texnums)+s);
-				saved = (qbyte*)(texnums+1);
-				outskin->ofstexels = (qbyte *)(saved) - (qbyte *)outskin;
-				memcpy(saved, pskintype+1, s);
-				GLMod_FloodFillSkin(saved, outskin->skinwidth, outskin->skinheight);
 				sprintf(skinname, "%s_%i", loadname, i);
 				texture = GL_LoadTexture(skinname, outskin->skinwidth, outskin->skinheight, saved, true, alpha);
 				if (r_fb_models.value)
@@ -2238,11 +2239,6 @@ static void *Q1_LoadSkins (daliasskintype_t *pskintype, qboolean alpha)
 					sprintf(skinname, "%s_%i_luma", loadname, i);
 					fbtexture = GL_LoadTextureFB(skinname, outskin->skinwidth, outskin->skinheight, saved, true, true);
 				}
-			}
-			else
-			{
-				texnums = Hunk_Alloc(sizeof(*texnums));
-				outskin->ofstexels = 0;
 			}
 			outskin->texnums=1;
 
@@ -3473,6 +3469,10 @@ void GLMod_LoadZymoticModel(model_t *mod, void *buffer)
 
 	if (!header->numsurfaces)
 		Sys_Error("GLMod_LoadZymoticModel: no surfaces\n");
+
+
+	VectorCopy(header->mins, mod->mins);
+	VectorCopy(header->maxs, mod->maxs);
 
 	root = Hunk_AllocName(sizeof(galiasinfo_t)*header->numsurfaces, loadname);
 

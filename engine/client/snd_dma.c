@@ -318,10 +318,10 @@ void SNDDMA_SetUnderWater(qboolean underwater)
 		sc->SetWaterDistortion(sc, underwater);
 }
 
-void S_Restart_f (void)
+//why isn't this part of S_Restart_f anymore?
+//so that the video code can call it directly without flushing the models it's just loaded.
+void S_DoRestart (void)
 {
-	Cache_Flush();//forget the old sounds.
-
 	if (COM_CheckParm("-nosound"))
 		return;
 
@@ -335,6 +335,13 @@ void S_Restart_f (void)
 	ambient_sfx[AMBIENT_SKY] = S_PrecacheSound ("ambience/wind2.wav");
 
 	S_StopAllSounds (true);
+}
+
+void S_Restart_f (void)
+{
+	Cache_Flush();//forget the old sounds.
+
+	S_DoRestart();
 }
 
 void S_Control_f (void)

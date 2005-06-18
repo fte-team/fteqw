@@ -1703,7 +1703,7 @@ TRACE(("dbg: R_ApplyRenderer: efrags\n"));
 
 	TRACE(("dbg: R_ApplyRenderer: S_Restart_f\n"));
 	if (!isDedicated)
-		S_Restart_f();
+		S_DoRestart();
 
 	TRACE(("dbg: R_ApplyRenderer: done\n"));
 

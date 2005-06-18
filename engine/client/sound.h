@@ -139,8 +139,8 @@ channel_t *SND_PickChannel(soundcardinfo_t *sc, int entnum, int entchannel);
 // spatializes a channel
 void SND_Spatialize(soundcardinfo_t *sc, channel_t *ch);
 
-// restart entire sound subsystem
-void S_Restart_f (void);
+// restart entire sound subsystem (doesn't flush old sounds, so make sure that happens)
+void S_DoRestart (void);
 
 //plays streaming audio
 void S_RawAudio(int sourceid, qbyte *data, int speed, int samples, int channels, int width);

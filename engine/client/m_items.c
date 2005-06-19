@@ -513,7 +513,7 @@ menuedit_t *MC_AddEditCvar(menu_t *menu, int x, int y, char *text, char *name)
 
 menubox_t *MC_AddBox(menu_t *menu, int x, int y, int width, int height)
 {
-	menubox_t *n = Z_Malloc(sizeof(menupicture_t));
+	menubox_t *n = Z_Malloc(sizeof(menubox_t));
 	n->common.type = mt_box;
 	n->common.iszone = true;
 	n->common.posx = x;

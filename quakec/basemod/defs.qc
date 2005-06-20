@@ -552,6 +552,15 @@ enum {
 	WS_FIRING2 // used with nailgun
 };
 
+// ammo type defines
+enum {
+	AT_NONE,
+	AT_SHELLS,
+	AT_NAILS,
+	AT_ROCKETS,
+	AT_CELLS
+};
+
 // unions
 // DO NOT MIX UNION TYPES LIKE I AM DOING
 .union {
@@ -603,6 +612,11 @@ enum {
 		float waterdmg;			// damage water will deal when drowning
 		float walkframe;			// used with walking animation
 		float jump_flag;			// last z velocity used for falling damage
+		INTEGER ammo_shells_real;	// real shells count
+		INTEGER ammo_nails_real;	// real nails count
+		INTEGER ammo_rockets_real;	// real rockets count
+		INTEGER ammo_cells_real;	// real cells count
+		INTEGER ammo_type;		// ammo type in use
 	};
 	struct { // fields used with bubbles spawned from drowning
 		INTEGER bubble_count;   // keeps track of the number of bubbles

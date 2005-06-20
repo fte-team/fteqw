@@ -1,7 +1,7 @@
 
 // prototypes
 void () W_WeaponFrame;
-void() W_SetCurrentAmmo;
+void (float weap) W_WeaponSwitch;
 void() player_pain;
 void() player_stand1;
 void (vector org) spawn_tfog;
@@ -50,13 +50,13 @@ void() SetChangeParms =
 	parm1 = self.items;
 	parm2 = self.health;
 	parm3 = self.armorvalue;
-	if (self.ammo_shells < 25)
+	if (self.ammo_shells_real < 25)
 		parm4 = 25;
 	else
-		parm4 = self.ammo_shells;
-	parm5 = self.ammo_nails;
-	parm6 = self.ammo_rockets;
-	parm7 = self.ammo_cells;
+		parm4 = self.ammo_shells_real;
+	parm5 = self.ammo_nails_real;
+	parm6 = self.ammo_rockets_real;
+	parm7 = self.ammo_cells_real;
 	parm8 = self.weapon;
 	parm9 = self.armortype;
 };
@@ -70,7 +70,7 @@ void() SetNewParms =
 	parm5 = 0;
 	parm6 = 0;
 	parm7 = 0;
-	parm8 = 1;
+	parm8 = IT_SHOTGUN;
 	parm9 = 0;
 };
 
@@ -85,10 +85,10 @@ void() DecodeLevelParms =
 	self.items = parm1;
 	self.health = parm2;
 	self.armorvalue = parm3;
-	self.ammo_shells = parm4;
-	self.ammo_nails = parm5;
-	self.ammo_rockets = parm6;
-	self.ammo_cells = parm7;
+	self.ammo_shells_real = parm4;
+	self.ammo_nails_real = parm5;
+	self.ammo_rockets_real = parm6;
+	self.ammo_cells_real = parm7;
 	self.weapon = parm8;
 	self.armortype = parm9;
 };
@@ -544,6 +544,7 @@ called each time a player enters a new level
 void() PutClientInServer =
 {
 	local   entity spot;
+	local float wtemp;
 
 	self.classname = "player";
 	self.health = 100;
@@ -566,7 +567,60 @@ void() PutClientInServer =
 
 	DecodeLevelParms ();
 	
-	W_SetCurrentAmmo ();
+	// dumb hack until I get the real weapon system in
+	wtemp = self.weapon;
+
+	if (deathmatch == 4)
+	{
+		self.ammo_shells_real = 0;
+		if (numberserverinfokey("axe") == 0)
+		{
+			self.ammo_nails_real = 255;
+			self.ammo_shells_real = 255;
+			self.ammo_rockets_real = 255;
+			self.ammo_cells_real = 255;
+			self.items |= IT_NAILGUN
+			| IT_SUPER_NAILGUN
+			| IT_SUPER_SHOTGUN
+			| IT_ROCKET_LAUNCHER
+			| IT_LIGHTNING;
+		}
+		else
+			wtemp = IT_AXE;
+
+		self.items |= IT_ARMOR3 | IT_INVULNERABILITY;
+		self.items = self.items - (self.items & (IT_ARMOR1 | IT_ARMOR2));
+		self.armorvalue = 200;
+		self.armortype = 0.8;
+		self.health = 250;
+		self.invincible_time = 1;
+		self.invincible_finished = time + 3;
+	}
+
+	if (deathmatch == 5)
+	{
+		self.ammo_nails_real = 80;
+		self.ammo_shells_real = 30;
+		self.ammo_rockets_real = 10;
+		self.ammo_cells_real = 30;
+		self.items |= IT_NAILGUN
+			| IT_SUPER_NAILGUN
+			| IT_SUPER_SHOTGUN
+			| IT_ROCKET_LAUNCHER
+			| IT_GRENADE_LAUNCHER
+			| IT_LIGHTNING
+			| IT_ARMOR3
+			| IT_INVULNERABILITY;
+		self.items = self.items - (self.items & (IT_ARMOR1 | IT_ARMOR2));
+		self.armorvalue = 200;
+		self.armortype = 0.8;
+		self.health = 200;
+		self.invincible_time = 1;
+		self.invincible_finished = time + 3;
+	}
+
+	self.weapon = 0;
+	W_WeaponSwitch (wtemp);
 
 	self.attack_finished = time;
 	self.th_pain = player_pain;
@@ -605,53 +659,6 @@ void() PutClientInServer =
 
 	// Set Rocket Jump Modifiers
 	rj = numberserverinfokey("rj");
-
-	if (deathmatch == 4)
-	{
-		self.ammo_shells = 0;
-		if (numberserverinfokey("axe") == 0)
-		{
-			self.ammo_nails = 255;
-			self.ammo_shells = 255;
-			self.ammo_rockets = 255;
-			self.ammo_cells = 255;
-			self.items |= IT_NAILGUN
-			| IT_SUPER_NAILGUN
-			| IT_SUPER_SHOTGUN
-			| IT_ROCKET_LAUNCHER
-			| IT_LIGHTNING;
-		}
-		self.items |= IT_ARMOR3 | IT_INVULNERABILITY;
-		self.items = self.items - (self.items & (IT_ARMOR1 | IT_ARMOR2));
-		self.armorvalue = 200;
-		self.armortype = 0.8;
-		self.health = 250;
-		self.invincible_time = 1;
-		self.invincible_finished = time + 3;
-	}
-
-	if (deathmatch == 5)
-	{
-		self.ammo_nails = 80;
-		self.ammo_shells = 30;
-		self.ammo_rockets = 10;
-		self.ammo_cells = 30;
-		self.items |= IT_NAILGUN
-			| IT_SUPER_NAILGUN
-			| IT_SUPER_SHOTGUN
-			| IT_ROCKET_LAUNCHER
-			| IT_GRENADE_LAUNCHER
-			| IT_LIGHTNING
-			| IT_ARMOR3
-			| IT_INVULNERABILITY;
-		self.items = self.items - (self.items & (IT_ARMOR1 | IT_ARMOR2));
-		self.armorvalue = 200;
-		self.armortype = 0.8;
-		self.health = 200;
-		self.invincible_time = 1;
-		self.invincible_finished = time + 3;
-	}
-
 };
 
 
@@ -1008,8 +1015,7 @@ void() PlayerPreThink =
 
 	if(time > self.attack_finished && self.currentammo == 0 && self.weapon != IT_AXE)
 	{
-		self.weapon = W_BestWeapon ();
-		W_SetCurrentAmmo ();
+		W_WeaponSwitch (W_BestWeapon ());
 	}
 };
 	
@@ -1131,7 +1137,8 @@ void() CheckPowerups =
 			self.items = self.items - IT_QUAD;
 			if (deathmatch == 4)
 			{
-				self.ammo_cells = 255;
+				self.ammo_cells_real = 255;
+				W_UpdateAmmoCounts(self);
 				self.armorvalue = 1;
 				self.armortype = 0.8;
 				self.health = 100;

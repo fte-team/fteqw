@@ -1,7 +1,8 @@
-void() W_SetCurrentAmmo;
 /* ALL LIGHTS SHOULD BE 0 1 0 IN COLOR ALL OTHER ITEMS SHOULD
 BE .8 .3 .4 IN COLOR */
 
+void (float weap) W_WeaponSwitch;
+void (entity ent) W_UpdateAmmoCounts;
 
 void() SUB_regen =
 {
@@ -72,7 +73,8 @@ void() q_touch =
 		{
 			other.armortype = 0;
 			other.armorvalue = 0;
-			other.ammo_cells = 0;
+			other.ammo_cells_real = 0;
+			W_UpdateAmmoCounts(other);
 		}
 
 // do the apropriate action
@@ -325,13 +327,16 @@ void() health_touch =
 	self.solid = SOLID_NOT;
 
 	// Megahealth = rot down the player's super health
-	if (deathmatch == 1)            // deathmatch 2 is the silly old rules
+	if (deathmatch) // TODO: are these rules right?
 	{
-		if (self.healtype == 2)
-			self.nextthink = time + 45;
-		else
-			self.nextthink = time + 20;
-		self.think = SUB_regen;
+		if (deathmatch != 2)            // deathmatch 2 is the silly old rules
+		{
+			if (self.healtype == H_MEGA)
+				self.nextthink = time + 45; // should I account for health healed instead?
+			else
+				self.nextthink = time + 20;
+			self.think = SUB_regen;
+		}
 	}
 	
 	activator = other;
@@ -390,9 +395,11 @@ void() armor_touch =
 
 	self.solid = SOLID_NOT;
 	self.model = string_null;
-	if (deathmatch != 2)
+	if (deathmatch && deathmatch != 2)
+	{
 		self.nextthink = time + 20;
-	self.think = SUB_regen;
+		self.think = SUB_regen;
+	}
 
 	sprint1(other, PRINT_LOW, "You got armor\n");
 // armor touch sound
@@ -453,14 +460,14 @@ WEAPONS
 
 void() bound_other_ammo =
 {
-	if (other.ammo_shells > 100)
-		other.ammo_shells = 100;
-	if (other.ammo_nails > 200)
-		other.ammo_nails = 200;
-	if (other.ammo_rockets > 100)
-		other.ammo_rockets = 100;               
-	if (other.ammo_cells > 100)
-		other.ammo_cells = 100;         
+	if (other.ammo_shells_real > 100)
+		other.ammo_shells_real = 100;
+	if (other.ammo_nails_real > 200)
+		other.ammo_nails_real = 200;
+	if (other.ammo_rockets_real > 100)
+		other.ammo_rockets_real = 100;               
+	if (other.ammo_cells_real > 100)
+		other.ammo_cells_real = 100;         
 };
 
 
@@ -519,7 +526,7 @@ void(float old, float new) Deathmatch_Weapon =
 		return;
 
 	if ( nr < or )
-		self.weapon = new;
+		W_WeaponSwitch (new);
 };
 
 /*
@@ -559,18 +566,18 @@ void() weapon_touch =
 	switch (new)
 	{
 	case IT_SUPER_SHOTGUN:		
-		other.ammo_shells = other.ammo_shells + 5;
+		other.ammo_shells_real += 5;
 		break;
 	case IT_NAILGUN:
 	case IT_SUPER_NAILGUN:
-		other.ammo_nails = other.ammo_nails + 30;
+		other.ammo_nails_real += 30;
 		break;
 	case IT_GRENADE_LAUNCHER:
 	case IT_ROCKET_LAUNCHER:
-		other.ammo_rockets = other.ammo_rockets + 5;
+		other.ammo_rockets_real += 5;
 		break;
 	case IT_LIGHTNING:
-		other.ammo_cells = other.ammo_cells + 15;
+		other.ammo_cells_real += 15;
 		break;
 	}
 	
@@ -580,6 +587,7 @@ void() weapon_touch =
 	stuffcmd (other, "bf\n");
 
 	bound_other_ammo ();
+	W_UpdateAmmoCounts(other);
 
 // change to the weapon
 	old = other.items;
@@ -603,21 +611,21 @@ void() weapon_touch =
 		}
 	}
 
-	W_SetCurrentAmmo();
-
 	self = stemp;
 
 	if (leave)
 		return;
 
-	if (deathmatch!=3 || deathmatch !=5)
+	if (deathmatch != 3 || deathmatch != 5)
 	{
 	// remove it in single player, or setup for respawning in deathmatch
 		self.model = string_null;
 		self.solid = SOLID_NOT;
-		if (deathmatch != 2)
+		if (deathmatch && deathmatch != 2)
+		{
 			self.nextthink = time + 30;
-		self.think = SUB_regen;
+			self.think = SUB_regen;
+		}
 	}
 	activator = other;
 	SUB_UseTargets();                               // fire all targets / killtargets
@@ -762,24 +770,24 @@ local float             best;
 	switch (self.weapon)
 	{
 	case 1: // shotgun
-		if (other.ammo_shells >= 100)
+		if (other.ammo_shells_real >= 100)
 			return;
-		other.ammo_shells = other.ammo_shells + self.ammo_count;
+		other.ammo_shells_real = other.ammo_shells_real + self.ammo_count;
 		break;
 	case 2: // spikes
-		if (other.ammo_nails >= 200)
+		if (other.ammo_nails_real >= 200)
 			return;
-		other.ammo_nails = other.ammo_nails + self.ammo_count;
+		other.ammo_nails_real = other.ammo_nails_real + self.ammo_count;
 		break;
 	case 3: // rockets
-		if (other.ammo_rockets >= 100)
+		if (other.ammo_rockets_real >= 100)
 			return;
-		other.ammo_rockets = other.ammo_rockets + self.ammo_count;
+		other.ammo_rockets_real = other.ammo_rockets_real + self.ammo_count;
 		break;
 	case 4: // cells
-		if (other.ammo_cells >= 100)
+		if (other.ammo_cells_real >= 100)
 			return;
-		other.ammo_cells = other.ammo_cells + self.ammo_count;
+		other.ammo_cells_real = other.ammo_cells_real + self.ammo_count;
 		break;
 	}
 
@@ -796,24 +804,26 @@ local float             best;
 	self = other;
 
 	if ( self.weapon == best )
-		self.weapon = W_BestWeapon();
+		W_WeaponSwitch (W_BestWeapon ());
+	else
+		W_UpdateAmmoCounts (self);
 
-// if changed current ammo, update it
-	W_SetCurrentAmmo();
 	self = stemp;
 
 // remove it in single player, or setup for respawning in deathmatch
 	self.model = string_null;
 	self.solid = SOLID_NOT;
-	if (deathmatch != 2)
-		self.nextthink = time + 30;
+	if (deathmatch)
+	{
+		if (deathmatch != 2)
+			self.nextthink = time + 30;
 
-// Xian -- If playing in DM 3.0 mode, halve the time ammo respawns        
+		// Xian -- If playing in DM 3.0 mode, halve the time ammo respawns        
+		if (deathmatch == 3 || deathmatch == 5)        
+			self.nextthink = time + 15;
 
-	if (deathmatch == 3 || deathmatch == 5)        
-		self.nextthink = time + 15;
-
-	self.think = SUB_regen;
+		self.think = SUB_regen;
+	}
 
 	activator = other;
 	SUB_UseTargets();                               // fire all targets / killtargets
@@ -1225,14 +1235,16 @@ void() powerup_touch =
 	sprint3 (other, PRINT_LOW, "You got the ",  self.netname, "\n");
 
 	self.mdl = self.model;
+
+	if (deathmatch)
+	{	
+		if (self.items & (IT_INVULNERABILITY | IT_INVISIBLITY))
+			self.nextthink = time + 60*5;
+		else
+			self.nextthink = time + 60;
 	
-	if ((self.classname == "item_artifact_invulnerability") ||
-		(self.classname == "item_artifact_invisibility"))
-		self.nextthink = time + 60*5;
-	else
-		self.nextthink = time + 60;
-	
-	self.think = SUB_regen;
+		self.think = SUB_regen;
+	}
 
 	sound (other, CHAN_VOICE, self.noise, 1, ATTN_NORM);
 	stuffcmd (other, "bf\n");
@@ -1260,7 +1272,8 @@ void() powerup_touch =
 		{
 			other.armortype = 0;
 			other.armorvalue = 0;
-			other.ammo_cells = 0;
+			other.ammo_cells_real = 0;
+			W_UpdateAmmoCounts(other);
 		}
 		other.super_time = 1;
 		other.super_damage_finished = time + 30;
@@ -1410,8 +1423,8 @@ void() BackpackTouch =
 				other.super_damage_finished = time + 30;
 				other.items = other.items | IT_QUAD;
 
-				other.ammo_cells = 0;		
-		
+				other.ammo_cells_real = 0;
+				W_UpdateAmmoCounts(other);
 	
 				sound (other, CHAN_VOICE, "boss1/sight1.wav", 1, ATTN_NORM);
 				stuffcmd (other, "bf\n");               
@@ -1437,10 +1450,10 @@ void() BackpackTouch =
 	self = stemp;
 
 // change weapons
-	other.ammo_shells = other.ammo_shells + self.ammo_shells;
-	other.ammo_nails = other.ammo_nails + self.ammo_nails;
-	other.ammo_rockets = other.ammo_rockets + self.ammo_rockets;
-	other.ammo_cells = other.ammo_cells + self.ammo_cells;
+	other.ammo_shells_real = other.ammo_shells_real + self.ammo_shells;
+	other.ammo_nails_real = other.ammo_nails_real + self.ammo_nails;
+	other.ammo_rockets_real = other.ammo_rockets_real + self.ammo_rockets;
+	other.ammo_cells_real = other.ammo_cells_real + self.ammo_cells;
 
 	new = self.items;
 	if (!new)
@@ -1487,19 +1500,20 @@ void() BackpackTouch =
 		acount = 1;
 	}
 	
-	if ( (deathmatch==3 || deathmatch == 5) & ( (WeaponCode(new)==6) || (WeaponCode(new)==7) ) & (other.ammo_rockets < 5) )
-		other.ammo_rockets = 5;
+	if ( (deathmatch==3 || deathmatch == 5) & ( (WeaponCode(new)==6) || (WeaponCode(new)==7) ) & (other.ammo_rockets_real < 5) )
+		other.ammo_rockets_real = 5;
 
 	sprint1 (other, PRINT_LOW, "\n");
 // backpack touch sound
 	sound (other, CHAN_ITEM, "weapons/lock4.wav", 1, ATTN_NORM);
 	stuffcmd (other, "bf\n");
 
+	W_UpdateAmmoCounts(other);
+
 	remove(self);
 	self = other;
 	
 // change to the weapon
-	
 	
 	if ( WeaponCode(new) <= b_switch )
 	{
@@ -1515,8 +1529,6 @@ void() BackpackTouch =
 			Deathmatch_Weapon (old, new);
 		}
 	}
-
-	W_SetCurrentAmmo ();
 };
 
 /*
@@ -1528,7 +1540,8 @@ void() DropBackpack =
 {
 	local entity    item;
 
-	if (!(self.ammo_shells + self.ammo_nails + self.ammo_rockets + self.ammo_cells))
+	// FIX THIS FOR MONSTERS
+	if (!(self.ammo_shells_real + self.ammo_nails_real + self.ammo_rockets_real + self.ammo_cells_real))
 		return; // nothing in it
 
 	item = spawn();
@@ -1536,10 +1549,10 @@ void() DropBackpack =
 	
 	item.items = self.weapon;
 
-	item.ammo_shells = self.ammo_shells;
-	item.ammo_nails = self.ammo_nails;
-	item.ammo_rockets = self.ammo_rockets;
-	item.ammo_cells = self.ammo_cells;
+	item.ammo_shells = self.ammo_shells_real;
+	item.ammo_nails = self.ammo_nails_real;
+	item.ammo_rockets = self.ammo_rockets_real;
+	item.ammo_cells = self.ammo_cells_real;
 
 	item.velocity_z = 300;
 	item.velocity_x = -100 + (random() * 200);

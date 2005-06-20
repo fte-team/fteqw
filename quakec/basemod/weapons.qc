@@ -30,6 +30,37 @@ float() crandom =
 };
 
 /*
+Ammo update functions
+*/
+void(entity ent) W_UpdateAmmoCounts =
+{
+	// update current ammo
+	switch (ent.ammo_type)
+	{
+	case AT_SHELLS:
+		ent.currentammo = ent.ammo_shells_real;
+		break;
+	case AT_NAILS:
+		ent.currentammo = ent.ammo_nails_real;
+		break;
+	case AT_ROCKETS:
+		ent.currentammo = ent.ammo_rockets_real;
+		break;
+	case AT_CELLS:
+		ent.currentammo = ent.ammo_cells_real;
+		break;
+	default:
+		ent.currentammo = 0;
+	}
+	
+	// update ammo display (FTE progs converts to floats here)
+	ent.ammo_shells = ent.ammo_shells_real;
+	ent.ammo_nails = ent.ammo_nails_real;
+	ent.ammo_rockets = ent.ammo_rockets_real;
+	ent.ammo_cells = ent.ammo_cells_real;
+};
+
+/*
 ================
 W_FireAxe
 ================
@@ -238,8 +269,11 @@ void() W_FireShotgun =
 
 	VK_smallkick(self);
 	
-	if (deathmatch != 4 )
-		self.currentammo = self.ammo_shells = self.ammo_shells - 1;
+	if (deathmatch != 4)
+	{
+		self.ammo_shells_real -= 1;
+		W_UpdateAmmoCounts(self);
+	}
 
 	dir = aim (self, 100000);
 	FireBullets (6, dir, '0.04 0.04 0', MOD_SHOTGUN);
@@ -266,7 +300,11 @@ void() W_FireSuperShotgun =
 	VK_bigkick(self);
 	
 	if (deathmatch != 4)
-		self.currentammo = self.ammo_shells = self.ammo_shells - 2;
+	{
+		self.ammo_shells_real -= 2;
+		W_UpdateAmmoCounts(self);
+	}
+
 	dir = aim (self, 100000);
 	FireBullets (14, dir, '0.14 0.08 0', MOD_SUPERSHOTGUN);
 };
@@ -288,7 +326,10 @@ W_FireRocket
 void() W_FireRocket =
 {
 	if (deathmatch != 4)
-		self.currentammo = self.ammo_rockets = self.ammo_rockets - 1;
+	{
+		self.ammo_rockets_real -= 1;
+		W_UpdateAmmoCounts(self);
+	}
 	
 	sound (self, CHAN_WEAPON, "weapons/sgun1.wav", 1, ATTN_NORM);
 
@@ -361,8 +402,7 @@ void() W_FireLightning =
 
 	if (self.ammo_cells < 1)
 	{
-		self.weapon = W_BestWeapon ();
-		W_SetCurrentAmmo ();
+		W_WeaponSwitch (W_BestWeapon ());
 		return;
 	}
 
@@ -378,9 +418,9 @@ void() W_FireLightning =
 			}
 		}
 
-		cells = self.ammo_cells;
-		self.ammo_cells = 0;
-		W_SetCurrentAmmo ();
+		cells = self.ammo_cells_real;
+		self.ammo_cells_real = 0;
+		W_WeaponSwitch (W_BestWeapon ());
 		expmod = MOD_SHAFTWATER;
 		if (self.watertype == CONTENT_SLIME)
 			expmod = MOD_SHAFTSLIME;
@@ -398,7 +438,10 @@ void() W_FireLightning =
 	VK_smallkick(self);
 
 	if (deathmatch != 4)
-		self.currentammo = self.ammo_cells = self.ammo_cells - 1;
+	{
+		self.ammo_cells_real -= 1;
+		W_UpdateAmmoCounts(self);
+	}
 
 	org = self.origin + '0 0 16';
 	
@@ -419,7 +462,10 @@ void() W_FireGrenade =
 	local vector vel;
 
 	if (deathmatch != 4)
-		self.currentammo = self.ammo_rockets = self.ammo_rockets - 1;
+	{
+		self.ammo_rockets_real -= 1;
+		W_UpdateAmmoCounts(self);
+	}
 	
 	sound (self, CHAN_WEAPON, "weapons/grenade.wav", 1, ATTN_NORM);
 
@@ -447,16 +493,18 @@ void() W_FireGrenade =
 //=============================================================================
 void(float ox) W_FireSpikes =
 {
-	if (self.ammo_nails < 1)
+	if (self.ammo_nails_real < 1)
 	{
-		self.weapon = W_BestWeapon ();
-		W_SetCurrentAmmo ();
+		W_WeaponSwitch (W_BestWeapon ());
 		return;
 	}
 
 	sound (self, CHAN_WEAPON, "weapons/rocket1i.wav", 1, ATTN_NORM);
 	if (deathmatch != 4)
-		self.currentammo = self.ammo_nails = self.ammo_nails - 1;
+	{
+		self.ammo_nails_real -= 1;
+		W_UpdateAmmoCounts(self);
+	}
 
 	VK_smallkick(self);
 	PRJ_FireProjectile(self,
@@ -471,15 +519,18 @@ void(float ox) W_FireSpikes =
 
 void() W_FireSuperSpikes =
 {
-	if (self.ammo_nails < 2)
+	if (self.ammo_nails_real < 2)
 	{
 		W_FireSpikes(0);
 		return;
 	}
 	
 	sound (self, CHAN_WEAPON, "weapons/spike2.wav", 1, ATTN_NORM);
-	if (deathmatch != 4) 
-		self.currentammo = self.ammo_nails = self.ammo_nails - 2;
+	if (deathmatch != 4)
+	{
+		self.ammo_nails_real -= 2;
+		W_UpdateAmmoCounts(self);
+	}
 
 	VK_smallkick(self);
 	PRJ_FireProjectile(self,
@@ -505,24 +556,24 @@ float(float wep) W_HasAmmo =
 	switch (wep)
 	{
 	case IT_SHOTGUN:
-		return self.ammo_shells >= 1;
+		return self.ammo_shells_real >= 1;
 	case IT_SUPER_SHOTGUN:
-		return self.ammo_shells >= 2;
+		return self.ammo_shells_real >= 2;
 	case IT_NAILGUN:
-		return self.ammo_nails >= 1;
+		return self.ammo_nails_real >= 1;
 	case IT_SUPER_NAILGUN:
-		return self.ammo_nails >= 2;
+		return self.ammo_nails_real >= 2;
 	case IT_GRENADE_LAUNCHER:
 	case IT_ROCKET_LAUNCHER:
-		return self.ammo_rockets >= 1;
+		return self.ammo_rockets_real >= 1;
 	case IT_LIGHTNING:
-		return self.ammo_cells >= 1;
+		return self.ammo_cells_real >= 1;
 	}
 
 	return TRUE;
 };
 
-void() W_SetCurrentAmmo =
+void() W_UpdateWeapon =
 {
 	player_run ();          // get out of any weapon firing states
 
@@ -531,57 +582,62 @@ void() W_SetCurrentAmmo =
 	switch (self.weapon)
 	{
 	case IT_AXE:
-		self.currentammo = 0;
 		self.weaponmodel = "progs/v_axe.mdl";
-		self.weaponframe = 0;
+		self.ammo_type = AT_NONE;
 		break;
 	case IT_SHOTGUN:
-		self.currentammo = self.ammo_shells;
 		self.weaponmodel = "progs/v_shot.mdl";
-		self.weaponframe = 0;
 		self.items = self.items | IT_SHELLS;
+		self.ammo_type = AT_SHELLS;
 		break;
 	case IT_SUPER_SHOTGUN:
-		self.currentammo = self.ammo_shells;
 		self.weaponmodel = "progs/v_shot2.mdl";
-		self.weaponframe = 0;
 		self.items = self.items | IT_SHELLS;
+		self.ammo_type = AT_SHELLS;
 		break;
 	case IT_NAILGUN:
-		self.currentammo = self.ammo_nails;
 		self.weaponmodel = "progs/v_nail.mdl";
-		self.weaponframe = 0;
 		self.items = self.items | IT_NAILS;
+		self.ammo_type = AT_NAILS;
 		break;
 	case IT_SUPER_NAILGUN:
-		self.currentammo = self.ammo_nails;
 		self.weaponmodel = "progs/v_nail2.mdl";
-		self.weaponframe = 0;
 		self.items = self.items | IT_NAILS;
+		self.ammo_type = AT_NAILS;
 		break;
 	case IT_GRENADE_LAUNCHER:
-		self.currentammo = self.ammo_rockets;
 		self.weaponmodel = "progs/v_rock.mdl";
-		self.weaponframe = 0;
 		self.items = self.items | IT_ROCKETS;
+		self.ammo_type = AT_ROCKETS;
 		break;
 	case IT_ROCKET_LAUNCHER:
-		self.currentammo = self.ammo_rockets;
 		self.weaponmodel = "progs/v_rock2.mdl";
-		self.weaponframe = 0;
 		self.items = self.items | IT_ROCKETS;
+		self.ammo_type = AT_ROCKETS;
 		break;
 	case IT_LIGHTNING:
-		self.currentammo = self.ammo_cells;
 		self.weaponmodel = "progs/v_light.mdl";
-		self.weaponframe = 0;
 		self.items = self.items | IT_CELLS;
+		self.ammo_type = AT_CELLS;
 		break;
 	default:
-		self.currentammo = 0;
 		self.weaponmodel = "";
-		self.weaponframe = 0;
 	}
+
+	self.weaponframe = 0;
+};
+
+void(float weap) W_WeaponSwitch =
+{
+	// skip weapon model/ammo_type update if this isn't a new weapon
+	if (self.weapon != weap)
+	{
+		self.weapon = weap;
+		W_UpdateWeapon();
+	}
+
+	// always update ammo count
+	W_UpdateAmmoCounts(self);
 };
 
 float() W_BestWeapon =
@@ -628,9 +684,7 @@ float() W_CheckNoAmmo =
 	if (self.weapon == IT_AXE)
 		return TRUE;
 	
-	self.weapon = W_BestWeapon ();
-
-	W_SetCurrentAmmo ();
+	W_WeaponSwitch (W_BestWeapon ());
 	
 // drop the weapon down
 	return FALSE;
@@ -842,8 +896,7 @@ void() W_ChangeWeapon =
 //
 // set weapon, set ammo
 //
-	self.weapon = fl;               
-	W_SetCurrentAmmo ();
+	W_WeaponSwitch (fl);
 };
 
 /*
@@ -856,10 +909,10 @@ void() CheatCommand =
       if (deathmatch || coop)
 		return;
 
-	self.ammo_rockets = 100;
-	self.ammo_nails = 200;
-	self.ammo_shells = 100;
-	self.ammo_cells = 100;
+	self.ammo_rockets_real = 100;
+	self.ammo_nails_real = 200;
+	self.ammo_shells_real = 100;
+	self.ammo_cells_real = 100;
 	self.items |= IT_AXE |
 		IT_SHOTGUN |
 		IT_SUPER_SHOTGUN |
@@ -870,8 +923,7 @@ void() CheatCommand =
 		IT_LIGHTNING |
 		IT_KEY1 | IT_KEY2;
 
-	self.weapon = IT_ROCKET_LAUNCHER;
-	W_SetCurrentAmmo ();
+	W_WeaponSwitch (IT_ROCKET_LAUNCHER);
 };
 
 /*
@@ -918,8 +970,7 @@ void() CycleWeaponCommand =
 	
 		if ( (self.items & w) && W_HasAmmo(w) )
 		{
-			self.weapon = w;
-			W_SetCurrentAmmo ();
+			W_WeaponSwitch (w);
 			return;
 		}
 	}
@@ -971,8 +1022,7 @@ void() CycleWeaponReverseCommand =
 	
 		if ( (self.items & w) && W_HasAmmo(w) )
 		{
-			self.weapon = w;
-			W_SetCurrentAmmo ();
+			W_WeaponSwitch (w);
 			return;
 		}
 	}
@@ -1095,7 +1145,7 @@ Called every frame so impulse events can be handled as well as possible
 */
 void() W_WeaponFrame =
 {
-	local float scount;
+	local INTEGER scount;
 
 	W_HandlePlayerFrame();
 
@@ -1149,3 +1199,29 @@ void() SuperDamageSound =
 	return;
 };
 
+/*
+void() testfunction =
+{
+	local vector v;
+	local float a, b, c;
+
+	a = 2;
+	b = 4;
+	c = 6;
+	a *= 2;
+	b *= 2;
+	c *= 2;
+	v = '2 4 6';
+	v *= 2;
+	if (!a && !b && !c)
+		return;
+
+	if (!v)
+		return;
+
+	v_x = 23;
+
+	if (self.health && self.ammo_shells && self.ammo_cells)
+		return;
+};
+*/

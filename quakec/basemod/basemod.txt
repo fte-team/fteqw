@@ -15,8 +15,13 @@ te_explode sprite
 NQ/QW cross compatibility
 Track oldbutton presses/weaponstate
 Generic projectile spawning
+Usage of ammo_shells, etc as display
+
+In progress -
+Item fixing for SP
 
 Todo -
+Fix ammo_shells, etc for monsters/backpacks
 Samelevel 4 (exit acts as a spawnpoint teleporter)
 Effects/decal system
 Fix weird deathmatch modes, cvar checking

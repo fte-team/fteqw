@@ -3384,7 +3384,7 @@ pack_t *COM_LoadPackFile (char *packfile)
 void COM_FlushTempoaryPacks(void)
 {
 	searchpath_t *next;
-	while (*com_searchpaths->filename == '*')
+	while (com_searchpaths && *com_searchpaths->filename == '*')
 	{
 		switch (com_searchpaths->type)
 		{

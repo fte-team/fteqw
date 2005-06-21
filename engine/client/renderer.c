@@ -1069,6 +1069,7 @@ typedef struct {
 	menucombo_t *renderer;
 	menucombo_t *modecombo;
 	menucombo_t *conscalecombo;
+	menucombo_t *bppcombo;
 	menuedit_t *customwidth;
 	menuedit_t *customheight;
 } videomenuinfo_t;
@@ -1089,15 +1090,24 @@ void CheckCustomMode(struct menu_s *menu)
 	}
 
 #ifdef SWQUAKE
-	if (info->renderer->selectedoption < 2)
+	if (info->renderer->selectedoption < 1)
+	{
 		info->conscalecombo->common.ishidden = true;
+	}
 	else
 #endif
+	{
+		if (!info->bppcombo->selectedoption)
+			info->bppcombo->selectedoption = 1;
+
 		info->conscalecombo->common.ishidden = false;
+	}
 }
 qboolean M_VideoApply (union menuoption_s *op,struct menu_s *menu,int key)
 {
 	videomenuinfo_t *info = menu->data;
+	int selectedbpp;
+
 	if (key != K_ENTER)
 		return false;
 
@@ -1122,24 +1132,40 @@ qboolean M_VideoApply (union menuoption_s *op,struct menu_s *menu,int key)
 		Cbuf_AddText(va("vid_conwidth %s\n", info->customwidth->text), RESTRICT_LOCAL);
 		Cbuf_AddText(va("vid_conheight %s\n", info->customheight->text), RESTRICT_LOCAL);
 	}
+	
+	selectedbpp = 16;
+	switch(info->bppcombo->selectedoption)
+	{
+	case 0:
+		if (info->renderer->selectedoption)
+			selectedbpp = 16;
+		else
+			selectedbpp = 8;
+		break;
+	case 1:
+		selectedbpp = 16;
+		break;
+	case 2:
+		selectedbpp = 32;
+		break;
+	}
 
+	Cbuf_AddText(va("vid_bpp %i\n", selectedbpp), RESTRICT_LOCAL);
+	
 	switch(info->renderer->selectedoption)
 	{
 #ifdef SWQUAKE
 	case 0:
-		Cbuf_AddText("setrenderer sw 8\n", RESTRICT_LOCAL);
+		Cbuf_AddText("setrenderer sw\n", RESTRICT_LOCAL);
 		break;
 	case 1:
-		Cbuf_AddText("setrenderer sw 32\n", RESTRICT_LOCAL);
-		break;
-	case 2:
 #else
 	case 0:
 #endif
 		Cbuf_AddText("setrenderer gl\n", RESTRICT_LOCAL);
 		break;
 #ifdef SWQUAKE
-	case 3:
+	case 2:
 #else
 	case 1:
 #endif
@@ -1160,8 +1186,7 @@ void M_Menu_Video_f (void)
 	static const char *modenames[128] = {"Custom"};
 	static const char *rendererops[] = {
 #ifdef SWQUAKE
-		"8bit Software",
-		"32bit Software",
+		"Software",
 #endif
 #ifdef RGLQUAKE
 		"OpenGL",
@@ -1171,10 +1196,18 @@ void M_Menu_Video_f (void)
 #endif
 		NULL
 	};
+	static const char *bppnames[] =
+	{
+		"8",
+		"16",
+		"32",
+		NULL
+	};
 	videomenuinfo_t *info;
 	menu_t *menu;
 	int prefabmode;
 	int prefab2dmode;
+	int currentbpp;
 
 	int i, y;
 	prefabmode = -1;
@@ -1196,20 +1229,15 @@ void M_Menu_Video_f (void)
 	menu = M_CreateMenu(sizeof(videomenuinfo_t));
 	info = menu->data;
 
-#ifdef SWQUAKE
-	if (qrenderer == QR_SOFTWARE && vid_bpp.value >= 32)
-		i = 1;
-	else
-#endif
 #if defined(SWQUAKE) && defined(RGLQUAKE)
 	if (qrenderer == QR_OPENGL)
 	{
 #ifdef AVAIL_DX7
 		if (!strcmp(vid_renderer.string, "d3d"))
-			i = 3;
+			i = 2;
 		else
 #endif
-			i = 2;
+			i = 1;
 	}
 	else
 #endif
@@ -1220,12 +1248,21 @@ void M_Menu_Video_f (void)
 #endif
 		i = 0;
 
+	if (vid_bpp.value >= 32)
+		currentbpp = 2;
+	else if (vid_bpp.value >= 16)
+		currentbpp = 1;
+	else
+		currentbpp = 0;
+
+
 	MC_AddCenterPicture(menu, 4, "vidmodes");
 
 	y = 32;
 	info->renderer = MC_AddCombo(menu,	16, y,				"   Renderer     ", rendererops, i);	y+=8;
-	info->modecombo = MC_AddCombo(menu,	16, y,					"   Video Size   ", modenames, prefabmode+1);	y+=8;
-	info->conscalecombo = MC_AddCombo(menu,	16, y,					"      2d Size   ", modenames, prefab2dmode+1);	y+=8;
+	info->bppcombo = MC_AddCombo(menu,	16, y,				"   Color Depth  ", bppnames, currentbpp); y+=8;
+	info->modecombo = MC_AddCombo(menu,	16, y,				"   Video Size   ", modenames, prefabmode+1);	y+=8;
+	info->conscalecombo = MC_AddCombo(menu,	16, y,			"      2d Size   ", modenames, prefab2dmode+1);	y+=8;
 	MC_AddCheckBox(menu,	16, y,							"   Fullscreen   ", &vid_fullscreen,0);	y+=8;
 	y+=4;info->customwidth = MC_AddEdit(menu, 16, y,		"   Custom width ", vid_width.string);	y+=8;
 	y+=4;info->customheight = MC_AddEdit(menu, 16, y,		"   Custom height", vid_height.string);	y+=12;

@@ -55,7 +55,7 @@ cvar_t	lcd_x = {"lcd_x", "0"};	// FIXME: make this work sometime...
 
 cvar_t	cl_rollspeed = {"cl_rollspeed", "200"};
 cvar_t	cl_rollangle = {"cl_rollangle", "2.0"};
-cvar_t	v_deathtilt = {"cl_deathtilt", "1"};
+cvar_t	v_deathtilt = {"v_deathtilt", "1"};
 
 cvar_t	cl_bob = {"cl_bob","0.02"};
 cvar_t	cl_bobcycle = {"cl_bobcycle","0.6"};
@@ -1615,6 +1615,7 @@ void V_Init (void)
 	Cvar_Register (&v_kickroll, VIEWVARS);
 	Cvar_Register (&v_kickpitch, VIEWVARS);
 
+	Cvar_Register (&v_idlescale, VIEWVARS);
 
 #ifdef SIDEVIEWS
 #define SECONDARYVIEWVARS "Secondary view vars"

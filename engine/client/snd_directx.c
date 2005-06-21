@@ -668,6 +668,12 @@ int DSOUND_InitCard (soundcardinfo_t *sc, int cardnum)
 	dsbuf.dwBufferBytes = 0;
 	dsbuf.lpwfxFormat = NULL;
 
+	if (snd_inactive.value)
+	{
+		dsbuf.dwFlags |= DSBCAPS_GLOBALFOCUS;
+		sc->inactive_sound = true;
+	}
+
 	memset(&dsbcaps, 0, sizeof(dsbcaps));
 	dsbcaps.dwSize = sizeof(dsbcaps);
 	primary_format_set = false;

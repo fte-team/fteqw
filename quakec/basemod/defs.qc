@@ -1,26 +1,13 @@
 
-// uncomment based on desired compile
-// #define NETQUAKE
-// #define FTE
-
-#ifdef FTE
-#pragma target fte
-#pragma PROGS_DAT fteprogs.dat
-// use real ints
-#define INTEGER int
-#else
-
-// if netquake, use progs.dat file name
-#ifdef NETQUAKE
-#pragma PROGS_DAT progs.dat
-#endif
-
-#define INTEGER float
-#endif
-
-
 #define FALSE 0
 #define TRUE 1
+
+#ifdef FTE
+// use real floats if using FTE type progs
+#define INTEGER int
+#else
+#define INTEGER float
+#endif
 
 /*
 ==============================================================================

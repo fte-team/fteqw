@@ -111,6 +111,9 @@ float(entity targ, entity attacker) OnSameTeam =
 	if (targ.classname != "player" || attacker.classname != "player")
 		return FALSE;
 
+	if (coop)
+		return TRUE;
+
 	if (teamplay == 0)
 		return FALSE;
 

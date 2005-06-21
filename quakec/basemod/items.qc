@@ -1238,7 +1238,7 @@ void() powerup_touch =
 
 	if (deathmatch)
 	{	
-		if (self.items & (IT_INVULNERABILITY | IT_INVISIBLITY))
+		if (self.items & (IT_INVULNERABILITY | IT_INVISIBILITY))
 			self.nextthink = time + 60*5;
 		else
 			self.nextthink = time + 60;

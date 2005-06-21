@@ -1603,7 +1603,8 @@ void Media_RecordFilm_f (void)
 		recordavi_videotime = realtime;
 		recordavi_audiotime = realtime;
 
-		captureaudiomem = BZ_Malloc(recordavi_wave_format.nSamplesPerSec*2);
+		if (recordavi_wave_format.nSamplesPerSec)
+			captureaudiomem = BZ_Malloc(recordavi_wave_format.nSamplesPerSec*2);
 
 		capturevideomem = BZ_Malloc(glwidth*glheight*3);
 	}

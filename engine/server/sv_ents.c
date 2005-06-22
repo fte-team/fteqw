@@ -968,7 +968,7 @@ void SVDP_EmitEntitiesUpdate (client_t *client, packet_entities_t *to, sizebuf_t
 	MSG_WriteByte(msg, svcdp_entities);
 	MSG_WriteLong(msg, 0);
 	if (client->protocol == SCP_DARKPLACES7)
-		MSG_WriteLong(msg, 0);
+		MSG_WriteLong(msg, client->last_sequence);
 
 	for (newindex = 0; newindex < to->num_entities; newindex++)
 		to->entities[newindex].bitmask = 0;
@@ -2344,8 +2344,8 @@ void SV_WriteEntitiesToClient (client_t *client, sizebuf_t *msg, qboolean ignore
 				continue;
 			if (e >= 1024 && !(client->fteprotocolextensions & PEXT_ENTITYDBL2))
 				continue;
-			if (/*dement->modelindex >= 256 &&*/ !(client->fteprotocolextensions & PEXT_MODELDBL))
-				continue;
+//			if (dement->modelindex >= 256 && !(client->fteprotocolextensions & PEXT_MODELDBL))
+//				continue;
 
 			state = &pack->entities[pack->num_entities];
 			pack->num_entities++;

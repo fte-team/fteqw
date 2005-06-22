@@ -271,9 +271,6 @@ typedef struct
 	int				csqcentversion[MAX_EDICTS];//prevents ent versions from going backwards
 } server_t;
 
-
-#define	NUM_SPAWN_PARMS			16
-
 typedef enum
 {
 	cs_free,		// can be reused for a new connection
@@ -465,6 +462,7 @@ typedef struct client_s
 	int				delta_sequence;		// -1 = no compression
 	int				last_sequence;
 	netchan_t		netchan;
+	qboolean		isindependant;
 
 	int				lastsequence_acknoledged;
 

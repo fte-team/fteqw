@@ -36,7 +36,7 @@ typedef struct globalvars_s
 } globalvars_t;
 
 typedef struct nqglobalvars_s
-{	int	*pad[28];
+{
 	int	*self;
 	int	*other;
 	int	*world;
@@ -53,22 +53,6 @@ typedef struct nqglobalvars_s
 	float	*total_monsters;
 	float	*found_secrets;
 	float	*killed_monsters;
-	float	*parm1;
-	float	*parm2;
-	float	*parm3;
-	float	*parm4;
-	float	*parm5;
-	float	*parm6;
-	float	*parm7;
-	float	*parm8;
-	float	*parm9;
-	float	*parm10;
-	float	*parm11;
-	float	*parm12;
-	float	*parm13;
-	float	*parm14;
-	float	*parm15;
-	float	*parm16;
 	vec3_t	*V_v_forward;
 	vec3_t	*V_v_up;
 	vec3_t	*V_v_right;

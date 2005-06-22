@@ -428,22 +428,6 @@ void PR_LoadGlabalStruct(void)
 	globalfloat		(true, total_monsters);
 	globalfloat		(true, found_secrets);
 	globalfloat		(true, killed_monsters);
-	globalfloat		(true, parm1);
-	globalfloat		(true, parm2);
-	globalfloat		(true, parm3);
-	globalfloat		(true, parm4);
-	globalfloat		(true, parm5);
-	globalfloat		(true, parm6);
-	globalfloat		(true, parm7);
-	globalfloat		(true, parm8);
-	globalfloat		(true, parm9);
-	globalfloat		(true, parm10);
-	globalfloat		(true, parm11);
-	globalfloat		(true, parm12);
-	globalfloat		(true, parm13);
-	globalfloat		(true, parm14);
-	globalfloat		(true, parm15);
-	globalfloat		(true, parm16);
 	globalvec		(true, v_forward);
 	globalvec		(true, v_up);
 	globalvec		(true, v_right);
@@ -473,6 +457,9 @@ void PR_LoadGlabalStruct(void)
 
 	memset(&evalc_idealpitch, 0, sizeof(evalc_idealpitch));
 	memset(&evalc_pitch_speed, 0, sizeof(evalc_pitch_speed));
+
+	for (i = 0; i < NUM_SPAWN_PARMS; i++)
+		spawnparamglobals[i] = (float *)PR_FindGlobal(svprogfuncs, va("parm%i", i+1), 0);
 
 	if (!((nqglobalvars_t*)pr_globals)->dimension_send)
 	{	//make sure dimension send is always a valid pointer.
@@ -4918,7 +4905,7 @@ void PF_setspawnparms (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 	client = svs.clients + (i-1);
 
 	for (i=0 ; i< NUM_SPAWN_PARMS ; i++)
-		(&pr_global_struct->parm1)[i] = client->spawn_parms[i];
+		*spawnparamglobals[i] = client->spawn_parms[i];
 }
 
 /*

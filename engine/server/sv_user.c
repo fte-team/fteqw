@@ -136,13 +136,13 @@ void SV_New_f (void)
 
 //NOTE:  This doesn't go through ClientReliableWrite since it's before the user
 //spawns.  These functions are written to not overflow
-	if (host_client->num_backbuf)
+/*	if (host_client->num_backbuf)
 	{
 		Con_TPrintf(STL_BACKBUFSET, host_client->name, host_client->netchan.message.cursize); 
 		host_client->num_backbuf = 0;
 		SZ_Clear(&host_client->netchan.message);
 	}
-
+*/
 	if (sizeofcoord > 2 && !(host_client->fteprotocolextensions & PEXT_FLOATCOORDS))
 	{
 		SV_ClientPrintf(host_client, 2, "\n\n\n\nSorry, but your client does not appear to support FTE's bigcoords\nFTE users will need to set cl_nopext to 0 and then reconnect, or to upgrade\n");
@@ -150,9 +150,10 @@ void SV_New_f (void)
 		return;
 	}
 
+	ClientReliableCheckBlock(host_client, 800);	//okay, so it might be longer, but I'm too lazy to work out the real size.
 
 	// send the serverdata
-	MSG_WriteByte (&host_client->netchan.message, ISQ2CLIENT(host_client)?svcq2_serverdata:svc_serverdata);
+	ClientReliableWrite_Byte (host_client, ISQ2CLIENT(host_client)?svcq2_serverdata:svc_serverdata);
 #ifdef PROTOCOL_VERSION_FTE
 	if (host_client->fteprotocolextensions)//let the client know
 	{
@@ -163,11 +164,11 @@ void SV_New_f (void)
 			MSG_WriteLong (&host_client->netchan.message, host_client->fteprotocolextensions);
 	}
 #endif
-	MSG_WriteLong (&host_client->netchan.message, ISQ2CLIENT(host_client)?PROTOCOL_VERSION_Q2:PROTOCOL_VERSION);
-	MSG_WriteLong (&host_client->netchan.message, svs.spawncount);
+	ClientReliableWrite_Long (host_client, ISQ2CLIENT(host_client)?PROTOCOL_VERSION_Q2:PROTOCOL_VERSION);
+	ClientReliableWrite_Long (host_client, svs.spawncount);
 	if (ISQ2CLIENT(host_client))
-		MSG_WriteByte (&host_client->netchan.message, 0);
-	MSG_WriteString (&host_client->netchan.message, gamedir);
+		ClientReliableWrite_Byte (host_client, 0);
+	ClientReliableWrite_String (host_client, gamedir);
 
 	splitnum = 0;
 	for (split = host_client; split; split = split->controlled)
@@ -189,9 +190,9 @@ void SV_New_f (void)
 			playernum = -1;
 
 		if (ISQ2CLIENT(host_client))
-			MSG_WriteShort (&host_client->netchan.message, playernum);
+			ClientReliableWrite_Short (host_client, playernum);
 		else
-			MSG_WriteByte (&host_client->netchan.message, playernum);
+			ClientReliableWrite_Byte (host_client, playernum);
 
 		split->state = cs_connected;
 		split->connection_started = realtime;
@@ -201,13 +202,13 @@ void SV_New_f (void)
 		splitnum++;
 	}
 	if (host_client->fteprotocolextensions & PEXT_SPLITSCREEN)
-		MSG_WriteByte (&host_client->netchan.message, 128);
+		ClientReliableWrite_Byte (host_client, 128);
 
 	// send full levelname
 	if (sv.demostatevalid)
-		MSG_WriteString (&host_client->netchan.message, sv.demfullmapname);
+		ClientReliableWrite_String (host_client, sv.demfullmapname);
 	else
-		MSG_WriteString (&host_client->netchan.message, sv.mapname);
+		ClientReliableWrite_String (host_client, sv.mapname);
 
 	//
 	// game server
@@ -221,39 +222,48 @@ void SV_New_f (void)
 			memset (&host_client->lastcmd, 0, sizeof(host_client->lastcmd));
 
 			// begin fetching configstrings
-			MSG_WriteByte (&host_client->netchan.message, svcq2_stufftext);
-			MSG_WriteString (&host_client->netchan.message, va("cmd configstrings %i 0\n",svs.spawncount) );
+			ClientReliableWrite_Byte (host_client, svcq2_stufftext);
+			ClientReliableWrite_String (host_client, va("cmd configstrings %i 0\n",svs.spawncount) );
 		}
 		return;
 	}
 #endif
 	// send the movevars
-	MSG_WriteFloat(&host_client->netchan.message, movevars.gravity);
-	MSG_WriteFloat(&host_client->netchan.message, movevars.stopspeed);
-	MSG_WriteFloat(&host_client->netchan.message, movevars.maxspeed);
-	MSG_WriteFloat(&host_client->netchan.message, movevars.spectatormaxspeed);
-	MSG_WriteFloat(&host_client->netchan.message, movevars.accelerate);
-	MSG_WriteFloat(&host_client->netchan.message, movevars.airaccelerate);
-	MSG_WriteFloat(&host_client->netchan.message, movevars.wateraccelerate);
-	MSG_WriteFloat(&host_client->netchan.message, movevars.friction);
-	MSG_WriteFloat(&host_client->netchan.message, movevars.waterfriction);
-	MSG_WriteFloat(&host_client->netchan.message, movevars.entgravity);
+	ClientReliableWrite_Float(host_client, movevars.gravity);
+	ClientReliableWrite_Float(host_client, movevars.stopspeed);
+	ClientReliableWrite_Float(host_client, movevars.maxspeed);
+	ClientReliableWrite_Float(host_client, movevars.spectatormaxspeed);
+	ClientReliableWrite_Float(host_client, movevars.accelerate);
+	ClientReliableWrite_Float(host_client, movevars.airaccelerate);
+	ClientReliableWrite_Float(host_client, movevars.wateraccelerate);
+	ClientReliableWrite_Float(host_client, movevars.friction);
+	ClientReliableWrite_Float(host_client, movevars.waterfriction);
+	ClientReliableWrite_Float(host_client, movevars.entgravity);
 
 	// send server info string
-	MSG_WriteByte (&host_client->netchan.message, svc_stufftext);
 	if (sv.demostatevalid)
-		MSG_WriteString (&host_client->netchan.message, va("fullserverinfo \"%s\"\n", sv.demoinfo));
+	{
+		ClientReliableCheckBlock(host_client, 20 + strlen(sv.demoinfo));
+		ClientReliableWrite_Byte (host_client, svc_stufftext);
+		ClientReliableWrite_String (host_client, va("fullserverinfo \"%s\"\n", sv.demoinfo) );
+	}
 	else
-		MSG_WriteString (&host_client->netchan.message, va("fullserverinfo \"%s\"\n", svs.info) );
+	{
+		ClientReliableCheckBlock(host_client, 20 + strlen(svs.info));
+		ClientReliableWrite_Byte (host_client, svc_stufftext);
+		ClientReliableWrite_String (host_client, va("fullserverinfo \"%s\"\n", svs.info) );
+	}
 
 	host_client->csqcactive = false;
 
 	// send music
-	MSG_WriteByte (&host_client->netchan.message, svc_cdtrack);
+	ClientReliableCheckBlock(host_client, 2);
+
+	ClientReliableWrite_Byte (host_client, svc_cdtrack);
 	if (svprogfuncs)
-		MSG_WriteByte (&host_client->netchan.message, sv.edicts->v->sounds);
+		ClientReliableWrite_Byte (host_client, sv.edicts->v->sounds);
 	else
-		MSG_WriteByte (&host_client->netchan.message, 0);
+		ClientReliableWrite_Byte (host_client, 0);
 }
 #define GAME_DEATHMATCH 0
 #define GAME_COOP 1
@@ -1245,7 +1255,10 @@ void SV_Begin_f (void)
 				{
 					// copy spawn parms out of the client_t
 					for (i=0 ; i< NUM_SPAWN_PARMS ; i++)
-						(&pr_global_struct->parm1)[i] = split->spawn_parms[i];
+					{
+						if (spawnparamglobals[i])
+							*spawnparamglobals[i] = split->spawn_parms[i];
+					}
 
 					// call the spawn function
 					pr_global_struct->time = sv.time;
@@ -1273,7 +1286,10 @@ void SV_Begin_f (void)
 						if (eval2)
 							eval2->_float = 1;
 						for (j=0 ; j< NUM_SPAWN_PARMS ; j++)
-							(&pr_global_struct->parm1)[j] = split->spawn_parms[j];
+						{
+							if (spawnparamglobals[j])
+								*spawnparamglobals[j] = split->spawn_parms[j];
+						}
 						pr_global_struct->time = sv.time;
 						pr_global_struct->self = EDICT_TO_PROG(svprogfuncs, ent);
 						G_FLOAT(OFS_PARM0) = sv.time - split->spawninfotime;
@@ -1283,7 +1299,10 @@ void SV_Begin_f (void)
 					{
 						// copy spawn parms out of the client_t
 						for (i=0 ; i< NUM_SPAWN_PARMS ; i++)
-							(&pr_global_struct->parm1)[i] = split->spawn_parms[i];
+						{
+							if (spawnparamglobals[i])
+								*spawnparamglobals[i] = split->spawn_parms[i];
+						}
 
 						// call the spawn function
 						pr_global_struct->time = sv.time;
@@ -2702,7 +2721,12 @@ void Cmd_Join_f (void)
 	// call the progs to get default spawn parms for the new client
 	PR_ExecuteProgram (svprogfuncs, pr_global_struct->SetNewParms);
 	for (i=0 ; i<NUM_SPAWN_PARMS ; i++)
-		host_client->spawn_parms[i] = (&pr_global_struct->parm1)[i];
+	{
+		if (spawnparamglobals[i])
+			host_client->spawn_parms[i] = *spawnparamglobals[i];
+		else
+			host_client->spawn_parms[i] = 0;
+	}
 
 	// call the spawn function
 	pr_global_struct->time = sv.time;
@@ -2779,7 +2803,12 @@ void Cmd_Observe_f (void)
 	// call the progs to get default spawn parms for the new client
 	PR_ExecuteProgram (svprogfuncs, pr_global_struct->SetNewParms);
 	for (i=0 ; i<NUM_SPAWN_PARMS ; i++)
-		host_client->spawn_parms[i] = (&pr_global_struct->parm1)[i];
+	{
+		if (spawnparamglobals[i])
+			host_client->spawn_parms[i] = *spawnparamglobals[i];
+		else
+			host_client->spawn_parms[i] = 0;
+	}
 
 	SV_SpawnSpectator ();
 	
@@ -3119,7 +3148,10 @@ void SVNQ_Begin_f (void)
 			{
 				// copy spawn parms out of the client_t
 				for (i=0 ; i< NUM_SPAWN_PARMS ; i++)
-					(&pr_global_struct->parm1)[i] = host_client->spawn_parms[i];
+				{
+					if (spawnparamglobals[i])
+						*spawnparamglobals[i] = host_client->spawn_parms[i];
+				}
 
 				// call the spawn function
 				pr_global_struct->time = sv.time;
@@ -3131,7 +3163,10 @@ void SVNQ_Begin_f (void)
 		{
 			// copy spawn parms out of the client_t
 			for (i=0 ; i< NUM_SPAWN_PARMS ; i++)
-				(&pr_global_struct->parm1)[i] = host_client->spawn_parms[i];
+			{
+				if (spawnparamglobals[i])
+					*spawnparamglobals[i] = host_client->spawn_parms[i];
+			}
 
 			// call the spawn function
 			pr_global_struct->time = sv.time;
@@ -3742,6 +3777,10 @@ int SV_PMTypeForClient (client_t *cl)
 	return PM_NORMAL;
 }
 
+
+//called for common csqc/server code (supposedly)
+void SV_RunEntity (edict_t *ent);
+
 /*
 ===========
 SV_PreRunCmd
@@ -3932,6 +3971,15 @@ void SV_RunCmd (usercmd_t *ucmd, qboolean recurse)
 		sv_player->v->angles[ROLL] = 
 			V_CalcRoll (sv_player->v->angles, sv_player->v->velocity)*4;
 	}
+
+	if (SV_PlayerPhysicsQC)
+	{	//csqc independant physics support
+		pr_global_struct->frametime = host_frametime;
+		pr_global_struct->time = sv.time;
+		SV_RunEntity(sv_player);
+		return;
+	}
+
 
 	if (!host_client->spectator)
 	{
@@ -4306,8 +4354,9 @@ haveannothergo:
 
 					if (!sv.paused)
 					{
-						if (sv_nomsec.value || SV_PlayerPhysicsQC)
+						if (sv_nomsec.value)
 						{
+							cl->isindependant = false;
 							if (!sv_player->v->fixangle)
 							{
 								sv_player->v->v_angle[0] = newcmd.angles[0]* (360.0/65536);
@@ -4349,6 +4398,7 @@ haveannothergo:
 							}
 							continue;
 						}
+						cl->isindependant = true;
 						SV_PreRunCmd();
 
 						if (net_drop < 20)
@@ -4365,7 +4415,8 @@ haveannothergo:
 						}
 						SV_RunCmd (&newcmd, false);
 
-						SV_PostRunCmd();
+						if (!SV_PlayerPhysicsQC)
+							SV_PostRunCmd();
 
 					}
 
@@ -4589,7 +4640,9 @@ void SVNQ_ReadClientMove (usercmd_t *move)
 	frame = &host_client->frames[host_client->netchan.incoming_acknowledged & UPDATE_MASK];
 
 	if (host_client->protocol == SCP_DARKPLACES7)
-		MSG_ReadLong ();
+		host_client->last_sequence = MSG_ReadLong ();
+	else
+		host_client->last_sequence = 0;
 	frame->ping_time = sv.time - MSG_ReadFloat ();
 	
 
@@ -4657,6 +4710,9 @@ void SVNQ_ReadClientMove (usercmd_t *move)
 	host_client->edict->v->button6 = ((bits >> 5) & 1);
 	host_client->edict->v->button7 = ((bits >> 6) & 1);
 	host_client->edict->v->button8 = ((bits >> 7) & 1);
+
+	if (host_client->last_sequence)
+		SV_RunEntity(host_client->edict);
 }
 
 void SVNQ_ExecuteClientMessage (client_t *cl)

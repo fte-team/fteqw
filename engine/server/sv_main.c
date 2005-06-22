@@ -376,7 +376,7 @@ void SV_DropClient (client_t *drop)
 				if (pr_nqglobal_struct->SetChangeParms)
 					PR_ExecuteProgram (svprogfuncs, pr_global_struct->SetChangeParms);
 				for (j=0 ; j<NUM_SPAWN_PARMS ; j++)
-					rs.parm[j] = (&pr_global_struct->parm1)[j];
+					rs.parm[j] = *spawnparamglobals[j];
 				Rank_SetPlayerStats(drop->rankid, &rs);
 			}
 		}
@@ -1029,7 +1029,12 @@ void SV_GetNewSpawnParms(client_t *cl)
 		if (pr_nqglobal_struct->SetNewParms)
 			PR_ExecuteProgram (svprogfuncs, pr_global_struct->SetNewParms);
 		for (i=0 ; i<NUM_SPAWN_PARMS ; i++)
-			cl->spawn_parms[i] = (&pr_global_struct->parm1)[i];	
+		{
+			if (spawnparamglobals[i])
+				cl->spawn_parms[i] = *spawnparamglobals[i];	
+			else
+				cl->spawn_parms[i] = 0;
+		}
 	}
 }
 
@@ -3297,7 +3302,7 @@ qboolean ReloadRanking(client_t *cl, char *newname)
 			if (pr_nqglobal_struct->SetChangeParms)
 				PR_ExecuteProgram (svprogfuncs, pr_global_struct->SetChangeParms);
 			for (j=0 ; j<NUM_SPAWN_PARMS ; j++)
-				rs.parm[j] = (&pr_global_struct->parm1)[j];
+				rs.parm[j] = *spawnparamglobals[j];
 			Rank_SetPlayerStats(cl->rankid, &rs);
 		}
 		if (!Rank_GetPlayerStats(newid, &rs))

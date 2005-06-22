@@ -33,12 +33,22 @@ R_AnimateLight
 */
 void GLR_AnimateLight (void)
 {
-	int			i,j,k;
+	int			i,j;
+	int v1, v2;
+	float f;
 	
 //
 // light animations
 // 'm' is normal light, 'a' is no light, 'z' is double bright
-	i = (int)(cl.time*10);
+	f = (cl.time*r_lightstylespeed.value);
+	if (f < 0)
+		f = 0;
+	i = (int)f;
+
+	if (r_lightstylesmooth.value)
+		f -= i;	//this can require updates at 1000 times a second.. Depends on your framerate of course
+	else
+		f = 0;	//only update them 10 times a second
 	for (j=0 ; j<MAX_LIGHTSTYLES ; j++)
 	{
 		if (!cl_lightstyle[j].length)
@@ -47,10 +57,13 @@ void GLR_AnimateLight (void)
 			cl_lightstyle[j].colour = 7;
 			continue;
 		}
-		k = i % cl_lightstyle[j].length;
-		k = cl_lightstyle[j].map[k] - 'a';
-		k = k*22;
-		d_lightstylevalue[j] = k;
+		v1 = i % cl_lightstyle[j].length;
+		v1 = cl_lightstyle[j].map[v1] - 'a';
+
+		v2 = (i+1) % cl_lightstyle[j].length;
+		v2 = cl_lightstyle[j].map[v2] - 'a';
+
+		d_lightstylevalue[j] = (v1*(1-f) + v2*(f))*22;
 	}	
 }
 

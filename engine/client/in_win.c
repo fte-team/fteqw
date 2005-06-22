@@ -28,11 +28,7 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 #include <dinput.h>
 
 #ifdef _MSC_VER
-#ifdef AVAIL_DX7
-#pragma comment (lib, "../libs/dxsdk7/lib/dxguid.lib")
-#else
 #pragma comment (lib, "dxguid.lib")
-#endif
 #endif
 
 #define DINPUT_BUFFERSIZE           16

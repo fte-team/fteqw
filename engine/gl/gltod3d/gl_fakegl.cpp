@@ -26,7 +26,7 @@ the fact that it uses wrapper functions to call methods in a class could be a re
 
 #include "bothdefs.h"	//our always-present config file
 
-#ifdef AVAIL_DX7
+#ifdef USE_D3D
 
 
 #define WIN32_LEAN_AND_MEAN
@@ -56,9 +56,9 @@ the fact that it uses wrapper functions to call methods in a class could be a re
 #define     D3D_OVERLOADS
 #define     RELEASENULL(object) if (object) {object->Release();}
 
-#include    "dxsdk7/include/ddraw.h"
-#include    "dxsdk7/include/d3d.h"
-#include    "dxsdk7/include/d3dx.h"
+#include    "ddraw.h"
+#include    "d3d.h"
+#include    "d3dx.h"
 
 typedef HRESULT (WINAPI *qD3DXInitialize_t)();
 qD3DXInitialize_t qD3DXInitialize;
@@ -83,11 +83,11 @@ qD3DXMakeDDPixelFormat_t qD3DXMakeDDPixelFormat;
 typedef D3DXMATRIX* (WINAPI *qD3DXMatrixTranslation_t) ( D3DXMATRIX *pOut, float x, float y, float z );
 qD3DXMatrixTranslation_t qD3DXMatrixTranslation;
 
-#include "quakedef.h"
 extern "C" {
+#include "quakedef.h"
 #include "glquake.h"
 }
-#ifdef AVAIL_DX7
+#ifdef USE_D3D
 
 // Choose one of the following. D3DXContext is new in DX7, and
 // provides a standard way of managing DX. D3DFrame is from
@@ -109,9 +109,9 @@ extern "C" {
 // #define USE_D3DFRAME
 
 #ifdef USE_D3DFRAME
-#include "sdk7/include/d3denum.h"
-#include "sdk7/include/d3dframe.h"
-#include "sdk7/include/d3dutil.h"
+#include "d3denum.h"
+#include "d3dframe.h"
+#include "d3dutil.h"
 #endif
 
 #if 0
@@ -3554,6 +3554,12 @@ void APIENTRY D3DViewport (GLint x, GLint y, GLsizei width, GLsizei height){
 	gFakeGL->cglViewport(x, y, width, height);
 }
 
+
+int APIENTRY D3DGetError (void)
+{
+	return 0;
+}
+
 HDC gHDC;
 HGLRC gHGLRC;
 
@@ -4039,6 +4045,8 @@ d3dglfunc_t glfuncs[] = {
 	{"glColorPointer",			(PROC)D3DColorPointer},
 	{"glEnableClientState",		(PROC)D3DEnableClientState},
 	{"glDisableClientState",	(PROC)D3DDisableClientState},
+
+	{"glGetError",				(PROC)D3DGetError},
 /*
 	qwglCreateContext		= D3DwglCreateContext;
 	qwglDeleteContext		= D3DwglDeleteContext;
@@ -4051,6 +4059,115 @@ d3dglfunc_t glfuncs[] = {
 };
 
 
+qboolean D3DVID_Init(rendererstate_t *info, unsigned char *palette)
+{
+	strcpy(info->glrenderer, "D3D");
+	return GLVID_Init(info, palette);
+}
+
+extern "C" {
+#include "gl_draw.h"
+}
+
+rendererinfo_t d3drendererinfo = {
+		"Direct3D",
+		{
+			"d3d",
+			"crap"
+		},
+		QR_OPENGL,
+
+
+		GLDraw_PicFromWad,
+		GLDraw_SafePicFromWad,
+		GLDraw_CachePic,
+		GLDraw_SafeCachePic,
+		GLDraw_Init,
+		GLDraw_ReInit,
+		GLDraw_Character,
+		GLDraw_ColouredCharacter,
+		GLDraw_String,
+		GLDraw_Alt_String,
+		GLDraw_Crosshair,
+		GLDraw_DebugChar,
+		GLDraw_Pic,
+		GLDraw_ScalePic,
+		GLDraw_SubPic,
+		GLDraw_TransPic,
+		GLDraw_TransPicTranslate,
+		GLDraw_ConsoleBackground,
+		GLDraw_EditorBackground,
+		GLDraw_TileClear,
+		GLDraw_Fill,
+		GLDraw_FadeScreen,
+		GLDraw_BeginDisc,
+		GLDraw_EndDisc,
+
+		GLDraw_Image,
+		GLDraw_ImageColours,
+
+		GLR_Init,
+		GLR_DeInit,
+		GLR_ReInit,
+		GLR_RenderView,
+
+
+		GLR_InitSky,
+		GLR_CheckSky,
+		GLR_SetSky,
+
+		GLR_NewMap,
+		GLR_PreNewMap,
+		GLR_LightPoint,
+		GLR_PushDlights,
+
+
+		GLR_AddStain,
+		GLR_LessenStains,
+
+		MediaGL_ShowFrameBGR_24_Flip,
+		MediaGL_ShowFrameRGBA_32,
+		MediaGL_ShowFrame8bit,
+
+
+		GLMod_Init,
+		GLMod_ClearAll,
+		GLMod_ForName,
+		GLMod_FindName,
+		GLMod_Extradata,
+		GLMod_TouchModel,
+
+		GLMod_PointInLeaf,
+		GLMod_LeafPVS,
+		GLMod_NowLoadExternal,
+		GLMod_Think,
+
+		GLMod_GetTag,
+		GLMod_TagNumForName,
+
+		D3DVID_Init,
+		GLVID_DeInit,
+		GLVID_HandlePause,
+		GLVID_LockBuffer,
+		GLVID_UnlockBuffer,
+		GLD_BeginDirectRect,
+		GLD_EndDirectRect,
+		GLVID_ForceLockState,
+		GLVID_ForceUnlockedAndReturnState,
+		GLVID_SetPalette,
+		GLVID_ShiftPalette,
+		GLVID_GetRGBInfo,
+
+		NULL,	//setcaption
+
+
+		GLSCR_UpdateScreen,
+
+		""
+};
+extern "C" {
+rendererinfo_t *pd3drendererinfo = &d3drendererinfo;
+}
 
 #endif
 

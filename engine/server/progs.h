@@ -23,6 +23,8 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 #define MAX_PROGS 64
 #define MAXADDONS 16
 
+#define	NUM_SPAWN_PARMS			32	//moved from server.h because of include ordering :(.
+
 #define NewGetEdictFieldValue GetEdictFieldValue
 void Q_SetProgsParms(qboolean forcompiler);
 void PR_Deinit(void);
@@ -96,6 +98,8 @@ typedef struct edict_s
 #undef pr_global_struct
 //#define pr_nqglobal_struct *((nqglobalvars_t*)pr_globals)
 #define pr_global_struct *pr_nqglobal_struct
+
+float *spawnparamglobals[NUM_SPAWN_PARMS];
 
 extern nqglobalvars_t *pr_nqglobal_struct;
 

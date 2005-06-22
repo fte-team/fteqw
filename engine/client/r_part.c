@@ -171,7 +171,7 @@ typedef struct part_type_s {
 
 	float timelimit;
 
-	enum {PT_NORMAL, PT_BEAM, PT_DECAL} type;
+	enum {PT_NORMAL, PT_SPARK, PT_SPARKFAN, PT_TEXTUREDSPARK, PT_BEAM, PT_DECAL} type;
 	enum {BM_MERGE, BM_ADD, BM_SUBTRACT} blendmode;
 
 	float rotationstartmin, rotationstartrand;
@@ -654,6 +654,12 @@ void P_ParticleEffect_f(void)
 		{
 			if (!strcmp(value, "beam"))
 				ptype->type = PT_BEAM;
+			else if (!strcmp(value, "spark"))
+				ptype->type = PT_SPARK;
+			else if (!strcmp(value, "sparkfan") || !strcmp(value, "trianglefan"))
+				ptype->type = PT_SPARKFAN;
+			else if (!strcmp(value, "texturedspark"))
+				ptype->type = PT_TEXTUREDSPARK;
 			else if (!strcmp(value, "decal"))
 				ptype->type = PT_DECAL;
 			else
@@ -843,6 +849,16 @@ void P_ParticleEffect_f(void)
 	//if it has friction
 	if (ptype->friction)
 		ptype->flags |= PT_FRICTION;
+
+	if (ptype->type == PT_NORMAL && !ptype->texname)
+		ptype->type = PT_SPARK;
+	if (ptype->type == PT_SPARK)
+	{
+		if (*ptype->texname)
+			ptype->type = PT_TEXTUREDSPARK;
+		if (ptype->scale)
+			ptype->type = PT_SPARKFAN;
+	}
 
 	if (ptype->rampmode && !ptype->ramp)
 	{
@@ -2824,12 +2840,6 @@ void GL_DrawTexturedParticle(particle_t *p, part_type_t *type)
 
 	if (lasttype != type)
 	{
-		if (type-part_type>=numparticletypes||type-part_type<0)	//FIXME:! Work out why this is needed...
-		{
-			Con_Printf("Serious bug alert\n");
-			return;
-		}
-
 		lasttype = type;
 		qglEnd();
 		qglEnable(GL_TEXTURE_2D);
@@ -2985,7 +2995,7 @@ void GL_DrawTrifanParticle(particle_t *p, part_type_t *type)
 	qglBegin (GL_TRIANGLES);
 }
 
-void GL_DrawSparkedParticle(particle_t *p, part_type_t *type)
+void GL_DrawLineSparkParticle(particle_t *p, part_type_t *type)
 {
 	if (lasttype != type)
 	{
@@ -3014,7 +3024,56 @@ void GL_DrawSparkedParticle(particle_t *p, part_type_t *type)
 				p->rgb[2],
 				0);
 	qglVertex3f (p->org[0]-p->vel[0]/10, p->org[1]-p->vel[1]/10, p->org[2]-p->vel[2]/10);
+}
 
+void GL_DrawTexturedSparkParticle(particle_t *p, part_type_t *type)
+{
+	vec3_t v, cr, o2, point;
+	if (lasttype != type)
+	{
+		lasttype = type;
+		qglEnd();
+		qglEnable(GL_TEXTURE_2D);
+		GL_Bind(type->texturenum);
+		if (type->blendmode == BM_ADD)		//addative
+			qglBlendFunc(GL_SRC_ALPHA, GL_ONE);
+//		else if (type->blendmode == BM_SUBTRACT)	//subtractive
+//			qglBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+		else
+			qglBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+		qglShadeModel(GL_SMOOTH);
+		qglBegin(GL_QUADS);
+	}
+
+	qglColor4f (p->rgb[0],
+				p->rgb[1],
+				p->rgb[2],
+				p->alpha);
+
+	VectorSubtract(r_refdef.vieworg, p->org, v);
+	CrossProduct(v, p->vel, cr);
+	VectorNormalize(cr);
+
+	VectorMA(p->org, -p->scale/2, cr, point);
+	qglTexCoord2f(0, 0);
+	qglVertex3fv(point);
+	VectorMA(p->org, p->scale/2, cr, point);
+	qglTexCoord2f(0, 1);
+	qglVertex3fv(point);
+
+
+	VectorMA(p->org, 0.1, p->vel, o2);
+
+	VectorSubtract(r_refdef.vieworg, o2, v);
+	CrossProduct(v, p->vel, cr);
+	VectorNormalize(cr);
+
+	VectorMA(o2, p->scale/2, cr, point);
+	qglTexCoord2f(1, 1);
+	qglVertex3fv(point);
+	VectorMA(o2, -p->scale/2, cr, point);
+	qglTexCoord2f(1, 0);
+	qglVertex3fv(point);
 }
 
 void GL_DrawSketchSparkParticle(particle_t *p, part_type_t *type)
@@ -3364,7 +3423,7 @@ void SWD_DrawParticleBeam(beamseg_t *beam, part_type_t *type)
 }
 #endif
 
-void DrawParticleTypes (void texturedparticles(particle_t *,part_type_t*), void sparklineparticles(particle_t*,part_type_t*), void sparkfanparticles(particle_t*,part_type_t*), void beamparticlest(beamseg_t*,part_type_t*), void beamparticlesut(beamseg_t*,part_type_t*), void drawdecalparticles(clippeddecal_t*,part_type_t*))
+void DrawParticleTypes (void texturedparticles(particle_t *,part_type_t*), void sparklineparticles(particle_t*,part_type_t*), void sparkfanparticles(particle_t*,part_type_t*), void sparktexturedparticles(particle_t*,part_type_t*), void beamparticlest(beamseg_t*,part_type_t*), void beamparticlesut(beamseg_t*,part_type_t*), void drawdecalparticles(clippeddecal_t*,part_type_t*))
 {
 	RSpeedMark();
 
@@ -3489,12 +3548,21 @@ void DrawParticleTypes (void texturedparticles(particle_t *,part_type_t*), void 
 		}
 		else
 		{
-			if (*type->texname)
+			switch(type->type)
+			{
+			default:
 				pdraw = texturedparticles;
-			else if (type->scale || type->scaledelta)
-				pdraw = sparkfanparticles;
-			else
+				break;
+			case PT_SPARK:
 				pdraw = sparklineparticles;
+				break;
+			case PT_SPARKFAN:
+				pdraw = sparkfanparticles;
+				break;
+			case PT_TEXTUREDSPARK:
+				pdraw = sparktexturedparticles;
+				break;
+			}
 		}
 
 		if (!type->die)
@@ -3756,7 +3824,7 @@ void DrawParticleTypes (void texturedparticles(particle_t *,part_type_t*), void 
 				}
 			}
 
-			if (type->type == PT_NORMAL)
+			if (type->type < PT_BEAM)
 				RQ_AddDistReorder((void*)pdraw, p, type, p->org);
 		}
 
@@ -3877,9 +3945,9 @@ void P_DrawParticles (void)
 		qglEnable(GL_POLYGON_OFFSET_FILL);
 		qglBegin(GL_QUADS);
 		if (r_drawflat.value == 2)
-			DrawParticleTypes(GL_DrawSketchParticle, GL_DrawSketchSparkParticle, GL_DrawSketchSparkParticle, GL_DrawParticleBeam_Textured, GL_DrawParticleBeam_Untextured, GL_DrawClippedDecal);
+			DrawParticleTypes(GL_DrawSketchParticle, GL_DrawSketchSparkParticle, GL_DrawSketchSparkParticle, GL_DrawSketchSparkParticle, GL_DrawParticleBeam_Textured, GL_DrawParticleBeam_Untextured, GL_DrawClippedDecal);
 		else
-			DrawParticleTypes(GL_DrawTexturedParticle, GL_DrawSparkedParticle, GL_DrawTrifanParticle, GL_DrawParticleBeam_Textured, GL_DrawParticleBeam_Untextured, GL_DrawClippedDecal);
+			DrawParticleTypes(GL_DrawTexturedParticle, GL_DrawLineSparkParticle, GL_DrawTrifanParticle, GL_DrawTexturedSparkParticle, GL_DrawParticleBeam_Textured, GL_DrawParticleBeam_Untextured, GL_DrawClippedDecal);
 		qglEnd();
 		qglDisable(GL_POLYGON_OFFSET_FILL);
 
@@ -3901,7 +3969,7 @@ void P_DrawParticles (void)
 #ifdef SWQUAKE
 	if (qrenderer == QR_SOFTWARE)
 	{
-		DrawParticleTypes(SWD_DrawParticleBlob, SWD_DrawParticleSpark, SWD_DrawParticleSpark, SWD_DrawParticleBeam, SWD_DrawParticleBeam, NULL);
+		DrawParticleTypes(SWD_DrawParticleBlob, SWD_DrawParticleSpark, SWD_DrawParticleSpark, SWD_DrawParticleSpark, SWD_DrawParticleBeam, SWD_DrawParticleBeam, NULL);
 
 		RSpeedRemark();
 		D_StartParticles();

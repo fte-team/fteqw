@@ -304,7 +304,12 @@ void SV_SaveSpawnparms (qboolean dontsave)
 			pr_global_struct->self = EDICT_TO_PROG(svprogfuncs, host_client->edict);
 			PR_ExecuteProgram (svprogfuncs, pr_global_struct->SetChangeParms);
 			for (j=0 ; j<NUM_SPAWN_PARMS ; j++)
-				host_client->spawn_parms[j] = (&pr_global_struct->parm1)[j];
+			{
+				if (spawnparamglobals[j])
+					host_client->spawn_parms[j] = *spawnparamglobals[j];
+				else 
+					host_client->spawn_parms[j] = 0;
+			}
 		}
 
 #ifdef SVRANKING
@@ -320,7 +325,12 @@ void SV_SaveSpawnparms (qboolean dontsave)
 				host_client->kills=0;
 				host_client->deaths=0;
 				for (j=0 ; j<NUM_SPAWN_PARMS ; j++)
-					rs.parm[j] = (&pr_global_struct->parm1)[j];
+				{
+					if (spawnparamglobals[j])
+						rs.parm[j] = *spawnparamglobals[j];
+					else
+						rs.parm[j] = 0;
+				}
 				Rank_SetPlayerStats(host_client->rankid, &rs);
 			}
 		}

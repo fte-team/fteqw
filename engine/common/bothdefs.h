@@ -61,9 +61,6 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 #ifdef NO_OGG
 	#undef AVAIL_OGGVORBIS
 #endif
-#if defined(NO_D3D) || !defined(_WIN32)
-	#undef AVAIL_DX7
-#endif
 #if defined(NO_MASM) || !defined(_WIN32)
 	#undef AVAIL_MASM
 #endif
@@ -88,7 +85,7 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 		#undef AVAIL_JPEGLIB	//no jpeg support
 		#undef AVAIL_PNGLIB		//no png support
 		#undef USE_MADLIB		//no internal mp3 playing
-		#undef AVAIL_DX7		//no d3d support
+		#undef USE_D3D		//no d3d support
 		#define NOMEDIA			//NO playing of avis/cins/roqs
 
 		#define MD3MODELS		//we DO want to use quake3 alias models. This might be a minimal build, but we still want this.
@@ -172,8 +169,8 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 	#endif
 #endif
 
-#ifdef NODIRECTX
-	#undef AVAIL_DX7
+#if defined(NODIRECTX) || (!defined(GLQUAKE) && !defined(RGLQUAKE))
+	#undef USE_D3D
 #endif
 
 

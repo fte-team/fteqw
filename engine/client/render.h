@@ -162,6 +162,7 @@ qboolean GLR_CheckSky(void);
 void GLR_AddEfrags (entity_t *ent);
 void GLR_RemoveEfrags (entity_t *ent);
 
+void GLR_PreNewMap(void);
 void GLR_NewMap (void);
 
 void GLR_PushDlights (void);
@@ -173,7 +174,22 @@ void GLR_LessenStains(void);
 void MediaGL_ShowFrame8bit(qbyte *framedata, int inwidth, int inheight, qbyte *palette);
 void MediaGL_ShowFrameRGBA_32(qbyte *framedata, int inwidth, int inheight);	//top down
 void MediaGL_ShowFrameBGR_24_Flip(qbyte *framedata, int inwidth, int inheight);	//input is bottom up...
+
+void GLR_SetSky (char *name, float rotate, vec3_t axis);
+qboolean GLR_CheckSky(void);
+void GLR_AddStain(vec3_t org, float red, float green, float blue, float radius);
+void GLR_LessenStains(void);
+
+void GLVID_DeInit (void);
+void GLR_DeInit (void);
+void GLSCR_DeInit (void);
+
+int GLR_LightPoint (vec3_t p);
 #endif
+
+
+
+
 
 #if defined(SWQUAKE)
 void SWR_Init (void);
@@ -199,6 +215,17 @@ void SWR_LessenStains(void);
 void MediaSW_ShowFrame8bit(qbyte *framedata, int inwidth, int inheight, qbyte *palette);
 void MediaSW_ShowFrameRGBA_32(qbyte *framedata, int inwidth, int inheight);	//top down
 void MediaSW_ShowFrameBGR_24_Flip(qbyte *framedata, int inwidth, int inheight);	//input is bottom up...
+
+void SWR_SetSky (char *name, float rotate, vec3_t axis);
+qboolean SWR_CheckSky(void);
+void SWR_AddStain(vec3_t org, float red, float green, float blue, float radius);
+void SWR_LessenStains(void);
+
+void SWVID_Shutdown (void);
+void SWR_DeInit (void);
+void SWSCR_DeInit (void);
+
+int SWR_LightPoint (vec3_t p);
 #endif
 
 void R_AddEfrags (entity_t *ent);
@@ -327,6 +354,8 @@ extern	cvar_t	gl_polyblend;
 extern	cvar_t	gl_keeptjunctions;
 extern	cvar_t	gl_reporttjunctions;
 extern	cvar_t	r_flashblend;
+extern	cvar_t	r_lightstylesmooth;
+extern	cvar_t	r_lightstylespeed;
 extern	cvar_t	gl_nocolors;
 extern	cvar_t	gl_load24bit;
 extern	cvar_t	gl_finish;

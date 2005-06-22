@@ -63,7 +63,7 @@ extern cvar_t vid_conwidth;
 
 typedef enum {MS_WINDOWED, MS_FULLSCREEN, MS_FULLDIB, MS_UNINIT} modestate_t;
 
-#ifdef AVAIL_DX7
+#ifdef USE_D3D
 void D3DInitialize(void);
 void d3dSetMode(int fullscreen, int width, int height, int bpp, int zbpp);
 #endif
@@ -713,7 +713,7 @@ qboolean VID_AttachGL (rendererstate_t *info)
 {	//make sure we can get a valid renderer.
 	do
 	{
-#ifdef AVAIL_DX7
+#ifdef USE_D3D
 		if (!Q_strcasecmp(info->glrenderer, "D3D"))
 		{
 			extern cvar_t gl_ztrick;

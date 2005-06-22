@@ -115,3 +115,93 @@ void Draw_FunString(int x, int y, unsigned char *str);
 #define Mod_Q1LeafPVS Mod_LeafPVS
 qbyte *Mod_LeafPVS (struct mleaf_s *leaf, struct model_s *model, qbyte *buffer);
 #endif
+
+
+
+typedef struct {
+	char *description;
+	char *name[4];
+	r_qrenderer_t rtype;
+
+	mpic_t	*(*Draw_PicFromWad)			(char *name);
+	mpic_t	*(*Draw_SafePicFromWad)			(char *name);
+	mpic_t	*(*Draw_CachePic)			(char *path);
+	mpic_t	*(*Draw_SafeCachePic)		(char *path);
+	void	(*Draw_Init)				(void);
+	void	(*Draw_ReInit)				(void);
+	void	(*Draw_Character)			(int x, int y, unsigned int num);
+	void	(*Draw_ColouredCharacter)	(int x, int y, unsigned int num);
+	void	(*Draw_String)				(int x, int y, const qbyte *str);
+	void	(*Draw_Alt_String)			(int x, int y, const qbyte *str);
+	void	(*Draw_Crosshair)			(void);
+	void	(*Draw_DebugChar)			(qbyte num);
+	void	(*Draw_Pic)					(int x, int y, mpic_t *pic);
+	void	(*Draw_ScalePic)			(int x, int y, int width, int height, mpic_t *pic);
+	void	(*Draw_SubPic)				(int x, int y, mpic_t *pic, int srcx, int srcy, int width, int height);
+	void	(*Draw_TransPic)			(int x, int y, mpic_t *pic);
+	void	(*Draw_TransPicTranslate)	(int x, int y, int w, int h, qbyte *pic, qbyte *translation);
+	void	(*Draw_ConsoleBackground)	(int lines);
+	void	(*Draw_EditorBackground)	(int lines);
+	void	(*Draw_TileClear)			(int x, int y, int w, int h);
+	void	(*Draw_Fill)				(int x, int y, int w, int h, int c);
+	void	(*Draw_FadeScreen)			(void);
+	void	(*Draw_BeginDisc)			(void);
+	void	(*Draw_EndDisc)				(void);
+
+	void	(*Draw_Image)				(float x, float y, float w, float h, float s1, float t1, float s2, float t2, mpic_t *pic);	//gl-style scaled/coloured/subpic
+	void	(*Draw_ImageColours)		(float r, float g, float b, float a);
+
+	void	(*R_Init)					(void);
+	void	(*R_DeInit)					(void);
+	void	(*R_ReInit)					(void);
+	void	(*R_RenderView)				(void);		// must set r_refdef first
+
+	void	(*R_InitSky)				(struct texture_s *mt);	// called at level load
+	qboolean	(*R_CheckSky)			(void);
+	void	(*R_SetSky)					(char *name, float rotate, vec3_t axis);
+
+	void	(*R_NewMap)					(void);
+	void	(*R_PreNewMap)				(void);
+	int		(*R_LightPoint)				(vec3_t point);
+
+	void	(*R_PushDlights)			(void);
+	void	(*R_AddStain)				(vec3_t org, float red, float green, float blue, float radius);
+	void	(*R_LessenStains)			(void);
+
+	void (*Media_ShowFrameBGR_24_Flip)	(qbyte *framedata, int inwidth, int inheight);	//input is bottom up...
+	void (*Media_ShowFrameRGBA_32)		(qbyte *framedata, int inwidth, int inheight);	//top down
+	void (*Media_ShowFrame8bit)			(qbyte *framedata, int inwidth, int inheight, qbyte *palette);	//paletted topdown (framedata is 8bit indexes into palette)
+
+	void	(*Mod_Init)					(void);
+	void	(*Mod_ClearAll)				(void);
+	struct model_s *(*Mod_ForName)		(char *name, qboolean crash);
+	struct model_s *(*Mod_FindName)		(char *name);
+	void	*(*Mod_Extradata)			(struct model_s *mod);	// handles caching
+	void	(*Mod_TouchModel)			(char *name);
+
+	struct mleaf_s *(*Mod_PointInLeaf)	(float *p, struct model_s *model);
+	qbyte	*(*Mod_Q1LeafPVS)			(struct mleaf_s *leaf, struct model_s *model, qbyte *buffer);
+	void	(*Mod_NowLoadExternal)		(void);
+	void	(*Mod_Think)				(void);
+	qboolean(*Mod_GetTag)				(struct model_s *model, int tagnum, int frame1, int frame2, float f2ness, float f1time, float f2time, float *result);
+	int (*Mod_TagNumForName)			(struct model_s *model, char *name);
+
+
+	qboolean (*VID_Init)				(rendererstate_t *info, unsigned char *palette);
+	void	 (*VID_DeInit)				(void);
+	void	(*VID_HandlePause)			(qboolean pause);
+	void	(*VID_LockBuffer)			(void);
+	void	(*VID_UnlockBuffer)			(void);
+	void	(*D_BeginDirectRect)		(int x, int y, qbyte *pbitmap, int width, int height);
+	void	(*D_EndDirectRect)			(int x, int y, int width, int height);
+	void	(*VID_ForceLockState)		(int lk);
+	int		(*VID_ForceUnlockedAndReturnState) (void);
+	void	(*VID_SetPalette)			(unsigned char *palette);
+	void	(*VID_ShiftPalette)			(unsigned char *palette);
+	char	*(*VID_GetRGBInfo)			(int prepad, int *truevidwidth, int *truevidheight);
+	void	(*VID_SetWindowCaption)		(char *msg);
+
+	void	(*SCR_UpdateScreen)			(void);
+
+	char *alignment;
+} rendererinfo_t;

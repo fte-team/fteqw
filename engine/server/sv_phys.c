@@ -870,20 +870,6 @@ if (l > 1.0/64)
 
 /*
 =============
-SV_Physics_None
-
-Non moving objects can only think
-=============
-*/
-void SV_Physics_None (edict_t *ent)
-{
-// regular thinking
-	SV_RunThink (ent);
-}
-
-
-/*
-=============
 SV_Physics_Follow
 
 Entities that are "stuck" to another entity
@@ -1660,106 +1646,7 @@ void SV_WalkMove (edict_t *ent)
 #endif
 
 
-/*
-================
-SV_Physics_Client
-
-Player character actions
-
-
-From normal Quake in an attempt to fix physics in QuakeRally
-================
-*/
 #define FL_JUMPRELEASED 4096
-void SV_Physics_Client (edict_t	*ent, int num)
-{
-	qboolean readyforjump;
-	float oldvel;
-
-	if ( svs.clients[num-1].state < cs_spawned )
-		return;		// unconnected slot
-
-	readyforjump = false;
-	if (progstype == PROG_QW)
-		if (ent->v->button2)
-			if ((int)ent->v->flags & FL_JUMPRELEASED)
-				readyforjump = true;
-//
-// call standard client pre-think
-//	
-	pr_global_struct->time = sv.time;
-	pr_global_struct->self = EDICT_TO_PROG(svprogfuncs, ent);
-	PR_ExecuteProgram (svprogfuncs, pr_global_struct->PlayerPreThink);
-	
-	if (readyforjump)	//qw progs can't jump for themselves...
-	{
-		if (!ent->v->button2 && !((int)ent->v->flags & FL_JUMPRELEASED))
-			ent->v->velocity[2] += 270;
-	}
-//
-// do a move
-//
-	SV_CheckVelocity (ent);	
-
-//
-// decide which move function to call
-//
-	switch ((int)ent->v->movetype)
-	{
-	case MOVETYPE_NONE:
-		if (!SV_RunThink (ent))
-			return;
-		break;
-
-	case MOVETYPE_WALK:
-		oldvel = ent->v->velocity[0];
-		if (!SV_RunThink (ent))
-			return;
-		if (!SV_CheckWater (ent) && ! ((int)ent->v->flags & FL_WATERJUMP) )
-			SV_AddGravity (ent, ent->v->gravity);
-
-		SV_CheckStuck (ent);
-		SV_WalkMove (ent);
-		break;
-
-	case MOVETYPE_FOLLOW:
-		SV_Physics_Follow (ent);
-		break;
-
-	case MOVETYPE_TOSS:
-	case MOVETYPE_BOUNCE:
-		SV_Physics_Toss (ent);
-		break;
-
-	case MOVETYPE_FLY:
-	case MOVETYPE_SWIM:
-		if (!SV_RunThink (ent))
-			return;
-		SV_FlyMove (ent, host_frametime, NULL);
-		break;
-		
-	case MOVETYPE_NOCLIP:
-		if (!SV_RunThink (ent))
-			return;
-		VectorMA (ent->v->origin, host_frametime, ent->v->velocity, ent->v->origin);
-		VectorMA (ent->v->angles, host_frametime, ent->v->avelocity, ent->v->angles);
-		break;
-		
-	default:
-		Sys_Error ("SV_Physics_client: bad movetype %i", (int)ent->v->movetype);
-	}
-
-//
-// call standard player post-think
-//		
-	SV_LinkEdict (ent, true);
-
-	pr_global_struct->time = sv.time;
-	pr_global_struct->self = EDICT_TO_PROG(svprogfuncs, ent);
-	PR_ExecuteProgram (svprogfuncs, pr_global_struct->PlayerPostThink);
-}
-
-
 /*
 ================
 SV_RunEntity
@@ -1768,19 +1655,53 @@ SV_RunEntity
 */
 void SV_RunEntity (edict_t *ent)
 {
-	int		c,originMoved;
-	edict_t	*ent2;
-	vec3_t	oldOrigin,oldAngle;
+	edict_t	*movechain;
+	vec3_t	initial_origin,initial_angle;
 
-	if (ent->v->lastruntime == (float)realtime)
-		return;
-	ent->v->lastruntime = (float)realtime;
+	if (ent->entnum > 0 && ent->entnum <= sv.allocated_client_slots)
+	{	//a client woo.
+		qboolean readyforjump = false;
 
-	ent2 = PROG_TO_EDICT(svprogfuncs, ent->v->movechain);
-	if (ent2 != sv.edicts)
+		if ( svs.clients[ent->entnum-1].state < cs_spawned )
+			return;		// unconnected slot
+
+
+		host_client = &svs.clients[ent->entnum-1];
+		SV_ClientThink();
+
+
+		if (progstype == PROG_QW)	//detect if the mod should do a jump
+			if (ent->v->button2)
+				if ((int)ent->v->flags & FL_JUMPRELEASED)
+					readyforjump = true;
+
+	//
+	// call standard client pre-think
+	//	
+		pr_global_struct->time = sv.time;
+		pr_global_struct->self = EDICT_TO_PROG(svprogfuncs, ent);
+		PR_ExecuteProgram (svprogfuncs, pr_global_struct->PlayerPreThink);
+		
+		if (readyforjump)	//qw progs can't jump for themselves...
+		{
+			if (!ent->v->button2 && !((int)ent->v->flags & FL_JUMPRELEASED) && ent->v->velocity[2] <= 0)
+				ent->v->velocity[2] += 270;
+		}
+	}
+	else
 	{
-		VectorCopy(ent->v->origin,oldOrigin);
-		VectorCopy(ent->v->angles,oldAngle);
+		if (ent->v->lastruntime == (float)realtime)
+			return;
+		ent->v->lastruntime = (float)realtime;
+	}
+
+
+
+	movechain = PROG_TO_EDICT(svprogfuncs, ent->v->movechain);
+	if (movechain != sv.edicts)
+	{
+		VectorCopy(ent->v->origin,initial_origin);
+		VectorCopy(ent->v->angles,initial_angle);
 	}
 
 	switch ( (int)ent->v->movetype)
@@ -1789,7 +1710,8 @@ void SV_RunEntity (edict_t *ent)
 		SV_Physics_Pusher (ent);
 		break;
 	case MOVETYPE_NONE:
-		SV_Physics_None (ent);
+		if (!SV_RunThink (ent))
+			return;
 		break;
 	case MOVETYPE_NOCLIP:
 		SV_Physics_Noclip (ent);
@@ -1826,36 +1748,39 @@ void SV_RunEntity (edict_t *ent)
 		SV_Error ("SV_Physics: bad movetype %i on %s", (int)ent->v->movetype, svprogfuncs->stringtable + ent->v->classname);
 	}
 
-	if (ent2 != sv.edicts)
+	if (movechain != sv.edicts)
 	{
-		originMoved = !VectorCompare(ent->v->origin,oldOrigin);
-		if (originMoved || !VectorCompare(ent->v->angles,oldAngle))
+		qboolean callfunc;
+		if ((callfunc=DotProduct(ent->v->origin, initial_origin)) || DotProduct(ent->v->angles, initial_angle))
 		{
-			VectorSubtract(ent->v->origin,oldOrigin,oldOrigin);
-			VectorSubtract(ent->v->angles,oldAngle,oldAngle);
+			vec3_t moveang, moveorg;
+			int i;
+			VectorSubtract(ent->v->angles, initial_angle, moveang)
+			VectorSubtract(ent->v->origin, initial_origin, moveorg)
 
-			for(c=0;c<10;c++)
-			{   // chain a max of 10 objects
-				if (ent2->isfree) break;
+			for(i=16;i && movechain != sv.edicts && !movechain->isfree;i--, movechain = PROG_TO_EDICT(svprogfuncs, movechain->v->movechain))
+			{
+				if ((int)movechain->v->flags & FL_MOVECHAIN_ANGLE)
+					VectorAdd(movechain->v->angles, moveang, movechain->v->angles);
+				VectorAdd(movechain->v->origin, moveorg, movechain->v->origin);
 
-				VectorAdd(oldOrigin,ent2->v->origin,ent2->v->origin);
-				if ((int)ent2->v->flags & FL_MOVECHAIN_ANGLE)
+				if (movechain->v->chainmoved && callfunc)
 				{
-					VectorAdd(oldAngle,ent2->v->angles,ent2->v->angles);
-				}
-
-				if (originMoved && ent2->v->chainmoved)
-				{	// callback function
-					pr_global_struct->self = EDICT_TO_PROG(svprogfuncs, ent2);
+					pr_global_struct->self = EDICT_TO_PROG(svprogfuncs, movechain);
 					pr_global_struct->other = EDICT_TO_PROG(svprogfuncs, ent);
-					PR_ExecuteProgram(svprogfuncs, ent2->v->chainmoved);
+					PR_ExecuteProgram(svprogfuncs, movechain->v->chainmoved);
 				}
-
-				ent2 = PROG_TO_EDICT(svprogfuncs, ent2->v->movechain);
-				if (ent2 == sv.edicts) break;
-
 			}
 		}
+	}
+
+	if (ent->entnum > 0 && ent->entnum <= sv.allocated_client_slots)
+	{
+		SV_LinkEdict (ent, true);
+
+		pr_global_struct->time = sv.time;
+		pr_global_struct->self = EDICT_TO_PROG(svprogfuncs, ent);
+		PR_ExecuteProgram (svprogfuncs, pr_global_struct->PlayerPostThink);
 	}
 }
 
@@ -1990,14 +1915,6 @@ qboolean SV_Physics (void)
 
 	pr_global_struct->frametime = host_frametime;
 
-	for (i = 0; i < sv.allocated_client_slots; i++)
-	{
-		host_client = &svs.clients[i];
-		if (host_client->state == cs_spawned)
-		if (sv_nomsec.value || SV_PlayerPhysicsQC || !ISQWCLIENT(host_client))
-			SV_ClientThink();
-	}
-
 	SV_ProgStartFrame ();
 
 	PR_RunThreads();
@@ -2025,9 +1942,9 @@ qboolean SV_Physics (void)
 
 		if (i > 0 && i <= sv.allocated_client_slots)
 		{
-			if (sv_nomsec.value || SV_PlayerPhysicsQC || !ISQWCLIENT(&svs.clients[i-1]))
+			if (!svs.clients[i-1].isindependant)
 			{
-				SV_Physics_Client(ent, i);
+				SV_RunEntity(ent);
 				SV_RunNewmis ();
 			}
 			else

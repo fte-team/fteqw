@@ -9,6 +9,8 @@
 #ifdef SVRANKING
 
 typedef struct {
+	int ident;
+	int version;
 	int usedslots;
 	int leader;
 	int freeslot;
@@ -25,6 +27,9 @@ cvar_t rank_autoadd = {"rank_autoadd", "1"};
 cvar_t rank_needlogin = {"rank_needlogin", "0"};
 cvar_t rank_filename = {"rank_filename", ""};
 char rank_cvargroup[] = "server rankings";
+
+#define RANKFILE_VERSION 0x00000000
+#define RANKFILE_IDENT	*(int*)"RANK"
 
 void inline READ_PLAYERSTATS(int x, rankstats_t *os)
 {	
@@ -102,6 +107,8 @@ void inline WRITEHEADER(void)
 {
 	rankfileheader_t nh;
 
+	nh.ident		= RANKFILE_IDENT;
+	nh.version		= swaplong(RANKFILE_VERSION);
 	nh.usedslots	= swaplong(rankfileheader.usedslots);
 	nh.leader		= swaplong(rankfileheader.leader);
 	nh.freeslot		= swaplong(rankfileheader.freeslot);
@@ -115,6 +122,7 @@ void inline WRITEHEADER(void)
 
 qboolean Rank_OpenRankings(void)
 {
+	qboolean created;
 	if (!rankfile)
 	{
 		if (!*rank_filename.string)
@@ -127,7 +135,12 @@ qboolean Rank_OpenRankings(void)
 
 		rankfile = fopen(va("%s/%s", com_gamedir, rank_filename.string), "r+b");
 		if (!rankfile)	//hmm... try creating
+		{
 			rankfile = fopen(va("%s/%s", com_gamedir, rank_filename.string), "w+b");
+			created = true;
+		}
+		else
+			created = false;
 		if (!rankfile)
 			return false;	//couldn't open file.
 
@@ -136,9 +149,19 @@ qboolean Rank_OpenRankings(void)
 		fseek(rankfile, 0, SEEK_SET);
 		fread(&rankfileheader, sizeof(rankfileheader_t), 1, rankfile);
 
+		rankfileheader.version		= swaplong(rankfileheader.version);
 		rankfileheader.usedslots	= swaplong(rankfileheader.usedslots);
 		rankfileheader.leader		= swaplong(rankfileheader.leader);
 		rankfileheader.freeslot		= swaplong(rankfileheader.freeslot);
+
+		if (!created && (rankfileheader.version != RANKFILE_VERSION || rankfileheader.ident != RANKFILE_IDENT))
+		{
+			Con_Printf("Rank file is version %i not %i\nEither delete the file or use an equivelent version of " DISTRIBUTION "\n");
+			fclose(rankfile);
+			rankfile = NULL;
+
+			return false;
+		}
 
 		return true;	//success.
 	}

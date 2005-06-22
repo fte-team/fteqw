@@ -2163,7 +2163,7 @@ void GLR_RenderView (void)
 
 
 
-	if (gl_motionblur.value>=0 && gl_motionblur.value < 1)
+	if (gl_motionblur.value>0 && gl_motionblur.value < 1 && qglCopyTexImage2D)
 	{
 		int vwidth = 1, vheight = 1;
 		float vs, vt, cs, ct;

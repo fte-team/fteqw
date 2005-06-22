@@ -1616,6 +1616,7 @@ void V_Init (void)
 	Cvar_Register (&v_kickpitch, VIEWVARS);
 
 	Cvar_Register (&v_idlescale, VIEWVARS);
+	Cvar_Register (&v_deathtilt, VIEWVARS);
 
 #ifdef SIDEVIEWS
 #define SECONDARYVIEWVARS "Secondary view vars"

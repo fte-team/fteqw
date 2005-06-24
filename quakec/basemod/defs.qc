@@ -479,10 +479,10 @@ float spotspawn;
 .string map; // used with world/trigger_changelevel, inherited
 
 // used with monsters/players
-INTEGER ammo_shells_real;	// real shells count
-INTEGER ammo_nails_real;	// real nails count
-INTEGER ammo_rockets_real;	// real rockets count
-INTEGER ammo_cells_real;	// real cells count
+.INTEGER ammo_shells_real;	// real shells count
+.INTEGER ammo_nails_real;	// real nails count
+.INTEGER ammo_rockets_real;	// real rockets count
+.INTEGER ammo_cells_real;	// real cells count
 
 // Zoid Additions
 .float		maxspeed;		// Used to set Maxspeed on a player

@@ -1222,9 +1222,6 @@ POWERUPS
 ===============================================================================
 */
 
-void() powerup_touch;
-
-
 void() powerup_touch =
 {
 	if (other.classname != "player")
@@ -1540,7 +1537,6 @@ void() DropBackpack =
 {
 	local entity    item;
 
-	// FIX THIS FOR MONSTERS
 	if (!(self.ammo_shells_real + self.ammo_nails_real + self.ammo_rockets_real + self.ammo_cells_real))
 		return; // nothing in it
 

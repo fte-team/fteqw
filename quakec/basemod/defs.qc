@@ -3,7 +3,7 @@
 #define TRUE 1
 
 #ifdef FTE
-// use real floats if using FTE type progs
+// use real int if using FTE type progs
 #define INTEGER int
 #else
 #define INTEGER float
@@ -386,7 +386,7 @@ float   TE_LIGHTNINGBLOOD = 13;
 #define ATTN_NONE   0.0 // no volume fall off due to range
 #define ATTN_NORM   1.0 // small volume fall off (1000 range)
 #define ATTN_IDLE   2.0 // medium volume fall off (500 range)
-#define ATTN_STATIC 3.0 // large volume fall oof (333 range)
+#define ATTN_STATIC 3.0 // large volume fall off (333 range)
 
 // entity effects
 
@@ -472,14 +472,17 @@ float spotspawn;
 
 .string killtarget; // used by anything using SUB_UseTargets (items/triggers/etc)
 
-//
-// monster ai
-//
 .void(entity attacker, float damage) th_pain; // used by secret doors, monsters, players
 .void()         th_die;   // used by anything damagable (doors/buttons/players/monsters/explobox/triggermultiple)
 
 .float speed; // used with door/plats/fireball spawner, inherited
 .string map; // used with world/trigger_changelevel, inherited
+
+// used with monsters/players
+INTEGER ammo_shells_real;	// real shells count
+INTEGER ammo_nails_real;	// real nails count
+INTEGER ammo_rockets_real;	// real rockets count
+INTEGER ammo_cells_real;	// real cells count
 
 // Zoid Additions
 .float		maxspeed;		// Used to set Maxspeed on a player
@@ -599,10 +602,6 @@ enum {
 		float waterdmg;			// damage water will deal when drowning
 		float walkframe;			// used with walking animation
 		float jump_flag;			// last z velocity used for falling damage
-		INTEGER ammo_shells_real;	// real shells count
-		INTEGER ammo_nails_real;	// real nails count
-		INTEGER ammo_rockets_real;	// real rockets count
-		INTEGER ammo_cells_real;	// real cells count
 		INTEGER ammo_type;		// ammo type in use
 	};
 	struct { // fields used with bubbles spawned from drowning
@@ -669,7 +668,7 @@ void(entity e, vector o) setorigin      = #2;
 void(entity e, string m) setmodel       = #3;           // set movetype and solid first
 void(entity e, vector min, vector max) setsize = #4;
 // #5 was removed
-void() break                                            = #6;
+// void() break                                            = #6;
 float() random                                          = #7;           // returns 0 - 1
 void(entity e, float chan, string samp, float vol, float atten) sound = #8;
 vector(vector v) normalize                      = #9;

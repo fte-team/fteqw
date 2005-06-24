@@ -24,10 +24,7 @@ void() W_Precache =
 	precache_sound ("weapons/shotgn2.wav"); // super shotgun
 };
 
-float() crandom =
-{
-	return 2*(random() - 0.5);
-};
+#define crandom() (2*(random()-0.5))
 
 /*
 Ammo update functions

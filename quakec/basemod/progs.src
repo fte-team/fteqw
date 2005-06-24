@@ -37,5 +37,9 @@
 #include "triggers.qc"
 #include "plats.qc"
 #include "misc.qc"
-#include "server.qc"
 
+#ifdef MONSTERS
+
+#else
+#include "nomonst.qc"
+#endif

@@ -2,10 +2,7 @@
 /*QUAKED info_null (0 0.5 0) (-4 -4 -4) (4 4 4)
 Used as a positional target for spotlights, etc.
 */
-void() info_null =
-{
-	remove(self);
-};
+void() info_null = SUB_Remove;
 
 /*QUAKED info_notnull (0 0.5 0) (-4 -4 -4) (4 4 4)
 Used as a positional target for lightning.
@@ -377,9 +374,7 @@ void() trap_shooter =
 ===============================================================================
 */
 
-
 void() make_bubbles;
-void() bubble_remove;
 void() bubble_bob;
 
 /*QUAKED air_bubbles (0 .5 .8) (-8 -8 -8) (8 8 8)
@@ -387,10 +382,7 @@ void() bubble_bob;
 testing air bubbles
 */
 
-void() air_bubbles =
-{
-	remove (self);
-};
+var void() air_bubbles = SUB_Remove;
 
 void() make_bubbles =
 {
@@ -404,7 +396,6 @@ local entity    bubble;
 	bubble.velocity = '0 0 15';
 	bubble.nextthink = time + 0.5;
 	bubble.think = bubble_bob;
-	bubble.touch = bubble_remove;
 	bubble.classname = "bubble";
 	bubble.frame = 0;
 	bubble.bubble_state = 0;
@@ -425,7 +416,6 @@ local entity    bubble;
 	bubble.velocity = self.velocity;
 	bubble.nextthink = time + 0.5;
 	bubble.think = bubble_bob;
-	bubble.touch = bubble_remove;
 	bubble.classname = "bubble";
 	bubble.frame = 1;
 	bubble.bubble_state = 10;
@@ -434,16 +424,6 @@ local entity    bubble;
 	self.bubble_state = 10;
 	if (self.waterlevel != 3)
 		remove (self);
-};
-
-void() bubble_remove =
-{
-	if (other.classname == self.classname)
-	{
-//              dprint ("bump");
-		return;
-	}
-	remove(self);
 };
 
 void() bubble_bob =
@@ -491,15 +471,7 @@ local float             rnd1, rnd2, rnd3;
 Just for the debugging level.  Don't use
 */
 
-void() viewthing =
-
-{
-	self.movetype = MOVETYPE_NONE;
-	self.solid = SOLID_NOT;
-	precache_model ("progs/player.mdl");
-	setmodel (self, "progs/player.mdl");
-};
-
+var void() viewthing = SUB_Remove;
 
 /*
 ==============================================================================
@@ -531,7 +503,6 @@ void() func_wall =
 A simple entity that looks solid but lets you walk through it.
 */
 void() func_illusionary =
-
 {
 	self.angles = '0 0 0';
 	self.movetype = MOVETYPE_NONE;
@@ -544,7 +515,6 @@ void() func_illusionary =
 This bmodel will appear if the episode has allready been completed, so players can't reenter it.
 */
 void() func_episodegate =
-
 {
 	if (!(serverflags & self.spawnflags))
 		return;                 // can still enter episode
@@ -560,10 +530,12 @@ void() func_episodegate =
 This bmodel appears unless players have all of the episode sigils.
 */
 void() func_bossgate =
-
 {
 	if ( (serverflags & 15) == 15)
+	{
+		remove(self);
 		return;         // all episodes completed
+	}
 	self.angles = '0 0 0';
 	self.movetype = MOVETYPE_PUSH;  // so it doesn't get pushed by anything
 	self.solid = SOLID_BSP;

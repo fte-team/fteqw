@@ -9,6 +9,8 @@
 //
 //   --- Zoid.
 
+#ifndef NETQUAKE
+
 /*
 ===========
 SpectatorConnect
@@ -77,4 +79,4 @@ void() SpectatorThink =
 		SpectatorImpulseCommand();
 };
 
-
+#endif

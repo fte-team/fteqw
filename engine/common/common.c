@@ -2056,7 +2056,7 @@ int COM_CheckNextParm (char *parm, int last)
 {
 	int i = last+1;
 	
-	for (i=1 ; i<com_argc ; i++)
+	for ( ; i<com_argc ; i++)
 	{
 		if (!com_argv[i])
 			continue;		// NEXTSTEP sometimes clears appkit vars.

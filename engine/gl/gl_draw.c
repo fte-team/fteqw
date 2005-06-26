@@ -63,6 +63,8 @@ extern cvar_t		gl_savecompressedtex;
 
 extern cvar_t		gl_load24bit;
 
+extern cvar_t		con_ocranaleds;
+
 qbyte		*draw_chars;				// 8*8 graphic characters
 mpic_t		*draw_disc;
 mpic_t		*draw_backtile;
@@ -733,9 +735,18 @@ TRACE(("dbg: GLDraw_ReInit: Allocating upload buffers\n"));
 	draw_chars = W_SafeGetLumpName ("conchars");
 	if (draw_chars)
 	{
+		x = CRC_Block(draw_chars, 128*128); // take CRC before we change anything
+
 		for (i=0 ; i<128*128 ; i++)
 			if (draw_chars[i] == 0)
 				draw_chars[i] = 255;	// proper transparent color
+
+		// add ocrana leds
+		if (con_ocranaleds.value)
+		{
+			if (con_ocranaleds.value != 2 || x == 798)
+				AddOcranaLEDsIndexed (draw_chars, 128, 128); 
+		}
 	}
 
 	// now turn them into textures

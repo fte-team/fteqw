@@ -14,6 +14,13 @@ cvar_t r_dodgytgafiles = {"r_dodgytgafiles", "0"};	//Certain tgas are upside dow
 #include <unistd.h>
 #endif
 
+//the eye doesn't see different colours in the same proportion.
+//must add to slightly less than 1
+#define NTSC_RED 0.299
+#define NTSC_GREEN 0.587
+#define NTSC_BLUE 0.114
+#define NTSC_SUM (NTSC_RED + NTSC_GREEN + NTSC_BLUE)
+
 typedef struct {	//cm = colourmap
 	char	id_len;		//0
 	char	cm_type;	//1
@@ -135,12 +142,6 @@ char *ReadGreyTargaFile (qbyte *data, int flen, tgaheader_t *tgahead, int asgrey
 //remember to free it
 qbyte *ReadTargaFile(qbyte *buf, int length, int *width, int *height, int asgrey)
 {
-	//the eye doesn't see different colours in the same proportion.
-	//must add to slightly less than 1
-#define NTSC_RED 0.299
-#define NTSC_GREEN 0.587
-#define NTSC_BLUE 0.114
-
 	unsigned char *data;
 
 	qboolean flipped;
@@ -1570,7 +1571,7 @@ void SaturateR8G8B8(qbyte *data, int size, float sat)
 			g = data[i+1];
 			b = data[i+2];
 
-			v = r * 0.30 + g * 0.59 + b * 0.11;
+			v = r * NTSC_RED + g * NTSC_GREEN + b * NTSC_BLUE;
 			r = v + (r - v) * sat;
 			g = v + (g - v) * sat;
 			b = v + (b - v) * sat;
@@ -1592,9 +1593,9 @@ void SaturateR8G8B8(qbyte *data, int size, float sat)
 				b = 255;
 
 			// scale down to avoid overbright lightmaps
-			v = v / (r * 0.30 + g * 0.59 + b * 0.11);
-			if (v > 1)
-				v = 1;
+			v = v / (r * NTSC_RED + g * NTSC_GREEN + b * NTSC_BLUE);
+			if (v > NTSC_SUM)
+				v = NTSC_SUM;
 			else
 				v *= v;
 			
@@ -1614,7 +1615,7 @@ void SaturateR8G8B8(qbyte *data, int size, float sat)
 			g = data[i+1];
 			b = data[i+2];
 
-			v = r * 0.30 + g * 0.59 + b * 0.11;
+			v = r * NTSC_RED + g * NTSC_GREEN + b * NTSC_BLUE;
 
 			data[i]   = v + (r - v) * sat;
 			data[i+1] = v + (g - v) * sat;
@@ -1869,5 +1870,63 @@ int Mod_LoadBumpmapTexture(char *name, char *subpath)
 	return 0;
 }
 
-
 #endif
+
+// ocrana led functions
+static int ledcolors[8][3] =
+{
+	// green
+	{ 0, 255, 0 },
+	{ 0, 127, 0 },
+	// red
+	{ 255, 0, 0 },
+	{ 127, 0, 0 },
+	// yellow
+	{ 255, 255, 0 },
+	{ 127, 127, 0 },
+	// blue
+	{ 0, 0, 255 },
+	{ 0, 0, 127 }
+};
+
+void AddOcranaLEDsIndexed (qbyte *image, int h, int w)
+{
+	int tridx[8]; // transition indexes
+	qbyte *point;
+	int i, idx, x, y, rs;
+	int r, g, b, rd, gd, bd;
+
+	rs = w;
+	h /= 16;
+	w /= 16;
+	for (i = 0; i < 4; i++)
+	{
+		// get palette
+		r = ledcolors[i*2][0];
+		g = ledcolors[i*2][1];
+		b = ledcolors[i*2][2];
+		rd = (r - ledcolors[i*2+1][0]) / 8;
+		gd = (g - ledcolors[i*2+1][1]) / 8;
+		bd = (b - ledcolors[i*2+1][2]) / 8;
+		for (idx = 0; idx < 8; idx++)
+		{
+			tridx[idx] = GetPalette(r, g, b);
+			r -= rd;
+			g -= gd;
+			b -= bd;
+		}
+
+		// generate LED into image
+		point = image + (8 * rs * h) + ((6 + i) * w);
+		for (y = 1; y <= h; y++)
+		{
+			for (x = 1; x <= w; x++)
+			{
+				idx = (8 * x * y) / ((w - 1) * (h - 1));
+				idx = bound(0, idx, 7);
+				*point++ = tridx[idx];
+			}
+			point += rs - w;
+		}
+	}
+}

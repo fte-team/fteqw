@@ -317,6 +317,7 @@ qbyte *ReadPCXPalette(qbyte *buf, int len, qbyte *out);
 
 void BoostGamma(qbyte *rgba, int width, int height);
 void SaturateR8G8B8(qbyte *data, int size, float sat);
+void AddOcranaLEDsIndexed (qbyte *image, int h, int w);
 
 void CL_NewDlightRGB (int key, float x, float y, float z, float radius, float time,
 				   float r, float g, float b);

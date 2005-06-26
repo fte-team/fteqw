@@ -31,6 +31,8 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 
 extern unsigned int *d_8to32table;
 
+extern cvar_t con_ocranaleds;
+
 typedef struct {
 	vrect_t	rect;
 	int		width;
@@ -384,6 +386,7 @@ Draw_Init
 //we have a memory leak
 void SWDraw_Init (void)
 {
+	int concrc = 0;
 	draw_chars = W_SafeGetLumpName ("conchars");	//q1
 	if (!draw_chars)
 	{
@@ -401,6 +404,9 @@ void SWDraw_Init (void)
 					draw_chars[i] = 0;
 		}
 	}
+	else
+		concrc = CRC_Block(draw_chars, 128*128); // get CRC here because it hasn't been replaced
+
 	if (!draw_chars)
 	{	//now go for hexen2
 		int i, x;
@@ -475,6 +481,13 @@ void SWDraw_Init (void)
 	}
 	if (!draw_chars)
 		Sys_Error("Failed to find suitable console charactures\n");
+
+	// add ocrana leds
+	if (con_ocranaleds.value)
+	{
+		if (con_ocranaleds.value != 2 || concrc == 798) 
+			AddOcranaLEDsIndexed (draw_chars, 128, 128);
+	}
 	draw_disc = W_SafeGetLumpName ("disc");
 	draw_backtile = W_SafeGetLumpName ("backtile");
 	if (!draw_backtile)

@@ -105,8 +105,8 @@ cvar_t	r_fb_bmodels	= {"gl_fb_bmodels", "1", NULL, CVAR_SEMICHEAT|CVAR_RENDERERL
 
 cvar_t	gl_nocolors = {"gl_nocolors","0"};
 cvar_t		gl_load24bit = {"gl_load24bit", "1"};
-cvar_t		vid_conwidth = {"vid_conwidth", "640"};
-cvar_t		vid_conheight = {"vid_conheight", "480"};
+cvar_t		vid_conwidth = {"vid_conwidth", "640", NULL, CVAR_ARCHIVE};
+cvar_t		vid_conheight = {"vid_conheight", "480", NULL, CVAR_ARCHIVE};
 cvar_t		gl_nobind = {"gl_nobind", "0"};
 cvar_t		gl_max_size = {"gl_max_size", "1024"};
 cvar_t		gl_picmip = {"gl_picmip", "0"};
@@ -148,6 +148,7 @@ cvar_t          scr_showturtle = {"showturtle","0"};
 cvar_t          scr_showpause = {"showpause","1"};
 cvar_t          scr_printspeed = {"scr_printspeed","8"};
 cvar_t			scr_allowsnap = {"scr_allowsnap", "1", NULL, CVAR_NOTFROMSERVER};	//otherwise it would defeat the point.
+cvar_t			con_ocranaleds = {"con_ocranaleds", "2"};
 
 cvar_t			scr_chatmodecvar = {"scr_chatmode", "0"};
 
@@ -514,6 +515,9 @@ void Renderer_Init(void)
 	Cvar_Register(&bul_text3,	BULLETENVARS);
 	Cvar_Register(&bul_text2,	BULLETENVARS);
 	Cvar_Register(&bul_text1,	BULLETENVARS);
+
+// misc
+	Cvar_Register(&con_ocranaleds, "Console controls");
 
 	Cvar_Register(&bul_norender,	BULLETENVARS);	//find this one first...
 

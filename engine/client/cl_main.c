@@ -401,10 +401,10 @@ void CL_SendConnectPacket (
 	clients = 1;
 	if (cl_splitscreen.value)
 	{
-		if (adr.type == NA_LOOPBACK)
+//		if (adr.type == NA_LOOPBACK)
 			clients = cl_splitscreen.value+1;
-		else
-			Con_Printf("Split screens are still under development\n");
+//		else
+//			Con_Printf("Split screens are still under development\n");
 	}
 
 	if (clients < 1)
@@ -3006,11 +3006,11 @@ void Host_Init (quakeparms_t *parms)
 		idroq_depth = COM_FDepthFile("video/idlogo.roq", true);	//q2
 		ol_depth = COM_FDepthFile("video/openinglogos.roq", true);	//jk2
 
-		if (ol_depth <= idroq_depth || ol_depth <= idcin_depth)
+		if (ol_depth != 0x7fffffff && (ol_depth <= idroq_depth || ol_depth <= idcin_depth))
 			Media_PlayFilm("video/openinglogos.roq");
-		else if (idroq_depth <= idcin_depth)
+		else if (idroq_depth != 0x7fffffff && idroq_depth <= idcin_depth)
 			Media_PlayFilm("video/idlogo.roq");
-		else if (idcin_depth)
+		else if (idcin_depth != 0x7fffffff)
 			Media_PlayFilm("video/idlog.cin");
 	}
 #endif

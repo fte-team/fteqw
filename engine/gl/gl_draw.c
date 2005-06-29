@@ -735,18 +735,16 @@ TRACE(("dbg: GLDraw_ReInit: Allocating upload buffers\n"));
 	draw_chars = W_SafeGetLumpName ("conchars");
 	if (draw_chars)
 	{
-		x = CRC_Block(draw_chars, 128*128); // take CRC before we change anything
+		// add ocrana leds
+		if (con_ocranaleds.value)
+		{
+			if (con_ocranaleds.value != 2 || CRC_Block(draw_chars, 128*128) == 798)
+				AddOcranaLEDsIndexed (draw_chars, 128, 128); 
+		}
 
 		for (i=0 ; i<128*128 ; i++)
 			if (draw_chars[i] == 0)
 				draw_chars[i] = 255;	// proper transparent color
-
-		// add ocrana leds
-		if (con_ocranaleds.value)
-		{
-			if (con_ocranaleds.value != 2 || x == 798)
-				AddOcranaLEDsIndexed (draw_chars, 128, 128); 
-		}
 	}
 
 	// now turn them into textures
@@ -800,6 +798,10 @@ TRACE(("dbg: GLDraw_ReInit: Allocating upload buffers\n"));
 						}
 					}
 					Z_Free(tempchars);
+
+					// add ocrana leds
+					if (con_ocranaleds.value && con_ocranaleds.value != 2)
+						AddOcranaLEDsIndexed (draw_chars, 128, 128); 
 
 					for (i=0 ; i<128*128 ; i++)
 						if (draw_chars[i] == 0)

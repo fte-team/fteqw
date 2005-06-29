@@ -46,6 +46,9 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
    #define MK_XBUTTON7         0x0800
 #endif 
 
+#ifndef WM_INPUT
+	#define WM_INPUT 255
+#endif
 
 extern cvar_t vid_conwidth;
 
@@ -1231,6 +1234,11 @@ LONG WINAPI GLMainWndProc (
 					Key_Event(K_MWHEELDOWN, false);
 				}
 			}
+			break;
+
+		case WM_INPUT:
+			// raw input handling
+			IN_RawInput_MouseRead((HANDLE)lParam);
 			break;
 
     	case WM_SIZE:

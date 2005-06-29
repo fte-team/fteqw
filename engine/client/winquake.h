@@ -159,6 +159,7 @@ void IN_ActivateMouse (void);
 void IN_RestoreOriginalMouseState (void);
 void IN_SetQuakeMouseState (void);
 void IN_MouseEvent (int mstate);
+void IN_RawInput_MouseRead(HANDLE in_device_handle);
 
 extern qboolean	winsock_lib_initialized;
 

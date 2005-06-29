@@ -1896,9 +1896,12 @@ void AddOcranaLEDsIndexed (qbyte *image, int h, int w)
 	int i, idx, x, y, rs;
 	int r, g, b, rd, gd, bd;
 
+	// calc row size, character size
 	rs = w;
 	h /= 16;
 	w /= 16;
+
+	// generate palettes
 	for (i = 0; i < 4; i++)
 	{
 		// get palette
@@ -1917,14 +1920,25 @@ void AddOcranaLEDsIndexed (qbyte *image, int h, int w)
 		}
 
 		// generate LED into image
+		b = (w * w + h * h) / 16;
+		if (b < 1)
+			b = 1;
+		rd = w + 1;
+		gd = h + 1;
+
 		point = image + (8 * rs * h) + ((6 + i) * w);
 		for (y = 1; y <= h; y++)
 		{
 			for (x = 1; x <= w; x++)
 			{
-				idx = (8 * x * y) / ((w - 1) * (h - 1));
-				idx = bound(0, idx, 7);
-				*point++ = tridx[idx];
+				r = rd - (x*2); r *= r;
+				g = gd - (y*2); g *= g;
+				idx = (r + g) / b;
+				
+				if (idx > 7)
+					*point++ = 0;
+				else
+					*point++ = tridx[idx];
 			}
 			point += rs - w;
 		}

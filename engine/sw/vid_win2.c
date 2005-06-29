@@ -60,6 +60,10 @@ extern int r_flushcache;
    #define MK_XBUTTON7         0x0800
 #endif 
 
+#ifndef WM_INPUT
+	#define WM_INPUT 255
+#endif
+
 void R_GammaCorrectAndSetPalette(const unsigned char *pal)
 {
 	int i;
@@ -424,6 +428,10 @@ LONG WINAPI MainWndProc (
 				Key_Event(K_MWHEELDOWN, true);
 				Key_Event(K_MWHEELDOWN, false);
 			}
+			break;
+		case WM_INPUT:
+			// raw input handling
+			IN_RawInput_MouseRead((HANDLE)lParam);
 			break;
 		// KJB: Added these new palette functions
 /*		case WM_PALETTECHANGED:

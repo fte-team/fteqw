@@ -488,6 +488,7 @@ void SWDraw_Init (void)
 		if (con_ocranaleds.value != 2 || concrc == 798) 
 			AddOcranaLEDsIndexed (draw_chars, 128, 128);
 	}
+
 	draw_disc = W_SafeGetLumpName ("disc");
 	draw_backtile = W_SafeGetLumpName ("backtile");
 	if (!draw_backtile)

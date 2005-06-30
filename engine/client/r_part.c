@@ -333,7 +333,7 @@ static int CheckAssosiation(char *name, int from)
 #ifdef RGLQUAKE
 void P_LoadTexture(part_type_t *ptype, qboolean warn)
 {
-	if (strcmp(ptype->texname, "default"))
+	if (*ptype->texname && strcmp(ptype->texname, "default"))
 	{
 		ptype->texturenum = Mod_LoadHiResTexture(ptype->texname, "particles", true, true, true);
 	
@@ -850,7 +850,7 @@ void P_ParticleEffect_f(void)
 	if (ptype->friction)
 		ptype->flags |= PT_FRICTION;
 
-	if (ptype->type == PT_NORMAL && !ptype->texname)
+	if (ptype->type == PT_NORMAL && !*ptype->texname)
 		ptype->type = PT_SPARK;
 	if (ptype->type == PT_SPARK)
 	{

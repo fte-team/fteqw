@@ -391,8 +391,6 @@ typedef struct {
 	vec3_t angles;
 	trailstate_t *trailstate;	//when to next throw out a trail
 	unsigned short frame;
-	unsigned short tagent;
-	unsigned short tagindex;
 } lerpents_t;
 //
 // the client_state_t structure is wiped completely at every
@@ -713,7 +711,6 @@ void CL_StartUpload (qbyte *data, int size);
 void CL_StopUpload(void);
 
 void CL_RequestNextDownload (void);
-void CL_ParseAttachment(void);
 
 //
 // view.c

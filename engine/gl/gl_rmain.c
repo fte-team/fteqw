@@ -78,8 +78,8 @@ vec3_t	vpn;
 vec3_t	vright;
 vec3_t	r_origin;
 
-float	r_world_matrix[16];
-float	r_base_world_matrix[16];
+float	r_projection_matrix[16];
+float	r_view_matrix[16];
 
 //
 // screen size info
@@ -416,7 +416,7 @@ mspriteframe_t *R_GetSpriteFrame (entity_t *currententity)
 
 	if ((frame >= psprite->numframes) || (frame < 0))
 	{
-		Con_Printf ("R_DrawSprite: no such frame %d (%s)\n", frame, currententity->model->name);
+		Con_DPrintf ("R_DrawSprite: no such frame %d (%s)\n", frame, currententity->model->name);
 		frame = 0;
 	}
 
@@ -436,7 +436,7 @@ mspriteframe_t *R_GetSpriteFrame (entity_t *currententity)
 		numframes = pspritegroup->numframes;
 		fullinterval = pintervals[numframes-1];
 
-		time = cl.time + currententity->syncbase;
+		time = currententity->frame1time;
 
 	// when loading in Mod_LoadSpriteGroup, we guaranteed all interval values
 	// are positive, so we don't have to worry about division by 0
@@ -758,20 +758,10 @@ void GLR_DrawEntitiesOnList (void)
 		}
 		else
 		{
-			j = currententity->keynum;
-			while(j)
-			{
-				
-				if (j == (cl.viewentity[r_refdef.currentplayernum]?cl.viewentity[r_refdef.currentplayernum]:(cl.playernum[r_refdef.currentplayernum]+1)))
-					break;
-
-				j = cl.lerpents[j].tagent;
-			}
-			if (j)
+			if (currententity->keynum == (cl.viewentity[r_refdef.currentplayernum]?cl.viewentity[r_refdef.currentplayernum]:(cl.playernum[r_refdef.currentplayernum]+1)))
 				continue;
-
-			if (cl.viewentity[r_refdef.currentplayernum] && currententity->keynum == cl.viewentity[r_refdef.currentplayernum])
-				continue;
+//			if (cl.viewentity[r_refdef.currentplayernum] && currententity->keynum == cl.viewentity[r_refdef.currentplayernum])
+//				continue;
 			if (!Cam_DrawPlayer(0, currententity->keynum-1))
 				continue;
 		}
@@ -842,20 +832,10 @@ void GLR_DrawEntitiesOnList (void)
 		}
 		else
 		{
-			j = currententity->keynum;
-			while(j)
-			{
-				
-				if (j == (cl.viewentity[r_refdef.currentplayernum]?cl.viewentity[r_refdef.currentplayernum]:(cl.playernum[r_refdef.currentplayernum]+1)))
-					break;
-
-				j = cl.lerpents[j].tagent;
-			}
-			if (j)
+			if (currententity->keynum == (cl.viewentity[r_refdef.currentplayernum]?cl.viewentity[r_refdef.currentplayernum]:(cl.playernum[r_refdef.currentplayernum]+1)))
 				continue;
-
-			if (cl.viewentity[r_refdef.currentplayernum] && currententity->keynum == cl.viewentity[r_refdef.currentplayernum])
-				continue;
+//			if (cl.viewentity[r_refdef.currentplayernum] && currententity->keynum == cl.viewentity[r_refdef.currentplayernum])
+//				continue;
 			if (!Cam_DrawPlayer(0, currententity->keynum-1))
 				continue;
 		}
@@ -1125,8 +1105,46 @@ int SignbitsForPlane (mplane_t *out)
 	}
 	return bits;
 }
+#if 1
+void R_SetFrustum (void)
+{
+	float scale;
+	int i;
+	float mvp[16];
 
+	if ((int)r_novis.value & 4)
+		return;
 
+	Matrix4_Multiply(r_projection_matrix, r_view_matrix, mvp);
+
+	for (i = 0; i < 4; i++)
+	{
+		if (i & 1)
+		{
+			frustum[i].normal[0]	= mvp[3] + mvp[0+i/2];
+			frustum[i].normal[1]	= mvp[7] + mvp[4+i/2];
+			frustum[i].normal[2]	= mvp[11] + mvp[8+i/2];
+			frustum[i].dist			= mvp[15] + mvp[12+i/2];
+		}
+		else
+		{
+			frustum[i].normal[0]	= mvp[3] - mvp[0+i/2];
+			frustum[i].normal[1]	= mvp[7] - mvp[4+i/2];
+			frustum[i].normal[2]	= mvp[11] - mvp[8+i/2];
+			frustum[i].dist			= mvp[15] - mvp[12+i/2];
+		}
+
+		scale = 1/sqrt(DotProduct(frustum[i].normal, frustum[i].normal));
+		frustum[i].normal[0] *= scale;
+		frustum[i].normal[1] *= scale;
+		frustum[i].normal[2] *= scale;
+		frustum[i].dist	*= -scale;
+
+		frustum[i].type = PLANE_ANYZ;
+		frustum[i].signbits = SignbitsForPlane (&frustum[i]);
+	}
+}
+#else
 void R_SetFrustum (void)
 {
 	int		i;
@@ -1166,7 +1184,7 @@ void R_SetFrustum (void)
 		frustum[i].signbits = SignbitsForPlane (&frustum[i]);
 	}
 }
-
+#endif
 /*
 ===============
 R_SetupFrame
@@ -1179,14 +1197,17 @@ void GLR_SetupFrame (void)
 	if (!cls.allow_watervis)
 		r_wateralphaval = 1;
 
-	GLR_AnimateLight ();
+	if (!mirror)
+	{
+		GLR_AnimateLight ();
 
-	r_framecount++;
+	// build the transformation matrix for the given view angles
 
-// build the transformation matrix for the given view angles
+		AngleVectors (r_refdef.viewangles, vpn, vright, vup);
+
+		r_framecount++;
+	}
 	VectorCopy (r_refdef.vieworg, r_origin);
-
-	AngleVectors (r_refdef.viewangles, vpn, vright, vup);
 
 // current viewleaf
 	if (r_refdef.flags & 1)
@@ -1284,10 +1305,6 @@ void GLR_SetupFrame (void)
 void MYgluPerspective( GLdouble fovy, GLdouble aspect,
 		     GLdouble zNear, GLdouble zFar )
 {
-#if 1	//for the sake of the d3d...
-#else
-	GLfloat matrix[16];
-#endif
 	GLdouble xmin, xmax, ymin, ymax;
 
 	ymax = zNear * tan( fovy * M_PI / 360.0 );
@@ -1296,39 +1313,30 @@ void MYgluPerspective( GLdouble fovy, GLdouble aspect,
 	xmin = ymin * aspect;
 	xmax = ymax * aspect;
 
-#if 1	//for the sake of the d3d...
-	qglFrustum( xmin, xmax, ymin, ymax, zNear, zFar );
-#else
+	r_projection_matrix[0] = (2*zNear) / (xmax - xmin);
+	r_projection_matrix[4] = 0;
+	r_projection_matrix[8] = (xmax + xmin) / (xmax - xmin);
+	r_projection_matrix[12] = 0;
 
-	matrix[0] = (2*zNear) / (xmax - xmin);
-	matrix[4] = 0;
-	matrix[8] = (xmax + xmin) / (xmax - xmin);
-	matrix[12] = 0;
+	r_projection_matrix[1] = 0;
+	r_projection_matrix[5] = (2*zNear) / (ymax - ymin);
+	r_projection_matrix[9] = (ymax + ymin) / (ymax - ymin);
+	r_projection_matrix[13] = 0;
 
-	matrix[1] = 0;
-	matrix[5] = (2*zNear) / (ymax - ymin);
-	matrix[9] = (ymax + ymin) / (ymax - ymin);
-	matrix[13] = 0;
-
-	matrix[2] = 0;
-	matrix[6] = 0;
-	matrix[10] = - (zFar+zNear)/(zFar-zNear);
-	matrix[14] = - (2.0f*zFar*zNear)/(zFar-zNear);
+	r_projection_matrix[2] = 0;
+	r_projection_matrix[6] = 0;
+	r_projection_matrix[10] = - (zFar+zNear)/(zFar-zNear);
+	r_projection_matrix[14] = - (2.0f*zFar*zNear)/(zFar-zNear);
 	
-	matrix[3] = 0;
-	matrix[7] = 0;
-	matrix[11] = -1;
-	matrix[15] = 0;
-
-	qglMultMatrixf(matrix);
-#endif
+	r_projection_matrix[3] = 0;
+	r_projection_matrix[7] = 0;
+	r_projection_matrix[11] = -1;
+	r_projection_matrix[15] = 0;
 }
 
 void GL_InfinatePerspective( GLdouble fovy, GLdouble aspect,
 		     GLdouble zNear)
 {
-	GLfloat matrix[16];
-
 	// nudge infinity in just slightly for lsb slop
     GLfloat nudge = 1;// - 1.0 / (1<<23);
 
@@ -1340,27 +1348,25 @@ void GL_InfinatePerspective( GLdouble fovy, GLdouble aspect,
 	xmin = ymin * aspect;
 	xmax = ymax * aspect;
 
-	matrix[0] = (2*zNear) / (xmax - xmin);
-	matrix[4] = 0;
-	matrix[8] = (xmax + xmin) / (xmax - xmin);
-	matrix[12] = 0;
+	r_projection_matrix[0] = (2*zNear) / (xmax - xmin);
+	r_projection_matrix[4] = 0;
+	r_projection_matrix[8] = (xmax + xmin) / (xmax - xmin);
+	r_projection_matrix[12] = 0;
 
-	matrix[1] = 0;
-	matrix[5] = (2*zNear) / (ymax - ymin);
-	matrix[9] = (ymax + ymin) / (ymax - ymin);
-	matrix[13] = 0;
+	r_projection_matrix[1] = 0;
+	r_projection_matrix[5] = (2*zNear) / (ymax - ymin);
+	r_projection_matrix[9] = (ymax + ymin) / (ymax - ymin);
+	r_projection_matrix[13] = 0;
 
-	matrix[2] = 0;
-	matrix[6] = 0;
-	matrix[10] = -1  * nudge;
-	matrix[14] = -2*zNear * nudge;
+	r_projection_matrix[2] = 0;
+	r_projection_matrix[6] = 0;
+	r_projection_matrix[10] = -1  * nudge;
+	r_projection_matrix[14] = -2*zNear * nudge;
 	
-	matrix[3] = 0;
-	matrix[7] = 0;
-	matrix[11] = -1;
-	matrix[15] = 0;
-
-	qglMultMatrixf(matrix);
+	r_projection_matrix[3] = 0;
+	r_projection_matrix[7] = 0;
+	r_projection_matrix[11] = -1;
+	r_projection_matrix[15] = 0;
 }
 
 
@@ -1404,10 +1410,9 @@ void R_SetupGL (void)
 	qglViewport (glx + x, gly + y2, w, h);
 
 	qglMatrixMode(GL_PROJECTION);
-	qglLoadIdentity ();
 
 	screenaspect = (float)r_refdef.vrect.width/r_refdef.vrect.height;
-	if ((!r_shadows.value || !gl_canstencil) && gl_maxdist.value>0)//gl_nv_range_clamp)
+	if ((!r_shadows.value || !gl_canstencil) && gl_maxdist.value>256)//gl_nv_range_clamp)
 	{
 //		yfov = 2*atan((float)r_refdef.vrect.height/r_refdef.vrect.width)*180/M_PI;
 //		yfov = (2.0 * tan (scr_fov.value/360*M_PI)) / screenaspect;
@@ -1419,13 +1424,14 @@ void R_SetupGL (void)
 	{
 		GL_InfinatePerspective(r_refdef.fov_y, screenaspect, 4);
 	}
+	qglLoadMatrixf(r_projection_matrix);
 
 	if (mirror)
 	{
-		if (mirror_plane->normal[2])
-			qglScalef (1, -1, 1);
-		else
-			qglScalef (-1, 1, 1);
+//		if (mirror_plane->normal[2])
+//			qglScalef (1, -1, 1);
+//		else
+//			qglScalef (-1, 1, 1);
 		qglCullFace(GL_BACK);
 	}
 	else
@@ -1444,8 +1450,8 @@ void R_SetupGL (void)
 	qglMatrixMode(GL_MODELVIEW);
 
 
-	ML_ModelViewMatrixFromAxis(r_world_matrix, vpn, vright, vup, r_refdef.vieworg);
-	qglLoadMatrixf(r_world_matrix);
+	ML_ModelViewMatrixFromAxis(r_view_matrix, vpn, vright, vup, r_refdef.vieworg);
+	qglLoadMatrixf(r_view_matrix);
 
 
 	//
@@ -1505,14 +1511,13 @@ void R_RenderScene (void)
 	if (!cl.worldmodel)
 		r_refdef.flags |= Q2RDF_NOWORLDMODEL;
 
-	if (!mirror)
 	GLR_SetupFrame ();
-
-	TRACE(("dbg: calling R_SetFrustrum\n"));
-	R_SetFrustum ();
 
 	TRACE(("dbg: calling R_SetupGL\n"));
 	R_SetupGL ();
+
+	TRACE(("dbg: calling R_SetFrustrum\n"));
+	R_SetFrustum ();
 
 	if (!(r_refdef.flags & 1))
 	{
@@ -1732,6 +1737,7 @@ void R_Mirror (void)
 	mplane_t *mirror_plane;
 
 	vec3_t oldangles, oldorg, oldvpn, oldvright, oldvup;	//cache - for rear view mirror and stuff.
+	float	base_view_matrix[16];
 
 	if (!mirror)
 	{
@@ -1746,92 +1752,181 @@ void R_Mirror (void)
 	memcpy(oldvpn, vpn, sizeof(vec3_t));
 	memcpy(oldvright, vright, sizeof(vec3_t));
 	memcpy(oldvup, vup, sizeof(vec3_t));
-	memcpy (r_base_world_matrix, r_world_matrix, sizeof(r_base_world_matrix));
+	memcpy (base_view_matrix, r_view_matrix, sizeof(base_view_matrix));
+
+	s = r_mirror_chain;
+	while(s)	//okay, so this is a hack
+	{
+		s->nextalphasurface = s->texturechain;
+		s = s->nextalphasurface;
+	}
+	cl.worldmodel->textures[mirrortexturenum]->texturechain = NULL;
 
 	while(r_mirror_chain)
 	{
 		s = r_mirror_chain;
-		r_mirror_chain = r_mirror_chain->texturechain;
+		r_mirror_chain = r_mirror_chain->nextalphasurface;
+#if 0
+		s->nextalphasurface = NULL;
+
+#else
 		//this loop figures out all surfaces with the same plane.
 		//yes, this can mean that the list is reversed a few times, but we do have depth testing to solve that anyway.
-		for(prevs = s,prevr=NULL,rejects=NULL;r_mirror_chain;r_mirror_chain=r_mirror_chain->texturechain)
+		for(prevs = s,prevr=NULL,rejects=NULL;r_mirror_chain;r_mirror_chain=r_mirror_chain->nextalphasurface)
 		{
 			if (s->plane->dist != r_mirror_chain->plane->dist || s->plane->signbits != r_mirror_chain->plane->signbits 
 				|| s->plane->normal[0] != r_mirror_chain->plane->normal[0] || s->plane->normal[1] != r_mirror_chain->plane->normal[1] || s->plane->normal[2] != r_mirror_chain->plane->normal[2])
 			{	//reject
 				if (prevr)
-					prevr->texturechain = r_mirror_chain;
+					prevr->nextalphasurface = r_mirror_chain;
 				else
 					rejects = r_mirror_chain;
 				prevr = r_mirror_chain;
 			}
 			else
 			{	//matches
-				prevs->texturechain = r_mirror_chain;
+				prevs->nextalphasurface = r_mirror_chain;
 				prevs = r_mirror_chain;
 			}
 		}
-		prevs->texturechain = NULL;
+		prevs->nextalphasurface = NULL;
 		if (prevr)
-			prevr->texturechain = NULL;
+			prevr->nextalphasurface = NULL;
 
 		r_mirror_chain = rejects;
-
+#endif
 		mirror_plane = s->plane;
 
 		//enable stencil writing
 		qglClearStencil(0);
 		qglClear(GL_STENCIL_BUFFER_BIT);
 		qglDisable(GL_ALPHA_TEST);
+		qglDisable(GL_STENCIL_TEST);
 		qglEnable(GL_STENCIL_TEST);
 		qglStencilOp(GL_KEEP, GL_KEEP, GL_REPLACE);	//replace where it passes
 		qglStencilFunc( GL_ALWAYS, 1, ~0 );	//always pass (where z passes set to 1)
-
-		qglColorMask( GL_FALSE, GL_TRUE, GL_FALSE, GL_FALSE );
+		qglDisable(GL_TEXTURE_2D);
+		qglColorMask( GL_FALSE, GL_FALSE, GL_FALSE, GL_FALSE );
 		qglDepthMask( GL_FALSE );
+
 		qglEnableClientState( GL_VERTEX_ARRAY );
-		for (prevs = s; s; s=s->texturechain)	//write the polys to the stencil buffer.
+		for (prevs = s; s; s=s->nextalphasurface)	//write the polys to the stencil buffer.
 		{
 			qglVertexPointer(3, GL_FLOAT, 0, s->mesh->xyz_array);
 			qglDrawElements(GL_TRIANGLES, s->mesh->numindexes, GL_UNSIGNED_INT, s->mesh->indexes);
 		}
 
-		qglColorMask( GL_TRUE, GL_TRUE, GL_TRUE, GL_TRUE );
-		qglDepthMask( GL_TRUE );
 
 		qglStencilOp(GL_KEEP, GL_KEEP, GL_KEEP);
 		qglStencilFunc( GL_EQUAL, 1, ~0 );	//pass if equal to 1
 
+//now clear the depth buffer where the stencil passed
+//we achieve this by changing the projection matrix underneath.
+//the stencil only shows where the final surface will appear, and only where not obscured
+//we rewrite the depth with the blending pass after.
+		qglEnable(GL_DEPTH_TEST);	//use only the stencil test
+		qglDepthRange(1, 1);
+		qglDepthFunc (GL_ALWAYS);
+		qglDepthMask( GL_TRUE );
+		qglColorMask( GL_FALSE, GL_FALSE, GL_FALSE, GL_FALSE );
 
-//	oldvisents = cl_numvisedicts;
-//	R_MirrorAddPlayerModels();	//we need to add the player model. Invisible in mirror otherwise.
+		qglMatrixMode(GL_PROJECTION);
+		qglLoadIdentity();
+		qglOrtho  (0, 1, 1, 0, -99999, 99999);
+		qglMatrixMode(GL_MODELVIEW);
+		qglLoadIdentity ();
 
-	d = DotProduct (oldorg, mirror_plane->normal) - mirror_plane->dist;
-	VectorMA (oldorg, -2*d, mirror_plane->normal, r_refdef.vieworg);
-	memcpy(r_origin, r_refdef.vieworg, sizeof(vec3_t));	
+		qglBegin(GL_QUADS);
+		qglVertex3f(0, 0, -99999);
+		qglVertex3f(1, 0, -99999);
+		qglVertex3f(1, 1, -99999);
+		qglVertex3f(0, 1, -99999);
+		qglEnd();
 
-	d = DotProduct (oldvpn, mirror_plane->normal);
-	VectorMA (oldvpn, -2*d, mirror_plane->normal, vpn);
-
-	d = DotProduct (oldvright, mirror_plane->normal);
-	VectorMA (oldvright, -2*d, mirror_plane->normal, vright);
-
-	d = DotProduct (oldvup, mirror_plane->normal);
-	VectorMA (oldvup, -2*d, mirror_plane->normal, vup);
-
-	r_refdef.viewangles[0] = -asin (vpn[2])/M_PI*180;
-	r_refdef.viewangles[1] = atan2 (vpn[1], vpn[0])/M_PI*180;
-	r_refdef.viewangles[2] = -oldangles[2];	
-
-	vpn[0]*=0.001;
-	vpn[1]*=0.001;
-	vpn[2]*=0.001;
+		qglEnable(GL_DEPTH_TEST);	//use only the stencil test
+		qglColorMask( GL_TRUE, GL_TRUE, GL_TRUE, GL_TRUE );
 /*
-	r_refdef.vieworg[0] = 400;
-	r_refdef.vieworg[1] = 575;
-	r_refdef.vieworg[2] = 64;
+Thus the final mirror matrix for any given plane p*<nx,ny,nz>+k=0 is:
+
+| 1-2*nx*nx    -2*nx*ny     -2*nx*nz     -2*nx*k |
+
+|  -2*ny*nx   1-2*ny*ny     -2*ny*nz     -2*ny*k |
+
+|  -2*nz*nx    -2*nz*ny    1-2*nz*nz     -2*nz*k |
+
+|      0           0            0            1   |
 */
-	AngleVectors (r_refdef.viewangles, vpn, vright, vup);
+	{
+		float mirror[16];
+		float view[16];
+		float result[16];
+		float nx = mirror_plane->normal[0];
+		float ny = mirror_plane->normal[1];
+		float nz = mirror_plane->normal[2];
+		float k = -mirror_plane->dist;
+
+		mirror[0] = 1-2*nx*nx;
+		mirror[1] = -2*nx*ny;
+		mirror[2] = -2*nx*nz;
+		mirror[3] = 0;
+
+		mirror[4] = -2*ny*nx;
+		mirror[5] = 1-2*ny*ny;
+		mirror[6] = -2*ny*nz;
+		mirror[7] = 0;
+
+		mirror[8]  = -2*nz*nx;
+		mirror[9]  = -2*nz*ny;
+		mirror[10] = 1-2*nz*nz;
+		mirror[11] = 0;
+
+		mirror[12] = -2*nx*k;
+		mirror[13] = -2*ny*k;
+		mirror[14] = -2*nz*k;
+		mirror[15] = 1;
+
+		view[0] = oldvpn[0];
+		view[1] = oldvpn[1];
+		view[2] = oldvpn[2];
+		view[3] = 0;
+
+		view[4] = -oldvright[0];
+		view[5] = -oldvright[1];
+		view[6] = -oldvright[2];
+		view[7] = 0;
+
+		view[8]  = oldvup[0];
+		view[9]  = oldvup[1];
+		view[10] = oldvup[2];
+		view[11] = 0;
+
+		view[12] = oldorg[0];
+		view[13] = oldorg[1];
+		view[14] = oldorg[2];
+		view[15] = 1;
+
+		Matrix4_Multiply(mirror, view, result); 
+
+		vpn[0] = result[0];
+		vpn[1] = result[1];
+		vpn[2] = result[2];
+
+		vright[0] = -result[4];
+		vright[1] = -result[5];
+		vright[2] = -result[6];
+
+		vup[0] = result[8];
+		vup[1] = result[9];
+		vup[2] = result[10];
+
+		r_refdef.vieworg[0] = result[12];
+		r_refdef.vieworg[1] = result[13];
+		r_refdef.vieworg[2] = result[14];
+	}
+
+	r_refdef.viewangles[0] = 0;
+	r_refdef.viewangles[1] = 0;
+	r_refdef.viewangles[2] = 0;
 
 
 	gldepthmin = 0.5;
@@ -1841,7 +1936,7 @@ void R_Mirror (void)
 
 	R_RenderScene ();
 
-	GLR_DrawWaterSurfaces ();
+//	GLR_DrawWaterSurfaces ();
 
 
 	gldepthmin = 0;
@@ -1853,36 +1948,32 @@ void R_Mirror (void)
 	memcpy(r_refdef.viewangles, oldangles, sizeof(vec3_t));
 	memcpy(r_refdef.vieworg, oldorg, sizeof(vec3_t));
 
-	qglMatrixMode(GL_PROJECTION);
-	if (mirror_plane->normal[2])
-		qglScalef (1,-1,1);
-	else
-		qglScalef (-1,1,1);
 	qglCullFace(GL_FRONT);
 	qglMatrixMode(GL_MODELVIEW);
 
-	qglLoadMatrixf (r_base_world_matrix);
+	qglLoadMatrixf (base_view_matrix);
 
 	qglDisable(GL_STENCIL_TEST);
 
 	// blend on top
 	qglDisable(GL_ALPHA_TEST);
 	qglEnable (GL_BLEND);
+	qglEnable(GL_TEXTURE_2D);
 	qglBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
 	qglColor4f (1,1,1,r_mirroralpha.value);
-
-		for ( ; s ; s=s->texturechain)
+qglDisable(GL_STENCIL_TEST);
+qglPolygonOffset(1, 0);
+qglEnable(GL_POLYGON_OFFSET_FILL);
+		for (s=prevs ; s ; s=s->nextalphasurface)
 		{
 			qglEnable (GL_BLEND);
 			R_RenderBrushPoly (s);
 		}
-	cl.worldmodel->textures[mirrortexturenum]->texturechain = NULL;
+qglDisable(GL_POLYGON_OFFSET_FILL);
+qglPolygonOffset(0, 0);
+	qglEnable(GL_TEXTURE_2D);
 	qglDisable (GL_BLEND);
 	qglColor4f (1,1,1,1);
-	
-	//put things back for rear views
-	qglCullFace(GL_BACK);
-//	cl_numvisedicts = oldvisents;
 	}
 	qglDisable(GL_STENCIL_TEST);
 
@@ -2016,8 +2107,8 @@ void GLR_RenderView (void)
 	// render normal view
 	R_RenderScene ();	
 	GLR_DrawViewModel ();
-	GLR_DrawWaterSurfaces ();
-	GLR_DrawAlphaSurfaces ();
+//	GLR_DrawWaterSurfaces ();
+//	GLR_DrawAlphaSurfaces ();
 
 	// render mirror view
 	R_Mirror ();

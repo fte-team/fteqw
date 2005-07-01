@@ -1680,7 +1680,8 @@ void SV_RunEntity (edict_t *ent)
 	//	
 		pr_global_struct->time = sv.time;
 		pr_global_struct->self = EDICT_TO_PROG(svprogfuncs, ent);
-		PR_ExecuteProgram (svprogfuncs, pr_global_struct->PlayerPreThink);
+		if (pr_global_struct->PlayerPreThink)
+			PR_ExecuteProgram (svprogfuncs, pr_global_struct->PlayerPreThink);
 		
 		if (readyforjump)	//qw progs can't jump for themselves...
 		{
@@ -1780,7 +1781,8 @@ void SV_RunEntity (edict_t *ent)
 
 		pr_global_struct->time = sv.time;
 		pr_global_struct->self = EDICT_TO_PROG(svprogfuncs, ent);
-		PR_ExecuteProgram (svprogfuncs, pr_global_struct->PlayerPostThink);
+		if (pr_global_struct->PlayerPostThink)
+			PR_ExecuteProgram (svprogfuncs, pr_global_struct->PlayerPostThink);
 	}
 }
 

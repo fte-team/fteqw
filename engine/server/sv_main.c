@@ -376,7 +376,8 @@ void SV_DropClient (client_t *drop)
 				if (pr_nqglobal_struct->SetChangeParms)
 					PR_ExecuteProgram (svprogfuncs, pr_global_struct->SetChangeParms);
 				for (j=0 ; j<NUM_SPAWN_PARMS ; j++)
-					rs.parm[j] = *spawnparamglobals[j];
+					if (spawnparamglobals[j])
+						rs.parm[j] = *spawnparamglobals[j];
 				Rank_SetPlayerStats(drop->rankid, &rs);
 			}
 		}
@@ -2066,6 +2067,8 @@ void SVNQ_ConnectionlessPacket(void)
 
 	if (sv_listen.value < 2)
 		return;
+	if (sv_bigcoords.value)
+		return;	//no, start using dp7 instead.
 
 	MSG_BeginReading();
 	header = BigLong(MSG_ReadLong());
@@ -2677,6 +2680,7 @@ SV_Frame
 */
 void SV_Frame (float time)
 {
+	extern cvar_t pr_imitatemvdsv;
 	static double	start, end;
 	
 	start = Sys_DoubleTime ();
@@ -2744,6 +2748,13 @@ void SV_MVDStream_Poll(void);
 // get packets
 	SV_ReadPackets ();
 
+	if (pr_imitatemvdsv.value)
+	{
+		Cbuf_Execute ();
+		if (sv.state < ss_active)	//whoops...
+			return;
+	}
+
 	if (sv.multicast.cursize)
 	{
 		Con_Printf("Unterminated multicast\n");
@@ -2771,8 +2782,10 @@ void SV_MVDStream_Poll(void);
 		SV_GetConsoleCommands ();
 
 // process console commands
+		if (!pr_imitatemvdsv.value)
 		Cbuf_Execute ();
 	}
+
 	if (sv.state < ss_active)	//whoops...
 		return;
 
@@ -3588,6 +3601,14 @@ void SV_Init (quakeparms_t *parms)
 	// if a map wasn't specified on the command line, spawn start.map
 		if (sv.state == ss_dead)
 			Cmd_ExecuteString ("map start", RESTRICT_LOCAL);
+		if (sv.state == ss_dead)
+		{
+			cvar_t *ml;
+			ml = Cvar_Get("g_maplist", "dm1 dm2 dm3 dm4 dm5 dm6", 0, "");
+			Cmd_TokenizeString(ml->string, false, false);
+			if (Cmd_Argc())
+				Cmd_ExecuteString(va("map %s", Cmd_Argv(rand()%Cmd_Argc())), RESTRICT_LOCAL);
+		}
 		if (sv.state == ss_dead)
 			SV_Error ("Couldn't spawn a server");
 

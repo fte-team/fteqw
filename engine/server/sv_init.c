@@ -210,10 +210,10 @@ void SVNQ_CreateBaseline (void)
 		svent->baseline.number = entnum;
 
 #ifdef PEXT_SCALE
-		svent->baseline.scale = 1;
+		svent->baseline.scale = 1*16;
 #endif
 #ifdef PEXT_TRANS
-		svent->baseline.trans = 1;
+		svent->baseline.trans = 255;
 #endif
 
 		if (svent->isfree)

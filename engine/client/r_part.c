@@ -261,7 +261,8 @@ static part_type_t *P_GetParticleType(char *name)
 
 int P_AllocateParticleType(char *name)	//guarentees that the particle type exists, returning it's index.
 {
-	return P_GetParticleType(name) - part_type;
+	part_type_t *pt = P_GetParticleType(name);
+	return pt - part_type;
 }
 
 int P_ParticleTypeForName(char *name)
@@ -289,14 +290,16 @@ int P_FindParticleType(char *name)	//checks if particle description 'name' exist
 	return -1;
 }
 
-qboolean P_DescriptionIsLoaded(char *name)
+int P_DescriptionIsLoaded(char *name)
 {
 	int i = P_FindParticleType(name);
 	part_type_t *ptype;
 	if (i < 0)
 		return false;
 	ptype = &part_type[i];
-	return ptype->loaded;
+	if (!ptype->loaded)
+		return false;
+	return i+1;
 }
 
 static void P_SetModified(void)	//called when the particle system changes (from console).
@@ -322,7 +325,7 @@ static int CheckAssosiation(char *name, int from)
 	{
 		if (to == from)
 		{
-			Con_Printf("Assosiation would cause infinate loop\n");
+			Con_Printf("Assosiation of %s would cause infinate loop\n", name);
 			return -1;
 		}
 		to = part_type[to].assoc;
@@ -470,7 +473,11 @@ void P_ParticleEffect_f(void)
 		}
 
 		else if (!strcmp(var, "scale"))
+		{
 			ptype->scale = atof(value);
+			if (Cmd_Argc()>2)
+				ptype->randscale = atof(Cmd_Argv(2)) - ptype->scale;
+		}
 		else if (!strcmp(var, "scalerand"))
 			ptype->randscale = atof(value);
 
@@ -2410,7 +2417,7 @@ int P_ParticleTrail (vec3_t startpos, vec3_t end, int type, trailstate_t **tsk)
 	float randvel = ptype->randomvel;
 	float step;
 	float stop;
-	float tdegree = 1/50; /* MSVC whine */
+	float tdegree = 2*M_PI/256; /* MSVC whine */
 
 	if (!ptype->loaded)
 		return 1;

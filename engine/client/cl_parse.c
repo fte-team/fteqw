@@ -2027,10 +2027,10 @@ void CL_ParseBaseline (entity_state_t *es)
 		es->angles[i] = MSG_ReadAngle ();
 	}
 #ifdef PEXT_SCALE
-	es->scale = 1;
+	es->scale = 1*16;
 #endif
 #ifdef PEXT_TRANS
-	es->trans = 1;
+	es->trans = 255;
 #endif
 }
 void CL_ParseBaseline2 (void)
@@ -2114,12 +2114,12 @@ void CL_ParseStatic (int version)
 	ent->drawflags = es.hexen2flags;
 
 #ifdef PEXT_SCALE
-	ent->scale = es.scale;
+	ent->scale = es.scale/16.0;
 #endif
 #ifdef PEXT_TRANS
-	ent->alpha = es.trans;
+	ent->alpha = es.trans/255.0;
 #endif
-	ent->fatness = es.fatness;
+	ent->fatness = es.fatness/2.0;
 	ent->abslight = es.abslight;
 
 	VectorCopy (es.origin, ent->origin);
@@ -3579,10 +3579,6 @@ void CL_ParseServerMessage (void)
 			break;
 		case svc_updatepic:
 			SCR_ShowPic_Update();
-			break;
-
-		case svc_setattachment:
-			CL_ParseAttachment();
 			break;
 
 		case svcqw_effect:

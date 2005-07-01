@@ -1333,9 +1333,9 @@ void PR_ClientUserInfoChanged(char *name, char *oldivalue, char *newvalue)
 		pr_global_struct->time = sv.time;
 		pr_global_struct->self = EDICT_TO_PROG(svprogfuncs, sv_player);
 
-		G_INT(OFS_PARM0) = (int)PR_SetString(svprogfuncs, name);
-		G_INT(OFS_PARM1) = (int)PR_SetString(svprogfuncs, oldivalue);
-		G_INT(OFS_PARM2) = (int)PR_SetString(svprogfuncs, newvalue);
+		G_INT(OFS_PARM0) = PR_TempString(svprogfuncs, name);
+		G_INT(OFS_PARM1) = PR_TempString(svprogfuncs, oldivalue);
+		G_INT(OFS_PARM2) = PR_TempString(svprogfuncs, newvalue);
 
 		PR_ExecuteProgram (svprogfuncs, UserInfo_Changed);
 	}
@@ -1351,9 +1351,9 @@ void PR_LocalInfoChanged(char *name, char *oldivalue, char *newvalue)
 		pr_global_struct->time = sv.time;
 		pr_global_struct->self = EDICT_TO_PROG(svprogfuncs, sv.edicts);
 
-		G_INT(OFS_PARM0) = (int)PR_SetString(svprogfuncs, name);
-		G_INT(OFS_PARM1) = (int)PR_SetString(svprogfuncs, oldivalue);
-		G_INT(OFS_PARM2) = (int)PR_SetString(svprogfuncs, newvalue);
+		G_INT(OFS_PARM0) = PR_TempString(svprogfuncs, name);
+		G_INT(OFS_PARM1) = PR_TempString(svprogfuncs, oldivalue);
+		G_INT(OFS_PARM2) = PR_TempString(svprogfuncs, newvalue);
 
 		PR_ExecuteProgram (svprogfuncs, localinfoChanged);
 	}
@@ -2233,7 +2233,7 @@ PF_particle
 particle(origin, color, count)
 =================
 */
-void PF_particle (progfuncs_t *prinst, globalvars_t *pr_globals)	//I said it was for compatability only.
+static void PF_particle (progfuncs_t *prinst, globalvars_t *pr_globals)	//I said it was for compatability only.
 {
 	float		*org, *dir;
 	float		color;
@@ -2359,7 +2359,7 @@ PF_particle2 - hexen2
 particle(origin, dmin, dmax, color, effect, count)
 =================
 */
-void PF_particle2 (progfuncs_t *prinst, globalvars_t *pr_globals)
+static void PF_particle2 (progfuncs_t *prinst, globalvars_t *pr_globals)
 {
 	float		*org, *dmin, *dmax;
 	float		color;
@@ -2399,7 +2399,7 @@ PF_particle3 - hexen2
 particle(origin, box, color, effect, count)
 =================
 */
-void PF_particle3 (progfuncs_t *prinst, globalvars_t *pr_globals)
+static void PF_particle3 (progfuncs_t *prinst, globalvars_t *pr_globals)
 {
 	float		*org, *box;
 	float		color;
@@ -2434,7 +2434,7 @@ PF_particle4 - hexen2
 particle(origin, radius, color, effect, count)
 =================
 */
-void PF_particle4 (progfuncs_t *prinst, globalvars_t *pr_globals)
+static void PF_particle4 (progfuncs_t *prinst, globalvars_t *pr_globals)
 {
 	float		*org;
 	float		radius;
@@ -3283,6 +3283,13 @@ char *PF_TempStr(progfuncs_t *prinst)
 	return prinst->tempstringbase + (prinst->tempstringnum++)*MAXTEMPBUFFERLEN;
 }
 
+string_t PR_TempString(progfuncs_t *prinst, char *str)
+{
+	char *tmp = PF_TempStr(prinst);
+	Q_strncpyz(tmp, str, MAXTEMPBUFFERLEN);
+	return tmp - prinst->tempstringbase;
+}
+
 void PF_InitTempStrings(progfuncs_t *prinst)
 {
 	prinst->tempstringbase = prinst->AddString(prinst, "", MAXTEMPBUFFERLEN*MAX_TEMPSTRS);
@@ -3920,7 +3927,8 @@ void PF_pointcontents (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 	
 	v = G_VECTOR(OFS_PARM0);
 
-	cont = SV_PointContents (v);
+	cont = SV_Move(v, vec3_origin, vec3_origin, v, MOVE_NOMONSTERS, NULL).contents;
+//	cont = SV_PointContents (v);
 	if (cont & FTECONTENTS_SOLID)
 		G_FLOAT(OFS_RETURN) = Q1CONTENTS_SOLID;
 	else if (cont & FTECONTENTS_SKY)
@@ -4110,7 +4118,7 @@ void PF_changeyaw (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 }
 
 //void() changepitch = #63;
-void PF_changepitch (progfuncs_t *prinst, struct globalvars_s *pr_globals)
+static void PF_changepitch (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
 	edict_t		*ent;
 	float		ideal, current, move, speed;
@@ -4851,11 +4859,13 @@ void PF_makestatic (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 		state->effects = ent->v->effects;
 		state->hexen2flags = ent->v->drawflags;
 		state->abslight = (int)(ent->v->abslight*255) & 255;
-		state->trans = ent->v->alpha;
-		if (!state->trans)
-			state->trans = 1;
+		state->trans = ent->v->alpha*255;
+		if (!ent->v->alpha)
+			state->trans = 255;
 		state->fatness = ent->v->fatness;
-		state->scale = ent->v->scale;
+		state->scale = ent->v->scale*16.0;
+		if (!ent->v->scale)
+			state->scale = 1*16;
 
 		if (progstype != PROG_QW)	//don't send extra nq effects to a qw client.
 			state->effects &= EF_BRIGHTLIGHT | EF_DIMLIGHT;
@@ -6974,7 +6984,7 @@ void PF_randomvec (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 
 //void(vector dir) vectorvectors = #432
 //Writes new values for v_forward, v_up, and v_right based on the given forward vector
-void PF_vectorvectors (progfuncs_t *prinst, struct globalvars_s *pr_globals)
+static void PF_vectorvectors (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
 	VectorCopy(G_VECTOR(OFS_PARM0), P_VEC(v_forward));
 	VectorNormalize(P_VEC(v_forward));
@@ -7953,7 +7963,7 @@ void PF_te_bloodshower(progfuncs_t *prinst, struct globalvars_s *pr_globals)
 
 //DP_SV_EFFECT
 //void(vector org, string modelname, float startframe, float endframe, float framerate) effect = #404;
-void PF_effect(progfuncs_t *prinst, struct globalvars_s *pr_globals)
+static void PF_effect(progfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
 	float *org = G_VECTOR(OFS_PARM0);
 	char *name = PR_GetStringOfs(prinst, OFS_PARM1);
@@ -8413,24 +8423,19 @@ void PF_setattachment(progfuncs_t *prinst, struct globalvars_s *pr_globals)
 	edict_t *tagentity = G_EDICT(prinst, OFS_PARM1);
 	char *tagname = PR_GetStringOfs(prinst, OFS_PARM2);
 
-	eval_t *te;
-	eval_t *ti;
-
 	int modelindex;
 
-	te = prinst->GetEdictFieldValue(prinst, e, "tag_entity", NULL);
-	ti = prinst->GetEdictFieldValue(prinst, e, "tag_index", NULL);
+	int tagidx;
 
-	e->tagent = tagentity->entnum;
-	e->tagindex = 0;
+	tagidx = 0;
 
 	if (tagentity != sv.edicts && tagname && tagname[0])
 	{
 		modelindex = (int)tagentity->v->modelindex;
 		if (modelindex > 0 && modelindex < MAX_MODELS && sv.model_precache[modelindex])
 		{
-			e->tagindex = SV_TagForName(modelindex, tagname);
-			if (e->tagindex == 0)
+			tagidx = SV_TagForName(modelindex, tagname);
+			if (tagidx == 0)
 				Con_DPrintf("setattachment(edict %i, edict %i, string \"%s\"): tried to find tag named \"%s\" on entity %i (model \"%s\") but could not find it\n", NUM_FOR_EDICT(prinst, e), NUM_FOR_EDICT(prinst, tagentity), tagname, tagname, NUM_FOR_EDICT(prinst, tagentity), sv.models[modelindex]->name);
 		}
 		else
@@ -8438,18 +8443,8 @@ void PF_setattachment(progfuncs_t *prinst, struct globalvars_s *pr_globals)
 
 	}
 
-	//fix me, move to somewhere nicer.
-	MSG_WriteByte(&sv.multicast, svc_setattachment);
-	MSG_WriteShort(&sv.multicast, e->entnum);
-	MSG_WriteShort(&sv.multicast, e->tagent);
-	MSG_WriteShort(&sv.multicast, e->tagindex);
-	
-	SV_MulticastProtExt(vec3_origin, MULTICAST_ALL_R, 0xffffffff, PEXT_SETATTACHMENT, 0);
-
-	if (te)
-		te->edict = EDICT_TO_PROG(prinst,EDICT_NUM(prinst, e->tagent));
-	if (ti)
-		te->_float = e->tagindex;
+	e->v->tag_entity = EDICT_TO_PROG(prinst,tagentity);
+	e->v->tag_index = tagidx;
 }
 
 void PF_clientstat(progfuncs_t *prinst, struct globalvars_s *pr_globals)
@@ -9165,6 +9160,9 @@ void PR_RegisterFields(void)	//it's just easier to do it this way.
 	fieldentity(drawonlytoclient);
 	fieldentity(viewmodelforclient);
 	fieldentity(exteriormodeltoclient);
+
+	fieldentity(tag_entity);
+	fieldfloat(tag_index);
 
 	fieldfloat(glow_size);
 	fieldfloat(glow_color);

@@ -929,14 +929,6 @@ void SV_PreSpawn_f (void)
 
 			ent = EDICT_NUM(svprogfuncs, buf - bufs - sv.numextrastatics);
 
-			if (ent->tagent)
-			{
-				MSG_WriteByte(&host_client->netchan.message, svc_setattachment);
-				MSG_WriteShort(&host_client->netchan.message, ent->entnum);
-				MSG_WriteShort(&host_client->netchan.message, ent->tagent);
-				MSG_WriteShort(&host_client->netchan.message, ent->tagindex);
-			}
-
 			state = &ent->baseline;
 			if (!state->number || !state->modelindex)
 			{	//ent doesn't have a baseline
@@ -2267,16 +2259,16 @@ void SV_SetInfo_f (void)
 		sv_player->v->team = atoi(Cmd_Argv(2))+1;
 	}
 
-	PR_ClientUserInfoChanged(Cmd_Argv(1), oldval, Cmd_Argv(2));
+	if (*Cmd_Argv(1) != '_')
+	{
+		i = host_client - svs.clients;
+		MSG_WriteByte (&sv.reliable_datagram, svc_setinfo);
+		MSG_WriteByte (&sv.reliable_datagram, i);
+		MSG_WriteString (&sv.reliable_datagram, Cmd_Argv(1));
+		MSG_WriteString (&sv.reliable_datagram, Info_ValueForKey(host_client->userinfo, Cmd_Argv(1)));
+	}
 
-	if (*Cmd_Argv(1) == '_')
-		return;
-
-	i = host_client - svs.clients;
-	MSG_WriteByte (&sv.reliable_datagram, svc_setinfo);
-	MSG_WriteByte (&sv.reliable_datagram, i);
-	MSG_WriteString (&sv.reliable_datagram, Cmd_Argv(1));
-	MSG_WriteString (&sv.reliable_datagram, Info_ValueForKey(host_client->userinfo, Cmd_Argv(1)));
+	PR_ClientUserInfoChanged(Cmd_Argv(1), oldval, Info_ValueForKey(host_client->userinfo, Cmd_Argv(1)));
 }
 
 /*
@@ -2611,7 +2603,7 @@ void Cmd_Fly_f (void)
 /*
 ====================
 Host_SetPos_f  UDC
-By Alex Shadowalker
+By Alex Shadowalker (and added to fte because he kept winging)
 ====================
 */
 void Cmd_SetPos_f(void)
@@ -2652,7 +2644,7 @@ void SetUpClientEdict (client_t *cl, edict_t *ent)
 	ent->v->netname = PR_SetString(svprogfuncs, cl->name);
 
 	if (pr_teamfield)
-		((string_t *)&ent->v)[pr_teamfield] = (string_t)PR_SetString(svprogfuncs, cl->team);
+		((string_t *)ent->v)[pr_teamfield] = (string_t)PR_SetString(svprogfuncs, cl->team);
 
 
 	ent->v->gravity = cl->entgravity = 1.0;
@@ -3424,7 +3416,7 @@ ucmd_t nqucmds[] =
 
 	{"playermodel",	NULL},
 	{"playerskin",	NULL},
-	{"rate",		NULL},
+	{"rate",		SV_Rate_f},
 
 #ifdef SVRANKING
 	{"topten",		Rank_ListTop10_f},

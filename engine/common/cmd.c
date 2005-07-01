@@ -1679,7 +1679,7 @@ void	Cmd_ExecuteString (char *text, int level)
 
 			Cbuf_InsertText (a->value, level);
 
-			if (Cmd_FromGamecode())
+			if (level>=RESTRICT_SERVER)
 				return;	//don't do the cmd_argc/cmd_argv stuff. When it's from the server, we had a tendancy to lock aliases, so don't set them anymore.
 
 			Cbuf_InsertText (va("set cmd_argc \"%i\"\n", cmd_argc), level);

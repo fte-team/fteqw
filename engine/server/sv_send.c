@@ -967,7 +967,7 @@ void SV_WriteClientdataToMessage (client_t *client, sizebuf_t *msg)
 	MSG_WriteByte (msg, svc_time);
 	MSG_WriteFloat(msg, sv.physicstime);
 	client->nextservertimeupdate = sv.physicstime;
-	Con_Printf("%f\n", sv.physicstime);
+//	Con_Printf("%f\n", sv.physicstime);
 
 
 	bits = 0;

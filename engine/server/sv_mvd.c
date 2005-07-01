@@ -1367,7 +1367,7 @@ static qboolean SV_MVD_Record (mvddest_t *dest)
 
 	n = 0;
 	s = sv.model_precache[n+1];
-	while (*s)
+	while (s)
 	{
 		MSG_WriteString (&buf, s);
 		if (buf.cursize > MAX_QWMSGLEN/2)

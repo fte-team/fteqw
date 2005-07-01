@@ -237,8 +237,6 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 #define svc_movepic			71
 #define svc_updatepic		72
 
-#define svc_setattachment	73
-
 #define svcqw_effect			74		// [vector] org [byte] modelindex [byte] startframe [byte] framecount [byte] framerate
 #define svcqw_effect2			75		// [vector] org [short] modelindex [short] startframe [byte] framecount [byte] framerate
 
@@ -334,19 +332,15 @@ enum clcq2_ops_e
 // bits 11..13 are player move type bits
 
 #ifdef PEXT_SCALE
-#define	PF_SCALE_NOZ		(1<<12)
 #define	PF_SCALE_Z			(1<<16)
 #endif
 #ifdef PEXT_TRANS
-#define	PF_TRANS_NOZ		(1<<13)
 #define	PF_TRANS_Z			(1<<17)
 #endif
 #ifdef PEXT_FATNESS
-#define	PF_FATNESS_NOZ		(1<<14)
 #define	PF_FATNESS_Z		(1<<18)
 #endif
 #ifdef PEXT_HULLSIZE
-#define PF_HULLSIZE_NOZ		(1<<15)
 #define	PF_HULLSIZE_Z		(1<<14)
 #endif
 
@@ -448,6 +442,9 @@ enum clcq2_ops_e
 #endif
 
 #define U_DPFLAGS (1<<11)
+#define U_TAGINFO (1<<12)
+
+#define U_FARMORE (1<<15)
 
 #endif
 
@@ -614,8 +611,10 @@ enum {
 #define DPTE_CUSTOMFLASH	73
 #define DPTE_FLAMEJET		74
 #define DPTE_PLASMABURN		75
-
+#define DPTE_TEI_G3			76
 #define DPTE_SMOKE			77
+#define DPTE_TEI_BIGEXPLOSION		78
+#define DPTE_TEI_PLASMAHIT	79
 
 #define TE_SEEF_BRIGHTFIELD	200
 #define TE_SEEF_DARKLIGHT	201
@@ -661,42 +660,38 @@ enum {
 
 typedef struct entity_state_s
 {
-	int		number;			// edict index
+	unsigned short		number;			// edict index
+	unsigned short		modelindex;
 	int		bitmask;		// for dp ents, so lost state can be repeated in replacement packets.
 
 	int		flags;			// nolerp, etc
 	vec3_t	origin;
 	vec3_t	old_origin;		//q2
 	vec3_t	angles;
-	unsigned short		modelindex;
 	unsigned short		modelindex2;	//q2
-	unsigned short		modelindex3;	//q2
-	unsigned short		modelindex4;	//q2
+	qbyte		modelindex3;	//q2
+	qbyte		modelindex4;	//q2
 	unsigned short		frame;
 	unsigned short		colormap;
 	unsigned short		skinnum;
 	int		effects;
 	int		renderfx;		//q2
-	int		sound;			//q2
-	int		event;			//q2
+	qbyte		sound;			//q2
+	qbyte		event;			//q2
 
+	qbyte glowsize;
+	qbyte glowcolour;
 
-#ifdef PEXT_SCALE
-	float	scale;
-#endif
-#ifdef PEXT_TRANS
-	float	trans;
-#endif
-#ifdef PEXT_FATNESS
-	float	fatness;
-#endif
+	qbyte	scale;
+	qbyte	trans;
+	char	fatness;
 	qbyte	hexen2flags;
 	qbyte	abslight;
 	qbyte	dpflags;
 	qbyte	solid;
 
-	qbyte glowsize;
-	qbyte glowcolour;
+	unsigned short tagentity;
+	unsigned short tagindex;
 } entity_state_t;
 
 

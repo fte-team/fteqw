@@ -563,6 +563,7 @@ qboolean	Cvar_Command (int level)
 		Con_Printf ("\"%s\" is \"%s\"\n", v->name, v->string);
 		if (v->latched_string)
 			Con_Printf ("Latched as \"%s\"\n", v->latched_string);
+		Con_Printf("Default: \"%s\"\n", v->defaultstr);
 		return true;
 	}
 

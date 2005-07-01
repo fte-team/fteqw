@@ -967,8 +967,7 @@ void CL_ParseTEnt (void)
 		// use a particle effect and let the user decide what to do with it?
 		break;
 
-	case 76:
-#pragma message("CL_ParseTEnt: effect 76 not implemented")
+	case DPTE_TEI_G3:	//nexuiz's nex beam
 		pos[0] = MSG_ReadCoord ();
 		pos[1] = MSG_ReadCoord ();
 		pos[2] = MSG_ReadCoord ();
@@ -982,19 +981,19 @@ void CL_ParseTEnt (void)
 		MSG_ReadCoord ();
 		MSG_ReadCoord ();
 
-		CLQ2_RailTrail (pos, pos2);
+		P_ParticleTrail(pos, pos2, P_FindParticleType("te_nexbeam"), NULL);
 		break;
 
 	case DPTE_SMOKE:
 		//org
 		pos[0] = MSG_ReadCoord ();
-		pos[0] = MSG_ReadCoord ();
-		pos[0] = MSG_ReadCoord ();
+		pos[1] = MSG_ReadCoord ();
+		pos[2] = MSG_ReadCoord ();
 
 		//dir
 		pos2[0] = MSG_ReadCoord ();
-		pos2[0] = MSG_ReadCoord ();
-		pos2[0] = MSG_ReadCoord ();
+		pos2[1] = MSG_ReadCoord ();
+		pos2[2] = MSG_ReadCoord ();
 
 		//count
 		cnt = MSG_ReadByte ();
@@ -1004,7 +1003,7 @@ void CL_ParseTEnt (void)
 		}
 		break;
 
-	case 79:
+	case DPTE_TEI_PLASMAHIT:
 		pos[0] = MSG_ReadCoord ();
 		pos[1] = MSG_ReadCoord ();
 		pos[2] = MSG_ReadCoord ();
@@ -1240,12 +1239,27 @@ void CL_ParseParticleEffect4 (void)
 	P_RunParticleEffect4 (org, radius, color, effect, msgcount);
 }
 
+void CL_SpawnSpriteEffect(vec3_t org, model_t *model, int startframe, int framecount, int framerate)
+{
+	explosion_t	*ex;
+
+	ex = CL_AllocExplosion ();
+	VectorCopy (org, ex->origin);
+	ex->start = cl.time;
+	ex->model = model;
+	ex->firstframe = startframe;
+	ex->numframes = framecount;
+	ex->framerate = framerate;
+
+	ex->angles[0] = 0;
+	ex->angles[1] = 0;
+	ex->angles[2] = 0;
+}
 
 // [vector] org [byte] modelindex [byte] startframe [byte] framecount [byte] framerate
 // [vector] org [short] modelindex [short] startframe [byte] framecount [byte] framerate
 void CL_ParseEffect (qboolean effect2)
 {
-	explosion_t	*ex;
 	vec3_t org;
 	int modelindex;
 	int startframe;
@@ -1270,17 +1284,7 @@ void CL_ParseEffect (qboolean effect2)
 	framerate = MSG_ReadByte();
 
 
-	ex = CL_AllocExplosion ();
-	VectorCopy (org, ex->origin);
-	ex->start = cl.time;
-	ex->model = cl.model_precache[modelindex];
-	ex->firstframe = startframe;
-	ex->numframes = framecount;
-	ex->framerate = framerate;
-
-	ex->angles[0] = 0;
-	ex->angles[1] = 0;
-	ex->angles[2] = 0;
+	CL_SpawnSpriteEffect(org, cl.model_precache[modelindex], startframe, framecount, framerate);
 }
 
 #ifdef Q2CLIENT

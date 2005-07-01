@@ -1748,48 +1748,20 @@ void GL_EnableMultitexture(void)
 
 /*
 ================
-DrawGLWaterPoly
-
-Warp the vertex coordinates
-================
-*/
-static void DrawGLWaterPoly (mesh_t *p)
-{
-	Sys_Error("DrawGLWaterPoly needs work");
-/*
-	int		i;
-	float	*v;
-	vec3_t	nv;
-	
-
-	GL_DisableMultitexture();
-
-	qglBegin (GL_TRIANGLE_FAN);
-	v = p->verts[0];
-	for (i=0 ; i<p->numverts ; i++, v+= VERTEXSIZE)
-	{
-		qglTexCoord2f (v[3], v[4]);
-
-		nv[0] = v[0] + 8*sin(v[1]*0.05+realtime)*sin(v[2]*0.05+realtime);
-		nv[1] = v[1] + 8*sin(v[0]*0.05+realtime)*sin(v[2]*0.05+realtime);
-		nv[2] = v[2];
-
-		qglVertex3fv (nv);
-	}
-	qglEnd ();
-*/
-}
-
-/*
-================
 DrawGLPoly
 ================
 */
 static void DrawGLPoly (mesh_t *mesh)
 {
 //	GL_DrawAliasMesh 
+#ifdef Q3SHADERS
+	R_UnlockArrays();
+#endif
+
 	qglVertexPointer(3, GL_FLOAT, 0, mesh->xyz_array);
 	qglEnableClientState( GL_VERTEX_ARRAY );
+	qglEnableClientState( GL_TEXTURE_COORD_ARRAY );
+	qglTexCoordPointer(2, GL_FLOAT, 0, mesh->st_array);
 	qglDrawElements(GL_TRIANGLES, mesh->numindexes, GL_UNSIGNED_INT, mesh->indexes);
 	R_IBrokeTheArrays();
 
@@ -1938,13 +1910,7 @@ void R_RenderBrushPoly (msurface_t *fa)
 		return;
 	}
 
-//moved so lightmap is made first.
-	if (((r_viewleaf->contents==Q1CONTENTS_EMPTY && (fa->flags & SURF_UNDERWATER)) ||
-		(r_viewleaf->contents!=Q1CONTENTS_EMPTY && !(fa->flags & SURF_UNDERWATER)))
-		&& !(fa->flags & SURF_DONTWARP))
-		DrawGLWaterPoly (fa->mesh);
-	else
-		DrawGLPoly (fa->mesh);
+	DrawGLPoly (fa->mesh);
 }
 
 /*
@@ -2090,7 +2056,7 @@ void GLR_DrawWaterSurfaces (void)
 	// go back to the world matrix
 	//
 
-    qglLoadMatrixf (r_world_matrix);
+    qglLoadMatrixf (r_view_matrix);
 
 	if (r_wateralphaval < 1.0) {
 		qglEnable (GL_BLEND);
@@ -2232,7 +2198,7 @@ void GLR_DrawAlphaSurfaces (void)
 	// go back to the world matrix
 	//
 
-    qglLoadMatrixf (r_world_matrix);
+    qglLoadMatrixf (r_view_matrix);
 	GL_TexEnv(GL_MODULATE);
 	
 	qglEnable(GL_ALPHA_TEST);
@@ -2932,14 +2898,14 @@ start:
 
 				R_RenderDynamicLightmaps (surf);
 				// if sorting by texture, just store it out
-				if (surf->flags & SURF_DRAWALPHA)
+/*				if (surf->flags & SURF_DRAWALPHA)
 				{	// add to the translucent chain
 					surf->nextalphasurface = r_alpha_surfaces;
 					r_alpha_surfaces = surf;
 					surf->ownerent = &r_worldentity;
 				}
 				else
-				{
+*/				{
 					surf->texturechain = surf->texinfo->texture->texturechain;
 					surf->texinfo->texture->texturechain = surf;
 				}

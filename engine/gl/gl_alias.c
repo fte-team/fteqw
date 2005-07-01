@@ -422,7 +422,7 @@ static void R_GAliasAddDlights(mesh_t *mesh, vec3_t org, vec3_t angles)
 	}
 }
 
-static qboolean R_GAliasBuildMesh(mesh_t *mesh, galiasinfo_t *inf, int frame1, int frame2, float lerp, float alpha)
+static qboolean R_GAliasBuildMesh(mesh_t *mesh, galiasinfo_t *inf, int frame1, int frame2, float lerp, float alpha, float fg1time, float fg2time)
 {
 	galiasgroup_t *g1, *g2;
 
@@ -509,7 +509,7 @@ static qboolean R_GAliasBuildMesh(mesh_t *mesh, galiasinfo_t *inf, int frame1, i
 		float *pose[4];
 		float mlerp;	//minor lerp, poses within a group.
 
-		mlerp = (cl.time-cl.lerpents[currententity->keynum].lerptime)*g1->rate;
+		mlerp = (fg1time)*g1->rate;
 		frame1=mlerp;
 		frame2=frame1+1;
 		mlerp-=frame1;
@@ -523,19 +523,22 @@ static qboolean R_GAliasBuildMesh(mesh_t *mesh, galiasinfo_t *inf, int frame1, i
 		if (plerp[l]>0)
 			pose[l++] = (float *)((char *)g1 + g1->poseofs + sizeof(float)*inf->numbones*12*frame2);
 
-		mlerp = (cl.time-cl.lerpents[currententity->keynum].lerptime)*g2->rate;
-		frame1=mlerp;
-		frame2=frame1+1;
-		mlerp-=frame1;
-		frame1=frame1%g2->numposes;
-		frame2=frame2%g2->numposes;
+		if (lerp)
+		{
+			mlerp = (fg2time)*g2->rate;
+			frame1=mlerp;
+			frame2=frame1+1;
+			mlerp-=frame1;
+			frame1=frame1%g2->numposes;
+			frame2=frame2%g2->numposes;
 
-		plerp[l] = (1-mlerp)*(lerp);
-		if (plerp[l]>0)
-			pose[l++] = (float *)((char *)g2 + g2->poseofs + sizeof(float)*inf->numbones*12*frame1);
-		plerp[l] = (mlerp)*(lerp);
-		if (plerp[l]>0)
-			pose[l++] = (float *)((char *)g2 + g2->poseofs + sizeof(float)*inf->numbones*12*frame2);
+			plerp[l] = (1-mlerp)*(lerp);
+			if (plerp[l]>0)
+				pose[l++] = (float *)((char *)g2 + g2->poseofs + sizeof(float)*inf->numbones*12*frame1);
+			plerp[l] = (mlerp)*(lerp);
+			if (plerp[l]>0)
+				pose[l++] = (float *)((char *)g2 + g2->poseofs + sizeof(float)*inf->numbones*12*frame2);
+		}
 /*
 		pose[0] = (float *)((char *)g1 + g1->poseofs);
 		plerp[0] = 1;
@@ -551,7 +554,7 @@ static qboolean R_GAliasBuildMesh(mesh_t *mesh, galiasinfo_t *inf, int frame1, i
 
 	if (g1 == g2)	//lerping within group is only done if not changing group
 	{
-		lerp = cl.time*g1->rate;
+		lerp = fg1time*g1->rate;
 		frame1=lerp;
 		frame2=frame1+1;
 		lerp-=frame1;
@@ -1480,7 +1483,7 @@ void R_DrawGAliasModel (entity_t *e)
 	memset(&mesh, 0, sizeof(mesh));
 	for(; inf; ((inf->nextsurf)?(inf = (galiasinfo_t*)((char *)inf + inf->nextsurf)):(inf=NULL)))
 	{
-		if (R_GAliasBuildMesh(&mesh, inf, e->frame, e->oldframe, e->lerpfrac, e->alpha) && r_vertexdlights.value)
+		if (R_GAliasBuildMesh(&mesh, inf, e->frame, e->oldframe, e->lerpfrac, e->alpha, e->frame1time, e->frame2time) && r_vertexdlights.value)
 			if (mesh.colors_array)
 				R_GAliasAddDlights(&mesh, e->origin, e->angles);
 
@@ -1799,7 +1802,7 @@ void R_DrawGAliasShadowVolume(entity_t *e, vec3_t lightpos, float radius)
 	{
 		if (inf->ofs_trineighbours)
 		{
-			R_GAliasBuildMesh(&mesh, inf, e->frame, e->oldframe, e->lerpfrac, e->alpha);
+			R_GAliasBuildMesh(&mesh, inf, e->frame, e->oldframe, e->lerpfrac, e->alpha, e->frame1time, e->frame2time);
 			R_CalcFacing(&mesh, lightorg);
 			R_ProjectShadowVolume(&mesh, lightorg);
 			R_DrawShadowVolume(&mesh);
@@ -2863,6 +2866,7 @@ qboolean GLMod_GetTag(model_t *model, int tagnum, int frame1, int frame2, float 
 		g1 = (galiasgroup_t*)((char *)inf + inf->groupofs + sizeof(galiasgroup_t)*frame1);
 		g2 = (galiasgroup_t*)((char *)inf + inf->groupofs + sizeof(galiasgroup_t)*frame2);
 
+		f1time *= g1->rate;
 		frame1 = (int)f1time%g1->numposes;
 		frame2 = ((int)f1time+1)%g1->numposes;
 		f1time = f1time - (int)f1time;
@@ -2877,6 +2881,7 @@ qboolean GLMod_GetTag(model_t *model, int tagnum, int frame1, int frame2, float 
 		}
 		if (f2ness)
 		{
+			f2time *= g2->rate;
 			frame1 = (int)f2time%g2->numposes;
 			frame2 = ((int)f2time+1)%g2->numposes;
 			f2time = f2time - (int)f2time;

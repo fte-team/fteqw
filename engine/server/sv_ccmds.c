@@ -902,7 +902,13 @@ void SV_Status_f (void)
 	pak = (float)svs.stats.latched_packets/ STATFRAMES;
 
 	if (net_local_sv_ipadr.type != NA_LOOPBACK)
-		Con_Printf ("ip address       : %s\n",NET_AdrToString (net_local_sv_ipadr));
+	{
+		extern cvar_t pr_imitatemvdsv;
+		if (pr_imitatemvdsv.value)
+			Con_Printf ("net address      : %s\n",NET_AdrToString (net_local_sv_ipadr));
+		else
+			Con_Printf ("ip address       : %s\n",NET_AdrToString (net_local_sv_ipadr));
+	}
 	Con_Printf ("cpu utilization  : %3i%%\n",(int)cpu);
 	Con_Printf ("avg response time: %i ms\n",(int)avg);
 	Con_Printf ("packets/frame    : %5.2f\n", pak);	//not relevent as a limit.
@@ -1187,6 +1193,8 @@ void SV_Localinfo_f (void)
 	Info_SetValueForKey (localinfo, Cmd_Argv(1), Cmd_Argv(2), MAX_LOCALINFO_STRING);
 
 	PR_LocalInfoChanged(Cmd_Argv(1), old, Cmd_Argv(2));
+
+	Con_DPrintf("Localinfo %s changed (%s -> %s)\n", Cmd_Argv(1), old, Cmd_Argv(2));
 }
 
 void SV_SaveInfo(FILE *f, char *info, char *commandname)
@@ -1399,6 +1407,11 @@ void SV_Snap (int uid)
 		Con_TPrintf (STL_USERDOESNTEXIST);
 		return;
 	}
+	if (!ISQWCLIENT(cl))
+	{
+		Con_Printf("Can only snap QW clients\n");
+		return;
+	}
 
 	sprintf(pcxname, "%d-00.pcx", uid);
 
@@ -1428,7 +1441,7 @@ void SV_Snap (int uid)
 		cl->remote_snap = false;
 
 	ClientReliableWrite_Begin (cl, svc_stufftext, 24);
-	ClientReliableWrite_String (cl, "cmd snap");
+	ClientReliableWrite_String (cl, "cmd snap\n");
 	Con_TPrintf (STL_SNAPREQUEST, uid);
 }
 

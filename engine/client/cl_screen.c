@@ -1542,10 +1542,8 @@ void SCR_DrawCharToSnap (int num, qbyte *dest, int width)
 	while (drawline--)
 	{
 		for (x=0 ; x<8 ; x++)
-			if (source[x])
+			if (source[x]!=255)
 				dest[x] = source[x];
-			else
-				dest[x] = 98;
 		source += 128;
 		dest -= width;
 	}
@@ -1645,8 +1643,8 @@ qboolean SCR_RSShot (void)
 			g /= count;
 			b /= count;
 			*dest++ = r;
-			*dest++ = b;
 			*dest++ = g;
+			*dest++ = b;
 		}
 	}
 

@@ -84,10 +84,6 @@ typedef struct edict_s
 	entity_state_t	baseline;
 
 	qbyte solidtype;	//relinks entities if thier solidity changed
-
-	unsigned short tagent;
-	unsigned short tagindex;
-
 // other fields from progs come immediately after
 } edict_t;
   

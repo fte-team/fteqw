@@ -1545,7 +1545,7 @@ void PPL_BaseTextures(model_t *model)
 			}
 		}
 	}
-	if (!r_inmirror && mirrortexturenum>=0 && model == cl.worldmodel && r_mirroralpha.value != 1.0)
+	if (mirrortexturenum>=0 && model == cl.worldmodel && r_mirroralpha.value != 1.0)
 	{
 		t = model->textures[mirrortexturenum];
 		if (t)
@@ -1554,7 +1554,8 @@ void PPL_BaseTextures(model_t *model)
 			if (s)
 			{
 				t->texturechain = NULL;
-				R_MirrorChain (s);
+				if (!r_inmirror)
+					R_MirrorChain (s);
 			}
 		}
 	}
@@ -1749,21 +1750,10 @@ void PPL_BaseEntTextures(void)
 		{
 			if (currententity->flags & Q2RF_EXTERNALMODEL)
 				continue;
-
-			j = currententity->keynum;
-			while(j)
-			{
-				
-				if (j == (cl.viewentity[r_refdef.currentplayernum]?cl.viewentity[r_refdef.currentplayernum]:(cl.playernum[r_refdef.currentplayernum]+1)))
-					break;
-
-				j = cl.lerpents[j].tagent;
-			}
-			if (j)
+			if (currententity->keynum == (cl.viewentity[r_refdef.currentplayernum]?cl.viewentity[r_refdef.currentplayernum]:(cl.playernum[r_refdef.currentplayernum]+1)))
 				continue;
-
-			if (cl.viewentity[r_refdef.currentplayernum] && currententity->keynum == cl.viewentity[r_refdef.currentplayernum])
-				continue;
+//			if (cl.viewentity[r_refdef.currentplayernum] && currententity->keynum == cl.viewentity[r_refdef.currentplayernum])
+//				continue;
 			if (!Cam_DrawPlayer(0, currententity->keynum-1))
 				continue;
 		}
@@ -2481,20 +2471,10 @@ void PPL_DrawEntLighting(dlight_t *light, vec3_t colour)
 		}
 		else
 		{
-			j = currententity->keynum;
-			while(j)
-			{
-				
-				if (j == (cl.viewentity[r_refdef.currentplayernum]?cl.viewentity[r_refdef.currentplayernum]:(cl.playernum[r_refdef.currentplayernum]+1)))
-					break;
-
-				j = cl.lerpents[j].tagent;
-			}
-			if (j)
+			if (currententity->keynum == (cl.viewentity[r_refdef.currentplayernum]?cl.viewentity[r_refdef.currentplayernum]:(cl.playernum[r_refdef.currentplayernum]+1)))
 				continue;
-
-			if (cl.viewentity[r_refdef.currentplayernum] && currententity->keynum == cl.viewentity[r_refdef.currentplayernum])
-				continue;
+//			if (cl.viewentity[r_refdef.currentplayernum] && currententity->keynum == cl.viewentity[r_refdef.currentplayernum])
+//				continue;
 			if (!Cam_DrawPlayer(0, currententity->keynum-1))
 				continue;
 		}

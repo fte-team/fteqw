@@ -137,11 +137,25 @@ static void CSQC_FindGlobals(void)
 	fieldfloat(frame);		\
 	fieldfloat(oldframe);	\
 	fieldfloat(lerpfrac);	\
+	fieldfloat(renderflags);\
 							\
 	fieldfloat(drawmask);	/*So that the qc can specify all rockets at once or all bannanas at once*/	\
 	fieldfunction(predraw);	/*If present, is called just before it's drawn.*/	\
 							\
-	fieldstring(model);
+	fieldstring(model);		\
+	fieldfloat(ideal_yaw);	\
+	fieldfloat(ideal_pitch);\
+	fieldfloat(yaw_speed);	\
+	fieldfloat(pitch_speed);\
+							\
+	fieldentity(chain);		\
+							\
+	fieldvector(solid);		\
+	fieldvector(mins);		\
+	fieldvector(maxs);		\
+	fieldvector(absmins);	\
+	fieldvector(absmaxs);	\
+	fieldfloat(hull);		/*(FTE_PEXT_HEXEN2)*/
 
 
 //note: doesn't even have to match the clprogs.dat :)
@@ -243,8 +257,10 @@ void PF_normalize (progfuncs_t *prinst, struct globalvars_s *pr_globals);
 void PF_vlen (progfuncs_t *prinst, struct globalvars_s *pr_globals);
 void PF_vectoyaw (progfuncs_t *prinst, struct globalvars_s *pr_globals);
 void PF_vectoangles (progfuncs_t *prinst, struct globalvars_s *pr_globals);
+void PF_FindFlags (progfuncs_t *prinst, struct globalvars_s *pr_globals);
 void PF_findchain (progfuncs_t *prinst, struct globalvars_s *pr_globals);
 void PF_findchainfloat (progfuncs_t *prinst, struct globalvars_s *pr_globals);
+void PF_findchainflags (progfuncs_t *prinst, struct globalvars_s *pr_globals);
 void PF_coredump (progfuncs_t *prinst, struct globalvars_s *pr_globals);
 void PF_traceon (progfuncs_t *prinst, struct globalvars_s *pr_globals);
 void PF_traceoff (progfuncs_t *prinst, struct globalvars_s *pr_globals);
@@ -274,6 +290,12 @@ void PF_CL_drawsetcliparea (progfuncs_t *prinst, struct globalvars_s *pr_globals
 void PF_CL_drawresetcliparea (progfuncs_t *prinst, struct globalvars_s *pr_globals);
 void PF_CL_drawgetimagesize (progfuncs_t *prinst, struct globalvars_s *pr_globals);
 
+void search_close_progs(progfuncs_t *prinst, qboolean complain);
+void PF_search_begin (progfuncs_t *prinst, struct globalvars_s *pr_globals);
+void PF_search_end (progfuncs_t *prinst, struct globalvars_s *pr_globals);
+void PF_search_getsize (progfuncs_t *prinst, struct globalvars_s *pr_globals);
+void PF_search_getfilename (progfuncs_t *prinst, struct globalvars_s *pr_globals);
+
 
 #define MAXTEMPBUFFERLEN	1024
 
@@ -281,7 +303,72 @@ void PF_fclose_progs (progfuncs_t *prinst);
 char *PF_VarString (progfuncs_t *prinst, int	first, struct globalvars_s *pr_globals);
 
 
-static void PF_Remove_ (progfuncs_t *prinst, struct globalvars_s *pr_globals)
+
+
+
+
+
+void CL_CS_LinkEdict(csqcedict_t *ent)
+{
+	//FIXME: use some sort of area grid ?
+	VectorAdd(ent->v->origin, ent->v->mins, ent->v->absmins);
+	VectorAdd(ent->v->origin, ent->v->maxs, ent->v->absmaxs);
+}
+
+//FIXME: Not fully functional
+trace_t CL_Move(vec3_t v1, vec3_t mins, vec3_t maxs, vec3_t v2, float nomonsters, csqcedict_t *passedict)
+{
+	int e;
+	csqcedict_t *ed;
+	vec3_t minb, maxb;
+	hull_t *hull;
+
+	trace_t	trace, trace2;
+
+	memset(&trace, 0, sizeof(trace));
+	trace.fraction = 1;
+	cl.worldmodel->hulls->funcs.RecursiveHullCheck (cl.worldmodel->hulls, 0, 0, 1, v1, v2, &trace);
+
+//why use trace.endpos instead?
+//so that if we hit a wall early, we don't have a box covering the whole world because of a shotgun trace.
+	minb[0] = ((v1[0] < trace.endpos[0])?v1[0]:trace.endpos[0]) - mins[0]-1;
+	minb[1] = ((v1[1] < trace.endpos[1])?v1[1]:trace.endpos[1]) - mins[1]-1;
+	minb[2] = ((v1[2] < trace.endpos[2])?v1[2]:trace.endpos[2]) - mins[2]-1;
+	maxb[0] = ((v1[0] > trace.endpos[0])?v1[0]:trace.endpos[0]) + maxs[0]+1;
+	maxb[1] = ((v1[1] > trace.endpos[1])?v1[1]:trace.endpos[1]) + maxs[1]+1;
+	maxb[2] = ((v1[2] > trace.endpos[2])?v1[2]:trace.endpos[2]) + maxs[2]+1;
+/*
+	for (e=1; e < *csqcprogs->parms->sv_num_edicts; e++)
+	{
+		ed = (void*)EDICT_NUM(csqcprogs, e);
+		if (ed->isfree)
+			continue;	//can't collide
+		if (!ed->v->solid)
+			continue;
+		if (ed->v->absmaxs[0] < minb[0] ||
+			ed->v->absmaxs[1] < minb[1] ||
+			ed->v->absmaxs[2] < minb[2] ||
+			ed->v->absmins[0] > maxb[0] ||
+			ed->v->absmins[1] > maxb[1] ||
+			ed->v->absmins[2] > maxb[2])
+			continue;
+
+		hull = CL_HullForEntity(ed);
+		memset(&trace, 0, sizeof(trace));
+		trace.fraction = 1;
+		TransformedHullCheck(hull, v1, v2, &trace2, ed->v->angles);
+		trace2.ent = (void*)ed;
+		if (trace2.fraction < trace.fraction)
+			trace = trace2;
+	}
+*/
+	return trace;
+}
+
+
+
+
+static void PF_cs_remove (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
 	csqcedict_t *ed;
 	
@@ -316,23 +403,23 @@ static void PF_Fixme (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
 	Con_Printf("\n");
 
-	prinst->RunError(prinst, "\nBuiltin %i not implemented.\nMenu is not compatable.", prinst->lastcalledbuiltinnumber);
+	prinst->RunError(prinst, "\nBuiltin %i not implemented.\nCSQC is not compatable.", prinst->lastcalledbuiltinnumber);
 	PR_BIError (prinst, "bulitin not implemented");
 }
 
-static void PF_csqc_centerprint (progfuncs_t *prinst, struct globalvars_s *pr_globals)
+static void PF_cl_cprint (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
 	char *str = PF_VarString(prinst, 0, pr_globals);
 	SCR_CenterPrint(0, str);
 }
 
-static void PF_makevectors (progfuncs_t *prinst, struct globalvars_s *pr_globals)
+static void PF_cs_makevectors (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
 	if (!csqcg.forward || !csqcg.right || !csqcg.up)
 		Host_EndGame("PF_makevectors: one of v_forward, v_right or v_up was not defined\n");
 	AngleVectors (G_VECTOR(OFS_PARM0), csqcg.forward, csqcg.right, csqcg.up);
 }
-
+/*
 void QuaternainToAngleMatrix(float *quat, vec3_t *mat)
 {
 	float xx      = quat[0] * quat[0];
@@ -392,8 +479,14 @@ void EularToQuaternian(vec3_t angles, float *quat)
   quaternion_multiply(x, y, t);
   quaternion_multiply(t, z, quat);
 }
+*/
+#define CSQCRF_VIEWMODEL		1 //Not drawn in mirrors
+#define CSQCRF_EXTERNALMODEL	2 //drawn ONLY in mirrors
+#define CSQCRF_DEPTHHACK		4 //fun depthhack
+#define CSQCRF_ADDATIVE			8 //add instead of blend
+#define CSQCRF_USEAXIS			16 //use v_forward/v_right/v_up as an axis/matrix - predraw is needed to use this properly
 
-void _PF_R_AddEntity(progfuncs_t *prinst, struct globalvars_s *pr_globals)
+void PF_R_AddEntity(progfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
 	csqcedict_t *in = (void*)G_EDICT(prinst, OFS_PARM0);
 	entity_t ent;
@@ -427,6 +520,19 @@ void _PF_R_AddEntity(progfuncs_t *prinst, struct globalvars_s *pr_globals)
 		return;
 	}
 
+	if (in->v->renderflags)
+	{
+		i = in->v->renderflags;
+		if (i & CSQCRF_VIEWMODEL)
+			ent.flags |= Q2RF_WEAPONMODEL;
+		if (i & CSQCRF_EXTERNALMODEL)
+			ent.flags |= Q2RF_EXTERNALMODEL;
+		if (i & CSQCRF_DEPTHHACK)
+			ent.flags |= Q2RF_DEPTHHACK;
+		if (i * CSQCRF_ADDATIVE)
+			ent.flags |= Q2RF_ADDATIVE;
+		//CSQCRF_USEAXIS is below
+	}
 	
 	ent.frame = in->v->frame;
 	ent.oldframe = in->v->oldframe;
@@ -436,13 +542,23 @@ void _PF_R_AddEntity(progfuncs_t *prinst, struct globalvars_s *pr_globals)
 	ent.angles[1] = in->v->angles[1];
 	ent.angles[2] = in->v->angles[2];
 
-	memcpy(ent.origin, in->v->origin, sizeof(vec3_t));
-	AngleVectors(ent.angles, ent.axis[0], ent.axis[1], ent.axis[2]);
-	VectorInverse(ent.axis[1]);
+	VectorCopy(in->v->origin, ent.origin);
+	if ((int)in->v->renderflags & CSQCRF_USEAXIS)
+	{
+		VectorCopy(csqcg.forward, ent.axis[0]);
+		VectorNegate(csqcg.right, ent.axis[1]);
+		VectorCopy(csqcg.up, ent.axis[2]);
+	}
+	else
+	{
+		AngleVectors(ent.angles, ent.axis[0], ent.axis[1], ent.axis[2]);
+		VectorInverse(ent.axis[1]);
+	}
 
 	ent.alpha = in->v->alpha;
 	ent.scale = in->v->scale;
 	ent.skinnum = in->v->skin;
+	ent.fatness = in->v->fatness;
 
 	V_AddEntity(&ent);
 
@@ -465,10 +581,6 @@ void _PF_R_AddEntity(progfuncs_t *prinst, struct globalvars_s *pr_globals)
 		V_AddEntity(&ent);
 	}
 */
-}
-void PF_R_AddEntity(progfuncs_t *prinst, struct globalvars_s *pr_globals)
-{
-	_PF_R_AddEntity(prinst, pr_globals);
 }
 
 static void PF_R_AddDynamicLight(progfuncs_t *prinst, struct globalvars_s *pr_globals)
@@ -557,6 +669,8 @@ static void PF_R_SetViewFlag(progfuncs_t *prinst, struct globalvars_s *pr_global
 {
 	char *s = PR_GetStringOfs(prinst, OFS_PARM0);
 	float *p = G_VECTOR(OFS_PARM1);
+
+	G_FLOAT(OFS_RETURN) = 1;
 	switch(*s)
 	{
 	case 'F':
@@ -667,6 +781,8 @@ static void PF_R_SetViewFlag(progfuncs_t *prinst, struct globalvars_s *pr_global
 		break;
 	}
 	Con_DPrintf("SetViewFlag: %s not recognised\n", s);
+
+	G_FLOAT(OFS_RETURN) = 0;
 }
 
 static void PF_R_RenderScene(progfuncs_t *prinst, struct globalvars_s *pr_globals)
@@ -754,39 +870,40 @@ static void PF_cs_getstats(progfuncs_t *prinst, struct globalvars_s *pr_globals)
 	RETURN_SSTRING(out);
 }
 
-static void PF_CSQC_SetOrigin(progfuncs_t *prinst, struct globalvars_s *pr_globals)
+static void PF_cs_SetOrigin(progfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
 	csqcedict_t *ent = (void*)G_EDICT(prinst, OFS_PARM0);
 	float *org = G_VECTOR(OFS_PARM1);
+
 	VectorCopy(org, ent->v->origin);
 
-	//fixme: add some sort of fast area grid
+	CL_CS_LinkEdict(ent);
 }
 
-static void PF_CSQC_SetSize(progfuncs_t *prinst, struct globalvars_s *pr_globals)
+static void PF_cs_SetSize(progfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
 	csqcedict_t *ent = (void*)G_EDICT(prinst, OFS_PARM0);
 	float *mins = G_VECTOR(OFS_PARM1);
 	float *maxs = G_VECTOR(OFS_PARM1);
 
-	//fixme: set the size. :p
+	VectorCopy(mins, ent->v->mins);
+	VectorCopy(maxs, ent->v->maxs);
 
-	//fixme: add some sort of fast area grid
+	CL_CS_LinkEdict(ent);
 }
 
-//FIXME: Not fully functional
-static void PF_CSQC_traceline(progfuncs_t *prinst, struct globalvars_s *pr_globals)
+static void PF_cs_traceline(progfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
 	float	*v1, *v2, *mins, *maxs;
 	trace_t	trace;
 	int		nomonsters;
-	edict_t	*ent;
-//	int savedhull;
+	csqcedict_t	*ent;
+	int savedhull;
 
 	v1 = G_VECTOR(OFS_PARM0);
 	v2 = G_VECTOR(OFS_PARM1);
 	nomonsters = G_FLOAT(OFS_PARM2);
-	ent = G_EDICT(prinst, OFS_PARM3);
+	ent = (csqcedict_t*)G_EDICT(prinst, OFS_PARM3);
 
 //	if (*prinst->callargc == 6)
 //	{
@@ -798,17 +915,12 @@ static void PF_CSQC_traceline(progfuncs_t *prinst, struct globalvars_s *pr_globa
 		mins = vec3_origin;
 		maxs = vec3_origin;
 	}
-/*
-	savedhull = ent->v.hull;
-	ent->v.hull = 0;
-	trace = SV_Move (v1, mins, maxs, v2, nomonsters, ent);
-	ent->v.hull = savedhull;
-*/
-	
-	memset(&trace, 0, sizeof(trace));
-	trace.fraction = 1;
-	cl.worldmodel->hulls->funcs.RecursiveHullCheck (cl.worldmodel->hulls, 0, 0, 1, v1, v2, &trace);
 
+	savedhull = ent->v->hull;
+	ent->v->hull = 0;
+	trace = CL_Move (v1, mins, maxs, v2, nomonsters, ent);
+	ent->v->hull = savedhull;
+	
 	*csqcg.trace_allsolid = trace.allsolid;
 	*csqcg.trace_startsolid = trace.startsolid;
 	*csqcg.trace_fraction = trace.fraction;
@@ -817,13 +929,46 @@ static void PF_CSQC_traceline(progfuncs_t *prinst, struct globalvars_s *pr_globa
 	VectorCopy (trace.endpos, csqcg.trace_endpos);
 	VectorCopy (trace.plane.normal, csqcg.trace_plane_normal);
 	*csqcg.trace_plane_dist =  trace.plane.dist;	
-//	if (trace.ent)
-//		*csqcg.trace_ent = EDICT_TO_PROG(prinst, trace.ent);
-//	else
+	if (trace.ent)
+		*csqcg.trace_ent = EDICT_TO_PROG(prinst, (void*)trace.ent);
+	else
+		*csqcg.trace_ent = EDICT_TO_PROG(prinst, (void*)csqc_edicts);
+}
+static void PF_cs_tracebox(progfuncs_t *prinst, struct globalvars_s *pr_globals)
+{
+	float	*v1, *v2, *mins, *maxs;
+	trace_t	trace;
+	int		nomonsters;
+	csqcedict_t	*ent;
+	int savedhull;
+
+	v1 = G_VECTOR(OFS_PARM0);
+	mins = G_VECTOR(OFS_PARM1);
+	maxs = G_VECTOR(OFS_PARM2);
+	v2 = G_VECTOR(OFS_PARM3);
+	nomonsters = G_FLOAT(OFS_PARM4);
+	ent = (csqcedict_t*)G_EDICT(prinst, OFS_PARM5);
+
+	savedhull = ent->v->hull;
+	ent->v->hull = 0;
+	trace = CL_Move (v1, mins, maxs, v2, nomonsters, ent);
+	ent->v->hull = savedhull;
+	
+	*csqcg.trace_allsolid = trace.allsolid;
+	*csqcg.trace_startsolid = trace.startsolid;
+	*csqcg.trace_fraction = trace.fraction;
+	*csqcg.trace_inwater = trace.inwater;
+	*csqcg.trace_inopen = trace.inopen;
+	VectorCopy (trace.endpos, csqcg.trace_endpos);
+	VectorCopy (trace.plane.normal, csqcg.trace_plane_normal);
+	*csqcg.trace_plane_dist =  trace.plane.dist;	
+	if (trace.ent)
+		*csqcg.trace_ent = EDICT_TO_PROG(prinst, (void*)trace.ent);
+	else
 		*csqcg.trace_ent = EDICT_TO_PROG(prinst, (void*)csqc_edicts);
 }
 
-static void PF_CSQC_pointcontents(progfuncs_t *prinst, struct globalvars_s *pr_globals)
+static void PF_cs_pointcontents(progfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
 	float	*v;
 	int cont;
@@ -868,7 +1013,7 @@ static int FindModel(char *name, int *free)
 	}
 	return 0;
 }
-static void PF_CSQC_SetModel(progfuncs_t *prinst, struct globalvars_s *pr_globals)
+static void PF_cs_SetModel(progfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
 	csqcedict_t *ent = (void*)G_EDICT(prinst, OFS_PARM0);
 	char *modelname = PR_GetStringOfs(prinst, OFS_PARM1);
@@ -892,7 +1037,7 @@ static void PF_CSQC_SetModel(progfuncs_t *prinst, struct globalvars_s *pr_global
 	else
 		ent->v->model = PR_SetString(prinst, cl.model_name[modelindex]);
 }
-static void PF_CSQC_SetModelIndex(progfuncs_t *prinst, struct globalvars_s *pr_globals)
+static void PF_cs_SetModelIndex(progfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
 	csqcedict_t *ent = (void*)G_EDICT(prinst, OFS_PARM0);
 	int modelindex = G_FLOAT(OFS_PARM1);
@@ -903,7 +1048,7 @@ static void PF_CSQC_SetModelIndex(progfuncs_t *prinst, struct globalvars_s *pr_g
 	else
 		ent->v->model = PR_SetString(prinst, cl.model_name[modelindex]);
 }
-static void PF_CSQC_PrecacheModel(progfuncs_t *prinst, struct globalvars_s *pr_globals)
+static void PF_cs_PrecacheModel(progfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
 	int modelindex, freei;
 	char *modelname = PR_GetStringOfs(prinst, OFS_PARM0);
@@ -932,13 +1077,13 @@ static void PF_CSQC_PrecacheModel(progfuncs_t *prinst, struct globalvars_s *pr_g
 		cl.model_csqcprecache[-freei] = Mod_ForName(cl.model_csqcname[-freei], false);
 	}
 }
-static void PF_CSQC_PrecacheSound(progfuncs_t *prinst, struct globalvars_s *pr_globals)
+static void PF_cs_PrecacheSound(progfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
 	char *soundname = PR_GetStringOfs(prinst, OFS_PARM0);
 	S_PrecacheSound(soundname);
 }
 
-static void PF_CSQC_ModelnameForIndex(progfuncs_t *prinst, struct globalvars_s *pr_globals)
+static void PF_cs_ModelnameForIndex(progfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
 	int modelindex = G_FLOAT(OFS_PARM0);
 
@@ -1022,7 +1167,7 @@ static void PF_cs_setsensativityscaler (progfuncs_t *prinst, struct globalvars_s
 
 static void PF_cs_pointparticles (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
-	int effectnum = G_FLOAT(OFS_PARM0);
+	int effectnum = G_FLOAT(OFS_PARM0)-1;
 	float *org = G_VECTOR(OFS_PARM1);
 	float *vel = G_VECTOR(OFS_PARM2);
 	float count = G_FLOAT(OFS_PARM3);
@@ -1038,7 +1183,7 @@ static void PF_cs_pointparticles (progfuncs_t *prinst, struct globalvars_s *pr_g
 static void PF_cs_particlesloaded (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
 	char *effectname = PR_GetStringOfs(prinst, OFS_PARM0);
-	G_FLOAT(OFS_RETURN) = P_ParticleTypeForName(effectname);
+	G_FLOAT(OFS_RETURN) = P_DescriptionIsLoaded(effectname);
 }
 
 //get the input commands, and stuff them into some globals.
@@ -1251,9 +1396,14 @@ static void PF_cs_getmousepos (progfuncs_t *prinst, struct globalvars_s *pr_glob
 	G_FLOAT(OFS_RETURN+2) = 0;
 }
 
+#define lh_extension_t void
+lh_extension_t *checkfteextensionsv(char *name);
+lh_extension_t *checkextension(char *name);
+
 static void PF_checkextension (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
-	G_FLOAT(OFS_RETURN) = 0;
+	char *extname = PR_GetStringOfs(prinst, OFS_PARM0);
+	G_FLOAT(OFS_RETURN) = checkextension(extname) || checkfteextensionsv(extname);
 }
 
 void PF_cs_sound(progfuncs_t *prinst, struct globalvars_s *pr_globals)
@@ -1277,108 +1427,313 @@ void PF_cs_sound(progfuncs_t *prinst, struct globalvars_s *pr_globals)
 		S_StartSound(-entity->entnum, channel, sfx, entity->v->origin, volume, attenuation);
 };
 
+static void PF_cs_particle(progfuncs_t *prinst, struct globalvars_s *pr_globals)
+{
+	float *org = G_VECTOR(OFS_PARM0);
+	float *dir = G_VECTOR(OFS_PARM1);
+	float colour = G_FLOAT(OFS_PARM2);
+	float count = G_FLOAT(OFS_PARM2);
+
+	P_RunParticleEffect(org, dir, colour, count);
+}
+
+void CL_SpawnSpriteEffect(vec3_t org, model_t *model, int startframe, int framecount, int framerate);
+void PF_cl_effect(progfuncs_t *prinst, struct globalvars_s *pr_globals)
+{
+	float *org = G_VECTOR(OFS_PARM0);
+	char *name = PR_GetStringOfs(prinst, OFS_PARM1);
+	float startframe = G_FLOAT(OFS_PARM2);
+	float endframe = G_FLOAT(OFS_PARM3);
+	float framerate = G_FLOAT(OFS_PARM4);
+	model_t *mdl;
+
+	mdl = Mod_ForName(name, false);
+	if (mdl)
+		CL_SpawnSpriteEffect(org, mdl, startframe, endframe, framerate);
+	else
+		Con_Printf("PF_cl_effect: Couldn't load model %s\n", name);
+}
+
+void PF_cl_ambientsound(progfuncs_t *prinst, struct globalvars_s *pr_globals)
+{
+	char		*samp;
+	float		*pos;
+	float 		vol, attenuation;
+
+	pos = G_VECTOR (OFS_PARM0);			
+	samp = PR_GetStringOfs(prinst, OFS_PARM1);
+	vol = G_FLOAT(OFS_PARM2);
+	attenuation = G_FLOAT(OFS_PARM3);
+
+	S_StaticSound (S_PrecacheSound (samp), pos, vol, attenuation);
+}
+
+static void PF_cs_vectorvectors (progfuncs_t *prinst, struct globalvars_s *pr_globals)
+{
+	VectorCopy(G_VECTOR(OFS_PARM0), csqcg.forward);
+	VectorNormalize(csqcg.forward);
+	VectorVectors(csqcg.forward, csqcg.right, csqcg.up);
+}
+
+static void PF_cs_lightstyle (progfuncs_t *prinst, struct globalvars_s *pr_globals)
+{
+	int stnum = G_FLOAT(OFS_PARM0);
+	char *str = PR_GetStringOfs(prinst, OFS_PARM1);
+	int colourflags = 7;
+
+	if ((unsigned)stnum >= MAX_LIGHTSTYLES)
+	{
+		Con_Printf ("PF_cs_lightstyle: stnum > MAX_LIGHTSTYLES");
+		return;
+	}
+	cl_lightstyle[stnum].colour = colourflags;
+	Q_strncpyz (cl_lightstyle[stnum].map,  str, sizeof(cl_lightstyle[stnum].map));
+	cl_lightstyle[stnum].length = Q_strlen(cl_lightstyle[stnum].map);
+}
+
+void PF_cs_changeyaw (progfuncs_t *prinst, struct globalvars_s *pr_globals)
+{
+	csqcedict_t		*ent;
+	float		ideal, current, move, speed;
+
+	ent = (void*)PROG_TO_EDICT(prinst, *csqcg.self);
+	current = anglemod( ent->v->angles[1] );
+	ideal = ent->v->ideal_yaw;
+	speed = ent->v->yaw_speed;
+	
+	if (current == ideal)
+		return;
+	move = ideal - current;
+	if (ideal > current)
+	{
+		if (move >= 180)
+			move = move - 360;
+	}
+	else
+	{
+		if (move <= -180)
+			move = move + 360;
+	}
+	if (move > 0)
+	{
+		if (move > speed)
+			move = speed;
+	}
+	else
+	{
+		if (move < -speed)
+			move = -speed;
+	}
+	
+	ent->v->angles[1] = anglemod (current + move);
+}
+void PF_cs_changepitch (progfuncs_t *prinst, struct globalvars_s *pr_globals)
+{
+	csqcedict_t		*ent;
+	float		ideal, current, move, speed;
+
+	ent = (void*)PROG_TO_EDICT(prinst, *csqcg.self);
+	current = anglemod( ent->v->angles[0] );
+	ideal = ent->v->ideal_pitch;
+	speed = ent->v->pitch_speed;
+	
+	if (current == ideal)
+		return;
+	move = ideal - current;
+	if (ideal > current)
+	{
+		if (move >= 180)
+			move = move - 360;
+	}
+	else
+	{
+		if (move <= -180)
+			move = move + 360;
+	}
+	if (move > 0)
+	{
+		if (move > speed)
+			move = speed;
+	}
+	else
+	{
+		if (move < -speed)
+			move = -speed;
+	}
+	
+	ent->v->angles[0] = anglemod (current + move);
+}
+
+static void PF_cs_findradius (progfuncs_t *prinst, struct globalvars_s *pr_globals)
+{
+	csqcedict_t	*ent, *chain;
+	float	rad;
+	float	*org;
+	vec3_t	eorg;
+	int		i, j;
+
+	chain = (csqcedict_t *)sv.edicts;
+
+	org = G_VECTOR(OFS_PARM0);
+	rad = G_FLOAT(OFS_PARM1);
+
+	for (i=1 ; i<sv.num_edicts ; i++)
+	{
+		ent = (void*)EDICT_NUM(svprogfuncs, i);
+		if (ent->isfree)
+			continue;
+		if (ent->v->solid == SOLID_NOT)
+			continue;
+		for (j=0 ; j<3 ; j++)
+			eorg[j] = org[j] - (ent->v->origin[j] + (ent->v->mins[j] + ent->v->maxs[j])*0.5);			
+		if (Length(eorg) > rad)
+			continue;
+			
+		ent->v->chain = EDICT_TO_PROG(prinst, (void*)chain);
+		chain = ent;
+	}
+
+	RETURN_EDICT(prinst, (void*)chain);
+}
+
+//these are the builtins that still need to be added.
+#define PF_cs_droptofloor		PF_Fixme
+#define PF_cs_tracetoss			PF_Fixme
+#define PF_cs_makestatic		PF_Fixme
+#define PF_cs_copyentity		PF_Fixme
+#define PF_cl_te_blood			PF_Fixme
+#define PF_cl_te_bloodshower	PF_Fixme
+#define PF_cl_te_particlecube	PF_Fixme
+#define PF_cl_te_spark			PF_Fixme
+#define PF_cl_te_smallflash		PF_Fixme
+#define PF_cl_te_customflash	PF_Fixme
+#define PF_cl_te_gunshot		PF_Fixme
+#define PF_cl_te_spike			PF_Fixme
+#define PF_cl_te_superspike		PF_Fixme
+#define PF_cl_te_explosion		PF_Fixme
+#define PF_cl_te_tarexplosion	PF_Fixme
+#define PF_cl_te_wizspike		PF_Fixme
+#define PF_cl_te_knightspike	PF_Fixme
+#define PF_cl_te_lavasplash		PF_Fixme
+#define PF_cl_te_teleport		PF_Fixme
+#define PF_cl_te_explosion2		PF_Fixme
+#define PF_cl_te_lightning1		PF_Fixme
+#define PF_cl_te_lightning2		PF_Fixme
+#define PF_cl_te_lightning3		PF_Fixme
+#define PF_cl_te_beam			PF_Fixme
+#define PF_cl_te_plasmaburn		PF_Fixme
+#define PS_cs_setattachment		PF_Fixme
+#define PF_cs_break				PF_Fixme
+#define PF_cs_walkmove			PF_Fixme
+#define PF_cs_checkbottom		PF_Fixme
+#define PF_cl_playingdemo		PF_Fixme
+#define PF_cl_runningserver		PF_Fixme
+
 #define PF_FixTen PF_Fixme,PF_Fixme,PF_Fixme,PF_Fixme,PF_Fixme,PF_Fixme,PF_Fixme,PF_Fixme,PF_Fixme,PF_Fixme
+
+//prefixes:
+//PF_ - common, works on any vm
+//PF_cs_ - works in csqc only (dependant upon globals or fields)
+//PF_cl_ - works in csqc and menu (if needed...)
 
 //warning: functions that depend on globals are bad, mkay?
 static builtin_t csqc_builtins[] = {
 //0
-	PF_Fixme,
-	PF_makevectors,
-	PF_CSQC_SetOrigin, //PF_setorigin
-	PF_CSQC_SetModel, //PF_setmodel
-	PF_CSQC_SetSize, //PF_setsize
-	PF_Fixme,
-	PF_Fixme, //PF_break,
-	PF_random,
-	PF_cs_sound, //PF_sound,
-	PF_normalize,
+PF_Fixme,				// #0
+PF_cs_makevectors,		// #1 void() makevectors (QUAKE)
+PF_cs_SetOrigin,		// #2 void(entity e, vector org) setorigin (QUAKE)
+PF_cs_SetModel,			// #3 void(entity e, string modl) setmodel (QUAKE)
+PF_cs_SetSize,			// #4 void(entity e, vector mins, vector maxs) setsize (QUAKE)
+PF_Fixme,				// #5
+PF_cs_break,			// #6 void() debugbreak (QUAKE)
+PF_random,				// #7 float() random (QUAKE)
+PF_cs_sound,			// #8 void(entity e, float chan, string samp, float vol, float atten) sound (QUAKE)
+PF_normalize,			// #9 vector(vector in) normalize (QUAKE)
 //10
-	PF_error,
-	PF_objerror,
-	PF_vlen,
-	PF_vectoyaw,
-	PF_Spawn,
-	PF_Remove_, //PF_Remove,
-	PF_CSQC_traceline, //PF_traceline,
-	PF_Fixme, //PF_checkclient, (don't support)
-	PF_FindString,
-	PF_CSQC_PrecacheSound, //PF_precache_sound,
+PF_error,				// #10 void(string errortext) error (QUAKE)
+PF_objerror,			// #11 void(string errortext) onjerror (QUAKE)
+PF_vlen,				// #12 float(vector v) vlen (QUAKE)
+PF_vectoyaw,			// #13 float(vector v) vectoyaw (QUAKE)
+PF_Spawn,				// #14 entity() spawn (QUAKE)
+PF_cs_remove,			// #15 void(entity e) remove (QUAKE)
+PF_cs_traceline,		// #16 void(vector v1, vector v2, float nomonst, entity forent) traceline (QUAKE)
+PF_Fixme,				// #17 entity() checkclient (QUAKE) (don't support)
+PF_FindString,			// #18 entity(entity start, .string fld, string match) findstring (QUAKE)
+PF_cs_PrecacheSound,	// #19 void(string str) precache_sound (QUAKE)
 //20
-	PF_CSQC_PrecacheModel, //PF_precache_model,
-	PF_Fixme, //PF_stuffcmd, (don't support)
-	PF_Fixme, //PF_findradius,
-	PF_Fixme, //PF_bprint, (don't support)
-	PF_Fixme, //PF_sprint,
-	PF_dprint,
-	PF_ftos,
-	PF_vtos,
-	PF_coredump,
-	PF_traceon,
+PF_cs_PrecacheModel,	// #20 void(string str) precache_model (QUAKE)
+PF_Fixme,				// #21 void(entity client, string s) stuffcmd (QUAKE) (don't support)
+PF_cs_findradius,		// #22 entity(vector org, float rad) findradius (QUAKE)
+PF_Fixme,				// #23 void(string s, ...) bprint (QUAKE) (don't support)
+PF_Fixme,				// #24 void(entity e, string s, ...) sprint (QUAKE) (don't support)
+PF_dprint,				// #25 void(string s, ...) dprint (QUAKE)
+PF_ftos,				// #26 string(float f) ftos (QUAKE)
+PF_vtos,				// #27 string(vector f) vtos (QUAKE)
+PF_coredump,			// #28 void(void) coredump (QUAKE)
+PF_traceon,				// #29 void() traceon (QUAKE)
 //30
-	PF_traceoff,
-	PF_eprint,
-	PF_Fixme, //PF_walkmove, (don't support yet)
-	PF_Fixme,
-PF_Fixme, //PF_droptofloor,
-PF_Fixme, //PF_lightstyle,
-PF_rint,
-PF_floor,
-PF_ceil,
-PF_Fixme,
+PF_traceoff,			// #30 void() traceoff (QUAKE)
+PF_eprint,				// #31 void(entity e) eprint (QUAKE)
+PF_cs_walkmove,			// #32 float(float yaw, float dist) walkmove (QUAKE)
+PF_Fixme,				// #33
+PF_cs_droptofloor,		// #34
+PF_cs_lightstyle,		// #35 void(float lightstyle, string stylestring) lightstyle (QUAKE)
+PF_rint,				// #36 float(float f) rint (QUAKE)
+PF_floor,				// #37 float(float f) floor (QUAKE)
+PF_ceil,				// #38 float(float f) ceil (QUAKE)
+PF_Fixme,				// #39
 //40
-PF_Fixme, //PF_checkbottom,
-PF_CSQC_pointcontents, //PF_pointcontents,
-PF_Fixme,
-PF_fabs,
-PF_Fixme, //PF_aim,	hehehe... (don't support)
-PF_cvar,
-PF_localcmd,
-PF_nextent,
-PF_Fixme, //PF_particle,
-PF_Fixme, //PF_changeyaw,
+PF_cs_checkbottom,		// #40 float(entity e) checkbottom (QUAKE)
+PF_cs_pointcontents,	// #41 float(vector org) pointcontents (QUAKE)
+PF_Fixme,				// #42
+PF_fabs,				// #43 float(float f) fabs (QUAKE)
+PF_Fixme,				// #44 vector(entity e, float speed) aim (QUAKE) (don't support)
+PF_cvar,				// #45 float(string cvarname) cvar (QUAKE)
+PF_localcmd,			// #46 void(string str) localcmd (QUAKE)
+PF_nextent,				// #47 entity(entity e) nextent (QUAKE)
+PF_cs_particle,			// #48 void(vector org, vector dir, float colour, float count) particle (QUAKE)
+PF_cs_changeyaw,		// #49 void() changeyaw (QUAKE)
 //50
-PF_Fixme,
-PF_vectoangles,
+PF_Fixme,				// #50
+PF_vectoangles,			// #51 vector(vector v) vectoangles (QUAKE)
+PF_Fixme,				// #52 void(float to, float f) WriteByte (QUAKE)
+PF_Fixme,				// #53 void(float to, float f) WriteChar (QUAKE)
+PF_Fixme,				// #54 void(float to, float f) WriteShort (QUAKE)
 
-PF_ReadByte,
-PF_ReadChar,
-PF_ReadShort,
-PF_ReadLong,
-PF_ReadCoord,
-PF_ReadAngle,
-PF_ReadString,
-PF_Fixme,//PF_ReadEntity,
+PF_Fixme,				// #55 void(float to, float f) WriteLong (QUAKE)
+PF_Fixme,				// #56 void(float to, float f) WriteCoord (QUAKE)
+PF_Fixme,				// #57 void(float to, float f) WriteAngle (QUAKE)
+PF_Fixme,				// #58 void(float to, float f) WriteString (QUAKE)
+PF_Fixme,				// #59 void(float to, float f) WriteEntity (QUAKE)
 
 //60
-PF_Fixme,
+PF_Sin,					// #60 float(float angle) sin (DP_QC_SINCOSSQRTPOW)
+PF_Cos,					// #61 float(float angle) cos (DP_QC_SINCOSSQRTPOW)
+PF_Sqrt,				// #62 float(float value) sqrt (DP_QC_SINCOSSQRTPOW)
+PF_cs_changepitch,		// #63 void(entity ent) changepitch (DP_QC_CHANGEPITCH)
+PF_cs_tracetoss,		// #64 void(entity ent, entity ignore) tracetoss (DP_QC_TRACETOSS)
 
-PF_Sin,
-PF_Cos,
-PF_Sqrt,
-
-PF_Fixme,
-
-PF_Fixme,
-PF_Fixme,
-SV_MoveToGoal,
-PF_Fixme, //PF_precache_file, (don't support)
-PF_Fixme, //PF_makestatic,
+PF_etos,				// #65 string(entity ent) etos (DP_QC_ETOS)
+PF_Fixme,				// #66
+PF_Fixme,				// #67 void(float step) movetogoal (QUAKE)
+PF_Fixme,				// #68 void(string s) precache_file (QUAKE) (don't support)
+PF_cs_makestatic,		// #69 void(entity e) makestatic (QUAKE)
 //70
-PF_Fixme, //PF_changelevel, (don't support)
-PF_Fixme,
-PF_cvar_set,
-PF_Fixme, //PF_centerprint,
-PF_Fixme, //PF_ambientsound,
+PF_Fixme,				// #70 void(string mapname) changelevel (QUAKE) (don't support)
+PF_Fixme,				// #71
+PF_cvar_set,			// #72 void(string cvarname, string valuetoset) cvar_set (QUAKE)
+PF_Fixme,				// #73 void(entity ent, string text) centerprint (QUAKE) (don't support - cprint is supported instead)
+PF_cl_ambientsound,		// #74 void (vector pos, string samp, float vol, float atten) ambientsound (QUAKE)
 
-PF_CSQC_PrecacheModel, //PF_precache_model,
-PF_Fixme, //PF_precache_sound,
-PF_Fixme, //PF_precache_file,
-PF_Fixme, //PF_setspawnparms,
-PF_Fixme, //PF_logfrag, (don't support)
+PF_cs_PrecacheModel,	// #75 void(string str) precache_model2 (QUAKE)
+PF_cs_PrecacheSound,	// #76 void(string str) precache_sound2 (QUAKE)
+PF_Fixme,				// #77 void(string str) precache_file2 (QUAKE)
+PF_Fixme,				// #78 void() setspawnparms (QUAKE) (don't support)
+PF_Fixme,				// #79 void(entity killer, entity killee) logfrag (QW_ENGINE) (don't support)
 //80
-PF_Fixme, //PF_infokey,
-PF_stof,
-PF_Fixme, //PF_multicast, (don't support)
+PF_Fixme,				// #80 string(entity e, string keyname) infokey (QW_ENGINE) (don't support)
+PF_stof,				// #81 float(string s) stof (FRIK_FILE or QW_ENGINE)
+PF_Fixme,				// #82 void(vector where, float set) multicast (QW_ENGINE) (don't support)
 PF_Fixme,
 PF_Fixme,
 
@@ -1388,19 +1743,19 @@ PF_Fixme,
 PF_Fixme,
 PF_Fixme,
 //90
+PF_cs_tracebox,
 PF_Fixme,
 PF_Fixme,
-PF_Fixme,
-PF_registercvar,
-PF_Fixme,
+PF_registercvar,		// #93 void(string cvarname, string defaultvalue) registercvar (DP_QC_REGISTERCVAR)
+PF_min,					// #94 float(float a, floats) min (DP_QC_MINMAXBOUND)
 
-PF_Fixme,
-PF_Fixme,
-PF_Fixme,
-PF_Fixme,
-PF_Fixme,
+PF_max,					// #95 float(float a, floats) max (DP_QC_MINMAXBOUND)
+PF_bound,				// #96 float(float minimum, float val, float maximum) bound (DP_QC_MINMAXBOUND)
+PF_pow,					// #97 float(float value) pow (DP_QC_SINCOSSQRTPOW)
+PF_Fixme,				// #98
+PF_checkextension,		// #99 float(string extname) checkextension (EXT_CSQC)
 //100
-PF_checkextension,
+PF_Fixme,
 PF_Fixme,
 PF_Fixme,
 PF_Fixme,
@@ -1412,17 +1767,17 @@ PF_Fixme,
 PF_Fixme,
 PF_Fixme,
 //110
-PF_fopen,
-PF_fclose,
-PF_fgets,
-PF_fputs,
-PF_strlen,
+PF_fopen,				// #110 float(string strname, float accessmode) fopen (FRIK_FILE)
+PF_fclose,				// #111 void(float fnum) fclose (FRIK_FILE)
+PF_fgets,				// #112 string(float fnum) fgets (FRIK_FILE)
+PF_fputs,				// #113 void(float fnum, string str) fputs (FRIK_FILE)
+PF_strlen,				// #114 float(string str) strlen (FRIK_FILE)
 
-PF_strcat,
-PF_substring,
-PF_stov,
-PF_dupstring,
-PF_forgetstring,
+PF_strcat,				// #115 string(string str1, string str2, ...) strcat (FRIK_FILE)
+PF_substring,			// #116 string(string str, float start, float length) substring (FRIK_FILE)
+PF_stov,				// #117 vector(string str) stov (FRIK_FILE)
+PF_dupstring,			// #118 string(string str) dupstring (FRIK_FILE)
+PF_forgetstring,		// #119 void(string str) freestring (FRIK_FILE)
 
 
 //120
@@ -1439,58 +1794,69 @@ PF_Fixme,
 PF_Fixme,
 
 //130
-PF_R_ClearScene,
-PF_R_AddEntityMask,
-PF_R_AddEntity,
-PF_R_SetViewFlag,
-PF_R_RenderScene,
+PF_R_ClearScene,			// #??? 
+PF_R_AddEntityMask,			// #??? 
+PF_R_AddEntity,				// #??? 
+PF_R_SetViewFlag,			// #??? 
+PF_R_RenderScene,			// #??? 
 
-PF_R_AddDynamicLight,
+PF_R_AddDynamicLight,		// #??? 
 PF_Fixme,
 PF_Fixme,
 PF_Fixme,
 PF_Fixme,
 
 //140
-PF_CL_is_cached_pic,//0
-PF_CL_precache_pic,//1
-PF_CL_free_pic,//2
-PF_CL_drawcharacter,//3
-PF_CL_drawstring,//4
-PF_CL_drawpic,//5
-PF_CL_drawfill,//6
-PF_CL_drawsetcliparea,//7
-PF_CL_drawresetcliparea,//8
-PF_CL_drawgetimagesize,//9
+PF_CL_is_cached_pic,		// #??? 
+PF_CL_precache_pic,			// #??? 
+PF_CL_free_pic,				// #??? 
+PF_CL_drawcharacter,		// #??? 
+PF_CL_drawstring,			// #??? 
+PF_CL_drawpic,				// #??? 
+PF_CL_drawfill,				// #??? 
+PF_CL_drawsetcliparea,		// #??? 
+PF_CL_drawresetcliparea,	// #??? 
+PF_CL_drawgetimagesize,		// #??? 
 
 //150
-PF_cs_getstatf,
-PF_cs_getstati,
-PF_cs_getstats,
-PF_CSQC_SetModelIndex,
-PF_CSQC_ModelnameForIndex,
+PF_cs_getstatf,				// #??? 
+PF_cs_getstati,				// #??? 
+PF_cs_getstats,				// #??? 
+PF_cs_SetModelIndex,		// #??? 
+PF_cs_ModelnameForIndex,	// #??? 
 
-PF_cs_setsensativityscaler,
-PF_csqc_centerprint,
-PF_print,
-PF_cs_pointparticles,
-PF_cs_particlesloaded,
+PF_cs_setsensativityscaler, // #??? 
+PF_cl_cprint,				// #??? centerprint
+PF_print,					// #??? console print
+PF_cs_pointparticles,		// #??? 
+PF_cs_particlesloaded,		// #??? 
 
 //160
-PF_cs_getinputstate,
-PF_cs_runplayerphysics,
-PF_cs_getplayerkey,
-PF_cs_setwantskeys,
-PF_cs_getmousepos,
+PF_cs_getinputstate,		// #??? 
+PF_cs_runplayerphysics,		// #??? 
+PF_cs_getplayerkey,			// #??? 
+PF_cs_setwantskeys,			// #??? 
+PF_cs_getmousepos,			// #??? 
 
-PF_Fixme,
-PF_Fixme,
+PF_cl_playingdemo,			// #??? float() isdemo
+PF_cl_runningserver,		// #??? float() isserver
 PF_Fixme,
 PF_Fixme,
 PF_Fixme,
 
 //170
-PF_FixTen,
+//note that 'ReadEntity' is pretty hard to implement reliably. Modders should use a combination of ReadShort, and findfloat, and remember that it might not be known clientside (pvs culled or other reason)
+PF_ReadByte,				// #??? 
+PF_ReadChar,				// #??? 
+PF_ReadShort,				// #??? 
+PF_ReadLong,				// #??? 
+PF_ReadCoord,				// #??? 
+
+PF_ReadAngle,				// #??? 
+PF_ReadString,				// #??? 
+PF_Fixme,
+PF_Fixme,
+PF_Fixme,
 
 //180
 PF_FixTen,
@@ -1505,17 +1871,17 @@ PF_FixTen,
 PF_FixTen,
 
 //220
-PF_Fixme,
-PF_strstrofs,
-PF_str2chr,
-PF_chr2str,
-PF_strconv,
+PF_Fixme,		// #220
+PF_strstrofs,	// #221 float(string s1, string sub) strstrofs (FTE_STRINGS)
+PF_str2chr,		// #222 float(string str, float index) str2chr (FTE_STRINGS)
+PF_chr2str,		// #223 string(float chr, ...) chr2str (FTE_STRINGS)
+PF_strconv,		// #224 string(float ccase, float redalpha, float redchars, string str, ...) strconv (FTE_STRINGS)
 
-PF_infoadd,
-PF_infoget,
-PF_strncmp,
-PF_strcasecmp,
-PF_strncasecmp,
+PF_infoadd,		// #225 string(string old, string key, string value) infoadd
+PF_infoget,		// #226 string(string info, string key) infoget
+PF_strncmp,		// #227 float(string s1, string s2, float len) strncmp (FTE_STRINGS)
+PF_strcasecmp,	// #228 float(string s1, string s2) strcasecmp (FTE_STRINGS)
+PF_strncasecmp,	// #229 float(string s1, string s2, float len) strncasecmp (FTE_STRINGS)
 
 //230
 PF_FixTen,
@@ -1569,29 +1935,80 @@ PF_FixTen,
 PF_FixTen,
 
 //400
+PF_cs_copyentity,		// #400 void(entity from, entity to) copyentity (DP_QC_COPYENTITY)
+PF_Fixme,				// #401 void(entity cl, float colours) setcolors (DP_SV_SETCOLOR) (don't implement)
+PF_findchain,			// #402 entity(string field, string match) findchain (DP_QC_FINDCHAIN)
+PF_findchainfloat,		// #403 entity(float fld, float match) findchainfloat (DP_QC_FINDCHAINFLOAT)
+PF_cl_effect,			// #404 void(vector org, string modelname, float startframe, float endframe, float framerate) effect (DP_SV_EFFECT)
+
+PF_cl_te_blood,			// #405 te_blood (DP_TE_BLOOD)
+PF_cl_te_bloodshower,	// #406 void(vector mincorner, vector maxcorner, float explosionspeed, float howmany) te_bloodshower (DP_TE_BLOODSHOWER)
+PF_Fixme,				// #407
+PF_cl_te_particlecube,	// #408 void(vector mincorner, vector maxcorner, vector vel, float howmany, float color, float gravityflag, float randomveljitter) te_particlecube (DP_TE_PARTICLECUBE)
+PF_Fixme,				// #409
+
+PF_Fixme,				// #410
+PF_cl_te_spark,			// #411 void(vector org, vector vel, float howmany) te_spark (DP_TE_SPARK)
+PF_Fixme,				// #412
+PF_Fixme,				// #413
+PF_Fixme,				// #414
+
+PF_Fixme,				// #415
+PF_cl_te_smallflash,	// #416 void(vector org) te_smallflash (DP_TE_SMALLFLASH)
+PF_cl_te_customflash,	// #417 void(vector org, float radius, float lifetime, vector color) te_customflash (DP_TE_CUSTOMFLASH)
+PF_cl_te_gunshot,		// #418 te_gunshot (DP_TE_STANDARDEFFECTBUILTINS)
+PF_cl_te_spike,			// #419 te_spike (DP_TE_STANDARDEFFECTBUILTINS)
+
+PF_cl_te_superspike,	// #420 te_superspike (DP_TE_STANDARDEFFECTBUILTINS)
+PF_cl_te_explosion,		// #421 te_explosion (DP_TE_STANDARDEFFECTBUILTINS)
+PF_cl_te_tarexplosion,	// #422 te_tarexplosion (DP_TE_STANDARDEFFECTBUILTINS)
+PF_cl_te_wizspike,		// #423 te_wizspike (DP_TE_STANDARDEFFECTBUILTINS)
+PF_cl_te_knightspike,	// #424 te_knightspike (DP_TE_STANDARDEFFECTBUILTINS)
+
+PF_cl_te_lavasplash,	// #425 te_lavasplash (DP_TE_STANDARDEFFECTBUILTINS)
+PF_cl_te_teleport,		// #426 te_teleport (DP_TE_STANDARDEFFECTBUILTINS)
+PF_cl_te_explosion2,	// #427 te_explosion2 (DP_TE_STANDARDEFFECTBUILTINS)
+PF_cl_te_lightning1,	// #428 te_lightning1 (DP_TE_STANDARDEFFECTBUILTINS)
+PF_cl_te_lightning2,	// #429 te_lightning2 (DP_TE_STANDARDEFFECTBUILTINS)
+
+PF_cl_te_lightning3,	// #430 te_lightning3 (DP_TE_STANDARDEFFECTBUILTINS)
+PF_cl_te_beam,			// #431 te_beam (DP_TE_STANDARDEFFECTBUILTINS)
+PF_cs_vectorvectors,	// #432 void(vector dir) vectorvectors (DP_QC_VECTORVECTORS)
+PF_cl_te_plasmaburn,	// #433 void(vector org) te_plasmaburn (DP_TE_PLASMABURN)
+PF_Fixme,				// #434
+
+PF_Fixme,				// #435
+PF_Fixme,				// #436
+PF_Fixme,				// #437
+PF_Fixme,				// #438
+PF_Fixme,				// #439
+
+PF_Fixme,				// #440 void(entity e, string s) clientcommand (KRIMZON_SV_PARSECLIENTCOMMAND) (don't implement)
+PF_Tokenize,			// #441 float(string s) tokenize (KRIMZON_SV_PARSECLIENTCOMMAND)
+PF_ArgV,				// #442 string(float n) argv (KRIMZON_SV_PARSECLIENTCOMMAND)
+PS_cs_setattachment,	// #443 void(entity e, entity tagentity, string tagname) setattachment (DP_GFX_QUAKE3MODELTAGS)
+PF_search_begin,		// #444 float	search_begin(string pattern, float caseinsensitive, float quiet) (DP_QC_FS_SEARCH)
+
+PF_search_end,			// #445 void	search_end(float handle) (DP_QC_FS_SEARCH)
+PF_search_getsize,		// #446 float	search_getsize(float handle) (DP_QC_FS_SEARCH)
+PF_search_getfilename,	// #447 string	search_getfilename(float handle, float num) (DP_QC_FS_SEARCH)
+PF_cvar_string,			// #448 string(float n) cvar_string (DP_QC_CVAR_STRING)
+PF_FindFlags,			// #449 entity(entity start, .entity fld, float match) findflags (DP_QC_FINDFLAGS)
+
+PF_findchainflags,		// #450 entity(.float fld, float match) findchainflags (DP_QC_FINDCHAINFLAGS)
+PF_Fixme,				// #451
+PF_Fixme,				// #452
+PF_Fixme,				// #453 void(entity player) dropclient (DP_QC_BOTCLIENT) (don't implement)
+PF_Fixme,				// #454	entity() spawnclient (DP_QC_BOTCLIENT) (don't implement)
+
+PF_Fixme,				// #455 float(entity client) clienttype (DP_QC_BOTCLIENT) (don't implement)
+PF_Fixme,				// #456
+PF_Fixme,				// #457
+PF_Fixme,				// #458
+PF_Fixme,				// #459
+
+//460
 PF_FixTen,
-
-//410
-PF_FixTen,
-
-//420
-PF_FixTen,
-
-//430
-PF_FixTen,
-
-//440
-PF_Fixme,
-PF_Tokenize,
-PF_ArgV,
-PF_Fixme,
-PF_Fixme,
-
-PF_Fixme,
-PF_Fixme,
-PF_Fixme,
-PF_Fixme,
-PF_Fixme,
 };
 static int csqc_numbuiltins = sizeof(csqc_builtins)/sizeof(csqc_builtins[0]);
 
@@ -1636,6 +2053,7 @@ void VARGS CSQC_Abort (char *format, ...)	//an error occured.
 
 void CSQC_Shutdown(void)
 {
+	search_close_progs(csqcprogs, false);
 	if (csqcprogs)
 	{
 		CloseProgs(csqcprogs);

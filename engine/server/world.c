@@ -1429,7 +1429,7 @@ void SV_ClipMoveToEntities ( moveclip_t *clip )
 	int			headnode;
 	float		*angles;
 
-	int passed = EDICT_TO_PROG(svprogfuncs, clip->passedict);
+	int passed = clip->passedict?EDICT_TO_PROG(svprogfuncs, clip->passedict):NULL;
 
 	num = SV_AreaEdicts (clip->boxmins, clip->boxmaxs, touchlist
 		, MAX_EDICTS, AREA_SOLID);
@@ -1600,12 +1600,18 @@ void SV_ClipToLinks ( areanode_t *node, moveclip_t *clip )
 		if (clip->type & MOVE_NOMONSTERS && touch->v->solid != SOLID_BSP)
 			continue;
 
-		// don't clip corpse against character
-		if (clip->passedict->v->solid == SOLID_CORPSE && (touch->v->solid == SOLID_SLIDEBOX || touch->v->solid == SOLID_CORPSE))
-			continue;
-		// don't clip character against corpse
-		if (clip->passedict->v->solid == SOLID_SLIDEBOX && touch->v->solid == SOLID_CORPSE)
-			continue;
+		if (clip->passedict)
+		{
+			// don't clip corpse against character
+			if (clip->passedict->v->solid == SOLID_CORPSE && (touch->v->solid == SOLID_SLIDEBOX || touch->v->solid == SOLID_CORPSE))
+				continue;
+			// don't clip character against corpse
+			if (clip->passedict->v->solid == SOLID_SLIDEBOX && touch->v->solid == SOLID_CORPSE)
+				continue;
+
+			if (!((int)clip->passedict->v->dimension_hit & (int)touch->v->dimension_solid))
+				continue;
+		}
 
 		if (clip->boxmins[0] > touch->v->absmax[0]
 		|| clip->boxmins[1] > touch->v->absmax[1]
@@ -1617,9 +1623,6 @@ void SV_ClipToLinks ( areanode_t *node, moveclip_t *clip )
 
 		if (clip->passedict && clip->passedict->v->size[0] && !touch->v->size[0])
 			continue;	// points never interact
-
-		if (!((int)clip->passedict->v->dimension_hit & (int)touch->v->dimension_solid))
-			continue;
 
 	// might intersect, so do an exact clip
 		if (clip->trace.allsolid)
@@ -1778,7 +1781,7 @@ trace_t SV_Move (vec3_t start, vec3_t mins, vec3_t maxs, vec3_t end, int type, e
 
 	memset ( &clip, 0, sizeof ( moveclip_t ) );
 
-	if (passedict->v->hull)
+	if (passedict && passedict->v->hull)
 		hullnum = passedict->v->hull;
 	else if (sv_compatablehulls.value)
 		hullnum = 0;

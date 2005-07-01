@@ -421,7 +421,7 @@ void NPP_NQWriteByte(int dest, qbyte data)	//replacement write func (nq to qw)
 				multicasttype=MULTICAST_PVS;
 				break;
 
-			case 76:
+			case DPTE_TEI_G3:
 				protocollen = sizeofcoord*9+sizeof(qbyte)*2;
 				multicastpos = 2;
 				multicasttype=MULTICAST_PHS;
@@ -433,7 +433,7 @@ void NPP_NQWriteByte(int dest, qbyte data)	//replacement write func (nq to qw)
 				multicasttype=MULTICAST_PHS;
 				break;
 
-			case 79:
+			case DPTE_TEI_PLASMAHIT:
 				protocollen = sizeofcoord*6+sizeof(qbyte)*3;
 				multicastpos = 2;
 				multicasttype=MULTICAST_PHS;

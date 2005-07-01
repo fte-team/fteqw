@@ -881,9 +881,9 @@ void R_DeformVertices ( meshbuffer_t *mb )
 					VectorNormalizeFast ( m0[2] );
 					VectorVectors ( m0[2], m0[1], m0[0] );
 
-					VectorCopy ( (&r_world_matrix[0]), m1[0] );
-					VectorCopy ( (&r_world_matrix[4]), m1[1] );
-					VectorCopy ( (&r_world_matrix[8]), m1[2] );
+					VectorCopy ( (&r_view_matrix[0]), m1[0] );
+					VectorCopy ( (&r_view_matrix[4]), m1[1] );
+					VectorCopy ( (&r_view_matrix[8]), m1[2] );
 
 					Matrix3_Multiply ( m1, m0, result );
 

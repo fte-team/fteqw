@@ -323,15 +323,15 @@ void CL_ParseDelta (entity_state_t *from, entity_state_t *to, int bits, qboolean
 
 #ifdef PEXT_SCALE
 	if (morebits & U_SCALE && cls.fteprotocolextensions & PEXT_SCALE)
-		to->scale = (float)MSG_ReadByte() / 100.0;
+		to->scale = MSG_ReadByte();
 #endif
 #ifdef PEXT_TRANS
 	if (morebits & U_TRANS && cls.fteprotocolextensions & PEXT_TRANS)
-		to->trans = (float)MSG_ReadByte() / 255;
+		to->trans = MSG_ReadByte();
 #endif
 #ifdef PEXT_FATNESS
 	if (morebits & U_FATNESS && cls.fteprotocolextensions & PEXT_FATNESS)
-		to->trans = (float)MSG_ReadChar() / 2;
+		to->fatness = MSG_ReadChar();
 #endif
 
 	if (morebits & U_DRAWFLAGS && cls.fteprotocolextensions & PEXT_HEXEN2)
@@ -367,16 +367,25 @@ void CL_ParseDelta (entity_state_t *from, entity_state_t *to, int bits, qboolean
 		if (i & RENDER_EXTERIORMODEL)
 			to->flags |= Q2RF_EXTERNALMODEL;
 	}
+	if (morebits & U_TAGINFO)
+	{
+		to->tagentity = MSG_ReadShort();
+		to->tagindex = MSG_ReadShort();
+	}
 
 	VectorSubtract(to->origin, from->origin, move);
 
 #ifdef HALFLIFEMODELS
 	if (to->frame != from->frame)
+	{
+		cl.lerpents[to->number].oldframechange = cl.lerpents[to->number].framechange;	//marked for hl models
 		cl.lerpents[to->number].framechange = cl.time;	//marked for hl models
+	}
 #endif
 	if (to->modelindex != from->modelindex || to->number != from->number || VectorLength(move)>500)	//model changed... or entity changed...
 	{
 #ifdef HALFLIFEMODELS
+		cl.lerpents[to->number].oldframechange = cl.lerpents[to->number].framechange;	//marked for hl models
 		cl.lerpents[to->number].framechange = cl.time;	//marked for hl models
 #endif
 		cl.lerpents[to->number].lerptime = -10;
@@ -846,15 +855,15 @@ void DP5_ParseDelta(entity_state_t *s)
 			s->effects = MSG_ReadByte();
 	}
 	if (bits & E5_ALPHA)
-		s->trans = MSG_ReadByte()/255.0f;
+		s->trans = MSG_ReadByte();
 	if (bits & E5_SCALE)
-		s->scale = MSG_ReadByte()/255.0f;
+		s->scale = MSG_ReadByte();
 	if (bits & E5_COLORMAP)
 		s->colormap = MSG_ReadByte();
 	if (bits & E5_ATTACHMENT)
 	{
-		cl.lerpents[s->number].tagent = MSG_ReadShort();
-		cl.lerpents[s->number].tagindex = MSG_ReadByte();
+		s->tagentity = MSG_ReadShort();
+		s->tagindex = MSG_ReadByte();
 	}
 	if (bits & E5_LIGHT)
 	{
@@ -1260,16 +1269,14 @@ void CL_RotateAroundTag(entity_t *ent, int num, int tagent, int tagnum)
 	int frame2 = cl.lerpents[tagent].frame;
 	float frame2ness;
 
-//	ent->keynum = tagent;
-
-	if (cl.lerpents[tagent].tagent)
-		CL_RotateAroundTag(ent, num, cl.lerpents[tagent].tagent, cl.lerpents[tagent].tagindex);
-
 	ent->keynum = tagent;
 
 	ps = CL_FindPacketEntity(tagent);
 	if (ps)
 	{
+		if (ps->tagentity)
+			CL_RotateAroundTag(ent, num, ps->tagentity, ps->tagindex);
+
 		org = ps->origin;
 		ang = ps->angles;
 		model = ps->modelindex;
@@ -1302,7 +1309,7 @@ void CL_RotateAroundTag(entity_t *ent, int num, int tagent, int tagnum)
 		VectorInverse(axis[1]);
 
 		frame2ness = CL_EntLerpFactor(tagent);
-		if (Mod_GetTag && Mod_GetTag(cl.model_precache[model], tagnum, frame, frame2, frame2ness, cl.time - cl.lerpents[tagent].framechange, cl.time - cl.lerpents[tagent].framechange, transform))
+		if (Mod_GetTag && Mod_GetTag(cl.model_precache[model], tagnum, frame, frame2, frame2ness, cl.time - cl.lerpents[tagent].framechange, cl.time - cl.lerpents[tagent].oldframechange, transform))
 		{
 			old[0] = ent->axis[0][0];
 			old[1] = ent->axis[1][0];
@@ -1345,17 +1352,6 @@ void CL_RotateAroundTag(entity_t *ent, int num, int tagent, int tagnum)
 			ent->axis[1][2] = result[9];
 			ent->axis[2][2] = result[10];
 			ent->origin[2] = result[11];
-/*
-			VectorAdd(org, ent->origin, destorg);
-			VectorMA(destorg, tagorg[0], ent->axis[0], destorg);
-			VectorMA(destorg, tagorg[1], ent->axis[1], destorg);
-			VectorMA(destorg, tagorg[2], ent->axis[2], destorg);
-			VectorCopy(destorg, ent->origin);
-
-//			Con_Printf("Found tag %i\n", cl.lerpents[tagent].tagindex);
-			Matrix3_Multiply(axis, ent->axis, temp);	//the ent->axis here is the result of the parent's transforms
-			Matrix3_Multiply((void*)tagaxis, temp, ent->axis);
-*/
 		}
 		else	//hrm.
 		{
@@ -1363,8 +1359,6 @@ void CL_RotateAroundTag(entity_t *ent, int num, int tagent, int tagnum)
 			VectorCopy(org, ent->origin);
 		}
 	}
-//	if (org)
-//		VectorAdd(ent->origin, org, ent->origin);
 }
 
 void V_AddEntity(entity_t *in)
@@ -1515,7 +1509,7 @@ void CL_LinkPacketEntities (void)
 
 		ent->keynum = s1->number;
 
-		if (cl_r2g.value && s1->modelindex == cl_rocketindex && cl_rocketindex)
+		if (cl_r2g.value && s1->modelindex == cl_rocketindex && cl_rocketindex && cl_grenadeindex)
 			ent->model = cl.model_precache[cl_grenadeindex];
 		else
 			ent->model = model;
@@ -1547,24 +1541,22 @@ void CL_LinkPacketEntities (void)
 		ent->frame = s1->frame;
 		ent->oldframe = cl.lerpents[s1->number].frame;
 
+		ent->frame1time = cl.time - cl.lerpents[s1->number].framechange;
+		ent->frame2time = cl.time - cl.lerpents[s1->number].oldframechange;
 
 //		f = (sin(realtime)+1)/2;
 
 #ifdef PEXT_SCALE
 		//set scale
-		ent->scale = s1->scale;
-		if (!ent->scale)
-			ent->scale=1;
+		ent->scale = s1->scale/16.0;
 #endif
 #ifdef PEXT_TRANS
 		//set trans
-		ent->alpha = s1->trans;
-		if (!ent->alpha)
-			ent->alpha=1;
+		ent->alpha = s1->trans/255.0;
 #endif
 #ifdef PEXT_FATNESS
 		//set trans
-		ent->fatness = s1->fatness;
+		ent->fatness = s1->fatness/2.0;
 #endif
 
 		// rotate binary objects locally
@@ -1598,17 +1590,17 @@ void CL_LinkPacketEntities (void)
 		AngleVectors(angles, ent->axis[0], ent->axis[1], ent->axis[2]);
 		VectorInverse(ent->axis[1]);
 
-		if (cl.lerpents[s1->number].tagent)
-		{	//ent is attached to a tag, rotate this ent accordingly.
-			CL_RotateAroundTag(ent, s1->number, cl.lerpents[s1->number].tagent, cl.lerpents[s1->number].tagindex);
-		}
-
 		if (ent->keynum <= MAX_CLIENTS
 #ifdef NQPROT
-			&& cls.protocol != CP_NETQUAKE
+			&& cls.protocol == CP_QUAKEWORLD
 #endif
 			)
 			ent->keynum += MAX_EDICTS;
+
+		if (s1->tagentity)
+		{	//ent is attached to a tag, rotate this ent accordingly.
+			CL_RotateAroundTag(ent, s1->number, s1->tagentity, s1->tagindex);
+		}
 
 		// add automatic particle trails
 		if (!model || (!(model->flags&~EF_ROTATE) && model->particletrail<0))
@@ -1933,8 +1925,8 @@ void CL_ParsePlayerinfo (void)
 			state->weaponframe = MSG_ReadByte ();
 
 		state->hullnum = 1;
-		state->scale = 1;
-		state->trans = 1;
+		state->scale = 1*16;
+		state->trans = 255;
 		state->fatness = 0;
 
 		state->pm_type = PM_NORMAL;
@@ -2039,34 +2031,34 @@ void CL_ParsePlayerinfo (void)
 		state->hullnum = 1;
 	else
 		state->hullnum = 56;
-	state->scale = 1;
-	state->trans = 1;
+	state->scale = 1*16;
+	state->trans = 255;
 	state->fatness = 0;
+
+#ifdef PEXT_SCALE
+	if (flags & PF_SCALE_Z && cls.fteprotocolextensions & PEXT_SCALE)
+		state->scale = (float)MSG_ReadByte() / 100;
+#endif
+#ifdef PEXT_TRANS
+	if (flags & PF_TRANS_Z && cls.fteprotocolextensions & PEXT_TRANS)
+		state->trans = (float)MSG_ReadByte() / 255;
+#endif
+#ifdef PEXT_FATNESS
+	if (flags & PF_FATNESS_Z && cls.fteprotocolextensions & PEXT_FATNESS)
+		state->fatness = (float)MSG_ReadChar() / 2;
+#endif
+#ifdef PEXT_HULLSIZE
+	if (cls.fteprotocolextensions & PEXT_HULLSIZE)
+	{
+		if (flags & PF_HULLSIZE_Z)
+			state->hullnum = MSG_ReadByte();
+	}
+	//should be passed to player move func.
+#endif
 
 	if (cls.z_ext & Z_EXT_PM_TYPE)
 	{
 		int pm_code;
-
-#ifdef PEXT_SCALE
-		if (flags & PF_SCALE_Z && cls.fteprotocolextensions & PEXT_SCALE)
-			state->scale = (float)MSG_ReadByte() / 100;
-#endif
-#ifdef PEXT_TRANS
-		if (flags & PF_TRANS_Z && cls.fteprotocolextensions & PEXT_TRANS)
-			state->trans = (float)MSG_ReadByte() / 255;
-#endif
-#ifdef PEXT_FATNESS
-		if (flags & PF_FATNESS_Z && cls.fteprotocolextensions & PEXT_FATNESS)
-			state->fatness = (float)MSG_ReadChar() / 2;
-#endif
-#ifdef PEXT_HULLSIZE
-		if (cls.fteprotocolextensions & PEXT_HULLSIZE)
-		{
-			if (flags & PF_HULLSIZE_Z)
-				state->hullnum = MSG_ReadByte();
-		}
-	//should be passed to player move func.
-#endif
 
 		pm_code = (flags&PF_PMC_MASK) >> PF_PMC_SHIFT;
 		if (pm_code == PMC_NORMAL || pm_code == PMC_NORMAL_JUMP_HELD)
@@ -2107,24 +2099,6 @@ void CL_ParsePlayerinfo (void)
 	}
 	else
 	{
-#ifdef PEXT_SCALE
-		if (flags & PF_SCALE_NOZ && cls.fteprotocolextensions & PEXT_SCALE)
-			state->scale = (float)MSG_ReadByte() / 100;
-#endif
-#ifdef PEXT_TRANS
-		if (flags & PF_TRANS_NOZ && cls.fteprotocolextensions & PEXT_TRANS)
-			state->trans = (float)MSG_ReadByte() / 255;
-#endif
-#ifdef PEXT_FATNESS
-		if (flags & PF_FATNESS_NOZ && cls.fteprotocolextensions & PEXT_FATNESS)
-			state->fatness = (float)MSG_ReadChar() / 2;
-#endif
-#ifdef PEXT_HULLSIZE
-		if (flags & PF_HULLSIZE_NOZ && cls.fteprotocolextensions & PEXT_HULLSIZE)
-			state->hullnum = MSG_ReadByte();
-		//should be passed to player move func.
-#endif
-
 guess_pm_type:
 		if (cl.players[num].spectator)
 			state->pm_type = PM_OLD_SPECTATOR;
@@ -2228,15 +2202,6 @@ void CL_AddVWeapModel(entity_t *player, int model)
 	VectorInverse(newent->axis[1]);
 }
 
-void CL_ParseAttachment(void)
-{
-	int e = (unsigned short)MSG_ReadShort();
-	int o = (unsigned short)MSG_ReadShort();
-	int i = (unsigned short)MSG_ReadShort();
-	cl.lerpents[e].tagent = o;
-	cl.lerpents[e].tagindex = i;
-}
-
 /*
 =============
 CL_LinkPlayers
@@ -2306,6 +2271,9 @@ void CL_LinkPlayers (void)
 		ent->model = cl.model_precache[state->modelindex];
 		ent->skinnum = state->skinnum;
 
+		ent->frame1time = cl.time - cl.lerpents[j].framechange;
+		ent->frame2time = cl.time - cl.lerpents[j].oldframechange;
+
 		ent->frame = state->frame;
 		ent->oldframe = state->oldframe;
 		if (state->lerpstarttime)
@@ -2326,16 +2294,12 @@ void CL_LinkPlayers (void)
 			ent->scoreboard = NULL;
 
 #ifdef PEXT_SCALE
-		ent->scale = state->scale;
-		if (!ent->scale)
-			ent->scale = 1;
+		ent->scale = state->scale/16.0f;
 #endif
 #ifdef PEXT_TRANS
-		ent->alpha = state->trans;
-		if (!ent->alpha)
-			ent->alpha = 1;
+		ent->alpha = state->trans/255.0f;
 #endif
-
+		ent->fatness = state->fatness/2;
 		//
 		// angles
 		//

@@ -399,7 +399,7 @@ void CL_SendConnectPacket (
 	Info_SetValueForStarKey (playerinfo2, "name", "Second player", MAX_INFO_STRING);
 
 	clients = 1;
-	if (cl_splitscreen.value)
+	if (cl_splitscreen.value && (fteprotextsupported & PEXT_SPLITSCREEN))
 	{
 //		if (adr.type == NA_LOOPBACK)
 			clients = cl_splitscreen.value+1;
@@ -827,6 +827,14 @@ void CL_ClearState (void)
 
 	memset (cl_baselines, 0, sizeof(cl_baselines));
 
+	for (i = 0; i < MAX_EDICTS; i++)
+	{
+		cl_baselines[i].scale = 1*16;
+		cl_baselines[i].trans = 255;
+	}
+
+
+
 //
 // allocate the efrags and chain together into a free list
 //
@@ -980,12 +988,12 @@ void CL_Disconnect (void)
 
 void CL_Disconnect_f (void)
 {
-	CL_Disconnect ();
-
 #ifndef CLIENTONLY
 	if (sv.state)
 		SV_UnspawnServer();
 #endif
+
+	CL_Disconnect ();
 
 	Alias_WipeStuffedAliaes();
 }
@@ -2944,6 +2952,8 @@ void Host_Init (quakeparms_t *parms)
 	R_SetRenderer(-1);//set the renderer stuff to unset...
 
 	host_initialized = true;
+
+	Cbuf_Execute ();	//if the server initialisation causes a problem, give it a place to abort to
 
 	Cmd_StuffCmds();
 

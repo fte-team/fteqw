@@ -524,11 +524,14 @@ void SV_WriteDelta (entity_state_t *from, entity_state_t *to, sizebuf_t *msg, qb
 	if ( to->abslight != from->abslight && protext & PEXT_HEXEN2)
 		evenmorebits |= U_ABSLIGHT;
 
-	if (to->glowsize)
+	if (to->glowsize != from->glowsize)
 		to->dpflags |= 4;
 
-	if (to->dpflags)
+	if (to->dpflags != from->dpflags)
 		evenmorebits |= U_DPFLAGS;
+
+	if (to->tagentity != from->tagentity || to->tagindex != from->tagindex)
+		evenmorebits |= U_TAGINFO;
 
 	if (evenmorebits&0xff00)
 		evenmorebits |= U_YETMORE;
@@ -594,15 +597,15 @@ void SV_WriteDelta (entity_state_t *from, entity_state_t *to, sizebuf_t *msg, qb
 
 #ifdef U_SCALE
 	if (evenmorebits & U_SCALE)
-		MSG_WriteByte (msg, (qbyte)(to->scale*100.0));
+		MSG_WriteByte (msg, (qbyte)(to->scale));
 #endif
 #ifdef U_TRANS
 	if (evenmorebits & U_TRANS)
-		MSG_WriteByte (msg, (qbyte)(to->trans*255));
+		MSG_WriteByte (msg, (qbyte)(to->trans));
 #endif
 #ifdef U_FATNESS
 	if (evenmorebits & U_FATNESS)
-		MSG_WriteChar (msg, to->fatness*2);
+		MSG_WriteChar (msg, to->fatness);
 #endif
 
 	if (evenmorebits & U_DRAWFLAGS)
@@ -612,6 +615,13 @@ void SV_WriteDelta (entity_state_t *from, entity_state_t *to, sizebuf_t *msg, qb
 
 	if (evenmorebits & U_DPFLAGS)
 		MSG_WriteByte (msg, to->dpflags);
+
+	if (evenmorebits & U_TAGINFO)
+	{
+		MSG_WriteShort (msg, to->tagentity);
+		MSG_WriteShort (msg, to->tagindex);
+	}
+
 }
 
 /*
@@ -781,12 +791,18 @@ void SV_EmitPacketEntities (client_t *client, packet_entities_t *to, sizebuf_t *
 void SVDP_EmitEntity(entity_state_t *from, entity_state_t *to, sizebuf_t *msg, qboolean isnew)
 {
 	int bits;
-	if (!memcmp(from, to, sizeof(entity_state_t)))
+	if (!isnew && !memcmp(from, to, sizeof(entity_state_t)))
+	{
+		to->bitmask = 0;
 		return;	//didn't change
+	}
 
 	bits = 0;
 	if (isnew)
+	{
 		bits |= E5_FULLUPDATE;
+		to->bitmask = 0;	//no point...
+	}
 
 	if (!VectorCompare(from->origin, to->origin))
 		bits |= E5_ORIGIN;
@@ -800,20 +816,20 @@ void SVDP_EmitEntity(entity_state_t *from, entity_state_t *to, sizebuf_t *msg, q
 		bits |= E5_SKIN;
 	if (from->effects != to->effects)
 		bits |= E5_EFFECTS;
-	if (from->flags != to->flags)
+	if (from->dpflags != to->dpflags)
 		bits |= E5_FLAGS;
 	if (from->trans != to->trans)
 		bits |= E5_ALPHA;
-//	if (from->scale != to->scale)
-//		bits |= E5_SCALE;
+	if (from->scale != to->scale)
+		bits |= E5_SCALE;
 	if (from->colormap != to->colormap)
 		bits |= E5_COLORMAP;
-//	if (from->tagentity != to->tagentity || o->tagindex != to->tagindex)
-//		bits |= E5_ATTACHMENT;
+	if (from->tagentity != to->tagentity || from->tagindex != to->tagindex)
+		bits |= E5_ATTACHMENT;
 //	if (from->light[0] != to->light[0] || o->light[1] != to->light[1] || o->light[2] != to->light[2] || o->light[3] != to->light[3] || o->lightstyle != to->lightstyle || o->lightpflags != to->lightpflags)
 //		bits |= E5_LIGHT;
-//	if (from->glowsize != to->glowsize || o->glowcolor != to->glowcolor)
-//		bits |= E5_GLOW;
+	if (from->glowsize != to->glowsize || from->glowcolour != to->glowcolour)
+		bits |= E5_GLOW;
 //	if (from->colormod[0] != to->colormod[0] || o->colormod[1] != to->colormod[1] || o->colormod[2] != to->colormod[2])
 //		bits |= E5_COLORMOD;
 
@@ -839,7 +855,8 @@ void SVDP_EmitEntity(entity_state_t *from, entity_state_t *to, sizebuf_t *msg, q
 	if (bits >= 16777216)
 		bits |= E5_EXTEND3;
 
-	to->bitmask |= bits;
+	bits |= to->bitmask;
+	to->bitmask = bits;
 
 	if (!bits)
 		return;
@@ -853,7 +870,7 @@ void SVDP_EmitEntity(entity_state_t *from, entity_state_t *to, sizebuf_t *msg, q
 	if (bits & E5_EXTEND3)
 		MSG_WriteByte(msg, (bits >> 24) & 0xFF);
 	if (bits & E5_FLAGS)
-		MSG_WriteByte(msg, to->flags);
+		MSG_WriteByte(msg, to->dpflags);
 	if (bits & E5_ORIGIN)
 	{
 		if (bits & E5_ORIGIN32)
@@ -910,16 +927,16 @@ void SVDP_EmitEntity(entity_state_t *from, entity_state_t *to, sizebuf_t *msg, q
 			MSG_WriteByte(msg, to->effects);
 	}
 	if (bits & E5_ALPHA)
-		MSG_WriteByte(msg, to->trans*255);
+		MSG_WriteByte(msg, to->trans);
 	if (bits & E5_SCALE)
 		MSG_WriteByte(msg, to->scale);
 	if (bits & E5_COLORMAP)
 		MSG_WriteByte(msg, to->colormap);
-//	if (bits & E5_ATTACHMENT)
-//	{
-//		MSG_WriteShort(msg, to->tagentity);
-//		MSG_WriteByte(msg, to->tagindex);
-//	}
+	if (bits & E5_ATTACHMENT)
+	{
+		MSG_WriteShort(msg, to->tagentity);
+		MSG_WriteByte(msg, to->tagindex);
+	}
 //	if (bits & E5_LIGHT)
 //	{
 //		MSG_WriteShort(msg, to->light[0]);
@@ -929,11 +946,11 @@ void SVDP_EmitEntity(entity_state_t *from, entity_state_t *to, sizebuf_t *msg, q
 //		MSG_WriteByte(msg, to->lightstyle);
 //		MSG_WriteByte(msg, to->lightpflags);
 //	}
-//	if (bits & E5_GLOW)
-//	{
-//		MSG_WriteByte(msg, to->glowsize);
-//		MSG_WriteByte(msg, to->glowcolor);
-//	}
+	if (bits & E5_GLOW)
+	{
+		MSG_WriteByte(msg, to->glowsize);
+		MSG_WriteByte(msg, to->glowcolour);
+	}
 //	if (bits & E5_COLORMOD)
 //	{
 //		MSG_WriteByte(msg, to->colormod[0]);
@@ -942,6 +959,7 @@ void SVDP_EmitEntity(entity_state_t *from, entity_state_t *to, sizebuf_t *msg, q
 //	}
 }
 
+entity_state_t defaultstate;
 void SVDP_EmitEntitiesUpdate (client_t *client, packet_entities_t *to, sizebuf_t *msg)
 {
 	edict_t	*ent;
@@ -951,19 +969,14 @@ void SVDP_EmitEntitiesUpdate (client_t *client, packet_entities_t *to, sizebuf_t
 	int		oldnum, newnum;
 	int		oldmax;
 
+	client->netchan.incoming_sequence++;
+
 	// this is the frame that we are going to delta update from
-	if (client->delta_sequence != -1)
-	{
-		fromframe = &client->frames[client->delta_sequence & UPDATE_MASK];
-		from = &fromframe->entities;
-		oldmax = from->num_entities;
-	}
-	else
-	{
-		oldmax = 0;	// no delta update
-		from = NULL;
-	}
-	client->delta_sequence++;
+	fromframe = &client->frames[(client->netchan.incoming_sequence-2) & UPDATE_MASK];
+	from = &fromframe->entities;
+	oldmax = from->num_entities;
+
+//	Con_Printf ("frame %i\n", client->netchan.incoming_sequence);
 
 	MSG_WriteByte(msg, svcdp_entities);
 	MSG_WriteLong(msg, 0);
@@ -972,6 +985,7 @@ void SVDP_EmitEntitiesUpdate (client_t *client, packet_entities_t *to, sizebuf_t
 
 	for (newindex = 0; newindex < to->num_entities; newindex++)
 		to->entities[newindex].bitmask = 0;
+	//add in the bitmasks of dropped packets.
 
 	newindex = 0;
 	oldindex = 0;
@@ -992,10 +1006,10 @@ void SVDP_EmitEntitiesUpdate (client_t *client, packet_entities_t *to, sizebuf_t
 		}
 
 		if (newnum < oldnum)
-		{	// this is a new entity, send it from the baseline
+		{	// this is a new entity, send it from the baseline... as far as dp understands it...
 			ent = EDICT_NUM(svprogfuncs, newnum);
 //Con_Printf ("baseline %i\n", newnum);
-			SVDP_EmitEntity (&ent->baseline, &to->entities[newindex], msg, true);			
+			SVDP_EmitEntity (&defaultstate, &to->entities[newindex], msg, true);			
 			newindex++;
 			continue;
 		}
@@ -1140,19 +1154,19 @@ void SV_WritePlayerToClient(sizebuf_t *msg, clstate_t *ent)
 #ifdef PEXT_SCALE	//this is graphics, not physics
 			if (ent->fteext & PEXT_SCALE)
 			{
-				if (ent->scale) pflags |= (zext&Z_EXT_PM_TYPE)?PF_SCALE_Z:PF_SCALE_NOZ;
+				if (ent->scale) pflags |= PF_SCALE_Z;
 			}
 #endif
 #ifdef PEXT_TRANS
 			if (ent->fteext & PEXT_TRANS)
 			{
-				if (ent->transparency) pflags |= (zext&Z_EXT_PM_TYPE)?PF_TRANS_Z:PF_TRANS_NOZ;
+				if (ent->transparency) pflags |= PF_TRANS_Z;
 			}
 #endif
 #ifdef PEXT_FATNESS
 			if (ent->fteext & PEXT_FATNESS)
 			{
-				if (ent->fatness) pflags |= (zext&Z_EXT_PM_TYPE)?PF_FATNESS_Z:PF_FATNESS_NOZ;
+				if (ent->fatness) pflags |= PF_FATNESS_Z;
 			}
 #endif
 		}
@@ -1161,7 +1175,7 @@ void SV_WritePlayerToClient(sizebuf_t *msg, clstate_t *ent)
 		{
 			hullnumber = SV_HullNumForPlayer(ent->hull, ent->mins, ent->maxs);
 			if (hullnumber != 1)
-				pflags |= (zext&Z_EXT_PM_TYPE)?PF_HULLSIZE_Z:PF_HULLSIZE_NOZ;
+				pflags |= PF_HULLSIZE_Z;
 		}
 		else
 			hullnumber=1;
@@ -1288,44 +1302,22 @@ void SV_WritePlayerToClient(sizebuf_t *msg, clstate_t *ent)
 		if (pflags & PF_WEAPONFRAME)
 			MSG_WriteByte (msg, ent->weaponframe);
 
-		if (zext&Z_EXT_PM_TYPE)
-		{
 #ifdef PEXT_SCALE
-			if (pflags & PF_SCALE_Z)
-				MSG_WriteByte (msg, ent->scale*100);
+		if (pflags & PF_SCALE_Z)
+			MSG_WriteByte (msg, ent->scale*50);
 #endif
 #ifdef PEXT_TRANS
-			if (pflags & PF_TRANS_Z)
-				MSG_WriteByte (msg, (qbyte)(ent->transparency*255));
+		if (pflags & PF_TRANS_Z)
+			MSG_WriteByte (msg, (qbyte)(ent->transparency*255));
 #endif
 #ifdef PEXT_FATNESS
-			if (pflags & PF_FATNESS_Z)
-				MSG_WriteChar (msg, ent->fatness*2);
+		if (pflags & PF_FATNESS_Z)
+			MSG_WriteChar (msg, ent->fatness*2);
 #endif
 #ifdef PEXT_HULLSIZE	//shrunken or crouching in halflife levels. (possibly enlarged)
-			if (pflags & PF_HULLSIZE_Z)
-				MSG_WriteChar (msg, hullnumber + (ent->onladder?128:0));	//physics.
+		if (pflags & PF_HULLSIZE_Z)
+			MSG_WriteChar (msg, hullnumber + (ent->onladder?128:0));	//physics.
 #endif
-		}
-		else
-		{
-#ifdef PEXT_SCALE
-			if (pflags & PF_SCALE_NOZ)
-				MSG_WriteByte (msg, ent->scale*100);
-#endif
-#ifdef PEXT_TRANS
-			if (pflags & PF_TRANS_NOZ)
-				MSG_WriteByte (msg, (qbyte)(ent->transparency*255));
-#endif
-#ifdef PEXT_FATNESS
-			if (pflags & PF_FATNESS_NOZ)
-				MSG_WriteChar (msg, ent->fatness*2);
-#endif
-#ifdef PEXT_HULLSIZE	//shrunken or crouching in halflife levels. (possibly enlarged)
-			if (pflags & PF_HULLSIZE_NOZ)
-				MSG_WriteChar (msg, hullnumber + (ent->onladder?128:0));	//physics.
-#endif
-		}
 }
 #endif
 
@@ -2412,15 +2404,17 @@ void SV_WriteEntitiesToClient (client_t *client, sizebuf_t *msg, qboolean ignore
 		state->abslight = clent->v->abslight;
 
 #ifdef PEXT_SCALE
-		state->scale = clent->v->scale;
+		state->scale = clent->v->scale*16;
+		if (!clent->v->scale)
+			clent->v->scale = 1*16;
 #endif
 #ifdef PEXT_TRANS
-		state->trans = clent->v->alpha;
-		if (!state->trans)
-			state->trans = 1;
+		state->trans = clent->v->alpha*255;
+		if (!clent->v->alpha)
+			clent->v->alpha = 255;
 #endif
 #ifdef PEXT_FATNESS
-		state->fatness = clent->v->fatness;
+		state->fatness = clent->v->fatness*2;
 #endif
 
 		if (state->effects & QWEF_FLAG1)
@@ -2478,13 +2472,13 @@ void SV_WriteEntitiesToClient (client_t *client, sizebuf_t *msg, qboolean ignore
 			{
 				//unconditional
 			}
-			else if (ent->tagent)
+			else if (ent->v->tag_entity)
 			{
 				edict_t *p = ent;
 				int c = 10;
-				while(p->tagent&&c-->0)
+				while(p->v->tag_entity&&c-->0)
 				{
-					p = EDICT_NUM(svprogfuncs, p->tagent);
+					p = EDICT_NUM(svprogfuncs, p->v->tag_entity);
 				}
 				if (!sv.worldmodel->funcs.EdictInFatPVS(p))
 					continue;
@@ -2635,7 +2629,7 @@ void SV_WriteEntitiesToClient (client_t *client, sizebuf_t *msg, qboolean ignore
 		if (ent->v->exteriormodeltoclient)
 		{
 			if (ent->v->exteriormodeltoclient == EDICT_TO_PROG(svprogfuncs, client->edict))
-				state->dpflags |= RENDER_VIEWMODEL;
+				state->dpflags |= RENDER_EXTERIORMODEL;
 			//everyone else sees it normally.
 		}
 
@@ -2650,6 +2644,8 @@ void SV_WriteEntitiesToClient (client_t *client, sizebuf_t *msg, qboolean ignore
 		state->effects = ent->v->effects;
 		state->hexen2flags = ent->v->drawflags;
 		state->abslight = (int)(ent->v->abslight*255) & 255;
+		state->tagentity = ent->v->tag_entity;
+		state->tagindex = ent->v->tag_index;
 		if ((int)ent->v->flags & FL_CLASS_DEPENDENT && client->playerclass)
 		{
 			char modname[MAX_QPATH];
@@ -2667,7 +2663,7 @@ void SV_WriteEntitiesToClient (client_t *client, sizebuf_t *msg, qboolean ignore
 		{
 			state->hexen2flags |= MLS_FULLBRIGHT;
 		}
-		if (progstype != PROG_QW && state->effects)	//don't send extra nq effects to a qw client.
+		if (progstype != PROG_QW && state->effects && ISQWCLIENT(client))	//don't send extra nq effects to a qw client.
 		{
 			//EF_NODRAW doesn't draw the model.
 			//The client still needs to know about it though, as it might have other effects on it.
@@ -2685,16 +2681,21 @@ void SV_WriteEntitiesToClient (client_t *client, sizebuf_t *msg, qboolean ignore
 			state->effects &= EF_BRIGHTLIGHT | EF_DIMLIGHT | NQEF_ADDATIVE | EF_RED | EF_BLUE;
 		}
 
-#ifdef PEXT_SCALE
-		state->scale = ent->v->scale;
-#endif
-#ifdef PEXT_TRANS
-		state->trans = ent->v->alpha;
-		if (!ent->v->alpha)
-			state->trans = 1;
-
 		state->glowsize = ent->v->glow_size*0.25;
 		state->glowcolour = ent->v->glow_color;
+		if (ent->v->glow_trail)
+			state->dpflags |= RENDER_GLOWTRAIL;
+
+
+#ifdef PEXT_SCALE
+		state->scale = ent->v->scale*16;
+		if (!ent->v->scale)
+			state->scale = 1*16;
+#endif
+#ifdef PEXT_TRANS
+		state->trans = ent->v->alpha*255;
+		if (!ent->v->alpha)
+			state->trans = 255;
 
 		//QSG_DIMENSION_PLANES - if the only shared dimensions are ghost dimensions, Set half alpha.
 		if (client->edict)
@@ -2708,18 +2709,23 @@ void SV_WriteEntitiesToClient (client_t *client, sizebuf_t *msg, qboolean ignore
 				}
 #endif
 #ifdef PEXT_FATNESS
-		state->fatness = ent->v->fatness;
+		state->fatness = ent->v->fatness*2;
 #endif
 	}
 #ifdef NQPROT
-	if (client->protocol == SCP_NETQUAKE)
-		return;
-
-	if (client->protocol == SCP_DARKPLACES6 || client->protocol == SCP_DARKPLACES7)
+	if (ISNQCLIENT(client))
 	{
-		SVDP_EmitEntitiesUpdate(client, pack, msg);
-		SV_EmitCSQCUpdate(client, msg);
-		return;
+		if (client->protocol == SCP_DARKPLACES6 || client->protocol == SCP_DARKPLACES7)
+		{
+			SVDP_EmitEntitiesUpdate(client, pack, msg);
+			SV_EmitCSQCUpdate(client, msg);
+			return;
+		}
+		else
+		{
+			client->netchan.incoming_sequence++;
+			return;
+		}
 	}
 #endif
 

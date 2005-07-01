@@ -573,7 +573,7 @@ char *PR_UglyValueString (progfuncs_t *progfuncs, etype_t type, eval_t *val)
 	static char	line[256];
 	fdef_t		*fielddef;	
 	dfunction_t	*f;
-	int i;
+	int i, j;
 	
 #ifdef DEF_SAVEGLOBAL
 	type &= ~DEF_SAVEGLOBAL;
@@ -591,19 +591,28 @@ char *PR_UglyValueString (progfuncs_t *progfuncs, etype_t type, eval_t *val)
 		sprintf (line, "unions cannot yet be saved");
 		break;
 	case ev_string:
-		_snprintf (line, sizeof(line), "%s", val->string+progfuncs->stringtable);
+		if ((unsigned)val->_int > (unsigned)addressableused)
+			_snprintf (line, sizeof(line), "CORRUPT STRING");
+		else
+			_snprintf (line, sizeof(line), "%s", val->string+progfuncs->stringtable);
 		break;
 	case ev_entity:	
 		sprintf (line, "%i", val->_int);
 		break;
 	case ev_function:
-		i = (val->function & 0xff000000)>>24;
-		if (i > maxprogs)
+		i = (val->function & 0xff000000)>>24;	//progs number
+		if (i > maxprogs || !pr_progstate[i].progs)
 			sprintf (line, "BAD FUNCTION INDEX: %i", val->function);
 		else
 		{
-			f = pr_progstate[(val->function & 0xff000000)>>24].functions + (val->function & ~0xff000000);
-			sprintf (line, "%i:%s", (val->function & 0xff000000)>>24, f->s_name+progfuncs->stringtable);
+			j = (val->function & ~0xff000000);	//function number
+			if ((unsigned)j > pr_progstate[i].progs->numfunctions)
+				sprintf(line, "%i:%s", i, "CORRUPT FUNCTION POINTER");
+			else
+			{
+				f = pr_progstate[i].functions + j;
+				sprintf (line, "%i:%s", i, f->s_name+progfuncs->stringtable);
+			}
 		}
 		break;
 	case ev_field:

@@ -398,13 +398,13 @@ void PF_CL_drawpic (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 #ifdef RGLQUAKE
 	if (qrenderer == QR_OPENGL)
 	{
-		if (flag == 1)
+		if (flag == 1)	//add
 			qglBlendFunc(GL_SRC_ALPHA, GL_ONE);
-		else if(flag == 2)
+		else if(flag == 2)	//modulate
 			qglBlendFunc(GL_DST_COLOR, GL_ZERO);
-		else if(flag == 3)
+		else if(flag == 3)	//modulate*2
 			qglBlendFunc(GL_DST_COLOR,GL_SRC_COLOR);
-		else
+		else	//blend
 			qglBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
 	}
 #endif

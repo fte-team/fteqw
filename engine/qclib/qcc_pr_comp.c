@@ -6044,13 +6044,13 @@ void QCC_Marshal_Locals(int first, int laststatement)
 	QCC_def_t *local;
 	unsigned int newofs;
 
-	if (!opt_overlaptemps)	//clear these after each function. we arn't overlapping them so why do we need to keep track of them?
-	{
-		temp_t *t;
-		for (t = functemps; t; t = t->next)
-			QCC_FreeOffset(t->ofs, t->size);
-		functemps = NULL;
-	}
+//	if (!opt_overlaptemps)	//clear these after each function. we arn't overlapping them so why do we need to keep track of them?
+//	{
+//		temp_t *t;
+//		for (t = functemps; t; t = t->next)
+//			QCC_FreeOffset(t->ofs, t->size);
+//		functemps = NULL;
+//	}
 
 	if (!pr.localvars)	//nothing to marshal
 	{

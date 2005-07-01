@@ -3261,8 +3261,8 @@ void CMQ3_CalcPHS (void)
 					continue;
 				// OR this pvs row into the phs
 				index = (j<<3) + k;
-				if (index >= numclusters)
-					Host_Error ("CM_CalcPHS: Bad bit in PVS");	// pad bits should be 0
+//				if (index >= numclusters)
+//					Host_Error ("CM_CalcPHS: Bad bit in PVS");	// pad bits should be 0
 				src = (unsigned *)((qbyte*)map_q3pvs->data) + index*rowwords;
 				for (l=0 ; l<rowwords ; l++)
 					dest[l] |= src[l];
@@ -4483,6 +4483,7 @@ void CM_TestBoxInBrush (vec3_t mins, vec3_t maxs, vec3_t p1,
 	vec3_t		ofs;
 	float		d1;
 	q2cbrushside_t	*side;
+	qboolean issky = false;
 
 	if (!brush->numsides)
 		return;
@@ -4511,6 +4512,12 @@ void CM_TestBoxInBrush (vec3_t mins, vec3_t maxs, vec3_t p1,
 
 		d1 = DotProduct (p1, plane->normal) - dist;
 
+		if (side->surface->c.flags & 4)
+		{
+			issky = true;
+			d1 -= DIST_EPSILON*2;
+		}
+
 		// if completely in front of face, no intersection
 		if (d1 > 0)
 			return;
@@ -4520,7 +4527,10 @@ void CM_TestBoxInBrush (vec3_t mins, vec3_t maxs, vec3_t p1,
 	// inside this brush
 	trace->startsolid = trace->allsolid = true;
 	trace->fraction = 0;
-	trace->contents = brush->contents;
+	if (issky)
+		trace->contents |= FTECONTENTS_SKY;
+	else
+		trace->contents |= brush->contents;
 }
 
 void CM_TestBoxInPatch (vec3_t mins, vec3_t maxs, vec3_t p1,

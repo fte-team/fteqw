@@ -56,7 +56,8 @@ typedef struct entity_s
 
 	struct player_info_s	*scoreboard;	// identify player
 
-	float					syncbase;
+	float					frame1time;
+	float					frame2time;
 
 	struct efrag_s			*efrag;			// linked list of efrags (FIXME)
 	int						visframe;		// last frame this entity was

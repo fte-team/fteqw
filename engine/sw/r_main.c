@@ -681,18 +681,10 @@ void SWR_DrawEntitiesOnList (void)
 		currententity = &cl_visedicts[i];
 
 		{
-			j = currententity->keynum;
-			while(j)
-			{
-				if (j == (cl.viewentity[r_refdef.currentplayernum]?cl.viewentity[r_refdef.currentplayernum]:(cl.playernum[r_refdef.currentplayernum]+1)))
-					break;
-				j = cl.lerpents[j].tagent;
-			}
-			if (j)
+			if (currententity->keynum == (cl.viewentity[r_refdef.currentplayernum]?cl.viewentity[r_refdef.currentplayernum]:(cl.playernum[r_refdef.currentplayernum]+1)))
 				continue;
-
-			if (cl.viewentity[r_refdef.currentplayernum] && currententity->keynum == cl.viewentity[r_refdef.currentplayernum])
-				continue;
+//			if (cl.viewentity[r_refdef.currentplayernum] && currententity->keynum == cl.viewentity[r_refdef.currentplayernum])
+//				continue;
 			if (!Cam_DrawPlayer(0, currententity->keynum-1))
 				continue;
 		}

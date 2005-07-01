@@ -111,7 +111,7 @@ void PR_StackTrace (progfuncs_t *progfuncs)
 				printf ("<%s>\n", pr_progstate[progs].filename);
 			}
 			if (!f->s_file)
-				printf ("stripped     : %s\n", f->s_name);
+				printf ("stripped     : %s\n", f->s_name+progfuncs->stringtable);
 			else
 				printf ("%12s : %s\n", f->s_file+progfuncs->stringtable, f->s_name+progfuncs->stringtable);
 

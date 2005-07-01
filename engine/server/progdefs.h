@@ -185,6 +185,9 @@ typedef struct entvars_s
 	int		viewmodelforclient;
 	int		exteriormodeltoclient;
 
+	int		tag_entity;
+	float	tag_index;
+
 	float	glow_size;
 	float	glow_color;
 	float	glow_trail;

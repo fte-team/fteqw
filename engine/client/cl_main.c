@@ -2933,9 +2933,9 @@ void Host_Init (quakeparms_t *parms)
 	hrc = COM_FDepthFile("hexen.rc", true);	//h2
 	def = COM_FDepthFile("default.cfg", true);	//q2/q3
 
-	if (qrc >= def && qrc >= hrc && qrc!=0x7fffffff)
+	if (qrc <= def && qrc <= hrc && qrc!=0x7fffffff)
 		Cbuf_AddText ("exec quake.rc\n", RESTRICT_LOCAL);
-	else if (hrc >= def && hrc!=0x7fffffff)
+	else if (hrc <= def && hrc!=0x7fffffff)
 		Cbuf_AddText ("exec hexen.rc\n", RESTRICT_LOCAL);
 	else
 	{	//they didn't give us an rc file!
@@ -2986,6 +2986,8 @@ void Host_Init (quakeparms_t *parms)
 
 	if ((i = COM_CheckParm ("-bpp")))
 		Cvar_Set(Cvar_FindVar("vid_bpp"), com_argv[i+1]);
+
+	Cvar_ApplyLatches(CVAR_RENDERERLATCH);
 
 //-1 means 'never set'
 	if (qrenderer == -1 && *vid_renderer.string)

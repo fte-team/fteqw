@@ -3010,7 +3010,7 @@ void CL_ParsePrint(char *msg, int level)
 		*msg = '\0';
 		if (level != PRINT_CHAT)
 			Stats_ParsePrintLine(printtext);
-		TP_SearchForMsgTriggers(msg, level);
+		TP_SearchForMsgTriggers(printtext, level);
 		msg++;
 
 		memmove(printtext, msg, strlen(msg)+1);

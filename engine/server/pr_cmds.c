@@ -1767,7 +1767,7 @@ void PF_setmodel (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 		i = 0;
 	else
 	{
-		for (i=1; *sv.model_precache[i] ; i++)
+		for (i=1; sv.model_precache[i] ; i++)
 		{
 			if (!strcmp(sv.model_precache[i], m))
 			{
@@ -1777,12 +1777,24 @@ void PF_setmodel (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 		}
 		if (i==MAX_MODELS || !sv.model_precache[i])
 		{
-			if (i!=MAX_MODELS && sv.state == ss_loading)
+			if (i!=MAX_MODELS)
 			{
 				sv.model_precache[i] = PR_AddString(prinst, m, 0);
 				if (!strcmp(m + strlen(m) - 4, ".bsp"))
 					sv.models[i] = Mod_FindName(sv.model_precache[i]);
 				Con_Printf("WARNING: SV_ModelIndex: model %s not precached", m);
+
+				if (sv.state != ss_loading)
+				{
+					MSG_WriteByte(&sv.reliable_datagram, svc_precache);
+					MSG_WriteShort(&sv.reliable_datagram, i);
+					MSG_WriteString(&sv.reliable_datagram, s);
+#ifdef NQPROT
+					MSG_WriteByte(&sv.nqreliable_datagram, svcdp_precache);
+					MSG_WriteShort(&sv.nqreliable_datagram, i);
+					MSG_WriteString(&sv.nqreliable_datagram, s);
+#endif
+				}
 			}
 			else
 			{

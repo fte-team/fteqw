@@ -253,12 +253,11 @@ pRegisterRawInputDevices _RRID;
 
 mouse_t *rawmice;
 int rawmicecount;
-int usingindividualmice;
 RAWINPUT *raw;
 int ribuffersize;
 
 cvar_t in_rawinput = {"in_rawinput", "0"};
-cvar_t in_rawinput_system = {"in_rawinput_combine", "0"};
+cvar_t in_rawinput_combine = {"in_rawinput_combine", "0"};
 cvar_t in_rawinput_rdp = {"in_rawinput_rdp", "0"};
 #endif
 
@@ -974,7 +973,6 @@ void IN_RawInput_Init(void)
 
 	rawmicecount = 0;
 	rawmice = NULL;
-	usingindividualmice = 1;
 	raw = NULL;
 	ribuffersize = 0;
 
@@ -994,9 +992,6 @@ void IN_RawInput_Init(void)
 		Con_SafePrintf("Raw input: unable to get raw input device list\n");
 		return;
 	}
-
-	if (in_rawinput_system.value) // use system mouse (cvar)
-		usingindividualmice = 0;
 
 	// Loop through all devices and count the mice
 	for (i = 0, mtemp = 0; i < inputdevices; i++)
@@ -1245,7 +1240,7 @@ void IN_Init (void)
 
 #ifdef USINGRAWINPUT
 		Cvar_Register (&in_rawinput, "Input stuff");
-		Cvar_Register (&in_rawinput_system, "Input stuff");
+		Cvar_Register (&in_rawinput_combine, "Input stuff");
 		Cvar_Register (&in_rawinput_rdp, "Input stuff");
 #endif
 	}
@@ -1613,7 +1608,7 @@ void IN_MouseMove (usercmd_t *cmd, int pnum)
 #ifdef USINGRAWINPUT
 	if (rawmicecount)
 	{
-		if (!usingindividualmice && pnum == 0)
+		if (in_rawinput_combine.value && pnum == 0)
 		{
 			// not the right way to do this but it'll work for now
 			int x;
@@ -1776,16 +1771,14 @@ void IN_RawInput_MouseRead(HANDLE in_device_handle)
 	tbuttons = raw->data.mouse.ulRawButtons & RI_RAWBUTTON_MASK;
 	for (j=6 ; j<rawmice[i].numbuttons ; j++)
 	{
-		if ( (tbuttons & (1<<j)) &&
-			!(rawmice[i].buttons & (1<<j)) )
+		if ( (tbuttons & (1<<j)) && !(rawmice[i].buttons & (1<<j)) )
 		{
 			Key_Event (K_MOUSE1 + j, true);
 		}
 
-		if ( !(tbuttons & (1<<j)) &&
-			(rawmice[i].buttons & (1<<j)) )
+		if ( !(tbuttons & (1<<j)) && (rawmice[i].buttons & (1<<j)) )
 		{
-				Key_Event (K_MOUSE1 + j, false);
+			Key_Event (K_MOUSE1 + j, false);
 		}
 
 	}

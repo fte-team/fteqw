@@ -529,7 +529,7 @@ void PF_R_AddEntity(progfuncs_t *prinst, struct globalvars_s *pr_globals)
 			ent.flags |= Q2RF_EXTERNALMODEL;
 		if (i & CSQCRF_DEPTHHACK)
 			ent.flags |= Q2RF_DEPTHHACK;
-		if (i * CSQCRF_ADDATIVE)
+		if (i & CSQCRF_ADDATIVE)
 			ent.flags |= Q2RF_ADDATIVE;
 		//CSQCRF_USEAXIS is below
 	}

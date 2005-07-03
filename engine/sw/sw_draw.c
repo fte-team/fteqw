@@ -460,7 +460,7 @@ void SWDraw_Init (void)
 				extern qbyte default_conchar[11356];
 
 				image = ReadTargaFile(default_conchar, sizeof(default_conchar), &width, &height, false);
-				COM_WriteFile("test.dat", image, 256*256*4);
+//				COM_WriteFile("test.dat", image, 256*256*4);
 
 				draw_chars = BZ_Malloc(128*128);
 			
@@ -473,7 +473,7 @@ void SWDraw_Init (void)
 						dest[x] = src[(x*2)*4]?15:0;//GetPalette(image[i*4], image[i*4+1], image[i*4+2]);
 				}
 
-				COM_WriteFile("test2.dat", draw_chars, 128*128);
+//				COM_WriteFile("test2.dat", draw_chars, 128*128);
 
 				BZ_Free(image);
 			}

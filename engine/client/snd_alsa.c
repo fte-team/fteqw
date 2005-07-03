@@ -31,6 +31,34 @@
 #include <alsa/asoundlib.h>
 
 #include "quakedef.h"
+#include <dlfcn.h>
+
+static void *alsasharedobject;
+
+int (*psnd_pcm_open)				(snd_pcm_t **pcm, const char *name, snd_pcm_stream_t stream, int mode);
+int (*psnd_pcm_close)				(snd_pcm_t *pcm);
+const char *(*psnd_strerror)			(int errnum);
+int (*psnd_pcm_hw_params_any)			(snd_pcm_t *pcm, snd_pcm_hw_params_t *params);
+int (*psnd_pcm_hw_params_set_access)		(snd_pcm_t *pcm, snd_pcm_hw_params_t *params, snd_pcm_access_t _access);
+int (*psnd_pcm_hw_params_set_format)		(snd_pcm_t *pcm, snd_pcm_hw_params_t *params, snd_pcm_format_t val);
+int (*psnd_pcm_hw_params_set_channels)		(snd_pcm_t *pcm, snd_pcm_hw_params_t *params, unsigned int val);
+int (*psnd_pcm_hw_params_set_rate_near)		(snd_pcm_t *pcm, snd_pcm_hw_params_t *params, unsigned int *val, int *dir);
+int (*psnd_pcm_hw_params_set_period_size_near)	(snd_pcm_t *pcm, snd_pcm_hw_params_t *params, snd_pcm_uframes_t *val, int *dir);
+int (*psnd_pcm_hw_params)			(snd_pcm_t *pcm, snd_pcm_hw_params_t *params);
+int (*psnd_pcm_sw_params_current)		(snd_pcm_t *pcm, snd_pcm_sw_params_t *params);
+int (*psnd_pcm_sw_params_set_start_threshold)	(snd_pcm_t *pcm, snd_pcm_sw_params_t *params, snd_pcm_uframes_t val);
+int (*psnd_pcm_sw_params_set_stop_threshold)	(snd_pcm_t *pcm, snd_pcm_sw_params_t *params, snd_pcm_uframes_t val);
+int (*psnd_pcm_sw_params)			(snd_pcm_t *pcm, snd_pcm_sw_params_t *params);
+int (*psnd_pcm_hw_params_get_buffer_size)	(const snd_pcm_hw_params_t *params, snd_pcm_uframes_t *val);
+snd_pcm_sframes_t (*psnd_pcm_avail_update)	(snd_pcm_t *pcm);
+int (*psnd_pcm_mmap_begin)			(snd_pcm_t *pcm, const snd_pcm_channel_area_t **areas, snd_pcm_uframes_t *offset, snd_pcm_uframes_t *frames);
+snd_pcm_sframes_t (*psnd_pcm_mmap_commit)	(snd_pcm_t *pcm, snd_pcm_uframes_t offset, snd_pcm_uframes_t frames);
+snd_pcm_state_t (*psnd_pcm_state)		(snd_pcm_t *pcm);
+int (*psnd_pcm_start)				(snd_pcm_t *pcm);
+
+size_t (*psnd_pcm_hw_params_sizeof)		(void);
+size_t (*psnd_pcm_sw_params_sizeof)		(void);
+
 
 
 static unsigned int ALSA_GetDMAPos (soundcardinfo_t *sc)
@@ -39,8 +67,8 @@ static unsigned int ALSA_GetDMAPos (soundcardinfo_t *sc)
 	snd_pcm_uframes_t offset;
 	snd_pcm_uframes_t nframes = sc->sn.samples / sc->sn.numchannels;
 
-	snd_pcm_avail_update (sc->handle);
-	snd_pcm_mmap_begin (sc->handle, &areas, &offset, &nframes);
+	psnd_pcm_avail_update (sc->handle);
+	psnd_pcm_mmap_begin (sc->handle, &areas, &offset, &nframes);
 	offset *= sc->sn.numchannels;
 	nframes *= sc->sn.numchannels;
 	sc->sn.samplepos = offset;
@@ -50,7 +78,7 @@ static unsigned int ALSA_GetDMAPos (soundcardinfo_t *sc)
 
 static void ALSA_Shutdown (soundcardinfo_t *sc)
 {
-	snd_pcm_close (sc->handle);
+	psnd_pcm_close (sc->handle);
 }
 
 static void ALSA_Submit (soundcardinfo_t *sc)
@@ -64,18 +92,18 @@ static void ALSA_Submit (soundcardinfo_t *sc)
 
 	nframes = count / sc->sn.numchannels;
 
-	snd_pcm_avail_update (sc->handle);
-	snd_pcm_mmap_begin (sc->handle, &areas, &offset, &nframes);
+	psnd_pcm_avail_update (sc->handle);
+	psnd_pcm_mmap_begin (sc->handle, &areas, &offset, &nframes);
 
-	state = snd_pcm_state (sc->handle);
+	state = psnd_pcm_state (sc->handle);
 
 	switch (state) {
 		case SND_PCM_STATE_PREPARED:
-			snd_pcm_mmap_commit (sc->handle, offset, nframes);
-			snd_pcm_start (sc->handle);
+			psnd_pcm_mmap_commit (sc->handle, offset, nframes);
+			psnd_pcm_start (sc->handle);
 			break;
 		case SND_PCM_STATE_RUNNING:
-			snd_pcm_mmap_commit (sc->handle, offset, nframes);
+			psnd_pcm_mmap_commit (sc->handle, offset, nframes);
 			break;
 		default:
 			break;
@@ -99,6 +127,68 @@ void S_UpdateCapture(void)
 {
 }
 
+static qboolean Alsa_InitAlsa(void)
+{
+	static qboolean tried;
+	static qboolean alsaworks;
+	if (tried)
+		return alsaworks;
+	tried = true;
+
+	alsasharedobject = dlopen("libasound.so", RTLD_LAZY|RTLD_LOCAL);
+	if (!alsasharedobject)
+		return false;
+
+
+	psnd_pcm_open				= dlsym(alsasharedobject, "snd_pcm_open");
+	psnd_pcm_close				= dlsym(alsasharedobject, "snd_pcm_close");
+	psnd_strerror				= dlsym(alsasharedobject, "snd_strerror");
+	psnd_pcm_hw_params_any			= dlsym(alsasharedobject, "snd_pcm_hw_params_any");
+	psnd_pcm_hw_params_set_access		= dlsym(alsasharedobject, "snd_pcm_hw_params_set_access");
+	psnd_pcm_hw_params_set_format		= dlsym(alsasharedobject, "snd_pcm_hw_params_set_format");
+	psnd_pcm_hw_params_set_channels		= dlsym(alsasharedobject, "snd_pcm_hw_params_set_channels");
+	psnd_pcm_hw_params_set_rate_near	= dlsym(alsasharedobject, "snd_pcm_hw_params_set_rate_near");
+	psnd_pcm_hw_params_set_period_size_near	= dlsym(alsasharedobject, "snd_pcm_hw_params_set_period_size_near");
+	psnd_pcm_hw_params			= dlsym(alsasharedobject, "snd_pcm_hw_params");
+	psnd_pcm_sw_params_current		= dlsym(alsasharedobject, "snd_pcm_sw_params_current");
+	psnd_pcm_sw_params_set_start_threshold	= dlsym(alsasharedobject, "snd_pcm_sw_params_set_start_threshold");
+	psnd_pcm_sw_params_set_stop_threshold	= dlsym(alsasharedobject, "snd_pcm_sw_params_set_stop_threshold");
+	psnd_pcm_sw_params			= dlsym(alsasharedobject, "snd_pcm_sw_params");
+	psnd_pcm_hw_params_get_buffer_size	= dlsym(alsasharedobject, "snd_pcm_hw_params_get_buffer_size");
+	psnd_pcm_avail_update			= dlsym(alsasharedobject, "snd_pcm_avail_update");
+	psnd_pcm_mmap_begin			= dlsym(alsasharedobject, "snd_pcm_mmap_begin");
+	psnd_pcm_state				= dlsym(alsasharedobject, "snd_pcm_state");
+	psnd_pcm_mmap_commit			= dlsym(alsasharedobject, "snd_pcm_mmap_commit");
+	psnd_pcm_start				= dlsym(alsasharedobject, "snd_pcm_start");
+	psnd_pcm_hw_params_sizeof		= dlsym(alsasharedobject, "snd_pcm_hw_params_sizeof");
+	psnd_pcm_sw_params_sizeof		= dlsym(alsasharedobject, "snd_pcm_sw_params_sizeof");
+
+	alsaworks = psnd_pcm_open
+		&& psnd_pcm_close
+		&& psnd_strerror
+		&& psnd_pcm_hw_params_any
+		&& psnd_pcm_hw_params_set_access
+		&& psnd_pcm_hw_params_set_format
+		&& psnd_pcm_hw_params_set_channels
+		&& psnd_pcm_hw_params_set_rate_near
+		&& psnd_pcm_hw_params_set_period_size_near
+		&& psnd_pcm_hw_params
+		&& psnd_pcm_sw_params_current
+		&& psnd_pcm_sw_params_set_start_threshold
+		&& psnd_pcm_sw_params_set_stop_threshold
+		&& psnd_pcm_sw_params
+		&& psnd_pcm_hw_params_get_buffer_size
+		&& psnd_pcm_avail_update
+		&& psnd_pcm_mmap_begin
+		&& psnd_pcm_state
+		&& psnd_pcm_mmap_commit
+		&& psnd_pcm_start
+		&& psnd_pcm_hw_params_sizeof
+		&& psnd_pcm_sw_params_sizeof;
+
+	return alsaworks;
+}
+
 static int ALSA_InitCard (soundcardinfo_t *sc, int cardnum)
 {
 	snd_pcm_t   *pcm;
@@ -115,8 +205,11 @@ static int ALSA_InitCard (soundcardinfo_t *sc, int cardnum)
 	snd_pcm_sw_params_t	*sw;
 	snd_pcm_uframes_t	 frag_size;
 
-	snd_pcm_hw_params_alloca (&hw);
-	snd_pcm_sw_params_alloca (&sw);
+	if (!Alsa_InitAlsa())
+		return 2;
+
+	hw = alloca(psnd_pcm_hw_params_sizeof());
+	sw = alloca(psnd_pcm_sw_params_sizeof());
 
 	devname = Cvar_Get(va("snd_alsadevice%i", cardnum+1), cardnum==0?"default":"", 0, "Sound controls");
 	pcmname = devname->string;
@@ -161,50 +254,50 @@ static int ALSA_InitCard (soundcardinfo_t *sc, int cardnum)
 	if ((i=COM_CheckParm("-sndstereo")) != 0)
 		stereo=1;
 
-	err = snd_pcm_open (&pcm, pcmname, SND_PCM_STREAM_PLAYBACK,
+	err = psnd_pcm_open (&pcm, pcmname, SND_PCM_STREAM_PLAYBACK,
 						  SND_PCM_NONBLOCK);
 	if (0 > err) {
-		Con_Printf ("Error: audio open error: %s\n", snd_strerror (err));
+		Con_Printf ("Error: audio open error: %s\n", psnd_strerror (err));
 		return 0;
 	}
 	Con_Printf ("ALSA: Using PCM %s.\n", pcmname);
 
-	err = snd_pcm_hw_params_any (pcm, hw);
+	err = psnd_pcm_hw_params_any (pcm, hw);
 	if (0 > err) {
 		Con_Printf ("ALSA: error setting hw_params_any. %s\n",
-					snd_strerror (err));
+					psnd_strerror (err));
 		goto error;
 	}
 
-	err = snd_pcm_hw_params_set_access (pcm, hw,  SND_PCM_ACCESS_MMAP_INTERLEAVED);
+	err = psnd_pcm_hw_params_set_access (pcm, hw,  SND_PCM_ACCESS_MMAP_INTERLEAVED);
 	if (0 > err) {
 		Con_Printf ("ALSA: Failure to set noninterleaved PCM access. %s\n"
 					"Note: Interleaved is not supported\n",
-					snd_strerror (err));
+					psnd_strerror (err));
 		goto error;
 	}
 
 	switch (bps) {
 		case -1:
-			err = snd_pcm_hw_params_set_format (pcm, hw, SND_PCM_FORMAT_S16);
+			err = psnd_pcm_hw_params_set_format (pcm, hw, SND_PCM_FORMAT_S16);
 			if (0 <= err) {
 				bps = 16;
-			} else if (0 <= (err = snd_pcm_hw_params_set_format (pcm, hw, SND_PCM_FORMAT_U8))) {
+			} else if (0 <= (err = psnd_pcm_hw_params_set_format (pcm, hw, SND_PCM_FORMAT_U8))) {
 				bps = 8;
 			} else {
 				Con_Printf ("ALSA: no useable formats. %s\n",
-							snd_strerror (err));
+							psnd_strerror (err));
 				goto error;
 			}
 			break;
 		case 8:
 		case 16:
-			err = snd_pcm_hw_params_set_format (pcm, hw, bps == 8 ?
+			err = psnd_pcm_hw_params_set_format (pcm, hw, bps == 8 ?
 												  SND_PCM_FORMAT_U8 :
 												  SND_PCM_FORMAT_S16);
 			if (0 > err) {
 				Con_Printf ("ALSA: no usable formats. %s\n",
-							snd_strerror (err));
+							psnd_strerror (err));
 				goto error;
 			}
 			break;
@@ -215,23 +308,27 @@ static int ALSA_InitCard (soundcardinfo_t *sc, int cardnum)
 
 	switch (stereo) {
 		case -1:
-			err = snd_pcm_hw_params_set_channels (pcm, hw, 2);
+			err = psnd_pcm_hw_params_set_channels (pcm, hw, 2);
 			if (0 <= err) {
 				stereo = 1;
-			} else if (0 <= (err = snd_pcm_hw_params_set_channels (pcm, hw, 1))) {
+			} else if (0 <= (err = psnd_pcm_hw_params_set_channels (pcm, hw, 1))) {
 				stereo = 0;
 			} else {
 				Con_Printf ("ALSA: no usable channels. %s\n",
-							snd_strerror (err));
+							psnd_strerror (err));
 				goto error;
 			}
 			break;
 		case 0:
 		case 1:
-			err = snd_pcm_hw_params_set_channels (pcm, hw, stereo ? 2 : 1);
+		case 2:
+		case 3:
+		case 4:
+		case 5:
+			err = psnd_pcm_hw_params_set_channels (pcm, hw, stereo+1);
 			if (0 > err) {
 				Con_Printf ("ALSA: no usable channels. %s\n",
-							snd_strerror (err));
+							psnd_strerror (err));
 				goto error;
 			}
 			break;
@@ -243,23 +340,23 @@ static int ALSA_InitCard (soundcardinfo_t *sc, int cardnum)
 	switch (rate) {
 		case 0:
 			rate = 44100;
-			err = snd_pcm_hw_params_set_rate_near (pcm, hw, &rate, 0);
+			err = psnd_pcm_hw_params_set_rate_near (pcm, hw, &rate, 0);
 			if (0 <= err) {
 				frag_size = 32 * bps;
 			} else {
 				rate = 22050;
-				err = snd_pcm_hw_params_set_rate_near (pcm, hw, &rate, 0);
+				err = psnd_pcm_hw_params_set_rate_near (pcm, hw, &rate, 0);
 				if (0 <= err) {
 					frag_size = 16 * bps;
 				} else {
 					rate = 11025;
-					err = snd_pcm_hw_params_set_rate_near (pcm, hw, &rate,
+					err = psnd_pcm_hw_params_set_rate_near (pcm, hw, &rate,
 															 0);
 					if (0 <= err) {
 						frag_size = 8 * bps;
 					} else {
 						Con_Printf ("ALSA: no usable rates. %s\n",
-									snd_strerror (err));
+									psnd_strerror (err));
 						goto error;
 					}
 				}
@@ -268,10 +365,10 @@ static int ALSA_InitCard (soundcardinfo_t *sc, int cardnum)
 		case 11025:
 		case 22050:
 		case 44100:
-			err = snd_pcm_hw_params_set_rate_near (pcm, hw, &rate, 0);
+			err = psnd_pcm_hw_params_set_rate_near (pcm, hw, &rate, 0);
 			if (0 > err) {
 				Con_Printf ("ALSA: desired rate %i not supported. %s\n", rate,
-							snd_strerror (err));
+							psnd_strerror (err));
 				goto error;
 			}
 			frag_size = 8 * bps * rate / 11025;
@@ -281,40 +378,40 @@ static int ALSA_InitCard (soundcardinfo_t *sc, int cardnum)
 			goto error;
 	}
 
-	err = snd_pcm_hw_params_set_period_size_near (pcm, hw, &frag_size, 0);
+	err = psnd_pcm_hw_params_set_period_size_near (pcm, hw, &frag_size, 0);
 	if (0 > err) {
 		Con_Printf ("ALSA: unable to set period size near %i. %s\n",
-					(int) frag_size, snd_strerror (err));
+					(int) frag_size, psnd_strerror (err));
 		goto error;
 	}
-	err = snd_pcm_hw_params (pcm, hw);
+	err = psnd_pcm_hw_params (pcm, hw);
 	if (0 > err) {
 		Con_Printf ("ALSA: unable to install hw params: %s\n",
-					snd_strerror (err));
+					psnd_strerror (err));
 		goto error;
 	}
-	err = snd_pcm_sw_params_current (pcm, sw);
+	err = psnd_pcm_sw_params_current (pcm, sw);
 	if (0 > err) {
 		Con_Printf ("ALSA: unable to determine current sw params. %s\n",
-					snd_strerror (err));
+					psnd_strerror (err));
 		goto error;
 	}
-	err = snd_pcm_sw_params_set_start_threshold (pcm, sw, ~0U);
+	err = psnd_pcm_sw_params_set_start_threshold (pcm, sw, ~0U);
 	if (0 > err) {
 		Con_Printf ("ALSA: unable to set playback threshold. %s\n",
-					snd_strerror (err));
+					psnd_strerror (err));
 		goto error;
 	}
-	err = snd_pcm_sw_params_set_stop_threshold (pcm, sw, ~0U);
+	err = psnd_pcm_sw_params_set_stop_threshold (pcm, sw, ~0U);
 	if (0 > err) {
 		Con_Printf ("ALSA: unable to set playback stop threshold. %s\n",
-					snd_strerror (err));
+					psnd_strerror (err));
 		goto error;
 	}
-	err = snd_pcm_sw_params (pcm, sw);
+	err = psnd_pcm_sw_params (pcm, sw);
 	if (0 > err) {
 		Con_Printf ("ALSA: unable to install sw params. %s\n",
-					snd_strerror (err));
+					psnd_strerror (err));
 		goto error;
 	}
 
@@ -322,10 +419,10 @@ static int ALSA_InitCard (soundcardinfo_t *sc, int cardnum)
 	sc->sn.samplepos = 0;
 	sc->sn.samplebits = bps;
 
-	err = snd_pcm_hw_params_get_buffer_size (hw, &buffer_size);
+	err = psnd_pcm_hw_params_get_buffer_size (hw, &buffer_size);
 	if (0 > err) {
 		Con_Printf ("ALSA: unable to get buffer size. %s\n",
-					snd_strerror (err));
+					psnd_strerror (err));
 		goto error;
 	}
 
@@ -344,7 +441,7 @@ static int ALSA_InitCard (soundcardinfo_t *sc, int cardnum)
 	return true;
 
 error:
-	snd_pcm_close (pcm);
+	psnd_pcm_close (pcm);
 	return false;
 }
 

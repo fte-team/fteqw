@@ -8,7 +8,7 @@ of the License, or (at your option) any later version.
 
 This program is distributed in the hope that it will be useful,
 but WITHOUT ANY WARRANTY; without even the implied warranty of
-MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
 
 See the GNU General Public License for more details.
 
@@ -138,7 +138,7 @@ void SV_New_f (void)
 //spawns.  These functions are written to not overflow
 /*	if (host_client->num_backbuf)
 	{
-		Con_TPrintf(STL_BACKBUFSET, host_client->name, host_client->netchan.message.cursize); 
+		Con_TPrintf(STL_BACKBUFSET, host_client->name, host_client->netchan.message.cursize);
 		host_client->num_backbuf = 0;
 		SZ_Clear(&host_client->netchan.message);
 	}
@@ -212,7 +212,7 @@ void SV_New_f (void)
 
 	//
 	// game server
-	// 
+	//
 #ifdef Q2SERVER
 	if (ISQ2CLIENT(host_client))
 	{
@@ -275,7 +275,7 @@ void SVNQ_New_f (void)
 
 	MSG_WriteByte (&host_client->netchan.message, svc_print);
 #ifdef DISTRIBUTION
-	sprintf (message, "%c\n" DISTRIBUTION " QuakeWorld version %4.2f server\n", 2, VERSION);	
+	sprintf (message, "%c\n" DISTRIBUTION " QuakeWorld version %4.2f server\n", 2, VERSION);
 #else
 	sprintf (message, "%c\nQUAKEWORLD VERSION %4.2f SERVER\n", 2, VERSION);
 #endif
@@ -284,6 +284,7 @@ void SVNQ_New_f (void)
 	MSG_WriteByte (&host_client->netchan.message, svc_serverdata);
 	switch(host_client->protocol)
 	{
+#ifdef NQPROT
 	case SCP_NETQUAKE:
 		MSG_WriteLong (&host_client->netchan.message, NQ_PROTOCOL_VERSION);
 		MSG_WriteByte (&host_client->netchan.message, 16);
@@ -296,6 +297,7 @@ void SVNQ_New_f (void)
 		MSG_WriteLong (&host_client->netchan.message, DP7_PROTOCOL_VERSION);
 		MSG_WriteByte (&host_client->netchan.message, sv.allocated_client_slots);
 		break;
+#endif
 	default:
 		host_client->drop = true;
 		break;
@@ -324,7 +326,7 @@ void SVNQ_New_f (void)
 	MSG_WriteByte (&host_client->netchan.message, sv.edicts->v->sounds);
 	MSG_WriteByte (&host_client->netchan.message, sv.edicts->v->sounds);
 
-// set view	
+// set view
 	MSG_WriteByte (&host_client->netchan.message, svc_setview);
 	MSG_WriteShort (&host_client->netchan.message, NUM_FOR_EDICT(svprogfuncs, host_client->edict));
 
@@ -376,7 +378,7 @@ void SVQ2_ConfigStrings_f (void)
 
 	// write a packet full of data
 
-	while ( host_client->netchan.message.cursize < MAX_QWMSGLEN/2 
+	while ( host_client->netchan.message.cursize < MAX_QWMSGLEN/2
 		&& start < Q2MAX_CONFIGSTRINGS)
 	{
 		str = sv.configstring[start];
@@ -537,7 +539,7 @@ void SVQ2_BaseLines_f (void)
 		Con_Printf ("baselines not valid -- already spawned\n");
 		return;
 	}
-	
+
 	// handle the case of a level changing while a client was connecting
 	if ( atoi(Cmd_Argv(1)) != svs.spawncount )
 	{
@@ -545,7 +547,7 @@ void SVQ2_BaseLines_f (void)
 		SV_New_f ();
 		return;
 	}
-	
+
 	start = atoi(Cmd_Argv(2));
 
 	memset (&nullstate, 0, sizeof(nullstate));
@@ -604,7 +606,7 @@ void SV_PK3List_f (void)
 	int crc;
 	char *name;
 	int i;
-	
+
 
 	if (host_client->state != cs_connected)
 	{	//fixme: send prints instead
@@ -621,12 +623,12 @@ void SV_PK3List_f (void)
 	}
 
 	i = atoi(Cmd_Argv(2));
-	
+
 //NOTE:  This doesn't go through ClientReliableWrite since it's before the user
 //spawns.  These functions are written to not overflow
 	if (host_client->num_backbuf)
 	{
-		Con_Printf("WARNING %s: [SV_Soundlist] Back buffered (%d), clearing", host_client->name, host_client->netchan.message.cursize); 
+		Con_Printf("WARNING %s: [SV_Soundlist] Back buffered (%d), clearing", host_client->name, host_client->netchan.message.cursize);
 		host_client->num_backbuf = 0;
 		SZ_Clear(&host_client->netchan.message);
 	}
@@ -688,11 +690,11 @@ void SV_Soundlist_f (void)
 	}
 
 	n = atoi(Cmd_Argv(2));
-	
+
 //NOTE:  This doesn't go through ClientReliableWrite since it's before the user
 //spawns.  These functions are written to not overflow
 	if (host_client->num_backbuf) {
-		Con_Printf("WARNING %s: [SV_Soundlist] Back buffered (%d), clearing", host_client->name, host_client->netchan.message.cursize); 
+		Con_Printf("WARNING %s: [SV_Soundlist] Back buffered (%d), clearing", host_client->name, host_client->netchan.message.cursize);
 		host_client->num_backbuf = 0;
 		SZ_Clear(&host_client->netchan.message);
 	}
@@ -710,18 +712,18 @@ void SV_Soundlist_f (void)
 	if (sv.democausesreconnect)	//read the list from somewhere else
 	{
 		for (i = 1+n;
-			*sv.demsound_precache[i] && host_client->netchan.message.cursize < (MAX_QWMSGLEN/2); 
+			*sv.demsound_precache[i] && host_client->netchan.message.cursize < (MAX_QWMSGLEN/2);
 			i++, n++)
 			MSG_WriteString (&host_client->netchan.message, sv.demsound_precache[i]);
 
-			
+
 		if (!*sv.demsound_precache[i])
 			n = 0;
 	}
 	else
 	{
 		for (i = 1+n;
-			*sv.sound_precache[i] && host_client->netchan.message.cursize < (MAX_QWMSGLEN/2); 
+			*sv.sound_precache[i] && host_client->netchan.message.cursize < (MAX_QWMSGLEN/2);
 			i++, n++)
 			MSG_WriteString (&host_client->netchan.message, sv.sound_precache[i]);
 
@@ -749,7 +751,7 @@ void SV_Modellist_f (void)
 		Con_Printf ("modellist not valid -- allready spawned\n");
 		return;
 	}
-	
+
 	// handle the case of a level changing while a client was connecting
 	if ( atoi(Cmd_Argv(1)) != svs.spawncount && !sv.msgfromdemo)
 	{
@@ -763,7 +765,7 @@ void SV_Modellist_f (void)
 //NOTE:  This doesn't go through ClientReliableWrite since it's before the user
 //spawns.  These functions are written to not overflow
 	if (host_client->num_backbuf) {
-		Con_Printf("WARNING %s: [SV_Modellist] Back buffered (%d), clearing", host_client->name, host_client->netchan.message.cursize); 
+		Con_Printf("WARNING %s: [SV_Modellist] Back buffered (%d), clearing", host_client->name, host_client->netchan.message.cursize);
 		host_client->num_backbuf = 0;
 		SZ_Clear(&host_client->netchan.message);
 	}
@@ -831,7 +833,7 @@ void SV_PreSpawn_f (void)
 		Con_Printf ("prespawn not valid -- allready spawned\n");
 		return;
 	}
-	
+
 	// handle the case of a level changing while a client was connecting
 	if ( atoi(Cmd_Argv(1)) != svs.spawncount && !sv.msgfromdemo)
 	{
@@ -866,10 +868,10 @@ void SV_PreSpawn_f (void)
 			check != LittleLong(sv.worldmodel->checksum2))
 		if (!sv.demofile || (sv.demofile && !sv.democausesreconnect))	//demo playing causes no check. If it's the return level, check anyway to avoid that loophole.
 		{
-			SV_ClientTPrintf (host_client, PRINT_HIGH, 
+			SV_ClientTPrintf (host_client, PRINT_HIGH,
 				STL_MAPCHEAT,
 				sv.modelname, check, sv.worldmodel->checksum, sv.worldmodel->checksum2);
-			SV_DropClient (host_client); 
+			SV_DropClient (host_client);
 			return;
 		}
 		host_client->checksum = check;
@@ -878,7 +880,7 @@ void SV_PreSpawn_f (void)
 //NOTE:  This doesn't go through ClientReliableWrite since it's before the user
 //spawns.  These functions are written to not overflow
 	if (host_client->num_backbuf) {
-		Con_Printf("WARNING %s: [SV_PreSpawn] Back buffered (%d), clearing", host_client->name, host_client->netchan.message.cursize); 
+		Con_Printf("WARNING %s: [SV_PreSpawn] Back buffered (%d), clearing", host_client->name, host_client->netchan.message.cursize);
 		host_client->num_backbuf = 0;
 		SZ_Clear(&host_client->netchan.message);
 	}
@@ -1027,7 +1029,7 @@ void SV_PreSpawn_f (void)
 		{
 			if (host_client->netchan.message.cursize+sv.signon_buffer_size[buf]+30 < host_client->netchan.message.maxsize)
 			{
-				SZ_Write (&host_client->netchan.message, 
+				SZ_Write (&host_client->netchan.message,
 					sv.demosignon_buffers[buf],
 					sv.demosignon_buffer_size[buf]);
 				buf++;
@@ -1037,7 +1039,7 @@ void SV_PreSpawn_f (void)
 		{
 			if (host_client->netchan.message.cursize+sv.signon_buffer_size[buf]+30 < host_client->netchan.message.maxsize)
 			{
-				SZ_Write (&host_client->netchan.message, 
+				SZ_Write (&host_client->netchan.message,
 					sv.signon_buffers[buf],
 					sv.signon_buffer_size[buf]);
 					buf++;
@@ -1052,7 +1054,7 @@ void SV_PreSpawn_f (void)
 	else
 	{	// need to prespawn more
 		MSG_WriteByte (&host_client->netchan.message, svc_stufftext);
-		MSG_WriteString (&host_client->netchan.message, 
+		MSG_WriteString (&host_client->netchan.message,
 			va("cmd prespawn %i %i\n", svs.spawncount, buf) );
 	}
 }
@@ -1082,7 +1084,7 @@ void SV_Spawn_f (void)
 		SV_New_f ();
 		return;
 	}
-	
+
 // send all current names, colors, and frag counts
 	// FIXME: is this a good thing?
 	SZ_Clear (&host_client->netchan.message);
@@ -1098,7 +1100,7 @@ void SV_Spawn_f (void)
 	{
 		if (sv.democausesreconnect)
 		{
-			ClientReliableWrite_Begin (host_client, svc_lightstyle, 
+			ClientReliableWrite_Begin (host_client, svc_lightstyle,
 				3 + (sv.demolightstyles[i] ? strlen(sv.demolightstyles[i]) : 1));
 			ClientReliableWrite_Byte (host_client, (char)i);
 			ClientReliableWrite_String (host_client, sv.demolightstyles[i]);
@@ -1107,7 +1109,7 @@ void SV_Spawn_f (void)
 #ifdef PEXT_LIGHTSTYLECOL
 			 if (host_client->fteprotocolextensions & PEXT_LIGHTSTYLECOL && sv.lightstylecolours[i]!=7)
 		{
-			ClientReliableWrite_Begin (host_client, svc_lightstylecol, 
+			ClientReliableWrite_Begin (host_client, svc_lightstylecol,
 				3 + (sv.lightstyles[i] ? strlen(sv.lightstyles[i]) : 1));
 			ClientReliableWrite_Byte (host_client, (char)i);
 			ClientReliableWrite_Char (host_client, sv.lightstylecolours[i]);
@@ -1116,7 +1118,7 @@ void SV_Spawn_f (void)
 		else
 #endif
 		{
-			ClientReliableWrite_Begin (host_client, svc_lightstyle, 
+			ClientReliableWrite_Begin (host_client, svc_lightstyle,
 				3 + (sv.lightstyles[i] ? strlen(sv.lightstyles[i]) : 1));
 			ClientReliableWrite_Byte (host_client, (char)i);
 			ClientReliableWrite_String (host_client, sv.lightstyles[i]);
@@ -1231,8 +1233,9 @@ void SV_Begin_f (void)
 			ge->ClientBegin(split->q2edict);
 			split->istobeloaded = false;
 		}
+		else
 #endif
-		else if (split->istobeloaded)
+		if (split->istobeloaded)
 		{
 			sendangles = true;
 			split->istobeloaded = false;
@@ -1303,7 +1306,7 @@ void SV_Begin_f (void)
 
 						// actually spawn the player
 						pr_global_struct->time = sv.time;
-						pr_global_struct->self = EDICT_TO_PROG(svprogfuncs, split->edict);			
+						pr_global_struct->self = EDICT_TO_PROG(svprogfuncs, split->edict);
 						PR_ExecuteProgram (svprogfuncs, pr_global_struct->PutClientInServer);
 
 						oh = host_client;
@@ -1362,7 +1365,7 @@ void SV_Begin_f (void)
 // Never send a roll angle, because savegames can catch the server
 // in a state where it is expecting the client to correct the angle
 // and it won't happen if the game was just loaded, so you wind up
-// with a permanent head tilt		
+// with a permanent head tilt
 		MSG_WriteByte (&host_client->netchan.message, svc_setangle);
 		MSG_WriteAngle (&host_client->netchan.message, 0 );
 		MSG_WriteAngle (&host_client->netchan.message, host_client->edict->v->angles[1] );
@@ -1458,7 +1461,7 @@ void VARGS OutofBandPrintf(netadr_t where, char *fmt, ...)
 {
 	va_list		argptr;
 	char	send[1024];
-	
+
 	send[0] = 0xff;
 	send[1] = 0xff;
 	send[2] = 0xff;
@@ -1537,7 +1540,7 @@ Con_DPrintf ("UPLOAD: %d received\n", size);
 				p++;
 			else
 				p = host_client->uploadfn;
-			OutofBandPrintf(host_client->snap_from, "%s upload completed.\nTo download, enter:\ndownload %s\n", 
+			OutofBandPrintf(host_client->snap_from, "%s upload completed.\nTo download, enter:\ndownload %s\n",
 				host_client->uploadfn, p);
 		}
 	}
@@ -1750,7 +1753,7 @@ void SV_SayOne_f (void)
 			SV_ClientTPrintf(host_client, PRINT_CHAT,
 					STL_YOUAREMUTED);
 			return;
-		}	
+		}
 
 
 		for (i = 2; ; i++)
@@ -1842,7 +1845,7 @@ void SV_Say (qboolean team)
 		if (!sv.paused && realtime<host_client->lockedtill)
 		{
 			SV_ClientTPrintf(host_client, PRINT_CHAT,
-				STL_FLOODPROTTIME, 
+				STL_FLOODPROTTIME,
 					(int) (host_client->lockedtill - realtime));
 			return;
 		}
@@ -1953,7 +1956,7 @@ void SV_Say (qboolean team)
 	{
 		MVDWrite_Begin (dem_all, 0, strlen(text)+3);
 	}
-	else 
+	else
 		MVDWrite_Begin (dem_multiple, cls, strlen(text)+3);
 
 	MSG_WriteByte ((sizebuf_t*)demo.dbuf, svc_print);
@@ -2042,7 +2045,7 @@ void SV_Kill_f (void)
 		SV_ClientTPrintf (host_client, PRINT_HIGH, STL_NOSUISIDEWHENDEAD);
 		return;
 	}
-	
+
 	pr_global_struct->time = sv.time;
 	pr_global_struct->self = EDICT_TO_PROG(svprogfuncs, sv_player);
 
@@ -2115,7 +2118,7 @@ void SV_Drop_f (void)
 	SV_EndRedirect ();
 	if (!host_client->spectator)
 		SV_BroadcastTPrintf (PRINT_HIGH, STL_CLIENTDROPPED, host_client->name);
-	SV_DropClient (host_client);	
+	SV_DropClient (host_client);
 }
 
 /*
@@ -2129,7 +2132,7 @@ void SV_PTrack_f (void)
 {
 	int		i;
 	edict_t *ent, *tent;
-	
+
 	if (!host_client->spectator && !sv.demofile)
 		return;
 
@@ -2142,7 +2145,7 @@ void SV_PTrack_f (void)
 		ent->v->goalentity = EDICT_TO_PROG(svprogfuncs, tent);
 		return;
 	}
-	
+
 	i = atoi(Cmd_Argv(1));
 	if (*sv.recordedplayer[i].userinfo)
 	{
@@ -2176,7 +2179,7 @@ Change the bandwidth estimate for a client
 =================
 */
 void SV_Rate_f (void)
-{	
+{
 	if (Cmd_Argc() != 2)
 	{
 		SV_ClientPrintf (host_client, PRINT_HIGH, "Effective rate %i\n", SV_RateForClient(host_client));
@@ -2197,14 +2200,14 @@ Change the message level for a client
 =================
 */
 void SV_Msg_f (void)
-{	
+{
 	if (Cmd_Argc() != 2)
 	{
 		SV_ClientTPrintf (host_client, PRINT_HIGH, STL_CURRENTMSGLEVEL,
 			host_client->messagelevel);
 		return;
 	}
-	
+
 	host_client->messagelevel = atoi(Cmd_Argv(1));
 
 	SV_ClientTPrintf (host_client, PRINT_HIGH, STL_MSGLEVELSET, host_client->messagelevel);
@@ -2244,7 +2247,7 @@ void SV_SetInfo_f (void)
 	Info_SetValueForKey (host_client->userinfo, Cmd_Argv(1), Cmd_Argv(2), sizeof(host_client->userinfo));
 // name is extracted below in ExtractFromUserInfo
 //	strncpy (host_client->name, Info_ValueForKey (host_client->userinfo, "name")
-//		, sizeof(host_client->name)-1);	
+//		, sizeof(host_client->name)-1);
 //	SV_FullClientUpdate (host_client, &sv.reliable_datagram);
 //	host_client->sendinfo = true;
 
@@ -2398,7 +2401,7 @@ void SV_Vote_f (void)
 	base = command;
 	while(*base>' ')
 		base++;
-	if (*base)			
+	if (*base)
 		*base = '\0';
 	else
 		base = NULL;
@@ -2417,7 +2420,7 @@ void SV_Vote_f (void)
 	}
 
 
-	VoteCheckTimes();	
+	VoteCheckTimes();
 
 	for (num = 0; num < sv.allocated_client_slots; num++)
 		if (svs.clients[num].state == cs_spawned)
@@ -2525,19 +2528,19 @@ void Cmd_Give_f (void)
 
 		case 's':
 			sv_player->v->ammo_shells = v;
-			break;		
+			break;
 		case 'n':
 			sv_player->v->ammo_nails = v;
-			break;		
+			break;
 		case 'r':
 			sv_player->v->ammo_rockets = v;
-			break;		
+			break;
 		case 'h':
 			sv_player->v->health = v;
-			break;		
+			break;
 		case 'c':
 			sv_player->v->ammo_cells = v;
-			break;		
+			break;
 		}
 	}
 	else if (host_client->netchan.remote_address.type == NA_LOOPBACK)	//we don't want clients doing nasty things... like setting movetype 3123
@@ -2548,7 +2551,7 @@ void Cmd_Give_f (void)
 		Con_Printf("Result: %s\n", svprogfuncs->EvaluateDebugString(svprogfuncs, Cmd_Args()));
 		pr_global_struct->self = oldself;
 	}
-	
+
 }
 
 void Cmd_Noclip_f (void)
@@ -2607,7 +2610,7 @@ By Alex Shadowalker (and added to fte because he kept winging)
 ====================
 */
 void Cmd_SetPos_f(void)
-{			
+{
 	if (!sv_allow_cheats)
 	{
 		Con_Printf ("Cheats are not allowed on this server\n");
@@ -2639,7 +2642,7 @@ void SetUpClientEdict (client_t *cl, edict_t *ent)
 		ED_ClearEdict(svprogfuncs, ent);
 	ED_Spawned(ent);
 	ent->isfree = false;
-	
+
 	ent->v->colormap = NUM_FOR_EDICT(svprogfuncs, ent);
 	ent->v->netname = PR_SetString(svprogfuncs, cl->name);
 
@@ -2724,11 +2727,11 @@ void Cmd_Join_f (void)
 	pr_global_struct->time = sv.time;
 	pr_global_struct->self = EDICT_TO_PROG(svprogfuncs, sv_player);
 	PR_ExecuteProgram (svprogfuncs, pr_global_struct->ClientConnect);
-	
+
 	// actually spawn the player
 	pr_global_struct->time = sv.time;
 	pr_global_struct->self = EDICT_TO_PROG(svprogfuncs, sv_player);
-	PR_ExecuteProgram (svprogfuncs, pr_global_struct->PutClientInServer);	
+	PR_ExecuteProgram (svprogfuncs, pr_global_struct->PutClientInServer);
 
 	// send notification to all clients
 	host_client->sendinfo = true;
@@ -2803,7 +2806,7 @@ void Cmd_Observe_f (void)
 	}
 
 	SV_SpawnSpectator ();
-	
+
 	// call the spawn function
 	if (SpectatorConnect)
 	{
@@ -2847,7 +2850,7 @@ ucmd_t ucmds[] =
 	{"disconnect", SV_Drop_f},
 	{"pings", SV_Pings_f},
 
-// issued by hand at client consoles	
+// issued by hand at client consoles
 	{"rate", SV_Rate_f},
 	{"kill", SV_Kill_f},
 	{"pause", SV_Pause_f},
@@ -2884,7 +2887,7 @@ ucmd_t ucmds[] =
 //	{"stopdownload", SV_StopDownload_f},
 	{"demolist", SV_MVDList_f},
 	{"demoinfo", SV_MVDInfo_f},
-	
+
 	{NULL, NULL}
 };
 
@@ -2929,7 +2932,7 @@ void SV_ExecuteUserCommand (char *s, qboolean fromQC)
 	client_t *oldhost = host_client;
 
 	Con_DPrintf("Client command: %s\n", s);
-	
+
 	Cmd_TokenizeString (s, false, false);
 	sv_player = host_client->edict;
 
@@ -3051,11 +3054,11 @@ void SVNQ_Spawn_f (void)
 	// normally this could overflow, but no need to check due to backbuf
 	for (i=0, client = svs.clients; i<sv.allocated_client_slots ; i++, client++)
 		SV_FullClientUpdateToClient (client, host_client);
-	
+
 // send all current light styles
 	for (i=0 ; i<MAX_LIGHTSTYLES ; i++)
 	{
-		ClientReliableWrite_Begin (host_client, svc_lightstyle, 
+		ClientReliableWrite_Begin (host_client, svc_lightstyle,
 			3 + (sv.lightstyles[i] ? strlen(sv.lightstyles[i]) : 1));
 		ClientReliableWrite_Byte (host_client, (char)i);
 		ClientReliableWrite_String (host_client, sv.lightstyles[i]);
@@ -3078,7 +3081,7 @@ void SVNQ_Spawn_f (void)
 		ent->v->team = 0;	// FIXME
 		ent->v->netname = PR_SetString(svprogfuncs, host_client->name);
 
-		host_client->entgravity = ent->v->gravity = 1.0;	
+		host_client->entgravity = ent->v->gravity = 1.0;
 		host_client->entgravity*=sv_gravity.value;
 		host_client->maxspeed = ent->v->maxspeed = sv_maxspeed.value;
 	}
@@ -3105,14 +3108,14 @@ void SVNQ_Spawn_f (void)
 	ClientReliableWrite_Long (host_client, pr_global_struct->killed_monsters);
 
 
-	
+
 	SZ_Write (&host_client->netchan.message, sv.signon.data, sv.signon.cursize);
 	MSG_WriteByte (&host_client->netchan.message, svc_signonnum);
 	MSG_WriteByte (&host_client->netchan.message, 3);
-	
+
 
 	host_client->send_message = true;
-	
+
 }
 void SVNQ_Begin_f (void)
 {
@@ -3167,8 +3170,8 @@ void SVNQ_Begin_f (void)
 
 			// actually spawn the player
 			pr_global_struct->time = sv.time;
-			pr_global_struct->self = EDICT_TO_PROG(svprogfuncs, sv_player);			
-			PR_ExecuteProgram (svprogfuncs, pr_global_struct->PutClientInServer);	
+			pr_global_struct->self = EDICT_TO_PROG(svprogfuncs, sv_player);
+			PR_ExecuteProgram (svprogfuncs, pr_global_struct->PutClientInServer);
 		}
 	}
 
@@ -3189,7 +3192,7 @@ void SVNQ_Begin_f (void)
 			emodel != sv.eyes_player_checksum)
 			SV_BroadcastTPrintf (PRINT_HIGH, STL_POSSIBLEMODELCHEAT, host_client->name);
 	}
-	
+
 
 	// if we are paused, tell the client
 	if (sv.paused)
@@ -3209,7 +3212,7 @@ void SVNQ_Begin_f (void)
 // Never send a roll angle, because savegames can catch the server
 // in a state where it is expecting the client to correct the angle
 // and it won't happen if the game was just loaded, so you wind up
-// with a permanent head tilt		
+// with a permanent head tilt
 		MSG_WriteByte (&host_client->netchan.message, svc_setangle);
 		MSG_WriteAngle (&host_client->netchan.message, 0 );
 		MSG_WriteAngle (&host_client->netchan.message, host_client->edict->v->angles[1] );
@@ -3217,11 +3220,11 @@ void SVNQ_Begin_f (void)
 	}
 
 
-	
+
 	SZ_Write (&host_client->netchan.message, sv.signon.data, sv.signon.cursize);
 //	MSG_WriteByte (&host_client->netchan.message, svc_signonnum);
 //	MSG_WriteByte (&host_client->netchan.message, 4);
-	
+
 
 	host_client->send_message = true;
 }
@@ -3293,20 +3296,20 @@ void SVNQ_PreSpawn_f (void)
 			}
 		}
 	}
-	
+
 	for (i = 0; i < sv.num_signon_buffers; i++)
 		SZ_Write (&host_client->netchan.message, sv.signon_buffers[i], sv.signon_buffer_size[i]);
-	
+
 	MSG_WriteByte (&host_client->netchan.message, svc_signonnum);
 	MSG_WriteByte (&host_client->netchan.message, 2);
-	
+
 
 	host_client->send_message = true;
 }
 void SVNQ_NQInfo_f (void)
 {
 	Cmd_TokenizeString(va("setinfo \"%s\" \"%s\"\n", Cmd_Argv(0), Cmd_Argv(1)), false, false);
-	SV_SetInfo_f();	
+	SV_SetInfo_f();
 }
 
 void SVNQ_NQColour_f (void)
@@ -3330,9 +3333,9 @@ void SVNQ_NQColour_f (void)
 	bottom &= 15;
 	if (bottom > 13)
 		bottom = 13;
-	
+
 	playercolor = top*16 + bottom;
-	
+
 	if (progstype != PROG_QW)
 		host_client->edict->v->team = bottom + 1;
 
@@ -3352,7 +3355,7 @@ void SVNQ_NQColour_f (void)
 	}
 
 	SV_ExtractFromUserinfo (host_client);
-	
+
 	MSG_WriteByte (&sv.reliable_datagram, svc_setinfo);
 	MSG_WriteByte (&sv.reliable_datagram, host_client - svs.clients);
 	MSG_WriteString (&sv.reliable_datagram, "topcolor");
@@ -3421,7 +3424,7 @@ ucmd_t nqucmds[] =
 #ifdef SVRANKING
 	{"topten",		Rank_ListTop10_f},
 #endif
-	
+
 	{NULL, NULL}
 };
 
@@ -3429,7 +3432,7 @@ void SVNQ_ExecuteUserCommand (char *s)
 {
 	client_t *oldhost = host_client;
 	ucmd_t	*u;
-	
+
 	Cmd_TokenizeString (s, false, false);
 	sv_player = host_client->edict;
 
@@ -3533,21 +3536,21 @@ float V_CalcRoll (vec3_t angles, vec3_t velocity)
 	float	sign;
 	float	side;
 	float	value;
-	
+
 	AngleVectors (angles, forward, right, up);
 	side = DotProduct (velocity, right);
 	sign = side < 0 ? -1 : 1;
 	side = fabs(side);
-	
+
 	value = cl_rollangle.value;
 
 	if (side < cl_rollspeed.value)
 		side = side * value / cl_rollspeed.value;
 	else
 		side = value;
-	
+
 	return side*sign;
-	
+
 }
 #endif
 
@@ -3575,7 +3578,7 @@ void AddLinksToPmove ( areanode_t *node )
 
 	hull_t *hull;
 vec3_t offset;
-	pl = EDICT_TO_PROG(svprogfuncs, sv_player);	
+	pl = EDICT_TO_PROG(svprogfuncs, sv_player);
 
 	// touch linked edicts
 	for (l = node->solid_edicts.next ; l != &node->solid_edicts ; l = next)
@@ -3585,8 +3588,8 @@ vec3_t offset;
 
 		if (check->v->owner == pl)
 			continue;		// player's own missile
-		if (check->v->solid == SOLID_BSP 
-			|| check->v->solid == SOLID_BBOX 
+		if (check->v->solid == SOLID_BSP
+			|| check->v->solid == SOLID_BBOX
 			|| check->v->solid == SOLID_SLIDEBOX)
 		{
 			if (check == sv_player)
@@ -3649,7 +3652,7 @@ vec3_t offset;
 			omt = check->v->movetype;
 			check->v->solid = SOLID_BSP;
 			check->v->movetype = MOVETYPE_PUSH;
-			hull = SV_HullForEntity (check, 0, sv_player->v->mins, sv_player->v->maxs, offset);			
+			hull = SV_HullForEntity (check, 0, sv_player->v->mins, sv_player->v->maxs, offset);
 			check->v->movetype = omt;
 			check->v->solid = os;
 
@@ -3658,7 +3661,7 @@ vec3_t offset;
 				sv_player->v->fteflags = (int)sv_player->v->fteflags | FF_LADDER;	//touch that ladder!
 		}
 	}
-	
+
 // recurse down both sides
 	if (node->axis == -1)
 		return;
@@ -3693,8 +3696,8 @@ void AddAllEntsToPmove (void)
 			continue;
 		if (check->v->owner == pl)
 			continue;
-		if (check->v->solid == SOLID_BSP 
-			|| check->v->solid == SOLID_BBOX 
+		if (check->v->solid == SOLID_BSP
+			|| check->v->solid == SOLID_BBOX
 			|| check->v->solid == SOLID_SLIDEBOX)
 		{
 			if (check == sv_player)
@@ -3800,9 +3803,9 @@ void SV_RunCmd (usercmd_t *ucmd, qboolean recurse)
 	qboolean jumpable;
 	extern cvar_t sv_gravity;
 
-	
+
 	// DMW copied this KK hack copied from QuakeForge anti-cheat
-	// (also extra inside parm on all SV_RunCmds that follow)	
+	// (also extra inside parm on all SV_RunCmds that follow)
 
 	// To prevent a infinite loop
 	if (!recurse) {
@@ -3812,14 +3815,14 @@ void SV_RunCmd (usercmd_t *ucmd, qboolean recurse)
 			tmp_time = tmp_time * 1000.0 * sv_cheatpc.value/100.0;
 		    if (host_client->msecs > tmp_time) {
 				host_client->msec_cheating++;
-				SV_BroadcastTPrintf(PRINT_HIGH, 
+				SV_BroadcastTPrintf(PRINT_HIGH,
 						STL_SPEEDCHEATPOSSIBLE,
 							host_client->msecs, tmp_time,
 							host_client->msec_cheating, host_client->name);
 
 				if (host_client->msec_cheating >= 2) {
-					SV_BroadcastTPrintf(PRINT_HIGH, 
-							STL_SPEEDCHEATKICKED, 
+					SV_BroadcastTPrintf(PRINT_HIGH,
+							STL_SPEEDCHEATKICKED,
 								host_client->name, NET_AdrToString(host_client->netchan.remote_address));
 					SV_DropClient(host_client);
 				}
@@ -3851,7 +3854,7 @@ void SV_RunCmd (usercmd_t *ucmd, qboolean recurse)
 	host_frametime *= sv.gamespeed;
 	if (host_frametime > 0.1)
 		host_frametime = 0.1;
-	
+
 	if (sv.demostatevalid)
 	{	//spectators watching MVDs do not affect the running progs.
 		player_mins[0] = -16;
@@ -3865,7 +3868,7 @@ void SV_RunCmd (usercmd_t *ucmd, qboolean recurse)
 		pmove.angles[0] = SHORT2ANGLE(ucmd->angles[0]);
 		pmove.angles[1] = SHORT2ANGLE(ucmd->angles[1]);
 		pmove.angles[2] = SHORT2ANGLE(ucmd->angles[2]);
-		
+
 		VectorCopy (host_client->specorigin, pmove.origin);
 		VectorCopy (host_client->specvelocity, pmove.velocity);
 
@@ -3897,7 +3900,7 @@ void SV_RunCmd (usercmd_t *ucmd, qboolean recurse)
 		}
 
 		PM_PlayerMove (sv.gamespeed);
-		
+
 		VectorCopy (pmove.origin, host_client->specorigin);
 		VectorCopy (pmove.velocity, host_client->specvelocity);
 
@@ -3952,7 +3955,7 @@ void SV_RunCmd (usercmd_t *ucmd, qboolean recurse)
 
 //
 // angles
-// show 1/3 the pitch angle and all the roll angle	
+// show 1/3 the pitch angle and all the roll angle
 	if (sv_player->v->health > 0)
 	{
 		if (!sv_player->v->fixangle)
@@ -3960,7 +3963,7 @@ void SV_RunCmd (usercmd_t *ucmd, qboolean recurse)
 			sv_player->v->angles[PITCH] = -sv_player->v->v_angle[PITCH]/3;
 			sv_player->v->angles[YAW] = sv_player->v->v_angle[YAW];
 		}
-		sv_player->v->angles[ROLL] = 
+		sv_player->v->angles[ROLL] =
 			V_CalcRoll (sv_player->v->angles, sv_player->v->velocity)*4;
 	}
 
@@ -3995,7 +3998,7 @@ void SV_RunCmd (usercmd_t *ucmd, qboolean recurse)
 		else
 			jumpable = false;
 		PR_ExecuteProgram (svprogfuncs, pr_global_struct->PlayerPreThink);
-		
+
 		if (progstype != PROG_QW)
 		{
 			if (sv_player->v->velocity[2] == 225 && sv_player->v->teleport_time > sv.time)
@@ -4231,11 +4234,11 @@ void SV_ExecuteClientMessage (client_t *cl)
 		return;	//shouldn't happen...
 
 	// make sure the reply sequence number matches the incoming
-	// sequence number 
+	// sequence number
 	if (cl->netchan.incoming_sequence >= cl->netchan.outgoing_sequence)
 		cl->netchan.outgoing_sequence = cl->netchan.incoming_sequence;
 	else
-		cl->send_message = false;	// don't reply, sequences have slipped		
+		cl->send_message = false;	// don't reply, sequences have slipped
 
 	// save time for ping calculations
 	if (cl->frames)
@@ -4260,7 +4263,7 @@ void SV_ExecuteClientMessage (client_t *cl)
 			Con_Printf ("SV_ReadClientMessage: badread\n");
 			SV_DropClient (cl);
 			return;
-		}	
+		}
 
 		c = MSG_ReadByte ();
 haveannothergo:
@@ -4315,7 +4318,7 @@ haveannothergo:
 
 						if (calculatedChecksum != checksum)
 						{
-							Con_DPrintf ("Failed command checksum for %s(%d) (%d != %d)\n", 
+							Con_DPrintf ("Failed command checksum for %s(%d) (%d != %d)\n",
 								cl->name, cl->netchan.incoming_sequence, checksum, calculatedChecksum);
 
 							for (; cl; cl = cl->controlled)	//FIXME
@@ -4436,7 +4439,7 @@ haveannothergo:
 			break;
 
 
-		case clc_stringcmd:	
+		case clc_stringcmd:
 			s = MSG_ReadString ();
 			SV_ExecuteUserCommand (s, false);
 
@@ -4493,11 +4496,11 @@ void SVQ2_ExecuteClientMessage (client_t *cl)
 	frame = &cl->q2frames[cl->netchan.incoming_acknowledged & Q2UPDATE_MASK];
 
 	// make sure the reply sequence number matches the incoming
-	// sequence number 
+	// sequence number
 	if (cl->netchan.incoming_sequence >= cl->netchan.outgoing_sequence)
 		cl->netchan.outgoing_sequence = cl->netchan.incoming_sequence;
 	else
-		cl->send_message = false;	// don't reply, sequences have slipped		
+		cl->send_message = false;	// don't reply, sequences have slipped
 
 	// save time for ping calculations
 	cl->q2frames[cl->netchan.outgoing_sequence & Q2UPDATE_MASK].senttime = realtime;
@@ -4519,7 +4522,7 @@ void SVQ2_ExecuteClientMessage (client_t *cl)
 			Con_Printf ("SVQ2_ExecuteClientMessage: badread\n");
 			SV_DropClient (cl);
 			return;
-		}	
+		}
 
 		c = MSG_ReadByte ();
 		if (c == -1)
@@ -4544,7 +4547,7 @@ void SVQ2_ExecuteClientMessage (client_t *cl)
 			checksumIndex = MSG_GetReadCount();
 			checksum = (qbyte)MSG_ReadByte ();
 
-			
+
 			lastframe = MSG_ReadLong();
 			if (lastframe != host_client->delta_sequence) {
 				cl->delta_sequence = lastframe;
@@ -4565,7 +4568,7 @@ void SVQ2_ExecuteClientMessage (client_t *cl)
 
 			if (calculatedChecksum != checksum)
 			{
-				Con_DPrintf ("Failed command checksum for %s(%d) (%d != %d)\n", 
+				Con_DPrintf ("Failed command checksum for %s(%d) (%d != %d)\n",
 					cl->name, cl->netchan.incoming_sequence, checksum, calculatedChecksum);
 				return;
 			}
@@ -4611,7 +4614,7 @@ void SVQ2_ExecuteClientMessage (client_t *cl)
 			SV_ExtractFromUserinfo(cl);	//let the server routines know
 			break;
 
-		case clcq2_stringcmd:	
+		case clcq2_stringcmd:
 			s = MSG_ReadString ();
 			SV_ExecuteUserCommand (s, false);
 
@@ -4627,8 +4630,8 @@ void SVNQ_ReadClientMove (usercmd_t *move)
 {
 	int		i;
 	int		bits;
-	client_frame_t	*frame;	
-	
+	client_frame_t	*frame;
+
 	frame = &host_client->frames[host_client->netchan.incoming_acknowledged & UPDATE_MASK];
 
 	if (host_client->protocol == SCP_DARKPLACES7)
@@ -4636,29 +4639,29 @@ void SVNQ_ReadClientMove (usercmd_t *move)
 	else
 		host_client->last_sequence = 0;
 	frame->ping_time = sv.time - MSG_ReadFloat ();
-	
 
-// read current angles	
+
+// read current angles
 	for (i=0 ; i<3 ; i++)
 	{
 		host_client->edict->v->v_angle[i] = MSG_ReadAngle ();
 
 		move->angles[i] = (host_client->edict->v->v_angle[i] * 256*256)/360;
 	}
-		
+
 // read movement
 	move->forwardmove = MSG_ReadShort ();
 	move->sidemove = MSG_ReadShort ();
 	move->upmove = MSG_ReadShort ();
 
 	move->msec=100;
-	
+
 // read buttons
 	if (host_client->protocol == SCP_DARKPLACES6 || host_client->protocol == SCP_DARKPLACES7)
 		bits = MSG_ReadLong();
 	else
 		bits = MSG_ReadByte ();
-	move->buttons = bits;	
+	move->buttons = bits;
 
 	i = MSG_ReadByte ();
 	if (i)
@@ -4711,7 +4714,7 @@ void SVNQ_ExecuteClientMessage (client_t *cl)
 {
 	int		c;
 	char	*s;
-	client_frame_t	*frame;	
+	client_frame_t	*frame;
 	int		seq_hash;
 
 	cl->netchan.outgoing_sequence++;
@@ -4722,11 +4725,11 @@ void SVNQ_ExecuteClientMessage (client_t *cl)
 	frame->ping_time = 999;
 
 	// make sure the reply sequence number matches the incoming
-	// sequence number 
+	// sequence number
 //	if (cl->netchan.incoming_sequence >= cl->netchan.outgoing_sequence)
 		cl->netchan.outgoing_sequence = cl->netchan.incoming_sequence;
 //	else
-//		cl->send_message = false;	// don't reply, sequences have slipped		
+//		cl->send_message = false;	// don't reply, sequences have slipped
 
 	// save time for ping calculations
 	cl->frames[cl->netchan.outgoing_sequence & UPDATE_MASK].senttime = realtime;
@@ -4735,7 +4738,7 @@ void SVNQ_ExecuteClientMessage (client_t *cl)
 	host_client = cl;
 	sv_player = host_client->edict;
 
-	seq_hash = cl->netchan.incoming_sequence; 
+	seq_hash = cl->netchan.incoming_sequence;
 
 	// mark time so clients will know how much to predict
 	// other players
@@ -4747,7 +4750,7 @@ void SVNQ_ExecuteClientMessage (client_t *cl)
 			Con_Printf ("SV_ReadClientMessage: badread\n");
 			SV_DropClient (cl);
 			return;
-		}	
+		}
 
 		c = MSG_ReadByte ();
 		if (c == -1)
@@ -4776,7 +4779,7 @@ void SVNQ_ExecuteClientMessage (client_t *cl)
 //			SV_ClientThink();
 			break;
 
-		case clc_stringcmd:	
+		case clc_stringcmd:
 			s = MSG_ReadString ();
 			SVNQ_ExecuteUserCommand (s);
 			break;
@@ -4791,7 +4794,7 @@ SV_UserInit
 ==============
 */
 void SV_UserInit (void)
-{	
+{
 #ifdef SERVERONLY
 	Cvar_Register (&cl_rollspeed, "Prediction stuff");
 	Cvar_Register (&cl_rollangle, "Prediction stuff");
@@ -4899,9 +4902,9 @@ void SV_UserFriction (void)
 	vec3_t	start, stop;
 	float	friction;
 	trace_t	trace;
-	
+
 	vel = velocity;
-	
+
 	speed = sqrt(vel[0]*vel[0] +vel[1]*vel[1]);
 	if (!speed)
 		return;
@@ -4923,10 +4926,10 @@ void SV_UserFriction (void)
 //	if (val && val->_float)
 //		friction *= val->_float;
 
-// apply friction	
+// apply friction
 	control = speed < sv_stopspeed.value ? sv_stopspeed.value : speed;
 	newspeed = speed - host_frametime*control*friction;
-	
+
 	if (newspeed < 0)
 		newspeed = 0;
 	newspeed /= speed;
@@ -4948,16 +4951,16 @@ void SV_Accelerate (void)
 	accelspeed = sv_accelerate.value*host_frametime*wishspeed;
 	if (accelspeed > addspeed)
 		accelspeed = addspeed;
-	
+
 	for (i=0 ; i<3 ; i++)
-		velocity[i] += accelspeed*wishdir[i];	
+		velocity[i] += accelspeed*wishdir[i];
 }
 
 void SV_AirAccelerate (vec3_t wishveloc)
 {
 	int			i;
 	float		addspeed, wishspd, accelspeed, currentspeed;
-		
+
 	wishspd = VectorNormalize (wishveloc);
 	if (wishspd > 30)
 		wishspd = 30;
@@ -4969,9 +4972,9 @@ void SV_AirAccelerate (vec3_t wishveloc)
 	accelspeed = sv_accelerate.value*wishspeed * host_frametime;
 	if (accelspeed > addspeed)
 		accelspeed = addspeed;
-	
+
 	for (i=0 ; i<3 ; i++)
-		velocity[i] += accelspeed*wishveloc[i];	
+		velocity[i] += accelspeed*wishveloc[i];
 }
 
 /*
@@ -4991,11 +4994,11 @@ void SV_AirMove (void)
 
 	fmove = cmd.forwardmove;
 	smove = cmd.sidemove;
-	
+
 // hack to not let you back into teleporter
 	if (sv.time < sv_player->v->teleport_time && fmove < 0)
 		fmove = 0;
-		
+
 	for (i=0 ; i<3 ; i++)
 		wishvel[i] = forward[i]*fmove + right[i]*smove;
 
@@ -5021,7 +5024,7 @@ void SV_AirMove (void)
 		VectorScale (wishvel, maxspeed/wishspeed, wishvel);
 		wishspeed = maxspeed*scale;
 	}
-	
+
 	if ( sv_player->v->movetype == MOVETYPE_NOCLIP)
 	{	// noclip
 		VectorCopy (wishvel, velocity);
@@ -5034,7 +5037,7 @@ void SV_AirMove (void)
 	else
 	{	// not on ground, so little effect on velocity
 		SV_AirAccelerate (wishvel);
-	}		
+	}
 }
 
 void SV_WaterMove (void)
@@ -5089,12 +5092,12 @@ void SV_WaterMove (void)
 //		else
 			newspeed = speed - host_frametime * speed * sv_friction.value;
 		if (newspeed < 0)
-			newspeed = 0;	
+			newspeed = 0;
 		VectorScale (velocity, newspeed/speed, velocity);
 	}
 	else
 		newspeed = 0;
-	
+
 //
 // water acceleration
 //
@@ -5149,14 +5152,14 @@ void SV_ClientThink (void)
 
 	if (sv_player->v->movetype == MOVETYPE_NONE)
 		return;
-	
+
 	onground = (int)sv_player->v->flags & FL_ONGROUND;
 
 	origin = sv_player->v->origin;
 	velocity = sv_player->v->velocity;
 
 //	DropPunchAngle ();
-	
+
 //
 // if dead, behave differently
 //
@@ -5167,7 +5170,7 @@ void SV_ClientThink (void)
 // angles
 // show 1/3 the pitch angle and all the roll angle
 	angles = sv_player->v->angles;
-	
+
 	VectorCopy (sv_player->v->v_angle, v_angle);
 //	VectorAdd (sv_player->v->v_angle, sv_player->v->punchangle, v_angle);
 	angles[ROLL] = V_CalcRoll (sv_player->v->angles, sv_player->v->velocity)*4;

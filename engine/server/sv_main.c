@@ -8,7 +8,7 @@ of the License, or (at your option) any later version.
 
 This program is distributed in the hope that it will be useful,
 but WITHOUT ANY WARRANTY; without even the implied warranty of
-MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
 
 See the GNU General Public License for more details.
 
@@ -280,7 +280,7 @@ void VARGS SV_Error (char *error, ...)
 		return;
 	}
 #endif
-		
+
 	SV_Shutdown ();
 
 	Sys_Error ("SV_Error: %s\n",string);
@@ -300,7 +300,7 @@ void SV_FinalMessage (char *message)
 {
 	int			i;
 	client_t	*cl;
-	
+
 	SZ_Clear (&sv.datagram);
 	MSG_WriteByte (&sv.datagram, svc_print);
 	MSG_WriteByte (&sv.datagram, PRINT_HIGH);
@@ -547,15 +547,15 @@ void SV_FullClientUpdate (client_t *client, sizebuf_t *buf)
 		MSG_WriteByte (buf, svc_updatefrags);
 		MSG_WriteByte (buf, i);
 		MSG_WriteShort (buf, sv.recordedplayer[i].frags);
-		
+
 		MSG_WriteByte (buf, svc_updateping);
 		MSG_WriteByte (buf, i);
 		MSG_WriteShort (buf, sv.recordedplayer[i].ping);
-		
+
 		MSG_WriteByte (buf, svc_updatepl);
 		MSG_WriteByte (buf, i);
 		MSG_WriteByte (buf, sv.recordedplayer[i].pl);
-		
+
 		MSG_WriteByte (buf, svc_updateentertime);
 		MSG_WriteByte (buf, i);
 		MSG_WriteFloat (buf, 0);
@@ -563,7 +563,7 @@ void SV_FullClientUpdate (client_t *client, sizebuf_t *buf)
 		strcpy (info, sv.recordedplayer[i].userinfo);
 		Info_RemoveKey(info, "password");		//main password key
 		Info_RemoveKey(info, "*ip");		//don't broadcast this in playback
-		Info_RemovePrefixedKeys (info, '_');	// server passwords, etc	
+		Info_RemovePrefixedKeys (info, '_');	// server passwords, etc
 
 		MSG_WriteByte (buf, svc_updateuserinfo);
 		MSG_WriteByte (buf, i);
@@ -577,11 +577,11 @@ void SV_FullClientUpdate (client_t *client, sizebuf_t *buf)
 	MSG_WriteByte (buf, svc_updatefrags);
 	MSG_WriteByte (buf, i);
 	MSG_WriteShort (buf, client->old_frags);
-	
+
 	MSG_WriteByte (buf, svc_updateping);
 	MSG_WriteByte (buf, i);
 	MSG_WriteShort (buf, SV_CalcPing (client));
-	
+
 	MSG_WriteByte (buf, svc_updatepl);
 	MSG_WriteByte (buf, i);
 	MSG_WriteByte (buf, client->lossage);
@@ -592,7 +592,7 @@ void SV_FullClientUpdate (client_t *client, sizebuf_t *buf)
 
 	strcpy (info, client->userinfo);
 	Info_RemoveKey(info, "password");		//main password key
-	Info_RemovePrefixedKeys (info, '_');	// server passwords, etc	
+	Info_RemovePrefixedKeys (info, '_');	// server passwords, etc
 
 	MSG_WriteByte (buf, svc_updateuserinfo);
 	MSG_WriteByte (buf, i);
@@ -711,18 +711,18 @@ void SVC_Status (void)
 			bottom = (bottom < 0) ? 0 : ((bottom > 13) ? 13 : bottom);
 			ping = SV_CalcPing (cl);
 			if (!cl->state)	//show bots differently. Just to be courteous.
-				Con_Printf ("%i %i %i %i \"BOT:%s\" \"%s\" %i %i\n", cl->userid, 
+				Con_Printf ("%i %i %i %i \"BOT:%s\" \"%s\" %i %i\n", cl->userid,
 					cl->old_frags, (int)(realtime - cl->connection_started)/60,
 					ping, cl->name, Info_ValueForKey (cl->userinfo, "skin"), top, bottom);
 			else
-				Con_Printf ("%i %i %i %i \"%s\" \"%s\" %i %i\n", cl->userid, 
+				Con_Printf ("%i %i %i %i \"%s\" \"%s\" %i %i\n", cl->userid,
 					cl->old_frags, (int)(realtime - cl->connection_started)/60,
 					ping, cl->name, Info_ValueForKey (cl->userinfo, "skin"), top, bottom);
 		}
 		else
 			slots++;
 	}
-	
+
 //No. Not a good idea.
 /*	if (slots>16)
 		Con_Printf ("5016 35 54 114 \"annigilator\" \"soldier\" 0 0\n");
@@ -738,6 +738,7 @@ void SVC_Status (void)
 	SV_EndRedirect ();
 }
 
+#ifdef NQPROT
 void SVC_GetInfo (char *challenge)
 {
 	//dpmaster support
@@ -776,7 +777,9 @@ void SVC_GetInfo (char *challenge)
 
 	NET_SendPacket (NS_SERVER, strlen(resp), resp, net_from);
 }
+#endif
 
+#ifdef Q2SERVER
 void SVC_InfoQ2 (void)
 {
 	char	string[64];
@@ -802,6 +805,7 @@ void SVC_InfoQ2 (void)
 
 	Netchan_OutOfBandPrint (NS_SERVER, net_from, "info\n%s", string);
 }
+#endif
 
 /*
 ===================
@@ -1017,7 +1021,7 @@ void SVC_GetChallenge (void)
 		}
 	}
 
-//	Netchan_OutOfBandPrint (net_from, "%c%i", S2C_CHALLENGE, 
+//	Netchan_OutOfBandPrint (net_from, "%c%i", S2C_CHALLENGE,
 //				svs.challenges[i].challenge);
 }
 
@@ -1032,7 +1036,7 @@ void SV_GetNewSpawnParms(client_t *cl)
 		for (i=0 ; i<NUM_SPAWN_PARMS ; i++)
 		{
 			if (spawnparamglobals[i])
-				cl->spawn_parms[i] = *spawnparamglobals[i];	
+				cl->spawn_parms[i] = *spawnparamglobals[i];
 			else
 				cl->spawn_parms[i] = 0;
 		}
@@ -1223,7 +1227,7 @@ client_t *SVC_DirectConnect(void)
 	int protocol;
 
 	unsigned int protextsupported=0;
-	
+
 
 	char *name;
 
@@ -1350,7 +1354,7 @@ client_t *SVC_DirectConnect(void)
 		s = Info_ValueForKey (userinfo[0], "spectator");
 		if (s[0] && strcmp(s, "0"))
 		{
-			if (spectator_password.string[0] && 
+			if (spectator_password.string[0] &&
 				stricmp(spectator_password.string, "none") &&
 				strcmp(spectator_password.string, s) )
 			{	// failed
@@ -1365,7 +1369,7 @@ client_t *SVC_DirectConnect(void)
 		else
 		{
 			s = Info_ValueForKey (userinfo[0], "password");
-			if (password.string[0] && 
+			if (password.string[0] &&
 				stricmp(password.string, "none") &&
 				strcmp(password.string, s) )
 			{
@@ -1414,7 +1418,7 @@ client_t *SVC_DirectConnect(void)
 		if (cl->state == cs_free)
 			continue;
 		if (NET_CompareBaseAdr (adr, cl->netchan.remote_address)
-			&& ( cl->netchan.qport == qport 
+			&& ( cl->netchan.qport == qport
 			|| adr.port == cl->netchan.remote_address.port ))
 		{
 			if (cl->state == cs_connected) {
@@ -1567,7 +1571,7 @@ client_t *SVC_DirectConnect(void)
 	edictnum = (newcl-svs.clients)+1;
 	if (svprogfuncs)
 	{
-		ent = EDICT_NUM(svprogfuncs, edictnum);	
+		ent = EDICT_NUM(svprogfuncs, edictnum);
 #ifdef Q2SERVER
 		temp.q2edict = NULL;
 #endif
@@ -1595,7 +1599,7 @@ client_t *SVC_DirectConnect(void)
 #ifdef Q2SERVER
 	else
 	{
-		q2ent = Q2EDICT_NUM(edictnum);	
+		q2ent = Q2EDICT_NUM(edictnum);
 		temp.edict = NULL;
 		temp.q2edict = q2ent;
 
@@ -1614,7 +1618,7 @@ client_t *SVC_DirectConnect(void)
 		temp.q2frames = Z_Malloc(sizeof(q2client_frame_t)*Q2UPDATE_BACKUP);
 	}
 #endif
-	
+
 
 	{
 		char *n, *t;
@@ -1628,7 +1632,7 @@ client_t *SVC_DirectConnect(void)
 	newcl->zquake_extensions = atoi(Info_ValueForKey(newcl->userinfo, "*z_ext"));
 
 	//dmw - delayed - Netchan_OutOfBandPrint (adr, "%c", S2C_CONNECTION );
-	
+
 	Netchan_Setup (NS_SERVER, &newcl->netchan , adr, qport);
 
 	if (huffcrc)
@@ -1637,7 +1641,9 @@ client_t *SVC_DirectConnect(void)
 		newcl->netchan.compress = false;
 
 	newcl->protocol = protocol;
+#ifdef NQNET
 	newcl->netchan.isnqprotocol = ISNQCLIENT(newcl);
+#endif
 
 	newcl->state = cs_connected;
 
@@ -1647,7 +1653,7 @@ client_t *SVC_DirectConnect(void)
 
 	// spectator mode can ONLY be set at join time
 	newcl->spectator = spectator;
-	
+
 	// parse some info from the info strings
 	SV_ExtractFromUserinfo (newcl);
 
@@ -1692,7 +1698,7 @@ client_t *SVC_DirectConnect(void)
 			}
 
 			if (rs.flags1 & RANK_BANNED)
-			{			
+			{
 				SV_RejectMessage (protocol, "You were banned.\nContact the administrator to complain.\n");
 				Con_Printf("banned player %s is trying to connect\n", newcl->name);
 				newcl->name[0] = 0;
@@ -1703,16 +1709,16 @@ client_t *SVC_DirectConnect(void)
 
 			if (rs.flags1 & RANK_MUTED)
 			{
-				SV_BroadcastTPrintf(PRINT_MEDIUM, STL_CLIENTISSTILLMUTED, newcl->name);			
+				SV_BroadcastTPrintf(PRINT_MEDIUM, STL_CLIENTISSTILLMUTED, newcl->name);
 			}
 			if (rs.flags1 & RANK_CUFFED)
 			{
-				SV_BroadcastTPrintf(PRINT_LOW, STL_CLIENTISSTILLCUFFED, newcl->name);			
+				SV_BroadcastTPrintf(PRINT_LOW, STL_CLIENTISSTILLCUFFED, newcl->name);
 			}
 			if (rs.flags1 & RANK_CRIPPLED)
 			{
-				SV_BroadcastTPrintf(PRINT_HIGH, STL_CLIENTISSTILLCRIPPLED, newcl->name);			
-			}		
+				SV_BroadcastTPrintf(PRINT_HIGH, STL_CLIENTISSTILLCRIPPLED, newcl->name);
+			}
 
 			if (rs.timeonserver)
 			{
@@ -1909,7 +1915,7 @@ void SVC_RemoteCommand (void)
 					if (!Rank_GetPlayerStats(rid, &stats))
 						return;
 
-						
+
 					Con_Printf ("Rcon from %s:\n%s\n"
 						, NET_AdrToString (net_from), net_message.data+4);
 
@@ -2019,8 +2025,10 @@ qboolean SV_ConnectionlessPacket (void)
 		SVC_Status ();
 	else if (!strcmp(c,"log"))
 		SVC_Log ();
+#ifdef Q2SERVER
 	else if (!strcmp(c, "info"))
 		SVC_InfoQ2 ();
+#endif
 	else if (!strncmp(c,"connect", 7))
 	{
 #ifdef Q3SERVER
@@ -2029,7 +2037,7 @@ qboolean SV_ConnectionlessPacket (void)
 			SVQ3_DirectConnect();
 			return true;
 		}
-		else 
+		else
 #endif
 			if (secure.value)	//FIXME: possible problem for nq clients when enabled
 			Netchan_OutOfBandPrint (NS_SERVER, net_from, "%c\nThis server requires client validation.\nPlease use the "DISTRIBUTION" validation program\n", A2C_PRINT);
@@ -2043,8 +2051,10 @@ qboolean SV_ConnectionlessPacket (void)
 	{
 		SVC_GetChallenge ();
 	}
+#ifdef NQPROT
 	else if (!strcmp(c, "getinfo"))
 		SVC_GetInfo(Cmd_Args());
+#endif
 	else if (!strcmp(c, "rcon"))
 		SVC_RemoteCommand ();
 	else
@@ -2117,7 +2127,7 @@ void SVNQ_ConnectionlessPacket(void)
 ==============================================================================
 
 PACKET FILTERING
- 
+
 
 You can add or remove addresses from the filter list with:
 
@@ -2169,13 +2179,13 @@ qboolean StringToFilter (char *s, ipfilter_t *f)
 	int		i, j;
 	qbyte	b[4];
 	qbyte	m[4];
-	
+
 	for (i=0 ; i<4 ; i++)
 	{
 		b[i] = 0;
 		m[i] = 0;
 	}
-	
+
 	for (i=0 ; i<4 ; i++)
 	{
 		if (*s < '0' || *s > '9')
@@ -2183,7 +2193,7 @@ qboolean StringToFilter (char *s, ipfilter_t *f)
 			Con_Printf ("Bad filter address: %s\n", s);
 			return false;
 		}
-		
+
 		j = 0;
 		while (*s >= '0' && *s <= '9')
 		{
@@ -2198,10 +2208,10 @@ qboolean StringToFilter (char *s, ipfilter_t *f)
 			break;
 		s++;
 	}
-	
+
 	f->mask = *(unsigned *)m;
 	f->compare = *(unsigned *)b;
-	
+
 	return true;
 }
 
@@ -2213,7 +2223,7 @@ SV_AddIP_f
 void SV_AddIP_f (void)
 {
 	int		i;
-	
+
 	for (i=0 ; i<numipfilters ; i++)
 		if (ipfilters[i].compare == 0xffffffff)
 			break;		// free spot
@@ -2226,7 +2236,7 @@ void SV_AddIP_f (void)
 		}
 		numipfilters++;
 	}
-	
+
 	if (!StringToFilter (Cmd_Argv(1), &ipfilters[i]))
 		ipfilters[i].compare = 0xffffffff;
 }
@@ -2296,13 +2306,13 @@ void SV_WriteIP_f (void)
 		Con_Printf ("Couldn't open %s\n", name);
 		return;
 	}
-	
+
 	for (i=0 ; i<numipfilters ; i++)
 	{
 		*(unsigned *)b = ipfilters[i].compare;
 		fprintf (f, "addip %i.%i.%i.%i\n", b[0], b[1], b[2], b[3]);
 	}
-	
+
 	fclose (f);
 }
 
@@ -2319,7 +2329,7 @@ void SV_SendBan (void)
 	data[4] = A2C_PRINT;
 	data[5] = 0;
 	strcat (data, "\nbanned.\n");
-	
+
 	NET_SendPacket (NS_SERVER, strlen(data), data, net_from);
 }
 
@@ -2332,7 +2342,7 @@ qboolean SV_FilterPacket (void)
 {
 	int		i;
 	unsigned	in;
-	
+
 	in = *(unsigned *)net_from.ip;
 
 	for (i=0 ; i<numipfilters ; i++)
@@ -2452,14 +2462,14 @@ void SV_ReadPackets (void)
 			}
 			break;
 		}
-		
+
 		if (i != MAX_CLIENTS)
 			continue;
 
 #ifdef NQPROT
 		SVNQ_ConnectionlessPacket();
 #endif
-	
+
 		// packet is not from a known client
 		//	Con_Printf ("%s:sequenced packet without connection\n"
 		// ,NET_AdrToString(net_from));
@@ -2484,7 +2494,7 @@ void SV_CheckTimeouts (void)
 	client_t	*cl;
 	float	droptime;
 	int	nclients;
-	
+
 	droptime = realtime - timeout.value;
 	nclients = 0;
 
@@ -2495,11 +2505,11 @@ void SV_CheckTimeouts (void)
 				nclients++;
 			if (cl->netchan.last_received < droptime && cl->netchan.remote_address.type != NA_LOOPBACK && cl->protocol != SCP_BAD) {
 				SV_BroadcastTPrintf (PRINT_HIGH, STL_CLIENTTIMEDOUT, cl->name);
-				SV_DropClient (cl); 
+				SV_DropClient (cl);
 				cl->state = cs_free;	// don't bother with zombie state
 			}
 		}
-		if (cl->state == cs_zombie && 
+		if (cl->state == cs_zombie &&
 			realtime - cl->connection_started > zombietime.value)
 		{
 			if (cl->connection_started == -1)
@@ -2649,7 +2659,7 @@ void SV_Impulse_f (void)
 	PR_ExecuteProgram (svprogfuncs, pr_global_struct->ClientConnect);
 
 	pr_global_struct->time = sv.time;
-	pr_global_struct->self = EDICT_TO_PROG(svprogfuncs, svs.clients[i].edict);			
+	pr_global_struct->self = EDICT_TO_PROG(svprogfuncs, svs.clients[i].edict);
 	PR_ExecuteProgram (svprogfuncs, pr_global_struct->PutClientInServer);
 
 	pr_global_struct->self = EDICT_TO_PROG(svprogfuncs, svs.clients[i].edict);
@@ -2682,11 +2692,11 @@ void SV_Frame (float time)
 {
 	extern cvar_t pr_imitatemvdsv;
 	static double	start, end;
-	
+
 	start = Sys_DoubleTime ();
 	svs.stats.idle += start - end;
 	end = start;
-	
+
 // keep the random time dependent
 	rand ();
 
@@ -2852,7 +2862,7 @@ void SV_InitLocal (void)
 
 	SV_InitOperatorCommands	();
 	SV_UserInit ();
-	
+
 #ifndef SERVERONLY
 	if (isDedicated)
 #endif
@@ -2862,7 +2872,7 @@ void SV_InitLocal (void)
 		Cvar_Register (&password,	cvargroup_servercontrol);
 		Cvar_Register (&rcon_password,	cvargroup_servercontrol);
 	}
-	rcon_password.restriction = RESTRICT_MAX;	//no cheatie rconers changing rcon passwords...	
+	rcon_password.restriction = RESTRICT_MAX;	//no cheatie rconers changing rcon passwords...
 	Cvar_Register (&spectator_password,	cvargroup_servercontrol);
 
 	Cvar_Register (&sv_mintic,	cvargroup_servercontrol);
@@ -2886,8 +2896,8 @@ void SV_InitLocal (void)
 	Cvar_Register (&mirrors,	cvargroup_serverinfo);
 	Cvar_Register (&allow_luma,	cvargroup_serverinfo);
 	Cvar_Register (&allow_bump,	cvargroup_serverinfo);
-	Cvar_Register (&allow_skybox,	cvargroup_serverinfo);	
-	Cvar_Register (&sv_allow_splitscreen,	cvargroup_serverinfo);	
+	Cvar_Register (&allow_skybox,	cvargroup_serverinfo);
+	Cvar_Register (&sv_allow_splitscreen,	cvargroup_serverinfo);
 	Cvar_Register (&fbskins,	cvargroup_serverinfo);
 
 	Cvar_Register (&timeout,	cvargroup_servercontrol);
@@ -2937,7 +2947,7 @@ void SV_InitLocal (void)
 	Cvar_Register (&sv_masterport,	cvargroup_servercontrol);
 
 	Cvar_Register (&filterban,	cvargroup_servercontrol);
-	
+
 	Cvar_Register (&allow_download,	cvargroup_serverpermissions);
 	Cvar_Register (&allow_download_skins,	cvargroup_serverpermissions);
 	Cvar_Register (&allow_download_models,	cvargroup_serverpermissions);
@@ -3025,7 +3035,7 @@ void SV_InitLocal (void)
 #ifdef PEXT_TE_BULLET
 	svs.fteprotocolextensions |= PEXT_TE_BULLET;
 #endif
-#ifdef PEXT_HULLSIZE	
+#ifdef PEXT_HULLSIZE
 	svs.fteprotocolextensions |= PEXT_HULLSIZE;
 #endif
 #ifdef PEXT_SETVIEW
@@ -3048,10 +3058,10 @@ void SV_InitLocal (void)
 //	svs.fteprotocolextensions |= PEXT_64PLAYERS;
 	svs.fteprotocolextensions |= PEXT_SHOWPIC;
 	svs.fteprotocolextensions |= PEXT_SETATTACHMENT;
-	
+
 #ifdef PEXT_PK3DOWNLOADS
 	svs.fteprotocolextensions |= PEXT_PK3DOWNLOADS;
-#endif	
+#endif
 
 #ifdef PEXT_CHUNKEDDOWNLOADS
 	svs.fteprotocolextensions |= PEXT_CHUNKEDDOWNLOADS;
@@ -3399,9 +3409,9 @@ void SV_ExtractFromUserinfo (client_t *cl)
 		} else
 			break;
 	}
-	
+
 	if (strncmp(newname, cl->name, sizeof(cl->namebuf)-1))
-	{		
+	{
 		if (cl->ismuted)
 			SV_ClientTPrintf (cl, PRINT_HIGH, STL_NONAMEASMUTE);
 		else
@@ -3415,13 +3425,13 @@ void SV_ExtractFromUserinfo (client_t *cl)
 				} else if (cl->lastnamecount++ > 4) {
 					SV_BroadcastTPrintf (PRINT_HIGH, STL_CLIENTKICKEDNAMESPAM, cl->name);
 					SV_ClientTPrintf (cl, PRINT_HIGH, STL_YOUWEREKICKEDNAMESPAM);
-					SV_DropClient (cl); 
+					SV_DropClient (cl);
 					return;
 				}
 			}
 
 			if (cl->state >= cs_spawned && !cl->spectator)
-			{				
+			{
 				SV_BroadcastTPrintf (PRINT_HIGH, STL_CLIENTNAMECHANGE, cl->name, val);
 			}
 			Q_strncpyz (cl->name, newname, sizeof(cl->namebuf));
@@ -3542,7 +3552,7 @@ void SV_Init (quakeparms_t *parms)
 //		if (parms->memsize < MINIMUM_MEMORY)
 //			SV_Error ("Only %4.1f megs of memory reported, can't execute game", parms->memsize / (float)0x100000);
 
-		Memory_Init (parms->membase, parms->memsize);		
+		Memory_Init (parms->membase, parms->memsize);
 
 		COM_ParsePlusSets();
 
@@ -3554,7 +3564,7 @@ void SV_Init (quakeparms_t *parms)
 		COM_Init ();
 		Mod_Init ();
 	}
-	PR_Init ();	
+	PR_Init ();
 
 	SV_InitNet ();
 
@@ -3563,7 +3573,7 @@ void SV_Init (quakeparms_t *parms)
 #ifdef IWEB_H__
 	IWebInit();
 #endif
-	
+
 	SV_Demo_Init();
 
 #ifdef SVRANKING
@@ -3581,16 +3591,16 @@ void SV_Init (quakeparms_t *parms)
 		host_hunklevel = Hunk_LowMark ();
 
 		host_initialized = true;
-		
+
 		Con_TPrintf (TL_EXEDATETIME, __DATE__, __TIME__);
-		Con_TPrintf (TL_HEAPSIZE,parms->memsize/ (1024*1024.0));	
+		Con_TPrintf (TL_HEAPSIZE,parms->memsize/ (1024*1024.0));
 
 		Con_TPrintf (TL_SERVERVERSION, DISTRIBUTION, VERSION, build_number());
 
 		Con_TPrintf (STL_INITED);
 
-		Cbuf_InsertText ("exec server.cfg\nexec ftesrv.cfg\n", RESTRICT_LOCAL);	
-		
+		Cbuf_InsertText ("exec server.cfg\nexec ftesrv.cfg\n", RESTRICT_LOCAL);
+
 	// process command line arguments
 		Cbuf_Execute ();
 

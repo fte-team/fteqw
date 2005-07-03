@@ -36,7 +36,7 @@ static qboolean ignoreprotocol;
 #define TE_EXPLOSIONSMALL2		20	//	org.
 
 client_t *Write_GetClient(void);
-sizebuf_t *WriteDest (int dest);
+sizebuf_t *QWWriteDest (int dest);
 #ifdef NQPROT
 sizebuf_t *NQWriteDest (int dest);
 #endif
@@ -57,7 +57,7 @@ void NPP_SetInfo(client_t *cl, char *key, char *value)
 	MSG_WriteString (&sv.reliable_datagram, Info_ValueForKey(cl->userinfo, key));
 }
 
-void NPP_Flush(void)
+void NPP_NQFlush(void)
 {
 	if (!bufferlen)
 		return;
@@ -67,7 +67,7 @@ void NPP_Flush(void)
 	{
 	case svc_cdtrack:
 		if (bufferlen!=protocollen)
-			Con_Printf("svc_cdtrack wasn't the right length\n");
+			Con_Printf("NQFlush: svc_cdtrack wasn't the right length\n");
 		else
 			bufferlen-=1;
 		break;
@@ -120,7 +120,7 @@ void NPP_Flush(void)
 			writedest = NULL;
 		}
 		break;
-//	case svc_finale:	
+//	case svc_finale:
 //		bufferlen = 0;
 //		break;
 	case svc_setview:
@@ -156,7 +156,7 @@ void NPP_Flush(void)
 		switch (buffer[1])
 		{
 		case NQTE_EXPLOSION2:	//happens with rogue.
-			bufferlen -= 2;	//trim the colour 
+			bufferlen -= 2;	//trim the colour
 			buffer[1] = TE_EXPLOSION;
 			break;
 		}
@@ -211,17 +211,17 @@ void NPP_Flush(void)
 	multicastpos=0;
 	requireextension=0;
 }
-void NPP_CheckFlush(void)
+void NPP_NQCheckFlush(void)
 {
 	if (bufferlen >= protocollen && protocollen)
-		NPP_Flush();
+		NPP_NQFlush();
 }
 
-void NPP_CheckDest(int dest)
+void NPP_NQCheckDest(int dest)
 {
 	if (dest == MSG_ONE)
 	{
-		client_t *cl = Write_GetClient();
+/*		client_t *cl = Write_GetClient();
 		if (!cl)
 		{
 			Con_Printf("Not a client\n");
@@ -230,17 +230,18 @@ void NPP_CheckDest(int dest)
 		if ((cldest && cldest != cl) || writedest)
 		{
 			Con_Printf("MSG destination changed in the middle of a packet %i.\n", (int)*buffer);
-			NPP_Flush();
+			NPP_NQFlush();
 		}
 		cldest = cl;
+*/
 	}
 	else
 	{
-		sizebuf_t	*ndest = WriteDest(dest);
+		sizebuf_t	*ndest = QWWriteDest(dest);
 		if (cldest || (writedest && writedest != ndest))
 		{
-			Con_Printf("MSG destination changed in the middle of a packet %i.\n", (int)*buffer);
-			NPP_Flush();
+			Con_Printf("NQCheckDest: MSG destination changed in the middle of a packet %i.\n", (int)*buffer);
+			NPP_NQFlush();
 		}
 		writedest = ndest;
 	}
@@ -250,18 +251,18 @@ void NPP_AddData(void *data, int len)
 	if (bufferlen+len > sizeof(buffer))
 		Sys_Error("Preparse buffer was filled\n");
 	memcpy(buffer+bufferlen, data, len);
-	bufferlen+=len;	
+	bufferlen+=len;
 }
 
 void NPP_NQWriteByte(int dest, qbyte data)	//replacement write func (nq to qw)
 {
-	NPP_CheckDest(dest);
+	NPP_NQCheckDest(dest);
 
 #ifdef NQPROT
 	if (dest == MSG_ONE) {
 		client_t *cl = Write_GetClient();
 		if (cl && !ISQWCLIENT(cl))
-		{			
+		{
 			ClientReliableCheckBlock(cl, sizeof(qbyte));
 			ClientReliableWrite_Byte(cl, data);
 		}
@@ -269,13 +270,13 @@ void NPP_NQWriteByte(int dest, qbyte data)	//replacement write func (nq to qw)
 		MSG_WriteByte (NQWriteDest(dest), data);
 #endif
 	if (!bufferlen)	//new message section
-	{		
+	{
 		switch(data)
 		{
 		case svcdp_showlmp:
 		case svcdp_hidelmp:
 			break;
-		case svc_temp_entity:			
+		case svc_temp_entity:
 			break;
 		case svc_setangle:
 			protocollen = sizeof(qbyte)*4;
@@ -330,7 +331,7 @@ void NPP_NQWriteByte(int dest, qbyte data)	//replacement write func (nq to qw)
 			ignoreprotocol = true;
 			break;
 		default:
-			Con_Printf("nq: bad protocol %i\n", (int)data);
+			Con_Printf("NQWriteByte: bad protocol %i\n", (int)data);
 			protocollen = sizeof(buffer);
 			break;
 		}
@@ -377,7 +378,7 @@ void NPP_NQWriteByte(int dest, qbyte data)	//replacement write func (nq to qw)
 				multicastpos=2;
 				multicasttype=MULTICAST_PVS;
 				protocollen = sizeofcoord*3+sizeof(qbyte)*2;
-				break;	
+				break;
 			case TE_EXPLOSION3_NEH:
 				protocollen = sizeof(qbyte) + sizeofcoord*6;
 				ignoreprotocol = true;
@@ -441,7 +442,7 @@ void NPP_NQWriteByte(int dest, qbyte data)	//replacement write func (nq to qw)
 
 			default:
 				protocollen = sizeof(buffer);
-				Con_Printf("bad tempentity\n");
+				Con_Printf("NQWriteByte: bad tempentity\n");
 				break;
 			}
 			break;
@@ -450,7 +451,7 @@ void NPP_NQWriteByte(int dest, qbyte data)	//replacement write func (nq to qw)
 		case svc_centerprint:
 			break;
 		default:
-			Con_Printf("Non-Implemented svc\n");
+			Con_Printf("NQWriteByte: Non-Implemented svc\n");
 			protocollen = sizeof(buffer);
 			break;
 		}
@@ -481,7 +482,7 @@ void NPP_NQWriteByte(int dest, qbyte data)	//replacement write func (nq to qw)
 	}
 
 	NPP_AddData(&data, sizeof(qbyte));
-	NPP_CheckFlush();
+	NPP_NQCheckFlush();
 }
 
 void NPP_NQWriteChar(int dest, char data)	//replacement write func (nq to qw)
@@ -489,7 +490,7 @@ void NPP_NQWriteChar(int dest, char data)	//replacement write func (nq to qw)
 	NPP_NQWriteByte(dest, (qbyte)data);
 	return;
 	/*
-	NPP_CheckDest(dest);
+	NPP_NQCheckDest(dest);
 	if (!bufferlen)
 	{
 		NPP_NQWriteByte(dest, (qbyte)data);
@@ -500,7 +501,7 @@ void NPP_NQWriteChar(int dest, char data)	//replacement write func (nq to qw)
 	if (dest == MSG_ONE) {
 		client_t *cl = Write_GetClient();
 		if (cl && cl->nqprot)
-		{			
+		{
 			ClientReliableCheckBlock(cl, sizeof(char));
 			ClientReliableWrite_Char(cl, data);
 		}
@@ -509,69 +510,48 @@ void NPP_NQWriteChar(int dest, char data)	//replacement write func (nq to qw)
 #endif
 
 	NPP_AddData(&data, sizeof(char));
-	NPP_CheckFlush();*/
+	NPP_NQCheckFlush();*/
 }
 
 void NPP_NQWriteShort(int dest, short data)	//replacement write func (nq to qw)
 {
-NPP_CheckDest(dest);
-	if (!bufferlen)
-		Con_Printf("Messages should start with WriteByte\n");
-
-#ifdef NQPROT
-	if (dest == MSG_ONE) {
-		client_t *cl = Write_GetClient();
-		if (cl && !ISQWCLIENT(cl))
-		{			
-			ClientReliableCheckBlock(cl, sizeof(short));
-			ClientReliableWrite_Short(cl, data);
-		}
-	} else
-		MSG_WriteShort (NQWriteDest(dest), data);
-#endif
-
-	data = LittleShort(data);
-	NPP_AddData(&data, sizeof(short));
-	NPP_CheckFlush();
+	union {
+		qbyte b[2];
+		short s;
+	} u;
+	u.s = LittleShort(data);
+	NPP_NQWriteByte(dest, u.b[0]);
+	NPP_NQWriteByte(dest, u.b[1]);
 }
 
 void NPP_NQWriteLong(int dest, long data)	//replacement write func (nq to qw)
 {
-	NPP_CheckDest(dest);
-	if (!bufferlen)
-		Con_Printf("Messages should start with WriteByte\n");
-
-#ifdef NQPROT
-	if (dest == MSG_ONE) {
-		client_t *cl = Write_GetClient();
-		if (cl && !ISQWCLIENT(cl))
-		{			
-			ClientReliableCheckBlock(cl, sizeof(long));
-			ClientReliableWrite_Long(cl, data);
-		}
-	} else
-		MSG_WriteLong (NQWriteDest(dest), data);
-#endif
-
-	data = LittleLong(data);
-	NPP_AddData(&data, sizeof(long));
-	NPP_CheckFlush();
+	union {
+		qbyte b[4];
+		int l;
+	} u;
+	u.l = LittleLong(data);
+	NPP_NQWriteByte(dest, u.b[0]);
+	NPP_NQWriteByte(dest, u.b[1]);
+	NPP_NQWriteByte(dest, u.b[2]);
+	NPP_NQWriteByte(dest, u.b[3]);
 }
 void NPP_NQWriteAngle(int dest, float in)	//replacement write func (nq to qw)
 {
 	char data = (int)(in*256/360) & 255;
-NPP_CheckDest(dest);
+	NPP_NQCheckDest(dest);
 	if (!bufferlen)
-		Con_Printf("Messages should start with WriteByte\n");
+		Con_Printf("NQWriteAngle: Messages should start with WriteByte\n");
 
 #ifdef NQPROT
 	if (dest == MSG_ONE)
 	{
 		client_t *cl = Write_GetClient();
 		if (cl && !ISQWCLIENT(cl))
-		{			
+		{
 			ClientReliableCheckBlock(cl, sizeof(char));
 			ClientReliableWrite_Angle(cl, in);
+			return;
 		}
 	}
 	else
@@ -579,23 +559,24 @@ NPP_CheckDest(dest);
 #endif
 
 	NPP_AddData(&data, sizeof(char));
-	NPP_CheckFlush();
+	NPP_NQCheckFlush();
 }
 void NPP_NQWriteCoord(int dest, float in)	//replacement write func (nq to qw)
 {
 	short datas = (int)(in*8);
 	float dataf = in;
-NPP_CheckDest(dest);
+	NPP_NQCheckDest(dest);
 	if (!bufferlen)
-		Con_Printf("Messages should start with WriteByte\n");
+		Con_Printf("NQWriteCoord: Messages should start with WriteByte\n");
 
 #ifdef NQPROT
 	if (dest == MSG_ONE) {
 		client_t *cl = Write_GetClient();
 		if (cl && !ISQWCLIENT(cl))
-		{			
+		{
 			ClientReliableCheckBlock(cl, sizeof(float));
 			ClientReliableWrite_Coord(cl, in);
+			return;
 		}
 	} else
 		MSG_WriteCoord (NQWriteDest(dest), in);
@@ -611,21 +592,22 @@ NPP_CheckDest(dest);
 		datas = LittleShort(datas);
 		NPP_AddData(&datas, sizeof(short));
 	}
-	NPP_CheckFlush();
+	NPP_NQCheckFlush();
 }
 void NPP_NQWriteString(int dest, char *data)	//replacement write func (nq to qw)
 {
-NPP_CheckDest(dest);
+	NPP_NQCheckDest(dest);
 	if (!bufferlen)
-		Con_Printf("Messages should start with WriteByte\n");
+		Con_Printf("NQWriteString: Messages should start with WriteByte\n");
 
 #ifdef NQPROT
 	if (dest == MSG_ONE) {
 		client_t *cl = Write_GetClient();
 		if (cl && !ISQWCLIENT(cl))
-		{			
+		{
 			ClientReliableCheckBlock(cl, strlen(data)+1);
 			ClientReliableWrite_String(cl, data);
+			return;
 		}
 	} else
 		MSG_WriteString (NQWriteDest(dest), data);
@@ -645,13 +627,13 @@ NPP_CheckDest(dest);
 		}
 	}
 
-	NPP_CheckFlush();
+	NPP_NQCheckFlush();
 }
 void NPP_NQWriteEntity(int dest, short data)	//replacement write func (nq to qw)
 {
-NPP_CheckDest(dest);
+	NPP_NQCheckDest(dest);
 	if (!bufferlen)
-		Con_Printf("Messages should start with WriteByte\n");
+		Con_Printf("NQWriteEntity: Messages should start with WriteByte\n");
 
 	if (majortype == svc_temp_entity && data >= 0 && data <= sv.allocated_client_slots)
 		if (svs.clients[data-1].viewent)
@@ -661,16 +643,17 @@ NPP_CheckDest(dest);
 	if (dest == MSG_ONE) {
 		client_t *cl = Write_GetClient();
 		if (cl && !ISQWCLIENT(cl))
-		{			
+		{
 			ClientReliableCheckBlock(cl, sizeof(short));
 			ClientReliableWrite_Short(cl, data);
+			return;
 		}
 	} else
 		MSG_WriteShort (NQWriteDest(dest), data);
 #endif
 
 	NPP_AddData(&data, sizeof(short));
-	NPP_CheckFlush();
+	NPP_NQCheckFlush();
 }
 
 
@@ -699,7 +682,6 @@ void NPP_QWFlush(void)
 	if (!bufferlen)
 		return;
 
-
 	switch(majortype)
 	{
 	case svc_setname:	//not a standard feature, but hey, if a progs wants bots.
@@ -713,7 +695,7 @@ void NPP_QWFlush(void)
 		break;
 	case svc_cdtrack:
 		if (bufferlen!=protocollen)
-			Con_Printf("svc_cdtrack wasn't the right length\n");
+			Con_Printf("QWFlush: svc_cdtrack wasn't the right length\n");
 		else
 		{
 			b = 0;
@@ -743,7 +725,7 @@ void NPP_QWFlush(void)
 
 					ClientReliableCheckBlock(cl, 1);
 					ClientReliableWrite_Byte(cl, svc_intermission);
-					
+
 					org[0] = (*(short*)&buffer[1])/8.0f;
 					org[1] = (*(short*)&buffer[1+2])/8.0f;
 					org[2] = (*(short*)&buffer[1+4])/8.0f;
@@ -762,7 +744,7 @@ void NPP_QWFlush(void)
 		bufferlen = 0;
 		protocollen=0;
 		writedest = NULL;
-//	case svc_finale:	
+//	case svc_finale:
 //		bufferlen = 0;
 		break;
 	case svc_setview:
@@ -772,21 +754,21 @@ void NPP_QWFlush(void)
 	case svc_muzzleflash:
 		//we need to make a fake muzzleflash position.
 		multicastpos = 4;
-		{						
+		{
 			short data;
 			float org[3];
 			edict_t *ent = EDICT_NUM(svprogfuncs, (*(short*)&buffer[1]));
 			VectorCopy(ent->v->origin, org);
-			
+
 			data = LittleShort((short)(org[0]*8));
 			NPP_AddData(&data, sizeof(short));
 			data = LittleShort((short)(org[1]*8));
 			NPP_AddData(&data, sizeof(short));
 			data = LittleShort((short)(org[2]*8));
 			NPP_AddData(&data, sizeof(short));
-			
+
 		}
-		bufferlen = 0;
+		bufferlen = 0;	//can't send this to nq. :(
 		break;
 	case svc_smallkick:
 	case svc_bigkick:
@@ -815,16 +797,23 @@ void NPP_QWFlush(void)
 		case TE_BLOOD:		//needs to be converted to a particle
 			{
 				vec3_t org;
+				qbyte count;
+				qbyte colour;
+				char dir[3];
+				short s;
 				int v;
 				int i;
-				org[0] = (*(short*)&buffer[multicastpos])/8.0f;	
+				qbyte svc;
+				svc = svc_particle;
+				org[0] = (*(short*)&buffer[multicastpos])/8.0f;
 				org[1] = (*(short*)&buffer[multicastpos+2])/8.0f;
 				org[2] = (*(short*)&buffer[multicastpos+4])/8.0f;
+				count = buffer[2]*20;
+				if (minortype == TE_LIGHTNINGBLOOD)
+					colour = 225;
+				else
+					colour = 73;
 
-				MSG_WriteByte (&sv.nqmulticast, svc_particle);
-				MSG_WriteCoord (&sv.nqmulticast, org[0]);
-				MSG_WriteCoord (&sv.nqmulticast, org[1]);
-				MSG_WriteCoord (&sv.nqmulticast, org[2]);
 				for (i=0 ; i<3 ; i++)
 				{
 					v = 0*16;
@@ -832,19 +821,38 @@ void NPP_QWFlush(void)
 						v = 127;
 					else if (v < -128)
 						v = -128;
-					MSG_WriteChar (&sv.nqmulticast, v);
+					dir[i] = v;
 				}
-				MSG_WriteByte (&sv.nqmulticast, buffer[2]*20);				
-				if (minortype == TE_LIGHTNINGBLOOD)
-					MSG_WriteByte (&sv.nqmulticast, 225);
-				else
-					MSG_WriteByte (&sv.nqmulticast, 73);
+
+				bufferlen = 0;		//restart
+				protocollen = 1000;
+
+				multicastpos = 1;
+
+				NPP_AddData(&svc, sizeof(qbyte));
+				for (i = 0; i < 3; i++)
+				{
+					if (sizeofcoord == 4)
+						NPP_AddData(&org[i], sizeof(float));
+					else
+					{
+						s = org[i]*8;
+						NPP_AddData(&s, sizeof(short));
+					}
+				}
+				NPP_AddData(&dir[0], sizeof(char));
+				NPP_AddData(&dir[1], sizeof(char));
+				NPP_AddData(&dir[2], sizeof(char));
+				NPP_AddData(&count, sizeof(qbyte));
+				NPP_AddData(&colour, sizeof(qbyte));
 			}
-			bufferlen = 0;
 			break;
-		case TE_GUNSHOT:	//needs qbyte 3 removed
-			memmove(buffer+2, buffer+3, bufferlen-3);
-			bufferlen--;
+		case TE_GUNSHOT:	//needs byte 3 removed
+			if (bufferlen >= 3)
+			{
+				memmove(buffer+2, buffer+3, bufferlen-3);
+				bufferlen--;
+			}
 			break;
 		}
 	}
@@ -908,7 +916,7 @@ void NPP_QWCheckDest(int dest)
 {
 	if (dest == MSG_ONE)
 	{
-		client_t *cl = Write_GetClient();
+		/*client_t *cl = Write_GetClient();
 		if (!cl)
 		{
 			Con_Printf("Not a client\n");
@@ -920,13 +928,14 @@ void NPP_QWCheckDest(int dest)
 			NPP_QWFlush();
 		}
 		cldest = cl;
+		*/
 	}
 	else
 	{
 		sizebuf_t	*ndest = NQWriteDest(dest);
 		if (cldest || (writedest && writedest != ndest))
 		{
-			Con_Printf("MSG destination changed in the middle of a packet %i.\n", (int)*buffer);
+			Con_Printf("QWCheckDest: MSG destination changed in the middle of a packet %i.\n", (int)*buffer);
 			NPP_QWFlush();
 		}
 		writedest = ndest;
@@ -944,18 +953,19 @@ void NPP_QWWriteByte(int dest, qbyte data)	//replacement write func (nq to qw)
 	if (dest == MSG_ONE) {
 		client_t *cl = Write_GetClient();
 		if (cl && ISQWCLIENT(cl))
-		{			
+		{
 			ClientReliableCheckBlock(cl, sizeof(qbyte));
 			ClientReliableWrite_Byte(cl, data);
+			return;
 		}
 	} else
-		MSG_WriteByte (WriteDest(dest), data);
+		MSG_WriteByte (QWWriteDest(dest), data);
 #endif
 	if (!bufferlen)	//new message section
-	{		
+	{
 		switch(data)
 		{
-		case svc_temp_entity:			
+		case svc_temp_entity:
 			break;
 		case svc_setangle:
 			protocollen = sizeof(qbyte)*4;
@@ -1013,7 +1023,7 @@ void NPP_QWWriteByte(int dest, qbyte data)	//replacement write func (nq to qw)
 			protocollen = 6;
 			break;
 		default:
-			Con_Printf("bad protocol %i\n", (int)data);
+			Con_Printf("QWWriteByte: bad protocol %i\n", (int)data);
 			protocollen = sizeof(buffer);
 			break;
 		}
@@ -1033,7 +1043,7 @@ void NPP_QWWriteByte(int dest, qbyte data)	//replacement write func (nq to qw)
 				multicastpos=4;
 				multicasttype=MULTICAST_PHS;
 				protocollen = sizeofcoord*6+sizeof(short)+sizeof(qbyte)*2;
-				break;			
+				break;
 			case TE_BLOOD:		//needs to be converted to a particle
 			case TE_GUNSHOT:	//needs qbyte 2 removed
 				multicastpos=3;
@@ -1064,12 +1074,12 @@ void NPP_QWWriteByte(int dest, qbyte data)	//replacement write func (nq to qw)
 				break;
 			default:
 				protocollen = sizeof(buffer);
-				Con_Printf("bad tempentity - %i\n", data);
+				Con_Printf("QWWriteByte: bad tempentity - %i\n", data);
 				break;
 			}
 			break;
 		default:
-			Con_Printf("Non-Implemented svc\n");
+			Con_Printf("QWWriteByte: Non-Implemented svc\n");
 			protocollen = sizeof(buffer);
 			break;
 		}
@@ -1084,144 +1094,87 @@ void NPP_QWWriteByte(int dest, qbyte data)	//replacement write func (nq to qw)
 
 void NPP_QWWriteChar(int dest, char data)	//replacement write func (nq to qw)
 {
-	NPP_QWCheckDest(dest);
-	if (!bufferlen)
-		Con_Printf("Messages should start with WriteByte (last was %i)\n", majortype);
-
-#ifdef NQPROT
-	if (dest == MSG_ONE) {
-		client_t *cl = Write_GetClient();
-		if (cl && ISQWCLIENT(cl))
-		{			
-			ClientReliableCheckBlock(cl, sizeof(char));
-			ClientReliableWrite_Char(cl, data);
-		}
-	} else
-		MSG_WriteChar (WriteDest(dest), data);
-#endif
-
-	NPP_AddData(&data, sizeof(char));
-	if (!data && bufferlen>=protocollen)
-		if (nullterms)
-			nullterms--;
-	NPP_QWCheckFlush();
+	NPP_QWWriteByte(dest, (qbyte)data);
 }
 
 void NPP_QWWriteShort(int dest, short data)	//replacement write func (nq to qw)
 {
-NPP_QWCheckDest(dest);
-	if (!bufferlen)
-		Con_Printf("Messages should start with WriteByte (last was %i)\n", majortype);
+	union {
+		qbyte b[2];
+		short s;
+	} u;
+	u.s = LittleShort(data);
+	NPP_QWWriteByte(dest, u.b[0]);
+	NPP_QWWriteByte(dest, u.b[1]);
+}
 
-#ifdef NQPROT
-	if (dest == MSG_ONE) {
-		client_t *cl = Write_GetClient();
-		if (cl && ISQWCLIENT(cl))
-		{			
-			ClientReliableCheckBlock(cl, sizeof(short));
-			ClientReliableWrite_Short(cl, data);
-		}
-	} else
-		MSG_WriteShort (WriteDest(dest), data);
-#endif
-
-	data = LittleShort(data);
-	NPP_AddData(&data, sizeof(short));
-	NPP_QWCheckFlush();
+void NPP_QWWriteFloat(int dest, float data)	//replacement write func (nq to qw)
+{
+	union {
+		qbyte b[4];
+		short f;
+	} u;
+	u.f = LittleFloat(data);
+	NPP_QWWriteByte(dest, u.b[0]);
+	NPP_QWWriteByte(dest, u.b[1]);
+	NPP_QWWriteByte(dest, u.b[2]);
+	NPP_QWWriteByte(dest, u.b[3]);
 }
 
 void NPP_QWWriteLong(int dest, long data)	//replacement write func (nq to qw)
 {
-	NPP_QWCheckDest(dest);
-	if (!bufferlen)
-		Con_Printf("Messages should start with WriteByte (last was %i)\n", majortype);
-
-#ifdef NQPROT
-	if (dest == MSG_ONE) {
-		client_t *cl = Write_GetClient();
-		if (cl && ISQWCLIENT(cl))
-		{			
-			ClientReliableCheckBlock(cl, sizeof(long));
-			ClientReliableWrite_Long(cl, data);
-		}
-	} else
-		MSG_WriteLong (WriteDest(dest), data);
-#endif
-
-	data = LittleLong(data);
-	NPP_AddData(&data, sizeof(long));
-	NPP_QWCheckFlush();
+	union {
+		qbyte b[4];
+		int l;
+	} u;
+	u.l = LittleLong(data);
+	NPP_QWWriteByte(dest, u.b[0]);
+	NPP_QWWriteByte(dest, u.b[1]);
+	NPP_QWWriteByte(dest, u.b[2]);
+	NPP_QWWriteByte(dest, u.b[3]);
 }
 void NPP_QWWriteAngle(int dest, float in)	//replacement write func (nq to qw)
 {
-	char data = (int)(in*256/360) & 255;
-NPP_QWCheckDest(dest);
-	if (!bufferlen)
-		Con_Printf("Messages should start with WriteByte (last was %i)\n", majortype);
-
-#ifdef NQPROT
-	if (dest == MSG_ONE) {
-		client_t *cl = Write_GetClient();
-		if (cl && ISQWCLIENT(cl))
-		{			
-			ClientReliableCheckBlock(cl, sizeof(char));
-			ClientReliableWrite_Angle(cl, in);
-		}
-	} else
-		MSG_WriteAngle (WriteDest(dest), in);
-#endif
-
-	NPP_AddData(&data, sizeof(char));
-	NPP_QWCheckFlush();
+	if (sizeofangle==1)
+	{
+		char data = (int)(in*256/360) & 255;
+		NPP_NQWriteChar(dest, data);
+	}
+	else
+	{
+		short data = (int)(in*0xffff/360) & 0xffff;
+		NPP_NQWriteShort(dest, data);
+	}
 }
 void NPP_QWWriteCoord(int dest, float in)	//replacement write func (nq to qw)
 {
-	short datas = (int)(in*8);
-	float dataf = in;
+	if (sizeofcoord==4)
+	{
+		NPP_QWWriteFloat(dest, in);
+	}
+	else
+	{
+		short datas = (int)(in*8);
+		NPP_QWWriteShort(dest, datas);
+	}
+}
+void NPP_QWWriteString(int dest, char *data)	//replacement write func (nq to qw)
+{
 	NPP_QWCheckDest(dest);
 	if (!bufferlen)
-		Con_Printf("Messages should start with WriteByte (last was %i)\n", majortype);
+		Con_Printf("QWWriteString: Messages should start with WriteByte (last was %i)\n", majortype);
 
 #ifdef NQPROT
 	if (dest == MSG_ONE) {
 		client_t *cl = Write_GetClient();
 		if (cl && ISQWCLIENT(cl))
 		{
-			ClientReliableCheckBlock(cl, sizeof(float));
-			ClientReliableWrite_Coord(cl, in);
-		}
-	} else
-		MSG_WriteCoord (WriteDest(dest), in);
-#endif
-
-	if (sizeofcoord==4)
-	{
-		dataf = LittleFloat(dataf);
-		NPP_AddData(&dataf, sizeof(float));
-	}
-	else
-	{
-		datas = LittleShort(datas);
-		NPP_AddData(&datas, sizeof(short));
-	}
-	NPP_QWCheckFlush();
-}
-void NPP_QWWriteString(int dest, char *data)	//replacement write func (nq to qw)
-{
-	NPP_QWCheckDest(dest);
-	if (!bufferlen)
-		Con_Printf("Messages should start with WriteByte (last was %i)\n", majortype);
-
-#ifdef NQPROT
-	if (dest == MSG_ONE) {
-		client_t *cl = Write_GetClient();
-		if (cl && ISQWCLIENT(cl))
-		{			
 			ClientReliableCheckBlock(cl, strlen(data)+1);
 			ClientReliableWrite_String(cl, data);
+			return;
 		}
 	} else
-		MSG_WriteString (WriteDest(dest), data);
+		MSG_WriteString (QWWriteDest(dest), data);
 #endif
 
 	NPP_AddData(data, strlen(data)+1);
@@ -1231,24 +1184,13 @@ void NPP_QWWriteString(int dest, char *data)	//replacement write func (nq to qw)
 }
 void NPP_QWWriteEntity(int dest, short data)	//replacement write func (nq to qw)
 {
-NPP_QWCheckDest(dest);
-	if (!bufferlen)
-		Con_Printf("Messages should start with WriteByte (last was %i)\n", majortype);
-
-#ifdef NQPROT
-	if (dest == MSG_ONE) {
-		client_t *cl = Write_GetClient();
-		if (cl && ISQWCLIENT(cl))
-		{			
-			ClientReliableCheckBlock(cl, sizeof(short));
-			ClientReliableWrite_Short(cl, data);
-		}
-	} else
-		MSG_WriteShort (WriteDest(dest), data);
-#endif
-
-	NPP_AddData(&data, sizeof(short));
-	NPP_QWCheckFlush();
+	union {
+		qbyte b[2];
+		short s;
+	} u;
+	u.s = LittleShort(data);
+	NPP_QWWriteByte(dest, u.b[0]);
+	NPP_QWWriteByte(dest, u.b[1]);
 }
 
 
@@ -1479,7 +1421,7 @@ void NPP_MVDFlush(void)
 					{	//new entity, reset to baseline
 						memcpy(ents, &sv.demobaselines[entnum], sizeof(mvdentity_state_t));
 					}
-					
+
 					if (s & U_MOREBITS)
 					{
 						s |= buffer[i];
@@ -1491,7 +1433,7 @@ void NPP_MVDFlush(void)
 						ents->modelindex = buffer[i];
 						i++;
 					}
-	
+
 					if (s & U_FRAME)
 					{
 						ents->frame = buffer[i];
@@ -1521,7 +1463,7 @@ void NPP_MVDFlush(void)
 						ents->origin[0] = (short)(buffer[i]+buffer[i+1]*256) /8.0f;
 						i+=2;
 					}
-						
+
 					if (s & U_ANGLE1)
 					{
 						ents->angles[0] = (unsigned char)(buffer[i]);//	* (360.0/256);
@@ -1533,7 +1475,7 @@ void NPP_MVDFlush(void)
 						ents->origin[1] = (short)(buffer[i]+buffer[i+1]*256) /8.0f;
 						i+=2;
 					}
-						
+
 					if (s & U_ANGLE2)
 					{
 						ents->angles[1] = (unsigned char)(buffer[i]);//	* (360.0/256);
@@ -1545,7 +1487,7 @@ void NPP_MVDFlush(void)
 						ents->origin[2] = (short)(buffer[i]+buffer[i+1]*256) /8.0f;
 						i+=2;
 					}
-						
+
 					if (s & U_ANGLE3)
 					{
 						ents->angles[2] = (unsigned char)(buffer[i]);//	* (360.0/256);
@@ -1746,7 +1688,7 @@ void NPP_MVDFlush(void)
 			writedest = &sv.multicast;
 			multicasttype = MULTICAST_ALL_R;
 		}
-	
+
 		if (bufferlen)
 			SZ_Write(writedest, buffer, bufferlen);
 
@@ -1822,7 +1764,7 @@ void NPP_MVDWriteByte(qbyte data, client_t *to, int broadcast)	//replacement wri
 	NPP_MVDCheckDest(to, broadcast);
 
 	if (!bufferlen)	//new message section
-	{	
+	{
 		switch(data)
 		{
 		case svc_temp_entity://depends on following bytes
@@ -1830,7 +1772,7 @@ void NPP_MVDWriteByte(qbyte data, client_t *to, int broadcast)	//replacement wri
 		case svc_serverinfo:
 		case svc_print:
 		case svc_sound:
-		case svc_serverdata:			
+		case svc_serverdata:
 		case svc_stufftext:
 		case svc_modellist:
 		case svc_soundlist:
@@ -1938,7 +1880,7 @@ void NPP_MVDWriteByte(qbyte data, client_t *to, int broadcast)	//replacement wri
 					multicastpos=4;
 					multicasttype=MULTICAST_PHS;
 					protocollen = sizeof(short)*6+sizeof(short)+sizeof(qbyte)*2;
-					break;			
+					break;
 				case TE_BLOOD:		//needs to be converted to a particle
 				case TE_GUNSHOT:	//needs qbyte 2 removed
 					multicastpos=3;
@@ -1961,7 +1903,7 @@ void NPP_MVDWriteByte(qbyte data, client_t *to, int broadcast)	//replacement wri
 					multicastpos=2;
 					multicasttype=MULTICAST_PVS;
 					protocollen = sizeof(short)*3+sizeof(qbyte)*2;
-					break;					
+					break;
 				default:
 					protocollen = sizeof(buffer);
 					Con_Printf("bad tempentity\n");
@@ -2015,7 +1957,7 @@ void NPP_MVDWriteByte(qbyte data, client_t *to, int broadcast)	//replacement wri
 				for (j=0 ; j<3 ; j++)
 					if (pflags & (DF_ORIGIN << j))
 						protocollen += 2;
-			
+
 				for (j=0 ; j<3 ; j++)
 					if (pflags & (DF_ANGLES << j))
 						protocollen += 2;
@@ -2093,7 +2035,7 @@ void NPP_MVDWriteByte(qbyte data, client_t *to, int broadcast)	//replacement wri
 
 						if (s & U_MODEL)
 							i++;
-		
+
 						if (s & U_FRAME)
 							i++;
 
@@ -2108,19 +2050,19 @@ void NPP_MVDWriteByte(qbyte data, client_t *to, int broadcast)	//replacement wri
 
 						if (s & U_ORIGIN1)
 							i+=2;
-							
+
 						if (s & U_ANGLE1)
 							i++;
 
 						if (s & U_ORIGIN2)
 							i+=2;
-							
+
 						if (s & U_ANGLE2)
 							i++;
 
 						if (s & U_ORIGIN3)
 							i+=2;
-							
+
 						if (s & U_ANGLE3)
 							i++;
 					}
@@ -2214,4 +2156,14 @@ void NPP_MVDWriteByte(qbyte data, client_t *to, int broadcast)	//replacement wri
 	NPP_MVDCheckFlush();
 }
 
+
+void NPP_Flush(void)
+{
+	if (progstype == PROG_NQ)
+		NPP_NQFlush();
+#ifdef NQPROT
+	else
+		NPP_QWFlush();
+#endif
+}
 #endif

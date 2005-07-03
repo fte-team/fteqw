@@ -4190,7 +4190,7 @@ MESSAGE WRITING
 #define	MSG_INIT		3		// write to the init string
 #define	MSG_MULTICAST	4		// for multicast()
 
-sizebuf_t *WriteDest (int		dest)
+sizebuf_t *QWWriteDest (int		dest)
 {
 	switch (dest)
 	{
@@ -4337,7 +4337,7 @@ void PF_WriteByte (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 		ClientReliableWrite_Byte(cl, G_FLOAT(OFS_PARM1));
 	}
 	else
-		MSG_WriteByte (WriteDest(G_FLOAT(OFS_PARM0)), G_FLOAT(OFS_PARM1));
+		MSG_WriteByte (QWWriteDest(G_FLOAT(OFS_PARM0)), G_FLOAT(OFS_PARM1));
 #endif
 }
 
@@ -4374,7 +4374,7 @@ void PF_WriteChar (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 		ClientReliableWrite_Char(cl, G_FLOAT(OFS_PARM1));
 	}
 	else
-		MSG_WriteChar (WriteDest(G_FLOAT(OFS_PARM0)), G_FLOAT(OFS_PARM1));
+		MSG_WriteChar (QWWriteDest(G_FLOAT(OFS_PARM0)), G_FLOAT(OFS_PARM1));
 #endif
 }
 
@@ -4393,13 +4393,13 @@ void PF_WriteShort (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 	pr_netglob = pr_globals;
 	if (progstype == PROG_NQ || progstype == PROG_H2)
 	{
-		NPP_NQWriteShort(G_FLOAT(OFS_PARM0), (short)G_FLOAT(OFS_PARM1));
+		NPP_NQWriteShort(G_FLOAT(OFS_PARM0), (int)G_FLOAT(OFS_PARM1));
 		return;
 	}
 #ifdef NQPROT
 	else
 	{
-		NPP_QWWriteShort(G_FLOAT(OFS_PARM0), (short)G_FLOAT(OFS_PARM1));
+		NPP_QWWriteShort(G_FLOAT(OFS_PARM0), (int)G_FLOAT(OFS_PARM1));
 		return;
 	}
 #else
@@ -4412,7 +4412,7 @@ void PF_WriteShort (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 		ClientReliableWrite_Short(cl, G_FLOAT(OFS_PARM1));
 	}
 	else
-		MSG_WriteShort (WriteDest(G_FLOAT(OFS_PARM0)), G_FLOAT(OFS_PARM1));
+		MSG_WriteShort (QWWriteDest(G_FLOAT(OFS_PARM0)), G_FLOAT(OFS_PARM1));
 #endif
 }
 
@@ -4450,7 +4450,7 @@ void PF_WriteLong (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 		ClientReliableWrite_Long(cl, G_FLOAT(OFS_PARM1));
 	}
 	else
-		MSG_WriteLong (WriteDest(G_FLOAT(OFS_PARM0)), G_FLOAT(OFS_PARM1));
+		MSG_WriteLong (QWWriteDest(G_FLOAT(OFS_PARM0)), G_FLOAT(OFS_PARM1));
 #endif
 }
 
@@ -4487,7 +4487,7 @@ void PF_WriteAngle (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 		ClientReliableWrite_Angle(cl, G_FLOAT(OFS_PARM1));
 	}
 	else
-		MSG_WriteAngle (WriteDest(G_FLOAT(OFS_PARM0)), G_FLOAT(OFS_PARM1));
+		MSG_WriteAngle (QWWriteDest(G_FLOAT(OFS_PARM0)), G_FLOAT(OFS_PARM1));
 #endif
 }
 
@@ -4525,7 +4525,7 @@ void PF_WriteCoord (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 		ClientReliableWrite_Coord(cl, G_FLOAT(OFS_PARM1));
 	}
 	else
-		MSG_WriteCoord (WriteDest(G_FLOAT(OFS_PARM0)), G_FLOAT(OFS_PARM1));
+		MSG_WriteCoord (QWWriteDest(G_FLOAT(OFS_PARM0)), G_FLOAT(OFS_PARM1));
 #endif
 }
 
@@ -4564,7 +4564,7 @@ void PF_WriteString (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 		ClientReliableWrite_String(cl, str);
 	}
 	else
-		MSG_WriteString (WriteDest(G_FLOAT(OFS_PARM0)), str);
+		MSG_WriteString (QWWriteDest(G_FLOAT(OFS_PARM0)), str);
 #endif
 }
 
@@ -4584,13 +4584,13 @@ void PF_WriteEntity (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 	pr_netglob = pr_globals;
 	if (progstype == PROG_NQ || progstype == PROG_H2)
 	{
-		NPP_NQWriteEntity(G_FLOAT(OFS_PARM0), (short)G_EDICTNUM(prinst, OFS_PARM1));
+		NPP_NQWriteEntity(G_FLOAT(OFS_PARM0), G_EDICTNUM(prinst, OFS_PARM1));
 		return;
 	}
 #ifdef NQPROT
 	else
 	{
-		NPP_QWWriteEntity(G_FLOAT(OFS_PARM0), (short)G_EDICTNUM(prinst, OFS_PARM1));
+		NPP_QWWriteEntity(G_FLOAT(OFS_PARM0), G_EDICTNUM(prinst, OFS_PARM1));
 		return;
 	}
 #else
@@ -4603,7 +4603,7 @@ void PF_WriteEntity (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 		ClientReliableWrite_Short(cl, G_EDICTNUM(prinst, OFS_PARM1));
 	}
 	else
-		MSG_WriteShort (WriteDest(G_FLOAT(OFS_PARM0)), G_EDICTNUM(prinst, OFS_PARM1));
+		MSG_WriteShort (QWWriteDest(G_FLOAT(OFS_PARM0)), G_EDICTNUM(prinst, OFS_PARM1));
 #endif
 }
 
@@ -4745,7 +4745,9 @@ void SV_point_tempentity (vec3_t o, int type, int count)	//count (usually 1) is 
 		SV_Error("SV_point_tempentity - type is a beam\n");
 	default:
 		MSG_WriteByte (&sv.multicast, type);
+#ifdef NQPROT
 		MSG_WriteByte (&sv.nqmulticast, type);
+#endif
 	}
 	MSG_WriteCoord (&sv.multicast, o[0]);
 	MSG_WriteCoord (&sv.multicast, o[1]);
@@ -4927,7 +4929,8 @@ void PF_setspawnparms (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 	client = svs.clients + (i-1);
 
 	for (i=0 ; i< NUM_SPAWN_PARMS ; i++)
-		*spawnparamglobals[i] = client->spawn_parms[i];
+		if (spawnparamglobals[i])
+			*spawnparamglobals[i] = client->spawn_parms[i];
 }
 
 /*
@@ -5100,7 +5103,6 @@ void(vector where, float set) multicast
 */
 void PF_multicast (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
-#if !defined(NQPROT) && !defined(PREPARSE)	//these make multicasts issue when message is compleate, making the multicast builtin useless.
 	float	*o;
 	int		to;
 
@@ -5108,7 +5110,6 @@ void PF_multicast (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 	to = G_FLOAT(OFS_PARM1);
 
 	SV_Multicast (o, to);
-#endif
 }
 
 
@@ -7333,13 +7334,21 @@ void PF_plaque_draw(progfuncs_t *prinst, struct globalvars_s *pr_globals)
 	}
 	else
 	{
-		MSG_WriteByte (WriteDest(G_FLOAT(OFS_PARM0)), svc_centerprint);
+		MSG_WriteByte (QWWriteDest(G_FLOAT(OFS_PARM0)), svc_centerprint);
 		if (*s)
 		{
-			MSG_WriteByte (WriteDest(G_FLOAT(OFS_PARM0)), '/');
-			MSG_WriteByte (WriteDest(G_FLOAT(OFS_PARM0)), 'P');
+			MSG_WriteByte (QWWriteDest(G_FLOAT(OFS_PARM0)), '/');
+			MSG_WriteByte (QWWriteDest(G_FLOAT(OFS_PARM0)), 'P');
 		}
-		MSG_WriteString (WriteDest(G_FLOAT(OFS_PARM0)), s);
+		MSG_WriteString (QWWriteDest(G_FLOAT(OFS_PARM0)), s);
+
+		MSG_WriteByte (NQWriteDest(G_FLOAT(OFS_PARM0)), svc_centerprint);
+		if (*s)
+		{
+			MSG_WriteByte (NQWriteDest(G_FLOAT(OFS_PARM0)), '/');
+			MSG_WriteByte (NQWriteDest(G_FLOAT(OFS_PARM0)), 'P');
+		}
+		MSG_WriteString (NQWriteDest(G_FLOAT(OFS_PARM0)), s);
 	}
 }
 

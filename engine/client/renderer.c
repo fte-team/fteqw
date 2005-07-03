@@ -562,7 +562,6 @@ void	(*R_DeInit)					(void);
 void	(*R_ReInit)					(void);
 void	(*R_RenderView)				(void);		// must set r_refdef first
 
-void	(*R_InitSky)				(struct texture_s *mt);	// called at level load
 qboolean	(*R_CheckSky)			(void);
 void	(*R_SetSky)					(char *name, float rotate, vec3_t axis);
 
@@ -614,6 +613,7 @@ r_qrenderer_t qrenderer=-1;
 char *q_renderername = "Non-Selected renderer";
 
 
+
 rendererinfo_t dedicatedrendererinfo = {
 	//ALL builds need a 'none' renderer, as 0.
 	"Dedicated server",
@@ -624,9 +624,6 @@ rendererinfo_t dedicatedrendererinfo = {
 		"sv"
 	},
 	QR_NONE,
-
-
-
 
 	NULL,	//Draw_PicFromWad;
 	NULL,	//Draw_PicFromWad;	//Not supported
@@ -660,7 +657,7 @@ rendererinfo_t dedicatedrendererinfo = {
 	NULL,	//R_DeInit;
 	NULL,	//R_ReInit;
 	NULL,	//R_RenderView;
-	NULL,	//R_InitSky;
+
 	NULL,	//R_CheckSky;
 	NULL,	//R_SetSky;
 
@@ -772,7 +769,6 @@ rendererinfo_t softwarerendererinfo = {
 	NULL,//SWR_ReInit,
 	SWR_RenderView,
 
-	SWR_InitSky,
 	SWR_CheckSky,
 	SWR_SetSky,
 
@@ -826,101 +822,100 @@ rendererinfo_t *psoftwarerendererinfo = &softwarerendererinfo;
 #endif
 #ifdef RGLQUAKE
 rendererinfo_t openglrendererinfo = {
-		"OpenGL",
-		{
-			"gl",
-			"opengl",
-			"hardware",
-		},
-		QR_OPENGL,
+	"OpenGL",
+	{
+		"gl",
+		"opengl",
+		"hardware",
+	},
+	QR_OPENGL,
 
 
-		GLDraw_PicFromWad,
-		GLDraw_SafePicFromWad,
-		GLDraw_CachePic,
-		GLDraw_SafeCachePic,
-		GLDraw_Init,
-		GLDraw_ReInit,
-		GLDraw_Character,
-		GLDraw_ColouredCharacter,
-		GLDraw_String,
-		GLDraw_Alt_String,
-		GLDraw_Crosshair,
-		GLDraw_DebugChar,
-		GLDraw_Pic,
-		GLDraw_ScalePic,
-		GLDraw_SubPic,
-		GLDraw_TransPic,
-		GLDraw_TransPicTranslate,
-		GLDraw_ConsoleBackground,
-		GLDraw_EditorBackground,
-		GLDraw_TileClear,
-		GLDraw_Fill,
-		GLDraw_FadeScreen,
-		GLDraw_BeginDisc,
-		GLDraw_EndDisc,
+	GLDraw_PicFromWad,
+	GLDraw_SafePicFromWad,
+	GLDraw_CachePic,
+	GLDraw_SafeCachePic,
+	GLDraw_Init,
+	GLDraw_ReInit,
+	GLDraw_Character,
+	GLDraw_ColouredCharacter,
+	GLDraw_String,
+	GLDraw_Alt_String,
+	GLDraw_Crosshair,
+	GLDraw_DebugChar,
+	GLDraw_Pic,
+	GLDraw_ScalePic,
+	GLDraw_SubPic,
+	GLDraw_TransPic,
+	GLDraw_TransPicTranslate,
+	GLDraw_ConsoleBackground,
+	GLDraw_EditorBackground,
+	GLDraw_TileClear,
+	GLDraw_Fill,
+	GLDraw_FadeScreen,
+	GLDraw_BeginDisc,
+	GLDraw_EndDisc,
 
-		GLDraw_Image,
-		GLDraw_ImageColours,
+	GLDraw_Image,
+	GLDraw_ImageColours,
 
-		GLR_Init,
-		GLR_DeInit,
-		GLR_ReInit,
-		GLR_RenderView,
-
-
-		GLR_InitSky,
-		GLR_CheckSky,
-		GLR_SetSky,
-
-		GLR_NewMap,
-		GLR_PreNewMap,
-		GLR_LightPoint,
-		GLR_PushDlights,
+	GLR_Init,
+	GLR_DeInit,
+	GLR_ReInit,
+	GLR_RenderView,
 
 
-		GLR_AddStain,
-		GLR_LessenStains,
+	GLR_CheckSky,
+	GLR_SetSky,
 
-		MediaGL_ShowFrameBGR_24_Flip,
-		MediaGL_ShowFrameRGBA_32,
-		MediaGL_ShowFrame8bit,
-
-
-		GLMod_Init,
-		GLMod_ClearAll,
-		GLMod_ForName,
-		GLMod_FindName,
-		GLMod_Extradata,
-		GLMod_TouchModel,
-
-		GLMod_PointInLeaf,
-		GLMod_LeafPVS,
-		GLMod_NowLoadExternal,
-		GLMod_Think,
-
-		GLMod_GetTag,
-		GLMod_TagNumForName,
-
-		GLVID_Init,
-		GLVID_DeInit,
-		GLVID_HandlePause,
-		GLVID_LockBuffer,
-		GLVID_UnlockBuffer,
-		GLD_BeginDirectRect,
-		GLD_EndDirectRect,
-		GLVID_ForceLockState,
-		GLVID_ForceUnlockedAndReturnState,
-		GLVID_SetPalette,
-		GLVID_ShiftPalette,
-		GLVID_GetRGBInfo,
-
-		NULL,	//setcaption
+	GLR_NewMap,
+	GLR_PreNewMap,
+	GLR_LightPoint,
+	GLR_PushDlights,
 
 
-		GLSCR_UpdateScreen,
+	GLR_AddStain,
+	GLR_LessenStains,
 
-		""
+	MediaGL_ShowFrameBGR_24_Flip,
+	MediaGL_ShowFrameRGBA_32,
+	MediaGL_ShowFrame8bit,
+
+
+	GLMod_Init,
+	GLMod_ClearAll,
+	GLMod_ForName,
+	GLMod_FindName,
+	GLMod_Extradata,
+	GLMod_TouchModel,
+
+	GLMod_PointInLeaf,
+	GLMod_LeafPVS,
+	GLMod_NowLoadExternal,
+	GLMod_Think,
+
+	GLMod_GetTag,
+	GLMod_TagNumForName,
+
+	GLVID_Init,
+	GLVID_DeInit,
+	GLVID_HandlePause,
+	GLVID_LockBuffer,
+	GLVID_UnlockBuffer,
+	GLD_BeginDirectRect,
+	GLD_EndDirectRect,
+	GLVID_ForceLockState,
+	GLVID_ForceUnlockedAndReturnState,
+	GLVID_SetPalette,
+	GLVID_ShiftPalette,
+	GLVID_GetRGBInfo,
+
+	NULL,	//setcaption
+
+
+	GLSCR_UpdateScreen,
+
+	""
 };
 rendererinfo_t *popenglrendererinfo = &openglrendererinfo;
 #endif
@@ -1033,7 +1028,7 @@ qboolean M_VideoApply (union menuoption_s *op,struct menu_s *menu,int key)
 		Cbuf_AddText(va("vid_conwidth %s\n", info->customwidth->text), RESTRICT_LOCAL);
 		Cbuf_AddText(va("vid_conheight %s\n", info->customheight->text), RESTRICT_LOCAL);
 	}
-	
+
 	selectedbpp = 16;
 	switch(info->bppcombo->selectedoption)
 	{
@@ -1052,7 +1047,7 @@ qboolean M_VideoApply (union menuoption_s *op,struct menu_s *menu,int key)
 	}
 
 	Cbuf_AddText(va("vid_bpp %i\n", selectedbpp), RESTRICT_LOCAL);
-	
+
 	switch(info->renderer->selectedoption)
 	{
 #ifdef SWQUAKE
@@ -1193,6 +1188,7 @@ void M_Menu_Video_f (void)
 void R_SetRenderer(int wanted)
 {
 	rendererinfo_t *ri;
+
 	if (wanted<0)
 	{	//-1 is used so we know when we've applied something instead of never setting anything.
 		wanted=0;
@@ -1204,6 +1200,7 @@ void R_SetRenderer(int wanted)
 	ri = (*rendererinfo[wanted]);
 
 	q_renderername = ri->name[0];
+
 
 	Draw_PicFromWad			= ri->Draw_PicFromWad;
 	Draw_SafePicFromWad		= ri->Draw_SafePicFromWad;	//Not supported
@@ -1240,7 +1237,6 @@ void R_SetRenderer(int wanted)
 	R_PreNewMap				= ri->R_PreNewMap;
 	R_LightPoint			= ri->R_LightPoint;
 	R_PushDlights			= ri->R_PushDlights;
-	R_InitSky				= ri->R_InitSky;
 	R_CheckSky				= ri->R_CheckSky;
 	R_SetSky				= ri->R_SetSky;
 
@@ -1278,8 +1274,6 @@ void R_SetRenderer(int wanted)
 
 	Mod_GetTag				= ri->Mod_GetTag;
 	Mod_TagNumForName 		= ri->Mod_TagNumForName;
-
-
 
 	SCR_UpdateScreen		= ri->SCR_UpdateScreen;
 }

@@ -3,7 +3,7 @@ GTKGUI_OBJS=qcc_gtk.o qccguistuff.c
 
 CC=gcc -Wall -DQCCONLY
 
-DO_CC=$(CC) $(BASE_CFLAGS) -DUSEGUI -o $@ -c $< $(CFLAGS)
+DO_CC=$(CC) $(BASE_CFLAGS) -o $@ -c $< $(CFLAGS)
 
 all: qcc
 

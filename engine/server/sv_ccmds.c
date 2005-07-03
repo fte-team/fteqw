@@ -8,7 +8,7 @@ of the License, or (at your option) any later version.
 
 This program is distributed in the hope that it will be useful,
 but WITHOUT ANY WARRANTY; without even the implied warranty of
-MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
 
 See the GNU General Public License for more details.
 
@@ -80,9 +80,9 @@ client_t *SV_GetClientForString(char *name, int *id)
 				return cl;
 			}
 		}
-		
+
 		return NULL;
-	}	
+	}
 
 	for (i = first, cl = svs.clients+first; i < sv.allocated_client_slots; i++, cl++)
 	{
@@ -293,7 +293,7 @@ void SV_God_f (void)
 	if ((int)sv_player->v->flags & FL_GODMODE)
 		SV_ClientTPrintf (host_client, PRINT_HIGH, STL_GODON);
 	else
-		SV_ClientTPrintf (host_client, PRINT_HIGH, STL_GODOFF);			
+		SV_ClientTPrintf (host_client, PRINT_HIGH, STL_GODOFF);
 }
 
 
@@ -330,13 +330,13 @@ void SV_Give_f (void)
 {
 	char	*t;
 	int		v;
-	
+
 	if (!sv_allow_cheats)
 	{
 		Con_TPrintf (STL_NEEDCHEATPARM);
 		return;
 	}
-	
+
 	if (!SV_SetPlayer ())
 	{
 		int oldself;
@@ -352,7 +352,7 @@ void SV_Give_f (void)
 
 	t = Cmd_Argv(2);
 	v = atoi (Cmd_Argv(3));
-	
+
 	switch (t[0])
 	{
 	case '2':
@@ -365,19 +365,19 @@ void SV_Give_f (void)
 	case '9':
 		sv_player->v->items = (int)sv_player->v->items | IT_SHOTGUN<< (t[0] - '2');
 		break;
-	
+
 	case 's':
 		sv_player->v->ammo_shells = v;
-		break;		
+		break;
 	case 'n':
 		sv_player->v->ammo_nails = v;
-		break;		
+		break;
 	case 'r':
 		sv_player->v->ammo_rockets = v;
-		break;		
+		break;
 	case 'h':
 		sv_player->v->health = v;
-		break;		
+		break;
 	case 'c':
 		sv_player->v->ammo_cells = v;
 		break;
@@ -408,7 +408,7 @@ void SV_MapList_f(void)
 ======================
 SV_Map_f
 
-handle a 
+handle a
 map <mapname>
 command from the console or progs.
 ======================
@@ -459,7 +459,7 @@ void SV_Map_f (void)
 		startspot = NULL;
 
 	if (!strcmp(level, "."))	//restart current
-	{		
+	{
 		COM_StripExtension(COM_SkipPath(sv.modelname), level);
 		issamelevel = true;
 
@@ -505,6 +505,7 @@ void SV_Map_f (void)
 
 	if (startspot && !issamelevel && !newunit)
 	{
+#ifdef Q2SERVER
 		if (ge)
 		{
 			qboolean savedinuse[MAX_CLIENTS];
@@ -520,6 +521,7 @@ void SV_Map_f (void)
 			}
 		}
 		else
+#endif
 			SV_SaveLevelCache(false);
 	}
 
@@ -534,7 +536,7 @@ void SV_Map_f (void)
 
 #ifndef SERVERONLY
 	S_StopAllSounds (true);
-	SCR_BeginLoadingPlaque();	
+	SCR_BeginLoadingPlaque();
 #endif
 
 	if (newunit || !startspot || !SV_LoadLevelCache(level, startspot, false))
@@ -571,7 +573,7 @@ Kick a user off of the server
 ==================
 */
 void SV_Kick_f (void)
-{	
+{
 	client_t	*cl;
 	int clnum=-1;
 
@@ -581,8 +583,8 @@ void SV_Kick_f (void)
 		// print directly, because the dropped client won't get the
 		// SV_BroadcastPrintf message
 		SV_ClientTPrintf (cl, PRINT_HIGH, STL_YOUWEREKICKED);
-		SV_DropClient (cl); 		
-	}	
+		SV_DropClient (cl);
+	}
 
 	if (clnum == -1)
 		Con_TPrintf (STL_USERDOESNTEXIST, Cmd_Argv(1));
@@ -639,7 +641,7 @@ void SV_BanName_f (void)
 		}
 		else
 			Con_Printf("User is not using an account\n");
-		SV_DropClient (cl); 		
+		SV_DropClient (cl);
 	}
 
 	if (clnum == -1)
@@ -696,7 +698,7 @@ void SV_CripplePlayer_f (void)
 		{
 			cl->iscrippled = false;
 			SV_ClientTPrintf (cl, PRINT_HIGH, STL_YOUARNTCRIPPLED);
-		}		
+		}
 	}
 
 	if (clnum == -1)
@@ -931,7 +933,7 @@ void SV_Status_f (void)
 			Con_Printf ("%6i %5i", cl->userid, (int)cl->old_frags);
 			if (cl->spectator)
 				Con_Printf(" (s)\n");
-			else			
+			else
 				Con_Printf("\n");
 
 			s = NET_BaseAdrToString ( cl->netchan.remote_address);
@@ -970,7 +972,7 @@ void SV_Status_f (void)
 			l = 16 - strlen(s);
 			for (j=0 ; j<l ; j++)
 				Con_Printf (" ");
-			
+
 			Con_Printf ("%s", cl->name);
 			l = 16 - strlen(cl->name);
 			for (j=0 ; j<l ; j++)
@@ -995,10 +997,10 @@ void SV_Status_f (void)
 			}
 			if (cl->spectator)
 				Con_Printf(" (s)\n");
-			else			
+			else
 				Con_Printf("\n");
 
-				
+
 		}
 	}
 	Con_Printf ("\n");
@@ -1145,12 +1147,12 @@ void SV_Serverinfo_f (void)
 
 	Info_SetValueForKey (svs.info, Cmd_Argv(1), value, MAX_SERVERINFO_STRING);
 
-	// if this is a cvar, change it too	
+	// if this is a cvar, change it too
 	var = Cvar_FindVar (Cmd_Argv(1));
 	if (var)
 	{
 		Cvar_Set(var, value);
-/*		Z_Free (var->string);	// free the old value string	
+/*		Z_Free (var->string);	// free the old value string
 		var->string = CopyString (value);
 		var->value = Q_atof (var->string);
 */	}
@@ -1262,11 +1264,11 @@ Sets the gamedir and path to a different directory.
 void SV_Floodprot_f (void)
 {
 	int arg1, arg2, arg3;
-	
+
 	if (Cmd_Argc() == 1)
 	{
 		if (fp_messages) {
-			Con_TPrintf (STL_FLOODPROTSETTINGS, 
+			Con_TPrintf (STL_FLOODPROTSETTINGS,
 				fp_messages, fp_persecond, fp_secondsdead);
 			return;
 		} else
@@ -1287,7 +1289,7 @@ void SV_Floodprot_f (void)
 		Con_TPrintf (STL_NONEGATIVEVALUES);
 		return;
 	}
-	
+
 	if (arg1 > 10) {
 		Con_TPrintf (STL_TRACK10PLUSSMESSAGES);
 		return;
@@ -1309,7 +1311,7 @@ void SV_Floodprotmsg_f (void)
 	}
 	sprintf(fp_msg, "%s", Cmd_Argv(1));
 }
-  
+
 
 /*
 ================
@@ -1392,7 +1394,7 @@ SV_Snap
 void SV_Snap (int uid)
 {
 	client_t *cl;
-	char		pcxname[80]; 
+	char		pcxname[80];
 	char		checkname[MAX_OSPATH];
 	int			i;
 
@@ -1418,16 +1420,16 @@ void SV_Snap (int uid)
 	sprintf(checkname, "%s/snap", gamedirfile);
 	Sys_mkdir(gamedirfile);
 	Sys_mkdir(checkname);
-		
-	for (i=0 ; i<=99 ; i++) 
-	{ 
-		pcxname[strlen(pcxname) - 6] = i/10 + '0'; 
-		pcxname[strlen(pcxname) - 5] = i%10 + '0'; 
+
+	for (i=0 ; i<=99 ; i++)
+	{
+		pcxname[strlen(pcxname) - 6] = i/10 + '0';
+		pcxname[strlen(pcxname) - 5] = i%10 + '0';
 		sprintf (checkname, "%s/snap/%s", gamedirfile, pcxname);
 		if (Sys_FileTime(checkname) == -1)
 			break;	// file doesn't exist
-	} 
-	if (i==100) 
+	}
+	if (i==100)
 	{
 		Con_TPrintf (STL_SNAPTOOMANYFILES);
 		return;
@@ -1619,7 +1621,7 @@ void SV_InitOperatorCommands (void)
 
 	Cmd_AddCommand ("heartbeat", SV_Heartbeat_f);
 
-	Cmd_AddCommand ("localinfo", SV_Localinfo_f);	
+	Cmd_AddCommand ("localinfo", SV_Localinfo_f);
 	Cmd_AddCommand ("gamedir", SV_Gamedir_f);
 	Cmd_AddCommand ("sv_gamedir", SV_Gamedir);
 	Cmd_AddCommand ("floodprot", SV_Floodprot_f);

@@ -40,7 +40,7 @@ extern void	(*Draw_BeginDisc)						(void);
 extern void	(*Draw_EndDisc)							(void);
 extern qboolean (*Draw_IsCached)					(char *picname);	//can be null
 
-extern void	(*Draw_Image)							(float x, float y, float w, float h, float s1, float t1, float s2, float t2, mpic_t *pic);	//gl-style scaled/coloured/subpic 
+extern void	(*Draw_Image)							(float x, float y, float w, float h, float s1, float t1, float s2, float t2, mpic_t *pic);	//gl-style scaled/coloured/subpic
 extern void	(*Draw_ImageColours)					(float r, float g, float b, float a);
 
 extern void	(*R_Init)								(void);
@@ -48,7 +48,6 @@ extern void	(*R_DeInit)								(void);
 extern void	(*R_ReInit)								(void);
 extern void	(*R_RenderView)							(void);		// must set r_refdef first
 
-extern void	(*R_InitSky)							(struct texture_s *mt);	// called at level load
 extern qboolean	(*R_CheckSky)						(void);
 extern void (*R_SetSky)								(char *name, float rotate, vec3_t axis);
 
@@ -156,7 +155,6 @@ typedef struct {
 	void	(*R_ReInit)					(void);
 	void	(*R_RenderView)				(void);		// must set r_refdef first
 
-	void	(*R_InitSky)				(struct texture_s *mt);	// called at level load
 	qboolean	(*R_CheckSky)			(void);
 	void	(*R_SetSky)					(char *name, float rotate, vec3_t axis);
 

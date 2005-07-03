@@ -8,7 +8,7 @@ of the License, or (at your option) any later version.
 
 This program is distributed in the hope that it will be useful,
 but WITHOUT ANY WARRANTY; without even the implied warranty of
-MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
 
 See the GNU General Public License for more details.
 
@@ -33,7 +33,7 @@ void Cmd_ForwardToServer (void);
 typedef struct cmdalias_s
 {
 	struct cmdalias_s	*next;
-	char	name[MAX_ALIAS_NAME];	
+	char	name[MAX_ALIAS_NAME];
 	char	*value;
 	qbyte execlevel;
 	qbyte restriction;
@@ -150,7 +150,7 @@ bind g "impulse 5 ; +attack ; wait ; -attack ; impulse 2"
 */
 void Cmd_Wait_f (void)
 {
-	cmd_text[Cmd_ExecLevel].waitattime = realtime;	
+	cmd_text[Cmd_ExecLevel].waitattime = realtime;
 }
 
 /*
@@ -181,7 +181,7 @@ void Cbuf_AddText (const char *text, int level)
 		Con_Printf("Bad execution level\n");
 		return;	//reject.
 	}
-	
+
 	l = Q_strlen (text);
 
 	if (!cmd_text[level].buf.maxsize)
@@ -239,7 +239,7 @@ void Cbuf_InsertText (const char *text, int level)
 	}
 	else
 		temp = NULL;	// shut up compiler
-		
+
 // add the entire text of the file
 	Cbuf_AddText (text, level);
 	SZ_Write (&cmd_text[level].buf, "\n", 1);
@@ -280,11 +280,11 @@ start:
 		Con_Printf("Statement too long\n");
 		return "";
 	}
-		
-			
+
+
 	memcpy (line, text, i);
 	line[i] = 0;
-	
+
 // delete the text from the command buffer and move remaining commands down
 // this is necessary because commands (exec, alias) can insert data at the
 // beginning of the text buffer
@@ -352,7 +352,7 @@ void Cbuf_ExecuteLevel (int level)
 			i = sizeof(line)-1;
 		memcpy (line, text, i);
 		line[i] = 0;
-		
+
 // delete the text from the command buffer and move remaining commands down
 // this is necessary because commands (exec, alias) can insert data at the
 // beginning of the text buffer
@@ -366,7 +366,7 @@ void Cbuf_ExecuteLevel (int level)
 			Q_memcpy (text, text+i, cmd_text[level].buf.cursize);
 		}
 
-// execute the command line		
+// execute the command line
 		Cmd_ExecuteString (line, level);
 	}
 }
@@ -419,7 +419,7 @@ void Cmd_StuffCmds (void)
 	}
 	if (!s)
 		return;
-		
+
 	text = (char*)Z_Malloc (s+1);
 	text[0] = 0;
 	for (i=1 ; i<com_argc ; i++)
@@ -430,11 +430,11 @@ void Cmd_StuffCmds (void)
 		if (i != com_argc-1)
 			Q_strcat (text, " ");
 	}
-	
+
 // pull out the commands
 	build = (char*)Z_Malloc (s+1);
 	build[0] = 0;
-	
+
 	for (i=0 ; i<s-1 ; i++)
 	{
 		if (text[i] == '+')
@@ -446,17 +446,17 @@ void Cmd_StuffCmds (void)
 
 			c = text[j];
 			text[j] = 0;
-			
+
 			Q_strcat (build, text+i);
 			Q_strcat (build, "\n");
 			text[j] = c;
 			i = j-1;
 		}
 	}
-	
+
 	if (build[0])
 		Cbuf_AddText (build, RESTRICT_LOCAL);
-	
+
 	Z_Free (text);
 	Z_Free (build);
 }
@@ -518,7 +518,7 @@ Just prints the rest of the line to the console
 void Cmd_Echo_f (void)
 {
 	int		i;
-	
+
 	for (i=1 ; i<Cmd_Argc() ; i++)
 		Con_Printf ("%s ",Cmd_Argv(i));
 	Con_Printf ("\n");
@@ -527,7 +527,7 @@ void Cmd_Echo_f (void)
 char *CopyString (char *in)
 {
 	char	*out;
-	
+
 	out = (char*)Z_Malloc (strlen(in)+1);
 	strcpy (out, in);
 	return out;
@@ -621,7 +621,7 @@ void Cmd_Alias_f (void)
 				return;
 			}
 		}
-		
+
 	// check for overlap with a command
 		if (Cmd_Exists (s))
 		{
@@ -674,7 +674,7 @@ void Cmd_Alias_f (void)
 
 		while(*line <= ' ' && *line)	//skip leading whitespace.
 			line++;
-	
+
 		for (end = line + strlen(line)-1; end >= line && *end <= ' '; end--)	//skip trailing
 			*end = '\0';
 		if (!strcmp(line, "{"))
@@ -862,9 +862,9 @@ void Cmd_AliasLevel_f (void)
 void Cmd_AliasList_f (void)
 {
 	cmdalias_t	*cmd;
-	int num=0;	
+	int num=0;
 	for (cmd=cmd_alias ; cmd ; cmd=cmd->next)
-	{		
+	{
 		if ((cmd->restriction?cmd->restriction:rcon_level.value) > Cmd_ExecLevel)
 			continue;
 		if (!num)
@@ -882,9 +882,9 @@ void Cmd_AliasList_f (void)
 void Alias_WriteAliases (FILE *f)
 {
 	cmdalias_t	*cmd;
-	int num=0;	
+	int num=0;
 	for (cmd=cmd_alias ; cmd ; cmd=cmd->next)
-	{		
+	{
 //		if ((cmd->restriction?cmd->restriction:rcon_level.value) > Cmd_ExecLevel)
 //			continue;
 		if (cmd->flags & ALIAS_FROMSERVER)
@@ -967,7 +967,7 @@ char	*VARGS Cmd_Argv (int arg)
 {
 	if ( arg >= cmd_argc )
 		return cmd_null_string;
-	return cmd_argv[arg];	
+	return cmd_argv[arg];
 }
 
 /*
@@ -1145,14 +1145,14 @@ Parses the given string into command line tokens.
 void Cmd_TokenizeString (char *text, qboolean expandmacros, qboolean qctokenize)
 {
 	int		i;
-	
+
 // clear the args from the last string
 	for (i=0 ; i<cmd_argc ; i++)
 		Z_Free (cmd_argv[i]);
-		
+
 	cmd_argc = 0;
 	cmd_args = NULL;
-	
+
 	while (1)
 	{
 // skip whitespace up to a /n
@@ -1160,16 +1160,16 @@ void Cmd_TokenizeString (char *text, qboolean expandmacros, qboolean qctokenize)
 		{
 			text++;
 		}
-		
+
 		if (*text == '\n')
 		{	// a newline seperates commands in the buffer
-			text++; 
+			text++;
 			break;
 		}
 
 		if (!*text)
 			return;
-	
+
 		if (cmd_argc == 1)
 			 cmd_args = text;
 
@@ -1184,7 +1184,7 @@ void Cmd_TokenizeString (char *text, qboolean expandmacros, qboolean qctokenize)
 			cmd_argc++;
 		}
 	}
-	
+
 }
 
 
@@ -1196,17 +1196,17 @@ Cmd_AddCommand
 qboolean	Cmd_AddCommand (char *cmd_name, xcommand_t function)
 {
 	cmd_function_t	*cmd;
-	
+
 	if (host_initialized)	// because hunk allocation would get stomped
 		Sys_Error ("Cmd_AddCommand after host_initialized");
-		
+
 // fail if the command is a variable name
 	if (Cvar_VariableString(cmd_name)[0])
 	{
 		Con_Printf ("Cmd_AddCommand: %s already defined as a var\n", cmd_name);
 		return false;
 	}
-	
+
 // fail if the command already exists
 	for (cmd=cmd_functions ; cmd ; cmd=cmd->next)
 	{
@@ -1237,7 +1237,7 @@ qboolean Cmd_AddRemCommand (char *cmd_name, xcommand_t function)
 		Con_Printf ("Cmd_AddCommand: %s already defined as a var\n", cmd_name);
 		return false;
 	}
-	
+
 // fail if the command already exists
 	for (cmd=cmd_functions ; cmd ; cmd=cmd->next)
 	{
@@ -1333,7 +1333,7 @@ void Cmd_RestrictCommand_f (void)
 			else if ((cmd->restriction?cmd->restriction:rcon_level.value) > Cmd_ExecLevel)
 				Con_TPrintf(TL_RESTRICTCOMMANDTOOHIGH);
 			else
-				cmd->restriction = level;			
+				cmd->restriction = level;
 			return;
 		}
 	}
@@ -1437,7 +1437,7 @@ void Cmd_CompleteCheck(char *check, match_t *match)	//compare cumulative strings
 {
 	if (*match->result)
 	{
-		char *r;	
+		char *r;
 		if (match->allowcutdown)
 		{
 			for(r = match->result; *r == *check && *r; r++, check++)
@@ -1474,10 +1474,10 @@ char *Cmd_CompleteCommand (char *partial, qboolean fullonly, qboolean caseinsens
 	static match_t match;
 
 	cvar_group_t	*grp;
-	cvar_t		*cvar;	
-	
+	cvar_t		*cvar;
+
 	len = Q_strlen(partial);
-	
+
 	if (!len)
 		return NULL;
 
@@ -1532,7 +1532,7 @@ char *Cmd_CompleteCommand (char *partial, qboolean fullonly, qboolean caseinsens
 void Cmd_List_f (void)
 {
 	cmd_function_t	*cmd;
-	int num=0;	
+	int num=0;
 	for (cmd=cmd_functions ; cmd ; cmd=cmd->next)
 	{
 		if ((cmd->restriction?cmd->restriction:rcon_level.value) > Cmd_ExecLevel)
@@ -1564,7 +1564,7 @@ void Cmd_ForwardToServer (void)
 		Con_TPrintf (TL_CANTXNOTCONNECTED, Cmd_Argv(0));
 		return;
 	}
-	
+
 	if (cls.demoplayback)
 		return;		// not really connected
 
@@ -1595,7 +1595,7 @@ void Cmd_ForwardToServer_f (void)
 		if (SCR_RSShot())
 			return;
 	}
-	
+
 	if (cls.demoplayback)
 		return;		// not really connected
 
@@ -1617,7 +1617,7 @@ FIXME: lookupnoadd the token to speed search?
 ============
 */
 void	Cmd_ExecuteString (char *text, int level)
-{	
+{
 	cmd_function_t	*cmd;
 	cmdalias_t		*a;
 
@@ -1627,7 +1627,7 @@ void	Cmd_ExecuteString (char *text, int level)
 
 	text = Cmd_ExpandString(text, dest, sizeof(dest), level, !Cmd_IsInsecure()?true:false);
 	Cmd_TokenizeString (text, level == RESTRICT_LOCAL?true:false, false);
-			
+
 // execute the command line
 	if (!Cmd_Argc())
 		return;		// no tokens
@@ -1656,6 +1656,7 @@ void	Cmd_ExecuteString (char *text, int level)
 		if (!Q_strcasecmp (cmd_argv[0], a->name))
 		{
 			int i;
+			int execlevel;
 
 			if ((a->restriction?a->restriction:rcon_level.value) > level)
 			{
@@ -1663,29 +1664,31 @@ void	Cmd_ExecuteString (char *text, int level)
 				return;
 			}
 			if (a->execlevel)
-				level = a->execlevel;
+				execlevel = a->execlevel;
+			else
+				execlevel = level;
 
-			Cbuf_InsertText ("\n", level);
+			Cbuf_InsertText ("\n", execlevel);
 
 			// if the alias value is a command or cvar and
 			// the alias is called with parameters, add them
-			if (Cmd_Argc() > 1 && !strchr(a->value, ' ') && !strchr(a->value, '\t')	&& 
+			if (Cmd_Argc() > 1 && !strchr(a->value, ' ') && !strchr(a->value, '\t')	&&
 				(Cvar_FindVar(a->value) || (Cmd_Exists(a->value) && a->value[0] != '+' && a->value[0] != '-'))
 			)
 			{
-				Cbuf_InsertText (Cmd_Args(), level);
-				Cbuf_InsertText (" ", level);
+				Cbuf_InsertText (Cmd_Args(), execlevel);
+				Cbuf_InsertText (" ", execlevel);
 			}
 
-			Cbuf_InsertText (a->value, level);
+			Cbuf_InsertText (a->value, execlevel);
 
-			if (level>=RESTRICT_SERVER)
+			if (execlevel>=RESTRICT_SERVER)
 				return;	//don't do the cmd_argc/cmd_argv stuff. When it's from the server, we had a tendancy to lock aliases, so don't set them anymore.
 
-			Cbuf_InsertText (va("set cmd_argc \"%i\"\n", cmd_argc), level);
+			Cbuf_InsertText (va("set cmd_argc \"%i\"\n", cmd_argc), execlevel);
 
 			for (i = 1; i < cmd_argc; i++)
-				Cbuf_InsertText (va("set cmd_argv%i \"%s\"\n", i, cmd_argv[i]), level);
+				Cbuf_InsertText (va("set cmd_argv%i \"%s\"\n", i, cmd_argv[i]), execlevel);
 			return;
 		}
 	}
@@ -1756,14 +1759,14 @@ where the given parameter apears, or 0 if not present
 int Cmd_CheckParm (char *parm)
 {
 	int i;
-	
+
 	if (!parm)
 		Sys_Error ("Cmd_CheckParm: NULL");
 
 	for (i = 1; i < Cmd_Argc (); i++)
 		if (! Q_strcasecmp (parm, Cmd_Argv (i)))
 			return i;
-			
+
 	return 0;
 }
 
@@ -1831,13 +1834,13 @@ const char *retfloat(float f)
 	return ret->str;
 }
 qboolean is_numeric (const char *c)
-{	
+{
 	return (*c >= '0' && *c <= '9') ||
 		((*c == '-' || *c == '+') && (c[1] == '.' || (c[1]>='0' && c[1]<='9'))) ||
 		(*c == '.' && (c[1]>='0' && c[1]<='9'))?true:false;
 }
 const char *If_Token(const char *func, const char **end)
-{	
+{
 	const char *s, *s2;
 	cvar_t *var;
 	int level;
@@ -1861,7 +1864,7 @@ const char *If_Token(const char *func, const char **end)
 			else if (*s2 == '(')
 				level++;
 			s2++;
-		}		
+		}
 		func = If_Token(s, end);
 		*end = s2+1;
 		s = *end;
@@ -1913,7 +1916,7 @@ const char *If_Token(const char *func, const char **end)
 			if ((var->restriction?var->restriction:rcon_level.value) > Cmd_ExecLevel)
 				s2 = "RESTRICTED";
 			else
-				s2 = var->string;	
+				s2 = var->string;
 		}
 		else
 			s2 = retstring(com_token);
@@ -2010,7 +2013,7 @@ const char *If_Token(const char *func, const char **end)
 		else
 			return retfloat(atoi(s2)|atoi(If_Token(s, end)));
 	}
-	
+
 	return s2;
 }
 
@@ -2037,7 +2040,7 @@ void Cbuf_ExecBlock(int level)
 
 			while(*line <= ' ' && *line)	//skip leading whitespace.
 				line++;
-	
+
 			for (end = line + strlen(line)-1; end >= line && *end <= ' '; end--)	//skip trailing
 				*end = '\0';
 
@@ -2102,7 +2105,7 @@ void Cbuf_SkipBlock(int level)
 
 			while(*line <= ' ' && *line)	//skip leading whitespace.
 				line++;
-	
+
 			for (end = line + strlen(line)-1; end >= line && *end <= ' '; end--)	//skip trailing
 				*end = '\0';
 
@@ -2167,7 +2170,7 @@ skipws:
 		end+=4;
 		goto skipws;
 	}
-	
+
 	if (!*end)
 	{
 		if (ret && *ret)	//equation was true.
@@ -2611,7 +2614,7 @@ qboolean Cmd_FilterMessage (char *message, qboolean sameteam)	//returns true if 
 	filter++;
 
 	Q_strncpyz(trimmedfilter, filter, sizeof(trimmedfilter));	//might have whitespace.
-	
+
 	for (end = trimmedfilter + strlen(filter)-1; end >= trimmedfilter && *end <= ' '; end--)	//skip trailing
 		*end = '\0';
 
@@ -2654,7 +2657,7 @@ void Cmd_WriteConfig_f(void)
 			Con_Printf ("Couldn't write config %s\n",filename);
 			return;
 		}
-	
+
 		filename = va("%s/configs/%s.cfg",com_gamedir, filename);
 	}
 	COM_DefaultExtension(filename, ".cfg");

@@ -8,7 +8,7 @@ of the License, or (at your option) any later version.
 
 This program is distributed in the hope that it will be useful,
 but WITHOUT ANY WARRANTY; without even the implied warranty of
-MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
 
 See the included (GNU.txt) GNU General Public License for more details.
 
@@ -62,6 +62,11 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 #define closesocket close
 #define ioctlsocket ioctl
 #endif
+
+#ifndef INVALID_SOCKET
+#define INVALID_SOCKET -1
+#endif
+
 #endif
 
 
@@ -234,7 +239,7 @@ void SV_TimeOfDay(date_t *date)
 {
 	struct tm *newtime;
 	time_t long_time;
-	
+
 	time( &long_time );
 	newtime = localtime( &long_time );
 
@@ -291,7 +296,7 @@ dir_t Sys_listdir (char *path, char *ext, qboolean usesorting)
 	{
 		return dir;
 	}
-	
+
 	do
 	{
 		if ((fd.dwFileAttributes & FILE_ATTRIBUTE_DIRECTORY))
@@ -364,7 +369,7 @@ dir_t Sys_listdir (char *path, char *ext, qboolean usesorting)
 	for(;;)
 	{
 		oneentry=readdir(dir);
-		if(!oneentry) 
+		if(!oneentry)
 			break;
 
 #ifndef __CYGWIN__
@@ -884,7 +889,7 @@ void SV_MVDWritePackets (int num)
 			for (j=0 ; j<3 ; j++)
 				if (flags & (DF_ORIGIN << j))
 					MSG_WriteCoord (&msg, origin[j]);
-		
+
 			for (j=0 ; j<3 ; j++)
 				if (flags & (DF_ANGLES << j))
 					MSG_WriteAngle16 (&msg, angles[j]);
@@ -980,20 +985,20 @@ static char *SV_PrintTeams(void)
 	}
 
 	// create output
-	
+
 	if (numcl == 2) // duel
 	{
 		_snprintf(buf, sizeof(buf), "team1 %s\nteam2 %s\n", clients[0]->name, clients[1]->name);
-	} 
+	}
 	else if (!teamplay.value) // ffa
-	{ 
+	{
 		_snprintf(buf, sizeof(buf), "players:\n");
 		for (i = 0; i < numcl; i++)
 			_snprintf(buf + strlen(buf), sizeof(buf) - strlen(buf), "  %s\n", clients[i]->name);
-	} 
-	else 
+	}
+	else
 	{ // teamplay
-		for (j = 0; j < numt; j++) 
+		for (j = 0; j < numt; j++)
 		{
 			_snprintf(buf + strlen(buf), sizeof(buf) - strlen(buf), "team %s:\n", teams[j]);
 			for (i = 0; i < numcl; i++)
@@ -1037,7 +1042,7 @@ mvddest_t *SV_InitRecordFile (char *name)
 		dst->file = file;
 		dst->maxcachesize = 0;
 	}
-	else 
+	else
 	{
 		dst->desttype = DEST_BUFFEREDFILE;
 		dst->file = file;
@@ -1051,7 +1056,7 @@ mvddest_t *SV_InitRecordFile (char *name)
 	while (*s != '/') s--;
 	Q_strncpyz(dst->name, s+1, sizeof(dst->name));
 	Q_strncpyz(dst->path, sv_demoDir.string, sizeof(dst->path));
-	
+
 	if (!*demo.path)
 		Q_strncpyz(demo.path, ".", MAX_OSPATH);
 
@@ -1079,7 +1084,7 @@ mvddest_t *SV_InitRecordFile (char *name)
 			fclose(f);
 		}
 	}
-	else 
+	else
 		Sys_remove(path);
 
 
@@ -1225,7 +1230,7 @@ void SV_WriteSetMVDMessage (void)
 	c = dem_set;
 	DemoWrite (&c, sizeof(c));
 
-	
+
 	len = LittleLong(0);
 	DemoWrite (&len, 4);
 	len = LittleLong(0);
@@ -1345,7 +1350,7 @@ static qboolean SV_MVD_Record (mvddest_t *dest)
 			MSG_WriteByte (&buf, 0);
 			MSG_WriteByte (&buf, n);
 			SV_WriteRecordMVDMessage (&buf, seq++);
-			SZ_Clear (&buf); 
+			SZ_Clear (&buf);
 			MSG_WriteByte (&buf, svc_soundlist);
 			MSG_WriteByte (&buf, n + 1);
 		}
@@ -1358,7 +1363,7 @@ static qboolean SV_MVD_Record (mvddest_t *dest)
 		MSG_WriteByte (&buf, 0);
 		MSG_WriteByte (&buf, 0);
 		SV_WriteRecordMVDMessage (&buf, seq++);
-		SZ_Clear (&buf); 
+		SZ_Clear (&buf);
 	}
 
 // modellist
@@ -1375,7 +1380,7 @@ static qboolean SV_MVD_Record (mvddest_t *dest)
 			MSG_WriteByte (&buf, 0);
 			MSG_WriteByte (&buf, n);
 			SV_WriteRecordMVDMessage (&buf, seq++);
-			SZ_Clear (&buf); 
+			SZ_Clear (&buf);
 			MSG_WriteByte (&buf, svc_modellist);
 			MSG_WriteByte (&buf, n + 1);
 		}
@@ -1387,7 +1392,7 @@ static qboolean SV_MVD_Record (mvddest_t *dest)
 		MSG_WriteByte (&buf, 0);
 		MSG_WriteByte (&buf, 0);
 		SV_WriteRecordMVDMessage (&buf, seq++);
-		SZ_Clear (&buf); 
+		SZ_Clear (&buf);
 	}
 
 // baselines
@@ -1450,7 +1455,7 @@ static qboolean SV_MVD_Record (mvddest_t *dest)
 			if (buf.cursize > MAX_QWMSGLEN/2)
 			{
 				SV_WriteRecordMVDMessage (&buf, seq++);
-				SZ_Clear (&buf); 
+				SZ_Clear (&buf);
 			}
 		}
 	}
@@ -1459,24 +1464,24 @@ static qboolean SV_MVD_Record (mvddest_t *dest)
 
 	for (n = 0; n < sv.num_signon_buffers; n++)
 	{
-		SZ_Write (&buf, 
+		SZ_Write (&buf,
 			sv.signon_buffers[n],
 			sv.signon_buffer_size[n]);
 
 		if (buf.cursize > MAX_QWMSGLEN/2)
 		{
 			SV_WriteRecordMVDMessage (&buf, seq++);
-			SZ_Clear (&buf); 
+			SZ_Clear (&buf);
 		}
 	}
 
 	MSG_WriteByte (&buf, svc_stufftext);
 	MSG_WriteString (&buf, va("cmd spawn %i\n",svs.spawncount) );
-	
+
 	if (buf.cursize)
 	{
 		SV_WriteRecordMVDMessage (&buf, seq++);
-		SZ_Clear (&buf); 
+		SZ_Clear (&buf);
 	}
 
 // send current status of all other players
@@ -1512,10 +1517,10 @@ static qboolean SV_MVD_Record (mvddest_t *dest)
 		if (buf.cursize > MAX_QWMSGLEN/2)
 		{
 			SV_WriteRecordMVDMessage (&buf, seq++);
-			SZ_Clear (&buf); 
+			SZ_Clear (&buf);
 		}
 	}
-	
+
 // send all current light styles
 	for (i=0 ; i<MAX_LIGHTSTYLES ; i++)
 	{
@@ -1610,7 +1615,7 @@ void CleanName_Init ()
 
 	chartbl[91] = chartbl[91 + 128] = '[';
 	chartbl[93] = chartbl[93 + 128] = ']';
-	
+
 	chartbl[16] = chartbl[16 + 128] = '[';
 	chartbl[17] = chartbl[17 + 128] = ']';
 
@@ -1692,7 +1697,7 @@ void SV_MVD_Record_f (void)
 	COM_StripExtension(name, name);
 	COM_DefaultExtension(name, ".mvd");
 
-	
+
 	SV_MVD_Record (SV_InitRecordFile(name));
 }
 
@@ -1780,7 +1785,7 @@ char *Dem_PlayerNameTeam(char *t)
 		if (!client->name[0] || client->spectator)
 			continue;
 
-		if (strcmp(t, Info_ValueForKey(client->userinfo, "team"))==0) 
+		if (strcmp(t, Info_ValueForKey(client->userinfo, "team"))==0)
 		{
 			if (sep >= 1)
 				Q_strncatz (n, "_", sizeof(n));
@@ -1840,8 +1845,8 @@ void SV_MVDEasyRecord_f (void)
 	// -> scream
 /*	if (c == 2)
 		Q_strncpyz (name, Cmd_Argv(1), sizeof(name));
-		
-	else { 
+
+	else {
 		// guess game type and write demo name
 		i = Dem_CountPlayers();
 		if (teamplay.value && i > 2)
@@ -1867,7 +1872,7 @@ void SV_MVDEasyRecord_f (void)
 		}
 	}*/
 
-	
+
 	if (c == 2)
 		Q_strncpyz (name, Cmd_Argv(1), sizeof(name));
 	else
@@ -1879,8 +1884,8 @@ void SV_MVDEasyRecord_f (void)
 			_snprintf (name, sizeof(name), "%don%d_", Dem_CountTeamPlayers(Dem_Team(1)), Dem_CountTeamPlayers(Dem_Team(2)));
 			if (sv_demoExtraNames.value > 0)
 			{
-				Q_strncatz (name, va("[%s]_%s_vs_[%s]_%s_%s", 
-									Dem_Team(1), Dem_PlayerNameTeam(Dem_Team(1)), 
+				Q_strncatz (name, va("[%s]_%s_vs_[%s]_%s_%s",
+									Dem_Team(1), Dem_PlayerNameTeam(Dem_Team(1)),
 									Dem_Team(2), Dem_PlayerNameTeam(Dem_Team(2)),
 									sv.name), sizeof(name));
 			} else
@@ -1913,7 +1918,7 @@ void SV_MVDEasyRecord_f (void)
 	strcat (name2, ".mvd");
 	if ((f = fopen (name2, "rb")) == 0)
 		f = fopen(va("%s.gz", name2), "rb");
-	
+
 	if (f)
 	{
 		i = 1;
@@ -1934,7 +1939,7 @@ void SV_MVDEasyRecord_f (void)
 int MVD_StreamStartListening(int port)
 {
 	int sock;
-	
+
 	struct sockaddr_in	address;
 //	int fromlen;
 
@@ -1954,13 +1959,13 @@ int MVD_StreamStartListening(int port)
 	{
 		Sys_Error ("FTP_TCP_OpenSocket: ioctl FIONBIO:", strerror(qerrno));
 	}
-	
+
 	if( bind (sock, (void *)&address, sizeof(address)) == -1)
 	{
 		closesocket(sock);
 		return INVALID_SOCKET;
 	}
-	
+
 	listen(sock, 2);
 
 	return sock;
@@ -2004,7 +2009,7 @@ void SV_MVDStream_Poll(void)
 
 	if (client == INVALID_SOCKET)
 		return;
-	
+
 	if (sv.mvdrecording)
 	{	//sorry
 		closesocket(client);
@@ -2084,7 +2089,7 @@ char *SV_MVDNum(int num)
 
 	while (list->name[0] && num) {list++; num--;};
 
-	if (list->name[0]) 
+	if (list->name[0])
 		return list->name;
 
 	return NULL;
@@ -2151,7 +2156,7 @@ void SV_MVDRemove_f (void)
 					Con_Printf("removing %s...\n", list->name);
 					i++;
 				}
-		
+
 				Sys_remove(SV_MVDName2Txt(path));
 			}
 		}
@@ -2180,7 +2185,7 @@ void SV_MVDRemove_f (void)
 	{
 		Con_Printf("demo %s successfully removed\n", name);
 	}
-	else 
+	else
 		Con_Printf("unable to remove demo %s\n", name);
 
 	Sys_remove(SV_MVDName2Txt(path));
@@ -2219,7 +2224,7 @@ void SV_MVDRemoveNum_f (void)
 		{
 			Con_Printf("demo %s succesfully removed\n", name);
 		}
-		else 
+		else
 			Con_Printf("unable to remove demo %s\n", name);
 
 		Sys_remove(SV_MVDName2Txt(path));

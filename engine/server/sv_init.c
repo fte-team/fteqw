@@ -8,7 +8,7 @@ of the License, or (at your option) any later version.
 
 This program is distributed in the hope that it will be useful,
 but WITHOUT ANY WARRANTY; without even the implied warranty of
-MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
 
 See the GNU General Public License for more details.
 
@@ -48,7 +48,7 @@ SV_ModelIndex
 int SV_ModelIndex (char *name)
 {
 	int		i;
-	
+
 	if (!name || !name[0])
 		return 0;
 
@@ -73,7 +73,7 @@ int SV_ModelIndex (char *name)
 int SV_SafeModelIndex (char *name)
 {
 	int		i;
-	
+
 	if (!name || !name[0])
 		return 0;
 
@@ -134,8 +134,8 @@ baseline will be transmitted
 {
 	int			i;
 	edict_t			*svent;
-	int				entnum;	
-		
+	int				entnum;
+
 	for (entnum = 0; entnum < sv.num_edicts ; entnum++)
 	{
 		svent = EDICT_NUM(entnum);
@@ -180,7 +180,7 @@ baseline will be transmitted
 		//
 		// add to the message
 		//
-		MSG_WriteByte (&sv.signon,svc_spawnbaseline);		
+		MSG_WriteByte (&sv.signon,svc_spawnbaseline);
 		MSG_WriteShort (&sv.signon,entnum);
 
 		MSG_WriteByte (&sv.signon, svent->baseline.modelindex);
@@ -198,10 +198,10 @@ baseline will be transmitted
 void SVNQ_CreateBaseline (void)
 {
 	edict_t			*svent;
-	int				entnum;	
+	int				entnum;
 
 	int playermodel = SV_SafeModelIndex("progs/player.mdl");
-		
+
 	for (entnum = 0; entnum < sv.num_edicts ; entnum++)
 	{
 		svent = EDICT_NUM(svprogfuncs, entnum);
@@ -253,7 +253,7 @@ void SVNQ_CreateBaseline (void)
 ================
 SV_SaveSpawnparms
 
-Grabs the current state of the progs serverinfo flags 
+Grabs the current state of the progs serverinfo flags
 and each client for saving across the
 transition to another level
 ================
@@ -290,7 +290,7 @@ void SV_SaveSpawnparms (qboolean dontsave)
 			char *buf;
 			for (j=0 ; j<NUM_SPAWN_PARMS ; j++)
 				host_client->spawn_parms[j] = 0;
-			
+
 			buf = svprogfuncs->saveent(svprogfuncs, buffer, &bufsize, host_client->edict);
 
 			if (host_client->spawninfo)
@@ -307,7 +307,7 @@ void SV_SaveSpawnparms (qboolean dontsave)
 			{
 				if (spawnparamglobals[j])
 					host_client->spawn_parms[j] = *spawnparamglobals[j];
-				else 
+				else
 					host_client->spawn_parms[j] = 0;
 			}
 		}
@@ -498,7 +498,7 @@ void SV_SpawnServer (char *server, char *startspot, qboolean noents, qboolean us
 	int spawnflagmask;
 
 #ifndef SERVERONLY
-	if (!isDedicated && !qrenderer)
+	if (!isDedicated && (!qrenderer || qrenderer == -1))
 	{
 		R_RestartRenderer_f();
 	}
@@ -603,7 +603,7 @@ void SV_SpawnServer (char *server, char *startspot, qboolean noents, qboolean us
 
 	sv.nqreliable_datagram.maxsize = sizeof(sv.nqreliable_datagram_buf);
 	sv.nqreliable_datagram.data = sv.nqreliable_datagram_buf;
-	
+
 	sv.nqmulticast.maxsize = sizeof(sv.nqmulticast_buf);
 	sv.nqmulticast.data = sv.nqmulticast_buf;
 #endif
@@ -614,13 +614,13 @@ void SV_SpawnServer (char *server, char *startspot, qboolean noents, qboolean us
 
 	sv.q2reliable_datagram.maxsize = sizeof(sv.q2reliable_datagram_buf);
 	sv.q2reliable_datagram.data = sv.q2reliable_datagram_buf;
-	
+
 	sv.q2multicast.maxsize = sizeof(sv.q2multicast_buf);
 	sv.q2multicast.data = sv.q2multicast_buf;
 
 	sv.master.maxsize = sizeof(sv.master_buf);
 	sv.master.data = sv.master_buf;
-	
+
 	sv.signon.maxsize = sizeof(sv.signon_buffers[0]);
 	sv.signon.data = sv.signon_buffers[0];
 	sv.num_signon_buffers = 1;
@@ -794,6 +794,7 @@ void SV_SpawnServer (char *server, char *startspot, qboolean noents, qboolean us
 		sv.model_player_checksum = SV_CheckModel("progs/player.mdl");
 		sv.eyes_player_checksum = SV_CheckModel("progs/eyes.mdl");
 	}
+#ifdef Q2SERVER
 	else if (svs.gametype == GT_QUAKE2)
 	{
 		memset(sv.configstring, 0, sizeof(sv.configstring));
@@ -804,6 +805,7 @@ void SV_SpawnServer (char *server, char *startspot, qboolean noents, qboolean us
 			sv.models[i+1] = Mod_ForName (localmodels[i], false);
 		}
 	}
+#endif
 
 
 
@@ -823,7 +825,7 @@ void SV_SpawnServer (char *server, char *startspot, qboolean noents, qboolean us
 	case GT_PROGS:
 		ent = EDICT_NUM(svprogfuncs, 0);
 		ent->isfree = false;
-		
+
 		// leave slots at start for clients only
 	//	sv.num_edicts = MAX_CLIENTS+1;
 		for (i=0 ; i<MAX_CLIENTS ; i++)
@@ -881,7 +883,7 @@ void SV_SpawnServer (char *server, char *startspot, qboolean noents, qboolean us
 
 	//
 	// spawn the rest of the entities on the map
-	//	
+	//
 
 	// precache and static commands can be issued during
 	// map initialization

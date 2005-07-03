@@ -8,7 +8,7 @@ of the License, or (at your option) any later version.
 
 This program is distributed in the hope that it will be useful,
 but WITHOUT ANY WARRANTY; without even the implied warranty of
-MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
 
 See the GNU General Public License for more details.
 
@@ -68,6 +68,10 @@ struct sockaddr;
 
 #define closesocket close
 #define ioctlsocket ioctl
+
+#ifndef INVALID_SOCKET
+#define INVALID_SOCKET -1
+#endif
 
 #endif
 
@@ -310,7 +314,7 @@ qboolean	NET_CompareBaseAdr (netadr_t a, netadr_t b)
 char	*NET_AdrToString (netadr_t a)
 {
 	static	char	s[64];
-	
+
 	switch(a.type)
 	{
 	case NA_BROADCAST_IP:
@@ -343,7 +347,7 @@ char	*NET_AdrToString (netadr_t a)
 char	*NET_BaseAdrToString (netadr_t a)
 {
 	static	char	s[64];
-	
+
 	switch(a.type)
 	{
 	case NA_BROADCAST_IP:
@@ -394,7 +398,7 @@ qboolean	NET_StringToSockaddr (char *s, struct sockaddr_qstorage *sadr)
 	struct hostent	*h;
 	char	*colon;
 	char	copy[128];
-	
+
 	memset (sadr, 0, sizeof(*sadr));
 
 #ifdef USEIPX
@@ -441,7 +445,7 @@ qboolean	NET_StringToSockaddr (char *s, struct sockaddr_qstorage *sadr)
 			break;
 			port--;
 		}
-		
+
 		if (port == s)
 			port = NULL;
 		if (port)
@@ -530,13 +534,13 @@ qboolean	NET_StringToAdr (char *s, netadr_t *a)
 
 	if (!NET_StringToSockaddr (s, &sadr))
 		return false;
-	
+
 	SockadrToNetadr (&sadr, a);
 
 	return true;
 }
 
-// Returns true if we can't bind the address locally--in other words, 
+// Returns true if we can't bind the address locally--in other words,
 // the IP is NOT one of our interfaces.
 qboolean NET_IsClientLegal(netadr_t *adr)
 {
@@ -554,7 +558,7 @@ qboolean NET_IsClientLegal(netadr_t *adr)
 
 	sadr.sin_port = 0;
 
-	if( bind (newsocket, (void *)&sadr, sizeof(sadr)) == -1) 
+	if( bind (newsocket, (void *)&sadr, sizeof(sadr)) == -1)
 	{
 		// It is not a local address
 		close(newsocket);
@@ -777,7 +781,7 @@ void NET_SendPacket (netsrc_t netsrc, int length, void *data, netadr_t to)
 			socket = cls.socketip;
 #endif
 	}
-	
+
 	NetadrToSockadr (&to, &addr);
 
 	switch(to.type)
@@ -863,7 +867,7 @@ int maxport = port + 100;
 			address.sin_port = 0;
 		else
 			address.sin_port = htons((short)port);
-	
+
 		if( bind (newsocket, (void *)&address, sizeof(address)) == -1)
 		{
 			if (!port)
@@ -899,7 +903,7 @@ int maxport = port + 100;
 
 	if (bcast)
 	{
-//		address.sin6_addr 
+//		address.sin6_addr
 //		_true = true;
 //		if (setsockopt(newsocket, SOL_SOCKET, IP_ADD_MEMBERSHIP, (char *)&_true, sizeof(_true)) == -1)
 //		{
@@ -1084,7 +1088,7 @@ NET_Init
 void NET_Init (void)
 {
 #ifdef _WIN32
-	WORD	wVersionRequested; 
+	WORD	wVersionRequested;
 	int		r;
 #ifdef IPPROTO_IPV6
 	HMODULE ws2_32dll;
@@ -1104,7 +1108,7 @@ void NET_Init (void)
 	    pgetaddrinfo = NULL;
 #endif
 
-	wVersionRequested = MAKEWORD(1, 1); 
+	wVersionRequested = MAKEWORD(1, 1);
 
 	r = WSAStartup (MAKEWORD(1, 1), &winsockdata);
 

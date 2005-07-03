@@ -8,7 +8,7 @@ of the License, or (at your option) any later version.
 
 This program is distributed in the hope that it will be useful,
 but WITHOUT ANY WARRANTY; without even the implied warranty of
-MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
 
 See the GNU General Public License for more details.
 
@@ -35,7 +35,7 @@ cvar_t *Cvar_FindVar (const char *var_name)
 {
 	cvar_group_t	*grp;
 	cvar_t	*var;
-	
+
 	for (grp=cvar_groups ; grp ; grp=grp->next)
 		for (var=grp->cvars ; var ; var=var->next)
 			if (!Q_strcasecmp (var_name, var->name))
@@ -52,7 +52,7 @@ cvar_t *Cvar_FindVar (const char *var_name)
 cvar_group_t *Cvar_FindGroup (const char *group_name)
 {
 	cvar_group_t	*grp;
-	
+
 	for (grp=cvar_groups ; grp ; grp=grp->next)
 		if (!Q_strcasecmp (group_name, grp->name))
 			return grp;
@@ -104,7 +104,7 @@ Cvar_VariableValue
 float	Cvar_VariableValue (const char *var_name)
 {
 	cvar_t	*var;
-	
+
 	var = Cvar_FindVar (var_name);
 	if (!var)
 		return 0;
@@ -120,7 +120,7 @@ Cvar_VariableString
 char *Cvar_VariableString (const char *var_name)
 {
 	cvar_t *var;
-	
+
 	var = Cvar_FindVar (var_name);
 	if (!var)
 		return cvar_null_string;
@@ -139,12 +139,12 @@ char *Cvar_CompleteVariable (char *partial)
 	cvar_group_t	*grp;
 	cvar_t		*cvar;
 	int			len;
-	
+
 	len = Q_strlen(partial);
-	
+
 	if (!len)
 		return NULL;
-		
+
 	// check exact match
 	for (grp=cvar_groups ; grp ; grp=grp->next)
 	for (cvar=grp->cvars ; cvar ; cvar=cvar->next)
@@ -170,7 +170,7 @@ Cvar_Set
 cvar_t *Cvar_SetCore (cvar_t *var, const char *value, qboolean force)
 {
 	char *latch=NULL;
-	
+
 	if (!var)
 		return NULL;
 
@@ -252,7 +252,7 @@ cvar_t *Cvar_SetCore (cvar_t *var, const char *value, qboolean force)
 #endif
 
 	latch = var->string;
-	
+
 	var->string = (char*)Z_Malloc (Q_strlen(value)+1);
 	Q_strcpy (var->string, value);
 	var->value = Q_atof (var->string);
@@ -449,7 +449,7 @@ void Cvar_Register (cvar_t *variable, const char *groupname)
 			Cvar_Free(old);
 			return;
 		}
-			
+
 		Con_Printf ("Can't register variable %s, allready defined\n", variable->name);
 		return;
 	}
@@ -478,7 +478,7 @@ void Cvar_Register (cvar_t *variable, const char *groupname)
 }
 /*
 void Cvar_RegisterVariable (cvar_t *variable)
-{		
+{
 	Cvar_Register(variable, NULL);
 }
 */
@@ -603,9 +603,12 @@ qboolean	Cvar_Command (int level)
 		//let cvar_set latch if needed.
 	}
 	else if (Cmd_FromGamecode())
-	{
-		Cvar_LockFromServer(v, str);
-		return true;
+	{//it's not latched yet
+		if (strcmp(v->defaultstr, str))
+		{	//lock the cvar, unless it's going to it's default value.
+			Cvar_LockFromServer(v, str);
+			return true;
+		}
 	}
 #endif
 	Cvar_Set (v, str);	//will use all, quote included

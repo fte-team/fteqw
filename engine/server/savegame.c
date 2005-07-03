@@ -11,7 +11,7 @@ extern cvar_t deathmatch;
 extern cvar_t coop;
 extern cvar_t teamplay;
 
-//Writes a SAVEGAME_COMMENT_LENGTH character comment describing the current 
+//Writes a SAVEGAME_COMMENT_LENGTH character comment describing the current
 void SV_SavegameComment (char *text)
 {
 	int		i;
@@ -30,11 +30,13 @@ void SV_SavegameComment (char *text)
 			i = SAVEGAME_COMMENT_LENGTH;
 		memcpy (text, mapname, i);
 	}
+#ifdef Q2SERVER
 	if (ge)	//q2
 	{
 		sprintf (kills,"");
 	}
 	else
+#endif
 		sprintf (kills,"kills:%3i/%3i", (int)pr_global_struct->killed_monsters, (int)pr_global_struct->total_monsters);
 	memcpy (text+22, kills, strlen(kills));
 // convert space to _ to make stdio happy
@@ -105,7 +107,7 @@ void SV_Savegame_f (void)
 		}
 	}
 
-	
+
 	fprintf (f, "%i\n", version);
 	SV_SavegameComment (comment);
 	fprintf (f, "%s\n", comment);
@@ -200,7 +202,7 @@ void SV_Loadgame_f(void)
 
 	sprintf (filename, "%s/saves/%s", com_gamedir, Cmd_Argv(1));
 	COM_DefaultExtension (filename, ".sav");
-	
+
 // we can't call SCR_BeginLoadingPlaque, because too much stack space has
 // been used.  The menu calls it before stuffing loadgame command
 //	SCR_BeginLoadingPlaque ();
@@ -232,7 +234,7 @@ void SV_Loadgame_f(void)
 	else
 		Con_Printf("loading FTE saved game\n");
 
-	
+
 
 	for (clnum = 0; clnum < MAX_CLIENTS; clnum++)	//clear the server for the level change.
 	{
@@ -295,7 +297,7 @@ void SV_Loadgame_f(void)
 			strcpy(cl->name, com_token);
 			cl->state = cs_zombie;
 			cl->connection_started = realtime+20;
-			cl->istobeloaded = true;		
+			cl->istobeloaded = true;
 
 			for (i=0 ; i<NUM_SPAWN_PARMS ; i++)
 				fscanf (f, "%f\n", &cl->spawn_parms[i]);
@@ -346,8 +348,8 @@ void SV_Loadgame_f(void)
 		Cvar_SetValue ("teamplay", tfloat);
 	}
 	fscanf (f, "%s\n",mapname);
-	fscanf (f, "%f\n",&time);	
-	
+	fscanf (f, "%f\n",&time);
+
 	SV_SpawnServer (mapname, NULL, false, false);	//always inits MAX_CLIENTS slots. That's okay, because we can cut the max easily.
 	if (sv.state != ss_active)
 	{
@@ -385,7 +387,7 @@ void SV_Loadgame_f(void)
 		progstype = pt;	//presumably the progs.dat will be what they were before.
 	}
 
-	filepos = ftell(f);	
+	filepos = ftell(f);
 	fseek(f, 0, SEEK_END);
 	filelen = ftell(f);
 	fseek(f, filepos, SEEK_SET);
@@ -394,7 +396,7 @@ void SV_Loadgame_f(void)
 	memset(file, 0, filelen+1+8);
 	strcpy(file, "loadgame");
 	clnum=fread(file+8, 1, filelen, f);
-	file[filelen+8]='\0';	
+	file[filelen+8]='\0';
 	pr_edict_size=svprogfuncs->load_ents(svprogfuncs, file, 0);
 	BZ_Free(file);
 
@@ -512,7 +514,7 @@ qboolean SV_LoadLevelCache(char *level, char *startspot, qboolean ignoreplayers)
 		return true;
 	}
 #endif
-	
+
 // we can't call SCR_BeginLoadingPlaque, because too much stack space has
 // been used.  The menu calls it before stuffing loadgame command
 //	SCR_BeginLoadingPlaque ();
@@ -551,8 +553,8 @@ qboolean SV_LoadLevelCache(char *level, char *startspot, qboolean ignoreplayers)
 	Cvar_SetValue (&teamplay, tfloat);
 
 	fscanf (f, "%s\n",mapname);
-	fscanf (f, "%f\n",&time);	
-	
+	fscanf (f, "%f\n",&time);
+
 	SV_SpawnServer (mapname, startspot, false, false);
 	if (svs.gametype != gametype)
 	{
@@ -589,7 +591,7 @@ qboolean SV_LoadLevelCache(char *level, char *startspot, qboolean ignoreplayers)
 	PR_RegisterFields();
 	PR_InitEnts(svprogfuncs, sv.max_edicts);
 
-	filepos = ftell(f);	
+	filepos = ftell(f);
 	fseek(f, 0, SEEK_END);
 	filelen = ftell(f);
 	fseek(f, filepos, SEEK_SET);
@@ -597,7 +599,7 @@ qboolean SV_LoadLevelCache(char *level, char *startspot, qboolean ignoreplayers)
 	file = BZ_Malloc(filelen+1);
 	memset(file, 0, filelen+1);
 	clnum=fread(file, 1, filelen, f);
-	file[filelen]='\0';	
+	file[filelen]='\0';
 	pr_edict_size=svprogfuncs->load_ents(svprogfuncs, file, 0);
 	BZ_Free(file);
 
@@ -626,7 +628,7 @@ qboolean SV_LoadLevelCache(char *level, char *startspot, qboolean ignoreplayers)
 		if (eval)
 		for (i=0 ; i<MAX_CLIENTS ; i++)
 		{
-			if (svs.clients[i].spawninfo) 
+			if (svs.clients[i].spawninfo)
 			{
 				globalvars_t *pr_globals = PR_globals(svprogfuncs, PR_CURRENT);
 				ent = svs.clients[i].edict;
@@ -694,7 +696,7 @@ void SV_SaveLevelCache(qboolean dontharmgame)
 		svs.levcache = cache;
 	}
 
-	
+
 	sprintf (name, "%s/saves/%s", com_gamedir, cache->mapname);
 	COM_DefaultExtension (name, ".lvc");
 
@@ -1024,7 +1026,7 @@ void SV_Loadgame_f (void)
 		}
 	}
 
-	
+
 	fgets(str, sizeof(str)-1, f);
 	for (trim = str+strlen(str)-1; trim>=str && *trim <= ' '; trim--)
 		*trim='\0';

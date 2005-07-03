@@ -982,7 +982,7 @@ TRACE(("dbg: GLMod_LoadTextures: inittexturedescs\n"));
 		if (!Q_strncmp(mt->name,"sky",3))
 		{
 			tx->offsets[0] = (char *)mt + mt->offsets[0] - (char *)tx;
-			R_InitSky (tx);
+			GLR_InitSky (tx);
 		}
 		else
 #ifdef PEXT_BULLETENS

@@ -92,7 +92,7 @@ int Sys_EnumerateFiles (char *gpath, char *match, int (*func)(char *, int, void 
 	dir = opendir(gpath);
 	if (!dir)
 	{
-		Con_Printf("Failed to open dir");
+		Con_Printf("Failed to open dir\n");
 		return true;
 	}
 	do
@@ -374,7 +374,7 @@ int Sys_EnumerateFiles (char *gpath, char *match, int (*func)(char *, int, void 
 	dir = opendir(truepath);
 	if (!dir)
 	{
-		Con_Printf("Failed to open dir");
+		Con_Printf("Failed to open dir\n");
 		return true;
 	}
 	do

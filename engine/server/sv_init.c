@@ -900,6 +900,12 @@ void SV_SpawnServer (char *server, char *startspot, qboolean noents, qboolean us
 		ent->v->solid = SOLID_BSP;
 		ent->v->movetype = MOVETYPE_PUSH;
 
+		ent->v->dimension_see = 255;
+		ent->v->dimension_seen = 255;
+		ent->v->dimension_ghost = 0;
+		ent->v->dimension_solid = 255;
+		ent->v->dimension_hit = 255;
+
 		if (progstype == PROG_QW && pr_imitatemvdsv.value>0)
 		{
 			ent->v->targetname = PR_NewString(svprogfuncs, "mvdsv", 0);

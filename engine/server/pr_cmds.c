@@ -6529,7 +6529,7 @@ void PF_readcmd (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 	if (old != RD_NONE)
 		SV_BeginRedirect(old, oldl);
 
-
+Con_Printf("PF_readcmd: %s\n%s", s, output);
 	G_INT(OFS_RETURN) = (int)PR_SetString(prinst, output);
 }
 
@@ -6621,16 +6621,19 @@ void PF_MVDSV_strcpy (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 	char *dest = PR_GetStringOfs(prinst, OFS_PARM0);
 	int *ident;
 	ident = (int *)(dest-8);
+
+/*
 	if (*ident != PRSTR)
 	{
 		Con_Printf("PF_strcpy: not an allocated string\n");
 		return;
 	}
-	if (ident[0] < strlen(src)+1)
+	if (ident[1] < strlen(src)+1)
 	{
 		Con_Printf("PF_strcpy: allocated string is not big enough.\n");
 		return;
 	}
+*/
 	strcpy(dest, src);
 }
 

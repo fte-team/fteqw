@@ -886,6 +886,7 @@ void NPP_QWFlush(void)
 
 		if (multicastpos)
 		{
+			int qwsize;
 			vec3_t org;
 			coorddata cd;
 
@@ -896,7 +897,10 @@ void NPP_QWFlush(void)
 			memcpy(&cd, &buffer[multicastpos+sizeofcoord*2], sizeofcoord);
 			org[2] = MSG_FromCoord(cd, sizeofcoord);
 
+			qwsize = sv.multicast.cursize;
+			sv.multicast.cursize = 0;
 			SV_MulticastProtExt(org, multicasttype, FULLDIMENSIONMASK, requireextension, 0);
+			sv.multicast.cursize = qwsize;
 		}
 		writedest = NULL;
 	}
@@ -1138,12 +1142,12 @@ void NPP_QWWriteAngle(int dest, float in)	//replacement write func (nq to qw)
 	if (sizeofangle==1)
 	{
 		char data = (int)(in*256/360) & 255;
-		NPP_NQWriteChar(dest, data);
+		NPP_QWWriteChar(dest, data);
 	}
 	else
 	{
 		short data = (int)(in*0xffff/360) & 0xffff;
-		NPP_NQWriteShort(dest, data);
+		NPP_QWWriteShort(dest, data);
 	}
 }
 void NPP_QWWriteCoord(int dest, float in)	//replacement write func (nq to qw)

@@ -151,14 +151,16 @@ K_AUX31			= 237,
 K_AUX32			= 238,
 K_LWIN			= 239,
 K_RWIN			= 240,
-K_APP			= 241
+K_APP			= 241,
+
+K_MAX			= 256
 };
 
 typedef enum {key_game, key_console, key_message, key_menu, key_editor} keydest_t;
 
 extern keydest_t	key_dest;
-extern char *keybindings[256][8];
-extern	int		key_repeats[256];
+extern char *keybindings[K_MAX][8];
+extern	int		key_repeats[K_MAX];
 extern	int		key_count;			// incremented every key event
 extern	int		key_lastpress;
 

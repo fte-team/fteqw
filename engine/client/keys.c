@@ -42,15 +42,15 @@ keydest_t	key_dest;
 
 int		key_count;			// incremented every key event
 
-char	*keybindings[256][KEY_MODIFIERSTATES];
-qbyte	bindcmdlevel[256][KEY_MODIFIERSTATES];
-qboolean	consolekeys[256];	// if true, can't be rebound while in console
-qboolean	menubound[256];	// if true, can't be rebound while in menu
-int		keyshift[256];		// key to map to if shift held down in console
-int		key_repeats[256];	// if > 1, it is autorepeating
-qboolean	keydown[256];
+char	*keybindings[K_MAX][KEY_MODIFIERSTATES];
+qbyte	bindcmdlevel[K_MAX][KEY_MODIFIERSTATES];
+qboolean	consolekeys[K_MAX];	// if true, can't be rebound while in console
+qboolean	menubound[K_MAX];	// if true, can't be rebound while in menu
+int		keyshift[K_MAX];		// key to map to if shift held down in console
+int		key_repeats[K_MAX];	// if > 1, it is autorepeating
+qboolean	keydown[K_MAX];
 
-qboolean deltaused[256][KEY_MODIFIERSTATES];
+qboolean deltaused[K_MAX][KEY_MODIFIERSTATES];
 
 extern cvar_t con_displaypossabilities;
 extern cvar_t cl_chatmode;
@@ -686,6 +686,12 @@ void Key_Message (int key)
 
 //============================================================================
 
+char *Key_GetBinding(int keynum)
+{
+	if (keynum >= 0 && keynum < K_MAX)
+		return keybindings[keynum][0];
+	return NULL;
+}
 
 /*
 ===================
@@ -851,7 +857,7 @@ void Key_Unbindall_f (void)
 {
 	int		i;
 	
-	for (i=0 ; i<256 ; i++)
+	for (i=0 ; i<K_MAX ; i++)
 		if (keybindings[i])
 			Key_SetBinding (i, ~0, NULL, Cmd_ExecLevel);
 }
@@ -969,7 +975,7 @@ void Key_WriteBindings (FILE *f)
 
 	char prefix[128];
 
-	for (i=0 ; i<256 ; i++)	//we rebind the key with all modifiers to get the standard bind, then change the specific ones.
+	for (i=0 ; i<K_MAX ; i++)	//we rebind the key with all modifiers to get the standard bind, then change the specific ones.
 	{						//this does two things, it normally allows us to skip 7 of the 8 possabilities
 		base = keybindings[i][0];	//plus we can use the config with other clients.
 		if (!base)
@@ -1054,7 +1060,7 @@ void Key_Init (void)
 	consolekeys['`'] = false;
 	consolekeys['~'] = false;
 
-	for (i=0 ; i<256 ; i++)
+	for (i=0 ; i<K_MAX ; i++)
 		keyshift[i] = i;
 	for (i='a' ; i<='z' ; i++)
 		keyshift[i] = i - 'a' + 'A';
@@ -1119,7 +1125,7 @@ void Key_Event (int key, qboolean down)
 
 		keystate = KeyModifier(keydown[K_SHIFT], keydown[K_ALT], keydown[K_CTRL]);
 
-		for (k = 0; k < 256; k++)
+		for (k = 0; k < K_MAX; k++)
 		{	//go through the old state removing all depressed keys. they are all up now.
 
 			if (k == K_SHIFT || k == K_ALT || k == K_CTRL)
@@ -1401,7 +1407,7 @@ void Key_ClearStates (void)
 {
 	int		i;
 
-	for (i=0 ; i<256 ; i++)
+	for (i=0 ; i<K_MAX ; i++)
 	{
 		keydown[i] = false;
 		key_repeats[i] = false;

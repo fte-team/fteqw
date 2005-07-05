@@ -72,6 +72,7 @@ extern cvar_t	pm_slidefix;
 extern cvar_t	pm_slidyslopes;
 extern cvar_t	pm_airstep;
 extern cvar_t	pm_walljump;
+cvar_t sv_pushplayers = {"sv_pushplayers", "0"};
 
 char sv_votinggroup[] = "server voting";
 
@@ -4153,6 +4154,25 @@ if (sv_player->v->health > 0 && before && !after )
 		// touch other objects
 		for (i=0 ; i<pmove.numtouch ; i++)
 		{
+			if (sv_pushplayers.value)
+			{
+				n = pmove.physents[pmove.touchindex[i]].info;
+				if (n && n <= sv.allocated_client_slots)
+				{
+					float vel;
+					vec3_t dir;
+					vec3_t svel;
+					ent = EDICT_NUM(svprogfuncs, n);
+					VectorSubtract(ent->v->origin, sv_player->v->origin, dir);
+					VectorNormalize(dir);
+					VectorCopy(sv_player->v->velocity, svel);
+					VectorNormalize(svel);
+					vel = DotProduct(svel, dir);
+					VectorMA(ent->v->velocity, sv_pushplayers.value*vel, dir, ent->v->velocity);
+				}
+			}
+
+
 			if (pmove.physents[pmove.touchindex[i]].notouch)
 				continue;
 			n = pmove.physents[pmove.touchindex[i]].info;
@@ -4806,6 +4826,8 @@ void SV_UserInit (void)
 	Cvar_Register (&sv_cheatpc, cvargroup_servercontrol);
 	Cvar_Register (&sv_cheatspeedchecktime, cvargroup_servercontrol);
 	Cvar_Register (&sv_playermodelchecks, cvargroup_servercontrol);
+
+	Cvar_Register (&sv_pushplayers, cvargroup_servercontrol);
 
 	Cvar_Register (&sv_cmdlikercon, cvargroup_serverpermissions);
 	Cvar_Register(&cmd_gamecodelevel, "Access controls");

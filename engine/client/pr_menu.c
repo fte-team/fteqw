@@ -202,7 +202,7 @@ static void PF_cvar (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 			G_FLOAT(OFS_RETURN) = 0;
 	}
 }
-void PF_getresolution (progfuncs_t *prinst, struct globalvars_s *pr_globals)
+void PF_cl_getresolution (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
 	float mode = G_FLOAT(OFS_PARM0);
 	float *ret = G_VECTOR(OFS_RETURN);
@@ -457,6 +457,12 @@ void PF_CL_drawresetcliparea (progfuncs_t *prinst, struct globalvars_s *pr_globa
 {
 		G_FLOAT(OFS_RETURN) = 1;
 }
+
+//void (float width, vector rgb, float alpha, float flags, vector pos1, ...) drawline;
+void PF_CL_drawline (progfuncs_t *prinst, struct globalvars_s *pr_globals)
+{
+}
+
 //vector  drawgetimagesize(string pic) = #460;
 void PF_CL_drawgetimagesize (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
@@ -480,7 +486,7 @@ void PF_CL_drawgetimagesize (progfuncs_t *prinst, struct globalvars_s *pr_global
 }
 
 //void	setkeydest(float dest) 	= #601;
-void PF_setkeydest (progfuncs_t *prinst, struct globalvars_s *pr_globals)
+void PF_cl_setkeydest (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
 	switch((int)G_FLOAT(OFS_PARM0))
 	{
@@ -502,7 +508,7 @@ void PF_setkeydest (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 	}
 }
 //float	getkeydest(void)	= #602;
-void PF_getkeydest (progfuncs_t *prinst, struct globalvars_s *pr_globals)
+void PF_cl_getkeydest (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
 	switch(key_dest)
 	{
@@ -525,7 +531,7 @@ void PF_getkeydest (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 }
 
 //void	setmousetarget(float trg) = #603;
-void PF_setmousetarget (progfuncs_t *prinst, struct globalvars_s *pr_globals)
+void PF_cl_setmousetarget (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
 	extern int mouseusedforgui;
 	switch ((int)G_FLOAT(OFS_PARM0))
@@ -542,13 +548,13 @@ void PF_setmousetarget (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 }
 
 //float	getmousetarget(void)	  = #604;
-void PF_getmousetarget (progfuncs_t *prinst, struct globalvars_s *pr_globals)
+void PF_cl_getmousetarget (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
 }
 
 int MP_TranslateDPtoFTECodes(int code);
 //string	keynumtostring(float keynum) = #609;
-void PF_CL_keynumtostring (progfuncs_t *prinst, struct globalvars_s *pr_globals)
+void PF_cl_keynumtostring (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
 	int code = G_FLOAT(OFS_PARM0);
 	char *keyname = PF_TempStr(prinst);
@@ -559,9 +565,19 @@ void PF_CL_keynumtostring (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 	RETURN_SSTRING(keyname);
 }
 
+void PF_cl_getkeybind (progfuncs_t *prinst, struct globalvars_s *pr_globals)
+{
+	char *binding = Key_GetBinding();
+	char *result = PF_TempStr(prinst);
+	if (!binding)
+		binding = "";
+	Q_strncpyz(result, binding, MAXTEMPBUFFERLEN);
+	RETURN_SSTRING(result);
+}
+
 int MP_TranslateDPtoFTECodes(int code);
 //string	findkeysforcommand(string command) = #610;
-void PF_CL_findkeysforcommand (progfuncs_t *prinst, struct globalvars_s *pr_globals)
+void PF_cl_findkeysforcommand (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
 	char *cmdname = PR_GetStringOfs(prinst, OFS_PARM0);
 	int keynums[2];
@@ -571,14 +587,14 @@ void PF_CL_findkeysforcommand (progfuncs_t *prinst, struct globalvars_s *pr_glob
 
 	keyname[0] = '\0';
 
-	strcat (keyname, va(" \'%i\'", MP_TranslateFTEtoDPCodes(keynums[0])));
-	strcat (keyname, va(" \'%i\'", MP_TranslateFTEtoDPCodes(keynums[1])));
+	Q_strncatz (keyname, va(" \'%i\'", MP_TranslateFTEtoDPCodes(keynums[0])), MAXTEMPBUFFERLEN);
+	Q_strncatz (keyname, va(" \'%i\'", MP_TranslateFTEtoDPCodes(keynums[1])), MAXTEMPBUFFERLEN);
 
 	RETURN_SSTRING(keyname);
 }
 
 //vector	getmousepos(void)  	= #66;
-void PF_getmousepos (progfuncs_t *prinst, struct globalvars_s *pr_globals)
+void PF_cl_getmousepos (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
 	float *ret = G_VECTOR(OFS_RETURN);
 	extern int mousemove_x, mousemove_y;
@@ -634,7 +650,7 @@ typedef enum{
 	SLIST_SORTDESCENDING
 } hostcacheglobal_t;
 
-void PF_gethostcachevalue (progfuncs_t *prinst, struct globalvars_s *pr_globals)
+void PF_M_gethostcachevalue (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
 	hostcacheglobal_t hcg = G_FLOAT(OFS_PARM0);
 	G_FLOAT(OFS_RETURN) = 0;
@@ -719,7 +735,7 @@ void PF_M_gethostcachenumber(progfuncs_t *prinst, struct globalvars_s *pr_global
 
 	G_FLOAT(OFS_RETURN) = ret;
 }
-void PF_gethostcachestring (progfuncs_t *prinst, struct globalvars_s *pr_globals)
+void PF_M_gethostcachestring (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
 	char *keyname = PF_TempStr(prinst);
 	char *ret = "";
@@ -878,7 +894,7 @@ void PF_IsNotNull(progfuncs_t *prinst, struct globalvars_s *pr_globals)
 	G_FLOAT(OFS_RETURN) = !!str;
 }
 
-void PF_StringToKeyNum(progfuncs_t *prinst, struct globalvars_s *pr_globals)
+void PF_cl_stringtokeynum(progfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
 	int i;
 	int modifier;
@@ -1100,7 +1116,7 @@ builtin_t menu_builtins[] = {
 	skip1						//void	clientcommand(float client, string s)  = #63;
 	skip1						//void	changelevel(string map)  = #64;
 	PF_localsound,
-	PF_getmousepos,
+	PF_cl_getmousepos,
 	PF_gettime,
 	PF_loadfromdata,
 	PF_loadfromfile,
@@ -1172,21 +1188,21 @@ builtin_t menu_builtins[] = {
 	skip100
 //600
 	skip1
-	PF_setkeydest,
-	PF_getkeydest,
-	PF_setmousetarget,
-	PF_getmousetarget,
+	PF_cl_setkeydest,
+	PF_cl_getkeydest,
+	PF_cl_setmousetarget,
+	PF_cl_getmousetarget,
 	PF_callfunction,
 	skip1				//void	writetofile(float fhandle, entity ent) = #606;
 	PF_isfunction,
-	PF_getresolution,
-	PF_CL_keynumtostring,
-	PF_CL_findkeysforcommand,
-	PF_gethostcachevalue,
-	PF_gethostcachestring,
+	PF_cl_getresolution,
+	PF_cl_keynumtostring,
+	PF_cl_findkeysforcommand,
+	PF_M_gethostcachevalue,
+	PF_M_gethostcachestring,
 	PF_parseentitydata,			//void 	parseentitydata(entity ent, string data) = #613;
 
-	PF_StringToKeyNum,
+	PF_cl_stringtokeynum,
 
 	PF_M_resethostcachemasks,
 	PF_M_sethostcachemaskstring,

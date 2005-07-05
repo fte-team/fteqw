@@ -417,7 +417,7 @@ dir_t Sys_listdir (char *path, char *ext, qboolean usesorting)
 
 cvar_t	sv_demoUseCache = {"sv_demoUseCache", ""};
 cvar_t	sv_demoCacheSize = {"sv_demoCacheSize", ""};
-cvar_t	sv_demoMaxDirSize = {"sv_demoMaxDirSize", ""};
+cvar_t	sv_demoMaxDirSize = {"sv_demoMaxDirSize", "102400"};	//so ktpro autorecords.
 cvar_t	sv_demoDir = {"sv_demoDir", "demos"};
 cvar_t	sv_demofps = {"sv_demofps", ""};
 cvar_t	sv_demoPings = {"sv_demoPings", ""};

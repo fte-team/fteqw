@@ -285,10 +285,15 @@ void PF_CL_free_pic (progfuncs_t *prinst, struct globalvars_s *pr_globals);
 void PF_CL_drawcharacter (progfuncs_t *prinst, struct globalvars_s *pr_globals);
 void PF_CL_drawstring (progfuncs_t *prinst, struct globalvars_s *pr_globals);
 void PF_CL_drawpic (progfuncs_t *prinst, struct globalvars_s *pr_globals);
+void PF_CL_drawline (progfuncs_t *prinst, struct globalvars_s *pr_globals);
 void PF_CL_drawfill (progfuncs_t *prinst, struct globalvars_s *pr_globals);
 void PF_CL_drawsetcliparea (progfuncs_t *prinst, struct globalvars_s *pr_globals);
 void PF_CL_drawresetcliparea (progfuncs_t *prinst, struct globalvars_s *pr_globals);
 void PF_CL_drawgetimagesize (progfuncs_t *prinst, struct globalvars_s *pr_globals);
+
+void PF_cl_keynumtostring (progfuncs_t *prinst, struct globalvars_s *pr_globals);
+void PF_cl_stringtokeynum(progfuncs_t *prinst, struct globalvars_s *pr_globals);
+void PF_cl_getkeybind (progfuncs_t *prinst, struct globalvars_s *pr_globals);
 
 void search_close_progs(progfuncs_t *prinst, qboolean complain);
 void PF_search_begin (progfuncs_t *prinst, struct globalvars_s *pr_globals);
@@ -404,6 +409,13 @@ static void PF_Fixme (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 	Con_Printf("\n");
 
 	prinst->RunError(prinst, "\nBuiltin %i not implemented.\nCSQC is not compatable.", prinst->lastcalledbuiltinnumber);
+	PR_BIError (prinst, "bulitin not implemented");
+}
+static void PF_NoCSQC (progfuncs_t *prinst, struct globalvars_s *pr_globals)
+{
+	Con_Printf("\n");
+
+	prinst->RunError(prinst, "\nBuiltin %i does not make sense in csqc.\nCSQC is not compatable.", prinst->lastcalledbuiltinnumber);
 	PR_BIError (prinst, "bulitin not implemented");
 }
 
@@ -1657,15 +1669,15 @@ PF_vectoyaw,			// #13 float(vector v) vectoyaw (QUAKE)
 PF_Spawn,				// #14 entity() spawn (QUAKE)
 PF_cs_remove,			// #15 void(entity e) remove (QUAKE)
 PF_cs_traceline,		// #16 void(vector v1, vector v2, float nomonst, entity forent) traceline (QUAKE)
-PF_Fixme,				// #17 entity() checkclient (QUAKE) (don't support)
+PF_NoCSQC,				// #17 entity() checkclient (QUAKE) (don't support)
 PF_FindString,			// #18 entity(entity start, .string fld, string match) findstring (QUAKE)
 PF_cs_PrecacheSound,	// #19 void(string str) precache_sound (QUAKE)
 //20
 PF_cs_PrecacheModel,	// #20 void(string str) precache_model (QUAKE)
-PF_Fixme,				// #21 void(entity client, string s) stuffcmd (QUAKE) (don't support)
+PF_NoCSQC,				// #21 void(entity client, string s) stuffcmd (QUAKE) (don't support)
 PF_cs_findradius,		// #22 entity(vector org, float rad) findradius (QUAKE)
-PF_Fixme,				// #23 void(string s, ...) bprint (QUAKE) (don't support)
-PF_Fixme,				// #24 void(entity e, string s, ...) sprint (QUAKE) (don't support)
+PF_NoCSQC,				// #23 void(string s, ...) bprint (QUAKE) (don't support)
+PF_NoCSQC,				// #24 void(entity e, string s, ...) sprint (QUAKE) (don't support)
 PF_dprint,				// #25 void(string s, ...) dprint (QUAKE)
 PF_ftos,				// #26 string(float f) ftos (QUAKE)
 PF_vtos,				// #27 string(vector f) vtos (QUAKE)
@@ -1687,7 +1699,7 @@ PF_cs_checkbottom,		// #40 float(entity e) checkbottom (QUAKE)
 PF_cs_pointcontents,	// #41 float(vector org) pointcontents (QUAKE)
 PF_Fixme,				// #42
 PF_fabs,				// #43 float(float f) fabs (QUAKE)
-PF_Fixme,				// #44 vector(entity e, float speed) aim (QUAKE) (don't support)
+PF_NoCSQC,				// #44 vector(entity e, float speed) aim (QUAKE) (don't support)
 PF_cvar,				// #45 float(string cvarname) cvar (QUAKE)
 PF_localcmd,			// #46 void(string str) localcmd (QUAKE)
 PF_nextent,				// #47 entity(entity e) nextent (QUAKE)
@@ -1716,24 +1728,24 @@ PF_cs_tracetoss,		// #64 void(entity ent, entity ignore) tracetoss (DP_QC_TRACET
 PF_etos,				// #65 string(entity ent) etos (DP_QC_ETOS)
 PF_Fixme,				// #66
 PF_Fixme,				// #67 void(float step) movetogoal (QUAKE)
-PF_Fixme,				// #68 void(string s) precache_file (QUAKE) (don't support)
+PF_NoCSQC,				// #68 void(string s) precache_file (QUAKE) (don't support)
 PF_cs_makestatic,		// #69 void(entity e) makestatic (QUAKE)
 //70
-PF_Fixme,				// #70 void(string mapname) changelevel (QUAKE) (don't support)
+PF_NoCSQC,				// #70 void(string mapname) changelevel (QUAKE) (don't support)
 PF_Fixme,				// #71
 PF_cvar_set,			// #72 void(string cvarname, string valuetoset) cvar_set (QUAKE)
-PF_Fixme,				// #73 void(entity ent, string text) centerprint (QUAKE) (don't support - cprint is supported instead)
+PF_NoCSQC,				// #73 void(entity ent, string text) centerprint (QUAKE) (don't support - cprint is supported instead)
 PF_cl_ambientsound,		// #74 void (vector pos, string samp, float vol, float atten) ambientsound (QUAKE)
 
 PF_cs_PrecacheModel,	// #75 void(string str) precache_model2 (QUAKE)
 PF_cs_PrecacheSound,	// #76 void(string str) precache_sound2 (QUAKE)
-PF_Fixme,				// #77 void(string str) precache_file2 (QUAKE)
-PF_Fixme,				// #78 void() setspawnparms (QUAKE) (don't support)
-PF_Fixme,				// #79 void(entity killer, entity killee) logfrag (QW_ENGINE) (don't support)
+PF_NoCSQC,				// #77 void(string str) precache_file2 (QUAKE)
+PF_NoCSQC,				// #78 void() setspawnparms (QUAKE) (don't support)
+PF_NoCSQC,				// #79 void(entity killer, entity killee) logfrag (QW_ENGINE) (don't support)
 //80
-PF_Fixme,				// #80 string(entity e, string keyname) infokey (QW_ENGINE) (don't support)
+PF_NoCSQC,				// #80 string(entity e, string keyname) infokey (QW_ENGINE) (don't support)
 PF_stof,				// #81 float(string s) stof (FRIK_FILE or QW_ENGINE)
-PF_Fixme,				// #82 void(vector where, float set) multicast (QW_ENGINE) (don't support)
+PF_NoCSQC,				// #82 void(vector where, float set) multicast (QW_ENGINE) (don't support)
 PF_Fixme,
 PF_Fixme,
 
@@ -1804,7 +1816,7 @@ PF_R_AddDynamicLight,		// #???
 PF_Fixme,
 PF_Fixme,
 PF_Fixme,
-PF_Fixme,
+PF_CL_drawline,			// #???
 
 //140
 PF_CL_is_cached_pic,		// #??? 
@@ -1816,44 +1828,44 @@ PF_CL_drawpic,				// #???
 PF_CL_drawfill,				// #??? 
 PF_CL_drawsetcliparea,		// #??? 
 PF_CL_drawresetcliparea,	// #??? 
-PF_CL_drawgetimagesize,		// #??? 
+PF_CL_drawgetimagesize,		// #??? vector(string picname) draw_getimagesize (EXT_CSQC)
 
 //150
-PF_cs_getstatf,				// #??? 
-PF_cs_getstati,				// #??? 
-PF_cs_getstats,				// #??? 
-PF_cs_SetModelIndex,		// #??? 
-PF_cs_ModelnameForIndex,	// #??? 
+PF_cs_getstatf,				// #??? float(float stnum) getstatf (EXT_CSQC)
+PF_cs_getstati,				// #??? float(float stnum) getstati (EXT_CSQC)
+PF_cs_getstats,				// #??? string(float firststnum) getstats (EXT_CSQC)
+PF_cs_SetModelIndex,		// #??? void(entity e, float mdlindex) setmodelindex (EXT_CSQC)
+PF_cs_ModelnameForIndex,	// #??? string(float mdlindex) modelnameforindex (EXT_CSQC)
 
-PF_cs_setsensativityscaler, // #??? 
-PF_cl_cprint,				// #??? centerprint
-PF_print,					// #??? console print
-PF_cs_pointparticles,		// #??? 
-PF_cs_particlesloaded,		// #??? 
+PF_cs_setsensativityscaler, // #??? void(float sens) setsensitivityscaler (EXT_CSQC)
+PF_cl_cprint,				// #??? void(string s) cprint (EXT_CSQC)
+PF_print,					// #??? void(string s) print (EXT_CSQC)
+PF_cs_pointparticles,		// #??? void(float effectnum, vector origin [, vector dir, float count]) pointparticles (EXT_CSQC)
+PF_cs_particlesloaded,		// #??? float(string effectname) particleeffectnum (EXT_CSQC)
 
 //160
-PF_cs_getinputstate,		// #??? 
+PF_cs_getinputstate,		// #??? float(float framenum) getinputstate (EXT_CSQC)
 PF_cs_runplayerphysics,		// #??? 
-PF_cs_getplayerkey,			// #??? 
-PF_cs_setwantskeys,			// #??? 
-PF_cs_getmousepos,			// #??? 
+PF_cs_getplayerkey,			// #??? string(float playernum, string keyname) getplayerkeyvalue (EXT_CSQC)
+PF_cs_setwantskeys,			// #??? void(float wants) setwantskeys (EXT_CSQC)
+PF_cs_getmousepos,			// #??? vector() getmousepos (EXT_CSQC)
 
 PF_cl_playingdemo,			// #??? float() isdemo
-PF_cl_runningserver,		// #??? float() isserver
-PF_Fixme,
-PF_Fixme,
-PF_Fixme,
+PF_cl_runningserver,			// #??? float() isserver
+PF_cl_keynumtostring,			// #??? string(float keynum) keynumtostring (EXT_CSQC)
+PF_cl_stringtokeynum,			// #??? float(string keyname) stringtokeynum (EXT_CSQC)
+PF_cl_getkeybind,			// #??? string(float keynum) getkeybind (EXT_CSQC)
 
 //170
 //note that 'ReadEntity' is pretty hard to implement reliably. Modders should use a combination of ReadShort, and findfloat, and remember that it might not be known clientside (pvs culled or other reason)
-PF_ReadByte,				// #??? 
-PF_ReadChar,				// #??? 
-PF_ReadShort,				// #??? 
-PF_ReadLong,				// #??? 
-PF_ReadCoord,				// #??? 
+PF_ReadByte,				// #??? float() readbyte (EXT_CSQC)
+PF_ReadChar,				// #??? float() readchar (EXT_CSQC)
+PF_ReadShort,				// #??? float() readshort (EXT_CSQC)
+PF_ReadLong,				// #??? float() readlong (EXT_CSQC)
+PF_ReadCoord,				// #??? float() readcoord (EXT_CSQC)
 
-PF_ReadAngle,				// #??? 
-PF_ReadString,				// #??? 
+PF_ReadAngle,				// #??? float() readangle (EXT_CSQC)
+PF_ReadString,				// #??? string() readstring (EXT_CSQC)
 PF_Fixme,
 PF_Fixme,
 PF_Fixme,
@@ -1936,7 +1948,7 @@ PF_FixTen,
 
 //400
 PF_cs_copyentity,		// #400 void(entity from, entity to) copyentity (DP_QC_COPYENTITY)
-PF_Fixme,				// #401 void(entity cl, float colours) setcolors (DP_SV_SETCOLOR) (don't implement)
+PF_NoCSQC,				// #401 void(entity cl, float colours) setcolors (DP_SV_SETCOLOR) (don't implement)
 PF_findchain,			// #402 entity(string field, string match) findchain (DP_QC_FINDCHAIN)
 PF_findchainfloat,		// #403 entity(float fld, float match) findchainfloat (DP_QC_FINDCHAINFLOAT)
 PF_cl_effect,			// #404 void(vector org, string modelname, float startframe, float endframe, float framerate) effect (DP_SV_EFFECT)
@@ -1983,7 +1995,7 @@ PF_Fixme,				// #437
 PF_Fixme,				// #438
 PF_Fixme,				// #439
 
-PF_Fixme,				// #440 void(entity e, string s) clientcommand (KRIMZON_SV_PARSECLIENTCOMMAND) (don't implement)
+PF_NoCSQC,				// #440 void(entity e, string s) clientcommand (KRIMZON_SV_PARSECLIENTCOMMAND) (don't implement)
 PF_Tokenize,			// #441 float(string s) tokenize (KRIMZON_SV_PARSECLIENTCOMMAND)
 PF_ArgV,				// #442 string(float n) argv (KRIMZON_SV_PARSECLIENTCOMMAND)
 PS_cs_setattachment,	// #443 void(entity e, entity tagentity, string tagname) setattachment (DP_GFX_QUAKE3MODELTAGS)
@@ -1998,10 +2010,10 @@ PF_FindFlags,			// #449 entity(entity start, .entity fld, float match) findflags
 PF_findchainflags,		// #450 entity(.float fld, float match) findchainflags (DP_QC_FINDCHAINFLAGS)
 PF_Fixme,				// #451
 PF_Fixme,				// #452
-PF_Fixme,				// #453 void(entity player) dropclient (DP_QC_BOTCLIENT) (don't implement)
-PF_Fixme,				// #454	entity() spawnclient (DP_QC_BOTCLIENT) (don't implement)
+PF_NoCSQC,				// #453 void(entity player) dropclient (DP_QC_BOTCLIENT) (don't implement)
+PF_NoCSQC,				// #454	entity() spawnclient (DP_QC_BOTCLIENT) (don't implement)
 
-PF_Fixme,				// #455 float(entity client) clienttype (DP_QC_BOTCLIENT) (don't implement)
+PF_NoCSQC,				// #455 float(entity client) clienttype (DP_QC_BOTCLIENT) (don't implement)
 PF_Fixme,				// #456
 PF_Fixme,				// #457
 PF_Fixme,				// #458

@@ -604,7 +604,7 @@ void SWMod_LoadTextures (lump_t *l)
 		memcpy ( tx+1, mt+1, pixels);
 	
 		if (!Q_strncmp(mt->name,"sky",3))
-			R_InitSky (tx);
+			SWR_InitSky (tx);
 #ifdef PEXT_BULLETENS
 		else R_AddBulleten(tx);
 #endif

@@ -133,7 +133,7 @@ local int unzlocal_getShort(FILE *fin,unsigned long *pi) {
     unsigned short c;
 	int err = fread(&c, 2, 1, fin);
     if (err==1) {
-	    *pi = (unsigned long)c;
+	    *pi = LittleShort(c);
         return UNZ_OK;
     } else {
         if (ferror(fin)) return UNZ_ERRNO;
@@ -145,7 +145,7 @@ local int unzlocal_getLong(FILE *fin,unsigned long *pi) {
 	unsigned long c;
 	int err = fread(&c, 4, 1, fin);
     if (err==1) {
-	    *pi = (unsigned long)c;
+	    *pi = LittleLong(c);
         return UNZ_OK;
     } else {
         if (ferror(fin)) return UNZ_ERRNO;
@@ -354,6 +354,20 @@ local int unzlocal_GetCurrentFileInfoInternal (unzFile file,
 	}
 
 	fread(&file_info, sizeof(file_info)-2*4, 1, s->file); // 2*4 is the size of 2 my vars
+	file_info.version = LittleShort(file_info.version);
+	file_info.version_needed = LittleShort(file_info.version_needed);
+	file_info.flag = LittleShort(file_info.flag);
+	file_info.compression_method = LittleShort(file_info.compression_method);
+	file_info.dosDate = LittleLong(file_info.dosDate);
+	file_info.crc = LittleLong(file_info.crc);
+	file_info.compressed_size = LittleLong(file_info.compressed_size);
+	file_info.uncompressed_size = LittleLong(file_info.uncompressed_size);
+	file_info.size_filename = LittleShort(file_info.size_filename);
+	file_info.size_file_extra = LittleShort(file_info.size_file_extra);
+	file_info.size_file_comment = LittleShort(file_info.size_file_comment);
+	file_info.disk_num_start = LittleShort(file_info.disk_num_start);
+	file_info.internal_fa = LittleShort(file_info.internal_fa);
+	file_info.external_fa = LittleLong(file_info.external_fa);
 
 	if (unzlocal_getLong(s->file,&file_info_internal.offset_curfile) != UNZ_OK) err=UNZ_ERRNO;
 

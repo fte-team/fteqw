@@ -4112,7 +4112,6 @@ rendererinfo_t d3drendererinfo = {
 		GLR_RenderView,
 
 
-		GLR_InitSky,
 		GLR_CheckSky,
 		GLR_SetSky,
 

@@ -56,6 +56,27 @@ int ppl_specular_shader_texf;
 
 //#define glBegin glEnd
 
+qboolean PPL_ShouldDraw(void)
+{
+	if (r_inmirror)
+	{
+		if (currententity->flags & Q2RF_WEAPONMODEL)
+			return false;
+	}
+	else
+	{
+		if (currententity->flags & Q2RF_EXTERNALMODEL)
+			return false;
+		if (currententity->keynum == (cl.viewentity[r_refdef.currentplayernum]?cl.viewentity[r_refdef.currentplayernum]:(cl.playernum[r_refdef.currentplayernum]+1)))
+			return false;
+//		if (cl.viewentity[r_refdef.currentplayernum] && currententity->keynum == cl.viewentity[r_refdef.currentplayernum])
+//			continue;
+		if (!Cam_DrawPlayer(0, currententity->keynum-1))
+			return false;
+	}
+	return true;
+}
+
 
 typedef struct shadowmesh_s {
 	int numindicies;
@@ -1741,22 +1762,8 @@ void PPL_BaseEntTextures(void)
 	{
 		currententity = &cl_visedicts[i];
 
-		if (r_inmirror)
-		{
-			if (currententity->flags & Q2RF_WEAPONMODEL)
-				continue;
-		}
-		else
-		{
-			if (currententity->flags & Q2RF_EXTERNALMODEL)
-				continue;
-			if (currententity->keynum == (cl.viewentity[r_refdef.currentplayernum]?cl.viewentity[r_refdef.currentplayernum]:(cl.playernum[r_refdef.currentplayernum]+1)))
-				continue;
-//			if (cl.viewentity[r_refdef.currentplayernum] && currententity->keynum == cl.viewentity[r_refdef.currentplayernum])
-//				continue;
-			if (!Cam_DrawPlayer(0, currententity->keynum-1))
-				continue;
-		}
+		if (!PPL_ShouldDraw())
+			continue;
 
 		if (currententity->flags & Q2RF_BEAM)
 		{
@@ -2464,6 +2471,8 @@ void PPL_DrawEntLighting(dlight_t *light, vec3_t colour)
 	{
 		currententity = &cl_visedicts[i];
 
+		if (!PPL_ShouldDraw())
+			continue;
 		if (r_inmirror)
 		{
 			if (currententity->flags & Q2RF_WEAPONMODEL)

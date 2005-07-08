@@ -221,7 +221,7 @@ void NPP_NQCheckDest(int dest)
 {
 	if (dest == MSG_ONE)
 	{
-/*		client_t *cl = Write_GetClient();
+		client_t *cl = Write_GetClient();
 		if (!cl)
 		{
 			Con_Printf("Not a client\n");
@@ -233,7 +233,7 @@ void NPP_NQCheckDest(int dest)
 			NPP_NQFlush();
 		}
 		cldest = cl;
-*/
+
 	}
 	else
 	{
@@ -1025,6 +1025,9 @@ void NPP_QWWriteByte(int dest, qbyte data)	//replacement write func (nq to qw)
 			break;
 		case svc_updatestatlong:
 			protocollen = 6;
+			break;
+		case svc_setpause:
+			protocollen = 2;
 			break;
 		default:
 			Con_Printf("QWWriteByte: bad protocol %i\n", (int)data);

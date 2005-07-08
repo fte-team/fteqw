@@ -249,6 +249,7 @@ void PF_pow (progfuncs_t *prinst, struct globalvars_s *pr_globals);
 void PF_chr2str (progfuncs_t *prinst, struct globalvars_s *pr_globals);
 void PF_localcmd (progfuncs_t *prinst, struct globalvars_s *pr_globals);
 void PF_random (progfuncs_t *prinst, struct globalvars_s *pr_globals);
+void PF_randomvector (progfuncs_t *prinst, struct globalvars_s *pr_globals);
 void PF_fopen (progfuncs_t *prinst, struct globalvars_s *pr_globals);
 void PF_fclose (progfuncs_t *prinst, struct globalvars_s *pr_globals);
 void PF_fputs (progfuncs_t *prinst, struct globalvars_s *pr_globals);
@@ -1130,6 +1131,11 @@ static void PF_ReadCoord(progfuncs_t *prinst, struct globalvars_s *pr_globals)
 	G_FLOAT(OFS_RETURN) = MSG_ReadCoord();
 }
 
+static void PF_ReadFloat(progfuncs_t *prinst, struct globalvars_s *pr_globals)
+{
+	G_FLOAT(OFS_RETURN) = MSG_ReadFloat();
+}
+
 static void PF_ReadString(progfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
 	char *str = PF_TempStr(prinst);
@@ -1608,6 +1614,93 @@ static void PF_cs_findradius (progfuncs_t *prinst, struct globalvars_s *pr_globa
 	RETURN_EDICT(prinst, (void*)chain);
 }
 
+static void PF_cl_te_gunshot (progfuncs_t *prinst, struct globalvars_s *pr_globals)
+{
+	float *pos = G_VECTOR(OFS_PARM0);
+	if (P_RunParticleEffectType(pos, NULL, 1, pt_gunshot))
+		P_RunParticleEffect (pos, vec3_origin, 0, 20);
+}
+static void PF_cl_te_spike (progfuncs_t *prinst, struct globalvars_s *pr_globals)
+{
+	float *pos = G_VECTOR(OFS_PARM0);
+	if (P_RunParticleEffectType(pos, NULL, 1, pt_spike))
+		if (P_RunParticleEffectType(pos, NULL, 10, pt_gunshot))
+			P_RunParticleEffect (pos, vec3_origin, 0, 10);
+}
+static void PF_cl_te_superspike (progfuncs_t *prinst, struct globalvars_s *pr_globals)
+{
+	float *pos = G_VECTOR(OFS_PARM0);
+	if (P_RunParticleEffectType(pos, NULL, 1, pt_superspike))
+		if (P_RunParticleEffectType(pos, NULL, 2, pt_spike))
+			if (P_RunParticleEffectType(pos, NULL, 20, pt_gunshot))
+				P_RunParticleEffect (pos, vec3_origin, 0, 20);
+}
+static void PF_cl_te_explosion (progfuncs_t *prinst, struct globalvars_s *pr_globals)
+{
+	float *pos = G_VECTOR(OFS_PARM0);
+	P_ParticleExplosion(pos);
+}
+static void PF_cl_te_tarexplosion (progfuncs_t *prinst, struct globalvars_s *pr_globals)
+{
+	float *pos = G_VECTOR(OFS_PARM0);
+	P_BlobExplosion (pos);
+}
+static void PF_cl_te_wizspike (progfuncs_t *prinst, struct globalvars_s *pr_globals)
+{
+	float *pos = G_VECTOR(OFS_PARM0);
+	if (P_RunParticleEffectType(pos, NULL, 1, pt_wizspike))
+		P_RunParticleEffect (pos, vec3_origin, 20, 30);
+}
+static void PF_cl_te_knightspike (progfuncs_t *prinst, struct globalvars_s *pr_globals)
+{
+	float *pos = G_VECTOR(OFS_PARM0);
+	if (P_RunParticleEffectType(pos, NULL, 1, pt_knightspike))
+		P_RunParticleEffect (pos, vec3_origin, 226, 20);
+}
+static void PF_cl_te_lavasplash (progfuncs_t *prinst, struct globalvars_s *pr_globals)
+{
+	float *pos = G_VECTOR(OFS_PARM0);
+	P_LavaSplash (pos);
+}
+static void PF_cl_te_teleport (progfuncs_t *prinst, struct globalvars_s *pr_globals)
+{
+	float *pos = G_VECTOR(OFS_PARM0);
+	P_RunParticleEffectType(pos, NULL, 1, pt_teleportsplash);
+}
+static void PF_cl_te_gunshotquad (progfuncs_t *prinst, struct globalvars_s *pr_globals)
+{
+	float *pos = G_VECTOR(OFS_PARM0);
+	if (P_RunParticleEffectTypeString(pos, vec3_origin, 1, "te_gunshotquad"))
+		if (P_RunParticleEffectType(pos, NULL, 2, pt_gunshot))
+			P_RunParticleEffect (pos, vec3_origin, 0, 40);
+}
+static void PF_cl_te_spikequad (progfuncs_t *prinst, struct globalvars_s *pr_globals)
+{
+	float *pos = G_VECTOR(OFS_PARM0);
+	if (P_RunParticleEffectTypeString(pos, vec3_origin, 1, "te_spikequad"))
+		if (P_RunParticleEffectType(pos, NULL, 2, pt_spike))
+			if (P_RunParticleEffectType(pos, NULL, 20, pt_gunshot))
+				P_RunParticleEffect (pos, vec3_origin, 0, 20);
+}
+static void PF_cl_te_superspikequad (progfuncs_t *prinst, struct globalvars_s *pr_globals)
+{
+	float *pos = G_VECTOR(OFS_PARM0);
+	if (P_RunParticleEffectTypeString(pos, vec3_origin, 1, "te_superspikequad"))
+		if (P_RunParticleEffectType(pos, NULL, 2, pt_superspike))
+			if (P_RunParticleEffectType(pos, NULL, 4, pt_spike))
+				if (P_RunParticleEffectType(pos, NULL, 40, pt_gunshot))
+					P_RunParticleEffect (pos, vec3_origin, 0, 40);
+}
+static void PF_cl_te_explosionquad (progfuncs_t *prinst, struct globalvars_s *pr_globals)
+{
+	float *pos = G_VECTOR(OFS_PARM0);
+	if (P_RunParticleEffectTypeString(pos, vec3_origin, 1, "te_explosionquad"))
+	{
+		P_ParticleExplosion(pos);
+		P_ParticleExplosion(pos);
+	}
+}
+
 //these are the builtins that still need to be added.
 #define PF_cs_droptofloor		PF_Fixme
 #define PF_cs_tracetoss			PF_Fixme
@@ -1619,27 +1712,26 @@ static void PF_cs_findradius (progfuncs_t *prinst, struct globalvars_s *pr_globa
 #define PF_cl_te_spark			PF_Fixme
 #define PF_cl_te_smallflash		PF_Fixme
 #define PF_cl_te_customflash	PF_Fixme
-#define PF_cl_te_gunshot		PF_Fixme
-#define PF_cl_te_spike			PF_Fixme
-#define PF_cl_te_superspike		PF_Fixme
-#define PF_cl_te_explosion		PF_Fixme
-#define PF_cl_te_tarexplosion	PF_Fixme
-#define PF_cl_te_wizspike		PF_Fixme
-#define PF_cl_te_knightspike	PF_Fixme
-#define PF_cl_te_lavasplash		PF_Fixme
-#define PF_cl_te_teleport		PF_Fixme
 #define PF_cl_te_explosion2		PF_Fixme
 #define PF_cl_te_lightning1		PF_Fixme
 #define PF_cl_te_lightning2		PF_Fixme
 #define PF_cl_te_lightning3		PF_Fixme
 #define PF_cl_te_beam			PF_Fixme
 #define PF_cl_te_plasmaburn		PF_Fixme
+#define PF_cl_te_explosionrgb	PF_Fixme
+#define PF_cl_te_particlerain	PF_Fixme
+#define PF_cl_te_particlesnow	PF_Fixme
+#define PF_cs_gettagindex		PF_Fixme
+#define PF_cs_gettaginfo		PF_Fixme
 #define PS_cs_setattachment		PF_Fixme
 #define PF_cs_break				PF_Fixme
 #define PF_cs_walkmove			PF_Fixme
 #define PF_cs_checkbottom		PF_Fixme
 #define PF_cl_playingdemo		PF_Fixme
 #define PF_cl_runningserver		PF_Fixme
+#define PF_cl_getlight			PF_Fixme
+#define PF_findfloat			PF_Fixme
+#define PF_cl_getlight			PF_Fixme
 
 #define PF_FixTen PF_Fixme,PF_Fixme,PF_Fixme,PF_Fixme,PF_Fixme,PF_Fixme,PF_Fixme,PF_Fixme,PF_Fixme,PF_Fixme
 
@@ -1756,15 +1848,15 @@ PF_Fixme,
 PF_Fixme,
 //90
 PF_cs_tracebox,
-PF_Fixme,
-PF_Fixme,
+PF_randomvector,		// #91 vector() randomvec (DP_QC_RANDOMVEC)
+PF_cl_getlight,			// #92 vector(vector org) getlight (DP_QC_GETLIGHT)
 PF_registercvar,		// #93 void(string cvarname, string defaultvalue) registercvar (DP_QC_REGISTERCVAR)
 PF_min,					// #94 float(float a, floats) min (DP_QC_MINMAXBOUND)
 
 PF_max,					// #95 float(float a, floats) max (DP_QC_MINMAXBOUND)
 PF_bound,				// #96 float(float minimum, float val, float maximum) bound (DP_QC_MINMAXBOUND)
 PF_pow,					// #97 float(float value) pow (DP_QC_SINCOSSQRTPOW)
-PF_Fixme,				// #98
+PF_findfloat,			// #98 entity(entity start, .float fld, float match) findfloat (DP_QC_FINDFLOAT)
 PF_checkextension,		// #99 float(string extname) checkextension (EXT_CSQC)
 //100
 PF_Fixme,
@@ -1866,7 +1958,7 @@ PF_ReadCoord,				// #??? float() readcoord (EXT_CSQC)
 
 PF_ReadAngle,				// #??? float() readangle (EXT_CSQC)
 PF_ReadString,				// #??? string() readstring (EXT_CSQC)
-PF_Fixme,
+PF_ReadFloat,				// #??? string() readfloat (EXT_CSQC)
 PF_Fixme,
 PF_Fixme,
 
@@ -1953,47 +2045,47 @@ PF_findchain,			// #402 entity(string field, string match) findchain (DP_QC_FIND
 PF_findchainfloat,		// #403 entity(float fld, float match) findchainfloat (DP_QC_FINDCHAINFLOAT)
 PF_cl_effect,			// #404 void(vector org, string modelname, float startframe, float endframe, float framerate) effect (DP_SV_EFFECT)
 
-PF_cl_te_blood,			// #405 te_blood (DP_TE_BLOOD)
+PF_cl_te_blood,			// #405 void(vector org, vector velocity, float howmany) te_blood (DP_TE_BLOOD)
 PF_cl_te_bloodshower,	// #406 void(vector mincorner, vector maxcorner, float explosionspeed, float howmany) te_bloodshower (DP_TE_BLOODSHOWER)
-PF_Fixme,				// #407
+PF_cl_te_explosionrgb,	// #407 void(vector org, vector color) te_explosionrgb (DP_TE_EXPLOSIONRGB)
 PF_cl_te_particlecube,	// #408 void(vector mincorner, vector maxcorner, vector vel, float howmany, float color, float gravityflag, float randomveljitter) te_particlecube (DP_TE_PARTICLECUBE)
-PF_Fixme,				// #409
+PF_cl_te_particlerain,	// #409 void(vector mincorner, vector maxcorner, vector vel, float howmany, float color) te_particlerain (DP_TE_PARTICLERAIN)
 
-PF_Fixme,				// #410
+PF_cl_te_particlesnow,	// #410 void(vector mincorner, vector maxcorner, vector vel, float howmany, float color) te_particlesnow (DP_TE_PARTICLESNOW)
 PF_cl_te_spark,			// #411 void(vector org, vector vel, float howmany) te_spark (DP_TE_SPARK)
-PF_Fixme,				// #412
-PF_Fixme,				// #413
-PF_Fixme,				// #414
+PF_cl_te_gunshotquad,	// #412 void(vector org) te_gunshotquad (DP_TE_QUADEFFECTS1)
+PF_cl_te_spikequad,		// #413 void(vector org) te_spikequad (DP_TE_QUADEFFECTS1)
+PF_cl_te_superspikequad,// #414 void(vector org) te_superspikequad (DP_TE_QUADEFFECTS1)
 
-PF_Fixme,				// #415
+PF_cl_te_explosionquad,	// #415 void(vector org) te_explosionquad (DP_TE_QUADEFFECTS1)
 PF_cl_te_smallflash,	// #416 void(vector org) te_smallflash (DP_TE_SMALLFLASH)
 PF_cl_te_customflash,	// #417 void(vector org, float radius, float lifetime, vector color) te_customflash (DP_TE_CUSTOMFLASH)
-PF_cl_te_gunshot,		// #418 te_gunshot (DP_TE_STANDARDEFFECTBUILTINS)
-PF_cl_te_spike,			// #419 te_spike (DP_TE_STANDARDEFFECTBUILTINS)
+PF_cl_te_gunshot,		// #418 void(vector org) te_gunshot (DP_TE_STANDARDEFFECTBUILTINS)
+PF_cl_te_spike,			// #419 void(vector org) te_spike (DP_TE_STANDARDEFFECTBUILTINS)
 
-PF_cl_te_superspike,	// #420 te_superspike (DP_TE_STANDARDEFFECTBUILTINS)
-PF_cl_te_explosion,		// #421 te_explosion (DP_TE_STANDARDEFFECTBUILTINS)
-PF_cl_te_tarexplosion,	// #422 te_tarexplosion (DP_TE_STANDARDEFFECTBUILTINS)
-PF_cl_te_wizspike,		// #423 te_wizspike (DP_TE_STANDARDEFFECTBUILTINS)
-PF_cl_te_knightspike,	// #424 te_knightspike (DP_TE_STANDARDEFFECTBUILTINS)
+PF_cl_te_superspike,	// #420 void(vector org) te_superspike (DP_TE_STANDARDEFFECTBUILTINS)
+PF_cl_te_explosion,		// #421 void(vector org) te_explosion (DP_TE_STANDARDEFFECTBUILTINS)
+PF_cl_te_tarexplosion,	// #422 void(vector org) te_tarexplosion (DP_TE_STANDARDEFFECTBUILTINS)
+PF_cl_te_wizspike,		// #423 void(vector org) te_wizspike (DP_TE_STANDARDEFFECTBUILTINS)
+PF_cl_te_knightspike,	// #424 void(vector org) te_knightspike (DP_TE_STANDARDEFFECTBUILTINS)
 
-PF_cl_te_lavasplash,	// #425 te_lavasplash (DP_TE_STANDARDEFFECTBUILTINS)
-PF_cl_te_teleport,		// #426 te_teleport (DP_TE_STANDARDEFFECTBUILTINS)
-PF_cl_te_explosion2,	// #427 te_explosion2 (DP_TE_STANDARDEFFECTBUILTINS)
-PF_cl_te_lightning1,	// #428 te_lightning1 (DP_TE_STANDARDEFFECTBUILTINS)
-PF_cl_te_lightning2,	// #429 te_lightning2 (DP_TE_STANDARDEFFECTBUILTINS)
+PF_cl_te_lavasplash,	// #425 void(vector org) te_lavasplash  (DP_TE_STANDARDEFFECTBUILTINS)
+PF_cl_te_teleport,		// #426 void(vector org) te_teleport (DP_TE_STANDARDEFFECTBUILTINS)
+PF_cl_te_explosion2,	// #427 void(vector org, float color, float colorlength) te_explosion2 (DP_TE_STANDARDEFFECTBUILTINS)
+PF_cl_te_lightning1,	// #428 void(entity own, vector start, vector end) te_lightning1 (DP_TE_STANDARDEFFECTBUILTINS)
+PF_cl_te_lightning2,	// #429 void(entity own, vector start, vector end) te_lightning2 (DP_TE_STANDARDEFFECTBUILTINS)
 
-PF_cl_te_lightning3,	// #430 te_lightning3 (DP_TE_STANDARDEFFECTBUILTINS)
-PF_cl_te_beam,			// #431 te_beam (DP_TE_STANDARDEFFECTBUILTINS)
+PF_cl_te_lightning3,	// #430 void(entity own, vector start, vector end) te_lightning3 (DP_TE_STANDARDEFFECTBUILTINS)
+PF_cl_te_beam,			// #431 void(entity own, vector start, vector end) te_beam (DP_TE_STANDARDEFFECTBUILTINS)
 PF_cs_vectorvectors,	// #432 void(vector dir) vectorvectors (DP_QC_VECTORVECTORS)
 PF_cl_te_plasmaburn,	// #433 void(vector org) te_plasmaburn (DP_TE_PLASMABURN)
-PF_Fixme,				// #434
+PF_Fixme,				// #434 float(entity e, float s) getsurfacenumpoints (DP_QC_GETSURFACE)
 
-PF_Fixme,				// #435
-PF_Fixme,				// #436
-PF_Fixme,				// #437
-PF_Fixme,				// #438
-PF_Fixme,				// #439
+PF_Fixme,				// #435 vector(entity e, float s, float n) getsurfacepoint (DP_QC_GETSURFACE)
+PF_Fixme,				// #436 vector(entity e, float s) getsurfacenormal (DP_QC_GETSURFACE)
+PF_Fixme,				// #437 string(entity e, float s) getsurfacetexture (DP_QC_GETSURFACE)
+PF_Fixme,				// #438 float(entity e, vector p) getsurfacenearpoint (DP_QC_GETSURFACE)
+PF_Fixme,				// #439 vector(entity e, float s, vector p) getsurfaceclippedpoint (DP_QC_GETSURFACE)
 
 PF_NoCSQC,				// #440 void(entity e, string s) clientcommand (KRIMZON_SV_PARSECLIENTCOMMAND) (don't implement)
 PF_Tokenize,			// #441 float(string s) tokenize (KRIMZON_SV_PARSECLIENTCOMMAND)
@@ -2008,8 +2100,8 @@ PF_cvar_string,			// #448 string(float n) cvar_string (DP_QC_CVAR_STRING)
 PF_FindFlags,			// #449 entity(entity start, .entity fld, float match) findflags (DP_QC_FINDFLAGS)
 
 PF_findchainflags,		// #450 entity(.float fld, float match) findchainflags (DP_QC_FINDCHAINFLAGS)
-PF_Fixme,				// #451
-PF_Fixme,				// #452
+PF_cs_gettagindex,		// #451 float(entity ent, string tagname) gettagindex (DP_MD3_TAGSINFO)
+PF_cs_gettaginfo,		// #452 vector(entity ent, float tagindex) gettaginfo (DP_MD3_TAGSINFO)
 PF_NoCSQC,				// #453 void(entity player) dropclient (DP_QC_BOTCLIENT) (don't implement)
 PF_NoCSQC,				// #454	entity() spawnclient (DP_QC_BOTCLIENT) (don't implement)
 

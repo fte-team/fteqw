@@ -591,6 +591,32 @@ void CL_ParseTEnt (void)
 		S_StartSound (-2, 0, cl_sfx_knighthit, pos, 1, 1);
 		break;
 		
+	case DPTE_SPIKEQUAD:
+		pos[0] = MSG_ReadCoord ();
+		pos[1] = MSG_ReadCoord ();
+		pos[2] = MSG_ReadCoord ();
+
+		R_AddStain(pos, -10, -10, -10, 20);
+		R_AddDecals(pos);
+
+		if (P_RunParticleEffectTypeString(pos, NULL, 1, "te_spikequad"))
+			if (P_RunParticleEffectType(pos, NULL, 1, pt_spike))
+				if (P_RunParticleEffectType(pos, NULL, 10, pt_gunshot))
+					P_RunParticleEffect (pos, vec3_origin, 0, 10);
+
+		if ( rand() % 5 )
+			S_StartSound (-2, 0, cl_sfx_tink1, pos, 1, 1);
+		else
+		{
+			rnd = rand() & 3;
+			if (rnd == 1)
+				S_StartSound (-2, 0, cl_sfx_ric1, pos, 1, 1);
+			else if (rnd == 2)
+				S_StartSound (-2, 0, cl_sfx_ric2, pos, 1, 1);
+			else
+				S_StartSound (-2, 0, cl_sfx_ric3, pos, 1, 1);
+		}
+		break;
 	case TE_SPIKE:			// spike hitting wall
 		pos[0] = MSG_ReadCoord ();
 		pos[1] = MSG_ReadCoord ();
@@ -602,6 +628,33 @@ void CL_ParseTEnt (void)
 		if (P_RunParticleEffectType(pos, NULL, 1, pt_spike))
 			if (P_RunParticleEffectType(pos, NULL, 10, pt_gunshot))
 				P_RunParticleEffect (pos, vec3_origin, 0, 10);
+
+		if ( rand() % 5 )
+			S_StartSound (-2, 0, cl_sfx_tink1, pos, 1, 1);
+		else
+		{
+			rnd = rand() & 3;
+			if (rnd == 1)
+				S_StartSound (-2, 0, cl_sfx_ric1, pos, 1, 1);
+			else if (rnd == 2)
+				S_StartSound (-2, 0, cl_sfx_ric2, pos, 1, 1);
+			else
+				S_StartSound (-2, 0, cl_sfx_ric3, pos, 1, 1);
+		}
+		break;
+	case DPTE_SUPERSPIKEQUAD:			// super spike hitting wall
+		pos[0] = MSG_ReadCoord ();
+		pos[1] = MSG_ReadCoord ();
+		pos[2] = MSG_ReadCoord ();
+
+		R_AddStain(pos, -10, -10, -10, 20);
+		R_AddDecals(pos);
+
+		if (P_RunParticleEffectTypeString(pos, NULL, 1, "te_superspikequad"))
+			if (P_RunParticleEffectType(pos, NULL, 1, pt_superspike))
+				if (P_RunParticleEffectType(pos, NULL, 2, pt_spike))
+					if (P_RunParticleEffectType(pos, NULL, 20, pt_gunshot))
+						P_RunParticleEffect (pos, vec3_origin, 0, 20);
 
 		if ( rand() % 5 )
 			S_StartSound (-2, 0, cl_sfx_tink1, pos, 1, 1);
@@ -699,6 +752,42 @@ void CL_ParseTEnt (void)
 		break;
 #endif
 
+	case DPTE_EXPLOSIONQUAD:			// rocket explosion
+	// particles
+		pos[0] = MSG_ReadCoord ();
+		pos[1] = MSG_ReadCoord ();
+		pos[2] = MSG_ReadCoord ();
+		if (P_RunParticleEffectTypeString(pos, NULL, 1, "te_explosionquad"))
+			P_ParticleExplosion (pos);
+		
+	// light
+		dl = CL_AllocDlight (0);
+		VectorCopy (pos, dl->origin);
+		dl->radius = 350;
+		dl->die = cl.time + 1;
+		dl->decay = 300;
+		
+		dl->color[0] = 0.2;
+		dl->color[1] = 0.155;
+		dl->color[2] = 0.05;
+		dl->channelfade[0] = 0.196;
+		dl->channelfade[1] = 0.23;
+		dl->channelfade[2] = 0.12;
+
+
+
+	// sound
+		S_StartSound (-2, 0, cl_sfx_r_exp3, pos, 1, 1);
+	
+	// sprite		
+		if (cl_expsprite.value) // temp hopefully
+		{
+			explosion_t *ex = CL_AllocExplosion ();
+			VectorCopy (pos, ex->origin);
+			ex->start = cl.time;
+			ex->model = Mod_ForName ("progs/s_explod.spr", true);
+		}
+		break;
 	case TE_EXPLOSION:			// rocket explosion
 	// particles
 		pos[0] = MSG_ReadCoord ();
@@ -766,6 +855,18 @@ void CL_ParseTEnt (void)
 		P_RunParticleEffectType(pos, NULL, 1, pt_teleportsplash);
 		break;
 
+	case DPTE_GUNSHOTQUAD:			// bullet hitting wall
+		pos[0] = MSG_ReadCoord ();
+		pos[1] = MSG_ReadCoord ();
+		pos[2] = MSG_ReadCoord ();
+
+		R_AddStain(pos, -10, -10, -10, 20);
+
+		if (P_RunParticleEffectTypeString(pos, NULL, 1, "te_gunshotquad"))
+			if (P_RunParticleEffectType(pos, NULL, 1, pt_gunshot))
+				P_RunParticleEffect (pos, vec3_origin, 0, 20);
+
+		break;
 	case TE_GUNSHOT:			// bullet hitting wall
 		if (nqprot)
 			cnt = 1;

@@ -330,6 +330,7 @@ char *particle_set_spikeset =
 "	texture \"particles/explosion\"\n"
 "	count	16\n"
 "	scale 0\n"
+"	alpha 0\n"
 "	die 1\n"
 "	randomvel 128\n"
 "	veladd 64\n"

@@ -38,7 +38,7 @@ void PF_ArgV  (progfuncs_t *prinst, struct globalvars_s *pr_globals);
 void PF_FindString (progfuncs_t *prinst, struct globalvars_s *pr_globals);
 void PF_FindFloat (progfuncs_t *prinst, struct globalvars_s *pr_globals);
 void PF_nextent (progfuncs_t *prinst, struct globalvars_s *pr_globals);
-void PF_randomvec (progfuncs_t *prinst, struct globalvars_s *pr_globals);
+void PF_randomvector (progfuncs_t *prinst, struct globalvars_s *pr_globals);
 void PF_Sin (progfuncs_t *prinst, struct globalvars_s *pr_globals);
 void PF_Cos (progfuncs_t *prinst, struct globalvars_s *pr_globals);
 void PF_Sqrt (progfuncs_t *prinst, struct globalvars_s *pr_globals);
@@ -567,7 +567,7 @@ void PF_cl_keynumtostring (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 
 void PF_cl_getkeybind (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
-	char *binding = Key_GetBinding();
+	char *binding = Key_GetBinding(G_FLOAT(OFS_PARM0));
 	char *result = PF_TempStr(prinst);
 	if (!binding)
 		binding = "";
@@ -1089,7 +1089,7 @@ builtin_t menu_builtins[] = {
 	PF_Cos,
 //40
 	PF_Sqrt,
-	PF_randomvec,
+	PF_randomvector,
 	PF_registercvar,
 	PF_min,
 	PF_max,

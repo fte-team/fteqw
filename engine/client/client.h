@@ -674,6 +674,7 @@ void CL_BaseMove (usercmd_t *cmd, int pnum, float extra, float wantfps);
 float CL_KeyState (kbutton_t *key, int pnum);
 char *Key_KeynumToString (int keynum);
 int Key_StringToKeynum (char *str, int *modifier);
+char *Key_GetBinding(int keynum);
 
 void VARGS CL_SendClientCommand(qboolean reliable, char *format, ...);
 void CL_AllowIndependantSendCmd(qboolean allow);

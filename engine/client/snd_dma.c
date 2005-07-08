@@ -513,6 +513,7 @@ void S_Init (void)
 
 
 	Cmd_AddCommand("play", S_Play);
+	Cmd_AddCommand("play2", S_Play);
 	Cmd_AddCommand("playvol", S_PlayVol);
 	Cmd_AddCommand("stopsound", S_StopAllSoundsC);
 	Cmd_AddCommand("soundlist", S_SoundList);

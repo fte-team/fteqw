@@ -6125,8 +6125,11 @@ lh_extension_t QSG_Extensions[] = {
 //	{"TQ_RAILTRAIL"},	//treat this as the ZQ style railtrails which the client already supports, okay so the preparse stuff needs strengthening.
 	{"ZQ_MOVETYPE_FLY"},
 	{"ZQ_MOVETYPE_NOCLIP"},
-	{"ZQ_MOVETYPE_NONE"}
-//	{"ZQ_QC_PARTICLE"}	//particle builtin works in QW ( we don't mimic ZQ fully though)
+	{"ZQ_MOVETYPE_NONE"},
+//	{"ZQ_QC_PARTICLE"},	//particle builtin works in QW ( we don't mimic ZQ fully though)
+		
+
+	{"ZQ_QC_STRINGS",					11, NULL, {"stof", "strlen","strcat","substring","stov","strzone","strunzone"}}	
 };
 
 //some of these are overkill yes, but they are all derived from the fteextensions flags and document the underlaying protocol available.
@@ -6378,7 +6381,7 @@ string substr(string str, float start, float len)
 
 void PF_substr (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
-	char *dest = PF_TempStr(prinst);
+	char *dest;
 	char *s;
 	int start, len, l;
 
@@ -6387,11 +6390,12 @@ void PF_substr (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 	len = (int) G_FLOAT(OFS_PARM2);
 	l = strlen(s);
 
-	if (start >= l || !len || !*s)
+	if (start >= l || len<=0 || !*s)
 	{
 		RETURN_TSTRING("");
 		return;
 	}
+	dest = PF_TempStr(prinst);
 
 	s += start;
 	l -= start;
@@ -6984,7 +6988,7 @@ void PF_FindFlags (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 //EXTENSION: DP_QC_RANDOMVEC
 
 //vector() randomvec = #91
-void PF_randomvec (progfuncs_t *prinst, struct globalvars_s *pr_globals)
+void PF_randomvector (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
 	vec3_t temp;
 	do
@@ -7696,12 +7700,28 @@ void PF_te_gunshot(progfuncs_t *prinst, struct globalvars_s *pr_globals)
 		count = 1;
 	SV_point_tempentity(G_VECTOR(OFS_PARM0), TE_GUNSHOT, count);
 }
+//DP_TE_QUADEFFECTS1
+void PF_te_gunshotquad(progfuncs_t *prinst, struct globalvars_s *pr_globals)
+{
+	int count;
+	if (*svprogfuncs->callargc >= 2)
+		count = G_FLOAT(OFS_PARM1);
+	else
+		count = 1;
+	SV_point_tempentity(G_VECTOR(OFS_PARM0), DPTE_GUNSHOTQUAD, count);
+}
 
 //DP_TE_STANDARDEFFECTBUILTINS
 //void(vector org) te_spike = #419;
 void PF_te_spike(progfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
 	SV_point_tempentity(G_VECTOR(OFS_PARM0), TE_SPIKE, 1);
+}
+
+//DP_TE_QUADEFFECTS1
+void PF_te_spikequad(progfuncs_t *prinst, struct globalvars_s *pr_globals)
+{
+	SV_point_tempentity(G_VECTOR(OFS_PARM0), DPTE_SPIKEQUAD, 1);
 }
 
 void PF_te_lightningblood(progfuncs_t *prinst, struct globalvars_s *pr_globals)
@@ -7715,12 +7735,22 @@ void PF_te_superspike(progfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
 	SV_point_tempentity(G_VECTOR(OFS_PARM0), TE_SUPERSPIKE, 1);
 }
+//DP_TE_QUADEFFECTS1
+void PF_te_superspikequad(progfuncs_t *prinst, struct globalvars_s *pr_globals)
+{
+	SV_point_tempentity(G_VECTOR(OFS_PARM0), DPTE_SUPERSPIKEQUAD, 1);
+}
 
 //DP_TE_STANDARDEFFECTBUILTINS
 //void(vector org) te_explosion = #421;
 void PF_te_explosion(progfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
 	SV_point_tempentity(G_VECTOR(OFS_PARM0), TE_EXPLOSION, 1);
+}
+//DP_TE_QUADEFFECTS1
+void PF_te_explosionquad(progfuncs_t *prinst, struct globalvars_s *pr_globals)
+{
+	SV_point_tempentity(G_VECTOR(OFS_PARM0), DPTE_EXPLOSIONQUAD, 1);
 }
 
 //DP_TE_STANDARDEFFECTBUILTINS
@@ -8693,8 +8723,7 @@ BuiltinList_t BuiltinList[] = {				//nq	qw		h2		ebfs
 
 	{"tracebox",		PF_traceboxdp,		0,		0,		0,		90},
 
-	{"randomvec",		PF_randomvec,		0,		0,		0,		91},
-
+	{"randomvec",		PF_randomvector,	0,		0,		0,		91},
 	{"registercvar",	PF_registercvar,	0,		0,		0,		93},
 	{"min",				PF_min,				0,		0,		0,		94},// #94 float(float a, floats) min (DP_QC_MINMAXBOUND)
 	{"max",				PF_max,				0,		0,		0,		95},	// #95 float(float a, floats) max (DP_QC_MINMAXBOUND)
@@ -8814,6 +8843,11 @@ BuiltinList_t BuiltinList[] = {				//nq	qw		h2		ebfs
 	{"te_particlecube",	PF_te_particlecube,	0,		0,		0,		408},// #408 void(vector mincorner, vector maxcorner, vector vel, float howmany, float color, float gravityflag, float randomveljitter) te_particlecube (DP_TE_PARTICLECUBE)
 //DP_TE_SPARK
 	{"te_spark",		PF_te_spark,		0,		0,		0,		411},// #411 void(vector org, vector vel, float howmany) te_spark (DP_TE_SPARK)
+//DP_TE_QUADEFFECTS1
+	{"te_gunshotquad",	PF_te_gunshotquad,	0,		0,		0,		412},// #412 void(vector org) te_gunshotquad (DP_TE_QUADEFFECTS1)
+	{"te_spikequad",	PF_te_spikequad,	0,		0,		0,		413},// #413 void(vector org) te_spikequad (DP_TE_QUADEFFECTS1)
+	{"te_superspikequad",PF_te_superspikequad,	0,	0,		0,		414},// #414 void(vector org) te_superspikequad (DP_TE_QUADEFFECTS1)
+	{"te_explosionquad",PF_te_explosionquad,0,		0,		0,		415},// #415 void(vector org) te_explosionquad (DP_TE_QUADEFFECTS1)
 //DP_TE_SMALLFLASH
 	{"te_smallflash",	PF_te_smallflash,	0,		0,		0,		416},// #416 void(vector org) te_smallflash (DP_TE_SMALLFLASH)
 //DP_TE_CUSTOMFLASH

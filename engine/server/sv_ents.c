@@ -2405,13 +2405,13 @@ void SV_WriteEntitiesToClient (client_t *client, sizebuf_t *msg, qboolean ignore
 
 #ifdef PEXT_SCALE
 		state->scale = clent->v->scale*16;
-		if (!clent->v->scale)
-			clent->v->scale = 1*16;
+		if (!state->scale)
+			state->scale = 1*16;
 #endif
 #ifdef PEXT_TRANS
 		state->trans = clent->v->alpha*255;
-		if (!clent->v->alpha)
-			clent->v->alpha = 255;
+		if (!state->trans)
+			state->trans = 255;
 #endif
 #ifdef PEXT_FATNESS
 		state->fatness = clent->v->fatness*2;
@@ -2656,7 +2656,7 @@ void SV_WriteEntitiesToClient (client_t *client, sizebuf_t *msg, qboolean ignore
 				state->modelindex = SV_ModelIndex(modname);
 			}
 		}
-		if (progstype == PROG_H2 && ent->v->solid == SOLID_BSP)
+		if (/*progstype == PROG_H2 &&*/ ent->v->solid == SOLID_BSP)
 			state->angles[0]*=-1;
 
 		if (state->effects & EF_FULLBRIGHT)

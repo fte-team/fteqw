@@ -607,7 +607,11 @@ enum {
 #define DPTE_BLOODSHOWER	52
 #define DPTE_EXPLOSIONRGB	53
 #define DPTE_PARTICLECUBE	54
-#define DPTE_SMALLFLASH		72
+#define DPTE_GUNSHOTQUAD	57 // [vector] origin
+#define DPTE_SPIKEQUAD		58 // [vector] origin
+#define DPTE_SUPERSPIKEQUAD	59 // [vector] origin
+#define DPTE_EXPLOSIONQUAD	70 // [vector] origin
+#define DPTE_SMALLFLASH		72 // [vector] origin
 #define DPTE_CUSTOMFLASH	73
 #define DPTE_FLAMEJET		74
 #define DPTE_PLASMABURN		75

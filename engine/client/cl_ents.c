@@ -1780,6 +1780,7 @@ void CL_LinkProjectiles (void)
 		ent->model = cl.model_precache[pr->modelindex];
 		ent->skinnum = 0;
 		ent->frame = 0;
+		ent->flags = 0;
 		ent->colormap = vid.colormap;
 		ent->scoreboard = NULL;
 #ifdef PEXT_SCALE

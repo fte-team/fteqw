@@ -2453,7 +2453,6 @@ void CModQ3_LoadRFaces (lump_t *l, qboolean useshaders)
 	{
 		out->plane = pl;
 		out->texinfo = loadmodel->texinfo + LittleLong(in->shadernum);
-		in->facetype = LittleLong(in->facetype);
 		out->lightmaptexturenum = LittleLong(in->lightmapnum);
 		out->light_s = LittleLong(in->lightmap_x);
 		out->light_t = LittleLong(in->lightmap_y);
@@ -2847,8 +2846,8 @@ void CModQ3_LoadLeafs (lump_t *l)
 	{
 		for (j = 0; j < 3; j++)
 		{
-			out->minmaxs[0+j] = LittleFloat(in->mins[j]);
-			out->minmaxs[3+j] = LittleFloat(in->maxs[j]);
+			out->minmaxs[0+j] = LittleLong(in->mins[j]);
+			out->minmaxs[3+j] = LittleLong(in->maxs[j]);
 		}
 		out->cluster = LittleLong ( in->cluster );
 		out->area = LittleLong ( in->area ) + 1;

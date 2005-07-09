@@ -2454,11 +2454,11 @@ void CModQ3_LoadRFaces (lump_t *l, qboolean useshaders)
 		out->plane = pl;
 		out->texinfo = loadmodel->texinfo + LittleLong(in->shadernum);
 		in->facetype = LittleLong(in->facetype);
-		out->lightmaptexturenum = in->lightmapnum;
-		out->light_s = in->lightmap_x;
-		out->light_t = in->lightmap_y;
-		out->extents[0] = (in->lightmap_width-1)<<4;
-		out->extents[1] = (in->lightmap_height-1)<<4;
+		out->lightmaptexturenum = LittleLong(in->lightmapnum);
+		out->light_s = LittleLong(in->lightmap_x);
+		out->light_t = LittleLong(in->lightmap_y);
+		out->extents[0] = (LittleLong(in->lightmap_width)-1)<<4;
+		out->extents[1] = (LittleLong(in->lightmap_height)-1)<<4;
 		out->samples = loadmodel->lightdata + 3*(out->light_s + out->light_t*128 + out->lightmaptexturenum*128*128);
 if (out->lightmaptexturenum<0)
 out->samples=NULL;
@@ -2477,20 +2477,20 @@ if (in->fognum!=-1)
 continue;
 */
 
-		if (map_surfaces[in->shadernum].c.value == 0 || map_surfaces[in->shadernum].c.value & Q3CONTENTS_TRANSLUCENT)
+		if (map_surfaces[LittleLong(in->shadernum)].c.value == 0 || map_surfaces[LittleLong(in->shadernum)].c.value & Q3CONTENTS_TRANSLUCENT)
 				//q3dm10's thingie is 0
 			out->flags |= SURF_DRAWALPHA;
 
-		if (loadmodel->texinfo[in->shadernum].flags & SURF_SKY)
+		if (loadmodel->texinfo[LittleLong(in->shadernum)].flags & SURF_SKY)
 			out->flags |= SURF_DRAWSKY;
 
 #ifdef Q3SHADERS
 		if (!out->texinfo->texture->shader && useshaders)
 		{
 			extern cvar_t r_vertexlight;
-			if (in->facetype == MST_FLARE)
+			if (LittleLong(in->facetype) == MST_FLARE)
 				out->texinfo->texture->shader = R_RegisterShader_Flare (out->texinfo->texture->name);
-			else if (in->facetype == MST_TRIANGLE_SOUP || r_vertexlight.value)
+			else if (LittleLong(in->facetype) == MST_TRIANGLE_SOUP || r_vertexlight.value)
 				out->texinfo->texture->shader = R_RegisterShader_Vertex (out->texinfo->texture->name);
 			else
 				out->texinfo->texture->shader = R_RegisterShader(out->texinfo->texture->name);
@@ -2503,20 +2503,20 @@ continue;
 			}
 		}
 
-		if (in->fognum == -1 || !map_numfogs)
+		if (LittleLong(in->fognum) == -1 || !map_numfogs)
 			out->fog = NULL;
 		else
-			out->fog = map_fogs + in->fognum;
+			out->fog = map_fogs + LittleLong(in->fognum);
 #endif
-		if (map_surfaces[in->shadernum].c.flags & (Q3SURF_NODRAW | Q3SURF_SKIP))
+		if (map_surfaces[LittleLong(in->shadernum)].c.flags & (Q3SURF_NODRAW | Q3SURF_SKIP))
 		{
 			out->mesh = &nullmesh;
 		}
-		else if (in->facetype == MST_PATCH)
+		else if (LittleLong(in->facetype) == MST_PATCH)
 		{
 			out->mesh = GL_CreateMeshForPatch(loadmodel, LittleLong(in->patchwidth), LittleLong(in->patchheight), LittleLong(in->num_vertices), LittleLong(in->firstvertex));
 		}
-		else if (in->facetype == MST_PLANAR || in->facetype == MST_TRIANGLE_SOUP)
+		else if (LittleLong(in->facetype) == MST_PLANAR || LittleLong(in->facetype) == MST_TRIANGLE_SOUP)
 		{
 			numindexes = LittleLong(in->num_indexes);
 			numverts = LittleLong(in->num_vertices);

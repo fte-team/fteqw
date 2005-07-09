@@ -879,6 +879,7 @@ void	Validation_FilesModified (void);
 void	Validation_Skins(void);
 void	Validation_CheckIfResponse(char *text);
 void	InitValidation(void);
+void	Validation_IncludeFile(char *filename, char *file, int filelen);
 
 extern	qboolean f_modified_particles;
 extern	qboolean care_f_modified;

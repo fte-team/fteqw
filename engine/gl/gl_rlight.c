@@ -157,6 +157,7 @@ void R_RenderDlights (void)
 {
 	int		i;
 	dlight_t	*l;
+	vec3_t waste1, waste2;
 
 	if (!r_flashblend.value)
 		return;
@@ -169,12 +170,30 @@ void R_RenderDlights (void)
 	qglEnable (GL_BLEND);
 	qglBlendFunc (GL_ONE, GL_ONE);
 
+	if (r_flashblend.value == 2)
+	{
+		qglDisable(GL_DEPTH_TEST);
+		qglDepthMask(0);
+	}
+
 	l = cl_dlights;
 	for (i=0 ; i<MAX_DLIGHTS ; i++, l++)
 	{
 		if (!l->radius || l->noflash)
 			continue;
+
+		if (r_flashblend.value == 2)
+		{
+			if (TraceLineN(r_refdef.vieworg, l->origin, waste1, waste2))
+				continue;
+		}
 		R_RenderDlight (l);
+	}
+
+	if (r_flashblend.value == 2)
+	{
+		qglEnable(GL_DEPTH_TEST);
+		qglDepthMask(1);
 	}
 
 	qglColor3f (1,1,1);

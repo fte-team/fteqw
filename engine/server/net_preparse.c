@@ -1119,7 +1119,7 @@ void NPP_QWWriteFloat(int dest, float data)	//replacement write func (nq to qw)
 {
 	union {
 		qbyte b[4];
-		short f;
+		float f;
 	} u;
 	u.f = LittleFloat(data);
 	NPP_QWWriteByte(dest, u.b[0]);

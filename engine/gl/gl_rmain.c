@@ -2107,8 +2107,8 @@ void GLR_RenderView (void)
 	// render normal view
 	R_RenderScene ();	
 	GLR_DrawViewModel ();
-//	GLR_DrawWaterSurfaces ();
-//	GLR_DrawAlphaSurfaces ();
+	GLR_DrawWaterSurfaces ();
+	GLR_DrawAlphaSurfaces ();
 
 	// render mirror view
 	R_Mirror ();

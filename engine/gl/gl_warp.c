@@ -133,10 +133,10 @@ void EmitWaterPolys (msurface_t *fa, float basealpha)
 	}
 	else	//dull (fast) single player
 	{
-		qglColor4f(1, 1, 1, 1);
 		qglMatrixMode(GL_TEXTURE);
 		qglPushMatrix();
 		qglTranslatef (sin(cl.time) * 0.4f, cos(cl.time) * 0.06f, 0);
+		fa->mesh->colors_array = NULL;
 		GL_DrawAliasMesh(fa->mesh, fa->texinfo->texture->gl_texturenum);
 		qglPopMatrix();
 		qglMatrixMode(GL_MODELVIEW);

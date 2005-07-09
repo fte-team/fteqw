@@ -245,9 +245,6 @@ extern qboolean isDedicated;
 #endif
 
 
-void Validation_IncludeFile(char *filename, char *file, int filelen);
-
-
 
 #ifdef __cplusplus
 }

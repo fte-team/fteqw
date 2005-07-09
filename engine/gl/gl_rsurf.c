@@ -2064,6 +2064,12 @@ void GLR_DrawWaterSurfaces (void)
 		qglColor4f (1,1,1,r_wateralphaval);
 		GL_TexEnv(GL_MODULATE);
 	}
+	else
+	{
+		qglDisable (GL_BLEND);
+		qglDisable (GL_ALPHA_TEST);
+		GL_TexEnv(GL_REPLACE);
+	}
 
 	for (i=0 ; i<cl.worldmodel->numtextures ; i++)
 	{

@@ -1429,7 +1429,7 @@ void SV_ClipMoveToEntities ( moveclip_t *clip )
 	int			headnode;
 	float		*angles;
 
-	int passed = clip->passedict?EDICT_TO_PROG(svprogfuncs, clip->passedict):NULL;
+	int passed = clip->passedict?EDICT_TO_PROG(svprogfuncs, clip->passedict):0;
 
 	num = SV_AreaEdicts (clip->boxmins, clip->boxmaxs, touchlist
 		, MAX_EDICTS, AREA_SOLID);

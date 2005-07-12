@@ -2,7 +2,7 @@
 /*QUAKED info_null (0 0.5 0) (-4 -4 -4) (4 4 4)
 Used as a positional target for spotlights, etc.
 */
-void() info_null = SUB_Remove;
+var void() info_null = SUB_Remove;
 
 /*QUAKED info_notnull (0 0.5 0) (-4 -4 -4) (4 4 4)
 Used as a positional target for lightning.
@@ -361,7 +361,7 @@ void() trap_shooter =
 	
 	if (self.wait == 0)
 		self.wait = 1;
-	self.nextthink = self.nextthink + self.wait + self.ltime;
+	self.nextthink = time + self.wait;
 	self.think = shooter_think;
 };
 

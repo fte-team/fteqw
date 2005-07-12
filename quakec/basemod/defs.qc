@@ -282,13 +282,6 @@ void            end_sys_fields;                 // flag for structure dumping
 #define SOLID_SLIDEBOX 3 // touch on edge, but not an onground
 #define SOLID_BSP      4 // bsp clip, touch on edge, block
 
-// range values
-/*
-float   RANGE_MELEE                             = 0;
-float   RANGE_NEAR                              = 1;
-float   RANGE_MID                               = 2;
-float   RANGE_FAR                               = 3;
-*/
 
 // deadflag values
 #define DEAD_NO          0
@@ -462,6 +455,8 @@ float skill;
 entity  lastspawn;
 float spotspawn;
 
+entity shub; // boss entity
+
 //================================================
 
 #define WT_MEDIEVAL 0
@@ -497,7 +492,7 @@ float spotspawn;
 //
 // misc
 //
-.float cnt; // misc flag used by trains/dropped pent and quad
+.float cnt; // misc flag used by trains/dropped pent and quad/monsters
 	
 // intermission
 float   intermission_running;
@@ -511,6 +506,15 @@ entity newmis;
 .float alpha; // DP_ENT_ALPHA
 
 // enums
+// ai ranges
+enum
+{
+	RANGE_MELEE,
+	RANGE_NEAR,
+	RANGE_MID,
+	RANGE_FAR
+};
+
 // monster attack states
 enum
 {
@@ -600,7 +604,7 @@ enum {
 		float swim_flag;			// swim sound playback
 		float air_finished;		// when time > air_finished, start drowning
 		float waterdmg;			// damage water will deal when drowning
-		float walkframe;			// used with walking animation
+		INTEGER walkframe;		// used with walking animation
 		float jump_flag;			// last z velocity used for falling damage
 		INTEGER ammo_type;		// ammo type in use
 	};
@@ -613,10 +617,6 @@ enum {
 		INTEGER healtype;	// type of health with health item
 		string mdl;		// model used with SUB_regen
 		float ammo_count;	// ammo amount 
-	};
-	struct { // fields used with monsters
-		float pausetime;		// time to pause for monsters
-		entity movetarget;	// target entity to move to
 	};
 	struct { // fields used with generic projectiles
 		float damage_direct;		// damage done with a direct hit
@@ -644,6 +644,12 @@ enum {
 		void() th_missile;	// ranged animation
 		void() th_melee;		// melee animation
 		entity oldenemy;		// old enemy
+		entity movetarget;	// target entity to move to
+		float pausetime;		// time to pause for monsters
+		float hknightattack;	// hell knight attack pattern
+		float lefty;		// ai slide move
+		float wizardidle;		// wizard idle sound timer
+		float inpain;		// zombie in pain
 	};
 	// fields used with ambient sounds?
 	/*
@@ -780,7 +786,6 @@ void() SUB_Remove;
 //      combat.qc
 //
 void(entity targ, entity inflictor, entity attacker, float damage, INTEGER mod) T_Damage;
-
 
 float (entity e, float healamount, float ignore) T_Heal; // health function
 

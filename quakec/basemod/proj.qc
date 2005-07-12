@@ -10,7 +10,8 @@ enum {
 	PE_GUNSHOT,
 	PE_EXPLOSION,
 	PE_EXPLOSIONGROUND,
-	PE_LASER
+	PE_LASER,
+	PE_ZOMBIEGIB
 };
 
 // functions used only by this QC file
@@ -24,6 +25,24 @@ float() _PRJ_Bounce =
 		self.avelocity = '0 0 0';
 
 	return 1; // keep bouncing
+};
+
+float() _PRJ_Remove =
+{
+	remove(self);
+	return 1; // stop execution within touch function
+};
+
+float() _PRJ_Stop =
+{
+	if (other.takedamage)
+		return 0;
+
+	sound (self, CHAN_WEAPON, "zombie/z_miss.wav", 1, ATTN_NORM); // bounce sound
+	self.velocity = '0 0 0';
+	self.avelocity = '0 0 0';
+	self.proj_touch = _PRJ_Remove;
+	return 1; // keep the entity alive
 };
 
 void() _PRJ_Touch =
@@ -56,14 +75,14 @@ void() _PRJ_Touch =
 	// do projectile damage
 	ignore = self;
 
-	if (other.health && self.damage_direct)
+	if (other.health >= 1 && self.damage_direct)
 	{
 		T_Damage (other, self, self.owner, self.damage_direct, self.mod_direct);
 		ignore = other;
 	}
 
 	if (self.radius_exp)
-		T_RadiusDamage (self, self.owner, self.damage_exp, self.radius_exp, other, self.mod_exp);
+		T_RadiusDamage (self, self.owner, self.damage_exp, self.radius_exp, ignore, self.mod_exp);
 	
 	// run projectile effect
 	switch (self.proj_effect)
@@ -107,6 +126,9 @@ void() _PRJ_Touch =
 	case PE_EXPLOSIONGROUND:
 		TE_explosion(self.origin);
 		break;
+	case PE_ZOMBIEGIB:
+		sound (self, CHAN_WEAPON, "zombie/z_hit.wav", 1, ATTN_NORM);
+		break;
 	}
 
 	remove(self);
@@ -126,8 +148,8 @@ void() _PRJ_Think =
 		return;
 	}
 
-	newmis.proj_think();
-	newmis.nextthink = time + newmis.proj_think_time;
+	self.nextthink = time + self.proj_think_time;
+	self.proj_think(); // projectile could remove itself here
 };
 
 // functions used by outside QC files
@@ -139,6 +161,14 @@ void() PRJ_SetBouncyProjectile =
 	newmis.avelocity = '300 300 300';
 };
 
+// set tossed projectile (zombie gib) function
+void() PRJ_SetTossedProjectile =
+{
+	newmis.proj_touch = _PRJ_Stop;
+	newmis.movetype = MOVETYPE_BOUNCE;
+	newmis.avelocity = '3000 1000 2000';
+};
+
 // set radius damage function
 void(INTEGER damg, INTEGER damgrad, INTEGER damgmod) PRJ_SetRadiusDamage =
 {
@@ -148,12 +178,18 @@ void(INTEGER damg, INTEGER damgrad, INTEGER damgmod) PRJ_SetRadiusDamage =
 };
 
 // extra think function, should always be called ONCE after the main spawn function
-void(void() thinkfunc, float thinkres) PRJ_SetThink =
+void(void() thinkfunc, float thinktimeinit, float thinkres) PRJ_SetThink =
 {
 	newmis.think = _PRJ_Think;
-	newmis.nextthink = time + thinkres;
+	newmis.nextthink = time + thinktimeinit;
 	newmis.proj_think = thinkfunc;
 	newmis.proj_think_time = thinkres;
+};
+
+// extra touch function
+void(float() touchfunc) PRJ_SetTouch =
+{
+	newmis.proj_touch = touchfunc;
 };
 
 // main spawning function

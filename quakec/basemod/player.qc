@@ -123,13 +123,13 @@ void()  player_run =[   $rockrun1,      player_run      ]
 
 	if (self.weapon == IT_AXE)
 	{
-		if (self.walkframe == 6)
+		if (self.walkframe >= 6)
 			self.walkframe = 0;
 		self.frame = $axrun1 + self.walkframe;
 	}
 	else
 	{
-		if (self.walkframe == 6)
+		if (self.walkframe >= 6)
 			self.walkframe = 0;
 		self.frame = self.frame + self.walkframe;
 	}
@@ -313,7 +313,7 @@ local entity    bubble;
 	bubble.think = bubble_bob;
 	bubble.classname = "bubble";
 	bubble.frame = 0;
-	bubble.cnt = 0;
+	bubble.bubble_state = 0;
 	setsize (bubble, '-8 -8 -8', '8 8 8');
 	self.nextthink = time + 0.1;
 	self.think = DeathBubblesSpawn;
@@ -428,7 +428,6 @@ void(string gibname, float dm) ThrowGib =
 	new.avelocity_y = random()*600;
 	new.avelocity_z = random()*600;
 	new.think = SUB_Remove;
-	new.ltime = time;
 	new.nextthink = time + 10 + random()*10;
 	new.frame = 0;
 	new.flags = 0;

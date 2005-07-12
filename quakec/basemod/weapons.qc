@@ -348,11 +348,11 @@ LIGHTNING
 ===============================================================================
 */
 
-void(entity from, float damage) LightningHit =
+void(entity from, float damage, INTEGER lmod) LightningHit =
 {
 	TE_lightningblood(trace_endpos);
 
-	T_Damage (trace_ent, from, from, damage, MOD_SHAFT);
+	T_Damage (trace_ent, from, from, damage, lmod);
 };
 
 /*
@@ -360,7 +360,7 @@ void(entity from, float damage) LightningHit =
 LightningDamage
 =================
 */
-void(vector p1, vector p2, entity from, float damage) LightningDamage =
+void(vector p1, vector p2, entity from, float damage, INTEGER lmod) LightningDamage =
 {
 	local entity            e1, e2;
 	local vector            f;
@@ -377,17 +377,17 @@ void(vector p1, vector p2, entity from, float damage) LightningDamage =
 	traceline (p1, p2, FALSE, self);
 
 	if (trace_ent.takedamage)
-		LightningHit (from, damage);
+		LightningHit (from, damage, lmod);
 	e1 = trace_ent;
 
 	traceline (p1 + f, p2 + f, FALSE, self);
 	if (trace_ent != e1 && trace_ent.takedamage)
-		LightningHit (from, damage);
+		LightningHit (from, damage, lmod);
 	e2 = trace_ent;
 
 	traceline (p1 - f, p2 - f, FALSE, self);
 	if (trace_ent != e1 && trace_ent != e2 && trace_ent.takedamage)
-		LightningHit (from, damage);
+		LightningHit (from, damage, lmod);
 };
 
 
@@ -446,7 +446,7 @@ void() W_FireLightning =
 
 	TE_lightning2(self, org, trace_endpos);
 
-	LightningDamage (self.origin, trace_endpos + v_forward*4, self, 30);
+	LightningDamage (self.origin, trace_endpos + v_forward*4, self, 30, MOD_SHAFT);
 };
 
 /*

@@ -3,9 +3,10 @@ void() info_player_start;
 void(entity targ, entity attacker, INTEGER mod) ClientObituary;
 void(entity inflictor, entity attacker, float damage, float radius, entity ignore, INTEGER mod) T_RadiusDamage;
 
-/*SERVER
+#ifdef MONSTERS
 void() monster_death_use;
-*/
+void() FoundTarget;
+#endif
 
 //============================================================================
 
@@ -75,11 +76,14 @@ void(entity targ, entity attacker, INTEGER mod) Killed =
 	}
 
 // bump the monster counter
+#ifdef MONSTERS
 	if (self.flags & FL_MONSTER)
 	{
 		killed_monsters = killed_monsters + 1;
 		WriteByte (MSG_ALL, SVC_KILLEDMONSTER);
+		monster_death_use();
 	}
+#endif
 
 	ClientObituary(self, attacker, mod);
 	
@@ -87,9 +91,6 @@ void(entity targ, entity attacker, INTEGER mod) Killed =
 	self.touch = SUB_Null;
 	self.effects = 0;
 
-/*SERVER
-	monster_death_use();
-*/
 	self.th_die ();
 	
 	self = oself;
@@ -258,7 +259,7 @@ void(entity targ, entity inflictor, entity attacker, float damage, INTEGER mod) 
 	oldself = self;
 	self = targ;
 
-/*SERVER
+#ifdef MONSTERS
 	if ( (self.flags & FL_MONSTER) && attacker != world)
 	{
 	// get mad unless of the same class (except for soldiers)
@@ -274,7 +275,8 @@ void(entity targ, entity inflictor, entity attacker, float damage, INTEGER mod) 
 			}
 		}
 	}
-*/
+#endif
+
 	if (self.th_pain)
 	{
 		self.th_pain (attacker, take);

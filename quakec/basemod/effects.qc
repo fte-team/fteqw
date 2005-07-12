@@ -9,6 +9,71 @@ var float ef_pent = EF_DIMLIGHT; // used for pent effect on player
 var float ef_blue = 0;           // used for glow on quad
 var float ef_quad = EF_DIMLIGHT; // used for quad effect on player
 
+// base te write functions
+void WriteVector (float msg, vector org) =
+{
+	WriteCoord (msg, org_x);
+	WriteCoord (msg, org_y);
+	WriteCoord (msg, org_z);
+};
+
+#ifdef NETQUAKE
+void(vector org, float effect) _EFF_PointEffect =
+{
+	WriteByte (MSG_BROADCAST, SVC_TEMPENTITY);
+	WriteByte (MSG_BROADCAST, effect);
+	WriteVector (MSG_BROADCAST, org);
+};
+
+void(entity ent, vector org, vector org2, float effect) _EFF_BeamEffect =
+{
+	WriteByte (MSG_BROADCAST, SVC_TEMPENTITY);
+	WriteByte (MSG_BROADCAST, effect);
+	WriteEntity (MSG_BROADCAST, ent);
+	WriteVector (MSG_BROADCAST, org);
+	WriteVector (MSG_BROADCAST, org2);
+};
+
+void(vector org, float damage, float effect) _EFF_CountEffect =
+{
+	WriteByte (MSG_BROADCAST, SVC_TEMPENTITY);
+	WriteByte (MSG_BROADCAST, effect);
+	WriteByte (MSG_BROADCAST, damage);
+	WriteVector (MSG_BROADCAST, org);
+};
+
+#define EFF_PointEffect(a,b,c) _EFF_PointEffect(a,b)
+#define EFF_BeamEffect(a,b,c,d,e) _EFF_BeamEffect(a,b,c,d)
+#define EFF_CountEffect(a,b,c,d) _EFF_CountEffect(a,b,c)
+#else
+void(vector org, float effect, float mcast) EFF_PointEffect =
+{
+	WriteByte (MSG_MULTICAST, SVC_TEMPENTITY);
+	WriteByte (MSG_MULTICAST, effect);
+	WriteVector (MSG_MULTICAST, org);
+	multicast (org, mcast);
+};
+
+void(entity ent, vector org, vector org2, float effect, float mcast) EFF_BeamEffect =
+{
+	WriteByte (MSG_MULTICAST, SVC_TEMPENTITY);
+	WriteByte (MSG_MULTICAST, effect);
+	WriteEntity (MSG_MULTICAST, ent);
+	WriteVector (MSG_MULTICAST, org);
+	WriteVector (MSG_MULTICAST, org2);
+	multicast (org, mcast);
+};
+
+void(vector org, float damage, float effect, float mcast) EFF_CountEffect =
+{
+	WriteByte (MSG_MULTICAST, SVC_TEMPENTITY);
+	WriteByte (MSG_MULTICAST, effect);
+	WriteByte (MSG_MULTICAST, damage);
+	WriteVector (MSG_MULTICAST, org);
+	multicast (org, mcast);
+};
+#endif
+
 /*
 ================
 SpawnBlood
@@ -24,17 +89,11 @@ void(vector org, float damage) _SpawnBlood =
 #ifdef NETQUAKE
 	particle (org, '0 0 0', 73, damage*2);
 #else
-	WriteByte (MSG_MULTICAST, SVC_TEMPENTITY);
-	WriteByte (MSG_MULTICAST, TE_BLOOD);
-	WriteByte (MSG_MULTICAST, damage);
-	WriteCoord (MSG_MULTICAST, org_x);
-	WriteCoord (MSG_MULTICAST, org_y);
-	WriteCoord (MSG_MULTICAST, org_z);
-	multicast (org, MULTICAST_PVS);
+	EFF_CountEffect(org, damage, TE_BLOOD, MULTICAST_PVS);
 #endif
 };
 
-#ifdef NETQUAKE
+// #if defined(NETQUAKE) || defined(MONSTERS)
 void() s_explode6 = [5,		SUB_Remove] {};
 void() s_explode5 = [4,		s_explode6] {};
 void() s_explode4 = [3,		s_explode5] {};
@@ -60,160 +119,73 @@ void(vector org) CreateExplosion =
 
 	self = s; // restore old self
 };
-#endif
+// #endif
 
 void(vector org) _TE_explosion =
 {
+	EFF_PointEffect(org, TE_EXPLOSION, MULTICAST_PHS);
 #ifdef NETQUAKE
-	WriteByte (MSG_BROADCAST, SVC_TEMPENTITY);
-	WriteByte (MSG_BROADCAST, TE_EXPLOSION);
-	WriteCoord (MSG_BROADCAST, org_x);
-	WriteCoord (MSG_BROADCAST, org_y);
-	WriteCoord (MSG_BROADCAST, org_z);
 	CreateExplosion(org);
-#else
-	WriteByte (MSG_MULTICAST, SVC_TEMPENTITY);
-	WriteByte (MSG_MULTICAST, TE_EXPLOSION);
-	WriteCoord (MSG_MULTICAST, org_x);
-	WriteCoord (MSG_MULTICAST, org_y);
-	WriteCoord (MSG_MULTICAST, org_z);
-	multicast (org, MULTICAST_PHS);
 #endif
 };
 
 void(vector org) _TE_gunshot =
 {
 #ifdef NETQUAKE
-	WriteByte (MSG_BROADCAST, SVC_TEMPENTITY);
-	WriteByte (MSG_BROADCAST, TE_GUNSHOT);
-	WriteCoord (MSG_BROADCAST, org_x);
-	WriteCoord (MSG_BROADCAST, org_y);
-	WriteCoord (MSG_BROADCAST, org_z);
+	EFF_PointEffect(org, TE_GUNSHOT, MULTICAST_PVS);
 #else
-	WriteByte (MSG_MULTICAST, SVC_TEMPENTITY);
-	WriteByte (MSG_MULTICAST, TE_GUNSHOT);
-	WriteByte (MSG_MULTICAST, 3);
-	WriteCoord (MSG_MULTICAST, org_x);
-	WriteCoord (MSG_MULTICAST, org_y);
-	WriteCoord (MSG_MULTICAST, org_z);
-	multicast (org, MULTICAST_PVS);
+	EFF_CountEffect(org, 3, TE_GUNSHOT, MULTICAST_PVS);
 #endif
 };
 
 void(vector org) _TE_spike =
 {
-#ifdef NETQUAKE
-	WriteByte (MSG_BROADCAST, SVC_TEMPENTITY);
-	WriteByte (MSG_BROADCAST, TE_SPIKE);
-	WriteCoord (MSG_BROADCAST, org_x);
-	WriteCoord (MSG_BROADCAST, org_y);
-	WriteCoord (MSG_BROADCAST, org_z);
-#else
-	WriteByte (MSG_MULTICAST, SVC_TEMPENTITY);
-	WriteByte (MSG_MULTICAST, TE_SPIKE);
-	WriteCoord (MSG_MULTICAST, org_x);
-	WriteCoord (MSG_MULTICAST, org_y);
-	WriteCoord (MSG_MULTICAST, org_z);
-	multicast (org, MULTICAST_PHS);
-#endif
+	EFF_PointEffect(org, TE_SPIKE, MULTICAST_PHS);
 };
 
 void(vector org) _TE_knightspike =
 {
-#ifdef NETQUAKE
-	WriteByte (MSG_BROADCAST, SVC_TEMPENTITY);
-	WriteByte (MSG_BROADCAST, TE_KNIGHTSPIKE);
-	WriteCoord (MSG_BROADCAST, org_x);
-	WriteCoord (MSG_BROADCAST, org_y);
-	WriteCoord (MSG_BROADCAST, org_z);
-#else
-	WriteByte (MSG_MULTICAST, SVC_TEMPENTITY);
-	WriteByte (MSG_MULTICAST, TE_KNIGHTSPIKE);
-	WriteCoord (MSG_MULTICAST, org_x);
-	WriteCoord (MSG_MULTICAST, org_y);
-	WriteCoord (MSG_MULTICAST, org_z);
-	multicast (org, MULTICAST_PHS);
-#endif
+	EFF_PointEffect(org, TE_KNIGHTSPIKE, MULTICAST_PHS);
 };
 
 void(vector org) _TE_wizspike =
 {
-#ifdef NETQUAKE
-	WriteByte (MSG_BROADCAST, SVC_TEMPENTITY);
-	WriteByte (MSG_BROADCAST, TE_WIZSPIKE);
-	WriteCoord (MSG_BROADCAST, org_x);
-	WriteCoord (MSG_BROADCAST, org_y);
-	WriteCoord (MSG_BROADCAST, org_z);
-#else
-	WriteByte (MSG_MULTICAST, SVC_TEMPENTITY);
-	WriteByte (MSG_MULTICAST, TE_WIZSPIKE);
-	WriteCoord (MSG_MULTICAST, org_x);
-	WriteCoord (MSG_MULTICAST, org_y);
-	WriteCoord (MSG_MULTICAST, org_z);
-	multicast (org, MULTICAST_PHS);
-#endif
+	EFF_PointEffect(org, TE_WIZSPIKE, MULTICAST_PHS);
 };
 
 void(vector org) _TE_superspike =
 {
-#ifdef NETQUAKE
-	WriteByte (MSG_BROADCAST, SVC_TEMPENTITY);
-	WriteByte (MSG_BROADCAST, TE_SUPERSPIKE);
-	WriteCoord (MSG_BROADCAST, org_x);
-	WriteCoord (MSG_BROADCAST, org_y);
-	WriteCoord (MSG_BROADCAST, org_z);
-#else
-	WriteByte (MSG_MULTICAST, SVC_TEMPENTITY);
-	WriteByte (MSG_MULTICAST, TE_SUPERSPIKE);
-	WriteCoord (MSG_MULTICAST, org_x);
-	WriteCoord (MSG_MULTICAST, org_y);
-	WriteCoord (MSG_MULTICAST, org_z);
-	multicast (org, MULTICAST_PHS);
-#endif
+	EFF_PointEffect(org, TE_SUPERSPIKE, MULTICAST_PHS);
 };
 
 void(vector org) _TE_teleport =
 {
-#ifdef NETQUAKE
-	WriteByte (MSG_BROADCAST, SVC_TEMPENTITY);
-	WriteByte (MSG_BROADCAST, TE_TELEPORT);
-	WriteCoord (MSG_BROADCAST, org_x);
-	WriteCoord (MSG_BROADCAST, org_y);
-	WriteCoord (MSG_BROADCAST, org_z);
-#else
-	WriteByte (MSG_MULTICAST, SVC_TEMPENTITY);
-	WriteByte (MSG_MULTICAST, TE_TELEPORT);
-	WriteCoord (MSG_MULTICAST, org_x);
-	WriteCoord (MSG_MULTICAST, org_y);
-	WriteCoord (MSG_MULTICAST, org_z);
-	multicast (org, MULTICAST_PHS);
-#endif
+	EFF_PointEffect(org, TE_TELEPORT, MULTICAST_PHS);
+};
+
+void(vector org) _TE_lavasplash = 
+{
+	EFF_PointEffect(org, TE_LAVASPLASH, MULTICAST_PVS);
+};
+
+void(vector org) _TE_tarexplosion = 
+{
+	EFF_PointEffect(org, TE_TAREXPLOSION, MULTICAST_PHS);
+};
+
+void(entity ent, vector start, vector end) _TE_lightning1 =
+{
+	EFF_BeamEffect (ent, start, end, TE_LIGHTNING1, MULTICAST_PHS);
 };
 
 void(entity ent, vector start, vector end) _TE_lightning2 =
 {
-#ifdef NETQUAKE
-	WriteByte (MSG_BROADCAST, SVC_TEMPENTITY);
-	WriteByte (MSG_BROADCAST, TE_LIGHTNING2);
-	WriteEntity (MSG_BROADCAST, ent);
-	WriteCoord (MSG_BROADCAST, start_x);
-	WriteCoord (MSG_BROADCAST, start_y);
-	WriteCoord (MSG_BROADCAST, start_z);
-	WriteCoord (MSG_BROADCAST, end_x);
-	WriteCoord (MSG_BROADCAST, end_y);
-	WriteCoord (MSG_BROADCAST, end_z);
-#else
-	WriteByte (MSG_MULTICAST, SVC_TEMPENTITY);
-	WriteByte (MSG_MULTICAST, TE_LIGHTNING2);
-	WriteEntity (MSG_MULTICAST, ent);
-	WriteCoord (MSG_MULTICAST, start_x);
-	WriteCoord (MSG_MULTICAST, start_y);
-	WriteCoord (MSG_MULTICAST, start_z);
-	WriteCoord (MSG_MULTICAST, end_x);
-	WriteCoord (MSG_MULTICAST, end_y);
-	WriteCoord (MSG_MULTICAST, end_z);
-	multicast (start, MULTICAST_PHS);
-#endif
+	EFF_BeamEffect (ent, start, end, TE_LIGHTNING2, MULTICAST_PHS);
+};
+
+void(entity ent, vector start, vector end) _TE_lightning3 =
+{
+	EFF_BeamEffect (ent, start, end, TE_LIGHTNING3, MULTICAST_PHS);
 };
 
 void(vector org) TE_lightningblood =
@@ -221,12 +193,7 @@ void(vector org) TE_lightningblood =
 #ifdef NETQUAKE
 	particle(org, '0 0 100', 225, 120);
 #else
-	WriteByte (MSG_MULTICAST, SVC_TEMPENTITY);
-	WriteByte (MSG_MULTICAST, TE_LIGHTNINGBLOOD);
-	WriteCoord (MSG_MULTICAST, org_x);
-	WriteCoord (MSG_MULTICAST, org_y);
-	WriteCoord (MSG_MULTICAST, org_z);
-	multicast (org, MULTICAST_PVS);
+	EFF_PointEffect(org, TE_LIGHTNINGBLOOD, MULTICAST_PVS);
 #endif
 };
 
@@ -239,7 +206,11 @@ var void(vector org) TE_knightspike = _TE_knightspike;
 var void(vector org) TE_wizspike = _TE_wizspike;
 var void(vector org) TE_superspike = _TE_superspike;
 var void(vector org) TE_teleport = _TE_teleport;
+var void(vector org) TE_lavasplash = _TE_lavasplash;
+var void(vector org) TE_tarexplosion = _TE_tarexplosion;
+var void(entity ent, vector start, vector end) TE_lightning1 = _TE_lightning1;
 var void(entity ent, vector start, vector end) TE_lightning2 = _TE_lightning2;
+var void(entity ent, vector start, vector end) TE_lightning3 = _TE_lightning3;
 
 // set effects function, takes function pointers and assigns them based on detected builtins
 void() EFF_SetEffects =
@@ -266,7 +237,11 @@ void() EFF_SetEffects =
 		TE_wizspike = _te_wizspike;
 		TE_superspike = _te_superspike;
 		TE_teleport = _te_teleport;
+		TE_lavasplash = _te_lavasplash;
+		TE_tarexplosion = _te_tarexplosion;
+		TE_lightning1 = _te_lightning1;
 		TE_lightning2 = _te_lightning2;
+		TE_lightning3 = _te_lightning3;
 	}
 
 	if (eng_support & ENG_TEBLOOD)

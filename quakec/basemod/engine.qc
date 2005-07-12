@@ -119,14 +119,30 @@ string(string cv) stringserverinfokey =
 #endif
 
 // cdtrack wrapper
+#ifdef NETQUAKE
+// only NetQuake supports loop track
 void(float track, float looptrack) ENG_SwitchTrack =
 {
 	WriteByte (MSG_ALL, SVC_CDTRACK);
 	WriteByte (MSG_ALL, track);
-#ifdef NETQUAKE
-	// only NetQuake supports loop track
 	WriteByte (MSG_ALL, looptrack);	
+};
+#else
+void(float track) _ENG_SwitchTrack =
+{
+	WriteByte (MSG_ALL, SVC_CDTRACK);
+	WriteByte (MSG_ALL, track);
+};
+
+#define ENG_SwitchTrack(a,b) _ENG_SwitchTrack(a)
 #endif
+
+// finale wrapper
+void(string s) ENG_Finale =
+{
+	WriteByte (MSG_ALL, SVC_FINALE);
+	WriteString (MSG_ALL, s);	
+
 };
 
 // engine check routine

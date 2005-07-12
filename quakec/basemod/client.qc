@@ -76,7 +76,7 @@ void() SetNewParms =
 
 void() DecodeLevelParms =
 {
-	if (serverflags)
+	if (!deathmatch)
 	{
 		if (world.model == "maps/start.bsp")
 			SetNewParms ();         // take away all stuff on starting new episode
@@ -317,10 +317,13 @@ void() changelevel_touch =
 // if "noexit" is set, blow up the player trying to leave
 //ZOID, 12-13-96, noexit isn't supported in QW.  Overload samelevel
 //      if ((cvar("noexit") == 1) || ((cvar("noexit") == 2) && (mapname != "start")))
-	if ((cvar("samelevel") == 2) || ((cvar("samelevel") == 3) && (mapname != "start")))
+	if (deathmatch)
 	{
-		T_Damage (other, self, self, 50000, MOD_EXIT);
-		return;
+		if ((cvar("samelevel") == 2) || ((cvar("samelevel") == 3) && (mapname != "start")))
+		{
+			T_Damage (other, self, self, 50000, MOD_EXIT);
+			return;
+		}
 	}
 
 	bprint2 (PRINT_HIGH, other.netname, " exited the level\n");
@@ -904,6 +907,26 @@ void() WaterMove =
 		return;
 	}
 
+	if ( !(self.flags & FL_INWATER) )
+	{      
+		// player enter water sound
+		switch (self.watertype)
+		{
+		case CONTENT_LAVA:
+			sound (self, CHAN_BODY, "player/inlava.wav", 1, ATTN_NORM);
+			break;
+		case CONTENT_WATER:
+			sound (self, CHAN_BODY, "player/inh2o.wav", 1, ATTN_NORM);
+			break;
+		case CONTENT_SLIME:
+			sound (self, CHAN_BODY, "player/slimbrn2.wav", 1, ATTN_NORM);
+			break;
+		}
+
+		self.flags = self.flags + FL_INWATER;
+		self.dmgtime = 0;
+	}       
+
 	if (self.watertype == CONTENT_LAVA)
 	{       // do damage
 		if (self.dmgtime < time)
@@ -924,22 +947,7 @@ void() WaterMove =
 			T_Damage (self, world, world, 4*self.waterlevel, MOD_SLIME);
 		}
 	}
-	
-	if ( !(self.flags & FL_INWATER) )
-	{       
 
-// player enter water sound
-
-		if (self.watertype == CONTENT_LAVA)
-			sound (self, CHAN_BODY, "player/inlava.wav", 1, ATTN_NORM);
-		if (self.watertype == CONTENT_WATER)
-			sound (self, CHAN_BODY, "player/inh2o.wav", 1, ATTN_NORM);
-		if (self.watertype == CONTENT_SLIME)
-			sound (self, CHAN_BODY, "player/slimbrn2.wav", 1, ATTN_NORM);
-
-		self.flags = self.flags + FL_INWATER;
-		self.dmgtime = 0;
-	}       
 };
 
 void() CheckWaterJump =
@@ -1276,7 +1284,7 @@ float(entity targ, entity attacker) OnSameTeam;
 
 void(entity targ, entity attacker, INTEGER mod) ClientObituary =
 {
-	if (attacker.classname == "player")
+	if (attacker.flags & FL_CLIENT)
 	{
 		if (attacker == targ)
 		{
@@ -1294,29 +1302,20 @@ void(entity targ, entity attacker, INTEGER mod) ClientObituary =
 			return;
 		}
 
-		KillMessage(targ.netname, attacker.netname, mod);
-		if (targ.classname == "player")
+		if (targ.flags & FL_CLIENT)
 		{
+			KillMessage(targ.netname, attacker.netname, mod);
 			attacker.frags = attacker.frags + 1;
 			logfrag(attacker, targ);
 		}
 		return;
 	} // else if attacker != player
 
-	if (attacker.netname == "")
+	if (targ.flags & FL_CLIENT)
 	{
 		WorldKillMessage(targ.netname, mod);
-		if (targ.classname == "player")
-		{
-			targ.frags = targ.frags - 1;
-			logfrag(targ, targ);
-		}
-		return;
+		targ.frags = targ.frags - 1;
+		logfrag(targ, targ);
 	}
-
-	// monster kill, but still consider it a suicide for score purposes
-	KillMessage(targ.netname, attacker.netname, mod);
-	targ.frags = targ.frags - 1;
-	logfrag(targ, targ);
 };
 

@@ -39,7 +39,24 @@
 #include "misc.qc"
 
 #ifdef MONSTERS
-
+#include "fight.qc"
+#include "ai.qc"
+#include "monsters.qc"
+#include "dog.qc"
+#include "soldier.qc"
+#include "enforcer.qc"
+#include "ogre.qc"
+#include "wizard.qc"
+#include "demon.qc"
+#include "knight.qc"
+#include "hknight.qc"
+#include "shalrath.qc"
+#include "shambler.qc"
+#include "fish.qc"
+#include "tarbaby.qc"
+#include "zombie.qc"
+#include "boss.qc"
+#include "oldone.qc"
 #else
 #include "nomonst.qc"
 #endif

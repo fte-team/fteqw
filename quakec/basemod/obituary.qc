@@ -25,7 +25,21 @@ enum {
 	MOD_EXIT,
 	MOD_LASER,
 	MOD_SELFWATER,
-	MOD_HURT
+	MOD_HURT,
+	MOD_DOG,
+	MOD_SOLDIER,
+	MOD_ENFORCER,
+	MOD_OGRE,
+	MOD_WIZARD,
+	MOD_DEMON,
+	MOD_KNIGHT,
+	MOD_HKNIGHT,
+	MOD_SHALRATH,
+	MOD_SHAMBLER,
+	MOD_FISH,
+	MOD_TARBABY,
+	MOD_ZOMBIE,
+	MOD_CHTHON
 };
 
 void(string targ, INTEGER mod) SuicideMessage =
@@ -278,6 +292,64 @@ void(string targ, INTEGER mod) WorldKillMessage =
 		s = targ;
 		t = " was zapped";
 		break;
+#ifdef MONSTERS
+	case MOD_DOG:
+		s = targ;
+		t = " was mauled by a Rottweiler";
+		break;
+	case MOD_SOLDIER:
+		s = targ;
+		t = " was shot by a Grunt";
+		break;
+	case MOD_ENFORCER:
+		s = targ;
+		t = " was blasted by an Enforcer";
+		break;
+	case MOD_OGRE:
+		s = targ;
+		t = " was destroyed by an Ogre";
+		break;
+	case MOD_WIZARD:
+		s = targ;
+		t = " was scragged by a Scrag";
+		break;
+	case MOD_DEMON:
+		s = targ;
+		t = " was eviscerated by a Fiend";
+		break;
+	case MOD_KNIGHT:
+		s = targ;
+		t = " was slashed by a Knight";
+		break;
+	case MOD_HKNIGHT:
+		s = targ;
+		t = " was slain by a Death Knight";
+		break;
+	case MOD_SHALRATH:
+		s = targ;
+		t = "  was exploded by a Vore";
+		break;
+	case MOD_SHAMBLER:
+		s = targ;
+		t = " was smashed by a Shambler";
+		break;
+	case MOD_FISH:
+		s = targ;
+		t = " was fed to the Rotfish";
+		break;
+	case MOD_TARBABY:
+		s = targ;
+		t = " was slimed by a Spawn";
+		break;
+	case MOD_ZOMBIE:
+		s = targ;
+		t = " joins the Zombies";
+		break;
+	case MOD_CHTHON:
+		s = targ;
+		t = " fell to Chthon's wrath";
+		break;
+#endif
 	default:
 		s = targ;
 		t = " died";

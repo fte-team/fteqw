@@ -229,6 +229,21 @@ eval_t *PR_FindGlobal(progfuncs_t *progfuncs, char *globname, progsnum_t pnum)
 	ddef32_t *var32;
 	if (pnum == PR_CURRENT)
 		pnum = pr_typecurrent;
+	if (pnum == PR_ANY)
+	{
+		eval_t *ev;
+		for (pnum = 0; pnum < maxprogs; pnum++)
+		{
+			if (!pr_progstate[pnum].progs)
+				continue;
+			ev = PR_FindGlobal(progfuncs, globname, pnum);
+			if (ev)
+				return ev;
+		}
+		return NULL;
+	}
+	if (pnum < 0 || pnum >= maxprogs || !pr_progstate[pnum].progs)
+		return NULL;
 	switch(pr_progstate[pnum].intsize)
 	{
 	case 16:

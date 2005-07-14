@@ -62,6 +62,7 @@ void RQ_RenderDistAndClear(void)
 	int i;
 	renderque_t *rq;
 	for (i = rqmaxgrad; i>=rqmingrad; i--)
+//	for (i = rqmingrad; i<=rqmaxgrad; i++)
 	{
 		for (rq = distrque[i]; rq; rq=rq->next)	
 		{

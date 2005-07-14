@@ -1160,7 +1160,25 @@ qboolean Media_ShowFilm(void)
 
 			if (roqfilm->audio_channels && sndcardinfo && roqfilm->aud_pos < roqfilm->vid_pos)
 			if (roq_read_audio(roqfilm)>0)
-					S_RawAudio(-1, roqfilm->audio, 22050, roqfilm->audio_size/roqfilm->audio_channels/2, roqfilm->audio_channels, 2);
+			{
+/*				FILE *f;
+				char wav[] = "\x52\x49\x46\x46\xea\x5f\x04\x00\x57\x41\x56\x45\x66\x6d\x74\x20\x12\x00\x00\x00\x01\x00\x02\x00\x22\x56\x00\x00\x88\x58\x01\x00\x04\x00\x10\x00\x00\x00\x66\x61\x63\x74\x04\x00\x00\x00\xee\x17\x01\x00\x64\x61\x74\x61\xb8\x5f\x04\x00";
+				int size;
+
+				f = fopen("d:/quake/id1/sound/raw.wav", "r+b");
+				if (!f)
+					f = fopen("d:/quake/id1/sound/raw.wav", "w+b");
+				fseek(f, 0, SEEK_SET);
+				fwrite(&wav, sizeof(wav), 1, f);
+				fseek(f, 0, SEEK_END);
+				fwrite(roqfilm->audio, roqfilm->audio_size, 2, f);
+				size = ftell(f) - sizeof(wav);
+				fseek(f, 54, SEEK_SET);
+				fwrite(&size, sizeof(size), 1, f);
+				fclose(f);
+*/
+				S_RawAudio(-1, roqfilm->audio, 22050, roqfilm->audio_size/roqfilm->audio_channels/2, roqfilm->audio_channels, 2);
+			}
 
 			return true;
 		}

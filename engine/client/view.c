@@ -1118,6 +1118,7 @@ void V_CalcRefdef (int pnum)
 // refresh position from simulated origin
 	VectorCopy (cl.simorg[pnum], r_refdef.vieworg);
 
+	r_refdef.useperspective = true;
 	r_refdef.vieworg[2] += bob;
 
 // never let it sit exactly on a node line, because a water plane can

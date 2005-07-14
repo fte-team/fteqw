@@ -1177,7 +1177,7 @@ void SV_AcceptMessage(int protocol)
 
 	case SCP_QUAKE2:
 	default:
-		strcpy(string, "print\n");
+		strcpy(string, "client_connect\n");
 		len = strlen(string);
 		break;
 

@@ -282,7 +282,7 @@ typedef struct item_vis_s {
 //								TRIGGERS
 //===========================================================================
 
-static void TP_ExecTrigger (char *s)
+void TP_ExecTrigger (char *s)
 {
 	char *astr;
 

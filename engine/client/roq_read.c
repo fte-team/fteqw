@@ -587,7 +587,7 @@ int i, snd_left, snd_right;
 		snd_left = chunk_arg;
 		for(i = 0; i < chunk_size; i++)
 			{
-			snd_left += ri->snd_sqr_arr[fgetc(fp)];
+			snd_left += ri->snd_sqr_arr[(unsigned)fgetc(fp)];
 			ri->audio[i * 2] = snd_left & 0xff;
 			ri->audio[i * 2 + 1] = (snd_left & 0xff00) >> 8;
 			}
@@ -602,8 +602,8 @@ int i, snd_left, snd_right;
 		snd_right = (chunk_arg & 0xFF) << 8;
 		for(i = 0; i < chunk_size; i += 2)
 			{
-			snd_left += ri->snd_sqr_arr[fgetc(fp)];
-			snd_right += ri->snd_sqr_arr[fgetc(fp)];
+			snd_left += ri->snd_sqr_arr[(unsigned)fgetc(fp)];
+			snd_right += ri->snd_sqr_arr[(unsigned)fgetc(fp)];
 			ri->audio[i * 2] = snd_left & 0xff;
 			ri->audio[i * 2 + 1] = (snd_left & 0xff00) >> 8;
 			ri->audio[i * 2 + 2] = snd_right & 0xff;

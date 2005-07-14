@@ -255,7 +255,6 @@ typedef union eval_s
 #define G_EDICTNUM(pf, o) NUM_FOR_EDICT(pf, G_EDICT(pf, o))
 #define	G_VECTOR(o) (&((float *)pr_globals)[o])
 #define	G_FUNCTION(o) (*(func_t *)&((float *)pr_globals)[o])
-#define G_PROG(o) (*(progsnum_t *)&((float *)pr_globals)[o])	//simply so it's nice and easy to change...
 
 #define PR_GetString(p,s) (s?s + p->stringtable:"")
 #define PR_GetStringOfs(p,o) (G_INT(o)?G_INT(o) + p->stringtable:"")

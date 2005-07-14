@@ -15,6 +15,7 @@ extern int		*lightmap_textures;
 extern int		lightmap_bytes;		// 1, 2, or 4
 
 extern cvar_t		gl_detail;
+extern cvar_t		gl_detailscale;
 extern cvar_t		gl_overbright;
 extern cvar_t		r_fb_bmodels;
 extern cvar_t		gl_part_flame;
@@ -160,6 +161,34 @@ static void PPL_GenerateArrays(msurface_t *surf)
 		varray_v[vi].stw[1] = surf->mesh->st_array[vi][1];
 		varray_v[vi].stl[0] = surf->mesh->lmst_array[vi][0];
 		varray_v[vi].stl[1] = surf->mesh->lmst_array[vi][1];
+	}
+
+	varray_vc = surf->mesh->numvertexes;
+	varray_ic = surf->mesh->numindexes;
+}
+static void PPL_GenerateDetailArrays(msurface_t *surf)
+{
+	int vi;
+
+	if (!surf->mesh)
+		return;
+	if (surf->mesh->numindexes > MAXARRAYVERTS)
+		return;
+	if (surf->mesh->numvertexes > MAXARRAYVERTS)
+		return;
+	if (!surf->mesh->st_array)
+		return;
+	if (!surf->mesh->lmst_array)
+		return;
+	if (varray_ic)	//FIXME: go muuuch faster please
+		PPL_FlushArrays();
+	for (vi = 0; vi < surf->mesh->numindexes; vi++)
+		varray_i[vi] = surf->mesh->indexes[vi];
+	for (vi = 0; vi < surf->mesh->numvertexes; vi++)
+	{
+		VectorCopy(surf->mesh->xyz_array[vi], varray_v[vi].xyz);
+		varray_v[vi].stw[0] = surf->mesh->st_array[vi][0]*gl_detailscale.value;
+		varray_v[vi].stw[1] = surf->mesh->st_array[vi][1]*gl_detailscale.value;
 	}
 
 	varray_vc = surf->mesh->numvertexes;
@@ -1505,7 +1534,7 @@ static void PPL_FullBrightTextureChain(msurface_t *first)
 		qglTexCoordPointer(2, GL_FLOAT, sizeof(surfvertexarray_t), varray_v->stw);
 		for (s = first; s ; s=s->texturechain)
 		{
-			PPL_GenerateArrays(s);
+			PPL_GenerateDetailArrays(s);
 		}
 		PPL_FlushArrays();
 	}
@@ -1748,6 +1777,18 @@ void R_DrawBeam( entity_t *e )
 	qglDepthMask( GL_TRUE );
 }
 
+void PPL_DrawEnt(entity_t *e, void *parm)
+{
+	qglEnd();
+	currententity = e;
+
+		R_IBrokeTheArrays();
+		R_DrawGAliasModel (currententity);
+
+	P_FlushRenderer();
+	qglBegin(GL_QUADS);
+}
+
 void PPL_BaseEntTextures(void)
 {
 	extern qboolean r_inmirror;
@@ -1791,9 +1832,7 @@ void PPL_BaseEntTextures(void)
 		switch (currententity->model->type)
 		{
 		case mod_alias:
-			if (!varrayactive)
-				R_IBrokeTheArrays();
-			R_DrawGAliasModel (currententity);
+			RQ_AddDistReorder(PPL_DrawEnt, currententity, NULL, currententity->origin);
 			break;
 
 		case mod_brush:

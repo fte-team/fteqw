@@ -1230,10 +1230,8 @@ void CLQ2_ParseFrame (void)
 		// getting a valid frame message ends the connection process
 		if (cls.state != ca_active)
 		{
-			if (VID_SetWindowCaption)
-				VID_SetWindowCaption(va("FTE QuakeWorld: %s (Q2)", cls.servername));
+			CL_MakeActive("Quake2");
 
-			cls.state = ca_active;
 //			cl.force_refdef = true;
 			cl.predicted_origin[0] = cl.q2frame.playerstate.pmove.origin[0]*0.125;
 			cl.predicted_origin[1] = cl.q2frame.playerstate.pmove.origin[1]*0.125;
@@ -1937,6 +1935,8 @@ void CLQ2_CalcViewValues (void)
 	q2centity_t	*ent;
 	q2frame_t		*oldframe;
 	q2player_state_t	*ps, *ops;
+
+	r_refdef.useperspective = true;
 
 	r_refdef.currentplayernum = 0;
 

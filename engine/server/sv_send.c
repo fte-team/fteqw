@@ -561,6 +561,17 @@ void SV_MulticastProtExt(vec3_t origin, multicast_t to, int dimension_mask, int 
 					SZ_Write (&client->datagram, sv.nqmulticast.data, sv.nqmulticast.cursize);
 				break;
 #endif
+#ifdef Q2SERVER
+			case SCP_QUAKE2:
+				if (reliable)
+				{
+					ClientReliableCheckBlock(client, sv.q2multicast.cursize);
+					ClientReliableWrite_SZ(client, sv.q2multicast.data, sv.q2multicast.cursize);
+				}
+				else
+					SZ_Write (&client->datagram, sv.q2multicast.data, sv.q2multicast.cursize);
+				break;
+#endif
 			case SCP_QUAKEWORLD:
 			    if (reliable)
 				{
@@ -685,6 +696,9 @@ void SV_MulticastProtExt(vec3_t origin, multicast_t to, int dimension_mask, int 
 
 #ifdef NQPROT
 	SZ_Clear (&sv.nqmulticast);
+#endif
+#ifdef Q2SERVER
+	SZ_Clear (&sv.q2multicast);
 #endif
 	SZ_Clear (&sv.multicast);
 }

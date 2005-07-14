@@ -607,6 +607,8 @@ enum {
 #define DPTE_BLOODSHOWER	52
 #define DPTE_EXPLOSIONRGB	53
 #define DPTE_PARTICLECUBE	54
+#define DPTE_PARTICLERAIN	55 // [vector] min [vector] max [vector] dir [short] count [byte] color
+#define DPTE_PARTICLESNOW	56 // [vector] min [vector] max [vector] dir [short] count [byte] color
 #define DPTE_GUNSHOTQUAD	57 // [vector] origin
 #define DPTE_SPIKEQUAD		58 // [vector] origin
 #define DPTE_SUPERSPIKEQUAD	59 // [vector] origin

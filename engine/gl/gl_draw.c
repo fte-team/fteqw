@@ -1065,7 +1065,7 @@ TRACE(("dbg: GLDraw_ReInit: Allocating upload buffers\n"));
 	if (!draw_backtile)
 		draw_backtile = Draw_SafeCachePic ("gfx/menu/backtile.lmp");
 
-	detailtexture = Mod_LoadReplacementTexture("textures/detail", NULL, true, false, false);
+	detailtexture = Mod_LoadHiResTexture("textures/detail", NULL, true, false, false);
 
 	inited15to8 = false;
 

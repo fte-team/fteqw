@@ -93,6 +93,8 @@ void CIN_FinishCinematic (void)
 	{
 		CL_SendClientCommand(true, "nextserver %i", cl.servercount);
 	}
+
+	S_RawAudio(0, NULL, 0, 0, 0, 0);
 }
 
 //==========================================================================

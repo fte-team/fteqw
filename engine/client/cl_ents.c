@@ -767,7 +767,7 @@ entity_state_t *CL_FindOldPacketEntity(int num)
 // bits2 > 0
 #define E5_EXTEND4 (1<<31)
 
-	static entity_state_t defaultstate;
+entity_state_t defaultstate;
 void DP5_ParseDelta(entity_state_t *s)
 {
 	int bits;
@@ -787,6 +787,7 @@ void DP5_ParseDelta(entity_state_t *s)
 		int num;
 		num = s->number;
 		*s = defaultstate;
+		s->trans = 255;
 		s->number = num;
 //		s->active = true;
 	}

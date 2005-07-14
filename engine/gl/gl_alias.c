@@ -1531,6 +1531,7 @@ void R_DrawGAliasModel (entity_t *e)
 			if (e->flags & Q2RF_ADDATIVE && skin->shader->numpasses)
 			{	//hack the shader into submition.
 				skin->shader->passes[0].blenddst = GL_ONE;
+				skin->shader->passes[0].flags &= ~SHADER_PASS_DEPTHWRITE;
 			}
 
 			mb.entity = &r_worldentity;

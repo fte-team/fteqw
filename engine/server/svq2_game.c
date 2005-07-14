@@ -44,11 +44,11 @@ static void VARGS PFQ2_Unicast (q2edict_t *ent, qboolean reliable)
 		return;
 
 	if (reliable)
-		SZ_Write (&client->netchan.message, sv.multicast.data, sv.multicast.cursize);
+		SZ_Write (&client->netchan.message, sv.q2multicast.data, sv.q2multicast.cursize);
 	else
-		SZ_Write (&client->datagram, sv.multicast.data, sv.multicast.cursize);
+		SZ_Write (&client->datagram, sv.q2multicast.data, sv.q2multicast.cursize);
 
-	SZ_Clear (&sv.multicast);
+	SZ_Clear (&sv.q2multicast);
 }
 
 
@@ -136,8 +136,8 @@ static void VARGS PFQ2_centerprintf (q2edict_t *ent, char *fmt, ...)
 	vsprintf (msg, fmt, argptr);
 	va_end (argptr);
 
-	MSG_WriteByte (&sv.multicast,svcq2_centerprint);
-	MSG_WriteString (&sv.multicast,msg);
+	MSG_WriteByte (&sv.q2multicast,svcq2_centerprint);
+	MSG_WriteString (&sv.q2multicast,msg);
 	PFQ2_Unicast (ent, true);
 }
 
@@ -224,10 +224,10 @@ static void VARGS PFQ2_Configstring (int i, char *val)
 
 	if (sv.state != ss_loading)
 	{	// send the update to everyone
-		SZ_Clear (&sv.multicast);
-		MSG_WriteChar (&sv.multicast, svcq2_configstring);
-		MSG_WriteShort (&sv.multicast, i);
-		MSG_WriteString (&sv.multicast, val);
+		SZ_Clear (&sv.q2multicast);
+		MSG_WriteChar (&sv.q2multicast, svcq2_configstring);
+		MSG_WriteShort (&sv.q2multicast, i);
+		MSG_WriteString (&sv.q2multicast, val);
 
 		SV_Multicast (vec3_origin, MULTICAST_ALL_R);
 	}
@@ -316,18 +316,18 @@ static qboolean	CMQ2_Q1BSP_SetAreaPortalState (int portalnum, qboolean open)
 	return true;
 }*/
 
-static void VARGS PFQ2_WriteChar (int c) {MSG_WriteChar (&sv.multicast, c);}
-static void VARGS PFQ2_WriteByte (int c) {MSG_WriteByte (&sv.multicast, c);}
-static void VARGS PFQ2_WriteShort (int c) {MSG_WriteShort (&sv.multicast, c);}
-static void VARGS PFQ2_WriteLong (int c) {MSG_WriteLong (&sv.multicast, c);}
-static void VARGS PFQ2_WriteFloat (float f) {MSG_WriteFloat (&sv.multicast, f);}
-static void VARGS PFQ2_WriteString (char *s) {MSG_WriteString (&sv.multicast, s);}
-static void VARGS PFQ2_WriteAngle (float f) {MSG_WriteAngle (&sv.multicast, f);}
-static void VARGS PFQ2_WritePos (vec3_t pos) {	MSG_WriteCoord (&sv.multicast, pos[0]);
-									MSG_WriteCoord (&sv.multicast, pos[1]);
-									MSG_WriteCoord (&sv.multicast, pos[2]);
+static void VARGS PFQ2_WriteChar (int c) {MSG_WriteChar (&sv.q2multicast, c);}
+static void VARGS PFQ2_WriteByte (int c) {MSG_WriteByte (&sv.q2multicast, c);}
+static void VARGS PFQ2_WriteShort (int c) {MSG_WriteShort (&sv.q2multicast, c);}
+static void VARGS PFQ2_WriteLong (int c) {MSG_WriteLong (&sv.q2multicast, c);}
+static void VARGS PFQ2_WriteFloat (float f) {MSG_WriteFloat (&sv.q2multicast, f);}
+static void VARGS PFQ2_WriteString (char *s) {MSG_WriteString (&sv.q2multicast, s);}
+static void VARGS PFQ2_WriteAngle (float f) {MSG_WriteAngle (&sv.q2multicast, f);}
+static void VARGS PFQ2_WritePos (vec3_t pos) {	MSG_WriteCoord (&sv.q2multicast, pos[0]);
+									MSG_WriteCoord (&sv.q2multicast, pos[1]);
+									MSG_WriteCoord (&sv.q2multicast, pos[2]);
 								}
-static void VARGS PFQ2_WriteDir (vec3_t dir)	{MSG_WriteDir (&sv.multicast, dir);}
+static void VARGS PFQ2_WriteDir (vec3_t dir)	{MSG_WriteDir (&sv.q2multicast, dir);}
 
 /*
 =================
@@ -479,25 +479,25 @@ void VARGS SVQ2_StartSound (vec3_t origin, q2edict_t *entity, int channel,
 		}
 	}
 
-	MSG_WriteByte (&sv.multicast, svcq2_sound);
-	MSG_WriteByte (&sv.multicast, flags);
-	MSG_WriteByte (&sv.multicast, soundindex);
+	MSG_WriteByte (&sv.q2multicast, svcq2_sound);
+	MSG_WriteByte (&sv.q2multicast, flags);
+	MSG_WriteByte (&sv.q2multicast, soundindex);
 
 	if (flags & Q2SND_VOLUME)
-		MSG_WriteByte (&sv.multicast, volume*255);
+		MSG_WriteByte (&sv.q2multicast, volume*255);
 	if (flags & Q2SND_ATTENUATION)
-		MSG_WriteByte (&sv.multicast, attenuation*64);
+		MSG_WriteByte (&sv.q2multicast, attenuation*64);
 	if (flags & Q2SND_OFFSET)
-		MSG_WriteByte (&sv.multicast, timeofs*1000);
+		MSG_WriteByte (&sv.q2multicast, timeofs*1000);
 
 	if (flags & Q2SND_ENT)
-		MSG_WriteShort (&sv.multicast, sendchan);
+		MSG_WriteShort (&sv.q2multicast, sendchan);
 
 	if (flags & Q2SND_POS)
 	{
-		MSG_WriteCoord (&sv.multicast, origin[0]);
-		MSG_WriteCoord (&sv.multicast, origin[1]);
-		MSG_WriteCoord (&sv.multicast, origin[2]);
+		MSG_WriteCoord (&sv.q2multicast, origin[0]);
+		MSG_WriteCoord (&sv.q2multicast, origin[1]);
+		MSG_WriteCoord (&sv.q2multicast, origin[2]);
 	}
 
 	// if the sound doesn't attenuate,send it to everyone

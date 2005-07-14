@@ -3926,6 +3926,16 @@ void DrawParticleTypes (void texturedparticles(particle_t *,part_type_t*), void 
 	particletime += pframetime;
 }
 
+void P_FlushRenderer(void)
+{
+	qglDepthMask(0);	//primarily to stop close particles from obscuring each other
+	qglDisable(GL_ALPHA_TEST);
+	qglEnable (GL_BLEND);
+	GL_TexEnv(GL_MODULATE);
+	qglBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+	lasttype = NULL;
+}
+
 /*
 ===============
 R_DrawParticles
@@ -3940,12 +3950,8 @@ void P_DrawParticles (void)
 	if (qrenderer == QR_OPENGL)
 	{
 		extern cvar_t r_drawflat;
-		qglDepthMask(0);
-		
-		qglDisable(GL_ALPHA_TEST);
-		qglEnable (GL_BLEND);
-		GL_TexEnv(GL_MODULATE);
-		qglBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+
+		P_FlushRenderer();
 
 		if (qglPolygonOffset)
 			qglPolygonOffset(-1, 0);
@@ -3976,6 +3982,7 @@ void P_DrawParticles (void)
 #ifdef SWQUAKE
 	if (qrenderer == QR_SOFTWARE)
 	{
+		lasttype = NULL;
 		DrawParticleTypes(SWD_DrawParticleBlob, SWD_DrawParticleSpark, SWD_DrawParticleSpark, SWD_DrawParticleSpark, SWD_DrawParticleBeam, SWD_DrawParticleBeam, NULL);
 
 		RSpeedRemark();

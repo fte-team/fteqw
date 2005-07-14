@@ -191,6 +191,17 @@ char soundlist_name[] =
 	{ 's'^0xff, 'o'^0xff, 'u'^0xff, 'n'^0xff, 'd'^0xff, 'l'^0xff, 'i'^0xff, 's'^0xff, 't'^0xff,
 		' '^0xff, '%'^0xff, 'i'^0xff, ' '^0xff, '%'^0xff, 'i'^0xff, 0 };
 
+
+void CL_MakeActive(char *gamename)
+{
+	cls.state = ca_active;
+	if (VID_SetWindowCaption)
+		VID_SetWindowCaption(va("FTE %s: %s", gamename, cls.servername));
+
+	SCR_EndLoadingPlaque();
+
+	TP_ExecTrigger("f_spawn");
+}
 /*
 ==================
 CL_Quit_f
@@ -198,6 +209,9 @@ CL_Quit_f
 */
 void CL_Quit_f (void)
 {
+	TP_ExecTrigger("f_quit");
+	Cbuf_Execute();
+
 #ifndef CLIENTONLY
 	if (!isDedicated)
 #endif
@@ -2751,11 +2765,7 @@ void Host_Frame (float time)
 
 		if (cls.state == ca_onserver && cl.validsequence && cl.worldmodel)
 		{	// first update is the final signon stage
-			cls.state = ca_active;
-			if (VID_SetWindowCaption)
-				VID_SetWindowCaption(va("FTE QuakeWorld: %s", cls.servername));
-
-			SCR_EndLoadingPlaque();
+			CL_MakeActive("QuakeWorld");
 		}
 	}
 

@@ -176,6 +176,20 @@ sfx_t			*cl_sfx_r_exp3;
 cvar_t	cl_expsprite = {"cl_expsprite", "0"};
 cvar_t	cl_truelightning = {"cl_truelightning", "0",	NULL, CVAR_SEMICHEAT};
 
+typedef struct {
+	sfx_t **sfx;
+	char *efname;
+} tentsfx_t;
+tentsfx_t tentsfx[] =
+{
+	{&cl_sfx_wizhit, "wizard/hit.wav"},
+	{&cl_sfx_knighthit, "hknight/hit.wav"},
+	{&cl_sfx_tink1, "weapons/tink1.wav"},
+	{&cl_sfx_ric1, "weapons/ric1.wav"},
+	{&cl_sfx_ric2, "weapons/ric2.wav"},
+	{&cl_sfx_ric3, "weapons/ric3.wav"},
+	{&cl_sfx_r_exp3, "weapons/r_exp3.wav"}
+};
 /*
 =================
 CL_ParseTEnts
@@ -183,13 +197,14 @@ CL_ParseTEnts
 */
 void CL_InitTEnts (void)
 {
-	cl_sfx_wizhit = S_PrecacheSound ("wizard/hit.wav");
-	cl_sfx_knighthit = S_PrecacheSound ("hknight/hit.wav");
-	cl_sfx_tink1 = S_PrecacheSound ("weapons/tink1.wav");
-	cl_sfx_ric1 = S_PrecacheSound ("weapons/ric1.wav");
-	cl_sfx_ric2 = S_PrecacheSound ("weapons/ric2.wav");
-	cl_sfx_ric3 = S_PrecacheSound ("weapons/ric3.wav");
-	cl_sfx_r_exp3 = S_PrecacheSound ("weapons/r_exp3.wav");
+	int i;
+	for (i = 0; i < sizeof(tentsfx)/sizeof(tentsfx[0]); i++)
+	{
+		if (COM_FCheckExists(tentsfx[i].efname))
+			*tentsfx[i].sfx = S_PrecacheSound (tentsfx[i].efname);
+		else
+			*tentsfx[i].sfx = NULL;
+	}
 
 	Cvar_Register (&cl_expsprite, "Temporary entity control");
 	Cvar_Register (&cl_truelightning, "Temporary entity control");
@@ -815,13 +830,59 @@ void CL_ParseTEnt (void)
 		S_StartSound (-2, 0, cl_sfx_r_exp3, pos, 1, 1);
 	
 	// sprite		
-		if (cl_expsprite.value) // temp hopefully
+		if (cl_expsprite.value && !nqprot) // temp hopefully
 		{
 			explosion_t *ex = CL_AllocExplosion ();
 			VectorCopy (pos, ex->origin);
 			ex->start = cl.time;
 			ex->model = Mod_ForName ("progs/s_explod.spr", true);
 		}
+		break;
+
+	case DPTE_EXPLOSIONRGB:
+		pos[0] = MSG_ReadCoord ();
+		pos[1] = MSG_ReadCoord ();
+		pos[2] = MSG_ReadCoord ();
+		P_ParticleExplosion (pos);
+		
+	// light
+		dl = CL_AllocDlight (0);
+		VectorCopy (pos, dl->origin);
+		dl->radius = 350;
+		dl->die = cl.time + 1;
+		dl->decay = 700;
+		
+		dl->color[0] = 0.4f*MSG_ReadByte()/255.0f;
+		dl->color[1] = 0.4f*MSG_ReadByte()/255.0f;
+		dl->color[2] = 0.4f*MSG_ReadByte()/255.0f;
+		dl->channelfade[0] = 0;
+		dl->channelfade[1] = 0;
+		dl->channelfade[2] = 0;
+
+		S_StartSound (-2, 0, cl_sfx_r_exp3, pos, 1, 1);
+		break;
+
+	case DPTE_TEI_BIGEXPLOSION:
+		pos[0] = MSG_ReadCoord ();
+		pos[1] = MSG_ReadCoord ();
+		pos[2] = MSG_ReadCoord ();
+		P_ParticleExplosion (pos);
+		
+	// light
+		dl = CL_AllocDlight (0);
+		VectorCopy (pos, dl->origin);
+		dl->radius = 500;
+		dl->die = cl.time + 1;
+		dl->decay = 500;
+		
+		dl->color[0] = 0.4f;
+		dl->color[1] = 0.3f;
+		dl->color[2] = 0.15f;
+		dl->channelfade[0] = 0;
+		dl->channelfade[1] = 0;
+		dl->channelfade[2] = 0;
+
+		S_StartSound (-2, 0, cl_sfx_r_exp3, pos, 1, 1);
 		break;
 		
 	case TE_TAREXPLOSION:			// tarbaby explosion
@@ -981,13 +1042,9 @@ void CL_ParseTEnt (void)
 		cnt = MSG_ReadShort ();
 
 		{
-#pragma message("CL_ParseTEnt: effect DPTE_BLOODSHOWER not implemented")
-/*
-			extern int pt_bloodshower;
 			VectorAdd(pos, pos2, pos);
 			VectorScale(pos, 0.5, pos);
-			P_RunParticleEffectType(pos, NULL, cnt, pt_bloodshower);
-*/
+			P_RunParticleEffectTypeString(pos, NULL, cnt, "te_bloodshower");
 		}
 		break;
 
@@ -1120,6 +1177,13 @@ void CL_ParseTEnt (void)
 			P_RunParticleEffectType(pos, pos2, cnt, pt_plasma);
 		}
 		break;
+
+	case DPTE_PARTICLECUBE:
+		#pragma message("CL_ParseTEnt: effect DPTE_PARTICLECUBE not implemented")
+	case DPTE_PARTICLERAIN:
+		#pragma message("CL_ParseTEnt: effect DPTE_PARTICLERAIN not implemented")
+	case DPTE_PARTICLESNOW:
+		#pragma message("CL_ParseTEnt: effect DPTE_PARTICLESNOW not implemented")
 
 	default:		
 		Host_EndGame ("CL_ParseTEnt: bad type - %i", type);

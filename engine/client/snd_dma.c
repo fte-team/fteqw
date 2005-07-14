@@ -201,6 +201,7 @@ S_Startup
 ================
 */
 
+void S_ClearRaw(void);
 void S_Startup (void)
 {
 	int cardnum, drivernum;
@@ -308,6 +309,8 @@ void S_Startup (void)
 	}
 
 	sound_started = 1;
+
+	S_ClearRaw();
 }
 
 void SNDDMA_SetUnderWater(qboolean underwater)
@@ -1537,17 +1540,22 @@ qboolean S_IsPlayingSomewhere(sfx_t *s)
 }*/
 #undef free
 
+void S_ClearRaw(void)
+{
+	memset(s_streamers, 0, sizeof(s_streamers));
+}
+
 //streaming audio.	//this is useful when there is one source, and the sound is to be played with no attenuation
 void S_RawAudio(int sourceid, qbyte *data, int speed, int samples, int channels, int width)
 {
 	soundcardinfo_t *si;
 	int i;
 	int prepadl;
+	int oldlength;
 	int spare;
 	float speedfactor;
 	sfxcache_t *newcache;
 	streaming_t *s, *free=NULL;
-	samples/=channels;
 	for (s = s_streamers, i = 0; i < MAX_RAW_SOURCES; i++, s++)
 	{
 		if (!s->inuse)
@@ -1558,6 +1566,24 @@ void S_RawAudio(int sourceid, qbyte *data, int speed, int samples, int channels,
 		if (s->id == sourceid)
 			break;
 	}
+	if (!data)
+	{
+		if (i == MAX_RAW_SOURCES)
+			return;	//wierd, it wasn't even playing.
+		s->sfxcache->loopstart = -1;	//stop mixing it
+		s->inuse = false;
+
+		for (si = sndcardinfo; si; si=si->next)
+		for (i = 0; i < MAX_CHANNELS; i++)
+			if (si->channel[i].sfx == &s->sfx)
+			{
+				si->channel[i].sfx = NULL;
+				break;
+			}
+		BZ_Free(s->sfxcache);
+		return;
+	}
+	samples/=channels;
 	if (i == MAX_RAW_SOURCES)	//whoops.
 	{
 		if (!free)
@@ -1577,6 +1603,7 @@ void S_RawAudio(int sourceid, qbyte *data, int speed, int samples, int channels,
 		free->sfxcache->width = width;
 		free->sfxcache->loopstart = -1;
 		free->sfxcache->length = 0;
+//		Con_Printf("Added new raw stream\n");
 	}
 	if (s->sfxcache->width != width || s->sfxcache->stereo != channels-1 || s->sfxcache->speed != snd_speed)
 	{
@@ -1584,32 +1611,46 @@ void S_RawAudio(int sourceid, qbyte *data, int speed, int samples, int channels,
 		s->sfxcache->stereo = channels-1;
 		s->sfxcache->speed = snd_speed;
 		s->sfxcache->length = 0;
+//		Con_Printf("Restarting raw stream\n");
 	}
 
-	prepadl = -0x7fffffff;
+	oldlength = s->sfxcache->length;
+
+	prepadl = 0x7fffffff;
 	for (si = sndcardinfo; si; si=si->next)	//make sure all cards are playing, and that we still get a prepad if just one is.
 	{
 		for (i = 0; i < MAX_CHANNELS; i++)
 			if (si->channel[i].sfx == &s->sfx)
 			{
-				if (prepadl < si->channel[i].pos)
+				if (prepadl > si->channel[i].pos)
 					prepadl = si->channel[i].pos;
 				break;
 			}
 	}
 
-	if (prepadl == -0x7fffffff)
+	if (prepadl == 0x7fffffff)
 	{
+		if (snd_show.value)
+			Con_Printf("Wasn't playing\n");
 		prepadl = 0;
 		spare = s->sfxcache->length;
 		if (spare > snd_speed)
+		{
+			Con_Printf("Sacrificed raw sound stream\n");
 			spare = 0;	//too far out. sacrifice it all
+		}
 	}
 	else
 	{
 		spare = s->sfxcache->length - prepadl;
-		if (spare < 0)
+		if (spare < 0)	//remaining samples since last time
 			spare = 0;
+
+		if (s->sfxcache->length > snd_speed)	//more than a second already buffered
+		{
+			Con_Printf("Sacrificed raw sound stream\n");
+			spare = 0;	//too far out. sacrifice it all
+		}
 	}
 
 /*	else if (spare > snd_speed)
@@ -1732,6 +1773,8 @@ void S_RawAudio(int sourceid, qbyte *data, int speed, int samples, int channels,
 			Sys_Error("Width isn't 2\n");
 	}
 
+	s->sfxcache->loopstart = s->sfxcache->length;
+
 
 	for (si = sndcardinfo; si; si=si->next)
 	{
@@ -1739,10 +1782,22 @@ void S_RawAudio(int sourceid, qbyte *data, int speed, int samples, int channels,
 			if (si->channel[i].sfx == &s->sfx)
 			{
 				si->channel[i].pos -= prepadl;
-				si->channel[i].end += samples - prepadl;
+//				si->channel[i].end -= prepadl;
+				si->channel[i].end += samples;
+
+				if (si->channel[i].end < si->paintedtime)
+				{
+					si->channel[i].pos = 0;
+					si->channel[i].end = si->paintedtime + s->sfxcache->length;
+				}
 				break;
 			}
 		if (i == MAX_CHANNELS)	//this one wasn't playing.
-			S_StartSoundCard(si, -1, 0, &s->sfx, r_origin, 1, 32767, 0);
+		{
+			S_StartSoundCard(si, -1, 0, &s->sfx, r_origin, 1, 32767, 500);
+//			Con_Printf("Restarted\n");
+		}
 	}
+
+//	Con_Printf("Stripped %i, added %i (length %i)\n", prepadl, samples, s->sfxcache->length);
 }

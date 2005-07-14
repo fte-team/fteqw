@@ -512,7 +512,7 @@ void R_DrawSpriteModel (entity_t *e)
 	{
 		extern int gldepthfunc;
 		qglDepthFunc(gldepthfunc);
-		qglDepthMask(1);
+		qglDepthMask(0);
 		if (gldepthmin == 0.5) 
 			qglCullFace ( GL_BACK );
 		else
@@ -734,6 +734,17 @@ void GLR_AddDecals(vec3_t org)
 
 //==================================================================================
 
+void GLR_DrawSprite(entity_t *e, void *parm)
+{
+	qglEnd();
+	currententity = e;
+
+	R_DrawSpriteModel (currententity);
+
+	P_FlushRenderer();
+
+	qglBegin(GL_QUADS);
+}
 /*
 =============
 R_DrawEntitiesOnList
@@ -816,60 +827,10 @@ void GLR_DrawEntitiesOnList (void)
 				PPL_BaseBModelTextures (currententity);
 			break;
 
-		default:
-			break;
-		}
-	}
-
-	for (i=0 ; i<cl_numvisedicts ; i++)
-	{
-		currententity = &cl_visedicts[i];
-
-		if (r_inmirror)
-		{
-			if (currententity->flags & Q2RF_WEAPONMODEL)
-				continue;
-		}
-		else
-		{
-			if (currententity->keynum == (cl.viewentity[r_refdef.currentplayernum]?cl.viewentity[r_refdef.currentplayernum]:(cl.playernum[r_refdef.currentplayernum]+1)))
-				continue;
-//			if (cl.viewentity[r_refdef.currentplayernum] && currententity->keynum == cl.viewentity[r_refdef.currentplayernum])
-//				continue;
-			if (!Cam_DrawPlayer(0, currententity->keynum-1))
-				continue;
-		}
-
-		if (currententity->flags & Q2RF_BEAM)
-		{
-			R_DrawBeam(currententity);
-			continue;
-		}
-		if (!currententity->model)
-			continue;
-
-		if (cls.allow_anyparticles || currententity->visframe)	//allowed or static
-		{
-			if (currententity->model->particleeffect>=0)
-			{
-				if (currententity->model->particleengulphs)
-				{
-					if (gl_part_flame.value)
-					{
-						continue;
-					}
-				}
-			}
-		}
-
-
-		switch (currententity->model->type)
-		{
 		case mod_sprite:
-			R_DrawSpriteModel (currententity);
-			break;
+			RQ_AddDistReorder(GLR_DrawSprite, currententity, NULL, currententity->origin);
 
-		default :
+		default:
 			break;
 		}
 	}
@@ -1369,6 +1330,29 @@ void GL_InfinatePerspective( GLdouble fovy, GLdouble aspect,
 	r_projection_matrix[15] = 0;
 }
 
+void GL_ParallelPerspective(GLdouble xmin, GLdouble xmax, GLdouble ymax, GLdouble ymin,
+		     GLdouble znear, GLdouble zfar)
+{
+	r_projection_matrix[0] = 2/(xmax-xmin);
+	r_projection_matrix[4] = 0;
+	r_projection_matrix[8] = 0;
+	r_projection_matrix[12] = (xmax+xmin)/(xmax-xmin);
+
+	r_projection_matrix[1] = 0;
+	r_projection_matrix[5] = 2/(ymax-ymin);
+	r_projection_matrix[9] = 0;
+	r_projection_matrix[13] = (ymax+ymin)/(ymax-ymin);
+
+	r_projection_matrix[2] = 0;
+	r_projection_matrix[6] = 0;
+	r_projection_matrix[10] = -2/(zfar-znear);
+	r_projection_matrix[14] = (zfar+znear)/(zfar-znear);
+	
+	r_projection_matrix[3] = 0;
+	r_projection_matrix[7] = 0;
+	r_projection_matrix[11] = 0;
+	r_projection_matrix[15] = 1;
+}
 
 /*
 =============
@@ -1412,17 +1396,27 @@ void R_SetupGL (void)
 	qglMatrixMode(GL_PROJECTION);
 
 	screenaspect = (float)r_refdef.vrect.width/r_refdef.vrect.height;
-	if ((!r_shadows.value || !gl_canstencil) && gl_maxdist.value>256)//gl_nv_range_clamp)
+	if (r_refdef.useperspective)
 	{
-//		yfov = 2*atan((float)r_refdef.vrect.height/r_refdef.vrect.width)*180/M_PI;
-//		yfov = (2.0 * tan (scr_fov.value/360*M_PI)) / screenaspect;
-//		yfov = 2*atan((float)r_refdef.vrect.height/r_refdef.vrect.width)*(scr_fov.value*2)/M_PI;
-//		MYgluPerspective (yfov,  screenaspect,  4,  4096);
-		MYgluPerspective (r_refdef.fov_y,  screenaspect,  4,  gl_maxdist.value);
+		if ((!r_shadows.value || !gl_canstencil) && gl_maxdist.value>256)//gl_nv_range_clamp)
+		{
+	//		yfov = 2*atan((float)r_refdef.vrect.height/r_refdef.vrect.width)*180/M_PI;
+	//		yfov = (2.0 * tan (scr_fov.value/360*M_PI)) / screenaspect;
+	//		yfov = 2*atan((float)r_refdef.vrect.height/r_refdef.vrect.width)*(scr_fov.value*2)/M_PI;
+	//		MYgluPerspective (yfov,  screenaspect,  4,  4096);
+			MYgluPerspective (r_refdef.fov_y,  screenaspect,  4,  gl_maxdist.value);
+		}
+		else
+		{
+			GL_InfinatePerspective(r_refdef.fov_y, screenaspect, 4);
+		}
 	}
 	else
 	{
-		GL_InfinatePerspective(r_refdef.fov_y, screenaspect, 4);
+		if (gl_maxdist.value>=1)
+			GL_ParallelPerspective(-45, 45, 45, -45, -gl_maxdist.value, gl_maxdist.value);
+		else
+			GL_ParallelPerspective(0, r_refdef.vrect.width, 0, r_refdef.vrect.height, -9999, 9999);
 	}
 	qglLoadMatrixf(r_projection_matrix);
 

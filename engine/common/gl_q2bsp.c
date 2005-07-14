@@ -263,7 +263,7 @@ int			numbrushsides;
 q2cbrushside_t map_brushsides[MAX_Q2MAP_BRUSHSIDES];
 
 int			numtexinfo;
-q2mapsurface_t	map_surfaces[MAX_Q2MAP_TEXINFO];
+q2mapsurface_t	*map_surfaces;
 
 int			numplanes;
 mplane_t	map_planes[MAX_Q2MAP_PLANES+6];		// extra for box hull
@@ -292,7 +292,7 @@ qbyte		map_hearability[MAX_Q2MAP_VISIBILITY];
 q3dvis_t		*map_q3phs = (q3dvis_t *)map_hearability;
 
 int			numentitychars;
-char		map_entitystring[MAX_Q2MAP_ENTSTRING];
+char		*map_entitystring;
 
 int			numareas = 1;
 q2carea_t		map_q2areas[MAX_Q2MAP_AREAS];
@@ -959,11 +959,11 @@ void CMod_LoadSurfaces (lump_t *l)
 	count = l->filelen / sizeof(*in);
 	if (count < 1)
 		Host_Error ("Map with no surfaces");
-	if (count > MAX_Q2MAP_TEXINFO)
-		Host_Error ("Map has too many surfaces");
+//	if (count > MAX_Q2MAP_TEXINFO)
+//		Host_Error ("Map has too many surfaces");
 
 	numtexinfo = count;
-	out = map_surfaces;
+	out = map_surfaces = Hunk_Alloc(count * sizeof(*map_surfaces));
 
 	for ( i=0 ; i<count ; i++, in++, out++)
 	{
@@ -1797,9 +1797,10 @@ CMod_LoadEntityString
 void CMod_LoadEntityString (lump_t *l)
 {
 	numentitychars = l->filelen;
-	if (l->filelen > MAX_Q2MAP_ENTSTRING)
-		Host_Error ("Map has too large entity lump");
+//	if (l->filelen > MAX_Q2MAP_ENTSTRING)
+//		Host_Error ("Map has too large entity lump");
 
+	map_entitystring = Hunk_Alloc(l->filelen+1);
 	memcpy (map_entitystring, cmod_base + l->fileofs, l->filelen);
 
 	loadmodel->entities = map_entitystring;
@@ -1905,11 +1906,11 @@ void CModQ3_LoadShaders (lump_t *l, qboolean useshaders)
 
 	if (count < 1)
 		Host_Error ("Map with no shaders");
-	else if (count > MAX_Q2MAP_TEXINFO)
-		Host_Error ("Map has too many shaders");
+//	else if (count > MAX_Q2MAP_TEXINFO)
+//		Host_Error ("Map has too many shaders");
 
 	numtexinfo = count;
-	out = map_surfaces;
+	out = map_surfaces = Hunk_Alloc(count*sizeof(*out));
 
 #if !defined(SERVERONLY) && defined(RGLQUAKE)
 	skytexturenum = -1;
@@ -3443,7 +3444,7 @@ q2cmodel_t *CM_LoadMap (char *name, char *filein, qboolean clientload, unsigned 
 	numcmodels = 0;
 	numvisibility = 0;
 	numentitychars = 0;
-	map_entitystring[0] = 0;
+	map_entitystring = NULL;
 	map_name[0] = 0;
 
 	loadmodel->type = mod_brush;

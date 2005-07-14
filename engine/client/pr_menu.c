@@ -461,6 +461,25 @@ void PF_CL_drawresetcliparea (progfuncs_t *prinst, struct globalvars_s *pr_globa
 //void (float width, vector rgb, float alpha, float flags, vector pos1, ...) drawline;
 void PF_CL_drawline (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
+	float width = G_FLOAT(OFS_PARM0);
+	float *rgb = G_VECTOR(OFS_PARM1);
+	float alpha = G_FLOAT(OFS_PARM2);
+	float flags = G_FLOAT(OFS_PARM3);
+	float *pos = G_VECTOR(OFS_PARM4);
+	int numpoints = *prinst->callargc-4;
+
+	if (qrenderer == QR_OPENGL)
+	{
+		qglColor4f(rgb[0], rgb[1], rgb[2], alpha);
+		qglBegin(GL_LINES);
+		while (numpoints-->0)
+		{
+			qglVertex3fv(pos);
+			pos += 3;
+		}
+
+		qglEnd();
+	}
 }
 
 //vector  drawgetimagesize(string pic) = #460;
@@ -1291,10 +1310,12 @@ void VARGS Menu_Abort (char *format, ...)
 
 
 {
-	static char buffer[1024*1024*8];
-	int size = sizeof buffer;
+	char *buffer;
+	int size = 1024*1024*8;
+	buffer = Z_Malloc(size);
 	menuprogs->save_ents(menuprogs, buffer, &size, 3);
 	COM_WriteFile("menucore.txt", buffer, size);
+	Z_Free(buffer);
 }
 
 	MP_Shutdown();

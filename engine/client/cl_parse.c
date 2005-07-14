@@ -1425,7 +1425,7 @@ void CLQ2_ParseServerData (void)
 		if (!Media_PlayFilm(str))
 			Con_TPrintf (TLC_NOQ2CINEMATICSSUPPORT, cl.servercount);
 		else
-			cls.state = ca_active;
+			CL_MakeActive("Quake2");
 	}
 	else
 	{
@@ -2614,6 +2614,17 @@ void CL_SetStat (int pnum, int stat, int value)
 		cl.gametimemark = realtime;
 	}
 
+	if (stat == STAT_WEAPON)
+	{
+		if (cl.stats[pnum][stat] != value)
+		{
+			if (value == 0)
+				TP_ExecTrigger ("f_reloadstart");
+			else if (cl.stats[pnum][stat] == 0)
+				TP_ExecTrigger ("f_reloadend");
+		}
+	}
+
 	cl.stats[pnum][stat] = value;
 
 	if (pnum == 0)
@@ -3436,6 +3447,8 @@ void CL_ParseServerMessage (void)
 			break;
 
 		case svc_intermission:
+			if (!cl.intermission)
+				TP_ExecTrigger ("f_mapend");
 			cl.intermission = 1;
 			cl.completed_time = realtime;
 			vid.recalc_refdef = true;	// go to full screen
@@ -4008,6 +4021,8 @@ void CLNQ_ParseServerMessage (void)
 			break;
 
 		case svc_intermission:
+			if (!cl.intermission)
+				TP_ExecTrigger ("f_mapend");
 			cl.intermission = 1;
 			cl.completed_time = cl.time;
 			vid.recalc_refdef = true;	// go to full screen

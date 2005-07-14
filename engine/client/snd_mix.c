@@ -533,6 +533,11 @@ void S_PaintChannels(soundcardinfo_t *sc, int endtime)
 				{
 					if (scache->loopstart >= 0)
 					{
+						if (scache->length == scache->loopstart)
+						{
+//							Con_Printf("Looped to end %i\n", ch->pos);
+							break;	//don't bother restarting it it
+						}
 						ch->pos = scache->loopstart;
 						ch->end = ltime + scache->length - ch->pos;
 						if (!scache->length)

@@ -20,6 +20,8 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 
 #include "qwsvdef.h"
 
+#define G_PROG G_FLOAT
+
 #ifndef CLIENTONLY
 
 //okay, so these are a quick but easy hack
@@ -1530,7 +1532,7 @@ void PF_externvalue (progfuncs_t *prinst, globalvars_t *pr_globals)	//return a v
 	char *varname = PF_VarString(prinst, 1, pr_globals);
 	eval_t *var;
 
-	var = svprogfuncs->FindGlobal(prinst, varname, n);
+	var = prinst->FindGlobal(prinst, varname, n);
 
 	if (var)
 		G_INT(OFS_RETURN) = var->_int;
@@ -1545,20 +1547,10 @@ void PF_externset (progfuncs_t *prinst, globalvars_t *pr_globals)	//set a value 
 	char *varname = PF_VarString(prinst, 2, pr_globals);
 	eval_t *var;
 
-	if (n < 0)
-	{
-		for (n = 0; n < svs.numprogs; n++)
-		{
-			var = svprogfuncs->FindGlobal(prinst, varname, svs.progsnum[n]);
-			if (var)
-				var->_int = v;
-		}
-		return;
-	}
-	var = svprogfuncs->FindGlobal(prinst, varname, n);
+	var = prinst->FindGlobal(prinst, varname, n);
 
 	if (var)
-	var->_int = v;
+		var->_int = v;
 }
 
 void PF_instr (progfuncs_t *prinst, globalvars_t *pr_globals)
@@ -3186,6 +3178,24 @@ void PF_registercvar (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 			G_FLOAT(OFS_RETURN) = 1;
 		else
 			G_FLOAT(OFS_RETURN) = 0;
+	}
+}
+
+void PF_sv_getlight (progfuncs_t *prinst, struct globalvars_s *pr_globals)
+{
+	float *point = G_VECTOR(OFS_PARM0);
+	vec3_t diffuse, ambient, dir;
+	if (sv.worldmodel && sv.worldmodel->funcs.LightPointValues)
+	{
+		sv.worldmodel->funcs.LightPointValues(point, diffuse, ambient, dir);
+		VectorMA(ambient, 0.5, diffuse, G_VECTOR(OFS_RETURN));
+	}
+	else
+	{
+		G_FLOAT(OFS_RETURN+0) = 0.5;
+		G_FLOAT(OFS_RETURN+1) = 0.5;
+		G_FLOAT(OFS_RETURN+2) = 0.5;
+		return;
 	}
 }
 
@@ -7567,7 +7577,7 @@ void PF_CustomTEnt(progfuncs_t *prinst, struct globalvars_s *pr_globals)
 
 void PF_Abort(progfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
-	svprogfuncs->AbortStack(svprogfuncs);
+	prinst->AbortStack(prinst);
 }
 
 typedef struct qcstate_s {
@@ -7968,6 +7978,144 @@ void PF_te_particlecube(progfuncs_t *prinst, struct globalvars_s *pr_globals)
 	SV_Multicast(org, MULTICAST_PVS);
 }
 
+void PF_te_explosionrgb(progfuncs_t *prinst, struct globalvars_s *pr_globals)
+{
+	float *org = G_VECTOR(OFS_PARM0);
+	float *colour = G_VECTOR(OFS_PARM0);
+
+	MSG_WriteByte(&sv.multicast, svc_temp_entity);
+	MSG_WriteByte(&sv.multicast, DPTE_EXPLOSIONRGB);
+	// origin
+	MSG_WriteCoord(&sv.multicast, org[0]);
+	MSG_WriteCoord(&sv.multicast, org[1]);
+	MSG_WriteCoord(&sv.multicast, org[2]);
+	// color
+	MSG_WriteByte(&sv.multicast, bound(0, (int) (colour[0] * 255), 255));
+	MSG_WriteByte(&sv.multicast, bound(0, (int) (colour[1] * 255), 255));
+	MSG_WriteByte(&sv.multicast, bound(0, (int) (colour[2] * 255), 255));
+#ifdef NQPROT
+	MSG_WriteByte(&sv.nqmulticast, svc_temp_entity);
+	MSG_WriteByte(&sv.nqmulticast, DPTE_EXPLOSIONRGB);
+	// origin
+	MSG_WriteCoord(&sv.nqmulticast, org[0]);
+	MSG_WriteCoord(&sv.nqmulticast, org[1]);
+	MSG_WriteCoord(&sv.nqmulticast, org[2]);
+	// color
+	MSG_WriteByte(&sv.nqmulticast, bound(0, (int) (colour[0] * 255), 255));
+	MSG_WriteByte(&sv.nqmulticast, bound(0, (int) (colour[1] * 255), 255));
+	MSG_WriteByte(&sv.nqmulticast, bound(0, (int) (colour[2] * 255), 255));
+#endif
+	SV_Multicast(org, MULTICAST_PVS);
+}
+
+void PF_te_particlerain(progfuncs_t *prinst, struct globalvars_s *pr_globals)
+{
+	float *min = G_VECTOR(OFS_PARM0);
+	float *max = G_VECTOR(OFS_PARM1);
+	float *velocity = G_VECTOR(OFS_PARM2);
+	float count = G_FLOAT(OFS_PARM3);
+	float colour = G_FLOAT(OFS_PARM4);
+
+	if (count < 1)
+		return;
+
+	MSG_WriteByte(&sv.multicast, svc_temp_entity);
+	MSG_WriteByte(&sv.multicast, DPTE_PARTICLERAIN);
+	// min
+	MSG_WriteCoord(&sv.multicast, min[0]);
+	MSG_WriteCoord(&sv.multicast, min[1]);
+	MSG_WriteCoord(&sv.multicast, min[2]);
+	// max
+	MSG_WriteCoord(&sv.multicast, max[0]);
+	MSG_WriteCoord(&sv.multicast, max[1]);
+	MSG_WriteCoord(&sv.multicast, max[2]);
+	// velocity
+	MSG_WriteCoord(&sv.multicast, velocity[0]);
+	MSG_WriteCoord(&sv.multicast, velocity[1]);
+	MSG_WriteCoord(&sv.multicast, velocity[2]);
+	// count
+	MSG_WriteShort(&sv.multicast, max(count, 65535));
+	// colour
+	MSG_WriteByte(&sv.multicast, colour);
+
+#ifdef NQPROT
+	MSG_WriteByte(&sv.nqmulticast, svc_temp_entity);
+	MSG_WriteByte(&sv.nqmulticast, DPTE_PARTICLERAIN);
+	// min
+	MSG_WriteCoord(&sv.nqmulticast, min[0]);
+	MSG_WriteCoord(&sv.nqmulticast, min[1]);
+	MSG_WriteCoord(&sv.nqmulticast, min[2]);
+	// max
+	MSG_WriteCoord(&sv.nqmulticast, max[0]);
+	MSG_WriteCoord(&sv.nqmulticast, max[1]);
+	MSG_WriteCoord(&sv.nqmulticast, max[2]);
+	// velocity
+	MSG_WriteCoord(&sv.nqmulticast, velocity[0]);
+	MSG_WriteCoord(&sv.nqmulticast, velocity[1]);
+	MSG_WriteCoord(&sv.nqmulticast, velocity[2]);
+	// count
+	MSG_WriteShort(&sv.nqmulticast, max(count, 65535));
+	// colour
+	MSG_WriteByte(&sv.nqmulticast, colour);
+#endif
+
+	SV_Multicast(NULL, MULTICAST_ALL);
+}
+
+void PF_te_particlesnow(progfuncs_t *prinst, struct globalvars_s *pr_globals)
+{
+	float *min = G_VECTOR(OFS_PARM0);
+	float *max = G_VECTOR(OFS_PARM1);
+	float *velocity = G_VECTOR(OFS_PARM2);
+	float count = G_FLOAT(OFS_PARM3);
+	float colour = G_FLOAT(OFS_PARM4);
+
+	if (count < 1)
+		return;
+
+	MSG_WriteByte(&sv.multicast, svc_temp_entity);
+	MSG_WriteByte(&sv.multicast, DPTE_PARTICLESNOW);
+	// min
+	MSG_WriteCoord(&sv.multicast, min[0]);
+	MSG_WriteCoord(&sv.multicast, min[1]);
+	MSG_WriteCoord(&sv.multicast, min[2]);
+	// max
+	MSG_WriteCoord(&sv.multicast, max[0]);
+	MSG_WriteCoord(&sv.multicast, max[1]);
+	MSG_WriteCoord(&sv.multicast, max[2]);
+	// velocity
+	MSG_WriteCoord(&sv.multicast, velocity[0]);
+	MSG_WriteCoord(&sv.multicast, velocity[1]);
+	MSG_WriteCoord(&sv.multicast, velocity[2]);
+	// count
+	MSG_WriteShort(&sv.multicast, max(count, 65535));
+	// colour
+	MSG_WriteByte(&sv.multicast, colour);
+
+#ifdef NQPROT
+	MSG_WriteByte(&sv.nqmulticast, svc_temp_entity);
+	MSG_WriteByte(&sv.nqmulticast, DPTE_PARTICLESNOW);
+	// min
+	MSG_WriteCoord(&sv.nqmulticast, min[0]);
+	MSG_WriteCoord(&sv.nqmulticast, min[1]);
+	MSG_WriteCoord(&sv.nqmulticast, min[2]);
+	// max
+	MSG_WriteCoord(&sv.nqmulticast, max[0]);
+	MSG_WriteCoord(&sv.nqmulticast, max[1]);
+	MSG_WriteCoord(&sv.nqmulticast, max[2]);
+	// velocity
+	MSG_WriteCoord(&sv.nqmulticast, velocity[0]);
+	MSG_WriteCoord(&sv.nqmulticast, velocity[1]);
+	MSG_WriteCoord(&sv.nqmulticast, velocity[2]);
+	// count
+	MSG_WriteShort(&sv.nqmulticast, max(count, 65535));
+	// colour
+	MSG_WriteByte(&sv.nqmulticast, colour);
+#endif
+
+	SV_Multicast(NULL, MULTICAST_ALL);
+}
+
 // #406 void(vector mincorner, vector maxcorner, float explosionspeed, float howmany) te_bloodshower (DP_TE_BLOODSHOWER)
 void PF_te_bloodshower(progfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
@@ -8362,7 +8510,7 @@ void PF_ChangePic(progfuncs_t *prinst, struct globalvars_s *pr_globals)
 
 
 
-
+#if 0
 typedef struct {
 	int			ident;
 	int			version;
@@ -8423,9 +8571,18 @@ typedef struct zymbone_s
 	int flags;
 	int parent; // parent bone number
 } zymbone_t;
-
+#endif
 int SV_TagForName(int modelindex, char *tagname)
 {
+#if 1
+	model_t *model = sv.models[modelindex];
+	if (!model)
+		model = Mod_ForName(sv.model_precache[modelindex], false);
+	if (!model)
+		return 0;
+
+	return Mod_TagNumForName(model, tagname);
+#else
 	int i;
 	unsigned int *file;
 
@@ -8469,6 +8626,7 @@ int SV_TagForName(int modelindex, char *tagname)
 	else
 		Con_DPrintf("setattachment: %s not supported\n", sv.model_precache[modelindex]);
 	return 0;
+#endif
 }
 
 void PF_setattachment(progfuncs_t *prinst, struct globalvars_s *pr_globals)
@@ -8499,6 +8657,78 @@ void PF_setattachment(progfuncs_t *prinst, struct globalvars_s *pr_globals)
 
 	e->v->tag_entity = EDICT_TO_PROG(prinst,tagentity);
 	e->v->tag_index = tagidx;
+}
+
+// #451 float(entity ent, string tagname) gettagindex (DP_MD3_TAGSINFO)
+void PF_gettagindex(progfuncs_t *prinst, struct globalvars_s *pr_globals)
+{
+	edict_t *e = G_EDICT(prinst, OFS_PARM0);
+	char *tagname = PR_GetStringOfs(prinst, OFS_PARM1);
+
+	int modelindex;
+
+	int tagidx;
+
+	tagidx = 0;
+
+	if (tagname && tagname[0])
+	{
+		modelindex = (int)e->v->modelindex;
+		if (modelindex > 0 && modelindex < MAX_MODELS && sv.model_precache[modelindex])
+		{
+			tagidx = SV_TagForName(modelindex, tagname);
+			if (tagidx == 0)
+				Con_DPrintf("PF_gettagindex(edict %i, edict %i, string \"%s\"): tried to find tag named \"%s\" on entity %i (model \"%s\") but could not find it\n", NUM_FOR_EDICT(prinst, e), NUM_FOR_EDICT(prinst, e), tagname, tagname, NUM_FOR_EDICT(prinst, e), sv.models[modelindex]->name);
+		}
+		else
+			Con_DPrintf("PF_gettagindex(edict %i, edict %i, string \"%s\"): tried to find tag named \"%s\" on entity %i but it has no model\n", NUM_FOR_EDICT(prinst, e), NUM_FOR_EDICT(prinst, e), tagname, tagname, NUM_FOR_EDICT(prinst, e));
+
+	}
+
+	G_FLOAT(OFS_RETURN) = tagidx;
+}
+
+void EdictToTransform(edict_t *ed, float *trans)
+{
+	AngleVectors(ed->v->angles, trans+0, trans+4, trans+8);
+	trans[3] = ed->v->origin[0];
+	trans[7] = ed->v->origin[1];
+	trans[11] = ed->v->origin[2];
+}
+
+// #452 vector(entity ent, float tagindex) gettaginfo (DP_MD3_TAGSINFO)
+void PF_gettaginfo(progfuncs_t *prinst, struct globalvars_s *pr_globals)
+{
+	float transtag[12];
+	float transent[12];
+	float result[12];
+	edict_t *ent = G_EDICT(prinst, OFS_PARM0);
+	int tagnum = G_FLOAT(OFS_PARM1);
+	model_t *model = sv.models[(int)ent->v->modelindex];
+
+	float *origin = G_VECTOR(OFS_RETURN);
+	float *axis[3];
+	axis[0] = P_VEC(v_forward);
+	axis[1] = P_VEC(v_up);
+	axis[2] = P_VEC(v_right);
+
+	if (!model)
+		model = Mod_FindName(sv.model_precache[(int)ent->v->modelindex]);
+
+	if (!Mod_GetTag(model, tagnum, ent->v->frame, ent->v->frame, 0, 0, 0, transtag))
+	{
+		return;
+	}
+
+	EdictToTransform(ent, transent);
+	R_ConcatTransforms((void*)transent, (void*)transtag, (void*)result);
+
+	origin[0] = result[3];
+	origin[1] = result[7];
+	origin[2] = result[11];
+	VectorCopy((result+0), axis[0]);
+	VectorCopy((result+4), axis[1]);
+	VectorCopy((result+8), axis[2]);
 }
 
 void PF_clientstat(progfuncs_t *prinst, struct globalvars_s *pr_globals)
@@ -8724,6 +8954,7 @@ BuiltinList_t BuiltinList[] = {				//nq	qw		h2		ebfs
 	{"tracebox",		PF_traceboxdp,		0,		0,		0,		90},
 
 	{"randomvec",		PF_randomvector,	0,		0,		0,		91},
+	{"getlight",		PF_sv_getlight,		0,		0,		0,		92},// #92 vector(vector org) getlight (DP_QC_GETLIGHT),
 	{"registercvar",	PF_registercvar,	0,		0,		0,		93},
 	{"min",				PF_min,				0,		0,		0,		94},// #94 float(float a, floats) min (DP_QC_MINMAXBOUND)
 	{"max",				PF_max,				0,		0,		0,		95},	// #95 float(float a, floats) max (DP_QC_MINMAXBOUND)
@@ -8838,15 +9069,20 @@ BuiltinList_t BuiltinList[] = {				//nq	qw		h2		ebfs
 	{"te_blood",		PF_te_blood,		0,		0,		0,		405},// #405 te_blood
 //DP_TE_BLOODSHOWER
 	{"te_bloodshower",	PF_te_bloodshower,	0,		0,		0,		406},// #406 void(vector mincorner, vector maxcorner, float explosionspeed, float howmany) te_bloodshower (DP_TE_BLOODSHOWER)
-
+//DP_TE_EXPLOSIONRGB
+	{"te_explosionrgb",	PF_te_explosionrgb,	0,		0,		0,		407},// #407 void(vector org, vector color) te_explosionrgb (DP_TE_EXPLOSIONRGB)
 //DP_TE_PARTICLECUBE
 	{"te_particlecube",	PF_te_particlecube,	0,		0,		0,		408},// #408 void(vector mincorner, vector maxcorner, vector vel, float howmany, float color, float gravityflag, float randomveljitter) te_particlecube (DP_TE_PARTICLECUBE)
+//DP_TE_PARTICLERAIN
+	{"te_particlerain",	PF_te_particlerain,	0,		0,		0,		409},// #409 void(vector mincorner, vector maxcorner, vector vel, float howmany, float color) te_particlerain (DP_TE_PARTICLERAIN)
+//DP_TE_PARTICLESNOW
+	{"te_particlesnow",	PF_te_particlesnow,	0,		0,		0,		410},// #410 void(vector mincorner, vector maxcorner, vector vel, float howmany, float color) te_particlesnow (DP_TE_PARTICLESNOW)
 //DP_TE_SPARK
 	{"te_spark",		PF_te_spark,		0,		0,		0,		411},// #411 void(vector org, vector vel, float howmany) te_spark (DP_TE_SPARK)
 //DP_TE_QUADEFFECTS1
 	{"te_gunshotquad",	PF_te_gunshotquad,	0,		0,		0,		412},// #412 void(vector org) te_gunshotquad (DP_TE_QUADEFFECTS1)
 	{"te_spikequad",	PF_te_spikequad,	0,		0,		0,		413},// #413 void(vector org) te_spikequad (DP_TE_QUADEFFECTS1)
-	{"te_superspikequad",PF_te_superspikequad,	0,	0,		0,		414},// #414 void(vector org) te_superspikequad (DP_TE_QUADEFFECTS1)
+	{"te_superspikequad",PF_te_superspikequad,0,	0,		0,		414},// #414 void(vector org) te_superspikequad (DP_TE_QUADEFFECTS1)
 	{"te_explosionquad",PF_te_explosionquad,0,		0,		0,		415},// #415 void(vector org) te_explosionquad (DP_TE_QUADEFFECTS1)
 //DP_TE_SMALLFLASH
 	{"te_smallflash",	PF_te_smallflash,	0,		0,		0,		416},// #416 void(vector org) te_smallflash (DP_TE_SMALLFLASH)
@@ -8872,12 +9108,20 @@ BuiltinList_t BuiltinList[] = {				//nq	qw		h2		ebfs
 	{"vectorvectors",	PF_vectorvectors,	0,		0,		0,		432},// #432 void(vector dir) vectorvectors (DP_QC_VECTORVECTORS)
 
 	{"te_plasmaburn",	PF_te_plasmaburn,	0,		0,		0,		433},// #433 void(vector org) te_plasmaburn (DP_TE_PLASMABURN)
-
+/*
+	{"getsurfacenumpoints",PF_getsurfacenumpoints,0,0,		0,		434},// #434 float(entity e, float s) getsurfacenumpoints (DP_QC_GETSURFACE)
+	{"getsurfacepoint",PF_getsurfacepoint,	0,		0,		0,		435},// #435 vector(entity e, float s, float n) getsurfacepoint (DP_QC_GETSURFACE)
+	{"getsurfacenormal",PF_getsurfacenormal,0,		0,		0,		436},// #436 vector(entity e, float s) getsurfacenormal (DP_QC_GETSURFACE)
+	{"getsurfacetexture",PF_getsurfacetexture,0,	0,		0,		437},// #437 string(entity e, float s) getsurfacetexture (DP_QC_GETSURFACE)
+	{"getsurfacenearpoint",PF_getsurfacenearpoint,0,0,		0,		438},// #438 float(entity e, vector p) getsurfacenearpoint (DP_QC_GETSURFACE)
+	{"getsurfaceclippedpoint",PF_getsurfaceclippedpoint,0,0,0,		439},// #439 vector(entity e, float s, vector p) getsurfaceclippedpoint (DP_QC_GETSURFACE)
+*/
 //KRIMZON_SV_PARSECLIENTCOMMAND
 	{"clientcommand",	PF_clientcommand,	0,		0,		0,		440},// #440 void(entity e, string s) clientcommand (KRIMZON_SV_PARSECLIENTCOMMAND)
 	{"tokenize",		PF_Tokenize,		0,		0,		0,		441},// #441 float(string s) tokenize (KRIMZON_SV_PARSECLIENTCOMMAND)
 	{"argv",			PF_ArgV,			0,		0,		0,		442},// #442 string(float n) argv (KRIMZON_SV_PARSECLIENTCOMMAND
 
+//DP_GFX_QUAKE3MODELTAGS
 	{"setattachment",	PF_setattachment,	0,		0,		0,		443},// #443 void(entity e, entity tagentity, string tagname) setattachment (DP_GFX_QUAKE3MODELTAGS)
 
 	{"search_begin",	PF_search_begin,	0,		0,		0,		444},
@@ -8891,7 +9135,10 @@ BuiltinList_t BuiltinList[] = {				//nq	qw		h2		ebfs
 	{"findflags",		PF_FindFlags,		0,		0,		0,		449},// #449 entity(entity start, .entity fld, float match) findflags
 //DP_QC_FINDCHAINFLAGS
 	{"findchainflags",	PF_findchainflags,	0,		0,		0,		450},// #450 entity(.float fld, float match) findchainflags
-
+//DP_MD3_TAGSINFO
+	{"gettagindex",		PF_gettagindex,		0,		0,		0,		451},// #451 float(entity ent, string tagname) gettagindex (DP_MD3_TAGSINFO)
+	{"gettaginfo",		PF_gettaginfo,		0,		0,		0,		452},// #452 vector(entity ent, float tagindex) gettaginfo (DP_MD3_TAGSINFO)
+//DP_QC_BOTCLIENT
 	{"dropclient",		PF_dropclient,		0,		0,		0,		453},// #453 void(entity player) dropclient
 
 	{"spawnclient",		PF_spawnclient,		0,		0,		0,		454},	//entity() spawnclient = #454;

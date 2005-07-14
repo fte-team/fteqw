@@ -1711,16 +1711,16 @@ void	Cmd_ExecuteString (char *text, int level)
 		return;
 	}
 
-#ifdef PLUGINS
-	if (Plugin_ExecuteString())
-		return;
-#endif
-
 #ifndef SERVERONLY
 #ifdef CSQC_DAT
 	if (CSQC_ConsoleCommand(text))
 		return;
 #endif
+#endif
+
+#ifdef PLUGINS
+	if (Plugin_ExecuteString())
+		return;
 #endif
 
 #ifndef CLIENTONLY

@@ -133,6 +133,8 @@ typedef struct
 	int			currentplayernum;
 
 	float		time;
+
+	qboolean	useperspective;
 } refdef_t;
 
 

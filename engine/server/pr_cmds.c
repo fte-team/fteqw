@@ -3715,7 +3715,6 @@ void PF_droptofloor (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 	end[2] -= 512;
 
 	VectorCopy (ent->v->origin, start);
-	start[2] += 1;
 	trace = SV_Move (start, ent->v->mins, ent->v->maxs, end, MOVE_NORMAL, ent);
 
 	if (trace.fraction == 1 || trace.allsolid)

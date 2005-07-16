@@ -1972,6 +1972,7 @@ void SWMod_LoadBrushModel (model_t *mod, void *buffer)
 
 	mod->funcs.LeafForPoint			= SWMod_LeafForPoint;
 	mod->funcs.LeafPVS				= SWMod_LeafnumPVS;
+	mod->funcs.Trace				= Q1BSP_Trace;
 
 //We ONLY do this for the world model
 #ifndef SERVERONLY

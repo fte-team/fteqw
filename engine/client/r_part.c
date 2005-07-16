@@ -3926,6 +3926,7 @@ void DrawParticleTypes (void texturedparticles(particle_t *,part_type_t*), void 
 	particletime += pframetime;
 }
 
+#ifdef RGLQUAKE
 void P_FlushRenderer(void)
 {
 	qglDepthMask(0);	//primarily to stop close particles from obscuring each other
@@ -3935,6 +3936,7 @@ void P_FlushRenderer(void)
 	qglBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
 	lasttype = NULL;
 }
+#endif
 
 /*
 ===============

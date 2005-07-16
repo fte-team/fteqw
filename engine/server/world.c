@@ -1732,7 +1732,7 @@ trace_t SV_Move (vec3_t start, vec3_t mins, vec3_t maxs, vec3_t end, int type, e
 	clip.end = end;
 	clip.mins = mins;
 	clip.maxs = maxs;
-	clip.type = type|4;
+	clip.type = type;
 	clip.passedict = passedict;
 	clip.hullnum = hullnum;
 #ifdef Q2SERVER

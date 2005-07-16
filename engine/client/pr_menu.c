@@ -468,6 +468,8 @@ void PF_CL_drawline (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 	float *pos = G_VECTOR(OFS_PARM4);
 	int numpoints = *prinst->callargc-4;
 
+#ifdef RGLQUAKE	// :(
+
 	if (qrenderer == QR_OPENGL)
 	{
 		qglColor4f(rgb[0], rgb[1], rgb[2], alpha);
@@ -480,6 +482,7 @@ void PF_CL_drawline (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 
 		qglEnd();
 	}
+#endif
 }
 
 //vector  drawgetimagesize(string pic) = #460;

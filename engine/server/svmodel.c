@@ -1220,10 +1220,6 @@ void Mod_LoadPlanes (lump_t *l)
 	}
 }
 
-void Q1BSP_FatPVS (vec3_t org, qboolean add);
-qboolean Q1BSP_EdictInFatPVS(struct edict_s *ent);
-void Q1BSP_FindTouchedLeafs(struct edict_s *ent);
-
 /*
 =================
 Mod_LoadBrushModel
@@ -1300,6 +1296,7 @@ void Mod_LoadBrushModel (model_t *mod, void *buffer)
 
 	mod->funcs.LeafForPoint			= Mod_LeafForPoint;
 	mod->funcs.LeafPVS				= Mod_LeafnumPVS;
+	mod->funcs.Trace				= Q1BSP_Trace;
 
 
 	mod->numframes = 2;		// regular and alternate animation

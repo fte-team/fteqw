@@ -29,11 +29,13 @@ struct trace_s;
 struct edict_s;
 
 typedef struct {
-	qboolean (*RecursiveHullCheck) (struct hull_s *hull, int num, float p1f, float p2f, vec3_t p1, vec3_t p2, struct trace_s *trace);
+//	qboolean (*RecursiveHullCheck) (struct hull_s *hull, int num, float p1f, float p2f, vec3_t p1, vec3_t p2, struct trace_s *trace);
 	int (*HullPointContents) (struct hull_s *hull, vec3_t p);	//return FTE contents
 } hullfuncs_t;
 
 typedef struct {
+	qboolean (*Trace)			(struct model_s *model, int hulloverride, int frame, vec3_t p1, vec3_t p2, vec3_t mins, vec3_t maxs, struct trace_s *trace);
+
 	void (*FatPVS)				(vec3_t org, qboolean add);
 	qboolean (*EdictInFatPVS)	(struct edict_s *edict);
 	void (*FindTouchedLeafs_Q1)	(struct edict_s *ent);	//edict system as opposed to q2 game dll system.

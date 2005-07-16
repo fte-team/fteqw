@@ -119,150 +119,6 @@ hull_t	*SV_HullForBox (vec3_t mins, vec3_t maxs)
 	return &box_hull;
 }
 
-
-
-/*
-================
-SV_HullForEntity
-
-Returns a hull that can be used for testing or clipping an object of mins/maxs
-size.
-Offset is filled in to contain the adjustment that must be added to the
-testing object's origin to get a point to use with the returned hull.
-================
-*/
-hull_t *SV_HullForEntity (edict_t *ent, int hullnum, vec3_t mins, vec3_t maxs, vec3_t offset)
-{
-	model_t		*model;
-	vec3_t		size;
-	vec3_t		hullmins, hullmaxs;
-	hull_t		*hull;
-
-// decide which clipping hull to use, based on the size
-	if (ent->v->solid == SOLID_BSP)
-	{	// explicit hulls in the BSP model
-		if (ent->v->movetype != MOVETYPE_PUSH)
-			SV_Error ("SOLID_BSP without MOVETYPE_PUSH (%s)", ent->v->classname + svprogfuncs->stringtable);
-
-		model = sv.models[ (int)ent->v->modelindex ];
-
-		if (!model || model->type != mod_brush)
-			SV_Error ("SOLID_BSP with a non bsp model");
-
-		VectorSubtract (maxs, mins, size);
-		if (hullnum >= 1 && hullnum <= MAX_MAP_HULLSM && model->hulls[hullnum-1].available)
-			hull = &model->hulls[hullnum-1];
-		else
-		{
-			if (model->hulls[5].available)
-			{
-				if (size[0] < 3) // Point
-					hull = &model->hulls[0];
-				else if (size[0] <= 32 && size[2] <= 28)  // Half Player
-					hull = &model->hulls[3];
-				else if (size[0] <= 32)  // Full Player
-					hull = &model->hulls[1];
-				else // Golumn
-					hull = &model->hulls[5];
-			}
-			else
-			{
-				if (size[0] < 3 || !model->hulls[1].available)
-					hull = &model->hulls[0];
-				else if (size[0] <= 32)
-				{
-					if (size[2] < 54 && model->hulls[3].available)
-						hull = &model->hulls[3]; // 32x32x36
-					else
-						hull = &model->hulls[1];
-				}
-				else
-					hull = &model->hulls[2];
-			}
-		}
-
-// calculate an offset value to center the origin
-		VectorSubtract (hull->clip_mins, mins, offset);
-		VectorAdd (offset, ent->v->origin, offset);
-	}
-	else
-	{	// create a temp hull from bounding box sizes
-
-		VectorSubtract (ent->v->mins, maxs, hullmins);
-		VectorSubtract (ent->v->maxs, mins, hullmaxs);
-		hull = SV_HullForBox (hullmins, hullmaxs);
-		
-		VectorCopy (ent->v->origin, offset);
-	}
-
-
-	return hull;
-}
-#ifdef Q2SERVER
-hull_t *SVQ2_HullForEntity (q2edict_t *ent, vec3_t mins, vec3_t maxs, vec3_t offset)
-{
-	model_t		*model;
-	vec3_t		size;
-	vec3_t		hullmins, hullmaxs;
-	hull_t		*hull;
-
-// decide which clipping hull to use, based on the size
-	if (ent->s.solid == Q2SOLID_BSP)
-	{	// explicit hulls in the BSP model
-		model = sv.models[ (int)ent->s.modelindex ];
-
-		if (!model || model->type != mod_brush)
-			SV_Error ("SOLID_BSP with a non bsp model");
-
-		VectorSubtract (maxs, mins, size);
-		if (model->fromgame == fg_halflife)
-		{
-			if (size[0] < 3)
-				hull = &model->hulls[0]; // 0x0x0
-			else if (size[0] <= 32)
-			{
-				if (size[2] < 54) // pick the nearest of 36 or 72
-					hull = &model->hulls[3]; // 32x32x36
-				else
-					hull = &model->hulls[1]; // 32x32x72
-			}
-			else
-				hull = &model->hulls[2]; // 64x64x64				
-		}
-		else
-		{
-			if (size[0] < 3)
-				hull = &model->hulls[0];
-			else if (size[0] <= 32)
-			{
-				if (size[2] < 54 && model->hulls[3].firstclipnode) // pick the nearest of 36 or 72
-					hull = &model->hulls[3]; // 32x32x36
-				else
-					hull = &model->hulls[1];
-			}
-			else
-				hull = &model->hulls[2];
-		}
-
-// calculate an offset value to center the origin
-		VectorSubtract (hull->clip_mins, mins, offset);
-		VectorAdd (offset, ent->s.origin, offset);
-	}
-	else
-	{	// create a temp hull from bounding box sizes
-
-		VectorSubtract (ent->mins, maxs, hullmins);
-		VectorSubtract (ent->maxs, mins, hullmaxs);
-		hull = SV_HullForBox (hullmins, hullmaxs);
-		
-		VectorCopy (ent->s.origin, offset);
-	}
-
-
-	return hull;
-}
-#endif
-
 /*
 ===============================================================================
 
@@ -1056,55 +912,87 @@ edict_t	*SV_TestEntityPosition (edict_t *ent)
 	return NULL;
 }
 
+qboolean Q1BSP_RecursiveHullCheck (hull_t *hull, int num, float p1f, float p2f, vec3_t p1, vec3_t p2, trace_t *trace);
+
 //wrapper function. Rotates the start and end positions around the angles if needed.
-qboolean TransformedHullCheck (hull_t *hull, vec3_t start, vec3_t end, trace_t *trace, vec3_t angles)
+//qboolean TransformedHullCheck (hull_t *hull, vec3_t start, vec3_t end, trace_t *trace, vec3_t angles)
+qboolean TransformedTrace (struct model_s *model, int hulloverride, int frame, vec3_t start, vec3_t end, vec3_t mins, vec3_t maxs, struct trace_s *trace, vec3_t origin, vec3_t angles)
 {
+	qboolean rotated;
 	vec3_t		start_l, end_l;
 	vec3_t		a;
 	vec3_t		forward, right, up;
 	vec3_t		temp;
 	qboolean	result;
 
+	memset (trace, 0, sizeof(trace_t));
+	trace->fraction = 1;
+	trace->allsolid = false;
+	trace->startsolid = false;
+	trace->inopen = true;	//probably wrong...
+	VectorCopy (end, trace->endpos);
+
 	// don't rotate non bsp ents. Too small to bother.
-	if (hull != &box_hull && (angles[0] || angles[1] || angles[2]) )
+	if (model)
 	{
-		AngleVectors (angles, forward, right, up);
+		rotated = (angles[0] || angles[1] || angles[2]);
+		if (rotated)
+		{
+			AngleVectors (angles, forward, right, up);
 
-		VectorCopy (start, temp);
-		start_l[0] = DotProduct (temp, forward);
-		start_l[1] = -DotProduct (temp, right);
-		start_l[2] = DotProduct (temp, up);
+			VectorSubtract (start, origin, temp);
+			start_l[0] = DotProduct (temp, forward);
+			start_l[1] = -DotProduct (temp, right);
+			start_l[2] = DotProduct (temp, up);
 
-		VectorCopy (end, temp);
-		end_l[0] = DotProduct (temp, forward);
-		end_l[1] = -DotProduct (temp, right);
-		end_l[2] = DotProduct (temp, up);
+			VectorSubtract (end, origin, temp);
+			end_l[0] = DotProduct (temp, forward);
+			end_l[1] = -DotProduct (temp, right);
+			end_l[2] = DotProduct (temp, up);
+		}
+		else
+		{
+			VectorSubtract (start, origin, start_l);
+			VectorSubtract (end, origin, end_l);
+		}
+		result = model->funcs.Trace (model, hulloverride, frame, start_l, end_l, mins, maxs, trace);
+		if (rotated)
+		{
+			// FIXME: figure out how to do this with existing angles
+	//		VectorNegate (angles, a);
+			a[0] = -angles[0];
+			a[1] = -angles[1];
+			a[2] = -angles[2];
+			AngleVectors (a, forward, right, up);
 
-		result = hull->funcs.RecursiveHullCheck (hull, hull->firstclipnode, 0, 1, start_l, end_l, trace);
+			VectorCopy (trace->plane.normal, temp);
+			trace->plane.normal[0] = DotProduct (temp, forward);
+			trace->plane.normal[1] = -DotProduct (temp, right);
+			trace->plane.normal[2] = DotProduct (temp, up);
 
-		// FIXME: figure out how to do this with existing angles
-//		VectorNegate (angles, a);
-		a[0] = -angles[0];
-		a[1] = -angles[1];
-		a[2] = -angles[2];
-		AngleVectors (a, forward, right, up);
-
-		VectorCopy (trace->plane.normal, temp);
-		trace->plane.normal[0] = DotProduct (temp, forward);
-		trace->plane.normal[1] = -DotProduct (temp, right);
-		trace->plane.normal[2] = DotProduct (temp, up);
-
-		trace->endpos[0] = start[0] + trace->fraction * (end[0] - start[0]);
-		trace->endpos[1] = start[1] + trace->fraction * (end[1] - start[1]);
-		trace->endpos[2] = start[2] + trace->fraction * (end[2] - start[2]);
+			trace->endpos[0] = start[0] + trace->fraction * (end[0] - start[0]);
+			trace->endpos[1] = start[1] + trace->fraction * (end[1] - start[1]);
+			trace->endpos[2] = start[2] + trace->fraction * (end[2] - start[2]);
+		}
+		VectorAdd (trace->endpos, origin, trace->endpos);
 	}
 	else
-		result = hull->funcs.RecursiveHullCheck (hull, hull->firstclipnode, 0, 1, start, end, trace);
+	{
+		hull_t *hull = &box_hull;
+
+		memset (trace, 0, sizeof(trace_t));
+		trace->fraction = 1;
+		trace->allsolid = true;
+		VectorCopy (end, trace->endpos);
+
+		VectorSubtract (start, origin, start_l);
+		VectorSubtract (end, origin, end_l);
+		result = Q1BSP_RecursiveHullCheck (hull, hull->firstclipnode, 0, 1, start_l, end_l, trace);
+		VectorAdd (trace->endpos, origin, trace->endpos);
+	}
 
 	return result;
 }
-
-
 
 /*
 ==================
@@ -1114,53 +1002,82 @@ Handles selection or creation of a clipping hull, and offseting (and
 eventually rotation) of the end points
 ==================
 */
-trace_t SV_ClipMoveToEntity (edict_t *ent, vec3_t start, vec3_t mins, vec3_t maxs, vec3_t end, int hullnum)	//hullnum overrides min/max for q1 style bsps
+trace_t SV_ClipMoveToEntity (edict_t *ent, vec3_t start, vec3_t mins, vec3_t maxs, vec3_t end, int hullnum, qboolean hitmodel)	//hullnum overrides min/max for q1 style bsps
 {
 	trace_t		trace;
-	vec3_t		offset;
-	vec3_t		start_l, end_l;
-	hull_t		*hull;
+	model_t		*model;
 
-
+/*
 #ifdef Q2BSPS
 	if (ent->v->solid == SOLID_BSP)
 		if (sv.models[(int)ent->v->modelindex] && (sv.models[(int)ent->v->modelindex]->fromgame == fg_quake2 || sv.models[(int)ent->v->modelindex]->fromgame == fg_quake3))
 		{
 			trace = CM_TransformedBoxTrace (start, end, mins, maxs, sv.models[(int)ent->v->modelindex]->hulls[0].firstclipnode, MASK_PLAYERSOLID, ent->v->origin, ent->v->angles);
-			if (trace.fraction < 1 || trace.startsolid  )
+			if (trace.fraction < 1 || trace.startsolid)
 				trace.ent = ent;
 			return trace;
 		}
 #endif
-
-
-// fill in a default trace
-	memset (&trace, 0, sizeof(trace_t));
-	trace.fraction = 1;
-	trace.allsolid = true;
-	VectorCopy (end, trace.endpos);
+*/
 
 // get the clipping hull
-	hull = SV_HullForEntity (ent, hullnum, mins, maxs, offset);
-
-	VectorSubtract (start, offset, start_l);
-	VectorSubtract (end, offset, end_l);
+	if (ent->v->solid == SOLID_BSP)
+	{
+		model = sv.models[(int)ent->v->modelindex];
+		if (!model || model->type != mod_brush)
+			SV_Error("SOLID_BSP with non bsp model (classname: %s)", svprogfuncs->stringtable + ent->v->classname);
+	}
+	else
+	{
+		vec3_t boxmins, boxmaxs;
+		VectorSubtract (ent->v->mins, maxs, boxmins);
+		VectorSubtract (ent->v->maxs, mins, boxmaxs);
+		SV_HullForBox(boxmins, boxmaxs);
+		model = NULL;
+	}
 
 // trace a line through the apropriate clipping hull
 	if (progstype == PROG_H2 && ent->v->solid == SOLID_BSP)
 	{
 		ent->v->angles[0]*=-1;
-		TransformedHullCheck(hull, start_l, end_l, &trace, ent->v->angles);
+		TransformedTrace(model, 0, ent->v->frame, start, end, mins, maxs, &trace, ent->v->origin, ent->v->angles);
 		ent->v->angles[0]*=-1;
 	}
 	else
 	{
-		TransformedHullCheck(hull, start_l, end_l, &trace, ent->v->angles);
+		TransformedTrace(model, 0, ent->v->frame, start, end, mins, maxs, &trace, ent->v->origin, ent->v->angles);
 	}
 
 // fix trace up by the offset
 	if (trace.fraction != 1)
-		VectorAdd (trace.endpos, offset, trace.endpos);
+	{
+		if (!model && hitmodel && ent->v->solid != SOLID_BSP && ent->v->modelindex > 0)
+		{
+			//okay, we hit the bbox
+
+			model_t *model;
+			if (ent->v->modelindex < 1 || ent->v->modelindex >= MAX_MODELS)
+				SV_Error("SV_ClipMoveToEntity: modelindex out of range\n");
+			model = sv.models[ (int)ent->v->modelindex ];
+			if (!model)
+			{	//if the model isn't loaded, load it.
+				//this saves on memory requirements with mods that don't ever use this.
+				model = sv.models[(int)ent->v->modelindex] = Mod_ForName(sv.model_precache[(int)ent->v->modelindex], false);
+			}
+
+			if (model && model->funcs.Trace)
+			{
+				//do the second trace
+				TransformedTrace(model, 0, ent->v->frame, start, end, mins, maxs, &trace, ent->v->origin, ent->v->angles);
+			}
+		}
+
+		if (trace.startsolid)
+		{
+			if (ent != sv.edicts)
+				Con_Printf("Trace started solid\n");
+		}
+	}
 
 // did we clip the move?
 	if (trace.fraction < 1 || trace.startsolid  )
@@ -1172,22 +1089,10 @@ trace_t SV_ClipMoveToEntity (edict_t *ent, vec3_t start, vec3_t mins, vec3_t max
 trace_t SVQ2_ClipMoveToEntity (q2edict_t *ent, vec3_t start, vec3_t mins, vec3_t maxs, vec3_t end)
 {
 	trace_t		trace;
+	/*
 	vec3_t		offset;
 	vec3_t		start_l, end_l;
 	hull_t		*hull;
-
-/*
-#ifdef Q2BSPS
-	if (ent->s.solid == Q2SOLID_BSP)
-		if (sv.models[(int)ent->s.modelindex] && (sv.models[(int)ent->s.modelindex]->fromgame == fg_quake2 || sv.models[(int)ent->s.modelindex]->fromgame == fg_quake3))
-		{
-			trace = CM_TransformedBoxTrace (start, end, mins, maxs, sv.models[(int)ent->s.modelindex]->hulls[0].firstclipnode, MASK_PLAYERSOLID, ent->s.origin, ent->s.angles);
-			if (trace.fraction < 1 || trace.startsolid  )
-				trace.ent = (edict_t *)ent;
-			return trace;
-		}
-#endif
-*/
 
 // fill in a default trace
 	memset (&trace, 0, sizeof(trace_t));
@@ -1202,7 +1107,7 @@ trace_t SVQ2_ClipMoveToEntity (q2edict_t *ent, vec3_t start, vec3_t mins, vec3_t
 	VectorSubtract (end, offset, end_l);
 
 // trace a line through the apropriate clipping hull
-	TransformedHullCheck(hull, start_l, end_l, &trace, ent->s.angles);
+	TransformedTrace(ent->s.modelindex, start_l, end_l, &trace, ent->s.angles);
 
 // fix trace up by the offset
 	if (trace.fraction != 1)
@@ -1211,7 +1116,7 @@ trace_t SVQ2_ClipMoveToEntity (q2edict_t *ent, vec3_t start, vec3_t mins, vec3_t
 // did we clip the move?
 	if (trace.fraction < 1 || trace.startsolid  )
 		trace.ent = (edict_t *)ent;
-
+*/
 	return trace;
 }
 #endif
@@ -1420,7 +1325,7 @@ int SVQ2_HeadnodeForEntity (q2edict_t *ent)
 	return CM_HeadnodeForBox (ent->mins, ent->maxs);
 }
 #endif
-
+/*
 void SV_ClipMoveToEntities ( moveclip_t *clip )
 {
 	int			i, num;
@@ -1486,21 +1391,45 @@ void SV_ClipMoveToEntities ( moveclip_t *clip )
 				touch->v->origin, angles);
 
 		if (trace.allsolid || trace.startsolid ||
-		trace.fraction < clip->trace.fraction)
+				trace.fraction < clip->trace.fraction)
 		{
-			trace.ent = touch;
-		 	if (clip->trace.startsolid)
+			if (clip->type & MOVE_HITMODEL && touch->v->solid != SOLID_BSP)
 			{
-				clip->trace = trace;
-				clip->trace.startsolid = true;
+				model_t *model;
+				if (touch->v->modelindex < 1 || touch->v->modelindex >= MAX_MODELS)
+					SV_Error("SV_ClipMoveToEntity: modelindex out of range\n");
+				model = sv.models[ (int)touch->v->modelindex ];
+				if (!model)
+				{	//if the model isn't loaded, load it.
+					//this saves on memory requirements with mods that don't ever use this.
+					model = sv.models[(int)touch->v->modelindex] = Mod_ForName(sv.model_precache[(int)touch->v->modelindex], false);
+				}
+
+				if (model && model->hulls[0].available)
+				{
+					hull_t *hull = &model->hulls[0];
+					//do the second trace
+					memset (&trace, 0, sizeof(trace_t));
+					trace.fraction = 1;
+					trace.allsolid = true;
+					TransformedHullCheck(hull, clip->start, clip->end, &trace, touch->v->angles);
+
+					if (trace.fraction < clip->trace.fraction)
+					{
+						trace.ent = touch;
+						clip->trace = trace;
+					}
+				}
 			}
 			else
+			{
+				trace.ent = touch;
 				clip->trace = trace;
+			}
 		}
-		else if (trace.startsolid)
-			clip->trace.startsolid = true;
 	}
 }
+*/
 #ifdef Q2SERVER
 void SVQ2_ClipMoveToEntities ( moveclip_t *clip, int contentsmask )
 {
@@ -1636,23 +1565,15 @@ void SV_ClipToLinks ( areanode_t *node, moveclip_t *clip )
 		}
 
 		if ((int)touch->v->flags & FL_MONSTER)
-			trace = SV_ClipMoveToEntity (touch, clip->start, clip->mins2, clip->maxs2, clip->end, clip->hullnum);
+			trace = SV_ClipMoveToEntity (touch, clip->start, clip->mins2, clip->maxs2, clip->end, clip->hullnum, clip->type & MOVE_HITMODEL);
 		else
-			trace = SV_ClipMoveToEntity (touch, clip->start, clip->mins, clip->maxs, clip->end, clip->hullnum);
+			trace = SV_ClipMoveToEntity (touch, clip->start, clip->mins, clip->maxs, clip->end, clip->hullnum, clip->type & MOVE_HITMODEL);
 		if (trace.allsolid || trace.startsolid ||
 		trace.fraction < clip->trace.fraction)
 		{
 			trace.ent = touch;
-		 	if (clip->trace.startsolid)
-			{
-				clip->trace = trace;
-				clip->trace.startsolid = true;
-			}
-			else
-				clip->trace = trace;
+			clip->trace = trace;
 		}
-		else if (trace.startsolid)
-			clip->trace.startsolid = true;
 	}
 	
 // recurse down both sides
@@ -1712,20 +1633,13 @@ void SVQ2_ClipToLinks ( areanode_t *node, moveclip_t *clip )
 //			trace = SV_ClipMoveToEntity (touch, clip->start, clip->mins2, clip->maxs2, clip->end);
 //		else
 			trace = SVQ2_ClipMoveToEntity (touch, clip->start, clip->mins, clip->maxs, clip->end);
+
 		if (trace.allsolid || trace.startsolid ||
 		trace.fraction < clip->trace.fraction)
 		{
 			trace.ent = (edict_t *)touch;
-		 	if (clip->trace.startsolid)
-			{
-				clip->trace = trace;
-				clip->trace.startsolid = true;
-			}
-			else
-				clip->trace = trace;
+			clip->trace = trace;
 		}
-		else if (trace.startsolid)
-			clip->trace.startsolid = true;
 	}
 	
 // recurse down both sides
@@ -1812,13 +1726,13 @@ trace_t SV_Move (vec3_t start, vec3_t mins, vec3_t maxs, vec3_t end, int type, e
 	}
 
 // clip to world
-	clip.trace = SV_ClipMoveToEntity ( sv.edicts, start, mins, maxs, end, hullnum);
+	clip.trace = SV_ClipMoveToEntity ( sv.edicts, start, mins, maxs, end, hullnum, false);
 
 	clip.start = start;
 	clip.end = end;
 	clip.mins = mins;
 	clip.maxs = maxs;
-	clip.type = type;
+	clip.type = type|4;
 	clip.passedict = passedict;
 	clip.hullnum = hullnum;
 #ifdef Q2SERVER
@@ -1843,11 +1757,12 @@ trace_t SV_Move (vec3_t start, vec3_t mins, vec3_t maxs, vec3_t end, int type, e
 	SV_MoveBounds ( start, clip.mins2, clip.maxs2, end, clip.boxmins, clip.boxmaxs );
 
 // clip to entities
-#ifdef Q2BSPS
+/*#ifdef Q2BSPS
 	if (sv.worldmodel->fromgame == fg_quake2 || sv.worldmodel->fromgame == fg_quake3)
 		SV_ClipMoveToEntities(&clip);
 	else
 #endif
+*/
 		SV_ClipToLinks ( sv_areanodes, &clip );
 
 	if (clip.trace.startsolid)

@@ -200,7 +200,7 @@ void CL_InitTEnts (void)
 	int i;
 	for (i = 0; i < sizeof(tentsfx)/sizeof(tentsfx[0]); i++)
 	{
-		if (COM_FCheckExists(tentsfx[i].efname))
+		if (COM_FCheckExists(va("sound/%s", tentsfx[i].efname)))
 			*tentsfx[i].sfx = S_PrecacheSound (tentsfx[i].efname);
 		else
 			*tentsfx[i].sfx = NULL;

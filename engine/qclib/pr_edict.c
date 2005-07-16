@@ -2191,7 +2191,7 @@ pbool PR_TestRecompile(progfuncs_t *progfuncs)
 		return true;
 	return false;
 }
-
+/*
 #ifdef _DEBUG
 //this is for debugging.
 //I'm using this to detect incorrect string types while converting 32bit string pointers with bias to bound indexes.
@@ -2225,7 +2225,7 @@ void PR_TestForWierdness(progfuncs_t *progfuncs)
 	}
 }
 #endif
-
+*/
 char *decode(int complen, int len, int method, char *info, char *buffer);
 /*
 ===============

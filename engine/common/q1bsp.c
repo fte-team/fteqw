@@ -204,8 +204,68 @@ int Q1BSP_HullPointContents(hull_t *hull, vec3_t p)
 
 void Q1BSP_SetHullFuncs(hull_t *hull)
 {
-	hull->funcs.RecursiveHullCheck = Q1BSP_RecursiveHullCheck;
 	hull->funcs.HullPointContents = Q1BSP_HullPointContents;
+}
+
+qboolean Q1BSP_Trace(model_t *model, int forcehullnum, int frame, vec3_t start, vec3_t end, vec3_t mins, vec3_t maxs, trace_t *trace)
+{
+	hull_t *hull;
+	vec3_t size;
+	vec3_t start_l, end_l;
+	vec3_t offset;
+
+	memset (trace, 0, sizeof(trace_t));
+	trace->fraction = 1;
+	trace->allsolid = true;
+
+	VectorSubtract (maxs, mins, size);
+	if (forcehullnum >= 1 && forcehullnum <= MAX_MAP_HULLSM && model->hulls[forcehullnum-1].available)
+		hull = &model->hulls[forcehullnum-1];
+	else
+	{
+		if (model->hulls[5].available)
+		{	//choose based on hexen2 sizes.
+
+			if (size[0] < 3) // Point
+				hull = &model->hulls[0];
+			else if (size[0] <= 32 && size[2] <= 28)  // Half Player
+				hull = &model->hulls[3];
+			else if (size[0] <= 32)  // Full Player
+				hull = &model->hulls[1];
+			else // Golumn
+				hull = &model->hulls[5];
+		}
+		else
+		{
+			if (size[0] < 3 || !model->hulls[1].available)
+				hull = &model->hulls[0];
+			else if (size[0] <= 32)
+			{
+				if (size[2] < 54 && model->hulls[3].available)
+					hull = &model->hulls[3]; // 32x32x36 (half-life's crouch)
+				else
+					hull = &model->hulls[1];
+			}
+			else
+				hull = &model->hulls[2];
+		}
+	}
+
+// calculate an offset value to center the origin
+	VectorSubtract (hull->clip_mins, mins, offset);
+	VectorSubtract(start, offset, start_l);
+	VectorSubtract(end, offset, end_l);
+	Q1BSP_RecursiveHullCheck(hull, hull->firstclipnode, 0, 1, start_l, end_l, trace);
+	if (trace->fraction == 1)
+	{
+		VectorCopy (end, trace->endpos);
+	}
+	else
+	{
+		VectorAdd (trace->endpos, offset, trace->endpos);
+	}
+
+	return trace->fraction != 1;
 }
 
 /*

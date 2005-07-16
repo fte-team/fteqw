@@ -2894,8 +2894,16 @@ void TP_StatChanged (int stat, int value)
 
 		if (i & (IT_KEY1|IT_KEY2)) {
 			if (cl.teamfortress && !cl.spectator)
+			{
 				ExecTookTrigger (tp_name_flag.string, it_flag,
-				cl.frames[cl.validsequence&UPDATE_MASK].playerstate[cl.playernum[SP]].origin);
+						cl.frames[cl.validsequence&UPDATE_MASK].playerstate[cl.playernum[SP]].origin);
+			}
+		}
+		
+		if (!cl.spectator && cl.teamfortress && ~value & vars.items & (IT_KEY1|IT_KEY2))
+		{
+			vars.lastdrop_time = realtime;
+			strcpy (vars.lastdroploc, Macro_Location());
 		}
 
 		vars.olditems = vars.items;
@@ -3133,7 +3141,7 @@ qboolean TP_SuppressMessage(char *buf) {
 	return false;
 }
 
-static void CL_Say (qboolean team, char *extra)
+void CL_Say (qboolean team, char *extra)
 {
 	extern cvar_t cl_fakename;
 	char	text[2048], sendtext[2048], *s;

@@ -43,6 +43,7 @@ void SWMod_LoadLighting (lump_t *l);
 
 
 void Q2BSP_SetHullFuncs(hull_t *hull);
+qboolean CM_Trace(model_t *model, int forcehullnum, int frame, vec3_t start, vec3_t end, vec3_t mins, vec3_t maxs, trace_t *trace);
 
 qbyte			areabits[MAX_Q2MAP_AREAS/8];
 
@@ -3594,6 +3595,7 @@ q2cmodel_t *CM_LoadMap (char *name, char *filein, qboolean clientload, unsigned 
 			loadmodel->funcs.StainNode				= GLR_Q2BSP_StainNode;
 			loadmodel->funcs.MarkLights				= Q2BSP_MarkLights;
 #endif
+			loadmodel->funcs.Trace					= CM_Trace;
 
 #ifndef SERVERONLY
 			//light grid info
@@ -3670,6 +3672,7 @@ q2cmodel_t *CM_LoadMap (char *name, char *filein, qboolean clientload, unsigned 
 			loadmodel->funcs.MarkLights				= NULL;
 			loadmodel->funcs.LeafPVS				= CM_LeafnumPVS;
 			loadmodel->funcs.LeafForPoint			= CM_ModelPointLeafnum;
+			loadmodel->funcs.Trace					= CM_Trace;
 
 			break;
 #if defined(RGLQUAKE)
@@ -3707,6 +3710,7 @@ q2cmodel_t *CM_LoadMap (char *name, char *filein, qboolean clientload, unsigned 
 			loadmodel->funcs.MarkLights				= Q2BSP_MarkLights;
 			loadmodel->funcs.LeafPVS				= CM_LeafnumPVS;
 			loadmodel->funcs.LeafForPoint			= CM_ModelPointLeafnum;
+			loadmodel->funcs.Trace					= CM_Trace;
 			break;
 #endif
 #if defined(SWQUAKE)
@@ -3745,6 +3749,7 @@ q2cmodel_t *CM_LoadMap (char *name, char *filein, qboolean clientload, unsigned 
 			loadmodel->funcs.MarkLights				= Q2BSP_MarkLights;
 			loadmodel->funcs.LeafPVS				= CM_LeafnumPVS;
 			loadmodel->funcs.LeafForPoint			= CM_ModelPointLeafnum;
+			loadmodel->funcs.Trace					= CM_Trace;
 			break;
 #endif
 		default:
@@ -3765,8 +3770,6 @@ q2cmodel_t *CM_LoadMap (char *name, char *filein, qboolean clientload, unsigned 
 	FloodAreaConnections ();
 
 	strcpy (map_name, name);
-
-
 
 
 
@@ -4984,6 +4987,11 @@ trace_t		CM_BoxTrace (vec3_t start, vec3_t end,
 	return trace_trace;
 }
 
+qboolean CM_Trace(model_t *model, int forcehullnum, int frame, vec3_t start, vec3_t end, vec3_t mins, vec3_t maxs, trace_t *trace)
+{
+	*trace = CM_BoxTrace(start, end, mins, maxs, model->hulls[0].firstclipnode, MASK_PLAYERSOLID);
+	return trace->fraction != 1;
+}
 
 /*
 ==================
@@ -5498,7 +5506,6 @@ int Q2BSP_HullPointContents(hull_t *hull, vec3_t p)
 }
 void Q2BSP_SetHullFuncs(hull_t *hull)
 {
-	hull->funcs.RecursiveHullCheck = Q2BSP_RecursiveHullCheck;
 	hull->funcs.HullPointContents = Q2BSP_HullPointContents;
 }
 

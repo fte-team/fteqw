@@ -2108,10 +2108,9 @@ guess_pm_type:
 			state->pm_type = PM_DEAD;
 		else
 			state->pm_type = PM_NORMAL;
-
-		TP_ParsePlayerInfo(oldstate, state, info);
 	}
 
+	TP_ParsePlayerInfo(oldstate, state, info);
 }
 
 void CL_ParseClientPersist(void)

@@ -2779,7 +2779,7 @@ qboolean TraceLineN (vec3_t start, vec3_t end, vec3_t impact, vec3_t normal)
 			memset (&trace, 0, sizeof(trace));
 			VectorSubtract(start, pe->origin, ts);
 			VectorSubtract(end, pe->origin, te);
-			if (!hull->funcs.RecursiveHullCheck (hull, hull->firstclipnode, 0, 1, ts, te, &trace))
+			if (!pe->model->funcs.Trace(pe->model, 0, 0, ts, te, vec3_origin, vec3_origin, &trace))
 			{
 				VectorSubtract(trace.endpos, ts, delta);
 				len = Length(delta);

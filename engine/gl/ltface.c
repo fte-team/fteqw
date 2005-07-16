@@ -66,9 +66,9 @@ vec_t CastRay (vec3_t p1, vec3_t p2)
 
 	hull = &lightmodel->hulls[0];
 	memset (&trace, 0, sizeof(trace));
-	if (!hull->funcs.RecursiveHullCheck (hull, hull->firstclipnode, 0, 1, p1, p2, &trace))
-		return -1;
-	
+	if (!lightmodel->funcs.Trace (lightmodel, 0, 0, p1, p2, vec3_origin, vec3_origin, &trace))
+		return -1;	
+
 	VectorSubtract(p1, p2, move);
 	return VectorLength(move);
 }

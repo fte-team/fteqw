@@ -1,5 +1,5 @@
 #include "quakedef.h"
-#ifdef RGLQUAKE
+#if defined(RGLQUAKE) || defined(SERVERONLY)
 #include "glquake.h"
 #include "shader.h"
 #include "hash.h"
@@ -9,6 +9,8 @@
 #endif
 
 #define MAX_BONES 256
+
+static model_t *loadmodel;
 
 //FIXME
 typedef struct
@@ -75,14 +77,18 @@ typedef struct {
 	int ofs_trineighbours;
 
 	int numskins;
+#ifndef SERVERONLY
 	int ofsskins;
+#endif
 
 	qboolean sharesverts;	//used with models with two shaders using the same vertex.
 
 
 	int numverts;
 
+#ifndef SERVERONLY
 	int ofs_st_array;
+#endif
 
 	int groups;
 	int groupofs;
@@ -113,7 +119,9 @@ typedef struct {
 
 typedef struct {
 	int ofsverts;
+#ifndef SERVERONLY
 	int ofsnormals;
+#endif
 
 	vec3_t		scale;
 	vec3_t		scale_origin;
@@ -135,6 +143,7 @@ typedef struct {
 
 //we can't be bothered with animating skins.
 //We'll load up to four of them but after that you're on your own
+#ifndef SERVERONLY
 typedef struct {
 	int skinwidth;
 	int skinheight;
@@ -159,7 +168,141 @@ typedef struct {
 	int skinnum;
 	bucket_t bucket;
 } galiascolourmapped_t;
+#endif
 
+
+static void R_LerpBones(float *plerp, float **pose, int poses, galiasbone_t *bones, int bonecount, float bonepose[MAX_BONES][12]);
+static void R_TransformVerticies(float bonepose[MAX_BONES][12], galisskeletaltransforms_t *weights, int numweights, float *xyzout);
+
+void Mod_DoCRC(model_t *mod, char *buffer, int buffersize)
+{
+#ifndef SERVERONLY
+	//we've got to have this bit
+	if (!strcmp(loadmodel->name, "progs/player.mdl") ||
+		!strcmp(loadmodel->name, "progs/eyes.mdl"))
+	{
+		unsigned short crc;
+		qbyte *p;
+		int len;
+		char st[40];
+
+		CRC_Init(&crc);
+		for (len = buffersize, p = buffer; len; len--, p++)
+			CRC_ProcessByte(&crc, *p);
+	
+		sprintf(st, "%d", (int) crc);
+		Info_SetValueForKey (cls.userinfo, 
+			!strcmp(loadmodel->name, "progs/player.mdl") ? pmodel_name : emodel_name,
+			st, MAX_INFO_STRING);
+
+		if (cls.state >= ca_connected)
+		{
+			CL_SendClientCommand(true, "setinfo %s %d", 
+				!strcmp(loadmodel->name, "progs/player.mdl") ? pmodel_name : emodel_name,
+				(int)crc);
+		}
+	}
+#endif
+}
+#include <malloc.h>
+qboolean GLMod_Trace(model_t *model, int forcehullnum, int frame, vec3_t start, vec3_t end, vec3_t mins, vec3_t maxs, trace_t *trace)
+{
+	galiasinfo_t *mod = Mod_Extradata(model);
+	galiasgroup_t *group;
+	galiaspose_t *pose;
+	int i;
+
+	float *p1, *p2, *p3;
+	vec3_t edge1, edge2, edge3;
+	vec3_t normal;
+	vec3_t edgenormal;
+
+	float planedist;
+	float diststart, distend;
+
+	float frac;
+	float temp;
+
+	vec3_t impactpoint;
+
+	float *posedata;
+	int *indexes;
+
+	while(mod)
+	{
+		indexes = (int*)((char*)mod + mod->ofs_indexes);
+		group = (galiasgroup_t*)((char*)mod + mod->groupofs);
+		pose = (galiaspose_t*)((char*)&group[0] + group[0].poseofs);
+		posedata = (float*)((char*)pose + pose->ofsverts);
+		if (group->isskeletal && !mod->sharesverts)
+		{
+			float bonepose[MAX_BONES][12];
+			posedata = alloca(mod->numverts*sizeof(vec3_t));
+			frac = 1;
+			R_LerpBones(&frac, (float**)posedata, 1, (galiasbone_t*)((char*)mod + mod->ofsbones), mod->numbones, bonepose);
+			R_TransformVerticies(bonepose, (galisskeletaltransforms_t*)((char*)mod + mod->ofstransforms), mod->numtransforms, posedata);
+		}
+
+		for (i = 0; i < mod->numindexes; i+=3)
+		{
+			p1 = posedata + 3*indexes[i+0];
+			p2 = posedata + 3*indexes[i+1];
+			p3 = posedata + 3*indexes[i+2];
+
+			VectorSubtract(p1, p2, edge1);
+			VectorSubtract(p3, p2, edge2);
+			CrossProduct(edge1, edge2, normal);
+
+			planedist = DotProduct(p1, normal);
+			diststart = DotProduct(start, normal);
+			if (diststart <= planedist)
+				continue;	//start on back side.
+			distend = DotProduct(end, normal);
+			if (distend >= planedist)
+				continue;	//end on front side (as must start - doesn't cross).
+
+			frac = (diststart - planedist) / (diststart-distend);
+
+			if (frac >= trace->fraction)	//already found one closer.
+				continue;
+
+			impactpoint[0] = start[0] + frac*(end[0] - start[0]);
+			impactpoint[1] = start[1] + frac*(end[1] - start[1]);
+			impactpoint[2] = start[2] + frac*(end[2] - start[2]);
+
+			temp = DotProduct(impactpoint, normal)-planedist;
+
+			CrossProduct(edge1, normal, edgenormal);
+			temp = DotProduct(impactpoint, edgenormal)-DotProduct(p2, edgenormal);
+			if (DotProduct(impactpoint, edgenormal) > DotProduct(p2, edgenormal))
+				continue;
+
+			CrossProduct(normal, edge2, edgenormal);
+			if (DotProduct(impactpoint, edgenormal) > DotProduct(p3, edgenormal))
+				continue;
+
+			VectorSubtract(p1, p3, edge3);
+			CrossProduct(normal, edge3, edgenormal);
+			if (DotProduct(impactpoint, edgenormal) > DotProduct(p1, edgenormal))
+				continue;
+
+			trace->fraction = frac;
+			VectorCopy(impactpoint, trace->endpos);
+			VectorCopy(normal, trace->plane.normal);
+		}
+
+		if (mod->nextsurf)
+			mod = (galiasinfo_t*)((char*)mod + mod->nextsurf);
+		else
+			mod = NULL;
+	}
+
+	trace->allsolid = false;
+
+	return trace->fraction != 1;
+}
+
+#ifndef SERVERONLY
 static hashtable_t skincolourmapped;
 
 static vec3_t shadevector;
@@ -288,17 +431,12 @@ static void R_LerpFrames(mesh_t *mesh, galiaspose_t *p1, galiaspose_t *p2, float
 		}
 	}
 }
-
+#endif
 #ifdef SKELETALMODELS
-static void R_BuildSkeletalMesh(mesh_t *mesh, float *plerp, float **pose, int poses, galiasbone_t *bones, int bonecount, galisskeletaltransforms_t *weights, int numweights)
+static void R_LerpBones(float *plerp, float **pose, int poses, galiasbone_t *bones, int bonecount, float bonepose[MAX_BONES][12])
 {
-	float bonepose[MAX_BONES][12];
-	float *outhead;
-	galisskeletaltransforms_t *v;
-
 	int i, k, b;
-	float *out, *matrix, m[12];
-
+	float *matrix, m[12];
 
 	// vertex weighted skeletal
 	// interpolate matrices and concatenate them to their parents
@@ -319,10 +457,35 @@ static void R_BuildSkeletalMesh(mesh_t *mesh, float *plerp, float **pose, int po
 			for (k = 0;k < 12;k++)	//parentless
 				bonepose[i][k] = m[k];
 	}
+}
+static void R_TransformVerticies(float bonepose[MAX_BONES][12], galisskeletaltransforms_t *weights, int numweights, float *xyzout)
+{
+	int i;
+	float *out, *matrix;
 
-	outhead = (float*)mesh->xyz_array;
+	galisskeletaltransforms_t *v = weights;
+	for (i = 0;i < numweights;i++, v++)
+	{
+		out = xyzout + v->vertexindex * 3;
+		matrix = bonepose[v->boneindex];
+		// FIXME: this can very easily be optimized with SSE or 3DNow
+		out[0] += v->org[0] * matrix[0] + v->org[1] * matrix[1] + v->org[2] * matrix[ 2] + v->org[3] * matrix[ 3];
+		out[1] += v->org[0] * matrix[4] + v->org[1] * matrix[5] + v->org[2] * matrix[ 6] + v->org[3] * matrix[ 7];
+		out[2] += v->org[0] * matrix[8] + v->org[1] * matrix[9] + v->org[2] * matrix[10] + v->org[3] * matrix[11];
+	}
+}
+#ifndef SERVERONLY
+static void R_BuildSkeletalMesh(mesh_t *mesh, float *plerp, float **pose, int poses, galiasbone_t *bones, int bonecount, galisskeletaltransforms_t *weights, int numweights)
+{
+	float bonepose[MAX_BONES][12];
+
+	int i, k;
+	float *matrix, m[12];
+
+	R_LerpBones(plerp, pose, poses, bones, bonecount, bonepose);
+
 	// blend the vertex bone weights
-	memset(outhead, 0, mesh->numvertexes * sizeof(mesh->xyz_array[0]));
+//	memset(outhead, 0, mesh->numvertexes * sizeof(mesh->xyz_array[0]));
 
 	for (i = 0; i < mesh->numvertexes; i++)
 	{
@@ -342,19 +505,12 @@ static void R_BuildSkeletalMesh(mesh_t *mesh, float *plerp, float **pose, int po
 		*/
 	}
 
-	v = weights;
-	for (i = 0;i < numweights;i++, v++)
-	{
-		out = outhead + v->vertexindex * 3;
-		matrix = bonepose[v->boneindex];
-		// FIXME: this can very easily be optimized with SSE or 3DNow
-		out[0] += v->org[0] * matrix[0] + v->org[1] * matrix[1] + v->org[2] * matrix[ 2] + v->org[3] * matrix[ 3];
-		out[1] += v->org[0] * matrix[4] + v->org[1] * matrix[5] + v->org[2] * matrix[ 6] + v->org[3] * matrix[ 7];
-		out[2] += v->org[0] * matrix[8] + v->org[1] * matrix[9] + v->org[2] * matrix[10] + v->org[3] * matrix[11];
-	}
+	R_TransformVerticies(bonepose, weights, numweights, (float*)mesh->xyz_array);
 }
 #endif
+#endif
 
+#ifndef SERVERONLY
 static void R_GAliasAddDlights(mesh_t *mesh, vec3_t org, vec3_t angles)
 {
 	int l, v;
@@ -486,14 +642,14 @@ static qboolean R_GAliasBuildMesh(mesh_t *mesh, galiasinfo_t *inf, int frame1, i
 	if (inf->sharesverts)
 		return false;	//don't generate the new vertex positions. We still have them all.
 
-
+#ifndef SERVERONLY
 	mesh->st_array = (vec2_t*)((char *)inf + inf->ofs_st_array);
 	mesh->lmst_array = NULL;
 	mesh->colors_array = tempColours;
-	mesh->xyz_array = tempVertexCoords;
 	mesh->trneighbors = (int *)((char *)inf + inf->ofs_trineighbours);
-
 	mesh->normals_array = tempNormals;
+#endif
+	mesh->xyz_array = tempVertexCoords;
 
 	g1 = (galiasgroup_t*)((char *)inf + inf->groupofs + sizeof(galiasgroup_t)*frame1);
 	g2 = (galiasgroup_t*)((char *)inf + inf->groupofs + sizeof(galiasgroup_t)*frame2);
@@ -2061,8 +2217,6 @@ void GL_ParseQ3SkinFile(char *out, char *surfname, char *modelname, int skinnum)
 	}
 }
 
-static model_t *loadmodel;
-
 void GL_LoadSkinFile(galiastexnum_t *texnum, char *surfacename, int skinnumber, unsigned char *rawdata, int width, int height, unsigned char *palette)
 {
 	char shadername[MAX_QPATH];
@@ -2072,6 +2226,8 @@ void GL_LoadSkinFile(galiastexnum_t *texnum, char *surfacename, int skinnumber, 
 
 	texnum->base = Mod_LoadHiResTexture(shadername, "models", true, true, true);
 }
+
+#endif //SERVERONLY
 
 
 //Q1 model loading
@@ -2108,16 +2264,18 @@ static void *Q1_LoadFrameGroup (daliasframetype_t *pframetype, int *seamremaps)
 			verts = (vec3_t *)(pose+1);
 			normals = &verts[galias->numverts];
 			pose->ofsverts = (char *)verts - (char *)pose;
+#ifndef SERVERONLY
 			pose->ofsnormals = (char *)normals - (char *)pose;
+#endif
 
 			for (j = 0; j < pq1inmodel->numverts; j++)
 			{
 				verts[j][0] = pinframe[j].v[0]*pq1inmodel->scale[0]+pq1inmodel->scale_origin[0];
 				verts[j][1] = pinframe[j].v[1]*pq1inmodel->scale[1]+pq1inmodel->scale_origin[1];
 				verts[j][2] = pinframe[j].v[2]*pq1inmodel->scale[2]+pq1inmodel->scale_origin[2];
-
+#ifndef SERVERONLY
 				VectorCopy(r_avertexnormals[pinframe[j].lightnormalindex], normals[j]);
-
+#endif
 				if (seamremaps[j] != j)
 				{
 					VectorCopy(verts[j], verts[seamremaps[j]]);
@@ -2149,7 +2307,9 @@ static void *Q1_LoadFrameGroup (daliasframetype_t *pframetype, int *seamremaps)
 			for (k = 0; k < frame->numposes; k++)
 			{
 				pose->ofsverts = (char *)verts - (char *)pose;
+#ifndef SERVERONLY
 				pose->ofsnormals = (char *)normals - (char *)pose;
+#endif
 
 				pinframe = (dtrivertx_t *)((char *)pinframe + sizeof(daliasframe_t));
 				for (j = 0; j < pq1inmodel->numverts; j++)
@@ -2157,8 +2317,9 @@ static void *Q1_LoadFrameGroup (daliasframetype_t *pframetype, int *seamremaps)
 					verts[j][0] = pinframe[j].v[0]*pq1inmodel->scale[0]+pq1inmodel->scale_origin[0];
 					verts[j][1] = pinframe[j].v[1]*pq1inmodel->scale[1]+pq1inmodel->scale_origin[1];
 					verts[j][2] = pinframe[j].v[2]*pq1inmodel->scale[2]+pq1inmodel->scale_origin[2];
-
+#ifndef SERVERONLY
 					VectorCopy(r_avertexnormals[pinframe[j].lightnormalindex], normals[j]);
+#endif
 					if (seamremaps[j] != j)
 					{
 						VectorCopy(verts[j], verts[seamremaps[j]]);
@@ -2184,6 +2345,37 @@ static void *Q1_LoadFrameGroup (daliasframetype_t *pframetype, int *seamremaps)
 	return pframetype;
 }
 
+#ifdef SERVERONLY //greatly reduced version of Q1_LoadSkins (too many #ifdefs
+static void *Q1_LoadSkins (daliasskintype_t *pskintype, qboolean alpha)
+{
+	int i;
+	int s;
+	int *count;
+	float *intervals;
+	qbyte *data;
+
+	s = pq1inmodel->skinwidth*pq1inmodel->skinheight;
+	for (i = 0; i < pq1inmodel->numskins; i++)
+	{
+		switch(LittleLong(pskintype->type))
+		{
+		case ALIAS_SKIN_SINGLE:
+			pskintype = (daliasskintype_t *)((char *)(pskintype+1)+s);
+			break;
+
+		default:
+			count = (int *)(pskintype+1);
+			intervals = (float *)(count+1);
+			data = (qbyte *)(intervals + LittleLong(*count));
+			data += s*LittleLong(*count);
+			pskintype = (daliasskintype_t *)data;
+			break;
+		}
+	}
+	galias->numskins=pq1inmodel->numskins;
+	return pskintype;
+}
+#else
 static void *Q1_LoadSkins (daliasskintype_t *pskintype, qboolean alpha)
 {
 	extern int gl_bumpmappingpossible;
@@ -2343,13 +2535,17 @@ static void *Q1_LoadSkins (daliasskintype_t *pskintype, qboolean alpha)
 	galias->numskins=pq1inmodel->numskins;
 	return pskintype;
 }
+#endif
 
 void GL_LoadQ1Model (model_t *mod, void *buffer)
 {
+#ifndef SERVERONLY
 	vec2_t *st_array;
+	int j;
+#endif
 	int hunkstart, hunkend, hunktotal;
 	int version;
-	int i, j, onseams;
+	int i, onseams;
 	dstvert_t *pinstverts;
 	dtriangle_t *pintriangles;
 	int *seamremap;
@@ -2359,31 +2555,7 @@ void GL_LoadQ1Model (model_t *mod, void *buffer)
 
 	loadmodel=mod;
 
-	//we've got to have this bit
-	if (!strcmp(loadmodel->name, "progs/player.mdl") ||
-		!strcmp(loadmodel->name, "progs/eyes.mdl"))
-	{
-		unsigned short crc;
-		qbyte *p;
-		int len;
-		char st[40];
-
-		CRC_Init(&crc);
-		for (len = com_filesize, p = buffer; len; len--, p++)
-			CRC_ProcessByte(&crc, *p);
-	
-		sprintf(st, "%d", (int) crc);
-		Info_SetValueForKey (cls.userinfo, 
-			!strcmp(loadmodel->name, "progs/player.mdl") ? pmodel_name : emodel_name,
-			st, MAX_INFO_STRING);
-
-		if (cls.state >= ca_connected)
-		{
-			CL_SendClientCommand(true, "setinfo %s %d", 
-				!strcmp(loadmodel->name, "progs/player.mdl") ? pmodel_name : emodel_name,
-				(int)crc);
-		}
-	}
+	Mod_DoCRC(loadmodel, buffer, com_filesize);
 	
 	hunkstart = Hunk_LowMark ();
 
@@ -2409,12 +2581,16 @@ void GL_LoadQ1Model (model_t *mod, void *buffer)
 	mod->flags = pq1inmodel->flags;
 
 	size = sizeof(galiasinfo_t)
-		+ pq1inmodel->numframes*sizeof(galiasgroup_t)
-		+ pq1inmodel->numskins*sizeof(galiasskin_t);
+#ifndef SERVERONLY
+		+ pq1inmodel->numskins*sizeof(galiasskin_t)
+#endif
+		+ pq1inmodel->numframes*sizeof(galiasgroup_t);
 
 	galias = Hunk_Alloc(size);
 	galias->groupofs = sizeof(*galias);
+#ifndef SERVERONLY
 	galias->ofsskins = sizeof(*galias)+pq1inmodel->numframes*sizeof(galiasgroup_t);
+#endif
 	galias->nextsurf = 0;
 
 //skins
@@ -2438,7 +2614,9 @@ void GL_LoadQ1Model (model_t *mod, void *buffer)
 	seamremap = BZ_Malloc(sizeof(int)*pq1inmodel->numverts);
 
 	galias->numverts = pq1inmodel->numverts+onseams;
+
 	//st
+#ifndef SERVERONLY
 	st_array = Hunk_Alloc(sizeof(*st_array)*(pq1inmodel->numverts+onseams));
 	galias->ofs_st_array = (char *)st_array - (char *)galias;
 	for (j=pq1inmodel->numverts,i = 0; i < pq1inmodel->numverts; i++)
@@ -2456,6 +2634,7 @@ void GL_LoadQ1Model (model_t *mod, void *buffer)
 		else
 			seamremap[i] = i;
 	}
+#endif
 
 	//trianglelists;
 	pintriangles = (dtriangle_t *)&pinstverts[pq1inmodel->numverts];
@@ -2482,7 +2661,7 @@ void GL_LoadQ1Model (model_t *mod, void *buffer)
 	//frames
 	Q1_LoadFrameGroup((daliasframetype_t *)&pintriangles[pq1inmodel->numtris], seamremap);
 	BZ_Free(seamremap);
-
+#ifndef SERVERONLY
 	if (r_shadows.value)
 	{
 		int *neighbours;
@@ -2490,7 +2669,7 @@ void GL_LoadQ1Model (model_t *mod, void *buffer)
 		galias->ofs_trineighbours = (qbyte *)neighbours - (qbyte *)galias;
 		R_BuildTriangleNeighbours(neighbours, indexes, pq1inmodel->numtris);
 	}
-
+#endif
 	VectorCopy (pq1inmodel->scale_origin, mod->mins);
 	VectorMA (mod->mins, 255, pq1inmodel->scale, mod->maxs);
 //
@@ -2511,6 +2690,7 @@ void GL_LoadQ1Model (model_t *mod, void *buffer)
 
 	Hunk_FreeToLowMark (hunkstart);
 
+	mod->funcs.Trace = GLMod_Trace;
 }
 #endif
 
@@ -2554,10 +2734,10 @@ extern vec3_t	bytedirs[Q2NUMVERTEXNORMALS];
 
 static void Q2_LoadSkins(char *skins)
 {
+#ifndef SERVERONLY
 	int i;
 	galiastexnum_t *texnums;
 	galiasskin_t *outskin = (galiasskin_t *)((char *)galias + galias->ofsskins);
-	galias->numskins = pq2inmodel->num_skins;
 
 	for (i = 0; i < pq2inmodel->num_skins; i++, outskin++)
 	{
@@ -2573,15 +2753,22 @@ static void Q2_LoadSkins(char *skins)
 
 		skins += MD2MAX_SKINNAME;
 	}
+#endif
+	galias->numskins = pq2inmodel->num_skins;
 }
 
 #define MD2_MAX_TRIANGLES 4096
 void GL_LoadQ2Model (model_t *mod, void *buffer)
 {
+#ifndef SERVERONLY
+	dmd2stvert_t *pinstverts;
+	vec2_t *st_array;
+	vec3_t *normals;
+#endif
+
 	int hunkstart, hunkend, hunktotal;
 	int version;
 	int i, j;
-	dmd2stvert_t *pinstverts;
 	dmd2triangle_t *pintri;
 	index_t *indexes;
 	int numindexes;
@@ -2594,8 +2781,6 @@ void GL_LoadQ2Model (model_t *mod, void *buffer)
 	dmd2aliasframe_t *pinframe;
 	int framesize;
 	vec3_t *verts;
-	vec3_t *normals;
-	vec2_t *st_array;
 	
 	int		indremap[MD2_MAX_TRIANGLES*3];
 	unsigned short		ptempindex[MD2_MAX_TRIANGLES*3], ptempstindex[MD2_MAX_TRIANGLES*3];
@@ -2606,6 +2791,8 @@ void GL_LoadQ2Model (model_t *mod, void *buffer)
 
 
 	loadmodel=mod;
+
+	Mod_DoCRC(mod, buffer, com_filesize);
 
 	hunkstart = Hunk_LowMark ();
 
@@ -2632,12 +2819,16 @@ void GL_LoadQ2Model (model_t *mod, void *buffer)
 	loadmodel->numframes = pq2inmodel->num_frames;
 
 	size = sizeof(galiasinfo_t)
-		+ pq2inmodel->num_frames*sizeof(galiasgroup_t)
-		+ pq2inmodel->num_skins*sizeof(galiasskin_t);
+#ifndef SERVERONLY
+		+ pq2inmodel->num_skins*sizeof(galiasskin_t)
+#endif
+		+ pq2inmodel->num_frames*sizeof(galiasgroup_t);
 
 	galias = Hunk_Alloc(size);
 	galias->groupofs = sizeof(*galias);
+#ifndef SERVERONLY
 	galias->ofsskins = sizeof(*galias)+pq2inmodel->num_frames*sizeof(galiasgroup_t);
+#endif
 	galias->nextsurf = 0;
 
 //skins
@@ -2704,6 +2895,7 @@ void GL_LoadQ2Model (model_t *mod, void *buffer)
 	}
 
 // s and t vertices
+#ifndef SERVERONLY
 	pinstverts = ( dmd2stvert_t * ) ( ( qbyte * )pq2inmodel + LittleLong (pq2inmodel->ofs_st) );
 	st_array = Hunk_Alloc(sizeof(*st_array)*(numverts));
 	galias->ofs_st_array = (char *)st_array - (char *)galias;
@@ -2713,6 +2905,7 @@ void GL_LoadQ2Model (model_t *mod, void *buffer)
 		st_array[indexes[j]][0] = (float)(((double)LittleShort (pinstverts[ptempstindex[indremap[j]]].s) + 0.5f) /pq2inmodel->skinwidth);
 		st_array[indexes[j]][1] = (float)(((double)LittleShort (pinstverts[ptempstindex[indremap[j]]].t) + 0.5f) /pq2inmodel->skinheight);
 	}
+#endif
 
 	//frames
 	ClearBounds ( mod->mins, mod->maxs );
@@ -2721,15 +2914,21 @@ void GL_LoadQ2Model (model_t *mod, void *buffer)
 	framesize = LittleLong (pq2inmodel->framesize);
 	for (i=0 ; i<pq2inmodel->num_frames ; i++)
 	{
-		pose = (galiaspose_t *)Hunk_Alloc(sizeof(galiaspose_t) + sizeof(vec3_t)*2*numverts);
+		pose = (galiaspose_t *)Hunk_Alloc(sizeof(galiaspose_t) + sizeof(vec3_t)*numverts
+#ifndef SERVERONLY
+			+ sizeof(vec3_t)*numverts
+#endif
+			);
 		poutframe->poseofs = (char *)pose - (char *)poutframe;
 		poutframe->numposes = 1;
 		galias->groups++;
 
 		verts = (vec3_t *)(pose+1);
-		normals = &verts[galias->numverts];
 		pose->ofsverts = (char *)verts - (char *)pose;
+#ifndef SERVERONLY
+		normals = &verts[galias->numverts];
 		pose->ofsnormals = (char *)normals - (char *)pose;
+#endif
 
 
 		pinframe = ( dmd2aliasframe_t * )( ( qbyte * )pq2inmodel + LittleLong (pq2inmodel->ofs_frames) + i * framesize );
@@ -2746,7 +2945,9 @@ void GL_LoadQ2Model (model_t *mod, void *buffer)
 			verts[indexes[j]][0] = pose->scale_origin[0]+pose->scale[0]*pinframe->verts[ptempindex[indremap[j]]].v[0];
 			verts[indexes[j]][1] = pose->scale_origin[1]+pose->scale[1]*pinframe->verts[ptempindex[indremap[j]]].v[1];
 			verts[indexes[j]][2] = pose->scale_origin[2]+pose->scale[2]*pinframe->verts[ptempindex[indremap[j]]].v[2];
+#ifndef SERVERONLY
 			VectorCopy(bytedirs[pinframe->verts[ptempindex[indremap[j]]].lightnormalindex], normals[indexes[j]]);
+#endif
 		}
 
 //		Mod_AliasCalculateVertexNormals ( numindexes, poutindex, numverts, poutvertex, qfalse );
@@ -2767,7 +2968,7 @@ void GL_LoadQ2Model (model_t *mod, void *buffer)
 
 
 
-
+#ifndef SERVERONLY
 	if (r_shadows.value)
 	{
 		int *neighbours;
@@ -2775,7 +2976,7 @@ void GL_LoadQ2Model (model_t *mod, void *buffer)
 		galias->ofs_trineighbours = (qbyte *)neighbours - (qbyte *)galias;
 		R_BuildTriangleNeighbours(neighbours, indexes, pq2inmodel->num_tris);
 	}
-
+#endif
 	/*
 	VectorCopy (pq2inmodel->scale_origin, mod->mins);
 	VectorMA (mod->mins, 255, pq2inmodel->scale, mod->maxs);
@@ -2798,6 +2999,7 @@ void GL_LoadQ2Model (model_t *mod, void *buffer)
 
 	Hunk_FreeToLowMark (hunkstart);
 
+	mod->funcs.Trace = GLMod_Trace;
 }
 
 #endif
@@ -2825,8 +3027,11 @@ typedef struct {
 
 
 
-
+#ifndef SERVERONLY
 qboolean GLMod_GetTag(model_t *model, int tagnum, int frame1, int frame2, float f2ness, float f1time, float f2time, float *result)
+#else
+qboolean Mod_GetTag(model_t *model, int tagnum, int frame1, int frame2, float f2ness, float f1time, float f2time, float *result)
+#endif
 {
 	galiasinfo_t *inf;
 
@@ -2981,7 +3186,11 @@ qboolean GLMod_GetTag(model_t *model, int tagnum, int frame1, int frame2, float 
 	return false;
 }
 
+#ifndef SERVERONLY
 int GLMod_TagNumForName(model_t *model, char *name)
+#else
+int Mod_TagNumForName(model_t *model, char *name)
+#endif
 {
 	int i;
 	galiasinfo_t *inf;
@@ -3096,6 +3305,15 @@ typedef struct {
 
 void GL_LoadQ3Model(model_t *mod, void *buffer)
 {
+#ifndef SERVERONLY
+	galiasskin_t	*skin;
+	galiastexnum_t	*texnum;
+	float lat, lng;
+	md3St_t			*inst;
+	vec3_t *normals;
+	vec2_t *st_array;
+	md3Shader_t		*inshader;
+#endif
 	int hunkstart, hunkend, hunktotal;
 //	int version;
 	int s, i, j, d;
@@ -3109,19 +3327,10 @@ void GL_LoadQ3Model(model_t *mod, void *buffer)
 	galiasinfo_t *parent, *root;
 	galiasgroup_t *group;
 
-	galiasskin_t	*skin;
-	galiastexnum_t	*texnum;
-
 	vec3_t *verts;
-	vec3_t *normals;
-	vec2_t *st_array;
 
-	float lat, lng;
-
-	md3St_t			*inst;
 	md3Triangle_t	*intris;
 	md3XyzNormal_t	*invert;
-	md3Shader_t		*inshader;
 
 
 	int size;
@@ -3131,6 +3340,8 @@ void GL_LoadQ3Model(model_t *mod, void *buffer)
 
 
 	loadmodel=mod;
+
+	Mod_DoCRC(mod, buffer, com_filesize);
 
 	hunkstart = Hunk_LowMark ();
 
@@ -3163,15 +3374,16 @@ void GL_LoadQ3Model(model_t *mod, void *buffer)
 			root = galias;
 		parent = galias;
 
+#ifndef SERVERONLY
 		st_array = Hunk_Alloc(sizeof(vec2_t)*galias->numindexes);
 		galias->ofs_st_array = (qbyte*)st_array - (qbyte*)galias;
-
 		inst = (md3St_t*)((qbyte*)surf + surf->ofsSt);
 		for (i = 0; i < galias->numverts; i++)
 		{
 			st_array[i][0] = inst[i].s;
 			st_array[i][1] = inst[i].t;
 		}
+#endif
 
 		indexes = Hunk_Alloc(sizeof(*indexes)*galias->numindexes);
 		galias->ofs_indexes = (qbyte*)indexes - (qbyte*)galias;
@@ -3187,21 +3399,28 @@ void GL_LoadQ3Model(model_t *mod, void *buffer)
 		invert = (md3XyzNormal_t *)((qbyte*)surf + surf->ofsXyzNormals);
 		for (i = 0; i < surf->numFrames; i++)
 		{
-			pose = (galiaspose_t *)Hunk_Alloc(sizeof(galiaspose_t) + sizeof(vec3_t)*2*surf->numVerts);
-			normals = (vec3_t*)(pose+1);
-			verts = normals + surf->numVerts;
+			pose = (galiaspose_t *)Hunk_Alloc(sizeof(galiaspose_t) + sizeof(vec3_t)*surf->numVerts
+#ifndef SERVERONLY
+				+ sizeof(vec3_t)*surf->numVerts
+#endif
+				);
 
-			pose->ofsnormals = (qbyte*)normals - (qbyte*)pose;
+			verts = (vec3_t*)(pose+1);
 			pose->ofsverts = (qbyte*)verts - (qbyte*)pose;
+#ifndef SERVERONLY
+			normals = verts + surf->numVerts;
+			pose->ofsnormals = (qbyte*)normals - (qbyte*)pose;
+#endif
 
 			for (j = 0; j < surf->numVerts; j++)
 			{
+#ifndef SERVERONLY
 				lat = (float)invert[j].latlong[0] * (2 * M_PI)*(1.0 / 255.0);
 				lng = (float)invert[j].latlong[1] * (2 * M_PI)*(1.0 / 255.0);
 				normals[j][0] = cos ( lng ) * sin ( lat );
 				normals[j][1] = sin ( lng ) * sin ( lat );
 				normals[j][2] = cos ( lat );
-
+#endif
 				for (d = 0; d < 3; d++)
 				{
 					verts[j][d] = invert[j].xyz[d]/64.0f;
@@ -3228,6 +3447,7 @@ void GL_LoadQ3Model(model_t *mod, void *buffer)
 			invert += surf->numVerts;
 		}
 
+#ifndef SERVERONLY
 		if (surf->numShaders)
 		{
 #ifndef Q3SHADERS
@@ -3309,12 +3529,13 @@ void GL_LoadQ3Model(model_t *mod, void *buffer)
 				texnum++;
 			}
 		}
+#endif
 
 		VectorCopy(min, loadmodel->mins);
 		VectorCopy(max, loadmodel->maxs);
 
 
-
+#ifndef SERVERONLY
 		if (r_shadows.value)
 		{
 			int *neighbours;
@@ -3322,6 +3543,7 @@ void GL_LoadQ3Model(model_t *mod, void *buffer)
 			galias->ofs_trineighbours = (qbyte *)neighbours - (qbyte *)galias;
 			R_BuildTriangleNeighbours(neighbours, indexes, surf->numTriangles);
 		}
+#endif
 		surf = (md3Surface_t *)((qbyte *)surf + surf->ofsEnd);
 	}
 
@@ -3356,6 +3578,8 @@ void GL_LoadQ3Model(model_t *mod, void *buffer)
 	memcpy (mod->cache.data, root, hunktotal);
 
 	Hunk_FreeToLowMark (hunkstart);
+
+	mod->funcs.Trace = GLMod_Trace;
 }
 #endif
 
@@ -3421,7 +3645,14 @@ typedef struct zymvertex_s
 //but only one set of transforms are ever generated.
 void GLMod_LoadZymoticModel(model_t *mod, void *buffer)
 {
-	int i, j;
+#ifndef SERVERONLY
+	galiasskin_t *skin;
+	galiastexnum_t *texnum;
+	int skinfiles;
+	int j;
+#endif
+
+	int i;
 	int hunkstart, hunkend, hunktotal;
 
 	zymtype1header_t *header;
@@ -3429,9 +3660,6 @@ void GLMod_LoadZymoticModel(model_t *mod, void *buffer)
 
 	galisskeletaltransforms_t *transforms;
 	zymvertex_t	*intrans;
-
-	galiasskin_t *skin;
-	galiastexnum_t *texnum;
 
 	galiasbone_t *bone;
 	zymbone_t *inbone;
@@ -3452,10 +3680,10 @@ void GLMod_LoadZymoticModel(model_t *mod, void *buffer)
 
 	char *surfname;
 
-	int skinfiles;
-
 
 	loadmodel=mod;
+
+	Mod_DoCRC(mod, buffer, com_filesize);
 
 	hunkstart = Hunk_LowMark ();
 
@@ -3563,16 +3791,22 @@ void GLMod_LoadZymoticModel(model_t *mod, void *buffer)
 		stcoords[i][1] = 1-BigFloat(inst[i][1]);	//hmm. upside down skin coords?
 	}
 	
+#ifndef SERVERONLY
 	skinfiles = GL_BuildSkinFileList(loadmodel->name);
 	if (skinfiles < 1)
 		skinfiles = 1;
+#endif
 
 	for (i = 0; i < header->numsurfaces; i++, surfname+=32)
 	{
-		root[i].ofs_st_array = (char*)stcoords - (char*)&root[i];
-
 		root[i].groups = header->numscenes;
 		root[i].groupofs = (char*)grp - (char*)&root[i];
+
+#ifdef SERVERONLY
+		root[i].numskins = 1;
+#else
+		root[i].ofs_st_array = (char*)stcoords - (char*)&root[i];
+		root[i].numskins = skinfiles;
 
 		skin = Hunk_Alloc((sizeof(galiasskin_t)+sizeof(galiastexnum_t))*skinfiles);
 		texnum = (galiastexnum_t*)(skin+skinfiles);
@@ -3583,8 +3817,9 @@ void GLMod_LoadZymoticModel(model_t *mod, void *buffer)
 
 			GL_LoadSkinFile(texnum, surfname, j, NULL, 0, 0, NULL);
 		}
-		root[i].numskins = j;
+
 		root[i].ofsskins = (char *)skin - (char *)&root[i];
+#endif
 	}
 
 
@@ -3634,6 +3869,9 @@ void GLMod_LoadZymoticModel(model_t *mod, void *buffer)
 	memcpy (mod->cache.data, root, hunktotal);
 
 	Hunk_FreeToLowMark (hunkstart);
+
+
+	mod->funcs.Trace = GLMod_Trace;
 }
 
 #endif

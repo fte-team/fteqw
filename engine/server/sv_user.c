@@ -3575,10 +3575,9 @@ void AddLinksToPmove ( areanode_t *node )
 	int			pl;
 	int			i;
 	physent_t	*pe;
-	float os, omt;
 
-	hull_t *hull;
-vec3_t offset;
+	model_t *model;
+
 	pl = EDICT_TO_PROG(svprogfuncs, sv_player);
 
 	// touch linked edicts
@@ -3648,17 +3647,10 @@ vec3_t offset;
 			if (!((int)sv_player->v->dimension_hit & (int)check->v->dimension_solid))
 				continue;
 
-//			check->v->model = "a";
-			os = check->v->solid;
-			omt = check->v->movetype;
-			check->v->solid = SOLID_BSP;
-			check->v->movetype = MOVETYPE_PUSH;
-			hull = SV_HullForEntity (check, 0, sv_player->v->mins, sv_player->v->maxs, offset);
-			check->v->movetype = omt;
-			check->v->solid = os;
-
+			model = sv.models[(int)check->v->modelindex];
+			if (model)
 	// test the point
-			if ( hull->funcs.HullPointContents (hull, sv_player->v->origin) == FTECONTENTS_SOLID )
+			if ( model->hulls[0].funcs.HullPointContents (&model->hulls[0], sv_player->v->origin) == FTECONTENTS_SOLID )
 				sv_player->v->fteflags = (int)sv_player->v->fteflags | FF_LADDER;	//touch that ladder!
 		}
 	}

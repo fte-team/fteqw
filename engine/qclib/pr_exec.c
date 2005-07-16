@@ -245,12 +245,11 @@ int PR_EnterFunction (progfuncs_t *progfuncs, dfunction_t *f, int progsnum)
 		pr_depth--;
 		PR_StackTrace (progfuncs);
 
-		printf ("stack overflow on call to %s\n", f->s_name);
+		printf ("stack overflow on call to %s\n", progfuncs->stringtable+f->s_name);
 
 		//comment this out if you want the progs to try to continue anyway (could cause infinate loops)
-		Abort("Stack Overflow\n");
-
 		PR_AbortStack(progfuncs);
+		Abort("Stack Overflow in %s\n", progfuncs->stringtable+f->s_name);
 		return pr_xstatement;
 	}
 

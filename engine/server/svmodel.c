@@ -282,6 +282,26 @@ model_t *Mod_LoadModel (model_t *mod, qboolean crash)
 		Mod_LoadBrushModel (mod, buf);
 		break;
 
+
+	case IDPOLYHEADER:
+		GL_LoadQ1Model(mod, buf);
+		break;
+#ifdef MD2MODELS
+	case MD2IDALIASHEADER:
+		GL_LoadQ2Model(mod, buf);
+		break;
+#endif
+#ifdef MD3MODELS
+	case MD3_IDENT:
+		GL_LoadQ3Model (mod, buf);
+		break;
+#endif
+#ifdef ZYMOTICMODELS
+	case (('O'<<24)+('M'<<16)+('Y'<<8)+'Z'):
+		GLMod_LoadZymoticModel(mod, buf);
+		break;
+#endif
+
 	default:
 		if (crash)
 			SV_Error ("Mod_NumForName: %s: format not recognised", mod->name);
@@ -1319,5 +1339,28 @@ void Mod_LoadBrushModel (model_t *mod, void *buffer)
 		}
 	}
 }
+
+
+
+void *Mod_Extradata (model_t *mod)
+{
+	void	*r;
+	
+	r = Cache_Check (&mod->cache);
+	if (r)
+		return r;
+
+	Mod_LoadModel (mod, true);
+	
+	if (!mod->cache.data)
+		Sys_Error ("Mod_Extradata: caching failed");
+	return mod->cache.data;
+}
+
+
+
+
+
+
 #endif
 

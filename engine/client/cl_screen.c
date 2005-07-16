@@ -814,7 +814,7 @@ void SCR_CrosshairPosition(int pnum, int *x, int *y)
 
 		memset(&tr, 0, sizeof(tr));
 		tr.fraction = 1;
-		cl.worldmodel->hulls->funcs.RecursiveHullCheck (cl.worldmodel->hulls, 0, 0, 1, start, end, &tr);
+		cl.worldmodel->funcs.Trace(cl.worldmodel, 0, 0, start, end, vec3_origin, vec3_origin, &tr);
 		start[2]-=16;
 		if (tr.fraction == 1)
 		{

@@ -2528,6 +2528,7 @@ void Q1BSP_MarkLights (dlight_t *light, int bit, mnode_t *node);
 void Q1BSP_FatPVS (vec3_t org, qboolean add);
 qboolean Q1BSP_EdictInFatPVS(struct edict_s *ent);
 void Q1BSP_FindTouchedLeafs(struct edict_s *ent);
+qboolean Q1BSP_Trace(model_t *model, int forcehullnum, int frame, vec3_t start, vec3_t end, vec3_t mins, vec3_t maxs, trace_t *trace);
 void GLQ1BSP_LightPointValues(vec3_t point, vec3_t res_diffuse, vec3_t res_ambient, vec3_t res_dir);
 
 
@@ -2650,6 +2651,7 @@ void GLMod_LoadBrushModel (model_t *mod, void *buffer)
 	mod->funcs.LightPointValues		= GLQ1BSP_LightPointValues;
 	mod->funcs.StainNode			= Q1BSP_StainNode;
 	mod->funcs.MarkLights			= Q1BSP_MarkLights;
+	mod->funcs.Trace				= Q1BSP_Trace;
 
 	mod->funcs.LeafForPoint			= GLMod_LeafForPoint;
 	mod->funcs.LeafPVS				= GLMod_LeafnumPVS;

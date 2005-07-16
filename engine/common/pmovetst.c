@@ -148,7 +148,7 @@ LINE TESTING IN HULLS
 vec3_t trace_extents;
 
 
-qboolean PM_TransformedHullCheck (hull_t *hull, vec3_t start, vec3_t end, trace_t *trace, vec3_t origin, vec3_t angles)
+qboolean PM_TransformedHullCheck (model_t *model, vec3_t start, vec3_t end, trace_t *trace, vec3_t origin, vec3_t angles)
 {
 	vec3_t		start_l, end_l;
 	vec3_t		a;
@@ -161,14 +161,8 @@ qboolean PM_TransformedHullCheck (hull_t *hull, vec3_t start, vec3_t end, trace_
 	VectorSubtract (start, origin, start_l);
 	VectorSubtract (end, origin, end_l);
 
-	if (!player_mins[2])	//hmm.. hull bigger than player? Or is this hexen2?
-	{
-		start_l[2] -= hull->clip_mins[2]+0.1;
-		end_l[2] -= hull->clip_mins[2]+0.1;
-	}
-
 	// rotate start and end into the models frame of reference
-	if (hull != &box_hull && 
+	if (model && 
 	(angles[0] || angles[1] || angles[2]) )
 		rotated = true;
 	else
@@ -189,7 +183,11 @@ qboolean PM_TransformedHullCheck (hull_t *hull, vec3_t start, vec3_t end, trace_
 		end_l[2] = DotProduct (temp, up);
 	}
 	// sweep the box through the model
-	result = hull->funcs.RecursiveHullCheck (hull, hull->firstclipnode, 0, 1, start_l, end_l, trace);
+
+	if (model)
+		result = model->funcs.Trace(model, 0, 0, start_l, end_l, player_mins, player_maxs, trace);
+	else
+		result = Q1BSP_RecursiveHullCheck (&box_hull, box_hull.firstclipnode, 0, 1, start_l, end_l, trace);
 
 	if (rotated && trace->fraction != 1.0)
 	{
@@ -209,8 +207,6 @@ qboolean PM_TransformedHullCheck (hull_t *hull, vec3_t start, vec3_t end, trace_
 	trace->endpos[0] = start[0] + trace->fraction * (end[0] - start[0]);
 	trace->endpos[1] = start[1] + trace->fraction * (end[1] - start[1]);
 	trace->endpos[2] = start[2] + trace->fraction * (end[2] - start[2]);
-//	if (!player_mins[2])	//hmm.. hull bigger than player? Or is this hexen2?
-//		trace->endpos[2] += hull->clip_mins[2]+0.1;
 
 	return result;
 }
@@ -287,41 +283,9 @@ trace_t PM_PlayerTrace (vec3_t start, vec3_t end)
 	{
 		pe = &pmove.physents[i];
 	// get the clipping hull
-		if (pe->model)
-		{
-			hull = &pmove.physents[i].model->hulls[pmove.hullnum];
-			if (!hull->available || !hull->clipnodes || !hull->planes)
-				hull = &pmove.physents[i].model->hulls[1];	//fallback
-		}
-		else
-		{
-			VectorSubtract (pe->mins, player_maxs, mins);
-			VectorSubtract (pe->maxs, player_mins, maxs);
-			hull = PM_HullForBox (mins, maxs);
-		}
-
-	// fill in a default trace
-		memset (&trace, 0, sizeof(trace_t));
-		trace.fraction = 1;
-		trace.allsolid = true;
-//		trace.startsolid = true;
-		VectorCopy (end, trace.endpos);
 
 	// trace a line through the apropriate clipping hull
-#ifdef Q2BSPS
-		if (pmove.physents[i].model && (pmove.physents[i].model->fromgame == fg_quake2 || pmove.physents[i].model->fromgame == fg_quake3))
-		{
-			trace_t tr;
-			tr = CM_TransformedBoxTrace (start, end, player_mins, player_maxs, pmove.physents[i].model->hulls[0].firstclipnode, MASK_PLAYERSOLID, pe->origin, pe->angles);
-			trace.startsolid = tr.startsolid;
-			trace.allsolid = tr.allsolid;
-			trace.fraction = tr.fraction;
-			memcpy(&trace.plane, &tr.plane, sizeof(tr.plane));
-			VectorCopy(tr.endpos, trace.endpos);
-		}
-		else
-#endif
-			PM_TransformedHullCheck (hull, start, end, &trace, pe->origin, pe->angles);
+		PM_TransformedHullCheck (pe->model, start, end, &trace, pe->origin, pe->angles);
 
 		if (trace.allsolid)
 			trace.startsolid = true;

@@ -7,7 +7,7 @@ struct texture_s;
 
 #if defined(SERVERONLY)
 #define qrenderer QR_NONE
-#define FNC(n) (n)
+#define FNC(n) (n)			//FNC is defined as 'pointer if client build, direct if dedicated server'
 #else
 #define FNC(n) (*n)
 extern r_qrenderer_t qrenderer;
@@ -102,8 +102,8 @@ extern qbyte	*FNC(Mod_Q1LeafPVS)					(struct mleaf_s *leaf, struct model_s *mode
 extern void	FNC(Mod_NowLoadExternal)				(void);
 
 extern void	FNC(Mod_Think)							(void);
-extern qboolean	(*Mod_GetTag)						(struct model_s *model, int tagnum, int frame, int frame2, float f2ness, float f1time, float f2time, float *transforms);
-extern int (*Mod_TagNumForName)						(struct model_s *model, char *name);
+extern qboolean	FNC(Mod_GetTag)						(struct model_s *model, int tagnum, int frame, int frame2, float f2ness, float f1time, float f2time, float *transforms);
+extern int FNC(Mod_TagNumForName)						(struct model_s *model, char *name);
 
 #undef FNC
 

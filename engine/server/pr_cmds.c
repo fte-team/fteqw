@@ -798,7 +798,7 @@ void PR_BreakPoint_f(void)
 		Con_Printf("Breakpoint has been cleared\n");
 
 }
-
+/*
 #ifdef _DEBUG
 void QCLibTest(void)
 {
@@ -811,7 +811,7 @@ void QCLibTest(void)
 	PR_TestForWierdness(svprogfuncs);
 }
 #endif
-
+*/
 typedef char char32[32];
 char32 sv_addonname[MAXADDONS];
 void PR_Init(void)
@@ -821,9 +821,11 @@ void PR_Init(void)
 	Cmd_AddCommand ("decompile", PR_Decompile_f);
 	Cmd_AddCommand ("compile", PR_Compile_f);
 	Cmd_AddCommand ("applycompile", PR_ApplyCompilation_f);
+/*
 #ifdef _DEBUG
 	Cmd_AddCommand ("svtestprogs", QCLibTest);
 #endif
+*/
 	Cvar_Register(&pr_maxedicts, cvargroup_progs);
 	Cvar_Register(&pr_imitatemvdsv, cvargroup_progs);
 	Cvar_Register(&pr_fixbrokenqccarrays, cvargroup_progs);
@@ -3713,6 +3715,7 @@ void PF_droptofloor (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 	end[2] -= 512;
 
 	VectorCopy (ent->v->origin, start);
+	start[2] += 1;
 	trace = SV_Move (start, ent->v->mins, ent->v->maxs, end, MOVE_NORMAL, ent);
 
 	if (trace.fraction == 1 || trace.allsolid)
@@ -8644,11 +8647,18 @@ void PF_setattachment(progfuncs_t *prinst, struct globalvars_s *pr_globals)
 	if (tagentity != sv.edicts && tagname && tagname[0])
 	{
 		modelindex = (int)tagentity->v->modelindex;
-		if (modelindex > 0 && modelindex < MAX_MODELS && sv.model_precache[modelindex])
+		if (modelindex > 0 && modelindex < MAX_MODELS)
 		{
-			tagidx = SV_TagForName(modelindex, tagname);
-			if (tagidx == 0)
-				Con_DPrintf("setattachment(edict %i, edict %i, string \"%s\"): tried to find tag named \"%s\" on entity %i (model \"%s\") but could not find it\n", NUM_FOR_EDICT(prinst, e), NUM_FOR_EDICT(prinst, tagentity), tagname, tagname, NUM_FOR_EDICT(prinst, tagentity), sv.models[modelindex]->name);
+			if (!sv.models[modelindex])
+				sv.models[modelindex] = Mod_ForName(sv.model_precache[modelindex], false);
+			if (sv.models[modelindex])
+			{
+				tagidx = SV_TagForName(modelindex, tagname);
+				if (tagidx == 0)
+					Con_DPrintf("setattachment(edict %i, edict %i, string \"%s\"): tried to find tag named \"%s\" on entity %i (model \"%s\") but could not find it\n", NUM_FOR_EDICT(prinst, e), NUM_FOR_EDICT(prinst, tagentity), tagname, tagname, NUM_FOR_EDICT(prinst, tagentity), sv.models[modelindex]->name);
+			}
+			else
+				Con_DPrintf("setattachment(edict %i, edict %i, string \"%s\"): Couldn't load model %s\n", NUM_FOR_EDICT(prinst, e), NUM_FOR_EDICT(prinst, tagentity), tagname, sv.modelname[modelindex]);
 		}
 		else
 			Con_DPrintf("setattachment(edict %i, edict %i, string \"%s\"): tried to find tag named \"%s\" on entity %i but it has no model\n", NUM_FOR_EDICT(prinst, e), NUM_FOR_EDICT(prinst, tagentity), tagname, tagname, NUM_FOR_EDICT(prinst, tagentity));

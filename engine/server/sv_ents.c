@@ -2620,11 +2620,11 @@ void SV_WriteEntitiesToClient (client_t *client, sizebuf_t *msg, qboolean ignore
 		{
 			if (ent->v->viewmodelforclient == EDICT_TO_PROG(svprogfuncs, client->edict))
 				state->dpflags |= RENDER_VIEWMODEL;
-//			else
-//			{	//noone else sees it.
-//				pack->num_entities--;
-//				continue;
-//			}
+			else
+			{	//noone else sees it.
+				pack->num_entities--;
+				continue;
+			}
 		}
 		if (ent->v->exteriormodeltoclient)
 		{

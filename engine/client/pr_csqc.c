@@ -354,7 +354,7 @@ trace_t CL_Move(vec3_t v1, vec3_t mins, vec3_t maxs, vec3_t v2, float nomonsters
 
 	memset(&trace, 0, sizeof(trace));
 	trace.fraction = 1;
-	cl.worldmodel->hulls->funcs.RecursiveHullCheck (cl.worldmodel->hulls, 0, 0, 1, v1, v2, &trace);
+	cl.worldmodel->funcs.Trace(cl.worldmodel, 0, 0, v1, v2, vec3_origin, vec3_origin, &trace);
 
 //why use trace.endpos instead?
 //so that if we hit a wall early, we don't have a box covering the whole world because of a shotgun trace.

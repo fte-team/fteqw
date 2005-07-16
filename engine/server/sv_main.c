@@ -1641,7 +1641,7 @@ client_t *SVC_DirectConnect(void)
 		newcl->netchan.compress = false;
 
 	newcl->protocol = protocol;
-#ifdef NQNET
+#ifdef NQPROT
 	newcl->netchan.isnqprotocol = ISNQCLIENT(newcl);
 #endif
 

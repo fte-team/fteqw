@@ -1031,6 +1031,7 @@ void SV_Physics_Toss (edict_t *ent)
 	VectorCopy(ent->v->origin, temporg);
 	VectorCopy(temporg, ent->v->origin);
 	trace = SV_PushEntity (ent, move);
+
 	if (trace.allsolid)
 		trace.fraction = 0;
 	if (trace.fraction == 1)

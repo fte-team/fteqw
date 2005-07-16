@@ -643,12 +643,11 @@ void Key_Message (int key)
 
 	if (key == K_ENTER)
 	{
-		if (chat_team)
-			Cbuf_AddText ("say_team ", RESTRICT_LOCAL);
-		else
-			Cbuf_AddText ("say ", RESTRICT_LOCAL);
-		Cbuf_AddText(chat_buffer, RESTRICT_LOCAL);
-		Cbuf_AddText("\n", RESTRICT_LOCAL);
+		if (chat_buffer[0])
+		{	//send it straight into the command.
+			Cmd_TokenizeString(va("%s %s", chat_team?"say_team":"say", chat_buffer), true, false);
+			CL_Say(chat_team, "");
+		}
 
 		key_dest = key_game;
 		chat_bufferlen = 0;

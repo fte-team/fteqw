@@ -262,6 +262,7 @@ SERVER_OBJS = 		\
 	httpserver.o 
 
 SERVERONLY_OBJS =		\
+	gl_alias.o		\
 	svmodel.o		\
 	sv_sys_unix.o
 

@@ -128,10 +128,12 @@ static int currenttime;
 static int gotweapontime[numweaps];
 static int gotpuptime[numpups];
 
-float sbarminx;
-float sbarminy;
-float sbarscalex;
-float sbarscaley;
+float	sbarminx;
+float	sbarminy;
+float	sbarscalex;
+float	sbarscaley;
+float	sbaralpha;
+int		sbartype;
 
 static int hudedit;
 
@@ -140,230 +142,242 @@ enum {
 	DZ_BOTTOMRIGHT
 };
 
+typedef void drawelementfnc_t(void);
 typedef struct {
-	int width;
-	int height;
 	float defaultx;	//used if couldn't load a config
 	float defaulty;
 	int defaultzone;
 	float defaultalpha;
-	void (*DrawElement)(void);
-} hudelementtype_t;
+	drawelementfnc_t *DrawElement;
+	int subtype;
+} huddefaultelement_t;
 
-void Hud_SBar(void);
-void Hud_ArmourPic(void);
-void Hud_ArmourBig(void);
-void Hud_HealthPic(void);
-void Hud_HealthBig(void);
-void Hud_CurrentAmmoPic(void);
-void Hud_CurrentAmmoBig(void);
-void Hud_IBar(void);
-void Hud_W_Shotgun(void);
-void Hud_W_SuperShotgun(void);
-void Hud_W_Nailgun(void);
-void Hud_W_SuperNailgun(void);
-void Hud_W_GrenadeLauncher(void);
-void Hud_W_RocketLauncher(void);
-void Hud_W_Lightning(void);
-void Hud_Key1(void);
-void Hud_Key2(void);
-void Hud_PUPInvis(void);
-void Hud_PUPInvuln(void);
-void Hud_PUPSuit(void);
-void Hud_PUPQuad(void);
-void Hud_Rune1(void);
-void Hud_Rune2(void);
-void Hud_Rune3(void);
-void Hud_Rune4(void);
-void Hud_Shells(void);
-void Hud_Nails(void);
-void Hud_Rockets(void);
-void Hud_Cells(void);
 
-hudelementtype_t hetype[] = {
+
+
+
+drawelementfnc_t Hud_SBar;
+drawelementfnc_t Hud_ArmourPic;
+drawelementfnc_t Hud_ArmourBig;
+drawelementfnc_t Hud_HealthPic;
+drawelementfnc_t Hud_HealthBig;
+drawelementfnc_t Hud_CurrentAmmoPic;
+drawelementfnc_t Hud_CurrentAmmoBig;
+drawelementfnc_t Hud_IBar;
+drawelementfnc_t Hud_Weapon;
+drawelementfnc_t Hud_W_Lightning;
+drawelementfnc_t Hud_Powerup;
+drawelementfnc_t Hud_Rune;
+drawelementfnc_t Hud_Ammo;
+drawelementfnc_t Hud_ScoreCard;
+drawelementfnc_t Hud_Blackness;
+
+typedef struct {
+	drawelementfnc_t *draw;
+	int width, height;
+	int maxsubtype;
+} drawelement_t;
+drawelement_t drawelement[] =
+{
+	{Hud_SBar,				320,	24,		0},
+	{Hud_ArmourPic,			24,		24,		0},
+	{Hud_ArmourBig,			24*3,	24,		0},
+	{Hud_HealthPic,			24,		24,		0},
+	{Hud_HealthBig,			24*3,	24,		0},
+	{Hud_CurrentAmmoPic,	24,		24,		0},
+	{Hud_CurrentAmmoBig,	24*3,	24,		0},
+	{Hud_IBar,				320,	24,		0},
+	{Hud_Weapon,			24,		16,		0},
+	{Hud_W_Lightning,		24,		16,		0},
+	{Hud_Powerup,			16,		16,		5},
+	{Hud_Rune,				8,		16,		3},
+	{Hud_Ammo,				42,		11,		3},
+	{Hud_Blackness,			16,		16,		0},
+	{Hud_ScoreCard,			0,		0,		16}
+};
+
+huddefaultelement_t hedefaulttype[] = {
 	{
-		320, 24, 
 		0, -24, DZ_BOTTOMLEFT,
 		0.3f,
 		Hud_SBar
 	},
 
 	{
-		24, 24, 
 		0, -24, DZ_BOTTOMLEFT,
 		1,
 		Hud_ArmourPic
 	},
 	{
-		24*3, 24, 
 		24, -24, DZ_BOTTOMLEFT,
 		1,
 		Hud_ArmourBig
 	},
 
 	{
-		24, 24, 
 		112, -24, DZ_BOTTOMLEFT,
 		1,
 		Hud_HealthPic
 	},
 	{
-		24*3, 24, 
 		24*6, -24, DZ_BOTTOMLEFT,
 		1,
 		Hud_HealthBig
 	},
 
 	{
-		24*3, 24, 
 		224, -24, DZ_BOTTOMLEFT,
 		1,
 		Hud_CurrentAmmoPic
 	},
 	{
-		24*3, 24, 
 		248, -24, DZ_BOTTOMLEFT,
 		1,
 		Hud_CurrentAmmoBig
 	},
 
 	{
-		320, 24, 
 		0, -48, DZ_BOTTOMLEFT,
 		0.3f,
 		Hud_IBar
 	},
 
 	{
-		24, 16, 
 		0, -40, DZ_BOTTOMLEFT,
 		1,
-		Hud_W_Shotgun
+		Hud_Weapon,
+		0
 	},
 	{
-		24, 16, 
 		24, -40, DZ_BOTTOMLEFT,
 		1,
-		Hud_W_SuperShotgun
+		Hud_Weapon,
+		1
 	},
 	{
-		24, 16, 
 		48, -40, DZ_BOTTOMLEFT,
 		1,
-		Hud_W_Nailgun
+		Hud_Weapon,
+		2
 	},
 	{
-		24, 16, 
 		72, -40, DZ_BOTTOMLEFT,
 		1,
-		Hud_W_SuperNailgun
+		Hud_Weapon,
+		3
 	},
 	{
-		24, 16, 
 		96, -40, DZ_BOTTOMLEFT,
 		1,
-		Hud_W_GrenadeLauncher
+		Hud_Weapon,
+		4
 	},
 	{
-		24, 16, 
 		120, -40, DZ_BOTTOMLEFT,
 		1,
-		Hud_W_RocketLauncher
+		Hud_Weapon,
+		5
 	},
 	{
-		24, 16, 
 		146, -40, DZ_BOTTOMLEFT,
 		1,
 		Hud_W_Lightning
 	},
 	{
-		24, 16, 
 		194, -40, DZ_BOTTOMLEFT,
 		0.3f,
-		Hud_Key1
+		Hud_Powerup,
+		0
 	},
 	{
-		24, 16, 
 		208, -40, DZ_BOTTOMLEFT,
 		0.3f,
-		Hud_Key2
+		Hud_Powerup,
+		1
 	},
 	{
-		24, 16, 
 		224, -40, DZ_BOTTOMLEFT,
 		1,
-		Hud_PUPInvis
+		Hud_Powerup,
+		2
 	},
 	{
-		24, 16, 
 		240, -40, DZ_BOTTOMLEFT,
 		1,
-		Hud_PUPInvuln
+		Hud_Powerup,
+		3
 	},
 	{
-		24, 16, 
 		256, -40, DZ_BOTTOMLEFT,
 		1,
-		Hud_PUPSuit
+		Hud_Powerup,
+		4
 	},
 	{
-		24, 16, 
 		272, -40, DZ_BOTTOMLEFT,
 		1,
-		Hud_PUPQuad
+		Hud_Powerup,
+		5
 	},
 	{
-		24, 16, 
 		288, -40, DZ_BOTTOMLEFT,
 		0.3f,
-		Hud_Rune1
+		Hud_Rune,
+		0
 	},
-		{
-		24, 16, 
+	{
 		296, -40, DZ_BOTTOMLEFT,
 		0.3f,
-		Hud_Rune2
+		Hud_Rune,
+		1
 	},
 	{
-		24, 16, 
 		304, -40, DZ_BOTTOMLEFT,
 		0.3f,
-		Hud_Rune3
+		Hud_Rune,
+		2
 	},
 	{
-		24, 16, 
 		312, -40, DZ_BOTTOMLEFT,
 		0.3f,
-		Hud_Rune4
+		Hud_Rune,
+		3
 	},
 
 	{
-		42, 11, 
-		0, -48, DZ_BOTTOMLEFT,
+		48*0+3, -48, DZ_BOTTOMLEFT,
 		1,
-		Hud_Shells
+		Hud_Ammo,
+		0
 	},
 	{
-		42, 11, 
-		42, -48, DZ_BOTTOMLEFT,
+		48*1+3, -48, DZ_BOTTOMLEFT,
 		1,
-		Hud_Nails
+		Hud_Ammo,
+		1
 	},
 	{
-		42, 11, 
-		42*2, -48, DZ_BOTTOMLEFT,
+		48*2+3, -48, DZ_BOTTOMLEFT,
 		1,
-		Hud_Rockets
+		Hud_Ammo,
+		2
 	},
 	{
-		42, 11, 
+		48*3+3, -48, DZ_BOTTOMLEFT,
+		1,
+		Hud_Ammo,
+		3
+	},
+
+	{
 		42*3, -48, DZ_BOTTOMLEFT,
 		1,
-		Hud_Cells
+		Hud_ScoreCard
 	}
 };
 typedef struct {
 	int type;
+	int subtype;
 
 	float x, y;
 	float scalex;
@@ -429,28 +443,40 @@ void SBar_FlushAll(void)
 	numelements = 0;
 }
 
+static int idxforfunc(drawelementfnc_t *fnc)
+{
+	int i;
+	for (i = 0; i < sizeof(drawelement)/sizeof(drawelement[0]); i++)
+	{
+		if (drawelement[i].draw == fnc)
+			return i;
+	}
+	return -10000;	//try and crash
+}
+
 void SBar_ReloadDefaults(void)
 {
 	int i;
-	for (i = 0; i < sizeof(hetype)/sizeof(hetype[0]); i++)
+	for (i = 0; i < sizeof(hedefaulttype)/sizeof(hedefaulttype[0]); i++)
 	{
-		if (hetype[i].defaultalpha)
+		if (hedefaulttype[i].defaultalpha)
 		{
 			if (numelements >= MAX_ELEMENTS)
 				break;
-			element[numelements].type = i;
-			element[numelements].alpha = hetype[i].defaultalpha;
+			element[numelements].type = idxforfunc(hedefaulttype[i].DrawElement);
+			element[numelements].alpha = hedefaulttype[i].defaultalpha;
 			element[numelements].scalex = 1;
 			element[numelements].scaley = 1;
-			switch(hetype[i].defaultzone)
+			element[numelements].subtype = hedefaulttype[i].subtype;
+			switch(hedefaulttype[i].defaultzone)
 			{
 			case DZ_BOTTOMLEFT:
-				element[numelements].x = hetype[i].defaultx;
-				element[numelements].y = 480+hetype[i].defaulty;
+				element[numelements].x = hedefaulttype[i].defaultx;
+				element[numelements].y = 480+hedefaulttype[i].defaulty;
 				break;
 			case DZ_BOTTOMRIGHT:
-				element[numelements].x = 640+hetype[i].defaultx;
-				element[numelements].y = 480+hetype[i].defaulty;
+				element[numelements].x = 640+hedefaulttype[i].defaultx;
+				element[numelements].y = 480+hedefaulttype[i].defaulty;
 				break;
 			}
 			numelements++;
@@ -547,7 +573,7 @@ void Hud_ArmourPic(void)
 		UI_DrawPic(pic_armour[2], 0, 0, 24, 24);
 	else if (stats[STAT_ITEMS] & IT_ARMOR2)
 		UI_DrawPic(pic_armour[1], 0, 0, 24, 24);
-	else if (stats[STAT_ITEMS] & IT_ARMOR1)
+	else if (stats[STAT_ITEMS] & IT_ARMOR1 || hudedit)
 		UI_DrawPic(pic_armour[0], 0, 0, 24, 24);
 }
 void Hud_ArmourBig(void)
@@ -600,13 +626,13 @@ void Hud_HealthBig(void)
 
 void Hud_CurrentAmmoPic(void)
 {
-		 if (stats[STAT_ITEMS] & IT_AMMO1)
+		 if ((stats[STAT_ITEMS] & IT_AMMO1))
 		UI_DrawPic(pic_ammo[0], 0, 0, 24, 24);
 	else if (stats[STAT_ITEMS] & IT_AMMO2)
 		UI_DrawPic(pic_ammo[1], 0, 0, 24, 24);
 	else if (stats[STAT_ITEMS] & IT_AMMO3)
 		UI_DrawPic(pic_ammo[2], 0, 0, 24, 24);
-	else if (stats[STAT_ITEMS] & IT_AMMO4)
+	else if (stats[STAT_ITEMS] & IT_AMMO4 || hudedit)
 		UI_DrawPic(pic_ammo[3], 0, 0, 24, 24);
 }
 void Hud_CurrentAmmoBig(void)
@@ -619,20 +645,20 @@ void Hud_IBar(void)
 	UI_DrawPic(ibarback, 0, 0, 320, 24);
 }
 
-void Hud_Weapon(int wnum)
+void Hud_Weapon(void)
 {
 	int flash;
-	if (!(stats[STAT_ITEMS] & (IT_GUN1 << wnum)) && !hudedit)
+	if (!(stats[STAT_ITEMS] & (IT_GUN1 << sbartype)) && !hudedit)
 		return;
-	if (!gotweapontime[wnum])
-		gotweapontime[wnum] = currenttime;
-	flash = (currenttime - gotweapontime[wnum])/100;
+	if (!gotweapontime[sbartype])
+		gotweapontime[sbartype] = currenttime;
+	flash = (currenttime - gotweapontime[sbartype])/100;
 	if (flash < 0)	//errr... whoops...
 		flash = 0;
 	
 	if (flash > 10)
 	{
-		if (stats[STAT_WEAPON] & (IT_GUN1 << wnum))
+		if (stats[STAT_ACTIVEWEAPON] & (IT_GUN1 << sbartype))
 			flash = 1;	//selected.
 		else
 			flash = 0;
@@ -640,33 +666,9 @@ void Hud_Weapon(int wnum)
 	else
 		flash = (flash%5) + 2;
 
-	UI_DrawPic(pic_weapon[flash][wnum], 0, 0, 24, 16);
+	UI_DrawPic(pic_weapon[flash][sbartype], 0, 0, 24, 16);
 }
 
-void Hud_W_Shotgun(void)
-{
-	Hud_Weapon(0);
-}
-void Hud_W_SuperShotgun(void)
-{
-	Hud_Weapon(1);
-}
-void Hud_W_Nailgun(void)
-{
-	Hud_Weapon(2);
-}
-void Hud_W_SuperNailgun(void)
-{
-	Hud_Weapon(3);
-}
-void Hud_W_GrenadeLauncher(void)
-{
-	Hud_Weapon(4);
-}
-void Hud_W_RocketLauncher(void)
-{
-	Hud_Weapon(5);
-}
 void Hud_W_HalfLightning(void)	//left half only (needed due to LG icon being twice as wide)
 {
 	int flash;
@@ -720,15 +722,15 @@ void Hud_W_Lightning(void)
 	UI_DrawPic(pic_weapon[flash][wnum], 0, 0, 48, 16);
 }
 
-void Hud_Powerup(int wnum)
+void Hud_Powerup(void)
 {
 	int flash;
-	if (!(stats[STAT_ITEMS] & (IT_PUP1 << wnum)) && !hudedit)
+	if (!(stats[STAT_ITEMS] & (IT_PUP1 << sbartype)) && !hudedit)
 		return;
 
-	if (!gotpuptime[wnum])
-		gotpuptime[wnum] = currenttime;
-	flash = (currenttime - gotpuptime[wnum])/100;
+	if (!gotpuptime[sbartype])
+		gotpuptime[sbartype] = currenttime;
+	flash = (currenttime - gotpuptime[sbartype])/100;
 	if (flash < 0)	//errr... whoops...
 		flash = 0;
 	
@@ -739,88 +741,40 @@ void Hud_Powerup(int wnum)
 	else
 		flash = (flash%5) + 2;
 
-	UI_DrawPic(pic_pup[flash][wnum], 0, 0, 16, 16);
+	UI_DrawPic(pic_pup[flash][sbartype], 0, 0, 16, 16);
 }
 
-void Hud_Key1(void)
+void Hud_Rune(void)
 {
-	Hud_Powerup(0);
-}
-void Hud_Key2(void)
-{
-	Hud_Powerup(1);
-}
-void Hud_PUPInvis(void)
-{
-	Hud_Powerup(2);
-}
-void Hud_PUPInvuln(void)
-{
-	Hud_Powerup(3);
-}
-void Hud_PUPSuit(void)
-{
-	Hud_Powerup(4);
-}
-void Hud_PUPQuad(void)
-{
-	Hud_Powerup(5);
+	if (!(stats[STAT_ITEMS] & (IT_RUNE1 << sbartype)) && !hudedit)
+		return;
+	UI_DrawPic(pic_rune[sbartype], 0, 0, 8, 16);
 }
 
-void Hud_Rune1(void)
-{
-	if (!(stats[STAT_ITEMS] & (IT_RUNE1 << 0)) && !hudedit)
-		return;
-	UI_DrawPic(pic_rune[0], 0, 0, 8, 16);
-}
-void Hud_Rune2(void)
-{
-	if (!(stats[STAT_ITEMS] & (IT_RUNE1 << 1)) && !hudedit)
-		return;
-	UI_DrawPic(pic_rune[1], 0, 0, 8, 16);
-}
-void Hud_Rune3(void)
-{
-	if (!(stats[STAT_ITEMS] & (IT_RUNE1 << 2)) && !hudedit)
-		return;
-	UI_DrawPic(pic_rune[2], 0, 0, 8, 16);
-}
-void Hud_Rune4(void)
-{
-	if (!(stats[STAT_ITEMS] & (IT_RUNE1 << 3)) && !hudedit)
-		return;
-	UI_DrawPic(pic_rune[3], 0, 0, 8, 16);
-}
-
-void Hud_Ammo(int type)
+void Hud_Ammo(void)
 {
 	int num;
-	Draw_Image(sbarminx, sbarminy, (float)42*sbarscalex, (float)11*sbarscaley, (3+(type*48))/320.0f, 0, (3+(type*48)+42)/320.0f, 11/24.0f, ibarback);
+	Draw_Image(sbarminx, sbarminy, (float)42*sbarscalex, (float)11*sbarscaley, (3+(sbartype*48))/320.0f, 0, (3+(sbartype*48)+42)/320.0f, 11/24.0f, ibarback);
 
-	num = stats[STAT_SHELLS+type];
+	num = stats[STAT_SHELLS+sbartype];
 	UI_DrawChar(num%10+18, 19, 0);
 	num/=10;
-	if (num%10)
+	if (num)
 		UI_DrawChar(num%10+18, 11, 0);
 	num/=10;
-	if (num%10)
+	if (num)
 		UI_DrawChar(num%10+18, 3, 0);
 }
-void Hud_Shells(void)
+
+
+void Hud_ScoreCard(void)
 {
-	Hud_Ammo(0);
 }
-void Hud_Nails(void)
+
+//fixme: draw dark blobs
+void Hud_Blackness(void)
 {
-	Hud_Ammo(1);
-}
-void Hud_Rockets(void)
-{
-	Hud_Ammo(2);
-}
-void Hud_Cells(void)
-{
-	Hud_Ammo(3);
+
 }
 
 //draw cody of sbar
@@ -829,15 +783,7 @@ void Hud_Cells(void)
 //arg[3]/arg[4] is width/height of subwindow
 int UI_StatusBar(int *arg)
 {
-//	int flash;
 	int i;
-//	int x;
-//	char *s;
-//	unsigned int items;
-//	unsigned int weapon;
-//	int mx, my;
-
-//	qboolean noflash = Cvar_GetFloat(UI_NOFLASH);
 
 	float vsx, vsy;
 
@@ -851,126 +797,174 @@ int UI_StatusBar(int *arg)
 		sbarminy = arg[2] + element[i].y*vsy;
 		sbarscalex  = element[i].scalex*vsx;
 		sbarscaley  = element[i].scaley*vsy;
-		hetype[element[i].type].DrawElement();
-	}
-/*
-	items = stats[STAT_ITEMS];
-	weapon = stats[STAT_WEAPON];
-
-	//background of sbar
-	UI_DrawPic(sbarback, 0, vid.height-24, 320, 24);
-
-	//armour quant
-	i = stats[STAT_ARMOR];
-	UI_DrawBigNumber(i, 24, vid.height-24, i < 25);
-
-	//armour pic
-	if (items & IT_ARMOR3)
-		UI_DrawPic(pic_armour[2], 0, vid.height-24, 24, 24);
-	else if (items & IT_ARMOR2)
-		UI_DrawPic(pic_armour[1], 0, vid.height-24, 24, 24);
-	else if (items & IT_ARMOR1)
-		UI_DrawPic(pic_armour[0], 0, vid.height-24, 24, 24);
-
-	//health quant
-	i = stats[STAT_HEALTH];
-	UI_DrawBigNumber(i, 24*6, vid.height-24, i < 25);
-
-	//faces
-//FIXME: implement
-
-	if (Cvar_GetFloat(UI_NOIBAR))
-		return true;
-
-	//back of ibar
-	UI_DrawPic(ibarback, 0, vid.height-24-24, 320, 24);
-
-	//weapons
-	for (i = 0; i < numweaps; i++)
-	{
-		if (items & (IT_GUN1 << i))
-		{
-			if (!gotweapontime[i])
-				gotweapontime[i] = time;
-			flash = (int)((time - gotweapontime[i])*10);
-			if (flash < 0)	//errr... whoops...
-				flash = 0;
-			
-			if (flash > 10 || noflash)
-			{
-				if (weapon & (IT_GUN1 << i))
-					flash = 1;	//selected.
-				else
-					flash = 0;
-			}
-			else
-				flash = (flash%5) + 2;
-
-			if (i == 6)
-				UI_DrawPic(pic_weapon[flash][i], 24*i, vid.height-16-24, 48, 16);
-			else
-				UI_DrawPic(pic_weapon[flash][i], 24*i, vid.height-16-24, 24, 16);
-		}
-		else
-			gotweapontime[i] = 0;
+		sbartype = element[i].subtype;
+		sbaralpha = element[i].alpha;
+		drawelement[element[i].type].draw();
 	}
 
-	//currentammo
-//FIXME: implement
-
-	//powerups
-	for (i = 0; i < numpups; i++)
-	{
-		if (items & (IT_PUP1 << i))
-		{
-			if (!gotpuptime[i])
-				gotpuptime[i] = time;
-			flash = (int)((time - gotpuptime[i])*10);
-			if (flash < 0)	//errr... whoops...
-				flash = 0;
-			
-			if (flash > 10 || noflash)
-			{
-				flash = 0;
-			}
-			else
-				flash = (flash%5) + 1;
-
-			UI_DrawPic(pic_pup[flash][i], (24*8)+(16*i), vid.height-16-24, 16, 16);
-		}
-		else
-			gotpuptime[i] = 0;
-	}
-
-	//runes
-//FIXME: implement
-
-	//ammo counts
-	for (i = 0; i < 4; i++)
-	{
-		s = va("%i", stats[STAT_SHELLS+i]);
-
-		x = (6*i+1)*8;
-
-		flash = strlen(s);
-		if (flash < 3)
-			x += 8*(3-flash);
-		else
-			s += flash-3;
-
-
-		while(*s)
-		{
-			UI_DrawChar((unsigned)*s + 18 - '0', x, vid.height-24-24);
-			s++;
-			x+=8;
-		}
-	}
-
-	//small 4player scorecard
-//FIXME: implement
-*/
 	return true;
+}
+
+#include <stdio.h>
+int FS_Open(char *name, int *handle, int mode)
+{
+	FILE *f;
+	int len;
+	switch(mode)
+	{
+	case 0:
+		f = fopen(name, "rb");
+		break;
+	case 1:
+		f = fopen(name, "wb");
+		break;
+	}
+
+	*handle = (int)f;
+
+	if (!f)
+		return -1;
+
+	fseek(f, 0, SEEK_END);
+	len = ftell(f);
+	fseek(f, 0, SEEK_SET);
+	return len;
+}
+void FS_Close(int handle)
+{
+	fclose((FILE*)handle);
+}
+
+void FS_Write(void *data, int len, int handle)
+{
+	fwrite(data, 1, len, (FILE*)handle);
+}
+void FS_Read(void *data, int len, int handle)
+{
+	fread(data, 1, len, (FILE*)handle);
+}
+
+
+#define HUD_VERSION 52345
+void PutFloat(float f, char sep, int handle)
+{
+	char *buffer;
+	buffer = va("%f%c", f, sep);
+	FS_Write(buffer, strlen(buffer), handle);
+}
+void PutInteger(int i, char sep, int handle)
+{
+	char *buffer;
+	buffer = va("%i%c", i, sep);
+	FS_Write(buffer, strlen(buffer), handle);
+}
+
+void Hud_Save(char *fname)
+{
+	int i;
+	int handle;
+	if (FS_Open(fname, &handle, 1)<0)
+	{
+		Con_Printf("Couldn't open %s\n", fname);
+		return;
+	}
+
+	PutInteger(HUD_VERSION, '\n', handle);
+	PutInteger(numelements, '\n', handle);
+	for (i = 0; i < numelements; i++)
+	{
+		PutFloat(element[i].x, ' ', handle);
+		PutFloat(element[i].y, ' ', handle);
+		PutFloat(element[i].scalex, ' ', handle);
+		PutFloat(element[i].scaley, ' ', handle);
+		PutInteger(element[i].type, '\n', handle);
+	}
+
+	FS_Close(handle);
+}
+float GetFloat(char **f, int handle)
+{
+	char *ts;
+	while(**f < ' ' && **f != 0)
+		(*f)++;
+	while(*f[0] == '/' && *f[1] == '/')
+	{
+		while(**f != '\n' && **f != 0)
+			(*f)++;
+		while(**f < ' ' && **f != 0)
+			(*f)++;
+	}
+	ts = *f;
+	while (**f>' ')
+		(*f)++;
+	
+	return (float)atof(ts);
+}
+int GetInteger(char **f, int handle)
+{
+	char *ts;
+	while(**f < ' ' && **f != 0)
+		(*f)++;
+	while(*f[0] == '/' && *f[1] == '/')
+	{
+		while(**f != '\n' && **f != 0)
+			(*f)++;
+		while(**f < ' ' && **f != 0)
+			(*f)++;
+	}
+	ts = *f;
+	while (**f>' ')
+		(*f)++;
+	
+	return atoi(ts);
+}
+void Hud_Load(char *fname)
+{
+	char file[16384];
+	char *p;
+	int len;
+	int i;
+	int handle;
+	len = FS_Open(fname, &handle, 0);
+	if (len < 0)
+	{
+		Con_Printf("Couldn't load file\n");
+		return;
+	}
+	if (len > 16383)
+		len = 16383;
+	FS_Read(file, len, handle);
+	file[len] = 0;
+	FS_Close(handle);
+
+	p = file;
+
+	if (GetInteger(&p, handle) != HUD_VERSION)
+	{
+		Con_Printf("Hud version doesn't match\n");
+		return;
+	}
+	numelements = GetInteger(&p, handle);
+	if (numelements > MAX_ELEMENTS)
+	{
+		numelements = 0;
+		Con_Printf("Hud has too many elements\n");
+		return;
+	}
+	for (i = 0; i < numelements; i++)
+	{
+		element[i].x = GetFloat(&p, handle);
+		element[i].y = GetFloat(&p, handle);
+		element[i].scalex = GetFloat(&p, handle);
+		element[i].scaley = GetFloat(&p, handle);
+
+		element[i].type = GetInteger(&p, handle);
+		if (element[i].type<0 || element[i].type>=sizeof(drawelement)/sizeof(drawelement[0]))
+		{
+			numelements--;
+			i--;
+		}
+	}
 }
 
 int currentitem;
@@ -994,8 +988,8 @@ void UI_KeyPress(int key, int mx, int my)
 		{
 			if (element[i].x < mx &&
 				element[i].y < my &&
-				element[i].x + element[i].scalex*hetype[element[i].type].width > mx &&
-				element[i].y + element[i].scaley*hetype[element[i].type].height > my)
+				element[i].x + element[i].scalex*drawelement[element[i].type].width > mx &&
+				element[i].y + element[i].scaley*drawelement[element[i].type].height > my)
 			{
 				mouseofsx = mx - element[i].x;
 				mouseofsy = my - element[i].y;
@@ -1032,13 +1026,25 @@ void UI_KeyPress(int key, int mx, int my)
 		{
 			element[currentitem].type--;
 			if (element[currentitem].type < 0)
-				element[currentitem].type = sizeof(hetype)/sizeof(hetype[0])-1;
+				element[currentitem].type = sizeof(drawelement)/sizeof(drawelement[0])-1;
 		}
 		else if (key == 'w')
 		{
 			element[currentitem].type++;
-			if (element[currentitem].type >= sizeof(hetype)/sizeof(hetype[0]))
+			if (element[currentitem].type >= sizeof(drawelement)/sizeof(drawelement[0]))
 				element[currentitem].type = 0;
+		}
+		else if (key == ',')
+		{
+			element[currentitem].subtype--;
+			if (element[currentitem].subtype < 0)
+				element[currentitem].subtype = drawelement[element[currentitem].type].maxsubtype;
+		}
+		else if (key == '.')
+		{
+			element[currentitem].subtype++;
+			if (element[currentitem].subtype > drawelement[element[currentitem].type].maxsubtype)
+				element[currentitem].subtype = 0;
 		}
 		else if (key == K_UPARROW)
 		{
@@ -1107,8 +1113,8 @@ int Plug_MenuEvent(int *args)
 
 		if ((currenttime/250)&1)
 			Draw_Fill(	(int)element[currentitem].x, (int)element[currentitem].y,
-						(int)(element[currentitem].scalex*hetype[element[currentitem].type].width), 
-						(int)(element[currentitem].scaley*hetype[element[currentitem].type].height));
+						(int)(element[currentitem].scalex*drawelement[element[currentitem].type].width), 
+						(int)(element[currentitem].scaley*drawelement[element[currentitem].type].height));
 		break;
 	case 1:	//keydown
 		UI_KeyPress(args[1], args[2], args[3]);
@@ -1145,6 +1151,28 @@ int Plug_ExecuteCommand(int *args)
 		mousedown=false;
 		return 1;
 	}
+	if (!strcmp("sbar_save", cmd))
+	{
+		Cmd_Argv(1, cmd, sizeof(cmd));
+		Hud_Save(cmd);
+		mousedown=false;
+		return 1;
+	}
+	if (!strcmp("sbar_load", cmd))
+	{
+		Cmd_Argv(1, cmd, sizeof(cmd));
+		Hud_Load(cmd);
+		mousedown=false;
+		return 1;
+	}
+	if (!strcmp("sbar_defaults", cmd))
+	{
+		Cmd_Argv(1, cmd, sizeof(cmd));
+		SBar_FlushAll();
+		SBar_ReloadDefaults();
+		mousedown=false;
+		return 1;
+	}
 	return 0;
 }
 
@@ -1166,8 +1194,12 @@ int Plug_Init(int *args)
 		K_MOUSE1		= Key_GetKeyCode("mouse1");
 		K_SHIFT			= Key_GetKeyCode("shift");
 
+		Cmd_AddCommand("sbar_edit");
+		Cmd_AddCommand("sbar_save");
+		Cmd_AddCommand("sbar_load");
+		Cmd_AddCommand("sbar_defaults");
+
 		return true;
 	}
 	return false;
 }
-

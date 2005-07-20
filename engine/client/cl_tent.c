@@ -174,6 +174,7 @@ sfx_t			*cl_sfx_ric3;
 sfx_t			*cl_sfx_r_exp3;
 
 cvar_t	cl_expsprite = {"cl_expsprite", "0"};
+cvar_t  r_explosionlight = {"r_explosionlight", "1"};
 cvar_t	cl_truelightning = {"cl_truelightning", "0",	NULL, CVAR_SEMICHEAT};
 
 typedef struct {
@@ -208,6 +209,7 @@ void CL_InitTEnts (void)
 
 	Cvar_Register (&cl_expsprite, "Temporary entity control");
 	Cvar_Register (&cl_truelightning, "Temporary entity control");
+	Cvar_Register (&r_explosionlight, "Temporary entity control");
 }
 
 #ifdef Q2CLIENT
@@ -776,19 +778,20 @@ void CL_ParseTEnt (void)
 			P_ParticleExplosion (pos);
 		
 	// light
-		dl = CL_AllocDlight (0);
-		VectorCopy (pos, dl->origin);
-		dl->radius = 350;
-		dl->die = cl.time + 1;
-		dl->decay = 300;
+		if (r_explosionlight.value) {
+			dl = CL_AllocDlight (0);
+			VectorCopy (pos, dl->origin);
+			dl->radius = 150 + bound(0, r_explosionlight.value, 1)*200;
+			dl->die = cl.time + 1;
+			dl->decay = 300;
 		
-		dl->color[0] = 0.2;
-		dl->color[1] = 0.155;
-		dl->color[2] = 0.05;
-		dl->channelfade[0] = 0.196;
-		dl->channelfade[1] = 0.23;
-		dl->channelfade[2] = 0.12;
-
+			dl->color[0] = 0.2;
+			dl->color[1] = 0.155;
+			dl->color[2] = 0.05;
+			dl->channelfade[0] = 0.196;
+			dl->channelfade[1] = 0.23;
+			dl->channelfade[2] = 0.12;
+		}
 
 
 	// sound
@@ -846,18 +849,20 @@ void CL_ParseTEnt (void)
 		P_ParticleExplosion (pos);
 		
 	// light
-		dl = CL_AllocDlight (0);
-		VectorCopy (pos, dl->origin);
-		dl->radius = 350;
-		dl->die = cl.time + 1;
-		dl->decay = 700;
+		if (r_explosionlight.value) {
+			dl = CL_AllocDlight (0);
+			VectorCopy (pos, dl->origin);
+			dl->radius = 150 + bound(0, r_explosionlight.value, 1)*200;
+			dl->die = cl.time + 0.5;
+			dl->decay = 300;
 		
-		dl->color[0] = 0.4f*MSG_ReadByte()/255.0f;
-		dl->color[1] = 0.4f*MSG_ReadByte()/255.0f;
-		dl->color[2] = 0.4f*MSG_ReadByte()/255.0f;
-		dl->channelfade[0] = 0;
-		dl->channelfade[1] = 0;
-		dl->channelfade[2] = 0;
+			dl->color[0] = 0.4f*MSG_ReadByte()/255.0f;
+			dl->color[1] = 0.4f*MSG_ReadByte()/255.0f;
+			dl->color[2] = 0.4f*MSG_ReadByte()/255.0f;
+			dl->channelfade[0] = 0;
+			dl->channelfade[1] = 0;
+			dl->channelfade[2] = 0;
+		}
 
 		S_StartSound (-2, 0, cl_sfx_r_exp3, pos, 1, 1);
 		break;
@@ -1661,16 +1666,16 @@ void CLQ2_ParseTEnt (void)
 		P_ParticleExplosion (pos);
 				
 	// light
-		{
+		if (r_explosionlight.value) {
 			dlight_t *dl;
-		dl = CL_AllocDlight (0);
-		VectorCopy (pos, dl->origin);
-		dl->radius = 350;
-		dl->die = cl.time + 0.5;
-		dl->decay = 300;
-		dl->color[0] = 0.2;
-		dl->color[1] = 0.1;
-		dl->color[2] = 0.1;
+			dl = CL_AllocDlight (0);
+			VectorCopy (pos, dl->origin);
+			dl->radius = 150 + bound(0, r_explosionlight.value, 1)*200;
+			dl->die = cl.time + 0.5;
+			dl->decay = 300;
+			dl->color[0] = 0.2;
+			dl->color[1] = 0.1;
+			dl->color[2] = 0.1;
 		}
 	
 	// sound
@@ -1747,16 +1752,16 @@ void CLQ2_ParseTEnt (void)
 			P_ParticleExplosion (pos);
 
 	// light
-		{
+		if (r_explosionlight.value) {
 			dlight_t *dl;
-		dl = CL_AllocDlight (0);
-		VectorCopy (pos, dl->origin);
-		dl->radius = 350;
-		dl->die = cl.time + 0.5;
-		dl->decay = 300;
-		dl->color[0] = 0.2;
-		dl->color[1] = 0.1;
-		dl->color[2] = 0.08;
+			dl = CL_AllocDlight (0);
+			VectorCopy (pos, dl->origin);
+			dl->radius = 150 + bound(0, r_explosionlight.value, 1)*200;
+			dl->die = cl.time + 0.5;
+			dl->decay = 300;
+			dl->color[0] = 0.2;
+			dl->color[1] = 0.1;
+			dl->color[2] = 0.08;
 		}
 
 	// sound

@@ -315,3 +315,4 @@ trace_t PM_TraceLine (vec3_t start, vec3_t end)
 	pmove.hullnum = 0;
 	return PM_PlayerTrace(start, end);
 }
+

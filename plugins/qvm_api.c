@@ -136,7 +136,7 @@ retry:
 				tokens++;
 				break;
 			case 'f':
-				_float = va_arg(vargs, double);
+				_float = (float)va_arg(vargs, double);
 
 //integer part.
 				_int = (int)_float;
@@ -149,10 +149,17 @@ retry:
 				}
 				i = sizeof(tempbuffer)-2;
 				tempbuffer[sizeof(tempbuffer)-1] = '\0';
-				while(_int)
+				if (!_int)
 				{
-					tempbuffer[i--] = _int%10 + '0';
-					_int/=10;
+					tempbuffer[i--] = '0';
+				}
+				else
+				{
+					while(_int)
+					{
+						tempbuffer[i--] = _int%10 + '0';
+						_int/=10;
+					}
 				}
 				string = tempbuffer+i+1;
 				while (*string)
@@ -289,3 +296,19 @@ char *strstr(char *str, char *sub)
 	return NULL;
 }
 #endif
+
+void Q_strncpyz(char *d, const char *s, int n)
+{
+	int i;
+	n--;
+	if (n < 0)
+		return;	//this could be an error
+
+	for (i=0; *s; i++)
+	{
+		if (i == n)
+			break;
+		*d++ = *s++;
+	}
+	*d='\0';
+}

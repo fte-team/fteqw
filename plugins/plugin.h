@@ -1,3 +1,5 @@
+#ifndef __PLUGIN_H__
+#define __PLUGIN_H__
 #ifdef Q3_VM
 
 //qvms just call the return value, and the engine works out which one it called.
@@ -43,8 +45,12 @@ typedef void *qhandle_t;
 //Basic builtins:
 EBUILTIN(void*, Plug_GetEngineFunction, (char *funcname));	//set up in vmMain, use this to get all other builtins
 EBUILTIN(void, Con_Print, (char *text));	//on to main console.
+EBUILTIN(void, Con_SubPrint, (char *subname, char *text));	//on to sub console.
+EBUILTIN(void, Con_RenameSub, (char *old, char *new));	//rename a console.
 EBUILTIN(void, Sys_Error, (char *message));	//abort the entire engine.
+EBUILTIN(unsigned int, Sys_Milliseconds, ());
 
+EBUILTIN(void, Cmd_AddCommand, (char *buffer));	//abort the entire engine.
 EBUILTIN(void, Cmd_Args, (char *buffer, int bufsize));	//abort the entire engine.
 EBUILTIN(void, Cmd_Argv, (int argnum, char *buffer, int bufsize));	//abort the entire engine.
 EBUILTIN(void, Cmd_Argc, (void));	//abort the entire engine.
@@ -61,7 +67,10 @@ EBUILTIN(void, LocalSound, (char *soundname));
 EBUILTIN(void, CL_GetStats, (int pnum, unsigned int *stats, int maxstats));
 
 EBUILTIN(void, Menu_Control, (int mnum));
+#define MENU_CLEAR 0
+#define MENU_GRAB 1
 EBUILTIN(int, Key_GetKeyCode, (char *keyname));
+EBUILTIN(void, Media_ShowFrameRGBA_32, (void *src, int srcwidth, int srcheight, int x, int y, int width, int height));
 
 EBUILTIN(qhandle_t, Draw_LoadImage, (char *name, qboolean iswadimage));	//wad image is ONLY for loading out of q1 gfx.wad
 EBUILTIN(void, Draw_Image, (float x, float y, float w, float h, float s1, float t1, float s2, float t2, qhandle_t image));
@@ -71,6 +80,21 @@ EBUILTIN(void, Draw_Colourp, (int palcol));
 EBUILTIN(void, Draw_Colour3f, (float r, float g, float b));
 EBUILTIN(void, Draw_Colour4f, (float r, float g, float b, float a));
 
+EBUILTIN(int, Net_TCPConnect, (char *ip, int port));
+EBUILTIN(int, Net_TCPListen, (char *ip, int port, int maxcount));
+EBUILTIN(int, Net_Accept, (int socket, char *address, int addresssize));
+EBUILTIN(int, Net_Recv, (int socket, void *buffer, int len));
+EBUILTIN(int, Net_Send, (int socket, void *buffer, int len));
+EBUILTIN(void, Net_Close, (int socket));
+#define N_WOULDBLOCK -1
+
+
+
+#ifdef Q3_VM
+EBUILTIN(void, memcpy, (void *, void *, int len));
+EBUILTIN(void, memset, (void *, int, int len));
+#endif
+
 typedef int (*export_t) (int *args);
 char	*va(char *format, ...);
 int Plug_Init(int *args);
@@ -78,6 +102,7 @@ qboolean Plug_Export(char *name, export_t func);
 void Con_Printf(char *format, ...);
 void Sys_Errorf(char *format, ...);
 typedef unsigned char qbyte;
+void Q_strncpyz(char *d, const char *s, int n);
 
 
 typedef struct {
@@ -118,3 +143,4 @@ void Info_RemoveNonStarKeys (char *start);
 void Info_SetValueForKey (char *s, char *key, char *value, int maxsize);
 void Info_SetValueForStarKey (char *s, char *key, char *value, int maxsize);
 
+#endif

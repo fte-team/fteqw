@@ -48,10 +48,24 @@ BUILTINR(int, Plug_ExportToEngine, (char *funcname, int expnum));
 BUILTIN(void, Con_Print, (char *text));	//on to main console.
 #undef ARGNAMES
 
+#define ARGNAMES ,conname,text
+BUILTIN(void, Con_SubPrint, (char *conname, char *text));	//on to named sub console (creating it too).
+#undef ARGNAMES
+
+#define ARGNAMES ,old,new
+BUILTIN(void, Con_RenameSub, (char *old, char *new));	//on to named sub console (creating it too).
+#undef ARGNAMES
+
 #define ARGNAMES ,message
 BUILTIN(void, Sys_Error, (char *message));	//abort the entire engine.
 #undef ARGNAMES
+#define ARGNAMES 
+BUILTINR(unsigned int, Sys_Milliseconds, (void));	//abort the entire engine.
+#undef ARGNAMES
 
+#define ARGNAMES ,buffer
+BUILTIN(void, Cmd_AddCommand, (char *buffer));	//abort the entire engine.
+#undef ARGNAMES
 #define ARGNAMES ,buffer,bufsize
 BUILTIN(void, Cmd_Args, (char *buffer, int bufsize));	//abort the entire engine.
 #undef ARGNAMES
@@ -115,6 +129,10 @@ BUILTIN(void, Draw_Colour3f, (float r, float g, float b));
 BUILTIN(void, Draw_Colour4f, (float r, float g, float b, float a));
 #undef ARGNAMES
 
+#define ARGNAMES ,src,srcwidth,srcheight,x,y,width,height
+BUILTIN(void, Media_ShowFrameRGBA_32, (void *src, int srcwidth, int srcheight, int x, int y, int width, int height));
+#undef ARGNAMES
+
 #define ARGNAMES ,mnum
 BUILTIN(void, Menu_Control, (int mnum));
 #undef ARGNAMES
@@ -122,6 +140,34 @@ BUILTIN(void, Menu_Control, (int mnum));
 #define ARGNAMES ,keyname
 BUILTINR(int, Key_GetKeyCode, (char *keyname));
 #undef ARGNAMES
+
+#define ARGNAMES ,ip,port
+BUILTINR(int, Net_TCPConnect, (char *ip, int port));
+#undef ARGNAMES
+#define ARGNAMES ,ip,port,maxcount
+BUILTINR(int, Net_TCPListen, (char *ip, int port, int maxcount));
+#undef ARGNAMES
+#define ARGNAMES ,socket,address,addresslen
+BUILTINR(int, Net_Accept, (int socket, char *address, int addresslen));
+#undef ARGNAMES
+#define ARGNAMES ,socket,buffer,len
+BUILTINR(int, Net_Recv, (int socket, void *buffer, int len));
+#undef ARGNAMES
+#define ARGNAMES ,socket,buffer,len
+BUILTINR(int, Net_Send, (int socket, void *buffer, int len));
+#undef ARGNAMES
+#define ARGNAMES ,socket
+BUILTIN(void, Net_Close, (int socket));
+#undef ARGNAMES
+
+#ifdef Q3_VM
+#define ARGNAMES ,out,in,len
+BUILTIN(void, memcpy, (void *out, void *in, int len));
+#undef ARGNAMES
+#define ARGNAMES ,out,in,len
+BUILTIN(void, memset, (void *out, int in, int len));
+#undef ARGNAMES
+#endif
 
 char	*va(char *format, ...)	//Identical in function to the one in Quake, though I can assure you that I wrote it...
 {					//It's not exactly hard, just easy to use, so gets duplicated lots.
@@ -160,15 +206,24 @@ void Sys_Errorf(char *format, ...)
 
 void Plug_InitStandardBuiltins(void)
 {
+#ifdef Q3_VM
+	CHECKBUILTIN(memcpy);
+	CHECKBUILTIN(memset);
+#endif
+
 	CHECKBUILTIN(Plug_ExportToEngine);
 	CHECKBUILTIN(Con_Print);
 	CHECKBUILTIN(Sys_Error);
+	CHECKBUILTIN(Sys_Milliseconds);
 
+	//command execution
+	CHECKBUILTIN(Cmd_AddCommand);
 	CHECKBUILTIN(Cmd_Args);
 	CHECKBUILTIN(Cmd_Argv);
 	CHECKBUILTIN(Cmd_Argc);
 	CHECKBUILTIN(Cmd_AddText);
 
+	//cvar stuff
 	CHECKBUILTIN(Cvar_SetString);
 	CHECKBUILTIN(Cvar_SetFloat);
 	CHECKBUILTIN(Cvar_GetString);
@@ -176,11 +231,21 @@ void Plug_InitStandardBuiltins(void)
 	CHECKBUILTIN(Cvar_Register);
 	CHECKBUILTIN(Cvar_Update);
 
+	//networking
+	CHECKBUILTIN(Net_TCPConnect);
+	CHECKBUILTIN(Net_TCPListen);
+	CHECKBUILTIN(Net_Accept);
+	CHECKBUILTIN(Net_Recv);
+	CHECKBUILTIN(Net_Send);
+	CHECKBUILTIN(Net_Close);
+
+	//random things
 	CHECKBUILTIN(CL_GetStats);
 	CHECKBUILTIN(LocalSound);
 	CHECKBUILTIN(Menu_Control);
 	CHECKBUILTIN(Key_GetKeyCode);
 
+	//drawing routines
 	CHECKBUILTIN(Draw_LoadImage);
 	CHECKBUILTIN(Draw_Image);
 	CHECKBUILTIN(Draw_Fill);
@@ -188,6 +253,13 @@ void Plug_InitStandardBuiltins(void)
 	CHECKBUILTIN(Draw_Colourp);
 	CHECKBUILTIN(Draw_Colour3f);
 	CHECKBUILTIN(Draw_Colour4f);
+
+	CHECKBUILTIN(Media_ShowFrameRGBA_32);
+
+	//sub consoles (optional)
+	CHECKBUILTIN(Con_SubPrint);
+	CHECKBUILTIN(Con_RenameSub);
+
 }
 
 #ifndef Q3_VM
@@ -240,4 +312,7 @@ qboolean Plug_Export(char *name, export_t func)
 exports_t exports[sizeof(exports)/sizeof(exports[0])] = {
 	{"Plug_Init", Plug_InitAPI},
 };
+
+
+
 

@@ -6141,7 +6141,7 @@ lh_extension_t QSG_Extensions[] = {
 //	{"ZQ_QC_PARTICLE"},	//particle builtin works in QW ( we don't mimic ZQ fully though)
 		
 
-	{"ZQ_QC_STRINGS",					11, NULL, {"stof", "strlen","strcat","substring","stov","strzone","strunzone"}}	//a trimmed down FRIK_FILE.
+	{"ZQ_QC_STRINGS",					7, NULL, {"stof", "strlen","strcat","substring","stov","strzone","strunzone"}}	//a trimmed down FRIK_FILE.
 };
 
 //some of these are overkill yes, but they are all derived from the fteextensions flags and document the underlaying protocol available.

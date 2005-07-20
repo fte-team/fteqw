@@ -5,22 +5,29 @@
 #define Q_strncpyz(o, i, l) do {strncpy(o, i, l-1);o[l-1]='\0';}while(0)
 
 
+void Con_SubPrintf(char *subname, char *format, ...)
+{
+	va_list		argptr;
+	static char		string[1024];
+		
+	va_start (argptr, format);
+	vsnprintf (string, sizeof(string), format,argptr);
+	va_end (argptr);
+
+	Con_SubPrint(subname, string);	
+}
+
 
 //porting zone:
 
 
 #define Q_strncpyz(o, i, l) do {strncpy(o, i, l-1);o[l-1]='\0';}while(0)
 
-#include <winsock.h>
 
 
 
-
-	#define printf		Con_Printf
-	#define dprintf		Con_Printf
-	#define wprintf		Con_Printf
-	#define twprintf	Con_Printf
 	#define COLOURGREEN	"^2"
+	#define COLORWHITE "^7"
 	#define COMMANDPREFIX "irc "
 	#define playsound(s)
 
@@ -103,47 +110,7 @@
 
 
 
-//functions are geared towards windows because windows is fussiest.
-//constants towards unix cos they are more proper
 
-#ifdef _WIN32
-
-#include <winsock.h>
-
-#define EWOULDBLOCK	WSAEWOULDBLOCK
-#define EMSGSIZE	WSAEMSGSIZE
-#define ECONNRESET	WSAECONNRESET
-#define ECONNABORTED	WSAECONNABORTED
-#define ECONNREFUSED	WSAECONNREFUSED
-#define EADDRNOTAVAIL	WSAEADDRNOTAVAIL
-
-#define qerrno WSAGetLastError()
-#else
-#define qerrno errno
-
-#include <sys/types.h>
-#include <sys/socket.h>
-#include <netinet/in.h>
-#include <netdb.h>
-#include <sys/param.h>
-#include <sys/ioctl.h>
-#include <sys/uio.h>
-#include <arpa/inet.h>
-#include <errno.h>
-
-#include <unistd.h>
-
-#ifdef sun
-#include <sys/filio.h>
-#endif
-
-#ifdef NeXT
-#include <libc.h>
-#endif
-
-#define closesocket close
-#define ioctlsocket ioctl
-#endif
 
 
 void IRC_Command(void);
@@ -160,13 +127,15 @@ int IRC_ExecuteCommand(int *args)
 	return false;
 }
 
+int IRC_ConExecuteCommand(int *args);
 
 int IRC_Frame(int *args);
 
 int Plug_Init(int *args)
 {
 	if (	Plug_Export("Tick", IRC_Frame) &&
-		Plug_Export("ExecuteCommand", IRC_ExecuteCommand))
+		Plug_Export("ExecuteCommand", IRC_ExecuteCommand) &&
+		Plug_Export("ConExecuteCommand", IRC_ConExecuteCommand))
 		Con_Print("IRC Client Plugin Loaded\n");
 	else
 		Con_Print("IRC Client Plugin failed\n");
@@ -177,42 +146,6 @@ int Plug_Init(int *args)
 
 
 
-
-
-int	IRC_StringToSockaddr (char *s, struct sockaddr *sadr)	//From Quake2
-{
-	struct hostent	*h;
-	char	*colon;
-	char	copy[128];
-	
-	memset (sadr, 0, sizeof(*sadr));
-
-	((struct sockaddr_in *)sadr)->sin_family = AF_INET;
-	
-	((struct sockaddr_in *)sadr)->sin_port = 0;
-
-	strcpy (copy, s);
-	// strip off a trailing :port if present
-	for (colon = copy ; *colon ; colon++)
-		if (*colon == ':')
-		{
-			*colon = 0;
-			((struct sockaddr_in *)sadr)->sin_port = htons((short)atoi(colon+1));	
-		}
-	
-	if (copy[0] >= '0' && copy[0] <= '9')
-	{
-		*(int *)&((struct sockaddr_in *)sadr)->sin_addr = inet_addr(copy);
-	}
-	else
-	{
-		if (! (h = gethostbyname(copy)) )
-			return 0;
-		*(int *)&((struct sockaddr_in *)sadr)->sin_addr = *(int *)h->h_addr_list[0];
-	}
-	
-	return true;
-}
 
 
 
@@ -229,6 +162,7 @@ int	IRC_StringToSockaddr (char *s, struct sockaddr *sadr)	//From Quake2
 
 
 char defaultnick[IRC_MAXNICKLEN+1];
+char defaultuser[IRC_MAXNICKLEN+1] = "Unknown";
 
 
 typedef struct {
@@ -241,24 +175,38 @@ typedef struct {
 	char pwd[64];
 	char realname[128];
 	char hostname[128];
+	int nickcycle;
 
 	char defaultdest[IRC_MAXNICKLEN];//channel or nick
 
 	char bufferedinmessage[IRC_MAXMSGLEN+1];	//there is a max size for protocol. (conveinient eh?) (and it's text format)
 	int bufferedinammount;
 } ircclient_t;
-
 ircclient_t *ircclient;
-void IRC_AddClientMessage(ircclient_t *irc, char *msg)
+
+int IRC_ConExecuteCommand(int *args)
 {
-	send(irc->socket, msg, strlen(msg), 0);	//FIXME: This needs rewriting to cope with errors.
+	if (!ircclient)
+	{
+		char buffer[256];
+		Cmd_Argv(0, buffer, sizeof(buffer));
+		Con_SubPrint(buffer, "You were disconnected\n");
+		return true;
+	}
+	Cmd_Argv(0, ircclient->defaultdest, sizeof(ircclient->defaultdest));
+	IRC_Command();
+	return true;
 }
 
-ircclient_t *IRC_Connect(char *server, int port)
+void IRC_AddClientMessage(ircclient_t *irc, char *msg)
+{
+	Net_Send(irc->socket, msg, strlen(msg));	//FIXME: This needs rewriting to cope with errors.
+}
+
+ircclient_t *IRC_Connect(char *server, int defport)
 {
 	ircclient_t *irc;
 	unsigned long _true = true;
-	struct sockaddr_in	from;
 
 
 	irc = IRC_Malloc(sizeof(ircclient_t));
@@ -268,28 +216,14 @@ ircclient_t *IRC_Connect(char *server, int port)
 	memset(irc, 0, sizeof(ircclient_t));
 
 	
-
-	if ((irc->socket = socket (PF_INET, SOCK_STREAM, IPPROTO_TCP)) == -1)
-	{
-		wprintf ("IRC_TCP_OpenSocket: socket: %s\n", strerror(qerrno));
-		return NULL;
-	}
-
-	IRC_StringToSockaddr(server, (struct sockaddr *)&from);
+	irc->socket = Net_TCPConnect(server, defport);	//port is only used if the url doesn't contain one. It's a default.
 
 	//not yet blocking. So no frequent attempts please...
 	//non blocking prevents connect from returning worthwhile sensible value.
-	if (connect(irc->socket, (struct sockaddr *)&from, sizeof(from)) == -1)
+	if (irc->socket < 0)
 	{
-		wprintf ("IRC_TCP_OpenSocket: connect: %i %s\n", qerrno, strerror(qerrno));
-		closesocket(irc->socket);		
+		Con_Printf("IRC_OpenSocket: couldn't connect\n");		
 		IRC_Free(irc);
-		return NULL;
-	}
-	
-	if (ioctlsocket (irc->socket, FIONBIO, &_true) == -1)	//now make it non blocking.
-	{
-		wprintf ("IRC_TCP_OpenSocket: ioctl FIONBIO: %s\n", strerror(qerrno));
 		return NULL;
 	}
 
@@ -297,8 +231,10 @@ ircclient_t *IRC_Connect(char *server, int port)
 	strcpy(irc->nick, "anonymous");
 	strcpy(irc->realname, "anonymous");
 
-	gethostname(irc->hostname, sizeof(irc->hostname));
-	irc->hostname[sizeof(irc->hostname)-1] = 0;
+	strcpy(irc->hostname, "anonymous");
+
+//	gethostname(irc->hostname, sizeof(irc->hostname));
+//	irc->hostname[sizeof(irc->hostname)-1] = 0;
 
 
 	return irc;
@@ -309,11 +245,98 @@ void IRC_SetPass(ircclient_t *irc, char *pass)
 }
 void IRC_SetNick(ircclient_t *irc, char *nick)
 {
-	IRC_AddClientMessage(irc, va("NICK %s\r\n", nick));
+	strncpy(irc->nick, nick, sizeof(irc->nick));
+	irc->nick[sizeof(irc->nick)-1] = '\0';
+	IRC_AddClientMessage(irc, va("NICK %s\r\n", irc->nick));
+	irc->nickcycle=0;
 }
 void IRC_SetUser(ircclient_t *irc, char *user)
 {
 	IRC_AddClientMessage(irc, va("USER %s %s %s :%s\r\n", user, irc->hostname, irc->server, "Something"));
+}
+
+void IRC_FilterMircColours(char *msg)
+{
+	int i;
+	int chars;
+	while(*msg)
+	{
+		if (*msg == 3)
+		{
+			chars = 2;
+			if (msg[1] >= '0' && msg[1] <= '9')
+			{
+				i = msg[1]- '0';
+				if (msg[2] >= '0' && msg[2] <= '9')
+				{
+					i = i*10 + (msg[2]-'0');
+					chars = 3;
+				}
+			}
+			else
+				i = msg[1];
+			switch(i)
+			{
+			case 0:
+				msg[1] = '7';	//white
+				break;
+			case 1:
+				msg[1] = '0';	//black
+				break;
+			case 2:
+				msg[1] = '4';	//darkblue
+				break;
+			case 3:
+				msg[1] = '2';	//darkgreen
+				break;
+			case 4:
+				msg[1] = '1';	//red
+				break;
+			case 5:
+				msg[1] = '1';	//brown
+				break;
+			case 6:
+				msg[1] = '5';	//purple
+				break;
+			case 7:
+				msg[1] = '3';	//orange
+				break;
+			case 8:
+				msg[1] = '3';	//yellow
+				break;
+			case 9:
+				msg[1] = '2';	//lightgreen
+				break;
+			case 10:
+				msg[1] = '6';	//darkcyan
+				break;
+			case 11:
+				msg[1] = '6';	//lightcyan
+				break;
+			case 12:
+				msg[1] = '4';	//lightblue
+				break;
+			case 13:
+				msg[1] = '5';	//pink
+				break;
+			case 14:
+				msg[1] = '7';	//grey
+				break;
+			case 15:
+				msg[1] = '7';	//lightgrey
+				break;
+			default:
+				msg++;
+				continue;
+			}
+			*msg = '^';
+			msg+=2;
+			if (chars==3)
+				memmove(msg, msg+1, strlen(msg));
+			continue;
+		}
+		msg++;
+	}
 }
 
 #define IRC_DONE 0
@@ -324,24 +347,18 @@ int IRC_ClientFrame(ircclient_t *irc)
 	char prefix[64];
 	int ret;
 	char *nextmsg, *msg;
-	ret = recv(irc->socket, irc->bufferedinmessage+irc->bufferedinammount, sizeof(irc->bufferedinmessage)-1 - irc->bufferedinammount, 0);		
+	ret = Net_Recv(irc->socket, irc->bufferedinmessage+irc->bufferedinammount, sizeof(irc->bufferedinmessage)-1 - irc->bufferedinammount);		
 	if (ret == 0)
 		return IRC_KILL;
-	if (ret == -1)
+	if (ret < 0)
 	{
-		if (qerrno == EWOULDBLOCK)
+		if (ret == N_WOULDBLOCK)
 		{
 			if (!irc->bufferedinammount)	//if we are half way through a message, read any possible conjunctions.
 				return IRC_DONE;	//remove
 		}
 		else
-		{
-			if (qerrno == ECONNABORTED || qerrno == ECONNRESET)
-				return IRC_KILL;
-
-			twprintf (TL_NETGETPACKETERROR, strerror(qerrno));			
 			return IRC_KILL;
-		}
 	}
 
 	if (ret>0)
@@ -361,7 +378,7 @@ int IRC_ClientFrame(ircclient_t *irc)
 		char *sp = strchr(msg, ' ');
 		if (!sp)
 		{
-			dprintf("Ignoring bad message\n%s\n", msg);
+			Con_SubPrintf("irc", "Ignoring bad message\n%s\n", msg);
 			memmove(irc->bufferedinmessage, nextmsg, irc->bufferedinammount - (msg-irc->bufferedinmessage));
 			irc->bufferedinammount-=nextmsg-irc->bufferedinmessage;
 			return IRC_CONTINUE;
@@ -381,7 +398,6 @@ int IRC_ClientFrame(ircclient_t *irc)
 
 	if (!strncmp(msg, "PING ", 5))
 	{
-		dprintf("%s\n", msg);
 		IRC_AddClientMessage(irc, va("PONG %s\r\n", msg+5));
 	}
 	else if (!strncmp(msg, "PRIVMSG ", 7) || !strncmp(msg, "NOTICE ", 6))	//no autoresponses to notice please, and any autoresponses should be in the form of a notice
@@ -389,41 +405,74 @@ int IRC_ClientFrame(ircclient_t *irc)
 		char *exc = strchr(prefix, '!');
 		char *col = strchr(msg+6, ':');
 		char *end;
+		char *to = msg + 7;
+
+		//message takes the form :FROM PRIVMSG TO :MESSAGE
 
 		playsound ("misc/talk.wav");
 
 		if (exc && col)
 		{
-			*exc = '\0';
-			if (!strncmp(col, ":\001", 2))
+			*col = '\0';
+			col++;
+
+			while(*to <= ' ' && *to)
+				to++;
+			for (end = to + strlen(to)-1; end >= to && *end <= ' '; end--)
+				*end = '\0';
+			if (!strcmp(to, irc->nick))
+				to = prefix;	//This was directed straight at us.
+								//So change the 'to', to the 'from'.
+
+			for (end = to; *end; end++)
 			{
-				end = strchr(col+2, '\001');
+				if (*end >= 'A' && *end <= 'Z')
+					*end = *end + 'a' - 'A';
+			}
+
+			*exc = '\0';
+			if (!strncmp(col, "\001", 1))
+			{
+				end = strchr(col+1, '\001');
 				if (end)
 					*end = '\0';
-				if (!strncmp(col+2, "ACTION ", 7))
-					printf(COLOURGREEN "***%s %s\n", prefix, col+9);	//from client
+				if (!strncmp(col+1, "ACTION ", 7))
+				{
+					IRC_FilterMircColours(col+8);
+					Con_SubPrintf(to, COLOURGREEN "***%s "COLORWHITE"%s\n", prefix, col+8);	//from client
+				}
+				else if (!strncmp(col+1, "PING ", 5))
+				{
+					Con_SubPrintf(to, "Ping from %s\n", prefix);	//from client
+//					IRC_AddClientMessage(irc, va("PRIVMSG %s :\001PING %s\001\r\n", prefix, col+6));
+				}
 				else
 				{
 					if (end)//put it back on. might as well.
 						*end = '\001';
-					printf(COLOURGREEN "%s: %s\n", prefix, col+1);	//from client
+					Con_SubPrintf(to, COLOURGREEN "%s: "COLORWHITE"%s\n", prefix, col);	//from client
 				}
 			}
 			else
-				printf(COLOURGREEN "%s: %s\n", prefix, col+1);	//from client
+			{
+				IRC_FilterMircColours(col);
+				Con_SubPrintf(to, COLOURGREEN "%s: %s\n", prefix, col);	//from client
+			}
 		}
-		else dprintf(COLOURGREEN ":%s%s\n", prefix, msg);	//direct server message
+		else Con_SubPrintf("irc", COLOURGREEN ":%s%s\n", prefix, msg);	//direct server message
 	}
 	else if (!strncmp(msg, "NICK ", 5))
 	{
 		char *exc = strchr(prefix, '!');
-		char *col = strchr(msg+6, ':');
+		char *col = strchr(msg+5, ':');
 		if (exc && col)
 		{
 			*exc = '\0';
-			printf(COLOURGREEN "%s changes name to %s\n", prefix, col+1);
+			//fixme: print this in all channels as appropriate.
+			Con_SubPrintf("irc", COLOURGREEN "%s changes name to %s\n", prefix, col+1);
+			Con_RenameSub(prefix, col+1);	//if we were pming to them, rename accordingly.
 		}
-		else dprintf(COLOURGREEN ":%s%s\n", prefix, msg+6);
+		else Con_SubPrintf("irc", COLOURGREEN ":%s%s\n", prefix, msg+6);
 	}
 	else if (!strncmp(msg, "PART ", 5))
 	{
@@ -434,10 +483,12 @@ int IRC_ClientFrame(ircclient_t *irc)
 		else col+=1;
 		if (exc)
 		{
+			if (!col)
+				col = "irc";
 			*exc = '\0';
-			printf(COLOURGREEN "%s leaves channel %s\n", prefix, col);
+			Con_SubPrintf(col, "%s leaves channel %s\n", prefix, col);
 		}
-		else dprintf(COLOURGREEN ":%sPART %s\n", prefix, msg+5);
+		else Con_SubPrintf("irc", COLOURGREEN ":%sPART %s\n", prefix, msg+5);
 	}
 	else if (!strncmp(msg, "JOIN ", 5))
 	{
@@ -446,41 +497,100 @@ int IRC_ClientFrame(ircclient_t *irc)
 		if (exc && col)
 		{
 			*exc = '\0';
-			printf(COLOURGREEN "%s joins channel %s\n", prefix, col+1);
+			Con_SubPrintf(col+1, COLOURGREEN "%s joins channel %s\n", prefix, col+1);
 		}
-		else dprintf(COLOURGREEN ":%sJOIN %s\n", prefix, msg+5);
+		else Con_SubPrintf("irc", COLOURGREEN ":%sJOIN %s\n", prefix, msg+5);
 	}
 	else if (!strncmp(msg, "322 ", 4))	//channel listing
 	{
-		dprintf("%s\n", msg);
+		Con_SubPrintf("irc", "%s\n", msg);
 	}
 	else if (!strncmp(msg, "375 ", 4))
 	{
-		dprintf("%s\n", msg);
+		Con_SubPrintf("irc", "%s\n", msg);
 	}
-	else if (!strncmp(msg, "431 ", 4))
+	else if (!strncmp(msg, "431 ", 4) ||	//nick not set
+			 !strncmp(msg, "433 ", 4) ||	//nick already in use
+			 !strncmp(msg, "436 ", 4))		//nick collision
 	{
-		dprintf("You need to specify a nickname\n");
+		if (irc->nickcycle >= 99)	//this is just silly.
+			return IRC_KILL;
+
+		if (!irc->nickcycle)	//sequentially try the next one up
+			IRC_SetNick(irc, defaultnick);
+		else
+			IRC_SetNick(irc, va("%s%i", defaultnick, irc->nickcycle));
+
+		irc->nickcycle++;			
 	}
 	else if (!strncmp(msg, "432 ", 4))
 	{
-		dprintf("Erroneous/invalid nickname given\n");
-	}
-	else if (!strncmp(msg, "433 ", 4))
-	{
-		dprintf("Nickname is already in use by someone\n");
-	}
-  	else if (!strncmp(msg, "436 ", 4))
-	{
-		dprintf("Nickname collision. You will probably need to reconnect\n");
+		Con_SubPrintf("irc", "Erroneous/invalid nickname given\n");
+		return IRC_KILL;
 	}
 	else if (!strncmp(msg, "372 ", 4))
 	{
 		char *text = strstr(msg, ":-");
 		if (text)
-			dprintf("%s\n", text+2);
+			Con_SubPrintf("irc", "%s\n", text+2);
 		else
-			dprintf("%s\n", msg);
+			Con_SubPrintf("irc", "%s\n", msg);
+	}
+	else if (!strncmp(msg, "331 ", 4) ||//no topic
+			 !strncmp(msg, "332 ", 4))	//the topic
+	{
+		char *topic;
+		char *chan;
+		topic = COM_Parse(msg);
+		topic = COM_Parse(topic);
+		topic = COM_Parse(topic);
+		while(*topic == ' ')
+			topic++;
+		if (*topic == ':')
+		{
+			topic++;
+			chan = com_token;
+		}
+		else
+		{
+			topic = "No topic";
+			chan = "irc";
+		}
+
+		Con_SubPrintf(chan, "Topic on channel %s is: "COLOURGREEN"%s\n", chan, topic);
+	}
+	else if (!strncmp(msg, "353 ", 4))	//the names of people on a channel
+	{
+		char *eq = strstr(msg, "=");
+		char *str;
+		if (eq)
+		{
+			char *end;
+			eq++;
+			str = strstr(eq, ":");
+			while(*eq == ' ')
+				eq++;
+			for (end = eq; *end>' '&&*end !=':'; end++)
+				;
+			*end = '\0';
+			str++;
+		}
+		else
+		{
+			eq = "Corrupted_Message";
+			str = NULL;
+		}
+		Con_SubPrint(eq, va("Users on channel %s:\n", eq));
+		while (str)
+		{
+			str = COM_Parse(str);
+			if (*com_token == '@')	//they're an operator
+				Con_SubPrint(eq, va(COLOURGREEN"@"COLORWHITE"%s\n", com_token+1));
+			else if (*com_token == '+')	//they've got voice
+				Con_SubPrint(eq, va(COLOURGREEN"+"COLORWHITE"%s\n", com_token+1));
+			else
+				Con_SubPrint(eq, va(" %s\n", com_token));
+		}	
 	}
 	/*
 	else if (!strncmp(msg, "401 ", 4))
@@ -1091,7 +1201,7 @@ the current IRC server.
 
 */
 	else
-		dprintf("%s\n", msg);
+		Con_SubPrintf("irc", "%s\n", msg);
 
 	memmove(irc->bufferedinmessage, nextmsg, irc->bufferedinammount - (msg-irc->bufferedinmessage));
 	irc->bufferedinammount-=nextmsg-irc->bufferedinmessage;
@@ -1111,10 +1221,10 @@ int IRC_Frame(int *args)
 			stat = IRC_ClientFrame(ircclient);
 		if (stat == IRC_KILL)
 		{
-			closesocket(ircclient->socket);
+			Net_Close(ircclient->socket);
 			IRC_Free(ircclient);
 			ircclient = NULL;
-			Con_Printf("Disconnected from irc\n");
+			Con_SubPrintf("irc", "Disconnected from irc\n");
 		}
 	}
 	return 0;
@@ -1135,25 +1245,17 @@ void IRC_Command(void)
 		{
 			if (ircclient)
 			{
-				printf("You are already connected\nPlease /quit first\n");
+				Con_Printf("You are already connected\nPlease /quit first\n");
 				return;
 			}
 			msg = COM_Parse(msg);
 			ircclient = IRC_Connect(com_token, 6667);
 			if (ircclient)
 			{
-				char username[512] = "UnknownUser";
-//#ifdef _WIN32
-//				DWORD blen = sizeof(username)-1;
-//#endif
-
-				printf("Trying to connect\n");
-//#ifdef _WIN32
-//				GetUserName(username, &blen);
-//#endif
+				Con_Printf("Trying to connect\n");
 				IRC_SetPass(ircclient, "");
 				IRC_SetNick(ircclient, defaultnick);
-				IRC_SetUser(ircclient, username);
+				IRC_SetUser(ircclient, defaultuser);
 			}
 		}
 		else if (!strcmp(com_token+1, "nick"))
@@ -1163,68 +1265,76 @@ void IRC_Command(void)
 			if (ircclient)
 				IRC_SetNick(ircclient, defaultnick);
 		}
+		else if (!strcmp(com_token+1, "user"))
+		{
+			msg = COM_Parse(msg);
+			Q_strncpyz(defaultuser, com_token, sizeof(defaultuser));
+			if (ircclient)
+				IRC_SetUser(ircclient, defaultuser);
+		}
+		else if (!ircclient)
+		{
+			Con_Printf("Not connected, please connect to an irc server first.\n");
+		}
+
+		//ALL other commands require you to be connected.
 		else if (!strcmp(com_token+1, "list"))
 		{
-			if (ircclient)
-				IRC_AddClientMessage(ircclient, "LIST\r\n");
-			else
-				printf("Not connected\n");
+			IRC_AddClientMessage(ircclient, "LIST\r\n");
 		}
 		else if (!strcmp(com_token+1, "join"))
 		{
 			msg = COM_Parse(msg);
-			if (ircclient)
-				IRC_AddClientMessage(ircclient, va("JOIN %s\r\n", com_token));
-			else
-				printf("Not connected\n");
+			IRC_AddClientMessage(ircclient, va("JOIN %s\r\n", com_token));
 		}
 		else if (!strcmp(com_token+1, "part") || !strcmp(com_token+1, "leave"))
 		{
 			msg = COM_Parse(msg);
-			if (ircclient)
-				IRC_AddClientMessage(ircclient, va("PART %s\r\n", com_token));
+			if (!*com_token)
+				IRC_AddClientMessage(ircclient, va("PART %s\r\n", ircclient->defaultdest));
 			else
-				printf("Not connected\n");
+				IRC_AddClientMessage(ircclient, va("PART %s\r\n", com_token));
 		}
 		else if (!strcmp(com_token+1, "msg"))
 		{
 			msg = COM_Parse(msg);
-			if (ircclient)
-				IRC_AddClientMessage(ircclient, va("PRIVMSG %s :%s\r\n", com_token, msg));
-			else
-				printf("Not connected\n");
+			IRC_AddClientMessage(ircclient, va("PRIVMSG %s :%s\r\n", com_token, msg));
+			Con_SubPrintf(com_token, "%s: %s\n", ircclient->nick, msg);
 		}
 		else if (!strcmp(com_token+1, "quote"))
 		{
-			if (ircclient)
-				IRC_AddClientMessage(ircclient, va("%s\r\n", msg));
-			else
-				printf("Not connected\n");
+			IRC_AddClientMessage(ircclient, va("%s\r\n", msg));
 		}
 		else if (!strcmp(com_token+1, "quit"))
 		{
-			if (ircclient)
-				IRC_AddClientMessage(ircclient, va("QUIT\r\n"));
-			else
-				printf("Not connected\n");
+			IRC_AddClientMessage(ircclient, va("QUIT\r\n"));
 		}
 		else if (!strcmp(com_token+1, "dest"))
 		{
 			msg = COM_Parse(msg);
 			Q_strncpyz(ircclient->defaultdest, com_token, sizeof(ircclient->defaultdest));
 		}
+		else if (!strcmp(com_token+1, "ping"))
+		{
+			IRC_AddClientMessage(ircclient, va("PRIVMSG %s :\001PING%s\001\r\n", ircclient->defaultdest, msg));
+		}
 		else if (!strcmp(com_token+1, "me"))
 		{
-			IRC_AddClientMessage(ircclient, va("PRIVMSG %s :\001ACTION%s\001\r\n", ircclient->defaultdest, msg));
+			if(*msg <= ' ' && *msg)
+				msg++;
+			IRC_AddClientMessage(ircclient, va("PRIVMSG %s :\001ACTION %s\001\r\n", ircclient->defaultdest, msg));
+			Con_SubPrintf(ircclient->defaultdest, "***%s %s\n", ircclient->nick, msg);
 		}
 	}
 	else
 	{
 		if (ircclient)
 		{
-			IRC_AddClientMessage(ircclient, va("PRIVMSG %s :%s\r\n", ircclient->defaultdest, imsg));
+			msg = imsg;
+			IRC_AddClientMessage(ircclient, va("PRIVMSG %s :%s\r\n", ircclient->defaultdest, msg));
+			Con_SubPrintf(ircclient->defaultdest, "%s: %s\n", ircclient->nick, msg);
 		}
 		else
-			printf("Not connected\ntype \"" COMMANDPREFIX "/open IRCSERVER\" to connect\n");
+			Con_Printf("Not connected\ntype \"" COMMANDPREFIX "/open IRCSERVER\" to connect\n");
 	}
 }

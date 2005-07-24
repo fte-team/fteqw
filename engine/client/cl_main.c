@@ -2640,7 +2640,7 @@ void Host_Frame (float time)
 #endif
 
 	if (cls.demoplayback && cl_demospeed.value>0)
-		time *= cl_demospeed.value;
+		realframetime *= cl_demospeed.value; // this probably screws up other timings
 
 #ifndef CLIENTONLY
 	RSpeedRemark();

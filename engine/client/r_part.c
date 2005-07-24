@@ -79,7 +79,6 @@ int rt_blastertrail,
 static double sint[7] = {0.000000, 0.781832,  0.974928,  0.433884, -0.433884, -0.974928, -0.781832};
 static double cost[7] = {1.000000, 0.623490, -0.222521, -0.900969, -0.900969, -0.222521,  0.623490};
 
-
 #define crand() (rand()%32767/16383.5f-1)
 
 void D_DrawParticleTrans (particle_t *pparticle);
@@ -128,6 +127,11 @@ cvar_t r_rockettrail = {"r_rockettrail", "1"};
 cvar_t r_grenadetrail = {"r_grenadetrail", "1"};
 
 cvar_t r_particle_tracelimit = {"r_particle_tracelimit", "250"};
+cvar_t r_part_sparks = {"r_part_sparks", "1"};
+cvar_t r_part_sparks_trifan = {"r_part_sparks_trifan", "1"};
+cvar_t r_part_sparks_textured = {"r_part_sparks_textured", "1"};
+cvar_t r_part_beams = {"r_part_beams", "1"};
+cvar_t r_part_beams_textured = {"r_part_beams_textured", "1"};
 
 static float particletime;
 
@@ -1156,6 +1160,12 @@ void P_InitParticles (void)
 
 	Cvar_Register(&r_rockettrail, particlecvargroupname);
 	Cvar_Register(&r_grenadetrail, particlecvargroupname);
+
+	Cvar_Register(&r_part_sparks, particlecvargroupname);
+	Cvar_Register(&r_part_sparks_trifan, particlecvargroupname);
+	Cvar_Register(&r_part_sparks_textured, particlecvargroupname);
+	Cvar_Register(&r_part_beams, particlecvargroupname);
+	Cvar_Register(&r_part_beams_textured, particlecvargroupname);
 
 	pt_explosion		= P_AllocateParticleType("te_explosion");
 	pt_pointfile		= P_AllocateParticleType("pe_pointfile");
@@ -3435,7 +3445,7 @@ void DrawParticleTypes (void texturedparticles(particle_t *,part_type_t*), void 
 	RSpeedMark();
 
 	qboolean (*tr) (vec3_t start, vec3_t end, vec3_t impact, vec3_t normal);
-	void *pdraw;
+	void *pdraw, *bdraw;
 
 	int i;
 	vec3_t oldorg;
@@ -3546,37 +3556,65 @@ void DrawParticleTypes (void texturedparticles(particle_t *,part_type_t*), void 
 		if (!type->particles)
 			continue;
 
-		if (type->type == PT_BEAM)
+		bdraw = NULL;
+		pdraw = NULL;
+
+		// set drawing methods by type and cvars and hope branch
+		// prediction takes care of the rest
+		switch(type->type)
 		{
-			if (*type->texname)
-				pdraw = beamparticlest;
-			else
-				pdraw = beamparticlesut;
-		}
-		else
-		{
-			switch(type->type)
+		case PT_NORMAL:
+			pdraw = texturedparticles;
+			break;
+		case PT_BEAM:
+			if (r_part_beams.value)
 			{
-			default:
-				pdraw = texturedparticles;
-				break;
-			case PT_SPARK:
-				pdraw = sparklineparticles;
-				break;
-			case PT_SPARKFAN:
-				pdraw = sparkfanparticles;
-				break;
-			case PT_TEXTUREDSPARK:
-				pdraw = sparktexturedparticles;
-				break;
+				if (r_part_beams_textured.value && *type->texname)
+				{
+					if (r_part_beams_textured.value > 0)
+						bdraw = beamparticlest;
+				}
+				else if (r_part_beams.value > 0)
+					bdraw = beamparticlesut;
 			}
+		case PT_TEXTUREDSPARK:
+			if (r_part_sparks.value)
+			{
+				if (r_part_sparks_textured.value)
+				{
+					if (r_part_sparks_textured.value > 0)
+						pdraw = sparktexturedparticles;
+				}
+				else
+					pdraw = sparklineparticles;
+			}
+			break;
+		case PT_SPARKFAN:
+			if (r_part_sparks.value)
+			{
+				if (r_part_sparks_trifan.value)
+				{
+					if (r_part_sparks_trifan.value > 0)
+						pdraw = sparkfanparticles;
+				}
+				else
+					pdraw = sparklineparticles;
+			}
+			break;
+		case PT_SPARK:
+			if (r_part_sparks.value)
+			{
+				if (r_part_sparks.value > 0)
+					pdraw = sparklineparticles;
+			}
+			break;
 		}
 
 		if (!type->die)
 		{
 			while ((p=type->particles))
 			{
-				if (type->type == PT_NORMAL)
+				if (pdraw)
 					RQ_AddDistReorder(pdraw, p, type, p->org);
 
 				// make sure emitter runs at least once
@@ -3626,11 +3664,13 @@ void DrawParticleTypes (void texturedparticles(particle_t *,part_type_t*), void 
 					VectorCopy(b->p->org, oldorg);
 					VectorSubtract(stop, oldorg, b->next->dir);
 					VectorNormalize(b->next->dir);
-					VectorAdd(stop, oldorg, stop);
-					VectorScale(stop, 0.5, stop);
+					if (bdraw)
+					{
+						VectorAdd(stop, oldorg, stop);
+						VectorScale(stop, 0.5, stop);
 
-					RQ_AddDistReorder(pdraw, b, type, stop);
-
+						RQ_AddDistReorder(bdraw, b, type, stop);
+					}
 				}
 
 				// clean up dead entries ahead of current
@@ -3831,7 +3871,7 @@ void DrawParticleTypes (void texturedparticles(particle_t *,part_type_t*), void 
 				}
 			}
 
-			if (type->type < PT_BEAM)
+			if (pdraw)
 				RQ_AddDistReorder((void*)pdraw, p, type, p->org);
 		}
 
@@ -3888,11 +3928,13 @@ void DrawParticleTypes (void texturedparticles(particle_t *,part_type_t*), void 
 						VectorCopy(b->p->org, oldorg);
 						VectorSubtract(stop, oldorg, b->next->dir);
 						VectorNormalize(b->next->dir);
-						VectorAdd(stop, oldorg, stop);
-						VectorScale(stop, 0.5, stop);
+						if (bdraw)
+						{
+							VectorAdd(stop, oldorg, stop);
+							VectorScale(stop, 0.5, stop);
 
-						if (beamparticlest!=NULL)
-							RQ_AddDistReorder(pdraw, b, type, stop);
+							RQ_AddDistReorder(bdraw, b, type, stop);
+						}
 					}			
 
 //					if (b->p->die < particletime)

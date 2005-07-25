@@ -1664,7 +1664,7 @@ void SV_MVD_Record_f (void)
 	c = Cmd_Argc();
 	if (c != 2)
 	{
-		Con_Printf ("record <demoname>\n");
+		Con_Printf ("mvdrecord <demoname>\n");
 		return;
 	}
 

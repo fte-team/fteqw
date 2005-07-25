@@ -4334,14 +4334,12 @@ void COM_InitFilesystem (void)
 			strcat(com_homedir, "/");
 	}
 #else
-	if (!ev)
-	{	//yay for unix!.
-		ev = getenv("HOME");
-		if (ev)
-			Q_strncpyz(com_homedir, ev, sizeof(com_homedir));
-		else
-			*com_homedir = *"";
-	}
+	//yay for unix!.
+	ev = getenv("HOME");
+	if (ev)
+		Q_strncpyz(com_homedir, ev, sizeof(com_homedir));
+	else
+		*com_homedir = '\0';
 #endif
 
 	if (!COM_CheckParm("-usehome"))

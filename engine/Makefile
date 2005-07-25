@@ -569,16 +569,16 @@ m-dbg:
 
 ifdef windir
 debugdir:
-	@-mkdir $(subst /,\, $(OUT_DIR))
+	@-mkdir -p $(subst /,\, $(OUT_DIR))
 reldir:
-	@-mkdir $(subst /,\, $(OUT_DIR))
+	@-mkdir -p $(subst /,\, $(OUT_DIR))
 else
 reldir:
-	@-mkdir $(RELEASE_DIR)
-	@-mkdir $(OUT_DIR)
+	@-mkdir -p $(RELEASE_DIR)
+	@-mkdir -p $(OUT_DIR)
 debugdir:
-	@-mkdir $(DEBUG_DIR)
-	@-mkdir $(OUT_DIR)
+	@-mkdir -p $(DEBUG_DIR)
+	@-mkdir -p $(OUT_DIR)
 endif
 
 plugins:

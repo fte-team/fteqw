@@ -1380,9 +1380,19 @@ COM_StripExtension
 */
 void COM_StripExtension (char *in, char *out)
 {
-	while (*in && *in != '.')
-		*out++ = *in++;
-	*out = 0;
+	char *s;
+	
+	strcpy(out, in);
+
+	s = out+strlen(out);
+
+	while(*s != '/' && s != out)
+	{
+		if (*s == '.')
+			*s = 0;
+
+		s--;
+	}
 }
 
 /*

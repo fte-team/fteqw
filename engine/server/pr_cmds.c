@@ -21,6 +21,7 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 #include "qwsvdef.h"
 
 #define G_PROG G_FLOAT
+#define Z_QC_TAG 2
 
 #ifndef CLIENTONLY
 
@@ -43,7 +44,7 @@ cvar_t	saved4 = {"saved4", "0", NULL, CVAR_ARCHIVE};
 cvar_t	temp1 = {"temp1", "0", NULL, CVAR_ARCHIVE};
 cvar_t	noexit = {"noexit", "0", NULL};
 
-cvar_t	pr_maxedicts = {"pr_maxedicts", "600", NULL, CVAR_LATCH};
+cvar_t	pr_maxedicts = {"pr_maxedicts", "2000", NULL, CVAR_LATCH};
 cvar_t	pr_imitatemvdsv = {"pr_imitatemvdsv", "0", NULL, CVAR_LATCH};
 cvar_t	pr_fixbrokenqccarrays = {"pr_fixbrokenqccarrays", "1", NULL, CVAR_LATCH};
 
@@ -391,6 +392,8 @@ void PR_Deinit(void)
 	{
 		PR_fclose_progs(svprogfuncs);
 		CloseProgs(svprogfuncs);
+
+		Z_FreeTags(Z_QC_TAG);
 	}
 	svprogfuncs=NULL;
 }
@@ -5188,7 +5191,7 @@ void PF_newstring(progfuncs_t *prinst, struct globalvars_s *pr_globals)	//mvdsv
 	len = strlen(in)+1;
 	if (*prinst->callargc == 2 && G_FLOAT(OFS_PARM1) > len)
 		len = G_FLOAT(OFS_PARM1);
-	s = Z_Malloc(len+8);
+	s = Z_TagMalloc(len+8, Z_QC_TAG);
 	((int *)s)[0] = PRSTR;
 	((int *)s)[1] = len;
 
@@ -5202,7 +5205,7 @@ void PF_dupstring(progfuncs_t *prinst, struct globalvars_s *pr_globals)	//frik_f
 	int len;
 	in = PF_VarString(prinst, 0, pr_globals);
 	len = strlen(in)+1;
-	s = Z_Malloc(len+8);
+	s = Z_TagMalloc(len+8, Z_QC_TAG);
 	((int *)s)[0] = PRSTR;
 	((int *)s)[1] = len;
 	strcpy(s+8, in);

@@ -306,11 +306,14 @@ beam_t	*CL_NewBeam (int entity, int tag)
 	beam_t	*b;
 	int i;
 // override any beam with the same entity
-	for (i=0, b=cl_beams ; i< MAX_BEAMS ; i++, b++)
-		if (b->entity == entity && b->tag == tag)
-		{
-			return b;
-		}
+	if (entity) // allow multiple world beams
+	{
+		for (i=0, b=cl_beams ; i< MAX_BEAMS ; i++, b++)
+			if (b->entity == entity && b->tag == tag)
+			{
+				return b;
+			}
+	}
 
 // find a free beam
 	for (i=0, b=cl_beams ; i< MAX_BEAMS ; i++, b++)

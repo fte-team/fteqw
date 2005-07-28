@@ -739,7 +739,7 @@ channel_t *SND_PickChannel(soundcardinfo_t *sc, int entnum, int entchannel)
 		if (entchannel != 0		// channel 0 never overrides
 		&& sc->channel[ch_idx].entnum == entnum
 		&& (sc->channel[ch_idx].entchannel == entchannel || entchannel == -1) && sc->channel[ch_idx].end > snd_speed/10)
-		{	// allways override sound from same entity
+		{	// always override sound from same entity
 			first_to_die = ch_idx;
 			break;
 		}
@@ -778,7 +778,7 @@ void SND_Spatialize(soundcardinfo_t *sc, channel_t *ch)
 	sfx_t *snd;
 	int i;
 
-// anything coming from the view entity will allways be full volume
+// anything coming from the view entity will always be full volume
 	if (ch->entnum == -1 || ch->entnum == cl.playernum[0]+1)
 	{
 		for (i = 0; i < sc->sn.numchannels; i++)

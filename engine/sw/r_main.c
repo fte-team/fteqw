@@ -840,7 +840,7 @@ void SWR_DrawViewModel (void)
 	j = SWR_LightPoint (currententity->origin);
 
 	if (j < 24)
-		j = 24;		// allways give some light on gun
+		j = 24;		// always give some light on gun
 	r_viewlighting.ambientlight = j;
 	r_viewlighting.shadelight = j;
 

@@ -96,7 +96,7 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 // out of band message id bytes
 
 // M = master, S = server, C = client, A = any
-// the second character will allways be \n if the message isn't a single
+// the second character will always be \n if the message isn't a single
 // qbyte long (?? not true anymore?)
 
 #define	S2C_CHALLENGE		'c'
@@ -306,7 +306,7 @@ enum clcq2_ops_e
 //==============================================
 
 // playerinfo flags from server
-// playerinfo allways sends: playernum, flags, origin[] and framenumber
+// playerinfo always sends: playernum, flags, origin[] and framenumber
 
 #define	PF_MSEC			(1<<0)
 #define	PF_COMMAND		(1<<1)
@@ -368,7 +368,7 @@ enum clcq2_ops_e
 
 // if the high bit of the client to server qbyte is set, the low bits are
 // client move cmd bits
-// ms and angle2 are allways sent, the others are optional
+// ms and angle2 are always sent, the others are optional
 #define	CM_ANGLE1 	(1<<0)
 #define	CM_ANGLE3 	(1<<1)
 #define	CM_FORWARD	(1<<2)
@@ -825,10 +825,10 @@ typedef struct q1usercmd_s
 
 
 // entity_state_t->renderfx flags
-#define	Q2RF_MINLIGHT			1		// allways have some light (viewmodel)
+#define	Q2RF_MINLIGHT			1		// always have some light (viewmodel)
 #define	Q2RF_EXTERNALMODEL		2		// don't draw through eyes, only mirrors
 #define	Q2RF_WEAPONMODEL		4		// only draw through eyes
-#define	Q2RF_FULLBRIGHT			8		// allways draw full intensity
+#define	Q2RF_FULLBRIGHT			8		// always draw full intensity
 #define	Q2RF_DEPTHHACK			16		// for view weapon Z crunching
 #define	Q2RF_TRANSLUCENT		32
 #define	Q2RF_FRAMELERP			64

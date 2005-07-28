@@ -82,7 +82,7 @@ other pointer types for models and clients?
 
 compact string heap?
 
-allways initialize all variables to something safe
+always initialize all variables to something safe
 
 the def->type->type arrangement is really silly.
 
@@ -290,7 +290,7 @@ FILE *asmfile;
 #endif
 //=============================================================================
 
-// offsets are allways multiplied by 4 before using
+// offsets are always multiplied by 4 before using
 typedef unsigned int	gofs_t;				// offset in global data block
 typedef struct QCC_function_s QCC_function_t;
 
@@ -383,7 +383,7 @@ struct QCC_function_s
 	char				*file;		// source file with definition
 	int					file_line;
 	struct QCC_def_s		*def;
-	unsigned int		parm_ofs[MAX_PARMS];	// allways contiguous, right?
+	unsigned int		parm_ofs[MAX_PARMS];	// always contiguous, right?
 };
 
 

@@ -3055,7 +3055,7 @@ int		loadsize;
 COM_LoadFile
 
 Filename are reletive to the quake directory.
-Allways appends a 0 qbyte to the loaded data.
+Always appends a 0 qbyte to the loaded data.
 ============
 */
 qbyte *COM_LoadFile (char *path, int usehunk)
@@ -3154,7 +3154,7 @@ qbyte *COM_LoadFile (char *path, int usehunk)
 COM_LoadFile
 
 Filename are reletive to the quake directory.
-Allways appends a 0 qbyte to the loaded data.
+Always appends a 0 qbyte to the loaded data.
 ============
 */
 /*

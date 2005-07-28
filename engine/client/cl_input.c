@@ -547,7 +547,7 @@ void CL_FinishMove (usercmd_t *cmd, int msecs, int pnum)
 	int bits;
 
 //
-// allways dump the first two message, because it may contain leftover inputs
+// always dump the first two message, because it may contain leftover inputs
 // from the last level
 //
 	if (++cl.movemessages <= 2)
@@ -667,7 +667,7 @@ void CLNQ_SendMove (usercmd_t		*cmd, int pnum, sizebuf_t *buf)
 	if (cls.demoplayback!=DPB_NONE)
 		return;	//err... don't bother... :)
 //
-// allways dump the first two message, because it may contain leftover inputs
+// always dump the first two message, because it may contain leftover inputs
 // from the last level
 //
 	if (++cl.movemessages <= 2)

@@ -118,7 +118,7 @@ typedef struct
 	float		fvrectbottom;			// bottommost edge, for Alias clamping
 	float		horizontalFieldOfView;	// at Z = 1.0, this many X is visible 
 										// 2.0 = 90 degrees
-	float		xOrigin;			// should probably allways be 0.5
+	float		xOrigin;			// should probably always be 0.5
 	float		yOrigin;			// between be around 0.3 to 0.5
 
 	vec3_t		vieworg;

@@ -852,7 +852,7 @@ void Con_DrawInput (void)
 	int si, x;
 
 	if (key_dest != key_console && cls.state == ca_active)
-		return;		// don't draw anything (allways draw if not active)
+		return;		// don't draw anything (always draw if not active)
 
 	if (!con_current->linebuffered)
 		return;	//fixme: draw any unfinished lines of the current console instead.

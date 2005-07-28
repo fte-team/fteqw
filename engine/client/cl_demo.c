@@ -307,7 +307,7 @@ readnext:
 		realtime = demotime; // warp
 	}
 	else if (!cl.paused && cls.state >= ca_onserver)
-	{	// allways grab until fully connected
+	{	// always grab until fully connected
 		if (realtime + 1.0 < demotime)
 		{
 			// too far back

@@ -56,7 +56,7 @@ If the message buffer is overflowed, either by a single message, or by
 multiple frames worth piling up while the last reliable transmit goes
 unacknowledged, the netchan signals a fatal error.
 
-Reliable messages are allways placed first in a packet, then the unreliable
+Reliable messages are always placed first in a packet, then the unreliable
 message is included if there is sufficient room.
 
 To the receiver, there is no distinction between the reliable and unreliable

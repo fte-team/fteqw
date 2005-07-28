@@ -1952,7 +1952,7 @@ void SV_Say (qboolean team)
 	if (!sv.mvdrecording || !cls)
 		return;
 
-	// non-team messages should be seen allways, even if not tracking any player
+	// non-team messages should be seen always, even if not tracking any player
 	if (!team && ((host_client->spectator && sv_spectalk.value) || !host_client->spectator))
 	{
 		MVDWrite_Begin (dem_all, 0, strlen(text)+3);

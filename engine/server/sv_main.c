@@ -3523,7 +3523,7 @@ void SV_InitNet (void)
 	for (i = 0; sv_masterlist[i].cv.name; i++)
 		Cvar_Register(&sv_masterlist[i].cv, "master servers");
 
-	// heartbeats will allways be sent to the id master
+	// heartbeats will always be sent to the id master
 	svs.last_heartbeat = -99999;		// send immediately
 //	NET_StringToAdr ("192.246.40.70:27000", &idmaster_adr);
 }

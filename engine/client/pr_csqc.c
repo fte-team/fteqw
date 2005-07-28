@@ -1811,7 +1811,7 @@ void CSQC_RunThreads(void)
 		next = state->next;
 
 		if (state->resumetime > ctime)
-		{	//not time yet, reform origional list.
+		{	//not time yet, reform original list.
 			state->next = csqcthreads;
 			csqcthreads = state;
 		}

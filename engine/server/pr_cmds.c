@@ -1578,7 +1578,7 @@ void PF_instr (progfuncs_t *prinst, globalvars_t *pr_globals)
 	if (sub == NULL)
 		G_INT(OFS_RETURN) = 0;
 	else
-		RETURN_SSTRING(sub);	//last as long as the origional string
+		RETURN_SSTRING(sub);	//last as long as the original string
 }
 
 
@@ -7606,7 +7606,7 @@ void PR_RunThreads(void)
 		next = state->next;
 
 		if (state->resumetime > sv.time)
-		{	//not time yet, reform origional list.
+		{	//not time yet, reform original list.
 			state->next = qcthreads;
 			qcthreads = state;
 		}

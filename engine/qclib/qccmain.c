@@ -154,7 +154,7 @@ optimisations_t optimisations[] =
 
 	{&opt_assignments,				"t",	1,	FLAG_ASDEFAULT,			"assignments",		"c = a*b is performed in one operation rather than two, and can cause older decompilers to fail."},
 	{&opt_shortenifnots,			"i",	1,	FLAG_ASDEFAULT,			"shortenifs",		"if (!a) was traditionally compiled in two statements. This optimisation does it in one, but can cause some decompilers to get confused."},
-	{&opt_nonvec_parms,				"p",	1,	FLAG_ASDEFAULT,			"nonvec_parms",		"In the origional qcc, function parameters were specified as a vector store even for floats. This fixes that."},
+	{&opt_nonvec_parms,				"p",	1,	FLAG_ASDEFAULT,			"nonvec_parms",		"In the original qcc, function parameters were specified as a vector store even for floats. This fixes that."},
 	{&opt_constant_names,			"c",	2,	FLAG_KILLSDEBUGGERS,	"constant_names",	"This optimisation strips out the names of constants (but not strings) from your progs, resulting in smaller files. It makes decompilers leave out names or fabricate numerical ones."},
 	{&opt_constant_names_strings,	"cs",	3,	FLAG_KILLSDEBUGGERS,	"constant_names_strings", "This optimisation strips out the names of string constants from your progs. However, this can break addons, so don't use it in those cases."},
 	{&opt_dupconstdefs,				"d",	1,	FLAG_ASDEFAULT,			"dupconstdefs",		"This will merge definitions of constants which are the same value. Pay extra attention to assignment to constant warnings."},
@@ -218,7 +218,7 @@ compiler_flag_t compiler_flag[] = {
 	{&flag_ifstring,		FLAG_MIDCOMPILE,"ifstring",		"if(string) fix",		"Causes if(string) to behave identically to if(string!="") This is most useful with addons of course, but also has adverse effects with FRIK_FILE's fgets, where it becomes impossible to determin the end of the file. In such a case, you can still use asm {IF string 2;RETURN} to detect eof and leave the function."},		//correction for if(string) no-ifstring to get the standard behaviour.
 	{&flag_acc,				0,				"acc",			"Reacc support",		"Reacc is a pascall like compiler. It was released before the Quake source was released. This flag has a few effects. It sorts all qc files in the current directory into alphabetical order to compile them. It also allows Reacc global/field distinctions, as well as allows ¦ as EOF. Whilst case insensativity and lax type checking are supported by reacc, they are seperate compiler flags in fteqcc."},		//reacc like behaviour of src files.
 	{&flag_caseinsensative,	0,				"caseinsens",	"Case insensativity",	"Causes fteqcc to become case insensative whilst compiling names. It's generally not advised to use this as it compiles a little more slowly and provides little benefit. However, it is required for full reacc support."},	//symbols will be matched to an insensative case if the specified case doesn't exist. This should b usable for any mod
-	{&flag_laxcasts,		FLAG_MIDCOMPILE,"lax",			"Lax type checks",		"Disables many errors (generating warnings instead) when function calls or operations refer to two normally incompatable types. This is required for reacc support, and can also allow certain (evil) mods to compile that were origionally written for frikqcc."},		//Allow lax casting. This'll produce loadsa warnings of course. But allows compilation of certain dodgy code.
+	{&flag_laxcasts,		FLAG_MIDCOMPILE,"lax",			"Lax type checks",		"Disables many errors (generating warnings instead) when function calls or operations refer to two normally incompatable types. This is required for reacc support, and can also allow certain (evil) mods to compile that were originally written for frikqcc."},		//Allow lax casting. This'll produce loadsa warnings of course. But allows compilation of certain dodgy code.
 	{&opt_logicops,			FLAG_MIDCOMPILE,"lo",			"Logic ops",			"This changes the behaviour of your code. It generates additional if operations to early-out in if statements. With this flag, the line if (0 && somefunction()) will never call the function. It can thus be considered an optimisation. However, due to the change of behaviour, it is not considered so by fteqcc. Note that due to inprecisions with floats, this flag can cause runaway loop errors within the player walk and run functions. This code is advised:\nplayer_stand1:\n    if (self.velocity_x || self.velocity_y)\nplayer_run\n    if (!(self.velocity_x || self.velocity_y))"},
 	{NULL}
 };
@@ -578,7 +578,7 @@ void QCC_WriteData (int crc)
 		}
 		else
 		{
-			if (numpr_globals >= 32768)	//not much of a different format. Rewrite output to get it working on origional executors?
+			if (numpr_globals >= 32768)	//not much of a different format. Rewrite output to get it working on original executors?
 				printf("An enhanced executor will be required (FTE/QF/KK)\n");
 			else
 				printf("Progs should run on any Quake executor\n");
@@ -1800,7 +1800,7 @@ unsigned short QCC_PR_WriteProgdefs (char *filename)
 		printf("Recognised progs as regular Quake\n");
 		break;
 	case 38488:
-		printf("Recognised progs as origional Hexen2\n");
+		printf("Recognised progs as original Hexen2\n");
 		break;
 	case 26905:
 		printf("Recognised progs as Hexen2 Mission Pack\n");
@@ -2563,7 +2563,7 @@ int QCC_FindQCFiles()
 
 int qcc_compileactive = false;
 extern int accglobalsblock;
-char *origionalqccmsrc;	//for autoprototype.
+char *originalqccmsrc;	//for autoprototype.
 void QCC_main (int argc, char **argv)	//as part of the quake engine
 {
 	extern int			pr_bracelevel;
@@ -2925,7 +2925,7 @@ newstyle:
 
 	currentchunk = NULL;
 
-	origionalqccmsrc = qccmsrc;
+	originalqccmsrc = qccmsrc;
 }
 
 void new_QCC_ContinueCompile(void);
@@ -2949,7 +2949,7 @@ void QCC_ContinueCompile(void)
 	{
 		if (autoprototype)
 		{
-			qccmsrc = origionalqccmsrc;
+			qccmsrc = originalqccmsrc;
 			QCC_SetDefaultProperties();
 			autoprototype = false;
 			return;

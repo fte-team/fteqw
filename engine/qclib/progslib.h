@@ -123,7 +123,7 @@ struct progfuncs_s {
 
 	int lastcalledbuiltinnumber;			//useful with non-implemented opcodes.
 
-	int (*RegisterFieldVar)				(progfuncs_t *prinst, unsigned int type, char *name, int requestedpos, int origionalofs);
+	int (*RegisterFieldVar)				(progfuncs_t *prinst, unsigned int type, char *name, int requestedpos, int originalofs);
 
 	char	*tempstringbase;				//for engine's use. Store your base tempstring pointer here.
 	int		tempstringnum;			//for engine's use.

@@ -90,7 +90,7 @@ extern qboolean	mouseactive;  // from in_win.c
 static HICON	hIcon;
 extern qboolean vid_isfullscreen;
 
-unsigned short origionalgammaramps[3][256];
+unsigned short originalgammaramps[3][256];
 
 #ifdef SWQUAKE
 extern
@@ -632,7 +632,7 @@ int GLVID_SetMode (rendererstate_t *info, unsigned char *palette)
 	vid.recalc_refdef = 1;
 
 	maindc = GetDC(mainwindow);
-	GetDeviceGammaRamp(maindc, origionalgammaramps);
+	GetDeviceGammaRamp(maindc, originalgammaramps);
 
 	TRACE(("dbg: GLVID_SetMode: attaching gl\n"));
 	if (!VID_AttachGL(info))
@@ -953,7 +953,7 @@ void VID_SetDefaultMode (void)
 
 void	GLVID_Shutdown (void)
 {
-	SetDeviceGammaRamp(maindc, origionalgammaramps);
+	SetDeviceGammaRamp(maindc, originalgammaramps);
 	gammaworks = false;
 
 	VID_UnSetMode();
@@ -1117,7 +1117,7 @@ void GLAppActivate(BOOL fActive, BOOL minimize)
 
 		v_gamma.modified = true;	//wham bam thanks.
 
-		SetDeviceGammaRamp(maindc, origionalgammaramps);
+		SetDeviceGammaRamp(maindc, originalgammaramps);
 		gammaworks = false;
 	}
 }

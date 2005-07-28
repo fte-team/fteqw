@@ -1700,7 +1700,7 @@ int Mod_LoadHiResTexture(char *name, char *subpath, qboolean mipmap, qboolean al
 	char fname[MAX_QPATH], nicename[MAX_QPATH];	
 
 	static char *extensions[] = {//reverse order of preference - (match commas with optional file types)
-		".pcx",	//pcxes are the origional gamedata of q2. So we don't want them to override pngs.
+		".pcx",	//pcxes are the original gamedata of q2. So we don't want them to override pngs.
 #ifdef AVAIL_JPEGLIB
 		".jpg",
 #endif

@@ -75,8 +75,8 @@ static XF86VidModeModeInfo **vidmodes;
 static int num_vidmodes;
 static qboolean vidmode_active = false;
 
-unsigned short origionalramps[3][256];
-qboolean origionalapplied;
+unsigned short originalramps[3][256];
+qboolean originalapplied;
 #endif
 
 extern cvar_t	_windowed_mouse;
@@ -440,8 +440,8 @@ static void GetEvent(void)
 		break;
 	case FocusOut:
 #ifdef WITH_VMODE
-		if (origionalapplied)
-			XF86VidModeSetGammaRamp(vid_dpy, scrnum, 256, origionalramps[0], origionalramps[1], origionalramps[2]);
+		if (originalapplied)
+			XF86VidModeSetGammaRamp(vid_dpy, scrnum, 256, originalramps[0], originalramps[1], originalramps[2]);
 #endif
 		ActiveApp = false;
 		ClearAllStates();
@@ -486,8 +486,8 @@ printf("GLVID_Shutdown");
 		qglXDestroyContext(vid_dpy, ctx);
 
 #ifdef WITH_VMODE
-	if (origionalapplied)
-		XF86VidModeSetGammaRamp(vid_dpy, scrnum, 256, origionalramps[0], origionalramps[1], origionalramps[2]);
+	if (originalapplied)
+		XF86VidModeSetGammaRamp(vid_dpy, scrnum, 256, originalramps[0], originalramps[1], originalramps[2]);
 #endif
 
 	if (vid_window)
@@ -564,7 +564,7 @@ void	GLVID_ShiftPalette (unsigned char *palette)
 
 //	VID_SetPalette (palette);
 
-	if (origionalapplied && ActiveApp && vid_hardwaregamma.value)	//this is needed because ATI drivers don't work properly (or when task-switched out).
+	if (originalapplied && ActiveApp && vid_hardwaregamma.value)	//this is needed because ATI drivers don't work properly (or when task-switched out).
 	{
 		if (gammaworks)
 		{	//we have hardware gamma applied - if we're doing a BF, we don't want to reset to the default gamma (yuck)
@@ -825,14 +825,14 @@ qboolean GLVID_Init (rendererstate_t *info, unsigned char *palette)
 		XF86VidModeGetGammaRampSize(vid_dpy, scrnum, &rampsize);
 		if (rampsize != 256)
 		{
-			origionalapplied = false;
+			originalapplied = false;
 			Con_Printf("Gamma ramps are not of 256 componants (but %i).\n", rampsize);
 		}
 		else
-			origionalapplied = XF86VidModeGetGammaRamp(vid_dpy, scrnum, 256, origionalramps[0], origionalramps[1], origionalramps[2]);
+			originalapplied = XF86VidModeGetGammaRamp(vid_dpy, scrnum, 256, originalramps[0], originalramps[1], originalramps[2]);
 	}
 	else
-		origionalapplied = false;
+		originalapplied = false;
 #endif
 
 	ctx = qglXCreateContext(vid_dpy, visinfo, NULL, True);

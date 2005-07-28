@@ -4376,13 +4376,13 @@ QCC_def_t *QCC_PR_Expression (int priority)
 				if (((unsigned)(statements[numstatements-1].op - OP_LOAD_F) < 6 || statements[numstatements-1].op == OP_LOAD_I) && statements[numstatements-1].c == e->ofs)
 				{	//we have our load.
 					QCC_def_t		*e3;
-//the only inefficiency here is with an extra temp (we can't reuse the origional)
+//the only inefficiency here is with an extra temp (we can't reuse the original)
 //this is not a problem, as the optimise temps or locals marshalling can clean these up for us
 					qcc_usefulstatement=true;
 //load
 //add to temp
 //store temp to offset
-//return origional loaded (which is not at the same offset as the pointer we store to)
+//return original loaded (which is not at the same offset as the pointer we store to)
 					e2 = QCC_GetTemp(type_float);
 					e3 = QCC_GetTemp(type_pointer);
 					QCC_PR_SimpleStatement(OP_ADDRESS, statements[numstatements-1].a, statements[numstatements-1].b, e3->ofs);
@@ -4407,8 +4407,8 @@ QCC_def_t *QCC_PR_Expression (int priority)
 				else if (e->type->type == ev_float)
 				{
 //copy to temp
-//add to origional
-//return temp (which == origional)
+//add to original
+//return temp (which == original)
 					QCC_PR_ParseWarning(WARN_INEFFICIENTPLUSPLUS, "++ suffix operator results in inefficient behaviour. Use +=1 or prefix form instead");
 					qcc_usefulstatement=true;
 
@@ -4444,7 +4444,7 @@ QCC_def_t *QCC_PR_Expression (int priority)
 //load
 //add to temp
 //store temp to offset
-//return origional loaded (which is not at the same offset as the pointer we store to)
+//return original loaded (which is not at the same offset as the pointer we store to)
 					e2 = QCC_GetTemp(type_float);
 					e3 = QCC_GetTemp(type_pointer);
 					QCC_PR_SimpleStatement(OP_ADDRESS, statements[numstatements-1].a, statements[numstatements-1].b, e3->ofs);
@@ -7790,7 +7790,7 @@ void QCC_PR_ParseDefs (char *classname)
 
 		if (type->type == ev_field && QCC_PR_CheckToken ("alias"))
 		{
-			QCC_PR_ParseError(ERR_INTERNAL, "FTEQCC does not support this variant of decompiled hexenc\nPlease obtain the origional version released by Raven Software instead.");
+			QCC_PR_ParseError(ERR_INTERNAL, "FTEQCC does not support this variant of decompiled hexenc\nPlease obtain the original version released by Raven Software instead.");
 			name = QCC_PR_ParseName();
 		}
 		else if ( QCC_PR_CheckToken ("=") || ((type->type == ev_function) && (pr_token[0] == '{' || pr_token[0] == '[' || pr_token[0] == ':')))	//this is an initialisation (or a function)

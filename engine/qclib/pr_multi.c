@@ -186,7 +186,7 @@ void QC_InitShares(progfuncs_t *progfuncs)
 
 //vectors must be added before any of thier corresponding _x/y/z vars
 //in this way, even screwed up progs work.
-int QC_RegisterFieldVar(progfuncs_t *progfuncs, unsigned int type, char *name, int requestedpos, int origionalofs)
+int QC_RegisterFieldVar(progfuncs_t *progfuncs, unsigned int type, char *name, int requestedpos, int originalofs)
 {
 //	progstate_t *p;
 //	int pnum;
@@ -220,7 +220,7 @@ int QC_RegisterFieldVar(progfuncs_t *progfuncs, unsigned int type, char *name, i
 					Sys_Error("Field %s at wrong offset", name);
 
 			if (field[i].requestedofs == -1)
-				field[i].requestedofs = origionalofs;
+				field[i].requestedofs = originalofs;
 			return field[i].ofs;	//got a match			
 		}
 	}
@@ -287,7 +287,7 @@ int QC_RegisterFieldVar(progfuncs_t *progfuncs, unsigned int type, char *name, i
 		Sys_Error("Allocated too many additional fields after ents were inited.");
 	field[fnum].type = type;
 
-	field[fnum].requestedofs = origionalofs;
+	field[fnum].requestedofs = originalofs;
 	
 	//we've finished setting the structure	
 	return ofs;

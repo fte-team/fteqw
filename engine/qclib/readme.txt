@@ -29,7 +29,7 @@ Quirks:
 	* An overuse of pointers in the API. There are some macros which you can use to hide some of the dereferences.
 	* kkqwsv progs are not reliable. Do not try saving the game. Avoid letting your users know of support.
 	
-	* Builtin structures are different from origional quake. You'll need to convert the arguments to qclib style. This change was required for both multiple instances as well as addon support. It should be straightforward enough.
+	* Builtin structures are different from original quake. You'll need to convert the arguments to qclib style. This change was required for both multiple instances as well as addon support. It should be straightforward enough.
 	* Entity fields are accessed via a pointer from the edict_t structure. This was required to place entity fields within the 64bit accessable section. Changing a . to a -> is not a major issue though. However, there are a lot. do a find and replace of ->v. to ->v->
 	* FTE's entities are numbers not pointers. This fact is not made into a big feature as it's kinda incompatable with standard quake. Please do not use numbers directly to refer to ents but instead use the EDICT_TO_PROGS macro which will give protection. This is consistant with standard quake.
 

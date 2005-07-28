@@ -213,7 +213,7 @@ pbool QCC_PR_Precompiler(void)
 		}
 		else if (!strncmp(directive, "if", 2))
 		{
-			int origionalline = pr_source_line;
+			int originalline = pr_source_line;
  			pr_file_p = directive+2;
 			if (!strncmp(pr_file_p, "def ", 4))
 			{
@@ -269,7 +269,7 @@ pbool QCC_PR_Precompiler(void)
 
 					if (!*pr_file_p)
 					{
-						pr_source_line = origionalline;
+						pr_source_line = originalline;
 						QCC_PR_ParseError (ERR_NOENDIF, "#if with no endif");
 					}
 
@@ -306,7 +306,7 @@ pbool QCC_PR_Precompiler(void)
 		}
 		else if (!strncmp(directive, "else", 4))
 		{
-			int origionalline = pr_source_line;
+			int originalline = pr_source_line;
 
 			ifs -= 1;
 			level = 1;
@@ -322,7 +322,7 @@ pbool QCC_PR_Precompiler(void)
 
 				if (!*pr_file_p)
 				{
-					pr_source_line = origionalline;
+					pr_source_line = originalline;
 					QCC_PR_ParseError(ERR_NOENDIF, "#if with no endif");
 				}
 

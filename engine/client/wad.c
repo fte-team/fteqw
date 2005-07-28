@@ -227,7 +227,7 @@ void SwapPic (qpic_t *pic)
 
 
 
-// based on origional code by LordHavoc
+// based on original code by LordHavoc
 
 //FIXME: convert to linked list. is hunk possible?
 //hash tables?

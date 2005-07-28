@@ -2663,7 +2663,7 @@ retry:
 				else
 					type = fld16[i].type & ~(DEF_SHARED|DEF_SAVEGLOBAL);
 
-				if (progfuncs->fieldadjust)	//we need to make sure all fields appear in thier origional place.
+				if (progfuncs->fieldadjust)	//we need to make sure all fields appear in thier original place.
 					QC_RegisterFieldVar(progfuncs, type, fld16[i].s_name+pr_strings, 4*(fld16[i].ofs+progfuncs->fieldadjust), -1);
 				else if (type == ev_vector)	//emit vector vars early, so thier fields cannot be alocated before the vector itself. (useful against scramblers)
 				{

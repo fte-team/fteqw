@@ -2407,7 +2407,7 @@ static void *Q1_LoadSkins (daliasskintype_t *pskintype, qboolean alpha)
 			if (texture)
 			{
 				_snprintf(skinname, sizeof(skinname), "%s_%i_luma", loadmodel->name, i);
-				texture = Mod_LoadReplacementTexture(skinname, "models", true, false, true);
+				fbtexture = Mod_LoadReplacementTexture(skinname, "models", true, false, true);
 			}
 			else
 			{

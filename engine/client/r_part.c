@@ -1771,7 +1771,7 @@ int P_RunParticleEffectType (vec3_t org, vec3_t dir, float count, int typenum)
 	beamseg_t *b, *bfirst;
 	vec3_t ofsvec, arsvec; // offsetspread vec, areaspread vec
 
-	if (typenum < 0)
+	if (typenum < 0 || typenum >= numparticletypes)
 		return 1;
 
 	if (!ptype->loaded)
@@ -2301,9 +2301,75 @@ void P_RunParticleEffect4 (vec3_t org, float radius, int color, int effect, int 
 	}
 }
 
+void P_RunParticleCube(vec3_t minb, vec3_t maxb, vec3_t dir, float count, int colour, qboolean gravity, float jitter)
+{
+	vec3_t org;
+	int			i, j;
+	vec3_t	nvel;
+	float		num;
+	float invcount;
 
+	int ptype = P_FindParticleType(va("te_cube%s_%i", gravity?"_g":"", colour));
+	if (ptype < 0)
+	{
+		ptype = P_FindParticleType(va("te_cube%s", gravity?"_g":""));
+		if (ptype < 0)
+			ptype = pe_default;
 
+		part_type[ptype].colorindex = colour;
+	}
 
+	invcount = 1/part_type[ptype].count; // using this to get R_RPET to always spawn 1
+	count = count * part_type[ptype].count;
+
+	for (i=0 ; i<count ; i++)
+	{
+		if (!free_particles)
+			return;
+
+		for (j=0 ; j<3 ; j++)
+		{
+			num = rand() / (float)RAND_MAX;
+			org[j] = minb[j] + num*(maxb[j]-minb[j]);
+		}
+		P_RunParticleEffectType(org, dir, invcount, ptype);
+	}
+}
+
+void P_RunParticleWeather(vec3_t minb, vec3_t maxb, vec3_t dir, float count, int colour, char *efname)
+{
+	vec3_t org;
+	int			i, j;
+	vec3_t	nvel;
+	float		num;
+	float invcount;
+
+	int ptype = P_FindParticleType(va("te_%s_%i", efname, colour));
+	if (ptype < 0)
+	{
+		ptype = P_FindParticleType(va("te_%s", efname));
+		if (ptype < 0)
+			ptype = pe_default;
+
+		part_type[ptype].colorindex = colour;
+	}
+
+	invcount = 1/part_type[ptype].count; // using this to get R_RPET to always spawn 1
+	count = count * part_type[ptype].count;
+
+	for (i=0 ; i<count ; i++)
+	{
+		if (!free_particles)
+			return;
+
+		for (j=0 ; j<3 ; j++)
+		{
+			num = rand() / (float)RAND_MAX;
+			org[j] = minb[j] + num*(maxb[j]-minb[j]);
+		}
+		P_RunParticleEffectType(org, dir, invcount, ptype);
+	}
+}
 
 /*
 ===============
@@ -2428,6 +2494,9 @@ int P_ParticleTrail (vec3_t startpos, vec3_t end, int type, trailstate_t **tsk)
 	float step;
 	float stop;
 	float tdegree = 2*M_PI/256; /* MSVC whine */
+
+	if (typenum < 0 || typenum >= numparticletypes)
+		return 1;	//bad value
 
 	if (!ptype->loaded)
 		return 1;
@@ -2786,10 +2855,10 @@ qboolean TraceLineN (vec3_t start, vec3_t end, vec3_t impact, vec3_t normal)
 		if (pe->model)
 		{
 			hull = &pe->model->hulls[0];
-			memset (&trace, 0, sizeof(trace));
 			VectorSubtract(start, pe->origin, ts);
 			VectorSubtract(end, pe->origin, te);
-			if (!pe->model->funcs.Trace(pe->model, 0, 0, ts, te, vec3_origin, vec3_origin, &trace))
+			pe->model->funcs.Trace(pe->model, 0, 0, ts, te, vec3_origin, vec3_origin, &trace);
+			if (trace.fraction)
 			{
 				VectorSubtract(trace.endpos, ts, delta);
 				len = Length(delta);

@@ -1312,14 +1312,17 @@ void VARGS Menu_Abort (char *format, ...)
 	Con_Printf("Menu_Abort: %s\nShutting down menu.dat\n", string);
 
 
-{
-	char *buffer;
-	int size = 1024*1024*8;
-	buffer = Z_Malloc(size);
-	menuprogs->save_ents(menuprogs, buffer, &size, 3);
-	COM_WriteFile("menucore.txt", buffer, size);
-	Z_Free(buffer);
-}
+	{
+		char *buffer;
+		int size = 1024*1024*8;
+		buffer = Z_Malloc(size);
+		if (buffer)
+		{
+			menuprogs->save_ents(menuprogs, buffer, &size, 3);
+			COM_WriteFile("menucore.txt", buffer, size);
+			Z_Free(buffer);
+		}
+	}
 
 	MP_Shutdown();
 }

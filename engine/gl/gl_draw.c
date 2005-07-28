@@ -3291,7 +3291,7 @@ int GL_LoadTexture (char *identifier, int width, int height, qbyte *data, qboole
 {
 	gltexture_t	*glt;
 
-	// see if the texture is allready present
+	// see if the texture is already present
 	if (identifier[0])
 	{
 		glt = GL_MatchTexture(identifier, 8, width, height);
@@ -3332,7 +3332,7 @@ int GL_LoadTextureFB (char *identifier, int width, int height, qbyte *data, qboo
 	int			i;
 	gltexture_t	*glt;
 
-	// see if the texture is allready present
+	// see if the texture is already present
 	if (identifier[0])
 	{
 		glt = GL_MatchTexture(identifier, 8, width, height);
@@ -3373,7 +3373,7 @@ int GL_LoadTexture8Pal24 (char *identifier, int width, int height, qbyte *data, 
 {
 	gltexture_t	*glt;
 
-		// see if the texture is allready present
+		// see if the texture is already present
 	if (identifier[0])
 	{
 		glt = GL_MatchTexture(identifier, 24, width, height);
@@ -3407,7 +3407,7 @@ int GL_LoadTexture8Pal32 (char *identifier, int width, int height, qbyte *data, 
 {
 	gltexture_t	*glt;
 
-		// see if the texture is allready present
+		// see if the texture is already present
 	if (identifier[0])
 	{
 		glt = GL_MatchTexture(identifier, 32, width, height);
@@ -3444,7 +3444,7 @@ int GL_LoadTexture32 (char *identifier, int width, int height, unsigned *data, q
 //	int			p, s;
 	gltexture_t	*glt;
 
-	// see if the texture is allready present
+	// see if the texture is already present
 	if (identifier[0])
 	{
 		glt = GL_MatchTexture(identifier, 32, width, height);
@@ -3488,7 +3488,7 @@ int GL_LoadCompressed(char *name)
 		return 0;
 
 
-	// see if the texture is allready present
+	// see if the texture is already present
 	if (name[0])
 	{
 		int num = GL_FindTexture(name);
@@ -3530,7 +3530,7 @@ int GL_LoadTexture8Grey (char *identifier, int width, int height, unsigned char 
 //	int			p, s;
 	gltexture_t	*glt;
 
-	// see if the texture is allready present
+	// see if the texture is already present
 	if (identifier[0])
 	{
 		glt = GL_MatchTexture(identifier, 8, width, height);
@@ -3569,7 +3569,7 @@ int GL_LoadTexture8Bump (char *identifier, int width, int height, unsigned char 
 	//	int			p, s;
 	gltexture_t	*glt;
 
-	// see if the texture is allready present
+	// see if the texture is already present
 	if (identifier[0])
 	{
 		glt = GL_MatchTexture(identifier, 8, width, height);

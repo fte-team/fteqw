@@ -417,7 +417,7 @@ void Cvar_Register (cvar_t *variable, const char *groupname)
 // copy the value off, because future sets will Z_Free it
 	strcpy (value, variable->string);
 
-// check to see if it has allready been defined
+// check to see if it has already been defined
 	old = Cvar_FindVar (variable->name);
 	if (old)
 	{
@@ -450,7 +450,7 @@ void Cvar_Register (cvar_t *variable, const char *groupname)
 			return;
 		}
 
-		Con_Printf ("Can't register variable %s, allready defined\n", variable->name);
+		Con_Printf ("Can't register variable %s, already defined\n", variable->name);
 		return;
 	}
 

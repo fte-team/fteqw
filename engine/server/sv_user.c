@@ -611,7 +611,7 @@ void SV_PK3List_f (void)
 
 	if (host_client->state != cs_connected)
 	{	//fixme: send prints instead
-		Con_Printf ("pk3list not valid -- allready spawned\n");
+		Con_Printf ("pk3list not valid -- already spawned\n");
 		return;
 	}
 
@@ -678,7 +678,7 @@ void SV_Soundlist_f (void)
 
 	if (host_client->state != cs_connected)
 	{
-		Con_Printf ("soundlist not valid -- allready spawned\n");
+		Con_Printf ("soundlist not valid -- already spawned\n");
 		return;
 	}
 
@@ -749,7 +749,7 @@ void SV_Modellist_f (void)
 
 	if (host_client->state != cs_connected)
 	{
-		Con_Printf ("modellist not valid -- allready spawned\n");
+		Con_Printf ("modellist not valid -- already spawned\n");
 		return;
 	}
 
@@ -831,7 +831,7 @@ void SV_PreSpawn_f (void)
 
 	if (host_client->state != cs_connected)
 	{
-		Con_Printf ("prespawn not valid -- allready spawned\n");
+		Con_Printf ("prespawn not valid -- already spawned\n");
 		return;
 	}
 
@@ -1074,7 +1074,7 @@ void SV_Spawn_f (void)
 
 	if (host_client->state != cs_connected)
 	{
-		Con_Printf ("Spawn not valid -- allready spawned\n");
+		Con_Printf ("Spawn not valid -- already spawned\n");
 		return;
 	}
 
@@ -3042,7 +3042,7 @@ void SVNQ_Spawn_f (void)
 
 	if (host_client->state != cs_connected)
 	{
-		Con_Printf ("spawn not valid -- allready spawned\n");
+		Con_Printf ("spawn not valid -- already spawned\n");
 		return;
 	}
 
@@ -3236,7 +3236,7 @@ void SVNQ_PreSpawn_f (void)
 	int i, e;
 	if (host_client->state != cs_connected)
 	{
-		Con_Printf ("prespawn not valid -- allready spawned\n");
+		Con_Printf ("prespawn not valid -- already spawned\n");
 		return;
 	}
 

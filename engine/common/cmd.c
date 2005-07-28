@@ -639,7 +639,7 @@ void Cmd_Alias_f (void)
 		}
 	}
 
-	// if the alias allready exists, reuse it
+	// if the alias already exists, reuse it
 	for (a = cmd_alias ; a ; a=a->next)
 	{
 		if (!strcmp(s, a->name))
@@ -794,7 +794,7 @@ void Cmd_DeleteAlias(char *name)
 char *Cmd_AliasExist(char *name, int restrictionlevel)
 {
 	cmdalias_t	*a;
-	// if the alias allready exists, reuse it
+	// if the alias already exists, reuse it
 	for (a = cmd_alias ; a ; a=a->next)
 	{
 		if (!strcmp(name, a->name))

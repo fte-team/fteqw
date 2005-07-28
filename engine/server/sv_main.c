@@ -857,7 +857,7 @@ void SVC_Log (void)
 		seq = -1;
 
 	if (seq == svs.logsequence-1 || !sv_fraglogfile)
-	{	// they allready have this data, or we aren't logging frags
+	{	// they already have this data, or we aren't logging frags
 		data[0] = A2A_NACK;
 		NET_SendPacket (NS_SERVER, 1, data, net_from);
 		return;
@@ -1412,7 +1412,7 @@ client_t *SVC_DirectConnect(void)
 		Q_strncpyS (newcl->userinfo, userinfo[0], sizeof(newcl->userinfo)-1);
 	newcl->userinfo[sizeof(newcl->userinfo)-1] = '\0';
 
-	// if there is allready a slot for this ip, drop it
+	// if there is already a slot for this ip, drop it
 	for (i=0,cl=svs.clients ; i<MAX_CLIENTS ; i++,cl++)
 	{
 		if (cl->state == cs_free)

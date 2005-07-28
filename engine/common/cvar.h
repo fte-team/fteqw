@@ -103,7 +103,7 @@ cvar_t *Cvar_Get (const char *var_name, const char *value, int flags, const char
 void Cvar_LockFromServer(cvar_t *var, const char *str);
 
 void 	Cvar_Register (cvar_t *variable, const char *cvargroup);
-// registers a cvar that allready has the name, string, and optionally the
+// registers a cvar that already has the name, string, and optionally the
 // archive elements set.
 
 //#define Cvar_RegisterVariable(x) Cvar_Register(x,__FILE__);

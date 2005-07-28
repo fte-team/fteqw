@@ -297,7 +297,7 @@ readnext:
 				unreadbytes = sizeof(msecsadded);
 			else
 				unreadbytes = sizeof(demotime);
-			return 0;		// allready read this frame's message
+			return 0;		// already read this frame's message
 		}
 		if (!cls.td_starttime && cls.state == ca_active)
 		{	//start the timer only once we are connected.

@@ -315,7 +315,7 @@ beam_t	*CL_NewBeam (int entity, int tag)
 // find a free beam
 	for (i=0, b=cl_beams ; i< MAX_BEAMS ; i++, b++)
 	{
-		if (!b->model || b->endtime < cl.time)
+		if (!b->model)
 		{
 			return b;
 		}

@@ -1,6 +1,7 @@
 //Released under the terms of the gpl as this file uses a bit of quake derived code. All sections of the like are marked as such
 
 #include "../plugin.h"
+#include <time.h>
 
 #define Q_strncpyz(o, i, l) do {strncpy(o, i, l-1);o[l-1]='\0';}while(0)
 
@@ -9,12 +10,12 @@ void Con_SubPrintf(char *subname, char *format, ...)
 {
 	va_list		argptr;
 	static char		string[1024];
-		
+
 	va_start (argptr, format);
 	vsnprintf (string, sizeof(string), format,argptr);
 	va_end (argptr);
 
-	Con_SubPrint(subname, string);	
+	Con_SubPrint(subname, string);
 }
 
 
@@ -28,6 +29,10 @@ void Con_SubPrintf(char *subname, char *format, ...)
 
 	#define COLOURGREEN	"^2"
 	#define COLORWHITE "^7"
+	#define COLOURWHITE "^7" // word
+	#define COLOURRED "^1"
+	#define COLOURYELLOW "^3"
+	#define COLOURPURPLE "^5"
 	#define COMMANDPREFIX "irc "
 	#define playsound(s)
 
@@ -44,13 +49,13 @@ void Con_SubPrintf(char *subname, char *format, ...)
 	{
 		int		c;
 		int		len;
-		
+
 		len = 0;
 		com_token[0] = 0;
-		
+
 		if (!data)
 			return NULL;
-			
+
 	// skip whitespace
 	skipwhite:
 		while ( (c = *data) <= ' ')
@@ -59,7 +64,7 @@ void Con_SubPrintf(char *subname, char *format, ...)
 				return NULL;			// end of file;
 			data++;
 		}
-		
+
 	// skip // comments
 		if (c=='/')
 		{
@@ -70,7 +75,7 @@ void Con_SubPrintf(char *subname, char *format, ...)
 				goto skipwhite;
 			}
 		}
-		
+
 
 	// handle quoted strings specially
 		if (c == '\"')
@@ -103,7 +108,7 @@ void Con_SubPrintf(char *subname, char *format, ...)
 			len++;
 			c = *data;
 		} while (c>32);
-		
+
 		com_token[len] = 0;
 		return data;
 	}
@@ -200,7 +205,13 @@ int IRC_ConExecuteCommand(int *args)
 
 void IRC_AddClientMessage(ircclient_t *irc, char *msg)
 {
-	Net_Send(irc->socket, msg, strlen(msg));	//FIXME: This needs rewriting to cope with errors.
+	char output[4096];
+
+	strcpy(output, msg);
+	strcat(output, "\n");
+
+	Net_Send(irc->socket, output, strlen(output));	//FIXME: This needs rewriting to cope with errors.
+	Con_SubPrintf("irc",COLOURYELLOW "<< %s \n",msg);
 }
 
 ircclient_t *IRC_Connect(char *server, int defport)
@@ -212,17 +223,17 @@ ircclient_t *IRC_Connect(char *server, int defport)
 	irc = IRC_Malloc(sizeof(ircclient_t));
 	if (!irc)
 		return NULL;
-	
+
 	memset(irc, 0, sizeof(ircclient_t));
 
-	
+
 	irc->socket = Net_TCPConnect(server, defport);	//port is only used if the url doesn't contain one. It's a default.
 
 	//not yet blocking. So no frequent attempts please...
 	//non blocking prevents connect from returning worthwhile sensible value.
 	if (irc->socket < 0)
 	{
-		Con_Printf("IRC_OpenSocket: couldn't connect\n");		
+		Con_Printf("IRC_OpenSocket: couldn't connect\n");
 		IRC_Free(irc);
 		return NULL;
 	}
@@ -241,18 +252,18 @@ ircclient_t *IRC_Connect(char *server, int defport)
 }
 void IRC_SetPass(ircclient_t *irc, char *pass)
 {
-	IRC_AddClientMessage(irc, va("PASS %s\r\n", pass));
+	if (pass != "") {	IRC_AddClientMessage(irc, va("PASS %s", pass)); }
 }
 void IRC_SetNick(ircclient_t *irc, char *nick)
 {
-	strncpy(irc->nick, nick, sizeof(irc->nick));
-	irc->nick[sizeof(irc->nick)-1] = '\0';
-	IRC_AddClientMessage(irc, va("NICK %s\r\n", irc->nick));
+	//strncpy(irc->nick, nick, sizeof(irc->nick)); // broken
+	//irc->nick[sizeof(irc->nick)-1] = '\0'; // broken, lets just allow "anonymous" on.
+	IRC_AddClientMessage(irc, va("NICK %s", irc->nick));
 	irc->nickcycle=0;
 }
 void IRC_SetUser(ircclient_t *irc, char *user)
 {
-	IRC_AddClientMessage(irc, va("USER %s %s %s :%s\r\n", user, irc->hostname, irc->server, "Something"));
+	IRC_AddClientMessage(irc, va("USER %s %s %s :%s", user, irc->hostname, irc->server, "Something"));
 }
 
 void IRC_FilterMircColours(char *msg)
@@ -347,7 +358,12 @@ int IRC_ClientFrame(ircclient_t *irc)
 	char prefix[64];
 	int ret;
 	char *nextmsg, *msg;
-	ret = Net_Recv(irc->socket, irc->bufferedinmessage+irc->bufferedinammount, sizeof(irc->bufferedinmessage)-1 - irc->bufferedinammount);		
+
+	char var[9][1000];
+	char *temp;
+	int i = 1;
+
+	ret = Net_Recv(irc->socket, irc->bufferedinmessage+irc->bufferedinammount, sizeof(irc->bufferedinmessage)-1 - irc->bufferedinammount);
 	if (ret == 0)
 		return IRC_KILL;
 	if (ret < 0)
@@ -373,6 +389,27 @@ int IRC_ClientFrame(ircclient_t *irc)
 
 	msg = irc->bufferedinmessage;
 
+	strcpy(var[1],msg);
+
+	temp = strchr(var[1], ' ');
+
+	while (i < 8)
+	{
+		i++;
+
+		if (temp != NULL)
+		{
+			strcpy(var[i],temp+1);
+		}
+		else
+		{
+			strcpy(var[i], "");
+		}
+
+		temp=strchr(var[i], ' ');
+
+	}
+
 	if (*msg == ':')	//we need to strip off the prefix
 	{
 		char *sp = strchr(msg, ' ');
@@ -396,11 +433,11 @@ int IRC_ClientFrame(ircclient_t *irc)
 	else
 		strcpy(prefix, irc->server);
 
-	if (!strncmp(msg, "PING ", 5))
+	if (!strncmp(var[1], "PING ", 5))
 	{
-		IRC_AddClientMessage(irc, va("PONG %s\r\n", msg+5));
+		IRC_AddClientMessage(irc, va("PONG %s", var[2]));
 	}
-	else if (!strncmp(msg, "PRIVMSG ", 7) || !strncmp(msg, "NOTICE ", 6))	//no autoresponses to notice please, and any autoresponses should be in the form of a notice
+	else if (!strncmp(var[2], "PRIVMSG ", 7) || !strncmp(var[2], "NOTICE ", 6))	//no autoresponses to notice please, and any autoresponses should be in the form of a notice
 	{
 		char *exc = strchr(prefix, '!');
 		char *col = strchr(msg+6, ':');
@@ -410,6 +447,16 @@ int IRC_ClientFrame(ircclient_t *irc)
 		//message takes the form :FROM PRIVMSG TO :MESSAGE
 
 		playsound ("misc/talk.wav");
+
+		if (!stricmp(var[4]+1, "\1VERSION\1"))
+		{
+			char *username;
+			char delimiters[] = "!";
+
+			username = strtok(var[1]+1, delimiters);
+
+			IRC_AddClientMessage(irc, va("NOTICE %s :\1VERSION FTEQW-IRC-Plugin Build ?\1", username));
+		}
 
 		if (exc && col)
 		{
@@ -501,13 +548,60 @@ int IRC_ClientFrame(ircclient_t *irc)
 		}
 		else Con_SubPrintf("irc", COLOURGREEN ":%sJOIN %s\n", prefix, msg+5);
 	}
+	else if ((!strncmp(msg, "001 ", 4)) || (!strncmp(msg, "002 ", 4)) || (!strncmp(msg, "003 ", 4)) || (!strncmp(msg, "004 ", 4)) || (!strncmp(msg, "005 ", 4))) // useless info on connect
+	{
+	}
+	else if ((!strncmp(msg, "251 ", 4)) || (!strncmp(msg, "252 ", 4)) || (!strncmp(msg, "254 ", 4)) || (!strncmp(msg, "255 ", 4)) || (!strncmp(msg, "265 ", 4)) || (!strncmp(msg, "266 ", 4)) || (!strncmp(msg, "422 ", 4))) //useless info about local users, server users, connected servers, motd missing
+	{
+	}
+	else if (!strncmp(msg, "311 ", 4)) // Whois
+	{
+		char *username = strtok(var[4], " ");
+		char *ident = strtok(var[5], " ");
+		char *address = strtok(var[6], " ");
+		char *realname = var[8]+1;
+
+		Con_SubPrintf("irc","WHOIS: <%s> (Ident: %s) (Address: %s) (Realname: %s) \n", username, ident, address, realname);
+	}
+	else if (!strncmp(msg, "312 ", 4))
+	{
+		char *username = strtok(var[4], " ");
+		char *serverhostname = strtok(var[5], " ");
+		char *servername = var[6]+1;
+
+		Con_SubPrintf("irc","WHOIS: <%s> (Server: %s) (Server Name: %s) \n", username, serverhostname, servername);
+	}
+	else if (!strncmp(msg, "317 ", 4)) // seconds idle etc
+	{
+		char *username = strtok(var[4], " ");
+		char *secondsidle = strtok(var[5], " ");
+		char *signontime = strtok(var[6], " ");
+		time_t t;
+		const struct tm *tm;
+
+		t=strtoul(signontime, 0, 0);
+		tm=localtime(&t);
+
+		//if (tm[strlen-2] = '\n') { tm[strlen-2] = '\0'; } // strip new line
+
+		Con_SubPrintf("irc","WHOIS: <%s> (Idle Time: %s seconds) (Signon Time: %s) \n", username, secondsidle, asctime(tm));
+	}
+	else if (!strncmp(msg, "318 ", 4)) //end of whois
+	{
+	}
 	else if (!strncmp(msg, "322 ", 4))	//channel listing
 	{
 		Con_SubPrintf("irc", "%s\n", msg);
 	}
+	else if ((!strncmp(msg, "372 ", 4)) || (!strncmp(msg, "375 ", 4)) || (!strncmp(msg, "376 ", 4)))
+	{
+	}
 	else if (!strncmp(msg, "375 ", 4))
 	{
 		Con_SubPrintf("irc", "%s\n", msg);
+	}
+	else if (!strncmp(msg, "378 ", 4)) //kinda useless whois info
+	{
 	}
 	else if (!strncmp(msg, "431 ", 4) ||	//nick not set
 			 !strncmp(msg, "433 ", 4) ||	//nick already in use
@@ -521,7 +615,7 @@ int IRC_ClientFrame(ircclient_t *irc)
 		else
 			IRC_SetNick(irc, va("%s%i", defaultnick, irc->nickcycle));
 
-		irc->nickcycle++;			
+		irc->nickcycle++;
 	}
 	else if (!strncmp(msg, "432 ", 4))
 	{
@@ -590,7 +684,7 @@ int IRC_ClientFrame(ircclient_t *irc)
 				Con_SubPrint(eq, va(COLOURGREEN"+"COLORWHITE"%s\n", com_token+1));
 			else
 				Con_SubPrint(eq, va(" %s\n", com_token));
-		}	
+		}
 	}
 	/*
 	else if (!strncmp(msg, "401 ", 4))
@@ -805,7 +899,7 @@ Page 48
 
                   <reply> ::= <nick>['*'] '=' <'+'|'-'><hostname>
 
-The '*' indicates whether the client has registered as an Operator. The '-' or '+' characters represent whether the client has set an AWAY message or not respectively. 
+The '*' indicates whether the client has registered as an Operator. The '-' or '+' characters represent whether the client has set an AWAY message or not respectively.
 
 
         303     RPL_ISON
@@ -875,7 +969,7 @@ Page 49
 
 --------------------------------------------------------------------------------
 Page 50
-list. At the end of all reply batches, there must be RPL_ENDOFWHOWAS (even if there was only one reply and it was an error). 
+list. At the end of all reply batches, there must be RPL_ENDOFWHOWAS (even if there was only one reply and it was an error).
 
 
         321     RPL_LISTSTART
@@ -927,12 +1021,12 @@ list. At the end of all reply batches, there must be RPL_ENDOFWHOWAS (even if th
 
 --------------------------------------------------------------------------------
 Page 51
-used (including any patchlevel revisions) and the 
+used (including any patchlevel revisions) and the
 
                   <debuglevel> is used to indicate if the server is
                   running in "debug mode".
 
-The "comments" field may contain any comments about the version or further version details. 
+The "comments" field may contain any comments about the version or further version details.
 
 
         352     RPL_WHOREPLY
@@ -981,7 +1075,7 @@ The "comments" field may contain any comments about the version or further versi
 
 --------------------------------------------------------------------------------
 Page 52
-"<channel> :End of channel ban list" 
+"<channel> :End of channel ban list"
 
 
                 - When listing the active 'bans' for a given channel,
@@ -1033,7 +1127,7 @@ Page 52
 
 --------------------------------------------------------------------------------
 Page 53
-"<server> :<string showing server's local time>" 
+"<server> :<string showing server's local time>"
 
 
                 - When replying to the TIME message, a server must send
@@ -1087,8 +1181,8 @@ Page 53
 
 --------------------------------------------------------------------------------
 Page 54
-whether it was sent by an operator or not. There is no predefined order for which occurs first. Replies RPL_TRACEUNKNOWN, RPL_TRACECONNECTING and RPL_TRACEHANDSHAKE are all used for connections which have not been fully established and are either unknown, still attempting to connect or in the process of completing the 'server handshake'. RPL_TRACELINK is sent by any server which handles a TRACE message and has to pass it on to another server. The list of RPL_TRACELINKs sent in response to a TRACE command traversing the IRC network should reflect the actual connectivity of the servers themselves along that path. 
-RPL_TRACENEWTYPE is to be used for any connection which does not fit in the other categories but is being displayed anyway. 
+whether it was sent by an operator or not. There is no predefined order for which occurs first. Replies RPL_TRACEUNKNOWN, RPL_TRACECONNECTING and RPL_TRACEHANDSHAKE are all used for connections which have not been fully established and are either unknown, still attempting to connect or in the process of completing the 'server handshake'. RPL_TRACELINK is sent by any server which handles a TRACE message and has to pass it on to another server. The list of RPL_TRACELINKs sent in response to a TRACE command traversing the IRC network should reflect the actual connectivity of the servers themselves along that path.
+RPL_TRACENEWTYPE is to be used for any connection which does not fit in the other categories but is being displayed anyway.
 
 
         211     RPL_STATSLINKINFO
@@ -1178,7 +1272,7 @@ Page 55
 Page 56
 
 6.3 Reserved numerics.
-These numerics are not described above since they fall into one of the following categories: 
+These numerics are not described above since they fall into one of the following categories:
 
 
 1 no longer in use;
@@ -1186,7 +1280,7 @@ These numerics are not described above since they fall into one of the following
 2 reserved for future planned use;
 
 3 in current use but are part of a non-generic 'feature' of
-the current IRC server. 
+the current IRC server.
 
         209     RPL_TRACECLASS          217     RPL_STATSQLINE
         231     RPL_SERVICEINFO         232     RPL_ENDOFSERVICES
@@ -1236,7 +1330,7 @@ void IRC_Command(void)
 	char *msg;
 
 	Cmd_Args(imsg, sizeof(imsg));
-	
+
 	msg = COM_Parse(imsg);
 
 	if (*com_token == '/')
@@ -1261,9 +1355,11 @@ void IRC_Command(void)
 		else if (!strcmp(com_token+1, "nick"))
 		{
 			msg = COM_Parse(msg);
-			Q_strncpyz(defaultnick, com_token, sizeof(defaultnick));
-			if (ircclient)
-				IRC_SetNick(ircclient, defaultnick);
+			//Q_strncpyz(defaultnick, com_token, sizeof(defaultnick));
+			//if (ircclient)
+				//IRC_SetNick(ircclient, defaultnick);
+				// the above 3 lines, don't work too well :(
+			IRC_AddClientMessage(ircclient, va("nick %s", com_token));
 		}
 		else if (!strcmp(com_token+1, "user"))
 		{
@@ -1280,34 +1376,39 @@ void IRC_Command(void)
 		//ALL other commands require you to be connected.
 		else if (!strcmp(com_token+1, "list"))
 		{
-			IRC_AddClientMessage(ircclient, "LIST\r\n");
+			IRC_AddClientMessage(ircclient, "LIST");
 		}
 		else if (!strcmp(com_token+1, "join"))
 		{
 			msg = COM_Parse(msg);
-			IRC_AddClientMessage(ircclient, va("JOIN %s\r\n", com_token));
+			IRC_AddClientMessage(ircclient, va("JOIN %s", com_token));
 		}
 		else if (!strcmp(com_token+1, "part") || !strcmp(com_token+1, "leave"))
 		{
 			msg = COM_Parse(msg);
 			if (!*com_token)
-				IRC_AddClientMessage(ircclient, va("PART %s\r\n", ircclient->defaultdest));
+				IRC_AddClientMessage(ircclient, va("PART %s", ircclient->defaultdest));
 			else
-				IRC_AddClientMessage(ircclient, va("PART %s\r\n", com_token));
+				IRC_AddClientMessage(ircclient, va("PART %s", com_token));
 		}
 		else if (!strcmp(com_token+1, "msg"))
 		{
 			msg = COM_Parse(msg);
-			IRC_AddClientMessage(ircclient, va("PRIVMSG %s :%s\r\n", com_token, msg));
+			IRC_AddClientMessage(ircclient, va("PRIVMSG %s :%s", com_token, msg));
 			Con_SubPrintf(com_token, "%s: %s\n", ircclient->nick, msg);
 		}
 		else if (!strcmp(com_token+1, "quote"))
 		{
-			IRC_AddClientMessage(ircclient, va("%s\r\n", msg));
+			IRC_AddClientMessage(ircclient, va("%s", msg));
 		}
 		else if (!strcmp(com_token+1, "quit"))
 		{
-			IRC_AddClientMessage(ircclient, va("QUIT\r\n"));
+			IRC_AddClientMessage(ircclient, va("QUIT :FTE QuakeWorld IRC-Plugin http://fteqw.sf.net"));
+		}
+		else if (!strcmp(com_token+1, "whois"))
+		{
+			msg = COM_Parse(msg);
+			IRC_AddClientMessage(ircclient, va("WHOIS :%s",com_token));
 		}
 		else if (!strcmp(com_token+1, "dest"))
 		{
@@ -1316,13 +1417,13 @@ void IRC_Command(void)
 		}
 		else if (!strcmp(com_token+1, "ping"))
 		{
-			IRC_AddClientMessage(ircclient, va("PRIVMSG %s :\001PING%s\001\r\n", ircclient->defaultdest, msg));
+			IRC_AddClientMessage(ircclient, va("PRIVMSG %s :\001PING%s\001", ircclient->defaultdest, msg));
 		}
 		else if (!strcmp(com_token+1, "me"))
 		{
 			if(*msg <= ' ' && *msg)
 				msg++;
-			IRC_AddClientMessage(ircclient, va("PRIVMSG %s :\001ACTION %s\001\r\n", ircclient->defaultdest, msg));
+			IRC_AddClientMessage(ircclient, va("PRIVMSG %s :\001ACTION %s\001", ircclient->defaultdest, msg));
 			Con_SubPrintf(ircclient->defaultdest, "***%s %s\n", ircclient->nick, msg);
 		}
 	}
@@ -1331,7 +1432,7 @@ void IRC_Command(void)
 		if (ircclient)
 		{
 			msg = imsg;
-			IRC_AddClientMessage(ircclient, va("PRIVMSG %s :%s\r\n", ircclient->defaultdest, msg));
+			IRC_AddClientMessage(ircclient, va("PRIVMSG %s :%s", ircclient->defaultdest, msg));
 			Con_SubPrintf(ircclient->defaultdest, "%s: %s\n", ircclient->nick, msg);
 		}
 		else

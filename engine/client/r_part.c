@@ -2495,7 +2495,7 @@ int P_ParticleTrail (vec3_t startpos, vec3_t end, int type, trailstate_t **tsk)
 	float stop;
 	float tdegree = 2*M_PI/256; /* MSVC whine */
 
-	if (typenum < 0 || typenum >= numparticletypes)
+	if (type < 0 || type >= numparticletypes)
 		return 1;	//bad value
 
 	if (!ptype->loaded)

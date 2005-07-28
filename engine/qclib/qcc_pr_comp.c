@@ -3470,8 +3470,6 @@ reloop:
 					if (def_ret.temp->used && ao != &def_ret)
 						QCC_PR_ParseWarning(0, "RETURN VALUE ALREADY IN USE");
 
-					def_parms[0].type = type_float;
-					QCC_FreeTemp(QCC_PR_Statement (&pr_opcodes[OP_STORE_F], ao, &def_parms[0], NULL));
 
 					if (QCC_PR_CheckToken("="))
 					{
@@ -3480,12 +3478,17 @@ reloop:
 						if (nd->type->type != d->type->type)
 							QCC_PR_ParseErrorPrintDef(ERR_TYPEMISMATCH, d, "Type Mismatch on array assignment");
 
+						def_parms[0].type = type_float;
+						QCC_FreeTemp(QCC_PR_Statement (&pr_opcodes[OP_STORE_F], ao, &def_parms[0], NULL));
+						def_parms[1].type = nd->type;
 						QCC_FreeTemp(QCC_PR_Statement (&pr_opcodes[OP_STORE_V], nd, &def_parms[1], NULL));
 						QCC_PR_Statement (&pr_opcodes[OP_CALL2], funcretr, 0, NULL);
 						qcc_usefulstatement = true;
 					}
 					else
 					{
+						def_parms[0].type = type_float;
+						QCC_FreeTemp(QCC_PR_Statement (&pr_opcodes[OP_STORE_F], ao, &def_parms[0], NULL));
 						funcretr = QCC_PR_GetDef(type_function, qcva("ArrayGet*%s", d->name), NULL, true, 1);
 						QCC_PR_Statement (&pr_opcodes[OP_CALL1], funcretr, 0, NULL);
 					}
@@ -7672,7 +7675,20 @@ void QCC_PR_ParseDefs (char *classname)
 			}
 			else
 			{
-				if(pr_token_type == tt_name)
+				def = QCC_PR_Expression(TOP_PRIORITY);
+				if (!def->constant)
+					QCC_PR_ParseError(ERR_BADARRAYSIZE, "Array size is not a constant value");
+				else if (def->type->type == ev_integer)
+					arraysize = G_INT(def->ofs);
+				else if (def->type->type == ev_float)
+				{
+					arraysize = (int)G_FLOAT(def->ofs);
+					if ((float)arraysize != G_FLOAT(def->ofs))
+						QCC_PR_ParseError(ERR_BADARRAYSIZE, "Array size is not a constant value");
+				}
+				else
+					QCC_PR_ParseError(ERR_BADARRAYSIZE, "Array size must be of int value");
+/*				if(pr_token_type == tt_name)
 				{
 					def = QCC_PR_GetDef(NULL, QCC_PR_ParseName(), pr_scope, false, 0);
 					if (def && def->arraysize==1)
@@ -7688,7 +7704,7 @@ void QCC_PR_ParseDefs (char *classname)
 					arraysize = atoi (pr_token);
 					QCC_PR_Lex();
 				}
-				QCC_PR_Expect("]");
+*/				QCC_PR_Expect("]");
 			}
 
 			if (arraysize < 1)

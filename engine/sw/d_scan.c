@@ -636,7 +636,7 @@ void D_DrawSpans8_Smooth (espan_t *pspan)
 			}
 			do
 			{
-#if 1
+#if 0
 #define mins  (s>>16)
 #define mint  (t>>16)
 #define	pix   *(pbase + (mins)											+ (mint)				 * cachewidth)

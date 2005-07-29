@@ -652,7 +652,7 @@ void SWR_DrawBeam(entity_t *e)
 	for (; len>=0; len--)
 	{
 		VectorAdd(o1, dir, o2);
-		D_DrawSparkTrans (&p, o1, o2);
+		D_DrawSparkTrans (&p, o1, o2, 0);
 		VectorCopy(o2, o1);
 	}
 }

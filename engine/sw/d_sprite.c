@@ -503,7 +503,10 @@ NextSpan:
 }
 
 #ifdef PEXT_TRANS
-void D_SpriteDrawSpansReverseTrans (sspan_t *pspan)
+// Additive version of SpriteDrawSpansTrans
+// 1 line change but due to the loop a seperate
+// copy is a better idea
+void D_SpriteDrawSpansAdditive (sspan_t *pspan)
 {
 	int			count, spancount, izistep;
 	int			izi;
@@ -635,7 +638,7 @@ void D_SpriteDrawSpansReverseTrans (sspan_t *pspan)
 					if (*pz <= (izi >> 16))
 					{
 						*pz = izi >> 16;
-						*pdest = Trans(btemp, *pdest);
+						*pdest = AddBlend(*pdest, btemp);
 					}
 				}
 
@@ -1067,15 +1070,20 @@ void D_DrawSprite (void)
 		D_SpriteDrawSpans16 (sprite_spans);
 	else	//1
 	{
-		Set_TransLevelF(currententity->alpha);
-		if (t_state & TT_ONE)
-			D_SpriteDrawSpans (sprite_spans);
-		else if (!(t_state & TT_ZERO))
+		if (currententity->alpha > TRANS_LOWER_CAP)
 		{
-			if (t_state & TT_REVERSE)
-				D_SpriteDrawSpansReverseTrans (sprite_spans);
+			if (currententity->flags & Q2RF_ADDATIVE)
+			{
+				D_SetTransLevel(currententity->alpha, BM_ADD);
+				D_SpriteDrawSpansAdditive (sprite_spans);
+			}
+			else if (currententity->alpha > TRANS_UPPER_CAP)
+				D_SpriteDrawSpans (sprite_spans);
 			else
+			{
+				D_SetTransLevel(currententity->alpha, BM_MERGE);
 				D_SpriteDrawSpansTrans (sprite_spans);
+			}
 		}
 	}
 #endif

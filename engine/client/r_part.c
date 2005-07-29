@@ -81,8 +81,8 @@ static double cost[7] = {1.000000, 0.623490, -0.222521, -0.900969, -0.900969, -0
 
 #define crand() (rand()%32767/16383.5f-1)
 
-void D_DrawParticleTrans (particle_t *pparticle);
-void D_DrawSparkTrans (particle_t *pparticle, vec3_t src, vec3_t dest);
+void D_DrawParticleTrans (particle_t *pparticle, int blendmode);
+void D_DrawSparkTrans (particle_t *pparticle, vec3_t src, vec3_t dest, int blendmode);
 
 void P_ReadPointFile_f (void);
 
@@ -176,7 +176,7 @@ typedef struct part_type_s {
 	float timelimit;
 
 	enum {PT_NORMAL, PT_SPARK, PT_SPARKFAN, PT_TEXTUREDSPARK, PT_BEAM, PT_DECAL} type;
-	enum {BM_MERGE, BM_ADD, BM_SUBTRACT} blendmode;
+	blendmode_t blendmode;
 
 	float rotationstartmin, rotationstartrand;
 	float rotationmin, rotationrand;
@@ -1946,7 +1946,7 @@ int P_RunParticleEffectType (vec3_t org, vec3_t dir, float count, int typenum)
 				p->alpha = ptype->alpha-p->die*(ptype->alpha/ptype->die)*ptype->alphachange;
 			else
 				p->alpha = ptype->alpha;
-			p->color = 0;
+			// p->color = 0;
 			p->nextemit = particletime + ptype->emitstart - p->die;
 			if (ptype->emittime < 0)
 				p->trailstate = NULL;
@@ -2630,7 +2630,7 @@ int P_ParticleTrail (vec3_t startpos, vec3_t end, int type, trailstate_t **tsk)
 			p->alpha = ptype->alpha-p->die*(ptype->alpha/ptype->die)*ptype->alphachange;
 		else
 			p->alpha = ptype->alpha;
-		p->color = 0;
+//		p->color = 0;
 
 //		if (ptype->spawnmode == SM_TRACER)
 		if (ptype->spawnparam1)
@@ -3448,7 +3448,7 @@ void SWD_DrawParticleSpark(particle_t *p, part_type_t *type)
 		VectorMA(p->org, -2.5/(speed), p->vel, dest);
 	}
 
-	D_DrawSparkTrans(p, src, dest);
+	D_DrawSparkTrans(p, src, dest, type->blendmode);
 }
 void SWD_DrawParticleBlob(particle_t *p, part_type_t *type)
 {
@@ -3469,7 +3469,7 @@ void SWD_DrawParticleBlob(particle_t *p, part_type_t *type)
 	else if (b > 255)
 		b = 255;
 	p->color = GetPalette(r, g, b);
-	D_DrawParticleTrans(p);
+	D_DrawParticleTrans(p, type->blendmode);
 }
 void SWD_DrawParticleBeam(beamseg_t *beam, part_type_t *type)
 {
@@ -3505,7 +3505,7 @@ void SWD_DrawParticleBeam(beamseg_t *beam, part_type_t *type)
 	else if (b > 255)
 		b = 255;
 	p->color = GetPalette(r, g, b);
-	D_DrawSparkTrans(p, p->org, q->org );
+	D_DrawSparkTrans(p, p->org, q->org, type->blendmode);
 }
 #endif
 

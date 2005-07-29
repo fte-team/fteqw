@@ -320,11 +320,10 @@ void R_AliasPreparePoints (void)
 	else
 	{
 #if	id386
-		if (t_state & TT_ONE)
-			drawfnc = D_PolysetDrawAsm;
-		else
+		drawfnc = D_PolysetDrawAsm;
+#else
+		drawfnc = D_PolysetDrawC;
 #endif
-			drawfnc = D_PolysetDrawC;
 	}
 
 	for (i=0 ; i<r_anumverts ; i++, fv++, av++, r_apnewverts++, r_apoldverts++)
@@ -874,9 +873,26 @@ void R_AliasDrawModel (alight_t *plighting)
 	extern qbyte transfactor;
 	extern qbyte transbackfac;
 
-	Set_TransLevelF(currententity->alpha);
-	if (t_state & TT_ZERO)
-		return;
+	if (r_pixbytes == 1)
+	{
+		if (currententity->alpha < TRANS_LOWER_CAP)
+			return;
+
+		if (currententity->alpha > TRANS_UPPER_CAP)
+		{
+			transbackfac = 0;
+		}
+		else
+		{
+			D_SetTransLevel(currententity->alpha, BM_MERGE);
+			transbackfac = 1;
+		}
+	}
+	else
+	{
+		transfactor = currententity->alpha*255;
+		transbackfac = 255 - transfactor;
+	}
 
 	r_amodels_drawn++;
 
@@ -892,9 +908,6 @@ void R_AliasDrawModel (alight_t *plighting)
 	R_AliasSetUpTransform (currententity->trivial_accept);
 	R_AliasSetupLighting (plighting);
 	R_AliasSetupFrame ();
-
-	transfactor = currententity->alpha*255;
-	transbackfac = 255 - transfactor;
 
 	if (!currententity->colormap)
 		currententity->colormap = vid.colormap;

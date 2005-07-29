@@ -249,83 +249,6 @@ void D_PolysetDrawFinalVerts32 (finalvert_t *fv, int numverts)
 	}
 }
 
-void D_PolysetRecursiveTriangleReverseTrans (int *lp1, int *lp2, int *lp3)
-{
-	int		*temp;
-	int		d;
-	int		new[6];
-	int		z;
-	short	*zbuf;
-
-	d = lp2[0] - lp1[0];
-	if (d < -1 || d > 1)
-		goto split;
-	d = lp2[1] - lp1[1];
-	if (d < -1 || d > 1)
-		goto split;
-
-	d = lp3[0] - lp2[0];
-	if (d < -1 || d > 1)
-		goto split2;
-	d = lp3[1] - lp2[1];
-	if (d < -1 || d > 1)
-		goto split2;
-
-	d = lp1[0] - lp3[0];
-	if (d < -1 || d > 1)
-		goto split3;
-	d = lp1[1] - lp3[1];
-	if (d < -1 || d > 1)
-	{
-split3:
-		temp = lp1;
-		lp1 = lp3;
-		lp3 = lp2;
-		lp2 = temp;
-
-		goto split;
-	}
-
-	return;			// entire tri is filled
-
-split2:
-	temp = lp1;
-	lp1 = lp2;
-	lp2 = lp3;
-	lp3 = temp;
-
-split:
-// split this edge
-	new[0] = (lp1[0] + lp2[0]) >> 1;
-	new[1] = (lp1[1] + lp2[1]) >> 1;
-	new[2] = (lp1[2] + lp2[2]) >> 1;
-	new[3] = (lp1[3] + lp2[3]) >> 1;
-	new[5] = (lp1[5] + lp2[5]) >> 1;
-
-// draw the point if splitting a leading edge
-	if (lp2[1] > lp1[1])
-		goto nodraw;
-	if ((lp2[1] == lp1[1]) && (lp2[0] < lp1[0]))
-		goto nodraw;
-
-
-	z = new[5]>>16;
-	zbuf = zspantable[new[1]] + new[0];
-	if (z >= *zbuf)
-	{
-		int		pix;
-		
-		*zbuf = z;
-		pix = d_pcolormap[skintable[new[3]>>16][new[2]>>16]];
-		d_viewbuffer[d_scantable[new[1]] + new[0]] = Trans(pix, d_viewbuffer[d_scantable[new[1]] + new[0]]);
-	}
-
-nodraw:
-// recursively continue
-	D_PolysetRecursiveTriangleReverseTrans (lp3, lp1, new);
-	D_PolysetRecursiveTriangleReverseTrans (lp3, new, lp2);
-}
-
 void D_PolysetRecursiveTriangleTrans (int *lp1, int *lp2, int *lp3)
 {
 	int		*temp;
@@ -564,73 +487,6 @@ nodraw:
 	D_PolysetRecursiveTriangle16 (lp3, new, lp2);
 }
 
-void D_PolysetDrawSpans8ReverseTrans (spanpackage_t *pspanpackage)
-{
-	int		lcount;
-	qbyte	*lpdest;
-	qbyte	*lptex;
-	int		lsfrac, ltfrac;
-	int		llight;
-	int		lzi;
-	short	*lpz;
-
-	if (d_aspancount<0)
-		return;
-
-	do
-	{
-		lcount = d_aspancount - pspanpackage->count;
-
-		errorterm += erroradjustup;
-		if (errorterm >= 0)
-		{
-			d_aspancount += d_countextrastep;
-			errorterm -= erroradjustdown;
-		}
-		else
-		{
-			d_aspancount += ubasestep;
-		}
-
-		if (lcount)
-		{
-			lpdest = pspanpackage->pdest;
-			lptex = pspanpackage->ptex;
-			lpz = pspanpackage->pz;
-			lsfrac = pspanpackage->sfrac;
-			ltfrac = pspanpackage->tfrac;
-			llight = pspanpackage->light;
-			lzi = pspanpackage->zi;
-
-			do
-			{
-				if ((lzi >> 16) >= *lpz)
-				{
-					*lpdest = Trans(((qbyte *)acolormap)[*lptex + (llight & 0xFF00)], *lpdest);
-// gel mapping					*lpdest = gelmap[*lpdest];
-					*lpz = lzi >> 16;
-				}
-				lpdest++;
-				lzi += r_zistepx;
-				lpz++;
-				llight += r_lstepx;
-				lptex += a_ststepxwhole;
-				lsfrac += a_sstepxfrac;
-				lptex += lsfrac >> 16;
-				lsfrac &= 0xFFFF;
-				ltfrac += a_tstepxfrac;
-				if (ltfrac & 0x10000)
-				{
-					lptex += r_affinetridesc.skinwidth;
-					ltfrac &= 0xFFFF;
-				}
-			} while (--lcount);
-		}
-
-		pspanpackage++;
-	} while (pspanpackage->count != -999999);
-}
-
 void D_PolysetDrawSpans8Trans (spanpackage_t *pspanpackage)
 {
 	int		lcount;
@@ -640,15 +496,6 @@ void D_PolysetDrawSpans8Trans (spanpackage_t *pspanpackage)
 	int		llight;
 	int		lzi;
 	short	*lpz;
-
-	if (t_state & TT_REVERSE)
-	{
-		if (t_state & TT_ONE)
-			D_PolysetDrawSpans8C(pspanpackage);
-		else
-			D_PolysetDrawSpans8ReverseTrans(pspanpackage);
-		return;
-	}
 
 	if (d_aspancount<0)
 		return;
@@ -1133,7 +980,12 @@ void D_RasterizeAliasPolySmoothC (void)
 	else if (r_pixbytes == 2)
 		D_PolysetDrawSpans16 (a_spans);
 	else
-		D_PolysetDrawSpans8Trans (a_spans);
+	{
+		if (transbackfac)
+			D_PolysetDrawSpans8Trans (a_spans);
+		else
+			D_PolysetDrawSpans8C (a_spans);
+	}
 
 // scan out the bottom part of the right edge, if it exists
 	if (pedgetable->numrightedges == 2)
@@ -1167,7 +1019,12 @@ void D_RasterizeAliasPolySmoothC (void)
 		else if (r_pixbytes == 2)
 			D_PolysetDrawSpans16 (pstart);
 		else
-			D_PolysetDrawSpans8Trans (pstart);
+		{
+			if (transbackfac)
+				D_PolysetDrawSpans8Trans (pstart);
+			else
+				D_PolysetDrawSpans8C (pstart);
+		}
 	}
 }
 
@@ -1303,16 +1160,8 @@ void D_DrawSubdivC (void)
 #ifdef PEXT_TRANS
 	if (r_pixbytes == 4)
 		drawfnc = D_PolysetRecursiveTriangle32Trans;
-	else if (!(t_state & TT_ONE))
-	{
-		if (t_state & TT_ZERO)
-			return;
-
-		if (t_state & TT_REVERSE)
-			drawfnc = D_PolysetRecursiveTriangleReverseTrans;
-		else
-			drawfnc = D_PolysetRecursiveTriangleTrans;
-	}
+	else if (r_pixbytes == 1)
+		drawfnc = D_PolysetRecursiveTriangleTrans;
 	else
 #endif
 		drawfnc = D_PolysetRecursiveTriangleC;

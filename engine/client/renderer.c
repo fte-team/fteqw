@@ -184,10 +184,6 @@ cvar_t r_drawflat = {"r_drawflat","0", NULL, CVAR_SEMICHEAT};
 cvar_t r_wallcolour = {"r_wallcolour","0 0 1"};
 cvar_t r_floorcolour = {"r_floorcolour","0.5 0.5 1"};
 
-cvar_t r_transtables = {"r_transtables","2"};
-cvar_t r_transtablehalf = {"r_transtablehalf", "1"};
-cvar_t r_transtablewrite = {"r_transtablewrite", "1"};
-cvar_t r_palconvbits = {"r_palconvbits", "565"};
 cvar_t r_palconvwrite = {"r_palconvwrite", "1"};
 
 cvar_t r_lightmap_saturation = {"r_lightmap_saturation", "1"};
@@ -362,10 +358,6 @@ void SWRenderer_Init(void)
 	Cvar_Register (&r_ambient, SWRENDEREROPTIONS);
 	Cvar_Register (&r_reportsurfout, SWRENDEREROPTIONS);
 
-	Cvar_Register (&r_transtables, SWRENDEREROPTIONS);
-	Cvar_Register (&r_transtablewrite, SWRENDEREROPTIONS);
-	Cvar_Register (&r_transtablehalf, SWRENDEREROPTIONS);
-	Cvar_Register (&r_palconvbits, SWRENDEREROPTIONS);
 	Cvar_Register (&r_palconvwrite, SWRENDEREROPTIONS);
 }
 #endif

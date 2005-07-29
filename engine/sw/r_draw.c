@@ -1703,6 +1703,7 @@ void R_16DrawSpanletAlphaTest( void )	//16 bit rendering only
 	} while (--s_spanletvars.spancount > 0);
 }
 
+#if 0
 void R_8DrawSpanletBlended( void )	//8 bit FIXME
 {
 	unsigned btemp;
@@ -1731,6 +1732,7 @@ void R_8DrawSpanletBlended( void )	//8 bit FIXME
 		s_spanletvars.t += s_spanletvars.tstep;
 	} while (--s_spanletvars.spancount > 0);
 }
+#endif
 
 void R_32DrawSpanletAlphaTest( void )
 {

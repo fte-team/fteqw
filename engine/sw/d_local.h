@@ -117,37 +117,19 @@ extern float	d_scalemip[3];
 
 extern void (*d_drawspans) (espan_t *pspan);
 
-
-
 #ifdef PEXT_TRANS
-typedef qbyte tlookup[256][256];
-typedef qbyte tlookupp[256];
-extern tlookup *t_lookup;
-extern tlookupp *t_curlookupp;
-extern int t_numtables;
-extern int t_numtablesinv;//65546/numtables
-extern int t_state;
+#define PAL555_SIZE 32*32*32
+#define TRANS_LEVELS 65
+#define TRANS_MAX (TRANS_LEVELS - 1)
 
-#define TT_REVERSE 0x1 // reverse table points
-#define TT_ZERO    0x2 // zero alpha
-#define TT_ONE     0x4 // full alpha
-#define TT_USEHALF 0x8 // using half transtables
-
-// cvar defines for transtable
-extern cvar_t r_transtablewrite;
-extern cvar_t r_transtables;
-extern cvar_t r_transtablehalf;
+#define TRANS_UPPER_CAP (TRANS_MAX / (TRANS_LEVELS + 0.0))
+#define TRANS_LOWER_CAP (1.0 / TRANS_LEVELS)
 
 void D_InitTrans(void);
-#define Trans(p, p2)	(t_curlookupp[p][p2])
 // void Set_TransLevelI(int level);
-void Set_TransLevelF(float level);
+void D_SetTransLevel(float level, blendmode_t blend);
+extern qbyte _fastcall Trans(qbyte p, qbyte p2);
+extern qbyte _fastcall AddBlend(qbyte p, qbyte p2);
 
-
-
-extern qbyte *palxxxto8;
-extern int palmask[3];
-extern int palshift[3];
-
+extern qbyte *pal555to8;
 #endif
-

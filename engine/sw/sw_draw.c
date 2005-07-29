@@ -652,8 +652,8 @@ void SWDraw_Character (int x, int y, unsigned int num)
 	}
 }
 
-#define FindPallete(r,g,b) palxxxto8[((r&palmask[0])>>palshift[0]) | ((g&palmask[1])<<palshift[1]) | ((b&palmask[2])<<palshift[2])]
-#define colourmask(p,r,g,b) FindPallete(host_basepal[p*3]*r, host_basepal[p*3+1]*g, host_basepal[p*3+2]*b)
+#define FindPalette(r,g,b) pal555to8[((r&0xF8)>>3)|((g&0xF8)<<2)|((b&0xF8)<<7)]
+#define colourmask(p,r,g,b) FindPalette(host_basepal[p*3]*r, host_basepal[p*3+1]*g, host_basepal[p*3+2]*b)
 #define draw(p) colourmask(p, (int)consolecolours[colour].r, (int)consolecolours[colour].g, (int)consolecolours[colour].b)
 void SWDraw_ColouredCharacter (int x, int y, unsigned int num)
 {
@@ -2374,11 +2374,7 @@ void SWDraw_FadeScreen (void)
 	VID_LockBuffer ();
 }
 
-
-
-
-
-
+#if 0
 void SWDraw_Box(int x1, int y1, int x2, int y2, int paletteindex, float alpha)
 {
 	int x;
@@ -2391,8 +2387,8 @@ void SWDraw_Box(int x1, int y1, int x2, int y2, int paletteindex, float alpha)
 	unsigned		uc;
 	int				u, v;
 
-	Set_TransLevelF(alpha);
-	if (t_state & TT_ZERO)
+	D_SetTransLevel(alpha, BM_MERGE);
+	if (alpha < TRANS_LOWER_CAP)
 		return;
 
 	if (x1 < x2)
@@ -2427,20 +2423,10 @@ void SWDraw_Box(int x1, int y1, int x2, int y2, int paletteindex, float alpha)
 
 	if (r_pixbytes == 1)
 	{
-		if (t_state & TT_ONE)
-		{
-			dest = vid.buffer + y*vid.rowbytes + x;
-			for (v=0 ; v<h ; v++, dest += vid.rowbytes)
-				for (u=0 ; u<w ; u++)
-					dest[u] = paletteindex;
-		}
-		else
-		{
-			dest = vid.buffer + y*vid.rowbytes + x;
-			for (v=0 ; v<h ; v++, dest += vid.rowbytes)
-				for (u=0 ; u<w ; u++)
-					dest[u] = Trans(dest[u], paletteindex);
-		}
+		dest = vid.buffer + y*vid.rowbytes + x;
+		for (v=0 ; v<h ; v++, dest += vid.rowbytes)
+			for (u=0 ; u<w ; u++)
+				dest[u] = Trans(dest[u], paletteindex);
 	}
 	else if (r_pixbytes == 4)
 	{
@@ -2452,6 +2438,7 @@ void SWDraw_Box(int x1, int y1, int x2, int y2, int paletteindex, float alpha)
 				puidest[u] = uc;
 	}
 }
+#endif
 
 //=============================================================================
 

@@ -1316,12 +1316,9 @@ void VARGS Menu_Abort (char *format, ...)
 		char *buffer;
 		int size = 1024*1024*8;
 		buffer = Z_Malloc(size);
-		if (buffer)
-		{
-			menuprogs->save_ents(menuprogs, buffer, &size, 3);
-			COM_WriteFile("menucore.txt", buffer, size);
-			Z_Free(buffer);
-		}
+		menuprogs->save_ents(menuprogs, buffer, &size, 3);
+		COM_WriteFile("menucore.txt", buffer, size);
+		Z_Free(buffer);
 	}
 
 	MP_Shutdown();

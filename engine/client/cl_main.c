@@ -579,7 +579,7 @@ void CL_CheckForResend (void)
 
 		Con_TPrintf (TLC_CONNECTINGTO, cls.servername);
 
-		MSG_WriteLong(&sb, BigLong(NETFLAG_CTL | (strlen(NET_GAMENAME_NQ)+7)));
+		MSG_WriteLong(&sb, LongSwap(NETFLAG_CTL | (strlen(NET_GAMENAME_NQ)+7)));
 		MSG_WriteByte(&sb, CCREQ_CONNECT);
 		MSG_WriteString(&sb, NET_GAMENAME_NQ);
 		MSG_WriteByte(&sb, NET_PROTOCOL_VERSION);
@@ -1970,7 +1970,7 @@ void CLNQ_ConnectionlessPacket(void)
 	int length;
 
 	MSG_BeginReading ();
-	length = BigLong(MSG_ReadLong ());
+	length = LongSwap(MSG_ReadLong ());
 	if (!(length & NETFLAG_CTL))
 		return;	//not an nq control packet.
 	length &= NETFLAG_LENGTH_MASK;

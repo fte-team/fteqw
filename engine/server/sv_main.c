@@ -1164,7 +1164,7 @@ void SV_AcceptMessage(int protocol)
 		SZ_Clear(&sb);
 		MSG_WriteLong(&sb, 0);
 		MSG_WriteByte(&sb, CCREP_ACCEPT);
-		MSG_WriteLong(&sb, BigShort(net_local_sv_ipadr.port));
+		MSG_WriteLong(&sb, ShortSwap(net_local_sv_ipadr.port));
 		*(int*)sb.data = BigLong(NETFLAG_CTL|sb.cursize);
 		NET_SendPacket(NS_SERVER, sb.cursize, sb.data, net_from);
 		return;
@@ -2081,7 +2081,7 @@ void SVNQ_ConnectionlessPacket(void)
 		return;	//no, start using dp7 instead.
 
 	MSG_BeginReading();
-	header = BigLong(MSG_ReadLong());
+	header = LongSwap(MSG_ReadLong());
 	if (!(header & NETFLAG_CTL))
 		return;	//no idea what it is.
 

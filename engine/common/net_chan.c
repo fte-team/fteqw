@@ -238,14 +238,14 @@ qboolean NQNetChan_Process(netchan_t *chan)
 
 	MSG_BeginReading ();
 
-	header = BigLong(MSG_ReadLong());
+	header = LongSwap(MSG_ReadLong());
 	if (net_message.cursize != (header & NETFLAG_LENGTH_MASK))
 		return false;	//size was wrong, couldn't have been ours.
 
 	if (header & NETFLAG_CTL)
 		return false;	//huh?
 
-	sequence = BigLong(MSG_ReadLong());
+	sequence = LongSwap(MSG_ReadLong());
 
 	if (header & NETFLAG_ACK)
 	{
@@ -364,7 +364,7 @@ void Netchan_Transmit (netchan_t *chan, int length, qbyte *data, int rate)
 		if (i>0)
 		{
 			MSG_WriteLong(&send, 0);
-			MSG_WriteLong(&send, BigLong(chan->reliable_sequence));
+			MSG_WriteLong(&send, LongSwap(chan->reliable_sequence));
 			if (i > MAX_NQDATAGRAM)
 				i = MAX_NQDATAGRAM;
 
@@ -392,7 +392,7 @@ void Netchan_Transmit (netchan_t *chan, int length, qbyte *data, int rate)
 		if (length)
 		{
 			MSG_WriteLong(&send, 0);
-			MSG_WriteLong(&send, BigLong(chan->outgoing_unreliable));
+			MSG_WriteLong(&send, LongSwap(chan->outgoing_unreliable));
 			chan->outgoing_unreliable++;
 
 			SZ_Write (&send, data, length);

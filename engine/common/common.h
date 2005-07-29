@@ -109,6 +109,9 @@ extern	int	(*LittleLong) (int l);
 extern	float	(*BigFloat) (float l);
 extern	float	(*LittleFloat) (float l);
 
+short   ShortSwap (short l);
+int    LongSwap (int l);
+
 //============================================================================
 
 struct usercmd_s;

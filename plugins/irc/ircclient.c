@@ -410,6 +410,8 @@ int IRC_ClientFrame(ircclient_t *irc)
 
 	}
 
+	//Con_SubPrintf("irc",COLOURRED "!!!!! 1: %s 2: %s 3: %s 4: %s 5: %s 6: %s 7: %s 8: %s\n",var[1],var[2],var[3],var[4],var[5],var[6],var[7],var[8]);
+
 	if (*msg == ':')	//we need to strip off the prefix
 	{
 		char *sp = strchr(msg, ' ');
@@ -448,7 +450,7 @@ int IRC_ClientFrame(ircclient_t *irc)
 
 		playsound ("misc/talk.wav");
 
-		if (!stricmp(var[4]+1, "\1VERSION\1"))
+		if ((!stricmp(var[4]+1, "\1VERSION\1")) && (!strncmp(var[2], "PRIVMSG ", 7)))
 		{
 			char *username;
 			char delimiters[] = "!";
@@ -456,6 +458,29 @@ int IRC_ClientFrame(ircclient_t *irc)
 			username = strtok(var[1]+1, delimiters);
 
 			IRC_AddClientMessage(irc, va("NOTICE %s :\1VERSION FTEQW-IRC-Plugin Build ?\1", username));
+		}
+		else if ((!stricmp(var[4]+1, "\1TIME\1")) && (!strncmp(var[2], "PRIVMSG ", 7)))
+		{
+			char delimiters[] = "!";
+			char *username = strtok(var[1]+1, delimiters);
+			time_t t;
+			const struct tm *tm;
+			char buffer[100];
+
+			time(&t);
+			tm=localtime(&t);
+
+			strftime (buffer, 100, "%a %b %d %H:%M:%S", tm);
+
+			IRC_AddClientMessage(irc, va("NOTICE %s :\1TIME %s\1", username, buffer));
+		}
+		else if ((!strncmp(var[4]+1, "\1", 1)) && (!strncmp(var[2], "NOTICE ", 6)))
+		{
+			char delimiters[] = "!";
+			char *username = strtok(var[1]+1, delimiters);
+			char *ctcpreplytype = strtok(var[4]+2, " ");
+			char *ctcpreply = var[5];
+			Con_SubPrintf("irc","<CTCP Reply> %s FROM %s: %s",ctcpreplytype,username,ctcpreply);
 		}
 
 		if (exc && col)
@@ -578,13 +603,14 @@ int IRC_ClientFrame(ircclient_t *irc)
 		char *signontime = strtok(var[6], " ");
 		time_t t;
 		const struct tm *tm;
+		char buffer[100];
 
 		t=strtoul(signontime, 0, 0);
 		tm=localtime(&t);
 
-		//if (tm[strlen-2] = '\n') { tm[strlen-2] = '\0'; } // strip new line
+		strftime (buffer, 100, "%a %b %d %H:%M:%S", tm);
 
-		Con_SubPrintf("irc","WHOIS: <%s> (Idle Time: %s seconds) (Signon Time: %s) \n", username, secondsidle, asctime(tm));
+		Con_SubPrintf("irc","WHOIS: <%s> (Idle Time: %s seconds) (Signon Time: %s) \n", username, secondsidle, buffer);
 	}
 	else if (!strncmp(msg, "318 ", 4)) //end of whois
 	{
@@ -1409,6 +1435,11 @@ void IRC_Command(void)
 		{
 			msg = COM_Parse(msg);
 			IRC_AddClientMessage(ircclient, va("WHOIS :%s",com_token));
+		}
+		else if (!strcmp(com_token+1, "ctcp"))
+		{
+			msg = COM_Parse(msg);
+			IRC_AddClientMessage(ircclient, va("PRIVMSG %s :\1%s\1",com_token,msg+1));
 		}
 		else if (!strcmp(com_token+1, "dest"))
 		{

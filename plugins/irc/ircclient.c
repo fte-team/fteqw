@@ -3,6 +3,8 @@
 #include "../plugin.h"
 #include <time.h>
 
+vmcvar_t	irc_debug = {"irc_debug", "0"};
+
 #define Q_strncpyz(o, i, l) do {strncpy(o, i, l-1);o[l-1]='\0';}while(0)
 
 
@@ -410,7 +412,7 @@ int IRC_ClientFrame(ircclient_t *irc)
 
 	}
 
-	//Con_SubPrintf("irc",COLOURRED "!!!!! 1: %s 2: %s 3: %s 4: %s 5: %s 6: %s 7: %s 8: %s\n",var[1],var[2],var[3],var[4],var[5],var[6],var[7],var[8]);
+	if (irc_debug.value == 1) { Con_SubPrintf("irc",COLOURRED "!!!!! 1: %s 2: %s 3: %s 4: %s 5: %s 6: %s 7: %s 8: %s\n",var[1],var[2],var[3],var[4],var[5],var[6],var[7],var[8]); }
 
 	if (*msg == ':')	//we need to strip off the prefix
 	{
@@ -480,10 +482,10 @@ int IRC_ClientFrame(ircclient_t *irc)
 			char *username = strtok(var[1]+1, delimiters);
 			char *ctcpreplytype = strtok(var[4]+2, " ");
 			char *ctcpreply = var[5];
+
 			Con_SubPrintf("irc","<CTCP Reply> %s FROM %s: %s",ctcpreplytype,username,ctcpreply);
 		}
-
-		if (exc && col)
+		else if (exc && col)
 		{
 			*col = '\0';
 			col++;
@@ -532,6 +534,41 @@ int IRC_ClientFrame(ircclient_t *irc)
 			}
 		}
 		else Con_SubPrintf("irc", COLOURGREEN ":%s%s\n", prefix, msg);	//direct server message
+	}
+	else if (!strncmp(var[2], "MODE ", 5))
+	{
+		char *username = strtok(var[1]+1, "! ");
+		char *mode = strtok(var[4], " ");
+		char *target = strtok(var[5], " ");
+		char channel[100];
+
+		if (!strncmp(var[3], "#", 1))
+		{
+			strcpy(channel,strtok(var[3], " "));
+		}
+		else
+		{
+			strcpy(channel,"irc");
+		}
+
+		if ((!strncmp(mode+1,"o", 1)) || (!strncmp(mode+1,"v",1))) // ops or voice
+		{
+			Con_SubPrintf(channel,COLOURGREEN "%s sets mode %s on %s\n",username,mode,target);
+		}
+		else
+		{
+			Con_SubPrintf(channel,COLOURGREEN "%s sets mode %s\n",username,mode);
+		}
+
+	}
+	else if (!strncmp(var[2], "KICK ", 5))
+	{
+		char *username = strtok(var[1]+1, "!");
+		char *channel = strtok(var[3], " ");
+		char *target = strtok(var[4], " ");
+		char *reason = var[5]+1;
+
+		Con_SubPrintf(channel,COLOURGREEN "%s was kicked from %s Reason: '%s' by %s\n",target,channel,reason,username);
 	}
 	else if (!strncmp(msg, "NICK ", 5))
 	{

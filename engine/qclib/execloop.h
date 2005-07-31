@@ -493,7 +493,7 @@ reeval:
 		if ((fnum & ~0xff000000)==0)
 		{
 			pr_trace++;
-			printf("NULL function from qc (%s).\n", pr_xfunction->s_name);
+			printf("NULL function from qc (%s).\n", progfuncs->stringtable + pr_xfunction->s_name);
 #ifndef DEBUGABLE
 			goto cont;
 #endif

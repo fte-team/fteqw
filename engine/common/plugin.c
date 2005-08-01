@@ -1126,6 +1126,7 @@ void Plug_Init(void)
 	Plug_RegisterBuiltin("Key_GetKeyCode",			Plug_Key_GetKeyCode, 0);
 
 	Plug_RegisterBuiltin("Cvar_Register",			Plug_Cvar_Register, 0);
+	Plug_RegisterBuiltin("Cvar_Update",				Plug_Cvar_Update, 0);
 	Plug_RegisterBuiltin("Cvar_SetString",			Plug_Cvar_SetString, 0);
 	Plug_RegisterBuiltin("Cvar_SetFloat",			Plug_Cvar_SetFloat, 0);
 	Plug_RegisterBuiltin("Cvar_GetString",			Plug_Cvar_GetString, 0);

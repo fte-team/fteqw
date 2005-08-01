@@ -67,10 +67,6 @@ qboolean isDedicated;
 // General routines
 // =======================================================================
 
-void Sys_DebugNumber(int y, int val)
-{
-}
-
 void Sys_Printf (char *fmt, ...)
 {
 	va_list		argptr;

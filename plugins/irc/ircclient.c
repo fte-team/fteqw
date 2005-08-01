@@ -3,7 +3,21 @@
 #include "../plugin.h"
 #include <time.h>
 
-vmcvar_t	irc_debug = {"irc_debug", "0"};
+#define irccvars "IRC Console Variables"
+vmcvar_t	irc_debug = {"irc_debug", "1", irccvars, 0};
+vmcvar_t	irc_motd = {"irc_motd", "0", irccvars, 0};
+vmcvar_t	irc_nick = {"irc_nick", "anonymous", irccvars, 0};
+vmcvar_t	irc_altnick = {"irc_altnick", "unnamed", irccvars, 0};
+vmcvar_t	irc_realname = {"irc_realname", "FTE IRC-Plugin http://fteqw.sf.net", irccvars, 0};
+vmcvar_t	irc_ident = {"irc_ident", "FTE", irccvars, 0};
+vmcvar_t	irc_timestamp = {"irc_timestamp", "0", irccvars, 0};
+#undef irccvars
+
+vmcvar_t	*cvarlist[] ={
+	&irc_debug,
+	&irc_motd
+};
+
 
 #define Q_strncpyz(o, i, l) do {strncpy(o, i, l-1);o[l-1]='\0';}while(0)
 
@@ -122,6 +136,23 @@ void Con_SubPrintf(char *subname, char *format, ...)
 
 void IRC_Command(void);
 
+void IRC_InitCvars(void)
+{
+	vmcvar_t *v;
+	int i;
+	for (v = cvarlist[0],i=0; i < sizeof(cvarlist)/sizeof(cvarlist[0]); v++, i++)
+		v->handle = Cvar_Register(v->name, v->string, v->flags, v->group);
+}
+
+int IRC_CvarUpdate(int *args) // perhaps void instead?
+{
+	vmcvar_t *v;
+	int i;
+	for (v = cvarlist[0],i=0; i < sizeof(cvarlist)/sizeof(cvarlist[0]); v++, i++)
+		v->modificationcount = Cvar_Update(v->handle, v->modificationcount, v->string, &v->value);
+	return 0;
+}
+
 int IRC_ExecuteCommand(int *args)
 {
 	char cmd[8];
@@ -146,6 +177,8 @@ int Plug_Init(int *args)
 		Con_Print("IRC Client Plugin Loaded\n");
 	else
 		Con_Print("IRC Client Plugin failed\n");
+
+	IRC_InitCvars();
 	return 0;
 }
 
@@ -412,6 +445,9 @@ int IRC_ClientFrame(ircclient_t *irc)
 
 	}
 
+	//IRC_CvarUpdate(); // is this the right place for it?
+
+	// below this I want to work.. if (Cvar_GetFloat("irc_debug") == 1) doesn't work either.
 	if (irc_debug.value == 1) { Con_SubPrintf("irc",COLOURRED "!!!!! 1: %s 2: %s 3: %s 4: %s 5: %s 6: %s 7: %s 8: %s\n",var[1],var[2],var[3],var[4],var[5],var[6],var[7],var[8]); }
 
 	if (*msg == ':')	//we need to strip off the prefix
@@ -441,7 +477,63 @@ int IRC_ClientFrame(ircclient_t *irc)
 	{
 		IRC_AddClientMessage(irc, va("PONG %s", var[2]));
 	}
-	else if (!strncmp(var[2], "PRIVMSG ", 7) || !strncmp(var[2], "NOTICE ", 6))	//no autoresponses to notice please, and any autoresponses should be in the form of a notice
+	else if (!strncmp(var[2], "NOTICE ", 6))
+	{
+		char *exc = strchr(prefix, '!');
+		char *col = strchr(msg+6, ':');
+		char *end;
+		char *to = msg + 7;
+		char *servernotice = var[4]+1;
+
+		if (!strncmp(var[4]+1, "\1", 1))
+		{
+			char delimiters[] = "!";
+			char *username = strtok(var[1]+1, delimiters);
+			char *ctcpreplytype = strtok(var[4]+2, " ");
+			char *ctcpreply = var[5];
+
+			Con_SubPrintf("irc","<CTCP Reply> %s FROM %s: %s",ctcpreplytype,username,ctcpreply);
+		}
+		else if (exc && col)
+		{
+			*col = '\0';
+			col++;
+
+			while(*to <= ' ' && *to)
+				to++;
+			for (end = to + strlen(to)-1; end >= to && *end <= ' '; end--)
+				*end = '\0';
+			if (!strcmp(to, irc->nick))
+				to = prefix;	//This was directed straight at us.
+								//So change the 'to', to the 'from'.
+
+			for (end = to; *end; end++)
+			{
+				if (*end >= 'A' && *end <= 'Z')
+					*end = *end + 'a' - 'A';
+			}
+
+			*exc = '\0';
+			if (!strncmp(col, "\001", 1))
+			{
+				end = strchr(col+1, '\001');
+				if (end)
+					*end = '\0';
+				if (!strncmp(col+1, "ACTION ", 7))
+				{
+					IRC_FilterMircColours(col+8);
+					Con_SubPrintf(to, COLOURGREEN "***%s "COLORWHITE"%s\n", prefix, col+8);	//from client
+				}
+			}
+			else
+			{
+				IRC_FilterMircColours(col);
+				Con_SubPrintf("irc", COLOURGREEN "NOTICE: -%s- %s\n", prefix, col);	//from client
+			}
+		}
+		else Con_SubPrintf("irc", COLOURGREEN "SERVER NOTICE: <%s> %s\n", prefix, servernotice);	//direct server message
+	}
+	else if (!strncmp(var[2], "PRIVMSG ", 7))	//no autoresponses to notice please, and any autoresponses should be in the form of a notice
 	{
 		char *exc = strchr(prefix, '!');
 		char *col = strchr(msg+6, ':');
@@ -475,15 +567,6 @@ int IRC_ClientFrame(ircclient_t *irc)
 			strftime (buffer, 100, "%a %b %d %H:%M:%S", tm);
 
 			IRC_AddClientMessage(irc, va("NOTICE %s :\1TIME %s\1", username, buffer));
-		}
-		else if ((!strncmp(var[4]+1, "\1", 1)) && (!strncmp(var[2], "NOTICE ", 6)))
-		{
-			char delimiters[] = "!";
-			char *username = strtok(var[1]+1, delimiters);
-			char *ctcpreplytype = strtok(var[4]+2, " ");
-			char *ctcpreply = var[5];
-
-			Con_SubPrintf("irc","<CTCP Reply> %s FROM %s: %s",ctcpreplytype,username,ctcpreply);
 		}
 		else if (exc && col)
 		{
@@ -533,7 +616,7 @@ int IRC_ClientFrame(ircclient_t *irc)
 				Con_SubPrintf(to, COLOURGREEN "%s: %s\n", prefix, col);	//from client
 			}
 		}
-		else Con_SubPrintf("irc", COLOURGREEN ":%s%s\n", prefix, msg);	//direct server message
+		else Con_SubPrintf("irc", COLOURGREEN "SERVER: <%s> %s\n", prefix, msg);	//direct server message
 	}
 	else if (!strncmp(var[2], "MODE ", 5))
 	{
@@ -616,6 +699,9 @@ int IRC_ClientFrame(ircclient_t *irc)
 	else if ((!strncmp(msg, "251 ", 4)) || (!strncmp(msg, "252 ", 4)) || (!strncmp(msg, "254 ", 4)) || (!strncmp(msg, "255 ", 4)) || (!strncmp(msg, "265 ", 4)) || (!strncmp(msg, "266 ", 4)) || (!strncmp(msg, "422 ", 4))) //useless info about local users, server users, connected servers, motd missing
 	{
 	}
+	else if (!strncmp(msg, "301 ", 4)) // afk
+	{
+	}
 	else if (!strncmp(msg, "311 ", 4)) // Whois
 	{
 		char *username = strtok(var[4], " ");
@@ -650,6 +736,9 @@ int IRC_ClientFrame(ircclient_t *irc)
 		Con_SubPrintf("irc","WHOIS: <%s> (Idle Time: %s seconds) (Signon Time: %s) \n", username, secondsidle, buffer);
 	}
 	else if (!strncmp(msg, "318 ", 4)) //end of whois
+	{
+	}
+	else if (!strncmp(msg, "319 ", 4)) // channels whois in
 	{
 	}
 	else if (!strncmp(msg, "322 ", 4))	//channel listing
@@ -1464,7 +1553,7 @@ void IRC_Command(void)
 		{
 			IRC_AddClientMessage(ircclient, va("%s", msg));
 		}
-		else if (!strcmp(com_token+1, "quit"))
+		else if (!strcmp(com_token+1, "quit") || !strcmp(com_token+1, "disconnect"))
 		{
 			IRC_AddClientMessage(ircclient, va("QUIT :FTE QuakeWorld IRC-Plugin http://fteqw.sf.net"));
 		}
@@ -1472,6 +1561,15 @@ void IRC_Command(void)
 		{
 			msg = COM_Parse(msg);
 			IRC_AddClientMessage(ircclient, va("WHOIS :%s",com_token));
+		}
+		else if (!strcmp(com_token+1, "away"))
+		{
+			msg = COM_Parse(msg);
+			IRC_AddClientMessage(ircclient, va("AWAY :%s",com_token));
+		}
+		else if (!strcmp(com_token+1, "motd"))
+		{
+			IRC_AddClientMessage(ircclient, "MOTD");
 		}
 		else if (!strcmp(com_token+1, "ctcp"))
 		{
@@ -1486,6 +1584,11 @@ void IRC_Command(void)
 		else if (!strcmp(com_token+1, "ping"))
 		{
 			IRC_AddClientMessage(ircclient, va("PRIVMSG %s :\001PING%s\001", ircclient->defaultdest, msg));
+		}
+		else if (!strcmp(com_token+1, "notice"))
+		{
+			msg = COM_Parse(msg);
+			IRC_AddClientMessage(ircclient, va("NOTICE %s :%s",com_token, msg+1));
 		}
 		else if (!strcmp(com_token+1, "me"))
 		{

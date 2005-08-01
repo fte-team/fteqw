@@ -243,6 +243,8 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 #define PLATFORM	"OpenBSD"
 #elif defined(__NetBSD__)
 #define PLATFORM	"NetBSD"
+#elif defined(__MORPHOS__)
+#define PLATFORM	"MorphOS"
 #else
 #define PLATFORM	"Unknown"
 #endif

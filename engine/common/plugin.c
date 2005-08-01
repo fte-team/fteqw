@@ -9,7 +9,9 @@
 cvar_t plug_sbar = {"plug_sbar", "1"};
 cvar_t plug_loaddefault = {"plug_loaddefault", "1"};
 
+#ifdef RGLQUAKE
 #include "glquake.h"
+#endif
 
 typedef struct plugin_s {
 	char *name;
@@ -815,8 +817,13 @@ int Plug_Con_RenameSub(void *offset, unsigned int mask, const long *arg)
 
 #include <unistd.h>
 
+#ifdef __MORPHOS__
+#define closesocket CloseSocket
+#define ioctlsocket IoctlSocket
+#else
 #define closesocket close
 #define ioctlsocket ioctl
+#endif
 #endif
 
 typedef enum{

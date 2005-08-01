@@ -968,14 +968,13 @@ char *ED_NewString (progfuncs_t *progfuncs, char *string, int minlength)
 	minlength++;
 	
 	l = strlen(string) + 1;
-	if (l < minlength)
-		l = minlength;
-	new = PRAddressableAlloc (progfuncs, l);
+
+	new = PRAddressableAlloc (progfuncs, l<minlength?minlength:l);
 	new_p = new;
 
 	for (i=0 ; i< l ; i++)
 	{
-		if (string[i] == '\\' && i < l-1)
+		if (string[i] == '\\' && i < l-1 && string[i+1] != 0)
 		{
 			i++;
 			if (string[i] == 'n')

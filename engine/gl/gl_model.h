@@ -371,6 +371,7 @@ typedef struct hull_s
 
 void Q1BSP_SetHullFuncs(hull_t *hull);
 qboolean Q1BSP_Trace(struct model_s *model, int forcehullnum, int frame, vec3_t start, vec3_t end, vec3_t mins, vec3_t maxs, struct trace_s *trace);
+qboolean Q1BSP_RecursiveHullCheck (hull_t *hull, int num, float p1f, float p2f, vec3_t p1, vec3_t p2, trace_t *trace);
 void Q1BSP_FatPVS (vec3_t org, qboolean add);
 qboolean Q1BSP_EdictInFatPVS(struct edict_s *ent);
 void Q1BSP_FindTouchedLeafs(struct edict_s *ent);

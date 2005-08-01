@@ -31,7 +31,7 @@ void D_InitTrans(void)
 #define Trans(p, p2)	(t_curlookupp[p][p2])
 #else
 // TODO: INLINE THESE FUNCTIONS
-qbyte _fastcall Trans(qbyte p, qbyte p2)
+qbyte FASTCALL Trans(qbyte p, qbyte p2)
 {	
 	int x;
 
@@ -41,7 +41,7 @@ qbyte _fastcall Trans(qbyte p, qbyte p2)
 }
 #endif
 
-qbyte _fastcall AddBlend(qbyte p, qbyte p2)
+qbyte FASTCALL AddBlend(qbyte p, qbyte p2)
 {
 	int x, y;
 

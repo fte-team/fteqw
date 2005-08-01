@@ -125,11 +125,17 @@ extern void (*d_drawspans) (espan_t *pspan);
 #define TRANS_UPPER_CAP (TRANS_MAX / (TRANS_LEVELS + 0.0))
 #define TRANS_LOWER_CAP (1.0 / TRANS_LEVELS)
 
+#ifdef _fastcall
+#define FASTCALL _fastcall
+#else
+#define FASTCALL
+#endif
+
 void D_InitTrans(void);
 // void Set_TransLevelI(int level);
 void D_SetTransLevel(float level, blendmode_t blend);
-extern qbyte _fastcall Trans(qbyte p, qbyte p2);
-extern qbyte _fastcall AddBlend(qbyte p, qbyte p2);
+extern qbyte FASTCALL Trans(qbyte p, qbyte p2);
+extern qbyte FASTCALL AddBlend(qbyte p, qbyte p2);
 
 extern qbyte *pal555to8;
 #endif

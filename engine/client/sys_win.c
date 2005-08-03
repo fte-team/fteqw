@@ -1015,7 +1015,6 @@ int WINAPI WinMain (HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLin
 		cwd[Q_strlen(cwd)-1] = 0;
 
 	parms.basedir = cwd;
-	parms.cachedir = NULL;
 
 	parms.argc = com_argc;
 	parms.argv = com_argv;

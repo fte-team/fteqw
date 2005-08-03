@@ -210,7 +210,6 @@ int main(int argc, char **argv)
 	parms.argv = argv;
 
 	parms.basedir = ".";
-	parms.cachedir = NULL;
 
 	parms.argc = argc;
 	parms.argv = argv;

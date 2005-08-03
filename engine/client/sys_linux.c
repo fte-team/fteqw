@@ -50,7 +50,6 @@ int noconinput = 0;
 int nostdout = 0;
 
 char *basedir = ".";
-char *cachedir = "/tmp";
 
 qboolean Sys_InitTerminal (void)	//we either have one or we don't.
 {
@@ -401,8 +400,6 @@ int main (int c, char **v)
 	parms.membase = malloc (parms.memsize);
 
 	parms.basedir = basedir;
-// caching is disabled by default, use -cachedir to enable
-//	parms.cachedir = cachedir;
 
 	noconinput = COM_CheckParm("-noconinput");
 	if (!noconinput)

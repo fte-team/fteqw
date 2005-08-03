@@ -130,12 +130,22 @@ void Sys_UnloadDLL(void *handle)
 	}
 }
 #else
+#ifdef __MORPHOS__
+#include <proto/dynload.h>
+#else
 #include <dlfcn.h>
+#endif
+
 void *Sys_LoadDLL(const char *name, void **vmMain, int (EXPORT_FN *syscall)(int arg, ... ))
 {
 	void (*dllEntry)(int (EXPORT_FN *syscall)(int arg, ... ));
 	char dllname[MAX_OSPATH];
 	void *hVM;
+	
+#ifdef __MORPHOS__
+	if (DynLoadBase == 0)
+		return 0;
+#endif
 
 	sprintf(dllname, "%sx86.so", name);
 
@@ -151,6 +161,7 @@ void *Sys_LoadDLL(const char *name, void **vmMain, int (EXPORT_FN *syscall)(int 
 			if (!gpath)
 				return NULL;		// couldn't find one anywhere
 			_snprintf (name, sizeof(name), "%s/%s", gpath, dllname);
+
 			hVM = dlopen (name, RTLD_NOW);
 			if (hVM)
 			{

@@ -1,6 +1,8 @@
 #include "quakedef.h"
-#if defined(RGLQUAKE) || defined(SERVERONLY)
+#ifdef RGLQUAKE
 #include "glquake.h"
+#endif
+#if defined(RGLQUAKE) || defined(SERVERONLY)
 #include "shader.h"
 #include "hash.h"
 

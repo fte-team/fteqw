@@ -1362,6 +1362,20 @@ void CL_RotateAroundTag(entity_t *ent, int num, int tagent, int tagnum)
 	}
 }
 
+void V_AddAxisEntity(entity_t *in)
+{
+	entity_t *ent;
+
+	if (cl_numvisedicts == MAX_VISEDICTS)
+	{
+		Con_Printf("Visedict list is full!\n");
+		return;		// object list is full
+	}
+	ent = &cl_visedicts[cl_numvisedicts];
+	cl_numvisedicts++;
+
+	*ent = *in;
+}
 void V_AddEntity(entity_t *in)
 {
 	entity_t *ent;

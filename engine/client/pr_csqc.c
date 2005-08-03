@@ -21,6 +21,8 @@ static unsigned int csqcchecksum;
 static qboolean csqcwantskeys;
 static csqctreadstate_t *csqcthreads;
 qboolean csqc_resortfrags;
+qboolean csqc_drawsbar;
+qboolean csqc_addcrosshair;
 
 cvar_t	pr_csmaxedicts = {"pr_csmaxedicts", "3072"};
 cvar_t	cl_csqcdebug = {"cl_csqcdebug", "0"};	//prints entity numbers which arrive (so I can tell people not to apply it to players...)
@@ -37,6 +39,8 @@ cvar_t	cl_csqcdebug = {"cl_csqcdebug", "0"};	//prints entity numbers which arriv
 	\
 	globalfunction(ent_update,			"CSQC_Ent_Update");	\
 	globalfunction(ent_remove,			"CSQC_Ent_Remove");	\
+	\
+	globalfunction(serversound,			"CSQC_ServerSound");	\
 	\
 	/*These are pointers to the csqc's globals.*/	\
 	globalfloat(time,					"time");				/*float		Written before entering most qc functions*/	\
@@ -68,6 +72,8 @@ cvar_t	cl_csqcdebug = {"cl_csqcdebug", "0"};	//prints entity numbers which arriv
 	globalvector(pmove_vel,				"pmove_vel");			\
 	globalvector(pmove_mins,			"pmove_mins");			\
 	globalvector(pmove_maxs,			"pmove_maxs");			\
+	globalfloat(pmove_jump_held,		"pmove_jump_held");		\
+	globalfloat(pmove_waterjumptime,		"pmove_waterjumptime");	\
 	globalfloat(input_timelength,		"input_timelength");	\
 	globalvector(input_angles,			"input_angles");		\
 	globalvector(input_movevalues,		"input_movevalues");	\
@@ -146,11 +152,14 @@ static void CSQC_FindGlobals(void)
 	fieldfloat(fatness);	/*expand models X units along thier normals.*/	\
 	fieldfloat(skin);		\
 	fieldfloat(colormap);	\
-	fieldfloat(frame);		\
 	fieldfloat(flags);		\
-	fieldfloat(oldframe);	\
+	fieldfloat(frame);		\
+	fieldfloat(frame2);		\
+	fieldfloat(frame1time);	\
+	fieldfloat(frame2time);	\
 	fieldfloat(lerpfrac);	\
 	fieldfloat(renderflags);\
+	fieldfloat(forceshader);\
 							\
 	fieldfloat(drawmask);	/*So that the qc can specify all rockets at once or all bannanas at once*/	\
 	fieldfunction(predraw);	/*If present, is called just before it's drawn.*/	\
@@ -164,7 +173,7 @@ static void CSQC_FindGlobals(void)
 	fieldentity(chain);		\
 	fieldentity(groundentity);	\
 							\
-	fieldvector(solid);		\
+	fieldfloat(solid);		\
 	fieldvector(mins);		\
 	fieldvector(maxs);		\
 	fieldvector(absmins);	\
@@ -196,6 +205,7 @@ typedef struct csqcedict_s
 	csqcentvars_t	*v;
 
 	//add whatever you wish here
+	trailstate_t *trailstate;
 } csqcedict_t;
 
 static csqcedict_t *csqc_edicts;	//consider this 'world'
@@ -216,7 +226,8 @@ csqcfields	//any *64->int32 casts are erroneous, it's biased off NULL.
 #undef fieldfunction
 }
 
-static csqcedict_t *csqcent[MAX_EDICTS];
+static csqcedict_t **csqcent;
+static int maxcsqcentities;
 
 #define	RETURN_SSTRING(s) (((string_t *)pr_globals)[OFS_RETURN] = PR_SetString(prinst, s))	//static - exe will not change it.
 char *PF_TempStr(progfuncs_t *prinst);
@@ -299,6 +310,7 @@ void PF_infoget (progfuncs_t *prinst, struct globalvars_s *pr_globals);
 void PF_strncmp (progfuncs_t *prinst, struct globalvars_s *pr_globals);
 void PF_strcasecmp (progfuncs_t *prinst, struct globalvars_s *pr_globals);
 void PF_strncasecmp (progfuncs_t *prinst, struct globalvars_s *pr_globals);
+void PF_strpad (progfuncs_t *prinst, struct globalvars_s *pr_globals);
 
 //these functions are from pr_menu.dat
 void PF_CL_is_cached_pic (progfuncs_t *prinst, struct globalvars_s *pr_globals);
@@ -328,14 +340,14 @@ void PF_search_getfilename (progfuncs_t *prinst, struct globalvars_s *pr_globals
 
 void PF_fclose_progs (progfuncs_t *prinst);
 char *PF_VarString (progfuncs_t *prinst, int	first, struct globalvars_s *pr_globals);
+int QCEditor (progfuncs_t *prinst, char *filename, int line, int nump, char **parms);
 
 
 
 
 
 
-
-void CL_CS_LinkEdict(csqcedict_t *ent)
+void CL_CS_LinkEdict(csqcedict_t *ent, qboolean touchtriggers)
 {
 	//FIXME: use some sort of area grid ?
 	VectorAdd(ent->v->origin, ent->v->mins, ent->v->absmins);
@@ -354,7 +366,7 @@ trace_t CL_Move(vec3_t v1, vec3_t mins, vec3_t maxs, vec3_t v2, float nomonsters
 
 	memset(&trace, 0, sizeof(trace));
 	trace.fraction = 1;
-	cl.worldmodel->funcs.Trace(cl.worldmodel, 0, 0, v1, v2, vec3_origin, vec3_origin, &trace);
+	cl.worldmodel->funcs.Trace(cl.worldmodel, 0, 0, v1, v2, mins, maxs, &trace);
 
 //why use trace.endpos instead?
 //so that if we hit a wall early, we don't have a box covering the whole world because of a shotgun trace.
@@ -406,6 +418,8 @@ static void PF_cs_remove (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 		Con_DPrintf("CSQC Tried removing free entity\n");
 		return;
 	}
+
+	P_DelinkTrailstate(&ed->trailstate);
 
 	ED_Free (prinst, (void*)ed);
 }
@@ -517,15 +531,129 @@ void EularToQuaternian(vec3_t angles, float *quat)
 #define CSQCRF_VIEWMODEL		1 //Not drawn in mirrors
 #define CSQCRF_EXTERNALMODEL	2 //drawn ONLY in mirrors
 #define CSQCRF_DEPTHHACK		4 //fun depthhack
-#define CSQCRF_ADDATIVE			8 //add instead of blend
+#define CSQCRF_ADDITIVE			8 //add instead of blend
 #define CSQCRF_USEAXIS			16 //use v_forward/v_right/v_up as an axis/matrix - predraw is needed to use this properly
+#define CSQCRF_NOSHADOW			32 //don't cast shadows upon other entities (can still be self shadowing, if the engine wishes, and not additive)
 
-void PF_R_AddEntity(progfuncs_t *prinst, struct globalvars_s *pr_globals)
+static model_t *CSQC_GetModelForIndex(int index)
+{
+	if (index == 0)
+		return NULL;
+	else if (index > 0 && index < MAX_MODELS)
+		return cl.model_precache[index];
+	else if (index < 0 && index > -MAX_CSQCMODELS)
+		return cl.model_csqcprecache[-index];
+	else
+		return NULL;
+}
+
+static qboolean CopyCSQCEdictToEntity(csqcedict_t *in, entity_t *out)
+{
+	int i;
+	model_t *model;
+
+	i = in->v->modelindex;
+	if (i == 0)
+		return false;
+	else if (i > 0 && i < MAX_MODELS)
+		model = cl.model_precache[i];
+	else if (i < 0 && i > -MAX_CSQCMODELS)
+		model = cl.model_csqcprecache[-i];
+	else
+		return false; //there might be other ent types later as an extension that stop this.
+
+	if (!model)
+	{
+		Con_Printf("CopyCSQCEdictToEntity: model wasn't precached!\n");
+		return false;
+	}
+
+	memset(out, 0, sizeof(*out));
+	out->model = model;
+
+	if (in->v->renderflags)
+	{
+		i = in->v->renderflags;
+		if (i & CSQCRF_VIEWMODEL)
+			out->flags |= Q2RF_DEPTHHACK;
+		if (i & CSQCRF_EXTERNALMODEL)
+			out->flags |= Q2RF_EXTERNALMODEL;
+		if (i & CSQCRF_DEPTHHACK)
+			out->flags |= Q2RF_DEPTHHACK;
+		if (i & CSQCRF_ADDITIVE)
+			out->flags |= Q2RF_ADDATIVE;
+		//CSQCRF_USEAXIS is below
+		if (i & CSQCRF_NOSHADOW)
+			out->flags |= RF_NOSHADOW;
+	}
+	
+	out->frame = in->v->frame;
+	out->oldframe = in->v->frame2;
+	out->lerpfrac = in->v->lerpfrac;
+	VectorCopy(in->v->origin, out->origin);
+	if ((int)in->v->renderflags & CSQCRF_USEAXIS)
+	{
+		VectorCopy(csqcg.forward, out->axis[0]);
+		VectorNegate(csqcg.right, out->axis[1]);
+		VectorCopy(csqcg.up, out->axis[2]);
+	}
+	else
+	{
+		VectorCopy(in->v->angles, out->angles);
+		out->angles[0]*=-1;
+		AngleVectors(out->angles, out->axis[0], out->axis[1], out->axis[2]);
+		VectorInverse(out->axis[1]);
+	}
+
+	out->frame1time = in->v->frame1time;
+	out->frame2time = in->v->frame2time;
+
+	if (!in->v->alpha)
+		out->alpha = 1;
+	else
+		out->alpha = in->v->alpha;
+	if (!in->v->scale)
+		out->scale = 1;
+	else
+		out->scale = in->v->scale;
+	out->skinnum = in->v->skin;
+	out->fatness = in->v->fatness;
+#ifdef Q3SHADERS
+	out->forcedshader = *(int*)&in->v->forceshader;
+#endif
+
+	out->keynum = -1;
+
+	return true;
+}
+
+static void PF_cs_makestatic (progfuncs_t *prinst, struct globalvars_s *pr_globals)
+{	//still does a remove.
+	csqcedict_t *in = (void*)G_EDICT(prinst, OFS_PARM0);
+	entity_t *ent;
+
+	if (cl.num_statics >= MAX_STATIC_ENTITIES)
+	{
+		Con_Printf ("Too many static entities");
+
+		PF_cs_remove(prinst, pr_globals);
+		return;
+	}
+
+	ent = &cl_static_entities[cl.num_statics];
+	if (CopyCSQCEdictToEntity(in, ent))
+	{
+		cl.num_statics++;
+		R_AddEfrags(ent);
+	}
+
+	PF_cs_remove(prinst, pr_globals);
+}
+
+static void PF_R_AddEntity(progfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
 	csqcedict_t *in = (void*)G_EDICT(prinst, OFS_PARM0);
 	entity_t ent;
-	int i;
-	model_t *model;
 
 	if (in->v->predraw)
 	{
@@ -533,68 +661,13 @@ void PF_R_AddEntity(progfuncs_t *prinst, struct globalvars_s *pr_globals)
 		*csqcg.self = EDICT_TO_PROG(prinst, (void*)in);
 		PR_ExecuteProgram(prinst, in->v->predraw);
 		*csqcg.self = oldself;
+
+		if (in->isfree)
+			return;	//bummer...
 	}
 
-	i = in->v->modelindex;
-	if (i == 0)
-		return;
-	else if (i > 0 && i < MAX_MODELS)
-		model = cl.model_precache[i];
-	else if (i < 0 && i > -MAX_CSQCMODELS)
-		model = cl.model_csqcprecache[-i];
-	else
-		return; //there might be other ent types later as an extension that stop this.
-
-	memset(&ent, 0, sizeof(ent));
-	ent.model = model;
-
-	if (!ent.model)
-	{
-		Con_Printf("PF_R_AddEntity: model wasn't precached!\n");
-		return;
-	}
-
-	if (in->v->renderflags)
-	{
-		i = in->v->renderflags;
-		if (i & CSQCRF_VIEWMODEL)
-			ent.flags |= Q2RF_WEAPONMODEL;
-		if (i & CSQCRF_EXTERNALMODEL)
-			ent.flags |= Q2RF_EXTERNALMODEL;
-		if (i & CSQCRF_DEPTHHACK)
-			ent.flags |= Q2RF_DEPTHHACK;
-		if (i & CSQCRF_ADDATIVE)
-			ent.flags |= Q2RF_ADDATIVE;
-		//CSQCRF_USEAXIS is below
-	}
-	
-	ent.frame = in->v->frame;
-	ent.oldframe = in->v->oldframe;
-	ent.lerpfrac = in->v->lerpfrac;
-
-	ent.angles[0] = in->v->angles[0];
-	ent.angles[1] = in->v->angles[1];
-	ent.angles[2] = in->v->angles[2];
-
-	VectorCopy(in->v->origin, ent.origin);
-	if ((int)in->v->renderflags & CSQCRF_USEAXIS)
-	{
-		VectorCopy(csqcg.forward, ent.axis[0]);
-		VectorNegate(csqcg.right, ent.axis[1]);
-		VectorCopy(csqcg.up, ent.axis[2]);
-	}
-	else
-	{
-		AngleVectors(ent.angles, ent.axis[0], ent.axis[1], ent.axis[2]);
-		VectorInverse(ent.axis[1]);
-	}
-
-	ent.alpha = in->v->alpha;
-	ent.scale = in->v->scale;
-	ent.skinnum = in->v->skin;
-	ent.fatness = in->v->fatness;
-
-	V_AddEntity(&ent);
+	if (CopyCSQCEdictToEntity(in, &ent))
+		V_AddAxisEntity(&ent);
 
 /*
 	{
@@ -697,6 +770,9 @@ static void PF_R_ClearScene (progfuncs_t *prinst, struct globalvars_s *pr_global
 	r_refdef.fov_x = scr_fov.value;
 	r_refdef.fov_y = CalcFov (r_refdef.fov_x, r_refdef.vrect.width, r_refdef.vrect.height);
 	*/
+
+	csqc_addcrosshair = false;
+	csqc_drawsbar = false;
 }
 
 typedef enum 
@@ -705,8 +781,8 @@ typedef enum
 	VF_MIN_X = 2,
 	VF_MIN_Y = 3,
 	VF_SIZE = 4,
-	VF_SIZE_Y = 5,
-	VF_SIZE_X = 6,
+	VF_SIZE_X = 5,
+	VF_SIZE_Y = 6,
 	VF_VIEWPORT = 7,
 	VF_FOV = 8,
 	VF_FOVX = 9,
@@ -719,6 +795,9 @@ typedef enum
 	VF_ANGLES_X = 16,
 	VF_ANGLES_Y = 17,
 	VF_ANGLES_Z = 18,
+	VF_DRAWWORLD = 19,
+	VF_NOENGINESBAR = 20,
+	VF_DRAWCROSSHAIR = 21,
 	VF_PERSPECTIVE = 200
 } viewflags;
 
@@ -792,6 +871,16 @@ static void PF_R_SetViewFlag(progfuncs_t *prinst, struct globalvars_s *pr_global
 		r_refdef.vrect.y = p[1];
 		break;
 
+	case VF_DRAWWORLD:
+		r_refdef.flags = r_refdef.flags&~Q2RDF_NOWORLDMODEL | (*p?0:Q2RDF_NOWORLDMODEL);
+		break;
+	case VF_NOENGINESBAR:
+		csqc_drawsbar = !*p;
+		break;
+	case VF_DRAWCROSSHAIR:
+		csqc_addcrosshair = *p;
+		break;
+
 	case VF_PERSPECTIVE:
 		r_refdef.useperspective = *p;
 		break;
@@ -841,6 +930,11 @@ static void PF_R_RenderScene(progfuncs_t *prinst, struct globalvars_s *pr_global
 #endif
 
 	vid.recalc_refdef = 1;
+
+	if (csqc_drawsbar)
+		Sbar_Draw();
+	if (csqc_addcrosshair)
+		Draw_Crosshair();
 }
 
 static void PF_cs_getstatf(progfuncs_t *prinst, struct globalvars_s *pr_globals)
@@ -889,19 +983,19 @@ static void PF_cs_SetOrigin(progfuncs_t *prinst, struct globalvars_s *pr_globals
 
 	VectorCopy(org, ent->v->origin);
 
-	CL_CS_LinkEdict(ent);
+	CL_CS_LinkEdict(ent, false);
 }
 
 static void PF_cs_SetSize(progfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
 	csqcedict_t *ent = (void*)G_EDICT(prinst, OFS_PARM0);
 	float *mins = G_VECTOR(OFS_PARM1);
-	float *maxs = G_VECTOR(OFS_PARM1);
+	float *maxs = G_VECTOR(OFS_PARM2);
 
 	VectorCopy(mins, ent->v->mins);
 	VectorCopy(maxs, ent->v->maxs);
 
-	CL_CS_LinkEdict(ent);
+	CL_CS_LinkEdict(ent, false);
 }
 
 static void PF_cs_traceline(progfuncs_t *prinst, struct globalvars_s *pr_globals)
@@ -1199,6 +1293,19 @@ static void PF_cs_pointparticles (progfuncs_t *prinst, struct globalvars_s *pr_g
 	P_RunParticleEffectType(org, vel, count, effectnum);
 }
 
+static void PF_cs_trailparticles (progfuncs_t *prinst, struct globalvars_s *pr_globals)
+{
+	int efnum = G_FLOAT(OFS_PARM0)-1;
+	csqcedict_t *ent = (csqcedict_t*)G_EDICT(prinst, OFS_PARM1);
+	float *start = G_VECTOR(OFS_PARM2);
+	float *end = G_VECTOR(OFS_PARM3);
+
+	if (!ent->entnum)	//world trails are non-state-based.
+		P_ParticleTrail(start, end, efnum, NULL);
+	else
+		P_ParticleTrail(start, end, efnum, &ent->trailstate);
+}
+
 static void PF_cs_particlesloaded (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
 	char *effectname = PR_GetStringOfs(prinst, OFS_PARM0);
@@ -1252,6 +1359,9 @@ static void PF_cs_runplayerphysics (progfuncs_t *prinst, struct globalvars_s *pr
 	int msecs;
 	extern vec3_t	player_mins;
 	extern vec3_t	player_maxs;
+
+	if (!cl.worldmodel)
+		return;	//urm..
 /*
 	int			sequence;	// just for debugging prints
 
@@ -1307,12 +1417,18 @@ typedef struct {
 	pmove.sequence = *csqcg.clientcommandframe;
 	pmove.pm_type = PM_NORMAL;
 
+	pmove.jump_msec = 0;//(cls.z_ext & Z_EXT_PM_TYPE) ? 0 : from->jump_msec;
+	if (csqcg.pmove_jump_held)
+		pmove.jump_held = *csqcg.pmove_jump_held;
+	if (csqcg.pmove_waterjumptime)
+		pmove.waterjumptime = *csqcg.pmove_waterjumptime;
+
 //set up the movement command
 	msecs = *csqcg.input_timelength*1000 + 0.5f;
 	//precision inaccuracies. :(
-	pmove.angles[0] = ANGLE2SHORT(csqcg.input_angles[0]);
-	pmove.angles[1] = ANGLE2SHORT(csqcg.input_angles[1]);
-	pmove.angles[2] = ANGLE2SHORT(csqcg.input_angles[2]);
+	pmove.cmd.angles[0] = ANGLE2SHORT(csqcg.input_angles[0]);
+	pmove.cmd.angles[1] = ANGLE2SHORT(csqcg.input_angles[1]);
+	pmove.cmd.angles[2] = ANGLE2SHORT(csqcg.input_angles[2]);
 	pmove.cmd.forwardmove = csqcg.input_movevalues[0];
 	pmove.cmd.sidemove = csqcg.input_movevalues[1];
 	pmove.cmd.upmove = csqcg.input_movevalues[2];
@@ -1333,7 +1449,10 @@ typedef struct {
 		PM_PlayerMove(1);
 	}
 
-
+	if (csqcg.pmove_jump_held)
+		*csqcg.pmove_jump_held = pmove.jump_held;
+	if (csqcg.pmove_waterjumptime)
+		*csqcg.pmove_waterjumptime = pmove.waterjumptime;
 	VectorCopy(pmove.origin, csqcg.pmove_org);
 	VectorCopy(pmove.velocity, csqcg.pmove_vel);
 }
@@ -1442,7 +1561,7 @@ void PF_cs_sound(progfuncs_t *prinst, struct globalvars_s *pr_globals)
 	entity = (csqcedict_t*)G_EDICT(prinst, OFS_PARM0);
 	channel = G_FLOAT(OFS_PARM1);
 	sample = PR_GetStringOfs(prinst, OFS_PARM2);
-	volume = G_FLOAT(OFS_PARM3) * 255;
+	volume = G_FLOAT(OFS_PARM3);
 	attenuation = G_FLOAT(OFS_PARM4);
 
 	sfx = S_PrecacheSound(sample);
@@ -1801,6 +1920,116 @@ static void PF_cl_te_customflash (progfuncs_t *prinst, struct globalvars_s *pr_g
 	dl->color[2] = colour[2]*0.5f;
 }
 
+static void PF_cl_te_bloodshower (progfuncs_t *prinst, struct globalvars_s *pr_globals)
+{
+}
+static void PF_cl_te_particlecube (progfuncs_t *prinst, struct globalvars_s *pr_globals)
+{
+	float *minb = G_VECTOR(OFS_PARM0);
+	float *maxb = G_VECTOR(OFS_PARM1);
+	float *vel = G_VECTOR(OFS_PARM2);
+	float howmany = G_FLOAT(OFS_PARM3);
+	float color = G_FLOAT(OFS_PARM4);
+	float gravity = G_FLOAT(OFS_PARM5);
+	float jitter = G_FLOAT(OFS_PARM6);
+
+	P_RunParticleCube(minb, maxb, vel, howmany, color, gravity, jitter);
+}
+static void PF_cl_te_spark (progfuncs_t *prinst, struct globalvars_s *pr_globals)
+{
+}
+static void PF_cl_te_smallflash (progfuncs_t *prinst, struct globalvars_s *pr_globals)
+{
+}
+static void PF_cl_te_explosion2 (progfuncs_t *prinst, struct globalvars_s *pr_globals)
+{
+}
+static void PF_cl_te_lightning1 (progfuncs_t *prinst, struct globalvars_s *pr_globals)
+{
+	csqcedict_t *ent = (csqcedict_t*)G_EDICT(prinst, OFS_PARM0);
+	float *start = G_VECTOR(OFS_PARM1);
+	float *end = G_VECTOR(OFS_PARM1);
+
+	CL_AddBeam(0, ent->entnum+MAX_EDICTS, start, end);
+}
+static void PF_cl_te_lightning2 (progfuncs_t *prinst, struct globalvars_s *pr_globals)
+{
+	csqcedict_t *ent = (csqcedict_t*)G_EDICT(prinst, OFS_PARM0);
+	float *start = G_VECTOR(OFS_PARM1);
+	float *end = G_VECTOR(OFS_PARM1);
+
+	CL_AddBeam(1, ent->entnum+MAX_EDICTS, start, end);
+}
+static void PF_cl_te_lightning3 (progfuncs_t *prinst, struct globalvars_s *pr_globals)
+{
+	csqcedict_t *ent = (csqcedict_t*)G_EDICT(prinst, OFS_PARM0);
+	float *start = G_VECTOR(OFS_PARM1);
+	float *end = G_VECTOR(OFS_PARM1);
+
+	CL_AddBeam(2, ent->entnum+MAX_EDICTS, start, end);
+}
+static void PF_cl_te_beam (progfuncs_t *prinst, struct globalvars_s *pr_globals)
+{
+	csqcedict_t *ent = (csqcedict_t*)G_EDICT(prinst, OFS_PARM0);
+	float *start = G_VECTOR(OFS_PARM1);
+	float *end = G_VECTOR(OFS_PARM1);
+
+	CL_AddBeam(5, ent->entnum+MAX_EDICTS, start, end);
+}
+static void PF_cl_te_plasmaburn (progfuncs_t *prinst, struct globalvars_s *pr_globals)
+{
+}
+static void PF_cl_te_explosionrgb (progfuncs_t *prinst, struct globalvars_s *pr_globals)
+{
+	float *org = G_VECTOR(OFS_PARM0);
+	float *colour = G_VECTOR(OFS_PARM1);
+	
+	dlight_t *dl;
+	extern cvar_t r_explosionlight;
+	extern sfx_t *cl_sfx_r_exp3;
+
+	P_ParticleExplosion (org);
+		
+	// light
+	if (r_explosionlight.value)
+	{
+		dl = CL_AllocDlight (0);
+		VectorCopy (org, dl->origin);
+		dl->radius = 150 + bound(0, r_explosionlight.value, 1)*200;
+		dl->die = cl.time + 0.5;
+		dl->decay = 300;
+	
+		dl->color[0] = 0.4f*colour[0];
+		dl->color[1] = 0.4f*colour[1];
+		dl->color[2] = 0.4f*colour[2];
+		dl->channelfade[0] = 0;
+		dl->channelfade[1] = 0;
+		dl->channelfade[2] = 0;
+	}
+
+	S_StartSound (-2, 0, cl_sfx_r_exp3, org, 1, 1);
+}
+static void PF_cl_te_particlerain (progfuncs_t *prinst, struct globalvars_s *pr_globals)
+{
+	float *min = G_VECTOR(OFS_PARM0);
+	float *max = G_VECTOR(OFS_PARM1);
+	float *vel = G_VECTOR(OFS_PARM2);
+	float howmany = G_FLOAT(OFS_PARM3);
+	float colour = G_FLOAT(OFS_PARM4);
+
+	P_RunParticleWeather(min, max, vel, howmany, colour, "rain");
+}
+static void PF_cl_te_particlesnow (progfuncs_t *prinst, struct globalvars_s *pr_globals)
+{
+	float *min = G_VECTOR(OFS_PARM0);
+	float *max = G_VECTOR(OFS_PARM1);
+	float *vel = G_VECTOR(OFS_PARM2);
+	float howmany = G_FLOAT(OFS_PARM3);
+	float colour = G_FLOAT(OFS_PARM4);
+
+	P_RunParticleWeather(min, max, vel, howmany, colour, "snow");
+}
+
 void CSQC_RunThreads(void)
 {
 	csqctreadstate_t *state = csqcthreads, *next;
@@ -1866,7 +2095,7 @@ void PF_cs_droptofloor (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 	else
 	{
 		VectorCopy (trace.endpos, ent->v->origin);
-		SV_LinkEdict (ent, false);
+		CL_CS_LinkEdict (ent, false);
 		ent->v->flags = (int)ent->v->flags | FL_ONGROUND;
 		ent->v->groundentity = EDICT_TO_PROG(prinst, trace.ent);
 		G_FLOAT(OFS_RETURN) = 1;
@@ -1881,25 +2110,12 @@ static void PF_cs_copyentity (progfuncs_t *prinst, struct globalvars_s *pr_globa
 	out = (csqcedict_t*)G_EDICT(prinst, OFS_PARM1);
 
 	memcpy(out->v, in->v, csqcentsize);
+
+	CL_CS_LinkEdict (out, false);
 }
 
 //these are the builtins that still need to be added.
 #define PF_cs_tracetoss			PF_Fixme
-#define PF_cs_makestatic		PF_Fixme
-#define PF_cl_te_bloodshower	PF_Fixme
-#define PF_cl_te_particlecube	PF_Fixme
-#define PF_cl_te_spark			PF_Fixme
-#define PF_cl_te_smallflash		PF_Fixme
-#define PF_cl_te_explosion2		PF_Fixme
-#define PF_cl_te_lightning1		PF_Fixme
-#define PF_cl_te_lightning2		PF_Fixme
-#define PF_cl_te_lightning3		PF_Fixme
-#define PF_cl_te_beam			PF_Fixme
-#define PF_cl_te_plasmaburn		PF_Fixme
-#define PF_cl_te_explosionrgb	PF_Fixme
-#define PF_cl_te_particlerain	PF_Fixme
-#define PF_cl_te_particlesnow	PF_Fixme
-#define PF_cs_gettagindex		PF_Fixme
 #define PF_cs_gettaginfo		PF_Fixme
 #define PS_cs_setattachment		PF_Fixme
 #define PF_cs_break				PF_Fixme
@@ -1927,6 +2143,127 @@ static void PF_Stub (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
 	Con_Printf("Obsolete csqc builtin (%i) executed\n", prinst->lastcalledbuiltinnumber);
 }
+
+void PF_rotatevectorsbytag (progfuncs_t *prinst, struct globalvars_s *pr_globals)
+{
+	csqcedict_t *ent = (csqcedict_t*)G_EDICT(prinst, OFS_PARM0);
+	int tagnum = G_FLOAT(OFS_PARM1);
+
+	float *srcorg = ent->v->origin;
+	int modelindex = ent->v->modelindex;
+	int frame1 = ent->v->frame;
+	int frame2 = ent->v->frame2;
+	float lerp = ent->v->lerpfrac;
+	float frame1time = ent->v->frame1time;
+	float frame2time = ent->v->frame2time;
+
+	float *retorg = G_VECTOR(OFS_RETURN);
+
+	model_t *mod = CSQC_GetModelForIndex(modelindex);
+	float transforms[12];
+	float src[12];
+	float dest[12];
+	int i;
+
+	if (Mod_GetTag)
+		if (Mod_GetTag(mod, tagnum, frame1, frame2, lerp, frame1time, frame2time, transforms))
+		{
+//			VectorNegate(transforms+0, transforms+0);
+//			VectorNegate(transforms+4, transforms+4);
+//			VectorNegate(transforms+8, transforms+8);
+
+			VectorCopy(csqcg.forward, src+0);
+			VectorNegate(csqcg.right, src+4);
+			VectorCopy(csqcg.up, src+8);
+
+			R_ConcatRotationsPad((void*)src, (void*)transforms, (void*)dest);
+
+			VectorCopy(dest+0, csqcg.forward);
+			VectorNegate(dest+4, csqcg.right);
+			VectorCopy(dest+8, csqcg.up);
+
+			VectorCopy(srcorg, retorg);
+			for (i = 0 ; i < 3 ; i++)
+			{
+				retorg[0] += transforms[i*4+3]*src[4*i+0];
+				retorg[1] += transforms[i*4+3]*src[4*i+1];
+				retorg[2] += transforms[i*4+3]*src[4*i+2];
+			}
+			return;
+		}
+
+	VectorCopy(srcorg, retorg);
+}
+static void PF_cs_gettagindex (progfuncs_t *prinst, struct globalvars_s *pr_globals)
+{
+	csqcedict_t *ent = (csqcedict_t*)G_EDICT(prinst, OFS_PARM0);
+	char *tagname = PR_GetStringOfs(prinst, OFS_PARM1);
+
+	model_t *mod = CSQC_GetModelForIndex(ent->v->modelindex);
+	if (Mod_TagNumForName)
+		G_FLOAT(OFS_RETURN) = Mod_TagNumForName(mod, tagname);
+	else
+		G_FLOAT(OFS_RETURN) = 0;
+}
+static void PF_rotatevectorsbyangles (progfuncs_t *prinst, struct globalvars_s *pr_globals)
+{
+	float *ang = G_VECTOR(OFS_PARM0);
+	vec3_t src[3], trans[3], res[3];
+	ang[0]*=-1;
+	AngleVectors(ang, trans[0], trans[1], trans[2]);
+	ang[0]*=-1;
+	VectorInverse(trans[1]);
+
+	VectorCopy(csqcg.forward, src[0]);
+	VectorNegate(csqcg.right, src[1]);
+	VectorCopy(csqcg.up, src[2]);
+
+	R_ConcatRotations(trans, src, res);
+
+	VectorCopy(res[0], csqcg.forward);
+	VectorNegate(res[1], csqcg.right);
+	VectorCopy(res[2], csqcg.up);
+}
+static void PF_rotatevectorsbymatrix (progfuncs_t *prinst, struct globalvars_s *pr_globals)
+{
+	vec3_t src[3], trans[3], res[3];
+
+	VectorCopy(G_VECTOR(OFS_PARM0), src[0]);
+	VectorNegate(G_VECTOR(OFS_PARM1), src[1]);
+	VectorCopy(G_VECTOR(OFS_PARM2), src[2]);
+
+	VectorCopy(csqcg.forward, src[0]);
+	VectorNegate(csqcg.right, src[1]);
+	VectorCopy(csqcg.up, src[2]);
+
+	R_ConcatRotations(src, trans, res);
+
+	VectorCopy(res[0], csqcg.forward);
+	VectorNegate(res[1], csqcg.right);
+	VectorCopy(res[2], csqcg.up);
+}
+static void PF_skinforname (progfuncs_t *prinst, struct globalvars_s *pr_globals)
+{
+	int modelindex = G_FLOAT(OFS_PARM0);
+	char *str = PF_VarString(prinst, 1, pr_globals);
+	model_t *mod = CSQC_GetModelForIndex(modelindex);
+
+
+	if (Mod_SkinForName)
+		G_FLOAT(OFS_RETURN) = Mod_SkinForName(mod, str);
+	else
+		G_FLOAT(OFS_RETURN) = -1;
+}
+static void PF_shaderforname (progfuncs_t *prinst, struct globalvars_s *pr_globals)
+{
+	char *str = PF_VarString(prinst, 0, pr_globals);
+#ifdef Q3SHADERS
+	G_INT(OFS_RETURN) = R_RegisterSkin(str);
+#else
+	G_INT(OFS_RETURN) = 0;
+#endif
+}
+
 
 #define PF_FixTen PF_Fixme,PF_Fixme,PF_Fixme,PF_Fixme,PF_Fixme,PF_Fixme,PF_Fixme,PF_Fixme,PF_Fixme,PF_Fixme
 
@@ -2158,7 +2495,7 @@ PF_ReadAngle,				// #??? float() readangle (EXT_CSQC)
 PF_ReadString,				// #??? string() readstring (EXT_CSQC)
 PF_ReadFloat,				// #??? string() readfloat (EXT_CSQC)
 PF_WasFreed,				// #??? float(entity) wasfreed (EXT_CSQC) (should be availabe on server too)
-PF_Fixme,
+PF_cs_trailparticles,		// #??? void(entity ent, float effectnum, vector start, vector end) trailparticles (EXT_CSQC),
 
 //180
 PF_FixTen,
@@ -2201,14 +2538,24 @@ PF_str2chr,		// #222 float(string str, float index) str2chr (FTE_STRINGS)
 PF_chr2str,		// #223 string(float chr, ...) chr2str (FTE_STRINGS)
 PF_strconv,		// #224 string(float ccase, float redalpha, float redchars, string str, ...) strconv (FTE_STRINGS)
 
-PF_infoadd,		// #225 string(string old, string key, string value) infoadd
-PF_infoget,		// #226 string(string info, string key) infoget
-PF_strncmp,		// #227 float(string s1, string s2, float len) strncmp (FTE_STRINGS)
-PF_strcasecmp,	// #228 float(string s1, string s2) strcasecmp (FTE_STRINGS)
-PF_strncasecmp,	// #229 float(string s1, string s2, float len) strncasecmp (FTE_STRINGS)
+PF_strpad,		// #225 string(float ccase, float redalpha, float redchars, string str, ...) strconv (FTE_STRINGS)
+PF_infoadd,		// #226 string(string old, string key, string value) infoadd
+PF_infoget,		// #227 string(string info, string key) infoget
+PF_strncmp,		// #228 float(string s1, string s2, float len) strncmp (FTE_STRINGS)
+PF_strcasecmp,	// #229 float(string s1, string s2) strcasecmp (FTE_STRINGS)
 
 //230
-PF_FixTen,
+PF_strncasecmp,	// #230 float(string s1, string s2, float len) strncasecmp (FTE_STRINGS)
+PF_Fixme,		// #231 clientstat
+PF_Fixme,		// #232 runclientphys
+PF_Fixme,		// #233 float(entity ent) isbackbuffered
+PF_rotatevectorsbytag,	// #234
+
+PF_rotatevectorsbyangles, // #235
+PF_rotatevectorsbymatrix, // #236
+PF_skinforname,		// #237
+PF_shaderforname,	// #238
+PF_Fixme,		// #239
 
 //240
 PF_FixTen,
@@ -2333,6 +2680,15 @@ PF_Fixme,				// #459
 
 //460
 PF_FixTen,
+
+//470
+PF_FixTen,
+//480
+PF_FixTen,
+//490
+PF_FixTen,
+//500
+PF_FixTen,
 };
 static int csqc_numbuiltins = sizeof(csqc_builtins)/sizeof(csqc_builtins[0]);
 
@@ -2411,10 +2767,12 @@ qbyte *CSQC_PRLoadFile (char *path, void *buffer, int bufsize)
 	//pretend it doesn't 
 	file = COM_LoadStackFile(path, buffer, bufsize);
 
+#ifndef _DEBUG
 	if (!cls.demoplayback)	//allow any csqc when playing a demo
 		if (!strcmp(path, "csprogs.dat"))	//Fail to load any csprogs who's checksum doesn't match.
 			if (Com_BlockChecksum(buffer, com_filesize) != csqcchecksum)
 				return NULL;
+#endif
 
 	return file;
 }
@@ -2468,14 +2826,14 @@ qboolean CSQC_Init (unsigned int checksum)
 	csqcprogparms.sv_edicts = (edict_t **)&csqc_edicts;
 	csqcprogparms.sv_num_edicts = &num_csqc_edicts;
 
-	csqcprogparms.useeditor = NULL;//sorry... QCEditor;//void (*useeditor) (char *filename, int line, int nump, char **parms);
+	csqcprogparms.useeditor = QCEditor;//void (*useeditor) (char *filename, int line, int nump, char **parms);
 
 	csqctime = Sys_DoubleTime();
 	if (!csqcprogs)
 	{
 		in_sensitivityscale = 1;
 		csqcprogs = InitProgs(&csqcprogparms);
-		PR_Configure(csqcprogs, -1, 1);
+		PR_Configure(csqcprogs, -1, 16);
 		
 		CSQC_InitFields();	//let the qclib know the field order that the engine needs.
 		
@@ -2493,7 +2851,7 @@ qboolean CSQC_Init (unsigned int checksum)
 
 		PF_InitTempStrings(csqcprogs);
 
-		memset(csqcent, 0, sizeof(csqcent));
+		memset(csqcent, 0, sizeof(*csqcent)*maxcsqcentities);
 		
 		csqcentsize = PR_InitEnts(csqcprogs, pr_csmaxedicts.value);
 		
@@ -2616,6 +2974,41 @@ qboolean CSQC_CenterPrint(char *cmd)
 
 //this protocol allows up to 32767 edicts.
 #ifdef PEXT_CSQC
+
+int CSQC_StartSound(int entnum, int channel, char *soundname, vec3_t pos, float vol, float attenuation)
+{
+	void *pr_globals;
+	char *str;
+	csqcedict_t *ent;
+
+	if (!csqcprogs || !csqcg.serversound)
+		return false;
+
+	if (entnum >= maxcsqcentities)
+	{
+		maxcsqcentities = entnum+64;
+		csqcent = BZ_Realloc(csqcent, sizeof(*csqcent)*maxcsqcentities);
+	}
+	ent = csqcent[entnum];
+	if (!ent)
+		return false;
+
+	pr_globals = PR_globals(csqcprogs, PR_CURRENT);
+
+	str = PF_TempStr(csqcprogs);
+	Q_strncpyz(str, soundname, MAXTEMPBUFFERLEN);
+
+	*csqcg.self = EDICT_TO_PROG(csqcprogs, (void*)ent);
+	G_FLOAT(OFS_PARM0) = channel;
+	G_INT(OFS_PARM1) = PR_SetString(csqcprogs, str);
+	VectorCopy(pos, G_VECTOR(OFS_PARM2));
+	G_FLOAT(OFS_PARM3) = vol;
+	G_FLOAT(OFS_PARM4) = attenuation;
+
+	PR_ExecuteProgram(csqcprogs, csqcg.serversound);
+	return G_FLOAT(OFS_RETURN);
+}
+
 void CSQC_ParseEntities(void)
 {
 	csqcedict_t *ent;
@@ -2640,7 +3033,7 @@ void CSQC_ParseEntities(void)
 	for(;;)
 	{
 		entnum = MSG_ReadShort();
-		if (!entnum)
+		if (!entnum || msg_badread)
 			break;
 		if (entnum & 0x8000)
 		{	//remove
@@ -2649,8 +3042,11 @@ void CSQC_ParseEntities(void)
 			if (!entnum)
 				Host_EndGame("CSQC cannot remove world!\n");
 
-			if (entnum >= MAX_EDICTS)
-				Host_EndGame("CSQC recieved too many edicts!\n");
+			if (entnum >= maxcsqcentities)
+			{
+				maxcsqcentities = entnum+64;
+				csqcent = BZ_Realloc(csqcent, sizeof(*csqcent)*maxcsqcentities);
+			}
 			if (cl_csqcdebug.value)
 				Con_Printf("Remove %i\n", entnum);
 
@@ -2666,8 +3062,11 @@ void CSQC_ParseEntities(void)
 		}
 		else
 		{
-			if (entnum >= MAX_EDICTS)
-				Host_EndGame("CSQC recieved too many edicts!\n");
+			if (entnum >= maxcsqcentities)
+			{
+				maxcsqcentities = entnum+64;
+				csqcent = BZ_Realloc(csqcent, sizeof(*csqcent)*maxcsqcentities);
+			}
 
 			if (cl.csqcdebug)
 			{

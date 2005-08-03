@@ -241,10 +241,10 @@ static JOYINFOEX	ji;
 #define RI_INVALID_POS    0x80000000
 
 // raw input dynamic functions
-typedef WINUSERAPI INT (WINAPI *pGetRawInputDeviceList)(OUT PRAWINPUTDEVICELIST pRawInputDeviceList, IN OUT PINT puiNumDevices, IN UINT cbSize);
-typedef WINUSERAPI INT(WINAPI *pGetRawInputData)(IN HRAWINPUT hRawInput, IN UINT uiCommand, OUT LPVOID pData, IN OUT PINT pcbSize, IN UINT cbSizeHeader);
-typedef WINUSERAPI INT(WINAPI *pGetRawInputDeviceInfoA)(IN HANDLE hDevice, IN UINT uiCommand, OUT LPVOID pData, IN OUT PINT pcbSize);
-typedef WINUSERAPI BOOL (WINAPI *pRegisterRawInputDevices)(IN PCRAWINPUTDEVICE pRawInputDevices, IN UINT uiNumDevices, IN UINT cbSize);
+typedef INT (WINAPI *pGetRawInputDeviceList)(OUT PRAWINPUTDEVICELIST pRawInputDeviceList, IN OUT PINT puiNumDevices, IN UINT cbSize);
+typedef INT(WINAPI *pGetRawInputData)(IN HRAWINPUT hRawInput, IN UINT uiCommand, OUT LPVOID pData, IN OUT PINT pcbSize, IN UINT cbSizeHeader);
+typedef INT(WINAPI *pGetRawInputDeviceInfoA)(IN HANDLE hDevice, IN UINT uiCommand, OUT LPVOID pData, IN OUT PINT pcbSize);
+typedef BOOL (WINAPI *pRegisterRawInputDevices)(IN PCRAWINPUTDEVICE pRawInputDevices, IN UINT uiNumDevices, IN UINT cbSize);
 
 pGetRawInputDeviceList _GRIDL;
 pGetRawInputData _GRID;
@@ -1394,6 +1394,13 @@ static void ProcessMouse(mouse_t *mouse, usercmd_t *cmd, int pnum)
 
 	mouse_x *= sensitivity.value*in_sensitivityscale;
 	mouse_y *= sensitivity.value*in_sensitivityscale;
+
+	if (cl.stats[pnum][STAT_VIEWZOOM])
+	{
+		mouse_x *= cl.stats[pnum][STAT_VIEWZOOM]/255.0f;
+		mouse_y *= cl.stats[pnum][STAT_VIEWZOOM]/255.0f;
+	}
+
 
 	if (!cmd)
 	{

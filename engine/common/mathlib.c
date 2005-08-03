@@ -513,6 +513,29 @@ void R_ConcatTransforms (float in1[3][4], float in2[3][4], float out[3][4])
 				in1[2][2] * in2[2][3] + in1[2][3];
 }
 
+void R_ConcatRotationsPad (float in1[3][4], float in2[3][4], float out[3][4])
+{
+	out[0][0] = in1[0][0] * in2[0][0] + in1[0][1] * in2[1][0] +
+				in1[0][2] * in2[2][0];
+	out[0][1] = in1[0][0] * in2[0][1] + in1[0][1] * in2[1][1] +
+				in1[0][2] * in2[2][1];
+	out[0][2] = in1[0][0] * in2[0][2] + in1[0][1] * in2[1][2] +
+				in1[0][2] * in2[2][2];
+
+	out[1][0] = in1[1][0] * in2[0][0] + in1[1][1] * in2[1][0] +
+				in1[1][2] * in2[2][0];
+	out[1][1] = in1[1][0] * in2[0][1] + in1[1][1] * in2[1][1] +
+				in1[1][2] * in2[2][1];
+	out[1][2] = in1[1][0] * in2[0][2] + in1[1][1] * in2[1][2] +
+				in1[1][2] * in2[2][2];
+
+	out[2][0] = in1[2][0] * in2[0][0] + in1[2][1] * in2[1][0] +
+				in1[2][2] * in2[2][0];
+	out[2][1] = in1[2][0] * in2[0][1] + in1[2][1] * in2[1][1] +
+				in1[2][2] * in2[2][1];
+	out[2][2] = in1[2][0] * in2[0][2] + in1[2][1] * in2[1][2] +
+				in1[2][2] * in2[2][2];
+}
 
 /*
 ===================
@@ -804,9 +827,9 @@ void Matrix4_Transform4(float *matrix, float *vector, float *product)
 
 void Matrix4_Transform3(float *matrix, float *vector, float *product)
 {
-	product[0] = matrix[0]*vector[0] + matrix[4]*vector[1] + matrix[8]*vector[2] + matrix[12]*vector[3];
-	product[1] = matrix[1]*vector[0] + matrix[5]*vector[1] + matrix[9]*vector[2] + matrix[13]*vector[3];
-	product[2] = matrix[2]*vector[0] + matrix[6]*vector[1] + matrix[10]*vector[2] + matrix[14]*vector[3];
+	product[0] = matrix[0]*vector[0] + matrix[4]*vector[1] + matrix[8]*vector[2] + matrix[12];
+	product[1] = matrix[1]*vector[0] + matrix[5]*vector[1] + matrix[9]*vector[2] + matrix[13];
+	product[2] = matrix[2]*vector[0] + matrix[6]*vector[1] + matrix[10]*vector[2] + matrix[14];
 }
 
 void ML_ModelViewMatrix(float *modelview, vec3_t viewangles, vec3_t vieworg)
@@ -896,33 +919,76 @@ void ML_ProjectionMatrix(float *proj, float wdivh, float fovy)
 	proj[15] = 0;
 }
 
+typedef struct {
+	float m[4][4];
+} matrix4x4_t;
+
+void Matrix4x4_Invert_Simple (matrix4x4_t *out, const matrix4x4_t *in1)
+{
+	// we only support uniform scaling, so assume the first row is enough
+	// (note the lack of sqrt here, because we're trying to undo the scaling,
+	// this means multiplying by the inverse scale twice - squaring it, which
+	// makes the sqrt a waste of time)
+#if 1
+	double scale = 1.0 / (in1->m[0][0] * in1->m[0][0] + in1->m[0][1] * in1->m[0][1] + in1->m[0][2] * in1->m[0][2]);
+#else
+	double scale = 3.0 / sqrt
+		 (in1->m[0][0] * in1->m[0][0] + in1->m[0][1] * in1->m[0][1] + in1->m[0][2] * in1->m[0][2]
+		+ in1->m[1][0] * in1->m[1][0] + in1->m[1][1] * in1->m[1][1] + in1->m[1][2] * in1->m[1][2]
+		+ in1->m[2][0] * in1->m[2][0] + in1->m[2][1] * in1->m[2][1] + in1->m[2][2] * in1->m[2][2]);
+	scale *= scale;
+#endif
+
+	// invert the rotation by transposing and multiplying by the squared
+	// recipricol of the input matrix scale as described above
+	out->m[0][0] = (float)(in1->m[0][0] * scale);
+	out->m[0][1] = (float)(in1->m[1][0] * scale);
+	out->m[0][2] = (float)(in1->m[2][0] * scale);
+	out->m[1][0] = (float)(in1->m[0][1] * scale);
+	out->m[1][1] = (float)(in1->m[1][1] * scale);
+	out->m[1][2] = (float)(in1->m[2][1] * scale);
+	out->m[2][0] = (float)(in1->m[0][2] * scale);
+	out->m[2][1] = (float)(in1->m[1][2] * scale);
+	out->m[2][2] = (float)(in1->m[2][2] * scale);
+
+	// invert the translate
+	out->m[0][3] = -(in1->m[0][3] * out->m[0][0] + in1->m[1][3] * out->m[0][1] + in1->m[2][3] * out->m[0][2]);
+	out->m[1][3] = -(in1->m[0][3] * out->m[1][0] + in1->m[1][3] * out->m[1][1] + in1->m[2][3] * out->m[1][2]);
+	out->m[2][3] = -(in1->m[0][3] * out->m[2][0] + in1->m[1][3] * out->m[2][1] + in1->m[2][3] * out->m[2][2]);
+
+	// don't know if there's anything worth doing here
+	out->m[3][0] = 0;
+	out->m[3][1] = 0;
+	out->m[3][2] = 0;
+	out->m[3][3] = 1;
+}
+
 //screen->3d
 
 void ML_UnProject(vec3_t in, vec3_t out, vec3_t viewangles, vec3_t vieworg, float wdivh, float fovy)
 {
 	float modelview[16];
 	float proj[16];
+	float tempm[16];
 
 	ML_ModelViewMatrix(modelview, viewangles, vieworg);
 	ML_ProjectionMatrix(proj, wdivh, fovy);
+	Matrix4_Multiply(proj, modelview, tempm);
+
+	Matrix4x4_Invert_Simple(proj, tempm);
 
 	{
 		float v[4], tempv[4];
-		v[0] = in[0];
-		v[1] = in[1];
-		v[2] = in[2];
+		v[0] = in[0]*2-1;
+		v[1] = in[1]*2-1;
+		v[2] = in[2]*2-1;
 		v[3] = 1;
 
-		Matrix4_Multiply(modelview, v, tempv); 
-		Matrix4_Multiply(proj, tempv, v);
+		Matrix4_Transform4(proj, v, tempv); 
 
-		v[0] /= v[3];
-		v[1] /= v[3];
-		v[2] /= v[3];
-
-		out[0] = (1+v[0])/2;
-		out[1] = (1+v[1])/2;
-		out[2] = (1+v[2])/2;
+		out[0] = tempv[0];
+		out[1] = tempv[1];
+		out[2] = tempv[2];
 	}
 }
 

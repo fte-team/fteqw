@@ -843,18 +843,25 @@ void GL_DoSwap (void)
 // handle the mouse state when windowed if that's changed
 	if (modestate == MS_WINDOWED)
 	{
-		if (!_windowed_mouse.value) {
-			if (windowed_mouse)	{
+		if (!_windowed_mouse.value)
+		{
+			if (windowed_mouse)
+			{
 				IN_DeactivateMouse ();
 				IN_ShowMouse ();
 				windowed_mouse = false;
 			}
-		} else {
+		}
+		else
+		{
 			windowed_mouse = true;
-			if ((key_dest == key_game||mouseusedforgui) && !mouseactive && ActiveApp) {
+			if ((key_dest == key_game||mouseusedforgui) && !mouseactive && ActiveApp)
+			{
 				IN_ActivateMouse ();
 				IN_HideMouse ();
-			} else if (mouseactive && !(key_dest == key_game || mouseusedforgui)) {
+			}
+			else if (mouseactive && key_dest == key_console)
+			{//!(key_dest == key_game || mouseusedforgui)) {
 				IN_DeactivateMouse ();
 				IN_ShowMouse ();
 			}

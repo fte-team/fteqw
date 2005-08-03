@@ -19,6 +19,7 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 */
 // cl_main.c  -- client main loop
 
+#include <ctype.h>
 #include "quakedef.h"
 #include "winquake.h"
 #include <sys/types.h>
@@ -31,8 +32,6 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 #if defined(_WIN32) && !defined(MINGW) && defined(RGLQUAKE)
 #define WINAVI
 #endif
-
-#include <ctype.h>
 
 // we need to declare some mouse variables here, because the menu system
 // references them even when on a unix system.
@@ -1670,6 +1669,16 @@ void CL_ConnectionlessPacket (void)
     MSG_BeginReading ();
     MSG_ReadLong ();        // skip the -1
 
+	Cmd_TokenizeString(net_message.data+4, false, false);
+
+	if (net_message.cursize == sizeof(net_message_buffer))
+		net_message.data[sizeof(net_message_buffer)-1] = '\0';
+	else
+		net_message.data[net_message.cursize] = '\0';
+
+	if (Plug_ConnectionlessClientPacket(net_message.data+4, net_message.cursize-4))
+		return;
+
 	c = MSG_ReadByte ();
 
 	if (cls.demoplayback == DPB_NONE)
@@ -1994,6 +2003,10 @@ void CLNQ_ConnectionlessPacket(void)
 		cls.state = ca_connected;
 		Con_TPrintf (TLC_CONNECTED);
 		allowremotecmd = false; // localid required now for remote cmds
+
+		//send a dummy packet.
+		//this makes our local nat think we initialised the conversation.
+		NET_SendPacket(NS_CLIENT, 9, "\xff\xff\xff\xff""dummy", net_from);
 		return;
 
 	case CCREP_REJECT:

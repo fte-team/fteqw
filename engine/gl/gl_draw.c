@@ -1442,6 +1442,60 @@ void GLDraw_Pic (int x, int y, mpic_t *pic)
 	GL_DrawMesh(&draw_mesh, gl->texnum);
 }
 
+#ifdef Q3SHADERS
+void GLDraw_ShaderPic (int x, int y, int width, int height, shader_t *pic, float r, float g, float b, float a)
+{
+	meshbuffer_t mb;
+
+	if (!pic)
+		return;
+
+	R_IBrokeTheArrays();
+
+	mb.entity = &r_worldentity;
+	mb.shader = pic;
+	mb.fog = NULL;
+	mb.mesh = &draw_mesh;
+	mb.infokey = 0;
+	mb.dlightbits = 0;
+
+
+	draw_mesh_xyz[0][0] = x;
+	draw_mesh_xyz[0][1] = y;
+	draw_mesh_st[0][0] = 0;
+	draw_mesh_st[0][1] = 0;
+
+	draw_mesh_xyz[1][0] = x+width;
+	draw_mesh_xyz[1][1] = y;
+	draw_mesh_st[1][0] = 1;
+	draw_mesh_st[1][1] = 0;
+
+	draw_mesh_xyz[2][0] = x+width;
+	draw_mesh_xyz[2][1] = y+height;
+	draw_mesh_st[2][0] = 1;
+	draw_mesh_st[2][1] = 1;
+
+	draw_mesh_xyz[3][0] = x;
+	draw_mesh_xyz[3][1] = y+height;
+	draw_mesh_st[3][0] = 0;
+	draw_mesh_st[3][1] = 1;
+
+	draw_mesh_colors[0][0] = r*255;
+	draw_mesh_colors[0][1] = g*255;
+	draw_mesh_colors[0][2] = b*255;
+	draw_mesh_colors[0][3] = a*255;
+	((int*)draw_mesh_colors)[1] = ((int*)draw_mesh_colors)[0];
+	((int*)draw_mesh_colors)[2] = ((int*)draw_mesh_colors)[0];
+	((int*)draw_mesh_colors)[3] = ((int*)draw_mesh_colors)[0];
+
+	draw_mesh.colors_array = draw_mesh_colors;
+
+	R_PushMesh(&draw_mesh, mb.shader->features | MF_COLORS | MF_NONBATCHED);
+	R_RenderMeshBuffer ( &mb, false );
+	draw_mesh.colors_array = NULL;
+}
+#endif
+
 void GLDraw_ScalePic (int x, int y, int width, int height, mpic_t *pic)
 {
 	glpic_t			*gl;
@@ -2903,7 +2957,7 @@ unsigned int * genNormalMap(qbyte *pixels, int w, int h, float scale)
 
       /* The highest resolution mipmap level always has a
          unit length magnitude. */
-      nmap[i*w+j] = LittleLong ((255 << 24)|(b << 16)|(g << 8)|(r));	// <AWE> Added support for big endian.
+      nmap[i*w+j] = LittleLong ((pixels[i*wr + j] << 24)|(b << 16)|(g << 8)|(r));	// <AWE> Added support for big endian.
     }
   }
 
@@ -2911,7 +2965,7 @@ unsigned int * genNormalMap(qbyte *pixels, int w, int h, float scale)
 }
 
 //PENTA
-void GL_UploadBump(qbyte *data, int width, int height, qboolean mipmap)
+void GL_UploadBump(qbyte *data, int width, int height, qboolean mipmap, float bumpscale)
 {
     unsigned char	*scaled = uploadmemorybuffer;
 	int			scaled_width, scaled_height;
@@ -2938,10 +2992,7 @@ void GL_UploadBump(qbyte *data, int width, int height, qboolean mipmap)
 		GL_Resample8BitTexture (data, width, height, scaled, scaled_width, scaled_height);
 	}
 
-//	if (is_overriden)
-//		nmap = (qbyte *)genNormalMap(scaled,scaled_width,scaled_height,10.0f); 
-//	else
-		nmap = (qbyte *)genNormalMap(scaled,scaled_width,scaled_height,4.0f);
+	nmap = (qbyte *)genNormalMap(scaled,scaled_width,scaled_height,bumpscale);
 
 	qglTexImage2D (GL_TEXTURE_2D, 0, GL_RGBA
 		, scaled_width, scaled_height, 0,
@@ -3563,7 +3614,7 @@ int GL_LoadTexture8Grey (char *identifier, int width, int height, unsigned char 
 	return texture_extension_number-1;
 }
 
-int GL_LoadTexture8Bump (char *identifier, int width, int height, unsigned char *data, qboolean mipmap)
+int GL_LoadTexture8Bump (char *identifier, int width, int height, unsigned char *data, qboolean mipmap, float bumpscale)
 {
 //	qboolean	noalpha;
 	//	int			p, s;
@@ -3599,7 +3650,7 @@ int GL_LoadTexture8Bump (char *identifier, int width, int height, unsigned char 
 	{
 		GL_Bind(texture_extension_number );
 
-		GL_UploadBump (data, width, height, mipmap);
+		GL_UploadBump (data, width, height, mipmap, bumpscale);
 	}
 
 	texture_extension_number++;

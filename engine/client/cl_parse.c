@@ -2208,7 +2208,10 @@ void CL_ParseStartSoundPacket(void)
 	if (ent > MAX_EDICTS)
 		Host_EndGame ("CL_ParseStartSoundPacket: ent = %i", ent);
 	
-    S_StartSound (ent, channel, cl.sound_precache[sound_num], pos, volume/255.0, attenuation);
+#ifdef PEXT_CSQC
+	if (!CSQC_StartSound(ent, channel, cl.sound_precache[sound_num], pos, volume/255.0, attenuation))
+#endif
+		S_StartSound (ent, channel, cl.sound_precache[sound_num], pos, volume/255.0, attenuation);
 
 
 	if (ent == cl.playernum[0]+1)

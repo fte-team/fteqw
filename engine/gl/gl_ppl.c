@@ -1,3 +1,7 @@
+//FIXME: Light visibility is decided from weather the light's pvs overlaps the view pvs.
+//This doesn't take light radius into account. This means that lights around corners that will never be visible are drawn in full per-pixel goodness.
+//This is bad. lights*3, 33% framerate for no worthwhile effect.
+
 #include "quakedef.h"
 #ifdef RGLQUAKE
 #include "glquake.h"
@@ -8,6 +12,13 @@ void R_MirrorChain (msurface_t *s);
 void GL_SelectTexture (GLenum target);
 void R_RenderDynamicLightmaps (msurface_t *fa);
 void R_BlendLightmaps (void);
+
+
+void PPL_BeginShadowMesh(dlight_t *dl);
+void PPL_FinishShadowMesh(dlight_t *dl);
+void PPL_FlushShadowMesh(dlight_t *dl);
+void PPL_Shadow_Cache_Surface(msurface_t *surf);	//only caches for lighting
+void PPL_Shadow_Cache_Leaf(mleaf_t *leaf);
 
 extern qboolean r_inmirror;
 extern int gldepthfunc;
@@ -23,6 +34,10 @@ extern cvar_t		gl_part_flame;
 extern cvar_t		gl_part_flame;
 extern cvar_t		gl_maxshadowlights;
 extern cvar_t		r_shadow_realtime_world;
+extern cvar_t		r_shadow_realtime_world_lightmaps;
+extern cvar_t		r_shadow_glsl_offsetmapping;
+extern cvar_t		r_shadow_glsl_offsetmapping_scale;
+extern cvar_t		r_shadow_glsl_offsetmapping_bias;
 extern int		detailtexture;
 extern cvar_t gl_bump;
 extern cvar_t gl_specular;
@@ -32,6 +47,8 @@ extern cvar_t gl_schematics;
 extern cvar_t r_drawflat;
 extern cvar_t r_wallcolour;
 extern cvar_t r_floorcolour;
+
+float r_lightmapintensity;	//1 or r_shadow_realtime_world_lightmaps 
 
 int overbright;
 
@@ -78,11 +95,21 @@ qboolean PPL_ShouldDraw(void)
 	return true;
 }
 
-
+typedef struct {
+	int count;
+	msurface_t **s;
+} shadowmeshsurfs_t;
 typedef struct shadowmesh_s {
 	int numindicies;
+	int numverts;
 	int *indicies;
 	vec3_t *verts;
+
+	//we also have a list of all the surfaces that this light lights.
+	int numsurftextures;
+	shadowmeshsurfs_t *litsurfs;
+
+	unsigned char *litleaves;
 } shadowmesh_t;
 
 
@@ -1137,29 +1164,44 @@ static void PPL_BaseChain_Flat(msurface_t *first)
 	int vi=-10;
 	glRect_t    *theRect;
 	
-	if (r_wallcolour.modified)
-	{
-		char *s;
-		r_wallcolour.modified = false;
+	if (!r_lightmapintensity)
+	{	//these are bad. :(
 
-		s = COM_Parse(r_wallcolour.string);
-		wallcolour[0] = atof(com_token);
-		s = COM_Parse(s);
-		wallcolour[1] = atof(com_token);
-		s = COM_Parse(s);
-		wallcolour[2] = atof(com_token);
+		PPL_EnableVertexArrays();
+		qglColor4f(0,0,0,1);
+		qglDisable(GL_TEXTURE_2D);	//texturing? who wants texturing?!?!
+		for (s = first; s ; s=s->texturechain)
+			PPL_GenerateArrays(s);
+		PPL_FlushArrays();
+		qglEnable(GL_TEXTURE_2D);	//texturing? who wants texturing?!?!
+		return;
 	}
-	if (r_floorcolour.modified)
+	else
 	{
-		char *s;
-		r_floorcolour.modified = false;
+		if (r_wallcolour.modified)
+		{
+			char *s;
+			r_wallcolour.modified = false;
 
-		s = COM_Parse(r_floorcolour.string);
-		floorcolour[0] = atof(com_token);
-		s = COM_Parse(s);
-		floorcolour[1] = atof(com_token);
-		s = COM_Parse(s);
-		floorcolour[2] = atof(com_token);
+			s = COM_Parse(r_wallcolour.string);
+			wallcolour[0] = atof(com_token);
+			s = COM_Parse(s);
+			wallcolour[1] = atof(com_token);
+			s = COM_Parse(s);
+			wallcolour[2] = atof(com_token);
+		}
+		if (r_floorcolour.modified)
+		{
+			char *s;
+			r_floorcolour.modified = false;
+
+			s = COM_Parse(r_floorcolour.string);
+			floorcolour[0] = atof(com_token);
+			s = COM_Parse(s);
+			floorcolour[1] = atof(com_token);
+			s = COM_Parse(s);
+			floorcolour[2] = atof(com_token);
+		}
 	}
 
 	PPL_EnableVertexArrays();
@@ -1349,7 +1391,7 @@ static void PPL_BaseChain_NPR_Sketch(msurface_t *first)
 static void PPL_BaseTextureChain(msurface_t *first)
 {
 	texture_t	*t;
-	if (r_drawflat.value)
+	if (r_drawflat.value||!r_lightmapintensity)
 	{
 		if (r_drawflat.value == 2)
 		{
@@ -1831,8 +1873,14 @@ void PPL_BaseEntTextures(void)
 
 		switch (currententity->model->type)
 		{
+			//FIXME: We want to depth sort with particles, but we also want depth. :(
+			//Until then, we have broken model lighting.
 		case mod_alias:
-			RQ_AddDistReorder(PPL_DrawEnt, currententity, NULL, currententity->origin);
+//			R_DrawGAliasModel (currententity);
+			if (currententity->flags & Q2RF_WEAPONMODEL)
+				RQ_AddDistReorder(PPL_DrawEnt, currententity, NULL, r_refdef.vieworg);
+			else
+				RQ_AddDistReorder(PPL_DrawEnt, currententity, NULL, currententity->origin);
 			break;
 
 		case mod_brush:
@@ -1893,6 +1941,10 @@ PERMUTATION_GENERIC = 0,
 PERMUTATION_BUMPMAP = 1,
 PERMUTATION_SPECULAR = 2,
 PERMUTATION_BUMP_SPEC = 3,
+PERMUTATION_OFFSET = 4,
+PERMUTATION_OFFSET_BUMP = 5,
+PERMUTATION_OFFSET_SPEC = 6,
+PERMUTATION_OFFSET_BUMP_SPEC = 7,
 
 PERMUTATIONS
 };
@@ -1901,6 +1953,8 @@ int ppl_light_shader_eyeposition[PERMUTATIONS];
 int ppl_light_shader_lightposition[PERMUTATIONS];
 int ppl_light_shader_lightcolour[PERMUTATIONS];
 int ppl_light_shader_lightradius[PERMUTATIONS];
+int ppl_light_shader_offset_scale[PERMUTATIONS];
+int ppl_light_shader_offset_bias[PERMUTATIONS];
 
 void PPL_CreateLightTexturesProgram(void)
 {
@@ -1910,7 +1964,11 @@ void PPL_CreateLightTexturesProgram(void)
 		"",
 		"#define BUMP\n",
 		"#define SPECULAR\n",
-		"#define SPECULAR\n#define BUMP\n"
+		"#define SPECULAR\n#define BUMP\n",
+		"#define USEOFFSETMAPPING\n",
+		"#define USEOFFSETMAPPING\n#define BUMP\n",
+		"#define USEOFFSETMAPPING\n#define SPECULAR\n",
+		"#define USEOFFSETMAPPING\n#define SPECULAR\n#define BUMP\n"
 	};
 	char *vert = 
 		"varying vec2 tcbase;\n"
@@ -1918,7 +1976,7 @@ void PPL_CreateLightTexturesProgram(void)
 		"varying vec3 LightVector;\n"
 		"uniform vec3 LightPosition;\n"
 
-		"#ifdef SPECULAR\n"
+		"#if defined(SPECULAR) || defined(USEOFFSETMAPPING)\n"
 		"uniform vec3 EyePosition;\n"
 		"varying vec3 EyeVector;\n"
 		"#endif\n"
@@ -1934,7 +1992,7 @@ void PPL_CreateLightTexturesProgram(void)
 		"	LightVector.y = dot(lightminusvertex, gl_MultiTexCoord2.xyz);\n"
 		"	LightVector.z = dot(lightminusvertex, gl_MultiTexCoord3.xyz);\n"
 
-		"#ifdef SPECULAR\n"
+		"#if defined(SPECULAR)||defined(USEOFFSETMAPPING)\n"
 		"	vec3 eyeminusvertex = EyePosition - gl_Vertex.xyz;\n"
 		"	EyeVector.x = dot(eyeminusvertex, gl_MultiTexCoord1.xyz);\n"
 		"	EyeVector.y = dot(eyeminusvertex, gl_MultiTexCoord2.xyz);\n"
@@ -1945,7 +2003,7 @@ void PPL_CreateLightTexturesProgram(void)
 
 	char *frag =
 		"uniform sampler2D baset;\n"
-		"#if defined(BUMP) || defined(SPECULAR)\n"
+		"#if defined(BUMP) || defined(SPECULAR) || defined(USEOFFSETMAPPING)\n"
 		"uniform sampler2D bumpt;\n"
 		"#endif\n"
 		"#ifdef SPECULAR\n"
@@ -1958,13 +2016,28 @@ void PPL_CreateLightTexturesProgram(void)
 		"uniform float lightradius;\n"
 		"uniform vec3 LightColour;\n"
 
-		"#ifdef SPECULAR\n"
+		"#if defined(SPECULAR) || defined(USEOFFSETMAPPING)\n"
 		"varying vec3 EyeVector;\n"
 		"#endif\n"
+
+"#ifdef USEOFFSETMAPPING\n"
+"uniform float OffsetMapping_Scale;\n"
+"uniform float OffsetMapping_Bias;\n"
+"#endif\n"
 
 
 		"void main (void)\n"
 		"{\n"
+"#ifdef USEOFFSETMAPPING\n"
+"	// this is 3 sample because of ATI Radeon 9500-9800/X300 limits\n"
+"	vec2 OffsetVector = normalize(EyeVector).xy * vec2(-0.333, 0.333);\n"
+"	vec2 TexCoordOffset = tcbase + OffsetVector * (OffsetMapping_Bias + OffsetMapping_Scale * texture2D(bumpt, tcbase).w);\n"
+"	TexCoordOffset += OffsetVector * (OffsetMapping_Bias + OffsetMapping_Scale * texture2D(bumpt, TexCoordOffset).w);\n"
+"	TexCoordOffset += OffsetVector * (OffsetMapping_Bias + OffsetMapping_Scale * texture2D(bumpt, TexCoordOffset).w);\n"
+"#define tcbase TexCoordOffset\n"
+"#endif\n"
+
+
 		"#ifdef BUMP\n"
 		"	vec3 bases = vec3(texture2D(baset, tcbase));\n"
 		"#else\n"
@@ -2009,11 +2082,128 @@ void PPL_CreateLightTexturesProgram(void)
 			ppl_light_shader_lightposition [i]= qglGetUniformLocationARB(ppl_light_shader[i], "LightPosition");
 			ppl_light_shader_lightcolour[i] = qglGetUniformLocationARB(ppl_light_shader[i], "LightColour");
 			ppl_light_shader_lightradius[i] = qglGetUniformLocationARB(ppl_light_shader[i], "lightradius");
+			ppl_light_shader_offset_scale[i] = qglGetUniformLocationARB(ppl_light_shader[i], "OffsetMapping_Scale");
+			ppl_light_shader_offset_bias[i] = qglGetUniformLocationARB(ppl_light_shader[i], "OffsetMapping_Bias");
 
 			GLSlang_UseProgram(0);
 		}
 	}
 };
+
+
+void PPL_LightTexturesFP_Cached(model_t *model, vec3_t modelorigin, dlight_t *light, vec3_t colour)
+{
+	int i, j;
+	texture_t	*t;
+	msurface_t	*s;
+	int p, lp=-1;
+	extern cvar_t gl_specular;
+	shadowmesh_t *shm = light->worldshadowmesh;
+	
+
+	vec3_t relativelightorigin;
+	vec3_t relativeeyeorigin;
+
+	if (qglGetError())
+		Con_Printf("GL Error before lighttextures\n");
+
+	VectorSubtract(light->origin, modelorigin, relativelightorigin);
+	VectorSubtract(r_refdef.vieworg, modelorigin, relativeeyeorigin);
+
+	qglEnable(GL_BLEND);
+	GL_TexEnv(GL_MODULATE);
+	qglBlendFunc(GL_ONE, GL_ONE);
+	qglDisableClientState(GL_COLOR_ARRAY);
+	if (qglGetError())
+		Con_Printf("GL Error early in lighttextures\n");
+
+	for (j=0 ; j<shm->numsurftextures ; j++)
+	{
+		if (!shm->litsurfs[j].count)
+			continue;
+
+		s = shm->litsurfs[j].s[0];
+		t = s->texinfo->texture;
+		t = GLR_TextureAnimation (t);
+
+		for (i=0 ; i<shm->litsurfs[j].count ; i++)
+		{
+			s = shm->litsurfs[j].s[i];
+
+			if (s->visframe != r_framecount)
+				continue;
+
+			if (s->flags & SURF_PLANEBACK)
+			{//inverted normal.
+				if (DotProduct(s->plane->normal, relativelightorigin)-s->plane->dist > lightradius)
+					continue;
+			}
+			else
+			{
+				if (-DotProduct(s->plane->normal, relativelightorigin)+s->plane->dist > lightradius)
+					continue;
+			}
+
+	//		if ((s->flags & SURF_DRAWTURB) && r_wateralphaval != 1.0)
+	//			continue;	// draw translucent water later
+
+
+
+			p = 0;
+			if (t->gl_texturenumbumpmap && ppl_light_shader[p|PERMUTATION_BUMPMAP])
+				p |= PERMUTATION_BUMPMAP;
+			if (gl_specular.value && t->gl_texturenumspec && ppl_light_shader[p|PERMUTATION_SPECULAR])
+				p |= PERMUTATION_SPECULAR;
+			if (r_shadow_glsl_offsetmapping.value && t->gl_texturenumbumpmap && ppl_light_shader[p|PERMUTATION_OFFSET])
+				p |= PERMUTATION_OFFSET;
+
+			if (p != lp)
+			{
+				lp = p;
+				GLSlang_UseProgram(ppl_light_shader[p]);
+				if (ppl_light_shader_eyeposition[p] != -1)
+					qglUniform3fvARB(ppl_light_shader_eyeposition[p], 1, relativeeyeorigin);
+				qglUniform3fvARB(ppl_light_shader_lightposition[p], 1, relativelightorigin);
+				qglUniform3fvARB(ppl_light_shader_lightcolour[p], 1, colour);
+				qglUniform1fARB(ppl_light_shader_lightradius[p], light->radius);
+
+				if (ppl_light_shader_offset_scale[p]!=-1)
+					qglUniform1fARB(ppl_light_shader_offset_scale[p], r_shadow_glsl_offsetmapping_scale.value);
+				if (ppl_light_shader_offset_bias[p]!=-1)
+					qglUniform1fARB(ppl_light_shader_offset_bias[p], r_shadow_glsl_offsetmapping_bias.value);
+			}
+
+
+			if (p & PERMUTATION_BUMPMAP)
+				GL_MBind(GL_TEXTURE1_ARB, t->gl_texturenumbumpmap);
+			if (p & PERMUTATION_SPECULAR)
+				GL_MBind(GL_TEXTURE2_ARB, t->gl_texturenumspec);
+
+			GL_MBind(GL_TEXTURE0_ARB, t->gl_texturenum);
+			qglEnableClientState(GL_TEXTURE_COORD_ARRAY);
+
+
+
+			qglMultiTexCoord3fARB(GL_TEXTURE1_ARB, s->texinfo->vecs[0][0], s->texinfo->vecs[0][1], s->texinfo->vecs[0][2]);
+			qglMultiTexCoord3fARB(GL_TEXTURE2_ARB, -s->texinfo->vecs[1][0], -s->texinfo->vecs[1][1], -s->texinfo->vecs[1][2]);
+
+			if (s->flags & SURF_PLANEBACK)
+				qglMultiTexCoord3fARB(GL_TEXTURE3_ARB, -s->plane->normal[0], -s->plane->normal[1], -s->plane->normal[2]);
+			else
+				qglMultiTexCoord3fARB(GL_TEXTURE3_ARB, s->plane->normal[0], s->plane->normal[1], s->plane->normal[2]);
+
+			qglTexCoordPointer(2, GL_FLOAT, 0, s->mesh->st_array);
+
+			qglVertexPointer(3, GL_FLOAT, 0, s->mesh->xyz_array);
+			qglDrawElements(GL_TRIANGLES, s->mesh->numindexes, GL_UNSIGNED_INT, s->mesh->indexes);
+		}
+	}
+	GLSlang_UseProgram(0);
+	qglDisableClientState(GL_TEXTURE_COORD_ARRAY);
+
+	if (qglGetError())
+		Con_Printf("GL Error during lighttextures\n");
+}
 
 void PPL_LightTexturesFP(model_t *model, vec3_t modelorigin, dlight_t *light, vec3_t colour)
 {
@@ -2128,7 +2318,10 @@ void PPL_LightTextures(model_t *model, vec3_t modelorigin, dlight_t *light, vec3
 
 	if (ppl_light_shader[0])
 	{
-		PPL_LightTexturesFP(model, modelorigin, light, colour);
+		if (model == cl.worldmodel && light->worldshadowmesh)
+			PPL_LightTexturesFP_Cached(model, modelorigin, light, colour);
+		else
+			PPL_LightTexturesFP(model, modelorigin, light, colour);
 		return;
 	}
 
@@ -2934,6 +3127,27 @@ qboolean PPL_VisOverlaps(qbyte *v1, qbyte *v2)
 	}
 	return false;
 }
+qboolean PPL_LeafInView(qbyte *lightvis)
+{
+	int i;
+	int m = (cl.worldmodel->numleafs+7)/8;
+	mleaf_t *wl = cl.worldmodel->leafs;
+	unsigned char lv;
+	for (i = 0; i < m; i++)
+	{
+		lv = lightvis[i];
+		if (lv&1   && wl[(i<<3)+0].visframe == r_visframecount) return true;
+		if (lv&2   && wl[(i<<3)+1].visframe == r_visframecount) return true;
+		if (lv&4   && wl[(i<<3)+2].visframe == r_visframecount) return true;
+		if (lv&8   && wl[(i<<3)+3].visframe == r_visframecount) return true;
+		if (lv&16  && wl[(i<<3)+4].visframe == r_visframecount) return true;
+		if (lv&32  && wl[(i<<3)+5].visframe == r_visframecount) return true;
+		if (lv&64  && wl[(i<<3)+6].visframe == r_visframecount) return true;
+		if (lv&128 && wl[(i<<3)+7].visframe == r_visframecount) return true;
+	}
+
+	return false;
+}
 
 void PPL_RecursiveWorldNode_r (mnode_t *node)
 {
@@ -2967,6 +3181,7 @@ void PPL_RecursiveWorldNode_r (mnode_t *node)
 	if (node->contents < 0)
 	{
 		pleaf = (mleaf_t *)node;
+		PPL_Shadow_Cache_Leaf(pleaf);
 
 		mark = pleaf->firstmarksurface;
 		c = pleaf->nummarksurfaces;
@@ -3051,6 +3266,11 @@ void PPL_RecursiveWorldNode_r (mnode_t *node)
 					fabs(surf->center[2] - lightorg[2]) > lightradius+surf->radius)
 					continue;
 */				
+
+				PPL_Shadow_Cache_Surface(surf);
+
+
+
 #define PROJECTION_DISTANCE (float)(lightradius*2)//0x7fffffff
 
 				//build a list of the edges that are to be drawn.
@@ -3470,14 +3690,6 @@ void PPL_RecursiveWorldNode (dlight_t *dl)
 	float *v1, *v2;
 	vec3_t v3, v4;
 
-	if (dl->worldshadowmesh)
-	{
-		qglEnableClientState(GL_VERTEX_ARRAY);
-		qglVertexPointer(3, GL_FLOAT, 0, dl->worldshadowmesh->verts);
-		qglDrawElements(GL_TRIANGLES, dl->worldshadowmesh->numindicies, GL_UNSIGNED_INT, dl->worldshadowmesh->indicies);
-		return;
-	}
-
 	lightradius = dl->radius;
 
 	lightorg[0] = dl->origin[0]+0.5;
@@ -3487,6 +3699,17 @@ void PPL_RecursiveWorldNode (dlight_t *dl)
 	modelorg[0] = lightorg[0];
 	modelorg[1] = lightorg[1];
 	modelorg[2] = lightorg[2];
+
+	if (dl->worldshadowmesh)
+	{
+		qglEnableClientState(GL_VERTEX_ARRAY);
+		qglVertexPointer(3, GL_FLOAT, 0, dl->worldshadowmesh->verts);
+		qglDrawRangeElements(GL_TRIANGLES, 0, dl->worldshadowmesh->numverts, dl->worldshadowmesh->numindicies, GL_UNSIGNED_INT, dl->worldshadowmesh->indicies);
+		return;
+	}
+
+	PPL_BeginShadowMesh(dl);
+
 
 	qglEnableClientState(GL_VERTEX_ARRAY);
 
@@ -3579,6 +3802,8 @@ void PPL_RecursiveWorldNode (dlight_t *dl)
 	varray_vc=0;
 
 	firstedge=0;
+
+	PPL_FinishShadowMesh(dl);
 }
 
 void PPL_DrawBrushModelShadow(dlight_t *dl, entity_t *e)
@@ -3591,7 +3816,7 @@ void PPL_DrawBrushModelShadow(dlight_t *dl, entity_t *e)
 	model_t *model;
 	msurface_t *surf;
 
-	RotateLightVector(e->angles, e->origin, dl->origin, lightorg);
+	RotateLightVector(e->axis, e->origin, dl->origin, lightorg);
 
 	qglPushMatrix();
 	R_RotateForEntity(e);
@@ -3726,6 +3951,9 @@ void PPL_UpdateNodeShadowFrames(qbyte	*lvis)
 {
 	int i;
 	mnode_t *node;
+
+	if (!lvis)	//using a cached light, we don't need shadowframes
+		return;
 
 
 
@@ -4025,7 +4253,7 @@ void CL_NewDlight (int key, float x, float y, float z, float radius, float time,
 				   int type);
 //generates stencil shadows of the world geometry.
 //redraws world geometry
-void PPL_AddLight(dlight_t *dl)
+qboolean PPL_AddLight(dlight_t *dl)
 {
 	int i;
 	int sdecrw;
@@ -4069,24 +4297,45 @@ void PPL_AddLight(dlight_t *dl)
 	}
 
 	if (colour[0] < 0.1 && colour[1] < 0.1 && colour[2] < 0.1)
-		return;	//just switch these off.
+		return false;	//just switch these off.
 
 	if (PPL_ScissorForBox(mins, maxs))
-		return;	//was culled.
+		return false;	//was culled.
 
-	if (cl.worldmodel->fromgame == fg_quake2 || cl.worldmodel->fromgame == fg_quake3)
-		i = cl.worldmodel->funcs.LeafForPoint(r_refdef.vieworg, cl.worldmodel);
+	if (dl->worldshadowmesh)
+	{
+		if (!PPL_LeafInView(dl->worldshadowmesh->litleaves))
+			return false;
+/*
+		if (cl.worldmodel->fromgame == fg_quake2 || cl.worldmodel->fromgame == fg_quake3)
+			i = cl.worldmodel->funcs.LeafForPoint(r_refdef.vieworg, cl.worldmodel);
+		else
+			i = r_viewleaf - cl.worldmodel->leafs;
+		vvis = cl.worldmodel->funcs.LeafPVS(i, cl.worldmodel, vvisb);
+
+	//	if (!(lvis[i>>3] & (1<<(i&7))))	//light might not be visible, but it's effects probably should be.
+	//		return;
+		if (!PPL_VisOverlaps(dl->worldshadowmesh->litleaves, vvis))	//The two viewing areas do not intersect.
+			return;
+*/
+		lvis = NULL;
+	}
 	else
-		i = r_viewleaf - cl.worldmodel->leafs;
+	{
+		if (cl.worldmodel->fromgame == fg_quake2 || cl.worldmodel->fromgame == fg_quake3)
+			i = cl.worldmodel->funcs.LeafForPoint(r_refdef.vieworg, cl.worldmodel);
+		else
+			i = r_viewleaf - cl.worldmodel->leafs;
 
-	leaf = cl.worldmodel->funcs.LeafForPoint(dl->origin, cl.worldmodel);
-	lvis = cl.worldmodel->funcs.LeafPVS(leaf, cl.worldmodel, lvisb);
-	vvis = cl.worldmodel->funcs.LeafPVS(i, cl.worldmodel, vvisb);
+		leaf = cl.worldmodel->funcs.LeafForPoint(dl->origin, cl.worldmodel);
+		lvis = cl.worldmodel->funcs.LeafPVS(leaf, cl.worldmodel, lvisb);
+		vvis = cl.worldmodel->funcs.LeafPVS(i, cl.worldmodel, vvisb);
 
-//	if (!(lvis[i>>3] & (1<<(i&7))))	//light might not be visible, but it's effects probably should be.
-//		return;
-	if (!PPL_VisOverlaps(lvis, vvis))	//The two viewing areas do not intersect.
-		return;
+	//	if (!(lvis[i>>3] & (1<<(i&7))))	//light might not be visible, but it's effects probably should be.
+	//		return;
+		if (!PPL_VisOverlaps(lvis, vvis))	//The two viewing areas do not intersect.
+			return false;
+	}
 
 	PPL_EnableVertexArrays();
 
@@ -4147,7 +4396,7 @@ void PPL_AddLight(dlight_t *dl)
 
 			qglStencilOpSeparateATI(GL_BACK, GL_KEEP, sincrw, GL_KEEP);
 			qglStencilOpSeparateATI(GL_FRONT, GL_KEEP, sdecrw, GL_KEEP);
-			PPL_UpdateNodeShadowFrames(lvisb);
+			PPL_UpdateNodeShadowFrames(lvis);
 			PPL_RecursiveWorldNode(dl);
 			PPL_DrawShadowMeshes(dl);
 			qglStencilOpSeparateATI(GL_FRONT_AND_BACK, GL_KEEP, GL_KEEP, GL_KEEP);
@@ -4172,7 +4421,7 @@ void PPL_AddLight(dlight_t *dl)
 			qglStencilOp(GL_KEEP, sdecrw, GL_KEEP);
 			qglStencilFunc( GL_ALWAYS, 1, ~0 );
 
-			PPL_UpdateNodeShadowFrames(lvisb);
+			PPL_UpdateNodeShadowFrames(lvis);
 			PPL_RecursiveWorldNode(dl);
 			PPL_DrawShadowMeshes(dl);
 
@@ -4218,10 +4467,39 @@ void PPL_AddLight(dlight_t *dl)
 
 		qglEnable(GL_DEPTH_TEST);
 		qglDepthMask(0);
-		qglColorMask( GL_TRUE, GL_TRUE, GL_TRUE, GL_TRUE );
 		qglStencilOp( GL_KEEP, GL_KEEP, GL_KEEP );
 		qglCullFace(GL_FRONT);
 
+#if 0	//draw the stencil stuff to the red channel
+/*		{
+#pragma comment(lib, "opengl32.lib");
+			static char buffer[1024*1024*8];
+			glReadPixels(0, 0, vid.width, vid.height, GL_STENCIL_INDEX, GL_UNSIGNED_BYTE, buffer);
+			glDrawPixels(vid.width, vid.height, GL_GREEN, GL_UNSIGNED_BYTE, buffer);
+		}
+*/
+
+		qglMatrixMode(GL_PROJECTION);
+		qglPushMatrix();
+		qglMatrixMode(GL_MODELVIEW);
+		qglPushMatrix();
+		GL_Set2D();
+
+		qglColorMask(GL_TRUE, GL_FALSE, GL_FALSE, GL_FALSE);
+		qglStencilFunc( GL_GREATER, 1, ~0 );
+		Draw_ConsoleBackground(480);
+
+		qglColorMask(GL_FALSE, GL_FALSE, GL_TRUE, GL_FALSE);
+		qglStencilFunc( GL_LESS, 1, ~0 );
+		Draw_ConsoleBackground(480);
+
+		qglMatrixMode(GL_PROJECTION);
+		qglPopMatrix();
+		qglMatrixMode(GL_MODELVIEW);
+		qglPopMatrix();
+#endif
+
+		qglColorMask( GL_TRUE, GL_TRUE, GL_TRUE, GL_TRUE );
 	}
 	qglColor3f(1,1,1);
 
@@ -4244,6 +4522,8 @@ void PPL_AddLight(dlight_t *dl)
 	qglStencilFunc( GL_ALWAYS, 0, ~0 );
 
 	qglDisable(GL_SCISSOR_TEST);
+
+	return true;
 }
 
 #endif
@@ -4259,10 +4539,17 @@ void PPL_DrawWorld (void)
 	float furthest;
 #endif
 	int i;
+	int numlights;
 
 	vec3_t mins, maxs;
 
 	int maxshadowlights = gl_maxshadowlights.value;
+
+	if (!r_shadow_realtime_world.value)
+		r_lightmapintensity = 1;
+	else
+		r_lightmapintensity = r_shadow_realtime_world_lightmaps.value;
+
 /*
 	if (!lightmap)
 	{
@@ -4298,6 +4585,7 @@ void PPL_DrawWorld (void)
 //		Con_Printf("GL Error on entities\n");
 
 #ifdef PPL
+	numlights = 0;
 	RSpeedRemark();
 	if (r_shadows.value && qglStencilFunc && gl_canstencil)
 	{
@@ -4325,11 +4613,11 @@ void PPL_DrawWorld (void)
 				maxs[2] = l->origin[2] + l->radius;
 				if (R_CullBox(mins, maxs))
 					continue;
-//				if (R_CullSphere(l->origin, l->radius*1.1))
-//					continue;
+				if (R_CullSphere(l->origin, l->radius))
+					continue;
 
 #if 1
-				if (!maxshadowlights--)
+				if (maxshadowlights-- <= 0)
 					continue;
 #else
 				VectorSubtract(l->origin, r_refdef.vieworg, mins)
@@ -4371,7 +4659,8 @@ void PPL_DrawWorld (void)
 					l->color[2]*=10;
 				}
 				TRACE(("dbg: calling PPL_AddLight\n"));
-				PPL_AddLight(l);
+				if (PPL_AddLight(l))
+					numlights++;
 				if(!l->isstatic)
 				{
 					l->color[0]/=10;
@@ -4387,6 +4676,7 @@ void PPL_DrawWorld (void)
 	}
 	RSpeedEnd(RSPEED_STENCILSHADOWS);
 #endif
+//	Con_Printf("%i lights\n", numlights);
 
 //	if (qglGetError())
 //		Con_Printf("GL Error on shadow lighting\n");
@@ -4428,4 +4718,268 @@ void PPL_CreateShaderObjects(void)
 	PPL_LoadSpecularFragmentProgram();
 }
 
-#endif
+void PPL_FlushShadowMesh(dlight_t *dl)
+{
+	int tn;
+	shadowmesh_t *sm;
+	sm = dl->worldshadowmesh;
+	if (sm)
+	{
+		dl->worldshadowmesh = NULL;
+		for (tn = 0; tn < sm->numsurftextures; tn++)
+			if (sm->litsurfs[tn].count)
+				BZ_Free(sm->litsurfs);
+		BZ_Free(sm->indicies);
+		BZ_Free(sm->verts);
+		BZ_Free(sm);
+	}
+}
+
+//okay, so this is a bit of a hack...
+qboolean buildingmesh;
+void (APIENTRY *realBegin) (GLenum);
+void (APIENTRY *realEnd) (void);
+void (APIENTRY *realVertex3f) (GLfloat x, GLfloat y, GLfloat z);
+void (APIENTRY *realVertex3fv) (const GLfloat *v);
+void (APIENTRY *realVertexPointer) (GLint size, GLenum type, GLsizei stride, const GLvoid *pointer);
+void (APIENTRY *realDrawArrays) (GLenum mode, GLint first, GLsizei count);
+void (APIENTRY *realDrawElements) (GLenum mode, GLsizei count, GLenum type, const GLvoid *indices);
+
+#define inc 128
+int sh_type;
+int sh_index[64*64];
+int sh_vertnum;		//vertex number (set to 0 at SH_Begin)
+int sh_maxverts;
+int sh_numverts;	//total emitted
+int sh_maxindicies;
+int sh_numindicies;
+float *sh_vertexpointer;
+int sh_vpstride;
+shadowmesh_t *sh_shmesh;
+void APIENTRY SH_Begin (GLenum e)
+{
+	sh_type = e;
+}
+void APIENTRY SH_End (void)
+{
+	int i;
+	int v1, v2;
+	switch(sh_type)
+	{
+	case GL_POLYGON:
+		i = (sh_numindicies+(sh_vertnum-2)*3+inc+5)&~(inc-1);	//and a bit of padding
+		if (sh_maxindicies != i)
+		{
+			sh_maxindicies = i;
+			sh_shmesh->indicies = BZ_Realloc(sh_shmesh->indicies, i * sizeof(*sh_shmesh->indicies));
+		}
+		//decompose the poly into a triangle fan.
+		v1 = sh_index[0];
+		v2 = sh_index[1];
+		for (i = 2; i < sh_vertnum; i++)
+		{
+			sh_shmesh->indicies[sh_numindicies++] = v1;
+			sh_shmesh->indicies[sh_numindicies++] = v2;
+			sh_shmesh->indicies[sh_numindicies++] = v2 = sh_index[i];
+		}
+		sh_vertnum = 0;
+		break;
+	case GL_TRIANGLES:
+		i = (sh_numindicies+(sh_vertnum)+inc+5)&~(inc-1);	//and a bit of padding
+		if (sh_maxindicies != i)
+		{
+			sh_maxindicies = i;
+			sh_shmesh->indicies = BZ_Realloc(sh_shmesh->indicies, i * sizeof(*sh_shmesh->indicies));
+		}
+		//add the extra triangles
+		for (i = 0; i < sh_vertnum; i+=3)
+		{
+			sh_shmesh->indicies[sh_numindicies++] = sh_index[i+0];
+			sh_shmesh->indicies[sh_numindicies++] = sh_index[i+1];
+			sh_shmesh->indicies[sh_numindicies++] = sh_index[i+2];
+		}
+		sh_vertnum = 0;
+		break;
+	case GL_QUADS:
+		i = (sh_numindicies+(sh_vertnum/4)*6+inc+5)&~(inc-1);	//and a bit of padding
+		if (sh_maxindicies != i)
+		{
+			sh_maxindicies = i;
+			sh_shmesh->indicies = BZ_Realloc(sh_shmesh->indicies, i * sizeof(*sh_shmesh->indicies));
+		}
+		//add the extra triangles
+		for (i = 0; i < sh_vertnum; i+=4)
+		{
+			sh_shmesh->indicies[sh_numindicies++] = sh_index[i+0];
+			sh_shmesh->indicies[sh_numindicies++] = sh_index[i+1];
+			sh_shmesh->indicies[sh_numindicies++] = sh_index[i+2];
+
+			sh_shmesh->indicies[sh_numindicies++] = sh_index[i+0];
+			sh_shmesh->indicies[sh_numindicies++] = sh_index[i+2];
+			sh_shmesh->indicies[sh_numindicies++] = sh_index[i+3];
+		}
+		sh_vertnum = 0;
+		break;
+	default:
+		if (sh_vertnum)
+			Sys_Error("SH_End: verticies were left");
+	}
+}
+void APIENTRY SH_Vertex3f (GLfloat x, GLfloat y, GLfloat z)
+{
+	int i;
+	if (sh_vertnum > sizeof(sh_index)/sizeof(sh_index[0]))
+		Sys_Error("SH_End: too many verticies");
+
+//add the verts as we go
+	i = (sh_numverts+inc+5)&~(inc-1);	//and a bit of padding
+	if (sh_maxverts != i)
+	{
+		sh_maxverts = i;
+		sh_shmesh->verts = BZ_Realloc(sh_shmesh->verts, i * sizeof(*sh_shmesh->verts));
+	}
+
+	sh_shmesh->verts[sh_numverts][0] = x;
+	sh_shmesh->verts[sh_numverts][1] = y;
+	sh_shmesh->verts[sh_numverts][2] = z;
+
+	sh_index[sh_vertnum] = sh_numverts;
+	sh_vertnum++;
+	sh_numverts++;
+
+	switch(sh_type)
+	{
+	case GL_POLYGON:
+		break;
+	case GL_TRIANGLES:
+		if (sh_vertnum == 3)
+			SH_End();
+		break;
+	case GL_QUADS:
+		if (sh_vertnum == 4)
+			SH_End();
+		break;
+	default:
+		Sys_Error("SH_Vertex3f: bad type");
+	}
+}
+void APIENTRY SH_Vertex3fv (const GLfloat *v)
+{
+	SH_Vertex3f(v[0], v[1], v[2]);
+}
+void APIENTRY SH_VertexPointer (GLint size, GLenum type, GLsizei stride, const GLvoid *pointer)
+{
+	sh_vertexpointer = pointer;
+	sh_vpstride = stride/4;
+	if (!sh_vpstride)
+		sh_vpstride = 3;
+}
+void APIENTRY SH_DrawArrays (GLenum mode, GLint first, GLsizei count)
+{
+	int i;
+	SH_Begin(mode);
+	count+=first;
+	for (i = first; i < count; i++)
+		SH_Vertex3fv(sh_vertexpointer + i*sh_vpstride);
+	SH_End();
+}
+void APIENTRY SH_DrawElements (GLenum mode, GLsizei count, GLenum type, const GLvoid *indices)
+{
+	int i;
+	SH_Begin(mode);
+	for (i = 0; i < count; i++)
+		SH_Vertex3fv(sh_vertexpointer + (((int*)indices)[i])*sh_vpstride);
+	SH_End();
+}
+
+void PPL_Shadow_Cache_Surface(msurface_t *surf)
+{
+	int i;
+	if (!buildingmesh)
+		return;
+
+	for (i = 0; i < cl.worldmodel->numtextures; i++)
+		if (surf->texinfo->texture == cl.worldmodel->textures[i])
+			break;
+
+	sh_shmesh->litsurfs[i].s = BZ_Realloc(sh_shmesh->litsurfs[i].s, sizeof(void*)*(sh_shmesh->litsurfs[i].count+1));
+	sh_shmesh->litsurfs[i].s[sh_shmesh->litsurfs[i].count] = surf;
+	sh_shmesh->litsurfs[i].count++;
+}
+
+void PPL_Shadow_Cache_Leaf(mleaf_t *leaf)
+{
+	int i;
+	if (!buildingmesh)
+		return;
+
+	i = leaf - cl.worldmodel->leafs;
+	sh_shmesh->litleaves[i>>3] = 1<<(i&7);
+}
+
+void PPL_BeginShadowMesh(dlight_t *dl)
+{
+	PPL_FlushShadowMesh(dl);
+
+	if (buildingmesh)
+		return;
+	if (!dl->isstatic)
+		return;
+
+	sh_maxverts = 0;
+	sh_numverts = 0;
+	sh_vertnum = 0;
+	sh_maxindicies = 0;
+	sh_numindicies = 0;
+
+	buildingmesh = true;
+	realBegin			= qglBegin;
+	realEnd				= qglEnd;
+	realVertex3f		= qglVertex3f;
+	realVertex3fv		= qglVertex3fv;
+	realVertexPointer	= qglVertexPointer;
+	realDrawArrays		= qglDrawArrays;
+	realDrawElements	= qglDrawElements;
+
+	qglBegin			= SH_Begin;
+	qglEnd				= SH_End;
+	qglVertex3f			= SH_Vertex3f;
+	qglVertex3fv		= SH_Vertex3fv;
+	qglVertexPointer	= SH_VertexPointer;
+	qglDrawArrays		= SH_DrawArrays;
+	qglDrawElements		= SH_DrawElements;
+
+	sh_shmesh = Z_Malloc(sizeof(*sh_shmesh) + (cl.worldmodel->numleafs+7)/8);
+	sh_shmesh->litsurfs = Z_Malloc(sizeof(shadowmeshsurfs_t)*cl.worldmodel->numtextures);
+	sh_shmesh->numsurftextures=cl.worldmodel->numtextures;
+
+	sh_shmesh->litleaves = (unsigned char*)(sh_shmesh+1);
+}
+void PPL_FinishShadowMesh(dlight_t *dl)
+{
+	int i;
+	if (!buildingmesh)
+		return;
+
+	qglBegin			= realBegin;
+	qglEnd				= realEnd;
+	qglVertex3f			= realVertex3f;
+	qglVertex3fv		= realVertex3fv;
+	qglVertexPointer	= realVertexPointer;
+	qglDrawArrays		= realDrawArrays;
+	qglDrawElements		= realDrawElements;
+	buildingmesh		= false;
+
+	dl->worldshadowmesh = sh_shmesh;
+	sh_shmesh->numindicies = sh_numindicies;
+	sh_shmesh->numverts = sh_numverts;
+
+	sh_shmesh = NULL;
+}
+
+#endif	//ifdef GLQUAKE
+
+
+
+
+

@@ -1156,7 +1156,7 @@ void Cmd_TokenizeString (char *text, qboolean expandmacros, qboolean qctokenize)
 	while (1)
 	{
 // skip whitespace up to a /n
-		while (*text && *text <= ' ' && *text != '\n')
+		while (*text && (unsigned)*text <= ' ' && *text != '\n')
 		{
 			text++;
 		}

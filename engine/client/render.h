@@ -255,6 +255,8 @@ void R_SetVrect (vrect_t *pvrect, vrect_t *pvrectin, int lineadj);
 void	GLMod_Init (void);
 qboolean GLMod_GetTag(struct model_s *model, int tagnum, int frame, int frame2, float f2ness, float f1time, float f2time, float *result);
 int GLMod_TagNumForName(struct model_s *model, char *name);
+int GLMod_SkinNumForName(struct model_s *model, char *name);
+
 void	GLMod_ClearAll (void);
 struct model_s *GLMod_ForName (char *name, qboolean crash);
 struct model_s *GLMod_FindName (char *name);

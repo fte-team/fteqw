@@ -1828,7 +1828,7 @@ void Shader_DefaultSkin(char *shortname, shader_t *s)
 {
 	shaderpass_t *pass;
 	pass = &s->passes[0];
-	pass->flags = SHADER_PASS_BLEND|SHADER_PASS_DEPTHWRITE;
+	pass->flags = SHADER_PASS_DEPTHWRITE;
 	pass->anim_frames[0] = Mod_LoadHiResTexture(shortname, NULL, true, true, true);//GL_FindImage (shortname, 0);
 	pass->depthfunc = GL_LEQUAL;
 	pass->rgbgen = RGB_GEN_LIGHTING_DIFFUSE;
@@ -1847,7 +1847,7 @@ void Shader_DefaultSkin(char *shortname, shader_t *s)
 
 	s->numpasses = 1;
 	s->numdeforms = 0;
-	s->flags = SHADER_BLEND|SHADER_DEPTHWRITE|SHADER_CULL_FRONT;
+	s->flags = SHADER_DEPTHWRITE|SHADER_CULL_FRONT;
 	s->features = MF_STCOORDS|MF_NORMALS;
 	s->sort = SHADER_SORT_OPAQUE;
 	s->registration_sequence = 1;//fizme: registration_sequence;
@@ -2027,7 +2027,11 @@ shader_t *R_RegisterSkin (char *name)
 }
 shader_t *R_RegisterCustom (char *name, void(*defaultgen)(char *name, shader_t*))
 {
-	return &r_shaders[R_LoadShader (name, defaultgen)];
+	int i;
+	i = R_LoadShader (name, defaultgen);
+	if (i < 0)
+		return NULL;
+	return &r_shaders[i];
 }
 #endif
 

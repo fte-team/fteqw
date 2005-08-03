@@ -730,7 +730,7 @@ static char *lastfile = 0;
 		lastline = pr_progstate[pn].linenums[statement];
 		lastfile = f->s_file+progfuncs->stringtable;
 
-		lastline = externs->useeditor(lastfile, lastline, 0, NULL);
+		lastline = externs->useeditor(progfuncs, lastfile, lastline, 0, NULL);
 
 		if (pr_progstate[pn].linenums[statement] != lastline)
 		{
@@ -750,7 +750,7 @@ static char *lastfile = 0;
 	else if (f)	//annoying.
 	{
 		if (externs->useeditor)
-			externs->useeditor(f->s_file+progfuncs->stringtable, -1, 0, NULL);
+			externs->useeditor(progfuncs, f->s_file+progfuncs->stringtable, -1, 0, NULL);
 		return statement;
 	}
 	

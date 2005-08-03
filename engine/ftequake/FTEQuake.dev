@@ -1,7 +1,7 @@
 [Project]
 FileName=FTEQuake.dev
 Name=FTEQuake
-UnitCount=142
+UnitCount=133
 Type=0
 Ver=1
 ObjFiles=""
@@ -108,16 +108,6 @@ OverrideBuildCmd=0
 BuildCmd=
 
 [Unit9]
-FileName=..\common\md5.c
-CompileCpp=0
-Folder=Common
-Compile=1
-Link=1
-Priority=1000
-OverrideBuildCmd=0
-BuildCmd=
-
-[Unit10]
 FileName=..\common\net_chan.c
 CompileCpp=0
 Folder=Common
@@ -127,7 +117,7 @@ Priority=1000
 OverrideBuildCmd=0
 BuildCmd=
 
-[Unit11]
+[Unit10]
 FileName=..\common\net_wins.c
 CompileCpp=0
 Folder=Common
@@ -137,7 +127,7 @@ Priority=1000
 OverrideBuildCmd=0
 BuildCmd=
 
-[Unit12]
+[Unit11]
 FileName=..\common\pmove.c
 CompileCpp=0
 Folder=Common
@@ -147,7 +137,7 @@ Priority=1000
 OverrideBuildCmd=0
 BuildCmd=
 
-[Unit13]
+[Unit12]
 FileName=..\common\pmovetst.c
 CompileCpp=0
 Folder=Common
@@ -157,7 +147,7 @@ Priority=1000
 OverrideBuildCmd=0
 BuildCmd=
 
-[Unit14]
+[Unit13]
 FileName=..\common\q1bsp.c
 CompileCpp=0
 Folder=Common
@@ -167,7 +157,7 @@ Priority=1000
 OverrideBuildCmd=0
 BuildCmd=
 
-[Unit15]
+[Unit14]
 FileName=..\common\q2pmove.c
 CompileCpp=0
 Folder=Common
@@ -177,7 +167,7 @@ Priority=1000
 OverrideBuildCmd=0
 BuildCmd=
 
-[Unit16]
+[Unit15]
 FileName=..\common\qvm.c
 CompileCpp=0
 Folder=Common
@@ -187,7 +177,7 @@ Priority=1000
 OverrideBuildCmd=0
 BuildCmd=
 
-[Unit17]
+[Unit16]
 FileName=..\common\translate.c
 CompileCpp=0
 Folder=Common
@@ -197,10 +187,20 @@ Priority=1000
 OverrideBuildCmd=0
 BuildCmd=$(CC) -c translate.c -o ../build/translate.o $(CFLAGS)
 
-[Unit18]
+[Unit17]
 FileName=..\common\cmd.c
 CompileCpp=0
 Folder=Common
+Compile=1
+Link=1
+Priority=1000
+OverrideBuildCmd=0
+BuildCmd=
+
+[Unit18]
+FileName=..\client\cd_win.c
+CompileCpp=0
+Folder=Client
 Compile=1
 Link=1
 Priority=1000
@@ -211,7 +211,7 @@ BuildCmd=
 Major=2
 Minor=5
 Release=5
-Build=36
+Build=46
 LanguageID=2057
 CharsetID=1252
 CompanyName=
@@ -226,16 +226,6 @@ ProductVersion=
 AutoIncBuildNr=1
 
 [Unit19]
-FileName=..\client\cd_win.c
-CompileCpp=0
-Folder=Client
-Compile=1
-Link=1
-Priority=1000
-OverrideBuildCmd=0
-BuildCmd=
-
-[Unit20]
 FileName=..\client\r_partset.c
 CompileCpp=0
 Folder=Client
@@ -245,7 +235,7 @@ Priority=1000
 OverrideBuildCmd=0
 BuildCmd=
 
-[Unit21]
+[Unit20]
 FileName=..\client\cl_demo.c
 CompileCpp=0
 Folder=Client
@@ -255,7 +245,7 @@ Priority=1000
 OverrideBuildCmd=0
 BuildCmd=
 
-[Unit22]
+[Unit21]
 FileName=..\client\cl_ents.c
 CompileCpp=0
 Folder=Client
@@ -265,7 +255,7 @@ Priority=1000
 OverrideBuildCmd=0
 BuildCmd=
 
-[Unit23]
+[Unit22]
 FileName=..\client\cl_input.c
 CompileCpp=0
 Folder=Client
@@ -275,7 +265,7 @@ Priority=1000
 OverrideBuildCmd=0
 BuildCmd=
 
-[Unit24]
+[Unit23]
 FileName=..\client\cl_main.c
 CompileCpp=0
 Folder=Client
@@ -285,7 +275,7 @@ Priority=1000
 OverrideBuildCmd=0
 BuildCmd=
 
-[Unit25]
+[Unit24]
 FileName=..\client\cl_parse.c
 CompileCpp=0
 Folder=Client
@@ -295,7 +285,7 @@ Priority=1000
 OverrideBuildCmd=0
 BuildCmd=
 
-[Unit26]
+[Unit25]
 FileName=..\client\cl_pred.c
 CompileCpp=0
 Folder=Client
@@ -305,7 +295,7 @@ Priority=1000
 OverrideBuildCmd=0
 BuildCmd=
 
-[Unit27]
+[Unit26]
 FileName=..\client\cl_screen.c
 CompileCpp=0
 Folder=Client
@@ -315,7 +305,7 @@ Priority=1000
 OverrideBuildCmd=0
 BuildCmd=
 
-[Unit28]
+[Unit27]
 FileName=..\client\cl_tent.c
 CompileCpp=0
 Folder=Client
@@ -325,7 +315,7 @@ Priority=1000
 OverrideBuildCmd=0
 BuildCmd=
 
-[Unit29]
+[Unit28]
 FileName=..\client\cl_ui.c
 CompileCpp=0
 Folder=Client
@@ -335,7 +325,7 @@ Priority=1000
 OverrideBuildCmd=0
 BuildCmd=
 
-[Unit30]
+[Unit29]
 FileName=..\client\clq2_cin.c
 CompileCpp=0
 Folder=Client
@@ -345,7 +335,7 @@ Priority=1000
 OverrideBuildCmd=0
 BuildCmd=
 
-[Unit31]
+[Unit30]
 FileName=..\client\clq2_ents.c
 CompileCpp=0
 Folder=Client
@@ -355,7 +345,7 @@ Priority=1000
 OverrideBuildCmd=0
 BuildCmd=
 
-[Unit32]
+[Unit31]
 FileName=..\client\console.c
 CompileCpp=0
 Folder=Client
@@ -365,7 +355,7 @@ Priority=1000
 OverrideBuildCmd=0
 BuildCmd=
 
-[Unit33]
+[Unit32]
 FileName=..\client\fragstats.c
 CompileCpp=0
 Folder=Client
@@ -375,7 +365,7 @@ Priority=1000
 OverrideBuildCmd=0
 BuildCmd=
 
-[Unit34]
+[Unit33]
 FileName=..\client\image.c
 CompileCpp=0
 Folder=Client
@@ -385,7 +375,7 @@ Priority=1000
 OverrideBuildCmd=0
 BuildCmd=
 
-[Unit35]
+[Unit34]
 FileName=..\client\in_win.c
 CompileCpp=0
 Folder=Client
@@ -395,7 +385,7 @@ Priority=1000
 OverrideBuildCmd=0
 BuildCmd=
 
-[Unit36]
+[Unit35]
 FileName=..\client\keys.c
 CompileCpp=0
 Folder=Client
@@ -405,7 +395,7 @@ Priority=1000
 OverrideBuildCmd=0
 BuildCmd=
 
-[Unit37]
+[Unit36]
 FileName=..\client\m_items.c
 CompileCpp=0
 Folder=Client
@@ -415,7 +405,7 @@ Priority=1000
 OverrideBuildCmd=0
 BuildCmd=
 
-[Unit38]
+[Unit37]
 FileName=..\client\m_master.c
 CompileCpp=0
 Folder=Client
@@ -425,7 +415,7 @@ Priority=1000
 OverrideBuildCmd=0
 BuildCmd=
 
-[Unit39]
+[Unit38]
 FileName=..\client\m_mp3.c
 CompileCpp=0
 Folder=Client
@@ -435,7 +425,7 @@ Priority=1000
 OverrideBuildCmd=0
 BuildCmd=
 
-[Unit40]
+[Unit39]
 FileName=..\client\m_multi.c
 CompileCpp=0
 Folder=Client
@@ -445,7 +435,7 @@ Priority=1000
 OverrideBuildCmd=0
 BuildCmd=
 
-[Unit41]
+[Unit40]
 FileName=..\client\m_options.c
 CompileCpp=0
 Folder=Client
@@ -455,7 +445,7 @@ Priority=1000
 OverrideBuildCmd=0
 BuildCmd=
 
-[Unit42]
+[Unit41]
 FileName=..\client\m_script.c
 CompileCpp=0
 Folder=Client
@@ -465,7 +455,7 @@ Priority=1000
 OverrideBuildCmd=0
 BuildCmd=
 
-[Unit43]
+[Unit42]
 FileName=..\client\m_single.c
 CompileCpp=0
 Folder=Client
@@ -475,7 +465,7 @@ Priority=1000
 OverrideBuildCmd=0
 BuildCmd=
 
-[Unit44]
+[Unit43]
 FileName=..\client\menu.c
 CompileCpp=0
 Folder=Client
@@ -485,7 +475,7 @@ Priority=1000
 OverrideBuildCmd=0
 BuildCmd=
 
-[Unit45]
+[Unit44]
 FileName=..\client\net_master.c
 CompileCpp=0
 Folder=Client
@@ -495,7 +485,7 @@ Priority=1000
 OverrideBuildCmd=0
 BuildCmd=
 
-[Unit46]
+[Unit45]
 FileName=..\client\r_bulleten.c
 CompileCpp=0
 Folder=Client
@@ -505,7 +495,7 @@ Priority=1000
 OverrideBuildCmd=0
 BuildCmd=
 
-[Unit47]
+[Unit46]
 FileName=..\client\r_efrag.c
 CompileCpp=0
 Folder=Client
@@ -515,7 +505,7 @@ Priority=1000
 OverrideBuildCmd=0
 BuildCmd=
 
-[Unit48]
+[Unit47]
 FileName=..\client\r_part.c
 CompileCpp=0
 Folder=Client
@@ -525,7 +515,7 @@ Priority=1000
 OverrideBuildCmd=0
 BuildCmd=
 
-[Unit49]
+[Unit48]
 FileName=..\client\cl_cam.c
 CompileCpp=0
 Folder=Client
@@ -535,7 +525,7 @@ Priority=1000
 OverrideBuildCmd=0
 BuildCmd=
 
-[Unit50]
+[Unit49]
 FileName=..\client\zqtp.c
 CompileCpp=0
 Folder=Client
@@ -545,7 +535,7 @@ Priority=1000
 OverrideBuildCmd=0
 BuildCmd=
 
-[Unit51]
+[Unit50]
 FileName=..\client\renderque.c
 CompileCpp=0
 Folder=Client
@@ -555,7 +545,7 @@ Priority=1000
 OverrideBuildCmd=0
 BuildCmd=
 
-[Unit52]
+[Unit51]
 FileName=..\client\roq_read.c
 CompileCpp=0
 Folder=Client
@@ -565,7 +555,7 @@ Priority=1000
 OverrideBuildCmd=0
 BuildCmd=
 
-[Unit53]
+[Unit52]
 FileName=..\client\sbar.c
 CompileCpp=0
 Folder=Client
@@ -575,7 +565,7 @@ Priority=1000
 OverrideBuildCmd=0
 BuildCmd=
 
-[Unit54]
+[Unit53]
 FileName=..\client\skin.c
 CompileCpp=0
 Folder=Client
@@ -585,7 +575,7 @@ Priority=1000
 OverrideBuildCmd=0
 BuildCmd=
 
-[Unit55]
+[Unit54]
 FileName=..\client\snd_dma.c
 CompileCpp=0
 Folder=Client
@@ -595,7 +585,7 @@ Priority=1000
 OverrideBuildCmd=0
 BuildCmd=
 
-[Unit56]
+[Unit55]
 FileName=..\client\snd_mem.c
 CompileCpp=0
 Folder=Client
@@ -605,7 +595,7 @@ Priority=1000
 OverrideBuildCmd=0
 BuildCmd=
 
-[Unit57]
+[Unit56]
 FileName=..\client\snd_mix.c
 CompileCpp=0
 Folder=Client
@@ -615,7 +605,7 @@ Priority=1000
 OverrideBuildCmd=0
 BuildCmd=
 
-[Unit58]
+[Unit57]
 FileName=..\client\snd_mp3.c
 CompileCpp=0
 Folder=Client
@@ -625,7 +615,7 @@ Priority=1000
 OverrideBuildCmd=0
 BuildCmd=
 
-[Unit59]
+[Unit58]
 FileName=..\client\snd_ov.c
 CompileCpp=0
 Folder=Client
@@ -635,7 +625,7 @@ Priority=1000
 OverrideBuildCmd=0
 BuildCmd=
 
-[Unit60]
+[Unit59]
 FileName=..\client\snd_win.c
 CompileCpp=0
 Folder=Client
@@ -645,7 +635,7 @@ Priority=1000
 OverrideBuildCmd=0
 BuildCmd=
 
-[Unit61]
+[Unit60]
 FileName=..\client\sys_win.c
 CompileCpp=0
 Folder=Client
@@ -655,7 +645,7 @@ Priority=1000
 OverrideBuildCmd=0
 BuildCmd=
 
-[Unit62]
+[Unit61]
 FileName=..\client\teamplay.c
 CompileCpp=0
 Folder=Client
@@ -665,7 +655,7 @@ Priority=1000
 OverrideBuildCmd=0
 BuildCmd=
 
-[Unit63]
+[Unit62]
 FileName=..\client\textedit.c
 CompileCpp=0
 Folder=Client
@@ -675,7 +665,7 @@ Priority=1000
 OverrideBuildCmd=0
 BuildCmd=
 
-[Unit64]
+[Unit63]
 FileName=..\client\valid.c
 CompileCpp=0
 Folder=Client
@@ -685,7 +675,7 @@ Priority=1000
 OverrideBuildCmd=0
 BuildCmd=
 
-[Unit65]
+[Unit64]
 FileName=..\client\view.c
 CompileCpp=0
 Folder=Client
@@ -695,7 +685,7 @@ Priority=1000
 OverrideBuildCmd=0
 BuildCmd=
 
-[Unit66]
+[Unit65]
 FileName=..\client\wad.c
 CompileCpp=0
 Folder=Client
@@ -705,7 +695,7 @@ Priority=1000
 OverrideBuildCmd=0
 BuildCmd=
 
-[Unit67]
+[Unit66]
 FileName=..\client\renderer.c
 CompileCpp=0
 Folder=Client
@@ -715,7 +705,7 @@ Priority=1000
 OverrideBuildCmd=0
 BuildCmd=
 
-[Unit68]
+[Unit67]
 FileName=..\gl\ltface.c
 CompileCpp=0
 Folder=gl
@@ -725,7 +715,7 @@ Priority=1000
 OverrideBuildCmd=0
 BuildCmd=
 
-[Unit69]
+[Unit68]
 FileName=..\gl\gl_backend.c
 CompileCpp=0
 Folder=gl
@@ -735,7 +725,7 @@ Priority=1000
 OverrideBuildCmd=0
 BuildCmd=
 
-[Unit70]
+[Unit69]
 FileName=..\gl\gl_draw.c
 CompileCpp=0
 Folder=gl
@@ -745,7 +735,7 @@ Priority=1000
 OverrideBuildCmd=0
 BuildCmd=
 
-[Unit71]
+[Unit70]
 FileName=..\gl\gl_hlmdl.c
 CompileCpp=0
 Folder=gl
@@ -755,7 +745,7 @@ Priority=1000
 OverrideBuildCmd=0
 BuildCmd=
 
-[Unit72]
+[Unit71]
 FileName=..\gl\gl_model.c
 CompileCpp=0
 Folder=gl
@@ -765,7 +755,7 @@ Priority=1000
 OverrideBuildCmd=0
 BuildCmd=
 
-[Unit73]
+[Unit72]
 FileName=..\gl\gl_ngraph.c
 CompileCpp=0
 Folder=gl
@@ -775,7 +765,7 @@ Priority=1000
 OverrideBuildCmd=0
 BuildCmd=
 
-[Unit74]
+[Unit73]
 FileName=..\gl\gl_ppl.c
 CompileCpp=0
 Folder=gl
@@ -785,7 +775,7 @@ Priority=1000
 OverrideBuildCmd=0
 BuildCmd=
 
-[Unit75]
+[Unit74]
 FileName=..\gl\gl_rlight.c
 CompileCpp=0
 Folder=gl
@@ -795,7 +785,7 @@ Priority=1000
 OverrideBuildCmd=0
 BuildCmd=
 
-[Unit76]
+[Unit75]
 FileName=..\gl\gl_rmain.c
 CompileCpp=0
 Folder=gl
@@ -805,7 +795,7 @@ Priority=1000
 OverrideBuildCmd=0
 BuildCmd=
 
-[Unit77]
+[Unit76]
 FileName=..\gl\gl_rmisc.c
 CompileCpp=0
 Folder=gl
@@ -815,7 +805,7 @@ Priority=1000
 OverrideBuildCmd=0
 BuildCmd=
 
-[Unit78]
+[Unit77]
 FileName=..\gl\gl_rsurf.c
 CompileCpp=0
 Folder=gl
@@ -825,7 +815,7 @@ Priority=1000
 OverrideBuildCmd=0
 BuildCmd=
 
-[Unit79]
+[Unit78]
 FileName=..\gl\gl_screen.c
 CompileCpp=0
 Folder=gl
@@ -835,7 +825,7 @@ Priority=1000
 OverrideBuildCmd=0
 BuildCmd=
 
-[Unit80]
+[Unit79]
 FileName=..\gl\gl_vidcommon.c
 CompileCpp=0
 Folder=gl
@@ -845,47 +835,7 @@ Priority=1000
 OverrideBuildCmd=0
 BuildCmd=
 
-[Unit82]
-FileName=..\gl\gl_warp.c
-CompileCpp=0
-Folder=gl
-Compile=1
-Link=1
-Priority=1000
-OverrideBuildCmd=0
-BuildCmd=
-
-[Unit83]
-FileName=..\gl\glmod_doom.c
-CompileCpp=0
-Folder=gl
-Compile=1
-Link=1
-Priority=1000
-OverrideBuildCmd=0
-BuildCmd=
-
-[Unit84]
-FileName=..\gl\gl_alias.c
-CompileCpp=0
-Folder=gl
-Compile=1
-Link=1
-Priority=1000
-OverrideBuildCmd=0
-BuildCmd=
-
-[Unit85]
-FileName=..\server\world.c
-CompileCpp=0
-Folder=server
-Compile=1
-Link=1
-Priority=1000
-OverrideBuildCmd=0
-BuildCmd=
-
-[Unit81]
+[Unit80]
 FileName=..\gl\gl_vidnt.c
 CompileCpp=0
 Folder=gl
@@ -895,7 +845,37 @@ Priority=1000
 OverrideBuildCmd=0
 BuildCmd=
 
-[Unit86]
+[Unit82]
+FileName=..\gl\glmod_doom.c
+CompileCpp=0
+Folder=gl
+Compile=1
+Link=1
+Priority=1000
+OverrideBuildCmd=0
+BuildCmd=
+
+[Unit83]
+FileName=..\gl\gl_alias.c
+CompileCpp=0
+Folder=gl
+Compile=1
+Link=1
+Priority=1000
+OverrideBuildCmd=0
+BuildCmd=
+
+[Unit84]
+FileName=..\server\world.c
+CompileCpp=0
+Folder=server
+Compile=1
+Link=1
+Priority=1000
+OverrideBuildCmd=0
+BuildCmd=
+
+[Unit85]
 FileName=..\server\pr_cmds.c
 CompileCpp=0
 Folder=server
@@ -905,7 +885,17 @@ Priority=1000
 OverrideBuildCmd=0
 BuildCmd=
 
-[Unit87]
+[Unit81]
+FileName=..\gl\gl_warp.c
+CompileCpp=0
+Folder=gl
+Compile=1
+Link=1
+Priority=1000
+OverrideBuildCmd=0
+BuildCmd=
+
+[Unit86]
 FileName=..\server\savegame.c
 CompileCpp=0
 Folder=server
@@ -915,7 +905,7 @@ Priority=1000
 OverrideBuildCmd=0
 BuildCmd=
 
-[Unit88]
+[Unit87]
 FileName=..\server\sv_ccmds.c
 CompileCpp=0
 Folder=server
@@ -925,7 +915,7 @@ Priority=1000
 OverrideBuildCmd=0
 BuildCmd=
 
-[Unit89]
+[Unit88]
 FileName=..\server\sv_chat.c
 CompileCpp=0
 Folder=server
@@ -935,7 +925,7 @@ Priority=1000
 OverrideBuildCmd=0
 BuildCmd=
 
-[Unit90]
+[Unit89]
 FileName=..\server\sv_demo.c
 CompileCpp=0
 Folder=server
@@ -945,7 +935,7 @@ Priority=1000
 OverrideBuildCmd=0
 BuildCmd=
 
-[Unit91]
+[Unit90]
 FileName=..\server\sv_ents.c
 CompileCpp=0
 Folder=server
@@ -955,7 +945,7 @@ Priority=1000
 OverrideBuildCmd=0
 BuildCmd=
 
-[Unit92]
+[Unit91]
 FileName=..\server\sv_init.c
 CompileCpp=0
 Folder=server
@@ -965,7 +955,7 @@ Priority=1000
 OverrideBuildCmd=0
 BuildCmd=
 
-[Unit93]
+[Unit92]
 FileName=..\server\sv_main.c
 CompileCpp=0
 Folder=server
@@ -975,7 +965,7 @@ Priority=1000
 OverrideBuildCmd=0
 BuildCmd=
 
-[Unit94]
+[Unit93]
 FileName=..\server\sv_master.c
 CompileCpp=0
 Folder=server
@@ -985,7 +975,7 @@ Priority=1000
 OverrideBuildCmd=0
 BuildCmd=
 
-[Unit95]
+[Unit94]
 FileName=..\server\sv_move.c
 CompileCpp=0
 Folder=server
@@ -995,7 +985,7 @@ Priority=1000
 OverrideBuildCmd=0
 BuildCmd=
 
-[Unit96]
+[Unit95]
 FileName=..\server\sv_mvd.c
 CompileCpp=0
 Folder=server
@@ -1005,7 +995,7 @@ Priority=1000
 OverrideBuildCmd=0
 BuildCmd=
 
-[Unit97]
+[Unit96]
 FileName=..\server\sv_nchan.c
 CompileCpp=0
 Folder=server
@@ -1015,7 +1005,7 @@ Priority=1000
 OverrideBuildCmd=0
 BuildCmd=
 
-[Unit98]
+[Unit97]
 FileName=..\server\sv_phys.c
 CompileCpp=0
 Folder=server
@@ -1025,7 +1015,7 @@ Priority=1000
 OverrideBuildCmd=0
 BuildCmd=
 
-[Unit99]
+[Unit98]
 FileName=..\server\sv_rankin.c
 CompileCpp=0
 Folder=server
@@ -1035,7 +1025,7 @@ Priority=1000
 OverrideBuildCmd=0
 BuildCmd=
 
-[Unit100]
+[Unit99]
 FileName=..\server\sv_send.c
 CompileCpp=0
 Folder=server
@@ -1045,7 +1035,7 @@ Priority=1000
 OverrideBuildCmd=0
 BuildCmd=
 
-[Unit101]
+[Unit100]
 FileName=..\server\sv_sys_win.c
 CompileCpp=0
 Folder=server
@@ -1055,7 +1045,7 @@ Priority=1000
 OverrideBuildCmd=0
 BuildCmd=
 
-[Unit102]
+[Unit101]
 FileName=..\server\sv_user.c
 CompileCpp=0
 Folder=server
@@ -1065,7 +1055,7 @@ Priority=1000
 OverrideBuildCmd=0
 BuildCmd=
 
-[Unit103]
+[Unit102]
 FileName=..\server\svmodel.c
 CompileCpp=0
 Folder=server
@@ -1075,7 +1065,7 @@ Priority=1000
 OverrideBuildCmd=0
 BuildCmd=
 
-[Unit104]
+[Unit103]
 FileName=..\server\svq2_ents.c
 CompileCpp=0
 Folder=server
@@ -1085,7 +1075,7 @@ Priority=1000
 OverrideBuildCmd=0
 BuildCmd=
 
-[Unit105]
+[Unit104]
 FileName=..\server\svq2_game.c
 CompileCpp=0
 Folder=server
@@ -1095,7 +1085,7 @@ Priority=1000
 OverrideBuildCmd=0
 BuildCmd=
 
-[Unit106]
+[Unit105]
 FileName=..\server\net_preparse.c
 CompileCpp=0
 Folder=server
@@ -1105,7 +1095,7 @@ Priority=1000
 OverrideBuildCmd=0
 BuildCmd=
 
-[Unit107]
+[Unit106]
 FileName=..\qclib\qcdecomp.c
 CompileCpp=0
 Folder=qclib
@@ -1115,7 +1105,7 @@ Priority=1000
 OverrideBuildCmd=0
 BuildCmd=
 
-[Unit108]
+[Unit107]
 FileName=..\qclib\hash.c
 CompileCpp=0
 Folder=qclib
@@ -1125,7 +1115,7 @@ Priority=1000
 OverrideBuildCmd=0
 BuildCmd=
 
-[Unit109]
+[Unit108]
 FileName=..\qclib\initlib.c
 CompileCpp=0
 Folder=qclib
@@ -1135,7 +1125,7 @@ Priority=1000
 OverrideBuildCmd=0
 BuildCmd=
 
-[Unit110]
+[Unit109]
 FileName=..\qclib\pr_edict.c
 CompileCpp=0
 Folder=qclib
@@ -1145,7 +1135,7 @@ Priority=1000
 OverrideBuildCmd=0
 BuildCmd=
 
-[Unit111]
+[Unit110]
 FileName=..\qclib\Pr_exec.c
 CompileCpp=0
 Folder=qclib
@@ -1155,7 +1145,7 @@ Priority=1000
 OverrideBuildCmd=0
 BuildCmd=
 
-[Unit112]
+[Unit111]
 FileName=..\qclib\pr_multi.c
 CompileCpp=0
 Folder=qclib
@@ -1165,7 +1155,7 @@ Priority=1000
 OverrideBuildCmd=0
 BuildCmd=
 
-[Unit113]
+[Unit112]
 FileName=..\qclib\qcc_cmdlib.c
 CompileCpp=0
 Folder=qclib
@@ -1175,7 +1165,7 @@ Priority=1000
 OverrideBuildCmd=0
 BuildCmd=
 
-[Unit114]
+[Unit113]
 FileName=..\qclib\qcc_pr_comp.c
 CompileCpp=0
 Folder=qclib
@@ -1185,7 +1175,7 @@ Priority=1000
 OverrideBuildCmd=0
 BuildCmd=
 
-[Unit115]
+[Unit114]
 FileName=..\qclib\qcc_pr_lex.c
 CompileCpp=0
 Folder=qclib
@@ -1195,47 +1185,7 @@ Priority=1000
 OverrideBuildCmd=0
 BuildCmd=
 
-[Unit117]
-FileName=..\qclib\qcd_main.c
-CompileCpp=0
-Folder=qclib
-Compile=1
-Link=1
-Priority=1000
-OverrideBuildCmd=0
-BuildCmd=
-
-[Unit118]
-FileName=..\qclib\Comprout.c
-CompileCpp=0
-Folder=qclib
-Compile=1
-Link=1
-Priority=1000
-OverrideBuildCmd=0
-BuildCmd=
-
-[Unit119]
-FileName=..\http\ftpclient.c
-CompileCpp=0
-Folder=inet
-Compile=1
-Link=1
-Priority=1000
-OverrideBuildCmd=0
-BuildCmd=
-
-[Unit120]
-FileName=..\http\ftpserver.c
-CompileCpp=0
-Folder=inet
-Compile=1
-Link=1
-Priority=1000
-OverrideBuildCmd=0
-BuildCmd=
-
-[Unit116]
+[Unit115]
 FileName=..\qclib\QccMain.c
 CompileCpp=0
 Folder=qclib
@@ -1245,7 +1195,37 @@ Priority=1000
 OverrideBuildCmd=0
 BuildCmd=
 
-[Unit121]
+[Unit117]
+FileName=..\qclib\Comprout.c
+CompileCpp=0
+Folder=qclib
+Compile=1
+Link=1
+Priority=1000
+OverrideBuildCmd=0
+BuildCmd=
+
+[Unit118]
+FileName=..\http\ftpclient.c
+CompileCpp=0
+Folder=inet
+Compile=1
+Link=1
+Priority=1000
+OverrideBuildCmd=0
+BuildCmd=
+
+[Unit119]
+FileName=..\http\ftpserver.c
+CompileCpp=0
+Folder=inet
+Compile=1
+Link=1
+Priority=1000
+OverrideBuildCmd=0
+BuildCmd=
+
+[Unit120]
 FileName=..\http\httpclient.c
 CompileCpp=0
 Folder=inet
@@ -1255,7 +1235,17 @@ Priority=1000
 OverrideBuildCmd=0
 BuildCmd=
 
-[Unit122]
+[Unit116]
+FileName=..\qclib\qcd_main.c
+CompileCpp=0
+Folder=qclib
+Compile=1
+Link=1
+Priority=1000
+OverrideBuildCmd=0
+BuildCmd=
+
+[Unit121]
 FileName=..\http\httpserver.c
 CompileCpp=0
 Folder=inet
@@ -1265,7 +1255,7 @@ Priority=1000
 OverrideBuildCmd=0
 BuildCmd=
 
-[Unit123]
+[Unit122]
 FileName=..\http\iwebiface.c
 CompileCpp=0
 Folder=inet
@@ -1275,7 +1265,7 @@ Priority=1000
 OverrideBuildCmd=0
 BuildCmd=
 
-[Unit124]
+[Unit123]
 FileName=..\http\webgen.c
 CompileCpp=0
 Folder=inet
@@ -1285,8 +1275,9 @@ Priority=1000
 OverrideBuildCmd=0
 BuildCmd=
 
-[Unit125]
+[Unit124]
 FileName=..\server\worlda.s
+CompileCpp=0
 Folder=Common
 Compile=1
 Link=0
@@ -1294,7 +1285,7 @@ Priority=1000
 OverrideBuildCmd=1
 BuildCmd=$(CC) -c worlda.s -o ../build/world.o $(CFLAGS)
 
-[Unit126]
+[Unit125]
 FileName=..\common\math.s
 Folder=Common
 Compile=0
@@ -1303,8 +1294,17 @@ Priority=1000
 OverrideBuildCmd=0
 BuildCmd=
 
+[Unit126]
+FileName=..\client\sys_wina.s
+Folder=Common
+Compile=0
+Link=0
+Priority=1000
+OverrideBuildCmd=0
+BuildCmd=
+
 [Unit127]
-FileName=..\email\imapnoti.c
+FileName=..\irc\ircclient.c
 CompileCpp=0
 Folder=inet
 Compile=1
@@ -1314,9 +1314,9 @@ OverrideBuildCmd=0
 BuildCmd=
 
 [Unit128]
-FileName=..\email\pop3noti.c
+FileName=..\client\pr_menu.c
 CompileCpp=0
-Folder=inet
+Folder=Client
 Compile=1
 Link=1
 Priority=1000
@@ -1324,9 +1324,9 @@ OverrideBuildCmd=0
 BuildCmd=
 
 [Unit129]
-FileName=..\email\sv_pop3.c
+FileName=..\common\plugin.c
 CompileCpp=0
-Folder=inet
+Folder=Common
 Compile=1
 Link=1
 Priority=1000
@@ -1334,9 +1334,9 @@ OverrideBuildCmd=0
 BuildCmd=
 
 [Unit130]
-FileName=..\email\sv_smtp.c
+FileName=..\client\pr_csqc.c
 CompileCpp=0
-Folder=inet
+Folder=Client
 Compile=1
 Link=1
 Priority=1000
@@ -1344,18 +1344,19 @@ OverrideBuildCmd=0
 BuildCmd=
 
 [Unit131]
-FileName=..\client\sys_wina.s
-Folder=Common
-Compile=0
-Link=0
+FileName=..\gl\gl_shader.c
+Folder=gl
+Compile=1
+Link=1
 Priority=1000
 OverrideBuildCmd=0
 BuildCmd=
+CompileCpp=0
 
 [Unit132]
-FileName=..\nqnet\net_wipx.c
+FileName=..\client\m_download.c
 CompileCpp=0
-Folder=nq
+Folder=Client
 Compile=1
 Link=1
 Priority=1000
@@ -1363,9 +1364,9 @@ OverrideBuildCmd=0
 BuildCmd=
 
 [Unit133]
-FileName=..\nqnet\net_win.c
+FileName=..\client\snd_directx.c
 CompileCpp=0
-Folder=nq
+Folder=Client
 Compile=1
 Link=1
 Priority=1000

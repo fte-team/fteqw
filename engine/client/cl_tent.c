@@ -110,7 +110,7 @@ typedef enum
 #define TE_STREAM_FAMINE		32
 
 
-#define	MAX_BEAMS	32
+#define	MAX_BEAMS	64
 typedef struct
 {
 	int		entity;
@@ -305,8 +305,9 @@ beam_t	*CL_NewBeam (int entity, int tag)
 {
 	beam_t	*b;
 	int i;
-// override any beam with the same entity
-	if (entity) // allow multiple world beams
+
+// override any beam with the same entity (unless they used world)
+	if (entity)
 	{
 		for (i=0, b=cl_beams ; i< MAX_BEAMS ; i++, b++)
 			if (b->entity == entity && b->tag == tag)
@@ -327,24 +328,12 @@ beam_t	*CL_NewBeam (int entity, int tag)
 }
 #define STREAM_ATTACHED			16
 #define STREAM_TRANSLUCENT		32
-void CL_ParseBeam (int tent)
+void CL_AddBeam (int tent, int ent, vec3_t start, vec3_t end)	//fixme: use TE_ numbers instead of 0 - 5
 {
-	int		ent;
-	vec3_t	start, end;
 	beam_t	*b;
 
 	model_t *m;
 	int btype, etype;
-
-	ent = MSG_ReadShort ();
-	
-	start[0] = MSG_ReadCoord ();
-	start[1] = MSG_ReadCoord ();
-	start[2] = MSG_ReadCoord ();
-	
-	end[0] = MSG_ReadCoord ();
-	end[1] = MSG_ReadCoord ();
-	end[2] = MSG_ReadCoord ();
 
 	switch(tent)
 	{
@@ -362,6 +351,7 @@ void CL_ParseBeam (int tent)
 	case 1:
 		if (ent < 0 && ent >= -MAX_CLIENTS)	//based on the railgun concept - this adds a rogue style TE_BEAM effect.
 		{
+	case 5:
 			m = Mod_ForName("progs/beam.mdl", false);	//remember to precache!
 			btype = P_FindParticleType("te_beam");
 			etype = P_FindParticleType("te_beam_end");
@@ -423,6 +413,23 @@ void CL_ParseBeam (int tent)
 	b->particleeffect = btype;
 	VectorCopy (start, b->start);
 	VectorCopy (end, b->end);
+}
+void CL_ParseBeam (int tent)
+{
+	int		ent;
+	vec3_t	start, end;
+
+	ent = MSG_ReadShort ();
+	
+	start[0] = MSG_ReadCoord ();
+	start[1] = MSG_ReadCoord ();
+	start[2] = MSG_ReadCoord ();
+	
+	end[0] = MSG_ReadCoord ();
+	end[1] = MSG_ReadCoord ();
+	end[2] = MSG_ReadCoord ();
+
+	CL_AddBeam(tent, ent, start, end);
 }
 void CL_ParseStream (int type)
 {
@@ -580,7 +587,7 @@ void CL_ParseTEnt (void)
 	dlight_t	*dl;
 	int		rnd;
 //	explosion_t	*ex;
-	int		cnt;
+	int		cnt, colour;
 
 	type = MSG_ReadByte ();
 	switch (type)
@@ -1129,8 +1136,7 @@ void CL_ParseTEnt (void)
 		// stain (Hopefully this is close to how DP does it)
 		R_AddStain(pos, -10, -10, -10, 30);
 
-		// TODO: DP also has a decal, should this be simulated or should we just
-		// use a particle effect and let the user decide what to do with it?
+		P_ParticleTrail(pos, pos2, P_FindParticleType("te_plasmaburn"), NULL);
 		break;
 
 	case DPTE_TEI_G3:	//nexuiz's nex beam
@@ -1187,13 +1193,86 @@ void CL_ParseTEnt (void)
 		break;
 
 	case DPTE_PARTICLECUBE:
-		#pragma message("CL_ParseTEnt: effect DPTE_PARTICLECUBE not implemented")
-	case DPTE_PARTICLERAIN:
-		#pragma message("CL_ParseTEnt: effect DPTE_PARTICLERAIN not implemented")
-	case DPTE_PARTICLESNOW:
-		#pragma message("CL_ParseTEnt: effect DPTE_PARTICLESNOW not implemented")
+		{
+			vec3_t dir;
+			int jitter;
+			int gravity;
 
-	default:		
+			//min
+			pos[0] = MSG_ReadCoord();
+			pos[1] = MSG_ReadCoord();
+			pos[2] = MSG_ReadCoord();
+
+			//max
+			pos2[0] = MSG_ReadCoord();
+			pos2[1] = MSG_ReadCoord();
+			pos2[2] = MSG_ReadCoord();
+
+			//dir
+			dir[0] = MSG_ReadCoord();
+			dir[1] = MSG_ReadCoord();
+			dir[2] = MSG_ReadCoord();
+
+			cnt = MSG_ReadShort();	//count
+			colour = MSG_ReadByte ();	//colour
+			gravity = MSG_ReadByte ();	//gravity flag
+			jitter = MSG_ReadCoord();	//jitter
+
+			P_RunParticleCube(pos, pos2, dir, cnt, colour, gravity, jitter);
+		}
+		break;
+	case DPTE_PARTICLERAIN:
+		{
+			vec3_t dir;
+
+			//min
+			pos[0] = MSG_ReadCoord();
+			pos[1] = MSG_ReadCoord();
+			pos[2] = MSG_ReadCoord();
+
+			//max
+			pos2[0] = MSG_ReadCoord();
+			pos2[1] = MSG_ReadCoord();
+			pos2[2] = MSG_ReadCoord();
+
+			//dir
+			dir[0] = MSG_ReadCoord();
+			dir[1] = MSG_ReadCoord();
+			dir[2] = MSG_ReadCoord();
+
+			cnt = MSG_ReadShort();	//count
+			colour = MSG_ReadByte ();	//colour
+
+			P_RunParticleWeather(pos, pos2, dir, cnt, colour, "rain");
+		}
+		break;
+	case DPTE_PARTICLESNOW:
+		{
+			vec3_t dir;
+
+			//min
+			pos[0] = MSG_ReadCoord();
+			pos[1] = MSG_ReadCoord();
+			pos[2] = MSG_ReadCoord();
+
+			//max
+			pos2[0] = MSG_ReadCoord();
+			pos2[1] = MSG_ReadCoord();
+			pos2[2] = MSG_ReadCoord();
+
+			//dir
+			dir[0] = MSG_ReadCoord();
+			dir[1] = MSG_ReadCoord();
+			dir[2] = MSG_ReadCoord();
+
+			cnt = MSG_ReadShort();	//count
+			colour = MSG_ReadByte ();	//colour
+
+			P_RunParticleWeather(pos, pos2, dir, cnt, colour, "snow");
+		}
+		break;
+
+	default:
 		Host_EndGame ("CL_ParseTEnt: bad type - %i", type);
 	}
 }
@@ -2168,32 +2247,37 @@ void CL_UpdateBeams (void)
 		}
 
 	// if coming from the player, update the start position
-		if (b->flags & 1 && b->entity == (autocam[0]?spec_track[0]:(cl.playernum[0]+1)))	// entity 0 is the world
+		if (b->flags & 1 && b->entity == (autocam[0]?spec_track[0]:(cl.playernum[0]+1)) && b->entity>0 && b->entity<= MAX_CLIENTS)	// entity 0 is the world
 		{
+			player_state_t	*pl;
 //			VectorSubtract(cl.simorg, b->start, org);
 //			VectorAdd(b->end, org, b->end);		//move the end point by simorg-start
 
-			VectorCopy (cl.simorg[0], b->start);	//move the start point to view origin
-			b->start[2] += cl.crouch[0];
-			if (v_viewheight.value)
+			pl = &cl.frames[cl.parsecount&UPDATE_MASK].playerstate[b->entity-1];
+			if (pl->messagenum == cl.parsecount)
 			{
-				if (v_viewheight.value <= -7)
-					b->start[2] += -7;
-				else if (v_viewheight.value >= 4)
-					b->start[2] += 4;
-				else
-					b->start[2] += v_viewheight.value;
-			}
+				VectorCopy (cl.simorg[0], b->start);	//move the start point to view origin
+				b->start[2] += cl.crouch[0];
+				if (v_viewheight.value)
+				{
+					if (v_viewheight.value <= -7)
+						b->start[2] += -7;
+					else if (v_viewheight.value >= 4)
+						b->start[2] += 4;
+					else
+						b->start[2] += v_viewheight.value;
+				}
 
 
-			//rotate the end point to face in the view direction. This gives a smoother shafting. turning looks great.
-			if (cl_truelightning.value)
-			{
-				VectorSubtract (b->end, b->start, dist);
-				d = VectorNormalize(dist);
-				AngleVectors (cl.simangles[0], b->end, dist, org);
-				VectorMA(b->start, d, b->end, b->end);
-				b->end[2] += cl.viewheight[0];
+				//rotate the end point to face in the view direction. This gives a smoother shafting. turning looks great.
+				if (cl_truelightning.value)
+				{
+					VectorSubtract (b->end, b->start, dist);
+					d = VectorNormalize(dist);
+					AngleVectors (cl.simangles[0], b->end, dist, org);
+					VectorMA(b->start, d, b->end, b->end);
+					b->end[2] += cl.viewheight[0];
+				}
 			}
 		}
 		else if (b->flags & STREAM_ATTACHED)

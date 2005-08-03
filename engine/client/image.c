@@ -1687,8 +1687,6 @@ qbyte *Read32BitImageFile(qbyte *buf, int len, int *width, int *height)
 	return NULL;
 }
 
-int GL_LoadTexture8Bump (char *identifier, int width, int height, unsigned char *data, qboolean mipmap);
-
 int image_width, image_height;
 qbyte *COM_LoadFile (char *path, int usehunk);
 int Mod_LoadHiResTexture(char *name, char *subpath, qboolean mipmap, qboolean alpha, qboolean colouradjust)
@@ -1790,6 +1788,7 @@ int Mod_LoadReplacementTexture(char *name, char *subpath, qboolean mipmap, qbool
 	return Mod_LoadHiResTexture(name, subpath, mipmap, alpha, gammaadjust);
 }
 
+extern cvar_t r_shadow_bumpscale_bumpmap;
 int Mod_LoadBumpmapTexture(char *name, char *subpath)
 {
 	char *buf, *data;
@@ -1852,7 +1851,7 @@ int Mod_LoadBumpmapTexture(char *name, char *subpath)
 				if ((data = ReadTargaFile(buf, com_filesize, &image_width, &image_height, 2)))	//Only load a greyscale image.
 				{
 					TRACE(("dbg: Mod_LoadBumpmapTexture: tga %s loaded\n", name));
-					len = GL_LoadTexture8Bump(name, image_width, image_height, data, true);
+					len = GL_LoadTexture8Bump(name, image_width, image_height, data, true, r_shadow_bumpscale_bumpmap.value);
 					BZ_Free(data);
 				}
 				else

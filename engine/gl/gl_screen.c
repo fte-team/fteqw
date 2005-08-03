@@ -222,6 +222,9 @@ void GLSCR_UpdateScreen (void)
 		Media_RecordFrame();
 #endif
 		GLR_BrightenScreen();
+
+		if (key_dest == key_console)
+			Con_DrawConsole(vid_conheight.value/2, false);
 		GL_EndRendering ();	
 		GL_DoSwap();
 		RSpeedEnd(RSPEED_TOTALREFRESH);

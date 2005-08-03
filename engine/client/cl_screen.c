@@ -760,6 +760,9 @@ void SCR_CalcRefdef (void)
 	}
 
 	r_refdef.fov_x = scr_fov.value;
+	if (cl.stats[0][STAT_VIEWZOOM])
+		r_refdef.fov_x *= cl.stats[0][STAT_VIEWZOOM]/255.0f;
+
 	if (r_refdef.fov_x < 10)
 		r_refdef.fov_x = 10;
 	else if (r_refdef.fov_x > 170)
@@ -1893,6 +1896,8 @@ void SCR_DrawTwoDimensional(int uimenu, qboolean nohud)
 			Plug_SBar ();
 #endif
 			SCR_ShowPics_Draw();
+
+			CL_DrawPrydonCursor();
 		}
 		else
 			SCR_DrawFPS ();

@@ -102,7 +102,8 @@ cvar_t	r_fullbrightSkins = {"r_fullbrightSkins", "1",	NULL,	CVAR_SEMICHEAT};
 cvar_t	r_fb_models	= {"gl_fb_models", "1", NULL, CVAR_SEMICHEAT|CVAR_RENDERERLATCH};	//as it can highlight the gun a little... ooo nooo....
 cvar_t	r_fb_bmodels	= {"gl_fb_bmodels", "1", NULL, CVAR_SEMICHEAT|CVAR_RENDERERLATCH};	//as it can highlight the gun a little... ooo nooo....
 
-
+cvar_t	r_shadow_bumpscale_basetexture = {"r_shadow_bumpscale_basetexture", "4"};
+cvar_t	r_shadow_bumpscale_bumpmap = {"r_shadow_bumpscale_bumpmap", "10"};
 cvar_t	gl_nocolors = {"gl_nocolors","0"};
 cvar_t		gl_load24bit = {"gl_load24bit", "1"};
 cvar_t		vid_conwidth = {"vid_conwidth", "640", NULL, CVAR_ARCHIVE};
@@ -117,17 +118,21 @@ cvar_t		gl_savecompressedtex = {"gl_savecompressedtex", "0"};
 extern cvar_t gl_dither;
 extern	cvar_t	gl_maxdist;
 
-#ifdef SPECULAR
-cvar_t		gl_specular = {"gl_specular", "0"};
-#endif
 cvar_t		gl_detail = {"gl_detail", "0", NULL, CVAR_ARCHIVE};
 cvar_t		gl_detailscale = {"gl_detailscale", "5"};
 cvar_t		gl_overbright = {"gl_overbright", "0", NULL, CVAR_ARCHIVE};
 cvar_t		r_shadows = {"r_shadows", "0", NULL, CVAR_ARCHIVE|CVAR_RENDERERLATCH};
 cvar_t		r_shadow_realtime_world = {"r_shadow_realtime_world", "0", NULL, CVAR_CHEAT};
+cvar_t		r_shadow_realtime_world_lightmaps = {"r_shadow_realtime_world_lightmaps", "0.8", NULL, CVAR_CHEAT};
 cvar_t		r_noaliasshadows = {"r_noaliasshadows", "0", NULL, CVAR_ARCHIVE};
 cvar_t		gl_maxshadowlights = {"gl_maxshadowlights", "2", NULL, CVAR_ARCHIVE};
 cvar_t		gl_bump = {"gl_bump", "0", NULL, CVAR_ARCHIVE|CVAR_RENDERERLATCH};
+cvar_t r_shadow_glsl_offsetmapping = {"r_shadow_glsl_offsetmapping", "0"};
+cvar_t r_shadow_glsl_offsetmapping_scale = {"r_shadow_glsl_offsetmapping_scale", "-0.04"};
+cvar_t r_shadow_glsl_offsetmapping_bias = {"r_shadow_glsl_offsetmapping_bias", "0.04"};
+#ifdef SPECULAR
+cvar_t		gl_specular = {"gl_specular", "0"};
+#endif
 cvar_t		gl_lightmapmode = {"gl_lightmapmode", "", NULL, CVAR_ARCHIVE};
 
 cvar_t		gl_ati_truform = {"gl_ati_truform", "0"};
@@ -254,6 +259,8 @@ void GLRenderer_Init(void)
 	Cvar_Register (&r_shadows, GLRENDEREROPTIONS);
 	Cvar_Register (&r_noaliasshadows, GLRENDEREROPTIONS);
 	Cvar_Register (&gl_maxshadowlights, GLRENDEREROPTIONS);
+	Cvar_Register (&r_shadow_bumpscale_basetexture, GLRENDEREROPTIONS);
+	Cvar_Register (&r_shadow_bumpscale_bumpmap, GLRENDEREROPTIONS);
 
 	Cvar_Register (&gl_part_flame, GRAPHICALNICETIES);
 	Cvar_Register (&gl_part_torch, GRAPHICALNICETIES);
@@ -276,6 +283,10 @@ void GLRenderer_Init(void)
 	Cvar_Register (&gl_smoothfont, GRAPHICALNICETIES);
 
 	Cvar_Register (&gl_bump, GRAPHICALNICETIES);
+	Cvar_Register (&r_shadow_glsl_offsetmapping, GRAPHICALNICETIES);
+	Cvar_Register (&r_shadow_glsl_offsetmapping_scale, GRAPHICALNICETIES);
+	Cvar_Register (&r_shadow_glsl_offsetmapping_bias, GRAPHICALNICETIES);
+
 	Cvar_Register (&gl_contrast, GLRENDEREROPTIONS);
 #ifdef R_XFLIP
 	Cvar_Register (&r_xflip, GLRENDEREROPTIONS);
@@ -584,6 +595,7 @@ void	(*Mod_NowLoadExternal)		(void);
 void	(*Mod_Think)				(void);
 qboolean	(*Mod_GetTag)			(struct model_s *model, int tagnum, int frame, int frame2, float f2ness, float f1time, float f2time, float *transforms);
 int (*Mod_TagNumForName)			(struct model_s *model, char *name);
+int (*Mod_SkinForName)				(struct model_s *model, char *name);
 
 
 
@@ -698,6 +710,7 @@ rendererinfo_t dedicatedrendererinfo = {
 
 	NULL, //Mod_GetTag
 	NULL, //fixme: server will need this one at some point.
+	NULL,
 
 	NULL, //VID_Init,
 	NULL, //VID_DeInit,
@@ -890,6 +903,7 @@ rendererinfo_t openglrendererinfo = {
 
 	GLMod_GetTag,
 	GLMod_TagNumForName,
+	GLMod_SkinNumForName,
 
 	GLVID_Init,
 	GLVID_DeInit,
@@ -1268,6 +1282,7 @@ void R_SetRenderer(int wanted)
 
 	Mod_GetTag				= ri->Mod_GetTag;
 	Mod_TagNumForName 		= ri->Mod_TagNumForName;
+	Mod_SkinForName 		= ri->Mod_SkinForName;
 
 	SCR_UpdateScreen		= ri->SCR_UpdateScreen;
 }
@@ -1582,7 +1597,7 @@ TRACE(("dbg: R_ApplyRenderer: reloading ALL models\n"));
 
 			if (!cl.model_precache[i])
 			{
-				Con_Printf ("\nThe required model file '%s' could not be found or downloaded.\n\n"
+				Con_Printf ("\nThe required model file '%s' could not be found.\n\n"
 					, cl.model_name[i]);
 				Con_Printf ("You may need to download or purchase a client "
 					"pack in order to play on this server.\n\n");
@@ -1591,6 +1606,28 @@ TRACE(("dbg: R_ApplyRenderer: reloading ALL models\n"));
 				return false;
 			}
 		}
+#ifdef CSQC_DAT
+		for (i=1 ; i<MAX_CSQCMODELS ; i++)
+		{
+			if (!cl.model_csqcname[i][0])
+				break;
+
+			cl.model_csqcprecache[i] = NULL;
+			TRACE(("dbg: R_ApplyRenderer: reloading csqc model %s\n", cl.model_csqcname[i]));
+			cl.model_csqcprecache[i] = Mod_ForName (cl.model_csqcname[i], false);
+
+			if (!cl.model_csqcprecache[i])
+			{
+				Con_Printf ("\nThe required model file '%s' could not be found.\n\n"
+					, cl.model_csqcname[i]);
+				Con_Printf ("You may need to download or purchase a client "
+					"pack in order to play on this server.\n\n");
+				CL_Disconnect ();
+				UI_Reset();
+				return false;
+			}
+		}
+#endif
 
 		loadmodel = cl.worldmodel = cl.model_precache[1];
 TRACE(("dbg: R_ApplyRenderer: done the models\n"));

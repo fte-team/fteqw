@@ -321,6 +321,8 @@ eval_t *GetEdictFieldValue(progfuncs_t *progfuncs, struct edict_s *ed, char *nam
 
 struct edict_s *ProgsToEdict (progfuncs_t *progfuncs, int progs)
 {
+	if ((unsigned)progs >= maxedicts)
+		progs = 0;
 	return (struct edict_s *)PROG_TO_EDICT(progfuncs, progs);
 }
 int EdictToProgs (progfuncs_t *progfuncs, struct edict_s *ed)

@@ -547,7 +547,8 @@ void SV_MulticastProtExt(vec3_t origin, multicast_t to, int dimension_mask, int 
 			switch (client->protocol)
 			{
 			case SCP_BAD:
-				break;
+				continue;	//a bot.
+
 #ifdef NQPROT
 			case SCP_NETQUAKE:
 			case SCP_DARKPLACES6:
@@ -663,23 +664,45 @@ void SV_MulticastProtExt(vec3_t origin, multicast_t to, int dimension_mask, int 
 			}
 
 	inrange:
-	#ifdef NQPROT
-			if (!ISQWCLIENT(client))
+			switch (client->protocol)
 			{
-				if (reliable) {
+			case SCP_BAD:
+				continue;	//a bot.
+
+#ifdef NQPROT
+			case SCP_NETQUAKE:
+			case SCP_DARKPLACES6:
+			case SCP_DARKPLACES7:	//extra prediction stuff
+				if (reliable)
+				{
 					ClientReliableCheckBlock(client, sv.nqmulticast.cursize);
 					ClientReliableWrite_SZ(client, sv.nqmulticast.data, sv.nqmulticast.cursize);
-				} else
+				}
+				else
 					SZ_Write (&client->datagram, sv.nqmulticast.data, sv.nqmulticast.cursize);
-			}
-			else
-	#endif
-			{
-				if (reliable) {
+
+				break;
+#endif
+#ifdef Q2SERVER
+			case SCP_QUAKE2:
+				if (reliable)
+				{
+					ClientReliableCheckBlock(client, sv.q2multicast.cursize);
+					ClientReliableWrite_SZ(client, sv.q2multicast.data, sv.q2multicast.cursize);
+				}
+				else
+					SZ_Write (&client->datagram, sv.q2multicast.data, sv.q2multicast.cursize);
+				break;
+#endif
+			case SCP_QUAKEWORLD:
+				if (reliable)
+				{
 					ClientReliableCheckBlock(client, sv.multicast.cursize);
 					ClientReliableWrite_SZ(client, sv.multicast.data, sv.multicast.cursize);
-				} else
+				}
+				else
 					SZ_Write (&client->datagram, sv.multicast.data, sv.multicast.cursize);
+				break;
 			}
 		}
 	}
@@ -1220,7 +1243,11 @@ void SV_UpdateClientStats (client_t *client, int pnum)
 	stats[STAT_ROCKETS] = ent->v->ammo_rockets;
 	stats[STAT_CELLS] = ent->v->ammo_cells;
 	if (!client->spectator)
+	{
 		stats[STAT_ACTIVEWEAPON] = ent->v->weapon;
+		if (client->csqcactive)
+			stats[STAT_WEAPONFRAME] = ent->v->weaponframe;
+	}
 
 	// stuff the sigil bits into the high bits of items for sbar
 	if (pr_items2)
@@ -1236,7 +1263,10 @@ void SV_UpdateClientStats (client_t *client, int pnum)
 		stats[STAT_VIEW2] = 0;
 #endif
 
-	stats[STAT_VIEWZOOM] = 255;
+	if (!ent->v->viewzoom)
+		stats[STAT_VIEWZOOM] = 255;
+	else
+		stats[STAT_VIEWZOOM] = ent->v->viewzoom*255;
 
 	SV_UpdateQCStats(ent, stats);
 

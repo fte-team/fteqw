@@ -185,6 +185,8 @@ typedef struct entvars_s
 	int		viewmodelforclient;
 	int		exteriormodeltoclient;
 
+	float	viewzoom;
+
 	int		tag_entity;
 	float	tag_index;
 

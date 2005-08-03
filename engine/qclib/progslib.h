@@ -166,7 +166,7 @@ typedef struct progexterns_s {
 	struct edict_s **sv_edicts;	//pointer to the engine's reference to world.
 	int *sv_num_edicts;		//pointer to the engine's edict count.
 
-	int (*useeditor) (char *filename, int line, int nump, char **parms);	//called on syntax errors or step-by-step debugging.
+	int (*useeditor) (progfuncs_t *prinst, char *filename, int line, int nump, char **parms);	//called on syntax errors or step-by-step debugging.
 } progparms_t, progexterns_t;
 
 void QC_AddSharedVar(progfuncs_t *progfuncs, int start, int size);

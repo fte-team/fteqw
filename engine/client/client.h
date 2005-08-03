@@ -290,7 +290,8 @@ typedef struct
 		CP_QUAKEWORLD,
 		CP_NETQUAKE,
 		CP_QUAKE2,
-		CP_QUAKE3
+		CP_QUAKE3,
+		CP_PLUGIN
 	} protocol;
 
 	qboolean resendinfo;
@@ -660,6 +661,7 @@ void CL_ParseTEnt (qboolean nqprot);
 void CL_ParseTEnt (void);
 #endif
 void CL_UpdateTEnts (void);
+void CL_AddBeam (int tent, int ent, vec3_t start, vec3_t end);
 
 void CL_ClearState (void);
 
@@ -786,6 +788,8 @@ qboolean CSQC_StuffCmd(char *cmd);
 qboolean CSQC_CenterPrint(char *cmd);
 qboolean CSQC_ConsoleCommand(char *cmd);
 qboolean CSQC_KeyPress(int key, qboolean down);
+int CSQC_StartSound(int entnum, int channel, char *soundname, vec3_t pos, float vol, float attenuation);
+void CSQC_ParseEntities(void);
 #endif
 
 //

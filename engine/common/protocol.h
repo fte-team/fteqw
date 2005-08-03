@@ -848,6 +848,7 @@ typedef struct q1usercmd_s
 //ROGUE
 
 #define Q2RF_ADDATIVE			0x00080000
+#define RF_NOSHADOW				0x00100000
 
 // player_state_t->refdef flags
 #define	Q2RDF_UNDERWATER		1		// warp the screen as apropriate

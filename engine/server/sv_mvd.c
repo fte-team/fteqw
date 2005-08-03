@@ -1689,15 +1689,13 @@ void SV_MVD_Record_f (void)
 	_snprintf (name, MAX_OSPATH+MAX_MVD_NAME, "%s/%s/%s", com_gamedir, sv_demoDir.string, newname);
 
 
-	Sys_mkdir(va("%s/%s", com_gamedir, sv_demoDir.string));
-
-//
-// open the demo file
-//
 	COM_StripExtension(name, name);
 	COM_DefaultExtension(name, ".mvd");
+	COM_CreatePath(name);
 
-
+	//
+	// open the demo file and start recording
+	//
 	SV_MVD_Record (SV_InitRecordFile(name));
 }
 

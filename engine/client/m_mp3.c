@@ -828,6 +828,7 @@ float filmstarttime;
 int soundpos;
 #pragma comment( lib, "vfw32.lib" )
 #endif
+static qbyte *framedata;	//this buffer holds the image data temporarily..
 
 #define MFT_CAPTURE 5 //fixme
 
@@ -908,6 +909,12 @@ qboolean Media_PlayFilm(char *name)
 
 	media_filmtype = MFT_NONE;
 
+	if (framedata)
+	{
+		BZ_Free(framedata);
+		framedata = NULL;
+	}
+
 
 	if (!name || !*name)	//clear only.
 		return false;
@@ -963,6 +970,8 @@ qboolean Media_PlayFilm(char *name)
 		if (key_dest != key_console)
 			scr_con_current=0;
 		media_filmtype = MFT_ROQ;
+
+		framedata = BZ_Malloc(roqfilm->width*roqfilm->height*4);
 		return true;
 	}
 #ifdef WINAVI
@@ -1011,6 +1020,7 @@ qboolean Media_PlayFilm(char *name)
 		AVIStreamInfo(pavivideo, &psi, sizeof(psi));
 		filmwidth=psi.rcFrame.right-psi.rcFrame.left;					// Width Is Right Side Of Frame Minus Left
 		filmheight=psi.rcFrame.bottom-psi.rcFrame.top;					// Height Is Bottom Of Frame Minus Top
+		framedata = BZ_Malloc(filmwidth*filmheight*4);
 
 		num_frames=AVIStreamLength(pavivideo);							// The Last Frame Of The Stream
 		filmfps=1000.0f*(float)num_frames/(float)AVIStreamSampleToTime(pavivideo,num_frames);		// Calculate Rough Milliseconds Per Frame
@@ -1088,7 +1098,6 @@ soundpos=0;
 qboolean Media_ShowFilm(void)
 {
 //	sfx_t *s;
-	static qbyte framedata[1024*1024*4];
 	static float lastframe=0;
 //	soundcardinfo_t *sc;
 

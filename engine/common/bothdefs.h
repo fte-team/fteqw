@@ -99,6 +99,7 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 		#define SP2MODELS		//quake2 sprite models
 		#define MD2MODELS		//quake2 alias models
 		#define MD3MODELS		//quake3 alias models
+		#define MD5MODELS		//doom3 models
 		#define ZYMOTICMODELS	//zymotic skeletal models.
 		#define HUFFNETWORK		//huffman network compression
 		#define HALFLIFEMODELS	//halflife model support (experimental)

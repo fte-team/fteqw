@@ -30,9 +30,9 @@ typedef struct
 	netadrtype_t	type;
 
 	union {
-	qbyte	ip[4];
-	qbyte	ip6[16];
-	qbyte	ipx[10];
+		qbyte	ip[4];
+		qbyte	ip6[16];
+		qbyte	ipx[10];
 	};
 
 	unsigned short	port;

@@ -148,7 +148,7 @@ cvar_t	watervis		= {"watervis",			"" ,	NULL, CVAR_SERVERINFO};
 cvar_t	rearview		= {"rearview",			"" ,	NULL, CVAR_SERVERINFO};
 cvar_t	allow_luma		= {"allow_luma",		"1",	NULL, CVAR_SERVERINFO};
 cvar_t	allow_bump		= {"allow_bump",		"1",	NULL, CVAR_SERVERINFO};
-cvar_t	allow_skybox	= {"allow_skybox",		"1",	NULL, CVAR_SERVERINFO};
+cvar_t	allow_skybox	= {"allow_skybox",		"",		NULL, CVAR_SERVERINFO};
 cvar_t	sv_allow_splitscreen = {"allow_splitscreen", "",NULL,CVAR_SERVERINFO};
 cvar_t	fbskins			= {"fbskins",			"0",	NULL, CVAR_SERVERINFO};	//to get rid of lame fuhquake fbskins
 cvar_t	mirrors			= {"mirrors",			"" ,	NULL, CVAR_SERVERINFO};
@@ -1103,7 +1103,7 @@ qboolean SV_ChallengePasses(int challenge)
 	return false;
 }
 
-void SV_RejectMessage(int protocol, char *format, ...)
+void VARGS SV_RejectMessage(int protocol, char *format, ...)
 {
 	va_list		argptr;
 	char		string[8192];
@@ -2046,6 +2046,10 @@ qboolean SV_ConnectionlessPacket (void)
 			SVC_DirectConnect ();
 			return true;
 		}
+	}
+	else if (!strcmp(c,"\xad\xad\xad\xad""getchallenge"))
+	{
+		SVC_GetChallenge ();
 	}
 	else if (!strcmp(c,"getchallenge"))
 	{

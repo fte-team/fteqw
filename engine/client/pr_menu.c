@@ -4,6 +4,9 @@
 
 #ifdef RGLQUAKE
 #include "glquake.h"
+#ifdef Q3SHADERS
+#include "shader.h"
+#endif
 #endif
 
 int MP_TranslateFTEtoDPCodes(int code);
@@ -384,20 +387,35 @@ void PF_CL_drawstring (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 		pos[0] += size[0];
 	}
 }
+#ifdef Q3SHADERS
+void GLDraw_ShaderPic (int x, int y, int width, int height, shader_t *pic, float r, float g, float b, float a);
+#endif
 //float	drawpic(vector position, string pic, vector size, vector rgb, float alpha, float flag) = #456;
 void PF_CL_drawpic (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
 	float *pos = G_VECTOR(OFS_PARM0);
 	char *picname = PR_GetStringOfs(prinst, OFS_PARM1);
-	mpic_t *p = Draw_SafeCachePic(picname);
 	float *size = G_VECTOR(OFS_PARM2);
 	float *rgb = G_VECTOR(OFS_PARM3);
 	float alpha = G_FLOAT(OFS_PARM4);
 	float flag = G_FLOAT(OFS_PARM5);
 
+	mpic_t *p;
+
 #ifdef RGLQUAKE
 	if (qrenderer == QR_OPENGL)
 	{
+#ifdef Q3SHADERS
+		shader_t *s;
+
+		s = R_RegisterCustom(picname, NULL);
+		if (s)
+		{
+			GLDraw_ShaderPic(pos[0], pos[1], size[0], size[1], s, rgb[0], rgb[1], rgb[2], alpha);
+			return;
+		}
+#endif
+
 		if (flag == 1)	//add
 			qglBlendFunc(GL_SRC_ALPHA, GL_ONE);
 		else if(flag == 2)	//modulate
@@ -408,6 +426,8 @@ void PF_CL_drawpic (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 			qglBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
 	}
 #endif
+
+	p = Draw_SafeCachePic(picname);
 
 	if (Draw_ImageColours)
 		Draw_ImageColours(rgb[0], rgb[1], rgb[2], alpha);

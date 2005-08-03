@@ -145,8 +145,6 @@ void S_DoRestart (void);
 //plays streaming audio
 void S_RawAudio(int sourceid, qbyte *data, int speed, int samples, int channels, int width);
 
-//tells the audio capture routines to grab a bit more and send it to voice chat server.
-void S_UpdateCapture(void);
 void CLVC_Poll (void);
 
 void SNDVC_MicInput(qbyte *buffer, int samples, int freq, int width);

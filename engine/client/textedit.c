@@ -307,10 +307,22 @@ void EditorOpenFile(char *name)
 		firstblock->datalength = len;
 
 		memcpy(firstblock->data, line, len);
-		if (svprogfuncs)
-		if (svprogfuncs->ToggleBreak(svprogfuncs, OpenEditorFile+strlen(com_gamedir)+1, i, 3))
+		if (editprogfuncs)
 		{
-			firstblock->flags |= FB_BREAK;			
+			if (editprogfuncs->ToggleBreak(editprogfuncs, OpenEditorFile+strlen(com_gamedir)+1, i, 3))
+			{
+				firstblock->flags |= FB_BREAK;			
+			}
+		}
+		else
+		{
+			if (svprogfuncs)
+			{
+				if (svprogfuncs->ToggleBreak(svprogfuncs, OpenEditorFile+strlen(com_gamedir)+1, i, 3))
+				{
+					firstblock->flags |= FB_BREAK;			
+				}
+			}
 		}
 
 		i++;
@@ -505,10 +517,17 @@ void Editor_Key(int key)
 	case K_F9:
 		{
 			int f = 0;
-#ifndef CLIENTONLY
 		if (editprogfuncs)
 		{
 			if (editprogfuncs->ToggleBreak(editprogfuncs, OpenEditorFile+4, cursorlinenum, 2))
+				f |= 1;
+			else
+				f |= 2;
+		}
+#ifndef CLIENTONLY
+		else if (svprogfuncs)
+		{
+			if (svprogfuncs->ToggleBreak(svprogfuncs, OpenEditorFile+4, cursorlinenum, 2))
 				f |= 1;
 			else
 				f |= 2;
@@ -926,7 +945,7 @@ void Editor_Draw(void)
 	*/
 }
 
-int QCLibEditor(char *filename, int line, int nump, char **parms)
+int QCLibEditor(progfuncs_t *prfncs, char *filename, int line, int nump, char **parms)
 {
 	if (editormodal || !developer.value)
 		return line;	//whoops
@@ -958,6 +977,8 @@ int QCLibEditor(char *filename, int line, int nump, char **parms)
 		return line;
 	}
 
+	editprogfuncs = prfncs;
+
 	if (!strncmp(OpenEditorFile, "src/", 4))
 	{
 		if (!editoractive || strcmp(OpenEditorFile+4, filename))
@@ -980,8 +1001,6 @@ int QCLibEditor(char *filename, int line, int nump, char **parms)
 		}
 	}
 
-	editprogfuncs = svprogfuncs;
-
 	for (cursorlinenum = 1, cursorblock = firstblock; cursorlinenum < line && cursorblock->next; cursorlinenum++)
 		cursorblock=cursorblock->next;
 
@@ -993,7 +1012,7 @@ int QCLibEditor(char *filename, int line, int nump, char **parms)
 
 		while(editormodal && editoractive && editprogfuncs)
 		{
-			key_dest = key_editor;
+//			key_dest = key_editor;
 			scr_disabled_for_loading=false;
 			SCR_UpdateScreen();
 			Sys_SendKeyEvents();

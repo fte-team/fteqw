@@ -1089,34 +1089,31 @@ trace_t SV_ClipMoveToEntity (edict_t *ent, vec3_t start, vec3_t mins, vec3_t max
 trace_t SVQ2_ClipMoveToEntity (q2edict_t *ent, vec3_t start, vec3_t mins, vec3_t maxs, vec3_t end)
 {
 	trace_t		trace;
-	/*
-	vec3_t		offset;
-	vec3_t		start_l, end_l;
-	hull_t		*hull;
-
-// fill in a default trace
-	memset (&trace, 0, sizeof(trace_t));
-	trace.fraction = 1;
-	trace.allsolid = true;
-	VectorCopy (end, trace.endpos);
+	model_t		*model;
 
 // get the clipping hull
-	hull = SVQ2_HullForEntity (ent, mins, maxs, offset);
-
-	VectorSubtract (start, offset, start_l);
-	VectorSubtract (end, offset, end_l);
+	if (ent->s.solid == Q2SOLID_BSP)
+	{
+		model = sv.models[(int)ent->s.modelindex];
+		if (!model || model->type != mod_brush)
+			SV_Error("SOLID_BSP with non bsp model");
+	}
+	else
+	{
+		vec3_t boxmins, boxmaxs;
+		VectorSubtract (ent->mins, maxs, boxmins);
+		VectorSubtract (ent->maxs, mins, boxmaxs);
+		SV_HullForBox(boxmins, boxmaxs);
+		model = NULL;
+	}
 
 // trace a line through the apropriate clipping hull
-	TransformedTrace(ent->s.modelindex, start_l, end_l, &trace, ent->s.angles);
-
-// fix trace up by the offset
-	if (trace.fraction != 1)
-		VectorAdd (trace.endpos, offset, trace.endpos);
+	TransformedTrace(model, 0, 0, start, end, mins, maxs, &trace, ent->s.origin, ent->s.angles);
 
 // did we clip the move?
 	if (trace.fraction < 1 || trace.startsolid  )
 		trace.ent = (edict_t *)ent;
-*/
+
 	return trace;
 }
 #endif

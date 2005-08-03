@@ -112,7 +112,8 @@ typedef struct {
 //frame is an index into this
 typedef struct {
 #ifdef SKELETALMODELS
-	qboolean isskeletal;
+	qboolean isheirachical;	//for models with transforms, states that bones need to be transformed from thier parent.
+							//this is actually bad, and can result in bones shortening as they interpolate.
 #endif
 	int numposes;
 	float rate;
@@ -153,6 +154,7 @@ typedef struct {
 	float skinspeed;
 	int texnums;
 	int ofstexnums;
+	char name [MAX_QPATH];
 } galiasskin_t;
 
 typedef struct {
@@ -236,13 +238,18 @@ qboolean GLMod_Trace(model_t *model, int forcehullnum, int frame, vec3_t start, 
 		group = (galiasgroup_t*)((char*)mod + mod->groupofs);
 		pose = (galiaspose_t*)((char*)&group[0] + group[0].poseofs);
 		posedata = (float*)((char*)pose + pose->ofsverts);
-		if (group->isskeletal && !mod->sharesverts)
+		if (mod->numbones && !mod->sharesverts)
 		{
 			float bonepose[MAX_BONES][12];
 			posedata = alloca(mod->numverts*sizeof(vec3_t));
 			frac = 1;
-			R_LerpBones(&frac, (float**)posedata, 1, (galiasbone_t*)((char*)mod + mod->ofsbones), mod->numbones, bonepose);
-			R_TransformVerticies(bonepose, (galisskeletaltransforms_t*)((char*)mod + mod->ofstransforms), mod->numtransforms, posedata);
+			if (group->isheirachical)
+			{
+				R_LerpBones(&frac, (float**)posedata, 1, (galiasbone_t*)((char*)mod + mod->ofsbones), mod->numbones, bonepose);
+				R_TransformVerticies(bonepose, (galisskeletaltransforms_t*)((char*)mod + mod->ofstransforms), mod->numtransforms, posedata);
+			}
+			else
+				R_TransformVerticies((void*)posedata, (galisskeletaltransforms_t*)((char*)mod + mod->ofstransforms), mod->numtransforms, posedata);
 		}
 
 		for (i = 0; i < mod->numindexes; i+=3)
@@ -440,24 +447,42 @@ static void R_LerpBones(float *plerp, float **pose, int poses, galiasbone_t *bon
 	int i, k, b;
 	float *matrix, m[12];
 
-	// vertex weighted skeletal
-	// interpolate matrices and concatenate them to their parents
-	for (i = 0;i < bonecount;i++)
+	if (poses == 1)
 	{
-		for (k = 0;k < 12;k++)
-			m[k] = 0;
-		for (b = 0;b < poses;b++)
+		// vertex weighted skeletal
+		// interpolate matrices and concatenate them to their parents
+		for (i = 0;i < bonecount;i++)
 		{
-			matrix = pose[b] + i*12;
-			
-			for (k = 0;k < 12;k++)
-				m[k] += matrix[k] * plerp[b];
+			matrix = pose[0] + i*12;
+
+			if (bones[i].parent >= 0)
+				R_ConcatTransforms((void*)bonepose[bones[i].parent], (void*)matrix, (void*)bonepose[i]);
+			else
+				for (k = 0;k < 12;k++)	//parentless
+					bonepose[i][k] = matrix[k];
 		}
-		if (bones[i].parent >= 0)
-			R_ConcatTransforms((void*)bonepose[bones[i].parent], (void*)m, (void*)bonepose[i]);
-		else
-			for (k = 0;k < 12;k++)	//parentless
-				bonepose[i][k] = m[k];
+	}
+	else
+	{
+		// vertex weighted skeletal
+		// interpolate matrices and concatenate them to their parents
+		for (i = 0;i < bonecount;i++)
+		{
+			for (k = 0;k < 12;k++)
+				m[k] = 0;
+			for (b = 0;b < poses;b++)
+			{
+				matrix = pose[b] + i*12;
+				
+				for (k = 0;k < 12;k++)
+					m[k] += matrix[k] * plerp[b];
+			}
+			if (bones[i].parent >= 0)
+				R_ConcatTransforms((void*)bonepose[bones[i].parent], (void*)m, (void*)bonepose[i]);
+			else
+				for (k = 0;k < 12;k++)	//parentless
+					bonepose[i][k] = m[k];
+		}
 	}
 }
 static void R_TransformVerticies(float bonepose[MAX_BONES][12], galisskeletaltransforms_t *weights, int numweights, float *xyzout)
@@ -477,14 +502,40 @@ static void R_TransformVerticies(float bonepose[MAX_BONES][12], galisskeletaltra
 	}
 }
 #ifndef SERVERONLY
-static void R_BuildSkeletalMesh(mesh_t *mesh, float *plerp, float **pose, int poses, galiasbone_t *bones, int bonecount, galisskeletaltransforms_t *weights, int numweights)
+static void R_BuildSkeletalMesh(mesh_t *mesh, float *plerp, float **pose, int poses, galiasbone_t *bones, int bonecount, galisskeletaltransforms_t *weights, int numweights, qboolean usehierarchy)
 {
 	float bonepose[MAX_BONES][12];
 
-	int i, k;
-	float *matrix, m[12];
+	int i, k, l;
+	float m[12];
 
-	R_LerpBones(plerp, pose, poses, bones, bonecount, bonepose);
+	if (usehierarchy)
+		R_LerpBones(plerp, pose, poses, bones, bonecount, bonepose);
+	else
+	{
+		if (poses == 1)
+			memcpy(bonepose, pose[0], sizeof(float)*12*bonecount);
+		else if (poses == 2)
+		{
+			for (i = 0; i < bonecount*12; i++)
+			{
+				((float*)bonepose)[i] = pose[0][i]*plerp[0] + pose[1][i]*plerp[1];
+			}
+		}
+		else
+		{
+			for (i = 0; i < bonecount; i++)
+			{
+				for (l = 0; l < 12; l++)
+					bonepose[i][l] = 0;
+				for (k = 0; k < poses; k++)
+				{
+					for (l = 0; l < 12; l++)
+						bonepose[i][l] += pose[k][i*12+l] * plerp[k];
+				}
+			}
+		}
+	}
 
 	// blend the vertex bone weights
 //	memset(outhead, 0, mesh->numvertexes * sizeof(mesh->xyz_array[0]));
@@ -507,7 +558,59 @@ static void R_BuildSkeletalMesh(mesh_t *mesh, float *plerp, float **pose, int po
 		*/
 	}
 
+	memset(mesh->xyz_array, 0, mesh->numvertexes*sizeof(vec3_t));
 	R_TransformVerticies(bonepose, weights, numweights, (float*)mesh->xyz_array);
+
+
+
+
+#if 0	//draws the bones
+	qglColor3f(1, 0, 0);
+	{
+		int i;
+		int p;
+		vec3_t org, dest;
+
+		qglBegin(GL_LINES);
+		for (i = 0; i < bonecount; i++)
+		{
+			p = bones[i].parent;
+			if (p < 0)
+				p = 0;
+			qglVertex3f(bonepose[i][3], bonepose[i][7], bonepose[i][11]);
+			qglVertex3f(bonepose[p][3], bonepose[p][7], bonepose[p][11]);
+		}
+		qglEnd();
+		qglBegin(GL_LINES);
+		for (i = 0; i < bonecount; i++)
+		{
+			p = bones[i].parent;
+			if (p < 0)
+				p = 0;
+			org[0] = bonepose[i][3]; org[1] = bonepose[i][7]; org[2] = bonepose[i][11];
+			qglVertex3fv(org);
+			qglVertex3f(bonepose[p][3], bonepose[p][7], bonepose[p][11]);
+			dest[0] = org[0]+bonepose[i][0];dest[1] = org[1]+bonepose[i][1];dest[2] = org[2]+bonepose[i][2];
+			qglVertex3fv(org);
+			qglVertex3fv(dest);
+			qglVertex3fv(dest);
+			qglVertex3f(bonepose[p][3], bonepose[p][7], bonepose[p][11]);
+			dest[0] = org[0]+bonepose[i][4];dest[1] = org[1]+bonepose[i][5];dest[2] = org[2]+bonepose[i][6];
+			qglVertex3fv(org);
+			qglVertex3fv(dest);
+			qglVertex3fv(dest);
+			qglVertex3f(bonepose[p][3], bonepose[p][7], bonepose[p][11]);
+			dest[0] = org[0]+bonepose[i][8];dest[1] = org[1]+bonepose[i][9];dest[2] = org[2]+bonepose[i][10];
+			qglVertex3fv(org);
+			qglVertex3fv(dest);
+			qglVertex3fv(dest);
+			qglVertex3f(bonepose[p][3], bonepose[p][7], bonepose[p][11]);
+		}
+		qglEnd();
+
+		mesh->numindexes = 0;	//don't draw this mesh, as that would obscure the bones. :(
+	}
+#endif
 }
 #endif
 #endif
@@ -602,7 +705,7 @@ static qboolean R_GAliasBuildMesh(mesh_t *mesh, galiasinfo_t *inf, int frame1, i
 	if (frame1 >= inf->groups)
 	{
 		Con_DPrintf("Too high frame %i (%s)\n", frame1, currententity->model->name);
-		frame1 = 0;
+		frame1 %= inf->groups;
 	}
 	if (frame2 >= inf->groups)
 	{
@@ -660,12 +763,17 @@ static qboolean R_GAliasBuildMesh(mesh_t *mesh, galiasinfo_t *inf, int frame1, i
 //we don't support meshes with one group skeletal and annother not.
 
 #ifdef SKELETALMODELS
-	if (g1->isskeletal)
+	if (inf->numbones)
 	{
 		int l=0;
 		float plerp[4];
 		float *pose[4];
 		float mlerp;	//minor lerp, poses within a group.
+		qboolean hirachy;
+
+		if (g1->isheirachical != g2->isheirachical)
+			lerp = 0;
+		hirachy = g1->isheirachical;
 
 		mlerp = (fg1time)*g1->rate;
 		frame1=mlerp;
@@ -705,7 +813,7 @@ static qboolean R_GAliasBuildMesh(mesh_t *mesh, galiasinfo_t *inf, int frame1, i
 		plerp[4] = 0;
 		l = 1;
 */
-		R_BuildSkeletalMesh(mesh, plerp, pose, l, (galiasbone_t *)((char*)inf+inf->ofsbones), inf->numbones, (galisskeletaltransforms_t *)((char*)inf+inf->ofstransforms), inf->numtransforms);
+		R_BuildSkeletalMesh(mesh, plerp, pose, l, (galiasbone_t *)((char*)inf+inf->ofsbones), inf->numbones, (galisskeletaltransforms_t *)((char*)inf+inf->ofstransforms), inf->numtransforms, hirachy);
 		return false;
 	}
 #endif
@@ -1016,6 +1124,8 @@ static galiastexnum_t *GL_ChooseSkin(galiasinfo_t *inf, char *modelname, entity_
 	skins = (galiasskin_t*)((char *)inf + inf->ofsskins);
 	if (e->skinnum >= 0 && e->skinnum < inf->numskins)
 		skins += e->skinnum;
+	else
+		Con_DPrintf("Skin number out of range\n");
 
 	if (!skins->texnums)
 		return NULL;
@@ -1176,13 +1286,14 @@ void GL_DrawAliasMesh_Sketch (mesh_t *mesh)
 		qglEnableClientState( GL_NORMAL_ARRAY );
 	}
 
-	if (mesh->colors_array)
+	qglColor3f(1,1,1);
+/*	if (mesh->colors_array)
 	{
 		qglColorPointer(4, GL_UNSIGNED_BYTE, 0, mesh->colors_array);
 		qglEnableClientState( GL_COLOR_ARRAY );
 	}
 	else
-		qglDisableClientState( GL_COLOR_ARRAY );
+*/		qglDisableClientState( GL_COLOR_ARRAY );
 
 	qglDrawElements(GL_TRIANGLES, mesh->numindexes, GL_UNSIGNED_INT, mesh->indexes);
 
@@ -1190,7 +1301,10 @@ void GL_DrawAliasMesh_Sketch (mesh_t *mesh)
 	qglDisableClientState( GL_COLOR_ARRAY );
 	qglDisableClientState( GL_NORMAL_ARRAY );
 
-	qglColor3f(0, 0, 0);
+	if (mesh->colors_array)
+		qglColor4ub(0, 0, 0, mesh->colors_array[0][3]);
+	else
+		qglColor3f(0, 0, 0);
 	qglBegin(GL_LINES);
 	for (i = 0; i < mesh->numindexes; i+=3)
 	{
@@ -1463,6 +1577,19 @@ void R_DrawGAliasModel (entity_t *e)
 		VectorVectors(mesh.lightaxis[2], mesh.lightaxis[1], mesh.lightaxis[0]);
 		VectorInverse(mesh.lightaxis[1]);
 	}
+
+	if (e->flags & Q2RF_GLOW)
+	{
+		shadelight[0] += sin(cl.time)*0.25;
+		shadelight[1] += sin(cl.time)*0.25;
+		shadelight[2] += sin(cl.time)*0.25;
+	}
+
+/*	
+	VectorClear(ambientlight);
+	VectorClear(shadelight);
+*/
+		
 	/*
 	an = e->angles[1]/180*M_PI;
 	shadevector[0] = cos(-an);
@@ -1725,7 +1852,10 @@ void R_DrawGAliasModel (entity_t *e)
 				qglEnable(GL_BLEND);
 				qglColor4f(1, 1, 1, e->alpha*r_fb_models.value);
 				c_alias_polys += mesh.numindexes/3;
+
+				qglBlendFunc (GL_SRC_ALPHA, GL_ONE);
 				GL_DrawAliasMesh(&mesh, skin->fullbright);
+				qglBlendFunc (GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
 			}
 		}
 	}
@@ -1803,31 +1933,36 @@ qglColor3f(0,0,1);
 }
 
 //returns result in the form of the result vector
-void RotateLightVector(vec3_t angles, vec3_t origin, vec3_t lightpoint, vec3_t result)
+void RotateLightVector(vec3_t *axis, vec3_t origin, vec3_t lightpoint, vec3_t result)
 {
-	vec3_t f, r, u, offs;
-
-	angles[0]*=-1;
-	AngleVectors(angles, f, r, u);
-	angles[0]*=-1;
+	vec3_t offs;
 
 	offs[0] = lightpoint[0] - origin[0];
 	offs[1] = lightpoint[1] - origin[1];
 	offs[2] = lightpoint[2] - origin[2];
 
-	result[0] = DotProduct (offs, f);
-	result[1] = -DotProduct (offs, r);
-	result[2] = DotProduct (offs, u);
+	result[0] = DotProduct (offs, axis[0]);
+	result[1] = DotProduct (offs, axis[1]);
+	result[2] = DotProduct (offs, axis[2]);
 }
 
 void GL_LightMesh (mesh_t *mesh, vec3_t lightpos, vec3_t colours, float radius)
 {
 	vec3_t dir;
 	int i;
-	float dot;
+	float dot, d, f, a;
+	vec3_t bcolours;
+
 	vec3_t *xyz = mesh->xyz_array;
 	vec3_t *normals = mesh->normals_array;
 	byte_vec4_t *out = mesh->colors_array;
+
+	bcolours[0] = colours[0]*255;
+	bcolours[1] = colours[1]*255;
+	bcolours[2] = colours[2]*255;
+
+	if (!out)
+		return;	//urm..
 
 	if (normals)
 	{
@@ -1835,20 +1970,64 @@ void GL_LightMesh (mesh_t *mesh, vec3_t lightpos, vec3_t colours, float radius)
 		{
 			VectorSubtract(lightpos, xyz[i], dir);
 			dot = DotProduct(dir, normals[i]);
-			out[i][0] = colours[0]*dot;
-			out[i][1] = colours[1]*dot;
-			out[i][2] = colours[2]*dot;
+			if (dot > 0)
+			{
+				d = DotProduct(dir, dir)/radius;
+				a = 1/d;
+				if (a>0)
+				{
+					a *= dot/sqrt(d);
+					f = a*bcolours[0];
+					if (f > 255)
+						f = 255;
+					else if (f < 0)
+						f = 0;
+					out[i][0] = f;
+
+					f = a*bcolours[1];
+					if (f > 255)
+						f = 255;
+					else if (f < 0)
+						f = 0;
+					out[i][1] = f;
+
+					f = a*bcolours[2];
+					if (f > 255)
+						f = 255;
+					else if (f < 0)
+						f = 0;
+					out[i][2] = f;
+				}
+				else
+				{
+					out[i][0] = 0;
+					out[i][1] = 0;
+					out[i][2] = 0;
+				}
+			}
+			else
+			{
+				out[i][0] = 0;
+				out[i][1] = 0;
+				out[i][2] = 0;
+			}
 			out[i][3] = 255;
 		}
 	}
 	else
 	{
+		if (bcolours[0] > 255)
+			bcolours[0] = 255;
+		if (bcolours[1] > 255)
+			bcolours[1] = 255;
+		if (bcolours[2] > 255)
+			bcolours[2] = 255;
 		for (i = 0; i < mesh->numvertexes; i++)
 		{
 			VectorSubtract(lightpos, xyz[i], dir);
-			out[i][0] = colours[0];
-			out[i][1] = colours[1];
-			out[i][2] = colours[2];
+			out[i][0] = bcolours[0];
+			out[i][1] = bcolours[1];
+			out[i][2] = bcolours[2];
 			out[i][3] = 255;
 		}
 	}
@@ -1856,13 +2035,13 @@ void GL_LightMesh (mesh_t *mesh, vec3_t lightpos, vec3_t colours, float radius)
 
 void R_DrawGAliasModelLighting (entity_t *e, vec3_t lightpos, vec3_t colours, float radius)
 {
-	return;	//not ready yet
-#if 0
+#if 1
 
 	model_t *clmodel = e->model;
 	vec3_t mins, maxs;
 	vec3_t lightdir;
 	galiasinfo_t *inf;
+	galiastexnum_t *tex;
 	mesh_t mesh;
 
 	if (e->flags & Q2RF_VIEWERMODEL)
@@ -1878,56 +2057,78 @@ void R_DrawGAliasModelLighting (entity_t *e, vec3_t lightpos, vec3_t colours, fl
 	VectorAdd (e->origin, clmodel->mins, mins);
 	VectorAdd (e->origin, clmodel->maxs, maxs);
 
-	if (!(e->flags & Q2RF_WEAPONMODEL))
-		if (R_CullBox (mins, maxs))
-			return;
+//	if (!(e->flags & Q2RF_WEAPONMODEL))
+//		if (R_CullBox (mins, maxs))
+//			return;
 
-	RotateLightVector(e->angles, e->origin, lightpos, lightdir);
+
+	RotateLightVector(e->axis, e->origin, lightpos, lightdir);
 
 
 	GL_DisableMultitexture();
 	GL_TexEnv(GL_MODULATE);
 	if (gl_smoothmodels.value)
-		glShadeModel (GL_SMOOTH);
+		qglShadeModel (GL_SMOOTH);
 	if (gl_affinemodels.value)
-		glHint (GL_PERSPECTIVE_CORRECTION_HINT, GL_FASTEST);
+		qglHint (GL_PERSPECTIVE_CORRECTION_HINT, GL_FASTEST);
 
 
 	if (e->flags & Q2RF_DEPTHHACK)
-		glDepthRange (gldepthmin, gldepthmin + 0.3*(gldepthmax-gldepthmin));
+		qglDepthRange (gldepthmin, gldepthmin + 0.3*(gldepthmax-gldepthmin));
 
-	glColor3f(colours[0], colours[1], colours[2]);
+	qglColor3f(colours[0], colours[1], colours[2]);
+	qglColor4f(1, 1, 1, 1);
 
-	glPushMatrix();
+	qglPushMatrix();
 	R_RotateForEntity(e);
 	inf = GLMod_Extradata (clmodel);
 	if (gl_ati_truform.value)
-		glEnable(GL_PN_TRIANGLES_ATI);
+		qglEnable(GL_PN_TRIANGLES_ATI);
+	qglEnable(GL_TEXTURE_2D);
+
+	qglEnable(GL_POLYGON_OFFSET_FILL);
+
+		GL_TexEnv(GL_REPLACE);
+//	qglDisable(GL_STENCIL_TEST);
+	qglEnable(GL_BLEND);
+	qglEnable(GL_ALPHA_TEST);	//if you used an alpha channel where you shouldn't have, more fool you.
+	qglBlendFunc(GL_ONE, GL_ONE);
+//	qglDepthFunc(GL_ALWAYS);
 	while(inf)
 	{
-		R_GAliasBuildMesh(&mesh, inf, e->frame, e->oldframe, e->lerptime, e->alpha);
+		R_GAliasBuildMesh(&mesh, inf, e->frame, e->oldframe, e->lerpfrac, e->alpha, e->frame1time, e->frame2time);
+		mesh.colors_array = tempColours;
+
+		tex = GL_ChooseSkin(inf, clmodel->name, e);
 
 		GL_LightMesh(&mesh, lightdir, colours, radius);
-
-		GL_DrawAliasMesh(&mesh, 0);
+		GL_DrawAliasMesh(&mesh, tex->base);
 
 		if (inf->nextsurf)
 			inf = (galiasinfo_t*)((char *)inf + inf->nextsurf);
 		else
 			inf = NULL;
 	}
-	glPopMatrix();
+	currententity->fatness=0;
+	qglPopMatrix();
 	if (gl_ati_truform.value)
-		glDisable(GL_PN_TRIANGLES_ATI);
+		qglDisable(GL_PN_TRIANGLES_ATI);
 
 	GL_TexEnv(GL_REPLACE);
 
-	glShadeModel (GL_FLAT);
+	qglShadeModel (GL_FLAT);
 	if (gl_affinemodels.value)
-		glHint (GL_PERSPECTIVE_CORRECTION_HINT, GL_NICEST);	
+		qglHint (GL_PERSPECTIVE_CORRECTION_HINT, GL_NICEST);	
+	qglDisable(GL_POLYGON_OFFSET_FILL);
 
 	if (e->flags & Q2RF_DEPTHHACK)
-		glDepthRange (gldepthmin, gldepthmax);
+		qglDepthRange (gldepthmin, gldepthmax);
+
+	qglBlendFunc (GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+	qglDisable(GL_BLEND);
+	qglDisable(GL_TEXTURE_2D);
+
+	R_IBrokeTheArrays();
 #endif
 }
 
@@ -1947,7 +2148,7 @@ void R_DrawGAliasShadowVolume(entity_t *e, vec3_t lightpos, float radius)
 	if (r_noaliasshadows.value)
 		return;
 
-	RotateLightVector(e->angles, e->origin, lightpos, lightorg);
+	RotateLightVector(e->axis, e->origin, lightpos, lightorg);
 
 	if (Length(lightorg) > radius + clmodel->radius)
 		return;
@@ -2097,68 +2298,114 @@ void GL_GenerateNormals(float *orgs, float *normals, int *indicies, int numtris,
 }
 
 
+char **skinfilelist;
 int skinfilecount;
+
+static qboolean VARGS TryAddSkin(char *skinname, ...)
+{
+	va_list		argptr;
+	char		string[MAX_QPATH];
+
+	//make sure we don't add it twice
+	int i;
+
+	
+	va_start (argptr, skinname);
+	_vsnprintf (string,sizeof(string)-1, skinname,argptr);
+	va_end (argptr);
+	string[MAX_QPATH-1] = '\0';
+
+	for (i = 0; i < skinfilecount; i++)
+	{
+		if (!strcmp(skinfilelist[i], string))
+			return true;	//already added
+	}
+
+	if (!COM_FCheckExists(string))
+		return false;
+
+	skinfilelist = BZ_Realloc(skinfilelist, sizeof(*skinfilelist)*(skinfilecount+1));
+	skinfilelist[skinfilecount] = Z_Malloc(strlen(string)+1);
+	strcpy(skinfilelist[skinfilecount], string);
+	skinfilecount++;
+	return true;
+}
+
+int GL_EnumerateSkins(char *name, int size, void *param)
+{
+	TryAddSkin(name);
+	return true;
+}
 
 int GL_BuildSkinFileList(char *modelname)
 {
+	int i;
 	char skinfilename[MAX_QPATH];
-	for (skinfilecount = 0; ; skinfilecount++)
+
+	//flush the old list
+	for (i = 0; i < skinfilecount; i++)
 	{
-		_snprintf(skinfilename, sizeof(skinfilename)-1, "%s_%i.skin", modelname, skinfilecount);
-		if (!COM_FCheckExists(skinfilename))
-			break;
+		Z_Free(skinfilelist[i]);
+		skinfilelist[i] = NULL;
 	}
+	skinfilecount=0;
+
+	COM_StripExtension(modelname, skinfilename);
+
+	//try and add numbered skins, and then try fixed names.
+	for (i = 0; ; i++)
+	{
+		if (!TryAddSkin("%s_%i.skin", modelname, i))
+		{
+			if (i == 0)
+			{
+				if (!TryAddSkin("%s_default.skin", skinfilename, i))
+					break;
+			}
+			else if (i == 1)
+			{
+				if (!TryAddSkin("%s_blue.skin", skinfilename, i))
+					break;
+			}
+			else if (i == 2)
+			{
+				if (!TryAddSkin("%s_red.skin", skinfilename, i))
+					break;
+			}
+			else if (i == 3)
+			{
+				if (!TryAddSkin("%s_green.skin", skinfilename, i))
+					break;
+			}
+			else if (i == 4)
+			{
+				if (!TryAddSkin("%s_yellow.skin", skinfilename, i))
+					break;
+			}
+			else
+				break;
+		}
+	}
+
+	COM_EnumerateFiles(va("%s_*.skin", modelname), GL_EnumerateSkins, NULL); 
+	COM_EnumerateFiles(va("%s_*.skin", skinfilename), GL_EnumerateSkins, NULL); 
 
 	return skinfilecount;
 }
 
 //This is a hack. It uses an assuption about q3 player models.
-void GL_ParseQ3SkinFile(char *out, char *surfname, char *modelname, int skinnum)
+void GL_ParseQ3SkinFile(char *out, char *surfname, char *modelname, int skinnum, char *skinfilename)
 {
 	const char *f = NULL, *p;
 	int len;
-	char line[256];
 
-	if (!f)
-	{
-		strcpy(line, modelname);
-		strcat(line, "_0.skin");
-		f = COM_LoadTempFile2(line);
-	}
+	if (skinnum >= skinfilecount)
+		return;
 
-	if (!f)
-	{
-		if (skinnum == 4)
-		{
-			COM_StripExtension(modelname, line);
-			strcat(line, "_yellow.skin");
-			f = COM_LoadTempFile2(line);
-		}
-		else if (skinnum == 3)
-		{
-			COM_StripExtension(modelname, line);
-			strcat(line, "_green.skin");
-			f = COM_LoadTempFile2(line);
-		}
-		else if (skinnum == 2)
-		{
-			COM_StripExtension(modelname, line);
-			strcat(line, "_red.skin");
-			f = COM_LoadTempFile2(line);
-		}
-		else if (skinnum == 1)
-		{
-			COM_StripExtension(modelname, line);
-			strcat(line, "_blue.skin");
-			f = COM_LoadTempFile2(line);
-		}
-		if (!f)
-		{
-			COM_StripExtension(modelname, line);
-			strcat(line, "_default.skin");
-			f = COM_LoadTempFile2(line);
-		}
-	}
+	if (skinfilename)
+		strcpy(skinfilename, skinfilelist[skinnum]);
+
+	f = COM_LoadTempFile2(skinfilelist[skinnum]);
 
 	while(f)
 	{
@@ -2224,7 +2471,7 @@ void GL_LoadSkinFile(galiastexnum_t *texnum, char *surfacename, int skinnumber, 
 	char shadername[MAX_QPATH];
 	Q_strncpyz(shadername, surfacename, sizeof(shadername));
 
-	GL_ParseQ3SkinFile(shadername, surfacename, loadmodel->name, skinnumber);
+	GL_ParseQ3SkinFile(shadername, surfacename, loadmodel->name, skinnumber, NULL);
 
 	texnum->base = Mod_LoadHiResTexture(shadername, "models", true, true, true);
 }
@@ -2404,11 +2651,11 @@ static void *Q1_LoadSkins (daliasskintype_t *pskintype, qboolean alpha)
 
 			//LH's naming scheme ("models" is likly to be ignored)
 			fbtexture = 0;
-			_snprintf(skinname, sizeof(skinname), "%s_%i", loadmodel->name, i);
+			_snprintf(skinname, sizeof(skinname), "%s_%i.", loadmodel->name, i);
 			texture = Mod_LoadReplacementTexture(skinname, "models", true, false, true);
 			if (texture)
 			{
-				_snprintf(skinname, sizeof(skinname), "%s_%i_luma", loadmodel->name, i);
+				_snprintf(skinname, sizeof(skinname), "%s_%i_luma.", loadmodel->name, i);
 				fbtexture = Mod_LoadReplacementTexture(skinname, "models", true, false, true);
 			}
 			else
@@ -2472,12 +2719,12 @@ static void *Q1_LoadSkins (daliasskintype_t *pskintype, qboolean alpha)
 				//LH naming scheme
 				if (!texture)
 				{
-					sprintf(skinname, "%s_%i_%i", loadmodel->name, i, t);
+					sprintf(skinname, "%s_%i_%i.", loadmodel->name, i, t);
 					texture = Mod_LoadReplacementTexture(skinname, "models", true, false, true);
 				}
 				if (!fbtexture && r_fb_models.value)
 				{
-					sprintf(skinname, "%s_%i_%i_luma", loadmodel->name, i, t);
+					sprintf(skinname, "%s_%i_%i_luma.", loadmodel->name, i, t);
 					fbtexture = Mod_LoadReplacementTexture(skinname, "models", true, true, true);
 				}
 
@@ -3155,15 +3402,15 @@ qboolean Mod_GetTag(model_t *model, int tagnum, int frame1, int frame2, float f2
 		if (t1 == t2)
 		{
 			result[0]	= t1->ang[0][0];
-			result[1]	= t1->ang[1][0];
-			result[2]	= t1->ang[2][0];
+			result[1]	= t1->ang[0][1];
+			result[2]	= t1->ang[0][2];
 			result[3]	= t1->org[0];
-			result[4]	= t1->ang[0][1];
+			result[4]	= t1->ang[1][0];
 			result[5]	= t1->ang[1][1];
-			result[6]	= t1->ang[2][1];
+			result[6]	= t1->ang[1][2];
 			result[7]	= t1->org[1];
-			result[8]	= t1->ang[0][2];
-			result[9]	= t1->ang[1][2];
+			result[8]	= t1->ang[2][0];
+			result[9]	= t1->ang[2][1];
 			result[10]	= t1->ang[2][2];
 			result[11]	= t1->org[2];
 		}
@@ -3171,15 +3418,15 @@ qboolean Mod_GetTag(model_t *model, int tagnum, int frame1, int frame2, float f2
 		{
 			float f1ness = 1-f2ness;
 			result[0]	= t1->ang[0][0]*f1ness	+ t2->ang[0][0]*f2ness;
-			result[1]	= t1->ang[1][0]*f1ness	+ t2->ang[1][0]*f2ness;
-			result[2]	= t1->ang[2][0]*f1ness	+ t2->ang[2][0]*f2ness;
+			result[1]	= t1->ang[0][1]*f1ness	+ t2->ang[0][1]*f2ness;
+			result[2]	= t1->ang[0][2]*f1ness	+ t2->ang[0][2]*f2ness;
 			result[3]	= t1->org[0]*f1ness		+ t2->org[0]*f2ness;
-			result[4]	= t1->ang[0][1]*f1ness	+ t2->ang[0][1]*f2ness;
+			result[4]	= t1->ang[1][0]*f1ness	+ t2->ang[1][0]*f2ness;
 			result[5]	= t1->ang[1][1]*f1ness	+ t2->ang[1][1]*f2ness;
-			result[6]	= t1->ang[2][1]*f1ness	+ t2->ang[2][1]*f2ness;
+			result[6]	= t1->ang[1][2]*f1ness	+ t2->ang[1][2]*f2ness;
 			result[7]	= t1->org[1]*f1ness		+ t2->org[1]*f2ness;
-			result[8]	= t1->ang[0][2]*f1ness	+ t2->ang[0][2]*f2ness;
-			result[9]	= t1->ang[1][2]*f1ness	+ t2->ang[1][2]*f2ness;
+			result[8]	= t1->ang[2][0]*f1ness	+ t2->ang[2][0]*f2ness;
+			result[9]	= t1->ang[2][1]*f1ness	+ t2->ang[2][1]*f2ness;
 			result[10]	= t1->ang[2][2]*f1ness	+ t2->ang[2][2]*f2ness;
 			result[11]	= t1->org[2]*f1ness		+ t2->org[2]*f2ness;
 		}
@@ -3224,8 +3471,25 @@ int Mod_TagNumForName(model_t *model, char *name)
 	return 0;
 }
 
+int GLMod_SkinNumForName(model_t *model, char *name)
+{
+	int i;
+	galiasinfo_t *inf;
+	galiasskin_t *skin;
 
+	if (!model || model->type != mod_alias)
+		return -1;
+	inf = Mod_Extradata(model);
 
+	skin = (galiasskin_t*)((char*)inf+inf->ofsskins);
+	for (i = 0; i < inf->numskins; i++, skin++)
+	{
+		if (!strcmp(skin->name, name))
+			return i;
+	}
+
+	return -1;
+}
 
 
 
@@ -3336,6 +3600,7 @@ void GL_LoadQ3Model(model_t *mod, void *buffer)
 
 
 	int size;
+	int externalskins;
 
 	md3Header_t		*header;
 	md3Surface_t	*surf;
@@ -3355,6 +3620,8 @@ void GL_LoadQ3Model(model_t *mod, void *buffer)
 	parent = NULL;
 	root = NULL;
 
+	externalskins = GL_BuildSkinFileList(mod->name);
+
 	min[0] = min[1] = min[2] = 0;
 	max[0] = max[1] = max[2] = 0;
 
@@ -3369,7 +3636,6 @@ void GL_LoadQ3Model(model_t *mod, void *buffer)
 		galias->groups = header->numFrames;
 		galias->numverts = surf->numVerts;
 		galias->numindexes = surf->numTriangles*3;
-		galias->numskins = 1;
 		if (parent)
 			parent->nextsurf = (qbyte *)galias - (qbyte *)parent;
 		else
@@ -3450,17 +3716,19 @@ void GL_LoadQ3Model(model_t *mod, void *buffer)
 		}
 
 #ifndef SERVERONLY
-		if (surf->numShaders)
+		if (surf->numShaders+externalskins)
 		{
 #ifndef Q3SHADERS
 			char name[1024];
 			extern int gl_bumpmappingpossible;
 #endif
-			skin = Hunk_Alloc(surf->numShaders*((sizeof(galiasskin_t)+sizeof(galiastexnum_t))));
+			char shadname[1024];
+
+			skin = Hunk_Alloc((surf->numShaders+externalskins)*((sizeof(galiasskin_t)+sizeof(galiastexnum_t))));
 			galias->ofsskins = (qbyte *)skin - (qbyte *)galias;
-			texnum = (galiastexnum_t *)(skin + surf->numShaders);
+			texnum = (galiastexnum_t *)(skin + surf->numShaders+externalskins);
 			inshader = (md3Shader_t *)((qbyte *)surf + surf->ofsShaders);
-			for (i = 0; i < surf->numShaders; i++)
+			for (i = 0; i < surf->numShaders+externalskins; i++)
 			{
 				skin->texnums = 1;
 				skin->ofstexnums = (qbyte *)texnum - (qbyte *)skin;
@@ -3469,41 +3737,53 @@ void GL_LoadQ3Model(model_t *mod, void *buffer)
 				skin->skinheight = 0;
 				skin->skinspeed = 0;
 
-				if (!*inshader->name)	//'fix' the shader by looking the surface name up in a skin file. This isn't perfect, but it does the job for basic models.
-					GL_ParseQ3SkinFile(inshader->name, surf->name, loadmodel->name, 0);
+				if (i >= surf->numShaders)
+					shadname[0] = 0;
+				else
+					strcpy(shadname, inshader->name);
+
+				if (!*shadname)	//'fix' the shader by looking the surface name up in a skin file. This isn't perfect, but it does the job for basic models.
+					GL_ParseQ3SkinFile(shadname, surf->name, loadmodel->name, i, skin->name);
+				else
+					Q_strncpyz(skin->name, shadname, sizeof(skin->name));
+
 #ifdef Q3SHADERS
-				texnum->shader = R_RegisterSkin(inshader->name);
+				texnum->shader = R_RegisterSkin(shadname);
+
+				if (r_shadows.value)	//real-time shadows requires a texture to lighten the model with, even if it has a shader.
+										//fixme: this should be read from the shader.
+					texnum->base = Mod_LoadHiResTexture(shadname, "models", true, true, true);
 #else
 
-				texnum->base = Mod_LoadHiResTexture(inshader->name, "models", true, true, true);
+				texnum->base = Mod_LoadHiResTexture(shadname, "models", true, true, true);
 				if (!texnum->base)
 				{
 					strcpy(name, loadmodel->name);
-					strcpy(COM_SkipPath(name), COM_SkipPath(inshader->name));	//eviile eh?
+					strcpy(COM_SkipPath(name), COM_SkipPath(shadname));	//eviile eh?
 					texnum->base = Mod_LoadHiResTexture(name, "models", true, true, true);
 				}
 
 				texnum->bump = 0;
 				if (gl_bumpmappingpossible)
 				{
-					COM_StripExtension(inshader->name, name);	//go for the normalmap
+					COM_StripExtension(shadname, name);	//go for the normalmap
 					strcat(name, "_norm");
 					texnum->bump = Mod_LoadHiResTexture(name, "models", true, true, false);
 					if (!texnum->bump)
 					{
 						strcpy(name, loadmodel->name);
-						COM_StripExtension(COM_SkipPath(inshader->name), COM_SkipPath(name));
+						COM_StripExtension(COM_SkipPath(shadname), COM_SkipPath(name));
 						strcat(name, "_norm");
 						texnum->bump = Mod_LoadHiResTexture(name, "models", true, true, false);
 						if (!texnum->bump)
 						{
-							COM_StripExtension(inshader->name, name);	//bother, go for heightmap and convert
+							COM_StripExtension(shadname, name);	//bother, go for heightmap and convert
 							strcat(name, "_bump");
 							texnum->bump = Mod_LoadBumpmapTexture(name, "models");
 							if (!texnum->bump)
 							{
 								strcpy(name, loadmodel->name);
-								strcpy(COM_SkipPath(name), COM_SkipPath(inshader->name));	//eviile eh?
+								strcpy(COM_SkipPath(name), COM_SkipPath(shadname));	//eviile eh?
 								COM_StripExtension(name, name);
 								strcat(name, "_bump");
 								texnum->bump = Mod_LoadBumpmapTexture(name, "models");
@@ -3513,13 +3793,13 @@ void GL_LoadQ3Model(model_t *mod, void *buffer)
 				}
 				if (r_fb_models.value)
 				{
-					COM_StripExtension(inshader->name, name);	//go for the normalmap
+					COM_StripExtension(shadname, name);	//go for the normalmap
 					strcat(name, "_luma");
 					texnum->fullbright = Mod_LoadHiResTexture(name, "models", true, true, true);
 					if (!texnum->base)
 					{
 						strcpy(name, loadmodel->name);
-						strcpy(COM_SkipPath(name), COM_SkipPath(inshader->name));	//eviile eh?
+						strcpy(COM_SkipPath(name), COM_SkipPath(shadname));	//eviile eh?
 						COM_StripExtension(name, name);
 						strcat(name, "_luma");
 						texnum->fullbright = Mod_LoadBumpmapTexture(name, "models");
@@ -3527,9 +3807,11 @@ void GL_LoadQ3Model(model_t *mod, void *buffer)
 				}
 #endif
 
+				inshader++;
 				skin++;
 				texnum++;
 			}
+			galias->numskins = i;
 		}
 #endif
 
@@ -3827,7 +4109,7 @@ void GLMod_LoadZymoticModel(model_t *mod, void *buffer)
 
 	for (i = 0; i < header->numscenes; i++, grp++, inscene++)
 	{
-		grp->isskeletal = 1;
+		grp->isheirachical = 1;
 		grp->rate = BigFloat(inscene->framerate);
 		grp->numposes = BigLong(inscene->length);
 		grp->poseofs = (char*)matrix  - (char*)grp;
@@ -3876,5 +4158,778 @@ void GLMod_LoadZymoticModel(model_t *mod, void *buffer)
 	mod->funcs.Trace = GLMod_Trace;
 }
 
-#endif
-#endif
+#endif	//ZYMOTICMODELS
+
+#ifdef MD5MODELS
+
+static void GenMatrix(float x, float y, float z, float qx, float qy, float qz, float result[12])
+{
+	float qw;
+	{	//figure out qw
+		float term = 1 - (qx*qx) - (qy*qy) - (qz*qz);
+		if (term < 0)
+			qw = 0;
+		else
+			qw = - (float) sqrt(term); 
+	}
+
+	{	//generate the matrix
+		/*
+		float xx      = qx * qx;
+		float xy      = qx * qy;
+		float xz      = qx * qz;
+		float xw      = qx * qw;
+		float yy      = qy * qy;
+		float yz      = qy * qz;
+		float yw      = qy * qw;
+		float zz      = qz * qz;
+		float zw      = qz * qw;
+		result[0*4+0]  = 1 - 2 * ( yy + zz );
+		result[0*4+1]  =     2 * ( xy - zw );
+		result[0*4+2]  =     2 * ( xz + yw );
+		result[0*4+3]  =     x;
+		result[1*4+0]  =     2 * ( xy + zw );
+		result[1*4+1]  = 1 - 2 * ( xx + zz );
+		result[1*4+2]  =     2 * ( yz - xw );
+		result[1*4+3]  =     y;
+		result[2*4+0]  =     2 * ( xz - yw );
+		result[2*4+1]  =     2 * ( yz + xw );
+		result[2*4+2] = 1 - 2 * ( xx + yy );
+		result[2*4+3]  =     z;
+		*/
+
+		   float xx, xy, xz, xw, yy, yz, yw, zz, zw;
+		   float x2, y2, z2;
+		   x2 = qx + qx;
+		   y2 = qy + qy;
+		   z2 = qz + qz;
+
+		   xx = qx * x2;   xy = qx * y2;   xz = qx * z2;
+		   yy = qy * y2;   yz = qy * z2;   zz = qz * z2;
+		   xw = qw * x2;   yw = qw * y2;   zw = qw * z2;
+
+		   result[0*4+0] = 1.0f - (yy + zz);
+		   result[1*4+0] = xy + zw;
+		   result[2*4+0] = xz - yw;
+
+		   result[0*4+1] = xy - zw;
+		   result[1*4+1] = 1.0f - (xx + zz);
+		   result[2*4+1] = yz + xw;
+
+		   result[0*4+2] = xz + yw;
+		   result[1*4+2] = yz - xw;
+		   result[2*4+2] = 1.0f - (xx + yy);
+
+		   result[0*4+3]  =     x;
+		   result[1*4+3]  =     y;
+		   result[2*4+3]  =     z;
+	}
+}
+
+galiasinfo_t *GLMod_ParseMD5MeshModel(char *buffer)
+{
+#define EXPECT(x) buffer = COM_Parse(buffer); if (strcmp(com_token, x)) Sys_Error("MD5MESH: expected %s", x);
+	int numjoints = 0;
+	int nummeshes = 0;
+	qboolean foundjoints = false;
+	int meshnum = 0;
+	int i;
+
+	galiasbone_t *bones;
+	galiasgroup_t *pose;
+	galiasinfo_t *inf, *root, *lastsurf;
+	float *posedata;
+	galiasskin_t *skin;
+	galiastexnum_t *texnum;
+
+	float x, y, z, qx, qy, qz;
+
+
+
+	buffer = COM_Parse(buffer);
+	if (strcmp(com_token, "MD5Version"))
+		Sys_Error("MD5 model without MD5Version identifier first\n");
+
+	buffer = COM_Parse(buffer);
+	if (atoi(com_token) != 10)
+		Sys_Error("MD5 model with unsupported MD5Version\n");
+
+
+	root = Hunk_Alloc(sizeof(galiasinfo_t));
+	lastsurf = NULL;
+
+	for(;;)
+	{
+		buffer = COM_Parse(buffer);
+		if (!buffer)
+			break;
+
+		if (!strcmp(com_token, "commandline"))
+		{	//we don't need this
+			buffer = strchr(buffer, '\"');
+			buffer = strchr((char*)buffer+1, '\"')+1;
+//			buffer = COM_Parse(buffer);
+		}
+		else if (!strcmp(com_token, "numJoints"))
+		{
+			if (numjoints)
+				Sys_Error("MD5MESH: numMeshes was already declared");
+			buffer = COM_Parse(buffer);
+			numjoints = atoi(com_token);
+			if (numjoints <= 0)
+				Sys_Error("MD5MESH: Needs some joints");
+		}
+		else if (!strcmp(com_token, "numMeshes"))
+		{
+			if (nummeshes)
+				Sys_Error("MD5MESH: numMeshes was already declared");
+			buffer = COM_Parse(buffer);
+			nummeshes = atoi(com_token);
+			if (nummeshes <= 0)
+				Sys_Error("MD5MESH: Needs some meshes");
+		}
+		else if (!strcmp(com_token, "joints"))
+		{
+			if (foundjoints)
+				Sys_Error("MD5MESH: Duplicate joints section");
+			foundjoints=true;
+			if (!numjoints)
+				Sys_Error("MD5MESH: joints section before (or without) numjoints");
+
+			bones = Hunk_Alloc(sizeof(*bones) * numjoints);
+			pose = Hunk_Alloc(sizeof(galiasgroup_t));
+			posedata = Hunk_Alloc(sizeof(float)*12 * numjoints);
+			pose->isheirachical = false;
+			pose->rate = 1;
+			pose->numposes = 1;
+			pose->poseofs = (char*)posedata - (char*)pose;
+
+			EXPECT("{");
+			//"name" parent (x y z) (s t u)
+			//stu are a normalized quaternion, which we will convert to a 3*4 matrix for no apparent reason
+			
+			for (i = 0; i < numjoints; i++)
+			{
+				buffer = COM_Parse(buffer);
+				Q_strncpyz(bones[i].name, com_token, sizeof(bones[i].name));
+				buffer = COM_Parse(buffer);
+				bones[i].parent = atoi(com_token);
+				if (bones[i].parent >= i)
+					Sys_Error("MD5MESH: joints parent's must be lower");
+				if ((bones[i].parent < 0 && i) || (!i && bones[i].parent!=-1))
+					Sys_Error("MD5MESH: Only the root joint may have a negative parent");
+
+				EXPECT("(");
+				buffer = COM_Parse(buffer);
+				x = atof(com_token);
+				buffer = COM_Parse(buffer);
+				y = atof(com_token);
+				buffer = COM_Parse(buffer);
+				z = atof(com_token);
+				EXPECT(")");
+				EXPECT("(");
+				buffer = COM_Parse(buffer);
+				qx = atof(com_token);
+				buffer = COM_Parse(buffer);
+				qy = atof(com_token);
+				buffer = COM_Parse(buffer);
+				qz = atof(com_token);
+				EXPECT(")");
+				GenMatrix(x, y, z, qx, qy, qz, posedata+i*12);
+			}
+			EXPECT("}");
+		}
+		else if (!strcmp(com_token, "mesh"))
+		{
+			int numverts = 0;
+			int numweights = 0;
+			int numtris = 0;
+
+			int num;
+			int vnum;
+
+			int numusableweights = 0;
+			int *firstweightlist = NULL;
+			int *numweightslist = NULL;
+
+			galisskeletaltransforms_t *trans;
+			float *stcoord;
+			int *indexes;
+			float w;
+
+			vec4_t *rawweight = NULL;
+			int *rawweightbone = NULL;
+
+
+			if (!nummeshes)
+				Sys_Error("MD5MESH: mesh section before (or without) nummeshes");
+			if (!foundjoints)
+				Sys_Error("MD5MESH: mesh must come after joints");
+
+			if (!lastsurf)
+			{
+				lastsurf = root;
+				inf = root;
+			}
+			else
+			{
+				inf = Hunk_Alloc(sizeof(*inf));
+				lastsurf->nextsurf = (char*)inf - (char*)lastsurf;
+				lastsurf = inf;
+			}
+
+			skin = Hunk_Alloc(sizeof(*skin));
+			texnum = Hunk_Alloc(sizeof(*texnum));
+
+			inf->ofsbones = (char*)bones - (char*)inf;
+			inf->numbones = numjoints;
+			inf->groups = 1;
+			inf->groupofs = (char*)pose - (char*)inf;
+			inf->numskins = 1;
+			inf->ofsskins = (char*)skin - (char*)inf;
+			skin->texnums = 1;
+			skin->skinspeed = 1;
+			skin->ofstexnums = (char*)texnum - (char*)skin;
+			EXPECT("{");
+			for(;;)
+			{
+				buffer = COM_Parse(buffer);
+				if (!buffer)
+					Sys_Error("MD5MESH: unexpected eof");
+
+				if (!strcmp(com_token, "shader"))
+				{
+					buffer = COM_Parse(buffer);
+	//				texnum->shader = R_RegisterSkin(com_token);
+					texnum->base = Mod_LoadHiResTexture(com_token, "models", true, true, true);
+				}
+				else if (!strcmp(com_token, "numverts"))
+				{
+					if (numverts)
+						Sys_Error("MD5MESH: numverts was already specified");
+					buffer = COM_Parse(buffer);
+					numverts = atoi(com_token);
+					if (numverts < 0)
+						Sys_Error("MD5MESH: numverts cannot be negative");
+
+					firstweightlist = Z_Malloc(sizeof(*firstweightlist) * numverts);
+					numweightslist = Z_Malloc(sizeof(*numweightslist) * numverts);
+					stcoord = Hunk_Alloc(sizeof(float)*2*numverts);
+					inf->ofs_st_array = (char*)stcoord - (char*)inf;
+					inf->numverts = numverts;
+				}
+				else if (!strcmp(com_token, "vert"))
+				{	//vert num ( s t ) firstweight numweights
+
+					buffer = COM_Parse(buffer);
+					num = atoi(com_token);
+					if (num < 0 || num >= numverts)
+						Sys_Error("MD5MESH: vertex out of range");
+
+					EXPECT("(");
+					buffer = COM_Parse(buffer);
+					stcoord[num*2+0] = atof(com_token);
+					buffer = COM_Parse(buffer);
+					stcoord[num*2+1] = atof(com_token);
+					EXPECT(")");
+					buffer = COM_Parse(buffer);
+					firstweightlist[num] = atoi(com_token);
+					buffer = COM_Parse(buffer);
+					numweightslist[num] = atoi(com_token);
+
+					numusableweights += numweightslist[num];
+				}
+				else if (!strcmp(com_token, "numtris"))
+				{
+					if (numtris)
+						Sys_Error("MD5MESH: numtris was already specified");
+					buffer = COM_Parse(buffer);
+					numtris = atoi(com_token);
+					if (numtris < 0)
+						Sys_Error("MD5MESH: numverts cannot be negative");
+
+					indexes = Hunk_Alloc(sizeof(int)*3*numtris);
+					inf->ofs_indexes = (char*)indexes - (char*)inf;
+					inf->numindexes = numtris*3;
+				}
+				else if (!strcmp(com_token, "tri"))
+				{
+					buffer = COM_Parse(buffer);
+					num = atoi(com_token);
+					if (num < 0 || num >= numtris)
+						Sys_Error("MD5MESH: vertex out of range");
+
+					buffer = COM_Parse(buffer);
+					indexes[num*3+0] = atoi(com_token);
+					buffer = COM_Parse(buffer);
+					indexes[num*3+1] = atoi(com_token);
+					buffer = COM_Parse(buffer);
+					indexes[num*3+2] = atoi(com_token);
+				}
+				else if (!strcmp(com_token, "numweights"))
+				{
+					if (numweights)
+						Sys_Error("MD5MESH: numweights was already specified");
+					buffer = COM_Parse(buffer);
+					numweights = atoi(com_token);
+
+					rawweight = Z_Malloc(sizeof(*rawweight)*numweights);
+					rawweightbone = Z_Malloc(sizeof(*rawweightbone)*numweights);
+				}
+				else if (!strcmp(com_token, "weight"))
+				{
+					//weight num bone scale ( x y z )
+					buffer = COM_Parse(buffer);
+					num = atoi(com_token);
+					if (num < 0 || num >= numweights)
+						Sys_Error("MD5MESH: weight out of range");
+
+					buffer = COM_Parse(buffer);
+					rawweightbone[num] = atoi(com_token);
+					if (rawweightbone[num] < 0 || rawweightbone[num] >= numjoints)
+						Sys_Error("MD5MESH: weight specifies bad bone");
+					buffer = COM_Parse(buffer);
+					w = atof(com_token);
+
+					EXPECT("(");
+					buffer = COM_Parse(buffer);
+					rawweight[num][0] = w*atof(com_token);
+					buffer = COM_Parse(buffer);
+					rawweight[num][1] = w*atof(com_token);
+					buffer = COM_Parse(buffer);
+					rawweight[num][2] = w*atof(com_token);
+					EXPECT(")");
+					rawweight[num][3] = w;
+				}
+				else if (!strcmp(com_token, "}"))
+					break;
+				else
+					Sys_Error("MD5MESH: Unrecognised token inside mesh (%s)", com_token);
+
+			}
+
+			trans = Hunk_Alloc(sizeof(*trans)*numusableweights);
+			inf->ofstransforms = (char*)trans - (char*)inf;
+
+			for (num = 0, vnum = 0; num < numverts; num++)
+			{
+				if (numweightslist[num] <= 0)
+					Sys_Error("MD5MESH: weights not set on vertex");
+				while(numweightslist[num])
+				{
+					trans[vnum].vertexindex = num;
+					trans[vnum].boneindex = rawweightbone[firstweightlist[num]];
+					trans[vnum].org[0] = rawweight[firstweightlist[num]][0];
+					trans[vnum].org[1] = rawweight[firstweightlist[num]][1];
+					trans[vnum].org[2] = rawweight[firstweightlist[num]][2];
+					trans[vnum].org[3] = rawweight[firstweightlist[num]][3];
+					vnum++;
+					firstweightlist[num]++;
+					numweightslist[num]--;
+				}
+			}
+			inf->numtransforms = vnum;
+
+			if (firstweightlist)
+				Z_Free(firstweightlist);
+			if (numweightslist)
+				Z_Free(numweightslist);
+			if (rawweight)
+				Z_Free(rawweight);
+			if (rawweightbone)
+				Z_Free(rawweightbone);
+		}
+		else
+			Sys_Error("Unrecognised token in MD5 model (%s)", com_token);
+	}
+
+	if (!lastsurf)
+		Sys_Error("MD5MESH: No meshes");
+
+	return root;
+#undef EXPECT
+}
+
+void GLMod_LoadMD5MeshModel(model_t *mod, void *buffer)
+{
+	int numjoints = 0;
+	int nummeshes = 0;
+	qboolean foundjoints = false;
+	int meshnum = 0;
+
+	galiasinfo_t *root;
+	int hunkstart, hunkend, hunktotal;
+
+
+	loadmodel=mod;
+
+	Mod_DoCRC(mod, buffer, com_filesize);
+
+	hunkstart = Hunk_LowMark ();
+
+
+	root = GLMod_ParseMD5MeshModel(buffer);
+
+
+	hunkend = Hunk_LowMark ();
+
+	mod->flags = Mod_ReadFlagsFromMD1(mod->name, 0);	//file replacement - inherit flags from any defunc mdl files.
+
+	Hunk_Alloc(0);
+	hunktotal = hunkend - hunkstart;
+	
+	Cache_Alloc (&mod->cache, hunktotal, loadname);
+	mod->type = mod_alias;
+	if (!mod->cache.data)
+	{
+		Hunk_FreeToLowMark (hunkstart);
+		return;
+	}
+	memcpy (mod->cache.data, root, hunktotal);
+
+	Hunk_FreeToLowMark (hunkstart);
+
+
+	mod->funcs.Trace = GLMod_Trace;
+}
+
+galiasgroup_t GLMod_ParseMD5Anim(char *buffer, galiasinfo_t *prototype, void**poseofs)
+{
+#define EXPECT(x) buffer = COM_Parse(buffer); if (strcmp(com_token, x)) Sys_Error("MD5ANIM: expected %s", x);
+	unsigned int i, j;
+
+	galiasgroup_t grp;
+
+	unsigned int parent;
+	unsigned int numframes;
+	unsigned int numjoints;
+	float framespersecond;
+	unsigned int numanimatedparts;
+	galiasbone_t *bonelist;
+
+	unsigned char *boneflags;
+	unsigned int *firstanimatedcomponants;
+
+	float *animatedcomponants;
+	float *baseframe;	//6 componants.
+	float *posedata;
+	float tx, ty, tz, qx, qy, qz;
+	int fac, flags;
+
+	EXPECT("MD5Version");
+	EXPECT("10");
+
+	EXPECT("commandline");
+	buffer = COM_Parse(buffer);
+
+	EXPECT("numFrames");
+	buffer = COM_Parse(buffer);
+	numframes = atoi(com_token);
+
+	EXPECT("numJoints");
+	buffer = COM_Parse(buffer);
+	numjoints = atoi(com_token);
+
+	EXPECT("frameRate");
+	buffer = COM_Parse(buffer);
+	framespersecond = atof(com_token);
+
+	EXPECT("numAnimatedComponents");
+	buffer = COM_Parse(buffer);
+	numanimatedparts = atoi(com_token);
+
+	firstanimatedcomponants = BZ_Malloc(sizeof(int)*numjoints);
+	animatedcomponants = BZ_Malloc(sizeof(float)*numanimatedparts);
+	boneflags = BZ_Malloc(sizeof(unsigned char)*numjoints);
+	baseframe = BZ_Malloc(sizeof(float)*12*numjoints);
+
+	*poseofs = posedata = Hunk_Alloc(sizeof(float)*12*numjoints*numframes);
+
+	if (prototype)
+	{
+		if (prototype->numbones != numjoints)
+			Sys_Error("MD5ANIM: number of bones doesn't match");
+		bonelist = (char*)prototype + prototype->ofsbones;
+	}
+	else
+	{
+		bonelist = Hunk_Alloc(sizeof(galiasbone_t)*numjoints);
+		prototype->ofsbones = (char*)bonelist - (char*)prototype;
+		prototype->numbones = numjoints;
+	}
+
+	EXPECT("hierarchy");
+	EXPECT("{");
+	for (i = 0; i < numjoints; i++, bonelist++)
+	{
+		buffer = COM_Parse(buffer);
+		if (prototype)
+		{
+			if (strcmp(bonelist->name, com_token))
+				Sys_Error("MD5ANIM: bone name doesn't match (%s)", com_token);
+		}
+		else
+			Q_strncpyz(bonelist->name, com_token, sizeof(bonelist->name));
+		buffer = COM_Parse(buffer);
+		parent = atoi(com_token);
+		if (prototype)
+		{
+			if (bonelist->parent != parent)
+				Sys_Error("MD5ANIM: bone name doesn't match (%s)", com_token);
+		}
+		else
+			bonelist->parent = parent;
+
+		buffer = COM_Parse(buffer);
+		boneflags[i] = atoi(com_token);
+		buffer = COM_Parse(buffer);
+		firstanimatedcomponants[i] = atoi(com_token);
+	}
+	EXPECT("}");
+
+	EXPECT("bounds");
+	EXPECT("{");
+	for (i = 0; i < numframes; i++)
+	{
+		EXPECT("(");
+		buffer = COM_Parse(buffer);
+		buffer = COM_Parse(buffer);
+		buffer = COM_Parse(buffer);
+		EXPECT(")");
+		EXPECT("(");
+		buffer = COM_Parse(buffer);
+		buffer = COM_Parse(buffer);
+		buffer = COM_Parse(buffer);
+		EXPECT(")");
+	}
+	EXPECT("}");
+
+	EXPECT("baseframe");
+	EXPECT("{");
+	for (i = 0; i < numjoints; i++)
+	{
+		EXPECT("(");
+		buffer = COM_Parse(buffer);
+		baseframe[i*6+0] = atof(com_token);
+		buffer = COM_Parse(buffer);
+		baseframe[i*6+1] = atof(com_token);
+		buffer = COM_Parse(buffer);
+		baseframe[i*6+2] = atof(com_token);
+		EXPECT(")");
+		EXPECT("(");
+		buffer = COM_Parse(buffer);
+		baseframe[i*6+3] = atof(com_token);
+		buffer = COM_Parse(buffer);
+		baseframe[i*6+4] = atof(com_token);
+		buffer = COM_Parse(buffer);
+		baseframe[i*6+5] = atof(com_token);
+		EXPECT(")");
+	}
+	EXPECT("}");
+
+	for (i = 0; i < numframes; i++)
+	{
+		EXPECT("frame");
+		EXPECT(va("%i", i));
+		EXPECT("{");
+		for (j = 0; j < numanimatedparts; j++)
+		{
+			buffer = COM_Parse(buffer);
+			animatedcomponants[j] = atof(com_token);
+		}
+		EXPECT("}");
+
+		for (j = 0; j < numjoints; j++)
+		{
+			fac = firstanimatedcomponants[j];
+			flags = boneflags[j];
+
+			if (flags&1)
+				tx = animatedcomponants[fac++];
+			else
+				tx = baseframe[j*6+0];
+			if (flags&2)
+				ty = animatedcomponants[fac++];
+			else
+				ty = baseframe[j*6+1];
+			if (flags&4)
+				tz = animatedcomponants[fac++];
+			else
+				tz = baseframe[j*6+2];
+			if (flags&8)
+				qx = animatedcomponants[fac++];
+			else
+				qx = baseframe[j*6+3];
+			if (flags&16)
+				qy = animatedcomponants[fac++];
+			else
+				qy = baseframe[j*6+4];
+			if (flags&32)
+				qz = animatedcomponants[fac++];
+			else
+				qz = baseframe[j*6+5];
+
+			GenMatrix(tx, ty, tz, qx, qy, qz, posedata+12*(j+numjoints*i));
+		}
+	}
+
+	BZ_Free(firstanimatedcomponants);
+	BZ_Free(animatedcomponants);
+	BZ_Free(boneflags);
+	BZ_Free(baseframe);
+
+	grp.isheirachical = true;
+	grp.numposes = numframes;
+	grp.rate = framespersecond;
+
+	return grp;
+#undef EXPECT
+}
+
+/*
+EXTERNALANIM
+
+//File what specifies md5 model/anim stuff.
+
+model test/imp.md5mesh
+
+group test/idle1.md5anim
+clampgroup test/idle1.md5anim
+frames test/idle1.md5anim
+
+*/
+void GLMod_LoadCompositeAnim(model_t *mod, void *buffer)
+{
+	#define EXPECT(x) buffer = COM_Parse(buffer); if (strcmp(com_token, x)) Sys_Error("MD5MESH: expected %s", x);
+	int numjoints = 0;
+	int nummeshes = 0;
+	qboolean foundjoints = false;
+	int meshnum = 0;
+	int i;
+
+	char *file;
+	galiasinfo_t *root = NULL;
+	int numgroups = 0;
+	galiasgroup_t *grouplist = NULL;
+	galiasgroup_t *newgroup = NULL;
+	void **poseofs;
+	int hunkstart, hunkend, hunktotal;
+
+
+	loadmodel=mod;
+
+	Mod_DoCRC(mod, buffer, com_filesize);
+
+	hunkstart = Hunk_LowMark ();
+
+
+
+
+	buffer = COM_Parse(buffer);
+	if (strcmp(com_token, "EXTERNALANIM"))
+		Sys_Error("EXTERNALANIM: header is not compleate");
+
+	buffer = COM_Parse(buffer);
+	if (!strcmp(com_token, "model"))
+	{
+		buffer = COM_Parse(buffer);
+		file = COM_LoadTempFile2(com_token);
+
+		if (!file)	//FIXME: make non fatal somehow..
+			Sys_Error("Couldn't open %s", com_token);
+
+		root = GLMod_ParseMD5MeshModel(file);
+		newgroup = (galiasgroup_t*)((char*)root + root->groupofs);
+
+		grouplist = BZ_Malloc(sizeof(galiasgroup_t)*(numgroups+root->groups));
+		memcpy(grouplist, newgroup, sizeof(galiasgroup_t)*(numgroups+root->groups));
+		poseofs = BZ_Malloc(sizeof(galiasgroup_t)*(numgroups+root->groups));
+		for (i = 0; i < root->groups; i++)
+		{
+			grouplist[numgroups] = newgroup[i];
+			poseofs[numgroups] = (char*)&newgroup[i] + newgroup[i].poseofs;
+			numgroups++;
+		}
+	}
+	else
+	{
+		Sys_Error("EXTERNALANIM: model must be defined immediatly after the header");
+		return;
+	}
+	for (;;)
+	{
+		buffer = COM_Parse(buffer);
+		if (!buffer)
+			break;
+
+		if (!strcmp(com_token, "group"))
+		{
+			grouplist = BZ_Realloc(grouplist, sizeof(galiasgroup_t)*(numgroups+1));
+			poseofs = BZ_Realloc(poseofs, sizeof(*poseofs)*(numgroups+1));
+			buffer = COM_Parse(buffer);
+			file = COM_LoadTempFile2(com_token);
+			if (file)	//FIXME: make non fatal somehow..
+			{
+				grouplist[numgroups] = GLMod_ParseMD5Anim(file, root, &poseofs[numgroups]);
+				numgroups++;
+			}
+		}
+		else if (!strcmp(com_token, "clampgroup"))
+		{
+			Sys_Error("EXTERNALANIM: clampgroup not yet supported");
+			return;
+		}
+		else if (!strcmp(com_token, "frames"))
+		{
+			Sys_Error("EXTERNALANIM: frames not yet supported");
+			return;
+		}
+		else
+		{
+			Sys_Error("EXTERNALANIM: unrecognised token");
+			return;
+		}
+	}
+
+	newgroup = grouplist;
+	grouplist = Hunk_Alloc(sizeof(galiasgroup_t)*numgroups);
+	for(;;)
+	{
+		root->groupofs = (char*)grouplist - (char*)root;
+		root->groups = numgroups;
+		if (!root->nextsurf)
+			break;
+		root = (char*)root + root->nextsurf;
+	}
+	for (i = 0; i < numgroups; i++)
+	{
+		grouplist[i] = newgroup[i];
+		grouplist[i].poseofs = (char*)poseofs[i] - (char*)&grouplist[i];
+	}
+
+
+	hunkend = Hunk_LowMark ();
+
+	mod->flags = Mod_ReadFlagsFromMD1(mod->name, 0);	//file replacement - inherit flags from any defunc mdl files.
+
+	Hunk_Alloc(0);
+	hunktotal = hunkend - hunkstart;
+	
+	Cache_Alloc (&mod->cache, hunktotal, loadname);
+	mod->type = mod_alias;
+	if (!mod->cache.data)
+	{
+		Hunk_FreeToLowMark (hunkstart);
+		return;
+	}
+	memcpy (mod->cache.data, root, hunktotal);
+
+	Hunk_FreeToLowMark (hunkstart);
+
+
+	mod->funcs.Trace = GLMod_Trace;
+}
+
+#endif //MD5MODELS
+
+#endif	// defined(RGLQUAKE) || defined(SERVERONLY)

@@ -268,10 +268,8 @@ PM_PlayerTrace
 trace_t PM_PlayerTrace (vec3_t start, vec3_t end)
 {
 	trace_t		trace, total;
-	hull_t		*hull;
 	int			i;
 	physent_t	*pe;
-	vec3_t		mins, maxs;
 
 // fill in a default trace
 	memset (&total, 0, sizeof(trace_t));
@@ -282,7 +280,6 @@ trace_t PM_PlayerTrace (vec3_t start, vec3_t end)
 	for (i=0 ; i< pmove.numphysent ; i++)
 	{
 		pe = &pmove.physents[i];
-	// get the clipping hull
 
 	// trace a line through the apropriate clipping hull
 		PM_TransformedHullCheck (pe->model, start, end, &trace, pe->origin, pe->angles);

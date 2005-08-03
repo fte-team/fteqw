@@ -36,6 +36,8 @@ cvar_t	cl_netfps = {"cl_netfps", "0"};
 
 cvar_t	cl_smartjump = {"cl_smartjump", "1"};
 
+cvar_t	cl_prydoncursor = {"cl_prydoncursor", "0"};	//for dp protocol
+
 
 usercmd_t independantphysics[MAX_SPLITS];
 
@@ -551,7 +553,10 @@ void CL_FinishMove (usercmd_t *cmd, int msecs, int pnum)
 // from the last level
 //
 	if (++cl.movemessages <= 2)
+	{
+		cmd->buttons = 0;
 		return;
+	}
 //
 // figure button bits
 //
@@ -584,20 +589,49 @@ void CL_FinishMove (usercmd_t *cmd, int msecs, int pnum)
 		cmd->impulse = 0;
 }
 
-cvar_t cl_prydoncursor = {"cl_prydoncursor", "0"};
+float cursor_screen[2];
+
+void CL_DrawPrydonCursor(void)
+{
+	if (cls.protocol == CP_NETQUAKE)
+	if (nq_dp_protocol >= 6)
+	if (cl_prydoncursor.value)
+	{
+		mpic_t *pic = Draw_SafeCachePic(va("gfx/prydoncursor%03i.lmp", (int)cl_prydoncursor.value));
+		if (pic)
+			Draw_Pic((cursor_screen[0] + 1) * 0.5 * vid.width, (cursor_screen[1] + 1) * 0.5 * vid.height, pic);
+		else
+			Draw_Character((cursor_screen[0] + 1) * 0.5 * vid.width, (cursor_screen[1] + 1) * 0.5 * vid.height, '+');
+	}
+}
+
 void ML_UnProject(vec3_t in, vec3_t out, vec3_t viewangles, vec3_t vieworg, float wdivh, float fovy);
-void CL_UpdatePrydonCursor(float cursor_screen[2], vec3_t cursor_start, vec3_t cursor_impact, int *entnum)
+void CL_UpdatePrydonCursor(usercmd_t *from, float cursor_screen[2], vec3_t cursor_start, vec3_t cursor_impact, int *entnum)
 {
 	float modelview[16];
 	vec3_t cursor_end;
-	trace_t tr;
 
-	vec3_t temp, scale;
+	vec3_t temp;
+	vec3_t cursor_impact_normal;
 
 	if (!cl_prydoncursor.value)
 	{	//center the cursor
 		cursor_screen[0] = 0;
 		cursor_screen[1] = 0;
+	}
+	else
+	{
+		cursor_screen[0] += from->sidemove/10000.0f;
+		cursor_screen[1] -= from->forwardmove/10000.0f;
+		if (cursor_screen[0] < -1)
+			cursor_screen[0] = -1;
+		if (cursor_screen[1] < -1)
+			cursor_screen[1] = -1;
+
+		if (cursor_screen[0] > 1)
+			cursor_screen[0] = 1;
+		if (cursor_screen[1] > 1)
+			cursor_screen[1] = 1;
 	}
 
 	/*
@@ -625,32 +659,28 @@ void CL_UpdatePrydonCursor(float cursor_screen[2], vec3_t cursor_start, vec3_t c
 //	cursor_screen[0] = bound(-1, cursor_screen[0], 1);
 //	cursor_screen[1] = bound(-1, cursor_screen[1], 1);
 
-	scale[0] = -tan(r_refdef.fov_x * M_PI / 360.0);
-	scale[1] = -tan(r_refdef.fov_y * M_PI / 360.0);
-	scale[2] = 1;
-
-	// trace distance
-	VectorScale(scale, 1000000, scale);
-
-
-	VectorCopy(cl.simorg[0], cursor_start);
-	temp[0] = cursor_screen[0];
-	temp[1] = cursor_screen[1];
+	VectorCopy(vec3_origin, cursor_start);
+	temp[0] = (cursor_screen[0]+1)/2;
+	temp[1] = (-cursor_screen[1]+1)/2;
 	temp[2] = 1;
 
-//	ML_UnProject(temp, cursor_end, cl.viewangles[0], cl.simorg[0], vid.width/vid.height, 90);
-	ML_ModelViewMatrix(modelview, cl.viewangles[0], cl.simorg[0]);
-	Matrix4_Transform3(modelview, temp, cursor_end);
+	ML_UnProject(temp, cursor_end, cl.viewangles[0], vec3_origin, (float)vid.width/vid.height, scr_fov.value );
+	VectorScale(cursor_end, 100000, cursor_end);
+
+	VectorAdd(cursor_start, cl.simorg[0], cursor_start);
+	VectorAdd(cursor_end, cl.simorg[0], cursor_end);
+	cursor_start[2]+=cl.viewheight[0];
+	cursor_end[2]+=cl.viewheight[0];
+
 
 	CL_SetSolidEntities();
 	//don't bother with players, they don't exist in NQ...
 
-	tr = PM_PlayerTrace(cursor_start, cursor_end);
-	VectorCopy(tr.endpos, cursor_impact);
+	TraceLineN(cursor_start, cursor_end, cursor_impact, cursor_impact_normal);
 //	CL_SelectTraceLine(cursor_start, cursor_end, cursor_impact, entnum);
 	// makes sparks where cursor is
 	//CL_SparkShower(cl.cmd.cursor_impact, cl.cmd.cursor_normal, 5, 0);
-//	P_RunParticleEffectType(cursor_impact, vec3_origin, 1, 0);
+//	P_RunParticleEffectType(cursor_impact, vec3_origin, 1, pt_gunshot);
 //P_ParticleTrail(cursor_start, cursor_impact, 0, NULL);
 }
 
@@ -660,7 +690,6 @@ void CLNQ_SendMove (usercmd_t		*cmd, int pnum, sizebuf_t *buf)
 	int bits;
 	int i;
 
-	float cursor_screen[2];
 	vec3_t cursor_start, cursor_impact;
 	int cursor_entitynumber=0;//I hate warnings as errors
 
@@ -704,7 +733,7 @@ void CLNQ_SendMove (usercmd_t		*cmd, int pnum, sizebuf_t *buf)
 
 	if (nq_dp_protocol >= 6)
 	{
-		CL_UpdatePrydonCursor(cursor_screen, cursor_start, cursor_impact, &cursor_entitynumber);
+		CL_UpdatePrydonCursor(cmd, cursor_screen, cursor_start, cursor_impact, &cursor_entitynumber);
 		MSG_WriteLong (buf, bits);
 	}
 	else
@@ -1020,6 +1049,9 @@ void CL_SendCmd (float frametime)
 	int clientcount;
 
 	extern cvar_t cl_maxfps;
+
+	vec3_t cursor_start, cursor_impact;
+	int cursor_entitynumber=0;//I hate warnings as errors
 
 	if (cls.demoplayback != DPB_NONE)
 	{
@@ -1512,6 +1544,8 @@ void CL_InitInput (void)
 	Cvar_Register (&cl_netfps, inputnetworkcvargroup);
 
 	Cvar_Register (&cl_smartjump, inputnetworkcvargroup);
+
+	Cvar_Register (&cl_prydoncursor, inputnetworkcvargroup);
 }
 
 /*

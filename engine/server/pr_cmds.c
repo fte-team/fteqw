@@ -44,7 +44,7 @@ cvar_t	saved4 = {"saved4", "0", NULL, CVAR_ARCHIVE};
 cvar_t	temp1 = {"temp1", "0", NULL, CVAR_ARCHIVE};
 cvar_t	noexit = {"noexit", "0", NULL};
 
-cvar_t	pr_maxedicts = {"pr_maxedicts", "2000", NULL, CVAR_LATCH};
+cvar_t	pr_maxedicts = {"pr_maxedicts", "2048", NULL, CVAR_LATCH};
 cvar_t	pr_imitatemvdsv = {"pr_imitatemvdsv", "0", NULL, CVAR_LATCH};
 cvar_t	pr_fixbrokenqccarrays = {"pr_fixbrokenqccarrays", "1", NULL, CVAR_LATCH};
 
@@ -291,13 +291,13 @@ void VARGS PR_CB_Free(void *mem)
 	BZ_Free(mem);
 }
 void PF_break (progfuncs_t *prinst, struct globalvars_s *pr_globals);
-int QCLibEditor(char *filename, int line, int nump, char **parms);
-int QCEditor (char *filename, int line, int nump, char **parms)
+int QCLibEditor(progfuncs_t *prinst, char *filename, int line, int nump, char **parms);
+int QCEditor (progfuncs_t *prinst, char *filename, int line, int nump, char **parms)
 {
 #ifdef TEXTEDITOR
 	static char oldfuncname[64];
 	if (!parms)
-		return QCLibEditor(filename, line, nump, parms);
+		return QCLibEditor(prinst, filename, line, nump, parms);
 	else
 	{
 		if (!nump && !strncmp(oldfuncname, *parms, sizeof(oldfuncname)))
@@ -1211,6 +1211,8 @@ void Q_InitProgs(void)
 	}
 
 	sv.max_edicts = pr_maxedicts.value;
+	if (sv.max_edicts > MAX_EDICTS)
+		sv.max_edicts = MAX_EDICTS;
 	pr_edict_size = PR_InitEnts(svprogfuncs, sv.max_edicts);
 }
 
@@ -5326,7 +5328,7 @@ void PF_substring (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 	if (start < 0)
 		start = strlen(s)-start;
 	if (length < 0)
-		length = strlen(s)-start;
+		length = strlen(s)-start+(length+1);
 
 	if (start >= strlen(s) || length<=0 || !*s)
 	{
@@ -9466,9 +9468,6 @@ void PR_RegisterFields(void)	//it's just easier to do it this way.
 	fieldfloat(fatness);
 	fieldentity(view2);
 	fieldvector(movement);
-	PR_RegisterFieldVar(svprogfuncs, ev_float, "buttonforward", (int)&((entvars_t*)0)->movement[0], -1);
-	PR_RegisterFieldVar(svprogfuncs, ev_float, "buttonright", (int)&((entvars_t*)0)->movement[1], -1);
-	PR_RegisterFieldVar(svprogfuncs, ev_float, "buttonup", (int)&((entvars_t*)0)->movement[2], -1);
 	fieldfloat(fteflags);
 	fieldfloat(vweapmodelindex);
 
@@ -9477,6 +9476,8 @@ void PR_RegisterFields(void)	//it's just easier to do it this way.
 	fieldentity(drawonlytoclient);
 	fieldentity(viewmodelforclient);
 	fieldentity(exteriormodeltoclient);
+
+	fieldfloat(viewzoom);
 
 	fieldentity(tag_entity);
 	fieldfloat(tag_index);

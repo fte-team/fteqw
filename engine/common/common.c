@@ -1389,7 +1389,10 @@ void COM_StripExtension (char *in, char *out)
 	while(*s != '/' && s != out)
 	{
 		if (*s == '.')
+		{
 			*s = 0;
+			break;
+		}
 
 		s--;
 	}
@@ -1688,7 +1691,7 @@ char *COM_StringParse (char *data, qboolean expandmacros, qboolean qctokenize)
 		
 // skip whitespace
 skipwhite:
-	while ( (c = *data), c <= ' ' && c != '\n')
+	while ( (c = *data), (unsigned)c <= ' ' && c != '\n')
 	{
 		if (c == 0)
 			return NULL;			// end of file;
@@ -1824,7 +1827,7 @@ skipwhite:
 		data++;
 		len++;
 		c = *data;
-	} while (c>32 && !(qctokenize && (c == '\n' || c == '{' || c == '}' || c == ')' || c == '(' || c == ']' || c == '[' || c == '\'' || c == ':' || c == ',' || c == ';')));
+	} while ((unsigned)c>32 && !(qctokenize && (c == '\n' || c == '{' || c == '}' || c == ')' || c == '(' || c == ']' || c == '[' || c == '\'' || c == ':' || c == ',' || c == ';')));
 
 	com_token[len] = 0;
 

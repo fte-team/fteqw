@@ -30,6 +30,7 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 #include "shader.h"
 #endif
 
+extern cvar_t r_shadow_bumpscale_basetexture;
 extern int gl_bumpmappingpossible;
 qboolean isnotmap = true;	//used to not warp ammo models.
 
@@ -56,6 +57,9 @@ void Mod_LoadAlias3Model (model_t *mod, void *buffer);
 void Mod_LoadGroupModel (model_t *mod, void *buffer);
 #ifdef ZYMOTICMODELS
 void GLMod_LoadZymoticModel(model_t *mod, void *buffer);
+#endif
+#ifdef MD5MODELS
+void GLMod_LoadMD5MeshModel(model_t *mod, void *buffer);
 #endif
 model_t *GLMod_LoadModel (model_t *mod, qboolean crash);
 
@@ -678,8 +682,23 @@ couldntload:
 		break;
 #endif
 	default:
-		Con_Printf("Unrecognised model format %i\n", LittleLong(*(unsigned *)buf));
-		goto couldntload;
+		//check for text based headers
+		COM_Parse((char*)buf);
+		if (!strcmp(com_token, "MD5Version"))
+		{
+			GLMod_LoadMD5MeshModel (mod, buf);
+			break;
+		}
+		else if (!strcmp(com_token, "EXTERNALANIM"))
+		{
+			GLMod_LoadCompositeAnim (mod, buf);
+			break;
+		}
+		else
+		{
+			Con_Printf("Unrecognised model format %i\n", LittleLong(*(unsigned *)buf));
+			goto couldntload;
+		}
 	}
 
 	P_DefaultTrail(mod);
@@ -1060,7 +1079,7 @@ TRACE(("dbg: GLMod_LoadTextures: inittexturedescs\n"));
 					for (j = 0; j < pixels; j++)
 						base[j] = (host_basepal[base[j]*3] + host_basepal[base[j]*3+1] + host_basepal[base[j]*3+2]) / 3;
 
-					tx->gl_texturenumbumpmap = GL_LoadTexture8Bump(altname, tx->width, tx->height, base, true);	//normalise it and then bump it.
+					tx->gl_texturenumbumpmap = GL_LoadTexture8Bump(altname, tx->width, tx->height, base, true, r_shadow_bumpscale_basetexture.value);	//normalise it and then bump it.
 				}
 
 				//don't do any complex quake 8bit -> glossmap. It would likly look a little ugly...
@@ -1187,7 +1206,6 @@ TRACE(("dbg: GLMod_LoadTextures: inittexturedescs\n"));
 	}
 }
 
-int GL_LoadTexture8Bump (char *identifier, int width, int height, unsigned char *data, qboolean mipmap);
 void GLMod_NowLoadExternal(void)
 {
 	extern int gl_bumpmappingpossible;
@@ -1247,7 +1265,7 @@ void GLMod_NowLoadExternal(void)
 					*heightmap++ = (data[j*4+0] + data[j*4+1] + data[j*4+2])/3;
 				}
 				
-				tx->gl_texturenumbumpmap = GL_LoadTexture8Bump (va("%s_bump", tx->name), width, height, heightmap-j, true);
+				tx->gl_texturenumbumpmap = GL_LoadTexture8Bump (va("%s_bump", tx->name), width, height, heightmap-j, true, r_shadow_bumpscale_basetexture.value);
 			}
 		}
 	}

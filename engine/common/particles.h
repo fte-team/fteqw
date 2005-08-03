@@ -160,6 +160,8 @@ void P_TorchEffect (vec3_t pos, int type);	//particles centered around a model, 
 void P_BlobExplosion (vec3_t org);	//tarbaby explosion or TF emp.
 void P_ParticleExplosion (vec3_t org);	//rocket explosion (sprite is allocated seperatly :( )
 void P_LavaSplash (vec3_t org);	//cthon dying, or a gas grenade.
+void P_RunParticleCube(vec3_t minb, vec3_t maxb, vec3_t dir, float count, int colour, qboolean gravity, float jitter);
+void P_RunParticleWeather(vec3_t minb, vec3_t maxb, vec3_t dir, float count, int colour, char *efname);
 
 //the core spawn function for trails. (trailstate can be null)
 int P_ParticleTrail (vec3_t start, vec3_t end, int type, trailstate_t **trailstate);

@@ -1,5 +1,9 @@
 // Raw input includes
 
+#ifndef WINUSERAPI
+#define WINUSERAPI
+#endif
+
 #ifndef RIM_TYPEMOUSE
 #define WM_INPUT 255
 

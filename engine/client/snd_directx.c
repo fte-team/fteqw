@@ -949,7 +949,7 @@ int SNDDMA_InitCapture (void)
 }
 
 void SNDVC_Submit(qbyte *buffer, int samples, int freq, int width);
-void S_UpdateCapture(void)
+void DSOUND_UpdateCapture(void)
 {
 	HRESULT hr;
 	LPBYTE lpbuf1 = NULL;
@@ -1032,8 +1032,5 @@ void S_UpdateCapture(void)
 	SNDVC_MicInput(pBuffer, filled, wfxFormat.nSamplesPerSec, inputwidth); 
 	BZ_Free(pBuffer);
 }
-#else
-void S_UpdateCapture(void)
-{
-}
+void (*pDSOUND_UpdateCapture) (void) = &DSOUND_UpdateCapture;
 #endif

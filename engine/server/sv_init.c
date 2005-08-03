@@ -551,6 +551,7 @@ void SV_SpawnServer (char *server, char *startspot, qboolean noents, qboolean us
 			svs.clients[i].num_backbuf = 0;
 			svs.clients[i].datagram.cursize = 0;
 		}
+		svs.clients[i].csqcactive = false;
 	}
 
 	if (sv_bigcoords.value)

@@ -123,10 +123,6 @@ static void ALSA_SetUnderWater(soundcardinfo_t *sc, qboolean underwater)
 {
 }
 
-void S_UpdateCapture(void)
-{
-}
-
 static qboolean Alsa_InitAlsa(void)
 {
 	static qboolean tried;

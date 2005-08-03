@@ -867,11 +867,44 @@ char *particle_set_spikeset =
 "	blend add\n"
 "	areaspread 0\n"
 "	areaspreadvert 0\n"
+"}\n"
+
+//the default svc_particle effect.
+"r_part pe_default\n"
+"{\n"
+"	texture \"particles/quake\"\n"
+"	count 1\n"
+"	scale 4\n"
+"	veladd 15\n"
+"	alpha 1\n"
+"	die 0.4\n"
+"	alphachange 0\n"
+"	diesubrand 0.4\n"
+"	gravity 40\n"
+"	areaspread 8\n"
+"	areaspreadvert 8\n"
+"	spawnmode box\n"
 "}\n";
 
 
 
+
+
+
+///////////////////////////////////////////////////////////////
+
+
+
+
+
+
+
+
+
+
+
 char *particle_set_highfps =	//submitted by 'ShadowWalker'
+								//fixme: replace with something more effective
 "r_part t_gib\n"
 "{\n"
 "	texture \"particles/bloodtrail\"\n"
@@ -1122,7 +1155,25 @@ char *particle_set_highfps =	//submitted by 'ShadowWalker'
 "	areaspreadvert 0\n"
 "}\n";
 
-char *particle_set_faithful =
+
+
+
+
+
+
+/////////////////////////////////////////////////////////////////////
+
+
+
+
+
+
+
+
+
+
+char *particle_set_faithful =	//Created from origional quake by TimeServ.
+								//The aim being to clone the old effects exactly.
 "r_part t_gib\n"
 "{\n"
 "	texture \"particles/quake\"\n"

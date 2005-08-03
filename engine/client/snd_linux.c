@@ -272,8 +272,3 @@ static int OSS_InitCard(soundcardinfo_t *sc, int cardnum)
 
 int (*pOSS_InitCard) (soundcardinfo_t *sc, int cardnum) = &OSS_InitCard;
 
-
-
-void S_UpdateCapture(void)
-{
-}

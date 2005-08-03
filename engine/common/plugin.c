@@ -23,6 +23,9 @@ typedef struct plugin_s {
 	int sbarlevel[3];	//0 - main sbar, 1 - supplementry sbar sections (make sure these can be switched off), 2 - overlays (scoreboard). menus kill all.
 	int reschange;
 
+	//protocol-in-a-plugin
+	int connectionlessclientpacket;
+
 	struct plugin_s *next;
 } plugin_t;
 
@@ -37,6 +40,7 @@ void Plug_RegisterBuiltin(char *name, Plug_Builtin_t bi, int flags);
 #define PLUG_BIF_QVMONLY	2
 
 void Plug_Init(void);
+void Plug_Close(plugin_t *plug);
 
 void Plug_Tick(void);
 qboolean Plugin_ExecuteString(void);
@@ -45,6 +49,7 @@ void Plug_Shutdown(void);
 
 static plugin_t *plugs;
 static plugin_t *menuplug;	//plugin that has the current menu
+static plugin_t *protocolclientplugin;
 
 
 typedef struct {
@@ -165,7 +170,7 @@ plugin_t *Plug_Load(char *file)
 	for (newplug = plugs; newplug; newplug = newplug->next)
 	{
 		if (!stricmp(newplug->name, file))
-			return NULL;
+			return newplug;
 	}
 
 	newplug = Z_Malloc(sizeof(plugin_t)+strlen(file)+1);
@@ -176,11 +181,17 @@ plugin_t *Plug_Load(char *file)
 	currentplug = newplug;
 	if (newplug->vm)
 	{
+		Con_Printf("Created plugin %s\n", file);
+
 		newplug->next = plugs;
 		plugs = newplug;
 
 		argarray = 4;
-		VM_Call(newplug->vm, 0, Plug_FindBuiltin("Plug_GetEngineFunction"-4, ~0, &argarray));
+		if (!VM_Call(newplug->vm, 0, Plug_FindBuiltin("Plug_GetEngineFunction"-4, ~0, &argarray)))
+		{
+			Plug_Close(newplug);
+			return NULL;
+		}
 
 		if (newplug->reschange)
 			VM_Call(newplug->vm, newplug->reschange, vid.width, vid.height);
@@ -238,6 +249,8 @@ int Plug_ExportToEngine(void *offset, unsigned int mask, const long *arg)
 		currentplug->sbarlevel[1] = arg[1];
 	else if (!strcmp(name, "SbarOverlay"))		//overlay - scoreboard type stuff.
 		currentplug->sbarlevel[2] = arg[1];
+	else if (!strcmp(name, "ConnectionlessClientPacket"))
+		currentplug->connectionlessclientpacket = arg[1];
 	else
 		return 0;
 	return 1;
@@ -1072,6 +1085,45 @@ int Plug_Net_Send(void *offset, unsigned int mask, const long *arg)
 		return -2;
 	}
 }
+int Plug_Net_SendTo(void *offset, unsigned int mask, const long *arg)
+{
+	int written;
+	int handle = VM_LONG(arg[0]);
+	void *src = VM_POINTER(arg[1]);
+	int srclen = VM_LONG(arg[2]);
+
+	netadr_t *address = VM_POINTER(arg[3]);
+
+
+	struct sockaddr_qstorage sockaddr;
+	if (handle == -1)
+	{
+		NET_SendPacket(NS_CLIENT, srclen, src, *address);
+		return srclen;
+	}
+
+	NetadrToSockadr(address, &sockaddr);
+
+	if (handle < 0 || handle >= pluginstreamarraylen || pluginstreamarray[handle].plugin != currentplug)
+		return -2;
+	switch(pluginstreamarray[handle].type)
+	{
+	case STREAM_SOCKET:
+		written = sendto(pluginstreamarray[handle].socket, src, srclen, 0, (struct sockaddr*)&sockaddr, sizeof(sockaddr));
+		if (written < 0)
+		{
+			if (qerrno == EWOULDBLOCK)
+				return -1;
+			else
+				return -2;
+		}
+		else if (written == 0)
+			return -2;	//closed by remote connection.
+		return written;
+	default:
+		return -2;
+	}
+}
 int Plug_Net_Close(void *offset, unsigned int mask, const long *arg)
 {
 	int handle = VM_LONG(arg[0]);
@@ -1096,7 +1148,8 @@ void Plug_Load_f(void)
 	{
 		Con_Printf("Loads a plugin\n");
 		Con_Printf("plug_load [pluginpath]\n");
-		Con_Printf("example pluginpath: plugins/blahx86.so\n");
+		Con_Printf("example pluginpath: plugins/blah\n");
+		Con_Printf("will load blahx86.dll or blah.so\n");
 		return;
 	}
 	if (!Plug_Load(plugin))
@@ -1156,16 +1209,20 @@ void Plug_Init(void)
 	Plug_RegisterBuiltin("Net_TCPConnect",			Plug_Net_TCPConnect, 0);
 	Plug_RegisterBuiltin("Net_Recv",				Plug_Net_Recv, 0);
 	Plug_RegisterBuiltin("Net_Send",				Plug_Net_Send, 0);
+	Plug_RegisterBuiltin("Net_SendTo",				Plug_Net_SendTo, 0);
 	Plug_RegisterBuiltin("Net_Close",				Plug_Net_Close, 0);
 
 	Plug_RegisterBuiltin("Media_ShowFrameRGBA_32",	Plug_Media_ShowFrameRGBA_32, 0);
 
+	if (plug_loaddefault.value)
+	{
 #ifdef _WIN32
-	COM_EnumerateFiles("plugins/*x86.dll",	Plug_Emumerated, "x86.dll");
+		COM_EnumerateFiles("plugins/*x86.dll",	Plug_Emumerated, "x86.dll");
 #elif defined(__linux__)
-	COM_EnumerateFiles("plugins/*x86.so",	Plug_Emumerated, "x86.so");
+		COM_EnumerateFiles("plugins/*x86.so",	Plug_Emumerated, "x86.so");
 #endif
-	COM_EnumerateFiles("plugins/*.qvm",		Plug_Emumerated, ".qvm");
+		COM_EnumerateFiles("plugins/*.qvm",		Plug_Emumerated, ".qvm");
+	}
 }
 
 void Plug_Tick(void)
@@ -1238,6 +1295,32 @@ qboolean Plug_Menu_Event(int eventtype, int param)	//eventtype = draw/keydown/ke
 	ret = VM_Call(menuplug->vm, menuplug->menufunction, eventtype, param, mousecursor_x, mousecursor_y);
 	currentplug=oc;
 	return ret;
+}
+
+int Plug_ConnectionlessClientPacket(char *buffer, int size)
+{
+	for (currentplug = plugs; currentplug; currentplug = currentplug->next)
+	{
+		if (currentplug->connectionlessclientpacket)
+		{
+			switch (VM_Call(currentplug->vm, currentplug->connectionlessclientpacket, buffer, size, &net_from))
+			{
+			case 0:
+				continue;	//wasn't handled
+			case 1:
+				currentplug = NULL;	//was handled with no apparent result
+				return true;
+			case 2:
+#ifndef SERVERONLY
+				cls.protocol = CP_PLUGIN;	//woo, the plugin wants to connect to them!
+				protocolclientplugin = currentplug;
+#endif
+				currentplug = NULL;
+				return true;
+			}
+		}
+	}
+	return false;
 }
 
 void Plug_SBar(void)
@@ -1328,6 +1411,12 @@ void Plug_Close(plugin_t *plug)
 	{
 		menuplug = NULL;
 		key_dest = key_game;
+	}
+	if (protocolclientplugin == plug)
+	{
+		protocolclientplugin = NULL;
+		if (cls.protocol == CP_PLUGIN)
+			cls.protocol = CP_UNKNOWN;
 	}
 }
 

@@ -139,6 +139,17 @@ void S_SoundInfo_f(void)
 	}
 }
 
+void (*pDSOUND_UpdateCapture) (void);
+void S_RunCapture(void)
+{
+	//add new drivers in order or desirability.
+	if (pDSOUND_UpdateCapture)
+	{
+		pDSOUND_UpdateCapture();
+		return;
+	}
+}
+
 
 sounddriver pDSOUND_InitCard;
 sounddriver pALSA_InitCard;
@@ -1191,7 +1202,7 @@ void S_Update(vec3_t origin, vec3_t forward, vec3_t right, vec3_t up)
 	VectorCopy(right, listener_right);
 	VectorCopy(up, listener_up);
 
-	S_UpdateCapture();
+	S_RunCapture();
 
 	for (sc = sndcardinfo; sc; sc = sc->next)
 		S_UpdateCard(sc);
@@ -1340,7 +1351,7 @@ void S_ExtraUpdate (void)
 	if (snd_noextraupdate.value)
 		return;		// don't pollute timings
 
-	S_UpdateCapture();
+	S_RunCapture();
 
 	for (sc = sndcardinfo; sc; sc = sc->next)
 		S_Update_(sc);

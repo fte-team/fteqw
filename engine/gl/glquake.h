@@ -114,7 +114,7 @@ void GL_Upload8 (qbyte *data, int width, int height,  qboolean mipmap, qboolean 
 void GL_Upload8_EXT (qbyte *data, int width, int height,  qboolean mipmap, qboolean alpha);
 #endif
 int GL_LoadTexture (char *identifier, int width, int height, qbyte *data, qboolean mipmap, qboolean alpha);
-int GL_LoadTexture8Bump (char *identifier, int width, int height, unsigned char *data, qboolean mipmap);
+int GL_LoadTexture8Bump (char *identifier, int width, int height, unsigned char *data, qboolean mipmap, float bumpscale);
 int GL_LoadTexture8Pal24 (char *identifier, int width, int height, qbyte *data, qbyte *palette24, qboolean mipmap, qboolean alpha);
 int GL_LoadTexture32 (char *identifier, int width, int height, unsigned *data, qboolean mipmap, qboolean alpha);
 int GL_LoadCompressed(char *name);
@@ -347,7 +347,7 @@ typedef struct {
 
 //gl_ppl.c
 void PPL_DrawWorld (void);
-void RotateLightVector(vec3_t angles, vec3_t origin, vec3_t lightpoint, vec3_t result);
+void RotateLightVector(vec3_t *angles, vec3_t origin, vec3_t lightpoint, vec3_t result);
 
 #endif
 

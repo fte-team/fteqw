@@ -103,7 +103,8 @@ extern void	FNC(Mod_NowLoadExternal)				(void);
 
 extern void	FNC(Mod_Think)							(void);
 extern qboolean	FNC(Mod_GetTag)						(struct model_s *model, int tagnum, int frame, int frame2, float f2ness, float f1time, float f2time, float *transforms);
-extern int FNC(Mod_TagNumForName)						(struct model_s *model, char *name);
+extern int FNC(Mod_TagNumForName)					(struct model_s *model, char *name);
+extern int FNC(Mod_SkinForName)						(struct model_s *model, char *name);
 
 #undef FNC
 
@@ -183,6 +184,7 @@ typedef struct {
 	void	(*Mod_Think)				(void);
 	qboolean(*Mod_GetTag)				(struct model_s *model, int tagnum, int frame1, int frame2, float f2ness, float f1time, float f2time, float *result);
 	int (*Mod_TagNumForName)			(struct model_s *model, char *name);
+	int (*Mod_SkinForName)				(struct model_s *model, char *name);
 
 
 	qboolean (*VID_Init)				(rendererstate_t *info, unsigned char *palette);

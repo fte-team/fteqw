@@ -1,11 +1,15 @@
 //Released under the terms of the gpl as this file uses a bit of quake derived code. All sections of the like are marked as such
+// changes name to while in channel
+// mode command
+
 
 #include "../plugin.h"
 #include <time.h>
+#include <ctype.h>
 
 #define irccvars "IRC Console Variables"
-vmcvar_t	irc_debug = {"irc_debug", "1", irccvars, 0};
-vmcvar_t	irc_motd = {"irc_motd", "0", irccvars, 0};
+vmcvar_t	irc_debug = {"irc_debug", "0", irccvars, 0};
+vmcvar_t	irc_motd = {"irc_motd", "1", irccvars, 0};
 vmcvar_t	irc_nick = {"irc_nick", "anonymous", irccvars, 0};
 vmcvar_t	irc_altnick = {"irc_altnick", "unnamed", irccvars, 0};
 vmcvar_t	irc_realname = {"irc_realname", "FTE IRC-Plugin http://fteqw.sf.net", irccvars, 0};
@@ -15,7 +19,12 @@ vmcvar_t	irc_timestamp = {"irc_timestamp", "0", irccvars, 0};
 
 vmcvar_t	*cvarlist[] ={
 	&irc_debug,
-	&irc_motd
+	&irc_motd,
+	&irc_nick,
+	&irc_altnick,
+	&irc_realname,
+	&irc_ident,
+	&irc_timestamp
 };
 
 
@@ -49,6 +58,8 @@ void Con_SubPrintf(char *subname, char *format, ...)
 	#define COLOURRED "^1"
 	#define COLOURYELLOW "^3"
 	#define COLOURPURPLE "^5"
+	#define COLOURBLUE "^4"
+	#define COLOURINDIGO "^6"
 	#define COMMANDPREFIX "irc "
 	#define playsound(s)
 
@@ -144,7 +155,7 @@ void IRC_InitCvars(void)
 		v->handle = Cvar_Register(v->name, v->string, v->flags, v->group);
 }
 
-int IRC_CvarUpdate(int *args) // perhaps void instead?
+int IRC_CvarUpdate(void) // perhaps void instead?
 {
 	vmcvar_t *v;
 	int i;
@@ -174,9 +185,9 @@ int Plug_Init(int *args)
 	if (	Plug_Export("Tick", IRC_Frame) &&
 		Plug_Export("ExecuteCommand", IRC_ExecuteCommand) &&
 		Plug_Export("ConExecuteCommand", IRC_ConExecuteCommand))
-		Con_Print("IRC Client Plugin Loaded\n");
+		Con_Printf("IRC Client Plugin Loaded\n");
 	else
-		Con_Print("IRC Client Plugin failed\n");
+		Con_Printf("IRC Client Plugin failed\n");
 
 	IRC_InitCvars();
 	return 0;
@@ -246,7 +257,8 @@ void IRC_AddClientMessage(ircclient_t *irc, char *msg)
 	strcat(output, "\n");
 
 	Net_Send(irc->socket, output, strlen(output));	//FIXME: This needs rewriting to cope with errors.
-	Con_SubPrintf("irc",COLOURYELLOW "<< %s \n",msg);
+
+	if (irc_debug.value == 1) { Con_SubPrintf("irc",COLOURYELLOW "<< %s \n",msg); }
 }
 
 ircclient_t *IRC_Connect(char *server, int defport)
@@ -274,14 +286,11 @@ ircclient_t *IRC_Connect(char *server, int defport)
 	}
 
 	Q_strncpyz(irc->server, server, sizeof(irc->server));
-	strcpy(irc->nick, "anonymous");
-	strcpy(irc->realname, "anonymous");
 
 	strcpy(irc->hostname, "anonymous");
 
 //	gethostname(irc->hostname, sizeof(irc->hostname));
 //	irc->hostname[sizeof(irc->hostname)-1] = 0;
-
 
 	return irc;
 }
@@ -291,14 +300,11 @@ void IRC_SetPass(ircclient_t *irc, char *pass)
 }
 void IRC_SetNick(ircclient_t *irc, char *nick)
 {
-	//strncpy(irc->nick, nick, sizeof(irc->nick)); // broken
-	//irc->nick[sizeof(irc->nick)-1] = '\0'; // broken, lets just allow "anonymous" on.
-	IRC_AddClientMessage(irc, va("NICK %s", irc->nick));
-	irc->nickcycle=0;
+	IRC_AddClientMessage(irc, va("NICK %s", nick));
 }
 void IRC_SetUser(ircclient_t *irc, char *user)
 {
-	IRC_AddClientMessage(irc, va("USER %s %s %s :%s", user, irc->hostname, irc->server, "Something"));
+	IRC_AddClientMessage(irc, va("USER %s %s %s :%s", irc_ident.string, irc->hostname, irc->server, irc_realname.string));
 }
 
 void IRC_FilterMircColours(char *msg)
@@ -393,6 +399,7 @@ int IRC_ClientFrame(ircclient_t *irc)
 	char prefix[64];
 	int ret;
 	char *nextmsg, *msg;
+	char *raw;
 
 	char var[9][1000];
 	char *temp;
@@ -445,9 +452,10 @@ int IRC_ClientFrame(ircclient_t *irc)
 
 	}
 
-	//IRC_CvarUpdate(); // is this the right place for it?
+	raw = strtok(var[2], " ");
 
-	// below this I want to work.. if (Cvar_GetFloat("irc_debug") == 1) doesn't work either.
+	IRC_CvarUpdate(); // is this the right place for it?
+
 	if (irc_debug.value == 1) { Con_SubPrintf("irc",COLOURRED "!!!!! 1: %s 2: %s 3: %s 4: %s 5: %s 6: %s 7: %s 8: %s\n",var[1],var[2],var[3],var[4],var[5],var[6],var[7],var[8]); }
 
 	if (*msg == ':')	//we need to strip off the prefix
@@ -492,7 +500,7 @@ int IRC_ClientFrame(ircclient_t *irc)
 			char *ctcpreplytype = strtok(var[4]+2, " ");
 			char *ctcpreply = var[5];
 
-			Con_SubPrintf("irc","<CTCP Reply> %s FROM %s: %s",ctcpreplytype,username,ctcpreply);
+			Con_SubPrintf("irc","<CTCP Reply> %s FROM %s: %s\n",ctcpreplytype,username,ctcpreply);
 		}
 		else if (exc && col)
 		{
@@ -503,7 +511,7 @@ int IRC_ClientFrame(ircclient_t *irc)
 				to++;
 			for (end = to + strlen(to)-1; end >= to && *end <= ' '; end--)
 				*end = '\0';
-			if (!strcmp(to, irc->nick))
+			if (!strcmp(to, irc_nick.string))
 				to = prefix;	//This was directed straight at us.
 								//So change the 'to', to the 'from'.
 
@@ -577,7 +585,7 @@ int IRC_ClientFrame(ircclient_t *irc)
 				to++;
 			for (end = to + strlen(to)-1; end >= to && *end <= ' '; end--)
 				*end = '\0';
-			if (!strcmp(to, irc->nick))
+			if (!strcmp(to, irc_nick.string))
 				to = prefix;	//This was directed straight at us.
 								//So change the 'to', to the 'from'.
 
@@ -699,8 +707,12 @@ int IRC_ClientFrame(ircclient_t *irc)
 	else if ((!strncmp(msg, "251 ", 4)) || (!strncmp(msg, "252 ", 4)) || (!strncmp(msg, "254 ", 4)) || (!strncmp(msg, "255 ", 4)) || (!strncmp(msg, "265 ", 4)) || (!strncmp(msg, "266 ", 4)) || (!strncmp(msg, "422 ", 4))) //useless info about local users, server users, connected servers, motd missing
 	{
 	}
-	else if (!strncmp(msg, "301 ", 4)) // afk
+	else if (!strncmp(msg, "301 ", 4)) // away
 	{
+		char *username = strtok(var[4], " ");
+		char *awaymessage = var[5]+1;
+
+		Con_SubPrintf("irc","WHOIS: <%s> (Away Message: %s)\n",username,awaymessage);
 	}
 	else if (!strncmp(msg, "311 ", 4)) // Whois
 	{
@@ -740,6 +752,10 @@ int IRC_ClientFrame(ircclient_t *irc)
 	}
 	else if (!strncmp(msg, "319 ", 4)) // channels whois in
 	{
+		char *username = strtok(var[4], " ");
+		char *channels = var[5]+1;
+
+		Con_SubPrintf("irc","WHOIS: <%s> (Channels: %s)\n",username,channels);
 	}
 	else if (!strncmp(msg, "322 ", 4))	//channel listing
 	{
@@ -747,6 +763,9 @@ int IRC_ClientFrame(ircclient_t *irc)
 	}
 	else if ((!strncmp(msg, "372 ", 4)) || (!strncmp(msg, "375 ", 4)) || (!strncmp(msg, "376 ", 4)))
 	{
+		char *motdmessage = var[4]+1;
+
+		if (irc_motd.value == 1) { Con_SubPrintf("irc", "MOTD: %s\n", motdmessage); }
 	}
 	else if (!strncmp(msg, "375 ", 4))
 	{
@@ -759,15 +778,25 @@ int IRC_ClientFrame(ircclient_t *irc)
 			 !strncmp(msg, "433 ", 4) ||	//nick already in use
 			 !strncmp(msg, "436 ", 4))		//nick collision
 	{
-		if (irc->nickcycle >= 99)	//this is just silly.
+		char *nickname = strtok(var[4], " ");
+
+		if (!strcmp(nickname,irc_nick.string))
+		{
+			IRC_SetNick(irc, irc_altnick.string);
+		}
+		else if (!strcmp(nickname,irc_altnick.string))
+		{
+			Con_SubPrintf("irc", "ERROR: <%s> AND <%s> both in use, please try another NICK",irc_nick.string,irc_altnick.string);
+		}
+		/*if (irc->nickcycle >= 99)	//this is just silly.
 			return IRC_KILL;
 
 		if (!irc->nickcycle)	//sequentially try the next one up
-			IRC_SetNick(irc, defaultnick);
+			IRC_SetNick(irc, irc_altnick.string);
 		else
-			IRC_SetNick(irc, va("%s%i", defaultnick, irc->nickcycle));
+			IRC_SetNick(irc, va("%s%i", irc_nick.string, irc->nickcycle));
 
-		irc->nickcycle++;
+		irc->nickcycle++;*/
 	}
 	else if (!strncmp(msg, "432 ", 4))
 	{
@@ -832,10 +861,27 @@ int IRC_ClientFrame(ircclient_t *irc)
 			str = COM_Parse(str);
 			if (*com_token == '@')	//they're an operator
 				Con_SubPrint(eq, va(COLOURGREEN"@"COLORWHITE"%s\n", com_token+1));
+			else if (*com_token == '%')	//they've got half-op
+				Con_SubPrint(eq, va(COLOURGREEN"%"COLORWHITE"%s\n", com_token+1));
 			else if (*com_token == '+')	//they've got voice
 				Con_SubPrint(eq, va(COLOURGREEN"+"COLORWHITE"%s\n", com_token+1));
 			else
 				Con_SubPrint(eq, va(" %s\n", com_token));
+		}
+	}
+	else if (atoi(raw) != 0)
+	{
+		char *rawparameter = strtok(var[4], " ");
+		char *rawmessage = var[5];
+		char *wholerawmessage = var[4];
+
+		if (!strncmp(rawmessage, ":", 1))
+		{
+			Con_SubPrintf("irc","RAW '%s': <%s> %s\n",raw,rawparameter,rawmessage+1);
+		}
+		else
+		{
+			Con_SubPrintf("irc","RAW '%s': %s\n",raw,wholerawmessage);
 		}
 	}
 	/*
@@ -1500,18 +1546,14 @@ void IRC_Command(void)
 			{
 				Con_Printf("Trying to connect\n");
 				IRC_SetPass(ircclient, "");
-				IRC_SetNick(ircclient, defaultnick);
+				IRC_SetNick(ircclient, irc_nick.string);
 				IRC_SetUser(ircclient, defaultuser);
 			}
 		}
 		else if (!strcmp(com_token+1, "nick"))
 		{
 			msg = COM_Parse(msg);
-			//Q_strncpyz(defaultnick, com_token, sizeof(defaultnick));
-			//if (ircclient)
-				//IRC_SetNick(ircclient, defaultnick);
-				// the above 3 lines, don't work too well :(
-			IRC_AddClientMessage(ircclient, va("nick %s", com_token));
+			IRC_SetNick(ircclient, com_token);
 		}
 		else if (!strcmp(com_token+1, "user"))
 		{
@@ -1556,6 +1598,7 @@ void IRC_Command(void)
 		else if (!strcmp(com_token+1, "quit") || !strcmp(com_token+1, "disconnect"))
 		{
 			IRC_AddClientMessage(ircclient, va("QUIT :FTE QuakeWorld IRC-Plugin http://fteqw.sf.net"));
+			//IRC_AddClientMessage(ircclient, va("QUIT :%s",msg+1));
 		}
 		else if (!strcmp(com_token+1, "whois"))
 		{
@@ -1564,8 +1607,8 @@ void IRC_Command(void)
 		}
 		else if (!strcmp(com_token+1, "away"))
 		{
-			msg = COM_Parse(msg);
-			IRC_AddClientMessage(ircclient, va("AWAY :%s",com_token));
+			IRC_AddClientMessage(ircclient, va("AWAY :%s",msg));
+			//IRC_AddClientMessage(ircclient, va("AWAY :%s",msg+1));
 		}
 		else if (!strcmp(com_token+1, "motd"))
 		{

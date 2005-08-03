@@ -76,6 +76,8 @@ void PRAddressableFlush(progfuncs_t *progfuncs, int totalammount)
 #else
 		free(addressablehunk);
 	addressablehunk = malloc(totalammount);	//linux will allocate-on-use anyway, which is handy.
+	if (addressablehunk == 0)
+		Sys_Error("Out of memory\n");
 //	memset(addressablehunk, 0xff, totalammount);
 #endif
 	addressablesize = totalammount;

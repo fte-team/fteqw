@@ -365,6 +365,7 @@ void	InitValidation(void)
 	Cvar_Register(&allow_f_modified,	"Authentication");
 	Cvar_Register(&allow_f_skins,	"Authentication");
 
+#ifdef _WIN32
 	secmodule = LoadLibrary("fteqw-security.dll");
 	if (secmodule)
 	{
@@ -375,6 +376,7 @@ void	InitValidation(void)
 		Security_Supported_Binaries	= (void*)GetProcAddress(secmodule, "Security_Supported_Binaries");
 		Security_Shutdown			= (void*)GetProcAddress(secmodule, "Security_Shutdown");
 	}
+#endif
 
 	if (Security_Init)
 	{
@@ -402,7 +404,9 @@ void	InitValidation(void)
 		Security_IsModelModified	= NULL;
 		Security_Supported_Binaries	= NULL;
 		Security_Shutdown			= NULL;
+#ifdef _WIN32
 		FreeLibrary(secmodule);
+#endif
 	}
 }
 

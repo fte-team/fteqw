@@ -1414,7 +1414,7 @@ void R_SetupGL (void)
 	else
 	{
 		if (gl_maxdist.value>=1)
-			GL_ParallelPerspective(-45, 45, 45, -45, -gl_maxdist.value, gl_maxdist.value);
+			GL_ParallelPerspective(-r_refdef.fov_x/2, r_refdef.fov_x/2, r_refdef.fov_y/2, -r_refdef.fov_y/2, -gl_maxdist.value, gl_maxdist.value);
 		else
 			GL_ParallelPerspective(0, r_refdef.vrect.width, 0, r_refdef.vrect.height, -9999, 9999);
 	}

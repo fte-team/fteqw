@@ -216,7 +216,7 @@ void Sys_UnloadDLL(void *handle)
 
 // ------------------------- * QVM files * -------------------------
 #define	VM_MAGIC	0x12721444
-#define LL			LittleLong
+#define LL(x)			x = LittleLong(x)
 
 #pragma pack(push,1)
 typedef struct vmHeader_s
@@ -388,6 +388,7 @@ qvm_t *QVM_Load(const char *name, sys_callex_t syscall)
 	LL(header->instructionCount);
 	LL(header->codeOffset);
 	LL(header->codeLength);
+	LL(header->dataOffset);
 	LL(header->dataLength);
 	LL(header->litLength);
 	LL(header->bssLength);

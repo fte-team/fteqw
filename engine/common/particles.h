@@ -67,9 +67,12 @@ typedef struct trailstate_s {
 	struct beamseg_s *lastbeam; // last beam pointer (flagged with BS_LASTSEG)
 	union {
 		float lastdist;			// last distance used with particle effect
-		float statetime;		// time to emit effect again
+		float statetime;		// time to emit effect again (used by spawntime field)
 	};
-	float laststop;				// last stopping point for particle effect
+	union {
+		float laststop;			// last stopping point for particle effect
+		float emittime;			// used by r_effect emitters
+	};
 } trailstate_t;
 
 // !!! if this is changed, it must be changed in d_ifacea.h too !!!
@@ -154,7 +157,7 @@ void P_RunParticleEffect4 (vec3_t org, float radius, int color, int effect, int 
 
 void P_DarkFieldParticles (float *org, qbyte colour);
 void P_EntityParticles (float *org, qbyte colour, float *radius);	//nq's EF_BRIGHTFIELD
-void P_TorchEffect (vec3_t pos, int type);	//particles centered around a model, called every frame for those models.
+void P_EmitEffect (vec3_t pos, int type, trailstate_t **tsk);	//particles centered around a model, called every frame for those models.
 
 //functions that spawn point effects (basically just pass throughs)
 void P_BlobExplosion (vec3_t org);	//tarbaby explosion or TF emp.
@@ -169,8 +172,9 @@ int P_ParticleTrail (vec3_t start, vec3_t end, int type, trailstate_t **trailsta
 void P_DefaultTrail (struct model_s *model);	//fills in the default particle properties for a loaded model. Should already have the model flags set.
 
 //the core spawn function for point effects
-int P_RunParticleEffectType(vec3_t org, vec3_t dir, float count, int type);	//1 if failed.
+int P_RunParticleEffectState (vec3_t org, vec3_t dir, float count, int typenum, trailstate_t **tsk); //1 if failed
 int P_RunParticleEffectTypeString (vec3_t org, vec3_t dir, float count, char *name); //1 if failed.
+#define P_RunParticleEffectType(a,b,c,d) P_RunParticleEffectState(a,b,c,d,NULL)
 
 void P_EmitSkyEffectTris(struct model_s *mod, struct msurface_s 	*fa);
 

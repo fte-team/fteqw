@@ -50,9 +50,13 @@ HRESULT (WINAPI *pDirectInputCreate)(HINSTANCE hinst, DWORD dwVersion,
 
 // mouse variables
 cvar_t	m_filter = {"m_filter","0"};
+cvar_t  m_accel = {"m_accel", "0"};
 cvar_t	m_forcewheel = {"m_forcewheel", "1"};
 cvar_t	in_mwhook = {"in_mwhook","0", NULL, CVAR_ARCHIVE};
 cvar_t	in_dinput = {"in_dinput","0", NULL, CVAR_ARCHIVE};
+
+cvar_t	m_accel_noforce = {"m_accel_noforce", "0"};
+cvar_t  m_threshold_noforce = {"m_threshold_noforce", "0"};
 
 cvar_t	cl_keypad = {"cl_keypad", "0"};
 
@@ -89,7 +93,7 @@ mouse_t serialmouse;
 //int			mouse_x, mouse_y, old_mouse_x, old_mouse_y, mx_accum, my_accum;
 
 static qboolean	restore_spi;
-static int		originalmouseparms[3], newmouseparms[3] = {0, 0, 1};
+static int		originalmouseparms[3], newmouseparms[3] = {0, 0, 0};
 qboolean		mouseinitialized;
 static qboolean	mouseparmsvalid, mouseactivatetoggle;
 static qboolean	mouseshowtoggle = 1;
@@ -1115,20 +1119,13 @@ void IN_StartupMouse (void)
 
 		if (mouseparmsvalid)
 		{
-			if ( COM_CheckParm ("-noforcemspd") ) 
+			if ( m_accel_noforce.value ) 
 				newmouseparms[2] = originalmouseparms[2];
 
-			if ( COM_CheckParm ("-noforcemaccel") ) 
+			if ( m_threshold_noforce.value ) 
 			{
 				newmouseparms[0] = originalmouseparms[0];
 				newmouseparms[1] = originalmouseparms[1];
-			}
-
-			if ( COM_CheckParm ("-noforcemparms") ) 
-			{
-				newmouseparms[0] = originalmouseparms[0];
-				newmouseparms[1] = originalmouseparms[1];
-				newmouseparms[2] = originalmouseparms[2];
 			}
 		}
 
@@ -1199,10 +1196,28 @@ void IN_Init (void)
 
 		// mouse variables
 		Cvar_Register (&m_filter, "Input stuff");
+		Cvar_Register (&m_accel, "Input stuff");
 		Cvar_Register (&m_forcewheel, "Input stuff");
 		Cvar_Register (&in_mwhook, "Input stuff");
 
 		Cvar_Register (&in_dinput, "Input stuff");
+
+		Cvar_Register (&m_accel_noforce, "Input stuff");
+		Cvar_Register (&m_threshold_noforce, "Input stuff");
+
+		// this looks strange but quake cmdline definitions
+		// and MS documentation don't agree with each other
+		if (COM_CheckParm ("-noforcemspd"))
+			Cvar_Set(&m_accel_noforce, "1");
+
+		if (COM_CheckParm ("-noforcemaccel"))
+			Cvar_Set(&m_threshold_noforce, "1");
+
+		if (COM_CheckParm ("-noforcemparms"))
+		{
+			Cvar_Set(&m_accel_noforce, "1");
+			Cvar_Set(&m_threshold_noforce, "1");
+		}
 
 		if (COM_CheckParm ("-dinput"))
 			Cvar_Set(&in_dinput, "1");
@@ -1311,7 +1326,7 @@ static void ProcessMouse(mouse_t *mouse, usercmd_t *cmd, int pnum)
 	extern int mousemove_x, mousemove_y;
 
 	int mx, my;
-	double mouse_x, mouse_y;
+	double mouse_x, mouse_y, mouse_deltadist;
 
 	int i;
 
@@ -1380,8 +1395,9 @@ static void ProcessMouse(mouse_t *mouse, usercmd_t *cmd, int pnum)
 
 	if (m_filter.value)
 	{
-		mouse_x = (mx + mouse->old_delta[0]) * 0.5;
-		mouse_y = (my + mouse->old_delta[1]) * 0.5;
+		double fraction = bound(0, m_filter.value, 2) * 0.5;
+		mouse_x = (mx*(1-fraction) + mouse->old_delta[0]*fraction);
+		mouse_y = (my*(1-fraction) + mouse->old_delta[1]*fraction);
 	}
 	else
 	{
@@ -1392,8 +1408,14 @@ static void ProcessMouse(mouse_t *mouse, usercmd_t *cmd, int pnum)
 	mouse->old_delta[0] = mx;
 	mouse->old_delta[1] = my;
 
-	mouse_x *= sensitivity.value*in_sensitivityscale;
-	mouse_y *= sensitivity.value*in_sensitivityscale;
+	if (m_accel.value) {
+		mouse_deltadist = sqrt(mx*mx + my*my);
+		mouse_x *= (mouse_deltadist*m_accel.value + sensitivity.value*in_sensitivityscale);
+		mouse_y *= (mouse_deltadist*m_accel.value + sensitivity.value*in_sensitivityscale);
+	} else {
+		mouse_x *= sensitivity.value*in_sensitivityscale;
+		mouse_y *= sensitivity.value*in_sensitivityscale;
+	}
 
 	if (cl.stats[pnum][STAT_VIEWZOOM])
 	{

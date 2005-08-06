@@ -171,7 +171,6 @@ Performance monitoring tool
 ==============
 */
 #define	MAX_TIMINGS		100
-extern float mouse_x, mouse_y;
 int		graphval;
 void R_TimeGraph (void)
 {

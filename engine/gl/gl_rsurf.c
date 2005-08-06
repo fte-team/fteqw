@@ -642,7 +642,7 @@ void GLR_BuildDeluxMap (msurface_t *surf, qbyte *dest)
 		goto store;
 	}
 
-	if (currentmodel->rgblighting)
+	if (currentmodel->engineflags & MDLF_RGBLIGHTING)
 		deluxmap = surf->samples - currentmodel->lightdata + currentmodel->deluxdata;
 	else
 		deluxmap = (surf->samples - currentmodel->lightdata)*3 + currentmodel->deluxdata;
@@ -659,7 +659,7 @@ void GLR_BuildDeluxMap (msurface_t *surf, qbyte *dest)
 // add all the lightmaps
 	if (lightmap)
 	{
-		if (currentmodel->rgblighting)
+		if (currentmodel->engineflags & MDLF_RGBLIGHTING)
 		{
 			deluxmap = surf->samples - currentmodel->lightdata + currentmodel->deluxdata;
 
@@ -839,7 +839,7 @@ void GLR_BuildLightMap (msurface_t *surf, qbyte *dest, qbyte *deluxdest, stmap *
 				}
 //				memset(blocklights, 255, sizeof(blocklights));
 			}
-			else if (currentmodel->rgblighting)	//rgb
+			else if (currentmodel->engineflags & MDLF_RGBLIGHTING)	//rgb
 			{				
 				for (maps = 0 ; maps < MAXLIGHTMAPS && surf->styles[maps] != 255 ;
 					 maps++)
@@ -928,7 +928,7 @@ void GLR_BuildLightMap (msurface_t *surf, qbyte *dest, qbyte *deluxdest, stmap *
 	// add all the lightmaps
 		if (lightmap)
 		{
-			if (currentmodel->rgblighting)	//rgb
+			if (currentmodel->engineflags & MDLF_RGBLIGHTING)	//rgb
 				for (maps = 0 ; maps < MAXLIGHTMAPS && surf->styles[maps] != 255 ;
 					 maps++)
 				{
@@ -3753,7 +3753,7 @@ void GL_BuildLightmaps (void)
 	if (cl.worldmodel->fromgame == fg_doom)
 		return;	//no lightmaps.
 
-	if (cl.worldmodel->rgblighting || cl.worldmodel->deluxdata || r_loadlits.value)
+	if ((cl.worldmodel->engineflags & MDLF_RGBLIGHTING) || cl.worldmodel->deluxdata || r_loadlits.value)
 		gl_lightmap_format = GL_RGB;
 	else
 		gl_lightmap_format = GL_LUMINANCE;

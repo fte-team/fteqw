@@ -1856,18 +1856,12 @@ void PPL_BaseEntTextures(void)
 		if (!currententity->model)
 			continue;
 
-
 		if (cls.allow_anyparticles || currententity->visframe)	//allowed or static
 		{
-			if (currententity->model->particleeffect>=0)
+			if (currententity->model->engineflags & MDLF_ENGULPHS)
 			{
-				if (currententity->model->particleengulphs)
-				{
-					if (gl_part_flame.value)
-					{	//particle effect is addedin GLR_DrawEntitiesOnList. Is this so wrong?
-						continue;
-					}
-				}
+				if (gl_part_flame.value)
+					continue;
 			}
 		}
 
@@ -2856,15 +2850,10 @@ void PPL_DrawEntFullBrights(void)
 
 		if (cls.allow_anyparticles || currententity->visframe)	//allowed or static
 		{
-			if (currententity->model->particleeffect>=0)
+			if (currententity->model->engineflags & MDLF_ENGULPHS)
 			{
-				if (currententity->model->particleengulphs)
-				{
-					if (gl_part_flame.value)
-					{
-						continue;
-					}
-				}
+				if (gl_part_flame.value)
+					continue;
 			}
 		}
 
@@ -3919,15 +3908,10 @@ void PPL_DrawShadowMeshes(dlight_t *dl)
 
 		if (cls.allow_anyparticles || currententity->visframe)	//allowed or static
 		{
-			if (currententity->model->particleeffect>=0)
+			if (currententity->model->engineflags & MDLF_ENGULPHS)
 			{
-				if (currententity->model->particleengulphs)
-				{
-					if (gl_part_flame.value)
-					{
-						continue;
-					}
-				}
+				if (gl_part_flame.value)
+					continue;
 			}
 		}
 

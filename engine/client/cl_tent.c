@@ -124,6 +124,7 @@ typedef struct
 	vec3_t	start, end;
 	int		particleeffect;
 	trailstate_t *trailstate;
+	trailstate_t *emitstate;
 } beam_t;
 
 beam_t		cl_beams[MAX_BEAMS];
@@ -334,6 +335,8 @@ void CL_AddBeam (int tent, int ent, vec3_t start, vec3_t end)	//fixme: use TE_ n
 
 	model_t *m;
 	int btype, etype;
+	vec3_t impact, normal;
+	vec3_t extra;
 
 	switch(tent)
 	{
@@ -384,17 +387,11 @@ void CL_AddBeam (int tent, int ent, vec3_t start, vec3_t end)	//fixme: use TE_ n
 
 	if (cls.state == ca_active && etype >= 0)
 	{
-		vec3_t impact, normal;
-		vec3_t extra;
 		VectorSubtract(end, start, normal);
 		VectorNormalize(normal);
 		VectorMA(end, 4, normal, extra);	//extend the end-point by four
-		if (TraceLineN(start, extra, impact, normal))
-		{
-			P_RunParticleEffectType(impact, normal, 1, etype); 
-			R_AddDecals(end);
-			R_AddStain(end, -10, -10, -10, 20);
-		}
+		if (!TraceLineN(start, extra, impact, normal))
+			etype = -1;
 	}
 
 	b = CL_NewBeam(ent, -1);
@@ -413,6 +410,13 @@ void CL_AddBeam (int tent, int ent, vec3_t start, vec3_t end)	//fixme: use TE_ n
 	b->particleeffect = btype;
 	VectorCopy (start, b->start);
 	VectorCopy (end, b->end);
+
+	if (etype >= 0)
+	{
+		P_RunParticleEffectState (impact, normal, 1, etype, &(b->emitstate));
+		R_AddDecals(end);
+		R_AddStain(end, -10, -10, -10, 20);
+	}
 }
 void CL_ParseBeam (int tent)
 {
@@ -2242,6 +2246,7 @@ void CL_UpdateBeams (void)
 		if (b->endtime < cl.time)
 		{
 			P_DelinkTrailstate(&b->trailstate);
+			P_DelinkTrailstate(&b->emitstate);
 			b->model = NULL;
 			continue;
 		}

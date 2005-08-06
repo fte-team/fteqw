@@ -132,6 +132,7 @@ cvar_t r_part_sparks_trifan = {"r_part_sparks_trifan", "1"};
 cvar_t r_part_sparks_textured = {"r_part_sparks_textured", "1"};
 cvar_t r_part_beams = {"r_part_beams", "1"};
 cvar_t r_part_beams_textured = {"r_part_beams_textured", "1"};
+cvar_t r_part_contentswitch = {"r_part_contentswitch", "1"};
 
 static float particletime;
 
@@ -173,7 +174,8 @@ typedef struct part_type_s {
 	float randomvelvert;
 	float randscale;
 
-	float timelimit;
+	float spawntime;
+	float spawnchance;
 
 	enum {PT_NORMAL, PT_SPARK, PT_SPARKFAN, PT_TEXTUREDSPARK, PT_BEAM, PT_DECAL} type;
 	blendmode_t blendmode;
@@ -186,6 +188,7 @@ typedef struct part_type_s {
 	int texturenum;
 	int assoc;
 	int cliptype;
+	int inwater;
 	float clipcount;
 	int emit;
 	float emittime;
@@ -428,6 +431,7 @@ void P_ParticleEffect_f(void)
 	ptype->skytris = st;
 	strcpy(ptype->name, Cmd_Argv(1));
 	ptype->assoc=-1;
+	ptype->inwater = -1;
 	ptype->cliptype = -1;
 	ptype->emit = -1;
 	ptype->alpha = 1;
@@ -438,6 +442,7 @@ void P_ParticleEffect_f(void)
 	ptype->rotationstartrand = M_PI-ptype->rotationstartmin;
 	ptype->rotationmin = 0;				//but don't spin
 	ptype->rotationrand = 0;
+	ptype->spawnchance = 1;
 
 	while(1)
 	{
@@ -456,9 +461,10 @@ void P_ParticleEffect_f(void)
 		var = Cmd_Argv(0);
 		value = Cmd_Argv(1);
 
+		// TODO: switch this mess to some sort of binary tree to increase
+		// parse speed
 		if (!strcmp(var, "texture"))
 			Q_strncpyz(ptype->texname, value, sizeof(ptype->texname));
-
 		else if (!strcmp(var, "rotationstart"))
 		{
 			ptype->rotationstartmin = atof(value)*M_PI/180;
@@ -539,7 +545,14 @@ void P_ParticleEffect_f(void)
 			ptype = &part_type[pnum];
 			ptype->assoc = assoc;
 		}
-
+		else if (!strcmp(var, "inwater"))
+		{
+			// the underwater effect switch should only occur for
+			// 1 level so the standard assoc check works
+			assoc = CheckAssosiation(value, pnum);
+			ptype = &part_type[pnum];
+			ptype->inwater = assoc;
+		}
 		else if (!strcmp(var, "colorindex"))
 			ptype->colorindex = atoi(value);
 		else if (!strcmp(var, "colorrand"))
@@ -682,8 +695,10 @@ void P_ParticleEffect_f(void)
 			Con_DPrintf("isbeam is deprechiated, use type beam\n");
 			ptype->type = PT_BEAM;
 		}
-		else if (!strcmp(var, "timelimit"))
-			ptype->timelimit = atof(value);
+		else if (!strcmp(var, "spawntime"))
+			ptype->spawntime = atof(value);
+		else if (!strcmp(var, "spawnchance"))
+			ptype->spawnchance = atof(value);
 		else if (!strcmp(var, "cliptype"))
 		{
 			assoc = P_ParticleTypeForName(value);//careful - this can realloc all the particle types
@@ -919,7 +934,8 @@ void P_AssosiateEffect_f (void)
 	}
 	effectnum = P_AllocateParticleType(effectname);
 	model->particleeffect = effectnum;
-	model->particleengulphs = atoi(Cmd_Argv(3));
+	if (atoi(Cmd_Argv(3)))
+		model->engineflags |= MDLF_ENGULPHS;
 
 	P_SetModified();	//make it appear in f_modified.
 }
@@ -946,14 +962,14 @@ void P_AssosiateTrail_f (void)
 	model = Mod_FindName(modelname);
 	effectnum = P_AllocateParticleType(effectname);
 	model->particletrail = effectnum;
-	model->nodefaulttrail = true;	//we could have assigned the trail to a model that wasn't loaded.
+	model->engineflags |= MDLF_NODEFAULTTRAIL;	//we could have assigned the trail to a model that wasn't loaded.
 
 	P_SetModified();	//make it appear in f_modified.
 }
 
 void P_DefaultTrail (model_t *model)
 {
-	if (model->nodefaulttrail == true)
+	if (model->engineflags & MDLF_NODEFAULTTRAIL)
 		return;
 
 	if (model->flags & EF_ROCKET)
@@ -1166,6 +1182,7 @@ void P_InitParticles (void)
 	Cvar_Register(&r_part_sparks_textured, particlecvargroupname);
 	Cvar_Register(&r_part_beams, particlecvargroupname);
 	Cvar_Register(&r_part_beams_textured, particlecvargroupname);
+	Cvar_Register(&r_part_contentswitch, particlecvargroupname);
 
 	pt_explosion		= P_AllocateParticleType("te_explosion");
 	pt_pointfile		= P_AllocateParticleType("pe_pointfile");
@@ -1284,7 +1301,7 @@ void P_NewServer(void)
 	{
 		mod->particleeffect = -1;
 		mod->particletrail = -1;
-		mod->nodefaulttrail = false;
+		mod->engineflags &= ~MDLF_NODEFAULTTRAIL;
 
 		P_DefaultTrail(mod);
 	}
@@ -1632,6 +1649,71 @@ void P_DarkFieldParticles (float *org, qbyte colour)
 			}
 }
 
+
+// Trailstate functions
+static void P_CleanTrailstate(trailstate_t *ts)
+{
+	// clear LASTSEG flag from lastbeam so it can be reused
+	if (ts->lastbeam)
+	{
+		ts->lastbeam->flags &= ~BS_LASTSEG;
+		ts->lastbeam->flags |= BS_NODRAW;
+	}
+
+	// clean structure
+	memset(ts, 0, sizeof(trailstate_t));
+}
+
+void P_DelinkTrailstate(trailstate_t **tsk)
+{
+	trailstate_t *ts;
+	trailstate_t *assoc;
+
+	if (*tsk == NULL)
+		return; // not linked to a trailstate
+
+	ts = *tsk; // store old pointer
+	*tsk = NULL; // clear pointer
+
+	if (ts->key != tsk)
+		return; // prevent overwrite
+
+	assoc = ts->assoc; // store assoc
+	P_CleanTrailstate(ts); // clean directly linked trailstate
+
+	// clean trailstates assoc linked
+	while (assoc)
+	{
+		ts = assoc->assoc;
+		P_CleanTrailstate(assoc);
+		assoc = ts;
+	}
+}
+
+static trailstate_t *P_NewTrailstate(trailstate_t **key)
+{
+	trailstate_t *ts;
+
+	// bounds check here in case r_numtrailstates changed
+	if (ts_cycle >= r_numtrailstates)
+		ts_cycle = 0;
+
+	// get trailstate
+	ts = trailstates + ts_cycle;
+
+	// clear trailstate
+	P_CleanTrailstate(ts);
+
+	// set key
+	ts->key = key;
+
+	// advance index cycle
+	ts_cycle++;
+
+	// return clean trailstate
+	return ts;
+}
+
 /*
 ===============
 R_EntityParticles
@@ -1747,35 +1829,55 @@ R_BlobExplosion
 
 ===============
 */
-void P_BlobExplosion (vec3_t org)
-{
-	P_RunParticleEffectType(org, NULL, 1, pt_blob);
-}
-
-int P_RunParticleEffectTypeString (vec3_t org, vec3_t dir, float count, char *name)
-{
-	int type = P_FindParticleType(name);
-	if (type < 0)
-		return 1;
-
-	return P_RunParticleEffectType(org, dir, count, type);
-}
-
 int Q1BSP_ClipDecal(vec3_t center, vec3_t normal, vec3_t tangent, vec3_t tangent2, float size, float **out);
-int P_RunParticleEffectType (vec3_t org, vec3_t dir, float count, int typenum)
+int P_RunParticleEffectState (vec3_t org, vec3_t dir, float count, int typenum, trailstate_t **tsk)
 {
 	part_type_t *ptype = &part_type[typenum];
 	int i, j, k, l, spawnspc;
-	float m;
+	float m, pcount;
 	particle_t	*p;
 	beamseg_t *b, *bfirst;
 	vec3_t ofsvec, arsvec; // offsetspread vec, areaspread vec
+	trailstate_t *ts;
 
 	if (typenum < 0 || typenum >= numparticletypes)
 		return 1;
 
 	if (!ptype->loaded)
 		return 1;
+
+	// inwater check, switch only once
+	if (r_part_contentswitch.value && ptype->inwater >= 0)
+	{
+		int cont;
+		cont = cl.worldmodel->hulls[0].funcs.HullPointContents(&cl.worldmodel->hulls[0], org);
+
+		if (cont & FTECONTENTS_WATER)
+			ptype = &part_type[ptype->inwater];
+	}
+
+	// trailstate allocation/deallocation
+	if (tsk)
+	{
+		// if *tsk = NULL get a new one
+		if (*tsk == NULL)
+		{
+			ts = P_NewTrailstate(tsk);
+			*tsk = ts;
+		}
+		else
+		{
+			ts = *tsk;
+
+			if (ts->key != tsk) // trailstate was overwritten
+			{
+				ts = P_NewTrailstate(tsk); // so get a new one
+				*tsk = ts;
+			}
+		}
+	}
+	else
+		ts = NULL;
 
 	if (ptype->type == PT_DECAL)
 	{
@@ -1868,11 +1970,14 @@ int P_RunParticleEffectType (vec3_t org, vec3_t dir, float count, int typenum)
 		// init spawn specific variables
 		b = bfirst = NULL;
 		spawnspc = 8;
+		pcount = count*ptype->count;
+		if (ts)
+			pcount += ts->emittime;
 
 		switch (ptype->spawnmode)
 		{
 		case SM_UNICIRCLE:
-			m = (count*ptype->count);
+			m = pcount;
 			if (ptype->type == PT_BEAM)
 				m--;
 
@@ -1910,9 +2015,25 @@ int P_RunParticleEffectType (vec3_t org, vec3_t dir, float count, int typenum)
 		default:	//others don't need intitialisation
 			break;
 		}
-		
+	
+		// time limit (for completeness)
+		if (ptype->spawntime && ts)
+		{
+			if (ts->statetime > particletime)
+				return 0; // timelimit still in effect
+
+			ts->statetime = particletime + ptype->spawntime; // record old time
+		}
+
+		// random chance for point effects
+		if (ptype->spawnchance < frandom())
+		{
+			i = ceil(pcount);
+			break;
+		}
+
 		// particle spawning loop
-		for (i = 0; i < count*ptype->count; i++)
+		for (i = 0; i < pcount; i++)
 		{
 			if (!free_particles)
 				break;
@@ -2138,13 +2259,66 @@ int P_RunParticleEffectType (vec3_t org, vec3_t dir, float count, int typenum)
 			}
 		}
 
+		// save off emit times in trailstate
+		if (ts)
+			ts->emittime = pcount - i;
+
 		// go to next associated effect
 		if (ptype->assoc < 0)
 			break;
+
+		// new trailstate
+		if (ts)
+		{
+			tsk = &(ts->assoc);
+			// if *tsk = NULL get a new one
+			if (*tsk == NULL)
+			{
+				ts = P_NewTrailstate(tsk);
+				*tsk = ts;
+			}
+			else
+			{
+				ts = *tsk;
+
+				if (ts->key != tsk) // trailstate was overwritten
+				{
+					ts = P_NewTrailstate(tsk); // so get a new one
+					*tsk = ts;
+				}
+			}
+		}
+
 		ptype = &part_type[ptype->assoc];
 	}
 
 	return 0;
+}
+
+void P_BlobExplosion (vec3_t org)
+{
+	P_RunParticleEffectType(org, NULL, 1, pt_blob);
+}
+
+int P_RunParticleEffectTypeString (vec3_t org, vec3_t dir, float count, char *name)
+{
+	int type = P_FindParticleType(name);
+	if (type < 0)
+		return 1;
+
+	return P_RunParticleEffectType(org, dir, count, type);
+}
+
+void P_EmitEffect (vec3_t pos, int type, trailstate_t **tsk)
+{
+#ifdef SIDEVIEWS
+	if (r_secondaryview)	//this is called when the models are actually drawn.
+		return;
+#endif
+	if (cl.paused)
+		return;
+
+ 	P_RunParticleEffectState(pos, NULL, host_frametime, type, tsk);
 }
 
 /*
@@ -2414,77 +2588,12 @@ void CLQ2_RailTrail (vec3_t start, vec3_t end)
 	P_ParticleTrail(start, end, rt_railtrail, NULL);
 }
 
-// Trailstate functions
-static void P_CleanTrailstate(trailstate_t *ts)
-{
-	// clear LASTSEG flag from lastbeam so it can be reused
-	if (ts->lastbeam)
-	{
-		ts->lastbeam->flags &= ~BS_LASTSEG;
-		ts->lastbeam->flags |= BS_NODRAW;
-	}
-
-	// clean structure
-	memset(ts, 0, sizeof(trailstate_t));
-}
-
-void P_DelinkTrailstate(trailstate_t **tsk)
-{
-	trailstate_t *ts;
-	trailstate_t *assoc;
-
-	if (*tsk == NULL)
-		return; // not linked to a trailstate
-
-	ts = *tsk; // store old pointer
-	*tsk = NULL; // clear pointer
-
-	if (ts->key != tsk)
-		return; // prevent overwrite
-
-	assoc = ts->assoc; // store assoc
-	P_CleanTrailstate(ts); // clean directly linked trailstate
-
-	// clean trailstates assoc linked
-	while (assoc)
-	{
-		ts = assoc->assoc;
-		P_CleanTrailstate(assoc);
-		assoc = ts;
-	}
-}
-
-static trailstate_t *P_NewTrailstate(trailstate_t **key)
-{
-	trailstate_t *ts;
-
-	// bounds check here in case r_numtrailstates changed
-	if (ts_cycle >= r_numtrailstates)
-		ts_cycle = 0;
-
-	// get trailstate
-	ts = trailstates + ts_cycle;
-
-	// clear trailstate
-	P_CleanTrailstate(ts);
-
-	// set key
-	ts->key = key;
-
-	// advance index cycle
-	ts_cycle++;
-
-	// return clean trailstate
-	return ts;
-}
-
-int P_ParticleTrail (vec3_t startpos, vec3_t end, int type, trailstate_t **tsk)
+static int P_ParticleTrailDraw (vec3_t startpos, vec3_t end, part_type_t *ptype, trailstate_t **tsk)
 {
 	vec3_t	vec, vstep, right, up, start;
 	float	len;
 	int			tcount;
 	particle_t	*p;
-	part_type_t *ptype = &part_type[type];
 	beamseg_t   *b;
 	beamseg_t   *bfirst;
 	trailstate_t *ts;
@@ -2494,12 +2603,6 @@ int P_ParticleTrail (vec3_t startpos, vec3_t end, int type, trailstate_t **tsk)
 	float step;
 	float stop;
 	float tdegree = 2*M_PI/256; /* MSVC whine */
-
-	if (type < 0 || type >= numparticletypes)
-		return 1;	//bad value
-
-	if (!ptype->loaded)
-		return 1;
 
 	VectorCopy(startpos, start);
 
@@ -2535,14 +2638,18 @@ int P_ParticleTrail (vec3_t startpos, vec3_t end, int type, trailstate_t **tsk)
 	} 
 
 	// time limit for trails
-	if (ptype->timelimit && ts)
+	if (ptype->spawntime && ts)
 	{
 		if (ts->statetime > particletime)
 			return 0; // timelimit still in effect
 
-		ts->statetime = particletime + ptype->timelimit; // record old time
+		ts->statetime = particletime + ptype->spawntime; // record old time
 		ts = NULL; // clear trailstate so we don't save length/lastseg
 	}
+
+	// random chance for trails
+	if (ptype->spawnchance < frandom())
+		return 0; // don't spawn but return success
 
 	if (!ptype->die)
 		ts = NULL;
@@ -2793,16 +2900,27 @@ int P_ParticleTrail (vec3_t startpos, vec3_t end, int type, trailstate_t **tsk)
 	return 0;
 }
 
-void P_TorchEffect (vec3_t pos, int type)
+int P_ParticleTrail (vec3_t startpos, vec3_t end, int type, trailstate_t **tsk)
 {
-#ifdef SIDEVIEWS
-	if (r_secondaryview)	//this is called when the models are actually drawn.
-		return;
-#endif
-	if (cl.paused)
-		return;
+	part_type_t *ptype = &part_type[type];
 
- 	P_RunParticleEffectType(pos, NULL, host_frametime, type);
+	if (type < 0 || type >= numparticletypes)
+		return 1;	//bad value
+
+	if (!ptype->loaded)
+		return 1;
+
+	// inwater check, switch only once
+	if (r_part_contentswitch.value && ptype->inwater >= 0)
+	{
+		int cont;
+		cont = cl.worldmodel->hulls[0].funcs.HullPointContents(&cl.worldmodel->hulls[0], startpos);
+
+		if (cont & FTECONTENTS_WATER)
+			ptype = &part_type[ptype->inwater];
+	}
+
+	return P_ParticleTrailDraw (startpos, end, ptype, tsk);
 }
 
 void CLQ2_BubbleTrail (vec3_t start, vec3_t end)

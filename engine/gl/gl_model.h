@@ -710,12 +710,9 @@ typedef struct model_s
 	synctype_t	synctype;
 	
 	int			flags;
+	int			engineflags;
 	int			particleeffect;
-	qboolean	particleengulphs;
 	int			particletrail;
-	qboolean	nodefaulttrail;
-
-	qboolean rgblighting;	//.lit, halflife.
 
 //
 // volume occupied by the model graphics
@@ -792,6 +789,10 @@ typedef struct model_s
 	cache_user_t	cache;		// only access through Mod_Extradata
 
 } model_t;
+
+#define MDLF_ENGULPHS       0x1 // particle effect engulphs model (don't draw)
+#define MDLF_NODEFAULTTRAIL 0x2
+#define MDLF_RGBLIGHTING    0x4
 
 //============================================================================
 /*

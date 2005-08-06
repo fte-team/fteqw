@@ -84,6 +84,8 @@ extern cvar_t	_windowed_mouse;
 
 #ifndef SWQUAKE
 cvar_t	m_filter = {"m_filter", "0"};
+cvar_t  m_accel = {"m_accel", "0"};
+
 #ifdef IN_XFLIP
 cvar_t	in_xflip = {"in_xflip", "0"};
 #endif
@@ -933,17 +935,10 @@ void IN_MouseMove (usercmd_t *cmd, int pnum)
 {
 	extern int mouseusedforgui, mousecursor_x, mousecursor_y;
 	extern int mousemove_x, mousemove_y;
+	float mx, my;
 
-	if (m_filter.value)
-	{
-		mouse_x = (mouse_x + old_mouse_x) * 0.5;
-		mouse_y = (mouse_y + old_mouse_y) * 0.5;
-	}
-	old_mouse_x = mouse_x;
-	old_mouse_y = mouse_y;
-
-	mouse_x *= sensitivity.value;
-	mouse_y *= sensitivity.value;
+	mx = mouse_x;
+	my = mouse_y;
 
 	if (mouseusedforgui || (key_dest == key_menu && m_state == m_complex) || UI_MenuState())
 	{
@@ -965,6 +960,24 @@ void IN_MouseMove (usercmd_t *cmd, int pnum)
 		mouse_x=mouse_y=0;
 
 		UI_MousePosition(mousecursor_x, mousecursor_y);
+	}
+
+	if (m_filter.value)
+	{
+		float fraction = bound(0, m_filter.value, 2) * 0.5;
+		mouse_x = (mouse_x*(1-fraction) + old_mouse_x*fraction);
+		mouse_y = (mouse_y*(1-fraction) + old_mouse_y*fraction);
+	}
+	old_mouse_x = mx;
+	old_mouse_y = my;
+
+	if (m_accel.value) {
+		mouse_deltadist = sqrt(mx*mx + my*my);
+		mouse_x *= (mouse_deltadist*m_accel.value + sensitivity.value*in_sensitivityscale);
+		mouse_y *= (mouse_deltadist*m_accel.value + sensitivity.value*in_sensitivityscale);
+	} else {
+		mouse_x *= sensitivity.value*in_sensitivityscale;
+		mouse_y *= sensitivity.value*in_sensitivityscale;
 	}
 
 #ifdef IN_XFLIP

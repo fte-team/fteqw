@@ -290,8 +290,8 @@ void IN_Init (void)
 }
 void IN_Move (usercmd_t *cmd, int pnum)	//add mouse movement to cmd
 {
-	mouse_x *= sensitivity.value;
-	mouse_y *= sensitivity.value;
+	mouse_x *= sensitivity.value*in_sensitivity;
+	mouse_y *= sensitivity.value*in_sensitivity;
 
 
 	if (!cl.paused && mouseactive)

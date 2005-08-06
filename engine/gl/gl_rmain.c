@@ -110,7 +110,6 @@ cvar_t	r_novis = {"r_novis","0"};
 //cvar_t	r_netgraph = {"r_netgraph","0"};
 
 extern cvar_t	gl_part_flame;
-extern cvar_t	gl_part_torch;
 
 cvar_t	gl_clear = {"gl_clear","0"};
 cvar_t	gl_cull = {"gl_cull","1"};
@@ -788,24 +787,13 @@ void GLR_DrawEntitiesOnList (void)
 
 		if (cls.allow_anyparticles || currententity->visframe)	//allowed or static
 		{
-			if (currententity->model->particleeffect>=0)
+			if (gl_part_flame.value)
 			{
-				if (currententity->model->particleengulphs)
-				{
-					if (gl_part_flame.value)
-					{
-						P_TorchEffect(currententity->origin, currententity->model->particleeffect);
-						currententity->model = NULL;
-						continue;
-					}
-				}
-				else
-				{
-					if (gl_part_torch.value)
-					{
-						P_TorchEffect(currententity->origin, currententity->model->particleeffect);
-					}
-				}
+				P_EmitEffect (currententity->origin, 
+					currententity->model->particleeffect,
+					&(cl.lerpents[currententity->keynum].emitstate));
+				if (currententity->model->engineflags & MDLF_ENGULPHS)
+					continue;
 			}
 		}
 

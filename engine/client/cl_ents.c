@@ -1520,6 +1520,7 @@ void CL_LinkPacketEntities (void)
 		}
 
 		cl_numvisedicts++;
+
 		ent->visframe = 0;
 
 		ent->keynum = s1->number;
@@ -1636,6 +1637,7 @@ void CL_LinkPacketEntities (void)
 		if (i == cl_oldnumvisedicts)
 		{
 			P_DelinkTrailstate(&(cl.lerpents[s1->number].trailstate));
+			P_DelinkTrailstate(&(cl.lerpents[s1->number].emitstate));
 			continue;		// not in last message
 		}
 

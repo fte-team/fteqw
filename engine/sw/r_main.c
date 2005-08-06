@@ -664,7 +664,7 @@ R_DrawEntitiesOnList
 */
 void SWR_DrawEntitiesOnList (void)
 {
-	extern cvar_t gl_part_flame, gl_part_torch;
+	extern cvar_t gl_part_flame;
 	int			i, j;
 	int			lnum;
 	alight_t	lighting;
@@ -699,23 +699,13 @@ void SWR_DrawEntitiesOnList (void)
 
 		if (cls.allow_anyparticles || currententity->visframe)	//allowed or static
 		{
-			if (currententity->model->particleeffect>=0)
+			if (gl_part_flame.value)
 			{
-				if (currententity->model->particleengulphs)
-				{
-					if (gl_part_flame.value)
-					{
-						P_TorchEffect(currententity->origin, currententity->model->particleeffect);
-						continue;
-					}
-				}
-				else
-				{
-					if (gl_part_torch.value)
-					{
-						P_TorchEffect(currententity->origin, currententity->model->particleeffect);
-					}
-				}
+				P_EmitEffect (currententity->origin, 
+					currententity->model->particleeffect,
+					&(cl.lerpents[currententity->keynum].emitstate));
+				if (currententity->model->engineflags & MDLF_ENGULPHS)
+					continue;
 			}
 		}
 

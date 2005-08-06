@@ -617,7 +617,7 @@ int GLRecursiveLightPoint (mnode_t *node, vec3_t start, vec3_t end)
 		r = 0;
 		if (lightmap)
 		{
-			if (cl.worldmodel->rgblighting)
+			if (cl.worldmodel->engineflags & MDLF_RGBLIGHTING)
 			{
 				lightmap += (dt * ((surf->extents[0]>>4)+1) + ds)*3;
 
@@ -780,7 +780,7 @@ float *GLRecursiveLightPoint3C (mnode_t *node, vec3_t start, vec3_t end)
 		{
 			if (cl.worldmodel->deluxdata)
 			{
-				if (cl.worldmodel->rgblighting)
+				if (cl.worldmodel->engineflags & MDLF_RGBLIGHTING)
 				{
 					deluxmap = surf->samples - cl.worldmodel->lightdata + cl.worldmodel->deluxdata;
 
@@ -841,7 +841,7 @@ float *GLRecursiveLightPoint3C (mnode_t *node, vec3_t start, vec3_t end)
 			}
 			else
 			{
-				if (cl.worldmodel->rgblighting)
+				if (cl.worldmodel->engineflags & MDLF_RGBLIGHTING)
 				{
 					lightmap += (dt * ((surf->extents[0]>>4)+1) + ds)*3;
 					for (maps = 0 ; maps < MAXLIGHTMAPS && surf->styles[maps] != 255 ;

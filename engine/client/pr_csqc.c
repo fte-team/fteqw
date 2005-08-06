@@ -1875,25 +1875,25 @@ static void PF_cl_te_gunshotquad (progfuncs_t *prinst, struct globalvars_s *pr_g
 {
 	float *pos = G_VECTOR(OFS_PARM0);
 	if (P_RunParticleEffectTypeString(pos, vec3_origin, 1, "te_gunshotquad"))
-		if (P_RunParticleEffectType(pos, NULL, 2, pt_gunshot))
-			P_RunParticleEffect (pos, vec3_origin, 0, 40);
+		if (P_RunParticleEffectType(pos, NULL, 1, pt_gunshot))
+			P_RunParticleEffect (pos, vec3_origin, 0, 20);
 }
 static void PF_cl_te_spikequad (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
 	float *pos = G_VECTOR(OFS_PARM0);
 	if (P_RunParticleEffectTypeString(pos, vec3_origin, 1, "te_spikequad"))
-		if (P_RunParticleEffectType(pos, NULL, 2, pt_spike))
-			if (P_RunParticleEffectType(pos, NULL, 20, pt_gunshot))
-				P_RunParticleEffect (pos, vec3_origin, 0, 20);
+		if (P_RunParticleEffectType(pos, NULL, 1, pt_spike))
+			if (P_RunParticleEffectType(pos, NULL, 10, pt_gunshot))
+				P_RunParticleEffect (pos, vec3_origin, 0, 10);
 }
 static void PF_cl_te_superspikequad (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
 	float *pos = G_VECTOR(OFS_PARM0);
 	if (P_RunParticleEffectTypeString(pos, vec3_origin, 1, "te_superspikequad"))
-		if (P_RunParticleEffectType(pos, NULL, 2, pt_superspike))
-			if (P_RunParticleEffectType(pos, NULL, 4, pt_spike))
-				if (P_RunParticleEffectType(pos, NULL, 40, pt_gunshot))
-					P_RunParticleEffect (pos, vec3_origin, 0, 40);
+		if (P_RunParticleEffectType(pos, NULL, 1, pt_superspike))
+			if (P_RunParticleEffectType(pos, NULL, 2, pt_spike))
+				if (P_RunParticleEffectType(pos, NULL, 20, pt_gunshot))
+					P_RunParticleEffect (pos, vec3_origin, 0, 20);
 }
 static void PF_cl_te_explosionquad (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 {

@@ -93,7 +93,6 @@ cvar_t	gl_font = {"gl_font", ""};
 cvar_t	gl_conback = {"gl_conback", ""};
 cvar_t	gl_smoothfont = {"gl_smoothfont", "1"};
 cvar_t	gl_part_flame = {"gl_part_flame", "1"};
-cvar_t	gl_part_torch = {"gl_part_torch", "1"};
 cvar_t	r_part_rain = {"r_part_rain", "0"};
 
 cvar_t	r_bouncysparks = {"r_bouncysparks", "0"};
@@ -266,7 +265,6 @@ void GLRenderer_Init(void)
 	Cvar_Register (&r_shadow_realtime_world_lightmaps, GLRENDEREROPTIONS);
 
 	Cvar_Register (&gl_part_flame, GRAPHICALNICETIES);
-	Cvar_Register (&gl_part_torch, GRAPHICALNICETIES);
 
 	Cvar_Register (&gl_keeptjunctions, GLRENDEREROPTIONS);
 	Cvar_Register (&gl_reporttjunctions, GLRENDEREROPTIONS);

@@ -246,7 +246,6 @@ model_t *SWMod_FindName (char *name)
 		mod->needload = true;
 		mod_numknown++;
 		mod->particleeffect = -1;
-		mod->nodefaulttrail = false;
 	}
 
 	return mod;

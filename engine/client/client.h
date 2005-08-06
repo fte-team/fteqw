@@ -391,6 +391,7 @@ typedef struct {
 	vec3_t origin;
 	vec3_t angles;
 	trailstate_t *trailstate;	//when to next throw out a trail
+	trailstate_t *emitstate;    //when to next emit
 	unsigned short frame;
 } lerpents_t;
 //

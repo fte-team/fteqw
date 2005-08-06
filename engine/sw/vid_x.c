@@ -140,6 +140,7 @@ int   shmget (key_t key, size_t size, int shmflg)
 #endif
 
 cvar_t		m_filter = {"m_filter","0", NULL, CVAR_ARCHIVE};
+cvar_t  m_accel = {"m_accel", "0"};
 #ifdef IN_XFLIP
 cvar_t	in_xflip = {"in_xflip", "0"};
 #endif
@@ -1254,6 +1255,7 @@ void IN_Init (void)
 {
 	Cvar_Register (&_windowed_mouse, "input controls");
 	Cvar_Register (&m_filter, "input controls");
+	Cvar_Register (&m_accel, "input controls");
 #ifdef IN_XFLIP
 	Cvar_Register (&in_xflip, "input controls");
 #endif
@@ -1287,6 +1289,8 @@ void IN_Commands (void)
 extern int mousecursor_x, mousecursor_y;
 void IN_Move (usercmd_t *cmd, int pnum)
 {
+	float mx, my;
+
 	if (!mouse_avail)
 	{
 		mousecursor_x = p_mouse_x;	//absolute offsets.
@@ -1309,16 +1313,24 @@ void IN_Move (usercmd_t *cmd, int pnum)
 	if (mousecursor_y > vid.height)
 		mousecursor_y = vid.height;
    
-	if (m_filter.value) {
-		mouse_x = (mouse_x + old_mouse_x) * 0.5;
-		mouse_y = (mouse_y + old_mouse_y) * 0.5;
+	if (m_filter.value)
+	{
+		float fraction = bound(0, m_filter.value, 2) * 0.5;
+		mouse_x = (mouse_x*(1-fraction) + old_mouse_x*fraction);
+		mouse_y = (mouse_y*(1-fraction) + old_mouse_y*fraction);
 	}
 
-	old_mouse_x = mouse_x;
-	old_mouse_y = mouse_y;
+	old_mouse_x = mx;
+	old_mouse_y = my;
    
-	mouse_x *= sensitivity.value;
-	mouse_y *= sensitivity.value;
+	if (m_accel.value) {
+		mouse_deltadist = sqrt(mx*mx + my*my);
+		mouse_x *= (mouse_deltadist*m_accel.value + sensitivity.value*in_sensitivityscale);
+		mouse_y *= (mouse_deltadist*m_accel.value + sensitivity.value*in_sensitivityscale);
+	} else {
+		mouse_x *= sensitivity.value*in_sensitivityscale;
+		mouse_y *= sensitivity.value*in_sensitivityscale;
+	}
 
 #ifdef IN_XFLIP
 	if(in_xflip.value) mouse_x *= -1;

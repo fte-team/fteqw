@@ -311,7 +311,7 @@ void M_Menu_Particles_f (void)
 	int y = 32;
 	menu_t *menu;
 	int mgt;
-	extern cvar_t r_bouncysparks, r_part_rain, gl_part_torch, gl_part_flame;
+	extern cvar_t r_bouncysparks, r_part_rain, gl_part_flame;
 
 	static const char *r_part_rain_options[] = {
 		"off",
@@ -369,8 +369,7 @@ void M_Menu_Particles_f (void)
 //	MC_AddSlider(menu, 16, y,			"       exp spark count", &r_particles_in_explosion, 16, 1024);y+=8;
 	MC_AddCvarCombo(menu, 16, y,		"     texture emittance", &r_part_rain, r_part_rain_options, r_part_rain_values);y+=8;
 
-	MC_AddCvarCombo(menu, 16, y,		"      WallTorch effect", &gl_part_torch, gl_part_effects_ops, gl_part_effects_vals);y+=8;
-	MC_AddCvarCombo(menu, 16, y,		"     Open flame effect", &gl_part_flame, gl_part_effects_ops, gl_part_effects_vals);y+=8;
+	MC_AddCvarCombo(menu, 16, y,		"        model emitters", &gl_part_flame, gl_part_effects_ops, gl_part_effects_vals);y+=8;
 
 
 	menu->cursoritem = (menuoption_t*)MC_AddWhiteText(menu, 200, 32, NULL, false);

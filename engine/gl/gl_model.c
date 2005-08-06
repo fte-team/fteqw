@@ -486,7 +486,7 @@ model_t *GLMod_FindName (char *name)
 		mod->needload = true;
 		mod_numknown++;
 		mod->particleeffect = -1;
-		mod->nodefaulttrail = false;
+		mod->particletrail = -1;
 	}
 
 	return mod;
@@ -1307,7 +1307,7 @@ void GLMod_LoadLighting (lump_t *l)
 {	
 	qbyte *luxdata = NULL;
 	int mapcomeswith24bitcolouredlighting = false;
-	loadmodel->rgblighting = false;
+	loadmodel->engineflags &= ~MDLF_RGBLIGHTING;
 
 	//lit file light intensity is made to match the world's light intensity.
 	if (cls.allow_lightmapgamma)
@@ -1419,7 +1419,7 @@ void GLMod_LoadLighting (lump_t *l)
 
 				//load it
 				loadmodel->lightdata = litdata+8;
-				loadmodel->rgblighting = true;
+				loadmodel->engineflags |= MDLF_RGBLIGHTING;
 
 
 				//now some cheat protection.
@@ -1458,16 +1458,16 @@ void GLMod_LoadLighting (lump_t *l)
 			//failed to find
 	}
 	if (mapcomeswith24bitcolouredlighting)
-		loadmodel->rgblighting = true;
+		loadmodel->engineflags |= MDLF_RGBLIGHTING;
 
 #ifdef RUNTIMELIGHTING
-	else if (r_loadlits.value == 2 && !lightmodel && (loadmodel->rgblighting != true || (!luxdata && gl_bumpmappingpossible)))
+	else if (r_loadlits.value == 2 && !lightmodel && (!(loadmodel->engineflags & MDLF_RGBLIGHTING) || (!luxdata && gl_bumpmappingpossible)))
 	{
 		qbyte *litdata = NULL;
 		int i;
 		qbyte *normal;
-		writelitfile = !loadmodel->rgblighting;
-		loadmodel->rgblighting = true;
+		writelitfile = !(loadmodel->engineflags & MDLF_RGBLIGHTING);
+		loadmodel->engineflags |= MDLF_RGBLIGHTING;
 		loadmodel->lightdata = Hunk_AllocName ( l->filelen*3+8, loadname);
 		strcpy(loadmodel->lightdata, "QLIT");
 		((int*)loadmodel->lightdata)[1] = LittleLong(1);
@@ -1505,7 +1505,7 @@ void GLMod_LoadLighting (lump_t *l)
 
 	if (loadmodel->lightdata)
 	{
-		if (loadmodel->rgblighting && r_lightmap_saturation.value != 1.0f)
+		if ((loadmodel->engineflags & MDLF_RGBLIGHTING) && r_lightmap_saturation.value != 1.0f)
 		{
 			// desaturate lightmap according to cvar
 			SaturateR8G8B8(loadmodel->lightdata, l->filelen, r_lightmap_saturation.value);
@@ -1527,7 +1527,7 @@ void GLMod_LoadLighting (lump_t *l)
 			*out++ = lmgamma[*in++];
 		}
 
-		if (loadmodel->rgblighting && r_lightmap_saturation.value != 1.0f)
+		if ((loadmodel->engineflags & MDLF_RGBLIGHTING) && r_lightmap_saturation.value != 1.0f)
 			SaturateR8G8B8(loadmodel->lightdata, l->filelen, r_lightmap_saturation.value);
 	}
 	//memcpy (loadmodel->lightdata, mod_base + l->fileofs, l->filelen);
@@ -1879,7 +1879,7 @@ void GLMod_LoadFaces (lump_t *l)
 		i = LittleLong(in->lightofs);
 		if (i == -1)
 			out->samples = NULL;
-		else if (loadmodel->rgblighting && loadmodel->fromgame != fg_halflife)
+		else if ((loadmodel->engineflags & MDLF_RGBLIGHTING) && loadmodel->fromgame != fg_halflife)
 			out->samples = loadmodel->lightdata + i*3;
 		else
 			out->samples = loadmodel->lightdata + i;

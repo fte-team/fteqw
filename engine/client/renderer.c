@@ -241,7 +241,6 @@ void GLRenderer_Init(void)
 	Cvar_Register (&r_lightmap, GLRENDEREROPTIONS);
 	Cvar_Register (&r_norefresh, GLRENDEREROPTIONS);
 
-	Cvar_Register (&r_shadow_realtime_world, GLRENDEREROPTIONS);
 
 	Cvar_Register (&gl_clear, GLRENDEREROPTIONS);
 
@@ -261,6 +260,8 @@ void GLRenderer_Init(void)
 	Cvar_Register (&gl_maxshadowlights, GLRENDEREROPTIONS);
 	Cvar_Register (&r_shadow_bumpscale_basetexture, GLRENDEREROPTIONS);
 	Cvar_Register (&r_shadow_bumpscale_bumpmap, GLRENDEREROPTIONS);
+	Cvar_Register (&r_shadow_realtime_world, GLRENDEREROPTIONS);
+	Cvar_Register (&r_shadow_realtime_world_lightmaps, GLRENDEREROPTIONS);
 
 	Cvar_Register (&gl_part_flame, GRAPHICALNICETIES);
 	Cvar_Register (&gl_part_torch, GRAPHICALNICETIES);
@@ -805,6 +806,7 @@ rendererinfo_t softwarerendererinfo = {
 
 	NULL,	//Mod_GetTag
 	NULL,	//Mod_TagForName
+	NULL,
 
 	SWVID_Init,
 	SWVID_Shutdown,

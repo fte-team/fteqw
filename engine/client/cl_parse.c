@@ -3712,7 +3712,7 @@ void CLQ2_ParseServerMessage (void)
 			if (i == PRINT_CHAT)
 			{
 				S_LocalSound ("misc/talk.wav");
-				con_ormask = 0x8000;
+				con_ormask = CON_2NDCHARSETTEXT;
 				if (CL_ParseChat(s))
 				{
 					CL_ParsePrint(s, i);

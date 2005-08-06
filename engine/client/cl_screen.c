@@ -1849,9 +1849,11 @@ void SCR_DrawTwoDimensional(int uimenu, qboolean nohud)
 
 	if (scr_drawdialog)
 	{
-#ifdef PLUGINS
 		if (!nohud)
+#ifdef PLUGINS
 			Plug_SBar ();
+#else
+			Sbar_Draw ();
 #endif
 		SCR_ShowPics_Draw();
 		Draw_FadeScreen ();
@@ -1861,8 +1863,12 @@ void SCR_DrawTwoDimensional(int uimenu, qboolean nohud)
 	else if (scr_drawloading)
 	{
 		SCR_DrawLoading ();
+
+		if (!nohud)
 #ifdef PLUGINS
-		Plug_SBar ();
+			Plug_SBar ();
+#else
+			Sbar_Draw ();
 #endif
 		SCR_ShowPics_Draw();
 	}
@@ -1894,6 +1900,8 @@ void SCR_DrawTwoDimensional(int uimenu, qboolean nohud)
 			SCR_DrawPause ();
 #ifdef PLUGINS
 			Plug_SBar ();
+#else
+			Sbar_Draw ();
 #endif
 			SCR_ShowPics_Draw();
 

@@ -652,9 +652,15 @@ void SWDraw_Character (int x, int y, unsigned int num)
 	}
 }
 
+/*
 #define FindPalette(r,g,b) pal555to8[((r&0xF8)>>3)|((g&0xF8)<<2)|((b&0xF8)<<7)]
 #define colourmask(p,r,g,b) FindPalette(host_basepal[p*3]*r, host_basepal[p*3+1]*g, host_basepal[p*3+2]*b)
 #define draw(p) colourmask(p, (int)consolecolours[colour].r, (int)consolecolours[colour].g, (int)consolecolours[colour].b)
+*/
+
+#define drawpal(r,g,b) pal555to8[(r|(g<<5)|(b<<10)) & consolecolours[colour].rgbmask]
+#define draw(p) drawpal(host_basepal[p*3]>>3,host_basepal[p*3+1]>>3,host_basepal[p*3+2]>>3)
+
 void SWDraw_ColouredCharacter (int x, int y, unsigned int num)
 {
 	qbyte			*source;
@@ -677,7 +683,7 @@ int colour;
 			return;
 	}
 
-	if (colour == 0)	//0 is white anyway (speedup)
+	if (colour == COLOR_WHITE)
 	{
 		Draw_Character(x, y, num);
 		return;
@@ -696,7 +702,6 @@ int colour;
 	}
 	else
 		drawline = 8;
-
 
 	if (r_pixbytes == 1)
 	{

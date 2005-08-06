@@ -24,7 +24,7 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 #define MAXCONCOLOURS 8
 typedef struct {
 	float r, g, b;
-	int pal;
+	int rgbmask;
 } consolecolours_t;
 extern consolecolours_t consolecolours[MAXCONCOLOURS];
 

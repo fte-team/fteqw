@@ -1676,8 +1676,10 @@ void CL_ConnectionlessPacket (void)
 	else
 		net_message.data[net_message.cursize] = '\0';
 
+#ifdef PLUGINS
 	if (Plug_ConnectionlessClientPacket(net_message.data+4, net_message.cursize-4))
 		return;
+#endif
 
 	c = MSG_ReadByte ();
 

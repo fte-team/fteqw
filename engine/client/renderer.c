@@ -163,6 +163,8 @@ cvar_t 			gl_shadeq3 = {"gl_shadeq3", "1"};	//use if you want.
 extern cvar_t r_vertexlight;
 cvar_t			gl_shadeq1 = {"gl_shadeq1", "0", NULL, CVAR_CHEAT};	//FIXME: :(
 cvar_t			gl_shadeq1_name = {"gl_shadeq1_name", "*"};
+
+cvar_t			gl_blend2d = {"gl_blend2d", "0"};
 #endif
 
 cvar_t r_bloodstains = {"r_bloodstains", "1"};
@@ -333,6 +335,8 @@ void GLRenderer_Init(void)
 	Cvar_Register (&gl_shadeq1, GLRENDEREROPTIONS);
 	Cvar_Register (&gl_shadeq1_name, GLRENDEREROPTIONS);
 	Cvar_Register (&gl_shadeq3, GLRENDEREROPTIONS);
+
+	Cvar_Register (&gl_blend2d, GLRENDEREROPTIONS);
 #endif
 }
 #endif

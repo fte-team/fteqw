@@ -164,61 +164,7 @@ void SWSCR_UpdateScreen (void)
 
 	D_EnableBackBufferAccess ();	// of all overlay stuff if drawing directly
 
-#if 1
 	SCR_DrawTwoDimensional(uimenu, nohud);
-#else
-	if (scr_drawloading)
-	{
-		SCR_DrawLoading ();
-#ifdef PLUGINS
-		Plug_SBar ();
-#endif
-		SCR_ShowPics_Draw();
-	}
-	else if (scr_drawdialog)
-	{
-#ifdef PLUGINS
-		Plug_SBar ();
-#endif
-		SCR_ShowPics_Draw();
-		Draw_FadeScreen ();
-		SCR_DrawNotifyString ();
-		scr_copyeverything = true;
-	}
-	else if (cl.intermission == 1 && key_dest == key_game)
-	{
-		Sbar_IntermissionOverlay ();
-	}
-	else if (cl.intermission == 2 && key_dest == key_game)
-	{
-		Sbar_FinaleOverlay ();
-		SCR_CheckDrawCenterString ();
-	}
-	else
-	{
-		Draw_Crosshair();
-
-		SCR_DrawRam ();
-		SCR_DrawNet ();
-		SCR_DrawTurtle ();
-		SCR_DrawPause ();
-		SCR_DrawFPS ();
-		SCR_DrawUPS ();
-		SCR_DrawClock();
-#ifdef PLUGINS
-		Plug_SBar ();
-#endif
-		SCR_ShowPics_Draw();
-		SCR_CheckDrawCenterString ();
-#ifdef TEXTEDITOR
-		if (editoractive)
-			Editor_Draw();
-#endif
-		SCR_DrawConsole (false);	
-		M_Draw (uimenu);
-	}
-#endif
-
 
 	D_DisableBackBufferAccess ();	// for adapters that can't stay mapped in
 									//  for linear writes all the time

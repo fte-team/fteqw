@@ -29,6 +29,7 @@ void SWDraw_ImageColours (float r, float g, float b, float a);
 
 netadr_t ui_pings[MAX_PINGREQUESTS];
 
+#define UITAGNUM 2452
 
 
 #define MAX_VMUI_FILES 8
@@ -337,29 +338,55 @@ void VQ3_AddEntity(const q3refEntity_t *q3)
 	ent.model = q3->hModel;
 	ent.frame = q3->frame;
 	ent.oldframe = q3->oldframe;
-	ent.angles[0] = (atan2(q3->axis[0][2], sqrt(q3->axis[0][1]*q3->axis[0][1]+q3->axis[0][0]*q3->axis[0][0])) * 180 / M_PI);
-	ent.angles[1] = (atan2(q3->axis[0][1], q3->axis[0][0]) * 180 / M_PI);
-	ent.angles[2] = 0;//(atan2(q3->axis[2][1], q3->axis[2][0]) * 180 / M_PI);;
 	memcpy(ent.axis, q3->axis, sizeof(q3->axis));
 	ent.lerpfrac = q3->backlerp;
 	ent.alpha = 1;
 	ent.scale = 1;
+
+	switch(q3->reType)
+	{
+	case RT_MODEL:
+//		Con_Printf("Model\n");
+		break;
+	case RT_POLY:
+		Con_Printf("Poly\n");
+		break;
+	case RT_SPRITE:
+		Con_Printf("Sprite\n");
+		break;
+	case RT_BEAM:
+		Con_Printf("Beam\n");
+		break;
+	case RT_RAIL_CORE:
+		Con_Printf("RailCore\n");
+		break;
+	case RT_RAIL_RINGS:
+		Con_Printf("RailRings\n");
+		break;
+	case RT_LIGHTNING:
+		Con_Printf("Lightning\n");
+		break;
+	case RT_PORTALSURFACE:		// doesn't draw anything, just info for portals
+		Con_Printf("PortalSurface\n");
+		return;
+
+	}
+
+	if (q3->customSkin)
+		ent.skinnum = Mod_SkinForName(ent.model, q3->customSkin);
 #ifdef Q3SHADERS
 	ent.forcedshader = (void*)q3->customShader;
 	*(int*)ent.shaderRGBA = *(int*)q3->shaderRGBA;
 	ent.shaderTime = q3->shaderTime;
 #endif
+	if (q3->renderfx & Q3RF_FIRST_PERSON)
+		ent.flags |= Q2RF_WEAPONMODEL;
 	if (q3->renderfx & Q3RF_DEPTHHACK)
 		ent.flags |= Q2RF_DEPTHHACK;
 	if (q3->renderfx & Q3RF_THIRD_PERSON)
-	{
 		ent.flags |= Q2RF_VIEWERMODEL;
-		return;
-	}
-	if (q3->renderfx & Q3RF_FIRST_PERSON)
-		ent.flags |= Q2RF_WEAPONMODEL;
 	VectorCopy(q3->origin, ent.origin);
-	V_AddEntity(&ent);
+	V_AddAxisEntity(&ent);
 }
 
 int VM_LerpTag(void *out, model_t *model, int f1, int f2, float l2, char *tagname)
@@ -451,7 +478,8 @@ void VQ3_RenderView(const q3refdef_t *ref)
 	r_refdef.viewangles[0] = -(atan2(ref->viewaxis[0][2], sqrt(ref->viewaxis[0][1]*ref->viewaxis[0][1]+ref->viewaxis[0][0]*ref->viewaxis[0][0])) * 180 / M_PI);
 	r_refdef.viewangles[1] = (atan2(ref->viewaxis[0][1], ref->viewaxis[0][0]) * 180 / M_PI);
 	r_refdef.viewangles[2] = 0;
-	r_refdef.flags = ref->rdflags;
+	if (ref->rdflags & 1)
+		r_refdef.flags |= Q2RDF_NOWORLDMODEL;
 	r_refdef.fov_x = ref->fov_x;
 	r_refdef.fov_y = ref->fov_y;
 	r_refdef.vrect.x = ref->x;
@@ -459,6 +487,8 @@ void VQ3_RenderView(const q3refdef_t *ref)
 	r_refdef.vrect.width = ref->width;
 	r_refdef.vrect.height = ref->height;
 	r_refdef.time = ref->time/1000.0f;
+	r_refdef.useperspective = true;
+	r_refdef.currentplayernum = -1;
 
 	memcpy(cl.q2frame.areabits, ref->areamask, sizeof(cl.q2frame.areabits));
 #ifdef RGLQUAKE
@@ -660,7 +690,13 @@ long UI_SystemCallsEx(void *offset, unsigned int mask, int fn, const long *arg)
 		break;
 
 	case UI_PRECACHE_SKIN:
-		VM_LONG(ret) = 1;	//precache skin - engine ignores these anyway... (for now)
+		{
+			char *buf;
+			char *skinname = VM_POINTER(arg[0]);
+			buf = Z_TagMalloc(strlen(skinname)+1, UITAGNUM);
+			strcpy(buf, skinname);
+			VM_LONG(ret) = (int)buf;	//precache skin - engine ignores these anyway... (for now)
+		}
 		break;
 
 	case UI_DRAW_CACHEPIC:

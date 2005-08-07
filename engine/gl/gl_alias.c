@@ -3625,17 +3625,17 @@ void GL_LoadQ3Model(model_t *mod, void *buffer)
 	min[0] = min[1] = min[2] = 0;
 	max[0] = max[1] = max[2] = 0;
 
-	surf = (md3Surface_t *)((qbyte *)header + header->ofsSurfaces);
-	for (s = 0; s < header->numSurfaces; s++)
+	surf = (md3Surface_t *)((qbyte *)header + LittleLong(header->ofsSurfaces));
+	for (s = 0; s < LittleLong(header->numSurfaces); s++)
 	{
-		if (surf->ident != MD3_IDENT)
+		if (LittleLong(surf->ident) != MD3_IDENT)
 			Con_Printf("Warning: md3 sub-surface doesn't match ident\n");
-		size = sizeof(galiasinfo_t) + sizeof(galiasgroup_t)*header->numFrames;
+		size = sizeof(galiasinfo_t) + sizeof(galiasgroup_t)*LittleLong(header->numFrames);
 		galias = Hunk_Alloc(size);
 		galias->groupofs = sizeof(*galias);	//frame groups
-		galias->groups = header->numFrames;
-		galias->numverts = surf->numVerts;
-		galias->numindexes = surf->numTriangles*3;
+		galias->groups = LittleLong(header->numFrames);
+		galias->numverts = LittleLong(surf->numVerts);
+		galias->numindexes = LittleLong(surf->numTriangles)*3;
 		if (parent)
 			parent->nextsurf = (qbyte *)galias - (qbyte *)parent;
 		else
@@ -3645,42 +3645,42 @@ void GL_LoadQ3Model(model_t *mod, void *buffer)
 #ifndef SERVERONLY
 		st_array = Hunk_Alloc(sizeof(vec2_t)*galias->numindexes);
 		galias->ofs_st_array = (qbyte*)st_array - (qbyte*)galias;
-		inst = (md3St_t*)((qbyte*)surf + surf->ofsSt);
+		inst = (md3St_t*)((qbyte*)surf + LittleLong(surf->ofsSt));
 		for (i = 0; i < galias->numverts; i++)
 		{
-			st_array[i][0] = inst[i].s;
-			st_array[i][1] = inst[i].t;
+			st_array[i][0] = LittleFloat(inst[i].s);
+			st_array[i][1] = LittleFloat(inst[i].t);
 		}
 #endif
 
 		indexes = Hunk_Alloc(sizeof(*indexes)*galias->numindexes);
 		galias->ofs_indexes = (qbyte*)indexes - (qbyte*)galias;
-		intris = (md3Triangle_t *)((qbyte*)surf + surf->ofsTriangles);
-		for (i = 0; i < surf->numTriangles; i++)
+		intris = (md3Triangle_t *)((qbyte*)surf + LittleLong(surf->ofsTriangles));
+		for (i = 0; i < LittleLong(surf->numTriangles); i++)
 		{
-			indexes[i*3+0] = intris[i].indexes[0];
-			indexes[i*3+1] = intris[i].indexes[1];
-			indexes[i*3+2] = intris[i].indexes[2];
+			indexes[i*3+0] = LittleLong(intris[i].indexes[0]);
+			indexes[i*3+1] = LittleLong(intris[i].indexes[1]);
+			indexes[i*3+2] = LittleLong(intris[i].indexes[2]);
 		}
 
 		group = (galiasgroup_t *)(galias+1);
-		invert = (md3XyzNormal_t *)((qbyte*)surf + surf->ofsXyzNormals);
-		for (i = 0; i < surf->numFrames; i++)
+		invert = (md3XyzNormal_t *)((qbyte*)surf + LittleLong(surf->ofsXyzNormals));
+		for (i = 0; i < LittleLong(surf->numFrames); i++)
 		{
-			pose = (galiaspose_t *)Hunk_Alloc(sizeof(galiaspose_t) + sizeof(vec3_t)*surf->numVerts
+			pose = (galiaspose_t *)Hunk_Alloc(sizeof(galiaspose_t) + sizeof(vec3_t)*LittleLong(surf->numVerts)
 #ifndef SERVERONLY
-				+ sizeof(vec3_t)*surf->numVerts
+				+ sizeof(vec3_t)*LittleLong(surf->numVerts)
 #endif
 				);
 
 			verts = (vec3_t*)(pose+1);
 			pose->ofsverts = (qbyte*)verts - (qbyte*)pose;
 #ifndef SERVERONLY
-			normals = verts + surf->numVerts;
+			normals = verts + LittleLong(surf->numVerts);
 			pose->ofsnormals = (qbyte*)normals - (qbyte*)pose;
 #endif
 
-			for (j = 0; j < surf->numVerts; j++)
+			for (j = 0; j < LittleLong(surf->numVerts); j++)
 			{
 #ifndef SERVERONLY
 				lat = (float)invert[j].latlong[0] * (2 * M_PI)*(1.0 / 255.0);
@@ -3691,7 +3691,7 @@ void GL_LoadQ3Model(model_t *mod, void *buffer)
 #endif
 				for (d = 0; d < 3; d++)
 				{
-					verts[j][d] = invert[j].xyz[d]/64.0f;
+					verts[j][d] = LittleShort(invert[j].xyz[d])/64.0f;
 					if (verts[j][d]<min[d])
 						min[d] = verts[j][d];
 					if (verts[j][d]>max[d])
@@ -3712,11 +3712,11 @@ void GL_LoadQ3Model(model_t *mod, void *buffer)
 			group->poseofs = (qbyte*)pose - (qbyte*)group;
 
 			group++;
-			invert += surf->numVerts;
+			invert += LittleLong(surf->numVerts);
 		}
 
 #ifndef SERVERONLY
-		if (surf->numShaders+externalskins)
+		if (LittleLong(surf->numShaders)+externalskins)
 		{
 #ifndef Q3SHADERS
 			char name[1024];
@@ -3724,11 +3724,11 @@ void GL_LoadQ3Model(model_t *mod, void *buffer)
 #endif
 			char shadname[1024];
 
-			skin = Hunk_Alloc((surf->numShaders+externalskins)*((sizeof(galiasskin_t)+sizeof(galiastexnum_t))));
+			skin = Hunk_Alloc((LittleLong(surf->numShaders)+externalskins)*((sizeof(galiasskin_t)+sizeof(galiastexnum_t))));
 			galias->ofsskins = (qbyte *)skin - (qbyte *)galias;
-			texnum = (galiastexnum_t *)(skin + surf->numShaders+externalskins);
-			inshader = (md3Shader_t *)((qbyte *)surf + surf->ofsShaders);
-			for (i = 0; i < surf->numShaders+externalskins; i++)
+			texnum = (galiastexnum_t *)(skin + LittleLong(surf->numShaders)+externalskins);
+			inshader = (md3Shader_t *)((qbyte *)surf + LittleLong(surf->ofsShaders));
+			for (i = 0; i < LittleLong(surf->numShaders)+externalskins; i++)
 			{
 				skin->texnums = 1;
 				skin->ofstexnums = (qbyte *)texnum - (qbyte *)skin;
@@ -3737,7 +3737,7 @@ void GL_LoadQ3Model(model_t *mod, void *buffer)
 				skin->skinheight = 0;
 				skin->skinspeed = 0;
 
-				if (i >= surf->numShaders)
+				if (i >= LittleLong(surf->numShaders))
 					shadname[0] = 0;
 				else
 					strcpy(shadname, inshader->name);
@@ -3823,21 +3823,47 @@ void GL_LoadQ3Model(model_t *mod, void *buffer)
 		if (r_shadows.value)
 		{
 			int *neighbours;
-			neighbours = Hunk_Alloc(sizeof(int)*3*surf->numTriangles);
+			neighbours = Hunk_Alloc(sizeof(int)*3*LittleLong(surf->numTriangles));
 			galias->ofs_trineighbours = (qbyte *)neighbours - (qbyte *)galias;
-			R_BuildTriangleNeighbours(neighbours, indexes, surf->numTriangles);
+			R_BuildTriangleNeighbours(neighbours, indexes, LittleLong(surf->numTriangles));
 		}
 #endif
-		surf = (md3Surface_t *)((qbyte *)surf + surf->ofsEnd);
+		surf = (md3Surface_t *)((qbyte *)surf + LittleLong(surf->ofsEnd));
 	}
 
 	if (!root)
 		root = Hunk_Alloc(sizeof(galiasinfo_t));
 
-	root->numtagframes = header->numFrames;
-	root->numtags = header->numTags;
-	root->ofstags = (char*)Hunk_Alloc(header->numTags*sizeof(md3tag_t)*header->numFrames) - (char*)root;
-	memcpy((char*)root+root->ofstags, (char*)header+header->ofsTags, header->numTags*sizeof(md3tag_t)*header->numFrames);
+	root->numtagframes = LittleLong(header->numFrames);
+	root->numtags = LittleLong(header->numTags);
+	root->ofstags = (char*)Hunk_Alloc(LittleLong(header->numTags)*sizeof(md3tag_t)*LittleLong(header->numFrames)) - (char*)root;
+
+	{
+		md3tag_t *src;
+		md3tag_t *dst;
+
+		src = (md3tag_t *)(((unsigned int)header)+LittleLong(header->ofsTags));
+		dst = (md3tag_t *)(((unsigned int)root)+root->ofstags);
+		for(i=0;i<LittleLong(header->numTags)*LittleLong(header->numFrames);i++)
+		{
+			memcpy(dst->name, src->name, sizeof(dst->name));
+			for(j=0;j<3;j++)
+			{
+				dst->org[j] = LittleFloat(src->org[j]);
+			}
+
+			for(j=0;j<3;j++)
+			{
+				for(s=0;s<3;s++)
+				{
+					dst->ang[j][s] = LittleFloat(src->ang[j][s]);
+				}
+			}
+
+			src++;
+			dst++;
+		}
+	}
 
 //
 // move the complete, relocatable alias model to the cache

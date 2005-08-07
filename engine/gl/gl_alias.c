@@ -859,7 +859,7 @@ void GL_GAliasFlushSkinCache(void)
 	skincolourmapped.numbuckets = 0;
 }
 
-static galiastexnum_t *GL_ChooseSkin(galiasinfo_t *inf, char *modelname, entity_t *e)
+static galiastexnum_t *GL_ChooseSkin(galiasinfo_t *inf, char *modelname, int surfnum, entity_t *e)
 {
 	galiasskin_t *skins;
 	galiastexnum_t *texnums;
@@ -923,7 +923,12 @@ static galiastexnum_t *GL_ChooseSkin(galiasinfo_t *inf, char *modelname, entity_
 
 			if (e->scoreboard && e->scoreboard->skin && !gl_nocolors.value)
 			{
-				sprintf(hashname, "%s$%s", modelname, e->scoreboard->skin->name);
+				sprintf(hashname, "%s$%s$%i", modelname, e->scoreboard->skin->name, surfnum);
+				skinname = hashname;
+			}
+			else if (surfnum)
+			{
+				sprintf(hashname, "%s$%i", modelname, surfnum);
 				skinname = hashname;
 			}
 			else
@@ -1431,6 +1436,7 @@ void R_DrawGAliasModel (entity_t *e)
 #ifdef Q3SHADERS
 	mfog_t *fog;
 #endif
+	int surfnum;
 
 	float	tmatrix[3][4];
 
@@ -1766,7 +1772,7 @@ void R_DrawGAliasModel (entity_t *e)
 	qglColor4f(shadelight[0], shadelight[1], shadelight[2], e->alpha);
 
 	memset(&mesh, 0, sizeof(mesh));
-	for(; inf; ((inf->nextsurf)?(inf = (galiasinfo_t*)((char *)inf + inf->nextsurf)):(inf=NULL)))
+	for(surfnum=0; inf; ((inf->nextsurf)?(inf = (galiasinfo_t*)((char *)inf + inf->nextsurf)):(inf=NULL)), surfnum++)
 	{
 		if (R_GAliasBuildMesh(&mesh, inf, e->frame, e->oldframe, e->lerpfrac, e->alpha, e->frame1time, e->frame2time) && r_vertexdlights.value)
 			if (mesh.colors_array)
@@ -1801,7 +1807,7 @@ void R_DrawGAliasModel (entity_t *e)
 		}
 #endif
 
-		skin = GL_ChooseSkin(inf, clmodel->name, e);
+		skin = GL_ChooseSkin(inf, clmodel->name, surfnum, e);
 
 		if (!skin)
 		{
@@ -2043,6 +2049,7 @@ void R_DrawGAliasModelLighting (entity_t *e, vec3_t lightpos, vec3_t colours, fl
 	galiasinfo_t *inf;
 	galiastexnum_t *tex;
 	mesh_t mesh;
+	int surfnum;
 
 	if (e->flags & Q2RF_VIEWERMODEL)
 		return;
@@ -2094,12 +2101,12 @@ void R_DrawGAliasModelLighting (entity_t *e, vec3_t lightpos, vec3_t colours, fl
 	qglEnable(GL_ALPHA_TEST);	//if you used an alpha channel where you shouldn't have, more fool you.
 	qglBlendFunc(GL_ONE, GL_ONE);
 //	qglDepthFunc(GL_ALWAYS);
-	while(inf)
+	for(surfnum=0;inf;surfnum++)
 	{
 		R_GAliasBuildMesh(&mesh, inf, e->frame, e->oldframe, e->lerpfrac, e->alpha, e->frame1time, e->frame2time);
 		mesh.colors_array = tempColours;
 
-		tex = GL_ChooseSkin(inf, clmodel->name, e);
+		tex = GL_ChooseSkin(inf, clmodel->name, surfnum, e);
 
 		GL_LightMesh(&mesh, lightdir, colours, radius);
 		GL_DrawAliasMesh(&mesh, tex->base);

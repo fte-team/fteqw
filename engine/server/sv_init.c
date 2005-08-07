@@ -635,8 +635,19 @@ void SV_SpawnServer (char *server, char *startspot, qboolean noents, qboolean us
 
 	Cvar_ApplyLatches(CVAR_LATCH);
 
+//work out the gamespeed
+	sv.gamespeed = sv_gamespeed.value;
+	Info_SetValueForStarKey(svs.info, "*gamespeed", va("%i", (int)(sv.gamespeed*100)), MAX_SERVERINFO_STRING);
+	sv.gamespeed = atof(Info_ValueForKey(svs.info, "*gamespeed"))/100;
+	if (sv.gamespeed < 0.1 || sv.gamespeed == 1)
+	{
+		sv.gamespeed = 1;
+		Info_SetValueForStarKey(svs.info, "*gamespeed", "", MAX_SERVERINFO_STRING);
+	}
+//reset the server time.
 	sv.time = 0.1;	//some progs don't like time starting at 0.
 					//cos of spawn funcs like self.nextthink = time...
+	sv.starttime = Sys_DoubleTime();
 
 	COM_FlushTempoaryPacks();
 
@@ -696,15 +707,6 @@ void SV_SpawnServer (char *server, char *startspot, qboolean noents, qboolean us
 	{
 		sv_allow_cheats = false;
 		Info_SetValueForStarKey(svs.info, "*cheats", "", MAX_SERVERINFO_STRING);
-	}
-
-	sv.gamespeed = sv_gamespeed.value;
-	Info_SetValueForStarKey(svs.info, "*gamespeed", va("%i", (int)(sv.gamespeed*100)), MAX_SERVERINFO_STRING);
-	sv.gamespeed = atof(Info_ValueForKey(svs.info, "*gamespeed"))/100;
-	if (sv.gamespeed < 0.1 || sv.gamespeed == 1)
-	{
-		sv.gamespeed = 1;
-		Info_SetValueForStarKey(svs.info, "*gamespeed", "", MAX_SERVERINFO_STRING);
 	}
 
 	//do we allow csprogs?
@@ -867,6 +869,11 @@ void SV_SpawnServer (char *server, char *startspot, qboolean noents, qboolean us
 			svs.clients[i].q2edict = q2ent;
 		}
 		sv.allocated_client_slots = i;
+		break;
+#endif
+#ifdef Q3SERVER
+	case GT_QUAKE3:
+		sv.allocated_client_slots = 32;
 		break;
 #endif
 	}
@@ -1069,6 +1076,7 @@ void SV_SpawnServer (char *server, char *startspot, qboolean noents, qboolean us
 #endif
 	realtime += 0.1;
 	sv.time += 0.1;
+	sv.starttime -= 0.1;
 	SV_Physics ();
 
 #ifndef SERVERONLY

@@ -106,6 +106,7 @@ typedef struct
 	qboolean	csqcdebug;
 
 	double		time;
+	double		starttime;
 	float	physicstime;	//nq clients do so much better with times sent with physics than real.
 	int framenum;
 	
@@ -312,6 +313,13 @@ typedef struct	//merge?
 	int					num_entities;
 	int					first_entity;		// into the circular sv_packet_entities[]
 	int					senttime;			// for ping calculations
+
+
+	int				serverMessageNum;
+	int				serverCommandNum;
+	int				serverTime;		// server time the message is valid for (in msec)
+	int				localTime;
+	int				deltaFrame;
 } q3client_frame_t;
 #endif
 
@@ -863,7 +871,7 @@ extern	FILE		*sv_fraglogfile;
 //
 void VARGS SV_Error (char *error, ...);
 void SV_Shutdown (void);
-void SV_Frame (float time);
+void SV_Frame (void);
 void SV_FinalMessage (char *message);
 void SV_DropClient (client_t *drop);
 struct quakeparms_s;

@@ -2304,7 +2304,7 @@ void SV_WriteIP_f (void)
 
 	Con_Printf ("Writing %s.\n", name);
 
-	f = fopen (name, "wb");
+	COM_FOpenWriteFile(name, &f);
 	if (!f)
 	{
 		Con_Printf ("Couldn't open %s\n", name);
@@ -2692,10 +2692,11 @@ SV_Frame
 
 ==================
 */
-void SV_Frame (float time)
+void SV_Frame (void)
 {
 	extern cvar_t pr_imitatemvdsv;
 	static double	start, end;
+	float oldtime;
 
 	start = Sys_DoubleTime ();
 	svs.stats.idle += start - end;
@@ -2708,15 +2709,26 @@ void SV_Frame (float time)
 		sv.gamespeed = 1;
 
 // decide the simulation time
-	if (!sv.paused) {
+	{
+		oldtime = sv.time;
+		sv.time = (Sys_DoubleTime() - sv.starttime)*sv.gamespeed;
+		if (sv.time < oldtime)
+			sv.time = oldtime;	//urm
+
+		if (sv.paused)
+		{
+			sv.starttime += sv.time - oldtime;	//move the offset
+			sv.time = oldtime;	//and keep time as it was.
+		}
+
 #ifndef SERVERONLY
 		if (isDedicated)
 #endif
-			realtime += time;
+			realtime += sv.time - oldtime;
 
-		time *= sv.gamespeed;
-		sv.time += time;
 	}
+
+
 #ifdef IWEB_H__
 	IWebRun();
 #endif
@@ -3073,6 +3085,9 @@ void SV_InitLocal (void)
 
 #ifdef PEXT_CSQC
 	svs.fteprotocolextensions |= PEXT_CSQC;
+#endif
+#ifdef PEXT_DPFLAGS
+	svs.fteprotocolextensions |= PEXT_DPFLAGS;
 #endif
 
 //	if (svs.protocolextensions)

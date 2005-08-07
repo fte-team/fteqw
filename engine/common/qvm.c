@@ -435,9 +435,6 @@ qvm_t *QVM_Load(const char *name, sys_callex_t syscall)
 
 	qvm->ds_mask--;
 
-
-	qvm->ds_mask=0xFFFFFFFF;								// FIXME: make real mask to fit ds+ss size
-
 // load instructions
 {
 	qbyte *src=raw+header->codeOffset;
@@ -566,9 +563,6 @@ static void inline QVM_Enter(qvm_t *vm, long size)
 {
 	long *fp;
 
-	if (size&3)
-		Con_Printf("QVM_Enter: size&3\n");
-
 	vm->bp-=size;
 	if(vm->bp<vm->len_ds)
 		Sys_Error("VM run time error: out of stack\n");
@@ -586,9 +580,6 @@ static void inline QVM_Enter(qvm_t *vm, long size)
 static void inline QVM_Return(qvm_t *vm, long size)
 {
 	long *fp;
-
-	if (size&3)
-		Con_Printf("QVM_Return: size&3\n");
 
 	fp=(long*)(vm->ds+vm->bp);
 	vm->bp+=size;
@@ -624,12 +615,17 @@ int QVM_Exec(register qvm_t *qvm, int command, int arg0, int arg1, int arg2, int
 //all stack shifts in this function are referenced through these 2 macros.
 #define POP(t)	qvm->sp+=t;if (qvm->sp > stackstart) Sys_Error("QVM Stack underflow");
 #define PUSH(v) qvm->sp--;if (qvm->sp < stackend) Sys_Error("QVM Stack overflow");*qvm->sp=v
-	register qvm_op_t op=-1;
-	register unsigned long param;
+	qvm_op_t op=-1;
+	unsigned long param;
 
 	long *fp;
 	unsigned long *stackstart;
 	unsigned long *stackend;
+
+	static int recurse = 0;
+
+	if (recurse++)
+		Host_EndGame("QVM recursivly entered\n");
 
 	stackstart	= (unsigned long*)(qvm->ss+qvm->len_ss);
 	stackend	= (unsigned long*)(qvm->ss);
@@ -689,6 +685,7 @@ int QVM_Exec(register qvm_t *qvm, int command, int arg0, int arg1, int arg2, int
 			if (!qvm->pc)
 			{
 				// pick return value from stack
+				recurse--;
 				return qvm->sp[0];
 			}
 			break;

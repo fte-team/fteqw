@@ -527,11 +527,14 @@ void SV_WriteDelta (entity_state_t *from, entity_state_t *to, sizebuf_t *msg, qb
 	if (to->glowsize != from->glowsize)
 		to->dpflags |= 4;
 
-	if (to->dpflags != from->dpflags)
+	if (to->dpflags != from->dpflags && protext & PEXT_DPFLAGS)
 		evenmorebits |= U_DPFLAGS;
 
-	if (to->tagentity != from->tagentity || to->tagindex != from->tagindex)
+	if ((to->tagentity != from->tagentity || to->tagindex != from->tagindex) && protext & PEXT_DPFLAGS)
 		evenmorebits |= U_TAGINFO;
+
+	if ((to->light[0] != from->light[0] || to->light[1] != from->light[1] || to->light[2] != from->light[2] || to->light[3] != from->light[3] || to->lightstyle != from->lightstyle || to->lightpflags != from->lightstyle) && protext & PEXT_DPFLAGS)
+		evenmorebits |= U_LIGHT;
 
 	if (evenmorebits&0xff00)
 		evenmorebits |= U_YETMORE;
@@ -622,6 +625,15 @@ void SV_WriteDelta (entity_state_t *from, entity_state_t *to, sizebuf_t *msg, qb
 		MSG_WriteShort (msg, to->tagindex);
 	}
 
+	if (evenmorebits & U_LIGHT)
+	{
+		MSG_WriteShort (msg, to->light[0]);
+		MSG_WriteShort (msg, to->light[1]);
+		MSG_WriteShort (msg, to->light[2]);
+		MSG_WriteShort (msg, to->light[3]);
+		MSG_WriteByte (msg, to->lightstyle);
+		MSG_WriteByte (msg, to->lightpflags);
+	}
 }
 
 /*
@@ -826,8 +838,8 @@ void SVDP_EmitEntity(entity_state_t *from, entity_state_t *to, sizebuf_t *msg, q
 		bits |= E5_COLORMAP;
 	if (from->tagentity != to->tagentity || from->tagindex != to->tagindex)
 		bits |= E5_ATTACHMENT;
-//	if (from->light[0] != to->light[0] || o->light[1] != to->light[1] || o->light[2] != to->light[2] || o->light[3] != to->light[3] || o->lightstyle != to->lightstyle || o->lightpflags != to->lightpflags)
-//		bits |= E5_LIGHT;
+	if (from->light[0] != to->light[0] || from->light[1] != to->light[1] || from->light[2] != to->light[2] || from->light[3] != to->light[3] || from->lightstyle != to->lightstyle || from->lightpflags != to->lightpflags)
+		bits |= E5_LIGHT;
 	if (from->glowsize != to->glowsize || from->glowcolour != to->glowcolour)
 		bits |= E5_GLOW;
 //	if (from->colormod[0] != to->colormod[0] || o->colormod[1] != to->colormod[1] || o->colormod[2] != to->colormod[2])
@@ -937,15 +949,15 @@ void SVDP_EmitEntity(entity_state_t *from, entity_state_t *to, sizebuf_t *msg, q
 		MSG_WriteShort(msg, to->tagentity);
 		MSG_WriteByte(msg, to->tagindex);
 	}
-//	if (bits & E5_LIGHT)
-//	{
-//		MSG_WriteShort(msg, to->light[0]);
-//		MSG_WriteShort(msg, to->light[1]);
-//		MSG_WriteShort(msg, to->light[2]);
-//		MSG_WriteShort(msg, to->light[3]);
-//		MSG_WriteByte(msg, to->lightstyle);
-//		MSG_WriteByte(msg, to->lightpflags);
-//	}
+	if (bits & E5_LIGHT)
+	{
+		MSG_WriteShort(msg, to->light[0]);
+		MSG_WriteShort(msg, to->light[1]);
+		MSG_WriteShort(msg, to->light[2]);
+		MSG_WriteShort(msg, to->light[3]);
+		MSG_WriteByte(msg, to->lightstyle);
+		MSG_WriteByte(msg, to->lightpflags);
+	}
 	if (bits & E5_GLOW)
 	{
 		MSG_WriteByte(msg, to->glowsize);
@@ -2646,7 +2658,15 @@ void SV_WriteEntitiesToClient (client_t *client, sizebuf_t *msg, qboolean ignore
 		state->abslight = (int)(ent->v->abslight*255) & 255;
 		state->tagentity = ent->v->tag_entity;
 		state->tagindex = ent->v->tag_index;
-		if ((int)ent->v->flags & FL_CLASS_DEPENDENT && client->playerclass)
+
+		state->light[0] = ent->v->color[0]*255;
+		state->light[1] = ent->v->color[1]*255;
+		state->light[2] = ent->v->color[2]*255;
+		state->light[3] = ent->v->light_lev;
+		state->lightstyle = ent->v->style;
+		state->lightpflags = ent->v->pflags;
+
+		if ((int)ent->v->flags & FL_CLASS_DEPENDENT && client->playerclass)	//hexen2 wierdness.
 		{
 			char modname[MAX_QPATH];
 			Q_strncpyz(modname, sv.model_precache[state->modelindex], sizeof(modname));

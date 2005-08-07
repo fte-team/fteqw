@@ -1893,6 +1893,9 @@ void CModQ3_LoadSubmodels (lump_t *l)
 		}
 		//submodels
 	}
+
+	VectorCopy(map_cmodels[0].mins, loadmodel->mins);
+	VectorCopy(map_cmodels[0].maxs, loadmodel->maxs);
 }
 
 void CModQ3_LoadShaders (lump_t *l, qboolean useshaders)

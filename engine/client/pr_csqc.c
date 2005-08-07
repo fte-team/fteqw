@@ -23,6 +23,7 @@ static csqctreadstate_t *csqcthreads;
 qboolean csqc_resortfrags;
 qboolean csqc_drawsbar;
 qboolean csqc_addcrosshair;
+static int num_csqc_edicts;
 
 cvar_t	pr_csmaxedicts = {"pr_csmaxedicts", "3072"};
 cvar_t	cl_csqcdebug = {"cl_csqcdebug", "0"};	//prints entity numbers which arrive (so I can tell people not to apply it to players...)
@@ -147,6 +148,7 @@ static void CSQC_FindGlobals(void)
 	fieldfloat(modelindex);	\
 	fieldvector(origin);	\
 	fieldvector(angles);	\
+	fieldvector(velocity);	\
 	fieldfloat(alpha);		/*transparency*/	\
 	fieldfloat(scale);		/*model scale*/		\
 	fieldfloat(fatness);	/*expand models X units along thier normals.*/	\
@@ -160,6 +162,8 @@ static void CSQC_FindGlobals(void)
 	fieldfloat(lerpfrac);	\
 	fieldfloat(renderflags);\
 	fieldfloat(forceshader);\
+	fieldfloat(dimension_hit);	\
+	fieldfloat(dimension_solid);	\
 							\
 	fieldfloat(drawmask);	/*So that the qc can specify all rockets at once or all bannanas at once*/	\
 	fieldfunction(predraw);	/*If present, is called just before it's drawn.*/	\
@@ -172,12 +176,14 @@ static void CSQC_FindGlobals(void)
 							\
 	fieldentity(chain);		\
 	fieldentity(groundentity);	\
+	fieldentity(owner);	\
 							\
 	fieldfloat(solid);		\
 	fieldvector(mins);		\
 	fieldvector(maxs);		\
-	fieldvector(absmins);	\
-	fieldvector(absmaxs);	\
+	fieldvector(size);		\
+	fieldvector(absmin);	\
+	fieldvector(absmax);	\
 	fieldfloat(hull);		/*(FTE_PEXT_HEXEN2)*/
 
 
@@ -206,6 +212,7 @@ typedef struct csqcedict_s
 
 	//add whatever you wish here
 	trailstate_t *trailstate;
+	link_t	area;
 } csqcedict_t;
 
 static csqcedict_t *csqc_edicts;	//consider this 'world'
@@ -342,69 +349,263 @@ void PF_fclose_progs (progfuncs_t *prinst);
 char *PF_VarString (progfuncs_t *prinst, int	first, struct globalvars_s *pr_globals);
 int QCEditor (progfuncs_t *prinst, char *filename, int line, int nump, char **parms);
 
+static model_t *CSQC_GetModelForIndex(int index);
+static void CS_LinkEdict(csqcedict_t *ent, qboolean touchtriggers);
 
-
-
-
-
-void CL_CS_LinkEdict(csqcedict_t *ent, qboolean touchtriggers)
+areanode_t	cs_areanodes[AREA_NODES];
+int			cs_numareanodes;
+areanode_t *CS_CreateAreaNode (int depth, vec3_t mins, vec3_t maxs)
 {
+	areanode_t	*anode;
+	vec3_t		size;
+	vec3_t		mins1, maxs1, mins2, maxs2;
+
+	anode = &cs_areanodes[cs_numareanodes];
+	cs_numareanodes++;
+
+	ClearLink (&anode->trigger_edicts);
+	ClearLink (&anode->solid_edicts);
+	
+	if (depth == AREA_DEPTH)
+	{
+		anode->axis = -1;
+		anode->children[0] = anode->children[1] = NULL;
+		return anode;
+	}
+	
+	VectorSubtract (maxs, mins, size);
+	if (size[0] > size[1])
+		anode->axis = 0;
+	else
+		anode->axis = 1;
+	
+	anode->dist = 0.5 * (maxs[anode->axis] + mins[anode->axis]);
+	VectorCopy (mins, mins1);	
+	VectorCopy (mins, mins2);	
+	VectorCopy (maxs, maxs1);	
+	VectorCopy (maxs, maxs2);	
+	
+	maxs1[anode->axis] = mins2[anode->axis] = anode->dist;
+	
+	anode->children[0] = CS_CreateAreaNode (depth+1, mins2, maxs2);
+	anode->children[1] = CS_CreateAreaNode (depth+1, mins1, maxs1);
+
+	return anode;
+}
+
+void CS_ClearWorld (void)
+{
+	int i;
+
+	memset (cs_areanodes, 0, sizeof(cs_areanodes));
+	cs_numareanodes = 0;
+	if (cl.worldmodel)
+		CS_CreateAreaNode (0, cl.worldmodel->mins, cl.worldmodel->maxs);
+	else
+	{
+		vec3_t mins, maxs;
+		int i;
+		for (i = 0; i < 3; i++)
+		{
+			mins[i] = -4096;
+			maxs[i] = 4096;
+		}
+		CS_CreateAreaNode (0, mins, maxs);
+	}
+
+	for (i = 1; i < num_csqc_edicts; i++)
+		CS_LinkEdict((csqcedict_t*)EDICT_NUM(csqcprogs, i), false);
+}
+
+void CS_UnlinkEdict (csqcedict_t *ent)
+{
+	if (!ent->area.prev)
+		return;		// not linked in anywhere
+	RemoveLink (&ent->area);
+	ent->area.prev = ent->area.next = NULL;
+}
+
+static void CS_LinkEdict(csqcedict_t *ent, qboolean touchtriggers)
+{
+	areanode_t *node;
+
+	if (ent->area.prev)
+		CS_UnlinkEdict (ent);	// unlink from old position
+
+	if (ent == csqc_edicts)
+		return;		// don't add the world
+
 	//FIXME: use some sort of area grid ?
-	VectorAdd(ent->v->origin, ent->v->mins, ent->v->absmins);
-	VectorAdd(ent->v->origin, ent->v->maxs, ent->v->absmaxs);
+	VectorAdd(ent->v->origin, ent->v->mins, ent->v->absmin);
+	VectorAdd(ent->v->origin, ent->v->maxs, ent->v->absmax);
+
+	if ((int)ent->v->flags & FL_ITEM)
+	{
+		ent->v->absmin[0] -= 15;
+		ent->v->absmin[1] -= 15;
+		ent->v->absmax[0] += 15;
+		ent->v->absmax[1] += 15;
+	}
+	else
+	{	// because movement is clipped an epsilon away from an actual edge,
+		// we must fully check even when bounding boxes don't quite touch
+		ent->v->absmin[0] -= 1;
+		ent->v->absmin[1] -= 1;
+		ent->v->absmin[2] -= 1;
+		ent->v->absmax[0] += 1;
+		ent->v->absmax[1] += 1;
+		ent->v->absmax[2] += 1;
+	}
+
+	if (!ent->v->solid)
+		return;
+
+	// find the first node that the ent's box crosses
+	node = cs_areanodes;
+	while (1)
+	{
+		if (node->axis == -1)
+			break;
+		if (ent->v->absmin[node->axis] > node->dist)
+			node = node->children[0];
+		else if (ent->v->absmax[node->axis] < node->dist)
+			node = node->children[1];
+		else
+			break;		// crosses the node
+	}
+	
+// link it in	
+
+	if (ent->v->solid == SOLID_TRIGGER)
+		InsertLinkBefore (&ent->area, &node->trigger_edicts);
+	else
+		InsertLinkBefore (&ent->area, &node->solid_edicts);
+}
+
+typedef struct {
+	int type;
+	trace_t trace;
+	vec3_t boxmins;	//mins/max of total move.
+	vec3_t boxmaxs;
+	vec3_t start;
+	vec3_t end;
+	vec3_t mins;	//mins/max of ent
+	vec3_t maxs;
+	csqcedict_t *passedict;
+} moveclip_t;
+void CS_ClipToLinks ( areanode_t *node, moveclip_t *clip )
+{
+	model_t		*model;
+	trace_t		tr;
+	link_t		*l, *next;
+	csqcedict_t		*touch;
+
+	//work out who they are first.
+	for (l = node->solid_edicts.next ; l != &node->solid_edicts ; l = next)
+	{
+		next = l->next;
+		touch = (csqcedict_t*)EDICT_FROM_AREA(l);
+		if (touch->v->solid == SOLID_NOT)
+			continue;
+		if (touch == clip->passedict)
+			continue;
+		if (touch->v->solid == SOLID_TRIGGER || touch->v->solid == SOLID_LADDER)
+			continue;
+
+		if (clip->type & MOVE_NOMONSTERS && touch->v->solid != SOLID_BSP)
+			continue;
+
+		if (clip->passedict)
+		{
+			// don't clip corpse against character
+			if (clip->passedict->v->solid == SOLID_CORPSE && (touch->v->solid == SOLID_SLIDEBOX || touch->v->solid == SOLID_CORPSE))
+				continue;
+			// don't clip character against corpse
+			if (clip->passedict->v->solid == SOLID_SLIDEBOX && touch->v->solid == SOLID_CORPSE)
+				continue;
+
+			if (!((int)clip->passedict->v->dimension_hit & (int)touch->v->dimension_solid))
+				continue;
+		}
+
+		if (clip->boxmins[0] > touch->v->absmax[0]
+		|| clip->boxmins[1] > touch->v->absmax[1]
+		|| clip->boxmins[2] > touch->v->absmax[2]
+		|| clip->boxmaxs[0] < touch->v->absmin[0]
+		|| clip->boxmaxs[1] < touch->v->absmin[1]
+		|| clip->boxmaxs[2] < touch->v->absmin[2] )
+			continue;
+
+		if (clip->passedict && clip->passedict->v->size[0] && !touch->v->size[0])
+			continue;	// points never interact
+
+	// might intersect, so do an exact clip
+		if (clip->trace.allsolid)
+			return;
+		if (clip->passedict)
+		{
+		 	if ((csqcedict_t*)PROG_TO_EDICT(svprogfuncs, touch->v->owner) == clip->passedict)
+				continue;	// don't clip against own missiles
+			if ((csqcedict_t*)PROG_TO_EDICT(svprogfuncs, clip->passedict->v->owner) == touch)
+				continue;	// don't clip against owner
+		}
+
+
+		if (!((int)clip->passedict->v->dimension_solid & (int)touch->v->dimension_hit))
+			continue;
+
+		model = CSQC_GetModelForIndex(touch->v->modelindex);
+		if (!model)
+			continue;
+		model->funcs.Trace(model, 0, 0, clip->start, clip->end, clip->mins, clip->maxs, &tr);
+		if (tr.fraction < clip->trace.fraction)
+		{
+			tr.ent = (void*)touch;
+			clip->trace = tr;
+		}
+	}
 }
 
 //FIXME: Not fully functional
-trace_t CL_Move(vec3_t v1, vec3_t mins, vec3_t maxs, vec3_t v2, float nomonsters, csqcedict_t *passedict)
+static trace_t CS_Move(vec3_t v1, vec3_t mins, vec3_t maxs, vec3_t v2, float nomonsters, csqcedict_t *passedict)
 {
-	int e;
-	csqcedict_t *ed;
-	vec3_t minb, maxb;
-	hull_t *hull;
+	moveclip_t clip;
 
-	trace_t	trace, trace2;
-
-	memset(&trace, 0, sizeof(trace));
-	trace.fraction = 1;
-	cl.worldmodel->funcs.Trace(cl.worldmodel, 0, 0, v1, v2, mins, maxs, &trace);
+	if (cl.worldmodel)
+	{
+		cl.worldmodel->funcs.Trace(cl.worldmodel, 0, 0, v1, v2, mins, maxs, &clip.trace);
+		clip.trace.ent = (void*)csqc_edicts;
+	}
+	else
+	{
+		memset(&clip.trace, 0, sizeof(clip.trace));
+		clip.trace.fraction = 1;
+		VectorCopy(v2, clip.trace.endpos);
+		clip.trace.ent = (void*)csqc_edicts;
+	}
 
 //why use trace.endpos instead?
 //so that if we hit a wall early, we don't have a box covering the whole world because of a shotgun trace.
-	minb[0] = ((v1[0] < trace.endpos[0])?v1[0]:trace.endpos[0]) - mins[0]-1;
-	minb[1] = ((v1[1] < trace.endpos[1])?v1[1]:trace.endpos[1]) - mins[1]-1;
-	minb[2] = ((v1[2] < trace.endpos[2])?v1[2]:trace.endpos[2]) - mins[2]-1;
-	maxb[0] = ((v1[0] > trace.endpos[0])?v1[0]:trace.endpos[0]) + maxs[0]+1;
-	maxb[1] = ((v1[1] > trace.endpos[1])?v1[1]:trace.endpos[1]) + maxs[1]+1;
-	maxb[2] = ((v1[2] > trace.endpos[2])?v1[2]:trace.endpos[2]) + maxs[2]+1;
-/*
-	for (e=1; e < *csqcprogs->parms->sv_num_edicts; e++)
-	{
-		ed = (void*)EDICT_NUM(csqcprogs, e);
-		if (ed->isfree)
-			continue;	//can't collide
-		if (!ed->v->solid)
-			continue;
-		if (ed->v->absmaxs[0] < minb[0] ||
-			ed->v->absmaxs[1] < minb[1] ||
-			ed->v->absmaxs[2] < minb[2] ||
-			ed->v->absmins[0] > maxb[0] ||
-			ed->v->absmins[1] > maxb[1] ||
-			ed->v->absmins[2] > maxb[2])
-			continue;
+	clip.boxmins[0] = ((v1[0] < clip.trace.endpos[0])?v1[0]:clip.trace.endpos[0]) - mins[0]-1;
+	clip.boxmins[1] = ((v1[1] < clip.trace.endpos[1])?v1[1]:clip.trace.endpos[1]) - mins[1]-1;
+	clip.boxmins[2] = ((v1[2] < clip.trace.endpos[2])?v1[2]:clip.trace.endpos[2]) - mins[2]-1;
+	clip.boxmaxs[0] = ((v1[0] > clip.trace.endpos[0])?v1[0]:clip.trace.endpos[0]) + maxs[0]+1;
+	clip.boxmaxs[1] = ((v1[1] > clip.trace.endpos[1])?v1[1]:clip.trace.endpos[1]) + maxs[1]+1;
+	clip.boxmaxs[2] = ((v1[2] > clip.trace.endpos[2])?v1[2]:clip.trace.endpos[2]) + maxs[2]+1;
 
-		hull = CL_HullForEntity(ed);
-		memset(&trace, 0, sizeof(trace));
-		trace.fraction = 1;
-		TransformedHullCheck(hull, v1, v2, &trace2, ed->v->angles);
-		trace2.ent = (void*)ed;
-		if (trace2.fraction < trace.fraction)
-			trace = trace2;
-	}
-*/
-	return trace;
+	VectorCopy(mins, clip.mins);
+	VectorCopy(maxs, clip.maxs);
+	VectorCopy(v1, clip.start);
+	VectorCopy(v2, clip.end);
+	clip.passedict = passedict;
+
+	CS_ClipToLinks(cs_areanodes, &clip);
+	return clip.trace;
 }
 
-
+void CS_CheckVelocity(csqcedict_t *ent)
+{
+}
 
 
 static void PF_cs_remove (progfuncs_t *prinst, struct globalvars_s *pr_globals)
@@ -420,7 +621,7 @@ static void PF_cs_remove (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 	}
 
 	P_DelinkTrailstate(&ed->trailstate);
-
+	CS_UnlinkEdict(ed);
 	ED_Free (prinst, (void*)ed);
 }
 
@@ -608,6 +809,12 @@ static qboolean CopyCSQCEdictToEntity(csqcedict_t *in, entity_t *out)
 	out->frame1time = in->v->frame1time;
 	out->frame2time = in->v->frame2time;
 
+	if (in->v->colormap > 0 && in->v->colormap <= MAX_CLIENTS)
+	{
+		out->colormap = cl.players[(int)in->v->colormap-1].translations;
+		out->scoreboard = &cl.players[(int)in->v->colormap-1];
+	}
+
 	if (!in->v->alpha)
 		out->alpha = 1;
 	else
@@ -619,7 +826,7 @@ static qboolean CopyCSQCEdictToEntity(csqcedict_t *in, entity_t *out)
 	out->skinnum = in->v->skin;
 	out->fatness = in->v->fatness;
 #ifdef Q3SHADERS
-	out->forcedshader = *(int*)&in->v->forceshader;
+	out->forcedshader = *(struct shader_s**)&in->v->forceshader;
 #endif
 
 	out->keynum = -1;
@@ -988,7 +1195,7 @@ static void PF_cs_SetOrigin(progfuncs_t *prinst, struct globalvars_s *pr_globals
 
 	VectorCopy(org, ent->v->origin);
 
-	CL_CS_LinkEdict(ent, false);
+	CS_LinkEdict(ent, false);
 }
 
 static void PF_cs_SetSize(progfuncs_t *prinst, struct globalvars_s *pr_globals)
@@ -1000,7 +1207,7 @@ static void PF_cs_SetSize(progfuncs_t *prinst, struct globalvars_s *pr_globals)
 	VectorCopy(mins, ent->v->mins);
 	VectorCopy(maxs, ent->v->maxs);
 
-	CL_CS_LinkEdict(ent, false);
+	CS_LinkEdict(ent, false);
 }
 
 static void PF_cs_traceline(progfuncs_t *prinst, struct globalvars_s *pr_globals)
@@ -1029,7 +1236,7 @@ static void PF_cs_traceline(progfuncs_t *prinst, struct globalvars_s *pr_globals
 
 	savedhull = ent->v->hull;
 	ent->v->hull = 0;
-	trace = CL_Move (v1, mins, maxs, v2, nomonsters, ent);
+	trace = CS_Move (v1, mins, maxs, v2, nomonsters, ent);
 	ent->v->hull = savedhull;
 	
 	*csqcg.trace_allsolid = trace.allsolid;
@@ -1062,7 +1269,7 @@ static void PF_cs_tracebox(progfuncs_t *prinst, struct globalvars_s *pr_globals)
 
 	savedhull = ent->v->hull;
 	ent->v->hull = 0;
-	trace = CL_Move (v1, mins, maxs, v2, nomonsters, ent);
+	trace = CS_Move (v1, mins, maxs, v2, nomonsters, ent);
 	ent->v->hull = savedhull;
 	
 	*csqcg.trace_allsolid = trace.allsolid;
@@ -1079,6 +1286,81 @@ static void PF_cs_tracebox(progfuncs_t *prinst, struct globalvars_s *pr_globals)
 		*csqcg.trace_ent = EDICT_TO_PROG(prinst, (void*)csqc_edicts);
 }
 
+static trace_t CS_Trace_Toss (csqcedict_t *tossent, csqcedict_t *ignore)
+{
+	int i;
+	int savedhull;
+	float gravity;
+	vec3_t move, end;
+	trace_t trace;
+	float maxvel = Cvar_Get("sv_maxvelocity", "2000", 0, "CSQC physics")->value;
+
+	vec3_t origin, velocity;
+
+	// this has to fetch the field from the original edict, since our copy is truncated
+	gravity = 1;//tossent->v->gravity;
+	if (!gravity)
+		gravity = 1.0;
+	gravity *= Cvar_Get("sv_gravity", "800", 0, "CSQC physics")->value * 0.05;
+
+	VectorCopy (tossent->v->origin, origin);
+	VectorCopy (tossent->v->velocity, velocity);
+
+	CS_CheckVelocity (tossent);
+
+	savedhull = tossent->v->hull;
+	tossent->v->hull = 0;
+	for (i = 0;i < 200;i++) // LordHavoc: sanity check; never trace more than 10 seconds
+	{
+		velocity[2] -= gravity;
+		VectorScale (velocity, 0.05, move);
+		VectorAdd (origin, move, end);
+		trace = CS_Move (origin, tossent->v->mins, tossent->v->maxs, end, MOVE_NORMAL, tossent);
+		VectorCopy (trace.endpos, origin);
+
+		CS_CheckVelocity (tossent);
+
+		if (trace.fraction < 1 && trace.ent && (void*)trace.ent != ignore)
+			break;
+	}
+	tossent->v->hull = savedhull;
+
+	trace.fraction = 0; // not relevant
+	return trace;
+}
+static void PF_cs_tracetoss (progfuncs_t *prinst, struct globalvars_s *pr_globals)
+{
+	trace_t	trace;
+	csqcedict_t	*ent;
+	csqcedict_t	*ignore;
+
+	ent = (csqcedict_t*)G_EDICT(prinst, OFS_PARM0);
+	if (ent == csqc_edicts)
+		Con_DPrintf("tracetoss: can not use world entity\n");
+	ignore = (csqcedict_t*)G_EDICT(prinst, OFS_PARM1);
+
+	trace = CS_Trace_Toss (ent, ignore);
+
+	*csqcg.trace_allsolid = trace.allsolid;
+	*csqcg.trace_startsolid = trace.startsolid;
+	*csqcg.trace_fraction = trace.fraction;
+	*csqcg.trace_inwater = trace.inwater;
+	*csqcg.trace_inopen = trace.inopen;
+	VectorCopy (trace.endpos, csqcg.trace_endpos);
+	VectorCopy (trace.plane.normal, csqcg.trace_plane_normal);
+	pr_global_struct->trace_plane_dist =  trace.plane.dist;
+	if (trace.ent)
+		*csqcg.trace_ent = EDICT_TO_PROG(prinst, trace.ent);
+	else
+		*csqcg.trace_ent = EDICT_TO_PROG(prinst, (void*)csqc_edicts);
+}
+
+static int CS_PointContents(vec3_t org)
+{
+	if (!cl.worldmodel)
+		return FTECONTENTS_EMPTY;
+	return cl.worldmodel->hulls[0].funcs.HullPointContents(&cl.worldmodel->hulls[0], org);
+}
 static void PF_cs_pointcontents(progfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
 	float	*v;
@@ -1086,7 +1368,7 @@ static void PF_cs_pointcontents(progfuncs_t *prinst, struct globalvars_s *pr_glo
 	
 	v = G_VECTOR(OFS_PARM0);
 
-	cont = cl.worldmodel->hulls[0].funcs.HullPointContents(&cl.worldmodel->hulls[0], v);
+	cont = CS_PointContents(v);
 	if (cont & FTECONTENTS_SOLID)
 		G_FLOAT(OFS_RETURN) = Q1CONTENTS_SOLID;
 	else if (cont & FTECONTENTS_SKY)
@@ -2093,14 +2375,14 @@ void PF_cs_droptofloor (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 	end[2] -= 512;
 
 	VectorCopy (ent->v->origin, start);
-	trace = CL_Move (start, ent->v->mins, ent->v->maxs, end, MOVE_NORMAL, ent);
+	trace = CS_Move (start, ent->v->mins, ent->v->maxs, end, MOVE_NORMAL, ent);
 
 	if (trace.fraction == 1 || trace.allsolid)
 		G_FLOAT(OFS_RETURN) = 0;
 	else
 	{
 		VectorCopy (trace.endpos, ent->v->origin);
-		CL_CS_LinkEdict (ent, false);
+		CS_LinkEdict (ent, false);
 		ent->v->flags = (int)ent->v->flags | FL_ONGROUND;
 		ent->v->groundentity = EDICT_TO_PROG(prinst, trace.ent);
 		G_FLOAT(OFS_RETURN) = 1;
@@ -2116,16 +2398,8 @@ static void PF_cs_copyentity (progfuncs_t *prinst, struct globalvars_s *pr_globa
 
 	memcpy(out->v, in->v, csqcentsize);
 
-	CL_CS_LinkEdict (out, false);
+	CS_LinkEdict (out, false);
 }
-
-//these are the builtins that still need to be added.
-#define PF_cs_tracetoss			PF_Fixme
-#define PF_cs_gettaginfo		PF_Fixme
-#define PS_cs_setattachment		PF_Fixme
-#define PF_cs_break				PF_Fixme
-#define PF_cs_walkmove			PF_Fixme
-#define PF_cs_checkbottom		PF_Fixme
 
 static void PF_cl_playingdemo (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
@@ -2269,6 +2543,94 @@ static void PF_shaderforname (progfuncs_t *prinst, struct globalvars_s *pr_globa
 #endif
 }
 
+qboolean CS_CheckBottom (csqcedict_t *ent)
+{
+	int savedhull;
+	vec3_t	mins, maxs, start, stop;
+	trace_t	trace;
+	int		x, y;
+	float	mid, bottom;
+
+	if (!cl.worldmodel)
+		return false;
+	
+	VectorAdd (ent->v->origin, ent->v->mins, mins);
+	VectorAdd (ent->v->origin, ent->v->maxs, maxs);
+
+// if all of the points under the corners are solid world, don't bother
+// with the tougher checks
+// the corners must be within 16 of the midpoint
+	start[2] = mins[2] - 1;
+	for	(x=0 ; x<=1 ; x++)
+		for	(y=0 ; y<=1 ; y++)
+		{
+			start[0] = x ? maxs[0] : mins[0];
+			start[1] = y ? maxs[1] : mins[1];
+			if (!(CS_PointContents (start) & FTECONTENTS_SOLID))
+				goto realcheck;
+		}
+
+//	c_yes++;
+	return true;		// we got out easy
+
+realcheck:
+//	c_no++;
+//
+// check it for real...
+//
+	start[2] = mins[2];
+	
+// the midpoint must be within 16 of the bottom
+	start[0] = stop[0] = (mins[0] + maxs[0])*0.5;
+	start[1] = stop[1] = (mins[1] + maxs[1])*0.5;
+	stop[2] = start[2] - 2*pm_stepheight;
+	trace = CS_Move (start, vec3_origin, vec3_origin, stop, true, ent);
+
+	if (trace.fraction == 1.0)
+		return false;
+	mid = bottom = trace.endpos[2];
+	
+// the corners must be within 16 of the midpoint	
+	for	(x=0 ; x<=1 ; x++)
+		for	(y=0 ; y<=1 ; y++)
+		{
+			start[0] = stop[0] = x ? maxs[0] : mins[0];
+			start[1] = stop[1] = y ? maxs[1] : mins[1];
+			
+			savedhull = ent->v->hull;
+			ent->v->hull = 0;
+			trace = CS_Move (start, vec3_origin, vec3_origin, stop, true, ent);
+			ent->v->hull = savedhull;
+			
+			if (trace.fraction != 1.0 && trace.endpos[2] > bottom)
+				bottom = trace.endpos[2];
+			if (trace.fraction == 1.0 || mid - trace.endpos[2] > pm_stepheight)
+				return false;
+		}
+
+//	c_yes++;
+	return true;
+}
+static void PF_cs_checkbottom (progfuncs_t *prinst, struct globalvars_s *pr_globals)
+{
+	csqcedict_t	*ent;
+
+	ent = (csqcedict_t*)G_EDICT(prinst, OFS_PARM0);
+
+	G_FLOAT(OFS_RETURN) = CS_CheckBottom (ent);
+}
+
+static void PF_cs_break (progfuncs_t *prinst, struct globalvars_s *pr_globals)
+{
+	Con_Printf ("break statement\n");
+#ifdef TEXTEDITOR
+	(*prinst->pr_trace)++;
+#endif
+}
+
+static void PF_cs_walkmove (progfuncs_t *prinst, struct globalvars_s *pr_globals)
+{
+}
 
 #define PF_FixTen PF_Fixme,PF_Fixme,PF_Fixme,PF_Fixme,PF_Fixme,PF_Fixme,PF_Fixme,PF_Fixme,PF_Fixme,PF_Fixme
 
@@ -2276,6 +2638,10 @@ static void PF_shaderforname (progfuncs_t *prinst, struct globalvars_s *pr_globa
 //PF_ - common, works on any vm
 //PF_cs_ - works in csqc only (dependant upon globals or fields)
 //PF_cl_ - works in csqc and menu (if needed...)
+
+//these are the builtins that still need to be added.
+#define PF_cs_gettaginfo		PF_Fixme
+#define PS_cs_setattachment		PF_Fixme
 
 //warning: functions that depend on globals are bad, mkay?
 static builtin_t csqc_builtins[] = {
@@ -2703,7 +3069,6 @@ static int csqc_numbuiltins = sizeof(csqc_builtins)/sizeof(csqc_builtins[0]);
 
 static jmp_buf csqc_abort;
 static progparms_t csqcprogparms;
-static int num_csqc_edicts;
 
 
 
@@ -2769,17 +3134,32 @@ void CSQC_Shutdown(void)
 qbyte *CSQC_PRLoadFile (char *path, void *buffer, int bufsize)
 {
 	qbyte *file;
-	//pretend it doesn't 
-	file = COM_LoadStackFile(path, buffer, bufsize);
 
-#ifndef _DEBUG
-	if (!cls.demoplayback)	//allow any csqc when playing a demo
-		if (!strcmp(path, "csprogs.dat"))	//Fail to load any csprogs who's checksum doesn't match.
-			if (Com_BlockChecksum(buffer, com_filesize) != csqcchecksum)
-				return NULL;
-#endif
+	if (!strcmp(path, "csprogs.dat"))
+	{
+		char newname[MAX_QPATH];
+		_snprintf(newname, MAX_PATH, "csprogsvers/%x.dat", csqcchecksum);
 
-	return file;
+		file = COM_LoadStackFile(newname, buffer, bufsize);
+		if (file)
+			if (Com_BlockChecksum(file, com_filesize) == csqcchecksum)	//and the user wasn't trying to be cunning.
+				return file;
+
+		file = COM_LoadStackFile(path, buffer, bufsize);
+		if (!cls.demoplayback)	//allow them to use csprogs.dat if playing a demo, and don't care about the checksum
+		{
+			if (Com_BlockChecksum(file, com_filesize) != csqcchecksum)
+				return NULL;	//not valid
+
+			//back it up
+			COM_WriteFile(newname, file, com_filesize);
+		}
+
+		return file;
+
+	}
+
+	return COM_LoadStackFile(path, buffer, bufsize);;
 }
 
 double  csqctime;
@@ -2854,9 +3234,12 @@ qboolean CSQC_Init (unsigned int checksum)
 			return false;
 		}
 
+		num_csqc_edicts = 0;
+		CS_ClearWorld();
+
 		PF_InitTempStrings(csqcprogs);
 
-		memset(csqcent, 0, sizeof(*csqcent)*maxcsqcentities);
+		memset(csqcent, 0, sizeof(*csqcent)*maxcsqcentities);	//clear the server->csqc entity translations.
 		
 		csqcentsize = PR_InitEnts(csqcprogs, pr_csmaxedicts.value);
 		

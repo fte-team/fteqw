@@ -372,6 +372,7 @@ void P_ParticleEffect_f(void)
 	particle_t *parts;
 	beamseg_t *beamsegs;
 	skytris_t *st;
+	qboolean settype = false;
 
 	part_type_t *ptype;
 	int pnum, assoc;
@@ -688,7 +689,7 @@ void P_ParticleEffect_f(void)
 				ptype->type = PT_DECAL;
 			else
 				ptype->type = PT_NORMAL;
-
+			settype = true;
 		}
 		else if (!strcmp(var, "isbeam"))
 		{
@@ -876,14 +877,17 @@ void P_ParticleEffect_f(void)
 	if (ptype->friction)
 		ptype->flags |= PT_FRICTION;
 
-	if (ptype->type == PT_NORMAL && !*ptype->texname)
-		ptype->type = PT_SPARK;
-	if (ptype->type == PT_SPARK)
+	if (!settype)
 	{
-		if (*ptype->texname)
-			ptype->type = PT_TEXTUREDSPARK;
-		if (ptype->scale)
-			ptype->type = PT_SPARKFAN;
+		if (ptype->type == PT_NORMAL && !*ptype->texname)
+			ptype->type = PT_SPARK;
+		if (ptype->type == PT_SPARK)
+		{
+			if (*ptype->texname)
+				ptype->type = PT_TEXTUREDSPARK;
+			if (ptype->scale)
+				ptype->type = PT_SPARKFAN;
+		}
 	}
 
 	if (ptype->rampmode && !ptype->ramp)

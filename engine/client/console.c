@@ -1336,5 +1336,4 @@ void Con_NotifyBox (char *text)
 
 	Con_Printf ("\n");
 	key_dest = key_game;
-	realtime = 0;				// put the cursor back to invisible
 }

@@ -280,6 +280,11 @@ typedef enum {FSLFRT_LENGTH, FSLFRT_DEPTH_OSONLY, FSLFRT_DEPTH_ANYPATH} FSLF_Ret
 int FS_FLocateFile(char *filename, FSLF_ReturnType_e returntype, flocation_t *loc);
 
 int COM_FOpenFile (char *filename, FILE **file);
+int COM_FOpenWriteFile (char *filename, FILE **file);
+
+//#ifdef _MSC_VER	//this is enough to annoy me, without conflicting with other (more bizzare) platforms.
+//#define fopen dont_use_fopen
+//#endif
 
 void COM_CloseFile (FILE *h);
 

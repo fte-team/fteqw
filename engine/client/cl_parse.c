@@ -680,6 +680,8 @@ void Sound_NextDownload (void)
 	else
 #endif
 	{
+		if (CL_RemoveClientCommands("modellist"))
+			Con_Printf("Multiple modellists\n");
 //		CL_SendClientCommand ("modellist %i 0", cl.servercount);
 		CL_SendClientCommand (true, modellist_name, cl.servercount, 0);
 	}
@@ -1796,7 +1798,7 @@ void CL_ParseSoundlist (void)
 		if (!str[0])
 			break;
 		numsounds++;
-		if (numsounds == MAX_SOUNDS)
+		if (numsounds >= MAX_SOUNDS)
 			Host_EndGame ("Server sent too many sound_precache");
 				
 //		if (strlen(str)>4)
@@ -1810,6 +1812,8 @@ void CL_ParseSoundlist (void)
 
 	if (n)
 	{
+		if (CL_RemoveClientCommands("soundlist"))
+			Con_Printf("Multiple soundlists\n");
 //		CL_SendClientCommand("soundlist %i %i", cl.servercount, n);
 		CL_SendClientCommand(true, soundlist_name, cl.servercount, n);
 		return;
@@ -1843,7 +1847,7 @@ void CL_ParseModellist (qboolean lots)
 		if (!str[0])
 			break;
 		nummodels++;
-		if (nummodels==MAX_MODELS)
+		if (nummodels>=MAX_MODELS)
 			Host_EndGame ("Server sent too many model_precache");
 		strcpy (cl.model_name[nummodels], str);
 

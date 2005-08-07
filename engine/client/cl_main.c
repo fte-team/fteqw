@@ -369,6 +369,9 @@ void CL_SendConnectPacket (
 #ifdef PEXT_CSQC
 	fteprotextsupported |= PEXT_CSQC;
 #endif
+#ifdef PEXT_DPFLAGS
+	fteprotextsupported |= PEXT_DPFLAGS;
+#endif
 
 	fteprotextsupported &= ftepext;
 
@@ -1409,7 +1412,7 @@ void CL_SetInfo_f (void)
 	if (cls.state >= ca_connected)
 	{
 #ifdef Q2CLIENT
-		if (cls.protocol == CP_QUAKE2)
+		if (cls.protocol == CP_QUAKE2 || cls.protocol == CP_QUAKE3)
 			cls.resendinfo = true;
 		else
 #endif
@@ -2186,7 +2189,7 @@ void CL_Download_f (void)
 
 	if (Cmd_IsInsecure())	//mark server specified downloads.
 	{
-		if (!strncmp(url, "game", 4) || !strcmp(url, "progs.dat") || !strcmp(url, "menu.dat") || !strcmp(url, "csqc.dat") || !strcmp(url, "qwprogs.dat") || strstr(url, "..") || strstr(url, ".dll") || strstr(url, ".so"))
+		if (!strnicmp(url, "game", 4) || !stricmp(url, "progs.dat") || !stricmp(url, "menu.dat") || !stricmp(url, "csprogs.dat") || !stricmp(url, "qwprogs.dat") || strstr(url, "..") || strstr(url, ".dll") || strstr(url, ".so"))
 		{	//yes, I know the user can use a different progs from the one that is specified. If you leave it blank there will be no problem. (server isn't allowed to stuff progs cvar)
 			Con_Printf("Ignoring stuffed download of \"%s\" due to possible security risk\n", url);
 			return;
@@ -2632,7 +2635,7 @@ extern cvar_t cl_netfps;
 int		nopacketcount;
 void SNDDMA_SetUnderWater(qboolean underwater);
 float CL_FilterTime (double time, float wantfps);
-void Host_Frame (float time)
+void Host_Frame (double time)
 {
 	static double		time1 = 0;
 	static double		time2 = 0;
@@ -2640,7 +2643,7 @@ void Host_Frame (float time)
 	int			pass1, pass2, pass3;
 //	float fps;
 	float realframetime;
-	static float spare;
+	static double spare;
 
 	RSpeedLocals();
 

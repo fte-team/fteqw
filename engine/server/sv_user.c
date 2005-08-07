@@ -3919,7 +3919,6 @@ void SV_RunCmd (usercmd_t *ucmd, qboolean recurse)
 	if (progstype == PROG_H2)
 		sv_player->v->light_level = 128;	//hmm... HACK!!!
 
-	sv_player->v->Version++;
 	sv_player->v->button0 = ucmd->buttons & 1;
 	sv_player->v->button2 = (ucmd->buttons >> 1) & 1;
 	if (pr_allowbutton1.value)	//many mods use button1 - it's just a wasted field to many mods. So only work it if the cvar allows.

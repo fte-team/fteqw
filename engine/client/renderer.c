@@ -1267,6 +1267,7 @@ void R_SetRenderer(int wanted)
 	VID_SetPalette			= ri->VID_SetPalette;
 	VID_ShiftPalette		= ri->VID_ShiftPalette;
 	VID_GetRGBInfo			= ri->VID_GetRGBInfo;
+	VID_SetWindowCaption	= ri->VID_SetWindowCaption;
 
 	Media_ShowFrame8bit			= ri->Media_ShowFrame8bit;
 	Media_ShowFrameRGBA_32		= ri->Media_ShowFrameRGBA_32;

@@ -3046,6 +3046,12 @@ int COM_FOpenFile(char *filename, FILE **file)
 		*file = NULL;
 	return com_filesize;
 }
+int COM_FOpenWriteFile(char *filename, FILE **file)
+{
+	COM_CreatePath(filename);
+	*file = fopen(filename, "wb");
+	return !!*file;
+}
 //int COM_FOpenFile (char *filename, FILE **file) {file_from_pak=0;return COM_FOpenFile2 (filename, file, false);}	//FIXME: TEMPORARY
 
 

@@ -194,6 +194,11 @@ typedef struct entvars_s
 	float	glow_color;
 	float	glow_trail;
 
+	vec3_t	color;
+	float	light_lev;
+	float	style;
+	float	pflags;
+
 	//EXT_DIMENSION_VISIBLE
 	float	dimension_see;
 	float	dimension_seen;

@@ -443,6 +443,7 @@ enum clcq2_ops_e
 
 #define U_DPFLAGS (1<<11)
 #define U_TAGINFO (1<<12)
+#define U_LIGHT (1<<13)
 
 #define U_FARMORE (1<<15)
 
@@ -695,6 +696,10 @@ typedef struct entity_state_s
 	qbyte	abslight;
 	qbyte	dpflags;
 	qbyte	solid;
+
+	unsigned short light[4];
+	qbyte lightstyle;
+	qbyte lightpflags;
 
 	unsigned short tagentity;
 	unsigned short tagindex;

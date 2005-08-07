@@ -697,8 +697,7 @@ void Sys_InitFloatTime (void)
 }
 
 #endif
-// DWORD starttime;
-double Sys_DoubleTime (void)
+unsigned int Sys_Milliseconds (void)
 {
 	static DWORD starttime;
 	static qboolean first = true;
@@ -712,19 +711,24 @@ double Sys_DoubleTime (void)
 		starttime = now;
 		return 0.0;
 	}
-	
+	/*
 	if (now < starttime) // wrapped?
 	{
 		double r;
-		r = (now / 1000.0) + (LONG_MAX - starttime / 1000.0);
+		r = (now) + (LONG_MAX - starttime);
 		starttime = now;
 		return r;
 	}
 
 	if (now - starttime == 0)
 		return 0.0;
+*/
+	return (now - starttime);
+}
 
-	return (now - starttime) / 1000.0;
+double Sys_DoubleTime (void)
+{
+	return Sys_Milliseconds()/1000.f;
 }
 
 
@@ -1090,21 +1094,14 @@ int WINAPI WinMain (HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLin
 	{
 		SV_Init (&parms);
 
-		SV_Frame (0.1);
+		SV_Frame ();
 
-		oldtime = Sys_DoubleTime () - 0.1;
 		while (1)
 		{
 			if (!isDedicated)
 				Sys_Error("Dedicated was cleared");
-			NET_Sleep(100, false);	
-
-		// find time passed since last cycle
-			newtime = Sys_DoubleTime ();
-			time = newtime - oldtime;
-			oldtime = newtime;
-			
-			SV_Frame (time);
+			NET_Sleep(100, false);				
+			SV_Frame ();
 		}
 		return TRUE;
 	}
@@ -1141,7 +1138,7 @@ int WINAPI WinMain (HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLin
 			time = newtime - oldtime;
 			oldtime = newtime;
 			
-			SV_Frame (time);
+			SV_Frame ();
 		}
 		else
 #endif

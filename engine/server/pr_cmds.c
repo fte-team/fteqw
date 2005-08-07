@@ -9486,6 +9486,11 @@ void PR_RegisterFields(void)	//it's just easier to do it this way.
 	fieldfloat(glow_color);
 	fieldfloat(glow_trail);
 
+	fieldvector(color);
+	fieldfloat(light_lev);
+	fieldfloat(style);
+	fieldfloat(pflags);
+
 	//UDC_EXTEFFECT... yuckie
 	PR_RegisterFieldVar(svprogfuncs, ev_float, "fieldcolor", (int)&((entvars_t*)0)->seefcolour, -1);
 	PR_RegisterFieldVar(svprogfuncs, ev_float, "fieldsizex", (int)&((entvars_t*)0)->seefsizex, -1);

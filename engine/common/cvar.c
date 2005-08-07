@@ -238,7 +238,7 @@ cvar_t *Cvar_SetCore (cvar_t *var, const char *value, qboolean force)
 		if (cls.state >= ca_connected)
 		{
 #ifdef Q2CLIENT
-			if (cls.protocol == CP_QUAKE2)	//q2 just resends the lot. Kinda bad...
+			if (cls.protocol == CP_QUAKE2 || cls.protocol == CP_QUAKE3)	//q2 just resends the lot. Kinda bad...
 			{
 				cls.resendinfo = true;
 			}

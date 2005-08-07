@@ -372,6 +372,15 @@ void CL_ParseDelta (entity_state_t *from, entity_state_t *to, int bits, qboolean
 		to->tagentity = MSG_ReadShort();
 		to->tagindex = MSG_ReadShort();
 	}
+	if (morebits & U_LIGHT)
+	{
+		to->light[0] = MSG_ReadShort();
+		to->light[1] = MSG_ReadShort();
+		to->light[2] = MSG_ReadShort();
+		to->light[3] = MSG_ReadShort();
+		to->lightstyle = MSG_ReadByte();
+		to->lightpflags = MSG_ReadByte();
+	}
 
 	VectorSubtract(to->origin, from->origin, move);
 
@@ -1499,6 +1508,10 @@ void CL_LinkPacketEntities (void)
 				CL_NewDlight (s1->number, s1->origin[0], s1->origin[1], s1->origin[2] + 16, 400 + flicker, 0, 0);
 			else if (s1->effects & EF_DIMLIGHT)
 				CL_NewDlight (s1->number, s1->origin[0], s1->origin[1], s1->origin[2], 200 + flicker, 0, 0);
+		}
+		if (s1->light[3])
+		{
+			CL_NewDlightRGB (s1->number, s1->origin[0], s1->origin[1], s1->origin[2], s1->light[3], 0, s1->light[0]/1024.0f, s1->light[1]/1024.0f, s1->light[2]/1024.0f);
 		}
 
 		// if set to invisible, skip

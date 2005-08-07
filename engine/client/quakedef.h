@@ -230,7 +230,7 @@ void Host_Shutdown(void);
 void VARGS Host_Error (char *error, ...);
 void VARGS Host_EndGame (char *message, ...);
 qboolean Host_SimulationTime(float time);
-void Host_Frame (float time);
+void Host_Frame (double time);
 void Host_Quit_f (void);
 void VARGS Host_ClientCommands (char *fmt, ...);
 void Host_ShutdownServer (qboolean crash);

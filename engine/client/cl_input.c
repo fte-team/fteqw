@@ -890,13 +890,14 @@ int CL_RemoveClientCommands(char *command)
 {
 	clcmdbuf_t *next, *first;
 	int removed = 0;
+	int len = strlen(command);
 
 	CL_AllowIndependantSendCmd(false);
 
 	if (!clientcmdlist)
 		return 0;
 
-	while(!strcmp(clientcmdlist->command, command))
+	while(!strncmp(clientcmdlist->command, command, len))
 	{
 		next = clientcmdlist->next;
 		Z_Free(clientcmdlist);
@@ -909,7 +910,7 @@ int CL_RemoveClientCommands(char *command)
 	first = clientcmdlist;
 	while(first->next)
 	{
-		if (!strcmp(first->next->command, command))
+		if (!strncmp(first->next->command, command, len))
 		{
 			next = first->next->next;
 			Z_Free(first->next);

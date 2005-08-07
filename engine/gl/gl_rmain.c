@@ -341,7 +341,7 @@ qboolean R_CullSphere (vec3_t org, float radius)
 void R_RotateForEntity (entity_t *e)
 {
 	float m[16];
-	if (e->flags & Q2RF_WEAPONMODEL)
+	if (e->flags & Q2RF_WEAPONMODEL && r_refdef.currentplayernum>=0)
 	{	//rotate to view first
 		m[0] = cl.viewent[r_refdef.currentplayernum].axis[0][0];
 		m[1] = cl.viewent[r_refdef.currentplayernum].axis[0][1];
@@ -800,7 +800,7 @@ void GLR_DrawEntitiesOnList (void)
 		switch (currententity->model->type)
 		{
 		case mod_alias:
-			if (r_refdef.flags & 1 || !cl.worldmodel || cl.worldmodel->fromgame == fg_doom)
+			if (r_refdef.flags & Q2RDF_NOWORLDMODEL || !cl.worldmodel || cl.worldmodel->fromgame == fg_doom)
 				R_DrawGAliasModel (currententity);
 			break;
 		
@@ -1159,7 +1159,7 @@ void GLR_SetupFrame (void)
 	VectorCopy (r_refdef.vieworg, r_origin);
 
 // current viewleaf
-	if (r_refdef.flags & 1)
+	if (r_refdef.flags & Q2RDF_NOWORLDMODEL)
 	{
 	}
 #ifdef Q2BSPS
@@ -1501,7 +1501,7 @@ void R_RenderScene (void)
 	TRACE(("dbg: calling R_SetFrustrum\n"));
 	R_SetFrustum ();
 
-	if (!(r_refdef.flags & 1))
+	if (!(r_refdef.flags & Q2RDF_NOWORLDMODEL))
 	{
 #ifdef DOOMWADS
 		if (!GLR_DoomWorld ())
@@ -1527,7 +1527,7 @@ void R_RenderScene (void)
 	TRACE(("dbg: calling R_RenderDlights\n"));
 	R_RenderDlights ();
 
-	if (cl.worldmodel)
+	if (!(r_refdef.flags & Q2RDF_NOWORLDMODEL))
 	{
 		TRACE(("dbg: calling R_DrawParticles\n"));
 		P_DrawParticles ();
@@ -1548,6 +1548,7 @@ R_Clear
 int gldepthfunc = GL_LEQUAL;
 void R_Clear (void)
 {
+	qglDepthMask(1);
 	if (r_mirroralpha.value != 1.0)
 	{
 		if (gl_clear.value && !r_secondaryview)
@@ -1566,7 +1567,7 @@ void R_Clear (void)
 	{
 		static int trickframe;
 
-		if (gl_clear.value && !(r_refdef.flags & 1))
+		if (gl_clear.value && !(r_refdef.flags & Q2RDF_NOWORLDMODEL))
 			qglClear (GL_COLOR_BUFFER_BIT);
 
 		trickframe++;
@@ -1585,7 +1586,7 @@ void R_Clear (void)
 	}
 	else
 	{
-		if (gl_clear.value && !r_secondaryview)
+		if (gl_clear.value && !r_secondaryview && !(r_refdef.flags & Q2RDF_NOWORLDMODEL))
 			qglClear (GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 		else
 			qglClear (GL_DEPTH_BUFFER_BIT);
@@ -1989,7 +1990,7 @@ void GLR_RenderView (void)
 		return;
 	}
 
-	if (!(r_refdef.flags & 1))
+	if (!(r_refdef.flags & Q2RDF_NOWORLDMODEL))
 		if (!r_worldentity.model || !cl.worldmodel)
 		{
 			GL_DoSwap();

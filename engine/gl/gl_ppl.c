@@ -1824,6 +1824,9 @@ void PPL_DrawEnt(entity_t *e, void *parm)
 	qglEnd();
 	currententity = e;
 
+	qglDepthMask(1);
+	qglDisable(GL_POLYGON_OFFSET_FILL);
+	
 		R_IBrokeTheArrays();
 		R_DrawGAliasModel (currententity);
 

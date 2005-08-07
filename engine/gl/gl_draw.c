@@ -1181,6 +1181,9 @@ void GLDraw_Character (int x, int y, unsigned int num)
 	draw_mesh_st[3][0] = fcol;
 	draw_mesh_st[3][1] = frow+size;
 
+	qglEnable(GL_BLEND);
+	qglDisable(GL_ALPHA_TEST);
+
 	if (num&CON_2NDCHARSETTEXT)
 		GL_DrawMesh(&draw_mesh, char_tex2);
 	else
@@ -1439,6 +1442,9 @@ void GLDraw_Pic (int x, int y, mpic_t *pic)
 	draw_mesh_xyz[3][1] = y+pic->height;
 	draw_mesh_st[3][0] = gl->sl;
 	draw_mesh_st[3][1] = gl->th;
+
+	qglDisable(GL_ALPHA_TEST);
+	qglEnable(GL_BLEND);
 
 	GL_DrawMesh(&draw_mesh, gl->texnum);
 }

@@ -490,7 +490,7 @@ qboolean SV_LoadLevelCache(char *level, char *startspot, qboolean ignoreplayers)
 
 	gametype = cache->gametype;
 
-	sprintf (name, "%s/saves/%s", com_gamedir, level);
+	sprintf (name, "saves/%s", level);
 	COM_DefaultExtension (name, ".lvc");
 
 //	Con_TPrintf (STL_LOADGAMEFROM, name);
@@ -519,7 +519,7 @@ qboolean SV_LoadLevelCache(char *level, char *startspot, qboolean ignoreplayers)
 // been used.  The menu calls it before stuffing loadgame command
 //	SCR_BeginLoadingPlaque ();
 
-	f = fopen (name, "rb");
+	COM_FOpenFile(name, &f);
 	if (!f)
 	{
 		Con_TPrintf (STL_ERRORCOULDNTOPEN);

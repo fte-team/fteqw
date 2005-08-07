@@ -241,8 +241,8 @@ typedef struct qvm_s
 {
 // segments
 	unsigned long *cs;	// code  segment, each instruction is 2 longs
-	qbyte *ds;	// data  segment, partially filled on load
-	qbyte *ss;	// stack segment
+	qbyte *ds;	// data  segment, partially filled on load (data, lit, bss)
+	qbyte *ss;	// stack segment, (follows immediatly after ds, corrupting data before vm)
 
 // pointer registers
 	unsigned long *pc;	// program counter, points to cs, goes up
@@ -253,7 +253,7 @@ typedef struct qvm_s
 	unsigned int len_cs;	// size of cs
 	unsigned int len_ds;	// size of ds
 	unsigned int len_ss;	// size of ss
-	unsigned long ds_mask; // ds mask
+	unsigned long ds_mask; // ds mask (ds+ss)
 
 // memory
 	unsigned int mem_size;
@@ -403,9 +403,8 @@ qvm_t *QVM_Load(const char *name, sys_callex_t syscall)
 // create vitrual machine
 	qvm=Z_Malloc(sizeof(qvm_t));
 	qvm->len_cs=header->instructionCount+1;	//bad opcode padding.
-	qvm->len_ds=header->dataOffset+header->litLength+header->bssLength;
+	qvm->len_ds=header->dataLength+header->litLength+header->bssLength;
 	qvm->len_ss=256*1024;									// 256KB stack space
-//	qvm->ds_mask=0xFFFFFFFF;								// FIXME: make real mask to fit ds+ss size
 
 // memory
 	qvm->ds_mask = qvm->len_ds*sizeof(qbyte)+(qvm->len_ss+4)*sizeof(qbyte);//+4 for a stack check decrease
@@ -414,8 +413,9 @@ qvm_t *QVM_Load(const char *name, sys_callex_t syscall)
 		if ((1<<i) >= qvm->ds_mask)	//is this bit greater than our minimum?
 			break;
 	}
-	qvm->len_ss = (1<<i) - qvm->len_ds*sizeof(qbyte) - 4-1;	//expand the stack space to fill it.
+	qvm->len_ss = (1<<i) - qvm->len_ds*sizeof(qbyte) - 4;	//expand the stack space to fill it.
 	qvm->ds_mask = qvm->len_ds*sizeof(qbyte)+(qvm->len_ss+4)*sizeof(qbyte);
+	qvm->len_ss -= qvm->len_ss&7;
 
 
 	qvm->mem_size=qvm->len_cs*sizeof(long)*2 + qvm->ds_mask;
@@ -432,6 +432,11 @@ qvm_t *QVM_Load(const char *name, sys_callex_t syscall)
 	qvm->bp=qvm->len_ds+qvm->len_ss/2;
 	qvm->cycles=0;
 	qvm->syscall=syscall;
+
+	qvm->ds_mask--;
+
+
+	qvm->ds_mask=0xFFFFFFFF;								// FIXME: make real mask to fit ds+ss size
 
 // load instructions
 {
@@ -561,12 +566,15 @@ static void inline QVM_Enter(qvm_t *vm, long size)
 {
 	long *fp;
 
+	if (size&3)
+		Con_Printf("QVM_Enter: size&3\n");
+
 	vm->bp-=size;
 	if(vm->bp<vm->len_ds)
 		Sys_Error("VM run time error: out of stack\n");
 
 	fp=(long*)(vm->ds+vm->bp);
-	fp[0]=fp[1];					// unknown /maybe size/
+	fp[0]=0;					// unknown /maybe size/
 	fp[1]=*vm->sp++;	// saved PC
 
 	if ((long*)vm->sp > (long*)(vm->ss+vm->len_ss)) Sys_Error("QVM Stack overflow");
@@ -578,6 +586,9 @@ static void inline QVM_Enter(qvm_t *vm, long size)
 static void inline QVM_Return(qvm_t *vm, long size)
 {
 	long *fp;
+
+	if (size&3)
+		Con_Printf("QVM_Return: size&3\n");
 
 	fp=(long*)(vm->ds+vm->bp);
 	vm->bp+=size;
@@ -593,7 +604,7 @@ static void inline QVM_Return(qvm_t *vm, long size)
 			Sys_Error("VM run time error: program returned to negative hyperspace\n");
 
 	vm->pc=vm->cs+fp[1]; // restore PC
-	fp[1] = fp[0];
+//	fp[1] = fp[0];
 }
 
 
@@ -613,7 +624,7 @@ int QVM_Exec(register qvm_t *qvm, int command, int arg0, int arg1, int arg2, int
 //all stack shifts in this function are referenced through these 2 macros.
 #define POP(t)	qvm->sp+=t;if (qvm->sp > stackstart) Sys_Error("QVM Stack underflow");
 #define PUSH(v) qvm->sp--;if (qvm->sp < stackend) Sys_Error("QVM Stack overflow");*qvm->sp=v
-	register qvm_op_t op;
+	register qvm_op_t op=-1;
 	register unsigned long param;
 
 	long *fp;
@@ -629,7 +640,7 @@ int QVM_Exec(register qvm_t *qvm, int command, int arg0, int arg1, int arg2, int
 	qvm->bp=qvm->len_ds+qvm->len_ss/2;
 	qvm->cycles=0;
 // prepare local stack
-	qvm->bp-=13+2;
+	qvm->bp-=(13+2)*sizeof(int);
 	fp=(long*)(qvm->ds+qvm->bp);
 // push all params
 	fp[0]=0;
@@ -795,7 +806,7 @@ int QVM_Exec(register qvm_t *qvm, int command, int arg0, int arg1, int arg2, int
 			POP(2);
 			break;
 		case OP_ARG:
-			*(unsigned long*)&qvm->ds[(param+qvm->bp)&qvm->ds_mask]=qvm->sp[0];
+			*(unsigned long*)&qvm->ds[(qvm->bp+param)&qvm->ds_mask]=qvm->sp[0];
 			POP(1);
 			break;
 		case OP_BLOCK_COPY:

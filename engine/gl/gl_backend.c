@@ -1348,9 +1348,19 @@ void R_ModifyColor ( meshbuffer_t *mb, shaderpass_t *pass )
 			}
 			else
 				i = TOP_RANGE>>4;
-			rc = host_basepal[i<<4];
-			gc = host_basepal[i<<4];
-			bc = host_basepal[i<<4];
+			if (i > 8)
+			{
+				i<<=4;
+			}
+			else
+			{
+				i<<=4;
+				i+=15;
+			}
+			i*=3;
+			rc = host_basepal[i+0];
+			gc = host_basepal[i+1];
+			bc = host_basepal[i+2];
 			if (!gammaworks)
 			{
 				rc = gammatable[rc];
@@ -1388,9 +1398,19 @@ void R_ModifyColor ( meshbuffer_t *mb, shaderpass_t *pass )
 			}
 			else
 				i = BOTTOM_RANGE>>4;
-			rc = host_basepal[i<<4];
-			gc = host_basepal[i<<4];
-			bc = host_basepal[i<<4];
+			if (i > 8)
+			{
+				i<<=4;
+			}
+			else
+			{
+				i<<=4;
+				i+=15;
+			}
+			i*=3;
+			rc = host_basepal[i+0];
+			gc = host_basepal[i+1];
+			bc = host_basepal[i+2];
 			if (!gammaworks)
 			{
 				rc = gammatable[rc];

@@ -2999,7 +2999,7 @@ void Host_Init (quakeparms_t *parms)
 	if ((i = COM_CheckParm ("-width")))	//width on it's own also sets height
 	{
 		Cvar_Set(Cvar_FindVar("vid_width"), com_argv[i+1]);
-		Cvar_SetValue(Cvar_FindVar("vid_height"), (atoi(com_argv[i+1])/3)*4);
+		Cvar_SetValue(Cvar_FindVar("vid_height"), (atoi(com_argv[i+1])/4)*3);
 	}
 	if ((i = COM_CheckParm ("-height")))
 		Cvar_Set(Cvar_FindVar("vid_height"), com_argv[i+1]);
@@ -3007,7 +3007,7 @@ void Host_Init (quakeparms_t *parms)
 	if ((i = COM_CheckParm ("-conwidth")))	//width on it's own also sets height
 	{
 		Cvar_Set(Cvar_FindVar("vid_conwidth"), com_argv[i+1]);
-		Cvar_SetValue(Cvar_FindVar("vid_conheight"), (atoi(com_argv[i+1])/3)*4);
+		Cvar_SetValue(Cvar_FindVar("vid_conheight"), (atoi(com_argv[i+1])/4)*3);
 	}
 	if ((i = COM_CheckParm ("-conheight")))
 		Cvar_Set(Cvar_FindVar("vid_conheight"), com_argv[i+1]);

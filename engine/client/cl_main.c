@@ -2662,7 +2662,7 @@ void Host_Frame (double time)
 
 #ifndef CLIENTONLY
 	RSpeedRemark();
-	SV_Frame(time);
+	SV_Frame();
 	RSpeedEnd(RSPEED_SERVER);
 #endif
 	if (cl.gamespeed<0.1)

@@ -3477,7 +3477,7 @@ int Mod_TagNumForName(model_t *model, char *name)
 
 	return 0;
 }
-
+#ifndef SERVERONLY
 int GLMod_SkinNumForName(model_t *model, char *name)
 {
 	int i;
@@ -3497,7 +3497,7 @@ int GLMod_SkinNumForName(model_t *model, char *name)
 
 	return -1;
 }
-
+#endif
 
 
 #ifdef MD3MODELS
@@ -3627,7 +3627,11 @@ void GL_LoadQ3Model(model_t *mod, void *buffer)
 	parent = NULL;
 	root = NULL;
 
+#ifndef SERVERONLY
 	externalskins = GL_BuildSkinFileList(mod->name);
+#else
+	externalskins = 0;
+#endif
 
 	min[0] = min[1] = min[2] = 0;
 	max[0] = max[1] = max[2] = 0;
@@ -4272,8 +4276,10 @@ galiasinfo_t *GLMod_ParseMD5MeshModel(char *buffer)
 	galiasgroup_t *pose;
 	galiasinfo_t *inf, *root, *lastsurf;
 	float *posedata;
+#ifndef SERVERONLY
 	galiasskin_t *skin;
 	galiastexnum_t *texnum;
+#endif
 
 	float x, y, z, qx, qy, qz;
 
@@ -4386,7 +4392,9 @@ galiasinfo_t *GLMod_ParseMD5MeshModel(char *buffer)
 			int *numweightslist = NULL;
 
 			galisskeletaltransforms_t *trans;
+#ifndef SERVERONLY
 			float *stcoord;
+#endif
 			int *indexes;
 			float w;
 
@@ -4411,18 +4419,20 @@ galiasinfo_t *GLMod_ParseMD5MeshModel(char *buffer)
 				lastsurf = inf;
 			}
 
-			skin = Hunk_Alloc(sizeof(*skin));
-			texnum = Hunk_Alloc(sizeof(*texnum));
-
 			inf->ofsbones = (char*)bones - (char*)inf;
 			inf->numbones = numjoints;
 			inf->groups = 1;
 			inf->groupofs = (char*)pose - (char*)inf;
+
+#ifndef SERVERONLY
+			skin = Hunk_Alloc(sizeof(*skin));
+			texnum = Hunk_Alloc(sizeof(*texnum));
 			inf->numskins = 1;
 			inf->ofsskins = (char*)skin - (char*)inf;
 			skin->texnums = 1;
 			skin->skinspeed = 1;
 			skin->ofstexnums = (char*)texnum - (char*)skin;
+#endif
 			EXPECT("{");
 			for(;;)
 			{
@@ -4433,8 +4443,10 @@ galiasinfo_t *GLMod_ParseMD5MeshModel(char *buffer)
 				if (!strcmp(com_token, "shader"))
 				{
 					buffer = COM_Parse(buffer);
+#ifndef SERVERONLY
 	//				texnum->shader = R_RegisterSkin(com_token);
 					texnum->base = Mod_LoadHiResTexture(com_token, "models", true, true, true);
+#endif
 				}
 				else if (!strcmp(com_token, "numverts"))
 				{
@@ -4447,9 +4459,11 @@ galiasinfo_t *GLMod_ParseMD5MeshModel(char *buffer)
 
 					firstweightlist = Z_Malloc(sizeof(*firstweightlist) * numverts);
 					numweightslist = Z_Malloc(sizeof(*numweightslist) * numverts);
+#ifndef SERVERONLY
 					stcoord = Hunk_Alloc(sizeof(float)*2*numverts);
 					inf->ofs_st_array = (char*)stcoord - (char*)inf;
 					inf->numverts = numverts;
+#endif
 				}
 				else if (!strcmp(com_token, "vert"))
 				{	//vert num ( s t ) firstweight numweights
@@ -4461,9 +4475,13 @@ galiasinfo_t *GLMod_ParseMD5MeshModel(char *buffer)
 
 					EXPECT("(");
 					buffer = COM_Parse(buffer);
+#ifndef SERVERONLY
 					stcoord[num*2+0] = atof(com_token);
+#endif
 					buffer = COM_Parse(buffer);
+#ifndef SERVERONLY
 					stcoord[num*2+1] = atof(com_token);
+#endif
 					EXPECT(")");
 					buffer = COM_Parse(buffer);
 					firstweightlist[num] = atoi(com_token);
@@ -4648,6 +4666,7 @@ galiasgroup_t GLMod_ParseMD5Anim(char *buffer, galiasinfo_t *prototype, void**po
 	float *posedata;
 	float tx, ty, tz, qx, qy, qz;
 	int fac, flags;
+	float f;
 
 	EXPECT("MD5Version");
 	EXPECT("10");
@@ -4725,14 +4744,20 @@ galiasgroup_t GLMod_ParseMD5Anim(char *buffer, galiasinfo_t *prototype, void**po
 	for (i = 0; i < numframes; i++)
 	{
 		EXPECT("(");
-		buffer = COM_Parse(buffer);
-		buffer = COM_Parse(buffer);
-		buffer = COM_Parse(buffer);
+		buffer = COM_Parse(buffer);f=atoi(com_token);
+		if (f < loadmodel->mins[0]) loadmodel->mins[0] = f;
+		buffer = COM_Parse(buffer);f=atoi(com_token);
+		if (f < loadmodel->mins[1]) loadmodel->mins[1] = f;
+		buffer = COM_Parse(buffer);f=atoi(com_token);
+		if (f < loadmodel->mins[2]) loadmodel->mins[2] = f;
 		EXPECT(")");
 		EXPECT("(");
-		buffer = COM_Parse(buffer);
-		buffer = COM_Parse(buffer);
-		buffer = COM_Parse(buffer);
+		buffer = COM_Parse(buffer);f=atoi(com_token);
+		if (f > loadmodel->maxs[0]) loadmodel->maxs[0] = f;
+		buffer = COM_Parse(buffer);f=atoi(com_token);
+		if (f > loadmodel->maxs[1]) loadmodel->maxs[1] = f;
+		buffer = COM_Parse(buffer);f=atoi(com_token);
+		if (f > loadmodel->maxs[2]) loadmodel->maxs[2] = f;
 		EXPECT(")");
 	}
 	EXPECT("}");

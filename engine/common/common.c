@@ -921,7 +921,7 @@ static int MSG_ReadRawBits(sizebuf_t *msg, int bits)
 	return bitmask;
 }
 
-#ifndef MINIMAL
+#ifdef HUFFNETWORK
 /*
 ============
 MSG_ReadHuffBits
@@ -976,7 +976,7 @@ int MSG_ReadBits(int bits)
 	case SZ_RAWBITS:
 		bitmask = MSG_ReadRawBits(&net_message, bits);
 		break;
-#ifndef MINIMAL
+#ifdef HUFFNETWORK
 	case SZ_HUFFMAN:
 		bitmask = MSG_ReadHuffBits(&net_message, bits);
 		break;

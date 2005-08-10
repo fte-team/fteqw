@@ -3138,7 +3138,7 @@ qbyte *CSQC_PRLoadFile (char *path, void *buffer, int bufsize)
 	if (!strcmp(path, "csprogs.dat"))
 	{
 		char newname[MAX_QPATH];
-		_snprintf(newname, MAX_PATH, "csprogsvers/%x.dat", csqcchecksum);
+		_snprintf(newname, MAX_QPATH, "csprogsvers/%x.dat", csqcchecksum);
 
 		file = COM_LoadStackFile(newname, buffer, bufsize);
 		if (file)

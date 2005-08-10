@@ -267,7 +267,6 @@ main
 */
 int main(int argc, char *argv[])
 {
-	double			time, oldtime, newtime;
 	quakeparms_t	parms;
 //	fd_set	fdset;
 //	extern	int		net_socket;
@@ -299,12 +298,11 @@ int main(int argc, char *argv[])
 	SV_Init (&parms);
 
 // run one frame immediately for first heartbeat
-	SV_Frame (0.1);		
+	SV_Frame ();		
 
 //
 // main loop
 //
-	oldtime = Sys_DoubleTime () - 0.1;
 	while (1)
 	{
 		if (do_stdin)
@@ -315,12 +313,7 @@ int main(int argc, char *argv[])
 			stdin_ready = false;
 		}
 
-	// find time passed since last cycle
-		newtime = Sys_DoubleTime ();
-		time = newtime - oldtime;
-		oldtime = newtime;
-		
-		SV_Frame (time);		
+		SV_Frame ();		
 		
 	// extrasleep is just a way to generate a fucked up connection on purpose
 		if (sys_extrasleep.value)

@@ -229,17 +229,8 @@ mpic_t	*SWDraw_SafeCachePic (char *extpath)
 
 	return dat;
 }
-mpic_t	*SWDraw_CachePic (char *path)
-{
-	mpic_t	*pic;
-	pic = SWDraw_SafeCachePic(path);
-	if (!pic)
-		Sys_Error ("Draw_CachePic: failed to load %s", path);
-		
-	return pic;
-}
 
-mpic_t *SWDraw_ConcharsMalloc (char *name)
+mpic_t *SWDraw_ConcharsMalloc (void)
 {
 	// stupid hack for conchars...
 	qpic_t *dat;
@@ -247,7 +238,7 @@ mpic_t *SWDraw_ConcharsMalloc (char *name)
 	int i, j;
 
 	for (pic=swmenu_cachepics, i=0 ; i<swmenu_numcachepics ; pic++, i++)
-		if (!strcmp (name, pic->name))
+		if (!strcmp ("conchars", pic->name))
 			break;	
 
 	if (i == swmenu_numcachepics)
@@ -264,10 +255,24 @@ mpic_t *SWDraw_ConcharsMalloc (char *name)
 //		memcpy (dat->data, draw_chars, 128*128);
 		((mpic_t*)dat)->width = ((mpic_t*)dat)->height = 128;
 		((mpic_t*)dat)->flags = 1;
-		strcpy (pic->name, name);
+		strcpy (pic->name, "conchars");
 	}
 
 	return pic->cache.data;
+}
+
+mpic_t	*SWDraw_CachePic (char *path)
+{
+	mpic_t	*pic;
+
+	if (!strcmp(path, "conchars")) // conchars hack
+		return SWDraw_ConcharsMalloc();
+
+	pic = SWDraw_SafeCachePic(path);
+	if (!pic)
+		Sys_Error ("Draw_CachePic: failed to load %s", path);
+		
+	return pic;
 }
 
 mpic_t	*SWDraw_MallocPic (char *path)
@@ -357,7 +362,7 @@ mpic_t	*SWDraw_PicFromWad (char *name)
 	mpic_t *mpic;
 
 	if (!strcmp(name, "conchars")) // conchars hack
-		return SWDraw_ConcharsMalloc("conchars");
+		return SWDraw_ConcharsMalloc();
 	
 	sprintf(q2name, "pics/%s.pcx", name);
 	mpic = SWDraw_MallocPic(q2name);

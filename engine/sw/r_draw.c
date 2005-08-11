@@ -180,7 +180,7 @@ qboolean SWR_CheckSky (void)
 		}
 
 		sprintf (pathname, "env/%s%s.tga", skyname, suf[r_skysideimage[i]]);
-		if (!CL_CheckOrDownloadFile(pathname, -1))
+		if (!CL_CheckOrDownloadFile(pathname, NULL, -1))
 			return false;
 	}
 	return true;

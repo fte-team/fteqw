@@ -1444,7 +1444,7 @@ void CL_LinkPacketEntities (void)
 {
 	entity_t			*ent;
 	packet_entities_t	*pack;
-	entity_state_t		*s1, *s2;
+	entity_state_t		*s1;
 	float				f;
 	model_t				*model;
 	vec3_t				old_origin;

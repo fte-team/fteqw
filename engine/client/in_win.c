@@ -1441,8 +1441,8 @@ static void ProcessMouse(mouse_t *mouse, usercmd_t *cmd, int pnum)
 		cmd->sidemove += m_side.value * mouse_x;
 	else
 	{
-		if ((int)((cl.viewangles[pnum][PITCH]+89.99)/180) & 1)
-			mouse_x *= -1;
+//		if ((int)((cl.viewangles[pnum][PITCH]+89.99)/180) & 1)
+//			mouse_x *= -1;
 		cl.viewangles[pnum][YAW] -= m_yaw.value * mouse_x;
 	}
 

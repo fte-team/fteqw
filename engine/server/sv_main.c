@@ -387,7 +387,7 @@ void SV_DropClient (client_t *drop)
 	SV_WipeChat(drop);
 #endif
 #ifdef Q2SERVER
-	if (ge)
+	if (ge && drop->protocol == SCP_QUAKE2)
 		ge->ClientDisconnect(drop->q2edict);
 #endif
 	if (svprogfuncs)

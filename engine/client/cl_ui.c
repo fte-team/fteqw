@@ -358,7 +358,9 @@ void VQ3_AddEntity(const q3refEntity_t *q3)
 		Con_Printf("Beam\n");
 		break;
 	case RT_RAIL_CORE:
-		Con_Printf("RailCore\n");
+		VectorCopy(q3->oldorigin, ent.oldorigin);
+		ent.flags |= Q2RF_BEAM;
+		ent.scale = q3->radius;
 		break;
 	case RT_RAIL_RINGS:
 		Con_Printf("RailRings\n");

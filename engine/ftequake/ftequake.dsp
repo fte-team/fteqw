@@ -269,13 +269,12 @@ LINK32=link.exe
 # PROP BASE Target_Dir ""
 # PROP Use_MFC 0
 # PROP Use_Debug_Libraries 1
-# PROP Output_Dir "ftequake___Win32_Debug_Dedicated_Server"
-# PROP Intermediate_Dir "ftequake___Win32_Debug_Dedicated_Server"
+# PROP Output_Dir "DebugServer"
+# PROP Intermediate_Dir "DebugServer"
 # PROP Ignore_Export_Lib 0
 # PROP Target_Dir ""
 # ADD BASE CPP /nologo /G5 /ML /W3 /GX /ZI /Od /I "..\client" /I "../common" /I "../server" /I "../gl" /I "../sw" /I "../qclib" /I "../libs" /D "MINIMAL" /D "_DEBUG" /D "GLQUAKE" /D "WIN32" /D "_WINDOWS" /FR".\GLDebug/" /Fp".\GLDebug/qwcl.pch" /YX /Fo".\GLDebug/" /Fd".\GLDebug/" /FD /c
-# ADD CPP /nologo /G6 /ML /W3 /Gm /Gi /GX /ZI /Od /I "..\client" /I "../common" /I "../server" /I "../gl" /I "../sw" /I "../qclib" /I "../libs" /I "../libs/dxsdk7/include" /D "_DEBUG" /D "WIN32" /D "_WINDOWS" /D "SERVERONLY" /FR".\GLDebug/" /Fp".\GLDebug/qwcl.pch" /Yu"quakedef.h" /Fo".\GLDebug/" /Fd".\GLDebug/" /FD /c
-# SUBTRACT CPP /WX
+# ADD CPP /nologo /G6 /ML /W3 /Gm /Gi /GX /ZI /Od /I "..\client" /I "../common" /I "../server" /I "../gl" /I "../sw" /I "../qclib" /I "../libs" /I "../libs/dxsdk7/include" /D "_DEBUG" /D "WIN32" /D "_WINDOWS" /D "SERVERONLY" /FR".\DebugServer/" /Fp".\DebugServer/qwcl.pch" /Yu"quakedef.h" /Fo".\DebugServer/" /Fd".\DebugServer/" /FD /c
 # ADD BASE MTL /nologo /D "_DEBUG" /mktyplib203 /win32
 # ADD MTL /nologo /D "_DEBUG" /mktyplib203 /win32
 # ADD BASE RSC /l 0x809 /d "_DEBUG"
@@ -6262,7 +6261,7 @@ InputName=math
 !ELSEIF  "$(CFG)" == "ftequake - Win32 Debug Dedicated Server"
 
 # Begin Custom Build
-OutDir=.\ftequake___Win32_Debug_Dedicated_Server
+OutDir=.\DebugServer
 InputPath=..\common\math.s
 InputName=math
 
@@ -7610,7 +7609,7 @@ InputName=worlda
 !ELSEIF  "$(CFG)" == "ftequake - Win32 Debug Dedicated Server"
 
 # Begin Custom Build
-OutDir=.\ftequake___Win32_Debug_Dedicated_Server
+OutDir=.\DebugServer
 InputPath=..\server\worlda.s
 InputName=worlda
 

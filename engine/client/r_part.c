@@ -3768,6 +3768,7 @@ void DrawParticleTypes (void texturedparticles(particle_t *,part_type_t*), void 
 				else if (r_part_beams.value > 0)
 					bdraw = beamparticlesut;
 			}
+			break;
 		case PT_TEXTUREDSPARK:
 			if (r_part_sparks.value)
 			{

@@ -18,7 +18,6 @@ typedef struct csqctreadstate_s {
 } csqctreadstate_t;
 
 static unsigned int csqcchecksum;
-static qboolean csqcwantskeys;
 static csqctreadstate_t *csqcthreads;
 qboolean csqc_resortfrags;
 qboolean csqc_drawsbar;
@@ -68,6 +67,7 @@ cvar_t	cl_csqcdebug = {"cl_csqcdebug", "0"};	//prints entity numbers which arriv
 	globalfloat(servercommandframe,		"servercommandframe");	\
 	\
 	globalfloat(player_localentnum,		"player_localentnum");	/*float		the entity number of the local player*/	\
+	globalfloat(intermission,			"intermission");	/*float		the entity number of the local player*/	\
 	\
 	globalvector(pmove_org,				"pmove_org");			\
 	globalvector(pmove_vel,				"pmove_vel");			\
@@ -175,6 +175,7 @@ static void CSQC_FindGlobals(void)
 	fieldfloat(pitch_speed);\
 							\
 	fieldentity(chain);		\
+	fieldentity(enemy);		\
 	fieldentity(groundentity);	\
 	fieldentity(owner);	\
 							\
@@ -935,12 +936,80 @@ static void PF_R_AddEntityMask(progfuncs_t *prinst, struct globalvars_s *pr_glob
 	}
 }
 
+qboolean csqc_rebuildmatricies;
+float mvp[12];
+float mvpi[12];
+static void buildmatricies(void)
+{
+	float modelview[16];
+	float proj[16];
+
+	ML_ModelViewMatrix(modelview, r_refdef.viewangles, r_refdef.vieworg);
+	ML_ProjectionMatrix2(proj, r_refdef.fov_x, r_refdef.fov_y);
+	Matrix4_Multiply(proj, modelview, mvp);
+	Matrix4x4_Invert_Simple(mvpi, mvp);	//not actually used in this function.
+
+	csqc_rebuildmatricies = false;
+}
+static void PF_cs_project (progfuncs_t *prinst, struct globalvars_s *pr_globals)
+{
+	if (csqc_rebuildmatricies)
+		buildmatricies();
+
+
+	{
+		float *in = G_VECTOR(OFS_PARM0);
+		float *out = G_VECTOR(OFS_RETURN);
+		float v[4], tempv[4];
+
+		v[0] = in[0];
+		v[1] = in[1];
+		v[2] = in[2];
+		v[3] = 1;
+
+		Matrix4_Transform4(mvp, v, tempv); 
+
+		tempv[0] /= tempv[3];
+		tempv[1] /= tempv[3];
+		tempv[2] /= tempv[3];
+
+		out[0] = (1+tempv[0])/2;
+		out[1] = (1+tempv[1])/2;
+		out[2] = (1+tempv[2])/2;
+	}
+}
+static void PF_cs_unproject (progfuncs_t *prinst, struct globalvars_s *pr_globals)
+{
+	if (csqc_rebuildmatricies)
+		buildmatricies();
+
+
+	{
+		float *in = G_VECTOR(OFS_PARM0);
+		float *out = G_VECTOR(OFS_RETURN);
+		
+		float v[4], tempv[4];
+		v[0] = in[0]*2-1;
+		v[1] = in[1]*2-1;
+		v[2] = in[2]*2-1;
+		v[3] = 1;
+
+		Matrix4_Transform4(mvpi, v, tempv); 
+
+		out[0] = tempv[0];
+		out[1] = tempv[1];
+		out[2] = tempv[2];
+	}
+}
+
 //float CalcFov (float fov_x, float width, float height);
 //clear scene, and set up the default stuff.
 static void PF_R_ClearScene (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
 	extern frame_t		*view_frame;
 	extern player_state_t		*view_message;
+
+	csqc_rebuildmatricies = true;
 
 	CL_DecayLights ();
 
@@ -1012,6 +1081,8 @@ static void PF_R_SetViewFlag(progfuncs_t *prinst, struct globalvars_s *pr_global
 {
 	viewflags parametertype = G_FLOAT(OFS_PARM0);
 	float *p = G_VECTOR(OFS_PARM1);
+
+	csqc_rebuildmatricies = true;
 
 	G_FLOAT(OFS_RETURN) = 1;
 	switch(parametertype)
@@ -1210,6 +1281,22 @@ static void PF_cs_SetSize(progfuncs_t *prinst, struct globalvars_s *pr_globals)
 	CS_LinkEdict(ent, false);
 }
 
+static void cs_settracevars(trace_t *tr)
+{
+	*csqcg.trace_allsolid = tr->allsolid;
+	*csqcg.trace_startsolid = tr->startsolid;
+	*csqcg.trace_fraction = tr->fraction;
+	*csqcg.trace_inwater = tr->inwater;
+	*csqcg.trace_inopen = tr->inopen;
+	VectorCopy (tr->endpos, csqcg.trace_endpos);
+	VectorCopy (tr->plane.normal, csqcg.trace_plane_normal);
+	*csqcg.trace_plane_dist =  tr->plane.dist;	
+	if (tr->ent)
+		*csqcg.trace_ent = EDICT_TO_PROG(csqcprogs, (void*)tr->ent);
+	else
+		*csqcg.trace_ent = EDICT_TO_PROG(csqcprogs, (void*)csqc_edicts);
+}
+
 static void PF_cs_traceline(progfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
 	float	*v1, *v2, *mins, *maxs;
@@ -1238,19 +1325,8 @@ static void PF_cs_traceline(progfuncs_t *prinst, struct globalvars_s *pr_globals
 	ent->v->hull = 0;
 	trace = CS_Move (v1, mins, maxs, v2, nomonsters, ent);
 	ent->v->hull = savedhull;
-	
-	*csqcg.trace_allsolid = trace.allsolid;
-	*csqcg.trace_startsolid = trace.startsolid;
-	*csqcg.trace_fraction = trace.fraction;
-	*csqcg.trace_inwater = trace.inwater;
-	*csqcg.trace_inopen = trace.inopen;
-	VectorCopy (trace.endpos, csqcg.trace_endpos);
-	VectorCopy (trace.plane.normal, csqcg.trace_plane_normal);
-	*csqcg.trace_plane_dist =  trace.plane.dist;	
-	if (trace.ent)
-		*csqcg.trace_ent = EDICT_TO_PROG(prinst, (void*)trace.ent);
-	else
-		*csqcg.trace_ent = EDICT_TO_PROG(prinst, (void*)csqc_edicts);
+
+	cs_settracevars(&trace);
 }
 static void PF_cs_tracebox(progfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
@@ -1808,21 +1884,6 @@ static void PF_cs_getplayerkey (progfuncs_t *prinst, struct globalvars_s *pr_glo
 		RETURN_SSTRING(ret);
 	else
 		G_INT(OFS_RETURN) = 0;
-}
-
-extern int mouseusedforgui, mousecursor_x, mousecursor_y;
-static void PF_cs_setwantskeys (progfuncs_t *prinst, struct globalvars_s *pr_globals)
-{
-	qboolean wants = G_FLOAT(OFS_PARM0);
-	csqcwantskeys = wants;
-	mouseusedforgui = wants;
-}
-
-static void PF_cs_getmousepos (progfuncs_t *prinst, struct globalvars_s *pr_globals)
-{
-	G_FLOAT(OFS_RETURN+0) = mousecursor_x;
-	G_FLOAT(OFS_RETURN+1) = mousecursor_y;
-	G_FLOAT(OFS_RETURN+2) = 0;
 }
 
 #define lh_extension_t void
@@ -2447,10 +2508,6 @@ void PF_rotatevectorsbytag (progfuncs_t *prinst, struct globalvars_s *pr_globals
 	if (Mod_GetTag)
 		if (Mod_GetTag(mod, tagnum, frame1, frame2, lerp, frame1time, frame2time, transforms))
 		{
-//			VectorNegate(transforms+0, transforms+0);
-//			VectorNegate(transforms+4, transforms+4);
-//			VectorNegate(transforms+8, transforms+8);
-
 			VectorCopy(csqcg.forward, src+0);
 			VectorNegate(csqcg.right, src+4);
 			VectorCopy(csqcg.up, src+8);
@@ -2628,8 +2685,193 @@ static void PF_cs_break (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 #endif
 }
 
+qboolean CS_movestep (csqcedict_t *ent, vec3_t move, qboolean relink, qboolean noenemy, qboolean set_trace)
+{
+	float		dz;
+	vec3_t		oldorg, neworg, end;
+	trace_t		trace;
+	int			i;
+	csqcedict_t		*enemy = csqc_edicts;
+
+// try the move	
+	VectorCopy (ent->v->origin, oldorg);
+	VectorAdd (ent->v->origin, move, neworg);
+
+// flying monsters don't step up
+	if ( (int)ent->v->flags & (FL_SWIM | FL_FLY) )
+	{
+	// try one move with vertical motion, then one without
+		for (i=0 ; i<2 ; i++)
+		{
+			VectorAdd (ent->v->origin, move, neworg);
+			if (!noenemy)
+			{
+				enemy = (csqcedict_t*)PROG_TO_EDICT(csqcprogs, ent->v->enemy);
+				if (i == 0 && enemy != csqc_edicts)
+				{
+					dz = ent->v->origin[2] - ((csqcedict_t*)PROG_TO_EDICT(csqcprogs, ent->v->enemy))->v->origin[2];
+					if (dz > 40)
+						neworg[2] -= 8;
+					if (dz < 30)
+						neworg[2] += 8;
+				}
+			}
+			trace = CS_Move (ent->v->origin, ent->v->mins, ent->v->maxs, neworg, false, ent);
+			if (set_trace)
+				cs_settracevars(&trace);
+	
+			if (trace.fraction == 1)
+			{
+				if ( ((int)ent->v->flags & FL_SWIM) && !(CS_PointContents(trace.endpos) & FTECONTENTS_FLUID))
+					return false;	// swim monster left water
+	
+				VectorCopy (trace.endpos, ent->v->origin);
+				if (relink)
+					CS_LinkEdict (ent, true);
+				return true;
+			}
+			
+			if (noenemy || enemy == csqc_edicts)
+				break;
+		}
+		
+		return false;
+	}
+
+// push down from a step height above the wished position
+	neworg[2] += pm_stepheight;
+	VectorCopy (neworg, end);
+	end[2] -= pm_stepheight*2;
+
+	trace = CS_Move (neworg, ent->v->mins, ent->v->maxs, end, false, ent);
+	if (set_trace)
+		cs_settracevars(&trace);
+
+	if (trace.allsolid)
+		return false;
+
+	if (trace.startsolid)
+	{
+		neworg[2] -= pm_stepheight;
+		trace = CS_Move (neworg, ent->v->mins, ent->v->maxs, end, false, ent);
+		if (set_trace)
+			cs_settracevars(&trace);
+		if (trace.allsolid || trace.startsolid)
+			return false;
+	}
+	if (trace.fraction == 1)
+	{
+	// if monster had the ground pulled out, go ahead and fall
+		if ( (int)ent->v->flags & FL_PARTIALGROUND )
+		{
+			VectorAdd (ent->v->origin, move, ent->v->origin);
+			if (relink)
+				CS_LinkEdict (ent, true);
+			ent->v->flags = (int)ent->v->flags & ~FL_ONGROUND;
+//	Con_Printf ("fall down\n"); 
+			return true;
+		}
+	
+		return false;		// walked off an edge
+	}
+
+// check point traces down for dangling corners
+	VectorCopy (trace.endpos, ent->v->origin);
+	
+	if (!CS_CheckBottom (ent))
+	{
+		if ( (int)ent->v->flags & FL_PARTIALGROUND )
+		{	// entity had floor mostly pulled out from underneath it
+			// and is trying to correct
+			if (relink)
+				CS_LinkEdict (ent, true);
+			return true;
+		}
+		VectorCopy (oldorg, ent->v->origin);
+		return false;
+	}
+
+	if ( (int)ent->v->flags & FL_PARTIALGROUND )
+	{
+//		Con_Printf ("back on ground\n"); 
+		ent->v->flags = (int)ent->v->flags & ~FL_PARTIALGROUND;
+	}
+	ent->v->groundentity = EDICT_TO_PROG(csqcprogs, trace.ent);
+
+// the move is ok
+	if (relink)
+		CS_LinkEdict (ent, true);
+	return true;
+}
+
 static void PF_cs_walkmove (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
+	csqcedict_t	*ent;
+	float	yaw, dist;
+	vec3_t	move;
+//	dfunction_t	*oldf;
+	int 	oldself;
+	qboolean settrace;
+
+	ent = (csqcedict_t*)PROG_TO_EDICT(prinst, *csqcg.self);
+	yaw = G_FLOAT(OFS_PARM0);
+	dist = G_FLOAT(OFS_PARM1);
+	if (*prinst->callargc >= 3 && G_FLOAT(OFS_PARM2))
+		settrace = true;
+	else
+		settrace = false;
+
+	if ( !( (int)ent->v->flags & (FL_ONGROUND|FL_FLY|FL_SWIM) ) )
+	{
+		G_FLOAT(OFS_RETURN) = 0;
+		return;
+	}
+
+	yaw = yaw*M_PI*2 / 360;
+
+	move[0] = cos(yaw)*dist;
+	move[1] = sin(yaw)*dist;
+	move[2] = 0;
+
+// save program state, because CS_movestep may call other progs
+	oldself = *csqcg.self;
+
+	G_FLOAT(OFS_RETURN) = CS_movestep(ent, move, true, false, settrace);
+
+// restore program state
+	*csqcg.self = oldself;
+}
+
+static void CS_ConsoleCommand_f(void)
+{	//FIXME: unregister them.
+	char cmd[2048];
+	sprintf(cmd, "%s %s", Cmd_Argv(0), Cmd_Args());
+	CSQC_ConsoleCommand(cmd);
+}
+static void PF_cs_registercommand (progfuncs_t *prinst, struct globalvars_s *pr_globals)
+{
+	char *str = PF_VarString(prinst, 0, pr_globals);
+	Cmd_AddRemCommand(str, CS_ConsoleCommand_f);
+}
+
+static qboolean csqc_usinglistener;
+qboolean CSQC_SettingListener(void)
+{	//stops the engine from setting the listener positions.
+	if (csqc_usinglistener)
+	{
+		csqc_usinglistener = false;
+		return true;
+	}
+	return false;
+}
+static void PF_cs_setlistener (progfuncs_t *prinst, struct globalvars_s *pr_globals)
+{
+	float *origin = G_VECTOR(OFS_PARM0);
+	float *forward = G_VECTOR(OFS_PARM1);
+	float *right = G_VECTOR(OFS_PARM2);
+	float *up = G_VECTOR(OFS_PARM3);
+	csqc_usinglistener = true;
+	S_Update(origin, forward, right, up);
 }
 
 #define PF_FixTen PF_Fixme,PF_Fixme,PF_Fixme,PF_Fixme,PF_Fixme,PF_Fixme,PF_Fixme,PF_Fixme,PF_Fixme,PF_Fixme
@@ -2642,6 +2884,10 @@ static void PF_cs_walkmove (progfuncs_t *prinst, struct globalvars_s *pr_globals
 //these are the builtins that still need to be added.
 #define PF_cs_gettaginfo		PF_Fixme
 #define PS_cs_setattachment		PF_Fixme
+
+#define PF_R_PolygonBegin		PF_Fixme			// #306 void(string texturename) R_BeginPolygon (EXT_CSQC_???)
+#define PF_R_PolygonVertex		PF_Fixme			// #307 void(vector org, vector texcoords, vector rgb, float alpha) R_PolygonVertex (EXT_CSQC_???)
+#define PF_R_PolygonEnd			PF_Fixme			// #308 void() R_EndPolygon (EXT_CSQC_???)
 
 //warning: functions that depend on globals are bad, mkay?
 static builtin_t csqc_builtins[] = {
@@ -2804,69 +3050,19 @@ PF_Fixme,
 PF_Fixme,
 
 //130
-PF_R_ClearScene,			// #??? 
-PF_R_AddEntityMask,			// #??? 
-PF_R_AddEntity,				// #??? 
-PF_R_SetViewFlag,			// #??? 
-PF_R_RenderScene,			// #??? 
-
-PF_R_AddDynamicLight,		// #??? 
-PF_Stub,
-PF_Fixme,
-PF_Fixme,
-PF_CL_drawline,			// #???
+PF_FixTen,
 
 //140
-PF_CL_is_cached_pic,		// #??? 
-PF_CL_precache_pic,			// #??? 
-PF_CL_free_pic,				// #??? 
-PF_CL_drawcharacter,		// #??? 
-PF_CL_drawstring,			// #??? 
-PF_CL_drawpic,				// #??? 
-PF_CL_drawfill,				// #??? 
-PF_CL_drawsetcliparea,		// #??? 
-PF_CL_drawresetcliparea,	// #??? 
-PF_CL_drawgetimagesize,		// #??? vector(string picname) draw_getimagesize (EXT_CSQC)
+PF_FixTen,
 
 //150
-PF_cs_getstatf,				// #??? float(float stnum) getstatf (EXT_CSQC)
-PF_cs_getstati,				// #??? float(float stnum) getstati (EXT_CSQC)
-PF_cs_getstats,				// #??? string(float firststnum) getstats (EXT_CSQC)
-PF_cs_SetModelIndex,		// #??? void(entity e, float mdlindex) setmodelindex (EXT_CSQC)
-PF_cs_ModelnameForIndex,	// #??? string(float mdlindex) modelnameforindex (EXT_CSQC)
-
-PF_cs_setsensativityscaler, // #??? void(float sens) setsensitivityscaler (EXT_CSQC)
-PF_cl_cprint,				// #??? void(string s) cprint (EXT_CSQC)
-PF_print,					// #??? void(string s) print (EXT_CSQC)
-PF_cs_pointparticles,		// #??? void(float effectnum, vector origin [, vector dir, float count]) pointparticles (EXT_CSQC)
-PF_cs_particlesloaded,		// #??? float(string effectname) particleeffectnum (EXT_CSQC)
+PF_FixTen,
 
 //160
-PF_cs_getinputstate,		// #??? float(float framenum) getinputstate (EXT_CSQC)
-PF_cs_runplayerphysics,		// #??? void() runstandardplayerphysics (EXT_CSQC)
-PF_cs_getplayerkey,			// #??? string(float playernum, string keyname) getplayerkeyvalue (EXT_CSQC)
-PF_cs_setwantskeys,			// #??? void(float wants) setwantskeys (EXT_CSQC)
-PF_cs_getmousepos,			// #??? vector() getmousepos (EXT_CSQC)
-
-PF_cl_playingdemo,			// #??? float() isdemo
-PF_cl_runningserver,			// #??? float() isserver
-PF_cl_keynumtostring,			// #??? string(float keynum) keynumtostring (EXT_CSQC)
-PF_cl_stringtokeynum,			// #??? float(string keyname) stringtokeynum (EXT_CSQC)
-PF_cl_getkeybind,			// #??? string(float keynum) getkeybind (EXT_CSQC)
+PF_FixTen,
 
 //170
-//note that 'ReadEntity' is pretty hard to implement reliably. Modders should use a combination of ReadShort, and findfloat, and remember that it might not be known clientside (pvs culled or other reason)
-PF_ReadByte,				// #??? float() readbyte (EXT_CSQC)
-PF_ReadChar,				// #??? float() readchar (EXT_CSQC)
-PF_ReadShort,				// #??? float() readshort (EXT_CSQC)
-PF_ReadLong,				// #??? float() readlong (EXT_CSQC)
-PF_ReadCoord,				// #??? float() readcoord (EXT_CSQC)
-
-PF_ReadAngle,				// #??? float() readangle (EXT_CSQC)
-PF_ReadString,				// #??? string() readstring (EXT_CSQC)
-PF_ReadFloat,				// #??? string() readfloat (EXT_CSQC)
-PF_WasFreed,				// #??? float(entity) wasfreed (EXT_CSQC) (should be availabe on server too)
-PF_cs_trailparticles,		// #??? void(entity ent, float effectnum, vector start, vector end) trailparticles (EXT_CSQC),
+PF_FixTen,
 
 //180
 PF_FixTen,
@@ -2947,25 +3143,106 @@ PF_FixTen,
 PF_FixTen,
 
 //300
-PF_FixTen,
+PF_R_ClearScene,				// #300 void() clearscene (EXT_CSQC)
+PF_R_AddEntityMask,				// #301 void(float mask) addentities (EXT_CSQC)
+PF_R_AddEntity,					// #302 void(entity ent) addentity (EXT_CSQC)
+PF_R_SetViewFlag,				// #303 float(float property, ...) setproperty (EXT_CSQC)
+PF_R_RenderScene,				// #304 void() renderscene (EXT_CSQC)
+
+PF_R_AddDynamicLight,			// #305 void(vector org, float radius, vector lightcolours) adddynamiclight (EXT_CSQC)
+
+PF_R_PolygonBegin,				// #306 void(string texturename) R_BeginPolygon (EXT_CSQC_???)
+PF_R_PolygonVertex,				// #307 void(vector org, vector texcoords, vector rgb, float alpha) R_PolygonVertex (EXT_CSQC_???)
+PF_R_PolygonEnd,				// #308 void() R_EndPolygon (EXT_CSQC_???)
+
+PF_Fixme,						// #309
 
 //310
-PF_FixTen,
+//maths stuff that uses the current view settings.
+PF_cs_unproject,				// #310 vector (vector v) unproject (EXT_CSQC)
+PF_cs_project,					// #311 vector (vector v) project (EXT_CSQC)
 
+PF_Fixme,						// #312
+PF_Fixme,						// #313
+PF_Fixme,						// #314
+
+//2d (immediate) operations
+PF_CL_drawline,					// #315 void(float width, vector pos1, vector pos2) drawline (EXT_CSQC)
+PF_CL_is_cached_pic,			// #316 float(string name) iscachedpic (EXT_CSQC)
+PF_CL_precache_pic,				// #317 string(string name, float trywad) precache_pic (EXT_CSQC)
+PF_CL_drawgetimagesize,			// #318 vector(string picname) draw_getimagesize (EXT_CSQC)
+PF_CL_free_pic,					// #319 void(string name) freepic (EXT_CSQC)
 //320
-PF_FixTen,
+PF_CL_drawcharacter,			// #320 float(vector position, float character, vector scale, vector rgb, float alpha [, float flag]) drawcharacter (EXT_CSQC, [EXT_CSQC_???])
+PF_CL_drawstring,				// #321 float(vector position, string text, vector scale, vector rgb, float alpha [, float flag]) drawstring (EXT_CSQC, [EXT_CSQC_???])
+PF_CL_drawpic,					// #322 float(vector position, string pic, vector size, vector rgb, float alpha [, float flag]) drawpic (EXT_CSQC, [EXT_CSQC_???])
+PF_CL_drawfill,					// #323 float(vector position, vector size, vector rgb, float alpha [, float flag]) drawfill (EXT_CSQC, [EXT_CSQC_???])
+PF_CL_drawsetcliparea,			// #324 void(float x, float y, float width, float height) drawsetcliparea (EXT_CSQC_???)
+PF_CL_drawresetcliparea,		// #325 void(void) drawresetcliparea (EXT_CSQC_???)
+
+PF_Fixme,						// #326
+PF_Fixme,						// #327
+PF_Fixme,						// #328
+PF_Fixme,						// #329
 
 //330
-PF_FixTen,
+PF_cs_getstatf,					// #330 float(float stnum) getstatf (EXT_CSQC)
+PF_cs_getstati,					// #331 float(float stnum) getstati (EXT_CSQC)
+PF_cs_getstats,					// #332 string(float firststnum) getstats (EXT_CSQC)
+PF_cs_SetModelIndex,			// #333 void(entity e, float mdlindex) setmodelindex (EXT_CSQC)
+PF_cs_ModelnameForIndex,		// #334 string(float mdlindex) modelnameforindex (EXT_CSQC)
+
+PF_cs_particlesloaded,			// #335 float(string effectname) particleeffectnum (EXT_CSQC)
+PF_cs_trailparticles,			// #336 void(entity ent, float effectnum, vector start, vector end) trailparticles (EXT_CSQC),
+PF_cs_pointparticles,			// #337 void(float effectnum, vector origin [, vector dir, float count]) pointparticles (EXT_CSQC)
+
+PF_cl_cprint,					// #338 void(string s) cprint (EXT_CSQC)
+PF_print,						// #339 void(string s) print (EXT_CSQC)
 
 //340
-PF_FixTen,
+PF_cl_keynumtostring,			// #340 string(float keynum) keynumtostring (EXT_CSQC)
+PF_cl_stringtokeynum,			// #341 float(string keyname) stringtokeynum (EXT_CSQC)
+PF_cl_getkeybind,				// #342 string(float keynum) getkeybind (EXT_CSQC)
 
+PF_Fixme,						// #343
+PF_Fixme,						// #344
+
+PF_cs_getinputstate,			// #345 float(float framenum) getinputstate (EXT_CSQC)
+PF_cs_setsensativityscaler, 	// #346 void(float sens) setsensitivityscaler (EXT_CSQC)
+
+PF_cs_runplayerphysics,			// #347 void() runstandardplayerphysics (EXT_CSQC)
+
+PF_cs_getplayerkey,				// #348 string(float playernum, string keyname) getplayerkeyvalue (EXT_CSQC)
+
+PF_cl_playingdemo,				// #349 float() isdemo (EXT_CSQC)
 //350
-PF_FixTen,
+PF_cl_runningserver,			// #350 float() isserver (EXT_CSQC)
+
+PF_cs_setlistener, 				// #351 void(vector origin, vector forward, vector right, vector up) SetListener (EXT_CSQC)
+PF_cs_registercommand,			// #352 void(string cmdname) registercommand (EXT_CSQC)
+PF_WasFreed,					// #353 float(entity ent) wasfreed (EXT_CSQC) (should be availabe on server too)
+
+PF_Fixme,						// #354
+PF_Fixme,						// #355
+PF_Fixme,						// #356
+PF_Fixme,						// #357
+PF_Fixme,						// #358
+PF_Fixme,						// #359
 
 //360
-PF_FixTen,
+//note that 'ReadEntity' is pretty hard to implement reliably. Modders should use a combination of ReadShort, and findfloat, and remember that it might not be known clientside (pvs culled or other reason)
+PF_ReadByte,					// #360 float() readbyte (EXT_CSQC)
+PF_ReadChar,					// #361 float() readchar (EXT_CSQC)
+PF_ReadShort,					// #362 float() readshort (EXT_CSQC)
+PF_ReadLong,					// #363 float() readlong (EXT_CSQC)
+PF_ReadCoord,					// #364 float() readcoord (EXT_CSQC)
+
+PF_ReadAngle,					// #365 float() readangle (EXT_CSQC)
+PF_ReadString,					// #366 string() readstring (EXT_CSQC)
+PF_ReadFloat,					// #367 string() readfloat (EXT_CSQC)
+
+PF_Fixme,						// #368
+PF_Fixme,						// #369
 
 //370
 PF_FixTen,
@@ -3146,7 +3423,7 @@ qbyte *CSQC_PRLoadFile (char *path, void *buffer, int bufsize)
 				return file;
 
 		file = COM_LoadStackFile(path, buffer, bufsize);
-		if (!cls.demoplayback)	//allow them to use csprogs.dat if playing a demo, and don't care about the checksum
+		if (file && !cls.demoplayback)	//allow them to use csprogs.dat if playing a demo, and don't care about the checksum
 		{
 			if (Com_BlockChecksum(file, com_filesize) != csqcchecksum)
 				return NULL;	//not valid
@@ -3160,6 +3437,34 @@ qbyte *CSQC_PRLoadFile (char *path, void *buffer, int bufsize)
 	}
 
 	return COM_LoadStackFile(path, buffer, bufsize);;
+}
+
+int CSQC_PRFileSize (char *path)
+{
+	qbyte *file;
+
+	if (!strcmp(path, "csprogs.dat"))
+	{
+		char newname[MAX_QPATH];
+		_snprintf(newname, MAX_PATH, "csprogsvers/%x.dat", csqcchecksum);
+
+		file = COM_LoadTempFile (newname);
+		if (file)
+			if (Com_BlockChecksum(file, com_filesize) == csqcchecksum)	//and the user wasn't trying to be cunning.
+				return com_filesize+1;
+
+		file = COM_LoadTempFile(path);
+		if (file && !cls.demoplayback)	//allow them to use csprogs.dat if playing a demo, and don't care about the checksum
+		{
+			if (Com_BlockChecksum(file, com_filesize) != csqcchecksum)
+				return -1;	//not valid
+		}
+
+		return com_filesize;
+
+	}
+
+	return COM_FileSize(path);
 }
 
 double  csqctime;
@@ -3179,7 +3484,7 @@ qboolean CSQC_Init (unsigned int checksum)
 
 	csqcprogparms.progsversion = PROGSTRUCT_VERSION;
 	csqcprogparms.ReadFile = CSQC_PRLoadFile;//char *(*ReadFile) (char *fname, void *buffer, int *len);
-	csqcprogparms.FileSize = COM_FileSize;//int (*FileSize) (char *fname);	//-1 if file does not exist
+	csqcprogparms.FileSize = CSQC_PRFileSize;//int (*FileSize) (char *fname);	//-1 if file does not exist
 	csqcprogparms.WriteFile = QC_WriteFile;//bool (*WriteFile) (char *name, void *data, int len);
 	csqcprogparms.printf = (void *)Con_Printf;//Con_Printf;//void (*printf) (char *, ...);
 	csqcprogparms.Sys_Error = Sys_Error;
@@ -3282,6 +3587,8 @@ qboolean CSQC_DrawView(void)
 		*csqcg.clientcommandframe = cls.netchan.outgoing_sequence;
 	if (csqcg.servercommandframe)
 		*csqcg.servercommandframe = cls.netchan.incoming_sequence;
+	if (csqcg.intermission)
+		*csqcg.intermission = cl.intermission;
 
 	if (csqcg.time)
 		*csqcg.time = Sys_DoubleTime();
@@ -3297,7 +3604,7 @@ qboolean CSQC_KeyPress(int key, qboolean down)
 {
 	void *pr_globals;
 
-	if (!csqcprogs || !csqcwantskeys)
+	if (!csqcprogs || !csqcg.input_event)
 		return false;
 
 	pr_globals = PR_globals(csqcprogs, PR_CURRENT);
@@ -3307,7 +3614,23 @@ qboolean CSQC_KeyPress(int key, qboolean down)
 
 	PR_ExecuteProgram (csqcprogs, csqcg.input_event);
 
-	return true;
+	return G_FLOAT(OFS_RETURN);
+}
+qboolean CSQC_MouseMove(float xdelta, float ydelta)
+{
+	void *pr_globals;
+
+	if (!csqcprogs || !csqcg.input_event)
+		return false;
+
+	pr_globals = PR_globals(csqcprogs, PR_CURRENT);
+	G_FLOAT(OFS_PARM0) = 2;
+	G_FLOAT(OFS_PARM1) = xdelta;
+	G_FLOAT(OFS_PARM2) = ydelta;
+
+	PR_ExecuteProgram (csqcprogs, csqcg.input_event);
+
+	return G_FLOAT(OFS_RETURN);
 }
 
 qboolean CSQC_ConsoleCommand(char *cmd)

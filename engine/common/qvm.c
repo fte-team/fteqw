@@ -625,7 +625,7 @@ int QVM_Exec(register qvm_t *qvm, int command, int arg0, int arg1, int arg2, int
 	static int recurse = 0;
 
 	if (recurse++)
-		Host_EndGame("QVM recursivly entered\n");
+		Sys_Error("QVM recursivly entered\n");
 
 	stackstart	= (unsigned long*)(qvm->ss+qvm->len_ss);
 	stackend	= (unsigned long*)(qvm->ss);

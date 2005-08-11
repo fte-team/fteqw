@@ -1613,7 +1613,10 @@ qboolean SV_AllowDownload (char *name)
 
 	//root of gamedir
 	if (!strchr(name, '/') && !allow_download_root.value)
-		return false;
+	{
+		if (strcmp(name, "csprogs.dat"))	//we always allow csprogs.dat to be downloaded.
+			return false;
+	}
 
 	//any other subdirs are allowed
 	return true;

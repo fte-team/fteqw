@@ -490,7 +490,7 @@ void Skin_NextDownload (void)
 		if (strchr(sc->skin->name, ' '))	//skip over skins using a space
 			continue;
 
-		if (!CL_CheckOrDownloadFile(va("skins/%s.pcx", sc->skin->name), false))
+		if (!CL_CheckOrDownloadFile(va("skins/%s.pcx", sc->skin->name), NULL, false))
 			return;		// started a download
 	}
 

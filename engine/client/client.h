@@ -178,6 +178,10 @@ typedef struct
 							// the usercmd
 	packet_entities_t	packet_entities;
 	qboolean	invalid;		// true if the packet_entities delta was invalid
+
+	int server_time;
+	int client_time;
+	int server_message_num;
 } frame_t;
 
 #ifdef Q2CLIENT
@@ -379,6 +383,7 @@ extern int nq_dp_protocol;
 
 typedef struct downloadlist_s {
 	char name[128];
+	char localname[128];
 	struct downloadlist_s *next;
 } downloadlist_t;
 
@@ -708,7 +713,7 @@ void CLNQ_ParseServerMessage (void);
 void CLQ2_ParseServerMessage (void);
 #endif
 void CL_NewTranslation (int slot);
-qboolean	CL_CheckOrDownloadFile (char *filename, int nodelay);
+qboolean	CL_CheckOrDownloadFile (char *filename, char *localname, int nodelay);
 qboolean CL_IsUploading(void);
 void CL_NextUpload(void);
 void CL_StartUpload (qbyte *data, int size);

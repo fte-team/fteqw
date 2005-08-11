@@ -1180,5 +1180,7 @@ typedef struct q1usercmd_s
 #define DRF_TRANSLUCENT			128
 
 
-
-
+//TENEBRAE_GFX_DLIGHTS
+#define PFLAGS_NOSHADOW		1
+#define PFLAGS_CORONA		2
+#define PFLAGS_FULLDYNAMIC	128

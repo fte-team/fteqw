@@ -3109,14 +3109,17 @@ static void PF_cvar (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 	else if (!strcmp(str, "halflifebsp"))
 		G_FLOAT(OFS_RETURN) = sv.worldmodel->fromgame == fg_halflife;
 	else
-		G_FLOAT(OFS_RETURN) = Cvar_VariableValue (str);
+	{
+		cvar_t *cv = Cvar_Get(str, "", 0, "QC variables");
+		G_FLOAT(OFS_RETURN) = cv->value;
+	}
 }
 
 void PF_cvar_string (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
-	char	*str;
-	str = PR_GetStringOfs(prinst, OFS_PARM0);
-	RETURN_CSTRING(Cvar_VariableString (str));
+	char	*str = PR_GetStringOfs(prinst, OFS_PARM0);
+	cvar_t *cv = Cvar_Get(str, "", 0, "QC variables");
+	RETURN_CSTRING(cv->string);
 }
 
 /*
@@ -3134,11 +3137,8 @@ void PF_cvar_set (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 	var_name = PR_GetStringOfs(prinst, OFS_PARM0);
 	val = PR_GetStringOfs(prinst, OFS_PARM1);
 
-	var = Cvar_FindVar(var_name);
-	if (!var)
-		Con_Printf("PF_cvar_set: variable %s not found\n", var_name);
-	else
-		Cvar_Set (var, val);
+	var = Cvar_Get(var_name, val, 0, "QC variables");
+	Cvar_Set (var, val);
 }
 
 void PF_cvar_setf (progfuncs_t *prinst, struct globalvars_s *pr_globals)
@@ -6113,6 +6113,7 @@ lh_extension_t QSG_Extensions[] = {
 	{"FRIK_FILE",						11, NULL, {"stof", "fopen","fclose","fgets","fputs","strlen","strcat","substring","stov","strzone","strunzone"}},
 	{"FTE_CALLTIMEOFDAY",				1,	NULL, {"calltimeofday"}},
 	{"FTE_FORCEINFOKEY",				1,	NULL, {"forceinfokey"}},
+	{"FTE_GFX_QUAKE3SHADERS"},		
 	{"FTE_ISBACKBUFFERED",				1,	NULL, {"isbackbuffered"}},
 #ifndef NOMEDIA
 	{"FTE_MEDIA_AVI"},	//playfilm supports avi files.
@@ -6136,7 +6137,7 @@ lh_extension_t QSG_Extensions[] = {
 
 	{"KRIMZON_SV_PARSECLIENTCOMMAND",	3,	NULL, {"clientcommand", "tokenize", "argv"}},	//very very similar to the mvdsv system.
 	{"QSG_CVARSTRING",					1,	NULL, {"cvar_string"}},
-	{"QW_ENGINE"},	//warning: interpretation of .skin on players can be dodgy, as can some other QW features that differ from NQ.
+	{"QW_ENGINE",						1,	NULL, {"infokey", "stof", "logfrag"}},	//warning: interpretation of .skin on players can be dodgy, as can some other QW features that differ from NQ.
 	{"QWE_MVD_RECORD"},	//Quakeworld extended get the credit for this one. (mvdsv)
 	{"TEI_MD3_MODEL"},
 //	{"TQ_RAILTRAIL"},	//treat this as the ZQ style railtrails which the client already supports, okay so the preparse stuff needs strengthening.

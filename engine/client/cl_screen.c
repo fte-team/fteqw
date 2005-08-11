@@ -557,7 +557,7 @@ void SCR_ShowPic_Create(void)
 	sp->x = MSG_ReadShort();
 	sp->y = MSG_ReadShort();
 
-	CL_CheckOrDownloadFile(sp->picname, -1);
+	CL_CheckOrDownloadFile(sp->picname, sp->picname, -1);
 }
 
 void SCR_ShowPic_Hide(void)
@@ -605,7 +605,7 @@ void SCR_ShowPic_Update(void)
 	sp->picname = Z_Malloc(strlen(s)+1);
 	strcpy(sp->picname, s);
 
-	CL_CheckOrDownloadFile(sp->picname, false);
+	CL_CheckOrDownloadFile(sp->picname, sp->picname, false);
 }
 
 void SCR_ShowPic_Script_f(void)

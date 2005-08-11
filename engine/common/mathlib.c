@@ -918,6 +918,38 @@ void ML_ProjectionMatrix(float *proj, float wdivh, float fovy)
 	proj[11] = -1;
 	proj[15] = 0;
 }
+void ML_ProjectionMatrix2(float *proj, float fovx, float fovy)
+{
+	float xmin, xmax, ymin, ymax;
+	float nudge = 1;
+
+	//proj
+	ymax = 4 * tan( fovy * M_PI / 360.0 );
+	ymin = -ymax;
+
+	xmax = 4 * tan( fovx * M_PI / 360.0 );
+	xmin = -xmax;
+
+	proj[0] = (2*4) / (xmax - xmin);
+	proj[4] = 0;
+	proj[8] = (xmax + xmin) / (xmax - xmin);
+	proj[12] = 0;
+
+	proj[1] = 0;
+	proj[5] = (2*4) / (ymax - ymin);
+	proj[9] = (ymax + ymin) / (ymax - ymin);
+	proj[13] = 0;
+
+	proj[2] = 0;
+	proj[6] = 0;
+	proj[10] = -1  * nudge;
+	proj[14] = -2*4 * nudge;
+	
+	proj[3] = 0;
+	proj[7] = 0;
+	proj[11] = -1;
+	proj[15] = 0;
+}
 
 typedef struct {
 	float m[4][4];

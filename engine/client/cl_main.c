@@ -108,6 +108,8 @@ cvar_t	v_powerupshell	= {"v_powerupshell", "0"};
 cvar_t	cl_gibfilter	= {"cl_gibfilter", "0"};
 cvar_t	cl_deadbodyfilter	= {"cl_deadbodyfilter", "0"};
 
+cvar_t	allow_download_csprogs = {"allow_download_csprogs", "0"};
+
 cvar_t	cl_muzzleflash = {"cl_muzzleflash", "1"};
 
 cvar_t	cl_item_bobbing = {"cl_model_bobbing", "0"};
@@ -1314,16 +1316,6 @@ void CL_FullServerinfo_f (void)
 		cl.gamespeed = 1;
 
 	cl.csqcdebug = atoi(Info_ValueForKey(cl.serverinfo, "*csqcdebug"));
-
-#ifdef CSQC_DAT
-	p = Info_ValueForKey(cl.serverinfo, "*csprogs");
-	if (*p || cls.demoplayback)	//only allow csqc if the server says so, and the 'checksum' matches.
-	{
-		unsigned int chksum = strtoul(p, NULL, 0);
-		if (CSQC_Init(chksum))
-			CL_SendClientCommand(true, "enablecsqc");
-	}
-#endif
 }
 
 /*
@@ -2197,7 +2189,7 @@ void CL_Download_f (void)
 
 		cls.downloadtype = dl_singlestuffed;
 
-		CL_CheckOrDownloadFile(url, false);
+		CL_CheckOrDownloadFile(url, url, false);
 		return;
 	}
 	else
@@ -2205,7 +2197,7 @@ void CL_Download_f (void)
 		cls.downloadtype = dl_single;
 	}
 
-	CL_EnqueDownload(url, true, false);
+	CL_EnqueDownload(url, url, true, false);
 
 	/*
 	strcpy(cls.downloadname, url);
@@ -2381,6 +2373,8 @@ void CL_Init (void)
 	Cvar_Register (&cl_deadbodyfilter, "Item effects");
 
 	Cvar_Register (&cl_nolerp, "Item effects");
+
+	Cvar_Register (&allow_download_csprogs, cl_controlgroup);
 
 	//
 	// info mirrors
@@ -2815,10 +2809,10 @@ void Host_Frame (double time)
 		time2 = Sys_DoubleTime ();
 
 	// update audio
-	if (cls.state == ca_active)
-	{
+	if (CSQC_SettingListener())
+		S_ExtraUpdate();
+	else if (cls.state == ca_active)
 		S_Update (r_origin, vpn, vright, vup);
-	}
 	else
 		S_Update (vec3_origin, vec3_origin, vec3_origin, vec3_origin);
 

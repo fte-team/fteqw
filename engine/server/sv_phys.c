@@ -1872,19 +1872,24 @@ qboolean SV_Physics (void)
 
 	if (svs.gametype != GT_PROGS)	//make tics multiples of sv_maxtic (defaults to 0.1)
 	{
-		host_frametime = realtime - old_time;
+		host_frametime = sv.time - old_time;
+		if (host_frametime<0)
+		{
+			if (host_frametime < -1)
+				old_time = sv.time;
+			host_frametime = 0;
+		}
 		if (host_frametime < sv_maxtic.value && realtime)
 		{
-			sv.time+=host_frametime;
+//			sv.time+=host_frametime;
 			return true;	//don't bother with the whole server thing for a bit longer
 		}
 		if (host_frametime > sv_maxtic.value)
 			host_frametime = sv_maxtic.value;
-		old_time = realtime;
+		old_time = sv.time;
 
 
 		sv.framenum++;
-		sv.time = sv.framenum*100;
 		switch(svs.gametype)
 		{
 #ifdef Q2SERVER

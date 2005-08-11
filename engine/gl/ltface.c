@@ -133,7 +133,10 @@ void LightLoadEntities(char *entstring)
 		if (!entstring || !*com_token)
 			break;
 		if (strcmp(com_token, "{"))
-			Host_Error("token wasn't an open brace\n");
+		{	//someone messed up. Stop parsing.
+			Con_Printf("token wasn't an open brace\n");
+			break;
+		}
 
 		mapent = &entities[num_entities];
 		memset(mapent, 0, sizeof(*mapent));

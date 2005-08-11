@@ -37,6 +37,7 @@ cvar_t	cl_netfps = {"cl_netfps", "0"};
 cvar_t	cl_smartjump = {"cl_smartjump", "1"};
 
 cvar_t	cl_prydoncursor = {"cl_prydoncursor", "0"};	//for dp protocol
+cvar_t	cl_instantrotate = {"cl_instantrotate", "1", NULL, CVAR_SEMICHEAT};
 
 
 usercmd_t independantphysics[MAX_SPLITS];
@@ -422,7 +423,8 @@ void CL_AdjustAngles (int pnum)
 //			quant = -800;
 //		else if (quant > 800)
 //			quant = 800;
-		quant *= speed;
+		if (!cl_instantrotate.value)
+			quant *= speed;
 		in_rotate -= quant;
 		cl.viewangles[pnum][YAW] += quant;
 	}
@@ -1547,6 +1549,7 @@ void CL_InitInput (void)
 	Cvar_Register (&cl_smartjump, inputnetworkcvargroup);
 
 	Cvar_Register (&cl_prydoncursor, inputnetworkcvargroup);
+	Cvar_Register (&cl_instantrotate, inputnetworkcvargroup);
 }
 
 /*

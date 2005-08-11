@@ -660,7 +660,7 @@ void StartQuakeServer(void)
 	SV_Init (&parms);
 
 // run one frame immediately for first heartbeat
-	SV_Frame (0.1);		
+	SV_Frame ();		
 }
 
 
@@ -682,7 +682,7 @@ void ServerMainLoop(void)
 		newtime = Sys_DoubleTime ();
 		time = newtime - oldtime;
 		oldtime = newtime;
-		SV_Frame (time);
+		SV_Frame ();
 
 
 #ifdef USESERVICE

@@ -1761,7 +1761,7 @@ void R_DrawBeam( entity_t *e )
 
 	vec3_t perpvec;
 	vec3_t direction, normalized_direction;
-	vec3_t	start_points[NUM_BEAM_SEGS], end_points[NUM_BEAM_SEGS];
+	vec3_t	points[NUM_BEAM_SEGS*2];
 	vec3_t oldorigin, origin;
 
 	oldorigin[0] = e->oldorigin[0];
@@ -1780,43 +1780,97 @@ void R_DrawBeam( entity_t *e )
 		return;
 
 	PerpendicularVector( perpvec, normalized_direction );
-	VectorScale( perpvec, e->frame / 2, perpvec );
+	if (!e->frame)
+		VectorScale( perpvec, e->scale / 2, perpvec );
+	else
+		VectorScale( perpvec, e->frame / 2, perpvec );
 
 	for ( i = 0; i < 6; i++ )
 	{
-		RotatePointAroundVector( start_points[i], normalized_direction, perpvec, (360.0/NUM_BEAM_SEGS)*i );
-		VectorAdd( start_points[i], origin, start_points[i] );
-		VectorAdd( start_points[i], direction, end_points[i] );
+		RotatePointAroundVector( points[i], normalized_direction, perpvec, (360.0/NUM_BEAM_SEGS)*i );
+		VectorAdd( points[i], origin, points[i] );
+		VectorAdd( points[i], direction, points[i+NUM_BEAM_SEGS] );
 	}
 
-	qglDisable( GL_TEXTURE_2D );
-	qglEnable( GL_BLEND );
-	qglDepthMask( GL_FALSE );
-	qglDisable(GL_ALPHA_TEST);
-
-	r = ( d_8to24rgbtable[e->skinnum & 0xFF] ) & 0xFF;
-	g = ( d_8to24rgbtable[e->skinnum & 0xFF] >> 8 ) & 0xFF;
-	b = ( d_8to24rgbtable[e->skinnum & 0xFF] >> 16 ) & 0xFF;
-
-	r *= 1/255.0F;
-	g *= 1/255.0F;
-	b *= 1/255.0F;
-
-	qglColor4f( r, g, b, e->alpha );
-
-	qglBegin( GL_TRIANGLE_STRIP );
-	for ( i = 0; i < NUM_BEAM_SEGS; i++ )
+#ifdef Q3SHADERS
+	if (e->forcedshader)
 	{
-		qglVertex3fv( start_points[i] );
-		qglVertex3fv( end_points[i] );
-		qglVertex3fv( start_points[(i+1)%NUM_BEAM_SEGS] );
-		qglVertex3fv( end_points[(i+1)%NUM_BEAM_SEGS] );
-	}
-	qglEnd();
+		int indexarray[NUM_BEAM_SEGS*6];
+		vec2_t texcoords[NUM_BEAM_SEGS*2];
+		mesh_t mesh;
+		meshbuffer_t mb;
 
-	qglEnable( GL_TEXTURE_2D );
-	qglDisable( GL_BLEND );
-	qglDepthMask( GL_TRUE );
+		mesh.xyz_array = points;
+		mesh.indexes = indexarray;
+		mesh.numindexes = sizeof(indexarray)/sizeof(indexarray[0]);
+		mesh.colors_array = NULL;
+		mesh.lmst_array = NULL;
+		mesh.normals_array = NULL;
+		mesh.numvertexes = NUM_BEAM_SEGS*2;
+		mesh.st_array = texcoords;
+
+		mb.entity = e;
+		mb.mesh = &mesh;
+		mb.shader = e->forcedshader;
+		mb.infokey = 0;
+		mb.fog = NULL;
+		mb.infokey = currententity->keynum;
+		mb.dlightbits = 0;
+
+		for (i = 0; i < NUM_BEAM_SEGS; i++)
+		{
+			indexarray[i*6+0] = i+0;
+			indexarray[i*6+1] = (i+1)%NUM_BEAM_SEGS;
+			indexarray[i*6+2] = indexarray[i*6+1]+NUM_BEAM_SEGS;
+
+			indexarray[i*6+3] = indexarray[i*6+0];
+			indexarray[i*6+4] = indexarray[i*6+2];
+			indexarray[i*6+5] = i+0+NUM_BEAM_SEGS;
+
+			texcoords[i][1] = (float)i/NUM_BEAM_SEGS;
+			texcoords[i][0] = 0;
+			texcoords[i+NUM_BEAM_SEGS][1] = (float)i/NUM_BEAM_SEGS;
+			texcoords[i+NUM_BEAM_SEGS][0] = 1;
+		}
+
+		R_IBrokeTheArrays();
+
+		R_PushMesh(&mesh, mb.shader->features | MF_NONBATCHED);
+
+		R_RenderMeshBuffer ( &mb, false );
+	}
+	else
+#endif
+	{
+		qglDisable( GL_TEXTURE_2D );
+		qglEnable( GL_BLEND );
+		qglDepthMask( GL_FALSE );
+		qglDisable(GL_ALPHA_TEST);
+
+		r = ( d_8to24rgbtable[e->skinnum & 0xFF] ) & 0xFF;
+		g = ( d_8to24rgbtable[e->skinnum & 0xFF] >> 8 ) & 0xFF;
+		b = ( d_8to24rgbtable[e->skinnum & 0xFF] >> 16 ) & 0xFF;
+
+		r *= 1/255.0F;
+		g *= 1/255.0F;
+		b *= 1/255.0F;
+
+		qglColor4f( r, g, b, e->alpha );
+
+		qglBegin( GL_TRIANGLE_STRIP );
+		for ( i = 0; i < NUM_BEAM_SEGS; i++ )
+		{
+			qglVertex3fv( points[i] );
+			qglVertex3fv( points[i+NUM_BEAM_SEGS] );
+			qglVertex3fv( points[((i+1)%NUM_BEAM_SEGS)] );
+			qglVertex3fv( points[((i+1)%NUM_BEAM_SEGS)+NUM_BEAM_SEGS] );
+		}
+		qglEnd();
+
+		qglEnable( GL_TEXTURE_2D );
+		qglDisable( GL_BLEND );
+		qglDepthMask( GL_TRUE );
+	}
 }
 
 void PPL_DrawEnt(entity_t *e, void *parm)
@@ -1873,11 +1927,11 @@ void PPL_BaseEntTextures(void)
 			//FIXME: We want to depth sort with particles, but we also want depth. :(
 			//Until then, we have broken model lighting.
 		case mod_alias:
-//			R_DrawGAliasModel (currententity);
-			if (currententity->flags & Q2RF_WEAPONMODEL)
-				RQ_AddDistReorder(PPL_DrawEnt, currententity, NULL, r_refdef.vieworg);
-			else
-				RQ_AddDistReorder(PPL_DrawEnt, currententity, NULL, currententity->origin);
+			R_DrawGAliasModel (currententity);
+//			if (currententity->flags & Q2RF_WEAPONMODEL)
+//				RQ_AddDistReorder(PPL_DrawEnt, currententity, NULL, r_refdef.vieworg);
+//			else
+//				RQ_AddDistReorder(PPL_DrawEnt, currententity, NULL, currententity->origin);
 			break;
 
 		case mod_brush:

@@ -3456,7 +3456,7 @@ int CSQC_PRFileSize (char *path)
 	if (!strcmp(path, "csprogs.dat"))
 	{
 		char newname[MAX_QPATH];
-		_snprintf(newname, MAX_PATH, "csprogsvers/%x.dat", csqcchecksum);
+		_snprintf(newname, MAX_QPATH, "csprogsvers/%x.dat", csqcchecksum);
 
 		file = COM_LoadTempFile (newname);
 		if (file)

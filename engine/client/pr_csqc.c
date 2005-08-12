@@ -2509,10 +2509,13 @@ void PF_rotatevectorsbytag (progfuncs_t *prinst, struct globalvars_s *pr_globals
 		if (Mod_GetTag(mod, tagnum, frame1, frame2, lerp, frame1time, frame2time, transforms))
 		{
 			VectorCopy(csqcg.forward, src+0);
+			src[3] = 0;
 			VectorNegate(csqcg.right, src+4);
+			src[7] = 0;
 			VectorCopy(csqcg.up, src+8);
+			src[11] = 0;
 
-			R_ConcatRotationsPad((void*)src, (void*)transforms, (void*)dest);
+			R_ConcatRotationsPad((void*)transforms, (void*)src, (void*)dest);
 
 			VectorCopy(dest+0, csqcg.forward);
 			VectorNegate(dest+4, csqcg.right);
@@ -2572,7 +2575,7 @@ static void PF_rotatevectorsbymatrix (progfuncs_t *prinst, struct globalvars_s *
 	VectorNegate(csqcg.right, src[1]);
 	VectorCopy(csqcg.up, src[2]);
 
-	R_ConcatRotations(src, trans, res);
+	R_ConcatRotations(trans, src, res);
 
 	VectorCopy(res[0], csqcg.forward);
 	VectorNegate(res[1], csqcg.right);

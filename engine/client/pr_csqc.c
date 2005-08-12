@@ -976,6 +976,9 @@ static void PF_cs_project (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 		out[0] = (1+tempv[0])/2;
 		out[1] = (1+tempv[1])/2;
 		out[2] = (1+tempv[2])/2;
+
+		out[0] = out[0]*r_refdef.vrect.width + r_refdef.vrect.x;
+		out[1] = out[1]*r_refdef.vrect.height + r_refdef.vrect.y;
 	}
 }
 static void PF_cs_unproject (progfuncs_t *prinst, struct globalvars_s *pr_globals)
@@ -989,6 +992,10 @@ static void PF_cs_unproject (progfuncs_t *prinst, struct globalvars_s *pr_global
 		float *out = G_VECTOR(OFS_RETURN);
 		
 		float v[4], tempv[4];
+
+		out[0] = (out[0]-r_refdef.vrect.x)/r_refdef.vrect.width;
+		out[1] = (out[1]-r_refdef.vrect.y)/r_refdef.vrect.height;
+
 		v[0] = in[0]*2-1;
 		v[1] = in[1]*2-1;
 		v[2] = in[2]*2-1;

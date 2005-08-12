@@ -1172,6 +1172,13 @@ void CLNQ_ParseEntity(unsigned int bits)
 	else
 		state->angles[2] = base->angles[2];
 
+#ifdef PEXT_SCALE
+	state->scale = 1*16;
+#endif
+#ifdef PEXT_TRANS
+	state->trans = 255;
+#endif
+
 	if (cls.demoplayback != DPB_NONE)
 		for (pnum = 0; pnum < cl.splitclients; pnum++)
 			if (num == cl.viewentity[pnum])

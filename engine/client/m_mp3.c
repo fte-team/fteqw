@@ -1186,7 +1186,7 @@ qboolean Media_ShowFilm(void)
 				fwrite(&size, sizeof(size), 1, f);
 				fclose(f);
 */
-				S_RawAudio(-1, roqfilm->audio, 22050, roqfilm->audio_size/roqfilm->audio_channels/2, roqfilm->audio_channels, 2);
+				S_RawAudio(-1, roqfilm->audio, 22050, roqfilm->audio_size/roqfilm->audio_channels, roqfilm->audio_channels, 2);
 			}
 
 			return true;
@@ -1236,18 +1236,18 @@ qboolean Media_ShowFilm(void)
 			{
 				LONG lSize;
 				LPBYTE pBuffer;
-				AVIStreamRead(pavisound, soundpos, AVISTREAMREAD_CONVENIENT,
-				   NULL, 0, &lSize, NULL);
+				LONG samples;
 
-				soundpos+=lSize;
+				AVIStreamRead(pavisound, 0, AVISTREAMREAD_CONVENIENT,
+				   NULL, 0, &lSize, &samples);
+
+				soundpos+=samples;
 
 				pBuffer = framedata;
 
+				AVIStreamRead(pavisound, soundpos, AVISTREAMREAD_CONVENIENT, pBuffer, lSize, NULL, &samples);
 
-				AVIStreamRead(pavisound, 0, AVISTREAMREAD_CONVENIENT,   pBuffer, lSize, NULL, NULL);
-
-				S_RawAudio(-1, pBuffer, pWaveFormat->nSamplesPerSec, lSize, pWaveFormat->nChannels, 2);
-
+				S_RawAudio(-1, pBuffer, pWaveFormat->nSamplesPerSec, samples, pWaveFormat->nChannels, 2);			
 			}
 		}
 		return true;

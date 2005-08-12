@@ -1559,6 +1559,7 @@ void S_RawAudio(int sourceid, qbyte *data, int speed, int samples, int channels,
 	int prepadl;
 	int oldlength;
 	int spare;
+	int outsamples;
 	float speedfactor;
 	sfxcache_t *newcache;
 	streaming_t *s, *free=NULL;
@@ -1589,7 +1590,6 @@ void S_RawAudio(int sourceid, qbyte *data, int speed, int samples, int channels,
 		BZ_Free(s->sfxcache);
 		return;
 	}
-	samples/=channels;
 	if (i == MAX_RAW_SOURCES)	//whoops.
 	{
 		if (!free)
@@ -1619,6 +1619,9 @@ void S_RawAudio(int sourceid, qbyte *data, int speed, int samples, int channels,
 		s->sfxcache->length = 0;
 //		Con_Printf("Restarting raw stream\n");
 	}
+
+	speedfactor	= (float)speed/snd_speed;
+	outsamples = samples/speedfactor;
 
 	oldlength = s->sfxcache->length;
 
@@ -1652,7 +1655,7 @@ void S_RawAudio(int sourceid, qbyte *data, int speed, int samples, int channels,
 		if (spare < 0)	//remaining samples since last time
 			spare = 0;
 
-		if (s->sfxcache->length > snd_speed)	//more than a second already buffered
+		if (s->sfxcache->length > snd_speed*2) // more than 2 seconds of sound
 		{
 			Con_Printf("Sacrificed raw sound stream\n");
 			spare = 0;	//too far out. sacrifice it all
@@ -1674,16 +1677,16 @@ void S_RawAudio(int sourceid, qbyte *data, int speed, int samples, int channels,
 		return;	//let the slower sound cards catch up. (This shouldn't really happen, but it's possible two cards have slightly different timings but report the same speed)
 	}*/
 
-	newcache = BZ_Malloc(sizeof(sfxcache_t) + (spare+samples) * (s->sfxcache->stereo+1) * s->sfxcache->width);
+	newcache = BZ_Malloc(sizeof(sfxcache_t) + (spare+outsamples) * (s->sfxcache->stereo+1) * s->sfxcache->width);
 	memcpy(newcache, s->sfxcache, sizeof(sfxcache_t));
 	memcpy(newcache->data, s->sfxcache->data + prepadl * (s->sfxcache->stereo+1) * s->sfxcache->width, spare * (s->sfxcache->stereo+1) * s->sfxcache->width);
 
 	BZ_Free(s->sfxcache);
 	s->sfxcache = s->sfx.cache.data = newcache;
 
-	newcache->length = spare + samples;
+	newcache->length = spare + outsamples;
 
-	speedfactor	= (float)snd_speed/speed;
+	// move this whole operation to a seperate function?
 	if (channels == 1)
 	{
 		if (width == 2)
@@ -1704,9 +1707,9 @@ void S_RawAudio(int sourceid, qbyte *data, int speed, int samples, int channels,
 				int src=0;
 				int pos=0;
 
-				while (pos++ < samples)
+				while (pos++ < outsamples)
 				{
-					src = pos/speedfactor;
+					src = pos*speedfactor;
 					sample = indata[src];
 					*outpos++ = sample;
 				}
@@ -1730,9 +1733,9 @@ void S_RawAudio(int sourceid, qbyte *data, int speed, int samples, int channels,
 				int src=0;
 				int pos=0;
 
-				while (pos++ < samples)
+				while (pos++ < outsamples)
 				{
-					src = pos/speedfactor;
+					src = pos*speedfactor;
 					sample = indata[src];
 					*outpos++ = (int)( (unsigned char)(sample) - 128);
 				}
@@ -1764,9 +1767,9 @@ void S_RawAudio(int sourceid, qbyte *data, int speed, int samples, int channels,
 				int src=0;
 				int pos=0;
 
-				while (pos++ < samples)
+				while (pos++ < outsamples)
 				{
-					src = pos/speedfactor;
+					src = pos*speedfactor;
 					sample = indata[src*2];
 					*outpos++ = sample;
 
@@ -1781,7 +1784,6 @@ void S_RawAudio(int sourceid, qbyte *data, int speed, int samples, int channels,
 
 	s->sfxcache->loopstart = s->sfxcache->length;
 
-
 	for (si = sndcardinfo; si; si=si->next)
 	{
 		for (i = 0; i < MAX_CHANNELS; i++)
@@ -1789,7 +1791,7 @@ void S_RawAudio(int sourceid, qbyte *data, int speed, int samples, int channels,
 			{
 				si->channel[i].pos -= prepadl;
 //				si->channel[i].end -= prepadl;
-				si->channel[i].end += samples;
+				si->channel[i].end += outsamples;
 
 				if (si->channel[i].end < si->paintedtime)
 				{

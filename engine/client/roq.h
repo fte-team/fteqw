@@ -27,7 +27,7 @@ typedef struct {
 	unsigned char *buf;
 	roq_cell cells[256];
 	roq_qcell qcells[256];
-	short snd_sqr_arr[260];
+	short snd_sqr_arr[256];
 	long roq_start, aud_pos, vid_pos;
 	long *frame_offset;
 	unsigned long num_frames, num_audio_bytes;

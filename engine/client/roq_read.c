@@ -569,7 +569,7 @@ int i, snd_left, snd_right;
 		fseek(fp, chunk_size, SEEK_CUR);
 		}
 
-	if(ri->audio_buf_size < chunk_size * 2)
+	if(ri->audio_buf_size < chunk_size*2)
 		{
 		if(ri->audio != NULL) BZ_Free(ri->audio);
 		ri->audio=NULL;
@@ -583,12 +583,12 @@ int i, snd_left, snd_right;
 
 	if(chunk_id == RoQ_SOUND_MONO)
 		{
-		ri->audio_size = chunk_size * 2;
+		ri->audio_size = chunk_size;
 		snd_left = chunk_arg;
 		for(i = 0; i < chunk_size; i++)
 			{
-			snd_left += ri->snd_sqr_arr[(unsigned)fgetc(fp)];
-			*(unsigned short *)&ri->audio[i * 2] = snd_left;
+			snd_left += (int)ri->snd_sqr_arr[(unsigned)fgetc(fp)];
+			*(short *)&ri->audio[i * 2] = snd_left;
 			}
 		ri->aud_pos = ftell(fp);
 		return chunk_size;
@@ -596,18 +596,18 @@ int i, snd_left, snd_right;
 
 	if(chunk_id == RoQ_SOUND_STEREO)
 		{
-		ri->audio_size = chunk_size * 2;
+		ri->audio_size = chunk_size;
 		snd_left = (chunk_arg & 0xFF00);
 		snd_right = (chunk_arg & 0xFF) << 8;
 		for(i = 0; i < chunk_size; i += 2)
 			{
-			snd_left += ri->snd_sqr_arr[(unsigned)fgetc(fp)];
-			snd_right += ri->snd_sqr_arr[(unsigned)fgetc(fp)];
-			*(unsigned short *)&ri->audio[i * 2] = snd_left;
-			*(unsigned short *)&ri->audio[i * 2 + 2] = snd_right;
+			snd_left += (int)ri->snd_sqr_arr[(unsigned)fgetc(fp)];
+			snd_right += (int)ri->snd_sqr_arr[(unsigned)fgetc(fp)];
+			*(short *)&ri->audio[i * 2] = snd_left;
+			*(short *)&ri->audio[i * 2 + 2] = snd_right;
 			}
 		ri->aud_pos = ftell(fp);
-		return chunk_size/2;
+		return chunk_size;
 		}
 
 	ri->aud_pos = ftell(fp);

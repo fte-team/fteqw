@@ -2854,28 +2854,6 @@ retry:
 				break;
 			}
 		}
-
-		if (pr_progs->version == PROG_EXTENDEDVERSION && pr_progs->numbodylessfuncs)
-		{
-			s = &((char *)pr_progs)[pr_progs->ofsbodylessfuncs];
-			for (i = 0; i < pr_progs->numbodylessfuncs; i++)
-			{
-				d16 = ED_FindGlobal16(progfuncs, s);
-				if (!d16)
-					Sys_Error("Progs requires \"%s\" the external function \"%s\", but the definition was stripped", filename, s);
-
-				((int *)glob)[d16->ofs] = PR_FindFunc(progfuncs, s, PR_ANY);
-				if (!((int *)glob)[d16->ofs])
-					Sys_Error("Runtime-linked function %s was not found in primary progs (loading %s)", s, filename);
-				/*
-				d2 = ED_FindGlobalOfsFromProgs(progfuncs, s, 0, ev_function);
-				if (!d2)
-					Sys_Error("Runtime-linked function %s was not found in primary progs (loading %s)", s, filename);
-				((int *)glob)[d16->ofs] = (*(func_t *)&pr_progstate[0].globals[*d2]);
-				*/
-				s+=strlen(s)+1;
-			}
-		}
 		break;
 	case 32:
 		for (i=0 ; i<pr_progs->numglobaldefs ; i++)
@@ -2948,6 +2926,53 @@ retry:
 	eval = PR_FindGlobal(progfuncs, "thisprogs", progstype);		
 	if (eval)
 		eval->prog = progstype;
+
+	switch(current_progstate->intsize)
+	{
+	case 16:
+		if (pr_progs->version == PROG_EXTENDEDVERSION && pr_progs->numbodylessfuncs)
+		{
+			s = &((char *)pr_progs)[pr_progs->ofsbodylessfuncs];
+			for (i = 0; i < pr_progs->numbodylessfuncs; i++)
+			{
+				d16 = ED_FindGlobal16(progfuncs, s);
+				if (!d16)
+					Sys_Error("Progs requires \"%s\" the external function \"%s\", but the definition was stripped", filename, s);
+
+				((int *)glob)[d16->ofs] = PR_FindFunc(progfuncs, s, PR_ANY);
+				if (!((int *)glob)[d16->ofs])
+					Sys_Error("Runtime-linked function %s was not found in primary progs (loading %s)", s, filename);
+				/*
+				d2 = ED_FindGlobalOfsFromProgs(progfuncs, s, 0, ev_function);
+				if (!d2)
+					Sys_Error("Runtime-linked function %s was not found in primary progs (loading %s)", s, filename);
+				((int *)glob)[d16->ofs] = (*(func_t *)&pr_progstate[0].globals[*d2]);
+				*/
+				s+=strlen(s)+1;
+			}
+		}
+		break;
+	case 24:
+		break;	//cannot happen anyway.
+	case 32:
+		if (pr_progs->version == PROG_EXTENDEDVERSION && pr_progs->numbodylessfuncs)
+		{
+			s = &((char *)pr_progs)[pr_progs->ofsbodylessfuncs];
+			for (i = 0; i < pr_progs->numbodylessfuncs; i++)
+			{
+				d32 = ED_FindGlobal32(progfuncs, s);
+				d2 = ED_FindGlobalOfsFromProgs(progfuncs, s, 0, ev_function);
+				if (!d2)
+					Sys_Error("Runtime-linked function %s was not found in existing progs", s);
+				if (!d32)
+					Sys_Error("Couldn't find def for \"%s\"", s);
+				((int *)glob)[d32->ofs] = (*(func_t *)&pr_progstate[0].globals[*d2]);
+
+				s+=strlen(s)+1;
+			}
+		}
+		break;
+	}
 
 
 	return true;

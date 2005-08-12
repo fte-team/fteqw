@@ -1290,6 +1290,7 @@ extern int mousecursor_x, mousecursor_y;
 void IN_Move (usercmd_t *cmd, int pnum)
 {
 	float mx, my;
+	float mouse_deltadist;
 
 	if (!mouse_avail)
 	{
@@ -1347,10 +1348,13 @@ void IN_Move (usercmd_t *cmd, int pnum)
 		cl.viewangles[pnum][PITCH] += m_pitch.value * mouse_y;
 		CL_ClampPitch(pnum);
 	} else {
-		if ((in_strafe.state[pnum] & 1) && noclip_anglehack)
-			cmd->upmove -= m_forward.value * mouse_y;
-		else
-			cmd->forwardmove -= m_forward.value * mouse_y;
+		if (cmd)
+		{
+			if ((in_strafe.state[pnum] & 1) && noclip_anglehack)
+				cmd->upmove -= m_forward.value * mouse_y;
+			else
+				cmd->forwardmove -= m_forward.value * mouse_y;
+		}
 	}
 	mouse_x = mouse_y = 0.0;
 }

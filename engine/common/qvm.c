@@ -70,7 +70,7 @@ struct vm_s {
 #include "winquake.h"
 void *Sys_LoadDLL(const char *name, void **vmMain, int (EXPORT_FN *syscall)(int arg, ... ))
 {
-	void (*dllEntry)(int (EXPORT_FN *syscall)(int arg, ... ));
+	void (VARGS *dllEntry)(int (EXPORT_FN *syscall)(int arg, ... ));
 	char dllname[MAX_OSPATH];
 	HINSTANCE hVM;
 

@@ -34,7 +34,7 @@ void Plug_SubConsoleCommand(console_t *con, char *line);
 plugin_t *currentplug;
 
 //custom plugin builtins.
-typedef int (*Plug_Builtin_t)(void *offset, unsigned int mask, const long *arg);
+typedef int (VARGS *Plug_Builtin_t)(void *offset, unsigned int mask, const long *arg);
 void Plug_RegisterBuiltin(char *name, Plug_Builtin_t bi, int flags);
 #define PLUG_BIF_DLLONLY	1
 #define PLUG_BIF_QVMONLY	2
@@ -103,7 +103,7 @@ static void Plug_RegisterBuiltinIndex(char *name, Plug_Builtin_t bi, int flags, 
 }
 */
 
-int Plug_FindBuiltin(void *offset, unsigned int mask, const long *args)
+int VARGS Plug_FindBuiltin(void *offset, unsigned int mask, const long *args)
 {
 	int i;
 	for (i = 0; i < numplugbuiltins; i++)
@@ -216,21 +216,21 @@ int Plug_Emumerated (char *name, int size, void *param)
 	return true;
 }
 
-int Plug_Con_Print(void *offset, unsigned int mask, const long *arg)
+int VARGS Plug_Con_Print(void *offset, unsigned int mask, const long *arg)
 {
 	Con_Print((char*)VM_POINTER(arg[0]));
 	return 0;
 }
-int Plug_Sys_Error(void *offset, unsigned int mask, const long *arg)
+int VARGS Plug_Sys_Error(void *offset, unsigned int mask, const long *arg)
 {
 	Sys_Error("%s", (char*)offset+arg[0]);
 	return 0;
 }
-int Plug_Sys_Milliseconds(void *offset, unsigned int mask, const long *arg)
+int VARGS Plug_Sys_Milliseconds(void *offset, unsigned int mask, const long *arg)
 {
 	return Sys_DoubleTime()*1000;
 }
-int Plug_ExportToEngine(void *offset, unsigned int mask, const long *arg)
+int VARGS Plug_ExportToEngine(void *offset, unsigned int mask, const long *arg)
 {
 	char *name = (char*)VM_POINTER(arg[0]);
 	if (!strcmp(name, "Tick"))
@@ -264,7 +264,7 @@ typedef struct {
 int plugincvararraylen;
 plugincvararray_t *plugincvararray;
 //qhandle_t Cvar_Register (char *name, char *defaultval, int flags, char *grouphint);
-int Plug_Cvar_Register(void *offset, unsigned int mask, const long *arg)
+int VARGS Plug_Cvar_Register(void *offset, unsigned int mask, const long *arg)
 {
 	char *name = VM_POINTER(arg[0]);
 	char *defaultvalue = VM_POINTER(arg[1]);
@@ -292,7 +292,7 @@ int Plug_Cvar_Register(void *offset, unsigned int mask, const long *arg)
 	return plugincvararraylen-1;
 }
 //int Cvar_Update, (qhandle_t handle, int modificationcount, char *stringv, float *floatv));	//stringv is 256 chars long, don't expect this function to do anything if modification count is unchanged.
-int Plug_Cvar_Update(void *offset, unsigned int mask, const long *arg)
+int VARGS Plug_Cvar_Update(void *offset, unsigned int mask, const long *arg)
 {
 	int handle;
 	int modcount;
@@ -322,7 +322,7 @@ int Plug_Cvar_Update(void *offset, unsigned int mask, const long *arg)
 }
 
 //void Cmd_Args(char *buffer, int buffersize)
-int Plug_Cmd_Args(void *offset, unsigned int mask, const long *arg)
+int VARGS Plug_Cmd_Args(void *offset, unsigned int mask, const long *arg)
 {
 	char *buffer = (char*)VM_POINTER(arg[0]);
 	char *args;
@@ -333,7 +333,7 @@ int Plug_Cmd_Args(void *offset, unsigned int mask, const long *arg)
 	return 1;
 }
 //void Cmd_Argv(int num, char *buffer, int buffersize)
-int Plug_Cmd_Argv(void *offset, unsigned int mask, const long *arg)
+int VARGS Plug_Cmd_Argv(void *offset, unsigned int mask, const long *arg)
 {
 	char *buffer = (char*)VM_POINTER(arg[1]);
 	char *args;
@@ -344,12 +344,12 @@ int Plug_Cmd_Argv(void *offset, unsigned int mask, const long *arg)
 	return 1;
 }
 //int Cmd_Argc(void)
-int Plug_Cmd_Argc(void *offset, unsigned int mask, const long *arg)
+int VARGS Plug_Cmd_Argc(void *offset, unsigned int mask, const long *arg)
 {
 	return Cmd_Argc();
 }
 
-int Plug_Menu_Control(void *offset, unsigned int mask, const long *arg)
+int VARGS Plug_Menu_Control(void *offset, unsigned int mask, const long *arg)
 {
 	switch(VM_LONG(arg[0]))
 	{
@@ -390,7 +390,7 @@ typedef struct {
 int pluginimagearraylen;
 pluginimagearray_t *pluginimagearray;
 
-int Plug_Draw_LoadImage(void *offset, unsigned int mask, const long *arg)
+int VARGS Plug_Draw_LoadImage(void *offset, unsigned int mask, const long *arg)
 {
 	char *name = VM_POINTER(arg[0]);
 	qboolean fromwad = arg[1];
@@ -478,7 +478,7 @@ void Plug_FreePlugImages(plugin_t *plug)
 }
 
 //int Draw_Image (float x, float y, float w, float h, float s1, float t1, float s2, float t2, qhandle_t image)
-int Plug_Draw_Image(void *offset, unsigned int mask, const long *arg)
+int VARGS Plug_Draw_Image(void *offset, unsigned int mask, const long *arg)
 {
 	mpic_t *pic;
 	int i;
@@ -504,13 +504,13 @@ int Plug_Draw_Image(void *offset, unsigned int mask, const long *arg)
 	return 1;
 }
 
-int Plug_Draw_Character(void *offset, unsigned int mask, const long *arg)
+int VARGS Plug_Draw_Character(void *offset, unsigned int mask, const long *arg)
 {
 	Draw_Character(arg[0], arg[1], (unsigned int)arg[2]);
 	return 0;
 }
 
-int Plug_Draw_Fill(void *offset, unsigned int mask, const long *arg)
+int VARGS Plug_Draw_Fill(void *offset, unsigned int mask, const long *arg)
 {
 	float x, y, width, height;
 	x = VM_FLOAT(arg[0]);
@@ -537,7 +537,7 @@ int Plug_Draw_Fill(void *offset, unsigned int mask, const long *arg)
 	return 0;
 }
 
-int Plug_Draw_ColourP(void *offset, unsigned int mask, const long *arg)
+int VARGS Plug_Draw_ColourP(void *offset, unsigned int mask, const long *arg)
 {
 	qbyte *pal = host_basepal + VM_LONG(arg[0])*3;
 
@@ -552,7 +552,7 @@ int Plug_Draw_ColourP(void *offset, unsigned int mask, const long *arg)
 	return 0;
 }
 
-int Plug_Draw_Colour3f(void *offset, unsigned int mask, const long *arg)
+int VARGS Plug_Draw_Colour3f(void *offset, unsigned int mask, const long *arg)
 {
 	if (Draw_ImageColours)
 	{
@@ -561,7 +561,7 @@ int Plug_Draw_Colour3f(void *offset, unsigned int mask, const long *arg)
 	}
 	return 0;
 }
-int Plug_Draw_Colour4f(void *offset, unsigned int mask, const long *arg)
+int VARGS Plug_Draw_Colour4f(void *offset, unsigned int mask, const long *arg)
 {
 	if (Draw_ImageColours)
 	{
@@ -571,7 +571,7 @@ int Plug_Draw_Colour4f(void *offset, unsigned int mask, const long *arg)
 	return 0;
 }
 
-int Plug_Media_ShowFrameRGBA_32(void *offset, unsigned int mask, const long *arg)
+int VARGS Plug_Media_ShowFrameRGBA_32(void *offset, unsigned int mask, const long *arg)
 {
 	void *src = VM_POINTER(arg[0]);
 	int srcwidth = VM_LONG(arg[1]);
@@ -585,14 +585,14 @@ int Plug_Media_ShowFrameRGBA_32(void *offset, unsigned int mask, const long *arg
 	return 0;
 }
 
-int Plug_Key_GetKeyCode(void *offset, unsigned int mask, const long *arg)
+int VARGS Plug_Key_GetKeyCode(void *offset, unsigned int mask, const long *arg)
 {
 	int modifier;
 	return Key_StringToKeynum(VM_POINTER(arg[0]), &modifier);
 }
 
 //void Cvar_SetString (char *name, char *value);
-int Plug_Cvar_SetString(void *offset, unsigned int mask, const long *arg)
+int VARGS Plug_Cvar_SetString(void *offset, unsigned int mask, const long *arg)
 {
 	char *name = VM_POINTER(arg[0]),
 		*value = VM_POINTER(arg[1]);
@@ -607,7 +607,7 @@ int Plug_Cvar_SetString(void *offset, unsigned int mask, const long *arg)
 }
 
 //void Cvar_SetFloat (char *name, float value);
-int Plug_Cvar_SetFloat(void *offset, unsigned int mask, const long *arg)
+int VARGS Plug_Cvar_SetFloat(void *offset, unsigned int mask, const long *arg)
 {
 	char *name = VM_POINTER(arg[0]);
 	float value = VM_FLOAT(arg[1]);
@@ -622,7 +622,7 @@ int Plug_Cvar_SetFloat(void *offset, unsigned int mask, const long *arg)
 }
 
 //void Cvar_GetFloat (char *name);
-int Plug_Cvar_GetFloat(void *offset, unsigned int mask, const long *arg)
+int VARGS Plug_Cvar_GetFloat(void *offset, unsigned int mask, const long *arg)
 {
 	char *name = VM_POINTER(arg[0]);
 	int ret;
@@ -637,7 +637,7 @@ int Plug_Cvar_GetFloat(void *offset, unsigned int mask, const long *arg)
 }
 
 //qboolean Cvar_GetString (char *name, char *retstring, int sizeofretstring);
-int Plug_Cvar_GetString(void *offset, unsigned int mask, const long *arg)
+int VARGS Plug_Cvar_GetString(void *offset, unsigned int mask, const long *arg)
 {
 	char *name, *ret;
 	int retsize;
@@ -662,7 +662,7 @@ int Plug_Cvar_GetString(void *offset, unsigned int mask, const long *arg)
 }
 
 //void Cmd_AddText (char *text, qboolean insert);	//abort the entire engine.
-int Plug_Cmd_AddText(void *offset, unsigned int mask, const long *arg)
+int VARGS Plug_Cmd_AddText(void *offset, unsigned int mask, const long *arg)
 {
 	if (VM_LONG(arg[1]))
 		Cbuf_InsertText(VM_POINTER(arg[0]), RESTRICT_LOCAL);
@@ -701,7 +701,7 @@ void Plug_Command_f(void)
 	currentplug = oldplug;
 }
 
-int Plug_Cmd_AddCommand(void *offset, unsigned int mask, const long *arg)
+int VARGS Plug_Cmd_AddCommand(void *offset, unsigned int mask, const long *arg)
 {
 	int i;
 	char *name = VM_POINTER(arg[0]);
@@ -727,7 +727,7 @@ int Plug_Cmd_AddCommand(void *offset, unsigned int mask, const long *arg)
 	plugincommandarray[i].plugin = currentplug;	//worked
 	return true;
 }
-void Plug_FreeConCommands(plugin_t *plug)
+void VARGS Plug_FreeConCommands(plugin_t *plug)
 {
 	int i;
 	for (i = 0; i < plugincommandarraylen; i++)
@@ -740,7 +740,7 @@ void Plug_FreeConCommands(plugin_t *plug)
 	}
 }
 
-int Plug_CL_GetStats(void *offset, unsigned int mask, const long *arg)
+int VARGS Plug_CL_GetStats(void *offset, unsigned int mask, const long *arg)
 {
 	int i;
 	int pnum = VM_LONG(arg[0]);
@@ -763,7 +763,7 @@ int Plug_CL_GetStats(void *offset, unsigned int mask, const long *arg)
 	return max;
 }
 
-int Plug_Con_SubPrint(void *offset, unsigned int mask, const long *arg)
+int VARGS Plug_Con_SubPrint(void *offset, unsigned int mask, const long *arg)
 {
 	char *name = VM_POINTER(arg[0]);
 	char *text = VM_POINTER(arg[1]);
@@ -785,7 +785,7 @@ int Plug_Con_SubPrint(void *offset, unsigned int mask, const long *arg)
 
 	return 1;
 }
-int Plug_Con_RenameSub(void *offset, unsigned int mask, const long *arg)
+int VARGS Plug_Con_RenameSub(void *offset, unsigned int mask, const long *arg)
 {
 	char *name = VM_POINTER(arg[0]);
 	console_t *con;
@@ -878,7 +878,7 @@ int Plug_NewStreamHandle(plugstream_e type)
 
 //EBUILTIN(int, NET_TCPListen, (char *ip, int port, int maxcount));
 //returns a new socket with listen enabled.
-int Plug_Net_TCPListen(void *offset, unsigned int mask, const long *arg)
+int VARGS Plug_Net_TCPListen(void *offset, unsigned int mask, const long *arg)
 {
 	int handle;
 	int sock;
@@ -937,7 +937,7 @@ int Plug_Net_TCPListen(void *offset, unsigned int mask, const long *arg)
 	return handle;
 
 }
-int Plug_Net_Accept(void *offset, unsigned int mask, const long *arg)
+int VARGS Plug_Net_Accept(void *offset, unsigned int mask, const long *arg)
 {
 	int handle = VM_LONG(arg[0]);
 	struct sockaddr_in address;
@@ -976,7 +976,7 @@ int Plug_Net_Accept(void *offset, unsigned int mask, const long *arg)
 	return handle;
 }
 //EBUILTIN(int, NET_TCPConnect, (char *ip, int port));
-int Plug_Net_TCPConnect(void *offset, unsigned int mask, const long *arg)
+int VARGS Plug_Net_TCPConnect(void *offset, unsigned int mask, const long *arg)
 {
 	char *localip = VM_POINTER(arg[0]);
 	unsigned short localport = VM_LONG(arg[1]);
@@ -1029,7 +1029,7 @@ int Plug_Net_TCPConnect(void *offset, unsigned int mask, const long *arg)
 
 	return handle;
 }
-int Plug_Net_Recv(void *offset, unsigned int mask, const long *arg)
+int VARGS Plug_Net_Recv(void *offset, unsigned int mask, const long *arg)
 {
 	int read;
 	int handle = VM_LONG(arg[0]);
@@ -1059,7 +1059,7 @@ int Plug_Net_Recv(void *offset, unsigned int mask, const long *arg)
 		return -2;
 	}
 }
-int Plug_Net_Send(void *offset, unsigned int mask, const long *arg)
+int VARGS Plug_Net_Send(void *offset, unsigned int mask, const long *arg)
 {
 	int written;
 	int handle = VM_LONG(arg[0]);
@@ -1085,7 +1085,7 @@ int Plug_Net_Send(void *offset, unsigned int mask, const long *arg)
 		return -2;
 	}
 }
-int Plug_Net_SendTo(void *offset, unsigned int mask, const long *arg)
+int VARGS Plug_Net_SendTo(void *offset, unsigned int mask, const long *arg)
 {
 	int written;
 	int handle = VM_LONG(arg[0]);
@@ -1124,7 +1124,7 @@ int Plug_Net_SendTo(void *offset, unsigned int mask, const long *arg)
 		return -2;
 	}
 }
-int Plug_Net_Close(void *offset, unsigned int mask, const long *arg)
+int VARGS Plug_Net_Close(void *offset, unsigned int mask, const long *arg)
 {
 	int handle = VM_LONG(arg[0]);
 	if (handle < 0 || handle >= pluginstreamarraylen || pluginstreamarray[handle].plugin != currentplug || pluginstreamarray[handle].type != STREAM_SOCKET)

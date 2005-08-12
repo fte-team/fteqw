@@ -505,26 +505,8 @@ void S_Init (void)
 	}
 	Con_DPrintf("\nSound Initialization\n");
 
-	if (COM_CheckParm("-nosound"))
-	{
-		Cvar_Register(&nosound,				"Sound controls");
-		Cvar_ForceSet(&nosound, "1");
-		nosound.flags |= CVAR_NOSET;
-		return;
-	}
-
 //	if (COM_CheckParm("-simsound"))
 //		fakedma = true;
-
-	p = COM_CheckParm ("-soundspeed");
-	if (p)
-	{
-		if (p < com_argc-1)
-			Cvar_SetValue(&snd_khz, atof(com_argv[p+1])/1000);
-		else
-			Sys_Error ("S_Init: you must specify a speed in KB after -soundspeed");
-	}
-
 
 	Cmd_AddCommand("play", S_Play);
 	Cmd_AddCommand("play2", S_Play);
@@ -560,6 +542,21 @@ void S_Init (void)
 	Cvar_Register(&snd_playersoundvolume,		"Sound controls");
 	Cvar_Register(&snd_usemultipledevices,		"Sound controls");
 
+	if (COM_CheckParm("-nosound"))
+	{
+		Cvar_ForceSet(&nosound, "1");
+		nosound.flags |= CVAR_NOSET;
+		return;
+	}
+
+	p = COM_CheckParm ("-soundspeed");
+	if (p)
+	{
+		if (p < com_argc-1)
+			Cvar_SetValue(&snd_khz, atof(com_argv[p+1])/1000);
+		else
+			Sys_Error ("S_Init: you must specify a speed in KB after -soundspeed");
+	}
 
 	if (COM_CheckParm ("-nomultipledevices") || COM_CheckParm ("-singlesound"))
 		Cvar_SetValue(&snd_usemultipledevices, 0);
@@ -573,8 +570,6 @@ void S_Init (void)
 		Cvar_Set (&loadas8bit, "1");
 		Con_Printf ("loading all sounds as 8bit\n");
 	}
-
-
 
 	snd_initialized = true;
 

@@ -2159,7 +2159,7 @@ static void PF_cl_te_gunshot (progfuncs_t *prinst, struct globalvars_s *pr_globa
 	if (P_RunParticleEffectType(pos, NULL, scaler, pt_gunshot))
 		P_RunParticleEffect (pos, vec3_origin, 0, 20*scaler);
 }
-static void PF_cl_te_blood (progfuncs_t *prinst, struct globalvars_s *pr_globals)
+static void PF_cl_te_bloodqw (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
 	float *pos = G_VECTOR(OFS_PARM0);
 	float scaler = 1;
@@ -2167,6 +2167,15 @@ static void PF_cl_te_blood (progfuncs_t *prinst, struct globalvars_s *pr_globals
 		scaler = G_FLOAT(OFS_PARM1);
 	if (P_RunParticleEffectType(pos, NULL, scaler, pt_blood))
 		P_RunParticleEffect (pos, vec3_origin, 73, 20*scaler);
+}
+static void PF_cl_te_blooddp (progfuncs_t *prinst, struct globalvars_s *pr_globals)
+{
+	float *pos = G_VECTOR(OFS_PARM0);
+	float *dir = G_VECTOR(OFS_PARM1);
+	float scaler = G_FLOAT(OFS_PARM2);
+
+	if (P_RunParticleEffectType(pos, dir, scaler, pt_blood))
+		P_RunParticleEffect (pos, dir, 73, 20*scaler);
 }
 static void PF_cl_te_lightningblood (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
@@ -3105,8 +3114,7 @@ PF_instr,
 
 //EXT_DIMENSION_PLANES
 	PF_bitshift,		//#218 bitshift (EXT_DIMENSION_PLANES)
-//I guess this should go under DP_TE_STANDARDEFFECTBUILTINS...
-	PF_cl_te_lightningblood,// #219 te_lightningblood
+	PF_cl_te_lightningblood,// #219 te_lightningblood void(vector org) (FTE_TE_STANDARDEFFECTBUILTINS)
 
 //220
 	PF_Fixme, //{"map_builtin",		PF_builtinsupported,0,		0,		0,		220},	//like #100 - takes 2 args. arg0 is builtinname, 1 is number to map to.
@@ -3132,7 +3140,7 @@ PF_rotatevectorsbyangles, // #235
 PF_rotatevectorsbymatrix, // #236
 PF_skinforname,		// #237
 PF_shaderforname,	// #238
-PF_Fixme,		// #239
+PF_cl_te_bloodqw,	// #239 void te_bloodqw(vector org[, float count]) (FTE_TE_STANDARDEFFECTBUILTINS)
 
 //240
 PF_FixTen,
@@ -3270,7 +3278,7 @@ PF_findchain,			// #402 entity(string field, string match) findchain (DP_QC_FIND
 PF_findchainfloat,		// #403 entity(float fld, float match) findchainfloat (DP_QC_FINDCHAINFLOAT)
 PF_cl_effect,			// #404 void(vector org, string modelname, float startframe, float endframe, float framerate) effect (DP_SV_EFFECT)
 
-PF_cl_te_blood,			// #405 void(vector org, vector velocity, float howmany) te_blood (DP_TE_BLOOD)
+PF_cl_te_blooddp,		// #405 void(vector org, vector velocity, float howmany) te_blood (DP_TE_BLOOD)
 PF_cl_te_bloodshower,	// #406 void(vector mincorner, vector maxcorner, float explosionspeed, float howmany) te_bloodshower (DP_TE_BLOODSHOWER)
 PF_cl_te_explosionrgb,	// #407 void(vector org, vector color) te_explosionrgb (DP_TE_EXPLOSIONRGB)
 PF_cl_te_particlecube,	// #408 void(vector mincorner, vector maxcorner, vector vel, float howmany, float color, float gravityflag, float randomveljitter) te_particlecube (DP_TE_PARTICLECUBE)

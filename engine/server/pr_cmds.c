@@ -2325,7 +2325,7 @@ static void PF_particle (progfuncs_t *prinst, globalvars_t *pr_globals)	//I said
 	SV_MulticastProtExt(org, MULTICAST_PVS, pr_global_struct->dimension_send, PEXT_HEXEN2, 0);
 }
 
-void PF_te_blood (progfuncs_t *prinst, globalvars_t *pr_globals)
+void PF_te_blooddp (progfuncs_t *prinst, globalvars_t *pr_globals)
 {
 	float count;
 	float *org, *dir;
@@ -4851,10 +4851,12 @@ void SV_beam_tempentity (int ownerent, vec3_t start, vec3_t end, int type)
 	SV_MulticastProtExt (start, MULTICAST_PHS, pr_global_struct->dimension_send, 0, 0);
 }
 
+/*
 void PF_tempentity (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
 	SV_point_tempentity(G_VECTOR(OFS_PARM0), G_FLOAT(OFS_PARM1), 1);
 }
+*/
 
 //=============================================================================
 
@@ -6105,7 +6107,7 @@ lh_extension_t QSG_Extensions[] = {
 	{"DP_TE_PLASMABURN",				1,	NULL, {"te_plasmaburn"}},
 	{"DP_TE_SMALLFLASH",				1,	NULL, {"te_smallflash"}},
 	{"DP_TE_SPARK",						1,	NULL, {"te_spark"}},
-	{"DP_TE_STANDARDEFFECTBUILTINS",	14,	NULL, {"te_gunshot", "te_spike", "te_superspike", "te_explosion", "te_tarexplosion", "te_wizspike", "te_knightspike", "te_lavasplash", "te_teleport", "te_explosion2", "te_lightning1", "te_lightning2", "te_lightning3", "te_beam"}},	//should we include QW ones?...
+	{"DP_TE_STANDARDEFFECTBUILTINS",	14,	NULL, {"te_gunshot", "te_spike", "te_superspike", "te_explosion", "te_tarexplosion", "te_wizspike", "te_knightspike", "te_lavasplash", "te_teleport", "te_explosion2", "te_lightning1", "te_lightning2", "te_lightning3", "te_beam"}},
 	{"EXT_DIMENSION_VISIBILITY"},
 	{"EXT_DIMENSION_PHYSICS"},
 	{"EXT_DIMENSION_GHOST"},
@@ -6132,6 +6134,9 @@ lh_extension_t QSG_Extensions[] = {
 	//reuses the FRIK_FILE builtins (with substring extension)
 	{"FTE_STRINGS",						18, NULL, {"stof", "strlen","strcat","substring","stov","strzone","strunzone",
 												   "strstrofs", "str2chr", "chr2str", "strconv", "infoadd", "infoget", "strncmp", "strcasecmp", "strncasecmp"}},
+
+	{"FTE_TE_STANDARDEFFECTBUILTINS",	16,	NULL, {"te_gunshot", "te_spike", "te_superspike", "te_explosion", "te_tarexplosion", "te_wizspike", "te_knightspike", "te_lavasplash", 
+												   "te_teleport", "te_explosion2", "te_lightning1", "te_lightning2", "te_lightning3", "te_beam", "te_lightningblood", "te_bloodqw"}},
 
 	{"HYDR_WRITESTRING2",				1,	NULL, {"writestring2"}},
 
@@ -7742,9 +7747,21 @@ void PF_te_spikequad(progfuncs_t *prinst, struct globalvars_s *pr_globals)
 	SV_point_tempentity(G_VECTOR(OFS_PARM0), DPTE_SPIKEQUAD, 1);
 }
 
+// FTE_TE_STANDARDEFFECTBUILTINS
 void PF_te_lightningblood(progfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
 	SV_point_tempentity(G_VECTOR(OFS_PARM0), TE_LIGHTNINGBLOOD, 1);
+}
+
+// FTE_TE_STANDARDEFFECTBUILTINS
+void PF_te_bloodqw(progfuncs_t *prinst, struct globalvars_s *pr_globals)
+{
+	int count;
+	if (*svprogfuncs->callargc >= 2)
+		count = G_FLOAT(OFS_PARM1);
+	else
+		count = 1;
+	SV_point_tempentity(G_VECTOR(OFS_PARM0), TE_BLOOD, count);
 }
 
 //DP_TE_STANDARDEFFECTBUILTINS
@@ -9066,6 +9083,7 @@ BuiltinList_t BuiltinList[] = {				//nq	qw		h2		ebfs
 	{"runclientphys",	PF_runclientphys,	0,		0,		0,		233},
 //END EXT_CSQC
 	{"isbackbuffered",	PF_isbackbuffered,	0,		0,		0,		234},
+	{"te_bloodqw",		PF_te_bloodqw,		0,		0,		0,		239},
 
 //end fte extras
 
@@ -9081,7 +9099,7 @@ BuiltinList_t BuiltinList[] = {				//nq	qw		h2		ebfs
 //DP_SV_EFFECT
 	{"effect",			PF_effect,			0,		0,		0,		404},// #404 void(vector org, string modelname, float startframe, float endframe, float framerate) effect (DP_SV_EFFECT)
 //DP_TE_BLOOD
-	{"te_blood",		PF_te_blood,		0,		0,		0,		405},// #405 te_blood
+	{"te_blood",		PF_te_blooddp,		0,		0,		0,		405},// #405 te_blood
 //DP_TE_BLOODSHOWER
 	{"te_bloodshower",	PF_te_bloodshower,	0,		0,		0,		406},// #406 void(vector mincorner, vector maxcorner, float explosionspeed, float howmany) te_bloodshower (DP_TE_BLOODSHOWER)
 //DP_TE_EXPLOSIONRGB

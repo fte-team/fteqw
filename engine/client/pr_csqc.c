@@ -545,9 +545,9 @@ void CS_ClipToLinks ( areanode_t *node, moveclip_t *clip )
 			return;
 		if (clip->passedict)
 		{
-		 	if ((csqcedict_t*)PROG_TO_EDICT(svprogfuncs, touch->v->owner) == clip->passedict)
+		 	if ((csqcedict_t*)PROG_TO_EDICT(csqcprogs, touch->v->owner) == clip->passedict)
 				continue;	// don't clip against own missiles
-			if ((csqcedict_t*)PROG_TO_EDICT(svprogfuncs, clip->passedict->v->owner) == touch)
+			if ((csqcedict_t*)PROG_TO_EDICT(csqcprogs, clip->passedict->v->owner) == touch)
 				continue;	// don't clip against owner
 		}
 
@@ -2126,7 +2126,7 @@ static void PF_cs_findradius (progfuncs_t *prinst, struct globalvars_s *pr_globa
 
 	for (i=1 ; i<sv.num_edicts ; i++)
 	{
-		ent = (void*)EDICT_NUM(svprogfuncs, i);
+		ent = (void*)EDICT_NUM(prinst, i);
 		if (ent->isfree)
 			continue;
 		if (ent->v->solid == SOLID_NOT)

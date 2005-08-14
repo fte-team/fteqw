@@ -1028,6 +1028,12 @@ int QCLibEditor(progfuncs_t *prfncs, char *filename, int line, int nump, char **
 
 void Editor_f(void)
 {
+	if (Cmd_Argc() != 2)
+	{
+		Con_Printf("edit <filename>\n");
+		return;
+	}
+
 	if (editoractive)
 		EditorSaveFile(OpenEditorFile);
 	EditorOpenFile(Cmd_Argv(1));

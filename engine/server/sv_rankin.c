@@ -460,7 +460,7 @@ void Rank_AddUser_f (void)
 
 	if (Cmd_Argc() < 2)
 	{
-		Con_Printf("%s: <name> [pwd] [rights]\n");
+		Con_Printf("%s: <name> [pwd] [rights]\n", Cmd_Argv(0));
 		return;
 	}
 	//2

@@ -2312,6 +2312,9 @@ void CL_Init (void)
 // register our commands
 //
 	CLSCR_Init();
+#ifdef MENU_DAT
+	MP_RegisterCvarsAndCmds();
+#endif
 #ifdef CSQC_DAT
 	CSQC_RegisterCvarsAndThings();
 #endif

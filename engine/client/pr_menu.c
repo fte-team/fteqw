@@ -1444,6 +1444,28 @@ void MP_Init (void)
 	}
 }
 
+void MP_CoreDump(void)
+{
+	if (!menuprogs)
+	{
+		Con_Printf("Can't core dump, you need to be running the CSQC progs first.");
+		return;
+	}
+
+	{
+		int size = 1024*1024*8;
+		char *buffer = BZ_Malloc(size);
+		menuprogs->save_ents(menuprogs, buffer, &size, 3);
+		COM_WriteFile("menucore.txt", buffer, size);
+		BZ_Free(buffer);
+	}
+}
+
+void MP_RegisterCvarsAndCmds(void)
+{
+	Cmd_AddCommand("coredump_menuqc", MP_CoreDump);
+}
+
 void MP_Draw(void)
 {
 	if (setjmp(mp_abort))

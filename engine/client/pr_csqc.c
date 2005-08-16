@@ -3582,8 +3582,28 @@ qboolean CSQC_Init (unsigned int checksum)
 	return true; //success!
 }
 
+void CSQC_CoreDump(void)
+{
+	if (!csqcprogs)
+	{
+		Con_Printf("Can't core dump, you need to be running the CSQC progs first.");
+		return;
+	}
+
+	{
+		int size = 1024*1024*8;
+		char *buffer = BZ_Malloc(size);
+		csqcprogs->save_ents(csqcprogs, buffer, &size, 3);
+		COM_WriteFile("csqccore.txt", buffer, size);
+		BZ_Free(buffer);
+	}
+
+}
+
 void CSQC_RegisterCvarsAndThings(void)
 {
+	Cmd_AddCommand("coredump_csqc", CSQC_CoreDump);
+
 	Cvar_Register(&pr_csmaxedicts, "csqc");
 	Cvar_Register(&cl_csqcdebug, "csqc");
 }

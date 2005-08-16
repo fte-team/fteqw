@@ -801,6 +801,24 @@ void PR_BreakPoint_f(void)
 		Con_Printf("Breakpoint has been cleared\n");
 
 }
+
+void PR_SSCoreDump_f(void)
+{
+	if (!svprogfuncs)
+	{
+		Con_Printf("Progs not running, you need to start a server first\n");
+		return;
+	}
+
+	{
+		int size = 1024*1024*8;
+		char *buffer = BZ_Malloc(size);
+		svprogfuncs->save_ents(svprogfuncs, buffer, &size, 3);
+		COM_WriteFile("ssqccore.txt", buffer, size);
+		BZ_Free(buffer);
+	}
+}
+
 /*
 #ifdef _DEBUG
 void QCLibTest(void)
@@ -824,6 +842,7 @@ void PR_Init(void)
 	Cmd_AddCommand ("decompile", PR_Decompile_f);
 	Cmd_AddCommand ("compile", PR_Compile_f);
 	Cmd_AddCommand ("applycompile", PR_ApplyCompilation_f);
+	Cmd_AddCommand ("coredump_ssqc", PR_SSCoreDump_f);
 /*
 #ifdef _DEBUG
 	Cmd_AddCommand ("svtestprogs", QCLibTest);

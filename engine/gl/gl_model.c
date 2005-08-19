@@ -684,6 +684,7 @@ couldntload:
 	default:
 		//check for text based headers
 		COM_Parse((char*)buf);
+#ifdef MD5MODELS
 		if (!strcmp(com_token, "MD5Version"))
 		{
 			GLMod_LoadMD5MeshModel (mod, buf);
@@ -695,6 +696,7 @@ couldntload:
 			break;
 		}
 		else
+#endif
 		{
 			Con_Printf("Unrecognised model format %i\n", LittleLong(*(unsigned *)buf));
 			goto couldntload;

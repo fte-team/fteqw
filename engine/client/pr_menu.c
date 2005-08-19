@@ -26,6 +26,11 @@ char *PF_TempStr(progfuncs_t *prinst);
 
 int menuentsize;
 
+// cvars
+#define MENUPROGSGROUP "Menu progs control"
+cvar_t forceqmenu = {"forceqmenu", "0"};
+cvar_t pr_menuqc_coreonerror = {"pr_menuqc_coreonerror", "1"};
+
 //pr_cmds.c builtins that need to be moved to a common.
 void VARGS PR_BIError(progfuncs_t *progfuncs, char *format, ...);
 void PF_cvar_string (progfuncs_t *prinst, struct globalvars_s *pr_globals);
@@ -1331,7 +1336,7 @@ void VARGS Menu_Abort (char *format, ...)
 
 	Con_Printf("Menu_Abort: %s\nShutting down menu.dat\n", string);
 
-
+	if (pr_menuqc_coreonerror.value)
 	{
 		char *buffer;
 		int size = 1024*1024*8;
@@ -1351,7 +1356,8 @@ void MP_Init (void)
 	{
 		return;
 	}
-	if (COM_CheckParm("-qmenu"))
+
+	if (forceqmenu.value)
 		return;
 
 	M_DeInit_Internal();
@@ -1464,6 +1470,12 @@ void MP_CoreDump(void)
 void MP_RegisterCvarsAndCmds(void)
 {
 	Cmd_AddCommand("coredump_menuqc", MP_CoreDump);
+
+	Cvar_Register(&forceqmenu, MENUPROGSGROUP);
+	Cvar_Register(&pr_menuqc_coreonerror, MENUPROGSGROUP);
+
+	if (COM_CheckParm("-qmenu"))
+		Cvar_Set(&forceqmenu, "1");
 }
 
 void MP_Draw(void)

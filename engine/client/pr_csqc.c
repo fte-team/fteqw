@@ -24,8 +24,11 @@ qboolean csqc_drawsbar;
 qboolean csqc_addcrosshair;
 static int num_csqc_edicts;
 
+#define CSQCPROGSGROUP "CSQC progs control"
 cvar_t	pr_csmaxedicts = {"pr_csmaxedicts", "3072"};
 cvar_t	cl_csqcdebug = {"cl_csqcdebug", "0"};	//prints entity numbers which arrive (so I can tell people not to apply it to players...)
+cvar_t  cl_nocsqc = {"cl_nocsqc", "0"};
+cvar_t  pr_csqc_coreonerror = {"pr_csqc_coreonerror", "1"};
 
 //If I do it like this, I'll never forget to register something...
 #define csqcglobals	\
@@ -1908,7 +1911,7 @@ void PF_cs_sound(progfuncs_t *prinst, struct globalvars_s *pr_globals)
 	char		*sample;
 	int			channel;
 	csqcedict_t		*entity;
-	int 		volume;
+	float volume;
 	float attenuation;
 
 	sfx_t *sfx;
@@ -3384,14 +3387,14 @@ void VARGS CSQC_Abort (char *format, ...)	//an error occured.
 
 	Con_Printf("CSQC_Abort: %s\nShutting down csqc\n", string);
 
-
-{
-	int size = 1024*1024*8;
-	char *buffer = BZ_Malloc(size);
-	csqcprogs->save_ents(csqcprogs, buffer, &size, 3);
-	COM_WriteFile("csqccore.txt", buffer, size);
-	BZ_Free(buffer);
-}
+	if (pr_csqc_coreonerror.value)
+	{
+		int size = 1024*1024*8;
+		char *buffer = BZ_Malloc(size);
+		csqcprogs->save_ents(csqcprogs, buffer, &size, 3);
+		COM_WriteFile("csqccore.txt", buffer, size);
+		BZ_Free(buffer);
+	}
 
 	Host_EndGame("csqc error");
 }
@@ -3496,6 +3499,9 @@ qboolean CSQC_Init (unsigned int checksum)
 	{
 		return false;
 	}
+
+	if (cl_nocsqc.value)
+		return false;
 
 	memset(cl.model_csqcname, 0, sizeof(cl.model_csqcname));
 	memset(cl.model_csqcprecache, 0, sizeof(cl.model_csqcprecache));
@@ -3604,8 +3610,10 @@ void CSQC_RegisterCvarsAndThings(void)
 {
 	Cmd_AddCommand("coredump_csqc", CSQC_CoreDump);
 
-	Cvar_Register(&pr_csmaxedicts, "csqc");
-	Cvar_Register(&cl_csqcdebug, "csqc");
+	Cvar_Register(&pr_csmaxedicts, CSQCPROGSGROUP);
+	Cvar_Register(&cl_csqcdebug, CSQCPROGSGROUP);
+	Cvar_Register(&cl_nocsqc, CSQCPROGSGROUP);
+	Cvar_Register(&pr_csqc_coreonerror, CSQCPROGSGROUP);
 }
 
 qboolean CSQC_DrawView(void)

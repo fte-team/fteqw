@@ -242,13 +242,17 @@ void VARGS SV_Error (char *error, ...)
 	_vsnprintf (string,sizeof(string)-1, error,argptr);
 	va_end (argptr);
 
-	if (svprogfuncs)
 	{
-		int size = 1024*1024*8;
-		char *buffer = BZ_Malloc(size);
-		svprogfuncs->save_ents(svprogfuncs, buffer, &size, 3);
-		COM_WriteFile("ssqccore.txt", buffer, size);
-		BZ_Free(buffer);
+		extern cvar_t pr_ssqc_coreonerror;
+
+		if (svprogfuncs && pr_ssqc_coreonerror.value)
+		{
+			int size = 1024*1024*8;
+			char *buffer = BZ_Malloc(size);
+			svprogfuncs->save_ents(svprogfuncs, buffer, &size, 3);
+			COM_WriteFile("ssqccore.txt", buffer, size);
+			BZ_Free(buffer);
+		}
 	}
 
 

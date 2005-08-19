@@ -57,6 +57,8 @@ cvar_t pr_overridebuiltins = {"pr_overridebuiltins", "1"};
 
 cvar_t pr_compatabilitytest = {"pr_compatabilitytest", "0", NULL, CVAR_LATCH};
 
+cvar_t pr_ssqc_coreonerror = {"pr_coreonerror", "1"};
+
 cvar_t sv_addon[MAXADDONS];
 char cvargroup_progs[] = "Progs variables";
 
@@ -881,6 +883,8 @@ void PR_Init(void)
 
 	Cvar_Register (&qc_nonetaccess, cvargroup_progs);
 	Cvar_Register (&pr_overridebuiltins, cvargroup_progs);
+
+	Cvar_Register (&pr_ssqc_coreonerror, cvargroup_progs);
 }
 
 void Q_InitProgs(void)

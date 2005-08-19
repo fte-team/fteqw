@@ -6,7 +6,7 @@
 #include "shader.h"
 #include "hash.h"
 
-#ifdef ZYMOTICMODELS
+#if defined(ZYMOTICMODELS) || defined(MD5MODELS)
 #define SKELETALMODELS
 #endif
 
@@ -97,11 +97,12 @@ typedef struct {
 
 	int nextsurf;
 
-
+#ifdef SKELETALMODELS
 	int numbones;
 	int ofsbones;
 	int numtransforms;
 	int ofstransforms;
+#endif
 
 //these exist only in the root mesh.
 	int numtagframes;
@@ -174,9 +175,10 @@ typedef struct {
 } galiascolourmapped_t;
 #endif
 
-
+#ifdef SKELETALMODELS
 static void R_LerpBones(float *plerp, float **pose, int poses, galiasbone_t *bones, int bonecount, float bonepose[MAX_BONES][12]);
 static void R_TransformVerticies(float bonepose[MAX_BONES][12], galisskeletaltransforms_t *weights, int numweights, float *xyzout);
+#endif
 
 void Mod_DoCRC(model_t *mod, char *buffer, int buffersize)
 {
@@ -225,7 +227,7 @@ qboolean GLMod_Trace(model_t *model, int forcehullnum, int frame, vec3_t start, 
 	float diststart, distend;
 
 	float frac;
-	float temp;
+//	float temp;
 
 	vec3_t impactpoint;
 
@@ -238,6 +240,7 @@ qboolean GLMod_Trace(model_t *model, int forcehullnum, int frame, vec3_t start, 
 		group = (galiasgroup_t*)((char*)mod + mod->groupofs);
 		pose = (galiaspose_t*)((char*)&group[0] + group[0].poseofs);
 		posedata = (float*)((char*)pose + pose->ofsverts);
+#ifdef SKELETALMODELS
 		if (mod->numbones && !mod->sharesverts)
 		{
 			float bonepose[MAX_BONES][12];
@@ -251,6 +254,7 @@ qboolean GLMod_Trace(model_t *model, int forcehullnum, int frame, vec3_t start, 
 			else
 				R_TransformVerticies((void*)posedata, (galisskeletaltransforms_t*)((char*)mod + mod->ofstransforms), mod->numtransforms, posedata);
 		}
+#endif
 
 		for (i = 0; i < mod->numindexes; i+=3)
 		{
@@ -279,10 +283,10 @@ qboolean GLMod_Trace(model_t *model, int forcehullnum, int frame, vec3_t start, 
 			impactpoint[1] = start[1] + frac*(end[1] - start[1]);
 			impactpoint[2] = start[2] + frac*(end[2] - start[2]);
 
-			temp = DotProduct(impactpoint, normal)-planedist;
+//			temp = DotProduct(impactpoint, normal)-planedist;
 
 			CrossProduct(edge1, normal, edgenormal);
-			temp = DotProduct(impactpoint, edgenormal)-DotProduct(p2, edgenormal);
+//			temp = DotProduct(impactpoint, edgenormal)-DotProduct(p2, edgenormal);
 			if (DotProduct(impactpoint, edgenormal) > DotProduct(p2, edgenormal))
 				continue;
 

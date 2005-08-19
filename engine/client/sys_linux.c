@@ -60,8 +60,9 @@ void Sys_CloseTerminal (void)
 }
 
 
-
+#ifndef CLIENTONLY
 qboolean isDedicated;
+#endif
 // =======================================================================
 // General routines
 // =======================================================================

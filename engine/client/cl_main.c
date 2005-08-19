@@ -2812,9 +2812,12 @@ void Host_Frame (double time)
 		time2 = Sys_DoubleTime ();
 
 	// update audio
+#ifdef CSQC_DAT
 	if (CSQC_SettingListener())
 		S_ExtraUpdate();
-	else if (cls.state == ca_active)
+	else
+#endif
+	if (cls.state == ca_active)
 		S_Update (r_origin, vpn, vright, vup);
 	else
 		S_Update (vec3_origin, vec3_origin, vec3_origin, vec3_origin);

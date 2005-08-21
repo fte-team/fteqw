@@ -8452,6 +8452,9 @@ pbool QCC_Include(char *filename)
 	else
 	{
 		strcpy(fname, qccmsourcedir);
+		strcpy(fname, strings + s_file );
+		StripFilename( fname );
+		strcat( fname, "/" );
 		strcat(fname, filename);
 	}
 	QCC_LoadFile(fname, (void*)&newfile);

@@ -114,7 +114,6 @@ void *Sys_LoadDLL(const char *name, void **vmMain, int (EXPORT_FN *syscall)(int 
 		FreeLibrary(hVM);
 		return NULL;
 	}
-
 	return hVM;
 }
 
@@ -249,6 +248,11 @@ typedef struct qvm_s
 	unsigned long *sp;	// stack pointer, initially points to end of ss, goes down
 	unsigned long bp;	// base pointer, initially len_ds+len_ss/2
 
+	unsigned long *min_sp;
+	unsigned long *max_sp;
+	unsigned long min_bp;
+	unsigned long max_bp;
+
 // status
 	unsigned int len_cs;	// size of cs
 	unsigned int len_ds;	// size of ds
@@ -259,7 +263,7 @@ typedef struct qvm_s
 	unsigned int mem_size;
 	qbyte *mem_ptr;
 
-	unsigned int cycles;	// command cicles executed
+//	unsigned int cycles;	// command cicles executed
 	sys_callex_t syscall;
 } qvm_t;
 
@@ -407,7 +411,7 @@ qvm_t *QVM_Load(const char *name, sys_callex_t syscall)
 	qvm->len_ss=256*1024;									// 256KB stack space
 
 // memory
-	qvm->ds_mask = qvm->len_ds*sizeof(qbyte)+(qvm->len_ss+4)*sizeof(qbyte);//+4 for a stack check decrease
+	qvm->ds_mask = qvm->len_ds*sizeof(qbyte)+(qvm->len_ss+16*4)*sizeof(qbyte);//+4 for a stack check decrease
 	for (i = 0; i < 31; i++)
 	{
 		if ((1<<i) >= qvm->ds_mask)	//is this bit greater than our minimum?
@@ -430,10 +434,17 @@ qvm_t *QVM_Load(const char *name, sys_callex_t syscall)
 	qvm->pc=qvm->cs;
 	qvm->sp=(long*)(qvm->ss+qvm->len_ss);
 	qvm->bp=qvm->len_ds+qvm->len_ss/2;
-	qvm->cycles=0;
+//	qvm->cycles=0;
 	qvm->syscall=syscall;
 
 	qvm->ds_mask--;
+
+	qvm->min_sp = (long*)(qvm->ds+qvm->len_ds+qvm->len_ss/2);
+	qvm->max_sp = (long*)(qvm->ds+qvm->len_ds+qvm->len_ss);
+	qvm->min_bp = qvm->len_ds;
+	qvm->max_bp = qvm->len_ds+qvm->len_ss/2;
+
+	qvm->bp = qvm->max_bp;
 
 // load instructions
 {
@@ -530,7 +541,7 @@ static void inline QVM_Goto(qvm_t *vm, int addr)
 static void inline QVM_Call(qvm_t *vm, int addr)
 {
 	vm->sp--;
-	if (vm->sp < (unsigned long*)(vm->ss)) Sys_Error("QVM Stack underflow");
+	if (vm->sp < vm->min_sp) Sys_Error("QVM Stack underflow");
 
 	if(addr<0)
 	{
@@ -544,7 +555,7 @@ static void inline QVM_Call(qvm_t *vm, int addr)
 		}
 	}
 
-	if(addr>vm->len_cs)
+	if(addr>=vm->len_cs)
 		Sys_Error("VM run time error: program jumped off to hyperspace\n");
 
 	vm->sp[0]=(long)(vm->pc-vm->cs); // push pc /return address/
@@ -564,14 +575,14 @@ static void inline QVM_Enter(qvm_t *vm, long size)
 	long *fp;
 
 	vm->bp-=size;
-	if(vm->bp<vm->len_ds)
+	if(vm->bp<vm->min_bp)
 		Sys_Error("VM run time error: out of stack\n");
 
 	fp=(long*)(vm->ds+vm->bp);
-	fp[0]=0;					// unknown /maybe size/
+	fp[0]=vm->sp-vm->max_sp;					// unknown /maybe size/
 	fp[1]=*vm->sp++;	// saved PC
 
-	if ((long*)vm->sp > (long*)(vm->ss+vm->len_ss)) Sys_Error("QVM Stack overflow");
+	if (vm->sp > vm->max_sp) Sys_Error("QVM Stack overflow");
 }
 
 /*
@@ -584,7 +595,7 @@ static void inline QVM_Return(qvm_t *vm, long size)
 	fp=(long*)(vm->ds+vm->bp);
 	vm->bp+=size;
 
-	if(vm->bp>vm->len_ds+vm->len_ss/2)
+	if(vm->bp>vm->max_bp)
 		Sys_Error("VM run time error: freed too much stack\n");
 
 	if(fp[1]>=vm->len_cs*2)
@@ -594,14 +605,10 @@ static void inline QVM_Return(qvm_t *vm, long size)
 		if (vm->cs+fp[1])
 			Sys_Error("VM run time error: program returned to negative hyperspace\n");
 
+	if (vm->sp-vm->max_sp != fp[0])
+		Sys_Error("VM run time error: stack push/pop mismatch \n");
 	vm->pc=vm->cs+fp[1]; // restore PC
-//	fp[1] = fp[0];
 }
-
-
-
-
-
 
 // ------------------------- * execution * -------------------------
 
@@ -612,31 +619,25 @@ int QVM_Exec(register qvm_t *qvm, int command, int arg0, int arg1, int arg2, int
 {
 //remember that the stack is backwards. push takes 1.
 
+//FIXME: does it matter that our stack pointer (qvm->sp) is backwards compared to q3?
+//We are more consistant of course, but this simply isn't what q3 does.
+
 //all stack shifts in this function are referenced through these 2 macros.
-#define POP(t)	qvm->sp+=t;if (qvm->sp > stackstart) Sys_Error("QVM Stack underflow");
-#define PUSH(v) qvm->sp--;if (qvm->sp < stackend) Sys_Error("QVM Stack overflow");*qvm->sp=v
+#define POP(t)	qvm->sp+=t;if (qvm->sp > qvm->max_sp) Sys_Error("QVM Stack underflow");
+#define PUSH(v) qvm->sp--;if (qvm->sp < qvm->min_sp) Sys_Error("QVM Stack overflow");*qvm->sp=v
 	qvm_op_t op=-1;
 	unsigned long param;
 
 	long *fp;
-	unsigned long *stackstart;
-	unsigned long *stackend;
+	unsigned long *oldpc;
 
-	static int recurse = 0;
-
-	if (recurse++)
-		Sys_Error("QVM recursivly entered\n");
-
-	stackstart	= (unsigned long*)(qvm->ss+qvm->len_ss);
-	stackend	= (unsigned long*)(qvm->ss);
+	oldpc = qvm->pc;
 
 // setup execution environment
 	qvm->pc=NULL;
-	qvm->sp=(long*)(qvm->ss+qvm->len_ss);
-	qvm->bp=qvm->len_ds+qvm->len_ss/2;
-	qvm->cycles=0;
+//	qvm->cycles=0;
 // prepare local stack
-	qvm->bp-=(13+2)*sizeof(int);
+	qvm->bp -= 15*4;	//we have to do this each call for the sake of (reliable) recursion.
 	fp=(long*)(qvm->ds+qvm->bp);
 // push all params
 	fp[0]=0;
@@ -662,15 +663,15 @@ int QVM_Exec(register qvm_t *qvm, int command, int arg0, int arg1, int arg2, int
 	// fetch next command
  		op=*qvm->pc++;
 		param=*qvm->pc++;
-		qvm->cycles++;
+//		qvm->cycles++;
 
 		switch(op)
 		{
 	// aux
 		case OP_UNDEF:
 		case OP_NOP:
-		default:
 			break;
+		default:
 		case OP_BREAK: // break to debugger
 			*(int*)NULL=-1;
 			break;
@@ -685,8 +686,14 @@ int QVM_Exec(register qvm_t *qvm, int command, int arg0, int arg1, int arg2, int
 			if (!qvm->pc)
 			{
 				// pick return value from stack
-				recurse--;
-				return qvm->sp[0];
+				qvm->pc = oldpc;
+
+				qvm->bp += 15*4;
+				if(qvm->bp!=qvm->max_bp)
+					Sys_Error("VM run time error: freed too much stack\n");
+				param = qvm->sp[0];
+				POP(1);
+				return param;
 			}
 			break;
 		case OP_CALL:
@@ -697,7 +704,7 @@ int QVM_Exec(register qvm_t *qvm, int command, int arg0, int arg1, int arg2, int
 
 	// stack
 		case OP_PUSH:
-			PUSH(0);
+			PUSH(*qvm->sp);
 			break;
 		case OP_POP:
 			POP(1);
@@ -791,24 +798,26 @@ int QVM_Exec(register qvm_t *qvm, int command, int arg0, int arg1, int arg2, int
 			*(unsigned long*)&qvm->sp[0]=*(unsigned long*)&qvm->ds[qvm->sp[0]&qvm->ds_mask];
 			break;
 		case OP_STORE1:
-			*(qbyte*)&qvm->ds[qvm->sp[1]&qvm->ds_mask]=((qbyte)qvm->sp[0]&0xFF);
+			*(qbyte*)&qvm->ds[qvm->sp[1]&qvm->ds_mask]=(qbyte)(qvm->sp[0]&0xFF);
 			POP(2);
 			break;
 		case OP_STORE2:
-			*(unsigned short*)&qvm->ds[qvm->sp[1]&qvm->ds_mask]=((unsigned short)qvm->sp[0]&0xFFFF);
+			*(unsigned short*)&qvm->ds[qvm->sp[1]&qvm->ds_mask]=(unsigned short)(qvm->sp[0]&0xFFFF);
 			POP(2);
 			break;
 		case OP_STORE4:
-			*(unsigned long*)&qvm->ds[qvm->sp[1]&qvm->ds_mask]=qvm->sp[0];
+			*(unsigned long*)&qvm->ds[qvm->sp[1]&qvm->ds_mask]=*(unsigned long*)&qvm->sp[0];
 			POP(2);
 			break;
 		case OP_ARG:
-			*(unsigned long*)&qvm->ds[(qvm->bp+param)&qvm->ds_mask]=qvm->sp[0];
+			*(unsigned long*)&qvm->ds[(param+qvm->bp)&qvm->ds_mask]=*(unsigned long*)&qvm->sp[0];
 			POP(1);
 			break;
 		case OP_BLOCK_COPY:
 			if (qvm->sp[1]+param < qvm->ds_mask && qvm->sp[0] + param < qvm->ds_mask)
+			{
 				memmove(qvm->ds+(qvm->sp[1]&qvm->ds_mask), qvm->ds+(qvm->sp[0]&qvm->ds_mask), param);
+			}
 			POP(2);
 			break;
 
@@ -844,7 +853,7 @@ int QVM_Exec(register qvm_t *qvm, int command, int arg0, int arg1, int arg2, int
 			break;
 		case OP_MODU:
 			*(unsigned long*)&qvm->sp[1]%=(*(unsigned long*)&qvm->sp[0]);
-			qvm->sp++;
+			POP(1);
 			break;
 		case OP_MULI:
 			*(signed long*)&qvm->sp[1]*=*(signed long*)&qvm->sp[0];
@@ -907,7 +916,7 @@ int QVM_Exec(register qvm_t *qvm, int command, int arg0, int arg1, int arg2, int
 
 	// format conversion
 		case OP_CVIF:
-			*(float*)&qvm->sp[0]=(float)qvm->sp[0];
+			*(float*)&qvm->sp[0]=(float)(signed long)qvm->sp[0];
 			break;
 		case OP_CVFI:
 			*(signed long*)&qvm->sp[0]=(signed long)(*(float*)&qvm->sp[0]);

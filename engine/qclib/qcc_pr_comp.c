@@ -4637,7 +4637,7 @@ void QCC_PR_ParseStatement (void)
 				else
 					patch1 = NULL;
 			}
-			else if (e->type == type_string)	//special case, as strings are now pointers, not offsets from string table
+			else if (!typecmp( e->type, type_string))	//special case, as strings are now pointers, not offsets from string table
 			{
 				QCC_PR_ParseWarning(0, "while (string) can result in bizzare behaviour");
 				QCC_FreeTemp(QCC_PR_Statement (&pr_opcodes[OP_IFNOTS], e, 0, &patch1));
@@ -4796,7 +4796,7 @@ void QCC_PR_ParseStatement (void)
 		}
 		else
 		{
-			if (e->type == type_string && flag_ifstring)
+			if (!typecmp( e->type, type_string))
 			{
 				QCC_PR_ParseWarning(WARN_IFSTRING_USED, "do {} while(string) can result in bizzare behaviour");
 				QCC_FreeTemp(QCC_PR_Statement (&pr_opcodes[OP_IFS], e, NULL, &patch2));
@@ -4890,7 +4890,7 @@ void QCC_PR_ParseStatement (void)
 
 		if (negate)
 		{
-			if (e->type == type_string && flag_ifstring)	//special case, as strings are now pointers, not offsets from string table
+			if (!typecmp( e->type, type_string))	//special case, as strings are now pointers, not offsets from string table
 			{
 				QCC_PR_ParseWarning(WARN_IFSTRING_USED, "if not(string) can result in bizzare behaviour");
 				QCC_FreeTemp(QCC_PR_Statement (&pr_opcodes[OP_IFS], e, 0, &patch1));
@@ -4900,7 +4900,7 @@ void QCC_PR_ParseStatement (void)
 		}
 		else
 		{
-			if (e->type == type_string && flag_ifstring)	//special case, as strings are now pointers, not offsets from string table
+			if (!typecmp( e->type, type_string))	//special case, as strings are now pointers, not offsets from string table
 			{
 				QCC_PR_ParseWarning(WARN_IFSTRING_USED, "if (string) can result in bizzare behaviour");
 				QCC_FreeTemp(QCC_PR_Statement (&pr_opcodes[OP_IFNOTS], e, 0, &patch1));

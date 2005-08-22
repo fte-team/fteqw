@@ -76,24 +76,244 @@ cvar_group_t *Cvar_GetGroup(const char *gname)
 	return g;
 }
 
+// converts a given single cvar flag into a human readable string
+char *Cvar_FlagToName(int flag)
+{
+	switch (flag)
+	{
+	case CVAR_ARCHIVE:
+		return "archive";
+	case CVAR_USERINFO:
+		return "userinfo";
+	case CVAR_NOSET:
+		return "noset";
+	case CVAR_LATCH:
+		return "latch";
+	case CVAR_POINTER:
+		return "pointer";
+	case CVAR_NOTFROMSERVER:
+		return "noserver";
+	case CVAR_USERCREATED:
+		return "userset";
+	case CVAR_CHEAT:
+		return "cheat";
+	case CVAR_SEMICHEAT:
+		return "semicheat";
+	case CVAR_RENDERERLATCH:
+		return "renderlatch";
+	case CVAR_SERVEROVERRIDE:
+		return "serverlatch";
+	}
+
+	return NULL;
+}
+
 //lists commands, also prints restriction level
+#define CLF_RAW 0x1
+#define CLF_LEVEL 0x2
+#define CLF_VALUES 0x8
+#define CLF_DEFAULT 0x10
+#define CLF_LATCHES 0x20
+#define CLF_FLAGS 0x40
+#define CLF_FLAGMASK 0x80
 void Cvar_List_f (void)
 {
 	cvar_group_t	*grp;
 	cvar_t	*cmd;
-	int num=0;
-	for (grp=cvar_groups ; grp ; grp=grp->next)
-	for (cmd=grp->cvars ; cmd ; cmd=cmd->next)
+	char *var, *search, *gsearch;
+	int gnum, i, num = 0;
+	int listflags = 0, cvarflags;
+	
+	cvarflags = (CVAR_LASTFLAG << 1) - 1;
+	gsearch = search = NULL;
+
+	for (i = 1; i < Cmd_Argc(); i++)
 	{
-		if ((cmd->restriction?cmd->restriction:rcon_level.value) > Cmd_ExecLevel)
-			continue;
-		if (!num)
-			Con_TPrintf(TL_CVARLISTHEADER);
-		Con_Printf("(%2i) %s\n", (int)(cmd->restriction?cmd->restriction:rcon_level.value), cmd->name);
-		num++;
+		var = Cmd_Argv(i);
+		if (*var == '-')
+		{
+			// short options
+			for (var++; *var; var++)
+			{
+				if (*var == 'g')
+				{
+					// fix this so we can search for multiple groups
+					i++;
+					if (i >= Cmd_Argc())
+					{
+						Con_Printf("Missing parameter for -g\nUse cvarlist -h for help\n");
+						return;
+					}
+
+					gsearch = Cmd_Argv(i);
+				}
+				else if (*var == 'l')
+					listflags |= CLF_LEVEL;
+				else if (*var == 'r')
+					listflags |= CLF_RAW;
+				else if (*var == 'v')
+					listflags |= CLF_VALUES;
+				else if (*var == 'd')
+					listflags |= CLF_DEFAULT;
+				else if (*var == 'L')
+					listflags |= CLF_LATCHES;
+				else if (*var == 'f')
+				{
+					char *tmpv;
+
+					if (!(listflags & CLF_FLAGMASK))
+					{
+						listflags |= CLF_FLAGMASK;
+						cvarflags = 0;
+					}
+
+					i++;
+					if (i >= Cmd_Argc())
+					{
+						Con_Printf("Missing parameter for -f\nUse cvarlist -h for help\n");
+						return;
+					}
+
+					tmpv = Cmd_Argv(i);
+
+					for (num = 1; num <= CVAR_LASTFLAG; num <<= 1)
+					{
+						char *tmp;
+
+						tmp = Cvar_FlagToName(num);
+
+						if (tmp && !stricmp(tmp, tmpv))
+						{
+							cvarflags |= num;
+							break;
+						}
+					}
+
+					if (num > CVAR_LASTFLAG)
+					{
+						Con_Printf("Invalid cvar flag name\nUse cvarlist -h for help\n");
+						return;
+					}
+				}
+				else if (*var == 'F')
+					listflags |= CLF_FLAGS;
+				else if (*var == 'h')
+				{	
+					// list options
+					Con_Printf("Syntax: cvarlist [-FLdhlr] [-f flag] [-g groupstring] [searchstring]\n"
+						"  -F shows cvar flags\n"
+						"  -L shows latched values\n"
+						"  -d shows default cvar values\n"
+						"  -f shows only cvars with a matching flag, more than one -f can be used\n"
+						"  -g shows only cvar groups with the substring of groupstring\n"
+						"  -h shows this help message\n"
+						"  -l shows cvar restriction levels\n"
+						"  -r removes group and list headers\n"
+						"  -v shows current values\n"
+						"Cvar flags are:");
+
+					for (num = 1; num <= CVAR_LASTFLAG; num <<= 1)
+					{
+						// no point caring about the content of var at this point
+						var = Cvar_FlagToName(num);
+
+						if (var)
+							Con_Printf(" %s", var);
+					}
+
+					Con_Printf("\n\n");
+					return;
+				}
+				else if (*var != '-')
+				{
+					Con_Printf("Invalid option for cvarlist\nUse cvarlist -h for help\n");
+					return;
+				}
+			}
+		}
+		else
+			search = var;
 	}
-	if (num)
-		Con_Printf("\n");
+
+	for (grp=cvar_groups ; grp ; grp=grp->next)
+	{
+		// list only cvars with group search substring
+		if (gsearch && !strstr(grp->name, gsearch))
+			continue;
+
+		gnum = 0;
+		for (cmd=grp->cvars ; cmd ; cmd=cmd->next)
+		{
+			// list only non-restricted cvars
+			if ((cmd->restriction?cmd->restriction:rcon_level.value) > Cmd_ExecLevel)
+				continue;
+
+			// list only cvars with search substring
+			if (search && !strstr(cmd->name, search))
+				continue;
+
+			// list only cvars with matching flags
+			if (!(cmd->flags & cvarflags))
+				continue;
+
+			// print cvar list header
+			if (!(listflags & CLF_RAW) && !num)
+				Con_TPrintf(TL_CVARLISTHEADER);
+
+			// print group header
+			if (!(listflags & CLF_RAW) && !gnum)
+				Con_Printf("%s --\n", grp->name);
+
+			// print restriction level
+			if (listflags & CLF_LEVEL)
+				Con_Printf("(%i) ", cmd->restriction);
+
+			// print cvar name
+			Con_Printf(cmd->name);
+			
+			// print current value
+			if (listflags & CLF_VALUES)
+			{
+				if (*cmd->string)
+					Con_Printf(" %s", cmd->string);
+			}
+
+			// print default value
+			if (listflags & CLF_DEFAULT)
+				Con_Printf(", default \"%s\"", cmd->defaultstr);
+
+			// print cvar flags
+			if (listflags & CLF_FLAGS)
+			{
+				for (i = 1; i <= CVAR_LASTFLAG; i <<= 1) 
+				{
+					if (i & cmd->flags) 
+					{
+						var = Cvar_FlagToName(i);
+						if (var)
+							Con_Printf(" %s", var);
+					}
+				}
+			}
+
+			// print latched value
+			if (listflags & CLF_LATCHES)
+			{
+				if (cmd->latched_string)
+					Con_Printf(", latched as \"%s\"", cmd->latched_string);
+			}
+
+			// print new line to finish individual cvar
+			Con_Printf("\n");
+
+			num++;
+			gnum++;
+		}
+
+		// print new line to seperate groups
+		if (!(listflags & CLF_RAW) && gnum)
+			Con_Printf("\n");
+	}
 }
 
 /*

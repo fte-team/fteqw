@@ -130,6 +130,7 @@ extern cvar_t gl_ati_truform;
 extern cvar_t gl_ati_truform_type;
 extern cvar_t gl_ati_truform_tesselation;
 
+extern cvar_t gl_blendsprites;
 
 #ifdef R_XFLIP
 cvar_t	r_xflip = {"leftisright", "0"};
@@ -530,7 +531,7 @@ void R_DrawSpriteModel (entity_t *e)
 		qglTexEnvi(GL_TEXTURE_ENV, GL_TEXTURE_ENV_MODE, GL_MODULATE);
 		qglBlendFunc(GL_SRC_ALPHA, GL_ONE);
 	}
-	else if (e->alpha<1)
+	else if (e->alpha<1 || gl_blendsprites.value)
 	{
 		qglEnable(GL_BLEND);
 		qglTexEnvi(GL_TEXTURE_ENV, GL_TEXTURE_ENV_MODE, GL_MODULATE);

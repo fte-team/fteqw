@@ -917,6 +917,7 @@ void Alias_WipeStuffedAliaes(void)
 }
 
 void Cvar_List_f (void);
+void Cvar_Reset_f (void);
 
 /*
 =============================================================================
@@ -2722,6 +2723,7 @@ void Cmd_Init (void)
 	Cmd_AddCommand ("cmdlist", Cmd_List_f);
 	Cmd_AddCommand ("aliaslist", Cmd_AliasList_f);
 	Cmd_AddCommand ("cvarlist", Cvar_List_f);
+	Cmd_AddCommand ("cvarreset", Cvar_Reset_f);
 	Cmd_AddCommand ("fs_flush", COM_RefreshFSCache_f);
 	Cvar_Register(&com_fs_cache, "Filesystem");
 	Cvar_Register(&tp_disputablemacros, "Teamplay");

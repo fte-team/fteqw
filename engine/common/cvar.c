@@ -111,6 +111,7 @@ char *Cvar_FlagToName(int flag)
 //lists commands, also prints restriction level
 #define CLF_RAW 0x1
 #define CLF_LEVEL 0x2
+#define CLF_ALTNAME 0x4
 #define CLF_VALUES 0x8
 #define CLF_DEFAULT 0x10
 #define CLF_LATCHES 0x20
@@ -122,11 +123,10 @@ void Cvar_List_f (void)
 	cvar_t	*cmd;
 	char *var, *search, *gsearch;
 	int gnum, i, num = 0;
-	int listflags = 0, cvarflags;
+	int listflags = 0, cvarflags = 0;
+	char strtmp[512];
 	
-	cvarflags = (CVAR_LASTFLAG << 1) - 1;
 	gsearch = search = NULL;
-
 	for (i = 1; i < Cmd_Argc(); i++)
 	{
 		var = Cmd_Argv(i);
@@ -135,8 +135,9 @@ void Cvar_List_f (void)
 			// short options
 			for (var++; *var; var++)
 			{
-				if (*var == 'g')
+				switch (*var)
 				{
+				case 'g':
 					// fix this so we can search for multiple groups
 					i++;
 					if (i >= Cmd_Argc())
@@ -146,26 +147,30 @@ void Cvar_List_f (void)
 					}
 
 					gsearch = Cmd_Argv(i);
-				}
-				else if (*var == 'l')
+					break;
+				case 'a':
+					listflags |= CLF_ALTNAME;
+					break;
+				case 'l':
 					listflags |= CLF_LEVEL;
-				else if (*var == 'r')
+					break;
+				case 'r':
 					listflags |= CLF_RAW;
-				else if (*var == 'v')
+					break;
+				case 'v':
 					listflags |= CLF_VALUES;
-				else if (*var == 'd')
+					break;
+				case 'd':
 					listflags |= CLF_DEFAULT;
-				else if (*var == 'L')
+					break;
+				case 'L':
 					listflags |= CLF_LATCHES;
-				else if (*var == 'f')
+					break;
+				case 'f':
 				{
 					char *tmpv;
 
-					if (!(listflags & CLF_FLAGMASK))
-					{
-						listflags |= CLF_FLAGMASK;
-						cvarflags = 0;
-					}
+					listflags |= CLF_FLAGMASK;
 
 					i++;
 					if (i >= Cmd_Argc())
@@ -195,21 +200,25 @@ void Cvar_List_f (void)
 						return;
 					}
 				}
-				else if (*var == 'F')
+					break;
+				case 'F':
 					listflags |= CLF_FLAGS;
-				else if (*var == 'h')
-				{	
+					break;
+				case 'h':
 					// list options
-					Con_Printf("Syntax: cvarlist [-FLdhlr] [-f flag] [-g groupstring] [searchstring]\n"
+					Con_Printf("cvarlist list all cvars matching given parameters\n"
+						"Syntax: cvarlist [-FLdhlrv] [-f flag] [-g group] [cvar]\n"
 						"  -F shows cvar flags\n"
 						"  -L shows latched values\n"
+						"  -a shows cvar alternate names\n"
 						"  -d shows default cvar values\n"
 						"  -f shows only cvars with a matching flag, more than one -f can be used\n"
-						"  -g shows only cvar groups with the substring of groupstring\n"
+						"  -g shows only cvar groups using wildcards in group\n"
 						"  -h shows this help message\n"
 						"  -l shows cvar restriction levels\n"
 						"  -r removes group and list headers\n"
 						"  -v shows current values\n"
+						"  cvar indicates the cvar to show, wildcards (*,?) accepted\n"
 						"Cvar flags are:");
 
 					for (num = 1; num <= CVAR_LASTFLAG; num <<= 1)
@@ -223,9 +232,9 @@ void Cvar_List_f (void)
 
 					Con_Printf("\n\n");
 					return;
-				}
-				else if (*var != '-')
-				{
+				case '-':
+					break;
+				default:
 					Con_Printf("Invalid option for cvarlist\nUse cvarlist -h for help\n");
 					return;
 				}
@@ -235,11 +244,23 @@ void Cvar_List_f (void)
 			search = var;
 	}
 
+	// this is sane.. hopefully
+	if (gsearch)
+		Q_strlwr(gsearch);
+
+	if (search)
+		Q_strlwr(search);
+
 	for (grp=cvar_groups ; grp ; grp=grp->next)
 	{
 		// list only cvars with group search substring
-		if (gsearch && !strstr(grp->name, gsearch))
-			continue;
+		if (gsearch)
+		{
+			Q_strncpyz(strtmp, grp->name, 512);
+			Q_strlwr(strtmp);
+			if (!wildcmp(gsearch, strtmp))
+				continue;
+		}
 
 		gnum = 0;
 		for (cmd=grp->cvars ; cmd ; cmd=cmd->next)
@@ -249,11 +270,27 @@ void Cvar_List_f (void)
 				continue;
 
 			// list only cvars with search substring
-			if (search && !strstr(cmd->name, search))
-				continue;
+			if (search)
+			{
+				Q_strncpyz(strtmp, cmd->name, 512);
+				Q_strlwr(strtmp);
+
+				if (!wildcmp(search, strtmp))
+				{
+					if (cmd->name2)
+					{
+						Q_strncpyz(strtmp, cmd->name2, 512);
+						Q_strlwr(strtmp);
+						if (!wildcmp(search, strtmp))
+							continue;		
+					}
+					else
+						continue;
+				}
+			}
 
 			// list only cvars with matching flags
-			if (!(cmd->flags & cvarflags))
+			if ((listflags & CLF_FLAGMASK) && !(cmd->flags & cvarflags))
 				continue;
 
 			// print cvar list header
@@ -281,6 +318,10 @@ void Cvar_List_f (void)
 			// print default value
 			if (listflags & CLF_DEFAULT)
 				Con_Printf(", default \"%s\"", cmd->defaultstr);
+
+			// print alternate name
+			if ((listflags & CLF_ALTNAME) && cmd->name2)
+				Con_Printf(", alternate %s", cmd->name2);
 
 			// print cvar flags
 			if (listflags & CLF_FLAGS)
@@ -313,6 +354,116 @@ void Cvar_List_f (void)
 		// print new line to seperate groups
 		if (!(listflags & CLF_RAW) && gnum)
 			Con_Printf("\n");
+	}
+}
+
+#define CRF_ALTNAME 0x1
+void Cvar_Reset_f (void)
+{
+	cvar_group_t *grp;
+	cvar_t *cmd;
+	int i, listflags;
+	char *var;
+	char *search, *gsearch;
+	char strtmp[512];
+
+	search = gsearch = NULL;
+
+	// parse command line options
+	for (i = 1; i < Cmd_Argc(); i++)
+	{
+		var = Cmd_Argv(i);
+		if (*var == '-')
+		{
+			// short options
+			for (var++; *var; var++)
+			{
+				switch (*var)
+				{
+				case 'a':
+					listflags |= CRF_ALTNAME;
+					break;
+				case 'g':
+					// fix this so we can search for multiple groups
+					i++;
+					if (i >= Cmd_Argc())
+					{
+						Con_Printf("Missing parameter for -g\nUse cvarlist -h for help\n");
+						return;
+					}
+
+					gsearch = Cmd_Argv(i);
+					break;
+				case 'h':
+					Con_Printf("cvarreset resets all cvars to default values matching given parameters\n"
+						"Syntax: cvarreset [-a] (-g group)/cvar\n"
+						"  -a matches cvar against alternate cvar names\n"
+						"  -g matches using wildcards in group\n"
+						"  -h shows this help message\n"
+						"  cvar indicates the cvars to reset, wildcards (*, ?) accepted\n"
+						"A -g or cvar is required\n");
+					return;
+				default:
+					Con_Printf("Invalid option for cvarreset\nUse cvarreset -h for help\n");
+					return;
+				}
+			}			
+		}
+		else
+			search = var;
+	}
+
+	if (!search && !gsearch)
+	{
+		Con_Printf("No group or cvars given\nUse cvarreset -h for help\n");
+		return;
+	}
+
+	// this should be sane.. hopefully
+	if (search)
+		Q_strlwr(search);
+	if (gsearch)
+		Q_strlwr(gsearch);
+
+	for (grp=cvar_groups ; grp ; grp=grp->next)
+	{
+		if (gsearch)
+		{
+			Q_strncpyz(strtmp, grp->name, 512);
+			Q_strlwr(strtmp);
+			if (!wildcmp(gsearch, strtmp))
+				continue;
+		}
+
+		for (cmd=grp->cvars ; cmd ; cmd=cmd->next)
+		{
+			// reset only non-restricted cvars
+			if ((cmd->restriction?cmd->restriction:rcon_level.value) > Cmd_ExecLevel)
+				continue;
+
+			// reset only cvars with search substring
+			if (search)
+			{
+				Q_strncpyz(strtmp, cmd->name, 512);
+				Q_strlwr(strtmp);
+
+				if (!wildcmp(search, strtmp))
+				{
+					if ((listflags & CRF_ALTNAME) && cmd->name2)
+					{
+						Q_strncpyz(strtmp, cmd->name2, 512);
+						Q_strlwr(strtmp);
+						if (!wildcmp(search, strtmp))
+							continue;		
+					}
+					else
+						continue;
+				}
+			}
+
+			// reset cvar to default
+			Cvar_Set(cmd, cmd->defaultstr);
+		}
 	}
 }
 

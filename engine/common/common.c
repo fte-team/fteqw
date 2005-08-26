@@ -1429,7 +1429,7 @@ void COM_CleanUpPath(char *str)
 		memmove(str, str+1, strlen(str+1)+1);
 		critisize = 4;
 	}
-	if(critisize)
+/*	if(critisize)
 	{
 		if (critisize == 1)	//not a biggy, so not red.
 			Con_Printf("Please fix file case on your files\n");
@@ -1440,6 +1440,7 @@ void COM_CleanUpPath(char *str)
 		else if (critisize == 4)	//AAAAHHHHH! (consider sys_error instead)
 			Con_Printf("^1AAAAAAAHHHH! An absolute path!\n");
 	}
+*/
 }
 
 /*

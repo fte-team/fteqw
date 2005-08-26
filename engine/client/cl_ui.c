@@ -4,18 +4,7 @@
 #include "cl_master.h"
 
 #ifdef VM_UI
-
-#ifdef Q3CLIENT
 #include "clq3defs.h"
-#else
-typedef struct {
-	int			handle;
-	int			modificationCount;
-	float		value;
-	int			integer;
-	char		string[256];
-} vmcvar_t;
-#endif
 
 void GLDraw_ShaderImage (int x, int y, int w, int h, float s1, float t1, float s2, float t2, struct shader_s *pic);
 
@@ -1028,7 +1017,9 @@ long UI_SystemCallsEx(void *offset, unsigned int mask, int fn, const long *arg)
 			VM_LONG(ret) = 0;
 			break;	//out of bounds.
 		}
+#ifdef VM_CG
 		Q_strncpyz(VM_POINTER(arg[1]), CG_GetConfigString(VM_LONG(arg[0])), VM_LONG(arg[2]));
+#endif
 		break;
 
 	case UI_LAN_GETPINGQUEUECOUNT:	//these four are master server polling.

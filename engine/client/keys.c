@@ -1221,17 +1221,19 @@ void Key_Event (int key, qboolean down)
 	if (key == K_SHIFT)
 		shift_down = down;
 
-#ifdef CSQC_DAT
 	//yes, csqc is allowed to steal the escape key.
 	if (key != '`' && key != '~')
 	if (key_dest == key_game)
 	{
+#ifdef CSQC_DAT
 		if (CSQC_KeyPress(key, down))	//give csqc a chance to handle it.
 			return;
+#endif
+#ifdef VM_CG
 		if (CG_KeyPress(key, down))
 			return;
-	}
 #endif
+	}
 
 //
 // handle escape specialy, so the user can never unbind it

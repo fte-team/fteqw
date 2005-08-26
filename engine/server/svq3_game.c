@@ -744,6 +744,9 @@ int EXPORT_FN Q3G_SystemCalls(int arg, ...)
 void SVQ3_ShutdownGame(void)
 {
 	int i;
+	if (!q3gamevm)
+		return;
+
 	for (i = 0; i < MAX_CONFIGSTRINGS; i++)
 	{
 		if (svq3_configstrings[i])
@@ -757,11 +760,18 @@ void SVQ3_ShutdownGame(void)
 	q3_sentities = NULL;
 	BZ_Free(q3_snapshot_entities);
 	q3_snapshot_entities = NULL;
+
+	VM_Destroy(q3gamevm);
+	q3gamevm = NULL;
 }
 
 qboolean SVQ3_InitGame(void)
 {
 	int i;
+
+	if (sv.worldmodel->fromgame == fg_quake)
+		return false;	//always fail on q1bsp
+
 	//clear out the configstrings
 	for (i = 0; i < MAX_CONFIGSTRINGS; i++)
 	{

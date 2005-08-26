@@ -30,6 +30,16 @@ cvar_t	cl_csqcdebug = {"cl_csqcdebug", "0"};	//prints entity numbers which arriv
 cvar_t  cl_nocsqc = {"cl_nocsqc", "0"};
 cvar_t  pr_csqc_coreonerror = {"pr_csqc_coreonerror", "1"};
 
+// standard effect cvars/sounds
+extern cvar_t r_explosionlight;
+extern sfx_t			*cl_sfx_wizhit;
+extern sfx_t			*cl_sfx_knighthit;
+extern sfx_t			*cl_sfx_tink1;
+extern sfx_t			*cl_sfx_ric1;
+extern sfx_t			*cl_sfx_ric2;
+extern sfx_t			*cl_sfx_ric3;
+extern sfx_t			*cl_sfx_r_exp3;
+
 //If I do it like this, I'll never forget to register something...
 #define csqcglobals	\
 	globalfunction(init_function,		"CSQC_Init");	\
@@ -2204,24 +2214,51 @@ static void PF_cl_te_superspike (progfuncs_t *prinst, struct globalvars_s *pr_gl
 static void PF_cl_te_explosion (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
 	float *pos = G_VECTOR(OFS_PARM0);
+
+	// light
+	if (r_explosionlight.value) {
+		dlight_t *dl;
+
+		dl = CL_AllocDlight (0);
+		VectorCopy (pos, dl->origin);
+		dl->radius = 150 + bound(0, r_explosionlight.value, 1)*200;
+		dl->die = cl.time + 1;
+		dl->decay = 300;
+		
+		dl->color[0] = 0.2;
+		dl->color[1] = 0.155;
+		dl->color[2] = 0.05;
+		dl->channelfade[0] = 0.196;
+		dl->channelfade[1] = 0.23;
+		dl->channelfade[2] = 0.12;
+	}
+
 	P_ParticleExplosion(pos);
+
+	S_StartSound (-2, 0, cl_sfx_r_exp3, pos, 1, 1);
 }
 static void PF_cl_te_tarexplosion (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
 	float *pos = G_VECTOR(OFS_PARM0);
 	P_BlobExplosion (pos);
+
+	S_StartSound (-2, 0, cl_sfx_r_exp3, pos, 1, 1);
 }
 static void PF_cl_te_wizspike (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
 	float *pos = G_VECTOR(OFS_PARM0);
 	if (P_RunParticleEffectType(pos, NULL, 1, pt_wizspike))
 		P_RunParticleEffect (pos, vec3_origin, 20, 30);
+
+	S_StartSound (-2, 0, cl_sfx_knighthit, pos, 1, 1);
 }
 static void PF_cl_te_knightspike (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
 	float *pos = G_VECTOR(OFS_PARM0);
 	if (P_RunParticleEffectType(pos, NULL, 1, pt_knightspike))
 		P_RunParticleEffect (pos, vec3_origin, 226, 20);
+
+	S_StartSound (-2, 0, cl_sfx_knighthit, pos, 1, 1);
 }
 static void PF_cl_te_lavasplash (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
@@ -2263,8 +2300,27 @@ static void PF_cl_te_explosionquad (progfuncs_t *prinst, struct globalvars_s *pr
 	if (P_RunParticleEffectTypeString(pos, vec3_origin, 1, "te_explosionquad"))
 	{
 		P_ParticleExplosion(pos);
-		P_ParticleExplosion(pos);
 	}
+
+	// light
+	if (r_explosionlight.value) {
+		dlight_t *dl;
+
+		dl = CL_AllocDlight (0);
+		VectorCopy (pos, dl->origin);
+		dl->radius = 150 + bound(0, r_explosionlight.value, 1)*200;
+		dl->die = cl.time + 1;
+		dl->decay = 300;
+		
+		dl->color[0] = 0.2;
+		dl->color[1] = 0.155;
+		dl->color[2] = 0.05;
+		dl->channelfade[0] = 0.196;
+		dl->channelfade[1] = 0.23;
+		dl->channelfade[2] = 0.12;
+	}
+
+	S_StartSound (-2, 0, cl_sfx_r_exp3, pos, 1, 1);
 }
 
 //void(vector org, float radius, float lifetime, vector color) te_customflash
@@ -2352,8 +2408,6 @@ static void PF_cl_te_explosionrgb (progfuncs_t *prinst, struct globalvars_s *pr_
 	float *colour = G_VECTOR(OFS_PARM1);
 	
 	dlight_t *dl;
-	extern cvar_t r_explosionlight;
-	extern sfx_t *cl_sfx_r_exp3;
 
 	P_ParticleExplosion (org);
 		

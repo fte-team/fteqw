@@ -828,19 +828,20 @@ void CL_ParseTEnt (void)
 		P_ParticleExplosion (pos);
 		
 	// light
-		dl = CL_AllocDlight (0);
-		VectorCopy (pos, dl->origin);
-		dl->radius = 350;
-		dl->die = cl.time + 1;
-		dl->decay = 300;
-		
-		dl->color[0] = 0.2;
-		dl->color[1] = 0.155;
-		dl->color[2] = 0.05;
-		dl->channelfade[0] = 0.196;
-		dl->channelfade[1] = 0.23;
-		dl->channelfade[2] = 0.12;
-
+		if (r_explosionlight.value) {
+			dl = CL_AllocDlight (0);
+			VectorCopy (pos, dl->origin);
+			dl->radius = 150 + bound(0, r_explosionlight.value, 1)*200;
+			dl->die = cl.time + 1;
+			dl->decay = 300;
+			
+			dl->color[0] = 0.2;
+			dl->color[1] = 0.155;
+			dl->color[2] = 0.05;
+			dl->channelfade[0] = 0.196;
+			dl->channelfade[1] = 0.23;
+			dl->channelfade[2] = 0.12;
+		}
 
 
 	// sound
@@ -885,21 +886,25 @@ void CL_ParseTEnt (void)
 		pos[0] = MSG_ReadCoord ();
 		pos[1] = MSG_ReadCoord ();
 		pos[2] = MSG_ReadCoord ();
-		P_ParticleExplosion (pos);
+		if (P_RunParticleEffectTypeString(pos, NULL, 1, "te_bigexplosion"))
+			P_ParticleExplosion (pos);
 		
 	// light
-		dl = CL_AllocDlight (0);
-		VectorCopy (pos, dl->origin);
-		dl->radius = 500;
-		dl->die = cl.time + 1;
-		dl->decay = 500;
-		
-		dl->color[0] = 0.4f;
-		dl->color[1] = 0.3f;
-		dl->color[2] = 0.15f;
-		dl->channelfade[0] = 0;
-		dl->channelfade[1] = 0;
-		dl->channelfade[2] = 0;
+		if (r_explosionlight.value) {
+			dl = CL_AllocDlight (0);
+			VectorCopy (pos, dl->origin);
+			// no point in doing this the fuh/ez way
+			dl->radius = 500*bound(0, r_explosionlight.value, 1); 
+			dl->die = cl.time + 1;
+			dl->decay = 500;
+			
+			dl->color[0] = 0.4f;
+			dl->color[1] = 0.3f;
+			dl->color[2] = 0.15f;
+			dl->channelfade[0] = 0;
+			dl->channelfade[1] = 0;
+			dl->channelfade[2] = 0;
+		}
 
 		S_StartSound (-2, 0, cl_sfx_r_exp3, pos, 1, 1);
 		break;

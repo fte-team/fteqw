@@ -502,8 +502,9 @@ void Cmd_Exec_f (void)
 	if (cl_warncmd.value || developer.value)
 		Con_TPrintf (TL_EXECING,name);
 
-	Cbuf_InsertText ("\n", Cmd_ExecLevel);	//well this is inefficient...
-	Cbuf_InsertText (f, Cmd_ExecLevel);
+	// don't execute anything as if it was from server
+	Cbuf_InsertText ("\n", Cmd_FromGamecode() ? RESTRICT_INSECURE : Cmd_ExecLevel);	
+	Cbuf_InsertText (f, Cmd_FromGamecode() ? RESTRICT_INSECURE : Cmd_ExecLevel);
 	BZ_Free(f);
 }
 

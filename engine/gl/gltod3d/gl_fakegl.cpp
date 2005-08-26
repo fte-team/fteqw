@@ -4136,8 +4136,6 @@ rendererinfo_t d3drendererinfo = {
 		GLMod_Extradata,
 		GLMod_TouchModel,
 
-		GLMod_PointInLeaf,
-		GLMod_LeafPVS,
 		GLMod_NowLoadExternal,
 		GLMod_Think,
 

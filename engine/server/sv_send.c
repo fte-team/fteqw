@@ -472,8 +472,8 @@ void SV_MulticastProtExt(vec3_t origin, multicast_t to, int dimension_mask, int 
 
 		if (to != MULTICAST_ALL_R && to != MULTICAST_ALL)
 		{
-			leafnum = CM_PointLeafnum (origin);
-			area1 = CM_LeafArea (leafnum);
+			leafnum = CM_PointLeafnum (sv.worldmodel, origin);
+			area1 = CM_LeafArea (sv.worldmodel, leafnum);
 		}
 		else
 		{
@@ -493,17 +493,17 @@ void SV_MulticastProtExt(vec3_t origin, multicast_t to, int dimension_mask, int 
 		case MULTICAST_PHS_R:
 			reliable = true;	// intentional fallthrough
 		case MULTICAST_PHS:
-			leafnum = CM_PointLeafnum (origin);
-			cluster = CM_LeafCluster (leafnum);
-			mask = CM_ClusterPHS (cluster);
+			leafnum = CM_PointLeafnum (sv.worldmodel, origin);
+			cluster = CM_LeafCluster (sv.worldmodel, leafnum);
+			mask = CM_ClusterPHS (sv.worldmodel, cluster);
 			break;
 
 		case MULTICAST_PVS_R:
 			reliable = true;	// intentional fallthrough
 		case MULTICAST_PVS:
-			leafnum = CM_PointLeafnum (origin);
-			cluster = CM_LeafCluster (leafnum);
-			mask = CM_ClusterPVS (cluster, NULL);
+			leafnum = CM_PointLeafnum (sv.worldmodel, origin);
+			cluster = CM_LeafCluster (sv.worldmodel, leafnum);
+			mask = CM_ClusterPVS (sv.worldmodel, cluster, NULL);
 			break;
 
 		default:
@@ -532,13 +532,13 @@ void SV_MulticastProtExt(vec3_t origin, multicast_t to, int dimension_mask, int 
 			{
 #ifdef Q2SERVER
 				if (ge)
-					leafnum = CM_PointLeafnum (client->q2edict->s.origin);
+					leafnum = CM_PointLeafnum (sv.worldmodel, client->q2edict->s.origin);
 				else
 #endif
-					leafnum = CM_PointLeafnum (client->edict->v->origin);
-				cluster = CM_LeafCluster (leafnum);
-				area2 = CM_LeafArea (leafnum);
-				if (!CM_AreasConnected (area1, area2))
+					leafnum = CM_PointLeafnum (sv.worldmodel, client->edict->v->origin);
+				cluster = CM_LeafCluster (sv.worldmodel, leafnum);
+				area2 = CM_LeafArea (sv.worldmodel, leafnum);
+				if (!CM_AreasConnected (sv.worldmodel, area1, area2))
 					continue;
 				if ( mask && (!(mask[cluster>>3] & (1<<(cluster&7)) ) ) )
 					continue;
@@ -588,11 +588,7 @@ void SV_MulticastProtExt(vec3_t origin, multicast_t to, int dimension_mask, int 
 	else
 #endif
 	{
-		leaf = Mod_PointInLeaf (origin, sv.worldmodel);
-		if (!leaf)
-			leafnum = 0;
-		else
-			leafnum = leaf - sv.worldmodel->leafs;
+		leafnum = sv.worldmodel->funcs.LeafnumForPoint(sv.worldmodel, origin);
 
 		reliable = false;
 
@@ -651,11 +647,10 @@ void SV_MulticastProtExt(vec3_t origin, multicast_t to, int dimension_mask, int 
 				if (!((int)client->edict->v->dimension_see & dimension_mask))
 					continue;
 
-			leaf = Mod_PointInLeaf (client->edict->v->origin, sv.worldmodel);
-			if (leaf)
+			leafnum = sv.worldmodel->funcs.LeafnumForPoint (sv.worldmodel, client->edict->v->origin);
 			{
 				// -1 is because pvs rows are 1 based, not 0 based like leafs
-				leafnum = leaf - sv.worldmodel->leafs - 1;
+	//			leafnum = leaf - sv.worldmodel->leafs - 1;
 				if ( !(mask[leafnum>>3] & (1<<(leafnum&7)) ) )
 				{
 	//				Con_Printf ("supressed multicast\n");
@@ -1459,13 +1454,56 @@ void SV_UpdateToReliableMessages (void)
 	int			i, j;
 	client_t *client, *sp;
 	edict_t *ent;
+	char *name;
 
 // check for changes to be sent over the reliable streams to all clients
 	for (i=0, host_client = svs.clients ; i<MAX_CLIENTS ; i++, host_client++)
 	{
+		if (svs.gametype == GT_PROGS && host_client->state == cs_spawned)
+		{
+			//DP_SV_CLIENTCOLORS
+			if (host_client->edict->v->clientcolors != host_client->playercolor)
+			{
+				Info_SetValueForKey(host_client->userinfo, "topcolor", va("%i", (int)host_client->edict->v->clientcolors/16), sizeof(host_client->userinfo));
+				Info_SetValueForKey(host_client->userinfo, "bottomcolor", va("%i", (int)host_client->edict->v->clientcolors&15), sizeof(host_client->userinfo));
+				{
+					SV_ExtractFromUserinfo (host_client);	//this will take care of nq for us anyway.
+
+					MSG_WriteByte (&sv.reliable_datagram, svc_setinfo);
+					MSG_WriteByte (&sv.reliable_datagram, i);
+					MSG_WriteString (&sv.reliable_datagram, "topcolor");
+					MSG_WriteString (&sv.reliable_datagram, Info_ValueForKey(host_client->userinfo, "topcolor"));
+					
+					MSG_WriteByte (&sv.reliable_datagram, svc_setinfo);
+					MSG_WriteByte (&sv.reliable_datagram, i);
+					MSG_WriteString (&sv.reliable_datagram, "bottomcolor");
+					MSG_WriteString (&sv.reliable_datagram, Info_ValueForKey(host_client->userinfo, "bottomcolor"));
+				}
+			}
+
+			name = PR_GetString(svprogfuncs, host_client->edict->v->netname);
+			if (name != host_client->name)
+			{
+				if (strcmp(host_client->name, name))
+				{
+					Info_SetValueForKey(host_client->userinfo, "name", name, sizeof(host_client->userinfo));
+					if (!strcmp(Info_ValueForKey(host_client->userinfo, "name"), name))
+					{
+						SV_ExtractFromUserinfo (host_client);
+
+						MSG_WriteByte (&sv.reliable_datagram, svc_setinfo);
+						MSG_WriteByte (&sv.reliable_datagram, i);
+						MSG_WriteString (&sv.reliable_datagram, "name");
+						MSG_WriteString (&sv.reliable_datagram, host_client->name);
+					}
+				}
+				host_client->edict->v->netname = host_client->name - svprogfuncs->stringtable;
+			}
+		}
+
 		if (host_client->state != cs_spawned)
 		{
-			if (!host_client->state && host_client->name && host_client->name[0])	//if this is a bot
+			if (!host_client->state && host_client->name && host_client->name[0])	//if this is a writebyte bot
 			{
 				if (host_client->old_frags != (int)host_client->edict->v->frags)
 				{

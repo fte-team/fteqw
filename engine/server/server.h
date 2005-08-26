@@ -384,6 +384,7 @@ typedef struct client_s
 	q2edict_t		*q2edict;				// EDICT_NUM(clientnum+1)
 #endif
 
+	int				playercolor;
 	int				playerclass;
 	char			teambuf[32];
 	char			*team;
@@ -498,6 +499,7 @@ typedef struct client_s
 		SCP_BAD,	//don't send (a bot)
 		SCP_QUAKEWORLD,
 		SCP_QUAKE2,
+		SCP_QUAKE3,
 		SCP_NETQUAKE,
 		SCP_DARKPLACES6,
 		SCP_DARKPLACES7	//extra prediction stuff

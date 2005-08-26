@@ -94,6 +94,6 @@ void SwapPic (qpic_t *pic);
 
 void Mod_ParseWadsFromEntityLump(char *data);
 qbyte *W_ConvertWAD3Texture(miptex_t *tex, int *width, int *height, qboolean *usesalpha);
-void Mod_ParseInfoFromEntityLump(const char *data);
+void Mod_ParseInfoFromEntityLump(char *data);
 qboolean Wad_NextDownload (void);
 qbyte *W_GetTexture(char *name, int *width, int *height, qboolean *usesalpha);

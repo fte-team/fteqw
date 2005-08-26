@@ -45,6 +45,7 @@ void SWMod_LoadLighting (lump_t *l);
 
 void Q2BSP_SetHullFuncs(hull_t *hull);
 qboolean CM_Trace(model_t *model, int forcehullnum, int frame, vec3_t start, vec3_t end, vec3_t mins, vec3_t maxs, trace_t *trace);
+int Q2BSP_PointContents(model_t *mod, vec3_t p);
 
 qbyte			areabits[MAX_Q2MAP_AREAS/8];
 
@@ -270,9 +271,6 @@ q2mapsurface_t	*map_surfaces;
 int			numplanes;
 mplane_t	map_planes[MAX_Q2MAP_PLANES+6];		// extra for box hull
 
-int			numnodes;
-mnode_t		map_nodes[MAX_MAP_NODES+6];		// extra for box hull
-
 int			numleafs = 1;	// allow leaf funcs to be called without a map
 mleaf_t		map_leafs[MAX_MAP_LEAFS];
 int			emptyleaf;
@@ -324,7 +322,7 @@ cvar_t		map_noCurves		= {"map_noCurves", "0", NULL, CVAR_CHEAT};
 cvar_t		map_autoopenportals	= {"map_autoopenportals", "1"};	//1 for lack of mod support.
 cvar_t		r_subdivisions		= {"r_subdivisions", "2"};
 
-int		CM_NumInlineModels (void);
+int		CM_NumInlineModels (model_t *model);
 q2cmodel_t	*CM_InlineModel (char *name);
 void	CM_InitBoxHull (void);
 void	FloodAreaConnections (void);
@@ -1451,12 +1449,10 @@ void CMod_LoadNodes (lump_t *l)
 	if (count > MAX_MAP_NODES)
 		Host_Error ("Map has too many nodes");
 
-	out = map_nodes;
-
-	numnodes = count;
+	out = Hunk_Alloc(sizeof(mnode_t)*count);
 
 	loadmodel->nodes = out;
-	loadmodel->numnodes = numnodes;
+	loadmodel->numnodes = count;
 
 	for (i=0 ; i<count ; i++, out++, in++)
 	{
@@ -1481,7 +1477,7 @@ void CMod_LoadNodes (lump_t *l)
 			if (child < 0)
 				out->children[j] = (mnode_t *)(map_leafs + -1-child);
 			else
-				out->children[j] = map_nodes + child;
+				out->children[j] = loadmodel->nodes + child;
 		}
 	}
 
@@ -2749,12 +2745,10 @@ void CModQ3_LoadNodes (lump_t *l)
 	if (l->filelen % sizeof(*in))
 		Sys_Error ("MOD_LoadBmodel: funny lump size in %s",loadmodel->name);
 	count = l->filelen / sizeof(*in);
-	out = map_nodes;//Hunk_AllocName ( count*sizeof(*out), loadname);	
+	out = Hunk_AllocName ( count*sizeof(*out), loadname);	
 
 	if (count > MAX_MAP_NODES)
 		Host_Error("Too many nodes on map");
-
-	numnodes = count;
 
 	loadmodel->nodes = out;
 	loadmodel->numnodes = count;
@@ -3238,7 +3232,7 @@ void CMQ3_CalcPHS (void)
 	vcount = 0;
 	for (i=0 ; i<numclusters ; i++)
 	{
-		scan = CM_ClusterPVS ( i, NULL );
+		scan = CM_ClusterPVS (sv.worldmodel, i, NULL);
 		for (j=0 ; j<numclusters ; j++)
 		{
 			if ( scan[j>>3] & (1<<(j&7)) )
@@ -3282,14 +3276,9 @@ void CMQ3_CalcPHS (void)
 		, vcount/numclusters, count/numclusters, numclusters);
 }
 
-qbyte *CM_LeafnumPVS (int leafnum, model_t *model, qbyte *buffer)
+qbyte *CM_LeafnumPVS (model_t *model, int leafnum, qbyte *buffer)
 {
-	return CM_ClusterPVS(CM_LeafCluster(leafnum), buffer);
-}
-
-int CM_ModelPointLeafnum (vec3_t p, model_t *mdl)
-{
-	return CM_PointLeafnum(p);
+	return CM_ClusterPVS(model, CM_LeafCluster(model, leafnum), buffer);
 }
 
 #ifndef SERVERONLY
@@ -3420,9 +3409,9 @@ void SWR_Q2BSP_StainNode (mnode_t *node, float *parms)
 
 #endif
 
-void Q2BSP_FatPVS (vec3_t org, qboolean add);
-qboolean Q2BSP_EdictInFatPVS(edict_t *ent);
-void Q2BSP_FindTouchedLeafs(edict_t *ent);
+void Q2BSP_FatPVS (model_t *mod, vec3_t org, qboolean add);
+qboolean Q2BSP_EdictInFatPVS(model_t *mod, edict_t *ent);
+void Q2BSP_FindTouchedLeafs(model_t *mod, edict_t *ent);
 void GLQ2BSP_LightPointValues(vec3_t point, vec3_t res_diffuse, vec3_t res_ambient, vec3_t res_dir);
 void SWQ2BSP_LightPointValues(vec3_t point, vec3_t res_diffuse, vec3_t res_ambient, vec3_t res_dir);
 
@@ -3444,7 +3433,6 @@ q2cmodel_t *CM_LoadMap (char *name, char *filein, qboolean clientload, unsigned 
 
 	// free old stuff
 	numplanes = 0;
-	numnodes = 0;
 	numleafs = 0;
 	numcmodels = 0;
 	numvisibility = 0;
@@ -3592,7 +3580,7 @@ q2cmodel_t *CM_LoadMap (char *name, char *filein, qboolean clientload, unsigned 
 			loadmodel->funcs.EdictInFatPVS			= Q2BSP_EdictInFatPVS;
 			loadmodel->funcs.FindTouchedLeafs_Q1	= Q2BSP_FindTouchedLeafs;
 			loadmodel->funcs.LeafPVS				= CM_LeafnumPVS;
-			loadmodel->funcs.LeafForPoint			= CM_ModelPointLeafnum;
+			loadmodel->funcs.LeafnumForPoint			= CM_PointLeafnum;
 
 #if defined(RGLQUAKE)
 			loadmodel->funcs.LightPointValues		= GLQ3_LightGrid;
@@ -3600,6 +3588,7 @@ q2cmodel_t *CM_LoadMap (char *name, char *filein, qboolean clientload, unsigned 
 			loadmodel->funcs.MarkLights				= Q2BSP_MarkLights;
 #endif
 			loadmodel->funcs.Trace					= CM_Trace;
+			loadmodel->funcs.PointContents			= Q2BSP_PointContents;
 
 #ifndef SERVERONLY
 			//light grid info
@@ -3675,8 +3664,9 @@ q2cmodel_t *CM_LoadMap (char *name, char *filein, qboolean clientload, unsigned 
 			loadmodel->funcs.StainNode				= NULL;
 			loadmodel->funcs.MarkLights				= NULL;
 			loadmodel->funcs.LeafPVS				= CM_LeafnumPVS;
-			loadmodel->funcs.LeafForPoint			= CM_ModelPointLeafnum;
+			loadmodel->funcs.LeafnumForPoint		= CM_PointLeafnum;
 			loadmodel->funcs.Trace					= CM_Trace;
+			loadmodel->funcs.PointContents			= Q2BSP_PointContents;
 
 			break;
 #if defined(RGLQUAKE)
@@ -3713,8 +3703,9 @@ q2cmodel_t *CM_LoadMap (char *name, char *filein, qboolean clientload, unsigned 
 			loadmodel->funcs.StainNode				= GLR_Q2BSP_StainNode;
 			loadmodel->funcs.MarkLights				= Q2BSP_MarkLights;
 			loadmodel->funcs.LeafPVS				= CM_LeafnumPVS;
-			loadmodel->funcs.LeafForPoint			= CM_ModelPointLeafnum;
+			loadmodel->funcs.LeafnumForPoint		= CM_PointLeafnum;
 			loadmodel->funcs.Trace					= CM_Trace;
+			loadmodel->funcs.PointContents			= Q2BSP_PointContents;
 			break;
 #endif
 #if defined(SWQUAKE)
@@ -3752,8 +3743,9 @@ q2cmodel_t *CM_LoadMap (char *name, char *filein, qboolean clientload, unsigned 
 			loadmodel->funcs.StainNode				= SWR_Q2BSP_StainNode;
 			loadmodel->funcs.MarkLights				= Q2BSP_MarkLights;
 			loadmodel->funcs.LeafPVS				= CM_LeafnumPVS;
-			loadmodel->funcs.LeafForPoint			= CM_ModelPointLeafnum;
+			loadmodel->funcs.LeafnumForPoint		= CM_PointLeafnum;
 			loadmodel->funcs.Trace					= CM_Trace;
+			loadmodel->funcs.PointContents			= Q2BSP_PointContents;
 			break;
 #endif
 		default:
@@ -3779,7 +3771,7 @@ q2cmodel_t *CM_LoadMap (char *name, char *filein, qboolean clientload, unsigned 
 
 
 
-	loadmodel->numsubmodels = CM_NumInlineModels();
+	loadmodel->numsubmodels = CM_NumInlineModels(loadmodel);
 	{
 		model_t	*mod = loadmodel;
 
@@ -3858,41 +3850,41 @@ q2cmodel_t	*CM_InlineModel (char *name)
 	return &map_cmodels[num];
 }
 
-int		CM_NumClusters (void)
+int		CM_NumClusters (model_t *model)
 {
 	return numclusters;
 }
 
-int		CM_ClusterSize (void)
+int		CM_ClusterSize (model_t *model)
 {
 	return map_q3pvs->rowsize ? map_q3pvs->rowsize : MAX_MAP_LEAFS / 8;
 }
 
-int		CM_NumInlineModels (void)
+int		CM_NumInlineModels (model_t *model)
 {
 	return numcmodels;
 }
 
-char	*CM_EntityString (void)
+char	*CM_EntityString (model_t *model)
 {
 	return map_entitystring;
 }
 
-int		CM_LeafContents (int leafnum)
+int		CM_LeafContents (model_t *model, int leafnum)
 {
 	if (leafnum < 0 || leafnum >= numleafs)
 		Host_Error ("CM_LeafContents: bad number");
 	return map_leafs[leafnum].contents;
 }
 
-int		CM_LeafCluster (int leafnum)
+int		CM_LeafCluster (model_t *model, int leafnum)
 {
 	if (leafnum < 0 || leafnum >= numleafs)
 		Host_Error ("CM_LeafCluster: bad number");
 	return map_leafs[leafnum].cluster;
 }
 
-int		CM_LeafArea (int leafnum)
+int		CM_LeafArea (model_t *model, int leafnum)
 {
 	if (leafnum < 0 || leafnum >= numleafs)
 		Host_Error ("CM_LeafArea: bad number");
@@ -3932,15 +3924,14 @@ void CM_InitBoxHull (void)
 	box_model.funcs.MarkLights			= Q2BSP_MarkLights;
 #endif
 	box_model.funcs.LeafPVS				= CM_LeafnumPVS;
-	box_model.funcs.LeafForPoint		= CM_ModelPointLeafnum;
+	box_model.funcs.LeafnumForPoint		= CM_PointLeafnum;
 
 	box_model.hulls[0].available = true;
 	Q2BSP_SetHullFuncs(&box_model.hulls[0]);
 
-	box_headnode = numnodes;
+	box_model.nodes = Hunk_Alloc(sizeof(mnode_t)*6);
 	box_planes = &map_planes[numplanes];
-	if (numnodes+6 > MAX_MAP_NODES
-		|| numbrushes+1 > MAX_Q2MAP_BRUSHES
+	if (numbrushes+1 > MAX_Q2MAP_BRUSHES
 		|| numleafbrushes+1 > MAX_Q2MAP_LEAFBRUSHES
 		|| numbrushsides+6 > MAX_Q2MAP_BRUSHSIDES
 		|| numplanes+12 > MAX_Q2MAP_PLANES)
@@ -3968,7 +3959,7 @@ void CM_InitBoxHull (void)
 		s->surface = &nullsurface;
 
 		// nodes
-		c = &map_nodes[box_headnode+i];
+		c = &box_model.nodes[i];
 		c->plane = map_planes + (numplanes+i*2);
 		c->childnum[side] = -1 - emptyleaf;
 		if (i != 5)
@@ -4000,7 +3991,7 @@ To keep everything totally uniform, bounding boxes are turned into small
 BSP trees instead of being compared directly.
 ===================
 */
-int	CM_HeadnodeForBox (vec3_t mins, vec3_t maxs)
+void CM_SetTempboxSize (vec3_t mins, vec3_t maxs)
 {
 	box_planes[0].dist = maxs[0];
 	box_planes[1].dist = -maxs[0];
@@ -4014,13 +4005,11 @@ int	CM_HeadnodeForBox (vec3_t mins, vec3_t maxs)
 	box_planes[9].dist = -maxs[2];
 	box_planes[10].dist = mins[2];
 	box_planes[11].dist = -mins[2];
-
-	return box_headnode;
 }
 
 model_t *CM_TempBoxModel(vec3_t mins, vec3_t maxs)
 {
-	box_model.hulls[0].firstclipnode = CM_HeadnodeForBox(mins, maxs);
+	CM_SetTempboxSize(mins, maxs);
 	return &box_model;
 }
 
@@ -4030,7 +4019,7 @@ CM_PointLeafnum_r
 
 ==================
 */
-int CM_PointLeafnum_r (vec3_t p, int num)
+int CM_PointLeafnum_r (model_t *mod, vec3_t p, int num)
 {
 	float		d;
 	mnode_t		*node;
@@ -4038,7 +4027,7 @@ int CM_PointLeafnum_r (vec3_t p, int num)
 
 	while (num >= 0)
 	{
-		node = map_nodes + num;
+		node = mod->nodes + num;
 		plane = node->plane;
 		
 		if (plane->type < 3)
@@ -4056,11 +4045,11 @@ int CM_PointLeafnum_r (vec3_t p, int num)
 	return -1 - num;
 }
 
-int CM_PointLeafnum (vec3_t p)
+int CM_PointLeafnum (model_t *mod, vec3_t p)
 {
 	if (!numplanes)
 		return 0;		// sound may call this without map loaded
-	return CM_PointLeafnum_r (p, 0);
+	return CM_PointLeafnum_r (mod, p, 0);
 }
 
 /*
@@ -4075,7 +4064,7 @@ int		*leaf_list;
 float	*leaf_mins, *leaf_maxs;
 int		leaf_topnode;
 
-void CM_BoxLeafnums_r (int nodenum)
+void CM_BoxLeafnums_r (model_t *mod, int nodenum)
 {
 	mplane_t	*plane;
 	mnode_t		*node;
@@ -4094,7 +4083,7 @@ void CM_BoxLeafnums_r (int nodenum)
 			return;
 		}
 	
-		node = &map_nodes[nodenum];
+		node = &mod->nodes[nodenum];
 		plane = node->plane;
 //		s = BoxOnPlaneSide (leaf_mins, leaf_maxs, plane);
 		s = BOX_ON_PLANE_SIDE(leaf_mins, leaf_maxs, plane);
@@ -4106,14 +4095,14 @@ void CM_BoxLeafnums_r (int nodenum)
 		{	// go down both
 			if (leaf_topnode == -1)
 				leaf_topnode = nodenum;
-			CM_BoxLeafnums_r (node->childnum[0]);
+			CM_BoxLeafnums_r (mod, node->childnum[0]);
 			nodenum = node->childnum[1];
 		}
 
 	}
 }
 
-int	CM_BoxLeafnums_headnode (vec3_t mins, vec3_t maxs, int *list, int listsize, int headnode, int *topnode)
+int	CM_BoxLeafnums_headnode (model_t *mod, vec3_t mins, vec3_t maxs, int *list, int listsize, int headnode, int *topnode)
 {
 	leaf_list = list;
 	leaf_count = 0;
@@ -4123,7 +4112,7 @@ int	CM_BoxLeafnums_headnode (vec3_t mins, vec3_t maxs, int *list, int listsize, 
 
 	leaf_topnode = -1;
 
-	CM_BoxLeafnums_r (headnode);
+	CM_BoxLeafnums_r (mod, headnode);
 
 	if (topnode)
 		*topnode = leaf_topnode;
@@ -4131,10 +4120,10 @@ int	CM_BoxLeafnums_headnode (vec3_t mins, vec3_t maxs, int *list, int listsize, 
 	return leaf_count;
 }
 
-int	CM_BoxLeafnums (vec3_t mins, vec3_t maxs, int *list, int listsize, int *topnode)
+int	CM_BoxLeafnums (model_t *mod, vec3_t mins, vec3_t maxs, int *list, int listsize, int *topnode)
 {
-	return CM_BoxLeafnums_headnode (mins, maxs, list,
-		listsize, map_cmodels[0].headnode, topnode);
+	return CM_BoxLeafnums_headnode (mod, mins, maxs, list,
+		listsize, mod->hulls[0].firstclipnode, topnode);
 }
 
 
@@ -4146,17 +4135,17 @@ CM_PointContents
 ==================
 */
 #define PlaneDiff(point,plane) (((plane)->type < 3 ? (point)[(plane)->type] : DotProduct((point), (plane)->normal)) - (plane)->dist)
-int CM_PointContents (vec3_t p, int headnode)
+int CM_PointContents (model_t *mod, vec3_t p)
 {
 	int				i, j, contents;
 	mleaf_t			*leaf;
 	q2cbrush_t		*brush;
 	q2cbrushside_t	*brushside;
 
-	if (!numnodes)	// map not loaded
+	if (!mod)	// map not loaded
 		return 0;
 
-	i = CM_PointLeafnum_r (p, headnode);
+	i = CM_PointLeafnum_r (mod, p, mod->hulls[0].firstclipnode);
 
 	if (!mapisq3)
 		return map_leafs[i].contents;	//q2 is simple.
@@ -4200,7 +4189,7 @@ Handles offseting and rotation of the end points for moving and
 rotating entities
 ==================
 */
-int	CM_TransformedPointContents (vec3_t p, int headnode, vec3_t origin, vec3_t angles)
+int	CM_TransformedPointContents (model_t *mod, vec3_t p, int headnode, vec3_t origin, vec3_t angles)
 {
 	vec3_t		p_l;
 	vec3_t		temp;
@@ -4221,7 +4210,7 @@ int	CM_TransformedPointContents (vec3_t p, int headnode, vec3_t origin, vec3_t a
 		p_l[2] = DotProduct (temp, up);
 	}
 
-	return CM_PointContents(p, headnode);
+	return CM_PointContents(mod, p);
 }
 
 
@@ -4724,7 +4713,7 @@ CM_RecursiveHullCheck
 
 ==================
 */
-void CM_RecursiveHullCheck (int num, float p1f, float p2f, vec3_t p1, vec3_t p2)
+void CM_RecursiveHullCheck (model_t *mod, int num, float p1f, float p2f, vec3_t p1, vec3_t p2)
 {
 	mnode_t		*node;
 	mplane_t	*plane;
@@ -4750,7 +4739,7 @@ void CM_RecursiveHullCheck (int num, float p1f, float p2f, vec3_t p1, vec3_t p2)
 	// find the point distances to the seperating plane
 	// and the offset for the size of the box
 	//
-	node = map_nodes + num;
+	node = mod->nodes + num;
 	plane = node->plane;
 
 	if (plane->type < 3)
@@ -4781,12 +4770,12 @@ return;
 	// see which sides we need to consider
 	if (t1 >= offset && t2 >= offset)
 	{
-		CM_RecursiveHullCheck (node->childnum[0], p1f, p2f, p1, p2);
+		CM_RecursiveHullCheck (mod, node->childnum[0], p1f, p2f, p1, p2);
 		return;
 	}
 	if (t1 < -offset && t2 < -offset)
 	{
-		CM_RecursiveHullCheck (node->childnum[1], p1f, p2f, p1, p2);
+		CM_RecursiveHullCheck (mod, node->childnum[1], p1f, p2f, p1, p2);
 		return;
 	}
 
@@ -4822,7 +4811,7 @@ return;
 	for (i=0 ; i<3 ; i++)
 		mid[i] = p1[i] + frac*(p2[i] - p1[i]);
 
-	CM_RecursiveHullCheck (node->childnum[side], p1f, midf, p1, mid);
+	CM_RecursiveHullCheck (mod, node->childnum[side], p1f, midf, p1, mid);
 
 
 	// go past the node
@@ -4835,7 +4824,7 @@ return;
 	for (i=0 ; i<3 ; i++)
 		mid[i] = p1[i] + frac2*(p2[i] - p1[i]);
 
-	CM_RecursiveHullCheck (node->childnum[side^1], midf, p2f, mid, p2);
+	CM_RecursiveHullCheck (mod, node->childnum[side^1], midf, p2f, mid, p2);
 }
 
 
@@ -4846,9 +4835,9 @@ return;
 CM_BoxTrace
 ==================
 */
-trace_t		CM_BoxTrace (vec3_t start, vec3_t end,
+trace_t		CM_BoxTrace (model_t *mod, vec3_t start, vec3_t end,
 						  vec3_t mins, vec3_t maxs,
-						  int headnode, int brushmask)
+						  int brushmask)
 {
 	int		i;
 #if ADJ
@@ -4868,7 +4857,7 @@ trace_t		CM_BoxTrace (vec3_t start, vec3_t end,
 	trace_trace.fraction = 1;
 	trace_trace.surface = &(nullsurface.c);
 
-	if (!numnodes)	// map not loaded
+	if (!mod)	// map not loaded
 		return trace_trace;
 
 	trace_contents = brushmask;
@@ -4921,7 +4910,7 @@ trace_t		CM_BoxTrace (vec3_t start, vec3_t end,
 			c2[i] += 1;
 		}
 
-		numleafs = CM_BoxLeafnums_headnode (c1, c2, leafs, sizeof(leafs)/sizeof(leafs[0]), headnode, &topnode);
+		numleafs = CM_BoxLeafnums_headnode (mod, c1, c2, leafs, sizeof(leafs)/sizeof(leafs[0]), mod->hulls[0].firstclipnode, &topnode);
 		for (i=0 ; i<numleafs ; i++)
 		{
 			CM_TestInLeaf (leafs[i]);
@@ -4970,7 +4959,7 @@ trace_t		CM_BoxTrace (vec3_t start, vec3_t end,
 	//
 	// general sweeping through world
 	//
-	CM_RecursiveHullCheck (headnode, 0, 1, trace_start, trace_end);
+	CM_RecursiveHullCheck (mod, mod->hulls[0].firstclipnode, 0, 1, trace_start, trace_end);
 
 	if (trace_nearfraction == 1)
 	{
@@ -4993,7 +4982,7 @@ trace_t		CM_BoxTrace (vec3_t start, vec3_t end,
 
 qboolean CM_Trace(model_t *model, int forcehullnum, int frame, vec3_t start, vec3_t end, vec3_t mins, vec3_t maxs, trace_t *trace)
 {
-	*trace = CM_BoxTrace(start, end, mins, maxs, model->hulls[0].firstclipnode, MASK_PLAYERSOLID);
+	*trace = CM_BoxTrace(model, start, end, mins, maxs, MASK_PLAYERSOLID);
 	return trace->fraction != 1;
 }
 
@@ -5010,9 +4999,9 @@ rotating entities
 #endif
 
 
-trace_t		CM_TransformedBoxTrace (vec3_t start, vec3_t end,
+trace_t		CM_TransformedBoxTrace (model_t *mod, vec3_t start, vec3_t end,
 						  vec3_t mins, vec3_t maxs,
-						  int headnode, int brushmask,
+						  int brushmask,
 						  vec3_t origin, vec3_t angles)
 {
 	trace_t		trace;
@@ -5027,7 +5016,7 @@ trace_t		CM_TransformedBoxTrace (vec3_t start, vec3_t end,
 	VectorSubtract (end, origin, end_l);
 
 	// rotate start and end into the models frame of reference
-	if (headnode != box_headnode && 
+	if (mod != &box_model && 
 	(angles[0] || angles[1] || angles[2]) )
 		rotated = true;
 	else
@@ -5049,7 +5038,7 @@ trace_t		CM_TransformedBoxTrace (vec3_t start, vec3_t end,
 	}
 
 	// sweep the box through the model
-	trace = CM_BoxTrace (start_l, end_l, mins, maxs, headnode, brushmask);
+	trace = CM_BoxTrace (mod, start_l, end_l, mins, maxs, brushmask);
 
 	if (rotated && trace.fraction != 1.0)
 	{
@@ -5195,7 +5184,7 @@ qbyte	phsrow[MAX_MAP_LEAFS/8];
 
 
 
-qbyte	*CM_ClusterPVS (int cluster, qbyte *buffer)
+qbyte	*CM_ClusterPVS (model_t *mod, int cluster, qbyte *buffer)
 {
 	if (!buffer)
 		buffer = pvsrow;
@@ -5220,7 +5209,7 @@ qbyte	*CM_ClusterPVS (int cluster, qbyte *buffer)
 	return buffer;
 }
 
-qbyte	*CM_ClusterPHS (int cluster)
+qbyte	*CM_ClusterPHS (model_t *mod, int cluster)
 {
 	if (mapisq3)	//phs not working yet.
 	{
@@ -5349,7 +5338,7 @@ void	CMQ3_SetAreaPortalState (int area1, int area2, qboolean open)
 	}
 }
 
-qboolean	VARGS CM_AreasConnected (int area1, int area2)
+qboolean	VARGS CM_AreasConnected (model_t *mod, int area1, int area2)
 {
 	if (map_noareas.value)
 		return true;
@@ -5386,7 +5375,7 @@ that area in the same flood as the area parameter
 This is used by the client refreshes to cull visibility
 =================
 */
-int CM_WriteAreaBits (qbyte *buffer, int area)
+int CM_WriteAreaBits (model_t *mod, qbyte *buffer, int area)
 {
 	int		i;
 	int		floodnum;
@@ -5406,7 +5395,7 @@ int CM_WriteAreaBits (qbyte *buffer, int area)
 		{
 			for (i=0 ; i<numareas ; i++)
 			{
-				if (!area || CM_AreasConnected ( i, area ) || i == area)
+				if (!area || CM_AreasConnected (mod, i, area ) || i == area)
 					buffer[i>>3] |= 1<<(i&7);
 			}
 		}
@@ -5459,7 +5448,7 @@ Returns true if any leaf under headnode has a cluster that
 is potentially visible
 =============
 */
-qboolean CM_HeadnodeVisible (int nodenum, qbyte *visbits)
+qboolean CM_HeadnodeVisible (model_t *mod, int nodenum, qbyte *visbits)
 {
 	int		leafnum;
 	int		cluster;
@@ -5476,13 +5465,13 @@ qboolean CM_HeadnodeVisible (int nodenum, qbyte *visbits)
 		return false;
 	}
 
-	node = &map_nodes[nodenum];
-	if (CM_HeadnodeVisible(node->childnum[0], visbits))
+	node = &mod->nodes[nodenum];
+	if (CM_HeadnodeVisible(mod, node->childnum[0], visbits))
 		return true;
-	return CM_HeadnodeVisible(node->childnum[1], visbits);
+	return CM_HeadnodeVisible(mod, node->childnum[1], visbits);
 }
 
-
+/*
 qboolean Q2BSP_RecursiveHullCheck (hull_t *hull, int num, float p1f, float p2f, vec3_t p1, vec3_t p2, trace_t *trace)
 {
 	trace_t ret = CM_BoxTrace(p1, p2, hull->clip_mins, hull->clip_maxs, hull->firstclipnode, MASK_SOLID);
@@ -5490,11 +5479,11 @@ qboolean Q2BSP_RecursiveHullCheck (hull_t *hull, int num, float p1f, float p2f, 
 	if (ret.fraction==1)
 		return true;
 	return false;
-}
-int Q2BSP_HullPointContents(hull_t *hull, vec3_t p)
+}*/
+int Q2BSP_PointContents(model_t *mod, vec3_t p)
 {
 	int pc, ret = FTECONTENTS_EMPTY;
-	pc = CM_PointContents (p, hull->firstclipnode);
+	pc = CM_PointContents (mod, p);
 	if (pc & (Q2CONTENTS_SOLID|Q2CONTENTS_WINDOW))
 		ret |= FTECONTENTS_SOLID;
 	if (pc & Q2CONTENTS_LAVA)
@@ -5510,7 +5499,7 @@ int Q2BSP_HullPointContents(hull_t *hull, vec3_t p)
 }
 void Q2BSP_SetHullFuncs(hull_t *hull)
 {
-	hull->funcs.HullPointContents = Q2BSP_HullPointContents;
+//	hull->funcs.HullPointContents = Q2BSP_HullPointContents;
 }
 
 

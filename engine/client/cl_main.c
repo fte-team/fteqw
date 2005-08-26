@@ -573,6 +573,13 @@ void CL_CheckForResend (void)
 
 	connect_time = realtime+t2-t1;	// for retransmit requests
 
+#ifdef Q3CLIENT
+	//Q3 clients send thier cdkey to the q3 authorize server.
+	//they send this packet with the challenge.
+	//and the server will refuse the client if it hasn't sent it.
+	CLQ3_SendAuthPacket(adr);
+#endif
+
 #ifdef NQPROT
 	if (connect_type || ((connect_tries&3)==3))
 	{
@@ -832,6 +839,9 @@ void CL_ClearState (void)
 	{	//left over from q2 connect.
 		Media_PlayFilm("");
 	}
+
+	if (cl.lerpents)
+		BZ_Free(cl.lerpents);
 
 // wipe the entire cl structure
 	memset (&cl, 0, sizeof(cl));
@@ -1836,6 +1846,7 @@ void CL_ConnectionlessPacket (void)
 
 	if (c == 'd')	//note - this conflicts with qw masters, our browser uses a different socket.
 	{
+		Con_Printf ("d\n");
 		if (cls.demoplayback != DPB_NONE)
 		{
 			Con_Printf("Disconnect\n");
@@ -2967,6 +2978,7 @@ void Host_Init (quakeparms_t *parms)
 		Cbuf_AddText ("exec hexen.rc\n", RESTRICT_LOCAL);
 	else
 	{	//they didn't give us an rc file!
+		Cbuf_AddText ("bind ~ toggleconsole\n", RESTRICT_LOCAL);	//we expect default.cfg to not exist. :(
 		Cbuf_AddText ("exec default.cfg\n", RESTRICT_LOCAL);
 		Cbuf_AddText ("exec config.cfg\n", RESTRICT_LOCAL);
 		Cbuf_AddText ("exec autoexec.cfg\n", RESTRICT_LOCAL);

@@ -16,6 +16,11 @@ typedef struct {
 } gl_state_t;
 gl_state_t gl_state;
 
+void GL_SetShaderState2D(qboolean is2d)
+{
+	gl_state.in2d = is2d;
+}
+
 extern int		*lightmap_textures;
 extern int		*deluxmap_textures;
 
@@ -1024,6 +1029,32 @@ void R_DeformVertices ( meshbuffer_t *mb )
 	}
 }
 
+void RB_CalcEnvironmentTexCoords( float *st ) 
+{
+	int			i;
+	float		*v, *normal;
+	vec3_t		viewer, reflected;
+	float		d;
+
+	v = vertexArray[0];
+	normal = normalsArray[0];
+
+	for (i = 0 ; i < numVerts ; i++, v += 3, normal += 3, st += 2 ) 
+	{
+		VectorSubtract (r_origin, v, viewer);
+		VectorNormalizeFast (viewer);
+
+		d = DotProduct (normal, viewer);
+
+		reflected[0] = normal[0]*2*d - viewer[0];
+		reflected[1] = normal[1]*2*d - viewer[1];
+		reflected[2] = normal[2]*2*d - viewer[2];
+
+		st[0] = 0.5 + reflected[1] * 0.5;
+		st[1] = 0.5 - reflected[2] * 0.5;
+	}
+}
+
 /*
 ==============
 R_VertexTCBase
@@ -1032,11 +1063,11 @@ R_VertexTCBase
 void R_VertexTCBase ( int tcgen, int unit )
 {
 	int	i;
-	vec3_t t, n;
+//	vec3_t t, n;
 	float *outCoords;
-	vec3_t transform;
-	mat3_t inverse_axis;
-	mat3_t axis;
+//	vec3_t transform;
+//	mat3_t inverse_axis;
+//	mat3_t axis;
 
 	outCoords = tUnitCoordsArray[unit][0];
 	qglTexCoordPointer( 2, GL_FLOAT, 0, outCoords );
@@ -1050,6 +1081,11 @@ void R_VertexTCBase ( int tcgen, int unit )
 	}
 	else if ( tcgen == TC_GEN_ENVIRONMENT ) 
 	{
+		RB_CalcEnvironmentTexCoords(outCoords);	//use genuine q3 code, to get it totally identical
+												//plus, it looks like less overhead too
+												//I guess it depends on the size of the mesh
+/*
+	//the old qfusion code
 		if ( !currentmodel )
 		{
 			VectorSubtract ( vec3_origin, currententity->origin, transform );
@@ -1095,6 +1131,7 @@ void R_VertexTCBase ( int tcgen, int unit )
 			outCoords[0] = t[0]*n[2] - n[0];
 			outCoords[1] = t[1]*n[2] - n[1];
 		}
+*/
 	}
 	else if ( tcgen == TC_GEN_VECTOR )
 	{
@@ -1117,16 +1154,19 @@ R_ShaderpassTex
 */
 int R_ShaderpassTex ( shaderpass_t *pass )
 {
-	if ( pass->flags & SHADER_PASS_ANIMMAP ) {
-		return pass->anim_frames[(int)(pass->anim_fps * r_localShaderTime) % pass->anim_numframes];
-	}
-	else if ( (pass->flags & SHADER_PASS_LIGHTMAP) && r_lmtex >= 0 )
+	if (pass->flags & (SHADER_PASS_ANIMMAP|SHADER_PASS_LIGHTMAP|SHADER_PASS_DELUXMAP))
 	{
-		return lightmap_textures[r_lmtex];
-	}
-	else if ( (pass->flags & SHADER_PASS_DELUXMAP) && r_lmtex >= 0 )
-	{
-		return deluxmap_textures[r_lmtex];
+		if ( pass->flags & SHADER_PASS_ANIMMAP ) {
+			return pass->anim_frames[(int)(pass->anim_fps * r_localShaderTime) % pass->anim_numframes];
+		}
+		else if ( (pass->flags & SHADER_PASS_LIGHTMAP) && r_lmtex >= 0 )
+		{
+			return lightmap_textures[r_lmtex];
+		}
+		else if ( (pass->flags & SHADER_PASS_DELUXMAP) && r_lmtex >= 0 )
+		{
+			return deluxmap_textures[r_lmtex];
+		}
 	}
 
 	return pass->anim_frames[0] ? pass->anim_frames[0] : 0;
@@ -1717,6 +1757,11 @@ void R_SetShaderpassState ( shaderpass_t *pass, qboolean mtex )
 		{
 			qglDepthMask ( GL_FALSE );
 		}
+	}
+	else
+	{
+		qglDepthFunc ( GL_ALWAYS );
+		qglDepthMask ( GL_FALSE );
 	}
 }
 

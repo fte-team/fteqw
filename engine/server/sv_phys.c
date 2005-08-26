@@ -141,6 +141,24 @@ qboolean SV_RunThink (edict_t *ent)
 {
 	float	thinktime;
 
+	if (sv_nomsec.value>=2)	//try and imitate nq as closeley as possible
+	{
+		thinktime = ent->v->nextthink;
+		if (thinktime <= 0 || thinktime > sv.time + host_frametime)
+			return true;
+			
+		if (thinktime < sv.time)
+			thinktime = sv.time;	// don't let things stay in the past.
+									// it is possible to start that way
+									// by a trigger with a local time.
+		ent->v->nextthink = 0;
+		pr_global_struct->time = thinktime;
+		pr_global_struct->self = EDICT_TO_PROG(svprogfuncs, ent);
+		pr_global_struct->other = EDICT_TO_PROG(svprogfuncs, sv.edicts);
+		PR_ExecuteProgram (svprogfuncs, ent->v->think);
+		return !ent->isfree;
+	}
+
 	do
 	{
 		thinktime = ent->v->nextthink;

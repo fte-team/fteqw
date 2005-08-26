@@ -97,8 +97,6 @@ extern struct model_s *FNC(Mod_FindName)			(char *name);
 extern void	*FNC(Mod_Extradata)						(struct model_s *mod);	// handles caching
 extern void	FNC(Mod_TouchModel)						(char *name);
 
-extern struct mleaf_s *FNC(Mod_PointInLeaf)			(float *p, struct model_s *model);
-extern qbyte	*FNC(Mod_Q1LeafPVS)					(struct mleaf_s *leaf, struct model_s *model, qbyte *buffer);	//purly for q1
 extern void	FNC(Mod_NowLoadExternal)				(void);
 
 extern void	FNC(Mod_Think)							(void);
@@ -178,8 +176,6 @@ typedef struct {
 	void	*(*Mod_Extradata)			(struct model_s *mod);	// handles caching
 	void	(*Mod_TouchModel)			(char *name);
 
-	struct mleaf_s *(*Mod_PointInLeaf)	(float *p, struct model_s *model);
-	qbyte	*(*Mod_Q1LeafPVS)			(struct mleaf_s *leaf, struct model_s *model, qbyte *buffer);
 	void	(*Mod_NowLoadExternal)		(void);
 	void	(*Mod_Think)				(void);
 	qboolean(*Mod_GetTag)				(struct model_s *model, int tagnum, int frame1, int frame2, float f2ness, float f1time, float f2time, float *result);

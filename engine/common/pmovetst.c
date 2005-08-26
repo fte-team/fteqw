@@ -85,17 +85,14 @@ hull_t	*PM_HullForBox (vec3_t mins, vec3_t maxs)
 	return &box_hull;
 }
 
-int PM_TransformedHullPointContents (hull_t *hull, vec3_t p, vec3_t origin, vec3_t angles)
+
+int PM_TransformedModelPointContents (model_t *mod, vec3_t p, vec3_t origin, vec3_t angles)
 {
 	vec3_t p_l, forward, up, right, temp;
 	VectorSubtract (p, origin, p_l);
 
-	if (!player_mins[2])
-		p_l[2] -= hull->clip_mins[2]+0.1;
-
 	// rotate start and end into the models frame of reference
-	if (hull != &box_hull && 
-	(angles[0] || angles[1] || angles[2]) )
+	if (angles[0] || angles[1] || angles[2])
 	{
 		AngleVectors (angles, forward, right, up);
 
@@ -105,8 +102,9 @@ int PM_TransformedHullPointContents (hull_t *hull, vec3_t p, vec3_t origin, vec3
 		p_l[2] = DotProduct (temp, up);
 	}
 
-	return hull->funcs.HullPointContents(hull, p_l);
+	return mod->funcs.PointContents(mod, p_l);
 }
+
 
 /*
 ==================
@@ -116,19 +114,21 @@ PM_PointContents
 */
 int PM_PointContents (vec3_t p)
 {
-	hull_t		*hull;
 	int			num;
 
 	int pc;
+	physent_t *pe;
+	model_t *pm;
 
-	hull = &pmove.physents[0].model->hulls[0];
-
-	pc = hull->funcs.HullPointContents(hull, p);
+	pm = pmove.physents[0].model;
+	pc = pm->funcs.PointContents(pm, p);
 	//we need this for e2m2 - waterjumping on to plats wouldn't work otherwise.
 	for (num = 1; num < pmove.numphysent; num++)
 	{
-		if (pmove.physents[num].model)
-			pc |= PM_TransformedHullPointContents(&pmove.physents[num].model->hulls[0], p, pmove.physents[num].origin, pmove.physents[num].angles);
+		pe = &pmove.physents[num];
+		pm = pe->model;
+		if (pm)
+			pc |= PM_TransformedModelPointContents(pm, p, pe->origin, pe->angles);
 	}
 
 	return pc;
@@ -218,13 +218,13 @@ PM_TestPlayerPosition
 Returns false if the given player position is not valid (in solid)
 ================
 */
-int	CM_TransformedPointContents (vec3_t p, int headnode, vec3_t origin, vec3_t angles);
 qboolean PM_TestPlayerPosition (vec3_t pos)
 {
 	int			i;
 	physent_t	*pe;
 	vec3_t		mins, maxs;
 	hull_t		*hull;
+	trace_t		trace;
 
 	for (i=0 ; i< pmove.numphysent ; i++)
 	{
@@ -233,28 +233,36 @@ qboolean PM_TestPlayerPosition (vec3_t pos)
 	// get the clipping hull
 		if (pe->model)
 		{
+/*
 #ifdef Q2BSPS
 			if (pe->model->fromgame == fg_quake2 || pe->model->fromgame == fg_quake3)
 			{
-				trace_t trace = CM_TransformedBoxTrace(pos, pos, player_mins, player_maxs, pe->model->hulls[0].firstclipnode, MASK_PLAYERSOLID, pe->origin, pe->angles);
+				trace_t trace = CM_TransformedBoxTrace(pe->model, pos, pos, player_mins, player_maxs, MASK_PLAYERSOLID, pe->origin, pe->angles);
 				if (trace.fraction == 0)
 					return false;
 				continue;
 			}
-#endif
-			hull = &pe->model->hulls[pmove.hullnum];
+#endif*/
+/*			hull = &pe->model->hulls[pmove.hullnum];
 			if (!hull->available || !hull->planes || !hull->clipnodes)
 				hull = &pe->model->hulls[1];
+*/
+			if (pe->model->funcs.Trace(pe->model, 0, 0, pos, pos, player_mins, player_maxs, &trace))
+				return false;	//solid
 		}
 		else
 		{
 			VectorSubtract (pe->mins, player_maxs, mins);
 			VectorSubtract (pe->maxs, player_mins, maxs);
 			hull = PM_HullForBox (mins, maxs);
-		}
+			VectorSubtract(pos, pe->origin, mins);
 
-		if (PM_TransformedHullPointContents (hull, pos, pe->origin, pe->angles) & FTECONTENTS_SOLID)
-			return false;
+			if (Q1BSP_HullPointContents(hull, mins) & FTECONTENTS_SOLID)
+				return false;
+
+//			if (PM_TransformedHullPointContents (hull, pos, pe->origin, pe->angles) & FTECONTENTS_SOLID)
+//				return false;
+		}
 	}
 
 	return true;

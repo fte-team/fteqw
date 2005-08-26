@@ -664,7 +664,7 @@ int GLR_LightPoint (vec3_t p)
 
 	if (r_refdef.flags & 1)
 		return 255;
-	
+
 	if (!cl.worldmodel || !cl.worldmodel->lightdata)
 		return 255;
 
@@ -673,11 +673,11 @@ int GLR_LightPoint (vec3_t p)
 		GLQ3_LightGrid(p, NULL, end, NULL);
 		return (end[0] + end[1] + end[2])/3;
 	}
-	
+
 	end[0] = p[0];
 	end[1] = p[1];
 	end[2] = p[2] - 2048;
-	
+
 	r = GLRecursiveLightPoint (cl.worldmodel->nodes, p, end);
 	
 	if (r == -1)

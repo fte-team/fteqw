@@ -1563,7 +1563,6 @@ qboolean SV_AllowDownload (char *name)
 	extern	cvar_t	allow_download_pk3s;
 	extern	cvar_t	allow_download_wads;
 	extern	cvar_t	allow_download_root;
-//	extern	int		file_from_pak; // ZOID did file come from pak?
 
 	//allowed at all?
 	if (!allow_download.value)
@@ -1630,7 +1629,6 @@ void SV_BeginDownload_f(void)
 {
 	char	*name;
 	extern	cvar_t	allow_download_anymap, allow_download_pakcontents;
-	extern	int		file_from_pak; // ZOID did file come from pak?
 
 
 	name = Cmd_Argv(1);
@@ -1679,7 +1677,7 @@ void SV_BeginDownload_f(void)
 	if (!host_client->download
 		// special check for maps, if it came from a pak file, don't allow
 		// download  ZOID
-		|| ((!allow_download_pakcontents.value || (!allow_download_anymap.value && strncmp(name, "maps/", 5) == 0)) && file_from_pak))
+		|| ((!allow_download_pakcontents.value || (!allow_download_anymap.value && strncmp(name, "maps/", 5) == 0)) && com_file_copyprotected))
 	{
 		if (host_client->download)
 		{
@@ -2818,6 +2816,8 @@ void Cmd_Observe_f (void)
 		pr_global_struct->self = EDICT_TO_PROG(svprogfuncs, sv_player);
 		PR_ExecuteProgram (svprogfuncs, SpectatorConnect);
 	}
+	else
+		sv_player->v->movetype = MOVETYPE_NOCLIP;
 
 	// send notification to all clients
 	host_client->sendinfo = true;
@@ -3653,7 +3653,7 @@ void AddLinksToPmove ( areanode_t *node )
 			model = sv.models[(int)check->v->modelindex];
 			if (model)
 	// test the point
-			if ( model->hulls[0].funcs.HullPointContents (&model->hulls[0], sv_player->v->origin) == FTECONTENTS_SOLID )
+			if ( model->funcs.PointContents (model, sv_player->v->origin) == FTECONTENTS_SOLID )
 				sv_player->v->fteflags = (int)sv_player->v->fteflags | FF_LADDER;	//touch that ladder!
 		}
 	}

@@ -65,6 +65,7 @@ extern cvar_t		gl_load24bit;
 
 #ifdef Q3SHADERS
 extern cvar_t		gl_blend2d;
+shader_t	*shader_console;
 #endif
 extern cvar_t		con_ocranaleds;
 
@@ -1502,6 +1503,62 @@ void GLDraw_ShaderPic (int x, int y, int width, int height, shader_t *pic, float
 	R_PushMesh(&draw_mesh, mb.shader->features | MF_COLORS | MF_NONBATCHED);
 	R_RenderMeshBuffer ( &mb, false );
 	draw_mesh.colors_array = NULL;
+
+	qglEnable(GL_BLEND);
+}
+
+void GLDraw_ShaderImage (int x, int y, int w, int h, float s1, float t1, float s2, float t2, shader_t *pic)
+{
+	meshbuffer_t mb;
+
+	if (!pic)
+		return;
+
+	R_IBrokeTheArrays();
+
+	mb.entity = &r_worldentity;
+	mb.shader = pic;
+	mb.fog = NULL;
+	mb.mesh = &draw_mesh;
+	mb.infokey = -1;
+	mb.dlightbits = 0;
+
+
+	draw_mesh_xyz[0][0] = x;
+	draw_mesh_xyz[0][1] = y;
+	draw_mesh_st[0][0] = s1;
+	draw_mesh_st[0][1] = t1;
+
+	draw_mesh_xyz[1][0] = x+w;
+	draw_mesh_xyz[1][1] = y;
+	draw_mesh_st[1][0] = s2;
+	draw_mesh_st[1][1] = t1;
+
+	draw_mesh_xyz[2][0] = x+w;
+	draw_mesh_xyz[2][1] = y+h;
+	draw_mesh_st[2][0] = s2;
+	draw_mesh_st[2][1] = t2;
+
+	draw_mesh_xyz[3][0] = x;
+	draw_mesh_xyz[3][1] = y+h;
+	draw_mesh_st[3][0] = s1;
+	draw_mesh_st[3][1] = t2;
+
+/*	draw_mesh_colors[0][0] = r*255;
+	draw_mesh_colors[0][1] = g*255;
+	draw_mesh_colors[0][2] = b*255;
+	draw_mesh_colors[0][3] = a*255;
+	((int*)draw_mesh_colors)[1] = ((int*)draw_mesh_colors)[0];
+	((int*)draw_mesh_colors)[2] = ((int*)draw_mesh_colors)[0];
+	((int*)draw_mesh_colors)[3] = ((int*)draw_mesh_colors)[0];
+*/
+	draw_mesh.colors_array = draw_mesh_colors;
+
+	R_PushMesh(&draw_mesh, mb.shader->features | MF_COLORS | MF_NONBATCHED);
+	R_RenderMeshBuffer ( &mb, false );
+	draw_mesh.colors_array = NULL;
+
+	qglEnable(GL_BLEND);
 }
 #endif
 
@@ -1697,6 +1754,17 @@ void GLDraw_ConsoleBackground (int lines)
 		conback->height>>=1;
 		conback->width>>=1;
 	}
+#ifdef Q3SHADERS
+	{
+		if (shader_console)
+		{
+			currententity = &r_worldentity;
+			GLDraw_ShaderPic(0, lines - conback->height, vid.width, vid.height, shader_console, 1, 1, 1, (1.2*lines)/y);
+			qglBlendFunc (GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+			return;
+		}
+	}
+#endif
 	if (lines > y)
 	{
 		qglColor3f (1,1,1);
@@ -1829,6 +1897,14 @@ void GLDraw_FadeScreen (void)
 
 void GLDraw_ImageColours(float r, float g, float b, float a)
 {
+	draw_mesh_colors[0][0] = r*255;
+	draw_mesh_colors[0][1] = g*255;
+	draw_mesh_colors[0][2] = b*255;
+	draw_mesh_colors[0][3] = a*255;
+	((int*)draw_mesh_colors)[1] = ((int*)draw_mesh_colors)[0];
+	((int*)draw_mesh_colors)[2] = ((int*)draw_mesh_colors)[0];
+	((int*)draw_mesh_colors)[3] = ((int*)draw_mesh_colors)[0];
+
 	qglColor4f(r, g, b, a);
 }
 
@@ -1926,6 +2002,8 @@ Setup as if the screen was 320*200
 */
 void GL_Set2D (void)
 {
+	GL_SetShaderState2D(true);
+
 	qglViewport (glx, gly, glwidth, glheight);
 
 	qglMatrixMode(GL_PROJECTION);
@@ -1971,8 +2049,17 @@ void GL_Set2D (void)
 	{
 		int newtex = 0;
 		gl_conback.modified = 0;
-		if (!*gl_conback.string || !(newtex=Mod_LoadHiResTexture(gl_conback.string, "conbacks", false, true, true)))
+#ifdef Q3SHADERS
+		if (*gl_conback.string && (shader_console = R_RegisterCustom(gl_conback.string, NULL)))
+		{
 			conback = default_conback;
+		}
+		else
+#endif
+		if (!*gl_conback.string || !(newtex=Mod_LoadHiResTexture(gl_conback.string, "conbacks", false, true, true)))
+		{
+			conback = default_conback;
+		}
 		else
 		{
 			conback = custom_conback;
@@ -2004,6 +2091,8 @@ void GL_Set2D (void)
 			qglTexParameterf(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
 		}
 	}
+
+	r_refdef.time = realtime;
 }
 
 
@@ -2394,8 +2483,8 @@ void GL_ResampleTexture (unsigned *in, int inwidth, int inheight, unsigned *out,
 	{
 		inrow = in + inwidth*(i*inheight/outheight);
 		frac = outwidth*fracstep;
-		j=outwidth-4;
-		while (j&3)
+		j=outwidth-1;
+		while ((j+1)&3)
 		{
 			out[j] = inrow[frac>>16];
 			frac -= fracstep;

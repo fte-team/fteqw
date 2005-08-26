@@ -98,7 +98,7 @@ void *SWMod_Extradata (model_t *mod)
 Mod_PointInLeaf
 ===============
 */
-int SWMod_LeafForPoint (vec3_t p, model_t *model)
+static int SWMod_LeafForPoint (model_t *model, vec3_t p)
 {
 	mnode_t		*node;
 	float		d;
@@ -107,7 +107,7 @@ int SWMod_LeafForPoint (vec3_t p, model_t *model)
 #ifdef Q2BSPS
 	if (model->fromgame == fg_quake2 || model->fromgame == fg_quake3)
 	{
-		return CM_PointLeafnum(p);
+		return CM_PointLeafnum(cl.worldmodel, p);
 	}
 #endif
 	
@@ -130,9 +130,9 @@ int SWMod_LeafForPoint (vec3_t p, model_t *model)
 	return 0;	// never reached
 }
 
-mleaf_t *SWMod_PointInLeaf (vec3_t p, model_t *model)
+mleaf_t *SWMod_PointInLeaf (model_t *model, vec3_t p)
 {
-	return model->leafs + SWMod_LeafForPoint(p, model);
+	return model->leafs + SWMod_LeafForPoint(model, p);
 }
 
 
@@ -141,7 +141,7 @@ mleaf_t *SWMod_PointInLeaf (vec3_t p, model_t *model)
 Mod_DecompressVis
 ===================
 */
-qbyte *SWMod_DecompressVis (qbyte *in, model_t *model, qbyte *decompressed)
+static qbyte *SWMod_DecompressVis (model_t *model, qbyte *in, qbyte *decompressed)
 {
 	int		c;
 	qbyte	*out;
@@ -184,7 +184,7 @@ qbyte *SWMod_DecompressVis (qbyte *in, model_t *model, qbyte *decompressed)
 	return decompressed;
 }
 
-qbyte *SWMod_LeafPVS (mleaf_t *leaf, model_t *model, qbyte *buffer)
+qbyte *SWMod_LeafPVS (model_t *model, mleaf_t *leaf, qbyte *buffer)
 {
 	static qbyte	decompressed[MAX_MAP_LEAFS/8];
 
@@ -193,12 +193,7 @@ qbyte *SWMod_LeafPVS (mleaf_t *leaf, model_t *model, qbyte *buffer)
 
 	if (!buffer)
 		buffer = decompressed;
-	return SWMod_DecompressVis (leaf->compressed_vis, model, buffer);
-}
-
-qbyte *SWMod_LeafnumPVS (int ln, model_t *model, qbyte *buffer)
-{
-	return SWMod_LeafPVS(model->leafs + ln, model, buffer);
+	return SWMod_DecompressVis (model, leaf->compressed_vis, buffer);
 }
 
 /*
@@ -1867,11 +1862,6 @@ float RadiusFromBounds (vec3_t mins, vec3_t maxs);
 
 
 void Q1BSP_MarkLights (dlight_t *light, int bit, mnode_t *node);
-#ifndef CLIENTONLY
-void Q1BSP_FatPVS (vec3_t org, qboolean add);
-qboolean Q1BSP_EdictInFatPVS(edict_t *ent);
-void Q1BSP_FindTouchedLeafs(edict_t *ent);
-#endif
 void SWQ1BSP_LightPointValues(vec3_t point, vec3_t res_diffuse, vec3_t res_ambient, vec3_t res_dir);
 
 void SWR_Q1BSP_StainNode (mnode_t *node, float *parms);
@@ -1960,18 +1950,11 @@ void SWMod_LoadBrushModel (model_t *mod, void *buffer)
 		crouchhullfile=NULL;
 	}
 
-#ifndef CLIENTONLY
-	mod->funcs.FatPVS				= Q1BSP_FatPVS;
-	mod->funcs.EdictInFatPVS		= Q1BSP_EdictInFatPVS;
-	mod->funcs.FindTouchedLeafs_Q1	= Q1BSP_FindTouchedLeafs;
-#endif
+	Q1BSP_SetModelFuncs(mod);
 	mod->funcs.LightPointValues		= SWQ1BSP_LightPointValues;
 	mod->funcs.StainNode			= SWR_Q1BSP_StainNode;
 	mod->funcs.MarkLights			= Q1BSP_MarkLights;
 
-	mod->funcs.LeafForPoint			= SWMod_LeafForPoint;
-	mod->funcs.LeafPVS				= SWMod_LeafnumPVS;
-	mod->funcs.Trace				= Q1BSP_Trace;
 
 //We ONLY do this for the world model
 #ifndef SERVERONLY

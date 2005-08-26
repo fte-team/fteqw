@@ -1223,9 +1223,14 @@ void Key_Event (int key, qboolean down)
 
 #ifdef CSQC_DAT
 	//yes, csqc is allowed to steal the escape key.
+	if (key != '`' && key != '~')
 	if (key_dest == key_game)
+	{
 		if (CSQC_KeyPress(key, down))	//give csqc a chance to handle it.
 			return;
+		if (CG_KeyPress(key, down))
+			return;
+	}
 #endif
 
 //
@@ -1234,7 +1239,7 @@ void Key_Event (int key, qboolean down)
 	if (key == K_ESCAPE)
 	{
 #ifdef TEXTEDITOR
-		if (key_dest != key_editor)
+		if (key_dest == key_game)
 #endif
 		{
 			if (UI_KeyPress(key, down))	//Allow the UI to see the escape key. It is possible that a developer may get stuck at a menu.
@@ -1329,7 +1334,8 @@ void Key_Event (int key, qboolean down)
 // if not a consolekey, send to the interpreter no matter what mode is
 //
 
-	if (key_dest == key_game || down)
+	if (key != '`' && key != '~')
+	if (key_dest == key_game || !down)
 	{
 		if (UI_KeyPress(key, down) && down)	//UI is allowed to take these keydowns. Keyups are always maintained.
 			return;

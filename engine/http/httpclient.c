@@ -322,7 +322,7 @@ static qboolean HTTP_CL_Run(http_con_t *con)
 		{
 			if (con->file)	//we've got a chunk in the buffer
 			{	//write it
-				IWebFWrite(con->buffer, con->chunked, 1, con->file);
+				IWebFWrite(con->buffer, con->bufferused, 1, con->file);
 				con->bufferused = 0;
 			}
 		}

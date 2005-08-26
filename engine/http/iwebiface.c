@@ -376,7 +376,6 @@ void IWebShutdown(void)
 {
 }
 
-extern int file_from_pak;
 IWEBFILE *IWebFOpenRead(char *name)					//fread(name, "rb");
 {
 	IWEBFILE *gf;
@@ -403,7 +402,7 @@ IWEBFILE *IWebFOpenRead(char *name)					//fread(name, "rb");
 		return ret;
 	}
 
-	if (file_from_pak==2)
+	if (com_file_copyprotected)
 	{
 		char *buffer;
 		IWEBFILE *ret;
@@ -596,42 +595,42 @@ iwboolean IWebAllowUpLoad(char *fname, char *uname)	//called for partial write a
 
 iwboolean	FTP_StringToAdr (const char *s, qbyte ip[4], qbyte port[2])
 {
-	s = COM_ParseToken(s);
+	s = COM_ParseToken(s, NULL);
 	ip[0] = atoi(com_token);
 
-	s = COM_ParseToken(s);
+	s = COM_ParseToken(s, NULL);
 	if (*com_token != ',')
 		return false;
 
-	s = COM_ParseToken(s);
+	s = COM_ParseToken(s, NULL);
 	ip[1] = atoi(com_token);
 
-	s = COM_ParseToken(s);
+	s = COM_ParseToken(s, NULL);
 	if (*com_token != ',')
 		return false;
 
-	s = COM_ParseToken(s);
+	s = COM_ParseToken(s, NULL);
 	ip[2] = atoi(com_token);
 
-	s = COM_ParseToken(s);
+	s = COM_ParseToken(s, NULL);
 	if (*com_token != ',')
 		return false;
 	
-	s = COM_ParseToken(s);
+	s = COM_ParseToken(s, NULL);
 	ip[3] = atoi(com_token);
 
-	s = COM_ParseToken(s);
+	s = COM_ParseToken(s, NULL);
 	if (*com_token != ',')
 		return false;
 	
-	s = COM_ParseToken(s);
+	s = COM_ParseToken(s, NULL);
 	port[0] = atoi(com_token);
 
-	s = COM_ParseToken(s);
+	s = COM_ParseToken(s, NULL);
 	if (*com_token != ',')
 		return false;
 	
-	s = COM_ParseToken(s);
+	s = COM_ParseToken(s, NULL);
 	port[1] = atoi(com_token);
 
 

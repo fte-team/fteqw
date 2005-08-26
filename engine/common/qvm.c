@@ -689,8 +689,8 @@ int QVM_Exec(register qvm_t *qvm, int command, int arg0, int arg1, int arg2, int
 				qvm->pc = oldpc;
 
 				qvm->bp += 15*4;
-				if(qvm->bp!=qvm->max_bp)
-					Sys_Error("VM run time error: freed too much stack\n");
+//				if(qvm->bp!=qvm->max_bp)
+//					Sys_Error("VM run time error: freed too much stack\n");
 				param = qvm->sp[0];
 				POP(1);
 				return param;

@@ -462,7 +462,7 @@ qbyte *W_GetTexture(char *name, int *width, int *height, qboolean *usesalpha)//r
 //extern model_t	*loadmodel;
 
 char wads[4096];
-void Mod_ParseInfoFromEntityLump(const char *data)	//actually, this should be in the model code.
+void Mod_ParseInfoFromEntityLump(char *data)	//actually, this should be in the model code.
 {
 	extern model_t *loadmodel;
 	char key[128];
@@ -478,13 +478,13 @@ void Mod_ParseInfoFromEntityLump(const char *data)	//actually, this should be in
 
 	if (!data)
 		return;
-	if (!(data=COM_ParseToken(data)))	//read the map info.
+	if (!(data=COM_Parse(data)))	//read the map info.
 		return; // error
 	if (com_token[0] != '{')
 		return; // error
 	while (1)
 	{
-		if (!(data=COM_ParseToken(data)))
+		if (!(data=COM_Parse(data)))
 			return; // error
 		if (com_token[0] == '}')
 			break; // end of worldspawn
@@ -492,7 +492,7 @@ void Mod_ParseInfoFromEntityLump(const char *data)	//actually, this should be in
 			strcpy(key, com_token + 1);	//_ vars are for comments/utility stuff that arn't visible to progs. Ignore them.
 		else
 			strcpy(key, com_token);
-		if (!((data=COM_ParseToken(data))))
+		if (!((data=COM_Parse(data))))
 			return; // error		
 		if (!strcmp("wad", key)) // for HalfLife maps
 		{

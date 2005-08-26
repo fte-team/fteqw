@@ -694,6 +694,10 @@ pbool QCC_PR_Precompiler(void)
 					QCC_PR_ParseWarning(WARN_STRINGTOOLONG, "Copyright message is too long\n");
 				strncpy(QCC_copyright, msg, sizeof(QCC_copyright)-1);
 			}
+			else if (!strncmp(directive, "forcecrc", 8))
+			{
+				ForcedCRC = atoi(msg);
+			}
 			else if (!QC_strcasecmp(qcc_token, "TARGET"))
 			{
 				if (qcc_targetformat == QCF_HEXEN2 && numstatements)

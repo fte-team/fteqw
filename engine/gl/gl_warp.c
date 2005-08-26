@@ -198,8 +198,13 @@ void R_DrawSkyChain (msurface_t *s)
 	{
 		int i;
 		if (s->texinfo->texture->shader && s->texinfo->texture->shader->skydome)
+		{
 			for (i = 0; i < 6; i++)
+			{
 				skyboxtex[i] = s->texinfo->texture->shader->skydome->farbox_textures[i];		
+			}
+			solidskytexture = 1;
+		}
 	}
 #endif
 

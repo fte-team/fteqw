@@ -1689,7 +1689,7 @@ void	Cmd_ExecuteString (char *text, int level)
 
 			Cbuf_InsertText (va("set cmd_argc \"%i\"\n", cmd_argc), execlevel);
 
-			for (i = 1; i < cmd_argc; i++)
+			for (i = 0; i < cmd_argc; i++)
 				Cbuf_InsertText (va("set cmd_argv%i \"%s\"\n", i, cmd_argv[i]), execlevel);
 			return;
 		}
@@ -1849,7 +1849,7 @@ const char *If_Token(const char *func, const char **end)
 	while(*func <= ' ' && *func)
 		func++;
 
-	s = COM_ParseToken(func);
+	s = COM_ParseToken(func, NULL);
 
 	if (*com_token == '(')
 	{
@@ -1884,7 +1884,7 @@ const char *If_Token(const char *func, const char **end)
 	}
 	else if (!strcmp(com_token, "defined"))	//functions
 	{
-		s = COM_ParseToken(s);
+		s = COM_ParseToken(s, NULL);
 		var = Cvar_FindVar(com_token);
 		*end = s;
 		return retstring((var != NULL)?"true":"");
@@ -1895,7 +1895,7 @@ const char *If_Token(const char *func, const char **end)
 	}
 	else if (!strcmp(com_token, "vid"))	//mostly for use with the menu system.
 	{
-		s = COM_ParseToken(s);
+		s = COM_ParseToken(s, NULL);
 #ifndef SERVERONLY
 		if (qrenderer == QR_NONE)
 			s2 = "";
@@ -1926,10 +1926,10 @@ const char *If_Token(const char *func, const char **end)
 
 	*end = s;
 
-	s = COM_ParseToken(s);
+	s = COM_ParseToken(s, NULL);
 	if (!strcmp(com_token, "="))	//comparisions
 	{
-		func=COM_ParseToken(s);
+		func=COM_ParseToken(s, NULL);
 		if (*com_token == '=')	//lol. "=" == "=="
 			return retfloat(!strcmp(s2, If_Token(func, end)));
 		else
@@ -1939,7 +1939,7 @@ const char *If_Token(const char *func, const char **end)
 		return retfloat(!strcmp(s2, If_Token(s, end)));
 	if (!strcmp(com_token, "!"))
 	{
-		func=COM_ParseToken(s);
+		func=COM_ParseToken(s, NULL);
 		if (*com_token == '=')
 		{
 			s = If_Token(func, end);
@@ -1957,7 +1957,7 @@ const char *If_Token(const char *func, const char **end)
 	}
 	if (!strcmp(com_token, ">"))
 	{
-		func=COM_ParseToken(s);
+		func=COM_ParseToken(s, NULL);
 		if (*com_token == '=')
 			return retfloat(atof(s2)>=atof(If_Token(func, end)));
 		else if (*com_token == '<')//vb?
@@ -1977,7 +1977,7 @@ const char *If_Token(const char *func, const char **end)
 	}
 	if (!strcmp(com_token, "<"))
 	{
-		func=COM_ParseToken(s);
+		func=COM_ParseToken(s, NULL);
 		if (*com_token == '=')
 			return retfloat(atof(s2)<=atof(If_Token(func, end)));
 		else if (*com_token == '>')//vb?
@@ -1998,7 +1998,7 @@ const char *If_Token(const char *func, const char **end)
 		return retfloat(atof(s2)/atof(If_Token(s, end)));
 	if (!strcmp(com_token, "&"))	//and
 	{
-		func=COM_ParseToken(s);
+		func=COM_ParseToken(s, NULL);
 		if (*com_token == '&')
 			return retfloat(*s2&&*If_Token(s, end));
 		else
@@ -2006,7 +2006,7 @@ const char *If_Token(const char *func, const char **end)
 	}
 	if (!strcmp(com_token, "|"))	//or
 	{
-		func=COM_ParseToken(s);
+		func=COM_ParseToken(s, NULL);
 		if (*com_token == '|')
 		{
 			func = If_Token(func, end);

@@ -24,6 +24,10 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 #ifdef RGLQUAKE
 #include "glquake.h"
 
+#ifdef Q3SHADERS
+#include "shader.h"
+#endif
+
 void R_RenderBrushPoly (msurface_t *fa);
 
 #define PROJECTION_DISTANCE			200
@@ -33,8 +37,6 @@ extern int		gl_canstencil;
 
 PFNGLCOMPRESSEDTEXIMAGE2DARBPROC qglCompressedTexImage2DARB;
 PFNGLGETCOMPRESSEDTEXIMAGEARBPROC qglGetCompressedTexImageARB;
-
-extern struct mleaf_s *GLMod_PointInLeaf	(float *p, struct model_s *model);
 
 #define	Q2RF_WEAPONMODEL		4		// only draw through eyes
 #define Q2RF_DEPTHHACK 16
@@ -123,6 +125,9 @@ cvar_t	gl_finish = {"gl_finish","0"};
 cvar_t	gl_contrast = {"gl_contrast", "1"};
 cvar_t	gl_dither = {"gl_dither", "1"};
 cvar_t	gl_maxdist = {"gl_maxdist", "8192"};
+cvar_t	gl_mindist = {"gl_mindist", "4", NULL, CVAR_CHEAT};	//by setting to 64 or something, you can use this as a wallhack
+
+cvar_t	gl_bloom = {"gl_bloom", "0"};
 extern cvar_t	gl_motionblur;
 extern cvar_t	gl_motionblurscale;
 
@@ -151,10 +156,12 @@ int scenepp_ww_parm_texture1i;
 int scenepp_ww_parm_texture2i;
 int scenepp_ww_parm_ampscalef;
 
+int scenepp_bloom_program;
+
 // KrimZon - init post processing - called in GL_CheckExtensions, when they're called
 // I put it here so that only this file need be changed when messing with the post
 // processing shaders
-void GL_InitSceneProcessingShaders (void)
+void GL_InitSceneProcessingShaders_WaterWarp (void)
 {
 	char *genericvert = "\
 		varying vec2 v_texCoord0;\
@@ -218,6 +225,40 @@ void GL_InitSceneProcessingShaders (void)
 
 	if (qglGetError())
 		Con_Printf("GL Error initing shader object\n");
+}
+void GL_InitSceneProcessingShaders_Bloom(void)
+{
+	int texnum;
+	char *genericvert = "\
+		varying vec2 v_texCoord0;\
+		/*varying vec2 v_texCoord1;*/\
+		/*varying vec2 v_texCoord2;*/\
+		void main (void)\
+		{\
+			vec4 v = vec4( gl_Vertex.x, gl_Vertex.y, gl_Vertex.z, 1.0 );\
+			gl_Position = gl_ModelViewProjectionMatrix * v;\
+			v_texCoord0 = gl_MultiTexCoord0.xy;\
+			/*v_texCoord1 = gl_MultiTexCoord1.xy;*/\
+			/*v_texCoord2 = gl_MultiTexCoord2.xy;*/\
+		}\
+		";
+
+		
+	char *frag = COM_LoadTempFile("bloom.glsl");
+
+	if (!frag)
+		return;
+
+	scenepp_bloom_program = GLSlang_CreateProgram(NULL, genericvert, frag);
+	if (!scenepp_bloom_program)
+		return;
+	texnum	= GLSlang_GetUniformLocation(scenepp_bloom_program, "theTexture0");
+	GLSlang_SetUniform1i(texnum, 0);
+}
+void GL_InitSceneProcessingShaders (void)
+{
+	GL_InitSceneProcessingShaders_WaterWarp();
+	GL_InitSceneProcessingShaders_Bloom();
 }
 
 #define PP_WARP_TEX_SIZE 64
@@ -468,40 +509,98 @@ void R_DrawSpriteModel (entity_t *e)
 	vec3_t		forward, right, up;
 	msprite_t		*psprite;
 
+#ifdef Q3SHADERS
+	if (e->forcedshader)
+	{
+		meshbuffer_t mb;
+		mesh_t mesh;
+		vec2_t texcoords[4]={{0, 1},{0,0},{1,0},{1,1}};
+		vec3_t vertcoords[4];
+		int indexes[6] = {0, 1, 2, 0, 2, 3};
+		byte_vec4_t colours[4];
+		float x, y;
+
+		mesh.colors_array = colours;
+		mesh.indexes = indexes;
+		mesh.lmst_array = NULL;
+		mesh.st_array = texcoords;
+		mesh.normals_array = NULL;
+		mesh.numvertexes = 4;
+		mesh.numindexes = 6;
+		mesh.radius = e->scale;
+		mesh.xyz_array = vertcoords;
+		mesh.normals_array = NULL;
+
+#define VectorSet(a,b,c,v) {v[0]=a;v[1]=b;v[2]=c;}
+		x = cos(e->rotation+225*M_PI/180)*e->scale;
+		y = sin(e->rotation+225*M_PI/180)*e->scale;
+		VectorSet (e->origin[0] - y*vright[0] + x*vup[0], e->origin[1] - y*vright[1] + x*vup[1], e->origin[2] - y*vright[2] + x*vup[2], vertcoords[3]);
+		VectorSet (e->origin[0] - x*vright[0] - y*vup[0], e->origin[1] - x*vright[1] - y*vup[1], e->origin[2] - x*vright[2] - y*vup[2], vertcoords[2]);
+		VectorSet (e->origin[0] + y*vright[0] - x*vup[0], e->origin[1] + y*vright[1] - x*vup[1], e->origin[2] + y*vright[2] - x*vup[2], vertcoords[1]);
+		VectorSet (e->origin[0] + x*vright[0] + y*vup[0], e->origin[1] + x*vright[1] + y*vup[1], e->origin[2] + x*vright[2] + y*vup[2], vertcoords[0]);
+		*(int*)colours[0] = *(int*)colours[1] = *(int*)colours[2] = *(int*)colours[3] = 
+			*(int*)e->shaderRGBA;
+
+		
+		R_IBrokeTheArrays();
+
+		mb.entity = e;
+		mb.shader = e->forcedshader;
+		mb.fog = NULL;//fog;
+		mb.mesh = &mesh;
+		mb.infokey = -1;
+		mb.dlightbits = 0;
+
+		R_PushMesh(&mesh, mb.shader->features | MF_NONBATCHED);
+
+		R_RenderMeshBuffer ( &mb, false );
+		return;
+	}
+#endif
+	if (!e->model)
+		return;
+
+	if (e->flags & RF_NODEPTHTEST)
+		qglDisable(GL_DEPTH_TEST);
+
 	// don't even bother culling, because it's just a single
 	// polygon without a surface cache
 	frame = R_GetSpriteFrame (e);
-	psprite = currententity->model->cache.data;
+	psprite = e->model->cache.data;
 //	frame = 0x05b94140;
 
-	if (psprite->type == SPR_ORIENTED)
-	{	// bullet marks on walls
-		AngleVectors (currententity->angles, forward, right, up);
-	}
-	else if (psprite->type == SPR_FACING_UPRIGHT)
+	switch(psprite->type)
 	{
+	case SPR_ORIENTED:
+		// bullet marks on walls
+		AngleVectors (e->angles, forward, right, up);
+		break;
+
+	case SPR_FACING_UPRIGHT:
 		up[0] = 0;up[1] = 0;up[2]=1;
 		right[0] = e->origin[1] - r_origin[1];
 		right[1] = -(e->origin[0] - r_origin[0]);
 		right[2] = 0;
 		VectorNormalize (right);
-	}
-	else if (psprite->type == SPR_VP_PARALLEL_UPRIGHT)
-	{
+		break;
+	case SPR_VP_PARALLEL_UPRIGHT:
 		up[0] = 0;up[1] = 0;up[2]=1;
 		VectorCopy (vright, right);
-	}
-	else
-	{	// normal sprite
+		break;
+
+	default:
+	case SPR_VP_PARALLEL:
+		//normal sprite
 		VectorCopy(vup, up);
 		VectorCopy(vright, right);
+		break;
 	}
-	up[0]*=currententity->scale;
-	up[1]*=currententity->scale;
-	up[2]*=currententity->scale;
-	right[0]*=currententity->scale;
-	right[1]*=currententity->scale;
-	right[2]*=currententity->scale;
+	up[0]*=e->scale;
+	up[1]*=e->scale;
+	up[2]*=e->scale;
+	right[0]*=e->scale;
+	right[1]*=e->scale;
+	right[2]*=e->scale;
 
 	qglColor4f (1,1,1, e->alpha);
 
@@ -566,6 +665,7 @@ void R_DrawSpriteModel (entity_t *e)
 
 	qglDisable(GL_BLEND);
 	qglDisable (GL_ALPHA_TEST);
+	qglEnable(GL_DEPTH_TEST);
 
 	if (e->flags & Q2RF_ADDATIVE)	//back to regular blending for us!
 		qglBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
@@ -762,6 +862,25 @@ void GLR_DrawEntitiesOnList (void)
 	{
 		currententity = &cl_visedicts[i];
 
+		if (!PPL_ShouldDraw())
+			continue;
+		/*
+		if (r_inmirror)
+		{
+			if (currententity->flags & Q2RF_WEAPONMODEL)
+				continue;
+		}
+		else
+		{
+			if (currententity->keynum == (cl.viewentity[r_refdef.currentplayernum]?cl.viewentity[r_refdef.currentplayernum]:(cl.playernum[r_refdef.currentplayernum]+1)))
+				continue;
+//			if (cl.viewentity[r_refdef.currentplayernum] && currententity->keynum == cl.viewentity[r_refdef.currentplayernum])
+//				continue;
+			if (!Cam_DrawPlayer(0, currententity->keynum-1))
+				continue;
+		}*/
+/*
+
 		if (r_inmirror)
 		{
 			if (currententity->flags & Q2RF_WEAPONMODEL)
@@ -776,7 +895,16 @@ void GLR_DrawEntitiesOnList (void)
 			if (!Cam_DrawPlayer(0, currententity->keynum-1))
 				continue;
 		}
-
+*/
+		switch (currententity->rtype)
+		{
+		case RT_SPRITE:
+			RQ_AddDistReorder(GLR_DrawSprite, currententity, NULL, currententity->origin);
+			continue;
+		case RT_RAIL_CORE:
+			R_DrawBeam(currententity);
+			continue;
+		}
 		if (currententity->flags & Q2RF_BEAM)
 		{
 			R_DrawBeam(currententity);
@@ -801,7 +929,7 @@ void GLR_DrawEntitiesOnList (void)
 		switch (currententity->model->type)
 		{
 		case mod_alias:
-			if (r_refdef.flags & Q2RDF_NOWORLDMODEL || !cl.worldmodel || cl.worldmodel->fromgame == fg_doom)
+			if (r_refdef.flags & Q2RDF_NOWORLDMODEL || !cl.worldmodel || cl.worldmodel->type != mod_brush || cl.worldmodel->fromgame == fg_doom)
 				R_DrawGAliasModel (currententity);
 			break;
 		
@@ -812,12 +940,19 @@ void GLR_DrawEntitiesOnList (void)
 #endif
 
 		case mod_brush:
-			if (cl.worldmodel->fromgame == fg_doom)
+			if (!cl.worldmodel || cl.worldmodel->type != mod_brush || cl.worldmodel->fromgame == fg_doom)
 				PPL_BaseBModelTextures (currententity);
 			break;
 
 		case mod_sprite:
 			RQ_AddDistReorder(GLR_DrawSprite, currententity, NULL, currententity->origin);
+			break;
+
+#ifdef TERRAIN
+		case mod_heightmap:
+			GL_DrawHeightmapModel(currententity);
+			break;
+#endif
 
 		default:
 			break;
@@ -1175,7 +1310,7 @@ void GLR_SetupFrame (void)
 
 		r_oldviewcluster = r_viewcluster;
 		r_oldviewcluster2 = r_viewcluster2;
-		leaf = GLMod_PointInLeaf (r_origin, cl.worldmodel);
+		leaf = GLMod_PointInLeaf (cl.worldmodel, r_origin);
 		r_viewcluster = r_viewcluster2 = leaf->cluster;
 
 		// check above and below so crossing solid water doesn't draw wrong
@@ -1185,7 +1320,7 @@ void GLR_SetupFrame (void)
 
 			VectorCopy (r_origin, temp);
 			temp[2] -= 16;
-			leaf = GLMod_PointInLeaf (temp, cl.worldmodel);
+			leaf = GLMod_PointInLeaf (cl.worldmodel, temp);
 			if ( !(leaf->contents & Q2CONTENTS_SOLID) &&
 				(leaf->cluster != r_viewcluster2) )
 				r_viewcluster2 = leaf->cluster;
@@ -1196,7 +1331,7 @@ void GLR_SetupFrame (void)
 
 			VectorCopy (r_origin, temp);
 			temp[2] += 16;
-			leaf = GLMod_PointInLeaf (temp, cl.worldmodel);
+			leaf = GLMod_PointInLeaf (cl.worldmodel, temp);
 			if ( !(leaf->contents & Q2CONTENTS_SOLID) &&
 				(leaf->cluster != r_viewcluster2) )
 				r_viewcluster2 = leaf->cluster;
@@ -1210,7 +1345,7 @@ void GLR_SetupFrame (void)
 
 		r_oldviewleaf = r_viewleaf;
 		r_oldviewleaf2 = r_viewleaf2;
-		r_viewleaf = GLMod_PointInLeaf (r_origin, cl.worldmodel);
+		r_viewleaf = GLMod_PointInLeaf (cl.worldmodel, r_origin);
 
 		if (!r_viewleaf)
 		{
@@ -1219,7 +1354,7 @@ void GLR_SetupFrame (void)
 		{	//look down a bit			
 			VectorCopy (r_origin, temp);
 			temp[2] -= 16;
-			leaf = GLMod_PointInLeaf (temp, cl.worldmodel);
+			leaf = GLMod_PointInLeaf (cl.worldmodel, temp);
 			if (leaf->contents <= Q1CONTENTS_WATER && leaf->contents >= Q1CONTENTS_LAVA)
 				r_viewleaf2 = leaf;
 			else
@@ -1230,7 +1365,7 @@ void GLR_SetupFrame (void)
 		
 			VectorCopy (r_origin, temp);
 			temp[2] += 16;
-			leaf = GLMod_PointInLeaf (temp, cl.worldmodel);
+			leaf = GLMod_PointInLeaf (cl.worldmodel, temp);
 			if (leaf->contents == Q1CONTENTS_EMPTY)
 				r_viewleaf2 = leaf;
 			else
@@ -1393,11 +1528,11 @@ void R_SetupGL (void)
 	//		yfov = (2.0 * tan (scr_fov.value/360*M_PI)) / screenaspect;
 	//		yfov = 2*atan((float)r_refdef.vrect.height/r_refdef.vrect.width)*(scr_fov.value*2)/M_PI;
 	//		MYgluPerspective (yfov,  screenaspect,  4,  4096);
-			MYgluPerspective (r_refdef.fov_y,  screenaspect,  4,  gl_maxdist.value);
+			MYgluPerspective (r_refdef.fov_y,  screenaspect,  gl_mindist.value,  gl_maxdist.value);
 		}
 		else
 		{
-			GL_InfinatePerspective(r_refdef.fov_y, screenaspect, 4);
+			GL_InfinatePerspective(r_refdef.fov_y, screenaspect, gl_mindist.value);
 		}
 	}
 	else
@@ -2088,6 +2223,8 @@ void GLR_RenderView (void)
 */
 	r_alpha_surfaces = NULL;
 
+	GL_SetShaderState2D(false);
+
 	// render normal view
 	R_RenderScene ();	
 	GLR_DrawViewModel ();
@@ -2119,7 +2256,7 @@ void GLR_RenderView (void)
 	// SCENE POST PROCESSING
 	// we check if we need to use any shaders - currently it's just waterwarp
 	if (scenepp_ww_program)
-	if ((r_waterwarp.value && r_viewleaf && r_viewleaf->contents <= Q1CONTENTS_WATER))
+	if (((r_waterwarp.value && r_viewleaf && r_viewleaf->contents <= Q1CONTENTS_WATER) || r_waterwarp.value<0))
 	{
 		float vwidth = 1, vheight = 1;
 		float vs, vt;
@@ -2173,7 +2310,14 @@ void GLR_RenderView (void)
 		// WARNING - waterwarp can change the amplitude, but if it's too big it'll exceed
 		// the size determined by the edge texture, after which black bits will be shown.
 		// Suggest clamping to a suitable range.
-		GLSlang_SetUniform1f(scenepp_ww_parm_ampscalef, (0.005 / 0.625) * vs*r_waterwarp.value);
+		if (r_waterwarp.value<0)
+		{
+			GLSlang_SetUniform1f(scenepp_ww_parm_ampscalef, (0.005 / 0.625) * vs*(-r_waterwarp.value));
+		}
+		else
+		{
+			GLSlang_SetUniform1f(scenepp_ww_parm_ampscalef, (0.005 / 0.625) * vs*r_waterwarp.value);
+		}
 
 		if (qglGetError())
 			Con_Printf("GL Error after GLSlang_UseProgram\n");
@@ -2303,6 +2447,87 @@ void GLR_RenderView (void)
 		qglTexParameterf(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
 		qglTexParameterf(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
 	}
+/*
+	if (scenepp_bloom_program && gl_bloom.value)
+	{
+		float cs, ct;
+		int vwidth = 1, vheight = 1;
+		if (gl_config.arb_texture_non_power_of_two)
+		{	//we can use any size, supposedly
+			vwidth = glwidth;
+			vheight = glheight;
+		}
+		else
+		{	//limit the texture size to square and use padding.
+			while (vwidth < glwidth)
+				vwidth *= 2;
+			while (vheight < glheight)
+				vheight *= 2;
+		}
+		GL_Bind(scenepp_texture);
+
+		qglTexParameterf(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+		qglTexParameterf(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+
+		cs = (float)glwidth / vwidth;
+		ct = (float)glheight / vheight;
+
+		// go 2d
+		qglDisable (GL_DEPTH_TEST);
+		qglDisable (GL_CULL_FACE);
+		qglDisable (GL_ALPHA_TEST);
+		qglDisable (GL_BLEND);
+
+		qglMatrixMode(GL_PROJECTION);
+		qglPushMatrix();
+		qglLoadIdentity ();
+		qglOrtho  (0, glwidth, 0, glheight, -99999, 99999);
+		qglMatrixMode(GL_MODELVIEW);
+		qglPushMatrix();
+		qglLoadIdentity ();
+//grab the scene
+		qglCopyTexImage2D(GL_TEXTURE_2D, 0, GL_RGB, glx, gly, vwidth, vheight, 0);
+		GLSlang_UseProgram(scenepp_bloom_program1);
+//regurgitate the scene, but darker
+		qglBegin(GL_QUADS);
+		qglTexCoord2f(0, 0);
+		qglVertex2f(0, 0);
+		qglTexCoord2f(cs, 0);
+		qglVertex2f(glwidth, 0);
+		qglTexCoord2f(cs, ct);
+		qglVertex2f(glwidth, glheight);
+		qglTexCoord2f(0, ct);
+		qglVertex2f(0, glheight);
+		qglEnd();
+
+		GL_Bind(scenepp_texture2);
+//grab the dark scene
+		qglCopyTexImage2D(GL_TEXTURE_2D, 0, GL_RGB, glx, gly, vwidth, vheight, 0);
+		GLSlang_UseProgram(scenepp_bloom_program2);
+//smear it all over the place, on a +/-8 pixel basis.
+//blend with the origional scene in the fragment program too.
+		GL_MBind(1, scenepp_texture);
+		qglBegin(GL_QUADS);
+		qglTexCoord2f(0, 0);
+		qglVertex2f(0, 0);
+		qglTexCoord2f(cs, 0);
+		qglVertex2f(glwidth, 0);
+		qglTexCoord2f(cs, ct);
+		qglVertex2f(glwidth, glheight);
+		qglTexCoord2f(0, ct);
+		qglVertex2f(0, glheight);
+		qglEnd();
+
+		GL_MBind(0, scenepp_texture);
+
+		GLSlang_UseProgram(0);
+
+		qglMatrixMode(GL_PROJECTION);
+		qglPopMatrix();
+		qglMatrixMode(GL_MODELVIEW);
+		qglPopMatrix();
+	}
+	*/
 }
 
 #endif

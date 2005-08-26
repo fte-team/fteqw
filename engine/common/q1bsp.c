@@ -1,5 +1,6 @@
 #include "quakedef.h"
 
+qbyte *Q1BSP_LeafPVS (model_t *model, mleaf_t *leaf, qbyte *buffer);
 /*
 
 ============================================================================
@@ -204,7 +205,12 @@ int Q1BSP_HullPointContents(hull_t *hull, vec3_t p)
 
 void Q1BSP_SetHullFuncs(hull_t *hull)
 {
-	hull->funcs.HullPointContents = Q1BSP_HullPointContents;
+//	hull->funcs.HullPointContents = Q1BSP_HullPointContents;
+}
+
+int Q1BSP_PointContents(model_t *model, vec3_t point)
+{
+	return Q1BSP_HullPointContents(&model->hulls[0], point);
 }
 
 qboolean Q1BSP_Trace(model_t *model, int forcehullnum, int frame, vec3_t start, vec3_t end, vec3_t mins, vec3_t maxs, trace_t *trace)
@@ -823,7 +829,7 @@ extern int		fatbytes;
 extern qbyte	fatpvs[(MAX_MAP_LEAFS+1)/4];
 
 //does the recursive work of Q1BSP_FatPVS
-void SV_Q1BSP_AddToFatPVS (vec3_t org, mnode_t *node)
+void SV_Q1BSP_AddToFatPVS (model_t *mod, vec3_t org, mnode_t *node)
 {
 	int		i;
 	qbyte	*pvs;
@@ -837,7 +843,7 @@ void SV_Q1BSP_AddToFatPVS (vec3_t org, mnode_t *node)
 		{
 			if (node->contents != Q1CONTENTS_SOLID)
 			{
-				pvs = Mod_Q1LeafPVS ( (mleaf_t *)node, sv.worldmodel, NULL);
+				pvs = Q1BSP_LeafPVS (mod, (mleaf_t *)node, NULL);
 				for (i=0 ; i<fatbytes ; i++)
 					fatpvs[i] |= pvs[i];
 			}
@@ -852,7 +858,7 @@ void SV_Q1BSP_AddToFatPVS (vec3_t org, mnode_t *node)
 			node = node->children[1];
 		else
 		{	// go down both
-			SV_Q1BSP_AddToFatPVS (org, node->children[0]);
+			SV_Q1BSP_AddToFatPVS (mod, org, node->children[0]);
 			node = node->children[1];
 		}
 	}
@@ -866,15 +872,15 @@ Calculates a PVS that is the inclusive or of all leafs within 8 pixels of the
 given point.
 =============
 */
-void Q1BSP_FatPVS (vec3_t org, qboolean add)
+void Q1BSP_FatPVS (model_t *mod, vec3_t org, qboolean add)
 {
-	fatbytes = (sv.worldmodel->numleafs+31)>>3;
+	fatbytes = (mod->numleafs+31)>>3;
 	if (!add)
 		Q_memset (fatpvs, 0, fatbytes);
-	SV_Q1BSP_AddToFatPVS (org, sv.worldmodel->nodes);
+	SV_Q1BSP_AddToFatPVS (mod, org, mod->nodes);
 }
 
-qboolean Q1BSP_EdictInFatPVS(edict_t *ent)
+qboolean Q1BSP_EdictInFatPVS(model_t *mod, edict_t *ent)
 {
 	int i;
 
@@ -935,18 +941,158 @@ void Q1BSP_RFindTouchedLeafs (edict_t *ent, mnode_t *node)
 	if (sides & 2)
 		Q1BSP_RFindTouchedLeafs (ent, node->children[1]);
 }
-void Q1BSP_FindTouchedLeafs(edict_t *ent)
+void Q1BSP_FindTouchedLeafs(model_t *mod, edict_t *ent)
 {
 	ent->num_leafs = 0;
 	if (ent->v->modelindex)
-		Q1BSP_RFindTouchedLeafs (ent, sv.worldmodel->nodes);
+		Q1BSP_RFindTouchedLeafs (ent, mod->nodes);
 }
 
 #endif
+
 /*
 Server only functions
 
 ==============================================================================
 
+PVS type stuff
 */
 
+/*
+===================
+Mod_DecompressVis
+===================
+*/
+qbyte *Q1BSP_DecompressVis (qbyte *in, model_t *model, qbyte *decompressed)
+{
+	int		c;
+	qbyte	*out;
+	int		row;
+
+	row = (model->numleafs+7)>>3;	
+	out = decompressed;
+
+#if 0
+	memcpy (out, in, row);
+#else
+	if (!in)
+	{	// no vis info, so make all visible
+		while (row)
+		{
+			*out++ = 0xff;
+			row--;
+		}
+		return decompressed;		
+	}
+
+	do
+	{
+		if (*in)
+		{
+			*out++ = *in++;
+			continue;
+		}
+	
+		c = in[1];
+		in += 2;
+		while (c)
+		{
+			*out++ = 0;
+			c--;
+		}
+	} while (out - decompressed < row);
+#endif
+	
+	return decompressed;
+}
+
+static qbyte	mod_novis[MAX_MAP_LEAFS/8];
+
+qbyte *Q1BSP_LeafPVS (model_t *model, mleaf_t *leaf, qbyte *buffer)
+{
+
+	static qbyte	decompressed[MAX_MAP_LEAFS/8];
+
+	if (leaf == model->leafs)
+		return mod_novis;
+
+	if (!buffer)
+		buffer = decompressed;
+
+	return Q1BSP_DecompressVis (leaf->compressed_vis, model, buffer);
+}
+
+qbyte *Q1BSP_LeafnumPVS (model_t *model, int leafnum, qbyte *buffer)
+{
+	return Q1BSP_LeafPVS(model, model->leafs + leafnum, buffer);
+}
+
+//returns the leaf number, which is used as a bit index into the pvs.
+int Q1BSP_LeafnumForPoint (model_t *model, vec3_t p)
+{
+	mnode_t		*node;
+	float		d;
+	mplane_t	*plane;
+	
+	if (!model)
+	{		
+		Sys_Error ("Mod_PointInLeaf: bad model");
+	}
+	if (!model->nodes)
+		return 0;
+
+	node = model->nodes;
+	while (1)
+	{
+		if (node->contents < 0)
+			return (mleaf_t *)node - model->leafs;
+		plane = node->plane;
+		d = DotProduct (p,plane->normal) - plane->dist;
+		if (d > 0)
+			node = node->children[0];
+		else
+			node = node->children[1];
+	}
+	
+	return 0;	// never reached
+}
+
+mleaf_t *Q1BSP_LeafForPoint (model_t *model, vec3_t p)
+{
+	return model->leafs + Q1BSP_LeafnumForPoint(model, p);
+}
+
+
+
+/*
+PVS type stuff
+
+==============================================================================
+
+Init stuff
+*/
+
+void Q1BSP_Init(void)
+{
+	memset (mod_novis, 0xff, sizeof(mod_novis));
+}
+
+
+//sets up the functions a server needs.
+//fills in bspfuncs_t
+void Q1BSP_SetModelFuncs(model_t *mod)
+{
+#ifndef CLIENTONLY
+	mod->funcs.FatPVS				= Q1BSP_FatPVS;
+	mod->funcs.EdictInFatPVS		= Q1BSP_EdictInFatPVS;
+	mod->funcs.FindTouchedLeafs_Q1	= Q1BSP_FindTouchedLeafs;
+#endif
+	mod->funcs.LightPointValues		= NULL;
+	mod->funcs.StainNode			= NULL;
+	mod->funcs.MarkLights			= NULL;
+
+	mod->funcs.LeafnumForPoint		= Q1BSP_LeafnumForPoint;
+	mod->funcs.LeafPVS				= Q1BSP_LeafnumPVS;
+	mod->funcs.Trace				= Q1BSP_Trace;
+	mod->funcs.PointContents		= Q1BSP_PointContents;
+}

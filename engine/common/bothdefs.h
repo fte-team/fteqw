@@ -99,14 +99,15 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 		#define SP2MODELS		//quake2 sprite models
 		#define MD2MODELS		//quake2 alias models
 		#define MD3MODELS		//quake3 alias models
-		#define MD5MODELS		//doom3 models
-		#define ZYMOTICMODELS	//zymotic skeletal models.
+//		#define MD5MODELS		//doom3 models
+//		#define ZYMOTICMODELS	//zymotic skeletal models.
 		#define HUFFNETWORK		//huffman network compression
 		#define HALFLIFEMODELS	//halflife model support (experimental)
 //		#define DOOMWADS		//doom wad/map/sprite support
 		//#define WOLF3DSUPPORT	//wolfenstein3d map support (not started yet)
 		#define Q2BSPS			//quake 2 bsp support
 		#define Q3BSPS			//quake 3 bsp support
+		#define TERRAIN			//heightmap support
 		#define SV_MASTER		//starts up a master server
 		#define SVCHAT			//serverside npc chatting. see sv_chat.c
 		#define Q2SERVER		//server can run a q2 game dll and switches to q2 network and everything else.
@@ -125,6 +126,7 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 		#define IN_XFLIP		//allow input to be flipped horizontally.
 		#define TEXTEDITOR
 		#define PPL				//per pixel lighting (stencil shadowing)
+		#define DDS				//a sort of image file format.
 
 		#define PLUGINS
 
@@ -184,9 +186,11 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 	#undef RUNTIMELIGHTING
 	#undef PLUGINS	//we don't have any server side stuff.
 	#undef Q3SHADERS
+	#undef TERRAIN
 #endif
 #ifdef CLIENTONLY	//remove optional server componants that make no sence on a client only build.
 	#undef Q2SERVER
+	#undef Q3SERVER
 	#undef WEBSERVER
 #endif
 
@@ -198,6 +202,8 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 		#undef Q3BSPS
 		#undef R_XFLIP
 		#undef RUNTIMELIGHTING
+		#undef TERRAIN
+		#undef Q3CLIENT
 	#endif
 #endif
 
@@ -207,6 +213,7 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 #if !defined(Q3BSPS)
 	#undef Q3SHADERS
 	#undef Q3CLIENT //reconsider this (later)
+	#undef Q3SERVER //reconsider this (later)
 #endif
 
 #ifndef Q3CLIENT
@@ -215,7 +222,7 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 	#define VM_CG
 #endif
 
-#if defined(VM_UI) || defined(VM_CG) || defined(PLUGINS)
+#if defined(VM_UI) || defined(VM_CG) || defined(Q3SERVER) || defined(PLUGINS)
 	#define VM_ANY
 #endif
 
@@ -312,7 +319,7 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 //
 // per-level limits
 //
-#define	MAX_EDICTS		2048			// FIXME: ouch! ouch! ouch!
+#define	MAX_EDICTS		32767			// FIXME: ouch! ouch! ouch!
 #define	MAX_LIGHTSTYLES	64
 #define	MAX_MODELS		512			// these are sent over the net as bytes
 #define	MAX_SOUNDS		256			// so they cannot be blindly increased

@@ -185,7 +185,7 @@ float SV_ChatFunc(const char *func)	//parse a condition/function
 		noted = true;
 		func++;
 	}
-	s = COM_ParseToken(func);
+	s = COM_ParseToken(func, NULL);
 	if (*com_token == '(')
 	{//open bracket
 		//find correct close
@@ -203,7 +203,7 @@ float SV_ChatFunc(const char *func)	//parse a condition/function
 				parm++;
 		}
 		func = strchr(func, '(');
-		s=COM_ParseToken(s+1);
+		s=COM_ParseToken(s+1, NULL);
 		if (!strncmp(com_token, "&&", 2))
 			result = SV_ChatFunc(func+1) && SV_ChatFunc(s);
 		else if (!strncmp(com_token, "||", 2))
@@ -223,7 +223,7 @@ float SV_ChatFunc(const char *func)	//parse a condition/function
 		s++;
 		pr_globals = PR_globals(svprogfuncs, PR_CURRENT);
 		parm = OFS_PARM0;
-		while((s=COM_ParseToken(os = s)))
+		while((s=COM_ParseToken(os = s, NULL)))
 		{
 			if (*com_token == ')')
 				break;

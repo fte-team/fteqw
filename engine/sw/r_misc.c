@@ -531,7 +531,7 @@ r_refdef.viewangles[2]=    0;
 
 		r_oldviewcluster = r_viewcluster;
 		r_oldviewcluster2 = r_viewcluster2;
-		leaf = SWMod_PointInLeaf (r_origin, cl.worldmodel);
+		leaf = SWMod_PointInLeaf (cl.worldmodel, r_origin);
 		r_viewcluster = r_viewcluster2 = leaf->cluster;
 
 		// check above and below so crossing solid water doesn't draw wrong
@@ -541,7 +541,7 @@ r_refdef.viewangles[2]=    0;
 
 			VectorCopy (r_origin, temp);
 			temp[2] -= 16;
-			leaf = SWMod_PointInLeaf (temp, cl.worldmodel);
+			leaf = SWMod_PointInLeaf (cl.worldmodel, temp);
 			if ( !(leaf->contents & Q2CONTENTS_SOLID) &&
 				(leaf->cluster != r_viewcluster2) )
 				r_viewcluster2 = leaf->cluster;
@@ -552,7 +552,7 @@ r_refdef.viewangles[2]=    0;
 
 			VectorCopy (r_origin, temp);
 			temp[2] += 16;
-			leaf = SWMod_PointInLeaf (temp, cl.worldmodel);
+			leaf = SWMod_PointInLeaf (cl.worldmodel, temp);
 			if ( !(leaf->contents & Q2CONTENTS_SOLID) &&
 				(leaf->cluster != r_viewcluster2) )
 				r_viewcluster2 = leaf->cluster;
@@ -563,7 +563,7 @@ r_refdef.viewangles[2]=    0;
 	{
 // current viewleaf
 		r_oldviewleaf = r_viewleaf;
-		r_viewleaf = Mod_PointInLeaf (r_origin, cl.worldmodel);
+		r_viewleaf = SWMod_PointInLeaf (cl.worldmodel, r_origin);
 	}
 
 	r_dowarpold = r_dowarp;

@@ -35,6 +35,18 @@ typedef struct efrag_s
 	struct efrag_s		*entnext;
 } efrag_t;
 
+typedef enum {
+	RT_MODEL,
+	RT_POLY,
+	RT_SPRITE,
+	RT_BEAM,
+	RT_RAIL_CORE,
+	RT_RAIL_RINGS,
+	RT_LIGHTNING,
+	RT_PORTALSURFACE,		// doesn't draw anything, just info for portals
+
+	RT_MAX_REF_ENTITY_TYPE
+} refEntityType_t;
 
 typedef struct entity_s
 {
@@ -76,6 +88,9 @@ typedef struct entity_s
 	float	bonecontrols[4];
 
 	int flags;
+
+	refEntityType_t rtype;
+	float rotation;
 
 #ifdef Q3SHADERS
 	struct shader_s *forcedshader;
@@ -263,9 +278,7 @@ struct model_s *GLMod_FindName (char *name);
 void	*GLMod_Extradata (struct model_s *mod);	// handles caching
 void	GLMod_TouchModel (char *name);
 
-struct mleaf_s *GLMod_PointInLeaf (float *p, struct model_s *model);
-qbyte	*GLMod_LeafPVS (struct mleaf_s *leaf, struct model_s *model, qbyte *buffer);
-qbyte	*GLMod_LeafnumPVS (int leafnum, struct model_s *model, qbyte *buffer);
+struct mleaf_s *GLMod_PointInLeaf (struct model_s *model, float *p);
 
 void GLMod_Think (void);
 void GLMod_NowLoadExternal(void);
@@ -282,8 +295,7 @@ struct model_s *SWMod_FindName (char *name);
 void	*SWMod_Extradata (struct model_s *mod);	// handles caching
 void	SWMod_TouchModel (char *name);
 
-struct mleaf_s *SWMod_PointInLeaf (float *p, struct model_s *model);
-qbyte	*SWMod_LeafPVS (struct mleaf_s *leaf, struct model_s *model, qbyte *buffer);
+struct mleaf_s *SWMod_PointInLeaf (struct model_s *model, float *p);
 
 void SWMod_Think (void);
 void SWMod_NowLoadExternal(void);

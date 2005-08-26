@@ -116,6 +116,8 @@ cvar_t		gl_compress = {"gl_compress", "0"};
 cvar_t		gl_savecompressedtex = {"gl_savecompressedtex", "0"};
 extern cvar_t gl_dither;
 extern	cvar_t	gl_maxdist;
+extern	cvar_t	gl_mindist;
+extern cvar_t	gl_bloom;
 
 cvar_t		gl_detail = {"gl_detail", "0", NULL, CVAR_ARCHIVE};
 cvar_t		gl_detailscale = {"gl_detailscale", "5"};
@@ -276,6 +278,7 @@ void GLRenderer_Init(void)
 	Cvar_Register (&gl_motionblurscale, GLRENDEREROPTIONS);
 	Cvar_Register (&gl_max_size, GLRENDEREROPTIONS);
 	Cvar_Register (&gl_maxdist, GLRENDEREROPTIONS);
+	Cvar_Register (&gl_mindist, GLRENDEREROPTIONS);
 	Cvar_Register (&vid_conwidth, GLRENDEREROPTIONS);
 	Cvar_Register (&vid_conheight, GLRENDEREROPTIONS);
 
@@ -288,6 +291,8 @@ void GLRenderer_Init(void)
 	Cvar_Register (&r_shadow_glsl_offsetmapping, GRAPHICALNICETIES);
 	Cvar_Register (&r_shadow_glsl_offsetmapping_scale, GRAPHICALNICETIES);
 	Cvar_Register (&r_shadow_glsl_offsetmapping_bias, GRAPHICALNICETIES);
+
+	Cvar_Register (&gl_bloom, GRAPHICALNICETIES);
 
 	Cvar_Register (&gl_contrast, GLRENDEREROPTIONS);
 #ifdef R_XFLIP
@@ -594,8 +599,6 @@ struct model_s *(*Mod_FindName)		(char *name);
 void	*(*Mod_Extradata)			(struct model_s *mod);	// handles caching
 void	(*Mod_TouchModel)			(char *name);
 
-struct mleaf_s *(*Mod_PointInLeaf)	(float *p, struct model_s *model);
-qbyte	*(*Mod_Q1LeafPVS)			(struct mleaf_s *leaf, struct model_s *model, qbyte *buffer);
 void	(*Mod_NowLoadExternal)		(void);
 void	(*Mod_Think)				(void);
 qboolean	(*Mod_GetTag)			(struct model_s *model, int tagnum, int frame, int frame2, float f2ness, float f1time, float f2time, float *transforms);
@@ -693,8 +696,6 @@ rendererinfo_t dedicatedrendererinfo = {
 	SWMod_Extradata,
 	SWMod_TouchModel,
 
-	SWMod_PointInLeaf,
-	SWMod_LeafPVS,
 	SWMod_NowLoadExternal,
 	SWMod_Think,
 #elif defined(RGLQUAKE)
@@ -705,8 +706,6 @@ rendererinfo_t dedicatedrendererinfo = {
 	GLMod_Extradata,
 	GLMod_TouchModel,
 
-	GLMod_PointInLeaf,
-	GLMod_LeafPVS,
 	GLMod_NowLoadExternal,
 	GLMod_Think,
 #else
@@ -803,8 +802,6 @@ rendererinfo_t softwarerendererinfo = {
 	SWMod_Extradata,
 	SWMod_TouchModel,
 
-	SWMod_PointInLeaf,
-	SWMod_LeafPVS,
 	SWMod_NowLoadExternal,
 	SWMod_Think,
 
@@ -902,8 +899,6 @@ rendererinfo_t openglrendererinfo = {
 	GLMod_Extradata,
 	GLMod_TouchModel,
 
-	GLMod_PointInLeaf,
-	GLMod_LeafPVS,
 	GLMod_NowLoadExternal,
 	GLMod_Think,
 
@@ -1283,8 +1278,6 @@ void R_SetRenderer(int wanted)
 	Mod_Extradata			= ri->Mod_Extradata;
 	Mod_TouchModel			= ri->Mod_TouchModel;
 
-	Mod_PointInLeaf			= ri->Mod_PointInLeaf;
-	Mod_Q1LeafPVS			= ri->Mod_Q1LeafPVS;
 	Mod_NowLoadExternal		= ri->Mod_NowLoadExternal;
 
 	Mod_GetTag				= ri->Mod_GetTag;

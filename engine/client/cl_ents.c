@@ -296,7 +296,7 @@ void CL_ParseDelta (entity_state_t *from, entity_state_t *to, int bits, qboolean
 		to->skinnum = MSG_ReadByte();
 
 	if (bits & U_EFFECTS)
-		to->effects = MSG_ReadByte();
+		to->effects = (to->effects&0xff00)|MSG_ReadByte();
 
 	if (bits & U_ORIGIN1)
 		to->origin[0] = MSG_ReadCoord ();
@@ -382,21 +382,28 @@ void CL_ParseDelta (entity_state_t *from, entity_state_t *to, int bits, qboolean
 		to->lightpflags = MSG_ReadByte();
 	}
 
+	if (morebits & U_EFFECTS16)
+		to->effects = (to->effects&0x00ff)|(MSG_ReadByte()<<8);
+
+	if (to->number>=cl.maxlerpents)
+	{
+		cl.maxlerpents = to->number+16;
+		cl.lerpents = BZ_Realloc(cl.lerpents, sizeof(entity_state_t)*cl.maxlerpents);
+	}
+
 	VectorSubtract(to->origin, from->origin, move);
 
-#ifdef HALFLIFEMODELS
 	if (to->frame != from->frame)
 	{
 		cl.lerpents[to->number].oldframechange = cl.lerpents[to->number].framechange;	//marked for hl models
 		cl.lerpents[to->number].framechange = cl.time;	//marked for hl models
 	}
-#endif
+
 	if (to->modelindex != from->modelindex || to->number != from->number || VectorLength(move)>500)	//model changed... or entity changed...
 	{
-#ifdef HALFLIFEMODELS
 		cl.lerpents[to->number].oldframechange = cl.lerpents[to->number].framechange;	//marked for hl models
 		cl.lerpents[to->number].framechange = cl.time;	//marked for hl models
-#endif
+
 		cl.lerpents[to->number].lerptime = -10;
 		cl.lerpents[to->number].lerprate = 0;
 
@@ -797,6 +804,7 @@ void DP5_ParseDelta(entity_state_t *s)
 		num = s->number;
 		*s = defaultstate;
 		s->trans = 255;
+		s->scale = 16;
 		s->number = num;
 //		s->active = true;
 	}
@@ -936,6 +944,9 @@ void CLNQ_ParseDarkPlaces5Entities(void)	//the things I do.. :o(
 		remove = !!(read&0x8000);
 		read&=~0x8000;
 
+		if (read >= MAX_EDICTS)
+			Host_EndGame("Too many entities.\n");
+
 		from = &defaultstate;
 
 		for (oldi=0 ; oldi<oldpack->num_entities ; oldi++)
@@ -957,6 +968,11 @@ void CLNQ_ParseDarkPlaces5Entities(void)	//the things I do.. :o(
 		{
 			pack->max_entities = pack->num_entities+16;
 			pack->entities = BZ_Realloc(pack->entities, sizeof(entity_state_t)*pack->max_entities);
+		}
+		if (read>=cl.maxlerpents)
+		{
+			cl.maxlerpents = read+16;
+			cl.lerpents = BZ_Realloc(cl.lerpents, sizeof(entity_state_t)*cl.maxlerpents);
 		}
 
 		to = &pack->entities[pack->num_entities];
@@ -1112,6 +1128,12 @@ void CLNQ_ParseEntity(unsigned int bits)
 		}
 		lasttime = realtime;
 		state = &pack->entities[pack->num_entities++];
+	}
+
+	if (num>=cl.maxlerpents)
+	{
+		cl.maxlerpents = num+16;
+		cl.lerpents = BZ_Realloc(cl.lerpents, sizeof(entity_state_t)*cl.maxlerpents);
 	}
 
 	from = CL_FindOldPacketEntity(num);	//this could be optimised.
@@ -1553,6 +1575,8 @@ void CL_LinkPacketEntities (void)
 		ent->flags = s1->flags;
 		if (s1->effects & NQEF_ADDATIVE)
 			ent->flags |= Q2RF_ADDATIVE;
+		if (s1->effects & EF_NODEPTHTEST)
+			ent->flags |= RF_NODEPTHTEST;
 
 		// set colormap
 		if (s1->colormap && (s1->colormap <= MAX_CLIENTS)
@@ -2146,6 +2170,15 @@ guess_pm_type:
 			state->pm_type = PM_NORMAL;
 	}
 
+	if (cl.lerpplayers[num].frame != state->frame)
+	{
+		cl.lerpplayers[num].oldframechange = cl.lerpplayers[num].framechange;
+		cl.lerpplayers[num].framechange = cl.time;
+		cl.lerpplayers[num].frame = state->frame;
+
+		//don't care about position interpolation.
+	}
+
 	TP_ParsePlayerInfo(oldstate, state, info);
 }
 
@@ -2308,8 +2341,8 @@ void CL_LinkPlayers (void)
 		ent->model = cl.model_precache[state->modelindex];
 		ent->skinnum = state->skinnum;
 
-		ent->frame1time = cl.time - cl.lerpents[j].framechange;
-		ent->frame2time = cl.time - cl.lerpents[j].oldframechange;
+		ent->frame1time = cl.time - cl.lerpplayers[j].framechange;
+		ent->frame2time = cl.time - cl.lerpplayers[j].oldframechange;
 
 		ent->frame = state->frame;
 		ent->oldframe = state->oldframe;

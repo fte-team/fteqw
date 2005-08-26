@@ -198,6 +198,7 @@ typedef struct entvars_s
 	float	light_lev;
 	float	style;
 	float	pflags;
+	float	clientcolors;
 
 	//EXT_DIMENSION_VISIBLE
 	float	dimension_see;

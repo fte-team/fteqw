@@ -373,7 +373,7 @@ void SV_CalcPHS (void)
 	vcount = 0;
 	for (i=0 ; i<num ; i++, scan+=rowbytes)
 	{
-		memcpy (scan, sv.worldmodel->funcs.LeafPVS(i, sv.worldmodel, NULL),
+		memcpy (scan, sv.worldmodel->funcs.LeafPVS(sv.worldmodel, i, NULL),
 			rowbytes);
 		if (i == 0)
 			continue;
@@ -665,6 +665,8 @@ void SV_SpawnServer (char *server, char *startspot, qboolean noents, qboolean us
 	sv.worldmodel = Mod_ForName (sv.modelname, true);
 	if (sv.worldmodel->needload)
 		Sys_Error("%s is missing\n", sv.modelname);
+	if (sv.worldmodel->type != mod_brush && sv.worldmodel->type != mod_heightmap)
+		Sys_Error("%s is not a bsp model\n", sv.modelname);
 	sv.state = ss_dead;
 
 #ifndef SERVERONLY
@@ -1057,7 +1059,8 @@ void SV_SpawnServer (char *server, char *startspot, qboolean noents, qboolean us
 			else
 				sprintf(sv.mapname, "%s", PR_GetString(svprogfuncs, val->string));
 		}
-		ent->readonly = true;	//lock it down!
+		if (Cvar_Get("sv_readonlyworld", "1", 0, "DP compatability")->value)
+			ent->readonly = true;	//lock it down!
 
 		// look up some model indexes for specialized message compression
 		SV_FindModelNumbers ();
@@ -1131,6 +1134,43 @@ void SV_SpawnServer (char *server, char *startspot, qboolean noents, qboolean us
 	current_loading_size+=10;
 	SCR_BeginLoadingPlaque();
 #endif
+
+	if (svs.gametype == GT_PROGS)
+	{
+		for (i = 0; i < MAX_CLIENTS; i++)
+		{
+			host_client = &svs.clients[i];
+			if (host_client->state == cs_connected && host_client->protocol == SCP_BAD)
+			{
+				sv_player = host_client->edict;
+				SV_ExtractFromUserinfo(host_client);
+
+				// copy spawn parms out of the client_t
+				for (i=0 ; i< NUM_SPAWN_PARMS ; i++)
+				{
+					if (spawnparamglobals[i])
+						*spawnparamglobals[i] = host_client->spawn_parms[i];
+				}
+
+				// call the spawn function
+				pr_global_struct->time = sv.time;
+				pr_global_struct->self = EDICT_TO_PROG(svprogfuncs, sv_player);
+				PR_ExecuteProgram (svprogfuncs, pr_global_struct->ClientConnect);
+
+				// actually spawn the player
+				pr_global_struct->time = sv.time;
+				pr_global_struct->self = EDICT_TO_PROG(svprogfuncs, sv_player);
+				PR_ExecuteProgram (svprogfuncs, pr_global_struct->PutClientInServer);
+
+				// send notification to all clients
+				host_client->sendinfo = true;
+
+				host_client->state = cs_spawned;
+
+				SV_UpdateToReliableMessages();	//so that we don't flood too much with 31 bots and one player.
+			}
+		}
+	}
 }
 
 #endif

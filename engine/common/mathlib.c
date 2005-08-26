@@ -1007,7 +1007,7 @@ void ML_UnProject(vec3_t in, vec3_t out, vec3_t viewangles, vec3_t vieworg, floa
 	ML_ProjectionMatrix(proj, wdivh, fovy);
 	Matrix4_Multiply(proj, modelview, tempm);
 
-	Matrix4x4_Invert_Simple(proj, tempm);
+	Matrix4x4_Invert_Simple((void*)proj, (void*)tempm);
 
 	{
 		float v[4], tempv[4];

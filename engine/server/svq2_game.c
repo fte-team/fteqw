@@ -343,17 +343,17 @@ static qboolean VARGS PFQ2_inPVS (vec3_t p1, vec3_t p2)
 	int		area1, area2;
 	qbyte	*mask;
 
-	leafnum = CM_PointLeafnum (p1);
-	cluster = CM_LeafCluster (leafnum);
-	area1 = CM_LeafArea (leafnum);
-	mask = CM_ClusterPVS (cluster, NULL);
+	leafnum = CM_PointLeafnum (sv.worldmodel, p1);
+	cluster = CM_LeafCluster (sv.worldmodel, leafnum);
+	area1 = CM_LeafArea (sv.worldmodel, leafnum);
+	mask = CM_ClusterPVS (sv.worldmodel, cluster, NULL);
 
-	leafnum = CM_PointLeafnum (p2);
-	cluster = CM_LeafCluster (leafnum);
-	area2 = CM_LeafArea (leafnum);
+	leafnum = CM_PointLeafnum (sv.worldmodel, p2);
+	cluster = CM_LeafCluster (sv.worldmodel, leafnum);
+	area2 = CM_LeafArea (sv.worldmodel, leafnum);
 	if ( mask && (!(mask[cluster>>3] & (1<<(cluster&7)) ) ) )
 		return false;
-	if (!CM_AreasConnected (area1, area2))
+	if (!CM_AreasConnected (sv.worldmodel, area1, area2))
 		return false;		// a door blocks sight
 	return true;
 }
@@ -373,20 +373,25 @@ static qboolean VARGS PFQ2_inPHS (vec3_t p1, vec3_t p2)
 	int		area1, area2;
 	qbyte	*mask;
 
-	leafnum = CM_PointLeafnum (p1);
-	cluster = CM_LeafCluster (leafnum);
-	area1 = CM_LeafArea (leafnum);
-	mask = CM_ClusterPHS (cluster);
+	leafnum = CM_PointLeafnum (sv.worldmodel, p1);
+	cluster = CM_LeafCluster (sv.worldmodel, leafnum);
+	area1 = CM_LeafArea (sv.worldmodel, leafnum);
+	mask = CM_ClusterPHS (sv.worldmodel, cluster);
 
-	leafnum = CM_PointLeafnum (p2);
-	cluster = CM_LeafCluster (leafnum);
-	area2 = CM_LeafArea (leafnum);
+	leafnum = CM_PointLeafnum (sv.worldmodel, p2);
+	cluster = CM_LeafCluster (sv.worldmodel, leafnum);
+	area2 = CM_LeafArea (sv.worldmodel, leafnum);
 	if ( mask && (!(mask[cluster>>3] & (1<<(cluster&7)) ) ) )
 		return false;		// more than one bounce away
-	if (!CM_AreasConnected (area1, area2))
+	if (!CM_AreasConnected (sv.worldmodel, area1, area2))
 		return false;		// a door blocks hearing
 
 	return true;
+}
+
+qboolean VARGS PFQ2_AreasConnected(int area1, int area2)
+{
+	return CM_AreasConnected(sv.worldmodel, area1, area2);
 }
 
 
@@ -682,7 +687,7 @@ qboolean SVQ2_InitGameProgs(void)
 
 	import.DebugGraph			= Q2SCR_DebugGraph;
 	import.SetAreaPortalState	= CMQ2_SetAreaPortalState;
-	import.AreasConnected		= CM_AreasConnected;
+	import.AreasConnected		= PFQ2_AreasConnected;
 
 	if (sv.worldmodel->fromgame == fg_quake || sv.worldmodel->fromgame == fg_halflife)
 	{

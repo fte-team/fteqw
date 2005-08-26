@@ -316,13 +316,15 @@ typedef struct
 	int socketip6;
 	int socketipx;
 
-	enum {DL_NONE, DL_QW, DL_QWCHUNKS, DL_QWPENDING, DL_HTTP, DL_FTP} downloadmethod;
+	enum {DL_NONE, DL_QW, DL_QWCHUNKS, DL_Q3, DL_QWPENDING, DL_HTTP, DL_FTP} downloadmethod;
 	FILE		*downloadqw;		// file transfer from server
 	char		downloadtempname[MAX_OSPATH];
 	char		downloadname[MAX_OSPATH];
-	int			downloadnumber;
-	dltype_t	downloadtype;
 	int			downloadpercent;
+	int			downloadchunknum;
+
+	int			downloadnumber;	//file number
+	dltype_t	downloadtype;	//of type
 
 // demo loop control
 	int			demonum;		// -1 = don't play demos
@@ -437,7 +439,9 @@ typedef struct
 
 // sentcmds[cl.netchan.outgoing_sequence & UPDATE_MASK] = cmd
 	frame_t		frames[UPDATE_BACKUP];
-	lerpents_t	lerpents[MAX_EDICTS];
+	lerpents_t	*lerpents;
+	int			maxlerpents;	//number of slots allocated.
+	lerpents_t	lerpplayers[MAX_CLIENTS];
 
 // information for local display
 	int			stats[MAX_SPLITS][MAX_CL_STATS];	// health, etc
@@ -772,7 +776,7 @@ void CL_LinkProjectiles (void);
 //clq3_parse.c
 //
 #ifdef Q3CLIENT
-void CLQ3_SendClientCommand(const char *fmt, ...);
+void VARGS CLQ3_SendClientCommand(const char *fmt, ...);
 void CLQ3_SendConnectPacket(netadr_t to);
 void CLQ3_SendCmd(usercmd_t *cmd);
 qboolean CLQ3_Netchan_Process(void);
@@ -781,6 +785,8 @@ qboolean CG_FillQ3Snapshot(int snapnum, struct snapshot_s *snapshot);
 
 void CG_InsertIntoGameState(int num, char *str);
 void CG_Restart_f(void);
+
+char *CG_GetConfigString(int num);
 #endif
 
 //

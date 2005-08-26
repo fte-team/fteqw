@@ -1,6 +1,10 @@
 #include "quakedef.h"
 #include <ctype.h>
 
+#ifdef _WIN32
+#include <windows.h>
+#endif
+
 typedef struct f_query_s
 {
     char *query;

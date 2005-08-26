@@ -792,7 +792,8 @@ void CL_ParseTEnt (void)
 			P_ParticleExplosion (pos);
 		
 	// light
-		if (r_explosionlight.value) {
+		if (r_explosionlight.value)
+		{
 			dl = CL_AllocDlight (0);
 			VectorCopy (pos, dl->origin);
 			dl->radius = 150 + bound(0, r_explosionlight.value, 1)*200;
@@ -828,7 +829,8 @@ void CL_ParseTEnt (void)
 		P_ParticleExplosion (pos);
 		
 	// light
-		if (r_explosionlight.value) {
+		if (r_explosionlight.value)
+		{
 			dl = CL_AllocDlight (0);
 			VectorCopy (pos, dl->origin);
 			dl->radius = 150 + bound(0, r_explosionlight.value, 1)*200;
@@ -864,7 +866,8 @@ void CL_ParseTEnt (void)
 		P_ParticleExplosion (pos);
 		
 	// light
-		if (r_explosionlight.value) {
+		if (r_explosionlight.value)
+		{
 			dl = CL_AllocDlight (0);
 			VectorCopy (pos, dl->origin);
 			dl->radius = 150 + bound(0, r_explosionlight.value, 1)*200;
@@ -890,7 +893,8 @@ void CL_ParseTEnt (void)
 			P_ParticleExplosion (pos);
 		
 	// light
-		if (r_explosionlight.value) {
+		if (r_explosionlight.value)
+		{
 			dl = CL_AllocDlight (0);
 			VectorCopy (pos, dl->origin);
 			// no point in doing this the fuh/ez way
@@ -1757,7 +1761,8 @@ void CLQ2_ParseTEnt (void)
 		P_ParticleExplosion (pos);
 				
 	// light
-		if (r_explosionlight.value) {
+		if (r_explosionlight.value)
+		{
 			dlight_t *dl;
 			dl = CL_AllocDlight (0);
 			VectorCopy (pos, dl->origin);
@@ -1843,7 +1848,8 @@ void CLQ2_ParseTEnt (void)
 			P_ParticleExplosion (pos);
 
 	// light
-		if (r_explosionlight.value) {
+		if (r_explosionlight.value)
+		{
 			dlight_t *dl;
 			dl = CL_AllocDlight (0);
 			VectorCopy (pos, dl->origin);

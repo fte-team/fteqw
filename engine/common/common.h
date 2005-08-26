@@ -232,7 +232,7 @@ extern	qboolean	com_eof;
 char *COM_Parse (char *data);
 char *COM_ParseCString (char *data);
 char *COM_StringParse (char *data, qboolean expandmacros, qboolean qctokenize);
-const char *COM_ParseToken (const char *data);
+const char *COM_ParseToken (const char *data, const char *punctuation);
 char *COM_TrimString(char *str);
 
 
@@ -259,6 +259,7 @@ char	*VARGS va(char *format, ...);
 
 //============================================================================
 
+extern int com_file_copyprotected;
 extern int com_filesize;
 struct cache_user_s;
 
@@ -300,6 +301,7 @@ qbyte *COM_LoadMallocFile (char *path);
 void COM_LoadCacheFile (char *path, struct cache_user_s *cu);
 void COM_CreatePath (char *path);
 void COM_Gamedir (char *dir);
+void FS_ForceToPure(char *str, char *crcs, int seed);
 char *COM_GetPathInfo (int i, int *crc);
 char *COM_NextPath (char *prevpath);
 void COM_FlushFSCache(void);	//a file was written using fopen
@@ -311,7 +313,7 @@ void COM_FlushTempoaryPacks(void);
 void COM_EnumerateFiles (char *match, int (*func)(char *, int, void *), void *parm);
 
 extern	struct cvar_s	registered;
-extern qboolean		standard_quake, rogue, hipnotic;
+extern qboolean standard_quake;	//fixme: remove
 
 #define	MAX_INFO_KEY	64
 char *Info_ValueForKey (char *s, const char *key);

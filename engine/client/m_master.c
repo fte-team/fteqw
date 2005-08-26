@@ -21,6 +21,7 @@ cvar_t	sb_hidenotempty		= {"sb_hidenotempty",	"0",	NULL, CVAR_ARCHIVE};
 cvar_t	sb_hidefull			= {"sb_hidefull",		"0",	NULL, CVAR_ARCHIVE};
 cvar_t	sb_hidedead			= {"sb_hidedead",		"1",	NULL, CVAR_ARCHIVE};
 cvar_t	sb_hidequake2		= {"sb_hidequake2",		"1",	NULL, CVAR_ARCHIVE};
+cvar_t	sb_hidequake3		= {"sb_hidequake3",		"1",	NULL, CVAR_ARCHIVE};
 cvar_t	sb_hidenetquake		= {"sb_hidenetquake",	"1",	NULL, CVAR_ARCHIVE};
 cvar_t	sb_hidequakeworld	= {"sb_hidequakeworld",	"0",	NULL, CVAR_ARCHIVE};
 cvar_t	sb_maxping			= {"sb_maxping",		"0",	NULL, CVAR_ARCHIVE};
@@ -47,6 +48,7 @@ void M_Serverlist_Init(void)
 	Cvar_Register(&sb_hidefull, grp);
 	Cvar_Register(&sb_hidedead, grp);
 	Cvar_Register(&sb_hidequake2, grp);
+	Cvar_Register(&sb_hidequake3, grp);
 	Cvar_Register(&sb_hidenetquake, grp);
 	Cvar_Register(&sb_hidequakeworld, grp);
 
@@ -112,13 +114,18 @@ qboolean M_IsFiltered(serverinfo_t *server)	//figure out if we should filter a s
 #endif
 		if (server->special & SS_QUAKE2)
 			return true;
+#ifdef Q2CLIENT
+	if (sb_hidequake3.value)
+#endif
+		if (server->special & SS_QUAKE3)
+			return true;
 #ifdef NQPROT
 	if (sb_hidenetquake.value)
 #endif
 		if (server->special & (SS_NETQUAKE|SS_DARKPLACES))
 			return true;
 	if (sb_hidequakeworld.value)
-		if (!(server->special & (SS_QUAKE2|SS_NETQUAKE|SS_DARKPLACES)))
+		if (!(server->special & (SS_QUAKE2|SS_QUAKE3|SS_NETQUAKE|SS_DARKPLACES)))
 			return true;
 	if (sb_hideempty.value)
 		if (!server->players)
@@ -368,6 +375,8 @@ void M_DrawServerList(void)
 				colour = COLOR_RED;
 			else if (server->special & SS_QUAKE2)
 				colour = COLOR_YELLOW;
+			else if (server->special & SS_QUAKE3)
+				colour = COLOR_BLUE;
 			else if (server->special & SS_NETQUAKE)
 				colour = COLOR_MAGENTA;
 			else
@@ -474,7 +483,7 @@ void M_DrawSources (void)
 	}
 }
 
-#define NUMSLISTOPTIONS (7+7+4)
+#define NUMSLISTOPTIONS (8+7+4)
 	struct {
 		char *title;
 		cvar_t *cvar;
@@ -485,6 +494,7 @@ void M_DrawSources (void)
 		{"Hide Full",		&sb_hidefull},
 		{"Hide Dead",		&sb_hidedead},
 		{"Hide Quake 2",	&sb_hidequake2},
+		{"Hide Quake 3",	&sb_hidequake3},
 		{"Hide Quake 1",	&sb_hidenetquake},
 		{"Hide QuakeWorld",	&sb_hidequakeworld},
 

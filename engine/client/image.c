@@ -1645,6 +1645,119 @@ void BoostGamma(qbyte *rgba, int width, int height)
 
 #if defined(RGLQUAKE)
 
+#ifdef DDS
+#ifndef GL_COMPRESSED_RGB_S3TC_DXT1_EXT
+#define GL_COMPRESSED_RGB_S3TC_DXT1_EXT                   0x83F0
+#define GL_COMPRESSED_RGBA_S3TC_DXT1_EXT                  0x83F1
+#define GL_COMPRESSED_RGBA_S3TC_DXT3_EXT                  0x83F2
+#define GL_COMPRESSED_RGBA_S3TC_DXT5_EXT                  0x83F3
+#endif
+
+typedef struct {
+	unsigned int dwSize;
+	unsigned int dwFlags;
+	unsigned int dwFourCC;
+
+	unsigned int unk[5];
+} ddspixelformat;
+
+typedef struct {
+	unsigned int dwSize;
+	unsigned int dwFlags;
+	unsigned int dwHeight;
+	unsigned int dwWidth;
+	unsigned int dwPitchOrLinearSize;
+	unsigned int dwDepth;
+	unsigned int dwMipMapCount;
+	unsigned int dwReserved1[11];
+	ddspixelformat ddpfPixelFormat;
+	unsigned int ddsCaps[4];
+	unsigned int dwReserved2;
+} ddsheader;
+
+
+int GL_LoadTextureDDS(unsigned char *buffer, int filesize)
+{
+	extern int		gl_filter_min;
+	extern int		gl_filter_max;
+	int texnum;
+	int nummips;
+	int mipnum;
+	int datasize;
+	int intfmt;
+	int pad;
+
+	ddsheader fmtheader;
+	if (*(int*)buffer != *(int*)"DDS ")
+		return 0;
+	buffer+=4;
+
+	texnum = texture_extension_number;
+	GL_Bind(texnum);
+
+	memcpy(&fmtheader, buffer, sizeof(fmtheader));
+	if (fmtheader.dwSize != sizeof(fmtheader))
+		return 0;	//corrupt/different version
+	buffer += fmtheader.dwSize;
+
+	nummips = fmtheader.dwMipMapCount;
+	if (nummips < 1)
+		nummips = 1;
+
+	if (*(int*)&fmtheader.ddpfPixelFormat.dwFourCC == *(int*)"DXT1")
+	{
+		intfmt = GL_COMPRESSED_RGBA_S3TC_DXT1_EXT;	//alpha or not? Assume yes, and let the drivers decide.
+		pad = 8;
+	}
+	else if (*(int*)&fmtheader.ddpfPixelFormat.dwFourCC == *(int*)"DXT3")
+	{
+		intfmt = GL_COMPRESSED_RGBA_S3TC_DXT3_EXT;
+		pad = 8;
+	}
+	else if (*(int*)&fmtheader.ddpfPixelFormat.dwFourCC == *(int*)"DXT5")
+	{
+		intfmt = GL_COMPRESSED_RGBA_S3TC_DXT5_EXT;
+		pad = 8;
+	}
+	else
+		return 0;
+
+	if (!qglCompressedTexImage2DARB)
+		return 0;
+
+	datasize = fmtheader.dwPitchOrLinearSize;
+	for (mipnum = 0; mipnum < nummips; mipnum++)
+	{
+//	(GLenum target, GLint level, GLint internalformat, GLsizei width, GLsizei height, GLint border, GLsizei imageSize, const GLvoid* data);
+		if (datasize < pad)
+			datasize = pad;
+		qglCompressedTexImage2DARB(GL_TEXTURE_2D, mipnum, intfmt, fmtheader.dwWidth>>mipnum, fmtheader.dwHeight>>mipnum, 0, datasize, buffer);
+		if (qglGetError())
+			Con_Printf("Incompatable dds file (mip %i)\n", mipnum);
+		buffer += datasize;
+		datasize/=4;
+	}
+	if (qglGetError())
+		Con_Printf("Incompatable dds file\n");
+
+
+	if (nummips>1)
+	{
+		qglTexParameterf(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, gl_filter_min);
+		qglTexParameterf(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, gl_filter_max);
+	}
+	else
+	{
+		qglTexParameterf(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, gl_filter_max);
+		qglTexParameterf(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, gl_filter_max);
+	}
+
+
+	texture_extension_number++;
+	return texnum;
+}
+#endif
+
 //returns r8g8b8a8
 qbyte *Read32BitImageFile(qbyte *buf, int len, int *width, int *height)
 {
@@ -1740,6 +1853,24 @@ int Mod_LoadHiResTexture(char *name, char *subpath, qboolean mipmap, qboolean al
 	//should write this nicer.
 	for (; i < sizeof(path)/sizeof(char *); i++)
 	{
+#ifdef DDS
+		if (i == 1)
+		{
+			if (!subpath)
+					continue;
+			_snprintf(fname, sizeof(fname)-1, path[i], subpath, COM_SkipPath(nicename), ".dds");
+		}
+		else
+			_snprintf(fname, sizeof(fname)-1, path[i], nicename, ".dds");
+		if ((buf = COM_LoadFile (fname, 5)))
+		{
+			len = GL_LoadTextureDDS(buf, com_filesize);
+			BZ_Free(buf);
+			if (len)
+				return len;
+		}
+#endif
+
 		for (e = sizeof(extensions)/sizeof(char *)-1; e >=0 ; e--)
 		{
 			if (i == 1)

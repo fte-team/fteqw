@@ -27,8 +27,6 @@ extern	frame_t		*view_frame;
 
 #define	MAX_PARSE_ENTITIES	1024
 extern entity_state_t	cl_parse_entities[MAX_PARSE_ENTITIES];
-int	CM_TransformedPointContents (vec3_t p, int headnode, vec3_t origin, vec3_t angles);
-
 
 extern float	pm_airaccelerate;
 
@@ -105,7 +103,6 @@ void CLQ2_ClipMoveToEntities ( vec3_t start, vec3_t mins, vec3_t maxs, vec3_t en
 {
 	int			i, x, zd, zu;
 	trace_t		trace;
-	int			headnode;
 	float		*angles;
 	entity_state_t	*ent;
 	int			num;
@@ -128,7 +125,6 @@ void CLQ2_ClipMoveToEntities ( vec3_t start, vec3_t mins, vec3_t maxs, vec3_t en
 			cmodel = cl.model_precache[ent->modelindex];
 			if (!cmodel)
 				continue;
-			headnode = cmodel->hulls[0].firstclipnode;
 			angles = ent->angles;
 		}
 		else
@@ -142,15 +138,15 @@ void CLQ2_ClipMoveToEntities ( vec3_t start, vec3_t mins, vec3_t maxs, vec3_t en
 			bmins[2] = -zd;
 			bmaxs[2] = zu;
 
-			headnode = CM_HeadnodeForBox (bmins, bmaxs);
+			cmodel = CM_TempBoxModel (bmins, bmaxs);
 			angles = vec3_origin;	// boxes don't rotate
 		}
 
 		if (tr->allsolid)
 			return;
 
-		trace = CM_TransformedBoxTrace (start, end,
-			mins, maxs, headnode,  MASK_PLAYERSOLID,
+		trace = CM_TransformedBoxTrace (cmodel, start, end,
+			mins, maxs, MASK_PLAYERSOLID,
 			ent->origin, angles);
 
 		if (trace.allsolid || trace.startsolid ||
@@ -182,7 +178,7 @@ q2trace_t	VARGS CLQ2_PMTrace (vec3_t start, vec3_t mins, vec3_t maxs, vec3_t end
 	trace_t		t;
 
 	// check against world
-	t = CM_BoxTrace (start, end, mins, maxs, 0, MASK_PLAYERSOLID);
+	t = CM_BoxTrace (cl.worldmodel, start, end, mins, maxs, MASK_PLAYERSOLID);
 	if (t.fraction < 1.0)
 		t.ent = (struct edict_s *)1;
 
@@ -209,7 +205,7 @@ int		VARGS CLQ2_PMpointcontents (vec3_t point)
 	model_t		*cmodel;
 	int			contents;
 
-	contents = CM_PointContents (point, 0);
+	contents = CM_PointContents (cl.worldmodel, point);
 
 	for (i=0 ; i<cl.q2frame.num_entities ; i++)
 	{
@@ -223,7 +219,7 @@ int		VARGS CLQ2_PMpointcontents (vec3_t point)
 		if (!cmodel)
 			continue;
 
-		contents |= CM_TransformedPointContents (point, cmodel->hulls[0].firstclipnode, ent->origin, ent->angles);
+		contents |= CM_TransformedPointContents (cl.worldmodel, point, cmodel->hulls[0].firstclipnode, ent->origin, ent->angles);
 	}
 
 	return contents;
@@ -347,7 +343,7 @@ void CL_NudgePosition (void)
 	vec3_t	base;
 	int		x, y;
 
-	if (cl.worldmodel->hulls->funcs.HullPointContents (cl.worldmodel->hulls, pmove.origin) == FTECONTENTS_EMPTY)
+	if (cl.worldmodel->funcs.PointContents (cl.worldmodel, pmove.origin) == FTECONTENTS_EMPTY)
 		return;
 
 	VectorCopy (pmove.origin, base);
@@ -357,7 +353,7 @@ void CL_NudgePosition (void)
 		{
 			pmove.origin[0] = base[0] + x * 1.0/8;
 			pmove.origin[1] = base[1] + y * 1.0/8;
-			if (cl.worldmodel->hulls->funcs.HullPointContents (cl.worldmodel->hulls, pmove.origin) == FTECONTENTS_EMPTY)
+			if (cl.worldmodel->funcs.PointContents (cl.worldmodel, pmove.origin) == FTECONTENTS_EMPTY)
 				return;
 		}
 	}

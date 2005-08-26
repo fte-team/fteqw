@@ -73,7 +73,7 @@ qbyte FloatToByte( float x )
 cvar_t r_detailtextures;
 
 
-#define MAX_SHADERS 1024
+#define MAX_SHADERS 2048	//fixme: this takes a lot of bss in the r_shaders list
 
 
 #define MAX_TOKEN_CHARS 1024
@@ -973,6 +973,8 @@ static void Shader_MakeCache ( char *path )
 		token = COM_ParseExt ( &ptr, true );
 		if ( !token[0] || ptr - buf >= size )
 			break;
+
+		COM_CleanUpPath(token);
 
 		t = NULL;
 		Shader_GetPathAndOffset ( token, &t, &i );
@@ -1920,6 +1922,8 @@ int R_LoadShader ( char *name, void(*defaultgen)(char *name, shader_t*))
 	shader_t *s;
 
 	COM_StripExtension ( name, shortname );
+
+	COM_CleanUpPath(shortname);
 
 	// test if already loaded
 	for (i = 0; i < MAX_SHADERS; i++)

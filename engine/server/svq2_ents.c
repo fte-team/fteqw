@@ -637,19 +637,19 @@ void SV_BuildClientFrame (client_t *client)
 	for (i=0 ; i<3 ; i++)
 		org[i] = clent->client->ps.pmove.origin[i]*0.125 + clent->client->ps.viewoffset[i];
 
-	leafnum = CM_PointLeafnum (org);
-	clientarea = CM_LeafArea (leafnum);
-	clientcluster = CM_LeafCluster (leafnum);
+	leafnum = CM_PointLeafnum (sv.worldmodel, org);
+	clientarea = CM_LeafArea (sv.worldmodel, leafnum);
+	clientcluster = CM_LeafCluster (sv.worldmodel, leafnum);
 
 	// calculate the visible areas
-	areabytes = CM_WriteAreaBits (areabits, clientarea);
+	areabytes = CM_WriteAreaBits (sv.worldmodel, areabits, clientarea);
 
 	// grab the current player_state_t
 	frame->ps = clent->client->ps;
 
 
-	SV_Q2BSP_FatPVS (org);
-	clientphs = CM_ClusterPHS (clientcluster);
+	sv.worldmodel->funcs.FatPVS(sv.worldmodel, org, false);
+	clientphs = CM_ClusterPHS (sv.worldmodel, clientcluster);
 
 	// build up the list of visible entities
 	frame->num_entities = 0;
@@ -674,11 +674,11 @@ void SV_BuildClientFrame (client_t *client)
 		if (ent != clent)
 		{
 			// check area
-			if (!CM_AreasConnected (clientarea, ent->areanum))
+			if (!CM_AreasConnected (sv.worldmodel, clientarea, ent->areanum))
 			{	// doors can legally straddle two areas, so
 				// we may need to check another one
 				if (!ent->areanum2
-					|| !CM_AreasConnected (clientarea, ent->areanum2))
+					|| !CM_AreasConnected (sv.worldmodel, clientarea, ent->areanum2))
 					continue;		// blocked by a door
 			}
 
@@ -698,7 +698,7 @@ void SV_BuildClientFrame (client_t *client)
 
 				if (ent->num_clusters == -1)
 				{	// too many leafs for individual check, go by headnode
-					if (!CM_HeadnodeVisible (ent->headnode, bitvector))
+					if (!CM_HeadnodeVisible (sv.worldmodel, ent->headnode, bitvector))
 						continue;
 					c_fullsend++;
 				}

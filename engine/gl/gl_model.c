@@ -81,14 +81,9 @@ void GLMod_LoadDoomSprite (model_t *mod);
 
 #define	MAX_MOD_KNOWN	2048
 #ifndef SWQUAKE
-qbyte	mod_novis[MAX_MAP_LEAFS/8];
-
 model_t	mod_known[MAX_MOD_KNOWN];
 int		mod_numknown;
-
 #else
-
-extern qbyte	mod_novis[MAX_MAP_LEAFS/8];
 
 extern model_t	mod_known[MAX_MOD_KNOWN];
 extern int		mod_numknown;
@@ -206,7 +201,7 @@ Mod_Init
 void GLMod_Init (void)
 {
 	mod_numknown = 0;
-	memset (mod_novis, 0xff, sizeof(mod_novis));
+	Q1BSP_Init();
 
 	Cmd_AddRemCommand("mod_texturelist", GLMod_TextureList_f);
 	Cmd_AddRemCommand("mod_usetexture", GLMod_BlockTextureColour_f);
@@ -215,7 +210,6 @@ void GLMod_Init (void)
 void GLMod_Shutdown (void)
 {
 	mod_numknown = 0;
-	memset (mod_novis, 0xff, sizeof(mod_novis));
 
 	Cmd_RemoveCommand("mod_texturelist");
 	Cmd_RemoveCommand("mod_usetexture");
@@ -252,10 +246,7 @@ void *GLMod_Extradata (model_t *mod)
 Mod_PointInLeaf
 ===============
 */
-#ifdef Q2BSPS
-int CM_PointLeafnum (vec3_t p);
-#endif
-mleaf_t *GLMod_PointInLeaf (vec3_t p, model_t *model)
+mleaf_t *GLMod_PointInLeaf (model_t *model, vec3_t p)
 {
 	mnode_t		*node;
 	float		d;
@@ -270,7 +261,7 @@ mleaf_t *GLMod_PointInLeaf (vec3_t p, model_t *model)
 #ifdef Q2BSPS
 	if (model->fromgame == fg_quake2 || model->fromgame == fg_quake3)
 	{
-		return model->leafs + CM_PointLeafnum(p);
+		return model->leafs + CM_PointLeafnum(model, p);
 	}
 #endif
 	if (model->fromgame == fg_doom)
@@ -292,103 +283,6 @@ mleaf_t *GLMod_PointInLeaf (vec3_t p, model_t *model)
 	}
 	
 	return NULL;	// never reached
-}
-
-int GLMod_LeafForPoint (vec3_t p, model_t *model)
-{
-	mnode_t		*node;
-	float		d;
-	mplane_t	*plane;
-	
-	if (!model)
-	{		
-		Sys_Error ("Mod_PointInLeaf: bad model");
-	}
-	if (!model->nodes)
-		return 0;
-
-	node = model->nodes;
-	while (1)
-	{
-		if (node->contents < 0)
-			return (mleaf_t *)node - model->leafs;
-		plane = node->plane;
-		d = DotProduct (p,plane->normal) - plane->dist;
-		if (d > 0)
-			node = node->children[0];
-		else
-			node = node->children[1];
-	}
-	
-	return 0;	// never reached
-}
-
-/*
-===================
-Mod_DecompressVis
-===================
-*/
-qbyte *GLMod_DecompressVis (qbyte *in, model_t *model, qbyte *decompressed)
-{
-	int		c;
-	qbyte	*out;
-	int		row;
-
-	row = (model->numleafs+7)>>3;	
-	out = decompressed;
-
-#if 0
-	memcpy (out, in, row);
-#else
-	if (!in)
-	{	// no vis info, so make all visible
-		while (row)
-		{
-			*out++ = 0xff;
-			row--;
-		}
-		return decompressed;		
-	}
-
-	do
-	{
-		if (*in)
-		{
-			*out++ = *in++;
-			continue;
-		}
-	
-		c = in[1];
-		in += 2;
-		while (c)
-		{
-			*out++ = 0;
-			c--;
-		}
-	} while (out - decompressed < row);
-#endif
-	
-	return decompressed;
-}
-
-
-
-qbyte *GLMod_LeafPVS (mleaf_t *leaf, model_t *model, qbyte *buffer)
-{
-	static qbyte	decompressed[MAX_MAP_LEAFS/8];
-
-	if (leaf == model->leafs)
-		return mod_novis;
-
-	if (!buffer)
-		buffer = decompressed;
-
-	return GLMod_DecompressVis (leaf->compressed_vis, model, buffer);
-}
-
-qbyte *GLMod_LeafnumPVS (int leafnum, model_t *model, qbyte *buffer)
-{
-	return GLMod_LeafPVS(model->leafs + leafnum, model, buffer);
 }
 
 /*
@@ -690,17 +584,22 @@ couldntload:
 			GLMod_LoadMD5MeshModel (mod, buf);
 			break;
 		}
-		else if (!strcmp(com_token, "EXTERNALANIM"))
+		if (!strcmp(com_token, "EXTERNALANIM"))
 		{
 			GLMod_LoadCompositeAnim (mod, buf);
 			break;
 		}
-		else
 #endif
+#ifdef TERRAIN
+		if (!strcmp(com_token, "terrain"))
 		{
-			Con_Printf("Unrecognised model format %i\n", LittleLong(*(unsigned *)buf));
-			goto couldntload;
+			GL_LoadHeightmapModel(mod, buf);
+			break;
 		}
+#endif
+
+		Con_Printf("Unrecognised model format %i\n", LittleLong(*(unsigned *)buf));
+		goto couldntload;
 	}
 
 	P_DefaultTrail(mod);
@@ -740,14 +639,14 @@ qbyte	*mod_base;
 #endif
 
 char *advtexturedesc;
-const char *mapsection;
-const char *defaultsection;
+char *mapsection;
+char *defaultsection;
 
-static const char *GLMod_TD_LeaveSection(const char *file)
+static char *GLMod_TD_LeaveSection(char *file)
 {	//recursive routine to find the next }
 	while(file)
 	{
-		file = COM_ParseToken(file);
+		file = COM_Parse(file);
 		if (*com_token == '{')
 			file = GLMod_TD_LeaveSection(file);
 		else if (*com_token == '}')
@@ -756,7 +655,7 @@ static const char *GLMod_TD_LeaveSection(const char *file)
 	return NULL;
 }
 
-static const char *GLMod_TD_Section(const char *file, const char *sectionname)
+static char *GLMod_TD_Section(char *file, const char *sectionname)
 {	//position within the open brace.
 	while(file)
 	{
@@ -766,10 +665,10 @@ static const char *GLMod_TD_Section(const char *file, const char *sectionname)
 				return NULL;
 			file++;
 		}
-		file = COM_ParseToken(file);
+		file = COM_Parse(file);
 		if (!stricmp(com_token, sectionname))
 		{
-			file = COM_ParseToken(file);
+			file = COM_Parse(file);
 			if (*com_token != '{')
 				return NULL;
 			return file;
@@ -799,7 +698,7 @@ void GLMod_InitTextureDescs(char *mapname)
 		defaultsection = GLMod_TD_Section(advtexturedesc, "default");
 	}
 }
-void GLMod_LoadAdvancedTextureSection(const char *section, char *name, int *base, int *norm, int *luma, int *gloss, int *alphamode, qboolean *cull) //fixme: add gloss
+void GLMod_LoadAdvancedTextureSection(char *section, char *name, int *base, int *norm, int *luma, int *gloss, int *alphamode, qboolean *cull) //fixme: add gloss
 {
 	char stdname[MAX_QPATH] = "";
 	char flatname[MAX_QPATH] = "";
@@ -812,7 +711,7 @@ void GLMod_LoadAdvancedTextureSection(const char *section, char *name, int *base
 
 	while(section)
 	{
-		section = COM_ParseToken(section);
+		section = COM_Parse(section);
 		if (*com_token == '}')
 			break;
 
@@ -827,34 +726,34 @@ void GLMod_LoadAdvancedTextureSection(const char *section, char *name, int *base
 
 		if (!stricmp(com_token, "texture") || !stricmp(com_token, "base"))
 		{
-			section = COM_ParseToken(section);
+			section = COM_Parse(section);
 			Q_strncpyz(stdname, com_token, sizeof(stdname));
 		}
 		else if (!stricmp(com_token, "flatmap") || !stricmp(com_token, "flat")
 			|| !stricmp(com_token, "diffusemap") || !stricmp(com_token, "diffuse"))
 		{
-			section = COM_ParseToken(section);
+			section = COM_Parse(section);
 			Q_strncpyz(flatname, com_token, sizeof(flatname));
 		}
 		else if (!stricmp(com_token, "bumpmap") || !stricmp(com_token, "bump"))
 		{
-			section = COM_ParseToken(section);
+			section = COM_Parse(section);
 			Q_strncpyz(bumpname, com_token, sizeof(bumpname));
 		}
 		else if (!stricmp(com_token, "normalmap") || !stricmp(com_token, "normal"))
 		{
-			section = COM_ParseToken(section);
+			section = COM_Parse(section);
 			Q_strncpyz(normname, com_token, sizeof(normname));
 		}
 		else if (!stricmp(com_token, "glossmap") || !stricmp(com_token, "gloss"))
 		{
-			section = COM_ParseToken(section);
+			section = COM_Parse(section);
 			Q_strncpyz(glossname, com_token, sizeof(glossname));
 		}
 		else if (!stricmp(com_token, "luma") || !stricmp(com_token, "glow")
 			|| !stricmp(com_token, "ambient") || !stricmp(com_token, "ambientmap"))
 		{
-			section = COM_ParseToken(section);
+			section = COM_Parse(section);
 			Q_strncpyz(lumaname, com_token, sizeof(lumaname));
 		}
 		else
@@ -978,7 +877,9 @@ TRACE(("dbg: GLMod_LoadTextures: inittexturedescs\n"));
 			mt->offsets[j] = LittleLong (mt->offsets[j]);
 		
 		if ( (mt->width & 15) || (mt->height & 15) )
-			Sys_Error ("Texture %s is not 16 aligned", mt->name);
+			Con_Printf ("Warning: Texture %s is not 16 aligned", mt->name);
+		if (mt->width < 1 || mt->height < 1)
+			Con_Printf ("Warning: Texture %s has no size", mt->name);
 		pixels = mt->width*mt->height/64*85;
 		tx = Hunk_AllocName (sizeof(texture_t)/* +pixels*/, loadname );
 		loadmodel->textures[i] = tx;
@@ -2545,9 +2446,6 @@ static void Q1BSP_StainNode (mnode_t *node, float *parms)
 
 
 void Q1BSP_MarkLights (dlight_t *light, int bit, mnode_t *node);
-void Q1BSP_FatPVS (vec3_t org, qboolean add);
-qboolean Q1BSP_EdictInFatPVS(struct edict_s *ent);
-void Q1BSP_FindTouchedLeafs(struct edict_s *ent);
 qboolean Q1BSP_Trace(model_t *model, int forcehullnum, int frame, vec3_t start, vec3_t end, vec3_t mins, vec3_t maxs, trace_t *trace);
 void GLQ1BSP_LightPointValues(vec3_t point, vec3_t res_diffuse, vec3_t res_ambient, vec3_t res_dir);
 
@@ -2668,20 +2566,11 @@ void GLMod_LoadBrushModel (model_t *mod, void *buffer)
 			Mod_ParseInfoFromEntityLump(mod_base + header->lumps[LUMP_ENTITIES].fileofs);
 	}
 
+	Q1BSP_SetModelFuncs(mod);
 	mod->funcs.LightPointValues		= GLQ1BSP_LightPointValues;
 	mod->funcs.StainNode			= Q1BSP_StainNode;
 	mod->funcs.MarkLights			= Q1BSP_MarkLights;
-	mod->funcs.Trace				= Q1BSP_Trace;
 
-	mod->funcs.LeafForPoint			= GLMod_LeafForPoint;
-	mod->funcs.LeafPVS				= GLMod_LeafnumPVS;
-
-#ifndef CLIENTONLY
-	mod->funcs.FindTouchedLeafs_Q1	= Q1BSP_FindTouchedLeafs;
-	mod->funcs.EdictInFatPVS		= Q1BSP_EdictInFatPVS;
-	mod->funcs.FatPVS				= Q1BSP_FatPVS;
-#endif
-	
 	mod->numframes = 2;		// regular and alternate animation
 	
 //

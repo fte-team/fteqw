@@ -5,6 +5,7 @@
 #define SS_FAVORITE		8	//filter all others.
 #define SS_KEEPINFO		16
 #define SS_DARKPLACES	32
+#define SS_QUAKE3		64
 
 
 //despite not supporting nq or q2, we still load them. We just filter them. This is to make sure we properly write the listing files.
@@ -13,14 +14,17 @@ enum {
 	MT_MASTERHTTP,	//an http/ftp based master server
 	MT_BCASTQW,		//-1status
 	MT_BCASTQ2,		//-1status
+	MT_BCASTQ3,
 	MT_BCASTNQ,		//see code
 	MT_BCASTDP,
 	MT_SINGLEQW,	//-1status
 	MT_SINGLEQ2,	//-1status
+	MT_SINGLEQ3,
 	MT_SINGLENQ,	//see code.
 	MT_SINGLEDP,
 	MT_MASTERQW,	//c\n\0
 	MT_MASTERQ2,	//query
+	MT_MASTERQ3,
 	MT_MASTERDP		//-1getservers %s 3 empty full\x0A
 };
 

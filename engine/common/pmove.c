@@ -740,7 +740,7 @@ void PM_CategorizePosition (void)
 		//if we hit a wall when going forwards and we are in a ladder region, then we are on a ladder.
 		if (pmove.physents[0].model->fromgame == fg_quake2)
 		{
-			t = CM_BoxTrace(pmove.origin, fwd1, player_mins, player_maxs, pmove.physents[0].model->hulls[0].firstclipnode, MASK_PLAYERSOLID);
+			t = CM_BoxTrace(pmove.physents[0].model, pmove.origin, fwd1, player_mins, player_maxs, MASK_PLAYERSOLID);
 			if (t.fraction < 1)
 			{
 				pmove.onladder = true;

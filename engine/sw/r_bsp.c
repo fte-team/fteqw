@@ -879,16 +879,16 @@ void R_RenderWorld (void)
 	{
 		int leafnum;
 		int clientarea;
-		int CM_WriteAreaBits (qbyte *buffer, int area);
+
 #ifdef Q2CLIENT
 		if (cls.protocol == CP_QUAKE2)
 			memcpy(areabits, cl.q2frame.areabits, sizeof(areabits));
 		else
 #endif
 		{
-			leafnum = CM_PointLeafnum (r_refdef.vieworg);
-			clientarea = CM_LeafArea (leafnum);
-			CM_WriteAreaBits(areabits, clientarea);
+			leafnum = CM_PointLeafnum (cl.worldmodel, r_refdef.vieworg);
+			clientarea = CM_LeafArea (cl.worldmodel, leafnum);
+			CM_WriteAreaBits(cl.worldmodel, areabits, clientarea);
 		}
 
 		SWR_RecursiveQ2WorldNode (clmodel->nodes, 15);

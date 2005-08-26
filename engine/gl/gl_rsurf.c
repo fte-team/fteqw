@@ -3117,10 +3117,9 @@ void R_DrawWorld (void)
 	VectorCopy (r_refdef.vieworg, modelorg);
 
 	currententity = &ent;
-
-#ifdef TERRAINMAPS
-	if (ent.model->type == mod_terrain)
-		DrawTerrain();
+#ifdef TERRAIN
+	if (currentmodel->type == mod_heightmap)
+		GL_DrawHeightmapModel(currententity);
 	else
 #endif
 	{
@@ -3136,14 +3135,14 @@ void R_DrawWorld (void)
 		{
 			int leafnum;
 			int clientarea;
-			int CM_WriteAreaBits (qbyte *buffer, int area);
+
 			if (cls.protocol == CP_QUAKE2)	//we can get server sent info
 				memcpy(areabits, cl.q2frame.areabits, sizeof(areabits));
 			else
 			{	//generate the info each frame.
-				leafnum = CM_PointLeafnum (r_refdef.vieworg);
-				clientarea = CM_LeafArea (leafnum);
-				CM_WriteAreaBits(areabits, clientarea);
+				leafnum = CM_PointLeafnum (cl.worldmodel, r_refdef.vieworg);
+				clientarea = CM_LeafArea (cl.worldmodel, leafnum);
+				CM_WriteAreaBits(cl.worldmodel, areabits, clientarea);
 			}
 #ifdef Q3BSPS
 			if (ent.model->fromgame == fg_quake3)
@@ -3219,7 +3218,7 @@ void GLR_MarkLeaves (void)
 			return;
 		}
 
-		vis = CM_ClusterPVS (r_viewcluster, NULL);//, cl.worldmodel);
+		vis = CM_ClusterPVS (cl.worldmodel, r_viewcluster, NULL);//, cl.worldmodel);
 		for (i=0,leaf=cl.worldmodel->leafs ; i<cl.worldmodel->numleafs ; i++, leaf++)
 		{
 			cluster = leaf->cluster;
@@ -3262,12 +3261,12 @@ void GLR_MarkLeaves (void)
 			return;
 		}
 
-		vis = CM_ClusterPVS (r_viewcluster, NULL);//, cl.worldmodel);
+		vis = CM_ClusterPVS (cl.worldmodel, r_viewcluster, NULL);//, cl.worldmodel);
 		// may have to combine two clusters because of solid water boundaries
 		if (r_viewcluster2 != r_viewcluster)
 		{
 			memcpy (fatvis, vis, (cl.worldmodel->numleafs+7)/8);
-			vis = CM_ClusterPVS (r_viewcluster2, NULL);//, cl.worldmodel);
+			vis = CM_ClusterPVS (cl.worldmodel, r_viewcluster2, NULL);//, cl.worldmodel);
 			c = (cl.worldmodel->numleafs+31)/32;
 			for (i=0 ; i<c ; i++)
 				((int *)fatvis)[i] |= ((int *)vis)[i];
@@ -3314,8 +3313,8 @@ void GLR_MarkLeaves (void)
 	else if (r_viewleaf2)
 	{
 		int c;
-		GLMod_LeafPVS (r_viewleaf2, cl.worldmodel, fatvis);
-		vis = GLMod_LeafPVS (r_viewleaf, cl.worldmodel, NULL);
+		Q1BSP_LeafPVS (cl.worldmodel, r_viewleaf2, fatvis);
+		vis = Q1BSP_LeafPVS (cl.worldmodel, r_viewleaf, NULL);
 		c = (cl.worldmodel->numleafs+31)/32;
 		for (i=0 ; i<c ; i++)
 			((int *)fatvis)[i] |= ((int *)vis)[i];
@@ -3323,7 +3322,7 @@ void GLR_MarkLeaves (void)
 		vis = fatvis;
 	}
 	else
-		vis = GLMod_LeafPVS (r_viewleaf, cl.worldmodel, NULL);
+		vis = Q1BSP_LeafPVS (cl.worldmodel, r_viewleaf, NULL);
 		
 	for (i=0 ; i<cl.worldmodel->numleafs ; i++)
 	{

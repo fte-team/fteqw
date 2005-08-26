@@ -156,14 +156,13 @@ void LightLoadEntities(char *entstring)
 		{
 			int cont;
 			vec3_t v;
-			hull_t *hull = &lightmodel->hulls[0];
 			v[0] = mapent->origin[0];
 			v[1] = mapent->origin[1];
 			cont=0;
 			for (i = 0; i < 256; i+=16)
 			{
 				v[2] = mapent->origin[2]-i;
-				cont = hull->funcs.HullPointContents (hull, v);
+				cont = lightmodel->funcs.PointContents (lightmodel, v);
 				if (cont & (FTECONTENTS_LAVA | FTECONTENTS_SLIME | FTECONTENTS_SOLID))
 					break;
 			}			

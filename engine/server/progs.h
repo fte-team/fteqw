@@ -105,6 +105,7 @@ extern progsnum_t svmainprogs;
 extern progsnum_t clmainprogs;
 #define	EDICT_FROM_AREA(l) STRUCT_FROM_LINK(l,edict_t,area)
 #define	Q2EDICT_FROM_AREA(l) STRUCT_FROM_LINK(l,q2edict_t,area)
+#define	Q3EDICT_FROM_AREA(l) STRUCT_FROM_LINK(l,q3serverEntity_t,area)
 
 extern func_t SpectatorConnect;
 extern func_t SpectatorThink;

@@ -1528,7 +1528,7 @@ glEnable(GL_DEPTH_TEST);
 				else
 					VectorMA(org, 0.5, st->face->plane->normal, org);
 
-				if (!(cl.worldmodel->hulls->funcs.HullPointContents(cl.worldmodel->hulls, org) & FTECONTENTS_SOLID))
+				if (!(cl.worldmodel->funcs.PointContents(cl.worldmodel, org) & FTECONTENTS_SOLID))
 				{
 					if (st->face->flags & SURF_PLANEBACK)
 					{
@@ -1854,7 +1854,7 @@ int P_RunParticleEffectState (vec3_t org, vec3_t dir, float count, int typenum, 
 	if (r_part_contentswitch.value && ptype->inwater >= 0)
 	{
 		int cont;
-		cont = cl.worldmodel->hulls[0].funcs.HullPointContents(&cl.worldmodel->hulls[0], org);
+		cont = cl.worldmodel->funcs.PointContents(cl.worldmodel, org);
 
 		if (cont & FTECONTENTS_WATER)
 			ptype = &part_type[ptype->inwater];
@@ -2918,7 +2918,7 @@ int P_ParticleTrail (vec3_t startpos, vec3_t end, int type, trailstate_t **tsk)
 	if (r_part_contentswitch.value && ptype->inwater >= 0)
 	{
 		int cont;
-		cont = cl.worldmodel->hulls[0].funcs.HullPointContents(&cl.worldmodel->hulls[0], startpos);
+		cont = cl.worldmodel->funcs.PointContents(cl.worldmodel, startpos);
 
 		if (cont & FTECONTENTS_WATER)
 			ptype = &part_type[ptype->inwater];
@@ -2936,7 +2936,7 @@ void CLQ2_BubbleTrail (vec3_t start, vec3_t end)
 qboolean Q2TraceLineN (vec3_t start, vec3_t end, vec3_t impact, vec3_t normal)
 {
 	vec3_t nul = {0,0,0};
-	trace_t trace = CM_BoxTrace(start, end, nul, nul, pmove.physents[0].model->hulls[0].firstclipnode, MASK_SOLID);
+	trace_t trace = CM_BoxTrace(pmove.physents[0].model, start, end, nul, nul, MASK_SOLID);
 
 	if (trace.fraction < 1)
 	{
@@ -4192,6 +4192,8 @@ void P_DrawParticles (void)
 		if (qglPolygonOffset)
 			qglPolygonOffset(-1, 0);
 		qglEnable(GL_POLYGON_OFFSET_FILL);
+		qglEnable(GL_BLEND);
+		qglDisable(GL_ALPHA_TEST);
 		qglBegin(GL_QUADS);
 		if (r_drawflat.value == 2)
 			DrawParticleTypes(GL_DrawSketchParticle, GL_DrawSketchSparkParticle, GL_DrawSketchSparkParticle, GL_DrawSketchSparkParticle, GL_DrawParticleBeam_Textured, GL_DrawParticleBeam_Untextured, GL_DrawClippedDecal);

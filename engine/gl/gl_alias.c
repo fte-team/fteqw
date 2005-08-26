@@ -210,7 +210,6 @@ void Mod_DoCRC(model_t *mod, char *buffer, int buffersize)
 	}
 #endif
 }
-#include <malloc.h>
 qboolean GLMod_Trace(model_t *model, int forcehullnum, int frame, vec3_t start, vec3_t end, vec3_t mins, vec3_t maxs, trace_t *trace)
 {
 	galiasinfo_t *mod = Mod_Extradata(model);
@@ -1800,7 +1799,7 @@ void R_DrawGAliasModel (entity_t *e)
 			mb.shader = currententity->forcedshader;
 			mb.fog = fog;
 			mb.mesh = &mesh;
-			mb.infokey = currententity->keynum;
+			mb.infokey = -1;//currententity->keynum;
 			mb.dlightbits = 0;
 
 			R_PushMesh(&mesh, mb.shader->features | MF_NONBATCHED | MF_COLORS);
@@ -1833,7 +1832,7 @@ void R_DrawGAliasModel (entity_t *e)
 			mb.shader = skin->shader;
 			mb.fog = fog;
 			mb.mesh = &mesh;
-			mb.infokey = currententity->keynum;
+			mb.infokey = -1;//currententity->keynum;
 			mb.dlightbits = 0;
 
 			R_IBrokeTheArrays();
@@ -2420,12 +2419,12 @@ void GL_ParseQ3SkinFile(char *out, char *surfname, char *modelname, int skinnum,
 
 	while(f)
 	{
-		f = COM_ParseToken(f);
+		f = COM_ParseToken(f,NULL);
 		if (!f)
 			return;
 		if (!strcmp(com_token, "replace"))
 		{
-			f = COM_ParseToken(f);
+			f = COM_ParseToken(f, NULL);
 
 			len = strlen(com_token);
 
@@ -2436,7 +2435,7 @@ void GL_ParseQ3SkinFile(char *out, char *surfname, char *modelname, int skinnum,
 					//found it
 				{
 					surfname+=len;
-					f = COM_ParseToken(f);
+					f = COM_ParseToken(f, NULL);
 					p = com_token;
 					while(*p)	//copy the replacement
 						*out++ = *p++;
@@ -2460,7 +2459,7 @@ void GL_ParseQ3SkinFile(char *out, char *surfname, char *modelname, int skinnum,
 				if (!strcmp(com_token, surfname))
 				{
 					f++;
-					COM_ParseToken(f);
+					COM_ParseToken(f, NULL);
 					strcpy(out, com_token);
 					return;
 				}
@@ -2680,22 +2679,27 @@ static void *Q1_LoadSkins (daliasskintype_t *pskintype, qboolean alpha)
 				}
 			}
 
-			texnums = Hunk_Alloc(sizeof(*texnums)+s);
-			saved = (qbyte*)(texnums+1);
-			outskin->ofstexels = (qbyte *)(saved) - (qbyte *)outskin;
-			memcpy(saved, pskintype+1, s);
-			GLMod_FloodFillSkin(saved, outskin->skinwidth, outskin->skinheight);
-
+//but only preload it if we have no replacement.
 			if (!texture)
 			{
-				sprintf(skinname, "%s_%i", loadname, i);
+				//we're not using 24bits
+				texnums = Hunk_Alloc(sizeof(*texnums)+s);
+				saved = (qbyte*)(texnums+1);
+				outskin->ofstexels = (qbyte *)(saved) - (qbyte *)outskin;
+				memcpy(saved, pskintype+1, s);
+				GLMod_FloodFillSkin(saved, outskin->skinwidth, outskin->skinheight);
+
+//the extra underscore is to stop
+				sprintf(skinname, "%s__%i", loadname, i);
 				texture = GL_LoadTexture(skinname, outskin->skinwidth, outskin->skinheight, saved, true, alpha);
 				if (r_fb_models.value)
 				{
-					sprintf(skinname, "%s_%i_luma", loadname, i);
+					sprintf(skinname, "%s__%i_luma", loadname, i);
 					fbtexture = GL_LoadTextureFB(skinname, outskin->skinwidth, outskin->skinheight, saved, true, true);
 				}
 			}
+			else
+				texnums = Hunk_Alloc(sizeof(*texnums));
 			outskin->texnums=1;
 
 			outskin->ofstexnums = (char *)texnums - (char *)outskin;
@@ -3396,8 +3400,10 @@ qboolean Mod_GetTag(model_t *model, int tagnum, int frame1, int frame2, float f2
 
 		if (tagnum <= 0 || tagnum > inf->numtags)
 			return false;
-		if (frame1 < 0 || frame1 >= inf->numtagframes)
+		if (frame1 < 0)
 			return false;
+		if (frame1 >= inf->numtagframes)
+			frame1 = inf->numtagframes - 1;
 		if (frame2 < 0 || frame2 >= inf->numtagframes)
 			frame2 = frame1;
 		tagnum--;	//tagnum 0 is 'use my angles/org'

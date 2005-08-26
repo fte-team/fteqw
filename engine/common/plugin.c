@@ -1158,9 +1158,38 @@ void Plug_Load_f(void)
 			Con_Printf("Couldn't load plugin %s\n", Cmd_Argv(1));
 	}
 }
+/*
+static long Test_SysCalls_Ex(void *offset, unsigned int mask, int fn, const long *arg)
+{
+	switch(fn)
+	{
+	case 1:
+		Con_Printf("%s", VM_POINTER(arg[0]));
+		break;
+	default:
+		Con_Printf("Can't handle %i\n", fn);
+	}
+	return 0;
+}
+static int EXPORT_FN Test_SysCalls(int arg, ...)
+{
+	return 0;
+}
+void VM_Test_f(void)
+{
+	vm_t *vm;
+	vm = VM_Create(NULL, "vm/test", Test_SysCalls, Test_SysCalls_Ex);
+	if (vm)
+	{
+		VM_Call(vm, 0, "");
+		VM_Destroy(vm);
+	}
+}*/
 
 void Plug_Init(void)
 {
+//	Cmd_AddCommand("testvm", VM_Test_f);
+
 	Cvar_Register(&plug_sbar, "plugins");
 	Cvar_Register(&plug_loaddefault, "plugins");
 	Cmd_AddCommand("plug_closeall", Plug_CloseAll_f);

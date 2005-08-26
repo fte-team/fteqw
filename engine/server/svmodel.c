@@ -57,7 +57,7 @@ void Mod_Init (void)
 Mod_LeafForPoint
 ===============
 */
-int Mod_LeafForPoint (vec3_t p, model_t *model)
+int Mod_LeafForPoint (model_t *model, vec3_t p)
 {
 	mnode_t		*node;
 	float		d;
@@ -65,7 +65,7 @@ int Mod_LeafForPoint (vec3_t p, model_t *model)
 #ifdef Q2BSPS
 	if (model->fromgame == fg_quake2 || model->fromgame == fg_quake3)
 	{
-		return CM_PointLeafnum(p);
+		return CM_PointLeafnum(model, p);
 	}
 #endif
 	if (!model || !model->nodes)
@@ -92,9 +92,9 @@ int Mod_LeafForPoint (vec3_t p, model_t *model)
 Mod_PointInLeaf
 ===============
 */
-mleaf_t *Mod_PointInLeaf (vec3_t p, model_t *model)
+mleaf_t *Mod_PointInLeaf (model_t *model, vec3_t p)
 {
-	return model->leafs + Mod_LeafForPoint(p, model);
+	return model->leafs + Mod_LeafForPoint(model, p);
 }
 
 
@@ -1287,16 +1287,7 @@ void Mod_LoadBrushModel (model_t *mod, void *buffer)
 
 	Mod_MakeHull0 ();
 
-	mod->funcs.FatPVS				= Q1BSP_FatPVS;
-	mod->funcs.EdictInFatPVS		= Q1BSP_EdictInFatPVS;
-	mod->funcs.FindTouchedLeafs_Q1	= Q1BSP_FindTouchedLeafs;
-	mod->funcs.LightPointValues		= NULL;
-	mod->funcs.StainNode			= NULL;
-	mod->funcs.MarkLights			= NULL;
-
-	mod->funcs.LeafForPoint			= Mod_LeafForPoint;
-	mod->funcs.LeafPVS				= Mod_LeafnumPVS;
-	mod->funcs.Trace				= Q1BSP_Trace;
+	Q1BSP_SetModelFuncs(mod);
 
 
 	mod->numframes = 2;		// regular and alternate animation

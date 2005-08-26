@@ -5,6 +5,202 @@
 
 #ifdef VM_UI
 
+#ifdef Q3CLIENT
+#include "clq3defs.h"
+#else
+typedef struct {
+	int			handle;
+	int			modificationCount;
+	float		value;
+	int			integer;
+	char		string[256];
+} vmcvar_t;
+#endif
+
+void GLDraw_ShaderImage (int x, int y, int w, int h, float s1, float t1, float s2, float t2, struct shader_s *pic);
+
+#define MAX_TOKENLENGTH		1024
+typedef struct pc_token_s
+{
+	int type;
+	int subtype;
+	int intvalue;
+	float floatvalue;
+	char string[MAX_TOKENLENGTH];
+} pc_token_t;
+#define TT_STRING					1			// string
+#define TT_LITERAL					2			// literal
+#define TT_NUMBER					3			// number
+#define TT_NAME						4			// name
+#define TT_PUNCTUATION				5			// punctuation
+
+#define SCRIPT_MAXDEPTH 64
+#define SCRIPT_DEFINELENGTH 256
+typedef struct {
+	char *filestack[SCRIPT_MAXDEPTH];
+	char *originalfilestack[SCRIPT_MAXDEPTH];
+	char filename[MAX_QPATH][SCRIPT_MAXDEPTH];
+	int stackdepth;
+
+	char *defines;
+	int numdefines;
+} script_t;
+script_t *scripts;
+int maxscripts;
+#define Q3SCRIPTPUNCTUATION "(,{})(\':;=!><&|+-"
+int Script_Read(int handle, pc_token_t *token)
+{
+	int i;
+	script_t *sc = scripts+handle-1;
+
+	for(;;)
+	{
+		if (!sc->stackdepth)
+			return 0;
+
+		sc->filestack[sc->stackdepth-1] = COM_ParseToken(sc->filestack[sc->stackdepth-1], Q3SCRIPTPUNCTUATION);
+
+		if (!strcmp(com_token, "#include"))
+		{
+			sc->filestack[sc->stackdepth-1] = COM_ParseToken(sc->filestack[sc->stackdepth-1], Q3SCRIPTPUNCTUATION);
+
+			if (sc->stackdepth == SCRIPT_MAXDEPTH)	//just don't enter it
+				continue;
+
+			if (sc->originalfilestack[sc->stackdepth])
+				BZ_Free(sc->originalfilestack[sc->stackdepth]);
+			sc->filestack[sc->stackdepth] = sc->originalfilestack[sc->stackdepth] = COM_LoadMallocFile(com_token);
+			sc->stackdepth++;
+			continue;
+		}
+		if (!strcmp(com_token, "#define"))
+		{
+			sc->numdefines++;
+			sc->defines = BZ_Realloc(sc->defines, sc->numdefines*SCRIPT_DEFINELENGTH*2);
+			sc->filestack[sc->stackdepth-1] = COM_ParseToken(sc->filestack[sc->stackdepth-1], Q3SCRIPTPUNCTUATION);
+			Q_strncpyz(sc->defines+SCRIPT_DEFINELENGTH*2*(sc->numdefines-1), com_token, SCRIPT_DEFINELENGTH);
+			sc->filestack[sc->stackdepth-1] = COM_ParseToken(sc->filestack[sc->stackdepth-1], Q3SCRIPTPUNCTUATION);
+			Q_strncpyz(sc->defines+SCRIPT_DEFINELENGTH*2*(sc->numdefines-1)+SCRIPT_DEFINELENGTH, com_token, SCRIPT_DEFINELENGTH);
+
+			continue;
+		}
+		if (!*com_token)
+		{
+			if (sc->stackdepth==0)
+				return 0;
+
+			sc->stackdepth--;
+			continue;
+		}
+		break;
+	}
+	for (i = 0; i < sc->numdefines; i++)
+	{
+		if (!strcmp(com_token, sc->defines+SCRIPT_DEFINELENGTH*2*i))
+		{
+			Q_strncpyz(token->string, sc->defines+SCRIPT_DEFINELENGTH*2*i+SCRIPT_DEFINELENGTH, sizeof(token->string));
+			break;
+		}
+	}
+	//fill in the token
+	if (i == sc->numdefines)
+		Q_strncpyz(token->string, com_token, sizeof(token->string));
+	token->intvalue = atoi(token->string);
+	token->floatvalue = atof(token->string);
+	if (token->floatvalue || *token->string == '0')
+	{
+		token->type = TT_NUMBER;
+		token->subtype = 0;
+	}
+	else if (com_tokentype == TTP_STRING)
+	{
+		token->type = TT_STRING;
+		token->subtype = strlen(token->string);
+	}
+	else
+	{
+		if (token->string[1] == '\0')
+		{
+			token->type = TT_PUNCTUATION;
+			token->subtype = token->string[0];
+		}
+		else
+		{
+			token->type = TT_NAME;
+			token->subtype = strlen(token->string);
+		}
+	}
+
+//	Con_Printf("Found %s (%i, %i)\n", token->string, token->type, token->subtype);
+	
+	return !!*token->string;
+}
+
+int Script_LoadFile(char *filename)
+{
+	int i;
+	script_t *sc;
+	for (i = 0; i < maxscripts; i++)
+		if (!scripts[i].stackdepth)
+			break;
+	if (i == maxscripts)
+	{
+		maxscripts++;
+		scripts = BZ_Realloc(scripts, sizeof(script_t)*maxscripts);
+	}
+	
+	sc = scripts+i;
+	memset(sc, 0, sizeof(*sc));
+	sc->filestack[0] = sc->originalfilestack[0] = COM_LoadMallocFile(filename);
+	sc->stackdepth = 1;
+
+	return i+1;
+}
+
+void Script_Free(int handle)
+{
+	int i;
+	script_t *sc = scripts+handle-1;
+	if (sc->defines)
+		BZ_Free(sc->defines);
+
+	for (i = 0; i < sc->stackdepth; i++)
+		BZ_Free(sc->originalfilestack[i]);
+}
+
+void Script_Get_File_And_Line(int handle, char *filename, int *line)
+{
+	script_t *sc = scripts+handle-1;
+	char *src;
+	char *start;
+
+	*line = 0;
+
+	if (!sc->stackdepth)
+		return;
+	*line = 1;
+
+	src = sc->filestack[sc->stackdepth-1];
+	start = sc->originalfilestack[sc->stackdepth-1];
+
+	while(start < src)
+	{
+		if (*start == '\n')
+			(*line)++;
+		start++;
+	}
+
+}
+
+
+
+
+
+
+
+
+
+
 #ifdef RGLQUAKE
 #include "glquake.h"//hack
 #else
@@ -269,25 +465,8 @@ int VMEnumMods(char *match, int size, void *args)
 	return true;
 }
 
-
-
-
-
-typedef enum {
-	RT_MODEL,
-	RT_POLY,
-	RT_SPRITE,
-	RT_BEAM,
-	RT_RAIL_CORE,
-	RT_RAIL_RINGS,
-	RT_LIGHTNING,
-	RT_PORTALSURFACE,		// doesn't draw anything, just info for portals
-
-	RT_MAX_REF_ENTITY_TYPE
-} q3refEntityType_t;
-
 typedef struct q3refEntity_s {
-	q3refEntityType_t	reType;
+	refEntityType_t	reType;
 	int			renderfx;
 
 	struct model_s	*hModel;				// opaque type outside refresh
@@ -341,38 +520,9 @@ void VQ3_AddEntity(const q3refEntity_t *q3)
 	memcpy(ent.axis, q3->axis, sizeof(q3->axis));
 	ent.lerpfrac = q3->backlerp;
 	ent.alpha = 1;
-	ent.scale = 1;
-
-	switch(q3->reType)
-	{
-	case RT_MODEL:
-//		Con_Printf("Model\n");
-		break;
-	case RT_POLY:
-		Con_Printf("Poly\n");
-		break;
-	case RT_SPRITE:
-		Con_Printf("Sprite\n");
-		break;
-	case RT_BEAM:
-		Con_Printf("Beam\n");
-		break;
-	case RT_RAIL_CORE:
-		VectorCopy(q3->oldorigin, ent.oldorigin);
-		ent.flags |= Q2RF_BEAM;
-		ent.scale = q3->radius;
-		break;
-	case RT_RAIL_RINGS:
-		Con_Printf("RailRings\n");
-		break;
-	case RT_LIGHTNING:
-		Con_Printf("Lightning\n");
-		break;
-	case RT_PORTALSURFACE:		// doesn't draw anything, just info for portals
-		Con_Printf("PortalSurface\n");
-		return;
-
-	}
+	ent.scale = q3->radius;
+	ent.rtype = q3->reType;
+	ent.rotation = q3->rotation;
 
 	if (q3->customSkin)
 		ent.skinnum = Mod_SkinForName(ent.model, q3->customSkin);
@@ -388,6 +538,7 @@ void VQ3_AddEntity(const q3refEntity_t *q3)
 	if (q3->renderfx & Q3RF_THIRD_PERSON)
 		ent.flags |= Q2RF_VIEWERMODEL;
 	VectorCopy(q3->origin, ent.origin);
+	VectorCopy(q3->oldorigin, ent.oldorigin);
 	V_AddAxisEntity(&ent);
 }
 
@@ -420,10 +571,12 @@ int VM_LerpTag(void *out, model_t *model, int f1, int f2, float l2, char *tagnam
 		ang[1] = tr[1];
 		ang[2] = tr[2];
 		org[0] = tr[3];
+
 		ang[3] = tr[4];
 		ang[4] = tr[5];
 		ang[5] = tr[6];
 		org[1] = tr[7];
+
 		ang[6] = tr[8];
 		ang[7] = tr[9];
 		ang[8] = tr[10];
@@ -526,15 +679,51 @@ void VQ3_RenderView(const q3refdef_t *ref)
 
 
 
-#ifndef Q3CLIENT
-typedef struct {
-	int			handle;
-	int			modificationCount;
-	float		value;
-	int			integer;
-	char		string[256];
-} vmcvar_t;
-#endif
+
+void UI_RegisterFont(char *fontName, int pointSize, fontInfo_t *font)
+{
+	char *in;
+	int i;
+	char name[MAX_QPATH];
+	#define readInt() LittleLong(*((int*)in)++)
+	#define readFloat() LittleFloat(*((float*)in)++)
+
+	_snprintf(name, sizeof(name), "fonts/fontImage_%i.dat",pointSize);
+
+	in = COM_LoadTempFile(name);
+	if (com_filesize == sizeof(fontInfo_t))
+	{
+		for(i=0; i<GLYPHS_PER_FONT; i++)
+		{
+			font->glyphs[i].height		= readInt();
+			font->glyphs[i].top			= readInt();
+			font->glyphs[i].bottom		= readInt();
+			font->glyphs[i].pitch		= readInt();
+			font->glyphs[i].xSkip		= readInt();
+			font->glyphs[i].imageWidth	= readInt();
+			font->glyphs[i].imageHeight = readInt();
+			font->glyphs[i].s			= readFloat();
+			font->glyphs[i].t			= readFloat();
+			font->glyphs[i].s2			= readFloat();
+			font->glyphs[i].t2			= readFloat();
+			font->glyphs[i].glyph		= readInt();
+			memcpy(font->glyphs[i].shaderName, in, 32);
+			in += 32;
+		}
+		font->glyphScale = readFloat();
+		memcpy(font->name, in, MAX_QPATH);
+
+//		Com_Memcpy(font, faceData, sizeof(fontInfo_t));
+		Q_strncpyz(font->name, name, sizeof(font->name));
+		for (i = GLYPH_START; i < GLYPH_END; i++)
+		{
+			font->glyphs[i].glyph = (int)R_RegisterPic(font->glyphs[i].shaderName);
+		}
+	}
+}
+
+
+
 
 #ifndef _DEBUG
 static
@@ -555,11 +744,15 @@ long UI_SystemCallsEx(void *offset, unsigned int mask, int fn, const long *arg)
 
 	switch((ui_builtinnum_t)fn)
 	{
-	case UI_SYSERROR:
-		Sys_Error("%s", VM_POINTER(arg[0]));
+	case UI_ERROR:
+		Con_Printf("%s", VM_POINTER(arg[0]));
 		break;
 	case UI_PRINT:
 		Con_Printf("%s", VM_POINTER(arg[0]));
+		break;
+
+	case UI_MILLISECONDS:
+		VM_LONG(ret) = Sys_Milliseconds();
 		break;
 
 	case UI_CVAR_SET:
@@ -572,7 +765,7 @@ long UI_SystemCallsEx(void *offset, unsigned int mask, int fn, const long *arg)
 				Cvar_Get(VM_POINTER(arg[0]), VM_POINTER(arg[1]), 0, "UI created");	//create one
 		}
 		break;
-	case UI_CVAR_GET_VALUE:
+	case UI_CVAR_VARIABLEVALUE:
 		{
 			cvar_t *var;
 			var = Cvar_FindVar(VM_POINTER(arg[0]));
@@ -582,7 +775,7 @@ long UI_SystemCallsEx(void *offset, unsigned int mask, int fn, const long *arg)
 				VM_FLOAT(ret) = 0;
 		}
 		break;
-	case UI_CVAR_GET_STRING:
+	case UI_CVAR_VARIABLESTRINGBUFFER:
 		{
 			cvar_t *var;
 			var = Cvar_FindVar(VM_POINTER(arg[0]));
@@ -603,7 +796,7 @@ long UI_SystemCallsEx(void *offset, unsigned int mask, int fn, const long *arg)
 		}
 		break;
 
-	case UI_CVAR_SET_VALUE:
+	case UI_CVAR_SETVALUE:
 		Cvar_SetValue(Cvar_FindVar(VM_POINTER(arg[0])), VM_FLOAT(arg[1]));
 		break;
 
@@ -616,7 +809,7 @@ long UI_SystemCallsEx(void *offset, unsigned int mask, int fn, const long *arg)
 		}
 		break;
 
-	case UI_CBUF_ADD_COMMAND:
+	case UI_CMD_EXECUTETEXT:
 		if (!strncmp(VM_POINTER(arg[1]), "ping ", 5))
 		{
 			int i;
@@ -646,7 +839,7 @@ long UI_SystemCallsEx(void *offset, unsigned int mask, int fn, const long *arg)
 			Cbuf_AddText(VM_POINTER(arg[1]), RESTRICT_SERVER);
 		break;
 
-	case UI_FS_OPEN: //fopen
+	case UI_FS_FOPENFILE: //fopen
 		if ((int)arg[1] + 4 >= mask || VM_POINTER(arg[1]) < offset)
 			break;	//out of bounds.
 		VM_LONG(ret) = VMUI_fopen(VM_POINTER(arg[0]), VM_POINTER(arg[1]), VM_LONG(arg[2]), 0);
@@ -660,11 +853,11 @@ long UI_SystemCallsEx(void *offset, unsigned int mask, int fn, const long *arg)
 		break;
 	case UI_FS_WRITE:	//fwrite
 		break;
-	case UI_FS_CLOSE:	//fclose
+	case UI_FS_FCLOSEFILE:	//fclose
 		VMUI_fclose(VM_LONG(arg[0]), 0);
 		break;
 
-	case UI_FS_LISTFILES:	//fs listing
+	case UI_FS_GETFILELIST:	//fs listing
 		if ((int)arg[2] + arg[3] >= mask || VM_POINTER(arg[2]) < offset)
 			break;	//out of bounds.
 		{
@@ -687,11 +880,14 @@ long UI_SystemCallsEx(void *offset, unsigned int mask, int fn, const long *arg)
 		}
 		break;
 
-	case UI_PRECACHE_MODEL:	//precache model
-		VM_LONG(ret) = (int)Mod_ForName(VM_POINTER(arg[0]), false);
+	case UI_R_REGISTERMODEL:	//precache model
+		{
+			char *name = VM_POINTER(arg[0]);
+			VM_LONG(ret) = (int)Mod_ForName(name, false);
+		}
 		break;
 
-	case UI_PRECACHE_SKIN:
+	case UI_R_REGISTERSKIN:
 		{
 			char *buf;
 			char *skinname = VM_POINTER(arg[0]);
@@ -701,26 +897,30 @@ long UI_SystemCallsEx(void *offset, unsigned int mask, int fn, const long *arg)
 		}
 		break;
 
-	case UI_DRAW_CACHEPIC:
+	case UI_R_REGISTERFONT:	//register font
+		UI_RegisterFont(VM_POINTER(arg[0]), arg[1], VM_POINTER(arg[2]));
+		break;
+	case UI_R_REGISTERSHADERNOMIP:
 		if (!Draw_SafeCachePic)
 			VM_LONG(ret) = 0;
 		else
-			VM_LONG(ret) = (long)Draw_SafeCachePic(VM_POINTER(arg[0]));
+//			VM_LONG(ret) = (long)Draw_SafeCachePic(VM_POINTER(arg[0]));
+			VM_LONG(ret) = (long)R_RegisterPic(VM_POINTER(arg[0]));
 		break;
 
-	case UI_SCENE_CLEAR:	//clear scene
+	case UI_R_CLEARSCENE:	//clear scene
 		cl_numvisedicts=0;
 		break;
-	case UI_SCENE_ADD_ENTITY:	//add ent to scene
+	case UI_R_ADDREFENTITYTOSCENE:	//add ent to scene
 		VQ3_AddEntity(VM_POINTER(arg[0]));
 		break;
-	case UI_SCENE_ADD_LIGHT:	//add light to scene.
+	case UI_R_ADDLIGHTTOSCENE:	//add light to scene.
 		break;
-	case UI_SCENE_RENDER:	//render scene
+	case UI_R_RENDERSCENE:	//render scene
 		VQ3_RenderView(VM_POINTER(arg[0]));
 		break;
 
-	case UI_DRAW_COLOUR:	//setcolour float*
+	case UI_R_SETCOLOR:	//setcolour float*
 		if (Draw_ImageColours)
 		{
 			float *fl =VM_POINTER(arg[0]);
@@ -731,19 +931,23 @@ long UI_SystemCallsEx(void *offset, unsigned int mask, int fn, const long *arg)
 		}
 		break;
 
-	case UI_DRAW_IMAGE:
+	case UI_R_DRAWSTRETCHPIC:
+//		qglDisable(GL_ALPHA_TEST);
+//		qglEnable(GL_BLEND);
+//		GL_TexEnv(GL_MODULATE);
 		if (Draw_Image)
-			Draw_Image(VM_FLOAT(arg[0]), VM_FLOAT(arg[1]), VM_FLOAT(arg[2]), VM_FLOAT(arg[3]), VM_FLOAT(arg[4]), VM_FLOAT(arg[5]), VM_FLOAT(arg[6]), VM_FLOAT(arg[7]), (mpic_t *)VM_LONG(arg[8]));
+			GLDraw_ShaderImage(VM_FLOAT(arg[0]), VM_FLOAT(arg[1]), VM_FLOAT(arg[2]), VM_FLOAT(arg[3]), VM_FLOAT(arg[4]), VM_FLOAT(arg[5]), VM_FLOAT(arg[6]), VM_FLOAT(arg[7]), (void *)VM_LONG(arg[8]));
+//			Draw_Image(VM_FLOAT(arg[0]), VM_FLOAT(arg[1]), VM_FLOAT(arg[2]), VM_FLOAT(arg[3]), VM_FLOAT(arg[4]), VM_FLOAT(arg[5]), VM_FLOAT(arg[6]), VM_FLOAT(arg[7]), (mpic_t *)VM_LONG(arg[8]));
 		break;
 
-	case UI_LERP_TAG:	//Lerp tag...
+	case UI_CM_LERPTAG:	//Lerp tag...
 	//	tag, model, startFrame, endFrame, frac, tagName
 		if ((int)arg[0] + sizeof(float)*12 >= mask || VM_POINTER(arg[0]) < offset)
 			break;	//out of bounds.
 		VM_LerpTag(VM_POINTER(arg[0]), (model_t*)VM_LONG(arg[1]), VM_LONG(arg[2]), VM_LONG(arg[3]), VM_FLOAT(arg[4]), VM_POINTER(arg[5]));
 		break;
 
-	case UI_SOUND_PRECACHE:
+	case UI_S_REGISTERSOUND:
 		{
 			sfx_t *sfx;
 			sfx = S_PrecacheSound(va("../%s", VM_POINTER(arg[0])));
@@ -753,19 +957,19 @@ long UI_SystemCallsEx(void *offset, unsigned int mask, int fn, const long *arg)
 				VM_LONG(ret) = -1;
 		}
 		break;
-	case UI_SOUND_PLAY:
-		if (VM_LONG(arg[0]) != -1)
+	case UI_S_STARTLOCALSOUND:
+		if (VM_LONG(arg[0]) != -1 && arg[0])
 			S_LocalSound(VM_LONG(arg[0])+(char *)offset);
 		break;
 
-	case UI_KEY_NAME:
+	case UI_KEY_KEYNUMTOSTRINGBUF:
 		if (VM_LONG(arg[0]) < 0 || VM_LONG(arg[0]) > 255 || (int)arg[1] + VM_LONG(arg[2]) >= mask || VM_POINTER(arg[1]) < offset || VM_LONG(arg[2]) < 1)
 			break;	//out of bounds.
 
 		Q_strncpyz(VM_POINTER(arg[1]), Key_KeynumToString(VM_LONG(arg[0])), VM_LONG(arg[2]));
 		break;
 
-	case UI_KEY_GETBINDING:
+	case UI_KEY_GETBINDINGBUF:
 		if (VM_LONG(arg[0]) < 0 || VM_LONG(arg[0]) > 255 || (int)arg[1] + VM_LONG(arg[2]) >= mask || VM_POINTER(arg[1]) < offset || VM_LONG(arg[2]) < 1)
 			break;	//out of bounds.
 
@@ -789,22 +993,20 @@ long UI_SystemCallsEx(void *offset, unsigned int mask, int fn, const long *arg)
 		}
 		break;
 
-	case 37:
-		break;
-	case 38:
-		break;
-
-	case UI_KEY_CLEARALL:
+	case UI_KEY_CLEARSTATES:
 		Key_ClearStates();
 		break;
-	case UI_KEY_GETDEST:
-		VM_LONG(ret) = keycatcher;
+	case UI_KEY_GETCATCHER:
+		if (key_dest == key_console)
+			VM_LONG(ret) = keycatcher | 1;
+		else
+			VM_LONG(ret) = keycatcher;
 		break;
-	case UI_KEY_SETDEST:
+	case UI_KEY_SETCATCHER:
 		keycatcher = VM_LONG(arg[0]);
 		break;
 
-	case UI_GET_VID_CONFIG:	//get glconfig
+	case UI_GETGLCONFIG:	//get glconfig
 		if ((int)arg[0] + 11332/*sizeof(glconfig_t)*/ >= mask || VM_POINTER(arg[0]) < offset)
 			break;	//out of bounds.
 
@@ -816,27 +1018,20 @@ long UI_SystemCallsEx(void *offset, unsigned int mask, int fn, const long *arg)
 		memset(VM_POINTER(arg[0]+11316), 0, 11332-11316);
 		break;
 
-	case UI_GET_CLIENT_STATE:	//get client state
+	case UI_GETCLIENTSTATE:	//get client state
 		//fixme: we need to fill in a structure.
 		break;
 
-	case UI_GET_SERVERINFO:
+	case UI_GETCONFIGSTRING:
 		if (arg[1] + VM_LONG(arg[2]) >= mask || VM_POINTER(arg[1]) < offset || VM_LONG(arg[2]) < 1)
 		{
 			VM_LONG(ret) = 0;
 			break;	//out of bounds.
 		}
-		switch(VM_LONG(arg[0]))
-		{
-		case 0:
-			Q_strncpyz(VM_POINTER(arg[1]), cl.serverinfo, VM_LONG(arg[2]));
-			break;
-		default:
-			*(char *)VM_POINTER(arg[1]) = 0;
-		}
+		Q_strncpyz(VM_POINTER(arg[1]), CG_GetConfigString(VM_LONG(arg[0])), VM_LONG(arg[2]));
 		break;
 
-	case UI_MS_GETSERVERCOUNT:	//these four are master server polling.
+	case UI_LAN_GETPINGQUEUECOUNT:	//these four are master server polling.
 		{
 			int i;
 			for (i = 0; i < MAX_PINGREQUESTS; i++)
@@ -844,12 +1039,12 @@ long UI_SystemCallsEx(void *offset, unsigned int mask, int fn, const long *arg)
 					VM_LONG(ret)++;
 		}
 		break;
-	case UI_CLEAR_PINGS:	//clear ping
+	case UI_LAN_CLEARPING:	//clear ping
 		//void (int pingnum)
 		if (VM_LONG(arg[0])>= 0 && VM_LONG(arg[0]) <= MAX_PINGREQUESTS)
 			ui_pings[VM_LONG(arg[0])].type = NA_INVALID;
 		break;
-	case UI_GET_PINGADDRESS:
+	case UI_LAN_GETPING:
 		//void (int pingnum, char *buffer, int buflen, int *ping)
 		if ((int)arg[1] + VM_LONG(arg[2]) >= mask || VM_POINTER(arg[1]) < offset)
 			break;	//out of bounds.
@@ -876,7 +1071,7 @@ long UI_SystemCallsEx(void *offset, unsigned int mask, int fn, const long *arg)
 				strcpy(buf, "");
 		}
 		break;
-	case UI_GET_PINGINFO:
+	case UI_LAN_GETPINGINFO:
 		//void (int pingnum, char *buffer, int buflen, )
 		if ((int)arg[1] + VM_LONG(arg[2]) >= mask || VM_POINTER(arg[1]) < offset)
 			break;	//out of bounds.
@@ -945,36 +1140,34 @@ long UI_SystemCallsEx(void *offset, unsigned int mask, int fn, const long *arg)
 		}
 		break;
 
-	case UI_MEM_AVAILABLE:
+	case UI_MEMORY_REMAINING:
 		VM_LONG(ret) = Hunk_LowMemAvailable();
 		break;
 
-	case UI_CDKEY_GET:	//get cd key
+	case UI_GET_CDKEY:	//get cd key
 		if ((int)arg[0] + VM_LONG(arg[1]) >= mask || VM_POINTER(arg[0]) < offset)
 			break;	//out of bounds.
-		strncpy(VM_POINTER(arg[0]), "aaaaaaaaaaaaaaaa", VM_LONG(arg[1]));
+		strncpy(VM_POINTER(arg[0]), Cvar_VariableString("cl_cdkey"), VM_LONG(arg[1]));
 		break;
-	case UI_CDKEY_SET:	//set cd key
+	case UI_SET_CDKEY:	//set cd key
 		if ((int)arg[0] + strlen(VM_POINTER(arg[0])) >= mask || VM_POINTER(arg[0]) < offset)
 			break;	//out of bounds.
+		{
+			cvar_t *cvar;
+			cvar = Cvar_Get("cl_cdkey", "", 0, "Quake3 auth");
+			Cvar_Set(cvar, VM_POINTER(arg[0]));
+		}
 		break;
 
-	case UI_REGISTERFRONT:	//register font
-		if (!Draw_SafeCachePic)
-			VM_LONG(ret) = 0;
-		else
-			VM_LONG(ret) = (long)Draw_SafeCachePic(VM_POINTER(arg[0]));
-		break;
-
-	case UI_GET_REALTIME:
+	case UI_REAL_TIME:
 		VM_FLOAT(ret) = realtime;
 		break;
 
-	case UI_LAN_GET_COUNT:	//LAN Get server count
+	case UI_LAN_GETSERVERCOUNT:	//LAN Get server count
 		//int (int source)
 		VM_LONG(ret) = Master_TotalCount();
 		break;
-	case UI_LAN_GET_ADDRESS:	//LAN get server address
+	case UI_LAN_GETSERVERADDRESSSTRING:	//LAN get server address
 		//void (int source, int svnum, char *buffer, int buflen)
 		if ((int)arg[2] + VM_LONG(arg[3]) >= mask || VM_POINTER(arg[2]) < offset)
 			break;	//out of bounds.
@@ -995,14 +1188,23 @@ long UI_SystemCallsEx(void *offset, unsigned int mask, int fn, const long *arg)
 				strcpy(buf, "");
 		}
 		break;
-	case 67:
+	case UI_LAN_LOADCACHEDSERVERS:
+		break;
+	case UI_LAN_SAVECACHEDSERVERS:
+		break;
+	case UI_LAN_GETSERVERPING:
+		return 50;
+	case UI_LAN_GETSERVERINFO:
+		break;
+	case UI_LAN_SERVERISVISIBLE:
+		return 1;
 		break;
 
-	case UI_VERIFYCDKEY:
+	case UI_VERIFY_CDKEY:
 		VM_LONG(ret) = true;
 		break;
 
-	case UI_SOMETHINGTODOWITHPUNKBUSTER:
+	case UI_SET_PBCLSTATUS:
 		break;
 
 // standard Q3
@@ -1011,10 +1213,10 @@ long UI_SystemCallsEx(void *offset, unsigned int mask, int fn, const long *arg)
 			break;	//out of bounds.
 		memset(VM_POINTER(arg[0]), arg[1], arg[2]);
 		break;
-	case UI_MEMMOVE:
+	case UI_MEMCPY:
 		if ((int)arg[0] + arg[2] >= mask || VM_POINTER(arg[0]) < offset)
 			break;	//out of bounds.
-		memmove(VM_POINTER(arg[0]), VM_POINTER(arg[1]), arg[2]);
+		memcpy(VM_POINTER(arg[0]), VM_POINTER(arg[1]), arg[2]);
 		break;
 	case UI_STRNCPY:
 		if (arg[0] + arg[2] >= mask || VM_POINTER(arg[0]) < offset)
@@ -1147,8 +1349,26 @@ long UI_SystemCallsEx(void *offset, unsigned int mask, int fn, const long *arg)
 			return strlen(str);
 		}
 
+
+	case UI_PC_ADD_GLOBAL_DEFINE:
+		Con_Printf("UI_PC_ADD_GLOBAL_DEFINE not supported\n");
+		break;
+	case UI_PC_SOURCE_FILE_AND_LINE:
+		Script_Get_File_And_Line(arg[0], VM_POINTER(arg[1]), VM_POINTER(arg[2]));
+		break;
+
+	case UI_PC_LOAD_SOURCE:
+		return Script_LoadFile(VM_POINTER(arg[0]));
+	case UI_PC_FREE_SOURCE:
+		Script_Free(arg[0]);
+		break;
+	case UI_PC_READ_TOKEN:
+		//fixme: memory protect.
+		return Script_Read(arg[0], VM_POINTER(arg[1]));
+
 	default:
-		Sys_Error("Q3UI: Not implemented system trap: %d\n", fn);
+		Con_Printf("Q3UI: Not implemented system trap: %d\n", fn);
+		return 0;
 	}
 
 	return ret;
@@ -1212,7 +1432,7 @@ void UI_DrawMenu(void)
 {
 	if (uivm)
 	{
-		VM_Call(uivm, UI_DRAWMENU, (int)(realtime * 1000));
+		VM_Call(uivm, UI_REFRESH, (int)(realtime * 1000));
 		if (keycatcher&2 && key_dest != key_console)
 			key_dest = key_game;
 	}
@@ -1257,7 +1477,7 @@ int UI_MenuState(void)
 	}
 	if (!uivm)
 		return false;
-	if (VM_Call(uivm, UI_FULLSCREEN))
+	if (VM_Call(uivm, UI_IS_FULLSCREEN))
 		return 2;
 	else if (keycatcher&2)
 		return 3;
@@ -1272,16 +1492,16 @@ qboolean UI_KeyPress(int key, qboolean down)
 //	qboolean result;
 	if (!uivm)
 		return false;
-	if (key_dest == key_menu)
-		return false;
+//	if (key_dest == key_menu)
+//		return false;
 	if (!(keycatcher&2))
 	{
 		if (key == K_ESCAPE && down)
 		{
 			if (cls.state)
-				return VM_Call(uivm, 7, 2)>0;
+				return VM_Call(uivm, UI_SET_ACTIVE_MENU, 2)>0;
 			else
-				return VM_Call(uivm, 7, 1)>0;
+				return VM_Call(uivm, UI_SET_ACTIVE_MENU, 1)>0;
 		}
 		return false;
 	}
@@ -1293,7 +1513,7 @@ qboolean UI_KeyPress(int key, qboolean down)
 
 	/*result = */VM_Call(uivm, UI_KEY_EVENT, key, down);
 
-	if (!keycatcher && !cls.state)
+	if (!keycatcher && !cls.state && key == K_ESCAPE && down)
 	{
 		M_Menu_Main_f();
 		return true;
@@ -1318,8 +1538,8 @@ void UI_MousePosition(int xpos, int ypos)
 			ypos = vid.height;
 		ox=0;oy=0;
 		//force a cap
-		VM_Call(uivm, 4, -32767, -32767);
-		VM_Call(uivm, 4, (xpos-ox)*640/vid.width, (ypos-oy)*480/vid.height);
+		VM_Call(uivm, UI_MOUSE_DELTA, -32767, -32767);
+		VM_Call(uivm, UI_MOUSE_DELTA, (xpos-ox)*640/vid.width, (ypos-oy)*480/vid.height);
 		ox = xpos;
 		oy = ypos;
 
@@ -1352,7 +1572,7 @@ void UI_Start (void)
 		apiversion = VM_Call(uivm, UI_GETAPIVERSION, UI_API_VERSION);
 		if (apiversion == UI_API_VERSION)
 			keycatcher = 0;
-		else if (apiversion != 4)	//make sure we can run the thing
+		else if (apiversion != 4 && apiversion != 6)	//make sure we can run the thing
 		{
 			Con_Printf("User-Interface VM uses incompatable API version (%i)\n", apiversion);
 			VM_Destroy(uivm);
@@ -1362,9 +1582,11 @@ void UI_Start (void)
 		}
 		VM_Call(uivm, UI_INIT);
 
-		VM_Call(uivm, 4, -32767, -32767);
+		VM_Call(uivm, UI_MOUSE_DELTA, -32767, -32767);
 		ox = 0;
 		oy = 0;
+
+		VM_Call(uivm, UI_SET_ACTIVE_MENU, 1);
 	}
 }
 
@@ -1376,9 +1598,9 @@ void UI_Restart_f(void)
 	if (uivm)
 	{
 		if (cls.state)
-			VM_Call(uivm, 7, 2);
+			VM_Call(uivm, UI_SET_ACTIVE_MENU, 2);
 		else
-			VM_Call(uivm, 7, 1);
+			VM_Call(uivm, UI_SET_ACTIVE_MENU, 1);
 	}
 }
 

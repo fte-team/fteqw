@@ -30,22 +30,25 @@ struct edict_s;
 
 typedef struct {
 //	qboolean (*RecursiveHullCheck) (struct hull_s *hull, int num, float p1f, float p2f, vec3_t p1, vec3_t p2, struct trace_s *trace);
-	int (*HullPointContents) (struct hull_s *hull, vec3_t p);	//return FTE contents
+//	int (*HullPointContents) (struct hull_s *hull, vec3_t p);	//return FTE contents
+	int dummy;
 } hullfuncs_t;
 
 typedef struct {
 	qboolean (*Trace)			(struct model_s *model, int hulloverride, int frame, vec3_t p1, vec3_t p2, vec3_t mins, vec3_t maxs, struct trace_s *trace);
+	qboolean (*PointContents)	(struct model_s *model, vec3_t p);
+	qboolean (*BoxContents)		(struct model_s *model, int hulloverride, int frame, vec3_t p, vec3_t mins, vec3_t maxs);
 
-	void (*FatPVS)				(vec3_t org, qboolean add);
-	qboolean (*EdictInFatPVS)	(struct edict_s *edict);
-	void (*FindTouchedLeafs_Q1)	(struct edict_s *ent);	//edict system as opposed to q2 game dll system.
+	void (*FatPVS)				(struct model_s *model, vec3_t org, qboolean add);
+	qboolean (*EdictInFatPVS)	(struct model_s *model, struct edict_s *edict);
+	void (*FindTouchedLeafs_Q1)	(struct model_s *model, struct edict_s *ent);	//edict system as opposed to q2 game dll system.
 
 	void (*LightPointValues)	(vec3_t point, vec3_t res_diffuse, vec3_t res_ambient, vec3_t res_dir);
 	void (*StainNode)			(struct mnode_s *node, float *parms);
 	void (*MarkLights)			(struct dlight_s *light, int bit, struct mnode_s *node);
 
-	qbyte *(*LeafPVS)			(int num, struct model_s *model, qbyte *buffer);
-	int	(*LeafForPoint)			(vec3_t point, struct model_s *model);
+	qbyte *(*LeafPVS)			(struct model_s *model, int num, qbyte *buffer);
+	int	(*LeafnumForPoint)		(struct model_s *model, vec3_t point);
 } bspfuncs_t;
 
 typedef int index_t;
@@ -102,7 +105,9 @@ m*_t structures are in-memory
 #define EF_BLUE					64
 #define EF_RED					128
 
-#define	H2EF_NODRAW				0x80	//this is going to get complicated...
+#define	H2EF_NODRAW				128	//this is going to get complicated...
+
+#define EF_NODEPTHTEST			8192	//shows through walls. :(
 
 /*
 ==============================================================================
@@ -370,11 +375,14 @@ typedef struct hull_s
 
 
 void Q1BSP_SetHullFuncs(hull_t *hull);
+void Q1BSP_SetModelFuncs(struct model_s *mod);
+void Q1BSP_Init(void);
+
 qboolean Q1BSP_Trace(struct model_s *model, int forcehullnum, int frame, vec3_t start, vec3_t end, vec3_t mins, vec3_t maxs, struct trace_s *trace);
 qboolean Q1BSP_RecursiveHullCheck (hull_t *hull, int num, float p1f, float p2f, vec3_t p1, vec3_t p2, struct trace_s *trace);
-void Q1BSP_FatPVS (vec3_t org, qboolean add);
-qboolean Q1BSP_EdictInFatPVS(struct edict_s *ent);
-void Q1BSP_FindTouchedLeafs(struct edict_s *ent);
+void Q1BSP_FatPVS (struct model_s *mod, vec3_t org, qboolean add);
+qboolean Q1BSP_EdictInFatPVS(struct model_s *mod, struct edict_s *ent);
+void Q1BSP_FindTouchedLeafs(struct model_s *mod, struct edict_s *ent);
 
 /*
 ==============================================================================
@@ -660,7 +668,7 @@ typedef struct {
 // Whole model
 //
 
-typedef enum {mod_brush, mod_sprite, mod_alias, mod_dummy, mod_halflife} modtype_t;
+typedef enum {mod_brush, mod_sprite, mod_alias, mod_dummy, mod_halflife, mod_heightmap} modtype_t;
 typedef enum {fg_quake, fg_quake2, fg_quake3, fg_halflife, fg_new, fg_doom} fromgame_t;	//useful when we have very similar model types. (eg quake/halflife bsps)
 
 #define	EF_ROCKET	1			// leave a trail
@@ -776,7 +784,7 @@ typedef struct model_s
 	q3lightgridinfo_t *lightgrid;
 	char		*entities;
 
-	struct terrain_s *terrain;
+	void *terrain;
 
 	unsigned	checksum;
 	unsigned	checksum2;
@@ -827,26 +835,27 @@ qbyte	*Mod_LeafPVS (mleaf_t *leaf, model_t *model);
 
 void CM_Init(void);
 
-qboolean	CM_SetAreaPortalState (int portalnum, qboolean open);
-qboolean	CM_HeadnodeVisible (int nodenum, qbyte *visbits);
-qboolean	VARGS CM_AreasConnected (int area1, int area2);
-int		CM_NumClusters (void);
-int		CM_ClusterSize (void);
-int		CM_LeafContents (int leafnum);
-int		CM_LeafCluster (int leafnum);
-int		CM_LeafArea (int leafnum);
-int		CM_WriteAreaBits (qbyte *buffer, int area);
-int		CM_PointLeafnum (vec3_t p);
-qbyte	*CM_ClusterPVS (int cluster, qbyte *buffer);
-qbyte	*CM_ClusterPHS (int cluster);
-int		CM_BoxLeafnums (vec3_t mins, vec3_t maxs, int *list, int listsize, int *topnode);
-int		CM_PointContents (vec3_t p, int headnode);
-struct trace_s	CM_BoxTrace (vec3_t start, vec3_t end, vec3_t mins, vec3_t maxs, int headnode, int brushmask);
-int		CM_HeadnodeForBox (vec3_t mins, vec3_t maxs);
-struct trace_s	CM_TransformedBoxTrace (vec3_t start, vec3_t end, vec3_t mins, vec3_t maxs, int headnode, int brushmask, vec3_t origin, vec3_t angles);
+qboolean	CM_SetAreaPortalState (struct model_s *mod, int portalnum, qboolean open);
+qboolean	CM_HeadnodeVisible (struct model_s *mod, int nodenum, qbyte *visbits);
+qboolean	VARGS CM_AreasConnected (struct model_s *mod, int area1, int area2);
+int		CM_NumClusters (struct model_s *mod);
+int		CM_ClusterSize (struct model_s *mod);
+int		CM_LeafContents (struct model_s *mod, int leafnum);
+int		CM_LeafCluster (struct model_s *mod, int leafnum);
+int		CM_LeafArea (struct model_s *mod, int leafnum);
+int		CM_WriteAreaBits (struct model_s *mod, qbyte *buffer, int area);
+int		CM_PointLeafnum (struct model_s *mod, vec3_t p);
+qbyte	*CM_ClusterPVS (struct model_s *mod, int cluster, qbyte *buffer);
+qbyte	*CM_ClusterPHS (struct model_s *mod, int cluster);
+int		CM_BoxLeafnums (struct model_s *mod, vec3_t mins, vec3_t maxs, int *list, int listsize, int *topnode);
+int		CM_PointContents (struct model_s *mod, vec3_t p);
+int		CM_TransformedPointContents (struct model_s *mod, vec3_t p, int headnode, vec3_t origin, vec3_t angles);
+struct trace_s	CM_BoxTrace (struct model_s *mod, vec3_t start, vec3_t end, vec3_t mins, vec3_t maxs, int brushmask);
+int		CM_HeadnodeForBox (struct model_s *mod, vec3_t mins, vec3_t maxs);
+struct trace_s	CM_TransformedBoxTrace (struct model_s *mod, vec3_t start, vec3_t end, vec3_t mins, vec3_t maxs, int brushmask, vec3_t origin, vec3_t angles);
 struct model_s *CM_TempBoxModel(vec3_t mins, vec3_t maxs);
 
-void Mod_ParseInfoFromEntityLump(const char *data);
+void Mod_ParseInfoFromEntityLump(char *data);
 
 void	VARGS CMQ2_SetAreaPortalState (int portalnum, qboolean open);
 #endif

@@ -47,7 +47,7 @@ qbyte	fatpvs[(MAX_MAP_LEAFS+1)/4];
 
 
 #ifdef Q2BSPS
-void SV_Q2BSP_FatPVS (vec3_t org)
+void SV_Q2BSP_FatPVS (model_t *mod, vec3_t org)
 {
 	int		leafs[64];
 	int		i, j, count;
@@ -61,20 +61,20 @@ void SV_Q2BSP_FatPVS (vec3_t org)
 		maxs[i] = org[i] + 8;
 	}
 
-	count = CM_BoxLeafnums (mins, maxs, leafs, 64, NULL);
+	count = CM_BoxLeafnums (mod, mins, maxs, leafs, 64, NULL);
 	if (count < 1)
 		Sys_Error ("SV_Q2FatPVS: count < 1");
 
 	if (sv.worldmodel->fromgame == fg_quake3)
-		longs = CM_ClusterSize();
+		longs = CM_ClusterSize(mod);
 	else
-		longs = (CM_NumClusters()+31)>>5;
+		longs = (CM_NumClusters(mod)+31)>>5;
 
 	// convert leafs to clusters
 	for (i=0 ; i<count ; i++)
-		leafs[i] = CM_LeafCluster(leafs[i]);
+		leafs[i] = CM_LeafCluster(mod, leafs[i]);
 
-	CM_ClusterPVS(leafs[0], fatpvs);
+	CM_ClusterPVS(mod, leafs[0], fatpvs);
 
 
 //	memcpy (fatpvs, CM_ClusterPVS(leafs[0]), longs<<2);
@@ -86,7 +86,7 @@ void SV_Q2BSP_FatPVS (vec3_t org)
 				break;
 		if (j != i)
 			continue;		// already have the cluster we want
-		src = CM_ClusterPVS(leafs[i], NULL);
+		src = CM_ClusterPVS(mod, leafs[i], NULL);
 		for (j=0 ; j<longs ; j++)
 			((long *)fatpvs)[j] |= ((long *)src)[j];
 	}
@@ -495,8 +495,10 @@ void SV_WriteDelta (entity_state_t *from, entity_state_t *to, sizebuf_t *msg, qb
 	if ( to->frame != from->frame )
 		bits |= U_FRAME;
 
-	if ( (to->effects&255) != (from->effects&255) )
+	if ( (to->effects&0x00ff) != (from->effects&0x00ff) )
 		bits |= U_EFFECTS;
+	if ( (to->effects&0xff00) != (from->effects&0xff00) )
+		evenmorebits |= U_EFFECTS16;
 
 	if ( to->modelindex != from->modelindex )
 	{
@@ -584,7 +586,7 @@ void SV_WriteDelta (entity_state_t *from, entity_state_t *to, sizebuf_t *msg, qb
 	if (bits & U_SKIN)
 		MSG_WriteByte (msg, to->skinnum);
 	if (bits & U_EFFECTS)
-		MSG_WriteByte (msg, to->effects);
+		MSG_WriteByte (msg, to->effects&0x00ff);
 	if (bits & U_ORIGIN1)
 		MSG_WriteCoord (msg, to->origin[0]);
 	if (bits & U_ANGLE1)
@@ -634,6 +636,9 @@ void SV_WriteDelta (entity_state_t *from, entity_state_t *to, sizebuf_t *msg, qb
 		MSG_WriteByte (msg, to->lightstyle);
 		MSG_WriteByte (msg, to->lightpflags);
 	}
+
+	if (evenmorebits & U_EFFECTS16)
+		MSG_WriteByte (msg, (to->effects&0xff00)>>8);
 }
 
 /*
@@ -1758,7 +1763,7 @@ void SV_WritePlayersToClient (client_t *client, edict_t *clent, qbyte *pvs, size
 
 	for (j=0,cl=svs.clients ; j<sv.allocated_client_slots ; j++,cl++)
 	{
-		isbot = !cl->state && cl->name[0];
+		isbot = !cl->state && cl->name[0] || cl->protocol == SCP_BAD;
 		if (cl->state != cs_spawned)	//this includes bots
 			if (!isbot || progstype == PROG_QW)	//unless they're NQ bots...
 				continue;
@@ -1803,13 +1808,8 @@ void SV_WritePlayersToClient (client_t *client, edict_t *clent, qbyte *pvs, size
 				continue;
 
 			// ignore if not touching a PV leaf
-			for (i=0 ; i < ent->num_leafs ; i++)
-				if (pvs[ent->leafnums[i] >> 3] & (1 << (ent->leafnums[i]&7) ))
-					break;
-			if (i == ent->num_leafs)
-			{
-				continue;		// not visible
-			}
+			if (!sv.worldmodel->funcs.EdictInFatPVS(sv.worldmodel, ent))
+				continue;
 
 			if (!((int)clent->v->dimension_see & ((int)ent->v->dimension_seen | (int)ent->v->dimension_ghost)))
 				continue;	//not in this dimension - sorry...
@@ -2194,29 +2194,29 @@ qboolean SV_GibFilter(edict_t	*ent)
 #ifdef Q2BSPS
 static int		clientarea;
 
-void Q2BSP_FatPVS(vec3_t org, qboolean add)
-{
+void Q2BSP_FatPVS(model_t *mod, vec3_t org, qboolean add)
+{//fixme: this doesn't add
 	int		leafnum;
-	leafnum = CM_PointLeafnum (org);
-	clientarea = CM_LeafArea (leafnum);
+	leafnum = CM_PointLeafnum (mod, org);
+	clientarea = CM_LeafArea (mod, leafnum);
 
-	SV_Q2BSP_FatPVS (org);
+	SV_Q2BSP_FatPVS (mod, org);
 }
 
-qboolean Q2BSP_EdictInFatPVS(edict_t *ent)
+qboolean Q2BSP_EdictInFatPVS(model_t *mod, edict_t *ent)
 {
 	int i,l;
-	if (!CM_AreasConnected (clientarea, ent->areanum))
+	if (!CM_AreasConnected (mod, clientarea, ent->areanum))
 	{	// doors can legally straddle two areas, so
 		// we may need to check another one
 		if (!ent->areanum2
-			|| !CM_AreasConnected (clientarea, ent->areanum2))
+			|| !CM_AreasConnected (mod, clientarea, ent->areanum2))
 			return false;		// blocked by a door
 	}
 
 	if (ent->num_leafs == -1)
 	{	// too many leafs for individual check, go by headnode
-		if (!CM_HeadnodeVisible (ent->headnode, fatpvs))
+		if (!CM_HeadnodeVisible (mod, ent->headnode, fatpvs))
 			return false;
 	}
 	else
@@ -2274,14 +2274,14 @@ void SV_WriteEntitiesToClient (client_t *client, sizebuf_t *msg, qboolean ignore
 		clent = client->edict;
 		VectorAdd (clent->v->origin, clent->v->view_ofs, org);
 
-		sv.worldmodel->funcs.FatPVS(org, false);
+		sv.worldmodel->funcs.FatPVS(sv.worldmodel, org, false);
 
 #ifdef PEXT_VIEW2	
 		if (clent->v->view2)
-			sv.worldmodel->funcs.FatPVS(PROG_TO_EDICT(svprogfuncs, clent->v->view2)->v->origin, true);
+			sv.worldmodel->funcs.FatPVS(sv.worldmodel, PROG_TO_EDICT(svprogfuncs, clent->v->view2)->v->origin, true);
 #endif
 		for (split = client->controlled; split; split = split->controlled)
-			sv.worldmodel->funcs.FatPVS(split->edict->v->origin, true);
+			sv.worldmodel->funcs.FatPVS(sv.worldmodel, split->edict->v->origin, true);
 /*
 		if (sv.worldmodel->fromgame == fg_doom)
 		{
@@ -2492,12 +2492,12 @@ void SV_WriteEntitiesToClient (client_t *client, sizebuf_t *msg, qboolean ignore
 				{
 					p = EDICT_NUM(svprogfuncs, p->v->tag_entity);
 				}
-				if (!sv.worldmodel->funcs.EdictInFatPVS(p))
+				if (!sv.worldmodel->funcs.EdictInFatPVS(sv.worldmodel, p))
 					continue;
 			}
 			else
 			{
-				if (!sv.worldmodel->funcs.EdictInFatPVS(ent))
+				if (!sv.worldmodel->funcs.EdictInFatPVS(sv.worldmodel, ent))
 					continue;
 			}
 		}
@@ -2698,7 +2698,7 @@ void SV_WriteEntitiesToClient (client_t *client, sizebuf_t *msg, qboolean ignore
 					state->modelindex = 0;
 			}
 
-			state->effects &= EF_BRIGHTLIGHT | EF_DIMLIGHT | NQEF_ADDATIVE | EF_RED | EF_BLUE;
+			state->effects &= ~ (QWEF_FLAG1|QWEF_FLAG2);
 		}
 
 		state->glowsize = ent->v->glow_size*0.25;

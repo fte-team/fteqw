@@ -434,7 +434,7 @@ void SV_Loadgame_f(void)
 
 
 
-#define CACHEGAME_VERSION 512
+#define CACHEGAME_VERSION 513
 
 
 
@@ -464,6 +464,9 @@ qboolean SV_LoadLevelCache(char *level, char *startspot, qboolean ignoreplayers)
 	int		i,j;
 	edict_t	*ent;
 	int		version;
+
+	char modellist[MAX_QPATH][MAX_MODELS];
+	char soundlist[MAX_QPATH][MAX_SOUNDS];
 
 	int current_skill;
 
@@ -591,6 +594,42 @@ qboolean SV_LoadLevelCache(char *level, char *startspot, qboolean ignoreplayers)
 	PR_RegisterFields();
 	PR_InitEnts(svprogfuncs, sv.max_edicts);
 
+	sv.model_precache[0] = PR_AddString(svprogfuncs, "", 0);
+	for (i=1; i < MAX_MODELS; i++)
+	{
+		fscanf (f, "%s\n", str);
+		if (!*str)
+			break;
+
+		sv.model_precache[i] = PR_AddString(svprogfuncs, str, 0);
+	}
+	if (i == MAX_MODELS)
+	{
+		fscanf (f, "%s\n", str);
+		if (*str)
+			SV_Error("Too many model precaches in loadgame cache");
+	}
+	for (; i < MAX_SOUNDS; i++)
+		sv.model_precache[i] = NULL;
+
+//	sv.sound_precache[0] = PR_AddString(svprogfuncs, "", 0);
+	for (i=1; i < MAX_SOUNDS; i++)
+	{
+		fscanf (f, "%s\n", str);
+		if (!*str)
+			break;
+
+//		sv.sound_precache[i] = PR_AddString(svprogfuncs, str, 0);
+	}
+	if (i == MAX_SOUNDS)
+	{
+		fscanf (f, "%s\n", str);
+		if (*str)
+			SV_Error("Too many sound precaches in loadgame cache");
+	}
+	for (; i < MAX_SOUNDS; i++)
+		*sv.sound_precache[i] = 0;
+
 	filepos = ftell(f);
 	fseek(f, 0, SEEK_END);
 	filelen = ftell(f);
@@ -617,6 +656,9 @@ qboolean SV_LoadLevelCache(char *level, char *startspot, qboolean ignoreplayers)
 	{
 		ent = EDICT_NUM(svprogfuncs, i+1);
 		svs.clients[i].edict = ent;
+
+		svs.clients[i].name = PR_AddString(svprogfuncs, svs.clients[i].namebuf, sizeof(svs.clients[i].namebuf));
+		svs.clients[i].team = PR_AddString(svprogfuncs, svs.clients[i].teambuf, sizeof(svs.clients[i].teambuf));
 	}
 
 	if (!ignoreplayers)
@@ -758,6 +800,7 @@ void SV_SaveLevelCache(qboolean dontharmgame)
 
 // write the light styles
 
+	fprintf (f, "%i\n",MAX_LIGHTSTYLES);
 	for (i=0 ; i<MAX_LIGHTSTYLES ; i++)
 	{
 		if (sv.lightstyles[i])
@@ -765,6 +808,23 @@ void SV_SaveLevelCache(qboolean dontharmgame)
 		else
 			fprintf (f,"m\n");
 	}
+
+	for (i=1 ; i<MAX_MODELS ; i++)
+	{
+		if (sv.model_precache[i])
+			fprintf (f, "%s\n", sv.model_precache[i]);
+		else
+			break;
+	}
+	fprintf (f,"\n");
+	for (i=1 ; i<MAX_SOUNDS ; i++)
+	{
+		if (*sv.sound_precache[i])
+			fprintf (f, "%s\n", sv.sound_precache[i]);
+		else
+			break;
+	}
+	fprintf (f,"\n");
 
 	s = PR_SaveEnts(svprogfuncs, NULL, &len, 1);
 	fprintf(f, "%s\n", s);

@@ -1,7 +1,7 @@
 #include "quakedef.h"
 #ifndef MINIMAL
 
-#define ROOTDOWNLOADABLESSOURCE "http://127.0.0.1/downloadables.txt"
+#define ROOTDOWNLOADABLESSOURCE "http://fteqw.sourceforge.net/downloadables.txt"
 #define INSTALLEDFILES	"installed.lst"	//the file that resides in the quakedir (saying what's installed).
 
 #define DPF_HAVEAVERSION	1	//any old version
@@ -13,7 +13,7 @@ extern char	com_basedir[];
 
 char *downloadablelist[256] = {
 
-	"http://127.0.0.1/downloadables.txt"
+	ROOTDOWNLOADABLESSOURCE
 
 };	//note: these are allocated for the life of the exe
 int numdownloadablelists = 1;
@@ -179,6 +179,18 @@ void ConcatPackageLists(package_t *l2)
 	}
 }
 
+static void dlnotification(char *localfile, qboolean sucess)
+{
+	FILE *f;
+
+	COM_FOpenFile(localfile, &f);
+	if (f)
+	{
+		ConcatPackageLists(BuildPackageList(f, 0));
+		fclose(f);
+	}
+}
+
 void M_Download_Draw (int x, int y, struct menucustom_s *c, struct menu_s *m)
 {
 	int pn;
@@ -191,29 +203,15 @@ void M_Download_Draw (int x, int y, struct menucustom_s *c, struct menu_s *m)
 
 	if (!cls.downloadmethod && (info->parsedsourcenum==-1 || downloadablelist[info->parsedsourcenum]))
 	{	//done downloading
-		FILE *f;
 		char basename[64];
 		char *absolutename;
 
-		if (info->parsedsourcenum>=0)
-		{
-			sprintf(basename, "../dlinfo_%i.inf", info->parsedsourcenum);
-			absolutename = va("%s/%s", com_basedir, basename+3);
-
-			f = fopen(absolutename, "rb");
-			if (f)
-			{
-				ConcatPackageLists(BuildPackageList(f, 0));
-				fclose(f);
-				unlink(absolutename);
-			}
-		}
 		info->parsedsourcenum++;
 
 		if (downloadablelist[info->parsedsourcenum])
 		{
-			sprintf(basename, "../dlinfo_%i.inf", info->parsedsourcenum);
-			if (!HTTP_CL_Get(downloadablelist[info->parsedsourcenum], basename, NULL))
+			sprintf(basename, "dlinfo_%i.inf", info->parsedsourcenum);
+			if (!HTTP_CL_Get(downloadablelist[info->parsedsourcenum], basename, dlnotification))
 				Con_Printf("Could not contact server\n");
 		}
 	}

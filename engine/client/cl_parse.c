@@ -589,6 +589,9 @@ void Model_NextDownload (void)
 		cl.worldmodel = cl.model_precache[1];
 	}
 
+	if (cl.worldmodel->type != mod_brush && cl.worldmodel->type != mod_heightmap)
+		Host_EndGame("Worldmodel must be a bsp of some sort\n");
+
 	if (!R_CheckSky())
 		return;
 	if (!Wad_NextDownload())	//world is required to be loaded.
@@ -738,11 +741,11 @@ void CL_RequestNextDownload (void)
 {
 	if (cl.downloadlist)
 	{
-		if (!COM_FCheckExists (cl.downloadlist->name))
+		if (!COM_FCheckExists (cl.downloadlist->localname))
 			CL_SendDownloadRequest(cl.downloadlist->name, cl.downloadlist->localname);
 		else
 		{
-			Con_Printf("Already have %s\n", cl.downloadlist->name);
+			Con_Printf("Already have %s\n", cl.downloadlist->localname);
 			CL_DisenqueDownload(cl.downloadlist->name);
 		}
 		return;

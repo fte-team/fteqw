@@ -1905,6 +1905,8 @@ void PPL_BaseEntTextures(void)
 		if (!PPL_ShouldDraw())
 			continue;
 
+		if (currententity->rtype)
+			continue;
 		if (currententity->flags & Q2RF_BEAM)
 		{
 			R_DrawBeam(currententity);
@@ -4364,13 +4366,13 @@ qboolean PPL_AddLight(dlight_t *dl)
 	else
 	{
 		if (cl.worldmodel->fromgame == fg_quake2 || cl.worldmodel->fromgame == fg_quake3)
-			i = cl.worldmodel->funcs.LeafForPoint(r_refdef.vieworg, cl.worldmodel);
+			i = cl.worldmodel->funcs.LeafnumForPoint(cl.worldmodel, r_refdef.vieworg);
 		else
 			i = r_viewleaf - cl.worldmodel->leafs;
 
-		leaf = cl.worldmodel->funcs.LeafForPoint(dl->origin, cl.worldmodel);
-		lvis = cl.worldmodel->funcs.LeafPVS(leaf, cl.worldmodel, lvisb);
-		vvis = cl.worldmodel->funcs.LeafPVS(i, cl.worldmodel, vvisb);
+		leaf = cl.worldmodel->funcs.LeafnumForPoint(cl.worldmodel, dl->origin);
+		lvis = cl.worldmodel->funcs.LeafPVS(cl.worldmodel, leaf, lvisb);
+		vvis = cl.worldmodel->funcs.LeafPVS(cl.worldmodel, i, vvisb);
 
 	//	if (!(lvis[i>>3] & (1<<(i&7))))	//light might not be visible, but it's effects probably should be.
 	//		return;

@@ -580,7 +580,6 @@ void CS_ClipToLinks ( areanode_t *node, moveclip_t *clip )
 	}
 }
 
-//FIXME: Not fully functional
 static trace_t CS_Move(vec3_t v1, vec3_t mins, vec3_t maxs, vec3_t v2, float nomonsters, csqcedict_t *passedict)
 {
 	moveclip_t clip;
@@ -1455,7 +1454,7 @@ static int CS_PointContents(vec3_t org)
 {
 	if (!cl.worldmodel)
 		return FTECONTENTS_EMPTY;
-	return cl.worldmodel->hulls[0].funcs.HullPointContents(&cl.worldmodel->hulls[0], org);
+	return cl.worldmodel->funcs.PointContents(cl.worldmodel, org);
 }
 static void PF_cs_pointcontents(progfuncs_t *prinst, struct globalvars_s *pr_globals)
 {

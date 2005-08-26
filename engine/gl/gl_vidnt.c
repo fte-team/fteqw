@@ -1083,7 +1083,7 @@ void GLAppActivate(BOOL fActive, BOOL minimize)
 
 	if (fActive)
 	{
-		if (modestate == MS_FULLDIB)
+		if (modestate != MS_WINDOWED)
 		{
 			IN_ActivateMouse ();
 			IN_HideMouse ();
@@ -1107,7 +1107,7 @@ void GLAppActivate(BOOL fActive, BOOL minimize)
 
 	if (!fActive)
 	{
-		if (modestate == MS_FULLDIB)
+		if (modestate != MS_WINDOWED)
 		{
 			IN_DeactivateMouse ();
 			IN_ShowMouse ();

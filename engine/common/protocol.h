@@ -444,6 +444,7 @@ enum clcq2_ops_e
 #define U_DPFLAGS (1<<11)
 #define U_TAGINFO (1<<12)
 #define U_LIGHT (1<<13)
+#define	U_EFFECTS16	(1<<14)
 
 #define U_FARMORE (1<<15)
 
@@ -854,6 +855,7 @@ typedef struct q1usercmd_s
 
 #define Q2RF_ADDATIVE			0x00080000
 #define RF_NOSHADOW				0x00100000
+#define RF_NODEPTHTEST			0x00200000
 
 // player_state_t->refdef flags
 #define	Q2RDF_UNDERWATER		1		// warp the screen as apropriate

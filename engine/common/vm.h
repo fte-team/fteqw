@@ -48,6 +48,7 @@ void Plug_DrawReloadImages(void);
 
 //these things are specific to FTE QuakeWorld
 void UI_Init (void);
+void UI_Restart_f(void);
 void UI_Stop (void);
 qboolean UI_Q2LayoutChanged(void);
 void UI_StringChanged(int num);

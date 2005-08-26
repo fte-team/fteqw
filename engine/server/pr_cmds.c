@@ -2872,8 +2872,8 @@ int PF_newcheckclient (progfuncs_t *prinst, int check)
 
 // get the PVS for the entity
 	VectorAdd (ent->v->origin, ent->v->view_ofs, org);
-	leaf = sv.worldmodel->funcs.LeafForPoint(org, sv.worldmodel);
-	checkpvs = sv.worldmodel->funcs.LeafPVS (leaf, sv.worldmodel, checkpvsbuffer);
+	leaf = sv.worldmodel->funcs.LeafnumForPoint(sv.worldmodel, org);
+	checkpvs = sv.worldmodel->funcs.LeafPVS (sv.worldmodel, leaf, checkpvsbuffer);
 
 	return i;
 }
@@ -2919,7 +2919,7 @@ void PF_checkclient (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 // if current entity can't possibly see the check entity, return 0
 	self = PROG_TO_EDICT(prinst, pr_global_struct->self);
 	VectorAdd (self->v->origin, self->v->view_ofs, view);
-	l = sv.worldmodel->funcs.LeafForPoint(view, sv.worldmodel)-1;
+	l = sv.worldmodel->funcs.LeafnumForPoint(sv.worldmodel, view)-1;
 	if ( (l<0) || !(checkpvs[l>>3] & (1<<(l&7)) ) )
 	{
 c_notvis++;
@@ -2959,6 +2959,7 @@ void PF_stuffcmd (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 
 	cl = &svs.clients[entnum-1];
 
+	
 	if (strcmp(str, "disconnect\n") == 0)
 	{
 		// so long and thanks for all the fish
@@ -6119,7 +6120,11 @@ lh_extension_t QSG_Extensions[] = {
 	{"DP_QUAKE3_MODEL"},
 	{"DP_REGISTERCVAR",					1,	NULL, {"registercvar"}},
 	{"DP_SPRITE32"},				//hmm... is it legal to advertise this one?
+	{"DP_SV_BOTCLIENT",					2,	NULL, {"spawnclient", "clienttype"}},
+	{"DP_SV_CLIENTCOLORS"},
+	{"DP_SV_CLIENTNAME"},
 	{"DP_SV_DRAWONLYTOCLIENT"},
+	{"DP_SV_DROPCLIENT"},
 	{"DP_SV_NODRAWTOCLIENT"},		//I prefer my older system. Guess I might as well remove that older system at some point.
 	{"DP_SV_PLAYERPHYSICS"},
 	{"DP_SV_SETCOLOR"},
@@ -9532,6 +9537,8 @@ void PR_RegisterFields(void)	//it's just easier to do it this way.
 	fieldfloat(light_lev);
 	fieldfloat(style);
 	fieldfloat(pflags);
+
+	fieldfloat(clientcolors);
 
 	//UDC_EXTEFFECT... yuckie
 	PR_RegisterFieldVar(svprogfuncs, ev_float, "fieldcolor", (int)&((entvars_t*)0)->seefcolour, -1);

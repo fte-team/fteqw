@@ -390,33 +390,47 @@ void SV_DropClient (client_t *drop)
 #ifdef SVCHAT
 	SV_WipeChat(drop);
 #endif
-#ifdef Q2SERVER
-	if (ge && drop->protocol == SCP_QUAKE2)
-		ge->ClientDisconnect(drop->q2edict);
-#endif
-	if (svprogfuncs)
+	switch(svs.gametype)
 	{
-		if (drop->state == cs_spawned)
-		{
-			if (!drop->spectator)
-			{
-				// call the prog function for removing a client
-				// this will set the body to a dead frame, among other things
-				pr_global_struct->self = EDICT_TO_PROG(svprogfuncs, drop->edict);
-				PR_ExecuteProgram (svprogfuncs, pr_global_struct->ClientDisconnect);
-			}
-			else if (SpectatorDisconnect)
-			{
-				// call the prog function for removing a client
-				// this will set the body to a dead frame, among other things
-				pr_global_struct->self = EDICT_TO_PROG(svprogfuncs, drop->edict);
-				PR_ExecuteProgram (svprogfuncs, SpectatorDisconnect);
-			}
-		}
+#ifdef Q3SERVER
+	case GT_QUAKE3:
+		SVQ3_DropClient(drop);
+		break;
+#endif
 
-		if (drop->spawninfo)
-			Z_Free(drop->spawninfo);
-		drop->spawninfo = NULL;
+#ifdef Q2SERVER
+	case GT_QUAKE2:
+		if (ge)
+			ge->ClientDisconnect(drop->q2edict);
+		break;
+#endif
+
+	case GT_PROGS:
+		if (svprogfuncs)
+		{
+			if (drop->state == cs_spawned)
+			{
+				if (!drop->spectator)
+				{
+					// call the prog function for removing a client
+					// this will set the body to a dead frame, among other things
+					pr_global_struct->self = EDICT_TO_PROG(svprogfuncs, drop->edict);
+					PR_ExecuteProgram (svprogfuncs, pr_global_struct->ClientDisconnect);
+				}
+				else if (SpectatorDisconnect)
+				{
+					// call the prog function for removing a client
+					// this will set the body to a dead frame, among other things
+					pr_global_struct->self = EDICT_TO_PROG(svprogfuncs, drop->edict);
+					PR_ExecuteProgram (svprogfuncs, SpectatorDisconnect);
+				}
+			}
+
+			if (drop->spawninfo)
+				Z_Free(drop->spawninfo);
+			drop->spawninfo = NULL;
+		}
+		break;
 	}
 
 	if (drop->spectator)
@@ -3508,17 +3522,18 @@ void SV_ExtractFromUserinfo (client_t *cl)
 	{
 	int top = atoi(Info_ValueForKey(cl->userinfo, "topcolor"));
 	int bottom = atoi(Info_ValueForKey(cl->userinfo, "bottomcolor"));
-	int playercolor;
 	top &= 15;
 	if (top > 13)
 		top = 13;
 	bottom &= 15;
 	if (bottom > 13)
 		bottom = 13;
-	playercolor = top*16 + bottom;
+	cl->playercolor = top*16 + bottom;
+	if (svs.gametype == GT_PROGS)
+		cl->edict->v->clientcolors = cl->playercolor;
 	MSG_WriteByte (&sv.nqreliable_datagram, svc_updatecolors);
 	MSG_WriteByte (&sv.nqreliable_datagram, cl-svs.clients);
-	MSG_WriteByte (&sv.nqreliable_datagram, playercolor);
+	MSG_WriteByte (&sv.nqreliable_datagram, cl->playercolor);
 	}
 #endif
 }

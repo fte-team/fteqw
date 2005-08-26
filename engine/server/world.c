@@ -294,7 +294,7 @@ void SV_TouchLinks ( edict_t *ent, areanode_t *node )
 }
 
 #ifdef Q2BSPS
-void Q2BSP_FindTouchedLeafs(edict_t *ent)
+void Q2BSP_FindTouchedLeafs(model_t *model, edict_t *ent)
 {
 #define MAX_TOTAL_ENT_LEAFS		128
 	int			leafs[MAX_TOTAL_ENT_LEAFS];
@@ -310,14 +310,14 @@ void Q2BSP_FindTouchedLeafs(edict_t *ent)
 	ent->areanum2 = 0;
 
 	//get all leafs, including solids
-	num_leafs = CM_BoxLeafnums (ent->v->absmin, ent->v->absmax,
+	num_leafs = CM_BoxLeafnums (model, ent->v->absmin, ent->v->absmax,
 		leafs, MAX_TOTAL_ENT_LEAFS, &topnode);
 
 	// set areas
 	for (i=0 ; i<num_leafs ; i++)
 	{
-		clusters[i] = CM_LeafCluster (leafs[i]);
-		area = CM_LeafArea (leafs[i]);
+		clusters[i] = CM_LeafCluster (model, leafs[i]);
+		area = CM_LeafArea (model, leafs[i]);
 		if (area)
 		{	// doors may legally straggle two areas,
 			// but nothing should evern need more than that
@@ -455,7 +455,7 @@ void SV_LinkEdict (edict_t *ent, qboolean touch_triggers)
 	}
 	
 // link to PVS leafs
-	sv.worldmodel->funcs.FindTouchedLeafs_Q1(ent);
+	sv.worldmodel->funcs.FindTouchedLeafs_Q1(sv.worldmodel, ent);
 /*
 #ifdef Q2BSPS
 	if (sv.worldmodel->fromgame == fg_quake2 || sv.worldmodel->fromgame == fg_quake3)
@@ -606,14 +606,14 @@ void VARGS SVQ2_LinkEdict(q2edict_t *ent)
 	ent->areanum2 = 0;
 
 	//get all leafs, including solids
-	num_leafs = CM_BoxLeafnums (ent->absmin, ent->absmax,
+	num_leafs = CM_BoxLeafnums (sv.worldmodel, ent->absmin, ent->absmax,
 		leafs, MAX_TOTAL_ENT_LEAFS, &topnode);
 
 	// set areas
 	for (i=0 ; i<num_leafs ; i++)
 	{
-		clusters[i] = CM_LeafCluster (leafs[i]);
-		area = CM_LeafArea (leafs[i]);
+		clusters[i] = CM_LeafCluster (sv.worldmodel, leafs[i]);
+		area = CM_LeafArea (sv.worldmodel, leafs[i]);
 		if (area)
 		{	// doors may legally straggle two areas,
 			// but nothing should evern need more than that
@@ -887,7 +887,7 @@ SV_PointContents
 */
 int SV_PointContents (vec3_t p)
 {
-	return sv.worldmodel->hulls[0].funcs.HullPointContents(&sv.worldmodel->hulls[0], p);
+	return sv.worldmodel->funcs.PointContents(sv.worldmodel, p);
 }
 
 //===========================================================================
@@ -983,10 +983,10 @@ qboolean TransformedTrace (struct model_s *model, int hulloverride, int frame, v
 		memset (trace, 0, sizeof(trace_t));
 		trace->fraction = 1;
 		trace->allsolid = true;
-		VectorCopy (end, trace->endpos);
 
 		VectorSubtract (start, origin, start_l);
 		VectorSubtract (end, origin, end_l);
+		VectorCopy (end_l, trace->endpos);
 		result = Q1BSP_RecursiveHullCheck (hull, hull->firstclipnode, 0, 1, start_l, end_l, trace);
 		VectorAdd (trace->endpos, origin, trace->endpos);
 	}
@@ -1024,7 +1024,7 @@ trace_t SV_ClipMoveToEntity (edict_t *ent, vec3_t start, vec3_t mins, vec3_t max
 	if (ent->v->solid == SOLID_BSP)
 	{
 		model = sv.models[(int)ent->v->modelindex];
-		if (!model || model->type != mod_brush)
+		if (!model || (model->type != mod_brush && model->type != mod_heightmap))
 			SV_Error("SOLID_BSP with non bsp model (classname: %s)", svprogfuncs->stringtable + ent->v->classname);
 	}
 	else
@@ -1281,7 +1281,7 @@ Offset is filled in to contain the adjustment that must be added to the
 testing object's origin to get a point to use with the returned hull.
 ================
 */
-int SV_HeadnodeForEntity (edict_t *ent)
+static model_t *SV_ModelForEntity (edict_t *ent)
 {
 	model_t	*model;
 
@@ -1293,16 +1293,16 @@ int SV_HeadnodeForEntity (edict_t *ent)
 		if (!model)
 			SV_Error ("MOVETYPE_PUSH with a non bsp model");
 
-		return model->hulls[0].firstclipnode;
+		return model;
 	}
 
 	// create a temp hull from bounding box sizes
 
-	return CM_HeadnodeForBox (ent->v->mins, ent->v->maxs);
+	return CM_TempBoxModel (ent->v->mins, ent->v->maxs);
 }
 
 #ifdef Q2SERVER
-int SVQ2_HeadnodeForEntity (q2edict_t *ent)
+static model_t *SVQ2_ModelForEntity (q2edict_t *ent)
 {
 	model_t	*model;
 
@@ -1314,12 +1314,12 @@ int SVQ2_HeadnodeForEntity (q2edict_t *ent)
 		if (!model)
 			SV_Error ("Q2SOLID_BSP with a non bsp model");
 
-		return model->hulls[0].firstclipnode;
+		return model;
 	}
 
 	// create a temp hull from bounding box sizes
 
-	return CM_HeadnodeForBox (ent->mins, ent->maxs);
+	return CM_TempBoxModel (ent->mins, ent->maxs);
 }
 #endif
 /*
@@ -1433,7 +1433,7 @@ void SVQ2_ClipMoveToEntities ( moveclip_t *clip, int contentsmask )
 	int			i, num;
 	q2edict_t		*touchlist[MAX_EDICTS], *touch;
 	trace_t		trace;
-	int			headnode;
+	model_t		*model;
 	float		*angles;
 
 	num = SVQ2_AreaEdicts (clip->boxmins, clip->boxmaxs, touchlist
@@ -1463,18 +1463,18 @@ void SVQ2_ClipMoveToEntities ( moveclip_t *clip, int contentsmask )
 				continue;
 
 		// might intersect, so do an exact clip
-		headnode = SVQ2_HeadnodeForEntity (touch);
+		model = SVQ2_ModelForEntity (touch);
 		angles = touch->s.angles;
 		if (touch->solid != Q2SOLID_BSP)
 			angles = vec3_origin;	// boxes don't rotate
 
 		if (touch->svflags & SVF_MONSTER)
-			trace = CM_TransformedBoxTrace (clip->start, clip->end,
-				clip->mins2, clip->maxs2, headnode, contentsmask,
+			trace = CM_TransformedBoxTrace (model, clip->start, clip->end,
+				clip->mins2, clip->maxs2, contentsmask,
 				touch->s.origin, angles);
 		else
-			trace = CM_TransformedBoxTrace (clip->start, clip->end,
-				clip->mins, clip->maxs, headnode,  contentsmask,
+			trace = CM_TransformedBoxTrace (model, clip->start, clip->end,
+				clip->mins, clip->maxs, contentsmask,
 				touch->s.origin, angles);
 
 		if (trace.allsolid || trace.startsolid ||
@@ -1765,6 +1765,9 @@ trace_t SV_Move (vec3_t start, vec3_t mins, vec3_t maxs, vec3_t end, int type, e
 	if (clip.trace.startsolid)
 		clip.trace.fraction = 0;
 
+	if (!clip.trace.ent)
+		return clip.trace;
+
 	return clip.trace;
 }
 #ifdef Q2SERVER
@@ -1775,7 +1778,7 @@ trace_t SVQ2_Move (vec3_t start, vec3_t mins, vec3_t maxs, vec3_t end, int type,
 	memset ( &clip, 0, sizeof ( moveclip_t ) );
 
 // clip to world
-	clip.trace = CM_BoxTrace(start, end, mins, maxs, 0, type);//SVQ2_ClipMoveToEntity ( ge->edicts, start, mins, maxs, end );
+	clip.trace = CM_BoxTrace(sv.worldmodel, start, end, mins, maxs, type);//SVQ2_ClipMoveToEntity ( ge->edicts, start, mins, maxs, end );
 	clip.trace.ent = (edict_t *)ge->edicts;
 
 	if (clip.trace.fraction == 0)

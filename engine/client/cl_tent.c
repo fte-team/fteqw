@@ -177,6 +177,7 @@ sfx_t			*cl_sfx_r_exp3;
 cvar_t	cl_expsprite = {"cl_expsprite", "0"};
 cvar_t  r_explosionlight = {"r_explosionlight", "1"};
 cvar_t	cl_truelightning = {"cl_truelightning", "0",	NULL, CVAR_SEMICHEAT};
+cvar_t  cl_beam_trace = {"cl_beam_trace", "0"};
 
 typedef struct {
 	sfx_t **sfx;
@@ -192,6 +193,8 @@ tentsfx_t tentsfx[] =
 	{&cl_sfx_ric3, "weapons/ric3.wav"},
 	{&cl_sfx_r_exp3, "weapons/r_exp3.wav"}
 };
+
+vec3_t playerbeam_end[MAX_SPLITS];
 /*
 =================
 CL_ParseTEnts
@@ -210,6 +213,7 @@ void CL_InitTEnts (void)
 
 	Cvar_Register (&cl_expsprite, "Temporary entity control");
 	Cvar_Register (&cl_truelightning, "Temporary entity control");
+	Cvar_Register (&cl_beam_trace, "Temporary entity control");
 	Cvar_Register (&r_explosionlight, "Temporary entity control");
 }
 
@@ -335,6 +339,7 @@ void CL_AddBeam (int tent, int ent, vec3_t start, vec3_t end)	//fixme: use TE_ n
 
 	model_t *m;
 	int btype, etype;
+	int i;
 	vec3_t impact, normal;
 	vec3_t extra;
 
@@ -385,7 +390,20 @@ void CL_AddBeam (int tent, int ent, vec3_t start, vec3_t end)	//fixme: use TE_ n
 #endif
 	}
 
-	if (cls.state == ca_active && etype >= 0)
+	// save end position for truelightning
+	if (ent)
+	{
+		for (i = 0; i < MAX_SPLITS; i++)
+		{
+			if (ent == (autocam[i]?spec_track[i]:(cl.playernum[i]+1)))
+			{
+				VectorCopy(end, playerbeam_end[i]);
+				break;
+			}
+		}
+	}
+
+	if (cl_beam_trace.value && etype >= 0 && cls.state == ca_active)
 	{
 		VectorSubtract(end, start, normal);
 		VectorNormalize(normal);
@@ -2237,7 +2255,7 @@ CL_UpdateBeams
 */
 void CL_UpdateBeams (void)
 {
-	int			i;
+	int			i, j;
 	beam_t		*b;
 	vec3_t		dist, org;
 	float		d;
@@ -2263,36 +2281,66 @@ void CL_UpdateBeams (void)
 		}
 
 	// if coming from the player, update the start position
-		if (b->flags & 1 && b->entity == (autocam[0]?spec_track[0]:(cl.playernum[0]+1)) && b->entity>0 && b->entity<= MAX_CLIENTS)	// entity 0 is the world
+		if ((b->flags & 1) && b->entity > 0 && b->entity <= MAX_CLIENTS)
 		{
-			player_state_t	*pl;
-//			VectorSubtract(cl.simorg, b->start, org);
-//			VectorAdd(b->end, org, b->end);		//move the end point by simorg-start
-
-			pl = &cl.frames[cl.parsecount&UPDATE_MASK].playerstate[b->entity-1];
-			if (pl->messagenum == cl.parsecount)
+			for (j = 0; j < MAX_SPLITS; j++)
 			{
-				VectorCopy (cl.simorg[0], b->start);	//move the start point to view origin
-				b->start[2] += cl.crouch[0];
-				if (v_viewheight.value)
+				if (b->entity == (autocam[j]?spec_track[j]:(cl.playernum[j]+1)))
 				{
-					if (v_viewheight.value <= -7)
-						b->start[2] += -7;
-					else if (v_viewheight.value >= 4)
-						b->start[2] += 4;
-					else
-						b->start[2] += v_viewheight.value;
-				}
+					player_state_t	*pl;
+		//			VectorSubtract(cl.simorg, b->start, org);
+		//			VectorAdd(b->end, org, b->end);		//move the end point by simorg-start
 
+					pl = &cl.frames[cl.parsecount&UPDATE_MASK].playerstate[j];
+					if (pl->messagenum == cl.parsecount)
+					{
+						vec3_t	fwd, org, ang;
+						float	delta, f, len;
 
-				//rotate the end point to face in the view direction. This gives a smoother shafting. turning looks great.
-				if (cl_truelightning.value)
-				{
-					VectorSubtract (b->end, b->start, dist);
-					d = VectorNormalize(dist);
-					AngleVectors (cl.simangles[0], b->end, dist, org);
-					VectorMA(b->start, d, b->end, b->end);
-					b->end[2] += cl.viewheight[0];
+						VectorCopy (cl.simorg[j], b->start);
+						b->start[2] += cl.crouch[j] + bound(-7, v_viewheight.value, 4);
+
+						f = bound(0, cl_truelightning.value, 1);
+
+						if (!f)
+							break;
+
+						VectorSubtract (playerbeam_end[j], cl.simorg[j], org);
+						len = VectorLength(org);
+						org[2] -= 22;		// adjust for view height
+						vectoangles (org, ang);
+
+						// lerp pitch
+						ang[0] = -ang[0];
+						if (ang[0] < -180)
+							ang[0] += 360;
+						ang[0] += (cl.simangles[j][0] - ang[0]) * f;
+
+						// lerp yaw
+						delta = cl.simangles[j][1] - ang[1];
+						if (delta > 180)
+							delta -= 360;
+						if (delta < -180)
+							delta += 360;
+						ang[1] += delta * f;
+						ang[2] = 0;
+
+						AngleVectors (ang, fwd, ang, ang);
+						VectorCopy(fwd, ang);
+						VectorScale (fwd, len, fwd);
+						VectorCopy (cl.simorg[j], org);
+						org[2] += 16;
+						VectorAdd (org, fwd, b->end);
+
+						if (cl_beam_trace.value)
+						{
+							vec3_t normal;
+							VectorMA(org, len+4, ang, fwd);
+							if (TraceLineN(org, fwd, ang, normal))
+								VectorCopy (ang, b->end);
+						}
+						break;
+					}
 				}
 			}
 		}

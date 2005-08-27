@@ -654,7 +654,7 @@ void VQ3_RenderView(const q3refdef_t *ref)
 	}
 #endif
 
-	#ifdef RGLQUAKE
+#ifdef RGLQUAKE
 	if (qrenderer == QR_OPENGL)
 	{
 		qglDisable(GL_ALPHA_TEST);

@@ -155,6 +155,33 @@ void QCC_PR_PrintNextLine (void)
 	printf ("\n");
 }
 
+extern char qccmsourcedir[];
+//also meant to include it.
+void QCC_FindBestInclude(char *newfile, char *currentfile, char *rootpath)
+{
+	char fullname[10248];
+	char *stripfrom;
+
+	char *end = fullname;
+
+	if (!*newfile)
+		return;
+
+	for(stripfrom = currentfile+strlen(currentfile)-1; stripfrom>currentfile; stripfrom--)
+	{
+		if (*stripfrom == '/' || *stripfrom == '\\')
+			break;
+	}
+
+	strcpy(end, rootpath); end = end+strlen(end);
+	if (*fullname)
+		strcpy(end, "/"); end = end+strlen(end);
+	strncpy(end, currentfile, stripfrom - currentfile); end += stripfrom - currentfile; *end = '\0';
+	strcpy(end, newfile);
+
+	QCC_Include(fullname);
+}
+
 int ForcedCRC;
 int QCC_PR_LexInteger (void);
 void	QCC_AddFile (char *filename);
@@ -502,8 +529,8 @@ pbool QCC_PR_Precompiler(void)
 				}
 				if (!strcmp(pr_token, "#endlist"))
 					break;
-				printf("Including: %s\n", pr_token);
-				QCC_Include(pr_token);
+
+				QCC_FindBestInclude(pr_token, compilingfile, qccmsourcedir);
 
 				if (*pr_file_p == '\r')
 					pr_file_p++;
@@ -534,8 +561,7 @@ pbool QCC_PR_Precompiler(void)
 			while(*pr_file_p <= ' ')
 				pr_file_p++;
 
-			strncpy(msg, compilingfile, sizeof(msg));
-			msg[sizeof(msg)-1] = '\0';
+			msg[0] = '\0';
 			if (*pr_file_p == '\"')
 				sm = '\"';
 			else if (*pr_file_p == '<')
@@ -545,38 +571,21 @@ pbool QCC_PR_Precompiler(void)
 				QCC_PR_ParseError(0, "Not a string literal");
 				sm = 0;
 			}
-
-			//msg already contains the current file name
-			for (a = strlen(msg)-1; a > 0; a--)
+			pr_file_p++;
+			a=0;
+			while(*pr_file_p != sm)
 			{
-				if (msg[a] == '/' || msg[a] == '\\')	//eeeevil windows.
+				if (*pr_file_p == '\n')
 				{
-					a++;
+					QCC_PR_ParseError(0, "#include continued over line boundy\n");
 					break;
 				}
+				msg[a++] = *pr_file_p;
+				pr_file_p++;
 			}
+			msg[a] = 0;
 
-			rellen = a;
-
-			pr_file_p++;
-			for (;a<1023;a++)
-			{
-				if (*pr_file_p == sm || !*pr_file_p)
-					break;
-				msg[a] = *pr_file_p++;
-			}
-			msg[a] = '\0';
-
-			a = 0;
-			if (externs->FileSize(msg)<0)
-			{
-				if (externs->FileSize(msg+rellen)>=0)
-					a = rellen;
-				
-			}
-
-			printf("Including: %s\n", msg+a);
-			QCC_Include(msg+a);
+			QCC_FindBestInclude(msg, compilingfile, qccmsourcedir);
 
 			pr_file_p++;
 

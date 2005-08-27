@@ -175,7 +175,7 @@ qboolean FSOS_FLocate(void *handle, flocation_t *loc, char *filename, void *hash
 	char netpath[MAX_OSPATH];
 
 
-	if (hashedresult && (void *)hashedresult != (void *)filename)
+	if (hashedresult && (void *)hashedresult != handle)
 		return -1;
 
 /*

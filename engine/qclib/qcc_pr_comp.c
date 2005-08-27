@@ -7861,6 +7861,12 @@ void QCC_PR_ParseDefs (char *classname)
 				for (i = 0; i < d->type->size; i++)
 					G_INT(def->ofs) = G_INT(d->ofs);
 				QCC_PR_Lex();
+
+				if (type->type == ev_function)
+				{
+					def->initialized = 1;
+					def->constant = !isvar;
+				}
 				continue;
 			}
 	
@@ -8354,6 +8360,12 @@ void QCC_PR_ParseDefs (char *classname)
 		}
 		else
 		{
+			if (type->type == ev_function && isvar)
+			{
+				isconstant = !isvar;
+				def->initialized = 1;
+			}
+
 			if (isconstant && type->type == ev_field)
 				def->constant = 2;	//special flag on fields, 2, makes the pointer obtained from them also constant.
 			else
@@ -8447,16 +8459,7 @@ pbool QCC_Include(char *filename)
 	opr_file_p = pr_file_p;
 	oldcurrentchunk = currentchunk;
 
-	if (*filename == '/')
-		strcpy(fname, filename+1);
-	else
-	{
-		strcpy(fname, qccmsourcedir);
-		strcpy(fname, strings + s_file );
-		StripFilename( fname );
-		strcat( fname, "/" );
-		strcat(fname, filename);
-	}
+	strcpy(fname, filename);
 	QCC_LoadFile(fname, (void*)&newfile);
 	currentchunk = NULL;
 	pr_file_p = newfile;

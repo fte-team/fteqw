@@ -364,7 +364,7 @@ void M_Menu_Particles_f (void)
 
 	menu->selecteditem = (union menuoption_s *)
 
-	MC_AddConsoleCommand(menu, 16, y,	"   Choose particle set", "menu_particleset");y+=8;
+	MC_AddConsoleCommand(menu, 16, y,	"   Choose particle set", "menu_particlesets");y+=8;
 	MC_AddCheckBox(menu, 16, y,			"         sparks bounce", &r_bouncysparks,0);y+=8;
 //	MC_AddSlider(menu, 16, y,			"       exp spark count", &r_particles_in_explosion, 16, 1024);y+=8;
 	MC_AddCvarCombo(menu, 16, y,		"     texture emittance", &r_part_rain, r_part_rain_options, r_part_rain_values);y+=8;

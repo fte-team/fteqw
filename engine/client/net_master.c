@@ -748,7 +748,7 @@ int NET_CheckPollSockets(void)
 			}
 
 
-			Con_Printf ("NET_CheckPollSockets: %s", strerror(qerrno));
+			Con_Printf ("NET_CheckPollSockets: %i, %s\n", qerrno, strerror(qerrno));
 			continue;
 		}
 		SockadrToNetadr (&from, &net_from);

@@ -362,12 +362,13 @@ void Cvar_Reset_f (void)
 {
 	cvar_group_t *grp;
 	cvar_t *cmd;
-	int i, listflags;
+	int i, listflags, exclflags;
 	char *var;
 	char *search, *gsearch;
 	char strtmp[512];
 
 	search = gsearch = NULL;
+	exclflags = 0;
 
 	// parse command line options
 	for (i = 1; i < Cmd_Argc(); i++)
@@ -394,12 +395,15 @@ void Cvar_Reset_f (void)
 
 					gsearch = Cmd_Argv(i);
 					break;
+				case 'u':
+					exclflags |= CVAR_USERCREATED;
 				case 'h':
 					Con_Printf("cvarreset resets all cvars to default values matching given parameters\n"
-						"Syntax: cvarreset [-a] (-g group)/cvar\n"
+						"Syntax: cvarreset [-ahu] (-g group)/cvar\n"
 						"  -a matches cvar against alternate cvar names\n"
 						"  -g matches using wildcards in group\n"
 						"  -h shows this help message\n"
+						"  -u excludes user cvars\n"
 						"  cvar indicates the cvars to reset, wildcards (*, ?) accepted\n"
 						"A -g or cvar is required\n");
 					return;
@@ -439,6 +443,10 @@ void Cvar_Reset_f (void)
 		{
 			// reset only non-restricted cvars
 			if ((cmd->restriction?cmd->restriction:rcon_level.value) > Cmd_ExecLevel)
+				continue;
+
+			// don't reset cvars with matched flags
+			if (exclflags & cmd->flags)
 				continue;
 
 			// reset only cvars with search substring

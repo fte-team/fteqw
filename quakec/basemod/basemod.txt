@@ -1,5 +1,7 @@
 Incomplete -
 Triggered kills (explobox, etc)
+Q2/Q3 ents
+HL ents
 
 Done -
 Cleanup warnings
@@ -27,8 +29,7 @@ Samelevel 4 (exit acts as a spawnpoint teleporter)
 Effects/decal system
 Fix weird deathmatch modes, cvar checking
 Rogue/hipnotic weapons/monsters/hud stuffs
-Q2/Q3 ents
-H2/HL ents
+H2 ents
 Coop friendly finale
 Add in shambler resistance in a better way
 

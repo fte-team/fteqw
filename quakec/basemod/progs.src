@@ -5,6 +5,8 @@
 // uncomment based on desired compile
 // #define NETQUAKE
 // #define FTE
+#define MONSTERS
+#define REPLACEMENTS
 
 // compile options
 #ifdef NETQUAKE
@@ -59,4 +61,8 @@
 #include "oldone.qc"
 #else
 #include "nomonst.qc"
+#endif
+
+#ifdef REPLACEMENTS
+#include "replace.qc"
 #endif

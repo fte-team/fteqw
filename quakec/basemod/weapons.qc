@@ -397,7 +397,7 @@ void() W_FireLightning =
 	local   float           cells;
 	local   INTEGER		expmod;
 
-	if (self.ammo_cells < 1)
+	if (self.ammo_cells_real < 1)
 	{
 		W_WeaponSwitch (W_BestWeapon ());
 		return;

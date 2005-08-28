@@ -79,11 +79,15 @@ void AddLightBlend (float r, float g, float b, float a2)
 {
 	float	a;
 
+	r = bound(0, r, 1);
+	g = bound(0, g, 1);
+	b = bound(0, b, 1);
+
 	v_blend[3] = a = v_blend[3] + a2*(1-v_blend[3]);
 
 	a2 = a2/a;
 
-	v_blend[0] = v_blend[1]*(1-a2) + r*a2;
+	v_blend[0] = v_blend[0]*(1-a2) + r*a2;
 	v_blend[1] = v_blend[1]*(1-a2) + g*a2;
 	v_blend[2] = v_blend[2]*(1-a2) + b*a2;
 //Con_Printf("AddLightBlend(): %4.2f %4.2f %4.2f %4.6f\n", v_blend[0], v_blend[1], v_blend[2], v_blend[3]);
@@ -122,7 +126,7 @@ void R_RenderDlight (dlight_t *light)
 	VectorSubtract (light->origin, r_origin, v);
 	if (Length (v) < rad)
 	{	// view is inside the dlight
-		AddLightBlend (1, 0.5, 0, light->radius * 0.0003);
+		AddLightBlend (light->color[0]*5, light->color[1]*5, light->color[2]*5, light->radius * 0.0003);
 		return;
 	}
 

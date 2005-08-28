@@ -1713,41 +1713,47 @@ void CL_LinkPacketEntities (void)
 		//dlights are not so customisable.
 		if (r_rocketlight.value)
 		{
+			float rad = 0;
+			vec3_t dclr;
+
+			dclr[0] = 0.20;
+			dclr[1] = 0.10;
+			dclr[2] = 0;
+
 			if (model->flags & EF_ROCKET)
 			{
 				if (strncmp(model->name, "models/sflesh", 13))
 				{	//hmm. hexen spider gibs...
-					dl = CL_AllocDlight (s1->number);
-					VectorCopy (ent->origin, dl->origin);
-					dl->origin[2] += 1;
-					dl->radius = 200;
-					dl->die = (float)cl.time;
-					dl->color[0] = 0.20;
-					dl->color[1] = 0.1;
-					dl->color[2] = 0.05;
+					rad = 200;
+					dclr[2] = 0.05;
 				}
 			}
 			else if (model->flags & EF_FIREBALL)
 			{
-				dl = CL_AllocDlight (i);
-				VectorCopy (ent->origin, dl->origin);
-				dl->radius = 120 - (rand() % 20);
-				dl->die = (float)cl.time;
+				rad = 120 - (rand() % 20);
 			}
 			else if (model->flags & EF_ACIDBALL)
 			{
-				dl = CL_AllocDlight (i);
-				VectorCopy (ent->origin, dl->origin);
-				dl->radius = 120 - (rand() % 20);
-				dl->die = (float)cl.time;
+				rad = 120 - (rand() % 20);
 			}
 			else if (model->flags & EF_SPIT)
 			{
-				dl = CL_AllocDlight (i);
-				VectorCopy (ent->origin, dl->origin);
-				dl->radius = -120 - (rand() % 20);
-				dl->die = (float)cl.time;
+				// how the hell does this even work?
+				rad = -120 - (rand() % 20);
 			}
+
+			if (rad)
+			{
+				dl = CL_AllocDlight (s1->number);
+				VectorCopy (ent->origin, dl->origin);
+				dl->die = (float)cl.time;
+				if (model->flags & EF_ROCKET)
+					dl->origin[2] += 1; // is this even necessary
+				dl->radius = rad * bound(0, r_rocketlight.value, 1);
+				VectorCopy(dclr, dl->color);
+			}
+
+
 		}
 	}
 }

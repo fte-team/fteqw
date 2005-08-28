@@ -247,7 +247,8 @@ qboolean PM_TestPlayerPosition (vec3_t pos)
 			if (!hull->available || !hull->planes || !hull->clipnodes)
 				hull = &pe->model->hulls[1];
 */
-			if (pe->model->funcs.Trace(pe->model, 0, 0, pos, pos, player_mins, player_maxs, &trace))
+			pe->model->funcs.Trace(pe->model, 0, 0, pos, pos, player_mins, player_maxs, &trace);
+			if (trace.allsolid)
 				return false;	//solid
 		}
 		else

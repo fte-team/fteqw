@@ -457,7 +457,6 @@ void SV_MulticastProtExt(vec3_t origin, multicast_t to, int dimension_mask, int 
 {
 	client_t	*client;
 	qbyte		*mask;
-	mleaf_t		*leaf;
 	int			leafnum;
 	int			j;
 	qboolean	reliable;
@@ -647,13 +646,13 @@ void SV_MulticastProtExt(vec3_t origin, multicast_t to, int dimension_mask, int 
 				if (!((int)client->edict->v->dimension_see & dimension_mask))
 					continue;
 
-			leafnum = sv.worldmodel->funcs.LeafnumForPoint (sv.worldmodel, client->edict->v->origin);
+			// -1 is because pvs rows are 1 based, not 0 based like leafs
+			if (mask != sv.pvs)
 			{
-				// -1 is because pvs rows are 1 based, not 0 based like leafs
-	//			leafnum = leaf - sv.worldmodel->leafs - 1;
+				leafnum = sv.worldmodel->funcs.LeafnumForPoint (sv.worldmodel, client->edict->v->origin)-1;
 				if ( !(mask[leafnum>>3] & (1<<(leafnum&7)) ) )
 				{
-	//				Con_Printf ("supressed multicast\n");
+	//				Con_Printf ("PVS supressed multicast\n");
 					continue;
 				}
 			}

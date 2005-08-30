@@ -439,7 +439,7 @@ typedef struct client_s
 	int last_client_command_num;
 	int num_server_commands;
 	int num_client_commands;
-	char server_commands[1024][64];
+	char server_commands[64][1024];
 	char last_client_command[1024];
 #endif
 #ifdef PEXT_CSQC

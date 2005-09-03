@@ -2285,7 +2285,7 @@ void QCC_PR_Lex (void)
 	
 	if ( (c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z') || c == '_' )
 	{
-		if (!QCC_PR_CheakCompConst())	//look for a macro.
+		if (flag_poundonly || !QCC_PR_CheakCompConst())	//look for a macro.
 			QCC_PR_LexName ();
 		else
 			if (pr_token_type == tt_eof)

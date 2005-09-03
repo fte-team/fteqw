@@ -63,7 +63,7 @@ extern int	MAX_FUNCTIONS;
 #define	MAX_DATA_PATH	64
 
 extern int MAX_CONSTANTS;
-#define MAXCONSTANTLENGTH 32
+#define MAXCONSTANTLENGTH 64
 #define MAXCONSTANTVALUELENGTH 256
 #define MAXCONSTANTPARAMLENGTH 32
 #define MAXCONSTANTPARAMS 8
@@ -476,6 +476,7 @@ extern pbool flag_ifstring;
 extern pbool flag_acc;
 extern pbool flag_caseinsensative;
 extern pbool flag_laxcasts;
+extern pbool flag_poundonly;
 
 extern pbool opt_overlaptemps;
 extern pbool opt_shortenifnots;

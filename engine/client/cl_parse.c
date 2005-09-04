@@ -2962,6 +2962,15 @@ void CLQ2_ParseMuzzleFlash2 (void)
 
 	CLQ2_RunMuzzleFlash2(ent, flash_number);
 }
+
+void CLQ2_ParseInventory (void)
+{
+	int		i;
+
+	for (i=0 ; i<Q2MAX_ITEMS ; i++)
+//		cl.inventory[i] = MSG_ReadShort (&net_message);
+		MSG_ReadShort (); // just ignore everything for now
+}
 #endif
 
 int getplayerid(char *msg);
@@ -3733,8 +3742,8 @@ void CLQ2_ParseServerMessage (void)
 			UI_Q2LayoutChanged();
 			break;
 		case svcq2_inventory:
-			Host_EndGame ("CL_ParseServerMessage: svcq2_inventory not implemented");
-			return;
+			CLQ2_ParseInventory();
+			break;
 
 	// the rest are private to the client and server
 		case svcq2_nop:			//6

@@ -727,11 +727,7 @@ void IN_CloseDInput (void)
 #if (DIRECTINPUT_VERSION >= DINPUT_VERSION_DX7)
 	if (g_pMouse7)
 	{
-		if (dinput_acquired)
-			IDirectInputDevice7_Unacquire(g_pMouse7);
-		dinput_acquired = false;
 		IDirectInputDevice7_Release(g_pMouse7);
-
 		g_pMouse7 = NULL;
 	}
 	if (g_pdi7)
@@ -742,11 +738,7 @@ void IN_CloseDInput (void)
 #endif
 	if (g_pMouse)
 	{
-		if (dinput_acquired)
-			IDirectInputDevice_Unacquire(g_pMouse);
-		dinput_acquired = false;
 		IDirectInputDevice_Release(g_pMouse);
-
 		g_pMouse = NULL;
 	}
 	if (g_pdi)

@@ -1569,7 +1569,7 @@ void R_DrawGAliasModel (entity_t *e)
 		shadelight[0] = shadelight[1] = shadelight[2] = e->abslight;
 		ambientlight[0] = ambientlight[1] = ambientlight[2] = 0;
 	}
-	if ((e->drawflags & MLS_MASKIN) == MLS_FULLBRIGHT)
+	if ((e->drawflags & MLS_MASKIN) == MLS_FULLBRIGHT || e->flags & Q2RF_FULLBRIGHT)
 	{
 		shadelight[0] = shadelight[1] = shadelight[2] = 255;
 		ambientlight[0] = ambientlight[1] = ambientlight[2] = 0;

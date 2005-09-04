@@ -139,11 +139,9 @@ typedef struct
 	int numframes;
 
 	int		type;
-		vec3_t	angles;
-		int		flags;
-		float	alpha;
-		float light;
-		float lightcolor[3];
+	vec3_t	angles;
+	int		flags;
+	float	alpha;
 	float	start;
 	float	framerate;
 	model_t	*model;
@@ -1748,7 +1746,8 @@ void CLQ2_ParseTEnt (void)
 		ex->model = Mod_ForName (q2tentmodels[q2cl_mod_explode].modelname, false);
 		ex->firstframe = 0;
 		ex->numframes = 4;
-
+		ex->flags = Q2RF_FULLBRIGHT;
+		
 		ex->angles[0] = acos(dir[2])/M_PI*180;
 	// PMM - fixed to correct for pitch of 0
 		if (dir[0])
@@ -1762,6 +1761,24 @@ void CLQ2_ParseTEnt (void)
 		ex->angles[0]*=-1;
 
 		S_StartSound (-2, 0, S_PrecacheSound ("weapons/lashit.wav"), pos, 1, 1);
+
+	// light
+		if (r_explosionlight.value)
+		{
+			dlight_t *dl;
+			dl = CL_AllocDlight (0);
+			VectorCopy (pos, dl->origin);
+			dl->radius = 150 * bound(0, r_explosionlight.value, 1);
+			dl->die = cl.time + 0.4;
+			dl->decay = 400;
+			dl->color[0] = 0.2;
+			dl->color[1] = 0.2;
+			dl->color[2] = 0.0;
+			dl->channelfade[0] = 0.5;
+			dl->channelfade[1] = 0.51;
+			dl->channelfade[2] = 0.0;
+		}
+
 		break;
 
 	case Q2TE_RAILTRAIL:			// railgun effect
@@ -1790,6 +1807,9 @@ void CLQ2_ParseTEnt (void)
 			dl->color[0] = 0.2;
 			dl->color[1] = 0.1;
 			dl->color[2] = 0.1;
+			dl->channelfade[0] = 0.36;
+			dl->channelfade[1] = 0.19;
+			dl->channelfade[2] = 0.19;
 		}
 	
 	// sound
@@ -1877,6 +1897,9 @@ void CLQ2_ParseTEnt (void)
 			dl->color[0] = 0.2;
 			dl->color[1] = 0.1;
 			dl->color[2] = 0.08;
+			dl->channelfade[0] = 0.36;
+			dl->channelfade[1] = 0.19;
+			dl->channelfade[2] = 0.19;
 		}
 
 	// sound
@@ -2018,55 +2041,106 @@ void CLQ2_ParseTEnt (void)
 //PGM
 		// PMM -following code integrated for flechette (different color)
 	case Q2TE_BLASTER2:			// green blaster hitting wall
-	case Q2TE_FLECHETTE:			// flechette
 		MSG_ReadPos (pos);
 		MSG_ReadDir (dir);
-		
-		// PMM
-/*		if (type == Q2TE_BLASTER2)
-			CL_BlasterParticles2 (pos, dir, 0xd0);
-		else
-			CL_BlasterParticles2 (pos, dir, 0x6f); // 75
+
+		if (P_RunParticleEffectTypeString(pos, dir, 1, "te_blaster2"))
+			if (P_RunParticleEffectType(pos, dir, 1, pt_blasterparticles))
+				P_RunParticleEffect (pos, dir, 0xd0, 40);
+
+		R_AddStain(pos, -10, 0, -10, 20);
 
 		ex = CL_AllocExplosion ();
-		VectorCopy (pos, ex->ent.origin);
-		ex->ent.angles[0] = acos(dir[2])/M_PI*180;
+		VectorCopy (pos, ex->origin);
+		ex->start = cl.time;
+		ex->model = Mod_ForName (q2tentmodels[q2cl_mod_explode].modelname, false);
+		ex->firstframe = 0;
+		ex->numframes = 4;
+		ex->flags = Q2RF_FULLBRIGHT;
+		
+		ex->angles[0] = acos(dir[2])/M_PI*180;
 	// PMM - fixed to correct for pitch of 0
 		if (dir[0])
-			ex->ent.angles[1] = atan2(dir[1], dir[0])/M_PI*180;
+			ex->angles[1] = atan2(dir[1], dir[0])/M_PI*180;
 		else if (dir[1] > 0)
-			ex->ent.angles[1] = 90;
+			ex->angles[1] = 90;
 		else if (dir[1] < 0)
-			ex->ent.angles[1] = 270;
+			ex->angles[1] = 270;
 		else
-			ex->ent.angles[1] = 0;
+			ex->angles[1] = 0;
+		ex->angles[0]*=-1;
 
-		ex->type = ex_misc;
-		ex->ent.flags = Q2RF_FULLBRIGHT|Q2RF_TRANSLUCENT;
+		S_StartSound (-2, 0, S_PrecacheSound ("weapons/lashit.wav"), pos, 1, 1);
 
-		// PMM
-		if (type == Q2TE_BLASTER2)
-			ex->ent.skinnum = 1;
-		else // flechette
-			ex->ent.skinnum = 2;
-
-		ex->start = cl.frame.servertime - 100;
-		ex->light = 150;
-		// PMM
-		if (type == Q2TE_BLASTER2)
-			ex->lightcolor[1] = 1;
-		else // flechette
+	// light
+		if (r_explosionlight.value)
 		{
-			ex->lightcolor[0] = 0.19;
-			ex->lightcolor[1] = 0.41;
-			ex->lightcolor[2] = 0.75;
+			dlight_t *dl;
+			dl = CL_AllocDlight (0);
+			VectorCopy (pos, dl->origin);
+			dl->radius = 150 * bound(0, r_explosionlight.value, 1);
+			dl->die = cl.time + 0.4;
+			dl->decay = 400;
+			dl->color[0] = 0.01;
+			dl->color[1] = 0.2;
+			dl->color[2] = 0.01;
+			dl->channelfade[0] = 0.1;
+			dl->channelfade[1] = 0.5;
+			dl->channelfade[2] = 0.1;
 		}
-		ex->ent.model = cl_mod_explode;
-		ex->frames = 4;
-		S_StartSound (pos,  0, 0, cl_sfx_lashit, 1, ATTN_NORM, 0);
-*//*		break;
+		break;
 
+	case Q2TE_FLECHETTE:			// blue blaster effect
+		MSG_ReadPos (pos);
+		MSG_ReadDir (dir);
 
+		if (P_RunParticleEffectTypeString(pos, dir, 1, "te_blaster2"))
+			if (P_RunParticleEffectType(pos, dir, 1, pt_blasterparticles))
+				P_RunParticleEffect (pos, dir, 0x6f, 40);
+
+		R_AddStain(pos, -10, -2, 0, 20);
+
+		ex = CL_AllocExplosion ();
+		VectorCopy (pos, ex->origin);
+		ex->start = cl.time;
+		ex->model = Mod_ForName (q2tentmodels[q2cl_mod_explode].modelname, false);
+		ex->firstframe = 0;
+		ex->numframes = 4;
+		ex->flags = Q2RF_FULLBRIGHT;
+		
+		ex->angles[0] = acos(dir[2])/M_PI*180;
+	// PMM - fixed to correct for pitch of 0
+		if (dir[0])
+			ex->angles[1] = atan2(dir[1], dir[0])/M_PI*180;
+		else if (dir[1] > 0)
+			ex->angles[1] = 90;
+		else if (dir[1] < 0)
+			ex->angles[1] = 270;
+		else
+			ex->angles[1] = 0;
+		ex->angles[0]*=-1;
+
+		S_StartSound (-2, 0, S_PrecacheSound ("weapons/lashit.wav"), pos, 1, 1);
+
+	// light
+		if (r_explosionlight.value)
+		{
+			dlight_t *dl;
+			dl = CL_AllocDlight (0);
+			VectorCopy (pos, dl->origin);
+			dl->radius = 150 * bound(0, r_explosionlight.value, 1);
+			dl->die = cl.time + 0.4;
+			dl->decay = 400;
+			dl->color[0] = 0.038;
+			dl->color[1] = 0.082;
+			dl->color[2] = 0.150;
+			dl->channelfade[0] = 0.085;
+			dl->channelfade[1] = 0.180;
+			dl->channelfade[2] = 0.300;
+		}
+		break;
+
+/*
 	case Q2TE_LIGHTNING:
 		ent = CL_ParseLightning (cl_mod_lightning);
 		S_StartSound (NULL, ent, CHAN_WEAPON, cl_sfx_lightning, 1, ATTN_NORM, 0);
@@ -2085,16 +2159,30 @@ void CLQ2_ParseTEnt (void)
 		VectorCopy (pos, ex->origin);
 //		ex->type = ex_poly;
 		ex->flags = Q2RF_FULLBRIGHT;
-		ex->light = 350;
-		ex->lightcolor[0] = 1.0;
-		ex->lightcolor[1] = 0.5;
-		ex->lightcolor[2] = 0.5;
 		ex->angles[1] = rand() % 360;
 		ex->model = Mod_ForName (q2tentmodels[q2cl_mod_explo4].modelname, false);
 		if (rand() < RAND_MAX/2)
 			ex->firstframe = 15;
 		ex->numframes = 15;
 		Q2S_StartSound (pos, 0, 0, S_PrecacheSound("weapons/rocklx1a.wav"), 1, ATTN_NORM, 0);
+
+	// light
+		if (r_explosionlight.value)
+		{
+			dlight_t *dl;
+			dl = CL_AllocDlight (0);
+			VectorCopy (pos, dl->origin);
+			dl->radius = 150 + bound(0, r_explosionlight.value, 1)*200;
+			dl->die = cl.time + 0.5;
+			dl->decay = 300;
+			dl->color[0] = 0.2;
+			dl->color[1] = 0.1;
+			dl->color[2] = 0.08;
+			dl->channelfade[0] = 0.36;
+			dl->channelfade[1] = 0.19;
+			dl->channelfade[2] = 0.19;
+		}
+
 		break;
 /*
 	case Q2TE_FLASHLIGHT:
@@ -2180,14 +2268,31 @@ void CLQ2_ParseTEnt (void)
 		S_StartSound (pos, 0, 0, cl_sfx_lashit, 1, ATTN_NORM, 0);
 		break;
 
-	case Q2TE_TRACKER_EXPLOSION:
-		MSG_ReadPos (&net_message, pos);
-		CL_ColorFlash (pos, 0, 150, -1, -1, -1);
-		CL_ColorExplosionParticles (pos, 0, 1);
-//		CL_Tracker_Explode (pos);
-		S_StartSound (pos, 0, 0, cl_sfx_disrexp, 1, ATTN_NORM, 0);
-		break;
 */
+	case Q2TE_TRACKER_EXPLOSION:
+		MSG_ReadPos (pos);
+
+		// effect
+		P_RunParticleEffectTypeString(pos, NULL, 1, "te_tracker_explosion");
+
+		// light
+	// light
+		if (r_explosionlight.value)
+		{
+			dlight_t *dl;
+			dl = CL_AllocDlight (0);
+			VectorCopy (pos, dl->origin);
+			dl->radius = 150 * bound(0, r_explosionlight.value, 1);
+			dl->die = cl.time + 0.1;
+			dl->minlight = 250;
+			dl->color[0] = -0.2;
+			dl->color[1] = -0.2;
+			dl->color[2] = -0.2;
+		}
+
+		// sound
+		Q2S_StartSound (pos, 0, 0, S_PrecacheSound("weapons/disrupthit.wav"), 1, ATTN_NORM, 0);
+		break;
 	case Q2TE_TELEPORT_EFFECT:
 	case Q2TE_DBALL_GOAL:
 		MSG_ReadPos (pos);

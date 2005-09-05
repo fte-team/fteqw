@@ -476,7 +476,7 @@ extern pbool flag_ifstring;
 extern pbool flag_acc;
 extern pbool flag_caseinsensative;
 extern pbool flag_laxcasts;
-extern pbool flag_poundonly;
+extern pbool flag_hashonly;
 
 extern pbool opt_overlaptemps;
 extern pbool opt_shortenifnots;

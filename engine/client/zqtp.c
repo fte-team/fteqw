@@ -1653,6 +1653,7 @@ void TP_SearchForMsgTriggers (char *s, int level)
 			if (string)
 			{
 				Cbuf_AddText (string, RESTRICT_LOCAL);
+				Cbuf_AddText ("\n", RESTRICT_LOCAL);
 //				Cbuf_ExecuteLevel (RESTRICT_LOCAL);
 			}
 			else

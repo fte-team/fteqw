@@ -3056,12 +3056,15 @@ void PF_spawnclient (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 	{
 		if (!*svs.clients[i].name)
 		{
-			svs.clients[i].protocol = SCP_BAD;
+			svs.clients[i].protocol = SCP_BAD;	//marker for bots
 			svs.clients[i].state = cs_spawned;
 			svs.clients[i].netchan.message.allowoverflow = true;
 			svs.clients[i].netchan.message.maxsize = 0;
 			svs.clients[i].datagram.allowoverflow = true;
 			svs.clients[i].datagram.maxsize = 0;
+
+			SetUpClientEdict (&svs.clients[i], svs.clients[i].edict);
+
 			RETURN_EDICT(prinst, svs.clients[i].edict);
 			return;
 		}
@@ -3660,11 +3663,12 @@ void PF_traceoff (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 
 void PF_eprint (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
-	char buffer[8192];
+	int size = 1024*1024;
+	char *buffer = BZ_Malloc(size);
 	char *buf;
-	int size = sizeof(buffer);
 	buf = prinst->saveent(prinst, buffer, &size, G_EDICT(prinst, OFS_PARM0));
 	Con_Printf("Entity %i:\n%s\n", G_EDICTNUM(prinst, OFS_PARM0), buf);
+	BZ_Free(buffer);
 }
 
 /*
@@ -3980,8 +3984,8 @@ void PF_pointcontents (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 
 	v = G_VECTOR(OFS_PARM0);
 
-	cont = SV_Move(v, vec3_origin, vec3_origin, v, MOVE_NOMONSTERS, NULL).contents;
-//	cont = SV_PointContents (v);
+//	cont = SV_Move(v, vec3_origin, vec3_origin, v, MOVE_NOMONSTERS, NULL).contents;
+	cont = SV_PointContents (v);
 	if (cont & FTECONTENTS_SOLID)
 		G_FLOAT(OFS_RETURN) = Q1CONTENTS_SOLID;
 	else if (cont & FTECONTENTS_SKY)

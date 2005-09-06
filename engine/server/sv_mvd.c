@@ -131,6 +131,12 @@ void DestFlush(qboolean compleate)
 		demo.dest = d->nextdest;
 
 		DestClose(d, false);
+
+		if (!demo.dest)
+		{
+			SV_MVDStop(2);
+			return;
+		}
 	}
 	for (d = demo.dest; d; d = d->nextdest)
 	{
@@ -157,10 +163,13 @@ void DestFlush(qboolean compleate)
 				d->error = true;
 			else if (len > 0)	//error of some kind
 			{
-				memmove(d->cache, d->cache+len, d->cacheused-len);
+				d->cacheused -= len;
+				memmove(d->cache, d->cache+len, d->cacheused);
 			}
 			else
 			{	//error of some kind. would block or something
+				if (qerrno != EWOULDBLOCK)
+					d->error = true;
 			}
 			break;
 
@@ -1099,7 +1108,7 @@ mvddest_t *SV_InitStream(int socket)
 
 	dst->desttype = DEST_STREAM;
 	dst->socket = socket;
-	dst->maxcachesize = 0x1000;	//4096. :/
+	dst->maxcachesize = 0x8000;	//is this too small?
 	dst->cache = BZ_Malloc(dst->maxcachesize);
 
 	return dst;
@@ -1464,15 +1473,20 @@ static qboolean SV_MVD_Record (mvddest_t *dest)
 
 	for (n = 0; n < sv.num_signon_buffers; n++)
 	{
-		SZ_Write (&buf,
-			sv.signon_buffers[n],
-			sv.signon_buffer_size[n]);
-
-		if (buf.cursize > MAX_QWMSGLEN/2)
+		if (buf.cursize+sv.signon_buffer_size[n] > MAX_QWMSGLEN/2)
 		{
 			SV_WriteRecordMVDMessage (&buf, seq++);
 			SZ_Clear (&buf);
 		}
+		SZ_Write (&buf,
+			sv.signon_buffers[n],
+			sv.signon_buffer_size[n]);
+	}
+
+	if (buf.cursize > MAX_QWMSGLEN/2)
+	{
+		SV_WriteRecordMVDMessage (&buf, seq++);
+		SZ_Clear (&buf);
 	}
 
 	MSG_WriteByte (&buf, svc_stufftext);
@@ -1532,7 +1546,7 @@ static qboolean SV_MVD_Record (mvddest_t *dest)
 	// get the client to check and download skins
 	// when that is completed, a begin command will be issued
 	MSG_WriteByte (&buf, svc_stufftext);
-	MSG_WriteString (&buf, va("skins\n") );
+	MSG_WriteString (&buf, "skins\n");
 
 	SV_WriteRecordMVDMessage (&buf, seq++);
 
@@ -1943,6 +1957,7 @@ int MVD_StreamStartListening(int port)
 
 	unsigned int nonblocking = true;
 
+	address.sin_family = AF_INET;
 	address.sin_addr.s_addr = INADDR_ANY;
 	address.sin_port = htons((u_short)port);
 

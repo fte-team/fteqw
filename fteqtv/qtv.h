@@ -37,6 +37,27 @@
 	#define ioctlsocket ioctl
 	#define closesocket close
 
+#elif defined(linux)
+	#include <sys/types.h>
+	#include <sys/socket.h>
+	#include <netdb.h>
+	#include <stdarg.h>
+	#include <stdlib.h>
+	#include <string.h>
+	#include <errno.h>
+	#include <sys/ioctl.h>
+	#include <unistd.h>
+
+	#ifndef SOCKET
+		#define SOCKET int
+	#endif
+	#ifndef INVALID_SOCKET
+		#define INVALID_SOCKET -1
+	#endif
+	#define qerrno errno
+
+	#define ioctlsocket ioctl
+	#define closesocket close
 #else
 #error "Please insert required headers here"
 //try the cygwin ones

@@ -699,12 +699,12 @@ void Q1BSP_ClipDecalToNodes (fragmentdecal_t *dec, mnode_t *node)
 
 		if (surf->flags & SURF_PLANEBACK)
 		{
-			if (DotProduct(surf->plane->normal, dec->normal) < -0.1)
+			if (-DotProduct(surf->plane->normal, dec->normal) > -0.5)
 				continue;
 		}
 		else
 		{
-			if (-DotProduct(surf->plane->normal, dec->normal) < -0.1)
+			if (DotProduct(surf->plane->normal, dec->normal) > -0.5)
 				continue;
 		}
 		Q1BSP_FragmentToMesh(dec, surf->mesh);

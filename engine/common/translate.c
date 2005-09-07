@@ -266,7 +266,6 @@ static char *defaultlanguagetext =
 "TL_FILE_X_MISSING \"\\nThe required model file '%s' could not be found or downloaded.\\n\\n\"\n"
 "TL_GETACLIENTPACK \"You may need to download or purchase a %s client or map pack in order to play on this server.\\n\\n\"\n"
 "TLC_LINEBREAK_MINUS \"------------------\\n\"\n"
-"TL_CSPECIALPRINT \"^%c%s\"\n"
 "TL_INT_SPACE \"%i \"\n"
 ;
 

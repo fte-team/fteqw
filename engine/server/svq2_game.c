@@ -413,6 +413,7 @@ qboolean VARGS PFQ2_AreasConnected(int area1, int area2)
 #define Q2CHAN_VOICE  2
 #define Q2CHAN_ITEM   3
 #define Q2CHAN_BODY   4*/
+#define Q2CHAN_NO_PHS_ADD		8
 #define	Q2CHAN_RELIABLE			16
 
 void VARGS SVQ2_StartSound (vec3_t origin, q2edict_t *entity, int channel,
@@ -440,11 +441,8 @@ void VARGS SVQ2_StartSound (vec3_t origin, q2edict_t *entity, int channel,
 
 	ent = Q2NUM_FOR_EDICT(entity);
 
-	if (channel & 8)	// no PHS flag
-	{
+	if (channel & Q2CHAN_NO_PHS_ADD)	// no PHS flag
 		use_phs = false;
-		channel &= 7;
-	}
 	else
 		use_phs = true;
 

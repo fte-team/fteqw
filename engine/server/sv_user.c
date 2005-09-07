@@ -2456,6 +2456,7 @@ void SV_Vote_f (void)
 
 		VoteRemoveCommands(command, -1);
 		Cbuf_AddText(command, votelevel.value);
+		Cbuf_AddText("\n", votelevel.value);
 		//Cmd_ExecuteString (command, votelevel.value);
 		return;
 	}

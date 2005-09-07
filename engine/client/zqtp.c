@@ -1917,14 +1917,17 @@ returns a combination of these values:
 1 -- normal
 2 -- team message
 4 -- spectator
+16 -- faked or serverside
 Note that sometimes we can't be sure who really sent the message,
 e.g. when there's a player "unnamed" in your team and "(unnamed)"
 in the enemy team. The result will be 3 (1+2)
 
 Never returns 2 if we are a spectator.
+
+Now additionally returns player info (NULL if no player detected)
 ======================
 */
-int TP_CategorizeMessage (char *s, int *offset)
+int TP_CategorizeMessage (char *s, int *offset, player_info_t **plr)
 {
 	int		i, msglen, len;
 	int		flags;
@@ -1937,6 +1940,7 @@ int TP_CategorizeMessage (char *s, int *offset)
 		return 0;
 
 	*offset = 0;
+	*plr = NULL;
 
 	for (i=0, player=cl.players ; i < MAX_CLIENTS ; i++, player++)
 	{
@@ -1953,9 +1957,10 @@ int TP_CategorizeMessage (char *s, int *offset)
 			else
 				flags |= 1;
 			*offset = len + 2;
+			*plr = player;
 		}
 		// check messagemode2
-		else if (s[0] == '(' && !cl.spectator && len+4 <= msglen &&
+		else if (s[0] == '(' && len+4 <= msglen && !cl.spectator &&
 			!strncmp(s+len+1, "): ", 3) &&
 			!strncmp(name, s+1, len))
 		{
@@ -1963,7 +1968,18 @@ int TP_CategorizeMessage (char *s, int *offset)
 			if (i == cl.playernum[SP] || ( cl.teamplay &&
 				!strcmp(cl.players[cl.playernum[SP]].team, player->team)) )
 				flags |= 2;
+
 			*offset = len + 4;
+			*plr = player;
+		}
+	}
+
+	if (!flags)
+	{
+		if (name = strstr(s, ": ")) // use name as temp
+		{
+			*offset = (name - s) + 2;
+			flags = 16;
 		}
 	}
 
@@ -3212,22 +3228,8 @@ void CL_Say (qboolean team, char *extra)
 		}
 		*d = '\0';
 
+		CL_PrintChat(&cl.players[cl.playernum[SP]], text, team, false);	
 		
-		if (!cl_standardchat.value)
-			colouration = CL_PlayerChatColour(cl.playernum[SP])%6+'1';	//don't ever print it in white.
-		else
-		{
-			con_ormask = CON_STANDARDMASK;
-			colouration = '7';
-		}
-
-		if (team)
-			Con_Printf("^%c(%s): %s\n", colouration, cl.players[cl.playernum[SP]].name, text);
-		else
-			Con_Printf("^%c%s: %s\n", colouration, cl.players[cl.playernum[SP]].name, text);
-
-		con_ormask = 0;
-
 		//strip out the extra markup
 		for (s = sendtext, d = sendtext; *s; s++, d++)
 		{

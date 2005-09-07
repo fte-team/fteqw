@@ -26,7 +26,7 @@ void CLNQ_ParseDarkPlaces5Entities(void);
 void CL_SetStat (int pnum, int stat, int value);
 
 int nq_dp_protocol;
-
+int msgflags;
 
 
 char *svc_strings[] =
@@ -2967,103 +2967,91 @@ void CLQ2_ParseInventory (void)
 {
 	int		i;
 
+	// TODO: finish this properly
 	for (i=0 ; i<Q2MAX_ITEMS ; i++)
 //		cl.inventory[i] = MSG_ReadShort (&net_message);
 		MSG_ReadShort (); // just ignore everything for now
 }
 #endif
 
-int getplayerid(char *msg);
 int build_number( void );
 //return if we want to print the message.
-qboolean CL_ParseChat(char *text)
+char *CL_ParseChat(char *text, player_info_t **player)
 {	
-extern cvar_t cl_chatsound, cl_nofake;
-
+	extern cvar_t cl_chatsound, cl_nofake;
+	int flags;
+	int offset=0;
+	qboolean	suppress_talksound;
+	char *p;
+	extern cvar_t cl_parsewhitetext;
 	char *s;
-	s = strchr(text, ':');	//Hmm.. FIXME: Can a player's name contain a ':'?... I think the answer is a yes... Hmmm.. problematic eh?
-	if (!s || s[1] != ' ')	//wasn't a real chat...
-		return true;
 
-	if (!cls.demoplayback)
-		Sys_ServerActivity();	//chat always flashes the screen..
+	flags = TP_CategorizeMessage (text, &offset, player);
 
-//check f_ stuff
-	if (!strncmp(s+2, "f_", 2))
+	s = text + offset;
+
+	if (flags)
 	{
-		static float versionresponsetime;
-		static float modifiedresponsetime;
-		static float skinsresponsetime;
-		static float serverresponsetime;
+		if (!cls.demoplayback)
+			Sys_ServerActivity();	//chat always flashes the screen..
 
-		if (!strncmp(s+2, "f_version", 9) && versionresponsetime < Sys_DoubleTime())	//respond to it.
+		//check f_ stuff
+		if (!strncmp(s, "f_", 2))
 		{
-			ValidationPrintVersion(text);
-			versionresponsetime = Sys_DoubleTime() + 5;
+			static float versionresponsetime;
+			static float modifiedresponsetime;
+			static float skinsresponsetime;
+			static float serverresponsetime;
+
+			if (!strncmp(s, "f_version", 9) && versionresponsetime < Sys_DoubleTime())	//respond to it.
+			{
+				ValidationPrintVersion(text);
+				versionresponsetime = Sys_DoubleTime() + 5;
+			}
+			else if (!strncmp(s, "f_server", 8) && serverresponsetime < Sys_DoubleTime())	//respond to it.
+			{
+				Validation_Server();
+				serverresponsetime = Sys_DoubleTime() + 5;
+			}
+			else if (!strncmp(s, "f_modified", 10) && modifiedresponsetime < Sys_DoubleTime())	//respond to it.
+			{
+				Validation_FilesModified();
+				modifiedresponsetime = Sys_DoubleTime() + 5;
+			}
+			else if (!strncmp(s, "f_skins", 7) && skinsresponsetime < Sys_DoubleTime())	//respond to it.
+			{
+				Validation_Skins();
+				skinsresponsetime = Sys_DoubleTime() + 5;
+			}
+			return true;
 		}
-		else if (!strncmp(s+2, "f_server", 9) && serverresponsetime < Sys_DoubleTime())	//respond to it.
-		{
-			Validation_Server();
-			serverresponsetime = Sys_DoubleTime() + 5;
-		}
-		else if (!strncmp(s+2, "f_modified", 10) && modifiedresponsetime < Sys_DoubleTime())	//respond to it.
-		{
-			Validation_FilesModified();
-			modifiedresponsetime = Sys_DoubleTime() + 5;
-		}
-		else if (!strncmp(s+2, "f_skins", 7) && skinsresponsetime < Sys_DoubleTime())	//respond to it.
-		{
-			Validation_Skins();
-			skinsresponsetime = Sys_DoubleTime() + 5;
-		}
-		return true;
-	}
 
-	Validation_CheckIfResponse(text);
-
-
-
-	{
-		int flags;
-		int offset=0;
-		qboolean	suppress_talksound;
-		char *p;
-
-		flags = TP_CategorizeMessage (text, &offset);
+		Validation_CheckIfResponse(text);
 
 		if (flags == 2 && !TP_FilterMessage(text + offset))
-			return false;
-
-		suppress_talksound = false;
-
-		if (flags == 2 || (!cl.teamplay && flags))
-			suppress_talksound = TP_CheckSoundTrigger (text + offset);
-
-		if (!cl_chatsound.value ||		// no sound at all
-			(cl_chatsound.value == 2 && flags != 2))	// only play sound in mm2
-			suppress_talksound = true;
-
-		if (!suppress_talksound)
-			S_LocalSound ("misc/talk.wav");
-
-		if (cl_nofake.value == 1 || (cl_nofake.value == 2 && flags != 2)) {
-			for (p = s; *p; p++)
-				if (*p == 13 || (*p == 10 && p[1]))
-					*p = ' '; 
-		}
-
-		//funky /me stuff
-		p = strchr(text, ':');
-		if (!strncmp(p, ": /me", 5))
-		{
-	//shift name right 1 (for the *)
-			memmove(text+1, text, p - text);
-			*text = '*';
-
-			memmove(p+1, p+5, strlen(p+5)+1);
-		}
+			return NULL;
 	}
-	return true;
+
+	suppress_talksound = false;
+
+	if (flags == 2 || (!cl.teamplay && flags))
+		suppress_talksound = TP_CheckSoundTrigger (text + offset);
+
+	if (!cl_chatsound.value ||		// no sound at all
+		(cl_chatsound.value == 2 && flags != 2))	// only play sound in mm2
+		suppress_talksound = true;
+
+	if (!suppress_talksound)
+		S_LocalSound ("misc/talk.wav");
+
+	if (cl_nofake.value == 1 || (cl_nofake.value == 2 && flags != 2)) {
+		for (p = s; *p; p++)
+			if (*p == 13 || (*p == 10 && p[1]))
+				*p = ' '; 
+	}
+
+	msgflags = flags;
+	return s;
 }
 
 char printtext[4096];
@@ -3081,11 +3069,174 @@ void CL_ParsePrint(char *msg, int level)
 		*msg = '\0';
 		if (level != PRINT_CHAT)
 			Stats_ParsePrintLine(printtext);
+
 		TP_SearchForMsgTriggers(printtext, level);
 		msg++;
 
 		memmove(printtext, msg, strlen(msg)+1);
 	}
+}
+
+void CL_PrintChat(player_info_t *plr, char *msg, qboolean team, qboolean observer)
+{
+	char *t;
+	int c;
+	int name_ormask;
+	extern cvar_t cl_parsewhitetext;
+	qboolean memessage = false;
+
+	if (msg[0] == '/' && msg[1] == 'm' && msg[2] == 'e' && msg[3] == ' ')
+	{
+		msg += 4;
+		memessage = true; // special /me formatting
+	}
+
+	if (plr) // use special formatting with a real chat message
+	{
+		name_ormask = 0;
+		if (cl_standardchat.value)
+		{
+			name_ormask = CON_STANDARDMASK;
+			c = 7;
+		}
+		else if (observer)
+		{
+			// TODO: we don't even check for this yet...
+			if (team)
+				c = 0; // blacken () on observers
+			else
+			{
+				name_ormask = CON_STANDARDMASK;
+				c = 7;
+			}
+		}
+		else if (cl.teamfortress) //override based on team
+		{
+			// TODO: needs some work
+			switch (plr->bottomcolor)
+			{	//translate q1 skin colours to console colours
+			case 10:
+			case 1:
+				name_ormask = CON_STANDARDMASK;
+			case 4:	//red
+				c = 1;
+				break;
+			case 11:
+				name_ormask = CON_STANDARDMASK;
+			case 3: // green
+				c = 2;
+				break;
+			case 5:
+				name_ormask = CON_STANDARDMASK;
+			case 12:
+				c = 3;
+				break;
+			case 6:
+			case 7:
+				name_ormask = CON_STANDARDMASK;
+			case 8:
+			case 9:
+				c = 5;
+				break;
+			case 2: // light blue
+				name_ormask = CON_STANDARDMASK;
+			case 13: //blue
+			case 14: //blue
+				c = 6;
+				break;
+			default:
+				name_ormask = CON_STANDARDMASK;
+			case 0: // white
+				c = 7;
+				break;
+			}
+		}
+		else
+		{
+			//primary override.
+			t = Info_ValueForKey(plr->userinfo, "tc");
+			if (*t)
+				c = atoi(t);
+			else
+				c = plr->userid - 1;
+
+			if ((c / 7) & 1)
+				name_ormask = CON_STANDARDMASK;
+
+			c = 1 + (c % 7);
+		}
+
+		c = '0' + c;
+
+		if (memessage)
+		{
+			con_ormask = CON_STANDARDMASK;
+			if (!cl_standardchat.value && observer)
+				Con_Printf ("^0*^7 ");
+			else
+				Con_Printf ("* ");
+		}
+
+		if (team) // for team chat don't highlight the name, just the brackets
+		{
+			// color is reset every printf so we're safe here
+			con_ormask = name_ormask;
+			Con_Printf("^%c(", c);
+			con_ormask = CON_STANDARDMASK;
+			Con_Printf("%s", plr->name);
+			con_ormask = name_ormask;
+			Con_Printf("^%c)", c);
+		}
+		else
+		{
+			con_ormask = name_ormask;
+			Con_Printf("^%c%s", c, plr->name);
+		}
+
+		if (!memessage)
+		{
+			// only print seperator with an actual player name
+			con_ormask = CON_STANDARDMASK;	
+			if (!cl_standardchat.value && observer)
+				Con_Printf ("^0:^7 ");
+			else
+				Con_Printf (": ");
+		}
+		else
+			Con_Printf (" ");
+	}
+
+	// print message
+	con_ormask = CON_STANDARDMASK;
+	if (cl_parsewhitetext.value && team && plr)
+	{
+		char *u;
+
+		while (t = strchr(msg, '{'))
+		{
+			u = strchr(msg, '}');
+			if (u)
+			{
+				*t = 0;
+				*u = 0;
+				Con_Printf("%s", msg);
+				con_ormask = 0;
+				Con_Printf("%s", t+1);
+				con_ormask = CON_STANDARDMASK;
+				msg = u+1;
+			}
+			else
+				break;
+		}
+		Con_Printf("%s", msg);
+		con_ormask = 0;
+	}
+	else
+	{
+		Con_Printf ("%s", msg);
+	}
+	con_ormask = 0;
+
 }
 
 char stufftext[4096];
@@ -3112,64 +3263,6 @@ void CL_ParseStuffCmd(char *msg, int destsplit)	//this protects stuffcmds from n
 
 		memmove(stufftext, msg, strlen(msg)+1);
 	}
-}
-
-int getplayerid(char *msg)
-{
-	int i;
-	int namelen;
-	char *colon = strstr(msg, ":");
-	if (!colon)
-		return -1;
-
-	namelen = colon-msg;
-
-	for (i=0 ; i<MAX_CLIENTS ; i++)
-	{
-		if (!strncmp(msg, cl.players[i].name, namelen))
-			if (!cl.players[i].name[namelen])
-				return i;		
-	}
-
-	return -1;
-}
-
-int CL_PlayerChatColour(int id)
-{
-	char *msg;
-	int c;
-
-	//primary override.
-	msg = Info_ValueForKey(cl.players[id].userinfo, "tc");
-	if (*msg)
-	{
-		c = atoi(msg);			
-		return c;
-	}
-
-	//override based on team
-	if (cl.teamfortress)
-	{
-		switch (cl.players[id].bottomcolor)
-		{	//translate q1 skin colours to console colours
-		case 4:	//red
-			return 1;
-		case 13:	//blue
-			return 5;
-		//fixme: add the others
-		}
-	}
-	return cl.players[id].userid;
-}
-
-int getplayerchatcolour(char *msg)
-{
-	int id;
-	id = getplayerid(msg);
-	if (id == -1)	//not a user/server
-		return 1;
-
-	return CL_PlayerChatColour(id);
 }
 
 void CL_ParsePrecache(void)
@@ -3308,21 +3401,16 @@ void CL_ParseServerMessage (void)
 			s = MSG_ReadString ();
 			if (i == PRINT_CHAT)
 			{
+				char *msg;
+				player_info_t *plr = NULL;
+
 				if (TP_SuppressMessage(s))
 					break;	//if this was unseen-sent from us, ignore it.
 
-				if (CL_ParseChat(s))
+				if (msg = CL_ParseChat(s, &plr))
 				{
 					CL_ParsePrint(s, i);
-
-					if (!cl_standardchat.value)
-						Con_TPrintf (TL_CSPECIALPRINT, getplayerchatcolour(s)%6+'1', s);	//don't ever print it in white.
-					else
-					{
-						con_ormask = CON_STANDARDMASK;
-						Con_TPrintf (TL_ST, s);	//Standard text - makes LEDs work in the ocrana (so I'm told) charset.
-						con_ormask = 0;			//it's a special/wierd characture set.
-					}
+					CL_PrintChat(plr, msg, msgflags & 2, msgflags & 4);
 				}
 			}
 			else
@@ -3768,12 +3856,14 @@ void CLQ2_ParseServerMessage (void)
 			s = MSG_ReadString ();
 			if (i == PRINT_CHAT)
 			{
+				char *msg;
+				player_info_t *plr = NULL;
+
 				S_LocalSound ("misc/talk.wav");
-				con_ormask = CON_2NDCHARSETTEXT;
-				if (CL_ParseChat(s))
+				if (msg = CL_ParseChat(s, &plr))
 				{
 					CL_ParsePrint(s, i);
-					Con_TPrintf (TL_CSPECIALPRINT, getplayerchatcolour(s)%6+'1', s);
+					CL_PrintChat(plr, msg, msgflags & 2, msgflags & 4);
 				}
 			}
 			else
@@ -3895,15 +3985,19 @@ void CLNQ_ParseServerMessage (void)
 			s = MSG_ReadString ();
 			if (*s == 1 || *s == 2)
 			{
-				if (CL_ParseChat(s+1))
+				char *msg;
+				player_info_t *plr = NULL;
+
+
+				if (msg = CL_ParseChat(s+1, &plr))
 				{
-					CL_ParsePrint(s+1, 3);
-					Con_Printf ("^3%s", Translate(s+1));
+					CL_ParsePrint(s+1, PRINT_CHAT);
+					CL_PrintChat(plr, msg, msgflags & 2, msgflags & 4);
 				}
 			}
 			else
 			{
-				CL_ParsePrint(s, 3);
+				CL_ParsePrint(s, PRINT_HIGH);
 				Con_TPrintf (TL_ST, Translate(s));
 			}
 			con_ormask = 0;

@@ -842,7 +842,7 @@ char *TP_PlayerTeam (void);
 char *TP_EnemyTeam (void);
 char *TP_EnemyName (void);
 void TP_StatChanged (int stat, int value);
-int TP_CategorizeMessage (char *s, int *offset);
+int TP_CategorizeMessage (char *s, int *offset, player_info_t **plr);
 void TP_NewMap (void);
 qboolean TP_FilterMessage (char *s);
 qboolean TP_CheckSoundTrigger (char *str);

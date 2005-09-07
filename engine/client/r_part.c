@@ -1890,15 +1890,52 @@ int P_RunParticleEffectState (vec3_t org, vec3_t dir, float count, int typenum, 
 		float dist;
 		vec3_t tangent, t2;
 		vec3_t vec={0.5, 0.5, 0.5};
-		static vec3_t up = {0,0.73,-0.73};
 		float *decverts;
 		int i;
+		trace_t tr;
+
+		vec3_t bestdir;
 
 		if (!free_decals)
 			return 0;
 
 		if (!dir)
-			dir = up;
+		{
+			bestdir[0] = 0;
+			bestdir[1] = 0.73;
+			bestdir[2] = 0.73;
+			dist = 1;
+			for (i = 0; i < 6; i++)
+			{
+				if (i >= 3)
+				{
+					t2[0] = ((i&3)==0)*8;
+					t2[1] = ((i&3)==1)*8;
+					t2[2] = ((i&3)==2)*8;
+				}
+				else
+				{
+					t2[0] = -((i&3)==0)*8;
+					t2[1] = -((i&3)==1)*8;
+					t2[2] = -((i&3)==2)*8;
+				}
+				VectorSubtract(org, t2, tangent);
+				VectorAdd(org, t2, t2);
+
+				if (cl.worldmodel->funcs.Trace (cl.worldmodel, 0, 0,tangent, t2, vec3_origin, vec3_origin, &tr))
+				{
+					if (tr.fraction < dist)
+					{
+						dist = tr.fraction;
+						VectorCopy(tr.plane.normal, bestdir);
+					}
+				}
+			}
+			dir = bestdir;
+			dir[0]*=-1;
+			dir[1]*=-1;
+			dir[2]*=-1;
+		}
 
 		VectorNormalize(vec);
 		CrossProduct(dir, vec, tangent);
@@ -2980,7 +3017,7 @@ qboolean TraceLineN (vec3_t start, vec3_t end, vec3_t impact, vec3_t normal)
 			VectorSubtract(start, pe->origin, ts);
 			VectorSubtract(end, pe->origin, te);
 			pe->model->funcs.Trace(pe->model, 0, 0, ts, te, vec3_origin, vec3_origin, &trace);
-			if (trace.fraction)
+			if (trace.fraction<1)
 			{
 				VectorSubtract(trace.endpos, ts, delta);
 				len = Length(delta);

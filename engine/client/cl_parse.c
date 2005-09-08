@@ -3026,7 +3026,7 @@ char *CL_ParseChat(char *text, player_info_t **player)
 				Validation_Skins();
 				skinsresponsetime = Sys_DoubleTime() + 5;
 			}
-			return true;
+			return s;
 		}
 
 		Validation_CheckIfResponse(text);
@@ -3054,6 +3054,7 @@ char *CL_ParseChat(char *text, player_info_t **player)
 	}
 
 	msgflags = flags;
+
 	return s;
 }
 
@@ -3080,13 +3081,23 @@ void CL_ParsePrint(char *msg, int level)
 	}
 }
 
-void CL_PrintChat(player_info_t *plr, char *msg, qboolean team, qboolean observer)
+// CL_ParseChat: takes chat strings and performs name coloring and cl_parsewhitetext parsing
+// NOTE: text in rawmsg/msg is assumed destroyable and should not be used afterwards
+void CL_PrintChat(player_info_t *plr, char *rawmsg, char *msg, int plrflags)
 {
 	char *t;
+	char *name = NULL;
 	int c;
-	int name_ormask;
+	int name_ormask = 0;
 	extern cvar_t cl_parsewhitetext;
 	qboolean memessage = false;
+
+	if (plrflags & TPM_FAKED)
+	{
+		name = rawmsg; // use rawmsg pointer and msg modification to generate null-terminated string
+		if (msg)
+			*(msg - 2) = 0; // it's assumed that msg has 2 chars before it due to strstr
+	}
 
 	if (msg[0] == '/' && msg[1] == 'm' && msg[2] == 'e' && msg[3] == ' ')
 	{
@@ -3095,17 +3106,19 @@ void CL_PrintChat(player_info_t *plr, char *msg, qboolean team, qboolean observe
 	}
 
 	if (plr) // use special formatting with a real chat message
+		name = plr->name; // use player's name
+
+	if (cl_standardchat.value)
 	{
-		name_ormask = 0;
-		if (cl_standardchat.value)
-		{
-			name_ormask = CON_STANDARDMASK;
-			c = 7;
-		}
-		else if (observer)
+		name_ormask = CON_STANDARDMASK;
+		c = 7;
+	}
+	else
+	{
+		if (plrflags & TPM_SPECTATOR) // is an observer
 		{
 			// TODO: we don't even check for this yet...
-			if (team)
+			if (plrflags & TPM_TEAM) // is on team
 				c = 0; // blacken () on observers
 			else
 			{
@@ -3113,94 +3126,109 @@ void CL_PrintChat(player_info_t *plr, char *msg, qboolean team, qboolean observe
 				c = 7;
 			}
 		}
-		else if (cl.teamfortress) //override based on team
+		else if (plr)
 		{
-			// TODO: needs some work
-			switch (plr->bottomcolor)
-			{	//translate q1 skin colours to console colours
-			case 10:
-			case 1:
-				name_ormask = CON_STANDARDMASK;
-			case 4:	//red
-				c = 1;
-				break;
-			case 11:
-				name_ormask = CON_STANDARDMASK;
-			case 3: // green
-				c = 2;
-				break;
-			case 5:
-				name_ormask = CON_STANDARDMASK;
-			case 12:
-				c = 3;
-				break;
-			case 6:
-			case 7:
-				name_ormask = CON_STANDARDMASK;
-			case 8:
-			case 9:
-				c = 5;
-				break;
-			case 2: // light blue
-				name_ormask = CON_STANDARDMASK;
-			case 13: //blue
-			case 14: //blue
-				c = 6;
-				break;
-			default:
-				name_ormask = CON_STANDARDMASK;
-			case 0: // white
-				c = 7;
-				break;
+			if (cl.teamfortress) //override based on team
+			{
+				// TODO: needs some work
+				switch (plr->bottomcolor)
+				{	//translate q1 skin colours to console colours
+				case 10:
+				case 1:
+					name_ormask = CON_STANDARDMASK;
+				case 4:	//red
+					c = 1;
+					break;
+				case 11:
+					name_ormask = CON_STANDARDMASK;
+				case 3: // green
+					c = 2;
+					break;
+				case 5:
+					name_ormask = CON_STANDARDMASK;
+				case 12:
+					c = 3;
+					break;
+				case 6:
+				case 7:
+					name_ormask = CON_STANDARDMASK;
+				case 8:
+				case 9:
+					c = 5;
+					break;
+				case 2: // light blue
+					name_ormask = CON_STANDARDMASK;
+				case 13: //blue
+				case 14: //blue
+					c = 6;
+					break;
+				default:
+					name_ormask = CON_STANDARDMASK;
+				case 0: // white
+					c = 7;
+					break;
+				}
+			}
+			else
+			{
+				// override chat color with tc infokey
+				// 0-6 is standard colors (red to white)
+				// 7-13 is using secondard charactermask
+				// 14 and afterwards repeats
+				t = Info_ValueForKey(plr->userinfo, "tc");
+				if (*t)
+					c = atoi(t);
+				else
+					c = plr->userid - 1;
+
+				if ((c / 7) & 1)
+					name_ormask = CON_STANDARDMASK;
+
+				c = 1 + (c % 7);
 			}
 		}
 		else
 		{
-			//primary override.
-			t = Info_ValueForKey(plr->userinfo, "tc");
-			if (*t)
-				c = atoi(t);
-			else
-				c = plr->userid - 1;
-
-			if ((c / 7) & 1)
-				name_ormask = CON_STANDARDMASK;
-
-			c = 1 + (c % 7);
+			// defaults for fake clients
+			name_ormask = CON_STANDARDMASK;
+			c = 7;
 		}
+	}
 
-		c = '0' + c;
+	c = '0' + c;
 
+	if (name)
+	{
 		if (memessage)
 		{
 			con_ormask = CON_STANDARDMASK;
-			if (!cl_standardchat.value && observer)
+			if (!cl_standardchat.value && (plrflags & TPM_SPECTATOR))
 				Con_Printf ("^0*^7 ");
 			else
 				Con_Printf ("* ");
 		}
 
-		if (team) // for team chat don't highlight the name, just the brackets
+		if (plrflags & TPM_TEAM) // for team chat don't highlight the name, just the brackets
 		{
 			// color is reset every printf so we're safe here
 			con_ormask = name_ormask;
 			Con_Printf("^%c(", c);
 			con_ormask = CON_STANDARDMASK;
-			Con_Printf("%s", plr->name);
+			Con_Printf("%s", name);
 			con_ormask = name_ormask;
 			Con_Printf("^%c)", c);
 		}
 		else
 		{
 			con_ormask = name_ormask;
-			Con_Printf("^%c%s", c, plr->name);
+			Con_Printf("^%c%s", c, name);
 		}
 
 		if (!memessage)
 		{
 			// only print seperator with an actual player name
 			con_ormask = CON_STANDARDMASK;	
-			if (!cl_standardchat.value && observer)
+			if (!cl_standardchat.value && (plrflags & TPM_SPECTATOR))
 				Con_Printf ("^0:^7 ");
 			else
 				Con_Printf (": ");
@@ -3211,7 +3239,7 @@ void CL_PrintChat(player_info_t *plr, char *msg, qboolean team, qboolean observe
 
 	// print message
 	con_ormask = CON_STANDARDMASK;
-	if (cl_parsewhitetext.value && team && plr)
+	if (cl_parsewhitetext.value && (plrflags & TPM_TEAM))
 	{
 		char *u;
 
@@ -3413,7 +3441,7 @@ void CL_ParseServerMessage (void)
 				if (msg = CL_ParseChat(s, &plr))
 				{
 					CL_ParsePrint(s, i);
-					CL_PrintChat(plr, msg, msgflags & 2, msgflags & 4);
+					CL_PrintChat(plr, s, msg, msgflags);
 				}
 			}
 			else
@@ -3866,7 +3894,7 @@ void CLQ2_ParseServerMessage (void)
 				if (msg = CL_ParseChat(s, &plr))
 				{
 					CL_ParsePrint(s, i);
-					CL_PrintChat(plr, msg, msgflags & 2, msgflags & 4);
+					CL_PrintChat(plr, s, msg, msgflags);
 				}
 			}
 			else
@@ -3995,7 +4023,7 @@ void CLNQ_ParseServerMessage (void)
 				if (msg = CL_ParseChat(s+1, &plr))
 				{
 					CL_ParsePrint(s+1, PRINT_CHAT);
-					CL_PrintChat(plr, msg, msgflags & 2, msgflags & 4);
+					CL_PrintChat(plr, s+1, msg, msgflags);
 				}
 			}
 			else

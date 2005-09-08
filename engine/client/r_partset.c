@@ -781,7 +781,7 @@ char *particle_set_spikeset =
 "r_part explodesprite\n"
 "{\n"
 "	texture \"particles/flame\"\n"
-"	count	1\n"
+"	count 120\n"
 "	scale 80\n"
 "	scalefactor 1\n"
 "	alpha 0.2\n"

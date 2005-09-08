@@ -834,6 +834,12 @@ void CL_InitCam(void);
 //
 //zqtp.c
 //
+#define TPM_UNKNOWN    0
+#define TPM_NORMAL     1
+#define TPM_TEAM       2
+#define TPM_SPECTATOR  4
+#define TPM_FAKED     16
+
 qboolean TP_SoundTrigger(char *message);
 char *TP_PlayerName (void);
 char *TP_MapName (void);

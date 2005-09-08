@@ -10,8 +10,8 @@
 
 
 
-typedef int (EXPORT_FN *sys_call_t) (int arg, ...);
-typedef long (*sys_callex_t) (void *offset, unsigned int mask, int fn, const long *arg);
+typedef int (EXPORT_FN *sys_calldll_t) (int arg, ...);
+typedef long (*sys_callqvm_t) (void *offset, unsigned int mask, int fn, const long *arg);
 
 typedef struct vm_s vm_t;
 
@@ -23,7 +23,7 @@ typedef struct vm_s vm_t;
 // ------------------------- * interface * -------------------------
 
 void VM_PrintInfo(vm_t *vm);
-vm_t *VM_Create(vm_t *vm, const char *name, sys_call_t syscall, sys_callex_t syscallex);
+vm_t *VM_Create(vm_t *vm, const char *name, sys_calldll_t syscalldll, sys_callqvm_t syscallqvm);
 void VM_Destroy(vm_t *vm);
 qboolean VM_Restart(vm_t *vm);
 int VARGS VM_Call(vm_t *vm, int instruction, ...);

@@ -55,8 +55,8 @@ struct vm_s {
 // common
 	vm_type_t type;
 	char name[MAX_QPATH];
-	sys_call_t syscall;
-	sys_callex_t syscallex;
+	sys_calldll_t syscalldll;
+	sys_callqvm_t syscallqvm;
 
 // shared
 	void *hInst;
@@ -68,9 +68,9 @@ struct vm_s {
 
 #ifdef _WIN32
 #include "winquake.h"
-void *Sys_LoadDLL(const char *name, void **vmMain, int (EXPORT_FN *syscall)(int arg, ... ))
+void *Sys_LoadDLL(const char *name, void **vmMain, sys_calldll_t syscall)
 {
-	void (VARGS *dllEntry)(int (EXPORT_FN *syscall)(int arg, ... ));
+	void (VARGS *dllEntry)(sys_calldll_t syscall);
 	char dllname[MAX_OSPATH];
 	HINSTANCE hVM;
 
@@ -264,10 +264,10 @@ typedef struct qvm_s
 	qbyte *mem_ptr;
 
 //	unsigned int cycles;	// command cicles executed
-	sys_callex_t syscall;
+	sys_callqvm_t syscall;
 } qvm_t;
 
-qvm_t *QVM_Load(const char *name, sys_callex_t syscall);
+qvm_t *QVM_Load(const char *name, sys_callqvm_t syscall);
 void QVM_UnLoad(qvm_t *qvm);
 int QVM_Exec(qvm_t *qvm, int command, int arg0, int arg1, int arg2, int arg3, int arg4, int arg5, int arg6, int arg7);
 
@@ -372,7 +372,7 @@ typedef enum qvm_op_e
 /*
 ** QVM_Load
 */
-qvm_t *QVM_Load(const char *name, sys_callex_t syscall)
+qvm_t *QVM_Load(const char *name, sys_callqvm_t syscall)
 {
 	char path[MAX_QPATH];
 	vmHeader_t *header;
@@ -972,9 +972,9 @@ void VM_PrintInfo(vm_t *vm)
 /*
 ** VM_Create
 */
-vm_t *VM_Create(vm_t *vm, const char *name, sys_call_t syscall, sys_callex_t syscallex)
+vm_t *VM_Create(vm_t *vm, const char *name, sys_calldll_t syscalldll, sys_callqvm_t syscallqvm)
 {
-	if(!name || !*name || !syscall || !syscallex)
+	if(!name || !*name)
 		Sys_Error("VM_Create: bad parms");
 
 	if (!vm)
@@ -983,27 +983,33 @@ vm_t *VM_Create(vm_t *vm, const char *name, sys_call_t syscall, sys_callex_t sys
 // prepare vm struct
 	memset(vm, 0, sizeof(vm_t));
 	Q_strncpyz(vm->name, name, sizeof(vm->name));
-	vm->syscall=syscall;
-	vm->syscallex=syscallex;
+	vm->syscalldll=syscalldll;
+	vm->syscallqvm=syscallqvm;
 
 
 
-	if (!COM_CheckParm("-nodlls") && !COM_CheckParm("-nosos"))	//:)
+	if (syscalldll)
 	{
-		if((vm->hInst=Sys_LoadDLL(name, (void**)&vm->vmMain, syscall)))
+		if (!COM_CheckParm("-nodlls") && !COM_CheckParm("-nosos"))	//:)
 		{
-			Con_DPrintf("Creating native machine \"%s\"\n", name);
-			vm->type=VM_NATIVE;
-			return vm;
+			if((vm->hInst=Sys_LoadDLL(name, (void**)&vm->vmMain, syscalldll)))
+			{
+				Con_DPrintf("Creating native machine \"%s\"\n", name);
+				vm->type=VM_NATIVE;
+				return vm;
+			}
 		}
 	}
 
 
-	if((vm->hInst=QVM_Load(name, syscallex)))
+	if (syscallqvm)
 	{
-		Con_DPrintf("Creating virtual machine \"%s\"\n", name);
-		vm->type=VM_BYTECODE;
-		return vm;
+		if((vm->hInst=QVM_Load(name, syscallqvm)))
+		{
+			Con_DPrintf("Creating virtual machine \"%s\"\n", name);
+			vm->type=VM_BYTECODE;
+			return vm;
+		}
 	}
 
 	Z_Free(vm);
@@ -1040,15 +1046,15 @@ void VM_Destroy(vm_t *vm)
 qboolean VM_Restart(vm_t *vm)
 {
 	char name[MAX_QPATH];
-	sys_call_t syscall;
-	sys_callex_t syscallex;
+	sys_calldll_t syscalldll;
+	sys_callqvm_t syscallqvm;
 
 	if(!vm) return false;
 
 // save params
 	Q_strncpyz(name, vm->name, sizeof(name)); 
-	syscall=vm->syscall;
-	syscallex=vm->syscallex;
+	syscalldll=vm->syscalldll;
+	syscallqvm=vm->syscallqvm;
 
 // restart
 	switch(vm->type)
@@ -1065,7 +1071,7 @@ qboolean VM_Restart(vm_t *vm)
 		break;
 	}
 
-	return VM_Create(vm, name, syscall, syscallex)!=NULL;
+	return VM_Create(vm, name, syscalldll, syscallqvm)!=NULL;
 }
 
 void *VM_MemoryBase(vm_t *vm)

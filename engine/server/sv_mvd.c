@@ -1268,6 +1268,7 @@ static qboolean SV_MVD_Record (mvddest_t *dest)
 	{
 		memset(&demo, 0, sizeof(demo));
 		demo.recorder.frames = demo_frames;
+		demo.recorder.protocol = SCP_QUAKEWORLD;
 		for (i = 0; i < UPDATE_BACKUP; i++)
 		{
 			demo.recorder.frames[i].entities.max_entities = MAX_MVDPACKET_ENTITIES;

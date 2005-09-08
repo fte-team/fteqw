@@ -1802,6 +1802,7 @@ qbyte *Read32BitImageFile(qbyte *buf, int len, int *width, int *height)
 
 int image_width, image_height;
 qbyte *COM_LoadFile (char *path, int usehunk);
+//fixme: should probably get rid of the 'Mod' prefix, and use something more suitable.
 int Mod_LoadHiResTexture(char *name, char *subpath, qboolean mipmap, qboolean alpha, qboolean colouradjust)
 {
 	qboolean alphaed;
@@ -1825,7 +1826,7 @@ int Mod_LoadHiResTexture(char *name, char *subpath, qboolean mipmap, qboolean al
 
 	static char *path[] ={
 		"%s%s",
-		"textures/%s/%s%s",	//this is special... It uses the subpath parameter.
+		"textures/%s/%s%s",	//this is special... It uses the subpath parameter. Note references to (i == 1)
 		"textures/%s%s",
 		"override/%s%s"
 	};
@@ -1841,6 +1842,12 @@ int Mod_LoadHiResTexture(char *name, char *subpath, qboolean mipmap, qboolean al
 
 	if ((len = GL_FindTexture(name))!=-1)	//don't bother if it already exists.
 		return len;
+	if (subpath && *subpath)
+	{
+		_snprintf(fname, sizeof(fname)-1, "%s/%s", subpath, name);
+		if ((len = GL_FindTexture(fname))!=-1)	//don't bother if it already exists.
+			return len;
+	}
 
 	if ((len = GL_LoadCompressed(name)))
 		return len;
@@ -1858,7 +1865,7 @@ int Mod_LoadHiResTexture(char *name, char *subpath, qboolean mipmap, qboolean al
 		{
 			if (!subpath)
 					continue;
-			_snprintf(fname, sizeof(fname)-1, path[i], subpath, COM_SkipPath(nicename), ".dds");
+			_snprintf(fname, sizeof(fname)-1, path[i], subpath, /*COM_SkipPath*/(nicename), ".dds");
 		}
 		else
 			_snprintf(fname, sizeof(fname)-1, path[i], nicename, ".dds");
@@ -1877,7 +1884,7 @@ int Mod_LoadHiResTexture(char *name, char *subpath, qboolean mipmap, qboolean al
 			{
 				if (!subpath)
 					continue;
-				_snprintf(fname, sizeof(fname)-1, path[i], subpath, COM_SkipPath(nicename), extensions[e]);
+				_snprintf(fname, sizeof(fname)-1, path[i], subpath, /*COM_SkipPath*/(nicename), extensions[e]);
 			}
 			else
 				_snprintf(fname, sizeof(fname)-1, path[i], nicename, extensions[e]);
@@ -1890,7 +1897,13 @@ int Mod_LoadHiResTexture(char *name, char *subpath, qboolean mipmap, qboolean al
 					if (colouradjust && !vid_hardwaregamma.value)
 						BoostGamma(data, image_width, image_height);
 					TRACE(("dbg: Mod_LoadHiResTexture: %s loaded\n", name));
-					len = GL_LoadTexture32 (name, image_width, image_height, (unsigned*)data, mipmap, alpha);
+					if (i == 1)
+					{	//if it came from a special subpath (eg: map specific), upload it using the subpath prefix
+						_snprintf(fname, sizeof(fname)-1, "%s/%s", subpath, name);
+						len = GL_LoadTexture32 (fname, image_width, image_height, (unsigned*)data, mipmap, alpha);
+					}
+					else
+						len = GL_LoadTexture32 (name, image_width, image_height, (unsigned*)data, mipmap, alpha);
 					BZ_Free(data);
 
 					BZ_Free(buf);

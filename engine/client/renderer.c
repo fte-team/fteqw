@@ -140,6 +140,8 @@ cvar_t		gl_ati_truform = {"gl_ati_truform", "0"};
 cvar_t		gl_ati_truform_type = {"gl_ati_truform_type", "1"};
 cvar_t		gl_ati_truform_tesselation = {"gl_ati_truform_tesselation", "3"};
 
+cvar_t		mod_md3flags = {"mod_md3flags", "1"};
+
 cvar_t		gl_lateswap = {"gl_lateswap", "0"};
 
 cvar_t			scr_sshot_type = {"scr_sshot_type", "jpg"};
@@ -492,6 +494,8 @@ void Renderer_Init(void)
 	Cvar_Register(&r_bloodstains, GRAPHICALNICETIES);
 
 	Cvar_Register(&r_fullbrightSkins, GRAPHICALNICETIES);
+
+	Cvar_Register (&mod_md3flags, GRAPHICALNICETIES);
 
 
 //renderer

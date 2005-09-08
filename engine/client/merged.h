@@ -111,7 +111,7 @@ void Draw_FunString(int x, int y, unsigned char *str);
 
 #ifdef SERVERONLY
 #define Mod_Q1LeafPVS Mod_LeafPVS
-qbyte *Mod_LeafPVS (struct mleaf_s *leaf, struct model_s *model, qbyte *buffer);
+// qbyte *Mod_LeafPVS (struct mleaf_s *leaf, struct model_s *model, qbyte *buffer);
 #endif
 
 

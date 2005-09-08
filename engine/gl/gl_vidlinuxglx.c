@@ -972,7 +972,7 @@ void IN_MouseMove (usercmd_t *cmd, int pnum)
 	old_mouse_y = my;
 
 	if (m_accel.value) {
-		mouse_deltadist = sqrt(mx*mx + my*my);
+		float mouse_deltadist = sqrt(mx*mx + my*my);
 		mouse_x *= (mouse_deltadist*m_accel.value + sensitivity.value*in_sensitivityscale);
 		mouse_y *= (mouse_deltadist*m_accel.value + sensitivity.value*in_sensitivityscale);
 	} else {

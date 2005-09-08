@@ -336,7 +336,7 @@ qboolean CGQ3_GetUserCmd(int cmdNumber, q3usercmd_t *ucmd)
 
 static vm_t *cgvm;
 
-static int keycatcher;
+extern int keycatcher;
 
 qboolean CG_GetServerCommand(int cmdnum)
 {
@@ -344,7 +344,7 @@ qboolean CG_GetServerCommand(int cmdnum)
 	// get the gamestate from the client system, which will have the
 	// new configstring already integrated
 
-	char *str = ccs.serverCommands[cmdnum % TEXTCMD_MASK];
+	char *str = ccs.serverCommands[cmdnum & TEXTCMD_MASK];
 
 	Con_DPrintf("Dispaching %s\n", str);
 	Cmd_TokenizeString(str, false, false);
@@ -354,6 +354,71 @@ qboolean CG_GetServerCommand(int cmdnum)
 	return true;
 }
 
+
+typedef struct {
+	int		firstPoint;
+	int		numPoints;
+} markFragment_t;
+int CG_MarkFragments( int numPoints, const vec3_t *points, const vec3_t projection,
+				   int maxPoints, vec3_t pointBuffer, int maxFragments, markFragment_t *fragmentBuffer )
+{
+#if 1	//FIXME: make work
+	return 0;
+#else
+	vec3_t center;
+	vec3_t axis[3];
+	vec3_t p[4];
+	int i;
+	float radius;
+
+	if (numPoints != 4)
+		return 0;
+
+	/*
+	q3 gamecode includes something like this
+
+	originalPoints[0][i] = origin[i] - radius * axis[1][i] - radius * axis[2][i];
+	originalPoints[1][i] = origin[i] + radius * axis[1][i] - radius * axis[2][i];
+	originalPoints[2][i] = origin[i] + radius * axis[1][i] + radius * axis[2][i];
+	originalPoints[3][i] = origin[i] - radius * axis[1][i] + radius * axis[2][i];
+
+	We want that origional axis and the origin
+	axis[0] is given in the 'projection' parameter.
+
+	Yes, reversing this stuff means that we'll have no support for triangles.
+	*/
+
+	VectorClear(center);
+	VectorAdd(center, points[0], center);
+	VectorAdd(center, points[1], center);
+	VectorAdd(center, points[2], center);
+	VectorAdd(center, points[3], center);
+
+	VectorSubtract(points[0], center, p[0]);
+	VectorSubtract(points[1], center, p[1]);
+	VectorSubtract(points[2], center, p[2]);
+	VectorSubtract(points[3], center, p[3]);
+
+	for (i = 0; i < 3; i++)
+	{
+		axis[1][i] = (p[2][i]+p[1][i])/2;
+		axis[2][i] = (p[2][i]+p[3][i])/2;
+	}
+
+	radius = VectorNormalize(axis[1]);
+	VectorNormalize(axis[2]);
+	VectorNormalize(projection);
+
+	
+
+
+	Q1BSP_ClipDecal(center, axis[0], axis[1], axis[2], radius, pointBuffer, maxPoints);
+	fragmentBuffer->firstPoint = 0;
+	fragmentBuffer->numPoints = 0;
+
+	return 1;
+#endif
+}
 
 
 void GLDraw_Image(float x, float y, float w, float h, float s1, float t1, float s2, float t2, qpic_t *pic);
@@ -464,7 +529,7 @@ static long CG_SystemCallsEx(void *offset, unsigned int mask, int fn, const long
 		Cbuf_AddText(VM_POINTER(arg[0]), RESTRICT_SERVER);
 		break;
 	case CG_ADDCOMMAND:
-		Cmd_AddRemCommand(VM_POINTER(arg[0]), CG_Command_f);
+		Cmd_AddRemCommand(VM_POINTER(arg[0]), NULL);
 		break;
 	case CG_SENDCLIENTCOMMAND:
 		Con_DPrintf("CG_SENDCLIENTCOMMAND: %s", VM_POINTER(arg[0]));
@@ -472,8 +537,11 @@ static long CG_SystemCallsEx(void *offset, unsigned int mask, int fn, const long
 		break;
 
 	case CG_UPDATESCREEN:	//force a buffer swap cos loading won't refresh it soon.
-		GL_EndRendering();
-		GL_DoSwap();
+		SCR_BeginLoadingPlaque();
+		SCR_UpdateScreen();
+		SCR_EndLoadingPlaque();
+//		GL_EndRendering();
+//		GL_DoSwap();
 		break;
 
 	case CG_FS_FOPENFILE: //fopen
@@ -499,10 +567,10 @@ static long CG_SystemCallsEx(void *offset, unsigned int mask, int fn, const long
 			if (!mod)
 				mod = cl.worldmodel;
 			if (mod)
-				pc = mod->funcs.PointContents(mod, VM_POINTER(arg[0]));
+				pc = CM_PointContents(mod, VM_POINTER(arg[0]));
 			else
-				pc = FTECONTENTS_SOLID;
-			VM_LONG(ret) = Contents_To_Q3(pc);
+				pc = 1;//FTECONTENTS_SOLID;
+			VM_LONG(ret) = pc;//Contents_To_Q3(pc);
 		}
 		break;
 
@@ -537,11 +605,11 @@ static long CG_SystemCallsEx(void *offset, unsigned int mask, int fn, const long
 				}
 
 				if (mod)
-					pc = mod->funcs.PointContents(mod, p_l);
+					pc = CM_PointContents(mod, p_l);
 				else
-					pc = FTECONTENTS_SOLID;
+					pc = 1;//FTECONTENTS_SOLID;
 			}
-			VM_LONG(ret) = Contents_To_Q3(pc);
+			VM_LONG(ret) = pc;//Contents_To_Q3(pc);
 		}
 		break;
 
@@ -705,6 +773,18 @@ static long CG_SystemCallsEx(void *offset, unsigned int mask, int fn, const long
 
 	case CG_R_CLEARSCENE:	//clear scene
 		cl_numvisedicts=0;
+		{
+			int i;
+			for (i = 0; i < MAX_DLIGHTS; i++)
+			{
+				if (cl_dlights[i].isstatic)
+					continue;
+				cl_dlights[i].radius = 0; 
+			}
+		}
+		break;
+	case CG_R_ADDPOLYTOSCENE:
+		// ...
 		break;
 	case CG_R_ADDREFENTITYTOSCENE:	//add ent to scene
 		VQ3_AddEntity(VM_POINTER(arg[0]));
@@ -717,6 +797,7 @@ static long CG_SystemCallsEx(void *offset, unsigned int mask, int fn, const long
 		}
 		break;
 	case CG_R_RENDERSCENE:	//render scene
+		GLR_PushDlights();
 		VQ3_RenderView(VM_POINTER(arg[0]));
 		break;
 
@@ -817,6 +898,7 @@ static long CG_SystemCallsEx(void *offset, unsigned int mask, int fn, const long
 		break;
 
 	case CG_CM_MARKFRAGMENTS:
+		VM_LONG(ret) = CG_MarkFragments( VM_LONG(arg[0]), VM_POINTER(arg[1]), VM_POINTER(arg[2]), VM_LONG(arg[3]), VM_POINTER(arg[4]), VM_LONG(arg[5]), VM_POINTER(arg[6]) );
 		break;
 
 	case CG_GETCURRENTSNAPSHOTNUMBER:
@@ -925,7 +1007,7 @@ static long CG_SystemCallsEx(void *offset, unsigned int mask, int fn, const long
 		UI_RegisterFont(VM_POINTER(arg[0]), VM_LONG(arg[1]), VM_POINTER(arg[2]));
 		break;
 	default:
-		Con_Printf("Q3CG: Bad system trap: %d\n", fn);
+		Host_EndGame("Q3CG: Bad system trap: %d\n", fn);
 	}
 
 	return ret;
@@ -1020,14 +1102,17 @@ void CG_Start (void)
 	}
 
 	Z_FreeTags(CGTAGNUM);
+	SCR_BeginLoadingPlaque();
 
 	cgvm = VM_Create(NULL, "vm/cgame", CG_SystemCalls, CG_SystemCallsEx);
 	if (cgvm)
 	{	//hu... cgame doesn't appear to have a query version call!
 		VM_Call(cgvm, CG_INIT, ccs.serverMessageNum, ccs.lastServerCommandNum, cl.playernum[0]);
+		SCR_EndLoadingPlaque();
 	}
 	else
 	{
+		SCR_EndLoadingPlaque();
 		Host_EndGame("Failed to initialise cgame module\n");
 	}
 #endif

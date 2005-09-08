@@ -436,7 +436,7 @@ unsigned SV_CheckModel(char *mdl)
 	buf = (qbyte *)COM_LoadStackFile (mdl, stackbuf, sizeof(stackbuf));
 	if (!buf)
 		return 0;
-	crc = CRC_Block(buf, com_filesize);
+	crc = QCRC_Block(buf, com_filesize);
 //	for (len = com_filesize; len; len--, buf++)
 //		CRC_ProcessByte(&crc, *buf);
 
@@ -570,6 +570,12 @@ void SV_SpawnServer (char *server, char *startspot, qboolean noents, qboolean us
 	D_FlushCaches();
 	cl.worldmodel = NULL;
 #endif
+
+#ifdef Q3SERVER
+	if (newgametype == GT_QUAKE3)
+		SVQ3_ShutdownGame();	//botlib kinda mandates this. :(
+#endif
+
 	Mod_ClearAll ();
 	Hunk_FreeToLowMark (host_hunklevel);
 
@@ -1009,7 +1015,7 @@ void SV_SpawnServer (char *server, char *startspot, qboolean noents, qboolean us
 	if (file)
 	{
 		char crc[12];
-		sprintf(crc, "%i", CRC_Block(file, com_filesize));
+		sprintf(crc, "%i", QCRC_Block(file, com_filesize));
 		Info_SetValueForStarKey(svs.info, "*entfile", crc, MAX_SERVERINFO_STRING);
 		switch(svs.gametype)
 		{

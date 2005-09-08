@@ -3,6 +3,8 @@
 #include "ui_public.h"
 #include "cl_master.h"
 
+int keycatcher;
+
 #ifdef VM_UI
 #include "clq3defs.h"
 
@@ -201,8 +203,6 @@ static vm_t *uivm;
 static char *scr_centerstring;
 
 static int ox, oy;
-
-static int keycatcher;
 
 void GLDraw_Image(float x, float y, float w, float h, float s1, float t1, float s2, float t2, qpic_t *pic);
 void SWDraw_Image (float xp, float yp, float wp, float hp, float s1, float t1, float s2, float t2, qpic_t *pic);
@@ -453,6 +453,30 @@ int VMEnumMods(char *match, int size, void *args)
 	((vmsearch_t *)args)->found++;
 	return true;
 }
+
+int VMQ3_GetFileList(char *path, char *ext, char *output, int buffersize)
+{
+	vmsearch_t vms;
+	vms.initialbuffer = vms.buffer = output;
+	vms.skip = strlen(path)+1;
+	vms.bufferleft = buffersize;
+	vms.found=0;
+	if (*(char *)path == '$')
+	{
+		extern char	com_basedir[];
+		vms.skip=0;
+		Sys_EnumerateFiles(com_basedir, "*", VMEnumMods, &vms);
+	}
+	else if (*(char *)ext == '.' || *(char *)ext == '/')
+		COM_EnumerateFiles(va("%s/*%s", path, ext), VMEnum, &vms);
+	else
+		COM_EnumerateFiles(va("%s/*.%s", path, ext), VMEnum, &vms);
+	return vms.found;
+}
+
+
+
+
 
 typedef struct q3refEntity_s {
 	refEntityType_t	reType;
@@ -731,7 +755,7 @@ long UI_SystemCallsEx(void *offset, unsigned int mask, int fn, const long *arg)
 	//make sure that any called functions are also range checked.
 	//like reading from files copies names into alternate buffers, allowing stack screwups.
 
-	switch((ui_builtinnum_t)fn)
+	switch((uiImport_t)fn)
 	{
 	case UI_ERROR:
 		Con_Printf("%s", VM_POINTER(arg[0]));
@@ -743,6 +767,19 @@ long UI_SystemCallsEx(void *offset, unsigned int mask, int fn, const long *arg)
 	case UI_MILLISECONDS:
 		VM_LONG(ret) = Sys_Milliseconds();
 		break;
+
+	case UI_ARGC:
+		VM_LONG(ret) = Cmd_Argc();
+		break;
+	case UI_ARGV:
+//		VALIDATEPOINTER(arg[1], arg[2]);
+		Q_strncpyz(VM_POINTER(arg[1]), Cmd_Argv(VM_LONG(arg[0])), VM_LONG(arg[2]));
+		break;
+/*	case UI_ARGS:
+		VALIDATEPOINTER(arg[0], arg[1]);
+		Q_strncpyz(VM_POINTER(arg[0]), Cmd_Args(), VM_LONG(arg[1]));
+		break;
+*/
 
 	case UI_CVAR_SET:
 		{
@@ -849,25 +886,7 @@ long UI_SystemCallsEx(void *offset, unsigned int mask, int fn, const long *arg)
 	case UI_FS_GETFILELIST:	//fs listing
 		if ((int)arg[2] + arg[3] >= mask || VM_POINTER(arg[2]) < offset)
 			break;	//out of bounds.
-		{
-			vmsearch_t vms;
-			vms.initialbuffer = vms.buffer = VM_POINTER(arg[2]);
-			vms.skip = strlen(VM_POINTER(arg[0]))+1;
-			vms.bufferleft = arg[3];
-			vms.found=0;
-			if (*(char *)VM_POINTER(arg[0]) == '$')
-			{
-				extern char	com_basedir[];
-				vms.skip=0;
-				Sys_EnumerateFiles(com_basedir, "*", VMEnumMods, &vms);
-			}
-			else if (*(char *)VM_POINTER(arg[1]) == '.' || *(char *)VM_POINTER(arg[1]) == '/')
-				COM_EnumerateFiles(va("%s/*%s", VM_POINTER(arg[0]), VM_POINTER(arg[1])), VMEnum, &vms);
-			else
-				COM_EnumerateFiles(va("%s/*.%s", VM_POINTER(arg[0]), VM_POINTER(arg[1])), VMEnum, &vms);
-			VM_LONG(ret) = vms.found;
-		}
-		break;
+		return VMQ3_GetFileList(VM_POINTER(arg[0]), VM_POINTER(arg[1]), VM_POINTER(arg[2]), VM_LONG(arg[3]));
 
 	case UI_R_REGISTERMODEL:	//precache model
 		{
@@ -950,6 +969,9 @@ long UI_SystemCallsEx(void *offset, unsigned int mask, int fn, const long *arg)
 		if (VM_LONG(arg[0]) != -1 && arg[0])
 			S_LocalSound(VM_LONG(arg[0])+(char *)offset);
 		break;
+
+	case UI_KEY_GETOVERSTRIKEMODE:
+		return true;
 
 	case UI_KEY_KEYNUMTOSTRINGBUF:
 		if (VM_LONG(arg[0]) < 0 || VM_LONG(arg[0]) > 255 || (int)arg[1] + VM_LONG(arg[2]) >= mask || VM_POINTER(arg[1]) < offset || VM_LONG(arg[2]) < 1)
@@ -1529,8 +1551,8 @@ void UI_MousePosition(int xpos, int ypos)
 			ypos = vid.height;
 		ox=0;oy=0;
 		//force a cap
-		VM_Call(uivm, UI_MOUSE_DELTA, -32767, -32767);
-		VM_Call(uivm, UI_MOUSE_DELTA, (xpos-ox)*640/vid.width, (ypos-oy)*480/vid.height);
+		VM_Call(uivm, UI_MOUSE_EVENT, -32767, -32767);
+		VM_Call(uivm, UI_MOUSE_EVENT, (xpos-ox)*640/vid.width, (ypos-oy)*480/vid.height);
 		ox = xpos;
 		oy = ypos;
 
@@ -1573,7 +1595,7 @@ void UI_Start (void)
 		}
 		VM_Call(uivm, UI_INIT);
 
-		VM_Call(uivm, UI_MOUSE_DELTA, -32767, -32767);
+		VM_Call(uivm, UI_MOUSE_EVENT, -32767, -32767);
 		ox = 0;
 		oy = 0;
 
@@ -1593,6 +1615,13 @@ void UI_Restart_f(void)
 		else
 			VM_Call(uivm, UI_SET_ACTIVE_MENU, 1);
 	}
+}
+
+qboolean UI_Command(void)
+{
+	if (uivm)
+		return VM_Call(uivm, UI_CONSOLE_COMMAND);
+	return false;
 }
 
 void UI_Init (void)

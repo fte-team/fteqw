@@ -1645,7 +1645,21 @@ void	Cmd_ExecuteString (char *text, int level)
 			if ((cmd->restriction?cmd->restriction:rcon_level.value) > level)
 				Con_TPrintf(TL_WASRESTIRCTED, cmd_argv[0]);
 			else if (!cmd->function)
+			{
+#ifdef VM_CG
+				if (CG_Command())
+					return;
+#endif
+#ifdef Q3SERVER
+				if (SVQ3_Command())
+					return;
+#endif
+#ifdef VM_UI
+				if (UI_Command())
+					return;
+#endif
 				Cmd_ForwardToServer ();
+			}
 			else
 				cmd->function ();
 			return;
@@ -1737,8 +1751,16 @@ void	Cmd_ExecuteString (char *text, int level)
 	if (CG_Command())
 		return;
 #endif
+#ifdef Q3SERVER
+	if (SVQ3_Command())
+		return;
+#endif
+#ifdef VM_UI
+	if (UI_Command())
+		return;
+#endif
 #ifdef Q2CLIENT
-	if (cls.protocol == CP_QUAKE2)
+	if (cls.protocol == CP_QUAKE2 || cls.protocol == CP_QUAKE3)
 	{	//q2 servers convert unknown commands to text.
 		Cmd_ForwardToServer();
 		return;
@@ -2235,6 +2257,20 @@ skipblock:
 	If_Token_Clear(ts);
 }
 
+void Cmd_Vstr_f( void )
+{
+	char	*v;
+
+	if (Cmd_Argc () != 2)
+	{
+		Con_Printf ("vstr <variablename> : execute a variable command\n");
+		return;
+	}
+
+	v = Cvar_VariableString(Cmd_Argv(1));
+	Cbuf_InsertText(va("%s\n", v), Cmd_ExecLevel);
+}
+
 void Cmd_set_f(void)
 {
 	cvar_t *var;
@@ -2717,6 +2753,7 @@ void Cmd_Init (void)
 
 	Cmd_AddCommand ("set", Cmd_set_f);
 	Cmd_AddCommand ("seta", Cmd_set_f);
+	Cmd_AddCommand ("vstr", Cmd_Vstr_f);
 	Cmd_AddCommand ("inc", Cvar_Inc_f);
 	//FIXME: Add seta some time.
 	Cmd_AddCommand ("if", Cmd_if_f);

@@ -182,7 +182,7 @@ void ConcatPackageLists(package_t *l2)
 static void dlnotification(char *localfile, qboolean sucess)
 {
 	FILE *f;
-
+	FS_FlushFSHash();
 	COM_FOpenFile(localfile, &f);
 	if (f)
 	{
@@ -315,7 +315,8 @@ qboolean M_Download_Key (struct menucustom_s *c, struct menu_s *m, int key)
 			{
 				if ((p->flags&DPF_WANTTOINSTALL) && !(p->flags&DPF_HAVEAVERSION))
 				{	//if we want it and don't have it:
-					if (HTTP_CL_Get(p->src, va("../%s", p->dest), NULL))
+					COM_CreatePath(va("%s/%s", com_gamedir, p->dest));
+					if (HTTP_CL_Get(p->src, p->dest, NULL))
 						p->flags|=DPF_HAVEAVERSION;	//FIXME: This is error prone.
 				}
 			}

@@ -377,7 +377,7 @@ void GLR_PushDlights (void)
 	r_dlightframecount = r_framecount + 1;	// because the count hasn't
 											//  advanced yet for this frame
 
-	if (!r_dynamic.value)
+	if (!r_dynamic.value || !cl.worldmodel)
 		return;
 
 //	if (!cl.worldmodel->nodes)

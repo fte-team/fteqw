@@ -311,7 +311,6 @@ typedef struct QCC_type_s
 	unsigned int ofs;	//inside a structure.
 	unsigned int size;
 	char *name;
-
 } QCC_type_t;
 int typecmp(QCC_type_t *a, QCC_type_t *b);
 

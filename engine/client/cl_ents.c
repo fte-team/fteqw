@@ -1557,7 +1557,7 @@ void CL_LinkPacketEntities (void)
 		model = cl.model_precache[s1->modelindex];
 		if (!model)
 		{
-			Con_DPrintf("Bad modelindex\n");
+			Con_DPrintf("Bad modelindex (%i)\n", s1->modelindex);
 			continue;
 		}
 

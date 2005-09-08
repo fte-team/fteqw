@@ -410,7 +410,7 @@ void SWDraw_Init (void)
 		}
 	}
 	else
-		concrc = CRC_Block(draw_chars, 128*128); // get CRC here because it hasn't been replaced
+		concrc = QCRC_Block(draw_chars, 128*128); // get CRC here because it hasn't been replaced
 
 	if (!draw_chars)
 	{	//now go for hexen2

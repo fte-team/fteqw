@@ -2268,9 +2268,9 @@ void SWMod_LoadAliasModel (model_t *mod, void *buffer)
 		int len;
 		char st[40];
 
-		CRC_Init(&crc);
+		QCRC_Init(&crc);
 		for (len = com_filesize, p = buffer; len; len--, p++)
-			CRC_ProcessByte(&crc, *p);
+			QCRC_ProcessByte(&crc, *p);
 	
 		sprintf(st, "%d", (int) crc);
 		Info_SetValueForKey (cls.userinfo, 
@@ -2547,9 +2547,9 @@ void SWMod_LoadAlias2Model (model_t *mod, void *buffer)
 		int len;
 		char st[40];
 
-		CRC_Init(&crc);
+		QCRC_Init(&crc);
 		for (len = com_filesize, p = buffer; len; len--, p++)
-			CRC_ProcessByte(&crc, *p);
+			QCRC_ProcessByte(&crc, *p);
 	
 		sprintf(st, "%d", (int) crc);
 		Info_SetValueForKey (cls.userinfo, 
@@ -2940,9 +2940,9 @@ void SWMod_LoadAlias3Model (model_t *mod, void *buffer)
 		int len;
 		char st[40];
 
-		CRC_Init(&crc);
+		QCRC_Init(&crc);
 		for (len = com_filesize, p = buffer; len; len--, p++)
-			CRC_ProcessByte(&crc, *p);
+			QCRC_ProcessByte(&crc, *p);
 	
 		sprintf(st, "%d", (int) crc);
 		Info_SetValueForKey (cls.userinfo, 

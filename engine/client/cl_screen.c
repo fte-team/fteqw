@@ -1165,7 +1165,7 @@ void SCR_DrawLoading (void)
 
 void SCR_BeginLoadingPlaque (void)
 {
-	if (cls.state != ca_active)
+	if (cls.state != ca_active && cls.protocol != CP_QUAKE3)
 		return;
 
 	if (!scr_initialized)

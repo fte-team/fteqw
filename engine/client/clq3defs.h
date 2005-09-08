@@ -148,6 +148,7 @@ typedef struct q3entityState_s {
 	int		torsoAnim;		// mask off ANIM_TOGGLEBIT
 
 	int		generic1;
+
 } q3entityState_t;
 
 #define MAX_MAP_AREA_BYTES 32

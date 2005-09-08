@@ -363,10 +363,10 @@ void *FSPAK_LoadPackFile (char *packfile)
 //	fread (&info, 1, header.dirlen, packhandle);
 
 // crc the directory to check for modifications
-//	crc = CRC_Block((qbyte *)info, header.dirlen);
+//	crc = QCRC_Block((qbyte *)info, header.dirlen);
 	
 
-//	CRC_Init (&crc);
+//	QCRC_Init (&crc);
 
 	pack = (pack_t*)Z_Malloc (sizeof (pack_t));
 // parse the directory

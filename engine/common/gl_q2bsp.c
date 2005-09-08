@@ -3294,7 +3294,24 @@ void Q2BSP_MarkLights (dlight_t *light, int bit, mnode_t *node)
 	int			i;
 	
 	if (node->contents != -1)
+	{
+		mleaf_t *leaf = (mleaf_t *)node;
+		msurface_t **mark;
+		
+		i = leaf->nummarksurfaces;
+		mark = leaf->firstmarksurface;
+		while(i--!=0)
+		{
+			surf = *mark++;
+			if (surf->dlightframe != r_dlightframecount)
+			{
+				surf->dlightbits = 0;
+				surf->dlightframe = r_dlightframecount;
+			}
+			surf->dlightbits |= bit;
+		}
 		return;	
+	}
 
 	splitplane = node->plane;
 	dist = DotProduct (light->origin, splitplane->normal) - splitplane->dist;
@@ -3769,6 +3786,7 @@ q2cmodel_t *CM_LoadMap (char *name, char *filein, qboolean clientload, unsigned 
 
 
 
+	loadmodel->checksum = loadmodel->checksum2 = *checksum;
 
 
 	loadmodel->numsubmodels = CM_NumInlineModels(loadmodel);
@@ -3925,6 +3943,7 @@ void CM_InitBoxHull (void)
 #endif
 	box_model.funcs.LeafPVS				= CM_LeafnumPVS;
 	box_model.funcs.LeafnumForPoint		= CM_PointLeafnum;
+	box_model.funcs.Trace				= CM_Trace;
 
 	box_model.hulls[0].available = true;
 	Q2BSP_SetHullFuncs(&box_model.hulls[0]);

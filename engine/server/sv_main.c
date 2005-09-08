@@ -150,7 +150,7 @@ cvar_t	allow_luma		= {"allow_luma",		"1",	NULL, CVAR_SERVERINFO};
 cvar_t	allow_bump		= {"allow_bump",		"1",	NULL, CVAR_SERVERINFO};
 cvar_t	allow_skybox	= {"allow_skybox",		"",		NULL, CVAR_SERVERINFO};
 cvar_t	sv_allow_splitscreen = {"allow_splitscreen", "",NULL,CVAR_SERVERINFO};
-cvar_t	fbskins			= {"fbskins",			"0",	NULL, CVAR_SERVERINFO};	//to get rid of lame fuhquake fbskins
+cvar_t	fbskins			= {"fbskins",			"1",	NULL, CVAR_SERVERINFO};	//to get rid of lame fuhquake fbskins
 cvar_t	mirrors			= {"mirrors",			"" ,	NULL, CVAR_SERVERINFO};
 
 cvar_t	sv_motd[]		={	{"sv_motd1",			""},
@@ -3520,20 +3520,22 @@ void SV_ExtractFromUserinfo (client_t *cl)
 	}
 #ifdef NQPROT
 	{
-	int top = atoi(Info_ValueForKey(cl->userinfo, "topcolor"));
-	int bottom = atoi(Info_ValueForKey(cl->userinfo, "bottomcolor"));
-	top &= 15;
-	if (top > 13)
-		top = 13;
-	bottom &= 15;
-	if (bottom > 13)
-		bottom = 13;
-	cl->playercolor = top*16 + bottom;
-	if (svs.gametype == GT_PROGS)
-		cl->edict->v->clientcolors = cl->playercolor;
-	MSG_WriteByte (&sv.nqreliable_datagram, svc_updatecolors);
-	MSG_WriteByte (&sv.nqreliable_datagram, cl-svs.clients);
-	MSG_WriteByte (&sv.nqreliable_datagram, cl->playercolor);
+		int top = atoi(Info_ValueForKey(cl->userinfo, "topcolor"));
+		int bottom = atoi(Info_ValueForKey(cl->userinfo, "bottomcolor"));
+		top &= 15;
+		if (top > 13)
+			top = 13;
+		bottom &= 15;
+		if (bottom > 13)
+			bottom = 13;
+		cl->playercolor = top*16 + bottom;
+		if (svs.gametype == GT_PROGS)
+		{
+			cl->edict->v->clientcolors = cl->playercolor;
+			MSG_WriteByte (&sv.nqreliable_datagram, svc_updatecolors);
+			MSG_WriteByte (&sv.nqreliable_datagram, cl-svs.clients);
+			MSG_WriteByte (&sv.nqreliable_datagram, cl->playercolor);
+		}
 	}
 #endif
 }

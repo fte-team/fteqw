@@ -742,7 +742,7 @@ TRACE(("dbg: GLDraw_ReInit: Allocating upload buffers\n"));
 		// add ocrana leds
 		if (con_ocranaleds.value)
 		{
-			if (con_ocranaleds.value != 2 || CRC_Block(draw_chars, 128*128) == 798)
+			if (con_ocranaleds.value != 2 || QCRC_Block(draw_chars, 128*128) == 798)
 				AddOcranaLEDsIndexed (draw_chars, 128, 128); 
 		}
 
@@ -1088,11 +1088,11 @@ void GLDraw_Init (void)
 
 	memset(scrap_allocated, 0, sizeof(scrap_allocated));
 
-	R_BackendInit();
-
 	Cmd_AddRemCommand ("gl_texturemode", &GLDraw_TextureMode_f);
 
 	GLDraw_ReInit();
+
+	R_BackendInit();
 
 
 
@@ -1554,11 +1554,16 @@ void GLDraw_ShaderImage (int x, int y, int w, int h, float s1, float t1, float s
 */
 	draw_mesh.colors_array = draw_mesh_colors;
 
-	R_PushMesh(&draw_mesh, mb.shader->features | MF_COLORS | MF_NONBATCHED);
-	R_RenderMeshBuffer ( &mb, false );
-	draw_mesh.colors_array = NULL;
-
-	qglEnable(GL_BLEND);
+	__try
+	{
+		R_PushMesh(&draw_mesh, mb.shader->features | MF_COLORS | MF_NONBATCHED);
+		R_RenderMeshBuffer ( &mb, false );
+		draw_mesh.colors_array = NULL;
+		qglEnable(GL_BLEND);
+	} __except(EXCEPTION_EXECUTE_HANDLER)
+	{
+		return;
+	};
 }
 #endif
 

@@ -957,6 +957,14 @@ HWND		hwnd_dialog;
 qboolean isDedicated = false;
 #endif
 
+#include <signal.h>
+void Signal_Error_Handler(int i)
+{
+	int *basepointer;
+	__asm {mov basepointer,ebp};
+	Sys_Error("Receieved signal, offset was 0x%8x", basepointer[73]);
+}
+
 int WINAPI WinMain (HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine, int nCmdShow)
 {
 //    MSG				msg;
@@ -969,7 +977,11 @@ int WINAPI WinMain (HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLin
 	
 	/* previous instances do not exist in Win32 */
     if (hPrevInstance)
-        return 0;	
+        return 0;
+
+	signal (SIGFPE,	Signal_Error_Handler);
+	signal (SIGILL,	Signal_Error_Handler);
+	signal (SIGSEGV,	Signal_Error_Handler);
 
 	global_hInstance = hInstance;
 	global_nCmdShow = nCmdShow;

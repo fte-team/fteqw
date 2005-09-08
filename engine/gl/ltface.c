@@ -62,11 +62,9 @@ vec_t CastRay (vec3_t p1, vec3_t p2)
 {
 	trace_t	trace;
 	vec3_t move;
-	hull_t *hull;
 
-	hull = &lightmodel->hulls[0];
-	memset (&trace, 0, sizeof(trace));
-	if (!lightmodel->funcs.Trace (lightmodel, 0, 0, p1, p2, vec3_origin, vec3_origin, &trace))
+	lightmodel->funcs.Trace (lightmodel, 0, 0, p1, p2, vec3_origin, vec3_origin, &trace);
+	if (trace.fraction < 1)
 		return -1;	
 
 	VectorSubtract(p1, p2, move);

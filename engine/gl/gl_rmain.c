@@ -914,7 +914,7 @@ void GLR_DrawEntitiesOnList (void)
 			continue;
 
 
-		if (cls.allow_anyparticles || currententity->visframe)	//allowed or static
+		if (cl.lerpents && (cls.allow_anyparticles || currententity->visframe))	//allowed or static
 		{
 			if (gl_part_flame.value)
 			{
@@ -2051,7 +2051,7 @@ Thus the final mirror matrix for any given plane p*<nx,ny,nz>+k=0 is:
 	gldepthmin = 0.5;
 	gldepthmax = 1;
 	qglDepthRange (gldepthmin, gldepthmax);
-	qglDepthFunc (GL_LEQUAL);
+	qglDepthFunc (gldepthfunc);
 
 	R_RenderScene ();
 
@@ -2061,7 +2061,7 @@ Thus the final mirror matrix for any given plane p*<nx,ny,nz>+k=0 is:
 	gldepthmin = 0;
 	gldepthmax = 0.5;
 	qglDepthRange (gldepthmin, gldepthmax);
-	qglDepthFunc (GL_LEQUAL);	
+	qglDepthFunc (gldepthfunc);	
 
 	
 	memcpy(r_refdef.viewangles, oldangles, sizeof(vec3_t));

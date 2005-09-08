@@ -151,6 +151,13 @@ int Z_Allocated(void)
 	return used;
 }
 
+int Z_MemSize(void *c)
+{
+	zone_t *nz;
+	nz = ((zone_t *)((char*)c-ZONEDEBUG))-1;
+	return nz->size;
+}
+
 void VARGS Z_Free (void *c)
 {
 	zone_t *nz;

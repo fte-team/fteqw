@@ -102,9 +102,9 @@ void Mod_LoadHLModel (model_t *mod, void *buffer)
 		int len;
 		char st[40];
 
-		CRC_Init(&crc);
+		QCRC_Init(&crc);
 		for (len = com_filesize, p = buffer; len; len--, p++)
-			CRC_ProcessByte(&crc, *p);
+			QCRC_ProcessByte(&crc, *p);
 	
 		sprintf(st, "%d", (int) crc);
 		Info_SetValueForKey (cls.userinfo, 

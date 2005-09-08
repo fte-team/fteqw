@@ -2792,7 +2792,7 @@ qbyte	COM_BlockSequenceCRCByte (qbyte *base, int length, int sequence)
 
 	length += 4;
 
-	crc = CRC_Block(chkb, length);
+	crc = QCRC_Block(chkb, length);
 
 	crc &= 0xff;
 
@@ -2900,7 +2900,7 @@ qbyte	Q2COM_BlockSequenceCRCByte (qbyte *base, int length, int sequence)
 
 	length += 4;
 
-	crc = CRC_Block(chkb, length);
+	crc = QCRC_Block(chkb, length);
 
 	for (x=0, n=0; n<length; n++)
 		x += chkb[n];

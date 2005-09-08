@@ -574,6 +574,9 @@ couldntload:
 	case (('O'<<24)+('M'<<16)+('Y'<<8)+'Z'):
 		GLMod_LoadZymoticModel(mod, buf);
 		break;
+	case (('K'<<24)+('R'<<16)+('A'<<8)+'D'):
+		GLMod_LoadDarkPlacesModel(mod, buf);
+		break;
 #endif
 	default:
 		//check for text based headers
@@ -1213,9 +1216,9 @@ void GLMod_LoadLighting (lump_t *l)
 	loadmodel->engineflags &= ~MDLF_RGBLIGHTING;
 
 	//lit file light intensity is made to match the world's light intensity.
-	if (cls.allow_lightmapgamma)
-		BuildLightMapGammaTable(0.6, 2);
-	else
+//	if (cls.allow_lightmapgamma)
+//		BuildLightMapGammaTable(0.6, 2);
+//	else
 		BuildLightMapGammaTable(1, 1);
 
 	loadmodel->lightdata = NULL;

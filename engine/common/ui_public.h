@@ -1,3 +1,26 @@
+/*
+===========================================================================
+Copyright (C) 1999-2005 Id Software, Inc.
+
+This file is part of Quake III Arena source code.
+
+Quake III Arena source code is free software; you can redistribute it
+and/or modify it under the terms of the GNU General Public License as
+published by the Free Software Foundation; either version 2 of the License,
+or (at your option) any later version.
+
+Quake III Arena source code is distributed in the hope that it will be
+useful, but WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+GNU General Public License for more details.
+
+You should have received a copy of the GNU General Public License
+along with Foobar; if not, write to the Free Software
+Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301  USA
+===========================================================================
+*/
+
+
 //these structures are shared with the exe.
 
 #define UIMAX_SCOREBOARDNAME 16
@@ -49,24 +72,61 @@ typedef enum {
 	//q2's config strings come here.
 } stringid_e;
 
+typedef enum {
+	Q3CA_UNINITIALIZED,
+	Q3CA_DISCONNECTED, 	// not talking to a server
+	Q3CA_AUTHORIZING,		// not used any more, was checking cd key 
+	Q3CA_CONNECTING,		// sending request packets to the server
+	Q3CA_CHALLENGING,		// sending challenge packets to the server
+	Q3CA_CONNECTED,		// netchan_t established, getting gamestate
+	Q3CA_LOADING,			// only during cgame initialization, never during main loop
+	Q3CA_PRIMED,			// got gamestate, waiting for first frame
+	Q3CA_ACTIVE,			// game views should be displayed
+	Q3CA_CINEMATIC		// playing a cinematic or a static pic, not connected to a server
+} q3connstate_t;
+typedef struct {
+	q3connstate_t		connState;
+	int				connectPacketCount;
+	int				clientNum;
+	char			servername[MAX_STRING_CHARS];
+	char			updateInfoString[MAX_STRING_CHARS];
+	char			messageString[MAX_STRING_CHARS];
+} uiClientState_t;
+
 #define UI_API_VERSION 5000
 typedef enum {
-	UI_GETAPIVERSION	= 0,
-	UI_INIT		= 1,
-	UI_SHUTDOWN		= 2,
-	UI_KEY_EVENT	= 3,
-	UI_MOUSE_DELTA	= 4,
-	UI_REFRESH		= 5,
-	UI_IS_FULLSCREEN	= 6,
-	UI_SET_ACTIVE_MENU = 7,
-	UI_CONSOLE_COMMAND = 8,
-	UI_DRAW_CONNECT_SCREEN = 9,
-	UI_HASUNIQUECDKEY = 10,
-	//return value expected
-	//0 means don't take input
-	//1 means engine should skip map/scrback update,
-	//2 means fade the screen or draw console back.	(expected to be most used)
-	//3 means don't fade the screen
+	UI_GETAPIVERSION = 0,	// system reserved
+
+	UI_INIT,
+//	void	UI_Init( void );
+
+	UI_SHUTDOWN,
+//	void	UI_Shutdown( void );
+
+	UI_KEY_EVENT,
+//	void	UI_KeyEvent( int key );
+
+	UI_MOUSE_EVENT,
+//	void	UI_MouseEvent( int dx, int dy );
+
+	UI_REFRESH,
+//	void	UI_Refresh( int time );
+
+	UI_IS_FULLSCREEN,
+//	qboolean UI_IsFullscreen( void );
+
+	UI_SET_ACTIVE_MENU,
+//	void	UI_SetActiveMenu( uiMenuCommand_t menu );
+
+	UI_CONSOLE_COMMAND,
+//	qboolean UI_ConsoleCommand( int realTime );
+
+	UI_DRAW_CONNECT_SCREEN,
+//	void	UI_DrawConnectScreen( qboolean overlay );
+	UI_HASUNIQUECDKEY,
+// if !overlay, the background will be drawn, otherwise it will be
+// overlayed over whatever the cgame has drawn.
+// a GetClientState syscall will be made to get the current strings
 
 	UI_DRAWSTATUSBAR	= 500,
 	UI_MOUSE_POS,
@@ -77,95 +137,95 @@ typedef enum {
 } uiExport_t;
 
 typedef enum {
-	UI_ERROR					= 0,
-	UI_PRINT					= 1,
-	UI_MILLISECONDS				= 2,
-	UI_CVAR_SET					= 3,
-	UI_CVAR_VARIABLEVALUE		= 4,
-	UI_CVAR_VARIABLESTRINGBUFFER	= 5,
-	UI_CVAR_SETVALUE			= 6,
-	UI_CVAR_RESET				= 7,
-	UI_CVAR_CREATE				= 8,
-	UI_CVAR_INFOSTRINGBUFFER	= 9,
-	UI_ARGC						= 10,
-	UI_ARGV						= 11,
-	UI_CMD_EXECUTETEXT			= 12,
-	UI_FS_FOPENFILE				= 13,
-	UI_FS_READ					= 14,
-	UI_FS_WRITE					= 15,
-	UI_FS_FCLOSEFILE			= 16,
-	UI_FS_GETFILELIST			= 17,
-	UI_R_REGISTERMODEL			= 18,
-	UI_R_REGISTERSKIN			= 19,
-	UI_R_REGISTERSHADERNOMIP	= 20,
-	UI_R_CLEARSCENE				= 21,
-	UI_R_ADDREFENTITYTOSCENE	= 22,
-	UI_R_ADDPOLYTOSCENE			= 23,
-	UI_R_ADDLIGHTTOSCENE		= 24,
-	UI_R_RENDERSCENE			= 25,
-	UI_R_SETCOLOR				= 26,
-	UI_R_DRAWSTRETCHPIC			= 27,
-	UI_UPDATESCREEN				= 28,
-	UI_CM_LERPTAG				= 29,
-	UI_CM_LOADMODEL				= 30,
-	UI_S_REGISTERSOUND			= 31,
-	UI_S_STARTLOCALSOUND		= 32,
-	UI_KEY_KEYNUMTOSTRINGBUF	= 33,
-	UI_KEY_GETBINDINGBUF		= 34,
-	UI_KEY_SETBINDING			= 35,
-	UI_KEY_ISDOWN				= 36,
-	UI_KEY_GETOVERSTRIKEMODE	= 37,
-	UI_KEY_SETOVERSTRIKEMODE	= 38,
-	UI_KEY_CLEARSTATES			= 39,
-	UI_KEY_GETCATCHER			= 40,
-	UI_KEY_SETCATCHER			= 41,
-	UI_GETCLIPBOARDDATA			= 42,
-	UI_GETGLCONFIG				= 43,
-	UI_GETCLIENTSTATE			= 44,
-	UI_GETCONFIGSTRING			= 45,
-	UI_LAN_GETPINGQUEUECOUNT	= 46,
-	UI_LAN_CLEARPING			= 47,
-	UI_LAN_GETPING				= 48,
-	UI_LAN_GETPINGINFO			= 49,
-	UI_CVAR_REGISTER			= 50,
-	UI_CVAR_UPDATE				= 51,
-	UI_MEMORY_REMAINING			= 52,
-	UI_GET_CDKEY				= 53,
-	UI_SET_CDKEY				= 54,
-	UI_R_REGISTERFONT			= 55,
-	UI_R_MODELBOUNDS			= 56,
-	UI_PC_ADD_GLOBAL_DEFINE		= 57,
-	UI_PC_LOAD_SOURCE			= 58,
-	UI_PC_FREE_SOURCE			= 59,
-	UI_PC_READ_TOKEN			= 60,
-	UI_PC_SOURCE_FILE_AND_LINE	= 61,
-	UI_S_STOPBACKGROUNDTRACK	= 62,
-	UI_S_STARTBACKGROUNDTRACK	= 63,
-	UI_REAL_TIME				= 64,
-	UI_LAN_GETSERVERCOUNT		= 65,
-	UI_LAN_GETSERVERADDRESSSTRING	= 66,
-	UI_LAN_GETSERVERINFO		= 67,
-	UI_LAN_MARKSERVERVISIBLE	= 68,
-	UI_LAN_UPDATEVISIBLEPINGS	= 69,
-	UI_LAN_RESETPINGS			= 70,
-	UI_LAN_LOADCACHEDSERVERS	= 71,
-	UI_LAN_SAVECACHEDSERVERS	= 72,
-	UI_LAN_ADDSERVER			= 73,
-	UI_LAN_REMOVESERVER			= 74,
-	UI_CIN_PLAYCINEMATIC		= 75,
-	UI_CIN_STOPCINEMATIC		= 76,
-	UI_CIN_RUNCINEMATIC			= 77,
-	UI_CIN_DRAWCINEMATIC		= 78,
-	UI_CIN_SETEXTENTS			= 79,
-	UI_R_REMAP_SHADER			= 80,
-	UI_VERIFY_CDKEY				= 81,
-	UI_LAN_SERVERSTATUS			= 82,
-	UI_LAN_GETSERVERPING		= 83,
-	UI_LAN_SERVERISVISIBLE		= 84,
-	UI_LAN_COMPARESERVERS		= 85,
+	UI_ERROR,
+	UI_PRINT,
+	UI_MILLISECONDS,
+	UI_CVAR_SET,
+	UI_CVAR_VARIABLEVALUE,
+	UI_CVAR_VARIABLESTRINGBUFFER,
+	UI_CVAR_SETVALUE,
+	UI_CVAR_RESET,
+	UI_CVAR_CREATE,
+	UI_CVAR_INFOSTRINGBUFFER,
+	UI_ARGC,
+	UI_ARGV,
+	UI_CMD_EXECUTETEXT,
+	UI_FS_FOPENFILE,
+	UI_FS_READ,
+	UI_FS_WRITE,
+	UI_FS_FCLOSEFILE,
+	UI_FS_GETFILELIST,
+	UI_R_REGISTERMODEL,
+	UI_R_REGISTERSKIN,
+	UI_R_REGISTERSHADERNOMIP,
+	UI_R_CLEARSCENE,
+	UI_R_ADDREFENTITYTOSCENE,
+	UI_R_ADDPOLYTOSCENE,
+	UI_R_ADDLIGHTTOSCENE,
+	UI_R_RENDERSCENE,
+	UI_R_SETCOLOR,
+	UI_R_DRAWSTRETCHPIC,
+	UI_UPDATESCREEN,
+	UI_CM_LERPTAG,
+	UI_CM_LOADMODEL,
+	UI_S_REGISTERSOUND,
+	UI_S_STARTLOCALSOUND,
+	UI_KEY_KEYNUMTOSTRINGBUF,
+	UI_KEY_GETBINDINGBUF,
+	UI_KEY_SETBINDING,
+	UI_KEY_ISDOWN,
+	UI_KEY_GETOVERSTRIKEMODE,
+	UI_KEY_SETOVERSTRIKEMODE,
+	UI_KEY_CLEARSTATES,
+	UI_KEY_GETCATCHER,
+	UI_KEY_SETCATCHER,
+	UI_GETCLIPBOARDDATA,
+	UI_GETGLCONFIG,
+	UI_GETCLIENTSTATE,
+	UI_GETCONFIGSTRING,
+	UI_LAN_GETPINGQUEUECOUNT,
+	UI_LAN_CLEARPING,
+	UI_LAN_GETPING,
+	UI_LAN_GETPINGINFO,
+	UI_CVAR_REGISTER,
+	UI_CVAR_UPDATE,
+	UI_MEMORY_REMAINING,
+	UI_GET_CDKEY,
+	UI_SET_CDKEY,
+	UI_R_REGISTERFONT,
+	UI_R_MODELBOUNDS,
+	UI_PC_ADD_GLOBAL_DEFINE,
+	UI_PC_LOAD_SOURCE,
+	UI_PC_FREE_SOURCE,
+	UI_PC_READ_TOKEN,
+	UI_PC_SOURCE_FILE_AND_LINE,
+	UI_S_STOPBACKGROUNDTRACK,
+	UI_S_STARTBACKGROUNDTRACK,
+	UI_REAL_TIME,
+	UI_LAN_GETSERVERCOUNT,
+	UI_LAN_GETSERVERADDRESSSTRING,
+	UI_LAN_GETSERVERINFO,
+	UI_LAN_MARKSERVERVISIBLE,
+	UI_LAN_UPDATEVISIBLEPINGS,
+	UI_LAN_RESETPINGS,
+	UI_LAN_LOADCACHEDSERVERS,
+	UI_LAN_SAVECACHEDSERVERS,
+	UI_LAN_ADDSERVER,
+	UI_LAN_REMOVESERVER,
+	UI_CIN_PLAYCINEMATIC,
+	UI_CIN_STOPCINEMATIC,
+	UI_CIN_RUNCINEMATIC,
+	UI_CIN_DRAWCINEMATIC,
+	UI_CIN_SETEXTENTS,
+	UI_R_REMAP_SHADER,
+	UI_VERIFY_CDKEY,
+	UI_LAN_SERVERSTATUS,
+	UI_LAN_GETSERVERPING,
+	UI_LAN_SERVERISVISIBLE,
+	UI_LAN_COMPARESERVERS,
 	// 1.32
-	UI_FS_SEEK					= 86,
-	UI_SET_PBCLSTATUS			= 87,
+	UI_FS_SEEK,
+	UI_SET_PBCLSTATUS,
 
 	UI_MEMSET = 100,
 	UI_MEMCPY,
@@ -177,7 +237,6 @@ typedef enum {
 	UI_FLOOR,
 	UI_CEIL,
 
-
 	UI_CACHE_PIC		= 500,
 	UI_PICFROMWAD		= 501,
 	UI_GETPLAYERINFO	= 502,
@@ -185,4 +244,4 @@ typedef enum {
 	UI_GETVIDINFO		= 504,
 	UI_GET_STRING		= 510,
 
-} ui_builtinnum_t;
+} uiImport_t;

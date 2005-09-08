@@ -154,6 +154,25 @@ typedef struct {
 	float rotation;
 } ramp_t;
 
+#define APPLYBLEND(bm)	\
+		switch (bm)												\
+		{														\
+		case BM_ADD:											\
+			qglBlendFunc(GL_SRC_ALPHA, GL_ONE);					\
+			break;												\
+		case BM_SUBTRACT:										\
+			qglBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_COLOR);	\
+			break;												\
+		case BM_BLENDCOLOUR:										\
+			qglBlendFunc(GL_SRC_COLOR, GL_ONE_MINUS_SRC_COLOR);	\
+			break;												\
+		case BM_BLEND:											\
+		default:												\
+			qglBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);	\
+			break;												\
+		}
+
+
 typedef struct part_type_s {
 	char name[MAX_QPATH];
 	char texname[MAX_QPATH];
@@ -307,6 +326,18 @@ int P_DescriptionIsLoaded(char *name)
 	if (!ptype->loaded)
 		return false;
 	return i+1;
+}
+
+qboolean P_TypeIsLoaded(int effect)
+{
+	int i = effect;
+	part_type_t *ptype;
+	if (i < 0)
+		return false;
+	ptype = &part_type[i];
+	if (!ptype->loaded)
+		return false;
+	return true;
 }
 
 static void P_SetModified(void)	//called when the particle system changes (from console).
@@ -649,9 +680,10 @@ void P_ParticleEffect_f(void)
 				ptype->blendmode = BM_ADD;
 			else if (!strcmp(value, "subtract"))
 				ptype->blendmode = BM_SUBTRACT;
+			else if (!strcmp(value, "blendcolour") || !strcmp(value, "blendcolor"))
+				ptype->blendmode = BM_BLENDCOLOUR;
 			else
-				ptype->blendmode = BM_MERGE;
-				
+				ptype->blendmode = BM_BLEND;
 		}
 		else if (!strcmp(var, "spawnmode"))
 		{
@@ -1932,10 +1964,8 @@ int P_RunParticleEffectState (vec3_t org, vec3_t dir, float count, int typenum, 
 				}
 			}
 			dir = bestdir;
-			dir[0]*=-1;
-			dir[1]*=-1;
-			dir[2]*=-1;
 		}
+		VectorInverse(dir);
 
 		VectorNormalize(vec);
 		CrossProduct(dir, vec, tangent);
@@ -3089,12 +3119,7 @@ void GL_DrawTexturedParticle(particle_t *p, part_type_t *type)
 		qglEnd();
 		qglEnable(GL_TEXTURE_2D);
 		GL_Bind(type->texturenum);
-		if (type->blendmode == BM_ADD)		//addative
-			qglBlendFunc(GL_SRC_ALPHA, GL_ONE);
-//		else if (type->blendmode == BM_SUBTRACT)	//subtractive
-//			glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
-		else
-			qglBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+		APPLYBLEND(type->blendmode);
 		qglShadeModel(GL_FLAT);
 		qglBegin(GL_QUADS);
 	}
@@ -3199,12 +3224,7 @@ void GL_DrawTrifanParticle(particle_t *p, part_type_t *type)
 	{
 		lasttype = type;
 		qglDisable(GL_TEXTURE_2D);
-		if (type->blendmode == BM_ADD)		//addative
-			qglBlendFunc(GL_SRC_ALPHA, GL_ONE);
-//		else if (type->blendmode == BM_SUBTRACT)	//subtractive
-//			qglBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
-		else
-			qglBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+		APPLYBLEND(type->blendmode);
 		qglShadeModel(GL_SMOOTH);
 	}
 
@@ -3248,12 +3268,7 @@ void GL_DrawLineSparkParticle(particle_t *p, part_type_t *type)
 		qglEnd();
 		qglDisable(GL_TEXTURE_2D);
 		GL_Bind(type->texturenum);
-		if (type->blendmode == BM_ADD)		//addative
-			qglBlendFunc(GL_SRC_ALPHA, GL_ONE);
-//		else if (type->blendmode == BM_SUBTRACT)	//subtractive
-//			qglBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
-		else
-			qglBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+		APPLYBLEND(type->blendmode);
 		qglShadeModel(GL_SMOOTH);
 		qglBegin(GL_LINES);
 	}
@@ -3280,12 +3295,7 @@ void GL_DrawTexturedSparkParticle(particle_t *p, part_type_t *type)
 		qglEnd();
 		qglEnable(GL_TEXTURE_2D);
 		GL_Bind(type->texturenum);
-		if (type->blendmode == BM_ADD)		//addative
-			qglBlendFunc(GL_SRC_ALPHA, GL_ONE);
-//		else if (type->blendmode == BM_SUBTRACT)	//subtractive
-//			qglBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
-		else
-			qglBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+		APPLYBLEND(type->blendmode);
 		qglShadeModel(GL_SMOOTH);
 		qglBegin(GL_QUADS);
 	}
@@ -3329,12 +3339,7 @@ void GL_DrawSketchSparkParticle(particle_t *p, part_type_t *type)
 		qglEnd();
 		qglDisable(GL_TEXTURE_2D);
 		GL_Bind(type->texturenum);
-		if (type->blendmode == BM_ADD)		//addative
-			qglBlendFunc(GL_SRC_ALPHA, GL_ONE);
-//		else if (type->blendmode == BM_SUBTRACT)	//subtractive
-//			qglBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
-		else
-			qglBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+		APPLYBLEND(type->blendmode);
 		qglShadeModel(GL_SMOOTH);
 		qglBegin(GL_LINES);
 	}
@@ -3380,12 +3385,7 @@ void GL_DrawParticleBeam_Textured(beamseg_t *b, part_type_t *type)
 		qglEnd();
 		qglEnable(GL_TEXTURE_2D);
 		GL_Bind(type->texturenum);
-		if (type->blendmode == BM_ADD)		//addative
-			qglBlendFunc(GL_SRC_ALPHA, GL_ONE);
-//		else if (type->blendmode == BM_SUBTRACT)	//subtractive
-//			qglBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
-		else
-			qglBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+		APPLYBLEND(type->blendmode);
 		qglShadeModel(GL_SMOOTH);
 		qglBegin(GL_QUADS);
 	}
@@ -3454,12 +3454,7 @@ void GL_DrawParticleBeam_Untextured(beamseg_t *b, part_type_t *type)
 		qglEnd();
 		qglDisable(GL_TEXTURE_2D);
 		GL_Bind(type->texturenum);
-		if (type->blendmode == BM_ADD)		//addative
-			qglBlendFunc(GL_SRC_ALPHA, GL_ONE);
-//		else if (type->blendmode == BM_SUBTRACT)	//subtractive
-//			qglBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
-		else
-			qglBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+		APPLYBLEND(type->blendmode);
 		qglShadeModel(GL_SMOOTH);
 		qglBegin(GL_QUADS);
 	}
@@ -3545,13 +3540,12 @@ void GL_DrawClippedDecal(clippeddecal_t *d, part_type_t *type)
 		qglEnd();
 		qglEnable(GL_TEXTURE_2D);
 		GL_Bind(type->texturenum);
-		if (type->blendmode == BM_ADD)		//addative
-			qglBlendFunc(GL_SRC_ALPHA, GL_ONE);
-//		else if (type->blendmode == BM_SUBTRACT)	//subtractive
-//			qglBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
-		else
-			qglBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+		APPLYBLEND(type->blendmode);
 		qglShadeModel(GL_SMOOTH);
+
+//		qglDisable(GL_TEXTURE_2D);
+//		qglBegin(GL_LINE_LOOP);
+
 		qglBegin(GL_TRIANGLES);
 	}
 

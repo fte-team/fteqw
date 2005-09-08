@@ -698,9 +698,10 @@ void PR_Decompile_f(void)
 {
 	if (!svprogfuncs)
 	{
-		Con_Printf("Progs not running, you need to start a server first\n");
-		return;
+		Q_SetProgsParms(false);
+		PR_Configure(svprogfuncs, -1, MAX_PROGS);
 	}
+
 
 	if (Cmd_Argc() == 1)
 		svprogfuncs->Decompile(svprogfuncs, "qwprogs.dat");

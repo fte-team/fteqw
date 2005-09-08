@@ -167,6 +167,8 @@ void QCC_FindBestInclude(char *newfile, char *currentfile, char *rootpath)
 	if (!*newfile)
 		return;
 
+	currentfile += strlen(rootpath);	//could this be bad?
+
 	for(stripfrom = currentfile+strlen(currentfile)-1; stripfrom>currentfile; stripfrom--)
 	{
 		if (*stripfrom == '/' || *stripfrom == '\\')
@@ -2612,7 +2614,6 @@ char *TypeName(QCC_type_t *type)
 	}
 	else if (type->type == ev_entity && type->parentclass)
 	{
-		op++;
 		ret = buffer[op&1];
 		*ret = 0;
 		strcat(ret, "class ");
@@ -2995,10 +2996,11 @@ QCC_type_t *QCC_PR_ParseType (int newtype)
 			sprintf(membername, "%s::"MEMBERFIELDNAME, classname, newparm->name);
 			fieldtype = QCC_PR_NewType(newparm->name, ev_field);
 			fieldtype->aux_type = newparm;
+			fieldtype->size = newparm->size;
 			QCC_PR_GetDef(fieldtype, membername, pr_scope, 2, 1);
 
 
-			newparm->ofs = newt->size;
+			newparm->ofs = 0;//newt->size;
 			newt->num_parms++;
 
 			if (type)

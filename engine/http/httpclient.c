@@ -507,9 +507,9 @@ qboolean HTTP_CL_Get(char *url, char *localfile, void (*NotifyFunction)(char *lo
 	con->NotifyFunction = NotifyFunction;
 	strcpy(con->filename, localfile);
 
-/*	slash = strchr(con->filename, '?');
+	slash = strchr(con->filename, '?');
 	if (slash)
-		*slash = '\0';*/
+		*slash = '_';
 
 	httpcl = con;
 

@@ -1,6 +1,170 @@
 #include "quakedef.h"
 
+//An implementation of a Q3 server...
+//requires qvm implementation and existing q3 client stuff (or at least the overlapping stuff in q3common.c).
+
 #ifdef Q3SERVER
+
+
+//#define USEBOTLIB
+
+#ifdef USEBOTLIB
+
+
+
+#ifdef _WIN32
+#define QDECL __cdecl
+#else
+#define QDECL
+#endif
+#define fileHandle_t char*
+#define fsMode_t int
+#define pc_token_t void
+#include "botlib.h"
+
+#define Z_TAG_BOTLIB 221726
+
+
+#pragma comment (lib, "H:/quake/quake3/quake3-1.32b/code/botlib/botlib_vc6/Debug/botlib_vc6.lib")
+
+botlib_export_t *botlib;
+
+
+
+
+int COM_Compress( char *data_p ) {
+	char *in, *out;
+	int c;
+	qboolean newline = false, whitespace = false;
+
+	in = out = data_p;
+	if (in) {
+		while ((c = *in) != 0) {
+			// skip double slash comments
+			if ( c == '/' && in[1] == '/' ) {
+				while (*in && *in != '\n') {
+					in++;
+				}
+			// skip /* */ comments
+			} else if ( c == '/' && in[1] == '*' ) {
+				while ( *in && ( *in != '*' || in[1] != '/' ) ) 
+					in++;
+				if ( *in ) 
+					in += 2;
+                        // record when we hit a newline
+                        } else if ( c == '\n' || c == '\r' ) {
+                            newline = true;
+                            in++;
+                        // record when we hit whitespace
+                        } else if ( c == ' ' || c == '\t') {
+                            whitespace = true;
+                            in++;
+                        // an actual token
+			} else {
+                            // if we have a pending newline, emit it (and it counts as whitespace)
+                            if (newline) {
+                                *out++ = '\n';
+                                newline = false;
+                                whitespace = false;
+                            } if (whitespace) {
+                                *out++ = ' ';
+                                whitespace = false;
+                            }
+                            
+                            // copy quoted strings unmolested
+                            if (c == '"') {
+                                    *out++ = c;
+                                    in++;
+                                    while (1) {
+                                        c = *in;
+                                        if (c && c != '"') {
+                                            *out++ = c;
+                                            in++;
+                                        } else {
+                                            break;
+                                        }
+                                    }
+                                    if (c == '"') {
+                                        *out++ = c;
+                                        in++;
+                                    }
+                            } else {
+                                *out = c;
+                                out++;
+                                in++;
+                            }
+			}
+		}
+	}
+	*out = 0;
+	return out - data_p;
+}
+
+void Com_Memset (void* dest, const int val, const size_t count)
+{
+	memset(dest, val, count);
+}
+void Com_Memcpy (void* dest, const void* src, const size_t count)
+{
+	memcpy(dest, src, count);
+}
+int Q_stricmp(char *a, char *b)
+{
+	return stricmp(a, b);
+}
+#if MSC_VER < 700
+int _ftol2 (float f)
+{
+	return (int)f;
+}
+#endif
+void QDECL Com_Error( int level, const char *error, ... )
+{
+	va_list		argptr;
+	char		text[1024];
+
+	va_start (argptr, error);
+	vsprintf (text, error, argptr);
+	va_end (argptr);
+	Sys_Error("%s", text);
+}
+void QDECL Com_Printf( const char *error, ... )
+{
+	va_list		argptr;
+	char		text[1024];
+
+	va_start (argptr, error);
+	vsprintf (text, error, argptr);
+	va_end (argptr);
+
+	Con_Printf("%s", text);
+}
+
+void QDECL Com_sprintf( char *dest, int size, const char *fmt, ...)
+{
+	int		len;
+	va_list		argptr;
+	char	bigbuffer[32000];	// big, but small enough to fit in PPC stack
+
+	va_start (argptr,fmt);
+	len = vsprintf (bigbuffer,fmt,argptr);
+	va_end (argptr);
+	if ( len >= sizeof( bigbuffer ) ) {
+		Com_Error( 0, "Com_sprintf: overflowed bigbuffer" );
+	}
+	if (len >= size) {
+		Com_Printf ("Com_sprintf: overflow of %i in %i\n", len, size);
+#ifdef	_DEBUG
+		__asm {
+			int 3;
+		}
+#endif
+	}
+	Q_strncpyz (dest, bigbuffer, size );
+}
+#endif
+
+
 
 #include "clq3defs.h"
 #include "q3g_public.h"
@@ -34,6 +198,7 @@ q3entityState_t *q3_baselines;
 static qboolean BoundsIntersect (vec3_t mins1, vec3_t maxs1, vec3_t mins2, vec3_t maxs2);
 
 void SVQ3_CreateBaseline(void);
+void SVQ3_ClientThink(client_t *cl);
 
 char *mapentspointer;
 
@@ -324,6 +489,18 @@ int SVQ3_EntitiesInBox(vec3_t mins, vec3_t maxs, int *list, int maxcount)
 	return SVQ3_EntitiesInBoxNode(sv_areanodes, mins, maxs, list, maxcount);
 }
 
+model_t *SVQ3_ModelForEntity(q3sharedEntity_t *es)
+{
+	if (es->r.bmodel)
+	{
+		return Mod_ForName(va("*%i", es->s.modelindex), false);
+	}
+	else
+	{
+		return CM_TempBoxModel(es->r.mins, es->r.maxs);
+	}
+}
+
 #define	ENTITYNUM_WORLD		(MAX_GENTITIES-2)
 void SVQ3_Trace(q3trace_t *result, vec3_t start, vec3_t mins, vec3_t maxs, vec3_t end, int entnum, int contentmask)
 {
@@ -367,7 +544,9 @@ void SVQ3_Trace(q3trace_t *result, vec3_t start, vec3_t mins, vec3_t maxs, vec3_
 		}
 	}
 
-	if ( entnum != ENTITYNUM_WORLD )
+	if (entnum == -1)
+		ourowner = -1;
+	else if ( entnum != ENTITYNUM_WORLD )
 	{
 		ourowner = GENTITY_FOR_NUM(entnum)->r.ownerNum;
 		if (ourowner == ENTITYNUM_WORLD)
@@ -401,12 +580,12 @@ void SVQ3_Trace(q3trace_t *result, vec3_t start, vec3_t mins, vec3_t maxs, vec3_
 			mod = Mod_ForName(va("*%i", es->s.modelindex), false);
 			if (mod->needload)
 				continue;
-			tr = CM_TransformedBoxTrace(mod, start, end, mins, maxs, 0xffffffff, es->r.currentOrigin, vec3_origin);
+			tr = CM_TransformedBoxTrace(mod, start, end, mins, maxs, contentmask, es->r.currentOrigin, vec3_origin);
 		}
 		else
 		{
 			mod = CM_TempBoxModel(es->r.mins, es->r.maxs);
-			tr = CM_TransformedBoxTrace(mod, start, end, mins, maxs, 0xffffffff, es->r.currentOrigin, es->r.currentAngles);
+			tr = CM_TransformedBoxTrace(mod, start, end, mins, maxs, contentmask, es->r.currentOrigin, es->r.currentAngles);
 //			mod->funcs.Trace(mod, 0, 0, start, end, mins, maxs, &tr);
 		}
 		if (tr.fraction < result->fraction)
@@ -424,6 +603,69 @@ void SVQ3_Trace(q3trace_t *result, vec3_t start, vec3_t mins, vec3_t maxs, vec3_
 				result->surfaceFlags = 0;
 		}
 	}
+}
+
+int SVQ3_PointContents(vec3_t pos, int entnum)
+{
+	int contactlist[128];
+	trace_t tr;
+	int i;
+	q3sharedEntity_t *es;
+	model_t *mod;
+	int ourowner;
+
+	int cont;
+
+
+//	sv.worldmodel->funcs.Trace(sv.worldmodel, 0, 0, pos, pos, vec3_origin, vec3_origin, &tr);
+//	tr = CM_BoxTrace(sv.worldmodel, pos, pos, vec3_origin, vec3_origin, 0);
+	cont = CM_PointContents(sv.worldmodel, pos);
+
+	if (entnum == -1)
+		ourowner = -1;
+	else if ( entnum != ENTITYNUM_WORLD )
+	{
+		ourowner = GENTITY_FOR_NUM(entnum)->r.ownerNum;
+		if (ourowner == ENTITYNUM_WORLD)
+			ourowner = -1;
+	}
+	else 
+		ourowner = -1;
+
+	for (i = SVQ3_EntitiesInBox(pos, pos, contactlist, sizeof(contactlist)/sizeof(contactlist[0]))-1; i >= 0; i--)
+	{
+		if (contactlist[i] == entnum)
+			continue;	//don't collide with self.
+
+		es = GENTITY_FOR_NUM(contactlist[i]);
+
+		if (entnum != ENTITYNUM_WORLD)
+		{
+//			if (contactlist[i] == entnum)
+//				continue;	// don't clip against the pass entity
+//			if (es->r.ownerNum == entnum)
+//				continue;	// don't clip against own missiles
+//			if (es->r.ownerNum == ourowner)
+//				continue;	// don't clip against other missiles from our owner
+		}
+
+		if (es->r.bmodel)
+		{
+			mod = Mod_ForName(va("*%i", es->s.modelindex), false);
+			if (mod->needload)
+				continue;
+			tr = CM_TransformedBoxTrace(mod, pos, pos, vec3_origin, vec3_origin, 0xffffffff, es->r.currentOrigin, vec3_origin);
+		}
+		else
+		{
+			mod = CM_TempBoxModel(es->r.mins, es->r.maxs);
+			tr = CM_TransformedBoxTrace(mod, pos, pos, vec3_origin, vec3_origin, 0xffffffff, es->r.currentOrigin, es->r.currentAngles);
+//			mod->funcs.Trace(mod, 0, 0, start, end, mins, maxs, &tr);
+		}
+
+		cont |= tr.contents;
+	}
+	return cont;
 }
 
 int SVQ3_Contact(vec3_t mins, vec3_t maxs, q3sharedEntity_t *ent)
@@ -523,6 +765,47 @@ void SVQ3_SetConfigString(int num, char *string)
 	SVQ3_SendServerCommand( NULL, va("cs %i \"%s\"\n", num, string));
 }
 
+int FloatAsInt(float f)
+{
+	return *(int*)&f;
+}
+
+int SVQ3_BotGetConsoleMessage( int client, char *buf, int size )
+{
+	//retrieves server->client commands that were sent to a bot
+	client_t	*cl;
+	int			index;
+
+	if ((unsigned)client >= MAX_CLIENTS)
+		return false;
+
+	cl = &svs.clients[client];
+//	cl->lastPacketTime = svs.time;
+
+	if (cl->last_server_command_num == cl->num_server_commands)
+		return false;
+
+	cl->last_server_command_num++;
+	index = cl->last_server_command_num & TEXTCMD_MASK;
+
+	if ( !cl->server_commands[index][0] )
+		return false;
+
+	Q_strncpyz( buf, cl->server_commands[index], size );
+	return true;
+}
+int SVQ3_BotGetSnapshotEntity(int client, int entnum)
+{
+	//fixme: does the bot actually use this?...
+	return -1;
+}
+
+void SVQ3_Adjust_Area_Portal_State(q3sharedEntity_t *ge, qboolean open)
+{
+	q3serverEntity_t *se = SENTITY_FOR_GENTITY(ge);
+	CMQ3_SetAreaPortalState(se->areanum, se->areanum2, open);
+}
+
 #define VALIDATEPOINTER(o,l) if ((int)o + l >= mask || VM_POINTER(o) < offset) SV_Error("Call to game trap %i passes invalid pointer\n", fn);	//out of bounds.
 long Q3G_SystemCallsEx(void *offset, unsigned int mask, int fn, const long *arg)
 {
@@ -611,12 +894,25 @@ long Q3G_SystemCallsEx(void *offset, unsigned int mask, int fn, const long *arg)
 		}
 		break;
 
+	case G_BOT_FREE_CLIENT:
+	case G_DROP_CLIENT:
+		if ((unsigned)VM_LONG(arg[0]) < MAX_CLIENTS)
+			SV_DropClient(&svs.clients[VM_LONG(arg[0])]);
+		break;
+
+	case G_BOT_ALLOCATE_CLIENT:
+		return SVQ3_AddBot();
+
 	case G_ARGC:		//8
 		return Cmd_Argc();
 	case G_ARGV:				//9
 		VALIDATEPOINTER(arg[1], arg[2]);
 		Q_strncpyz(VM_POINTER(arg[1]), Cmd_Argv(VM_LONG(arg[0])), VM_LONG(arg[2]));
 		break;
+
+	case G_SEND_CONSOLE_COMMAND:
+		Cbuf_AddText(VM_POINTER(arg[1]), RESTRICT_SERVER);
+		return 0;
 
 	
 	case G_FS_FOPEN_FILE: //fopen
@@ -637,28 +933,10 @@ long Q3G_SystemCallsEx(void *offset, unsigned int mask, int fn, const long *arg)
 		VMUI_fclose(VM_LONG(arg[0]), 0);
 		break;
 
-/*	case G_FS_GETFILELIST:	//fs listing
+	case G_FS_GETFILELIST:	//fs listing
 		if ((int)arg[2] + arg[3] >= mask || VM_POINTER(arg[2]) < offset)
 			break;	//out of bounds.
-		{
-			vmsearch_t vms;
-			vms.initialbuffer = vms.buffer = VM_POINTER(arg[2]);
-			vms.skip = strlen(VM_POINTER(arg[0]))+1;
-			vms.bufferleft = arg[3];
-			vms.found=0;
-			if (*(char *)VM_POINTER(arg[0]) == '$')
-			{
-				extern char	com_basedir[];
-				vms.skip=0;
-				Sys_EnumerateFiles(com_basedir, "*", VMEnumMods, &vms);
-			}
-			else if (*(char *)VM_POINTER(arg[1]) == '.' || *(char *)VM_POINTER(arg[1]) == '/')
-				COM_EnumerateFiles(va("%s/*%s", VM_POINTER(arg[0]), VM_POINTER(arg[1])), VMEnum, &vms);
-			else
-				COM_EnumerateFiles(va("%s/*.%s", VM_POINTER(arg[0]), VM_POINTER(arg[1])), VMEnum, &vms);
-			VM_LONG(ret) = vms.found;
-		}
-		break;*/
+		return VMQ3_GetFileList(VM_POINTER(arg[0]), VM_POINTER(arg[1]), VM_POINTER(arg[2]), VM_LONG(arg[3]));
 
 	case G_LOCATE_GAME_DATA:		// ( gentity_t *gEnts, int numGEntities, int sizeofGEntity_t,	15
 	//							playerState_t *clients, int sizeofGameClient );
@@ -706,10 +984,22 @@ long Q3G_SystemCallsEx(void *offset, unsigned int mask, int fn, const long *arg)
 			*(char*)VM_POINTER(arg[1]) = '\0';
 		break;
 
+	case G_GET_SERVERINFO:
+		{
+			char *dest = VM_POINTER(arg[0]);
+			int length = VM_LONG(arg[1]);
+			Q_strncpyz(dest, svs.info, length);
+		}
+		return ;
 	case G_GET_USERINFO://int num, char *buffer, int bufferSize										20
 		if (VM_OOB(arg[1], arg[2]))
 			return 0;
 		Q_strncpyz(VM_POINTER(arg[1]), svs.clients[VM_LONG(arg[0])].userinfo, VM_LONG(arg[2]));
+		break;
+
+	case G_SET_USERINFO://int num, char *buffer										20
+		Q_strncpyz(svs.clients[VM_LONG(arg[0])].userinfo, VM_POINTER(arg[1]), sizeof(svs.clients[0].userinfo));
+		SV_ExtractFromUserinfo(&svs.clients[VM_LONG(arg[0])]);
 		break;
 
 	case G_LINKENTITY:		// ( gentity_t *ent );													30
@@ -732,10 +1022,12 @@ long Q3G_SystemCallsEx(void *offset, unsigned int mask, int fn, const long *arg)
 	// so exact determination must still be done with EntityContact
 		VALIDATEPOINTER(arg[2], sizeof(int*)*VM_LONG(arg[3]));
 		return SVQ3_EntitiesInBox(VM_POINTER(arg[0]), VM_POINTER(arg[1]), VM_POINTER(arg[2]), VM_LONG(arg[3]));
+
+	case G_ADJUST_AREA_PORTAL_STATE:
+		SVQ3_Adjust_Area_Portal_State(VM_POINTER(arg[0]), arg[1]);
 		break;
 	case G_POINT_CONTENTS:
-		return CM_PointContents(sv.worldmodel, VM_POINTER(arg[0]));
-		break;
+		return SVQ3_PointContents(VM_POINTER(arg[0]), -1);
 	case G_SET_BRUSH_MODEL:	//ent, name
 		VALIDATEPOINTER(arg[0], sizeof(q3sharedEntity_t));
 		SVQ3_SetBrushModel(VM_POINTER(arg[0]), VM_POINTER(arg[1]));
@@ -779,9 +1071,9 @@ Con_Printf("builtin %i is not implemented\n", fn);
 	case G_COS:
 		VM_FLOAT(ret)=(float)cos(VM_FLOAT(arg[0]));
 		break;
-	case G_ACOS:
-		VM_FLOAT(ret)=(float)acos(VM_FLOAT(arg[0]));
-		break;
+//	case G_ACOS:
+//		VM_FLOAT(ret)=(float)acos(VM_FLOAT(arg[0]));
+//		break;
 	case G_ATAN2:
 		VM_FLOAT(ret)=(float)atan2(VM_FLOAT(arg[0]), VM_FLOAT(arg[1]));
 		break;
@@ -795,6 +1087,431 @@ Con_Printf("builtin %i is not implemented\n", fn);
 		VM_FLOAT(ret)=(float)ceil(VM_FLOAT(arg[0]));
 		break;
 
+#ifdef USEBOTLIB
+	case BOTLIB_SETUP:
+		return botlib->BotLibSetup();
+	case BOTLIB_SHUTDOWN:
+		return botlib->BotLibShutdown();
+	case BOTLIB_LIBVAR_SET:
+		return botlib->BotLibVarSet(VM_POINTER(arg[0]), VM_POINTER(arg[1]));
+	case BOTLIB_LIBVAR_GET:
+		VALIDATEPOINTER(arg[1], arg[2]);
+		return botlib->BotLibVarGet(VM_POINTER(arg[0]), VM_POINTER(arg[1]), VM_LONG(arg[2]));
+	case BOTLIB_PC_ADD_GLOBAL_DEFINE:
+		return botlib->PC_AddGlobalDefine(VM_POINTER(arg[0]));
+	case BOTLIB_START_FRAME:
+		return botlib->BotLibStartFrame(VM_FLOAT(arg[0]));
+	case BOTLIB_LOAD_MAP:
+		return botlib->BotLibLoadMap(VM_POINTER(arg[0]));
+
+	case BOTLIB_UPDATENTITY:
+		return botlib->BotLibUpdateEntity(VM_LONG(arg[0]), VM_POINTER(arg[1]));
+	case BOTLIB_TEST:
+		return botlib->Test(VM_LONG(arg[0]), VM_POINTER(arg[1]), VM_POINTER(arg[2]), VM_POINTER(arg[3]));
+	case BOTLIB_GET_SNAPSHOT_ENTITY:
+		return SVQ3_BotGetSnapshotEntity(VM_LONG(arg[0]), VM_LONG(arg[1]));
+	case BOTLIB_GET_CONSOLE_MESSAGE:
+		VALIDATEPOINTER(arg[1], arg[2]);
+		return SVQ3_BotGetConsoleMessage(arg[0], VM_POINTER(arg[1]), VM_LONG(arg[2]));
+	case BOTLIB_USER_COMMAND:
+		{
+			q3usercmd_t *uc = VM_POINTER(arg[1]);
+			int i = VM_LONG(arg[0]);
+			if ((unsigned)i >= MAX_CLIENTS)
+				return 1;
+			svs.clients[i].lastcmd.angles[0] = uc->angles[0];
+			svs.clients[i].lastcmd.angles[1] = uc->angles[1];
+			svs.clients[i].lastcmd.angles[2] = uc->angles[2];
+			svs.clients[i].lastcmd.upmove = uc->upmove;
+			svs.clients[i].lastcmd.sidemove = uc->rightmove;
+			svs.clients[i].lastcmd.forwardmove = uc->forwardmove;
+			svs.clients[i].lastcmd.servertime = uc->serverTime;
+			svs.clients[i].lastcmd.weapon = uc->weapon;
+			svs.clients[i].lastcmd.buttons = uc->buttons;
+			SVQ3_ClientThink(&svs.clients[i]);
+		}
+		return 0;
+
+
+	case BOTLIB_AAS_ENABLE_ROUTING_AREA:
+		return botlib->aas.AAS_EnableRoutingArea(VM_LONG(arg[0]), VM_LONG(arg[1]));
+	case BOTLIB_AAS_BBOX_AREAS:
+		//FIXME: validatepointer arg2
+		return botlib->aas.AAS_BBoxAreas(VM_POINTER(arg[0]), VM_POINTER(arg[1]), VM_POINTER(arg[2]), VM_LONG(arg[3]));
+	case BOTLIB_AAS_AREA_INFO:
+		return botlib->aas.AAS_AreaInfo(VM_LONG(arg[0]), VM_POINTER(arg[1]));
+	case BOTLIB_AAS_ENTITY_INFO:
+		botlib->aas.AAS_EntityInfo(VM_LONG(arg[0]), VM_POINTER(arg[1]));
+		return 0;
+
+	case BOTLIB_AAS_INITIALIZED:
+		return botlib->aas.AAS_Initialized();
+	case BOTLIB_AAS_PRESENCE_TYPE_BOUNDING_BOX:
+		botlib->aas.AAS_PresenceTypeBoundingBox(VM_LONG(arg[0]), VM_POINTER(arg[1]), VM_POINTER(arg[2]));
+		return 0;
+	case BOTLIB_AAS_TIME:
+		return FloatAsInt(botlib->aas.AAS_Time());
+
+	case BOTLIB_AAS_POINT_AREA_NUM:
+		return botlib->aas.AAS_PointAreaNum(VM_POINTER(arg[0]));
+	case BOTLIB_AAS_TRACE_AREAS:
+		return botlib->aas.AAS_TraceAreas(VM_POINTER(arg[0]), VM_POINTER(arg[1]), VM_POINTER(arg[2]), VM_POINTER(arg[3]), VM_LONG(arg[4]));
+
+	case BOTLIB_AAS_POINT_CONTENTS:
+		return botlib->aas.AAS_PointContents(VM_POINTER(arg[0]));
+	case BOTLIB_AAS_NEXT_BSP_ENTITY:
+		return botlib->aas.AAS_NextBSPEntity(VM_LONG(arg[0]));
+	case BOTLIB_AAS_VALUE_FOR_BSP_EPAIR_KEY:
+		VALIDATEPOINTER(arg[2], arg[3]);
+		return botlib->aas.AAS_ValueForBSPEpairKey(VM_LONG(arg[0]), VM_POINTER(arg[1]), VM_POINTER(arg[2]), VM_LONG(arg[3]));
+	case BOTLIB_AAS_VECTOR_FOR_BSP_EPAIR_KEY:
+		VALIDATEPOINTER(arg[2], sizeof(vec3_t));
+		return botlib->aas.AAS_VectorForBSPEpairKey(VM_LONG(arg[0]), VM_POINTER(arg[1]), VM_POINTER(arg[2]));
+	case BOTLIB_AAS_FLOAT_FOR_BSP_EPAIR_KEY:
+		VALIDATEPOINTER(arg[2], sizeof(float));
+		return botlib->aas.AAS_FloatForBSPEpairKey(VM_LONG(arg[0]), VM_POINTER(arg[1]), VM_POINTER(arg[2]));
+	case BOTLIB_AAS_INT_FOR_BSP_EPAIR_KEY:
+		VALIDATEPOINTER(arg[2], sizeof(int));
+		return botlib->aas.AAS_IntForBSPEpairKey(VM_LONG(arg[0]), VM_POINTER(arg[1]), VM_POINTER(arg[2]));
+
+	case BOTLIB_AAS_AREA_REACHABILITY:
+		return botlib->aas.AAS_AreaReachability(VM_LONG(arg[0]));
+
+	case BOTLIB_AAS_AREA_TRAVEL_TIME_TO_GOAL_AREA:
+		return botlib->aas.AAS_AreaTravelTimeToGoalArea(VM_LONG(arg[0]), VM_POINTER(arg[1]), VM_LONG(arg[2]), VM_LONG(arg[3]));
+
+	case BOTLIB_AAS_SWIMMING:
+		return botlib->aas.AAS_Swimming(VM_POINTER(arg[0]));
+	case BOTLIB_AAS_PREDICT_CLIENT_MOVEMENT:
+		return botlib->aas.AAS_PredictClientMovement(VM_POINTER(arg[0]),
+											VM_LONG(arg[1]), VM_POINTER(arg[2]),
+											VM_LONG(arg[3]), VM_LONG(arg[4]),
+											VM_POINTER(arg[5]), VM_POINTER(arg[6]),
+											VM_LONG(arg[7]),
+											VM_LONG(arg[8]), VM_FLOAT(arg[9]),
+											VM_LONG(arg[10]), VM_LONG(arg[11]), VM_LONG(arg[12]));
+
+	case BOTLIB_EA_SAY:
+		botlib->ea.EA_Say(VM_LONG(arg[0]), VM_POINTER(arg[1]));
+		return 0;
+	case BOTLIB_EA_SAY_TEAM:
+		botlib->ea.EA_SayTeam(VM_LONG(arg[0]), VM_POINTER(arg[1]));
+		return 0;
+	case BOTLIB_EA_COMMAND:
+		botlib->ea.EA_Command(VM_LONG(arg[0]), VM_POINTER(arg[1]));
+		return 0;
+
+	case BOTLIB_EA_ACTION:
+		botlib->ea.EA_Action(VM_LONG(arg[0]), VM_LONG(arg[1]));
+		return 0;
+	case BOTLIB_EA_GESTURE:
+		botlib->ea.EA_Gesture(VM_LONG(arg[0]));
+		return 0;
+	case BOTLIB_EA_TALK:
+		botlib->ea.EA_Talk(VM_LONG(arg[0]));
+		return 0;
+	case BOTLIB_EA_ATTACK:
+		botlib->ea.EA_Attack(VM_LONG(arg[0]));
+		return 0;
+	case BOTLIB_EA_USE:
+		botlib->ea.EA_Use(VM_LONG(arg[0]));
+		return 0;
+	case BOTLIB_EA_RESPAWN:
+		botlib->ea.EA_Respawn(VM_LONG(arg[0]));
+		return 0;
+	case BOTLIB_EA_CROUCH:
+		botlib->ea.EA_Crouch(VM_LONG(arg[0]));
+		return 0;
+	case BOTLIB_EA_MOVE_UP:
+		botlib->ea.EA_MoveUp(VM_LONG(arg[0]));
+		return 0;
+	case BOTLIB_EA_MOVE_DOWN:
+		botlib->ea.EA_MoveDown(VM_LONG(arg[0]));
+		return 0;
+	case BOTLIB_EA_MOVE_FORWARD:
+		botlib->ea.EA_MoveForward(VM_LONG(arg[0]));
+		return 0;
+	case BOTLIB_EA_MOVE_BACK:
+		botlib->ea.EA_MoveBack(VM_LONG(arg[0]));
+		return 0;
+	case BOTLIB_EA_MOVE_LEFT:
+		botlib->ea.EA_MoveLeft(VM_LONG(arg[0]));
+		return 0;
+	case BOTLIB_EA_MOVE_RIGHT:
+		botlib->ea.EA_MoveRight(VM_LONG(arg[0]));
+		return 0;
+
+	case BOTLIB_EA_SELECT_WEAPON:
+		botlib->ea.EA_SelectWeapon(VM_LONG(arg[0]), VM_LONG(arg[1]));
+		return 0;
+	case BOTLIB_EA_JUMP:
+		botlib->ea.EA_Jump(VM_LONG(arg[0]));
+		return 0;
+	case BOTLIB_EA_DELAYED_JUMP:
+		botlib->ea.EA_DelayedJump(VM_LONG(arg[0]));
+		return 0;
+	case BOTLIB_EA_MOVE:
+		botlib->ea.EA_Move(VM_LONG(arg[0]), VM_POINTER(arg[1]), VM_FLOAT(arg[2]));
+		return 0;
+	case BOTLIB_EA_VIEW:
+		botlib->ea.EA_View(VM_LONG(arg[0]), VM_POINTER(arg[1]));
+		return 0;
+
+	case BOTLIB_EA_END_REGULAR:
+		botlib->ea.EA_EndRegular(VM_LONG(arg[0]), VM_FLOAT(arg[1]));
+		return 0;
+	case BOTLIB_EA_GET_INPUT:
+		botlib->ea.EA_GetInput(VM_LONG(arg[0]), VM_FLOAT(arg[1]), VM_POINTER(arg[2]));
+		return 0;
+	case BOTLIB_EA_RESET_INPUT:
+		botlib->ea.EA_ResetInput(VM_LONG(arg[0]));
+		return 0;
+
+
+	case BOTLIB_AI_LOAD_CHARACTER:
+		return botlib->ai.BotLoadCharacter(VM_POINTER(arg[0]), VM_FLOAT(arg[1]));
+	case BOTLIB_AI_FREE_CHARACTER:
+		botlib->ai.BotFreeCharacter(arg[0]);
+		return 0;
+	case BOTLIB_AI_CHARACTERISTIC_FLOAT:
+		return FloatAsInt(botlib->ai.Characteristic_Float(arg[0], arg[1]));
+	case BOTLIB_AI_CHARACTERISTIC_BFLOAT:
+		return FloatAsInt(botlib->ai.Characteristic_BFloat(arg[0], arg[1], VM_FLOAT(arg[2]), VM_FLOAT(arg[3])));
+	case BOTLIB_AI_CHARACTERISTIC_INTEGER:
+		return botlib->ai.Characteristic_Integer(arg[0], arg[1]);
+	case BOTLIB_AI_CHARACTERISTIC_BINTEGER:
+		return botlib->ai.Characteristic_BInteger(arg[0], arg[1], arg[2], arg[3]);
+	case BOTLIB_AI_CHARACTERISTIC_STRING:
+		VALIDATEPOINTER(arg[2], arg[3]);
+		botlib->ai.Characteristic_String(arg[0], arg[1], VM_POINTER(arg[2]), arg[3]);
+		return 0;
+
+	case BOTLIB_AI_ALLOC_CHAT_STATE:
+		return botlib->ai.BotAllocChatState();
+	case BOTLIB_AI_FREE_CHAT_STATE:
+		botlib->ai.BotFreeChatState(arg[0]);
+		return 0;
+
+	case BOTLIB_AI_QUEUE_CONSOLE_MESSAGE:
+		botlib->ai.BotQueueConsoleMessage(arg[0], arg[1], VM_POINTER(arg[2]));
+		return 0;
+	case BOTLIB_AI_REMOVE_CONSOLE_MESSAGE:
+		botlib->ai.BotRemoveConsoleMessage(arg[0], arg[1]);
+		return 0;
+	case BOTLIB_AI_NEXT_CONSOLE_MESSAGE:
+		return botlib->ai.BotNextConsoleMessage(arg[0], VM_POINTER(arg[1]));
+	case BOTLIB_AI_NUM_CONSOLE_MESSAGE:
+		return botlib->ai.BotNumConsoleMessages(arg[0]);
+	case BOTLIB_AI_INITIAL_CHAT:
+		botlib->ai.BotInitialChat(arg[0], VM_POINTER(arg[1]), arg[2], VM_POINTER(arg[3]), VM_POINTER(arg[4]), VM_POINTER(arg[5]), VM_POINTER(arg[6]), VM_POINTER(arg[7]), VM_POINTER(arg[8]), VM_POINTER(arg[9]), VM_POINTER(arg[10]));
+		return 0;
+	case BOTLIB_AI_REPLY_CHAT:
+		return botlib->ai.BotReplyChat(arg[0], VM_POINTER(arg[1]), arg[2], arg[3], VM_POINTER(arg[4]), VM_POINTER(arg[5]), VM_POINTER(arg[6]), VM_POINTER(arg[7]), VM_POINTER(arg[8]), VM_POINTER(arg[9]), VM_POINTER(arg[10]), VM_POINTER(arg[11]));
+	case BOTLIB_AI_CHAT_LENGTH:
+		return botlib->ai.BotChatLength(arg[0]);
+	case BOTLIB_AI_ENTER_CHAT:
+		botlib->ai.BotEnterChat(arg[0], arg[1], arg[2]);
+		return 0;
+	case BOTLIB_AI_STRING_CONTAINS:
+		return botlib->ai.StringContains(VM_POINTER(arg[0]), VM_POINTER(arg[1]), arg[2]);
+	case BOTLIB_AI_FIND_MATCH:
+		return botlib->ai.BotFindMatch(VM_POINTER(arg[0]), VM_POINTER(arg[1]), arg[2]);
+	case BOTLIB_AI_MATCH_VARIABLE:
+		botlib->ai.BotMatchVariable(VM_POINTER(arg[0]), arg[1], VM_POINTER(arg[2]), arg[3]);
+		return 0;
+	case BOTLIB_AI_UNIFY_WHITE_SPACES:
+		botlib->ai.UnifyWhiteSpaces(VM_POINTER(arg[0]));
+		return 0;
+	case BOTLIB_AI_REPLACE_SYNONYMS:
+		botlib->ai.BotReplaceSynonyms(VM_POINTER(arg[0]), arg[1]);
+		return 0;
+	case BOTLIB_AI_LOAD_CHAT_FILE:
+		return botlib->ai.BotLoadChatFile(arg[0], VM_POINTER(arg[1]), VM_POINTER(arg[2]));
+	case BOTLIB_AI_SET_CHAT_GENDER:
+		botlib->ai.BotSetChatGender(arg[0], arg[1]);
+		return 0;
+	case BOTLIB_AI_SET_CHAT_NAME:
+		botlib->ai.BotSetChatName(arg[0], VM_POINTER(arg[1]), arg[2]);
+		return 0;
+
+
+
+	case BOTLIB_AI_RESET_GOAL_STATE:
+		botlib->ai.BotResetGoalState(VM_LONG(arg[0]));
+		return 0;
+	case BOTLIB_AI_RESET_AVOID_GOALS:
+		botlib->ai.BotResetAvoidGoals(VM_LONG(arg[0]));
+		return 0;
+	case BOTLIB_AI_PUSH_GOAL:
+		botlib->ai.BotPushGoal(VM_LONG(arg[0]), VM_POINTER(arg[1]));
+		return 0;
+	case BOTLIB_AI_POP_GOAL:
+		botlib->ai.BotPopGoal(VM_LONG(arg[0]));
+		return 0;
+
+	case BOTLIB_AI_EMPTY_GOAL_STACK:
+		botlib->ai.BotEmptyGoalStack(VM_LONG(arg[0]));
+		return 0;
+	case BOTLIB_AI_DUMP_AVOID_GOALS:
+		botlib->ai.BotDumpAvoidGoals(VM_LONG(arg[0]));
+		return 0;
+	case BOTLIB_AI_DUMP_GOAL_STACK:
+		botlib->ai.BotDumpGoalStack(VM_LONG(arg[0]));
+		return 0;
+
+	case BOTLIB_AI_GOAL_NAME:
+		VALIDATEPOINTER(arg[1], arg[2]);
+		botlib->ai.BotGoalName(VM_LONG(arg[0]), VM_POINTER(arg[1]), VM_LONG(arg[2]));
+		return 0;
+
+	case BOTLIB_AI_GET_TOP_GOAL:
+		//FIXME: validatepointer ?
+		return botlib->ai.BotGetTopGoal(VM_LONG(arg[0]), VM_POINTER(arg[1]));
+	case BOTLIB_AI_GET_SECOND_GOAL:
+		//FIXME: validatepointer ?
+		return botlib->ai.BotGetSecondGoal(VM_LONG(arg[0]), VM_POINTER(arg[1]));
+	case BOTLIB_AI_CHOOSE_LTG_ITEM:
+		//FIXME: validatepointer ?
+		return botlib->ai.BotChooseLTGItem(VM_LONG(arg[0]), VM_POINTER(arg[1]), VM_POINTER(arg[2]), VM_LONG(arg[3]));
+	case BOTLIB_AI_CHOOSE_NBG_ITEM:
+		//FIXME: validatepointer ?
+		return botlib->ai.BotChooseNBGItem(VM_LONG(arg[0]), VM_POINTER(arg[1]), VM_POINTER(arg[2]), VM_LONG(arg[3]), VM_POINTER(arg[4]), VM_FLOAT(arg[5]));	
+	case BOTLIB_AI_TOUCHING_GOAL:
+		return botlib->ai.BotTouchingGoal(VM_POINTER(arg[0]), VM_POINTER(arg[1]));
+	case BOTLIB_AI_ITEM_GOAL_IN_VIS_BUT_NOT_VISIBLE:
+		return botlib->ai.BotItemGoalInVisButNotVisible(arg[0], VM_POINTER(arg[1]), VM_POINTER(arg[2]), VM_POINTER(arg[3]));
+
+	case BOTLIB_AI_GET_LEVEL_ITEM_GOAL:
+		return botlib->ai.BotGetLevelItemGoal(arg[0], VM_POINTER(arg[1]), VM_POINTER(arg[2]));
+	case BOTLIB_AI_AVOID_GOAL_TIME:
+		return botlib->ai.BotAvoidGoalTime(arg[0], arg[1]);
+	case BOTLIB_AI_INIT_LEVEL_ITEMS:
+		botlib->ai.BotInitLevelItems();
+		return 0;
+
+	case BOTLIB_AI_UPDATE_ENTITY_ITEMS:
+		botlib->ai.BotUpdateEntityItems();
+		return 0;
+
+	case BOTLIB_AI_LOAD_ITEM_WEIGHTS:
+		return botlib->ai.BotLoadItemWeights(arg[0], VM_POINTER(arg[1]));
+
+	case BOTLIB_AI_FREE_ITEM_WEIGHTS:
+		botlib->ai.BotFreeItemWeights(arg[0]);
+		return 0;
+
+	case BOTLIB_AI_SAVE_GOAL_FUZZY_LOGIC:
+		botlib->ai.BotSaveGoalFuzzyLogic(arg[0], VM_POINTER(arg[1]));
+		return 0;
+	case BOTLIB_AI_ALLOC_GOAL_STATE:
+		return botlib->ai.BotAllocGoalState(VM_LONG(arg[0]));
+	case BOTLIB_AI_FREE_GOAL_STATE:
+		botlib->ai.BotFreeGoalState(VM_LONG(arg[0]));
+		return 0;
+
+	case BOTLIB_AI_RESET_MOVE_STATE:
+		botlib->ai.BotResetMoveState(VM_LONG(arg[0]));
+		return 0;
+	case BOTLIB_AI_MOVE_TO_GOAL:
+		botlib->ai.BotMoveToGoal(VM_POINTER(arg[0]), VM_LONG(arg[1]), VM_POINTER(arg[2]), VM_LONG(arg[3]));
+		return 0;
+	case BOTLIB_AI_MOVE_IN_DIRECTION:
+		return botlib->ai.BotMoveInDirection(VM_LONG(arg[0]), VM_POINTER(arg[1]), VM_FLOAT(arg[2]), VM_LONG(arg[3]));
+
+	case BOTLIB_AI_RESET_AVOID_REACH:
+		botlib->ai.BotUpdateEntityItems();
+		return 0;
+
+	case BOTLIB_AI_RESET_LAST_AVOID_REACH:
+		botlib->ai.BotResetLastAvoidReach(arg[0]);
+		return 0;
+	case BOTLIB_AI_REACHABILITY_AREA:
+		return botlib->ai.BotReachabilityArea(VM_POINTER(arg[0]), arg[1]);
+
+	case BOTLIB_AI_MOVEMENT_VIEW_TARGET:
+		return botlib->ai.BotMovementViewTarget(arg[0], VM_POINTER(arg[1]), arg[2], VM_FLOAT(arg[3]), VM_POINTER(arg[4]));
+
+	case BOTLIB_AI_ALLOC_MOVE_STATE:
+		return botlib->ai.BotAllocMoveState();
+	case BOTLIB_AI_FREE_MOVE_STATE:
+		botlib->ai.BotFreeMoveState(VM_LONG(arg[0]));
+		return 0;
+	case BOTLIB_AI_INIT_MOVE_STATE:
+		//FIXME: validatepointer?
+		botlib->ai.BotInitMoveState(VM_LONG(arg[0]), VM_POINTER(arg[1]));
+		return 0;
+
+	case BOTLIB_AI_CHOOSE_BEST_FIGHT_WEAPON:
+		return botlib->ai.BotChooseBestFightWeapon(VM_LONG(arg[0]), VM_POINTER(arg[1]));
+	case BOTLIB_AI_GET_WEAPON_INFO:
+		botlib->ai.BotGetWeaponInfo(VM_LONG(arg[0]), VM_LONG(arg[1]), VM_POINTER(arg[2]));
+		return 0;
+	case BOTLIB_AI_LOAD_WEAPON_WEIGHTS:
+		return botlib->ai.BotLoadWeaponWeights(VM_LONG(arg[0]), VM_POINTER(arg[1]));
+	case BOTLIB_AI_ALLOC_WEAPON_STATE:
+		return botlib->ai.BotAllocWeaponState();
+	case BOTLIB_AI_FREE_WEAPON_STATE:
+		botlib->ai.BotFreeWeaponState(VM_LONG(arg[0]));
+		return 0;
+	case BOTLIB_AI_RESET_WEAPON_STATE:
+		botlib->ai.BotResetWeaponState(VM_LONG(arg[0]));
+		return 0;
+
+	case BOTLIB_AI_GENETIC_PARENTS_AND_CHILD_SELECTION:
+		return botlib->ai.GeneticParentsAndChildSelection(VM_LONG(arg[0]), VM_POINTER(arg[1]), VM_POINTER(arg[2]), VM_POINTER(arg[3]), VM_POINTER(arg[4]));
+	case BOTLIB_AI_INTERBREED_GOAL_FUZZY_LOGIC:
+		botlib->ai.BotInterbreedGoalFuzzyLogic(VM_LONG(arg[0]), VM_LONG(arg[1]), VM_LONG(arg[2]));
+		return 0;
+	case BOTLIB_AI_MUTATE_GOAL_FUZZY_LOGIC:
+		botlib->ai.BotMutateGoalFuzzyLogic(VM_LONG(arg[0]), VM_FLOAT(arg[1]));
+		return 0;
+	case BOTLIB_AI_GET_NEXT_CAMP_SPOT_GOAL:
+		return botlib->ai.BotGetNextCampSpotGoal(VM_LONG(arg[0]), VM_POINTER(arg[1]));
+	case BOTLIB_AI_GET_MAP_LOCATION_GOAL:
+		return botlib->ai.BotGetMapLocationGoal(VM_POINTER(arg[0]), VM_POINTER(arg[1]));
+	case BOTLIB_AI_NUM_INITIAL_CHATS:
+		return botlib->ai.BotNumInitialChats(VM_LONG(arg[0]), VM_POINTER(arg[1]));
+	case BOTLIB_AI_GET_CHAT_MESSAGE:
+		VALIDATEPOINTER(arg[1], arg[2]);
+		botlib->ai.BotGetChatMessage(VM_LONG(arg[0]), VM_POINTER(arg[1]), VM_LONG(arg[2]));
+		return 0;
+	case BOTLIB_AI_REMOVE_FROM_AVOID_GOALS:
+		botlib->ai.BotRemoveFromAvoidGoals(VM_LONG(arg[0]), VM_LONG(arg[1]));
+		return 0;
+	case BOTLIB_AI_PREDICT_VISIBLE_POSITION:
+		return botlib->ai.BotPredictVisiblePosition(VM_POINTER(arg[0]), VM_LONG(arg[1]), VM_POINTER(arg[2]), VM_LONG(arg[3]), VM_POINTER(arg[4]));
+
+	case BOTLIB_AI_SET_AVOID_GOAL_TIME:
+		botlib->ai.BotSetAvoidGoalTime(VM_LONG(arg[0]), VM_LONG(arg[1]), VM_FLOAT(arg[2]));
+		return 0;
+		
+	case BOTLIB_AI_ADD_AVOID_SPOT:
+		botlib->ai.BotAddAvoidSpot(VM_LONG(arg[0]), VM_POINTER(arg[1]), VM_FLOAT(arg[2]), VM_LONG(arg[3]));
+		return 0;
+
+	case BOTLIB_AAS_ALTERNATIVE_ROUTE_GOAL:
+		return botlib->aas.AAS_AlternativeRouteGoals(VM_POINTER(arg[0]), arg[1], VM_POINTER(arg[2]), arg[3], arg[4],
+							VM_POINTER(arg[5]), arg[6], arg[7]);
+	case BOTLIB_AAS_PREDICT_ROUTE:
+		return botlib->aas.AAS_PredictRoute(VM_POINTER(arg[0]), arg[1], VM_POINTER(arg[2]), arg[3], arg[4], arg[5], arg[6],
+							arg[7], arg[8], arg[9], arg[10]);
+	case BOTLIB_AAS_POINT_REACHABILITY_AREA_INDEX:
+		return botlib->aas.AAS_PointReachabilityAreaIndex(VM_POINTER(arg[0]));
+
+  	case BOTLIB_PC_LOAD_SOURCE:
+		return botlib->PC_LoadSourceHandle(VM_POINTER(arg[0]));
+	case BOTLIB_PC_FREE_SOURCE:
+		return botlib->PC_FreeSourceHandle(VM_LONG(arg[0]));
+	case BOTLIB_PC_READ_TOKEN:
+		//fixme: validatepointer
+		return botlib->PC_ReadTokenHandle(VM_LONG(arg[0]), VM_POINTER(arg[1]));
+	case BOTLIB_PC_SOURCE_FILE_AND_LINE:
+		//fixme: validatepointer
+		return botlib->PC_SourceFileAndLine(VM_LONG(arg[0]), VM_POINTER(arg[1]), VM_POINTER(arg[2]));
+
+#endif
+
+//	notimplemented:
 	default:
 		Con_Printf("builtin %i is not implemented\n", fn);
 	}
@@ -804,7 +1521,7 @@ Con_Printf("builtin %i is not implemented\n", fn);
 
 int EXPORT_FN Q3G_SystemCalls(int arg, ...)
 {
-	long args[9];
+	long args[13];
 	va_list argptr;
 
 	va_start(argptr, arg);
@@ -817,6 +1534,10 @@ int EXPORT_FN Q3G_SystemCalls(int arg, ...)
 	args[6]=va_arg(argptr, int);
 	args[7]=va_arg(argptr, int);
 	args[8]=va_arg(argptr, int);
+	args[9]=va_arg(argptr, int);
+	args[10]=va_arg(argptr, int);
+	args[11]=va_arg(argptr, int);
+	args[12]=va_arg(argptr, int);
 	va_end(argptr);
 
 	return Q3G_SystemCallsEx(NULL, ~0, arg, args);
@@ -827,6 +1548,13 @@ void SVQ3_ShutdownGame(void)
 	int i;
 	if (!q3gamevm)
 		return;
+#ifdef USEBOTLIB
+	if (botlib)
+	{	//it crashes otherwise, probably due to our huck clearage
+		botlib->BotLibShutdown();
+		Z_FreeTags(Z_TAG_BOTLIB);
+	}
+#endif
 
 	for (i = 0; i < MAX_CONFIGSTRINGS; i++)
 	{
@@ -844,6 +1572,202 @@ void SVQ3_ShutdownGame(void)
 
 	VM_Destroy(q3gamevm);
 	q3gamevm = NULL;
+
+	Cvar_Set(Cvar_Get("sv_running", "0", 0, "Q3 compatability"), "0");
+}
+
+#ifdef USEBOTLIB
+void BL_Print(int l, char *fmt, ...)
+{
+	va_list		argptr;
+	char		text[1024];
+
+	va_start (argptr, fmt);
+	vsprintf (text, fmt, argptr);
+	va_end (argptr);
+
+	Con_Printf("%s", text);
+}
+
+int botlibmemoryavailable;
+int BL_AvailableMemory(void)
+{
+	return botlibmemoryavailable;
+}
+void *BL_Malloc(int size)
+{
+	botlibmemoryavailable-=size;
+	return Z_TagMalloc(size, Z_TAG_BOTLIB);
+}
+void BL_Free(void *mem)
+{
+	botlibmemoryavailable+=Z_MemSize(mem);
+	Z_Free(mem);
+}
+void *BL_HunkMalloc(int size)
+{
+	return BL_Malloc(size);//Hunk_AllocName(size, "botlib");
+}
+
+int BL_FOpenFile(const char *name, fileHandle_t *handle, fsMode_t mode)
+{
+	return VMUI_fopen(name, handle, mode, Z_TAG_BOTLIB);
+}
+int BL_FRead( void *buffer, int len, fileHandle_t f )
+{
+	return VMUI_FRead(buffer, len, f, Z_TAG_BOTLIB);
+}
+//int BL_FWrite( const void *buffer, int len, fileHandle_t f )
+//{
+//	return VMUI_FWrite(buffer, len, f, Z_TAG_BOTLIB);
+//}	
+int BL_FCloseFile( fileHandle_t f )
+{
+	VMUI_fclose(f, Z_TAG_BOTLIB);
+	return 0;
+}
+//int BL_Seek( fileHandle_t f )
+//{
+//	VMUI_fseek(f, Z_TAG_BOTLIB)
+//}
+char *BL_BSPEntityData(void)
+{
+	return sv.worldmodel->entities;
+}
+void BL_Trace(bsp_trace_t *trace, vec3_t start, vec3_t mins, vec3_t maxs, vec3_t end, int passent, int contentmask)
+{
+	q3trace_t tr;
+	SVQ3_Trace(&tr, start, mins, maxs, end, passent, contentmask);
+
+	trace->allsolid = tr.allsolid;
+	trace->startsolid = tr.startsolid;
+	trace->fraction = tr.fraction;
+	VectorCopy(tr.endpos, trace->endpos);
+	trace->plane = tr.plane;
+	trace->exp_dist = 0;
+	trace->sidenum = 0;
+	//trace->surface.name
+	//trace->surface.flags
+	trace->surface.value = tr.surfaceFlags;
+	trace->contents = 0;//tr.contents;
+	trace->ent = tr.entityNum;
+}
+int BL_PointContents(vec3_t point)
+{
+	return SVQ3_PointContents(point, -1);
+}
+
+int BL_inPVS(vec3_t p1, vec3_t p2)
+{
+	return true;// FIXME: :(
+}
+
+void BL_EntityTrace(bsp_trace_t *trace, vec3_t start, vec3_t mins, vec3_t maxs, vec3_t end, int entnum, int contentmask)
+{
+	trace->allsolid = 0;//tr.allsolid;
+	trace->startsolid = 0;//tr.startsolid;
+	trace->fraction = 1;//tr.fraction;
+	VectorCopy(end, trace->endpos);
+//	trace->plane = tr.plane;
+	trace->exp_dist = 0;
+	trace->sidenum = 0;
+	//trace->surface.name
+	//trace->surface.flags
+//	trace->surface.value = tr.surfaceFlags;
+	trace->contents = 0;//tr.contents;
+//	trace->ent = tr.entityNum;
+}
+
+void BL_BSPModelMinsMaxsOrigin(int modelnum, vec3_t angles, vec3_t outmins, vec3_t outmaxs, vec3_t origin)
+{
+	model_t *mod;
+	vec3_t mins, maxs;
+	float max;
+	int	i;
+
+	mod = Mod_ForName(va("*%i", modelnum), false);
+	VectorCopy(mod->mins, mins);
+	VectorCopy(mod->maxs, maxs);
+
+	//if the model is rotated
+	if ((angles[0] || angles[1] || angles[2]))
+	{
+		// expand for rotation
+		max = RadiusFromBounds(mins, maxs);
+		for (i = 0; i < 3; i++)
+		{
+			mins[i] = -max;
+			maxs[i] = max;
+		}
+	}
+	if (outmins)
+		VectorCopy(mins, outmins);
+	if (outmaxs)
+		VectorCopy(maxs, outmaxs);
+	if (origin)
+		VectorClear(origin);
+}
+void BL_BotClientCommand(int clientnum, char *command)
+{
+	Cmd_TokenizeString(command, false, false);
+	VM_Call(q3gamevm, GAME_CLIENT_COMMAND, clientnum);
+}
+
+#endif
+
+void SV_InitBotLib()
+{
+	cvar_t *bot_enable = Cvar_Get("bot_enable", "1", 0, "Q3 compatability");
+
+#ifdef USEBOTLIB
+	botlib_import_t import;
+
+	Cvar_Set(Cvar_Get("sv_mapChecksum", "0", 0, "Q3 compatability"), va("%i", sv.worldmodel->checksum));
+
+	memset(&import, 0, sizeof(import));
+	import.Print = BL_Print;
+	import.Trace = BL_Trace;
+	import.EntityTrace = BL_EntityTrace;
+	import.PointContents = BL_PointContents;
+	import.inPVS = BL_inPVS;
+	import.BSPEntityData = BL_BSPEntityData;
+	import.BSPModelMinsMaxsOrigin = BL_BSPModelMinsMaxsOrigin;
+	import.BotClientCommand = BL_BotClientCommand;
+	import.GetMemory = BL_Malloc;
+	import.FreeMemory = BL_Free;
+	import.AvailableMemory = BL_AvailableMemory;
+	import.HunkAlloc = BL_HunkMalloc;
+	import.FS_FOpenFile = BL_FOpenFile;
+	import.FS_Read = BL_FRead;
+//	import.FS_Write = BL_FWrite;
+	import.FS_FCloseFile = BL_FCloseFile;
+//	import.FS_Seek = BL_Seek;
+//	import.DebugLineCreate
+//	import.DebugLineDelete
+//	import.DebugLineShow
+//
+//	import.DebugPolygonCreate
+//	import.DebugPolygonDelete
+
+//	Z_FreeTags(Z_TAG_BOTLIB);
+	botlibmemoryavailable = 1024*1024*16;
+	botlib = GetBotLibAPI(BOTLIB_API_VERSION, &import);
+	if (!botlib)
+	{
+		bot_enable->flags |= CVAR_LATCH;
+		Cvar_ForceSet(bot_enable, "0");
+	}
+	else
+	{
+		cvar_t *mapname = Cvar_Get("mapname", "", CVAR_SERVERINFO, "Q3 compatability");
+		Cvar_Set(mapname, sv.name);
+	}
+#else
+
+//make sure it's switched off.
+	Cvar_ForceSet(bot_enable, "0");
+	bot_enable->flags |= CVAR_NOSET;
+#endif
 }
 
 qboolean SVQ3_InitGame(void)
@@ -861,6 +1785,8 @@ qboolean SVQ3_InitGame(void)
 	if (!q3gamevm)
 		return false;
 
+	SV_InitBotLib();
+
 	SV_ClearWorld();
 
 	q3_sentities = Z_Malloc(sizeof(q3serverEntity_t)*MAX_GENTITIES);
@@ -871,6 +1797,8 @@ qboolean SVQ3_InitGame(void)
 	Info_SetValueForKey(buffer, "mapname", sv.name, sizeof(buffer)); 
 	Info_SetValueForKey(buffer, "sv_maxclients", "32", sizeof(buffer)); 
 	SVQ3_SetConfigString(0, buffer);
+
+	Cvar_Set(Cvar_Get("sv_running", "0", 0, "Q3 compatability"), "1");
 
 	svq3_configstrings[1] = Z_Malloc(32);
 	Info_SetValueForKey(svq3_configstrings[1], "sv_serverid", va("%i", svs.spawncount), MAX_SERVERINFO_STRING); 
@@ -886,12 +1814,20 @@ qboolean SVQ3_InitGame(void)
 	q3_next_snapshot_entities = 0;
 	q3_snapshot_entities = BZ_Malloc(sizeof( q3entityState_t ) * q3_num_snapshot_entities);
 
+#ifdef USEBOTLIB
+	if (botlib)
+		VM_Call(q3gamevm, BOTAI_START_FRAME, (int)(sv.time*1000));
+#endif
+
 	return true;
 }
 
 void SVQ3_RunFrame(void)
 {
 	VM_Call(q3gamevm, GAME_RUN_FRAME, (int)(sv.time*1000));
+#ifdef USEBOTLIB
+	VM_Call(q3gamevm, BOTAI_START_FRAME, (int)(sv.time*1000));
+#endif
 }
 
 void SVQ3_ClientCommand(client_t *cl)
@@ -909,6 +1845,22 @@ void SVQ3_ClientThink(client_t *cl)
 	VM_Call(q3gamevm, GAME_CLIENT_THINK, cl-svs.clients);
 }
 
+qboolean SVQ3_Command(void)
+{
+	if (!q3gamevm)
+		return false;
+
+	return VM_Call(q3gamevm, GAME_CONSOLE_COMMAND);
+}
+
+qboolean SVQ3_ConsoleCommand(void)
+{
+	if (!q3gamevm)
+		return false;
+	Cmd_ShiftArgs(1, false);
+	VM_Call(q3gamevm, GAME_CONSOLE_COMMAND);
+	return true;
+}
 
 void SVQ3_Netchan_Transmit( client_t *client, int length, qbyte *data );
 
@@ -1469,6 +2421,16 @@ client_t *SVQ3_FindEmptyPlayerSlot(void)
 	}
 	return NULL;
 }
+client_t *SVQ3_FindExistingPlayerByIP(netadr_t na, int qport)
+{
+	int i;
+	for (i = 0; i < MAX_CLIENTS; i++)
+	{
+		if (svs.clients[i].state && NET_CompareAdr(svs.clients[i].netchan.remote_address, na))
+			return &svs.clients[i];
+	}
+	return NULL;
+}
 
 qboolean Netchan_ProcessQ3 (netchan_t *chan);
 static qboolean SVQ3_Netchan_Process(client_t *client)
@@ -1849,12 +2811,22 @@ void SVQ3_DirectConnect(void)	//Actually connect the client, use up a slot, and 
 	client_t *cl;
 	char *userinfo = NULL;
 	int ret;
-	int challenge = 0;
+	int challenge;
+	int qport;
+
 	if (net_message.cursize < 13)
 		return;
 	Huff_DecryptPacket(&net_message, 12);
 
-	cl = SVQ3_FindEmptyPlayerSlot();
+
+	Cmd_TokenizeString(net_message.data+4, false, false);
+	userinfo = Cmd_Argv(1);
+	qport = atoi(Info_ValueForKey(userinfo, "qport"));
+	challenge = atoi(Info_ValueForKey(userinfo, "challenge"));
+
+	cl = SVQ3_FindExistingPlayerByIP(net_from, qport);	//use a duplicate first.
+	if (!cl)
+		cl = SVQ3_FindEmptyPlayerSlot();
 
 	if (!cl)
 	{
@@ -1866,8 +2838,6 @@ void SVQ3_DirectConnect(void)	//Actually connect the client, use up a slot, and 
 		if (cl->q3frames)
 			BZ_Free(cl->q3frames);
 		memset(cl, 0, sizeof(*cl));
-		Cmd_TokenizeString(net_message.data+4, false, false);
-		userinfo = Cmd_Argv(1);
 		challenge = atoi(Info_ValueForKey(userinfo, "challenge"));
 
 		if (net_from.type != NA_LOOPBACK && !SV_ChallengePasses(challenge))
@@ -1903,7 +2873,7 @@ void SVQ3_DirectConnect(void)	//Actually connect the client, use up a slot, and 
 	cl->name = cl->namebuf;
 	cl->team = cl->teambuf;
 	SV_ExtractFromUserinfo(cl);
-	Netchan_Setup(NS_SERVER, &cl->netchan, net_from, atoi(Info_ValueForKey(userinfo, "qport")));
+	Netchan_Setup(NS_SERVER, &cl->netchan, net_from, qport);
 	cl->netchan.outgoing_sequence = 1;
 
 	cl->challenge = challenge;
@@ -1916,6 +2886,26 @@ void SVQ3_DirectConnect(void)	//Actually connect the client, use up a slot, and 
 	Huff_PreferedCompressionCRC();
 
 	cl->q3frames = BZ_Malloc(Q3UPDATE_BACKUP*sizeof(*cl->q3frames));
+}
+
+int SVQ3_AddBot(void)
+{
+	client_t *cl;
+
+	cl = SVQ3_FindEmptyPlayerSlot();
+	if (!cl)
+		return -1;	//failure, no slots
+
+	cl->protocol = SCP_BAD;
+	cl->state = cs_connected;
+	cl->name = cl->namebuf;
+	cl->team = cl->teambuf;
+
+	cl->challenge = 0;
+	cl->userid = (cl - svs.clients)+1;
+	cl->state = cs_spawned;
+
+	return cl - svs.clients;
 }
 
 void SVQ3_DropClient(client_t *cl)

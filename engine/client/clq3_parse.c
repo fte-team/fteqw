@@ -261,7 +261,7 @@ void CLQ3_ParseSnapshot(void)
 	snap.serverMessageNum = ccs.serverMessageNum;
 	snap.serverCommandNum = ccs.lastServerCommandNum;
 	snap.serverTime = MSG_ReadLong();
-	snap.localTime = Sys_DoubleTime()*1000;
+	snap.localTime = Sys_Milliseconds();
 
 	// If the frame is delta compressed from data that we
 	// no longer have available, we must suck up the rest of
@@ -862,6 +862,7 @@ void CLQ3_SendCmd(usercmd_t *cmd)
 	frame_t *frame, *oldframe;
 	int cmdcount, key;
 	usercmd_t *to, *from;
+	extern int keycatcher;
 
 	if (cls.resendinfo)
 	{
@@ -869,7 +870,7 @@ void CLQ3_SendCmd(usercmd_t *cmd)
 		CLQ3_SendClientCommand("userinfo \"%s\"", cls.userinfo);
 	}
 
-	ccs.serverTime = ccs.snap.serverTime + (Sys_Milliseconds()-ccs.snap.localTime);
+	cl.gametime = ccs.serverTime = ccs.snap.serverTime + (Sys_Milliseconds()-ccs.snap.localTime);
 
 	//reuse the q1 array
 	cmd->servertime = ccs.serverTime;
@@ -878,6 +879,14 @@ void CLQ3_SendCmd(usercmd_t *cmd)
 	cmd->forwardmove *= 127/400.0f;
 	cmd->sidemove *= 127/400.0f;
 	cmd->upmove *= 127/400.0f;
+
+	if (cmd->buttons & 2)	//jump
+	{
+		cmd->upmove = 100;
+		cmd->buttons &= ~2;
+	}
+	if (key_dest != key_game || (keycatcher&3))
+		cmd->buttons |= 2;	//add in the 'at console' button
 
 	cl.frames[ccs.currentUserCmdNumber&CMD_MASK].cmd[0] = *cmd;
 	ccs.currentUserCmdNumber++;

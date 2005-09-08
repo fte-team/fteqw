@@ -181,6 +181,6 @@ void P_EmitSkyEffectTris(struct model_s *mod, struct msurface_s 	*fa);
 // trailstate functions
 void P_DelinkTrailstate(trailstate_t **tsk);
 
-typedef enum { BM_MERGE, BM_ADD, BM_SUBTRACT } blendmode_t;
+typedef enum { BM_BLEND, BM_BLENDCOLOUR, BM_ADD, BM_SUBTRACT } blendmode_t;
 
 #endif

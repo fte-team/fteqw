@@ -240,7 +240,7 @@ qboolean Netchan_ProcessQ3 (netchan_t *chan)
 
 	if (chan->drop_count > 0)// && (net_showdrop->integer || net_showpackets->integer))
 	{
-		Con_Printf("%s:Dropped %i packets at %i\n", NET_AdrToString(chan->remote_address), chan->drop_count, sequence);
+		Con_DPrintf("%s:Dropped %i packets at %i\n", NET_AdrToString(chan->remote_address), chan->drop_count, sequence);
 	}
 
 	if (!fragment)
@@ -467,7 +467,7 @@ int StringKey( const char *string, int length )
 		key += string[i] * (119 + i);
 	}
 
-	return (((key >> 10) ^ key) >> 10) ^ key;
+	return (key ^ (key >> 10) ^ (key >> 20));
 }
 
 
@@ -1281,10 +1281,21 @@ void MSG_Q3_ReadDeltaPlayerstate( const q3playerState_t *from, q3playerState_t *
 ////////////////////////////////////////////////////////////
 //user commands
 
+int kbitmask[32] = {
+	0x00000001, 0x00000003, 0x00000007, 0x0000000F,
+	0x0000001F,	0x0000003F,	0x0000007F,	0x000000FF,
+	0x000001FF,	0x000003FF,	0x000007FF,	0x00000FFF,
+	0x00001FFF,	0x00003FFF,	0x00007FFF,	0x0000FFFF,
+	0x0001FFFF,	0x0003FFFF,	0x0007FFFF,	0x000FFFFF,
+	0x001FFFFf,	0x003FFFFF,	0x007FFFFF,	0x00FFFFFF,
+	0x01FFFFFF,	0x03FFFFFF,	0x07FFFFFF,	0x0FFFFFFF,
+	0x1FFFFFFF,	0x3FFFFFFF,	0x7FFFFFFF,	0xFFFFFFFF,
+};
+
 static int MSG_ReadDeltaKey(int key, int from, int bits)
 {
 	if (MSG_ReadBits(1))
-		return MSG_ReadBits(bits)^key;
+		return MSG_ReadBits(bits)^ (key & kbitmask[bits]);
 	else
 		return from;
 }
@@ -1296,7 +1307,16 @@ void MSG_Q3_ReadDeltaUsercmd(int key, const usercmd_t *from, usercmd_t *to)
 		to->servertime = MSG_ReadBits(32);
 
 	if (!MSG_ReadBits(1))
-		memcpy((qbyte *)to+4, (qbyte *)from+4, sizeof(usercmd_t)-4);
+	{
+		to->angles[0] = from->angles[0];
+		to->angles[1] = from->angles[1];
+		to->angles[2] = from->angles[2];
+		to->forwardmove = from->forwardmove;
+		to->sidemove = from->sidemove;
+		to->upmove = from->upmove;
+		to->buttons = from->buttons;
+		to->weapon = from->weapon;
+	}
 	else
 	{
 		key ^= to->servertime;

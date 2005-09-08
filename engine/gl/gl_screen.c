@@ -263,6 +263,7 @@ void GLSCR_UpdateScreen (void)
 	SCR_SetUpToDrawConsole ();
 
 	nohud = false;
+
 #ifdef VM_CG
 	if (CG_Refresh())
 		nohud = true;

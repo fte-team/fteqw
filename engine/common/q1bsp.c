@@ -333,11 +333,12 @@ typedef struct {
 	vec3_t center;
 
 	vec3_t normal;
-	vec3_t tangent1;
-	vec3_t tangent2;
+//	vec3_t tangent1;
+//	vec3_t tangent2;
 
 	vec3_t planenorm[6];
 	float planedist[6];
+	int numplanes;
 
 	vec_t radius;
 	int numtris;
@@ -527,11 +528,12 @@ int Fragment_ClipPolyToPlane(float *inverts, float *outverts, int incount, float
 
 	float *lastvalid = NULL;	//the reason these arn't just an index is because it'd need to be a special case for the first vert.
 	float lastvaliddot = 0;
+#define FRAG_EPSILON 0.5
 
 	for (i = 0; i < incount; i++)
 	{
 		dotv[i] = DotProduct((inverts+i*3), plane) - planedist;
-		if (dotv[i]<-DIST_EPSILON)
+		if (dotv[i]<-FRAG_EPSILON)
 			clippedcount++;
 		else
 		{
@@ -543,14 +545,25 @@ int Fragment_ClipPolyToPlane(float *inverts, float *outverts, int incount, float
 	if (clippedcount == incount)
 		return 0;	//all were clipped
 	if (clippedcount == 0)
-	{
+	{	//none were clipped
 		memcpy(outverts, inverts, sizeof(float)*3*incount);
 		return incount;
 	}
 
+	//FIXME:
+/*
+
+  We should end up with a nicly clipped quad.
+  If a vertex is on the other side of the place, we remove it, and add two in it's place, on the lines between the verts not chopped.
+  we work out the last remaining vert in the above loop
+  the loop below loops through all verts, if it's to be removed, it does a nested loop to find the next vert that is not going to be removed
+  it then adds two new verts on the right two lines.
+  Due to using four clipplanes, this should result in a perfect quad. It doesn't.
+
+*/
 	for (i = 0; i < incount; )
 	{
-		if (dotv[i] < -DIST_EPSILON)	//clipped
+		if (dotv[i] < -FRAG_EPSILON)	//clipped
 		{
 			//work out where the line impacts the plane
 			lastvaliddot = (dotv[i]) / (dotv[i]-lastvaliddot);
@@ -559,20 +572,25 @@ int Fragment_ClipPolyToPlane(float *inverts, float *outverts, int incount, float
 			if (outcount+1 >= MAXFRAGMENTVERTS)	//bum
 				break;
 
+			//generate a vertex where the line crosses the plane
 			outverts[outcount*3 + 0] = impact[0];
 			outverts[outcount*3 + 1] = impact[1];
 			outverts[outcount*3 + 2] = impact[2];
 			outcount++;
 
 			i3 = (i+1);
-			while (dotv[i3%incount] < -DIST_EPSILON)	//clipped
+			while (dotv[i3%incount] < -FRAG_EPSILON)	//clipped
 				i3++;
+
+			//take away any verticies on the other side of the plane
+
 			i = (i3-1)%incount;
 			i2=i3%incount;
 
 			lastvaliddot = (dotv[i]) / (dotv[i]-dotv[i2]);
 			VectorInterpolate((inverts+i*3), lastvaliddot, (inverts+i2*3), impact);
 
+			//generate a vertex where the line crosses back onto our plane
 			outverts[outcount*3 + 0] = impact[0];
 			outverts[outcount*3 + 1] = impact[1];
 			outverts[outcount*3 + 2] = impact[2];
@@ -608,7 +626,9 @@ void Fragment_ClipTriangle(fragmentdecal_t *dec, float *a, float *b, float *c)
 	int p;
 	float verts[MAXFRAGMENTVERTS*3];
 	float verts2[MAXFRAGMENTVERTS*3];
+	float *cverts;
 	int numverts;
+	int flip;
 
 
 	if (dec->numtris == MAXFRAGMENTTRIS)
@@ -620,16 +640,23 @@ void Fragment_ClipTriangle(fragmentdecal_t *dec, float *a, float *b, float *c)
 	numverts = 3;
 
 	//clip the triangle to the 6 planes.
-	for (p = 0; p < 6; p+=2)
+	flip = 0;
+	for (p = 0; p < dec->numplanes; p++)
 	{
-		numverts = Fragment_ClipPolyToPlane(verts, verts2, numverts, dec->planenorm[p], dec->planedist[p]);
-		if (numverts < 3)	//totally clipped.
-			return;
+		flip^=1;
+		if (flip)
+			numverts = Fragment_ClipPolyToPlane(verts, verts2, numverts, dec->planenorm[p], dec->planedist[p]);
+		else
+			numverts = Fragment_ClipPolyToPlane(verts2, verts, numverts, dec->planenorm[p], dec->planedist[p]);
 
-		numverts = Fragment_ClipPolyToPlane(verts2, verts, numverts, dec->planenorm[p+1], dec->planedist[p+1]);
 		if (numverts < 3)	//totally clipped.
 			return;
 	}
+
+	if (flip)
+		cverts = verts2;
+	else
+		cverts = verts;
 
 	//decompose the resultant polygon into triangles.
 
@@ -640,9 +667,9 @@ void Fragment_ClipTriangle(fragmentdecal_t *dec, float *a, float *b, float *c)
 
 		numverts--;
 
-		VectorCopy((verts+3*0),				decalfragmentverts[dec->numtris*3+0]);
-		VectorCopy((verts+3*(numverts-1)),	decalfragmentverts[dec->numtris*3+1]);
-		VectorCopy((verts+3*numverts),		decalfragmentverts[dec->numtris*3+2]);
+		VectorCopy((cverts+3*0),			decalfragmentverts[dec->numtris*3+0]);
+		VectorCopy((cverts+3*(numverts-1)),	decalfragmentverts[dec->numtris*3+1]);
+		VectorCopy((cverts+3*numverts),		decalfragmentverts[dec->numtris*3+2]);
 		dec->numtris++;
 	}
 }
@@ -650,7 +677,7 @@ void Fragment_ClipTriangle(fragmentdecal_t *dec, float *a, float *b, float *c)
 #endif
 
 //this could be inlined, but I'm lazy.
-void Q1BSP_FragmentToMesh (fragmentdecal_t *dec, mesh_t *mesh)
+void Fragment_Mesh (fragmentdecal_t *dec, mesh_t *mesh)
 {
 	int i;
 
@@ -707,33 +734,32 @@ void Q1BSP_ClipDecalToNodes (fragmentdecal_t *dec, mnode_t *node)
 			if (DotProduct(surf->plane->normal, dec->normal) > -0.5)
 				continue;
 		}
-		Q1BSP_FragmentToMesh(dec, surf->mesh);
+		Fragment_Mesh(dec, surf->mesh);
 	}
 
 	Q1BSP_ClipDecalToNodes (dec, node->children[0]);
 	Q1BSP_ClipDecalToNodes (dec, node->children[1]);
 }
 
-int Q1BSP_ClipDecal(vec3_t center, vec3_t normal, vec3_t tangent, vec3_t tangent2, float size, float **out)
+int Q1BSP_ClipDecal(vec3_t center, vec3_t normal, vec3_t tangent1, vec3_t tangent2, float size, float **out)
 {	//quad marks a full, independant quad
 	int p;
 	fragmentdecal_t dec;
 
 	VectorCopy(center, dec.center);
 	VectorCopy(normal, dec.normal);
-	VectorCopy(tangent, dec.tangent1);
-	VectorCopy(tangent2, dec.tangent2);
 	dec.radius = size/2;
 	dec.numtris = 0;
 
-	VectorCopy(dec.tangent1,	dec.planenorm[0]);
-	VectorNegate(dec.tangent1,	dec.planenorm[1]);
-	VectorCopy(dec.tangent2,	dec.planenorm[2]);
-	VectorNegate(dec.tangent2,	dec.planenorm[3]);
+	VectorCopy(tangent1,	dec.planenorm[0]);
+	VectorNegate(tangent1,	dec.planenorm[1]);
+	VectorCopy(tangent2,	dec.planenorm[2]);
+	VectorNegate(tangent2,	dec.planenorm[3]);
 	VectorCopy(dec.normal,		dec.planenorm[4]);
 	VectorNegate(dec.normal,	dec.planenorm[5]);
 	for (p = 0; p < 6; p++)
 		dec.planedist[p] = -(dec.radius - DotProduct(dec.center, dec.planenorm[p]));
+	dec.numplanes = 6;
 
 	Q1BSP_ClipDecalToNodes(&dec, cl.worldmodel->nodes);
 

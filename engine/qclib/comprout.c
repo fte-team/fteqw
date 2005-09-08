@@ -57,6 +57,11 @@ pbool PreCompile(void)
 	qccClearHunk();
 	strcpy(qcc_gamedir, "");
 	qcchunk = malloc(qcchunksize=128*1024*1024);
+	while(!qcchunk && qcchunksize > 8*1024*1024)
+	{
+		qcchunksize /= 2;
+		qcchunk = malloc(qcchunksize);
+	}
 	qccalloced=0;
 
 	return !!qcchunk;

@@ -39,10 +39,10 @@ cvar_t allow_f_skins		= {"allow_f_skins", "1"};
 cvar_t auth_validateclients	= {"auth_validateclients", "1"};
 
 
-void CRC_AddBlock (unsigned short *crcvalue, qbyte *start, int count)
+void QCRC_AddBlock (unsigned short *crcvalue, qbyte *start, int count)
 {
     while (count--)
-		CRC_ProcessByte(crcvalue, *start++);
+		QCRC_ProcessByte(crcvalue, *start++);
 }
 unsigned short SCRC_GetQueryStateCrc(char *f_query_string)
 {
@@ -50,41 +50,41 @@ unsigned short SCRC_GetQueryStateCrc(char *f_query_string)
     int i;
     char *tmp;
 
-    CRC_Init(&crc);
+    QCRC_Init(&crc);
 
     // add query
-    CRC_AddBlock(&crc, f_query_string, strlen(f_query_string));
+    QCRC_AddBlock(&crc, f_query_string, strlen(f_query_string));
 
     // add snapshot of serverinfo
-    tmp = Info_ValueForKey(cl.serverinfo, "deathmatch");
-    CRC_AddBlock(&crc, tmp, strlen(tmp));
-    tmp = Info_ValueForKey(cl.serverinfo, "teamplay");
-    CRC_AddBlock(&crc, tmp, strlen(tmp));
-    tmp = Info_ValueForKey(cl.serverinfo, "hostname");
-    CRC_AddBlock(&crc, tmp, strlen(tmp));
+	tmp = Info_ValueForKey(cl.serverinfo, "deathmatch");
+	QCRC_AddBlock(&crc, tmp, strlen(tmp));
+	tmp = Info_ValueForKey(cl.serverinfo, "teamplay");
+	QCRC_AddBlock(&crc, tmp, strlen(tmp));
+	tmp = Info_ValueForKey(cl.serverinfo, "hostname");
+	QCRC_AddBlock(&crc, tmp, strlen(tmp));
     tmp = Info_ValueForKey(cl.serverinfo, "*progs");
-    CRC_AddBlock(&crc, tmp, strlen(tmp));
+    QCRC_AddBlock(&crc, tmp, strlen(tmp));
     tmp = Info_ValueForKey(cl.serverinfo, "map");
-    CRC_AddBlock(&crc, tmp, strlen(tmp));
+    QCRC_AddBlock(&crc, tmp, strlen(tmp));
     tmp = Info_ValueForKey(cl.serverinfo, "spawn");
-    CRC_AddBlock(&crc, tmp, strlen(tmp));
+    QCRC_AddBlock(&crc, tmp, strlen(tmp));
     tmp = Info_ValueForKey(cl.serverinfo, "watervis");
-    CRC_AddBlock(&crc, tmp, strlen(tmp));
+    QCRC_AddBlock(&crc, tmp, strlen(tmp));
     tmp = Info_ValueForKey(cl.serverinfo, "fraglimit");
-    CRC_AddBlock(&crc, tmp, strlen(tmp));
+    QCRC_AddBlock(&crc, tmp, strlen(tmp));
     tmp = Info_ValueForKey(cl.serverinfo, "*gamedir");
-    CRC_AddBlock(&crc, tmp, strlen(tmp));
+    QCRC_AddBlock(&crc, tmp, strlen(tmp));
     tmp = Info_ValueForKey(cl.serverinfo, "timelimit");
-    CRC_AddBlock(&crc, tmp, strlen(tmp));
+    QCRC_AddBlock(&crc, tmp, strlen(tmp));
 
     // add snapshot of userinfo for every connected client
     for (i=0; i < MAX_CLIENTS; i++)
         if (cl.players[i].name[0])
         {
             tmp = Info_ValueForKey(cl.players[i].userinfo, "name");
-            CRC_AddBlock(&crc, tmp, strlen(tmp));
+            QCRC_AddBlock(&crc, tmp, strlen(tmp));
             tmp = Info_ValueForKey(cl.players[i].userinfo, "team");
-            CRC_AddBlock(&crc, tmp, strlen(tmp));
+            QCRC_AddBlock(&crc, tmp, strlen(tmp));
         }
 
     // done

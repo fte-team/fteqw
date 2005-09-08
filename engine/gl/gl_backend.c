@@ -274,6 +274,42 @@ unsigned int	r_numtris;
 unsigned int	r_numflushes;
 int r_backendStart;
 
+int r_dlighttexture;
+
+void R_InitDynamicLightTexture (void)
+{
+	int x, y;
+	int dx2, dy, d;
+	qbyte data[64*64*4];
+
+	//
+	// dynamic light texture
+	//
+
+	for (x = 0; x < 64; x++) 
+	{
+		dx2 = x - 32;
+		dx2 = dx2 * dx2 + 8;
+
+		for (y = 0; y < 64; y++) 
+		{
+			dy = y - 32;
+			d = (int)(65536.0f * ((1.0f / (dx2 + dy * dy + 32.0f)) - 0.0005) + 0.5f);
+			if ( d < 50 ) d = 0; else if ( d > 255 ) d = 255;
+
+			data[(y*64 + x) * 4 + 0] = d;
+			data[(y*64 + x) * 4 + 1] = d;
+			data[(y*64 + x) * 4 + 2] = d;
+			data[(y*64 + x) * 4 + 3] = 255;
+		}
+	}
+
+	r_dlighttexture = GL_LoadTexture32("", 64, 64, (unsigned int*)data, true, false);
+
+	qglTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP);
+	qglTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP);
+}
+
 void R_ResetTexState (void)
 {
 	coordsArray = inCoordsArray;
@@ -494,6 +530,8 @@ void R_BackendInit (void)
 		r_sawtoothtable[i] = t;
 		r_inversesawtoothtable[i] = 1.0 - t;
 	}
+
+	R_InitDynamicLightTexture();
 }
 
 qboolean varrayactive;
@@ -2212,6 +2250,118 @@ void R_DrawNormals (void)
 }
 
 /*
+=================
+R_AddDynamicLights
+=================
+*/
+void R_AddDynamicLights ( meshbuffer_t *mb )
+{
+	dlight_t *light;
+	int i, j, lnum;
+	vec3_t point, tvec, dlorigin;
+	vec3_t vright, vup;
+	vec3_t dir1, dir2, normal, right, up, oldnormal;
+	float *v[3], dist, scale;
+	index_t *oldIndexesArray, index[3];
+	int dlightNumIndexes, oldNumIndexes;
+
+	oldNumIndexes = numIndexes;
+	oldIndexesArray	= indexesArray;
+	VectorClear ( oldnormal );
+
+	GL_Bind ( r_dlighttexture );
+
+	qglDepthFunc ( GL_EQUAL );
+	qglBlendFunc ( GL_DST_COLOR, GL_ONE );
+	GL_TexEnv(GL_MODULATE);
+
+	light = cl_dlights;
+	for ( lnum = 0; lnum < 32; lnum++, light++ )
+	{
+		if ( !(mb->dlightbits & (1<<lnum) ) )
+			continue;		// not lit by this light
+		if (!light->radius)
+			continue;	//urm
+
+		VectorSubtract ( light->origin, currententity->origin, dlorigin );
+		if ( !Matrix3_Compare (currententity->axis, axisDefault) )
+		{
+			VectorCopy ( dlorigin, point );
+			Matrix3_Multiply_Vec3 ( currententity->axis, point, dlorigin );
+		}
+
+		qglColor4f (light->color[0]*2, light->color[1]*2, light->color[2]*2,
+			1);//light->color[3]);
+
+		R_ResetTexState ();
+		dlightNumIndexes = 0;
+
+		for ( i = 0; i < oldNumIndexes; i += 3 )
+		{
+			index[0] = oldIndexesArray[i+0];
+			index[1] = oldIndexesArray[i+1];
+			index[2] = oldIndexesArray[i+2];
+
+			v[0] = (float *)(vertexArray + index[0]);
+			v[1] = (float *)(vertexArray + index[1]);
+			v[2] = (float *)(vertexArray + index[2]);
+
+			// calculate two mostly perpendicular edge directions
+			VectorSubtract ( v[0], v[1], dir1 );
+			VectorSubtract ( v[2], v[1], dir2 );
+
+			// we have two edge directions, we can calculate a third vector from
+			// them, which is the direction of the surface normal
+			CrossProduct ( dir1, dir2, normal );
+			VectorNormalize ( normal );
+
+			VectorSubtract ( v[0], dlorigin, tvec );
+			dist = DotProduct ( tvec, normal );
+			if ( dist < 0 )
+				dist = -dist;
+			if ( dist >= light->radius ) {
+				continue;
+			}
+
+			VectorMA ( dlorigin, -dist, normal, point );
+			scale = 1 / (light->radius - dist);
+
+			if ( !VectorCompare (normal, oldnormal) ) {
+				MakeNormalVectors ( normal, right, up );
+				VectorCopy ( normal, oldnormal );
+			}
+
+			VectorScale ( right, scale, vright );
+			VectorScale ( up, scale, vup );
+
+			for ( j = 0; j < 3; j++ )
+			{		
+				// Get our texture coordinates
+				// Project the light image onto the face
+				VectorSubtract( v[j], point, tvec );
+				
+				coordsArray[index[j]][0] = DotProduct( tvec, vright ) + 0.5f;
+				coordsArray[index[j]][1] = DotProduct( tvec, vup ) + 0.5f;
+			}
+
+			tempIndexesArray[dlightNumIndexes++] = index[0];
+			tempIndexesArray[dlightNumIndexes++] = index[1];
+			tempIndexesArray[dlightNumIndexes++] = index[2];
+		}
+
+		if ( dlightNumIndexes ) {
+			R_PushIndexes ( tempIndexesArray, NULL, NULL, dlightNumIndexes, MF_NONBATCHED );
+			R_FlushArrays ();
+			dlightNumIndexes = 0;
+		}
+	}
+
+	numIndexes = oldNumIndexes;
+	indexesArray = oldIndexesArray;
+}
+
+
+/*
 ================
 R_FinishMeshBuffer
 Render dynamic lights, fog, triangle outlines, normals and clear arrays
@@ -2236,12 +2386,13 @@ void R_FinishMeshBuffer ( meshbuffer_t *mb )
 		qglDisable ( GL_ALPHA_TEST );
 		qglDepthMask ( GL_FALSE );
 
-//FIZME
-//		if ( dlight ) {
-//			R_AddDynamicLights ( mb );
-//		}
+		if (dlight && (currententity->model->type == mod_brush && currententity->model->fromgame == fg_quake3))	//HACK: the extra check is because we play with the lightmaps in q1/q2
+		{
+			R_AddDynamicLights ( mb );
+		}
 
-		if ( fogged ) {
+		if (fogged)
+		{
 			R_RenderFogOnMesh ( shader, mb->fog );
 		}
 	}

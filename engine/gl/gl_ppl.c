@@ -1414,6 +1414,7 @@ static void PPL_BaseTextureChain(msurface_t *first)
 		msurface_t *s;
 		int vi=-1;
 		int redraw = false;
+		int dlb;
 
 		glRect_t    *theRect;
 		if (first->texinfo->texture->shader->flags & SHADER_FLARE )
@@ -1427,7 +1428,10 @@ static void PPL_BaseTextureChain(msurface_t *first)
 		mb.mesh = NULL;
 		mb.fog = NULL;
 		mb.infokey = -2;
-		mb.dlightbits = 0;
+		if (first->dlightframe == r_framecount)
+			mb.dlightbits = first->dlightbits;
+		else
+			mb.dlightbits = 0;
 
 		GL_DisableMultitexture();
 
@@ -1480,7 +1484,11 @@ static void PPL_BaseTextureChain(msurface_t *first)
 
 				if (s->mesh)
 				{
-					redraw = mb.fog != s->fog || mb.infokey != vi|| mb.shader->flags&SHADER_DEFORMV_BULGE || R_MeshWillExceed(s->mesh);
+					if (s->dlightframe == r_framecount)
+						dlb = s->dlightbits;
+					else
+						dlb = 0;
+					redraw = mb.dlightbits != dlb || mb.fog != s->fog || mb.infokey != vi|| mb.shader->flags&SHADER_DEFORMV_BULGE || R_MeshWillExceed(s->mesh);
 
 					if (redraw)
 					{
@@ -1492,6 +1500,7 @@ static void PPL_BaseTextureChain(msurface_t *first)
 					mb.infokey = vi;
 					mb.mesh = s->mesh;
 					mb.fog = s->fog;
+					mb.dlightbits = dlb;
 					R_PushMesh(s->mesh, mb.shader->features);
 				}
 			}
@@ -4385,7 +4394,7 @@ qboolean PPL_AddLight(dlight_t *dl)
 	qglDisable(GL_TEXTURE_2D);
 	qglTexEnvf(GL_TEXTURE_ENV, GL_TEXTURE_ENV_MODE, GL_REPLACE);
 	qglEnable(GL_SCISSOR_TEST);
-//	if (!((int)r_shadows.value & 4))
+	if (!((int)r_shadows.value & 4))
 	{
 		qglDisable(GL_BLEND);
 		qglColorMask( GL_FALSE, GL_FALSE, GL_FALSE, GL_FALSE );

@@ -344,7 +344,7 @@ void CL_AddBeam (int tent, int ent, vec3_t start, vec3_t end)	//fixme: use TE_ n
 	switch(tent)
 	{
 	case 0:
-		if (ent < 0 && ent >= -MAX_CLIENTS)	//a zquake concept. ent between -1 and -maxplayers is to be taken to be a railtrail from a particular player instead of a beam.
+		if (ent < 0 && ent >= -512)	//a zquake concept. ent between -1 and -maxplayers is to be taken to be a railtrail from a particular player instead of a beam.
 		{
 			CLQ2_RailTrail(start, end);
 			return;
@@ -401,7 +401,7 @@ void CL_AddBeam (int tent, int ent, vec3_t start, vec3_t end)	//fixme: use TE_ n
 		}
 	}
 
-	if (cl_beam_trace.value && etype >= 0 && cls.state == ca_active)
+	if (cl_beam_trace.value && etype >= 0 && cls.state == ca_active && P_TypeIsLoaded(etype))
 	{
 		VectorSubtract(end, start, normal);
 		VectorNormalize(normal);

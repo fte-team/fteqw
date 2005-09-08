@@ -3026,6 +3026,12 @@ QCC_def_t *QCC_MemberInParentClass(char *name, QCC_type_t *clas)
 //FIXME: virtual methods will not work properly. Need to trace down to see if a parent already defined it
 void QCC_PR_EmitFieldsForMembers(QCC_type_t *clas)
 {
+//we created fields for each class when we defined the actual classes.
+//we need to go through each member and match it to the offset of it's parent class, if overloaded, or create a new field if not..
+
+//basictypefield is cleared before we do this
+//we emit the parent's fields first (every time), thus ensuring that we don't reuse parent fields on a child class.
+
 	char membername[2048];
 	int p, np, a;
 	unsigned int o;
@@ -3058,6 +3064,7 @@ void QCC_PR_EmitFieldsForMembers(QCC_type_t *clas)
 			ft = QCC_PR_NewType(basictypenames[mt->type], ev_field);
 			ft->aux_type = QCC_PR_NewType(basictypenames[mt->type], mt->type);
 			ft->aux_type->aux_type = type_void;
+			ft->size = ft->aux_type->size;
 			ft = QCC_PR_FindType(ft);
 			sprintf(membername, "__f_%s_%i", ft->name, ++basictypefield[mt->type]);
 			f = QCC_PR_GetDef(ft, membername, NULL, true, 1);
@@ -3143,13 +3150,13 @@ void QCC_PR_EmitClassFromFunction(QCC_def_t *scope, char *tname)
 	df->s_name = 0;
 	df->first_statement = numstatements;
 	df->parm_size[0] = 1;
-	df->numparms = 1;
+	df->numparms = 0;
 	df->parm_start = numpr_globals;
 
 	G_FUNCTION(scope->ofs) = df - functions;
 
 	//locals here...
-	ed = QCC_PR_GetDef(type_entity, "ent", NULL, true, 1);
+	ed = QCC_PR_GetDef(type_entity, "ent", pr_scope, true, 1);
 
 	virt = QCC_PR_GetDef(type_function, "spawn", NULL, false, 0);
 	if (!virt)
@@ -3173,7 +3180,8 @@ void QCC_PR_EmitClassFromFunction(QCC_def_t *scope, char *tname)
 		QCC_FreeTemp(QCC_PR_Statement(&pr_opcodes[OP_STORE_ENT], oself, self, NULL));
 	}
 
-	QCC_FreeTemp(QCC_PR_Statement(&pr_opcodes[OP_RETURN], &def_ret, NULL, NULL));	//apparently we do actually have to return something. *sigh*...
+	QCC_FreeTemp(QCC_PR_Statement(&pr_opcodes[OP_RETURN], ed, NULL, NULL));	//apparently we do actually have to return something. *sigh*...
+	QCC_FreeTemp(QCC_PR_Statement(&pr_opcodes[OP_DONE], NULL, NULL, NULL));
 
 
 	pr_scope = NULL;
@@ -4835,9 +4843,11 @@ void QCC_PR_ParseStatement (void)
 	
 	if (QCC_PR_CheckKeyword(keyword_local, "local"))
 	{
+		QCC_type_t *functionsclasstype = pr_classtype; 
 //		if (locals_end != numpr_globals)	//is this breaking because of locals?
 //			QCC_PR_ParseWarning("local vars after temp vars\n");
 		QCC_PR_ParseDefs (NULL);
+		pr_classtype = functionsclasstype;
 		locals_end = numpr_globals;
 		return;
 	}

@@ -2197,7 +2197,7 @@ void R_DrawMeshBumpmap(mesh_t *mesh, galiastexnum_t *skin, vec3_t lightdir)
 	//so we use a cubemap, which has the added advantage of normalizing the light dir for us.
 
 	//the bumpmap we use is tangent-space (so I'm told)
-	qglDepthFunc(GL_LEQUAL);
+	qglDepthFunc(gldepthfunc);
 	qglDepthMask(0);
 	if (gldepthmin == 0.5) 
 		qglCullFace ( GL_BACK );

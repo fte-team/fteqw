@@ -444,7 +444,7 @@ IWEBFILE *IWebFOpenWrite(char *name, int append)		//fopen(name, append?"ab":"wb"
 		sprintf(name2, "%s%s", com_gamedir, name);
 	else
 		sprintf(name2, "%s/%s", com_gamedir, name);
-//	COM_CreatePath(name2);
+	COM_CreatePath(name2);
 	f = fopen(name2, append?"ab":"wb");
 	if (f)
 	{

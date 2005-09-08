@@ -1293,7 +1293,16 @@ void MP_Shutdown (void)
 	func_t temp;
 	if (!menuprogs)
 		return;
-
+/*
+	{
+		char *buffer;
+		int size = 1024*1024*8;
+		buffer = Z_Malloc(size);
+		menuprogs->save_ents(menuprogs, buffer, &size, 1);
+		COM_WriteFile("menucore.txt", buffer, size);
+		Z_Free(buffer);
+	}
+*/
 	temp = mp_shutdown_function;
 	mp_shutdown_function = 0;
 	if (temp && !inmenuprogs)

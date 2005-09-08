@@ -811,7 +811,7 @@ float CL_FilterTime (double time, float wantfps)	//now returns the extra time no
 	extern cvar_t rate;
 	float fps, fpscap;
 
-	if (cls.timedemo) 
+	if (cls.timedemo || cls.protocol == CP_QUAKE3)
 		return -1;
 
 	if (cls.demoplayback != DPB_NONE)

@@ -2063,7 +2063,7 @@ void CL_ReadPackets (void)
 			continue;
 		}
 
-		if (net_message.cursize < 8 && cls.demoplayback != DPB_MVD) //MVDs don't have the whole sequence header thing going on
+		if (net_message.cursize < 6 && cls.demoplayback != DPB_MVD) //MVDs don't have the whole sequence header thing going on
 		{
 			Con_TPrintf (TL_RUNTPACKET,NET_AdrToString(net_from));
 			continue;
@@ -2962,6 +2962,8 @@ void Host_Init (quakeparms_t *parms)
 	Plug_Init();
 #endif
 
+	Masker_SetupSockets();
+
 	//	Con_Printf ("Exe: "__TIME__" "__DATE__"\n");
 	Con_TPrintf (TL_HEAPSIZE, parms->memsize/ (1024*1024.0));
 
@@ -2983,6 +2985,8 @@ void Host_Init (quakeparms_t *parms)
 		Cbuf_AddText ("bind ~ toggleconsole\n", RESTRICT_LOCAL);	//we expect default.cfg to not exist. :(
 		Cbuf_AddText ("exec default.cfg\n", RESTRICT_LOCAL);
 		Cbuf_AddText ("exec config.cfg\n", RESTRICT_LOCAL);
+		if (COM_FCheckExists ("q3config.cfg"))
+			Cbuf_AddText ("exec q3config.cfg\n", RESTRICT_LOCAL);
 		Cbuf_AddText ("exec autoexec.cfg\n", RESTRICT_LOCAL);
 	}
 	Cbuf_AddText ("exec fte.cfg\n", RESTRICT_LOCAL);
@@ -3000,6 +3004,7 @@ void Host_Init (quakeparms_t *parms)
 	Cmd_StuffCmds();
 
 	Cbuf_Execute ();	//if the server initialisation causes a problem, give it a place to abort to
+
 
 	//assuming they didn't use any waits in thier config (fools)
 	//the configs should be fully loaded.

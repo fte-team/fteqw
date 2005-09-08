@@ -90,7 +90,9 @@ char slist_keyname[SLIST_MAXKEYS][MAX_INFO_KEY];
 int slist_customkeys;
 
 
-
+#ifndef INVALID_SOCKET
+#define INVALID_SOCKET -1
+#endif
 
 
 #define POLLUDPSOCKETS 64	//it's big so we can have lots of messages when behind a firewall. Basically if a firewall only allows replys, and only remembers 3 servers per socket, we need this big cos it can take a while for a packet to find a fast optimised route and we might be waiting for a few secs for a reply the first time around.
@@ -104,6 +106,15 @@ int lastpollsockIPX;
 #else
 #define POLLIPXSOCKETS 0
 #endif
+
+void Masker_SetupSockets(void)
+{
+	int i;
+	for (i = 0; i < POLLUDPSOCKETS; i++)
+		pollsocketsUDP[i] = INVALID_SOCKET;
+	for (i = 0; i < POLLIPXSOCKETS; i++)
+		pollsocketsIPX[i] = INVALID_SOCKET;
+}
 
 
 void NetadrToSockadr (netadr_t *a, struct sockaddr_qstorage *s);
@@ -671,9 +682,9 @@ void NET_SendPollPacket(int len, void *data, netadr_t to)
 		lastpollsockIPX++;
 		if (lastpollsockIPX>=POLLIPXSOCKETS)
 			lastpollsockIPX=0;
-		if (!pollsocketsIPX[lastpollsockIPX])
+		if (pollsocketsIPX[lastpollsockIPX]==INVALID_SOCKET)
 			pollsocketsIPX[lastpollsockIPX] = IPX_OpenSocket(PORT_ANY, true);
-		if (!pollsocketsIPX[lastpollsockIPX])
+		if (pollsocketsIPX[lastpollsockIPX]==INVALID_SOCKET)
 			return;	//bother
 		ret = sendto (pollsocketsIPX[lastpollsockIPX], data, len, 0, (struct sockaddr *)&addr, sizeof(addr) );
 	}
@@ -683,9 +694,9 @@ void NET_SendPollPacket(int len, void *data, netadr_t to)
 		lastpollsockUDP++;
 		if (lastpollsockUDP>=POLLUDPSOCKETS)
 			lastpollsockUDP=0;
-		if (!pollsocketsUDP[lastpollsockUDP])
+		if (pollsocketsUDP[lastpollsockUDP]==INVALID_SOCKET)
 			pollsocketsUDP[lastpollsockUDP] = UDP_OpenSocket(PORT_ANY, true);
-		if (!pollsocketsUDP[lastpollsockUDP])
+		if (pollsocketsUDP[lastpollsockUDP]==INVALID_SOCKET)
 			return;	//bother
 		ret = sendto (pollsocketsUDP[lastpollsockUDP], data, len, 0, (struct sockaddr *)&addr, sizeof(addr) );
 	}
@@ -725,7 +736,7 @@ int NET_CheckPollSockets(void)
 #endif
 			usesocket = pollsocketsUDP[sock];
 
-		if (!usesocket)
+		if (usesocket == INVALID_SOCKET)
 			continue;
 		fromlen = sizeof(from);
 		ret = recvfrom (usesocket, (char *)net_message_buffer, sizeof(net_message_buffer), 0, (struct sockaddr *)&from, &fromlen);

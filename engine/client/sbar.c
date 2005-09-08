@@ -1918,7 +1918,10 @@ void Sbar_DeathmatchOverlay (int start)
 		y = 24;
 	if (cl.teamplay)
 	{
-		x = (vid.width - 320)/2 + 4;
+		if (scr_chatmode)
+			x = vid.width/2 + (vid.width/2 - 320)/2 + 4;
+		else
+			x = (vid.width - 320)/2 + 4;
 //                            0    40 64   104   152  192 
 		Draw_String ( x , y, "ping pl time frags team name");
 		y += 8;
@@ -1928,7 +1931,10 @@ void Sbar_DeathmatchOverlay (int start)
 	}
 	else
 	{
-		x = (vid.width - 320)/2 + 16;
+		if (scr_chatmode)
+			x = vid.width/2 + (vid.width/2 - 320)/2 + 16;
+		else
+			x = (vid.width - 320)/2 + 16;
 //                            0    40 64   104   152
 		Draw_String ( x , y, "ping pl time frags name");
 		y += 8;
@@ -2098,35 +2104,35 @@ void Sbar_ChatModeOverlay(void)
 		bottom = Sbar_ColorForMap (bottom);
 	
 		if (largegame)
-			Draw_Fill ( x, y+1, 8, 3, top);
+			Draw_Fill ( x, y+1, 8*4, 3, top);
 		else
-			Draw_Fill ( x, y, 8, 4, top);
-		Draw_Fill ( x, y+4, 8, 4, bottom);
+			Draw_Fill ( x, y, 8*4, 4, top);
+		Draw_Fill ( x, y+4, 8*4, 4, bottom);
 
 		if (cl.spectator && k == Cam_TrackNum(0))
 		{
 			Draw_Character ( x, y, 16);
-			Draw_Character ( x+vid.width/2-16, y, 17);
+			Draw_Character ( x+8*3, y, 17);
 		}
 		else if (!cl.spectator && k == cl.playernum[0])
 		{
 			Draw_Character ( x, y, 16);
-			Draw_Character ( x+vid.width/2-16, y, 17);
+			Draw_Character ( x+8*3, y, 17);
 		}
 		else if (cl.teamplay)
 		{
 			if (!stricmp(Info_ValueForKey(s->userinfo, "team"), team))
 			{
 				Draw_Character ( x, y, '[');
-				Draw_Character ( x+vid.width/2-16, y, ']');
+				Draw_Character ( x+8*3, y, ']');
 			}
 		}
 
 		// draw name
 		if (cl.teamplay)
-			Draw_FunString (x+8, y, s->name);
+			Draw_FunString (x+8*4, y, s->name);
 		else
-			Draw_FunString (x+8, y, s->name);
+			Draw_FunString (x+8*4, y, s->name);
 		
 		y += skip;
 	}

@@ -1731,6 +1731,13 @@ void SV_SendClientMessages (void)
 				continue;
 			}
 
+			if (c->protocol == SCP_BAD)	//this is a bot.
+			{
+				SZ_Clear (&c->netchan.message);
+				SZ_Clear (&c->datagram);
+				continue;
+			}
+
 			SVQ3_SendMessage(c);
 		}
 		return;

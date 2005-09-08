@@ -423,6 +423,7 @@ void SV_Map_f (void)
 	qboolean newunit = false;
 	qboolean cinematic = false;
 	qboolean waschangelevel = false;
+	qboolean wasspmap = false;
 	int i;
 	char *startspot;
 
@@ -436,6 +437,7 @@ void SV_Map_f (void)
 	startspot = ((Cmd_Argc() == 2)?NULL:Cmd_Argv(2));
 
 	waschangelevel = !strcmp(Cmd_Argv(0), "changelevel");
+	wasspmap = !strcmp(Cmd_Argv(0), "spmap");
 
 	nextserver = strchr(level, '+');
 	if (nextserver)
@@ -485,8 +487,18 @@ void SV_Map_f (void)
 		sprintf (expanded, "maps/%s.bsp", level);
 		if (!COM_FCheckExists (expanded))
 		{
-			Con_TPrintf (STL_CANTFINDMAP, expanded);
-			return;
+			//doesn't exist, so try lowercase. Q3 does this.
+			for (i = 0; i < sizeof(level); i++)
+			{
+				if (level[i] >= 'A' && level[i] <= 'Z')
+					level[i] = level[i] - 'A' + 'a';
+			}
+			sprintf (expanded, "maps/%s.bsp", level);
+			if (!COM_FCheckExists (expanded))
+			{
+				Con_TPrintf (STL_CANTFINDMAP, expanded);
+				return;
+			}
 		}
 	}
 
@@ -524,6 +536,17 @@ void SV_Map_f (void)
 #endif
 			SV_SaveLevelCache(false);
 	}
+
+#ifdef Q3SERVER
+	{
+		cvar_t *gametype;
+		gametype = Cvar_Get("g_gametype", "0", CVAR_LATCH, "Q3 compatability");
+		if (wasspmap)
+			Cvar_ForceSet(gametype, "2");
+		else if (gametype->value == 2)	//singleplayer
+			Cvar_ForceSet(gametype, "0");
+	}
+#endif
 
 	for (i=0 ; i<MAX_CLIENTS ; i++)	//we need to drop all q2 clients. We don't mix q1w with q2.
 	{
@@ -936,7 +959,12 @@ void SV_Status_f (void)
 			else
 				Con_Printf("\n");
 
-			s = NET_BaseAdrToString ( cl->netchan.remote_address);
+			if (cl->istobeloaded && cl->state == cs_zombie)
+				s = "LoadZombie";
+			else if (cl->protocol == SCP_BAD)
+				s = "bot";
+			else
+				s = NET_BaseAdrToString ( cl->netchan.remote_address);
 			Con_Printf ("  %-16.16s", s);
 			if (cl->state == cs_connected)
 			{
@@ -966,6 +994,8 @@ void SV_Status_f (void)
 
 			if (cl->istobeloaded && cl->state == cs_zombie)
 				s = "LoadZombie";
+			else if (cl->protocol == SCP_BAD)
+				s = "bot";
 			else
 				s = NET_BaseAdrToString ( cl->netchan.remote_address);
 			Con_Printf ("%s", s);
@@ -1557,6 +1587,11 @@ void SV_SetTimer_f(void)
 
 void SV_SendGameCommand_f(void)
 {
+#ifdef Q3SERVER
+	if (SVQ3_ConsoleCommand())
+		return;
+#endif
+
 #ifdef Q2SERVER
 	if (ge)
 	{
@@ -1614,6 +1649,9 @@ void SV_InitOperatorCommands (void)
 
 	Cmd_AddCommand ("killserver", SV_KillServer_f);
 	Cmd_AddCommand ("map", SV_Map_f);
+#ifdef Q3SERVER
+	Cmd_AddCommand ("spmap", SV_Map_f);
+#endif
 	Cmd_AddCommand ("gamemap", SV_Map_f);
 	Cmd_AddCommand ("changelevel", SV_Map_f);
 	Cmd_AddCommand ("listmaps", SV_MapList_f);

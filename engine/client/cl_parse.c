@@ -587,6 +587,9 @@ void Model_NextDownload (void)
 		}
 
 		cl.worldmodel = cl.model_precache[1];
+
+		if (!cl.worldmodel)
+			Host_EndGame("Worldmodel wasn't sent\n");
 	}
 
 	if (cl.worldmodel->type != mod_brush && cl.worldmodel->type != mod_heightmap)
@@ -1276,7 +1279,7 @@ void CL_ParseServerData (void)
 		sizeofangle = 1;
 	}
 
-	svcnt = MSG_ReadLong ();	
+	svcnt = MSG_ReadLong ();
 
 	// game directory
 	str = MSG_ReadString ();

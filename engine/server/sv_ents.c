@@ -2119,10 +2119,10 @@ void SV_GibFilterAdd(char *modelname, int min, int max)
 	int i;
 	gibfilter_t *gf;	
 
-	for (i=1; *sv.model_precache[i] ; i++)
+	for (i=1; sv.model_precache[i] ; i++)
 		if (!strcmp(sv.model_precache[i], modelname))
 			break;
-	if (!*sv.model_precache[i])
+	if (!sv.model_precache[i])
 	{
 		Con_Printf("Filtered model \"%s\" was not precached\n", modelname);
 		return;	//model not in use.

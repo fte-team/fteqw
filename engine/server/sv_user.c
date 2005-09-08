@@ -1814,6 +1814,8 @@ void SV_Say (qboolean team)
 	qboolean sent[MAX_CLIENTS];	//so we don't send to the same splitscreen connection twice. (it's ugly)
 	int cln;
 
+	qboolean mvdrecording;
+
 	char *s, *s2;
 
 	if (Cmd_Argc () < 2)
@@ -1914,6 +1916,8 @@ void SV_Say (qboolean team)
 
 	Sys_Printf ("%s", text);
 
+	mvdrecording = sv.mvdrecording;
+	sv.mvdrecording = false;	//so that the SV_ClientPrintf doesn't send to all players.
 	for (j = 0, client = svs.clients; j < MAX_CLIENTS; j++, client++)
 	{
 		if (client->state != cs_spawned && client->state != cs_connected)
@@ -1949,6 +1953,7 @@ void SV_Say (qboolean team)
 
 		SV_ClientPrintf(client, PRINT_CHAT, "%s", text);
 	}
+	sv.mvdrecording = mvdrecording;
 
 	if (!sv.mvdrecording || !cls)
 		return;

@@ -1,3 +1,18 @@
+
+//a note about dedicated servers:
+//In the server-side gamecode, a couple of q1 extensions require knowing something about models.
+//So we load models serverside, if required.
+
+//things we need:
+//tag/bone names and indexes so we can have reasonable modding with tags. :)
+//tag/bone positions so we can shoot from the actual gun or other funky stuff
+//vertex positions so we can trace against the mesh rather than the bbox.
+
+//we use the gl renderer's model code because it supports more sorts of models than the sw renderer. Sad but true.
+
+
+
+
 #include "quakedef.h"
 #ifdef RGLQUAKE
 #include "glquake.h"
@@ -8,6 +23,8 @@
 
 #if defined(ZYMOTICMODELS) || defined(MD5MODELS)
 #define SKELETALMODELS
+
+#include "malloc.h"
 #endif
 
 #define MAX_BONES 256
@@ -71,6 +88,7 @@ vec3_t *tempNormals;
 
 extern cvar_t gl_ati_truform;
 extern cvar_t r_vertexdlights;
+extern cvar_t mod_md3flags;
 
 typedef struct {
 	int ofs_indexes;
@@ -83,8 +101,8 @@ typedef struct {
 	int ofsskins;
 #endif
 
-	qboolean sharesverts;	//used with models with two shaders using the same vertex.
-
+	qboolean sharesverts;	//used with models with two shaders using the same vertex - use last mesh's verts
+	qboolean sharesbones;	//use last mesh's bones (please, never set this on the first mesh!)
 
 	int numverts;
 
@@ -192,9 +210,9 @@ void Mod_DoCRC(model_t *mod, char *buffer, int buffersize)
 		int len;
 		char st[40];
 
-		CRC_Init(&crc);
+		QCRC_Init(&crc);
 		for (len = buffersize, p = buffer; len; len--, p++)
-			CRC_ProcessByte(&crc, *p);
+			QCRC_ProcessByte(&crc, *p);
 	
 		sprintf(st, "%d", (int) crc);
 		Info_SetValueForKey (cls.userinfo, 
@@ -247,7 +265,8 @@ qboolean GLMod_Trace(model_t *model, int forcehullnum, int frame, vec3_t start, 
 			frac = 1;
 			if (group->isheirachical)
 			{
-				R_LerpBones(&frac, (float**)posedata, 1, (galiasbone_t*)((char*)mod + mod->ofsbones), mod->numbones, bonepose);
+				if (!mod->sharesbones)
+					R_LerpBones(&frac, (float**)posedata, 1, (galiasbone_t*)((char*)mod + mod->ofsbones), mod->numbones, bonepose);
 				R_TransformVerticies(bonepose, (galisskeletaltransforms_t*)((char*)mod + mod->ofstransforms), mod->numtransforms, posedata);
 			}
 			else
@@ -611,7 +630,7 @@ static void R_BuildSkeletalMesh(mesh_t *mesh, float *plerp, float **pose, int po
 		}
 		qglEnd();
 
-		mesh->numindexes = 0;	//don't draw this mesh, as that would obscure the bones. :(
+//		mesh->numindexes = 0;	//don't draw this mesh, as that would obscure the bones. :(
 	}
 #endif
 }
@@ -619,6 +638,7 @@ static void R_BuildSkeletalMesh(mesh_t *mesh, float *plerp, float **pose, int po
 #endif
 
 #ifndef SERVERONLY
+//changes vertex lighting values
 static void R_GAliasAddDlights(mesh_t *mesh, vec3_t org, vec3_t angles)
 {
 	int l, v;
@@ -2042,6 +2062,237 @@ void GL_LightMesh (mesh_t *mesh, vec3_t lightpos, vec3_t colours, float radius)
 	}
 }
 
+//courtesy of DP
+void R_BuildBumpVectors(const float *v0, const float *v1, const float *v2, const float *tc0, const float *tc1, const float *tc2, float *svector3f, float *tvector3f, float *normal3f)
+{
+	float f, tangentcross[3], v10[3], v20[3], tc10[2], tc20[2];
+	// 79 add/sub/negate/multiply (1 cycle), 1 compare (3 cycle?), total cycles not counting load/store/exchange roughly 82 cycles
+	// 6 add, 28 subtract, 39 multiply, 1 compare, 50% chance of 6 negates
+
+	// 6 multiply, 9 subtract
+	VectorSubtract(v1, v0, v10);
+	VectorSubtract(v2, v0, v20);
+	normal3f[0] = v10[1] * v20[2] - v10[2] * v20[1];
+	normal3f[1] = v10[2] * v20[0] - v10[0] * v20[2];
+	normal3f[2] = v10[0] * v20[1] - v10[1] * v20[0];
+	// 12 multiply, 10 subtract
+	tc10[1] = tc1[1] - tc0[1];
+	tc20[1] = tc2[1] - tc0[1];
+	svector3f[0] = tc10[1] * v20[0] - tc20[1] * v10[0];
+	svector3f[1] = tc10[1] * v20[1] - tc20[1] * v10[1];
+	svector3f[2] = tc10[1] * v20[2] - tc20[1] * v10[2];
+	tc10[0] = tc1[0] - tc0[0];
+	tc20[0] = tc2[0] - tc0[0];
+	tvector3f[0] = tc10[0] * v20[0] - tc20[0] * v10[0];
+	tvector3f[1] = tc10[0] * v20[1] - tc20[0] * v10[1];
+	tvector3f[2] = tc10[0] * v20[2] - tc20[0] * v10[2];
+	// 12 multiply, 4 add, 6 subtract
+	f = DotProduct(svector3f, normal3f);
+	svector3f[0] -= f * normal3f[0];
+	svector3f[1] -= f * normal3f[1];
+	svector3f[2] -= f * normal3f[2];
+	f = DotProduct(tvector3f, normal3f);
+	tvector3f[0] -= f * normal3f[0];
+	tvector3f[1] -= f * normal3f[1];
+	tvector3f[2] -= f * normal3f[2];
+	// if texture is mapped the wrong way (counterclockwise), the tangents
+	// have to be flipped, this is detected by calculating a normal from the
+	// two tangents, and seeing if it is opposite the surface normal
+	// 9 multiply, 2 add, 3 subtract, 1 compare, 50% chance of: 6 negates
+	CrossProduct(tvector3f, svector3f, tangentcross);
+	if (DotProduct(tangentcross, normal3f) < 0)
+	{
+		VectorNegate(svector3f, svector3f);
+		VectorNegate(tvector3f, tvector3f);
+	}
+}
+
+//courtesy of DP
+void R_AliasGenerateTextureVectors(mesh_t *mesh, float *normal3f, float *svector3f, float *tvector3f)
+{
+	int i;
+	float sdir[3], tdir[3], normal[3], *v;
+	int *e;
+	float *vertex3f = (float*)mesh->xyz_array;
+	float *texcoord2f = (float*)mesh->st_array;
+	// clear the vectors
+//	if (svector3f)
+		memset(svector3f, 0, mesh->numvertexes * sizeof(float[3]));
+//	if (tvector3f)
+		memset(tvector3f, 0, mesh->numvertexes * sizeof(float[3]));
+//	if (normal3f)
+		memset(normal3f, 0, mesh->numvertexes * sizeof(float[3]));
+	// process each vertex of each triangle and accumulate the results
+	for (e = mesh->indexes; e < mesh->indexes+mesh->numindexes; e += 3)
+	{
+		R_BuildBumpVectors(vertex3f + e[0] * 3, vertex3f + e[1] * 3, vertex3f + e[2] * 3, texcoord2f + e[0] * 2, texcoord2f + e[1] * 2, texcoord2f + e[2] * 2, sdir, tdir, normal);
+//		if (!areaweighting)
+//		{
+//			VectorNormalize(sdir);
+//			VectorNormalize(tdir);
+//			VectorNormalize(normal);
+//		}
+//		if (svector3f)
+			for (i = 0;i < 3;i++)
+				VectorAdd(svector3f + e[i]*3, sdir, svector3f + e[i]*3);
+//		if (tvector3f)
+			for (i = 0;i < 3;i++)
+				VectorAdd(tvector3f + e[i]*3, tdir, tvector3f + e[i]*3);
+//		if (normal3f)
+			for (i = 0;i < 3;i++)
+				VectorAdd(normal3f + e[i]*3, normal, normal3f + e[i]*3);
+	}
+	// now we could divide the vectors by the number of averaged values on
+	// each vertex...  but instead normalize them
+	// 4 assignments, 1 divide, 1 sqrt, 2 adds, 6 multiplies
+	if (svector3f)
+		for (i = 0, v = svector3f;i < mesh->numvertexes;i++, v += 3)
+			VectorNormalize(v);
+	// 4 assignments, 1 divide, 1 sqrt, 2 adds, 6 multiplies
+	if (tvector3f)
+		for (i = 0, v = tvector3f;i < mesh->numvertexes;i++, v += 3)
+			VectorNormalize(v);
+	// 4 assignments, 1 divide, 1 sqrt, 2 adds, 6 multiplies
+	if (normal3f)
+		for (i = 0, v = normal3f;i < mesh->numvertexes;i++, v += 3)
+			VectorNormalize(v);
+
+}
+
+
+void R_AliasGenerateVertexLightDirs(mesh_t *mesh, vec3_t lightdir, vec3_t *results, vec3_t *normal3f, vec3_t *svector3f, vec3_t *tvector3f)
+{
+	int i;
+	R_AliasGenerateTextureVectors(mesh, (float*)normal3f, (float*)svector3f, (float*)tvector3f);
+
+	for (i = 0; i < mesh->numvertexes; i++)
+	{
+		results[i][0] = -DotProduct(lightdir, tvector3f[i]);
+		results[i][1] = -DotProduct(lightdir, svector3f[i]);
+		results[i][2] = -DotProduct(lightdir, normal3f[i]);
+	}
+}
+
+
+void R_DrawMeshBumpmap(mesh_t *mesh, galiastexnum_t *skin, vec3_t lightdir)
+{
+	extern int gldepthfunc;
+	static vec3_t *lightdirs;
+	static int maxlightdirs;
+	extern int normalisationCubeMap;
+
+#ifdef Q3SHADERS
+	R_UnlockArrays();
+#endif
+
+
+	//(bumpmap dot cubemap)*texture
+
+	//why no luma?
+	//that's thrown on last.
+
+	//why a cubemap?
+	//we need to pass colours as a normal somehow
+	//we could use the fragment colour for it, however, we then wouldn't be able to colour the light.
+	//so we use a cubemap, which has the added advantage of normalizing the light dir for us.
+
+	//the bumpmap we use is tangent-space (so I'm told)
+	qglDepthFunc(GL_LEQUAL);
+	qglDepthMask(0);
+	if (gldepthmin == 0.5) 
+		qglCullFace ( GL_BACK );
+	else
+		qglCullFace ( GL_FRONT );
+
+	qglVertexPointer(3, GL_FLOAT, 0, mesh->xyz_array);
+	qglEnableClientState( GL_VERTEX_ARRAY );
+
+	if (mesh->normals_array && qglNormalPointer)	//d3d wrapper doesn't support normals, and this is only really needed for truform
+	{
+		qglNormalPointer(GL_FLOAT, 0, mesh->normals_array);
+		qglEnableClientState( GL_NORMAL_ARRAY );
+	}
+
+	if (mesh->colors_array)
+	{
+		qglColorPointer(4, GL_UNSIGNED_BYTE, 0, mesh->colors_array);
+		qglEnableClientState( GL_COLOR_ARRAY );
+	}
+	else
+		qglDisableClientState( GL_COLOR_ARRAY );
+
+
+	if (maxlightdirs < mesh->numvertexes)
+	{
+		maxlightdirs = mesh->numvertexes;
+		lightdirs = BZ_Malloc(sizeof(vec3_t)*maxlightdirs*4);
+	}
+
+	R_AliasGenerateVertexLightDirs(mesh, lightdir,
+				lightdirs + maxlightdirs*0,
+				lightdirs + maxlightdirs*1,
+				lightdirs + maxlightdirs*2,
+				lightdirs + maxlightdirs*3);
+
+	GL_MBind(mtexid0, skin->bump);
+	GL_TexEnv(GL_REPLACE);
+	qglEnableClientState(GL_TEXTURE_COORD_ARRAY);
+	qglTexCoordPointer(2, GL_FLOAT, 0, mesh->st_array);
+	qglEnable(GL_TEXTURE_2D);
+
+	GL_SelectTexture(mtexid1);
+	GL_BindType(GL_TEXTURE_CUBE_MAP_ARB, normalisationCubeMap);
+	qglEnable(GL_TEXTURE_CUBE_MAP_ARB);
+	qglTexEnvi(GL_TEXTURE_ENV, GL_SOURCE0_RGB_ARB, GL_TEXTURE);
+	qglTexEnvi(GL_TEXTURE_ENV, GL_SOURCE1_RGB_ARB, GL_PREVIOUS_ARB);
+	qglTexEnvi(GL_TEXTURE_ENV, GL_COMBINE_RGB_ARB, GL_DOT3_RGB_ARB);
+	GL_TexEnv(GL_COMBINE_ARB);
+
+	qglEnableClientState(GL_TEXTURE_COORD_ARRAY);
+	qglTexCoordPointer(3, GL_FLOAT, 0, lightdirs);
+
+	if (gl_mtexarbable>=3)
+	{
+		GL_MBind(mtexid0+2, skin->base);
+		qglEnable(GL_TEXTURE_2D);
+	}
+	else
+	{	//we don't support 3tmus, so draw the bumps, and multiply the rest over the top
+		qglDrawElements(GL_TRIANGLES, mesh->numindexes, GL_UNSIGNED_INT, mesh->indexes);
+		glDisable(GL_TEXTURE_CUBE_MAP_ARB);
+		GL_MBind(mtexid0, skin->base);
+	}
+	GL_TexEnv(GL_MODULATE);
+	qglEnableClientState(GL_TEXTURE_COORD_ARRAY);
+	qglTexCoordPointer(2, GL_FLOAT, 0, mesh->st_array);
+
+	qglDrawElements(GL_TRIANGLES, mesh->numindexes, GL_UNSIGNED_INT, mesh->indexes);
+
+
+
+
+//	GL_SelectTexture(mtexid2);
+	qglDisableClientState( GL_TEXTURE_COORD_ARRAY );
+	qglDisable(GL_TEXTURE_2D);
+
+	GL_SelectTexture(mtexid1);
+	glDisable(GL_TEXTURE_CUBE_MAP_ARB);
+	qglDisableClientState( GL_TEXTURE_COORD_ARRAY );
+	GL_TexEnv(GL_MODULATE);
+
+	GL_SelectTexture(mtexid0);
+	qglEnable(GL_TEXTURE_2D);
+	qglDisableClientState( GL_TEXTURE_COORD_ARRAY );
+
+	qglDisableClientState( GL_VERTEX_ARRAY );
+	qglDisableClientState( GL_COLOR_ARRAY );
+	qglDisableClientState( GL_NORMAL_ARRAY );
+
+#ifdef Q3SHADERS
+	R_IBrokeTheArrays();
+#endif
+}
+
 void R_DrawGAliasModelLighting (entity_t *e, vec3_t lightpos, vec3_t colours, float radius)
 {
 #if 1
@@ -2101,7 +2352,7 @@ void R_DrawGAliasModelLighting (entity_t *e, vec3_t lightpos, vec3_t colours, fl
 		GL_TexEnv(GL_REPLACE);
 //	qglDisable(GL_STENCIL_TEST);
 	qglEnable(GL_BLEND);
-	qglEnable(GL_ALPHA_TEST);	//if you used an alpha channel where you shouldn't have, more fool you.
+	qglDisable(GL_ALPHA_TEST);	//if you used an alpha channel where you shouldn't have, more fool you.
 	qglBlendFunc(GL_ONE, GL_ONE);
 //	qglDepthFunc(GL_ALWAYS);
 	for(surfnum=0;inf;surfnum++)
@@ -2111,8 +2362,15 @@ void R_DrawGAliasModelLighting (entity_t *e, vec3_t lightpos, vec3_t colours, fl
 
 		tex = GL_ChooseSkin(inf, clmodel->name, surfnum, e);
 
-		GL_LightMesh(&mesh, lightdir, colours, radius);
-		GL_DrawAliasMesh(&mesh, tex->base);
+		if (tex->bump && e->alpha==1)
+		{
+			R_DrawMeshBumpmap(&mesh, tex, lightdir);
+		}
+		else
+		{
+			GL_LightMesh(&mesh, lightdir, colours, radius);
+			GL_DrawAliasMesh(&mesh, tex->base);
+		}
 
 		if (inf->nextsurf)
 			inf = (galiasinfo_t*)((char *)inf + inf->nextsurf);
@@ -2637,6 +2895,7 @@ static void *Q1_LoadSkins (daliasskintype_t *pskintype, qboolean alpha)
 #else
 static void *Q1_LoadSkins (daliasskintype_t *pskintype, qboolean alpha)
 {
+	extern cvar_t gl_bump;
 	extern int gl_bumpmappingpossible;
 	galiastexnum_t *texnums;
 	char skinname[MAX_QPATH];
@@ -2649,6 +2908,7 @@ static void *Q1_LoadSkins (daliasskintype_t *pskintype, qboolean alpha)
 
 	int texture;
 	int fbtexture;
+	int bumptexture;
 
 	s = pq1inmodel->skinwidth*pq1inmodel->skinheight;
 	for (i = 0; i < pq1inmodel->numskins; i++)
@@ -2661,12 +2921,18 @@ static void *Q1_LoadSkins (daliasskintype_t *pskintype, qboolean alpha)
 
 			//LH's naming scheme ("models" is likly to be ignored)
 			fbtexture = 0;
+			bumptexture = 0;
 			_snprintf(skinname, sizeof(skinname), "%s_%i.", loadmodel->name, i);
 			texture = Mod_LoadReplacementTexture(skinname, "models", true, false, true);
 			if (texture)
 			{
 				_snprintf(skinname, sizeof(skinname), "%s_%i_luma.", loadmodel->name, i);
 				fbtexture = Mod_LoadReplacementTexture(skinname, "models", true, false, true);
+				if (gl_bump.value)
+				{
+					sprintf(skinname, "%s_%i_bump", loadmodel->name, i);
+					bumptexture = Mod_LoadBumpmapTexture(skinname, "models");
+				}
 			}
 			else
 			{
@@ -2676,6 +2942,11 @@ static void *Q1_LoadSkins (daliasskintype_t *pskintype, qboolean alpha)
 				{
 					sprintf(skinname, "%s_%i_luma", loadname, i);
 					fbtexture = Mod_LoadReplacementTexture(skinname, "models", true, true, true);
+				}
+				if (texture && gl_bump.value)
+				{
+					sprintf(skinname, "%s_%i_bump", loadname, i);
+					bumptexture = Mod_LoadBumpmapTexture(skinname, "models");
 				}
 			}
 
@@ -2697,6 +2968,11 @@ static void *Q1_LoadSkins (daliasskintype_t *pskintype, qboolean alpha)
 					sprintf(skinname, "%s__%i_luma", loadname, i);
 					fbtexture = GL_LoadTextureFB(skinname, outskin->skinwidth, outskin->skinheight, saved, true, true);
 				}
+				if (gl_bump.value)
+				{
+					sprintf(skinname, "%s__%i_bump", loadname, i);
+					bumptexture = GL_LoadTexture8Bump(skinname, outskin->skinwidth, outskin->skinheight, saved, true, true);
+				}
 			}
 			else
 				texnums = Hunk_Alloc(sizeof(*texnums));
@@ -2712,6 +2988,7 @@ static void *Q1_LoadSkins (daliasskintype_t *pskintype, qboolean alpha)
 
 			texnums->base = texture;
 			texnums->fullbright = fbtexture;
+			texnums->bump = bumptexture;
 
 			pskintype = (daliasskintype_t *)((char *)(pskintype+1)+s);
 			break;
@@ -3892,7 +4169,10 @@ void GL_LoadQ3Model(model_t *mod, void *buffer)
 
 	hunkend = Hunk_LowMark ();
 
-	mod->flags = LittleLong(header->flags);
+	if (mod_md3flags.value)
+		mod->flags = LittleLong(header->flags);
+	else
+		mod->flags = 0;
 	if (!mod->flags)
 		mod->flags = Mod_ReadFlagsFromMD1(mod->name, 0);
 
@@ -4204,6 +4484,349 @@ void GLMod_LoadZymoticModel(model_t *mod, void *buffer)
 
 	mod->funcs.Trace = GLMod_Trace;
 }
+
+
+
+
+
+
+
+
+
+//////////////////////////////////////////////////////////////
+//dpm
+
+
+// header for the entire file
+typedef struct dpmheader_s
+{
+	char id[16]; // "DARKPLACESMODEL\0", length 16
+	unsigned int type; // 2 (hierarchical skeletal pose)
+	unsigned int filesize; // size of entire model file
+	float mins[3], maxs[3], yawradius, allradius; // for clipping uses
+
+	// these offsets are relative to the file
+	unsigned int num_bones;
+	unsigned int num_meshs;
+	unsigned int num_frames;
+	unsigned int ofs_bones; // dpmbone_t bone[num_bones];
+	unsigned int ofs_meshs; // dpmmesh_t mesh[num_meshs];
+	unsigned int ofs_frames; // dpmframe_t frame[num_frames];
+} dpmheader_t;
+
+// there may be more than one of these
+typedef struct dpmmesh_s
+{
+	// these offsets are relative to the file
+	char shadername[32]; // name of the shader to use
+	unsigned int num_verts;
+	unsigned int num_tris;
+	unsigned int ofs_verts; // dpmvertex_t vert[numvertices]; // see vertex struct
+	unsigned int ofs_texcoords; // float texcoords[numvertices][2];
+	unsigned int ofs_indices; // unsigned int indices[numtris*3]; // designed for glDrawElements (each triangle is 3 unsigned int indices)
+	unsigned int ofs_groupids; // unsigned int groupids[numtris]; // the meaning of these values is entirely up to the gamecode and modeler
+} dpmmesh_t;
+
+// if set on a bone, it must be protected from removal
+#define DPMBONEFLAG_ATTACHMENT 1
+
+// one per bone
+typedef struct dpmbone_s
+{
+	// name examples: upperleftarm leftfinger1 leftfinger2 hand, etc
+	char name[32];
+	// parent bone number
+	signed int parent;
+	// flags for the bone
+	unsigned int flags;
+} dpmbone_t;
+
+// a bonepose matrix is intended to be used like this:
+// (n = output vertex, v = input vertex, m = matrix, f = influence)
+// n[0] = v[0] * m[0][0] + v[1] * m[0][1] + v[2] * m[0][2] + f * m[0][3];
+// n[1] = v[0] * m[1][0] + v[1] * m[1][1] + v[2] * m[1][2] + f * m[1][3];
+// n[2] = v[0] * m[2][0] + v[1] * m[2][1] + v[2] * m[2][2] + f * m[2][3];
+typedef struct dpmbonepose_s
+{
+	float matrix[3][4];
+} dpmbonepose_t;
+
+// immediately followed by bone positions for the frame
+typedef struct dpmframe_s
+{
+	// name examples: idle_1 idle_2 idle_3 shoot_1 shoot_2 shoot_3, etc
+	char name[32];
+	float mins[3], maxs[3], yawradius, allradius;
+	int ofs_bonepositions; // dpmbonepose_t bonepositions[bones];
+} dpmframe_t;
+
+// one or more of these per vertex
+typedef struct dpmbonevert_s
+{
+	float origin[3]; // vertex location (these blend)
+	float influence; // influence fraction (these must add up to 1)
+	float normal[3]; // surface normal (these blend)
+	unsigned int bonenum; // number of the bone
+} dpmbonevert_t;
+
+// variable size, parsed sequentially
+typedef struct dpmvertex_s 
+{
+	unsigned int numbones;
+	// immediately followed by 1 or more dpmbonevert_t structures
+} dpmvertex_t;
+
+void GLMod_LoadDarkPlacesModel(model_t *mod, void *buffer)
+{
+#ifndef SERVERONLY
+	galiasskin_t *skin;
+	galiastexnum_t *texnum;
+	int skinfiles;
+#endif
+
+	int i, j, k;
+	int hunkstart, hunkend, hunktotal;
+
+	dpmheader_t *header;
+	galiasinfo_t *root, *m;
+	dpmmesh_t *mesh;
+	dpmvertex_t *vert;
+	dpmbonevert_t *bonevert;
+
+	galisskeletaltransforms_t *transforms;
+
+	galiasbone_t *outbone;
+	dpmbone_t *inbone;
+
+	float *inst, *outst;
+
+
+	float *outposedata;
+	galiaspose_t *outpose;
+	galiasgroup_t *outgroups;
+	float *inposedata;
+	dpmframe_t *inframes;
+
+	unsigned int *index;	index_t *outdex;	// groan...
+
+	int numtransforms;
+	int numverts;
+
+
+	loadmodel=mod;
+
+	Mod_DoCRC(mod, buffer, com_filesize);
+
+	hunkstart = Hunk_LowMark ();
+
+	header = buffer;
+
+	if (memcmp(header->id, "DARKPLACESMODEL\0", 16))
+		Sys_Error("GLMod_LoadDarkPlacesModel: doesn't appear to be a darkplaces model!\n");
+
+	if (BigLong(header->type) != 2)
+		Sys_Error("GLMod_LoadDarkPlacesModel: only type 2 is supported\n");
+
+	for (i = 0; i < sizeof(dpmheader_t)/4; i++)
+		((int*)header)[i] = BigLong(((int*)header)[i]);
+
+	if (!header->num_bones)
+		Sys_Error("GLMod_LoadDarkPlacesModel: no bones\n");
+	if (!header->num_frames)
+		Sys_Error("GLMod_LoadDarkPlacesModel: no frames\n");
+	if (!header->num_meshs)
+		Sys_Error("GLMod_LoadDarkPlacesModel: no surfaces\n");
+
+
+	VectorCopy(header->mins, mod->mins);
+	VectorCopy(header->maxs, mod->maxs);
+
+	root = Hunk_AllocName(sizeof(galiasinfo_t)*header->num_meshs, loadname);
+
+	mesh = (dpmmesh_t*)((char*)buffer + header->ofs_meshs);
+	for (i = 0; i < header->num_meshs; i++, mesh++)
+	{
+		//work out how much memory we need to allocate
+
+		mesh->num_verts = BigLong(mesh->num_verts);
+		mesh->num_tris = BigLong(mesh->num_tris);
+		mesh->ofs_verts = BigLong(mesh->ofs_verts);
+		mesh->ofs_texcoords = BigLong(mesh->ofs_texcoords);
+		mesh->ofs_indices = BigLong(mesh->ofs_indices);
+		mesh->ofs_groupids = BigLong(mesh->ofs_groupids);
+
+
+		numverts = mesh->num_verts;
+		numtransforms = 0;
+		//count and byteswap the transformations
+		vert = (dpmvertex_t*)((char *)buffer+mesh->ofs_verts);
+		for (j = 0; j < mesh->num_verts; j++)
+		{
+			vert->numbones = BigLong(vert->numbones);
+			numtransforms += vert->numbones;
+			bonevert = (dpmbonevert_t*)(vert+1);
+			vert = (dpmvertex_t*)(bonevert+vert->numbones);
+		}
+
+		m = &root[i];
+#ifdef SERVERONLY
+		transforms = Hunk_AllocName(numtransforms*sizeof(galisskeletaltransforms_t) + mesh->num_tris*3*sizeof(index_t), loadname);
+#else
+		outst = Hunk_AllocName(numverts*sizeof(vec2_t) + numtransforms*sizeof(galisskeletaltransforms_t) + mesh->num_tris*3*sizeof(index_t), loadname);
+		m->ofs_st_array = (char*)outst - (char*)m;
+		m->numverts = mesh->num_verts;
+		inst = (float*)((char*)buffer + mesh->ofs_texcoords);
+		for (j = 0; j < numverts; j++, outst+=2, inst+=2)
+		{
+			outst[0] = BigFloat(inst[0]);
+			outst[1] = BigFloat(inst[1]);
+		}
+#endif
+
+		//build the transform list.
+		transforms = (galisskeletaltransforms_t*)outst;
+		m->ofstransforms = (char*)transforms - (char*)m;
+		m->numtransforms = numtransforms;
+		vert = (dpmvertex_t*)((char *)buffer+mesh->ofs_verts);
+		for (j = 0; j < mesh->num_verts; j++)
+		{
+			bonevert = (dpmbonevert_t*)(vert+1);
+			for (k = 0; k < vert->numbones; k++, bonevert++, transforms++)
+			{
+				transforms->boneindex = BigLong(bonevert->bonenum);
+				transforms->vertexindex = j;
+				transforms->org[0] = BigFloat(bonevert->origin[0]);
+				transforms->org[1] = BigFloat(bonevert->origin[1]);
+				transforms->org[2] = BigFloat(bonevert->origin[2]);
+				transforms->org[3] = BigFloat(bonevert->influence);
+				//do nothing with the normals. :(
+			}
+			vert = (dpmvertex_t*)bonevert;
+		}
+
+		index = (index_t*)((char*)buffer + mesh->ofs_indices);
+		outdex = (index_t *)transforms;
+		m->ofs_indexes = (char*)outdex - (char*)m;
+		m->numindexes = mesh->num_tris*3;
+		for (j = 0; j < m->numindexes; j++)
+		{
+			*outdex++ = BigLong(*index++);
+		}
+	}
+
+	outbone = Hunk_Alloc(sizeof(galiasbone_t)*header->num_bones);
+	inbone = (dpmbone_t*)((char*)buffer + header->ofs_bones);
+	for (i = 0; i < header->num_bones; i++)
+	{
+		outbone[i].parent = BigLong(inbone[i].parent);
+		if (outbone[i].parent >= i || outbone[i].parent < -1)
+			Sys_Error("GLMod_LoadDarkPlacesModel: bad bone index in %s\n", mod->name);
+
+		Q_strncpyz(outbone[i].name, inbone[i].name, sizeof(outbone[i].name));
+		//throw away the flags.
+	}
+
+	outgroups = Hunk_Alloc(sizeof(galiasgroup_t)*header->num_frames + sizeof(float)*header->num_frames*header->num_bones*12);
+	outposedata = (float*)(outgroups+header->num_frames);
+
+	inframes = (dpmframe_t*)((char*)buffer + header->ofs_frames);
+	for (i = 0; i < header->num_frames; i++)
+	{
+		inframes[i].ofs_bonepositions = BigLong(inframes[i].ofs_bonepositions);
+		inframes[i].allradius = BigLong(inframes[i].allradius);
+		inframes[i].yawradius = BigLong(inframes[i].yawradius);
+		inframes[i].mins[0] = BigLong(inframes[i].mins[0]);
+		inframes[i].mins[1] = BigLong(inframes[i].mins[1]);
+		inframes[i].mins[2] = BigLong(inframes[i].mins[2]);
+		inframes[i].maxs[0] = BigLong(inframes[i].maxs[0]);
+		inframes[i].maxs[1] = BigLong(inframes[i].maxs[1]);
+		inframes[i].maxs[2] = BigLong(inframes[i].maxs[2]);
+
+		outgroups[i].rate = 10;
+		outgroups[i].numposes = 1;
+		outgroups[i].isheirachical = true;
+		outgroups[i].poseofs = (char*)outposedata - (char*)&outgroups[i];
+
+		inposedata = (float*)((char*)buffer + inframes[i].ofs_bonepositions);
+		for (j = 0; j < header->num_bones*12; j++)
+			*outposedata++ = BigFloat(*inposedata++);
+	}
+
+#ifndef SERVERONLY
+	skinfiles = GL_BuildSkinFileList(loadmodel->name);
+	if (skinfiles < 1)
+		skinfiles = 1;
+#endif
+
+	mesh = (dpmmesh_t*)((char*)buffer + header->ofs_meshs);
+	for (i = 0; i < header->num_meshs; i++, mesh++)
+	{
+		m = &root[i];
+		if (i < header->num_meshs-1)
+			m->nextsurf = sizeof(galiasinfo_t);
+		m->sharesbones = true;
+
+		m->ofsbones = (char*)outbone-(char*)m;
+		m->numbones = header->num_bones;
+
+		m->groups = header->num_frames;
+		m->groupofs = (char*)outgroups - (char*)m;
+
+
+
+#ifdef SERVERONLY
+		m->numskins = 1;
+#else
+		m->numskins = skinfiles;
+
+		skin = Hunk_Alloc((sizeof(galiasskin_t)+sizeof(galiastexnum_t))*skinfiles);
+		texnum = (galiastexnum_t*)(skin+skinfiles);
+		for (j = 0; j < skinfiles; j++, texnum++)
+		{
+			skin[j].texnums = 1;	//non-sequenced skins.
+			skin[j].ofstexnums = (char *)texnum - (char *)&skin[j];
+
+			GL_LoadSkinFile(texnum, mesh->shadername, j, NULL, 0, 0, NULL);
+		}
+
+		m->ofsskins = (char *)skin - (char *)m;
+#endif
+	}
+	root[0].sharesbones = false;
+
+
+
+
+//
+// move the complete, relocatable alias model to the cache
+//
+	hunkend = Hunk_LowMark ();
+
+	mod->flags = Mod_ReadFlagsFromMD1(mod->name, 0);	//file replacement - inherit flags from any defunc mdl files.
+
+	Hunk_Alloc(0);
+	hunktotal = hunkend - hunkstart;
+	
+	Cache_Alloc (&mod->cache, hunktotal, loadname);
+	mod->type = mod_alias;
+	if (!mod->cache.data)
+	{
+		Hunk_FreeToLowMark (hunkstart);
+		return;
+	}
+	memcpy (mod->cache.data, root, hunktotal);
+
+	Hunk_FreeToLowMark (hunkstart);
+
+
+	mod->funcs.Trace = GLMod_Trace;
+}
+
+
+
+
+
+
 
 #endif	//ZYMOTICMODELS
 
@@ -4711,7 +5334,7 @@ galiasgroup_t GLMod_ParseMD5Anim(char *buffer, galiasinfo_t *prototype, void**po
 	{
 		if (prototype->numbones != numjoints)
 			Sys_Error("MD5ANIM: number of bones doesn't match");
-		bonelist = (char*)prototype + prototype->ofsbones;
+		bonelist = (galiasbone_t *)((char*)prototype + prototype->ofsbones);
 	}
 	else
 	{
@@ -4967,7 +5590,7 @@ void GLMod_LoadCompositeAnim(model_t *mod, void *buffer)
 		root->groups = numgroups;
 		if (!root->nextsurf)
 			break;
-		root = (char*)root + root->nextsurf;
+		root = (galiasinfo_t*)((char*)root + root->nextsurf);
 	}
 	for (i = 0; i < numgroups; i++)
 	{

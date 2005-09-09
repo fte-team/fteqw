@@ -4168,10 +4168,11 @@ void GL_LoadQ3Model(model_t *mod, void *buffer)
 //
 
 	hunkend = Hunk_LowMark ();
-
+#ifndef SERVERONLY
 	if (mod_md3flags.value)
 		mod->flags = LittleLong(header->flags);
 	else
+#endif
 		mod->flags = 0;
 	if (!mod->flags)
 		mod->flags = Mod_ReadFlagsFromMD1(mod->name, 0);

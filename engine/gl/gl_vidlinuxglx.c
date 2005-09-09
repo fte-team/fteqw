@@ -940,7 +940,11 @@ void IN_MouseMove (usercmd_t *cmd, int pnum)
 	mx = mouse_x;
 	my = mouse_y;
 
-	if (mouseusedforgui || (key_dest == key_menu && m_state == m_complex) || UI_MenuState())
+	if (mouseusedforgui || (key_dest == key_menu && m_state == m_complex)
+#ifdef VM_UI
+		|| UI_MenuState()
+#endif
+		)
 	{
 		mousemove_x += mouse_x;
 		mousemove_y += mouse_y;
@@ -958,8 +962,9 @@ void IN_MouseMove (usercmd_t *cmd, int pnum)
 		if (mousecursor_y >= vid.height)
 			mousecursor_y = vid.height - 1;
 		mouse_x=mouse_y=0;
-
+#ifdef VM_UI
 		UI_MousePosition(mousecursor_x, mousecursor_y);
+#endif
 	}
 
 	if (m_filter.value)

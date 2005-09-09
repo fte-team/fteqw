@@ -1,11 +1,10 @@
 #include "quakedef.h"
-
+#ifdef VM_UI
 #include "ui_public.h"
 #include "cl_master.h"
 
 int keycatcher;
 
-#ifdef VM_UI
 #include "clq3defs.h"
 
 void GLDraw_ShaderImage (int x, int y, int w, int h, float s1, float t1, float s2, float t2, struct shader_s *pic);
@@ -1629,25 +1628,5 @@ void UI_Init (void)
 	Cmd_AddRemCommand("ui_restart", UI_Restart_f);
 	UI_Start();
 }
-#else
-
-
-
-qboolean UI_DrawStatusBar(int scores) {return false;}
-qboolean UI_DrawFinale(void) {return false;}
-qboolean UI_DrawIntermission(void) {return false;}
-void UI_DrawMenu(void) {}
-qboolean UI_CenterPrint(char *text, qboolean finale) {return false;}
-qboolean UI_Q2LayoutChanged(void) {return false;}
-void UI_StringChanged(int num) {}
-void UI_Reset(void) {}
-int UI_MenuState(void)
-{
-	return false;
-}
-qboolean UI_KeyPress(int key, qboolean down) {return false;}
-void UI_MousePosition(int xpos, int ypos) {}
-void UI_Start (void){}
-void UI_Stop (void) {}
-void UI_Init (void) {}
 #endif
+

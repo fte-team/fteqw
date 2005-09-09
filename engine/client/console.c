@@ -320,7 +320,11 @@ void Con_ToggleConsole_f (void)
 
 	if (key_dest == key_console)
 	{
-		if (cls.state == ca_active || media_filmtype || UI_MenuState())
+		if (cls.state == ca_active || media_filmtype
+#ifdef VM_UI
+				 	|| UI_MenuState()
+#endif
+					)
 			key_dest = key_game;
 	}
 	else

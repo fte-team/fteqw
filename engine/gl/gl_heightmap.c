@@ -27,7 +27,6 @@ typedef struct {
 	unsigned short mins[SECTIONS*SECTIONS], maxs[SECTIONS*SECTIONS];
 } heightmap_t;
 
-#pragma comment(lib, "opengl32.lib")
 
 #define DISPLISTS
 //#define MULTITEXTURE	//ATI suck. I don't know about anyone else.
@@ -59,30 +58,30 @@ void GL_DrawHeightmapModel (entity_t *e)
 			mins[2] = 0;//hm->mins[x+y*SECTIONS];
 			mins[2] = 65535;//hm->maxs[x+y*SECTIONS];
 
-//			if (!BoundsIntersect(mins, maxs, r_refdef.vieworg, r_refdef.vieworg)) 
+//			if (!BoundsIntersect(mins, maxs, r_refdef.vieworg, r_refdef.vieworg))
 //				if (R_CullBox(mins, maxs))
 //					continue;
 
 #ifdef DISPLISTS
 			if (!hm->displaylist[x+y*SECTIONS])
 			{
-				hm->displaylist[x+y*SECTIONS] = glGenLists(1);
-				glNewList(hm->displaylist[x+y*SECTIONS], GL_COMPILE_AND_EXECUTE);
+				hm->displaylist[x+y*SECTIONS] = qglGenLists(1);
+				qglNewList(hm->displaylist[x+y*SECTIONS], GL_COMPILE_AND_EXECUTE);
 #endif
 #ifdef MULTITEXTURE
 				if (qglActiveTextureARB)
 				{
 					qglActiveTextureARB(GL_TEXTURE0_ARB);
-					glBindTexture(GL_TEXTURE_2D, hm->textures[x+y*SECTIONS]);
+					bindTexFunc(GL_TEXTURE_2D, hm->textures[x+y*SECTIONS]);
 					qglActiveTextureARB(GL_TEXTURE1_ARB);
-					glBindTexture(GL_TEXTURE_2D, hm->detailtexture);
+					bindTexFunc(GL_TEXTURE_2D, hm->detailtexture);
 					qglEnable(GL_TEXTURE_2D);
 
 					subsize = hm->terrainsize/SECTIONS;
 					minx = x*subsize;
 					miny = y*subsize;
 
-			
+
 					qglBegin(GL_QUADS);
 					for (vx = minx; vx < minx+hm->terrainsize/hm->numsegs; vx++)
 					{
@@ -109,7 +108,7 @@ void GL_DrawHeightmapModel (entity_t *e)
 				else
 #endif
 				{	//single texture
-					glBindTexture(GL_TEXTURE_2D, hm->textures[x+y*SECTIONS]);
+					bindTexFunc(GL_TEXTURE_2D, hm->textures[x+y*SECTIONS]);
 					qglBegin(GL_QUADS);
 					subsize = hm->terrainsize/hm->numsegs;
 					minx = x*subsize;
@@ -130,7 +129,7 @@ void GL_DrawHeightmapModel (entity_t *e)
 					}
 					qglEnd();
 
-					glBindTexture(GL_TEXTURE_2D, hm->detailtexture);
+					bindTexFunc(GL_TEXTURE_2D, hm->detailtexture);
 					qglEnable(GL_BLEND);
 
 					qglBlendFunc (GL_ZERO, GL_SRC_COLOR);
@@ -154,11 +153,11 @@ void GL_DrawHeightmapModel (entity_t *e)
 					qglDisable(GL_BLEND);
 				}
 #ifdef DISPLISTS
-				glEndList();
+				qglEndList();
 			}
 			else
 			{
-				glCallList(hm->displaylist[x+y*SECTIONS]);
+				qglCallList(hm->displaylist[x+y*SECTIONS]);
 			}
 #endif
 		}

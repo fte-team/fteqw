@@ -114,7 +114,6 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 		#define Q2CLIENT		//client can connect to q2 servers
 		#define NQPROT			//server and client are capable of using quake1/netquake protocols. (qw is still prefered. uses the command 'nqconnect')
 		#define FISH			//sw rendering only
-		#define VM_UI			//support userinterfaces within Q3 Virtual Machines
 		#define ZLIB			//zip/pk3 support
 		#define WEBSERVER		//http/ftp servers
 		#define WEBCLIENT		//http/ftp clients.
@@ -218,8 +217,10 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 
 #ifndef Q3CLIENT
 	#undef VM_CG	// :(
+	#undef VM_UI
 #else
 	#define VM_CG
+	#define VM_UI
 #endif
 
 #if defined(VM_UI) || defined(VM_CG) || defined(Q3SERVER) || defined(PLUGINS)

@@ -192,6 +192,7 @@ GLQUAKE_OBJS =		\
 	gl_rlight.o		\
 	gl_rmain.o		\
 	gl_rmisc.o		\
+	gl_heightmap.o		\
 	gl_rsurf.o		\
 	ltface.o		\
 	gl_screen.o		\
@@ -275,6 +276,7 @@ COMMON_OBJS = $(COMMON_ASM_OBJS) \
 	cvar.o 		\
 	cmd.o 		\
 	crc.o 		\
+	fs.o			\
 	mathlib.o 		\
 	huff.o		\
 	md4.o 		\

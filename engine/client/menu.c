@@ -920,9 +920,9 @@ void M_Draw (int uimenu)
 	{
 		if (uimenu == 2)
 			Draw_FadeScreen ();
-
+#ifdef VM_UI
 		UI_DrawMenu();
-
+#endif
 		VID_UnlockBuffer ();
 		S_ExtraUpdate ();
 		VID_LockBuffer ();

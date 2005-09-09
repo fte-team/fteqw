@@ -1030,7 +1030,9 @@ TRACE(("dbg: GLR_NewMap: that skybox thang\n"));
 	R_LoadSkys ();
 //#endif
 TRACE(("dbg: GLR_NewMap: ui\n"));
+#ifdef VM_UI
 	UI_Reset();
+#endif
 TRACE(("dbg: GLR_NewMap: tp\n"));
 	TP_NewMap();
 

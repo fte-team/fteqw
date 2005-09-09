@@ -1581,10 +1581,12 @@ void Sbar_Draw (void)
 		return;
 #endif
 
+#ifdef VM_UI
 	if (UI_DrawStatusBar((sb_showscores?1:0) + (sb_showteamscores?2:0))>0)
 		return;
 	if (UI_MenuState())
 		return;
+#endif
 
 	headsup = !(cl_sbar.value || (scr_viewsize.value<100&&cl.splitclients==1));
 	if ((sb_updates >= vid.numpages) && !headsup)
@@ -2326,10 +2328,10 @@ void Sbar_IntermissionOverlay (void)
 {
 	scr_copyeverything = 1;
 	scr_fullupdate = 0;
-
+#ifdef VM_UI
 	if (UI_DrawIntermission()>0)
 		return;
-
+#endif
 	if (cls.gamemode != GAME_DEATHMATCH)
 		Sbar_CoopIntermission();
 	else if (cl.teamplay > 0 && !sb_showscores)
@@ -2350,10 +2352,10 @@ void Sbar_FinaleOverlay (void)
 	mpic_t	*pic;
 
 	scr_copyeverything = 1;
-
+#ifdef VM_UI
 	if (UI_DrawFinale()>0)
 		return;
-
+#endif
 	pic = Draw_CachePic ("gfx/finale.lmp");
 	Draw_TransPic ( (vid.width-pic->width)/2, 16, pic);
 }

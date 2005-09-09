@@ -2259,7 +2259,7 @@ void R_DrawMeshBumpmap(mesh_t *mesh, galiastexnum_t *skin, vec3_t lightdir)
 	else
 	{	//we don't support 3tmus, so draw the bumps, and multiply the rest over the top
 		qglDrawElements(GL_TRIANGLES, mesh->numindexes, GL_UNSIGNED_INT, mesh->indexes);
-		glDisable(GL_TEXTURE_CUBE_MAP_ARB);
+		qglDisable(GL_TEXTURE_CUBE_MAP_ARB);
 		GL_MBind(mtexid0, skin->base);
 	}
 	GL_TexEnv(GL_MODULATE);
@@ -2276,7 +2276,7 @@ void R_DrawMeshBumpmap(mesh_t *mesh, galiastexnum_t *skin, vec3_t lightdir)
 	qglDisable(GL_TEXTURE_2D);
 
 	GL_SelectTexture(mtexid1);
-	glDisable(GL_TEXTURE_CUBE_MAP_ARB);
+	qglDisable(GL_TEXTURE_CUBE_MAP_ARB);
 	qglDisableClientState( GL_TEXTURE_COORD_ARRAY );
 	GL_TexEnv(GL_MODULATE);
 

@@ -1254,7 +1254,9 @@ void SCR_SetUpToDrawConsole (void)
 #ifdef TEXTEDITOR
 		&& !editoractive
 #endif
+#ifdef VM_UI
 		&& !UI_MenuState()
+#endif
 		)
 	{
 		scr_conlines = vid.height;              // full screen

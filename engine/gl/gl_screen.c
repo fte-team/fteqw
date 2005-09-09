@@ -203,7 +203,11 @@ void GLSCR_UpdateScreen (void)
 		return;                         // not initialized yet
 	}
 
+#ifdef VM_UI
 	uimenu = UI_MenuState();
+#else
+	uimenu = 0;
+#endif
 
 
 	if (oldsbar != cl_sbar.value) {

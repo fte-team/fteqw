@@ -1240,6 +1240,7 @@ void Key_Event (int key, qboolean down)
 //
 	if (key == K_ESCAPE)
 	{
+#ifdef VM_UI
 #ifdef TEXTEDITOR
 		if (key_dest == key_game)
 #endif
@@ -1247,6 +1248,7 @@ void Key_Event (int key, qboolean down)
 			if (UI_KeyPress(key, down))	//Allow the UI to see the escape key. It is possible that a developer may get stuck at a menu.
 				return;
 		}
+#endif
 
 		if (!down)
 		{
@@ -1335,14 +1337,14 @@ void Key_Event (int key, qboolean down)
 //
 // if not a consolekey, send to the interpreter no matter what mode is
 //
-
+#ifdef VM_UI
 	if (key != '`' && key != '~')
 	if (key_dest == key_game || !down)
 	{
 		if (UI_KeyPress(key, down) && down)	//UI is allowed to take these keydowns. Keyups are always maintained.
 			return;
 	}
-
+#endif
 
 	if ( (key_dest == key_menu && menubound[key])
 	|| (key_dest == key_console && !consolekeys[key])

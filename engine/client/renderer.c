@@ -1606,7 +1606,9 @@ TRACE(("dbg: R_ApplyRenderer: reloading ALL models\n"));
 				Con_Printf ("You may need to download or purchase a client "
 					"pack in order to play on this server.\n\n");
 				CL_Disconnect ();
+#ifdef VM_UI
 				UI_Reset();
+#endif
 				return false;
 			}
 		}
@@ -1627,7 +1629,9 @@ TRACE(("dbg: R_ApplyRenderer: reloading ALL models\n"));
 				Con_Printf ("You may need to download or purchase a client "
 					"pack in order to play on this server.\n\n");
 				CL_Disconnect ();
+#ifdef VM_UI
 				UI_Reset();
+#endif
 				return false;
 			}
 		}
@@ -1638,7 +1642,9 @@ TRACE(("dbg: R_ApplyRenderer: done the models\n"));
 		if (loadmodel->needload)
 		{
 				CL_Disconnect ();
+#ifdef VM_UI
 				UI_Reset();
+#endif
 				memcpy(&currentrendererstate, newr, sizeof(currentrendererstate));
 				return true;
 		}
@@ -1658,8 +1664,10 @@ TRACE(("dbg: R_ApplyRenderer: efrags\n"));
 			}
 		}
 	}
+#ifdef VM_UI
 	else
 		UI_Reset();
+#endif
 
 	switch (qrenderer)
 	{

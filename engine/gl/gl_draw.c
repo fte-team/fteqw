@@ -1554,16 +1554,10 @@ void GLDraw_ShaderImage (int x, int y, int w, int h, float s1, float t1, float s
 */
 	draw_mesh.colors_array = draw_mesh_colors;
 
-	__try
-	{
-		R_PushMesh(&draw_mesh, mb.shader->features | MF_COLORS | MF_NONBATCHED);
-		R_RenderMeshBuffer ( &mb, false );
-		draw_mesh.colors_array = NULL;
-		qglEnable(GL_BLEND);
-	} __except(EXCEPTION_EXECUTE_HANDLER)
-	{
-		return;
-	};
+	R_PushMesh(&draw_mesh, mb.shader->features | MF_COLORS | MF_NONBATCHED);
+	R_RenderMeshBuffer ( &mb, false );
+	draw_mesh.colors_array = NULL;
+	qglEnable(GL_BLEND);
 }
 #endif
 

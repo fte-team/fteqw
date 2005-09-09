@@ -3054,7 +3054,9 @@ void Host_Init (quakeparms_t *parms)
 	if (qrenderer == QR_NONE)
 		Con_Printf("Use the setrenderer command to use a gui\n");
 
+#ifdef VM_UI
 	UI_Init();
+#endif
 
 #ifndef NOMEDIA
 	if (!cls.demofile && !cls.state && !media_filmtype)
@@ -3118,7 +3120,9 @@ void Host_Shutdown(void)
 	}
 	isdown = true;
 
+#ifdef VM_UI
 	UI_Stop();
+#endif
 
 	Host_WriteConfiguration ();
 

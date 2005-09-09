@@ -2051,7 +2051,9 @@ void CLQ2_ParseConfigString (void)
 			CLQ2_ParseClientinfo (i-Q2CS_PLAYERSKINS, s);
 	}
 
+#ifdef VM_UI
 	UI_StringChanged(i);
+#endif
 }
 
 
@@ -3860,7 +3862,9 @@ void CLQ2_ParseServerMessage (void)
 		case svcq2_layout:
 			s = MSG_ReadString ();
 			Q_strncpyz (cl.q2layout, s, sizeof(cl.q2layout));
+#ifdef VM_UI
 			UI_Q2LayoutChanged();
+#endif
 			break;
 		case svcq2_inventory:
 			CLQ2_ParseInventory();

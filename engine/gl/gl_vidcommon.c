@@ -6,6 +6,7 @@
 void (APIENTRY *qglAlphaFunc) (GLenum func, GLclampf ref);
 void (APIENTRY *qglBegin) (GLenum mode);
 void (APIENTRY *qglBlendFunc) (GLenum sfactor, GLenum dfactor);
+void (APIENTRY *qglCallList) (GLuint list);
 void (APIENTRY *qglClear) (GLbitfield mask);
 void (APIENTRY *qglClearColor) (GLclampf red, GLclampf green, GLclampf blue, GLclampf alpha);
 void (APIENTRY *qglClearDepth) (GLclampd depth);
@@ -27,9 +28,11 @@ void (APIENTRY *qglDrawBuffer) (GLenum mode);
 void (APIENTRY *qglDrawPixels) (GLsizei width, GLsizei height, GLenum format, GLenum type, const GLvoid *pixels);
 void (APIENTRY *qglEnable) (GLenum cap);
 void (APIENTRY *qglEnd) (void);
+void (APIENTRY *qglEndList) (void);
 void (APIENTRY *qglFinish) (void);
 void (APIENTRY *qglFlush) (void);
 void (APIENTRY *qglFrustum) (GLdouble left, GLdouble right, GLdouble bottom, GLdouble top, GLdouble zNear, GLdouble zFar);
+GLuint (APIENTRY *qglGenLists) (GLsizei range);
 GLenum (APIENTRY *qglGetError) (void);
 void (APIENTRY *qglGetFloatv) (GLenum pname, GLfloat *params);
 void (APIENTRY *qglGetIntegerv) (GLenum pname, GLint *params);
@@ -41,6 +44,7 @@ void (APIENTRY *qglNormal3f) (GLfloat nx, GLfloat ny, GLfloat nz);
 void (APIENTRY *qglNormal3fv) (const GLfloat *v);
 void (APIENTRY *qglMatrixMode) (GLenum mode);
 void (APIENTRY *qglMultMatrixf) (const GLfloat *m);
+void (APIENTRY *qglNewList) (GLuint list, GLenum mode);
 void (APIENTRY *qglOrtho) (GLdouble left, GLdouble right, GLdouble bottom, GLdouble top, GLdouble zNear, GLdouble zFar);
 void (APIENTRY *qglPolygonMode) (GLenum face, GLenum mode);
 void (APIENTRY *qglPolygonOffset) (GLfloat factor, GLfloat units);
@@ -231,7 +235,7 @@ void GL_CheckExtensions (void *(*getglfunction) (char *name))
 		qglActiveTextureARB = (void *) getglext("glActiveTextureARB");
 		qglClientActiveTextureARB = (void *) getglext("glClientActiveTextureARB");
 		qglMultiTexCoord2fARB = (void *) getglext("glMultiTexCoord2fARB");
-		qglMultiTexCoord3fARB = (void *) getglext("glMultiTexCoord3fARB");		
+		qglMultiTexCoord3fARB = (void *) getglext("glMultiTexCoord3fARB");
 
 		qglGetIntegerv(GL_MAX_TEXTURE_UNITS_ARB, &gl_mtexarbable);
 		gl_mtexable = true;
@@ -548,6 +552,11 @@ void GL_Init(void *(*getglfunction) (char *name))
 
 	qglPolygonOffset	= (void *)getglext("glPolygonOffset");
 
+	//used by heightmaps
+	qglGenLists		= (void*)getglcore("glGenLists");
+	qglNewList		= (void*)getglcore("glNewList");
+	qglEndList		= (void*)getglcore("glEndList");
+	qglCallList		= (void*)getglcore("glCallList");
 
 
 	gl_vendor = qglGetString (GL_VENDOR);

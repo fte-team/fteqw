@@ -259,7 +259,7 @@ char	*VARGS va(char *format, ...);
 
 //============================================================================
 
-extern int com_file_copyprotected;
+extern qboolean com_file_copyprotected;
 extern int com_filesize;
 struct cache_user_s;
 

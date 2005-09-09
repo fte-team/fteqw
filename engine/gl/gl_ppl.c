@@ -31,7 +31,6 @@ extern cvar_t		gl_overbright;
 extern cvar_t		r_fb_bmodels;
 extern cvar_t		gl_part_flame;
 
-extern cvar_t		gl_part_flame;
 extern cvar_t		gl_maxshadowlights;
 extern cvar_t		r_shadow_realtime_world;
 extern cvar_t		r_shadow_realtime_world_lightmaps;

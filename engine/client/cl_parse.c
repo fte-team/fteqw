@@ -2139,6 +2139,7 @@ void CL_ParseStatic (int version)
 			if (cl_static_entities[i].keynum == es.number)
 			{
 				R_RemoveEfrags (&cl_static_entities[i]);
+				P_DelinkTrailstate (&cl_static_emit[i]);
 				break;
 			}
 
@@ -2154,6 +2155,7 @@ void CL_ParseStatic (int version)
 	}
 	ent = &cl_static_entities[i];
 	memset(ent, 0, sizeof(*ent));
+	cl_static_emit[i] = NULL;
 
 	ent->keynum = es.number;
 

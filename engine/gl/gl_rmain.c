@@ -918,9 +918,6 @@ void GLR_DrawEntitiesOnList (void)
 		{
 			if (gl_part_flame.value)
 			{
-				P_EmitEffect (currententity->origin, 
-					currententity->model->particleeffect,
-					&(cl.lerpents[currententity->keynum].emitstate));
 				if (currententity->model->engineflags & MDLF_ENGULPHS)
 					continue;
 			}

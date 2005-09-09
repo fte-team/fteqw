@@ -131,9 +131,11 @@ char cl_predictiongroup[] = "Client side prediction";
 client_static_t	cls;
 client_state_t	cl;
 
+// alot of this should probably be dynamically allocated
 entity_state_t	cl_baselines[MAX_EDICTS];
 efrag_t			cl_efrags[MAX_EFRAGS];
 entity_t		cl_static_entities[MAX_STATIC_ENTITIES];
+trailstate_t   *cl_static_emit[MAX_STATIC_ENTITIES];
 lightstyle_t	cl_lightstyle[MAX_LIGHTSTYLES];
 //lightstyle_t	cl_lightstyle[MAX_LIGHTSTYLES];
 dlight_t		cl_dlights[MAX_DLIGHTS];

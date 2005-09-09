@@ -401,13 +401,21 @@ void CL_AddBeam (int tent, int ent, vec3_t start, vec3_t end)	//fixme: use TE_ n
 		}
 	}
 
-	if (cl_beam_trace.value && etype >= 0 && cls.state == ca_active && P_TypeIsLoaded(etype))
+	if (etype >= 0 && cls.state == ca_active && P_TypeIsLoaded(etype))
 	{
-		VectorSubtract(end, start, normal);
-		VectorNormalize(normal);
-		VectorMA(end, 4, normal, extra);	//extend the end-point by four
-		if (!TraceLineN(start, extra, impact, normal))
-			etype = -1;
+		if (cl_beam_trace.value)
+		{
+			VectorSubtract(end, start, normal);
+			VectorNormalize(normal);
+			VectorMA(end, 4, normal, extra);	//extend the end-point by four
+			if (!TraceLineN(start, extra, impact, normal))
+				etype = -1;
+		}
+		else
+		{
+			VectorCopy(end, impact);
+			normal[0] = normal[1] = normal[2] = 0;
+		}
 	}
 
 	b = CL_NewBeam(ent, -1);

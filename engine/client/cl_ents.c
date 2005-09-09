@@ -1663,7 +1663,7 @@ void CL_LinkPacketEntities (void)
 		}
 
 		// add automatic particle trails
-		if (!model || (!(model->flags&~EF_ROTATE) && model->particletrail<0))
+		if (!model || (!(model->flags&~EF_ROTATE) && model->particletrail<0 && model->particleeffect<0))
 			continue;
 
 		if (!cls.allow_anyparticles && !(model->flags & ~EF_ROTATE))
@@ -1709,6 +1709,15 @@ void CL_LinkPacketEntities (void)
 
 			P_ParticleTrail (old_origin, ent->origin, model->particletrail, &cl.lerpents[s1->number].trailstate);
 		}
+
+		{
+			extern cvar_t gl_part_flame;
+			if (cls.allow_anyparticles && gl_part_flame.value)
+			{
+				P_EmitEffect (ent->origin, model->particleeffect, &(cl.lerpents[s1->number].emitstate));
+			}
+		}
+
 
 		//dlights are not so customisable.
 		if (r_rocketlight.value)

@@ -884,7 +884,7 @@ void R_AliasDrawModel (alight_t *plighting)
 		}
 		else
 		{
-			D_SetTransLevel(currententity->alpha, BM_MERGE);
+			D_SetTransLevel(currententity->alpha, BM_BLEND);
 			transbackfac = 1;
 		}
 	}

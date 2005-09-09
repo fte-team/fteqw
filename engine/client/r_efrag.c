@@ -277,6 +277,16 @@ void R_StoreEfrags (efrag_t **ppefrag)
 
 			// mark that we've recorded this entity for this frame
 				pent->visframe = r_framecount;
+
+			// emit particles for statics (we don't need to cheat check statics)
+				if (clmodel->particleeffect >= 0)
+				{
+					// TODO: this is ugly.. assumes ent is in static entities, and subtracts
+					// pointer math to get an index to use in cl_static emit
+					// there needs to be a cleaner method for this
+					int i = (int)(pent - cl_static_entities);
+					P_EmitEffect(pent->origin, clmodel->particleeffect, &(cl_static_emit[i]));
+				}
 			}
 
 			ppefrag = &pefrag->leafnext;

@@ -610,6 +610,7 @@ extern	client_state_t	cl;
 extern	entity_state_t	cl_baselines[MAX_EDICTS];
 extern	efrag_t			cl_efrags[MAX_EFRAGS];
 extern	entity_t		cl_static_entities[MAX_STATIC_ENTITIES];
+extern  trailstate_t   *cl_static_emit[MAX_STATIC_ENTITIES];
 extern	lightstyle_t	cl_lightstyle[MAX_LIGHTSTYLES];
 extern	dlight_t		cl_dlights[MAX_DLIGHTS];
 

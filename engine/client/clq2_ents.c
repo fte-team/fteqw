@@ -90,7 +90,7 @@ typedef struct q2centity_s
 //	float		trailcount;			// for diminishing grenade trails
 	vec3_t		lerp_origin;		// for trails (variable hz)
 
-	int			fly_stoptime;
+//	int			fly_stoptime;
 } q2centity_t;
 
 

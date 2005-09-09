@@ -384,7 +384,7 @@ void D_DrawParticleTrans (particle_t *pparticle, blendmode_t blendmode)
 	if (pparticle->alpha < TRANS_LOWER_CAP)
 		return;
 
-	if (pparticle->alpha > TRANS_UPPER_CAP && blendmode == BM_MERGE)
+	if (pparticle->alpha > TRANS_UPPER_CAP && blendmode == BM_BLEND)
 	{
 		D_DrawParticle(pparticle);
 		return;

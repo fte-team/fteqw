@@ -1081,7 +1081,7 @@ void D_DrawSprite (void)
 				D_SpriteDrawSpans (sprite_spans);
 			else
 			{
-				D_SetTransLevel(currententity->alpha, BM_MERGE);
+				D_SetTransLevel(currententity->alpha, BM_BLEND);
 				D_SpriteDrawSpansTrans (sprite_spans);
 			}
 		}

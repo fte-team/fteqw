@@ -2383,8 +2383,9 @@ int P_RunParticleEffectTypeString (vec3_t org, vec3_t dir, float count, char *na
 void P_EmitEffect (vec3_t pos, int type, trailstate_t **tsk)
 {
 #ifdef SIDEVIEWS
-	if (r_secondaryview)	//this is called when the models are actually drawn.
-		return;
+// is this even needed?
+//	if (r_secondaryview==1)
+//		return;
 #endif
 	if (cl.paused)
 		return;

@@ -257,6 +257,8 @@ void R_StoreEfrags (efrag_t **ppefrag)
 	model_t		*clmodel;
 	efrag_t		*pefrag;
 
+	extern cvar_t gl_part_flame;
+
 	while ((pefrag = *ppefrag) != NULL)
 	{
 		pent = pefrag->entity;
@@ -279,7 +281,7 @@ void R_StoreEfrags (efrag_t **ppefrag)
 				pent->visframe = r_framecount;
 
 			// emit particles for statics (we don't need to cheat check statics)
-				if (clmodel->particleeffect >= 0)
+				if (clmodel->particleeffect >= 0 && gl_part_flame.value)
 				{
 					// TODO: this is ugly.. assumes ent is in static entities, and subtracts
 					// pointer math to get an index to use in cl_static emit

@@ -1439,28 +1439,13 @@ char *SaveCallStack (progfuncs_t *progfuncs, char *s)
 					sprintf(buffer, "\t\tofs%i %i // %f\n", f->parm_start+arg, *(int *)(globalbase - f->locals+arg), *(float *)(globalbase - f->locals+arg) );
 				else
 				{
-//__try
-//{
 					if (local->type == ev_entity)
-					{	//go safly.
-						int n;
-						sprintf(buffer, "\t\t\"%s\"\t\"entity INVALID POINTER\"\n", local->s_name+progfuncs->stringtable);
-						for (n = 0; n < sv_num_edicts; n++)
-						{
-							if (prinst->edicttable[n] == (struct edict_s *)PROG_TO_EDICT(progfuncs, ((eval_t*)(globalbase - f->locals+arg))->edict))
-							{
-								sprintf(buffer, "\t\t\"%s\" \"entity %i\"\n", local->s_name+progfuncs->stringtable, n);
-								break;
-							}
-						}
+					{
+						sprintf(buffer, "\t\t\"%s\" \"entity %i\"\n", local->s_name+progfuncs->stringtable, ((eval_t*)(globalbase - f->locals+arg))->edict);
 					}
 					else
 						sprintf(buffer, "\t\t\"%s\"\t\"%s\"\n", local->s_name+progfuncs->stringtable, PR_ValueString(progfuncs, local->type, (eval_t*)(globalbase - f->locals+arg)));
-//}
-//__except(EXCEPTION_EXECUTE_HANDLER)
-//{
-//	sprintf(buffer, "\t\t\"%s\" \"ILLEGAL POINTER\"\n", local->s_name+progfuncs->stringtable);
-//}
+
 					if (local->type == ev_vector)
 						arg+=2;
 				}
@@ -2632,6 +2617,7 @@ retry:
 	if (reorg)
 		reorg = (headercrc != -1);
 
+	QC_FlushProgsOffsets(progfuncs);
 	switch(current_progstate->intsize)
 	{
 	case 24:
@@ -2662,7 +2648,7 @@ retry:
 				else
 					type = fld16[i].type & ~(DEF_SHARED|DEF_SAVEGLOBAL);
 
-				if (progfuncs->fieldadjust)	//we need to make sure all fields appear in thier original place.
+				if (progfuncs->fieldadjust && !pr_typecurrent)	//we need to make sure all fields appear in thier original place.
 					QC_RegisterFieldVar(progfuncs, type, fld16[i].s_name+pr_strings, 4*(fld16[i].ofs+progfuncs->fieldadjust), -1);
 				else if (type == ev_vector)	//emit vector vars early, so thier fields cannot be alocated before the vector itself. (useful against scramblers)
 				{
@@ -2697,7 +2683,9 @@ retry:
 					type = pr_types[pr_fielddefs32[i].type & ~(DEF_SHARED|DEF_SAVEGLOBAL)].type;
 				else
 					type = pr_fielddefs32[i].type & ~(DEF_SHARED|DEF_SAVEGLOBAL);
-				if (type == ev_vector)
+				if (progfuncs->fieldadjust && !pr_typecurrent)	//we need to make sure all fields appear in thier original place.
+					QC_RegisterFieldVar(progfuncs, type, fld16[i].s_name+pr_strings, 4*(fld16[i].ofs+progfuncs->fieldadjust), -1);
+				else if (type == ev_vector)
 					QC_RegisterFieldVar(progfuncs, type, pr_fielddefs32[i].s_name+pr_strings, -1, -1);
 			}
 			pr_fielddefs32[i].s_name += stringadjust;

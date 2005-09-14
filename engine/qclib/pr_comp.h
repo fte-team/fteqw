@@ -360,7 +360,7 @@ typedef struct fdef_s
 	unsigned int	type;		// if DEF_SAVEGLOBAL bit is set
 								// the variable needs to be saved in savegames
 	unsigned int	ofs;
-	unsigned int	requestedofs;
+	unsigned int	progsofs;	//used at loading time, so maching field offsets (unions/members) are positioned at the same runtime offset.
 	char *		name;
 } fdef_t;
 

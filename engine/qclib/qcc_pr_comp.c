@@ -72,6 +72,7 @@ pbool flag_acc;				//reacc like behaviour of src files (finds *.qc in start dir 
 pbool flag_caseinsensative;	//symbols will be matched to an insensative case if the specified case doesn't exist. This should b usable for any mod
 pbool flag_laxcasts;		//Allow lax casting. This'll produce loadsa warnings of course. But allows compilation of certain dodgy code.
 pbool flag_hashonly;		//Allows use of only #constant for precompiler constants, allows certain preqcc using mods to compile
+pbool flag_fasttrackarrays;	//Faster arrays, dynamically detected, activated only in supporting engines.
 
 pbool opt_overlaptemps;		//reduce numpr_globals by reuse of temps. When they are not needed they are freed for reuse. The way this is implemented is better than frikqcc's. (This is the single most important optimisation)
 pbool opt_assignments;		//STORE_F isn't used if an operation wrote to a temp.
@@ -3141,6 +3142,14 @@ void QCC_PR_EmitClassFromFunction(QCC_def_t *scope, char *tname)
 	if (!basetype)
 		QCC_PR_ParseError(ERR_INTERNAL, "Type %s was not defined...", tname);
 
+
+	pr_scope = NULL;
+	memset(basictypefield, 0, sizeof(basictypefield));
+	QCC_PR_EmitFieldsForMembers(basetype);
+
+
+
+
 	pr_scope = scope;
 
 	df = &functions[numfunctions];
@@ -3184,10 +3193,7 @@ void QCC_PR_EmitClassFromFunction(QCC_def_t *scope, char *tname)
 	QCC_FreeTemp(QCC_PR_Statement(&pr_opcodes[OP_DONE], NULL, NULL, NULL));
 
 
-	pr_scope = NULL;
-	memset(basictypefield, 0, sizeof(basictypefield));
-	QCC_PR_EmitFieldsForMembers(basetype);
-	pr_scope = scope;
+
 	QCC_WriteAsmFunction(scope, df->first_statement, df->parm_start);
 	pr.localvars = NULL;
 
@@ -6568,6 +6574,13 @@ void QCC_PR_EmitArrayGetFunction(QCC_def_t *scope, char *arrayname)
 	QCC_dstatement_t *st;
 	QCC_def_t *eq;
 
+	QCC_def_t *fasttrackpossible;
+
+	if (flag_fasttrackarrays)
+		fasttrackpossible = QCC_PR_GetDef(NULL, "__ext__fasttrackarrays", NULL, true, 1);
+	else
+		fasttrackpossible = NULL;
+
 	def = QCC_PR_GetDef(NULL, arrayname, NULL, false, 0);
 
 	if (def->arraysize >= 15 && def->type->size == 1)
@@ -6591,6 +6604,22 @@ void QCC_PR_EmitArrayGetFunction(QCC_def_t *scope, char *arrayname)
 	index = QCC_PR_GetDef(type_float, "indexg___", def, true, 1);
 
 	G_FUNCTION(scope->ofs) = df - functions;
+
+	if (fasttrackpossible)
+	{
+		QCC_PR_Statement(pr_opcodes+OP_IFNOT, fasttrackpossible, NULL, &st);
+		//fetch_gbl takes: (float size, variant array[]), float index, variant pos
+		//note that the array size is coded into the globals, one index before the array.
+		def->ofs--;
+		if (def->type->size >= 3)
+			QCC_PR_Statement3(&pr_opcodes[OP_FETCH_GBL_V], def, index, &def_ret);
+		else
+			QCC_PR_Statement3(&pr_opcodes[OP_FETCH_GBL_F], def, index, &def_ret);
+		def->ofs++;
+
+		//finish the jump
+		st->b = &statements[numstatements] - st;
+	}
 
 	if (vectortrick)
 	{
@@ -6704,6 +6733,13 @@ void QCC_PR_EmitArraySetFunction(QCC_def_t *scope, char *arrayname)
 	QCC_dfunction_t *df;
 	QCC_def_t *def, *index, *value;
 
+	QCC_def_t *fasttrackpossible;
+
+	if (flag_fasttrackarrays)
+		fasttrackpossible = QCC_PR_GetDef(NULL, "__ext__fasttrackarrays", NULL, true, 1);
+	else
+		fasttrackpossible = NULL;
+
 	def = QCC_PR_GetDef(NULL, arrayname, NULL, false, 0);
 	pr_scope = scope;
 
@@ -6723,6 +6759,27 @@ void QCC_PR_EmitArraySetFunction(QCC_def_t *scope, char *arrayname)
 	df->locals = locals_end - df->parm_start;
 
 	G_FUNCTION(scope->ofs) = df - functions;
+
+	if (fasttrackpossible)
+	{
+		QCC_dstatement_t *st;
+
+		QCC_PR_Statement(pr_opcodes+OP_IFNOT, fasttrackpossible, NULL, &st);
+		//note that the array size is coded into the globals, one index before the array.
+
+		QCC_PR_Statement3(&pr_opcodes[OP_CONV_FTOI], index, NULL, index);	//address stuff is integer based, but standard qc (which this accelerates in supported engines) only supports floats
+		QCC_PR_SimpleStatement (OP_BOUNDCHECK, index->ofs, 0, ((int*)qcc_pr_globals)[def->ofs-1]);//annoy the programmer. :p
+		if (def->type->size != 1)//shift it upwards for larger types
+			QCC_PR_Statement3(&pr_opcodes[OP_MUL_I], index, QCC_MakeIntDef(def->type->size), index);
+		QCC_PR_Statement3(&pr_opcodes[OP_GLOBALADDRESS], def, index, index);	//comes with built in add
+		if (def->type->size >= 3)
+			QCC_PR_Statement3(&pr_opcodes[OP_STOREP_V], value, index, NULL);	//*b = a
+		else
+			QCC_PR_Statement3(&pr_opcodes[OP_STOREP_F], value, index, NULL);
+
+		//finish the jump
+		st->b = &statements[numstatements] - st;
+	}
 
 	QCC_PR_Statement3(pr_opcodes+OP_BITAND, index, index, index);
 	QCC_PR_ArraySetRecurseDivide(def, index, value, 0, def->arraysize);

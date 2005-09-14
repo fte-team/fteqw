@@ -476,6 +476,7 @@ extern pbool flag_acc;
 extern pbool flag_caseinsensative;
 extern pbool flag_laxcasts;
 extern pbool flag_hashonly;
+extern pbool flag_fasttrackarrays;
 
 extern pbool opt_overlaptemps;
 extern pbool opt_shortenifnots;

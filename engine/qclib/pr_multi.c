@@ -180,13 +180,27 @@ void QC_InitShares(progfuncs_t *progfuncs)
 	progfuncs->fieldadjust = 0;
 }
 
+void QC_FlushProgsOffsets(progfuncs_t *progfuncs)
+{	//sets the fields up for loading a new progs.
+	//fields are matched by name to other progs
+	//not by offset
+	unsigned int i;
+	for (i = 0; i < numfields; i++)
+		field[i].progsofs = -1;
+}
+
 
 //called if a global is defined as a field
 //returns offset.
 
 //vectors must be added before any of thier corresponding _x/y/z vars
 //in this way, even screwed up progs work.
-int QC_RegisterFieldVar(progfuncs_t *progfuncs, unsigned int type, char *name, int requestedpos, int originalofs)
+
+//requestedpos is the offset the engine WILL put it at.
+//origionaloffs is used to track matching field offsets. fields with the same progs offset overlap
+
+//note: we probably suffer from progs with renamed system globals.
+int QC_RegisterFieldVar(progfuncs_t *progfuncs, unsigned int type, char *name, int engineofs, int progsofs)
 {
 //	progstate_t *p;
 //	int pnum;
@@ -215,13 +229,13 @@ int QC_RegisterFieldVar(progfuncs_t *progfuncs, unsigned int type, char *name, i
 				printf("Field type mismatch on %s\n", name);
 				continue;
 			}
-			if (!progfuncs->fieldadjust && requestedpos>=0)
-				if ((unsigned)requestedpos != field[i].ofs)
+			if (!progfuncs->fieldadjust && engineofs>=0)
+				if ((unsigned)engineofs != field[i].ofs)
 					Sys_Error("Field %s at wrong offset", name);
 
-			if (field[i].requestedofs == -1)
-				field[i].requestedofs = originalofs;
-			return field[i].ofs;	//got a match			
+			if (field[i].progsofs == -1)
+				field[i].progsofs = progsofs;
+			return field[i].ofs-progfuncs->fieldadjust;	//got a match
 		}
 	}
 
@@ -240,29 +254,31 @@ int QC_RegisterFieldVar(progfuncs_t *progfuncs, unsigned int type, char *name, i
 	fnum = numfields;
 	numfields++;
 	field[fnum].name = name;	
-	if (type == ev_vector)	//resize with the following floats (this is where I think I went wrong)
+	if (type == ev_vector)
 	{
 		char *n;		
 		namelen = strlen(name)+5;	
 
 		n=PRHunkAlloc(progfuncs, namelen);
 		sprintf(n, "%s_x", name);
-		ofs = QC_RegisterFieldVar(progfuncs, ev_float, n, requestedpos, -1);
+		ofs = QC_RegisterFieldVar(progfuncs, ev_float, n, engineofs, progsofs);
 		field[fnum].ofs = ofs;
 
 		n=PRHunkAlloc(progfuncs, namelen);
 		sprintf(n, "%s_y", name);
-		QC_RegisterFieldVar(progfuncs, ev_float, n, (requestedpos==-1)?-1:(requestedpos+4), -1);
+		QC_RegisterFieldVar(progfuncs, ev_float, n, (engineofs==-1)?-1:(engineofs+4), (progsofs==-1)?-1:progsofs+1);
 
 		n=PRHunkAlloc(progfuncs, namelen);
 		sprintf(n, "%s_z", name);
-		QC_RegisterFieldVar(progfuncs, ev_float, n, (requestedpos==-1)?-1:(requestedpos+8), -1);
+		QC_RegisterFieldVar(progfuncs, ev_float, n, (engineofs==-1)?-1:(engineofs+8), (progsofs==-1)?-1:progsofs+2);
 	}
-	else if (requestedpos >= 0)
-	{
+	else if (engineofs >= 0)
+	{	//the engine is setting up a list of required field indexes.
+
+		//paranoid checking of the offset.
 		for (i = 0; i < numfields-1; i++)
 		{
-			if (field[i].ofs == (unsigned)requestedpos)
+			if (field[i].ofs == ((unsigned)engineofs)*4)
 			{
 				if (type == ev_float && field[i].type == ev_vector)	//check names
 				{
@@ -273,12 +289,27 @@ int QC_RegisterFieldVar(progfuncs_t *progfuncs, unsigned int type, char *name, i
 					Sys_Error("Duplicated offset");
 			}
 		}
-		if (requestedpos&3)
-			Sys_Error("field %s is %i&3", name, requestedpos);
-		field[fnum].ofs = ofs = requestedpos/4;
+		if (engineofs&3)
+			Sys_Error("field %s is %i&3", name, engineofs);
+		field[fnum].ofs = ofs = engineofs/4;
 	}
 	else
-		field[fnum].ofs = ofs = fields_size/4;
+	{	//we just found a new fieldname inside a progs
+		field[fnum].ofs = ofs = fields_size/4;	//add on the end
+
+		//if the progs field offset matches annother offset in the same progs, make it match up with the earlier one.
+		if (progsofs>=0)
+		{
+			for (i = 0; i < numfields-1; i++)
+			{
+				if (field[i].progsofs == (unsigned)progsofs)
+				{
+					field[fnum].ofs = ofs = field[i].ofs;
+					break;
+				}
+			}
+		}
+	}
 //	if (type != ev_vector)
 		if (fields_size < (ofs+type_size[type])*4)
 			fields_size = (ofs+type_size[type])*4;
@@ -287,10 +318,10 @@ int QC_RegisterFieldVar(progfuncs_t *progfuncs, unsigned int type, char *name, i
 		Sys_Error("Allocated too many additional fields after ents were inited.");
 	field[fnum].type = type;
 
-	field[fnum].requestedofs = originalofs;
+	field[fnum].progsofs = progsofs;
 	
 	//we've finished setting the structure	
-	return ofs;
+	return ofs - progfuncs->fieldadjust;
 }
 
 
@@ -326,7 +357,10 @@ void QC_AddSharedFieldVar(progfuncs_t *progfuncs, int num, char *stringtable)
 		{
 			if (!strcmp(pr_fielddefs16[i].s_name+stringtable, pr_globaldefs16[num].s_name+stringtable))
 			{
-				*(int *)&pr_globals[pr_globaldefs16[num].ofs] = QC_RegisterFieldVar(progfuncs, pr_fielddefs16[i].type, pr_globaldefs16[num].s_name+stringtable, -1, *(int *)&pr_globals[pr_globaldefs16[num].ofs])-progfuncs->fieldadjust;
+				int old = *(int *)&pr_globals[pr_globaldefs16[num].ofs];
+				*(int *)&pr_globals[pr_globaldefs16[num].ofs] = QC_RegisterFieldVar(progfuncs, pr_fielddefs16[i].type, pr_globaldefs16[num].s_name+stringtable, -1, *(int *)&pr_globals[pr_globaldefs16[num].ofs]);
+
+				printf("Field %s %i -> %i\n", pr_globaldefs16[num].s_name+stringtable, old, *(int *)&pr_globals[pr_globaldefs16[num].ofs]);
 				return;
 			}
 		}
@@ -335,10 +369,12 @@ void QC_AddSharedFieldVar(progfuncs_t *progfuncs, int num, char *stringtable)
 
 		for (i = 0; i < numfields; i++)
 		{
-			o = field[i].requestedofs;
+			o = field[i].progsofs;
 			if (o == *(unsigned int *)&pr_globals[pr_globaldefs16[num].ofs])
 			{
+				int old = *(int *)&pr_globals[pr_globaldefs16[num].ofs];
 				*(int *)&pr_globals[pr_globaldefs16[num].ofs] = field[i].ofs-progfuncs->fieldadjust;
+				printf("Field %s %i -> %i\n", pr_globaldefs16[num].s_name+stringtable, old, *(int *)&pr_globals[pr_globaldefs16[num].ofs]);
 				return;
 			}
 		}
@@ -352,7 +388,7 @@ void QC_AddSharedFieldVar(progfuncs_t *progfuncs, int num, char *stringtable)
 		{
 			if (!strcmp(pr_fielddefs32[i].s_name+stringtable, pr_globaldefs32[num].s_name+stringtable))
 			{
-				*(int *)&pr_globals[pr_globaldefs32[num].ofs] = QC_RegisterFieldVar(progfuncs, pr_fielddefs32[i].type, pr_globaldefs32[num].s_name+stringtable, -1, *(int *)&pr_globals[pr_globaldefs32[num].ofs])-progfuncs->fieldadjust;
+				*(int *)&pr_globals[pr_globaldefs32[num].ofs] = QC_RegisterFieldVar(progfuncs, pr_fielddefs32[i].type, pr_globaldefs32[num].s_name+stringtable, -1, *(int *)&pr_globals[pr_globaldefs32[num].ofs]);
 				return;
 			}
 		}
@@ -361,7 +397,7 @@ void QC_AddSharedFieldVar(progfuncs_t *progfuncs, int num, char *stringtable)
 
 		for (i = 0; i < numfields; i++)
 		{
-			o = field[i].requestedofs;
+			o = field[i].progsofs;
 			if (o == *(unsigned int *)&pr_globals[pr_globaldefs32[num].ofs])
 			{
 				*(int *)&pr_globals[pr_globaldefs32[num].ofs] = field[i].ofs-progfuncs->fieldadjust;

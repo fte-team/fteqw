@@ -1104,6 +1104,35 @@ char *Macro_LastDropTime (void)
 	return macro_buf;
 }
 
+char *Macro_CombinedHealth(void)
+{
+	float h;
+	float t, a, m;
+	//total health = health+armour*armourfrac
+	//however,you're dead if health drops below 0 rather than the entire equation.
+
+	if (cl.stats[SP][STAT_ITEMS] & IT_ARMOR1)
+		t = 0.3;
+	else if (cl.stats[SP][STAT_ITEMS] & IT_ARMOR2)
+		t = 0.6;
+	else if (cl.stats[SP][STAT_ITEMS] & IT_ARMOR3)
+		t = 0.8;
+	else
+		t = 0;
+	a = cl.stats[SP][STAT_ARMOR];
+	h = cl.stats[SP][STAT_HEALTH];
+
+	//work out the max useful armour
+	//this will under-exagurate, due to usage of ceil based on damage
+	m = h/(1-t);
+	if (a > m)
+		a = m;
+
+	h = h + a;
+	Q_snprintfz (macro_buf, 32, "%d", (int)h);
+	return macro_buf;
+}
+
 /*
 $matchname
 you can use to get the name of the match
@@ -1178,6 +1207,8 @@ static void TP_InitMacros(void)
 //	Cmd_AddMacro("matchstatus", Macro_Match_Status, false);
 //	Cmd_AddMacro("mp3info", , false);
 //	Cmd_AddMacro("triggermatch", Macro_LastTrigger_Match, false);
+
+	Cmd_AddMacro("chealth", Macro_CombinedHealth, true);
 }
 
 #define MAX_MACRO_STRING 1024

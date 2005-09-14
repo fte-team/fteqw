@@ -2396,7 +2396,7 @@ mesh_t *GL_CreateMeshForPatch (model_t *mod, int patchwidth, int patchheight, in
 
 void CModQ3_SortShaders(void)
 {
-/*	texture_t *textemp;
+	texture_t *textemp;
 	int i, j;
 	//sort loadmodel->textures
 	//correct pointers in loadmodel->texinfo
@@ -2405,19 +2405,19 @@ void CModQ3_SortShaders(void)
 	{
 		for (j = i+1; j < numtexinfo; j++)
 		{
-			if (!loadmodel->textures[i]->shader || (loadmodel->textures[j]->shader && loadmodel->textures[j]->shader->sort > loadmodel->textures[i]->shader->sort))
+			if ((loadmodel->textures[i]->shader && loadmodel->textures[j]->shader) && (loadmodel->textures[j]->shader->sort < loadmodel->textures[i]->shader->sort))
 			{
 				textemp = loadmodel->textures[j];
 				loadmodel->textures[j] = loadmodel->textures[i];
 				loadmodel->textures[i] = textemp;
 
-				textemp = loadmodel->texinfo[j].texture;
-				loadmodel->texinfo[j].texture = loadmodel->texinfo[i].texture;
-				loadmodel->texinfo[i].texture = textemp;
+				if (skytexturenum==i)
+					skytexturenum=j;
+				else if (skytexturenum==j)
+					skytexturenum=i;
 			}
 		}
 	}
-	*/
 }
 
 mesh_t nullmesh;

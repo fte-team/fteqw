@@ -934,6 +934,18 @@ void SV_WriteFrameToClient (client_t *client, sizebuf_t *msg);
 void MSGQ2_WriteDeltaEntity (q2entity_state_t *from, q2entity_state_t *to, sizebuf_t *msg, qboolean force, qboolean newentity);
 #endif
 
+//q3 stuff
+#ifdef Q3SERVER
+void SVQ3_ShutdownGame(void);
+qboolean SVQ3_InitGame(void);
+qboolean SVQ3_ConsoleCommand(void);
+void SVQ3_HandleClient(void);
+void SVQ3_DirectConnect(void);
+void SVQ3_RunFrame(void);
+void SVQ3_SendMessage(client_t *client);
+qboolean SVQ3_Command(void);
+#endif
+
 
 //
 // sv_phys.c

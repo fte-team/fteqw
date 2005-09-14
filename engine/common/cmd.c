@@ -1673,6 +1673,10 @@ void	Cmd_ExecuteString (char *text, int level)
 		{
 			int i;
 			int execlevel;
+			extern qboolean keydown[];
+
+			if (keydown[K_SHIFT] && keydown[K_CTRL] && keydown[K_ALT])
+				return;
 
 			if ((a->restriction?a->restriction:rcon_level.value) > level)
 			{

@@ -1312,7 +1312,7 @@ void R_DrawNameTags(void)
 			tagcenter[2] += 32;
 			ML_Project(tagcenter, center, r_refdef.viewangles, r_refdef.vieworg, (float)r_refdef.vrect.width/r_refdef.vrect.height, r_refdef.fov_y);
 			if (center[2] > 1)
-				return;
+				continue;
 			Draw_FunString(center[0]*r_refdef.vrect.width+r_refdef.vrect.x, (1-center[1])*r_refdef.vrect.height+r_refdef.vrect.y, cl.players[i].name);
 		}
 	}

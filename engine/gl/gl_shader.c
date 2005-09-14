@@ -342,7 +342,7 @@ static int Shader_FindImage ( char *name, int flags )
 	if ( !Q_stricmp (name, "$whiteimage") ) {
 		return 0;
 	} else {
-		return Mod_LoadHiResTexture(name, NULL, !!(flags & IT_NOMIPMAP), true, true);//GL_FindImage ( name, flags );
+		return Mod_LoadHiResTexture(name, NULL, !(flags & IT_NOMIPMAP), true, true);//GL_FindImage ( name, flags );
     }
 }
 

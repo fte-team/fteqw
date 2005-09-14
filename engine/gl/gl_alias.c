@@ -529,7 +529,6 @@ static void R_BuildSkeletalMesh(mesh_t *mesh, float *plerp, float **pose, int po
 	float bonepose[MAX_BONES][12];
 
 	int i, k, l;
-	float m[12];
 
 	if (usehierarchy)
 		R_LerpBones(plerp, pose, poses, bones, bonecount, bonepose);
@@ -4603,7 +4602,6 @@ void GLMod_LoadDarkPlacesModel(model_t *mod, void *buffer)
 
 
 	float *outposedata;
-	galiaspose_t *outpose;
 	galiasgroup_t *outgroups;
 	float *inposedata;
 	dpmframe_t *inframes;

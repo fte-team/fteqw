@@ -362,7 +362,7 @@ void Cvar_Reset_f (void)
 {
 	cvar_group_t *grp;
 	cvar_t *cmd;
-	int i, listflags, exclflags;
+	int i, listflags=0, exclflags;
 	char *var;
 	char *search, *gsearch;
 	char strtmp[512];

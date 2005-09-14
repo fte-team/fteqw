@@ -282,6 +282,9 @@ void SCR_DrawCenterString (int pnum)
 	int             x, y;
 	int             remaining;
 	int hd = 1;
+	int ext = COLOR_WHITE<<8;
+	int extstack[4];
+	int extstackdepth = 0;
 
 	vrect_t rect;
 
@@ -341,13 +344,53 @@ void SCR_DrawCenterString (int pnum)
 		x = rect.x + (rect.width - l*8)/2+4;
 		for (j=0 ; j<l ; j++, x+=8)
 		{
+			if (start[j] == '^')
+			{
+				j++;
+				if (start[j] >= '0' && start[j] <= '7')
+				{
+					ext = (start[j]-'0')*256 | (ext&~CON_COLOURMASK);
+					continue;
+				}
+				else if (start[j] == 'b')
+				{
+					ext = (ext & ~CON_BLINKTEXT) + (CON_BLINKTEXT - (ext & CON_BLINKTEXT));
+					continue;
+				}
+				else if (start[j] == 'a')
+				{
+					ext = (ext & ~CON_2NDCHARSETTEXT) + (CON_2NDCHARSETTEXT - (ext & CON_2NDCHARSETTEXT));
+					continue;
+				}
+				else if (start[j] == 's')
+				{
+					if (extstackdepth < sizeof(extstack)/sizeof(extstack[0]))
+					{
+						extstack[extstackdepth] = ext;
+						extstackdepth++;
+					}
+					continue;
+				}
+				else if (start[j] == 'r')
+				{
+					if (extstackdepth)
+					{
+						extstackdepth--;
+						ext = extstack[extstackdepth];
+					}
+					continue;
+				}
+				else if (start[j] != '^')
+					j--;
+			}
+
 			switch(telejanostyle)
 			{
 			case 'O':
-				Draw_Character (x, y+vid.height/2, start[j]);
+				Draw_ColouredCharacter (x, y+vid.height/2, start[j]|ext);
 				break;
 			default:
-				Draw_Character (x, y, start[j]);
+				Draw_ColouredCharacter (x, y, start[j]|ext);
 			}
 			if (!remaining--)
 				return;

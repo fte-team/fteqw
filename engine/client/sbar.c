@@ -145,6 +145,7 @@ void Draw_FunString(int x, int y, unsigned char *str)
 					extstack[extstackdepth] = ext;
 					extstackdepth++;
 				}
+				continue;
 			}
 			else if (*str == 'r')	//restore from stack (it's great for names)
 			{
@@ -930,6 +931,11 @@ void Sbar_DrawString (int x, int y, char *str)
 	Draw_String (sbar_rect.x + x /*+ ((sbar_rect.width - 320)>>1) */, sbar_rect.y + y+ sbar_rect.height-SBAR_HEIGHT, str);
 }
 
+void Sbar_DrawFunString (int x, int y, char *str)
+{
+	Draw_FunString (sbar_rect.x + x /*+ ((sbar_rect.width - 320)>>1) */, sbar_rect.y + y+ sbar_rect.height-SBAR_HEIGHT, str);
+}
+
 /*
 =============
 Sbar_itoa
@@ -1669,9 +1675,9 @@ void Sbar_Draw (void)
 						Sbar_DrawNormal (pnum);
 
 	//					Sbar_DrawString (160-14*8+4,4, "SPECTATOR MODE - TRACK CAMERA");
-					sprintf(st, "Tracking %-.13s, [JUMP] for next",
+					sprintf(st, "Tracking %-.64s",
 							cl.players[spec_track[pnum]].name);
-					Sbar_DrawString(0, -8, st);
+					Sbar_DrawFunString(0, -8, st);
 				}
 			}
 			else if (sb_showscores || (cl.stats[pnum][STAT_HEALTH] <= 0 && cl.splitclients == 1))

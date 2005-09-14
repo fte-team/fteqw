@@ -7,6 +7,8 @@
 #include "glquake.h"
 #include "shader.h"
 
+#define qglGetError() 0
+
 //these are shared with gl_rsurf - move to header
 void R_MirrorChain (msurface_t *s);
 void GL_SelectTexture (GLenum target);
@@ -1416,8 +1418,8 @@ static void PPL_BaseTextureChain(msurface_t *first)
 		int dlb;
 
 		glRect_t    *theRect;
-		if (first->texinfo->texture->shader->flags & SHADER_FLARE )
-			return;
+	//	if (first->texinfo->texture->shader->flags & SHADER_FLARE )
+	//		return;
 
 		if (!varrayactive)
 			R_IBrokeTheArrays();
@@ -1444,6 +1446,7 @@ static void PPL_BaseTextureChain(msurface_t *first)
 					vi = s->lightmaptexturenum;
 					if (vi >= 0)
 					{
+						if (gl_bump.value)
 						if (lightmap[vi]->deluxmodified)
 						{
 							GL_BindType(GL_TEXTURE_2D, deluxmap_textures[vi] );
@@ -1472,14 +1475,6 @@ static void PPL_BaseTextureChain(msurface_t *first)
 						}
 					}
 				}
-				if (s->flags&SURF_DRAWALPHA || !(mb.shader->sort & SHADER_SORT_OPAQUE))
-				{
-					extern msurface_t  *r_alpha_surfaces;
-					s->nextalphasurface = r_alpha_surfaces;
-					r_alpha_surfaces = s;
-					s->ownerent = &r_worldentity;
-					continue;
-				}
 
 				if (s->mesh)
 				{
@@ -1487,7 +1482,7 @@ static void PPL_BaseTextureChain(msurface_t *first)
 						dlb = s->dlightbits;
 					else
 						dlb = 0;
-					redraw = mb.dlightbits != dlb || mb.fog != s->fog || mb.infokey != vi|| mb.shader->flags&SHADER_DEFORMV_BULGE || R_MeshWillExceed(s->mesh);
+					redraw = mb.dlightbits != dlb || mb.fog != s->fog || mb.infokey != vi||R_MeshWillExceed(s->mesh);
 
 					if (redraw)
 					{
@@ -1615,6 +1610,7 @@ void PPL_BaseTextures(model_t *model)
 	GL_DoSwap();
 
 	qglDisable(GL_BLEND);
+	qglDisable(GL_ALPHA_TEST);
 	qglColor4f(1,1,1, 1);
 //	qglDepthFunc(GL_LESS);
 
@@ -1708,7 +1704,7 @@ void PPL_BaseBModelTextures(entity_t *e)
 
 // calculate dynamic lighting for bmodel if it's not an
 // instanced model
-	if (currentmodel->firstmodelsurface != 0 && r_dynamic.value)
+	if (currentmodel->nummodelsurfaces != 0 && r_dynamic.value)
 	{
 		for (k=0 ; k<MAX_SWLIGHTS ; k++)
 		{
@@ -1723,8 +1719,9 @@ void PPL_BaseBModelTextures(entity_t *e)
 	}
 
 //update lightmaps.
-	for (s = model->surfaces+model->firstmodelsurface,i = 0; i < model->nummodelsurfaces; i++, s++)
-		R_RenderDynamicLightmaps (s);
+	if (model->fromgame != fg_quake3)
+		for (s = model->surfaces+model->firstmodelsurface,i = 0; i < model->nummodelsurfaces; i++, s++)
+			R_RenderDynamicLightmaps (s);
 
 
 	for (s = model->surfaces+model->firstmodelsurface,i = 0; i < model->nummodelsurfaces; i++, s++)
@@ -1758,6 +1755,143 @@ void PPL_BaseBModelTextures(entity_t *e)
 		R_IBrokeTheArrays();
 }
 
+void R_DrawLightning(entity_t *e)
+{
+	vec3_t v;
+	vec3_t v2;
+	vec3_t dir, cr;
+	float scale = e->scale;
+	float length;
+
+	vec3_t points[4];
+	vec2_t texcoords[4] = {{0, 0}, {0, 1}, {1, 1}, {1, 0}};
+	int indexarray[6] = {0, 1, 2, 0, 2, 3};
+
+	mesh_t mesh;
+	meshbuffer_t mb;
+
+	if (!e->forcedshader)
+		return;
+
+	if (!scale)
+		scale = 10;
+
+
+	VectorSubtract(e->origin, e->oldorigin, dir);
+	length = Length(dir);
+
+	//this seems to be about right.
+	texcoords[2][0] = length/128;
+	texcoords[3][0] = length/128;
+
+	VectorSubtract(r_refdef.vieworg, e->origin, v);
+	CrossProduct(v, dir, cr);
+	VectorNormalize(cr);
+
+	VectorMA(e->origin, -scale/2, cr, points[0]);
+	VectorMA(e->origin, scale/2, cr, points[1]);
+
+	VectorSubtract(r_refdef.vieworg, e->oldorigin, v);
+	CrossProduct(v, dir, cr);
+	VectorNormalize(cr);
+
+	VectorMA(e->oldorigin, scale/2, cr, points[2]);
+	VectorMA(e->oldorigin, -scale/2, cr, points[3]);
+
+	mesh.xyz_array = points;
+	mesh.indexes = indexarray;
+	mesh.numindexes = sizeof(indexarray)/sizeof(indexarray[0]);
+	mesh.colors_array = NULL;
+	mesh.lmst_array = NULL;
+	mesh.normals_array = NULL;
+	mesh.numvertexes = 4;
+	mesh.st_array = texcoords;
+
+	mb.entity = e;
+	mb.mesh = &mesh;
+	mb.shader = e->forcedshader;
+	mb.infokey = 0;
+	mb.fog = NULL;
+	mb.infokey = currententity->keynum;
+	mb.dlightbits = 0;
+
+
+	R_IBrokeTheArrays();
+
+	R_PushMesh(&mesh, mb.shader->features | MF_NONBATCHED);
+
+	R_RenderMeshBuffer ( &mb, false );
+}
+void R_DrawRailCore(entity_t *e)
+{
+	vec3_t v;
+	vec3_t v2;
+	vec3_t dir, cr;
+	float scale = e->scale;
+	float length;
+
+	mesh_t mesh;
+	meshbuffer_t mb;
+	vec3_t points[4];
+	vec2_t texcoords[4] = {{0, 0}, {0, 1}, {1, 1}, {1, 0}};
+	int indexarray[6] = {0, 1, 2, 0, 2, 3};
+	int colors[4];
+
+	if (!e->forcedshader)
+		return;
+
+	if (!scale)
+		scale = 10;
+
+
+	VectorSubtract(e->origin, e->oldorigin, dir);
+	length = Length(dir);
+
+	//this seems to be about right.
+	texcoords[2][0] = length/128;
+	texcoords[3][0] = length/128;
+
+	VectorSubtract(r_refdef.vieworg, e->origin, v);
+	CrossProduct(v, dir, cr);
+	VectorNormalize(cr);
+
+	VectorMA(e->origin, -scale/2, cr, points[0]);
+	VectorMA(e->origin, scale/2, cr, points[1]);
+
+	VectorSubtract(r_refdef.vieworg, e->oldorigin, v);
+	CrossProduct(v, dir, cr);
+	VectorNormalize(cr);
+
+	VectorMA(e->oldorigin, scale/2, cr, points[2]);
+	VectorMA(e->oldorigin, -scale/2, cr, points[3]);
+
+	colors[0] = colors[1] = colors[2] = colors[3] = *(int*)e->shaderRGBA;
+
+	mesh.xyz_array = points;
+	mesh.indexes = indexarray;
+	mesh.numindexes = sizeof(indexarray)/sizeof(indexarray[0]);
+	mesh.colors_array = (byte_vec4_t*)colors;
+	mesh.lmst_array = NULL;
+	mesh.normals_array = NULL;
+	mesh.numvertexes = 4;
+	mesh.st_array = texcoords;
+
+	mb.entity = e;
+	mb.mesh = &mesh;
+	mb.shader = e->forcedshader;
+	mb.infokey = 0;
+	mb.fog = NULL;
+	mb.infokey = currententity->keynum;
+	mb.dlightbits = 0;
+
+
+	R_IBrokeTheArrays();
+
+	R_PushMesh(&mesh, mb.shader->features | MF_NONBATCHED | MF_COLORS);
+
+	R_RenderMeshBuffer ( &mb, false );
+}
+
 void RotatePointAroundVector( vec3_t dst, const vec3_t dir, const vec3_t point, float degrees );
 void PerpendicularVector( vec3_t dst, const vec3_t src );
 void R_DrawBeam( entity_t *e )
@@ -1771,6 +1905,7 @@ void R_DrawBeam( entity_t *e )
 	vec3_t direction, normalized_direction;
 	vec3_t	points[NUM_BEAM_SEGS*2];
 	vec3_t oldorigin, origin;
+	float scale;
 
 	oldorigin[0] = e->oldorigin[0];
 	oldorigin[1] = e->oldorigin[1];
@@ -1788,10 +1923,13 @@ void R_DrawBeam( entity_t *e )
 		return;
 
 	PerpendicularVector( perpvec, normalized_direction );
-	if (!e->frame)
-		VectorScale( perpvec, e->scale / 2, perpvec );
-	else
-		VectorScale( perpvec, e->frame / 2, perpvec );
+
+	scale = e->scale;
+	if (!scale)
+		scale = e->frame;
+	if (!scale)
+		scale = 6;
+	VectorScale( perpvec, scale / 2, perpvec );
 
 	for ( i = 0; i < 6; i++ )
 	{
@@ -1835,9 +1973,9 @@ void R_DrawBeam( entity_t *e )
 			indexarray[i*6+4] = indexarray[i*6+2];
 			indexarray[i*6+5] = i+0+NUM_BEAM_SEGS;
 
-			texcoords[i][1] = (float)i/NUM_BEAM_SEGS;
+			texcoords[i][1] = (float)i/NUM_BEAM_SEGS+0.35;
 			texcoords[i][0] = 0;
-			texcoords[i+NUM_BEAM_SEGS][1] = (float)i/NUM_BEAM_SEGS;
+			texcoords[i+NUM_BEAM_SEGS][1] = (float)i/NUM_BEAM_SEGS+0.35;
 			texcoords[i+NUM_BEAM_SEGS][0] = 1;
 		}
 

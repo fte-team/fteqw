@@ -79,7 +79,11 @@ void SWSCR_UpdateScreen (void)
 	if (!scr_initialized || !con_initialized)
 		return;				// not initialized yet
 
+#ifdef VM_UI
 	uimenu = UI_MenuState();
+#else
+	uimenu = 0;
+#endif
 
 //
 // check for vid changes

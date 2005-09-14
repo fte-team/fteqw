@@ -322,9 +322,9 @@ void SWR_NewMap (void)
 	R_WipeDecals();
 
 	R_InitSkyBox();
-
+#ifdef VM_UI
 	UI_Reset();
-
+#endif
 	TP_NewMap();
 }
 

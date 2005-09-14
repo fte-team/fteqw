@@ -129,13 +129,33 @@ void	ValidationPrintVersion(char *f_query_string)
 	char answer;
 	char name[128];
 	char sr[256];
+	char *s;
 	int i;
+
+	extern cvar_t r_shadow_realtime_world, r_drawflat;
 
 	switch(qrenderer)
 	{
 #ifdef RGLQUAKE
 	case QR_OPENGL:
-		*sr = *"";
+		s = sr;
+		//print certain allowed 'cheat' options.
+		//realtime lighting (shadows can show around corners)
+		//drawflat is just lame
+		//24bits can be considered eeeevil, by some.
+		if (r_shadows.value)
+		{
+			if (r_shadow_realtime_world.value)
+				*s++ = 'W';
+			else
+				*s++ = 'S';
+		}
+		if (r_drawflat.value)
+			*s++ = 'F';
+		if (gl_load24bit.value)
+			*s++ = 'H';
+
+		*s = *"";
 		break;
 #endif
 #ifdef SWQUAKE
@@ -147,7 +167,11 @@ void	ValidationPrintVersion(char *f_query_string)
 		*sr = *"";
 		break;
 	}
-	if (Security_Generate_Crc && allow_f_version.value)
+
+	if (!allow_f_version.value)
+		return;	//suppress it
+
+	if (Security_Generate_Crc)
 	{
 		signed_buffer_t *resp;
 		query_crc = SCRC_GetQueryStateCrc(f_query_string);
@@ -1019,6 +1043,10 @@ void Validation_Skins(void)
 {
 	extern cvar_t r_fullbrightSkins, r_fb_models;
 	int percent = r_fullbrightSkins.value*100;
+
+	if (!allow_f_skins.value)
+		return;
+
 	if (percent < 0)
 		percent = 0;
 	if (percent > cls.allow_fbskins*100)

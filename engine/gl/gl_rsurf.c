@@ -1991,7 +1991,6 @@ dynamic:
 		if ((theRect->h + theRect->t) < (fa->light_t + tmax))
 			theRect->h = (fa->light_t-theRect->t)+tmax;
 
-
 		lightmap[fa->lightmaptexturenum]->deluxmodified = true;
 		theRect = &lightmap[fa->lightmaptexturenum]->deluxrectchange;
 		if (fa->light_t < theRect->t) {
@@ -3158,12 +3157,12 @@ void R_DrawWorld (void)
 			GLR_RecursiveWorldNode (cl.worldmodel->nodes);
 
 		RSpeedEnd(RSPEED_WORLDNODE);
-
 		TRACE(("dbg: calling PPL_DrawWorld\n"));
 //		if (r_shadows.value >= 2 && gl_canstencil && gl_mtexable)
 			PPL_DrawWorld();
 //		else
 //			DrawTextureChains (cl.worldmodel, 1, r_refdef.vieworg);
+
 
 qglTexEnvf(GL_TEXTURE_ENV, GL_TEXTURE_ENV_MODE, GL_MODULATE);
 
@@ -3851,17 +3850,20 @@ void GL_BuildLightmaps (void)
 		, LMBLOCK_WIDTH, LMBLOCK_HEIGHT, 0, 
 		gl_lightmap_format, GL_UNSIGNED_BYTE, lightmap[i]->lightmaps);
 
-		lightmap[i]->deluxmodified = false;
-		lightmap[i]->deluxrectchange.l = LMBLOCK_WIDTH;
-		lightmap[i]->deluxrectchange.t = LMBLOCK_HEIGHT;
-		lightmap[i]->deluxrectchange.w = 0;
-		lightmap[i]->deluxrectchange.h = 0;
-		GL_Bind(deluxmap_textures[i]);
-		qglTexParameterf(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
-		qglTexParameterf(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
-		qglTexImage2D (GL_TEXTURE_2D, 0, 3
-		, LMBLOCK_WIDTH, LMBLOCK_HEIGHT, 0, 
-		GL_RGB, GL_UNSIGNED_BYTE, lightmap[i]->deluxmaps);
+		if (gl_bump.value)
+		{
+			lightmap[i]->deluxmodified = false;
+			lightmap[i]->deluxrectchange.l = LMBLOCK_WIDTH;
+			lightmap[i]->deluxrectchange.t = LMBLOCK_HEIGHT;
+			lightmap[i]->deluxrectchange.w = 0;
+			lightmap[i]->deluxrectchange.h = 0;
+			GL_Bind(deluxmap_textures[i]);
+			qglTexParameterf(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+			qglTexParameterf(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+			qglTexImage2D (GL_TEXTURE_2D, 0, 3
+			, LMBLOCK_WIDTH, LMBLOCK_HEIGHT, 0, 
+			GL_RGB, GL_UNSIGNED_BYTE, lightmap[i]->deluxmaps);
+		}
 	}
 }
 #endif

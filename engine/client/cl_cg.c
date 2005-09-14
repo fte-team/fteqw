@@ -761,14 +761,10 @@ static long CG_SystemCallsEx(void *offset, unsigned int mask, int fn, const long
 		break;
 
 	case CG_R_REGISTERSHADER:
+		VM_LONG(ret) = VM_TOHANDLE(R_RegisterPic(VM_POINTER(arg[0])));
+		break;
 	case CG_R_REGISTERSHADERNOMIP:
-		VM_LONG(ret) = VM_TOHANDLE(R_RegisterShader(VM_POINTER(arg[0])));
-		/*
-		if (!Draw_SafeCachePic)
-			VM_LONG(ret) = 0;
-		else
-			VM_LONG(ret) = (long)Draw_SafeCachePic(VM_POINTER(arg[0]));
-		*/
+		VM_LONG(ret) = VM_TOHANDLE(R_RegisterPic(VM_POINTER(arg[0])));
 		break;
 
 	case CG_R_CLEARSCENE:	//clear scene
@@ -1120,10 +1116,10 @@ void CG_Start (void)
 
 qboolean CG_Command(void)
 {
-	Con_DPrintf("CG_Command: %s %s\n", Cmd_Argv(0), Cmd_Args());
 #ifdef RGLQUAKE
 	if (!cgvm)
 		return false;
+	Con_DPrintf("CG_Command: %s %s\n", Cmd_Argv(0), Cmd_Args());
 	return VM_Call(cgvm, CG_CONSOLE_COMMAND);
 #else
 	return false;
@@ -1132,12 +1128,14 @@ qboolean CG_Command(void)
 
 void CG_Command_f(void)
 {
-	Con_DPrintf("CG_Command_f: %s %s\n", Cmd_Argv(0), Cmd_Args());
 	if (cgvm)
+	{
+		Con_DPrintf("CG_Command_f: %s %s\n", Cmd_Argv(0), Cmd_Args());
 		if (!VM_Call(cgvm, CG_CONSOLE_COMMAND))
 		{
 			Cmd_ForwardToServer();
 		}
+	}
 }
 
 qboolean CG_KeyPress(int key, int down)

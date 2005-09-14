@@ -72,6 +72,7 @@ cvar_t	entlatency = {"entlatency", "20"};
 cvar_t	cl_predict_players = {"cl_predict_players", "1"};
 cvar_t	cl_predict_players2 = {"cl_predict_players2", "1"};
 cvar_t	cl_solid_players = {"cl_solid_players", "1"};
+cvar_t	cl_noblink = {"cl_noblink", "0"};
 
 cvar_t cl_demospeed = {"cl_demospeed", "0"};
 
@@ -2375,6 +2376,7 @@ void CL_Init (void)
 
 	Cvar_Register (&baseskin,	"Teamplay");
 	Cvar_Register (&noskins,	"Teamplay");
+	Cvar_Register (&cl_noblink,	"Teamplay");	//for lack of a better group
 
 	Cvar_Register (&cl_item_bobbing, "Item effects");
 

@@ -465,9 +465,6 @@ qboolean SV_LoadLevelCache(char *level, char *startspot, qboolean ignoreplayers)
 	edict_t	*ent;
 	int		version;
 
-	char modellist[MAX_QPATH][MAX_MODELS];
-	char soundlist[MAX_QPATH][MAX_SOUNDS];
-
 	int current_skill;
 
 	int clnum;

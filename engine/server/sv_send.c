@@ -1816,6 +1816,7 @@ void SV_SendClientMessages (void)
 		{
 			SZ_Clear (&c->netchan.message);
 			SZ_Clear (&c->datagram);
+			c->num_backbuf = 0;
 			continue;
 		}
 

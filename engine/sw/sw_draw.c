@@ -671,6 +671,7 @@ void SWDraw_ColouredCharacter (int x, int y, unsigned int num)
 	qbyte			*source;
 	int				drawline;	
 	int				row, col;
+	extern cvar_t cl_noblink;
 
 int colour;
 	
@@ -684,8 +685,9 @@ int colour;
 
 	if (num & CON_BLINKTEXT)
 	{
-		if ((int)(cl.time*2) & 1)
-			return;
+		if (!cl_noblink.value)
+			if ((int)(cl.time*2) & 1)
+				return;
 	}
 
 	if (colour == COLOR_WHITE)

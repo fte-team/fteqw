@@ -99,8 +99,8 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 		#define SP2MODELS		//quake2 sprite models
 		#define MD2MODELS		//quake2 alias models
 		#define MD3MODELS		//quake3 alias models
-//		#define MD5MODELS		//doom3 models
-//		#define ZYMOTICMODELS	//zymotic skeletal models.
+		#define MD5MODELS		//doom3 models
+		#define ZYMOTICMODELS	//zymotic skeletal models.
 		#define HUFFNETWORK		//huffman network compression
 		#define HALFLIFEMODELS	//halflife model support (experimental)
 //		#define DOOMWADS		//doom wad/map/sprite support
@@ -179,6 +179,8 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 #ifdef SERVERONLY	//remove options that don't make sense on only a server
 	#undef Q2CLIENT
 	#undef Q3CLIENT
+	#undef VM_UI
+	#undef VM_CG
 	#undef WEBCLIENT
 	#undef IRCCLIENT
 	#undef TEXTEDITOR
@@ -240,7 +242,7 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 #define DISTRIBUTION "FTE"
 #define DISTRIBUTIONLONG "Forethought Entertainment"
 
-#define ENGINEWEBSITE "http://fte.quakesrc.org/"
+#define ENGINEWEBSITE "http://fteqw.sourceforge.net/"
 
 #if defined(_WIN32)
 #define PLATFORM	"Win32"

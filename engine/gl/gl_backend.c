@@ -2048,7 +2048,8 @@ void R_RenderMeshBuffer ( meshbuffer_t *mb, qboolean shadowpass )
 	shader_t *shader;
 	shaderpass_t *pass;
 
-	if ( !numVerts ) {
+	if ( !numVerts )
+	{
 		return;
 	}
 
@@ -2062,19 +2063,23 @@ void R_RenderMeshBuffer ( meshbuffer_t *mb, qboolean shadowpass )
 	shader = mb->shader;
 	r_lmtex = mb->infokey;
 
-	if ( currententity && !gl_state.in2d ) {
+	if ( currententity && !gl_state.in2d )
+	{
 		r_localShaderTime = r_refdef.time - currententity->shaderTime;
-	} else {
+	} else
+	{
 		r_localShaderTime = realtime;
 	}
 
 	R_SetShaderState ( shader );
 
-	if ( shader->numdeforms ) {
+	if ( shader->numdeforms )
+	{
 		R_DeformVertices ( mb );
 	}
 
-	if ( !numIndexes || shadowpass ) {
+	if ( !numIndexes || shadowpass )
+	{
 		return;
 	}
 
@@ -2082,7 +2087,8 @@ void R_RenderMeshBuffer ( meshbuffer_t *mb, qboolean shadowpass )
 
 	for ( i = 0, pass = shader->passes; i < shader->numpasses; )
 	{
-		if ( !(pass->flags & SHADER_PASS_DETAIL) || r_detailtextures.value ) {
+		if ( !(pass->flags & SHADER_PASS_DETAIL) || r_detailtextures.value )
+		{
 			pass->flush ( mb, pass );
 		}
 

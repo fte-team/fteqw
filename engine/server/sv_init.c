@@ -494,7 +494,7 @@ void SV_SpawnServer (char *server, char *startspot, qboolean noents, qboolean us
 #ifdef Q2SERVER
 	q2edict_t		*q2ent;
 #endif
-	int			i;
+	int			i, j;
 	int spawnflagmask;
 
 #ifndef SERVERONLY
@@ -1143,7 +1143,7 @@ void SV_SpawnServer (char *server, char *startspot, qboolean noents, qboolean us
 
 	if (svs.gametype == GT_PROGS)
 	{
-		for (i = 0; i < MAX_CLIENTS; i++)
+		for (i = 0; i < sv.allocated_client_slots; i++)
 		{
 			host_client = &svs.clients[i];
 			if (host_client->state == cs_connected && host_client->protocol == SCP_BAD)
@@ -1152,11 +1152,14 @@ void SV_SpawnServer (char *server, char *startspot, qboolean noents, qboolean us
 				SV_ExtractFromUserinfo(host_client);
 
 				// copy spawn parms out of the client_t
-				for (i=0 ; i< NUM_SPAWN_PARMS ; i++)
+				for (j=0 ; j< NUM_SPAWN_PARMS ; j++)
 				{
-					if (spawnparamglobals[i])
-						*spawnparamglobals[i] = host_client->spawn_parms[i];
+					if (spawnparamglobals[j])
+						*spawnparamglobals[j] = host_client->spawn_parms[j];
 				}
+
+				SetUpClientEdict(host_client, sv_player);
+				sv_player->v->clientcolors = atoi(Info_ValueForKey(host_client->userinfo, "topcolor"))*16 + atoi(Info_ValueForKey(host_client->userinfo, "bottomcolor"));
 
 				// call the spawn function
 				pr_global_struct->time = sv.time;

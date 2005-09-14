@@ -898,12 +898,15 @@ void M_DeInit_Internal (void)
 	Cmd_RemoveCommand ("menu_download");
 }
 
+void FPS_Preset_f(void);
+
 //menu.dat is loaded later... after the video and everything is up.
 void M_Init (void)
 {
 	M_Init_Internal();
 
 	Cmd_AddCommand("togglemenu", M_ToggleMenu_f);
+	Cmd_AddCommand("fps_preset", FPS_Preset_f);
 
 	Cvar_Register(&m_helpismedia, "Menu thingumiebobs");
 

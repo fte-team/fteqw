@@ -375,19 +375,85 @@ void M_Menu_Particles_f (void)
 	menu->cursoritem = (menuoption_t*)MC_AddWhiteText(menu, 200, 32, NULL, false);
 }
 
+enum {
+	PRESET_286,
+	PRESET_FAST,
+	PRESET_DEFAULT,
+	PRESET_NICE,
+	PRESET_REALTIME,
+	PRESET_MAX
+};
+typedef struct {
+	char *cvarname;
+	char *value[PRESET_MAX];
+} presetinfo_t;
+presetinfo_t preset[] =
+{
+	{"r_presetname",    {"286",	"fast",		"default",	"nice",		"realtime"}},
+	{"r_particlesdesc", {"none",	"highfps",	"spikeset",	"spikeset",	"spikeset"}},
+	{"r_stains",	    {"0",	"0",		"1",		"1",		"1"}},
+	{"r_drawflat",	    {"1",	"0",		"0",		"0",		"0"}},
+	{"r_nolerp",	    {"1",	"1",		"0",		"0",		"0"}},
+	{"r_nolightdir",    {"1",	"0",		"0",		"0",		"0"}},
+	{"r_dynamic",	    {"0",	"0",		"1",		"1",		"1"}},
+	{"gl_flashblend",    {"0",	"1",		"0",		"1",		"2"}},
+	{"gl_bump",	    {"0",	"0",		"0",		"1",		"1"}},
+	{"gl_specular",	    {"0",	"0",		"0",		"1",		"1"}},
+	{"r_loadlit",	    {"0",	"1",		"1",		"2",		"2"}},
+	{"r_fastsky",	    {"1",	"1",		"0",		"0",		"0"}},
+	{"r_waterlayers",   {"0",	"2",		"3",		"4",		"4"}},
+	{"r_shadows",	    {"0",	"0",		"0",		"1",		"1"}},
+	{"r_shadow_realtime_world",{"0","0",		"0",		"0",		"1"}},
+	{"gl_detail",	    {"0",	"0",		"0",		"1",		"1"}},
+	{"gl_load24bit",    {"0",	"0",		"1",		"1",		"1"}},
+	{"r_waterwarp",	    {"0",	"2",		"1",		"1",		"1"}},
+	{NULL}
+};
+static void ApplyPreset (int presetnum)
+{
+	int i;
+	for (i = 1; preset[i].cvarname; i++)
+	{
+		Cbuf_AddText(preset[i].cvarname, Cmd_ExecLevel);
+		Cbuf_AddText(" ", Cmd_ExecLevel);
+		Cbuf_AddText(preset[i].value[presetnum], Cmd_ExecLevel);
+		Cbuf_AddText("\n", Cmd_ExecLevel);
+	}
+}
+
+void FPS_Preset_f (void)
+{
+	char *arg = Cmd_Argv(1);
+	int i;
+	for (i = 0; i < PRESET_MAX; i++)
+	{
+		if (!strcmp(preset[0].value[i], arg))
+		{
+			ApplyPreset(i);
+			return;
+		}
+	}
+
+	Con_Printf("Preset %s not recognised\n", arg);
+	Con_Printf("Valid presests:\n");
+	for (i = 0; i < PRESET_MAX; i++)
+		Con_Printf("%s\n", preset[0].value[i]);
+}
+
 
 void M_Menu_FPS_f (void)
 {
 	int y = 32;
 	menu_t *menu;
 	int mgt;
+	int i, len;
 #ifdef RGLQUAKE
 	extern cvar_t gl_compress, gl_detail, gl_bump, r_flashblend;
 #endif
 #ifdef SWQUAKE
 	extern cvar_t d_smooth, d_mipscale, d_mipcap;
 #endif
-	extern cvar_t r_stains, r_bloodstains, r_loadlits, r_dynamic, v_contentblend, show_fps;
+	extern cvar_t r_stains, r_bloodstains, r_loadlits, r_dynamic, v_contentblend, show_fps, gl_skyboxname;
 
 	key_dest = key_menu;
 	m_state = m_complex;
@@ -413,14 +479,20 @@ void M_Menu_FPS_f (void)
 
 	menu->selecteditem = (union menuoption_s *)
 
-	MC_AddConsoleCommand(menu, 48, y,		"  Particle Options", "menu_particles\n"); y+=8;
+	MC_AddConsoleCommand(menu, 48, y,			"  Particle Options", "menu_particles\n"); y+=8;
 
+	for (i = 0; i < PRESET_MAX; i++)
+	{
+		len = strlen(preset[0].value[i]);
+		MC_AddConsoleCommand(menu, 48+8*(9-len), y,		va("(preset) %s", preset[0].value[i]), va("fps_preset %s\n", preset[0].value[i])); y+=8;
+	}
 	MC_AddCheckBox(menu, 48, y,				"          Show FPS", &show_fps,0);y+=8;
 
 	MC_AddCheckBox(menu, 48, y,				"     Content blend", &v_contentblend,0);y+=8;
 	MC_AddCheckBox(menu, 48, y,				"    Dynamic lights", &r_dynamic,0);y+=8;
-	MC_AddCheckBox(menu, 48, y,			    "         Stainmaps", &r_stains,0);y+=8;
+	MC_AddCheckBox(menu, 48, y,			    	"         Stainmaps", &r_stains,0);y+=8;
 
+	y+=4;MC_AddEditCvar(menu, 48, y,				"            Skybox", &gl_skyboxname);y+=8;y+=4;
 	switch(qrenderer)
 	{
 #ifdef RGLQUAKE
@@ -437,7 +509,7 @@ void M_Menu_FPS_f (void)
 #ifdef SWQUAKE
 	case QR_SOFTWARE:
 		if (r_pixbytes == 4)
-		{MC_AddCheckBox(menu, 48, y,		"   Load .lit files", &r_loadlits,0);y+=8;}
+		{MC_AddCheckBox(menu, 48, y,			"   Load .lit files", &r_loadlits,0);y+=8;}
 		MC_AddCheckBox(menu, 48, y,			" Texture Smoothing", &d_smooth,0);y+=8;
 		MC_AddSlider(menu, 48, y,			"      Mipmap scale", &d_mipscale,		0.1,	3);y+=8;
 		MC_AddSlider(menu, 48, y,			"    Mipmap Capping", &d_mipcap,		0,		3);y+=8;

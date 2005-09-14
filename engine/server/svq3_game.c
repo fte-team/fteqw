@@ -990,7 +990,7 @@ long Q3G_SystemCallsEx(void *offset, unsigned int mask, int fn, const long *arg)
 			int length = VM_LONG(arg[1]);
 			Q_strncpyz(dest, svs.info, length);
 		}
-		return ;
+		return true;
 	case G_GET_USERINFO://int num, char *buffer, int bufferSize										20
 		if (VM_OOB(arg[1], arg[2]))
 			return 0;

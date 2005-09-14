@@ -46,7 +46,8 @@ void Plug_DrawReloadImages(void);
 
 
 
-//these things are specific to FTE QuakeWorld
+#ifdef VM_UI
+qboolean UI_Command(void);
 void UI_Init (void);
 void UI_Restart_f(void);
 void UI_Stop (void);
@@ -61,12 +62,14 @@ qboolean UI_DrawStatusBar(int scores);
 qboolean UI_DrawIntermission(void);
 qboolean UI_DrawFinale(void);
 int UI_MenuState(void);
+#endif
 
 #ifdef VM_CG
 void CG_Stop (void);
 void CG_Start (void);
 int CG_Refresh(void);
 qboolean CG_Command(void);
+qboolean CG_KeyPress(int key, int down);
 #endif
 
 #endif

@@ -520,6 +520,16 @@ void R_DrawSpriteModel (entity_t *e)
 		byte_vec4_t colours[4];
 		float x, y;
 
+#define VectorSet(a,b,c,v) {v[0]=a;v[1]=b;v[2]=c;}
+		x = cos(e->rotation+225*M_PI/180)*e->scale;
+		y = sin(e->rotation+225*M_PI/180)*e->scale;
+		VectorSet (e->origin[0] - y*vright[0] + x*vup[0], e->origin[1] - y*vright[1] + x*vup[1], e->origin[2] - y*vright[2] + x*vup[2], vertcoords[3]);
+		VectorSet (e->origin[0] - x*vright[0] - y*vup[0], e->origin[1] - x*vright[1] - y*vup[1], e->origin[2] - x*vright[2] - y*vup[2], vertcoords[2]);
+		VectorSet (e->origin[0] + y*vright[0] - x*vup[0], e->origin[1] + y*vright[1] - x*vup[1], e->origin[2] + y*vright[2] - x*vup[2], vertcoords[1]);
+		VectorSet (e->origin[0] + x*vright[0] + y*vup[0], e->origin[1] + x*vright[1] + y*vup[1], e->origin[2] + x*vright[2] + y*vup[2], vertcoords[0]);
+		*(int*)colours[0] = *(int*)colours[1] = *(int*)colours[2] = *(int*)colours[3] = 
+			*(int*)e->shaderRGBA;
+
 		mesh.colors_array = colours;
 		mesh.indexes = indexes;
 		mesh.lmst_array = NULL;
@@ -531,16 +541,6 @@ void R_DrawSpriteModel (entity_t *e)
 		mesh.xyz_array = vertcoords;
 		mesh.normals_array = NULL;
 
-#define VectorSet(a,b,c,v) {v[0]=a;v[1]=b;v[2]=c;}
-		x = cos(e->rotation+225*M_PI/180)*e->scale;
-		y = sin(e->rotation+225*M_PI/180)*e->scale;
-		VectorSet (e->origin[0] - y*vright[0] + x*vup[0], e->origin[1] - y*vright[1] + x*vup[1], e->origin[2] - y*vright[2] + x*vup[2], vertcoords[3]);
-		VectorSet (e->origin[0] - x*vright[0] - y*vup[0], e->origin[1] - x*vright[1] - y*vup[1], e->origin[2] - x*vright[2] - y*vup[2], vertcoords[2]);
-		VectorSet (e->origin[0] + y*vright[0] - x*vup[0], e->origin[1] + y*vright[1] - x*vup[1], e->origin[2] + y*vright[2] - x*vup[2], vertcoords[1]);
-		VectorSet (e->origin[0] + x*vright[0] + y*vup[0], e->origin[1] + x*vright[1] + y*vup[1], e->origin[2] + x*vright[2] + y*vup[2], vertcoords[0]);
-		*(int*)colours[0] = *(int*)colours[1] = *(int*)colours[2] = *(int*)colours[3] = 
-			*(int*)e->shaderRGBA;
-
 		
 		R_IBrokeTheArrays();
 
@@ -551,7 +551,7 @@ void R_DrawSpriteModel (entity_t *e)
 		mb.infokey = -1;
 		mb.dlightbits = 0;
 
-		R_PushMesh(&mesh, mb.shader->features | MF_NONBATCHED);
+		R_PushMesh(&mesh, mb.shader->features | MF_NONBATCHED|MF_COLORS);
 
 		R_RenderMeshBuffer ( &mb, false );
 		return;
@@ -864,45 +864,21 @@ void GLR_DrawEntitiesOnList (void)
 
 		if (!PPL_ShouldDraw())
 			continue;
-		/*
-		if (r_inmirror)
-		{
-			if (currententity->flags & Q2RF_WEAPONMODEL)
-				continue;
-		}
-		else
-		{
-			if (currententity->keynum == (cl.viewentity[r_refdef.currentplayernum]?cl.viewentity[r_refdef.currentplayernum]:(cl.playernum[r_refdef.currentplayernum]+1)))
-				continue;
-//			if (cl.viewentity[r_refdef.currentplayernum] && currententity->keynum == cl.viewentity[r_refdef.currentplayernum])
-//				continue;
-			if (!Cam_DrawPlayer(0, currententity->keynum-1))
-				continue;
-		}*/
-/*
 
-		if (r_inmirror)
-		{
-			if (currententity->flags & Q2RF_WEAPONMODEL)
-				continue;
-		}
-		else
-		{
-			if (currententity->keynum == (cl.viewentity[r_refdef.currentplayernum]?cl.viewentity[r_refdef.currentplayernum]:(cl.playernum[r_refdef.currentplayernum]+1)))
-				continue;
-//			if (cl.viewentity[r_refdef.currentplayernum] && currententity->keynum == cl.viewentity[r_refdef.currentplayernum])
-//				continue;
-			if (!Cam_DrawPlayer(0, currententity->keynum-1))
-				continue;
-		}
-*/
+
 		switch (currententity->rtype)
 		{
 		case RT_SPRITE:
 			RQ_AddDistReorder(GLR_DrawSprite, currententity, NULL, currententity->origin);
+//			R_DrawSpriteModel(currententity);
+			continue;
+		case RT_BEAM:
+		case RT_RAIL_RINGS:
+		case RT_LIGHTNING:
+			R_DrawLightning(currententity);
 			continue;
 		case RT_RAIL_CORE:
-			R_DrawBeam(currententity);
+			R_DrawRailCore(currententity);
 			continue;
 		}
 		if (currententity->flags & Q2RF_BEAM)
@@ -1488,9 +1464,9 @@ void R_SetupGL (void)
 	//
 	// set up viewpoint
 	//
-	x = r_refdef.vrect.x * glwidth/vid.width;
-	x2 = (r_refdef.vrect.x + r_refdef.vrect.width) * glwidth/vid.width;
-	y = (vid.height-r_refdef.vrect.y) * glheight/vid.height;
+	x = r_refdef.vrect.x * glwidth/(int)vid.width;
+	x2 = (r_refdef.vrect.x + r_refdef.vrect.width) * glwidth/(int)vid.width;
+	y = (vid.height-r_refdef.vrect.y) * glheight/(int)vid.height;
 	y2 = ((int)vid.height - (r_refdef.vrect.y + r_refdef.vrect.height)) * glheight/(int)vid.height;
 
 	// fudge around because of frac screen scale
@@ -1568,7 +1544,6 @@ void R_SetupGL (void)
 	ML_ModelViewMatrixFromAxis(r_view_matrix, vpn, vright, vup, r_refdef.vieworg);
 	qglLoadMatrixf(r_view_matrix);
 
-
 	//
 	// set drawing parms
 	//
@@ -1599,7 +1574,6 @@ void R_SetupGL (void)
 	}
 
   */
-
 	if (gl_dither.value)
 	{
 		qglEnable(GL_DITHER);
@@ -2224,6 +2198,7 @@ void GLR_RenderView (void)
 
 	// render normal view
 	R_RenderScene ();	
+
 	GLR_DrawViewModel ();
 	GLR_DrawWaterSurfaces ();
 	GLR_DrawAlphaSurfaces ();

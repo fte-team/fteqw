@@ -187,7 +187,7 @@ qboolean FSOS_FLocate(void *handle, flocation_t *loc, char *filename, void *hash
 */			
 
 // check a file in the directory tree
-	_snprintf (netpath, sizeof(netpath)-1, "%s/%s",handle, filename);
+	_snprintf (netpath, sizeof(netpath)-1, "%s/%s",(char*)handle, filename);
 	
 	f = fopen(netpath, "rb");
 	if (!f)
@@ -407,7 +407,7 @@ searchpathfuncs_t packfilefuncs = {
 //======================================================================================================
 //ZIP files (*.zip *.pk3)
 
-
+void *com_pathforfile;	//fread and stuff is preferable if null
 
 #define ZEXPORT VARGS
 
@@ -433,8 +433,6 @@ typedef struct zipfile_s
 	hashtable_t hash;
 #endif
 } zipfile_t;
-
-void *com_pathforfile;	//fread and stuff is preferable if null.
 
 
 static void FSZIP_PrintPath(void *handle)

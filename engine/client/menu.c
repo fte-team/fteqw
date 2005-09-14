@@ -890,6 +890,7 @@ void M_DeInit_Internal (void)
 	Cmd_RemoveCommand ("menu_options");
 	Cmd_RemoveCommand ("menu_video");
 	Cmd_RemoveCommand ("menu_audio");
+	Cmd_RemoveCommand ("menu_speakers");
 	Cmd_RemoveCommand ("menu_fps");
 	Cmd_RemoveCommand ("menu_particles");
 	Cmd_RemoveCommand ("menu_particlesets");

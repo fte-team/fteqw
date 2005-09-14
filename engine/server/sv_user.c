@@ -4689,26 +4689,48 @@ void SVNQ_ReadClientMove (usercmd_t *move)
 
 	if (host_client->protocol == SCP_DARKPLACES6 || host_client->protocol == SCP_DARKPLACES7)
 	{
-		/*move->cursor_screen[0] = */MSG_ReadShort() * (1.0f / 32767.0f);
-		/*move->cursor_screen[1] = */MSG_ReadShort() * (1.0f / 32767.0f);
-		/*move->cursor_start[0] = */MSG_ReadFloat();
-		/*move->cursor_start[1] = */MSG_ReadFloat();
-		/*move->cursor_start[2] = */MSG_ReadFloat();
-		/*move->cursor_impact[0] = */MSG_ReadFloat();
-		/*move->cursor_impact[1] = */MSG_ReadFloat();
-		/*move->cursor_impact[2] = */MSG_ReadFloat();
-		/*move->cursor_entitynumber = */(unsigned short)MSG_ReadShort();
-/*		if (move->cursor_entitynumber >= prog->max_edicts)
+		float f;
+		int entnum;
+		eval_t *cursor_screen, *cursor_start, *cursor_impact, *cursor_entitynumber;
+
+		cursor_screen	= svprogfuncs->GetEdictFieldValue(svprogfuncs, host_client->edict, "cursor_screen", NULL);
+		cursor_start	= svprogfuncs->GetEdictFieldValue(svprogfuncs, host_client->edict, "cursor_start", NULL);
+		cursor_impact	= svprogfuncs->GetEdictFieldValue(svprogfuncs, host_client->edict, "cursor_impact", NULL);
+		cursor_entitynumber	= svprogfuncs->GetEdictFieldValue(svprogfuncs, host_client->edict, "cursor_entitynumber", NULL);
+
+		f = MSG_ReadShort() * (1.0f / 32767.0f);
+		if (cursor_screen) cursor_screen->vector[0] = f;
+		f = MSG_ReadShort() * (1.0f / 32767.0f);
+		if (cursor_screen) cursor_screen->vector[1] = f;
+
+		f = MSG_ReadFloat();
+		if (cursor_start) cursor_start->vector[0] = f;
+		f = MSG_ReadFloat();
+		if (cursor_start) cursor_start->vector[1] = f;
+		f = MSG_ReadFloat();
+		if (cursor_start) cursor_start->vector[2] = f;
+
+		f = MSG_ReadFloat();
+		if (cursor_impact) cursor_impact->vector[0] = f;
+		f = MSG_ReadFloat();
+		if (cursor_impact) cursor_impact->vector[1] = f;
+		f = MSG_ReadFloat();
+		if (cursor_impact) cursor_impact->vector[2] = f;
+
+		entnum = (unsigned short)MSG_ReadShort();
+		if (entnum >= sv.max_edicts)
 		{
 			Con_DPrintf("SV_ReadClientMessage: client send bad cursor_entitynumber\n");
-			move->cursor_entitynumber = 0;
+			entnum = 0;
 		}
 		// as requested by FrikaC, cursor_trace_ent is reset to world if the
 		// entity is free at time of receipt
-		if (PRVM_EDICT_NUM(move->cursor_entitynumber)->priv.server->free)
-			move->cursor_entitynumber = 0;
+		if (EDICT_NUM(svprogfuncs, entnum)->isfree)
+			entnum = 0;
 		if (msg_badread) Con_Printf("SV_ReadClientMessage: badread at %s:%i\n", __FILE__, __LINE__);
-*/	}
+
+		if (cursor_entitynumber) cursor_entitynumber->edict = entnum;
+	}
 
 
 	if (i && SV_FiltureImpulse(i, host_client->trustlevel))

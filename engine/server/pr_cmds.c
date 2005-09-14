@@ -1457,6 +1457,9 @@ char *PF_VarString (progfuncs_t *prinst, int	first, globalvars_t *pr_globals)
 	out[0] = 0;
 	for (i=first ; i<*prinst->callargc ; i++)
 	{
+//		if (G_INT(OFS_PARM0+i*3) < 0 || G_INT(OFS_PARM0+i*3) >= 1024*1024);
+//			break;
+
 		s = PR_GetStringOfs(prinst, OFS_PARM0+i*3);
 		if (s)
 		{
@@ -1566,7 +1569,11 @@ void PF_externvalue (progfuncs_t *prinst, globalvars_t *pr_globals)	//return a v
 	var = prinst->FindGlobal(prinst, varname, n);
 
 	if (var)
-		G_INT(OFS_RETURN) = var->_int;
+	{
+		G_INT(OFS_RETURN+0) = ((int*)&var->_int)[0];
+		G_INT(OFS_RETURN+1) = ((int*)&var->_int)[1];
+		G_INT(OFS_RETURN+2) = ((int*)&var->_int)[2];
+	}
 	else
 		G_INT(OFS_RETURN) = 0;
 }
@@ -6121,6 +6128,7 @@ lh_extension_t QSG_Extensions[] = {
 	{"DP_QC_TRACEBOX",					1,	NULL, {"tracebox"}},
 	{"DP_QC_TRACE_MOVETYPES"},		//this one is just a lame excuse to add annother extension...
 	{"DP_QC_VECTORVECTORS",				1,	NULL, {"vectorvectors"}},
+	{"DP_SV_WRITEUNTERMINATEDSTRING",	1,	NULL, {"WriteUnterminatedString"}},
 	{"DP_QUAKE2_MODEL"},
 	{"DP_QUAKE3_MODEL"},
 	{"DP_REGISTERCVAR",					1,	NULL, {"registercvar"}},
@@ -9209,6 +9217,8 @@ BuiltinList_t BuiltinList[] = {				//nq	qw		h2		ebfs
 
 	{"spawnclient",		PF_spawnclient,		0,		0,		0,		454},	//entity() spawnclient = #454;
 	{"clienttype",		PF_clienttype,		0,		0,		0,		455},	//float(entity client) clienttype = #455;
+
+	{"WriteUnterminatedString",PF_WriteString2,0,	0,		0,		456},	//writestring but without the null terminator. makes things a little nicer.
 
 //end other peoples extras
 

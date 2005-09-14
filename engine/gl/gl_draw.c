@@ -58,6 +58,7 @@ extern cvar_t		gl_picmip2d;
 extern cvar_t		r_drawdisk;
 extern cvar_t		gl_compress;
 extern cvar_t		gl_font, gl_conback, gl_smoothfont, gl_fontedgeclamp;
+extern cvar_t cl_noblink;
 
 extern cvar_t		gl_savecompressedtex;
 
@@ -1230,8 +1231,9 @@ void GLDraw_ColouredCharacter (int x, int y, unsigned int num)
 	
 	if (num & CON_BLINKTEXT)
 	{
-		if ((int)(realtime*3) & 1)
-			return;
+		if (!cl_noblink.value)
+			if ((int)(realtime*3) & 1)
+				return;
 	}
 
 	{

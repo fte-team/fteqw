@@ -524,6 +524,12 @@ reeval:
 
 		if (newf->first_statement < 0)
 		{	// negative statements are built in functions
+
+if (pr_typecurrent != 0)
+{
+	PR_MoveParms(progfuncs, 0, pr_typecurrent);
+	PR_SwitchProgs(progfuncs, 0);
+}
 			i = -newf->first_statement;
 //			p = pr_typecurrent;
 			progfuncs->lastcalledbuiltinnumber = i;

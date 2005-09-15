@@ -174,10 +174,12 @@ void QCC_FindBestInclude(char *newfile, char *currentfile, char *rootpath)
 		if (*stripfrom == '/' || *stripfrom == '\\')
 			break;
 	}
-
 	strcpy(end, rootpath); end = end+strlen(end);
-	if (*fullname)
-		strcpy(end, "/"); end = end+strlen(end);
+	if (*fullname && end[-1] != '/')
+	{
+		strcpy(end, "/");
+		end = end+strlen(end);
+	}
 	strncpy(end, currentfile, stripfrom - currentfile); end += stripfrom - currentfile; *end = '\0';
 	strcpy(end, newfile);
 

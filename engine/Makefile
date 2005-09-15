@@ -456,6 +456,8 @@ endif
 
 
 
+	MINGL_EXE_NAME=../fteqw.mingl
+	MINGL_DIR=mingl_linux
 endif
 
 SV_DIR?=sv_sdl
@@ -533,8 +535,8 @@ gl-dbg:
 	$(MAKE) gl-tmp TYPE=_clsv-dbg OUT_DIR="$(DEBUG_DIR)/$(GLB_DIR)"
 
 
-mingl-tmp:
-	$(MAKE) $(TYPE) OUT_DIR="$(OUT_DIR)" EXE_NAME=$(MINGL_EXE_NAME)" WCFLAGS="$(GL_CFLAGS) -DMINIMAL" LDFLAGS="$(GL_LDFLAGS)" SOBJS="$(GLCL_OBJS)"
+mingl-tmp: reldir
+	$(MAKE) $(TYPE) OUT_DIR="$(OUT_DIR)" EXE_NAME="$(MINGL_EXE_NAME)" WCFLAGS="$(GL_CFLAGS) -DMINIMAL" LDFLAGS="$(GL_LDFLAGS)" SOBJS="$(GLCL_OBJS)"
 mingl-rel:
 	$(MAKE) mingl-tmp TYPE=_cl-rel OUT_DIR="$(RELEASE_DIR)/$(MINGL_DIR)"
 

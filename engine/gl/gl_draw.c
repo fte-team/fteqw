@@ -3274,8 +3274,12 @@ void GL_Upload8 (qbyte *data, int width, int height,  qboolean mipmap, qboolean 
 		{
 			p = data[i];
 			if (p == 255)
+			{
 				noalpha = false;
-			trans[i] = d_8to24rgbtable[p];
+				trans[i] = 0;
+			}
+			else
+				trans[i] = d_8to24rgbtable[p];
 		}
 
 		switch( alpha )

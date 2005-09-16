@@ -230,7 +230,7 @@ int QC_RegisterFieldVar(progfuncs_t *progfuncs, unsigned int type, char *name, i
 				continue;
 			}
 			if (!progfuncs->fieldadjust && engineofs>=0)
-				if ((unsigned)engineofs != field[i].ofs)
+				if ((unsigned)engineofs/4 != field[i].ofs)
 					Sys_Error("Field %s at wrong offset", name);
 
 			if (field[i].progsofs == -1)
@@ -262,7 +262,7 @@ int QC_RegisterFieldVar(progfuncs_t *progfuncs, unsigned int type, char *name, i
 		n=PRHunkAlloc(progfuncs, namelen);
 		sprintf(n, "%s_x", name);
 		ofs = QC_RegisterFieldVar(progfuncs, ev_float, n, engineofs, progsofs);
-		field[fnum].ofs = ofs;
+		field[fnum].ofs = ofs+progfuncs->fieldadjust;
 
 		n=PRHunkAlloc(progfuncs, namelen);
 		sprintf(n, "%s_y", name);
@@ -278,7 +278,7 @@ int QC_RegisterFieldVar(progfuncs_t *progfuncs, unsigned int type, char *name, i
 		//paranoid checking of the offset.
 		for (i = 0; i < numfields-1; i++)
 		{
-			if (field[i].ofs == ((unsigned)engineofs)*4)
+			if (field[i].ofs == ((unsigned)engineofs)/4)
 			{
 				if (type == ev_float && field[i].type == ev_vector)	//check names
 				{

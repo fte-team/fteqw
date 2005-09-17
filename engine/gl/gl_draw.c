@@ -3504,16 +3504,16 @@ int GL_LoadTextureFB (char *identifier, int width, int height, qbyte *data, qboo
 			return glt->texnum;
 	}
 
-	glt = BZ_Malloc(sizeof(*glt)+sizeof(bucket_t));
-	glt->next = gltextures;
-	gltextures = glt;
-
 	for (i = 0; i < width*height; i++)
 		if (data[i] > 255-vid.fullbright)
 			break;
 
 	if (i == width*height)
 		return 0;	//none found, don't bother uploading.
+
+	glt = BZ_Malloc(sizeof(*glt)+sizeof(bucket_t));
+	glt->next = gltextures;
+	gltextures = glt;
 
 	strcpy (glt->identifier, identifier);
 	glt->texnum = texture_extension_number;

@@ -2277,6 +2277,7 @@ void Cmd_Vstr_f( void )
 
 void Cmd_set_f(void)
 {
+	void *mark;
 	cvar_t *var;
 	const char *end;
 	const char *text;
@@ -2317,6 +2318,8 @@ void Cmd_set_f(void)
 	//second var
 	var = Cvar_FindVar (Cmd_Argv(1));
 
+	mark = If_Token_GetMark();
+
 	if (var)
 	{
 		if (var->flags & CVAR_NOTFROMSERVER && Cmd_FromGamecode())
@@ -2355,6 +2358,8 @@ void Cmd_set_f(void)
 	if (!Cmd_FromGamecode())
 		if (!stricmp(Cmd_Argv(0), "seta"))
 			var->flags |= CVAR_ARCHIVE|CVAR_USERCREATED;
+
+	If_Token_Clear(mark);
 }
 
 

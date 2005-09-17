@@ -1673,10 +1673,13 @@ void	Cmd_ExecuteString (char *text, int level)
 		{
 			int i;
 			int execlevel;
+
+#ifndef SERVERONLY	//an emergency escape mechansim, to avoid infinatly recursing aliases.
 			extern qboolean keydown[];
 
 			if (keydown[K_SHIFT] && keydown[K_CTRL] && keydown[K_ALT])
 				return;
+#endif
 
 			if ((a->restriction?a->restriction:rcon_level.value) > level)
 			{

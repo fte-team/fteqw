@@ -1344,6 +1344,13 @@ void P_NewServer(void)
 
 	f_modified_particles = false;
 
+	{
+		char *semi;
+		semi = strchr(r_particlesdesc.string, ';');
+		if (semi)	//make sure nothing uses this for other means.
+			*semi = '\0';
+	}
+
 	//particle descriptions submitted by the server are deemed to not be cheats but game configs.
 	if (!stricmp(r_particlesdesc.string, "none"))
 		return;

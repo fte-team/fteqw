@@ -754,7 +754,7 @@ void CL_ParseTEnt (void)
 #ifdef PEXT_TE_BULLET
 	case TE_BULLET:
 		if (!(cls.fteprotocolextensions & PEXT_TE_BULLET))
-			Sys_Error("Thought PEXT_TE_BULLET was disabled");
+			Host_EndGame("Thought PEXT_TE_BULLET was disabled");
 		pos[0] = MSG_ReadCoord ();
 		pos[1] = MSG_ReadCoord ();
 		pos[2] = MSG_ReadCoord ();

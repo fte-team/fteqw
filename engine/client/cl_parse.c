@@ -3518,7 +3518,7 @@ void CL_ParseServerMessage (void)
 				Host_EndGame("PEXT_LIGHTSTYLECOL is meant to be disabled\n");
 			i = MSG_ReadByte ();
 			if (i >= MAX_LIGHTSTYLES)
-				Sys_Error ("svc_lightstyle > MAX_LIGHTSTYLES");
+				Host_EndGame ("svc_lightstyle > MAX_LIGHTSTYLES");
 			cl_lightstyle[i].colour = MSG_ReadByte();
 			Q_strncpyz (cl_lightstyle[i].map,  MSG_ReadString(), sizeof(cl_lightstyle[i].map));
 			cl_lightstyle[i].length = Q_strlen(cl_lightstyle[i].map);

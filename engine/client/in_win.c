@@ -1363,7 +1363,11 @@ static void ProcessMouse(mouse_t *mouse, usercmd_t *cmd, int pnum)
 	if(in_xflip.value) mx *= -1;
 #endif
 
-	if (mouseusedforgui || (key_dest == key_menu && m_state == m_complex) || UI_MenuState())
+	if (mouseusedforgui || (key_dest == key_menu && m_state == m_complex)
+#ifdef VM_UI
+		|| UI_MenuState()
+#endif
+		)
 	{
 		mousemove_x += mx;
 		mousemove_y += my;
@@ -1382,7 +1386,9 @@ static void ProcessMouse(mouse_t *mouse, usercmd_t *cmd, int pnum)
 			mousecursor_y = vid.height - 1;
 		mx=my=0;
 
+#ifdef VM_UI
 		UI_MousePosition(mousecursor_x, mousecursor_y);
+#endif
 	}
 
 	if (m_filter.value)
@@ -1487,7 +1493,9 @@ void IN_MouseMove (usercmd_t *cmd, int pnum)
 		}
 #endif
 
+#ifdef VM_UI
 		UI_MousePosition(mousecursor_x, mousecursor_y);
+#endif
 
 		return;
 	}

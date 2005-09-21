@@ -340,9 +340,8 @@ model_t *SWMod_LoadModel (model_t *mod, qboolean crash)
 			mod->needload = true;
 			P_DefaultTrail(mod);
 			return mod;
-			return NULL;
 		}
-		}
+	}
 	
 //
 // allocate a new model

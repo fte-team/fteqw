@@ -119,8 +119,8 @@ typedef struct shadowmesh_s {
 struct {
 	short count;
 	short count2;
-	short next;
-	short prev;
+	int next;
+	int prev;
 } edge[MAX_MAP_EDGES];
 int firstedge;
 

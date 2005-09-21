@@ -409,6 +409,73 @@ void BZ_Free(void *data)
 	Z_Free(data);
 }
 
+#ifdef NAMEDMALLOCS
+
+// Zone_Groups_f: prints out zones sorting into groups
+// and tracking number of allocs and total group size as
+// well as a group delta against the last Zone_Group_f call
+#define ZONEGROUPS 64
+void Zone_Groups_f(void)
+{
+	zone_t *zone;
+	char *zonename[ZONEGROUPS];
+	int zonesize[ZONEGROUPS];
+	int zoneallocs[ZONEGROUPS];
+	static int zonelast[ZONEGROUPS];
+	int groups, i;
+	int allocated = 0;
+
+	// initialization
+	for (groups = 0; groups < ZONEGROUPS; groups++)
+		zonename[groups] = NULL;
+
+	groups = 0;
+	i = 0;
+
+	for (zone = zone_head; zone; zone=zone->next)
+	{
+		char *czg = (char *)(zone+1) + zone->size+ZONEDEBUG*2;
+		// check against existing tracked groups
+		for (i = 0; i < groups; i++)
+		{
+			if (!strcmp(czg, zonename[i]))
+			{
+				// update stats for tracked group
+				zonesize[i] += zone->size;
+				zoneallocs[i]++;
+				break;
+			}
+		}
+
+		if (groups == i) // no existing group found
+		{
+			// track new zone group
+			zonename[groups] = czg;
+			zonesize[groups] = zone->size;
+			zoneallocs[groups] = 1;
+			groups++;
+
+			// max groups bounds check
+			if (groups >= ZONEGROUPS)
+			{
+				groups = ZONEGROUPS;
+				break;
+			}
+		}
+	}
+
+	// print group statistics
+	for (i = 0; i < groups; i++)
+	{
+		allocated += zonesize[i];
+		Con_Printf("%s, size: %i, allocs: %i, delta: %i\n", zonename[i], zonesize[i], zoneallocs[i], zonesize[i] - zonelast[i]);
+		zonelast[i] = zonesize[i]; // update delta tracking for next call
+	}
+
+	Con_Printf("Total: %i bytes\n", allocated);
+}
+#endif
+
 void Zone_Print_f(void)
 {
 	int overhead=0;
@@ -430,7 +497,7 @@ void Zone_Print_f(void)
 	}
 	else
 #endif
-		if (*Cmd_Argv(1) == 'h')
+	if (*Cmd_Argv(1) == 'h')
 		futurehide = true;
 	else if (*Cmd_Argv(1))
 		minsize = atoi(Cmd_Argv(1));
@@ -1396,6 +1463,9 @@ void Cache_Init(void)
 	Cmd_AddCommand ("flush", Cache_Flush);
 	Cmd_AddCommand ("hunkprint", Hunk_Print_f);
 	Cmd_AddCommand ("zoneprint", Zone_Print_f);
+#ifdef NAMEDMALLOCS
+	Cmd_AddCommand ("zonegroups", Zone_Groups_f);
+#endif
 }
 
 #else
@@ -1755,6 +1825,92 @@ void *Cache_Alloc (cache_user_t *c, int size, char *name)
 #endif
 //============================================================================
 
+// Constant block functions
+
+// CB_Malloc: creates a usable const_block
+const_block_t *CB_Malloc (int size, int step)
+{
+	// alloc new const block
+	const_block_t *cb = Z_Malloc(sizeof(const_block_t));
+
+	// init cb members
+	cb->block = BZ_Malloc(size);
+	cb->point = cb->block;
+	cb->curleft = size;
+	cb->cursize = size;
+	cb->memstep = step;
+
+	return cb;
+}
+
+// CB_Slice: slices a chunk of memory off of the const block, and
+// reallocs if necessary
+char *CB_Slice (const_block_t *cb, int size)
+{
+	char *c;
+
+	while (size > cb->curleft)
+	{
+		cb->block = BZ_Realloc(cb->block, cb->cursize + cb->memstep);
+		cb->point = cb->block + (cb->cursize - cb->curleft);
+
+		cb->cursize += cb->memstep;
+		cb->curleft += cb->memstep;
+	}
+
+	c = cb->point;
+	cb->point += size;
+	cb->curleft -= size;
+
+	return c;
+}
+
+// CB_Copy: copies a stream of bytes into a const block, returns
+// pointer of copied string
+char *CB_Copy (const_block_t *cb, char *data, int size)
+{
+	char *c;
+
+	c = CB_Slice(cb, size);
+	Q_memcpy(c, data, size);
+
+	return c;
+}
+
+// CB_Free: frees a const block
+void CB_Free (const_block_t *cb)
+{
+	BZ_Free(cb->block);
+	Z_Free(cb);
+}
+
+#if 0
+// CB_Reset: resets a const block to size
+void CB_Reset (const_block_t *cb, int size)
+{
+	if (cb->cursize != size)
+	{
+		cb->block = BZ_Realloc(cb->block, size);
+		cb->cursize = size;
+	}
+
+	cb->point = cb->block;
+	cb->curleft = cb->cursize;
+}
+
+// CB_Trim: trims a const block to minimal size
+void CB_Trim (const_block_t *cb)
+{
+	if (cb->curleft > 0)
+	{
+		cb->cursize -= cb->curleft;
+		cb->block = BZ_Realloc(cb->block, cb->cursize);
+		cb->point = cb->block + cb->cursize;
+	}
+
+	cb->curleft = 0;
+}
+#endif
 
 /*
 ========================

@@ -26,6 +26,57 @@ cvar_group_t *cvar_groups;
 //cvar_t	*cvar_vars;
 char	*cvar_null_string = "";
 
+cvar_const_cache_t cc_cache;
+
+// cvar string cache functions
+
+// CCC_AddString: adds a string into the cvar CB, and creates one
+// if non-existant
+char *CCC_AddString(char *s)
+{
+	int size = strlen(s) + 1;
+
+	if (!cc_cache.cb)
+		cc_cache.cb = CB_Malloc(CC_CACHE_SIZE, CC_CACHE_STEP);
+
+	return CB_Copy (cc_cache.cb, s, size);
+}
+
+// CCC_CheckAndAddString: checks against the CCC table, updates table,
+// and either adds or returns cached string
+char *CCC_CheckAndAddString(char *s)
+{
+	int i;
+	char *c;
+
+	for (i = 0; i < CC_CACHE_ENTRIES; i++)
+	{
+		if (cc_cache.cached[i] && !strcmp(s, cc_cache.cached[i]))
+		{
+			// move string to top, pushing others down
+			c = cc_cache.cached[i];
+			if (i != 0)
+			{
+				Q_memcpy(cc_cache.cached + 1, 
+					cc_cache.cached, 
+					sizeof(char*) * i);
+				cc_cache.cached[0] = c;
+			}
+
+			return c;
+		}
+	}
+
+	// not in cache, so add it to table
+	// move current cached strings down
+	Q_memcpy(cc_cache.cached + 1, 
+		cc_cache.cached, 
+		sizeof(char*) * (CC_CACHE_ENTRIES - 1));
+
+	return (cc_cache.cached[0] = CCC_AddString(s));
+}
+
+
 /*
 ============
 Cvar_FindVar
@@ -774,7 +825,7 @@ void Cvar_Free(cvar_t *tbf)
 	}
 unlinked:
 	Z_Free(tbf->string);
-	Z_Free(tbf->defaultstr);
+//	Z_Free(tbf->defaultstr);
 	if (tbf->latched_string)
 		Z_Free(tbf->latched_string);
 	Z_Free(tbf);
@@ -816,8 +867,7 @@ void Cvar_Register (cvar_t *variable, const char *groupname)
 			variable->string = (char*)Z_Malloc (1);
 
 //cheat prevention - engine set default is the one that stays.
-			variable->defaultstr = (char*)Z_Malloc (strlen(value)+1);	//give it it's default (for server controlled vars and things)
-			strcpy (variable->defaultstr, value);
+			variable->defaultstr = CCC_CheckAndAddString(value);	//give it it's default (for server controlled vars and things)
 
 // set it through the function to be consistant
 			if (old->latched_string)
@@ -849,8 +899,7 @@ void Cvar_Register (cvar_t *variable, const char *groupname)
 
 	variable->string = (char*)Z_Malloc (1);
 
-	variable->defaultstr = (char*)Z_Malloc (strlen(value)+1);	//give it it's default (for server controlled vars and things)
-	strcpy (variable->defaultstr, value);
+	variable->defaultstr = CCC_CheckAndAddString(value);	//give it it's default (for server controlled vars and things)
 
 // set it through the function to be consistant
 	Cvar_SetCore (variable, value, true);
@@ -1059,4 +1108,6 @@ void Cvar_Shutdown(void)
 		cvar_groups = grp->next;
 		Z_Free(grp);
 	}
+
+	CB_Free(cc_cache.cb);
 }

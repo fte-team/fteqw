@@ -497,8 +497,7 @@ void Cmd_Exec_f (void)
 	else
 	{
 		Con_TPrintf (TL_EXECFAILED,name);
-		return;
-	}
+		return;	}
 	if (cl_warncmd.value || developer.value)
 		Con_TPrintf (TL_EXECING,name);
 
@@ -2734,6 +2733,72 @@ void Cmd_WriteConfig_f(void)
 	fclose(f);
 }
 
+#ifndef SERVERONLY
+// dumps current console contents to a text file
+void Cmd_Condump_f(void)
+{
+	FILE *f;
+	char *filename;
+
+	if (!con_current)
+	{
+		Con_Printf ("No console to dump.\n");
+		return;
+	}
+
+	if (Cmd_IsInsecure()) // don't allow insecure level execute this
+		return;
+
+	filename = Cmd_Argv(1);
+	if (!*filename)
+		filename = "condump";
+
+	filename = va("%s/%s", com_gamedir, filename);
+	COM_DefaultExtension(filename, ".txt");
+	
+	f = fopen (filename, "wb");
+	if (!f)
+	{
+		Con_Printf ("Couldn't write console dump %s\n",filename);
+		return;
+	}
+
+	// print out current contents of console
+	// stripping out starting blank lines and blank spaces
+	{
+		unsigned short *text;
+		int row, line, x, spc, content;
+		console_t *curcon = &con_main;
+
+		content = 0;
+		row = curcon->current - curcon->totallines+1;
+		for (line = 0; line < curcon->totallines-1; line++, row++)
+		{
+			text = curcon->text + (row % curcon->totallines)*curcon->linewidth;
+			spc = 0;
+			for (x = 0; x < curcon->linewidth; x++)
+			{
+				if (((qbyte)text[x]&255) == ' ')
+					spc++;
+				else
+				{
+					content = 1;
+					for (; spc > 0; spc--)
+						fprintf(f, " ");
+					fprintf(f, "%c", (qbyte)text[x]&255);
+				}
+			}
+			if (content)
+				fprintf(f, "\n");
+		}
+	}
+
+	fclose(f);
+
+	Con_Printf ("Dumped console to %s\n",filename);
+}
+#endif
+
 /*
 ============
 Cmd_Init
@@ -2754,6 +2819,7 @@ void Cmd_Init (void)
 	Cmd_AddCommand ("wait", Cmd_Wait_f);
 #ifndef SERVERONLY
 	Cmd_AddCommand ("cmd", Cmd_ForwardToServer_f);
+	Cmd_AddCommand ("condump", Cmd_Condump_f);
 #endif
 	Cmd_AddCommand ("restrict", Cmd_RestrictCommand_f);
 	Cmd_AddCommand ("aliaslevel", Cmd_AliasLevel_f);
@@ -2775,6 +2841,7 @@ void Cmd_Init (void)
 	Cmd_AddCommand ("cvarlist", Cvar_List_f);
 	Cmd_AddCommand ("cvarreset", Cvar_Reset_f);
 	Cmd_AddCommand ("fs_flush", COM_RefreshFSCache_f);
+
 	Cvar_Register(&com_fs_cache, "Filesystem");
 	Cvar_Register(&tp_disputablemacros, "Teamplay");
 

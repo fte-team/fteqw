@@ -852,7 +852,7 @@ R_DrawEntitiesOnList
 */
 void GLR_DrawEntitiesOnList (void)
 {
-	int		i, j;
+	int		i;
 
 	if (!r_drawentities.value)
 		return;
@@ -1821,7 +1821,6 @@ void R_MirrorAddPlayerModels (void)
 
 void R_Mirror (void)
 {
-	float		d;
 	msurface_t	*s, *prevs, *prevr, *rejects;
 //	entity_t	*ent;
 	mplane_t *mirror_plane;

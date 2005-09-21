@@ -3189,6 +3189,8 @@ qboolean TP_SuppressMessage(char *buf) {
 	return false;
 }
 
+void CL_PrintChat(player_info_t *plr, char *rawmsg, char *msg, int plrflags);
+
 void CL_Say (qboolean team, char *extra)
 {
 	extern cvar_t cl_fakename;
@@ -3228,7 +3230,6 @@ void CL_Say (qboolean team, char *extra)
 		extern cvar_t cl_standardchat;
 		//print it locally:
 		char *d;
-		char colouration;
 		for (s = sendtext, d = text; *s; s++, d++)
 		{
 			if (*s == '\xff')	//text that is hidden to us

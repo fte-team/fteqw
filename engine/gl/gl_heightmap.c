@@ -265,10 +265,10 @@ int Heightmap_PointContents(model_t *model, vec3_t org)
 	return Heightmap_PointContentsHM(hm, 0, org);
 }
 
-float Heightmap_Normal(heightmap_t *hm, vec3_t org, vec3_t norm)
+void Heightmap_Normal(heightmap_t *hm, vec3_t org, vec3_t norm)
 {
 	float x, y;
-	float z, tz;
+	float z;
 	int sx, sy;
 
 	x = org[0]/hm->terrainscale;

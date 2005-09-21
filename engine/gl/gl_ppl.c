@@ -1758,7 +1758,6 @@ void PPL_BaseBModelTextures(entity_t *e)
 void R_DrawLightning(entity_t *e)
 {
 	vec3_t v;
-	vec3_t v2;
 	vec3_t dir, cr;
 	float scale = e->scale;
 	float length;
@@ -1825,7 +1824,6 @@ void R_DrawLightning(entity_t *e)
 void R_DrawRailCore(entity_t *e)
 {
 	vec3_t v;
-	vec3_t v2;
 	vec3_t dir, cr;
 	float scale = e->scale;
 	float length;
@@ -2038,7 +2036,7 @@ void PPL_BaseEntTextures(void)
 {
 	extern qboolean r_inmirror;
 	extern model_t *currentmodel;
-	int		i,j;
+	int		i;
 
 	if (!r_drawentities.value)
 		return;
@@ -2891,7 +2889,7 @@ void PPL_LightBModelTextures(entity_t *e, dlight_t *light, vec3_t colour)
 //draw the bumps on the models for each light.
 void PPL_DrawEntLighting(dlight_t *light, vec3_t colour)
 {
-	int		i, j;
+	int i;
 
 	PPL_LightTextures(cl.worldmodel, r_worldentity.origin, light, colour);
 
@@ -5146,7 +5144,6 @@ void PPL_BeginShadowMesh(dlight_t *dl)
 }
 void PPL_FinishShadowMesh(dlight_t *dl)
 {
-	int i;
 	if (!buildingmesh)
 		return;
 

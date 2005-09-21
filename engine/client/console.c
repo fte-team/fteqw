@@ -1134,27 +1134,34 @@ void Con_DrawNotify (void)
 		con_notifylines = v;
 }
 
-void Con_PrintToSys(void)	//send all the stuff that was con_printed to sys_print. This is so that system consoles in windows can scroll up and have all the text.
+//send all the stuff that was con_printed to sys_print. 
+//This is so that system consoles in windows can scroll up and have all the text.
+void Con_PrintToSys(void)	
 {
-	int line, row, x;
+	int line, row, x, spc, content;
 	short *text;
 	console_t *curcon = &con_main;
 
+	content = 0;
 	row = curcon->current - curcon->totallines+1;
-	for (line = 0; line < curcon->totallines-1; line++, row++)	//skip empty lines.
+	for (line = 0; line < curcon->totallines-1; line++, row++)
 	{
 		text = curcon->text + (row % curcon->totallines)*curcon->linewidth;
+		spc = 0;
 		for (x = 0; x < curcon->linewidth; x++)
-			if (((qbyte)(text[x])&255) != ' ')
-				goto breakout;
-	}
-breakout:
-	for (; line < curcon->totallines-1; line++, row++)
-	{
-		text = curcon->text + (row % curcon->totallines)*curcon->linewidth;
-		for (x = 0; x < curcon->linewidth; x++)
-			Sys_Printf("%c", (qbyte)text[x]&255);
-		Sys_Printf("\n");
+		{
+			if (((qbyte)text[x]&255) == ' ')
+				spc++; // track spaces but don't print yet
+			else
+			{
+				content = 1; // start printing blank lines
+				for (; spc > 0; spc--)
+					Sys_Printf(" "); // print leading spaces
+				Sys_Printf("%c", (qbyte)text[x]&255);
+			}
+		}
+		if (content)
+			Sys_Printf("\n");
 	}
 }
 

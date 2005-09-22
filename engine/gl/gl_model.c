@@ -2761,9 +2761,25 @@ void * GLMod_LoadSpriteFrame (void * pin, mspriteframe_t **ppframe, int framenum
 	pspriteframe->left = origin[0];
 	pspriteframe->right = width + origin[0];
 
-	COM_StripExtension(loadmodel->name, name);
-	strcat(name, va("_%i", framenum));
-	pspriteframe->gl_texturenum = Mod_LoadReplacementTexture(name, "sprites", true, true, true);
+	pspriteframe->gl_texturenum = 0;
+
+	if (!pspriteframe->gl_texturenum)
+	{	//the dp way
+		strcat(name, va("_%i", framenum));
+		pspriteframe->gl_texturenum = Mod_LoadReplacementTexture(name, "sprites", true, true, true);
+	}
+	if (!pspriteframe->gl_texturenum)
+	{	//the older fte way.
+		COM_StripExtension(loadmodel->name, name);
+		strcat(name, va("_%i", framenum));
+		pspriteframe->gl_texturenum = Mod_LoadReplacementTexture(name, "sprites", true, true, true);
+	}
+	if (!pspriteframe->gl_texturenum)
+	{	//the fuhquake way
+		COM_StripExtension(COM_SkipPath(loadmodel->name), name);
+		strcat(name, va("_%i", framenum));
+		pspriteframe->gl_texturenum = Mod_LoadReplacementTexture(name, "sprites", true, true, true);
+	}
 
 	if (version == SPRITE32_VERSION)
 	{

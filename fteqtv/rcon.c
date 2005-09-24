@@ -300,9 +300,19 @@ char *Rcon_Command(sv_t *qtv, char *command, char *buffer, int sizeofbuffer, qbo
 			strcat(buffer, "Waiting for gamestate\n");
 
 		if (qtv->listenmvd != INVALID_SOCKET)
-			strcat(buffer, "Listening for proxies\n");
+		{
+			strcat(buffer, "Listening for proxies (");
+			sprintf(arg[0], "%i", qtv->tcplistenportnum);
+			strcat(buffer, arg[0]);
+			strcat(buffer, ")\n");
+		}
 		if (qtv->qwdsocket != INVALID_SOCKET)
-			strcat(buffer, "Listening for qwcl\n");
+		{
+			strcat(buffer, "Listening for qwcl (");
+			sprintf(arg[0], "%i", qtv->qwlistenportnum);
+			strcat(buffer, arg[0]);
+			strcat(buffer, ")\n");
+		}
 
 		if (qtv->bsp)
 		{
@@ -367,7 +377,7 @@ char *Rcon_Command(sv_t *qtv, char *command, char *buffer, int sizeofbuffer, qbo
 		else
 			return "Failed (will keep trying)\n";
 	}
-	else if (!strcmp(arg[0], "file"))
+	else if (!strcmp(arg[0], "file") || !strcmp(arg[0], "play") || !strcmp(arg[0], "playdemo"))
 	{
 		if (!*arg[1])
 			return "file requires a filename on the proxy's machine\n";
@@ -382,6 +392,27 @@ char *Rcon_Command(sv_t *qtv, char *command, char *buffer, int sizeofbuffer, qbo
 			return "File opened successfully\n";
 		else
 			return "Failed (will keep trying)\n";
+	}
+	else if (!strcmp(arg[0], "record"))
+	{
+		if (!*arg[1])
+			return "record requires a filename on the proxy's machine\n";
+
+		if (!localcommand)
+			if (*arg[1] == '\\' || *arg[1] == '/' || strstr(arg[1], "..") || arg[1][1] == ':')
+				return "Absolute paths are prohibited.\n";
+
+		if (Net_FileProxy(qtv, arg[1]))
+			return "Recording to disk\n";
+		else
+			return "Failed to open file\n";
+	}
+	else if (!strcmp(arg[0], "stop"))
+	{
+		if (Net_StopFileProxy(qtv))
+			return "stopped\n";
+		else
+			return "not recording to disk\n";
 	}
 	else if (!strcmp(arg[0], "help"))
 	{

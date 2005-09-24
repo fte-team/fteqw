@@ -656,7 +656,10 @@ void Prox_SendInitialEnts(sv_t *qtv, oproxy_t *prox, netmsg_t *msg)
 	int i;
 	WriteByte(msg, svc_packetentities);
 	for (i = 0; i < qtv->maxents; i++)
-		SV_WriteDelta(i, &nullentstate, &qtv->entity[i].current, msg, true);
+	{
+		if (qtv->entity[i].current.modelindex)
+			SV_WriteDelta(i, &nullentstate, &qtv->entity[i].current, msg, true);
+	}
 	WriteShort(msg, 0);
 }
 
@@ -923,7 +926,8 @@ void QTV_Say(sv_t *qtv, viewer_t *v, char *message)
 	char buf[1024];
 	netmsg_t msg;
 
-	message[strlen(message)-1] = '\0';
+	if (message[strlen(message)-1] == '\"')
+		message[strlen(message)-1] = '\0';
 
 	InitNetMsg(&msg, buf, sizeof(buf));
 
@@ -961,6 +965,8 @@ void ParseQWC(sv_t *qtv, viewer_t *v, netmsg_t *m)
 			if (!strcmp(buf, "new"))
 				SendServerData(qtv, v);
 			else if (!strncmp(buf, "say \"", 5) && !qtv->notalking)
+				QTV_Say(qtv, v, buf);
+			else if (!strncmp(buf, "say ", 4) && !qtv->notalking)
 				QTV_Say(qtv, v, buf);
 			else if (!strncmp(buf, "modellist ", 10))
 			{
@@ -1152,8 +1158,7 @@ void QW_UpdateUDPStuff(sv_t *qtv)
 		{
 			sprintf(buffer, "a\n%i\n0\n", qtv->mastersequence++);	//fill buffer with a heartbeat
 //why is there no \xff\xff\xff\xff ?..
-			NET_SendPacket(qtv->qwdsocket, 1, "k", from);	//ping, just like qw.
-			NET_SendPacket(qtv->qwdsocket, strlen(buffer), buffer, from);	//ping, just like qw.
+			NET_SendPacket(qtv->qwdsocket, strlen(buffer), buffer, from);
 		}
 		else
 			printf("Cannot resolve master %s\n", qtv->master);

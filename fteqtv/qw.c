@@ -446,15 +446,70 @@ void QTV_Rcon(sv_t *qtv, char *message, netadr_t *from)
 }
 void QTV_Status(sv_t *qtv, netadr_t *from)
 {
+	int i;
 	char buffer[8192];
 
 	netmsg_t msg;
-	char buf[6];
+	char elem[256];
 	InitNetMsg(&msg, buffer, sizeof(buffer));
 	WriteLong(&msg, -1);
 	WriteByte(&msg, 'n');
 	WriteString2(&msg, qtv->serverinfo);
-	WriteString(&msg, "\n");
+	WriteString2(&msg, "\n");
+
+
+	for (i = 0;i < MAX_CLIENTS-1; i++)
+	{
+		if (!qtv->players[i].active)
+			continue;
+		//userid
+		sprintf(elem, "%i", i);
+		WriteString2(&msg, elem);
+		WriteString2(&msg, " ");
+
+		//frags
+		sprintf(elem, "%i", qtv->players[i].frags);
+		WriteString2(&msg, elem);
+		WriteString2(&msg, " ");
+
+		//time (minuites)
+		sprintf(elem, "%i", 0);
+		WriteString2(&msg, elem);
+		WriteString2(&msg, " ");
+
+		//ping
+		sprintf(elem, "%i", qtv->players[i].ping);
+		WriteString2(&msg, elem);
+		WriteString2(&msg, " ");
+
+		//name
+		Info_ValueForKey(qtv->players[i].userinfo, "name", elem, sizeof(elem));
+		WriteString2(&msg, "\"");
+		WriteString2(&msg, elem);
+		WriteString2(&msg, "\" ");
+
+		//skin
+		Info_ValueForKey(qtv->players[i].userinfo, "skin", elem, sizeof(elem));
+		WriteString2(&msg, "\"");
+		WriteString2(&msg, elem);
+		WriteString2(&msg, "\" ");
+		WriteString2(&msg, " ");
+
+		//tc
+		Info_ValueForKey(qtv->players[i].userinfo, "topcolor", elem, sizeof(elem));
+		WriteString2(&msg, elem);
+		WriteString2(&msg, " ");
+
+		//bc
+		Info_ValueForKey(qtv->players[i].userinfo, "bottomcolor", elem, sizeof(elem));
+		WriteString2(&msg, elem);
+		WriteString2(&msg, " ");
+
+		WriteString2(&msg, "\n");
+	}
+
+
+	WriteByte(&msg, 0);
 	NET_SendPacket(qtv->qwdsocket, msg.cursize, msg.data, *from);
 
 
@@ -941,6 +996,38 @@ void QTV_Say(sv_t *qtv, viewer_t *v, char *message)
 	Multicast(qtv, msg.data, msg.cursize, dem_all, (unsigned int)-1);
 }
 
+qboolean QW_IsOn(sv_t *qtv, char *name)
+{
+	viewer_t *v;
+	for (v = qtv->viewers; v; v = v->next)
+		if (!strcmp(v->name, name))		//this needs to allow dequakified names.
+			return true;
+
+	return false;
+}
+
+void QW_PrintfToViewer(viewer_t *v, char *format, ...)
+{
+	va_list		argptr;
+	char buf[1024];
+	netmsg_t msg;
+	InitNetMsg(&msg, buf, sizeof(buf));
+
+	va_start (argptr, format);
+#ifdef _WIN32
+	_vsnprintf (buf+2, sizeof(buf) - 3, format, argptr);
+	buf[sizeof(buf) - 3] = '\0';
+#else
+	vsnprintf (buf+2, sizeof(buf)-2, format, argptr);
+#endif // _WIN32
+	va_end (argptr);
+
+	buf[0] = svc_print;
+	buf[1] = 2;	//PRINT_HIGH
+
+	SendBufferToViewer(v, buf, strlen(buf)+1, true);
+}
+
 void ParseQWC(sv_t *qtv, viewer_t *v, netmsg_t *m)
 {
 	usercmd_t	oldest, oldcmd, newcmd;
@@ -1064,6 +1151,13 @@ void ParseQWC(sv_t *qtv, viewer_t *v, netmsg_t *m)
 			}
 			else if (!strncmp(buf, "drop", 4))
 				v->drop = true;
+			else if (!strncmp(buf, "ison", 4))
+			{
+				if (QW_IsOn(qtv, buf+6))
+					QW_PrintfToViewer(v, "%s is on the proxy\n", buf+6);
+				else
+					QW_PrintfToViewer(v, "%s is not on the proxy, sorry\n", buf+6);	//the apology is to make the alternatives distinct.
+			}
 			else if (!strncmp(buf, "ptrack ", 7))
 				v->trackplayer = atoi(buf+7);
 			else if (!strncmp(buf, "ptrack", 6))
@@ -1140,7 +1234,28 @@ void ParseQWC(sv_t *qtv, viewer_t *v, netmsg_t *m)
 	}
 }
 
-const char dropcmd[] = {svc_stufftext, 'd', 'i', 's', 'c', 'o', 'n', 'n', 'e', 'c', 't', '\n', '\0'};
+static const char dropcmd[] = {svc_stufftext, 'd', 'i', 's', 'c', 'o', 'n', 'n', 'e', 'c', 't', '\n', '\0'};
+void QW_FreeViewer(viewer_t *viewer)
+{
+	int i;
+	//note: unlink them yourself.
+
+	printf("Dropping viewer %s\n", viewer->name);
+
+	//spam them thrice, then forget about them
+	Netchan_Transmit(&viewer->netchan, strlen(dropcmd)+1, dropcmd);
+	Netchan_Transmit(&viewer->netchan, strlen(dropcmd)+1, dropcmd);
+	Netchan_Transmit(&viewer->netchan, strlen(dropcmd)+1, dropcmd);
+
+	for (i = 0; i < MAX_BACK_BUFFERS; i++)
+	{
+		if (viewer->backbuf[i].data)
+			free(viewer->backbuf[i].data);
+	}
+
+	free(viewer);
+}
+
 void QW_UpdateUDPStuff(sv_t *qtv)
 {
 	char buffer[MAX_MSGLEN*2];
@@ -1224,10 +1339,8 @@ void QW_UpdateUDPStuff(sv_t *qtv)
 		printf("Dropping client\n");
 		f = qtv->viewers;
 		qtv->viewers = f->next;
-		Netchan_Transmit(&f->netchan, strlen(dropcmd)+1, dropcmd);
-		Netchan_Transmit(&f->netchan, strlen(dropcmd)+1, dropcmd);
-		Netchan_Transmit(&f->netchan, strlen(dropcmd)+1, dropcmd);
-		free(f);
+
+		QW_FreeViewer(f);
 	}
 
 	for (v = qtv->viewers; v; v = v->next)
@@ -1238,10 +1351,7 @@ void QW_UpdateUDPStuff(sv_t *qtv)
 			f = v->next;
 			v->next = f->next;
 
-			Netchan_Transmit(&f->netchan, strlen(dropcmd)+1, dropcmd);
-			Netchan_Transmit(&f->netchan, strlen(dropcmd)+1, dropcmd);
-			Netchan_Transmit(&f->netchan, strlen(dropcmd)+1, dropcmd);
-			free(f);
+			QW_FreeViewer(f);
 		}
 
 		if (v->maysend && !qtv->parsingconnectiondata)	//don't send incompleate connection data.

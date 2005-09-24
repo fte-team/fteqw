@@ -427,7 +427,7 @@ void QTV_Rcon(sv_t *qtv, char *message, netadr_t *from)
 
 	if (!*qtv->password)
 	{
-		Netchan_OutOfBandPrint(qtv->qwdsocket, *from, "n" "Rcon is disabled. Set a password.\n");
+		Netchan_OutOfBandPrint(qtv->qwdsocket, *from, "n" "Bad rcon_password.\n");
 		return;
 	}
 
@@ -438,7 +438,7 @@ void QTV_Rcon(sv_t *qtv, char *message, netadr_t *from)
 	passlen = command-message;
 	if (passlen != strlen(qtv->password) || strncmp(message, qtv->password, passlen))
 	{
-		Netchan_OutOfBandPrint(qtv->qwdsocket, *from, "n" "Rcon password is incorrect\n");
+		Netchan_OutOfBandPrint(qtv->qwdsocket, *from, "n" "Bad rcon_password.\n");
 		return;
 	}
 
@@ -473,6 +473,11 @@ void ConnectionlessPacket(sv_t *qtv, netadr_t *from, netmsg_t *m)
 	if (!strncmp(buffer, "rcon ", 5))
 	{
 		QTV_Rcon(qtv, buffer+5, from);
+		return;
+	}
+	if (!strncmp(buffer, "ping", 4))
+	{	//ack
+		NET_SendPacket (qtv->qwdsocket, 1, "l", *from);
 		return;
 	}
 	if (!strncmp(buffer, "status", 6))

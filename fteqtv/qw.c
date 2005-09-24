@@ -990,7 +990,7 @@ void QTV_Say(sv_t *qtv, viewer_t *v, char *message)
 	WriteByte(&msg, 3);	//PRINT_CHAT
 	WriteString2(&msg, v->name);
 	WriteString2(&msg, "\x8d ");
-	WriteString2(&msg, message+5);
+	WriteString2(&msg, message);
 	WriteString(&msg, "\n");
 
 	Multicast(qtv, msg.data, msg.cursize, dem_all, (unsigned int)-1);
@@ -1052,9 +1052,9 @@ void ParseQWC(sv_t *qtv, viewer_t *v, netmsg_t *m)
 			if (!strcmp(buf, "new"))
 				SendServerData(qtv, v);
 			else if (!strncmp(buf, "say \"", 5) && !qtv->notalking)
-				QTV_Say(qtv, v, buf);
+				QTV_Say(qtv, v, buf+5);
 			else if (!strncmp(buf, "say ", 4) && !qtv->notalking)
-				QTV_Say(qtv, v, buf);
+				QTV_Say(qtv, v, buf+4);
 			else if (!strncmp(buf, "modellist ", 10))
 			{
 				char *cmd = buf+10;

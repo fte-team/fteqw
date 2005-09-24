@@ -348,10 +348,18 @@ static void ParsePrint(sv_t *tv, netmsg_t *m, int to, unsigned int mask)
 		{
 			for (t = (unsigned char*)text; *t; t++)
 			{
-				if (*t > 128)
+				if (*t >= 146 && *t < 156)
+					*t = *t - 146 + '0';
+				if (*t == 143)
+					*t = '.';
+				if (*t == 157 || *t == 158 || *t == 159)
+					*t = '-';
+				if (*t >= 128)
 					*t -= 128;
 				if (*t == 16)
 					*t = '[';
+				if (*t == 17)
+					*t = ']';
 			}
 			printf("%s", text);
 		}

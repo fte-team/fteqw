@@ -130,7 +130,7 @@ Sends a text message in an out-of-band datagram
 void Netchan_OutOfBandPrint (SOCKET sock, netadr_t adr, char *format, ...)
 {
 	va_list		argptr;
-	static char		string[8192];		// ??? why static?
+	char		string[8192];
 	
 	va_start (argptr, format);
 #ifdef _WIN32

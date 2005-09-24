@@ -407,7 +407,7 @@ void Prox_SendMessage(oproxy_t *prox, char *buf, int length, int dem_type, unsig
 
 void Prox_SendPlayerStats(sv_t *qtv, oproxy_t *prox)
 {
-	char buffer[MAX_MSGLEN*8];
+	char buffer[MAX_MSGLEN];
 	netmsg_t msg;
 	int player, snum;
 
@@ -435,7 +435,10 @@ void Prox_SendPlayerStats(sv_t *qtv, oproxy_t *prox)
 		}
 
 		if (msg.cursize)
+		{
 			Prox_SendMessage(prox, msg.data, msg.cursize, dem_stats|(player<<3), (1<<player));
+			msg.cursize = 0;
+		}
 	}
 }
 
@@ -492,6 +495,7 @@ void Net_SendConnectionMVD(sv_t *qtv, oproxy_t *prox)
 	Net_TryFlushProxyBuffer(prox);
 
 	Prox_SendPlayerStats(qtv, prox);
+	Net_TryFlushProxyBuffer(prox);
 
 	if (!qtv->lateforward)
 		Net_ProxySend(prox, qtv->buffer, qtv->buffersize);	//send all the info we've not yet processed.
@@ -636,7 +640,6 @@ unsigned int Sys_Milliseconds(void)
 void NetSleep(sv_t *tv)
 {
 	int m;
-	int ret;
 	struct timeval timeout;
 	fd_set socketset;
 
@@ -667,7 +670,7 @@ void NetSleep(sv_t *tv)
 	timeout.tv_sec = 100/1000;
 	timeout.tv_usec = (100%1000)*1000;
 
-	ret = select(m, &socketset, NULL, NULL, &timeout);
+	select(m, &socketset, NULL, NULL, &timeout);
 
 #ifdef _WIN32
 	for (;;)
@@ -788,6 +791,18 @@ void QTV_Run(sv_t *qtv)
 
 	while(1)
 	{
+		if (MAX_PROXY_BUFFER == qtv->buffersize)
+		{	//our input buffer is full
+			//so our receiving tcp socket probably has something waiting on it
+			//so our select calls will never wait
+			//so we add some extra sleeping.
+#ifdef _WIN32
+			Sleep(5);
+#else
+			usleep(5000);
+#endif
+		}
+
 		NetSleep(qtv);
 
 		if (qtv->sourcesock == INVALID_SOCKET && !qtv->file)
@@ -938,6 +953,8 @@ void QTV_Run(sv_t *qtv)
 		}
 
 		QW_UpdateUDPStuff(qtv);
+
+
 	}
 }
 

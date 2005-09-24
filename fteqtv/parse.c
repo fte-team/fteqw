@@ -258,7 +258,8 @@ static void ParseCDTrack(sv_t *tv, netmsg_t *m, int to, unsigned int mask)
 {
 	tv->cdtrack = ReadByte(m);
 
-	Multicast(tv, m->data+m->startpos, m->readpos - m->startpos, to, mask);
+	if (!tv->parsingconnectiondata)
+		Multicast(tv, m->data+m->startpos, m->readpos - m->startpos, to, mask);
 }
 static void ParseStufftext(sv_t *tv, netmsg_t *m, int to, unsigned int mask)
 {
@@ -327,10 +328,15 @@ static void ParseStufftext(sv_t *tv, netmsg_t *m, int to, unsigned int mask)
 static void ParseServerinfo(sv_t *tv, netmsg_t *m)
 {
 	char key[64];
-	char value[64];
+	char value[256];
 	ReadString(m, key, sizeof(key));
 	ReadString(m, value, sizeof(value));
-	Multicast(tv, m->data+m->startpos, m->readpos - m->startpos, dem_all, (unsigned)-1);
+
+	if (strcmp(key, "hostname"))	//don't allow the hostname to change, but allow the server to change other serverinfos.
+		Info_SetValueForStarKey(tv->serverinfo, key, value, sizeof(tv->serverinfo));
+
+	if (!tv->parsingconnectiondata)
+		Multicast(tv, m->data+m->startpos, m->readpos - m->startpos, dem_all, (unsigned)-1);
 }
 
 static void ParsePrint(sv_t *tv, netmsg_t *m, int to, unsigned int mask)
@@ -433,7 +439,8 @@ static void ParseStaticSound(sv_t *tv, netmsg_t *m, int to, unsigned int mask)
 	tv->staticsound[tv->staticsound_count].attenuation = ReadByte(m);
 
 	tv->staticsound_count++;
-	Multicast(tv, m->data+m->startpos, m->readpos - m->startpos, to, mask);
+	if (!tv->parsingconnectiondata)
+		Multicast(tv, m->data+m->startpos, m->readpos - m->startpos, to, mask);
 }
 
 static void ParseIntermission(sv_t *tv, netmsg_t *m, int to, unsigned int mask)
@@ -459,7 +466,9 @@ void ParseSpawnStatic(sv_t *tv, netmsg_t *m, int to, unsigned int mask)
 	ParseEntityState(&tv->spawnstatic[tv->spawnstatic_count], m);
 
 	tv->spawnstatic_count++;
-	Multicast(tv, m->data+m->startpos, m->readpos - m->startpos, to, mask);
+
+	if (!tv->parsingconnectiondata)
+		Multicast(tv, m->data+m->startpos, m->readpos - m->startpos, to, mask);
 }
 
 static void ParsePlayerInfo(sv_t *tv, netmsg_t *m)
@@ -471,7 +480,7 @@ static void ParsePlayerInfo(sv_t *tv, netmsg_t *m)
 	if (num >= MAX_CLIENTS)
 	{
 		num = 0;	// don't be fatal.
-		printf("Too many players, wrapping\n");
+		printf("Too many svc_playerinfos, wrapping\n");
 	}
 
 	tv->players[num].old = tv->players[num].current;
@@ -616,7 +625,10 @@ static void ParseUpdatePing(sv_t *tv, netmsg_t *m, int to, unsigned int mask)
 	pnum = ReadByte(m);
 	ping = ReadShort(m);
 
-	tv->players[pnum].ping = ping;
+	if (pnum < MAX_CLIENTS)
+		tv->players[pnum].ping = ping;
+	else
+		printf("svc_updateping: invalid player number\n");
 
 	Multicast(tv, m->data+m->startpos, m->readpos - m->startpos, to, mask);
 }
@@ -628,7 +640,10 @@ static void ParseUpdateFrags(sv_t *tv, netmsg_t *m, int to, unsigned int mask)
 	pnum = ReadByte(m);
 	frags = ReadShort(m);
 
-	tv->players[pnum].frags = frags;
+	if (pnum < MAX_CLIENTS)
+		tv->players[pnum].frags = frags;
+	else
+		printf("svc_updatefrags: invalid player number\n");
 
 	Multicast(tv, m->data+m->startpos, m->readpos - m->startpos, to, mask);
 }
@@ -642,14 +657,16 @@ static void ParseUpdateStat(sv_t *tv, netmsg_t *m, int to, unsigned int mask)
 	statnum = ReadByte(m);
 	value = ReadByte(m);
 
-	if (statnum >= MAX_STATS)
-		statnum = MAX_STATS-1;	//please don't crash us
-
-	for (pnum = 0; pnum < MAX_CLIENTS; pnum++)
+	if (statnum < MAX_STATS)
 	{
-		if (mask & (1<<pnum))
-			tv->players[pnum].stats[statnum] = value;
+		for (pnum = 0; pnum < MAX_CLIENTS; pnum++)
+		{
+			if (mask & (1<<pnum))
+				tv->players[pnum].stats[statnum] = value;
+		}
 	}
+	else
+		printf("svc_updatestat: invalid stat number\n");
 
 	Multicast(tv, m->data+m->startpos, m->readpos - m->startpos, to, mask);
 }
@@ -662,14 +679,16 @@ static void ParseUpdateStatLong(sv_t *tv, netmsg_t *m, int to, unsigned int mask
 	statnum = ReadByte(m);
 	value = ReadLong(m);
 
-	if (statnum >= MAX_STATS)
-		statnum = MAX_STATS-1;	//please don't crash us
-
-	for (pnum = 0; pnum < MAX_CLIENTS; pnum++)
+	if (statnum < MAX_STATS)
 	{
-		if (mask & (1<<pnum))
-			tv->players[pnum].stats[statnum] = value;
+		for (pnum = 0; pnum < MAX_CLIENTS; pnum++)
+		{
+			if (mask & (1<<pnum))
+				tv->players[pnum].stats[statnum] = value;
+		}
 	}
+	else
+		printf("svc_updatestatlong: invalid stat number\n");
 
 	Multicast(tv, m->data+m->startpos, m->readpos - m->startpos, to, mask);
 }
@@ -678,9 +697,16 @@ static void ParseUpdateUserinfo(sv_t *tv, netmsg_t *m)
 {
 	int pnum;
 	pnum = ReadByte(m);
-	pnum%=MAX_CLIENTS;
 	ReadLong(m);
-	ReadString(m, tv->players[pnum].userinfo, sizeof(tv->players[pnum].userinfo));
+	if (pnum < MAX_CLIENTS)
+		ReadString(m, tv->players[pnum].userinfo, sizeof(tv->players[pnum].userinfo));
+	else
+	{
+		printf("svc_updateuserinfo: invalid player number\n");
+		while (ReadByte(m))	//suck out the message.
+		{
+		}
+	}
 }
 
 static void ParsePacketloss(sv_t *tv, netmsg_t *m, int to, unsigned int mask)
@@ -691,7 +717,10 @@ static void ParsePacketloss(sv_t *tv, netmsg_t *m, int to, unsigned int mask)
 	pnum = ReadByte(m)%MAX_CLIENTS;
 	value = ReadByte(m);
 
-	tv->players[pnum].ping = value;
+	if (pnum < MAX_CLIENTS)
+		tv->players[pnum].packetloss = value;
+	else
+		printf("svc_updatepl: invalid player number\n");
 
 	Multicast(tv, m->data+m->startpos, m->readpos - m->startpos, to, mask);
 }
@@ -704,7 +733,10 @@ static void ParseUpdateEnterTime(sv_t *tv, netmsg_t *m, int to, unsigned int mas
 	pnum = ReadByte(m)%MAX_CLIENTS;
 	value = ReadFloat(m);
 
-	tv->players[pnum].entertime = value;
+	if (pnum < MAX_CLIENTS)
+		tv->players[pnum].entertime = value;
+	else
+		printf("svc_updateentertime: invalid player number\n");
 
 	Multicast(tv, m->data+m->startpos, m->readpos - m->startpos, to, mask);
 }
@@ -858,10 +890,15 @@ void ParseLightstyle(sv_t *tv, netmsg_t *m)
 {
 	int style;
 	style = ReadByte(m);
-	if (style > MAX_LIGHTSTYLES)
-		style=0;
-
-	ReadString(m, tv->lightstyle[style].name, sizeof(tv->lightstyle[style].name));
+	if (style < MAX_LIGHTSTYLES)
+		ReadString(m, tv->lightstyle[style].name, sizeof(tv->lightstyle[style].name));
+	else
+	{
+		printf("svc_lightstyle: invalid lightstyle index (%i)\n", style);
+		while (ReadByte(m))	//suck out the message.
+		{
+		}
+	}
 
 	Multicast(tv, m->data+m->startpos, m->readpos - m->startpos, dem_read, (unsigned)-1);
 }
@@ -894,9 +931,13 @@ void ParseMessage(sv_t *tv, char *buffer, int length, int to, int mask)
 			break;
 
 		case svc_disconnect:
-			QTV_Connect(tv, tv->server);	//reconnect (this is probably a demo, and reconnecting like this will make it loop)
-			tv->buffersize = 0;	//flush it
-			break;
+			//mvdsv safely terminates it's mvds with an svc_disconnect.
+			//the client is meant to read that and disconnect without reading the intentionally corrupt packet following it.
+			//however, our demo playback is chained and looping and buffered.
+			//so we've already found the end of the source file and restarted parsing.
+			//so there's very little we can do except crash ourselves on the EndOfDemo text following the svc_disconnect
+			//that's a bad plan, so just stop reading this packet.
+			return;
 
 		case svc_updatestat:
 			ParseUpdateStat(tv, &buf, to, mask);

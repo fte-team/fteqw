@@ -425,6 +425,12 @@ void QTV_Rcon(sv_t *qtv, char *message, netadr_t *from)
 	char *command;
 	int passlen;
 
+	if (!*qtv->password)
+	{
+		Netchan_OutOfBandPrint(qtv->qwdsocket, *from, "n" "Rcon is disabled. Set a password.\n");
+		return;
+	}
+
 	while(*message > '\0' && *message <= ' ')
 		message++;
 	

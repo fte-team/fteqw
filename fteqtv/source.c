@@ -436,7 +436,7 @@ void Prox_SendPlayerStats(sv_t *qtv, oproxy_t *prox)
 
 		if (msg.cursize)
 		{
-			Prox_SendMessage(prox, msg.data, msg.cursize, dem_stats|(player<<3), (1<<player));
+//			Prox_SendMessage(prox, msg.data, msg.cursize, dem_stats|(player<<3), (1<<player));
 			msg.cursize = 0;
 		}
 	}
@@ -795,7 +795,8 @@ void QTV_Run(sv_t *qtv)
 		{	//our input buffer is full
 			//so our receiving tcp socket probably has something waiting on it
 			//so our select calls will never wait
-			//so we add some extra sleeping.
+			//so we're using close to 100% cpu
+			//so we add some extra sleeping here.
 #ifdef _WIN32
 			Sleep(5);
 #else
@@ -914,6 +915,9 @@ void QTV_Run(sv_t *qtv)
 
 			if (qtv->nextpackettime < qtv->curtime)
 			{
+				if (qtv->lateforward)
+					Net_ForwardStream(qtv, qtv->buffer, lengthofs+4+length);
+
 				switch(qtv->buffer[1]&dem_mask)
 				{
 				case dem_multiple:
@@ -935,8 +939,6 @@ void QTV_Run(sv_t *qtv)
 				qtv->oldpackettime = qtv->curtime;
 
 				packettime = buffer[0];
-				if (qtv->lateforward)
-					Net_ForwardStream(qtv, qtv->buffer, lengthofs+4+length);
 				if (qtv->buffersize)
 				{	//svc_disconnect can flush our input buffer (to prevent the EndOfDemo part from interfering)
 					memmove(qtv->buffer, qtv->buffer+lengthofs+4+length, qtv->buffersize-(lengthofs+length+4));

@@ -10,5 +10,9 @@ qtv: $(OBJS) qtv.h
 	$(CC) $(CFLAGS) $(OBJS) -o $@.db -lm $(LDFLAGS)
 	$(STRIP) $(STRIPFLAGS) $@.db -o $@
 
+qtv.exe:
+	$(MAKE) qtv CFLAGS=-mno-cygwin LDFLAGS="-lwsock32 -lwinmm"
+	mv qtv qtv.exe
+
 clean:
 	rm -rf qtv qtv.db *.o

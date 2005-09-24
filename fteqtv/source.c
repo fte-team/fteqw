@@ -268,9 +268,45 @@ void Net_FindProxies(sv_t *qtv)
 	memset(prox, 0, sizeof(*prox));
 	prox->flushing = true;	//allow the buffer overflow resumption code to send the connection info.
 	prox->sock = sock;
+	prox->file = NULL;
 
 	prox->next = qtv->proxies;
 	qtv->proxies = prox;
+}
+
+qboolean Net_FileProxy(sv_t *qtv, char *filename)
+{
+	oproxy_t *prox;
+	FILE *f;
+
+	f = fopen(filename, "wb");
+	if (!f)
+		return false;
+
+	prox = malloc(sizeof(*prox));
+	memset(prox, 0, sizeof(*prox));
+	prox->flushing = true;	//allow the buffer overflow resumption code to send the connection info.
+	prox->sock = INVALID_SOCKET;
+	prox->file = f;
+
+	prox->next = qtv->proxies;
+	qtv->proxies = prox;
+
+	return true;
+}
+
+qboolean Net_StopFileProxy(sv_t *qtv)
+{
+	oproxy_t *prox;
+	for (prox = qtv->proxies; prox; prox = prox->next)
+	{
+		if (prox->file)
+		{
+			prox->drop = true;
+			return true;
+		}
+	}
+	return false;
 }
 
 #undef IN
@@ -1013,23 +1049,30 @@ int main(int argc, char **argv)
 	}
 
 
-	//make sure there's a use for this proxy.
-	if (qtv.qwdsocket == INVALID_SOCKET)
-	{	//still not opened one? try again
-		qtv.qwdsocket = QW_InitUDPSocket(qtv.qwlistenportnum);
-		if (qtv.qwdsocket == INVALID_SOCKET)
-			printf("Warning: couldn't open udp socket\n");
-	}
-	if (qtv.listenmvd == INVALID_SOCKET)
-	{
-		qtv.listenmvd = Net_MVDListen(qtv.tcplistenportnum);
-		if (qtv.listenmvd == INVALID_SOCKET)
-			printf("Warning: couldn't open mvd socket\n");
-	}
 	if (qtv.qwdsocket == INVALID_SOCKET && qtv.listenmvd == INVALID_SOCKET)
 	{
-		printf("Shutting down, couldn't open listening ports (useless proxy)\n");
-		return 0;
+		//make sure there's a use for this proxy.
+		if (qtv.qwdsocket == INVALID_SOCKET)
+		{	//still not opened one? try again
+			qtv.qwdsocket = QW_InitUDPSocket(qtv.qwlistenportnum);
+			if (qtv.qwdsocket == INVALID_SOCKET)
+				printf("Warning: couldn't open udp socket\n");
+			else
+				printf("Opened udp port %i\n", qtv.qwlistenportnum);
+		}
+		if (qtv.listenmvd == INVALID_SOCKET)
+		{
+			qtv.listenmvd = Net_MVDListen(qtv.tcplistenportnum);
+			if (qtv.listenmvd == INVALID_SOCKET)
+				printf("Warning: couldn't open mvd socket\n");
+			else
+				printf("Opened tcp port %i\n", qtv.tcplistenportnum);
+		}
+		if (qtv.qwdsocket == INVALID_SOCKET && qtv.listenmvd == INVALID_SOCKET)
+		{
+			printf("Shutting down, couldn't open listening ports (useless proxy)\n");
+			return 0;
+		}
 	}
 
 	qtv.parsingconnectiondata = true;

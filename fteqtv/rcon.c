@@ -345,8 +345,13 @@ char *Rcon_Command(sv_t *qtv, char *command, char *buffer, int sizeofbuffer, qbo
 		}
 		else if (!strcmp(arg[1], "master"))
 		{
+			netadr_t addr;
+
 			strncpy(qtv->master, arg[2], sizeof(qtv->master)-1);
 			qtv->mastersendtime = qtv->curtime;
+
+			if (NET_StringToAddr(arg[1], &addr))
+				NET_SendPacket (qtv->qwdsocket, 1, "k", addr);
 		}
 		else
 			return "Option not recognised\n";

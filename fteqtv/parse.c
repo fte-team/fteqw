@@ -335,15 +335,26 @@ static void ParseServerinfo(sv_t *tv, netmsg_t *m)
 
 static void ParsePrint(sv_t *tv, netmsg_t *m, int to, unsigned int mask)
 {
+	unsigned char *t;
 	char text[1024];
 	int level;
+
 	level = ReadByte(m);
 	ReadString(m, text, sizeof(text));
 
 	if (to == dem_all || to == dem_read)
 	{
 		if (level > 1)
+		{
+			for (t = (unsigned char*)text; *t; t++)
+			{
+				if (*t > 128)
+					*t -= 128;
+				if (*t == 16)
+					*t = '[';
+			}
 			printf("%s", text);
+		}
 	}
 
 	Multicast(tv, m->data+m->startpos, m->readpos - m->startpos, to, mask);
@@ -623,7 +634,10 @@ static void ParseUpdateStat(sv_t *tv, netmsg_t *m, int to, unsigned int mask)
 	statnum = ReadByte(m);
 	value = ReadByte(m);
 
-	for (pnum = 0; pnum < 32; pnum++)
+	if (statnum >= MAX_STATS)
+		statnum = MAX_STATS-1;	//please don't crash us
+
+	for (pnum = 0; pnum < MAX_CLIENTS; pnum++)
 	{
 		if (mask & (1<<pnum))
 			tv->players[pnum].stats[statnum] = value;
@@ -640,7 +654,10 @@ static void ParseUpdateStatLong(sv_t *tv, netmsg_t *m, int to, unsigned int mask
 	statnum = ReadByte(m);
 	value = ReadLong(m);
 
-	for (pnum = 0; pnum < 32; pnum++)
+	if (statnum >= MAX_STATS)
+		statnum = MAX_STATS-1;	//please don't crash us
+
+	for (pnum = 0; pnum < MAX_CLIENTS; pnum++)
 	{
 		if (mask & (1<<pnum))
 			tv->players[pnum].stats[statnum] = value;

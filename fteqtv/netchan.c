@@ -1,3 +1,23 @@
+/*
+Copyright (C) 1996-1997 Id Software, Inc.
+
+This program is free software; you can redistribute it and/or
+modify it under the terms of the GNU General Public License
+as published by the Free Software Foundation; either version 2
+of the License, or (at your option) any later version.
+
+This program is distributed in the hope that it will be useful,
+but WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
+
+See the included (GNU.txt) GNU General Public License for more details.
+
+You should have received a copy of the GNU General Public License
+along with this program; if not, write to the Free Software
+Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
+*/
+
+
 #include "qtv.h"
 
 #define curtime Sys_Milliseconds()
@@ -157,7 +177,7 @@ void Netchan_Setup (SOCKET sock, netchan_t *chan, netadr_t adr, int qport)
 
 	chan->message.allowoverflow = true;
 	
-	chan->rate = 1.0/2500;
+	chan->rate = 1.0f/2500;
 }
 
 
@@ -205,13 +225,12 @@ transmition / retransmition of the reliable messages.
 A 0 length will still generate a packet and deal with the reliable messages.
 ================
 */
-void Netchan_Transmit (netchan_t *chan, int length, unsigned char *data)
+void Netchan_Transmit (netchan_t *chan, int length, const unsigned char *data)
 {
 	netmsg_t	send;
 	unsigned char	send_buf[MAX_MSGLEN + PACKET_HEADER];
 	qboolean		send_reliable;
 	unsigned	w1, w2;
-	int			i;
 
 // check for message overflow
 	if (chan->message.overflowed)

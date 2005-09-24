@@ -1,13 +1,13 @@
-CC=gcc
+EXTRACFLAGS=-Wall -O2
+CC=gcc $(EXTRACFLAGS)
 STRIP=strip
 
-CFLAGS=-Wall -O2
 STRIPFLAGS=--strip-unneeded --remove-section=.comment
 
-OBJS = netchan.o parse.o qw.o source.o
+OBJS = netchan.o parse.o qw.o source.o bsp.o rcon.o
 
-qtv: $(OBJS)
-	$(CC) $(CFLAGS) $(OBJS) -o $@.db -lm
+qtv: $(OBJS) qtv.h
+	$(CC) $(CFLAGS) $(OBJS) -o $@.db -lm $(LDFLAGS)
 	$(STRIP) $(STRIPFLAGS) $@.db -o $@
 
 clean:

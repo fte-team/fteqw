@@ -1,3 +1,23 @@
+/*
+Copyright (C) 1996-1997 Id Software, Inc.
+
+This program is free software; you can redistribute it and/or
+modify it under the terms of the GNU General Public License
+as published by the Free Software Foundation; either version 2
+of the License, or (at your option) any later version.
+
+This program is distributed in the hope that it will be useful,
+but WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
+
+See the included (GNU.txt) GNU General Public License for more details.
+
+You should have received a copy of the GNU General Public License
+along with this program; if not, write to the Free Software
+Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
+*/
+
+
 #include "qtv.h"
 
 
@@ -32,7 +52,7 @@ qboolean	NET_StringToAddr (char *s, netadr_t *sadr)
 	else
 #endif
 #ifdef IPPROTO_IPV6
-		if (pgetaddrinfo)
+		if (getaddrinfo)
 	{
 		struct addrinfo *addrinfo, *pos;
 		struct addrinfo udp6hint;
@@ -63,12 +83,12 @@ qboolean	NET_StringToAddr (char *s, netadr_t *sadr)
 				len = sizeof(dupbase)-1;
 			strncpy(dupbase, s, len);
 			dupbase[len] = '\0';
-			error = pgetaddrinfo(dupbase, port+1, &udp6hint, &addrinfo);
+			error = getaddrinfo(dupbase, port+1, &udp6hint, &addrinfo);
 		}
 		else
 			error = EAI_NONAME;
 		if (error)	//failed, try string with no port.
-			error = pgetaddrinfo(s, NULL, &udp6hint, &addrinfo);	//remember, this func will return any address family that could be using the udp protocol... (ip4 or ip6)
+			error = getaddrinfo(s, NULL, &udp6hint, &addrinfo);	//remember, this func will return any address family that could be using the udp protocol... (ip4 or ip6)
 		if (error)
 		{
 			return false;
@@ -214,18 +234,21 @@ qboolean Net_ConnectToServer(sv_t *qtv, char *ip)
 	if (bind(qtv->sourcesock, (struct sockaddr *)&from, sizeof(from)) == -1)
 	{
 		closesocket(qtv->sourcesock);
+		qtv->sourcesock = INVALID_SOCKET;
 		return false;
 	}
 
 	if (connect(qtv->sourcesock, (struct sockaddr *)&qtv->serveraddress, sizeof(qtv->serveraddress)) == INVALID_SOCKET)
 	{
 		closesocket(qtv->sourcesock);
+		qtv->sourcesock = INVALID_SOCKET;
 		return false;
 	}
 
 	if (ioctlsocket (qtv->sourcesock, FIONBIO, &nonblocking) == -1)
 	{
 		closesocket(qtv->sourcesock);
+		qtv->sourcesock = INVALID_SOCKET;
 		return false;
 	}
 
@@ -305,7 +328,12 @@ void Net_TryFlushProxyBuffer(oproxy_t *prox)
 	if (bufpos+length > MAX_PROXY_BUFFER)
 		printf("oversize flush\n");
 
-	length = send(prox->sock, buffer, length, 0);
+	if (prox->file)
+		length = fwrite(buffer, 1, length, prox->file);
+	else
+		length = send(prox->sock, buffer, length, 0);
+
+
 	switch (length)
 	{
 	case 0:	//eof / they disconnected
@@ -368,10 +396,47 @@ void Prox_SendMessage(oproxy_t *prox, char *buf, int length, int dem_type, unsig
 	WriteByte(&msg, 0);
 	WriteByte(&msg, dem_type);
 	WriteLong(&msg, length);
+	if (dem_type == dem_multiple)
+		WriteLong(&msg, playermask);
+
 
 	Net_ProxySend(prox, msg.data, msg.cursize);
 
 	Net_ProxySend(prox, buf, length);
+}
+
+void Prox_SendPlayerStats(sv_t *qtv, oproxy_t *prox)
+{
+	char buffer[MAX_MSGLEN*8];
+	netmsg_t msg;
+	int player, snum;
+
+	InitNetMsg(&msg, buffer, sizeof(buffer));
+
+	for (player = 0; player < MAX_CLIENTS; player++)
+	{
+		for (snum = 0; snum < MAX_STATS; snum++)
+		{
+			if (qtv->players[player].stats[snum])
+			{
+				if ((unsigned)qtv->players[player].stats[snum] > 255)
+				{
+					WriteByte(&msg, svc_updatestatlong);
+					WriteByte(&msg, snum);
+					WriteLong(&msg, qtv->players[player].stats[snum]);
+				}
+				else
+				{
+					WriteByte(&msg, svc_updatestat);
+					WriteByte(&msg, snum);
+					WriteByte(&msg, qtv->players[player].stats[snum]);
+				}
+			}
+		}
+
+		if (msg.cursize)
+			Prox_SendMessage(prox, msg.data, msg.cursize, dem_stats|(player<<3), (1<<player));
+	}
 }
 
 void Net_SendConnectionMVD(sv_t *qtv, oproxy_t *prox)
@@ -426,6 +491,8 @@ void Net_SendConnectionMVD(sv_t *qtv, oproxy_t *prox)
 
 	Net_TryFlushProxyBuffer(prox);
 
+	Prox_SendPlayerStats(qtv, prox);
+
 	if (!qtv->lateforward)
 		Net_ProxySend(prox, qtv->buffer, qtv->buffersize);	//send all the info we've not yet processed.
 
@@ -450,7 +517,10 @@ void Net_ForwardStream(sv_t *qtv, char *buffer, int length)
 	{
 		next = qtv->proxies->next;
 		fre = qtv->proxies;
-		closesocket(fre->sock);
+		if (fre->file)
+			fclose(fre->file);
+		else
+			closesocket(fre->sock);
 		free(fre);
 		qtv->proxies = next;
 	}
@@ -461,7 +531,10 @@ void Net_ForwardStream(sv_t *qtv, char *buffer, int length)
 		{
 			next = prox->next->next;
 			fre = prox->next;
-			closesocket(fre->sock);
+			if (fre->file)
+				fclose(fre->file);
+			else
+				closesocket(fre->sock);
 			free(fre);
 			prox->next = next;
 		}
@@ -528,6 +601,7 @@ qboolean Net_ReadStream(sv_t *qtv)
 		{
 			if (qtv->sourcesock != INVALID_SOCKET)
 			{
+				printf("Error: source socket error %i\n", qerrno);
 				closesocket(qtv->sourcesock);
 				qtv->sourcesock = INVALID_SOCKET;
 			}
@@ -550,25 +624,101 @@ unsigned int Sys_Milliseconds(void)
 #ifdef _WIN32
 #pragma comment(lib, "winmm.lib")
 	return timeGetTime();
+#else
+	//assume every other system follows standards.
+	struct timeval tv;
+
+	gettimeofday(&tv, NULL);
+	return ((unsigned)tv.tv_sec)*1000 + (((unsigned)tv.tv_usec)/1000);
 #endif
 }
 
 void NetSleep(sv_t *tv)
 {
+	int m;
+	int ret;
 	struct timeval timeout;
 	fd_set socketset;
-Sleep(0);
-	FD_ZERO(&socketset);
 
+	FD_ZERO(&socketset);
+	m = 0;
 	if (tv->sourcesock != INVALID_SOCKET)
+	{
 		FD_SET(tv->sourcesock, &socketset);
+		if (tv->sourcesock >= m)
+			m = tv->sourcesock+1;
+	}
 	if (tv->qwdsocket != INVALID_SOCKET)
+	{
 		FD_SET(tv->qwdsocket, &socketset);
+		if (tv->sourcesock >= m)
+			m = tv->sourcesock+1;
+	}
+
+#ifndef _WIN32
+	#ifndef STDIN
+		#define STDIN 0
+	#endif
+	FD_SET(STDIN, &socketset);
+	if (STDIN >= m)
+		m = STDIN+1;
+#endif
 
 	timeout.tv_sec = 100/1000;
 	timeout.tv_usec = (100%1000)*1000;
 
-	select(2, &socketset, NULL, NULL, &timeout); 
+	ret = select(m, &socketset, NULL, NULL, &timeout);
+
+#ifdef _WIN32
+	for (;;)
+#else
+	if (FD_ISSET(STDIN, &socketset))
+#endif
+	{
+		char buffer[8192];
+		char *result;
+		char c;
+
+#ifdef _WIN32
+		if (!kbhit())
+			break;
+		else
+			c = getch();
+#else
+		c = recv(STDIN, &c, 1, 0);
+#endif
+
+		if (c == '\n' || c == '\r')
+		{
+			printf("\n");
+			if (tv->inputlength)
+			{
+				tv->commandinput[tv->inputlength] = '\0';
+				result = Rcon_Command(tv, tv->commandinput, buffer, sizeof(buffer), true);
+				printf("%s", result);
+				tv->inputlength = 0;
+				tv->commandinput[0] = '\0';
+			}
+		}
+		else if (c == '\b')
+		{
+			if (tv->inputlength > 0)
+			{
+				tv->inputlength--;
+				tv->commandinput[tv->inputlength] = '\0';
+			}
+		}
+		else
+		{
+			if (tv->inputlength < sizeof(tv->commandinput)-1)
+			{
+				tv->commandinput[tv->inputlength++] = c;
+				tv->commandinput[tv->inputlength] = '\0';
+			}
+		}
+
+		printf("\r%s \b", tv->commandinput);
+	}
 }
 
 void Trim(char *s)
@@ -582,41 +732,78 @@ void Trim(char *s)
 	*s = '\0';
 }
 
+qboolean QTV_Connect(sv_t *qtv, char *serverurl)
+{
+	if (qtv->sourcesock != INVALID_SOCKET)
+	{
+		closesocket(qtv->sourcesock);
+		qtv->sourcesock = INVALID_SOCKET;
+	}
+
+	if (qtv->file)
+	{
+		fclose(qtv->file);
+		qtv->file = NULL;
+	}
+
+	*qtv->serverinfo = '\0';
+	Info_SetValueForStarKey(qtv->serverinfo, "*version",	"FTEQTV",	sizeof(qtv->serverinfo));
+	Info_SetValueForStarKey(qtv->serverinfo, "*qtv",		VERSION,	sizeof(qtv->serverinfo));
+	Info_SetValueForStarKey(qtv->serverinfo, "hostname",	qtv->hostname,	sizeof(qtv->serverinfo));
+	Info_SetValueForStarKey(qtv->serverinfo, "maxclients",	"99",	sizeof(qtv->serverinfo));
+	if (!strncmp(qtv->server, "file:", 5))
+		Info_SetValueForStarKey(qtv->serverinfo, "server",		"file",	sizeof(qtv->serverinfo));
+	else
+		Info_SetValueForStarKey(qtv->serverinfo, "server",		qtv->server,	sizeof(qtv->serverinfo));
+
+	memcpy(qtv->server, serverurl, sizeof(qtv->server)-1);
+
+	if (!Net_ConnectToServer(qtv, qtv->server))
+	{
+		printf("Couldn't connect (%s)\n", qtv->server);
+		return false;
+	}
+	printf("Connected\n");
+
+	if (qtv->sourcesock == INVALID_SOCKET)
+	{
+		qtv->parsetime = Sys_Milliseconds();
+		printf("Playing from file\n");
+	}
+	else
+	{
+		qtv->parsetime = Sys_Milliseconds() + BUFFERTIME*1000;
+		printf("Buffering for %i seconds\n", BUFFERTIME);
+	}
+	return true;
+}
+
 void QTV_Run(sv_t *qtv)
 {
 	int lengthofs;
 	unsigned int length;
 	unsigned char *buffer;
 	int oldcurtime;
+	int packettime;
 
 	while(1)
 	{
+		NetSleep(qtv);
+
 		if (qtv->sourcesock == INVALID_SOCKET && !qtv->file)
-		{
-			if (!Net_ConnectToServer(qtv, qtv->server))
+			if (!QTV_Connect(qtv, qtv->server))
 			{
-				printf("Couldn't connect\n");
+				QW_UpdateUDPStuff(qtv);
 				continue;
 			}
-			printf("Connected\n");
 
-			if (qtv->sourcesock == INVALID_SOCKET)
-			{
-				qtv->parsetime = Sys_Milliseconds();
-				printf("Playing from file\n");
-			}
-			else
-			{
-				qtv->parsetime = Sys_Milliseconds() + BUFFERTIME*1000;
-				printf("Buffering for %i seconds\n", BUFFERTIME);
-			}
-		}
-
-		NetSleep(qtv);
 		Net_FindProxies(qtv);
 
 		if (!Net_ReadStream(qtv))
+		{
+			QW_UpdateUDPStuff(qtv);
 			continue;
+		}
 
 //we will read out as many packets as we can until we're up to date
 //note: this can cause real issues when we're overloaded for any length of time
@@ -732,14 +919,19 @@ void QTV_Run(sv_t *qtv)
 
 				qtv->oldpackettime = qtv->curtime;
 
-				qtv->parsetime += buffer[0];
+				packettime = buffer[0];
 				if (qtv->lateforward)
 					Net_ForwardStream(qtv, qtv->buffer, lengthofs+4+length);
-				memmove(qtv->buffer, qtv->buffer+lengthofs+4+length, qtv->buffersize-(lengthofs+length+4));
-				qtv->buffersize -= lengthofs+4+length;
+				if (qtv->buffersize)
+				{	//svc_disconnect can flush our input buffer (to prevent the EndOfDemo part from interfering)
+					memmove(qtv->buffer, qtv->buffer+lengthofs+4+length, qtv->buffersize-(lengthofs+length+4));
+					qtv->buffersize -= lengthofs+4+length;
+				}
 
 				if (qtv->file)
 					Net_ReadStream(qtv);
+
+				qtv->parsetime += packettime;
 			}
 			else
 				break;
@@ -758,69 +950,9 @@ int main(int argc, char **argv)
 	sv_t qtv;
 
 
-	char *configfilename;
 	char line[1024];
-	char *eq,*semi;
-
-	memset(&qtv, 0, sizeof(qtv));
-	//set up a default config
-	qtv.tcplistenportnum = PROX_DEFAULTLISTENPORT;
-	qtv.qwlistenportnum = PROX_DEFAULTLISTENPORT;
-	strcpy(qtv.server, PROX_DEFAULTSERVER);
-
-
-	line[sizeof(line)-1] = '\0';
-	if (argc < 2)
-		configfilename = "ftv.cfg";
-	else
-		configfilename = argv[1];
-	f = fopen(configfilename, "rt");
-	if (!f)
-		printf("Couldn't open config file \"%s\", using defaults\n", configfilename);
-	else
-	{
-		while(fgets(line, sizeof(line)-1, f))
-		{
-			eq = strchr(line, '=');
-			if (!eq)
-				continue;
-			semi = strchr(eq, ';');
-			if (!semi)
-			{
-				printf("Missing ; in config file\n");
-				continue;
-			}
-			*eq = '\0';
-			*semi = '\0';
-			eq++;
-			Trim(line);
-			Trim(eq);
-			if (!strcmp(line, "server"))
-				strncpy(qtv.server, eq, sizeof(qtv.server)-1);
-			else if (!strcmp(line, "file"))
-			{
-				strcpy(qtv.server, "file:");
-				strncpy(qtv.server+5, eq, sizeof(qtv.server)-1);
-			}
-			else if (!strcmp(line, "tcpport"))
-				qtv.tcplistenportnum = atoi(eq);
-			else if (!strcmp(line, "udpport"))
-				qtv.qwlistenportnum = atoi(eq);
-			else if (!strcmp(line, "choke"))
-				qtv.chokeonnotupdated = !!atoi(eq);
-			else if (!strcmp(line, "lateforward"))
-				qtv.lateforward = !!atoi(eq);
-			else
-			{
-				printf("config: can't recognise %s\n", line);
-			}
-		}
-		fclose(f);
-	}
-
-	qtv.qwdsocket = INVALID_SOCKET;
-	qtv.listenmvd = INVALID_SOCKET;
-	qtv.sourcesock = INVALID_SOCKET;
+	char buffer[8192];
+	char *res;
 
 #ifdef _WIN32
 	{
@@ -829,10 +961,61 @@ int main(int argc, char **argv)
 	}
 #endif
 
-	qtv.qwdsocket = QW_InitUDPSocket(qtv.qwlistenportnum);
-	qtv.listenmvd = Net_MVDListen(qtv.tcplistenportnum);
+
+	memset(&qtv, 0, sizeof(qtv));
+	//set up a default config
+	qtv.tcplistenportnum = PROX_DEFAULTLISTENPORT;
+	qtv.qwlistenportnum = PROX_DEFAULTLISTENPORT;
+	strcpy(qtv.server, PROX_DEFAULTSERVER);
+	strcpy(qtv.hostname, DEFAULT_HOSTNAME);
+	qtv.chokeonnotupdated = true;
+
+	qtv.qwdsocket = INVALID_SOCKET;
+	qtv.listenmvd = INVALID_SOCKET;
+	qtv.sourcesock = INVALID_SOCKET;
+
+
+	line[sizeof(line)-1] = '\0';
+	if (argc < 2)
+		res = "ftv.cfg";
+	else
+		res = argv[1];
+	f = fopen(res, "rt");
+	if (!f)
+		printf("Couldn't open config file \"%s\"\n", res);
+	else
+	{
+		while(fgets(line, sizeof(line)-1, f))
+		{
+			res = Rcon_Command(&qtv, line, buffer, sizeof(buffer), true);
+			printf("%s", res);
+		}
+		fclose(f);
+	}
+
+
+	//make sure there's a use for this proxy.
+	if (qtv.qwdsocket == INVALID_SOCKET)
+	{	//still not opened one? try again
+		qtv.qwdsocket = QW_InitUDPSocket(qtv.qwlistenportnum);
+		if (qtv.qwdsocket == INVALID_SOCKET)
+			printf("Warning: couldn't open udp socket\n");
+	}
+	if (qtv.listenmvd == INVALID_SOCKET)
+	{
+		qtv.listenmvd = Net_MVDListen(qtv.tcplistenportnum);
+		if (qtv.listenmvd == INVALID_SOCKET)
+			printf("Warning: couldn't open mvd socket\n");
+	}
+	if (qtv.qwdsocket == INVALID_SOCKET && qtv.listenmvd == INVALID_SOCKET)
+	{
+		printf("Shutting down, couldn't open listening ports (useless proxy)\n");
+		return 0;
+	}
 
 	qtv.parsingconnectiondata = true;
 	QTV_Run(&qtv);
+
+	return 0;
 }
 

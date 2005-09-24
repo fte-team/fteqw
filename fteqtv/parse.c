@@ -1,3 +1,23 @@
+/*
+Copyright (C) 1996-1997 Id Software, Inc.
+
+This program is free software; you can redistribute it and/or
+modify it under the terms of the GNU General Public License
+as published by the Free Software Foundation; either version 2
+of the License, or (at your option) any later version.
+
+This program is distributed in the hope that it will be useful,
+but WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
+
+See the included (GNU.txt) GNU General Public License for more details.
+
+You should have received a copy of the GNU General Public License
+along with this program; if not, write to the Free Software
+Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
+*/
+
+
 #include "qtv.h"
 
 #define ParseError(m) (m)->cursize = (m)->cursize+1	//
@@ -229,6 +249,9 @@ static void ParseServerData(sv_t *tv, netmsg_t *m, int to, unsigned int playerma
 	memset(tv->soundlist, 0, sizeof(tv->soundlist));
 	memset(tv->lightstyle, 0, sizeof(tv->lightstyle));
 	tv->staticsound_count = 0;
+	memset(tv->staticsound, 0, sizeof(tv->staticsound));
+
+	memset(tv->players, 0, sizeof(tv->players));
 }
 
 static void ParseCDTrack(sv_t *tv, netmsg_t *m, int to, unsigned int mask)
@@ -241,6 +264,9 @@ static void ParseStufftext(sv_t *tv, netmsg_t *m, int to, unsigned int mask)
 {
 	viewer_t *v;
 	char text[1024];
+	char value[256];
+	qboolean fromproxy;
+
 	ReadString(m, text, sizeof(text));
 
 	if (!strcmp(text, "skins\n"))
@@ -248,6 +274,7 @@ static void ParseStufftext(sv_t *tv, netmsg_t *m, int to, unsigned int mask)
 		const char newcmd[10] = {svc_stufftext, 'c', 'm', 'd', ' ', 'n','e','w','\n','\0'};
 		tv->servercount++;
 		tv->parsingconnectiondata = false;
+
 		for (v = tv->viewers; v; v = v->next)
 		{
 			SendBufferToViewer(v, newcmd, sizeof(newcmd), true);
@@ -256,7 +283,39 @@ static void ParseStufftext(sv_t *tv, netmsg_t *m, int to, unsigned int mask)
 	}
 	else if (!strncmp(text, "fullserverinfo ", 15))
 	{
-		strncpy(tv->serverinfo, text+15, sizeof(tv->serverinfo)-1);
+		text[strlen(text)-1] = '\0';
+		text[strlen(text)-1] = '\0';
+
+		//copy over the server's serverinfo
+		strncpy(tv->serverinfo, text+16, sizeof(tv->serverinfo)-1);
+
+		Info_ValueForKey(tv->serverinfo, "*qtv", value, sizeof(value));
+		if (*value)
+			fromproxy = true;
+		else
+			fromproxy = false;
+
+		//add on our extra infos
+		Info_SetValueForStarKey(tv->serverinfo, "*qtv", VERSION, sizeof(tv->serverinfo));
+		Info_SetValueForStarKey(tv->serverinfo, "*z_ext", Z_EXT_STRING, sizeof(tv->serverinfo));
+
+		//change the hostname (the qtv's hostname with the server's hostname in brackets)
+		Info_ValueForKey(tv->serverinfo, "hostname", value, sizeof(value));
+		if (fromproxy && strchr(value, '(') && value[strlen(value)-1] == ')')	//already has brackets
+		{	//the fromproxy check is because it's fairly common to find a qw server with brackets after it's name.
+			char *s;
+			s = strchr(value, '(');	//so strip the parent proxy's hostname, and put our hostname first, leaving the origional server's hostname within the brackets
+			_snprintf(text, sizeof(text), "%s %s", tv->hostname, s);
+		}
+		else
+		{
+			if (tv->file)
+				_snprintf(text, sizeof(text), "%s (recorded from: %s)", tv->hostname, value);
+			else
+				_snprintf(text, sizeof(text), "%s (live: %s)", tv->hostname, value);
+		}
+		Info_SetValueForStarKey(tv->serverinfo, "hostname", text, sizeof(tv->serverinfo));
+
 		return;
 	}
 	else if (!strncmp(text, "cmd ", 4))
@@ -296,7 +355,7 @@ static void ParseCenterprint(sv_t *tv, netmsg_t *m, int to, unsigned int mask)
 
 	Multicast(tv, m->data+m->startpos, m->readpos - m->startpos, to, mask);
 }
-static void ParseList(sv_t *tv, netmsg_t *m, filename_t *list, int to, unsigned int mask)
+static int ParseList(sv_t *tv, netmsg_t *m, filename_t *list, int to, unsigned int mask)
 {
 	int first;
 
@@ -304,17 +363,31 @@ static void ParseList(sv_t *tv, netmsg_t *m, filename_t *list, int to, unsigned 
 	for (; first < MAX_LIST; first++)
 	{
 		ReadString(m, list[first].name, sizeof(list[first].name));
-		printf("read %i: %s\n", first, list[first].name);
+//		printf("read %i: %s\n", first, list[first].name);
 		if (!*list[first].name)
 			break;
 //		printf("%i: %s\n", first, list[first].name);
 	}
 
-	ReadByte(m);	//wasted, we don't echo
+	return ReadByte(m);
+}
+
+static void ParseEntityState(entity_state_t *es, netmsg_t *m)	//for baselines/static entities
+{
+	int i;
+
+	es->modelindex = ReadByte(m);
+	es->frame = ReadByte(m);
+	es->colormap = ReadByte(m);
+	es->skinnum = ReadByte(m);
+	for (i = 0; i < 3; i++)
+	{
+		es->origin[i] = ReadShort(m);
+		es->angles[i] = ReadByte(m);
+	}
 }
 static void ParseBaseline(sv_t *tv, netmsg_t *m, int to, unsigned int mask)
 {
-	int i;
 	unsigned int entnum;
 	entnum = ReadShort(m);
 	if (entnum >= MAX_ENTITIES)
@@ -322,23 +395,15 @@ static void ParseBaseline(sv_t *tv, netmsg_t *m, int to, unsigned int mask)
 		ParseError(m);
 		return;
 	}
-	tv->baseline[entnum].modelindex = ReadByte(m);
-	tv->baseline[entnum].frame = ReadByte(m);
-	tv->baseline[entnum].colormap = ReadByte(m);
-	tv->baseline[entnum].skinnum = ReadByte(m);
-	for (i = 0; i < 3; i++)
-	{
-		tv->baseline[entnum].origin[i] = ReadShort(m);
-		tv->baseline[entnum].angles[i] = ReadByte(m);
-	}
+	ParseEntityState(&tv->entity[entnum].baseline, m);
 }
 
 static void ParseStaticSound(sv_t *tv, netmsg_t *m, int to, unsigned int mask)
 {
 	if (tv->staticsound_count == MAX_STATICSOUNDS)
 	{
-		tv->staticsound_count = 0;	// don't be fatal.
-		printf("Too many static sounds, wrapping\n");
+		tv->staticsound_count--;	// don't be fatal.
+		printf("Too many static sounds\n");
 	}
 
 	tv->staticsound[tv->staticsound_count].origin[0] = ReadShort(m);
@@ -351,6 +416,33 @@ static void ParseStaticSound(sv_t *tv, netmsg_t *m, int to, unsigned int mask)
 	tv->staticsound_count++;
 	Multicast(tv, m->data+m->startpos, m->readpos - m->startpos, to, mask);
 }
+
+static void ParseIntermission(sv_t *tv, netmsg_t *m, int to, unsigned int mask)
+{
+	ReadShort(m);
+	ReadShort(m);
+	ReadShort(m);
+	ReadByte(m);
+	ReadByte(m);
+	ReadByte(m);
+
+	Multicast(tv, m->data+m->startpos, m->readpos - m->startpos, to, mask);
+}
+
+void ParseSpawnStatic(sv_t *tv, netmsg_t *m, int to, unsigned int mask)
+{
+	if (tv->spawnstatic_count == MAX_STATICENTITIES)
+	{
+		tv->spawnstatic_count--;	// don't be fatal.
+		printf("Too many static entities\n");
+	}
+
+	ParseEntityState(&tv->spawnstatic[tv->spawnstatic_count], m);
+
+	tv->spawnstatic_count++;
+	Multicast(tv, m->data+m->startpos, m->readpos - m->startpos, to, mask);
+}
+
 static void ParsePlayerInfo(sv_t *tv, netmsg_t *m)
 {
 	int flags;
@@ -397,21 +489,30 @@ static void ParsePlayerInfo(sv_t *tv, netmsg_t *m)
 		tv->players[num].current.weaponframe = ReadByte (m);
 
 	tv->players[num].active = true;
+
+
+	tv->players[num].leafcount = BSP_SphereLeafNums(tv->bsp,	MAX_ENTITY_LEAFS, tv->players[num].leafs, 
+														tv->players[num].current.origin[0]/8.0f,
+														tv->players[num].current.origin[1]/8.0f,
+														tv->players[num].current.origin[2]/8.0f, 32);
 }
 
 static void FlushPacketEntities(sv_t *tv)
 {
 	int i;
 	for (i = 0; i < MAX_ENTITIES; i++)
-		tv->curents[i].modelindex = 0;
+		tv->entity[i].current.modelindex = 0;
 }
 
 static void ParsePacketEntities(sv_t *tv, netmsg_t *m)
 {
 	int entnum;
 	int flags;
+	qboolean forcerelink;
 
 	viewer_t *v;
+
+	tv->physicstime = tv->parsetime;
 
 	if (tv->chokeonnotupdated)
 		for (v = tv->viewers; v; v = v->next)
@@ -436,44 +537,56 @@ static void ParsePacketEntities(sv_t *tv, netmsg_t *m)
 		if (tv->maxents < entnum)
 			tv->maxents = entnum;
 		flags &= ~511;
-		memcpy(&tv->oldents[entnum], &tv->curents[entnum], sizeof(entity_state_t));	//ow.
+		memcpy(&tv->entity[entnum].old, &tv->entity[entnum].current, sizeof(entity_state_t));	//ow.
 		if (flags & U_REMOVE)
 		{
-			tv->curents[entnum].modelindex = 0;
+			tv->entity[entnum].current.modelindex = 0;
 			continue;
 		}
-		if (!tv->curents[entnum].modelindex)	//lerp from baseline
-			memcpy(&tv->curents[entnum], &tv->baseline[entnum], sizeof(entity_state_t));
+		if (!tv->entity[entnum].current.modelindex)	//lerp from baseline
+		{
+			memcpy(&tv->entity[entnum].current, &tv->entity[entnum].baseline, sizeof(entity_state_t));
+			forcerelink = true;
+		}
+		else
+			forcerelink = false;
 
 		if (flags & U_MOREBITS)
 			flags |= ReadByte(m);
 		if (flags & U_MODEL)
-			tv->curents[entnum].modelindex = ReadByte(m);
+			tv->entity[entnum].current.modelindex = ReadByte(m);
 		if (flags & U_FRAME)
-			tv->curents[entnum].frame = ReadByte(m);
+			tv->entity[entnum].current.frame = ReadByte(m);
 		if (flags & U_COLORMAP)
-			tv->curents[entnum].colormap = ReadByte(m);
+			tv->entity[entnum].current.colormap = ReadByte(m);
 		if (flags & U_SKIN)
-			tv->curents[entnum].skinnum = ReadByte(m);
+			tv->entity[entnum].current.skinnum = ReadByte(m);
 		if (flags & U_EFFECTS)
-			tv->curents[entnum].effects = ReadByte(m);
+			tv->entity[entnum].current.effects = ReadByte(m);
 
 		if (flags & U_ORIGIN1)
-			tv->curents[entnum].origin[0] = ReadShort(m);
+			tv->entity[entnum].current.origin[0] = ReadShort(m);
 		if (flags & U_ANGLE1)
-			tv->curents[entnum].angles[0] = ReadByte(m);
+			tv->entity[entnum].current.angles[0] = ReadByte(m);
 		if (flags & U_ORIGIN2)
-			tv->curents[entnum].origin[1] = ReadShort(m);
+			tv->entity[entnum].current.origin[1] = ReadShort(m);
 		if (flags & U_ANGLE2)
-			tv->curents[entnum].angles[1] = ReadByte(m);
+			tv->entity[entnum].current.angles[1] = ReadByte(m);
 		if (flags & U_ORIGIN3)
-			tv->curents[entnum].origin[2] = ReadShort(m);
+			tv->entity[entnum].current.origin[2] = ReadShort(m);
 		if (flags & U_ANGLE3)
-			tv->curents[entnum].angles[2] = ReadByte(m);
+			tv->entity[entnum].current.angles[2] = ReadByte(m);
 
-		tv->entupdatetime[entnum] = tv->curtime;
-		if (!tv->oldents[entnum].modelindex)	//no old state
-			memcpy(&tv->oldents[entnum], &tv->curents[entnum], sizeof(entity_state_t));	//copy the new to the old, so we don't end up with interpolation glitches
+		tv->entity[entnum].updatetime = tv->curtime;
+		if (!tv->entity[entnum].old.modelindex)	//no old state
+			memcpy(&tv->entity[entnum].old, &tv->entity[entnum].current, sizeof(entity_state_t));	//copy the new to the old, so we don't end up with interpolation glitches
+
+
+		if ((flags & (U_ORIGIN1 | U_ORIGIN2 | U_ORIGIN3)) || forcerelink)
+			tv->entity[entnum].leafcount = BSP_SphereLeafNums(tv->bsp, MAX_ENTITY_LEAFS, tv->entity[entnum].leafs,
+															tv->entity[entnum].current.origin[0]/8.0f,
+															tv->entity[entnum].current.origin[1]/8.0f,
+															tv->entity[entnum].current.origin[2]/8.0f, 32);
 	}
 }
 
@@ -755,7 +868,10 @@ void ParseMessage(sv_t *tv, char *buffer, int length, int to, int mask)
 			printf("nop\n");
 			break;
 
-//#define	svc_disconnect		2
+		case svc_disconnect:
+			QTV_Connect(tv, tv->server);	//reconnect (this is probably a demo, and reconnecting like this will make it loop)
+			tv->buffersize = 0;	//flush it
+			break;
 
 		case svc_updatestat:
 			ParseUpdateStat(tv, &buf, to, mask);
@@ -802,7 +918,10 @@ void ParseMessage(sv_t *tv, char *buffer, int length, int to, int mask)
 			ParseDamage(tv, &buf, to, mask);
 			break;
 	
-//#define	svc_spawnstatic		20
+		case svc_spawnstatic:
+			ParseSpawnStatic(tv, &buf, to, mask);
+			break;
+
 //#define	svc_spawnstatic2	21
 		case svc_spawnbaseline:
 			ParseBaseline(tv, &buf, to, mask);
@@ -826,7 +945,10 @@ void ParseMessage(sv_t *tv, char *buffer, int length, int to, int mask)
 			ParseStaticSound(tv, &buf, to, mask);
 			break;
 
-//#define	svc_intermission	30		// [vec3_t] origin [vec3_t] angle
+		case svc_intermission:
+			ParseIntermission(tv, &buf, to, mask);
+			break;
+
 //#define	svc_finale			31		// [string] text
 
 		case svc_cdtrack:
@@ -871,7 +993,25 @@ void ParseMessage(sv_t *tv, char *buffer, int length, int to, int mask)
 			ReadByte(&buf);
 			break;
 		case svc_modellist:
-			ParseList(tv, &buf, tv->modellist, to, mask);
+			if (!ParseList(tv, &buf, tv->modellist, to, mask))
+			{
+				int i;
+				if (tv->bsp)
+					BSP_Free(tv->bsp);
+
+				if (tv->nobsp)
+					tv->bsp = NULL;
+				else
+					tv->bsp = BSP_LoadModel(tv->gamedir, tv->modellist[1].name);
+
+				tv->numinlines = 0;
+				for (i = 2; i < 256; i++)
+				{
+					if (*tv->modellist[i].name != '*')
+						break;
+					tv->numinlines = i;
+				}
+			}
 			break;
 		case svc_soundlist:
 			ParseList(tv, &buf, tv->soundlist, to, mask);

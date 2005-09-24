@@ -1,3 +1,24 @@
+/*
+Copyright (C) 1996-1997 Id Software, Inc.
+
+This program is free software; you can redistribute it and/or
+modify it under the terms of the GNU General Public License
+as published by the Free Software Foundation; either version 2
+of the License, or (at your option) any later version.
+
+This program is distributed in the hope that it will be useful,
+but WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
+
+See the included (GNU.txt) GNU General Public License for more details.
+
+You should have received a copy of the GNU General Public License
+along with this program; if not, write to the Free Software
+Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
+*/
+
+
+
 //each server that we are connected to has it's own state.
 //it should be easy enough to use one thread per server.
 
@@ -7,17 +28,22 @@
 //this means that when a new proxy connects, we have to send initial state as well as a chunk of pending state, expect to need to send new data before the proxy even has all the init stuff. We may need to raise MAX_PROXY_BUFFER to be larger than on the server
 
 #ifdef _WIN32
+	#include <conio.h>
 	#include <winsock.h>
 	#pragma comment (lib, "wsock32.lib")
 	#define qerrno WSAGetLastError()
 	#define EWOULDBLOCK WSAEWOULDBLOCK
 
-	#ifndef _DEBUG
-	#define static	//it breaks my symbol lookups. :(
+	#ifdef _MSC_VER
+		//okay, so warnings are here to help... they're ugly though.
+		#pragma warning(disable: 4761)	//integral size mismatch in argument
+		#pragma warning(disable: 4244)	//conversion from float to short
+		#pragma warning(disable: 4018)	//signed/unsigned mismatch
 	#endif
 
 #elif defined(__CYGWIN__)
 
+	#include <sys/time.h>
 	#include <sys/types.h>
 	#include <sys/socket.h>
 	#include <sys/errno.h>
@@ -25,19 +51,14 @@
 	#include <stdarg.h>
 	#include <netdb.h>
 	#include <stdlib.h>
-
-	#ifndef SOCKET
-		#define SOCKET int
-	#endif
-	#ifndef INVALID_SOCKET
-		#define INVALID_SOCKET -1
-	#endif
-	#define qerrno errno
+	#include <sys/ioctl.h>
+	#include <unistd.h>
 
 	#define ioctlsocket ioctl
 	#define closesocket close
 
 #elif defined(linux)
+	#include <sys/time.h>
 	#include <sys/types.h>
 	#include <sys/socket.h>
 	#include <netdb.h>
@@ -48,14 +69,6 @@
 	#include <sys/ioctl.h>
 	#include <unistd.h>
 
-	#ifndef SOCKET
-		#define SOCKET int
-	#endif
-	#ifndef INVALID_SOCKET
-		#define INVALID_SOCKET -1
-	#endif
-	#define qerrno errno
-
 	#define ioctlsocket ioctl
 	#define closesocket close
 #else
@@ -63,7 +76,25 @@
 //try the cygwin ones
 #endif
 
+#ifndef pgetaddrinfo
+	#ifndef _WIN32
+		#define pgetaddrinfo getaddrinfo
+		#define pfreeaddrinfo freeaddrinfo
+	#endif
+#endif
+#ifndef SOCKET
+	#define SOCKET int
+#endif
+#ifndef INVALID_SOCKET
+	#define INVALID_SOCKET -1
+#endif
+#ifndef qerrno
+	#define qerrno errno
+#endif
+
+
 #include <stdio.h>
+#include <string.h>
 
 #define VERSION "0.01"	//this will be added to the serverinfo
 
@@ -79,14 +110,22 @@
 #define MAX_SOUNDS MAX_LIST
 #define MAX_ENTITIES 512
 #define MAX_STATICSOUNDS 64
+#define MAX_STATICENTITIES 128
 #define MAX_LIGHTSTYLES 64
+#define DEFAULT_HOSTNAME "FTEQTV"
 
 #define MAX_PROXY_BUFFER (1<<14)	//must be power-of-two
-#define PREFERED_PROXY_BUFFER	1500 //the ammount of data we try to leave in our input buffer (must be large enough to contain any single mvd frame)
+#define PREFERED_PROXY_BUFFER	8192 //the ammount of data we try to leave in our input buffer (must be large enough to contain any single mvd frame)
 
-
-#define ENTS_PER_FRAME 512 //max number of entities per frame.
+#define MAX_ENTITY_LEAFS 32
+#define ENTS_PER_FRAME 64 //max number of entities per frame (OUCH!).
 #define ENTITY_FRAMES 64 //number of frames to remember for deltaing
+
+
+#define Z_EXT_SERVERTIME	(1<<3)	// STAT_TIME
+#define Z_EXT_STRING "8"
+#define STAT_TIME 17	//A ZQ hack, sending time via a stat.
+						//this allows l33t engines to interpolate properly without spamming at a silly high fps.
 
 typedef enum {false, true} qboolean;
 
@@ -162,6 +201,9 @@ typedef struct {
 	int frags;
 	float entertime;
 
+	int leafcount;
+	unsigned short leafs[MAX_ENTITY_LEAFS];
+
 	qboolean active:1;
 	qboolean gibbed:1;
 	qboolean dead:1;
@@ -194,13 +236,21 @@ typedef struct viewer_s {
 
 	struct viewer_s *next;
 
+	char name[32];
+
+
+	int settime;	//the time that we last told the client.
+
 	float origin[3];
 } viewer_t;
 
 typedef struct oproxy_s {
 	qboolean flushing;
 	qboolean drop;
+
+	FILE *file;
 	SOCKET sock;
+
 	unsigned char buffer[MAX_PROXY_BUFFER];
 	unsigned int buffersize;	//use cyclic buffering.
 	unsigned int bufferpos;
@@ -213,6 +263,18 @@ typedef struct {
 	unsigned char volume;
 	unsigned char attenuation;
 } staticsound_t;
+
+typedef struct bsp_s bsp_t;
+
+typedef struct {
+	entity_state_t baseline;
+	entity_state_t current;
+	entity_state_t old;
+	unsigned int updatetime;	//to stop lerping when it's an old entity (bodies, stationary grenades, ...)
+
+	int leafcount;
+	unsigned short leafs[MAX_ENTITY_LEAFS];
+} entity_t;
 
 typedef struct sv_s {
 	netadr_t serveraddress;
@@ -238,13 +300,12 @@ typedef struct sv_s {
 		float friction;
 	} movevars;
 	int cdtrack;
-	entity_state_t baseline[MAX_ENTITIES];
-	entity_state_t curents[MAX_ENTITIES];
-	entity_state_t oldents[MAX_ENTITIES];
-	unsigned int entupdatetime[MAX_ENTITIES];	//to stop lerping when it's an old entity (bodies, stationary grenades, ...)
+	entity_t entity[MAX_ENTITIES];
 	int maxents;
 	staticsound_t staticsound[MAX_STATICSOUNDS];
 	int staticsound_count;
+	entity_state_t spawnstatic[MAX_STATICENTITIES];
+	int spawnstatic_count;
 	filename_t lightstyle[MAX_LIGHTSTYLES];
 
 	char serverinfo[MAX_SERVERINFO_STRING];
@@ -266,17 +327,32 @@ typedef struct sv_s {
 
 	qboolean parsingconnectiondata;	//so reject any new connects for now
 
+	unsigned int physicstime;	//the last time all the ents moved.
 	unsigned int curtime;
 	unsigned int oldpackettime;
 	unsigned int nextpackettime;
 
 	int tcplistenportnum;
 	int qwlistenportnum;
-	char server[MAX_QPATH];
+	unsigned int mastersendtime;
+	unsigned int mastersequence;
+
+	char commandinput[512];
+	int inputlength;
+
+
+	bsp_t *bsp;
+	int numinlines;
 
 	//options:
 	qboolean chokeonnotupdated;
 	qboolean lateforward;
+	qboolean notalking;
+	char password[256];
+	char hostname[256];
+	char server[MAX_QPATH];
+	char master[MAX_QPATH];
+	qboolean nobsp;
 } sv_t;
 
 typedef struct {
@@ -315,7 +391,7 @@ void ReadString(netmsg_t *b, char *string, int maxlen);
 
 #define	svc_bad				0
 #define	svc_nop				1
-//#define	svc_disconnect		2
+#define	svc_disconnect		2
 #define	svc_updatestat		3	// [qbyte] [qbyte]
 //#define	svc_version			4	// [long] server version
 //#define	svc_setview			5	// [short] entity number
@@ -336,7 +412,7 @@ void ReadString(netmsg_t *b, char *string, int maxlen);
 //#define	svc_particle		18	// [vec3] <variable>
 #define	svc_damage			19
 	
-//#define	svc_spawnstatic		20
+#define	svc_spawnstatic		20
 //#define	svc_spawnstatic2	21
 #define	svc_spawnbaseline	22
 	
@@ -351,7 +427,7 @@ void ReadString(netmsg_t *b, char *string, int maxlen);
 
 #define	svc_spawnstaticsound	29	// [coord3] [qbyte] samp [qbyte] vol [qbyte] aten
 
-//#define	svc_intermission	30		// [vec3_t] origin [vec3_t] angle
+#define	svc_intermission	30		// [vec3_t] origin [vec3_t] angle
 //#define	svc_finale			31		// [string] text
 
 #define	svc_cdtrack			32		// [qbyte] track
@@ -397,7 +473,7 @@ void ReadString(netmsg_t *b, char *string, int maxlen);
 #define dem_read		1
 #define dem_set			2
 #define dem_multiple	3
-#define	dem_single		4
+#define dem_single		4
 #define dem_stats		5
 #define dem_all			6
 
@@ -463,7 +539,35 @@ void WriteString2(netmsg_t *b, const char *str);
 void WriteString(netmsg_t *b, const char *str);
 void WriteData(netmsg_t *b, const char *data, int length);
 
+void Multicast(sv_t *tv, char *buffer, int length, int to, unsigned int playermask);
 void ParseMessage(sv_t *tv, char *buffer, int length, int to, int mask);
 void BuildServerData(sv_t *tv, netmsg_t *msg, qboolean mvd);
 SOCKET QW_InitUDPSocket(int port);
 void QW_UpdateUDPStuff(sv_t *qtv);
+unsigned int Sys_Milliseconds(void);
+void Prox_SendInitialEnts(sv_t *qtv, oproxy_t *prox, netmsg_t *msg);
+qboolean QTV_Connect(sv_t *qtv, char *serverurl);
+qboolean	NET_StringToAddr (char *s, netadr_t *sadr);
+
+void SendBufferToViewer(viewer_t *v, const char *buffer, int length, qboolean reliable);
+
+void Netchan_Setup (SOCKET sock, netchan_t *chan, netadr_t adr, int qport);
+void Netchan_OutOfBandPrint (SOCKET sock, netadr_t adr, char *format, ...);
+qboolean Net_CompareAddress(netadr_t *s1, netadr_t *s2, int qp1, int qp2);
+qboolean Netchan_Process (netchan_t *chan, netmsg_t *msg);
+void Netchan_Transmit (netchan_t *chan, int length, const unsigned char *data);
+int SendList(sv_t *qtv, int first, filename_t *list, int svc, netmsg_t *msg);
+int Prespawn(sv_t *qtv, int curmsgsize, netmsg_t *msg, int bufnum);
+
+bsp_t *BSP_LoadModel(char *gamedir, char *bspname);
+void BSP_Free(bsp_t *bsp);
+int BSP_LeafNum(bsp_t *bsp, float x, float y, float z);
+int BSP_SphereLeafNums(bsp_t *bsp, int maxleafs, unsigned short *list, float x, float y, float z, float radius);
+qboolean BSP_Visible(bsp_t *bsp, int leafcount, unsigned short *list);
+void BSP_SetupForPosition(bsp_t *bsp, float x, float y, float z);
+
+char *Rcon_Command(sv_t *qtv, char *command, char *buffer, int sizeofbuffer, qboolean localcommand);
+char *COM_ParseToken (char *data, char *out, int outsize, const char *punctuation);
+char *Info_ValueForKey (char *s, const char *key, char *buffer, int buffersize);
+void Info_SetValueForStarKey (char *s, const char *key, const char *value, int maxsize);
+

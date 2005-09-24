@@ -1,3 +1,23 @@
+/*
+Copyright (C) 1996-1997 Id Software, Inc.
+
+This program is free software; you can redistribute it and/or
+modify it under the terms of the GNU General Public License
+as published by the Free Software Foundation; either version 2
+of the License, or (at your option) any later version.
+
+This program is distributed in the hope that it will be useful,
+but WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
+
+See the included (GNU.txt) GNU General Public License for more details.
+
+You should have received a copy of the GNU General Public License
+along with this program; if not, write to the Free Software
+Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
+*/
+
+
 #include "qtv.h"
 
 
@@ -178,10 +198,9 @@ void BuildServerData(sv_t *tv, netmsg_t *msg, qboolean mvd)
 
 
 	WriteByte(msg, svc_stufftext);
-	WriteString2(msg, "fullserverinfo ");
-	WriteString2(msg, "\\*qtv\\" VERSION);
+	WriteString2(msg, "fullserverinfo \"");
 	WriteString2(msg, tv->serverinfo);
-	WriteString(msg, "\n");
+	WriteString(msg, "\"\n");
 }
 
 void SendServerData(sv_t *tv, viewer_t *viewer)
@@ -228,9 +247,21 @@ int SendCurrentUserinfos(sv_t *tv, int cursize, netmsg_t *msg, int i)
 
 	return i;
 }
+void WriteEntityState(netmsg_t *msg, entity_state_t *es)
+{
+	int i;
+	WriteByte(msg, es->modelindex);
+	WriteByte(msg, es->frame);
+	WriteByte(msg, es->colormap);
+	WriteByte(msg, es->skinnum);
+	for (i = 0; i < 3; i++)
+	{
+		WriteShort(msg, es->origin[i]);
+		WriteByte(msg, es->angles[i]);
+	}
+}
 int SendCurrentBaselines(sv_t *tv, int cursize, netmsg_t *msg, int i)
 {
-	int j;
 
 	if (i < 0 || i >= MAX_ENTITIES)
 		return i;
@@ -243,15 +274,7 @@ int SendCurrentBaselines(sv_t *tv, int cursize, netmsg_t *msg, int i)
 		}
 		WriteByte(msg, svc_spawnbaseline);
 		WriteShort(msg, i);
-		WriteByte(msg, tv->baseline[i].modelindex);
-		WriteByte(msg, tv->baseline[i].frame);
-		WriteByte(msg, tv->baseline[i].colormap);
-		WriteByte(msg, tv->baseline[i].skinnum);
-		for (j = 0; j < 3; j++)
-		{
-			WriteShort(msg, tv->baseline[i].origin[j]);
-			WriteByte(msg, tv->baseline[i].angles[j]);
-		}
+		WriteEntityState(msg, &tv->entity[i].baseline);
 	}
 
 	return i;
@@ -273,6 +296,51 @@ int SendCurrentLightmaps(sv_t *tv, int cursize, netmsg_t *msg, int i)
 	}
 	return i;
 }
+int SendStaticSounds(sv_t *tv, int cursize, netmsg_t *msg, int i)
+{
+	if (i < 0 || i >= MAX_STATICSOUNDS)
+		return i;
+
+	for (; i < MAX_STATICSOUNDS; i++)
+	{
+		if (msg->cursize+cursize+16 > 768)
+		{
+			return i;
+		}
+		if (!tv->staticsound[i].soundindex)
+			continue;
+
+		WriteByte(msg, svc_spawnstaticsound);
+		WriteShort(msg, tv->staticsound[i].origin[0]);
+		WriteShort(msg, tv->staticsound[i].origin[1]);
+		WriteShort(msg, tv->staticsound[i].origin[2]);
+		WriteByte(msg, tv->staticsound[i].soundindex);
+		WriteByte(msg, tv->staticsound[i].volume);
+		WriteByte(msg, tv->staticsound[i].attenuation);
+	}
+
+	return i;
+}
+int SendStaticEntities(sv_t *tv, int cursize, netmsg_t *msg, int i)
+{
+	if (i < 0 || i >= MAX_STATICENTITIES)
+		return i;
+
+	for (; i < MAX_STATICENTITIES; i++)
+	{
+		if (msg->cursize+cursize+16 > 768)
+		{
+			return i;
+		}
+		if (!tv->spawnstatic[i].modelindex)
+			continue;
+
+		WriteByte(msg, svc_spawnstatic);
+		WriteEntityState(msg, &tv->spawnstatic[i]);
+	}
+
+	return i;
+}
 
 int SendList(sv_t *qtv, int first, filename_t *list, int svc, netmsg_t *msg)
 {
@@ -282,7 +350,7 @@ int SendList(sv_t *qtv, int first, filename_t *list, int svc, netmsg_t *msg)
 	WriteByte(msg, first);
 	for (i = first+1; i < 256; i++)
 	{
-		printf("write %i: %s\n", i, list[i].name);
+//		printf("write %i: %s\n", i, list[i].name);
 		WriteString(msg, list[i].name);
 		if (!*list[i].name)	//fixme: this probably needs testing for where we are close to the limit
 		{	//no more
@@ -302,22 +370,6 @@ int SendList(sv_t *qtv, int first, filename_t *list, int svc, netmsg_t *msg)
 	return i;
 }
 
-void NewQWClient(sv_t *qtv, netadr_t *addr, int qport)
-{
-	viewer_t *viewer;
-	viewer = malloc(sizeof(viewer_t));
-	memset(viewer, 0, sizeof(viewer_t));
-
-	viewer->trackplayer = -1;
-	Netchan_Setup (qtv->qwdsocket, &viewer->netchan, *addr, qport);
-
-	viewer->next = qtv->viewers;
-	qtv->viewers = viewer;
-	viewer->delta_frame = -1;
-
-	Netchan_OutOfBandPrint(qtv->qwdsocket, *addr, "j");
-}
-
 //fixme: will these want to have state?..
 int NewChallenge(netadr_t *addr)
 {
@@ -330,14 +382,98 @@ qboolean ChallengePasses(netadr_t *addr, int challenge)
 	return false;
 }
 
+void NewQWClient(sv_t *qtv, netadr_t *addr, char *connectmessage)
+{
+	viewer_t *viewer;
+
+	char qport[32];
+	char challenge[32];
+	char infostring[256];
+
+	connectmessage+=11;
+
+	connectmessage = COM_ParseToken(connectmessage, qport, sizeof(qport), "");
+	connectmessage = COM_ParseToken(connectmessage, challenge, sizeof(challenge), "");
+	connectmessage = COM_ParseToken(connectmessage, infostring, sizeof(infostring), "");
+
+	if (!ChallengePasses(addr, atoi(challenge)))
+	{
+		Netchan_OutOfBandPrint(qtv->qwdsocket, *addr, "n" "Bad challenge");
+		return;
+	}
+
+
+	viewer = malloc(sizeof(viewer_t));
+	memset(viewer, 0, sizeof(viewer_t));
+
+	viewer->trackplayer = -1;
+	Netchan_Setup (qtv->qwdsocket, &viewer->netchan, *addr, atoi(qport));
+
+	viewer->next = qtv->viewers;
+	qtv->viewers = viewer;
+	viewer->delta_frame = -1;
+
+	Info_ValueForKey(infostring, "name", viewer->name, sizeof(viewer->name));
+
+	Netchan_OutOfBandPrint(qtv->qwdsocket, *addr, "j");
+}
+
+void QTV_Rcon(sv_t *qtv, char *message, netadr_t *from)
+{
+	char buffer[8192];
+
+	char *command;
+	int passlen;
+
+	while(*message > '\0' && *message <= ' ')
+		message++;
+	
+	command = strchr(message, ' ');
+	passlen = command-message;
+	if (passlen != strlen(qtv->password) || strncmp(message, qtv->password, passlen))
+	{
+		Netchan_OutOfBandPrint(qtv->qwdsocket, *from, "n" "Rcon password is incorrect\n");
+		return;
+	}
+
+	Netchan_OutOfBandPrint(qtv->qwdsocket, *from, "n%s", Rcon_Command(qtv, command, buffer, sizeof(buffer), false));
+}
+void QTV_Status(sv_t *qtv, netadr_t *from)
+{
+	char buffer[8192];
+
+	netmsg_t msg;
+	char buf[6];
+	InitNetMsg(&msg, buffer, sizeof(buffer));
+	WriteLong(&msg, -1);
+	WriteByte(&msg, 'n');
+	WriteString2(&msg, qtv->serverinfo);
+	WriteString(&msg, "\n");
+	NET_SendPacket(qtv->qwdsocket, msg.cursize, msg.data, *from);
+
+
+	//Netchan_OutOfBandPrint(qtv->qwdsocket, *from, "n%s\n", qtv->serverinfo);
+}
+
+
 void ConnectionlessPacket(sv_t *qtv, netadr_t *from, netmsg_t *m)
 {
-	char buffer[1024];
+	char buffer[MAX_MSGLEN];
 	int i;
 
 	ReadLong(m);
 	ReadString(m, buffer, sizeof(buffer));
 	
+	if (!strncmp(buffer, "rcon ", 5))
+	{
+		QTV_Rcon(qtv, buffer+5, from);
+		return;
+	}
+	if (!strncmp(buffer, "status", 6))
+	{
+		QTV_Status(qtv, from);
+		return;
+	}
 	if (!strncmp(buffer, "getchallenge", 12))
 	{
 		i = NewChallenge(from);
@@ -346,10 +482,20 @@ void ConnectionlessPacket(sv_t *qtv, netadr_t *from, netmsg_t *m)
 	}
 	if (!strncmp(buffer, "connect 28 ", 11))
 	{
-		NewQWClient(qtv, from, atoi(buffer+11));
+		if (qtv->sourcesock == INVALID_SOCKET && !qtv->file)	//tell them what's going on instead of expecting them to see a lack of anything happening.
+			Netchan_OutOfBandPrint(qtv->qwdsocket, *from, "n" "Proxy is not connected to a server\n");
+		else if (qtv->parsingconnectiondata)	//connecting at this time is a bit silly.
+			Netchan_OutOfBandPrint(qtv->qwdsocket, *from, "n" "Buffering demo, please try again\n");
+		else
+			NewQWClient(qtv, from, buffer);
 		return;
 	}
+	if (!strncmp(buffer, "l\n", 2))
+	{
+		printf("Ack\n");
+	}
 }
+
 
 void SV_WriteDelta(int entnum, const entity_state_t *from, const entity_state_t *to, netmsg_t *msg, qboolean force)
 {
@@ -474,7 +620,7 @@ void SV_EmitPacketEntities (const sv_t *qtv, const viewer_t *v, const packet_ent
 
 		if (newnum < oldnum)
 		{	// this is a new entity, send it from the baseline
-			baseline = &qtv->baseline[newnum];
+			baseline = &qtv->entity[newnum].baseline;
 //Con_Printf ("baseline %i\n", newnum);
 			SV_WriteDelta (newnum, baseline, &to->ents[newindex], msg, true);			
 
@@ -499,7 +645,7 @@ void Prox_SendInitialEnts(sv_t *qtv, oproxy_t *prox, netmsg_t *msg)
 	int i;
 	WriteByte(msg, svc_packetentities);
 	for (i = 0; i < qtv->maxents; i++)
-		SV_WriteDelta(i, &nullentstate, &qtv->curents[i], msg, true);
+		SV_WriteDelta(i, &nullentstate, &qtv->entity[i].current, msg, true);
 	WriteShort(msg, 0);
 }
 
@@ -525,7 +671,28 @@ void SendPlayerStates(sv_t *tv, viewer_t *v, netmsg_t *msg)
 	short interp;
 	float lerp;
 
+	if (tv->physicstime != v->settime && tv->chokeonnotupdated)
+	{
+		WriteByte(msg, svc_updatestatlong);
+		WriteByte(msg, STAT_TIME);
+		WriteLong(msg, v->settime);
+
+		v->settime = tv->physicstime;
+	}
+
+
 	memset(&to, 0, sizeof(to));
+
+	/*if (v->trackplayer>=0)
+	{
+		BSP_SetupForPosition(tv->bsp,	tv->players[v->trackplayer].current.origin[0]/8.0f,
+										tv->players[v->trackplayer].current.origin[1]/8.0f,
+										tv->players[v->trackplayer].current.origin[2]/8.0f);
+	}
+	else*/
+	{
+		BSP_SetupForPosition(tv->bsp, v->origin[0], v->origin[1], v->origin[2]);
+	}
 		
 	lerp = ((tv->curtime - tv->oldpackettime)/1000.0f) / ((tv->nextpackettime - tv->oldpackettime)/1000.0f);
 	if (lerp < 0)
@@ -537,6 +704,9 @@ void SendPlayerStates(sv_t *tv, viewer_t *v, netmsg_t *msg)
 	for (i = 0; i < MAX_CLIENTS-1; i++)
 	{
 		if (!tv->players[i].active)
+			continue;
+
+		if (v->trackplayer != i && !BSP_Visible(tv->bsp, tv->players[i].leafcount, tv->players[i].leafs))
 			continue;
 
 		flags = PF_COMMAND;
@@ -598,17 +768,20 @@ void SendPlayerStates(sv_t *tv, viewer_t *v, netmsg_t *msg)
 	e->numents = 0;
 	for (i = 0; i < tv->maxents; i++)
 	{
-		if (!tv->curents[i].modelindex)
+		if (!tv->entity[i].current.modelindex)
 			continue;
-		//FIXME: add interpolation.
-		e->entnum[e->numents] = i;
-		memcpy(&e->ents[e->numents], &tv->curents[i], sizeof(entity_state_t));
 
-		if (tv->entupdatetime[i] == tv->oldpackettime)
+		if (tv->entity[i].current.modelindex >= tv->numinlines && !BSP_Visible(tv->bsp, tv->entity[i].leafcount, tv->entity[i].leafs))
+			continue;
+
+		e->entnum[e->numents] = i;
+		memcpy(&e->ents[e->numents], &tv->entity[i].current, sizeof(entity_state_t));
+
+		if (tv->entity[i].updatetime == tv->oldpackettime)
 		{
-			e->ents[e->numents].origin[0] = (lerp)*tv->curents[i].origin[0] + (1-lerp)*tv->oldents[i].origin[0];
-			e->ents[e->numents].origin[1] = (lerp)*tv->curents[i].origin[1] + (1-lerp)*tv->oldents[i].origin[1];
-			e->ents[e->numents].origin[2] = (lerp)*tv->curents[i].origin[2] + (1-lerp)*tv->oldents[i].origin[2];
+			e->ents[e->numents].origin[0] = (lerp)*tv->entity[i].current.origin[0] + (1-lerp)*tv->entity[i].old.origin[0];
+			e->ents[e->numents].origin[1] = (lerp)*tv->entity[i].current.origin[1] + (1-lerp)*tv->entity[i].old.origin[1];
+			e->ents[e->numents].origin[2] = (lerp)*tv->entity[i].current.origin[2] + (1-lerp)*tv->entity[i].old.origin[2];
 		}
 
 		e->numents++;
@@ -667,15 +840,28 @@ int Prespawn(sv_t *qtv, int curmsgsize, netmsg_t *msg, int bufnum)
 
 	ni = SendCurrentUserinfos(qtv, curmsgsize, msg, bufnum);
 	r += ni - bufnum;
+	bufnum = ni;
 	bufnum -= MAX_CLIENTS;
+
 	ni = SendCurrentBaselines(qtv, curmsgsize, msg, bufnum);
 	r += ni - bufnum;
 	bufnum = ni;
 	bufnum -= MAX_ENTITIES;
+
 	ni = SendCurrentLightmaps(qtv, curmsgsize, msg, bufnum);
 	r += ni - bufnum;
 	bufnum = ni;
 	bufnum -= MAX_LIGHTSTYLES;
+
+	ni = SendStaticSounds(qtv, curmsgsize, msg, bufnum);
+	r += ni - bufnum;
+	bufnum = ni;
+	bufnum -= MAX_STATICSOUNDS;
+
+	ni = SendStaticEntities(qtv, curmsgsize, msg, bufnum);
+	r += ni - bufnum;
+	bufnum = ni;
+	bufnum -= MAX_STATICENTITIES;
 
 	if (bufnum == 0)
 		return -1;
@@ -721,6 +907,25 @@ void PMove(viewer_t *v, usercmd_t *cmd)
 		v->origin[i] += (cmd->forwardmove*fwd[i] + cmd->sidemove*rgt[i] + cmd->upmove*up[i])*(cmd->msec/1000.0f);
 }
 
+void QTV_Say(sv_t *qtv, viewer_t *v, char *message)
+{
+	char buf[1024];
+	netmsg_t msg;
+
+	message[strlen(message)-1] = '\0';
+
+	InitNetMsg(&msg, buf, sizeof(buf));
+
+	WriteByte(&msg, svc_print);
+	WriteByte(&msg, 3);	//PRINT_CHAT
+	WriteString2(&msg, v->name);
+	WriteString2(&msg, "\x8d ");
+	WriteString2(&msg, message+5);
+	WriteString(&msg, "\n");
+
+	Multicast(qtv, msg.data, msg.cursize, dem_all, (unsigned int)-1);
+}
+
 void ParseQWC(sv_t *qtv, viewer_t *v, netmsg_t *m)
 {
 	usercmd_t	oldest, oldcmd, newcmd;
@@ -740,10 +945,12 @@ void ParseQWC(sv_t *qtv, viewer_t *v, netmsg_t *m)
 			break;
 		case clc_stringcmd:	
 			ReadString (m, buf, sizeof(buf));
-			printf("stringcmd: %s\n", buf);
+//			printf("stringcmd: %s\n", buf);
 
 			if (!strcmp(buf, "new"))
 				SendServerData(qtv, v);
+			else if (!strncmp(buf, "say \"", 5) && !qtv->notalking)
+				QTV_Say(qtv, v, buf);
 			else if (!strncmp(buf, "modellist ", 10))
 			{
 				char *cmd = buf+10;
@@ -842,6 +1049,48 @@ void ParseQWC(sv_t *qtv, viewer_t *v, netmsg_t *m)
 				v->drop = true;
 			else if (!strncmp(buf, "ptrack ", 7))
 				v->trackplayer = atoi(buf+7);
+			else if (!strncmp(buf, "ptrack", 6))
+				v->trackplayer = -1;
+			else if (!strncmp(buf, "serverinfo", 5))
+			{
+				char *key, *value, *end;
+				int len;
+				netmsg_t m;
+				InitNetMsg(&m, buf, sizeof(buf));
+				WriteByte(&m, svc_print);
+				WriteByte(&m, 2);
+				end = qtv->serverinfo;
+				for(;;)
+				{
+					if (!*end)
+						break;
+					key = end;
+					value = strchr(key+1, '\\');
+					if (!value)
+						break;
+					end = strchr(value+1, '\\');
+					if (!end)
+						end = value+strlen(value);
+
+					len = value-key;
+
+					key++;
+					while(*key != '\\' && *key)
+						WriteByte(&m, *key++);
+
+					for (; len < 20; len++)
+						WriteByte(&m, ' ');
+
+					value++;
+					while(*value != '\\' && *value)
+						WriteByte(&m, *value++);
+					WriteByte(&m, '\n');
+				}
+				WriteByte(&m, 0);
+
+//				WriteString(&m, qtv->serverinfo);
+				SendBufferToViewer(v, m.data, m.cursize, true);
+			}
 			else
 			{
 				printf("Client sent unknown string command: %s\n", buf);
@@ -858,9 +1107,9 @@ void ParseQWC(sv_t *qtv, viewer_t *v, netmsg_t *m)
 			PMove(v, &newcmd);
 			break;
 		case clc_tmove:
-			v->origin[0] = ReadShort(m)/8.0f;
-			v->origin[1] = ReadShort(m)/8.0f;
-			v->origin[2] = ReadShort(m)/8.0f;
+			v->origin[0] = ((signed short)ReadShort(m))/8.0f;
+			v->origin[1] = ((signed short)ReadShort(m))/8.0f;
+			v->origin[2] = ((signed short)ReadShort(m))/8.0f;
 			break;
 
 		case clc_upload:
@@ -886,8 +1135,20 @@ void QW_UpdateUDPStuff(sv_t *qtv)
 
 	viewer_t *v, *f;
 
-	if (qtv->parsingconnectiondata)
-		return;	//don't accept new qw clients, no sending incompleate data, etc.
+	if (*qtv->master && (qtv->curtime > qtv->mastersendtime || qtv->mastersendtime > qtv->curtime + 4*1000*60))	//urm... time wrapped?
+	{
+		if (NET_StringToAddr(qtv->master, &from))
+		{
+			sprintf(buffer, "a\n%i\n0\n", qtv->mastersequence++);	//fill buffer with a heartbeat
+//why is there no \xff\xff\xff\xff ?..
+			NET_SendPacket(qtv->qwdsocket, 1, "k", from);	//ping, just like qw.
+			NET_SendPacket(qtv->qwdsocket, strlen(buffer), buffer, from);	//ping, just like qw.
+		}
+		else
+			printf("Cannot resolve master %s\n", qtv->master);
+
+		qtv->mastersendtime = qtv->curtime + 3*1000*60;	//3 minuites.
+	}
 
 	m.data = buffer;
 	m.cursize = 0;
@@ -898,7 +1159,7 @@ void QW_UpdateUDPStuff(sv_t *qtv)
 	{
 		read = recvfrom(qtv->qwdsocket, buffer, sizeof(buffer), 0, (struct sockaddr*)from, &fromsize);
 
-		if (read <= 6)	//otherwise it's a runt or bad.
+		if (read <= 5)	//otherwise it's a runt or bad.
 		{
 			if (read < 0)	//it's bad.
 				break;
@@ -928,11 +1189,10 @@ void QW_UpdateUDPStuff(sv_t *qtv)
 				if (Netchan_Process(&v->netchan, &m))
 				{
 					v->netchan.outgoing_sequence = v->netchan.incoming_sequence;	//compensate for client->server packetloss.
-					if (!v->chokeme)
+					if (!v->chokeme || !qtv->chokeonnotupdated)
 					{
 						v->maysend = true;
-						if (qtv->chokeonnotupdated)
-							v->chokeme = true;
+						v->chokeme = qtv->chokeonnotupdated;
 					}
 
 					ParseQWC(qtv, v, &m);
@@ -968,7 +1228,7 @@ void QW_UpdateUDPStuff(sv_t *qtv)
 			free(f);
 		}
 
-		if (v->maysend)
+		if (v->maysend && !qtv->parsingconnectiondata)	//don't send incompleate connection data.
 		{
 			v->maysend = false;
 			m.cursize = 0;

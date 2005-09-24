@@ -198,6 +198,7 @@ typedef struct {
 	char userinfo[MAX_USERINFO];
 
 	int ping;
+	int packetloss;
 	int frags;
 	float entertime;
 

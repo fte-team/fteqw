@@ -207,7 +207,7 @@ static void ParseServerData(sv_t *tv, netmsg_t *m, int to, unsigned int playerma
 {
 	int protocol;
 	viewer_t *v;
-	
+
 	protocol = ReadLong(m);
 	if (protocol != PROTOCOL_VERSION)
 	{
@@ -306,14 +306,14 @@ static void ParseStufftext(sv_t *tv, netmsg_t *m, int to, unsigned int mask)
 		{	//the fromproxy check is because it's fairly common to find a qw server with brackets after it's name.
 			char *s;
 			s = strchr(value, '(');	//so strip the parent proxy's hostname, and put our hostname first, leaving the origional server's hostname within the brackets
-			_snprintf(text, sizeof(text), "%s %s", tv->hostname, s);
+			snprintf(text, sizeof(text), "%s %s", tv->hostname, s);
 		}
 		else
 		{
 			if (tv->file)
-				_snprintf(text, sizeof(text), "%s (recorded from: %s)", tv->hostname, value);
+				snprintf(text, sizeof(text), "%s (recorded from: %s)", tv->hostname, value);
 			else
-				_snprintf(text, sizeof(text), "%s (live: %s)", tv->hostname, value);
+				snprintf(text, sizeof(text), "%s (live: %s)", tv->hostname, value);
 		}
 		Info_SetValueForStarKey(tv->serverinfo, "hostname", text, sizeof(tv->serverinfo));
 
@@ -366,6 +366,8 @@ static void ParsePrint(sv_t *tv, netmsg_t *m, int to, unsigned int mask)
 					*t = '[';
 				if (*t == 17)
 					*t = ']';
+				if (*t == '\a')	//doh. :D
+					*t = ' ';
 			}
 			printf("%s", text);
 		}
@@ -519,7 +521,7 @@ static void ParsePlayerInfo(sv_t *tv, netmsg_t *m)
 	tv->players[num].active = true;
 
 
-	tv->players[num].leafcount = BSP_SphereLeafNums(tv->bsp,	MAX_ENTITY_LEAFS, tv->players[num].leafs, 
+	tv->players[num].leafcount = BSP_SphereLeafNums(tv->bsp,	MAX_ENTITY_LEAFS, tv->players[num].leafs,
 														tv->players[num].current.origin[0]/8.0f,
 														tv->players[num].current.origin[1]/8.0f,
 														tv->players[num].current.origin[2]/8.0f, 32);
@@ -755,23 +757,23 @@ static void ParseSound(sv_t *tv, netmsg_t *m, int to, unsigned int mask)
 	unsigned char sound_num;
 	short org[3];
 
-	chan = ReadShort(m); 
+	chan = ReadShort(m);
 
     if (chan & SND_VOLUME)
 		vol = ReadByte (m);
 	else
 		vol = DEFAULT_SOUND_PACKET_VOLUME;
-	
+
     if (chan & SND_ATTENUATION)
 		atten = ReadByte (m) / 64.0;
 	else
 		atten = DEFAULT_SOUND_PACKET_ATTENUATION;
-	
+
 	sound_num = ReadByte (m);
 
 	for (i=0 ; i<3 ; i++)
 		org[i] = ReadShort (m);
- 
+
 	Multicast(tv, m->data+m->startpos, m->readpos - m->startpos, to, mask);
 }
 
@@ -983,7 +985,7 @@ void ParseMessage(sv_t *tv, char *buffer, int length, int to, int mask)
 		case svc_damage:
 			ParseDamage(tv, &buf, to, mask);
 			break;
-	
+
 		case svc_spawnstatic:
 			ParseSpawnStatic(tv, &buf, to, mask);
 			break;
@@ -992,7 +994,7 @@ void ParseMessage(sv_t *tv, char *buffer, int length, int to, int mask)
 		case svc_spawnbaseline:
 			ParseBaseline(tv, &buf, to, mask);
 			break;
-	
+
 		case svc_temp_entity:
 			ParseTempEntity(tv, &buf, to, mask);
 			break;
@@ -1054,7 +1056,7 @@ void ParseMessage(sv_t *tv, char *buffer, int length, int to, int mask)
 		case svc_playerinfo:
 			ParsePlayerInfo(tv, &buf);
 			break;
-//#define	svc_nails			43		// [qbyte] num [48 bits] xyzpy 12 12 12 4 8 
+//#define	svc_nails			43		// [qbyte] num [48 bits] xyzpy 12 12 12 4 8
 		case svc_chokecount:
 			ReadByte(&buf);
 			break;
@@ -1100,7 +1102,7 @@ void ParseMessage(sv_t *tv, char *buffer, int length, int to, int mask)
 			ParsePacketloss(tv, &buf, to, mask);
 			break;
 
-//#define svc_nails2			54		//qwe - [qbyte] num [52 bits] nxyzpy 8 12 12 12 4 8 
+//#define svc_nails2			54		//qwe - [qbyte] num [52 bits] nxyzpy 8 12 12 12 4 8
 
 		default:
 			buf.readpos = buf.startpos;

@@ -45,7 +45,7 @@ void ReadDeltaUsercmd (netmsg_t *m, const usercmd_t *from, usercmd_t *move)
 	memcpy (move, from, sizeof(*move));
 
 	bits = ReadByte (m);
-		
+
 // read current angles
 	if (bits & CM_ANGLE1)
 		move->angles[0] = ReadShort (m);
@@ -53,7 +53,7 @@ void ReadDeltaUsercmd (netmsg_t *m, const usercmd_t *from, usercmd_t *move)
 		move->angles[1] = ReadShort (m);
 	if (bits & CM_ANGLE3)
 		move->angles[2] = ReadShort (m);
-		
+
 // read movement
 	if (bits & CM_FORWARD)
 		move->forwardmove = ReadShort(m);
@@ -61,7 +61,7 @@ void ReadDeltaUsercmd (netmsg_t *m, const usercmd_t *from, usercmd_t *move)
 		move->sidemove = ReadShort(m);
 	if (bits & CM_UP)
 		move->upmove = ReadShort(m);
-	
+
 // read buttons
 	if (bits & CM_BUTTONS)
 		move->buttons = ReadByte (m);
@@ -106,7 +106,7 @@ void WriteDeltaUsercmd (netmsg_t *m, const usercmd_t *from, usercmd_t *move)
 		WriteShort (m, move->angles[1]);
 	if (bits & CM_ANGLE3)
 		WriteShort (m, move->angles[2]);
-		
+
 // read movement
 	if (bits & CM_FORWARD)
 		WriteShort(m, move->forwardmove);
@@ -114,7 +114,7 @@ void WriteDeltaUsercmd (netmsg_t *m, const usercmd_t *from, usercmd_t *move)
 		WriteShort(m, move->sidemove);
 	if (bits & CM_UP)
 		WriteShort(m, move->upmove);
-	
+
 // read buttons
 	if (bits & CM_BUTTONS)
 		WriteByte (m, move->buttons);
@@ -208,7 +208,7 @@ void SendServerData(sv_t *tv, viewer_t *viewer)
 	netmsg_t msg;
 	char buffer[1024];
 	InitNetMsg(&msg, buffer, sizeof(buffer));
-	
+
 	BuildServerData(tv, &msg, false);
 
 	SendBufferToViewer(viewer, msg.data, msg.cursize, true);
@@ -413,6 +413,8 @@ void NewQWClient(sv_t *qtv, netadr_t *addr, char *connectmessage)
 	qtv->viewers = viewer;
 	viewer->delta_frame = -1;
 
+	qtv->numviewers++;
+
 	Info_ValueForKey(infostring, "name", viewer->name, sizeof(viewer->name));
 
 	Netchan_OutOfBandPrint(qtv->qwdsocket, *addr, "j");
@@ -433,7 +435,7 @@ void QTV_Rcon(sv_t *qtv, char *message, netadr_t *from)
 
 	while(*message > '\0' && *message <= ' ')
 		message++;
-	
+
 	command = strchr(message, ' ');
 	passlen = command-message;
 	if (passlen != strlen(qtv->password) || strncmp(message, qtv->password, passlen))
@@ -524,7 +526,7 @@ void ConnectionlessPacket(sv_t *qtv, netadr_t *from, netmsg_t *m)
 
 	ReadLong(m);
 	ReadString(m, buffer, sizeof(buffer));
-	
+
 	if (!strncmp(buffer, "rcon ", 5))
 	{
 		QTV_Rcon(qtv, buffer+5, from);
@@ -552,6 +554,8 @@ void ConnectionlessPacket(sv_t *qtv, netadr_t *from, netmsg_t *m)
 			Netchan_OutOfBandPrint(qtv->qwdsocket, *from, "n" "Proxy is not connected to a server\n");
 		else if (qtv->parsingconnectiondata)	//connecting at this time is a bit silly.
 			Netchan_OutOfBandPrint(qtv->qwdsocket, *from, "n" "Buffering demo, please try again\n");
+		else if (qtv->numviewers >= qtv->maxviewers && qtv->maxviewers)
+			Netchan_OutOfBandPrint(qtv->qwdsocket, *from, "n" "Sorry, proxy is full.\n");
 		else
 			NewQWClient(qtv, from, buffer);
 		return;
@@ -688,7 +692,7 @@ void SV_EmitPacketEntities (const sv_t *qtv, const viewer_t *v, const packet_ent
 		{	// this is a new entity, send it from the baseline
 			baseline = &qtv->entity[newnum].baseline;
 //Con_Printf ("baseline %i\n", newnum);
-			SV_WriteDelta (newnum, baseline, &to->ents[newindex], msg, true);			
+			SV_WriteDelta (newnum, baseline, &to->ents[newindex], msg, true);
 
 			newindex++;
 			continue;
@@ -762,7 +766,7 @@ void SendPlayerStates(sv_t *tv, viewer_t *v, netmsg_t *msg)
 	{
 		BSP_SetupForPosition(tv->bsp, v->origin[0], v->origin[1], v->origin[2]);
 	}
-		
+
 	lerp = ((tv->curtime - tv->oldpackettime)/1000.0f) / ((tv->nextpackettime - tv->oldpackettime)/1000.0f);
 	if (lerp < 0)
 		lerp = 0;
@@ -944,7 +948,7 @@ void AngleVectors (short angles[3], float *forward, float *right, float *up)
 {
 	float		angle;
 	float		sr, sp, sy, cr, cp, cy;
-	
+
 	angle = angles[1] * (M_PI*2 / 65535);
 	sy = sin(angle);
 	cy = cos(angle);
@@ -1045,7 +1049,7 @@ void ParseQWC(sv_t *qtv, viewer_t *v, netmsg_t *m)
 		case clc_delta:
 			v->delta_frame = ReadByte(m);
 			break;
-		case clc_stringcmd:	
+		case clc_stringcmd:
 			ReadString (m, buf, sizeof(buf));
 //			printf("stringcmd: %s\n", buf);
 
@@ -1206,7 +1210,7 @@ void ParseQWC(sv_t *qtv, viewer_t *v, netmsg_t *m)
 			{
 				printf("Client sent unknown string command: %s\n", buf);
 			}
-			
+
 			break;
 
 		case clc_move:
@@ -1235,7 +1239,7 @@ void ParseQWC(sv_t *qtv, viewer_t *v, netmsg_t *m)
 }
 
 static const char dropcmd[] = {svc_stufftext, 'd', 'i', 's', 'c', 'o', 'n', 'n', 'e', 'c', 't', '\n', '\0'};
-void QW_FreeViewer(viewer_t *viewer)
+void QW_FreeViewer(sv_t *qtv, viewer_t *viewer)
 {
 	int i;
 	//note: unlink them yourself.
@@ -1254,6 +1258,8 @@ void QW_FreeViewer(viewer_t *viewer)
 	}
 
 	free(viewer);
+
+	qtv->numviewers--;
 }
 
 void QW_UpdateUDPStuff(sv_t *qtv)
@@ -1340,7 +1346,7 @@ void QW_UpdateUDPStuff(sv_t *qtv)
 		f = qtv->viewers;
 		qtv->viewers = f->next;
 
-		QW_FreeViewer(f);
+		QW_FreeViewer(qtv, f);
 	}
 
 	for (v = qtv->viewers; v; v = v->next)
@@ -1351,7 +1357,7 @@ void QW_UpdateUDPStuff(sv_t *qtv)
 			f = v->next;
 			v->next = f->next;
 
-			QW_FreeViewer(f);
+			QW_FreeViewer(qtv, f);
 		}
 
 		if (v->maysend && !qtv->parsingconnectiondata)	//don't send incompleate connection data.

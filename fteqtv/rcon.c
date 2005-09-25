@@ -8,7 +8,7 @@ of the License, or (at your option) any later version.
 
 This program is distributed in the hope that it will be useful,
 but WITHOUT ANY WARRANTY; without even the implied warranty of
-MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
 
 See the GNU General Public License for more details.
 
@@ -26,7 +26,7 @@ char *Info_ValueForKey (char *s, const char *key, char *buffer, int buffersize)
 {
 	char	pkey[1024];
 	char	*o;
-	
+
 	if (*s == '\\')
 		s++;
 	while (1)
@@ -59,7 +59,7 @@ char *Info_ValueForKey (char *s, const char *key, char *buffer, int buffersize)
 				return buffer;
 			}
 			*o++ = *s++;
-			
+
 			if (o+2 >= buffer+buffersize)	//hrm. hackers at work..
 			{
 				*buffer='\0';
@@ -172,7 +172,7 @@ void Info_SetValueForStarKey (char *s, const char *key, const char *value, int m
 	if (!value || !strlen(value))
 		return;
 
-	_snprintf (newv, sizeof(newv)-1, "\\%s\\%s", key, value);
+	snprintf (newv, sizeof(newv)-1, "\\%s\\%s", key, value);
 	newv[sizeof(newv)-1] = '\0';
 
 	if ((int)(strlen(newv) + strlen(s) + 1) > maxsize)
@@ -209,13 +209,13 @@ char *COM_ParseToken (char *data, char *out, int outsize, const char *punctuatio
 
 	if (!punctuation)
 		punctuation = DEFAULT_PUNCTUATION;
-	
+
 	len = 0;
 	out[0] = 0;
-	
+
 	if (!data)
 		return NULL;
-		
+
 // skip whitespace
 skipwhite:
 	while ( (c = *data) <= ' ')
@@ -224,7 +224,7 @@ skipwhite:
 			return NULL;			// end of file;
 		data++;
 	}
-	
+
 // skip // comments
 	if (c=='/')
 	{
@@ -243,7 +243,7 @@ skipwhite:
 			goto skipwhite;
 		}
 	}
-	
+
 
 // handle quoted strings specially
 	if (c == '\"')
@@ -288,7 +288,7 @@ skipwhite:
 		if (strchr(punctuation, c))
 			break;
 	} while (c>32);
-	
+
 	out[len] = 0;
 	return data;
 }
@@ -355,7 +355,7 @@ char *Rcon_Command(sv_t *qtv, char *command, char *buffer, int sizeofbuffer, qbo
 	else if (!strcmp(arg[0], "option"))
 	{
 		if (!*arg[1])
-			return "option X Y\nWhere X is choke/late/talking/hostname/nobsp and Y is (mostly) 0/1\n";
+			return "option X Y\nWhere X is choke/late/talking/hostname/nobsp/master/maxviewers/maxproxies and Y is (mostly) 0/1\n";
 
 		if (!strcmp(arg[1], "choke"))
 			qtv->chokeonnotupdated = !!atoi(arg[2]);
@@ -383,6 +383,10 @@ char *Rcon_Command(sv_t *qtv, char *command, char *buffer, int sizeofbuffer, qbo
 			if (NET_StringToAddr(arg[1], &addr))
 				NET_SendPacket (qtv->qwdsocket, 1, "k", addr);
 		}
+		else if (!strcmp(arg[1], "maxviewers"))
+			qtv->maxviewers = atoi(arg[2]);
+		else if (!strcmp(arg[1], "maxproxies"))
+			qtv->maxproxies = atoi(arg[2]);
 		else
 			return "Option not recognised\n";
 		return "Set\n";
@@ -436,7 +440,7 @@ char *Rcon_Command(sv_t *qtv, char *command, char *buffer, int sizeofbuffer, qbo
 	}
 	else if (!strcmp(arg[0], "help"))
 	{
-		return "FTEQTV proxy\nValid commands: connect, file, status, option\n";
+		return "FTEQTV proxy version "VERSION"\nValid commands: connect, file, status, option, mvdport, port, reconnect\n";
 	}
 	else if (!strcmp(arg[0], "reconnect"))
 	{
@@ -450,17 +454,33 @@ char *Rcon_Command(sv_t *qtv, char *command, char *buffer, int sizeofbuffer, qbo
 	{
 		int news;
 		int newp = atoi(arg[1]);
-		news = Net_MVDListen(newp);
 
-		if (news != INVALID_SOCKET)
+		if (!newp)
 		{
-			closesocket(qtv->listenmvd);
-			qtv->listenmvd = news;
-			qtv->tcplistenportnum = newp;
-			return "Opened tcp port\n";
+			if (qtv->listenmvd != INVALID_SOCKET)
+			{
+				closesocket(qtv->listenmvd);
+				qtv->listenmvd = INVALID_SOCKET;
+				qtv->tcplistenportnum = 0;
+
+				return "mvd port is now closed\n";
+			}
+			return "Already closed\n";
 		}
 		else
-			return "Failed to open tcp port\n";
+		{
+			news = Net_MVDListen(newp);
+
+			if (news != INVALID_SOCKET)
+			{
+				closesocket(qtv->listenmvd);
+				qtv->listenmvd = news;
+				qtv->tcplistenportnum = newp;
+				return "Opened tcp port\n";
+			}
+			else
+				return "Failed to open tcp port\n";
+		}
 	}
 
 	else if (!strcmp(arg[0], "ping"))
@@ -474,22 +494,41 @@ char *Rcon_Command(sv_t *qtv, char *command, char *buffer, int sizeofbuffer, qbo
 		return "couldn't resolve\n";
 	}
 
-	else if (!strcmp(arg[0], "port"))
+	else if (!strcmp(arg[0], "port") || !strcmp(arg[0], "udpport"))
 	{
 		int news;
 		int newp = atoi(arg[1]);
-		news = QW_InitUDPSocket(newp);
 
-		if (news != INVALID_SOCKET)
+		if (!localcommand)
+			return "Changing udp port is not allowed via rcon\n";
+
+		if (!newp)
 		{
-			qtv->mastersendtime = qtv->curtime;
-			closesocket(qtv->qwdsocket);
-			qtv->qwdsocket = news;
-			qtv->qwlistenportnum = newp;
-			return "Opened udp port\n";
+			if (qtv->listenmvd != INVALID_SOCKET)
+			{
+				closesocket(qtv->listenmvd);
+				qtv->listenmvd = INVALID_SOCKET;
+				qtv->tcplistenportnum = 0;
+
+				return "Closed udp port\n";
+			}
+			return "udp port was already closed\n";
 		}
 		else
-			return "Failed to open udp port\n";
+		{
+			news = QW_InitUDPSocket(newp);
+
+			if (news != INVALID_SOCKET)
+			{
+				qtv->mastersendtime = qtv->curtime;
+				closesocket(qtv->qwdsocket);
+				qtv->qwdsocket = news;
+				qtv->qwlistenportnum = newp;
+				return "Opened udp port\n";
+			}
+			else
+				return "Failed to open udp port\n";
+		}
 	}
 
 	else if (!strcmp(arg[0], "password"))

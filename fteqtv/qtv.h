@@ -41,6 +41,8 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 		#pragma warning(disable: 4018)	//signed/unsigned mismatch
 	#endif
 
+	#define snprintf _snprintf
+
 #elif defined(__CYGWIN__)
 
 	#include <sys/time.h>
@@ -324,7 +326,9 @@ typedef struct sv_s {
 	SOCKET qwdsocket;	//udp + quakeworld protocols
 
 	viewer_t *viewers;
+	int numviewers;
 	oproxy_t *proxies;
+	int numproxies;
 
 	qboolean parsingconnectiondata;	//so reject any new connects for now
 
@@ -354,6 +358,8 @@ typedef struct sv_s {
 	char server[MAX_QPATH];
 	char master[MAX_QPATH];
 	qboolean nobsp;
+	int maxviewers;
+	int maxproxies;
 } sv_t;
 
 typedef struct {
@@ -412,11 +418,11 @@ void ReadString(netmsg_t *b, char *string, int maxlen);
 //#define	svc_updatecolors	17	// [qbyte] [qbyte] [qbyte]
 //#define	svc_particle		18	// [vec3] <variable>
 #define	svc_damage			19
-	
+
 #define	svc_spawnstatic		20
 //#define	svc_spawnstatic2	21
 #define	svc_spawnbaseline	22
-	
+
 #define	svc_temp_entity		23	// variable
 //#define	svc_setpause		24	// [qbyte] on / off
 //#define	svc_signonnum		25	// [qbyte]  used for the signon sequence
@@ -451,7 +457,7 @@ void ReadString(netmsg_t *b, char *string, int maxlen);
 
 #define	svc_download		41		// [short] size [size bytes]
 #define	svc_playerinfo		42		// variable
-//#define	svc_nails			43		// [qbyte] num [48 bits] xyzpy 12 12 12 4 8 
+//#define	svc_nails			43		// [qbyte] num [48 bits] xyzpy 12 12 12 4 8
 #define	svc_chokecount		44		// [qbyte] packets choked
 #define	svc_modellist		45		// [strings]
 #define	svc_soundlist		46		// [strings]
@@ -463,7 +469,7 @@ void ReadString(netmsg_t *b, char *string, int maxlen);
 #define svc_serverinfo		52		// serverinfo
 #define svc_updatepl		53		// [qbyte] [qbyte]
 
-//#define svc_nails2			54		//qwe - [qbyte] num [52 bits] nxyzpy 8 12 12 12 4 8 
+//#define svc_nails2			54		//qwe - [qbyte] num [52 bits] nxyzpy 8 12 12 12 4 8
 
 
 

@@ -264,6 +264,14 @@ void Net_FindProxies(sv_t *qtv)
 	if (sock == INVALID_SOCKET)
 		return;
 
+	if (qtv->numproxies >= qtv->maxproxies && qtv->maxproxies)
+	{
+		const char buffer[] = {dem_all, 1, 'P','r','o','x','y',' ','i','s',' ','f','u','l','l','.'};
+		send(sock, buffer, strlen(buffer), 0);
+		closesocket(sock);
+		return;
+	}
+
 	prox = malloc(sizeof(*prox));
 	memset(prox, 0, sizeof(*prox));
 	prox->flushing = true;	//allow the buffer overflow resumption code to send the connection info.
@@ -272,6 +280,8 @@ void Net_FindProxies(sv_t *qtv)
 
 	prox->next = qtv->proxies;
 	qtv->proxies = prox;
+
+	qtv->numproxies++;
 }
 
 qboolean Net_FileProxy(sv_t *qtv, char *filename)
@@ -283,6 +293,8 @@ qboolean Net_FileProxy(sv_t *qtv, char *filename)
 	if (!f)
 		return false;
 
+	//no full proxy check, this is going to be used by proxy admins, who won't want to have to raise the limit to start recording.
+
 	prox = malloc(sizeof(*prox));
 	memset(prox, 0, sizeof(*prox));
 	prox->flushing = true;	//allow the buffer overflow resumption code to send the connection info.
@@ -291,6 +303,8 @@ qboolean Net_FileProxy(sv_t *qtv, char *filename)
 
 	prox->next = qtv->proxies;
 	qtv->proxies = prox;
+
+	qtv->numproxies++;
 
 	return true;
 }
@@ -498,7 +512,7 @@ void Net_SendConnectionMVD(sv_t *qtv, oproxy_t *prox)
 		Prox_SendMessage(prox, msg.data, msg.cursize, dem_read, (unsigned)-1);
 		msg.cursize = 0;
 	}
-	
+
 	for (prespawn = 0;prespawn >= 0;)
 	{
 		prespawn = SendList(qtv, prespawn, qtv->modellist, svc_modellist, &msg);
@@ -562,6 +576,7 @@ void Net_ForwardStream(sv_t *qtv, char *buffer, int length)
 		else
 			closesocket(fre->sock);
 		free(fre);
+		qtv->numproxies--;
 		qtv->proxies = next;
 	}
 
@@ -576,6 +591,7 @@ void Net_ForwardStream(sv_t *qtv, char *buffer, int length)
 			else
 				closesocket(fre->sock);
 			free(fre);
+			qtv->numproxies--;
 			prox->next = next;
 		}
 
@@ -595,7 +611,7 @@ void Net_ForwardStream(sv_t *qtv, char *buffer, int length)
 
 		if (prox->drop)
 			continue;
-	
+
 		//add the new data
 		Net_ProxySend(prox, buffer, length);
 
@@ -710,22 +726,14 @@ void NetSleep(sv_t *tv)
 
 #ifdef _WIN32
 	for (;;)
-#else
-	if (FD_ISSET(STDIN, &socketset))
-#endif
 	{
 		char buffer[8192];
 		char *result;
 		char c;
 
-#ifdef _WIN32
 		if (!kbhit())
 			break;
-		else
-			c = getch();
-#else
-		c = recv(STDIN, &c, 1, 0);
-#endif
+		c = getch();
 
 		if (c == '\n' || c == '\r')
 		{
@@ -754,10 +762,30 @@ void NetSleep(sv_t *tv)
 				tv->commandinput[tv->inputlength++] = c;
 				tv->commandinput[tv->inputlength] = '\0';
 			}
-		}
-
+		}if (FD_ISSET(STDIN, &socketset))
 		printf("\r%s \b", tv->commandinput);
 	}
+#else
+	if (FD_ISSET(STDIN, &socketset))
+	{
+		char buffer[8192];
+		char *result;
+		tv->inputlength = read (0, tv->commandinput, sizeof(tv->commandinput));
+		if (tv->inputlength >= 1)
+		{
+			tv->commandinput[tv->inputlength-1] = 0;        // rip off the /n and terminate
+
+			if (tv->inputlength)
+			{
+				tv->commandinput[tv->inputlength] = '\0';
+				result = Rcon_Command(tv, tv->commandinput, buffer, sizeof(buffer), true);
+				printf("%s", result);
+				tv->inputlength = 0;
+				tv->commandinput[0] = '\0';
+			}
+		}
+	}
+#endif
 }
 
 void Trim(char *s)
@@ -1028,6 +1056,9 @@ int main(int argc, char **argv)
 	qtv.qwdsocket = INVALID_SOCKET;
 	qtv.listenmvd = INVALID_SOCKET;
 	qtv.sourcesock = INVALID_SOCKET;
+
+	qtv.maxviewers = 100;
+	qtv.maxproxies = 100;
 
 
 	line[sizeof(line)-1] = '\0';

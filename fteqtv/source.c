@@ -621,7 +621,7 @@ qboolean Net_ReadStream(sv_t *qtv)
 	{
 		if (maxreadable > PREFERED_PROXY_BUFFER-qtv->buffersize)
 			maxreadable = PREFERED_PROXY_BUFFER-qtv->buffersize;
-		if (!maxreadable)
+		if (maxreadable<=0)
 			return true;
 		read = fread(buffer, 1, maxreadable, qtv->file);
 	}

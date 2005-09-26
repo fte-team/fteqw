@@ -214,8 +214,12 @@ bsp_t *BSP_LoadModel(char *gamedir, char *bspname)
 	data = ReadFile_WINDOWSSUCKS(gamedir, bspname, &size);
 	if (!data)
 	{
-		printf("Couldn't open bsp file \"%s\" (gamedir \"%s\")\n", bspname, gamedir);
-		return NULL;
+		data = ReadFile_WINDOWSSUCKS("id1", bspname, &size);
+		if (!data)
+		{
+			printf("Couldn't open bsp file \"%s\" (gamedir \"%s\")\n", bspname, gamedir);
+			return NULL;
+		}
 	}
 
 

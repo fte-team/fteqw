@@ -8,7 +8,7 @@ of the License, or (at your option) any later version.
 
 This program is distributed in the hope that it will be useful,
 but WITHOUT ANY WARRANTY; without even the implied warranty of
-MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
 
 See the GNU General Public License for more details.
 
@@ -43,7 +43,7 @@ char *svc_strings[] =
 	"svc_stufftext",		// [string] stuffed into client's console buffer
 						// the string should be \n terminated
 	"svc_setangle",		// [vec3] set the view angle to this absolute value
-	
+
 	"svc_serverdata",		// [long] version ...
 	"svc_lightstyle",		// [qbyte] [string]
 	"svc_updatename",		// [qbyte] [string]
@@ -53,11 +53,11 @@ char *svc_strings[] =
 	"svc_updatecolors",	// [qbyte] [qbyte]
 	"svc_particle",		// [vec3] <variable>
 	"svc_damage",			// [qbyte] impact [qbyte] blood [vec3] from
-	
+
 	"svc_spawnstatic",
 	"svc_spawnstatic2",
 	"svc_spawnbaseline",
-	
+
 	"svc_temp_entity",		// <variable>
 	"svc_setpause",
 	"svc_signonnum",
@@ -155,13 +155,14 @@ char *svc_nqstrings[] =
 	"nqsvc_finale",			// [string] music [string] text
 	"nqsvc_cdtrack",			// [qbyte] track [qbyte] looptrack
 	"nqsvc_sellscreen",
-	"nqsvc_cutscene",
+	"nqsvc_cutscene",	//34
 
 	"NEW PROTOCOL",
 	"NEW PROTOCOL",
 	"NEW PROTOCOL",
 	"NEW PROTOCOL",
 	"NEW PROTOCOL",
+	"NEW PROTOCOL",		//40
 	"NEW PROTOCOL",
 	"NEW PROTOCOL",
 	"NEW PROTOCOL",
@@ -170,7 +171,17 @@ char *svc_nqstrings[] =
 	"NEW PROTOCOL",
 	"NEW PROTOCOL",
 	"NEW PROTOCOL",
-	"NEW PROTOCOL"
+	"NEW PROTOCOL",
+	"dpsvc_cgame",		//50
+	"dpsvc_updatestatubyte",
+	"dpsvc_effect",
+	"dpsvc_effect2",
+	"dp6svc_precache/dp5svc_sound2",
+	"dpsvc_spawnbaseline2",
+	"dpsvc_spawnstatic2",
+	"dpsvc_entities",
+	"NEW PROTOCOL",
+	"dpsvc_spawnstaticsound2"
 };
 
 extern cvar_t requiredownloads, cl_standardchat;
@@ -404,7 +415,7 @@ qboolean	CL_CheckOrDownloadFile (char *filename, char *localname, int nodelay)
 		Con_TPrintf (TL_NORELATIVEPATHS);
 		return true;
 	}
-	
+
 	if (COM_FCheckExists (localname))
 	{	// it exists, no need to download
 		return true;
@@ -470,7 +481,7 @@ qboolean CL_CheckMD2Skins (char *name)
 	while (precache_model_skin - 1 < LittleLong(pheader->num_skins))
 	{
 		str = (char *)precache_model +
-			LittleLong(pheader->ofs_skins) + 
+			LittleLong(pheader->ofs_skins) +
 			(precache_model_skin - 1)*MD2MAX_SKINNAME;
 		COM_CleanUpPath(str);
 		if (!CL_CheckOrDownloadFile(str, str, false))
@@ -483,12 +494,12 @@ qboolean CL_CheckMD2Skins (char *name)
 		}
 		precache_model_skin++;
 	}
-	if (precache_model) { 
+	if (precache_model) {
 		BZ_Free(precache_model);
 		precache_model=NULL;
 	}
 	precache_model_skin = 0;
-	
+
 	return false;
 }
 /*
@@ -531,7 +542,7 @@ void Model_NextDownload (void)
 
 	cls.downloadtype = dl_model;
 
-	for ( 
+	for (
 		; cl.model_name[cls.downloadnumber][0]
 		; cls.downloadnumber++)
 	{
@@ -612,7 +623,7 @@ void Model_NextDownload (void)
 		Mod_NowLoadExternal();
 	}
 
-	
+
 	// all done
 	R_NewMap ();
 
@@ -684,7 +695,7 @@ void Sound_NextDownload (void)
 	}
 #endif
 
-	for ( 
+	for (
 		; cl.sound_name[cls.downloadnumber][0]
 		; cls.downloadnumber++)
 	{
@@ -804,7 +815,7 @@ void CL_SendDownloadReq(sizebuf_t *msg)
 #define ZEXPORT VARGS
 #include "../../zip/zlib.h"
 
-//# pragma comment (lib, "zip/zlib.lib") 
+//# pragma comment (lib, "zip/zlib.lib")
 #else
 #include <zlib.h>
 #endif
@@ -941,7 +952,7 @@ void CL_ParseChunkedDownload(void)
 //		Con_Printf("^1too new!\n", chunknum);
 		return;
 	}
-	
+
 	if (recievedblock[chunknum&(MAXBLOCKS-1)])
 	{
 //		Con_Printf("duplicated\n", chunknum);
@@ -1194,7 +1205,7 @@ Con_DPrintf("Upload starting of %d...\n", size);
 	upload_pos = 0;
 
 	CL_NextUpload();
-} 
+}
 
 qboolean CL_IsUploading(void)
 {
@@ -1234,11 +1245,11 @@ void CL_ParseServerData (void)
 	int protover, svcnt;
 
 	float maxspeed, entgrav;
-	
+
 	Con_DPrintf ("Serverdata packet received.\n");
 //
 // wipe the client_state_t struct
-//	
+//
 
 	SCR_BeginLoadingPlaque();
 
@@ -1262,8 +1273,8 @@ void CL_ParseServerData (void)
 		Host_EndGame ("Server returned version %i, not %i\nYou probably need to upgrade.\nCheck http://www.quakeworld.net/", protover, PROTOCOL_VERSION);
 	}
 #else
-	protover = MSG_ReadLong ();	
-	if (protover != PROTOCOL_VERSION && 
+	protover = MSG_ReadLong ();
+	if (protover != PROTOCOL_VERSION &&
 		!(cls.demoplayback && (protover == 26 || protover == 27 || protover == 28)))
 		Host_EndGame ("Server returned version %i, not %i\nYou probably need to upgrade.\nCheck http://www.quakeworld.net/", protover, PROTOCOL_VERSION);
 #endif
@@ -1418,7 +1429,7 @@ void CLQ2_ParseServerData (void)
 
 	sizeofcoord = 2;
 	sizeofangle = 1;
-	
+
 	Con_DPrintf ("Serverdata packet received.\n");
 //
 // wipe the client_state_t struct
@@ -1509,7 +1520,7 @@ void CLNQ_ParseServerData(void)		//Doesn't change gamedir - use with caution.
 	CL_ClearState ();
 	Stats_NewMap();
 
-	protover = MSG_ReadLong ();	
+	protover = MSG_ReadLong ();
 
 	sizeofcoord = 2;
 	sizeofangle = 1;
@@ -1525,6 +1536,8 @@ void CLNQ_ParseServerData(void)		//Doesn't change gamedir - use with caution.
 		nq_dp_protocol = 5;
 		sizeofcoord = 4;
 		sizeofangle = 2;
+
+		Con_DPrintf("DP5 protocols\n");
 	}
 	else if (protover == DP6_PROTOCOL_VERSION)
 	{
@@ -1534,6 +1547,8 @@ void CLNQ_ParseServerData(void)		//Doesn't change gamedir - use with caution.
 		sizeofangle = 2;
 
 		cls.z_ext = Z_EXT_VIEWHEIGHT;
+
+		Con_DPrintf("DP6 protocols\n");
 	}
 	else if (protover == DP7_PROTOCOL_VERSION)
 	{
@@ -1543,12 +1558,18 @@ void CLNQ_ParseServerData(void)		//Doesn't change gamedir - use with caution.
 		sizeofangle = 2;
 
 		cls.z_ext = Z_EXT_VIEWHEIGHT;
+
+		Con_DPrintf("DP7 protocols\n");
 	}
 	else if (protover != NQ_PROTOCOL_VERSION)
 	{
 		Host_EndGame ("Server returned version %i, not %i\nYou will need to use a different client.", protover, NQ_PROTOCOL_VERSION);
 	}
-	
+	else
+	{
+		Con_DPrintf("Standard NQ protocols\n");
+	}
+
 	if (MSG_ReadByte() > MAX_CLIENTS)
 	{
 		Con_Printf ("Warning, this server supports more than 32 clients, additional clients will do bad things\n");
@@ -1591,7 +1612,7 @@ void CLNQ_ParseServerData(void)		//Doesn't change gamedir - use with caution.
 	memset (cl.sound_name, 0, sizeof(cl.sound_name));
 	for (numsounds=1 ; ; numsounds++)
 	{
-		str = MSG_ReadString ();		
+		str = MSG_ReadString ();
 		if (!str[0])
 			break;
 		if (numsounds==MAX_SOUNDS)
@@ -1616,7 +1637,7 @@ void CLNQ_ParseServerData(void)		//Doesn't change gamedir - use with caution.
 		{
 			if (cl.model_precache[i] == NULL)
 			{
-				Host_EndGame("Model %s not found\n", cl.model_name[i]);								
+				Host_EndGame("Model %s not found\n", cl.model_name[i]);
 			}
 		}
 		CL_KeepaliveMessage ();
@@ -1625,14 +1646,14 @@ void CLNQ_ParseServerData(void)		//Doesn't change gamedir - use with caution.
 	S_BeginPrecaching ();
 	for (i=1 ; i<numsounds ; i++)
 	{
-		cl.sound_precache[i] = S_PrecacheSound (cl.sound_name[i]);		
+		cl.sound_precache[i] = S_PrecacheSound (cl.sound_name[i]);
 		CL_KeepaliveMessage ();
 	}
 	S_EndPrecaching ();
 
 	cl.worldmodel = cl.model_precache[1];
 
-	
+
 	R_NewMap ();
 
 	if (cls.demoplayback)
@@ -1657,25 +1678,25 @@ Con_DPrintf ("CL_SignonReply: %i\n", cls.signon);
 		CL_SendClientCommand(true, "prespawn");
 		break;
 
-	case 2:		
+	case 2:
 		CL_SendClientCommand(true, "name \"%s\"\n", name.string);
 		name.modified = false;
-	
+
 		CL_SendClientCommand(true, "color %i %i\n", (int)topcolor.value, (int)bottomcolor.value);
-	
+
 		CL_SendClientCommand(true, "spawn %s", "");
 		break;
-		
-	case 3:	
+
+	case 3:
 		CL_SendClientCommand(true, "begin");
 		Cache_Report ();		// print remaining memory
 #ifdef VM_CG
 		CG_Start();
 #endif
 		break;
-		
+
 	case 4:
-		SCR_EndLoadingPlaque ();		// allow normal screen updates		
+		SCR_EndLoadingPlaque ();		// allow normal screen updates
 		break;
 	}
 }
@@ -1718,17 +1739,19 @@ Con_DPrintf ("CL_SignonReply: %i\n", cls.signon);
 
 
 #define	DEFAULT_VIEWHEIGHT	22
-void CLNQ_ParseClientdata (int bits)
+void CLNQ_ParseClientdata (void)
 {
 	int		i;
 
-	bits &= 0xffff;
+	unsigned int bits;
+
+	bits = MSG_ReadShort();
 
 	if (bits & DPSU_EXTEND1)
 		bits |= (MSG_ReadByte() << 16);
 	if (bits & DPSU_EXTEND2)
 		bits |= (MSG_ReadByte() << 24);
-	
+
 	if (bits & SU_VIEWHEIGHT)
 		CL_SetStat(0, STAT_VIEWHEIGHT, MSG_ReadChar ());
 	else if (nq_dp_protocol < 6)
@@ -1738,7 +1761,7 @@ void CLNQ_ParseClientdata (int bits)
 		/*cl.idealpitch =*/ MSG_ReadChar ();
 	/*else
 		cl.idealpitch = 0;*/
-	
+
 //	VectorCopy (cl.mvelocity[0], cl.mvelocity[1]);
 	for (i=0 ; i<3 ; i++)
 	{
@@ -1847,12 +1870,12 @@ void CL_ParseSoundlist (void)
 		numsounds++;
 		if (numsounds >= MAX_SOUNDS)
 			Host_EndGame ("Server sent too many sound_precache");
-				
+
 //		if (strlen(str)>4)
 //		if (!strcmp(str+strlen(str)-4, ".mp3"))	//don't let the server send us a specific mp3. convert it to wav and this way we know not to look outside the quake path for it.
 //			strcpy(str+strlen(str)-4, ".wav");
 
-		strcpy (cl.sound_name[numsounds], str);		
+		strcpy (cl.sound_name[numsounds], str);
 	}
 
 	n = MSG_ReadByte();
@@ -1916,7 +1939,7 @@ void CL_ParseModellist (qboolean lots)
 		if (!strcmp(cl.model_name[nummodels],"progs/grenade.mdl"))
 			cl_grenadeindex = nummodels;
 
-		
+
 		if (!strcmp(cl.model_name[nummodels],"progs/gib1.mdl"))
 			cl_gib1index = nummodels;
 		if (!strcmp(cl.model_name[nummodels],"progs/gib2.mdl"))
@@ -2003,7 +2026,7 @@ void CLQ2_ParseConfigString (void)
 
 //	strcpy (cl.configstrings[i], s);
 
-	// do something apropriate 
+	// do something apropriate
 
 	if (i == Q2CS_SKY)
 	{
@@ -2068,7 +2091,7 @@ void CL_ParseBaseline (entity_state_t *es)
 	int			i;
 
 	memset(es, 0, sizeof(entity_state_t));
-	
+
 	es->modelindex = MSG_ReadByte ();
 	es->frame = MSG_ReadByte ();
 	es->colormap = MSG_ReadByte();
@@ -2092,7 +2115,7 @@ void CL_ParseBaseline2 (void)
 
 	memset(&nullst, 0, sizeof(entity_state_t));
 	memset(&es, 0, sizeof(entity_state_t));
-	
+
 	CL_ParseDelta(&nullst, &es, MSG_ReadShort(), true);
 	memcpy(&cl_baselines[es.number], &es, sizeof(es));
 }
@@ -2148,7 +2171,7 @@ void CL_ParseStatic (int version)
 		if (i == cl.num_statics)
 			cl.num_statics++;
 	}
-		
+
 	if (i >= MAX_STATIC_ENTITIES)
 	{
 		cl.num_statics--;
@@ -2188,7 +2211,7 @@ void CL_ParseStatic (int version)
 		Con_TPrintf (TLC_PARSESTATICWITHNOMAP);
 		return;
 	}
-	
+
 	R_AddEfrags (ent);
 }
 
@@ -2203,7 +2226,7 @@ void CL_ParseStaticSound (void)
 	vec3_t		org;
 	int			sound_num, vol, atten;
 	int			i;
-	
+
 	for (i=0 ; i<3 ; i++)
 		org[i] = MSG_ReadCoord ();
 	sound_num = MSG_ReadByte ();
@@ -2212,7 +2235,7 @@ void CL_ParseStaticSound (void)
 
 	if (!cl_staticsounds.value)
 		return;
-	
+
 	S_StaticSound (cl.sound_precache[sound_num], org, vol, atten);
 }
 
@@ -2237,32 +2260,32 @@ void CL_ParseStartSoundPacket(void)
     int 	channel, ent;
     int 	sound_num;
     int 	volume;
-    float 	attenuation;  
+    float 	attenuation;
  	int		i;
-	           
-    channel = MSG_ReadShort(); 
+
+    channel = MSG_ReadShort();
 
     if (channel & SND_VOLUME)
 		volume = MSG_ReadByte ();
 	else
 		volume = DEFAULT_SOUND_PACKET_VOLUME;
-	
+
     if (channel & SND_ATTENUATION)
 		attenuation = MSG_ReadByte () / 64.0;
 	else
 		attenuation = DEFAULT_SOUND_PACKET_ATTENUATION;
-	
+
 	sound_num = MSG_ReadByte ();
 
 	for (i=0 ; i<3 ; i++)
 		pos[i] = MSG_ReadCoord ();
- 
+
 	ent = (channel>>3)&1023;
 	channel &= 7;
 
 	if (ent > MAX_EDICTS)
 		Host_EndGame ("CL_ParseStartSoundPacket: ent = %i", ent);
-	
+
 #ifdef PEXT_CSQC
 	if (!CSQC_StartSound(ent, channel, cl.sound_name[sound_num], pos, volume/255.0, attenuation))
 #endif
@@ -2281,7 +2304,7 @@ void CLQ2_ParseStartSoundPacket(void)
     int 	channel, ent;
     int 	sound_num;
     float 	volume;
-    float 	attenuation;  
+    float 	attenuation;
 	int		flags;
 	float	ofs;
 
@@ -2292,11 +2315,11 @@ void CLQ2_ParseStartSoundPacket(void)
 		volume = MSG_ReadByte () / 255.0;
 	else
 		volume = Q2DEFAULT_SOUND_PACKET_VOLUME;
-	
+
     if (flags & Q2SND_ATTENUATION)
 		attenuation = MSG_ReadByte () / 64.0;
 	else
-		attenuation = Q2DEFAULT_SOUND_PACKET_ATTENUATION;	
+		attenuation = Q2DEFAULT_SOUND_PACKET_ATTENUATION;
 
     if (flags & Q2SND_OFFSET)
 		ofs = MSG_ReadByte () / 1000.0;
@@ -2305,7 +2328,7 @@ void CLQ2_ParseStartSoundPacket(void)
 
 	if (flags & Q2SND_ENT)
 	{	// entity reletive
-		channel = MSG_ReadShort(); 
+		channel = MSG_ReadShort();
 		ent = channel>>3;
 		if (ent > MAX_EDICTS)
 			Host_EndGame ("CL_ParseStartSoundPacket: ent = %i", ent);
@@ -2321,7 +2344,7 @@ void CLQ2_ParseStartSoundPacket(void)
 	if (flags & Q2SND_POS)
 	{	// positioned in space
 		MSG_ReadPos (pos_v);
- 
+
 		pos = pos_v;
 	}
 	else	// use entity number
@@ -2348,21 +2371,21 @@ void CLNQ_ParseStartSoundPacket(void)
     int 	sound_num;
     int 	volume;
     int 	field_mask;
-    float 	attenuation;  
+    float 	attenuation;
  	int		i;
-	           
-    field_mask = MSG_ReadByte(); 
+
+    field_mask = MSG_ReadByte();
 
     if (field_mask & NQSND_VOLUME)
 		volume = MSG_ReadByte ();
 	else
 		volume = DEFAULT_SOUND_PACKET_VOLUME;
-	
+
     if (field_mask & NQSND_ATTENUATION)
 		attenuation = MSG_ReadByte () / 64.0;
 	else
 		attenuation = DEFAULT_SOUND_PACKET_ATTENUATION;
-	
+
 	channel = MSG_ReadShort ();
 	sound_num = MSG_ReadByte ();
 
@@ -2371,15 +2394,15 @@ void CLNQ_ParseStartSoundPacket(void)
 
 	if (ent > MAX_EDICTS)
 		Host_EndGame ("CL_ParseStartSoundPacket: ent = %i", ent);
-	
+
 	for (i=0 ; i<3 ; i++)
 		pos[i] = MSG_ReadCoord ();
- 
+
     S_StartSound (ent, channel, cl.sound_precache[sound_num], pos, volume/255.0, attenuation);
 
 	if (ent == cl.playernum[0]+1)
 		TP_CheckPickupSound(cl.sound_name[sound_num], pos);
-}        
+}
 #endif
 
 
@@ -2426,7 +2449,7 @@ void CL_ParseClientdata (void)
 			cls.latency = latency;
 		else
 			cls.latency += 0.001;	// drift up, so correction are needed
-	}	
+	}
 }
 
 /*
@@ -2519,12 +2542,12 @@ void CL_NewTranslation (int slot)
 				else
 					for (j=0 ; j<16 ; j++)
 						dest[TOP_RANGE+j] = source[top+15-j];
-						
+
 				if (bottom < 128)
 					memcpy (dest + BOTTOM_RANGE, source + bottom, 16);
 				else
 					for (j=0 ; j<16 ; j++)
-						dest[BOTTOM_RANGE+j] = source[bottom+15-j];		
+						dest[BOTTOM_RANGE+j] = source[bottom+15-j];
 			}
 		}
 	}
@@ -2654,7 +2677,7 @@ void CL_SetStat (int pnum, int stat, int value)
 
 	if (cl.stats[pnum][stat] != value)
 		Sbar_Changed ();
-	
+
 	if (stat == STAT_ITEMS)
 	{	// set flash times
 		for (j=0 ; j<32 ; j++)
@@ -2716,7 +2739,7 @@ void CL_MuzzleFlash (int destsplit)
 	if (i-1 == cl.playernum[destsplit] && cl_muzzleflash.value == 2)
 		return;
 
-	pack = &cl.frames[cls.netchan.incoming_sequence&UPDATE_MASK].packet_entities;	
+	pack = &cl.frames[cls.netchan.incoming_sequence&UPDATE_MASK].packet_entities;
 
 	for (pnum=0 ; pnum<pack->num_entities ; pnum++)	//try looking for an entity with that id first
 	{
@@ -2825,7 +2848,7 @@ void CLQ2_ParseMuzzleFlash (void)
 		_snprintf(soundname, sizeof(soundname), "weapons/machgf%ib.wav", (rand() % 5) + 1);
 		Q2S_StartSound (NULL, i, CHAN_WEAPON, S_PrecacheSound(soundname), volume, ATTN_NORM, 0);
 		break;
-		
+
 	case Q2MZ_SHOTGUN:
 		dl->color[0] = 0.2;dl->color[1] = 0.2;dl->color[2] = 0;
 		Q2S_StartSound (NULL, i, CHAN_WEAPON, S_PrecacheSound("weapons/shotgf1b.wav"), volume, ATTN_NORM, 0);
@@ -2861,7 +2884,7 @@ void CLQ2_ParseMuzzleFlash (void)
 		_snprintf(soundname, sizeof(soundname), "weapons/machgf%ib.wav", (rand() % 5) + 1);
 		Q2S_StartSound (NULL, i, CHAN_WEAPON, S_PrecacheSound(soundname), volume, ATTN_NORM, 0.066);
 		break;
-		
+
 	case Q2MZ_RAILGUN:
 		dl->color[0] = 0.1;dl->color[1] = 0.1;dl->color[2] = 0.2;
 		Q2S_StartSound (NULL, i, CHAN_WEAPON, S_PrecacheSound("weapons/railgf1a.wav"), volume, ATTN_NORM, 0);
@@ -2905,7 +2928,7 @@ void CLQ2_ParseMuzzleFlash (void)
 		Q2S_StartSound (NULL, i, CHAN_WEAPON, S_PrecacheSound("weapons/plasshot.wav"), volume, ATTN_NORM, 0);
 		break;
 	// RAFAEL
-	case Q2MZ_IONRIPPER:	
+	case Q2MZ_IONRIPPER:
 		dl->color[0] = 0.2;dl->color[1] = 0.1; dl->color[2] = 0.1;
 		Q2S_StartSound (NULL, i, CHAN_WEAPON, S_PrecacheSound("weapons/rippfire.wav"), volume, ATTN_NORM, 0);
 		break;
@@ -2934,7 +2957,7 @@ void CLQ2_ParseMuzzleFlash (void)
 		// negative flashes handled the same in gl/soft until CL_AddDLights
 		dl->color[0] = -0.2;dl->color[1] = -0.2;dl->color[2] = -0.2;
 		Q2S_StartSound (NULL, i, CHAN_WEAPON, S_PrecacheSound("weapons/disint2.wav"), volume, ATTN_NORM, 0);
-		break;		
+		break;
 	case Q2MZ_NUKE1:
 		dl->color[0] = 0.2;dl->color[1] = 0;dl->color[2] = 0;
 		dl->die = cl.time + 100;
@@ -2956,7 +2979,7 @@ void CLQ2_ParseMuzzleFlash (void)
 	}
 }
 
-void CLQ2_ParseMuzzleFlash2 (void) 
+void CLQ2_ParseMuzzleFlash2 (void)
 {
 	int			ent;
 	int			flash_number;
@@ -2984,7 +3007,7 @@ void CLQ2_ParseInventory (void)
 int build_number( void );
 //return if we want to print the message.
 char *CL_ParseChat(char *text, player_info_t **player)
-{	
+{
 	extern cvar_t cl_chatsound, cl_nofake;
 	int flags;
 	int offset=0;
@@ -3054,7 +3077,7 @@ char *CL_ParseChat(char *text, player_info_t **player)
 	if (cl_nofake.value == 1 || (cl_nofake.value == 2 && flags != 2)) {
 		for (p = s; *p; p++)
 			if (*p == 13 || (*p == 10 && p[1]))
-				*p = ' '; 
+				*p = ' ';
 	}
 
 	msgflags = flags;
@@ -3231,7 +3254,7 @@ void CL_PrintChat(player_info_t *plr, char *rawmsg, char *msg, int plrflags)
 		if (!memessage)
 		{
 			// only print seperator with an actual player name
-			con_ormask = CON_STANDARDMASK;	
+			con_ormask = CON_STANDARDMASK;
 			if (!cl_standardchat.value && (plrflags & TPM_SPECTATOR))
 				Con_Printf ("^0:^7 ");
 			else
@@ -3403,7 +3426,7 @@ void CL_ParseServerMessage (void)
 		}
 
 		SHOWNET(svc_strings[cmd]);
-	
+
 	// other commands
 		switch (cmd)
 		{
@@ -3416,11 +3439,11 @@ void CL_ParseServerMessage (void)
 			cl.gametime = MSG_ReadFloat();
 			cl.gametimemark = realtime;
 			break;
-			
+
 		case svc_nop:
 //			Con_Printf ("svc_nop\n");
 			break;
-			
+
 		case svc_disconnect:
 			if (cls.state == ca_connected)
 			{
@@ -3454,15 +3477,15 @@ void CL_ParseServerMessage (void)
 				Con_TPrintf (TL_ST, Translate(s));
 			}
 			break;
-			
+
 		case svc_centerprint:
 			SCR_CenterPrint (destsplit, Translate(MSG_ReadString ()));
 			break;
-			
+
 		case svc_stufftext:
 			s = MSG_ReadString ();
 
-			CL_ParseStuffCmd(s, destsplit);	
+			CL_ParseStuffCmd(s, destsplit);
 			break;
 
 		case svc_damage:
@@ -3478,7 +3501,7 @@ void CL_ParseServerMessage (void)
 		case svc_setview:
 			if (!(cls.fteprotocolextensions & PEXT_SETVIEW))
 				Host_EndGame("PEXT_SETVIEW is meant to be disabled\n");
-			cl.viewentity[destsplit]=MSG_ReadShort();			
+			cl.viewentity[destsplit]=MSG_ReadShort();
 			break;
 #endif
 		case svc_setangle:
@@ -3528,19 +3551,19 @@ void CL_ParseServerMessage (void)
 		case svc_sound:
 			CL_ParseStartSoundPacket();
 			break;
-			
+
 		case svc_stopsound:
 			i = MSG_ReadShort();
 			S_StopSound(i>>3, i&7);
 			break;
-		
+
 		case svc_updatefrags:
 			Sbar_Changed ();
 			i = MSG_ReadByte ();
 			if (i >= MAX_CLIENTS)
 				Host_EndGame ("CL_ParseServerMessage: svc_updatefrags > MAX_SCOREBOARD");
 			cl.players[i].frags = MSG_ReadShort ();
-			break;			
+			break;
 
 		case svc_updateping:
 			i = MSG_ReadByte ();
@@ -3548,14 +3571,14 @@ void CL_ParseServerMessage (void)
 				Host_EndGame ("CL_ParseServerMessage: svc_updateping > MAX_SCOREBOARD");
 			cl.players[i].ping = MSG_ReadShort ();
 			break;
-			
+
 		case svc_updatepl:
 			i = MSG_ReadByte ();
 			if (i >= MAX_CLIENTS)
 				Host_EndGame ("CL_ParseServerMessage: svc_updatepl > MAX_SCOREBOARD");
 			cl.players[i].pl = MSG_ReadByte ();
 			break;
-			
+
 		case svc_updateentertime:
 		// time is sent over as seconds ago
 			i = MSG_ReadByte ();
@@ -3563,7 +3586,7 @@ void CL_ParseServerMessage (void)
 				Host_EndGame ("CL_ParseServerMessage: svc_updateentertime > MAX_SCOREBOARD");
 			cl.players[i].entertime = realtime - MSG_ReadFloat ();
 			break;
-			
+
 		case svc_spawnbaseline:
 			i = MSG_ReadShort ();
 			CL_ParseBaseline (&cl_baselines[i]);
@@ -3619,7 +3642,7 @@ void CL_ParseServerMessage (void)
 			j = MSG_ReadLong ();	//make qbyte if nq compatability?
 			CL_SetStat (destsplit, i, j);
 			break;
-			
+
 		case svc_spawnstaticsound:
 			CL_ParseStaticSound ();
 			break;
@@ -3636,7 +3659,7 @@ void CL_ParseServerMessage (void)
 			cl.completed_time = realtime;
 			vid.recalc_refdef = true;	// go to full screen
 			for (i=0 ; i<3 ; i++)
-				cl.simorg[0][i] = MSG_ReadCoord ();			
+				cl.simorg[0][i] = MSG_ReadCoord ();
 			for (i=0 ; i<3 ; i++)
 				cl.simangles[0][i] = MSG_ReadAngle ();
 			VectorCopy (vec3_origin, cl.simvel[0]);
@@ -3650,9 +3673,9 @@ void CL_ParseServerMessage (void)
 			cl.intermission = 2;
 			cl.completed_time = realtime;
 			vid.recalc_refdef = true;	// go to full screen
-			SCR_CenterPrint (destsplit, MSG_ReadString ());			
+			SCR_CenterPrint (destsplit, MSG_ReadString ());
 			break;
-			
+
 		case svc_sellscreen:
 			Cmd_ExecuteString ("help", RESTRICT_RCON);
 			break;
@@ -3841,7 +3864,7 @@ void CLQ2_ParseServerMessage (void)
 		}
 
 		SHOWNET(va("%i", cmd));
-	
+
 	// other commands
 		switch (cmd)
 		{
@@ -3851,7 +3874,7 @@ void CLQ2_ParseServerMessage (void)
 
 	//known to game
 		case svcq2_muzzleflash:
-			CLQ2_ParseMuzzleFlash();			
+			CLQ2_ParseMuzzleFlash();
 			break;
 		case svcq2_muzzleflash2:
 			CLQ2_ParseMuzzleFlash2();
@@ -3927,7 +3950,7 @@ void CLQ2_ParseServerMessage (void)
 		case svcq2_configstring:	//13		// [short] [string]
 			CLQ2_ParseConfigString();
 			break;
-		case svcq2_spawnbaseline://14		
+		case svcq2_spawnbaseline://14
 			CLQ2_ParseBaseline();
 			break;
 		case svcq2_centerprint:	//15		// [string] to put in center of the screen
@@ -4006,17 +4029,17 @@ void CLNQ_ParseServerMessage (void)
 		}
 
 		SHOWNET2(svc_nqstrings[cmd>(sizeof(svc_nqstrings)/sizeof(char*))?0:cmd], cmd);
-	
+
 	// other commands
 		switch (cmd)
 		{
 		default:
 			Host_EndGame ("CLNQ_ParseServerMessage: Illegible server message (%i)", cmd);
 			return;
-			
+
 		case svc_nop:
 //			Con_Printf ("svc_nop\n");
-			break;		
+			break;
 
 		case svc_print:
 			s = MSG_ReadString ();
@@ -4043,11 +4066,11 @@ void CLNQ_ParseServerMessage (void)
 		case svc_disconnect:
 			CL_Disconnect();
 			break;
-			
+
 		case svc_centerprint:
 			SCR_CenterPrint (0, Translate(MSG_ReadString ()));
 			break;
-			
+
 		case svc_stufftext:
 			s = MSG_ReadString ();
 			Con_DPrintf ("stufftext: %s\n", s);
@@ -4057,7 +4080,7 @@ void CLNQ_ParseServerMessage (void)
 		case svc_serverdata:
 			Cbuf_Execute ();		// make sure any stuffed commands are done
 			CLNQ_ParseServerData ();
-			vid.recalc_refdef = true;	// leave full screen intermission			
+			vid.recalc_refdef = true;	// leave full screen intermission
 			break;
 
 		case svcdp_precache:
@@ -4068,8 +4091,8 @@ void CLNQ_ParseServerMessage (void)
 			cl.cdtrack = MSG_ReadByte ();
 			MSG_ReadByte ();
 
-			CDAudio_Play ((qbyte)cl.cdtrack, true);			
-			break;		
+			CDAudio_Play ((qbyte)cl.cdtrack, true);
+			break;
 
 		case svc_setview:
 			if (!cl.viewentity[0])
@@ -4101,7 +4124,7 @@ void CLNQ_ParseServerMessage (void)
 		case svc_spawnstatic:
 			CL_ParseStatic (1);
 			break;
-		
+
 		case svc_spawnbaseline:
 			i = MSG_ReadShort ();
 			CL_ParseBaseline (&cl_baselines[i]);
@@ -4171,12 +4194,12 @@ void CLNQ_ParseServerMessage (void)
 			break;
 
 		case svc_updatestat:
-			i = MSG_ReadByte ();			
+			i = MSG_ReadByte ();
 			j = MSG_ReadLong ();
 			CL_SetStat (0, i, j);
 			break;
-		case 51://svc_updatestat:
-			i = MSG_ReadByte ();			
+		case svcdp_updatestatbyte:
+			i = MSG_ReadByte ();
 			j = MSG_ReadByte ();
 			CL_SetStat (0, i, j);
 			break;
@@ -4187,8 +4210,7 @@ void CLNQ_ParseServerMessage (void)
 			break;
 
 		case svc_clientdata:
-			i = MSG_ReadShort ();
-			CLNQ_ParseClientdata (i);
+			CLNQ_ParseClientdata ();
 			break;
 
 		case svc_sound:
@@ -4198,7 +4220,7 @@ void CLNQ_ParseServerMessage (void)
 		case svc_temp_entity:
 			CL_ParseTEnt (true);
 			break;
-		
+
 		case svc_particle:
 			CLNQ_ParseParticleEffect ();
 			break;
@@ -4223,7 +4245,7 @@ void CLNQ_ParseServerMessage (void)
 			cl.intermission = 2;
 			cl.completed_time = cl.time;
 			vid.recalc_refdef = true;	// go to full screen
-			SCR_CenterPrint (0, MSG_ReadString ());			
+			SCR_CenterPrint (0, MSG_ReadString ());
 			break;
 
 		case svc_cutscene:
@@ -4253,7 +4275,7 @@ void CLNQ_ParseServerMessage (void)
 			{	// first update is the final signon stage
 				cls.signon = 4;
 				CLNQ_SignonReply ();
-			}	
+			}
 			//well, it's really any protocol, but we're only going to support version 5.
 			CLNQ_ParseDarkPlaces5Entities();
 			break;

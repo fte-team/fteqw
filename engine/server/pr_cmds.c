@@ -2967,7 +2967,7 @@ void PF_stuffcmd (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 
 	cl = &svs.clients[entnum-1];
 
-	
+
 	if (strcmp(str, "disconnect\n") == 0)
 	{
 		// so long and thanks for all the fish
@@ -5083,24 +5083,24 @@ void PF_infokey (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 	}
 	else if (e1 <= MAX_CLIENTS)
 	{
-		if (!strcmp(key, "ip"))
+		value = ov;
+		if (!strcmp(key, "ip") || !strcmp(key, "realip"))	//note: FTE doesn't support mvdsv's realip stuff, so pretend that we do if the mod asks
 			value = strcpy(ov, NET_BaseAdrToString (svs.clients[e1-1].netchan.remote_address));
 		else if (!strcmp(key, "ping"))
-		{
-			int ping = SV_CalcPing (&svs.clients[e1-1]);
-			sprintf(ov, "%d", ping);
-			value = ov;
-		}
+			sprintf(ov, "%d", SV_CalcPing (&svs.clients[e1-1]));
+		else if (!strcmp(key, "*userid"))
+			sprintf(ov, "%d", svs.clients[e1-1].userid);
+		else if (!strcmp(key, "download"))
+			sprintf(ov, "%d", svs.clients[e1-1].download != NULL ? (int)(100*svs.clients[e1-1].downloadcount/svs.clients[e1-1].downloadsize) : -1);
+//		else if (!strcmp(key, "login"))	//mvdsv
+//			value = "";
 		else if (!strcmp(key, "trustlevel"))	//info for progs.
 		{
 			rankstats_t rs;
 			if (!svs.clients[e1-1].rankid)
 				value = "";
 			else if (Rank_GetPlayerStats(svs.clients[e1-1].rankid, &rs))
-			{
 				sprintf(ov, "%d", rs.trustlevel);
-				value = ov;
-			}
 			else
 				value = "";
 		}
@@ -6156,7 +6156,7 @@ lh_extension_t QSG_Extensions[] = {
 	{"FRIK_FILE",						11, NULL, {"stof", "fopen","fclose","fgets","fputs","strlen","strcat","substring","stov","strzone","strunzone"}},
 	{"FTE_CALLTIMEOFDAY",				1,	NULL, {"calltimeofday"}},
 	{"FTE_FORCEINFOKEY",				1,	NULL, {"forceinfokey"}},
-	{"FTE_GFX_QUAKE3SHADERS"},		
+	{"FTE_GFX_QUAKE3SHADERS"},
 	{"FTE_ISBACKBUFFERED",				1,	NULL, {"isbackbuffered"}},
 #ifndef NOMEDIA
 	{"FTE_MEDIA_AVI"},	//playfilm supports avi files.
@@ -6169,6 +6169,7 @@ lh_extension_t QSG_Extensions[] = {
 #ifdef SVCHAT
 	{"FTE_NPCCHAT",						1,	NULL, {"chat"}},	//server looks at chat files. It automagically branches through calling qc functions as requested.
 #endif
+	{"FTE_QC_MATCHCLIENTNAME",				1,	NULL, {"matchclient"}},
 	{"FTE_SOLID_LADDER"},	//part of a worthy hl implementation. Allows a simple trigger to remove effects of gravity (solid 20)
 
 	//eperimental advanced strings functions.
@@ -6176,7 +6177,7 @@ lh_extension_t QSG_Extensions[] = {
 	{"FTE_STRINGS",						18, NULL, {"stof", "strlen","strcat","substring","stov","strzone","strunzone",
 												   "strstrofs", "str2chr", "chr2str", "strconv", "infoadd", "infoget", "strncmp", "strcasecmp", "strncasecmp"}},
 
-	{"FTE_TE_STANDARDEFFECTBUILTINS",	16,	NULL, {"te_gunshot", "te_spike", "te_superspike", "te_explosion", "te_tarexplosion", "te_wizspike", "te_knightspike", "te_lavasplash", 
+	{"FTE_TE_STANDARDEFFECTBUILTINS",	16,	NULL, {"te_gunshot", "te_spike", "te_superspike", "te_explosion", "te_tarexplosion", "te_wizspike", "te_knightspike", "te_lavasplash",
 												   "te_teleport", "te_explosion2", "te_lightning1", "te_lightning2", "te_lightning3", "te_beam", "te_lightningblood", "te_bloodqw"}},
 
 	{"HYDR_WRITESTRING2",				1,	NULL, {"writestring2"}},
@@ -6191,7 +6192,7 @@ lh_extension_t QSG_Extensions[] = {
 	{"ZQ_MOVETYPE_NOCLIP"},
 	{"ZQ_MOVETYPE_NONE"},
 //	{"ZQ_QC_PARTICLE"},	//particle builtin works in QW ( we don't mimic ZQ fully though)
-		
+
 
 	{"ZQ_QC_STRINGS",					7, NULL, {"stof", "strlen","strcat","substring","stov","strzone","strunzone"}}	//a trimmed down FRIK_FILE.
 };
@@ -8820,6 +8821,34 @@ void PF_runclientphys(progfuncs_t *prinst, struct globalvars_s *pr_globals)
 	PM_PlayerMove(sv.gamespeed);
 }
 
+//entity(string match [, float matchnum]) matchclient = #241;
+void PF_matchclient(progfuncs_t *prinst, struct globalvars_s *pr_globals)
+{
+	int clnum=-1;
+	char *name = PR_GetStringOfs(prinst, OFS_PARM0);
+	int matchnum = G_FLOAT(OFS_PARM1);
+	client_t *cl;
+
+	if (*prinst->callargc < 2)
+	{
+		SV_GetClientForString(name, &clnum);
+		G_INT(OFS_RETURN) = clnum;
+		return;
+	}
+
+	while((cl = SV_GetClientForString(name, &clnum)))
+	{
+		if (!matchnum)
+		{	//this is the one that matches
+			G_INT(OFS_RETURN) = clnum;
+			return;
+		}
+		matchnum--;
+	}
+
+	G_INT(OFS_RETURN) = 0;	//world
+}
+
 BuiltinList_t BuiltinList[] = {				//nq	qw		h2		ebfs
 	{"fixme",			PF_Fixme,			0,		0,		0},
 	{"ignore",			PF_Ignore,			0,		0,		0},
@@ -9125,6 +9154,8 @@ BuiltinList_t BuiltinList[] = {				//nq	qw		h2		ebfs
 //END EXT_CSQC
 	{"isbackbuffered",	PF_isbackbuffered,	0,		0,		0,		234},
 	{"te_bloodqw",		PF_te_bloodqw,		0,		0,		0,		239},
+
+	{"matchclientname",		PF_matchclient,		0,		0,		0,		241},
 
 //end fte extras
 

@@ -762,7 +762,7 @@ entity_state_t *CL_FindOldPacketEntity(int num)
 // flag
 #define E5_FRAME16 (1<<21)
 // unused
-#define E5_UNUSED22 (1<<22)
+#define E5_COLORMOD (1<<22)
 // bits >= (1<<24)
 #define E5_EXTEND3 (1<<23)
 
@@ -783,6 +783,8 @@ entity_state_t *CL_FindOldPacketEntity(int num)
 // bits2 > 0
 #define E5_EXTEND4 (1<<31)
 
+#define E5_ALLUNUSED (E5_UNUSED24|E5_UNUSED25|E5_UNUSED26|E5_UNUSED27|E5_UNUSED28|E5_UNUSED29|E5_UNUSED30)
+
 entity_state_t defaultstate;
 void DP5_ParseDelta(entity_state_t *s)
 {
@@ -798,6 +800,12 @@ void DP5_ParseDelta(entity_state_t *s)
 				bits |= MSG_ReadByte() << 24;
 		}
 	}
+
+	if (bits & E5_ALLUNUSED)
+	{
+		Host_EndGame("Detected 'unused' bits in DP5+ entity delta - %x (%x)\n", bits, (bits & E5_ALLUNUSED));
+	}
+
 	if (bits & E5_FULLUPDATE)
 	{
 		int num;
@@ -885,23 +893,23 @@ void DP5_ParseDelta(entity_state_t *s)
 	}
 	if (bits & E5_LIGHT)
 	{
-		MSG_ReadShort();
-		MSG_ReadShort();
-		MSG_ReadShort();
-		MSG_ReadShort();
-		MSG_ReadByte();
-		MSG_ReadByte();
-//		s->light[0] = (unsigned short) MSG_ReadShort();
-//		s->light[1] = (unsigned short) MSG_ReadShort();
-//		s->light[2] = (unsigned short) MSG_ReadShort();
-//		s->light[3] = (unsigned short) MSG_ReadShort();
-//		s->lightstyle = MSG_ReadByte();
-//		s->lightpflags = MSG_ReadByte();
+		s->light[0] = MSG_ReadShort();
+		s->light[1] = MSG_ReadShort();
+		s->light[2] = MSG_ReadShort();
+		s->light[3] = MSG_ReadShort();
+		s->lightstyle = MSG_ReadByte();
+		s->lightpflags = MSG_ReadByte();
 	}
 	if (bits & E5_GLOW)
 	{
 		s->glowsize = MSG_ReadByte();
 		s->glowcolour = MSG_ReadByte();
+	}
+	if (bits & E5_COLORMOD)
+	{
+		MSG_ReadByte();
+		MSG_ReadByte();
+		MSG_ReadByte();
 	}
 }
 
@@ -2471,7 +2479,7 @@ void CL_LinkViewModel(void)
 //	dlight_t	*dl;
 //	int			ambientlight, shadelight;
 
-	static struct model_s *oldmodel[MAX_SPLITS];	
+	static struct model_s *oldmodel[MAX_SPLITS];
 	static float lerptime[MAX_SPLITS];
 	static int prevframe[MAX_SPLITS];
 	static int oldframe[MAX_SPLITS];

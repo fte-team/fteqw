@@ -8,7 +8,7 @@ of the License, or (at your option) any later version.
 
 This program is distributed in the hope that it will be useful,
 but WITHOUT ANY WARRANTY; without even the implied warranty of
-MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
 
 See the GNU General Public License for more details.
 
@@ -142,11 +142,11 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 #define	svc_updatecolors	17	// [qbyte] [qbyte] [qbyte]
 #define	svc_particle		18	// [vec3] <variable>
 #define	svc_damage			19
-	
+
 #define	svc_spawnstatic		20
 #define	svc_spawnstatic2	21
 #define	svc_spawnbaseline	22
-	
+
 #define	svc_temp_entity		23	// variable
 #define	svc_setpause		24	// [qbyte] on / off
 #define	svc_signonnum		25	// [qbyte]  used for the signon sequence
@@ -166,6 +166,9 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 
 #define svc_cutscene		34	//hmm... nq only... added after qw tree splitt?
 
+
+
+//QW svcs
 #define	svc_smallkick		34		// set client punchangle to 2
 #define	svc_bigkick			35		// set client punchangle to 4
 
@@ -181,7 +184,7 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 
 #define	svc_download		41		// [short] size [size bytes]
 #define	svc_playerinfo		42		// variable
-#define	svc_nails			43		// [qbyte] num [48 bits] xyzpy 12 12 12 4 8 
+#define	svc_nails			43		// [qbyte] num [48 bits] xyzpy 12 12 12 4 8
 #define	svc_chokecount		44		// [qbyte] packets choked
 #define	svc_modellist		45		// [strings]
 #define	svc_soundlist		46		// [strings]
@@ -191,22 +194,18 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 #define svc_entgravity		50		// gravity change, for prediction
 #define svc_setinfo			51		// setinfo on a client
 #define svc_serverinfo		52		// serverinfo
-#define svcnq_effect		52		// [vector] org [byte] modelindex [byte] startframe [byte] framecount [byte] framerate
-#define svcnq_effect2		53		// [vector] org [short] modelindex [short] startframe [byte] framecount [byte] framerate
 #define svc_updatepl		53		// [qbyte] [qbyte]
 
-#define	svcdp_precache		54		// [short] precacheindex [string] filename, precacheindex is + 0 for modelindex and +32768 for soundindex
-#define svc_nails2			54		//qwe - [qbyte] num [52 bits] nxyzpy 8 12 12 12 4 8 
+//mvdsv extended svcs (for mvd playback)
+#define svc_nails2			54		//qwe - [qbyte] num [52 bits] nxyzpy 8 12 12 12 4 8
 
-#define svcdp_spawnbaseline2	55
+//FTE extended svcs
 #ifdef PEXT_VIEW2
 #define svc_view2			56
 #endif
 #ifdef PEXT_LIGHTSTYLECOL
 #define svc_lightstylecol	57
 #endif
-
-#define svcdp_entities		57
 
 #ifdef PEXT_BULLETENS
 #define svc_bulletentext	58
@@ -246,6 +245,17 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 
 #define svc_precache		77
 
+
+//DP extended svcs
+#define svcdp_updatestatbyte	51
+#define svcnq_effect		52		// [vector] org [byte] modelindex [byte] startframe [byte] framecount [byte] framerate
+#define svcnq_effect2		53		// [vector] org [short] modelindex [short] startframe [byte] framecount [byte] framerate
+#define	svcdp_precache		54		// [short] precacheindex [string] filename, precacheindex is + 0 for modelindex and +32768 for soundindex
+#define svcdp_spawnbaseline2	55
+#define svcdp_entities		57
+
+
+
 #define svc_invalid			256
 
 
@@ -269,7 +279,7 @@ enum svcq2_ops_e
 	svcq2_stufftext,	//11			// [string] stuffed into client's console buffer, should be \n terminated
 	svcq2_serverdata,	//12			// [long] protocol ...
 	svcq2_configstring,	//13		// [short] [string]
-	svcq2_spawnbaseline,//14		
+	svcq2_spawnbaseline,//14
 	svcq2_centerprint,	//15		// [string] to put in center of the screen
 	svcq2_download,		//16		// [short] size [size bytes]
 	svcq2_playerinfo,	//17			// variable
@@ -281,7 +291,7 @@ enum svcq2_ops_e
 enum clcq2_ops_e
 {
 	clcq2_bad,
-	clcq2_nop, 		
+	clcq2_nop,
 	clcq2_move,				// [[usercmd_t]
 	clcq2_userinfo,			// [[userinfo string]
 	clcq2_stringcmd			// [string] message

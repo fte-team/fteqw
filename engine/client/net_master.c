@@ -547,7 +547,7 @@ void Master_AddMasterHTTP (char *address, int servertype, char *description)
 //build a linked list of masters.	Doesn't duplicate addresses.
 qboolean Master_LoadMasterList (char *filename, int defaulttype, int depth)
 {
-	extern char	com_basedir[MAX_OSPATH];
+	extern char	*com_basedir;
 	FILE *f;
 	char line[1024];
 	char file[1024];

@@ -2558,7 +2558,6 @@ void P_RunParticleCube(vec3_t minb, vec3_t maxb, vec3_t dir, float count, int co
 {
 	vec3_t org;
 	int			i, j;
-	vec3_t	nvel;
 	float		num;
 	float invcount;
 
@@ -2593,7 +2592,6 @@ void P_RunParticleWeather(vec3_t minb, vec3_t maxb, vec3_t dir, float count, int
 {
 	vec3_t org;
 	int			i, j;
-	vec3_t	nvel;
 	float		num;
 	float invcount;
 

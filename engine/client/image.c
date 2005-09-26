@@ -973,7 +973,7 @@ typedef struct  {
 METHODDEF(void) jpeg_error_exit (j_common_ptr cinfo) {	
   longjmp(((jpeg_error_mgr_wrapper *) cinfo->err)->setjmp_buffer, 1);
 }
-extern char	com_basedir[];
+extern char	*com_basedir;
 void screenshotJPEG(char *filename, qbyte *screendata, int screenwidth, int screenheight)	//input is rgb NOT rgba
 {
 	char	name[MAX_OSPATH];

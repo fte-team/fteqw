@@ -134,7 +134,6 @@ Handles cursor positioning, line wrapping, etc
 #define	MAXPRINTMSG	4096
 // FIXME: make a buffer size safe vsprintf?
 #ifdef SERVERONLY
-qboolean con_debuglog;
 void VARGS Con_Printf (const char *fmt, ...)
 {
 	va_list		argptr;
@@ -155,9 +154,7 @@ void VARGS Con_Printf (const char *fmt, ...)
 	}
 
 	Sys_Printf ("%s", msg);	// also echo to debugging console
-
-	if (con_debuglog)
-		Sys_DebugLog(va("%s/qconsole.log",com_gamedir), "%s", msg);
+	Con_Log(msg); // log to console
 }
 void Con_TPrintf (translation_t stringnum, ...)
 {
@@ -186,9 +183,7 @@ void Con_TPrintf (translation_t stringnum, ...)
 	va_end (argptr);
 
 	Sys_Printf ("%s", msg);	// also echo to debugging console
-
-	if (con_debuglog)
-		Sys_DebugLog(va("%s/qconsole.log",com_gamedir), "%s", msg);
+	Con_Log(msg); // log to console
 }
 /*
 ================

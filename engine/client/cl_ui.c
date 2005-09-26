@@ -462,7 +462,7 @@ int VMQ3_GetFileList(char *path, char *ext, char *output, int buffersize)
 	vms.found=0;
 	if (*(char *)path == '$')
 	{
-		extern char	com_basedir[];
+		extern char	*com_basedir;
 		vms.skip=0;
 		Sys_EnumerateFiles(com_basedir, "*", VMEnumMods, &vms);
 	}

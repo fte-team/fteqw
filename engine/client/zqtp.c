@@ -3227,7 +3227,6 @@ void CL_Say (qboolean team, char *extra)
 	strlcat (sendtext, text, sizeof(sendtext));
 	if (suppress)
 	{
-		extern cvar_t cl_standardchat;
 		//print it locally:
 		char *d;
 		for (s = sendtext, d = text; *s; s++, d++)

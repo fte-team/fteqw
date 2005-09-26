@@ -139,6 +139,9 @@ SV_SetMaster_f
 Make a master server current
 ====================
 */
+void Master_ClearAll(void);
+void Master_Add(char *stringadr);
+
 void SV_SetMaster_f (void)
 {
 	int		i;
@@ -182,20 +185,32 @@ SV_Logfile_f
 */
 void SV_Logfile_f (void)
 {
-	char	name[MAX_OSPATH];
+	extern cvar_t log_enable, log_dir, log_name;
+	extern char gamedirfile[];
+	extern char *com_basedir;
 
-	if (con_debuglog)
+	if (log_enable.value)
 	{
-		Con_TPrintf (STL_LOGGINGOFF);
-		con_debuglog = false;
-		return;
+		Cvar_SetValue(&log_enable, 0);
+		Con_Print("Logging disabled.\n");
 	}
+	else
+	{
+		char *d, *f;
 
-	sprintf (name, "%s/qconsole.log", com_gamedir);
-	Con_TPrintf (STL_LOGGINGTO, name);
-	con_debuglog = true;
+		d = gamedirfile;
+		if (log_dir.string[0])
+			d = log_dir.string;
+
+		f = "qconsole";
+		if (log_name.string[0])
+			f = log_name.string;
+
+		Cvar_SetValue(&log_enable, 1);
+		Con_Print(va("Logging to %s/%s/%s.log.\n", com_basedir, d, f));
+	}
+	
 }
-
 
 /*
 ============
@@ -1261,6 +1276,13 @@ void SV_SaveInfos(FILE *f)
 	fwrite("\n", 1, 1, f);
 	SV_SaveInfo(f, localinfo, "localinfo");
 }
+
+/*
+void SV_ResetInfos(void)
+{
+	// TODO: add me
+}
+*/
 
 /*
 ===========

@@ -123,7 +123,7 @@ void S_SoundInfo_f(void)
 
 	if (!sndcardinfo)
 	{
-		Con_Print("No sound cards\n");
+		Con_Printf ("No sound cards\n");
 		return;
 	}
 	for (sc = sndcardinfo; sc; sc = sc->next)

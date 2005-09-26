@@ -6,7 +6,6 @@
 static char *defaultlanguagetext = 
 "STL_LANGUAGENAME \"English\"\n"
 "TL_NL \"\\n\"\n"
-"TL_ST \"%s\"\n"
 "TL_STNL \"%s\\n\"\n"
 "STL_CLIENTCONNECTED \"client %s connected\\n\"\n"
 "STL_SPECTATORCONNECTED \"spectator %s connected\\n\"\n"

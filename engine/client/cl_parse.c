@@ -1051,7 +1051,7 @@ void CL_ParseDownload (void)
 
 	if (!*cls.downloadname)	//huh... that's not right...
 	{
-		Con_Print("^1Warning: Server sending unknown file.\n");
+		Con_Printf("^1Warning: Server sending unknown file.\n");
 		strcpy(cls.downloadname, "unknown.txt");
 		strcpy(cls.downloadtempname, "unknown.tmp");
 	}
@@ -3004,7 +3004,6 @@ void CLQ2_ParseInventory (void)
 }
 #endif
 
-int build_number( void );
 //return if we want to print the message.
 char *CL_ParseChat(char *text, player_info_t **player)
 {
@@ -3108,11 +3107,80 @@ void CL_ParsePrint(char *msg, int level)
 	}
 }
 
+// CL_PlayerColor: returns color and mask for player_info_t
+int CL_PlayerColor(player_info_t *plr, int *name_ormask)
+{
+	char *t;
+	int c;
+
+	*name_ormask = 0;
+
+	if (cl.teamfortress) //override based on team
+	{
+		// TODO: needs some work
+		switch (plr->bottomcolor)
+		{	//translate q1 skin colours to console colours
+		case 10:
+		case 1:
+			*name_ormask = CON_STANDARDMASK;
+		case 4:	//red
+			c = 1;
+			break;
+		case 11:
+			*name_ormask = CON_STANDARDMASK;
+		case 3: // green
+			c = 2;
+			break;
+		case 5:
+			*name_ormask = CON_STANDARDMASK;
+		case 12:
+			c = 3;
+			break;
+		case 6:
+		case 7:
+			*name_ormask = CON_STANDARDMASK;
+		case 8:
+		case 9:
+			c = 5;
+			break;
+		case 2: // light blue
+			*name_ormask = CON_STANDARDMASK;
+		case 13: //blue
+		case 14: //blue
+			c = 6;
+			break;
+		default:
+			*name_ormask = CON_STANDARDMASK;
+		case 0: // white
+			c = 7;
+			break;
+		}
+	}
+	else
+	{
+		// override chat color with tc infokey
+		// 0-6 is standard colors (red to white)
+		// 7-13 is using secondard charactermask
+		// 14 and afterwards repeats
+		t = Info_ValueForKey(plr->userinfo, "tc");
+		if (*t)
+			c = atoi(t);
+		else
+			c = plr->userid - 1;
+
+		if ((c / 7) & 1)
+			*name_ormask = CON_STANDARDMASK;
+
+		c = 1 + (c % 7);
+	}
+
+	return c;
+}
+
 // CL_ParseChat: takes chat strings and performs name coloring and cl_parsewhitetext parsing
 // NOTE: text in rawmsg/msg is assumed destroyable and should not be used afterwards
 void CL_PrintChat(player_info_t *plr, char *rawmsg, char *msg, int plrflags)
 {
-	char *t;
 	char *name = NULL;
 	int c;
 	int name_ormask = 0;
@@ -3154,66 +3222,7 @@ void CL_PrintChat(player_info_t *plr, char *rawmsg, char *msg, int plrflags)
 			}
 		}
 		else if (plr)
-		{
-			if (cl.teamfortress) //override based on team
-			{
-				// TODO: needs some work
-				switch (plr->bottomcolor)
-				{	//translate q1 skin colours to console colours
-				case 10:
-				case 1:
-					name_ormask = CON_STANDARDMASK;
-				case 4:	//red
-					c = 1;
-					break;
-				case 11:
-					name_ormask = CON_STANDARDMASK;
-				case 3: // green
-					c = 2;
-					break;
-				case 5:
-					name_ormask = CON_STANDARDMASK;
-				case 12:
-					c = 3;
-					break;
-				case 6:
-				case 7:
-					name_ormask = CON_STANDARDMASK;
-				case 8:
-				case 9:
-					c = 5;
-					break;
-				case 2: // light blue
-					name_ormask = CON_STANDARDMASK;
-				case 13: //blue
-				case 14: //blue
-					c = 6;
-					break;
-				default:
-					name_ormask = CON_STANDARDMASK;
-				case 0: // white
-					c = 7;
-					break;
-				}
-			}
-			else
-			{
-				// override chat color with tc infokey
-				// 0-6 is standard colors (red to white)
-				// 7-13 is using secondard charactermask
-				// 14 and afterwards repeats
-				t = Info_ValueForKey(plr->userinfo, "tc");
-				if (*t)
-					c = atoi(t);
-				else
-					c = plr->userid - 1;
-
-				if ((c / 7) & 1)
-					name_ormask = CON_STANDARDMASK;
-
-				c = 1 + (c % 7);
-			}
-		}
+			c = CL_PlayerColor(plr, &name_ormask);
 		else
 		{
 			// defaults for fake clients
@@ -3268,7 +3277,7 @@ void CL_PrintChat(player_info_t *plr, char *rawmsg, char *msg, int plrflags)
 	con_ormask = CON_STANDARDMASK;
 	if (cl_parsewhitetext.value && (plrflags & TPM_TEAM))
 	{
-		char *u;
+		char *t, *u;
 
 		while (t = strchr(msg, '{'))
 		{
@@ -3295,6 +3304,56 @@ void CL_PrintChat(player_info_t *plr, char *rawmsg, char *msg, int plrflags)
 	}
 	con_ormask = 0;
 
+}
+
+// CL_PrintStandardMessage: takes non-chat net messages and performs name coloring
+// NOTE: msg is considered destroyable
+void CL_PrintStandardMessage(char *msg)
+{
+	int i;
+	player_info_t *p;
+	extern cvar_t cl_standardmsg;
+
+	// search for player names in message
+	for (i = 0, p = cl.players; i < MAX_CLIENTS; p++, i++)
+	{
+		char *v;
+		char *name;
+		int len;
+		int ormask;
+		char c;
+
+		if (!p->name[0])
+			continue;
+		name = Info_ValueForKey (p->userinfo, "name");
+		len = strlen(name);
+		v = strstr(msg, name);
+		if (v) // name found
+		{
+			*v = 0; // cut off message
+			con_ormask = 0;
+			// print msg chunk
+			Con_Printf("%s", msg);
+			msg = v + len; // update search point
+
+			// get name color
+			if (p->spectator || cl_standardmsg.value)
+			{
+				ormask = 0;
+				c = '7';
+			}
+			else
+				c = '0' + CL_PlayerColor(p, &ormask);
+
+			// print name
+			con_ormask = ormask;
+			Con_Printf("^%c%s^7", c, name);
+		}
+	}
+
+	// print final chunk
+	con_ormask = 0;
+	Con_Printf("%s", msg);
 }
 
 char stufftext[4096];
@@ -3474,7 +3533,7 @@ void CL_ParseServerMessage (void)
 			else
 			{
 				CL_ParsePrint(s, i);
-				Con_TPrintf (TL_ST, Translate(s));
+				CL_PrintStandardMessage(s);
 			}
 			break;
 
@@ -3919,7 +3978,6 @@ void CLQ2_ParseServerMessage (void)
 				char *msg;
 				player_info_t *plr = NULL;
 
-				S_LocalSound ("misc/talk.wav");
 				if (msg = CL_ParseChat(s, &plr))
 				{
 					CL_ParsePrint(s, i);
@@ -3929,7 +3987,7 @@ void CLQ2_ParseServerMessage (void)
 			else
 			{
 				CL_ParsePrint(s, i);
-				Con_TPrintf (TL_ST, Translate(s));
+				CL_PrintStandardMessage(s);
 			}
 			con_ormask = 0;
 			break;
@@ -4048,7 +4106,6 @@ void CLNQ_ParseServerMessage (void)
 				char *msg;
 				player_info_t *plr = NULL;
 
-
 				if (msg = CL_ParseChat(s+1, &plr))
 				{
 					CL_ParsePrint(s+1, PRINT_CHAT);
@@ -4058,7 +4115,7 @@ void CLNQ_ParseServerMessage (void)
 			else
 			{
 				CL_ParsePrint(s, PRINT_HIGH);
-				Con_TPrintf (TL_ST, Translate(s));
+				CL_PrintStandardMessage(s);
 			}
 			con_ormask = 0;
 			break;

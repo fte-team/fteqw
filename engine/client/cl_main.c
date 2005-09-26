@@ -117,6 +117,7 @@ cvar_t	cl_item_bobbing = {"cl_model_bobbing", "0"};
 
 cvar_t	requiredownloads = {"requiredownloads","1", NULL, CVAR_ARCHIVE};
 cvar_t	cl_standardchat = {"cl_standardchat", "0"};
+cvar_t  cl_standardmsg = {"cl_standardmsg", "0"};
 cvar_t  cl_parsewhitetext = {"cl_parsewhitetext", "0"};
 
 cvar_t	host_mapname = {"host_mapname", ""};
@@ -1794,7 +1795,7 @@ void CL_ConnectionlessPacket (void)
 			Con_TPrintf (TLC_A2C_PRINT);
 
 			s = MSG_ReadString ();
-			Con_Print (s);
+			Con_Printf ("%s", s);
 			return;
 		}
 		else if (!strcmp(s, "client_connect"))
@@ -1936,7 +1937,7 @@ client_connect:	//fixme: make function
 		if (!strncmp(net_message.data+4, "print\n", 6))
 		{
 			Con_TPrintf (TLC_A2C_PRINT);
-			Con_Print (net_message.data+10);
+			Con_Printf ("%s", net_message.data+10);
 			return;
 		}
 	}
@@ -1945,7 +1946,7 @@ client_connect:	//fixme: make function
 		Con_TPrintf (TLC_A2C_PRINT);
 
 		s = MSG_ReadString ();
-		Con_Print (s);
+		Con_Printf ("%s", s);
 		return;
 	}
 	if (c == 'r')//dp's reject
@@ -2416,6 +2417,7 @@ void CL_Init (void)
 
 	Cvar_Register (&requiredownloads,	cl_controlgroup);
 	Cvar_Register (&cl_standardchat,	cl_controlgroup);
+	Cvar_Register (&cl_standardmsg,		cl_controlgroup);
 	Cvar_Register (&cl_parsewhitetext,	cl_controlgroup);
 	Cvar_Register (&cl_nopext, cl_controlgroup);
 	Cvar_Register (&cl_splitscreen, cl_controlgroup);

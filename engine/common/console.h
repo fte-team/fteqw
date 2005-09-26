@@ -86,8 +86,6 @@ extern qboolean con_initialized;
 extern qbyte *con_chars;
 extern	int	con_notifylines;		// scan lines to clear for notify lines
 
-extern	qboolean	con_debuglog;
-
 void Con_DrawCharacter (int cx, int line, int num);
 
 void Con_CheckResize (void);

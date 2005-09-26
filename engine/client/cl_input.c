@@ -610,7 +610,6 @@ void CL_DrawPrydonCursor(void)
 void ML_UnProject(vec3_t in, vec3_t out, vec3_t viewangles, vec3_t vieworg, float wdivh, float fovy);
 void CL_UpdatePrydonCursor(usercmd_t *from, float cursor_screen[2], vec3_t cursor_start, vec3_t cursor_impact, int *entnum)
 {
-	float modelview[16];
 	vec3_t cursor_end;
 
 	vec3_t temp;
@@ -1053,7 +1052,6 @@ void CL_SendCmd (float frametime)
 
 	extern cvar_t cl_maxfps;
 
-	vec3_t cursor_start, cursor_impact;
 	int cursor_entitynumber=0;//I hate warnings as errors
 
 	if (cls.demoplayback != DPB_NONE)

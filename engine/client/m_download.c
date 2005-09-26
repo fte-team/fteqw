@@ -9,7 +9,7 @@
 #define DPF_DISPLAYVERSION	4	//some sort of conflict, the package is listed twice, so show versions so the user knows what's old.
 #define DPF_DELETEONUNINSTALL 8	//for previously installed packages, remove them from the list
 
-extern char	com_basedir[];
+extern char	*com_basedir;
 
 char *downloadablelist[256] = {
 

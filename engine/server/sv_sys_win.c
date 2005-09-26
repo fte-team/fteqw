@@ -260,12 +260,6 @@ int Sys_EnumerateFiles (char *gpath, char *match, int (*func)(char *, int, void 
 	return go;
 }
 
-
-void Sys_ErrorLog(char *text, FILE *f)
-{
-	fprintf(f, "---------------\nSYS_ERROR:\n%s\n", text);
-}
-
 /*
 ================
 Sys_Error
@@ -277,7 +271,6 @@ void Sys_Error (const char *error, ...)
 	va_list		argptr;
 	char		text[1024];
 	double end;
-	FILE *crashlog;
 
 	va_start (argptr,error);
 	_vsnprintf (text,sizeof(text)-1, error,argptr);
@@ -287,24 +280,7 @@ void Sys_Error (const char *error, ...)
 //    MessageBox(NULL, text, "Error", 0 /* MB_OK */ );
 	Sys_Printf ("ERROR: %s\n", text);
 
-
-	if (sv_logfile)
-	{
-		Sys_ErrorLog(text, sv_logfile);
-	}
-	else
-	{
-		char		name[1024];
-		sprintf (name, "%s/qconsole.log", com_gamedir);
-		Con_TPrintf (STL_LOGGINGTO, name);
-		crashlog = fopen (name, "wb");
-		if (!crashlog)
-			Con_TPrintf (STL_ERRORCOULDNTOPEN);
-		else
-			Sys_ErrorLog(text, crashlog);
-	}
-
-
+	Con_Log(text);
 
 	NET_Shutdown();	//free sockets and stuff.
 

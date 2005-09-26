@@ -77,7 +77,7 @@ static int SDL_InitCard(soundcardinfo_t *sc, int cardnum)
 Con_Printf("SDL AUDIO INITING\n");
 	if(SDL_InitSubSystem(SDL_INIT_AUDIO | SDL_INIT_NOPARACHUTE))
 	{
-		Con_Print("Couldn't initialize SDL audio subsystem\n");
+		Con_Printf("Couldn't initialize SDL audio subsystem\n");
 		return false;
 	}
 

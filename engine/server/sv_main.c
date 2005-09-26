@@ -171,7 +171,6 @@ char cvargroup_serverinfo[] = "serverinfo variables";
 char cvargroup_serverphysics[] = "server physics variables";
 char cvargroup_servercontrol[] = "server control variables";
 
-FILE	*sv_logfile;
 FILE	*sv_fraglogfile;
 
 void SV_FixupName(char *in, char *out);
@@ -195,11 +194,6 @@ Quake calls this before calling Sys_Quit or Sys_Error
 void SV_Shutdown (void)
 {
 	Master_Shutdown ();
-	if (sv_logfile)
-	{
-		fclose (sv_logfile);
-		sv_logfile = NULL;
-	}
 	if (sv_fraglogfile)
 	{
 		fclose (sv_fraglogfile);

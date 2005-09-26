@@ -37,6 +37,7 @@ void M_Menu_Options_f (void)
 {
 	int mgt;
 	extern cvar_t cl_standardchat;
+	extern cvar_t cl_standardmsg;
 #ifdef _WIN32
 	extern qboolean vid_isfullscreen;
 #endif
@@ -81,6 +82,7 @@ void M_Menu_Options_f (void)
 	MC_AddCheckBox(menu, 16, y,		"    Use old status bar", &cl_sbar,0); y+=8;
 	MC_AddCheckBox(menu, 16, y,		"      HUD on left side", &cl_hudswap,0); y+=8;
 	MC_AddCheckBox(menu, 16, y,		"    Old-style chatting", &cl_standardchat,0);y+=8;
+	MC_AddCheckBox(menu, 16, y,		"    Old-style messages", &cl_standardmsg,0);y+=8;
 	y+=4;MC_AddEditCvar(menu, 16, y,		"           Imitate FPS", "cl_netfps"); y+=8+4;
 
 	MC_AddConsoleCommand(menu, 16, y,	"         Video Options", "menu_video\n"); y+=8;
@@ -492,7 +494,7 @@ void M_Menu_FPS_f (void)
 	MC_AddCheckBox(menu, 48, y,				"    Dynamic lights", &r_dynamic,0);y+=8;
 	MC_AddCheckBox(menu, 48, y,			    	"         Stainmaps", &r_stains,0);y+=8;
 
-	y+=4;MC_AddEditCvar(menu, 48, y,				"            Skybox", &gl_skyboxname);y+=8;y+=4;
+	y+=4;MC_AddEditCvar(menu, 48, y,				"            Skybox", "gl_skyboxname");y+=8;y+=4;
 	switch(qrenderer)
 	{
 #ifdef RGLQUAKE

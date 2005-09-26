@@ -1410,7 +1410,7 @@ qboolean GLVID_Init (rendererstate_t *info, unsigned char *palette)
 
     if (!RegisterClass (&wc) )
 	{
-		Con_Print("^1Couldn't register window class\n");
+		Con_Printf("^1Couldn't register window class\n");
 		return false;
 	}
 

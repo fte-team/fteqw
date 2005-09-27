@@ -196,15 +196,30 @@ void Con_DPrintf (char *fmt, ...)
 {
 	va_list		argptr;
 	char		msg[MAXPRINTMSG];
+	extern cvar_t log_developer;
 
-	if (!developer.value)
+	if (!developer.value && !log_developer.value)
 		return;
 
 	va_start (argptr,fmt);
 	_vsnprintf (msg,sizeof(msg)-1, fmt,argptr);
 	va_end (argptr);
 	
-	Con_Printf ("%s", msg);
+	// add to redirected message
+	if (sv_redirected)
+	{
+		if (strlen (msg) + strlen(outputbuf) > sizeof(outputbuf) - 1)
+			SV_FlushRedirect ();
+		strcat (outputbuf, msg);
+		if (sv_redirected != -1)
+			return;
+	}
+
+	if (developer.value)
+		Sys_Printf ("%s", msg);	// also echo to debugging console
+
+	if (log_developer.value)
+		Con_Log(msg); // log to console
 }
 #endif
 

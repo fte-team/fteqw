@@ -192,7 +192,7 @@ void SV_Logfile_f (void)
 	if (log_enable.value)
 	{
 		Cvar_SetValue(&log_enable, 0);
-		Con_Print("Logging disabled.\n");
+		Con_Printf("Logging disabled.\n");
 	}
 	else
 	{
@@ -206,8 +206,8 @@ void SV_Logfile_f (void)
 		if (log_name.string[0])
 			f = log_name.string;
 
+		Con_Printf(va("Logging to %s/%s/%s.log.\n", com_basedir, d, f));
 		Cvar_SetValue(&log_enable, 1);
-		Con_Print(va("Logging to %s/%s/%s.log.\n", com_basedir, d, f));
 	}
 	
 }

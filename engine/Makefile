@@ -280,6 +280,7 @@ COMMON_OBJS = $(COMMON_ASM_OBJS) \
 	mathlib.o 		\
 	huff.o		\
 	md4.o 		\
+	log.o 		\
 	net_chan.o 		\
 	net_wins.o 		\
 	zone.o 		\

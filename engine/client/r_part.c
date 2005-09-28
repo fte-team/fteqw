@@ -85,6 +85,7 @@ void D_DrawParticleTrans (particle_t *pparticle, int blendmode);
 void D_DrawSparkTrans (particle_t *pparticle, vec3_t src, vec3_t dest, int blendmode);
 
 void P_ReadPointFile_f (void);
+void P_ExportBuiltinSet_f(void);
 
 #define MAX_BEAMSEGS             2048   // default max # of beam segments
 #define MAX_PARTICLES			32768	// default max # of particles at one
@@ -1196,6 +1197,8 @@ void P_InitParticles (void)
 	Cmd_AddCommand("r_effect", P_AssosiateEffect_f);
 	Cmd_AddCommand("r_trail", P_AssosiateTrail_f);
 
+	Cmd_AddCommand("r_exportbuiltinparticles", P_ExportBuiltinSet_f);
+
 #if _DEBUG
 	Cmd_AddCommand("r_partinfo", P_PartInfo_f);
 	Cmd_AddCommand("r_beaminfo", P_BeamInfo_f);
@@ -1311,6 +1314,37 @@ void P_ClearParticles (void)
 		part_type[i].beams = NULL;
 		part_type[i].skytris = NULL;
 	}
+}
+
+void P_ExportBuiltinSet_f(void)
+{
+	char *efname = Cmd_Argv(1);
+	char *file;
+
+	if (!*efname)
+	{
+		Con_Printf("Please name the built in effect (faithful, spikeset or highfps)\n");
+		return;
+	}
+	else if (!stricmp(efname, "faithful"))
+		file = particle_set_faithful;
+	else if (!stricmp(efname, "spikeset"))
+		file = particle_set_spikeset;
+	else if (!stricmp(efname, "highfps"))
+		file = particle_set_highfps;
+	else
+	{
+		if (!stricmp(efname, "none"))
+		{
+			Con_Printf("nothing to export\n");
+			return;
+		}
+		Con_Printf("'%s' is not a built in particle set\n", efname);
+		return;
+	}
+
+	COM_WriteFile(va("particles/%s.cfg", efname), file, strlen(file));
+	Con_Printf("Written particles/%s.cfg\n", efname);
 }
 
 void P_NewServer(void)

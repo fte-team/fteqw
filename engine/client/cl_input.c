@@ -215,7 +215,7 @@ void IN_JumpDown (void)
 	else
 #endif
 		if (condition && cl.stats[pnum][STAT_HEALTH] > 0 && !cls.demoplayback && !cl.spectator && 
-		cl.waterlevel[pnum] >= 2 && (!cl.teamfortress || !(in_forward.state[pnum] & 1))
+		cl.frames[cl.validsequence&UPDATE_MASK].playerstate[cl.playernum[pnum]].messagenum == cl.validsequence && cl.waterlevel[pnum] >= 2 && (!cl.teamfortress || !(in_forward.state[pnum] & 1))
 	)
 		KeyDown(&in_up);
 	else if (condition && cl.spectator && Cam_TrackNum(pnum) == -1)
@@ -1178,6 +1178,7 @@ void CL_SendCmd (float frametime)
 		if (!cl.allowsendpacket)
 			return;
 		msecs -= msecstouse;
+
 		CLNQ_SendCmd ();
 		return;
 	}

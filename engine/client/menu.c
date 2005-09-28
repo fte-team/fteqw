@@ -149,8 +149,9 @@ void M_DrawTextBox (int x, int y, int width, int lines)
 	cx = x;
 	cy = y;
 	p = Draw_SafeCachePic ("gfx/box_tl.lmp");
-	if (p)
-		M_DrawTransPic (cx, cy, p);
+	if (!p)
+		return;	//assume we can't find any
+	M_DrawTransPic (cx, cy, p);
 	p = Draw_SafeCachePic ("gfx/box_ml.lmp");
 	if (p)
 		for (n = 0; n < lines; n++)

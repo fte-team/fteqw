@@ -2047,7 +2047,6 @@ void Sbar_DeathmatchOverlay (int start)
 void Sbar_ChatModeOverlay(void)
 {
 	int start =0;
-	mpic_t			*pic;
 	int				i, k, l;
 	int				top, bottom;
 	int				x, y;
@@ -2067,11 +2066,6 @@ void Sbar_ChatModeOverlay(void)
 
 	scr_copyeverything = 1;
 	scr_fullupdate = 0;
-
-	if (!start) {
-		pic = Draw_CachePic ("gfx/ranking.lmp");
-		Draw_Pic (160-pic->width/2, 0, pic);
-	}
 
 // scores	
 	Sbar_SortFrags (true);

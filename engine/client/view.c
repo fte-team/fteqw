@@ -96,6 +96,8 @@ cvar_t	v_pentcshift = {"v_pentcshift", "0"};
 
 cvar_t	v_viewheight = {"v_viewheight", "0"};
 
+cvar_t	scr_autoid = {"scr_autoid", "0"};
+
 
 extern cvar_t cl_chasecam;
 
@@ -1294,6 +1296,8 @@ void R_DrawNameTags(void)
 
 	if (!cl.spectator && !cls.demoplayback)
 		return;
+	if (!scr_autoid.value)
+		return;
 
 #ifdef RGLQUAKE
 	if (qrenderer == QR_OPENGL)
@@ -1618,6 +1622,8 @@ void V_Init (void)
 
 	Cvar_Register (&v_idlescale, VIEWVARS);
 	Cvar_Register (&v_deathtilt, VIEWVARS);
+
+	Cvar_Register (&scr_autoid, VIEWVARS);
 
 #ifdef SIDEVIEWS
 #define SECONDARYVIEWVARS "Secondary view vars"

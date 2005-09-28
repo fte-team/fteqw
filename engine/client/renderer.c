@@ -144,6 +144,8 @@ cvar_t		mod_md3flags = {"mod_md3flags", "1"};
 
 cvar_t		gl_lateswap = {"gl_lateswap", "0"};
 
+cvar_t		gl_mylumassuck = {"gl_mylumassuck", "0"};
+
 cvar_t			scr_sshot_type = {"scr_sshot_type", "jpg"};
 
 
@@ -166,10 +168,10 @@ cvar_t 			gl_shadeq3 = {"gl_shadeq3", "1"};	//use if you want.
 extern cvar_t r_vertexlight;
 cvar_t			gl_shadeq1 = {"gl_shadeq1", "0", NULL, CVAR_CHEAT};	//FIXME: :(
 cvar_t			gl_shadeq1_name = {"gl_shadeq1_name", "*"};
+#endif
 
 cvar_t			gl_blend2d = {"gl_blend2d", "0"};
 cvar_t			gl_blendsprites = {"gl_blendsprites", "0"};
-#endif
 
 cvar_t r_bloodstains = {"r_bloodstains", "1"};
 
@@ -343,8 +345,10 @@ void GLRenderer_Init(void)
 	Cvar_Register (&gl_shadeq3, GLRENDEREROPTIONS);
 
 	Cvar_Register (&gl_blend2d, GLRENDEREROPTIONS);
-	Cvar_Register (&gl_blendsprites, GLRENDEREROPTIONS);
 #endif
+	Cvar_Register (&gl_blendsprites, GLRENDEREROPTIONS);
+
+	Cvar_Register (&gl_mylumassuck, GLRENDEREROPTIONS);
 }
 #endif
 #if defined(SWQUAKE)
@@ -973,6 +977,15 @@ vidmode_t vid_modes[] =
 };
 #define NUMVIDMODES sizeof(vid_modes)/sizeof(vid_modes[0])
 
+qboolean M_Vid_GetMove(int num, int *w, int *h)
+{
+	if ((unsigned)num >= NUMVIDMODES)
+		return false;
+
+	*w = vid_modes[num].width;
+	*h = vid_modes[num].height;
+	return true;
+}
 
 typedef struct {
 	menucombo_t *renderer;

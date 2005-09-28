@@ -315,33 +315,6 @@ void M_Menu_Particles_f (void)
 	int mgt;
 	extern cvar_t r_bouncysparks, r_part_rain, gl_part_flame;
 
-	static const char *r_part_rain_options[] = {
-		"off",
-		"on",
-		"bouncy",
-		NULL
-	};
-	static const char *r_part_rain_values[] = {
-		"off",
-		"on",
-		"bouncy",
-		NULL
-	};
-
-	static const char *gl_part_effects_ops[] = {
-		"models",
-		"particles",
-		"off",
-		NULL
-	};
-	static const char *gl_part_effects_vals[] = {
-		"0",
-		"1",
-		"-1",
-		NULL
-	};
-
-
 	key_dest = key_menu;
 	m_state = m_complex;
 	m_entersound = true;
@@ -369,9 +342,9 @@ void M_Menu_Particles_f (void)
 	MC_AddConsoleCommand(menu, 16, y,	"   Choose particle set", "menu_particlesets");y+=8;
 	MC_AddCheckBox(menu, 16, y,			"         sparks bounce", &r_bouncysparks,0);y+=8;
 //	MC_AddSlider(menu, 16, y,			"       exp spark count", &r_particles_in_explosion, 16, 1024);y+=8;
-	MC_AddCvarCombo(menu, 16, y,		"     texture emittance", &r_part_rain, r_part_rain_options, r_part_rain_values);y+=8;
+	MC_AddCheckBox(menu, 16, y,			"     texture emittance", &r_part_rain, 0);y+=8;
+	MC_AddCheckBox(menu, 16, y,			"        model emitters", &gl_part_flame, 0);y+=8;
 
-	MC_AddCvarCombo(menu, 16, y,		"        model emitters", &gl_part_flame, gl_part_effects_ops, gl_part_effects_vals);y+=8;
 
 
 	menu->cursoritem = (menuoption_t*)MC_AddWhiteText(menu, 200, 32, NULL, false);
@@ -391,24 +364,25 @@ typedef struct {
 } presetinfo_t;
 presetinfo_t preset[] =
 {
-	{"r_presetname",    {"286",	"fast",		"default",	"nice",		"realtime"}},
-	{"r_particlesdesc", {"none",	"highfps",	"spikeset",	"spikeset",	"spikeset"}},
-	{"r_stains",	    {"0",	"0",		"1",		"1",		"1"}},
-	{"r_drawflat",	    {"1",	"0",		"0",		"0",		"0"}},
-	{"r_nolerp",	    {"1",	"1",		"0",		"0",		"0"}},
-	{"r_nolightdir",    {"1",	"0",		"0",		"0",		"0"}},
-	{"r_dynamic",	    {"0",	"0",		"1",		"1",		"1"}},
-	{"gl_flashblend",    {"0",	"1",		"0",		"1",		"2"}},
-	{"gl_bump",	    {"0",	"0",		"0",		"1",		"1"}},
-	{"gl_specular",	    {"0",	"0",		"0",		"1",		"1"}},
-	{"r_loadlit",	    {"0",	"1",		"1",		"2",		"2"}},
-	{"r_fastsky",	    {"1",	"1",		"0",		"0",		"0"}},
-	{"r_waterlayers",   {"0",	"2",		"3",		"4",		"4"}},
-	{"r_shadows",	    {"0",	"0",		"0",		"1",		"1"}},
-	{"r_shadow_realtime_world",{"0","0",		"0",		"0",		"1"}},
-	{"gl_detail",	    {"0",	"0",		"0",		"1",		"1"}},
-	{"gl_load24bit",    {"0",	"0",		"1",		"1",		"1"}},
-	{"r_waterwarp",	    {"0",	"2",		"1",		"1",		"1"}},
+	{"r_presetname",		{"286",		"fast",		"default",	"nice",		"realtime"}},
+	{"r_particlesdesc",		{"none",	"faithful",	"spikeset",	"spikeset",	"spikeset"}},
+	{"r_stains",			{"0",		"0",		"1",		"1",		"1"}},
+	{"r_drawflat",			{"1",		"0",		"0",		"0",		"0"}},
+	{"r_nolerp",			{"1",		"1",		"0",		"0",		"0"}},
+	{"r_nolightdir",		{"1",		"0",		"0",		"0",		"0"}},
+	{"r_dynamic",			{"0",		"0",		"1",		"1",		"1"}},
+	{"gl_flashblend",		{"0",		"1",		"0",		"1",		"2"}},
+	{"gl_bump",				{"0",		"0",		"0",		"1",		"1"}},
+	{"gl_specular",			{"0",		"0",		"0",		"1",		"1"}},
+	{"r_loadlit",			{"0",		"1",		"1",		"2",		"2"}},
+	{"r_fastsky",			{"1",		"1",		"0",		"0",		"0"}},
+	{"r_waterlayers",		{"0",		"2",		"3",		"4",		"4"}},
+	{"r_shadows",			{"0",		"0",		"0",		"1",		"1"}},
+	{"r_shadow_realtime_world",{"0",	"0",		"0",		"0",		"1"}},
+	{"gl_detail",			{"0",		"0",		"0",		"1",		"1"}},
+	{"gl_load24bit",		{"0",		"0",		"1",		"1",		"1"}},
+	{"r_waterwarp",			{"0",		"-1",		"1",		"1",		"1"}},
+	{"r_lightstylesmooth",	{"0",		"0",		"0",		"1",		"1"}},
 	{NULL}
 };
 static void ApplyPreset (int presetnum)
@@ -450,7 +424,7 @@ void M_Menu_FPS_f (void)
 	int mgt;
 	int i, len;
 #ifdef RGLQUAKE
-	extern cvar_t gl_compress, gl_detail, gl_bump, r_flashblend;
+	extern cvar_t gl_compress, gl_detail, gl_bump, r_flashblend, r_shadow_realtime_world, gl_motionblur;
 #endif
 #ifdef SWQUAKE
 	extern cvar_t d_smooth, d_mipscale, d_mipcap;
@@ -494,7 +468,8 @@ void M_Menu_FPS_f (void)
 	MC_AddCheckBox(menu, 48, y,				"    Dynamic lights", &r_dynamic,0);y+=8;
 	MC_AddCheckBox(menu, 48, y,			    	"         Stainmaps", &r_stains,0);y+=8;
 
-	y+=4;MC_AddEditCvar(menu, 48, y,				"            Skybox", "gl_skyboxname");y+=8;y+=4;
+	y+=4;MC_AddEditCvar(menu, 48, y,				"            Skybox", "r_skybox");y+=8;y+=4;
+
 	switch(qrenderer)
 	{
 #ifdef RGLQUAKE
@@ -506,6 +481,11 @@ void M_Menu_FPS_f (void)
 		MC_AddCheckBox(menu, 48, y,			"          Bumpmaps", &gl_bump,0);y+=8;
 		MC_AddCheckBox(menu, 48, y,			"   Tex Compression", &gl_compress,0);y+=8;
 		MC_AddCheckBox(menu, 48, y,			"   32 bit textures", &gl_load24bit,0);y+=8;
+		MC_AddCheckBox(menu, 48, y,			"   Dynamic shadows", &r_shadows,0);y+=8;
+		MC_AddCheckBox(menu, 48, y,			"   Realtime Lights", &r_shadow_realtime_world,0);y+=8;
+		MC_AddCheckBox(menu, 48, y,			"         Waterwarp", &r_waterwarp,0);y+=8;
+		MC_AddCheckBox(menu, 48, y,			"   Detail textures", &gl_detail,0);y+=8;
+		MC_AddSlider(menu, 48, y,			"       Motion blur", &gl_motionblur,		0,		0.99);y+=8;
 		break;
 #endif
 #ifdef SWQUAKE

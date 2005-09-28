@@ -1095,6 +1095,9 @@ void MasterInfo_WriteServers(void)
 		case MT_MASTERDP:
 			typename = "master:dp";
 			break;
+		case MT_MASTERHTTP:
+			typename = "master:http";
+			break;
 		case MT_BCASTQW:
 			typename = "bcast:qw";
 			break;
@@ -1119,10 +1122,16 @@ void MasterInfo_WriteServers(void)
 		case MT_SINGLENQ:
 			typename = "single:nq";
 			break;
+		case MT_SINGLEDP:
+			typename = "single:dp";
+			break;
 		default:
 			typename = "writeerror";
 		}
-		fprintf(mf, "%s\t%s\t%s\n", NET_AdrToString(mast->adr), typename, mast->name);
+		if (mast->address)
+			fprintf(mf, "%s\t%s\t%s\n", mast->address , typename, mast->name);
+		else
+			fprintf(mf, "%s\t%s\t%s\n", NET_AdrToString(mast->adr), typename, mast->name);
 	}
 	
 	if (slist_writeserverstxt.value)
@@ -1423,6 +1432,9 @@ int CL_ReadServerInfo(char *msg, int servertype, qboolean favorite)
 
 	info->tl = atoi(Info_ValueForKey(msg, "timelimit"));
 	info->fl = atoi(Info_ValueForKey(msg, "fraglimit"));
+
+	if (*Info_ValueForKey(msg, "*qtv"))
+		info->special |= SS_QTV;
 
 	if (servertype == MT_SINGLEQ3 || servertype == MT_SINGLEQ2 || servertype == MT_SINGLEDP)
 	{

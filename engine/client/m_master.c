@@ -39,6 +39,9 @@ cvar_t	sb_showtimelimit	= {"sb_showtimelimit",	"0",	NULL, CVAR_ARCHIVE};
 cvar_t	sb_filterkey		= {"sb_filterkey",		"hostname", NULL, CVAR_ARCHIVE};
 cvar_t	sb_filtervalue		= {"sb_filtervalue",	"",		NULL, CVAR_ARCHIVE};
 
+extern cvar_t slist_writeserverstxt;
+extern cvar_t slist_cacheinfo;
+
 void M_Serverlist_Init(void)
 {
 	char *grp = "Server Browser Vars";
@@ -63,6 +66,9 @@ void M_Serverlist_Init(void)
 	Cvar_Register(&sb_showplayers, grp);
 	Cvar_Register(&sb_showfraglimit, grp);
 	Cvar_Register(&sb_showtimelimit, grp);
+
+	Cvar_Register(&slist_writeserverstxt, grp);
+	Cvar_Register(&slist_cacheinfo, grp);
 }
 
 
@@ -367,9 +373,7 @@ void M_DrawServerList(void)
 			blink = (int)(realtime*3)&1;
 		if (*server->name)
 		{
-			if (blink)
-				colour = COLOR_CYAN;
-			else if (server->special & SS_FAVORITE)
+			if (server->special & SS_FAVORITE)
 				colour = COLOR_GREEN;
 			else if (server->special & SS_FTESERVER)
 				colour = COLOR_RED;
@@ -378,9 +382,19 @@ void M_DrawServerList(void)
 			else if (server->special & SS_QUAKE3)
 				colour = COLOR_BLUE;
 			else if (server->special & SS_NETQUAKE)
+				colour = COLOR_WHITE;
+			else if (server->special & SS_QTV)
 				colour = COLOR_MAGENTA;
 			else
 				colour = COLOR_WHITE;
+
+			if (blink)
+			{
+				if (server->special & SS_NETQUAKE)
+					colour = COLOR_MAGENTA;	//nq blinks magenta
+				else
+					colour = COLOR_CYAN;
+			}
 
 			x = vid.width;
 

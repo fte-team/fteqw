@@ -1688,7 +1688,7 @@ pbool QCC_PR_UndefineName(char *name)
 	c = pHash_Get(&compconstantstable, name);
 	if (!c)
 	{
-		QCC_PR_ParseWarning(WARN_NOTDEFINED, "Precompiler constant %s was not defined", name);
+		QCC_PR_ParseWarning(WARN_UNDEFNOTDEFINED, "Precompiler constant %s was not defined", name);
 		return false;
 	}
 
@@ -1815,7 +1815,8 @@ void QCC_PR_Undefine(void)
 }
 
 void QCC_PR_ConditionCompilation(void)
-{	
+{
+	char *oldval;
 	char *d;
 	char *s;
 	int quote=false;
@@ -1829,9 +1830,11 @@ void QCC_PR_ConditionCompilation(void)
 	cnst = pHash_Get(&compconstantstable, pr_token);
 	if (cnst)
 	{
+		oldval = cnst->value;
 		Hash_Remove(&compconstantstable, pr_token);
-		QCC_PR_ParseWarning(WARN_DUPLICATEPRECOMPILER, "Duplicate definition of %s", pr_token);
 	}
+	else
+		oldval = NULL;
 
 	cnst = QCC_PR_DefineName(pr_token);
 
@@ -1897,6 +1900,11 @@ void QCC_PR_ConditionCompilation(void)
 		*d-- = '\0';
 	if (strlen(cnst->value) >= sizeof(cnst->value))	//this is too late.
 		QCC_PR_ParseError(ERR_CONSTANTTOOLONG, "Macro %s too long (%i not %i)", cnst->name, strlen(cnst->value), sizeof(cnst->value));
+
+	if (oldval && strcmp(oldval, cnst->value))
+		QCC_PR_ParseWarning(WARN_DUPLICATEPRECOMPILER, "Alternate precompiler definition of %s", pr_token);
+	else
+		QCC_PR_ParseWarning(WARN_IDENTICALPRECOMPILER, "Identical precompiler definition of %s", pr_token);
 }
 
 int QCC_PR_CheakCompConst(void)

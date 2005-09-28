@@ -2350,6 +2350,21 @@ void QCC_PR_CommandLinePrecompilerOptions (void)
 				memset(qccwarningdisabled, 0, sizeof(qccwarningdisabled));
 			else if (!stricmp(myargv[i]+2, "none"))
 				memset(qccwarningdisabled, 1, sizeof(qccwarningdisabled));
+			else if (!stricmp(myargv[i]+2, "no-mundane"))
+			{	//disable mundane performance/efficiency/blah warnings that don't affect code.
+				qccwarningdisabled[WARN_SAMENAMEASGLOBAL] = true;
+				qccwarningdisabled[WARN_DUPLICATEDEFINITION] = true;
+				qccwarningdisabled[WARN_CONSTANTCOMPARISON] = true;
+				qccwarningdisabled[WARN_ASSIGNMENTINCONDITIONAL] = true;
+				qccwarningdisabled[WARN_DEADCODE] = true;
+				qccwarningdisabled[WARN_NOTREFERENCEDCONST] = true;
+				qccwarningdisabled[WARN_NOTREFERENCED] = true;
+				qccwarningdisabled[WARN_POINTLESSSTATEMENT] = true;
+				qccwarningdisabled[WARN_ASSIGNMENTTOCONSTANTFUNC] = true;
+				qccwarningdisabled[WARN_BADPRAGMA] = true;	//C specs say that these should be ignored. We're close enough to C that I consider that a valid statement.
+				qccwarningdisabled[WARN_IDENTICALPRECOMPILER] = true;
+				qccwarningdisabled[WARN_UNDEFNOTDEFINED] = true;
+			}
 			else
 			{
 				p = 0;

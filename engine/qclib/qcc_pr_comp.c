@@ -1331,15 +1331,15 @@ QCC_def_t *QCC_PR_Statement ( QCC_opcode_t *op, QCC_def_t *var_a, QCC_def_t *var
 	{
 	case OP_AND:
 		if (var_a->ofs == var_b->ofs)
-			QCC_PR_ParseWarning(0, "Parameter offsets for && are the same");
+			QCC_PR_ParseWarning(WARN_CONSTANTCOMPARISON, "Parameter offsets for && are the same");
 		if (var_a->constant || var_b->constant)
-			QCC_PR_ParseWarning(0, "Result of comparison is constant");
+			QCC_PR_ParseWarning(WARN_CONSTANTCOMPARISON, "Result of comparison is constant");
 		break;
 	case OP_OR:
 		if (var_a->ofs == var_b->ofs)
-			QCC_PR_ParseWarning(0, "Parameters for || are the same");
+			QCC_PR_ParseWarning(WARN_CONSTANTCOMPARISON, "Parameters for || are the same");
 		if (var_a->constant || var_b->constant)
-			QCC_PR_ParseWarning(0, "Result of comparison is constant");
+			QCC_PR_ParseWarning(WARN_CONSTANTCOMPARISON, "Result of comparison is constant");
 		break;
 	case OP_EQ_F:
 	case OP_EQ_S:
@@ -1361,16 +1361,16 @@ QCC_def_t *QCC_PR_Statement ( QCC_opcode_t *op, QCC_def_t *var_a, QCC_def_t *var
 	case OP_LT:
 	case OP_GT:
 		if ((var_a->constant && var_b->constant && !var_a->temp && !var_b->temp) || var_a->ofs == var_b->ofs)
-			QCC_PR_ParseWarning(0, "Result of comparison is constant");
+			QCC_PR_ParseWarning(WARN_CONSTANTCOMPARISON, "Result of comparison is constant");
 		break;
 	case OP_IFS:
 	case OP_IFNOTS:
 	case OP_IF:
 	case OP_IFNOT:
 //		if (var_a->type->type == ev_function && !var_a->temp)
-//			QCC_PR_ParseWarning(0, "Result of comparison is constant");
+//			QCC_PR_ParseWarning(WARN_CONSTANTCOMPARISON, "Result of comparison is constant");
 		if (var_a->constant && !var_a->temp)
-			QCC_PR_ParseWarning(0, "Result of comparison is constant");
+			QCC_PR_ParseWarning(WARN_CONSTANTCOMPARISON, "Result of comparison is constant");
 		break;
 	default:
 		break;
@@ -2465,9 +2465,9 @@ QCC_def_t *QCC_PR_ParseFunctionCall (QCC_def_t *func)	//warning, the func could 
 			def_ret.type = rettype;
 			return &def_ret;
 		}
-	}
+	}	//so it's not an intrinsic.
 
-	if (opt_precache_file)
+	if (opt_precache_file)	//should we strip out all precache_file calls?
 	{
 		if (!strncmp(func->name,"precache_file", 13))
 		{
@@ -2505,6 +2505,10 @@ QCC_def_t *QCC_PR_ParseFunctionCall (QCC_def_t *func)	//warning, the func could 
 	if (opt_vectorcalls && (t->num_parms == 1 && t->param->type == ev_vector))
 	{	//if we're using vectorcalls
 		//if it's a function, takes a vector
+
+		//vectorcalls is an evil hack
+		//it'll make your mod bigger and less efficient.
+		//however, it'll cut down on numpr_globals, so your mod can become a much greater size.
 		vec3_t arg;
 		if (pr_token_type == tt_immediate && pr_immediate_type == type_vector)
 		{
@@ -4360,8 +4364,16 @@ QCC_def_t *QCC_PR_Expression (int priority)
 				qcc_usefulstatement = true;
 				if (e->constant || e->ofs < OFS_PARM0)
 				{
-					QCC_PR_ParseWarning(WARN_ASSIGNMENTTOCONSTANT, "Assignment to constant %s", e->name);
-					QCC_PR_ParsePrintDef(WARN_ASSIGNMENTTOCONSTANT, e);
+					if (e->type->type == ev_function)
+					{
+						QCC_PR_ParseWarning(WARN_ASSIGNMENTTOCONSTANTFUNC, "Assignment to function %s", e->name);
+						QCC_PR_ParsePrintDef(WARN_ASSIGNMENTTOCONSTANTFUNC, e);
+					}
+					else
+					{
+						QCC_PR_ParseWarning(WARN_ASSIGNMENTTOCONSTANT, "Assignment to constant %s", e->name);
+						QCC_PR_ParsePrintDef(WARN_ASSIGNMENTTOCONSTANT, e);
+					}
 #ifndef QCC
 					editbadfile(strings+s_file, pr_source_line);
 #endif
@@ -4652,7 +4664,7 @@ void QCC_PR_ParseStatement (void)
 				else
 					patch1 = NULL;
 			}
-			else if (!typecmp( e->type, type_string))	//special case, as strings are now pointers, not offsets from string table
+			else if (!typecmp( e->type, type_string) && flag_ifstring)	//special case, as strings are now pointers, not offsets from string table
 			{
 				QCC_PR_ParseWarning(0, "while (string) can result in bizzare behaviour");
 				QCC_FreeTemp(QCC_PR_Statement (&pr_opcodes[OP_IFNOTS], e, 0, &patch1));
@@ -4811,7 +4823,7 @@ void QCC_PR_ParseStatement (void)
 		}
 		else
 		{
-			if (!typecmp( e->type, type_string))
+			if (!typecmp( e->type, type_string) && flag_ifstring)
 			{
 				QCC_PR_ParseWarning(WARN_IFSTRING_USED, "do {} while(string) can result in bizzare behaviour");
 				QCC_FreeTemp(QCC_PR_Statement (&pr_opcodes[OP_IFS], e, NULL, &patch2));
@@ -4907,7 +4919,7 @@ void QCC_PR_ParseStatement (void)
 
 		if (negate)
 		{
-			if (!typecmp( e->type, type_string))	//special case, as strings are now pointers, not offsets from string table
+			if (!typecmp( e->type, type_string) && flag_ifstring)
 			{
 				QCC_PR_ParseWarning(WARN_IFSTRING_USED, "if not(string) can result in bizzare behaviour");
 				QCC_FreeTemp(QCC_PR_Statement (&pr_opcodes[OP_IFS], e, 0, &patch1));
@@ -4917,7 +4929,7 @@ void QCC_PR_ParseStatement (void)
 		}
 		else
 		{
-			if (!typecmp( e->type, type_string))	//special case, as strings are now pointers, not offsets from string table
+			if (!typecmp( e->type, type_string) && flag_ifstring)
 			{
 				QCC_PR_ParseWarning(WARN_IFSTRING_USED, "if (string) can result in bizzare behaviour");
 				QCC_FreeTemp(QCC_PR_Statement (&pr_opcodes[OP_IFNOTS], e, 0, &patch1));
@@ -7110,7 +7122,7 @@ QCC_def_t *QCC_PR_GetDef (QCC_type_t *type, char *name, QCC_def_t *scope, pbool 
 	if (scope)
 	{
 		if (QCC_PR_GetDef(type, name, NULL, false, arraysize))
-			QCC_PR_ParseWarning(0, "Local \"%s\" defined with name of a global", name);
+			QCC_PR_ParseWarning(WARN_SAMENAMEASGLOBAL, "Local \"%s\" defined with name of a global", name);
 	}
 
 	ofs = numpr_globals;

@@ -959,6 +959,10 @@ void CL_Record_f (void)
 // send all current light styles
 	for (i=0 ; i<MAX_LIGHTSTYLES ; i++)
 	{
+		if (i >= MAX_STANDARDLIGHTSTYLES)
+			if (!*cl_lightstyle[i].map)
+				continue;
+
 		MSG_WriteByte (&buf, svc_lightstyle);
 		MSG_WriteByte (&buf, (char)i);
 		MSG_WriteString (&buf, cl_lightstyle[i].map);
@@ -1132,9 +1136,8 @@ void CL_PlayDemo_f (void)
 	}
 	else
 	{
-#ifdef Q2CLIENT
 		cls.protocol = CP_QUAKEWORLD;
-#endif
+
 		ft = 0;	//work out if the first line is a int for the track number.
 		while ((c = getc(cls.demofile)) != '\n')
 		{

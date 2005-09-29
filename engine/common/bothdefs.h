@@ -245,7 +245,11 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 #define ENGINEWEBSITE "http://fteqw.sourceforge.net/"
 
 #if defined(_WIN32)
-#define PLATFORM	"Win32"
+	#if defined(__amd64__)
+		#define PLATFORM	"Win32"
+	#else
+		#define PLATFORM	"Win64"
+	#endif
 #elif defined(__linux__)
 #define PLATFORM	"Linux"
 #elif defined(__FreeBSD__)
@@ -261,7 +265,7 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 #endif
 
 
-#if (defined(_M_IX86) || defined(__i386__)) && !defined(id386)
+#if (defined(_M_IX86) || defined(__i386__)) && !defined(id386) && !defined(__amd64__)
 #define id386	1
 #else
 #define id386	0
@@ -323,7 +327,8 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 // per-level limits
 //
 #define	MAX_EDICTS		32767			// FIXME: ouch! ouch! ouch!
-#define	MAX_LIGHTSTYLES	64
+#define	MAX_LIGHTSTYLES	255
+#define MAX_STANDARDLIGHTSTYLES 64
 #define	MAX_MODELS		512			// these are sent over the net as bytes
 #define	MAX_SOUNDS		256			// so they cannot be blindly increased
 
@@ -361,6 +366,7 @@ STAT_VIEW2			= 20,
 #endif
 STAT_VIEWZOOM		= 21, // DP
 
+//note that hexen2 stats are only used in hexen2 gamemodes, and can be read by csqc without further server changes.
 STAT_H2_LEVEL	= 32,				// changes stat bar
 STAT_H2_INTELLIGENCE,				// changes stat bar
 STAT_H2_WISDOM,						// changes stat bar

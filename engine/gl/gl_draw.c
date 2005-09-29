@@ -1320,8 +1320,33 @@ void GLDraw_Crosshair(void)
 
 		if (crosshair.modified || crosshaircolor.modified || crosshair.value >= FIRSTANIMATEDCROSHAIR)
 		{
-			int c = d_8to24rgbtable[(qbyte) crosshaircolor.value];
-			int c2 = d_8to24rgbtable[(qbyte) crosshaircolor.value];
+			char *t;
+
+			int c, c2, i;
+			
+			t = strstr(crosshaircolor.string, " ");
+			if (!t) // use standard coloring
+				c = d_8to24rgbtable[(qbyte) crosshaircolor.value];
+			else // use RGB coloring
+			{
+				t++;
+				// abusing the fact that atof considers whitespace to be a delimiter...
+				i = crosshaircolor.value; 
+				i = bound(0, i, 255);
+				c = i; // red channel (first 8 bits)
+				i = atoi(t);
+				i = bound(0, i, 255);
+				c |= (i << 8); // green channel
+				t = strstr(t, " "); // find last value
+				if (t)
+				{
+					i = atoi(t+1);
+					i = bound(0, i, 255);
+					c |= (i << 16); // blue channel
+				}
+				c |= 0xff000000; // alpha channel (always full)
+			} // i contains the crosshair color
+			c2 = c;
 
 			crosshair.modified = false;
 			crosshaircolor.modified = false;
@@ -1874,12 +1899,73 @@ Draw_FadeScreen
 
 ================
 */
+vec3_t fadecolor;
+int faderender;
+int fademodified;
+
 void GLDraw_FadeScreen (void)
 {
+	extern cvar_t r_menutint;
+
+	if (fademodified != r_menutint.modified)
+	{
+		char *t;
+
+		// parse r_menutint and clear defaults
+		fadecolor[0] = r_menutint.value;
+		fadecolor[1] = 0;
+		fadecolor[2] = 0;
+
+		faderender = GL_DST_COLOR;
+		
+		t = strstr(r_menutint.string, " ");
+		if (t)
+		{
+			fadecolor[1] = atof(t+1);
+			t = strstr(t+1, " ");
+			if (t)
+				fadecolor[2] = atof(t+1);
+		}
+		
+		// bounds check and inverse check
+		if (fadecolor[0] < 0)
+		{
+			faderender = GL_ONE_MINUS_DST_COLOR;
+			fadecolor[0] = -(fadecolor[0]);
+		}
+		if (fadecolor[0] > 1)
+			fadecolor[0] = 1;
+
+		if (fadecolor[1] < 0)
+		{
+			faderender = GL_ONE_MINUS_DST_COLOR;
+			fadecolor[1] = -(fadecolor[1]);
+		}
+		if (fadecolor[1] > 1)
+			fadecolor[1] = 1;
+
+		if (fadecolor[2] < 0)
+		{
+			faderender = GL_ONE_MINUS_DST_COLOR;
+			fadecolor[2] = -(fadecolor[2]);
+		}
+		if (fadecolor[2] > 1)
+			fadecolor[2] = 1;
+
+		if (faderender == GL_DST_COLOR && fadecolor[0] == 1 && fadecolor[1] == 1 && fadecolor[2] == 1)
+			faderender = 0;
+
+		fademodified = r_menutint.modified;
+	}
+
+	if (!faderender)
+		return;
+
 	qglEnable (GL_BLEND);
+	qglBlendFunc(faderender, GL_ZERO);
 	qglDisable(GL_ALPHA_TEST);
 	qglDisable (GL_TEXTURE_2D);
-	qglColor4f (0, 0, 0, 0.5);
+	qglColor4f (fadecolor[0], fadecolor[1], fadecolor[2], 1);
 	qglBegin (GL_QUADS);
 
 	qglVertex2f (0,0);
@@ -1891,6 +1977,7 @@ void GLDraw_FadeScreen (void)
 	qglColor4f (1,1,1,1);
 	qglEnable (GL_TEXTURE_2D);
 	qglDisable (GL_BLEND);
+	qglBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
 	qglEnable(GL_ALPHA_TEST);
 
 	Sbar_Changed();

@@ -62,6 +62,8 @@ typedef struct cachepic_s
 swcachepic_t	swmenu_cachepics[MAX_CACHED_PICS];
 int			swmenu_numcachepics;
 
+qbyte sw_crosshaircolor;
+
 /*
 ================
 Draw_CachePic
@@ -861,11 +863,42 @@ void SWDraw_Crosshair(void)
 	int x, y;
 	extern cvar_t crosshair, cl_crossx, cl_crossy, crosshaircolor;
 	extern vrect_t		scr_vrect;
-	qbyte c = (qbyte)crosshaircolor.value;
-	qbyte c2 = (qbyte)crosshaircolor.value;
-
+	qbyte c, c2;
 	int sc;
-	
+
+	if (crosshaircolor.modified)
+	{ // redo color every modification to crosshaircolor
+		char *t;
+		
+		t = strstr(crosshaircolor.string, " ");
+		if (!t) // use standard coloring
+			sw_crosshaircolor = (qbyte) crosshaircolor.value;
+		else // use RGB coloring
+		{
+			int rc,gc,bc;
+
+			t++;
+			// abusing the fact that atof considers whitespace to be a delimiter...
+			rc = (int)crosshaircolor.value;
+			rc = bound(0, rc, 255);
+			gc = atoi(t);
+			gc = bound(0, gc, 255);
+			t = strstr(t, " "); // find last value
+			if (t)
+			{
+				bc = atoi(t+1);
+				bc = bound(0, bc, 255);
+			}
+			else
+				bc = 0;
+			sw_crosshaircolor = GetPalette(rc,gc,bc);
+		}
+
+		crosshaircolor.modified = false;
+	}
+
+	c2 = c = sw_crosshaircolor;
+
 	for (sc = 0; sc < cl.splitclients; sc++)
 	{
 		SCR_CrosshairPosition(sc, &x, &y);
@@ -2340,13 +2373,85 @@ Draw_FadeScreen
 
 ================
 */
+char fscolormap[256];
+int fsnodraw = 1;
+int fsmodified;
+
 void SWDraw_FadeScreen (void)
 {
 	int			x,y;
+	extern cvar_t r_menutint;
 
 	VID_UnlockBuffer ();
 	S_ExtraUpdate ();
 	VID_LockBuffer ();
+
+	if (fsmodified != r_menutint.modified) 
+	{
+		char *t;
+		int s;
+		float r, g, b;
+		qbyte invmask = 0;
+		
+		qbyte *rgb = (qbyte *)d_8to24rgbtable;
+
+		// parse r_menutint
+		fsnodraw = 0;
+		r = r_menutint.value;
+		g = 0;
+		b = 0;
+		t = strstr(r_menutint.string, " ");
+		if (t)
+		{
+			g = atof(t+1);
+			t = strstr(t+1, " ");
+			if (t)
+				b = atof(t+1);
+		}
+
+		// bounds check and inverse check
+		if (r < 0)
+		{
+			invmask = 0xff;
+			r = -r;
+		}
+		if (r > 1)
+			r = 1;
+
+		if (g < 0)
+		{
+			invmask = 0xff;
+			g = -g;
+		}
+		if (g > 1)
+			g = 1;
+
+		if (b < 0)
+		{
+			invmask = 0xff;
+			b = -b;
+		}
+		if (b > 1)
+			b = 1;
+
+		if (!invmask && r == 1 && g == 1 && b == 1)
+			fsnodraw = 1;
+
+		// generate colormap
+		for (x = 0; x < 256; x++)
+		{
+			// convert to grayscale value
+			s = rgb[0]*0.299 + rgb[1]*0.587 + rgb[2]*0.114;
+
+			fscolormap[x] = GetPalette((int)(s*r)^invmask, (int)(s*g)^invmask, (int)(s*b)^invmask);
+			rgb += 4;
+		}
+
+		fsmodified = r_menutint.modified;
+	}
+
+	if (fsnodraw)
+		return;
 
 	if (r_pixbytes == 4)
 	{
@@ -2383,15 +2488,12 @@ void SWDraw_FadeScreen (void)
 		qbyte		*pbuf;
 		for (y=0 ; y<vid.height ; y++)
 		{
-			int	t;
 
 			pbuf = (qbyte *)(vid.buffer + vid.rowbytes*y);
-			t = (y & 1) << 1;
 
 			for (x=0 ; x<vid.width ; x++)
 			{
-				if ((x & 3) != t)
-					pbuf[x] = 0;
+				pbuf[x] = fscolormap[pbuf[x]];
 			}
 		}
 	}

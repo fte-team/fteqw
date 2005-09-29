@@ -234,6 +234,8 @@ extern cvar_t r_waterlayers;
 cvar_t			gl_triplebuffer = {"gl_triplebuffer", "1", NULL, CVAR_ARCHIVE};
 cvar_t			vid_hardwaregamma = {"vid_hardwaregamma", "1", NULL, CVAR_ARCHIVE};
 
+cvar_t r_menutint = {"r_menutint", "0.68 0.4 0.13"};
+
 void GLRenderer_Init(void)
 {
 	extern cvar_t gl_contrast;
@@ -520,6 +522,7 @@ void Renderer_Init(void)
 	Cvar_Register (&r_fastskycolour, GRAPHICALNICETIES);
 
 	Cvar_Register (&r_drawflat, GRAPHICALNICETIES);
+	Cvar_Register (&r_menutint, GRAPHICALNICETIES);
 
 //bulletens
 	Cvar_Register(&bul_nowater, BULLETENVARS);

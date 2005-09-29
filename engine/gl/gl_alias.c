@@ -1428,7 +1428,7 @@ void GL_DrawAliasMesh (mesh_t *mesh, int texnum)
 	qglEnableClientState( GL_TEXTURE_COORD_ARRAY );
 	qglTexCoordPointer(2, GL_FLOAT, 0, mesh->st_array);
 
-	qglDrawElements(GL_TRIANGLES, mesh->numindexes, GL_UNSIGNED_INT, mesh->indexes);
+	qglDrawRangeElements(GL_TRIANGLES, 0, mesh->numvertexes, mesh->numindexes, GL_UNSIGNED_INT, mesh->indexes);
 
 	qglDisableClientState( GL_VERTEX_ARRAY );
 	qglDisableClientState( GL_COLOR_ARRAY );
@@ -1791,7 +1791,7 @@ void R_DrawGAliasModel (entity_t *e)
 	fog = CM_FogForOrigin(currententity->origin);
 #endif
 
-	qglColor4f(shadelight[0], shadelight[1], shadelight[2], e->alpha);
+	qglColor4f(shadelight[0]/255, shadelight[1]/255, shadelight[2]/255, e->alpha);
 
 	memset(&mesh, 0, sizeof(mesh));
 	for(surfnum=0; inf; ((inf->nextsurf)?(inf = (galiasinfo_t*)((char *)inf + inf->nextsurf)):(inf=NULL)), surfnum++)

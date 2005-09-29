@@ -65,10 +65,10 @@ extern cvar_t		gl_savecompressedtex;
 extern cvar_t		gl_load24bit;
 
 #ifdef Q3SHADERS
-extern cvar_t		gl_blend2d;
 shader_t	*shader_console;
 #endif
 extern cvar_t		con_ocranaleds;
+extern cvar_t		gl_blend2d;
 
 qbyte		*draw_chars;				// 8*8 graphic characters
 mpic_t		*draw_disc;
@@ -2103,14 +2103,13 @@ void GL_Set2D (void)
 
 	qglDisable (GL_DEPTH_TEST);
 	qglDisable (GL_CULL_FACE);
-#ifdef Q3SHADERS
+
 	if (gl_blend2d.value)
 	{
 		qglEnable (GL_BLEND);
 		qglDisable (GL_ALPHA_TEST);
 	}
 	else
-#endif
 	{
 		qglDisable (GL_BLEND);
 		qglEnable (GL_ALPHA_TEST);

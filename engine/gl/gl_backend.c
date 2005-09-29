@@ -1074,12 +1074,16 @@ void RB_CalcEnvironmentTexCoords( float *st )
 	vec3_t		viewer, reflected;
 	float		d;
 
+	vec3_t		rorg;
+
 	v = vertexArray[0];
 	normal = normalsArray[0];
 
+	RotateLightVector(currententity->axis, currententity->origin, r_origin, rorg);
+
 	for (i = 0 ; i < numVerts ; i++, v += 3, normal += 3, st += 2 ) 
 	{
-		VectorSubtract (r_origin, v, viewer);
+		VectorSubtract (rorg, v, viewer);
 		VectorNormalizeFast (viewer);
 
 		d = DotProduct (normal, viewer);

@@ -42,6 +42,7 @@ extern cvar_t		r_shadow_glsl_offsetmapping_bias;
 extern int		detailtexture;
 extern cvar_t gl_bump;
 extern cvar_t gl_specular;
+extern cvar_t gl_mylumassuck;
 //end header confict
 
 extern cvar_t gl_schematics;
@@ -395,6 +396,8 @@ static void PPL_BaseChain_NoBump_2TMU_Overbright(msurface_t *s, texture_t *tex)
 
 	GL_SelectTexture(GL_TEXTURE1_ARB);
 	qglEnableClientState(GL_TEXTURE_COORD_ARRAY);
+
+	GL_TexEnv(GL_MODULATE);
 
 
 	if (overbright != 1)
@@ -1174,7 +1177,7 @@ static void PPL_BaseChain_Flat(msurface_t *first)
 		for (s = first; s ; s=s->texturechain)
 			PPL_GenerateArrays(s);
 		PPL_FlushArrays();
-		qglEnable(GL_TEXTURE_2D);	//texturing? who wants texturing?!?!
+		qglEnable(GL_TEXTURE_2D);
 		return;
 	}
 	else
@@ -1207,19 +1210,22 @@ static void PPL_BaseChain_Flat(msurface_t *first)
 
 	PPL_EnableVertexArrays();
 	GL_TexEnv(GL_MODULATE);
-	qglEnableClientState(GL_TEXTURE_COORD_ARRAY);
-	qglTexCoordPointer(2, GL_FLOAT, sizeof(surfvertexarray_t), varray_v->stl);
 
 	for (s = first; s ; s=s->texturechain)
 	{
 		if (vi != s->lightmaptexturenum)
 		{
-			PPL_FlushArrays();
 			if (vi < 0)
+			{
 				qglEnable(GL_TEXTURE_2D);
-			else if (s->lightmaptexturenum < 0)
-				qglDisable(GL_TEXTURE_2D);
+				qglEnableClientState(GL_TEXTURE_COORD_ARRAY);
+			}
 			vi = s->lightmaptexturenum;
+			if (s->lightmaptexturenum < 0)
+			{
+				qglDisable(GL_TEXTURE_2D);
+				qglDisableClientState(GL_TEXTURE_COORD_ARRAY);
+			}
 
 			if (vi>=0)
 			{
@@ -1243,21 +1249,21 @@ static void PPL_BaseChain_Flat(msurface_t *first)
 		{
 			if (iswall != 0)
 			{
-				PPL_FlushArrays();
 				iswall=0;
 				qglColor4fv(wallcolour);
 			}
 		}
 		else if (iswall != 1)
 		{
-			PPL_FlushArrays();
 			iswall=1;
 			qglColor4fv(floorcolour);
 		}
-		PPL_GenerateArrays(s);
+
+		qglTexCoordPointer(2, GL_FLOAT, 0, s->mesh->lmst_array);
+		qglVertexPointer(3, GL_FLOAT, 0, s->mesh->xyz_array);
+		qglDrawRangeElements(GL_TRIANGLES, 0, s->mesh->numvertexes, s->mesh->numindexes, GL_UNSIGNED_INT, s->mesh->indexes);
 	}
 
-	PPL_FlushArrays();
 	qglDisableClientState(GL_TEXTURE_COORD_ARRAY);
 	qglColor3f(1,1,1);
 }
@@ -1587,7 +1593,9 @@ static void PPL_FullBrightTextureChain(msurface_t *first)
 	if (t->gl_texturenumfb && r_fb_bmodels.value && cls.allow_luma)
 	{
 		GL_Bind(t->gl_texturenumfb);
-		qglBlendFunc(GL_ONE, GL_ONE);
+		qglBlendFunc(GL_SRC_ALPHA, GL_ONE);
+		if (gl_mylumassuck.value)
+			qglEnable(GL_ALPHA_TEST);
 
 		PPL_EnableVertexArrays();
 		qglEnableClientState(GL_TEXTURE_COORD_ARRAY);
@@ -1597,6 +1605,9 @@ static void PPL_FullBrightTextureChain(msurface_t *first)
 			PPL_GenerateArrays(s);
 		}
 		PPL_FlushArrays();
+
+		if (gl_mylumassuck.value)
+			qglDisable(GL_ALPHA_TEST);
 	}
 }
 
@@ -1704,24 +1715,26 @@ void PPL_BaseBModelTextures(entity_t *e)
 
 // calculate dynamic lighting for bmodel if it's not an
 // instanced model
-	if (currentmodel->nummodelsurfaces != 0 && r_dynamic.value)
+	if (model->fromgame != fg_quake3)
 	{
-		for (k=0 ; k<MAX_SWLIGHTS ; k++)
+		if (currentmodel->nummodelsurfaces != 0 && r_dynamic.value)
 		{
-			if (!cl_dlights[k].radius)
-				continue;
-			if (cl_dlights[k].nodynamic)
-				continue;
+			for (k=0 ; k<MAX_SWLIGHTS ; k++)
+			{
+				if (!cl_dlights[k].radius)
+					continue;
+				if (cl_dlights[k].nodynamic)
+					continue;
 
-			currentmodel->funcs.MarkLights (&cl_dlights[k], 1<<k,
-				currentmodel->nodes + currentmodel->hulls[0].firstclipnode);
+				currentmodel->funcs.MarkLights (&cl_dlights[k], 1<<k,
+					currentmodel->nodes + currentmodel->hulls[0].firstclipnode);
+			}
 		}
-	}
 
 //update lightmaps.
-	if (model->fromgame != fg_quake3)
 		for (s = model->surfaces+model->firstmodelsurface,i = 0; i < model->nummodelsurfaces; i++, s++)
 			R_RenderDynamicLightmaps (s);
+	}
 
 
 	for (s = model->surfaces+model->firstmodelsurface,i = 0; i < model->nummodelsurfaces; i++, s++)
@@ -1755,6 +1768,7 @@ void PPL_BaseBModelTextures(entity_t *e)
 		R_IBrokeTheArrays();
 }
 
+#ifdef Q3SHADERS
 void R_DrawLightning(entity_t *e)
 {
 	vec3_t v;
@@ -1889,6 +1903,7 @@ void R_DrawRailCore(entity_t *e)
 
 	R_RenderMeshBuffer ( &mb, false );
 }
+#endif
 
 void RotatePointAroundVector( vec3_t dst, const vec3_t dir, const vec3_t point, float degrees );
 void PerpendicularVector( vec3_t dst, const vec3_t src );

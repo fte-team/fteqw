@@ -872,6 +872,7 @@ void GLR_DrawEntitiesOnList (void)
 			RQ_AddDistReorder(GLR_DrawSprite, currententity, NULL, currententity->origin);
 //			R_DrawSpriteModel(currententity);
 			continue;
+#ifdef Q3SHADERS
 		case RT_BEAM:
 		case RT_RAIL_RINGS:
 		case RT_LIGHTNING:
@@ -880,6 +881,7 @@ void GLR_DrawEntitiesOnList (void)
 		case RT_RAIL_CORE:
 			R_DrawRailCore(currententity);
 			continue;
+#endif
 		}
 		if (currententity->flags & Q2RF_BEAM)
 		{
@@ -1360,7 +1362,7 @@ void GLR_SetupFrame (void)
 }
 
 
-void MYgluPerspective( GLdouble fovy, GLdouble aspect,
+void MYgluPerspective( GLdouble fovx, GLdouble fovy,
 		     GLdouble zNear, GLdouble zFar )
 {
 	GLdouble xmin, xmax, ymin, ymax;
@@ -1368,8 +1370,8 @@ void MYgluPerspective( GLdouble fovy, GLdouble aspect,
 	ymax = zNear * tan( fovy * M_PI / 360.0 );
 	ymin = -ymax;
 
-	xmin = ymin * aspect;
-	xmax = ymax * aspect;
+	xmax = zNear * tan( fovx * M_PI / 360.0 );
+	xmin = -xmax;
 
 	r_projection_matrix[0] = (2*zNear) / (xmax - xmin);
 	r_projection_matrix[4] = 0;
@@ -1392,7 +1394,7 @@ void MYgluPerspective( GLdouble fovy, GLdouble aspect,
 	r_projection_matrix[15] = 0;
 }
 
-void GL_InfinatePerspective( GLdouble fovy, GLdouble aspect,
+void GL_InfinatePerspective( GLdouble fovx, GLdouble fovy,
 		     GLdouble zNear)
 {
 	// nudge infinity in just slightly for lsb slop
@@ -1403,8 +1405,8 @@ void GL_InfinatePerspective( GLdouble fovy, GLdouble aspect,
 	ymax = zNear * tan( fovy * M_PI / 360.0 );
 	ymin = -ymax;
 
-	xmin = ymin * aspect;
-	xmax = ymax * aspect;
+	xmax = zNear * tan( fovx * M_PI / 360.0 );
+	xmin = -xmax;
 
 	r_projection_matrix[0] = (2*zNear) / (xmax - xmin);
 	r_projection_matrix[4] = 0;
@@ -1461,6 +1463,8 @@ void R_SetupGL (void)
 	float	screenaspect;
 	extern	int glwidth, glheight;
 	int		x, x2, y2, y, w, h;
+
+	float fov_x, fov_y;
 	//
 	// set up viewpoint
 	//
@@ -1492,6 +1496,15 @@ void R_SetupGL (void)
 
 	qglMatrixMode(GL_PROJECTION);
 
+	fov_x = r_refdef.fov_x;//+sin(cl.time)*5;
+	fov_y = r_refdef.fov_y;//-sin(cl.time+1)*5;
+
+	if (r_waterwarp.value<0 && r_viewleaf->contents <= Q1CONTENTS_WATER)
+	{
+		fov_x *= 1 + (((sin(cl.time * 4.7) + 1) * 0.015) * r_waterwarp.value);
+		fov_y *= 1 + (((sin(cl.time * 3.0) + 1) * 0.015) * r_waterwarp.value);
+	}
+
 	screenaspect = (float)r_refdef.vrect.width/r_refdef.vrect.height;
 	if (r_refdef.useperspective)
 	{
@@ -1501,17 +1514,17 @@ void R_SetupGL (void)
 	//		yfov = (2.0 * tan (scr_fov.value/360*M_PI)) / screenaspect;
 	//		yfov = 2*atan((float)r_refdef.vrect.height/r_refdef.vrect.width)*(scr_fov.value*2)/M_PI;
 	//		MYgluPerspective (yfov,  screenaspect,  4,  4096);
-			MYgluPerspective (r_refdef.fov_y,  screenaspect,  gl_mindist.value,  gl_maxdist.value);
+			MYgluPerspective (fov_x, fov_y,  gl_mindist.value,  gl_maxdist.value);
 		}
 		else
 		{
-			GL_InfinatePerspective(r_refdef.fov_y, screenaspect, gl_mindist.value);
+			GL_InfinatePerspective(fov_x, fov_y, gl_mindist.value);
 		}
 	}
 	else
 	{
 		if (gl_maxdist.value>=1)
-			GL_ParallelPerspective(-r_refdef.fov_x/2, r_refdef.fov_x/2, r_refdef.fov_y/2, -r_refdef.fov_y/2, -gl_maxdist.value, gl_maxdist.value);
+			GL_ParallelPerspective(-fov_x/2, fov_x/2, fov_y/2, -fov_y/2, -gl_maxdist.value, gl_maxdist.value);
 		else
 			GL_ParallelPerspective(0, r_refdef.vrect.width, 0, r_refdef.vrect.height, -9999, 9999);
 	}
@@ -2227,7 +2240,7 @@ void GLR_RenderView (void)
 	// SCENE POST PROCESSING
 	// we check if we need to use any shaders - currently it's just waterwarp
 	if (scenepp_ww_program)
-	if (((r_waterwarp.value && r_viewleaf && r_viewleaf->contents <= Q1CONTENTS_WATER) || r_waterwarp.value<0))
+	if ((r_waterwarp.value>0 && r_viewleaf && r_viewleaf->contents <= Q1CONTENTS_WATER))
 	{
 		float vwidth = 1, vheight = 1;
 		float vs, vt;

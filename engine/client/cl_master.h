@@ -6,6 +6,7 @@
 #define SS_KEEPINFO		16
 #define SS_DARKPLACES	32
 #define SS_QUAKE3		64
+#define SS_QTV			128
 
 
 //despite not supporting nq or q2, we still load them. We just filter them. This is to make sure we properly write the listing files.
@@ -100,7 +101,7 @@ typedef struct serverinfo_s {
 typedef struct master_s{
 	struct master_s *next;
 	netadr_t adr;
-	char *address;
+	char *address;	//text based address (http servers
 	int type;
 	int servertype;	//filled in for http servers
 	char name[1];

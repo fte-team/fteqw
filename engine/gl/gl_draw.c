@@ -1318,7 +1318,7 @@ void GLDraw_Crosshair(void)
 	else if (crosshair.value)
 	{
 		GL_Bind (cs_texture);
-		chc = 1/16;
+		chc = 1/16.0;
 
 		if (crosshair.modified || crosshaircolor.modified || crosshair.value >= FIRSTANIMATEDCROSHAIR)
 		{

@@ -1289,7 +1289,7 @@ void GLDraw_Crosshair(void)
 	static int externalhair;
 
 	float x1, x2, y1, y2;
-	float size;
+	float size, chc;
 
 	if (crosshair.value == 1 && !*crosshairimage.string)
 	{
@@ -1310,6 +1310,7 @@ void GLDraw_Crosshair(void)
 			externalhair = Mod_LoadHiResTexture (crosshairimage.string, "crosshairs", false, true, true);
 		}
 		GL_Bind (externalhair);
+		chc = 0;
 
 		qglEnable (GL_BLEND);
 		qglDisable(GL_ALPHA_TEST);
@@ -1317,6 +1318,7 @@ void GLDraw_Crosshair(void)
 	else if (crosshair.value)
 	{
 		GL_Bind (cs_texture);
+		chc = 1/16;
 
 		if (crosshair.modified || crosshaircolor.modified || crosshair.value >= FIRSTANIMATEDCROSHAIR)
 		{
@@ -1395,17 +1397,17 @@ void GLDraw_Crosshair(void)
 		return;
 
 	qglColor4f(1, 1, 1, crosshairalpha.value);
+	size = crosshairsize.value;
+	chc = size * chc;
 
 	for (sc = 0; sc < cl.splitclients; sc++)
 	{
 		SCR_CrosshairPosition(sc, &x, &y);
 
-		size = crosshairsize.value;
-		// (size / 16) is needed to assure it's exactly centered
-		x1 = x - size - (size / 16);
-		x2 = x + size - (size / 16);
-		y1 = y - size - (size / 16);
-		y2 = y + size - (size / 16);
+		x1 = x - size - chc;
+		x2 = x + size - chc;
+		y1 = y - size - chc;
+		y2 = y + size - chc;
 		qglBegin (GL_QUADS);
 		qglTexCoord2f (0, 0);
 		qglVertex2f (x1, y1);

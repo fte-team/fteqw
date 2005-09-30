@@ -1401,10 +1401,11 @@ void GLDraw_Crosshair(void)
 		SCR_CrosshairPosition(sc, &x, &y);
 
 		size = crosshairsize.value;
-		x1 = x - size;
-		x2 = x + size;
-		y1 = y - size;
-		y2 = y + size;
+		// (size / 16) is needed to assure it's exactly centered
+		x1 = x - size - (size / 16);
+		x2 = x + size - (size / 16);
+		y1 = y - size - (size / 16);
+		y2 = y + size - (size / 16);
 		qglBegin (GL_QUADS);
 		qglTexCoord2f (0, 0);
 		qglVertex2f (x1, y1);

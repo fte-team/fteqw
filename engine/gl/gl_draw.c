@@ -1925,35 +1925,39 @@ void GLDraw_FadeScreen (void)
 			t = strstr(t+1, " ");
 			if (t)
 				fadecolor[2] = atof(t+1);
+			else
+				faderender = 0;
 		}
+		else
+			faderender = 0;
 		
 		// bounds check and inverse check
-		if (fadecolor[0] < 0)
+		if (faderender)
 		{
-			faderender = GL_ONE_MINUS_DST_COLOR;
-			fadecolor[0] = -(fadecolor[0]);
-		}
-		if (fadecolor[0] > 1)
-			fadecolor[0] = 1;
+			if (fadecolor[0] < 0)
+			{
+				faderender = GL_ONE_MINUS_DST_COLOR;
+				fadecolor[0] = -(fadecolor[0]);
+			}
+			if (fadecolor[0] > 1)
+				fadecolor[0] = 1;
 
-		if (fadecolor[1] < 0)
-		{
-			faderender = GL_ONE_MINUS_DST_COLOR;
-			fadecolor[1] = -(fadecolor[1]);
-		}
-		if (fadecolor[1] > 1)
-			fadecolor[1] = 1;
+			if (fadecolor[1] < 0)
+			{
+				faderender = GL_ONE_MINUS_DST_COLOR;
+				fadecolor[1] = -(fadecolor[1]);
+			}
+			if (fadecolor[1] > 1)
+				fadecolor[1] = 1;
 
-		if (fadecolor[2] < 0)
-		{
-			faderender = GL_ONE_MINUS_DST_COLOR;
-			fadecolor[2] = -(fadecolor[2]);
+			if (fadecolor[2] < 0)
+			{
+				faderender = GL_ONE_MINUS_DST_COLOR;
+				fadecolor[2] = -(fadecolor[2]);
+			}
+			if (fadecolor[2] > 1)
+				fadecolor[2] = 1;
 		}
-		if (fadecolor[2] > 1)
-			fadecolor[2] = 1;
-
-		if (faderender == GL_DST_COLOR && fadecolor[0] == 1 && fadecolor[1] == 1 && fadecolor[2] == 1)
-			faderender = 0;
 
 		fademodified = r_menutint.modified;
 	}

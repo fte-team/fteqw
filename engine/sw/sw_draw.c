@@ -2407,7 +2407,11 @@ void SWDraw_FadeScreen (void)
 			t = strstr(t+1, " ");
 			if (t)
 				b = atof(t+1);
+			else
+				fsnodraw = 1;
 		}
+		else
+			fsnodraw = 1;
 
 		// bounds check and inverse check
 		if (r < 0)
@@ -2433,9 +2437,6 @@ void SWDraw_FadeScreen (void)
 		}
 		if (b > 1)
 			b = 1;
-
-		if (!invmask && r == 1 && g == 1 && b == 1)
-			fsnodraw = 1;
 
 		// generate colormap
 		for (x = 0; x < 256; x++)

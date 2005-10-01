@@ -1398,7 +1398,9 @@ void CL_ParseServerData (void)
 	Con_TPrintf (TLC_PC_PS_NL, 2, str);
 
 	if (CL_RemoveClientCommands("new"))	//mvdsv is really appaling some times.
-		Con_Printf("Multiple 'new' commands?!?!? This server needs reinstalling!\n");
+	{
+	//	Con_Printf("Multiple 'new' commands?!?!? This server needs reinstalling!\n");
+	}
 
 	memset(cl.sound_name, 0, sizeof(cl.sound_name));
 #ifdef PEXT_PK3DOWNLOADS

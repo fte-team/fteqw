@@ -499,7 +499,7 @@ static long CG_SystemCallsEx(void *offset, unsigned int mask, int fn, const long
 			cvar_t *var;
 			var = Cvar_FindVar(VM_POINTER(arg[0]));
 			if (var)
-				Cvar_Set(var, VM_POINTER(arg[1]));	//set it
+				Cvar_Set(var, VM_POINTER(arg[1])?VM_POINTER(arg[1]):"");	//set it
 			else
 				Cvar_Get(VM_POINTER(arg[0]), VM_POINTER(arg[1]), 0, "Q3CG created");	//create one
 		}

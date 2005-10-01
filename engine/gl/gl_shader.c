@@ -1668,6 +1668,7 @@ void Shader_UpdateRegistration (void)
 	}
 }
 */
+/*
 void Shader_UploadCinematic (shader_t *shader)
 {
 	int j;
@@ -1677,7 +1678,7 @@ void Shader_UploadCinematic (shader_t *shader)
 	pass = shader->passes;
 	for ( j = 0; j < shader->numpasses; j++, pass++ ) {
 		if ( pass->flags & SHADER_PASS_VIDEOMAP ) {
-//			pass->anim_frames[0] = GL_ResampleCinematicFrame ( pass );
+			pass->anim_frames[0] = GL_ResampleCinematicFrame ( pass );
 		}
 	}
 }
@@ -1700,9 +1701,8 @@ void Shader_RunCinematic (void)
 			if ( !(pass->flags & SHADER_PASS_VIDEOMAP) )
 				continue;
 
-//FIXME: videomaps
 			// reinitialize
-/*			if ( pass->cin->frame == -1 ) {
+			if ( pass->cin->frame == -1 ) {
 				GL_StopCinematic ( pass->cin );
 				GL_PlayCinematic( pass->cin );
 
@@ -1715,10 +1715,10 @@ void Shader_RunCinematic (void)
 			}
 
 			GL_RunCinematic ( pass->cin );
-*/
 		}
 	}
 }
+*/
 
 void Shader_DefaultBSP(char *shortname, shader_t *s)
 {

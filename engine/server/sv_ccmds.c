@@ -1179,6 +1179,25 @@ void SV_Serverinfo_f (void)
 
 	if (Cmd_Argv(1)[0] == '*')
 	{
+		if (!strcmp(Cmd_Argv(1), "*"))
+			if (!strcmp(Cmd_Argv(2), ""))
+			{	//clear it out
+				char *k;
+				for(i=0;;)
+				{
+					k = Info_KeyForNumber(svs.info, i);
+					if (!*k)
+						break;	//no more.
+					else if (*k == '*')
+						i++;	//can't remove * keys
+					else if ((var = Cvar_FindVar(k)) && var->flags&CVAR_SERVERINFO)
+						i++;	//this one is a cvar.
+					else
+						Info_RemoveKey(svs.info, k);	//we can remove this one though, so yay.
+				}
+				
+				return;
+			}
 		Con_TPrintf (TL_STARKEYPROTECTED);
 		return;
 	}
@@ -1233,6 +1252,12 @@ void SV_Localinfo_f (void)
 
 	if (Cmd_Argv(1)[0] == '*')
 	{
+		if (!strcmp(Cmd_Argv(1), "*"))
+			if (!strcmp(Cmd_Argv(2), ""))
+			{	//clear it out
+				Info_RemoveNonStarKeys(localinfo);
+				return;
+			}
 		Con_TPrintf (TL_STARKEYPROTECTED);
 		return;
 	}
@@ -1272,8 +1297,10 @@ void SV_SaveInfo(FILE *f, char *info, char *commandname)
 void SV_SaveInfos(FILE *f)
 {
 	fwrite("\n", 1, 1, f);
+	fwrite("serverinfo * \"\"\n", 16, 1, f);
 	SV_SaveInfo(f, svs.info, "serverinfo");
 	fwrite("\n", 1, 1, f);
+	fwrite("localinfo * \"\"\n", 15, 1, f);
 	SV_SaveInfo(f, localinfo, "localinfo");
 }
 

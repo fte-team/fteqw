@@ -730,7 +730,7 @@ void Draw_CursorLine(int ox, int y, fileblock_t *b)
 	int cx;
 	int a = 0, i;
 
-	int colour=COLOR_WHITE;
+	int colour=COLOR_BLUE;
 
 	int ts = edittabspacing.value;
 	if (ts < 1)

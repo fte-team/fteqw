@@ -1101,28 +1101,35 @@ void SV_Spawn_f (void)
 	{
 		if (sv.democausesreconnect)
 		{
+			if (i >= MAX_STANDARDLIGHTSTYLES)
+				continue;
 			ClientReliableWrite_Begin (host_client, svc_lightstyle,
 				3 + (sv.demolightstyles[i] ? strlen(sv.demolightstyles[i]) : 1));
 			ClientReliableWrite_Byte (host_client, (char)i);
 			ClientReliableWrite_String (host_client, sv.demolightstyles[i]);
 		}
 		else
+		{
+			if (i >= MAX_STANDARDLIGHTSTYLES)
+				if (!sv.lightstyles[i])
+					continue;
 #ifdef PEXT_LIGHTSTYLECOL
-			 if (host_client->fteprotocolextensions & PEXT_LIGHTSTYLECOL && sv.lightstylecolours[i]!=7)
-		{
-			ClientReliableWrite_Begin (host_client, svc_lightstylecol,
-				3 + (sv.lightstyles[i] ? strlen(sv.lightstyles[i]) : 1));
-			ClientReliableWrite_Byte (host_client, (char)i);
-			ClientReliableWrite_Char (host_client, sv.lightstylecolours[i]);
-			ClientReliableWrite_String (host_client, sv.lightstyles[i]);
-		}
-		else
+			if (host_client->fteprotocolextensions & PEXT_LIGHTSTYLECOL && sv.lightstylecolours[i]!=7)
+			{
+				ClientReliableWrite_Begin (host_client, svc_lightstylecol,
+					3 + (sv.lightstyles[i] ? strlen(sv.lightstyles[i]) : 1));
+				ClientReliableWrite_Byte (host_client, (char)i);
+				ClientReliableWrite_Char (host_client, sv.lightstylecolours[i]);
+				ClientReliableWrite_String (host_client, sv.lightstyles[i]);
+			}
+			else
 #endif
-		{
-			ClientReliableWrite_Begin (host_client, svc_lightstyle,
-				3 + (sv.lightstyles[i] ? strlen(sv.lightstyles[i]) : 1));
-			ClientReliableWrite_Byte (host_client, (char)i);
-			ClientReliableWrite_String (host_client, sv.lightstyles[i]);
+			{
+				ClientReliableWrite_Begin (host_client, svc_lightstyle,
+					3 + (sv.lightstyles[i] ? strlen(sv.lightstyles[i]) : 1));
+				ClientReliableWrite_Byte (host_client, (char)i);
+				ClientReliableWrite_String (host_client, sv.lightstyles[i]);
+			}
 		}
 	}
 

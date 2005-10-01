@@ -204,7 +204,6 @@ void M_Download_Draw (int x, int y, struct menucustom_s *c, struct menu_s *m)
 	if (!cls.downloadmethod && (info->parsedsourcenum==-1 || downloadablelist[info->parsedsourcenum]))
 	{	//done downloading
 		char basename[64];
-		char *absolutename;
 
 		info->parsedsourcenum++;
 

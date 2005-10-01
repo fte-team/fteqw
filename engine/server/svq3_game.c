@@ -6,7 +6,7 @@
 #ifdef Q3SERVER
 
 
-//#define USEBOTLIB
+#define USEBOTLIB
 
 #ifdef USEBOTLIB
 
@@ -24,8 +24,43 @@
 
 #define Z_TAG_BOTLIB 221726
 
+#ifdef _WIN32
+	#if 0
+		#pragma comment (lib, "botlib.lib")
+		#define FTE_GetBotLibAPI GetBotLibAPI
+	#else
+		botlib_export_t *FTE_GetBotLibAPI( int apiVersion, botlib_import_t *import )
+		{
+			botlib_export_t *(*QDECL pGetBotLibAPI)( int apiVersion, botlib_import_t *import );
 
-#pragma comment (lib, "H:/quake/quake3/quake3-1.32b/code/botlib/botlib_vc6/Debug/botlib_vc6.lib")
+			static HINSTANCE hmod;
+			if (!hmod)
+				hmod = LoadLibrary("botlib.dll");
+			if (!hmod)
+				return NULL;
+
+			pGetBotLibAPI = (void*)GetProcAddress(hmod, "GetBotLibAPI");
+
+			if (!pGetBotLibAPI)
+				return NULL;
+			return pGetBotLibAPI(apiVersion, import);
+		}
+	#endif
+
+#elif defined(__linux__)
+
+	#include "dlopen.h"
+	botlib_export_t *FTE_GetBotLibAPI( int apiVersion, botlib_import_t *import )
+	{
+		void *handle;
+		dlopen();
+	}
+#else
+	botlib_export_t *FTE_GetBotLibAPI(int version, int apiVersion, botlib_import_t *import)
+	{	//a stub that will prevent botlib from loading.
+		return NULL;
+	}
+#endif
 
 botlib_export_t *botlib;
 
@@ -1751,7 +1786,7 @@ void SV_InitBotLib()
 
 //	Z_FreeTags(Z_TAG_BOTLIB);
 	botlibmemoryavailable = 1024*1024*16;
-	botlib = GetBotLibAPI(BOTLIB_API_VERSION, &import);
+	botlib = FTE_GetBotLibAPI(BOTLIB_API_VERSION, &import);
 	if (!botlib)
 	{
 		bot_enable->flags |= CVAR_LATCH;
@@ -1773,9 +1808,13 @@ void SV_InitBotLib()
 qboolean SVQ3_InitGame(void)
 {
 	char buffer[8192];
+	extern cvar_t progs;
 
 	if (sv.worldmodel->fromgame == fg_quake)
 		return false;	//always fail on q1bsp
+
+	if (*progs.string)	//don't load q3 gamecode if we're explicitally told to load a progs.
+		return false;
 
 
 	SVQ3_ShutdownGame();
@@ -1826,7 +1865,8 @@ void SVQ3_RunFrame(void)
 {
 	VM_Call(q3gamevm, GAME_RUN_FRAME, (int)(sv.time*1000));
 #ifdef USEBOTLIB
-	VM_Call(q3gamevm, BOTAI_START_FRAME, (int)(sv.time*1000));
+	if (botlib)
+		VM_Call(q3gamevm, BOTAI_START_FRAME, (int)(sv.time*1000));
 #endif
 }
 

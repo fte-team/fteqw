@@ -588,7 +588,7 @@ Build a client frame structure
 =============================================================================
 */
 
-qbyte	fatpvs[(MAX_MAP_LEAFS+1)/4];
+extern qbyte	fatpvs[(MAX_MAP_LEAFS+1)/4];
 
 /*
 =============

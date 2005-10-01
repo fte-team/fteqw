@@ -691,6 +691,11 @@ void Sound_NextDownload (void)
 			unsigned int chksum = strtoul(s, NULL, 0);
 			if (CSQC_Init(chksum))
 				CL_SendClientCommand(true, "enablecsqc");
+			else
+				Sbar_Start();	//try and start this before we're actually on the server,
+								//this'll stop the mod from sending so much stuffed data at us, whilst we're frozen while trying to load.
+								//hopefully this'll make it more robust.
+								//csqc is expected to use it's own huds, or to run on decent servers. :p
 		}
 	}
 #endif
@@ -1519,6 +1524,7 @@ void CLNQ_ParseServerData(void)		//Doesn't change gamedir - use with caution.
 		Con_TPrintf (TLC_GOTSVDATAPACKET);
 	CL_ClearState ();
 	Stats_NewMap();
+	P_NewServer();
 
 	protover = MSG_ReadLong ();
 
@@ -1653,7 +1659,6 @@ void CLNQ_ParseServerData(void)		//Doesn't change gamedir - use with caution.
 
 	cl.worldmodel = cl.model_precache[1];
 
-
 	R_NewMap ();
 
 	if (cls.demoplayback)
@@ -1669,6 +1674,9 @@ void CLNQ_SignonReply (void)
 {
 	extern cvar_t	topcolor;
 	extern cvar_t	bottomcolor;
+	extern cvar_t	rate;
+	extern cvar_t	model;
+	extern cvar_t	skin;
 
 Con_DPrintf ("CL_SignonReply: %i\n", cls.signon);
 
@@ -1685,6 +1693,14 @@ Con_DPrintf ("CL_SignonReply: %i\n", cls.signon);
 		CL_SendClientCommand(true, "color %i %i\n", (int)topcolor.value, (int)bottomcolor.value);
 
 		CL_SendClientCommand(true, "spawn %s", "");
+
+		if (nq_dp_protocol)	//dp needs a couple of extras to work properly.
+		{
+			CL_SendClientCommand(true, "rate %s", rate.string);
+
+			CL_SendClientCommand(true, "playermodel %s", model.string);
+			CL_SendClientCommand(true, "playerskin %s", skin.string);
+		}
 		break;
 
 	case 3:
@@ -2433,7 +2449,7 @@ void CL_ParseClientdata (void)
 		frame->senttime = realtime - host_frametime;
 	parsecounttime = cl.frames[i].senttime;
 
-	frame->receivedtime = realtime;
+	frame->receivedtime = (cl.gametimemark - cl.oldgametimemark)*20;
 
 // calculate latency
 	latency = frame->receivedtime - frame->senttime;
@@ -2690,6 +2706,9 @@ void CL_SetStat (int pnum, int stat, int value)
 
 	if (stat == STAT_TIME && cls.z_ext & Z_EXT_SERVERTIME)
 	{
+		cl.oldgametime = cl.gametime;
+		cl.oldgametimemark = cl.gametimemark;
+
 //		cl.servertime_works = true;
 		cl.gametime = value * 0.001;
 		cl.gametimemark = realtime;
@@ -4188,20 +4207,25 @@ void CLNQ_ParseServerMessage (void)
 			break;
 
 		case svc_time:
+
+			cls.netchan.outgoing_sequence++;
+			cls.netchan.incoming_sequence = cls.netchan.outgoing_sequence-1;
+			cl.validsequence = cls.netchan.incoming_sequence-1;
+
 			received_framecount = host_framecount;
 			cl.last_servermessage = realtime;
+
 			cl.oldgametime = cl.gametime;
 			cl.oldgametimemark = cl.gametimemark;
 			cl.gametime = MSG_ReadFloat();
+
 			cl.gametimemark = realtime;
+
 			if (nq_dp_protocol<5)
 			{
 //				cl.frames[(cls.netchan.incoming_sequence-1)&UPDATE_MASK].packet_entities = cl.frames[cls.netchan.incoming_sequence&UPDATE_MASK].packet_entities;
 				cl.frames[cls.netchan.incoming_sequence&UPDATE_MASK].packet_entities.num_entities=0;
 			}
-			cls.netchan.outgoing_sequence++;
-			cls.netchan.incoming_sequence = cls.netchan.outgoing_sequence-1;
-			cl.validsequence = cls.netchan.incoming_sequence-1;
 			break;
 
 		case svc_updatename:
@@ -4242,7 +4266,11 @@ void CLNQ_ParseServerMessage (void)
 		case svc_lightstyle:
 			i = MSG_ReadByte ();
 			if (i >= MAX_LIGHTSTYLES)
-				Host_EndGame ("svc_lightstyle > MAX_LIGHTSTYLES");
+			{
+				Con_Printf("svc_lightstyle: %i >= MAX_LIGHTSTYLES\n", i);
+				MSG_ReadString();
+				break;
+			}
 #ifdef PEXT_LIGHTSTYLECOL
 			cl_lightstyle[i].colour = 7;	//white
 #endif

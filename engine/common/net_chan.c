@@ -279,12 +279,16 @@ qboolean NQNetChan_Process(netchan_t *chan)
 		}
 		drop = sequence - chan->incoming_unreliable - 1;
 		if (drop > 0)
+		{
 			Con_DPrintf("Dropped %i datagrams\n", drop);
+			chan->drop_count += drop;
+		}
 		chan->incoming_unreliable = sequence;
 
 		chan->last_received = realtime;
 
 		chan->incoming_acknowledged++;
+		chan->good_count++;
 		return 1;
 	}
 	if (header & NETFLAG_DATA)

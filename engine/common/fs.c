@@ -1887,7 +1887,7 @@ gamemode_info_t gamemode_info[] = {
 	{"Darkplaces-Quake",	"darkplaces",	"-quake",		"id1/pak0.pak",		"id1",		"qw",				"fte"},
 	{"Darkplaces-Hipnotic",	"hipnotic",		"-hipnotic",	NULL/*"hipnotic/pak0.pak"*/,"id1",		"qw",	"hipnotic",	"fte"},
 	{"Darkplaces-Rogue",	"rogue",		"-rogue",		NULL/*"rogue/pak0.pak",	"id1"*/,		"qw",	"rogue",	"fte"},
-	{"Nexuiz",				"nexuiz",		"-nexuiz",		"data/data20050531.pk3",	"id1",		"qw",	"data",		"fte"},
+	{"Nexuiz",				"nexuiz",		"-nexuiz",		"data/cvars.txt",	"id1",		"qw",	"data",		"fte"},
 
 	//supported commercial mods (some are currently only partially supported)
 	{"FTE-Hexen2",			"hexen",		"-hexen2",		"data1/pak0.pak",	"data1",						"fte"},

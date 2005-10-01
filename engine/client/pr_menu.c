@@ -33,8 +33,6 @@ cvar_t pr_menuqc_coreonerror = {"pr_menuqc_coreonerror", "1"};
 
 //pr_cmds.c builtins that need to be moved to a common.
 void VARGS PR_BIError(progfuncs_t *progfuncs, char *format, ...);
-void PF_cvar_string (progfuncs_t *prinst, struct globalvars_s *pr_globals);
-void PF_cvar_set (progfuncs_t *prinst, struct globalvars_s *pr_globals);
 void PF_print (progfuncs_t *prinst, struct globalvars_s *pr_globals);
 void PF_dprint (progfuncs_t *prinst, struct globalvars_s *pr_globals);
 void PF_error (progfuncs_t *prinst, struct globalvars_s *pr_globals);
@@ -190,7 +188,30 @@ void PF_mod (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 	G_FLOAT(OFS_RETURN) = (float)(((int)G_FLOAT(OFS_PARM0))%((int)G_FLOAT(OFS_PARM1)));
 }
 
+char *RemapCvarNameFromDPToFTE(char *name)
+{
+	if (!stricmp(name, "vid_bitsperpixel"))
+		return "vid_bpp";
+	if (!stricmp(name, "_cl_playermodel"))
+		return "model";
+	if (!stricmp(name, "_cl_playerskin"))
+		return "skin";
+	if (!stricmp(name, "_cl_color"))
+		return "topcolor";
+	if (!stricmp(name, "_cl_name"))
+		return "name";
 
+	if (!stricmp(name, "v_contrast"))
+		return "v_contrast";
+	if (!stricmp(name, "v_hwgamma"))
+		return "vid_hardwaregamma";
+	if (!stricmp(name, "showfps"))
+		return "show_fps";
+	if (!stricmp(name, "sv_progs"))
+		return "progs";
+
+	return name;
+}
 
 static void PF_cvar (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
@@ -198,6 +219,7 @@ static void PF_cvar (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 	char	*str;
 	
 	str = PR_GetStringOfs(prinst, OFS_PARM0);
+	str = RemapCvarNameFromDPToFTE(str);
 	{
 		var = Cvar_Get(str, "", 0, "menu cvars");
 		if (var)
@@ -210,23 +232,39 @@ static void PF_cvar (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 			G_FLOAT(OFS_RETURN) = 0;
 	}
 }
+static void PF_cvar_set (progfuncs_t *prinst, struct globalvars_s *pr_globals)
+{
+	char	*var_name, *val;
+	cvar_t *var;
+
+	var_name = PR_GetStringOfs(prinst, OFS_PARM0);
+	var_name = RemapCvarNameFromDPToFTE(var_name);
+	val = PR_GetStringOfs(prinst, OFS_PARM1);
+
+	var = Cvar_Get(var_name, val, 0, "QC variables");
+	Cvar_Set (var, val);
+}
+static void PF_cvar_string (progfuncs_t *prinst, struct globalvars_s *pr_globals)
+{
+	char	*str = PR_GetStringOfs(prinst, OFS_PARM0);
+	cvar_t *cv = Cvar_Get(RemapCvarNameFromDPToFTE(str), "", 0, "QC variables");
+	G_INT( OFS_RETURN ) = (int)PR_SetString( prinst, cv->string );
+}
+
+qboolean M_Vid_GetMove(int num, int *w, int *h);
+//a bit pointless really
 void PF_cl_getresolution (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
 	float mode = G_FLOAT(OFS_PARM0);
 	float *ret = G_VECTOR(OFS_RETURN);
-#pragma message("fixme: PF_getresolution should return other modes")
-	if (mode > 0)
-	{
-		ret[0] = 0;
-		ret[1] = 0;
-		ret[2] = 0;
-	}
-	else
-	{
-		ret[0] = vid.width;
-		ret[1] = vid.height;
-		ret[2] = 0;
-	}
+	int w, h;
+
+	w=h=0;
+	M_Vid_GetMove(mode, &w, &h);
+
+	ret[0] = w;
+	ret[1] = h;
+	ret[2] = 0;
 }
 
 
@@ -475,12 +513,45 @@ void PF_CL_drawfill (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 //void	drawsetcliparea(float x, float y, float width, float height) = #458;
 void PF_CL_drawsetcliparea (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
+	float x = G_FLOAT(OFS_PARM0), y = G_FLOAT(OFS_PARM1), w = G_FLOAT(OFS_PARM2), h = G_FLOAT(OFS_PARM3);
+
+#ifdef RGLQUAKE
+	if (qrenderer == QR_OPENGL && qglScissor)
+	{
+
+		x *= (float)glwidth/vid.width;
+		y *= (float)glheight/vid.height;
+
+		w *= (float)glwidth/vid.width;
+		h *= (float)glheight/vid.height;
+
+		//add a pixel because this makes DP's menus come out right.
+		x-=1;
+		y-=1;
+		w+=2;
+		h+=2;
+
+
+		qglScissor (x, glheight-(y+h), w, h);
+		qglEnable(GL_SCISSOR_TEST);
 		G_FLOAT(OFS_RETURN) = 1;
+		return;
+	}
+#endif
+	G_FLOAT(OFS_RETURN) = 0;
 }
 //void	drawresetcliparea(void) = #459;
 void PF_CL_drawresetcliparea (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
+#ifdef RGLQUAKE
+	if (qrenderer == QR_OPENGL)
+	{
+		qglDisable(GL_SCISSOR_TEST);
 		G_FLOAT(OFS_RETURN) = 1;
+		return;
+	}
+#endif
+	G_FLOAT(OFS_RETURN) = 0;
 }
 
 //void (float width, vector rgb, float alpha, float flags, vector pos1, ...) drawline;

@@ -396,13 +396,13 @@ void CL_ParseDelta (entity_state_t *from, entity_state_t *to, int bits, qboolean
 	if (to->frame != from->frame)
 	{
 		cl.lerpents[to->number].oldframechange = cl.lerpents[to->number].framechange;	//marked for hl models
-		cl.lerpents[to->number].framechange = cl.time;	//marked for hl models
+		cl.lerpents[to->number].framechange = cl.servertime;	//marked for hl models
 	}
 
 	if (to->modelindex != from->modelindex || to->number != from->number || VectorLength(move)>500)	//model changed... or entity changed...
 	{
 		cl.lerpents[to->number].oldframechange = cl.lerpents[to->number].framechange;	//marked for hl models
-		cl.lerpents[to->number].framechange = cl.time;	//marked for hl models
+		cl.lerpents[to->number].framechange = cl.servertime;	//marked for hl models
 
 		cl.lerpents[to->number].lerptime = -10;
 		cl.lerpents[to->number].lerprate = 0;
@@ -438,10 +438,10 @@ void CL_ParseDelta (entity_state_t *from, entity_state_t *to, int bits, qboolean
 //2: physics. Objects moving acording to gravity.
 //3: both. This is really awkward. And I'm really lazy.
 //the real solution would be to seperate the two.
-		cl.lerpents[to->number].lerprate = cl.time-cl.lerpents[to->number].lerptime;	//time per update
+		cl.lerpents[to->number].lerprate = cl.servertime-cl.lerpents[to->number].lerptime;	//time per update
 //		Con_Printf("%f=%f-%f\n", cl.lerpents[to->number].lerprate, cl.time, cl.lerpents[to->number].lerptime);
 		cl.lerpents[to->number].frame = from->frame;
-		cl.lerpents[to->number].lerptime = cl.time;
+		cl.lerpents[to->number].lerptime = cl.servertime;
 
 		if (cl.lerpents[to->number].lerprate>0.2)
 			cl.lerpents[to->number].lerprate=0.2;
@@ -505,7 +505,12 @@ void CL_ParsePacketEntities (qboolean delta)
 	int			word, newnum, oldnum;
 	qboolean	full;
 	int		from;
-
+/*
+	cl.oldgametime = cl.gametime;
+	cl.oldgametimemark = cl.gametimemark;
+	cl.gametime = realtime;
+	cl.gametimemark = realtime;
+*/
 	newpacket = cls.netchan.incoming_sequence&UPDATE_MASK;
 	newp = &cl.frames[newpacket].packet_entities;
 	cl.frames[newpacket].invalid = false;
@@ -991,16 +996,38 @@ void CLNQ_ParseDarkPlaces5Entities(void)	//the things I do.. :o(
 		to->flags &= ~0x80000000;
 
 		if (!from || to->modelindex != from->modelindex || to->number != from->number)	//model changed... or entity changed...
+		{
 			cl.lerpents[to->number].lerptime = -10;
+			cl.lerpents[to->number].origin[0] = to->origin[0];
+			cl.lerpents[to->number].origin[1] = to->origin[1];
+			cl.lerpents[to->number].origin[2] = to->origin[2];
+
+			cl.lerpents[to->number].angles[0] = to->angles[0];
+			cl.lerpents[to->number].angles[1] = to->angles[1];
+			cl.lerpents[to->number].angles[2] = to->angles[2];
+		}
 		else if (to->frame != from->frame || to->origin[0] != from->origin[0] || to->origin[1] != from->origin[1] || to->origin[2] != from->origin[2])
 		{
-			cl.lerpents[to->number].origin[0] = from->origin[0];
-			cl.lerpents[to->number].origin[1] = from->origin[1];
-			cl.lerpents[to->number].origin[2] = from->origin[2];
+			if (from == &defaultstate)	//lerp from the new position instead of old, so no lerp
+			{
+				cl.lerpents[to->number].origin[0] = to->origin[0];
+				cl.lerpents[to->number].origin[1] = to->origin[1];
+				cl.lerpents[to->number].origin[2] = to->origin[2];
 
-			cl.lerpents[to->number].angles[0] = from->angles[0];
-			cl.lerpents[to->number].angles[1] = from->angles[1];
-			cl.lerpents[to->number].angles[2] = from->angles[2];
+				cl.lerpents[to->number].angles[0] = to->angles[0];
+				cl.lerpents[to->number].angles[1] = to->angles[1];
+				cl.lerpents[to->number].angles[2] = to->angles[2];
+			}
+			else
+			{
+				cl.lerpents[to->number].origin[0] = from->origin[0];
+				cl.lerpents[to->number].origin[1] = from->origin[1];
+				cl.lerpents[to->number].origin[2] = from->origin[2];
+
+				cl.lerpents[to->number].angles[0] = from->angles[0];
+				cl.lerpents[to->number].angles[1] = from->angles[1];
+				cl.lerpents[to->number].angles[2] = from->angles[2];
+			}
 	//we have three sorts of movement.
 	//1: stepping monsters. These have frames and tick at 10fps.
 	//2: physics. Objects moving acording to gravity.
@@ -1234,9 +1261,9 @@ void CLNQ_ParseEntity(unsigned int bits)
 //1: stepping monsters. These have frames and tick at 10fps.
 //2: physics. Objects moving acording to gravity.
 //3: both. This is really awkward. And I'm really lazy.
-		cl.lerpents[state->number].lerprate = cl.time-cl.lerpents[state->number].lerptime;	//time per update
+		cl.lerpents[state->number].lerprate = cl.gametime-cl.lerpents[state->number].lerptime;	//time per update
 		cl.lerpents[state->number].frame = from->frame;
-		cl.lerpents[state->number].lerptime = cl.time;
+		cl.lerpents[state->number].lerptime = cl.gametime;
 
 		if (cl.lerpents[state->number].lerprate>0.2)
 			cl.lerpents[state->number].lerprate=0.2;
@@ -1511,19 +1538,29 @@ void CL_LinkPacketEntities (void)
 		ent->forcedshader = NULL;
 #endif
 
-		//figure out the lerp factor
-		if (cl.lerpents[s1->number].lerprate<=0)
-			ent->lerpfrac = 0;
+		if (cl_nolerp.value)
+			f = 1;
 		else
-			ent->lerpfrac = 1-(cl.time-cl.lerpents[s1->number].lerptime)/cl.lerpents[s1->number].lerprate;
+		{
+			//figure out the lerp factor
+			if (cl.lerpents[s1->number].lerprate<=0)
+				f = 0;
+			else
+				f = (cl.servertime-cl.lerpents[s1->number].lerptime)/cl.lerpents[s1->number].lerprate;//(cl.gametime-cl.oldgametime);//1-(cl.time-cl.lerpents[s1->number].lerptime)/cl.lerpents[s1->number].lerprate;
+			if (f<0)
+				f=0;
+			if (f>1)
+				f=1;
+		}
+
+		ent->lerpfrac = 1-(cl.servertime-cl.lerpents[s1->number].lerptime)/cl.lerpents[s1->number].lerprate;
 		if (ent->lerpfrac<0)
 			ent->lerpfrac=0;
 		if (ent->lerpfrac>1)
 			ent->lerpfrac=1;
-		f = 1-ent->lerpfrac;
 
-		if (cl_nolerp.value)
-			f = 1;
+//		if (s1->modelindex == 87 && !cl.paused)
+//			Con_Printf("%f %f\n", f, cl.lerpents[s1->number].lerptime-cl.servertime);
 
 		// calculate origin
 		for (i=0 ; i<3 ; i++)
@@ -1609,8 +1646,8 @@ void CL_LinkPacketEntities (void)
 		ent->frame = s1->frame;
 		ent->oldframe = cl.lerpents[s1->number].frame;
 
-		ent->frame1time = cl.time - cl.lerpents[s1->number].framechange;
-		ent->frame2time = cl.time - cl.lerpents[s1->number].oldframechange;
+		ent->frame1time = cl.servertime - cl.lerpents[s1->number].framechange;
+		ent->frame2time = cl.servertime - cl.lerpents[s1->number].oldframechange;
 
 //		f = (sin(realtime)+1)/2;
 
@@ -2314,6 +2351,7 @@ void CL_LinkPlayers (void)
 	entity_t		*ent;
 	int				msec;
 	frame_t			*frame;
+	frame_t			*fromf;
 	int				oldphysent;
 	vec3_t			angles;
 
@@ -2321,12 +2359,13 @@ void CL_LinkPlayers (void)
 	if (playertime > realtime)
 		playertime = realtime;
 
-	frame = &cl.frames[cl.parsecount&UPDATE_MASK];
+	frame = &cl.frames[cl.validsequence&UPDATE_MASK];
+	fromf = &cl.frames[cl.oldvalidsequence&UPDATE_MASK];
 
 	for (j=0, info=cl.players, state=frame->playerstate ; j < MAX_CLIENTS
 		; j++, info++, state++)
 	{
-		if (state->messagenum != cl.parsecount)
+		if (state->messagenum != cl.validsequence)
 			continue;	// not present this frame
 
 		// spawn light flashes, even ones coming from invisible objects
@@ -2429,8 +2468,25 @@ void CL_LinkPlayers (void)
 
 		// only predict half the move to minimize overruns
 		msec = 500*(playertime - state->state_time);
-		if (pnum < cl.splitclients)
+		if (1)
 		{
+			float f;
+			int i;
+			f = (cl.gametime-cl.servertime)/(cl.gametime-cl.oldgametime);
+			if (f<0)
+				f=0;
+			if (f>1)
+				f=1;
+
+			for (i=0 ; i<3 ; i++)
+			{
+				ent->origin[i] = state->origin[i] +
+							f * (fromf->playerstate[j].origin[i] - state->origin[i]);
+			}
+
+		}
+		else if (pnum < cl.splitclients)
+		{	//this is a local player
 		}
 		else if (msec <= 0 || (!cl_predict_players.value && !cl_predict_players2.value))
 		{

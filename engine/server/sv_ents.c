@@ -782,7 +782,7 @@ void SV_EmitPacketEntities (client_t *client, packet_entities_t *to, sizebuf_t *
 // flag
 #define E5_FRAME16 (1<<21)
 // unused
-#define E5_UNUSED22 (1<<22)
+#define E5_COLORMOD (1<<22)
 // bits >= (1<<24)
 #define E5_EXTEND3 (1<<23)
 
@@ -802,8 +802,6 @@ void SV_EmitPacketEntities (client_t *client, packet_entities_t *to, sizebuf_t *
 #define E5_UNUSED30 (1<<30)
 // bits2 > 0
 #define E5_EXTEND4 (1<<31)
-
-
 
 void SVDP_EmitEntity(entity_state_t *from, entity_state_t *to, sizebuf_t *msg, qboolean isnew)
 {
@@ -847,8 +845,8 @@ void SVDP_EmitEntity(entity_state_t *from, entity_state_t *to, sizebuf_t *msg, q
 		bits |= E5_LIGHT;
 	if (from->glowsize != to->glowsize || from->glowcolour != to->glowcolour)
 		bits |= E5_GLOW;
-//	if (from->colormod[0] != to->colormod[0] || o->colormod[1] != to->colormod[1] || o->colormod[2] != to->colormod[2])
-//		bits |= E5_COLORMOD;
+	if (from->colormod[0] != to->colormod[0] || from->colormod[1] != to->colormod[1] || from->colormod[2] != to->colormod[2])
+		bits |= E5_COLORMOD;
 
 	if ((bits & E5_ORIGIN) && (/*!(to->flags & RENDER_LOWPRECISION) ||*/ to->origin[0] < -4096 || to->origin[0] >= 4096 || to->origin[1] < -4096 || to->origin[1] >= 4096 || to->origin[2] < -4096 || to->origin[2] >= 4096))
 		bits |= E5_ORIGIN32;
@@ -968,12 +966,12 @@ void SVDP_EmitEntity(entity_state_t *from, entity_state_t *to, sizebuf_t *msg, q
 		MSG_WriteByte(msg, to->glowsize);
 		MSG_WriteByte(msg, to->glowcolour);
 	}
-//	if (bits & E5_COLORMOD)
-//	{
-//		MSG_WriteByte(msg, to->colormod[0]);
-//		MSG_WriteByte(msg, to->colormod[1]);
-//		MSG_WriteByte(msg, to->colormod[2]);
-//	}
+	if (bits & E5_COLORMOD)
+	{
+		MSG_WriteByte(msg, to->colormod[0]);
+		MSG_WriteByte(msg, to->colormod[1]);
+		MSG_WriteByte(msg, to->colormod[2]);
+	}
 }
 
 entity_state_t defaultstate;

@@ -459,6 +459,11 @@ typedef struct
 // the client simulates or interpolates movement to get these values
 	double		time;			// this is the time value that the client
 								// is rendering at.  always <= realtime
+
+	float servertime;	//current server time, bound between gametime and gametimemark
+	float mtime;		//server time as on the server when we last received a packet. not allowed to decrease.
+	float oldmtime;		//server time as on the server for the previously received packet.
+
 	float gametime;
 	float gametimemark;
 	float oldgametime;		//used as the old time to lerp cl.time from.

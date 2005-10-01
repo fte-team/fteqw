@@ -517,6 +517,173 @@ void CL_CalcCrouch (int pnum)
 	}
 }
 
+float LerpAngles360(float to, float from, float frac)
+{
+	int delta;
+	delta = (from-to);
+
+	if (delta > 180)
+		delta -= 360;
+	if (delta < -180)
+		delta += 360;
+
+	return to + frac*delta;
+}
+
+//shamelessly ripped from zquake
+extern cvar_t cl_nolerp;
+static void CL_LerpMove (int pnum, float msgtime)
+{
+	static int		lastsequence = 0;
+	static vec3_t	lerp_angles[3];
+	static vec3_t	lerp_origin[3];
+	static float	lerp_times[3];
+	static qboolean	nolerp[2];
+	static float	demo_latency = 0.01;
+	float	frac;
+	float	simtime;
+	int		i;
+	int		from, to;
+
+	if (cl_nolerp.value)
+		return;
+
+	if (cls.netchan.outgoing_sequence < lastsequence) {
+		// reset
+		lastsequence = -1;
+		lerp_times[0] = -1;
+		demo_latency = 0.01;
+	}
+
+	if (cls.netchan.outgoing_sequence > lastsequence) {
+		lastsequence = cls.netchan.outgoing_sequence;
+		// move along
+		lerp_times[2] = lerp_times[1];
+		lerp_times[1] = lerp_times[0];
+		lerp_times[0] = msgtime;
+
+		VectorCopy (lerp_origin[1], lerp_origin[2]);
+		VectorCopy (lerp_origin[0], lerp_origin[1]);
+		VectorCopy (cl.simorg[pnum], lerp_origin[0]);
+
+		VectorCopy (lerp_angles[1], lerp_angles[2]);
+		VectorCopy (lerp_angles[0], lerp_angles[1]);
+		VectorCopy (cl.simangles[pnum], lerp_angles[0]);
+
+		nolerp[1] = nolerp[0];
+		nolerp[0] = false;
+		for (i = 0; i < 3; i++)
+			if (fabs(lerp_origin[0][i] - lerp_origin[1][i]) > 40)
+				break;
+		if (i < 3)
+			nolerp[0] = true;	// a teleport or something
+	}
+
+	simtime = realtime - demo_latency;
+
+	// adjust latency
+	if (simtime > lerp_times[0]) {
+		// Com_DPrintf ("HIGH clamp\n");
+		demo_latency = realtime - lerp_times[0];
+	}
+	else if (simtime < lerp_times[2]) {
+		// Com_DPrintf ("   low clamp\n");
+		demo_latency = realtime - lerp_times[2];
+	} else {
+		// drift towards ideal latency
+		float ideal_latency = (lerp_times[0] - lerp_times[2]) * 0.6;
+		if (demo_latency > ideal_latency)
+			demo_latency = max(demo_latency - host_frametime * 0.1, ideal_latency);
+	}
+
+	// decide where to lerp from
+	if (simtime > lerp_times[1]) {
+		from = 1;
+		to = 0;
+	} else {
+		from = 2;
+		to = 1;
+	}
+
+	if (nolerp[to])
+		return;
+
+	frac = (simtime - lerp_times[from]) / (lerp_times[to] - lerp_times[from]);
+	frac = bound (0, frac, 1);
+
+	for (i=0 ; i<3 ; i++)
+	{
+		cl.simorg[pnum][i] = lerp_origin[from][i] +
+				frac * (lerp_origin[to][i] - lerp_origin[from][i]);
+		cl.simangles[pnum][i] = LerpAngles360(lerp_angles[from][i], lerp_angles[to][i], frac);
+	}
+
+//	LerpVector (lerp_origin[from], lerp_origin[to], frac, cl.simorg);
+//	LerpAngles (lerp_angles[from], lerp_angles[to], frac, cl.simangles);
+}
+
+short LerpAngles16(short to, short from, float frac)
+{
+	int delta;
+	delta = (from-to);
+
+	if (delta > 32767)
+		delta -= 65535;
+	if (delta < -32767)
+		delta += 65535;
+
+	return to + frac*delta;
+}
+
+void CL_CalcClientTime(void)
+{
+	
+	{
+		float want;
+
+		want = cl.oldgametime + realtime - cl.gametimemark;
+		if (want>cl.servertime)
+			cl.servertime = want;
+		
+		if (cl.servertime > cl.gametime)
+			cl.servertime = cl.gametime;
+		if (cl.servertime < cl.oldgametime)
+			cl.servertime = cl.oldgametime;
+	}
+
+	if (cls.protocol == CP_NETQUAKE || cls.demoplayback)
+	{
+		float want;
+//		float off;
+
+		want = cl.oldgametime + realtime - cl.gametimemark;
+//		off = (want - cl.time);
+		if (want>cl.time)	//don't decrease
+			cl.time = want;
+
+//		Con_Printf("Drifted to %f off by %f\n", cl.time, off);
+		
+//		Con_Printf("\n");
+		if (cl.time > cl.gametime)
+		{
+			cl.time = cl.gametime;
+//			Con_Printf("max TimeClamp\n");
+		}
+		if (cl.time < cl.oldgametime)
+		{
+			cl.time = cl.oldgametime;
+//			Con_Printf("old TimeClamp\n");
+		}
+		
+	}
+	else
+	{
+		cl.time = realtime - cls.latency - cl_pushlatency.value*0.001;
+		if (cl.time > realtime)
+			cl.time = realtime;
+	}
+}
+
 /*
 ==============
 CL_PredictMove
@@ -549,37 +716,8 @@ void CL_PredictMovePNum (int pnum)
 	if (cl.paused && !cls.demoplayback!=DPB_MVD && (!cl.spectator || !autocam[pnum])) 
 		return;
 
-	if (cl.oldgametime)
-	{
-		float want;
-		float off;
+	CL_CalcClientTime();
 
-		want = cl.oldgametime + realtime - cl.gametimemark;
-		off = (want - cl.time);
-		if (want>cl.time)
-			cl.time = want;
-
-//		Con_Printf("Drifted to %f off by %f\n", cl.time, off);
-		
-		if (cl.time > cl.gametime)
-			cl.time = cl.gametime;
-		if (cl.time < cl.oldgametime)
-			cl.time = cl.oldgametime;
-	}
-	else
-	{
-		cl.time = realtime - cls.latency - cl_pushlatency.value*0.001;
-		if (cl.time > realtime)
-			cl.time = realtime;
-	}
-/*	else
-	{
-		entitystate_t
-		cl.crouch = 0;
-		VectorCopy(cl
-		return;
-	}
-*/
 	if (cl.intermission && cl.intermission != 3)
 	{
 		cl.crouch[pnum] = 0;
@@ -623,13 +761,15 @@ void CL_PredictMovePNum (int pnum)
 
 			//figure out the lerp factor
 			if (cl.lerpents[state->number].lerprate<=0)
-				f = 1;
+				f = 0;
 			else
-				f = (cl.time-cl.lerpents[state->number].lerptime)/cl.lerpents[state->number].lerprate;
+				f = (cl.gametime-cl.servertime)/(cl.gametime-cl.oldgametime);//f = (cl.time-cl.lerpents[state->number].lerptime)/cl.lerpents[state->number].lerprate;
 			if (f<0)
 				f=0;
 			if (f>1)
 				f=1;
+			f = 1-f;
+//			Con_Printf("%f\n", f);
 
 //			if (cl_nolerp.value)
 //				f = 1;
@@ -641,29 +781,6 @@ void CL_PredictMovePNum (int pnum)
 				f * (state->origin[i] - cl.lerpents[state->number].origin[i]);
 
 			org = lrp;
-
-/*
-			if (old)
-			{
-				float f = (cl.time-cl.lerpents[cl.viewentity[pnum]].lerptime)/cl.lerpents[cl.viewentity[pnum]].lerprate;
-				f=1-f;
-				if (f<0)f=0;
-				if (f>1)f=1;
-
-				vel = vec3_origin;
-
-				for (i=0 ; i<3 ; i++)
-					lrp[i] = state->origin[i] + 
-							f * (old->origin[i] - state->origin[i]);
-
-				org = lrp;
-			}
-			else
-			{
-				org = state->origin;
-				Con_Printf("No old\n");
-			}
-*/
 
 			goto fixedorg;
 		}
@@ -689,32 +806,64 @@ fixedorg:
 
 	to = &cl.frames[cl.validsequence & UPDATE_MASK];
 
-	for (i=1 ; i<UPDATE_BACKUP-1 && cl.validsequence+i <
-			cls.netchan.outgoing_sequence; i++)
+	if (Cam_TrackNum(pnum)>=0 && !cl_nolerp.value)
 	{
-		to = &cl.frames[(cl.validsequence+i) & UPDATE_MASK];
-		if (cl.intermission)
-			to->playerstate->pm_type = PM_FLY;
-		CL_PredictUsercmd (pnum, &from->playerstate[cl.playernum[pnum]]
-			, &to->playerstate[cl.playernum[pnum]], &to->cmd[pnum]);
+		float f;
 
-		cl.onground[pnum] = pmove.onground;
+		to = &cl.frames[cl.validsequence & UPDATE_MASK];
+		from = &cl.frames[cl.oldvalidsequence & UPDATE_MASK];
 
-		if (to->senttime >= cl.time)
-			break;
-		from = to;
+		//figure out the lerp factor
+		f = (cl.gametime-cl.servertime)/(cl.gametime-cl.oldgametime);//f = (cl.time-cl.lerpents[state->number].lerptime)/cl.lerpents[state->number].lerprate;
+		if (f<0)
+			f=0;
+		if (f>1)
+			f=1;
+//		f = 1-f;
+
+
+				// calculate origin
+		for (i=0 ; i<3 ; i++)
+		{
+			lrp[i] = to->playerstate[cl.playernum[pnum]].origin[i] +
+			f * (from->playerstate[cl.playernum[pnum]].origin[i] - to->playerstate[cl.playernum[pnum]].origin[i]);
+
+			cl.simangles[pnum][i] = LerpAngles16(to->playerstate[spec_track[pnum]].command.angles[i], from->playerstate[spec_track[pnum]].command.angles[i], f)*360.0f/65535;
+		}
+
+		org = lrp;
+
+		goto fixedorg;
 	}
-	
-	if (independantphysics[pnum].msec)
+	else
 	{
-		from = to;
-		to = &ind;
-		to->cmd[pnum] = independantphysics[pnum];
-		to->senttime = cl.time;
+		for (i=1 ; i<UPDATE_BACKUP-1 && cl.validsequence+i <
+				cls.netchan.outgoing_sequence; i++)
+		{
+			to = &cl.frames[(cl.validsequence+i) & UPDATE_MASK];
+			if (cl.intermission)
+				to->playerstate->pm_type = PM_FLY;
 			CL_PredictUsercmd (pnum, &from->playerstate[cl.playernum[pnum]]
-			, &to->playerstate[cl.playernum[pnum]], &to->cmd[pnum]);
+				, &to->playerstate[cl.playernum[pnum]], &to->cmd[pnum]);
 
-		cl.onground[pnum] = pmove.onground;
+			cl.onground[pnum] = pmove.onground;
+
+			if (to->senttime >= cl.time)
+				break;
+			from = to;
+		}
+		
+		if (independantphysics[pnum].msec)
+		{
+			from = to;
+			to = &ind;
+			to->cmd[pnum] = independantphysics[pnum];
+			to->senttime = cl.time;
+				CL_PredictUsercmd (pnum, &from->playerstate[cl.playernum[pnum]]
+				, &to->playerstate[cl.playernum[pnum]], &to->cmd[pnum]);
+
+			cl.onground[pnum] = pmove.onground;
+		}
 	}
 
 	pmove.numphysent = oldphysent;
@@ -757,6 +906,10 @@ fixedorg:
 		CL_CatagorizePosition(pnum);
 
 	}
+
+	if (cls.demoplayback)
+		CL_LerpMove (pnum, to->senttime);
+
 out:
 	CL_CalcCrouch (pnum);
 	cl.waterlevel[pnum] = pmove.waterlevel;

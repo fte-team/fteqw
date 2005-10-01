@@ -3310,7 +3310,7 @@ void Q2BSP_MarkLights (dlight_t *light, int bit, mnode_t *node)
 			}
 			surf->dlightbits |= bit;
 		}
-		return;	
+		return;
 	}
 
 	splitplane = node->plane;

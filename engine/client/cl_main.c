@@ -81,6 +81,8 @@ cvar_t	cl_indepphysics = {"cl_indepphysics", "0"};
 
 cvar_t  localid = {"localid", ""};
 
+cvar_t	cl_antibunch = {"cl_antibunch", "0.013"};
+
 static qboolean allowremotecmd = true;
 
 //
@@ -843,6 +845,12 @@ void CL_ClearState (void)
 	if (cl.playernum[0] == -1)
 	{	//left over from q2 connect.
 		Media_PlayFilm("");
+	}
+
+	for (i = 0; i < UPDATE_BACKUP; i++)
+	{
+		if (cl.frames[i].packet_entities.entities)
+			Z_Free(cl.frames[i].packet_entities.entities);
 	}
 
 	if (cl.lerpents)
@@ -2038,14 +2046,52 @@ CL_ReadPackets
 void CL_ReadPackets (void)
 {
 //	while (NET_GetPacket ())
-	while (CL_GetMessage())
+	for(;;)
 	{
+		if (cl.oldgametime && cl_antibunch.value)
+		{
+			float want;
+			static float clamp;
+
+			want = cl.oldgametime + realtime - cl.gametimemark - clamp;
+			if (want>cl.time)	//don't decrease
+			{
+				clamp = 0;
+				cl.time = want;
+			}
+
+			if (cl.time > cl.gametime)
+			{
+				clamp += cl.time - cl.gametime;
+				cl.time = cl.gametime;
+			}
+			if (cl.time < cl.oldgametime)
+			{
+				clamp -= cl.time - cl.gametime;
+				cl.time = cl.oldgametime;
+			}
+
+			if (cl.time < cl.gametime-(1/cl_antibunch.value))
+			{
+//				if (cl.gametime - 2 > cl.time)
+//					cl.gametime = 0;
+				break;
+			}
+
+		}
+
+		if (!CL_GetMessage())
+			break;
+
 #ifdef NQPROT
 		if (cls.demoplayback == DPB_NETQUAKE)
 		{
 			MSG_BeginReading ();
 			cls.netchan.last_received = realtime;
 			CLNQ_ParseServerMessage ();
+
+			if (!cls.demoplayback)
+				CL_NextDemo();
 			continue;
 		}
 #endif
@@ -2105,9 +2151,10 @@ void CL_ReadPackets (void)
 			{
 			case 0:
 				break;
-			case 1:
+			case 1://datagram
+//				if (cls.n
 				cls.netchan.incoming_sequence = cls.netchan.outgoing_sequence - 3;
-			case 2:
+			case 2://reliable
 				CLNQ_ParseServerMessage ();
 				break;
 			}
@@ -2425,6 +2472,7 @@ void CL_Init (void)
 	Cvar_Register (&host_mapname,		"Scripting");
 
 	Cvar_Register (&cl_indepphysics, cl_controlgroup);
+	Cvar_Register (&cl_antibunch, "evil hacks");
 
 #ifdef IRCCLIENT
 	Cmd_AddCommand ("irc", CL_IRC_f);

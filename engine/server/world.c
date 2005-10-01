@@ -1498,6 +1498,85 @@ void SVQ2_ClipMoveToEntities ( moveclip_t *clip, int contentsmask )
 #endif
 //===========================================================================
 
+
+/*
+====================
+SV_ClipToEverything
+
+like SV_ClipToLinks, but doesn't use the links part. This can be used for checking triggers, solid entities, not-solid entities.
+Sounds pointless, I know.
+====================
+*/
+void SV_ClipToEverything (moveclip_t *clip)
+{
+	int e;
+	trace_t		trace;
+	edict_t		*touch;
+	for (e=1 ; e<sv.num_edicts ; e++)
+	{
+		touch = EDICT_NUM(svprogfuncs, e);
+
+		if (touch->isfree)
+			continue;                 
+		if (touch->v->solid == SOLID_NOT && !((int)touch->v->flags & FL_FINDABLE_NONSOLID))
+			continue;
+		if (touch->v->solid == SOLID_TRIGGER && !((int)touch->v->flags & FL_FINDABLE_NONSOLID))
+			continue;
+
+		if (touch == clip->passedict)
+			continue;
+
+		if (clip->type & MOVE_NOMONSTERS && touch->v->solid != SOLID_BSP)
+			continue;
+
+		if (clip->passedict)
+		{
+			// don't clip corpse against character
+			if (clip->passedict->v->solid == SOLID_CORPSE && (touch->v->solid == SOLID_SLIDEBOX || touch->v->solid == SOLID_CORPSE))
+				continue;
+			// don't clip character against corpse
+			if (clip->passedict->v->solid == SOLID_SLIDEBOX && touch->v->solid == SOLID_CORPSE)
+				continue;
+
+			if (!((int)clip->passedict->v->dimension_hit & (int)touch->v->dimension_solid))
+				continue;
+		}
+
+		if (clip->boxmins[0] > touch->v->absmax[0]
+				|| clip->boxmins[1] > touch->v->absmax[1]
+				|| clip->boxmins[2] > touch->v->absmax[2]
+				|| clip->boxmaxs[0] < touch->v->absmin[0]
+				|| clip->boxmaxs[1] < touch->v->absmin[1]
+				|| clip->boxmaxs[2] < touch->v->absmin[2] )
+			continue;
+
+		if (clip->passedict && clip->passedict->v->size[0] && !touch->v->size[0])
+			continue;	// points never interact
+
+	// might intersect, so do an exact clip
+		if (clip->trace.allsolid)
+			return;
+		if (clip->passedict)
+		{
+		 	if (PROG_TO_EDICT(svprogfuncs, touch->v->owner) == clip->passedict)
+				continue;	// don't clip against own missiles
+			if (PROG_TO_EDICT(svprogfuncs, clip->passedict->v->owner) == touch)
+				continue;	// don't clip against owner
+		}
+
+		if ((int)touch->v->flags & FL_MONSTER)
+			trace = SV_ClipMoveToEntity (touch, clip->start, clip->mins2, clip->maxs2, clip->end, clip->hullnum, clip->type & MOVE_HITMODEL);
+		else
+			trace = SV_ClipMoveToEntity (touch, clip->start, clip->mins, clip->maxs, clip->end, clip->hullnum, clip->type & MOVE_HITMODEL);
+		if (trace.allsolid || trace.startsolid ||
+				trace.fraction < clip->trace.fraction)
+		{
+			trace.ent = touch;
+			clip->trace = trace;
+		}
+	}
+}
+
 /*
 ====================
 SV_ClipToLinks
@@ -1510,6 +1589,71 @@ void SV_ClipToLinks ( areanode_t *node, moveclip_t *clip )
 	link_t		*l, *next;
 	edict_t		*touch;
 	trace_t		trace;
+
+	if (clip->type & MOVE_TRIGGERS)
+	{
+		for (l = node->trigger_edicts.next ; l != &node->trigger_edicts ; l = next)
+		{
+			next = l->next;
+			touch = EDICT_FROM_AREA(l);
+			if (!((int)touch->v->flags & FL_FINDABLE_NONSOLID))
+				continue;
+			if (touch->v->solid != SOLID_TRIGGER)
+				continue;
+			if (touch == clip->passedict)
+				continue;
+
+			if (clip->type & MOVE_NOMONSTERS && touch->v->solid != SOLID_BSP)
+				continue;
+
+			if (clip->passedict)
+			{
+	/* These can never happen, touch is a SOLID_TRIGGER
+				// don't clip corpse against character
+				if (clip->passedict->v->solid == SOLID_CORPSE && (touch->v->solid == SOLID_SLIDEBOX || touch->v->solid == SOLID_CORPSE))
+					continue;
+				// don't clip character against corpse
+				if (clip->passedict->v->solid == SOLID_SLIDEBOX && touch->v->solid == SOLID_CORPSE)
+					continue;
+	*/
+				if (!((int)clip->passedict->v->dimension_hit & (int)touch->v->dimension_solid))
+					continue;
+			}
+
+			if (clip->boxmins[0] > touch->v->absmax[0]
+			|| clip->boxmins[1] > touch->v->absmax[1]
+			|| clip->boxmins[2] > touch->v->absmax[2]
+			|| clip->boxmaxs[0] < touch->v->absmin[0]
+			|| clip->boxmaxs[1] < touch->v->absmin[1]
+			|| clip->boxmaxs[2] < touch->v->absmin[2] )
+				continue;
+
+			if (clip->passedict && clip->passedict->v->size[0] && !touch->v->size[0])
+				continue;	// points never interact
+
+		// might intersect, so do an exact clip
+			if (clip->trace.allsolid)
+				return;
+			if (clip->passedict)
+			{
+		 		if (PROG_TO_EDICT(svprogfuncs, touch->v->owner) == clip->passedict)
+					continue;	// don't clip against own missiles
+				if (PROG_TO_EDICT(svprogfuncs, clip->passedict->v->owner) == touch)
+					continue;	// don't clip against owner
+			}
+
+			if ((int)touch->v->flags & FL_MONSTER)
+				trace = SV_ClipMoveToEntity (touch, clip->start, clip->mins2, clip->maxs2, clip->end, clip->hullnum, clip->type & MOVE_HITMODEL);
+			else
+				trace = SV_ClipMoveToEntity (touch, clip->start, clip->mins, clip->maxs, clip->end, clip->hullnum, clip->type & MOVE_HITMODEL);
+			if (trace.allsolid || trace.startsolid ||
+					trace.fraction < clip->trace.fraction)
+			{
+				trace.ent = touch;
+				clip->trace = trace;
+			}
+		}
+	}
 
 // touch linked edicts
 	for (l = node->solid_edicts.next ; l != &node->solid_edicts ; l = next)
@@ -1754,12 +1898,9 @@ trace_t SV_Move (vec3_t start, vec3_t mins, vec3_t maxs, vec3_t end, int type, e
 	SV_MoveBounds ( start, clip.mins2, clip.maxs2, end, clip.boxmins, clip.boxmaxs );
 
 // clip to entities
-/*#ifdef Q2BSPS
-	if (sv.worldmodel->fromgame == fg_quake2 || sv.worldmodel->fromgame == fg_quake3)
-		SV_ClipMoveToEntities(&clip);
+	if (clip.type & MOVE_EVERYTHING)
+		SV_ClipToEverything (&clip);
 	else
-#endif
-*/
 		SV_ClipToLinks ( sv_areanodes, &clip );
 
 	if (clip.trace.startsolid)

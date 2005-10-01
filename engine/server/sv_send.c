@@ -989,13 +989,13 @@ void SV_WriteClientdataToMessage (client_t *client, sizebuf_t *msg)
 	// every now and then, send an update so that extrapolation
 	// on client side doesn't stray too far off
 	if (ISQWCLIENT(client))
-	if (client->zquake_extensions & Z_EXT_SERVERTIME && sv.time - client->nextservertimeupdate > 0)
+	if (client->zquake_extensions & Z_EXT_SERVERTIME && sv.physicstime - client->nextservertimeupdate > 0)
 	{
 		MSG_WriteByte (msg, svc_updatestatlong);
 		MSG_WriteByte (msg, STAT_TIME);
-		MSG_WriteLong (msg, (int)(sv.time * 1000));
+		MSG_WriteLong (msg, (int)(sv.physicstime * 1000));
 
-		client->nextservertimeupdate = sv.time+10;
+		client->nextservertimeupdate = sv.physicstime;//+10;
 	}
 
 #ifdef NQPROT

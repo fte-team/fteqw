@@ -683,34 +683,41 @@ typedef struct entity_state_s
 	int		bitmask;		// for dp ents, so lost state can be repeated in replacement packets.
 
 	int		flags;			// nolerp, etc
+
+	int		effects;
+
 	vec3_t	origin;
-	vec3_t	old_origin;		//q2
 	vec3_t	angles;
-	unsigned short		modelindex2;	//q2
+#if defined(Q2CLIENT) || defined(Q2SERVER)
+	int		renderfx;		//q2
+	vec3_t	old_origin;		//q2/q3
 	qbyte		modelindex3;	//q2
 	qbyte		modelindex4;	//q2
-	unsigned short		frame;
-	unsigned short		colormap;
-	unsigned short		skinnum;
-	int		effects;
-	int		renderfx;		//q2
 	qbyte		sound;			//q2
 	qbyte		event;			//q2
 
+	unsigned short		modelindex2;	//q2
+#endif
+	unsigned short		frame;
+	unsigned short		colormap;
+	unsigned short		skinnum;
+
 	qbyte glowsize;
 	qbyte glowcolour;
-
 	qbyte	scale;
 	qbyte	trans;
+
 	char	fatness;
 	qbyte	hexen2flags;
 	qbyte	abslight;
 	qbyte	dpflags;
-	qbyte	solid;
 
-	unsigned short light[4];
+	qbyte	solid;
+	qbyte	colormod[3];
+
 	qbyte lightstyle;
 	qbyte lightpflags;
+	unsigned short light[4];
 
 	unsigned short tagentity;
 	unsigned short tagindex;
@@ -736,6 +743,8 @@ typedef struct usercmd_s
 	short	forwardmove, sidemove, upmove;
 	qbyte	impulse;
 	qbyte lightlevel;
+
+	//freestyle
 	qbyte weapon;
 	int servertime;
 } usercmd_t;

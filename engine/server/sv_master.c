@@ -71,15 +71,15 @@ typedef struct svm_server_s {
 } svm_server_t;
 
 typedef struct {
+	int socketudp;
 	float time;
 	int port;
-	int socketudp;
 
 	svm_server_t *firstserver;
 	int numservers;
 } masterserver_t;
 
-masterserver_t svm;
+masterserver_t svm = {INVALID_SOCKET};
 
 void SVM_RemoveOldServers(void)
 {
@@ -155,14 +155,17 @@ void SVM_Heartbeat(netadr_t *adr, int numclients, float validuntil)
 
 void SVM_Init(int port)
 {
-	if (!svm.socketudp)
+	if (svm.socketudp == INVALID_SOCKET)
 		svm.socketudp = UDP_OpenSocket(port, false);
 }
 
 void SVM_ShutDown (void)
 {
-	if (svm.socketudp)
+	if (svm.socketudp != INVALID_SOCKET)
+	{
 		UDP_CloseSocket(svm.socketudp);
+		svm.socketudp = INVALID_SOCKET;
+	}
 }
 
 void SVM_Think(int port)
@@ -187,11 +190,14 @@ void SVM_Think(int port)
 
 	addrlen = sizeof(addr);
 	net_message.cursize = recvfrom(svm.socketudp, net_message_buffer, sizeof(net_message_buffer)-1, 0, (struct sockaddr *)&addr, &addrlen);
-	net_message.data[net_message.cursize] = '\0';	//null term all strings.
-	if (net_message.cursize < 0)
+	if (net_message.cursize <= 0)
 	{
+		addrlen = WSAGetLastError();
+
+
 		return;
 	}
+	net_message.data[net_message.cursize] = '\0';	//null term all strings.
 	SockadrToNetadr(&addr, &netaddr);
 	svm.time = Sys_DoubleTime();
 

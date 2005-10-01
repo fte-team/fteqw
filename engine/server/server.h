@@ -784,6 +784,7 @@ typedef struct
 #define	FL_PARTIALGROUND		1024	// not all corners are valid
 #define	FL_WATERJUMP			2048	// player jumping out of water
 
+#define FL_FINDABLE_NONSOLID	16384	//a cpqwsv feature
 #define FL_MOVECHAIN_ANGLE		32768    // when in a move chain, will update the angle
 #define FL_CLASS_DEPENDENT		2097152
 

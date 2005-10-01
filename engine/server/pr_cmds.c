@@ -59,6 +59,9 @@ cvar_t pr_compatabilitytest = {"pr_compatabilitytest", "0", NULL, CVAR_LATCH};
 
 cvar_t pr_ssqc_coreonerror = {"pr_coreonerror", "1"};
 
+cvar_t pr_tempstringcount = {"pr_tempstringcount", "16"};
+cvar_t pr_tempstringsize = {"pr_tempstringsize", "4096"};
+
 cvar_t sv_addon[MAXADDONS];
 char cvargroup_progs[] = "Progs variables";
 
@@ -886,6 +889,9 @@ void PR_Init(void)
 	Cvar_Register (&pr_overridebuiltins, cvargroup_progs);
 
 	Cvar_Register (&pr_ssqc_coreonerror, cvargroup_progs);
+
+	Cvar_Register (&pr_tempstringcount, cvargroup_progs);
+	Cvar_Register (&pr_tempstringsize, cvargroup_progs);
 }
 
 void Q_InitProgs(void)
@@ -1463,12 +1469,11 @@ char *PF_VarString (progfuncs_t *prinst, int	first, globalvars_t *pr_globals)
 		s = PR_GetStringOfs(prinst, OFS_PARM0+i*3);
 		if (s)
 		{
-			strcat (out, Translate(s));
+			s = Translate(s);
+			if (strlen(out)+strlen(s)+1 >= sizeof(buffer[0]))
+				SV_Error("VarString (builtin call ending with strings) exceeded maximum string length of %i chars", sizeof(buffer[0]));
 
-//#ifdef PARANOID
-			if (strlen(out)+1 >= sizeof(buffer[0]))
-				Sys_Error("VarString (builtin call ending with strings) exceeded maximum string length of %i chars", sizeof(buffer[0]));
-//#endif
+			strcat (out, s);
 		}
 	}
 	return out;
@@ -3268,7 +3273,7 @@ void PF_findradius (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 		ent = EDICT_NUM(svprogfuncs, i);
 		if (ent->isfree)
 			continue;
-		if (ent->v->solid == SOLID_NOT)
+		if (ent->v->solid == SOLID_NOT && (progstype != PROG_QW || !((int)ent->v->flags & FL_FINDABLE_NONSOLID)))
 			continue;
 		for (j=0 ; j<3 ; j++)
 			eorg[j] = org[j] - (ent->v->origin[j] + (ent->v->mins[j] + ent->v->maxs[j])*0.5);
@@ -3338,8 +3343,8 @@ void PF_printv (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 	Con_Printf (PR_GetStringOfs(prinst, OFS_PARM0),temp);
 }
 
-#define MAX_TEMPSTRS	16
-#define MAXTEMPBUFFERLEN	4096
+#define MAX_TEMPSTRS	((int)pr_tempstringcount.value)
+#define MAXTEMPBUFFERLEN	((int)pr_tempstringsize.value)
 char *PF_TempStr(progfuncs_t *prinst)
 {
 	if (prinst->tempstringnum == MAX_TEMPSTRS)
@@ -3356,6 +3361,13 @@ string_t PR_TempString(progfuncs_t *prinst, char *str)
 
 void PF_InitTempStrings(progfuncs_t *prinst)
 {
+	if (pr_tempstringcount.value < 2)
+		pr_tempstringcount.value = 2;
+	if (pr_tempstringsize.value < 256)
+		pr_tempstringsize.value = 256;
+	pr_tempstringcount.flags |= CVAR_NOSET;
+	pr_tempstringsize.flags |= CVAR_NOSET;
+
 	prinst->tempstringbase = prinst->AddString(prinst, "", MAXTEMPBUFFERLEN*MAX_TEMPSTRS);
 	prinst->tempstringnum = 0;
 }
@@ -3827,11 +3839,14 @@ void PF_lightstyle (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 			continue;
 		if ( client->state == cs_spawned )
 		{
+			if (style >= MAX_STANDARDLIGHTSTYLES)
+				if (!*val)
+					continue;
 #ifdef PEXT_LIGHTSTYLECOL
 			if (client->fteprotocolextensions & PEXT_LIGHTSTYLECOL && col!=7)
 			{
 				ClientReliableWrite_Begin (client, svc_lightstylecol, strlen(val)+4);
-				ClientReliableWrite_Char (client, style);
+				ClientReliableWrite_Byte (client, style);
 				ClientReliableWrite_Char (client, col);
 				ClientReliableWrite_String (client, val);
 			}
@@ -3839,7 +3854,7 @@ void PF_lightstyle (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 			{
 #endif
 				ClientReliableWrite_Begin (client, svc_lightstyle, strlen(val)+3);
-				ClientReliableWrite_Char (client, style);
+				ClientReliableWrite_Byte (client, style);
 				ClientReliableWrite_String (client, val);
 #ifdef PEXT_LIGHTSTYLECOL
 			}
@@ -5475,6 +5490,8 @@ static int chrconv_number(int i, int base, int conv)
 	switch (conv)
 	{
 	default:
+	case 5:
+	case 6:
 	case 0:
 		break;
 	case 1:
@@ -5509,7 +5526,7 @@ static int chrconv_punct(int i, int base, int conv)
 	}
 	return i + base;
 }
-static int chrchar_alpha(int i, int basec, int baset, int convc, int convt)
+static int chrchar_alpha(int i, int basec, int baset, int convc, int convt, int charnum)
 {
 	//convert case and colour seperatly...
 
@@ -5524,6 +5541,11 @@ static int chrchar_alpha(int i, int basec, int baset, int convc, int convt)
 		break;
 	case 2:
 		baset = 128;
+		break;
+
+	case 5:
+	case 6:
+		baset = 128*((charnum&1) == (convt-5));
 		break;
 	}
 
@@ -5570,13 +5592,13 @@ void PF_strconv (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 			*result = chrconv_number(*string, '0'-30, redchars);
 
 		else if (*string >= 'a' && *string <= 'z')	//normal numbers...
-			*result = chrchar_alpha(*string, 0, 'a', ccase, redchars);
+			*result = chrchar_alpha(*string, 'a', 0, ccase, redchars, i);
 		else if (*string >= 'A' && *string <= 'Z')	//normal numbers...
-			*result = chrchar_alpha(*string, 0, 'A', ccase, redchars);
+			*result = chrchar_alpha(*string, 'A', 0, ccase, redchars, i);
 		else if (*string >= 'a'+128 && *string <= 'z'+128)	//normal numbers...
-			*result = chrchar_alpha(*string, 128, 'a', ccase, redchars);
+			*result = chrchar_alpha(*string, 'a', 128, ccase, redchars, i);
 		else if (*string >= 'A'+128 && *string <= 'Z'+128)	//normal numbers...
-			*result = chrchar_alpha(*string, 128, 'A', ccase, redchars);
+			*result = chrchar_alpha(*string, 'A', 128, ccase, redchars, i);
 
 		else if ((*string & 127) < 16 || !redalpha)	//special chars..
 			*result = *string;
@@ -6169,6 +6191,7 @@ lh_extension_t QSG_Extensions[] = {
 #ifdef SVCHAT
 	{"FTE_NPCCHAT",						1,	NULL, {"chat"}},	//server looks at chat files. It automagically branches through calling qc functions as requested.
 #endif
+	{"FTE_QC_CHECKPVS",					1,	NULL, {"checkpvs"}},
 	{"FTE_QC_MATCHCLIENTNAME",				1,	NULL, {"matchclient"}},
 	{"FTE_SOLID_LADDER"},	//part of a worthy hl implementation. Allows a simple trigger to remove effects of gravity (solid 20)
 
@@ -6530,7 +6553,7 @@ void PF_strpad (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 
 		Q_strncpyz(dest, src, MAXTEMPBUFFERLEN);
 		dest+=strlen(dest);
-		while(pad)
+		while(pad-->0)
 			*dest++ = ' ';
 		*dest = '\0';
 	}
@@ -8821,6 +8844,120 @@ void PF_runclientphys(progfuncs_t *prinst, struct globalvars_s *pr_globals)
 	PM_PlayerMove(sv.gamespeed);
 }
 
+//DP_QC_GETSURFACE
+// #434 float(entity e, float s) getsurfacenumpoints (DP_QC_GETSURFACE)
+void PF_getsurfacenumpoints(progfuncs_t *prinst, struct globalvars_s *pr_globals)
+{
+	unsigned int surfnum;
+	model_t *model;
+	int modelindex;
+	edict_t *ent;
+
+	ent = G_EDICT(prinst, OFS_PARM0);
+	surfnum = G_FLOAT(OFS_PARM1);
+
+	modelindex = ent->v->modelindex;
+	if (modelindex > 0 && modelindex < MAX_MODELS)
+		model = sv.models[(int)ent->v->modelindex];
+	else
+		model = NULL;
+
+	if (!model || surfnum >= model->numsurfaces)
+		G_FLOAT(OFS_RETURN) = 0;
+	else
+		G_FLOAT(OFS_RETURN) = model->surfaces[surfnum].mesh->numvertexes;
+}
+// #435 vector(entity e, float s, float n) getsurfacepoint (DP_QC_GETSURFACE)
+void PF_getsurfacepoint(progfuncs_t *prinst, struct globalvars_s *pr_globals)
+{
+	unsigned int surfnum, pointnum;
+	model_t *model;
+	int modelindex;
+	edict_t *ent;
+
+	ent = G_EDICT(prinst, OFS_PARM0);
+	surfnum = G_FLOAT(OFS_PARM1);
+	pointnum = G_FLOAT(OFS_PARM2);
+
+	modelindex = ent->v->modelindex;
+	if (modelindex > 0 && modelindex < MAX_MODELS)
+		model = sv.models[(int)ent->v->modelindex];
+	else
+		model = NULL;
+
+	if (!model || surfnum >= model->numsurfaces)
+	{
+		G_FLOAT(OFS_RETURN+0) = 0;
+		G_FLOAT(OFS_RETURN+1) = 0;
+		G_FLOAT(OFS_RETURN+2) = 0;
+	}
+	else
+	{
+		G_FLOAT(OFS_RETURN+0) = model->surfaces[surfnum].mesh->xyz_array[pointnum][2];
+		G_FLOAT(OFS_RETURN+1) = model->surfaces[surfnum].mesh->xyz_array[pointnum][2];
+		G_FLOAT(OFS_RETURN+2) = model->surfaces[surfnum].mesh->xyz_array[pointnum][2];
+	}
+}
+// #436 vector(entity e, float s) getsurfacenormal (DP_QC_GETSURFACE)
+void PF_getsurfacenormal(progfuncs_t *prinst, struct globalvars_s *pr_globals)
+{
+		unsigned int surfnum, pointnum;
+	model_t *model;
+	int modelindex;
+	edict_t *ent;
+
+	ent = G_EDICT(prinst, OFS_PARM0);
+	surfnum = G_FLOAT(OFS_PARM1);
+	pointnum = G_FLOAT(OFS_PARM2);
+
+	modelindex = ent->v->modelindex;
+	if (modelindex > 0 && modelindex < MAX_MODELS)
+		model = sv.models[(int)ent->v->modelindex];
+	else
+		model = NULL;
+
+	if (!model || surfnum >= model->numsurfaces)
+	{
+		G_FLOAT(OFS_RETURN+0) = 0;
+		G_FLOAT(OFS_RETURN+1) = 0;
+		G_FLOAT(OFS_RETURN+2) = 0;
+	}
+	else
+	{
+		G_FLOAT(OFS_RETURN+0) = model->surfaces[surfnum].plane->normal[0];
+		G_FLOAT(OFS_RETURN+1) = model->surfaces[surfnum].plane->normal[1];
+		G_FLOAT(OFS_RETURN+2) = model->surfaces[surfnum].plane->normal[2];
+		if (model->surfaces[surfnum].flags & SURF_PLANEBACK)
+			VectorInverse(G_VECTOR(OFS_RETURN));
+	}
+}
+// #437 string(entity e, float s) getsurfacetexture (DP_QC_GETSURFACE)
+void PF_getsurfacetexture(progfuncs_t *prinst, struct globalvars_s *pr_globals)
+{
+}
+// #438 float(entity e, vector p) getsurfacenearpoint (DP_QC_GETSURFACE)
+void PF_getsurfacenearpoint(progfuncs_t *prinst, struct globalvars_s *pr_globals)
+{
+}
+// #439 vector(entity e, float s, vector p) getsurfaceclippedpoint (DP_QC_GETSURFACE)
+void PF_getsurfaceclippedpoint(progfuncs_t *prinst, struct globalvars_s *pr_globals)
+{
+}
+
+//#240 float(vector viewpos, entity viewee) checkpvs (FTE_QC_CHECKPVS)
+//note: this requires a correctly setorigined entity.
+void PF_checkpvs(progfuncs_t *prinst, struct globalvars_s *pr_globals)
+{
+	float *viewpos = G_VECTOR(OFS_PARM0);
+	edict_t *ent = G_EDICT(prinst, OFS_PARM1);
+
+	//FIXME: Make all alternatives of FatPVS not recalulate the pvs.
+	//and yeah, this is overkill what with the whole fat thing and all.
+	sv.worldmodel->funcs.FatPVS(sv.worldmodel, viewpos, false);
+
+	G_FLOAT(OFS_RETURN) = sv.worldmodel->funcs.EdictInFatPVS(sv.worldmodel, ent);
+}
+
 //entity(string match [, float matchnum]) matchclient = #241;
 void PF_matchclient(progfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
@@ -9155,6 +9292,7 @@ BuiltinList_t BuiltinList[] = {				//nq	qw		h2		ebfs
 	{"isbackbuffered",	PF_isbackbuffered,	0,		0,		0,		234},
 	{"te_bloodqw",		PF_te_bloodqw,		0,		0,		0,		239},
 
+	{"checkpvs",		PF_checkpvs,		0,		0,		0,		240},
 	{"matchclientname",		PF_matchclient,		0,		0,		0,		241},
 
 //end fte extras
@@ -9213,14 +9351,14 @@ BuiltinList_t BuiltinList[] = {				//nq	qw		h2		ebfs
 	{"vectorvectors",	PF_vectorvectors,	0,		0,		0,		432},// #432 void(vector dir) vectorvectors (DP_QC_VECTORVECTORS)
 
 	{"te_plasmaburn",	PF_te_plasmaburn,	0,		0,		0,		433},// #433 void(vector org) te_plasmaburn (DP_TE_PLASMABURN)
-/*
+
 	{"getsurfacenumpoints",PF_getsurfacenumpoints,0,0,		0,		434},// #434 float(entity e, float s) getsurfacenumpoints (DP_QC_GETSURFACE)
 	{"getsurfacepoint",PF_getsurfacepoint,	0,		0,		0,		435},// #435 vector(entity e, float s, float n) getsurfacepoint (DP_QC_GETSURFACE)
 	{"getsurfacenormal",PF_getsurfacenormal,0,		0,		0,		436},// #436 vector(entity e, float s) getsurfacenormal (DP_QC_GETSURFACE)
-	{"getsurfacetexture",PF_getsurfacetexture,0,	0,		0,		437},// #437 string(entity e, float s) getsurfacetexture (DP_QC_GETSURFACE)
+//	{"getsurfacetexture",PF_getsurfacetexture,0,	0,		0,		437},// #437 string(entity e, float s) getsurfacetexture (DP_QC_GETSURFACE)
 	{"getsurfacenearpoint",PF_getsurfacenearpoint,0,0,		0,		438},// #438 float(entity e, vector p) getsurfacenearpoint (DP_QC_GETSURFACE)
 	{"getsurfaceclippedpoint",PF_getsurfaceclippedpoint,0,0,0,		439},// #439 vector(entity e, float s, vector p) getsurfaceclippedpoint (DP_QC_GETSURFACE)
-*/
+
 //KRIMZON_SV_PARSECLIENTCOMMAND
 	{"clientcommand",	PF_clientcommand,	0,		0,		0,		440},// #440 void(entity e, string s) clientcommand (KRIMZON_SV_PARSECLIENTCOMMAND)
 	{"tokenize",		PF_Tokenize,		0,		0,		0,		441},// #441 float(string s) tokenize (KRIMZON_SV_PARSECLIENTCOMMAND)

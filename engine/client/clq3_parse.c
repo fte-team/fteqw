@@ -513,7 +513,7 @@ void CLQ3_ParseGameState(void)
 //
 // wipe the client_state_t struct
 //
-	memset(&cl, 0, sizeof(cl));
+	CL_ClearState();
 
 	cl.minpitch = -90;
 	cl.maxpitch = 90;

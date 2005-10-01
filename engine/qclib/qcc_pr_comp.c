@@ -4992,13 +4992,21 @@ void QCC_PR_ParseStatement (void)
 
 		if (e == &def_ret)
 		{	//copy it out, so our hack just below doesn't crash us
-			if (e->type->type == ev_vector)
+/*			if (e->type->type == ev_vector)
 				e = QCC_PR_Statement(pr_opcodes+OP_STORE_V, e, QCC_GetTemp(type_vector), NULL);
 			else
 				e = QCC_PR_Statement(pr_opcodes+OP_STORE_F, e, QCC_GetTemp(type_float), NULL);
+
+			if (e == &def_ret)	//this shouldn't be happening
+				QCC_Error(ERR_INTERNAL, "internal error: switch: e == &def_ret");
+*/
+			et = NULL;
 		}
-		et = e->temp;
-		e->temp = NULL;	//so noone frees it until we finish this loop
+		else
+		{
+			et = e->temp;
+			e->temp = NULL;	//so noone frees it until we finish this loop
+		}
 
 		//expands
 
@@ -5216,8 +5224,11 @@ void QCC_PR_ParseStatement (void)
 			num_breaks = breaks;
 		}
 
-		e->temp = et;
-		QCC_FreeTemp(e);
+		if (et)
+		{
+			e->temp = et;
+			QCC_FreeTemp(e);
+		}
 		return;
 	}
 

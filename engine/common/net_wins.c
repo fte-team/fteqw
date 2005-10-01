@@ -836,8 +836,8 @@ int UDP_OpenSocket (int port, qboolean bcast)
 	int i;
 int maxport = port + 100;
 
-	if ((newsocket = socket (PF_INET, SOCK_DGRAM, IPPROTO_UDP)) == -1)
-		Sys_Error ("UDP_OpenSocket: socket: %s", strerror(qerrno));
+	if ((newsocket = socket (PF_INET, SOCK_DGRAM, IPPROTO_UDP)) == INVALID_SOCKET)
+		return INVALID_SOCKET;
 
 	if (ioctlsocket (newsocket, FIONBIO, &_true) == -1)
 		Sys_Error ("UDP_OpenSocket: ioctl FIONBIO: %s", strerror(qerrno));

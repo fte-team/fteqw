@@ -197,6 +197,8 @@ void VARGS Z_Free (void *c)
 	if (nz == zone_head)
 		zone_head = nz->next;
 
+//	Con_Printf("Free of %i bytes\n", nz->size);
+
 	free(nz);
 }
 
@@ -279,7 +281,9 @@ void *Z_BaseTagMalloc (int size, int tag, qboolean clear)
 	zone_t *nt;
 
 //	Z_CheckSentinals();
-	
+//Con_Printf("Malloc of %i bytes\n", size);
+//if (size>20)
+//Con_Printf("Big malloc\n");
 	if (size <= 0)
 		Sys_Error ("Z_Malloc: size %i", size);
 

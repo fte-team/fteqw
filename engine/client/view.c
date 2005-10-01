@@ -1103,8 +1103,6 @@ void V_CalcRefdef (int pnum)
 		return;
 #endif
 
-	V_DriftPitch (pnum);
-
 // view is the weapon model (only visible from inside body)
 	view = &cl.viewent[pnum];
 
@@ -1341,6 +1339,7 @@ void V_RenderPlayerViews(int plnum)
 	}
 	else
 	{
+		V_DriftPitch (plnum);
 		V_CalcRefdef (plnum);
 	}
 

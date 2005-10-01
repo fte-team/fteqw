@@ -1927,7 +1927,7 @@ skipwhite:
 // parse a regular word
 	do
 	{
-		if (len >= sizeof(com_token)-1)
+		if (len >= TOKENSIZE-1)
 			break;
 		com_token[len] = c;
 		data++;
@@ -2395,6 +2395,55 @@ char *Info_ValueForKey (char *s, const char *key)
 		{
 			*value[valueindex]='\0';
 			return value[valueindex];
+		}
+		s++;
+	}
+}
+
+char *Info_KeyForNumber (char *s, int num)
+{
+	static char	pkey[1024];
+	char	*o;
+	
+	if (*s == '\\')
+		s++;
+	while (1)
+	{
+		o = pkey;
+		while (*s != '\\')
+		{
+			if (!*s)
+			{
+				*pkey='\0';
+				return pkey;
+			}
+			*o++ = *s++;
+			if (o+2 >= pkey+sizeof(pkey))	//hrm. hackers at work..
+			{
+				*pkey='\0';
+				return pkey;
+			}
+		}
+		*o = 0;
+		s++;
+
+		while (*s != '\\' && *s)
+		{
+			if (!*s)
+			{
+				*pkey='\0';
+				return pkey;
+			}
+			s++;
+		}
+
+		if (!num--)
+			return pkey;	//found the right one
+
+		if (!*s)
+		{
+			*pkey='\0';
+			return pkey;
 		}
 		s++;
 	}

@@ -1608,6 +1608,10 @@ void CL_LinkPacketEntities (void)
 
 		cl_numvisedicts++;
 
+#ifdef Q3SHADERS
+		ent->forcedshader = NULL;
+#endif
+
 		ent->visframe = 0;
 
 		ent->keynum = s1->number;
@@ -2399,6 +2403,10 @@ void CL_LinkPlayers (void)
 		cl_numvisedicts++;
 		ent->keynum = j+1;
 		ent->flags = 0;
+
+#ifdef Q3SHADERS
+		ent->forcedshader = NULL;
+#endif
 
 		ent->model = cl.model_precache[state->modelindex];
 		ent->skinnum = state->skinnum;

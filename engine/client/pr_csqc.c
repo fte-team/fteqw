@@ -767,13 +767,8 @@ static qboolean CopyCSQCEdictToEntity(csqcedict_t *in, entity_t *out)
 	model_t *model;
 
 	i = in->v->modelindex;
-	if (i == 0)
-		return false;
-	else if (i > 0 && i < MAX_MODELS)
-		model = cl.model_precache[i];
-	else if (i < 0 && i > -MAX_CSQCMODELS)
-		model = cl.model_csqcprecache[-i];
-	else
+	model = CSQC_GetModelForIndex(in->v->modelindex);
+	if (!model)
 		return false; //there might be other ent types later as an extension that stop this.
 
 	if (!model)
@@ -789,7 +784,7 @@ static qboolean CopyCSQCEdictToEntity(csqcedict_t *in, entity_t *out)
 	{
 		i = in->v->renderflags;
 		if (i & CSQCRF_VIEWMODEL)
-			out->flags |= Q2RF_DEPTHHACK;
+			out->flags |= Q2RF_DEPTHHACK|Q2RF_WEAPONMODEL;
 		if (i & CSQCRF_EXTERNALMODEL)
 			out->flags |= Q2RF_EXTERNALMODEL;
 		if (i & CSQCRF_DEPTHHACK)
@@ -810,6 +805,7 @@ static qboolean CopyCSQCEdictToEntity(csqcedict_t *in, entity_t *out)
 		VectorCopy(csqcg.forward, out->axis[0]);
 		VectorNegate(csqcg.right, out->axis[1]);
 		VectorCopy(csqcg.up, out->axis[2]);
+		out->scale = 1;
 	}
 	else
 	{
@@ -817,6 +813,11 @@ static qboolean CopyCSQCEdictToEntity(csqcedict_t *in, entity_t *out)
 		out->angles[0]*=-1;
 		AngleVectors(out->angles, out->axis[0], out->axis[1], out->axis[2]);
 		VectorInverse(out->axis[1]);
+
+		if (!in->v->scale)
+			out->scale = 1;
+		else
+			out->scale = in->v->scale;
 	}
 
 	out->frame1time = in->v->frame1time;
@@ -832,10 +833,7 @@ static qboolean CopyCSQCEdictToEntity(csqcedict_t *in, entity_t *out)
 		out->alpha = 1;
 	else
 		out->alpha = in->v->alpha;
-	if (!in->v->scale)
-		out->scale = 1;
-	else
-		out->scale = in->v->scale;
+
 	out->skinnum = in->v->skin;
 	out->fatness = in->v->fatness;
 #ifdef Q3SHADERS
@@ -1091,7 +1089,7 @@ typedef enum
 	VF_ANGLES_Y = 17,
 	VF_ANGLES_Z = 18,
 	VF_DRAWWORLD = 19,
-	VF_NOENGINESBAR = 20,
+	VF_ENGINESBAR = 20,
 	VF_DRAWCROSSHAIR = 21,
 	VF_PERSPECTIVE = 200
 } viewflags;
@@ -1171,8 +1169,8 @@ static void PF_R_SetViewFlag(progfuncs_t *prinst, struct globalvars_s *pr_global
 	case VF_DRAWWORLD:
 		r_refdef.flags = r_refdef.flags&~Q2RDF_NOWORLDMODEL | (*p?0:Q2RDF_NOWORLDMODEL);
 		break;
-	case VF_NOENGINESBAR:
-		csqc_drawsbar = !*p;
+	case VF_ENGINESBAR:
+		csqc_drawsbar = *p;
 		break;
 	case VF_DRAWCROSSHAIR:
 		csqc_addcrosshair = *p;
@@ -1701,7 +1699,7 @@ static void PF_cs_getinputstate (progfuncs_t *prinst, struct globalvars_s *pr_gl
 	usercmd_t *cmd;
 
 	f = G_FLOAT(OFS_PARM0);
-	if (f > cls.netchan.outgoing_sequence)
+	if (f >= cls.netchan.outgoing_sequence)
 	{
 		G_FLOAT(OFS_RETURN) = false;
 		return;
@@ -1719,9 +1717,9 @@ static void PF_cs_getinputstate (progfuncs_t *prinst, struct globalvars_s *pr_gl
 		*csqcg.input_timelength = cmd->msec/1000.0f;
 	if (csqcg.input_angles)
 	{
-		csqcg.input_angles[0] = SHORT2ANGLE(cmd->angles[0]);
-		csqcg.input_angles[1] = SHORT2ANGLE(cmd->angles[1]);
-		csqcg.input_angles[2] = SHORT2ANGLE(cmd->angles[2]);
+		csqcg.input_angles[0] = SHORT2ANGLE(cmd->angles[0]+0.5);
+		csqcg.input_angles[1] = SHORT2ANGLE(cmd->angles[1]+0.5);
+		csqcg.input_angles[2] = SHORT2ANGLE(cmd->angles[2]+0.5);
 	}
 	if (csqcg.input_movevalues)
 	{
@@ -1738,7 +1736,7 @@ static void PF_cs_getinputstate (progfuncs_t *prinst, struct globalvars_s *pr_gl
 //read lots of globals, run the default player physics, write lots of globals.
 static void PF_cs_runplayerphysics (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
-	int msecs;
+	unsigned int msecs;
 	extern vec3_t	player_mins;
 	extern vec3_t	player_maxs;
 
@@ -1811,9 +1809,12 @@ typedef struct {
 	pmove.cmd.angles[0] = ANGLE2SHORT(csqcg.input_angles[0]);
 	pmove.cmd.angles[1] = ANGLE2SHORT(csqcg.input_angles[1]);
 	pmove.cmd.angles[2] = ANGLE2SHORT(csqcg.input_angles[2]);
+	VectorCopy(csqcg.input_angles, pmove.angles);
+
 	pmove.cmd.forwardmove = csqcg.input_movevalues[0];
 	pmove.cmd.sidemove = csqcg.input_movevalues[1];
 	pmove.cmd.upmove = csqcg.input_movevalues[2];
+	pmove.cmd.buttons = *csqcg.input_buttons;
 
 	VectorCopy(csqcg.pmove_org, pmove.origin);
 	VectorCopy(csqcg.pmove_vel, pmove.velocity);
@@ -1821,8 +1822,11 @@ typedef struct {
 	VectorCopy(csqcg.pmove_mins, player_mins);
 	pmove.hullnum = 1;
 
+	CL_SetSolidEntities();
 
-	while(msecs)
+
+
+	while(msecs)	//break up longer commands
 	{
 		pmove.cmd.msec = msecs;
 		if (pmove.cmd.msec > 50)
@@ -1848,6 +1852,71 @@ static void CheckSendPings(void)
 	}
 }
 
+static void PF_cs_serverkey (progfuncs_t *prinst, struct globalvars_s *pr_globals)
+{
+	char *keyname = PF_VarString(prinst, 0, pr_globals);
+	char *ret;
+
+	if (!strcmp(keyname, "ip"))
+		ret = NET_AdrToString(cls.netchan.remote_address);
+	else if (!strcmp(keyname, "protocol"))
+	{	//using this is pretty acedemic, really. Not particuarly portable.
+		switch (cls.protocol)
+		{	//a tokenizable string
+			//first is the base game qw/nq
+			//second is branch (custom engine name)
+			//third is protocol version.
+		default:
+		case CP_UNKNOWN:
+			ret = "Unknown";
+			break;
+		case CP_QUAKEWORLD:
+			if (cls.fteprotocolextensions)
+				ret = "QuakeWorld FTE";
+			else if (cls.z_ext)
+				ret = "QuakeWorld ZQuake";
+			else
+				ret = "QuakeWorld";
+			break;
+		case CP_NETQUAKE:
+			switch (nq_dp_protocol)
+			{
+			default:
+				ret = "NetQuake";
+				break;
+			case 5:
+				ret = "NetQuake DarkPlaces 5";
+				break;
+			case 6:
+				ret = "NetQuake DarkPlaces 6";
+				break;
+			case 7:
+				ret = "NetQuake DarkPlaces 7";
+				break;
+			}
+			break;
+		case CP_QUAKE2:
+			ret = "Quake2";
+			break;
+		case CP_QUAKE3:
+			ret = "Quake3";
+			break;
+		case CP_PLUGIN:
+			ret = "External";
+			break;
+		}
+	}
+	else
+	{
+		ret = Info_ValueForKey(cl.serverinfo, keyname);
+	}
+
+	if (*ret)
+		RETURN_SSTRING(ret);
+	else
+		G_INT(OFS_RETURN) = 0;
+}
+
 //string(float pnum, string keyname)
 static void PF_cs_getplayerkey (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
@@ -1870,7 +1939,7 @@ static void PF_cs_getplayerkey (progfuncs_t *prinst, struct globalvars_s *pr_glo
 	if (pnum < 0 || pnum >= MAX_CLIENTS)
 		ret = "";
 	else if (!*cl.players[pnum].userinfo)
-		ret = "";
+		ret = "";	//player isn't on the server.
 	else if (!strcmp(keyname, "ping"))
 	{
 		CheckSendPings();
@@ -2551,10 +2620,12 @@ static void PF_cl_getlight (progfuncs_t *prinst, struct globalvars_s *pr_globals
 	VectorMA(ambient, 0.5, diffuse, G_VECTOR(OFS_RETURN));
 }
 
+/*
 static void PF_Stub (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
 	Con_Printf("Obsolete csqc builtin (%i) executed\n", prinst->lastcalledbuiltinnumber);
 }
+*/
 
 void PF_rotatevectorsbytag (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
@@ -2586,6 +2657,17 @@ void PF_rotatevectorsbytag (progfuncs_t *prinst, struct globalvars_s *pr_globals
 			src[7] = 0;
 			VectorCopy(csqcg.up, src+8);
 			src[11] = 0;
+
+			if (ent->v->scale)
+			{
+				for (i = 0; i < 12; i+=4)
+				{
+					transforms[i+0] *= ent->v->scale;
+					transforms[i+1] *= ent->v->scale;
+					transforms[i+2] *= ent->v->scale;
+					transforms[i+3] *= ent->v->scale;
+				}
+			}
 
 			R_ConcatRotationsPad((void*)transforms, (void*)src, (void*)dest);
 
@@ -3296,7 +3378,7 @@ PF_cs_setlistener, 				// #351 void(vector origin, vector forward, vector right,
 PF_cs_registercommand,			// #352 void(string cmdname) registercommand (EXT_CSQC)
 PF_WasFreed,					// #353 float(entity ent) wasfreed (EXT_CSQC) (should be availabe on server too)
 
-PF_Fixme,						// #354
+PF_cs_serverkey,				// #354 string(string key) serverkey;
 PF_Fixme,						// #355
 PF_Fixme,						// #356
 PF_Fixme,						// #357
@@ -3535,7 +3617,6 @@ int CSQC_PRFileSize (char *path)
 		}
 
 		return com_filesize;
-
 	}
 
 	return COM_FileSize(path);
@@ -3675,6 +3756,8 @@ qboolean CSQC_DrawView(void)
 		return false;
 
 	r_secondaryview = 0;
+
+	CL_CalcClientTime();
 
 	DropPunchAngle (0);
 	if (cl.worldmodel)
@@ -3837,6 +3920,9 @@ void CSQC_ParseEntities(void)
 
 	if (csqcg.time)
 		*csqcg.time = Sys_DoubleTime();
+
+	if (csqcg.clientcommandframe)
+		*csqcg.clientcommandframe = cls.netchan.outgoing_sequence;
 	if (csqcg.servercommandframe)
 		*csqcg.servercommandframe = cls.netchan.incoming_sequence;
 

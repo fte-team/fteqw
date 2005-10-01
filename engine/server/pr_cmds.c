@@ -5526,6 +5526,7 @@ static int chrconv_punct(int i, int base, int conv)
 	}
 	return i + base;
 }
+
 static int chrchar_alpha(int i, int basec, int baset, int convc, int convt, int charnum)
 {
 	//convert case and colour seperatly...
@@ -5568,17 +5569,16 @@ static int chrchar_alpha(int i, int basec, int baset, int convc, int convt, int 
 void PF_strconv (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
 	int ccase = G_FLOAT(OFS_PARM0);	//0 same, 1 lower, 2 upper
-	int redalpha = G_FLOAT(OFS_PARM1);	//0 same, 1 white, 2 red
-	int redchars = G_FLOAT(OFS_PARM2);	//0 same, 1 white, 2 red, 3 redspecial, 4 whitespecial
+	int redalpha = G_FLOAT(OFS_PARM1);	//0 same, 1 white, 2 red,  5 alternate, 6 alternate-alternate
+	int redchars = G_FLOAT(OFS_PARM2);	//0 same, 1 white, 2 red, 3 redspecial, 4 whitespecial, 5 alternate, 6 alternate-alternate
 	unsigned char *string = PF_VarString(prinst, 3, pr_globals);
 	int len = strlen(string);
 	int i;
 	unsigned char *result = PF_TempStr(prinst);
+	unsigned char *resbuf = result;
 
 	if (len >= MAXTEMPBUFFERLEN)
 		len = MAXTEMPBUFFERLEN-1;
-
-	RETURN_SSTRING(((char*)result));
 
 	for (i = 0; i < len; i++, string++, result++)	//do this backwards
 	{
@@ -5608,6 +5608,8 @@ void PF_strconv (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 			*result = chrconv_punct(*string, 128, redalpha);
 	}
 	*result = '\0';
+
+	RETURN_TSTRING(((char*)resbuf));
 }
 
 //FTE_STRINGS
@@ -6197,7 +6199,7 @@ lh_extension_t QSG_Extensions[] = {
 
 	//eperimental advanced strings functions.
 	//reuses the FRIK_FILE builtins (with substring extension)
-	{"FTE_STRINGS",						18, NULL, {"stof", "strlen","strcat","substring","stov","strzone","strunzone",
+	{"FTE_STRINGS",						16, NULL, {"stof", "strlen","strcat","substring","stov","strzone","strunzone",
 												   "strstrofs", "str2chr", "chr2str", "strconv", "infoadd", "infoget", "strncmp", "strcasecmp", "strncasecmp"}},
 
 	{"FTE_TE_STANDARDEFFECTBUILTINS",	16,	NULL, {"te_gunshot", "te_spike", "te_superspike", "te_explosion", "te_tarexplosion", "te_wizspike", "te_knightspike", "te_lavasplash",
@@ -6537,7 +6539,7 @@ void PF_strpad (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 			pad = 0;
 
 		Q_strncpyz(dest+pad, src, MAXTEMPBUFFERLEN-pad);
-		while(pad)
+		while(pad--)
 		{
 			pad--;
 			dest[pad] = ' ';
@@ -6553,6 +6555,7 @@ void PF_strpad (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 
 		Q_strncpyz(dest, src, MAXTEMPBUFFERLEN);
 		dest+=strlen(dest);
+
 		while(pad-->0)
 			*dest++ = ' ';
 		*dest = '\0';

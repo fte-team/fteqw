@@ -33,7 +33,7 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 
 
 
-
+static HANDLE hconsoleout;
 static HINSTANCE	game_library;
 
 /*
@@ -158,6 +158,7 @@ void PR_Deinit(void);
 
 cvar_t	sys_nostdout = {"sys_nostdout","0"};
 cvar_t	sys_maxtic = {"sys_maxtic", "100"};
+cvar_t	sys_colorconsole = {"sys_colorconsole", "1"};
 
 HWND consolewindowhandle;
 HWND hiddenwindowhandler;
@@ -339,10 +340,11 @@ double Sys_DoubleTime (void)
 Sys_ConsoleInput
 ================
 */
+
+char	coninput_text[256];
+int		coninput_len;
 char *Sys_ConsoleInput (void)
 {
-	static char	text[256];
-	static int		len;
 	int		c;
 
 	if (consolewindowhandle)
@@ -362,51 +364,267 @@ char *Sys_ConsoleInput (void)
 	while (_kbhit())
 	{
 		c = _getch();
-		putch (c);
 		if (c == '\r')
 		{
-			text[len] = 0;
+			coninput_text[coninput_len] = 0;
 			putch ('\n');
-			len = 0;
-			return text;
+			putch (']');
+			coninput_len = 0;
+			return coninput_text;
 		}
 		if (c == 8)
 		{
-			if (len)
+			if (coninput_len)
 			{
+				putch (c);
 				putch (' ');
 				putch (c);
-				len--;
-				text[len] = 0;
+				coninput_len--;
+				coninput_text[coninput_len] = 0;
 			}
 			continue;
 		}
-		text[len] = c;
-		len++;
-		text[len] = 0;
-		if (len == sizeof(text))
-			len = 0;
+		if (c == '\t')
+		{
+			int i;
+			char *s = Cmd_CompleteCommand(coninput_text, true, true, 0);
+			if(s)
+			{
+				for (i = 0; i < coninput_len; i++)
+					putch('\b');
+				for (i = 0; i < coninput_len; i++)
+					putch(' ');
+				for (i = 0; i < coninput_len; i++)
+					putch('\b');
+
+				strcpy(coninput_text, s);
+				coninput_len = strlen(coninput_text);
+				printf("%s", coninput_text);
+			}
+			continue;
+		}
+		putch (c);
+		coninput_text[coninput_len] = c;
+		coninput_len++;
+		coninput_text[coninput_len] = 0;
+		if (coninput_len == sizeof(coninput_text))
+			coninput_len = 0;
 	}
 
 	return NULL;
 }
 
+void ApplyColour(unsigned int chr)
+{
+	static int oldchar = 7*256;
+	chr = chr&~255;
+
+	if (oldchar == chr)
+		return;
+	oldchar = chr;
+
+	if (hconsoleout)
+	{
+		int val;
+		val = FOREGROUND_INTENSITY;
+		switch(chr&CON_COLOURMASK)
+		{
+		case 0*256:
+			val = FOREGROUND_INTENSITY|FOREGROUND_INTENSITY;	//don't allow secret messages (just hard to read)
+			break;
+		case 1*256:
+			val = FOREGROUND_RED|FOREGROUND_INTENSITY;
+			break;
+		case 2*256:
+			val = FOREGROUND_GREEN|FOREGROUND_INTENSITY;
+			break;
+		case 3*256:
+			val = FOREGROUND_RED|FOREGROUND_GREEN|FOREGROUND_INTENSITY;
+			break;
+		case 4*256:
+			val = FOREGROUND_BLUE|FOREGROUND_INTENSITY;
+			break;
+		case 5*256:
+			val = FOREGROUND_RED|FOREGROUND_BLUE|FOREGROUND_INTENSITY;
+			break;
+		case 6*256:
+			val = FOREGROUND_GREEN|FOREGROUND_BLUE|FOREGROUND_INTENSITY;
+			break;
+		case 7*256:
+			val = FOREGROUND_RED|FOREGROUND_GREEN|FOREGROUND_BLUE;
+			break;
+		}
+
+		SetConsoleTextAttribute(hconsoleout, val);
+	}
+#if 0
+	//does ansi work?
+	//no?
+	//windows sucks.
+	switch(chr&CON_COLOURMASK)
+	{
+	case 0*256:
+		printf("%c[%s;3%u;4%um",	(char)27,
+											(chr & CON_BLINKTEXT)? "01" : "00",
+											(unsigned int)(0),
+											(unsigned int)(0));		
+		break;
+	default:
+		printf("%c[%s;3%u;4%um",	(char)27,
+											(chr & CON_BLINKTEXT)? "01" : "00",
+											(unsigned int)(7),
+											(unsigned int)(0));		
+		break;
+	}
+#endif
+}
+
+void Sys_PrintColouredChar(unsigned int chr)
+{
+	ApplyColour(chr);
+
+	printf("%c", chr&255);
+}
 
 /*
 ================
 Sys_Printf
 ================
 */
+#define	MAXPRINTMSG	4096
 void Sys_Printf (char *fmt, ...)
 {
 	va_list		argptr;	
 
 	if (sys_nostdout.value)
 		return;
-		
-	va_start (argptr,fmt);
-	vprintf (fmt,argptr);
-	va_end (argptr);
+
+	if (1)
+	{
+		char		msg[MAXPRINTMSG];
+		unsigned char *t;
+
+		va_start (argptr,fmt);
+		_vsnprintf (msg,sizeof(msg)-1, fmt,argptr);
+		va_end (argptr);
+
+		{
+			int i;
+			
+			for (i = 0; i < coninput_len; i++)
+				putch('\b');
+			putch('\b');
+			for (i = 0; i < coninput_len; i++)
+				putch(' ');
+			putch(' ');
+			for (i = 0; i < coninput_len; i++)
+				putch('\b');
+			putch('\b');
+		}
+
+
+		for (t = (unsigned char*)msg; *t; t++)
+		{
+			if (*t >= 146 && *t < 156)
+				*t = *t - 146 + '0';
+			if (*t >= 0x12 && *t <= 0x1b)
+				*t = *t - 0x12 + '0';
+			if (*t == 143)
+				*t = '.';
+			if (*t == 157 || *t == 158 || *t == 159)
+				*t = '-';
+			if (*t >= 128)
+				*t -= 128;
+			if (*t == 16)
+				*t = '[';
+			if (*t == 17)
+				*t = ']';
+			if (*t == 0x1c)
+				*t = 249;
+		}
+
+		if (sys_colorconsole.value && hconsoleout)
+		{
+			int ext = COLOR_WHITE<<8;
+			int extstack[4];
+			int extstackdepth = 0;
+			unsigned char *str = (unsigned char*)msg;
+
+
+			while(*str)
+			{
+				if (*str == '^')
+				{
+					str++;
+					if (*str >= '0' && *str <= '7')
+					{
+						ext = (*str++-'0')*256 + (ext&~CON_COLOURMASK);	//change colour only.
+						continue;
+					}
+					else if (*str == 'a')
+					{
+						str++;
+						ext = (ext & ~CON_2NDCHARSETTEXT) + (CON_2NDCHARSETTEXT - (ext & CON_2NDCHARSETTEXT));
+						continue;
+					}
+					else if (*str == 'b')
+					{
+						str++;
+						ext = (ext & ~CON_BLINKTEXT) + (CON_BLINKTEXT - (ext & CON_BLINKTEXT));
+						continue;
+					}
+					else if (*str == 's')	//store on stack (it's great for names)
+					{
+						str++;
+						if (extstackdepth < sizeof(extstack)/sizeof(extstack[0]))
+						{
+							extstack[extstackdepth] = ext;
+							extstackdepth++;
+						}
+						continue;
+					}
+					else if (*str == 'r')	//restore from stack (it's great for names)
+					{
+						str++;
+						if (extstackdepth)
+						{
+							extstackdepth--;
+							ext = extstack[extstackdepth];
+						}
+						continue;
+					}
+					else if (*str == '^')
+					{
+						Sys_PrintColouredChar('^' + ext);
+						str++;
+					}
+					else
+					{
+						Sys_PrintColouredChar('^' + ext);
+						Sys_PrintColouredChar ((*str++) + ext);
+					}
+					continue;
+				}
+				Sys_PrintColouredChar ((*str++) + ext);
+			}
+
+			ApplyColour(7*256);
+		}
+		else
+			printf("%s", msg);
+
+
+		if (coninput_len)
+			printf("]%s", coninput_text);
+		else
+			putch(']');
+	}
+	else
+	{
+		va_start (argptr,fmt);
+		vprintf (fmt,argptr);
+		va_end (argptr);
+	}
 }
 
 /*
@@ -586,8 +804,11 @@ void Sys_Init (void)
 {
 	Cvar_Register (&sys_nostdout, "System controls");
 	Cvar_Register (&sys_maxtic, "System controls");
+	Cvar_Register (&sys_colorconsole, "System controls");
 
 	Cmd_AddCommand("hide", Sys_HideConsole);
+
+	hconsoleout = GetStdHandle(STD_OUTPUT_HANDLE);
 }
 
 /*

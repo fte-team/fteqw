@@ -2667,6 +2667,8 @@ void SV_Impulse_f (void)
 
 	pr_global_struct->time = sv.time;
 
+	svs.clients[i].state = cs_connected;
+
 	SetUpClientEdict(&svs.clients[i], svs.clients[i].edict);
 
 	svs.clients[i].edict->v->netname = PR_SetString(svprogfuncs, "Console");
@@ -2696,6 +2698,8 @@ void SV_Impulse_f (void)
 
 	pr_global_struct->self = EDICT_TO_PROG(svprogfuncs, svs.clients[i].edict);
 	PR_ExecuteProgram (svprogfuncs, pr_global_struct->ClientDisconnect);
+
+	svs.clients[i].state = cs_free;
 }
 
 /*

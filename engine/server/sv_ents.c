@@ -1705,7 +1705,6 @@ void SV_WritePlayersToClient (client_t *client, edict_t *clent, qbyte *pvs, size
 				cmd.angles[2] = ang[2]*65535/360.0f;
 				cmd.msec = 50;
 					{vec3_t f, r, u, v;
-				vec_t VectorNormalize2 (vec3_t, vec3_t);
 				AngleVectors(ang, f, r, u);
 				VectorCopy(vel, v);
 				cmd.forwardmove = DotProduct(f, v);

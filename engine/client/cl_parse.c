@@ -659,23 +659,26 @@ void Sound_NextDownload (void)
 	{
 		Con_TPrintf (TLC_CHECKINGSOUNDS);
 #ifdef CSQC_DAT
-		s = Info_ValueForKey(cl.serverinfo, "*csprogs");
-		if (*s || cls.demoplayback)	//only allow csqc if the server says so, and the 'checksum' matches.
+		if (cls.fteprotocolextensions & PEXT_CSQC)
 		{
-			extern cvar_t allow_download_csprogs;
-			unsigned int chksum = strtoul(s, NULL, 0);
-			if (allow_download_csprogs.value)
+			s = Info_ValueForKey(cl.serverinfo, "*csprogs");
+			if (*s || cls.demoplayback)	//only allow csqc if the server says so, and the 'checksum' matches.
 			{
-				char *str = va("csprogsvers/%x.dat", chksum);
-				if (!CL_CheckOrDownloadFile("csprogs.dat", str, true))
+				extern cvar_t allow_download_csprogs;
+				unsigned int chksum = strtoul(s, NULL, 0);
+				if (allow_download_csprogs.value)
 				{
-					cls.downloadnumber = 1;
-					return;
+					char *str = va("csprogsvers/%x.dat", chksum);
+					if (!CL_CheckOrDownloadFile("csprogs.dat", str, true))
+					{
+						cls.downloadnumber = 1;
+						return;
+					}
 				}
-			}
-			else
-			{
-				Con_Printf("Not downloading csprogs.dat\n");
+				else
+				{
+					Con_Printf("Not downloading csprogs.dat\n");
+				}
 			}
 		}
 		cls.downloadnumber = 1;
@@ -683,7 +686,7 @@ void Sound_NextDownload (void)
 	}
 
 #ifdef CSQC_DAT
-	if (cls.downloadnumber == 1)
+	if (cls.downloadnumber == 1 && cls.fteprotocolextensions & PEXT_CSQC)
 	{
 		s = Info_ValueForKey(cl.serverinfo, "*csprogs");
 		if (*s || cls.demoplayback)	//only allow csqc if the server says so, and the 'checksum' matches.

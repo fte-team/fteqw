@@ -2838,7 +2838,10 @@ void Cmd_Observe_f (void)
 
 void SV_EnableClientsCSQC(void)
 {
-	host_client->csqcactive = true;
+	if (host_client->fteprotocolextensions & PEXT_CSQC)
+		host_client->csqcactive = true;
+	else
+		Con_DPrintf("CSQC enabled without protocol extensions\n");
 }
 
 void SV_MVDList_f (void);

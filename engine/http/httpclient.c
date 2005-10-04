@@ -77,6 +77,8 @@ typedef struct {
 	int bufferused;
 	int bufferlen;
 
+	int totalreceived;	//useful when we're just dumping to a file.
+
 	qboolean chunking;
 	int chunksize;
 	int chunked;
@@ -309,6 +311,7 @@ static qboolean HTTP_CL_Run(http_con_t *con)
 			}
 
 
+			con->totalreceived+=con->chunked;
 			if (con->file && con->chunked)	//we've got a chunk in the buffer
 			{	//write it
 				IWebFWrite(con->buffer, con->chunked, 1, con->file);
@@ -320,6 +323,7 @@ static qboolean HTTP_CL_Run(http_con_t *con)
 		}
 		else
 		{
+			con->totalreceived+=ammount;
 			if (con->file)	//we've got a chunk in the buffer
 			{	//write it
 				IWebFWrite(con->buffer, con->bufferused, 1, con->file);
@@ -399,7 +403,7 @@ void HTTP_CL_Think(void)
 				else if (con->contentlength <= 0)
 					cls.downloadpercent = 50;
 				else
-					cls.downloadpercent = con->bufferused*100.0f/con->contentlength;
+					cls.downloadpercent = con->totalreceived*100.0f/con->contentlength;
 			}
 		}
 	}

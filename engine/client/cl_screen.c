@@ -167,7 +167,7 @@ CENTER PRINTING
 ===============================================================================
 */
 
-char            scr_centerstring[MAX_SPLITS][1024];
+qbyte            scr_centerstring[MAX_SPLITS][1024];
 float           scr_centertime_start[MAX_SPLITS];   // for slow victory printing
 float           scr_centertime_off[MAX_SPLITS];
 int                     scr_center_lines[MAX_SPLITS];
@@ -240,7 +240,7 @@ void SCR_EraseCenterString (void)
 	}
 }
 
-void SCR_CenterPrintBreaks(char *start, int *lines, int *maxlength)
+void SCR_CenterPrintBreaks(qbyte *start, int *lines, int *maxlength)
 {
 	int l;
 	*lines = 0;
@@ -258,7 +258,7 @@ void SCR_CenterPrintBreaks(char *start, int *lines, int *maxlength)
 				l--;
 			}
 		}
-		
+
 		(*lines)++;
 		if (*maxlength < l)
 			*maxlength = l;
@@ -336,7 +336,7 @@ void SCR_DrawCenterString (int pnum)
 				break;
 		if (l == 40)
 		{
-			while(l > 0 && start[l-1]>' ')
+			while(l > 0 && start[l-1]>' ' && start[l-1] != ' '+128)
 			{
 				l--;
 			}

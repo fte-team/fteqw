@@ -276,9 +276,9 @@ void SVNQ_New_f (void)
 
 	MSG_WriteByte (&host_client->netchan.message, svc_print);
 #ifdef DISTRIBUTION
-	sprintf (message, "%c\n" DISTRIBUTION " QuakeWorld version %4.2f server\n", 2, VERSION);
+	sprintf (message, "%c\n" DISTRIBUTION " QuakeWorld build %i server\n", 2, build_number());
 #else
-	sprintf (message, "%c\nQUAKEWORLD VERSION %4.2f SERVER\n", 2, VERSION);
+	sprintf (message, "%c\nQUAKEWORLD BUILD %i SERVER\n", 2, build_number());
 #endif
 	MSG_WriteString (&host_client->netchan.message,message);
 

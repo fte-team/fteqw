@@ -956,11 +956,7 @@ TRACE(("dbg: GLDraw_ReInit: Allocating upload buffers\n"));
 
 		if (draw_chars)
 		{
-#ifdef DISTRIBUTION
-			sprintf (ver, "%s %4.2f", DISTRIBUTION, VERSION);
-#else
-			sprintf (ver, "%4.2f", VERSION);
-#endif
+			sprintf (ver, "%i", build_number());
 			dest = cb->data + 320 + 320*186 - 11 - 8*strlen(ver);
 			for (x=0 ; x<strlen(ver) ; x++)
 				GLDraw_CharToConback (ver[x], dest+(x<<3));

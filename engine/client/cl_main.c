@@ -238,19 +238,8 @@ CL_Version_f
 */
 void CL_Version_f (void)
 {
-#ifdef VERSION3PART
-#ifdef DISTRIBUTION
-	Con_TPrintf (TLC_VERSIONST3, DISTRIBUTION, VERSION, build_number());
-#else
-	Con_TPrintf (TCL_VERSION3, VERSION, build_number());
-#endif
-#else
-#ifdef DISTRIBUTION
-	Con_TPrintf (TLC_VERSIONST2, DISTRIBUTION, VERSION, build_number());
-#else
-	Con_TPrintf (TLC_VERSION2, VERSION, build_number());
-#endif
-#endif
+	Con_TPrintf (TLC_VERSIONST, DISTRIBUTION, build_number());
+
 	Con_TPrintf (TL_EXEDATETIME, __DATE__, __TIME__);
 }
 
@@ -2354,11 +2343,8 @@ void CL_Init (void)
 
 	cls.state = ca_disconnected;
 
-#ifdef VERSION3PART
-	sprintf (st, "%s %4.3f-%04d", DISTRIBUTION, VERSION, build_number());
-#else
-	sprintf (st, "%s %4.2f-%04d", DISTRIBUTION, VERSION, build_number());
-#endif
+	sprintf (st, "%s %i", DISTRIBUTION, build_number());
+
 	sprintf (st, "%s", DISTRIBUTION);
 	Info_SetValueForStarKey (cls.userinfo, "*ver", st, MAX_INFO_STRING);
 
@@ -3131,11 +3117,7 @@ void Host_Init (quakeparms_t *parms)
 #endif
 
 Con_TPrintf (TL_NL);
-#ifdef VERSION3PART
-	Con_TPrintf (TCL_VERSION3, VERSION, build_number());
-#else
-	Con_TPrintf (TLC_VERSION2, VERSION, build_number());
-#endif
+	Con_TPrintf (TL_VERSION, DISTRIBUTION, build_number());
 Con_TPrintf (TL_NL);
 
 	Con_TPrintf (TLC_QUAKEWORLD_INITED);

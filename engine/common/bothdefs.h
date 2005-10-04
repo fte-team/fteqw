@@ -231,13 +231,11 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 
 #define PROTOCOLEXTENSIONS
 
-#define PRE_SAYONE	2.487	//FIXME: remove.
+//#define PRE_SAYONE	2.487	//FIXME: remove.
 
 // defs common to client and server
 
-#define	VERSION		2.56
-
-//#define VERSION3PART	//add the 3rd decimal point of a more precise version.
+//#define	VERSION		2.56
 
 #define DISTRIBUTION "FTE"
 #define DISTRIBUTIONLONG "Forethought Entertainment"

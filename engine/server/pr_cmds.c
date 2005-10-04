@@ -672,20 +672,20 @@ progsnum_t AddProgs(char *name)
 	if ((f = PR_FindFunction (svprogfuncs, "VersionChat", num )))
 	{
 		pr_globals = PR_globals(svprogfuncs, num);
-		G_FLOAT(OFS_PARM0) = VERSION;
+		G_FLOAT(OFS_PARM0) = build_number();
 		PR_ExecuteProgram (svprogfuncs, f);
 
 		fl = G_FLOAT(OFS_RETURN);
 		if (fl < 0)
 			SV_Error ("PR_LoadProgs: progs.dat is not compatable with EXE version");
-		else if ((int) (fl*1000) != (int) (VERSION*1000))
-			Con_DPrintf("Warning: Progs may not be fully compatable\n (%4.2f != %4.2f)\n", fl, VERSION);
+		else if ((int) (fl) != (int) (build_number()))
+			Con_DPrintf("Warning: Progs may not be fully compatable\n (%4.2f != %i)\n", fl, build_number());
 	}
 
 	if ((f = PR_FindFunction (svprogfuncs, "FTE_init", num )))
 	{
 		pr_globals = PR_globals(svprogfuncs, num);
-		G_FLOAT(OFS_PARM0) = VERSION;
+		G_FLOAT(OFS_PARM0) = build_number();
 		PR_ExecuteProgram (svprogfuncs, f);
 	}
 

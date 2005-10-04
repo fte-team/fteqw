@@ -1251,7 +1251,7 @@ client_t *SVC_DirectConnect(void)
 
 		if (strcmp(Info_ValueForKey(userinfo[0], "protocol"), "darkplaces 3"))
 		{
-			SV_RejectMessage (SCP_BAD, "Server is version %4.2f.\n", VERSION);
+			SV_RejectMessage (SCP_BAD, "Server is "DISTRIBUTION" build %i.\n", build_number());
 			Con_Printf ("* rejected connect from incompatable client\n");
 			return NULL;
 		}
@@ -1282,7 +1282,7 @@ client_t *SVC_DirectConnect(void)
 			numssclients = atoi(Cmd_Argv(0)+7);
 			if (numssclients<1 || numssclients > 4)
 			{
-				SV_RejectMessage (SCP_BAD, "Server is version %4.2f.\n", VERSION);
+				SV_RejectMessage (SCP_BAD, "Server is "DISTRIBUTION" build %i.\n", build_number());
 				Con_Printf ("* rejected connect from broken client\n");
 				return NULL;
 			}
@@ -1301,7 +1301,7 @@ client_t *SVC_DirectConnect(void)
 		}
 		else if (version != PROTOCOL_VERSION)
 		{
-			SV_RejectMessage (SCP_BAD, "Server is version %4.2f.\n", VERSION);
+			SV_RejectMessage (SCP_BAD, "Server is build %i.\n", build_number());
 			Con_Printf ("* rejected connect from version %i\n", version);
 			return NULL;
 		}
@@ -3105,11 +3105,7 @@ void SV_InitLocal (void)
 //	if (svs.protocolextensions)
 //		Info_SetValueForStarKey (svs.info, "*"DISTRIBUTION"_ext", va("%x", svs.protocolextensions), MAX_SERVERINFO_STRING);
 
-#ifdef VERSION3PART
-	Info_SetValueForStarKey (svs.info, "*version", va("%s %4.3f-%i", DISTRIBUTION, VERSION, build_number()), MAX_SERVERINFO_STRING);
-#else
-	Info_SetValueForStarKey (svs.info, "*version", va("%s %4.2f-%i", DISTRIBUTION, VERSION, build_number()), MAX_SERVERINFO_STRING);
-#endif
+	Info_SetValueForStarKey (svs.info, "*version", va("%s %i", DISTRIBUTION, build_number()), MAX_SERVERINFO_STRING);
 
 	Info_SetValueForStarKey (svs.info, "*z_ext", va("%i", SUPPORTED_Z_EXTENSIONS), MAX_SERVERINFO_STRING);
 
@@ -3629,7 +3625,7 @@ void SV_Init (quakeparms_t *parms)
 		Con_TPrintf (TL_EXEDATETIME, __DATE__, __TIME__);
 		Con_TPrintf (TL_HEAPSIZE,parms->memsize/ (1024*1024.0));
 
-		Con_TPrintf (TL_SERVERVERSION, DISTRIBUTION, VERSION, build_number());
+		Con_TPrintf (TL_VERSION, DISTRIBUTION, build_number());
 
 		Con_TPrintf (STL_INITED);
 

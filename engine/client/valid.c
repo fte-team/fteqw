@@ -240,9 +240,9 @@ void	ValidationPrintVersion(char *f_query_string)
 	}
 
 	if (*sr)
-		Cbuf_AddText (va("say "DISTRIBUTION"Quake v%4.3f-%i "PLATFORM"/%s/%s\n", VERSION, build_number(), q_renderername, sr), RESTRICT_RCON);
+		Cbuf_AddText (va("say "DISTRIBUTION"Quake v%i "PLATFORM"/%s/%s\n", build_number(), q_renderername, sr), RESTRICT_RCON);
 	else
-		Cbuf_AddText (va("say "DISTRIBUTION"Quake v%4.3f-%i "PLATFORM"/%s\n", VERSION, build_number(), q_renderername), RESTRICT_RCON);
+		Cbuf_AddText (va("say "DISTRIBUTION"Quake v%i "PLATFORM"/%s\n", build_number(), q_renderername), RESTRICT_RCON);
 }
 void	Validation_FilesModified (void)
 {
@@ -408,7 +408,7 @@ void	InitValidation(void)
 
 	if (Security_Init)
 	{
-		switch(Security_Init(va("%s %.2f %i", DISTRIBUTION, VERSION, build_number())))
+		switch(Security_Init(va("%s %.2f %i", DISTRIBUTION, 2.57, build_number())))
 		{
 		case SECURITY_INIT_BAD_CHECKSUM:
 			Con_Printf("Checksum failed. Security module does not support this build. Go upgrade it.\n");

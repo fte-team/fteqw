@@ -325,6 +325,9 @@
 					RelativePath="..\common\cvar.c">
 				</File>
 				<File
+					RelativePath="..\common\fs.c">
+				</File>
+				<File
 					RelativePath="..\common\gl_q2bsp.c">
 				</File>
 				<File
@@ -384,6 +387,9 @@
 				</File>
 				<File
 					RelativePath="..\gl\gl_draw.c">
+				</File>
+				<File
+					RelativePath="..\gl\gl_heightmap.c">
 				</File>
 				<File
 					RelativePath="..\gl\gl_hlmdl.c">

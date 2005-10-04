@@ -4045,11 +4045,14 @@ void GL_LoadQ3Model(model_t *mod, void *buffer)
 					Q_strncpyz(skin->name, shadname, sizeof(skin->name));
 
 #ifdef Q3SHADERS
-				texnum->shader = R_RegisterSkin(shadname);
+				if (qrenderer)
+				{
+					texnum->shader = R_RegisterSkin(shadname);
 
-				if (r_shadows.value)	//real-time shadows requires a texture to lighten the model with, even if it has a shader.
+					if (r_shadows.value)	//real-time shadows requires a texture to lighten the model with, even if it has a shader.
 										//fixme: this should be read from the shader.
-					texnum->base = Mod_LoadHiResTexture(shadname, "models", true, true, true);
+						texnum->base = Mod_LoadHiResTexture(shadname, "models", true, true, true);
+				}
 #else
 
 				texnum->base = Mod_LoadHiResTexture(shadname, "models", true, true, true);

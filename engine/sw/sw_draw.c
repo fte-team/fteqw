@@ -1907,7 +1907,7 @@ void SWDraw_ConsoleBackground (int lines)
 
 	//sprintf (ver, "start commands with a \\ character %4.2f", VERSION);
 
-	sprintf (ver, "%4.2f", VERSION);
+	sprintf (ver, "%i", build_number());
 	dest = conback->data + 320 + 320*186 - 11 - 8*strlen(ver);
 
 	memcpy(saveback, conback->data + 320*186, 320*8);

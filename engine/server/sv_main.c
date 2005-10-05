@@ -459,13 +459,6 @@ void SV_DropClient (client_t *drop)
 	}
 	drop->istobeloaded = false;
 
-	while(drop->enteffects)
-	{
-		specialenteffects_t *next = drop->enteffects->next;
-		Z_Free(drop->enteffects);
-		drop->enteffects = next;
-	}
-
 	drop->old_frags = 0;
 	drop->kills = 0;
 	drop->deaths = 0;
@@ -1301,7 +1294,7 @@ client_t *SVC_DirectConnect(void)
 		}
 		else if (version != PROTOCOL_VERSION)
 		{
-			SV_RejectMessage (SCP_BAD, "Server is build %i.\n", build_number());
+			SV_RejectMessage (SCP_BAD, "Server is protocol version %i, received %i\n", PROTOCOL_VERSION, version);
 			Con_Printf ("* rejected connect from version %i\n", version);
 			return NULL;
 		}
@@ -1330,7 +1323,7 @@ client_t *SVC_DirectConnect(void)
 				break;
 			case PROTOCOL_VERSION_HUFFMAN:
 				huffcrc = Q_atoi(Cmd_Argv(1));
-				Con_Printf("Client supports huffman compression\n", huffcrc);
+				Con_DPrintf("Client supports huffman compression\n", huffcrc);
 				break;
 			}
 		}
@@ -2870,6 +2863,8 @@ void SV_MVDStream_Poll(void);
 SV_InitLocal
 ===============
 */
+extern void Log_Init (void);
+
 void SV_InitLocal (void)
 {
 	int		i;
@@ -2903,6 +2898,8 @@ void SV_InitLocal (void)
 
 		Cvar_Register (&password,	cvargroup_servercontrol);
 		Cvar_Register (&rcon_password,	cvargroup_servercontrol);
+
+		Log_Init();
 	}
 	rcon_password.restriction = RESTRICT_MAX;	//no cheatie rconers changing rcon passwords...
 	Cvar_Register (&spectator_password,	cvargroup_servercontrol);
@@ -3078,9 +3075,6 @@ void SV_InitLocal (void)
 #endif
 #ifdef PEXT_FLOATCOORDS
 	svs.fteprotocolextensions |= PEXT_FLOATCOORDS;
-#endif
-#ifdef PEXT_SEEF1
-	svs.fteprotocolextensions |= PEXT_SEEF1;
 #endif
 	svs.fteprotocolextensions |= PEXT_SPLITSCREEN;
 	svs.fteprotocolextensions |= PEXT_HEXEN2;

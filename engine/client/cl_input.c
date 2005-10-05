@@ -601,9 +601,9 @@ void CL_DrawPrydonCursor(void)
 	{
 		mpic_t *pic = Draw_SafeCachePic(va("gfx/prydoncursor%03i.lmp", (int)cl_prydoncursor.value));
 		if (pic)
-			Draw_Pic((cursor_screen[0] + 1) * 0.5 * vid.width, (cursor_screen[1] + 1) * 0.5 * vid.height, pic);
+			Draw_Pic((int)((cursor_screen[0] + 1) * 0.5 * vid.width), (int)((cursor_screen[1] + 1) * 0.5 * vid.height), pic);
 		else
-			Draw_Character((cursor_screen[0] + 1) * 0.5 * vid.width, (cursor_screen[1] + 1) * 0.5 * vid.height, '+');
+			Draw_Character((int)((cursor_screen[0] + 1) * 0.5 * vid.width), (int)((cursor_screen[1] + 1) * 0.5 * vid.height), '+');
 	}
 }
 

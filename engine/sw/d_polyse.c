@@ -181,7 +181,7 @@ void D_PolysetDrawFinalVertsTrans (finalvert_t *fv, int numverts)
 				*zbuf = z;
 				pix = skintable[fv->v[3]>>16][fv->v[2]>>16];
 				pix = ((qbyte *)acolormap)[pix + (fv->v[4] & 0xFF00) ];
-				d_viewbuffer[d_scantable[fv->v[1]] + fv->v[0]] = Trans(d_viewbuffer[d_scantable[fv->v[1]] + fv->v[0]], pix);
+				d_viewbuffer[d_scantable[fv->v[1]] + fv->v[0]] = Trans(d_viewbuffer[d_scantable[fv->v[1]] + fv->v[0]], (unsigned char)pix);
 			}
 		}
 	}
@@ -317,7 +317,7 @@ split:
 		
 		*zbuf = z;
 		pix = d_pcolormap[skintable[new[3]>>16][new[2]>>16]];
-		d_viewbuffer[d_scantable[new[1]] + new[0]] = Trans(d_viewbuffer[d_scantable[new[1]] + new[0]], pix);
+		d_viewbuffer[d_scantable[new[1]] + new[0]] = Trans(d_viewbuffer[d_scantable[new[1]] + new[0]], (unsigned char)pix);
 	}
 
 nodraw:
@@ -798,7 +798,7 @@ void D_PolysetFillSpans8Trans (spanpackage_t *pspanpackage)
 
 			do
 			{
-				*lpdest = Trans(*lpdest, color);
+				*lpdest = Trans(*lpdest, (unsigned char)color);
 				lpdest++;
 			} while (--lcount);
 		}

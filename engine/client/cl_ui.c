@@ -48,11 +48,11 @@ int Script_Read(int handle, pc_token_t *token)
 		if (!sc->stackdepth)
 			return 0;
 
-		sc->filestack[sc->stackdepth-1] = COM_ParseToken(sc->filestack[sc->stackdepth-1], Q3SCRIPTPUNCTUATION);
+		sc->filestack[sc->stackdepth-1] = (char *)COM_ParseToken(sc->filestack[sc->stackdepth-1], Q3SCRIPTPUNCTUATION);
 
 		if (!strcmp(com_token, "#include"))
 		{
-			sc->filestack[sc->stackdepth-1] = COM_ParseToken(sc->filestack[sc->stackdepth-1], Q3SCRIPTPUNCTUATION);
+			sc->filestack[sc->stackdepth-1] = (char *)COM_ParseToken(sc->filestack[sc->stackdepth-1], Q3SCRIPTPUNCTUATION);
 
 			if (sc->stackdepth == SCRIPT_MAXDEPTH)	//just don't enter it
 				continue;
@@ -67,9 +67,9 @@ int Script_Read(int handle, pc_token_t *token)
 		{
 			sc->numdefines++;
 			sc->defines = BZ_Realloc(sc->defines, sc->numdefines*SCRIPT_DEFINELENGTH*2);
-			sc->filestack[sc->stackdepth-1] = COM_ParseToken(sc->filestack[sc->stackdepth-1], Q3SCRIPTPUNCTUATION);
+			sc->filestack[sc->stackdepth-1] = (char *)COM_ParseToken(sc->filestack[sc->stackdepth-1], Q3SCRIPTPUNCTUATION);
 			Q_strncpyz(sc->defines+SCRIPT_DEFINELENGTH*2*(sc->numdefines-1), com_token, SCRIPT_DEFINELENGTH);
-			sc->filestack[sc->stackdepth-1] = COM_ParseToken(sc->filestack[sc->stackdepth-1], Q3SCRIPTPUNCTUATION);
+			sc->filestack[sc->stackdepth-1] = (char *)COM_ParseToken(sc->filestack[sc->stackdepth-1], Q3SCRIPTPUNCTUATION);
 			Q_strncpyz(sc->defines+SCRIPT_DEFINELENGTH*2*(sc->numdefines-1)+SCRIPT_DEFINELENGTH, com_token, SCRIPT_DEFINELENGTH);
 
 			continue;

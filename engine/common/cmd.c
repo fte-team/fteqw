@@ -696,7 +696,7 @@ void Cmd_Alias_f (void)
 			s = Cbuf_GetNext(Cmd_ExecLevel);
 			if (!*s)
 			{
-				Con_Printf("^1WARNING:^0Multiline alias was not terminated\n");
+				Con_Printf("^1WARNING: ^7Multiline alias was not terminated\n");
 				break;
 			}
 			while (*s <= ' ' && *s)

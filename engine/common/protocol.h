@@ -46,7 +46,7 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 #ifdef Q3BSPS
 #define PEXT_Q3BSP				0x00040000
 #endif
-//#define PEXT_SEEF1				0x00080000
+//PEXT_SEEF1				0x00080000
 #define PEXT_SPLITSCREEN		0x00100000
 #define PEXT_HEXEN2				0x00200000	//more stats and working particle builtin.
 #define PEXT_SPAWNSTATIC2		0x00400000	//Sends an entity delta instead of a baseline.
@@ -633,11 +633,6 @@ enum {
 #define DPTE_SMOKE			77
 #define DPTE_TEI_BIGEXPLOSION		78
 #define DPTE_TEI_PLASMAHIT	79
-
-#define TE_SEEF_BRIGHTFIELD	200
-#define TE_SEEF_DARKLIGHT	201
-#define TE_SEEF_DARKFIELD	202
-#define	TE_SEEF_LIGHT		203
 
 //FTE's version of TEI_SHOWLMP2
 #define SL_ORG_NW	0

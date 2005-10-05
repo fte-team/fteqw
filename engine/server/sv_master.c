@@ -16,7 +16,10 @@
 #define EADDRNOTAVAIL	WSAEADDRNOTAVAIL
 #define EAFNOSUPPORT	WSAEAFNOSUPPORT
 
+#define qerrno WSAGetLastError()
 #else
+#define qerrno errno
+
 #include <sys/types.h>
 #include <sys/socket.h>
 #include <netinet/in.h>
@@ -192,7 +195,7 @@ void SVM_Think(int port)
 	net_message.cursize = recvfrom(svm.socketudp, net_message_buffer, sizeof(net_message_buffer)-1, 0, (struct sockaddr *)&addr, &addrlen);
 	if (net_message.cursize <= 0)
 	{
-		addrlen = WSAGetLastError();
+		addrlen = qerrno;
 
 
 		return;

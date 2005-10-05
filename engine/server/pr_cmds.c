@@ -90,10 +90,6 @@ typedef struct {
 builtin_t pr_builtin[1024];
 extern BuiltinList_t BuiltinList[];
 
-qboolean pr_udc_exteffect_enabled;
-
-
-
 func_t SpectatorConnect;
 func_t SpectatorThink;
 func_t SpectatorDisconnect;
@@ -6247,7 +6243,7 @@ lh_extension_t FTE_Protocol_Extensions[] =
 	{"FTE_PEXT_VWEAP"},
 	{"FTE_PEXT_Q2BSP"},		//supports q2 maps. No bugs are apparent.
 	{"FTE_PEXT_Q3BSP"},		//quake3 bsp support. dp probably has an equivelent, but this is queryable per client.
-	{"UDC_EXTEFFECT",					0,	&pr_udc_exteffect_enabled},		//hmm. crap.
+	{NULL},	//UDC_EXTEFFECT, no longer supported
 	{NULL},	//splitscreen - not queryable.
 	{"FTE_HEXEN2"},				//client can use hexen2 maps. server can use hexen2 progs
 	{"FTE_PEXT_SPAWNSTATIC"},	//means that static entities can have alpha/scale and anything else the engine supports on normal ents. (Added for >256 models, while still being compatable - previous system failed with -1 skins)
@@ -9726,13 +9722,6 @@ void PR_RegisterFields(void)	//it's just easier to do it this way.
 	fieldfloat(pflags);
 
 	fieldfloat(clientcolors);
-
-	//UDC_EXTEFFECT... yuckie
-	PR_RegisterFieldVar(svprogfuncs, ev_float, "fieldcolor", (int)&((entvars_t*)0)->seefcolour, -1);
-	PR_RegisterFieldVar(svprogfuncs, ev_float, "fieldsizex", (int)&((entvars_t*)0)->seefsizex, -1);
-	PR_RegisterFieldVar(svprogfuncs, ev_float, "fieldsizey", (int)&((entvars_t*)0)->seefsizey, -1);
-	PR_RegisterFieldVar(svprogfuncs, ev_float, "fieldsizez", (int)&((entvars_t*)0)->seefsizez, -1);
-	PR_RegisterFieldVar(svprogfuncs, ev_float, "fieldoffset", (int)&((entvars_t*)0)->seefoffset, -1);
 
 //hexen 2 stuff
 	fieldfloat(playerclass);

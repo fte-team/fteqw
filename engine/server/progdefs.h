@@ -210,13 +210,6 @@ typedef struct entvars_s
 	float	dimension_solid;
 	float	dimension_hit;
 
-	//udc_exeffect support. hacky I know.
-	float	seefcolour;
-	float	seefsizex;
-	float	seefsizey;
-	float	seefsizez;
-	float	seefoffset;
-
 	//hexen2 stuff
 	float	playerclass;	//hexen2 requirements
 	float	hull;

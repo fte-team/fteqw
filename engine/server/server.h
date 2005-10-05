@@ -332,26 +332,6 @@ typedef struct {
 
 #define MAX_BACK_BUFFERS 16
 
-enum seef_e{
-	SEEF_BRIGHTFIELD,
-	SEEF_DARKLIGHT,
-	SEEF_DARKFIELD,
-	SEEF_LIGHT
-};
-
-typedef struct specialenteffects_s {
-	enum seef_e efnum;
-	int entnum;
-
-	vec3_t size;
-	char offset;
-	qbyte colour;	//matches q1 palette
-
-	float die;
-
-	struct specialenteffects_s *next;
-} specialenteffects_t;
-
 typedef struct client_s
 {
 	client_conn_state_t	state;
@@ -525,8 +505,6 @@ typedef struct client_s
 	struct {
 		qbyte vweap;
 	} otherclientsknown[MAX_CLIENTS];	//updated as needed. Flag at a time, or all flags.
-
-	specialenteffects_t *enteffects;
 
 	struct client_s *controller;
 	struct client_s *controlled;

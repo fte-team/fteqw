@@ -24,8 +24,6 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 
 void SV_CleanupEnts(void);
 
-extern qboolean pr_udc_exteffect_enabled;
-
 extern cvar_t sv_nailhack;
 
 /*
@@ -1336,193 +1334,6 @@ void SV_WritePlayerToClient(sizebuf_t *msg, clstate_t *ent)
 }
 #endif
 
-
-#ifdef PEXT_SEEF1
-#define EFNQ_DARKLIGHT	16
-#define EFNQ_DARKFIELD	32
-#define EFNQ_LIGHT		64
-
-#define EFQW_DARKLIGHT	256
-#define EFQW_DARKFIELD	512
-#define EFQW_LIGHT		1024
-
-void SV_RemoveEffect(client_t *to, edict_t *ent, int seefmask)
-{
-	specialenteffects_t *prev = NULL;
-	specialenteffects_t *ef;
-	int en = NUM_FOR_EDICT(svprogfuncs, ent);
-	for (ef = to->enteffects; ef; ef = ef->next)
-	{
-		if (ef->entnum == en && ef->efnum & seefmask)
-		{
-			if (prev)
-				prev->next = ef->next;
-			else
-				to->enteffects = ef->next;
-			Z_Free(ef);
-
-			if (ef->efnum & seefmask & 1>>SEEF_BRIGHTFIELD)
-			{
-				ClientReliableWrite_Begin(to, svc_temp_entity, 4);
-				ClientReliableWrite_Byte(to, TE_SEEF_BRIGHTFIELD);
-				ClientReliableWrite_Short(to, en|0x8000);
-			}
-			if (ef->efnum & seefmask & 1>>SEEF_DARKLIGHT)
-			{
-				ClientReliableWrite_Begin(to, svc_temp_entity, 4);
-				ClientReliableWrite_Byte(to, SEEF_DARKLIGHT);
-				ClientReliableWrite_Short(to, en|0x8000);
-			}
-			if (ef->efnum & seefmask & 1>>SEEF_DARKFIELD)
-			{
-				ClientReliableWrite_Begin(to, svc_temp_entity, 4);
-				ClientReliableWrite_Byte(to, SEEF_DARKFIELD);
-				ClientReliableWrite_Short(to, en|0x8000);
-			}
-			if (ef->efnum & seefmask & 1>>SEEF_LIGHT)
-			{
-				ClientReliableWrite_Begin(to, svc_temp_entity, 4);
-				ClientReliableWrite_Byte(to, SEEF_LIGHT);
-				ClientReliableWrite_Short(to, en|0x8000);
-			}
-			return;
-		}
-		prev = ef;
-	}
-}
-
-void SV_AddEffect(client_t *to, edict_t *ent, int seefno)
-{
-	specialenteffects_t *prev = NULL;
-	specialenteffects_t *ef;
-	int en = NUM_FOR_EDICT(svprogfuncs, ent);
-
-	for (ef = to->enteffects; ef; ef = ef->next)
-	{
-		if (ef->entnum == en && ef->efnum == 1<<seefno)
-		{
-			if (ef->colour != ent->v->seefcolour || ef->offset != ent->v->seefoffset || ef->size[0] != ent->v->seefsizex || ef->size[1] != ent->v->seefsizey || ef->size[2] != ent->v->seefsizez || ef->die < sv.time)
-			{
-				if (prev)
-					prev->next = ef->next;
-				else
-					to->enteffects = ef->next;
-				Z_Free(ef);
-				ef = NULL;
-				break;
-			}
-			return;	//still the same state.
-		}
-		prev = ef;
-	}
-
-	ef = Z_Malloc(sizeof(specialenteffects_t));
-	ef->die = sv.time + 10;
-	ef->next = to->enteffects;
-	to->enteffects = ef;
-	ef->efnum = 1<<seefno;
-	ef->entnum = en;
-	ef->colour = ent->v->seefcolour;
-	if (!ef->colour)
-		ef->colour = 111;
-	ef->offset = ent->v->seefoffset;
-	ef->size[0] = ent->v->seefsizex;
-	if (!ef->size[0])
-		ef->offset = 64;
-	ef->size[1] = ent->v->seefsizey;
-	if (!ef->size[1])
-		ef->offset = 64;
-	ef->size[2] = ent->v->seefsizez;
-	if (!ef->size[2])
-		ef->offset = 64;
-
-	ClientReliableWrite_Begin(to, svc_temp_entity, 20);
-	ClientReliableWrite_Byte(to, TE_SEEF_BRIGHTFIELD+seefno);
-	ClientReliableWrite_Short(to, en);
-	switch(seefno)
-	{
-	case SEEF_BRIGHTFIELD:
-		ClientReliableWrite_Coord(to, ef->size[0]);
-		ClientReliableWrite_Coord(to, ef->size[1]);
-		ClientReliableWrite_Coord(to, ef->size[2]);
-		ClientReliableWrite_Char (to, ef->offset);
-		ClientReliableWrite_Byte (to, ef->colour);
-		break;
-	case SEEF_DARKFIELD:
-		ClientReliableWrite_Byte (to, ef->colour);
-		break;
-	case SEEF_DARKLIGHT:
-	case SEEF_LIGHT:
-		ClientReliableWrite_Coord(to, ef->size[0]);
-		ClientReliableWrite_Coord(to, ef->size[1]);
-		break;
-	}
-}
-#endif
-void SV_SendExtraEntEffects(client_t *to, edict_t *ent)
-{
-#ifdef PEXT_SEEF1
-	int removeeffects = 0;
-	if (pr_udc_exteffect_enabled)
-	{
-		if (to->fteprotocolextensions & PEXT_SEEF1)
-		{
-			if (progstype != PROG_QW)
-			{
-				if ((int)ent->v->effects & (EF_BRIGHTFIELD|EFNQ_DARKLIGHT|EFNQ_DARKFIELD|EFNQ_LIGHT) || to->enteffects)
-				{
-					if ((int)ent->v->effects & EF_BRIGHTFIELD)
-						SV_AddEffect(to, ent, SEEF_BRIGHTFIELD);
-					else
-						removeeffects |= 1<<SEEF_BRIGHTFIELD;
-
-					if ((int)ent->v->effects & EFNQ_DARKLIGHT)
-						SV_AddEffect(to, ent, SEEF_DARKLIGHT);
-					else
-						removeeffects |= 1<<SEEF_DARKLIGHT;
-
-					if ((int)ent->v->effects & EFNQ_DARKFIELD)
-						SV_AddEffect(to, ent, SEEF_DARKFIELD);
-					else
-						removeeffects |= 1<<SEEF_DARKFIELD;
-
-					if ((int)ent->v->effects & EFNQ_LIGHT)
-						SV_AddEffect(to, ent, SEEF_LIGHT);
-					else
-						removeeffects |= 1<<SEEF_LIGHT;
-				}
-			}
-			else
-			{
-				if ((int)ent->v->effects & (EF_BRIGHTFIELD|EFQW_DARKLIGHT|EFQW_DARKFIELD|EFQW_LIGHT) || to->enteffects)
-				{
-					if ((int)ent->v->effects & EF_BRIGHTFIELD)
-						SV_AddEffect(to, ent, SEEF_BRIGHTFIELD);
-					else
-						removeeffects |= 1<<SEEF_BRIGHTFIELD;
-
-					if ((int)ent->v->effects & EFQW_DARKLIGHT)
-						SV_AddEffect(to, ent, SEEF_DARKLIGHT);
-					else
-						removeeffects |= 1<<SEEF_DARKLIGHT;
-
-					if ((int)ent->v->effects & EFQW_DARKFIELD)
-						SV_AddEffect(to, ent, SEEF_DARKFIELD);
-					else
-						removeeffects |= 1<<SEEF_DARKFIELD;
-
-					if ((int)ent->v->effects & EFQW_LIGHT)
-						SV_AddEffect(to, ent, SEEF_LIGHT);
-					else
-						removeeffects |= 1<<SEEF_LIGHT;
-				}
-			}
-			if (to->enteffects)
-				SV_RemoveEffect(to, ent, removeeffects);
-		}
-	}
-#endif
-}
 /*
 =============
 SV_WritePlayersToClient
@@ -1919,10 +1730,6 @@ void SV_WritePlayersToClient (client_t *client, edict_t *clent, qbyte *pvs, size
 			if (pflags & 1)
 				ClientReliableWrite_Short(client, client->otherclientsknown[j].vweap);
 			ClientReliable_FinishWrite(client);
-		}
-		if (!sv.demostatevalid)
-		{
-			SV_SendExtraEntEffects(client, cl->edict);
 		}
 	}
 }
@@ -2745,14 +2552,6 @@ void SV_WriteEntitiesToClient (client_t *client, sizebuf_t *msg, qboolean ignore
 		}
 	}
 #endif
-
-	if (!sv.demostatevalid)
-	{
-		for (i = 0; i < pack->num_entities; i++)
-		{
-			SV_SendExtraEntEffects(client, EDICT_NUM(svprogfuncs, pack->entities[i].number));
-		}
-	}
 
 	// encode the packet entities as a delta from the
 	// last packetentities acknowledged by the client

@@ -1278,6 +1278,9 @@ void GLDraw_Alt_String (int x, int y, const qbyte *str)
 }
 
 #include "crosshairs.dat"
+vec3_t chcolor;
+int chmodified;
+
 void GLDraw_Crosshair(void)
 {
 	int x, y;
@@ -1286,6 +1289,10 @@ void GLDraw_Crosshair(void)
 
 	float x1, x2, y1, y2;
 	float size, chc;
+
+	int c, c2, i, usecolor;
+
+	usecolor = 0;
 
 	if (crosshair.value == 1 && !*crosshairimage.string)
 	{
@@ -1298,8 +1305,47 @@ void GLDraw_Crosshair(void)
 	}
 	GL_TexEnv(GL_MODULATE);
 
+	if (chmodified != crosshaircolor.modified)
+	{
+		char *t;
+		
+		t = strstr(crosshaircolor.string, " ");
+		if (!t) // use standard coloring
+		{
+			c = d_8to24rgbtable[(qbyte) crosshaircolor.value];
+			// convert r8g8b8 to rgb floats
+			chcolor[0] = c & 0xff;
+			chcolor[1] = (c & 0xff00) << 8;
+			chcolor[2] = (c & 0xff0000) << 16;
+		}
+		else // use RGB coloring
+		{
+			t++;
+			// abusing the fact that atof considers whitespace to be a delimiter...
+			i = chcolor[0] = crosshaircolor.value; 
+			i = bound(0, i, 255);
+			c = i; // red channel (first 8 bits)
+			i = chcolor[1] = atof(t);
+			i = bound(0, i, 255);
+			c |= (i << 8); // green channel
+			t = strstr(t, " "); // find last value
+			if (t)
+			{
+				i = chcolor[2] = atof(t+1);
+				i = bound(0, i, 255);
+				c |= (i << 16); // blue channel
+			}
+			c |= 0xff000000; // alpha channel (always full)
+		} // i contains the crosshair color
+		c2 = c;
+
+		VectorScale(chcolor, 1/255, chcolor); // scale 0-255 to 0-1 range
+		chmodified == crosshaircolor.modified;
+	}
+
 	if (*crosshairimage.string)
-	{				
+	{
+		usecolor = 1;
 		if (crosshairimage.modified)
 		{
 			crosshairimage.modified = false;
@@ -1316,38 +1362,9 @@ void GLDraw_Crosshair(void)
 		GL_Bind (cs_texture);
 		chc = 1/16.0;
 
-		if (crosshair.modified || crosshaircolor.modified || crosshair.value >= FIRSTANIMATEDCROSHAIR)
+		if (crosshair.modified || crosshair.value >= FIRSTANIMATEDCROSHAIR)
 		{
-			char *t;
-
-			int c, c2, i;
-			
-			t = strstr(crosshaircolor.string, " ");
-			if (!t) // use standard coloring
-				c = d_8to24rgbtable[(qbyte) crosshaircolor.value];
-			else // use RGB coloring
-			{
-				t++;
-				// abusing the fact that atof considers whitespace to be a delimiter...
-				i = crosshaircolor.value; 
-				i = bound(0, i, 255);
-				c = i; // red channel (first 8 bits)
-				i = atoi(t);
-				i = bound(0, i, 255);
-				c |= (i << 8); // green channel
-				t = strstr(t, " "); // find last value
-				if (t)
-				{
-					i = atoi(t+1);
-					i = bound(0, i, 255);
-					c |= (i << 16); // blue channel
-				}
-				c |= 0xff000000; // alpha channel (always full)
-			} // i contains the crosshair color
-			c2 = c;
-
 			crosshair.modified = false;
-			crosshaircolor.modified = false;
 
 #define Pix(x,y,c) {	\
 			if (y+8<0)c=0;	\
@@ -1392,7 +1409,11 @@ void GLDraw_Crosshair(void)
 	else
 		return;
 
-	qglColor4f(1, 1, 1, crosshairalpha.value);
+	if (usecolor)
+		qglColor4f(chcolor[0], chcolor[1], chcolor[2], crosshairalpha.value);
+	else
+		qglColor4f(1, 1, 1, crosshairalpha.value);
+
 	size = crosshairsize.value;
 	chc = size * chc;
 

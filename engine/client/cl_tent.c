@@ -150,20 +150,6 @@ typedef struct
 
 explosion_t	cl_explosions[MAX_EXPLOSIONS];
 
-#define MAX_SEEFS 32
-typedef struct {
-	int type;
-	int entnum;
-
-	vec3_t efsize;
-	qbyte colour;
-	int offset;
-
-	float die; 
-} seef_t;
-seef_t cl_seef[MAX_SEEFS];
-
-
 sfx_t			*cl_sfx_wizhit;
 sfx_t			*cl_sfx_knighthit;
 sfx_t			*cl_sfx_tink1;
@@ -263,7 +249,6 @@ void CL_ClearTEnts (void)
 {
 	memset (&cl_beams, 0, sizeof(cl_beams));
 	memset (&cl_explosions, 0, sizeof(cl_explosions));
-	memset (&cl_seef, 0, sizeof(cl_seef));
 }
 
 /*
@@ -529,69 +514,6 @@ void CL_ParseStream (int type)
 		b->particleeffect = P_AllocateParticleType("te_stream_sunstaff2");
 		R_AddStain(end, -10, -10, -10, 20);
 		break;
-	}
-}
-
-
-void CL_ParseSEEF(int type)
-{
-	int i;
-	short entnum;
-	qboolean remove = false;
-	seef_t *seef;
-
-	entnum = MSG_ReadShort();
-	if (entnum & 0x8000)
-	{
-		remove = true;
-		entnum &= ~0x8000;
-	}
-
-	for (i = 0, seef = cl_seef; i < MAX_SEEFS; i++, seef++)	//try and find an old onw
-	{
-		if (seef->entnum == entnum && seef->type == type)
-			break;
-	}
-	if (remove)
-	{
-		if (seef)
-			seef->die = 0;	//mark it as free
-		return;
-	}
-	if (i == MAX_SEEFS)
-	{
-		for (i = 0, seef = cl_seef; i < MAX_SEEFS; i++, seef++)	//try and find an old onw
-		{
-			if (seef->die < cl.time)
-				break;
-		}
-		if (i == MAX_SEEFS)
-			seef = &cl_seef[rand()%MAX_SEEFS];	//use a random one (more likly to not be dead)
-	}
-
-	seef->type = type;
-	seef->die = cl.time + 20;	//as removed ents won't be spotted.
-	seef->entnum = entnum;
-
-	switch(type)
-	{
-	case TE_SEEF_BRIGHTFIELD:
-		seef->efsize[0] = MSG_ReadCoord ();
-		seef->efsize[1] = MSG_ReadCoord ();
-		seef->efsize[2] = MSG_ReadCoord ();
-		seef->offset = MSG_ReadChar();
-		seef->colour = MSG_ReadByte();
-		break;
-	case TE_SEEF_DARKFIELD:
-		seef->colour = MSG_ReadByte();
-		break;
-	case TE_SEEF_DARKLIGHT:
-	case TE_SEEF_LIGHT:
-		seef->efsize[0] = MSG_ReadCoord ();
-		seef->efsize[1] = MSG_ReadCoord ();
-		break;
-	default:
-		Host_EndGame("Bad SEEF type\n");
 	}
 }
 
@@ -1030,13 +952,6 @@ void CL_ParseTEnt (void)
 		pos2[1] = MSG_ReadCoord ();
 		pos2[2] = MSG_ReadCoord ();
 		CLQ2_RailTrail (pos, pos2);
-		break;
-
-	case TE_SEEF_DARKLIGHT:
-	case TE_SEEF_LIGHT:
-	case TE_SEEF_BRIGHTFIELD:
-	case TE_SEEF_DARKFIELD:
-		CL_ParseSEEF(type);
 		break;
 
 	case TE_STREAM_CHAIN:
@@ -2607,78 +2522,6 @@ void CL_UpdateExplosions (void)
 }
 
 entity_state_t *CL_FindPacketEntity(int num);
-void CL_UpdateSEEFs(void)
-{
-	float *eorg;
-	int i;
-	dlight_t *dl;
-	entity_state_t *ent;
-	for(i = 0; i < MAX_SEEFS; i++)
-	{
-		if (!cl_seef[i].type)
-			continue;
-
-		if (cl_seef[i].die < cl.time)
-			continue;
-		ent = CL_FindPacketEntity(cl_seef[i].entnum);
-		if (!ent)
-		{
-			extern int parsecountmod;
-			if ((unsigned)(cl_seef[i].entnum) <= MAX_CLIENTS && cl_seef[i].entnum > 0)
-			{
-				if (cl_seef[i].entnum-1 == cl.playernum[0])
-					eorg = cl.simorg[0];
-				else
-					eorg = cl.frames[parsecountmod].playerstate[cl_seef[i].entnum-1].origin;
-			}
-			else
-				continue;
-		}
-		else
-			eorg = ent->origin;
-		ent = NULL;
-
-		switch (cl_seef[i].type)
-		{
-		case TE_SEEF_BRIGHTFIELD:
-			if (!cl.paused)
-			{
-				vec3_t org;
-				org[0] = eorg[0];
-				org[1] = eorg[1];
-				org[2] = eorg[2] + cl_seef[i].offset;
-				P_EntityParticles(org, cl_seef[i].colour, cl_seef[i].efsize);
-			}
-			break;
-		case TE_SEEF_DARKFIELD:
-			if (!cl.paused)
-				P_DarkFieldParticles(eorg, cl_seef[i].colour);
-			break;
-		case TE_SEEF_DARKLIGHT:
-			dl = CL_AllocDlight (cl_seef[i].entnum);
-			VectorCopy (eorg, dl->origin);
-			dl->radius = cl_seef[i].efsize[0] + rand()/(float)RAND_MAX*cl_seef[i].efsize[1];
-			dl->die = cl.time+0.1;
-			dl->decay = 0;
-			dl->color[0] = -0.1;
-			dl->color[1] = -0.1;
-			dl->color[2] = -0.1;
-			break;
-		case TE_SEEF_LIGHT:
-			dl = CL_AllocDlight (cl_seef[i].entnum);
-			VectorCopy (eorg, dl->origin);
-			dl->radius = cl_seef[i].efsize[0] + rand()/(float)RAND_MAX*cl_seef[i].efsize[1];
-			dl->die = cl.time+0.1;
-			dl->decay = 0;
-			dl->color[0] = 0.1;
-			dl->color[1] = 0.1;
-			dl->color[2] = 0.1;
-			break;
-		default:
-			Sys_Error("Bad seef type\n");
-		}
-	}
-}
 
 /*
 =================
@@ -2689,5 +2532,4 @@ void CL_UpdateTEnts (void)
 {
 	CL_UpdateBeams ();
 	CL_UpdateExplosions ();
-	CL_UpdateSEEFs ();
 }

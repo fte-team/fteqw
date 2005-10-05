@@ -572,7 +572,7 @@ void SV_SpawnServer (char *server, char *startspot, qboolean noents, qboolean us
 #endif
 
 #ifdef Q3SERVER
-	if (newgametype == GT_QUAKE3)
+	if (svs.gametype == GT_QUAKE3)
 		SVQ3_ShutdownGame();	//botlib kinda mandates this. :(
 #endif
 

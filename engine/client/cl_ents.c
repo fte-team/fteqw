@@ -1796,8 +1796,11 @@ void CL_LinkPacketEntities (void)
 			}
 			else if (model->flags & EF_SPIT)
 			{
-				// how the hell does this even work?
-				rad = -120 - (rand() % 20);
+				// as far as I can tell this effect inverses the light...
+				dclr[0] = -dclr[0];
+				dclr[0] = -dclr[1];
+				dclr[0] = -dclr[2];
+				rad = 120 - (rand() % 20);
 			}
 
 			if (rad)

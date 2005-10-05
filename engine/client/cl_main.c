@@ -351,9 +351,6 @@ void CL_SendConnectPacket (
 	fteprotextsupported |= PEXT_FLOATCOORDS;
 #endif
 	fteprotextsupported |= PEXT_SPAWNSTATIC2;
-#ifdef PEXT_SEEF1
-	fteprotextsupported |= PEXT_SEEF1;
-#endif
 	fteprotextsupported |= PEXT_SPLITSCREEN;
 	fteprotextsupported |= PEXT_HEXEN2;
 	fteprotextsupported |= PEXT_CUSTOMTEMPEFFECTS;
@@ -2344,8 +2341,6 @@ void CL_Init (void)
 	cls.state = ca_disconnected;
 
 	sprintf (st, "%s %i", DISTRIBUTION, build_number());
-
-	sprintf (st, "%s", DISTRIBUTION);
 	Info_SetValueForStarKey (cls.userinfo, "*ver", st, MAX_INFO_STRING);
 
 	InitValidation();

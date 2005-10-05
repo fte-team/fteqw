@@ -1340,7 +1340,7 @@ void GLDraw_Crosshair(void)
 		c2 = c;
 
 		VectorScale(chcolor, 1/255, chcolor); // scale 0-255 to 0-1 range
-		chmodified == crosshaircolor.modified;
+		chmodified = crosshaircolor.modified;
 	}
 
 	if (*crosshairimage.string)

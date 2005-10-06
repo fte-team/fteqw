@@ -226,6 +226,8 @@ cvar_t	gl_skyboxname = {"r_skybox", ""};
 cvar_t	r_fastsky = {"r_fastsky", "0"};
 cvar_t	r_fastskycolour = {"r_fastskycolour", "0"};
 
+cvar_t r_menutint = {"r_menutint", "0.68 0.4 0.13"};
+
 #if defined(RGLQUAKE)
 cvar_t gl_schematics = {"gl_schematics","0"};
 cvar_t	gl_ztrick = {"gl_ztrick","1"};
@@ -233,8 +235,6 @@ cvar_t	gl_lerpimages = {"gl_lerpimages", "1"};
 extern cvar_t r_waterlayers;
 cvar_t			gl_triplebuffer = {"gl_triplebuffer", "1", NULL, CVAR_ARCHIVE};
 cvar_t			vid_hardwaregamma = {"vid_hardwaregamma", "1", NULL, CVAR_ARCHIVE};
-
-cvar_t r_menutint = {"r_menutint", "0.68 0.4 0.13"};
 
 void GLRenderer_Init(void)
 {

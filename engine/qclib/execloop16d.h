@@ -388,6 +388,8 @@ reeval:
 
 	//get a pointer to a field var
 	case OP_ADDRESS:
+		if ((unsigned)OPA->edict >= (unsigned)maxedicts)
+			PR_RunError (progfuncs, "OP_ADDRESS references invalid entity in %s", progfuncs->stringtable + pr_xfunction->s_name);
 		ed = PROG_TO_EDICT(progfuncs, OPA->edict);
 #ifdef PARANOID
 		NUM_FOR_EDICT(ed);		// make sure it's in range
@@ -407,6 +409,8 @@ reeval:
 	case OP_LOAD_ENT:
 	case OP_LOAD_S:
 	case OP_LOAD_FNC:
+		if ((unsigned)OPA->edict >= (unsigned)maxedicts)
+			PR_RunError (progfuncs, "OP_LOAD references invalid entity in %s", progfuncs->stringtable + pr_xfunction->s_name);
 		ed = PROG_TO_EDICT(progfuncs, OPA->edict);
 #ifdef PARANOID
 		NUM_FOR_EDICT(ed);		// make sure it's in range
@@ -416,6 +420,8 @@ reeval:
 		break;
 
 	case OP_LOAD_V:
+		if ((unsigned)OPA->edict >= (unsigned)maxedicts)
+			PR_RunError (progfuncs, "OP_LOAD_V references invalid entity in %s", progfuncs->stringtable + pr_xfunction->s_name);
 		ed = PROG_TO_EDICT(progfuncs, OPA->edict);
 #ifdef PARANOID
 		NUM_FOR_EDICT(ed);		// make sure it's in range
@@ -518,6 +524,12 @@ reeval:
 
 		if (newf->first_statement < 0)
 		{	// negative statements are built in functions
+
+if (pr_typecurrent != 0)
+{
+	PR_MoveParms(progfuncs, 0, pr_typecurrent);
+	PR_SwitchProgs(progfuncs, 0);
+}
 			i = -newf->first_statement;
 //			p = pr_typecurrent;
 			progfuncs->lastcalledbuiltinnumber = i;

@@ -41,6 +41,7 @@ void Plug_Init(void);
 
 void Plug_SBar(void);
 void Plug_DrawReloadImages(void);
+int Plug_ConnectionlessClientPacket(char *buffer, int size);
 #endif
 
 

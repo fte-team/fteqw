@@ -388,7 +388,7 @@ reeval:
 
 	//get a pointer to a field var
 	case OP_ADDRESS:
-		if ((unsigned)OPA->edict >= maxedicts)
+		if ((unsigned)OPA->edict >= (unsigned)maxedicts)
 			PR_RunError (progfuncs, "OP_ADDRESS references invalid entity in %s", progfuncs->stringtable + pr_xfunction->s_name);
 		ed = PROG_TO_EDICT(progfuncs, OPA->edict);
 #ifdef PARANOID
@@ -409,7 +409,7 @@ reeval:
 	case OP_LOAD_ENT:
 	case OP_LOAD_S:
 	case OP_LOAD_FNC:
-		if ((unsigned)OPA->edict >= maxedicts)
+		if ((unsigned)OPA->edict >= (unsigned)maxedicts)
 			PR_RunError (progfuncs, "OP_LOAD references invalid entity in %s", progfuncs->stringtable + pr_xfunction->s_name);
 		ed = PROG_TO_EDICT(progfuncs, OPA->edict);
 #ifdef PARANOID
@@ -420,7 +420,7 @@ reeval:
 		break;
 
 	case OP_LOAD_V:
-		if ((unsigned)OPA->edict >= maxedicts)
+		if ((unsigned)OPA->edict >= (unsigned)maxedicts)
 			PR_RunError (progfuncs, "OP_LOAD_V references invalid entity in %s", progfuncs->stringtable + pr_xfunction->s_name);
 		ed = PROG_TO_EDICT(progfuncs, OPA->edict);
 #ifdef PARANOID

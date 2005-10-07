@@ -144,6 +144,7 @@ int P_AllocateParticleType(char *name);	//find one if it exists, or create if it
 int P_FindParticleType(char *name); //checks if particle description 'name' exists, returns -1 if not.
 
 int P_DescriptionIsLoaded(char *name);	//returns true if it's usable.
+qboolean P_TypeIsLoaded(int effect);
 
 void P_SkyTri(float *v1, float *v2, float *v3, struct msurface_s *surf);
 

@@ -89,7 +89,7 @@ void Info_RemoveKey (char *s, const char *key)
 
 	if (strstr (key, "\\"))
 	{
-		printf ("Key has a slash\n");
+//		printf ("Key has a slash\n");
 		return;
 	}
 
@@ -139,19 +139,19 @@ void Info_SetValueForStarKey (char *s, const char *key, const char *value, int m
 
 	if (strstr (key, "\\") || strstr (value, "\\") )
 	{
-		printf ("Key has a slash\n");
+//		printf ("Key has a slash\n");
 		return;
 	}
 
 	if (strstr (key, "\"") || strstr (value, "\"") )
 	{
-		printf ("Key has a quote\n");
+//		printf ("Key has a quote\n");
 		return;
 	}
 
 	if (strlen(key) >= MAX_INFO_KEY || strlen(value) >= MAX_INFO_KEY)
 	{
-		printf ("Key or value is too long\n");
+//		printf ("Key or value is too long\n");
 		return;
 	}
 
@@ -177,7 +177,7 @@ void Info_SetValueForStarKey (char *s, const char *key, const char *value, int m
 
 	if ((int)(strlen(newv) + strlen(s) + 1) > maxsize)
 	{
-		printf ("info buffer is too small\n");
+//		printf ("info buffer is too small\n");
 		return;
 	}
 
@@ -293,23 +293,219 @@ skipwhite:
 	return data;
 }
 
-char *Rcon_Command(sv_t *qtv, char *command, char *buffer, int sizeofbuffer, qboolean localcommand)
+#define MAX_ARGS 8
+#define ARG_LEN 512
+char *Cluster_Rcon_Dispatch(cluster_t *cluster, char *arg[MAX_ARGS], char *buffer, int sizeofbuffer, qboolean localcommand)
+{
+	if (!strcmp(arg[0], "hostname"))
+	{
+		strncpy(cluster->hostname, arg[1], sizeof(cluster->hostname)-1);
+		return "hostname will change at start of next map\n";	//I'm too lazy to alter the serverinfo here.
+	}
+	else if (!strcmp(arg[0], "master"))
+	{
+		netadr_t addr;
+
+		strncpy(cluster->master, arg[1], sizeof(cluster->master)-1);
+		cluster->mastersendtime = cluster->curtime;
+
+		if (NET_StringToAddr(arg[1], &addr))	//send a ping like a qw server does. this is kinda pointless of course.
+			NET_SendPacket (cluster, cluster->qwdsocket, 1, "k", addr);
+
+		return "Master server set.\n";
+	}
+	else if (!strcmp(arg[0], "port"))
+	{
+		int news;
+		int newp = atoi(arg[1]);
+		news = QW_InitUDPSocket(newp);
+
+		if (news != INVALID_SOCKET)
+		{
+			cluster->mastersendtime = cluster->curtime;
+			closesocket(cluster->qwdsocket);
+			cluster->qwdsocket = news;
+			cluster->qwlistenportnum = newp;
+			return "Opened udp port (all connected qw clients will time out)\n";
+		}
+		else
+			return "Failed to open udp port\n";
+	}
+	else if (!strcmp(arg[0], "password"))
+	{
+		if (!localcommand)
+			return "Rejecting rcon password change.\n";
+
+		strncpy(cluster->password, arg[1], sizeof(cluster->password)-1);
+		return "Password changed.\n";
+	}
+	else if (!strcmp(arg[0], "connect") || !strcmp(arg[0], "addserver"))
+	{
+		if (!*arg[1])
+			return "connect requires an ip:port parameter\n";
+
+		memmove(arg[1]+4, arg[1], ARG_LEN-5);
+		strncpy(arg[1], "tcp:", 4);
+
+		if (!QTV_NewServerConnection(cluster, arg[1], false))
+			return "Failed to connect to server, connection aborted\n";
+		return "Connection registered\n";
+	}
+	else if (!strcmp(arg[0], "demo") || !strcmp(arg[0], "adddemo") || !strcmp(arg[0], "addfile"))
+	{
+		if (!*arg[1])
+			return "adddemo requires an filename parameter\n";
+
+		if (!localcommand)
+			if (*arg[1] == '\\' || *arg[1] == '/' || strstr(arg[1], "..") || arg[1][1] == ':')
+				return "Absolute paths are prohibited.\n";
+
+		memmove(arg[1]+5, arg[1], ARG_LEN-6);
+		strncpy(arg[1], "file:", 5);
+
+		if (!QTV_NewServerConnection(cluster, arg[1], false))
+			return "Failed to connect to server, connection aborted\n";
+		return "Connection registered\n";
+	}
+	else if (!strcmp(arg[0], "exec"))
+	{
+		FILE *f;
+		char line[512], *res;
+
+		if (!localcommand)
+			if (*arg[1] == '\\' || *arg[1] == '/' || strstr(arg[1], "..") || arg[1][1] == ':')
+				return "Absolute paths are prohibited.\n";
+
+		f = fopen(arg[1], "rt");
+		if (!f)
+		{
+			snprintf(buffer, sizeofbuffer, "Couldn't exec \"%s\"\n", arg[1]);
+			return buffer;
+		}
+		else
+		{
+			while(fgets(line, sizeof(line)-1, f))
+			{
+				res = Rcon_Command(cluster, NULL, line, buffer, sizeofbuffer, localcommand);
+				Sys_Printf(cluster, "%s", res);
+			}
+			fclose(f);
+			return "Execed\n";
+		}
+	}
+	else if (!strcmp(arg[0], "status"))
+	{
+		buffer[0] = '\0';
+
+		sprintf(buffer, "%i connections\n", cluster->numservers);
+
+		strcat(buffer, "Options:\n");
+		if (cluster->chokeonnotupdated)
+			strcat(buffer, " Choke\n");
+		if (cluster->lateforward)
+			strcat(buffer, " Late forwarding\n");
+		if (!cluster->notalking)
+			strcat(buffer, " Talking allowed\n");
+		if (cluster->nobsp)
+			strcat(buffer, " No BSP loading\n");
+		strcat(buffer, "\n");
+
+		return buffer;
+	}
+	else if (!strcmp(arg[0], "choke"))
+	{
+		cluster->chokeonnotupdated = !!atoi(arg[1]);
+		return "choke-until-update set\n";
+	}
+	else if (!strcmp(arg[0], "late"))
+	{
+		cluster->lateforward = !!atoi(arg[1]);
+		return "late forwarding set\n";
+	}
+	else if (!strcmp(arg[0], "talking"))
+	{
+		cluster->notalking = !atoi(arg[1]);
+		return "talking permissions set\n";
+	}
+	else if (!strcmp(arg[0], "nobsp"))
+	{
+		cluster->nobsp = !!atoi(arg[1]);
+		return "nobsp will change at start of next map\n";
+	}
+
+	else if (!strcmp(arg[1], "maxviewers"))
+	{
+		cluster->maxviewers = atoi(arg[2]);
+		return "maxviewers set\n";
+	}
+	else if (!strcmp(arg[1], "maxproxies"))
+	{
+		cluster->maxproxies = atoi(arg[2]);
+		return "maxproxies set\n";
+	}
+
+
+	else if (!strcmp(arg[0], "ping"))
+	{
+		netadr_t addr;
+		if (NET_StringToAddr(arg[1], &addr))
+		{
+			NET_SendPacket (cluster, cluster->qwdsocket, 1, "k", addr);
+			return "pinged\n";
+		}
+		return "couldn't resolve\n";
+	}
+	else if (!strcmp(arg[0], "help"))
+	{
+		return "FTEQTV proxy\nValid commands: connect, addserver, adddemo, status, choke, late, talking, nobsp, exec, password, master, hostname, port, maxviewers, maxproxies\n";
+	}
+
+	else if (!strcmp(arg[0], "mvdport"))
+	{
+		return "mvdport requires a targeted server. Connect first.\n";
+	}
+
+	else if (!strcmp(arg[0], "record"))
+	{
+		return "record requires a targeted server\n";
+	}
+
+	else if (!strcmp(arg[0], "reconnect"))
+	{
+		return "reconnect requires a targeted server\n";
+	}
+
+	else if (!strcmp(arg[0], "stop"))
+	{	//fixme
+		return "stop requires a targeted server\n";
+	}
+
+	else if (!strcmp(arg[0], "echo"))
+	{
+		return "Poly wants a cracker.\n";
+	}
+	
+	else if (!strcmp(arg[0], "quit"))
+	{
+		cluster->wanttoexit = true;
+		return "Shutting down.\n";
+	}
+	else
+		return NULL;
+}
+
+char *Server_Rcon_Dispatch(sv_t *qtv, char *arg[MAX_ARGS], char *buffer, int sizeofbuffer, qboolean localcommand)
 {
 #define TOKENIZE_PUNCTUATION ""
 
-	int i;
-#define MAX_ARGS 8
-#define ARG_LEN 512
-	char arg[MAX_ARGS][ARG_LEN];
-
-	for (i = 0; i < MAX_ARGS; i++)
-		command = COM_ParseToken(command, arg[i], ARG_LEN, TOKENIZE_PUNCTUATION);
 
 	buffer[0] = '\0';
 	if (!strcmp(arg[0], "status"))
 	{
+		sprintf(buffer, "%i connections\n", qtv->cluster->numservers);
+
 		strcat(buffer, "\n");
-		strcat(buffer, "Server: ");
+		strcat(buffer, "Selected server: ");
 		strcat(buffer, qtv->server);
 		strcat(buffer, "\n");
 		if (qtv->file)
@@ -326,13 +522,6 @@ char *Rcon_Command(sv_t *qtv, char *command, char *buffer, int sizeofbuffer, qbo
 			strcat(buffer, arg[0]);
 			strcat(buffer, ")\n");
 		}
-		if (qtv->qwdsocket != INVALID_SOCKET)
-		{
-			strcat(buffer, "Listening for qwcl (");
-			sprintf(arg[0], "%i", qtv->qwlistenportnum);
-			strcat(buffer, arg[0]);
-			strcat(buffer, ")\n");
-		}
 
 		if (qtv->bsp)
 		{
@@ -342,55 +531,19 @@ char *Rcon_Command(sv_t *qtv, char *command, char *buffer, int sizeofbuffer, qbo
 		}
 
 		strcat(buffer, "Options:\n");
-		if (qtv->chokeonnotupdated)
+		if (qtv->cluster->chokeonnotupdated)
 			strcat(buffer, " Choke\n");
-		if (qtv->lateforward)
+		if (qtv->cluster->lateforward)
 			strcat(buffer, " Late forwarding\n");
-		if (!qtv->notalking)
+		if (!qtv->cluster->notalking)
 			strcat(buffer, " Talking allowed\n");
+		if (qtv->cluster->nobsp)
+			strcat(buffer, " No BSP loading\n");
 		strcat(buffer, "\n");
 
 		return buffer;
 	}
-	else if (!strcmp(arg[0], "option"))
-	{
-		if (!*arg[1])
-			return "option X Y\nWhere X is choke/late/talking/hostname/nobsp/master/maxviewers/maxproxies and Y is (mostly) 0/1\n";
 
-		if (!strcmp(arg[1], "choke"))
-			qtv->chokeonnotupdated = !!atoi(arg[2]);
-		else if (!strcmp(arg[1], "late"))
-			qtv->lateforward = !!atoi(arg[2]);
-		else if (!strcmp(arg[1], "talking"))
-			qtv->notalking = !atoi(arg[2]);
-		else if (!strcmp(arg[1], "nobsp"))
-		{
-			qtv->nobsp = !!atoi(arg[2]);
-			return "nobsp will change at start of next map\n";
-		}
-		else if (!strcmp(arg[1], "hostname"))
-		{
-			strncpy(qtv->hostname, arg[2], sizeof(qtv->hostname)-1);
-			return "hostname will change at start of next map\n";	//I'm too lazy to alter the serverinfo here.
-		}
-		else if (!strcmp(arg[1], "master"))
-		{
-			netadr_t addr;
-
-			strncpy(qtv->master, arg[2], sizeof(qtv->master)-1);
-			qtv->mastersendtime = qtv->curtime;
-
-			if (NET_StringToAddr(arg[1], &addr))
-				NET_SendPacket (qtv->qwdsocket, 1, "k", addr);
-		}
-		else if (!strcmp(arg[1], "maxviewers"))
-			qtv->maxviewers = atoi(arg[2]);
-		else if (!strcmp(arg[1], "maxproxies"))
-			qtv->maxproxies = atoi(arg[2]);
-		else
-			return "Option not recognised\n";
-		return "Set\n";
-	}
 	else if (!strcmp(arg[0], "connect"))
 	{
 		if (!*arg[1])
@@ -410,7 +563,7 @@ char *Rcon_Command(sv_t *qtv, char *command, char *buffer, int sizeofbuffer, qbo
 			if (*arg[1] == '\\' || *arg[1] == '/' || strstr(arg[1], "..") || arg[1][1] == ':')
 				return "Absolute paths are prohibited.\n";
 
-		memmove(arg[1]+5, arg[1], sizeof(arg[1])-6);
+		memmove(arg[1]+5, arg[1], ARG_LEN-6);
 		strncpy(arg[1], "file:", 5);
 		if (QTV_Connect(qtv, arg[1]))
 			return "File opened successfully\n";
@@ -438,10 +591,7 @@ char *Rcon_Command(sv_t *qtv, char *command, char *buffer, int sizeofbuffer, qbo
 		else
 			return "not recording to disk\n";
 	}
-	else if (!strcmp(arg[0], "help"))
-	{
-		return "FTEQTV proxy version "VERSION"\nValid commands: connect, file, status, option, mvdport, port, reconnect\n";
-	}
+
 	else if (!strcmp(arg[0], "reconnect"))
 	{
 		if (QTV_Connect(qtv, qtv->server))
@@ -483,64 +633,72 @@ char *Rcon_Command(sv_t *qtv, char *command, char *buffer, int sizeofbuffer, qbo
 		}
 	}
 
-	else if (!strcmp(arg[0], "ping"))
+	else if (!strcmp(arg[0], "exec"))
 	{
-		netadr_t addr;
-		if (NET_StringToAddr(arg[1], &addr))
-		{
-			NET_SendPacket (qtv->qwdsocket, 1, "k", addr);
-			return "pinged\n";
-		}
-		return "couldn't resolve\n";
-	}
-
-	else if (!strcmp(arg[0], "port") || !strcmp(arg[0], "udpport"))
-	{
-		int news;
-		int newp = atoi(arg[1]);
+		FILE *f;
+		char line[512], *res;
 
 		if (!localcommand)
-			return "Changing udp port is not allowed via rcon\n";
+			if (*arg[1] == '\\' || *arg[1] == '/' || strstr(arg[1], "..") || arg[1][1] == ':')
+				return "Absolute paths are prohibited.\n";
 
-		if (!newp)
+		f = fopen(arg[1], "rt");
+		if (!f)
 		{
-			if (qtv->listenmvd != INVALID_SOCKET)
-			{
-				closesocket(qtv->listenmvd);
-				qtv->listenmvd = INVALID_SOCKET;
-				qtv->tcplistenportnum = 0;
-
-				return "Closed udp port\n";
-			}
-			return "udp port was already closed\n";
+			snprintf(buffer, sizeofbuffer, "Couldn't exec \"%s\"\n", arg[1]);
+			return buffer;
 		}
 		else
 		{
-			news = QW_InitUDPSocket(newp);
-
-			if (news != INVALID_SOCKET)
+			while(fgets(line, sizeof(line)-1, f))
 			{
-				qtv->mastersendtime = qtv->curtime;
-				closesocket(qtv->qwdsocket);
-				qtv->qwdsocket = news;
-				qtv->qwlistenportnum = newp;
-				return "Opened udp port\n";
+				res = Rcon_Command(qtv->cluster, qtv, line, buffer, sizeofbuffer, localcommand);
+				Sys_Printf(qtv->cluster, "%s", res);
 			}
-			else
-				return "Failed to open udp port\n";
+			fclose(f);
+			return "Execed\n";
 		}
 	}
 
-	else if (!strcmp(arg[0], "password"))
-	{
-		if (!localcommand)
-			return "Rejecting rcon password change.\n";
-
-		strncpy(qtv->password, arg[1], sizeof(qtv->password)-1);
-		return "Password changed.\n";
-	}
 	else
-		return "Unrecognised command.\n";
+	{
+		return NULL;
+	}
+}
 
+char *Rcon_Command(cluster_t *cluster, sv_t *qtv, char *command, char *buffer, int sizeofbuffer, qboolean localcommand)
+{
+#define TOKENIZE_PUNCTUATION ""
+
+	int i;
+	char arg[MAX_ARGS][ARG_LEN];
+	char *argptrs[MAX_ARGS];
+	char *result;
+
+	for (i = 0; i < MAX_ARGS; i++)
+	{
+		command = COM_ParseToken(command, arg[i], ARG_LEN, TOKENIZE_PUNCTUATION);
+		argptrs[i] = arg[i];
+	}
+
+	if (qtv)
+	{	//if there is a specific connection targetted
+		result = Server_Rcon_Dispatch(qtv, argptrs, buffer, sizeofbuffer, localcommand);
+		if (result)
+			return result;
+	}
+	else if (cluster->numservers == 1)
+	{	//if it's a single-connection proxy
+		result = Server_Rcon_Dispatch(cluster->servers, argptrs, buffer, sizeofbuffer, localcommand);
+		if (result)
+			return result;
+	}
+
+	result = Cluster_Rcon_Dispatch(cluster, argptrs, buffer, sizeofbuffer, localcommand);
+	if (result)
+		return result;
+
+	snprintf(buffer, sizeofbuffer, "Command \"%s\" not recognised.\n", arg[0]);
+	return buffer;
 }
 

@@ -176,7 +176,6 @@ unsigned char *ReadFile_WINDOWSSUCKS(char *gamedir, char *filename, int *size)
 			f = FindInPaks("id1", filename, size);
 		if (!f)
 		{
-			printf("Couldn't open bsp file\n");
 			return NULL;
 		}
 	}
@@ -193,7 +192,7 @@ unsigned char *ReadFile_WINDOWSSUCKS(char *gamedir, char *filename, int *size)
 	return data;
 }
 
-bsp_t *BSP_LoadModel(char *gamedir, char *bspname)
+bsp_t *BSP_LoadModel(cluster_t *cluster, char *gamedir, char *bspname)
 {
 	unsigned char *data;
 	unsigned int size;
@@ -217,7 +216,7 @@ bsp_t *BSP_LoadModel(char *gamedir, char *bspname)
 		data = ReadFile_WINDOWSSUCKS("id1", bspname, &size);
 		if (!data)
 		{
-			printf("Couldn't open bsp file \"%s\" (gamedir \"%s\")\n", bspname, gamedir);
+			Sys_Printf(cluster, "Couldn't open bsp file \"%s\" (gamedir \"%s\")\n", bspname, gamedir);
 			return NULL;
 		}
 	}
@@ -226,7 +225,7 @@ bsp_t *BSP_LoadModel(char *gamedir, char *bspname)
 	header = (dheader_t*)data;
 	if (data[0] != 29)
 	{
-		printf("BSP not version 29\n", bspname, gamedir);
+		Sys_Printf(cluster, "BSP not version 29\n", bspname, gamedir);
 		return NULL;
 	}
 

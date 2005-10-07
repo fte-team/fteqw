@@ -20,6 +20,8 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 
 #include "qtv.h"
 
+#define RECONNECT_TIME (1000*30)
+
 
 qboolean	NET_StringToAddr (char *s, netadr_t *sadr)
 {
@@ -216,13 +218,21 @@ qboolean Net_ConnectToServer(sv_t *qtv, char *ip)
 			fseek(qtv->file, 0, SEEK_SET);
 			return true;
 		}
-		printf("Unable to open file %s\n", ip+5);
+		Sys_Printf(qtv->cluster, "Unable to open file %s\n", ip+5);
 		return false;
 	}
 
-	if (!NET_StringToAddr(ip, &qtv->serveraddress))
+	qtv->nextconnectattemp = qtv->curtime + RECONNECT_TIME;	//wait half a minuite before trying to reconnect
+
+	if (strncmp(ip, "tcp:", 4))
 	{
-		printf("Unable to resolve %s\n", ip);
+		Sys_Printf(qtv->cluster, "Unknown source type %s\n", ip);
+		return false;
+	}
+
+	if (!NET_StringToAddr(ip+4, &qtv->serveraddress))
+	{
+		Sys_Printf(qtv->cluster, "Unable to resolve %s\n", ip);
 		return false;
 	}
 	qtv->sourcesock = socket(AF_INET, SOCK_STREAM, IPPROTO_TCP);
@@ -238,18 +248,21 @@ qboolean Net_ConnectToServer(sv_t *qtv, char *ip)
 		return false;
 	}
 
-	if (connect(qtv->sourcesock, (struct sockaddr *)&qtv->serveraddress, sizeof(qtv->serveraddress)) == INVALID_SOCKET)
+	if (ioctlsocket (qtv->sourcesock, FIONBIO, &nonblocking) == -1)
 	{
 		closesocket(qtv->sourcesock);
 		qtv->sourcesock = INVALID_SOCKET;
 		return false;
 	}
 
-	if (ioctlsocket (qtv->sourcesock, FIONBIO, &nonblocking) == -1)
+	if (connect(qtv->sourcesock, (struct sockaddr *)&qtv->serveraddress, sizeof(qtv->serveraddress)) == INVALID_SOCKET)
 	{
-		closesocket(qtv->sourcesock);
-		qtv->sourcesock = INVALID_SOCKET;
-		return false;
+		if (qerrno != EWOULDBLOCK)
+		{
+			closesocket(qtv->sourcesock);
+			qtv->sourcesock = INVALID_SOCKET;
+			return false;
+		}
 	}
 
 	return true;
@@ -264,7 +277,7 @@ void Net_FindProxies(sv_t *qtv)
 	if (sock == INVALID_SOCKET)
 		return;
 
-	if (qtv->numproxies >= qtv->maxproxies && qtv->maxproxies)
+	if (qtv->numproxies >= qtv->cluster->maxproxies && qtv->cluster->maxproxies)
 	{
 		const char buffer[] = {dem_all, 1, 'P','r','o','x','y',' ','i','s',' ','f','u','l','l','.'};
 		send(sock, buffer, strlen(buffer), 0);
@@ -353,7 +366,7 @@ void CheckMVDConsistancy(unsigned char *buffer, int pos, int size)
 	*/
 }
 
-void Net_TryFlushProxyBuffer(oproxy_t *prox)
+void Net_TryFlushProxyBuffer(cluster_t *cluster, oproxy_t *prox)
 {
 	char *buffer;
 	int length;
@@ -376,7 +389,7 @@ void Net_TryFlushProxyBuffer(oproxy_t *prox)
 //	CheckMVDConsistancy(prox->buffer, prox->bufferpos, prox->buffersize);
 
 	if (bufpos+length > MAX_PROXY_BUFFER)
-		printf("oversize flush\n");
+		Sys_Printf(cluster, "oversize flush\n");
 
 	if (prox->file)
 		length = fwrite(buffer, 1, length, prox->file);
@@ -398,13 +411,13 @@ void Net_TryFlushProxyBuffer(oproxy_t *prox)
 	}
 }
 
-void Net_ProxySend(oproxy_t *prox, char *buffer, int length)
+void Net_ProxySend(cluster_t *cluster, oproxy_t *prox, char *buffer, int length)
 {
 	int wrap;
 
 	if (prox->buffersize-prox->bufferpos + length > MAX_PROXY_BUFFER)
 	{
-		Net_TryFlushProxyBuffer(prox);	//try flushing
+		Net_TryFlushProxyBuffer(cluster, prox);	//try flushing
 		if (prox->buffersize-prox->bufferpos + length > MAX_PROXY_BUFFER)	//damn, still too big.
 		{	//they're too slow. hopefully it was just momentary lag
 			prox->flushing = true;
@@ -438,7 +451,7 @@ void Net_ProxySend(oproxy_t *prox, char *buffer, int length)
 #endif
 }
 
-void Prox_SendMessage(oproxy_t *prox, char *buf, int length, int dem_type, unsigned int playermask)
+void Prox_SendMessage(cluster_t *cluster, oproxy_t *prox, char *buf, int length, int dem_type, unsigned int playermask)
 {
 	netmsg_t msg;
 	char tbuf[16];
@@ -450,9 +463,9 @@ void Prox_SendMessage(oproxy_t *prox, char *buf, int length, int dem_type, unsig
 		WriteLong(&msg, playermask);
 
 
-	Net_ProxySend(prox, msg.data, msg.cursize);
+	Net_ProxySend(cluster, prox, msg.data, msg.cursize);
 
-	Net_ProxySend(prox, buf, length);
+	Net_ProxySend(cluster, prox, buf, length);
 }
 
 void Prox_SendPlayerStats(sv_t *qtv, oproxy_t *prox)
@@ -502,31 +515,31 @@ void Net_SendConnectionMVD(sv_t *qtv, oproxy_t *prox)
 
 	prox->flushing = false;
 
-	BuildServerData(qtv, &msg, true);
-	Prox_SendMessage(prox, msg.data, msg.cursize, dem_read, (unsigned)-1);
+	BuildServerData(qtv, &msg, true, 0);
+	Prox_SendMessage(qtv->cluster, prox, msg.data, msg.cursize, dem_read, (unsigned)-1);
 	msg.cursize = 0;
 
 	for (prespawn = 0;prespawn >= 0;)
 	{
 		prespawn = SendList(qtv, prespawn, qtv->soundlist, svc_soundlist, &msg);
-		Prox_SendMessage(prox, msg.data, msg.cursize, dem_read, (unsigned)-1);
+		Prox_SendMessage(qtv->cluster, prox, msg.data, msg.cursize, dem_read, (unsigned)-1);
 		msg.cursize = 0;
 	}
 
 	for (prespawn = 0;prespawn >= 0;)
 	{
 		prespawn = SendList(qtv, prespawn, qtv->modellist, svc_modellist, &msg);
-		Prox_SendMessage(prox, msg.data, msg.cursize, dem_read, (unsigned)-1);
+		Prox_SendMessage(qtv->cluster, prox, msg.data, msg.cursize, dem_read, (unsigned)-1);
 		msg.cursize = 0;
 	}
 
-	Net_TryFlushProxyBuffer(prox);	//that should be enough data to fill a packet.
+	Net_TryFlushProxyBuffer(qtv->cluster, prox);	//that should be enough data to fill a packet.
 
 	for(prespawn = 0;prespawn>=0;)
 	{
 		prespawn = Prespawn(qtv, 0, &msg, prespawn);
 
-		Prox_SendMessage(prox, msg.data, msg.cursize, dem_read, (unsigned)-1);
+		Prox_SendMessage(qtv->cluster, prox, msg.data, msg.cursize, dem_read, (unsigned)-1);
 		msg.cursize = 0;
 	}
 
@@ -534,30 +547,30 @@ void Net_SendConnectionMVD(sv_t *qtv, oproxy_t *prox)
 
 	//we do need to send entity states.
 	Prox_SendInitialEnts(qtv, prox, &msg);
-	Prox_SendMessage(prox, msg.data, msg.cursize, dem_read, (unsigned)-1);
+	Prox_SendMessage(qtv->cluster, prox, msg.data, msg.cursize, dem_read, (unsigned)-1);
 	msg.cursize = 0;
 
 	WriteByte(&msg, svc_stufftext);
 	WriteString(&msg, "skins\n");
-	Prox_SendMessage(prox, msg.data, msg.cursize, dem_read, (unsigned)-1);
+	Prox_SendMessage(qtv->cluster, prox, msg.data, msg.cursize, dem_read, (unsigned)-1);
 	msg.cursize = 0;
 
-	Net_TryFlushProxyBuffer(prox);
+	Net_TryFlushProxyBuffer(qtv->cluster, prox);
 
 	Prox_SendPlayerStats(qtv, prox);
-	Net_TryFlushProxyBuffer(prox);
+	Net_TryFlushProxyBuffer(qtv->cluster, prox);
 
-	if (!qtv->lateforward)
-		Net_ProxySend(prox, qtv->buffer, qtv->buffersize);	//send all the info we've not yet processed.
+	if (!qtv->cluster->lateforward)
+		Net_ProxySend(qtv->cluster, prox, qtv->buffer, qtv->buffersize);	//send all the info we've not yet processed.
 
 
 	if (prox->flushing)
 	{
-		printf("Connection data is too big, dropping proxy client\n");
+		Sys_Printf(qtv->cluster, "Connection data is too big, dropping proxy client\n");
 		prox->drop = true;	//this is unfortunate...
 	}
 	else
-		Net_TryFlushProxyBuffer(prox);
+		Net_TryFlushProxyBuffer(qtv->cluster, prox);
 }
 
 void Net_ForwardStream(sv_t *qtv, char *buffer, int length)
@@ -604,7 +617,7 @@ void Net_ForwardStream(sv_t *qtv, char *buffer, int length)
 			}
 			else
 			{
-				Net_TryFlushProxyBuffer(prox);	//try and flush it.
+				Net_TryFlushProxyBuffer(qtv->cluster, prox);	//try and flush it.
 				continue;
 			}
 		}
@@ -613,12 +626,11 @@ void Net_ForwardStream(sv_t *qtv, char *buffer, int length)
 			continue;
 
 		//add the new data
-		Net_ProxySend(prox, buffer, length);
+		Net_ProxySend(qtv->cluster, prox, buffer, length);
 
-		//and try to send it.
-		Net_TryFlushProxyBuffer(prox);
-		Net_TryFlushProxyBuffer(prox);
-		Net_TryFlushProxyBuffer(prox);
+		Net_TryFlushProxyBuffer(qtv->cluster, prox);
+//		Net_TryFlushProxyBuffer(qtv->cluster, prox);
+//		Net_TryFlushProxyBuffer(qtv->cluster, prox);
 	}
 }
 
@@ -648,7 +660,7 @@ qboolean Net_ReadStream(sv_t *qtv)
 	if (read > 0)
 	{
 		qtv->buffersize += read;
-		if (!qtv->lateforward)
+		if (!qtv->cluster->lateforward)
 			Net_ForwardStream(qtv, buffer, read);
 	}
 	else
@@ -657,7 +669,12 @@ qboolean Net_ReadStream(sv_t *qtv)
 		{
 			if (qtv->sourcesock != INVALID_SOCKET)
 			{
-				printf("Error: source socket error %i\n", qerrno);
+				int err;
+				err = qerrno;
+				if (qerrno)
+					Sys_Printf(qtv->cluster, "Error: source socket error %i\n", qerrno);
+				else
+					Sys_Printf(qtv->cluster, "Error: server disconnected\n");
 				closesocket(qtv->sourcesock);
 				qtv->sourcesock = INVALID_SOCKET;
 			}
@@ -666,7 +683,7 @@ qboolean Net_ReadStream(sv_t *qtv)
 				fclose(qtv->file);
 				qtv->file = NULL;
 			}
-			printf("Read error or eof\n");
+			Sys_Printf(qtv->cluster, "Read error or eof to %s\n", qtv->server);
 			return false;
 		}
 	}
@@ -688,7 +705,7 @@ unsigned int Sys_Milliseconds(void)
 	return ((unsigned)tv.tv_sec)*1000 + (((unsigned)tv.tv_usec)/1000);
 #endif
 }
-
+/*
 void NetSleep(sv_t *tv)
 {
 	int m;
@@ -741,7 +758,7 @@ void NetSleep(sv_t *tv)
 			if (tv->inputlength)
 			{
 				tv->commandinput[tv->inputlength] = '\0';
-				result = Rcon_Command(tv, tv->commandinput, buffer, sizeof(buffer), true);
+				result = Rcon_Command(tv->cluster, tv, tv->commandinput, buffer, sizeof(buffer), true);
 				printf("%s", result);
 				tv->inputlength = 0;
 				tv->commandinput[0] = '\0';
@@ -787,6 +804,7 @@ void NetSleep(sv_t *tv)
 	}
 #endif
 }
+*/
 
 void Trim(char *s)
 {
@@ -816,7 +834,7 @@ qboolean QTV_Connect(sv_t *qtv, char *serverurl)
 	*qtv->serverinfo = '\0';
 	Info_SetValueForStarKey(qtv->serverinfo, "*version",	"FTEQTV",	sizeof(qtv->serverinfo));
 	Info_SetValueForStarKey(qtv->serverinfo, "*qtv",		VERSION,	sizeof(qtv->serverinfo));
-	Info_SetValueForStarKey(qtv->serverinfo, "hostname",	qtv->hostname,	sizeof(qtv->serverinfo));
+	Info_SetValueForStarKey(qtv->serverinfo, "hostname",	qtv->cluster->hostname,	sizeof(qtv->serverinfo));
 	Info_SetValueForStarKey(qtv->serverinfo, "maxclients",	"99",	sizeof(qtv->serverinfo));
 	if (!strncmp(qtv->server, "file:", 5))
 		Info_SetValueForStarKey(qtv->serverinfo, "server",		"file",	sizeof(qtv->serverinfo));
@@ -827,24 +845,24 @@ qboolean QTV_Connect(sv_t *qtv, char *serverurl)
 
 	if (!Net_ConnectToServer(qtv, qtv->server))
 	{
-		printf("Couldn't connect (%s)\n", qtv->server);
+		Sys_Printf(qtv->cluster, "Couldn't connect (%s)\n", qtv->server);
 		return false;
 	}
-	printf("Connected\n");
+	Sys_Printf(qtv->cluster, "Connected\n");
 
 	if (qtv->sourcesock == INVALID_SOCKET)
 	{
 		qtv->parsetime = Sys_Milliseconds();
-		printf("Playing from file\n");
+		Sys_Printf(qtv->cluster, "Playing from file\n");
 	}
 	else
 	{
 		qtv->parsetime = Sys_Milliseconds() + BUFFERTIME*1000;
-		printf("Buffering for %i seconds\n", BUFFERTIME);
+		Sys_Printf(qtv->cluster, "Buffering for %i seconds\n", BUFFERTIME);
 	}
 	return true;
 }
-
+/*
 void QTV_Run(sv_t *qtv)
 {
 	int lengthofs;
@@ -1112,3 +1130,424 @@ int main(int argc, char **argv)
 	return 0;
 }
 
+*/
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+void QTV_Run(sv_t *qtv)
+{
+	int lengthofs;
+	unsigned int length;
+	unsigned char *buffer;
+	int oldcurtime;
+	int packettime;
+
+	
+//we will read out as many packets as we can until we're up to date
+//note: this can cause real issues when we're overloaded for any length of time
+//each new packet comes with a leading msec byte (msecs from last packet)
+//then a type, an optional destination mask, and a 4byte size.
+//the 4 byte size is probably excessive, a short would do.
+//some of the types have thier destination mask encoded inside the type byte, yielding 8 types, and 32 max players.
+
+
+//if we've no got enough data to read a new packet, we print a message and wait an extra two seconds. this will add a pause, connected clients will get the same pause, and we'll just try to buffer more of the game before playing.
+//we'll stay 2 secs behind when the tcp stream catches up, however. This could be bad especially with long up-time.
+//All timings are in msecs, which is in keeping with the mvd times, but means we might have issues after 72 or so days.
+//the following if statement will reset the parse timer. It might cause the game to play too soon, the buffersize checks in the rest of the function will hopefully put it back to something sensible.
+
+	oldcurtime = qtv->curtime;
+	qtv->curtime = Sys_Milliseconds();
+	if (oldcurtime > qtv->curtime)
+	{
+		Sys_Printf(qtv->cluster, "Time wrapped\n");
+		qtv->parsetime = qtv->curtime;
+	}
+
+
+	if (qtv->sourcesock == INVALID_SOCKET && !qtv->file)
+	{
+		if (qtv->curtime >= qtv->nextconnectattemp || qtv->curtime < qtv->nextconnectattemp - RECONNECT_TIME*2)
+		if (!QTV_Connect(qtv, qtv->server))
+		{
+			return;
+		}
+	}
+
+
+	Net_FindProxies(qtv);	//look for any other proxies wanting to muscle in on the action.
+
+	if (qtv->file || qtv->sourcesock != INVALID_SOCKET)
+	{
+		if (!Net_ReadStream(qtv))
+		{	//if we have an error reading it
+			//if it's valid, give up
+			//what should we do here?
+			//obviously, we need to keep reading the stream to keep things smooth
+		}
+	}
+
+
+
+	while (qtv->curtime >= qtv->parsetime)
+	{
+		if (qtv->buffersize < 2)
+		{	//not enough stuff to play.
+			if (qtv->parsetime < qtv->curtime)
+			{
+				qtv->parsetime = qtv->curtime + 2*1000;	//add two seconds
+				if (qtv->file || qtv->sourcesock != INVALID_SOCKET)
+					Sys_Printf(qtv->cluster, "Not enough buffered\n");
+			}
+			break;
+		}
+
+		buffer = qtv->buffer;
+
+		switch (qtv->buffer[1]&dem_mask)
+		{
+		case dem_set:
+			if (qtv->buffersize < 10)
+			{	//not enough stuff to play.
+				qtv->parsetime = qtv->curtime + 2*1000;	//add two seconds
+				if (qtv->file || qtv->sourcesock != INVALID_SOCKET)
+					Sys_Printf(qtv->cluster, "Not enough buffered\n");
+				continue;
+			}
+			qtv->parsetime += buffer[0];	//well this was pointless
+			memmove(qtv->buffer, qtv->buffer+10, qtv->buffersize-(10));
+			qtv->buffersize -= 10;
+			continue;
+		case dem_multiple:
+			lengthofs = 6;
+			break;
+		default:
+			lengthofs = 2;
+			break;
+		}
+
+		if (qtv->buffersize < lengthofs+4)
+		{	//the size parameter doesn't fit.
+			if (qtv->file || qtv->sourcesock != INVALID_SOCKET)
+				Sys_Printf(qtv->cluster, "Not enough buffered\n");
+			qtv->parsetime = qtv->curtime + 2*1000;	//add two seconds
+			break;
+		}
+
+
+		length = (buffer[lengthofs]<<0) + (buffer[lengthofs+1]<<8) + (buffer[lengthofs+2]<<16) + (buffer[lengthofs+3]<<24);
+		if (length > 1450)
+		{	//FIXME: THIS SHOULDN'T HAPPEN!
+			//Blame the upstream proxy!
+			Sys_Printf(qtv->cluster, "Warning: corrupt input packet (%i) too big! Flushing and reconnecting!\n", length);
+			if (qtv->file)
+			{
+				fclose(qtv->file);
+				qtv->file = NULL;
+			}
+			else
+			{
+				closesocket(qtv->sourcesock);
+				qtv->sourcesock = INVALID_SOCKET;
+			}
+			qtv->buffersize = 0;
+			break;
+		}
+
+		if (length+lengthofs+4 > qtv->buffersize)
+		{
+			if (qtv->file || qtv->sourcesock != INVALID_SOCKET)
+				Sys_Printf(qtv->cluster, "Not enough buffered\n");
+			qtv->parsetime = qtv->curtime + 2*1000;	//add two seconds
+			break;	//can't parse it yet.
+		}
+
+		qtv->nextpackettime = qtv->parsetime+buffer[0];
+
+		if (qtv->nextpackettime < qtv->curtime)
+		{
+			if (qtv->cluster->lateforward)
+				Net_ForwardStream(qtv, qtv->buffer, lengthofs+4+length);
+
+			switch(qtv->buffer[1]&dem_mask)
+			{
+			case dem_multiple:
+				ParseMessage(qtv, buffer+lengthofs+4, length, qtv->buffer[1]&dem_mask, (buffer[lengthofs-4]<<0) + (buffer[lengthofs+3]<<8) + (buffer[lengthofs-2]<<16) + (buffer[lengthofs-1]<<24));
+				break;
+			case dem_single:
+			case dem_stats:
+				ParseMessage(qtv, buffer+lengthofs+4, length, qtv->buffer[1]&dem_mask, 1<<(qtv->buffer[1]>>3));
+				break;
+			case dem_read:
+			case dem_all:
+				ParseMessage(qtv, buffer+lengthofs+4, length, qtv->buffer[1]&dem_mask, 0xffffffff);
+				break;
+			default:
+				Sys_Printf(qtv->cluster, "Message type %i\n", qtv->buffer[1]&dem_mask);
+				break;
+			}
+
+			qtv->oldpackettime = qtv->curtime;
+
+			packettime = buffer[0];
+			if (qtv->buffersize)
+			{	//svc_disconnect can flush our input buffer (to prevent the EndOfDemo part from interfering)
+				memmove(qtv->buffer, qtv->buffer+lengthofs+4+length, qtv->buffersize-(lengthofs+length+4));
+				qtv->buffersize -= lengthofs+4+length;
+			}
+
+			if (qtv->file)
+				Net_ReadStream(qtv);
+
+			qtv->parsetime += packettime;
+		}
+		else
+			break;
+	}
+}
+
+
+
+void Cluster_Run(cluster_t *cluster)
+{
+	sv_t *sv;
+
+		int m;
+		struct timeval timeout;
+		fd_set socketset;
+
+		FD_ZERO(&socketset);
+		m = 0;
+		if (cluster->qwdsocket != INVALID_SOCKET)
+		{
+			FD_SET(cluster->qwdsocket, &socketset);
+			if (cluster->qwdsocket >= m)
+				m = cluster->qwdsocket+1;
+		}
+/*
+		for (sv = cluster->servers; sv; sv = sv->next)
+		{
+			if (sv->sourcesock != INVALID_SOCKET)
+			{
+				FD_SET(sv->sourcesock, &socketset);
+				if (sv->sourcesock >= m)
+					m = sv->sourcesock+1;
+			}
+		}
+*/
+	#ifndef _WIN32
+		#ifndef STDIN
+			#define STDIN 0
+		#endif
+		FD_SET(STDIN, &socketset);
+		if (STDIN >= m)
+			m = STDIN+1;
+	#endif
+
+		timeout.tv_sec = 100/1000;
+		timeout.tv_usec = (100%1000)*1000;
+
+		m = select(m, &socketset, NULL, NULL, &timeout);
+
+
+#ifdef _WIN32
+		for (;;)
+		{
+			char buffer[8192];
+			char *result;
+			char c;
+
+			if (!kbhit())
+				break;
+			c = getch();
+
+			if (c == '\n' || c == '\r')
+			{
+				Sys_Printf(cluster, "\n");
+				if (cluster->inputlength)
+				{
+					cluster->commandinput[cluster->inputlength] = '\0';
+					result = Rcon_Command(cluster, NULL, cluster->commandinput, buffer, sizeof(buffer), true);
+					Sys_Printf(cluster, "%s", result);
+					cluster->inputlength = 0;
+					cluster->commandinput[0] = '\0';
+				}
+			}
+			else if (c == '\b')
+			{
+				if (cluster->inputlength > 0)
+				{
+					Sys_Printf(cluster, "%c", c);
+					Sys_Printf(cluster, " ", c);
+					Sys_Printf(cluster, "%c", c);
+
+					cluster->inputlength--;
+					cluster->commandinput[cluster->inputlength] = '\0';
+				}
+			}
+			else
+			{
+				Sys_Printf(cluster, "%c", c);
+				if (cluster->inputlength < sizeof(cluster->commandinput)-1)
+				{
+					cluster->commandinput[cluster->inputlength++] = c;
+					cluster->commandinput[cluster->inputlength] = '\0';
+				}
+			}
+		}
+#else
+		if (FD_ISSET(STDIN, &socketset))
+		{
+			char buffer[8192];
+			char *result;
+			cluster->inputlength = read (0, cluster->commandinput, sizeof(cluster->commandinput));
+			if (cluster->inputlength >= 1)
+			{
+				cluster->commandinput[cluster->inputlength-1] = 0;        // rip off the /n and terminate
+
+				if (cluster->inputlength)
+				{
+					cluster->commandinput[cluster->inputlength] = '\0';
+					result = Rcon_Command(cluster, NULL, cluster->commandinput, buffer, sizeof(buffer), true);
+					printf("%s", result);
+					cluster->inputlength = 0;
+					cluster->commandinput[0] = '\0';
+				}
+			}
+		}
+#endif
+
+
+
+
+
+		for (sv = cluster->servers; sv; sv = sv->next)
+		{
+			QTV_Run(sv);
+		}
+
+		QW_UpdateUDPStuff(cluster);
+}
+
+sv_t *QTV_NewServerConnection(cluster_t *cluster, char *server, qboolean force)
+{
+	sv_t *qtv = malloc(sizeof(sv_t));
+
+	memset(qtv, 0, sizeof(*qtv));
+	//set up a default config
+	qtv->tcplistenportnum = PROX_DEFAULTLISTENPORT;
+	strcpy(qtv->server, PROX_DEFAULTSERVER);
+
+	qtv->listenmvd = INVALID_SOCKET;
+	qtv->sourcesock = INVALID_SOCKET;
+
+	qtv->cluster = cluster;
+	qtv->next = cluster->servers;
+
+	if (!QTV_Connect(qtv, server) && !force)
+	{
+		free(qtv);
+		return NULL;
+	}
+	cluster->servers = qtv;
+	cluster->numservers++;
+
+	return qtv;
+}
+
+void DoCommandLine(cluster_t *cluster, int argc, char **argv)
+{
+	int i;
+	char commandline[8192];
+	char *start, *end, *result;
+	char buffer[8192];
+
+	commandline[0] = '\0';
+
+	//build a block of strings.
+	for (i = 1; i < argc; i++)
+	{
+		strcat(commandline, argv[i]);
+		strcat(commandline, " ");
+	}
+	strcat(commandline, "+");
+	
+	start = commandline;
+	while(start)
+	{
+		end = strchr(start+1, '+');
+		if (end)
+			*end = '\0';
+		if (start[1])
+		{
+			result = Rcon_Command(cluster, NULL, start+1, buffer, sizeof(buffer), true);
+			Sys_Printf(cluster, "%s", result);
+		}
+
+		start = end;
+	}
+}
+
+int main(int argc, char **argv)
+{
+	cluster_t cluster;
+
+#ifdef _WIN32
+	{
+		WSADATA discard;
+		WSAStartup(MAKEWORD(2,0), &discard);
+	}
+#endif
+
+	memset(&cluster, 0, sizeof(cluster));
+
+	cluster.qwdsocket = INVALID_SOCKET;
+	cluster.qwlistenportnum = 0;
+	strcpy(cluster.hostname, DEFAULT_HOSTNAME);
+
+
+	DoCommandLine(&cluster, argc, argv);
+
+	if (!cluster.numservers)
+	{	//probably running on a home user's computer
+		if (cluster.qwdsocket == INVALID_SOCKET && !cluster.qwlistenportnum)
+		{
+			cluster.qwdsocket = QW_InitUDPSocket(cluster.qwlistenportnum = 27599);
+			if (cluster.qwdsocket != INVALID_SOCKET)
+				Sys_Printf(&cluster, "opened port %i\n", cluster.qwlistenportnum);
+		}
+
+		Sys_Printf(&cluster, "\nWelcome to FTEQTV\nPlease type \nconnect server:ip\nto connect to a server.\n\n");
+	}
+
+	while (!cluster.wanttoexit)
+		Cluster_Run(&cluster);
+
+	return 0;
+}
+
+
+void Sys_Printf(cluster_t *cluster, char *fmt, ...)
+{
+	va_list		argptr;
+	char		string[2024];
+	
+	va_start (argptr, fmt);
+	vsnprintf (string, sizeof(string), fmt,argptr);
+	va_end (argptr);
+
+	printf("%s", string);
+}

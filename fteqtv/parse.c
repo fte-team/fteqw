@@ -186,18 +186,20 @@ void Multicast(sv_t *tv, char *buffer, int length, int to, unsigned int playerma
 	case dem_single:
 	case dem_stats:
 		//check and send to them only if they're tracking this player(s).
-		for (v = tv->viewers; v; v = v->next)
+		for (v = tv->cluster->viewers; v; v = v->next)
 		{
-			if (v->trackplayer>=0)
-				if ((1<<v->trackplayer)&playermask)
-					SendBufferToViewer(v, buffer, length, true);	//FIXME: change the reliable depending on message type
+			if (v->server == tv)
+				if (v->trackplayer>=0)
+					if ((1<<v->trackplayer)&playermask)
+						SendBufferToViewer(v, buffer, length, true);	//FIXME: change the reliable depending on message type
 		}
 		break;
 	default:
 		//send to all
-		for (v = tv->viewers; v; v = v->next)
+		for (v = tv->cluster->viewers; v; v = v->next)
 		{
-			SendBufferToViewer(v, buffer, length, true);	//FIXME: change the reliable depending on message type
+			if (v->server == tv)
+				SendBufferToViewer(v, buffer, length, true);	//FIXME: change the reliable depending on message type
 		}
 		break;
 	}
@@ -224,10 +226,10 @@ static void ParseServerData(sv_t *tv, netmsg_t *m, int to, unsigned int playerma
 	/*tv->servertime =*/ ReadFloat(m);
 	ReadString(m, tv->mapname, sizeof(tv->mapname));
 
-	printf("Gamedir: %s\n", tv->gamedir);
-	printf("---------------------\n");
-	printf("%s\n", tv->mapname);
-	printf("---------------------\n");
+	Sys_Printf(tv->cluster, "Gamedir: %s\n", tv->gamedir);
+	Sys_Printf(tv->cluster, "---------------------\n");
+	Sys_Printf(tv->cluster, "%s\n", tv->mapname);
+	Sys_Printf(tv->cluster, "---------------------\n");
 
 	// get the movevars
 	tv->movevars.gravity			= ReadFloat(m);
@@ -241,8 +243,11 @@ static void ParseServerData(sv_t *tv, netmsg_t *m, int to, unsigned int playerma
 	tv->movevars.waterfriction		= ReadFloat(m);
 	tv->movevars.entgrav			= ReadFloat(m);
 
-	for (v = tv->viewers; v; v = v->next)
-		v->thinksitsconnected = false;
+	for (v = tv->cluster->viewers; v; v = v->next)
+	{
+		if (v->server == tv)
+			v->thinksitsconnected = false;
+	}
 
 	tv->maxents = 0;	//clear these
 	memset(tv->modellist, 0, sizeof(tv->modellist));
@@ -273,12 +278,15 @@ static void ParseStufftext(sv_t *tv, netmsg_t *m, int to, unsigned int mask)
 	if (!strcmp(text, "skins\n"))
 	{
 		const char newcmd[10] = {svc_stufftext, 'c', 'm', 'd', ' ', 'n','e','w','\n','\0'};
-		tv->servercount++;
 		tv->parsingconnectiondata = false;
 
-		for (v = tv->viewers; v; v = v->next)
+		for (v = tv->cluster->viewers; v; v = v->next)
 		{
-			SendBufferToViewer(v, newcmd, sizeof(newcmd), true);
+			if (v->server == tv)
+			{
+				v->servercount++;
+				SendBufferToViewer(v, newcmd, sizeof(newcmd), true);
+			}
 		}
 		return;
 	}
@@ -306,14 +314,14 @@ static void ParseStufftext(sv_t *tv, netmsg_t *m, int to, unsigned int mask)
 		{	//the fromproxy check is because it's fairly common to find a qw server with brackets after it's name.
 			char *s;
 			s = strchr(value, '(');	//so strip the parent proxy's hostname, and put our hostname first, leaving the origional server's hostname within the brackets
-			snprintf(text, sizeof(text), "%s %s", tv->hostname, s);
+			snprintf(text, sizeof(text), "%s %s", tv->cluster->hostname, s);
 		}
 		else
 		{
 			if (tv->file)
-				snprintf(text, sizeof(text), "%s (recorded from: %s)", tv->hostname, value);
+				snprintf(text, sizeof(text), "%s (recorded from: %s)", tv->cluster->hostname, value);
 			else
-				snprintf(text, sizeof(text), "%s (live: %s)", tv->hostname, value);
+				snprintf(text, sizeof(text), "%s (live: %s)", tv->cluster->hostname, value);
 		}
 		Info_SetValueForStarKey(tv->serverinfo, "hostname", text, sizeof(tv->serverinfo));
 
@@ -323,6 +331,22 @@ static void ParseStufftext(sv_t *tv, netmsg_t *m, int to, unsigned int mask)
 		return;	//commands the game server asked for are pointless.
 
 	Multicast(tv, m->data+m->startpos, m->readpos - m->startpos, to, mask);
+}
+
+static void ParseSetInfo(sv_t *tv, netmsg_t *m)
+{
+	int pnum;
+	char key[64];
+	char value[256];
+	pnum = ReadByte(m);
+	ReadString(m, key, sizeof(key));
+	ReadString(m, value, sizeof(value));
+
+	if (pnum < MAX_CLIENTS)
+		Info_SetValueForStarKey(tv->players[pnum].userinfo, key, value, sizeof(tv->players[pnum].userinfo));
+
+	if (!tv->parsingconnectiondata)
+		Multicast(tv, m->data+m->startpos, m->readpos - m->startpos, dem_all, (unsigned)-1);
 }
 
 static void ParseServerinfo(sv_t *tv, netmsg_t *m)
@@ -366,10 +390,16 @@ static void ParsePrint(sv_t *tv, netmsg_t *m, int to, unsigned int mask)
 					*t = '[';
 				if (*t == 17)
 					*t = ']';
+				if (*t == 29)
+					*t = '-';
+				if (*t == 30)
+					*t = '-';
+				if (*t == 31)
+					*t = '-';
 				if (*t == '\a')	//doh. :D
 					*t = ' ';
 			}
-			printf("%s", text);
+			Sys_Printf(tv->cluster, "%s", text);
 		}
 	}
 
@@ -430,7 +460,7 @@ static void ParseStaticSound(sv_t *tv, netmsg_t *m, int to, unsigned int mask)
 	if (tv->staticsound_count == MAX_STATICSOUNDS)
 	{
 		tv->staticsound_count--;	// don't be fatal.
-		printf("Too many static sounds\n");
+		Sys_Printf(tv->cluster, "Too many static sounds\n");
 	}
 
 	tv->staticsound[tv->staticsound_count].origin[0] = ReadShort(m);
@@ -462,7 +492,7 @@ void ParseSpawnStatic(sv_t *tv, netmsg_t *m, int to, unsigned int mask)
 	if (tv->spawnstatic_count == MAX_STATICENTITIES)
 	{
 		tv->spawnstatic_count--;	// don't be fatal.
-		printf("Too many static entities\n");
+		Sys_Printf(tv->cluster, "Too many static entities\n");
 	}
 
 	ParseEntityState(&tv->spawnstatic[tv->spawnstatic_count], m);
@@ -473,16 +503,28 @@ void ParseSpawnStatic(sv_t *tv, netmsg_t *m, int to, unsigned int mask)
 		Multicast(tv, m->data+m->startpos, m->readpos - m->startpos, to, mask);
 }
 
-static void ParsePlayerInfo(sv_t *tv, netmsg_t *m)
+static void ParsePlayerInfo(sv_t *tv, netmsg_t *m, qboolean clearoldplayers)
 {
 	int flags;
 	int num;
 	int i;
+
+	if (clearoldplayers)
+	{
+		for (i = 0; i < MAX_CLIENTS; i++)
+		{	//hide players
+			//they'll be sent after this packet.
+			tv->players[i].active = false;
+		}
+	}
+
+
+
 	num = ReadByte(m);
 	if (num >= MAX_CLIENTS)
 	{
 		num = 0;	// don't be fatal.
-		printf("Too many svc_playerinfos, wrapping\n");
+		Sys_Printf(tv->cluster, "Too many svc_playerinfos, wrapping\n");
 	}
 
 	tv->players[num].old = tv->players[num].current;
@@ -544,17 +586,12 @@ static void ParsePacketEntities(sv_t *tv, netmsg_t *m)
 
 	tv->physicstime = tv->parsetime;
 
-	if (tv->chokeonnotupdated)
-		for (v = tv->viewers; v; v = v->next)
+	if (tv->cluster->chokeonnotupdated)
+		for (v = tv->cluster->viewers; v; v = v->next)
 		{
-			v->chokeme = false;
+			if (v->server == tv)
+				v->chokeme = false;
 		}
-
-	for (entnum = 0; entnum < MAX_CLIENTS; entnum++)
-	{	//hide players
-		//they'll be sent after this packet.
-		tv->players[entnum].active = false;
-	}
 
 	//luckilly, only updated entities are here, so that keeps cpu time down a bit.
 	for (;;)
@@ -630,7 +667,7 @@ static void ParseUpdatePing(sv_t *tv, netmsg_t *m, int to, unsigned int mask)
 	if (pnum < MAX_CLIENTS)
 		tv->players[pnum].ping = ping;
 	else
-		printf("svc_updateping: invalid player number\n");
+		Sys_Printf(tv->cluster, "svc_updateping: invalid player number\n");
 
 	Multicast(tv, m->data+m->startpos, m->readpos - m->startpos, to, mask);
 }
@@ -645,7 +682,7 @@ static void ParseUpdateFrags(sv_t *tv, netmsg_t *m, int to, unsigned int mask)
 	if (pnum < MAX_CLIENTS)
 		tv->players[pnum].frags = frags;
 	else
-		printf("svc_updatefrags: invalid player number\n");
+		Sys_Printf(tv->cluster, "svc_updatefrags: invalid player number\n");
 
 	Multicast(tv, m->data+m->startpos, m->readpos - m->startpos, to, mask);
 }
@@ -668,7 +705,7 @@ static void ParseUpdateStat(sv_t *tv, netmsg_t *m, int to, unsigned int mask)
 		}
 	}
 	else
-		printf("svc_updatestat: invalid stat number\n");
+		Sys_Printf(tv->cluster, "svc_updatestat: invalid stat number\n");
 
 	Multicast(tv, m->data+m->startpos, m->readpos - m->startpos, to, mask);
 }
@@ -690,7 +727,7 @@ static void ParseUpdateStatLong(sv_t *tv, netmsg_t *m, int to, unsigned int mask
 		}
 	}
 	else
-		printf("svc_updatestatlong: invalid stat number\n");
+		Sys_Printf(tv->cluster, "svc_updatestatlong: invalid stat number\n");
 
 	Multicast(tv, m->data+m->startpos, m->readpos - m->startpos, to, mask);
 }
@@ -704,7 +741,7 @@ static void ParseUpdateUserinfo(sv_t *tv, netmsg_t *m)
 		ReadString(m, tv->players[pnum].userinfo, sizeof(tv->players[pnum].userinfo));
 	else
 	{
-		printf("svc_updateuserinfo: invalid player number\n");
+		Sys_Printf(tv->cluster, "svc_updateuserinfo: invalid player number\n");
 		while (ReadByte(m))	//suck out the message.
 		{
 		}
@@ -722,7 +759,7 @@ static void ParsePacketloss(sv_t *tv, netmsg_t *m, int to, unsigned int mask)
 	if (pnum < MAX_CLIENTS)
 		tv->players[pnum].packetloss = value;
 	else
-		printf("svc_updatepl: invalid player number\n");
+		Sys_Printf(tv->cluster, "svc_updatepl: invalid player number\n");
 
 	Multicast(tv, m->data+m->startpos, m->readpos - m->startpos, to, mask);
 }
@@ -738,7 +775,7 @@ static void ParseUpdateEnterTime(sv_t *tv, netmsg_t *m, int to, unsigned int mas
 	if (pnum < MAX_CLIENTS)
 		tv->players[pnum].entertime = value;
 	else
-		printf("svc_updateentertime: invalid player number\n");
+		Sys_Printf(tv->cluster, "svc_updateentertime: invalid player number\n");
 
 	Multicast(tv, m->data+m->startpos, m->readpos - m->startpos, to, mask);
 }
@@ -881,7 +918,7 @@ static void ParseTempEntity(sv_t *tv, netmsg_t *m, int to, unsigned int mask)
 		ReadShort (m);
 		break;
 	default:
-		printf("temp entity %i not recognised\n", i);
+		Sys_Printf(tv->cluster, "temp entity %i not recognised\n", i);
 		return;
 	}
 
@@ -896,7 +933,7 @@ void ParseLightstyle(sv_t *tv, netmsg_t *m)
 		ReadString(m, tv->lightstyle[style].name, sizeof(tv->lightstyle[style].name));
 	else
 	{
-		printf("svc_lightstyle: invalid lightstyle index (%i)\n", style);
+		Sys_Printf(tv->cluster, "svc_lightstyle: invalid lightstyle index (%i)\n", style);
 		while (ReadByte(m))	//suck out the message.
 		{
 		}
@@ -908,6 +945,7 @@ void ParseLightstyle(sv_t *tv, netmsg_t *m)
 void ParseMessage(sv_t *tv, char *buffer, int length, int to, int mask)
 {
 	netmsg_t buf;
+	qboolean clearoldplayers = true;
 	buf.cursize = length;
 	buf.maxsize = length;
 	buf.readpos = 0;
@@ -917,7 +955,7 @@ void ParseMessage(sv_t *tv, char *buffer, int length, int to, int mask)
 	{
 		if (buf.readpos > buf.cursize)
 		{
-			printf("Read past end of parse buffer\n");
+			Sys_Printf(tv->cluster, "Read past end of parse buffer\n");
 			return;
 		}
 //		printf("%i\n", buf.buffer[0]);
@@ -926,10 +964,10 @@ void ParseMessage(sv_t *tv, char *buffer, int length, int to, int mask)
 		{
 		case svc_bad:
 			ParseError(&buf);
-			printf("ParseMessage: svc_bad\n");
+			Sys_Printf(tv->cluster, "ParseMessage: svc_bad\n");
 			return;
 		case svc_nop:	//quakeworld isn't meant to send these.
-			printf("nop\n");
+			Sys_Printf(tv->cluster, "nop\n");
 			break;
 
 		case svc_disconnect:
@@ -1054,7 +1092,8 @@ void ParseMessage(sv_t *tv, char *buffer, int length, int to, int mask)
 
 //#define	svc_download		41		// [short] size [size bytes]
 		case svc_playerinfo:
-			ParsePlayerInfo(tv, &buf);
+			ParsePlayerInfo(tv, &buf, clearoldplayers);
+			clearoldplayers = false;
 			break;
 //#define	svc_nails			43		// [qbyte] num [48 bits] xyzpy 12 12 12 4 8
 		case svc_chokecount:
@@ -1067,10 +1106,10 @@ void ParseMessage(sv_t *tv, char *buffer, int length, int to, int mask)
 				if (tv->bsp)
 					BSP_Free(tv->bsp);
 
-				if (tv->nobsp)
+				if (tv->cluster->nobsp)
 					tv->bsp = NULL;
 				else
-					tv->bsp = BSP_LoadModel(tv->gamedir, tv->modellist[1].name);
+					tv->bsp = BSP_LoadModel(tv->cluster, tv->gamedir, tv->modellist[1].name);
 
 				tv->numinlines = 0;
 				for (i = 2; i < 256; i++)
@@ -1094,7 +1133,9 @@ void ParseMessage(sv_t *tv, char *buffer, int length, int to, int mask)
 			break;
 //#define svc_maxspeed		49		// maxspeed change, for prediction
 //#define svc_entgravity		50		// gravity change, for prediction
-//#define svc_setinfo			51		// setinfo on a client
+		case svc_setinfo:
+			ParseSetInfo(tv, &buf);
+			break;
 		case svc_serverinfo:
 			ParseServerinfo(tv, &buf);
 			break;
@@ -1106,7 +1147,7 @@ void ParseMessage(sv_t *tv, char *buffer, int length, int to, int mask)
 
 		default:
 			buf.readpos = buf.startpos;
-			printf("Can't handle svc %i\n", (unsigned int)ReadByte(&buf));
+			Sys_Printf(tv->cluster, "Can't handle svc %i\n", (unsigned int)ReadByte(&buf));
 			return;
 		}
 	}

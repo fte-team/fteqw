@@ -27,6 +27,13 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 
 //this means that when a new proxy connects, we have to send initial state as well as a chunk of pending state, expect to need to send new data before the proxy even has all the init stuff. We may need to raise MAX_PROXY_BUFFER to be larger than on the server
 
+
+
+//how does multiple servers work
+//each proxy acts as a cluster of connections to servers
+//when a viewer connects, they are given a list of active server connections
+//if there's only one server connection, they are given that one automatically.
+
 #ifdef _WIN32
 	#include <conio.h>
 	#include <winsock.h>
@@ -42,6 +49,7 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 	#endif
 
 	#define snprintf _snprintf
+	#define vsnprintf _vsnprintf
 
 #elif defined(__CYGWIN__)
 
@@ -221,6 +229,8 @@ typedef struct {
 } packet_entities_t;
 
 #define MAX_BACK_BUFFERS	16
+typedef struct sv_s sv_t;
+typedef struct cluster_s cluster_t;
 typedef struct viewer_s {
 	qboolean drop;
 	netchan_t netchan;
@@ -228,6 +238,8 @@ typedef struct viewer_s {
 	qboolean chokeme;
 	qboolean thinksitsconnected;
 	int delta_frame;
+
+	int servercount;
 
 	netmsg_t backbuf[MAX_BACK_BUFFERS];	//note data is malloced!
 	int backbuffered;
@@ -245,6 +257,12 @@ typedef struct viewer_s {
 	int settime;	//the time that we last told the client.
 
 	float origin[3];
+
+	sv_t *server;
+
+	int menunum;
+	int menuop;
+	int fwdval;	//for scrolling up/down the menu using +forward/+back :)
 } viewer_t;
 
 typedef struct oproxy_s {
@@ -287,7 +305,6 @@ typedef struct sv_s {
 
 	unsigned int parsetime;
 
-	int servercount;
 	char gamedir[MAX_QPATH];
 	char mapname[256];
 	struct {
@@ -312,6 +329,7 @@ typedef struct sv_s {
 	filename_t lightstyle[MAX_LIGHTSTYLES];
 
 	char serverinfo[MAX_SERVERINFO_STRING];
+	char hostname[MAX_QPATH];
 	playerinfo_t players[MAX_CLIENTS];
 
 	filename_t modellist[MAX_MODELS];
@@ -323,10 +341,7 @@ typedef struct sv_s {
 	SOCKET sourcesock;
 
 	SOCKET listenmvd;	//tcp + mvd protocol
-	SOCKET qwdsocket;	//udp + quakeworld protocols
 
-	viewer_t *viewers;
-	int numviewers;
 	oproxy_t *proxies;
 	int numproxies;
 
@@ -336,35 +351,51 @@ typedef struct sv_s {
 	unsigned int curtime;
 	unsigned int oldpackettime;
 	unsigned int nextpackettime;
+	unsigned int nextconnectattemp;
 
 	int tcplistenportnum;
-	int qwlistenportnum;
-	unsigned int mastersendtime;
-	unsigned int mastersequence;
 
-	char commandinput[512];
-	int inputlength;
 
+	cluster_t *cluster;
+	sv_t *next;	//next proxy->server connection
 
 	bsp_t *bsp;
 	int numinlines;
 
 	//options:
+	char server[MAX_QPATH];
+} sv_t;
+
+typedef struct cluster_s {
+	SOCKET qwdsocket;	//udp + quakeworld protocols
+
+	char commandinput[512];
+	int inputlength;
+
+	unsigned int mastersendtime;
+	unsigned int mastersequence;
+	unsigned int curtime;
+
+	viewer_t *viewers;
+	int numviewers;
+	sv_t *servers;
+	int numservers;
+
+	//options
+	int qwlistenportnum;
+	char password[256];
+	char hostname[256];
+	char master[MAX_QPATH];
 	qboolean chokeonnotupdated;
 	qboolean lateforward;
 	qboolean notalking;
-	char password[256];
-	char hostname[256];
-	char server[MAX_QPATH];
-	char master[MAX_QPATH];
 	qboolean nobsp;
 	int maxviewers;
 	int maxproxies;
-} sv_t;
 
-typedef struct {
-	sv_t server;
-} qtv_t;
+	boolean wanttoexit;
+
+} cluster_t;
 
 
 
@@ -465,7 +496,7 @@ void ReadString(netmsg_t *b, char *string, int maxlen);
 #define	svc_deltapacketentities	48		// [...]
 //#define svc_maxspeed		49		// maxspeed change, for prediction
 //#define svc_entgravity		50		// gravity change, for prediction
-//#define svc_setinfo			51		// setinfo on a client
+#define svc_setinfo			51		// setinfo on a client
 #define svc_serverinfo		52		// serverinfo
 #define svc_updatepl		53		// [qbyte] [qbyte]
 
@@ -548,9 +579,9 @@ void WriteData(netmsg_t *b, const char *data, int length);
 
 void Multicast(sv_t *tv, char *buffer, int length, int to, unsigned int playermask);
 void ParseMessage(sv_t *tv, char *buffer, int length, int to, int mask);
-void BuildServerData(sv_t *tv, netmsg_t *msg, qboolean mvd);
+void BuildServerData(sv_t *tv, netmsg_t *msg, qboolean mvd, int servercount);
 SOCKET QW_InitUDPSocket(int port);
-void QW_UpdateUDPStuff(sv_t *qtv);
+void QW_UpdateUDPStuff(cluster_t *qtv);
 unsigned int Sys_Milliseconds(void);
 void Prox_SendInitialEnts(sv_t *qtv, oproxy_t *prox, netmsg_t *msg);
 qboolean QTV_Connect(sv_t *qtv, char *serverurl);
@@ -559,22 +590,29 @@ qboolean	NET_StringToAddr (char *s, netadr_t *sadr);
 void SendBufferToViewer(viewer_t *v, const char *buffer, int length, qboolean reliable);
 
 void Netchan_Setup (SOCKET sock, netchan_t *chan, netadr_t adr, int qport);
-void Netchan_OutOfBandPrint (SOCKET sock, netadr_t adr, char *format, ...);
+void Netchan_OutOfBandPrint (cluster_t *cluster, SOCKET sock, netadr_t adr, char *format, ...);
+void NET_SendPacket(cluster_t *cluster, SOCKET sock, int length, char *data, netadr_t adr);
 qboolean Net_CompareAddress(netadr_t *s1, netadr_t *s2, int qp1, int qp2);
 qboolean Netchan_Process (netchan_t *chan, netmsg_t *msg);
-void Netchan_Transmit (netchan_t *chan, int length, const unsigned char *data);
-int SendList(sv_t *qtv, int first, filename_t *list, int svc, netmsg_t *msg);
+void Netchan_Transmit (cluster_t *cluster, netchan_t *chan, int length, const unsigned char *data);
+int SendList(sv_t *qtv, int first, const filename_t *list, int svc, netmsg_t *msg);
 int Prespawn(sv_t *qtv, int curmsgsize, netmsg_t *msg, int bufnum);
 
-bsp_t *BSP_LoadModel(char *gamedir, char *bspname);
+bsp_t *BSP_LoadModel(cluster_t *cluster, char *gamedir, char *bspname);
 void BSP_Free(bsp_t *bsp);
 int BSP_LeafNum(bsp_t *bsp, float x, float y, float z);
 int BSP_SphereLeafNums(bsp_t *bsp, int maxleafs, unsigned short *list, float x, float y, float z, float radius);
 qboolean BSP_Visible(bsp_t *bsp, int leafcount, unsigned short *list);
 void BSP_SetupForPosition(bsp_t *bsp, float x, float y, float z);
 
-char *Rcon_Command(sv_t *qtv, char *command, char *buffer, int sizeofbuffer, qboolean localcommand);
+char *Rcon_Command(cluster_t *cluster, sv_t *qtv, char *command, char *buffer, int sizeofbuffer, qboolean localcommand);
 char *COM_ParseToken (char *data, char *out, int outsize, const char *punctuation);
 char *Info_ValueForKey (char *s, const char *key, char *buffer, int buffersize);
 void Info_SetValueForStarKey (char *s, const char *key, const char *value, int maxsize);
 
+void Sys_Printf(cluster_t *cluster, char *fmt, ...);
+
+qboolean Net_FileProxy(sv_t *qtv, char *filename);
+sv_t *QTV_NewServerConnection(cluster_t *cluster, char *server, qboolean force);
+SOCKET Net_MVDListen(int port);
+qboolean Net_StopFileProxy(sv_t *qtv);

@@ -25,13 +25,13 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 
 
 
-void NET_SendPacket(SOCKET sock, int length, char *data, netadr_t adr)
+void NET_SendPacket(cluster_t *cluster, SOCKET sock, int length, char *data, netadr_t adr)
 {
 	int ret;
 	ret = sendto(sock, data, length, 0, (struct sockaddr *)adr, sizeof(struct sockaddr_in));
 	if (ret < 0)
 	{
-		printf("udp send error\n");
+		Sys_Printf(cluster, "udp send error\n");
 	}
 }
 
@@ -104,7 +104,7 @@ Netchan_OutOfBand
 Sends an out-of-band datagram
 ================
 */
-void Netchan_OutOfBand (SOCKET sock, netadr_t adr, int length, unsigned char *data)
+void Netchan_OutOfBand (cluster_t *cluster, SOCKET sock, netadr_t adr, int length, unsigned char *data)
 {
 	netmsg_t	send;
 	unsigned char		send_buf[MAX_MSGLEN + PACKET_HEADER];
@@ -116,7 +116,7 @@ void Netchan_OutOfBand (SOCKET sock, netadr_t adr, int length, unsigned char *da
 	WriteData (&send, data, length);
 
 // send the datagram
-	NET_SendPacket (sock, send.cursize, send.data, adr);
+	NET_SendPacket (cluster, sock, send.cursize, send.data, adr);
 }
 
 
@@ -127,7 +127,7 @@ Netchan_OutOfBandPrint
 Sends a text message in an out-of-band datagram
 ================
 */
-void Netchan_OutOfBandPrint (SOCKET sock, netadr_t adr, char *format, ...)
+void Netchan_OutOfBandPrint (cluster_t *cluster, SOCKET sock, netadr_t adr, char *format, ...)
 {
 	va_list		argptr;
 	char		string[8192];
@@ -141,7 +141,7 @@ void Netchan_OutOfBandPrint (SOCKET sock, netadr_t adr, char *format, ...)
 #endif // _WIN32
 	va_end (argptr);
 
-	Netchan_OutOfBand (sock, adr, strlen(string), (unsigned char *)string);
+	Netchan_OutOfBand (cluster, sock, adr, strlen(string), (unsigned char *)string);
 }
 
 /*
@@ -225,7 +225,7 @@ transmition / retransmition of the reliable messages.
 A 0 length will still generate a packet and deal with the reliable messages.
 ================
 */
-void Netchan_Transmit (netchan_t *chan, int length, const unsigned char *data)
+void Netchan_Transmit (cluster_t *cluster, netchan_t *chan, int length, const unsigned char *data)
 {
 	netmsg_t	send;
 	unsigned char	send_buf[MAX_MSGLEN + PACKET_HEADER];
@@ -291,7 +291,7 @@ void Netchan_Transmit (netchan_t *chan, int length, const unsigned char *data)
 //	chan->outgoing_size[i] = send.cursize;
 //	chan->outgoing_time[i] = curtime;
 
-	NET_SendPacket (chan->sock, send.cursize, send.data, chan->remote_address);
+	NET_SendPacket (cluster, chan->sock, send.cursize, send.data, chan->remote_address);
 
 	if (chan->cleartime < curtime)
 		chan->cleartime = curtime + send.cursize*chan->rate;

@@ -254,11 +254,8 @@ qboolean PM_TestPlayerPosition (vec3_t pos)
 				continue;
 			}
 #endif*/
-/*			hull = &pe->model->hulls[pmove.hullnum];
-			if (!hull->available || !hull->planes || !hull->clipnodes)
-				hull = &pe->model->hulls[1];
-*/
-			pe->model->funcs.Trace(pe->model, 0, 0, pos, pos, player_mins, player_maxs, &trace);
+
+			PM_TransformedHullCheck (pe->model, pos, pos, &trace, pe->origin, pe->angles);
 			if (trace.allsolid)
 				return false;	//solid
 		}
@@ -301,6 +298,7 @@ trace_t PM_PlayerTrace (vec3_t start, vec3_t end)
 	{
 		pe = &pmove.physents[i];
 
+		if (!pe->model)
 		{
 			vec3_t mins, maxs;
 			VectorSubtract (pe->mins, player_maxs, mins);

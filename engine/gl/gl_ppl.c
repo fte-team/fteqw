@@ -4955,7 +4955,7 @@ int sh_maxverts;
 int sh_numverts;	//total emitted
 int sh_maxindicies;
 int sh_numindicies;
-float *sh_vertexpointer;
+const float *sh_vertexpointer;
 int sh_vpstride;
 shadowmesh_t *sh_shmesh;
 void APIENTRY SH_Begin (GLenum e)

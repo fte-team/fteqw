@@ -114,7 +114,7 @@ typedef struct {
 
 
 
-
+int COM_FileOpenRead (char *path, FILE **hndl);
 
 
 

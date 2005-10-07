@@ -63,7 +63,7 @@ struct progfuncs_s {
 	struct edict_s	*(*EntAlloc)		(progfuncs_t *prinst);
 	void	(*EntFree)					(progfuncs_t *prinst, struct edict_s *ed);
 
-	struct edict_s	*(*EDICT_NUM)		(progfuncs_t *prinst, int n);		//get the nth edict
+	struct edict_s	*(*EDICT_NUM)		(progfuncs_t *prinst, unsigned int n);		//get the nth edict
 	int		(*NUM_FOR_EDICT)			(progfuncs_t *prinst, struct edict_s *e);	//so you can find out what that 'n' will be
 
 	void	(*SetGlobalEdict)			(progfuncs_t *prinst, struct edict_s *ed, int ofs);	//set a global to an edict (partially obsolete)
@@ -164,7 +164,7 @@ typedef struct progexterns_s {
 	double *gametime;	//used to prevent the vm from reusing an entity faster than 2 secs.
 
 	struct edict_s **sv_edicts;	//pointer to the engine's reference to world.
-	int *sv_num_edicts;		//pointer to the engine's edict count.
+	unsigned int *sv_num_edicts;		//pointer to the engine's edict count.
 
 	int (*useeditor) (progfuncs_t *prinst, char *filename, int line, int nump, char **parms);	//called on syntax errors or step-by-step debugging.
 } progparms_t, progexterns_t;

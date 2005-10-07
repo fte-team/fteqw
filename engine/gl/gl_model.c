@@ -2793,7 +2793,7 @@ void * GLMod_LoadSpriteFrame (void * pin, mspriteframe_t **ppframe, int framenum
 	else if (version == SPRITEHL_VERSION)
 	{
 		if (!pspriteframe->gl_texturenum)
-			pspriteframe->gl_texturenum = GL_LoadTexture8Pal32 (name, width, height, (unsigned *)(pinframe + 1), palette, true, true);
+			pspriteframe->gl_texturenum = GL_LoadTexture8Pal32 (name, width, height, (unsigned *)(pinframe + 1), (qbyte*)palette, true, true);
 	}
 	else
 	{

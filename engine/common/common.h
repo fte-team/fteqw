@@ -240,6 +240,7 @@ extern	int		com_argc;
 extern	char	**com_argv;
 
 int COM_CheckParm (char *parm);
+int COM_CheckNextParm (char *parm, int last);
 void COM_AddParm (char *parm);
 
 void COM_Init (void);

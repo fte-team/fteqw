@@ -9,7 +9,8 @@
 #endif
 #endif
 
-int MP_TranslateFTEtoDPCodes(int code);
+#include "pr_common.h"
+
 
 typedef struct menuedict_s
 {
@@ -20,9 +21,7 @@ typedef struct menuedict_s
 	void		*fields;
 } menuedict_t;
 
-#define	RETURN_SSTRING(s) (((int *)pr_globals)[OFS_RETURN] = PR_SetString(prinst, s))	//static - exe will not change it.
-char *PF_TempStr(progfuncs_t *prinst);
-#define MAXTEMPBUFFERLEN	4096
+
 
 int menuentsize;
 
@@ -31,66 +30,6 @@ int menuentsize;
 cvar_t forceqmenu = {"forceqmenu", "0"};
 cvar_t pr_menuqc_coreonerror = {"pr_menuqc_coreonerror", "1"};
 
-//pr_cmds.c builtins that need to be moved to a common.
-void VARGS PR_BIError(progfuncs_t *progfuncs, char *format, ...);
-void PF_print (progfuncs_t *prinst, struct globalvars_s *pr_globals);
-void PF_dprint (progfuncs_t *prinst, struct globalvars_s *pr_globals);
-void PF_error (progfuncs_t *prinst, struct globalvars_s *pr_globals);
-void PF_rint (progfuncs_t *prinst, struct globalvars_s *pr_globals);
-void PF_floor (progfuncs_t *prinst, struct globalvars_s *pr_globals);
-void PF_ceil (progfuncs_t *prinst, struct globalvars_s *pr_globals);
-void PF_Tokenize  (progfuncs_t *prinst, struct globalvars_s *pr_globals);
-void PF_ArgV  (progfuncs_t *prinst, struct globalvars_s *pr_globals);
-void PF_FindString (progfuncs_t *prinst, struct globalvars_s *pr_globals);
-void PF_FindFloat (progfuncs_t *prinst, struct globalvars_s *pr_globals);
-void PF_nextent (progfuncs_t *prinst, struct globalvars_s *pr_globals);
-void PF_randomvector (progfuncs_t *prinst, struct globalvars_s *pr_globals);
-void PF_Sin (progfuncs_t *prinst, struct globalvars_s *pr_globals);
-void PF_Cos (progfuncs_t *prinst, struct globalvars_s *pr_globals);
-void PF_Sqrt (progfuncs_t *prinst, struct globalvars_s *pr_globals);
-void PF_bound (progfuncs_t *prinst, struct globalvars_s *pr_globals);
-void PF_strlen(progfuncs_t *prinst, struct globalvars_s *pr_globals);
-void PF_strcat (progfuncs_t *prinst, struct globalvars_s *pr_globals);
-void PF_ftos (progfuncs_t *prinst, struct globalvars_s *pr_globals);
-void PF_fabs (progfuncs_t *prinst, struct globalvars_s *pr_globals);
-void PF_vtos (progfuncs_t *prinst, struct globalvars_s *pr_globals);
-void PF_etos (progfuncs_t *prinst, struct globalvars_s *pr_globals);
-void PF_stof (progfuncs_t *prinst, struct globalvars_s *pr_globals);
-void PF_mod (progfuncs_t *prinst, struct globalvars_s *pr_globals);
-void PF_substring (progfuncs_t *prinst, struct globalvars_s *pr_globals);
-void PF_stov (progfuncs_t *prinst, struct globalvars_s *pr_globals);
-void PF_dupstring(progfuncs_t *prinst, struct globalvars_s *pr_globals);
-void PF_forgetstring(progfuncs_t *prinst, struct globalvars_s *pr_globals);
-void PF_Spawn (progfuncs_t *prinst, struct globalvars_s *pr_globals);
-void PF_min (progfuncs_t *prinst, struct globalvars_s *pr_globals);
-void PF_max (progfuncs_t *prinst, struct globalvars_s *pr_globals);
-void PF_registercvar (progfuncs_t *prinst, struct globalvars_s *pr_globals);
-void PF_pow (progfuncs_t *prinst, struct globalvars_s *pr_globals);
-void PF_chr2str (progfuncs_t *prinst, struct globalvars_s *pr_globals);
-void PF_localcmd (progfuncs_t *prinst, struct globalvars_s *pr_globals);
-void PF_random (progfuncs_t *prinst, struct globalvars_s *pr_globals);
-void PF_fopen (progfuncs_t *prinst, struct globalvars_s *pr_globals);
-void PF_fclose (progfuncs_t *prinst, struct globalvars_s *pr_globals);
-void PF_fputs (progfuncs_t *prinst, struct globalvars_s *pr_globals);
-void PF_fgets (progfuncs_t *prinst, struct globalvars_s *pr_globals);
-void PF_normalize (progfuncs_t *prinst, struct globalvars_s *pr_globals);
-void PF_vlen (progfuncs_t *prinst, struct globalvars_s *pr_globals);
-void PF_vectoyaw (progfuncs_t *prinst, struct globalvars_s *pr_globals);
-void PF_vectoangles (progfuncs_t *prinst, struct globalvars_s *pr_globals);
-void PF_findchain (progfuncs_t *prinst, struct globalvars_s *pr_globals);
-void PF_findchainfloat (progfuncs_t *prinst, struct globalvars_s *pr_globals);
-void PF_coredump (progfuncs_t *prinst, struct globalvars_s *pr_globals);
-void PF_traceon (progfuncs_t *prinst, struct globalvars_s *pr_globals);
-void PF_traceoff (progfuncs_t *prinst, struct globalvars_s *pr_globals);
-void PF_eprint (progfuncs_t *prinst, struct globalvars_s *pr_globals);
-void search_close_progs(progfuncs_t *prinst, qboolean complain);
-void PF_search_begin (progfuncs_t *prinst, struct globalvars_s *pr_globals);
-void PF_search_end (progfuncs_t *prinst, struct globalvars_s *pr_globals);
-void PF_search_getsize (progfuncs_t *prinst, struct globalvars_s *pr_globals);
-void PF_search_getfilename (progfuncs_t *prinst, struct globalvars_s *pr_globals);
-
-void PR_fclose_progs (progfuncs_t *prinst);
-char *PF_VarString (progfuncs_t *prinst, int	first, struct globalvars_s *pr_globals);
 
 //new generic functions.
 
@@ -213,7 +152,7 @@ char *RemapCvarNameFromDPToFTE(char *name)
 	return name;
 }
 
-static void PF_cvar (progfuncs_t *prinst, struct globalvars_s *pr_globals)
+static void PF_menu_cvar (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
 	cvar_t	*var;
 	char	*str;
@@ -232,7 +171,7 @@ static void PF_cvar (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 			G_FLOAT(OFS_RETURN) = 0;
 	}
 }
-static void PF_cvar_set (progfuncs_t *prinst, struct globalvars_s *pr_globals)
+static void PF_menu_cvar_set (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
 	char	*var_name, *val;
 	cvar_t *var;
@@ -244,7 +183,7 @@ static void PF_cvar_set (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 	var = Cvar_Get(var_name, val, 0, "QC variables");
 	Cvar_Set (var, val);
 }
-static void PF_cvar_string (progfuncs_t *prinst, struct globalvars_s *pr_globals)
+static void PF_menu_cvar_string (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
 	char	*str = PR_GetStringOfs(prinst, OFS_PARM0);
 	cvar_t *cv = Cvar_Get(RemapCvarNameFromDPToFTE(str), "", 0, "QC variables");
@@ -1176,8 +1115,8 @@ builtin_t menu_builtins[] = {
 	PF_vectoangles,//11		//vector 	vectoangles(vector v)	= #11;
 	PF_random,//12
 	PF_localcmd,//13
-	PF_cvar,//14
-	PF_cvar_set,//15
+	PF_menu_cvar,//14
+	PF_menu_cvar_set,//15
 	PF_dprint,//16
 	PF_ftos,//17
 	PF_fabs,//18
@@ -1240,7 +1179,7 @@ builtin_t menu_builtins[] = {
 	PF_loadfromfile,
 //70
 	PF_mod,//0
-	PF_cvar_string,//1
+	PF_menu_cvar_string,//1
 	PF_Fixme,//2				//void	crash(void)	= #72;
 	PF_Fixme,//3				//void	stackdump(void) = #73;
 	PF_search_begin,//4

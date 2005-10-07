@@ -182,7 +182,7 @@ void ConcatPackageLists(package_t *l2)
 static void dlnotification(char *localfile, qboolean sucess)
 {
 	FILE *f;
-	FS_FlushFSHash();
+	COM_RefreshFSCache_f();
 	COM_FOpenFile(localfile, &f);
 	if (f)
 	{

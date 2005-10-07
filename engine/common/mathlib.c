@@ -951,10 +951,6 @@ void ML_ProjectionMatrix2(float *proj, float fovx, float fovy)
 	proj[15] = 0;
 }
 
-typedef struct {
-	float m[4][4];
-} matrix4x4_t;
-
 void Matrix4x4_Invert_Simple (matrix4x4_t *out, const matrix4x4_t *in1)
 {
 	// we only support uniform scaling, so assume the first row is enough
@@ -1107,4 +1103,20 @@ float ColorNormalize (vec3_t in, vec3_t out)
 	}
 
 	return f;
+}
+
+void MakeNormalVectors (vec3_t forward, vec3_t right, vec3_t up)
+{
+	float		d;
+
+	// this rotate and negat guarantees a vector
+	// not colinear with the original
+	right[1] = -forward[0];
+	right[2] = forward[1];
+	right[0] = forward[2];
+
+	d = DotProduct (right, forward);
+	VectorMA (right, -d, forward, right);
+	VectorNormalize (right);
+	CrossProduct (right, forward, up);
 }

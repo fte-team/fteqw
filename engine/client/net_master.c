@@ -107,7 +107,7 @@ int lastpollsockIPX;
 #define POLLIPXSOCKETS 0
 #endif
 
-void Masker_SetupSockets(void)
+void Master_SetupSockets(void)
 {
 	int i;
 	for (i = 0; i < POLLUDPSOCKETS; i++)

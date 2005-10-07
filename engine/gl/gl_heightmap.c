@@ -724,10 +724,6 @@ void GL_LoadHeightmapModel (model_t *mod, void *buffer)
 	mod->hulls[2].funcs.HullPointContents = Heightmap_PointContents;
 	mod->hulls[3].funcs.HullPointContents = Heightmap_PointContents;
 */
-	mod->hulls[0].firstclipnode = (void*)hm;
-	mod->hulls[1].firstclipnode = (void*)hm;
-	mod->hulls[2].firstclipnode = (void*)hm;
-	mod->hulls[3].firstclipnode = (void*)hm;
 
 	mod->terrain = hm;
 }

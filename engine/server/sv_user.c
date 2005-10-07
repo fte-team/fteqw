@@ -1060,7 +1060,6 @@ void SV_PreSpawn_f (void)
 	}
 }
 
-void SetUpClientEdict (client_t *cl, edict_t *ent);
 /*
 ==================
 SV_Spawn_f
@@ -1145,7 +1144,7 @@ void SV_Spawn_f (void)
 		}
 		else
 		{
-			SetUpClientEdict(split, ent);
+			SV_SetUpClientEdict(split, ent);
 		}
 
 	//
@@ -2650,7 +2649,7 @@ void Cmd_SetPos_f(void)
 }
 
 void ED_ClearEdict (progfuncs_t *progfuncs, edict_t *e);
-void SetUpClientEdict (client_t *cl, edict_t *ent)
+void SV_SetUpClientEdict (client_t *cl, edict_t *ent)
 {
 	extern int pr_teamfield;
 	if (progstype != PROG_NQ)	//allow frikbots to work in NQ mods (but not qw!)
@@ -2720,7 +2719,7 @@ void Cmd_Join_f (void)
 		PR_ExecuteProgram (svprogfuncs, SpectatorDisconnect);
 
 	host_client->old_frags = 0;
-	SetUpClientEdict (host_client, host_client->edict);
+	SV_SetUpClientEdict (host_client, host_client->edict);
 
 	// turn the spectator into a player
 	host_client->spectator = false;
@@ -2802,7 +2801,7 @@ void Cmd_Observe_f (void)
 	PR_ExecuteProgram (svprogfuncs, pr_global_struct->ClientDisconnect);
 
 	host_client->old_frags = 0;
-	SetUpClientEdict (host_client, host_client->edict);
+	SV_SetUpClientEdict (host_client, host_client->edict);
 
 	// turn the player into a spectator
 	host_client->spectator = true;

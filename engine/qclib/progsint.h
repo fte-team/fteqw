@@ -100,7 +100,7 @@ void    StripExtension (char *path);
 #define edvars(ed) (((edictrun_t*)ed)->fields)	//pointer to the field vars, given an edict
 
 
-
+void SetEndian(void);
 extern short   (*PRBigShort) (short l);
 extern short   (*PRLittleShort) (short l);
 extern long     (*PRBigLong) (long l);
@@ -132,7 +132,7 @@ typedef struct edictrun_s
 	pbool	isfree;
 	
 	float		freetime;			// realtime when the object was freed	
-	int entnum;
+	unsigned int entnum;
 	pbool	readonly;	//causes error when QC tries writing to it. (quake's world entity)
 	void	*fields;
 
@@ -243,8 +243,8 @@ void ED_ParseGlobals (char *data);
 //define EDICT_NUM(n) ((edict_t *)(sv.edicts+ (n)*pr_edict_size))
 //define NUM_FOR_EDICT(e) (((byte *)(e) - sv.edicts)/pr_edict_size)
 
-struct edict_s *EDICT_NUM(progfuncs_t *progfuncs, int n);
-int NUM_FOR_EDICT(progfuncs_t *progfuncs, struct edict_s *e);
+struct edict_s *EDICT_NUM(progfuncs_t *progfuncs, unsigned int n);
+unsigned int NUM_FOR_EDICT(progfuncs_t *progfuncs, struct edict_s *e);
 
 //#define	NEXT_EDICT(e) ((edictrun_t *)( (byte *)e + pr_edict_size))
 
@@ -333,7 +333,7 @@ var(progstate_t *, pr_progstate);
 
 var(progsnum_t, pr_typecurrent);
 #define pr_typecurrent prinst->pr_typecurrent
-var(int, maxprogs);
+var(unsigned int, maxprogs);
 #define maxprogs prinst->maxprogs
 
 var(progstate_t *,current_progstate);
@@ -389,7 +389,7 @@ var(int, pr_argc);
 
 //pr_edict.c
 
-var(int, maxedicts);
+var(unsigned int, maxedicts);
 #define maxedicts prinst->maxedicts
 
 var(evalc_t, spawnflagscache);
@@ -426,11 +426,14 @@ ddef32_t *ED_FindTypeGlobalFromProgs32 (progfuncs_t *progfuncs, char *name, prog
 ddef16_t *ED_FindGlobalFromProgs16 (progfuncs_t *progfuncs, char *name, progsnum_t prnum);
 ddef32_t *ED_FindGlobalFromProgs32 (progfuncs_t *progfuncs, char *name, progsnum_t prnum);
 fdef_t *ED_FindField (progfuncs_t *progfuncs, char *name);
-dfunction_t *ED_FindFunction (progfuncs_t *progfuncs, char *name, int *pnum, int fromprogs);
+dfunction_t *ED_FindFunction (progfuncs_t *progfuncs, char *name, progsnum_t *pnum, unsigned int fromprogs);
 func_t PR_FindFunc(progfuncs_t *progfncs, char *funcname, progsnum_t pnum);
 void PR_Configure (progfuncs_t *progfncs, int addressable_size, int max_progs);
 int PR_InitEnts(progfuncs_t *progfncs, int maxents);
 char *PR_ValueString (progfuncs_t *progfuncs, etype_t type, eval_t *val);
+void ED_ClearEdict (progfuncs_t *progfuncs, edictrun_t *e);
+void PRAddressableFlush(progfuncs_t *progfuncs, int totalammount);
+void QC_FlushProgsOffsets(progfuncs_t *progfuncs);
 
 ddef16_t *ED_GlobalAtOfs16 (progfuncs_t *progfuncs, int ofs);
 ddef16_t *ED_FindGlobal16 (progfuncs_t *progfuncs, char *name);

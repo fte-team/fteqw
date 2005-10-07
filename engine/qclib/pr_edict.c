@@ -84,7 +84,7 @@ angles and bad trails.
 */
 struct edict_s *ED_Alloc (progfuncs_t *progfuncs)
 {
-	int			i;
+	unsigned int			i;
 	edictrun_t		*e;
 
 	for ( i=0 ; i<sv_num_edicts ; i++)
@@ -427,7 +427,7 @@ unsigned int *ED_FindGlobalOfsFromProgs (progfuncs_t *progfuncs, char *name, pro
 ED_FindFunction
 ============
 */
-dfunction_t *ED_FindFunction (progfuncs_t *progfuncs, char *name, progsnum_t *prnum, int fromprogs)
+dfunction_t *ED_FindFunction (progfuncs_t *progfuncs, char *name, progsnum_t *prnum, unsigned int fromprogs)
 {
 	dfunction_t		*func;
 	unsigned int				i;
@@ -601,16 +601,16 @@ char *PR_UglyValueString (progfuncs_t *progfuncs, etype_t type, eval_t *val)
 		break;
 	case ev_function:
 		i = (val->function & 0xff000000)>>24;	//progs number
-		if (i > maxprogs || !pr_progstate[i].progs)
+		if ((unsigned)i > maxprogs || !pr_progstate[(unsigned)i].progs)
 			sprintf (line, "BAD FUNCTION INDEX: %i", val->function);
 		else
 		{
 			j = (val->function & ~0xff000000);	//function number
-			if ((unsigned)j > pr_progstate[i].progs->numfunctions)
+			if ((unsigned)j > pr_progstate[(unsigned)i].progs->numfunctions)
 				sprintf(line, "%i:%s", i, "CORRUPT FUNCTION POINTER");
 			else
 			{
-				f = pr_progstate[i].functions + j;
+				f = pr_progstate[(unsigned)i].functions + j;
 				sprintf (line, "%i:%s", i, f->s_name+progfuncs->stringtable);
 			}
 		}
@@ -907,7 +907,7 @@ For debugging, prints all the entities in the current server
 */
 void ED_PrintEdicts (progfuncs_t *progfuncs)
 {
-	int		i;
+	unsigned int		i;
 	
 	printf ("%i entities\n", sv_num_edicts);
 	for (i=0 ; i<sv_num_edicts ; i++)
@@ -923,9 +923,9 @@ For debugging
 */
 void ED_Count (progfuncs_t *progfuncs)
 {
-	int		i;
+	unsigned int		i;
 	edictrun_t	*ent;
-	int		active, models, solid, step;
+	unsigned int		active, models, solid, step;
 
 	active = models = solid = step = 0;
 	for (i=0 ; i<sv_num_edicts ; i++)
@@ -1470,7 +1470,7 @@ char *SaveEnts(progfuncs_t *progfuncs, char *mem, int *len, int alldata)
 {
 #define AddS(str) strcpy(s, str);s+=strlen(str);
 	char *s, *os;
-	int a;
+	unsigned int a;
 	int oldprogs;
 	
 	if (mem)
@@ -2968,18 +2968,18 @@ retry:
 
 
 
-struct edict_s *EDICT_NUM(progfuncs_t *progfuncs, int n)
+struct edict_s *EDICT_NUM(progfuncs_t *progfuncs, unsigned int n)
 {
-	if (n < 0 || n >= maxedicts)
+	if (n >= maxedicts)
 		Sys_Error ("QCLIB: EDICT_NUM: bad number %i", n);
 
 	return prinst->edicttable[n];
 }
 
-int NUM_FOR_EDICT(progfuncs_t *progfuncs, struct edict_s *e)
+unsigned int NUM_FOR_EDICT(progfuncs_t *progfuncs, struct edict_s *e)
 {
 	edictrun_t *er = (edictrun_t*)e;
-	if (er->entnum < 0 || er->entnum >= maxedicts)
+	if (er->entnum >= maxedicts)
 		Sys_Error ("QCLIB: NUM_FOR_EDICT: bad pointer (%i)", e);
 	return er->entnum;
 }

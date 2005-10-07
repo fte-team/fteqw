@@ -2997,7 +2997,7 @@ void Host_Init (quakeparms_t *parms)
 	Plug_Init();
 #endif
 
-	Masker_SetupSockets();
+	Master_SetupSockets();
 
 	//	Con_Printf ("Exe: "__TIME__" "__DATE__"\n");
 	Con_TPrintf (TL_HEAPSIZE, parms->memsize/ (1024*1024.0));

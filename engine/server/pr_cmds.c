@@ -20,6 +20,8 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 
 #include "qwsvdef.h"
 
+#include "pr_common.h"
+
 #define G_PROG G_FLOAT
 #define Z_QC_TAG 2
 
@@ -3072,7 +3074,7 @@ void PF_spawnclient (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 			svs.clients[i].datagram.allowoverflow = true;
 			svs.clients[i].datagram.maxsize = 0;
 
-			SetUpClientEdict (&svs.clients[i], svs.clients[i].edict);
+			SV_SetUpClientEdict (&svs.clients[i], svs.clients[i].edict);
 
 			RETURN_EDICT(prinst, svs.clients[i].edict);
 			return;
@@ -4457,13 +4459,13 @@ void PF_WriteShort (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 	pr_netglob = pr_globals;
 	if (progstype == PROG_NQ || progstype == PROG_H2)
 	{
-		NPP_NQWriteShort(G_FLOAT(OFS_PARM0), (int)G_FLOAT(OFS_PARM1));
+		NPP_NQWriteShort(G_FLOAT(OFS_PARM0), (short)(int)G_FLOAT(OFS_PARM1));
 		return;
 	}
 #ifdef NQPROT
 	else
 	{
-		NPP_QWWriteShort(G_FLOAT(OFS_PARM0), (int)G_FLOAT(OFS_PARM1));
+		NPP_QWWriteShort(G_FLOAT(OFS_PARM0), (short)(int)G_FLOAT(OFS_PARM1));
 		return;
 	}
 #else
@@ -4648,13 +4650,13 @@ void PF_WriteEntity (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 	pr_netglob = pr_globals;
 	if (progstype == PROG_NQ || progstype == PROG_H2)
 	{
-		NPP_NQWriteEntity(G_FLOAT(OFS_PARM0), G_EDICTNUM(prinst, OFS_PARM1));
+		NPP_NQWriteEntity(G_FLOAT(OFS_PARM0), (short)G_EDICTNUM(prinst, OFS_PARM1));
 		return;
 	}
 #ifdef NQPROT
 	else
 	{
-		NPP_QWWriteEntity(G_FLOAT(OFS_PARM0), G_EDICTNUM(prinst, OFS_PARM1));
+		NPP_QWWriteEntity(G_FLOAT(OFS_PARM0), (short)G_EDICTNUM(prinst, OFS_PARM1));
 		return;
 	}
 #else

@@ -1281,25 +1281,6 @@ Offset is filled in to contain the adjustment that must be added to the
 testing object's origin to get a point to use with the returned hull.
 ================
 */
-static model_t *SV_ModelForEntity (edict_t *ent)
-{
-	model_t	*model;
-
-// decide which clipping hull to use, based on the size
-	if (ent->v->solid == SOLID_BSP)
-	{	// explicit hulls in the BSP model
-		model = sv.models[ (int)ent->v->modelindex ];
-
-		if (!model)
-			SV_Error ("MOVETYPE_PUSH with a non bsp model");
-
-		return model;
-	}
-
-	// create a temp hull from bounding box sizes
-
-	return CM_TempBoxModel (ent->v->mins, ent->v->maxs);
-}
 
 #ifdef Q2SERVER
 static model_t *SVQ2_ModelForEntity (q2edict_t *ent)

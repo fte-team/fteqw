@@ -1158,7 +1158,7 @@ void SV_SpawnServer (char *server, char *startspot, qboolean noents, qboolean us
 						*spawnparamglobals[j] = host_client->spawn_parms[j];
 				}
 
-				SetUpClientEdict(host_client, sv_player);
+				SV_SetUpClientEdict(host_client, sv_player);
 				sv_player->v->clientcolors = atoi(Info_ValueForKey(host_client->userinfo, "topcolor"))*16 + atoi(Info_ValueForKey(host_client->userinfo, "bottomcolor"));
 
 				// call the spawn function

@@ -556,7 +556,7 @@ int PR_ToggleBreakpoint(progfuncs_t *progfuncs, char *filename, int linenum, int
 	dfunction_t *f;
 	int op;
 
-	for (pn = 0; pn < maxprogs; pn++)
+	for (pn = 0; (unsigned)pn < maxprogs; pn++)
 	{
 		if (!pr_progstate || !pr_progstate[pn].progs)
 			continue;
@@ -852,12 +852,12 @@ void PR_ExecuteProgram (progfuncs_t *progfuncs, func_t fnum)
 {
 	dfunction_t	*f;
 	int		i;
-	progsnum_t initial_progs;
+	unsigned int initial_progs;
 	int		oldexitdepth;
 
 	int s;
 
-	int newprogs = (fnum & 0xff000000)>>24;
+	unsigned int newprogs = (fnum & 0xff000000)>>24;
 
 	initial_progs = pr_typecurrent;
 	if (newprogs != initial_progs)

@@ -95,7 +95,7 @@ int PR_InitEnts(progfuncs_t *progfuncs, int max_ents)
 	sv_edicts = PRHunkAlloc(progfuncs, externs->edictsize);
 	prinst->edicttable[0] = sv_edicts;
 	((edictrun_t*)prinst->edicttable[0])->fields = PRAddressableAlloc(progfuncs, max_fields_size);
-	ED_ClearEdict(progfuncs, sv_edicts);
+	ED_ClearEdict(progfuncs, (edictrun_t *)sv_edicts);
 	sv_num_edicts = 1;
 
 	return max_fields_size;
@@ -105,7 +105,7 @@ float tempedictfields[2048];
 
 void PR_Configure (progfuncs_t *progfuncs, int addressable_size, int max_progs)	//can be used to wipe all memory
 {
-	int i;
+	unsigned int i;
 	edictrun_t *e;
 
 //	int a;
@@ -174,11 +174,10 @@ struct entvars_s *PR_entvars (progfuncs_t *progfuncs, struct edict_s *ed)
 
 func_t PR_FindFunc(progfuncs_t *progfuncs, char *funcname, progsnum_t pnum)
 {
-
 	dfunction_t *f=NULL;
 	if (pnum == PR_ANY)
 	{
-		for (pnum = 0; pnum < maxprogs; pnum++)
+		for (pnum = 0; (unsigned)pnum < maxprogs; pnum++)
 		{
 			if (!pr_progstate[pnum].progs)
 				continue;
@@ -227,6 +226,7 @@ func_t PR_FindFunc(progfuncs_t *progfuncs, char *funcname, progsnum_t pnum)
 
 eval_t *PR_FindGlobal(progfuncs_t *progfuncs, char *globname, progsnum_t pnum)
 {
+	unsigned int i;
 	ddef16_t *var16;
 	ddef32_t *var32;
 	if (pnum == PR_CURRENT)
@@ -234,17 +234,17 @@ eval_t *PR_FindGlobal(progfuncs_t *progfuncs, char *globname, progsnum_t pnum)
 	if (pnum == PR_ANY)
 	{
 		eval_t *ev;
-		for (pnum = 0; pnum < maxprogs; pnum++)
+		for (i = 0; i < maxprogs; i++)
 		{
-			if (!pr_progstate[pnum].progs)
+			if (!pr_progstate[i].progs)
 				continue;
-			ev = PR_FindGlobal(progfuncs, globname, pnum);
+			ev = PR_FindGlobal(progfuncs, globname, i);
 			if (ev)
 				return ev;
 		}
 		return NULL;
 	}
-	if (pnum < 0 || pnum >= maxprogs || !pr_progstate[pnum].progs)
+	if (pnum < 0 || (unsigned)pnum >= maxprogs || !pr_progstate[pnum].progs)
 		return NULL;
 	switch(pr_progstate[pnum].intsize)
 	{
@@ -321,7 +321,7 @@ eval_t *GetEdictFieldValue(progfuncs_t *progfuncs, struct edict_s *ed, char *nam
 
 struct edict_s *ProgsToEdict (progfuncs_t *progfuncs, int progs)
 {
-	if ((unsigned)progs >= maxedicts)
+	if ((unsigned)progs >= (unsigned)maxedicts)
 		progs = 0;
 	return (struct edict_s *)PROG_TO_EDICT(progfuncs, progs);
 }
@@ -481,7 +481,7 @@ void CloseProgs(progfuncs_t *inst)
 //	extensionbuiltin_t *eb;
 	void (VARGS *f) (void *);
 
-	int i;
+	unsigned int i;
 	edictrun_t *e;
 
 	f = inst->parms->memfree;

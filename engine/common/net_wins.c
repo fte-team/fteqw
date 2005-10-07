@@ -962,14 +962,14 @@ int IPX_OpenSocket (int port, qboolean bcast)
 	if ((newsocket = socket (PF_IPX, SOCK_DGRAM, NSPROTO_IPX)) == -1)
 	{
 		if (qerrno != EAFNOSUPPORT)
-			Con_Printf ("WARNING: IPX_Socket: socket: %s\n", qerrno);
+			Con_Printf ("WARNING: IPX_Socket: socket: %i\n", qerrno);
 		return INVALID_SOCKET;
 	}
 
 	// make it non-blocking
 	if (ioctlsocket (newsocket, FIONBIO, &_true) == -1)
 	{
-		Con_Printf ("WARNING: IPX_Socket: ioctl FIONBIO: %s\n", qerrno);
+		Con_Printf ("WARNING: IPX_Socket: ioctl FIONBIO: %i\n", qerrno);
 		return INVALID_SOCKET;
 	}
 
@@ -978,7 +978,7 @@ int IPX_OpenSocket (int port, qboolean bcast)
 		// make it broadcast capable
 		if (setsockopt(newsocket, SOL_SOCKET, SO_BROADCAST, (char *)&_true, sizeof(_true)) == -1)
 		{
-			Con_Printf ("WARNING: IPX_Socket: setsockopt SO_BROADCAST: %s\n", qerrno);
+			Con_Printf ("WARNING: IPX_Socket: setsockopt SO_BROADCAST: %i\n", qerrno);
 			return INVALID_SOCKET;
 		}
 	}
@@ -1063,21 +1063,32 @@ void NET_GetLocalAddress (int socket, netadr_t *out)
 	struct sockaddr_qstorage	address;
 	int		namelen;
 	netadr_t adr;
+	qboolean notvalid = false;
 
+	strcpy(buff, "localhost");
 	gethostname(buff, 512);
 	buff[512-1] = 0;
 
-	NET_StringToAdr (buff, &adr);
+	if (!NET_StringToAdr (buff, &adr))	//urm
+		NET_StringToAdr ("127.0.0.1", &adr);
+
 
 	namelen = sizeof(address);
 	if (getsockname (socket, (struct sockaddr *)&address, &namelen) == -1)
-		Sys_Error ("NET_Init: getsockname:", strerror(qerrno));
+	{
+		notvalid = true;
+		NET_StringToSockaddr("0.0.0.0", (struct sockaddr_qstorage *)&address);
+//		Sys_Error ("NET_Init: getsockname:", strerror(qerrno));
+	}
 
 	SockadrToNetadr(&address, out);
 	if (!*(int*)out->ip)	//socket was set to auto
 		*(int *)out->ip = *(int *)adr.ip;	//change it to what the machine says it is, rather than the socket.
 
-	Con_TPrintf(TL_IPADDRESSIS, NET_AdrToString (*out) );
+	if (notvalid)
+		Con_Printf("Couldn't detect local ip\n");
+	else
+		Con_TPrintf(TL_IPADDRESSIS, NET_AdrToString (*out) );
 }
 
 /*

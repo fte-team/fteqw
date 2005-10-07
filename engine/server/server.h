@@ -978,6 +978,7 @@ void SV_TogglePause (void);
 void SV_ClientThink (void);
 
 void VoteFlushAll(void);
+void SV_SetUpClientEdict (client_t *cl, edict_t *ent);
 
 //sv_master.c
 void SVM_Think(int port);

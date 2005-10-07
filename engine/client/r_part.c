@@ -2678,22 +2678,6 @@ void CLQ2_BlasterTrail (vec3_t start, vec3_t end)
 	P_ParticleTrail(start, end, rt_blastertrail, NULL);
 }
 
-void MakeNormalVectors (vec3_t forward, vec3_t right, vec3_t up)
-{
-	float		d;
-
-	// this rotate and negat guarantees a vector
-	// not colinear with the original
-	right[1] = -forward[0];
-	right[2] = forward[1];
-	right[0] = forward[2];
-
-	d = DotProduct (right, forward);
-	VectorMA (right, -d, forward, right);
-	VectorNormalize (right);
-	CrossProduct (right, forward, up);
-}
-
 void CLQ2_RailTrail (vec3_t start, vec3_t end)
 {
 	P_ParticleTrail(start, end, rt_railtrail, NULL);

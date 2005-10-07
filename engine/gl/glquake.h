@@ -116,6 +116,7 @@ void GL_Upload8_EXT (qbyte *data, int width, int height,  qboolean mipmap, qbool
 int GL_LoadTexture (char *identifier, int width, int height, qbyte *data, qboolean mipmap, qboolean alpha);
 int GL_LoadTexture8Bump (char *identifier, int width, int height, unsigned char *data, qboolean mipmap, float bumpscale);
 int GL_LoadTexture8Pal24 (char *identifier, int width, int height, qbyte *data, qbyte *palette24, qboolean mipmap, qboolean alpha);
+int GL_LoadTexture8Pal32 (char *identifier, int width, int height, qbyte *data, qbyte *palette32, qboolean mipmap, qboolean alpha);
 int GL_LoadTexture32 (char *identifier, int width, int height, unsigned *data, qboolean mipmap, qboolean alpha);
 int GL_LoadCompressed(char *name);
 int GL_FindTexture (char *identifier);
@@ -321,6 +322,12 @@ void R_RenderDlights (void);
 int GLR_LightPoint (vec3_t p);
 
 void GLQ3_LightGrid(vec3_t point, vec3_t res_diffuse, vec3_t res_ambient, vec3_t res_lightdir);
+
+
+//gl_heightmap.c
+void GL_DrawHeightmapModel (entity_t *e);
+void GL_LoadHeightmapModel (model_t *mod, void *buffer);
+
 
 //
 // gl_rsurf.c

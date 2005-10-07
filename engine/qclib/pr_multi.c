@@ -18,14 +18,14 @@ int maxshares;
 
 pbool PR_SwitchProgs(progfuncs_t *progfuncs, progsnum_t type)
 {	
-	if (type >= maxprogs || type < 0)
+	if ((unsigned)type >= maxprogs)
 		PR_RunError(progfuncs, "QCLIB: Bad prog type - %i", type);
 //		Sys_Error("Bad prog type - %i", type);
 
-	if (pr_progstate[(int)type].progs == NULL)	//we havn't loaded it yet, for some reason
+	if (pr_progstate[(unsigned)type].progs == NULL)	//we havn't loaded it yet, for some reason
 		return false;	
 
-	current_progstate = &pr_progstate[(int)type];
+	current_progstate = &pr_progstate[(unsigned)type];
 
 	pr_typecurrent = type;
 
@@ -44,9 +44,9 @@ void PR_MoveParms(progfuncs_t *progfuncs, progsnum_t progs1, progsnum_t progs2)	
 	p1 = &pr_progstate[(int)progs1];
 	p2 = &pr_progstate[(int)progs2];
 
-	if (progs1 >= maxprogs || progs1 < 0 || !p1->globals)
+	if ((unsigned)progs1 >= maxprogs || !p1->globals)
 		Sys_Error("QCLIB: Bad prog type - %i", progs1);
-	if (progs2 >= maxprogs || progs2 < 0 || !p2->globals)
+	if ((unsigned)progs2 >= maxprogs || !p2->globals)
 		Sys_Error("QCLIB: Bad prog type - %i", progs2);
 
 	//copy parms.
@@ -77,15 +77,15 @@ void PR_MoveParms(progfuncs_t *progfuncs, progsnum_t progs1, progsnum_t progs2)	
 
 progsnum_t PR_LoadProgs(progfuncs_t *progfuncs, char *s, int headercrc, builtin_t *builtins, int numbuiltins)
 {
-	progsnum_t a;
+	unsigned int a;
 	progsnum_t oldtype;
 	oldtype = pr_typecurrent;	
 	for (a = 0; a < maxprogs; a++)
 	{
-		if (pr_progstate[(int)a].progs == NULL)
+		if (pr_progstate[a].progs == NULL)
 		{
 			pr_typecurrent = a;
-			current_progstate = &pr_progstate[(int)a];
+			current_progstate = &pr_progstate[a];
 			if (PR_ReallyLoadProgs(progfuncs, s, headercrc, &pr_progstate[a], false))	//try and load it			
 			{
 				current_progstate->builtins = builtins;
@@ -113,7 +113,7 @@ void PR_ShiftParms(progfuncs_t *progfuncs, int amount)
 //forget a progs
 void PR_Clear(progfuncs_t *progfuncs)
 {
-	int a;
+	unsigned int a;
 	for (a = 0; a < maxprogs; a++)
 	{
 		pr_progstate[a].progs = NULL;

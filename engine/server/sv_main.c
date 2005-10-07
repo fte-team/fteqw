@@ -695,6 +695,7 @@ This message can be up to around 5k with worst case string lengths.
 */
 void SVC_Status (void)
 {
+	int displayflags;
 	int		i;
 	client_t	*cl;
 	int		ping;
@@ -702,13 +703,19 @@ void SVC_Status (void)
 
 	int slots=0;
 
+	if (Cmd_Argc() < 2)
+		displayflags = 3;
+	else
+		displayflags = atoi(Cmd_Argv(1));
+
 	Cmd_TokenizeString ("status", false, false);
 	SV_BeginRedirect (RD_PACKET, LANGDEFAULT);
-	Con_Printf ("%s\n", svs.info);
+	if (displayflags&1)
+		Con_Printf ("%s\n", svs.info);
 	for (i=0 ; i<MAX_CLIENTS ; i++)
 	{
 		cl = &svs.clients[i];
-		if ((cl->state == cs_connected || cl->state == cs_spawned || cl->name[0]) && !cl->spectator)
+		if ((cl->state == cs_connected || cl->state == cs_spawned || cl->name[0]) && ((cl->spectator && displayflags&4) || (!cl->spectator && displayflags&2)))
 		{
 			top = atoi(Info_ValueForKey (cl->userinfo, "topcolor"));
 			bottom = atoi(Info_ValueForKey (cl->userinfo, "bottomcolor"));
@@ -2630,8 +2637,6 @@ void SVQ2_ClearEvents(void)
 #endif
 
 
-void SetUpClientEdict (client_t *cl, edict_t *ent);
-
 /*
 ==================
 SV_Impulse_f
@@ -2662,7 +2667,7 @@ void SV_Impulse_f (void)
 
 	svs.clients[i].state = cs_connected;
 
-	SetUpClientEdict(&svs.clients[i], svs.clients[i].edict);
+	SV_SetUpClientEdict(&svs.clients[i], svs.clients[i].edict);
 
 	svs.clients[i].edict->v->netname = PR_SetString(svprogfuncs, "Console");
 

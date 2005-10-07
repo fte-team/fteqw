@@ -2286,6 +2286,7 @@ void CL_UpdateBeams (void)
 	int			i, j;
 	beam_t		*b;
 	vec3_t		dist, org;
+	float		*vieworg;
 	float		d;
 	entity_t	*ent;
 	entity_state_t *st;
@@ -2311,7 +2312,7 @@ void CL_UpdateBeams (void)
 	// if coming from the player, update the start position
 		if ((b->flags & 1) && b->entity > 0 && b->entity <= MAX_CLIENTS)
 		{
-			for (j = 0; j < MAX_SPLITS; j++)
+			for (j = 0; j < cl.splitclients; j++)
 			{
 				if (b->entity == (autocam[j]?spec_track[j]:(cl.playernum[j]+1)))
 				{
@@ -2319,13 +2320,20 @@ void CL_UpdateBeams (void)
 		//			VectorSubtract(cl.simorg, b->start, org);
 		//			VectorAdd(b->end, org, b->end);		//move the end point by simorg-start
 
-					pl = &cl.frames[cl.parsecount&UPDATE_MASK].playerstate[j];
+					pl = &cl.frames[cl.parsecount&UPDATE_MASK].playerstate[b->entity-1];
 					if (pl->messagenum == cl.parsecount)
 					{
 						vec3_t	fwd, org, ang;
 						float	delta, f, len;
 
-						VectorCopy (cl.simorg[j], b->start);
+						if (cl.spectator && autocam[j])
+						{
+							vieworg = pl->origin;
+						}
+						else
+							vieworg = cl.simorg[j];
+
+						VectorCopy (vieworg, b->start);
 						b->start[2] += cl.crouch[j] + bound(-7, v_viewheight.value, 4);
 
 						f = bound(0, cl_truelightning.value, 1);
@@ -2333,7 +2341,7 @@ void CL_UpdateBeams (void)
 						if (!f)
 							break;
 
-						VectorSubtract (playerbeam_end[j], cl.simorg[j], org);
+						VectorSubtract (playerbeam_end[j], vieworg, org);
 						len = VectorLength(org);
 						org[2] -= 22;		// adjust for view height
 						vectoangles (org, ang);

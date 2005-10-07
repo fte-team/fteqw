@@ -3630,19 +3630,20 @@ void AddLinksToPmove ( areanode_t *node )
 			pmove.numphysent++;
 
 			VectorCopy (check->v->origin, pe->origin);
-			VectorCopy (check->v->angles, pe->angles);
 			pe->info = NUM_FOR_EDICT(svprogfuncs, check);
 			if (check->v->solid == SOLID_BSP)
 			{
 				if(progstype != PROG_H2)
 					pe->angles[0]*=-1;	//quake is wierd. I guess someone fixed it hexen2... or my code is buggy or something...
 				pe->model = sv.models[(int)(check->v->modelindex)];
+				VectorCopy (check->v->angles, pe->angles);
 			}
 			else
 			{
 				pe->model = NULL;
 				VectorCopy (check->v->mins, pe->mins);
 				VectorCopy (check->v->maxs, pe->maxs);
+				VectorClear (pe->angles);
 			}
 		}
 	}
@@ -3724,10 +3725,12 @@ void AddAllEntsToPmove (void)
 			pe = &pmove.physents[pmove.numphysent];
 
 			VectorCopy (check->v->origin, pe->origin);
-			VectorCopy (check->v->angles, pe->angles);
 			pmove.physents[pmove.numphysent].info = e;
 			if (check->v->solid == SOLID_BSP)
+			{
+				VectorCopy (check->v->angles, pe->angles);
 				pe->model = sv.models[(int)(check->v->modelindex)];
+			}
 			else
 			{
 				pe->angles[0] = pe->angles[1] = pe->angles[2] = 0;

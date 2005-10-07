@@ -187,26 +187,37 @@ qboolean PM_TransformedHullCheck (model_t *model, vec3_t start, vec3_t end, trac
 	if (model)
 		result = model->funcs.Trace(model, 0, 0, start_l, end_l, player_mins, player_maxs, trace);
 	else
+	{
 		result = Q1BSP_RecursiveHullCheck (&box_hull, box_hull.firstclipnode, 0, 1, start_l, end_l, trace);
+	}
 
-	if (rotated && trace->fraction != 1.0)
+	if (rotated)
 	{
 		// FIXME: figure out how to do this with existing angles
 //		VectorNegate (angles, a);
-		a[0] = angles[0];
-		a[1] = angles[1];
-		a[2] = angles[2];
-		AngleVectors (a, forward, right, up);
 
-		VectorCopy (trace->plane.normal, temp);
-		trace->plane.normal[0] = DotProduct (temp, forward);
-		trace->plane.normal[1] = -DotProduct (temp, right);
-		trace->plane.normal[2] = DotProduct (temp, up);
+		if (trace->fraction != 1.0)
+		{
+			a[0] = angles[0];
+			a[1] = angles[1];
+			a[2] = angles[2];
+			AngleVectors (a, forward, right, up);
+
+			VectorCopy (trace->plane.normal, temp);
+			trace->plane.normal[0] = DotProduct (temp, forward);
+			trace->plane.normal[1] = -DotProduct (temp, right);
+			trace->plane.normal[2] = DotProduct (temp, up);
+		}
+		trace->endpos[0] = start[0] + trace->fraction * (end[0] - start[0]);
+		trace->endpos[1] = start[1] + trace->fraction * (end[1] - start[1]);
+		trace->endpos[2] = start[2] + trace->fraction * (end[2] - start[2]);
 	}
-
-	trace->endpos[0] = start[0] + trace->fraction * (end[0] - start[0]);
-	trace->endpos[1] = start[1] + trace->fraction * (end[1] - start[1]);
-	trace->endpos[2] = start[2] + trace->fraction * (end[2] - start[2]);
+	else
+	{
+		trace->endpos[0] += origin[0];
+		trace->endpos[1] += origin[1];
+		trace->endpos[2] += origin[2];
+	}
 
 	return result;
 }
@@ -261,7 +272,7 @@ qboolean PM_TestPlayerPosition (vec3_t pos)
 			if (Q1BSP_HullPointContents(hull, mins) & FTECONTENTS_SOLID)
 				return false;
 
-//			if (PM_TransformedHullPointContents (hull, pos, pe->origin, pe->angles) & FTECONTENTS_SOLID)
+//			if (Q1BSP_Trace(&box_hull, 0, 0, pe->origin, pe->origin, pe->mins, pe->maxs, pos, pe->origin, pe->angles) & FTECONTENTS_SOLID)
 //				return false;
 		}
 	}
@@ -290,6 +301,13 @@ trace_t PM_PlayerTrace (vec3_t start, vec3_t end)
 	{
 		pe = &pmove.physents[i];
 
+		{
+			vec3_t mins, maxs;
+			VectorSubtract (pe->mins, player_maxs, mins);
+			VectorSubtract (pe->maxs, player_mins, maxs);
+			PM_HullForBox (mins, maxs);
+		}
+
 	// trace a line through the apropriate clipping hull
 		PM_TransformedHullCheck (pe->model, start, end, &trace, pe->origin, pe->angles);
 
@@ -297,8 +315,8 @@ trace_t PM_PlayerTrace (vec3_t start, vec3_t end)
 			trace.startsolid = true;
 		if (trace.startsolid)
 		{
-			if (!pmove.physents[i].model)	//caught inside annother model
-				continue;	//don't count this.
+//			if (!pmove.physents[i].model)	//caught inside annother model
+//				continue;	//don't count this.
 			trace.fraction = 0;
 		}
 

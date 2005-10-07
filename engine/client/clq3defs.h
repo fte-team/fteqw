@@ -2,6 +2,8 @@
 #define _Q3DEFS_H_
 #define PROTOCOL_VERSION_Q3 68
 
+int StringKey( const char *string, int length );
+
 typedef struct {
 	qboolean	allsolid;	// if true, plane is not valid
 	qboolean	startsolid;	// if true, the initial point was in a solid area
@@ -309,5 +311,14 @@ typedef struct {
   float glyphScale;
   char name[MAX_QPATH];
 } fontInfo_t;
+
+
+void Netchan_TransmitNextFragment( netchan_t *chan );
+void Netchan_TransmitQ3( netchan_t *chan, int length, const qbyte *data );
+qboolean Netchan_ProcessQ3 (netchan_t *chan);
+
+qboolean MSG_Q3_ReadDeltaEntity( const q3entityState_t *from, q3entityState_t *to, int number );
+void MSG_Q3_ReadDeltaPlayerstate( const q3playerState_t *from, q3playerState_t *to );
+
 
 #endif

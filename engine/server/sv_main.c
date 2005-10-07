@@ -685,6 +685,12 @@ CONNECTIONLESS COMMANDS
 ==============================================================================
 */
 
+#define STATUS_OLDSTYLE					0
+#define	STATUS_SERVERINFO				1
+#define	STATUS_PLAYERS					2
+#define	STATUS_SPECTATORS				4
+#define	STATUS_SPECTATORS_AS_PLAYERS	8 //for ASE - change only frags: show as "S"
+
 /*
 ================
 SVC_Status
@@ -698,38 +704,60 @@ void SVC_Status (void)
 	int displayflags;
 	int		i;
 	client_t	*cl;
+	char *name;
 	int		ping;
 	int		top, bottom;
+	char frags[64];
 
 	int slots=0;
 
-	if (Cmd_Argc() < 2)
-		displayflags = 3;
-	else
-		displayflags = atoi(Cmd_Argv(1));
+	displayflags = atoi(Cmd_Argv(1));
+	if (displayflags == STATUS_OLDSTYLE)
+		displayflags = STATUS_SERVERINFO|STATUS_PLAYERS;
 
 	Cmd_TokenizeString ("status", false, false);
 	SV_BeginRedirect (RD_PACKET, LANGDEFAULT);
-	if (displayflags&1)
+	if (displayflags&STATUS_SERVERINFO)
 		Con_Printf ("%s\n", svs.info);
 	for (i=0 ; i<MAX_CLIENTS ; i++)
 	{
 		cl = &svs.clients[i];
-		if ((cl->state == cs_connected || cl->state == cs_spawned || cl->name[0]) && ((cl->spectator && displayflags&4) || (!cl->spectator && displayflags&2)))
+		if ((cl->state == cs_connected || cl->state == cs_spawned || cl->name[0]) && ((cl->spectator && displayflags&STATUS_SPECTATORS) || (!cl->spectator && displayflags&STATUS_PLAYERS)))
 		{
 			top = atoi(Info_ValueForKey (cl->userinfo, "topcolor"));
 			bottom = atoi(Info_ValueForKey (cl->userinfo, "bottomcolor"));
 			top = (top < 0) ? 0 : ((top > 13) ? 13 : top);
 			bottom = (bottom < 0) ? 0 : ((bottom > 13) ? 13 : bottom);
 			ping = SV_CalcPing (cl);
+			name = cl->name;
+
 			if (!cl->state)	//show bots differently. Just to be courteous.
 				Con_Printf ("%i %i %i %i \"BOT:%s\" \"%s\" %i %i\n", cl->userid,
 					cl->old_frags, (int)(realtime - cl->connection_started)/60,
 					ping, cl->name, Info_ValueForKey (cl->userinfo, "skin"), top, bottom);
 			else
-				Con_Printf ("%i %i %i %i \"%s\" \"%s\" %i %i\n", cl->userid,
-					cl->old_frags, (int)(realtime - cl->connection_started)/60,
-					ping, cl->name, Info_ValueForKey (cl->userinfo, "skin"), top, bottom);
+			{
+				if (cl->spectator)
+				{	//silly mvdsv stuff
+					if (displayflags & STATUS_SPECTATORS_AS_PLAYERS)
+					{
+						frags[0] = 'S';
+						frags[1] = '\0';
+					}
+					else
+					{
+						ping = -ping;
+						sprintf(frags, "%i", -9999);
+						name  = va("\\s\\%s", name);
+					}
+				}
+				else
+					sprintf(frags, "%i", cl->old_frags);
+
+				Con_Printf ("%i %s %i %i \"%s\" \"%s\" %i %i\n", cl->userid,
+					frags, (int)(realtime - cl->connection_started)/60,
+					ping, name, Info_ValueForKey (cl->userinfo, "skin"), top, bottom);
+			}
 		}
 		else
 			slots++;

@@ -158,18 +158,23 @@ void DestFlush(qboolean compleate)
 			break;
 
 		case DEST_STREAM:
-			len = send(d->socket, d->cache, d->cacheused, 0);
-			if (len == 0) //client died
-				d->error = true;
-			else if (len > 0)	//error of some kind
+			if (d->cacheused)
 			{
-				d->cacheused -= len;
-				memmove(d->cache, d->cache+len, d->cacheused);
-			}
-			else
-			{	//error of some kind. would block or something
-				if (qerrno != EWOULDBLOCK)
+				len = send(d->socket, d->cache, d->cacheused, 0);
+				if (len == 0) //client died
 					d->error = true;
+				else if (len > 0)	//error of some kind
+				{
+					d->cacheused -= len;
+					memmove(d->cache, d->cache+len, d->cacheused);
+				}
+				else
+				{	//error of some kind. would block or something
+					int e;
+					e = qerrno;
+					if (e != EWOULDBLOCK)
+						d->error = true;
+				}
 			}
 			break;
 
@@ -435,6 +440,7 @@ cvar_t	sv_demoMaxSize = {"sv_demoMaxSize", ""};
 cvar_t	sv_demoExtraNames = {"sv_demoExtraNames", ""};
 
 cvar_t mvd_streamport = {"mvd_streamport", "0"};
+cvar_t mvd_maxstreams = {"mvd_maxstreams", "1"};
 
 cvar_t			sv_demoPrefix = {"sv_demoPrefix", ""};
 cvar_t			sv_demoSuffix = {"sv_demoSuffix", ""};
@@ -1111,6 +1117,8 @@ mvddest_t *SV_InitStream(int socket)
 	dst->maxcachesize = 0x8000;	//is this too small?
 	dst->cache = BZ_Malloc(dst->maxcachesize);
 
+	SV_BroadcastPrintf (PRINT_CHAT, "Smile, you're on QTV!\n");
+
 	return dst;
 }
 
@@ -1283,8 +1291,8 @@ static qboolean SV_MVD_Record (mvddest_t *dest)
 
 		sv.mvdrecording = true;
 	}
-	else
-		SV_WriteRecordMVDMessage(&buf, dem_read);
+//	else
+//		SV_WriteRecordMVDMessage(&buf, dem_read);
 	demo.pingtime = demo.time = sv.time;
 
 	dest->nextdest = demo.dest;
@@ -1537,7 +1545,7 @@ static qboolean SV_MVD_Record (mvddest_t *dest)
 	}
 
 // send all current light styles
-	for (i=0 ; i<MAX_LIGHTSTYLES ; i++)
+	for (i=0 ; i<MAX_STANDARDLIGHTSTYLES ; i++)
 	{
 		MSG_WriteByte (&buf, svc_lightstyle);
 		MSG_WriteByte (&buf, (char)i);
@@ -1989,11 +1997,15 @@ void SV_MVDStream_Poll(void)
 {
 	static int listensocket=INVALID_SOCKET;
 	static int listenport;
+
 	int client;
 	netadr_t na;
 	struct sockaddr_qstorage addr;
 	int addrlen;
+	int count;
 	qboolean wanted;
+	mvddest_t *dest;
+
 	if (!sv.state || !mvd_streamport.value)
 		wanted = false;
 	else if (listenport && (int)mvd_streamport.value != listenport)	//easy way to switch... disable for a frame. :)
@@ -2024,10 +2036,33 @@ void SV_MVDStream_Poll(void)
 	if (client == INVALID_SOCKET)
 		return;
 
-	if (sv.mvdrecording)
-	{	//sorry
-		closesocket(client);
-		return;
+	if (mvd_maxstreams.value > 0)
+	{
+		count = 0;
+		for (dest = demo.dest; dest; dest = dest->nextdest)
+		{
+			if (dest->desttype == DEST_STREAM)
+			{
+				count++;
+			}
+		}
+
+		if (count > mvd_maxstreams.value)
+		{	//sorry
+			char *goawaymessage = "This server enforces a limit on the number of proxies connected at any one time. Please try again later\n";
+			char packetheader[6];
+			packetheader[0] = 1;
+			packetheader[1] = dem_all;
+			packetheader[2] = strlen(goawaymessage)+1;
+			packetheader[3] = 0;
+			packetheader[4] = 0;
+			packetheader[5] = 0;
+
+			send(client, packetheader, sizeof(packetheader), 0);
+			send(client, goawaymessage, strlen(goawaymessage)+1, 0);
+			closesocket(client);
+			return;
+		}
 	}
 
 	SockadrToNetadr(&addr, &na);
@@ -2447,6 +2482,7 @@ void SV_MVDInit(void)
 	Cmd_AddCommand ("rmdemonum", SV_MVDRemoveNum_f);
 
 	Cvar_Register(&mvd_streamport, "MVD Streaming");
+	Cvar_Register(&mvd_maxstreams, "MVD Streaming");
 }
 
 #endif

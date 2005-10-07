@@ -81,7 +81,7 @@ cvar_t	cl_indepphysics = {"cl_indepphysics", "0"};
 
 cvar_t  localid = {"localid", ""};
 
-cvar_t	cl_antibunch = {"cl_antibunch", "0.013"};
+cvar_t	cl_antibunch = {"cl_antibunch", "0"};
 
 static qboolean allowremotecmd = true;
 

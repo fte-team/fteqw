@@ -256,6 +256,13 @@ extern qboolean gl_mtexable;
 void GL_DisableMultitexture(void);
 void GL_EnableMultitexture(void);
 void GL_SelectTexture (GLenum target);
+void GL_SetShaderState2D(qboolean is2d);
+
+void R_DrawRailCore(entity_t *e);
+void R_DrawLightning(entity_t *e);
+void R_DrawBeam( entity_t *e );
+
+void P_FlushRenderer(void);
 
 //
 // vid_gl*.c

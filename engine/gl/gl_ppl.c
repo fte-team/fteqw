@@ -299,7 +299,7 @@ static void PPL_BaseChain_NoBump_1TMU(msurface_t *first, texture_t *tex)
 	qglBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
 }
 
-static void PPL_BaseChain_NoBump_2TMU(msurface_t *s, texture_t *tex)
+/*static void PPL_BaseChain_NoBump_2TMU(msurface_t *s, texture_t *tex)
 {	//doesn't merge surfaces, but tells gl to do each vertex arrayed surface individually, which means no vertex copying.
 	int vi;
 	glRect_t    *theRect;
@@ -370,7 +370,7 @@ static void PPL_BaseChain_NoBump_2TMU(msurface_t *s, texture_t *tex)
 
 	GL_SelectTexture(GL_TEXTURE0_ARB);
 	qglDisableClientState(GL_TEXTURE_COORD_ARRAY);
-}
+}*/
 
 static void PPL_BaseChain_NoBump_2TMU_Overbright(msurface_t *s, texture_t *tex)
 {	//doesn't merge surfaces, but tells gl to do each vertex arrayed surface individually, which means no vertex copying.

@@ -46,6 +46,9 @@ extern char	loadname[32];	// for hunk tags
 
 void CM_Init(void);
 
+void GLMod_LoadCompositeAnim(model_t *mod, void *buffer);
+void GL_LoadHeightmapModel (model_t *mod, void *buffer);
+void GLMod_LoadDarkPlacesModel(model_t *mod, void *buffer);
 void GLMod_LoadSpriteModel (model_t *mod, void *buffer);
 void GLMod_LoadSprite2Model (model_t *mod, void *buffer);
 void GLMod_LoadBrushModel (model_t *mod, void *buffer);

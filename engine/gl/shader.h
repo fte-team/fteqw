@@ -232,6 +232,7 @@ void R_RenderMeshGeneric ( meshbuffer_t *mb, shaderpass_t *pass );
 void R_RenderMeshCombined ( meshbuffer_t *mb, shaderpass_t *pass );
 void R_RenderMeshMultitextured ( meshbuffer_t *mb, shaderpass_t *pass );
 
+shader_t *R_RegisterPic (char *name);
 shader_t *R_RegisterShader (char *name);
 shader_t *R_RegisterShader_Vertex (char *name);
 shader_t *R_RegisterShader_Flare (char *name);

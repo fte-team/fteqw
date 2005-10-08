@@ -309,8 +309,6 @@ void Media_RecordFrame (void);
 void R_SetRenderer(int wanted);
 void RQ_Init(void);
 
-void CLQ2_RailTrail (vec3_t start, vec3_t end);
-void CLQ2_BubbleTrail (vec3_t start, vec3_t end);
 void CLQ2_EntityEvent(entity_state_t *es);
 void CLQ2_TeleporterParticles(entity_state_t *es);
 void CLQ2_IonripperTrail(vec3_t oldorg, vec3_t neworg);

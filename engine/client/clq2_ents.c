@@ -105,7 +105,6 @@ void CLQ2_TrapParticles(entity_t *ent){};
 void CLQ2_BfgParticles(entity_t *ent){};
 void CLQ2_FlyEffect(q2centity_t *ent, vec3_t org){};
 void CLQ2_DiminishingTrail(vec3_t oldorg, vec3_t neworg, q2centity_t *ent, unsigned int effects){};
-void CLQ2_BlasterTrail(vec3_t oldorg, vec3_t neworg);
 void CLQ2_BlasterTrail2(vec3_t oldorg, vec3_t neworg){};
 
 
@@ -651,7 +650,10 @@ void CLQ2_AddProjectiles (void)
 		}
 
 		if (pr->effects & EF_BLASTER)
-			CLQ2_BlasterTrail (pr->oldorigin, ent.origin);
+		{
+			if (P_ParticleTrail(pr->oldorigin, ent.origin, rt_blastertrail, NULL))
+				P_ParticleTrailIndex(pr->oldorigin, ent.origin, 0xe0, 1, NULL);
+		}
 		V_AddLight (pr->origin, 200, 0.2, 0.2, 0);
 
 		VectorCopy (pr->angles, ent.angles);
@@ -1706,14 +1708,15 @@ void CLQ2_AddPacketEntities (q2frame_t *frame)
 		{
 			if (effects & Q2EF_ROCKET)
 			{
-				P_ParticleTrail(cent->lerp_origin, ent.origin, rt_rocket, &cent->trailstate);
+				if (P_ParticleTrail(cent->lerp_origin, ent.origin, rt_rocket, &cent->trailstate))
+						P_ParticleTrailIndex(cent->lerp_origin, ent.origin, 0xdc, 4, &cent->trailstate);
+
 				V_AddLight (ent.origin, 200, 0.2, 0.2, 0);
 			}
 			// PGM - Do not reorder EF_BLASTER and EF_HYPERBLASTER. 
 			// EF_BLASTER | EF_TRACKER is a special case for EF_BLASTER2... Cheese!
 			else if (effects & Q2EF_BLASTER)
 			{
-//				CLQ2_BlasterTrail (cent->lerp_origin, ent.origin);
 //PGM
 				if (effects & Q2EF_TRACKER)	// lame... problematic?
 				{
@@ -1722,7 +1725,8 @@ void CLQ2_AddPacketEntities (q2frame_t *frame)
 				}
 				else
 				{
-					P_ParticleTrail(cent->lerp_origin, ent.origin, rt_blastertrail, &cent->trailstate);
+					if (P_ParticleTrail(cent->lerp_origin, ent.origin, rt_blastertrail, &cent->trailstate))
+						P_ParticleTrailIndex(cent->lerp_origin, ent.origin, 0xe0, 1, &cent->trailstate);
 					V_AddLight (ent.origin, 200, 0.2, 0.2, 0);
 				}
 //PGM
@@ -1736,11 +1740,13 @@ void CLQ2_AddPacketEntities (q2frame_t *frame)
 			}
 			else if (effects & Q2EF_GIB)
 			{
-				P_ParticleTrail(cent->lerp_origin, ent.origin, rt_gib, &cent->trailstate);
+				if (P_ParticleTrail(cent->lerp_origin, ent.origin, rt_gib, &cent->trailstate))
+					P_ParticleTrailIndex(cent->lerp_origin, ent.origin, 0xe8, 8, &cent->trailstate);
 			}
 			else if (effects & Q2EF_GRENADE)
 			{
-				P_ParticleTrail(cent->lerp_origin, ent.origin, rt_grenade, &cent->trailstate);
+				if (P_ParticleTrail(cent->lerp_origin, ent.origin, rt_grenade, &cent->trailstate))
+					P_ParticleTrailIndex(cent->lerp_origin, ent.origin, 4, 8, &cent->trailstate);
 			}
 			else if (effects & Q2EF_FLIES)
 			{

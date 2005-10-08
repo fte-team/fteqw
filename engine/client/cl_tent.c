@@ -331,7 +331,9 @@ void CL_AddBeam (int tent, int ent, vec3_t start, vec3_t end)	//fixme: use TE_ n
 	case 0:
 		if (ent < 0 && ent >= -512)	//a zquake concept. ent between -1 and -maxplayers is to be taken to be a railtrail from a particular player instead of a beam.
 		{
-			CLQ2_RailTrail(start, end);
+			// TODO: add support for those finnicky colored railtrails...
+			if (P_ParticleTrail(start, end, rt_railtrail, NULL))
+				P_ParticleTrailIndex(start, end, 208, 8, NULL);
 			return;
 		}
 	default:
@@ -735,7 +737,10 @@ void CL_ParseTEnt (void)
 		pos[1] = MSG_ReadCoord ();
 		pos[2] = MSG_ReadCoord ();
 		if (P_RunParticleEffectTypeString(pos, NULL, 1, "te_explosionquad"))
-			P_ParticleExplosion (pos);
+			if (P_RunParticleEffectType(pos, NULL, 1, pt_explosion))
+				P_RunParticleEffect(pos, NULL, 107, 1024); // should be 97-111
+
+		R_AddStain(pos, -1, -1, -1, 100);
 		
 	// light
 		if (r_explosionlight.value)
@@ -772,7 +777,10 @@ void CL_ParseTEnt (void)
 		pos[0] = MSG_ReadCoord ();
 		pos[1] = MSG_ReadCoord ();
 		pos[2] = MSG_ReadCoord ();
-		P_ParticleExplosion (pos);
+		if (P_RunParticleEffectType(pos, NULL, 1, pt_explosion))
+			P_RunParticleEffect(pos, NULL, 107, 1024); // should be 97-111
+
+		R_AddStain(pos, -1, -1, -1, 100);
 		
 	// light
 		if (r_explosionlight.value)
@@ -809,7 +817,11 @@ void CL_ParseTEnt (void)
 		pos[0] = MSG_ReadCoord ();
 		pos[1] = MSG_ReadCoord ();
 		pos[2] = MSG_ReadCoord ();
-		P_ParticleExplosion (pos);
+		if (P_RunParticleEffectType(pos, NULL, 1, pt_explosion))
+			P_RunParticleEffect(pos, NULL, 107, 1024); // should be 97-111
+
+		R_AddStain(pos, -1, -1, -1, 100);
+		
 		
 	// light
 		if (r_explosionlight.value)
@@ -836,7 +848,10 @@ void CL_ParseTEnt (void)
 		pos[1] = MSG_ReadCoord ();
 		pos[2] = MSG_ReadCoord ();
 		if (P_RunParticleEffectTypeString(pos, NULL, 1, "te_bigexplosion"))
-			P_ParticleExplosion (pos);
+			if (P_RunParticleEffectType(pos, NULL, 1, pt_explosion))
+				P_RunParticleEffect(pos, NULL, 107, 1024); // should be 97-111
+
+		R_AddStain(pos, -1, -1, -1, 100);
 		
 	// light
 		if (r_explosionlight.value)
@@ -951,7 +966,9 @@ void CL_ParseTEnt (void)
 		pos2[0] = MSG_ReadCoord ();
 		pos2[1] = MSG_ReadCoord ();
 		pos2[2] = MSG_ReadCoord ();
-		CLQ2_RailTrail (pos, pos2);
+
+		if (P_ParticleTrail(pos, pos2, rt_railtrail, NULL))
+			P_ParticleTrailIndex(pos, pos2, 208, 8, NULL);
 		break;
 
 	case TE_STREAM_CHAIN:
@@ -1088,7 +1105,8 @@ void CL_ParseTEnt (void)
 		// stain (Hopefully this is close to how DP does it)
 		R_AddStain(pos, -10, -10, -10, 30);
 
-		P_ParticleTrail(pos, pos2, P_FindParticleType("te_plasmaburn"), NULL);
+		if (P_ParticleTrail(pos, pos2, P_FindParticleType("te_plasmaburn"), NULL))
+			P_ParticleTrailIndex(pos, pos2, 15, 0, NULL);
 		break;
 
 	case DPTE_TEI_G3:	//nexuiz's nex beam
@@ -1105,7 +1123,8 @@ void CL_ParseTEnt (void)
 		MSG_ReadCoord ();
 		MSG_ReadCoord ();
 
-		P_ParticleTrail(pos, pos2, P_FindParticleType("te_nexbeam"), NULL);
+		if (P_ParticleTrail(pos, pos2, P_FindParticleType("te_nexbeam"), NULL))
+			P_ParticleTrailIndex(pos, pos2, 15, 0, NULL);
 		break;
 
 	case DPTE_SMOKE:
@@ -1527,6 +1546,7 @@ void CL_Laser (vec3_t start, vec3_t end, int colors)
 	VectorCopy (end, ex->oldorigin);
 	ex->flags = Q2RF_TRANSLUCENT | Q2RF_BEAM;
 	ex->start = cl.time;
+	ex->framerate = 100; // smoother fading
 }
 
 static qbyte splash_color[] = {0x00, 0xe0, 0xb0, 0x50, 0xd0, 0xe0, 0xe8};
@@ -1556,7 +1576,8 @@ void CLQ2_ParseTEnt (void)
 	case Q2TE_BLOOD:			// bullet hitting flesh
 		MSG_ReadPos (pos);
 		MSG_ReadDir (dir);
-		P_RunParticleEffectType(pos, dir, 1, pt_blood);
+		if (P_RunParticleEffectType(pos, dir, 1, pt_blood))
+			P_RunParticleEffect(pos, dir, 0xe8, 60);
 		R_AddStain(pos, 0, -10, -10, 40);
 		break;
 
@@ -1707,7 +1728,8 @@ void CLQ2_ParseTEnt (void)
 	case Q2TE_RAILTRAIL:			// railgun effect
 		MSG_ReadPos (pos);
 		MSG_ReadPos (pos2);
-		CLQ2_RailTrail (pos, pos2);
+		if (P_ParticleTrail(pos, pos2, rt_railtrail, NULL))
+			P_ParticleTrailIndex(pos, pos2, 0x74, 8, NULL);
 		Q2S_StartSound (pos, 0, 0, S_PrecacheSound ("weapons/railgf1a.wav"), 1, ATTN_NORM, 0);
 		break;
 
@@ -1716,8 +1738,11 @@ void CLQ2_ParseTEnt (void)
 	case Q2TE_GRENADE_EXPLOSION_WATER:
 		MSG_ReadPos (pos);
 
-		P_ParticleExplosion (pos);
-				
+		if (P_RunParticleEffectType(pos, NULL, 1, pt_explosion))
+			P_RunParticleEffect(pos, NULL, 0xe0, 256);
+
+		R_AddStain(pos, -1, -1, -1, 100);
+			
 	// light
 		if (r_explosionlight.value)
 		{
@@ -1806,7 +1831,12 @@ void CLQ2_ParseTEnt (void)
 
 	// particle effect
 		if (type != Q2TE_EXPLOSION1_BIG && type != Q2TE_EXPLOSION1_NP)
-			P_ParticleExplosion (pos);
+		{
+			if (P_RunParticleEffectType(pos, NULL, 1, pt_explosion))
+				P_RunParticleEffect(pos, NULL, 0xe0, 256);
+
+			R_AddStain(pos, -1, -1, -1, 100);
+		}
 
 	// light
 		if (r_explosionlight.value)
@@ -1892,6 +1922,8 @@ void CLQ2_ParseTEnt (void)
 	case Q2TE_BFG_BIGEXPLOSION:
 		MSG_ReadPos (pos);
 //		CL_BFGExplosionParticles (pos);
+		if (P_RunParticleEffectTypeString(pos, dir, 1, "te_bfg_bigexplosion"))
+			P_RunParticleEffect(pos, dir, 0xd0, 256); // TODO: x+(r%8) unstead of x&7+(r&7)
 		break;
 
 	case Q2TE_BFG_LASER:
@@ -1903,7 +1935,8 @@ void CLQ2_ParseTEnt (void)
 	case Q2TE_BUBBLETRAIL:
 		MSG_ReadPos (pos);
 		MSG_ReadPos (pos2);
-		CLQ2_BubbleTrail (pos, pos2);
+		if (P_ParticleTrail(pos, pos2, rt_bubbletrail, NULL))
+			P_ParticleTrailIndex(pos, pos2, 4, 8, NULL);
 		break;
 
 	case Q2TE_PARASITE_ATTACK:
@@ -1928,6 +1961,9 @@ void CLQ2_ParseTEnt (void)
 		MSG_ReadPos (pos);
 		MSG_ReadDir (dir);
 		color = MSG_ReadByte ();
+
+		// TODO: fix to Q2's standards
+		P_RunParticleEffect(pos, dir, color, cnt);
 /*		CL_ParticleEffect2 (pos, dir, color, cnt);
 
 		ex = CL_AllocExplosion ();
@@ -1948,6 +1984,8 @@ void CLQ2_ParseTEnt (void)
 	case Q2TE_GREENBLOOD:
 		MSG_ReadPos (pos);
 		MSG_ReadDir (dir);
+		if (P_RunParticleEffectTypeString(pos, dir, 1, "te_greenblood"))
+			P_RunParticleEffect(pos, dir, 0xdf, 30); // TODO: x+(r%8) unstead of x&7+(r&7)
 //		CL_ParticleEffect2 (pos, dir, 0xdf, 30);
 		break;
 
@@ -2072,7 +2110,8 @@ void CLQ2_ParseTEnt (void)
 	case Q2TE_DEBUGTRAIL:
 		MSG_ReadPos (pos);
 		MSG_ReadPos (pos2);
-		P_ParticleTrail(pos, pos2, P_AllocateParticleType("te_debugtrail"), NULL);
+		if (P_ParticleTrail(pos, pos2, P_AllocateParticleType("te_debugtrail"), NULL))
+			P_ParticleTrailIndex(pos, pos2, 116, 8, NULL);
 		break;
 
 	case Q2TE_PLAIN_EXPLOSION:
@@ -2169,13 +2208,15 @@ void CLQ2_ParseTEnt (void)
 		CL_BubbleTrail2 (pos, pos2, cnt);
 		S_StartSound (pos,  0, 0, cl_sfx_lashit, 1, ATTN_NORM, 0);
 		break;
-
+*/
 	case Q2TE_MOREBLOOD:
-		MSG_ReadPos (&net_message, pos);
-		MSG_ReadDir (&net_message, dir);
-		CL_ParticleEffect (pos, dir, 0xe8, 250);
+		MSG_ReadPos (pos);
+		MSG_ReadDir (dir);
+		if (P_RunParticleEffectTypeString(pos, dir, 1, "te_moreblood"))
+			if (P_RunParticleEffectType(pos, dir, 4, pt_blood))
+				P_RunParticleEffect(pos, dir, 0xe8, 250);
 		break;
-
+/*
 	case Q2TE_CHAINFIST_SMOKE:
 		dir[0]=0; dir[1]=0; dir[2]=1;
 		MSG_ReadPos(&net_message, pos);
@@ -2196,7 +2237,8 @@ void CLQ2_ParseTEnt (void)
 		MSG_ReadPos (pos);
 
 		// effect
-		P_RunParticleEffectTypeString(pos, NULL, 1, "te_tracker_explosion");
+		if (P_RunParticleEffectTypeString(pos, NULL, 1, "te_tracker_explosion"))
+			P_RunParticleEffect(pos, NULL, 0, 128); // TODO: needs to be nonrandom instead of 0+r%8
 
 		// light
 	// light
@@ -2234,13 +2276,17 @@ void CLQ2_ParseTEnt (void)
 		CL_ParseNuke ();
 		break;
 
+*/
 	case Q2TE_WIDOWSPLASH:
-		MSG_ReadPos (&net_message, pos);
-		CL_WidowSplash (pos);
+		MSG_ReadPos (pos);
+		// this one is really annoying, it's supposed to be a random choice
+		// between 2*8, 13*8, 21*8, 18*8
+		if (P_RunParticleEffectTypeString(pos, NULL, 1, "te_widowsplash"))
+			P_RunParticleEffect(pos, NULL, 13*8, 256); 
 		break;
 //PGM
 //==============
-*/
+
 	default:
 		Host_EndGame ("CLQ2_ParseTEnt: bad/non-implemented type %i", type);
 	}

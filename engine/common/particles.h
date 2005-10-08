@@ -20,7 +20,8 @@ extern int pt_explosion,
 	pt_flame,
 	pt_bullet,
 	pt_superbullet,
-	pe_default;
+	pe_default,
+	pe_defaulttrail;
 
 extern int rt_blastertrail,
 	rt_railtrail,
@@ -157,18 +158,17 @@ void P_RunParticleEffect3 (vec3_t org, vec3_t box, int color, int effect, int co
 void P_RunParticleEffect4 (vec3_t org, float radius, int color, int effect, int count);
 
 void P_DarkFieldParticles (float *org, qbyte colour);
-void P_EntityParticles (float *org, qbyte colour, float *radius);	//nq's EF_BRIGHTFIELD
 void P_EmitEffect (vec3_t pos, int type, trailstate_t **tsk);	//particles centered around a model, called every frame for those models.
 
 //functions that spawn point effects (basically just pass throughs)
 void P_BlobExplosion (vec3_t org);	//tarbaby explosion or TF emp.
-void P_ParticleExplosion (vec3_t org);	//rocket explosion (sprite is allocated seperatly :( )
 void P_LavaSplash (vec3_t org);	//cthon dying, or a gas grenade.
 void P_RunParticleCube(vec3_t minb, vec3_t maxb, vec3_t dir, float count, int colour, qboolean gravity, float jitter);
 void P_RunParticleWeather(vec3_t minb, vec3_t maxb, vec3_t dir, float count, int colour, char *efname);
 
 //the core spawn function for trails. (trailstate can be null)
 int P_ParticleTrail (vec3_t start, vec3_t end, int type, trailstate_t **trailstate);
+void P_ParticleTrailIndex (vec3_t start, vec3_t end, int color, int rndcolor, trailstate_t **trailstate);
 
 void P_DefaultTrail (struct model_s *model);	//fills in the default particle properties for a loaded model. Should already have the model flags set.
 

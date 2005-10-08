@@ -3190,7 +3190,7 @@ int CL_PlayerColor(player_info_t *plr, int *name_ormask)
 		if (*t)
 			c = atoi(t);
 		else
-			c = plr->userid - 1;
+			c = plr->userid; // Quake2 can start from 0
 
 		if ((c / 7) & 1)
 			*name_ormask = CON_STANDARDMASK;

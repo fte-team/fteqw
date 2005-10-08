@@ -2208,7 +2208,10 @@ static void PF_cl_te_explosion (progfuncs_t *prinst, struct globalvars_s *pr_glo
 		dl->channelfade[2] = 0.12;
 	}
 
-	P_ParticleExplosion(pos);
+	if (P_RunParticleEffectType(pos, NULL, 1, pt_explosion))
+		P_RunParticleEffect(pos, NULL, 107, 1024); // should be 97-111
+
+	R_AddStain(pos, -1, -1, -1, 100);	
 
 	S_StartSound (-2, 0, cl_sfx_r_exp3, pos, 1, 1);
 }
@@ -2273,9 +2276,10 @@ static void PF_cl_te_explosionquad (progfuncs_t *prinst, struct globalvars_s *pr
 {
 	float *pos = G_VECTOR(OFS_PARM0);
 	if (P_RunParticleEffectTypeString(pos, vec3_origin, 1, "te_explosionquad"))
-	{
-		P_ParticleExplosion(pos);
-	}
+		if (P_RunParticleEffectType(pos, NULL, 1, pt_explosion))
+			P_RunParticleEffect(pos, NULL, 107, 1024); // should be 97-111
+
+	R_AddStain(pos, -1, -1, -1, 100);	
 
 	// light
 	if (r_explosionlight.value) {
@@ -2384,7 +2388,10 @@ static void PF_cl_te_explosionrgb (progfuncs_t *prinst, struct globalvars_s *pr_
 	
 	dlight_t *dl;
 
-	P_ParticleExplosion (org);
+	if (P_RunParticleEffectType(org, NULL, 1, pt_explosion))
+		P_RunParticleEffect(org, NULL, 107, 1024); // should be 97-111
+
+	R_AddStain(org, -1, -1, -1, 100);		
 		
 	// light
 	if (r_explosionlight.value)

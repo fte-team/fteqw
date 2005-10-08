@@ -60,7 +60,8 @@ int pt_explosion,
 
 int pe_default,
 	pe_size2,
-	pe_size3;
+	pe_size3,
+	pe_defaulttrail;
 
 int rt_blastertrail,
 	rt_railtrail,
@@ -1022,6 +1023,7 @@ void P_AssosiateTrail_f (void)
 
 void P_DefaultTrail (model_t *model)
 {
+	// TODO: EF_BRIGHTFIELD should probably be handled in here somewhere
 	if (model->engineflags & MDLF_NODEFAULTTRAIL)
 		return;
 
@@ -1280,6 +1282,7 @@ void P_InitParticles (void)
 	pe_default			= P_AllocateParticleType("pe_default");
 	pe_size2			= P_AllocateParticleType("pe_size2");
 	pe_size3			= P_AllocateParticleType("pe_size3");
+	pe_defaulttrail		= P_AllocateParticleType("pe_defaulttrail");
 }
 
 
@@ -1807,12 +1810,6 @@ static trailstate_t *P_NewTrailstate(trailstate_t **key)
 	return ts;
 }
 
-/*
-===============
-R_EntityParticles
-===============
-*/
-
 #define NUMVERTEXNORMALS	162
 float	r_avertexnormals[NUMVERTEXNORMALS][3] = {
 #include "anorms.h"
@@ -1823,105 +1820,6 @@ vec2_t	avelocities[NUMVERTEXNORMALS];
 // float	partstep = 0.01;
 // float	timescale = 0.01;
 
-void P_EntityParticles (float *org, qbyte colour, float *radius)
-{
-	part_type[pt_entityparticles].areaspread = radius[0]*0.5 + radius[1]*0.5;
-	part_type[pt_entityparticles].areaspreadvert = radius[2];
-	part_type[pt_entityparticles].colorindex = colour;
-
-	P_RunParticleEffectType(org, NULL, 1, pt_entityparticles);
-}
-
-/*
-===============
-R_ParticleExplosion
-
-===============
-*/
-void P_ParticleExplosion (vec3_t org)
-{
-//	int			i, j;
-//	particle_t	*p;
-
-	P_RunParticleEffectType(org, NULL, 1, pt_explosion);
-
-	R_AddStain(org, -1, -1, -1, 100);
-/*
-	for (i=0 ; i<r_particles_in_explosion.value ; i++)
-	{
-		if (!free_particles)
-			return;
-		if ((rand()&3)==3)
-		{
-			p = free_particles;
-			free_particles = p->next;
-			p->next = active_sparks;
-			active_sparks = p;
-
-			p->scale = 1;
-			p->alpha = 0.8 + (rand()&15)/(15.0*5);
-			p->die = particletime + 7;
-			p->color = ramp1[0];
-			p->ramp = rand()&3;
-			if (i & 1)
-			{
-				p->type = st_shrapnal;
-				for (j=0 ; j<3 ; j++)
-				{
-					p->org[j] = org[j];// + ((rand()%32)-16);
-					p->vel[j] = ((rand()%512)-256)*r_particle_explosion_speed.value;
-				}
-			}
-			else
-			{
-				p->type = pt_grav;
-				for (j=0 ; j<3 ; j++)
-				{
-					p->org[j] = org[j];// + ((rand()%32)-16);
-					p->vel[j] = ((rand()%512)-256)*r_particle_explosion_speed.value;
-				}
-			}
-		}
-		else
-		{
-			p = free_particles;
-			free_particles = p->next;
-			p->next = active_sparks;
-			active_sparks = p;
-
-			p->scale = 1;
-			p->alpha = 0.8;
-			p->die = particletime + 7;
-			p->color = ramp1[0];
-			p->ramp = rand()&3;
-			if (i & 1)
-			{
-				p->type = st_shrapnal;
-				for (j=0 ; j<3 ; j++)
-				{
-					p->org[j] = org[j];// + ((rand()%32)-16);
-					p->vel[j] = ((rand()%512)-256)*r_particle_explosion_speed.value;
-				}
-			}
-			else
-			{
-				p->type = st_shrapnal;
-				for (j=0 ; j<3 ; j++)
-				{
-					p->org[j] = org[j];// + ((rand()%32)-16);
-					p->vel[j] = ((rand()%512)-256)*r_particle_explosion_speed.value;
-				}
-			}
-		}
-	}*/
-}
-
-/*
-===============
-R_BlobExplosion
-
-===============
-*/
 int Q1BSP_ClipDecal(vec3_t center, vec3_t normal, vec3_t tangent, vec3_t tangent2, float size, float **out);
 int P_RunParticleEffectState (vec3_t org, vec3_t dir, float count, int typenum, trailstate_t **tsk)
 {
@@ -2329,6 +2227,30 @@ int P_RunParticleEffectState (vec3_t org, vec3_t dir, float count, int typenum, 
 					m += 0.1762891; // some BS number to try to "randomize" things
 				}
 				break;
+			case SM_DISTBALL:
+				{
+					float rdist;
+
+					rdist = ptype->spawnparam2 - crandom()*(1-(crandom() * ptype->spawnparam1));
+
+					// this is a strange spawntype, which is based on the fact that
+					// crandom()*crandom() provides something similar to an exponential
+					// probability curve
+					ofsvec[0] = hrandom();
+					ofsvec[1] = hrandom();
+					if (ptype->areaspreadvert)
+						ofsvec[2] = hrandom();
+					else
+						ofsvec[2] = 0;
+
+					VectorNormalize(ofsvec);
+					VectorScale(ofsvec, rdist, ofsvec);
+
+					arsvec[0] = ofsvec[0]*ptype->areaspread;
+					arsvec[1] = ofsvec[1]*ptype->areaspread;
+					arsvec[2] = ofsvec[2]*ptype->areaspreadvert;
+				}
+				break;
 			default: // SM_BALL, SM_CIRCLE
 				ofsvec[0] = hrandom();
 				ofsvec[1] = hrandom();
@@ -2458,7 +2380,7 @@ void P_EmitEffect (vec3_t pos, int type, trailstate_t **tsk)
 
 /*
 ===============
-R_RunParticleEffect
+P_RunParticleEffect
 
 ===============
 */
@@ -2529,7 +2451,7 @@ void P_RunParticleEffect2 (vec3_t org, vec3_t dmin, vec3_t dmax, int color, int 
 
 /*
 ===============
-R_RunParticleEffect3
+P_RunParticleEffect3
 
 ===============
 */
@@ -2571,7 +2493,7 @@ void P_RunParticleEffect3 (vec3_t org, vec3_t box, int color, int effect, int co
 
 /*
 ===============
-R_RunParticleEffect4
+P_RunParticleEffect4
 
 ===============
 */
@@ -2689,23 +2611,7 @@ void P_LavaSplash (vec3_t org)
 	P_RunParticleEffectType(org, NULL, 1, pt_lavasplash);
 }
 
-/*
-===============
-R_TeleportSplash
-
-===============
-*/
-void CLQ2_BlasterTrail (vec3_t start, vec3_t end)
-{
-	P_ParticleTrail(start, end, rt_blastertrail, NULL);
-}
-
-void CLQ2_RailTrail (vec3_t start, vec3_t end)
-{
-	P_ParticleTrail(start, end, rt_railtrail, NULL);
-}
-
-static int P_ParticleTrailDraw (vec3_t startpos, vec3_t end, part_type_t *ptype, trailstate_t **tsk)
+static void P_ParticleTrailDraw (vec3_t startpos, vec3_t end, part_type_t *ptype, trailstate_t **tsk)
 {
 	vec3_t	vec, vstep, right, up, start;
 	float	len;
@@ -2763,7 +2669,7 @@ static int P_ParticleTrailDraw (vec3_t startpos, vec3_t end, part_type_t *ptype,
 	if (ptype->spawntime && ts)
 	{
 		if (ts->statetime > particletime)
-			return 0; // timelimit still in effect
+			return; // timelimit still in effect
 
 		ts->statetime = particletime + ptype->spawntime; // record old time
 		ts = NULL; // clear trailstate so we don't save length/lastseg
@@ -2771,7 +2677,7 @@ static int P_ParticleTrailDraw (vec3_t startpos, vec3_t end, part_type_t *ptype,
 
 	// random chance for trails
 	if (ptype->spawnchance < frandom())
-		return 0; // don't spawn but return success
+		return; // don't spawn but return success
 
 	if (!ptype->die)
 		ts = NULL;
@@ -3096,7 +3002,7 @@ static int P_ParticleTrailDraw (vec3_t startpos, vec3_t end, part_type_t *ptype,
 		}
 	}
 
-	return 0;
+	return;
 }
 
 int P_ParticleTrail (vec3_t startpos, vec3_t end, int type, trailstate_t **tsk)
@@ -3119,12 +3025,15 @@ int P_ParticleTrail (vec3_t startpos, vec3_t end, int type, trailstate_t **tsk)
 			ptype = &part_type[ptype->inwater];
 	}
 
-	return P_ParticleTrailDraw (startpos, end, ptype, tsk);
+	P_ParticleTrailDraw (startpos, end, ptype, tsk);
+	return 0;
 }
 
-void CLQ2_BubbleTrail (vec3_t start, vec3_t end)
+void P_ParticleTrailIndex (vec3_t start, vec3_t end, int color, int crnd, trailstate_t **tsk)
 {
-	P_ParticleTrail(start, end, rt_bubbletrail, NULL);
+	part_type[pe_defaulttrail].colorindex = color;
+	part_type[pe_defaulttrail].colorrand = crnd;
+	P_ParticleTrail(start, end, pe_defaulttrail, tsk);
 }
 
 #ifdef Q2BSPS

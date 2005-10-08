@@ -182,7 +182,6 @@ typedef struct part_type_s {
 	vec3_t rgbrand;
 	int colorindex;
 	int colorrand;
-	qboolean citracer;
 	float rgbchangetime;
 	vec3_t rgbrandsync;
 	float scale, alpha;
@@ -226,16 +225,18 @@ typedef struct part_type_s {
 
 	float offsetup; // make this into a vec3_t later with dir, possibly for mdls
 
-	enum {SM_BOX, SM_CIRCLE, SM_BALL, SM_SPIRAL, SM_TRACER, SM_TELEBOX, SM_LAVASPLASH, SM_UNICIRCLE, SM_FIELD} spawnmode;	
-	//box = even spread within the area
-	//circle = around edge of a circle
-	//ball = filled sphere
-	//spiral = spiral trail
-	//tracer = tracer trail
-	//telebox = q1-style telebox
-	//lavasplash = q1-style lavasplash
-	//unicircle = uniform circle
-	//field = synced field (brightfield, etc)
+	enum {
+		SM_BOX, //box = even spread within the area
+		SM_CIRCLE, //circle = around edge of a circle
+		SM_BALL, //ball = filled sphere
+		SM_SPIRAL, //spiral = spiral trail
+		SM_TRACER, //tracer = tracer trail
+		SM_TELEBOX, //telebox = q1-style telebox
+		SM_LAVASPLASH, //lavasplash = q1-style lavasplash 
+		SM_UNICIRCLE, //unicircle = uniform circle
+		SM_FIELD, //field = synced field (brightfield, etc)
+		SM_DISTBALL // uneven distributed ball
+	} spawnmode;	
 
 	float gravity;
 	vec3_t friction;
@@ -253,9 +254,15 @@ typedef struct part_type_s {
 	skytris_t *skytris;
 
 	unsigned int flags;
-#define PT_VELOCITY	1
-#define PT_FRICTION 2
-#define PT_CHANGESCOLOUR 4
+#define PT_VELOCITY	     0x001
+#define PT_FRICTION	     0x002
+#define PT_CHANGESCOLOUR 0x004
+#define PT_CITRACER      0x008 // Q1-style tracer behavior for colorindex
+#define PT_INVFRAMETIME  0x010 // apply inverse frametime to count (causes emits to be per frame)
+#define PT_AVERAGETRAIL  0x020 // average trail points from start to end, useful with t_lightning, etc
+#define PT_NOSTATE       0x040 // don't use trailstate for this emitter (careful with assoc...)
+#define PT_NOSPREADFIRST 0x080 // don't randomize org/vel for first generated particle
+#define PT_NOSPREADLAST  0x100 // don't randomize org/vel for last generated particle
 } part_type_t;
 int numparticletypes;
 part_type_t *part_type;
@@ -473,8 +480,6 @@ void P_ParticleEffect_f(void)
 	ptype->colorindex = -1;
 	ptype->rotationstartmin = -M_PI;	//start with a random angle
 	ptype->rotationstartrand = M_PI-ptype->rotationstartmin;
-	ptype->rotationmin = 0;				//but don't spin
-	ptype->rotationrand = 0;
 	ptype->spawnchance = 1;
 
 	while(1)
@@ -591,7 +596,7 @@ void P_ParticleEffect_f(void)
 		else if (!strcmp(var, "colorrand"))
 			ptype->colorrand = atoi(value);
 		else if (!strcmp(var, "citracer"))
-			ptype->citracer = true; 
+			ptype->flags |= PT_CITRACER;
 
 		else if (!strcmp(var, "red"))
 			ptype->rgb[0] = atof(value)/255;
@@ -704,6 +709,8 @@ void P_ParticleEffect_f(void)
 				ptype->spawnmode = SM_UNICIRCLE;
 			else if (!strcmp(value, "syncfield"))
 				ptype->spawnmode = SM_FIELD;
+			else if (!strcmp(value, "distball"))
+				ptype->spawnmode = SM_DISTBALL;
 			else
 				ptype->spawnmode = SM_BOX;
 
@@ -894,6 +901,16 @@ void P_ParticleEffect_f(void)
 
 			ptype->rampindexes++;
 		}
+		else if (!strcmp(var, "perframe"))
+			ptype->flags |= PT_INVFRAMETIME;
+		else if (!strcmp(var, "averageout"))
+			ptype->flags |= PT_AVERAGETRAIL;
+		else if (!strcmp(var, "nostate"))
+			ptype->flags |= PT_NOSTATE;
+		else if (!strcmp(var, "nospreadfirst"))
+			ptype->flags |= PT_NOSPREADFIRST;
+		else if (!strcmp(var, "nospreadlast"))
+			ptype->flags |= PT_NOSPREADLAST;
 		else
 			Con_DPrintf("%s is not a recognised particle type field (in %s)\n", var, ptype->name);
 	}
@@ -902,7 +919,6 @@ void P_ParticleEffect_f(void)
 	if (ptype->clipcount < 1)
 		ptype->clipcount = 1;
 
-	ptype->flags = 0;
 	//if there is a chance that it moves
 	if (ptype->randomvel || ptype->gravity || ptype->veladd || ptype->offsetspread || ptype->offsetspreadvert)
 		ptype->flags |= PT_VELOCITY;
@@ -1933,6 +1949,10 @@ int P_RunParticleEffectState (vec3_t org, vec3_t dir, float count, int typenum, 
 			ptype = &part_type[ptype->inwater];
 	}
 
+	// eliminate trailstate if flag set
+	if (ptype->flags & PT_NOSTATE)
+		tsk = NULL;
+
 	// trailstate allocation/deallocation
 	if (tsk)
 	{
@@ -2083,6 +2103,8 @@ int P_RunParticleEffectState (vec3_t org, vec3_t dir, float count, int typenum, 
 		b = bfirst = NULL;
 		spawnspc = 8;
 		pcount = count*ptype->count;
+		if (ptype->flags & PT_INVFRAMETIME)
+			pcount /= host_frametime;
 		if (ts)
 			pcount += ts->emittime;
 
@@ -2698,8 +2720,13 @@ static int P_ParticleTrailDraw (vec3_t startpos, vec3_t end, part_type_t *ptype,
 	float step;
 	float stop;
 	float tdegree = 2*M_PI/256; /* MSVC whine */
+	float nrfirst, nrlast;
 
 	VectorCopy(startpos, start);
+
+	// eliminate trailstate if flag set
+	if (ptype->flags & PT_NOSTATE)
+		tsk = NULL;
 
 	// trailstate allocation/deallocation
 	if (tsk)
@@ -2749,6 +2776,7 @@ static int P_ParticleTrailDraw (vec3_t startpos, vec3_t end, part_type_t *ptype,
 	if (!ptype->die)
 		ts = NULL;
 	
+	// use ptype step to calc step vector and step size
 	step = 1/ptype->count;
 
 	if (step < 0.01)
@@ -2756,8 +2784,19 @@ static int P_ParticleTrailDraw (vec3_t startpos, vec3_t end, part_type_t *ptype,
 
 	VectorSubtract (end, start, vec);
 	len = VectorNormalize (vec);
-	VectorScale(vec, step, vstep);
 
+	if (ptype->flags & PT_AVERAGETRAIL)
+	{
+		float tavg;
+		// mangle len/step to get last point to be at end
+		tavg = len / step;
+		tavg = tavg / ceil(tavg);
+		step *= tavg;
+		len += step;
+	}
+
+	VectorScale(vec, step, vstep);
+	
 	// add offset
 	start[2] += ptype->offsetup;
 
@@ -2785,6 +2824,16 @@ static int P_ParticleTrailDraw (vec3_t startpos, vec3_t end, part_type_t *ptype,
 //	len = ts->lastdist/step;
 //	len = (len - (int)len)*step;
 //	VectorMA (start, -len, vec, start);
+
+	if (ptype->flags & PT_NOSPREADFIRST)
+		nrfirst = len + step*1.5;
+	else
+		nrfirst = len;
+
+	if (ptype->flags & PT_NOSPREADLAST)
+		nrlast = stop;
+	else
+		nrlast = stop + step;
 
 	b = bfirst = NULL;
 
@@ -2844,7 +2893,7 @@ static int P_ParticleTrailDraw (vec3_t startpos, vec3_t end, part_type_t *ptype,
 		{
 			int cidx;
 			cidx = ptype->colorrand > 0 ? rand() % ptype->colorrand : 0;
-			if (ptype->citracer) // colorindex behavior as per tracers in std Q1
+			if (ptype->flags & PT_CITRACER) // colorindex behavior as per tracers in std Q1
 				cidx += ((tcount & 4) << 1);
 
 			cidx = ptype->colorindex + cidx;
@@ -2876,64 +2925,119 @@ static int P_ParticleTrailDraw (vec3_t startpos, vec3_t end, part_type_t *ptype,
 		p->rotationspeed = ptype->rotationmin + frandom()*ptype->rotationrand;
 		p->angle = ptype->rotationstartmin + frandom()*ptype->rotationstartrand;
 
-		switch(ptype->spawnmode)
+		if (len < nrfirst || len >= nrlast)
 		{
-		case SM_TRACER:
-			if (tcount & 1)
-			{
-				p->vel[0] = vec[1]*ptype->offsetspread;
-				p->vel[1] = -vec[0]*ptype->offsetspread;
-				p->org[0] = vec[1]*ptype->areaspread;
-				p->org[1] = -vec[0]*ptype->areaspread;
-			}
-			else
-			{
-				p->vel[0] = -vec[1]*ptype->offsetspread;
-				p->vel[1] = vec[0]*ptype->offsetspread;
-				p->org[0] = -vec[1]*ptype->areaspread;
-				p->org[1] = vec[0]*ptype->areaspread;
-			}
-
-			p->vel[0] += vec[0]*veladd+crandom()*randvel;
-			p->vel[1] += vec[1]*veladd+crandom()*randvel;
+			// no offset or areaspread for these particles...
+			p->vel[0] = vec[0]*veladd+crandom()*randvel;
+			p->vel[1] = vec[1]*veladd+crandom()*randvel;
 			p->vel[2] = vec[2]*veladd+crandom()*randvel;
 
-			p->org[0] += start[0];
-			p->org[1] += start[1];
-			p->org[2] = start[2];
-			break;
-		case SM_SPIRAL:
+			VectorCopy(start, p->org);
+		}
+		else
+		{
+			switch(ptype->spawnmode)
 			{
-				float tsin, tcos;
+			case SM_TRACER:
+				if (tcount & 1)
+				{
+					p->vel[0] = vec[1]*ptype->offsetspread;
+					p->vel[1] = -vec[0]*ptype->offsetspread;
+					p->org[0] = vec[1]*ptype->areaspread;
+					p->org[1] = -vec[0]*ptype->areaspread;
+				}
+				else
+				{
+					p->vel[0] = -vec[1]*ptype->offsetspread;
+					p->vel[1] = vec[0]*ptype->offsetspread;
+					p->org[0] = -vec[1]*ptype->areaspread;
+					p->org[1] = vec[0]*ptype->areaspread;
+				}
 
-				tcos = cos(len*tdegree)*ptype->areaspread;
-				tsin = sin(len*tdegree)*ptype->areaspread;
+				p->vel[0] += vec[0]*veladd+crandom()*randvel;
+				p->vel[1] += vec[1]*veladd+crandom()*randvel;
+				p->vel[2] = vec[2]*veladd+crandom()*randvel;
 
-				p->org[0] = start[0] + right[0]*tcos + up[0]*tsin;
-				p->org[1] = start[1] + right[1]*tcos + up[1]*tsin;
-				p->org[2] = start[2] + right[2]*tcos + up[2]*tsin;
+				p->org[0] += start[0];
+				p->org[1] += start[1];
+				p->org[2] = start[2];
+				break;
+			case SM_SPIRAL:
+				{
+					float tsin, tcos;
 
-				tcos = cos(len*tdegree)*ptype->offsetspread;
-				tsin = sin(len*tdegree)*ptype->offsetspread;
+					tcos = cos(len*tdegree)*ptype->areaspread;
+					tsin = sin(len*tdegree)*ptype->areaspread;
 
-				p->vel[0] = vec[0]*veladd+crandom()*randvel + right[0]*tcos + up[0]*tsin;
-				p->vel[1] = vec[1]*veladd+crandom()*randvel + right[1]*tcos + up[1]*tsin;
-				p->vel[2] = vec[2]*veladd+crandom()*randvel + right[2]*tcos + up[2]*tsin;
+					p->org[0] = start[0] + right[0]*tcos + up[0]*tsin;
+					p->org[1] = start[1] + right[1]*tcos + up[1]*tsin;
+					p->org[2] = start[2] + right[2]*tcos + up[2]*tsin;
+
+					tcos = cos(len*tdegree)*ptype->offsetspread;
+					tsin = sin(len*tdegree)*ptype->offsetspread;
+
+					p->vel[0] = vec[0]*veladd+crandom()*randvel + right[0]*tcos + up[0]*tsin;
+					p->vel[1] = vec[1]*veladd+crandom()*randvel + right[1]*tcos + up[1]*tsin;
+					p->vel[2] = vec[2]*veladd+crandom()*randvel + right[2]*tcos + up[2]*tsin;
+				}
+				break;
+			// TODO: directionalize SM_BALL/SM_CIRCLE/SM_DISTBALL
+			case SM_BALL:
+			case SM_CIRCLE:
+				p->org[0] = crandom();
+				p->org[1] = crandom();
+				p->org[2] = crandom();
+				VectorNormalize(p->org);
+				if (ptype->spawnmode != SM_CIRCLE)
+					VectorScale(p->org, frandom(), p->org);
+
+				p->vel[0] = vec[0]*veladd+crandom()*randvel + p->org[0]*ptype->offsetspread;
+				p->vel[1] = vec[1]*veladd+crandom()*randvel + p->org[1]*ptype->offsetspread;
+				p->vel[2] = vec[2]*veladd+crandom()*randvel + p->org[2]*ptype->offsetspreadvert;
+
+				p->org[0] = p->org[0]*ptype->areaspread + start[0];
+				p->org[1] = p->org[1]*ptype->areaspread + start[1];
+				p->org[2] = p->org[2]*ptype->areaspreadvert + start[2];
+				break;
+			case SM_DISTBALL:
+				{
+					float rdist;
+
+					rdist = ptype->spawnparam2 - crandom()*(1-(crandom() * ptype->spawnparam1));
+
+					// this is a strange spawntype, which is based on the fact that
+					// crandom()*crandom() provides something similar to an exponential
+					// probability curve
+					p->org[0] = crandom();
+					p->org[1] = crandom();
+					p->org[2] = crandom();
+
+					VectorNormalize(p->org);
+					VectorScale(p->org, rdist, p->org);
+
+					p->vel[0] = vec[0]*veladd+crandom()*randvel + p->org[0]*ptype->offsetspread;
+					p->vel[1] = vec[1]*veladd+crandom()*randvel + p->org[1]*ptype->offsetspread;
+					p->vel[2] = vec[2]*veladd+crandom()*randvel + p->org[2]*ptype->offsetspreadvert;
+
+					p->org[0] = p->org[0]*ptype->areaspread + start[0];
+					p->org[1] = p->org[1]*ptype->areaspread + start[1];
+					p->org[2] = p->org[2]*ptype->areaspreadvert + start[2];
+				}
+				break;
+			default:
+				p->org[0] = crandom();
+				p->org[1] = crandom();
+				p->org[2] = crandom();
+
+				p->vel[0] = vec[0]*veladd+crandom()*randvel + p->org[0]*ptype->offsetspread;
+				p->vel[1] = vec[1]*veladd+crandom()*randvel + p->org[1]*ptype->offsetspread;
+				p->vel[2] = vec[2]*veladd+crandom()*randvel + p->org[2]*ptype->offsetspreadvert;
+
+				p->org[0] = p->org[0]*ptype->areaspread + start[0];
+				p->org[1] = p->org[1]*ptype->areaspread + start[1];
+				p->org[2] = p->org[2]*ptype->areaspreadvert + start[2];
+				break;
 			}
-			break;
-		default:
-			p->org[0] = crandom();
-			p->org[1] = crandom();
-			p->org[2] = crandom();
-
-			p->vel[0] = vec[0]*veladd+crandom()*randvel + p->org[0]*ptype->offsetspread;
-			p->vel[1] = vec[1]*veladd+crandom()*randvel + p->org[1]*ptype->offsetspread;
-			p->vel[2] = vec[2]*veladd+crandom()*randvel + p->org[2]*ptype->offsetspreadvert;
-
-			p->org[0] = p->org[0]*ptype->areaspread + start[0];
-			p->org[1] = p->org[1]*ptype->areaspread + start[1];
-			p->org[2] = p->org[2]*ptype->areaspreadvert + start[2];
-			break;
 		}
 
 		VectorAdd (start, vstep, start);

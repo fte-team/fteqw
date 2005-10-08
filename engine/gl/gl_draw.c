@@ -1290,9 +1290,11 @@ void GLDraw_Crosshair(void)
 	float x1, x2, y1, y2;
 	float size, chc;
 
-	int c, c2, i, usecolor;
+	int c2, c, i, usecolor;
+	int chrebuild;
 
 	usecolor = 0;
+	c2 = c = 0; // shut up msvc
 
 	if (crosshair.value == 1 && !*crosshairimage.string)
 	{
@@ -1305,7 +1307,9 @@ void GLDraw_Crosshair(void)
 	}
 	GL_TexEnv(GL_MODULATE);
 
-	if (chmodified != crosshaircolor.modified)
+	chrebuild = chmodified != crosshair.modified || crosshair.modified || crosshair.value >= FIRSTANIMATEDCROSHAIR;
+
+	if (chrebuild)
 	{
 		char *t;
 		
@@ -1362,7 +1366,7 @@ void GLDraw_Crosshair(void)
 		GL_Bind (cs_texture);
 		chc = 1/16.0;
 
-		if (crosshair.modified || crosshair.value >= FIRSTANIMATEDCROSHAIR)
+		if (chrebuild)
 		{
 			crosshair.modified = false;
 

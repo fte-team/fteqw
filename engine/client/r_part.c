@@ -593,9 +593,13 @@ void P_ParticleEffect_f(void)
 			ptype->inwater = assoc;
 		}
 		else if (!strcmp(var, "colorindex"))
+		{
+			if (Cmd_Argc()>2)
+				ptype->colorrand = atof(Cmd_Argv(2));
 			ptype->colorindex = atoi(value);
+		}
 		else if (!strcmp(var, "colorrand"))
-			ptype->colorrand = atoi(value);
+			ptype->colorrand = atoi(value); // now obsolete
 		else if (!strcmp(var, "citracer"))
 			ptype->flags |= PT_CITRACER;
 
@@ -1415,6 +1419,8 @@ void P_NewServer(void)
 		Cbuf_AddText(particle_set_spikeset, RESTRICT_SERVER);
 	else if (!stricmp(r_particlesdesc.string, "highfps"))
 		Cbuf_AddText(particle_set_highfps, RESTRICT_SERVER);
+	else if (!stricmp(r_particlesdesc.string, "minimal"))
+		Cbuf_AddText(particle_set_minimal, RESTRICT_SERVER);
 	else
 	{
 		char *file = COM_LoadMallocFile(va("particles/%s.cfg", r_particlesdesc.string));
@@ -2625,6 +2631,7 @@ static void P_ParticleTrailDraw (vec3_t startpos, vec3_t end, part_type_t *ptype
 
 	float veladd = -ptype->veladd;
 	float randvel = ptype->randomvel;
+	float randvelvert = ptype->randomvelvert;
 	float step;
 	float stop;
 	float tdegree = 2*M_PI/256; /* MSVC whine */
@@ -2838,7 +2845,7 @@ static void P_ParticleTrailDraw (vec3_t startpos, vec3_t end, part_type_t *ptype
 			// no offset or areaspread for these particles...
 			p->vel[0] = vec[0]*veladd+crandom()*randvel;
 			p->vel[1] = vec[1]*veladd+crandom()*randvel;
-			p->vel[2] = vec[2]*veladd+crandom()*randvel;
+			p->vel[2] = vec[2]*veladd+crandom()*randvelvert;
 
 			VectorCopy(start, p->org);
 		}
@@ -2864,7 +2871,7 @@ static void P_ParticleTrailDraw (vec3_t startpos, vec3_t end, part_type_t *ptype
 
 				p->vel[0] += vec[0]*veladd+crandom()*randvel;
 				p->vel[1] += vec[1]*veladd+crandom()*randvel;
-				p->vel[2] = vec[2]*veladd+crandom()*randvel;
+				p->vel[2] = vec[2]*veladd+crandom()*randvelvert;
 
 				p->org[0] += start[0];
 				p->org[1] += start[1];
@@ -2886,7 +2893,7 @@ static void P_ParticleTrailDraw (vec3_t startpos, vec3_t end, part_type_t *ptype
 
 					p->vel[0] = vec[0]*veladd+crandom()*randvel + right[0]*tcos + up[0]*tsin;
 					p->vel[1] = vec[1]*veladd+crandom()*randvel + right[1]*tcos + up[1]*tsin;
-					p->vel[2] = vec[2]*veladd+crandom()*randvel + right[2]*tcos + up[2]*tsin;
+					p->vel[2] = vec[2]*veladd+crandom()*randvelvert + right[2]*tcos + up[2]*tsin;
 				}
 				break;
 			// TODO: directionalize SM_BALL/SM_CIRCLE/SM_DISTBALL
@@ -2901,7 +2908,7 @@ static void P_ParticleTrailDraw (vec3_t startpos, vec3_t end, part_type_t *ptype
 
 				p->vel[0] = vec[0]*veladd+crandom()*randvel + p->org[0]*ptype->offsetspread;
 				p->vel[1] = vec[1]*veladd+crandom()*randvel + p->org[1]*ptype->offsetspread;
-				p->vel[2] = vec[2]*veladd+crandom()*randvel + p->org[2]*ptype->offsetspreadvert;
+				p->vel[2] = vec[2]*veladd+crandom()*randvelvert + p->org[2]*ptype->offsetspreadvert;
 
 				p->org[0] = p->org[0]*ptype->areaspread + start[0];
 				p->org[1] = p->org[1]*ptype->areaspread + start[1];
@@ -2925,7 +2932,7 @@ static void P_ParticleTrailDraw (vec3_t startpos, vec3_t end, part_type_t *ptype
 
 					p->vel[0] = vec[0]*veladd+crandom()*randvel + p->org[0]*ptype->offsetspread;
 					p->vel[1] = vec[1]*veladd+crandom()*randvel + p->org[1]*ptype->offsetspread;
-					p->vel[2] = vec[2]*veladd+crandom()*randvel + p->org[2]*ptype->offsetspreadvert;
+					p->vel[2] = vec[2]*veladd+crandom()*randvelvert + p->org[2]*ptype->offsetspreadvert;
 
 					p->org[0] = p->org[0]*ptype->areaspread + start[0];
 					p->org[1] = p->org[1]*ptype->areaspread + start[1];
@@ -2939,7 +2946,7 @@ static void P_ParticleTrailDraw (vec3_t startpos, vec3_t end, part_type_t *ptype
 
 				p->vel[0] = vec[0]*veladd+crandom()*randvel + p->org[0]*ptype->offsetspread;
 				p->vel[1] = vec[1]*veladd+crandom()*randvel + p->org[1]*ptype->offsetspread;
-				p->vel[2] = vec[2]*veladd+crandom()*randvel + p->org[2]*ptype->offsetspreadvert;
+				p->vel[2] = vec[2]*veladd+crandom()*randvelvert + p->org[2]*ptype->offsetspreadvert;
 
 				p->org[0] = p->org[0]*ptype->areaspread + start[0];
 				p->org[1] = p->org[1]*ptype->areaspread + start[1];

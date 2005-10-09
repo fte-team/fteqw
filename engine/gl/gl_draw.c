@@ -1307,7 +1307,7 @@ void GLDraw_Crosshair(void)
 	}
 	GL_TexEnv(GL_MODULATE);
 
-	chrebuild = chmodified != crosshair.modified || crosshair.modified || crosshair.value >= FIRSTANIMATEDCROSHAIR;
+	chrebuild = chmodified != crosshaircolor.modified || crosshairimage.modified || crosshair.modified || crosshair.value >= FIRSTANIMATEDCROSHAIR;
 
 	if (chrebuild)
 	{

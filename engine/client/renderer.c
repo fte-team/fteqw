@@ -273,8 +273,6 @@ void GLRenderer_Init(void)
 	Cvar_Register (&r_shadow_realtime_world, GLRENDEREROPTIONS);
 	Cvar_Register (&r_shadow_realtime_world_lightmaps, GLRENDEREROPTIONS);
 
-	Cvar_Register (&gl_part_flame, GRAPHICALNICETIES);
-
 	Cvar_Register (&gl_keeptjunctions, GLRENDEREROPTIONS);
 	Cvar_Register (&gl_reporttjunctions, GLRENDEREROPTIONS);
 

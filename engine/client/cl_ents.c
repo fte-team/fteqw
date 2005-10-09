@@ -25,7 +25,6 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 extern	cvar_t	cl_predict_players;
 extern	cvar_t	cl_predict_players2;
 extern	cvar_t	cl_solid_players;
-extern	cvar_t	gl_part_inferno;
 extern	cvar_t	cl_item_bobbing;
 
 extern	cvar_t	r_rocketlight;

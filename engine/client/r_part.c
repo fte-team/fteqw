@@ -118,8 +118,8 @@ vec3_t			r_pright, r_pup, r_ppn;
 
 extern cvar_t r_bouncysparks;
 extern cvar_t r_part_rain;
-extern cvar_t gl_part_explosionheart, gl_part_emp;
 extern cvar_t r_bloodstains;
+extern cvar_t gl_part_flame;
 
 cvar_t r_particlesdesc = {"r_particlesdesc", "spikeset", NULL, CVAR_LATCH|CVAR_SEMICHEAT};
 
@@ -1240,6 +1240,8 @@ void P_InitParticles (void)
 	Cvar_Register(&r_part_beams, particlecvargroupname);
 	Cvar_Register(&r_part_beams_textured, particlecvargroupname);
 	Cvar_Register(&r_part_contentswitch, particlecvargroupname);
+
+	Cvar_Register (&gl_part_flame, particlecvargroupname);
 
 	pt_explosion		= P_AllocateParticleType("te_explosion");
 	pt_pointfile		= P_AllocateParticleType("pe_pointfile");

@@ -130,8 +130,8 @@ typedef union eval_s
 typedef struct edictrun_s
 {
 	pbool	isfree;
-	
-	float		freetime;			// realtime when the object was freed	
+
+	float		freetime;			// realtime when the object was freed
 	unsigned int entnum;
 	pbool	readonly;	//causes error when QC tries writing to it. (quake's world entity)
 	void	*fields;
@@ -169,7 +169,7 @@ typedef struct progstate_s
 		ddefXX_t		*fielddefs;
 		ddef16_t		*fielddefs16;
 		ddef32_t		*fielddefs32;
-	};	
+	};
 	void	*statements;
 //	void			*global_struct;
 	float			*globals;			// same as pr_global_struct
@@ -198,7 +198,7 @@ typedef struct extensionbuiltin_s {
 
 
 #define pr_progs			current_progstate->progs
-#define	pr_functions		current_progstate->functions	
+#define	pr_functions		current_progstate->functions
 #define	pr_strings			current_progstate->strings
 #define	pr_globaldefs16		((ddef16_t*)current_progstate->globaldefs)
 #define	pr_globaldefs32		((ddef32_t*)current_progstate->globaldefs)
@@ -426,7 +426,7 @@ ddef32_t *ED_FindTypeGlobalFromProgs32 (progfuncs_t *progfuncs, char *name, prog
 ddef16_t *ED_FindGlobalFromProgs16 (progfuncs_t *progfuncs, char *name, progsnum_t prnum);
 ddef32_t *ED_FindGlobalFromProgs32 (progfuncs_t *progfuncs, char *name, progsnum_t prnum);
 fdef_t *ED_FindField (progfuncs_t *progfuncs, char *name);
-dfunction_t *ED_FindFunction (progfuncs_t *progfuncs, char *name, progsnum_t *pnum, unsigned int fromprogs);
+dfunction_t *ED_FindFunction (progfuncs_t *progfuncs, char *name, progsnum_t *pnum, progsnum_t fromprogs);
 func_t PR_FindFunc(progfuncs_t *progfncs, char *funcname, progsnum_t pnum);
 void PR_Configure (progfuncs_t *progfncs, int addressable_size, int max_progs);
 int PR_InitEnts(progfuncs_t *progfncs, int maxents);

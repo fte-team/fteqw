@@ -291,7 +291,7 @@ char *particle_set_spikeset =
 "blend add\n"
 "randomvel 5\n"
 "veladd 1\n"
-"rampmode delta" //fade it in then out.
+"rampmode delta\n" //fade it in then out.
 "ramp 0 0 0 -0.5 0\n"
 "ramp 0 0 0 0.1 0\n"
 "ramp 0 0 0 0.1 0\n"

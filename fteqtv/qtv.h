@@ -71,6 +71,7 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 	#include <sys/time.h>
 	#include <sys/types.h>
 	#include <sys/socket.h>
+	#include <arpa/inet.h>
 	#include <netdb.h>
 	#include <stdarg.h>
 	#include <stdlib.h>
@@ -297,7 +298,7 @@ typedef struct {
 	unsigned short leafs[MAX_ENTITY_LEAFS];
 } entity_t;
 
-typedef struct sv_s {
+struct sv_s {
 	netadr_t serveraddress;
 
 	unsigned char buffer[MAX_PROXY_BUFFER];	//this doesn't cycle.
@@ -364,9 +365,9 @@ typedef struct sv_s {
 
 	//options:
 	char server[MAX_QPATH];
-} sv_t;
+};
 
-typedef struct cluster_s {
+struct cluster_s {
 	SOCKET qwdsocket;	//udp + quakeworld protocols
 
 	char commandinput[512];
@@ -393,9 +394,9 @@ typedef struct cluster_s {
 	int maxviewers;
 	int maxproxies;
 
-	boolean wanttoexit;
+	qboolean wanttoexit;
 
-} cluster_t;
+};
 
 
 
@@ -578,6 +579,7 @@ void WriteString(netmsg_t *b, const char *str);
 void WriteData(netmsg_t *b, const char *data, int length);
 
 void Multicast(sv_t *tv, char *buffer, int length, int to, unsigned int playermask);
+void Broadcast(cluster_t *cluster, char *buffer, int length);
 void ParseMessage(sv_t *tv, char *buffer, int length, int to, int mask);
 void BuildServerData(sv_t *tv, netmsg_t *msg, qboolean mvd, int servercount);
 SOCKET QW_InitUDPSocket(int port);

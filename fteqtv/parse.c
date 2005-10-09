@@ -168,17 +168,6 @@ void SendBufferToViewer(viewer_t *v, const char *buffer, int length, qboolean re
 
 void Multicast(sv_t *tv, char *buffer, int length, int to, unsigned int playermask)
 {
-/*
-#define dem_cmd			0	//shouldn't be present
-#define dem_read		1	//intended for the proxy, equivelent to dem_all :\
-#define dem_set			2	//keeps the playerinfo packets in sync, present once, at start, with specific parameters. Ignored.
-#define dem_multiple	3	//send to multiple specific players if tracking - basically team_prints.
-#define	dem_single		4	//send to a single player, sprint, centerprint, etc
-#define dem_stats		5	//overkill... same as single
-#define dem_all			6	//broadcast to all
-*/
-
-
 	viewer_t *v;
 	switch(to)
 	{
@@ -202,6 +191,14 @@ void Multicast(sv_t *tv, char *buffer, int length, int to, unsigned int playerma
 				SendBufferToViewer(v, buffer, length, true);	//FIXME: change the reliable depending on message type
 		}
 		break;
+	}
+}
+void Broadcast(cluster_t *cluster, char *buffer, int length)
+{
+	viewer_t *v;
+	for (v = cluster->viewers; v; v = v->next)
+	{
+		SendBufferToViewer(v, buffer, length, true);
 	}
 }
 

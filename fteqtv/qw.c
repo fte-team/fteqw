@@ -1037,7 +1037,7 @@ void PMove(viewer_t *v, usercmd_t *cmd)
 		v->origin[i] += (cmd->forwardmove*fwd[i] + cmd->sidemove*rgt[i] + cmd->upmove*up[i])*(cmd->msec/1000.0f);
 }
 
-void QTV_Say(sv_t *qtv, viewer_t *v, char *message)
+void QTV_Say(cluster_t *cluster, viewer_t *v, char *message)
 {
 	char buf[1024];
 	netmsg_t msg;
@@ -1054,7 +1054,7 @@ void QTV_Say(sv_t *qtv, viewer_t *v, char *message)
 	WriteString2(&msg, message);
 	WriteString(&msg, "\n");
 
-	Multicast(qtv, msg.data, msg.cursize, dem_all, (unsigned int)-1);
+	Broadcast(cluster, msg.data, msg.cursize);
 }
 
 viewer_t *QW_IsOn(cluster_t *cluster, char *name)
@@ -1089,8 +1089,8 @@ void QW_PrintfToViewer(viewer_t *v, char *format, ...)
 	SendBufferToViewer(v, buf, strlen(buf)+1, true);
 }
 
-static const filename_t ConnectionlessModelList[] = {"", "maps/start.bsp", "progs/player.mdl", ""};
-static const filename_t ConnectionlessSoundList[] = {"", ""};
+static const filename_t ConnectionlessModelList[] = {{""}, {"maps/start.bsp"}, {"progs/player.mdl"}, {""}};
+static const filename_t ConnectionlessSoundList[] = {{""}, {""}};
 
 void Menu_Enter(cluster_t *cluster, viewer_t *viewer, int buttonnum);
 
@@ -1245,9 +1245,9 @@ void ParseQWC(cluster_t *cluster, sv_t *qtv, viewer_t *v, netmsg_t *m)
 			{
 			}
 			else if (!strncmp(buf, "say \"", 5) && !cluster->notalking)
-				QTV_Say(qtv, v, buf+5);
+				QTV_Say(cluster, v, buf+5);
 			else if (!strncmp(buf, "say ", 4) && !cluster->notalking)
-				QTV_Say(qtv, v, buf+4);
+				QTV_Say(cluster, v, buf+4);
 
 			else if (!strncmp(buf, "servers", 7))
 			{

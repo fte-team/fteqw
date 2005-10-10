@@ -838,6 +838,7 @@ void GLR_DrawSprite(entity_t *e, void *parm)
 {
 	qglEnd();
 	currententity = e;
+	qglEnable(GL_TEXTURE_2D);
 
 	R_DrawSpriteModel (currententity);
 

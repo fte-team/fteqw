@@ -37,6 +37,8 @@ The engine has a few builtins.
 
 #include "r_partset.h"
 
+extern qbyte *host_basepal;
+
 int pt_explosion,
 	pt_pointfile,
 	pt_entityparticles,
@@ -836,10 +838,10 @@ void P_ParticleEffect_f(void)
 				cidx = atoi(Cmd_Argv(i));
 				ptype->ramp[ptype->rampindexes].alpha = cidx > 255 ? 0.5 : 1;
 
-				cidx = d_8to24rgbtable[cidx];
-				ptype->ramp[ptype->rampindexes].rgb[0] = (cidx & 0xff) * (1/255.0);
-				ptype->ramp[ptype->rampindexes].rgb[1] = (cidx >> 8 & 0xff) * (1/255.0);
-				ptype->ramp[ptype->rampindexes].rgb[2] = (cidx >> 16 & 0xff) * (1/255.0);
+				cidx = (cidx & 0xff) * 3;
+				ptype->ramp[ptype->rampindexes].rgb[0] = host_basepal[cidx] * (1/255.0);
+				ptype->ramp[ptype->rampindexes].rgb[1] = host_basepal[cidx+1] * (1/255.0);
+				ptype->ramp[ptype->rampindexes].rgb[2] = host_basepal[cidx+2] * (1/255.0);
 
 				ptype->ramp[ptype->rampindexes].scale = ptype->scale;
 
@@ -858,10 +860,10 @@ void P_ParticleEffect_f(void)
 			if (Cmd_Argc() > 2) // they gave alpha
 				ptype->ramp[ptype->rampindexes].alpha *= atof(Cmd_Argv(2));
 
-			cidx = d_8to24rgbtable[cidx];
-			ptype->ramp[ptype->rampindexes].rgb[0] = (cidx & 0xff) * (1/255.0);
-			ptype->ramp[ptype->rampindexes].rgb[1] = (cidx >> 8 & 0xff) * (1/255.0);
-			ptype->ramp[ptype->rampindexes].rgb[2] = (cidx >> 16 & 0xff) * (1/255.0);
+			cidx = (cidx & 0xff) * 3;
+			ptype->ramp[ptype->rampindexes].rgb[0] = host_basepal[cidx] * (1/255.0);
+			ptype->ramp[ptype->rampindexes].rgb[1] = host_basepal[cidx+1] * (1/255.0);
+			ptype->ramp[ptype->rampindexes].rgb[2] = host_basepal[cidx+2] * (1/255.0);
 
 			if (Cmd_Argc() > 3) // they gave scale
 				ptype->ramp[ptype->rampindexes].scale = atof(Cmd_Argv(3));
@@ -1974,10 +1976,10 @@ int P_RunParticleEffectState (vec3_t org, vec3_t dir, float count, int typenum, 
 				cidx = ptype->colorindex + cidx;
 				if (cidx > 255)
 					d->alpha = d->alpha / 2; // Hexen 2 style transparency
-				cidx = d_8to24rgbtable[cidx & 0xff];
-				d->rgb[0] = (cidx & 0xff) * (1/255.0);
-				d->rgb[1] = (cidx >> 8 & 0xff) * (1/255.0);
-				d->rgb[2] = (cidx >> 16 & 0xff) * (1/255.0);
+				cidx = (cidx & 0xff) * 3;
+				d->rgb[0] = host_basepal[cidx] * (1/255.0);
+				d->rgb[1] = host_basepal[cidx+1] * (1/255.0);
+				d->rgb[2] = host_basepal[cidx+2] * (1/255.0);
 			}
 			else
 				VectorCopy(ptype->rgb, d->rgb);
@@ -2122,10 +2124,10 @@ int P_RunParticleEffectState (vec3_t org, vec3_t dir, float count, int typenum, 
 				cidx = ptype->colorindex + cidx;
 				if (cidx > 255)
 					p->alpha = p->alpha / 2; // Hexen 2 style transparency
-				cidx = d_8to24rgbtable[cidx & 0xff];
-				p->rgb[0] = (cidx & 0xff) * (1/255.0);
-				p->rgb[1] = (cidx >> 8 & 0xff) * (1/255.0);
-				p->rgb[2] = (cidx >> 16 & 0xff) * (1/255.0);
+				cidx = (cidx & 0xff) * 3;
+				p->rgb[0] = host_basepal[cidx] * (1/255.0);
+				p->rgb[1] = host_basepal[cidx+1] * (1/255.0);
+				p->rgb[2] = host_basepal[cidx+2] * (1/255.0);
 			}
 			else
 				VectorCopy(ptype->rgb, p->rgb);
@@ -2814,10 +2816,10 @@ static void P_ParticleTrailDraw (vec3_t startpos, vec3_t end, part_type_t *ptype
 			cidx = ptype->colorindex + cidx;
 			if (cidx > 255)
 				p->alpha = p->alpha / 2;
-			cidx = d_8to24rgbtable[cidx & 0xff];
-			p->rgb[0] = (cidx & 0xff) * (1/255.0);
-			p->rgb[1] = (cidx >> 8 & 0xff) * (1/255.0);
-			p->rgb[2] = (cidx >> 16 & 0xff) * (1/255.0);
+			cidx = (cidx & 0xff) * 3;
+			p->rgb[0] = host_basepal[cidx] * (1/255.0);
+			p->rgb[1] = host_basepal[cidx+1] * (1/255.0);
+			p->rgb[2] = host_basepal[cidx+2] * (1/255.0);
 		}
 		else
 			VectorCopy(ptype->rgb, p->rgb);

@@ -2393,7 +2393,7 @@ void SWDraw_FadeScreen (void)
 		float r, g, b;
 		qbyte invmask = 0;
 		
-		qbyte *rgb = (qbyte *)d_8to24rgbtable;
+		qbyte *rgb = (qbyte *)host_basepal;
 
 		// parse r_menutint
 		fsnodraw = 0;
@@ -2445,7 +2445,7 @@ void SWDraw_FadeScreen (void)
 			s = rgb[0]*0.299 + rgb[1]*0.587 + rgb[2]*0.114;
 
 			fscolormap[x] = GetPalette((int)(s*r)^invmask, (int)(s*g)^invmask, (int)(s*b)^invmask);
-			rgb += 4;
+			rgb += 3;
 		}
 
 		fsmodified = r_menutint.modified;

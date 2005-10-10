@@ -235,6 +235,7 @@ int QC_RegisterFieldVar(progfuncs_t *progfuncs, unsigned int type, char *name, i
 
 			if (field[i].progsofs == -1)
 				field[i].progsofs = progsofs;
+//			printf("Dupfield %s %i -> %i\n", name, field[i].progsofs,field[i].ofs);
 			return field[i].ofs-progfuncs->fieldadjust;	//got a match
 		}
 	}
@@ -304,6 +305,7 @@ int QC_RegisterFieldVar(progfuncs_t *progfuncs, unsigned int type, char *name, i
 			{
 				if (field[i].progsofs == (unsigned)progsofs)
 				{
+//					printf("found union field %s %i -> %i\n", field[i].name, field[i].progsofs, field[i].ofs);
 					field[fnum].ofs = ofs = field[i].ofs;
 					break;
 				}
@@ -319,6 +321,8 @@ int QC_RegisterFieldVar(progfuncs_t *progfuncs, unsigned int type, char *name, i
 	field[fnum].type = type;
 
 	field[fnum].progsofs = progsofs;
+
+//	printf("Field %s %i -> %i\n", name, field[fnum].progsofs,field[fnum].ofs);
 	
 	//we've finished setting the structure	
 	return ofs - progfuncs->fieldadjust;

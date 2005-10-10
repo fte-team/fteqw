@@ -2984,6 +2984,9 @@ qbool TP_CheckSoundTrigger (char *str)
 	char	soundname[MAX_OSPATH];
 	FILE	*f;
 
+	if (!*str)
+		return false;
+
 	if (!tp_soundtrigger.string[0])
 		return false;
 

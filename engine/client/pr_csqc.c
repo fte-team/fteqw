@@ -1409,9 +1409,16 @@ static void csqc_setmodel(progfuncs_t *prinst, csqcedict_t *ent, int modelindex)
 		ent->v->model = PR_SetString(prinst, cl.model_name[modelindex]);
 		model = cl.model_precache[modelindex];
 	}
-
-	VectorCopy(model->mins, ent->v->mins);
-	VectorCopy(model->maxs, ent->v->maxs);
+	if (model)
+	{
+		VectorCopy(model->mins, ent->v->mins);
+		VectorCopy(model->maxs, ent->v->maxs);
+	}
+	else
+	{
+		VectorClear(ent->v->mins);
+		VectorClear(ent->v->maxs);
+	}
 }
 
 static void PF_cs_SetModel(progfuncs_t *prinst, struct globalvars_s *pr_globals)

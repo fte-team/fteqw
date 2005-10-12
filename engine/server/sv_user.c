@@ -2663,6 +2663,16 @@ void SV_SetUpClientEdict (client_t *cl, edict_t *ent)
 	if (pr_teamfield)
 		((string_t *)ent->v)[pr_teamfield] = (string_t)PR_SetString(svprogfuncs, cl->team);
 
+	{
+		int tc = atoi(Info_ValueForKey(host_client->userinfo, "topcolor"));
+		int bc = atoi(Info_ValueForKey(host_client->userinfo, "bottomcolor"));
+		if (tc < 0 || tc > 13)
+			tc = 0;
+		if (bc < 0 || bc > 13)
+			bc = 0;
+		ent->v->clientcolors = 16*tc + bc;
+	}
+
 
 	ent->v->gravity = cl->entgravity = 1.0;
 	ent->v->maxspeed = cl->maxspeed = sv_maxspeed.value;

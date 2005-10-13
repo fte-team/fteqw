@@ -84,6 +84,8 @@ package_t *BuildPackageList(FILE *f, int flags)
 
 					for (i = 0; i < sizeof(downloadablelist)/sizeof(downloadablelist[0])-1; i++)
 					{
+						if (!downloadablelist[i])
+							break;
 						if (!strcmp(downloadablelist[i], sl))
 							break;
 					}
@@ -314,6 +316,7 @@ qboolean M_Download_Key (struct menucustom_s *c, struct menu_s *m, int key)
 			{
 				if ((p->flags&DPF_WANTTOINSTALL) && !(p->flags&DPF_HAVEAVERSION))
 				{	//if we want it and don't have it:
+					Con_Printf("Downloading %s (to %s)\n", p->fullname, p->dest);
 					COM_CreatePath(va("%s/%s", com_gamedir, p->dest));
 					if (HTTP_CL_Get(p->src, p->dest, NULL))
 						p->flags|=DPF_HAVEAVERSION;	//FIXME: This is error prone.

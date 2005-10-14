@@ -24,6 +24,7 @@ typedef struct package_s {
 
 	char src[256];
 	char dest[64];
+	char gamedir[16];
 	unsigned int version;	//integral.
 	int flags;
 	struct package_s *next;
@@ -48,6 +49,8 @@ package_t *BuildPackageList(FILE *f, int flags)
 	package_t *first = NULL;
 	char *sl;
 
+	int version;
+
 	do
 	{
 		fgets(line, sizeof(line)-1, f);
@@ -61,8 +64,12 @@ package_t *BuildPackageList(FILE *f, int flags)
 	if (strcmp(Cmd_Argv(0), "version"))
 		return NULL;	//it's not the right format.
 
-	if (atoi(Cmd_Argv(1)) != 0)
+	version = atoi(Cmd_Argv(1));
+	if (version != 0)
+	{
+		Con_Printf("Packagelist is of a future or incompatable version\n");
 		return NULL;	//it's not the right version.
+	}
 
 	while(!feof(f))
 	{
@@ -75,29 +82,29 @@ package_t *BuildPackageList(FILE *f, int flags)
 		Cmd_TokenizeString (line, false, false);
 		if (Cmd_Argc())
 		{
-			if (Cmd_Argc() != 4 && Cmd_Argc() != 3)
+			if (!strcmp(Cmd_Argv(0), "sublist"))
 			{
-				if (!strcmp(Cmd_Argv(0), "sublist"))
+				int i;
+				sl = Cmd_Argv(1);
+
+				for (i = 0; i < sizeof(downloadablelist)/sizeof(downloadablelist[0])-1; i++)
 				{
-					int i;
-					sl = Cmd_Argv(1);
-
-					for (i = 0; i < sizeof(downloadablelist)/sizeof(downloadablelist[0])-1; i++)
-					{
-						if (!downloadablelist[i])
-							break;
-						if (!strcmp(downloadablelist[i], sl))
-							break;
-					}
 					if (!downloadablelist[i])
-					{
-						downloadablelist[i] = BZ_Malloc(strlen(sl)+1);
-						strcpy(downloadablelist[i], sl);
-						i++;
-					}
-					continue;
+						break;
+					if (!strcmp(downloadablelist[i], sl))
+						break;
 				}
+				if (!downloadablelist[i])
+				{
+					downloadablelist[i] = BZ_Malloc(strlen(sl)+1);
+					strcpy(downloadablelist[i], sl);
+					i++;
+				}
+				continue;
+			}
 
+			if (Cmd_Argc() > 5 || Cmd_Argc() < 3)
+			{
 				Con_Printf("Package list is bad - %s\n", line);
 				continue;	//but try the next line away
 			}
@@ -112,13 +119,14 @@ package_t *BuildPackageList(FILE *f, int flags)
 			Q_strncpyz(p->src, Cmd_Argv(1), sizeof(p->src));
 			Q_strncpyz(p->dest, Cmd_Argv(2), sizeof(p->dest));
 			p->version = atoi(Cmd_Argv(3));
+			Q_strncpyz(p->gamedir, Cmd_Argv(4), sizeof(p->gamedir));
+
 			p->flags = flags;
 
 			p->next = first;
 			first = p;
 		}
 	}
-	fclose(f);
 
 	return first;
 }
@@ -236,7 +244,7 @@ void M_Download_Draw (int x, int y, struct menucustom_s *c, struct menu_s *m)
 			lastpathlen = p->name - p->fullname;
 			lastpath = p->fullname;
 
-			
+
 			if (!lastpathlen)
 				Draw_FunStringLen(x+40, y, "/", 1);
 			else

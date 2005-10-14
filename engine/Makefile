@@ -52,7 +52,7 @@ ifeq ($(USEASM),true)
 	endif
 endif
 BASELDFLAGS=-lm
-BASELDFLAGS=-lm  -lz
+#BASELDFLAGS=-lm  -lz
 GLXLDFLAGS=-L/usr/X11R6/lib -lX11 -lXext -lpng -ljpeg -lXxf86vm
 GLSLDFLAGS=-L/usr/X11R6/lib -lMesaGL -lglide -lvga
 XLDFLAGS=-L/usr/X11R6/lib -lX11 -lXext -lpng -ljpeg
@@ -335,9 +335,9 @@ ifeq ($(FTE_TARGET),win32)
 	SV_OBJS=$(COMMON_OBJS) $(SERVER_OBJS) $(PROGS_OBJS) $(WINDOWSSERVERONLY_OBJS)
 
 ifeq ($(USEASM),true)
-	GLCL_OBJS=$(GL_OBJS) $(GLQUAKE_OBJS) gl_vidnt.o snd_win.o cd_win.o in_win.o sys_win.o sys_dosa.o
+	GLCL_OBJS=$(GL_OBJS) $(GLQUAKE_OBJS) gl_vidnt.o snd_win.o snd_directx.o cd_win.o in_win.o sys_win.o sys_dosa.o
 else
-	GLCL_OBJS=$(GL_OBJS) $(GLQUAKE_OBJS) gl_vidnt.o snd_win.o cd_win.o in_win.o sys_win.o
+	GLCL_OBJS=$(GL_OBJS) $(GLQUAKE_OBJS) gl_vidnt.o snd_win.o snd_directx.o cd_win.o in_win.o sys_win.o
 endif
 	GL_EXE_NAME=../fteglqw.exe
 	GLCL_EXE_NAME=../fteglqwcl.exe
@@ -347,9 +347,9 @@ endif
 	GLCL_DIR=glcl_mgw
 
 ifeq ($(USEASM),true)
-	SWCL_OBJS=$(SOFTWARE_OBJS) vid_ddraw.o vid_dib.o vid_win2.o snd_win.o cd_win.o in_win.o sys_win.o sys_dosa.o
+	SWCL_OBJS=$(SOFTWARE_OBJS) vid_ddraw.o vid_dib.o vid_win2.o snd_win.o snd_directx.o cd_win.o in_win.o sys_win.o sys_dosa.o
 else
-	SWCL_OBJS=$(SOFTWARE_OBJS) vid_ddraw.o vid_dib.o vid_win2.o snd_win.o cd_win.o in_win.o sys_win.o
+	SWCL_OBJS=$(SOFTWARE_OBJS) vid_ddraw.o vid_dib.o vid_win2.o snd_win.o snd_directx.o cd_win.o in_win.o sys_win.o
 endif
 	SW_EXE_NAME=../fteswqw.exe
 	SWCL_EXE_NAME=../fteswqwcl.exe
@@ -359,9 +359,9 @@ endif
 	SWCL_DIR=swcl_mgw
 
 ifeq ($(USEASM),true)
-	MCL_OBJS=$(GLQUAKE_OBJS) $(SOFTWARE_OBJS) gl_vidnt.o vid_ddraw.o vid_dib.o vid_win2.o snd_win.o cd_win.o in_win.o sys_win.o sys_dosa.o
+	MCL_OBJS=$(GLQUAKE_OBJS) $(SOFTWARE_OBJS) gl_vidnt.o vid_ddraw.o vid_dib.o vid_win2.o snd_win.o snd_directx.o cd_win.o in_win.o sys_win.o sys_dosa.o
 else
-	MCL_OBJS=$(GLQUAKE_OBJS) $(SOFTWARE_OBJS) gl_vidnt.o vid_ddraw.o vid_dib.o vid_win2.o snd_win.o cd_win.o in_win.o sys_win.o
+	MCL_OBJS=$(GLQUAKE_OBJS) $(SOFTWARE_OBJS) gl_vidnt.o vid_ddraw.o vid_dib.o vid_win2.o snd_win.o snd_directx.o cd_win.o in_win.o sys_win.o
 endif
 	M_EXE_NAME=../fteqw.exe
 	MCL_EXE_NAME=../fteqwcl.exe

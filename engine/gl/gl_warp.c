@@ -40,6 +40,9 @@ int		solidskytexture;
 int		alphaskytexture;
 float	speedscale;		// for top sky and bottom sky
 
+float skyrotate;
+vec3_t skyaxis;
+
 qboolean usingskybox;
 
 msurface_t	*warpface;
@@ -361,6 +364,9 @@ void GLR_SetSky(char *name, float rotate, vec3_t axis)	//called from the client 
 	{
 		reloadskybox = true;
 	}
+
+	skyrotate = rotate;
+	VectorCopy(axis, skyaxis);
 }
 
 vec3_t	skyclip[6] = {
@@ -787,6 +793,17 @@ void R_ClearSkyBox (void)
 	}
 }
 
+void R_ForceSkyBox (void)
+{
+	int		i;
+
+	for (i=0 ; i<6 ; i++)
+	{
+		skymins[0][i] = skymins[1][i] = -1;
+		skymaxs[0][i] = skymaxs[1][i] = 1;
+	}
+}
+
 
 void MakeSkyVec (float s, float t, int axis)
 {
@@ -808,7 +825,6 @@ void MakeSkyVec (float s, float t, int axis)
 			v[j] = -b[-k - 1];
 		else
 			v[j] = b[k - 1];
-		v[j] += r_origin[j];
 	}
 
 	// avoid bilerp seam
@@ -843,6 +859,35 @@ void R_DrawSkyBox (msurface_t *s)
 	if (!usingskybox)
 		return;
 
+	if (skyrotate)
+	{
+		for (i=0 ; i<6 ; i++)
+		{
+			if (skymins[0][i] < skymaxs[0][i]
+				&& skymins[1][i] < skymaxs[1][i])
+					break;
+
+			skymins[0][i] = -1;	//fully visible
+			skymins[1][i] = -1;
+			skymaxs[0][i] = 1;
+			skymaxs[1][i] = 1;
+		}
+		if (i == 6)
+			return;	//can't see anything
+		for ( ; i<6 ; i++)
+		{
+			skymins[0][i] = -1;
+			skymins[1][i] = -1;
+			skymaxs[0][i] = 1;
+			skymaxs[1][i] = 1;
+		}
+	}
+
+	qglPushMatrix ();	
+	qglTranslatef (r_origin[0], r_origin[1], r_origin[2]);
+	if (skyrotate)
+		qglRotatef (cl.time * skyrotate, skyaxis[0], skyaxis[1], skyaxis[2]);
+
 	for (i=0 ; i<6 ; i++)
 	{
 		if (skymins[0][i] >= skymaxs[0][i]
@@ -858,6 +903,8 @@ void R_DrawSkyBox (msurface_t *s)
 		MakeSkyVec (skymaxs[0][i], skymins[1][i], i);
 		qglEnd ();
 	}
+	
+	qglPopMatrix ();
 
 	if (!cls.allow_skyboxes && s)	//allow a little extra fps.
 	{

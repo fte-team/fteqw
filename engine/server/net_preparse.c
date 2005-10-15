@@ -17,7 +17,6 @@ static int multicasttype;
 static int requireextension;
 static qboolean ignoreprotocol;
 
-#define svc_setname 13	//NQ, not QW
 #define svc_setfrags 14
 #define svc_updatecolors 17
 
@@ -77,7 +76,7 @@ void NPP_NQFlush(void)
 	case svc_setfrags:
 		bufferlen = 0;
 		break;
-	case svc_setname:
+	case svc_updatename:
 		bufferlen = 0;
 		NPP_SetInfo(&svs.clients[buffer[1]], "name", buffer+2);
 		break;
@@ -284,7 +283,7 @@ void NPP_NQWriteByte(int dest, qbyte data)	//replacement write func (nq to qw)
 		case svc_setview:
 			protocollen = sizeof(qbyte)*1 + sizeof(short);
 			break;
-		case svc_setname:
+		case svc_updatename:
 			break;
 		case svc_setfrags:
 			protocollen = 4;	//or this
@@ -446,7 +445,7 @@ void NPP_NQWriteByte(int dest, qbyte data)	//replacement write func (nq to qw)
 				break;
 			}
 			break;
-		case svc_setname:
+		case svc_updatename:
 		case svc_stufftext:
 		case svc_centerprint:
 			break;
@@ -460,8 +459,10 @@ void NPP_NQWriteByte(int dest, qbyte data)	//replacement write func (nq to qw)
 	{
 		switch(majortype)
 		{
+		case svc_updatename:
+			if (bufferlen < 2)
+				break;	//don't truncate the name if the mod is sending the slot number
 		case svcdp_hidelmp:
-		case svc_setname:
 		case svc_stufftext:
 		case svc_centerprint:
 			if (!data)
@@ -598,7 +599,9 @@ void NPP_NQWriteString(int dest, char *data)	//replacement write func (nq to qw)
 {
 	NPP_NQCheckDest(dest);
 	if (!bufferlen)
+	{
 		Con_Printf("NQWriteString: Messages should start with WriteByte\n");
+	}
 
 #ifdef NQPROT
 	if (dest == MSG_ONE) {
@@ -619,7 +622,7 @@ void NPP_NQWriteString(int dest, char *data)	//replacement write func (nq to qw)
 	{
 		switch(majortype)
 		{
-		case svc_setname:
+		case svc_updatename:
 		case svc_stufftext:
 		case svc_centerprint:
 			protocollen = bufferlen;
@@ -684,7 +687,7 @@ void NPP_QWFlush(void)
 
 	switch(majortype)
 	{
-	case svc_setname:	//not a standard feature, but hey, if a progs wants bots.
+	case svc_updatename:	//not a standard feature, but hey, if a progs wants bots.
 		bufferlen = 0;
 		NPP_SetInfo(&svs.clients[buffer[1]], "name", buffer+2);
 		break;

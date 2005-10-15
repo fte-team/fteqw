@@ -45,6 +45,15 @@ void GL_DrawHeightmapModel (entity_t *e)
 	model_t *m = e->model;
 	heightmap_t *hm = m->terrain;
 
+	qglColor4f(1, 1, 1, 1);
+	if (e->model == cl.worldmodel)
+	{
+		R_ClearSkyBox();
+		R_ForceSkyBox();
+		R_DrawSkyBox(NULL);
+	}
+	qglEnable(GL_CULL_FACE);
+
 	qglColor4f(1, 1, 1, e->alpha);
 
 	for (x = 0; x < hm->numsegs; x++)
@@ -83,22 +92,22 @@ void GL_DrawHeightmapModel (entity_t *e)
 
 
 					qglBegin(GL_QUADS);
-					for (vx = minx; vx < minx+hm->terrainsize/hm->numsegs; vx++)
+					for (vx = 0; vx < subsize; vx++)
 					{
-						for (vy = miny; vy < miny+hm->terrainsize/hm->numsegs; vy++)
+						for (vy = 0; vy < subsize; vy++)
 						{
 							qglMultiTexCoord2fARB(GL_TEXTURE0_ARB, vx/subsize, (vy+1)/subsize);
 							qglMultiTexCoord2fARB(GL_TEXTURE1_ARB, 0, 1);
-							qglVertex3f((vx)*hm->terrainscale, (vy+1)*hm->terrainscale, hm->heights[vx + (vy+1)*hm->terrainsize]*hm->heightscale);
+							qglVertex3f((vx+minx)*hm->terrainscale, (vy+miny+1)*hm->terrainscale, hm->heights[vx + (vy+1)*hm->terrainsize]*hm->heightscale);
 							qglMultiTexCoord2fARB(GL_TEXTURE0_ARB, (vx+1)/subsize, (vy+1)/subsize);
 							qglMultiTexCoord2fARB(GL_TEXTURE1_ARB, 1, 1);
-							qglVertex3f((vx+1)*hm->terrainscale, (vy+1)*hm->terrainscale, hm->heights[vx+1 + (vy+1)*hm->terrainsize]*hm->heightscale);
+							qglVertex3f((vx+minx+1)*hm->terrainscale, (vy+miny+1)*hm->terrainscale, hm->heights[vx+1 + (vy+1)*hm->terrainsize]*hm->heightscale);
 							qglMultiTexCoord2fARB(GL_TEXTURE0_ARB, (vx+1)/subsize, vy/subsize);
 							qglMultiTexCoord2fARB(GL_TEXTURE1_ARB, 1, 0);
-							qglVertex3f((vx+1)*hm->terrainscale, (vy)*hm->terrainscale, hm->heights[vx+1 + vy*hm->terrainsize]*hm->heightscale);
+							qglVertex3f((vx+minx+1)*hm->terrainscale, (vy+miny)*hm->terrainscale, hm->heights[vx+1 + vy*hm->terrainsize]*hm->heightscale);
 							qglMultiTexCoord2fARB(GL_TEXTURE0_ARB, vx/subsize, vy/subsize);
 							qglMultiTexCoord2fARB(GL_TEXTURE1_ARB, 0, 0);
-							qglVertex3f((vx)*hm->terrainscale, (vy)*hm->terrainscale, hm->heights[vx + vy*hm->terrainsize]*hm->heightscale);
+							qglVertex3f((vx+minx)*hm->terrainscale, (vy+miny)*hm->terrainscale, hm->heights[vx + vy*hm->terrainsize]*hm->heightscale);
 						}
 					}
 					qglEnd();
@@ -113,18 +122,18 @@ void GL_DrawHeightmapModel (entity_t *e)
 					subsize = hm->terrainsize/hm->numsegs;
 					minx = x*subsize;
 					miny = y*subsize;
-					for (vx = minx; vx < minx+hm->terrainsize/hm->numsegs; vx++)
+					for (vx = 0; vx < subsize; vx++)
 					{
-						for (vy = miny; vy < miny+hm->terrainsize/hm->numsegs; vy++)
+						for (vy = 0; vy < subsize; vy++)
 						{
 							qglTexCoord2f(vx/subsize, (vy+1)/subsize);
-							qglVertex3f((vx)*hm->terrainscale, (vy+1)*hm->terrainscale, hm->heights[vx + (vy+1)*hm->terrainsize]*hm->heightscale);
+							qglVertex3f((vx+minx)*hm->terrainscale, (vy+miny+1)*hm->terrainscale, hm->heights[vx+minx + (vy+miny+1)*hm->terrainsize]*hm->heightscale);
 							qglTexCoord2f((vx+1)/subsize, (vy+1)/subsize);
-							qglVertex3f((vx+1)*hm->terrainscale, (vy+1)*hm->terrainscale, hm->heights[vx+1 + (vy+1)*hm->terrainsize]*hm->heightscale);
+							qglVertex3f((vx+minx+1)*hm->terrainscale, (vy+miny+1)*hm->terrainscale, hm->heights[vx+minx+1 + (vy+miny+1)*hm->terrainsize]*hm->heightscale);
 							qglTexCoord2f((vx+1)/subsize, vy/subsize);
-							qglVertex3f((vx+1)*hm->terrainscale, (vy)*hm->terrainscale, hm->heights[vx+1 + vy*hm->terrainsize]*hm->heightscale);
+							qglVertex3f((vx+minx+1)*hm->terrainscale, (vy+miny)*hm->terrainscale, hm->heights[vx+minx+1 + (vy+miny)*hm->terrainsize]*hm->heightscale);
 							qglTexCoord2f(vx/subsize, vy/subsize);
-							qglVertex3f((vx)*hm->terrainscale, (vy)*hm->terrainscale, hm->heights[vx + vy*hm->terrainsize]*hm->heightscale);
+							qglVertex3f((vx+minx)*hm->terrainscale, (vy+miny)*hm->terrainscale, hm->heights[vx+minx + (vy+miny)*hm->terrainsize]*hm->heightscale);
 						}
 					}
 					qglEnd();
@@ -134,18 +143,18 @@ void GL_DrawHeightmapModel (entity_t *e)
 
 					qglBlendFunc (GL_ZERO, GL_SRC_COLOR);
 					qglBegin(GL_QUADS);
-					for (vx = minx; vx < minx+hm->terrainsize/hm->numsegs; vx++)
+					for (vx = 0; vx < subsize; vx++)
 					{
-						for (vy = miny; vy < miny+hm->terrainsize/hm->numsegs; vy++)
+						for (vy = 0; vy < subsize; vy++)
 						{
 							qglTexCoord2f(0, 1);
-							qglVertex3f((vx)*hm->terrainscale, (vy+1)*hm->terrainscale, hm->heights[vx + (vy+1)*hm->terrainsize]*hm->heightscale);
+							qglVertex3f((vx+minx)*hm->terrainscale, (vy+miny+1)*hm->terrainscale, hm->heights[vx+minx + (vy+miny+1)*hm->terrainsize]*hm->heightscale);
 							qglTexCoord2f(1, 1);
-							qglVertex3f((vx+1)*hm->terrainscale, (vy+1)*hm->terrainscale, hm->heights[vx+1 + (vy+1)*hm->terrainsize]*hm->heightscale);
+							qglVertex3f((vx+minx+1)*hm->terrainscale, (vy+miny+1)*hm->terrainscale, hm->heights[vx+minx+1 + (vy+miny+1)*hm->terrainsize]*hm->heightscale);
 							qglTexCoord2f(1, 0);
-							qglVertex3f((vx+1)*hm->terrainscale, (vy)*hm->terrainscale, hm->heights[vx+1 + vy*hm->terrainsize]*hm->heightscale);
+							qglVertex3f((vx+minx+1)*hm->terrainscale, (vy+miny)*hm->terrainscale, hm->heights[vx+minx+1 + (vy+miny)*hm->terrainsize]*hm->heightscale);
 							qglTexCoord2f(0, 0);
-							qglVertex3f((vx)*hm->terrainscale, (vy)*hm->terrainscale, hm->heights[vx + vy*hm->terrainsize]*hm->heightscale);
+							qglVertex3f((vx+minx)*hm->terrainscale, (vy+miny)*hm->terrainscale, hm->heights[vx+minx + (vy+miny)*hm->terrainsize]*hm->heightscale);
 						}
 					}
 					qglEnd();
@@ -600,11 +609,14 @@ void GL_LoadHeightmapModel (model_t *mod, void *buffer)
 	int size;
 	int x, y;
 
+	float skyrotate;
+	vec3_t skyaxis;
 	char heightmapname[MAX_QPATH];
 	char detailtexname[MAX_QPATH];
 	char basetexname[MAX_QPATH];
 	char exttexname[MAX_QPATH];
 	char entfile[MAX_QPATH];
+	char skyname[MAX_QPATH];
 	float worldsize = 64;
 	float heightsize = 1/16;
 	int numsegs = 1;
@@ -614,6 +626,12 @@ void GL_LoadHeightmapModel (model_t *mod, void *buffer)
 	*basetexname = '\0';
 	*exttexname = '\0';
 	*entfile = '\0';
+	strcpy(skyname, "night");
+
+	skyrotate = 0;
+	skyaxis[0] = 0;
+	skyaxis[1] = 0;
+	skyaxis[2] = 0;
 
 	buffer = COM_Parse(buffer);
 	if (strcmp(com_token, "terrain"))
@@ -659,6 +677,21 @@ void GL_LoadHeightmapModel (model_t *mod, void *buffer)
 			buffer = COM_Parse(buffer);
 			Q_strncpyz(entfile, com_token, sizeof(entfile));
 		}
+		else if (!strcmp(com_token, "skybox"))
+		{
+			buffer = COM_Parse(buffer);
+			Q_strncpyz(skyname, com_token, sizeof(skyname));
+		}
+		else if (!strcmp(com_token, "skyrotate"))
+		{
+			buffer = COM_Parse(buffer);
+			skyaxis[0] = atof(com_token);
+			buffer = COM_Parse(buffer);
+			skyaxis[1] = atof(com_token);
+			buffer = COM_Parse(buffer);
+			skyaxis[2] = atof(com_token);
+			skyrotate = VectorNormalize(skyaxis);
+		}
 		else if (!strcmp(com_token, "texturesegments"))
 		{
 			buffer = COM_Parse(buffer);
@@ -702,8 +735,12 @@ void GL_LoadHeightmapModel (model_t *mod, void *buffer)
 		for (y = 0; y < numsegs; y++)
 		{
 			hm->textures[x+y*SECTIONS] = Mod_LoadHiResTexture(va("%s%02ix%02i%s", basetexname, x, y, exttexname), "", true, true, false);
+			qglTexParameteri (GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
+			qglTexParameteri (GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
 		}
 	}
+
+	R_SetSky(skyname, skyrotate, skyaxis);
 
 	mod->funcs.Trace				= Heightmap_Trace;
 	mod->funcs.PointContents		= Heightmap_PointContents;

@@ -466,6 +466,9 @@ void Mod_ParseInfoFromEntityLump(char *data)	//actually, this should be in the m
 {
 	extern model_t *loadmodel;
 	char key[128];
+	char skyname[64];
+	float skyrotate;
+	vec3_t skyaxis;
 
 	wads[0] = '\0';
 
@@ -476,16 +479,13 @@ void Mod_ParseInfoFromEntityLump(char *data)	//actually, this should be in the m
 
 	R_SetSky("", 0, r_origin);
 
-	if (!data)
-		return;
-	if (!(data=COM_Parse(data)))	//read the map info.
-		return; // error
-	if (com_token[0] != '{')
-		return; // error
+	if (data)
+	if ((data=COM_Parse(data)))	//read the map info.
+	if (com_token[0] == '{')
 	while (1)
 	{
 		if (!(data=COM_Parse(data)))
-			return; // error
+			break; // error
 		if (com_token[0] == '}')
 			break; // end of worldspawn
 		if (com_token[0] == '_')
@@ -493,7 +493,7 @@ void Mod_ParseInfoFromEntityLump(char *data)	//actually, this should be in the m
 		else
 			strcpy(key, com_token);
 		if (!((data=COM_Parse(data))))
-			return; // error		
+			break; // error		
 		if (!strcmp("wad", key)) // for HalfLife maps
 		{
 			if (loadmodel->fromgame == fg_halflife)
@@ -504,13 +504,27 @@ void Mod_ParseInfoFromEntityLump(char *data)	//actually, this should be in the m
 		}
 		else if (!strcmp("skyname", key)) // for HalfLife maps
 		{
-			R_SetSky(com_token, 0, r_origin);
+			Q_strncpyz(skyname, com_token, sizeof(skyname));
 		}
 		else if (!strcmp("sky", key)) // for Quake2 maps
 		{
-			R_SetSky(com_token, 0, r_origin);
+			Q_strncpyz(skyname, com_token, sizeof(skyname));
+		}
+		else if (!strcmp("skyrotate", key) || !strcmp("skyrotate", key))
+		{
+			char *s;
+			Q_strncpyz(key, com_token, sizeof(key));
+			s = COM_Parse(key);
+			skyaxis[0] = atof(s);
+			s = COM_Parse(s);
+			skyaxis[1] = atof(s);
+			COM_Parse(s);
+			skyaxis[2] = atof(s);
 		}
 	}
+
+	skyrotate = VectorNormalize(skyaxis);
+	R_SetSky(skyname, skyrotate, skyaxis);
 }
 
 //textures/fred.wad is the DP standard - I wanna go for that one.

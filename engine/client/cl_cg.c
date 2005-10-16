@@ -1011,7 +1011,6 @@ static long CG_SystemCallsEx(void *offset, unsigned int mask, int fn, const long
 #ifdef _DEBUG
 static long CG_SystemCallsExWrapper(void *offset, unsigned int mask, int fn, const long *arg)
 {	//this is so we can use edit and continue properly (vc doesn't like function pointers for edit+continue)
-	fn*=1;
 	return CG_SystemCallsEx(offset, mask, fn, arg);
 }
 #define CG_SystemCallsEx CG_SystemCallsExWrapper
@@ -1088,6 +1087,7 @@ void CG_Start (void)
 	if (qrenderer != QR_OPENGL)
 	{	//sorry.
 		CG_Stop();
+		Host_EndGame("Unable to connect to q3 servers without opengl.\n");
 		return;
 	}
 
@@ -1111,6 +1111,8 @@ void CG_Start (void)
 		SCR_EndLoadingPlaque();
 		Host_EndGame("Failed to initialise cgame module\n");
 	}
+#else
+	Host_EndGame("Unable to connect to q3 servers without opengl.\n");
 #endif
 }
 
@@ -1140,7 +1142,7 @@ void CG_Command_f(void)
 
 qboolean CG_KeyPress(int key, int down)
 {
-	if (!cgvm)
+	if (!cgvm || !(keycatcher&8))
 		return false;
 	return VM_Call(cgvm, CG_KEY_EVENT, key, down);
 }

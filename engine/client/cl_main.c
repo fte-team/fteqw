@@ -518,6 +518,8 @@ void CL_CheckForResend (void)
 			break;
 		}
 
+		CL_FlushClientCommands();	//clear away all client->server clientcommands.
+
 		CL_SendConnectPacket (svs.fteprotocolextensions, false);
 		return;
 	}
@@ -2003,6 +2005,19 @@ void CLNQ_ConnectionlessPacket(void)
 			return;
 		}
 		net_from.port = htons((short)MSG_ReadLong());
+
+		if (MSG_ReadByte() == 1)	//a proquake server adds a little extra info
+		{
+			int ver = MSG_ReadByte();
+			Con_Printf("ProQuake server %i.%i\n", ver/10, ver%10);
+
+			if (MSG_ReadByte() == 1)
+			{
+				Con_Printf("ProQuake sucks\nGo play on a decent server.\n");
+				return;
+			}
+		}
+
 		Netchan_Setup (NS_CLIENT, &cls.netchan, net_from, cls.qport);
 		cls.netchan.isnqprotocol = true;
 		cls.netchan.compress = 0;
@@ -2013,7 +2028,7 @@ void CLNQ_ConnectionlessPacket(void)
 
 		//send a dummy packet.
 		//this makes our local nat think we initialised the conversation.
-		NET_SendPacket(NS_CLIENT, 9, "\xff\xff\xff\xff""dummy", net_from);
+		NET_SendPacket(NS_CLIENT, 0, "", net_from);
 		return;
 
 	case CCREP_REJECT:

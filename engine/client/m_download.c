@@ -8,14 +8,20 @@
 #define DPF_WANTTOINSTALL	2	//user selected it
 #define DPF_DISPLAYVERSION	4	//some sort of conflict, the package is listed twice, so show versions so the user knows what's old.
 #define DPF_DELETEONUNINSTALL 8	//for previously installed packages, remove them from the list
+#define DPF_DOWNLOADING 16
+
+
+int dlcount=1;
 
 extern char	*com_basedir;
 
+//note: these are allocated for the life of the exe
 char *downloadablelist[256] = {
-
 	ROOTDOWNLOADABLESSOURCE
-
-};	//note: these are allocated for the life of the exe
+};
+char *downloadablelistnameprefix[256] = {
+	""
+};
 int numdownloadablelists = 1;
 
 typedef struct package_s {
@@ -26,6 +32,9 @@ typedef struct package_s {
 	char dest[64];
 	char gamedir[16];
 	unsigned int version;	//integral.
+
+	int dlnum;
+
 	int flags;
 	struct package_s *next;
 } package_t;
@@ -42,7 +51,7 @@ typedef struct {
 package_t *availablepackages;
 int numpackages;
 
-package_t *BuildPackageList(FILE *f, int flags)
+static package_t *BuildPackageList(FILE *f, int flags, char *prefix)
 {
 	char line[1024];
 	package_t *p;
@@ -65,7 +74,7 @@ package_t *BuildPackageList(FILE *f, int flags)
 		return NULL;	//it's not the right format.
 
 	version = atoi(Cmd_Argv(1));
-	if (version != 0)
+	if (version != 0 && version != 1)
 	{
 		Con_Printf("Packagelist is of a future or incompatable version\n");
 		return NULL;	//it's not the right version.
@@ -98,6 +107,14 @@ package_t *BuildPackageList(FILE *f, int flags)
 				{
 					downloadablelist[i] = BZ_Malloc(strlen(sl)+1);
 					strcpy(downloadablelist[i], sl);
+
+					if (*prefix)
+						sl = va("%s/%s", prefix, Cmd_Argv(2));
+					else
+						sl = Cmd_Argv(2);
+					downloadablelistnameprefix[i] = BZ_Malloc(strlen(sl)+1);
+					strcpy(downloadablelistnameprefix[i], sl);
+
 					i++;
 				}
 				continue;
@@ -111,7 +128,10 @@ package_t *BuildPackageList(FILE *f, int flags)
 
 			p = BZ_Malloc(sizeof(*p));
 
-			Q_strncpyz(p->fullname, Cmd_Argv(0), sizeof(p->fullname));
+			if (*prefix)
+				Q_strncpyz(p->fullname, va("%s/%s", prefix, Cmd_Argv(0)), sizeof(p->fullname));
+			else
+				Q_strncpyz(p->fullname, Cmd_Argv(0), sizeof(p->fullname));
 			p->name = p->fullname;
 			while((sl = strchr(p->name, '/')))
 				p->name = sl+1;
@@ -120,6 +140,8 @@ package_t *BuildPackageList(FILE *f, int flags)
 			Q_strncpyz(p->dest, Cmd_Argv(2), sizeof(p->dest));
 			p->version = atoi(Cmd_Argv(3));
 			Q_strncpyz(p->gamedir, Cmd_Argv(4), sizeof(p->gamedir));
+			if (!*p->gamedir)
+				strcpy(p->gamedir, "id1");
 
 			p->flags = flags;
 
@@ -131,7 +153,28 @@ package_t *BuildPackageList(FILE *f, int flags)
 	return first;
 }
 
-qboolean ComparePackages(package_t **l, package_t *p)
+static void WriteInstalledPackages(void)
+{
+	package_t *p;
+	char *fname = va("%s/%s", com_basedir, INSTALLEDFILES);
+	FILE *f = fopen(fname, "wb");
+	if (!f)
+	{
+		Con_Printf("menu_download: Can't update installed list\n");
+		return;
+	}
+
+	fprintf(f, "version 1\n");
+	for (p = availablepackages; p ; p=p->next)
+	{
+		if (p->flags & DPF_HAVEAVERSION)
+			fprintf(f, "\"%s\" \"%s\" \"%s\" %i \"%s\"\n", p->fullname, p->src, p->dest, p->version, p->gamedir);
+	}
+
+	fclose(f);
+}
+
+static qboolean ComparePackages(package_t **l, package_t *p)
 {
 	int v = strcmp((*l)->fullname, p->fullname);
 	if (v < 0)
@@ -147,6 +190,7 @@ qboolean ComparePackages(package_t **l, package_t *p)
 		{ /*package matches, free, don't add*/
 			strcpy((*l)->src, p->src);	//use the source of the new package (existing packages are read FIRST)
 			(*l)->flags |= p->flags;
+			(*l)->flags &= ~DPF_DELETEONUNINSTALL;
 			BZ_Free(p);
 			return true;
 		}
@@ -157,7 +201,7 @@ qboolean ComparePackages(package_t **l, package_t *p)
 	return false;
 }
 
-void InsertPackage(package_t **l, package_t *p)
+static void InsertPackage(package_t **l, package_t *p)
 {
 	package_t *lp;
 	if (!*l)	//there IS no list.
@@ -176,7 +220,7 @@ void InsertPackage(package_t **l, package_t *p)
 	lp->next = p;
 	p->next = NULL;
 }
-void ConcatPackageLists(package_t *l2)
+static void ConcatPackageLists(package_t *l2)
 {
 	package_t *n;
 	while(l2)
@@ -191,17 +235,19 @@ void ConcatPackageLists(package_t *l2)
 
 static void dlnotification(char *localfile, qboolean sucess)
 {
+	int i;
 	FILE *f;
 	COM_RefreshFSCache_f();
 	COM_FOpenFile(localfile, &f);
 	if (f)
 	{
-		ConcatPackageLists(BuildPackageList(f, 0));
+		i = atoi(localfile+7);
+		ConcatPackageLists(BuildPackageList(f, 0, downloadablelistnameprefix[i]));
 		fclose(f);
 	}
 }
 
-void M_Download_Draw (int x, int y, struct menucustom_s *c, struct menu_s *m)
+static void M_Download_Draw (int x, int y, struct menucustom_s *c, struct menu_s *m)
 {
 	int pn;
 
@@ -263,7 +309,7 @@ void M_Download_Draw (int x, int y, struct menucustom_s *c, struct menu_s *m)
 			Draw_Character (x+4, y, 129);
 
 		//if you have it already
-		if (p->flags&DPF_HAVEAVERSION)
+		if (p->flags&(DPF_HAVEAVERSION | ((((int)(realtime*4))&1)?DPF_DOWNLOADING:0) ))
 			Draw_Character (x+20, y, 131);
 		else
 			Draw_Character (x+20, y, 129);
@@ -279,8 +325,62 @@ void M_Download_Draw (int x, int y, struct menucustom_s *c, struct menu_s *m)
 		}
 	}
 }
-qboolean M_Download_Key (struct menucustom_s *c, struct menu_s *m, int key)
+
+static void Menu_Download_Got(char *fname, qboolean successful)
 {
+	package_t *p;
+	int dlnum = atoi(fname+3);
+
+	for (p = availablepackages; p ; p=p->next)
+	{
+		if (p->dlnum == dlnum)
+		{
+			char *destname;
+			char *diskname = va("%s/%s", com_gamedir, fname);
+
+			if (!successful)
+			{
+				p->flags &= ~DPF_DOWNLOADING;
+				Con_Printf("Couldn't download %s (from %s to %s)\n", p->name, p->src, p->dest);
+				return;
+			}
+
+			if (*p->gamedir)
+				destname = va("%s/%s/%s", com_basedir, p->gamedir, p->dest);
+			else
+				destname = va("%s/%s", com_gamedir, p->dest);
+
+			if (!(p->flags & DPF_DOWNLOADING))
+			{
+				Con_Printf("menu_download: We're not downloading %s, apparently\n", p->dest);
+				return;
+			}
+
+			p->flags &= ~DPF_DOWNLOADING;
+
+
+			if (!rename(diskname, destname))
+			{
+				Con_Printf("Couldn't rename %s to %s. Removed instead.\nPerhaps you already have it\n", diskname, destname);
+				unlink(diskname);
+				return;
+			}
+			Con_Printf("Downloaded %s (to %s)\n", p->name, destname);
+			p->flags |= DPF_HAVEAVERSION;
+
+			WriteInstalledPackages();
+
+			FS_ReloadPackFiles();
+			return;
+		}
+	}
+
+	Con_Printf("menu_download: Can't figure out where %s came from\n", fname);
+}
+
+static qboolean M_Download_Key (struct menucustom_s *c, struct menu_s *m, int key)
+{
+	char *temp;
 	int pn;
 	package_t *p, *p2;
 	dlmenu_t *info = m->data;
@@ -309,9 +409,15 @@ qboolean M_Download_Key (struct menucustom_s *c, struct menu_s *m, int key)
 					unlink(fname);
 					p->flags&=~DPF_HAVEAVERSION;	//FIXME: This is error prone.
 
+					WriteInstalledPackages();
+
 					if (p->flags & DPF_DELETEONUNINSTALL)
 					{
-						last->next = p->next;
+						if (last)
+							last->next = p->next;
+						else
+							availablepackages = p->next;
+
 						BZ_Free(p);
 
 						return M_Download_Key(c, m, key);	//I'm lazy.
@@ -322,12 +428,15 @@ qboolean M_Download_Key (struct menucustom_s *c, struct menu_s *m, int key)
 
 			for (p = availablepackages; p ; p=p->next)
 			{
-				if ((p->flags&DPF_WANTTOINSTALL) && !(p->flags&DPF_HAVEAVERSION))
+				if ((p->flags&DPF_WANTTOINSTALL) && !(p->flags&(DPF_HAVEAVERSION|DPF_DOWNLOADING)))
 				{	//if we want it and don't have it:
-					Con_Printf("Downloading %s (to %s)\n", p->fullname, p->dest);
+					p->dlnum = dlcount++;
+					temp = va("dl_%i.tmp", p->dlnum);
+					Con_Printf("Downloading %s (to %s)\n", p->fullname, temp);
 					COM_CreatePath(va("%s/%s", com_gamedir, p->dest));
-					if (HTTP_CL_Get(p->src, p->dest, NULL))
-						p->flags|=DPF_HAVEAVERSION;	//FIXME: This is error prone.
+					p->flags|=DPF_DOWNLOADING;
+					if (!HTTP_CL_Get(p->src, temp, Menu_Download_Got))
+						p->flags&=~DPF_DOWNLOADING;
 				}
 			}
 		}
@@ -385,7 +494,7 @@ void Menu_DownloadStuff_f (void)
 		loadedinstalled = true;
 		if (f)
 		{
-			ConcatPackageLists(BuildPackageList(f, DPF_DELETEONUNINSTALL|DPF_HAVEAVERSION|DPF_WANTTOINSTALL));
+			ConcatPackageLists(BuildPackageList(f, DPF_DELETEONUNINSTALL|DPF_HAVEAVERSION|DPF_WANTTOINSTALL, ""));
 			fclose(f);
 		}
 	}

@@ -1027,6 +1027,7 @@ void *Hunk_AllocName (int size, char *name)
 {
 #ifdef NOHIGH
 	int roundup;
+	int roundupold;
 #endif
 	hunk_t	*h;
 	
@@ -1052,9 +1053,17 @@ void *Hunk_AllocName (int size, char *name)
 	h = (hunk_t *)(hunk_base + hunk_low_used);
 
 #ifdef NOHIGH
+
+	roundupold = hunk_low_used+sizeof(hunk_t);
+	roundupold += 1024*128;
+	roundupold &= ~(1024*128 - 1);
+
 	roundup = hunk_low_used+size+sizeof(hunk_t);
-	roundup += 1024*64;
-	roundup &= ~(1024*64 - 1);
+	roundup += 1024*128;
+	roundup &= ~(1024*128 - 1);
+
+
+	if (roundup != roundupold)
 	if (!VirtualAlloc (hunk_base, roundup, MEM_COMMIT, PAGE_READWRITE))
 	{
 		char *buf;

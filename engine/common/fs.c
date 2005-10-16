@@ -2010,6 +2010,68 @@ char *FS_GenerateClientPacksList(char *buffer, int maxlen, int basechecksum)
 
 /*
 ================
+FS_ReloadPackFiles
+================
+
+Called when the client has downloaded a new pak/pk3 file
+*/
+void FS_ReloadPackFiles(void)
+{
+	searchpath_t	*oldpaths;
+	searchpath_t	*oldbase;
+	searchpath_t	*next;
+
+
+	//a lame way to fix pure paks
+#ifndef SERVERONLY
+	if (cls.state)
+	{
+		CL_Disconnect_f();
+		CL_Reconnect_f();
+	}
+#endif
+
+	FS_FlushFSHash();
+
+	oldpaths = com_searchpaths;
+	com_searchpaths = NULL;
+	com_purepaths = NULL;
+	oldbase = com_base_searchpaths;
+	com_base_searchpaths = NULL;
+
+	//invert the order
+	next = NULL;
+	while(oldpaths)
+	{
+		oldpaths->nextpure = next;
+		next = oldpaths;
+		oldpaths = oldpaths->next;
+	}
+	oldpaths = next;
+
+	com_base_searchpaths = NULL;
+
+	while(oldpaths)
+	{
+		next = oldpaths->nextpure;
+
+		if (oldbase == oldpaths)
+			com_base_searchpaths = com_searchpaths;
+
+		if (oldpaths->funcs == &osfilefuncs)
+			COM_AddGameDirectory(oldpaths->handle);
+
+		oldpaths->funcs->ClosePath(oldpaths->handle);
+		Z_Free(oldpaths);
+		oldpaths = next;
+	}
+
+	if (!com_base_searchpaths)
+		com_base_searchpaths = com_searchpaths;
+}
+
+/*
+================
 COM_InitFilesystem
 ================
 */
@@ -2022,6 +2084,8 @@ void COM_InitFilesystem (void)
 
 
 	int gamenum=-1;
+
+	Cmd_AddCommand("fs_restart", FS_ReloadPackFiles);
 
 //
 // -basedir <path>

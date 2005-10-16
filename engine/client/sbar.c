@@ -653,6 +653,11 @@ void Sbar_ShowTeamScores (void)
 	if (sb_showteamscores)
 		return;
 
+#ifdef CSQC_DAT
+	if (CSQC_ConsoleCommand(Cmd_Argv(0)))
+		return;
+#endif
+
 	sb_showteamscores = true;
 	sb_updates = 0;
 }
@@ -668,6 +673,11 @@ void Sbar_DontShowTeamScores (void)
 {
 	sb_showteamscores = false;
 	sb_updates = 0;
+
+#ifdef CSQC_DAT
+	if (CSQC_ConsoleCommand(Cmd_Argv(0)))
+		return;
+#endif
 }
 
 /*
@@ -681,6 +691,11 @@ void Sbar_ShowScores (void)
 {
 	if (sb_showscores)
 		return;
+
+#ifdef CSQC_DAT
+	if (CSQC_ConsoleCommand(Cmd_Argv(0)))
+		return;
+#endif
 
 	sb_showscores = true;
 	sb_updates = 0;
@@ -697,6 +712,11 @@ void Sbar_DontShowScores (void)
 {
 	sb_showscores = false;
 	sb_updates = 0;
+
+#ifdef CSQC_DAT
+	if (CSQC_ConsoleCommand(Cmd_Argv(0)))
+		return;
+#endif
 }
 
 /*

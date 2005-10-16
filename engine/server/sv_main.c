@@ -1609,8 +1609,9 @@ client_t *SVC_DirectConnect(void)
 	}
 
 	edictnum = (newcl-svs.clients)+1;
-	if (svprogfuncs)
+	switch (svs.gametype)
 	{
+	case GT_PROGS:
 		ent = EDICT_NUM(svprogfuncs, edictnum);
 #ifdef Q2SERVER
 		temp.q2edict = NULL;
@@ -1635,10 +1636,10 @@ client_t *SVC_DirectConnect(void)
 			temp.frames[i].entities.max_entities = maxpacketentities;
 			temp.frames[i].entities.entities = (entity_state_t*)(temp.frames+UPDATE_BACKUP) + i*temp.frames[i].entities.max_entities;
 		}
-	}
+		break;
+
 #ifdef Q2SERVER
-	else
-	{
+	case GT_QUAKE2:
 		q2ent = Q2EDICT_NUM(edictnum);
 		temp.edict = NULL;
 		temp.q2edict = q2ent;
@@ -1656,8 +1657,12 @@ client_t *SVC_DirectConnect(void)
 			Z_Free(temp.q2frames);
 
 		temp.q2frames = Z_Malloc(sizeof(q2client_frame_t)*Q2UPDATE_BACKUP);
-	}
+		break;
 #endif
+	default:
+		Sys_Error("Bad svs.gametype in SVC_DirectConnect");
+		break;
+	}
 
 
 	{

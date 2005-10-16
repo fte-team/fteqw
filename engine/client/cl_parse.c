@@ -3332,11 +3332,13 @@ void CL_PrintChat(player_info_t *plr, char *rawmsg, char *msg, int plrflags)
 
 // CL_PrintStandardMessage: takes non-chat net messages and performs name coloring
 // NOTE: msg is considered destroyable
+char acceptedchars[] = {'.', '?', '!', '\'', ',', ':', ' ', '\0'};
 void CL_PrintStandardMessage(char *msg)
 {
 	int i;
 	player_info_t *p;
 	extern cvar_t cl_standardmsg;
+	char *begin = msg;
 
 	// search for player names in message
 	for (i = 0, p = cl.players; i < MAX_CLIENTS; p++, i++)
@@ -3352,8 +3354,33 @@ void CL_PrintStandardMessage(char *msg)
 		name = Info_ValueForKey (p->userinfo, "name");
 		len = strlen(name);
 		v = strstr(msg, name);
-		if (v) // name found
+		while (v)
 		{
+			// name parsing rules
+			if (v != begin && *(v-1) != ' ') // must be space before name
+			{
+					v = strstr(NULL, name);
+					continue;
+			}
+		
+			{
+				int i;
+				char aftername = *(v + len);
+				
+				// search for accepted chars in char after name in msg
+				for (i = 0; i < sizeof(acceptedchars); i++)
+				{
+					if (acceptedchars[i] == aftername)
+						break;
+				}
+
+				if (sizeof(acceptedchars) == i)
+				{
+					v = strstr(NULL, name);
+					continue; // no accepted char found
+				}
+			}
+
 			*v = 0; // cut off message
 			con_ormask = 0;
 			// print msg chunk
@@ -3372,6 +3399,7 @@ void CL_PrintStandardMessage(char *msg)
 			// print name
 			con_ormask = ormask;
 			Con_Printf("^%c%s^7", c, name);
+			break;
 		}
 	}
 

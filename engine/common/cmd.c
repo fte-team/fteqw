@@ -497,7 +497,8 @@ void Cmd_Exec_f (void)
 	else
 	{
 		Con_TPrintf (TL_EXECFAILED,name);
-		return;	}
+		return;
+	}
 	if (cl_warncmd.value || developer.value)
 		Con_TPrintf (TL_EXECING,name);
 

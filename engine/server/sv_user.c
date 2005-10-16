@@ -4273,7 +4273,11 @@ void SV_ExecuteClientMessage (client_t *cl)
 		cl->lastsequence_acknoledged = cl->netchan.incoming_acknowledged;
 	}
 	else
+	{
+		Con_Printf("Server bug: No frames!\n");
+		cl->send_message = false;
 		return;	//shouldn't happen...
+	}
 
 	// make sure the reply sequence number matches the incoming
 	// sequence number

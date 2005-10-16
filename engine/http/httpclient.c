@@ -67,7 +67,7 @@ It doesn't use persistant connections.
 
 */
 
-typedef struct {
+typedef struct http_con_s {
 	int sock;
 
 	enum {HC_REQUESTING,HC_GETTINGHEADER, HC_GETTING} state;
@@ -88,6 +88,7 @@ typedef struct {
 	IWEBFILE *file;
 
 	void (*NotifyFunction)(char *localfile, qboolean sucess);	//called when failed or succeeded, and only if it got a connection in the first place.
+	struct http_con_s *next;
 } http_con_t;
 
 static http_con_t *httpcl;
@@ -216,7 +217,11 @@ static qboolean HTTP_CL_Run(http_con_t *con)
 				if (!*Location)
 					Con_Printf("Server redirected to null location\n");
 				else
-					HTTP_CL_Get(Location, con->filename, con->NotifyFunction);
+				{
+					if (HTTP_CL_Get(Location, con->filename, con->NotifyFunction))
+						con->NotifyFunction = NULL;
+				}
+
 				return false;
 			}
 
@@ -363,7 +368,8 @@ static qboolean HTTP_CL_Run(http_con_t *con)
 void HTTP_CL_Think(void)
 {
 	http_con_t *con = httpcl;
-	if (con)
+	http_con_t *prev = NULL;
+	while (con)
 	{
 		if (!HTTP_CL_Run(con))
 		{
@@ -373,15 +379,18 @@ void HTTP_CL_Think(void)
 			if (cls.downloadmethod == DL_HTTP)
 				cls.downloadmethod = DL_NONE;
 			closesocket(con->sock);
+
+			if (prev)
+				prev->next = con->next;
+			else
+				httpcl = con->next;
+
 			if (con->buffer)
 				IWebFree(con->buffer);
 			IWebFree(con);
-			if (con == httpcl)
-			{
-				httpcl = NULL;
-				return;
-			}
-			con = NULL;
+
+			//I don't fancy fixing this up.
+			return;
 		}
 		else if (!cls.downloadmethod)
 		{
@@ -406,9 +415,16 @@ void HTTP_CL_Think(void)
 					cls.downloadpercent = con->totalreceived*100.0f/con->contentlength;
 			}
 		}
+
+		prev = con;
+		con = con->next;
 	}
 }
 
+//returns true if we start downloading it
+//returns false if we couldn't connect
+//note that this return value is actually pretty useless
+//the NotifyFunction will only ever be called after this has returned true, and won't always suceed.
 qboolean HTTP_CL_Get(char *url, char *localfile, void (*NotifyFunction)(char *localfile, qboolean sucess))
 {
 	unsigned long _true = true;
@@ -509,12 +525,15 @@ qboolean HTTP_CL_Get(char *url, char *localfile, void (*NotifyFunction)(char *lo
 	con->bufferused = strlen(con->buffer);
 	con->contentlength = -1;
 	con->NotifyFunction = NotifyFunction;
+	if (!NotifyFunction)
+		Con_Printf("No NotifyFunction\n");
 	strcpy(con->filename, localfile);
 
 	slash = strchr(con->filename, '?');
 	if (slash)
 		*slash = '_';
 
+	con->next = httpcl;
 	httpcl = con;
 
 	HTTP_CL_Think();

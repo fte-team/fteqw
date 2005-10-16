@@ -508,7 +508,11 @@ typedef struct
 	char				model_csqcname[MAX_CSQCMODELS][MAX_QPATH];
 	struct model_s		*model_csqcprecache[MAX_CSQCMODELS];
 
+	//used for q2 sky/configstrings
 	char skyname[MAX_QPATH];
+	float skyrotate;
+	vec3_t skyaxis;
+
 	char		levelname[40];	// for display on solo scoreboard
 	int			playernum[MAX_SPLITS];
 	int			splitclients;	//we are running this many clients split screen.

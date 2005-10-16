@@ -383,13 +383,14 @@ void GLR_PushDlights (void)
 //	if (!cl.worldmodel->nodes)
 //		return;
 
+	currentmodel = cl.worldmodel;
 	
 	l = cl_dlights;
 	for (i=0 ; i<MAX_SWLIGHTS ; i++, l++)
 	{
 		if (!l->radius || l->nodynamic)
 			continue;
-		cl.worldmodel->funcs.MarkLights( l, 1<<i, cl.worldmodel->nodes );
+		currentmodel->funcs.MarkLights( l, 1<<i, currentmodel->nodes );
 	}
 }
 

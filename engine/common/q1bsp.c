@@ -311,7 +311,7 @@ void Q1BSP_MarkLights (dlight_t *light, int bit, mnode_t *node)
 	}
 		
 // mark the polygons
-	surf = cl.worldmodel->surfaces + node->firstsurface;
+	surf = currentmodel->surfaces + node->firstsurface;
 	for (i=0 ; i<node->numsurfaces ; i++, surf++)
 	{
 		if (surf->dlightframe != r_dlightframecount)

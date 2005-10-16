@@ -800,10 +800,13 @@ COM_Locate_f
 void COM_Locate_f (void)
 {
 	flocation_t loc;
-	if (FS_FLocateFile(Cmd_Argv(1), FSLFRT_LENGTH, &loc))
+	if (FS_FLocateFile(Cmd_Argv(1), FSLFRT_LENGTH, &loc)>=0)
 	{
 		if (!*loc.rawname)
-			Con_Printf("File is compressed\n");
+		{
+			Con_Printf("File is compressed inside ");
+			loc.search->funcs->PrintPath(loc.search->handle);
+		}
 		else
 			Con_Printf("Inside %s\n", loc.rawname);
 	}

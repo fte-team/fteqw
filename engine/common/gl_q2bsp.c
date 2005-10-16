@@ -3641,7 +3641,7 @@ q2cmodel_t *CM_LoadMap (char *name, char *filein, qboolean clientload, unsigned 
 
 			break;
 		default:
-			Sys_Error("Quake 3 maps are supported with dedicated servers and opengl only\n");
+			Host_EndGame("Cannot load q3bsps with the current renderer (only dedicated and opengl renderer)\n");
 		}
 		break;
 #endif

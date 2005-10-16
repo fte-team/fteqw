@@ -64,6 +64,8 @@ cvar_t pr_ssqc_coreonerror = {"pr_coreonerror", "1"};
 cvar_t pr_tempstringcount = {"pr_tempstringcount", "16"};
 cvar_t pr_tempstringsize = {"pr_tempstringsize", "4096"};
 
+cvar_t sv_gameplayfix_blowupfallenzombies = {"sv_gameplayfix_blowupfallenzombies", "0"};
+
 cvar_t sv_addon[MAXADDONS];
 char cvargroup_progs[] = "Progs variables";
 
@@ -890,6 +892,8 @@ void PR_Init(void)
 
 	Cvar_Register (&pr_tempstringcount, cvargroup_progs);
 	Cvar_Register (&pr_tempstringsize, cvargroup_progs);
+
+	Cvar_Register (&sv_gameplayfix_blowupfallenzombies, cvargroup_progs);
 }
 
 void Q_InitProgs(void)
@@ -3265,17 +3269,18 @@ void PF_findradius (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 
 	org = G_VECTOR(OFS_PARM0);
 	rad = G_FLOAT(OFS_PARM1);
+	rad = rad*rad;
 
 	for (i=1 ; i<sv.num_edicts ; i++)
 	{
 		ent = EDICT_NUM(svprogfuncs, i);
 		if (ent->isfree)
 			continue;
-		if (ent->v->solid == SOLID_NOT && (progstype != PROG_QW || !((int)ent->v->flags & FL_FINDABLE_NONSOLID)))
+		if (ent->v->solid == SOLID_NOT && (progstype != PROG_QW || !((int)ent->v->flags & FL_FINDABLE_NONSOLID)) && !sv_gameplayfix_blowupfallenzombies.value)
 			continue;
 		for (j=0 ; j<3 ; j++)
 			eorg[j] = org[j] - (ent->v->origin[j] + (ent->v->mins[j] + ent->v->maxs[j])*0.5);
-		if (Length(eorg) > rad)
+		if (DotProduct(eorg,eorg) > rad)
 			continue;
 
 		ent->v->chain = EDICT_TO_PROG(prinst, chain);

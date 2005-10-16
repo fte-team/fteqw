@@ -525,7 +525,7 @@ void Model_NextDownload (void)
 #ifdef Q2CLIENT
 	if (cls.protocol == CP_QUAKE2)
 	{
-		R_SetSky(cl.skyname, 0, r_origin);
+		R_SetSky(cl.skyname, cl.skyrotate, cl.skyaxis);
 		for (i = 0; i < Q2MAX_IMAGES; i++)
 		{
 			char picname[256];
@@ -2053,6 +2053,17 @@ void CLQ2_ParseConfigString (void)
 	{
 		Q_strncpyz (cl.skyname, s, sizeof(cl.skyname));
 	}
+	else if (i == Q2CS_SKYAXIS)
+	{
+		s = COM_Parse(s);
+		cl.skyaxis[0] = atof(com_token);
+		s = COM_Parse(s);
+		cl.skyaxis[1] = atof(com_token);
+		s = COM_Parse(s);
+		cl.skyaxis[2] = atof(com_token);
+	}
+	else if (i == Q2CS_SKYROTATE)
+		cl.skyrotate = atof(s);
 	else if (i == Q2CS_STATUSBAR)
 	{
 		Q_strncpyz(cl.q2statusbar, s, sizeof(cl.q2statusbar));
@@ -4088,6 +4099,108 @@ void CLQ2_ParseServerMessage (void)
 #endif
 
 #ifdef NQPROT
+//Proquake specific stuff
+#define pqc_nop			1
+#define pqc_new_team	2
+#define pqc_erase_team	3
+#define pqc_team_frags	4
+#define	pqc_match_time	5
+#define pqc_match_reset	6
+#define pqc_ping_times	7
+int MSG_ReadBytePQ (char **s)
+{
+	int ret = (*s)[0] * 16 + (*s)[1] - 272;
+	*s+=2;
+	return ret;
+}
+int MSG_ReadShortPQ (char **s)
+{
+	return MSG_ReadBytePQ(s) * 256 + MSG_ReadBytePQ(s);
+}
+void CLNQ_ParseProQuakeMessage (char *s)
+{
+	int cmd, i, j;
+	int team, frags, shirt, ping;
+
+	s++;
+	cmd = *s++;
+	
+	switch (cmd)
+	{
+	default:
+		Con_DPrintf("Unrecognised ProQuake Message %i\n", cmd);
+		break;
+/*	case pqc_new_team:
+		Sbar_Changed ();
+		team = MSG_ReadByte() - 16;
+		if (team < 0 || team > 13)
+			Host_Error ("CL_ParseProQuakeMessage: pqc_new_team invalid team");
+		shirt = MSG_ReadByte() - 16;
+		cl.teamgame = true;
+		// cl.teamscores[team].frags = 0;	// JPG 3.20 - removed this
+		cl.teamscores[team].colors = 16 * shirt + team;
+		//Con_Printf("pqc_new_team %d %d\n", team, shirt);
+		break;
+
+	case pqc_erase_team:
+		Sbar_Changed ();
+		team = MSG_ReadByte() - 16;
+		if (team < 0 || team > 13)
+			Host_Error ("CL_ParseProQuakeMessage: pqc_erase_team invalid team");
+		cl.teamscores[team].colors = 0;
+		cl.teamscores[team].frags = 0;		// JPG 3.20 - added this
+		//Con_Printf("pqc_erase_team %d\n", team);
+		break;
+
+	case pqc_team_frags:
+		Sbar_Changed ();
+		team = MSG_ReadByte() - 16;
+		if (team < 0 || team > 13)
+			Host_Error ("CL_ParseProQuakeMessage: pqc_team_frags invalid team");
+		frags = MSG_ReadShortPQ();;
+		if (frags & 32768)
+			frags = frags - 65536;
+		cl.teamscores[team].frags = frags;
+		//Con_Printf("pqc_team_frags %d %d\n", team, frags);
+		break;			
+
+	case pqc_match_time:
+		Sbar_Changed ();
+		cl.minutes = MSG_ReadBytePQ();
+		cl.seconds = MSG_ReadBytePQ();
+		cl.last_match_time = cl.time;
+		//Con_Printf("pqc_match_time %d %d\n", cl.minutes, cl.seconds);
+		break;
+
+	case pqc_match_reset:
+		Sbar_Changed ();
+		for (i = 0 ; i < 14 ; i++)
+		{
+			cl.teamscores[i].colors = 0;
+			cl.teamscores[i].frags = 0;		// JPG 3.20 - added this
+		}
+		//Con_Printf("pqc_match_reset\n");
+		break;
+*/
+	case pqc_ping_times:
+		while ((ping = MSG_ReadShortPQ(&s)))
+		{
+			if ((ping / 4096) >= MAX_CLIENTS)
+				Host_Error ("CL_ParseProQuakeMessage: pqc_ping_times > MAX_CLIENTS");
+			cl.players[ping / 4096].ping = ping & 4095;
+		}
+//		cl.last_ping_time = cl.time;
+		/*
+		Con_Printf("pqc_ping_times ");
+		for (i = 0 ; i < cl.maxclients ; i++)
+			Con_Printf("%4d ", cl.scores[i].ping);
+		Con_Printf("\n");
+		*/
+		break;
+	}
+}
+
+
 void CLNQ_ParseServerMessage (void)
 {
 	int			cmd;
@@ -4182,8 +4295,16 @@ void CLNQ_ParseServerMessage (void)
 
 		case svc_stufftext:
 			s = MSG_ReadString ();
-			Con_DPrintf ("stufftext: %s\n", s);
-			Cbuf_AddText (s, RESTRICT_SERVER);	//no cheating here...
+			if (*s == 1)
+			{
+				Con_DPrintf("Proquake: %s\n", s);
+				CLNQ_ParseProQuakeMessage(s);
+			}
+			else
+			{
+				Con_DPrintf ("stufftext: %s\n", s);
+				Cbuf_AddText (s, RESTRICT_SERVER);	//no cheating here...
+			}
 			break;
 
 		case svc_serverdata:

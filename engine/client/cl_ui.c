@@ -1477,7 +1477,10 @@ void UI_StringChanged(int num)
 void UI_Reset(void)
 {
 	keycatcher &= ~2;
-	if (uivm)
+
+	if (!Draw_SafeCachePic || qrenderer != QR_OPENGL)	//no renderer loaded
+		UI_Stop();
+	else if (uivm)
 		VM_Call(uivm, UI_INIT);
 }
 
@@ -1574,6 +1577,9 @@ void UI_Start (void)
 {
 	int apiversion;
 	if (!Draw_SafeCachePic)	//no renderer loaded
+		return;
+
+	if (qrenderer != QR_OPENGL)
 		return;
 
 	uivm = VM_Create(NULL, "vm/qwui", UI_SystemCalls, UI_SystemCallsEx);

@@ -380,7 +380,7 @@ void CLQ3_ParseDownload(void)
 
 	if (ccs.downloadchunknum != chunknum)	//the q3 client is rather lame.
 	{										//ccs.downloadchunknum holds the chunk number.
-		Con_Printf("PACKETLOSS WHEN DOWNLOADING!!!!\n");
+		Con_DPrintf("PACKETLOSS WHEN DOWNLOADING!!!!\n");
 		return;	//let the server try again some time
 	}
 	ccs.downloadchunknum++;
@@ -415,6 +415,8 @@ void CLQ3_ParseDownload(void)
 		rename(cls.downloadtempname, cls.downloadname);	// ->
 		*cls.downloadtempname = *cls.downloadname = 0;
 		cls.downloadmethod = DL_NONE;
+
+		FS_ReloadPackFiles();
 
 		cl.servercount = -1;	//make sure the server resends us that vital gamestate.
 		ccs.downloadchunknum = -1;

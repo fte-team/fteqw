@@ -3370,7 +3370,7 @@ void CL_PrintStandardMessage(char *msg)
 			// name parsing rules
 			if (v != begin && *(v-1) != ' ') // must be space before name
 			{
-					v = strstr(NULL, name);
+					v = strstr(v+len, name);
 					continue;
 			}
 		
@@ -3387,7 +3387,7 @@ void CL_PrintStandardMessage(char *msg)
 
 				if (sizeof(acceptedchars) == i)
 				{
-					v = strstr(NULL, name);
+					v = strstr(v+len, name);
 					continue; // no accepted char found
 				}
 			}

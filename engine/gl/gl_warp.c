@@ -810,8 +810,9 @@ void MakeSkyVec (float s, float t, int axis)
 	vec3_t		v, b;
 	int			j, k;
 	float skydist = gl_skyboxdist.value;
+	extern cvar_t gl_maxdist;
 
-	if (r_shadows.value)	//because r_shadows comes with an infinate depth perspective.
+	if (r_shadows.value || !gl_maxdist.value)	//because r_shadows comes with an infinate depth perspective.
 		skydist*=20;		//so we can put the distance at whatever distance needed.
 
 	b[0] = s*skydist;

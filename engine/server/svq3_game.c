@@ -278,6 +278,7 @@ char *mapentspointer;
 
 typedef struct {
 	link_t area;
+	qboolean linked;
 	int areanum;
 	int areanum2;
 	int headnode;
@@ -286,23 +287,30 @@ typedef struct {
 } q3serverEntity_t;
 q3serverEntity_t *q3_sentities;
 
-
 void Q3G_UnlinkEntity(q3sharedEntity_t *ent)
 {
 	q3serverEntity_t *sent;
 
-	if(!ent->r.linked)
-		return;		// not linked in anywhere
+	ent->r.linked = false;
 
 	sent = SENTITY_FOR_GENTITY(ent);
-	if (sent->area.next)
-		RemoveLink(&sent->area);
+
+	if(!sent->linked)
+	{
+		return;		// not linked in anywhere
+	}
+
+	if (sent->area.prev == NULL || sent->area.next == NULL)
+		SV_Error("Null entity links in linked entity\n");
+
+	RemoveLink(&sent->area);
 	sent->area.prev = sent->area.next = NULL;
 
-	ent->r.linked = false;
+	sent->linked = false;
 }
 
 #define MAX_TOTAL_ENT_LEAFS		256
+
 
 void Q3G_LinkEntity(q3sharedEntity_t *ent)
 {
@@ -317,14 +325,14 @@ void Q3G_LinkEntity(q3sharedEntity_t *ent)
 	const float		*origin;
 	const float		*angles;
 
-	if(ent->r.linked)
+	sent = SENTITY_FOR_GENTITY(ent);
+
+	if(sent->linked)
 		Q3G_UnlinkEntity(ent);	// unlink from old position
 
 	// encode the size into the entity_state for client prediction
 	if(ent->r.bmodel)
-	{
 		ent->s.solid = Q3SOLID_BMODEL;
-	}
 	else if(ent->r.contents & (Q3CONTENTS_BODY|Q3CONTENTS_SOLID))
 	{
 		// assume that x/y are equal and symetric
@@ -344,10 +352,7 @@ void Q3G_LinkEntity(q3sharedEntity_t *ent)
 	else
 		ent->s.solid = 0;
 
-	//origin = (ent->r.svFlags & SVF_USE_CURRENT_ORIGIN) ? ent->r.currentOrigin : ent->s.origin;
-	//angles = (ent->r.svFlags & SVF_USE_CURRENT_ORIGIN) ? ent->r.currentAngles : ent->s.angles;
-
-	// FIXME - always use currentOrigin?
+	// always use currentOrigin
 	origin = ent->r.currentOrigin;
 	angles = ent->r.currentAngles;
 
@@ -389,8 +394,6 @@ void Q3G_LinkEntity(q3sharedEntity_t *ent)
 	ent->r.absmax[0] += 1;
 	ent->r.absmax[1] += 1;
 	ent->r.absmax[2] += 1;
-
-	sent = SENTITY_FOR_GENTITY(ent);
 
 // link to PVS leafs
 	sent->num_clusters = 0;
@@ -461,6 +464,7 @@ void Q3G_LinkEntity(q3sharedEntity_t *ent)
 
 	ent->r.linkcount++;
 	ent->r.linked = true;
+	sent->linked = true;
 
 // find the first node that the ent's box crosses
 	node = sv_areanodes;
@@ -477,9 +481,8 @@ void Q3G_LinkEntity(q3sharedEntity_t *ent)
 			break;		// crosses the node
 	}
 	// link it in	
-	InsertLinkBefore((link_t *)sent, &node->solid_edicts);
+	InsertLinkBefore((link_t *)&sent->area, &node->solid_edicts);
 }
-
 
 int SVQ3_EntitiesInBoxNode(areanode_t *node, vec3_t mins, vec3_t maxs, int *list, int maxcount)
 {

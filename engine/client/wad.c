@@ -467,8 +467,8 @@ void Mod_ParseInfoFromEntityLump(char *data)	//actually, this should be in the m
 	extern model_t *loadmodel;
 	char key[128];
 	char skyname[64];
-	float skyrotate;
-	vec3_t skyaxis;
+	float skyrotate = 0;
+	vec3_t skyaxis = {0, 0, 0};
 
 	wads[0] = '\0';
 
@@ -476,8 +476,6 @@ void Mod_ParseInfoFromEntityLump(char *data)	//actually, this should be in the m
 	if (isDedicated)	//don't bother
 		return;
 #endif
-
-	R_SetSky("", 0, r_origin);
 
 	if (data)
 	if ((data=COM_Parse(data)))	//read the map info.

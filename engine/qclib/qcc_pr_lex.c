@@ -1901,10 +1901,14 @@ void QCC_PR_ConditionCompilation(void)
 	if (strlen(cnst->value) >= sizeof(cnst->value))	//this is too late.
 		QCC_PR_ParseError(ERR_CONSTANTTOOLONG, "Macro %s too long (%i not %i)", cnst->name, strlen(cnst->value), sizeof(cnst->value));
 
-	if (oldval && strcmp(oldval, cnst->value))
-		QCC_PR_ParseWarning(WARN_DUPLICATEPRECOMPILER, "Alternate precompiler definition of %s", pr_token);
-	else
-		QCC_PR_ParseWarning(WARN_IDENTICALPRECOMPILER, "Identical precompiler definition of %s", pr_token);
+	if (oldval)
+	{	//we always warn if it was already defined
+		//we use different warning codes so that -Wno-mundane can be used to ignore identical redefinitions.
+		if (strcmp(oldval, cnst->value))
+			QCC_PR_ParseWarning(WARN_DUPLICATEPRECOMPILER, "Alternate precompiler definition of %s", pr_token);
+		else
+			QCC_PR_ParseWarning(WARN_IDENTICALPRECOMPILER, "Identical precompiler definition of %s", pr_token);
+	}
 }
 
 int QCC_PR_CheakCompConst(void)

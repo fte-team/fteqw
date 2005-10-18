@@ -1063,7 +1063,7 @@ void *Hunk_AllocName (int size, char *name)
 	roundup &= ~(1024*128 - 1);
 
 
-	if (roundup != roundupold)
+	if (!hunk_low_used || roundup != roundupold)
 	if (!VirtualAlloc (hunk_base, roundup, MEM_COMMIT, PAGE_READWRITE))
 	{
 		char *buf;

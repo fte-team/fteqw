@@ -494,7 +494,7 @@ void P_ParticleEffect_f(void)
 			break;
 		if (!*buf)
 		{
-			Con_Printf("Unexpected End Of Buffer\n");
+			Con_Printf("Unexpected end of buffer with effect %s\n", ptype->name);
 			return;
 		}
 

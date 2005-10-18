@@ -142,15 +142,12 @@ qboolean isPermedia = false;
 //====================================
 // Note that 0 is MODE_WINDOWED
 extern cvar_t	vid_mode;
-extern cvar_t		_vid_default_mode;
 // Note that 3 is MODE_FULLSCREEN_DEFAULT
-extern cvar_t		_vid_default_mode_win;
 extern cvar_t		vid_wait;
-extern cvar_t		vid_nopageflip;
 extern cvar_t		_vid_wait_override;
-extern cvar_t		vid_stretch_by_2;
 extern cvar_t		_windowed_mouse;
 extern cvar_t		vid_hardwaregamma;
+extern cvar_t		vid_desktopgamma;
 extern cvar_t		gl_lateswap;
 
 int			window_center_x, window_center_y, window_x, window_y, window_width, window_height;
@@ -546,6 +543,7 @@ qboolean VID_SetFullDIBMode (rendererstate_t *info)
 	return true;
 }
 
+extern int gammaworks;
 
 int GLVID_SetMode (rendererstate_t *info, unsigned char *palette)
 {
@@ -632,7 +630,14 @@ int GLVID_SetMode (rendererstate_t *info, unsigned char *palette)
 	vid.recalc_refdef = 1;
 
 	maindc = GetDC(mainwindow);
-	GetDeviceGammaRamp(maindc, originalgammaramps);
+	if (vid_desktopgamma.value)
+	{
+		HDC hDC = GetDC(GetDesktopWindow());
+		gammaworks = GetDeviceGammaRamp(hDC, originalgammaramps);
+		ReleaseDC(GetDesktopWindow(), hDC);
+	}
+	else
+		gammaworks = GetDeviceGammaRamp(maindc, originalgammaramps);
 
 	TRACE(("dbg: GLVID_SetMode: attaching gl\n"));
 	if (!VID_AttachGL(info))
@@ -930,25 +935,25 @@ void	GLVID_SetPalette (unsigned char *palette)
 	}
 }
 
-extern gammaworks;
-
 void	GLVID_ShiftPalette (unsigned char *palette)
 {
 	extern	unsigned short ramps[3][256];
-	
-//	VID_SetPalette (palette);
 
 	if (ActiveApp && vid_hardwaregamma.value)	//this is needed because ATI drivers don't work properly (or when task-switched out).
 	{
 		if (gammaworks)
 		{	//we have hardware gamma applied - if we're doing a BF, we don't want to reset to the default gamma (yuck)
-			SetDeviceGammaRamp (maindc, ramps);
+			if (vid_desktopgamma.value)
+			{
+				HDC hDC = GetDC(GetDesktopWindow());
+				gammaworks = SetDeviceGammaRamp (hDC, ramps);
+				ReleaseDC(GetDesktopWindow(), hDC);
+			}
+			else
+				gammaworks = SetDeviceGammaRamp (maindc, ramps);
 			return;
 		}
-		gammaworks = !!SetDeviceGammaRamp (maindc, ramps);
 	}
-	else
-		gammaworks = false;
 }
 
 
@@ -960,7 +965,15 @@ void VID_SetDefaultMode (void)
 
 void	GLVID_Shutdown (void)
 {
-	SetDeviceGammaRamp(maindc, originalgammaramps);
+	if (vid_desktopgamma.value)
+	{
+		HDC hDC = GetDC(GetDesktopWindow());
+		SetDeviceGammaRamp(hDC, originalgammaramps);
+		ReleaseDC(GetDesktopWindow(), hDC);
+	}
+	else
+		SetDeviceGammaRamp(maindc, originalgammaramps);
+
 	gammaworks = false;
 
 	VID_UnSetMode();
@@ -1124,8 +1137,14 @@ void GLAppActivate(BOOL fActive, BOOL minimize)
 
 		v_gamma.modified = true;	//wham bam thanks.
 
-		SetDeviceGammaRamp(maindc, originalgammaramps);
-		gammaworks = false;
+		if (vid_desktopgamma.value)
+		{
+			HDC hDC = GetDC(GetDesktopWindow());
+			gammaworks = SetDeviceGammaRamp (hDC, originalgammaramps);
+			ReleaseDC(GetDesktopWindow(), hDC);
+		}
+		else
+			gammaworks = SetDeviceGammaRamp(maindc, originalgammaramps);
 	}
 }
 

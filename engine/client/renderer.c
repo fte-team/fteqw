@@ -71,7 +71,6 @@ cvar_t r_stainfadeammount = {"r_stainfadeammount", "1"};
 
 cvar_t		_windowed_mouse = {"_windowed_mouse","1"};
 cvar_t		vid_wait = {"vid_wait","0"};
-cvar_t		vid_nopageflip = {"vid_nopageflip","0", NULL, CVAR_ARCHIVE|CVAR_RENDERERLATCH};
 cvar_t		_vid_wait_override = {"_vid_wait_override", "0", NULL, CVAR_ARCHIVE|CVAR_RENDERERLATCH};
 
 static cvar_t		vid_stretch = {"vid_stretch","1", NULL, CVAR_ARCHIVE|CVAR_RENDERERLATCH};
@@ -235,6 +234,7 @@ cvar_t	gl_lerpimages = {"gl_lerpimages", "1"};
 extern cvar_t r_waterlayers;
 cvar_t			gl_triplebuffer = {"gl_triplebuffer", "1", NULL, CVAR_ARCHIVE};
 cvar_t			vid_hardwaregamma = {"vid_hardwaregamma", "1", NULL, CVAR_ARCHIVE};
+cvar_t			vid_desktopgamma = {"vid_desktopgamma", "0", NULL, CVAR_ARCHIVE|CVAR_RENDERERLATCH};
 
 void GLRenderer_Init(void)
 {
@@ -243,6 +243,7 @@ void GLRenderer_Init(void)
 	Cvar_Register (&gl_triplebuffer, GLRENDEREROPTIONS);
 
 	Cvar_Register (&vid_hardwaregamma, GLRENDEREROPTIONS);
+	Cvar_Register (&vid_desktopgamma, GLRENDEREROPTIONS);
 
 //renderer
 	Cvar_Register (&r_novis, GLRENDEREROPTIONS);
@@ -441,7 +442,6 @@ void Renderer_Init(void)
 
 	//but register ALL vid_ commands.
 	Cvar_Register (&vid_wait, VIDCOMMANDGROUP);
-	Cvar_Register (&vid_nopageflip, VIDCOMMANDGROUP);
 	Cvar_Register (&_vid_wait_override, VIDCOMMANDGROUP);
 	Cvar_Register (&vid_stretch, VIDCOMMANDGROUP);
 	Cvar_Register (&_windowed_mouse, VIDCOMMANDGROUP);

@@ -746,6 +746,7 @@ void SV_Modellist_f (void)
 {
 	int i;
 	unsigned n;
+	int maxclientsupportedmodels;
 
 	if (host_client->state != cs_connected)
 	{
@@ -790,6 +791,10 @@ void SV_Modellist_f (void)
 		MSG_WriteByte (&host_client->netchan.message, n);
 	}
 
+	maxclientsupportedmodels = 256;
+	if (host_client->fteprotocolextensions & PEXT_MODELDBL)
+		maxclientsupportedmodels *= 2;
+
 	if (sv.democausesreconnect)	//read the list from somewhere else
 	{
 		for (i = 1+n;
@@ -803,13 +808,21 @@ void SV_Modellist_f (void)
 	else
 	{
 		for (i = 1+n;
-			sv.model_precache[i] && (((n&255)==0)||(host_client->netchan.message.cursize < (MAX_QWMSGLEN/2)));	//make sure we don't send a 0 next...
-			i++, n++)
+			i < maxclientsupportedmodels && sv.model_precache[i] && host_client->netchan.message.cursize < (MAX_QWMSGLEN/2);	//make sure we don't send a 0 next...
+			i++)
+		{
 			MSG_WriteString (&host_client->netchan.message, sv.model_precache[i]);
+			if (((n&255)==255) && n != i-1)
+				break;
+		}
+		n = i-1;
 
 		if (!sv.model_precache[i])
 			n = 0;
 	}
+
+	if (i == maxclientsupportedmodels)
+		n = 0;	//doh!
 
 	MSG_WriteByte (&host_client->netchan.message, 0);
 
@@ -908,7 +921,7 @@ void SV_PreSpawn_f (void)
 				MSG_WriteByte(&host_client->netchan.message, svc_spawnstatic2);
 				SV_WriteDelta(&from, state, &host_client->netchan.message, true, host_client->fteprotocolextensions);
 			}
-			else
+			else if (state->modelindex < 256)
 			{
 				MSG_WriteByte(&host_client->netchan.message, svc_spawnstatic);
 
@@ -961,13 +974,13 @@ void SV_PreSpawn_f (void)
 				MSG_WriteByte(&host_client->netchan.message, svc_spawnbaseline2);
 				SV_WriteDelta(&from, state, &host_client->netchan.message, true, host_client->fteprotocolextensions);
 			}
-			else
+			else if (state->modelindex < 256)
 			{
 				MSG_WriteByte(&host_client->netchan.message, svc_spawnbaseline);
 
 				MSG_WriteShort (&host_client->netchan.message, buf - bufs - sv.numextrastatics);
 
-				MSG_WriteByte (&host_client->netchan.message, state->modelindex&255);
+				MSG_WriteByte (&host_client->netchan.message, state->modelindex);
 
 				MSG_WriteByte (&host_client->netchan.message, state->frame);
 				MSG_WriteByte (&host_client->netchan.message, (int)state->colormap);
@@ -1584,37 +1597,37 @@ qboolean SV_AllowDownload (char *name)
 	if (strchr(name, '\\'))	//no windows paths - grow up lame windows users.
 		return false;
 
-	if (strncmp(name,	"maps/", 5) == 0 && (allow_download_maps.value))
-		return true;
+	if (strncmp(name,	"maps/", 5) == 0)
+		return !!allow_download_maps.value;
 
 	//skins?
-	if (strncmp(name,	"skins/", 6) == 0 && allow_download_skins.value)
-		return true;
+	if (strncmp(name,	"skins/", 6) == 0)
+		return !!allow_download_skins.value;
 	//models
 	if ((strncmp(name,	"progs/", 6) == 0||
-		strncmp(name,	"models/", 7) == 0) && allow_download_models.value)
-		return true;
+		strncmp(name,	"models/", 7) == 0))
+		return !!allow_download_models.value;
 	//sound
-	if (strncmp(name,	"sound/", 6) == 0 && allow_download_sounds.value)
-		return true;
+	if (strncmp(name,	"sound/", 6) == 0)
+		return !!allow_download_sounds.value;
 	//demos
-	if (strncmp(name,	"demos/", 6) == 0 && allow_download_demos.value)
-		return true;
+	if (strncmp(name,	"demos/", 6) == 0)
+		return !!allow_download_demos.value;
 
 	//textures
-	if (strncmp(name,	"texures/", 8) == 0 && allow_download_textures.value)
-		return true;
+	if (strncmp(name,	"texures/", 8) == 0)
+		return !!allow_download_textures.value;
 
 	//wads
-	if (strncmp(name,	"wads/", 5) == 0 && allow_download_wads.value)
-		return true;
-	if (!strcmp(".wad", COM_FileExtension(name)) && allow_download_wads.value)
-		return true;
+	if (strncmp(name,	"wads/", 5) == 0)
+		return !!allow_download_wads.value;
+	if (!strcmp(".wad", COM_FileExtension(name)))
+		return !!allow_download_wads.value;
 
 	//pk3s.
-	if (!strcmp(".pk3", COM_FileExtension(name)) && allow_download_pk3s.value)
+	if (!strcmp(".pk3", COM_FileExtension(name)))
 		if (strnicmp(name, "pak", 3))	//don't give out q3 pk3 files.
-			return true;
+			return !!allow_download_pk3s.value;
 
 	//root of gamedir
 	if (!strchr(name, '/') && !allow_download_root.value)

@@ -767,6 +767,7 @@ void SV_StartSound (edict_t *entity, int channel, char *sample, int volume,
 	vec3_t		origin;
 	qboolean	use_phs;
 	qboolean	reliable = false;
+	int requiredextensions = 0;
 
 	if (volume < 0 || volume > 255)
 	{
@@ -850,6 +851,11 @@ void SV_StartSound (edict_t *entity, int channel, char *sample, int volume,
 	for (i=0 ; i<3 ; i++)
 		MSG_WriteCoord (&sv.multicast, origin[i]);
 
+	if (ent > 512)
+		requiredextensions |= PEXT_ENTITYDBL;
+	if (ent > 1024)
+		requiredextensions |= PEXT_ENTITYDBL2;
+
 #ifdef NQPROT
 	MSG_WriteByte (&sv.nqmulticast, svc_sound);
 	MSG_WriteByte (&sv.nqmulticast, field_mask);
@@ -863,9 +869,9 @@ void SV_StartSound (edict_t *entity, int channel, char *sample, int volume,
 		MSG_WriteCoord (&sv.nqmulticast, origin[i]);
 #endif
 	if (use_phs)
-		SV_MulticastProtExt(origin, reliable ? MULTICAST_PHS_R : MULTICAST_PHS, entity->v->dimension_seen, 0, 0);
+		SV_MulticastProtExt(origin, reliable ? MULTICAST_PHS_R : MULTICAST_PHS, entity->v->dimension_seen, requiredextensions, 0);
 	else
-		SV_MulticastProtExt(origin, reliable ? MULTICAST_ALL_R : MULTICAST_ALL, entity->v->dimension_seen, 0, 0);
+		SV_MulticastProtExt(origin, reliable ? MULTICAST_ALL_R : MULTICAST_ALL, entity->v->dimension_seen, requiredextensions, 0);
 }
 
 /*
@@ -1240,6 +1246,16 @@ void SV_UpdateClientStats (client_t *client, int pnum)
 
 	stats[STAT_HEALTH] = ent->v->health;
 	stats[STAT_WEAPON] = SV_ModelIndex(PR_GetString(svprogfuncs, ent->v->weaponmodel));
+	if (host_client->fteprotocolextensions & PEXT_MODELDBL)
+	{
+		if ((unsigned)stats[STAT_WEAPON] >= 512)
+			stats[STAT_WEAPON] = 0;
+	}
+	else
+	{
+		if ((unsigned)stats[STAT_WEAPON] >= 256)
+			stats[STAT_WEAPON] = 0;
+	}
 	stats[STAT_AMMO] = ent->v->currentammo;
 	stats[STAT_ARMOR] = ent->v->armorvalue;
 	stats[STAT_SHELLS] = ent->v->ammo_shells;

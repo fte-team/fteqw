@@ -3119,6 +3119,8 @@ void SV_InitLocal (void)
 	svs.fteprotocolextensions |= PEXT_SPAWNSTATIC2;
 	svs.fteprotocolextensions |= PEXT_CUSTOMTEMPEFFECTS;
 	svs.fteprotocolextensions |= PEXT_256PACKETENTITIES;
+	svs.fteprotocolextensions |= PEXT_ENTITYDBL;
+	svs.fteprotocolextensions |= PEXT_ENTITYDBL2;
 //	svs.fteprotocolextensions |= PEXT_64PLAYERS;
 	svs.fteprotocolextensions |= PEXT_SHOWPIC;
 	svs.fteprotocolextensions |= PEXT_SETATTACHMENT;

@@ -712,11 +712,31 @@ void SV_EmitPacketEntities (client_t *client, packet_entities_t *to, sizebuf_t *
 		if (newnum > oldnum)
 		{	// the old entity isn't present in the new message
 //Con_Printf ("remove %i\n", oldnum);
-			MSG_WriteShort (msg, oldnum | U_REMOVE);
+			if (oldnum > 512)
+			{
+				//yup, this is expensive.
+				MSG_WriteShort (msg, oldnum | U_REMOVE|U_MOREBITS);
+				MSG_WriteByte (msg, U_EVENMORE);
+				if (oldnum >= 1024)
+				{
+					if (oldnum >= 1024+512)
+						MSG_WriteByte (msg, U_ENTITYDBL2);
+					else
+						MSG_WriteByte (msg, U_ENTITYDBL|U_ENTITYDBL2);
+				}
+				else
+					MSG_WriteByte (msg, U_ENTITYDBL);
+			}
+			else
+				MSG_WriteShort (msg, oldnum | U_REMOVE);
+
 			oldindex++;
 			continue;
 		}
 	}
+
+	if (newindex > to->max_entities)
+		Con_Printf("Exceeded max entities\n");
 
 	MSG_WriteShort (msg, 0);	// end of packetentities
 }
@@ -2361,10 +2381,20 @@ void SV_WriteEntitiesToClient (client_t *client, sizebuf_t *msg, qboolean ignore
 
 		//the entity would mess up the client and possibly disconnect them.
 		//FIXME: add an option to drop clients... entity fog could be killed in this way.
-		if (e >= 512 && !(client->fteprotocolextensions & PEXT_ENTITYDBL))
-			continue;
-		if (e >= 1024 && !(client->fteprotocolextensions & PEXT_ENTITYDBL2))
-			continue;
+		if (e >= 512)
+		{
+			if (!(client->fteprotocolextensions & PEXT_ENTITYDBL))
+			{
+				continue;
+			}
+			else if (e >= 1024)
+			{
+				if (!(client->fteprotocolextensions & PEXT_ENTITYDBL2))
+					continue;
+				else if (e >= 2048)
+					continue;
+			}
+		}
 		if (ent->v->modelindex >= 256 && !(client->fteprotocolextensions & PEXT_MODELDBL))
 			continue;
 

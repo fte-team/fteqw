@@ -355,6 +355,8 @@ void CL_SendConnectPacket (
 	fteprotextsupported |= PEXT_HEXEN2;
 	fteprotextsupported |= PEXT_CUSTOMTEMPEFFECTS;
 	fteprotextsupported |= PEXT_256PACKETENTITIES;
+	fteprotextsupported |= PEXT_ENTITYDBL;
+	fteprotextsupported |= PEXT_ENTITYDBL2;
 //	fteprotextsupported |= PEXT_64PLAYERS;
 	fteprotextsupported |= PEXT_SHOWPIC;
 	fteprotextsupported |= PEXT_SETATTACHMENT;

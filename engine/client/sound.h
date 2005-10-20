@@ -155,7 +155,7 @@ void SNDVC_MicInput(qbyte *buffer, int samples, int freq, int width);
 // User-setable variables
 // ====================================================================
 
-#define	MAX_CHANNELS			128
+#define	MAX_CHANNELS			256
 #define	MAX_DYNAMIC_CHANNELS	8
 
 

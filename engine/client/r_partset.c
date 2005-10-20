@@ -701,6 +701,16 @@ char *particle_set_spikeset =
 "scalefactor 0.8\n"
 "}\n" 
 
+"r_part pe_pointfile\n"
+"{\n" 
+"texture \"particles/quake\"\n"
+"count 1\n"
+"scale 50\n"
+"die 30\n"
+"alphachange 0\n"
+"rgb 255 255 0\n"
+"}\n" 
+
 "r_effect \"progs/s_explod.spr\" explodesprite 1\n"
 "r_effect \"progs/flame.spr\" explodesprite 1\n"
 
@@ -791,6 +801,19 @@ char *particle_set_faithful =
 "rampindex 5 0.5\n"
 "rampindex 4 0.333\n"
 "rampindex 3 0.167\n"
+"spawnorg 3\n"
+"gravity -40\n"
+"}\n" 
+
+"r_part t_altrocket\n"
+"{\n" 
+"texture \"particles/quake\"\n"
+"step 3\n"
+"scale 4\n"
+"die 1.2\n"
+"diesubrand 0.6\n"
+"rampmode absolute\n"
+"rampindexlist 109 107 6 5 4 3\n"
 "spawnorg 3\n"
 "gravity -40\n"
 "}\n" 
@@ -979,6 +1002,16 @@ char *particle_set_faithful =
 "diesubrand 0.6\n"
 "spawnorg 3\n"
 "gravity -40\n"
+"}\n" 
+
+"r_part pe_pointfile\n"
+"{\n" 
+"texture \"particles/quake\"\n"
+"count 1\n"
+"scale 4\n"
+"die 30\n"
+"alphachange 0\n"
+"rgb 255 255 0\n"
 "}\n";
 
 char *particle_set_highfps =
@@ -1235,6 +1268,16 @@ char *particle_set_highfps =
 "scale 8\n"
 "veladd 15\n"
 "spawnorg 1\n"
+"}\n" 
+
+"r_part pe_pointfile\n"
+"{\n" 
+"texture \"particles/quake\"\n"
+"count 1\n"
+"scale 50\n"
+"die 30\n"
+"alphachange 0\n"
+"rgb 255 255 0\n"
 "}\n";
 
 char *particle_set_minimal =

@@ -1500,8 +1500,16 @@ void GLDraw_Pic (int x, int y, mpic_t *pic)
 	draw_mesh_st[3][0] = gl->sl;
 	draw_mesh_st[3][1] = gl->th;
 
-	qglDisable(GL_ALPHA_TEST);
-	qglEnable(GL_BLEND);
+	if (gl_blend2d.value)
+	{
+		qglDisable(GL_ALPHA_TEST);
+		qglEnable(GL_BLEND);
+	}
+	else
+	{
+		qglEnable(GL_ALPHA_TEST);
+		qglDisable(GL_BLEND);
+	}
 
 	GL_DrawMesh(&draw_mesh, gl->texnum);
 }

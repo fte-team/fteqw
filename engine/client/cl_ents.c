@@ -637,7 +637,11 @@ void CL_ParsePacketEntities (qboolean delta)
 		{	// new from baseline
 //Con_Printf ("baseline %i\n", newnum);
 			if (word & U_REMOVE)
-			{
+			{	//really read the extra entity number if required
+				if (word & U_MOREBITS)
+					if (MSG_ReadByte() & U_EVENMORE)
+						MSG_ReadByte();
+
 				if (full)
 				{
 					cl.validsequence = 0;
@@ -667,6 +671,9 @@ void CL_ParsePacketEntities (qboolean delta)
 			}
 			if (word & U_REMOVE)
 			{
+				if (word & U_MOREBITS)
+					if (MSG_ReadByte() & U_EVENMORE)
+						MSG_ReadByte();
 				oldindex++;
 				continue;
 			}

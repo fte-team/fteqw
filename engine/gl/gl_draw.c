@@ -1307,7 +1307,10 @@ void GLDraw_Crosshair(void)
 	}
 	GL_TexEnv(GL_MODULATE);
 
-	chrebuild = chmodified != crosshaircolor.modified || crosshairimage.modified || crosshair.modified || crosshair.value >= FIRSTANIMATEDCROSHAIR;
+	chrebuild = chmodified != crosshaircolor.modified || 
+		crosshair.modified || 
+		(*crosshairimage.string && crosshairimage.modified) ||
+		crosshair.value >= FIRSTANIMATEDCROSHAIR;
 
 	if (chrebuild)
 	{
@@ -1343,7 +1346,7 @@ void GLDraw_Crosshair(void)
 		} // i contains the crosshair color
 		c2 = c;
 
-		VectorScale(chcolor, 1/255, chcolor); // scale 0-255 to 0-1 range
+		VectorScale(chcolor, 1/255.0, chcolor); // scale 0-255 to 0-1 range
 		chmodified = crosshaircolor.modified;
 	}
 

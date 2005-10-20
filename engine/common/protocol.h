@@ -435,6 +435,7 @@ enum clcq2_ops_e
 #ifdef PEXT_MODELDBL
 #define U_MODELDBL	(1<<3)	//extra bit for modelindexes
 #endif
+#define U_UNUSED1	(1<<4)
 //FIXME: IMPLEMENT
 #ifdef PEXT_ENTITYDBL
 #define U_ENTITYDBL	(1<<5)	//use an extra qbyte for origin parts, cos one of them is off
@@ -447,9 +448,7 @@ enum clcq2_ops_e
 #define U_DRAWFLAGS	(1<<8)	//use an extra qbyte for origin parts, cos one of them is off
 #define U_ABSLIGHT	(1<<9)	//Force a lightlevel
 
-#ifdef PEXT_BIGORIGINS
-#define U_ORIGINDBL	(1<<10)	//use an extra qbyte for origin parts, cos one of them is off
-#endif
+#define U_UNUSED2	(1<<10)	//use an extra qbyte for origin parts, cos one of them is off
 
 #define U_DPFLAGS (1<<11)
 #define U_TAGINFO (1<<12)

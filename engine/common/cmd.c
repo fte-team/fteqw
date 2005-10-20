@@ -2698,7 +2698,7 @@ void Cmd_WriteConfig_f(void)
 			Con_Printf ("Couldn't write config %s\n",filename);
 			return;
 		}
-		filename = va("%s/%s.cfg",com_gamedir, filename);
+		filename = va("%s/fte/%s.cfg",com_basedir, filename);
 	}
 	else
 	{
@@ -2708,7 +2708,7 @@ void Cmd_WriteConfig_f(void)
 			return;
 		}
 
-		filename = va("%s/configs/%s.cfg",com_gamedir, filename);
+		filename = va("%s/fte/configs/%s.cfg",com_basedir, filename);
 	}
 	COM_DefaultExtension(filename, ".cfg");
 	COM_CreatePath(filename);

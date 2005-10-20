@@ -2203,6 +2203,8 @@ void R_DrawMeshBumpmap(mesh_t *mesh, galiastexnum_t *skin, vec3_t lightdir)
 	else
 		qglCullFace ( GL_FRONT );
 
+	qglEnable(GL_BLEND);
+
 	qglVertexPointer(3, GL_FLOAT, 0, mesh->xyz_array);
 	qglEnableClientState( GL_VERTEX_ARRAY );
 
@@ -2294,7 +2296,7 @@ void R_DrawMeshBumpmap(mesh_t *mesh, galiastexnum_t *skin, vec3_t lightdir)
 
 void R_DrawGAliasModelLighting (entity_t *e, vec3_t lightpos, vec3_t colours, float radius)
 {
-#if 1
+#if 0	//glitches, no attenuation... :(
 
 	model_t *clmodel = e->model;
 	vec3_t mins, maxs;
@@ -2303,8 +2305,11 @@ void R_DrawGAliasModelLighting (entity_t *e, vec3_t lightpos, vec3_t colours, fl
 	galiastexnum_t *tex;
 	mesh_t mesh;
 	int surfnum;
+	extern cvar_t r_nolightdir;
 
 	if (e->flags & Q2RF_VIEWERMODEL)
+		return;
+	if (r_nolightdir.value)	//are you crazy?
 		return;
 
 	//Total insanity with r_shadows 2...
@@ -4015,7 +4020,7 @@ void GL_LoadQ3Model(model_t *mod, void *buffer)
 #ifndef SERVERONLY
 		if (LittleLong(surf->numShaders)+externalskins)
 		{
-#ifndef Q3SHADERS
+#if 1//ndef Q3SHADERS
 			char name[1024];
 			extern int gl_bumpmappingpossible;
 #endif

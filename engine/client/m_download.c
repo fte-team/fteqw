@@ -315,13 +315,13 @@ static void M_Download_Draw (int x, int y, struct menucustom_s *c, struct menu_s
 			Draw_Character (x+20, y, 129);
 
 		if (pn == info->highlightednum)
-			Draw_Alt_String(x+40, y, p->name);
+			Draw_Alt_String(x+48, y, p->name);
 		else
-			Draw_String(x+40, y, p->name);
+			Draw_String(x+48, y, p->name);
 
 		if (p->flags & DPF_DISPLAYVERSION)
 		{
-			Draw_String(x+40+strlen(p->name)*8, y, va(" (%i.%i)", p->version/1000, p->version%1000));
+			Draw_String(x+48+strlen(p->name)*8, y, va(" (%i.%i)", p->version/1000, p->version%1000));
 		}
 	}
 }

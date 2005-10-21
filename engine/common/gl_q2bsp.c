@@ -3641,7 +3641,11 @@ q2cmodel_t *CM_LoadMap (char *name, char *filein, qboolean clientload, unsigned 
 
 			break;
 		default:
+#ifdef SERVERONLY
+			SV_Error("Cannot load q3bsps with the current renderer (only dedicated and opengl renderer)\n");
+#else
 			Host_EndGame("Cannot load q3bsps with the current renderer (only dedicated and opengl renderer)\n");
+#endif
 		}
 		break;
 #endif

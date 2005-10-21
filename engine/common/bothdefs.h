@@ -193,6 +193,10 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 	#undef Q2SERVER
 	#undef Q3SERVER
 	#undef WEBSERVER
+
+	//this is regretable, but the csqc/ssqc needs a cleanup to move common builtins to a common c file.
+	#undef CSQC_DAT
+	#undef MENU_DAT
 #endif
 
 //remove any options that depend upon GL.

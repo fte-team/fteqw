@@ -31,11 +31,14 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 #endif
 
 #ifndef NODIRECTX
-#include <dinput.h>
 
 #ifdef _MSC_VER
 #pragma comment (lib, "dxguid.lib")
+#else
+#define DIRECTINPUT_VERSION 0x0500
 #endif
+
+#include <dinput.h>
 
 #define DINPUT_BUFFERSIZE           16
 #define iDirectInputCreate(a,b,c,d)	pDirectInputCreate(a,b,c,d)

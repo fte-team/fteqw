@@ -1,7 +1,7 @@
 [Project]
 FileName=FTEQuake.dev
 Name=FTEQuake
-UnitCount=133
+UnitCount=136
 Type=0
 Ver=1
 ObjFiles=""
@@ -16,7 +16,7 @@ Linker=-lwsock32_@@_-lws2_32_@@_-lwinmm_@@_-ldxguid_@@_-lole32_@@_
 IsCpp=0
 Icon=
 ExeOutput=../..
-ObjectOutput=../../build
+ObjectOutput=build
 OverrideOutput=0
 OverrideOutputName=FTEQuake.exe
 HostApplication=
@@ -211,7 +211,7 @@ BuildCmd=
 Major=2
 Minor=5
 Release=5
-Build=47
+Build=62
 LanguageID=2057
 CharsetID=1252
 CompanyName=
@@ -1374,9 +1374,9 @@ OverrideBuildCmd=0
 BuildCmd=
 
 [Unit134]
-FileName=..\nqnet\net_vcr.c
+FileName=..\common\fs.c
 CompileCpp=0
-Folder=nq
+Folder=Common
 Compile=1
 Link=1
 Priority=1000
@@ -1384,9 +1384,9 @@ OverrideBuildCmd=0
 BuildCmd=
 
 [Unit135]
-FileName=..\nqnet\net_loop.c
+FileName=..\common\log.c
 CompileCpp=0
-Folder=nq
+Folder=Common
 Compile=1
 Link=1
 Priority=1000
@@ -1394,9 +1394,9 @@ OverrideBuildCmd=0
 BuildCmd=
 
 [Unit136]
-FileName=..\nqnet\net_main.c
+FileName=..\gl\gl_heightmap.c
 CompileCpp=0
-Folder=nq
+Folder=gl
 Compile=1
 Link=1
 Priority=1000

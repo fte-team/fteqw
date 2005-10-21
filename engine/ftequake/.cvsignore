@@ -9,3 +9,5 @@ MDebug
 qw
 ftequake___Win32_Release_Dedicated_Server
 MRelease
+DebugServer
+ftequake___Win32_GLRelease

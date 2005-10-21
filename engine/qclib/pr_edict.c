@@ -2671,7 +2671,7 @@ retry:
 			else
 				type = fld16[i].type & ~(DEF_SHARED|DEF_SAVEGLOBAL);
 			if (type != ev_vector)
-				QC_RegisterFieldVar(progfuncs, type, fld16[i].s_name+pr_strings, -1, fld16[i].ofs);
+				QC_RegisterFieldVar(progfuncs, type, fld16[i].s_name+pr_strings-stringadjust, -1, fld16[i].ofs);
 		}
 
 		break;
@@ -2715,7 +2715,7 @@ retry:
 			else
 				type = pr_fielddefs32[i].type & ~(DEF_SHARED|DEF_SAVEGLOBAL);
 			if (type != ev_vector)
-				QC_RegisterFieldVar(progfuncs, type, pr_fielddefs32[i].s_name+pr_strings, -1, pr_fielddefs32[i].ofs);
+				QC_RegisterFieldVar(progfuncs, type, pr_fielddefs32[i].s_name+pr_strings-stringadjust, -1, pr_fielddefs32[i].ofs);
 		}
 		break;
 	default:

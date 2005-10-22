@@ -20,12 +20,12 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 
 #include "qwsvdef.h"
 
-#include "pr_common.h"
-
 #define G_PROG G_FLOAT
 #define Z_QC_TAG 2
 
 #ifndef CLIENTONLY
+
+#include "pr_common.h"
 
 //okay, so these are a quick but easy hack
 void ED_Print (struct progfuncs_s *progfuncs, struct edict_s *ed);

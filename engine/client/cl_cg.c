@@ -1077,6 +1077,12 @@ void CG_Stop (void)
 
 void CG_Start (void)
 {
+	if (cls.protocol != CP_QUAKE3)
+	{	//q3 clients only.
+		CG_Stop();
+		return;
+	}
+
 #ifdef RGLQUAKE
 	if (!Draw_SafeCachePic)	//no renderer loaded
 	{
@@ -1088,12 +1094,6 @@ void CG_Start (void)
 	{	//sorry.
 		CG_Stop();
 		Host_EndGame("Unable to connect to q3 servers without opengl.\n");
-		return;
-	}
-
-	if (cls.protocol != CP_QUAKE3)
-	{	//q3 clients only.
-		CG_Stop();
 		return;
 	}
 

@@ -144,6 +144,12 @@ void R_LoadSkyBox (void)
 			sprintf (pathname, "env/%s%s.pcx", skyname, suf[r_skysideimage[i]]);
 			r_skytexinfo[i].texture = Mod_LoadWall (pathname);	//q2 fall back
 		}
+		if (!r_skytexinfo[i].texture)
+		{
+			// break out and erase skyname so renderer won't render it
+			skyname[0] = '\0';
+			return;
+		}
 	}
 #endif
 }

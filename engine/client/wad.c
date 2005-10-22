@@ -477,6 +477,8 @@ void Mod_ParseInfoFromEntityLump(char *data)	//actually, this should be in the m
 		return;
 #endif
 
+	skyname[0] = '\0';
+
 	if (data)
 	if ((data=COM_Parse(data)))	//read the map info.
 	if (com_token[0] == '{')

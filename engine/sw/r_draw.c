@@ -122,7 +122,7 @@ extern	mtexinfo_t		r_skytexinfo[6];
 
 extern cvar_t gl_skyboxname;
 
-char skyname[128];
+char skyname[64];
 
 /*
 ================
@@ -137,11 +137,11 @@ void R_LoadSkyBox (void)
 	char	pathname[MAX_QPATH];
 	for (i=0 ; i<6 ; i++)
 	{
-		sprintf (pathname, "env/%s%s.tga", skyname, suf[r_skysideimage[i]]);
+		_snprintf (pathname, MAX_QPATH-1, "env/%s%s.tga", skyname, suf[r_skysideimage[i]]);
 		r_skytexinfo[i].texture = Mod_LoadWall (pathname);	//preferable
 		if (!r_skytexinfo[i].texture)
 		{
-			sprintf (pathname, "env/%s%s.pcx", skyname, suf[r_skysideimage[i]]);
+			_snprintf (pathname, MAX_QPATH-1, "env/%s%s.pcx", skyname, suf[r_skysideimage[i]]);
 			r_skytexinfo[i].texture = Mod_LoadWall (pathname);	//q2 fall back
 		}
 		if (!r_skytexinfo[i].texture)

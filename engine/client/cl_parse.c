@@ -3310,7 +3310,7 @@ void CL_PrintChat(player_info_t *plr, char *rawmsg, char *msg, int plrflags)
 
 	// print message
 	con_ormask = CON_STANDARDMASK;
-	if (cl_parsewhitetext.value && (plrflags & TPM_TEAM))
+	if (cl_parsewhitetext.value && (cl_parsewhitetext.value == 1 || (plrflags & TPM_TEAM)))
 	{
 		char *t, *u;
 

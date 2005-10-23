@@ -8,7 +8,7 @@ of the License, or (at your option) any later version.
 
 This program is distributed in the hope that it will be useful,
 but WITHOUT ANY WARRANTY; without even the implied warranty of
-MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
 
 See the GNU General Public License for more details.
 
@@ -142,7 +142,7 @@ void VARGS Con_Printf (const char *fmt, ...)
 	va_start (argptr,fmt);
 	_vsnprintf (msg,sizeof(msg)-1, fmt,argptr);
 	va_end (argptr);
-	
+
 	// add to redirected message
 	if (sv_redirected)
 	{
@@ -169,7 +169,7 @@ void Con_TPrintf (translation_t stringnum, ...)
 		va_start (argptr,stringnum);
 		_vsnprintf (msg,sizeof(msg)-1, fmt,argptr);
 		va_end (argptr);
-	
+
 		if (strlen (msg) + strlen(outputbuf) > sizeof(outputbuf) - 1)
 			SV_FlushRedirect ();
 		strcat (outputbuf, msg);
@@ -204,7 +204,7 @@ void Con_DPrintf (char *fmt, ...)
 	va_start (argptr,fmt);
 	_vsnprintf (msg,sizeof(msg)-1, fmt,argptr);
 	va_end (argptr);
-	
+
 	// add to redirected message
 	if (sv_redirected)
 	{
@@ -274,10 +274,10 @@ void VARGS SV_ClientPrintf (client_t *cl, int level, char *fmt, ...)
 {
 	va_list		argptr;
 	char		string[1024];
-	
+
 	if (level < cl->messagelevel)
 		return;
-	
+
 	va_start (argptr,fmt);
 	_vsnprintf (string,sizeof(string)-1, fmt,argptr);
 	va_end (argptr);
@@ -304,10 +304,10 @@ void VARGS SV_ClientTPrintf (client_t *cl, int level, translation_t stringnum, .
 	va_list		argptr;
 	char		string[1024];
 	char *fmt = languagetext[stringnum][cl->language];
-	
+
 	if (level < cl->messagelevel)
 		return;
-	
+
 	va_start (argptr,stringnum);
 	_vsnprintf (string,sizeof(string)-1, fmt,argptr);
 	va_end (argptr);
@@ -389,7 +389,7 @@ void VARGS SV_BroadcastTPrintf (int level, translation_t stringnum, ...)
 
 	if(strlen(string) >= sizeof(string))
 		Sys_Error("SV_BroadcastPrintf: Buffer stomped\n");
-	
+
 	Sys_Printf ("%s", string);	// print to the console
 
 	for (i=0, cl = svs.clients ; i<MAX_CLIENTS ; i++, cl++)
@@ -431,7 +431,7 @@ void VARGS SV_BroadcastCommand (char *fmt, ...)
 	char		string[1024];
 	int i;
 	client_t *cl;
-	
+
 	if (!sv.state)
 		return;
 	va_start (argptr,fmt);
@@ -717,7 +717,7 @@ void SV_MulticastProtExt(vec3_t origin, multicast_t to, int dimension_mask, int 
 		{
 			MVDWrite_Begin(dem_all, 0, sv.multicast.cursize);
 			SZ_Write((sizebuf_t*)demo.dbuf, sv.multicast.data, sv.multicast.cursize);
-		} else 
+		} else
 			SZ_Write(&demo.datagram, sv.multicast.data, sv.multicast.cursize);
 	}
 
@@ -736,7 +736,7 @@ void VARGS SV_Multicast (vec3_t origin, multicast_t to)
 	SV_MulticastProtExt(origin, to, FULLDIMENSIONMASK, 0, 0);
 }
 
-/*  
+/*
 ==================
 SV_StartSound
 
@@ -750,10 +750,10 @@ An attenuation of 0 will play full volume everywhere in the level.
 Larger attenuations will drop off.  (max 4 attenuation)
 
 ==================
-*/  
+*/
 void SV_StartSound (edict_t *entity, int channel, char *sample, int volume,
     float attenuation)
-{   
+{
 #define	NQSND_VOLUME		(1<<0)		// a qbyte
 #define	NQSND_ATTENUATION	(1<<1)		// a qbyte
 
@@ -792,13 +792,13 @@ void SV_StartSound (edict_t *entity, int channel, char *sample, int volume,
         && sv.sound_precache[sound_num] ; sound_num++)
         if (!strcmp(sample, sv.sound_precache[sound_num]))
             break;
-    
+
     if ( sound_num == MAX_SOUNDS || !sv.sound_precache[sound_num] )
     {
         Con_DPrintf ("SV_StartSound: %s not precacheed\n", sample);
         return;
     }
-    
+
 	ent = NUM_FOR_EDICT(svprogfuncs, entity);
 
 	if ((channel & 8) || !sv_phs.value)	// no PHS flag
@@ -815,7 +815,7 @@ void SV_StartSound (edict_t *entity, int channel, char *sample, int volume,
 //		reliable = true;
 
 	channel = (ent<<3) | channel;
-	
+
 #ifdef NQPROT
 	field_mask = 0;
 	if (volume != DEFAULT_SOUND_PACKET_VOLUME)
@@ -897,7 +897,7 @@ void SV_FindModelNumbers (void)
 #ifdef PEXT_LIGHTUPDATES
 	sv_lightningmodel = -1;
 #endif
-	
+
 	for (i=0 ; i<MAX_MODELS ; i++)
 	{
 		if (!sv.model_precache[i])
@@ -937,7 +937,7 @@ void SV_WriteEntityDataToMessage (client_t *client, sizebuf_t *msg, int pnum)
 		MSG_WriteByte (msg, ent->v->dmg_take);
 		for (i=0 ; i<3 ; i++)
 			MSG_WriteCoord (msg, other->v->origin[i] + 0.5*(other->v->mins[i] + other->v->maxs[i]));
-	
+
 		ent->v->dmg_take = 0;
 		ent->v->dmg_save = 0;
 	}
@@ -1037,7 +1037,7 @@ void SV_WriteClientdataToMessage (client_t *client, sizebuf_t *msg)
 
 	if (ent->v->view_ofs[2] != DEFAULT_VIEWHEIGHT)
 		bits |= SU_VIEWHEIGHT;
-		
+
 //	if (ent->v->idealpitch)
 //		bits |= SU_IDEALPITCH;
 
@@ -1049,16 +1049,16 @@ void SV_WriteClientdataToMessage (client_t *client, sizebuf_t *msg)
 //		items = (int)ent->v->items | ((int)val->_float << 23);
 //	else
 		items = (int)ent->v->items | ((int)pr_global_struct->serverflags << 28);
-	
+
 
 	bits |= SU_ITEMS;
-	
+
 	if ( (int)ent->v->flags & FL_ONGROUND)
 		bits |= SU_ONGROUND;
-	
+
 	if ( ent->v->waterlevel >= 2)
 		bits |= SU_INWATER;
-	
+
 	for (i=0 ; i<3 ; i++)
 	{
 //		if (ent->v->punchangle[i])
@@ -1066,7 +1066,7 @@ void SV_WriteClientdataToMessage (client_t *client, sizebuf_t *msg)
 		if (ent->v->velocity[i])
 			bits |= (SU_VELOCITY1<<i);
 	}
-	
+
 	if (ent->v->weaponframe)
 		bits |= SU_WEAPONFRAME;
 
@@ -1120,15 +1120,15 @@ void SV_WriteClientdataToMessage (client_t *client, sizebuf_t *msg)
 	}
 	if (bits & SU_WEAPON)
 		MSG_WriteByte (msg, SV_ModelIndex(ent->v->weaponmodel + svprogfuncs->stringtable));
-	
+
 	MSG_WriteShort (msg, ent->v->health);
 	MSG_WriteByte (msg, ent->v->currentammo);
 	MSG_WriteByte (msg, ent->v->ammo_shells);
 	MSG_WriteByte (msg, ent->v->ammo_nails);
 	MSG_WriteByte (msg, ent->v->ammo_rockets);
 	MSG_WriteByte (msg, ent->v->ammo_cells);
-	
-	//if (other && other->v->weapon)		
+
+	//if (other && other->v->weapon)
 		//MSG_WriteByte (msg, other->v->weapon);
 	//else
 	//{
@@ -1238,7 +1238,7 @@ void SV_UpdateClientStats (client_t *client, int pnum)
 
 	ent = client->edict;
 	memset (stats, 0, sizeof(stats));
-	
+
 	// if we are a spectator and we are tracking a player, we get his stats
 	// so our status bar reflects his
 	if (client->spectator && client->spec_track > 0)
@@ -1276,7 +1276,7 @@ void SV_UpdateClientStats (client_t *client, int pnum)
 		stats[STAT_ITEMS] = (int)ent->v->items | ((int)pr_global_struct->serverflags << 28);
 
 	stats[STAT_VIEWHEIGHT] = ent->v->view_ofs[2];
-#ifdef PEXT_VIEW2	
+#ifdef PEXT_VIEW2
 	if (ent->v->view2)
 		stats[STAT_VIEW2] = NUM_FOR_EDICT(svprogfuncs, PROG_TO_EDICT(svprogfuncs, ent->v->view2));
 	else
@@ -1336,7 +1336,7 @@ void SV_UpdateClientStats (client_t *client, int pnum)
 			}
 			else
 #endif
-			
+
 			if (pnum)
 			{
 				if (stats[i] >=0 && stats[i] <= 255)
@@ -1467,7 +1467,7 @@ client_t *SV_SplitClientDest(client_t *client, qbyte first, int size)
 		ClientReliableWrite_Begin (client, first, size);
 		return client;
 	}
-}		
+}
 /*
 =======================
 SV_UpdateToReliableMessages
@@ -1498,7 +1498,7 @@ void SV_UpdateToReliableMessages (void)
 					MSG_WriteByte (&sv.reliable_datagram, i);
 					MSG_WriteString (&sv.reliable_datagram, "topcolor");
 					MSG_WriteString (&sv.reliable_datagram, Info_ValueForKey(host_client->userinfo, "topcolor"));
-					
+
 					MSG_WriteByte (&sv.reliable_datagram, svc_setinfo);
 					MSG_WriteByte (&sv.reliable_datagram, i);
 					MSG_WriteString (&sv.reliable_datagram, "bottomcolor");
@@ -1589,7 +1589,7 @@ void SV_UpdateToReliableMessages (void)
 				extern cvar_t sv_gravity;
 				// maxspeed/entgravity changes
 				ent = host_client->edict;
-				
+
 				newval = ent->v->gravity*sv_gravity.value;
 				if (progstype != PROG_QW)
 				{
@@ -1599,8 +1599,12 @@ void SV_UpdateToReliableMessages (void)
 
 				if (host_client->entgravity != newval)
 				{
-					sp = SV_SplitClientDest(host_client, svc_entgravity, 5);
-					ClientReliableWrite_Float(sp, newval/movevars.gravity);	//lie to the client in a cunning way
+					if (ISQWCLIENT(host_client))
+					{
+						Con_Printf("svc_entgravity\n");
+						sp = SV_SplitClientDest(host_client, svc_entgravity, 5);
+						ClientReliableWrite_Float(sp, newval/movevars.gravity);	//lie to the client in a cunning way
+					}
 					host_client->entgravity = newval;
 				}
 				newval = ent->v->maxspeed;
@@ -1617,29 +1621,31 @@ void SV_UpdateToReliableMessages (void)
 		#endif
 				if (host_client->maxspeed != newval)
 				{	//MSVC can really suck at times (optimiser bug)
-
-					if (host_client->controller)
-					{	//this is a slave client.
-						//find the right number and send.
-						int pnum = 0;
-						client_t *sp;
-						for (sp = host_client->controller; sp; sp = sp->controlled)
-						{
-							if (sp == host_client)
-								break;
-							pnum++;
-						}
-						sp = host_client->controller;
-
-						ClientReliableWrite_Begin (sp, svc_choosesplitclient, 7);
-						ClientReliableWrite_Byte (sp, pnum);
-						ClientReliableWrite_Byte (sp, svc_maxspeed);
-						ClientReliableWrite_Float(sp, newval);
-					}
-					else
+					if (ISQWCLIENT(host_client))
 					{
-						ClientReliableWrite_Begin(host_client, svc_maxspeed, 5);
-						ClientReliableWrite_Float(host_client, newval);
+						if (host_client->controller)
+						{	//this is a slave client.
+							//find the right number and send.
+							int pnum = 0;
+							client_t *sp;
+							for (sp = host_client->controller; sp; sp = sp->controlled)
+							{
+								if (sp == host_client)
+									break;
+								pnum++;
+							}
+							sp = host_client->controller;
+
+							ClientReliableWrite_Begin (sp, svc_choosesplitclient, 7);
+							ClientReliableWrite_Byte (sp, pnum);
+							ClientReliableWrite_Byte (sp, svc_maxspeed);
+							ClientReliableWrite_Float(sp, newval);
+						}
+						else
+						{
+							ClientReliableWrite_Begin(host_client, svc_maxspeed, 5);
+							ClientReliableWrite_Float(host_client, newval);
+						}
 					}
 					host_client->maxspeed = newval;
 				}
@@ -1716,13 +1722,13 @@ void SV_UpdateToReliableMessages (void)
 		}
 	}
 
-	SZ_Clear (&sv.reliable_datagram);	
+	SZ_Clear (&sv.reliable_datagram);
 	SZ_Clear (&sv.datagram);
 #ifdef NQPROT
 	SZ_Clear (&sv.nqreliable_datagram);
 	SZ_Clear (&sv.nqdatagram);
 #endif
-	SZ_Clear (&sv.q2reliable_datagram);	
+	SZ_Clear (&sv.q2reliable_datagram);
 	SZ_Clear (&sv.q2datagram);
 }
 
@@ -1818,7 +1824,7 @@ void SV_SendClientMessages (void)
 				// it'll fit
 				SZ_Write(&c->netchan.message, c->backbuf_data[0],
 					c->backbuf_size[0]);
-				
+
 				//move along, move along
 				for (j = 1; j < c->num_backbuf; j++)
 				{
@@ -1880,7 +1886,7 @@ void SV_SendClientMessages (void)
 			SV_SendClientDatagram (c);
 		else
 			Netchan_Transmit (&c->netchan, 0, NULL, SV_RateForClient(c));	// just update reliable
-			
+
 	}
 
 	SV_CleanupEnts();
@@ -1946,7 +1952,7 @@ void SV_SendMVDMessage(void)
 	msg.cursize = 0;
 	msg.allowoverflow = true;
 	msg.overflowed = false;
-	
+
 	for (i=0, c = svs.clients ; i<MAX_CLIENTS ; i++, c++)
 	{
 		if (c->state != cs_spawned)
@@ -1967,7 +1973,7 @@ void SV_SendMVDMessage(void)
 		stats[STAT_ROCKETS] = ent->v->ammo_rockets;
 		stats[STAT_CELLS] = ent->v->ammo_cells;
 		stats[STAT_ACTIVEWEAPON] = ent->v->weapon;
-		
+
 
 		// stuff the sigil bits into the high bits of items for sbar
 		stats[STAT_ITEMS] = (int)ent->v->items | ((int)pr_global_struct->serverflags << 28);
@@ -2040,7 +2046,7 @@ void SV_SendMessagesToAll (void)
 	for (i=0, c = svs.clients ; i<MAX_CLIENTS ; i++, c++)
 		if (c->state)		// FIXME: should this only send to active?
 			c->send_message = true;
-	
+
 	SV_SendClientMessages ();
 }
 

@@ -2963,6 +2963,7 @@ ucmd_t ucmdsq2[] = {
 };
 #endif
 
+extern ucmd_t nqucmds[];
 /*
 ==================
 SV_ExecuteUserCommand
@@ -3001,6 +3002,9 @@ void SV_ExecuteUserCommand (char *s, qboolean fromQC)
 		u = ucmdsq2;
 	else
 #endif
+	if (ISNQCLIENT(host_client))
+		u = nqucmds;
+	else
 		u=ucmds;
 
 	for ( ; u->name ; u++)
@@ -3100,6 +3104,9 @@ void SVNQ_Spawn_f (void)
 // send all current light styles
 	for (i=0 ; i<MAX_LIGHTSTYLES ; i++)
 	{
+		if (i >= MAX_STANDARDLIGHTSTYLES && host_client->protocol != SCP_DARKPLACES7)
+			break;	//dp7 clients support more lightstyles.
+
 		ClientReliableWrite_Begin (host_client, svc_lightstyle,
 			3 + (sv.lightstyles[i] ? strlen(sv.lightstyles[i]) : 1));
 		ClientReliableWrite_Byte (host_client, (char)i);
@@ -3459,6 +3466,7 @@ ucmd_t nqucmds[] =
 	{"ban",			NULL},
 	{"vote",		SV_Vote_f},
 
+	{"setinfo", SV_SetInfo_f},
 	{"playermodel",	NULL},
 	{"playerskin",	NULL},
 	{"rate",		SV_Rate_f},
@@ -3469,7 +3477,7 @@ ucmd_t nqucmds[] =
 
 	{NULL, NULL}
 };
-
+/*
 void SVNQ_ExecuteUserCommand (char *s)
 {
 	client_t *oldhost = host_client;
@@ -3484,7 +3492,7 @@ void SVNQ_ExecuteUserCommand (char *s)
 	{
 		if (!strcmp (Cmd_Argv(0), u->name) )
 		{
-			if (/*!fromQC && */!u->noqchandling)
+			if (/ *!fromQC && * /!u->noqchandling)
 				if (PR_UserCmd(s))
 				{
 					host_client = oldhost;
@@ -3512,6 +3520,7 @@ void SVNQ_ExecuteUserCommand (char *s)
 	if (!u->name)
 		Con_Printf("%s tried to \"%s\"\n", host_client->name, s);
 }
+*/
 #endif
 
 
@@ -4677,6 +4686,9 @@ void SVQ2_ExecuteClientMessage (client_t *cl)
 			s = MSG_ReadString ();
 			SV_ExecuteUserCommand (s, false);
 
+			host_client = cl;
+			sv_player = cl->edict;
+
 			if (cl->state == cs_zombie)
 				return;	// disconnect command
 			break;
@@ -4862,7 +4874,10 @@ void SVNQ_ExecuteClientMessage (client_t *cl)
 
 		case clc_stringcmd:
 			s = MSG_ReadString ();
-			SVNQ_ExecuteUserCommand (s);
+			SV_ExecuteUserCommand (s, false);
+
+			host_client = cl;
+			sv_player = cl->edict;
 			break;
 
 		}

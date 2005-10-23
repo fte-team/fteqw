@@ -6134,6 +6134,7 @@ lh_extension_t QSG_Extensions[] = {
 	{"DP_ENT_EXTERIORMODELTOCLIENT"},
 	{"DP_GFX_SKINFILES"},
 	{"DP_HALFLIFE_MAP_CVAR"},
+	{"DP_INPUTBUTTONS"},
 	{"DP_MONSTERWALK"},
 	{"DP_MOVETYPEBOUNCEMISSILE"},		//I added the code for hexen2 support.
 	{"DP_MOVETYPEFOLLOW"},

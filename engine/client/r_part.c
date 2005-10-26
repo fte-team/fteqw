@@ -488,15 +488,16 @@ void P_ParticleEffect_f(void)
 	while(1)
 	{
 		buf = Cbuf_GetNext(Cmd_ExecLevel);
-		while (*buf && *buf <= ' ')
-			buf++;	//no whitespace please.
-		if (*buf == '}')
-			break;
 		if (!*buf)
 		{
 			Con_Printf("Unexpected end of buffer with effect %s\n", ptype->name);
 			return;
 		}
+
+		while (*buf && *buf <= ' ')
+			buf++;	//no whitespace please.
+		if (*buf == '}')
+			break;
 
 		Cmd_TokenizeString(buf, true, true);
 		var = Cmd_Argv(0);

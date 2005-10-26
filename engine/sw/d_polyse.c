@@ -1158,10 +1158,13 @@ void D_DrawSubdivC (void)
 
 
 #ifdef PEXT_TRANS
-	if (r_pixbytes == 4)
-		drawfnc = D_PolysetRecursiveTriangle32Trans;
-	else if (r_pixbytes == 1)
-		drawfnc = D_PolysetRecursiveTriangleTrans;
+	if (transbackfac)
+	{
+		if (r_pixbytes == 4)
+			drawfnc = D_PolysetRecursiveTriangle32Trans;
+		else if (r_pixbytes == 1)
+			drawfnc = D_PolysetRecursiveTriangleTrans;
+	}
 	else
 #endif
 		drawfnc = D_PolysetRecursiveTriangleC;

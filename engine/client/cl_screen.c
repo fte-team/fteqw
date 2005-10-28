@@ -8,7 +8,7 @@ of the License, or (at your option) any later version.
 
 This program is distributed in the hope that it will be useful,
 but WITHOUT ANY WARRANTY; without even the implied warranty of
-MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
 
 See the GNU General Public License for more details.
 
@@ -63,7 +63,7 @@ SlowPrint ()
 Screen_Update ();
 Con_Printf ();
 
-net 
+net
 turn off messages option
 
 the refresh is always rendered, unless the console is full screen
@@ -73,7 +73,7 @@ console is:
 	notify lines
 	half
 	full
-	
+
 
 */
 
@@ -87,7 +87,7 @@ int mouseusedforgui;
 int mousecursor_x, mousecursor_y;
 int mousemove_x, mousemove_y;
 
-// only the refresh window will be updated unless these variables are flagged 
+// only the refresh window will be updated unless these variables are flagged
 int                     scr_copytop;
 int                     scr_copyeverything;
 
@@ -167,12 +167,87 @@ CENTER PRINTING
 ===============================================================================
 */
 
-qbyte            scr_centerstring[MAX_SPLITS][1024];
+unsigned short            scr_centerstring[MAX_SPLITS][1024];
 float           scr_centertime_start[MAX_SPLITS];   // for slow victory printing
 float           scr_centertime_off[MAX_SPLITS];
 int                     scr_center_lines[MAX_SPLITS];
 int                     scr_erase_lines[MAX_SPLITS];
 int                     scr_erase_center[MAX_SPLITS];
+
+void CopyAndMarkup(unsigned short *dest, qbyte *src, int maxlength)
+{
+	int ext = COLOR_WHITE<<8;
+	int extstack[20];
+	int extstackdepth = 0;
+
+	if (maxlength < 0)
+		return;	// ...
+
+	maxlength--;
+	while(*src && maxlength>0)
+	{
+		if (*src == '^')
+		{
+			src++;
+			if (*src >= '0' && *src <= '7')
+			{
+				ext = (*src++-'0')*256 | (ext&~CON_COLOURMASK);
+				continue;
+			}
+			else if (*src == '8')	//'half transparent'
+			{
+				src++;
+				ext = (COLOR_WHITE)*256 | (ext&~CON_COLOURMASK);
+				continue;
+			}
+			else if (*src == '9')	//'half brightness'
+			{
+				src++;
+				ext = (COLOR_WHITE)*256 | (ext&~CON_COLOURMASK);
+				continue;
+			}
+			else if (*src == 'b')
+			{
+				src++;
+				ext = (ext & ~CON_BLINKTEXT) + (CON_BLINKTEXT - (ext & CON_BLINKTEXT));
+				continue;
+			}
+			else if (*src == 'a')
+			{
+				src++;
+				ext = (ext & ~CON_2NDCHARSETTEXT) + (CON_2NDCHARSETTEXT - (ext & CON_2NDCHARSETTEXT));
+				continue;
+			}
+			else if (*src == 's')
+			{
+				src++;
+				if (extstackdepth < sizeof(extstack)/sizeof(extstack[0]))
+				{
+					extstack[extstackdepth] = ext;
+					extstackdepth++;
+				}
+				continue;
+			}
+			else if (*src == 'r')
+			{
+				src++;
+				if (extstackdepth)
+				{
+					extstackdepth--;
+					ext = extstack[extstackdepth];
+				}
+				continue;
+			}
+			else if (*src != '^')
+				src--;
+		}
+		if (*src == '\n')
+			*dest++ = *src++;
+		else
+			*dest++ = *src++ | ext;
+	}
+	*dest = 0;
+}
 
 /*
 ==============
@@ -189,7 +264,17 @@ void SCR_CenterPrint (int pnum, char *str)
 		return;
 #endif
 
-	Q_strncpyz (scr_centerstring[pnum], str, sizeof(scr_centerstring[pnum]));
+	if (Cmd_AliasExist("f_centerprint", RESTRICT_LOCAL))
+	{
+		cvar_t *var;
+		var = Cvar_FindVar ("scr_centerprinttext");
+		if (!var)
+			Cvar_Get("scr_centerprinttext", "", 0, "Script Notifications");
+		Cvar_Set(var, str);
+		Cbuf_AddText("f_centerprint\n", RESTRICT_LOCAL);
+	}
+
+	CopyAndMarkup (scr_centerstring[pnum], str, sizeof(scr_centerstring[pnum]));
 	scr_centertime_off[pnum] = scr_centertime.value;
 	scr_centertime_start[pnum] = cl.time;
 
@@ -200,17 +285,6 @@ void SCR_CenterPrint (int pnum, char *str)
 		if (*str == '\n')
 			scr_center_lines[pnum]++;
 		str++;
-	}
-
-	if (Cmd_AliasExist("f_centerprint", RESTRICT_LOCAL))
-	{
-		cvar_t *var;
-		var = Cvar_FindVar ("scr_centerprinttext");
-		if (var)
-			Cvar_Set(var, scr_centerstring[pnum]);
-		else
-			Cvar_Get("scr_centerprinttext", scr_centerstring[pnum], 0, "Script Notifications");
-		Cbuf_AddText("f_centerprint\n", RESTRICT_LOCAL);
 	}
 }
 
@@ -240,12 +314,12 @@ void SCR_EraseCenterString (void)
 	}
 }
 
-void SCR_CenterPrintBreaks(qbyte *start, int *lines, int *maxlength)
+void SCR_CenterPrintBreaks(unsigned short *start, int *lines, int *maxlength)
 {
 	int l;
 	*lines = 0;
 	*maxlength = 0;
-	do      
+	do
 	{
 	// scan the width of the line
 		for (l=0 ; l<40 ; l++)
@@ -276,15 +350,12 @@ void SCR_CenterPrintBreaks(qbyte *start, int *lines, int *maxlength)
 
 void SCR_DrawCenterString (int pnum)
 {
-	qbyte    *start;
+	unsigned short    *start;
 	int             l;
 	int             j;
 	int             x, y;
 	int             remaining;
 	int hd = 1;
-	int ext = COLOR_WHITE<<8;
-	int extstack[4];
-	int extstackdepth = 0;
 
 	vrect_t rect;
 
@@ -311,14 +382,14 @@ void SCR_DrawCenterString (int pnum)
 
 	y += rect.y;
 
-	if (start[0] == '/')
+	if ((start[0]&255) == '/')
 	{
-		if (start[1] == 'O')
+		if ((start[1]&255) == 'O')
 		{
-			telejanostyle = start[1];
+			telejanostyle = (start[1]&255);
 			start+=2;
 		}
-		else if (start[1] == 'P')
+		else if ((start[1]&255) == 'P')
 		{	//hexen2 style plaque.
 			int lines, len;
 			start+=2;
@@ -328,7 +399,7 @@ void SCR_DrawCenterString (int pnum)
 		}
 	}
 
-	do      
+	do
 	{
 	// scan the width of the line
 		for (l=0 ; l<40 ; l++)
@@ -344,58 +415,18 @@ void SCR_DrawCenterString (int pnum)
 		x = rect.x + (rect.width - l*8)/2+4;
 		for (j=0 ; j<l ; j++, x+=8)
 		{
-			if (start[j] == '^')
-			{
-				j++;
-				if (start[j] >= '0' && start[j] <= '7')
-				{
-					ext = (start[j]-'0')*256 | (ext&~CON_COLOURMASK);
-					continue;
-				}
-				else if (start[j] == 'b')
-				{
-					ext = (ext & ~CON_BLINKTEXT) + (CON_BLINKTEXT - (ext & CON_BLINKTEXT));
-					continue;
-				}
-				else if (start[j] == 'a')
-				{
-					ext = (ext & ~CON_2NDCHARSETTEXT) + (CON_2NDCHARSETTEXT - (ext & CON_2NDCHARSETTEXT));
-					continue;
-				}
-				else if (start[j] == 's')
-				{
-					if (extstackdepth < sizeof(extstack)/sizeof(extstack[0]))
-					{
-						extstack[extstackdepth] = ext;
-						extstackdepth++;
-					}
-					continue;
-				}
-				else if (start[j] == 'r')
-				{
-					if (extstackdepth)
-					{
-						extstackdepth--;
-						ext = extstack[extstackdepth];
-					}
-					continue;
-				}
-				else if (start[j] != '^')
-					j--;
-			}
-
 			switch(telejanostyle)
 			{
 			case 'O':
-				Draw_ColouredCharacter (x, y+vid.height/2, start[j]|ext);
+				Draw_ColouredCharacter (x, y+vid.height/2, start[j]);
 				break;
 			default:
-				Draw_ColouredCharacter (x, y, start[j]|ext);
+				Draw_ColouredCharacter (x, y, start[j]);
 			}
 			if (!remaining--)
 				return;
 		}
-			
+
 		y += 8;
 
 		start+=l;
@@ -421,15 +452,15 @@ extern qboolean sb_showscores;
 			scr_erase_lines[pnum] = scr_center_lines[pnum];
 
 		scr_centertime_off[pnum] -= host_frametime;
-		
+
 		if (key_dest != key_game)	//don't let progs guis/centerprints interfere with the game menu
 			continue;
 
 		if (sb_showscores)	//this was annoying
 			continue;
 
-		if (scr_centertime_off[pnum] <= 0 && !cl.intermission && strncmp(scr_centerstring[pnum], "/P", 2))
-			continue;
+		if (scr_centertime_off[pnum] <= 0 && !cl.intermission && (scr_centerstring[pnum][0]&255) != '/' && (scr_centerstring[pnum][1]&255) != 'P')
+			continue;	//'/P' prefix doesn't time out
 
 		SCR_DrawCenterString (pnum);
 	}
@@ -460,7 +491,7 @@ static void SP_RecalcXY ( float *xx, float *yy, int origin )
 	midx = vid.width * 0.5;// >>1
 
 	// Tei - new showlmp
-	switch ( origin ) 
+	switch ( origin )
 	{
 		case SL_ORG_NW:
 			break;
@@ -738,7 +769,7 @@ void SCR_CalcRefdef (void)
 	if (scr_fov.value > 170)
 		Cvar_Set (&scr_fov,"170");
 
-// intermission is always full screen   
+// intermission is always full screen
 	if (cl.intermission)
 		size = 120;
 	else
@@ -790,7 +821,7 @@ void SCR_CalcRefdef (void)
 	r_refdef.vrect.x = (vid.width - r_refdef.vrect.width)/2;
 	if (full)
 		r_refdef.vrect.y = 0;
-	else 
+	else
 		r_refdef.vrect.y = (h - r_refdef.vrect.height)/2;
 
 	if (scr_chatmode)
@@ -864,7 +895,7 @@ void SCR_CrosshairPosition(int pnum, int *x, int *y)
 		start[2]-=16;
 		if (tr.fraction == 1)
 		{
-			*x = rect.x + rect.width/2 + cl_crossx.value; 
+			*x = rect.x + rect.width/2 + cl_crossx.value;
 			*y = rect.y + rect.height/2 + cl_crossy.value;
 			return;
 		}
@@ -887,7 +918,7 @@ void SCR_CrosshairPosition(int pnum, int *x, int *y)
 	}
 	else
 	{
-		*x = rect.x + rect.width/2 + cl_crossx.value; 
+		*x = rect.x + rect.width/2 + cl_crossx.value;
 		*y = rect.y + rect.height/2 + cl_crossy.value;
 		return;
 	}
@@ -979,7 +1010,7 @@ SCR_DrawTurtle
 void SCR_DrawTurtle (void)
 {
 	static int      count;
-	
+
 	if (!scr_showturtle.value || !scr_turtle)
 		return;
 
@@ -1017,7 +1048,7 @@ void SCR_StringXY(char *str, float x, float y)
 		x = vid.width - strlen(str)*8;
 	if (y < 0)
 		y = vid.height - sb_lines - 8;
-		
+
 	Draw_String(x, y, str);
 }
 
@@ -1096,10 +1127,10 @@ void SCR_DrawClock(void)
 	struct tm *newtime;
 	time_t long_time;
 	char str[16];
-	
+
 	if (!show_clock.value)
 		return;
-	
+
 	time( &long_time );
 	newtime = localtime( &long_time );
 	strftime( str, sizeof(str)-1, "%H:%M    ", newtime);
@@ -1126,7 +1157,7 @@ void SCR_DrawPause (void)
 	pic = Draw_SafeCachePic ("gfx/pause.lmp");
 	if (pic)
 	{
-		Draw_Pic ( (vid.width - pic->width)/2, 
+		Draw_Pic ( (vid.width - pic->width)/2,
 			(vid.height - 48 - pic->height)/2, pic);
 	}
 	else
@@ -1156,12 +1187,12 @@ void SCR_DrawLoading (void)
 		if(Draw_ScalePic)
 			Draw_ScalePic(0, 0, vid.width, vid.height, Draw_SafeCachePic (levelshotname));
 	}
-	
+
 	if (COM_FDepthFile("gfx/loading.lmp", true) < COM_FDepthFile("gfx/menu/loading.lmp", true))
 	{
 		pic = Draw_SafeCachePic ("loading");
 		if (pic)
-			Draw_Pic ( (vid.width - pic->width)/2, 
+			Draw_Pic ( (vid.width - pic->width)/2,
 				(vid.height - 48 - pic->height)/2, pic);
 	}
 	else
@@ -1173,7 +1204,7 @@ void SCR_DrawLoading (void)
 
 			if (!scr_drawloading && loading_stage == 0)
 				return;
-				
+
 			offset = (vid.width - pic->width)/2;
 			Draw_TransPic (offset , 0, pic);
 
@@ -1288,12 +1319,12 @@ void SCR_SetUpToDrawConsole (void)
 	extern qboolean editoractive;
 #endif
 	Con_CheckResize ();
-	
+
 	if (scr_drawloading)
 		return;         // never a console with loading plaque
-		
+
 // decide on the height of the console
-	if (cls.state != ca_active && !media_filmtype 
+	if (cls.state != ca_active && !media_filmtype
 #ifdef TEXTEDITOR
 		&& !editoractive
 #endif
@@ -1315,7 +1346,7 @@ void SCR_SetUpToDrawConsole (void)
 	}
 	else
 		scr_conlines = 0;                               // none visible
-	
+
 	if (scr_conlines < scr_con_current)
 	{
 		scr_con_current -= scr_conspeed.value*host_frametime;
@@ -1354,7 +1385,7 @@ void SCR_SetUpToDrawConsole (void)
 	else
 		con_notifylines = 0;
 }
-	
+
 /*
 ==================
 SCR_DrawConsole
@@ -1378,13 +1409,13 @@ void SCR_DrawConsole (qboolean noback)
 }
 
 
-/* 
-============================================================================== 
- 
-						SCREEN SHOTS 
- 
-============================================================================== 
-*/ 
+/*
+==============================================================================
+
+						SCREEN SHOTS
+
+==============================================================================
+*/
 
 typedef struct _TargaHeader {
 	unsigned char   id_length, colormap_type, image_type;
@@ -1463,7 +1494,7 @@ void SCR_ScreenShot (char *filename)
 	{
 		screenshotJPEG(filename, buffer+MAX_PREPAD, truewidth, trueheight);
 	}
-	else 
+	else
 #endif
 	/*	if (!strcmp(ext, "bmp"))
 	{
@@ -1515,14 +1546,14 @@ void SCR_ScreenShot (char *filename)
 	BZ_Free (buffer);
 }
 
-/* 
-================== 
+/*
+==================
 SCR_ScreenShot_f
-================== 
-*/  
-void SCR_ScreenShot_f (void) 
+==================
+*/
+void SCR_ScreenShot_f (void)
 {
-	char            pcxname[80]; 
+	char            pcxname[80];
 	char            checkname[MAX_OSPATH];
 	int                     i;
 
@@ -1544,12 +1575,12 @@ void SCR_ScreenShot_f (void)
 	}
 	else
 	{
-	// 
-	// find a file name to save it to 
-	// 
+	//
+	// find a file name to save it to
+	//
 		sprintf(pcxname,"screenshots/fte00000.%s", scr_sshot_type.string);
-			
-		for (i=0 ; i<=100000 ; i++) 
+
+		for (i=0 ; i<=100000 ; i++)
 		{
 			pcxname[16] = (i%10000)/1000 + '0';
 			pcxname[17] = (i%1000)/100 + '0';
@@ -1558,17 +1589,17 @@ void SCR_ScreenShot_f (void)
 			sprintf (checkname, "%s/%s", com_gamedir, pcxname);
 			if (Sys_FileTime(checkname) == -1)
 				break;  // file doesn't exist
-		} 
-		if (i==100000) 
+		}
+		if (i==100000)
 		{
-			Con_Printf ("SCR_ScreenShot_f: Couldn't create sequentially named file\n"); 
+			Con_Printf ("SCR_ScreenShot_f: Couldn't create sequentially named file\n");
 			return;
 		}
 	}
 
 	SCR_ScreenShot(pcxname);
 	Con_Printf ("Wrote %s\n", pcxname);
-} 
+}
 
 
 // from gl_draw.c
@@ -1613,19 +1644,19 @@ void SCR_DrawStringToSnap (const char *s, qbyte *buf, int x, int y, int width)
 }
 
 
-/* 
-================== 
+/*
+==================
 SCR_RSShot
-================== 
-*/  
-qboolean SCR_RSShot (void) 
-{ 
+==================
+*/
+qboolean SCR_RSShot (void)
+{
 	int truewidth;
 	int trueheight;
 
 	int     x, y;
 	unsigned char		*src, *dest;
-	char		pcxname[80]; 
+	char		pcxname[80];
 	unsigned char		*newbuf;
 	int w, h;
 	int dx, dy, dex, dey, nx;
@@ -1652,9 +1683,9 @@ qboolean SCR_RSShot (void)
 	Con_Printf("Remote screen shot requested.\n");
 
 
-// 
-// save the pcx file 
-// 
+//
+// save the pcx file
+//
 	newbuf = VID_GetRGBInfo(0, &truewidth, &trueheight);
 
 	w = RSSHOT_WIDTH;
@@ -1746,7 +1777,7 @@ void SCR_DrawNotifyString (void)
 
 	y = vid.height*0.35;
 
-	do      
+	do
 	{
 	// scan the width of the line
 		for (l=0 ; l<40 ; l++)
@@ -1754,8 +1785,8 @@ void SCR_DrawNotifyString (void)
 				break;
 		x = (vid.width - l*8)/2;
 		for (j=0 ; j<l ; j++, x+=8)
-			Draw_Character (x, y, start[j]);        
-			
+			Draw_Character (x, y, start[j]);
+
 		y += 8;
 
 		while (*start && *start != '\n')
@@ -1772,19 +1803,19 @@ void SCR_DrawNotifyString (void)
 SCR_ModalMessage
 
 Displays a text string in the center of the screen and waits for a Y or N
-keypress.  
+keypress.
 ==================
 */
 int SCR_ModalMessage (char *text)
 {
 	scr_notifystring = text;
- 
+
 // draw a fresh screen
 	scr_fullupdate = 0;
 	scr_drawdialog = true;
 	SCR_UpdateScreen ();
 	scr_drawdialog = false;
-	
+
 	S_StopAllSounds (true);               // so dma doesn't loop current sound
 
 	do
@@ -1813,10 +1844,10 @@ void SCR_BringDownConsole (void)
 {
 	int             i;
 	int pnum;
-	
+
 	for (pnum = 0; pnum < cl.splitclients; pnum++)
 		scr_centertime_off[pnum] = 0;
-	
+
 	for (i=0 ; i<20 && scr_conlines != scr_con_current ; i++)
 		SCR_UpdateScreen ();
 
@@ -1857,21 +1888,21 @@ void SCR_TileClear (void)
 			// left
 			Draw_TileClear (0, 0, scr_vrect.x, vid.height - sb_lines);
 			// right
-			Draw_TileClear (scr_vrect.x + scr_vrect.width, 0, 
-				vid.width - scr_vrect.x + scr_vrect.width, 
+			Draw_TileClear (scr_vrect.x + scr_vrect.width, 0,
+				vid.width - scr_vrect.x + scr_vrect.width,
 				vid.height - sb_lines);
 		}
 		if (scr_vrect.y > 0)
 		{
 			// top
-			Draw_TileClear (scr_vrect.x, 0, 
-				scr_vrect.x + scr_vrect.width, 
+			Draw_TileClear (scr_vrect.x, 0,
+				scr_vrect.x + scr_vrect.width,
 				scr_vrect.y);
 			// bottom
 			Draw_TileClear (scr_vrect.x,
-				scr_vrect.y + scr_vrect.height, 
-				scr_vrect.width, 
-				vid.height - cl_sbar.value?sb_lines:0 - 
+				scr_vrect.y + scr_vrect.height,
+				scr_vrect.width,
+				vid.height - cl_sbar.value?sb_lines:0 -
 				(scr_vrect.height + scr_vrect.y));
 		}
 	}

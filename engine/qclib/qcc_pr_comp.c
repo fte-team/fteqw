@@ -8541,8 +8541,6 @@ pbool QCC_Include(char *filename)
 	struct qcc_includechunk_s *oldcurrentchunk;
 	extern struct qcc_includechunk_s *currentchunk;
 
-	extern char qccmsourcedir[];
-
 	ocompilingfile = compilingfile;
 	os_file = s_file;
 	os_file2 = s_file2;

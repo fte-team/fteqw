@@ -156,6 +156,9 @@ float V_CalcBob (int pnum)
 	if (!cl.onground[pnum] || cl.paused)
 		return bob[pnum];		// just use old value
 
+	if (cl_bobcycle.value <= 0)
+		return 0;
+
 	bobtime[pnum] += host_frametime;
 	cycle = bobtime[pnum] - (int)(bobtime[pnum]/cl_bobcycle.value)*cl_bobcycle.value;
 	cycle /= cl_bobcycle.value;

@@ -136,6 +136,8 @@ char *Cvar_FlagToName(int flag)
 		return "archive";
 	case CVAR_USERINFO:
 		return "userinfo";
+	case CVAR_SERVERINFO:
+		return "serverinfo";
 	case CVAR_NOSET:
 		return "noset";
 	case CVAR_LATCH:

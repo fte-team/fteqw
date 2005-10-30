@@ -1187,18 +1187,18 @@ void IN_Init (void)
 	if (firstinit)
 	{
 		//keyboard variables
-		Cvar_Register (&cl_keypad, "Input stuff");
+		Cvar_Register (&cl_keypad, "Input Controls");
 
 		// mouse variables
-		Cvar_Register (&m_filter, "Input stuff");
-		Cvar_Register (&m_accel, "Input stuff");
-		Cvar_Register (&m_forcewheel, "Input stuff");
-		Cvar_Register (&in_mwhook, "Input stuff");
+		Cvar_Register (&m_filter, "Input Controls");
+		Cvar_Register (&m_accel, "Input Controls");
+		Cvar_Register (&m_forcewheel, "Input Controls");
+		Cvar_Register (&in_mwhook, "Input Controls");
 
-		Cvar_Register (&in_dinput, "Input stuff");
+		Cvar_Register (&in_dinput, "Input Controls");
 
-		Cvar_Register (&m_accel_noforce, "Input stuff");
-		Cvar_Register (&m_threshold_noforce, "Input stuff");
+		Cvar_Register (&m_accel_noforce, "Input Controls");
+		Cvar_Register (&m_threshold_noforce, "Input Controls");
 
 		// this looks strange but quake cmdline definitions
 		// and MS documentation don't agree with each other
@@ -1249,9 +1249,9 @@ void IN_Init (void)
 		uiWheelMessage = RegisterWindowMessage ( "MSWHEEL_ROLLMSG" );
 
 #ifdef USINGRAWINPUT
-		Cvar_Register (&in_rawinput, "Input stuff");
-		Cvar_Register (&in_rawinput_combine, "Input stuff");
-		Cvar_Register (&in_rawinput_rdp, "Input stuff");
+		Cvar_Register (&in_rawinput, "Input Controls");
+		Cvar_Register (&in_rawinput_combine, "Input Controls");
+		Cvar_Register (&in_rawinput_rdp, "Input Controls");
 #endif
 	}
 	else

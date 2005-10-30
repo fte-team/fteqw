@@ -268,6 +268,7 @@ SERVERONLY_OBJS =		\
 	sv_sys_unix.o
 
 WINDOWSSERVERONLY_OBJS = \
+	gl_alias.o		\
 	svmodel.o	\
 	sv_sys_win.o
 

@@ -1253,11 +1253,11 @@ void SWD_EndDirectRect (int x, int y, int width, int height)
 
 void IN_Init (void)
 {
-	Cvar_Register (&_windowed_mouse, "input controls");
-	Cvar_Register (&m_filter, "input controls");
-	Cvar_Register (&m_accel, "input controls");
+	Cvar_Register (&_windowed_mouse, "Input Controls");
+	Cvar_Register (&m_filter, "Input Controls");
+	Cvar_Register (&m_accel, "Input Controls");
 #ifdef IN_XFLIP
-	Cvar_Register (&in_xflip, "input controls");
+	Cvar_Register (&in_xflip, "Input Controls");
 #endif
    if ( COM_CheckParm ("-nomouse") )
      return;

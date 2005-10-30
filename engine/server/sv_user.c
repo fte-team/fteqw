@@ -4914,7 +4914,7 @@ void SV_UserInit (void)
 	Cvar_Register (&votepercent, sv_votinggroup);
 	Cvar_Register (&votetime, sv_votinggroup);
 
-	Cvar_Register (&sv_brokenmovetypes, "");
+	Cvar_Register (&sv_brokenmovetypes, "Backwards compatability");
 
 	Cvar_Register (&sv_edgefriction, "netquake compatability");
 }

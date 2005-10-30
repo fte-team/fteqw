@@ -286,7 +286,7 @@ void IN_Shutdown (void)
 }
 void IN_Init (void)
 {
-	Cvar_Register (&in_xflip, "input controls");
+	Cvar_Register (&in_xflip, "Input Controls");
 }
 void IN_Move (usercmd_t *cmd, int pnum)	//add mouse movement to cmd
 {

@@ -2422,7 +2422,7 @@ void CL_Init (void)
 
 	Cvar_Register (&baseskin,	"Teamplay");
 	Cvar_Register (&noskins,	"Teamplay");
-	Cvar_Register (&cl_noblink,	"Teamplay");	//for lack of a better group
+	Cvar_Register (&cl_noblink,	"Console controls");	//for lack of a better group
 
 	Cvar_Register (&cl_item_bobbing, "Item effects");
 

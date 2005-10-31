@@ -2947,9 +2947,6 @@ void Host_Init (quakeparms_t *parms)
 	if (setjmp (host_abort) )
 		Sys_Error("Host_Init: An error occured. Try the -condebug commandline parameter\n");
 
-
-	Sys_mkdir("qw");
-
 	if (COM_CheckParm ("-minmemory"))
 		parms->memsize = MINIMUM_MEMORY;
 

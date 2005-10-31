@@ -1645,7 +1645,7 @@ Sets com_gamedir, adds the directory to the head of the path,
 then loads and adds pak1.pak pak2.pak ... 
 ================
 */
-void COM_AddGameDirectory (char *dir)
+void COM_AddGameDirectory (char *dir, unsigned int loadstuff)
 {
 	searchpath_t	*search;
 
@@ -1668,16 +1668,23 @@ void COM_AddGameDirectory (char *dir)
 //
 // add the directory to the search path
 //
-	p = Z_Malloc(strlen(dir)+1);
-	strcpy(p, dir);
-	COM_AddPathHandle(&osfilefuncs, p, false, false);
+
+	if (loadstuff & 1)
+	{
+		p = Z_Malloc(strlen(dir)+1);
+		strcpy(p, dir);
+		COM_AddPathHandle(&osfilefuncs, p, false, false);
+	}
 
 //add any data files too
-	COM_AddDataFiles("pak", &packfilefuncs);//q1/hl/h2/q2
+	if (loadstuff & 2)
+		COM_AddDataFiles("pak", &packfilefuncs);//q1/hl/h2/q2
 	//pk2s never existed.
 #ifdef ZLIB
-	COM_AddDataFiles("pk3", &zipfilefuncs);	//q3 + offspring
-	COM_AddDataFiles("pk4", &zipfilefuncs);	//q4
+	if (loadstuff & 4)
+		COM_AddDataFiles("pk3", &zipfilefuncs);	//q3 + offspring
+	if (loadstuff & 8)
+		COM_AddDataFiles("pk4", &zipfilefuncs);	//q4
 	//we could easily add zip, but it's friendlier not to
 #endif
 }
@@ -1819,9 +1826,9 @@ void COM_Gamedir (char *dir)
 	//
 	Cache_Flush ();
 
-	COM_AddGameDirectory(va("%s/%s", com_quakedir, dir));
+	COM_AddGameDirectory(va("%s/%s", com_quakedir, dir), (unsigned int)-1);
 	if (*com_homedir)
-		COM_AddGameDirectory(va("%s/%s", com_homedir, dir));
+		COM_AddGameDirectory(va("%s/%s", com_homedir, dir), (unsigned int)-1);
 
 
 #ifndef SERVERONLY
@@ -2015,7 +2022,7 @@ FS_ReloadPackFiles
 
 Called when the client has downloaded a new pak/pk3 file
 */
-void FS_ReloadPackFiles(void)
+void FS_ReloadPackFilesFlags(unsigned int reloadflags)
 {
 	searchpath_t	*oldpaths;
 	searchpath_t	*oldbase;
@@ -2059,7 +2066,7 @@ void FS_ReloadPackFiles(void)
 			com_base_searchpaths = com_searchpaths;
 
 		if (oldpaths->funcs == &osfilefuncs)
-			COM_AddGameDirectory(oldpaths->handle);
+			COM_AddGameDirectory(oldpaths->handle, reloadflags);
 
 		oldpaths->funcs->ClosePath(oldpaths->handle);
 		Z_Free(oldpaths);
@@ -2068,6 +2075,19 @@ void FS_ReloadPackFiles(void)
 
 	if (!com_base_searchpaths)
 		com_base_searchpaths = com_searchpaths;
+}
+
+void FS_ReloadPackFiles(void)
+{
+	FS_ReloadPackFilesFlags((unsigned int)-1);
+}
+
+void FS_ReloadPackFiles_f(void)
+{
+	if (atoi(Cmd_Argv(1)))
+		FS_ReloadPackFilesFlags(atoi(Cmd_Argv(1)));
+	else
+		FS_ReloadPackFilesFlags((unsigned int)-1);
 }
 
 /*
@@ -2085,7 +2105,7 @@ void COM_InitFilesystem (void)
 
 	int gamenum=-1;
 
-	Cmd_AddCommand("fs_restart", FS_ReloadPackFiles);
+	Cmd_AddCommand("fs_restart", FS_ReloadPackFiles_f);
 
 //
 // -basedir <path>
@@ -2164,7 +2184,9 @@ void COM_InitFilesystem (void)
 
 	if (*com_homedir)
 	{
-		strcat(com_homedir, "/.fte/");
+		Con_Printf("Using home directory \"%s\"\n", com_homedir);
+
+		strcat(com_homedir, "/.fte");
 		com_basedir = com_homedir;
 	}
 	else
@@ -2180,7 +2202,7 @@ void COM_InitFilesystem (void)
 	{
 		do	//use multiple -basegames
 		{
-			COM_AddGameDirectory (va("%s/%s", com_quakedir, com_argv[i+1]) );
+			COM_AddGameDirectory (va("%s/%s", com_quakedir, com_argv[i+1]), (unsigned int)-1);
 
 			i = COM_CheckNextParm ("-basegame", i);
 		}
@@ -2189,17 +2211,17 @@ void COM_InitFilesystem (void)
 	else
 	{
 		if (gamemode_info[gamenum].dir1)
-			COM_AddGameDirectory (va("%s/%s", com_quakedir, gamemode_info[gamenum].dir1));
+			COM_AddGameDirectory (va("%s/%s", com_quakedir, gamemode_info[gamenum].dir1), (unsigned int)-1);
 		if (gamemode_info[gamenum].dir2)
-			COM_AddGameDirectory (va("%s/%s", com_quakedir, gamemode_info[gamenum].dir2));
+			COM_AddGameDirectory (va("%s/%s", com_quakedir, gamemode_info[gamenum].dir2), (unsigned int)-1);
 		if (gamemode_info[gamenum].dir3)
-			COM_AddGameDirectory (va("%s/%s", com_quakedir, gamemode_info[gamenum].dir3));
+			COM_AddGameDirectory (va("%s/%s", com_quakedir, gamemode_info[gamenum].dir3), (unsigned int)-1);
 		if (gamemode_info[gamenum].dir4)
-			COM_AddGameDirectory (va("%s/%s", com_quakedir, gamemode_info[gamenum].dir4));
+			COM_AddGameDirectory (va("%s/%s", com_quakedir, gamemode_info[gamenum].dir4), (unsigned int)-1);
 	}
 
 	if (*com_homedir)
-		COM_AddGameDirectory (va("%s/fte", com_homedir) );
+		COM_AddGameDirectory (va("%s/fte", com_homedir), (unsigned int)-1);
 
 	// any set gamedirs will be freed up to here
 	com_base_searchpaths = com_searchpaths;
@@ -2207,7 +2229,7 @@ void COM_InitFilesystem (void)
 	i = COM_CheckParm ("-game");	//effectivly replace with +gamedir x (But overridable)
 	if (i && i < com_argc-1)
 	{
-		COM_AddGameDirectory (va("%s/%s", com_quakedir, com_argv[i+1]) );
+		COM_AddGameDirectory (va("%s/%s", com_quakedir, com_argv[i+1]), (unsigned int)-1);
 
 #ifndef CLIENTONLY
 		Info_SetValueForStarKey (svs.info, "*gamedir", com_argv[i+1], MAX_SERVERINFO_STRING);

@@ -272,7 +272,7 @@ int main(int argc, char **argv)
 			time = newtime - oldtime;
 			oldtime = newtime;
 			
-			SV_Frame (time);
+			SV_Frame ();
 		}
 		else
 #endif

@@ -1059,7 +1059,7 @@ void CL_ParseDownload (void)
 
 	if (!*cls.downloadname)	//huh... that's not right...
 	{
-		Con_Printf("^1Warning: Server sending unknown file.\n");
+		Con_Printf("^1Warning^7: Server sending unknown file.\n");
 		strcpy(cls.downloadname, "unknown.txt");
 		strcpy(cls.downloadtempname, "unknown.tmp");
 	}
@@ -3191,6 +3191,32 @@ int CL_PlayerColor(player_info_t *plr, int *name_ormask)
 			break;
 		}
 	}
+	else if (cl.teamplay)
+	{
+		// team name hacks
+		if (!strcmp(plr->team, "red"))
+			c = 1;
+		else if (!strcmp(plr->team, "blue"))
+			c = 6;
+		else
+		{
+			char *t;
+
+			t = plr->team;
+			c = 0;
+
+			for (t = plr->team; *t; t++)
+			{
+				c >>= 1;
+				c ^= *t; // TODO: very weak hash, replace
+			}
+
+			if ((c / 7) & 1)
+				*name_ormask = CON_STANDARDMASK;
+
+			c = 1 + (c % 7);
+		}
+	}
 	else
 	{
 		// override chat color with tc infokey
@@ -3360,9 +3386,9 @@ void CL_PrintStandardMessage(char *msg)
 		int ormask;
 		char c;
 
-		if (!p->name[0])
+		name = p->name;
+		if (!(*name))
 			continue;
-		name = Info_ValueForKey (p->userinfo, "name");
 		len = strlen(name);
 		v = strstr(msg, name);
 		while (v)

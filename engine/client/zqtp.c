@@ -1745,19 +1745,22 @@ int	TP_CountPlayers (void)
 	return count;
 }
 
+char *TP_PlayerTeam (void)
+{
+	return cl.players[cl.playernum[SP]].team;
+}
+
 char *TP_EnemyTeam (void)
 {
 	int			i;
-	char		myteam[MAX_INFO_KEY];
 	static char	enemyteam[MAX_INFO_KEY];
-
-	strcpy (myteam, Info_ValueForKey(cls.userinfo, "team"));
+	char *myteam = TP_PlayerTeam();
 
 	for (i = 0; i < MAX_CLIENTS ; i++) {
 		if (cl.players[i].name[0] && !cl.players[i].spectator)
 		{
-			strcpy (enemyteam, Info_ValueForKey(cl.players[i].userinfo, "team"));
-			if (strcmp(myteam, enemyteam) != 0)
+			strcpy (enemyteam, cl.players[i].team);
+			if (strcmp(myteam, cl.players[i].team) != 0)
 				return enemyteam;
 		}
 	}
@@ -1766,30 +1769,22 @@ char *TP_EnemyTeam (void)
 
 char *TP_PlayerName (void)
 {
-	static char	myname[MAX_INFO_KEY];
-	strcpy (myname, Info_ValueForKey(cl.players[cl.playernum[SP]].userinfo, "name"));
-	return myname;
+	return cl.players[cl.playernum[SP]].name;
 }
 
-char *TP_PlayerTeam (void)
-{
-	static char	myteam[MAX_INFO_KEY];
-	strcpy (myteam, Info_ValueForKey(cl.players[cl.playernum[SP]].userinfo, "team"));
-	return myteam;
-}
 
 char *TP_EnemyName (void)
 {
 	int			i;
 	char		*myname;
-	static char	enemyname[MAX_INFO_KEY];
+	static char	enemyname[MAX_SCOREBOARDNAME];
 
 	myname = TP_PlayerName ();
 
 	for (i = 0; i < MAX_CLIENTS ; i++) {
 		if (cl.players[i].name[0] && !cl.players[i].spectator)
 		{
-			strcpy (enemyname, Info_ValueForKey(cl.players[i].userinfo, "name"));
+			strcpy (enemyname, cl.players[i].name);
 			if (!strcmp(enemyname, myname))
 				return enemyname;
 		}
@@ -1975,9 +1970,9 @@ int TP_CategorizeMessage (char *s, int *offset, player_info_t **plr)
 
 	for (i=0, player=cl.players ; i < MAX_CLIENTS ; i++, player++)
 	{
-		if (!player->name[0])
+		name = player->name;
+		if (!(*name))
 			continue;
-		name = Info_ValueForKey (player->userinfo, "name");
 		len = strlen(name);
 		// check messagemode1
 		if (len+2 <= msglen && s[len] == ':' && s[len+1] == ' '	&&

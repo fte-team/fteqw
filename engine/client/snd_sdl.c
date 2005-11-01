@@ -97,7 +97,7 @@ Con_Printf("SDL AUDIO INITING\n");
 		return false;
 	}
 	sc->sn.numchannels = obtained.channels;
-	sc->sn.speed = desired.freq;
+	sc->sn.speed = obtained.freq;
 	sc->sn.samplebits = 16;
 	sc->sn.samples = SOUND_BUFFER_SIZE;
 	sc->sn.buffer = malloc(SOUND_BUFFER_SIZE*sc->sn.samplebits/8);

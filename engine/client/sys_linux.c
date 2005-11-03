@@ -8,7 +8,7 @@ of the License, or (at your option) any later version.
 
 This program is distributed in the hope that it will be useful,
 but WITHOUT ANY WARRANTY; without even the implied warranty of
-MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
 
 See the GNU General Public License for more details.
 
@@ -31,7 +31,7 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 #include <fcntl.h>
 #include <stdarg.h>
 #include <stdio.h>
-#ifndef __CYGWIN__ 
+#ifndef __CYGWIN__
 #include <sys/ipc.h>
 #include <sys/shm.h>
 #endif
@@ -105,13 +105,13 @@ void Sys_Init(void)
 }
 
 void Sys_Error (const char *error, ...)
-{ 
+{
 	va_list argptr;
 	char string[1024];
 
 // change stdin to non blocking
 	fcntl (0, F_SETFL, fcntl (0, F_GETFL, 0) & ~FNDELAY);
-    
+
 	va_start (argptr,error);
 	_vsnprintf (string,sizeof(string)-1, error,argptr);
 	va_end (argptr);
@@ -119,19 +119,19 @@ void Sys_Error (const char *error, ...)
 
 	Host_Shutdown ();
 	exit (1);
-} 
+}
 
 void Sys_Warn (char *warning, ...)
-{ 
+{
 	va_list argptr;
 	char string[1024];
-    
+
 	va_start (argptr,warning);
 	_vsnprintf (string,sizeof(string)-1, warning,argptr);
 	va_end (argptr);
 
 	fprintf(stderr, "Warning: %s", string);
-} 
+}
 
 /*
 ============
@@ -143,10 +143,10 @@ returns -1 if not present
 int	Sys_FileTime (char *path)
 {
 	struct	stat	buf;
-	
+
 	if (stat (path,&buf) == -1)
 		return -1;
-	
+
 	return buf.st_mtime;
 }
 
@@ -165,12 +165,12 @@ int Sys_FileOpenRead (char *path, int *handle)
 {
 	int h;
 	struct stat fileinfo;
-	
+
 	h = open (path, O_RDONLY, 0666);
 	*handle = h;
 	if (h == -1)
 		return -1;
-	
+
 	if (fstat (h,&fileinfo) == -1)
 		Sys_Error ("Error fstating %s", path);
 
@@ -182,7 +182,7 @@ int Sys_FileOpenWrite (char *path)
 	int handle;
 
 	umask (0);
-	
+
 	handle = open(path,O_RDWR | O_CREAT | O_TRUNC, 0666);
 
 	if (handle == -1)
@@ -213,10 +213,10 @@ int Sys_FileRead (int handle, void *dest, int count)
 
 void Sys_DebugLog(char *file, char *fmt, ...)
 {
-	va_list argptr; 
+	va_list argptr;
 	static char data[1024];
 	int fd;
-    
+
 	va_start(argptr, fmt);
 	_vsnprintf (data,sizeof(data)-1, fmt, argptr);
 	va_end(argptr);
@@ -270,7 +270,7 @@ int Sys_EnumerateFiles (char *gpath, char *match, int (*func)(char *, int, void 
 	dir = opendir(truepath);
 	if (!dir)
 	{
-		Con_DPrintf("Failed to open dir\n");
+		Con_DPrintf("Failed to open dir %s\n", truepath);
 		return true;
 	}
 	do
@@ -311,10 +311,10 @@ int Sys_EnumerateFiles (char *gpath, char *match, int (*func)(char *, int, void 
 double Sys_DoubleTime (void)
 {
 	struct timeval tp;
-	struct timezone tzp; 
-	static int secbase; 
- 
-	gettimeofday(&tp, &tzp);  
+	struct timezone tzp;
+	static int secbase;
+
+	gettimeofday(&tp, &tzp);
 
 	if (!secbase)
 	{

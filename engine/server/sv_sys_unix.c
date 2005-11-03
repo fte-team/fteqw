@@ -8,7 +8,7 @@ of the License, or (at your option) any later version.
 
 This program is distributed in the hope that it will be useful,
 but WITHOUT ANY WARRANTY; without even the implied warranty of
-MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
 
 See the GNU General Public License for more details.
 
@@ -56,10 +56,10 @@ returns -1 if not present
 int	Sys_FileTime (char *path)
 {
 	struct	stat	buf;
-	
+
 	if (stat (path,&buf) == -1)
 		return -1;
-	
+
 	return buf.st_mtime;
 }
 
@@ -75,7 +75,7 @@ void Sys_mkdir (char *path)
 	if (mkdir (path, 0777) != -1)
 		return;
 	if (errno != EEXIST)
-		Sys_Error ("mkdir %s: %s",path, strerror(errno)); 
+		Sys_Error ("mkdir %s: %s",path, strerror(errno));
 }
 
 qboolean Sys_remove (char *path)
@@ -92,7 +92,7 @@ int Sys_EnumerateFiles (char *gpath, char *match, int (*func)(char *, int, void 
 	dir = opendir(gpath);
 	if (!dir)
 	{
-		Con_Printf("Failed to open dir\n");
+		Con_Printf("Failed to open dir %s\n", gpath);
 		return true;
 	}
 	do
@@ -118,7 +118,7 @@ void Sys_DebugLog(char *file, char *fmt, ...)
 	va_list argptr;
 	char data[1024];
 	int fd;
-	
+
 	va_start(argptr, fmt);
 	_vsnprintf (data,sizeof(data)-1, fmt, argptr);
 	va_end(argptr);
@@ -142,13 +142,13 @@ double Sys_DoubleTime (void)
 	static int		secbase;
 
 	gettimeofday(&tp, &tzp);
-	
+
 	if (!secbase)
 	{
 		secbase = tp.tv_sec;
 		return tp.tv_usec/1000000.0;
 	}
-	
+
 	return (tp.tv_sec - secbase) + tp.tv_usec/1000000.0;
 }
 
@@ -161,12 +161,12 @@ void Sys_Error (const char *error, ...)
 {
 	va_list		argptr;
 	char		string[1024];
-	
+
 	va_start (argptr,error);
 	_vsnprintf (string,sizeof(string)-1, error,argptr);
 	va_end (argptr);
 	printf ("Fatal error: %s\n",string);
-	
+
 *(int*)-3 = 0;
 	exit (1);
 }
@@ -241,7 +241,7 @@ char *Sys_ConsoleInput (void)
 	if (len < 1)
 		return NULL;
 	text[len-1] = 0;	// rip off the /n and terminate
-	
+
 	return text;
 }
 
@@ -274,7 +274,7 @@ int main(int argc, char *argv[])
 
 	memset (&parms, 0, sizeof(parms));
 
-	COM_InitArgv (argc, argv);	
+	COM_InitArgv (argc, argv);
 	TL_InitLanguages();
 	parms.argc = com_argc;
 	parms.argv = com_argv;
@@ -298,7 +298,7 @@ int main(int argc, char *argv[])
 	SV_Init (&parms);
 
 // run one frame immediately for first heartbeat
-	SV_Frame ();		
+	SV_Frame ();
 
 //
 // main loop
@@ -308,17 +308,17 @@ int main(int argc, char *argv[])
 		if (do_stdin)
 			stdin_ready = NET_Sleep(sys_maxtic.value, true);
 		else
-		{	
+		{
 			NET_Sleep(sys_maxtic.value, false);
 			stdin_ready = false;
 		}
 
-		SV_Frame ();		
-		
+		SV_Frame ();
+
 	// extrasleep is just a way to generate a fucked up connection on purpose
 		if (sys_extrasleep.value)
 			usleep (sys_extrasleep.value);
-	}	
+	}
 	return 0;
 }
 
@@ -367,7 +367,7 @@ int Sys_EnumerateFiles (char *gpath, char *match, int (*func)(char *, int, void 
 	dir = opendir(truepath);
 	if (!dir)
 	{
-		Con_Printf("Failed to open dir\n");
+		Con_Printf("Failed to open dir %s\n", truepath);
 		return true;
 	}
 	do

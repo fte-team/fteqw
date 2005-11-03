@@ -326,7 +326,7 @@ void Info_SetValueForKey (char *s, const char *key, const char *value, int maxsi
 void Info_SetValueForStarKey (char *s, const char *key, const char *value, int maxsize);
 void Info_Print (char *s);
 
-unsigned Com_BlockChecksum (void *buffer, int length);
+unsigned int Com_BlockChecksum (void *buffer, int length);
 void Com_BlockFullChecksum (void *buffer, int len, unsigned char *outbuf);
 qbyte	COM_BlockSequenceCheckByte (qbyte *base, int length, int sequence, unsigned mapchecksum);
 qbyte	COM_BlockSequenceCRCByte (qbyte *base, int length, int sequence);

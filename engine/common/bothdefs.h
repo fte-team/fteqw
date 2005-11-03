@@ -246,24 +246,30 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 
 #define ENGINEWEBSITE "http://fteqw.sourceforge.net/"
 
-#if defined(_WIN32)
-	#if defined(__amd64__)
-		#define PLATFORM	"Win32"
+#ifndef PLATFORM
+	#if defined(_WIN32)
+		#if defined(__amd64__)
+			#define PLATFORM	"Win32"
+		#else
+			#define PLATFORM	"Win64"
+		#endif
+	#elif defined(__linux__)
+		#if defined(__amd64__)
+			#define PLATFORM	"Linux64"
+		#else
+			#define PLATFORM	"Linux"
+		#endif
+	#elif defined(__FreeBSD__)
+		#define PLATFORM	"FreeBSD"
+	#elif defined(__OpenBSD__)
+		#define PLATFORM	"OpenBSD"
+	#elif defined(__NetBSD__)
+		#define PLATFORM	"NetBSD"
+	#elif defined(__MORPHOS__)
+		#define PLATFORM	"MorphOS"
 	#else
-		#define PLATFORM	"Win64"
+		#define PLATFORM	"Unknown"
 	#endif
-#elif defined(__linux__)
-#define PLATFORM	"Linux"
-#elif defined(__FreeBSD__)
-#define PLATFORM	"FreeBSD"
-#elif defined(__OpenBSD__)
-#define PLATFORM	"OpenBSD"
-#elif defined(__NetBSD__)
-#define PLATFORM	"NetBSD"
-#elif defined(__MORPHOS__)
-#define PLATFORM	"MorphOS"
-#else
-#define PLATFORM	"Unknown"
 #endif
 
 

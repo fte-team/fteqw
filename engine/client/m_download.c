@@ -1,5 +1,5 @@
 #include "quakedef.h"
-#ifndef MINIMAL
+#ifdef WEBCLIENT
 
 #define ROOTDOWNLOADABLESSOURCE "http://fteqw.sourceforge.net/downloadables.txt"
 #define INSTALLEDFILES	"installed.lst"	//the file that resides in the quakedir (saying what's installed).

@@ -8,7 +8,7 @@ of the License, or (at your option) any later version.
 
 This program is distributed in the hope that it will be useful,
 but WITHOUT ANY WARRANTY; without even the implied warranty of
-MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
 
 See the GNU General Public License for more details.
 
@@ -129,7 +129,7 @@ void M_BuildTranslationTable(int top, int bottom)
 		memcpy (dest + BOTTOM_RANGE, source + bottom, 16);
 	else
 		for (j=0 ; j<16 ; j++)
-			dest[BOTTOM_RANGE+j] = source[bottom+15-j];		
+			dest[BOTTOM_RANGE+j] = source[bottom+15-j];
 }
 
 /*
@@ -207,7 +207,7 @@ void M_DrawTextBox (int x, int y, int width, int lines)
 //=============================================================================
 
 int m_save_demonum;
-		
+
 /*
 ================
 M_ToggleMenu_f
@@ -331,7 +331,7 @@ bindnames_t q2bindnames[] =
 {"cmd invprev",		"prev item"},
 {"cmd invnext",		"next item"},
 
-{"cmd help", 		"help computer" }, 
+{"cmd help", 		"help computer" },
 {NULL}
 };
 #endif
@@ -427,7 +427,7 @@ void M_Keys_Draw (void)
 		M_Print (12, 32, "Press a key or button for this action");
 	else
 		M_Print (18, 32, "Enter to change, backspace to clear");
-		
+
 // search for known bindings
 	for (i=0 ; ; i++)
 	{
@@ -438,9 +438,9 @@ void M_Keys_Draw (void)
 		M_Print (16, y, bindnames[i].name);
 
 		l = strlen (bindnames[i].command);
-		
+
 		M_FindKeysForCommand (bindnames[i].command, keys);
-		
+
 		if (keys[0] == -1)
 		{
 			M_Print (140, y, "???");
@@ -457,7 +457,7 @@ void M_Keys_Draw (void)
 			}
 		}
 	}
-	
+
 	if (bind_grab)
 		M_DrawCharacter (130, 48 + keys_cursor*8, '=');
 	else
@@ -469,7 +469,7 @@ void M_Keys_Key (int k)
 {
 	char	cmd[80];
 	int		keys[2];
-	
+
 	if (bind_grab)
 	{	// defining a key
 		S_LocalSound ("misc/menu1.wav");
@@ -479,14 +479,14 @@ void M_Keys_Key (int k)
 		}
 		else if (k != '`')
 		{
-			sprintf (cmd, "bind %s \"%s\"\n", Key_KeynumToString (k), bindnames[keys_cursor].command);			
+			sprintf (cmd, "bind %s \"%s\"\n", Key_KeynumToString (k), bindnames[keys_cursor].command);
 			Cbuf_InsertText (cmd, RESTRICT_LOCAL);
 		}
-		
+
 		bind_grab = false;
 		return;
 	}
-	
+
 	switch (k)
 	{
 	case K_ESCAPE:
@@ -535,7 +535,7 @@ int	helppagemin;
 
 
 void M_Menu_Help_f (void)
-{	
+{
 	key_dest = key_menu;
 	m_state = m_help;
 	m_entersound = true;
@@ -575,7 +575,7 @@ void M_Help_Key (int key)
 	case K_ESCAPE:
 		M_Menu_Main_f ();
 		break;
-		
+
 	case K_UPARROW:
 	case K_RIGHTARROW:
 		m_entersound = true;
@@ -600,14 +600,14 @@ int		msgNumber;
 int		m_quit_prevstate;
 qboolean	wasInMenus;
 
-char *quitMessage [] = 
+char *quitMessage [] =
 {
 /* .........1.........2.... */
   "  Are you gonna quit    ",
   "  this game just like   ",
   "   everything else?     ",
   "                        ",
- 
+
   " Milord, methinks that  ",
   "   thou art a lowly     ",
   " quitter. Is this true? ",
@@ -622,22 +622,22 @@ char *quitMessage [] =
   "   for trying to quit!  ",
   "     Press Y to get     ",
   "      smacked out.      ",
- 
+
   " Press Y to quit like a ",
   "   big loser in life.   ",
   "  Press N to stay proud ",
   "    and successful!     ",
- 
+
   "   If you press Y to    ",
   "  quit, I will summon   ",
   "  Satan all over your   ",
   "      hard drive!       ",
- 
+
   "  Um, Asmodeus dislikes ",
   " his children trying to ",
   " quit. Press Y to return",
   "   to your Tinkertoys.  ",
- 
+
   "  If you quit now, I'll ",
   "  throw a blanket-party ",
   "   for you next time!   ",
@@ -698,7 +698,7 @@ void M_Quit_Draw (void)
 	"0            QuakeWorld",
 	"1          version " VSTR2(VERSION),
 	"1modified by Forethought Entertainment",
-	"0Based on QuakeWorld Version 2.40",	
+	"0Based on QuakeWorld Version 2.40",
 	"1",
 	"0Additional Programming",
 	"1 David Walton",
@@ -773,7 +773,7 @@ qboolean MC_Quit_Key (int key, menu_t *menu)
 
 menu_t quitmenu;
 void M_Menu_Quit_f (void)
-{	
+{
 	int		i;
 
 		CL_Disconnect ();
@@ -781,17 +781,17 @@ void M_Menu_Quit_f (void)
 
 	key_dest = key_menu;
 	m_state = m_complex;
-	m_entersound = true;	
+	m_entersound = true;
 
 	M_RemoveMenu(&quitmenu);
 	memset(&quitmenu, 0, sizeof(quitmenu));
 	M_AddMenuFront(&quitmenu);
 	quitmenu.exclusive = false;
 	quitmenu.key = MC_Quit_Key;
-	
+
 
 	i = rand()&7;
-	
+
 	MC_AddWhiteText(&quitmenu, 64, 84, quitMessage[i*4+0], false);
 	MC_AddWhiteText(&quitmenu, 64, 92, quitMessage[i*4+1], false);
 	MC_AddWhiteText(&quitmenu, 64, 100, quitMessage[i*4+2], false);
@@ -828,7 +828,7 @@ void M_Init_Internal (void)
 	Cmd_AddRemCommand ("menu_single", M_Menu_SinglePlayer_f);
 	Cmd_AddRemCommand ("menu_multi", M_Menu_MultiPlayer_f);
 	Cmd_AddRemCommand ("menu_demo", M_Menu_Demos_f);
-	
+
 	Cmd_AddRemCommand ("menu_keys", M_Menu_Keys_f);
 	Cmd_AddRemCommand ("help", M_Menu_Help_f);
 	Cmd_AddRemCommand ("menu_quit", M_Menu_Quit_f);
@@ -852,14 +852,14 @@ void M_Init_Internal (void)
 	Cmd_AddRemCommand ("menu_particles", M_Menu_Particles_f);
 	Cmd_AddRemCommand ("menu_particlesets", M_Menu_ParticleSets_f);
 
-#ifndef MINIMAL
+#ifdef WEBCLIENT
 	Cmd_AddRemCommand ("menu_download", Menu_DownloadStuff_f);
 #endif
 }
 
 void M_DeInit_Internal (void)
 {
-	M_RemoveAllMenus(); 
+	M_RemoveAllMenus();
 
 	if (!internalmenusregistered)
 		return;
@@ -873,7 +873,7 @@ void M_DeInit_Internal (void)
 	Cmd_RemoveCommand ("menu_single");
 	Cmd_RemoveCommand ("menu_multi");
 	Cmd_RemoveCommand ("menu_demo");
-	
+
 	Cmd_RemoveCommand ("menu_keys");
 	Cmd_RemoveCommand ("help");
 	Cmd_RemoveCommand ("menu_quit");

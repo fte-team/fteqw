@@ -5114,12 +5114,14 @@ void PF_infokey (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 //			value = "";
 		else if (!strcmp(key, "trustlevel"))	//info for progs.
 		{
+#ifdef SVRANKING
 			rankstats_t rs;
 			if (!svs.clients[e1-1].rankid)
 				value = "";
 			else if (Rank_GetPlayerStats(svs.clients[e1-1].rankid, &rs))
 				sprintf(ov, "%d", rs.trustlevel);
 			else
+#endif
 				value = "";
 		}
 		else
@@ -7443,7 +7445,7 @@ void PF_plaque_draw(progfuncs_t *prinst, struct globalvars_s *pr_globals)
 			MSG_WriteByte (QWWriteDest(G_FLOAT(OFS_PARM0)), 'P');
 		}
 		MSG_WriteString (QWWriteDest(G_FLOAT(OFS_PARM0)), s);
-
+#ifdef NQPROT
 		MSG_WriteByte (NQWriteDest(G_FLOAT(OFS_PARM0)), svc_centerprint);
 		if (*s)
 		{
@@ -7451,6 +7453,7 @@ void PF_plaque_draw(progfuncs_t *prinst, struct globalvars_s *pr_globals)
 			MSG_WriteByte (NQWriteDest(G_FLOAT(OFS_PARM0)), 'P');
 		}
 		MSG_WriteString (NQWriteDest(G_FLOAT(OFS_PARM0)), s);
+#endif
 	}
 }
 

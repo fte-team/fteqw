@@ -209,7 +209,7 @@ void SV_Logfile_f (void)
 		Con_Printf(va("Logging to %s/%s/%s.log.\n", com_basedir, d, f));
 		Cvar_SetValue(&log_enable, 1);
 	}
-	
+
 }
 
 /*
@@ -659,8 +659,9 @@ void SV_BanName_f (void)
 {
 	client_t	*cl;
 	int clnum=-1;
-
+#ifdef SVRANKING
 	rankstats_t rs;
+#endif
 
 
 	while((cl = SV_GetClientForString(Cmd_Argv(1), &clnum)))
@@ -669,6 +670,7 @@ void SV_BanName_f (void)
 		// print directly, because the dropped client won't get the
 		// SV_BroadcastPrintf message
 		SV_ClientTPrintf (cl, PRINT_HIGH, STL_YOUWEREBANNED);
+#ifdef SVRANKING
 		if (cl->rankid)
 		{
 			if (Rank_GetPlayerStats(cl->rankid, &rs))
@@ -679,6 +681,7 @@ void SV_BanName_f (void)
 		}
 		else
 			Con_Printf("User is not using an account\n");
+#endif
 		SV_DropClient (cl);
 	}
 
@@ -1196,7 +1199,7 @@ void SV_Serverinfo_f (void)
 					else
 						Info_RemoveKey(svs.info, k);	//we can remove this one though, so yay.
 				}
-				
+
 				return;
 			}
 		Con_TPrintf (TL_STARKEYPROTECTED);

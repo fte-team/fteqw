@@ -2860,10 +2860,12 @@ void Cmd_Observe_f (void)
 
 void SV_EnableClientsCSQC(void)
 {
+#ifdef PEXT_CSQC
 	if (host_client->fteprotocolextensions & PEXT_CSQC)
 		host_client->csqcactive = true;
 	else
 		Con_DPrintf("CSQC enabled without protocol extensions\n");
+#endif
 }
 
 void SV_MVDList_f (void);
@@ -3002,9 +3004,11 @@ void SV_ExecuteUserCommand (char *s, qboolean fromQC)
 		u = ucmdsq2;
 	else
 #endif
+#ifdef NQPROT
 	if (ISNQCLIENT(host_client))
 		u = nqucmds;
 	else
+#endif
 		u=ucmds;
 
 	for ( ; u->name ; u++)
@@ -3031,7 +3035,7 @@ void SV_ExecuteUserCommand (char *s, qboolean fromQC)
 				host_client = oldhost;
 				return;
 			}
-
+#ifdef SVRANKING
 		if (sv_cmdlikercon.value && host_client->rankid)
 		{
 			char remaining[1024];
@@ -3071,6 +3075,7 @@ void SV_ExecuteUserCommand (char *s, qboolean fromQC)
 			SV_EndRedirect ();
 			return;
 		}
+#endif
 		Con_Printf ("Bad user command: %s\n", Cmd_Argv(0));
 	}
 

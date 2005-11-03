@@ -460,8 +460,10 @@ void SV_DropClient (client_t *drop)
 	drop->istobeloaded = false;
 
 	drop->old_frags = 0;
+#ifdef SVRANKING
 	drop->kills = 0;
 	drop->deaths = 0;
+#endif
 	if (svprogfuncs && drop->edict)
 		drop->edict->v->frags = 0;
 	drop->name[0] = 0;
@@ -1935,6 +1937,7 @@ void SVC_RemoteCommand (void)
 
 	if (!Rcon_Validate ())
 	{
+#ifdef SVRANKING
 		if (cmd_allowaccess.value)	//try and find a username, match the numeric password
 		{
 			int rid;
@@ -1989,6 +1992,7 @@ void SVC_RemoteCommand (void)
 				}
 			}
 		}
+#endif
 
 		Con_Printf ("Bad rcon from %s:\n%s\n"
 			, NET_AdrToString (net_from), net_message.data+4);
@@ -3360,6 +3364,7 @@ void SV_FixupName(char *in, char *out)
 
 qboolean ReloadRanking(client_t *cl, char *newname)
 {
+#ifdef SVRANKING
 	int newid;
 	int j;
 	rankstats_t rs;
@@ -3412,6 +3417,7 @@ qboolean ReloadRanking(client_t *cl, char *newname)
 		cl->trustlevel = rs.trustlevel;
 		return true;
 	}
+#endif
 	return false;
 }
 /*

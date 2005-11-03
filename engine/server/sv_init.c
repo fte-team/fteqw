@@ -526,7 +526,9 @@ void SV_SpawnServer (char *server, char *startspot, qboolean noents, qboolean us
 #ifndef SERVERONLY
 		Wads_Flush();	//server code is responsable for flushing old state
 #endif
+#ifdef SVRANKING
 		Rank_Flush();
+#endif
 
 		for (i = 0; i < MAX_CLIENTS; i++)
 		{

@@ -1601,7 +1601,6 @@ void SV_UpdateToReliableMessages (void)
 				{
 					if (ISQWCLIENT(host_client))
 					{
-						Con_Printf("svc_entgravity\n");
 						sp = SV_SplitClientDest(host_client, svc_entgravity, 5);
 						ClientReliableWrite_Float(sp, newval/movevars.gravity);	//lie to the client in a cunning way
 					}

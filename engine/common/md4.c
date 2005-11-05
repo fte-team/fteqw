@@ -28,11 +28,7 @@ typedef unsigned char *POINTER;
 typedef unsigned short int UINT2;
 
 /* UINT4 defines a four byte word */
-#ifdef __alpha__
 typedef unsigned int UINT4;
-#else
-typedef unsigned long int UINT4;
-#endif
 
 
 /* MD4.H - header file for MD4C.C */

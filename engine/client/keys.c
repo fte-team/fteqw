@@ -1160,7 +1160,7 @@ void Key_Event (int key, qboolean down)
 					}
 				}
 			}
-			if (keydown[k] && key_dest != key_console)
+			if (keydown[k] && (key_dest != key_console && key_dest != key_message))
 			{
 				deltaused[k][keystate] = true;
 

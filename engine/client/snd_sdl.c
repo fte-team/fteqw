@@ -3,7 +3,15 @@
 
 #include <SDL.h>
 
-#define	SOUND_BUFFER_SIZE			0x0400
+//SDL calls a callback each time it needs to repaint the 'hardware' buffers
+//This results in extra latency.
+//SDL runs does this multithreaded.
+//So we tell it a fairly pathetically sized buffer and try and get it to copy often
+//hopefully this lowers sound latency, and has no suddenly starting sounds and stuff.
+//It still has greater latency than direct access, of course.
+
+//FIXME: One thing I saw in quakeforge was that quakeforge basically leaves the audio locked except for a really short period of time.
+//An interesting idea, which ensures the driver can only paint in a small time-frame. this would possibly allow lower latency painting.
 
 static void SSDL_Shutdown(soundcardinfo_t *sc)
 {
@@ -17,7 +25,8 @@ Con_Printf("down\n");
 }
 static unsigned int SSDL_GetDMAPos(soundcardinfo_t *sc)
 {
-	sc->sn.samplepos = (sc->snd_sent / (sc->sn.samplebits/8)) % sc->sn.samples;
+	sc->sn.samplepos = (sc->snd_sent / (sc->sn.samplebits/8));
+//	printf("%i\n", sc->sn.samplepos);
 	return sc->sn.samplepos;
 }
 
@@ -26,22 +35,36 @@ static unsigned int SSDL_GetDMAPos(soundcardinfo_t *sc)
 static void SSDL_Paint(void *userdata, qbyte *stream, int len)
 {
 	soundcardinfo_t *sc = userdata;
+	int buffersize = sc->sn.samples*(sc->sn.samplebits/8);
 
-	if (len > SOUND_BUFFER_SIZE)
-		len = SOUND_BUFFER_SIZE;	//whoa nellie!
-	if (len > SOUND_BUFFER_SIZE - sc->snd_sent)
+//printf("SDL_Paint (%i)\n", len);
+	if (len > buffersize)
+	{
+//		printf("SDLSound: len(%i) > SOUND_BUFFER_SIZE(%i)\n", len, buffersize);
+		len = buffersize;	//whoa nellie!
+	}
+
+	if (len + sc->snd_sent%buffersize > buffersize)
 	{	//buffer will wrap, fill in the rest
-		memcpy(stream, sc->sn.buffer + sc->snd_sent, SOUND_BUFFER_SIZE - sc->snd_sent);
-		len -= SOUND_BUFFER_SIZE - sc->snd_sent;
-		sc->snd_sent = 0;
+//printf("Wrap\n");
+		memcpy(stream, (char*)sc->sn.buffer + (sc->snd_sent%buffersize), buffersize - (sc->snd_sent%buffersize));
+		stream += buffersize - sc->snd_sent%buffersize;
+		len -= buffersize - (sc->snd_sent%buffersize);
+		if (len < 0)
+			return;
 	}	//and finish from the start
-	memcpy(stream, sc->sn.buffer + sc->snd_sent, len);
+	memcpy(stream, (char*)sc->sn.buffer + (sc->snd_sent%buffersize), len);
 	sc->snd_sent += len;
+
+
+
+//memcpy(stream, sc->sn.buffer, len);
 }
 
 static void *SSDL_LockBuffer(soundcardinfo_t *sc)
 {
 	SDL_LockAudio();
+
 	return sc->sn.buffer;
 }
 
@@ -60,11 +83,6 @@ static void SSDL_Submit(soundcardinfo_t *sc)
 	//SDL will call SSDL_Paint to paint when it's time, and the sound buffer is always there...
 }
 
-
-void S_UpdateCapture(void)	//any ideas how to get microphone input?
-{
-}
-
 static int SDL_InitCard(soundcardinfo_t *sc, int cardnum)
 {
 	SDL_AudioSpec desired, obtained;
@@ -74,7 +92,8 @@ static int SDL_InitCard(soundcardinfo_t *sc, int cardnum)
 		return 2;	//erm. SDL won't allow multiple sound cards anyway.
 	}
 
-Con_Printf("SDL AUDIO INITING\n");
+	Con_Printf("Initing SDL audio.\n");
+
 	if(SDL_InitSubSystem(SDL_INIT_AUDIO | SDL_INIT_NOPARACHUTE))
 	{
 		Con_Printf("Couldn't initialize SDL audio subsystem\n");
@@ -84,11 +103,12 @@ Con_Printf("SDL AUDIO INITING\n");
 	memset(&desired, 0, sizeof(desired));
 
 	desired.freq = sc->sn.speed;
-	desired.channels = 2;
-	desired.samples = SOUND_BUFFER_SIZE;
-	desired.format = AUDIO_S16;
+	desired.channels = 2;	//fixme!
+	desired.samples = 0x0100;
+	desired.format = AUDIO_S16SYS;
 	desired.callback = SSDL_Paint;
 	desired.userdata = sc;
+	memcpy(&obtained, &desired, sizeof(obtained));
 
 
 	if ( SDL_OpenAudio(&desired, &obtained) < 0 )
@@ -98,11 +118,17 @@ Con_Printf("SDL AUDIO INITING\n");
 	}
 	sc->sn.numchannels = obtained.channels;
 	sc->sn.speed = obtained.freq;
-	sc->sn.samplebits = 16;
-	sc->sn.samples = SOUND_BUFFER_SIZE;
-	sc->sn.buffer = malloc(SOUND_BUFFER_SIZE*sc->sn.samplebits/8);
-	Con_Printf("Got sound %i-%i\n", obtained.freq, obtained.format);
-	SDL_PauseAudio(0);
+	sc->sn.samplebits = obtained.format&0xff;
+	sc->sn.samples = 32768;//*sc->sn.numchannels;	//doesn't really matter, so long as it's higher than obtained.samples
+
+	Con_DPrintf("channels: %i\n", sc->sn.numchannels);
+	Con_DPrintf("Speed: %i\n", sc->sn.speed);
+	Con_DPrintf("Samplebits: %i\n", sc->sn.samplebits);
+	Con_DPrintf("SDLSamples: %i (low for latency)\n", obtained.samples);
+	Con_DPrintf("FakeSamples: %i\n", sc->sn.samples);
+
+	sc->sn.buffer = malloc(sc->sn.samples*sc->sn.samplebits/8);
+	Con_DPrintf("Got sound %i-%i\n", obtained.freq, obtained.format);
 
 	sc->Lock		= SSDL_LockBuffer;
 	sc->Unlock		= SSDL_UnlockBuffer;
@@ -111,7 +137,10 @@ Con_Printf("SDL AUDIO INITING\n");
 	sc->Shutdown		= SSDL_Shutdown;
 	sc->GetDMAPos		= SSDL_GetDMAPos;
 
+	SDL_PauseAudio(0);
+
 	return true;
 }
 
 sounddriver pSDL_InitCard = &SDL_InitCard;
+

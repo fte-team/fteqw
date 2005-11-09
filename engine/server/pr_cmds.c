@@ -6134,16 +6134,22 @@ lh_extension_t QSG_Extensions[] = {
 	{"DP_EF_NODRAW"},					//implemented by sending it with no modelindex
 	{"DP_EF_RED"},
 	{"DP_ENT_EXTERIORMODELTOCLIENT"},
+	//only in dp6 currently {"DP_ENT_GLOW"},
+	{"DP_ENT_VIEWMODEL"},
+	//Might be buggy {"DP_GFX_QUAKE3MODELTAGS"},
 	{"DP_GFX_SKINFILES"},
+	{"DP_GFX_SKYBOX"},	//according to the spec. :)
 	{"DP_HALFLIFE_MAP_CVAR"},
+	//to an extend {"DP_HALFLIFE_SPRITE"},
 	{"DP_INPUTBUTTONS"},
+	{"DP_LITSUPPORT"},
 	{"DP_MONSTERWALK"},
 	{"DP_MOVETYPEBOUNCEMISSILE"},		//I added the code for hexen2 support.
 	{"DP_MOVETYPEFOLLOW"},
+	{"DP_QC_BOTCLIENT",					2,	NULL, {"spawnclient", "clienttype"}},
 	{"DP_QC_CHANGEPITCH",				1,	NULL, {"changepitch"}},
 	{"DP_QC_COPYENTITY",				1,	NULL, {"copyentity"}},
 	{"DP_QC_CVAR_STRING",				1,	NULL, {"dp_cvar_string"}},	//448 builtin.
-	{"DP_QC_DROPCLIENT",				1,	NULL, {"dropclient"}},	//453 builtin.
 	{"DP_QC_ETOS",						1,	NULL, {"etos"}},
 	{"DP_QC_FINDCHAIN",					1,	NULL, {"findchain"}},
 	{"DP_QC_FINDCHAINFLOAT",			1,	NULL, {"findchainfloat"}},
@@ -6156,33 +6162,45 @@ lh_extension_t QSG_Extensions[] = {
 	{"DP_QC_RANDOMVEC",					1,	NULL, {"randomvec"}},
 	{"DP_QC_SINCOSSQRTPOW",				4,	NULL, {"sin", "cos", "sqrt", "pow"}},
 	{"DP_QC_TRACEBOX",					1,	NULL, {"tracebox"}},
+	{"DP_QC_TRACETOSS"},
+	{"DP_QC_TRACE_MOVETYPE_HITMODEL"},
+	{"DP_QC_TRACE_MOVETYPE_WORLDONLY"},
 	{"DP_QC_TRACE_MOVETYPES"},		//this one is just a lame excuse to add annother extension...
 	{"DP_QC_VECTORVECTORS",				1,	NULL, {"vectorvectors"}},
-	{"DP_SV_WRITEUNTERMINATEDSTRING",	1,	NULL, {"WriteUnterminatedString"}},
 	{"DP_QUAKE2_MODEL"},
+	{"DP_QUAKE2_SPRITE"},
 	{"DP_QUAKE3_MODEL"},
 	{"DP_REGISTERCVAR",					1,	NULL, {"registercvar"}},
 	{"DP_SPRITE32"},				//hmm... is it legal to advertise this one?
-	{"DP_SV_BOTCLIENT",					2,	NULL, {"spawnclient", "clienttype"}},
 	{"DP_SV_CLIENTCOLORS"},
 	{"DP_SV_CLIENTNAME"},
 	{"DP_SV_DRAWONLYTOCLIENT"},
-	{"DP_SV_DROPCLIENT"},
+	{"DP_SV_DROPCLIENT",					1,	NULL, {"dropclient"}},
+	{"DP_SV_EFFECT",					1,	NULL, {"effect"}},
+	{"DP_SV_EXTERIORMODELFORCLIENT"},
 	{"DP_SV_NODRAWTOCLIENT"},		//I prefer my older system. Guess I might as well remove that older system at some point.
 	{"DP_SV_PLAYERPHYSICS"},
+	{"DP_SV_PRECACHEANYTIME"},
 	{"DP_SV_SETCOLOR"},
+	{"DP_SV_WRITEUNTERMINATEDSTRING",	1,	NULL, {"WriteUnterminatedString"}},
 	{"DP_TE_BLOOD",						1,	NULL, {"te_blood"}},
 	{"DP_TE_BLOODSHOWER",				1,	NULL, {"te_bloodshower"}},
 	{"DP_TE_CUSTOMFLASH",				1,	NULL, {"te_customflash"}},
+	//explosionrgb
+	//flamejet
 	{"DP_TE_PARTICLECUBE",				1,	NULL, {"te_particlecube"}},
+	//particlerain
+	//particlesnow
 	{"DP_TE_PLASMABURN",				1,	NULL, {"te_plasmaburn"}},
+	//quadeffects1
 	{"DP_TE_SMALLFLASH",				1,	NULL, {"te_smallflash"}},
 	{"DP_TE_SPARK",						1,	NULL, {"te_spark"}},
 	{"DP_TE_STANDARDEFFECTBUILTINS",	14,	NULL, {"te_gunshot", "te_spike", "te_superspike", "te_explosion", "te_tarexplosion", "te_wizspike", "te_knightspike", "te_lavasplash", "te_teleport", "te_explosion2", "te_lightning1", "te_lightning2", "te_lightning3", "te_beam"}},
+	{"DP_VIEWZOOM"},
+	{"EXT_BITSHIFT",					1,	NULL, {"bitshift"}},
 	{"EXT_DIMENSION_VISIBILITY"},
 	{"EXT_DIMENSION_PHYSICS"},
 	{"EXT_DIMENSION_GHOST"},
-	{"EXT_BITSHIFT",					1,	NULL, {"bitshift"}},
 	{"FRIK_FILE",						11, NULL, {"stof", "fopen","fclose","fgets","fputs","strlen","strcat","substring","stov","strzone","strunzone"}},
 	{"FTE_CALLTIMEOFDAY",				1,	NULL, {"calltimeofday"}},
 	{"FTE_FORCEINFOKEY",				1,	NULL, {"forceinfokey"}},
@@ -6209,11 +6227,12 @@ lh_extension_t QSG_Extensions[] = {
 												   "strstrofs", "str2chr", "chr2str", "strconv", "infoadd", "infoget", "strncmp", "strcasecmp", "strncasecmp"}},
 
 	{"FTE_TE_STANDARDEFFECTBUILTINS",	16,	NULL, {"te_gunshot", "te_spike", "te_superspike", "te_explosion", "te_tarexplosion", "te_wizspike", "te_knightspike", "te_lavasplash",
-												   "te_teleport", "te_explosion2", "te_lightning1", "te_lightning2", "te_lightning3", "te_beam", "te_lightningblood", "te_bloodqw"}},
+												   "te_teleport", "te_lightning1", "te_lightning2", "te_lightning3", "te_lightningblood", "te_bloodqw"}},
 
 	{"HYDR_WRITESTRING2",				1,	NULL, {"writestring2"}},
 
 	{"KRIMZON_SV_PARSECLIENTCOMMAND",	3,	NULL, {"clientcommand", "tokenize", "argv"}},	//very very similar to the mvdsv system.
+	//{"PRYDON_CLIENTCURSOR"},
 	{"QSG_CVARSTRING",					1,	NULL, {"cvar_string"}},
 	{"QW_ENGINE",						1,	NULL, {"infokey", "stof", "logfrag"}},	//warning: interpretation of .skin on players can be dodgy, as can some other QW features that differ from NQ.
 	{"QWE_MVD_RECORD"},	//Quakeworld extended get the credit for this one. (mvdsv)

@@ -1183,6 +1183,15 @@ void MasterInfo_Begin(void)
 			Master_AddMaster("150.254.66.120:27000",		MT_MASTERQW, "Poland's master server.");
 			Master_AddMaster("62.112.145.129:27000",		MT_MASTERQW, "Ocrana master server.");
 
+			Master_AddMaster("master.edome.net",			MT_MASTERQW, "edome master server.");
+			Master_AddMaster("qwmaster.barrysworld.com",	MT_MASTERQW, "barrysworld master server.");
+			Master_AddMaster("qwmaster.ocrana.de",			MT_MASTERQW, "Ocrana2 master server.");
+			Master_AddMaster("213.221.174.165:27000",		MT_MASTERQW, "unknown1 master server.");
+			Master_AddMaster("195.74.0.8",					MT_MASTERQW, "unknown2 master server.");
+			Master_AddMaster("192.246.40.37",				MT_MASTERQW, "unknown3 master server.");
+			Master_AddMaster("192.246.40.37:27006",			MT_MASTERQW, "unknown4 master server.");
+			Master_AddMaster("204.182.161.2",				MT_MASTERQW, "unknown5 master server.");
+
 			Master_AddMaster("255.255.255.255:27500",		MT_BCASTQW, "Nearby QuakeWorld UDP servers.");
 		}
 
@@ -1398,9 +1407,9 @@ int CL_ReadServerInfo(char *msg, int servertype, qboolean favorite)
 		name = Info_ValueForKey(msg, "sv_hostname");
 	Q_strncpyz(info->name, name, sizeof(info->name));
 	info->special = info->special & (SS_FAVORITE | SS_KEEPINFO);	//favorite is never cleared
-	if (!strcmp("FTE", Info_ValueForKey(msg, "*distrib")))
+	if (!strcmp(DISTRIBUTION, Info_ValueForKey(msg, "*distrib")))
 		info->special |= SS_FTESERVER;
-	else if (!strncmp("FTE", Info_ValueForKey(msg, "*version"), 3))
+	else if (!strncmp(DISTRIBUTION, Info_ValueForKey(msg, "*version"), 3))
 		info->special |= SS_FTESERVER;
 
 	if (servertype == MT_SINGLEDP)

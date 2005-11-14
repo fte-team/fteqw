@@ -869,7 +869,7 @@ qboolean Sys_InitTerminal (void)
 	if (!AllocConsole())
 		return false;
 	SetConsoleCtrlHandler (HandlerRoutine, TRUE);
-	SetConsoleTitle ("FTE dedicated server");
+	SetConsoleTitle (FULLENGINENAME, " dedicated server");
 	hinput = GetStdHandle (STD_INPUT_HANDLE);
 	houtput = GetStdHandle (STD_OUTPUT_HANDLE);
 

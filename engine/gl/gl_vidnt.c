@@ -353,7 +353,7 @@ qboolean VID_SetWindowedMode (rendererstate_t *info)
 	dibwindow = CreateWindowEx (
 		 ExWindowStyle,
 		 WINDOW_CLASS_NAME,
-		 "FTE QuakeWorld",
+		 FULLENGINENAME,
 		 WindowStyle,
 		 rect.left, rect.top,
 		 wwidth,
@@ -478,7 +478,7 @@ qboolean VID_SetFullDIBMode (rendererstate_t *info)
 	dibwindow = CreateWindowEx (
 		 ExWindowStyle,
 		 WINDOW_CLASS_NAME,
-		 "FTE QuakeWorld",
+		 FULLENGINENAME,
 		 WindowStyle,
 		 rect.left, rect.top,
 		 wwidth,

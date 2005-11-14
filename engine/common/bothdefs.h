@@ -241,10 +241,12 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 
 //#define	VERSION		2.56
 
-#define DISTRIBUTION "FTE"
-#define DISTRIBUTIONLONG "Forethought Entertainment"
-
-#define ENGINEWEBSITE "http://fteqw.sourceforge.net/"
+#ifndef DISTRIBUTION
+	#define DISTRIBUTION "FTE"
+	#define DISTRIBUTIONLONG "Forethought Entertainment"
+	#define FULLENGINENAME "FTE QuakeWorld"
+	#define ENGINEWEBSITE "http://fteqw.sourceforge.net/"
+#endif
 
 #ifndef PLATFORM
 	#if defined(_WIN32)

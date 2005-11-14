@@ -1058,7 +1058,7 @@ void SVC_GetChallenge (void)
 		if (sv_listen.value >= 2)
 		{
 		//dp can respond to this (and fte won't get confused because the challenge will be wrong)
-			buf = va("challenge FTE%i", svs.challenges[i].challenge);
+			buf = va("challenge DISTRIBUTION%i", svs.challenges[i].challenge);
 			Netchan_OutOfBand(NS_SERVER, net_from, strlen(buf)+1, buf);
 		}
 	}
@@ -1294,7 +1294,7 @@ client_t *SVC_DirectConnect(void)
 			protocol = SCP_DARKPLACES6;
 
 		s = Info_ValueForKey(userinfo[0], "challenge");
-		if (!strncmp(s, "FTE", 3))
+		if (!strncmp(s, DISTRIBUTION, strlen(DISTRIBUTION)))
 			challenge = atoi(s+3);
 		else
 			challenge = atoi(s);

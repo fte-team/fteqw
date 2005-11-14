@@ -29,7 +29,7 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 #ifndef MINIMAL
 //#define USESERVICE
 #endif
-#define SERVICENAME	"FTEQWSV"
+#define SERVICENAME	DISTRIBUTION"SV"
 
 
 
@@ -1100,15 +1100,15 @@ void CreateSampleService(qboolean create)
 	else
 	{
 		HKEY hk;
-		RegOpenKey(HKEY_LOCAL_MACHINE, "SOFTWARE\\FTE", &hk);
-		if (!hk)RegCreateKey(HKEY_LOCAL_MACHINE, "SOFTWARE\\FTE", &hk);
+		RegOpenKey(HKEY_LOCAL_MACHINE, "SOFTWARE\\"DISTRIBUTION, &hk);
+		if (!hk)RegCreateKey(HKEY_LOCAL_MACHINE, "SOFTWARE\\"DISTRIBUTION, &hk);
 		RegSetValueEx(hk, "servicepath", 0, REG_SZ, path, strlen(path));
 		RegCloseKey(hk);
 
 		schService = CreateService( 
 			schSCManager,				// SCManager database 
 			SERVICENAME,				// name of service 
-			"FTE QuakeWorld Server",	// service name to display 
+			FULLENGINENAME" Server",	// service name to display 
 			SERVICE_ALL_ACCESS,			// desired access 
 			SERVICE_WIN32_OWN_PROCESS|SERVICE_INTERACTIVE_PROCESS,	// service type 
 			SERVICE_AUTO_START,			// start type 

@@ -901,7 +901,7 @@ void CL_Disconnect (void)
 	Cvar_ApplyLatches(CVAR_SERVEROVERRIDE);
 
 	if (VID_SetWindowCaption)
-		VID_SetWindowCaption("FTE QuakeWorld: disconnected");
+		VID_SetWindowCaption(FULLENGINENAME": disconnected");
 
 // stop sounds (especially looping!)
 	S_StopAllSounds (true);

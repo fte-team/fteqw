@@ -521,7 +521,7 @@ qboolean HTTP_CL_Get(char *url, char *localfile, void (*NotifyFunction)(char *lo
 	}
 
 	ExpandBuffer(con, 2048);
-	sprintf(con->buffer, "GET %s HTTP/1.1\r\n"	"Host: %s\r\n" "Connection: close\r\n"	"User-Agent: FTE\r\n" "\r\n", uri, server);
+	sprintf(con->buffer, "GET %s HTTP/1.1\r\n"	"Host: %s\r\n" "Connection: close\r\n"	"User-Agent: "FULLENGINENAME"\r\n" "\r\n", uri, server);
 	con->bufferused = strlen(con->buffer);
 	con->contentlength = -1;
 	con->NotifyFunction = NotifyFunction;

@@ -351,7 +351,7 @@ cont:
 
 			if (HTTPmarkup == 3 && !hostspecified)	//1.1 requires the host to be specified... we ca,just ignore it as we're not routing or imitating two servers. (for complience we need to encourage the client to send - does nothing for compatability or anything, just compliance to spec. not always the same thing)
 			{
-				msg = "HTTP/1.1 400 Bad Request\r\n"	"Content-Type: text/plain\r\n"		"Content-Length: 69\r\n"	"Server: FTE/0\r\n"	"\r\n"	"400 Bad Request\r\nYour client failed to provide the host header line";
+				msg = "HTTP/1.1 400 Bad Request\r\n"	"Content-Type: text/plain\r\n"		"Content-Length: 69\r\n"	"Server: "FULLENGINENAME"/0\r\n"	"\r\n"	"400 Bad Request\r\nYour client failed to provide the host header line";
 
 				ammount = strlen(msg);
 				ExpandOutBuffer(cl, ammount, true);
@@ -368,9 +368,9 @@ cont:
 				if (!cl->file)
 				{
 					if (HTTPmarkup >= 3)
-						msg = "HTTP/1.1 404 Not Found\r\n"	"Content-Type: text/plain\r\n"		"Content-Length: 15\r\n"	"Server: FTE/0\r\n"	"\r\n"	"404 Bad address";
+						msg = "HTTP/1.1 404 Not Found\r\n"	"Content-Type: text/plain\r\n"		"Content-Length: 15\r\n"	"Server: "FULLENGINENAME"/0\r\n"	"\r\n"	"404 Bad address";
 					else if (HTTPmarkup == 2)
-						msg = "HTTP/1.0 404 Not Found\r\n"	"Content-Type: text/plain\r\n"		"Content-Length: 15\r\n"	"Server: FTE/0\r\n"	"\r\n"	"404 Bad address";
+						msg = "HTTP/1.0 404 Not Found\r\n"	"Content-Type: text/plain\r\n"		"Content-Length: 15\r\n"	"Server: "FULLENGINENAME"/0\r\n"	"\r\n"	"404 Bad address";
 					else if (HTTPmarkup)
 						msg = "HTTP/0.9 404 Not Found\r\n"																						"\r\n"	"404 Bad address";
 					else
@@ -385,9 +385,9 @@ cont:
 				else
 				{
 					if (HTTPmarkup>=3)
-						sprintf(resource, "HTTP/1.1 200 OK\r\n"		"Content-Type: %s\r\n"		"Content-Length: %i\r\n"	"Server: FTE/0\r\n"	"\r\n", strstr(resource, ".htm")?"text/html":"text/plain", cl->file->length);
+						sprintf(resource, "HTTP/1.1 200 OK\r\n"		"Content-Type: %s\r\n"		"Content-Length: %i\r\n"	"Server: "FULLENGINENAME"/0\r\n"	"\r\n", strstr(resource, ".htm")?"text/html":"text/plain", cl->file->length);
 					else if (HTTPmarkup==2)
-						sprintf(resource, "HTTP/1.0 200 OK\r\n"		"Content-Type: %s\r\n"		"Content-Length: %i\r\n"	"Server: FTE/0\r\n"	"\r\n", strstr(resource, ".htm")?"text/html":"text/plain", cl->file->length);
+						sprintf(resource, "HTTP/1.0 200 OK\r\n"		"Content-Type: %s\r\n"		"Content-Length: %i\r\n"	"Server: "FULLENGINENAME"/0\r\n"	"\r\n", strstr(resource, ".htm")?"text/html":"text/plain", cl->file->length);
 					else if (HTTPmarkup)
 						sprintf(resource, "HTTP/0.9 200 OK\r\n\r\n");
 					else

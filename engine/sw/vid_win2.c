@@ -506,8 +506,8 @@ LONG WINAPI MainWndProc (
 /*
 ** VID_CreateWindow
 */
-#define	WINDOW_CLASS_NAME "FTE QuakeWorld"
-#define	WINDOW_TITLE_NAME "FTE QuakeWorld"
+#define	WINDOW_CLASS_NAME FULLENGINENAME
+#define	WINDOW_TITLE_NAME FULLENGINENAME
 
 
 void VID_CreateWindow( int width, int height, qboolean fullscreen)

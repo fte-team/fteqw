@@ -651,7 +651,7 @@ void CL_CalcClientTime(void)
 			cl.servertime = cl.oldgametime;
 	}
 
-	if (cls.protocol == CP_NETQUAKE || cls.demoplayback)
+	if (cls.protocol == CP_NETQUAKE || (cls.demoplayback && cls.demoplayback != DPB_MVD))
 	{
 		float want;
 //		float off;

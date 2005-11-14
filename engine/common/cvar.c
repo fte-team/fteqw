@@ -1111,5 +1111,6 @@ void Cvar_Shutdown(void)
 		Z_Free(grp);
 	}
 
-	CB_Free(cc_cache.cb);
+	if (cc_cache.cb)
+		CB_Free(cc_cache.cb);
 }

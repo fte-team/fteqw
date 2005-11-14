@@ -134,6 +134,7 @@ typedef struct {
 	qboolean isheirachical;	//for models with transforms, states that bones need to be transformed from thier parent.
 							//this is actually bad, and can result in bones shortening as they interpolate.
 #endif
+	qboolean loop;
 	int numposes;
 	float rate;
 	int poseofs;
@@ -801,8 +802,16 @@ static qboolean R_GAliasBuildMesh(mesh_t *mesh, galiasinfo_t *inf, int frame1, i
 		frame1=mlerp;
 		frame2=frame1+1;
 		mlerp-=frame1;
-		frame1=frame1%g1->numposes;
-		frame2=frame2%g1->numposes;
+		if (g1->loop)
+		{
+			frame1=frame1%g1->numposes;
+			frame2=frame2%g1->numposes;
+		}
+		else
+		{
+			frame1=(frame1>g1->numposes-1)?g1->numposes-1:frame1;
+			frame2=(frame2>g1->numposes-1)?g1->numposes-1:frame2;
+		}
 
 		plerp[l] = (1-mlerp)*(1-lerp);
 		if (plerp[l]>0)
@@ -817,8 +826,16 @@ static qboolean R_GAliasBuildMesh(mesh_t *mesh, galiasinfo_t *inf, int frame1, i
 			frame1=mlerp;
 			frame2=frame1+1;
 			mlerp-=frame1;
-			frame1=frame1%g2->numposes;
-			frame2=frame2%g2->numposes;
+			if (g2->loop)
+			{
+				frame1=frame1%g2->numposes;
+				frame2=frame2%g2->numposes;
+			}
+			else
+			{
+				frame1=(frame1>g2->numposes-1)?g2->numposes-1:frame1;
+				frame2=(frame2>g2->numposes-1)?g2->numposes-1:frame2;
+			}
 
 			plerp[l] = (1-mlerp)*(lerp);
 			if (plerp[l]>0)
@@ -846,9 +863,16 @@ static qboolean R_GAliasBuildMesh(mesh_t *mesh, galiasinfo_t *inf, int frame1, i
 		frame1=lerp;
 		frame2=frame1+1;
 		lerp-=frame1;
-		frame1=frame1%g1->numposes;
-		frame2=frame2%g1->numposes;
-		
+		if (g1->loop)
+		{
+			frame1=frame1%g1->numposes;
+			frame2=frame2%g1->numposes;
+		}
+		else
+		{
+			frame1=(frame1>g1->numposes-1)?g1->numposes-1:frame1;
+			frame2=(frame2>g1->numposes-1)?g1->numposes-1:frame2;
+		}
 	}
 	else	//don't bother with a four way lerp. Yeah, this will produce jerkyness with models with just framegroups.
 	{
@@ -2745,6 +2769,8 @@ void GL_LoadSkinFile(galiastexnum_t *texnum, char *surfacename, int skinnumber, 
 
 	GL_ParseQ3SkinFile(shadername, surfacename, loadmodel->name, skinnumber, NULL);
 
+	texnum->shader = R_RegisterSkin(shadername);
+
 	texnum->base = Mod_LoadHiResTexture(shadername, "models", true, true, true);
 }
 
@@ -2770,6 +2796,7 @@ static void *Q1_LoadFrameGroup (daliasframetype_t *pframetype, int *seamremaps)
 	vec3_t *verts;
 
 	frame = (galiasgroup_t*)((char *)galias + galias->groupofs);
+	frame->loop = true;
 
 	for (i = 0; i < pq1inmodel->numframes; i++)
 	{
@@ -4253,6 +4280,7 @@ typedef struct zymscene_s
 	int flags;
 	int start, length; // range of poses
 } zymscene_t;
+#define ZYMSCENEFLAG_NOLOOP 1
 
 typedef struct zymvertex_s
 {
@@ -4446,6 +4474,7 @@ void GLMod_LoadZymoticModel(model_t *mod, void *buffer)
 	{
 		grp->isheirachical = 1;
 		grp->rate = BigFloat(inscene->framerate);
+		grp->loop = !(BigLong(inscene->flags) & ZYMSCENEFLAG_NOLOOP);
 		grp->numposes = BigLong(inscene->length);
 		grp->poseofs = (char*)matrix  - (char*)grp;
 		grp->poseofs += BigLong(inscene->start)*12*sizeof(float)*root->numbones;
@@ -5479,6 +5508,7 @@ galiasgroup_t GLMod_ParseMD5Anim(char *buffer, galiasinfo_t *prototype, void**po
 	grp.isheirachical = true;
 	grp.numposes = numframes;
 	grp.rate = framespersecond;
+	grp.loop = true;
 
 	return grp;
 #undef EXPECT

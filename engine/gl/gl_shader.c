@@ -1828,26 +1828,99 @@ void Shader_DefaultBSPFlare(char *shortname, shader_t *s)
 }
 void Shader_DefaultSkin(char *shortname, shader_t *s)
 {
+	int tex;
 	shaderpass_t *pass;
-	pass = &s->passes[0];
-	pass->flags = SHADER_PASS_DEPTHWRITE;
-	pass->anim_frames[0] = Mod_LoadHiResTexture(shortname, NULL, true, true, true);//GL_FindImage (shortname, 0);
-	pass->depthfunc = GL_LEQUAL;
-	pass->rgbgen = RGB_GEN_LIGHTING_DIFFUSE;
-	pass->numtcmods = 0;
-	pass->tcgen = TC_GEN_BASE;
-	pass->blendsrc = GL_SRC_ALPHA;
-	pass->blenddst = GL_ONE_MINUS_SRC_ALPHA;
-	pass->blendmode = GL_MODULATE;
-	pass->numMergedPasses = 1;
-	pass->flush = R_RenderMeshGeneric;
 
-	if ( !pass->anim_frames[0] ) {
-		Con_DPrintf ( S_COLOR_YELLOW "Shader %s has a stage with no image: %s.\n", s->name, shortname );
-		pass->anim_frames[0] = 0;//fizme:r_notexture;
+	s->numpasses = 0;
+
+	tex = Mod_LoadHiResTexture(shortname, NULL, true, true, true);
+//	if (tex)
+	{
+		pass = &s->passes[s->numpasses++];
+		pass->flags = SHADER_PASS_DEPTHWRITE;
+		pass->anim_frames[0] = tex;
+		pass->depthfunc = GL_LEQUAL;
+		pass->rgbgen = RGB_GEN_LIGHTING_DIFFUSE;
+		pass->numtcmods = 0;
+		pass->tcgen = TC_GEN_BASE;
+		pass->blendsrc = GL_SRC_ALPHA;
+		pass->blenddst = GL_ONE_MINUS_SRC_ALPHA;
+		pass->blendmode = GL_MODULATE;
+		pass->numMergedPasses = 1;
+		pass->flush = R_RenderMeshGeneric;
+		if (!pass->anim_frames[0])
+		{
+			Con_DPrintf ( S_COLOR_YELLOW "Shader %s has a stage with no image: %s.\n", s->name, shortname );
+			pass->anim_frames[0] = 0;//fizme:r_notexture;
+		}
 	}
 
-	s->numpasses = 1;
+	tex = Mod_LoadHiResTexture(va("%s_shirt", shortname), NULL, true, true, true);
+	if (tex)
+	{
+		pass = &s->passes[s->numpasses++];
+		pass->flags = SHADER_PASS_BLEND;
+		pass->anim_frames[0] = tex;
+		pass->depthfunc = GL_EQUAL;
+		pass->rgbgen = RGB_GEN_TOPCOLOR;
+		pass->numtcmods = 0;
+		pass->tcgen = TC_GEN_BASE;
+		pass->blendsrc = GL_ONE;
+		pass->blenddst = GL_ONE;
+		pass->blendmode = GL_MODULATE;
+		pass->numMergedPasses = 1;
+		pass->flush = R_RenderMeshGeneric;
+		if (!pass->anim_frames[0])
+		{
+			Con_DPrintf ( S_COLOR_YELLOW "Shader %s has a stage with no image: %s.\n", s->name, shortname );
+			pass->anim_frames[0] = 0;//fizme:r_notexture;
+		}
+	}
+
+	tex = Mod_LoadHiResTexture(va("%s_pants", shortname), NULL, true, true, true);
+	if (tex)
+	{
+		pass = &s->passes[s->numpasses++];
+		pass->flags = SHADER_PASS_BLEND;
+		pass->anim_frames[0] = tex;
+		pass->depthfunc = GL_EQUAL;
+		pass->rgbgen = RGB_GEN_BOTTOMCOLOR;
+		pass->numtcmods = 0;
+		pass->tcgen = TC_GEN_BASE;
+		pass->blendsrc = GL_ONE;
+		pass->blenddst = GL_ONE;
+		pass->blendmode = GL_MODULATE;
+		pass->numMergedPasses = 1;
+		pass->flush = R_RenderMeshGeneric;
+		if (!pass->anim_frames[0])
+		{
+			Con_DPrintf ( S_COLOR_YELLOW "Shader %s has a stage with no image: %s.\n", s->name, shortname );
+			pass->anim_frames[0] = 0;//fizme:r_notexture;
+		}
+	}
+
+	tex = Mod_LoadHiResTexture(va("%s_glow", shortname), NULL, true, true, true);
+	if (tex)
+	{
+		pass = &s->passes[s->numpasses++];
+		pass->flags = SHADER_PASS_BLEND;
+		pass->anim_frames[0] = tex;
+		pass->depthfunc = GL_EQUAL;
+		pass->rgbgen = RGB_GEN_LIGHTING_DIFFUSE;
+		pass->numtcmods = 0;
+		pass->tcgen = TC_GEN_BASE;
+		pass->blendsrc = GL_ONE;
+		pass->blenddst = GL_ONE;
+		pass->blendmode = GL_MODULATE;
+		pass->numMergedPasses = 1;
+		pass->flush = R_RenderMeshGeneric;
+		if (!pass->anim_frames[0])
+		{
+			Con_DPrintf (S_COLOR_YELLOW "Shader %s has a stage with no image: %s.\n", s->name, shortname);
+			pass->anim_frames[0] = 0;//fizme:r_notexture;
+		}
+	}
+
 	s->numdeforms = 0;
 	s->flags = SHADER_DEPTHWRITE|SHADER_CULL_FRONT;
 	s->features = MF_STCOORDS|MF_NORMALS;

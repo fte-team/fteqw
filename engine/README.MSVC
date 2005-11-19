@@ -4,6 +4,7 @@ You will need to build the gas2masm project's debug build first.
 After that, you will have a choice of FTE builds.
 If you are running without libraries, you can pick the mingldebug build. For sw only builds, select the debug/release options. For dedicated builds, choose the logical one. The MDebug/MRelease builds are the merged binaries.
 
+important: msvc 6.0 standard install doesn't come with "ml.exe" which is needed to build fte, you can get it from either service pack 5 or 6. or grab it from somewhere i dunno
 
 zlib:
 libs/zconf.h

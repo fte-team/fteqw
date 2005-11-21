@@ -184,11 +184,11 @@ qboolean FSOS_FLocate(void *handle, flocation_t *loc, char *filename, void *hash
 		if ( strchr (filename, '/') || strchr (filename,'\\'))
 			continue;
 	}
-*/			
+*/
 
 // check a file in the directory tree
 	_snprintf (netpath, sizeof(netpath)-1, "%s/%s",(char*)handle, filename);
-	
+
 	f = fopen(netpath, "rb");
 	if (!f)
 		return -1;
@@ -232,7 +232,7 @@ searchpathfuncs_t osfilefuncs = {
 void FSPAK_PrintPath(void *handle)
 {
 	pack_t *pak = handle;
-	
+
 	Con_Printf("%s\n", pak->filename);
 }
 void FSPAK_ClosePath(void *handle)
@@ -364,7 +364,7 @@ void *FSPAK_LoadPackFile (char *packfile)
 
 // crc the directory to check for modifications
 //	crc = QCRC_Block((qbyte *)info, header.dirlen);
-	
+
 
 //	QCRC_Init (&crc);
 
@@ -390,7 +390,7 @@ void *FSPAK_LoadPackFile (char *packfile)
 	pack->handle = packhandle;
 	pack->numfiles = numpackfiles;
 	pack->files = newfiles;
-	
+
 	Con_TPrintf (TL_ADDEDPACKFILE, packfile, numpackfiles);
 	return pack;
 }
@@ -411,7 +411,7 @@ void *com_pathforfile;	//fread and stuff is preferable if null
 
 #define ZEXPORT VARGS
 
-#ifdef ZLIB
+#ifdef AVAIL_ZLIB
 #ifdef _WIN32
 #pragma comment( lib, "../libs/zlib.lib" )
 #endif
@@ -438,7 +438,7 @@ typedef struct zipfile_s
 static void FSZIP_PrintPath(void *handle)
 {
 	zipfile_t *zip = handle;
-	
+
 	Con_Printf("%s\n", zip->filename);
 }
 static void FSZIP_ClosePath(void *handle)
@@ -572,7 +572,7 @@ static void *FSZIP_LoadZipFile (char *filename)
 	FILE			*packhandle;
 	if (COM_FileOpenRead (filename, &packhandle) == -1)
 		return NULL;
-	fclose(packhandle);	
+	fclose(packhandle);
 
 	zip = Z_Malloc(sizeof(zipfile_t));
 	Q_strncpyz(zip->filename, filename, sizeof(zip->filename));
@@ -714,14 +714,14 @@ int COM_FileOpenRead (char *path, FILE **hndl)
 		return -1;
 	}
 	*hndl = f;
-	
+
 	return COM_filelength(f);
 }
 
 int COM_FileSize(char *path)
 {
 	int len;
-	FILE *h;	
+	FILE *h;
 	len = COM_FOpenFile(path, &h);
 	if (len>=0)
 		fclose(h);
@@ -738,9 +738,9 @@ COM_Path_f
 void COM_Path_f (void)
 {
 	searchpath_t	*s;
-	
+
 	Con_TPrintf (TL_CURRENTSEARCHPATH);
-	
+
 	if (com_purepaths)
 	{
 		for (s=com_purepaths ; s ; s=s->nextpure)
@@ -825,11 +825,11 @@ void COM_WriteFile (char *filename, void *data, int len)
 {
 	FILE	*f;
 	char	name[MAX_OSPATH];
-	
+
 	sprintf (name, "%s/%s", com_gamedir, filename);
 
 	COM_CreatePath(name);
-	
+
 	f = fopen (name, "wb");
 	if (!f)
 	{
@@ -841,7 +841,7 @@ void COM_WriteFile (char *filename, void *data, int len)
 			return;
 		}
 	}
-	
+
 	Sys_Printf ("COM_WriteFile: %s\n", name);
 	fwrite (data, 1, len, f);
 	fclose (f);
@@ -853,11 +853,11 @@ FILE *COM_WriteFileOpen (char *filename)	//like fopen, but based around quake's 
 {
 	FILE	*f;
 	char	name[MAX_OSPATH];
-	
+
 	sprintf (name, "%s/%s", com_gamedir, filename);
 
 	COM_CreatePath(name);
-	
+
 	f = fopen (name, "wb");
 
 	return f;
@@ -874,7 +874,7 @@ Only used for CopyFile and download
 void	COM_CreatePath (char *path)
 {
 	char	*ofs;
-	
+
 	for (ofs = path+1 ; *ofs ; ofs++)
 	{
 		if (*ofs == '/')
@@ -900,13 +900,13 @@ void COM_CopyFile (char *netpath, char *cachepath)
 	FILE	*in, *out;
 	int		remaining, count;
 	char	buf[4096];
-	
-	remaining = COM_FileOpenRead (netpath, &in);		
+
+	remaining = COM_FileOpenRead (netpath, &in);
 	COM_CreatePath (cachepath);	// create directories up to the cache file
 	out = fopen(cachepath, "wb");
 	if (!out)
 		Sys_Error ("Error opening %s", cachepath);
-	
+
 	while (remaining)
 	{
 		if (remaining < sizeof(buf))
@@ -931,7 +931,7 @@ void FS_FlushFSHash(void)
 	{
 		int i;
 		bucket_t *bucket, *next;
-		
+
 		for (i = 0; i < filesystemhash.numbuckets; i++)
 		{
 			bucket = filesystemhash.bucket[i];
@@ -1246,11 +1246,11 @@ void COM_LoadCacheFile (char *path, struct cache_user_s *cu)
 qbyte *COM_LoadStackFile (char *path, void *buffer, int bufsize)
 {
 	qbyte	*buf;
-	
+
 	loadbuf = (qbyte *)buffer;
 	loadsize = bufsize;
 	buf = COM_LoadFile (path, 4);
-	
+
 	return buf;
 }
 
@@ -1353,7 +1353,7 @@ qboolean COM_LoadMapPackFile (char *filename, int ofs)
 	pack->handle = packhandle;
 	pack->numfiles = numpackfiles;
 	pack->files = newfiles;
-	
+
 	Con_TPrintf (TL_ADDEDPACKFILE, filename, numpackfiles);
 
 	COM_AddPathHandle(&packfilefuncs, pack, true, true);
@@ -1642,7 +1642,7 @@ void COM_FlushFSCache(void)
 COM_AddGameDirectory
 
 Sets com_gamedir, adds the directory to the head of the path,
-then loads and adds pak1.pak pak2.pak ... 
+then loads and adds pak1.pak pak2.pak ...
 ================
 */
 void COM_AddGameDirectory (char *dir, unsigned int loadstuff)
@@ -1680,7 +1680,7 @@ void COM_AddGameDirectory (char *dir, unsigned int loadstuff)
 	if (loadstuff & 2)
 		COM_AddDataFiles("pak", &packfilefuncs);//q1/hl/h2/q2
 	//pk2s never existed.
-#ifdef ZLIB
+#ifdef AVAIL_ZLIB
 	if (loadstuff & 4)
 		COM_AddDataFiles("pk3", &zipfilefuncs);	//q3 + offspring
 	if (loadstuff & 8)
@@ -1790,30 +1790,6 @@ void COM_Gamedir (char *dir)
 	while (com_searchpaths != com_base_searchpaths)
 	{
 		com_searchpaths->funcs->ClosePath(com_searchpaths->handle);
-		/*
-		switch(com_searchpaths->type)
-		{
-		case SPT_PACK:
-			fclose (com_searchpaths->u.pack->handle);
-			Z_Free (com_searchpaths->u.pack->files);
-#ifdef HASH_FILESYSTEM
-			Z_Free (com_searchpaths->u.pack->hash.bucket);
-#endif
-			Z_Free (com_searchpaths->u.pack);
-			break;
-#ifdef ZLIB
-		case SPT_ZIP:
-			unzClose(com_searchpaths->u.zip->handle);
-			Z_Free (com_searchpaths->u.zip->files);
-#ifdef HASH_FILESYSTEM
-			Z_Free (com_searchpaths->u.zip->hash.bucket);
-#endif
-			Z_Free (com_searchpaths->u.zip);
-			break;
-#endif
-		case SPT_OS:
-			break;
-		}*/
 		next = com_searchpaths->next;
 		Z_Free (com_searchpaths);
 		com_searchpaths = next;
@@ -1945,7 +1921,7 @@ void FS_ForceToPure(char *str, char *crcs, int seed)
 	{
 		crcs = COM_Parse(crcs);
 		crc = atoi(com_token);
-		
+
 		if (!crc)
 			continue;
 

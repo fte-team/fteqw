@@ -26,6 +26,9 @@ ifeq ($(FTE_TARGET),) 	#user didn't specify prefered target
 	FTE_TARGET ?= sdl	#so go for sdl.
 endif
 
+ifneq ($(shell ls|grep config.h),)
+	HAVECONFIG=-DHAVE_CONFIG_H
+endif
 
 CLIENT_DIR=$(BASE_DIR)/client
 GL_DIR=$(BASE_DIR)/gl
@@ -43,7 +46,9 @@ QUX_DIR=$(BASE_DIR)/qux
 RELEASE_DIR=$(BASE_DIR)/release
 DEBUG_DIR=$(BASE_DIR)/debug
 
-DO_CC=$(CC) $(CFLAGS) $(BASE_CFLAGS) $(WCFLAGS) -o $@ -c $<
+ALL_CFLAGS=$(HAVECONFIG) $(CFLAGS) $(BASE_CFLAGS) $(WCFLAGS)
+
+DO_CC=$(CC) $(ALL_CFLAGS) -o $@ -c $<
 ifeq ($(USEASM),true)
 	ifdef windir
 		DO_AS=$(CC) $(BASE_CFLAGS) $(WCFLAGS) -x assembler-with-cpp -o $@ -c $< $(CFLAGS)
@@ -111,6 +116,8 @@ CLIENT_OBJS = $(CLIENT_ASM_OBJS) \
 	cl_cam.o	\
 	cl_screen.o	\
 	cl_ui.o	\
+	cl_cg.o \
+	clq3_parse.o	\
 	pr_csqc.o	\
 	qvm.o	\
 	ircclient.o	\
@@ -251,6 +258,7 @@ SERVER_OBJS = 		\
 	savegame.o		\
 	svq2_ents.o 	\
 	svq2_game.o 	\
+	svq3_game.o	\
 	snd_vc.o		\
 	snd_voicecodecs.o	\
 	g711.o		\
@@ -260,7 +268,7 @@ SERVER_OBJS = 		\
 	g72x.o		\
 	webgen.o		\
 	ftpserver.o		\
-	httpserver.o 
+	httpserver.o
 
 SERVERONLY_OBJS =		\
 	gl_alias.o		\
@@ -287,6 +295,7 @@ COMMON_OBJS = $(COMMON_ASM_OBJS) \
 	zone.o 		\
 	gl_q2bsp.o		\
 	glmod_doom.o 	\
+	q3common.o	\
 	pmove.o		\
 	pmovetst.o		\
 	iwebiface.o		\
@@ -465,12 +474,32 @@ endif
 SV_DIR?=sv_sdl
 
 .default: help
-all: sv-rel sw-rel gl-rel m-rel plugins
+all: sv-rel sw-rel gl-rel m-rel
+
+autoconfig: clean
+	/bin/bash makeconfig.sh y
+
+config: clean
+	/bin/bash makeconfig.sh
+
+ifneq ($(OUT_DIR),)
+	-include $(OUT_DIR)/*.d
+endif
+
 
 VPATH = $(BASE_DIR) : $(CLIENT_DIR) : $(GL_DIR) : $(COMMON_DIR) : $(SW_DIR) : $(SERVER_DIR) : $(HTTP_DIR) : $(BASE_DIR)/irc : $(BASE_DIR)/email : $(QUX_DIR) : $(PROGS_DIR) : $(SNDCODEC_DIR)
 
+#$(OUT_DIR)/%.d: %.c
+#	@set -e; rm -f $@; \
+#	$(CC) -MM $(ALL_CFLAGS) $< > $@.$$$$; \
+#	sed 's,\($*\)\.o[ :]*,\1.o $@ : ,g' < $@.$$$$ > $@; \
+#	rm -f $@.$$$$
 
-$(OUT_DIR)/%.o : %.c
+$(OUT_DIR)/%.o $(OUT_DIR)/%.d : %.c
+	@set -e; rm -f $@.d; \
+	 $(CC) -MM $(ALL_CFLAGS) $< > $@.d.$$$$; \
+	 sed 's,\($*\)\.o[ :]*,\1.o $@.d : ,g' < $@.d.$$$$ > $@.d; \
+	 rm -f $@.d.$$$$
 	$(DO_CC) -I$(OUT_DIR)
 
 ifeq ($(USEASM),true)

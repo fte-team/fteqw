@@ -270,28 +270,28 @@ areanode_t *CS_CreateAreaNode (int depth, vec3_t mins, vec3_t maxs)
 
 	ClearLink (&anode->trigger_edicts);
 	ClearLink (&anode->solid_edicts);
-	
+
 	if (depth == AREA_DEPTH)
 	{
 		anode->axis = -1;
 		anode->children[0] = anode->children[1] = NULL;
 		return anode;
 	}
-	
+
 	VectorSubtract (maxs, mins, size);
 	if (size[0] > size[1])
 		anode->axis = 0;
 	else
 		anode->axis = 1;
-	
+
 	anode->dist = 0.5 * (maxs[anode->axis] + mins[anode->axis]);
-	VectorCopy (mins, mins1);	
-	VectorCopy (mins, mins2);	
-	VectorCopy (maxs, maxs1);	
-	VectorCopy (maxs, maxs2);	
-	
+	VectorCopy (mins, mins1);
+	VectorCopy (mins, mins2);
+	VectorCopy (maxs, maxs1);
+	VectorCopy (maxs, maxs2);
+
 	maxs1[anode->axis] = mins2[anode->axis] = anode->dist;
-	
+
 	anode->children[0] = CS_CreateAreaNode (depth+1, mins2, maxs2);
 	anode->children[1] = CS_CreateAreaNode (depth+1, mins1, maxs1);
 
@@ -378,8 +378,8 @@ static void CS_LinkEdict(csqcedict_t *ent, qboolean touchtriggers)
 		else
 			break;		// crosses the node
 	}
-	
-// link it in	
+
+// link it in
 
 	if (ent->v->solid == SOLID_TRIGGER)
 		InsertLinkBefore (&ent->area, &node->trigger_edicts);
@@ -515,7 +515,7 @@ void CS_CheckVelocity(csqcedict_t *ent)
 static void PF_cs_remove (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
 	csqcedict_t *ed;
-	
+
 	ed = (csqcedict_t*)G_EDICT(prinst, OFS_PARM0);
 
 	if (ed->isfree)
@@ -686,7 +686,7 @@ static qboolean CopyCSQCEdictToEntity(csqcedict_t *in, entity_t *out)
 		if (i & CSQCRF_NOSHADOW)
 			out->flags |= RF_NOSHADOW;
 	}
-	
+
 	out->frame = in->v->frame;
 	out->oldframe = in->v->frame2;
 	out->lerpfrac = in->v->lerpfrac;
@@ -868,7 +868,7 @@ static void PF_cs_project (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 		v[2] = in[2];
 		v[3] = 1;
 
-		Matrix4_Transform4(mvp, v, tempv); 
+		Matrix4_Transform4(mvp, v, tempv);
 
 		tempv[0] /= tempv[3];
 		tempv[1] /= tempv[3];
@@ -891,7 +891,7 @@ static void PF_cs_unproject (progfuncs_t *prinst, struct globalvars_s *pr_global
 	{
 		float *in = G_VECTOR(OFS_PARM0);
 		float *out = G_VECTOR(OFS_RETURN);
-		
+
 		float v[4], tempv[4];
 
 		out[0] = (out[0]-r_refdef.vrect.x)/r_refdef.vrect.width;
@@ -902,7 +902,7 @@ static void PF_cs_unproject (progfuncs_t *prinst, struct globalvars_s *pr_global
 		v[2] = in[2]*2-1;
 		v[3] = 1;
 
-		Matrix4_Transform4(mvpi, v, tempv); 
+		Matrix4_Transform4(mvpi, v, tempv);
 
 		out[0] = tempv[0];
 		out[1] = tempv[1];
@@ -959,7 +959,7 @@ static void PF_R_ClearScene (progfuncs_t *prinst, struct globalvars_s *pr_global
 	csqc_drawsbar = false;
 }
 
-typedef enum 
+typedef enum
 {
 	VF_MIN = 1,
 	VF_MIN_X = 2,
@@ -982,6 +982,7 @@ typedef enum
 	VF_DRAWWORLD = 19,
 	VF_ENGINESBAR = 20,
 	VF_DRAWCROSSHAIR = 21,
+	VF_CARTESIAN_ANGLES = 22,
 	VF_PERSPECTIVE = 200
 } viewflags;
 
@@ -1003,7 +1004,7 @@ static void PF_R_SetViewFlag(progfuncs_t *prinst, struct globalvars_s *pr_global
 	case VF_FOVX:
 		r_refdef.fov_x = *p;
 		break;
-		
+
 	case VF_FOVY:
 		r_refdef.fov_y = *p;
 		break;
@@ -1026,7 +1027,11 @@ static void PF_R_SetViewFlag(progfuncs_t *prinst, struct globalvars_s *pr_global
 	case VF_ANGLES_Z:
 		r_refdef.viewangles[parametertype-VF_ANGLES_X] = *p;
 		break;
-		
+
+	case VF_CARTESIAN_ANGLES:
+		Con_Printf("^1WARNING: CARTESIAN ANGLES ARE NOT YET SUPPORTED!\n");
+		break;
+
 	case VF_VIEWPORT:
 		r_refdef.vrect.x = p[0];
 		r_refdef.vrect.y = p[1];
@@ -1198,7 +1203,7 @@ static void cs_settracevars(trace_t *tr)
 	*csqcg.trace_inopen = tr->inopen;
 	VectorCopy (tr->endpos, csqcg.trace_endpos);
 	VectorCopy (tr->plane.normal, csqcg.trace_plane_normal);
-	*csqcg.trace_plane_dist =  tr->plane.dist;	
+	*csqcg.trace_plane_dist =  tr->plane.dist;
 	if (tr->ent)
 		*csqcg.trace_ent = EDICT_TO_PROG(csqcprogs, (void*)tr->ent);
 	else
@@ -1255,7 +1260,7 @@ static void PF_cs_tracebox(progfuncs_t *prinst, struct globalvars_s *pr_globals)
 	ent->v->hull = 0;
 	trace = CS_Move (v1, mins, maxs, v2, nomonsters, ent);
 	ent->v->hull = savedhull;
-	
+
 	*csqcg.trace_allsolid = trace.allsolid;
 	*csqcg.trace_startsolid = trace.startsolid;
 	*csqcg.trace_fraction = trace.fraction;
@@ -1263,7 +1268,7 @@ static void PF_cs_tracebox(progfuncs_t *prinst, struct globalvars_s *pr_globals)
 	*csqcg.trace_inopen = trace.inopen;
 	VectorCopy (trace.endpos, csqcg.trace_endpos);
 	VectorCopy (trace.plane.normal, csqcg.trace_plane_normal);
-	*csqcg.trace_plane_dist =  trace.plane.dist;	
+	*csqcg.trace_plane_dist =  trace.plane.dist;
 	if (trace.ent)
 		*csqcg.trace_ent = EDICT_TO_PROG(prinst, (void*)trace.ent);
 	else
@@ -1349,7 +1354,7 @@ static void PF_cs_pointcontents(progfuncs_t *prinst, struct globalvars_s *pr_glo
 {
 	float	*v;
 	int cont;
-	
+
 	v = G_VECTOR(OFS_PARM0);
 
 	cont = CS_PointContents(v);
@@ -1543,7 +1548,7 @@ static void PF_objerror (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
 	char	*s;
 	edict_t	*ed;
-	
+
 	s = PF_VarString(prinst, 0, pr_globals);
 /*	Con_Printf ("======OBJECT ERROR in %s:\n%s\n", PR_GetString(pr_xfunction->s_name),s);
 */	ed = PROG_TO_EDICT(prinst, pr_global_struct->self);
@@ -1559,7 +1564,7 @@ static void PF_objerror (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 		ED_Free (prinst, ed);
 
 		prinst->AbortStack(prinst);
-	
+
 		PR_BIError (prinst, "Program error: %s", s);
 
 		if (sv.time > 10)
@@ -1623,7 +1628,7 @@ static void PF_cs_getinputstate (progfuncs_t *prinst, struct globalvars_s *pr_gl
 		G_FLOAT(OFS_RETURN) = false;
 		return;
 	}
-	
+
 	// save this command off for prediction
 	cmd = &cl.frames[f&UPDATE_MASK].cmd[plnum];
 
@@ -1845,7 +1850,7 @@ static void PF_cs_getplayerkey (progfuncs_t *prinst, struct globalvars_s *pr_glo
 			csqc_resortfrags = false;
 		}
 		if (pnum >= -scoreboardlines)
-		{//sort by 
+		{//sort by
 			pnum = fragsort[-(pnum+1)];
 		}
 	}
@@ -1907,7 +1912,7 @@ void PF_cs_sound(progfuncs_t *prinst, struct globalvars_s *pr_globals)
 	float attenuation;
 
 	sfx_t *sfx;
-		
+
 	entity = (csqcedict_t*)G_EDICT(prinst, OFS_PARM0);
 	channel = G_FLOAT(OFS_PARM1);
 	sample = PR_GetStringOfs(prinst, OFS_PARM2);
@@ -2002,7 +2007,7 @@ void PF_cl_ambientsound(progfuncs_t *prinst, struct globalvars_s *pr_globals)
 	float		*pos;
 	float 		vol, attenuation;
 
-	pos = G_VECTOR (OFS_PARM0);			
+	pos = G_VECTOR (OFS_PARM0);
 	samp = PR_GetStringOfs(prinst, OFS_PARM1);
 	vol = G_FLOAT(OFS_PARM2);
 	attenuation = G_FLOAT(OFS_PARM3);
@@ -2042,7 +2047,7 @@ void PF_cs_changeyaw (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 	current = anglemod( ent->v->angles[1] );
 	ideal = ent->v->ideal_yaw;
 	speed = ent->v->yaw_speed;
-	
+
 	if (current == ideal)
 		return;
 	move = ideal - current;
@@ -2066,7 +2071,7 @@ void PF_cs_changeyaw (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 		if (move < -speed)
 			move = -speed;
 	}
-	
+
 	ent->v->angles[1] = anglemod (current + move);
 }
 void PF_cs_changepitch (progfuncs_t *prinst, struct globalvars_s *pr_globals)
@@ -2078,7 +2083,7 @@ void PF_cs_changepitch (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 	current = anglemod( ent->v->angles[0] );
 	ideal = ent->v->ideal_pitch;
 	speed = ent->v->pitch_speed;
-	
+
 	if (current == ideal)
 		return;
 	move = ideal - current;
@@ -2102,7 +2107,7 @@ void PF_cs_changepitch (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 		if (move < -speed)
 			move = -speed;
 	}
-	
+
 	ent->v->angles[0] = anglemod (current + move);
 }
 
@@ -2127,10 +2132,10 @@ static void PF_cs_findradius (progfuncs_t *prinst, struct globalvars_s *pr_globa
 		if (ent->v->solid == SOLID_NOT)
 			continue;
 		for (j=0 ; j<3 ; j++)
-			eorg[j] = org[j] - (ent->v->origin[j] + (ent->v->mins[j] + ent->v->maxs[j])*0.5);			
+			eorg[j] = org[j] - (ent->v->origin[j] + (ent->v->mins[j] + ent->v->maxs[j])*0.5);
 		if (Length(eorg) > rad)
 			continue;
-			
+
 		ent->v->chain = EDICT_TO_PROG(prinst, (void*)chain);
 		chain = ent;
 	}
@@ -2206,7 +2211,7 @@ static void PF_cl_te_explosion (progfuncs_t *prinst, struct globalvars_s *pr_glo
 		dl->radius = 150 + bound(0, r_explosionlight.value, 1)*200;
 		dl->die = cl.time + 1;
 		dl->decay = 300;
-		
+
 		dl->color[0] = 0.2;
 		dl->color[1] = 0.155;
 		dl->color[2] = 0.05;
@@ -2218,7 +2223,7 @@ static void PF_cl_te_explosion (progfuncs_t *prinst, struct globalvars_s *pr_glo
 	if (P_RunParticleEffectType(pos, NULL, 1, pt_explosion))
 		P_RunParticleEffect(pos, NULL, 107, 1024); // should be 97-111
 
-	R_AddStain(pos, -1, -1, -1, 100);	
+	R_AddStain(pos, -1, -1, -1, 100);
 
 	S_StartSound (-2, 0, cl_sfx_r_exp3, pos, 1, 1);
 }
@@ -2286,7 +2291,7 @@ static void PF_cl_te_explosionquad (progfuncs_t *prinst, struct globalvars_s *pr
 		if (P_RunParticleEffectType(pos, NULL, 1, pt_explosion))
 			P_RunParticleEffect(pos, NULL, 107, 1024); // should be 97-111
 
-	R_AddStain(pos, -1, -1, -1, 100);	
+	R_AddStain(pos, -1, -1, -1, 100);
 
 	// light
 	if (r_explosionlight.value) {
@@ -2297,7 +2302,7 @@ static void PF_cl_te_explosionquad (progfuncs_t *prinst, struct globalvars_s *pr
 		dl->radius = 150 + bound(0, r_explosionlight.value, 1)*200;
 		dl->die = cl.time + 1;
 		dl->decay = 300;
-		
+
 		dl->color[0] = 0.2;
 		dl->color[1] = 0.155;
 		dl->color[2] = 0.05;
@@ -2392,14 +2397,14 @@ static void PF_cl_te_explosionrgb (progfuncs_t *prinst, struct globalvars_s *pr_
 {
 	float *org = G_VECTOR(OFS_PARM0);
 	float *colour = G_VECTOR(OFS_PARM1);
-	
+
 	dlight_t *dl;
 
 	if (P_RunParticleEffectType(org, NULL, 1, pt_explosion))
 		P_RunParticleEffect(org, NULL, 107, 1024); // should be 97-111
 
-	R_AddStain(org, -1, -1, -1, 100);		
-		
+	R_AddStain(org, -1, -1, -1, 100);
+
 	// light
 	if (r_explosionlight.value)
 	{
@@ -2408,7 +2413,7 @@ static void PF_cl_te_explosionrgb (progfuncs_t *prinst, struct globalvars_s *pr_
 		dl->radius = 150 + bound(0, r_explosionlight.value, 1)*200;
 		dl->die = cl.time + 0.5;
 		dl->decay = 300;
-	
+
 		dl->color[0] = 0.4f*colour[0];
 		dl->color[1] = 0.4f*colour[1];
 		dl->color[2] = 0.4f*colour[2];
@@ -2456,7 +2461,7 @@ void CSQC_RunThreads(void)
 		}
 		else
 		{	//call it and forget it ever happened. The Sleep biltin will recreate if needed.
-			
+
 
 			*csqcg.self = EDICT_TO_PROG(csqcprogs, EDICT_NUM(csqcprogs, state->self));
 			*csqcg.other = EDICT_TO_PROG(csqcprogs, EDICT_NUM(csqcprogs, state->other));
@@ -2568,6 +2573,9 @@ void PF_rotatevectorsbytag (progfuncs_t *prinst, struct globalvars_s *pr_globals
 	float src[12];
 	float dest[12];
 	int i;
+
+	if (lerp < 0) lerp = 0;
+	if (lerp > 1) lerp = 1;
 
 	if (Mod_GetTag)
 		if (Mod_GetTag(mod, tagnum, frame1, frame2, lerp, frame1time, frame2time, transforms))
@@ -2688,7 +2696,7 @@ qboolean CS_CheckBottom (csqcedict_t *ent)
 
 	if (!cl.worldmodel)
 		return false;
-	
+
 	VectorAdd (ent->v->origin, ent->v->mins, mins);
 	VectorAdd (ent->v->origin, ent->v->maxs, maxs);
 
@@ -2714,7 +2722,7 @@ realcheck:
 // check it for real...
 //
 	start[2] = mins[2];
-	
+
 // the midpoint must be within 16 of the bottom
 	start[0] = stop[0] = (mins[0] + maxs[0])*0.5;
 	start[1] = stop[1] = (mins[1] + maxs[1])*0.5;
@@ -2724,19 +2732,19 @@ realcheck:
 	if (trace.fraction == 1.0)
 		return false;
 	mid = bottom = trace.endpos[2];
-	
-// the corners must be within 16 of the midpoint	
+
+// the corners must be within 16 of the midpoint
 	for	(x=0 ; x<=1 ; x++)
 		for	(y=0 ; y<=1 ; y++)
 		{
 			start[0] = stop[0] = x ? maxs[0] : mins[0];
 			start[1] = stop[1] = y ? maxs[1] : mins[1];
-			
+
 			savedhull = ent->v->hull;
 			ent->v->hull = 0;
 			trace = CS_Move (start, vec3_origin, vec3_origin, stop, true, ent);
 			ent->v->hull = savedhull;
-			
+
 			if (trace.fraction != 1.0 && trace.endpos[2] > bottom)
 				bottom = trace.endpos[2];
 			if (trace.fraction == 1.0 || mid - trace.endpos[2] > pm_stepheight)
@@ -2771,7 +2779,7 @@ qboolean CS_movestep (csqcedict_t *ent, vec3_t move, qboolean relink, qboolean n
 	int			i;
 	csqcedict_t		*enemy = csqc_edicts;
 
-// try the move	
+// try the move
 	VectorCopy (ent->v->origin, oldorg);
 	VectorAdd (ent->v->origin, move, neworg);
 
@@ -2797,22 +2805,22 @@ qboolean CS_movestep (csqcedict_t *ent, vec3_t move, qboolean relink, qboolean n
 			trace = CS_Move (ent->v->origin, ent->v->mins, ent->v->maxs, neworg, false, ent);
 			if (set_trace)
 				cs_settracevars(&trace);
-	
+
 			if (trace.fraction == 1)
 			{
 				if ( ((int)ent->v->flags & FL_SWIM) && !(CS_PointContents(trace.endpos) & FTECONTENTS_FLUID))
 					return false;	// swim monster left water
-	
+
 				VectorCopy (trace.endpos, ent->v->origin);
 				if (relink)
 					CS_LinkEdict (ent, true);
 				return true;
 			}
-			
+
 			if (noenemy || enemy == csqc_edicts)
 				break;
 		}
-		
+
 		return false;
 	}
 
@@ -2846,16 +2854,16 @@ qboolean CS_movestep (csqcedict_t *ent, vec3_t move, qboolean relink, qboolean n
 			if (relink)
 				CS_LinkEdict (ent, true);
 			ent->v->flags = (int)ent->v->flags & ~FL_ONGROUND;
-//	Con_Printf ("fall down\n"); 
+//	Con_Printf ("fall down\n");
 			return true;
 		}
-	
+
 		return false;		// walked off an edge
 	}
 
 // check point traces down for dangling corners
 	VectorCopy (trace.endpos, ent->v->origin);
-	
+
 	if (!CS_CheckBottom (ent))
 	{
 		if ( (int)ent->v->flags & FL_PARTIALGROUND )
@@ -2871,7 +2879,7 @@ qboolean CS_movestep (csqcedict_t *ent, vec3_t move, qboolean relink, qboolean n
 
 	if ( (int)ent->v->flags & FL_PARTIALGROUND )
 	{
-//		Con_Printf ("back on ground\n"); 
+//		Con_Printf ("back on ground\n");
 		ent->v->flags = (int)ent->v->flags & ~FL_PARTIALGROUND;
 	}
 	ent->v->groundentity = EDICT_TO_PROG(csqcprogs, trace.ent);
@@ -3603,9 +3611,9 @@ qboolean CSQC_Init (unsigned int checksum)
 		in_sensitivityscale = 1;
 		csqcprogs = InitProgs(&csqcprogparms);
 		PR_Configure(csqcprogs, -1, 16);
-		
+
 		CSQC_InitFields();	//let the qclib know the field order that the engine needs.
-		
+
 		if (PR_LoadProgs(csqcprogs, "csprogs.dat", 0, NULL, 0) < 0) //no per-progs builtins.
 		{
 			CSQC_Shutdown();
@@ -3624,9 +3632,9 @@ qboolean CSQC_Init (unsigned int checksum)
 		PF_InitTempStrings(csqcprogs);
 
 		memset(csqcent, 0, sizeof(*csqcent)*maxcsqcentities);	//clear the server->csqc entity translations.
-		
+
 		csqcentsize = PR_InitEnts(csqcprogs, pr_csmaxedicts.value);
-		
+
 		CSQC_FindGlobals();
 
 		ED_Alloc(csqcprogs);	//we need a word entity.

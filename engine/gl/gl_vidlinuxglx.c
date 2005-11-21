@@ -74,9 +74,10 @@ static int vidmode_ext = 0;
 static XF86VidModeModeInfo **vidmodes;
 static int num_vidmodes;
 static qboolean vidmode_active = false;
+static int vidmode_usemode = -1;	//so that it can be reset if they switch away.
 
 unsigned short originalramps[3][256];
-qboolean originalapplied;
+qboolean originalapplied;	//states that the origionalramps arrays are valid, and contain stuff that we should revert to on close
 #endif
 
 extern cvar_t	_windowed_mouse;
@@ -420,8 +421,19 @@ static void GetEvent(void)
 			b = 2;
 		else if (event.xbutton.button == 3)
 			b = 1;
+		else if (event.xbutton.button == 4)
+			b = 3;
+		else if (event.xbutton.button == 5)
+			b = 4;
 		if (b>=0)
 			Key_Event(K_MOUSE1 + b, true);
+
+		if (vidmode_ext && vidmode_usemode>=0)
+		if (!ActiveApp)
+		{	//KDE doesn't seem to like us, in that you can't alt-tab back or click to activate.
+			//This allows us to steal input focus back from the window manager
+			XSetInputFocus(vid_dpy, vid_window, RevertToParent, CurrentTime);
+		}
 		break;
 
 	case ButtonRelease:
@@ -432,6 +444,10 @@ static void GetEvent(void)
 			b = 2;
 		else if (event.xbutton.button == 3)
 			b = 1;
+		else if (event.xbutton.button == 4)
+			b = 3;
+		else if (event.xbutton.button == 5)
+			b = 4;
 		if (b>=0)
 			Key_Event(K_MOUSE1 + b, false);
 		break;
@@ -439,14 +455,41 @@ static void GetEvent(void)
 	case FocusIn:
 		v_gamma.modified = true;
 		ActiveApp = true;
+
+		if (vidmode_ext && vidmode_usemode>=0)
+		{
+			if (!vidmode_active)
+			{
+				// change to the mode
+				XF86VidModeSwitchToMode(vid_dpy, scrnum, vidmodes[vidmode_usemode]);
+				vidmode_active = true;
+				// Move the viewport to top left
+			}
+			XF86VidModeSetViewPort(vid_dpy, scrnum, 0, 0);
+		}
+
 		break;
 	case FocusOut:
 #ifdef WITH_VMODE
 		if (originalapplied)
 			XF86VidModeSetGammaRamp(vid_dpy, scrnum, 256, originalramps[0], originalramps[1], originalramps[2]);
+
+ 		if (!COM_CheckParm("-stayactive"))
+ 		{	//a parameter that leaves the program fullscreen if you taskswitch.
+ 			//sounds pointless, works great with two moniters. :D
+ 			if (originalapplied)
+				XF86VidModeSetGammaRamp(vid_dpy, scrnum, 256, originalramps[0], originalramps[1], originalramps[2]);
+			if (vidmode_active)
+			{
+				XF86VidModeSwitchToMode(vid_dpy, scrnum, vidmodes[0]);
+				vidmode_active = false;
+			}
+		}
 #endif
+
 		ActiveApp = false;
 		ClearAllStates();
+
 		break;
 	}
 
@@ -462,11 +505,13 @@ static void GetEvent(void)
 
 		if (!wantwindowed)
 		{
+			Con_DPrintf("uninstall grabs\n");
 			/* ungrab the pointer */
 			uninstall_grabs();
 		}
 		else
 		{
+			Con_DPrintf("install grabs\n");
 			/* grab the pointer */
 			install_grabs();
 		}
@@ -666,7 +711,7 @@ qboolean GLVID_Init (rendererstate_t *info, unsigned char *palette)
 
 #ifdef WITH_VMODE
 	qboolean fullscreen = false;
-	int MajorVersion, MinorVersion, actualWidth, actualHeight;
+	int MajorVersion, MinorVersion;
 
 	if (info->fullscreen)
 		fullscreen = true;
@@ -735,6 +780,7 @@ qboolean GLVID_Init (rendererstate_t *info, unsigned char *palette)
 	}
 
 #ifdef WITH_VMODE
+	vidmode_usemode = -1;
 	if (vidmode_ext)
 	{
 		int best_fit, best_dist, dist, x, y;
@@ -764,10 +810,8 @@ qboolean GLVID_Init (rendererstate_t *info, unsigned char *palette)
 
 			if (best_fit != -1 && (!best_dist || COM_CheckParm("-fullscreen")))
 			{
-				actualWidth = vidmodes[best_fit]->hdisplay;
-				actualHeight = vidmodes[best_fit]->vdisplay;
 				// change to the mode
-				XF86VidModeSwitchToMode(vid_dpy, scrnum, vidmodes[best_fit]);
+				XF86VidModeSwitchToMode(vid_dpy, scrnum, vidmodes[vidmode_usemode=best_fit]);
 				vidmode_active = true;
 				// Move the viewport to top left
 				XF86VidModeSetViewPort(vid_dpy, scrnum, 0, 0);

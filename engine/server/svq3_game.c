@@ -49,11 +49,19 @@
 
 #elif defined(__linux__)
 
-	#include "dlopen.h"
+	#include "dlfcn.h"
 	botlib_export_t *FTE_GetBotLibAPI( int apiVersion, botlib_import_t *import )
 	{
+		botlib_export_t *(*QDECL pGetBotLibAPI)( int apiVersion, botlib_import_t *import );
 		void *handle;
-		dlopen();
+		handle = dlopen("botlib.so", RTLD_LAZY);
+		if (!handle)
+			return NULL;
+		
+		pGetBotLibAPI = dlsym(handle, "GetBotLibAPI");
+		if (!pGetBotLibAPI)
+			return NULL;
+		return pGetBotLibAPI(apiVersion, import);
 	}
 #else
 	botlib_export_t *FTE_GetBotLibAPI(int version, int apiVersion, botlib_import_t *import)
@@ -1537,6 +1545,10 @@ Con_Printf("builtin %i is not implemented\n", fn);
 		return botlib->aas.AAS_PointReachabilityAreaIndex(VM_POINTER(arg[0]));
 
   	case BOTLIB_PC_LOAD_SOURCE:
+		if (!botlib)
+		{
+			SV_Error("Botlib is not installed (trap BOTLIB_PC_LOAD_SOURCE)\n");
+		}
 		return botlib->PC_LoadSourceHandle(VM_POINTER(arg[0]));
 	case BOTLIB_PC_FREE_SOURCE:
 		return botlib->PC_FreeSourceHandle(VM_LONG(arg[0]));

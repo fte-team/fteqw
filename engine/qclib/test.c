@@ -1,7 +1,17 @@
+//This is basically a sample program.
+//It deomnstrates the code required to get qclib up and running.
+//This code does not demonstrate entities, however.
+//It does demonstrate the built in qc compiler, and does demonstrate a globals-only progs interface.
+//It also demonstrates basic builtin(s).
+
+
+
 #include "progtype.h"
 #include "progslib.h"
 
 #include <stdlib.h>
+#include <stdio.h>
+#include <string.h>
 
 //the only function that is required externally. :/
 void SV_EndRedirect (void) {}
@@ -37,7 +47,7 @@ void Sys_Abort(char *s, ...)
 //Not really that useful for the normal vm.
 int Sys_Printf(char *s, ...)
 {	//look up quake's va function to find out how to deal with variable arguments properly.
-	printf("%s", s);
+	return printf("%s", s);
 }
 
 #include <stdio.h>
@@ -87,7 +97,7 @@ pbool Sys_WriteFile (char *fname, void *data, int len)
 	return 1;
 }
 
-int runtest(void)
+void runtest(void)
 {
 	progfuncs_t *pf;
 	func_t func;
@@ -129,11 +139,9 @@ int runtest(void)
 
 //Run a compiler and nothing else.
 //Note that this could be done with an autocompile of PR_COMPILEALWAYS.
-int compile(void)
+void compile(void)
 {
 	progfuncs_t *pf;
-	func_t func;
-	progsnum_t pn;
 
 	progparms_t ext;
 

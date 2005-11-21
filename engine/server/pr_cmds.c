@@ -180,8 +180,15 @@ pbool ED_CanFree (edict_t *ed)
 	VectorCopy (vec3_origin, ed->v->origin);
 	VectorCopy (vec3_origin, ed->v->angles);
 	ed->v->nextthink = 0;
-	ed->v->think = 0;
 	ed->v->solid = 0;
+
+	if (pr_imitatemvdsv.value)
+	{
+		ed->v->classname = 0;
+		ed->v->health = 0;
+	}
+	else
+		ed->v->think = 0;
 
 	ed->v->SendEntity = 0;
 	sv.csqcentversion[ed->entnum] = ed->v->Version+1;
@@ -320,7 +327,11 @@ int QCEditor (progfuncs_t *prinst, char *filename, int line, int nump, char **pa
 
 	if (line == -1)
 		return -1;
-	COM_FOpenFile(filename, &f);
+	SV_EndRedirect();
+	if (developer.value)
+		COM_FOpenFile(filename, &f);
+	else
+		f = NULL;	//faster.
 	if (!f)
 		Con_Printf("%s - %i\n", filename, line);
 	else
@@ -3453,6 +3464,8 @@ void PF_Remove (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 
 	if (ed->isfree && progstype != PROG_H2)	//h2 is dire...
 	{
+		ED_CanFree(ed);
+
 		Con_DPrintf("Tried removing free entity\n");
 		return;	//yeah, alright, so this is hacky.
 	}

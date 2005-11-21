@@ -190,7 +190,7 @@ int Plug_Init(int *args)
 		Con_Printf("IRC Client Plugin failed\n");
 
 	IRC_InitCvars();
-	return 0;
+	return 1;
 }
 
 

@@ -3021,7 +3021,8 @@ void SV_ExecuteUserCommand (char *s, qboolean fromQC)
 					return;
 				}
 			SV_BeginRedirect (RD_CLIENT, host_client->language);
-			u->func ();
+			if (u->func)
+				u->func ();
 			host_client = oldhost;
 			SV_EndRedirect ();
 			return;

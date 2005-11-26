@@ -1728,14 +1728,19 @@ void CL_LinkPacketEntities (void)
 		}
 
 		for (i=0 ; i<3 ; i++)
+		{
 			if ( abs(old_origin[i] - ent->origin[i]) > 128)
 			{	// no trail if too far
 				VectorCopy (ent->origin, old_origin);
 				break;
 			}
+		}
 
-		if (P_ParticleTrail (old_origin, ent->origin, model->particletrail, &(le->trailstate)))
-			P_ParticleTrailIndex(old_origin, ent->origin, model->traildefaultindex, 0, &(le->trailstate));
+		if (model->particletrail >= 0)
+		{
+			if (P_ParticleTrail (old_origin, ent->origin, model->particletrail, &(le->trailstate)))
+				P_ParticleTrailIndex(old_origin, ent->origin, model->traildefaultindex, 0, &(le->trailstate));
+		}
 
 		{
 			extern cvar_t gl_part_flame;
@@ -2029,14 +2034,19 @@ void CL_LinkPacketEntities (void)
 		}
 
 		for (i=0 ; i<3 ; i++)
+		{
 			if ( abs(old_origin[i] - ent->origin[i]) > 128)
 			{	// no trail if too far
 				VectorCopy (ent->origin, old_origin);
 				break;
 			}
+		}
 
-		if (P_ParticleTrail (old_origin, ent->origin, model->particletrail, &cl.lerpents[s1->number].trailstate))
-			P_ParticleTrailIndex(old_origin, ent->origin, model->traildefaultindex, 0, &cl.lerpents[s1->number].trailstate);
+		if (model->particletrail >= 0)
+		{
+			if (P_ParticleTrail (old_origin, ent->origin, model->particletrail, &cl.lerpents[s1->number].trailstate))
+				P_ParticleTrailIndex(old_origin, ent->origin, model->traildefaultindex, 0, &cl.lerpents[s1->number].trailstate);
+		}
 
 		{
 			extern cvar_t gl_part_flame;

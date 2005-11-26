@@ -126,8 +126,8 @@ cvar_t r_particlesdesc = {"r_particlesdesc", "spikeset", NULL, CVAR_LATCH|CVAR_S
 
 cvar_t r_part_rain_quantity = {"r_part_rain_quantity", "1"};
 
-cvar_t r_rockettrail = {"r_rockettrail", "1"};
-cvar_t r_grenadetrail = {"r_grenadetrail", "1"};
+cvar_t r_rockettrail = {"r_rockettrail", "1", NULL, CVAR_SEMICHEAT};
+cvar_t r_grenadetrail = {"r_grenadetrail", "1", NULL, CVAR_SEMICHEAT};
 
 cvar_t r_particle_tracelimit = {"r_particle_tracelimit", "250"};
 cvar_t r_part_sparks = {"r_part_sparks", "1"};
@@ -1038,7 +1038,7 @@ void P_SelectableTrail(model_t *model, cvar_t *selection, int mdleffect, int mdl
 
 	switch (select)
 	{
-	case 0: // check for string
+	case 0: // check for string, otherwise no trail
 		{
 			int effect = P_FindParticleType(selection->string);
 
@@ -1049,6 +1049,9 @@ void P_SelectableTrail(model_t *model, cvar_t *selection, int mdleffect, int mdl
 				break;
 			}
 		}
+
+		model->particletrail = -1;
+		break;
 	case 1: // default model effect
 	default:
 		model->particletrail = mdleffect;

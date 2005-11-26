@@ -365,7 +365,7 @@ typedef struct {
 presetinfo_t preset[] =
 {
 	{"r_presetname",		{"286",		"fast",		"default",	"nice",		"realtime"}},
-	{"r_particlesdesc",		{"none",	"faithful",	"spikeset",	"spikeset",	"spikeset"}},
+	{"r_particlesdesc",		{"none",	"highfps",	"spikeset",	"spikeset",	"spikeset"}},
 	{"r_stains",			{"0",		"0",		"1",		"1",		"1"}},
 	{"r_drawflat",			{"1",		"0",		"0",		"0",		"0"}},
 	{"r_nolerp",			{"1",		"1",		"0",		"0",		"0"}},

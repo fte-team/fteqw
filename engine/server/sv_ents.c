@@ -1955,7 +1955,7 @@ void SV_GibFilterAdd(char *modelname, int min, int max)
 	gf = Z_Malloc(sizeof(gibfilter_t));
 	gf->modelindex = i;
 	gf->minframe = ((min==-1)?0:min);
-	gf->maxframe = ((max==-1)?255:max);
+	gf->maxframe = ((max==-1)?0x80000000:max);
 	gf->next = gibfilter;
 	gibfilter = gf;
 }
@@ -1976,7 +1976,11 @@ void SV_GibFilterInit(void)
 	file = COM_LoadStackFile("gibfiltr.cfg", buffer, sizeof(buffer));
 	if (!file)
 	{
-		Con_Printf("gibfiltr.cfg file was not found. The gib filter will be disabled\n");
+		Con_Printf("gibfiltr.cfg file was not found. Using defaults\n");
+		SV_GibFilterAdd("progs/gib1.mdl", -1, -1);
+		SV_GibFilterAdd("progs/gib2.mdl", -1, -1);
+		SV_GibFilterAdd("progs/gib3.mdl", -1, -1);
+		SV_GibFilterAdd("progs/h_player.mdl", -1, -1);
 		return;
 	}
 	while(file)

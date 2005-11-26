@@ -27,230 +27,60 @@ int Plug_ExecuteCommand(int *args)
 {
 	char cmd[256];
 	char param[256];
+	char *cvar;
+
 	Cmd_Argv(0, cmd, sizeof(cmd));
-	Cmd_Argv(1, param, sizeof(param));
 
-	if ( (!strcmp("loadsky", cmd)) || (!strcmp("r_skyname", cmd)) )
+	     if (!strcmp("loadsky",			cmd))	cvar = "r_skybox";
+	else if (!strcmp("r_skyname",			cmd))	cvar = "r_skybox";
+	else if (!strcmp("r_skycolor",		cmd))	cvar = "r_fastskycolour"; // note the england spelling, spike is a englander
+	else if (!strcmp("fps_skycolor",		cmd))	cvar = "r_fastskycolour"; // note the england spelling, spike is a englander
+	else if (!strcmp("fps_sky",			cmd))	cvar = "r_fastsky";
+	else if (!strcmp("gl_consolefont",		cmd))	cvar = "gl_font";
+	else if (!strcmp("gl_bounceparticles",	cmd))	cvar = "r_bouncysparks";
+	else if (!strcmp("gl_loadlitfiles",		cmd))	cvar = "r_loadlit";
+	else if (!strcmp("gl_weather_rain",		cmd))	cvar = "r_part_rain";
+	else if (!strcmp("cl_bonusflash",		cmd))	cvar = "v_bonusflash";
+	else if (!strcmp("gl_gamma",			cmd))	cvar = "gamma";
+	else if (!strcmp("sw_gamma",			cmd))	cvar = "gamma";
+	else if (!strcmp("gl_contrast",		cmd))	cvar = "contrast";
+	else if (!strcmp("sw_contrast",		cmd))	cvar = "contrast";
+	else if (!strcmp("s_khz",			cmd))	cvar = "snd_khz";
+	else if (!strcmp("s_loadas8bit",		cmd))	cvar = "loadas8bit";
+	else if (!strcmp("s_mixahead",		cmd))	cvar = "_snd_mixahead";
+	else if (!strcmp("s_noextraupdate",		cmd))	cvar = "snd_noextraupdate";
+	else if (!strcmp("s_nosound",			cmd))	cvar = "nosound";
+	else if (!strcmp("s_precache",		cmd))	cvar = "precache";
+	else if (!strcmp("s_show",			cmd))	cvar = "snd_show";
+	else if (!strcmp("s_swapstereo",		cmd))	cvar = "snd_leftisright";
+	else if (!strcmp("s_ambientlevel",		cmd))	cvar = "ambient_level";
+	else if (!strcmp("s_ambientfade",		cmd))	cvar = "ambient_fade";
+	else if (!strcmp("tp_triggers",		cmd))	cvar = "cl_triggers";
+	else if (!strcmp("teamskin",			cmd))	cvar = "cl_teamskin";
+	else if (!strcmp("enemyskin",			cmd))	cvar = "cl_enemyskin";
+	else if (!strcmp("scr_consize",		cmd))	cvar = "con_height";
+	else if (!strcmp("cl_predictPlayers",	cmd))	cvar = "cl_predict_players"; //lets not forget there is a cl_predict_players2
+	else if (!strcmp("sshot_format",		cmd))	cvar = "scr_sshot_type";
+	else if (!strcmp("cl_solidPlayers",		cmd))	cvar = "cl_solid_players";
+	else if (!strcmp("fps_muzzleflash",		cmd))	cvar = "cl_muzzleflash";
+	else cvar = NULL;
+
+	if (cvar)
 	{
-		char cvar[20] = "r_skybox";
+		if (Cmd_Argc() == 1)	//a query
+		{
+			if (!Cvar_GetString(cvar, param, sizeof(param)))
+				Con_Printf("ezScript: %s(%s) is BAD\n", cmd, cvar);
+			else
+				Con_Printf("ezScript: %s(%s) is \"%s\"\n", cmd, cvar, param);
+		}
+		else
+		{
+			Cmd_Argv(1, param, sizeof(param));
 
-		Cvar_SetString(cvar,param);
-		Con_Printf("-------------------------------------\n^7ezScript: ^1%s^7 is a ^3Fuh/ez/Z/More quakeworld ^7cvar, sending '^6%s^7' to ^2%s^7\n-------------------------------------\n",cmd,param,cvar);
-		return 1;
-	}
-	else if ( (!strcmp("r_skycolor", cmd)) || (!strcmp("fps_skycolor", cmd)) )
-	{
-		char cvar[20] = "r_fastskycolour"; // note the england spelling, spike is a englander
-
-		Cvar_SetString(cvar,param);
-		Con_Printf("-------------------------------------\n^7ezScript: ^1%s^7 is a ^3Fuh/ez/Z/More quakeworld ^7cvar, sending '^6%s^7' to ^2%s^7\n-------------------------------------\n",cmd,param,cvar);
-		return 1;
-	}
-	else if (!strcmp("fps_sky", cmd))
-	{
-		char cvar[20] = "r_fastsky";
-
-		Cvar_SetString(cvar,param);
-		Con_Printf("-------------------------------------\n^7ezScript: ^1%s^7 is a ^3Fuh/ez/Z/More quakeworld ^7cvar, sending '^6%s^7' to ^2%s^7\n-------------------------------------\n",cmd,param,cvar);
-		return 1;
-	}
-	else if (!strcmp("gl_consolefont", cmd))
-	{
-		char cvar[20] = "gl_font";
-
-		Cvar_SetString(cvar,param);
-		Con_Printf("-------------------------------------\n^7ezScript: ^1%s^7 is a ^3Fuh/ez/Z/More quakeworld ^7cvar, sending '^6%s^7' to ^2%s^7\n-------------------------------------\n",cmd,param,cvar);
-		return 1;
-	}
-	else if (!strcmp("gl_bounceparticles", cmd))
-	{
-		char cvar[20] = "r_bouncysparks";
-
-		Cvar_SetString(cvar,param);
-		Con_Printf("-------------------------------------\n^7ezScript: ^1%s^7 is a ^3Fuh/ez/Z/More quakeworld ^7cvar, sending '^6%s^7' to ^2%s^7\n-------------------------------------\n",cmd,param,cvar);
-		return 1;
-	}
-	else if (!strcmp("gl_loadlitfiles", cmd))
-	{
-		char cvar[20] = "r_loadlit";
-
-		Cvar_SetString(cvar,param);
-		Con_Printf("-------------------------------------\n^7ezScript: ^1%s^7 is a ^3Fuh/ez/Z/More quakeworld ^7cvar, sending '^6%s^7' to ^2%s^7\n-------------------------------------\n",cmd,param,cvar);
-		return 1;
-	}
-	else if (!strcmp("gl_weather_rain", cmd))
-	{
-		char cvar[20] = "r_part_rain";
-
-		Cvar_SetString(cvar,param);
-		Con_Printf("-------------------------------------\n^7ezScript: ^1%s^7 is a ^3Fuh/ez/Z/More quakeworld ^7cvar, sending '^6%s^7' to ^2%s^7\n-------------------------------------\n",cmd,param,cvar);
-		return 1;
-	}
-	else if (!strcmp("cl_bonusflash", cmd))
-	{
-		char cvar[20] = "v_bonusflash";
-
-		Cvar_SetString(cvar,param);
-		Con_Printf("-------------------------------------\n^7ezScript: ^1%s^7 is a ^3Fuh/ez/Z/More quakeworld ^7cvar, sending '^6%s^7' to ^2%s^7\n-------------------------------------\n",cmd,param,cvar);
-		return 1;
-	}
-	else if ( (!strcmp("gl_gamma", cmd)) || (!strcmp("sw_gamma", cmd)) )
-	{
-		char cvar[20] = "gamma";
-
-		Cvar_SetString(cvar,param);
-		Con_Printf("-------------------------------------\n^7ezScript: ^1%s^7 is a ^3Fuh/ez/Z/More quakeworld ^7cvar, sending '^6%s^7' to ^2%s^7\n-------------------------------------\n",cmd,param,cvar);
-		return 1;
-	}
-	else if ( (!strcmp("gl_contrast", cmd)) || (!strcmp("sw_contrast", cmd)) )
-	{
-		char cvar[20] = "gamma";
-
-		Cvar_SetString(cvar,param);
-		Con_Printf("-------------------------------------\n^7ezScript: ^1%s^7 is a ^3Fuh/ez/Z/More quakeworld ^7cvar, sending '^6%s^7' to ^2%s^7\n-------------------------------------\n",cmd,param,cvar);
-		return 1;
-	}
-	else if (!strcmp("s_khz", cmd))
-	{
-		char cvar[20] = "snd_khz";
-
-		Cvar_SetString(cvar,param);
-		Con_Printf("-------------------------------------\n^7ezScript: ^1%s^7 is a ^3Fuh/ez/Z/More quakeworld ^7cvar, sending '^6%s^7' to ^2%s^7\n-------------------------------------\n",cmd,param,cvar);
-		return 1;
-	}
-	else if (!strcmp("s_loadas8bit", cmd))
-	{
-		char cvar[20] = "loadas8bit";
-
-		Cvar_SetString(cvar,param);
-		Con_Printf("-------------------------------------\n^7ezScript: ^1%s^7 is a ^3Fuh/ez/Z/More quakeworld ^7cvar, sending '^6%s^7' to ^2%s^7\n-------------------------------------\n",cmd,param,cvar);
-		return 1;
-	}
-	else if (!strcmp("s_mixahead", cmd))
-	{
-		char cvar[20] = "_snd_mixahead";
-
-		Cvar_SetString(cvar,param);
-		Con_Printf("-------------------------------------\n^7ezScript: ^1%s^7 is a ^3Fuh/ez/Z/More quakeworld ^7cvar, sending '^6%s^7' to ^2%s^7\n-------------------------------------\n",cmd,param,cvar);
-		return 1;
-	}
-	else if (!strcmp("s_noextraupdate", cmd))
-	{
-		char cvar[20] = "snd_noextraupdate";
-
-		Cvar_SetString(cvar,param);
-		Con_Printf("-------------------------------------\n^7ezScript: ^1%s^7 is a ^3Fuh/ez/Z/More quakeworld ^7cvar, sending '^6%s^7' to ^2%s^7\n-------------------------------------\n",cmd,param,cvar);
-		return 1;
-	}
-	else if (!strcmp("s_nosound", cmd))
-	{
-		char cvar[20] = "nosound";
-
-		Cvar_SetString(cvar,param);
-		Con_Printf("-------------------------------------\n^7ezScript: ^1%s^7 is a ^3Fuh/ez/Z/More quakeworld ^7cvar, sending '^6%s^7' to ^2%s^7\n-------------------------------------\n",cmd,param,cvar);
-		return 1;
-	}
-	else if (!strcmp("s_precache", cmd))
-	{
-		char cvar[20] = "precache";
-
-		Cvar_SetString(cvar,param);
-		Con_Printf("-------------------------------------\n^7ezScript: ^1%s^7 is a ^3Fuh/ez/Z/More quakeworld ^7cvar, sending '^6%s^7' to ^2%s^7\n-------------------------------------\n",cmd,param,cvar);
-		return 1;
-	}
-	else if (!strcmp("s_show", cmd))
-	{
-		char cvar[20] = "snd_show";
-
-		Cvar_SetString(cvar,param);
-		Con_Printf("-------------------------------------\n^7ezScript: ^1%s^7 is a ^3Fuh/ez/Z/More quakeworld ^7cvar, sending '^6%s^7' to ^2%s^7\n-------------------------------------\n",cmd,param,cvar);
-		return 1;
-	}
-	else if (!strcmp("s_swapstereo", cmd))
-	{
-		char cvar[20] = "snd_leftisright";
-
-		Cvar_SetString(cvar,param);
-		Con_Printf("-------------------------------------\n^7ezScript: ^1%s^7 is a ^3Fuh/ez/Z/More quakeworld ^7cvar, sending '^6%s^7' to ^2%s^7\n-------------------------------------\n",cmd,param,cvar);
-		return 1;
-	}
-	else if (!strcmp("s_ambientlevel", cmd))
-	{
-		char cvar[20] = "ambient_level";
-
-		Cvar_SetString(cvar,param);
-		Con_Printf("-------------------------------------\n^7ezScript: ^1%s^7 is a ^3Fuh/ez/Z/More quakeworld ^7cvar, sending '^6%s^7' to ^2%s^7\n-------------------------------------\n",cmd,param,cvar);
-		return 1;
-	}
-	else if (!strcmp("s_ambientfade", cmd))
-	{
-		char cvar[20] = "ambient_fade";
-
-		Cvar_SetString(cvar,param);
-		Con_Printf("-------------------------------------\n^7ezScript: ^1%s^7 is a ^3Fuh/ez/Z/More quakeworld ^7cvar, sending '^6%s^7' to ^2%s^7\n-------------------------------------\n",cmd,param,cvar);
-		return 1;
-	}
-	else if (!strcmp("tp_triggers", cmd))
-	{
-		char cvar[20] = "cl_triggers";
-
-		Cvar_SetString(cvar,param);
-		Con_Printf("-------------------------------------\n^7ezScript: ^1%s^7 is a ^3Fuh/ez/Z/More quakeworld ^7cvar, sending '^6%s^7' to ^2%s^7\n-------------------------------------\n",cmd,param,cvar);
-		return 1;
-	}
-	else if (!strcmp("teamskin", cmd))
-	{
-		char cvar[20] = "cl_teamskin";
-
-		Cvar_SetString(cvar,param);
-		Con_Printf("-------------------------------------\n^7ezScript: ^1%s^7 is a ^3Fuh/ez/Z/More quakeworld ^7cvar, sending '^6%s^7' to ^2%s^7\n-------------------------------------\n",cmd,param,cvar);
-		return 1;
-	}
-	else if (!strcmp("enemyskin", cmd))
-	{
-		char cvar[20] = "cl_enemyskin";
-
-		Cvar_SetString(cvar,param);
-		Con_Printf("-------------------------------------\n^7ezScript: ^1%s^7 is a ^3Fuh/ez/Z/More quakeworld ^7cvar, sending '^6%s^7' to ^2%s^7\n-------------------------------------\n",cmd,param,cvar);
-		return 1;
-	}
-	else if (!strcmp("scr_consize", cmd))
-	{		char cvar[20] = "con_height";
-
-		Cvar_SetString(cvar,param);
-		Con_Printf("-------------------------------------\n^7ezScript: ^1%s^7 is a ^3Fuh/ez/Z/More quakeworld ^7cvar, sending '^6%s^7' to ^2%s^7\n-------------------------------------\n",cmd,param,cvar);
-		return 1;
-	}
-	else if (!strcmp("cl_predictPlayers", cmd)) // why capital P i dont know
-	{
-		char cvar[20] = "cl_predict_players"; //lets not forget there is a cl_predict_players2
-
-		Cvar_SetString(cvar,param);
-		Con_Printf("-------------------------------------\n^7ezScript: ^1%s^7 is a ^3Fuh/ez/Z/More quakeworld ^7cvar, sending '^6%s^7' to ^2%s^7\n-------------------------------------\n",cmd,param,cvar);
-		return 1;
-	}
-	else if (!strcmp("sshot_format", cmd))
-	{
-		char cvar[20] = "scr_sshot_type";
-
-		Cvar_SetString(cvar,param);
-		Con_Printf("-------------------------------------\n^7ezScript: ^1%s^7 is a ^3Fuh/ez/Z/More quakeworld ^7cvar, sending '^6%s^7' to ^2%s^7\n-------------------------------------\n",cmd,param,cvar);
-		return 1;
-	}
-	else if (!strcmp("cl_solidPlayers", cmd))
-	{
-		char cvar[20] = "cl_solid_players";
-
-		Cvar_SetString(cvar,param);
-		Con_Printf("-------------------------------------\n^7ezScript: ^1%s^7 is a ^3Fuh/ez/Z/More quakeworld ^7cvar, sending '^6%s^7' to ^2%s^7\n-------------------------------------\n",cmd,param,cvar);
-		return 1;
-	}
-	else if (!strcmp("fps_muzzleflash", cmd))
-	{
-		char cvar[20] = "cl_muzzleflash";
-
-		Cvar_SetString(cvar,param);
-		Con_Printf("-------------------------------------\n^7ezScript: ^1%s^7 is a ^3Fuh/ez/Z/More quakeworld ^7cvar, sending '^6%s^7' to ^2%s^7\n-------------------------------------\n",cmd,param,cvar);
+			Cvar_SetString(cvar,param);
+			Con_Printf("-------------------------------------\n^7ezScript: ^1%s^7 is a ^3Fuh/ez/Z/More quakeworld ^7cvar, sending '^6%s^7' to ^2%s^7\n-------------------------------------\n",cmd,param,cvar);
+		}
 		return 1;
 	}
 
@@ -303,15 +133,13 @@ void ezScript_InitCommands(void) // not really needed actually
 
 int Plug_Init(int *args)
 {
-	if (Plug_Export("ExecuteCommand", Plug_ExecuteCommand))
-	{
-		Con_Printf("ezScript Plugin Build 1 by Moodles Loaded\n");
-	}
-	else
+	if (!Plug_Export("ExecuteCommand", Plug_ExecuteCommand))
 	{
 		Con_Printf("ezScript Plugin failed\n");
+		return false;
 	}
 
+	Con_Printf("ezScript Plugin Build 1 by Moodles Loaded\n");
 	ezScript_InitCommands();
-	return 1;
+	return true;
 }

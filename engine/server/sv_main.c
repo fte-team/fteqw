@@ -1058,7 +1058,7 @@ void SVC_GetChallenge (void)
 		if (sv_listen.value >= 2)
 		{
 		//dp can respond to this (and fte won't get confused because the challenge will be wrong)
-			buf = va("challenge DISTRIBUTION%i", svs.challenges[i].challenge);
+			buf = va("challenge "DISTRIBUTION"%i", svs.challenges[i].challenge);
 			Netchan_OutOfBand(NS_SERVER, net_from, strlen(buf)+1, buf);
 		}
 	}
@@ -2860,7 +2860,7 @@ void SV_MVDStream_Poll(void);
 
 // process console commands
 		if (!pr_imitatemvdsv.value)
-		Cbuf_Execute ();
+			Cbuf_Execute ();
 	}
 
 	if (sv.state < ss_active)	//whoops...

@@ -8,7 +8,7 @@ of the License, or (at your option) any later version.
 
 This program is distributed in the hope that it will be useful,
 but WITHOUT ANY WARRANTY; without even the implied warranty of
-MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
 
 See the GNU General Public License for more details.
 
@@ -77,7 +77,7 @@ typedef struct
 
 
 #if defined(Q2CLIENT) || defined(Q2SERVER)
-typedef enum 
+typedef enum
 {
 	// can accelerate and turn
 	Q2PM_NORMAL,
@@ -119,7 +119,7 @@ typedef struct
 	int			gunframe;
 
 	float		blend[4];		// rgba full screen effect
-	
+
 	float		fov;			// horizontal field of view
 
 	int			rdflags;		// refdef flags
@@ -424,7 +424,7 @@ typedef struct
 								// render a frame yet
 	int			movemessages;	// since connecting to this server
 								// throw out the first couple, so the player
-								// doesn't accidentally do something the 
+								// doesn't accidentally do something the
 								// first frame
 
 	int			spectator;
@@ -491,10 +491,10 @@ typedef struct
 	qboolean	paused;			// send over by server
 
 	float		punchangle[MAX_SPLITS];		// temporar yview kick from weapon firing
-	
+
 	int			intermission;	// don't change view angle, full screen, etc
 	int			completed_time;	// latched ffrom time at intermission start
-	
+
 //
 // information that is static for the entire time connected to a server
 //
@@ -794,6 +794,7 @@ void CLQ3_SendConnectPacket(netadr_t to);
 void CLQ3_SendCmd(usercmd_t *cmd);
 qboolean CLQ3_Netchan_Process(void);
 void CLQ3_ParseServerMessage (void);
+struct snapshot_s;
 qboolean CG_FillQ3Snapshot(int snapnum, struct snapshot_s *snapshot);
 
 void CG_InsertIntoGameState(int num, char *str);

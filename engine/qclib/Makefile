@@ -1,5 +1,6 @@
 QCC_OBJS=qccmain.o qcc_cmdlib.o qcc_pr_comp.o qcc_pr_lex.o comprout.o hash.o qcd_main.o
 GTKGUI_OBJS=qcc_gtk.o qccguistuff.c
+LIB_OBJS=
 
 CC=gcc -Wall -DQCCONLY
 
@@ -10,6 +11,7 @@ all: qcc
 BASE_CFLAGS=-ggdb
 CFLAGS =
 
+lib: 
 
 win_nocyg: $(QCC_OBJS) qccgui.c qccguistuff.c
 	$(CC) $(BASE_CFLAGS) -o fteqcc.exe -O3 -s $(QCC_OBJS) -mno-cygwin -mwindows

@@ -399,6 +399,13 @@ reeval:
 			pr_xstatement = st-pr_statements;
 			PR_RunError (progfuncs, "assignment to read-only entity in %s", progfuncs->stringtable + pr_xfunction->s_name);
 		}
+
+//Whilst the next block would technically be correct, we don't use it as it breaks too many quake mods.
+//		if (ed->isfree)
+//		{
+//			pr_xstatement = st-pr_statements;
+//			PR_RunError (progfuncs, "assignment to free entitiy in %s", progfuncs->stringtable + pr_xfunction->s_name);
+//		}
 		OPC->_int = ENGINEPOINTER((((int *)edvars(ed)) + OPB->_int + progfuncs->fieldadjust));
 		break;
 

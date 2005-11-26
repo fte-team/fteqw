@@ -308,11 +308,27 @@ int Sys_EnumerateFiles (char *gpath, char *match, int (*func)(char *, int, void 
 	return true;
 }
 
+
+int secbase;
+unsigned int Sys_Milliseconds (void)
+{
+	struct timeval tp;
+	struct timezone tzp;
+
+	gettimeofday(&tp, &tzp);
+
+	if (!secbase)
+	{
+		secbase = tp.tv_sec;
+		return tp.tv_usec/1000;
+	}
+	return (tp.tv_sec - secbase) + tp.tv_usec/1000;
+}
+
 double Sys_DoubleTime (void)
 {
 	struct timeval tp;
 	struct timezone tzp;
-	static int secbase;
 
 	gettimeofday(&tp, &tzp);
 

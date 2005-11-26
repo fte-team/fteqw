@@ -81,7 +81,7 @@ static int OSS_InitCard(soundcardinfo_t *sc, int cardnum)
 
 // open the sound device, confirm capability to mmap, and get size of dma buffer
 
-	printf("Initing sound device %s\n", snddev);
+	Con_Printf("Initing OSS sound device %s\n", snddev);
 
 	sc->audio_fd = open(snddev, O_RDWR | O_NONBLOCK);	//try the primary device
 	if (sc->audio_fd < 0)

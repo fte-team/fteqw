@@ -156,19 +156,26 @@ sounddriver pALSA_InitCard;
 sounddriver pOSS_InitCard;
 sounddriver pSDL_InitCard;
 sounddriver pWAV_InitCard;
+sounddriver pAHI_InitCard;
 
-sounddriver *drivers[] = {
-	&pDSOUND_InitCard,
-	&pALSA_InitCard,
-	&pOSS_InitCard,
-	&pSDL_InitCard,
-	&pWAV_InitCard,
-	NULL
+typedef struct {
+	char *name;
+	sounddriver *ptr;
+} sdriver_t;
+sdriver_t drivers[] = {
+//in order of preference
+	{"DSound", &pDSOUND_InitCard},
+	{"ALSA", &pALSA_InitCard},
+	{"OSS", &pOSS_InitCard},
+	{"SDL", &pSDL_InitCard},
+	{"WaveOut", &pWAV_InitCard},
+	{"AHI", &pAHI_InitCard},
+	{NULL, NULL}
 };
 
 static int SNDDMA_Init(soundcardinfo_t *sc, int *cardnum, int *drivernum)
 {
-	sounddriver *sd;
+	sdriver_t *sd;
 	int st = 0;
 
 	memset(sc, 0, sizeof(*sc));
@@ -181,13 +188,20 @@ static int SNDDMA_Init(soundcardinfo_t *sc, int *cardnum, int *drivernum)
 	else
 		sc->sn.speed = 11025;
 
-	sd = drivers[*drivernum];
-	if (!sd)
+	sd = &drivers[*drivernum];
+	if (!sd->ptr)
 		return 2;	//no more cards.
-	if (!*sd)	//driver not loaded
+	if (!*sd->ptr)	//driver not loaded
+	{
+		Con_DPrintf("Sound driver %s is not loaded\n", sd->name);
 		st = 2;
+	}
 	else
-		st = (**sd)(sc, *cardnum);
+	{
+		Con_DPrintf("Trying to load a %s sound device\n", sd->name);
+		st = (**sd->ptr)(sc, *cardnum);
+	}
+
 	if (st == 1)	//worked
 	{
 		*cardnum += 1;	//use the next card next time

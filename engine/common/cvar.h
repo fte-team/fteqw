@@ -88,12 +88,12 @@ typedef struct cvar_group_s
 
 //freestyle
 #define CVAR_POINTER		32	// q2 style. May be converted to q1 if needed. These are often specified on the command line and then converted into q1 when registered properly.
-#define CVAR_NOTFROMSERVER	64
+#define CVAR_NOTFROMSERVER	64	// the console will ignore changes to cvars if set at from the server or any gamecode. This is to protect against security flaws - like qterm
 #define CVAR_USERCREATED	128	//write a 'set' or 'seta' in front of the var name.
 #define CVAR_CHEAT			256	//latch to the default, unless cheats are enabled.
 #define CVAR_SEMICHEAT		512	//if strict ruleset, force to 0/blank.
-#define CVAR_RENDERERLATCH	1024
-#define CVAR_SERVEROVERRIDE 2048	//
+#define CVAR_RENDERERLATCH	1024	//requires a vid_restart to reapply.
+#define CVAR_SERVEROVERRIDE 2048	//the server has overridden out local value - should probably be called SERVERLATCH
 
 #define CVAR_LASTFLAG CVAR_SERVEROVERRIDE
 

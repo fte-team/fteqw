@@ -8,7 +8,7 @@ of the License, or (at your option) any later version.
 
 This program is distributed in the hope that it will be useful,
 but WITHOUT ANY WARRANTY; without even the implied warranty of
-MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
 
 See the GNU General Public License for more details.
 
@@ -81,7 +81,7 @@ void CLQ2_CheckPredictionError (void)
 	else
 	{
 //		if (/*cl_showmiss->value && */(delta[0] || delta[1] || delta[2]) )
-//			Con_Printf ("prediction miss on %i: %i\n", cl.q2frame.serverframe, 
+//			Con_Printf ("prediction miss on %i: %i\n", cl.q2frame.serverframe,
 //			delta[0] + delta[1] + delta[2]);
 
 		VectorCopy (cl.q2frame.playerstate.pmove.origin, cl_predicted_origins[frame]);
@@ -271,7 +271,7 @@ void CLQ2_PredictMovement (void)	//q2 doesn't support split clients.
 	{
 //		if (cl_showmiss->value)
 //			Con_Printf ("exceeded CMD_BACKUP\n");
-		return;	
+		return;
 	}
 
 	// copy current state to pmove
@@ -637,14 +637,14 @@ short LerpAngles16(short to, short from, float frac)
 
 void CL_CalcClientTime(void)
 {
-	
+
 	{
 		float want;
 
-		want = cl.oldgametime + realtime - cl.gametimemark;
+		want = cl.oldgametime + (realtime - cl.gametimemark);
 		if (want>cl.servertime)
 			cl.servertime = want;
-		
+
 		if (cl.servertime > cl.gametime)
 			cl.servertime = cl.gametime;
 		if (cl.servertime < cl.oldgametime)
@@ -662,7 +662,7 @@ void CL_CalcClientTime(void)
 			cl.time = want;
 
 //		Con_Printf("Drifted to %f off by %f\n", cl.time, off);
-		
+
 //		Con_Printf("\n");
 		if (cl.time > cl.gametime)
 		{
@@ -674,7 +674,7 @@ void CL_CalcClientTime(void)
 			cl.time = cl.oldgametime;
 //			Con_Printf("old TimeClamp\n");
 		}
-		
+
 	}
 	else
 	{
@@ -713,7 +713,7 @@ void CL_PredictMovePNum (int pnum)
 	if (cl_pushlatency.value > 0)
 		Cvar_Set (&cl_pushlatency, "0");
 
-	if (cl.paused && !cls.demoplayback!=DPB_MVD && (!cl.spectator || !autocam[pnum])) 
+	if (cl.paused && !cls.demoplayback!=DPB_MVD && (!cl.spectator || !autocam[pnum]))
 		return;
 
 	CL_CalcClientTime();
@@ -750,11 +750,19 @@ void CL_PredictMovePNum (int pnum)
 #ifdef PEXT_SETVIEW
 	if (cl.viewentity[pnum])
 	{
-		entity_state_t *CL_FindOldPacketEntity(int num);
+		if (cl.viewentity[pnum] < cl.maxlerpents)
+		{
+//			Con_Printf("Using lerped pos\n");
+			org = cl.lerpents[cl.viewentity[pnum]].origin;
+			vel = vec3_origin;
+			goto fixedorg;
+		}
+		Con_Printf("Not lerped\n");
+/*		entity_state_t *CL_FindOldPacketEntity(int num);
 		entity_state_t *CL_FindPacketEntity(int num);
 		entity_state_t *state;
 		state = CL_FindPacketEntity (cl.viewentity[pnum]);
-		if (state)
+		if (state && state->number < cl.maxlerpents)
 		{
 			float f;
 			extern cvar_t cl_nolerp;
@@ -784,7 +792,7 @@ void CL_PredictMovePNum (int pnum)
 
 			goto fixedorg;
 		}
-	}
+*/	}
 #endif
 	if (((cl_nopred.value && cls.demoplayback!=DPB_MVD)|| cl.fixangle))
 	{
@@ -852,7 +860,7 @@ fixedorg:
 				break;
 			from = to;
 		}
-		
+
 		if (independantphysics[pnum].msec)
 		{
 			from = to;
@@ -895,12 +903,12 @@ fixedorg:
 				VectorCopy (to->playerstate[cl.playernum[pnum]].origin, cl.simorg[pnum]);
 				goto out;
 			}
-			
+
 		for (i=0 ; i<3 ; i++)
 		{
-			cl.simorg[pnum][i] = org[i] 
+			cl.simorg[pnum][i] = org[i]
 				+ f*(to->playerstate[cl.playernum[pnum]].origin[i] - org[i]);
-			cl.simvel[pnum][i] = vel[i] 
+			cl.simvel[pnum][i] = vel[i]
 				+ f*(to->playerstate[cl.playernum[pnum]].velocity[i] - vel[i]);
 		}
 		CL_CatagorizePosition(pnum);

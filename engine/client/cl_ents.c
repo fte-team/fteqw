@@ -383,74 +383,6 @@ void CL_ParseDelta (entity_state_t *from, entity_state_t *to, int bits, qboolean
 
 	if (morebits & U_EFFECTS16)
 		to->effects = (to->effects&0x00ff)|(MSG_ReadByte()<<8);
-
-	if (to->number>=cl.maxlerpents)
-	{
-		cl.maxlerpents = to->number+16;
-		cl.lerpents = BZ_Realloc(cl.lerpents, sizeof(entity_state_t)*cl.maxlerpents);
-	}
-
-	VectorSubtract(to->origin, from->origin, move);
-
-	if (to->frame != from->frame)
-	{
-		cl.lerpents[to->number].oldframechange = cl.lerpents[to->number].framechange;	//marked for hl models
-		cl.lerpents[to->number].framechange = cl.servertime;	//marked for hl models
-	}
-
-	if (to->modelindex != from->modelindex || to->number != from->number || VectorLength(move)>500)	//model changed... or entity changed...
-	{
-		cl.lerpents[to->number].oldframechange = cl.lerpents[to->number].framechange;	//marked for hl models
-		cl.lerpents[to->number].framechange = cl.servertime;	//marked for hl models
-
-		cl.lerpents[to->number].lerptime = -10;
-		cl.lerpents[to->number].lerprate = 0;
-
-		if (!new)
-			return;
-		move[0] = 1;	//make sure it enters the next block.
-	}
-	if (to->frame != from->frame || move[0] || move[1] || move[2])
-	{
-		if (new)	//lerp from the new position instead of old, so no lerp
-		{
-			cl.lerpents[to->number].origin[0] = to->origin[0];
-			cl.lerpents[to->number].origin[1] = to->origin[1];
-			cl.lerpents[to->number].origin[2] = to->origin[2];
-
-			cl.lerpents[to->number].angles[0] = to->angles[0];
-			cl.lerpents[to->number].angles[1] = to->angles[1];
-			cl.lerpents[to->number].angles[2] = to->angles[2];
-		}
-		else
-		{
-			cl.lerpents[to->number].origin[0] = from->origin[0];
-			cl.lerpents[to->number].origin[1] = from->origin[1];
-			cl.lerpents[to->number].origin[2] = from->origin[2];
-
-			cl.lerpents[to->number].angles[0] = from->angles[0];
-			cl.lerpents[to->number].angles[1] = from->angles[1];
-			cl.lerpents[to->number].angles[2] = from->angles[2];
-		}
-//we have three sorts of movement.
-//1: stepping monsters. These have frames and tick at 10fps.
-//2: physics. Objects moving acording to gravity.
-//3: both. This is really awkward. And I'm really lazy.
-//the real solution would be to seperate the two.
-		cl.lerpents[to->number].lerprate = cl.servertime-cl.lerpents[to->number].lerptime;	//time per update
-//		Con_Printf("%f=%f-%f\n", cl.lerpents[to->number].lerprate, cl.time, cl.lerpents[to->number].lerptime);
-		cl.lerpents[to->number].frame = from->frame;
-		cl.lerpents[to->number].lerptime = cl.servertime;
-
-		if (cl.lerpents[to->number].lerprate>0.2)
-			cl.lerpents[to->number].lerprate=0.2;
-
-		//store this off for new ents to use.
-		if (new)
-			cl.lerpents[to->number].lerprate = newlerprate;
-		if (to->frame == from->frame && !new) //(h2 runs at 20fps)
-			newlerprate = cl.lerpents[to->number].lerprate;
-	}
 }
 
 
@@ -513,6 +445,8 @@ void CL_ParsePacketEntities (qboolean delta)
 	newpacket = cls.netchan.incoming_sequence&UPDATE_MASK;
 	newp = &cl.frames[newpacket].packet_entities;
 	cl.frames[newpacket].invalid = false;
+
+	newp->servertime = cl.gametime;
 
 	if (delta)
 	{
@@ -944,6 +878,7 @@ void CLNQ_ParseDarkPlaces5Entities(void)	//the things I do.. :o(
 	/*cl.servermovesequence =*/ MSG_ReadLong();
 
 	pack = &cl.frames[(cls.netchan.incoming_sequence)&UPDATE_MASK].packet_entities;
+	pack->servertime = cl.gametime;
 	oldpack = &cl.frames[(cls.netchan.incoming_sequence-1)&UPDATE_MASK].packet_entities;
 
 	from = oldpack->entities;
@@ -988,11 +923,6 @@ void CLNQ_ParseDarkPlaces5Entities(void)	//the things I do.. :o(
 			pack->max_entities = pack->num_entities+16;
 			pack->entities = BZ_Realloc(pack->entities, sizeof(entity_state_t)*pack->max_entities);
 		}
-		if (read>=cl.maxlerpents)
-		{
-			cl.maxlerpents = read+16;
-			cl.lerpents = BZ_Realloc(cl.lerpents, sizeof(entity_state_t)*cl.maxlerpents);
-		}
 
 		to = &pack->entities[pack->num_entities];
 		pack->num_entities++;
@@ -1000,58 +930,6 @@ void CLNQ_ParseDarkPlaces5Entities(void)	//the things I do.. :o(
 		to->number = read;
 		DP5_ParseDelta(to);
 		to->flags &= ~0x80000000;
-
-		if (!from || to->modelindex != from->modelindex || to->number != from->number)	//model changed... or entity changed...
-		{
-			cl.lerpents[to->number].lerptime = -10;
-			cl.lerpents[to->number].origin[0] = to->origin[0];
-			cl.lerpents[to->number].origin[1] = to->origin[1];
-			cl.lerpents[to->number].origin[2] = to->origin[2];
-
-			cl.lerpents[to->number].angles[0] = to->angles[0];
-			cl.lerpents[to->number].angles[1] = to->angles[1];
-			cl.lerpents[to->number].angles[2] = to->angles[2];
-		}
-		else if (to->frame != from->frame || to->origin[0] != from->origin[0] || to->origin[1] != from->origin[1] || to->origin[2] != from->origin[2])
-		{
-			if (from == &defaultstate)	//lerp from the new position instead of old, so no lerp
-			{
-				cl.lerpents[to->number].origin[0] = to->origin[0];
-				cl.lerpents[to->number].origin[1] = to->origin[1];
-				cl.lerpents[to->number].origin[2] = to->origin[2];
-
-				cl.lerpents[to->number].angles[0] = to->angles[0];
-				cl.lerpents[to->number].angles[1] = to->angles[1];
-				cl.lerpents[to->number].angles[2] = to->angles[2];
-			}
-			else
-			{
-				cl.lerpents[to->number].origin[0] = from->origin[0];
-				cl.lerpents[to->number].origin[1] = from->origin[1];
-				cl.lerpents[to->number].origin[2] = from->origin[2];
-
-				cl.lerpents[to->number].angles[0] = from->angles[0];
-				cl.lerpents[to->number].angles[1] = from->angles[1];
-				cl.lerpents[to->number].angles[2] = from->angles[2];
-			}
-	//we have three sorts of movement.
-	//1: stepping monsters. These have frames and tick at 10fps.
-	//2: physics. Objects moving acording to gravity.
-	//3: both. This is really awkward. And I'm really lazy.
-			cl.lerpents[to->number].lerprate = cl.oldgametime-cl.lerpents[to->number].lerptime;	//time per update
-			cl.lerpents[to->number].frame = from->frame;
-			cl.lerpents[to->number].lerptime = cl.oldgametime;
-
-			if (cl.lerpents[to->number].lerprate>0.2)
-				cl.lerpents[to->number].lerprate=0.2;
-
-			//store this off for new ents to use.
-	//		if (new)
-	//			cl.lerpents[state->number].lerptime = newlerprate;
-	//		else
-			if (to->frame == from->frame)
-				newlerprate = cl.lerpents[to->number].lerprate;
-		}
 	}
 
 	//the pack has all the new ones in it, now copy the old ones in that wern't removed (or changed).
@@ -1171,12 +1049,6 @@ void CLNQ_ParseEntity(unsigned int bits)
 		state = &pack->entities[pack->num_entities++];
 	}
 
-	if (num>=cl.maxlerpents)
-	{
-		cl.maxlerpents = num+16;
-		cl.lerpents = BZ_Realloc(cl.lerpents, sizeof(entity_state_t)*cl.maxlerpents);
-	}
-
 	from = CL_FindOldPacketEntity(num);	//this could be optimised.
 
 	base = &cl_baselines[num];
@@ -1250,37 +1122,6 @@ void CLNQ_ParseEntity(unsigned int bits)
 				state->angles[1] = cl.viewangles[pnum][1];
 				state->angles[2] = cl.viewangles[pnum][2];
 			}
-
-
-	if (!from || state->modelindex != from->modelindex || state->number != from->number)	//model changed... or entity changed...
-		cl.lerpents[state->number].lerprate = newlerprate;
-	else if (state->frame != from->frame || state->origin[0] != from->origin[0] || state->origin[1] != from->origin[1] || state->origin[2] != from->origin[2])
-	{
-		cl.lerpents[state->number].origin[0] = from->origin[0];
-		cl.lerpents[state->number].origin[1] = from->origin[1];
-		cl.lerpents[state->number].origin[2] = from->origin[2];
-
-		cl.lerpents[state->number].angles[0] = from->angles[0];
-		cl.lerpents[state->number].angles[1] = from->angles[1];
-		cl.lerpents[state->number].angles[2] = from->angles[2];
-//we have three sorts of movement.
-//1: stepping monsters. These have frames and tick at 10fps.
-//2: physics. Objects moving acording to gravity.
-//3: both. This is really awkward. And I'm really lazy.
-		cl.lerpents[state->number].lerprate = cl.gametime-cl.lerpents[state->number].lerptime;	//time per update
-		cl.lerpents[state->number].frame = from->frame;
-		cl.lerpents[state->number].lerptime = cl.gametime;
-
-		if (cl.lerpents[state->number].lerprate>0.2)
-			cl.lerpents[state->number].lerprate=0.2;
-
-		//store this off for new ents to use.
-//		if (new)
-//			cl.lerpents[state->number].lerprate = newlerprate;
-//		else
-		if (state->frame == from->frame)
-			newlerprate = cl.lerpents[state->number].lerprate;
-	}
 }
 #endif
 #ifdef PEXT_SETVIEW
@@ -1510,6 +1351,468 @@ CL_LinkPacketEntities
 ===============
 */
 void R_FlameTrail(vec3_t start, vec3_t end, float seperation);
+#define DECENTLERP
+#ifdef DECENTLERP
+
+void CL_TransitionPacketEntities(packet_entities_t *newpack, packet_entities_t *oldpack, float servertime)
+{
+	lerpents_t		*le;
+	entity_state_t		*snew, *sold;
+	int					i, j;
+	int					oldpnum, newpnum;
+
+	vec3_t move;
+
+	float a1, a2;
+
+	float frac;
+	/*
+		seeing as how dropped packets cannot be filled in due to the reliable networking stuff,
+		We can simply detect changes and lerp towards them
+	*/
+
+	//we have two index-sorted lists of entities
+	//we figure out which ones are new,
+	//we don't care about old, as our caller will use the lerpents array we fill, and the entity numbers from the 'new' packet.
+
+	if (newpack->servertime == oldpack->servertime)
+		frac = 1; //lerp totally into the new
+	else
+		frac = (servertime-oldpack->servertime)/(newpack->servertime-oldpack->servertime);
+
+	oldpnum=0;
+	for (newpnum=0 ; newpnum<newpack->num_entities ; newpnum++)
+	{
+		snew = &newpack->entities[newpnum];
+
+		sold = NULL;
+		for ( ; oldpnum<oldpack->num_entities ; oldpnum++)
+		{
+			sold = &oldpack->entities[oldpnum];
+			if (sold->number >= snew->number)
+			{
+				if (sold->number > snew->number)
+					sold = NULL;	//woo, it's a new entity.
+				break;
+			}
+		}
+		if (!sold)	//I'm lazy
+			sold = snew;
+
+		if (snew->number >= cl.maxlerpents)
+		{
+			cl.maxlerpents = snew->number+16;
+			cl.lerpents = BZ_Realloc(cl.lerpents, cl.maxlerpents*sizeof(lerpents_t));
+		}
+		le = &cl.lerpents[snew->number];
+
+		VectorSubtract(snew->origin, sold->origin, move)
+		if (DotProduct(move, move) > 200*200 || snew->modelindex != sold->modelindex)
+		{
+			sold = snew;	//teleported?
+			VectorClear(move);
+		}
+
+		for (i = 0; i < 3; i++)
+		{
+			le->origin[i] = sold->origin[i] + frac*(move[i]);
+
+			for (j = 0; j < 3; j++)
+			{
+				a1 = sold->angles[i];
+				a2 = snew->angles[i];
+				if (a1 - a2 > 180)
+					a1 -= 360;
+				if (a1 - a2 < -180)
+					a1 += 360;
+				le->angles[i] = a1 + frac * (a2 - a1);
+			}
+		}
+
+		if (snew == sold || (sold->frame != le->frame && sold->frame != snew->frame) || snew->modelindex != sold->modelindex)
+		{
+			le->oldframechange = le->framechange;
+			le->framechange = newpack->servertime;
+
+			le->frame = sold->frame;
+		}
+	}
+}
+
+packet_entities_t *CL_ProcessPacketEntities(float *servertime, qboolean nolerp)
+{
+	packet_entities_t	*packnew, *packold;
+	entity_state_t		*snew, *sold;
+	int					i;
+	static float oldoldtime;
+	//, spnum;
+
+	*servertime -= 0.1;
+
+	if (nolerp)
+	{	//force our emulated time to as late as we can.
+		//this will disable all position interpolation
+		*servertime = cl.frames[cls.netchan.incoming_sequence&UPDATE_MASK].packet_entities.servertime;
+		Con_DPrintf("No lerp\n");
+	}
+
+	packnew = NULL;
+	packold = NULL;
+	//choose the two packets.
+	//we should be picking the packet just after the server time, and the one just before
+	for (i = cls.netchan.incoming_sequence; i >= cls.netchan.incoming_sequence-UPDATE_MASK; i--)
+	{
+		if (cl.frames[i&UPDATE_MASK].receivedtime < 0 || cl.frames[i&UPDATE_MASK].invalid)
+			continue;	//packetloss/choke, it's really only a problem for the oldframe, but...
+
+		if (cl.frames[i&UPDATE_MASK].packet_entities.servertime >= *servertime)
+		{
+			if (cl.frames[i&UPDATE_MASK].packet_entities.servertime)
+			{
+				if (!packnew || packnew->servertime != cl.frames[i&UPDATE_MASK].packet_entities.servertime)	//if it's a duplicate, pick the latest (so just-shot rockets are still present)
+					packnew = &cl.frames[i&UPDATE_MASK].packet_entities;
+			}
+		}
+		else if (packnew)
+		{
+			if (cl.frames[i&UPDATE_MASK].packet_entities.servertime != packnew->servertime)
+			{	//it does actually lerp, and isn't an identical frame.
+				packold = &cl.frames[i&UPDATE_MASK].packet_entities;
+				break;
+			}
+		}
+	}
+
+	//Note, hacking this to return anyway still needs the lerpent array to be valid for all contained entities.
+
+	if (!packnew)	//should never happen
+	{
+		Con_DPrintf("Warning: No lerp-to frame packet\n");
+		return NULL;
+	}
+	if (!packold)	//can happem at map start, and really laggy games, but really shouldn't in a normal game
+	{
+		Con_DPrintf("Warning: No lerp-from frame packet\n");
+		packold = packnew;
+	}
+
+	CL_TransitionPacketEntities(packnew, packold, *servertime);
+
+	Con_DPrintf("%f %f %f %f %f %f\n", packnew->servertime, *servertime, packold->servertime, cl.gametime, cl.oldgametime, cl.servertime);
+
+//	if (packold->servertime < oldoldtime)
+//		Con_Printf("Spike screwed up\n");
+//	oldoldtime = packold->servertime;
+
+	return packnew;
+}
+
+void CL_LinkPacketEntities (void)
+{
+	entity_t			*ent;
+	packet_entities_t	*pack;
+	entity_state_t		*state;
+	lerpents_t		*le;
+	float				f;
+	model_t				*model;
+	vec3_t				old_origin;
+	float				autorotate;
+	int					i;
+	int					oldpnum, newpnum;
+	//, spnum;
+	dlight_t			*dl;
+	vec3_t				angles;
+	int flicker;
+
+	float servertime;
+
+	CL_CalcClientTime();
+	servertime = cl.servertime;
+
+	pack = CL_ProcessPacketEntities(&servertime, !!cl_nolerp.value);
+	if (!pack)
+		return;
+
+	servertime = cl.servertime;
+
+
+	autorotate = anglemod(100*servertime);
+
+	for (newpnum=0 ; newpnum<pack->num_entities ; newpnum++)
+	{
+		state = &pack->entities[newpnum];
+
+
+
+		if (cl_numvisedicts == MAX_VISEDICTS)
+		{
+			Con_Printf("Too many visible entities\n");
+			break;
+		}
+		ent = &cl_visedicts[cl_numvisedicts];
+#ifdef Q3SHADERS
+		ent->forcedshader = NULL;
+#endif
+
+		le = &cl.lerpents[state->number];
+
+		if (le->framechange == le->oldframechange)
+			ent->lerpfrac = 0;
+		else
+		{
+			ent->lerpfrac = 1-(servertime - le->oldframechange) / (le->framechange - le->oldframechange);
+		}
+
+
+		VectorCopy(le->origin, ent->origin)
+
+		//bots or powerup glows. Bots always glow, powerups can be disabled
+		if (state->modelindex != cl_playerindex && r_powerupglow.value);
+		{
+			flicker = r_lightflicker.value?(rand()&31):0;
+			// spawn light flashes, even ones coming from invisible objects
+			if ((state->effects & (EF_BLUE | EF_RED)) == (EF_BLUE | EF_RED))
+				CL_NewDlight (state->number, state->origin[0], state->origin[1], state->origin[2], 200 + flicker, 0, 3);
+			else if (state->effects & EF_BLUE)
+				CL_NewDlight (state->number, state->origin[0], state->origin[1], state->origin[2], 200 + flicker, 0, 1);
+			else if (state->effects & EF_RED)
+				CL_NewDlight (state->number, state->origin[0], state->origin[1], state->origin[2], 200 + flicker, 0, 2);
+			else if (state->effects & EF_BRIGHTLIGHT)
+				CL_NewDlight (state->number, state->origin[0], state->origin[1], state->origin[2] + 16, 400 + flicker, 0, 0);
+			else if (state->effects & EF_DIMLIGHT)
+				CL_NewDlight (state->number, state->origin[0], state->origin[1], state->origin[2], 200 + flicker, 0, 0);
+		}
+		if (state->light[3])
+		{
+			CL_NewDlightRGB (state->number, state->origin[0], state->origin[1], state->origin[2], state->light[3], 0, state->light[0]/1024.0f, state->light[1]/1024.0f, state->light[2]/1024.0f);
+		}
+
+		// if set to invisible, skip
+		if (state->modelindex<1)
+			continue;
+
+		// create a new entity
+		if (cl_numvisedicts == MAX_VISEDICTS)
+			break;		// object list is full
+
+		if (CL_FilterModelindex(state->modelindex, state->frame))
+			continue;
+
+		model = cl.model_precache[state->modelindex];
+		if (!model)
+		{
+			Con_DPrintf("Bad modelindex (%i)\n", state->modelindex);
+			continue;
+		}
+
+		cl_numvisedicts++;
+
+#ifdef Q3SHADERS
+		ent->forcedshader = NULL;
+#endif
+
+		ent->visframe = 0;
+
+		ent->keynum = state->number;
+
+		if (cl_r2g.value && state->modelindex == cl_rocketindex && cl_rocketindex && cl_grenadeindex)
+			ent->model = cl.model_precache[cl_grenadeindex];
+		else
+			ent->model = model;
+
+		ent->flags = state->flags;
+		if (state->effects & NQEF_ADDATIVE)
+			ent->flags |= Q2RF_ADDATIVE;
+		if (state->effects & EF_NODEPTHTEST)
+			ent->flags |= RF_NODEPTHTEST;
+
+		// set colormap
+		if (state->colormap && (state->colormap <= MAX_CLIENTS)
+			&& (gl_nocolors.value == -1 || (ent->model/* && state->modelindex == cl_playerindex*/)))
+		{
+			ent->colormap = cl.players[state->colormap-1].translations;
+			ent->scoreboard = &cl.players[state->colormap-1];
+		}
+		else
+		{
+			ent->colormap = vid.colormap;
+			ent->scoreboard = NULL;
+		}
+
+		// set skin
+		ent->skinnum = state->skinnum;
+
+		ent->abslight = state->abslight;
+		ent->drawflags = state->hexen2flags;
+
+		// set frame
+		ent->frame = state->frame;
+		ent->oldframe = le->frame;
+
+		ent->frame1time = cl.servertime - le->framechange;
+		ent->frame2time = cl.servertime - le->oldframechange;
+
+//		f = (sin(realtime)+1)/2;
+
+#ifdef PEXT_SCALE
+		//set scale
+		ent->scale = state->scale/16.0;
+#endif
+#ifdef PEXT_TRANS
+		//set trans
+		ent->alpha = state->trans/255.0;
+#endif
+#ifdef PEXT_FATNESS
+		//set trans
+		ent->fatness = state->fatness/2.0;
+#endif
+
+		// rotate binary objects locally
+		if (model && model->flags & EF_ROTATE)
+		{
+			angles[0] = 0;
+			angles[1] = autorotate;
+			angles[2] = 0;
+
+			if (cl_item_bobbing.value)
+				ent->origin[2] += 5+sin(cl.time*3)*5;	//don't let it into the ground
+		}
+		else
+		{
+			float	a1, a2;
+
+			for (i=0 ; i<3 ; i++)
+			{
+				angles[i] = le->angles[i];
+			}
+		}
+
+		VectorCopy(angles, ent->angles);
+		angles[0]*=-1;
+		AngleVectors(angles, ent->axis[0], ent->axis[1], ent->axis[2]);
+		VectorInverse(ent->axis[1]);
+
+		if (ent->keynum <= MAX_CLIENTS
+#ifdef NQPROT
+			&& cls.protocol == CP_QUAKEWORLD
+#endif
+			)
+			ent->keynum += MAX_EDICTS;
+
+		if (state->tagentity)
+		{	//ent is attached to a tag, rotate this ent accordingly.
+			CL_RotateAroundTag(ent, state->number, state->tagentity, state->tagindex);
+		}
+
+		// add automatic particle trails
+		if (!model || (!(model->flags&~EF_ROTATE) && model->particletrail<0 && model->particleeffect<0))
+			continue;
+
+		if (!cls.allow_anyparticles && !(model->flags & ~EF_ROTATE))
+			continue;
+
+		// scan the old entity display list for a matching
+		for (i=0 ; i<cl_oldnumvisedicts ; i++)
+		{
+			if (cl_oldvisedicts[i].keynum == ent->keynum)
+			{
+				VectorCopy (cl_oldvisedicts[i].origin, old_origin);
+				break;
+			}
+		}
+		if (i == cl_oldnumvisedicts)
+		{
+			P_DelinkTrailstate(&(cl.lerpents[state->number].trailstate));
+			P_DelinkTrailstate(&(cl.lerpents[state->number].emitstate));
+			continue;		// not in last message
+		}
+
+		for (i=0 ; i<3 ; i++)
+			if ( abs(old_origin[i] - ent->origin[i]) > 128)
+			{	// no trail if too far
+				VectorCopy (ent->origin, old_origin);
+				break;
+			}
+
+		if (model->particletrail>=0)
+		{
+//			Con_Printf("(%f %f %f) (%f %f %f)\n", ent->origin[0], ent->origin[1], ent->origin[2], old_origin[0], old_origin[1], old_origin[2]);
+/*
+			if (ent->origin[0] == old_origin[0] || ent->origin[1] == old_origin[1] || ent->origin[2] == old_origin[2])
+			{
+				if (ent->origin[0] == old_origin[0] && ent->origin[1] == old_origin[1] && ent->origin[2] == old_origin[2])
+				{
+					Con_Printf("Total match!!\n");
+				}
+				else
+					Con_Printf("impartial match!!\n");
+			}*/
+
+
+			P_ParticleTrail (old_origin, ent->origin, model->particletrail, &(le->trailstate));
+		}
+
+		{
+			extern cvar_t gl_part_flame;
+			if (cls.allow_anyparticles && gl_part_flame.value)
+			{
+				P_EmitEffect (ent->origin, model->particleeffect, &(le->emitstate));
+			}
+		}
+
+
+		//dlights are not so customisable.
+		if (r_rocketlight.value)
+		{
+			float rad = 0;
+			vec3_t dclr;
+
+			dclr[0] = 0.20;
+			dclr[1] = 0.10;
+			dclr[2] = 0;
+
+			if (model->flags & EF_ROCKET)
+			{
+				if (strncmp(model->name, "models/sflesh", 13))
+				{	//hmm. hexen spider gibs...
+					rad = 200;
+					dclr[2] = 0.05;
+				}
+			}
+			else if (model->flags & EF_FIREBALL)
+			{
+				rad = 120 - (rand() % 20);
+			}
+			else if (model->flags & EF_ACIDBALL)
+			{
+				rad = 120 - (rand() % 20);
+			}
+			else if (model->flags & EF_SPIT)
+			{
+				// as far as I can tell this effect inverses the light...
+				dclr[0] = -dclr[0];
+				dclr[0] = -dclr[1];
+				dclr[0] = -dclr[2];
+				rad = 120 - (rand() % 20);
+			}
+
+			if (rad)
+			{
+				dl = CL_AllocDlight (state->number);
+				VectorCopy (ent->origin, dl->origin);
+				dl->die = (float)cl.time;
+				if (model->flags & EF_ROCKET)
+					dl->origin[2] += 1; // is this even necessary
+				dl->radius = rad * bound(0, r_rocketlight.value, 1);
+				VectorCopy(dclr, dl->color);
+			}
+
+
+		}
+	}
+}
+#else
+
 void CL_LinkPacketEntities (void)
 {
 	entity_t			*ent;
@@ -1824,7 +2127,7 @@ void CL_LinkPacketEntities (void)
 		}
 	}
 }
-
+#endif
 
 /*
 =========================================================================

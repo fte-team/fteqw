@@ -133,7 +133,9 @@ static qboolean Alsa_InitAlsa(void)
 
 	alsasharedobject = dlopen("libasound.so", RTLD_LAZY|RTLD_LOCAL);
 	if (!alsasharedobject)
+	{
 		return false;
+	}
 
 
 	psnd_pcm_open				= dlsym(alsasharedobject, "snd_pcm_open");
@@ -202,7 +204,10 @@ static int ALSA_InitCard (soundcardinfo_t *sc, int cardnum)
 	snd_pcm_uframes_t	 frag_size;
 
 	if (!Alsa_InitAlsa())
+	{
+		Con_Printf("Alsa does not appear to be installed or compatable\n");
 		return 2;
+	}
 
 	hw = alloca(psnd_pcm_hw_params_sizeof());
 	sw = alloca(psnd_pcm_sw_params_sizeof());
@@ -220,6 +225,8 @@ static int ALSA_InitCard (soundcardinfo_t *sc, int cardnum)
 		return 2;	//no more
 
 	sc->inactive_sound = true;	//linux sound devices always play sound, even when we're not the active app...
+
+	Con_Printf("Initing ALSA sound device %s\n", pcmname);
 
 // COMMANDLINEOPTION: Linux ALSA Sound: -sndbits <number> sets sound precision to 8 or 16 bit (email me if you want others added)
 	if ((i=COM_CheckParm("-sndbits")) != 0)

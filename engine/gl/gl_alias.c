@@ -214,15 +214,15 @@ void Mod_DoCRC(model_t *mod, char *buffer, int buffersize)
 		QCRC_Init(&crc);
 		for (len = buffersize, p = buffer; len; len--, p++)
 			QCRC_ProcessByte(&crc, *p);
-	
+
 		sprintf(st, "%d", (int) crc);
-		Info_SetValueForKey (cls.userinfo, 
+		Info_SetValueForKey (cls.userinfo,
 			!strcmp(loadmodel->name, "progs/player.mdl") ? pmodel_name : emodel_name,
 			st, MAX_INFO_STRING);
 
 		if (cls.state >= ca_connected)
 		{
-			CL_SendClientCommand(true, "setinfo %s %d", 
+			CL_SendClientCommand(true, "setinfo %s %d",
 				!strcmp(loadmodel->name, "progs/player.mdl") ? pmodel_name : emodel_name,
 				(int)crc);
 		}
@@ -496,7 +496,7 @@ static void R_LerpBones(float *plerp, float **pose, int poses, galiasbone_t *bon
 			for (b = 0;b < poses;b++)
 			{
 				matrix = pose[b] + i*12;
-				
+
 				for (k = 0;k < 12;k++)
 					m[k] += matrix[k] * plerp[b];
 			}
@@ -922,7 +922,7 @@ static galiastexnum_t *GL_ChooseSkin(galiasinfo_t *inf, char *modelname, int sur
 				Skin_Find(e->scoreboard);
 			tc = e->scoreboard->topcolor;
 			bc = e->scoreboard->bottomcolor;
-	
+
 			//colour forcing
 			if (cl.splitclients<2 && !(cl.fpd & FPD_NO_FORCE_COLOR))	//no colour/skin forcing in splitscreen.
 			{
@@ -955,7 +955,7 @@ static galiastexnum_t *GL_ChooseSkin(galiasinfo_t *inf, char *modelname, int sur
 			tc = 1;
 			bc = 1;
 		}
-	
+
 		if (tc != 1 || bc != 1 || (e->scoreboard && e->scoreboard->skin))
 		{
 			int			inwidth, inheight;
@@ -979,10 +979,10 @@ static galiastexnum_t *GL_ChooseSkin(galiasinfo_t *inf, char *modelname, int sur
 			}
 			else
 				skinname = modelname;
-	
+
 			if (!skincolourmapped.numbuckets)
 				Hash_InitTable(&skincolourmapped, 256, BZ_Malloc(Hash_BytesForBuckets(256)));
-	
+
 			for (cm = Hash_Get(&skincolourmapped, skinname); cm; cm = Hash_GetNext(&skincolourmapped, skinname, cm))
 			{
 				if (cm->colour == cc && cm->skinnum == e->skinnum)
@@ -990,7 +990,7 @@ static galiastexnum_t *GL_ChooseSkin(galiasinfo_t *inf, char *modelname, int sur
 					return &cm->texnum;
 				}
 			}
-	
+
 			if (!inf->numskins)
 			{
 				skins = NULL;
@@ -1018,7 +1018,7 @@ static galiastexnum_t *GL_ChooseSkin(galiasinfo_t *inf, char *modelname, int sur
 			if (!texnums)
 			{	//load just the skin
 				if (e->scoreboard && e->scoreboard->skin)
-				{	
+				{
 					original = Skin_Cache8(e->scoreboard->skin);
 					if (!original)
 						return NULL;
@@ -1069,41 +1069,41 @@ static galiastexnum_t *GL_ChooseSkin(galiasinfo_t *inf, char *modelname, int sur
 				static unsigned	pixels[512*512];
 				unsigned	*out;
 				unsigned	frac, fracstep;
-	
+
 				unsigned	scaled_width, scaled_height;
 				qbyte		*inrow;
-	
+
 				texnums = &cm->texnum;
-	
+
 				texnums->base = 0;
 				texnums->fullbright = 0;
-	
+
 				scaled_width = gl_max_size.value < 512 ? gl_max_size.value : 512;
 				scaled_height = gl_max_size.value < 512 ? gl_max_size.value : 512;
-	
+
 				for (i=0 ; i<256 ; i++)
 					translate[i] = i;
-	
+
 				tc<<=4;
 				bc<<=4;
-	
+
 				for (i=0 ; i<16 ; i++)
 				{
 					if (tc < 128)	// the artists made some backwards ranges.  sigh.
 						translate[TOP_RANGE+i] = tc+i;
 					else
 						translate[TOP_RANGE+i] = tc+15-i;
-							
+
 					if (bc < 128)
 						translate[BOTTOM_RANGE+i] = bc+i;
 					else
 						translate[BOTTOM_RANGE+i] = bc+15-i;
 				}
-	
-	
+
+
 				for (i=0 ; i<256 ; i++)
 					translate32[i] = d_8to24rgbtable[translate[i]];
-	
+
 				out = pixels;
 				fracstep = tinwidth*0x10000/scaled_width;
 				for (i=0 ; i<scaled_height ; i++, out += scaled_width)
@@ -1125,11 +1125,11 @@ static galiastexnum_t *GL_ChooseSkin(galiasinfo_t *inf, char *modelname, int sur
 				texnums->base = texture_extension_number++;
 				GL_Bind(texnums->base);
 				qglTexImage2D (GL_TEXTURE_2D, 0, gl_solid_format, scaled_width, scaled_height, 0, GL_RGBA, GL_UNSIGNED_BYTE, pixels);
-	
+
 				qglTexParameterf(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
 				qglTexParameterf(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
-	
-	
+
+
 				//now do the fullbrights.
 				out = pixels;
 				fracstep = tinwidth*0x10000/scaled_width;
@@ -1147,7 +1147,7 @@ static galiastexnum_t *GL_ChooseSkin(galiasinfo_t *inf, char *modelname, int sur
 				texnums->fullbright = texture_extension_number++;
 				GL_Bind(texnums->fullbright);
 				qglTexImage2D (GL_TEXTURE_2D, 0, gl_alpha_format, scaled_width, scaled_height, 0, GL_RGBA, GL_UNSIGNED_BYTE, pixels);
-	
+
 				qglTexParameterf(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
 				qglTexParameterf(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
 			}
@@ -1156,10 +1156,10 @@ static galiastexnum_t *GL_ChooseSkin(galiasinfo_t *inf, char *modelname, int sur
 				skins = (galiasskin_t*)((char *)inf + inf->ofsskins);
 				if (e->skinnum >= 0 && e->skinnum < inf->numskins)
 					skins += e->skinnum;
-	
+
 				if (!skins->texnums)
 					return NULL;
-	
+
 				frame = cl.time*skins->skinspeed;
 				frame = frame%skins->texnums;
 				texnums = (galiastexnum_t*)((char *)skins + skins->ofstexnums + frame*sizeof(galiastexnum_t));
@@ -1184,7 +1184,7 @@ static galiastexnum_t *GL_ChooseSkin(galiasinfo_t *inf, char *modelname, int sur
 	frame = cl.time*skins->skinspeed;
 	frame = frame%skins->texnums;
 	texnums = (galiastexnum_t*)((char *)skins + skins->ofstexnums + frame*sizeof(galiastexnum_t));
-	
+
 	return texnums;
 }
 
@@ -1200,7 +1200,7 @@ static void R_CalcFacing(mesh_t *mesh, vec3_t lightpos)
 
 	index_t *indexes = mesh->indexes;
 	int numtris = mesh->numindexes/3;
-	
+
 
 	if (numFacing < numtris)
 	{
@@ -1319,7 +1319,7 @@ void GL_DrawAliasMesh_Sketch (mesh_t *mesh)
 	qglDepthFunc(gldepthfunc);
 	qglDepthMask(1);
 
-	if (gldepthmin == 0.5) 
+	if (gldepthmin == 0.5)
 		qglCullFace ( GL_BACK );
 	else
 		qglCullFace ( GL_FRONT );
@@ -1402,7 +1402,7 @@ void GL_KnownState(void)
 	extern int gldepthfunc;
 	qglDepthFunc(gldepthfunc);
 	qglDepthMask(1);
-	if (gldepthmin == 0.5) 
+	if (gldepthmin == 0.5)
 		qglCullFace ( GL_BACK );
 	else
 		qglCullFace ( GL_FRONT );
@@ -1425,7 +1425,7 @@ void GL_DrawAliasMesh (mesh_t *mesh, int texnum)
 	qglDepthMask(1);
 
 	GL_Bind(texnum);
-	if (gldepthmin == 0.5) 
+	if (gldepthmin == 0.5)
 		qglCullFace ( GL_BACK );
 	else
 		qglCullFace ( GL_FRONT );
@@ -1464,11 +1464,46 @@ void GL_DrawAliasMesh (mesh_t *mesh, int texnum)
 #endif
 }
 
+qboolean R_CullEntityBox(entity_t *e, vec3_t modmins, vec3_t modmaxs)
+{
+	int i;
+	vec3_t wmin, wmax;
+	float fmin, fmax;
+
+	//convert the model's bbox to the expanded maximum size of the entity, as drawn with this model.
+	//The result is an axial box, which we pass to R_CullBox
+
+	for (i = 0; i < 3; i++)
+	{
+		fmin = DotProduct(modmins, e->axis[i]);
+		fmax = DotProduct(modmaxs, e->axis[i]);
+
+		if (fmin > -16)
+			fmin = -16;
+		if (fmax < 16)
+			fmax = 16;
+
+		if (fmin < fmax)
+		{
+			wmin[i] = e->origin[i]+fmin;
+			wmax[i] = e->origin[i]+fmax;
+		}
+		else
+		{       //box went inside out
+			wmin[i] = e->origin[i]+fmax;
+			wmax[i] = e->origin[i]+fmin;
+		}
+	}
+
+
+	return R_CullBox(wmin, wmax);
+}
+
+
 void R_DrawGAliasModel (entity_t *e)
 {
 	extern cvar_t r_drawflat;
 	model_t *clmodel;
-	vec3_t mins, maxs;
 	vec3_t dist;
 	vec_t add;
 	int i;
@@ -1506,11 +1541,8 @@ void R_DrawGAliasModel (entity_t *e)
 		clmodel = e->model;
 	}
 
-	VectorAdd (e->origin, clmodel->mins, mins);
-	VectorAdd (e->origin, clmodel->maxs, maxs);
-
 	if (!(e->flags & Q2RF_WEAPONMODEL))
-		if (R_CullBox (mins, maxs))
+		if (R_CullEntityBox (e, clmodel->mins, clmodel->maxs))
 			return;
 
 	if (!(r_refdef.flags & Q2RDF_NOWORLDMODEL))
@@ -1637,11 +1669,11 @@ void R_DrawGAliasModel (entity_t *e)
 		shadelight[2] += sin(cl.time)*0.25;
 	}
 
-/*	
+/*
 	VectorClear(ambientlight);
 	VectorClear(shadelight);
 */
-		
+
 	/*
 	an = e->angles[1]/180*M_PI;
 	shadevector[0] = cos(-an);
@@ -1792,7 +1824,7 @@ void R_DrawGAliasModel (entity_t *e)
 
 		qglTranslatef (tmatrix[0][3],tmatrix[1][3],tmatrix[2][3]);
 		qglScalef (tmatrix[0][0],tmatrix[1][1],tmatrix[2][2]);
-		
+
 		qglScalef(	1/scale[0],
 					1/scale[1],
 					1/scale[2]);
@@ -1959,7 +1991,7 @@ qglColor3f(0,0,1);
 
 	qglShadeModel (GL_FLAT);
 	if (gl_affinemodels.value)
-		qglHint (GL_PERSPECTIVE_CORRECTION_HINT, GL_NICEST);	
+		qglHint (GL_PERSPECTIVE_CORRECTION_HINT, GL_NICEST);
 
 	if (e->flags & Q2RF_DEPTHHACK)
 		qglDepthRange (gldepthmin, gldepthmax);
@@ -2222,7 +2254,7 @@ void R_DrawMeshBumpmap(mesh_t *mesh, galiastexnum_t *skin, vec3_t lightdir)
 	//the bumpmap we use is tangent-space (so I'm told)
 	qglDepthFunc(gldepthfunc);
 	qglDepthMask(0);
-	if (gldepthmin == 0.5) 
+	if (gldepthmin == 0.5)
 		qglCullFace ( GL_BACK );
 	else
 		qglCullFace ( GL_FRONT );
@@ -2414,7 +2446,7 @@ void R_DrawGAliasModelLighting (entity_t *e, vec3_t lightpos, vec3_t colours, fl
 
 	qglShadeModel (GL_FLAT);
 	if (gl_affinemodels.value)
-		qglHint (GL_PERSPECTIVE_CORRECTION_HINT, GL_NICEST);	
+		qglHint (GL_PERSPECTIVE_CORRECTION_HINT, GL_NICEST);
 	qglDisable(GL_POLYGON_OFFSET_FILL);
 
 	if (e->flags & Q2RF_DEPTHHACK)
@@ -2482,10 +2514,10 @@ static int R_FindTriangleWithEdge ( int *indexes, int numtris, int start, int en
 {
 	int i;
 	int match, count;
-	
+
 	count = 0;
 	match = -1;
-	
+
 	for (i = 0; i < numtris; i++, indexes += 3)
 	{
 		if ( (indexes[0] == start && indexes[1] == end)
@@ -2605,7 +2637,7 @@ static qboolean VARGS TryAddSkin(char *skinname, ...)
 	//make sure we don't add it twice
 	int i;
 
-	
+
 	va_start (argptr, skinname);
 	_vsnprintf (string,sizeof(string)-1, skinname,argptr);
 	va_end (argptr);
@@ -2683,8 +2715,8 @@ int GL_BuildSkinFileList(char *modelname)
 		}
 	}
 
-	COM_EnumerateFiles(va("%s_*.skin", modelname), GL_EnumerateSkins, NULL); 
-	COM_EnumerateFiles(va("%s_*.skin", skinfilename), GL_EnumerateSkins, NULL); 
+	COM_EnumerateFiles(va("%s_*.skin", modelname), GL_EnumerateSkins, NULL);
+	COM_EnumerateFiles(va("%s_*.skin", skinfilename), GL_EnumerateSkins, NULL);
 
 	return skinfilecount;
 }
@@ -3098,7 +3130,7 @@ static void *Q1_LoadSkins (daliasskintype_t *pskintype, qboolean alpha)
 */
 				texnums->base = texture;
 				texnums->fullbright = fbtexture;
-			}	
+			}
 			pskintype = (daliasskintype_t *)data;
 			break;
 		}
@@ -3128,7 +3160,7 @@ void GL_LoadQ1Model (model_t *mod, void *buffer)
 	loadmodel=mod;
 
 	Mod_DoCRC(loadmodel, buffer, com_filesize);
-	
+
 	hunkstart = Hunk_LowMark ();
 
 	pq1inmodel = (dmdl_t *)buffer;
@@ -3246,11 +3278,11 @@ void GL_LoadQ1Model (model_t *mod, void *buffer)
 	VectorMA (mod->mins, 255, pq1inmodel->scale, mod->maxs);
 //
 // move the complete, relocatable alias model to the cache
-//	
+//
 	hunkend = Hunk_LowMark ();
 	Hunk_Alloc(0);
 	hunktotal = hunkend - hunkstart;
-	
+
 	Cache_Alloc (&mod->cache, hunktotal, loadname);
 	mod->type = mod_alias;
 	if (!mod->cache.data)
@@ -3353,7 +3385,7 @@ void GL_LoadQ2Model (model_t *mod, void *buffer)
 	dmd2aliasframe_t *pinframe;
 	int framesize;
 	vec3_t *verts;
-	
+
 	int		indremap[MD2_MAX_TRIANGLES*3];
 	unsigned short		ptempindex[MD2_MAX_TRIANGLES*3], ptempstindex[MD2_MAX_TRIANGLES*3];
 
@@ -3459,7 +3491,7 @@ void GL_LoadQ2Model (model_t *mod, void *buffer)
 	galias->numverts = numverts;
 
 	// remap remaining indexes
-	for ( i = 0; i < numindexes; i++ ) 
+	for ( i = 0; i < numindexes; i++ )
 	{
 		if ( indremap[i] != i ) {
 			indexes[i] = indexes[indremap[i]];
@@ -3555,11 +3587,11 @@ void GL_LoadQ2Model (model_t *mod, void *buffer)
 	*/
 //
 // move the complete, relocatable alias model to the cache
-//	
+//
 	hunkend = Hunk_LowMark ();
 	Hunk_Alloc(0);
 	hunktotal = hunkend - hunkstart;
-	
+
 	Cache_Alloc (&mod->cache, hunktotal, loadname);
 	mod->type = mod_alias;
 	if (!mod->cache.data)
@@ -3688,7 +3720,7 @@ qboolean Mod_GetTag(model_t *model, int tagnum, int frame1, int frame2, float f2
 			for (b = 0;b < numposes;b++)
 			{
 				matrix = pose[b] + tagnum*12;
-				
+
 				for (k = 0;k < 12;k++)
 					m[k] += matrix[k] * plerp[b];
 			}
@@ -3719,7 +3751,7 @@ qboolean Mod_GetTag(model_t *model, int tagnum, int frame1, int frame2, float f2
 		t1 = (md3tag_t*)((char*)inf + inf->ofstags);
 		t1 += tagnum;
 		t1 += inf->numtags*frame1;
-		
+
 		t2 = (md3tag_t*)((char*)inf + inf->ofstags);
 		t2 += tagnum;
 		t2 += inf->numtags*frame2;
@@ -3830,7 +3862,7 @@ typedef struct {
 	int			flags;	//Does anyone know what these are?
 
 	int			numFrames;
-	int			numTags;			
+	int			numTags;
 	int			numSurfaces;
 
 	int			numSkins;
@@ -3851,7 +3883,7 @@ typedef struct md3Frame_s {
 
 //there are header->numSurfaces of these at header->ofsSurfaces, following from ofsEnd
 typedef struct {
-	int		ident;				// 
+	int		ident;				//
 
 	char	name[MAX_QPATH];	// polyset name
 
@@ -4031,7 +4063,7 @@ void GL_LoadQ3Model(model_t *mod, void *buffer)
 			pose->scale[0] = 1;
 			pose->scale[1] = 1;
 			pose->scale[2] = 1;
-			
+
 			pose->scale_origin[0] = 0;
 			pose->scale_origin[1] = 0;
 			pose->scale_origin[2] = 0;
@@ -4213,7 +4245,7 @@ void GL_LoadQ3Model(model_t *mod, void *buffer)
 
 	Hunk_Alloc(0);
 	hunktotal = hunkend - hunkstart;
-	
+
 	Cache_Alloc (&mod->cache, hunktotal, loadname);
 	mod->type = mod_alias;
 	if (!mod->cache.data)
@@ -4437,7 +4469,7 @@ void GLMod_LoadZymoticModel(model_t *mod, void *buffer)
 		stcoords[i][0] = BigFloat(inst[i][0]);
 		stcoords[i][1] = 1-BigFloat(inst[i][1]);	//hmm. upside down skin coords?
 	}
-	
+
 #ifndef SERVERONLY
 	skinfiles = GL_BuildSkinFileList(loadmodel->name);
 	if (skinfiles < 1)
@@ -4506,7 +4538,7 @@ void GLMod_LoadZymoticModel(model_t *mod, void *buffer)
 
 	Hunk_Alloc(0);
 	hunktotal = hunkend - hunkstart;
-	
+
 	Cache_Alloc (&mod->cache, hunktotal, loadname);
 	mod->type = mod_alias;
 	if (!mod->cache.data)
@@ -4607,7 +4639,7 @@ typedef struct dpmbonevert_s
 } dpmbonevert_t;
 
 // variable size, parsed sequentially
-typedef struct dpmvertex_s 
+typedef struct dpmvertex_s
 {
 	unsigned int numbones;
 	// immediately followed by 1 or more dpmbonevert_t structures
@@ -4842,7 +4874,7 @@ void GLMod_LoadDarkPlacesModel(model_t *mod, void *buffer)
 
 	Hunk_Alloc(0);
 	hunktotal = hunkend - hunkstart;
-	
+
 	Cache_Alloc (&mod->cache, hunktotal, loadname);
 	mod->type = mod_alias;
 	if (!mod->cache.data)
@@ -4876,7 +4908,7 @@ static void GenMatrix(float x, float y, float z, float qx, float qy, float qz, f
 		if (term < 0)
 			qw = 0;
 		else
-			qw = - (float) sqrt(term); 
+			qw = - (float) sqrt(term);
 	}
 
 	{	//generate the matrix
@@ -5015,7 +5047,7 @@ galiasinfo_t *GLMod_ParseMD5MeshModel(char *buffer)
 			EXPECT("{");
 			//"name" parent (x y z) (s t u)
 			//stu are a normalized quaternion, which we will convert to a 3*4 matrix for no apparent reason
-			
+
 			for (i = 0; i < numjoints; i++)
 			{
 				buffer = COM_Parse(buffer);
@@ -5297,7 +5329,7 @@ void GLMod_LoadMD5MeshModel(model_t *mod, void *buffer)
 
 	Hunk_Alloc(0);
 	hunktotal = hunkend - hunkstart;
-	
+
 	Cache_Alloc (&mod->cache, hunktotal, loadname);
 	mod->type = mod_alias;
 	if (!mod->cache.data)
@@ -5642,7 +5674,7 @@ void GLMod_LoadCompositeAnim(model_t *mod, void *buffer)
 
 	Hunk_Alloc(0);
 	hunktotal = hunkend - hunkstart;
-	
+
 	Cache_Alloc (&mod->cache, hunktotal, loadname);
 	mod->type = mod_alias;
 	if (!mod->cache.data)

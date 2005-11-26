@@ -203,6 +203,7 @@ extern sounddriver pALSA_InitCard;
 extern sounddriver pOSS_InitCard;
 extern sounddriver pSDL_InitCard;
 extern sounddriver pWAV_InitCard;
+extern sounddriver pAHI_InitCard;
 
 struct soundcardinfo_s { //windows has one defined AFTER directsound
 	char name[256];	//a description of the card.

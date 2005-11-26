@@ -1514,7 +1514,10 @@ void V_RenderView (void)
 	if (cl.worldmodel)
 	{
 		RSpeedMark();
+	
 		CL_AllowIndependantSendCmd(false);
+
+		CL_EmitEntities();
 
 		//work out which packet entities are solid
 		CL_SetSolidEntities ();
@@ -1529,7 +1532,7 @@ void V_RenderView (void)
 		CL_SetUpPlayerPrediction(true);
 
 		// build a refresh entity list
-		CL_EmitEntities ();
+//		CL_EmitEntities ();
 
 		CL_AllowIndependantSendCmd(true);
 

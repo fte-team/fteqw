@@ -3399,11 +3399,11 @@ void CL_PrintStandardMessage(char *msg)
 					v = strstr(v+len, name);
 					continue;
 			}
-		
+
 			{
 				int i;
 				char aftername = *(v + len);
-				
+
 				// search for accepted chars in char after name in msg
 				for (i = 0; i < sizeof(acceptedchars); i++)
 				{
@@ -3732,7 +3732,7 @@ void CL_ParseServerMessage (void)
 			i = MSG_ReadByte ();
 			if (i >= MAX_CLIENTS)
 				Host_EndGame ("CL_ParseServerMessage: svc_updateentertime > MAX_SCOREBOARD");
-			cl.players[i].entertime = realtime - MSG_ReadFloat ();
+			cl.players[i].entertime = cl.servertime - MSG_ReadFloat ();
 			break;
 
 		case svc_spawnbaseline:
@@ -3804,7 +3804,7 @@ void CL_ParseServerMessage (void)
 			if (!cl.intermission)
 				TP_ExecTrigger ("f_mapend");
 			cl.intermission = 1;
-			cl.completed_time = realtime;
+			cl.completed_time = cl.servertime;
 			vid.recalc_refdef = true;	// go to full screen
 			for (i=0 ; i<3 ; i++)
 				cl.simorg[0][i] = MSG_ReadCoord ();
@@ -3819,7 +3819,7 @@ void CL_ParseServerMessage (void)
 
 		case svc_finale:
 			cl.intermission = 2;
-			cl.completed_time = realtime;
+			cl.completed_time = cl.servertime;
 			vid.recalc_refdef = true;	// go to full screen
 			SCR_CenterPrint (destsplit, MSG_ReadString ());
 			break;
@@ -4150,7 +4150,7 @@ void CLNQ_ParseProQuakeMessage (char *s)
 
 	s++;
 	cmd = *s++;
-	
+
 	switch (cmd)
 	{
 	default:
@@ -4188,7 +4188,7 @@ void CLNQ_ParseProQuakeMessage (char *s)
 			frags = frags - 65536;
 		cl.teamscores[team].frags = frags;
 		//Con_Printf("pqc_team_frags %d %d\n", team, frags);
-		break;			
+		break;
 
 	case pqc_match_time:
 		Sbar_Changed ();
@@ -4398,13 +4398,13 @@ void CLNQ_ParseServerMessage (void)
 			cl.oldgametime = cl.gametime;
 			cl.oldgametimemark = cl.gametimemark;
 			cl.gametime = MSG_ReadFloat();
-
 			cl.gametimemark = realtime;
 
 			if (nq_dp_protocol<5)
 			{
 //				cl.frames[(cls.netchan.incoming_sequence-1)&UPDATE_MASK].packet_entities = cl.frames[cls.netchan.incoming_sequence&UPDATE_MASK].packet_entities;
 				cl.frames[cls.netchan.incoming_sequence&UPDATE_MASK].packet_entities.num_entities=0;
+				cl.frames[cls.netchan.incoming_sequence&UPDATE_MASK].packet_entities.servertime = cl.gametime;
 			}
 			break;
 
@@ -4502,20 +4502,20 @@ void CLNQ_ParseServerMessage (void)
 			if (!cl.intermission)
 				TP_ExecTrigger ("f_mapend");
 			cl.intermission = 1;
-			cl.completed_time = cl.time;
+			cl.completed_time = cl.servertime;
 			vid.recalc_refdef = true;	// go to full screen
 			break;
 
 		case svc_finale:
 			cl.intermission = 2;
-			cl.completed_time = cl.time;
+			cl.completed_time = cl.servertime;
 			vid.recalc_refdef = true;	// go to full screen
 			SCR_CenterPrint (0, MSG_ReadString ());
 			break;
 
 		case svc_cutscene:
 			cl.intermission = 3;
-			cl.completed_time = cl.time;
+			cl.completed_time = cl.servertime;
 			vid.recalc_refdef = true;	// go to full screen
 			SCR_CenterPrint (0, MSG_ReadString ());
 			break;

@@ -723,6 +723,7 @@ typedef struct entity_state_s
 #define	MAX_MVDPACKET_ENTITIES	196	// doesn't count nails
 typedef struct
 {
+	float		servertime;
 	int		num_entities;
 	int		max_entities;
 	entity_state_t	*entities;

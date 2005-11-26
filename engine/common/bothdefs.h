@@ -146,16 +146,11 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 //fix things a little...
 
 #ifdef MINGW
-	#undef ZLIB
 	#undef AVAIL_ZLIB
 #endif
 
 #ifdef USE_MADLIB	//global option. Specify on compiler command line.
 	#define AVAIL_MP3	//suposedly anti-gpl. don't use in a distributed binary
-#endif
-
-#ifndef ZLIB
-	#undef AVAIL_ZLIB		//no zip/pk3 support
 #endif
 
 #ifndef _WIN32

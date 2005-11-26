@@ -30,6 +30,7 @@ typedef struct f_modified_s {
 f_modified_t *f_modified_list;
 qboolean care_f_modified;
 qboolean f_modified_particles;
+qboolean f_modified_staticlights;
 
 
 cvar_t allow_f_version		= {"allow_f_version", "1"};
@@ -246,6 +247,7 @@ void	ValidationPrintVersion(char *f_query_string)
 }
 void	Validation_FilesModified (void)
 {
+	Con_Printf ("Not implemented\n", RESTRICT_RCON);
 }
 void Validation_CheckIfResponse(char *text)
 {
@@ -443,6 +445,7 @@ void Validation_IncludeFile(char *filename, char *file, int filelen)
 }
 
 qboolean f_modified_particles;
+qboolean f_modified_staticlights;
 qboolean care_f_modified;
 
 
@@ -477,11 +480,6 @@ qboolean care_f_modified;
 #define SECURE_ANSWER_NO        'n'
 #define SECURE_ANSWER_ERROR     'n'
 
-cvar_t allow_f_version		= {"allow_f_version", "1"};
-cvar_t allow_f_server		= {"allow_f_server", "1"};
-cvar_t allow_f_modified		= {"allow_f_modified", "1"};
-cvar_t allow_f_skins		= {"allow_f_skins", "1"};
-cvar_t auth_validateclients	= {"auth_validateclients", "1"};
 
 //
 // last f_queries
@@ -502,13 +500,7 @@ f_query_t;
 f_query_t f_last_queries[F_QUERIES_REMEMBERED];
 int f_last_query_pos = 0;
 
-typedef struct f_modified_s {
-	char name[MAX_QPATH];
-	qboolean ismodified;
-	struct f_modified_s *next;
-} f_modified_t;
 
-f_modified_t *f_modified_list;
 qboolean care_f_modified;
 qboolean f_modified_particles;
 
@@ -750,7 +742,7 @@ void  Validation_FilesModified (void)
 	}
     if (count == 0)
         strcat(buf, "all models ok");
-    
+
     Cbuf_AddText("say ", RESTRICT_LOCAL);
     Cbuf_AddText(buf, RESTRICT_LOCAL);
     Cbuf_AddText("\n", RESTRICT_LOCAL);

@@ -6,9 +6,6 @@
 #include "glquake.h"//fixme
 #endif
 
-#include <stdlib.h> // needed for itoi
-#include <stdio.h> // needed for itoi?
-
 
 
 #if !defined(__CYGWIN__) && !defined(NOMEDIA)
@@ -42,8 +39,6 @@ static mediatrack_t currenttrack;
 int lasttrackplayed;
 
 int media_playing=true;//try to continue from the standard playlist
-cvar_t winamp_dir = {"winamp_dir", "c:/program files/winamp5/"};
-cvar_t winamp_exe = {"winamp_exe", "winamp.exe"};
 cvar_t media_shuffle = {"media_shuffle", "1"};
 cvar_t media_repeat = {"media_repeat", "1"};
 #ifdef WINAMP
@@ -65,8 +60,6 @@ qboolean WinAmp_GetHandle (void)
 	if ((hwnd_winamp = FindWindow("Winamp", NULL)))
 		return true;
 	if ((hwnd_winamp = FindWindow("Winamp v1.x", NULL)))
-		return true;
-	if ((hwnd_winamp = FindWindow("winamp", NULL)))
 		return true;
 
 	*currenttrack.nicename = '\0';
@@ -90,7 +83,7 @@ qboolean WinAmp_StartTune(char *name)
 	SendMessage(hwnd_winamp,WM_WA_IPC,0,IPC_DELETE);
 	SendMessage(hwnd_winamp,WM_COPYDATA,(WPARAM)NULL,(LPARAM)&cds);
 	SendMessage(hwnd_winamp,WM_WA_IPC,(WPARAM)0,IPC_STARTPLAY );
-
+	
 	for (trys = 1000; trys; trys--)
 	{
 		pos = SendMessage(hwnd_winamp,WM_WA_IPC,0,IPC_GETOUTPUTTIME);
@@ -111,7 +104,7 @@ void WinAmp_Think(void)
 	int len;
 
 	if (!WinAmp_GetHandle())
-		return;
+		return;	
 
 	pos = bgmvolume.value*255;
 	if (pos > 255) pos = 255;
@@ -128,7 +121,7 @@ void WinAmp_Think(void)
 }
 #endif
 void Media_Seek (float time)
-{
+{	
 	soundcardinfo_t *sc;
 #ifdef WINAMP
 	if (media_hijackwinamp.value)
@@ -311,457 +304,45 @@ void Media_LoadTrackNames (char *listname);
 #define MEDIA_SHUFFLE -2
 #define MEDIA_REPEAT -1
 
-// Start Moodles Attempt at Winamp Commands
-// Note strange bug, load up FTE normally. And type winamp_version, for me the output is 0, but if I do winamp_version a second time it says 24604 (which is hex for 5010, my version of winamp is 5.10)
-
-void Winamp_Play_f(void)
-{
-	if (!WinAmp_GetHandle())
-	{
-		Con_Printf("Winamp not loaded\n");
-		return;
-	}
-
-	//SendMessage(hwnd_winamp, WM_COMMAND, WINAMP_BUTTON2, 0); <- is below fails, uncomment this.
-
-	SendMessage(hwnd_winamp,WM_WA_IPC,0,IPC_STARTPLAY);
-	Con_Printf("Attempting to start playback\n");
-}
-
-void Winamp_Version_f(void)
-{
-	int version = SendMessage(hwnd_winamp,WM_WA_IPC,0,IPC_GETVERSION);
-
-	if (!WinAmp_GetHandle())
-	{
-		Con_Printf("Winamp not loaded\n");
-		return;
-	}
-
-	//itoa (version, temp, 16); // should convert it to hex
-
-	Con_Printf("Winamp Version: %d\n",version); //wtf work you stupid fuckin pos
-}
-
-void Winamp_TimeLeft_f(void)
-{
-	int tracklength = SendMessage(hwnd_winamp,WM_WA_IPC,1,IPC_GETOUTPUTTIME);
-	int trackposition = SendMessage(hwnd_winamp,WM_WA_IPC,0,IPC_GETOUTPUTTIME);
-	int timeleft;
-
-	if (!WinAmp_GetHandle())
-	{
-		Con_Printf("Winamp not loaded\n");
-		return;
-	}
-
-	timeleft = tracklength-(trackposition/1000);
-
-	Con_Printf("Time Left: %d seconds\n",timeleft); // convert it to h:m:s later
-}
-
-void Winamp_JumpTo_f(void) // input is a percentage
-{
-	int tracklength = SendMessage(hwnd_winamp,WM_WA_IPC,1,IPC_GETOUTPUTTIME);
-	float inputpercent;
-	double trackpercent;
-	char *input;
-	int res;
-
-	if (!WinAmp_GetHandle())
-	{
-		Con_Printf("Winamp not loaded\n");
-		return;
-	}
-
-	input = Cmd_Argv(1);
-
-	inputpercent = atoi(input);
-
-	if (inputpercent > 100)
-	{
-		Con_Printf("ERROR: Choose a percent between 0 and 100\n");
-		return;
-	}
-
-	inputpercent = inputpercent/100;
-
-	trackpercent = (tracklength*1000)*inputpercent;
-
-	res = SendMessage(hwnd_winamp,WM_WA_IPC,trackpercent,IPC_JUMPTOTIME);
-
-	if (res == 0)
-	{
-		Con_Printf("Successfully jumped to %s percent\n",input,trackpercent);
-		return;
-	}
-	else if (res == -1)
-	{
-		Con_Printf("There are no songs playing\n");
-		return;
-	}
-	else if (res == 1)
-	{
-		Con_Printf("End of file\n");
-	}
-
-
-	Con_Printf("Oh oh spagettioes you shouldn't see this");
-}
-
-void Winamp_GoToPlayListPosition_f(void) // the playlist selecter doesn't actually work
-{
-	//int length = SendMessage(hwnd_winamp,WM_WA_IPC,0,IPC_GETLISTLENGTH); //set a max
-	char *input;
-	int inputnumber;
-
-	if (!WinAmp_GetHandle())
-	{
-		Con_Printf("Winamp not loaded\n");
-		return;
-	}
-
-	input = Cmd_Argv(1);
-
-	inputnumber = atoi(input);
-
-	SendMessage(hwnd_winamp,WM_WA_IPC,inputnumber,IPC_SETPLAYLISTPOS);
-	Sleep(100);
-
-	SendMessage(hwnd_winamp,WM_WA_IPC,0,IPC_STARTPLAY); // the above only selects it, doesn't actually play it.
-
-	Con_Printf("Attemped to set playlist position %s\n",input);
-}
-
-void Winamp_Volume_f(void) // I think this only works when the client did the winamp_play
-{
-	char *input;
-	int inputnumber;
-
-	if (!WinAmp_GetHandle())
-	{
-		Con_Printf("Winamp not loaded\n");
-		return;
-	}
-
-	input = Cmd_Argv(1);
-
-	inputnumber = atoi(input);
-
-	if ((input == "") || (inputnumber > 255))
-	{
-		Con_Printf("Choose a number between 0 and 255\n");
-		return;
-	}
-
-	SendMessage(hwnd_winamp,WM_WA_IPC,inputnumber,IPC_SETVOLUME);
-
-	Con_Printf("Winamp volume set to: %s\n",input);
-}
-
-void Winamp_ChannelPanning_f(void) // doesn't seem to work for me
-{
-	char *input;
-	int inputnumber;
-
-	if (!WinAmp_GetHandle())
-	{
-		Con_Printf("Winamp not loaded\n");
-		return;
-	}
-
-	input = Cmd_Argv(1);
-
-	inputnumber = atoi(input);
-
-	if ((input == "") || (inputnumber > 255))
-	{
-		Con_Printf("Choose a number between 0 (left) and 255 (right). Center is about 127\n");
-		return;
-	}
-
-	SendMessage(hwnd_winamp,WM_WA_IPC,inputnumber,IPC_SETPANNING);
-
-	Con_Printf("Winamp channel panning set to: %s\n",input);
-}
-
-void Winamp_PlayListLength_f(void) // has a habit of returning 0 when you dont use winamp_play to start off playing
-{
-	int length = SendMessage(hwnd_winamp,WM_WA_IPC,0,IPC_GETLISTLENGTH);
-
-	if (!WinAmp_GetHandle())
-	{
-		Con_Printf("Winamp not loaded\n");
-		return;
-	}
-
-	Con_Printf("Winamp playlist length: %d\n",length);
-}
-
-void Winamp_PlayListPosition_f(void) // has a habit of return 0 of 0
-{
-	int pos = SendMessage(hwnd_winamp,WM_WA_IPC,0,IPC_GETLISTPOS);
-	int length = SendMessage(hwnd_winamp,WM_WA_IPC,0,IPC_GETLISTLENGTH);
-
-	if (!WinAmp_GetHandle())
-	{
-		Con_Printf("Winamp not loaded\n");
-		return;
-	}
-
-	Con_Printf("Winamp currently on position '%d' of '%d'\n",pos,length);
-}
-
-void Winamp_SongInfo_f(void)
-{
-	char title[255];
-	int res = SendMessage(hwnd_winamp,WM_WA_IPC,0,IPC_ISPLAYING);
-	int samplerate = SendMessage(hwnd_winamp,WM_WA_IPC,0,IPC_GETINFO);
-	int bitrate = SendMessage(hwnd_winamp,WM_WA_IPC,1,IPC_GETINFO);
-	int channels = SendMessage(hwnd_winamp,WM_WA_IPC,2,IPC_GETINFO);
-	GetWindowText(hwnd_winamp, title, sizeof(title));
-
-	if (!WinAmp_GetHandle())
-	{
-		Con_Printf("Winamp not loaded\n");
-		return;
-	}
-
-	if (res == 0)
-	{
-		Con_Printf("WinAmp is off\n");
-		return;
-	}
-	else if (res == 1)
-	{
-		Con_Printf("Currently playing: %s\nSamplerate: %dkHz\nBitrate: %dkbps \nChannels: %d\n",title,samplerate,bitrate,channels);
-		return;
-	}
-	else if (res == 3)
-	{
-		Con_Printf("Winamp is paused\n");
-		return;
-	}
-}
-
-void Winamp_Restart_f(void)
-{
-	if (!WinAmp_GetHandle())
-	{
-		Con_Printf("Winamp not loaded\n");
-		return;
-	}
-
-	SendMessage(hwnd_winamp,WM_WA_IPC,0,IPC_RESTARTWINAMP);
-
-	Con_Printf("Attempting to restart winamp\n");
-}
-
-void Winamp_Shuffle_f(void) //it works, thats all i can say lol
-{
-	char *input;
-	int inputnumber;
-	int inputnumber2;
-	int get = SendMessage(hwnd_winamp,WM_WA_IPC,0,IPC_GET_SHUFFLE);
-
-	if (!WinAmp_GetHandle())
-	{
-		Con_Printf("Winamp not loaded\n");
-		return;
-	}
-
-	input = Cmd_Argv(1);
-
-	inputnumber2 = atoi(input);
-
-	inputnumber = Cmd_Argc();
-
-	if (inputnumber2 == 1)
-	{
-		PostMessage(hwnd_winamp,WM_WA_IPC,1,IPC_SET_SHUFFLE);
-		Con_Printf("Winamp shuffle turned on\n");
-		return;
-	}
-	else if ((inputnumber2 == 0) && (inputnumber == 2))
-	{
-		SendMessage(hwnd_winamp,WM_WA_IPC,0,IPC_SET_SHUFFLE);
-		Con_Printf("Winamp shuffle turned off\n");
-		return;
-	}
-	else if (get == 1)
-	{
-		Con_Printf("Winamp shuffle is currently on\n");
-	}
-	else if (get == 0)
-	{
-		Con_Printf("Winamp shuffle is currently off\n");
-	}
-
-		Con_Printf("Enter 1 to to turn Winamp shuffle on, 0 to turn it off\n");
-		return;
-}
-
-void Winamp_Repeat_f(void) // it works, thats all i can say lol
-{
-	char *input;
-	int inputnumber;
-	int inputnumber2;
-	int get = SendMessage(hwnd_winamp,WM_WA_IPC,0,IPC_GET_REPEAT);
-
-	if (!WinAmp_GetHandle())
-	{
-		Con_Printf("Winamp not loaded\n");
-		return;
-	}
-
-	input = Cmd_Argv(1);
-
-	inputnumber2 = atoi(input);
-
-	inputnumber = Cmd_Argc();
-
-	if (inputnumber2 == 1)
-	{
-		SendMessage(hwnd_winamp,WM_WA_IPC,1,IPC_SET_REPEAT);
-		Con_Printf("Winamp repeat turned on\n");
-		return;
-	}
-	else if ((inputnumber2 == 0) && (inputnumber == 2))
-	{
-		SendMessage(hwnd_winamp,WM_WA_IPC,0,IPC_SET_REPEAT);
-		Con_Printf("Winamp repeat turned off\n");
-		return;
-	}
-	else if (get == 1)
-	{
-		Con_Printf("Winamp repeat is currently on\n");
-	}
-	else if (get == 0)
-	{
-		Con_Printf("Winamp repeat is currently off\n");
-	}
-
-		Con_Printf("Enter 1 to to turn Winamp repeat on, 0 to turn it off\n");
-		return;
-}
-
-void Winamp_VolumeUp_f(void)
-{
-	SendMessage(hwnd_winamp, WM_COMMAND, WINAMP_VOLUMEUP, 0);
-
-	Con_Printf("Winamp volume incremented\n");
-}
-
-void Winamp_VolumeDown_f(void)
-{
-	SendMessage(hwnd_winamp, WM_COMMAND, WINAMP_VOLUMEDOWN, 0);
-
-	Con_Printf("Winamp volume decremented\n");
-}
-
-void Winamp_FastForward5Seconds_f(void)
-{
-	SendMessage(hwnd_winamp, WM_COMMAND, WINAMP_FFWD5S, 0);
-
-	Con_Printf("Winamp fast forwarded 5 seconds\n");
-}
-
-void Winamp_Rewind5Seconds_f(void)
-{
-	SendMessage(hwnd_winamp, WM_COMMAND, WINAMP_REW5S, 0);
-
-	Con_Printf("Winamp rewinded 5 seconds\n");
-}
-
-// End Moodles Attempt at Winamp Commands
-
-
 void M_Media_Draw (void)
 {
 	mpic_t	*p;
 	mediatrack_t *track;
 	int y;
 	int op, i;
-	char samplerate[20]; // usually 44kHz
-	char bitrate[20];
-	char channels[20];
-	char sr2[20];
-	char br2[20];
-	char chns2[20];
-	char title[255];
-	int res = SendMessage(hwnd_winamp,WM_WA_IPC,0,IPC_ISPLAYING);
-
-	int sr = SendMessage(hwnd_winamp,WM_WA_IPC,0,IPC_GETINFO); // M_Print wants chars, not int's
-	int br = SendMessage(hwnd_winamp,WM_WA_IPC,1,IPC_GETINFO);
-	int chns = SendMessage(hwnd_winamp,WM_WA_IPC,2,IPC_GETINFO);
-
-	if (!WinAmp_GetHandle())
-		return false;
-
-	GetWindowText(hwnd_winamp, title, sizeof(title));
-
-	strcpy(samplerate,"Samplerate: ");
-	strcpy(bitrate,"Bitrate: ");
-	strcpy(channels,"Channels: ");
-
-	itoa ( sr, sr2, 10);
-	itoa ( br, br2, 10);
-	itoa ( chns, chns2, 10);
-
-	strcat(samplerate,sr2);
-	strcat(bitrate,br2);
-	strcat(channels,chns2);
-
-	strcat(samplerate,"kHz");
-	strcat(bitrate,"kbps");
 
 #define MP_Hightlight(x,y,text,hl) (hl?M_PrintWhite(x, y, text):M_Print(x, y, text))
 
 	p = Draw_CachePic ("gfx/p_option.lmp");
 	M_DrawPic ( (320-p->width)/2, 4, p);
-
-	if (res == 0)
-	{
-		M_Print (12, 32, "WinAmp is off");
-	}
-	else if (res == 1)
-	{
-		M_Print (12, 32, "WinAmp is on and Currently playing:");
-		M_Print (12, 40, title);
-		M_Print (12, 48, samplerate);
-		M_Print (12, 56, bitrate);
-		M_Print (12, 64, channels);
-	}
-	else if (res == 3)
-	{
-		M_Print (12, 32, "WinAmp is paused and on:");
-		M_Print (12, 40, currenttrack.nicename);
-	}
-
-	/*if (!bgmvolume.value)
+	if (!bgmvolume.value)
 		M_Print (12, 32, "Not playing - no volume");
-	if (!*currenttrack.nicename) //elseif
+	else if (!*currenttrack.nicename)
 	{
-
+		if (!tracks)
+			M_Print (12, 32, "Not playing - no track to play");
+		else
+		{
 #ifdef WINAMP
 			if (!WinAmp_GetHandle())
 				M_Print (12, 32, "Please start WinAmp 2");
 			else
 #endif
 				M_Print (12, 32, "Not playing - switched off");
+		}
 	}
 	else
 	{
 		M_Print (12, 32, "Currently playing:");
 		M_Print (12, 40, currenttrack.nicename);
-	}*/
+	}
 
 	op = selectedoption - (vid.height-52)/16;
 	if (op + (vid.height-52)/8>numtracks)
 		op = numtracks - (vid.height-52)/8;
 	if (op < MEDIA_MIN)
 		op = MEDIA_MIN;
-	y=100;
+	y=52;
 	while(op < 0)
 	{
 		switch(op)
@@ -796,43 +377,25 @@ void M_Media_Draw (void)
 			break;
 		case MEDIA_SHUFFLE:
 			if (media_shuffle.value)
-			{
 				MP_Hightlight (12, y, "Shuffle on", op == selectedoption);
-				SendMessage(hwnd_winamp,WM_WA_IPC,1,IPC_SET_SHUFFLE);
-			}
 			else
-			{
 				MP_Hightlight (12, y, "Shuffle off", op == selectedoption);
-				SendMessage(hwnd_winamp,WM_WA_IPC,0,IPC_SET_SHUFFLE);
-			}
 			y+=8;
 			break;
 		case MEDIA_REPEAT:
 			if (media_shuffle.value)
 			{
 				if (media_repeat.value)
-				{
 					MP_Hightlight (12, y, "Repeat on", op == selectedoption);
-					SendMessage(hwnd_winamp,WM_WA_IPC,1,IPC_SET_REPEAT);
-				}
 				else
-				{
-					MP_Hightlight (12, y, "Repeat off", op == selectedoption);
-					SendMessage(hwnd_winamp,WM_WA_IPC,0,IPC_SET_REPEAT);
-				}
+					MP_Hightlight (12, y, "Repeat off", op == selectedoption);				
 			}
 			else
 			{
 				if (media_repeat.value)
-				{
 					MP_Hightlight (12, y, "(Repeat on)", op == selectedoption);
-					SendMessage(hwnd_winamp,WM_WA_IPC,1,IPC_SET_REPEAT);
-				}
 				else
-				{
-					MP_Hightlight (12, y, "(Repeat off)", op == selectedoption);
-					SendMessage(hwnd_winamp,WM_WA_IPC,0,IPC_SET_REPEAT);
-				}
+					MP_Hightlight (12, y, "(Repeat off)", op == selectedoption);				
 			}
 			y+=8;
 			break;
@@ -857,12 +420,12 @@ int Com_CompleatenameCallback(char *name, int size, void *data)
 {
 	if (*compleatenamename)
 		compleatenamemultiple = true;
-	strcpy(compleatenamename, name);
+	strcpy(compleatenamename, name);	
 
 	return true;
 }
 void Com_CompleateOSFileName(char *name)
-{
+{	
 	char *ending;
 	compleatenamemultiple = false;
 
@@ -881,7 +444,7 @@ void Com_CompleateOSFileName(char *name)
 
 void M_Media_Key (int key)
 {
-	int dir;
+	int dir;	
 	if (key == K_ESCAPE)
 		M_Menu_Main_f();
 	else if (key == K_RIGHTARROW || key == K_LEFTARROW)
@@ -998,7 +561,7 @@ void M_Media_Key (int key)
 		case MEDIA_ADDLIST:
 			if (*media_iofilename)
 				Media_LoadTrackNames(media_iofilename);
-			break;
+			break;						
 		case MEDIA_SHUFFLE:
 			Cvar_Set(&media_shuffle, media_shuffle.value?"0":"1");
 			break;
@@ -1010,7 +573,7 @@ void M_Media_Key (int key)
 			{
 				media_playing = true;
 				nexttrack = selectedoption;
-				Media_Next_f();
+				Media_Next_f();				
 			}
 			break;
 		}
@@ -1022,7 +585,7 @@ void M_Media_Key (int key)
 			if (key == K_TAB)
 				Com_CompleateOSFileName(media_iofilename);
 			else if (key == K_BACKSPACE)
-			{
+			{				
 				dir = strlen(media_iofilename);
 				if (dir)
 					media_iofilename[dir-1] = '\0';
@@ -1041,8 +604,8 @@ void M_Media_Key (int key)
 			tr=tracks;
 			while(tr)
 			{
-				if (num == selectedoption)
-					break;
+				if (num == selectedoption)		
+					break;				
 
 				prevtrack = tr;
 				tr=tr->next;
@@ -1052,7 +615,7 @@ void M_Media_Key (int key)
 				return;
 
 			if (key == K_BACKSPACE)
-			{
+			{				
 				dir = strlen(tr->nicename);
 				if (dir)
 					tr->nicename[dir-1] = '\0';
@@ -1073,7 +636,7 @@ void M_Media_Key (int key)
 
 //safeprints only.
 void Media_LoadTrackNames (char *listname)
-{
+{	
 	char *lineend;
 	char *len;
 	char *filename;
@@ -1124,7 +687,7 @@ void Media_LoadTrackNames (char *listname)
 				snprintf(newtrack->filename, sizeof(newtrack->filename)-1, "/mnt/%c/%s", filename[0]-'A'+'a', filename+3);
 				while((filename = strchr(newtrack->filename, '\\')))
 					*filename = '/';
-
+			
 			}
 			else
 #endif
@@ -1148,7 +711,7 @@ void Media_LoadTrackNames (char *listname)
 
 			if (!lineend && !*data)
 				break;
-			lineend[-1]='\0';
+			lineend[-1]='\0';			
 			data = lineend+1;
 
 			newtrack = Z_Malloc(sizeof(mediatrack_t));
@@ -1527,7 +1090,7 @@ soundpos=0;
 		return true;
 	}
 #endif
-
+	
 	Con_Printf("Failed to find file %s\n", name);
 	return false;
 }
@@ -1539,12 +1102,12 @@ qboolean Media_ShowFilm(void)
 //	soundcardinfo_t *sc;
 
 	float curtime = Sys_DoubleTime();
-
+	
 	switch (media_filmtype)
 	{
 	case MFT_ROQ:
 		if (curtime<lastframe || roq_read_frame(roqfilm)==1)	 //0 if end, -1 if error, 1 if success
-		{
+		{			
 		//#define LIMIT(x) ((x)<0xFFFF)?(x)>>16:0xFF;
 #define LIMIT(x) ((((x) > 0xffffff) ? 0xff0000 : (((x) <= 0xffff) ? 0 : (x) & 0xff0000)) >> 16)
 			unsigned char *pa=roqfilm->y[0];
@@ -1565,7 +1128,7 @@ qboolean Media_ShowFilm(void)
 				{										//convert it properly.
 					for(x = 0; x < num_columns; ++x)
 					{
-
+						
 						int r, g, b, y1, y2, u, v, t;
 						y1 = *(pa++); y2 = *(pa++);
 						u = pb[x] - 128;
@@ -1594,7 +1157,7 @@ qboolean Media_ShowFilm(void)
 
 					}
 					if(y & 0x01) { pb += num_columns; pc += num_columns; }
-				}
+				}	
 			}
 			else if (vid.numpages == 1)	//previous frame is still in page.
 			{
@@ -1648,7 +1211,7 @@ qboolean Media_ShowFilm(void)
 			currentframe = (curtime - filmstarttime)*filmfps;
 
 			if (currentframe>=num_frames)
-			{
+			{			
 				Media_PlayFilm(NULL);
 				return false;
 			}
@@ -1656,13 +1219,13 @@ qboolean Media_ShowFilm(void)
 			lpbi = (LPBITMAPINFOHEADER)AVIStreamGetFrame(pgf, currentframe);	// Grab Data From The AVI Stream
 			currentframe++;
 			if (!lpbi || lpbi->biBitCount != 24)//oops
-			{
+			{		
 				SCR_SetUpToDrawConsole();
 #ifdef SWQUAKE
 				D_EnableBackBufferAccess ();	// of all overlay stuff if drawing directly
 #endif
 				Draw_ConsoleBackground(vid.height);
-				Draw_String(0, 0, "Video stream is corrupt\n");
+				Draw_String(0, 0, "Video stream is corrupt\n");			
 			}
 			else
 			{
@@ -1684,7 +1247,7 @@ qboolean Media_ShowFilm(void)
 
 				AVIStreamRead(pavisound, soundpos, AVISTREAMREAD_CONVENIENT, pBuffer, lSize, NULL, &samples);
 
-				S_RawAudio(-1, pBuffer, pWaveFormat->nSamplesPerSec, samples, pWaveFormat->nChannels, 2);
+				S_RawAudio(-1, pBuffer, pWaveFormat->nSamplesPerSec, samples, pWaveFormat->nChannels, 2);			
 			}
 		}
 		return true;
@@ -1800,7 +1363,7 @@ void Media_RecordFrame (void)
 	{
 	case CT_AVI:
 	//ask gl for it
-		qglReadPixels (glx, gly, glwidth, glheight, GL_RGB, GL_UNSIGNED_BYTE, framebuffer );
+		qglReadPixels (glx, gly, glwidth, glheight, GL_RGB, GL_UNSIGNED_BYTE, framebuffer ); 
 
 		// swap rgb to bgr
 		c = glwidth*glheight*3;
@@ -1812,7 +1375,7 @@ void Media_RecordFrame (void)
 		}
 		//write it
 		hr = AVIStreamWrite(recordavi_video_stream, recordavi_video_frame_counter++, 1, framebuffer, glwidth*glheight * 3, AVIIF_KEYFRAME%15, NULL, NULL);
-		if (FAILED(hr)) Con_Printf("Recoring error\n");
+		if (FAILED(hr)) Con_Printf("Recoring error\n");	
 		break;
 
 	case CT_SCREENSHOT:
@@ -1854,7 +1417,7 @@ void Media_RecordAudioFrame (short *sample_buffer, int samples)
 
 	if (recordingdemo)
 		if (scr_con_current > 0)
-		{
+		{			
 			return;
 		}
 
@@ -1877,7 +1440,7 @@ void Media_RecordAudioFrame (short *sample_buffer, int samples)
 
 
     hr = AVIStreamWrite(recordavi_uncompressed_audio_stream, recordavi_audio_frame_counter++, 1, captureaudiomem, samps*recordavi_wave_format.nBlockAlign, AVIIF_KEYFRAME, NULL, NULL);
-	if (FAILED(hr)) Con_Printf("Recoring error\n");
+	if (FAILED(hr)) Con_Printf("Recoring error\n");	
 //save excess for later.
 	memmove(captureaudiomem, captureaudiomem+samps*2, captureaudiosamples*4);
 
@@ -1887,7 +1450,7 @@ void Media_StopRecordFilm_f (void)
     if (recordavi_uncompressed_video_stream)	AVIStreamRelease(recordavi_uncompressed_video_stream);
     if (recordavi_compressed_video_stream)		AVIStreamRelease(recordavi_compressed_video_stream);
     if (recordavi_uncompressed_audio_stream)	AVIStreamRelease(recordavi_uncompressed_audio_stream);
-    if (recordavi_file)					AVIFileRelease(recordavi_file);
+    if (recordavi_file)					AVIFileRelease(recordavi_file);	
 
 	if (capturevideomem)	BZ_Free(capturevideomem);
 	if (captureaudiomem)	BZ_Free(captureaudiomem);
@@ -2002,7 +1565,7 @@ void Media_RecordFilm_f (void)
 		stream_header.fccHandler = recordavi_codec_fourcc;
 		stream_header.dwScale = 100;
 		stream_header.dwRate = (unsigned long)(0.5 + 100.0/recordavi_frametime);
-		SetRect(&stream_header.rcFrame, 0, 0, glwidth, glheight);
+		SetRect(&stream_header.rcFrame, 0, 0, glwidth, glheight);  
 
 		hr = AVIFileCreateStream(recordavi_file, &recordavi_uncompressed_video_stream, &stream_header);
 		if (FAILED(hr))
@@ -2016,7 +1579,7 @@ void Media_RecordFilm_f (void)
 		{
 			AVICOMPRESSOPTIONS opts;
 			AVICOMPRESSOPTIONS* aopts[1] = { &opts };
-			memset(&opts, 0, sizeof(opts));
+			memset(&opts, 0, sizeof(opts));        
 			opts.fccType = stream_header.fccType;
 			opts.fccHandler = recordavi_codec_fourcc;
 			// Make the stream according to compression
@@ -2028,7 +1591,7 @@ void Media_RecordFilm_f (void)
 				return;
 			}
 		}
-
+		
 
 		hr = AVIStreamSetFormat(recordavi_video_stream, 0, &bitmap_info_header, sizeof(BITMAPINFOHEADER));
 		if (FAILED(hr))
@@ -2041,15 +1604,15 @@ void Media_RecordFilm_f (void)
 		if (capturesound.value)
 		{
 			memset(&recordavi_wave_format, 0, sizeof(WAVEFORMATEX));
-			recordavi_wave_format.wFormatTag = WAVE_FORMAT_PCM;
+			recordavi_wave_format.wFormatTag = WAVE_FORMAT_PCM; 
 			recordavi_wave_format.nChannels = 2; // always stereo in Quake sound engine
 			recordavi_wave_format.nSamplesPerSec = sndcardinfo->sn.speed;
 			recordavi_wave_format.wBitsPerSample = 16; // always 16bit in Quake sound engine
-			recordavi_wave_format.nBlockAlign = recordavi_wave_format.wBitsPerSample/8 * recordavi_wave_format.nChannels;
-			recordavi_wave_format.nAvgBytesPerSec = recordavi_wave_format.nSamplesPerSec * recordavi_wave_format.nBlockAlign;
-			recordavi_wave_format.cbSize = 0;
+			recordavi_wave_format.nBlockAlign = recordavi_wave_format.wBitsPerSample/8 * recordavi_wave_format.nChannels; 
+			recordavi_wave_format.nAvgBytesPerSec = recordavi_wave_format.nSamplesPerSec * recordavi_wave_format.nBlockAlign; 
+			recordavi_wave_format.cbSize = 0; 
 
-
+			
 			memset(&stream_header, 0, sizeof(stream_header));
 			stream_header.fccType = streamtypeAUDIO;
 			stream_header.dwScale = recordavi_wave_format.nBlockAlign;
@@ -2106,26 +1669,6 @@ void Media_Init(void)
 	Cmd_AddCommand("capturedemo", Media_RecordDemo_f);
 	Cmd_AddCommand("capturestop", Media_StopRecordFilm_f);
 
-#ifdef WINAMP
-	Cmd_AddCommand("winamp_play", Winamp_Play_f);
-	Cmd_AddCommand("winamp_version", Winamp_Version_f);
-	Cmd_AddCommand("winamp_timeleft", Winamp_TimeLeft_f);
-	Cmd_AddCommand("winamp_jumpto", Winamp_JumpTo_f);
-	Cmd_AddCommand("winamp_gotoplaylistposition", Winamp_GoToPlayListPosition_f);
-	Cmd_AddCommand("winamp_volume", Winamp_Volume_f);
-	Cmd_AddCommand("winamp_channelpanning", Winamp_ChannelPanning_f);
-	Cmd_AddCommand("winamp_playlistlength", Winamp_PlayListLength_f);
-	Cmd_AddCommand("winamp_playlistposition", Winamp_PlayListPosition_f);
-	Cmd_AddCommand("winamp_songinfo", Winamp_SongInfo_f);
-	Cmd_AddCommand("winamp_restart", Winamp_Restart_f);
-	Cmd_AddCommand("winamp_shuffle", Winamp_Shuffle_f);
-	Cmd_AddCommand("winamp_repeat", Winamp_Repeat_f);
-	Cmd_AddCommand("winamp_volumeup", Winamp_VolumeUp_f);
-	Cmd_AddCommand("winamp_volumedown", Winamp_VolumeDown_f);
-	Cmd_AddCommand("winamp_fastforward5seconds", Winamp_FastForward5Seconds_f);
-	Cmd_AddCommand("winamp_rewind5seconds", Winamp_Rewind5Seconds_f);
-#endif
-
 	Cvar_Register(&capturemessage,	"AVI capture controls");
 	Cvar_Register(&capturesound,	"AVI capture controls");
 	Cvar_Register(&capturerate,	"AVI capture controls");
@@ -2137,10 +1680,10 @@ void Media_Init(void)
 #endif
 	Cvar_Register(&media_shuffle,	"Media player things");
 	Cvar_Register(&media_repeat,	"Media player things");
-	Cvar_Register(&winamp_dir, "Winamp Things");
-	Cvar_Register(&winamp_exe, "Winamp Things");
-
 }
+
+
+
 
 
 

@@ -42,7 +42,6 @@ extern qbyte *host_basepal;
 int pt_explosion,
 	pt_pointfile,
 	pt_entityparticles,
-	pt_darkfield,
 	pt_blob,
 	pt_blood,
 	pt_lightningblood,
@@ -1031,86 +1030,156 @@ void P_AssosiateTrail_f (void)
 	P_SetModified();	//make it appear in f_modified.
 }
 
+// P_SelectableTrail: given default/opposite effects, model pointer, and a user selection cvar
+// changes model to the appropriate trail effect and default trail index
+void P_SelectableTrail(model_t *model, cvar_t *selection, int mdleffect, int mdlcidx, int oppeffect, int oppcidx)
+{
+	int select = (int)(selection->value);
+
+	switch (select)
+	{
+	case 0: // check for string
+		{
+			int effect = P_FindParticleType(selection->string);
+
+			if (effect >= 0)
+			{
+				model->particletrail = effect;
+				model->traildefaultindex = mdlcidx;
+				break;
+			}
+		}
+	case 1: // default model effect
+	default:
+		model->particletrail = mdleffect;
+		model->traildefaultindex = mdlcidx;
+		break;
+	case 2: // opposite effect
+		model->particletrail = oppeffect;
+		model->traildefaultindex= oppcidx;
+		break;
+	case 3: // alt rocket effect
+		model->particletrail = P_AllocateParticleType("t_altrocket");
+		model->traildefaultindex = 107;
+		break;
+	case 4: // gib
+		model->particletrail = rt_gib;
+		model->traildefaultindex = 70;
+		break;
+	case 5: // zombie gib
+		model->particletrail = P_AllocateParticleType("t_zomgib");
+		model->traildefaultindex = 70;
+		break;
+	case 6: // Scrag tracer 
+		model->particletrail = P_AllocateParticleType("t_tracer");
+		model->traildefaultindex = 60;
+		break;
+	case 7: // Knight tracer
+		model->particletrail = P_AllocateParticleType("t_tracer2");
+		model->traildefaultindex = 238;
+		break;
+	case 8: // Vore tracer
+		model->particletrail = P_AllocateParticleType("t_tracer3");
+		model->traildefaultindex = 154;
+		break;
+	case 9: // rail trail
+		model->particletrail = rt_railtrail;
+		model->traildefaultindex = 15;
+		break;
+	}
+}
+
 void P_DefaultTrail (model_t *model)
 {
 	// TODO: EF_BRIGHTFIELD should probably be handled in here somewhere
+	// TODO: make trail default color into RGB values instead of indexes
 	if (model->engineflags & MDLF_NODEFAULTTRAIL)
 		return;
 
 	if (model->flags & EF_ROCKET)
-	{
-		switch((int)r_rockettrail.value)
-		{
-		case 0:
-			model->particletrail = P_AllocateParticleType("t_null");
-			break;
-		case 1:
-		default:
-			model->particletrail = rt_rocket;//q2 models do this without flags.
-			break;
-		case 2:
-			model->particletrail = rt_grenade;
-			break;
-		case 3:
-			model->particletrail = P_AllocateParticleType("t_altrocket");
-			break;
-		case 4:
-			model->particletrail = rt_gib;
-			break;
-		case 5:
-			model->particletrail = P_AllocateParticleType("t_zomgib");
-			break;
-		case 6:
-			model->particletrail = P_AllocateParticleType("t_tracer");
-			break;
-		case 7:
-			model->particletrail = P_AllocateParticleType("t_tracer2");
-			break;
-		case 8:
-			model->particletrail = P_AllocateParticleType("t_tracer3");
-			break;
-		}
-	}
+		P_SelectableTrail(model, &r_rockettrail, rt_rocket, 109, rt_grenade, 6);
 	else if (model->flags & EF_GRENADE)
-	{
-		if (r_grenadetrail.value)
-			model->particletrail = rt_grenade;
-		else
-			model->particletrail = P_AllocateParticleType("t_null");
-	}
+		P_SelectableTrail(model, &r_grenadetrail, rt_grenade, 6, rt_rocket, 109);
 	else if (model->flags & EF_GIB)
+	{
 		model->particletrail = rt_gib;
+		model->traildefaultindex = 70;
+	}
 	else if (model->flags & EF_TRACER)
+	{
 		model->particletrail = P_AllocateParticleType("t_tracer");
+		model->traildefaultindex = 60;
+	}
 	else if (model->flags & EF_ZOMGIB)
+	{
 		model->particletrail = P_AllocateParticleType("t_zomgib");
+		model->traildefaultindex = 70;
+	}
 	else if (model->flags & EF_TRACER2)
+	{
 		model->particletrail = P_AllocateParticleType("t_tracer2");
+		model->traildefaultindex = 238;
+	}
 	else if (model->flags & EF_TRACER3)
+	{
 		model->particletrail = P_AllocateParticleType("t_tracer3");
-
+		model->traildefaultindex = 154;
+	}
 	else if (model->flags & EF_BLOODSHOT)	//these are the hexen2 ones.
+	{
 		model->particletrail = P_AllocateParticleType("t_bloodshot");
+		model->traildefaultindex = 136;
+	}
 	else if (model->flags & EF_FIREBALL)
+	{
 		model->particletrail = P_AllocateParticleType("t_fireball");
+		model->traildefaultindex = 424;
+	}
 	else if (model->flags & EF_ACIDBALL)
+	{
 		model->particletrail = P_AllocateParticleType("t_acidball");
+		model->traildefaultindex = 440;
+	}
 	else if (model->flags & EF_ICE)
+	{
 		model->particletrail = P_AllocateParticleType("t_ice");
+		model->traildefaultindex = 408;
+	}
 	else if (model->flags & EF_SPIT)
+	{
 		model->particletrail = P_AllocateParticleType("t_spit");
+		model->traildefaultindex = 260;
+	}
 	else if (model->flags & EF_SPELL)
+	{
 		model->particletrail = P_AllocateParticleType("t_spell");
+		model->traildefaultindex = 260;
+	}
 	else if (model->flags & EF_VORP_MISSILE)
+	{
 		model->particletrail = P_AllocateParticleType("t_vorpmissile");
+		model->traildefaultindex = 302;
+	}
 	else if (model->flags & EF_SET_STAFF)
+	{
 		model->particletrail = P_AllocateParticleType("t_setstaff");
+		model->traildefaultindex = 424;
+	}
 	else if (model->flags & EF_MAGICMISSILE)
+	{
 		model->particletrail = P_AllocateParticleType("t_magicmissile");
+		model->traildefaultindex = 149;
+	}
 	else if (model->flags & EF_BONESHARD)
+	{
 		model->particletrail = P_AllocateParticleType("t_boneshard");
+		model->traildefaultindex = 384;
+	}
 	else if (model->flags & EF_SCARAB)
+	{
 		model->particletrail = P_AllocateParticleType("t_scarab");
+		model->traildefaultindex = 254;
+	}
 	else
 		model->particletrail = -1;
 }
@@ -1256,7 +1325,6 @@ void P_InitParticles (void)
 	pt_explosion		= P_AllocateParticleType("te_explosion");
 	pt_pointfile		= P_AllocateParticleType("pe_pointfile");
 	pt_entityparticles	= P_AllocateParticleType("ef_entityparticles");
-	pt_darkfield		= P_AllocateParticleType("ef_darkfield");
 	pt_blob				= P_AllocateParticleType("te_blob");
 
 	pt_blood			= P_AllocateParticleType("te_blood");
@@ -1733,32 +1801,6 @@ void P_EmitSkyEffectTris(model_t *mod, msurface_t 	*fa)
 		v2 = v3;
 	}
 }
-
-//FIXME!
-void P_DarkFieldParticles (float *org, qbyte colour)
-{
-	int			i, j, k;
-	vec3_t		dir, norg;
-
-	for (i=-16 ; i<16 ; i+=8)
-		for (j=-16 ; j<16 ; j+=8)
-			for (k=0 ; k<32 ; k+=8)
-			{
-				if (!free_particles)
-					return;
-
-				norg[0] = org[0] + i + (rand()&3);
-				norg[1] = org[1] + j + (rand()&3);
-				norg[2] = org[2] + k + (rand()&3);
-
-				dir[0] = j;
-				dir[1] = i;
-				dir[2] = k;
-
-				P_RunParticleEffectType(norg, dir, 1, pt_darkfield);
-			}
-}
-
 
 // Trailstate functions
 static void P_CleanTrailstate(trailstate_t *ts)

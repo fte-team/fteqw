@@ -4,7 +4,6 @@
 extern int pt_explosion,
 	pt_pointfile,
 	pt_entityparticles,
-	pt_darkfield,
 	pt_blob,
 	pt_blood,
 	pt_lightningblood,
@@ -157,7 +156,6 @@ void P_RunParticleEffect2 (vec3_t org, vec3_t dmin, vec3_t dmax, int color, int 
 void P_RunParticleEffect3 (vec3_t org, vec3_t box, int color, int effect, int count);
 void P_RunParticleEffect4 (vec3_t org, float radius, int color, int effect, int count);
 
-void P_DarkFieldParticles (float *org, qbyte colour);
 void P_EmitEffect (vec3_t pos, int type, trailstate_t **tsk);	//particles centered around a model, called every frame for those models.
 
 //functions that spawn point effects (basically just pass throughs)

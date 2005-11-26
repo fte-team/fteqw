@@ -1734,23 +1734,8 @@ void CL_LinkPacketEntities (void)
 				break;
 			}
 
-		if (model->particletrail>=0)
-		{
-//			Con_Printf("(%f %f %f) (%f %f %f)\n", ent->origin[0], ent->origin[1], ent->origin[2], old_origin[0], old_origin[1], old_origin[2]);
-/*
-			if (ent->origin[0] == old_origin[0] || ent->origin[1] == old_origin[1] || ent->origin[2] == old_origin[2])
-			{
-				if (ent->origin[0] == old_origin[0] && ent->origin[1] == old_origin[1] && ent->origin[2] == old_origin[2])
-				{
-					Con_Printf("Total match!!\n");
-				}
-				else
-					Con_Printf("impartial match!!\n");
-			}*/
-
-
-			P_ParticleTrail (old_origin, ent->origin, model->particletrail, &(le->trailstate));
-		}
+		if (P_ParticleTrail (old_origin, ent->origin, model->particletrail, &(le->trailstate)))
+			P_ParticleTrailIndex(old_origin, ent->origin, model->traildefaultindex, 0, &(le->trailstate));
 
 		{
 			extern cvar_t gl_part_flame;
@@ -2050,23 +2035,8 @@ void CL_LinkPacketEntities (void)
 				break;
 			}
 
-		if (model->particletrail>=0)
-		{
-//			Con_Printf("(%f %f %f) (%f %f %f)\n", ent->origin[0], ent->origin[1], ent->origin[2], old_origin[0], old_origin[1], old_origin[2]);
-/*
-			if (ent->origin[0] == old_origin[0] || ent->origin[1] == old_origin[1] || ent->origin[2] == old_origin[2])
-			{
-				if (ent->origin[0] == old_origin[0] && ent->origin[1] == old_origin[1] && ent->origin[2] == old_origin[2])
-				{
-					Con_Printf("Total match!!\n");
-				}
-				else
-					Con_Printf("impartial match!!\n");
-			}*/
-
-
-			P_ParticleTrail (old_origin, ent->origin, model->particletrail, &cl.lerpents[s1->number].trailstate);
-		}
+		if (P_ParticleTrail (old_origin, ent->origin, model->particletrail, &cl.lerpents[s1->number].trailstate))
+			P_ParticleTrailIndex(old_origin, ent->origin, model->traildefaultindex, 0, &cl.lerpents[s1->number].trailstate);
 
 		{
 			extern cvar_t gl_part_flame;
@@ -2107,8 +2077,8 @@ void CL_LinkPacketEntities (void)
 			{
 				// as far as I can tell this effect inverses the light...
 				dclr[0] = -dclr[0];
-				dclr[0] = -dclr[1];
-				dclr[0] = -dclr[2];
+				dclr[1] = -dclr[1];
+				dclr[2] = -dclr[2];
 				rad = 120 - (rand() % 20);
 			}
 

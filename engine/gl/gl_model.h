@@ -721,6 +721,7 @@ typedef struct model_s
 	int			engineflags;
 	int			particleeffect;
 	int			particletrail;
+	int			traildefaultindex;
 
 //
 // volume occupied by the model graphics

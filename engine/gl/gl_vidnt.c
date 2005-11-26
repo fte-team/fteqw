@@ -1116,6 +1116,7 @@ void GLAppActivate(BOOL fActive, BOOL minimize)
 		}
 
 		v_gamma.modified = true;	//so that we can start doing palette flashes and things
+		gammaworks = true;
 	}
 
 	if (!fActive)
@@ -1146,6 +1147,8 @@ void GLAppActivate(BOOL fActive, BOOL minimize)
 		else
 			gammaworks = SetDeviceGammaRamp(maindc, originalgammaramps);
 	}
+
+	vid_hardwaregamma.modified = true;
 }
 
 

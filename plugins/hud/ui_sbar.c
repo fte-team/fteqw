@@ -387,6 +387,11 @@ typedef struct {
 hudelement_t element[MAX_ELEMENTS];	//look - Spike used a constant - that's a turn up for the books!
 int numelements;
 
+int currentitem;
+int hoveritem;
+qboolean mousedown, shiftdown;
+float mouseofsx, mouseofsy;
+
 void UI_DrawPic(qhandle_t pic, int x, int y, int width, int height)
 {
 	Draw_Image((float)x*sbarscalex+sbarminx, (float)y*sbarscaley+sbarminy, (float)width*sbarscalex, (float)height*sbarscaley, 0, 0, 1, 1, pic);
@@ -579,6 +584,9 @@ void Hud_ArmourPic(void)
 void Hud_ArmourBig(void)
 {
 	int i = stats[STAT_ARMOR];
+	if (hudedit)
+		i = 999;
+
 	UI_DrawBigNumber(i, 0, 0, i < 25);
 }
 void Hud_HealthPic(void)
@@ -621,6 +629,9 @@ void Hud_HealthPic(void)
 void Hud_HealthBig(void)
 {
 	int i = stats[STAT_HEALTH];
+	if (hudedit)
+		i = 999;
+
 	UI_DrawBigNumber(i, 0, 0, i < 25);
 }
 
@@ -638,6 +649,9 @@ void Hud_CurrentAmmoPic(void)
 void Hud_CurrentAmmoBig(void)
 {
 	int i = stats[STAT_AMMO];
+	if (hudedit)
+		i = 999;
+
 	UI_DrawBigNumber(i, 0, 0, i < 25);
 }
 void Hud_IBar(void)
@@ -757,6 +771,9 @@ void Hud_Ammo(void)
 	Draw_Image(sbarminx, sbarminy, (float)42*sbarscalex, (float)11*sbarscaley, (3+(sbartype*48))/320.0f, 0, (3+(sbartype*48)+42)/320.0f, 11/24.0f, ibarback);
 
 	num = stats[STAT_SHELLS+sbartype];
+	if (hudedit)
+		num = 999;
+
 	UI_DrawChar(num%10+18, 19, 0);
 	num/=10;
 	if (num)
@@ -804,6 +821,53 @@ int UI_StatusBar(int *arg)
 
 	return true;
 }
+
+int UI_StatusBarEdit(int *arg) // seperated so further improvements to editor view can be done
+{
+	int i;
+
+	float vsx, vsy;
+	qboolean clrset = false;
+
+	CL_GetStats(arg[0], stats, sizeof(stats)/sizeof(int));
+
+	vsx = arg[3]/640.0f;
+	vsy = arg[4]/480.0f;
+	for (i = 0; i < numelements; i++)
+	{
+		if (i == currentitem)
+		{
+			float j = ((currenttime % 1000) - 500) / 500.0f;
+			if (j < 0)
+				j = -j;
+
+			Draw_Colour3f(1.0, j, j);
+			clrset = true;
+		}
+		else if (i == hoveritem)
+		{
+			Draw_Colour3f(0.0, 1.0, 0.0);
+			clrset = true;
+		}
+
+		sbarminx = arg[1] + element[i].x*vsx;
+		sbarminy = arg[2] + element[i].y*vsy;
+		sbarscalex  = element[i].scalex*vsx;
+		sbarscaley  = element[i].scaley*vsy;
+		sbartype = element[i].subtype;
+		sbaralpha = element[i].alpha;
+		drawelement[element[i].type].draw();
+
+		if (clrset)
+		{
+			Draw_Colour3f(1.0, 1.0, 1.0);
+			clrset = false;
+		}
+	}
+
+	return true;
+}
+
 
 #include <stdio.h>
 int FS_Open(char *name, int *handle, int mode)
@@ -967,9 +1031,25 @@ void Hud_Load(char *fname)
 	}
 }
 
-int currentitem;
-qboolean mousedown, shiftdown;
-float mouseofsx, mouseofsy;
+// FindItemUnderMouse: given mouse coordinates, finds element number under mouse
+// returns -1 if no element found
+int FindItemUnderMouse(int mx, int my)
+{
+	int i;
+
+	for (i = 0; i < numelements; i++)
+	{
+		if (element[i].x < mx &&
+			element[i].y < my &&
+			element[i].x + element[i].scalex*drawelement[element[i].type].width > mx &&
+			element[i].y + element[i].scaley*drawelement[element[i].type].height > my)
+		{
+			return i;
+		}
+	}
+
+	return -1; // no element found
+}
 
 void UI_KeyPress(int key, int mx, int my)
 {
@@ -983,25 +1063,31 @@ void UI_KeyPress(int key, int mx, int my)
 	if (key == K_MOUSE1)
 	{	//figure out which one our cursor is over...
 		mousedown = false;
-
-		for (i = 0; i < numelements; i++)
+		i = FindItemUnderMouse(mx, my);
+		if (i != -1)
 		{
-			if (element[i].x < mx &&
-				element[i].y < my &&
-				element[i].x + element[i].scalex*drawelement[element[i].type].width > mx &&
-				element[i].y + element[i].scaley*drawelement[element[i].type].height > my)
-			{
-				mouseofsx = mx - element[i].x;
-				mouseofsy = my - element[i].y;
-				mousedown = true;
-				currentitem = i;
-				break;
-			}
+			mouseofsx = mx - element[i].x;
+			mouseofsy = my - element[i].y;
+			mousedown = true;
+			currentitem = i;
 		}
+
 		return;
 	}
 
-	if (key == 'i')
+	if (key == 'n')
+	{
+		currentitem++;
+		if (currentitem >= numelements)
+			currentitem = 0;
+	}
+	else if (key == 'm')
+	{
+		currentitem--;
+		if (currentitem < 0)
+			currentitem = numelements ? numelements - 1 : 0;
+	}
+	else if (key == 'i')
 	{
 		if (numelements==MAX_ELEMENTS)
 			return;	//too many
@@ -1102,19 +1188,15 @@ int Plug_MenuEvent(int *args)
 			}
 		}
 
-		hudedit = !!(currenttime/250)&3;
-
 		altargs[0] = 0;
 		altargs[1] = 0;
 		altargs[2] = 0;
 		altargs[3] = vid.width;
 		altargs[4] = vid.height;
-		UI_StatusBar(altargs);	//draw it using the same function (we're lazy)
-
-		if ((currenttime/250)&1)
-			Draw_Fill(	(int)element[currentitem].x, (int)element[currentitem].y,
-						(int)(element[currentitem].scalex*drawelement[element[currentitem].type].width),
-						(int)(element[currentitem].scaley*drawelement[element[currentitem].type].height));
+		if (hudedit)
+			UI_StatusBarEdit(altargs);
+		else
+			UI_StatusBar(altargs);	//draw it using the same function (we're lazy)
 		break;
 	case 1:	//keydown
 		UI_KeyPress(args[1], args[2], args[3]);
@@ -1129,6 +1211,7 @@ int Plug_MenuEvent(int *args)
 		hudedit = false;
 		break;
 	case 4:	//mousemove
+		hoveritem = FindItemUnderMouse(args[2], args[3]); // this could possibly slow some things down...
 		break;
 	}
 
@@ -1149,6 +1232,7 @@ int Plug_ExecuteCommand(int *args)
 	{
 		Menu_Control(1);
 		mousedown=false;
+		hudedit=true;
 		return 1;
 	}
 	if (!strcmp("sbar_save", cmd))

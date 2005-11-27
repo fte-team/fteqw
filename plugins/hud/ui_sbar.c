@@ -490,72 +490,72 @@ void UI_SbarInit(void)
 	int j;
 
 //main bar (add cvars later)
-	ibarback = Draw_LoadImage("ibar", true);
-	sbarback = Draw_LoadImage("sbar", true);
+	ibarback = Draw_LoadImage("ibar", false);
+	sbarback = Draw_LoadImage("sbar", false);
 
-	con_chars = Draw_LoadImage("conchars", true);
+	con_chars = Draw_LoadImage("conchars", false);
 
 //load images.
 	for (i = 0; i < 10; i++)
 	{
-		pic_num[i] = Draw_LoadImage(va("num_%i", i), true);
-		pic_anum[i] = Draw_LoadImage(va("anum_%i", i), true);
+		pic_num[i] = Draw_LoadImage(va("num_%i", i), false);
+		pic_anum[i] = Draw_LoadImage(va("anum_%i", i), false);
 	}
-	pic_num[10] = Draw_LoadImage("num_minus", true);
-	pic_anum[10] = Draw_LoadImage("anum_minus", true);
-	pic_num[11] = Draw_LoadImage("num_colon", true);
-	pic_num[12] = Draw_LoadImage("num_slash", true);
+	pic_num[10] = Draw_LoadImage("num_minus", false);
+	pic_anum[10] = Draw_LoadImage("anum_minus", false);
+	pic_num[11] = Draw_LoadImage("num_colon", false);
+	pic_num[12] = Draw_LoadImage("num_slash", false);
 
 	for (i = 0; i < numweaps; i++)
 	{
 		gotweapontime[i] = 0;
-		pic_weapon[0][i] = Draw_LoadImage(va("inv_%s", weaponabbreviation[i]), true);
-		pic_weapon[1][i] = Draw_LoadImage(va("inv2_%s", weaponabbreviation[i]), true);
+		pic_weapon[0][i] = Draw_LoadImage(va("inv_%s", weaponabbreviation[i]), false);
+		pic_weapon[1][i] = Draw_LoadImage(va("inv2_%s", weaponabbreviation[i]), false);
 		for (j = 0; j < 5; j++)
 		{
-			pic_weapon[2+j][i] = Draw_LoadImage(va("inva%i_%s", j+1, weaponabbreviation[i]), true);
+			pic_weapon[2+j][i] = Draw_LoadImage(va("inva%i_%s", j+1, weaponabbreviation[i]), false);
 		}
 	}
 	for (i = 0; i < numpups; i++)
 	{
 		gotpuptime[i] = 0;
-		pic_pup[0][i] = Draw_LoadImage(va("sb_%s", pupabbr2[i]), true);
+		pic_pup[0][i] = Draw_LoadImage(va("sb_%s", pupabbr2[i]), false);
 		for (j = 0; j < 5; j++)
 		{
-			pic_pup[1+j][i] = Draw_LoadImage(va("sba%i_%s", j+1, pupabbr[i]), true);
+			pic_pup[1+j][i] = Draw_LoadImage(va("sba%i_%s", j+1, pupabbr[i]), false);
 		}
 	}
-	pic_armour[0] = Draw_LoadImage("sb_armor1", true);
-	pic_armour[1] = Draw_LoadImage("sb_armor2", true);
-	pic_armour[2] = Draw_LoadImage("sb_armor3", true);
+	pic_armour[0] = Draw_LoadImage("sb_armor1", false);
+	pic_armour[1] = Draw_LoadImage("sb_armor2", false);
+	pic_armour[2] = Draw_LoadImage("sb_armor3", false);
 
-	pic_ammo[0] = Draw_LoadImage("sb_shells", true);
-	pic_ammo[1] = Draw_LoadImage("sb_nails", true);
-	pic_ammo[2] = Draw_LoadImage("sb_rocket", true);
-	pic_ammo[3] = Draw_LoadImage("sb_cells", true);
+	pic_ammo[0] = Draw_LoadImage("sb_shells", false);
+	pic_ammo[1] = Draw_LoadImage("sb_nails", false);
+	pic_ammo[2] = Draw_LoadImage("sb_rocket", false);
+	pic_ammo[3] = Draw_LoadImage("sb_cells", false);
 
-	pic_rune[0] = Draw_LoadImage("sb_sigil1", true);
-	pic_rune[1] = Draw_LoadImage("sb_sigil2", true);
-	pic_rune[2] = Draw_LoadImage("sb_sigil3", true);
-	pic_rune[3] = Draw_LoadImage("sb_sigil4", true);
+	pic_rune[0] = Draw_LoadImage("sb_sigil1", false);
+	pic_rune[1] = Draw_LoadImage("sb_sigil2", false);
+	pic_rune[2] = Draw_LoadImage("sb_sigil3", false);
+	pic_rune[3] = Draw_LoadImage("sb_sigil4", false);
 
-	pic_face[0] = Draw_LoadImage("face1", true);
-	pic_face[1] = Draw_LoadImage("face2", true);
-	pic_face[2] = Draw_LoadImage("face3", true);
-	pic_face[3] = Draw_LoadImage("face4", true);
-	pic_face[4] = Draw_LoadImage("face5", true);
+	pic_face[0] = Draw_LoadImage("face1", false);
+	pic_face[1] = Draw_LoadImage("face2", false);
+	pic_face[2] = Draw_LoadImage("face3", false);
+	pic_face[3] = Draw_LoadImage("face4", false);
+	pic_face[4] = Draw_LoadImage("face5", false);
 
-	pic_facep[0] = Draw_LoadImage("face_p1", true);
-	pic_facep[1] = Draw_LoadImage("face_p2", true);
-	pic_facep[2] = Draw_LoadImage("face_p3", true);
-	pic_facep[3] = Draw_LoadImage("face_p4", true);
-	pic_facep[4] = Draw_LoadImage("face_p5", true);
+	pic_facep[0] = Draw_LoadImage("face_p1", false);
+	pic_facep[1] = Draw_LoadImage("face_p2", false);
+	pic_facep[2] = Draw_LoadImage("face_p3", false);
+	pic_facep[3] = Draw_LoadImage("face_p4", false);
+	pic_facep[4] = Draw_LoadImage("face_p5", false);
 
-	pic_facequad = Draw_LoadImage("face_quad", true);
-	pic_faceinvis = Draw_LoadImage("face_invis", true);
-	pic_faceinvisinvuln = Draw_LoadImage("face_inv2", true);
-	pic_faceinvuln = Draw_LoadImage("face_invul1", true);
-	pic_faceinvulnquad = Draw_LoadImage("face_invul2", true);
+	pic_facequad = Draw_LoadImage("face_quad", false);
+	pic_faceinvis = Draw_LoadImage("face_invis", false);
+	pic_faceinvisinvuln = Draw_LoadImage("face_inv2", false);
+	pic_faceinvuln = Draw_LoadImage("face_invul1", false);
+	pic_faceinvulnquad = Draw_LoadImage("face_invul2", false);
 
 	SBar_FlushAll();
 	SBar_ReloadDefaults();
@@ -608,7 +608,7 @@ void Hud_HealthPic(void)
 		return;
 	}
 
-	hl = stats[STAT_HEALTH]/20; 
+	hl = stats[STAT_HEALTH]/20;
 	if (hl > 4)
 		hl = 4;
 	if (hl < 0)
@@ -655,7 +655,7 @@ void Hud_Weapon(void)
 	flash = (currenttime - gotweapontime[sbartype])/100;
 	if (flash < 0)	//errr... whoops...
 		flash = 0;
-	
+
 	if (flash > 10)
 	{
 		if (stats[STAT_ACTIVEWEAPON] & (IT_GUN1 << sbartype))
@@ -682,7 +682,7 @@ void Hud_W_HalfLightning(void)	//left half only (needed due to LG icon being twi
 	flash = (currenttime - gotweapontime[wnum])/100;
 	if (flash < 0)	//errr... whoops...
 		flash = 0;
-	
+
 	if (flash > 10)
 	{
 		if (stats[STAT_WEAPON] & (IT_GUN1 << wnum))
@@ -708,7 +708,7 @@ void Hud_W_Lightning(void)
 	flash = (currenttime - gotweapontime[wnum])/100;
 	if (flash < 0)	//errr... whoops...
 		flash = 0;
-	
+
 	if (flash > 10)
 	{
 		if (stats[STAT_WEAPON] & (IT_GUN1 << wnum))
@@ -733,7 +733,7 @@ void Hud_Powerup(void)
 	flash = (currenttime - gotpuptime[sbartype])/100;
 	if (flash < 0)	//errr... whoops...
 		flash = 0;
-	
+
 	if (flash > 10)
 	{
 		flash = 0;
@@ -897,7 +897,7 @@ float GetFloat(char **f, int handle)
 	ts = *f;
 	while (**f>' ')
 		(*f)++;
-	
+
 	return (float)atof(ts);
 }
 int GetInteger(char **f, int handle)
@@ -915,7 +915,7 @@ int GetInteger(char **f, int handle)
 	ts = *f;
 	while (**f>' ')
 		(*f)++;
-	
+
 	return atoi(ts);
 }
 void Hud_Load(char *fname)
@@ -1113,7 +1113,7 @@ int Plug_MenuEvent(int *args)
 
 		if ((currenttime/250)&1)
 			Draw_Fill(	(int)element[currentitem].x, (int)element[currentitem].y,
-						(int)(element[currentitem].scalex*drawelement[element[currentitem].type].width), 
+						(int)(element[currentitem].scalex*drawelement[element[currentitem].type].width),
 						(int)(element[currentitem].scaley*drawelement[element[currentitem].type].height));
 		break;
 	case 1:	//keydown
@@ -1183,7 +1183,6 @@ int Plug_Init(int *args)
 		Plug_Export("ExecuteCommand", Plug_ExecuteCommand) &&
 		Plug_Export("MenuEvent", Plug_MenuEvent))
 	{
-		UI_SbarInit();
 
 		K_UPARROW		= Key_GetKeyCode("uparrow");
 		K_DOWNARROW		= Key_GetKeyCode("downarrow");
@@ -1199,7 +1198,9 @@ int Plug_Init(int *args)
 		Cmd_AddCommand("sbar_load");
 		Cmd_AddCommand("sbar_defaults");
 
-		return true;
+		UI_SbarInit();
+
+		return 1;
 	}
-	return false;
+	return 0;
 }

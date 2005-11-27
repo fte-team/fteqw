@@ -244,7 +244,7 @@ int strlen(const char *s)
 	return len;
 }
 
-int strncmp (char *s1, char *s2, int count)
+int strncmp (const char *s1, const char *s2, int count)
 {
 	while (1)
 	{
@@ -261,7 +261,7 @@ int strncmp (char *s1, char *s2, int count)
 	return -1;
 }
 
-int strcmp(char *s1, char *s2)
+int strcmp(const char *s1, const char *s2)
 {
 	while(*s1)
 	{
@@ -275,7 +275,7 @@ int strcmp(char *s1, char *s2)
 	return 0;
 }
 
-char *strstr(char *str, char *sub)
+char *strstr(char *str, const char *sub)
 {
 	char *p;
 	char *p2;
@@ -295,9 +295,82 @@ char *strstr(char *str, char *sub)
 
 	return NULL;
 }
+char *strchr(char *str, char sub)
+{
+	char *p;
+	char *p2;
+
+	while(*str)
+	{
+		if (*str == sub)
+			return str;
+		str++;
+	}
+
+	return NULL;
+}
+
+int atoi(char *str)
+{
+	int sign;
+	int num;
+	int base = 10;
+
+	while(*(unsigned char*)str < ' ' && *str)
+		str++;
+
+	if (*str == '-')
+	{
+		sign = -1;
+		str++;
+	}
+
+	if (str[0] == '0' && (str[1] == 'x' || str[1] == 'X'))
+	{
+		base = 16;
+		str += 2;
+	}
+
+	while(1)
+	{
+		if (*str >= '0' && *str <= '9') 
+			num = num*base + (*str - '0');
+		else if (*str >= 'a' && *str <= 'a'+base-10)
+			num = num*base + (*str - 'a')+10;
+		else if (*str >= 'A' && *str <= 'A'+base-10)
+			num = num*base + (*str - 'A')+10;
+		else break;	//bad char
+	}	
+	return num*sign;
+}
+
+void strcpy(char *d, const char *s)
+{
+	while (*s)
+	{
+		*d++ = *s++;
+	}
+	*d='\0';
+}
+
+static	long	randx = 1;
+void srand(unsigned int x)
+{
+	randx = x;
+}
+int getseed(void)
+{
+	return randx;
+}
+int rand(void)
+{
+	return(((randx = randx*1103515245 + 12345)>>16) & 077777);
+}
+
+
 #endif
 
-void Q_strncpyz(char *d, const char *s, int n)
+void strlcpy(char *d, const char *s, int n)
 {
 	int i;
 	n--;

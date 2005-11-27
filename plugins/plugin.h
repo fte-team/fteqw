@@ -17,6 +17,12 @@ typedef char *va_list;
 #define va_end(va) (va = NULL)
 #define NULL (void*)0
 
+
+void *malloc(int size);
+void free(void *mem);
+char *strstr(char *str, const char *sub);
+void strlcpy(char *d, const char *s, int n);
+
 #else
 
 #include <string.h>
@@ -35,10 +41,16 @@ typedef char *va_list;
 #endif
 extern int (*plugin_syscall)( int arg, ... );
 
+#ifdef _WIN32
+void strlcpy(char *d, const char *s, int n);
+int snprintf(char *buffer, int maxlen, char *format, ...);
+#endif
+
 #endif
 
 typedef enum {false, true} qboolean;
 typedef void *qhandle_t;
+typedef float vec3_t[3];
 
 
 
@@ -53,15 +65,16 @@ EBUILTIN(unsigned int, Sys_Milliseconds, ());
 EBUILTIN(void, Cmd_AddCommand, (char *buffer));	//abort the entire engine.
 EBUILTIN(void, Cmd_Args, (char *buffer, int bufsize));	//abort the entire engine.
 EBUILTIN(void, Cmd_Argv, (int argnum, char *buffer, int bufsize));	//abort the entire engine.
-EBUILTIN(void, Cmd_Argc, (void));	//abort the entire engine.
+EBUILTIN(int, Cmd_Argc, (void));	//abort the entire engine.
 EBUILTIN(void, Cmd_AddText, (char *text, qboolean insert));
+EBUILTIN(void, Cmd_Tokenize, (char *msg));	//abort the entire engine.
 
 EBUILTIN(void, Cvar_SetString, (char *name, char *value));
 EBUILTIN(void, Cvar_SetFloat, (char *name, float value));
 EBUILTIN(qboolean, Cvar_GetString, (char *name, char *retstring, int sizeofretstring));
 EBUILTIN(float, Cvar_GetFloat, (char *name));
 EBUILTIN(qhandle_t,	Cvar_Register, (char *name, char *defaultval, int flags, char *grouphint));
-EBUILTIN(int, Cvar_Update, (qhandle_t handle, int modificationcount, char *stringv, float *floatv));	//stringv is 256 chars long, don't expect this function to do anything if modification count is unchanged.
+EBUILTIN(int, Cvar_Update, (qhandle_t handle, int *modificationcount, char *stringv, float *floatv));	//stringv is 256 chars long, don't expect this function to do anything if modification count is unchanged.
 
 EBUILTIN(void, LocalSound, (char *soundname));
 EBUILTIN(void, CL_GetStats, (int pnum, unsigned int *stats, int maxstats));
@@ -79,6 +92,7 @@ EBUILTIN(void, Draw_Character, (int x, int y, unsigned int characture));
 EBUILTIN(void, Draw_Colourp, (int palcol));
 EBUILTIN(void, Draw_Colour3f, (float r, float g, float b));
 EBUILTIN(void, Draw_Colour4f, (float r, float g, float b, float a));
+EBUILTIN(void, SCR_CenterPrint, (char *s));
 
 EBUILTIN(int, Net_TCPConnect, (char *ip, int port));
 EBUILTIN(int, Net_TCPListen, (char *ip, int port, int maxcount));
@@ -87,6 +101,8 @@ EBUILTIN(int, Net_Recv, (int socket, void *buffer, int len));
 EBUILTIN(int, Net_Send, (int socket, void *buffer, int len));
 EBUILTIN(void, Net_Close, (int socket));
 #define N_WOULDBLOCK -1
+#define NET_CLIENTPORT -1
+#define NET_SERVERPORT -2
 
 
 

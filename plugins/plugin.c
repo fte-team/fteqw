@@ -73,7 +73,10 @@ BUILTIN(void, Cmd_Args, (char *buffer, int bufsize));	//abort the entire engine.
 BUILTIN(void, Cmd_Argv, (int argnum, char *buffer, int bufsize));	//abort the entire engine.
 #undef ARGNAMES
 #define ARGNAMES
-BUILTIN(void, Cmd_Argc, (void));	//abort the entire engine.
+BUILTINR(int, Cmd_Argc, (void));	//abort the entire engine.
+#undef ARGNAMES
+#define ARGNAMES ,msg
+BUILTIN(void, Cmd_TokenizeString, (char *msg));	//abort the entire engine.
 #undef ARGNAMES
 
 #define ARGNAMES ,text,insert
@@ -96,7 +99,7 @@ BUILTINR(float, Cvar_GetFloat, (char *name));
 BUILTINR(qhandle_t,	Cvar_Register, (char *name, char *defaultval, int flags, char *grouphint));
 #undef ARGNAMES
 #define ARGNAMES ,handle,modificationcount,stringv,floatv
-BUILTINR(int, Cvar_Update, (qhandle_t handle, int modificationcount, char *stringv, float *floatv));	//stringv is 256 chars long, don't expect this function to do anything if modification count is unchanged.
+BUILTINR(int, Cvar_Update, (qhandle_t handle, int *modificationcount, char *stringv, float *floatv));	//stringv is 256 chars long, don't expect this function to do anything if modification count is unchanged.
 #undef ARGNAMES
 
 #define ARGNAMES ,pnum,stats,maxstats
@@ -127,6 +130,10 @@ BUILTIN(void, Draw_Colour3f, (float r, float g, float b));
 #undef ARGNAMES
 #define ARGNAMES ,PASSFLOAT(r),PASSFLOAT(g),PASSFLOAT(b),PASSFLOAT(a)
 BUILTIN(void, Draw_Colour4f, (float r, float g, float b, float a));
+#undef ARGNAMES
+
+#define ARGNAMES ,s
+BUILTIN(void, SCR_CenterPrint, (char *s));
 #undef ARGNAMES
 
 #define ARGNAMES ,src,srcwidth,srcheight,x,y,width,height
@@ -166,6 +173,9 @@ BUILTIN(void, memcpy, (void *out, void *in, int len));
 #undef ARGNAMES
 #define ARGNAMES ,out,in,len
 BUILTIN(void, memset, (void *out, int in, int len));
+#undef ARGNAMES
+#define ARGNAMES ,out,in,len
+BUILTIN(void, memmove, (void *out, void *in, int len));
 #undef ARGNAMES
 #endif
 
@@ -208,6 +218,7 @@ void Plug_InitStandardBuiltins(void)
 {
 #ifdef Q3_VM
 	CHECKBUILTIN(memcpy);
+	CHECKBUILTIN(memmove);
 	CHECKBUILTIN(memset);
 #endif
 
@@ -253,6 +264,7 @@ void Plug_InitStandardBuiltins(void)
 	CHECKBUILTIN(Draw_Colourp);
 	CHECKBUILTIN(Draw_Colour3f);
 	CHECKBUILTIN(Draw_Colour4f);
+	CHECKBUILTIN(SCR_CenterPrint);
 
 	CHECKBUILTIN(Media_ShowFrameRGBA_32);
 

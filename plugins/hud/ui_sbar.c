@@ -663,7 +663,11 @@ void Hud_Weapon(void)
 {
 	int flash;
 	if (!(stats[STAT_ITEMS] & (IT_GUN1 << sbartype)) && !hudedit)
+	{
+		gotweapontime[sbartype] = 0;
 		return;
+	}
+
 	if (!gotweapontime[sbartype])
 		gotweapontime[sbartype] = currenttime;
 	flash = (currenttime - gotweapontime[sbartype])/100;
@@ -689,7 +693,10 @@ void Hud_W_HalfLightning(void)	//left half only (needed due to LG icon being twi
 	int wnum = 6;
 
 	if (!(stats[STAT_ITEMS] & (IT_GUN1 << wnum)) && !hudedit)
+	{
+		gotweapontime[wnum] = 0;
 		return;
+	}
 
 	if (!gotweapontime[wnum])
 		gotweapontime[wnum] = currenttime;
@@ -699,7 +706,7 @@ void Hud_W_HalfLightning(void)	//left half only (needed due to LG icon being twi
 
 	if (flash > 10)
 	{
-		if (stats[STAT_WEAPON] & (IT_GUN1 << wnum))
+		if (stats[STAT_ACTIVEWEAPON] & (IT_GUN1 << wnum))
 			flash = 1;	//selected.
 		else
 			flash = 0;
@@ -715,7 +722,10 @@ void Hud_W_Lightning(void)
 	int wnum = 6;
 
 	if (!(stats[STAT_ITEMS] & (IT_GUN1 << wnum)) && !hudedit)
+	{
+		gotweapontime[wnum] = 0;
 		return;
+	}
 
 	if (!gotweapontime[wnum])
 		gotweapontime[wnum] = currenttime;
@@ -725,7 +735,7 @@ void Hud_W_Lightning(void)
 
 	if (flash > 10)
 	{
-		if (stats[STAT_WEAPON] & (IT_GUN1 << wnum))
+		if (stats[STAT_ACTIVEWEAPON] & (IT_GUN1 << wnum))
 			flash = 1;	//selected.
 		else
 			flash = 0;
@@ -1187,6 +1197,8 @@ int Plug_MenuEvent(int *args)
 				element[currentitem].y -= (int)element[currentitem].y & 7;
 			}
 		}
+		else
+			hoveritem = FindItemUnderMouse(args[2], args[3]); // this could possibly slow some things down...
 
 		altargs[0] = 0;
 		altargs[1] = 0;
@@ -1211,7 +1223,6 @@ int Plug_MenuEvent(int *args)
 		hudedit = false;
 		break;
 	case 4:	//mousemove
-		hoveritem = FindItemUnderMouse(args[2], args[3]); // this could possibly slow some things down...
 		break;
 	}
 

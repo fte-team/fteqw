@@ -261,12 +261,60 @@ int strncmp (const char *s1, const char *s2, int count)
 	return -1;
 }
 
+int strnicmp(const char *s1, const char *s2, int count)
+{
+	char c1, c2;
+	char ct;
+	while(*s1)
+	{
+		if (!count--)
+			return 0;
+		c1 = *s1;
+		c2 = *s2;
+		if (c1 != c2)
+		{
+			if (c1 >= 'a' && c1 <= 'z') c1 = c1-'a' + 'A';
+			if (c2 >= 'a' && c2 <= 'z') c2 = c2-'a' + 'A';
+			if (c1 != c2)
+				return c1<c2?-1:1;
+		}
+		s1++;
+		s2++;
+	}
+	if (*s2)	//s2 was longer.
+		return 1;
+	return 0;
+}
+
 int strcmp(const char *s1, const char *s2)
 {
 	while(*s1)
 	{
 		if (*s1 != *s2)
-			return *s1<*s1?-1:1;
+			return *s1<*s2?-1:1;
+		s1++;
+		s2++;
+	}
+	if (*s2)	//s2 was longer.
+		return 1;
+	return 0;
+}
+
+int stricmp(const char *s1, const char *s2)
+{
+	char c1, c2;
+	char ct;
+	while(*s1)
+	{
+		c1 = *s1;
+		c2 = *s2;
+		if (c1 != c2)
+		{
+			if (c1 >= 'a' && c1 <= 'z') c1 = c1-'a' + 'A';
+			if (c2 >= 'a' && c2 <= 'z') c2 = c2-'a' + 'A';
+			if (c1 != c2)
+				return c1<c2?-1:1;
+		}
 		s1++;
 		s2++;
 	}

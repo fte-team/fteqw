@@ -22,6 +22,7 @@ void *malloc(int size);
 void free(void *mem);
 char *strstr(char *str, const char *sub);
 void strlcpy(char *d, const char *s, int n);
+char *strchr(char *str, char sub);
 
 #else
 

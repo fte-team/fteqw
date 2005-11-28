@@ -159,12 +159,11 @@ typedef struct {
 
 
 drawelementfnc_t Hud_SBar;
+drawelementfnc_t Hud_StatSmall;
+drawelementfnc_t Hud_StatBig;
 drawelementfnc_t Hud_ArmourPic;
-drawelementfnc_t Hud_ArmourBig;
 drawelementfnc_t Hud_HealthPic;
-drawelementfnc_t Hud_HealthBig;
 drawelementfnc_t Hud_CurrentAmmoPic;
-drawelementfnc_t Hud_CurrentAmmoBig;
 drawelementfnc_t Hud_IBar;
 drawelementfnc_t Hud_Weapon;
 drawelementfnc_t Hud_W_Lightning;
@@ -173,29 +172,45 @@ drawelementfnc_t Hud_Rune;
 drawelementfnc_t Hud_Ammo;
 drawelementfnc_t Hud_ScoreCard;
 drawelementfnc_t Hud_Blackness;
+// TODO: more elements
+// - generalized graphic elements
+// - cvar controlled small and big numbers
+// - alias controlled graphic elements (both +/-showscores like and alias calling?)
+// - Q2-style current weapon icon
+
+int statsremap[] = 
+{
+	STAT_HEALTH,
+	STAT_ARMOR,
+	STAT_AMMO,
+	STAT_SHELLS,
+	STAT_NAILS,
+	STAT_ROCKETS,
+	STAT_NAILS
+};
 
 typedef struct {
 	drawelementfnc_t *draw;
+	char *name;
 	int width, height;
 	int maxsubtype;
 } drawelement_t;
 drawelement_t drawelement[] =
 {
-	{Hud_SBar,				320,	24,		0},
-	{Hud_ArmourPic,			24,		24,		0},
-	{Hud_ArmourBig,			24*3,	24,		0},
-	{Hud_HealthPic,			24,		24,		0},
-	{Hud_HealthBig,			24*3,	24,		0},
-	{Hud_CurrentAmmoPic,	24,		24,		0},
-	{Hud_CurrentAmmoBig,	24*3,	24,		0},
-	{Hud_IBar,				320,	24,		0},
-	{Hud_Weapon,			24,		16,		0},
-	{Hud_W_Lightning,		24,		16,		0},
-	{Hud_Powerup,			16,		16,		5},
-	{Hud_Rune,				8,		16,		3},
-	{Hud_Ammo,				42,		11,		3},
-	{Hud_Blackness,			16,		16,		0},
-	{Hud_ScoreCard,			0,		0,		16}
+	{Hud_SBar,				"Status bar",	320,	24,		0},
+	{Hud_StatSmall,			"Stat (small)",	8*3,	8,		6}, // equal to sizeof(statsremap)/sizeof(statsremap[0])-1
+	{Hud_StatBig,			"Stat (big)",	24*3,	24,		6}, // equal to sizeof(statsremap)/sizeof(statsremap[0])-1
+	{Hud_ArmourPic,			"Armor pic",	24,		24,		0},
+	{Hud_HealthPic,			"Health pic",	24,		24,		0},
+	{Hud_CurrentAmmoPic,	"Ammo pic",		24,		24,		0},
+	{Hud_IBar,				"Info bar",		320,	24,		0},
+	{Hud_Weapon,			"Weapon pic",	24,		16,		0},
+	{Hud_W_Lightning,		"Shaft pic",	24,		16,		0},
+	{Hud_Powerup,			"Powerup pic",	16,		16,		5},
+	{Hud_Rune,				"Rune pic",		8,		16,		3},
+	{Hud_Ammo,				"Ammo display",	42,		11,		3},
+	{Hud_Blackness,			"Blackness",	16,		16,		0},
+	{Hud_ScoreCard,			"Scorecard",	0,		0,		16}
 };
 
 huddefaultelement_t hedefaulttype[] = {
@@ -213,7 +228,8 @@ huddefaultelement_t hedefaulttype[] = {
 	{
 		24, -24, DZ_BOTTOMLEFT,
 		1,
-		Hud_ArmourBig
+		Hud_StatBig,
+		1
 	},
 
 	{
@@ -224,7 +240,8 @@ huddefaultelement_t hedefaulttype[] = {
 	{
 		24*6, -24, DZ_BOTTOMLEFT,
 		1,
-		Hud_HealthBig
+		Hud_StatBig,
+		0
 	},
 
 	{
@@ -235,7 +252,8 @@ huddefaultelement_t hedefaulttype[] = {
 	{
 		248, -24, DZ_BOTTOMLEFT,
 		1,
-		Hud_CurrentAmmoBig
+		Hud_StatBig,
+		2
 	},
 
 	{
@@ -574,6 +592,7 @@ void Hud_SBar(void)
 {
 	UI_DrawPic(sbarback, 0, 0, 320, 24);
 }
+
 void Hud_ArmourPic(void)
 {
 	if (stats[STAT_ITEMS] & IT_ARMOR3)
@@ -583,14 +602,7 @@ void Hud_ArmourPic(void)
 	else if (stats[STAT_ITEMS] & IT_ARMOR1 || hudedit)
 		UI_DrawPic(pic_armour[0], 0, 0, 24, 24);
 }
-void Hud_ArmourBig(void)
-{
-	int i = stats[STAT_ARMOR];
-	if (hudedit)
-		i = 999;
 
-	UI_DrawBigNumber(i, 0, 0, i < 25);
-}
 void Hud_HealthPic(void)
 {
 	int hl;
@@ -628,13 +640,26 @@ void Hud_HealthPic(void)
 //	else
 		UI_DrawPic(pic_face[4-hl], 0, 0, 24, 24);
 }
-void Hud_HealthBig(void)
+
+void Hud_StatBig(void)
 {
-	int i = stats[STAT_HEALTH];
-	if (hudedit)
-		i = 999;
+	int i = stats[statsremap[sbartype]];
 
 	UI_DrawBigNumber(i, 0, 0, i < 25);
+}
+
+void Hud_StatSmall(void)
+{
+	int i = stats[statsremap[sbartype]];
+
+	// TODO: need some sort of options thing to change between brown/white/gold text
+	UI_DrawChar(i%10+18, 19, 0);
+	i/=10;
+	if (i)
+		UI_DrawChar(i%10+18, 11, 0);
+	i/=10;
+	if (i)
+		UI_DrawChar(i%10+18, 3, 0);
 }
 
 void Hud_CurrentAmmoPic(void)
@@ -648,14 +673,7 @@ void Hud_CurrentAmmoPic(void)
 	else if (stats[STAT_ITEMS] & IT_AMMO4 || hudedit)
 		UI_DrawPic(pic_ammo[3], 0, 0, 24, 24);
 }
-void Hud_CurrentAmmoBig(void)
-{
-	int i = stats[STAT_AMMO];
-	if (hudedit)
-		i = 999;
 
-	UI_DrawBigNumber(i, 0, 0, i < 25);
-}
 void Hud_IBar(void)
 {
 	UI_DrawPic(ibarback, 0, 0, 320, 24);
@@ -1108,6 +1126,11 @@ void UI_KeyPress(int key, int mx, int my)
 		return;
 	}
 
+	// TODO: extra buttons
+	// - toggle clip to edges and clip to other controls
+	// - raise to front
+	// - maybe toggle snap to grid instead of holding shift with mouse?
+
 	if (key == 'n')
 	{
 		currentitem++;
@@ -1209,6 +1232,8 @@ int Plug_MenuEvent(int *args)
 	switch(args[0])
 	{
 	case 0:	//draw
+
+		// TODO: some sort of element property display
 
 		if (mousedown)
 		{

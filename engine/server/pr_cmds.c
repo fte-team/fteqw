@@ -182,13 +182,17 @@ pbool ED_CanFree (edict_t *ed)
 	ed->v->nextthink = 0;
 	ed->v->solid = 0;
 
-	if (pr_imitatemvdsv.value)
+	if (pr_imitatemvdsv.value) 
 	{
-		ed->v->classname = 0;
 		ed->v->health = 0;
+		ed->v->classname = 0;
+		ed->v->nextthink = -1;
+		ed->v->impulse = 0;	//this is not true imitation, but it seems we need this line to get out of some ktpro infinate loops.
 	}
 	else
+	{
 		ed->v->think = 0;
+	}
 
 	ed->v->SendEntity = 0;
 	sv.csqcentversion[ed->entnum] = ed->v->Version+1;
@@ -308,6 +312,7 @@ int QCEditor (progfuncs_t *prinst, char *filename, int line, int nump, char **pa
 {
 #ifdef TEXTEDITOR
 	static char oldfuncname[64];
+
 	if (!parms)
 		return QCLibEditor(prinst, filename, line, nump, parms);
 	else
@@ -325,6 +330,8 @@ int QCEditor (progfuncs_t *prinst, char *filename, int line, int nump, char **pa
 	char *r;
 	FILE *f;
 
+	SV_EndRedirect();
+
 	if (line == -1)
 		return -1;
 	SV_EndRedirect();
@@ -333,7 +340,12 @@ int QCEditor (progfuncs_t *prinst, char *filename, int line, int nump, char **pa
 	else
 		f = NULL;	//faster.
 	if (!f)
-		Con_Printf("%s - %i\n", filename, line);
+	{
+		Q_snprintfz(buffer, sizeof(buffer), "src/%s", filename);
+		COM_FOpenFile(buffer, &f);
+	}
+	if (!f)
+		Con_Printf("-%s - %i\n", filename, line);
 	else
 	{
 		for (i = 0; i < line; i++)
@@ -342,7 +354,7 @@ int QCEditor (progfuncs_t *prinst, char *filename, int line, int nump, char **pa
 		}
 		if ((r = strchr(buffer, '\r')))
 		{ r[0] = '\n';r[1]='\0';}
-		Con_Printf("%s", buffer);
+		Con_Printf("-%s", buffer);
 		fclose(f);
 	}
 //PF_break(NULL);
@@ -3465,8 +3477,11 @@ void PF_Remove (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 	if (ed->isfree && progstype != PROG_H2)	//h2 is dire...
 	{
 		ED_CanFree(ed);
-
-		Con_DPrintf("Tried removing free entity\n");
+		if (developer.value)
+		{
+			Con_Printf("Tried removing free entity at:\n");
+			PR_StackTrace(prinst);
+		}
 		return;	//yeah, alright, so this is hacky.
 	}
 
@@ -5109,8 +5124,13 @@ void PF_infokey (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 
 	if (e1 == 0)
 	{
-		if ((value = Info_ValueForKey (svs.info, key)) == NULL || !*value)
-			value = Info_ValueForKey(localinfo, key);
+		if (pr_imitatemvdsv.value && !strcmp(key, "*version"))
+			value = "2.40";
+		else
+		{
+			if ((value = Info_ValueForKey (svs.info, key)) == NULL || !*value)
+				value = Info_ValueForKey(localinfo, key);
+		}
 	}
 	else if (e1 <= MAX_CLIENTS)
 	{
@@ -5294,6 +5314,7 @@ void PF_forgetstring(progfuncs_t *prinst, struct globalvars_s *pr_globals)
 		Con_Printf("QC tried to free a non allocated string: ");
 		Con_Printf("%s\n", s+8);	//two prints, so that logged prints ensure the first is written.
 		(*prinst->pr_trace) = 1;
+		PR_StackTrace(prinst);
 		return;
 	}
 	((int *)s)[0] = 0xabcd1234;

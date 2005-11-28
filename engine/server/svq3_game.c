@@ -1627,7 +1627,7 @@ void SVQ3_ShutdownGame(void)
 }
 
 #ifdef USEBOTLIB
-void BL_Print(int l, char *fmt, ...)
+void VARGS BL_Print(int l, char *fmt, ...)
 {
 	va_list		argptr;
 	char		text[1024];

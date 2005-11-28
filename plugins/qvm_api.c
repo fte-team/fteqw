@@ -361,7 +361,7 @@ char *strchr(char *str, char sub)
 int atoi(char *str)
 {
 	int sign;
-	int num;
+	int num = 0;
 	int base = 10;
 
 	while(*(unsigned char*)str < ' ' && *str)
@@ -389,6 +389,41 @@ int atoi(char *str)
 			num = num*base + (*str - 'A')+10;
 		else break;	//bad char
 	}	
+	return num*sign;
+}
+float atof(char *str)
+{
+	int sign;
+	float num = 0.0f;
+	float unit = 1;
+
+	while(*(unsigned char*)str < ' ' && *str)
+		str++;
+
+	if (*str == '-')
+	{
+		sign = -1;
+		str++;
+	}
+
+	while(1)
+	{//each time we find a new digit, increase the value of the previous digets by a factor of ten, and add the new
+		if (*str >= '0' && *str <= '9') 
+			num = num*10 + (*str - '0');
+		else break;	//bad char
+	}
+	if (*str == '.')
+	{	//each time we find a new digit, decrease the value of the following digits.
+		while(1)
+		{
+			if (*str >= '0' && *str <= '9')
+			{
+				unit /= 10;
+				num = num + (*str - '0')*unit;
+			}
+			else break;	//bad char
+		}
+	}
 	return num*sign;
 }
 

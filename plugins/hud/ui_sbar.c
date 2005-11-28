@@ -1,5 +1,7 @@
 #include "../plugin.h"
 
+#define DEFAULTHUDNAME "ftehud.hud"
+
 #define MAX_ELEMENTS 128
 
 int K_UPARROW;
@@ -937,6 +939,8 @@ void Hud_Save(char *fname)
 {
 	int i;
 	int handle;
+	if (!fname)
+		fname = DEFAULTHUDNAME;
 	if (FS_Open(fname, &handle, 1)<0)
 	{
 		Con_Printf("Couldn't open %s\n", fname);
@@ -951,7 +955,9 @@ void Hud_Save(char *fname)
 		PutFloat(element[i].y, ' ', handle);
 		PutFloat(element[i].scalex, ' ', handle);
 		PutFloat(element[i].scaley, ' ', handle);
-		PutInteger(element[i].type, '\n', handle);
+		PutInteger(element[i].type, ' ', handle);
+		PutInteger(element[i].subtype, ' ', handle);
+		PutFloat(element[i].alpha, '\n', handle);
 	}
 
 	FS_Close(handle);
@@ -999,6 +1005,12 @@ void Hud_Load(char *fname)
 	int len;
 	int i;
 	int handle;
+
+	float x, y, sx, sy, a;
+	int type, subtype;
+
+	if (!fname)
+		fname = DEFAULTHUDNAME;
 	len = FS_Open(fname, &handle, 0);
 	if (len < 0)
 	{
@@ -1027,17 +1039,28 @@ void Hud_Load(char *fname)
 	}
 	for (i = 0; i < numelements; i++)
 	{
-		element[i].x = GetFloat(&p, handle);
-		element[i].y = GetFloat(&p, handle);
-		element[i].scalex = GetFloat(&p, handle);
-		element[i].scaley = GetFloat(&p, handle);
+		x = GetFloat(&p, handle);
+		y = GetFloat(&p, handle);
+		sx = GetFloat(&p, handle);
+		sy = GetFloat(&p, handle);
+		a = GetFloat(&p, handle);
+		type = GetInteger(&p, handle);
+		subtype = GetInteger(&p, handle);
 
-		element[i].type = GetInteger(&p, handle);
-		if (element[i].type<0 || element[i].type>=sizeof(drawelement)/sizeof(drawelement[0]))
+		if (type<0 || type>=sizeof(drawelement)/sizeof(drawelement[0]))
 		{
 			numelements--;
 			i--;
+			continue;
 		}
+
+		element[i].x = x;
+		element[i].y = y;
+		element[i].scalex = sx;
+		element[i].scaley = sy;
+		element[i].alpha = a;
+		element[i].type = type;
+		element[i].subtype = subtype;
 	}
 }
 

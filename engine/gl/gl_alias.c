@@ -3343,7 +3343,7 @@ static void Q2_LoadSkins(char *skins)
 	galiastexnum_t *texnums;
 	galiasskin_t *outskin = (galiasskin_t *)((char *)galias + galias->ofsskins);
 
-	for (i = 0; i < pq2inmodel->num_skins; i++, outskin++)
+	for (i = 0; i < LittleLong(pq2inmodel->num_skins); i++, outskin++)
 	{
 		texnums = Hunk_Alloc(sizeof(*texnums));
 		outskin->ofstexnums = (char *)texnums - (char *)outskin;
@@ -3358,7 +3358,7 @@ static void Q2_LoadSkins(char *skins)
 		skins += MD2MAX_SKINNAME;
 	}
 #endif
-	galias->numskins = pq2inmodel->num_skins;
+	galias->numskins = LittleLong(pq2inmodel->num_skins);
 }
 
 #define MD2_MAX_TRIANGLES 4096
@@ -3402,47 +3402,45 @@ void GL_LoadQ2Model (model_t *mod, void *buffer)
 
 	pq2inmodel = (md2_t *)buffer;
 
-	//FIXME: Endian
-
 	version = LittleLong (pq2inmodel->version);
 	if (version != MD2ALIAS_VERSION)
 		Sys_Error ("%s has wrong version number (%i should be %i)",
 				 mod->name, version, MD2ALIAS_VERSION);
 
-	if (pq2inmodel->num_frames < 1 ||
-		pq2inmodel->num_skins < 0 ||
-		pq2inmodel->num_tris < 1 ||
-		pq2inmodel->num_xyz < 3 ||
-		pq2inmodel->num_st < 3 ||
-		pq2inmodel->skinheight < 1 ||
-		pq2inmodel->skinwidth < 1)
+	if (LittleLong(pq2inmodel->num_frames) < 1 ||
+		LittleLong(pq2inmodel->num_skins) < 0 ||
+		LittleLong(pq2inmodel->num_tris) < 1 ||
+		LittleLong(pq2inmodel->num_xyz) < 3 ||
+		LittleLong(pq2inmodel->num_st) < 3 ||
+		LittleLong(pq2inmodel->skinheight) < 1 ||
+		LittleLong(pq2inmodel->skinwidth) < 1)
 		Sys_Error("Model %s has an invalid quantity\n", mod->name);
 
 	mod->flags = 0;
 
-	loadmodel->numframes = pq2inmodel->num_frames;
+	loadmodel->numframes = LittleLong(pq2inmodel->num_frames);
 
 	size = sizeof(galiasinfo_t)
 #ifndef SERVERONLY
-		+ pq2inmodel->num_skins*sizeof(galiasskin_t)
+		+ LittleLong(pq2inmodel->num_skins)*sizeof(galiasskin_t)
 #endif
-		+ pq2inmodel->num_frames*sizeof(galiasgroup_t);
+		+ LittleLong(pq2inmodel->num_frames)*sizeof(galiasgroup_t);
 
 	galias = Hunk_Alloc(size);
 	galias->groupofs = sizeof(*galias);
 #ifndef SERVERONLY
-	galias->ofsskins = sizeof(*galias)+pq2inmodel->num_frames*sizeof(galiasgroup_t);
+	galias->ofsskins = sizeof(*galias)+LittleLong(pq2inmodel->num_frames)*sizeof(galiasgroup_t);
 #endif
 	galias->nextsurf = 0;
 
 //skins
-	Q2_LoadSkins(((char *)pq2inmodel+pq2inmodel->ofs_skins));
+	Q2_LoadSkins(((char *)pq2inmodel+LittleLong(pq2inmodel->ofs_skins)));
 
 	//trianglelists;
-	pintri = (dmd2triangle_t *)((char *)pq2inmodel + pq2inmodel->ofs_tris);
+	pintri = (dmd2triangle_t *)((char *)pq2inmodel + LittleLong(pq2inmodel->ofs_tris));
 
 
-	for (i=0 ; i<pq2inmodel->num_tris ; i++, pintri++)
+	for (i=0 ; i<LittleLong(pq2inmodel->num_tris) ; i++, pintri++)
 	{
 		for (j=0 ; j<3 ; j++)
 		{
@@ -3451,7 +3449,7 @@ void GL_LoadQ2Model (model_t *mod, void *buffer)
 		}
 	}
 
-	numindexes = galias->numindexes = pq2inmodel->num_tris*3;
+	numindexes = galias->numindexes = LittleLong(pq2inmodel->num_tris)*3;
 	indexes = Hunk_Alloc(galias->numindexes*sizeof(*indexes));
 	galias->ofs_indexes = (char *)indexes - (char *)galias;
 	memset ( indremap, -1, sizeof(indremap) );
@@ -3486,7 +3484,7 @@ void GL_LoadQ2Model (model_t *mod, void *buffer)
 		indremap[i] = i;
 	}
 
-	Con_DPrintf ( "%s: remapped %i verts to %i\n", mod->name, pq2inmodel->num_xyz, numverts );
+	Con_DPrintf ( "%s: remapped %i verts to %i\n", mod->name, LittleLong(pq2inmodel->num_xyz), numverts );
 
 	galias->numverts = numverts;
 
@@ -3506,8 +3504,8 @@ void GL_LoadQ2Model (model_t *mod, void *buffer)
 
 	for (j=0 ; j<numindexes; j++)
 	{
-		st_array[indexes[j]][0] = (float)(((double)LittleShort (pinstverts[ptempstindex[indremap[j]]].s) + 0.5f) /pq2inmodel->skinwidth);
-		st_array[indexes[j]][1] = (float)(((double)LittleShort (pinstverts[ptempstindex[indremap[j]]].t) + 0.5f) /pq2inmodel->skinheight);
+		st_array[indexes[j]][0] = (float)(((double)LittleShort (pinstverts[ptempstindex[indremap[j]]].s) + 0.5f) /LittleLong(pq2inmodel->skinwidth));
+		st_array[indexes[j]][1] = (float)(((double)LittleShort (pinstverts[ptempstindex[indremap[j]]].t) + 0.5f) /LittleLong(pq2inmodel->skinheight));
 	}
 #endif
 
@@ -3516,7 +3514,7 @@ void GL_LoadQ2Model (model_t *mod, void *buffer)
 
 	poutframe = (galiasgroup_t*)((char *)galias + galias->groupofs);
 	framesize = LittleLong (pq2inmodel->framesize);
-	for (i=0 ; i<pq2inmodel->num_frames ; i++)
+	for (i=0 ; i<LittleLong(pq2inmodel->num_frames) ; i++)
 	{
 		pose = (galiaspose_t *)Hunk_Alloc(sizeof(galiaspose_t) + sizeof(vec3_t)*numverts
 #ifndef SERVERONLY
@@ -3576,9 +3574,9 @@ void GL_LoadQ2Model (model_t *mod, void *buffer)
 	if (r_shadows.value)
 	{
 		int *neighbours;
-		neighbours = Hunk_Alloc(sizeof(int)*3*pq2inmodel->num_tris);
+		neighbours = Hunk_Alloc(sizeof(int)*3*LittleLong(pq2inmodel->num_tris));
 		galias->ofs_trineighbours = (qbyte *)neighbours - (qbyte *)galias;
-		R_BuildTriangleNeighbours(neighbours, indexes, pq2inmodel->num_tris);
+		R_BuildTriangleNeighbours(neighbours, indexes, LittleLong(pq2inmodel->num_tris));
 	}
 #endif
 	/*

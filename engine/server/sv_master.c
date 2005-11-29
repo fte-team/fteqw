@@ -7,53 +7,9 @@
 #ifdef _MSC_VER
 #include "wsipx.h"
 #endif
-
-#define EWOULDBLOCK	WSAEWOULDBLOCK
-#define EMSGSIZE	WSAEMSGSIZE
-#define ECONNRESET	WSAECONNRESET
-#define ECONNABORTED	WSAECONNABORTED
-#define ECONNREFUSED	WSAECONNREFUSED
-#define EADDRNOTAVAIL	WSAEADDRNOTAVAIL
-#define EAFNOSUPPORT	WSAEAFNOSUPPORT
-
-#define qerrno WSAGetLastError()
-#else
-#define qerrno errno
-
-#include <sys/types.h>
-#include <sys/socket.h>
-#include <netinet/in.h>
-#include <netdb.h>
-#include <sys/param.h>
-#include <sys/ioctl.h>
-#include <sys/uio.h>
-#include <arpa/inet.h>
-#include <errno.h>
-
-#if defined(sun)
-#include <unistd.h>
 #endif
 
-#ifdef sun
-#include <sys/filio.h>
-#endif
-
-#ifdef NeXT
-#include <libc.h>
-#endif
-
-#define closesocket close
-#define ioctlsocket ioctl
-#endif
-
-
-
-
-
-
-
-
-
+#include "netinc.h"
 
 //quake1 protocol
 //

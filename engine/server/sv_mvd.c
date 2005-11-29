@@ -20,54 +20,10 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 
 #include "qwsvdef.h"
 #ifndef CLIENTONLY
+
 #include "winquake.h"
 
-#ifdef _WIN32
-
-#define EWOULDBLOCK	WSAEWOULDBLOCK
-#define EMSGSIZE	WSAEMSGSIZE
-#define ECONNRESET	WSAECONNRESET
-#define ECONNABORTED	WSAECONNABORTED
-#define ECONNREFUSED	WSAECONNREFUSED
-#define EADDRNOTAVAIL	WSAEADDRNOTAVAIL
-
-#define qerrno WSAGetLastError()
-#else
-#define qerrno errno
-
-#include <sys/types.h>
-#include <sys/socket.h>
-#include <netinet/in.h>
-#include <netdb.h>
-#include <sys/param.h>
-#include <sys/ioctl.h>
-#include <sys/uio.h>
-#include <arpa/inet.h>
-#include <errno.h>
-
-#include <unistd.h>
-
-#ifdef sun
-#include <sys/filio.h>
-#endif
-
-#ifdef NeXT
-#include <libc.h>
-#endif
-
-#if defined(__MORPHOS__) && !defined(ixemul)
-#define closesocket CloseSocket
-#define ioctlsocket IoctlSocket
-#else
-#define closesocket close
-#define ioctlsocket ioctl
-#endif
-
-#ifndef INVALID_SOCKET
-#define INVALID_SOCKET -1
-#endif
-
-#endif
+#include "netinc.h"
 
 
 void SV_MVDStop_f (void);

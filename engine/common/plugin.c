@@ -13,6 +13,8 @@ cvar_t plug_loaddefault = {"plug_loaddefault", "1"};
 #include "glquake.h"
 #endif
 
+#include "netinc.h"
+
 typedef struct plugin_s {
 	char *name;
 	vm_t *vm;
@@ -798,46 +800,6 @@ int VARGS Plug_Con_RenameSub(void *offset, unsigned int mask, const long *arg)
 	return 1;
 }
 
-
-#ifdef _WIN32
-#define EWOULDBLOCK	WSAEWOULDBLOCK
-#define EMSGSIZE	WSAEMSGSIZE
-#define ECONNRESET	WSAECONNRESET
-#define ECONNABORTED	WSAECONNABORTED
-#define ECONNREFUSED	WSAECONNREFUSED
-#define EADDRNOTAVAIL	WSAEADDRNOTAVAIL
-
-#define qerrno WSAGetLastError()
-
-#ifdef IPPROTO_IPV6
-#include <ws2tcpip.h>
-#endif
-#else
-
-
-#define qerrno errno
-
-#define MSG_PARTIAL 0
-#include <sys/types.h>
-#include <sys/socket.h>
-#include <netinet/in.h>
-#include <netdb.h>
-#include <sys/param.h>
-#include <sys/ioctl.h>
-#include <sys/uio.h>
-#include <arpa/inet.h>
-#include <errno.h>
-
-#include <unistd.h>
-
-#ifdef __MORPHOS__
-#define closesocket CloseSocket
-#define ioctlsocket IoctlSocket
-#else
-#define closesocket close
-#define ioctlsocket ioctl
-#endif
-#endif
 
 typedef enum{
 	STREAM_NONE,

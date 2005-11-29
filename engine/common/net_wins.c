@@ -22,6 +22,7 @@ struct sockaddr;
 
 #include "quakedef.h"
 #ifdef _WIN32
+
 #ifdef _MSC_VER
 #define USEIPX
 #endif
@@ -33,53 +34,9 @@ struct sockaddr;
 #include "ws2tcpip.h"
 #endif
 
-#ifndef _WIN32	//for mac
-#include <sys/time.h>
 #endif
 
-#define EWOULDBLOCK	WSAEWOULDBLOCK
-#define EMSGSIZE	WSAEMSGSIZE
-#define ECONNRESET	WSAECONNRESET
-#define ECONNABORTED	WSAECONNABORTED
-#define ECONNREFUSED	WSAECONNREFUSED
-#define EADDRNOTAVAIL	WSAEADDRNOTAVAIL
-#define EAFNOSUPPORT	WSAEAFNOSUPPORT
-
-#else
-#include <sys/types.h>
-#include <sys/socket.h>
-#include <netinet/in.h>
-#include <netdb.h>
-#include <sys/param.h>
-#include <sys/ioctl.h>
-#include <sys/uio.h>
-#include <arpa/inet.h>
-#include <errno.h>
-
-#include <unistd.h>
-
-#ifdef sun
-#include <sys/filio.h>
-#endif
-
-#ifdef NeXT
-#include <libc.h>
-#endif
-
-#define closesocket close
-#define ioctlsocket ioctl
-
-#ifndef INVALID_SOCKET
-#define INVALID_SOCKET -1
-#endif
-
-#endif
-
-#ifdef _WIN32
-#define qerrno WSAGetLastError()	//windows errors are retrieved via WSAGetLastError
-#else
-#define qerrno errno	//linux and single threaded oses are happy with errno as a global
-#endif
+#include "netinc.h"
 
 netadr_t	net_local_cl_ipadr;
 netadr_t	net_local_cl_ip6adr;
@@ -1126,6 +1083,7 @@ void NET_Init (void)
 	if (r)
 		Sys_Error ("Winsock initialization failed.");
 #endif
+
 	Con_TPrintf(TL_UDPINITED);
 
 #ifndef SERVERONLY

@@ -21,6 +21,9 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 #ifndef __BOTHDEFS_H
 #define __BOTHDEFS_H
 
+#if defined(__APPLE__) && defined(__MACH__)
+#define MACOSX
+#endif
 
 #if defined(__MINGW32_VERSION) || defined(__MINGW__)
 	#define MINGW
@@ -34,7 +37,7 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 #else
 
 	//#define AVAIL_OGGVORBIS
-	#if !defined(__CYGWIN__) && !defined(MINGW)
+	#if !defined(__CYGWIN__) && !defined(MINGW) && !defined(MACOSX)
 		#define AVAIL_PNGLIB
 		#define AVAIL_JPEGLIB
 		#define AVAIL_ZLIB
@@ -264,6 +267,8 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 		#define PLATFORM	"NetBSD"
 	#elif defined(__MORPHOS__)
 		#define PLATFORM	"MorphOS"
+	#elif defined(MACOSX)
+		#define PLATFORM	"MacOS X"
 	#else
 		#define PLATFORM	"Unknown"
 	#endif

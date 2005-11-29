@@ -1568,7 +1568,7 @@ void SV_SnapAll_f (void)
 	}
 }
 
-float timer;
+float mytimer;
 float lasttimer;
 int ticsleft;
 float timerinterval;
@@ -1578,14 +1578,14 @@ void SV_CheckTimer(void)
 {
 	float ctime = Sys_DoubleTime();
 //	if (ctime < lasttimer) //new map? (shouldn't happen)
-//		timer = ctime+5;	//trigger in a few secs
+//		mytimer = ctime+5;	//trigger in a few secs
 	lasttimer = ctime;
 
 	if (ticsleft)
 	{
-		if (timer < ctime)
+		if (mytimer < ctime)
 		{
-			timer += timerinterval;
+			mytimer += timerinterval;
 			if (ticsleft > 0)
 				ticsleft--;
 
@@ -1631,7 +1631,7 @@ void SV_SetTimer_f(void)
 	timercommand = Cvar_Get("sv_timer", "", CVAR_NOSET, NULL);
 	Cvar_ForceSet(timercommand, command);
 
-	timer = Sys_DoubleTime() + interval;
+	mytimer = Sys_DoubleTime() + interval;
 	ticsleft = count;
 	timerinterval = interval;
 

@@ -6,8 +6,9 @@
 #include <fcntl.h>
 #endif
 
+#ifndef isDedicated
 qboolean isDedicated;
-
+#endif
 
 void Sys_Error (const char *error, ...)
 {

@@ -4,45 +4,9 @@
 
 #include "iweb.h"
 
+#include "netinc.h"
+
 //FIXME: Before any admins use this for any serious usage, make the server send bits of file slowly.
-
-
-#ifdef _WIN32
-
-#define EWOULDBLOCK	WSAEWOULDBLOCK
-#define EMSGSIZE	WSAEMSGSIZE
-#define ECONNRESET	WSAECONNRESET
-#define ECONNABORTED	WSAECONNABORTED
-#define ECONNREFUSED	WSAECONNREFUSED
-#define EADDRNOTAVAIL	WSAEADDRNOTAVAIL
-
-#define qerrno WSAGetLastError()
-#else
-#define qerrno errno
-
-#include <sys/types.h>
-#include <sys/socket.h>
-#include <netinet/in.h>
-#include <netdb.h>
-#include <sys/param.h>
-#include <sys/ioctl.h>
-#include <sys/uio.h>
-#include <arpa/inet.h>
-#include <errno.h>
-
-#include <unistd.h>
-
-#ifdef sun
-#include <sys/filio.h>
-#endif
-
-#ifdef NeXT
-#include <libc.h>
-#endif
-
-#define closesocket close
-#define ioctlsocket ioctl
-#endif
 
 static qboolean httpserverinitied = false;
 static int	httpserversocket;

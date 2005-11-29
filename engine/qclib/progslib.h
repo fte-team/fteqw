@@ -186,7 +186,7 @@ typedef union eval_s
 {
 	string_t		string;
 	float			_float;
-	float			vector[3];
+	float			_vector[3];
 	func_t			function;
 	int				_int;
 	int				edict;

@@ -4756,23 +4756,23 @@ void SVNQ_ReadClientMove (usercmd_t *move)
 		cursor_entitynumber	= svprogfuncs->GetEdictFieldValue(svprogfuncs, host_client->edict, "cursor_entitynumber", NULL);
 
 		f = MSG_ReadShort() * (1.0f / 32767.0f);
-		if (cursor_screen) cursor_screen->vector[0] = f;
+		if (cursor_screen) cursor_screen->_vector[0] = f;
 		f = MSG_ReadShort() * (1.0f / 32767.0f);
-		if (cursor_screen) cursor_screen->vector[1] = f;
+		if (cursor_screen) cursor_screen->_vector[1] = f;
 
 		f = MSG_ReadFloat();
-		if (cursor_start) cursor_start->vector[0] = f;
+		if (cursor_start) cursor_start->_vector[0] = f;
 		f = MSG_ReadFloat();
-		if (cursor_start) cursor_start->vector[1] = f;
+		if (cursor_start) cursor_start->_vector[1] = f;
 		f = MSG_ReadFloat();
-		if (cursor_start) cursor_start->vector[2] = f;
+		if (cursor_start) cursor_start->_vector[2] = f;
 
 		f = MSG_ReadFloat();
-		if (cursor_impact) cursor_impact->vector[0] = f;
+		if (cursor_impact) cursor_impact->_vector[0] = f;
 		f = MSG_ReadFloat();
-		if (cursor_impact) cursor_impact->vector[1] = f;
+		if (cursor_impact) cursor_impact->_vector[1] = f;
 		f = MSG_ReadFloat();
-		if (cursor_impact) cursor_impact->vector[2] = f;
+		if (cursor_impact) cursor_impact->_vector[2] = f;
 
 		entnum = (unsigned short)MSG_ReadShort();
 		if (entnum >= sv.max_edicts)

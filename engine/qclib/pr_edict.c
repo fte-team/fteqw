@@ -535,7 +535,7 @@ char *PR_ValueString (progfuncs_t *progfuncs, etype_t type, eval_t *val)
 		sprintf (line, "%i", val->_int);
 		break;
 	case ev_vector:
-		sprintf (line, "'%5.1f %5.1f %5.1f'", val->vector[0], val->vector[1], val->vector[2]);
+		sprintf (line, "'%5.1f %5.1f %5.1f'", val->_vector[0], val->_vector[1], val->_vector[2]);
 		break;
 	case ev_pointer:
 		sprintf (line, "pointer");
@@ -638,10 +638,10 @@ char *PR_UglyValueString (progfuncs_t *progfuncs, etype_t type, eval_t *val)
 		sprintf (line, "%i", val->_int);
 		break;
 	case ev_vector:
-		if (val->vector[0] == (int)val->vector[0] && val->vector[1] == (int)val->vector[1] && val->vector[2] == (int)val->vector[2])
-			sprintf (line, "%i %i %i", (int)val->vector[0], (int)val->vector[1], (int)val->vector[2]);
+		if (val->_vector[0] == (int)val->_vector[0] && val->_vector[1] == (int)val->_vector[1] && val->_vector[2] == (int)val->_vector[2])
+			sprintf (line, "%i %i %i", (int)val->_vector[0], (int)val->_vector[1], (int)val->_vector[2]);
 		else
-			sprintf (line, "%f %f %f", val->vector[0], val->vector[1], val->vector[2]);
+			sprintf (line, "%f %f %f", val->_vector[0], val->_vector[1], val->_vector[2]);
 		break;
 	default:
 		sprintf (line, "bad type %i", type);
@@ -700,10 +700,10 @@ char *PR_UglyOldValueString (progfuncs_t *progfuncs, etype_t type, eval_t *val)
 		sprintf (line, "%i", val->_int);
 		break;
 	case ev_vector:
-		if (val->vector[0] == (int)val->vector[0] && val->vector[1] == (int)val->vector[1] && val->vector[2] == (int)val->vector[2])
-			sprintf (line, "%i %i %i", (int)val->vector[0], (int)val->vector[1], (int)val->vector[2]);
+		if (val->_vector[0] == (int)val->_vector[0] && val->_vector[1] == (int)val->_vector[1] && val->_vector[2] == (int)val->_vector[2])
+			sprintf (line, "%i %i %i", (int)val->_vector[0], (int)val->_vector[1], (int)val->_vector[2]);
 		else
-			sprintf (line, "%f %f %f", val->vector[0], val->vector[1], val->vector[2]);
+			sprintf (line, "%f %f %f", val->_vector[0], val->_vector[1], val->_vector[2]);
 		break;
 		break;
 	default:

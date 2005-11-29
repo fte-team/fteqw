@@ -581,8 +581,8 @@ void WriteAsmStatements(progfuncs_t *progfuncs, progstate_t *progs, int num, int
 						writes(f, "\tlocal %s %s;\r\n", "entity", progfuncs->stringtable+def->s_name);
 						break;
 					case ev_vector:
-						if (v->vector[0] || v->vector[1] || v->vector[2])
-							writes(f, "\tlocal vector %s = '%f %f %f';\r\n", progfuncs->stringtable+def->s_name, v->vector[0], v->vector[1], v->vector[2]);
+						if (v->_vector[0] || v->_vector[1] || v->_vector[2])
+							writes(f, "\tlocal vector %s = '%f %f %f';\r\n", progfuncs->stringtable+def->s_name, v->_vector[0], v->_vector[1], v->_vector[2]);
 						else						
 							writes(f, "\tlocal %s %s;\r\n", "vector", progfuncs->stringtable+def->s_name);
 						ofs+=2;	//skip floats;
@@ -697,8 +697,8 @@ void WriteAsmStatements(progfuncs_t *progfuncs, progstate_t *progs, int num, int
 						writes(f, "\tlocal %s %s;\r\n", "entity", progfuncs->stringtable+def->s_name);
 						break;
 					case ev_vector:
-						if (v->vector[0] || v->vector[1] || v->vector[2])
-							writes(f, "\tlocal vector %s = '%f %f %f';\r\n", def->s_name, v->vector[0], v->vector[1], v->vector[2]);
+						if (v->_vector[0] || v->_vector[1] || v->_vector[2])
+							writes(f, "\tlocal vector %s = '%f %f %f';\r\n", def->s_name, v->_vector[0], v->_vector[1], v->_vector[2]);
 						else						
 							writes(f, "\tlocal %s %s;\r\n", "vector",progfuncs->stringtable+def->s_name);
 						ofs+=2;	//skip floats;
@@ -901,8 +901,8 @@ pbool Decompile(progfuncs_t *progfuncs, char *fname)
 				writes(f, "float %s;\r\n", progfuncs->stringtable+pr_globaldefs16[i].s_name);
 			break;
 		case ev_vector:
-			if (v->vector[0] || v->vector[1] || v->vector[2])
-				writes(f, "vector %s = '%f %f %f';\r\n", progfuncs->stringtable+pr_globaldefs16[i].s_name, v->vector[0], v->vector[1], v->vector[2]);
+			if (v->_vector[0] || v->_vector[1] || v->_vector[2])
+				writes(f, "vector %s = '%f %f %f';\r\n", progfuncs->stringtable+pr_globaldefs16[i].s_name, v->_vector[0], v->_vector[1], v->_vector[2]);
 			else
 				writes(f, "vector %s;\r\n", progfuncs->stringtable+pr_globaldefs16[i].s_name);
 			i+=3;//skip the floats

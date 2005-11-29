@@ -59,46 +59,46 @@ reeval:
 		OPC->_float = OPA->_float + OPB->_float;
 		break;
 	case OP_ADD_V:
-		OPC->vector[0] = OPA->vector[0] + OPB->vector[0];
-		OPC->vector[1] = OPA->vector[1] + OPB->vector[1];
-		OPC->vector[2] = OPA->vector[2] + OPB->vector[2];
+		OPC->_vector[0] = OPA->_vector[0] + OPB->_vector[0];
+		OPC->_vector[1] = OPA->_vector[1] + OPB->_vector[1];
+		OPC->_vector[2] = OPA->_vector[2] + OPB->_vector[2];
 		break;
 
 	case OP_SUB_F:
 		OPC->_float = OPA->_float - OPB->_float;
 		break;
 	case OP_SUB_V:
-		OPC->vector[0] = OPA->vector[0] - OPB->vector[0];
-		OPC->vector[1] = OPA->vector[1] - OPB->vector[1];
-		OPC->vector[2] = OPA->vector[2] - OPB->vector[2];
+		OPC->_vector[0] = OPA->_vector[0] - OPB->_vector[0];
+		OPC->_vector[1] = OPA->_vector[1] - OPB->_vector[1];
+		OPC->_vector[2] = OPA->_vector[2] - OPB->_vector[2];
 		break;
 
 	case OP_MUL_F:
 		OPC->_float = OPA->_float * OPB->_float;
 		break;
 	case OP_MUL_V:
-		OPC->_float = OPA->vector[0]*OPB->vector[0]
-				+ OPA->vector[1]*OPB->vector[1]
-				+ OPA->vector[2]*OPB->vector[2];
+		OPC->_float = OPA->_vector[0]*OPB->_vector[0]
+				+ OPA->_vector[1]*OPB->_vector[1]
+				+ OPA->_vector[2]*OPB->_vector[2];
 		break;
 	case OP_MUL_FV:
-		OPC->vector[0] = OPA->_float * OPB->vector[0];
-		OPC->vector[1] = OPA->_float * OPB->vector[1];
-		OPC->vector[2] = OPA->_float * OPB->vector[2];
+		OPC->_vector[0] = OPA->_float * OPB->_vector[0];
+		OPC->_vector[1] = OPA->_float * OPB->_vector[1];
+		OPC->_vector[2] = OPA->_float * OPB->_vector[2];
 		break;
 	case OP_MUL_VF:
-		OPC->vector[0] = OPB->_float * OPA->vector[0];
-		OPC->vector[1] = OPB->_float * OPA->vector[1];
-		OPC->vector[2] = OPB->_float * OPA->vector[2];
+		OPC->_vector[0] = OPB->_float * OPA->_vector[0];
+		OPC->_vector[1] = OPB->_float * OPA->_vector[1];
+		OPC->_vector[2] = OPB->_float * OPA->_vector[2];
 		break;
 
 	case OP_DIV_F:
 		OPC->_float = OPA->_float / OPB->_float;
 		break;
 	case OP_DIV_VF:
-		OPC->vector[0] = OPB->_float / OPA->vector[0];
-		OPC->vector[1] = OPB->_float / OPA->vector[1];
-		OPC->vector[2] = OPB->_float / OPA->vector[2];
+		OPC->_vector[0] = OPB->_float / OPA->_vector[0];
+		OPC->_vector[1] = OPB->_float / OPA->_vector[1];
+		OPC->_vector[2] = OPB->_float / OPA->_vector[2];
 		break;
 
 	case OP_BITAND:
@@ -173,7 +173,7 @@ reeval:
 		OPC->_float = (float)(!OPA->_float);
 		break;
 	case OP_NOT_V:
-		OPC->_float = (float)(!OPA->vector[0] && !OPA->vector[1] && !OPA->vector[2]);
+		OPC->_float = (float)(!OPA->_vector[0] && !OPA->_vector[1] && !OPA->_vector[2]);
 		break;
 	case OP_NOT_S:
 		OPC->_float = (float)(!(OPA->string) || !*(OPA->string+progfuncs->stringtable));
@@ -197,9 +197,9 @@ reeval:
 
 
 	case OP_EQ_V:
-		OPC->_float = (float)((OPA->vector[0] == OPB->vector[0]) &&
-					(OPA->vector[1] == OPB->vector[1]) &&
-					(OPA->vector[2] == OPB->vector[2]));
+		OPC->_float = (float)((OPA->_vector[0] == OPB->_vector[0]) &&
+					(OPA->_vector[1] == OPB->_vector[1]) &&
+					(OPA->_vector[2] == OPB->_vector[2]));
 		break;
 	case OP_EQ_S:
 		if (OPA->string==OPB->string)
@@ -233,9 +233,9 @@ reeval:
 		OPC->_float = (float)(OPA->_float != OPB->_float);
 		break;
 	case OP_NE_V:
-		OPC->_float = (float)((OPA->vector[0] != OPB->vector[0]) ||
-					(OPA->vector[1] != OPB->vector[1]) ||
-					(OPA->vector[2] != OPB->vector[2]));
+		OPC->_float = (float)((OPA->_vector[0] != OPB->_vector[0]) ||
+					(OPA->_vector[1] != OPB->_vector[1]) ||
+					(OPA->_vector[2] != OPB->_vector[2]));
 		break;
 	case OP_NE_S:
 		if (OPA->string==OPB->string)
@@ -282,9 +282,9 @@ reeval:
 		OPB->_int = OPA->_int;
 		break;
 	case OP_STORE_V:
-		OPB->vector[0] = OPA->vector[0];
-		OPB->vector[1] = OPA->vector[1];
-		OPB->vector[2] = OPA->vector[2];
+		OPB->_vector[0] = OPA->_vector[0];
+		OPB->_vector[1] = OPA->_vector[1];
+		OPB->_vector[2] = OPA->_vector[2];
 		break;
 
 	//store a value to a pointer
@@ -310,9 +310,9 @@ reeval:
 		break;
 	case OP_STOREP_V:
 		ptr = QCPOINTER(OPB);
-		ptr->vector[0] = OPA->vector[0];
-		ptr->vector[1] = OPA->vector[1];
-		ptr->vector[2] = OPA->vector[2];
+		ptr->_vector[0] = OPA->_vector[0];
+		ptr->_vector[1] = OPA->_vector[1];
+		ptr->_vector[2] = OPA->_vector[2];
 		break;
 
 	case OP_STOREP_C:	//store character in a string
@@ -324,9 +324,9 @@ reeval:
 		OPB->_float *= OPA->_float;
 		break;
 	case OP_MULSTORE_V: // v *= f
-		OPB->vector[0] *= OPA->_float;
-		OPB->vector[1] *= OPA->_float;
-		OPB->vector[2] *= OPA->_float;
+		OPB->_vector[0] *= OPA->_float;
+		OPB->_vector[1] *= OPA->_float;
+		OPB->_vector[2] *= OPA->_float;
 		break;
 	case OP_MULSTOREP_F: // e.f *= f
 		ptr = QCPOINTER(OPB);
@@ -334,9 +334,9 @@ reeval:
 		break;
 	case OP_MULSTOREP_V: // e.v *= f
 		ptr = QCPOINTER(OPB);
-		OPC->vector[0] = (ptr->vector[0] *= OPA->_float);
-		OPC->vector[0] = (ptr->vector[1] *= OPA->_float);
-		OPC->vector[0] = (ptr->vector[2] *= OPA->_float);
+		OPC->_vector[0] = (ptr->_vector[0] *= OPA->_float);
+		OPC->_vector[0] = (ptr->_vector[1] *= OPA->_float);
+		OPC->_vector[0] = (ptr->_vector[2] *= OPA->_float);
 		break;
 
 	case OP_DIVSTORE_F: // f /= f
@@ -351,9 +351,9 @@ reeval:
 		OPB->_float += OPA->_float;
 		break;
 	case OP_ADDSTORE_V: // v += v
-		OPB->vector[0] += OPA->vector[0];
-		OPB->vector[1] += OPA->vector[1];
-		OPB->vector[2] += OPA->vector[2];
+		OPB->_vector[0] += OPA->_vector[0];
+		OPB->_vector[1] += OPA->_vector[1];
+		OPB->_vector[2] += OPA->_vector[2];
 		break;
 	case OP_ADDSTOREP_F: // e.f += f
 		ptr = QCPOINTER(OPB);
@@ -361,18 +361,18 @@ reeval:
 		break;
 	case OP_ADDSTOREP_V: // e.v += v
 		ptr = QCPOINTER(OPB);
-		OPC->vector[0] = (ptr->vector[0] += OPA->vector[0]);
-		OPC->vector[1] = (ptr->vector[1] += OPA->vector[1]);
-		OPC->vector[2] = (ptr->vector[2] += OPA->vector[2]);
+		OPC->_vector[0] = (ptr->_vector[0] += OPA->_vector[0]);
+		OPC->_vector[1] = (ptr->_vector[1] += OPA->_vector[1]);
+		OPC->_vector[2] = (ptr->_vector[2] += OPA->_vector[2]);
 		break;
 
 	case OP_SUBSTORE_F: // f -= f
 		OPB->_float -= OPA->_float;
 		break;
 	case OP_SUBSTORE_V: // v -= v
-		OPB->vector[0] -= OPA->vector[0];
-		OPB->vector[1] -= OPA->vector[1];
-		OPB->vector[2] -= OPA->vector[2];
+		OPB->_vector[0] -= OPA->_vector[0];
+		OPB->_vector[1] -= OPA->_vector[1];
+		OPB->_vector[2] -= OPA->_vector[2];
 		break;
 	case OP_SUBSTOREP_F: // e.f -= f
 		ptr = QCPOINTER(OPB);
@@ -380,9 +380,9 @@ reeval:
 		break;
 	case OP_SUBSTOREP_V: // e.v -= v
 		ptr = QCPOINTER(OPB);
-		OPC->vector[0] = (ptr->vector[0] -= OPA->vector[0]);
-		OPC->vector[1] = (ptr->vector[1] -= OPA->vector[1]);
-		OPC->vector[2] = (ptr->vector[2] -= OPA->vector[2]);
+		OPC->_vector[0] = (ptr->_vector[0] -= OPA->_vector[0]);
+		OPC->_vector[1] = (ptr->_vector[1] -= OPA->_vector[1]);
+		OPC->_vector[2] = (ptr->_vector[2] -= OPA->_vector[2]);
 		break;
 
 
@@ -427,9 +427,9 @@ reeval:
 		NUM_FOR_EDICT(ed);		// make sure it's in range
 #endif
 		ptr = (eval_t *)(((int *)edvars(ed)) + OPB->_int + progfuncs->fieldadjust);
-		OPC->vector[0] = ptr->vector[0];
-		OPC->vector[1] = ptr->vector[1];
-		OPC->vector[2] = ptr->vector[2];
+		OPC->_vector[0] = ptr->_vector[0];
+		OPC->_vector[1] = ptr->_vector[1];
+		OPC->_vector[2] = ptr->_vector[2];
 		break;	
 		
 //==================
@@ -470,13 +470,13 @@ reeval:
 	case OP_CALL4H:
 	case OP_CALL3H:
 	case OP_CALL2H:
-		G_VECTOR(OFS_PARM1)[0] = OPC->vector[0];
-		G_VECTOR(OFS_PARM1)[1] = OPC->vector[1];
-		G_VECTOR(OFS_PARM1)[2] = OPC->vector[2];
+		G_VECTOR(OFS_PARM1)[0] = OPC->_vector[0];
+		G_VECTOR(OFS_PARM1)[1] = OPC->_vector[1];
+		G_VECTOR(OFS_PARM1)[2] = OPC->_vector[2];
 	case OP_CALL1H:
-		G_VECTOR(OFS_PARM0)[0] = OPB->vector[0];
-		G_VECTOR(OFS_PARM0)[1] = OPB->vector[1];
-		G_VECTOR(OFS_PARM0)[2] = OPB->vector[2];
+		G_VECTOR(OFS_PARM0)[0] = OPB->_vector[0];
+		G_VECTOR(OFS_PARM0)[1] = OPB->_vector[1];
+		G_VECTOR(OFS_PARM0)[2] = OPB->_vector[2];
 
 	case OP_CALL8:
 	case OP_CALL7:
@@ -684,9 +684,9 @@ if (pr_typecurrent != 0)
 
 	case OP_LOADA_V:
 		ptr = (eval_t *)(&OPA->_int + OPB->_int);
-		OPC->vector[0] = ptr->vector[0];
-		OPC->vector[1] = ptr->vector[1];
-		OPC->vector[2] = ptr->vector[2];
+		OPC->_vector[0] = ptr->_vector[0];
+		OPC->_vector[1] = ptr->_vector[1];
+		OPC->_vector[2] = ptr->_vector[2];
 		break;
 
 
@@ -713,9 +713,9 @@ if (pr_typecurrent != 0)
 
 	case OP_LOADP_V:
 		ptr = QCPOINTERM(OPA->_int + OPB->_int);
-		OPC->vector[0] = ptr->vector[0];
-		OPC->vector[1] = ptr->vector[1];
-		OPC->vector[2] = ptr->vector[2];
+		OPC->_vector[0] = ptr->_vector[0];
+		OPC->_vector[1] = ptr->_vector[1];
+		OPC->_vector[2] = ptr->_vector[2];
 		break;
 
 	case OP_POWER_I:
@@ -749,9 +749,9 @@ if (pr_typecurrent != 0)
 		}
 		t = (eval_t *)&pr_globals[(uofs)st->a
 			+((int)OPB->_float)*3];
-		OPC->vector[0] = t->vector[0];
-		OPC->vector[1] = t->vector[1];
-		OPC->vector[2] = t->vector[2];
+		OPC->_vector[0] = t->_vector[0];
+		OPC->_vector[1] = t->_vector[1];
+		OPC->_vector[2] = t->_vector[2];
 		break;
 
 	case OP_CSTATE:
@@ -806,22 +806,22 @@ if (pr_typecurrent != 0)
 		G_FLOAT(OFS_RETURN+2) = (rand()&0x7fff)/((float)0x7fff);
 		break;
 	case OP_RANDV1:
-		G_FLOAT(OFS_RETURN+0) = (rand()&0x7fff)/((float)0x7fff)*OPA->vector[0];
-		G_FLOAT(OFS_RETURN+1) = (rand()&0x7fff)/((float)0x7fff)*OPA->vector[1];
-		G_FLOAT(OFS_RETURN+2) = (rand()&0x7fff)/((float)0x7fff)*OPA->vector[2];
+		G_FLOAT(OFS_RETURN+0) = (rand()&0x7fff)/((float)0x7fff)*OPA->_vector[0];
+		G_FLOAT(OFS_RETURN+1) = (rand()&0x7fff)/((float)0x7fff)*OPA->_vector[1];
+		G_FLOAT(OFS_RETURN+2) = (rand()&0x7fff)/((float)0x7fff)*OPA->_vector[2];
 		break;
 	case OP_RANDV2:
 		for(i = 0; i < 3; i++)
 		{
-			if(OPA->vector[i] < OPB->vector[i])
+			if(OPA->_vector[i] < OPB->_vector[i])
 			{
-				G_FLOAT(OFS_RETURN+i) = OPA->vector[i]+((rand()&0x7fff)/((float)0x7fff)
-					*(OPB->vector[i]-OPA->vector[i]));
+				G_FLOAT(OFS_RETURN+i) = OPA->_vector[i]+((rand()&0x7fff)/((float)0x7fff)
+					*(OPB->_vector[i]-OPA->_vector[i]));
 			}
 			else
 			{
-				G_FLOAT(OFS_RETURN+i) = OPB->vector[i]+(rand()*(1.0f/RAND_MAX)
-					*(OPA->vector[i]-OPB->vector[i]));
+				G_FLOAT(OFS_RETURN+i) = OPB->_vector[i]+(rand()*(1.0f/RAND_MAX)
+					*(OPA->_vector[i]-OPB->_vector[i]));
 			}
 		}
 		break;
@@ -870,7 +870,7 @@ if (pr_typecurrent != 0)
 			}
 			break;
 		case OP_SWITCH_V:
-			if (swtch->vector[0] == OPA->vector[0] && swtch->vector[1] == OPA->vector[1] && swtch->vector[2] == OPA->vector[2])
+			if (swtch->_vector[0] == OPA->_vector[0] && swtch->_vector[1] == OPA->_vector[1] && swtch->_vector[2] == OPA->_vector[2])
 			{
 				RUNAWAYCHECK();
 				st += (sofs)st->b-1; // -1 to offset the s++
@@ -925,14 +925,14 @@ if (pr_typecurrent != 0)
 		break;
 
 	case OP_MUL_VI:
-		OPC->vector[0] = OPA->vector[0] * OPB->_int;
-		OPC->vector[1] = OPA->vector[0] * OPB->_int;
-		OPC->vector[2] = OPA->vector[0] * OPB->_int;
+		OPC->_vector[0] = OPA->_vector[0] * OPB->_int;
+		OPC->_vector[1] = OPA->_vector[0] * OPB->_int;
+		OPC->_vector[2] = OPA->_vector[0] * OPB->_int;
 		break;
 	case OP_MUL_IV:
-		OPC->vector[0] = OPB->_int * OPA->vector[0];
-		OPC->vector[1] = OPB->_int * OPA->vector[1];
-		OPC->vector[2] = OPB->_int * OPA->vector[2];
+		OPC->_vector[0] = OPB->_int * OPA->_vector[0];
+		OPC->_vector[1] = OPB->_int * OPA->_vector[1];
+		OPC->_vector[2] = OPB->_int * OPA->_vector[2];
 		break;
 
 	case OP_DIV_IF:

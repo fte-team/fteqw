@@ -88,7 +88,54 @@ retry:
 				*buffer++ = _int;
 				tokens++;
 				break;
+			case 'x':
+				_int = va_arg(vargs, int);
+				if (_int < 0)
+				{
+					if (--maxlen < 0) 
+						{*buffer++='\0';return tokens;}
+					*buffer++ = '-';
+					_int *= -1;
+				}
+				i = sizeof(tempbuffer)-2;
+				tempbuffer[sizeof(tempbuffer)-1] = '\0';
+				while(_int)
+				{
+					tempbuffer[i] = _int%16 + '0';
+					_int/=16;
+					i--;
+				}
+				string = tempbuffer+i+1;
+
+				if (!*string)
+				{
+					i=61;
+					string = tempbuffer+i+1;
+					string[0] = '0';
+					string[1] = '\0';
+				}
+
+				precision -= 62-i;
+				while (precision>0)
+				{
+					string--;
+					if (use0s)
+						*string = '0';
+					else
+						*string = ' ';
+					precision--;
+				}
+
+				while (*string)
+				{
+					if (--maxlen < 0) 
+						{*buffer++='\0';return tokens;}
+					*buffer++ = *string++;
+				}
+				tokens++;
+				break;
 			case 'd':
+			case 'u':
 			case 'i':
 				_int = va_arg(vargs, int);
 				if (_int < 0)

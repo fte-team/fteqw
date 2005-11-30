@@ -20,7 +20,9 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 // cl_parse.c  -- parse a message received from the server
 
 #include "quakedef.h"
+#ifdef SPIKECOMMITTEDCLIGNORE
 #include "cl_ignore.h"
+#endif
 
 void CL_GetNumberedEntityInfo (int num, float *org, float *ang);
 void CLNQ_ParseDarkPlaces5Entities(void);
@@ -3099,12 +3101,13 @@ char *CL_ParseChat(char *text, player_info_t **player)
 		if ((int)msg_filter.value & flags)
 			return NULL;	//filter chat
 
+#ifdef SPIKECOMMITTEDCLIGNORE
 		check_flood = Ignore_Check_Flood(s, flags, offset);			
 		if (check_flood == IGNORE_NO_ADD)							
 			return NULL;
 		else if (check_flood == NO_IGNORE_ADD)					
 			Ignore_Flood_Add(s);
-
+#endif
 	}
 
 	suppress_talksound = false;
@@ -3616,6 +3619,9 @@ void CL_ParseServerMessage (void)
 		case svc_print:
 			i = MSG_ReadByte ();
 			s = MSG_ReadString ();
+
+			// Plug_Message(0, i, s);
+
 			if (i == PRINT_CHAT)
 			{
 				char *msg;
@@ -4073,6 +4079,9 @@ void CLQ2_ParseServerMessage (void)
 		case svcq2_print:		//10			// [qbyte] id [string] null terminated string
 			i = MSG_ReadByte ();
 			s = MSG_ReadString ();
+
+			// Plug_Message(0, i, s);
+
 			if (i == PRINT_CHAT)
 			{
 				char *msg;
@@ -4297,10 +4306,14 @@ void CLNQ_ParseServerMessage (void)
 
 		case svc_print:
 			s = MSG_ReadString ();
+
 			if (*s == 1 || *s == 2)
 			{
 				char *msg;
 				player_info_t *plr = NULL;
+
+				// Plug_Message(0, PRINT_CHAT, s);
+
 
 				if (msg = CL_ParseChat(s+1, &plr))
 				{
@@ -4310,6 +4323,8 @@ void CLNQ_ParseServerMessage (void)
 			}
 			else
 			{
+				// Plug_Message(0, PRINT_HIGH, s);
+
 				CL_ParsePrint(s, PRINT_HIGH);
 				CL_PrintStandardMessage(s);
 			}

@@ -419,6 +419,7 @@ int atoi(char *str)
 		sign = -1;
 		str++;
 	}
+	else sign = 1;
 
 	if (str[0] == '0' && (str[1] == 'x' || str[1] == 'X'))
 	{
@@ -435,9 +436,11 @@ int atoi(char *str)
 		else if (*str >= 'A' && *str <= 'A'+base-10)
 			num = num*base + (*str - 'A')+10;
 		else break;	//bad char
+		str++;
 	}	
 	return num*sign;
 }
+
 float atof(char *str)
 {
 	int sign;
@@ -452,12 +455,14 @@ float atof(char *str)
 		sign = -1;
 		str++;
 	}
+	else sign = 1;
 
 	while(1)
 	{//each time we find a new digit, increase the value of the previous digets by a factor of ten, and add the new
 		if (*str >= '0' && *str <= '9') 
 			num = num*10 + (*str - '0');
 		else break;	//bad char
+		str++;
 	}
 	if (*str == '.')
 	{	//each time we find a new digit, decrease the value of the following digits.
@@ -469,6 +474,7 @@ float atof(char *str)
 				num = num + (*str - '0')*unit;
 			}
 			else break;	//bad char
+			str++;
 		}
 	}
 	return num*sign;

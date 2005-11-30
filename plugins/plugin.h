@@ -24,6 +24,9 @@ char *strstr(char *str, const char *sub);
 void strlcpy(char *d, const char *s, int n);
 char *strchr(char *str, char sub);
 
+float atof(char *str);
+int atoi(char *str);
+
 #else
 
 #include <string.h>

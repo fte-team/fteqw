@@ -5170,12 +5170,14 @@ galiasinfo_t *GLMod_ParseMD5MeshModel(char *buffer)
 
 					buffer = COM_Parse(buffer);
 					num = atoi(com_token);
-					if (num < 0 || num >= numverts || !stcoord || !indexes)
+					if (num < 0 || num >= numverts || !indexes)
 						Sys_Error("MD5MESH: vertex out of range");
 
 					EXPECT("(");
 					buffer = COM_Parse(buffer);
 #ifndef SERVERONLY
+					if (!stcoord)
+						Sys_Error("MD5MESH: vertex out of range");
 					stcoord[num*2+0] = atof(com_token);
 #endif
 					buffer = COM_Parse(buffer);

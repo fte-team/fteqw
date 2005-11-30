@@ -995,13 +995,23 @@ void SV_WriteClientdataToMessage (client_t *client, sizebuf_t *msg)
 	// every now and then, send an update so that extrapolation
 	// on client side doesn't stray too far off
 	if (ISQWCLIENT(client))
-	if (client->zquake_extensions & Z_EXT_SERVERTIME && sv.physicstime - client->nextservertimeupdate > 0)
 	{
-		MSG_WriteByte (msg, svc_updatestatlong);
-		MSG_WriteByte (msg, STAT_TIME);
-		MSG_WriteLong (msg, (int)(sv.physicstime * 1000));
+		if (client->fteprotocolextensions & PEXT_ACCURATETIMINGS && sv.physicstime - client->nextservertimeupdate > 0)
+		{	//the fte pext causes the server to send out accurate timings, allowing for perfect interpolation.
+			MSG_WriteByte (msg, svc_updatestatlong);
+			MSG_WriteByte (msg, STAT_TIME);
+			MSG_WriteLong (msg, (int)(sv.physicstime * 1000));
 
-		client->nextservertimeupdate = sv.physicstime;//+10;
+			client->nextservertimeupdate = sv.physicstime;//+10;
+		}
+		else if (client->zquake_extensions & Z_EXT_SERVERTIME && sv.physicstime - client->nextservertimeupdate > 0)
+		{	//the zquake ext causes the server to send out peridoic timings, allowing for moderatly accurate game time.
+			MSG_WriteByte (msg, svc_updatestatlong);
+			MSG_WriteByte (msg, STAT_TIME);
+			MSG_WriteLong (msg, (int)(sv.physicstime * 1000));
+
+			client->nextservertimeupdate = sv.physicstime+10;
+		}
 	}
 
 #ifdef NQPROT

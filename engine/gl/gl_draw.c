@@ -58,6 +58,7 @@ extern cvar_t		gl_picmip2d;
 extern cvar_t		r_drawdisk;
 extern cvar_t		gl_compress;
 extern cvar_t		gl_font, gl_conback, gl_smoothfont, gl_fontedgeclamp;
+extern cvar_t		gl_texturemode;
 extern cvar_t cl_noblink;
 
 extern cvar_t		gl_savecompressedtex;
@@ -560,16 +561,17 @@ void GLDraw_CharToConback (int num, qbyte *dest)
 typedef struct
 {
 	char *name;
+	char *altname;
 	int	minimize, maximize;
 } glmode_t;
 
 glmode_t modes[] = {
-	{"GL_NEAREST", GL_NEAREST, GL_NEAREST},
-	{"GL_LINEAR", GL_LINEAR, GL_LINEAR},
-	{"GL_NEAREST_MIPMAP_NEAREST", GL_NEAREST_MIPMAP_NEAREST, GL_NEAREST},
-	{"GL_LINEAR_MIPMAP_NEAREST", GL_LINEAR_MIPMAP_NEAREST, GL_LINEAR},
-	{"GL_NEAREST_MIPMAP_LINEAR", GL_NEAREST_MIPMAP_LINEAR, GL_NEAREST},
-	{"GL_LINEAR_MIPMAP_LINEAR", GL_LINEAR_MIPMAP_LINEAR, GL_LINEAR}
+	{"GL_NEAREST", "n", GL_NEAREST, GL_NEAREST},
+	{"GL_LINEAR", "l", GL_LINEAR, GL_LINEAR},
+	{"GL_NEAREST_MIPMAP_NEAREST", "nn", GL_NEAREST_MIPMAP_NEAREST, GL_NEAREST},
+	{"GL_LINEAR_MIPMAP_NEAREST", "ln", GL_LINEAR_MIPMAP_NEAREST, GL_LINEAR},
+	{"GL_NEAREST_MIPMAP_LINEAR", "nl", GL_NEAREST_MIPMAP_LINEAR, GL_NEAREST},
+	{"GL_LINEAR_MIPMAP_LINEAR", "ll", GL_LINEAR_MIPMAP_LINEAR, GL_LINEAR}
 };
 
 /*
@@ -577,31 +579,23 @@ glmode_t modes[] = {
 Draw_TextureMode_f
 ===============
 */
-void GLDraw_TextureMode_f (void)
+void GLDraw_TextureMode_Changed (void)
 {
 	int		i;
 	gltexture_t	*glt;
 
-	if (Cmd_Argc() == 1)
-	{
-		for (i=0 ; i< 6 ; i++)
-			if (gl_filter_min == modes[i].minimize)
-			{
-				Con_Printf ("%s\n", modes[i].name);
-				return;
-			}
-		Con_Printf ("current filter is unknown???\n");
-		return;
-	}
+	gl_texturemode.modified = false;
 
-	for (i=0 ; i< 6 ; i++)
+	for (i=0 ; i< sizeof(modes)/sizeof(modes[0]) ; i++)
 	{
-		if (!Q_strcasecmp (modes[i].name, Cmd_Argv(1) ) )
+		if (!Q_strcasecmp (modes[i].name, gl_texturemode.string ) )
+			break;
+		if (!Q_strcasecmp (modes[i].altname, gl_texturemode.string ) )
 			break;
 	}
 	if (i == 6)
 	{
-		Con_Printf ("bad filter name\n");
+		Con_Printf ("bad gl_texturemode name\n");
 		return;
 	}
 
@@ -1084,8 +1078,6 @@ void GLDraw_Init (void)
 {
 
 	memset(scrap_allocated, 0, sizeof(scrap_allocated));
-
-	Cmd_AddRemCommand ("gl_texturemode", &GLDraw_TextureMode_f);
 
 	GLDraw_ReInit();
 

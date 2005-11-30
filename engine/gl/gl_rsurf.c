@@ -3170,6 +3170,7 @@ qglTexEnvf(GL_TEXTURE_ENV, GL_TEXTURE_ENV_MODE, GL_MODULATE);
 	}
 }
 
+qbyte *Q1BSP_LeafPVS (model_t *model, mleaf_t *leaf, qbyte *buffer);
 
 /*
 ===============

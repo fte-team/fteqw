@@ -1950,8 +1950,6 @@ int QCC_PR_CheakCompConst(void)
 	strncpy(pr_token, pr_file_p, end-pr_file_p);
 	pr_token[end-pr_file_p]='\0';
 
-	if (!strcmp(pr_token, "varkeyword"))
-		printf("varkeyword!!!\n");
 //	printf("%s\n", pr_token);
 	c = pHash_Get(&compconstantstable, pr_token);
 

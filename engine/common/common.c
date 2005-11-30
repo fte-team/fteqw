@@ -154,6 +154,24 @@ void Q_strncpyz(char *d, const char *s, int n)
 	*d='\0';
 }
 
+//windows/linux have inconsistant snprintf
+//this is an attempt to get them consistant and safe
+//size is the total size of the buffer
+void VARGS Q_snprintfz (char *dest, size_t size, char *fmt, ...)
+{
+	va_list		argptr;
+
+	va_start (argptr, fmt);
+#ifdef _WIN32
+	_vsnprintf (dest, size, fmt, argptr);
+#else
+	vsnprintf (dest, size, fmt, argptr);
+#endif
+	va_end (argptr);
+
+	dest[size-1] = 0;
+}
+
 
 #if 0
 void Q_memset (void *dest, int fill, int count)
@@ -2724,6 +2742,37 @@ void Info_Print (char *s)
 		Con_Printf ("%s\n", value);
 	}
 }
+
+void Info_WriteToFile(FILE *f, char *info, char *commandname, int cvarflags)
+{
+	char *command;
+	char *value;
+	cvar_t *var;
+
+	while(*info == '\\')
+	{
+		command = info+1;
+		value = strchr(command, '\\');
+		info = strchr(value+1, '\\');
+		if (!info)	//eot..
+			info = value+strlen(value);
+
+		if (*command == '*')	//unsettable, so don't write it for later setting.
+			continue;
+
+		var = Cvar_FindVar(command);
+		if (var && var->flags & cvarflags)
+			continue;	//this is saved via a cvar.
+
+		fwrite(commandname, strlen(commandname), 1, f);
+		fwrite(" ", 1, 1, f);
+		fwrite(command, value-command, 1, f);
+		fwrite(" ", 1, 1, f);
+		fwrite(value+1, info-(value+1), 1, f);
+		fwrite("\n", 1, 1, f);
+	}
+}
+
 
 static qbyte chktbl[1024 + 4] = {
 0x78,0xd2,0x94,0xe3,0x41,0xec,0xd6,0xd5,0xcb,0xfc,0xdb,0x8a,0x4b,0xcc,0x85,0x01,

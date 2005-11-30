@@ -102,6 +102,7 @@ void *Sys_LoadDLL(const char *name, void **vmMain, sys_calldll_t syscall)
 	dllEntry=(void *)GetProcAddress(hVM, "dllEntry");
 	if(!dllEntry)
 	{
+		Con_Printf ("Sys_LoadDLL: %s lacks a dllEntry function\n",name);
 		FreeLibrary(hVM);
 		return NULL;
 	}
@@ -111,6 +112,7 @@ void *Sys_LoadDLL(const char *name, void **vmMain, sys_calldll_t syscall)
 	*vmMain=(void *)GetProcAddress(hVM, "vmMain");
 	if(!*vmMain)
 	{
+		Con_Printf ("Sys_LoadDLL: %s lacks a vmMain function\n",name);
 		FreeLibrary(hVM);
 		return NULL;
 	}

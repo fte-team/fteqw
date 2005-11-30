@@ -176,6 +176,9 @@ void Cbuf_AddText (const char *text, int level)
 {
 	int		l;
 
+	if (!strcmp(text, "cmd "))
+		Con_Printf("cmd text\n");
+
 	if (level > sizeof(cmd_text)/sizeof(cmd_text[0]) || level < 0)
 	{
 		Con_Printf("Bad execution level\n");
@@ -2721,6 +2724,7 @@ void Cmd_WriteConfig_f(void)
 	fprintf(f, "// FTE config file\n\n");
 #ifndef SERVERONLY
 	Key_WriteBindings (f);
+	CL_SaveInfo(f);
 #else
 	fprintf(f, "// Dedicated Server config\n\n");
 #endif
@@ -2732,6 +2736,8 @@ void Cmd_WriteConfig_f(void)
 	Alias_WriteAliases (f);
 	Cvar_WriteVariables (f, true);
 	fclose(f);
+
+	FS_FlushFSHash();
 }
 
 #ifndef SERVERONLY

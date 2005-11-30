@@ -256,7 +256,6 @@ void CL_ParseDelta (entity_state_t *from, entity_state_t *to, int bits, qboolean
 #ifdef PROTOCOLEXTENSIONS
 	int morebits=0;
 #endif
-	vec3_t move;
 
 	// set everything to the state we are delta'ing from
 	*to = *from;
@@ -436,12 +435,15 @@ void CL_ParsePacketEntities (qboolean delta)
 	int			word, newnum, oldnum;
 	qboolean	full;
 	int		from;
-/*
-	cl.oldgametime = cl.gametime;
-	cl.oldgametimemark = cl.gametimemark;
-	cl.gametime = realtime;
-	cl.gametimemark = realtime;
-*/
+
+	if (!(cls.fteprotocolextensions & PEXT_ACCURATETIMINGS))
+	{
+		cl.oldgametime = cl.gametime;
+		cl.oldgametimemark = cl.gametimemark;
+		cl.gametime = realtime;
+		cl.gametimemark = realtime;
+	}
+
 	newpacket = cls.netchan.incoming_sequence&UPDATE_MASK;
 	newp = &cl.frames[newpacket].packet_entities;
 	cl.frames[newpacket].invalid = false;
@@ -1182,7 +1184,6 @@ void CL_RotateAroundTag(entity_t *ent, int num, int tagent, int tagnum)
 	entity_state_t *ps;
 	float *org=NULL, *ang=NULL;
 	vec3_t axis[3];
-	vec3_t destorg;
 	float transform[12], parent[12], result[12], old[12], temp[12];
 
 	int model = 0;	//these two are only initialised because msvc sucks at detecting usage.
@@ -1442,12 +1443,9 @@ void CL_TransitionPacketEntities(packet_entities_t *newpack, packet_entities_t *
 packet_entities_t *CL_ProcessPacketEntities(float *servertime, qboolean nolerp)
 {
 	packet_entities_t	*packnew, *packold;
-	entity_state_t		*snew, *sold;
 	int					i;
 	static float oldoldtime;
 	//, spnum;
-
-	*servertime -= 0.1;
 
 	if (nolerp)
 	{	//force our emulated time to as late as we can.
@@ -1513,12 +1511,11 @@ void CL_LinkPacketEntities (void)
 	packet_entities_t	*pack;
 	entity_state_t		*state;
 	lerpents_t		*le;
-	float				f;
 	model_t				*model;
 	vec3_t				old_origin;
 	float				autorotate;
 	int					i;
-	int					oldpnum, newpnum;
+	int					newpnum;
 	//, spnum;
 	dlight_t			*dl;
 	vec3_t				angles;
@@ -1679,8 +1676,6 @@ void CL_LinkPacketEntities (void)
 		}
 		else
 		{
-			float	a1, a2;
-
 			for (i=0 ; i<3 ; i++)
 			{
 				angles[i] = le->angles[i];
@@ -2295,15 +2290,15 @@ void CL_ParsePlayerinfo (void)
 		memcpy(state, prevstate, sizeof(player_state_t));
 		info->prevcount = cl.parsecount;
 
-/*		if (cls.findtrack && info->stats[STAT_HEALTH] > 0)
+		if (cls.findtrack && info->stats[STAT_HEALTH] > 0)
 		{
-			extern int ideal_track;
-			autocam = CAM_TRACK;
-			Cam_Lock(num);
-			ideal_track = num;
+//			extern int ideal_track;
+			autocam[0] = CAM_TRACK;
+			Cam_Lock(0, num);
+//			ideal_track = num;
 			cls.findtrack = false;
 		}
-*/
+
 		flags = MSG_ReadShort ();
 		state->flags = MVD_TranslateFlags(flags);
 

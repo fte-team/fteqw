@@ -1105,7 +1105,10 @@ void CL_PlayDemo_f (void)
 	Con_Printf ("Playing demo from %s.\n", name);
 
 	if (!Q_strcasecmp(name + strlen(name) - 3, "mvd"))
+	{
 		cls.demoplayback = DPB_MVD;
+		cls.findtrack = true;
+	}
 	else
 		cls.demoplayback = DPB_QUAKEWORLD;
 	cls.state = ca_demostart;

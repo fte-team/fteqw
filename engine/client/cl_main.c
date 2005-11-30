@@ -119,6 +119,7 @@ cvar_t	cl_item_bobbing = {"cl_model_bobbing", "0"};
 
 cvar_t	requiredownloads = {"requiredownloads","1", NULL, CVAR_ARCHIVE};
 cvar_t	cl_standardchat = {"cl_standardchat", "0"};
+cvar_t	msg_filter = {"msg_filter", "0"};	//0 for neither, 1 for mm1, 2 for mm2, 3 for both
 cvar_t  cl_standardmsg = {"cl_standardmsg", "0"};
 cvar_t  cl_parsewhitetext = {"cl_parsewhitetext", "0"};
 
@@ -259,44 +260,11 @@ void CL_ConnectToDarkPlaces(char *challenge, netadr_t adr)
 	cl.splitclients = 0;
 }
 
-/*
-=======================
-CL_SendConnectPacket
-
-called by CL_Connect_f and CL_CheckResend
-======================
-*/
-void CL_SendConnectPacket (
 #ifdef PROTOCOL_VERSION_FTE
-						   int ftepext,
-#endif
-						   int compressioncrc
-						  /*, ...*/)	//dmw new parms
+unsigned int CL_SupportedFTEExtensions(void)
 {
-	netadr_t	adr;
-	char	data[2048];
-	char playerinfo2[MAX_INFO_STRING];
-	double t1, t2;
-#ifdef PROTOCOL_VERSION_FTE
-	int fteprotextsupported=0;
-#endif
-	int clients;
-	int c;
+	unsigned int fteprotextsupported = 0;
 
-// JACK: Fixed bug where DNS lookups would cause two connects real fast
-//       Now, adds lookup time to the connect time.
-//		 Should I add it to realtime instead?!?!
-
-	if (cls.state != ca_disconnected)
-		return;
-
-	if (cl_nopext.value)	//imagine it's an unenhanced server
-	{
-		ftepext = 0;
-		compressioncrc = 0;
-	}
-
-#ifdef PROTOCOL_VERSION_FTE
 #ifdef PEXT_SCALE	//dmw - protocol extensions
 	fteprotextsupported |= PEXT_SCALE;
 #endif
@@ -311,6 +279,9 @@ void CL_SendConnectPacket (
 #endif
 #ifdef PEXT_BULLETENS
 	fteprotextsupported |= PEXT_BULLETENS;
+#endif
+#ifdef PEXT_ACCURATETIMINGS
+	fteprotextsupported |= PEXT_ACCURATETIMINGS;
 #endif
 #ifdef PEXT_ZLIBDL
 	fteprotextsupported |= PEXT_ZLIBDL;
@@ -370,10 +341,54 @@ void CL_SendConnectPacket (
 	fteprotextsupported |= PEXT_DPFLAGS;
 #endif
 
+	return fteprotextsupported;
+}
+#endif
+
+/*
+=======================
+CL_SendConnectPacket
+
+called by CL_Connect_f and CL_CheckResend
+======================
+*/
+void CL_SendConnectPacket (
+#ifdef PROTOCOL_VERSION_FTE
+						   int ftepext,
+#endif
+						   int compressioncrc
+						  /*, ...*/)	//dmw new parms
+{
+	netadr_t	adr;
+	char	data[2048];
+	char playerinfo2[MAX_INFO_STRING];
+	double t1, t2;
+#ifdef PROTOCOL_VERSION_FTE
+	int fteprotextsupported=0;
+#endif
+	int clients;
+	int c;
+
+// JACK: Fixed bug where DNS lookups would cause two connects real fast
+//       Now, adds lookup time to the connect time.
+//		 Should I add it to realtime instead?!?!
+
+	if (cls.state != ca_disconnected)
+		return;
+
+	if (cl_nopext.value)	//imagine it's an unenhanced server
+	{
+		ftepext = 0;
+		compressioncrc = 0;
+	}
+
+#ifdef PROTOCOL_VERSION_FTE
+	fteprotextsupported = CL_SupportedFTEExtensions();
+
 	fteprotextsupported &= ftepext;
 
 #ifdef Q2CLIENT
-	if (cls.protocol == CP_QUAKE2)
+	if (cls.protocol != CP_QUAKEWORLD)
 		fteprotextsupported = 0;
 #endif
 
@@ -732,6 +747,75 @@ void CLNQ_Connect_f (void)
 }
 #endif
 
+#ifdef TCPCONNECT
+void CL_TCPConnect_f (void)
+{
+	char buffer[6];
+	int newsocket;
+	int len;
+	int _true = true;
+
+	float giveuptime;
+
+	char	*server;
+
+	if (Cmd_Argc() != 2)
+	{
+		Con_TPrintf (TLC_SYNTAX_CONNECT);
+		return;
+	}
+
+	server = Cmd_Argv (1);
+
+	CL_Disconnect_f ();
+
+	Q_strncpyz (cls.servername, server, sizeof(cls.servername));
+
+	NET_StringToAdr(cls.servername, &cls.sockettcpdest);
+
+	if (cls.sockettcp != INVALID_SOCKET)
+		closesocket (cls.sockettcp);
+	cls.sockettcp = INVALID_SOCKET;
+	cls.tcpinlen = 0;
+
+	newsocket = TCP_OpenStream(cls.sockettcpdest);
+	if (newsocket == INVALID_SOCKET)
+	{
+		//failed
+		Con_Printf("Failed to connect, server is either down, firewalled, or on a different port\n");
+		return;
+	}
+
+	Con_Printf("Waiting for confirmation of server (10 secs)\n");
+
+	giveuptime = Sys_DoubleTime() + 10;
+
+	while(giveuptime > Sys_DoubleTime())
+	{
+		len = recv(newsocket, buffer, sizeof(buffer), 0);
+		if (!strncmp(buffer, "qizmo\n", 6))
+		{
+			cls.sockettcp = newsocket;
+			break;
+		}
+		SCR_UpdateScreen();
+	}
+
+	if (cls.sockettcp == INVALID_SOCKET)
+	{
+		Con_Printf("Timeout - wrong server type\n");
+		closesocket(newsocket);
+		return;
+	}
+	Con_Printf("Confirmed\n");
+
+	send(cls.sockettcp, buffer, sizeof(buffer), 0);
+	setsockopt(cls.sockettcp, IPPROTO_TCP, TCP_NODELAY, (char *)&_true, sizeof(_true));
+
+	CL_BeginServerConnect();
+}
+#endif
+
 /*
 =====================
 CL_Rcon_f
@@ -1012,6 +1096,15 @@ void CL_Disconnect (void)
 
 	cls.protocol = CP_UNKNOWN;
 	cl.servercount = 0;
+	cls.findtrack = false;
+
+#ifdef TCPCONNECT
+	if (cls.sockettcp != INVALID_SOCKET)
+	{
+		closesocket(cls.sockettcp);
+		cls.sockettcp = INVALID_SOCKET;
+	}
+#endif
 }
 
 #undef serverrunning
@@ -1406,6 +1499,32 @@ void CL_SetInfo_f (void)
 	if (!stricmp(Cmd_Argv(1), pmodel_name) || !strcmp(Cmd_Argv(1), emodel_name))
 		return;
 
+	if (Cmd_Argv(1)[0] == '*')
+	{
+		int i;
+		if (!strcmp(Cmd_Argv(1), "*"))
+			if (!strcmp(Cmd_Argv(2), ""))
+			{	//clear it out
+				char *k;
+				for(i=0;;)
+				{
+					k = Info_KeyForNumber(cls.userinfo, i);
+					if (!*k)
+						break;	//no more.
+					else if (*k == '*')
+						i++;	//can't remove * keys
+					else if ((var = Cvar_FindVar(k)) && var->flags&CVAR_SERVERINFO)
+						i++;	//this one is a cvar.
+					else
+						Info_RemoveKey(cls.userinfo, k);	//we can remove this one though, so yay.
+				}
+
+				return;
+			}
+		Con_TPrintf (TL_STARKEYPROTECTED);
+		return;
+	}
+
 	var = Cvar_FindVar(Cmd_Argv(1));
 	if (var && (var->flags & CVAR_USERINFO))
 	{	//get the cvar code to set it. the server might have locked it.
@@ -1423,6 +1542,13 @@ void CL_SetInfo_f (void)
 #endif
 			Cmd_ForwardToServer ();
 	}
+}
+
+void CL_SaveInfo(FILE *f)
+{
+	fwrite("\n", 1, 1, f);
+	fwrite("setinfo * \"\"\n", 13, 1, f);
+	Info_WriteToFile(f, cls.userinfo, "setinfo", CVAR_USERINFO);
 }
 
 /*
@@ -1491,7 +1617,17 @@ void CL_Packet_f (void)
 	}
 	*out = 0;
 
+#ifdef TCPCONNECT
+	{
+		int tcpsock;	//extra code to stop the packet command from sending to the server via tcp
+		tcpsock = cls.sockettcp;
+		cls.sockettcp = -1;
+		NET_SendPacket (NS_CLIENT, out-send, send, adr);
+		cls.sockettcp = tcpsock;
+	}
+#else
 	NET_SendPacket (NS_CLIENT, out-send, send, adr);
+#endif
 }
 
 
@@ -2462,6 +2598,7 @@ void CL_Init (void)
 
 	Cvar_Register (&requiredownloads,	cl_controlgroup);
 	Cvar_Register (&cl_standardchat,	cl_controlgroup);
+	Cvar_Register (&msg_filter,	cl_controlgroup);
 	Cvar_Register (&cl_standardmsg,		cl_controlgroup);
 	Cvar_Register (&cl_parsewhitetext,	cl_controlgroup);
 	Cvar_Register (&cl_nopext, cl_controlgroup);
@@ -2501,6 +2638,9 @@ void CL_Init (void)
 	Cmd_AddCommand ("quit", CL_Quit_f);
 
 	Cmd_AddCommand ("connect", CL_Connect_f);
+#ifdef TCPCONNECT
+	Cmd_AddCommand ("tcpconnect", CL_TCPConnect_f);
+#endif
 #ifdef NQPROT
 	Cmd_AddCommand ("nqconnect", CLNQ_Connect_f);
 #endif
@@ -2552,6 +2692,8 @@ void CL_Init (void)
 #ifdef _WINDOWS
 	Cmd_AddCommand ("windows", CL_Windows_f);
 #endif
+
+	Ignore_Init();
 }
 
 
@@ -2716,7 +2858,9 @@ void Host_Frame (double time)
 
 #if defined(WINAVI) && !defined(NOMEDIA)
 	if (cls.demoplayback && recordingdemo && recordavi_frametime>0.01)
-		time = recordavi_frametime;
+	{
+		realframetime = time = recordavi_frametime;
+	}
 #endif
 
 	if (cls.demoplayback && cl_demospeed.value>0)
@@ -2928,6 +3072,31 @@ void Host_FixupModelNames(void)
 	simple_crypt(soundlist_name, sizeof(soundlist_name) - 1);
 }
 
+
+
+#ifdef Q3CLIENT
+void CL_ReadCDKey(void)
+{	//q3 cdkey
+	//you don't need one, just use a server without sv_strictauth set to 0.
+	char *buffer;
+	buffer = COM_LoadTempFile("q3key");
+	if (buffer)	//a cdkey is meant to be 16 chars
+	{
+		cvar_t *var;
+		char *chr;
+		for (chr = buffer; *chr; chr++)
+		{
+			if (*(unsigned char*)chr < ' ')
+			{
+				*chr = '\0';	//don't get more than one line.
+				break;
+			}
+		}
+		var = Cvar_Get("cl_cdkey", buffer, CVAR_LATCH, "Q3 compatability");
+	}
+}
+#endif
+
 //============================================================================
 
 
@@ -3013,6 +3182,10 @@ void Host_Init (quakeparms_t *parms)
 
 #ifdef CL_MASTER
 	Master_SetupSockets();
+#endif
+
+#ifdef Q3CLIENT
+	CL_ReadCDKey();
 #endif
 
 	//	Con_Printf ("Exe: "__TIME__" "__DATE__"\n");

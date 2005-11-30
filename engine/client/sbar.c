@@ -1643,10 +1643,19 @@ void Sbar_Draw (void)
 		}
 		else
 		{	//single player sbar takes full screen
+
+			extern cvar_t scr_centersbar;
+
 			sbar_rect.width = vid.width;
 			sbar_rect.height = vid.height;
 			sbar_rect.x = 0;
 			sbar_rect.y = 0;
+
+			if (scr_centersbar.value)
+			{
+				sbar_rect.x = (vid.width - 320)/2;
+				sbar_rect.width -= sbar_rect.x;
+			}
 		}
 
 		if (sbarfailed)	//files failed to load.
@@ -1668,7 +1677,7 @@ void Sbar_Draw (void)
 		{
 			if (!cl.spectator || autocam[pnum] == CAM_TRACK)
 				Sbar_DrawInventory (pnum);
-			if (!headsup || sbar_rect.width<512)
+			if ((!headsup || sbar_rect.width<512) && cl.deathmatch)
 				Sbar_DrawFrags ();
 		}
 
@@ -1732,25 +1741,19 @@ void Sbar_Draw (void)
 		Sbar_TeamOverlay();
 
 #ifdef RGLQUAKE
-	if (cl.splitclients)
+	if (cl_sbar.value == 1 || scr_viewsize.value<100)
 	{
 		if (sb_showscores || sb_showteamscores ||
 			deadcount == cl.splitclients)
 			sb_updates = 0;
 		// clear unused areas in gl
-	#if 0
-		{
-			int x = (sbar_rect.width - 320)>>1;
 
-			// left
-			if (x > 0) {
-				Draw_TileClear (0, sbar_rect.height - sb_lines, x, sb_lines);
-				Draw_TileClear (x+320, sbar_rect.height - sb_lines, sbar_rect.width - x+320, sb_lines);
-			}
+		if (cl.splitclients==1 && sbar_rect.x>0)
+		{	// left
+				Draw_TileClear (0, sbar_rect.height - sb_lines, sbar_rect.x, sb_lines);
 		}
-	#endif
-		if (sbar_rect.width > 320 && !headsup)
-			Draw_TileClear (320, sbar_rect.height - sb_lines, sbar_rect.width - 320, sb_lines);
+		if (sbar_rect.x + 320 <= sbar_rect.width && !headsup)
+			Draw_TileClear (sbar_rect.x + 320, sbar_rect.height - sb_lines, sbar_rect.width - (320), sb_lines);
 	}
 #endif
 

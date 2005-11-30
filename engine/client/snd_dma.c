@@ -1114,6 +1114,7 @@ S_UpdateAmbientSounds
 ===================
 */
 char *Media_NextTrack(void);
+mleaf_t *Q1BSP_LeafForPoint (model_t *model, vec3_t p);
 void S_UpdateAmbientSounds (soundcardinfo_t *sc)
 {
 	mleaf_t		*l;

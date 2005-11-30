@@ -69,7 +69,7 @@ char **com_argv;
 struct sockaddr_in;
 struct sockaddr;
 struct sockaddr_qstorage;
-void NetadrToSockadr (netadr_t *a, struct sockaddr_qstorage *s);
+int NetadrToSockadr (netadr_t *a, struct sockaddr_qstorage *s);
 
 qboolean SV_AllowDownload (char *name);
 

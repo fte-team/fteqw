@@ -860,6 +860,7 @@ static qboolean R_GAliasBuildMesh(mesh_t *mesh, galiasinfo_t *inf, int frame1, i
 	if (g1 == g2)	//lerping within group is only done if not changing group
 	{
 		lerp = fg1time*g1->rate;
+		if (lerp < 0) lerp = 0;	//hrm
 		frame1=lerp;
 		frame2=frame1+1;
 		lerp-=frame1;
@@ -4077,10 +4078,10 @@ void GL_LoadQ3Model(model_t *mod, void *buffer)
 #ifndef SERVERONLY
 		if (LittleLong(surf->numShaders)+externalskins)
 		{
-#if 1//ndef Q3SHADERS
+#ifndef Q3SHADERS
 			char name[1024];
-			extern int gl_bumpmappingpossible;
 #endif
+			extern int gl_bumpmappingpossible;
 			char shadname[1024];
 
 			skin = Hunk_Alloc((LittleLong(surf->numShaders)+externalskins)*((sizeof(galiasskin_t)+sizeof(galiastexnum_t))));
@@ -4971,8 +4972,8 @@ galiasinfo_t *GLMod_ParseMD5MeshModel(char *buffer)
 	int meshnum = 0;
 	int i;
 
-	galiasbone_t *bones;
-	galiasgroup_t *pose;
+	galiasbone_t *bones = NULL;
+	galiasgroup_t *pose = NULL;
 	galiasinfo_t *inf, *root, *lastsurf;
 	float *posedata;
 #ifndef SERVERONLY
@@ -5092,9 +5093,9 @@ galiasinfo_t *GLMod_ParseMD5MeshModel(char *buffer)
 
 			galisskeletaltransforms_t *trans;
 #ifndef SERVERONLY
-			float *stcoord;
+			float *stcoord = NULL;
 #endif
-			int *indexes;
+			int *indexes = NULL;
 			float w;
 
 			vec4_t *rawweight = NULL;
@@ -5103,7 +5104,7 @@ galiasinfo_t *GLMod_ParseMD5MeshModel(char *buffer)
 
 			if (!nummeshes)
 				Sys_Error("MD5MESH: mesh section before (or without) nummeshes");
-			if (!foundjoints)
+			if (!foundjoints || !bones || !pose)
 				Sys_Error("MD5MESH: mesh must come after joints");
 
 			if (!lastsurf)
@@ -5169,7 +5170,7 @@ galiasinfo_t *GLMod_ParseMD5MeshModel(char *buffer)
 
 					buffer = COM_Parse(buffer);
 					num = atoi(com_token);
-					if (num < 0 || num >= numverts)
+					if (num < 0 || num >= numverts || !stcoord || !indexes)
 						Sys_Error("MD5MESH: vertex out of range");
 
 					EXPECT("(");

@@ -116,9 +116,6 @@ void Master_SetupSockets(void)
 		pollsocketsIPX[i] = INVALID_SOCKET;
 }
 
-
-void NetadrToSockadr (netadr_t *a, struct sockaddr_qstorage *s);
-
 void Master_HideServer(serverinfo_t *server)
 {
 	int i, j;

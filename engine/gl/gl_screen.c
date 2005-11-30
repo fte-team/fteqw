@@ -130,7 +130,7 @@ needs almost the entire 256k of stack space!
 
 void GLSCR_UpdateScreen (void)
 {
-	extern cvar_t vid_conwidth, vid_conheight;
+	extern cvar_t vid_conwidth, vid_conheight, gl_texturemode;
 	int uimenu;
 #ifdef TEXTEDITOR
 	extern qboolean editormodal;
@@ -214,6 +214,8 @@ void GLSCR_UpdateScreen (void)
 		oldsbar = cl_sbar.value;
 		vid.recalc_refdef = true;
 	}
+	if (gl_texturemode.modified)
+		GLDraw_TextureMode_Changed();
 
 	GL_BeginRendering (&glx, &gly, &glwidth, &glheight);
 

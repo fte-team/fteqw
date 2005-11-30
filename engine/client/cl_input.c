@@ -856,7 +856,7 @@ void VARGS CL_SendClientCommand(qboolean reliable, char *format, ...)
 	va_end (argptr);
 
 
-//	Con_Printf("Queing stringcmd %s\n", string);
+	Con_DPrintf("Queing stringcmd %s\n", string);
 
 #ifdef Q3CLIENT
 	if (cls.protocol == CP_QUAKE3)

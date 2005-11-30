@@ -20,6 +20,7 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 // cl_parse.c  -- parse a message received from the server
 
 #include "quakedef.h"
+#include "cl_ignore.h"
 
 void CL_GetNumberedEntityInfo (int num, float *org, float *ang);
 void CLNQ_ParseDarkPlaces5Entities(void);
@@ -184,7 +185,7 @@ char *svc_nqstrings[] =
 	"dpsvc_spawnstaticsound2"
 };
 
-extern cvar_t requiredownloads, cl_standardchat;
+extern cvar_t requiredownloads, cl_standardchat, msg_filter;
 int	oldparsecountmod;
 int	parsecountmod;
 double	parsecounttime;
@@ -2495,11 +2496,11 @@ void CL_NewTranslation (int slot)
 	int		i, j;
 	int		top, bottom;
 	qbyte	*dest, *source;
+		int local;
 #endif
 
 	char *s;
 	player_info_t	*player;
-	int local;
 
 	if (slot >= MAX_CLIENTS)
 		Sys_Error ("CL_NewTranslation: slot > MAX_CLIENTS");
@@ -2720,12 +2721,11 @@ void CL_SetStat (int pnum, int stat, int value)
 	if (stat == STAT_VIEWHEIGHT && cls.z_ext & Z_EXT_VIEWHEIGHT)
 		cl.viewheight[pnum] = value;
 
-	if (stat == STAT_TIME && cls.z_ext & Z_EXT_SERVERTIME)
+	if (stat == STAT_TIME && (cls.fteprotocolextensions & PEXT_ACCURATETIMINGS))
 	{
 		cl.oldgametime = cl.gametime;
 		cl.oldgametimemark = cl.gametimemark;
 
-//		cl.servertime_works = true;
 		cl.gametime = value * 0.001;
 		cl.gametimemark = realtime;
 	}
@@ -3049,6 +3049,7 @@ char *CL_ParseChat(char *text, player_info_t **player)
 	char *p;
 	extern cvar_t cl_parsewhitetext;
 	char *s;
+	int check_flood;
 
 	flags = TP_CategorizeMessage (text, &offset, player);
 
@@ -3094,6 +3095,16 @@ char *CL_ParseChat(char *text, player_info_t **player)
 
 		if (flags == 2 && !TP_FilterMessage(text + offset))
 			return NULL;
+
+		if ((int)msg_filter.value & flags)
+			return NULL;	//filter chat
+
+		check_flood = Ignore_Check_Flood(s, flags, offset);			
+		if (check_flood == IGNORE_NO_ADD)							
+			return NULL;
+		else if (check_flood == NO_IGNORE_ADD)					
+			Ignore_Flood_Add(s);
+
 	}
 
 	suppress_talksound = false;
@@ -4145,8 +4156,9 @@ int MSG_ReadShortPQ (char **s)
 }
 void CLNQ_ParseProQuakeMessage (char *s)
 {
-	int cmd, i, j;
-	int team, frags, shirt, ping;
+	int cmd;
+	int ping;
+//	int team, shirt, frags, i, j;
 
 	s++;
 	cmd = *s++;
@@ -4215,13 +4227,6 @@ void CLNQ_ParseProQuakeMessage (char *s)
 				Host_Error ("CL_ParseProQuakeMessage: pqc_ping_times > MAX_CLIENTS");
 			cl.players[ping / 4096].ping = ping & 4095;
 		}
-//		cl.last_ping_time = cl.time;
-		/*
-		Con_Printf("pqc_ping_times ");
-		for (i = 0 ; i < cl.maxclients ; i++)
-			Con_Printf("%4d ", cl.scores[i].ping);
-		Con_Printf("\n");
-		*/
 		break;
 	}
 }

@@ -1113,7 +1113,7 @@ qboolean Media_ShowFilm(void)
 			unsigned char *pa=roqfilm->y[0];
 			unsigned char *pb=roqfilm->u[0];
 			unsigned char *pc=roqfilm->v[0];
-			int pix=0;
+			int pixel=0;
 			int num_columns=(roqfilm->width)>>1;
 			int y;
 			int x;
@@ -1141,19 +1141,19 @@ qboolean Media_ShowFilm(void)
 						b = 116130 * u;
 
 						t=r+y1;
-						framedata[pix] =(unsigned char) LIMIT(t);
+						framedata[pixel] =(unsigned char) LIMIT(t);
 						t=g+y1;
-						framedata[pix+1] =(unsigned char) LIMIT(t);
+						framedata[pixel+1] =(unsigned char) LIMIT(t);
 						t=b+y1;
-						framedata[pix+2] =(unsigned char) LIMIT(t);
+						framedata[pixel+2] =(unsigned char) LIMIT(t);
 
 						t=r+y2;
-						framedata[pix+4] =(unsigned char) LIMIT(t);
+						framedata[pixel+4] =(unsigned char) LIMIT(t);
 						t=g+y2;
-						framedata[pix+5] =(unsigned char) LIMIT(t);
+						framedata[pixel+5] =(unsigned char) LIMIT(t);
 						t=b+y2;
-						framedata[pix+6] =(unsigned char) LIMIT(t);
-						pix+=8;
+						framedata[pixel+6] =(unsigned char) LIMIT(t);
+						pixel+=8;
 
 					}
 					if(y & 0x01) { pb += num_columns; pc += num_columns; }
@@ -1329,7 +1329,7 @@ void Media_RecordFrame (void)
 		return;
 
 	if (recordingdemo)
-		if (scr_con_current > 0)
+		if (scr_con_current > 0 || !cl.validsequence)
 		{
 			scr_con_current=0;
 			key_dest = key_game;
@@ -1354,6 +1354,8 @@ void Media_RecordFrame (void)
 	}
 	else*/
 	{
+		if (recordavi_videotime > realtime+1)
+			recordavi_videotime = realtime;	//urm, wrapped?..
 		if (recordavi_videotime > realtime)
 			goto skipframe;
 		recordavi_videotime += recordavi_frametime;
@@ -1381,7 +1383,7 @@ void Media_RecordFrame (void)
 	case CT_SCREENSHOT:
 		{
 			char filename[MAX_OSPATH];
-			sprintf(filename, "%s%i.%s", capturefilenameprefix, captureframe++, capturecodec.string);
+			sprintf(filename, "%s/%8.8i.%s", capturefilenameprefix, captureframe++, capturecodec.string);
 			SCR_ScreenShot(filename);
 		}
 		break;
@@ -1420,6 +1422,9 @@ void Media_RecordAudioFrame (short *sample_buffer, int samples)
 		{			
 			return;
 		}
+
+	if (captureaudiosamples > recordavi_wave_format.nSamplesPerSec)
+		captureaudiosamples = 0;	//doh, this WILL cause a bit of wierd sound...
 
 	memcpy(captureaudiomem+captureaudiosamples*2, sample_buffer, samples*2);
 
@@ -1504,7 +1509,7 @@ void Media_RecordFilm_f (void)
 
 	recordavi_frametime = 1/capturerate.value;
 
-	if (fourcc)
+	if (*fourcc)
 	{
 		if (!strcmp(fourcc, "tga") ||
 			!strcmp(fourcc, "png") ||
@@ -1648,7 +1653,7 @@ void Media_RecordDemo_f(void)
 	scr_con_current=0;
 	key_dest = key_game;
 
-	if (recordavi_video_stream)
+	if (capturetype != CT_NONE)
 		recordingdemo = true;
 }
 #else

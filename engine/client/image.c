@@ -726,16 +726,16 @@ int Image_WritePNG (char *filename, int compression, qbyte *pixels, int width, i
 
 #if defined(_WIN32)
 
-#define JPEG_API VARGS
-#include "jpeglib.h"
-#include "jerror.h"
-#pragma comment(lib, "../libs/jpeg.lib")
+	#define JPEG_API VARGS
+	#include "jpeglib.h"
+	#include "jerror.h"
+	#pragma comment(lib, "../libs/jpeg.lib")
 
 #else
 
-//#include <jinclude.h>
-#include <jpeglib.h>
-#include <jerror.h>
+//	#include <jinclude.h>
+	#include <jpeglib.h>
+	#include <jerror.h>
 #endif
 
 

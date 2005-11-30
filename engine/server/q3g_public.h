@@ -93,7 +93,7 @@ typedef struct {
 // the server looks at a sharedEntity, which is the start of the game's gentity_t structure
 typedef struct {
 	q3entityState_t	s;				// communicated by server to clients
-	q3entityShared_t	r;				// shared by both the server system and game
+	q3entityShared_t	r;				// shared by both the server system and game - I *really* don't understand this, it looks like a bug.
 } q3sharedEntity_t;
 
 

@@ -132,7 +132,7 @@ void SV_New_f (void)
 //	host_client->sendinfo = true;
 
 	gamedir = Info_ValueForKey (svs.info, "*gamedir");
-	if (!gamedir[0])
+	if (!gamedir[0] || !strcmp(gamedir, "fte"))
 		gamedir = "qw";
 
 //NOTE:  This doesn't go through ClientReliableWrite since it's before the user

@@ -15,12 +15,12 @@ HINSTANCE oggvorbislibrary;
 void *oggvorbislibrary;
 #endif
 
-int (*p_ov_open_callbacks) (void *datasource, OggVorbis_File *vf, char *initial, long ibytes, ov_callbacks callbacks);
-int (*p_ov_clear)(OggVorbis_File *vf);
-vorbis_info *(*p_ov_info)(OggVorbis_File *vf,int link);
-vorbis_comment *(*p_ov_comment) (OggVorbis_File *vf,int link);
-ogg_int64_t (*p_ov_pcm_total)(OggVorbis_File *vf,int i);
-long (*p_ov_read)(OggVorbis_File *vf,char *buffer,int length,
+int (VARGS *p_ov_open_callbacks) (void *datasource, OggVorbis_File *vf, char *initial, long ibytes, ov_callbacks callbacks);
+int (VARGS *p_ov_clear)(OggVorbis_File *vf);
+vorbis_info *(VARGS *p_ov_info)(OggVorbis_File *vf,int link);
+vorbis_comment *(VARGS *p_ov_comment) (OggVorbis_File *vf,int link);
+ogg_int64_t (VARGS *p_ov_pcm_total)(OggVorbis_File *vf,int i);
+long (VARGS *p_ov_read)(OggVorbis_File *vf,char *buffer,int length,
 		    int bigendianp,int word,int sgned,int *bitstream);
 
 
@@ -48,66 +48,17 @@ qboolean OV_StartDecode(unsigned char *start, unsigned long length, ovdecoderbuf
 
 qbyte *COM_LoadFile (char *path, int usehunk);
 
-sfxcache_t *S_LoadOVSound (sfx_t *s)
+sfxcache_t *S_LoadOVSound (sfx_t *s, qbyte *data, int datalen, int sndspeed)
 {
 	char	namebuffer[MAX_OSPATH];
 	char	*name;
 	ovdecoderbuffer_t *buffer;
 	FILE *f;
 
-	char *data;
 	qboolean telluser;
 	int len;
 
 	name = s->name;
-
-	if (name[0] == '#')
-		strcpy(namebuffer, &name[1]);
-	else
-		sprintf (namebuffer, "sound/%s", name);
-
-	len = strlen(namebuffer);
-	telluser = strcmp(namebuffer+len-4, ".wav");
-	if (!telluser)
-		strcpy(namebuffer+len-4, ".ogg");
-
-	//try opening from a quake path
-	data = COM_LoadMallocFile(namebuffer);
-	if (!data)
-	{//if that didn't work, try opening direct from exe - this is media after all.		
-
-		if (!telluser)
-			return NULL;	//never go out of the quake path for a wav replacement.
-#ifndef _WIN32
-		char unixname[128];
-		if (name[1] == ':' && name[2] == '\\')	//convert from windows to a suitable alternative.
-		{			
-			sprintf(unixname, "/mnt/%c/%s", name[0]-'A'+'a', name+3);
-			name = unixname;
-			while (*name)
-			{
-				if (*name == '\\')
-					*name = '/';
-				name++;
-			}			
-			name = unixname;			
-		}
-#endif
-		if ((f = fopen(name, "rb")))
-		{
-			com_filesize = COM_filelength(f);
-			data = BZ_Malloc(com_filesize);
-			fread(data, 1, com_filesize, f);
-			fseek(f, 0, SEEK_SET);
-			fclose(f);
-			f = NULL;
-		}
-		else
-		{
-			Con_SafePrintf ("Couldn't load %s\n", namebuffer);
-			return NULL;
-		}
-	}
 
 	if (!s->decoder)
 		s->decoder = Z_Malloc(sizeof(ovdecoderbuffer_t) + sizeof(sfxdecode_t));
@@ -120,7 +71,7 @@ sfxcache_t *S_LoadOVSound (sfx_t *s)
 	s->decoder->decodemore = OV_DecodeSome;
 	s->decoder->abort = OV_CancelDecoder;
 
-	if (!OV_StartDecode(data, com_filesize, buffer))
+	if (!OV_StartDecode(data, datalen, buffer))
 	{
 		if (buffer->mediaaswavdata)
 		{
@@ -152,11 +103,11 @@ int OV_DecodeSome(sfx_t *s, int minlength)
 	ovdecoderbuffer_t *dec = s->decoder->buf;
 	int bytesread;
 
-	Con_Printf("Minlength = %03i   ", minlength);
+//	Con_Printf("Minlength = %03i   ", minlength);
 
 	if (dec->mediaaswavbuflen < dec->mediaaswavpos+minlength+11050)	//expand if needed.
 	{
-		Con_Printf("Expand buffer\n");
+//		Con_Printf("Expand buffer\n");
 		dec->mediaaswavbuflen += minlength+22100;
 		dec->mediaaswavdata = BZ_Realloc(dec->mediaaswavdata, dec->mediaaswavbuflen);
 		s->cache.data = dec->mediaaswavdata;
@@ -171,7 +122,7 @@ int OV_DecodeSome(sfx_t *s, int minlength)
 
 	if (minlength < sc->length)
 	{
-		Con_Printf("No need for decode\n");
+//		Con_Printf("No need for decode\n");
 		//done enough for now, don't whizz through the lot
 		return 0;
 	}
@@ -206,7 +157,7 @@ int OV_DecodeSome(sfx_t *s, int minlength)
 
 		if (minlength<=sc->length)
 		{
-			Con_Printf("Reached length\n");
+//			Con_Printf("Reached length\n");
 			return 1;
 		}
 	}
@@ -355,6 +306,10 @@ qboolean OV_StartDecode(unsigned char *start, unsigned long length, ovdecoderbuf
 	    (long)p_ov_pcm_total(&buffer->vf,-1));
     Con_Printf("Encoded by: %s\n\n",p_ov_comment(&buffer->vf,-1)->vendor);
 */  }
+
+	buffer->start = BZ_Malloc(length);
+	memcpy(buffer->start, start, length);
+
 	return true;
 }
 #endif

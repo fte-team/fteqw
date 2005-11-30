@@ -92,21 +92,6 @@ static size_t strlcat (char *dst, const char *src, size_t size)
 }
 #endif
 
-static void VARGS Q_snprintfz (char *dest, size_t size, char *fmt, ...)
-{
-	va_list		argptr;
-
-	va_start (argptr, fmt);
-#ifdef _WIN32
-	_vsnprintf (dest, size, fmt, argptr);
-#else
-	vsnprintf (dest, size, fmt, argptr);
-#endif
-	va_end (argptr);
-
-	dest[size-1] = 0;
-}
-
 //a list of all the cvars
 //this is down to the fact that I keep defining them but forgetting to register. :/
 #define TP_CVARS \

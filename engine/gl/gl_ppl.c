@@ -1213,6 +1213,7 @@ static void PPL_BaseChain_Flat(msurface_t *first)
 
 	for (s = first; s ; s=s->texturechain)
 	{
+		if (s->mesh->numvertexes < 3) continue;
 		if (vi != s->lightmaptexturenum)
 		{
 			if (vi < 0)

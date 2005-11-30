@@ -584,7 +584,7 @@ void SV_Map_f (void)
 		SV_SpawnServer (level, startspot, false, cinematic);
 	}
 
-	SV_BroadcastCommand ("reconnect\n");
+	SV_BroadcastCommand ("cmd new\n");
 
 	if (!issamelevel)
 	{
@@ -944,7 +944,7 @@ void SV_Status_f (void)
 	avg = 1000*svs.stats.latched_active / STATFRAMES;
 	pak = (float)svs.stats.latched_packets/ STATFRAMES;
 
-	if (net_local_sv_ipadr.type != NA_LOOPBACK)
+	if (svs.socketip != INVALID_SOCKET && net_local_sv_ipadr.type != NA_LOOPBACK)
 	{
 		extern cvar_t pr_imitatemvdsv;
 		if (pr_imitatemvdsv.value)
@@ -952,6 +952,13 @@ void SV_Status_f (void)
 		else
 			Con_Printf ("ip address       : %s\n",NET_AdrToString (net_local_sv_ipadr));
 	}
+	if (svs.socketip6 != INVALID_SOCKET && net_local_sv_ip6adr.type != NA_LOOPBACK)
+		Con_Printf ("ipv6 address     : %s\n",NET_AdrToString (net_local_sv_ip6adr));
+	if (svs.socketipx != INVALID_SOCKET && net_local_sv_ipxadr.type != NA_LOOPBACK)
+		Con_Printf ("ipx address      : %s\n",NET_AdrToString (net_local_sv_ipxadr));
+	if (svs.sockettcp != INVALID_SOCKET && net_local_sv_tcpipadr.type != NA_LOOPBACK)
+		Con_Printf ("tcp address      : %s\n",NET_AdrToString (net_local_sv_tcpipadr));
+
 	Con_Printf ("cpu utilization  : %3i%%\n",(int)cpu);
 	Con_Printf ("avg response time: %i ms\n",(int)avg);
 	Con_Printf ("packets/frame    : %5.2f\n", pak);	//not relevent as a limit.
@@ -1273,39 +1280,14 @@ void SV_Localinfo_f (void)
 	Con_DPrintf("Localinfo %s changed (%s -> %s)\n", Cmd_Argv(1), old, Cmd_Argv(2));
 }
 
-void SV_SaveInfo(FILE *f, char *info, char *commandname)
-{
-	char *command;
-	char *value;
-
-	while(*info == '\\')
-	{
-		command = info+1;
-		value = strchr(command, '\\');
-		info = strchr(value+1, '\\');
-		if (!info)	//eot..
-			info = value+strlen(value);
-
-		if (*command == '*')	//unsettable, so don't write it for later setting.
-			continue;
-
-		fwrite(commandname, strlen(commandname), 1, f);
-		fwrite(" ", 1, 1, f);
-		fwrite(command, value-command, 1, f);
-		fwrite(" ", 1, 1, f);
-		fwrite(value+1, info-(value+1), 1, f);
-		fwrite("\n", 1, 1, f);
-	}
-}
-
 void SV_SaveInfos(FILE *f)
 {
 	fwrite("\n", 1, 1, f);
 	fwrite("serverinfo * \"\"\n", 16, 1, f);
-	SV_SaveInfo(f, svs.info, "serverinfo");
+	Info_WriteToFile(f, svs.info, "serverinfo", CVAR_SERVERINFO);
 	fwrite("\n", 1, 1, f);
 	fwrite("localinfo * \"\"\n", 15, 1, f);
-	SV_SaveInfo(f, localinfo, "localinfo");
+	Info_WriteToFile(f, localinfo, "localinfo", 0);
 }
 
 /*

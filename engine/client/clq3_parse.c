@@ -972,7 +972,6 @@ void CLQ3_SendAuthPacket(netadr_t gameserver)
 //this should be the right code, but it doesn't work.
 	if (gameserver.type == NA_IP)
 	{
-		char keydata[64];
 		char *key = Cvar_Get("cl_cdkey", "", 0, "Quake3 auth")->string;
 		netadr_t authaddr;
 #define	AUTHORIZE_SERVER_NAME	"authorize.quake3arena.com:27952"

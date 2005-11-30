@@ -148,73 +148,15 @@ void ResampleSfx (sfx_t *sfx, int inrate, int inwidth, qbyte *data)
 
 //=============================================================================
 
-/*
-==============
-S_LoadSound
-==============
-*/
-#ifdef AVAIL_MP3
-sfxcache_t *S_LoadMP3Sound (sfx_t *s);
-#endif
-sfxcache_t *S_LoadOVSound (sfx_t *s);
+typedef sfxcache_t *(*S_LoadSound_t) (sfx_t *s, qbyte *data, int datalen, int sndspeed);
 
-sfxcache_t *S_LoadSound (sfx_t *s)
+sfxcache_t *S_LoadWavSound (sfx_t *s, qbyte *data, int datalen, int sndspeed)
 {
-    char	namebuffer[256];
-	qbyte	*data;
 	wavinfo_t	info;
 	int		len;
 	sfxcache_t	*sc;
-	qbyte	stackbuf[1*1024];		// avoid dirtying the cache heap
 
-// see if still in memory
-	sc = Cache_Check (&s->cache);
-	if (sc)
-		return sc;
-
-#ifdef AVAIL_OGGVORBIS
-	//ogg vorbis support. The only bit actual code outside snd_ov.c (excluding def for the function call)
-	sc = S_LoadOVSound(s);  // try and load a replacement ov instead.
-	if (sc)
-		return sc;
-#endif
-
-#ifdef AVAIL_MP3
-	//mp3 support. The only bit actual code outside snd_mp3.c (excluding def for the function call)
-	sc = S_LoadMP3Sound(s);  // try and load a replacement mp3 instead.
-	if (sc)
-		return sc;
-#endif
-
-
-//Con_Printf ("S_LoadSound: %x\n", (int)stackbuf);
-// load it in
-
-	if (*s->name == '*')
-	{
-		Q_strcpy(namebuffer, "players/male/");	//q2
-		Q_strcat(namebuffer, s->name+1);	//q2
-	}
-	else if (s->name[0] == '.' && s->name[1] == '.' && s->name[2] == '/')
-		Q_strcpy(namebuffer, s->name+3);
-	else
-	{
-		Q_strcpy(namebuffer, "sound/");
-		Q_strcat(namebuffer, s->name);
-	}
-
-//	Con_Printf ("loading %s\n",namebuffer);
-
-	data = COM_LoadStackFile(namebuffer, stackbuf, sizeof(stackbuf));
-
-	if (!data)
-	{
-		//FIXME: check to see if qued for download.
-		Con_Printf ("Couldn't load %s\n", namebuffer);		
-		return NULL;
-	}
-
-	info = GetWavinfo (s->name, data, com_filesize);
+	info = GetWavinfo (s->name, data, datalen);
 	if (info.numchannels < 1 || info.numchannels > 2)
 	{
 		Con_Printf ("%s has an unsupported quantity of channels.\n",s->name);
@@ -226,7 +168,9 @@ sfxcache_t *S_LoadSound (sfx_t *s)
 
 	sc = Cache_Alloc ( &s->cache, len + sizeof(sfxcache_t), s->name);
 	if (!sc)
+	{
 		return NULL;
+	}
 	
 	sc->length = info.samples;
 	sc->loopstart = info.loopstart;
@@ -237,6 +181,138 @@ sfxcache_t *S_LoadSound (sfx_t *s)
 	ResampleSfx (s, sc->speed, sc->width, data + info.dataofs);
 
 	return sc;
+}
+
+sfxcache_t *S_LoadOVSound (sfx_t *s, qbyte *data, int datalen, int sndspeed);
+
+S_LoadSound_t AudioInputPlugins[8] =
+{
+	S_LoadWavSound
+
+#ifdef AVAIL_OGGVORBIS
+//	, S_LoadOVSound
+#endif
+};
+
+qboolean S_RegisterSoundInputPlugin(S_LoadSound_t loadfnc)
+{
+	int i;
+	for (i = 0; i < sizeof(AudioInputPlugins)/sizeof(AudioInputPlugins[0]); i++)
+	{
+		if (!AudioInputPlugins[i])
+		{
+			AudioInputPlugins[i] = loadfnc;
+			return true;
+		}
+	}
+	return false;
+}
+
+/*
+==============
+S_LoadSound
+==============
+*/
+#ifdef AVAIL_MP3
+sfxcache_t *S_LoadMP3Sound (sfx_t *s);
+#endif
+
+sfxcache_t *S_LoadSound (sfx_t *s)
+{
+	char stackbuf[65536];
+    char	namebuffer[256];
+	qbyte	*data;
+	sfxcache_t	*sc;
+	int i;
+
+	char *name = s->name;
+
+// see if still in memory
+	sc = Cache_Check (&s->cache);
+	if (sc)
+		return sc;
+
+	s->decoder = NULL;
+
+
+#ifdef AVAIL_MP3
+	//mp3 support. The only bit actual code outside snd_mp3.c (excluding def for the function call)
+	sc = S_LoadMP3Sound(s);  // try and load a replacement mp3 instead.
+	if (sc)
+		return sc;
+#endif
+
+
+
+	if (name[1] == ':' && name[2] == '\\')
+	{
+		FILE *f;
+#ifndef _WIN32	//convert from windows to a suitable alternative.
+		char unixname[128];
+		sprintf(unixname, "/mnt/%c/%s", name[0]-'A'+'a', name+3);
+		name = unixname;
+		while (*name)
+		{
+			if (*name == '\\')
+				*name = '/';
+			name++;
+		}			
+		name = unixname;
+#endif
+
+		if ((f = fopen(name, "rb")))
+		{
+			com_filesize = COM_filelength(f);
+			data = Hunk_TempAlloc (com_filesize);
+			fread(data, 1, com_filesize, f);
+			fclose(f);
+		}
+		else
+		{
+			Con_SafePrintf ("Couldn't load %s\n", namebuffer);
+			return NULL;
+		}
+	}
+	else
+	{
+	//Con_Printf ("S_LoadSound: %x\n", (int)stackbuf);
+	// load it in
+
+		if (*name == '*')
+		{
+			Q_strcpy(namebuffer, "players/male/");	//q2
+			Q_strcat(namebuffer, name+1);	//q2
+		}
+		else if (name[0] == '.' && name[1] == '.' && name[2] == '/')
+			Q_strcpy(namebuffer, name+3);
+		else
+		{
+			Q_strcpy(namebuffer, "sound/");
+			Q_strcat(namebuffer, name);
+		}
+
+	//	Con_Printf ("loading %s\n",namebuffer);
+
+		data = COM_LoadStackFile(namebuffer, stackbuf, sizeof(stackbuf));
+	}
+
+	if (!data)
+	{
+		//FIXME: check to see if qued for download.
+		Con_Printf ("Couldn't load %s\n", namebuffer);
+		return NULL;
+	}
+
+	for (i = sizeof(AudioInputPlugins)/sizeof(AudioInputPlugins[0])-1; i >= 0; i--)
+	{
+		if (AudioInputPlugins[i])
+		{
+			sc = AudioInputPlugins[i](s, data, com_filesize, snd_speed);
+			if (sc)
+				return sc;
+		}
+	}
+	return NULL;
 }
 
 

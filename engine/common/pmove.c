@@ -637,6 +637,7 @@ void PM_AirMove (void)
 	else
 	{	// not on ground, so little effect on velocity
 		PM_AirAccelerate (wishdir, wishspeed, movevars.accelerate);
+//		PM_Accelerate (wishdir, wishspeed, movevars.airaccelerate);
 
 		// add gravity
 		pmove.velocity[2] -= movevars.entgravity * movevars.gravity * frametime;

@@ -85,6 +85,7 @@ static cvar_t	vid_width = {"vid_width", "640", NULL, CVAR_ARCHIVE|CVAR_RENDERERL
 static cvar_t	vid_height = {"vid_height", "480", NULL, CVAR_ARCHIVE|CVAR_RENDERERLATCH};
 static cvar_t	vid_refreshrate = {"vid_displayfrequency", "0", NULL, CVAR_ARCHIVE|CVAR_RENDERERLATCH};
 
+cvar_t	gl_texturemode = {"gl_texturemode", "GL_LINEAR_MIPMAP_NEAREST"};
 cvar_t	gl_motionblur = {"gl_motionblur", "0"};
 cvar_t	gl_motionblurscale = {"gl_motionblurscale", "1"};
 cvar_t	gl_fontedgeclamp = {"gl_fontedgeclamp", "0"};	//gl blends. Set this to 1 to stop the outside of your conchars from being visible
@@ -148,6 +149,7 @@ cvar_t		gl_mylumassuck = {"gl_mylumassuck", "0"};
 cvar_t			scr_sshot_type = {"scr_sshot_type", "jpg"};
 
 
+cvar_t			scr_centersbar = {"scr_centersbar", "0"};
 cvar_t			scr_consize = {"scr_consize", "0.5"};
 cvar_t          scr_viewsize = {"viewsize","100", NULL, CVAR_ARCHIVE};
 cvar_t          scr_fov = {"fov","90", NULL, CVAR_ARCHIVE}; // 10 - 170
@@ -313,11 +315,11 @@ void GLRenderer_Init(void)
 #endif
 
 	Cvar_Register (&gl_nobind, GLRENDEREROPTIONS);
-	Cvar_Register (&gl_max_size, GLRENDEREROPTIONS);
 	Cvar_Register (&gl_picmip, GLRENDEREROPTIONS);
 	Cvar_Register (&gl_picmip2d, GLRENDEREROPTIONS);
 	Cvar_Register (&r_drawdisk, GLRENDEREROPTIONS);
 
+	Cvar_Register (&gl_texturemode, GLRENDEREROPTIONS);
 	Cvar_Register (&gl_savecompressedtex, GLRENDEREROPTIONS);
 	Cvar_Register (&gl_compress, GLRENDEREROPTIONS);
 	Cvar_Register (&gl_driver, GLRENDEREROPTIONS);
@@ -447,7 +449,6 @@ void Renderer_Init(void)
 	Cvar_Register (&_windowed_mouse, VIDCOMMANDGROUP);
 	Cvar_Register (&vid_renderer, VIDCOMMANDGROUP);
 
-	Cvar_Register (&_windowed_mouse, VIDCOMMANDGROUP);
 	Cvar_Register (&vid_fullscreen, VIDCOMMANDGROUP);
 //	Cvar_Register (&vid_stretch, VIDCOMMANDGROUP);
 	Cvar_Register (&vid_bpp, VIDCOMMANDGROUP);
@@ -471,21 +472,12 @@ void Renderer_Init(void)
 
 	Cvar_Register(&scr_viewsize, SCREENOPTIONS);
 	Cvar_Register(&scr_fov, SCREENOPTIONS);
-	Cvar_Register(&scr_conspeed, SCREENOPTIONS);
-	Cvar_Register(&scr_centertime, SCREENOPTIONS);
-	Cvar_Register(&scr_showram, SCREENOPTIONS);
-	Cvar_Register(&scr_showturtle, SCREENOPTIONS);
-	Cvar_Register(&scr_showpause, SCREENOPTIONS);
-	Cvar_Register(&scr_printspeed, SCREENOPTIONS);
-	Cvar_Register(&scr_allowsnap, SCREENOPTIONS);
 	Cvar_Register(&scr_chatmodecvar, SCREENOPTIONS);
 
 	Cvar_Register (&scr_sshot_type, SCREENOPTIONS);
 
 
 //screen
-	Cvar_Register (&scr_fov, SCREENOPTIONS);
-	Cvar_Register (&scr_viewsize, SCREENOPTIONS);
 	Cvar_Register (&scr_conspeed, SCREENOPTIONS);
 	Cvar_Register (&scr_showram, SCREENOPTIONS);
 	Cvar_Register (&scr_showturtle, SCREENOPTIONS);

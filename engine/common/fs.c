@@ -2158,6 +2158,9 @@ void COM_InitFilesystem (void)
 	if (!COM_CheckParm("-usehome"))
 		*com_homedir = '\0';
 
+	if (COM_CheckParm("-nohome"))
+		*com_homedir = '\0';
+
 	if (*com_homedir)
 	{
 		Con_Printf("Using home directory \"%s\"\n", com_homedir);

@@ -116,6 +116,7 @@ CLIENT_OBJS = $(CLIENT_ASM_OBJS) \
 	cl_cam.o	\
 	cl_screen.o	\
 	cl_ui.o	\
+	cl_ignore.o \
 	cl_cg.o \
 	clq3_parse.o	\
 	pr_csqc.o	\

@@ -249,8 +249,7 @@ void R_DrawSkyChain (msurface_t *s)
 
 	// used when gl_texsort is on
 	GL_Bind(solidskytexture);
-	speedscale = cl.gametime;
-	speedscale += realtime - cl.gametimemark;
+	speedscale = cl.servertime;
 	speedscale*=8;
 	speedscale -= (int)speedscale & ~127 ;
 
@@ -259,8 +258,7 @@ void R_DrawSkyChain (msurface_t *s)
 
 	qglEnable (GL_BLEND);
 	GL_Bind (alphaskytexture);
-	speedscale = cl.gametime;
-	speedscale += realtime - cl.gametimemark;
+	speedscale = cl.servertime;
 	speedscale*=16;
 	speedscale -= (int)speedscale & ~127 ;
 

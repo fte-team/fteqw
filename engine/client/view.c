@@ -1243,6 +1243,7 @@ entity_t *CL_EntityNum(int num)
 float CalcFov (float fov_x, float width, float height);
 void SCR_VRectForPlayer(vrect_t *vrect, int pnum)
 {
+	extern int glwidth, glheight;
 #if MAX_SPLITS > 4
 #pragma warning "Please change this function to cope with the new MAX_SPLITS value"
 #endif
@@ -1263,10 +1264,20 @@ void SCR_VRectForPlayer(vrect_t *vrect, int pnum)
 
 	case 2:	//horizontal bands
 	case 3:
-		vrect->width = vid.width;
-		vrect->height = vid.height/cl.splitclients;
-		vrect->x = 0;
-		vrect->y = 0 + vrect->height*pnum;
+		if (glwidth > glheight * 2)
+		{	//over twice as wide as high, assume duel moniter, horizontal.
+			vrect->width = vid.width/cl.splitclients;
+			vrect->height = vid.height;
+			vrect->x = 0 + vrect->width*pnum;
+			vrect->y = 0;
+		}
+		else
+		{
+			vrect->width = vid.width;
+			vrect->height = vid.height/cl.splitclients;
+			vrect->x = 0;
+			vrect->y = 0 + vrect->height*pnum;
+		}
 
 		break;
 
@@ -1625,7 +1636,6 @@ void V_Init (void)
 	Cvar_Register (&v_kickroll, VIEWVARS);
 	Cvar_Register (&v_kickpitch, VIEWVARS);
 
-	Cvar_Register (&v_idlescale, VIEWVARS);
 	Cvar_Register (&v_deathtilt, VIEWVARS);
 
 	Cvar_Register (&scr_autoid, VIEWVARS);

@@ -123,6 +123,7 @@ cvar_t sv_masterport = {"sv_masterport", "0"};
 cvar_t	sv_voicechat = {"sv_voicechat", "0"};	//still development.
 cvar_t	sv_gamespeed = {"sv_gamespeed", "1"};
 cvar_t	sv_csqcdebug = {"sv_csqcdebug", "0"};
+cvar_t	sv_tcpport = {"sv_tcpport", "0"};
 
 cvar_t pausable	= {"pausable", "1"};
 
@@ -3007,6 +3008,7 @@ void SV_InitLocal (void)
 
 	Cvar_Register (&sv_public,	cvargroup_servercontrol);
 	Cvar_Register (&sv_listen,	cvargroup_servercontrol);
+	Cvar_Register (&sv_tcpport,	cvargroup_servercontrol);
 	Cvar_Register (&sv_reportheartbeats, cvargroup_servercontrol);
 
 #ifndef SERVERONLY
@@ -3085,6 +3087,7 @@ void SV_InitLocal (void)
 #ifdef PEXT_BULLETENS
 	svs.fteprotocolextensions |= PEXT_BULLETENS;
 #endif
+	svs.fteprotocolextensions |= PEXT_ACCURATETIMINGS;
 #ifdef PEXT_ZLIBDL
 	svs.fteprotocolextensions |= PEXT_ZLIBDL;
 #endif

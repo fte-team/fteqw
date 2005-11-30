@@ -664,6 +664,18 @@ typedef struct levelcache_s {
 	gametype_e gametype;
 } levelcache_t;
 
+#ifdef TCPCONNECT
+typedef struct svtcpstream_s {
+	int socketnum;
+	int inlen;
+	qboolean waitingforprotocolconfirmation;
+	char inbuffer[1500];
+	float timeouttime;
+	netadr_t remoteaddr;
+	struct svtcpstream_s *next;
+} svtcpstream_t;
+#endif
+
 typedef struct
 {
 	gametype_e	gametype;
@@ -673,6 +685,11 @@ typedef struct
 	int socketip;
 	int socketip6;
 	int socketipx;
+
+#ifdef TCPCONNECT
+	int sockettcp;
+	svtcpstream_t *tcpstreams;
+#endif
 
 	client_t	clients[MAX_CLIENTS];
 	int			serverflags;		// episode completion information
@@ -919,6 +936,8 @@ qboolean SVQ3_InitGame(void);
 qboolean SVQ3_ConsoleCommand(void);
 void SVQ3_HandleClient(void);
 void SVQ3_DirectConnect(void);
+void SVQ3_DropClient(client_t *cl);
+int SVQ3_AddBot(void);
 void SVQ3_RunFrame(void);
 void SVQ3_SendMessage(client_t *client);
 qboolean SVQ3_Command(void);
@@ -942,6 +961,7 @@ void SV_SetMoveVars(void);
 //
 // sv_send.c
 //
+qboolean SV_ChallengePasses(int challenge);
 void SV_QCStat(int type, char *name, int statnum);
 void SV_ClearQCStats(void);
 

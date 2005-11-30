@@ -21,21 +21,6 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 struct sockaddr;
 
 #include "quakedef.h"
-#ifdef _WIN32
-
-#ifdef _MSC_VER
-#define USEIPX
-#endif
-#include "winquake.h"
-#ifdef USEIPX
-#include "wsipx.h"
-#endif
-#ifdef IPPROTO_IPV6
-#include "ws2tcpip.h"
-#endif
-
-#endif
-
 #include "netinc.h"
 
 netadr_t	net_local_cl_ipadr;
@@ -44,6 +29,7 @@ netadr_t	net_local_cl_ipxadr;
 netadr_t	net_local_sv_ipadr;
 netadr_t	net_local_sv_ip6adr;
 netadr_t	net_local_sv_ipxadr;
+netadr_t	net_local_sv_tcpipadr;
 
 netadr_t	net_from;
 sizebuf_t	net_message;
@@ -79,8 +65,11 @@ void (*pfreeaddrinfo) (struct addrinfo*);
 #endif
 #endif
 
+void NET_GetLocalAddress (int socket, netadr_t *out);
+int TCP_OpenListenSocket (int port);
 
 extern cvar_t sv_public, sv_listen;
+extern cvar_t sv_tcpport;
 
 
 
@@ -100,7 +89,7 @@ typedef struct
 loopback_t	loopbacks[2];
 //=============================================================================
 
-void NetadrToSockadr (netadr_t *a, struct sockaddr_qstorage *s)
+int NetadrToSockadr (netadr_t *a, struct sockaddr_qstorage *s)
 {
 	switch(a->type)
 	{
@@ -110,7 +99,7 @@ void NetadrToSockadr (netadr_t *a, struct sockaddr_qstorage *s)
 
 		*(int *)&((struct sockaddr_in*)s)->sin_addr = INADDR_BROADCAST;
 		((struct sockaddr_in*)s)->sin_port = a->port;
-		break;
+		return sizeof(struct sockaddr_in);
 
 	case NA_IP:
 		memset (s, 0, sizeof(struct sockaddr_in));
@@ -118,7 +107,7 @@ void NetadrToSockadr (netadr_t *a, struct sockaddr_qstorage *s)
 
 		*(int *)&((struct sockaddr_in*)s)->sin_addr = *(int *)&a->ip;
 		((struct sockaddr_in*)s)->sin_port = a->port;
-		break;
+		return sizeof(struct sockaddr_in);
 #ifdef IPPROTO_IPV6
 	case NA_BROADCAST_IP6:
 		memset (s, 0, sizeof(struct sockaddr_in));
@@ -129,7 +118,7 @@ void NetadrToSockadr (netadr_t *a, struct sockaddr_qstorage *s)
 		((struct sockaddr_in6*)s)->sin6_addr.s6_addr[1]		= 0x02;
 		((struct sockaddr_in6*)s)->sin6_addr.s6_addr[15]	= 0x01;
 		((struct sockaddr_in6*)s)->sin6_port = a->port;
-		break;
+		return sizeof(struct sockaddr_in6);
 
 	case NA_IPV6:
 		memset (s, 0, sizeof(struct sockaddr_in));
@@ -137,7 +126,7 @@ void NetadrToSockadr (netadr_t *a, struct sockaddr_qstorage *s)
 
 		memcpy(&((struct sockaddr_in6*)s)->sin6_addr, a->ip6, sizeof(struct in6_addr));
 		((struct sockaddr_in6*)s)->sin6_port = a->port;
-		break;
+		return sizeof(struct sockaddr_in6);
 #endif
 #ifdef USEIPX
 	case NA_IPX:
@@ -145,17 +134,18 @@ void NetadrToSockadr (netadr_t *a, struct sockaddr_qstorage *s)
 		memcpy(((struct sockaddr_ipx *)s)->sa_netnum, &a->ipx[0], 4);
 		memcpy(((struct sockaddr_ipx *)s)->sa_nodenum, &a->ipx[4], 6);
 		((struct sockaddr_ipx *)s)->sa_socket = a->port;
-		break;
+		return sizeof(struct sockaddr_ipx);
 	case NA_BROADCAST_IPX:
 		memset (s, 0, sizeof(struct sockaddr_ipx));
 		((struct sockaddr_ipx*)s)->sa_family = AF_IPX;
 		memset(&((struct sockaddr_ipx*)s)->sa_netnum, 0, 4);
 		memset(&((struct sockaddr_ipx*)s)->sa_nodenum, 0xff, 6);
 		((struct sockaddr_ipx*)s)->sa_socket = a->port;
-		break;
+		return sizeof(struct sockaddr_ipx);
 #endif
 	default:
 		Sys_Error("Bad type - needs fixing");
+		return 0;
 	}
 }
 
@@ -281,7 +271,7 @@ char	*NET_AdrToString (netadr_t a)
 #ifdef IPPROTO_IPV6
 	case NA_BROADCAST_IP6:
 	case NA_IPV6:
-		sprintf (s, "%02x%02x:%02x%02x:%02x%02x:%02x%02x:%02x%02x:%02x%02x:%02x%02x:%02x%02x:%i", a.ip6[0], a.ip6[1], a.ip6[2], a.ip6[3], a.ip6[4], a.ip6[5], a.ip6[6], a.ip6[7], a.ip6[8], a.ip6[9], a.ip6[10], a.ip6[11], a.ip6[12], a.ip6[13], a.ip6[14], a.ip6[15], ntohs(a.port));
+		sprintf (s, "[%02x%02x:%02x%02x:%02x%02x:%02x%02x:%02x%02x:%02x%02x:%02x%02x:%02x%02x]:%i", a.ip6[0], a.ip6[1], a.ip6[2], a.ip6[3], a.ip6[4], a.ip6[5], a.ip6[6], a.ip6[7], a.ip6[8], a.ip6[9], a.ip6[10], a.ip6[11], a.ip6[12], a.ip6[13], a.ip6[14], a.ip6[15], ntohs(a.port));
 		break;
 #endif
 #ifdef USEIPX
@@ -395,29 +385,42 @@ qboolean	NET_StringToSockaddr (char *s, struct sockaddr_qstorage *sadr)
 		udp6hint.ai_socktype = SOCK_DGRAM;
 		udp6hint.ai_protocol = IPPROTO_UDP;
 
-		port = s + strlen(s);
-		while(port >= s)
+		if (*s == '[')
 		{
-			if (*port == ':')
-			break;
-			port--;
-		}
-
-		if (port == s)
-			port = NULL;
-		if (port)
-		{
-			len = port - s;
-			if (len >= sizeof(dupbase))
-				len = sizeof(dupbase)-1;
-			strncpy(dupbase, s, len);
-			dupbase[len] = '\0';
-			error = pgetaddrinfo(dupbase, port+1, &udp6hint, &addrinfo);
+			port = strstr(s, "]:");
+			if (!port)
+				error = EAI_NONAME;
+			else
+			{
+				error = pgetaddrinfo(s+1. port+2, &udp6hint, &addrinfo);
+			}
 		}
 		else
-			error = EAI_NONAME;
-		if (error)	//failed, try string with no port.
+		{
+			port = s + strlen(s);
+			while(port >= s)
+			{
+				if (*port == ':')
+				break;
+				port--;
+			}
+
+			if (port == s)
+				port = NULL;
+			if (port)
+			{
+				len = port - s;
+				if (len >= sizeof(dupbase))
+					len = sizeof(dupbase)-1;
+				strncpy(dupbase, s, len);
+				dupbase[len] = '\0';
+				error = pgetaddrinfo(dupbase, port+1, &udp6hint, &addrinfo);
+			}
+			else
+				error = EAI_NONAME;
+			if (error)	//failed, try string with no port.
 			error = pgetaddrinfo(s, NULL, &udp6hint, &addrinfo);	//remember, this func will return any address family that could be using the udp protocol... (ip4 or ip6)
+		}
 		if (error)
 		{
 			return false;
@@ -674,11 +677,227 @@ qboolean NET_GetPacket (netsrc_t netsrc)
 		if (net_message.cursize == sizeof(net_message_buffer) )
 		{
 			Con_TPrintf (TL_OVERSIZEPACKETFROM, NET_AdrToString (net_from));
-			return false;
+			continue;
 		}
 
 		return ret;
 	}
+
+#ifdef TCPCONNECT
+#ifndef SERVERONLY
+	if (netsrc == NS_CLIENT)
+	{
+		if (cls.sockettcp != INVALID_SOCKET)
+		{//client receiving only via tcp
+
+			ret = recv(cls.sockettcp, cls.tcpinbuffer+cls.tcpinlen, sizeof(cls.tcpinbuffer)-cls.tcpinlen, 0);
+			if (ret == -1)
+			{
+				err = qerrno;
+
+				if (err == EWOULDBLOCK)
+					ret = 0;
+				else
+				{
+					if (err == ECONNABORTED || err == ECONNRESET)
+					{
+						closesocket(cls.sockettcp);
+						cls.sockettcp = INVALID_SOCKET;
+						Con_TPrintf (TL_CONNECTIONLOSTORABORTED);	//server died/connection lost.
+
+						if (cls.state != ca_disconnected)
+						{
+							if (cls.lastarbiatarypackettime+5 < Sys_DoubleTime())	//too many mvdsv
+								Cbuf_AddText("disconnect\nreconnect\n", RESTRICT_LOCAL);	//retry connecting.
+							else
+								Con_Printf("Packet was not delivered - server might be badly configured\n");
+							return false;
+						}
+						return false;
+					}
+
+
+					closesocket(cls.sockettcp);
+					cls.sockettcp = INVALID_SOCKET;
+					Con_Printf ("NET_GetPacket: Error (%i): %s\n", err, strerror(err));
+					return false;
+				}
+			}
+			cls.tcpinlen += ret;
+
+			if (cls.tcpinlen < 2)
+				return false;
+
+			net_message.cursize = BigShort(*(short*)cls.tcpinbuffer);
+			if (net_message.cursize >= sizeof(net_message_buffer) )
+			{
+				closesocket(cls.sockettcp);
+				cls.sockettcp = INVALID_SOCKET;
+				Con_TPrintf (TL_OVERSIZEPACKETFROM, NET_AdrToString (net_from));
+				return false;
+			}
+			if (net_message.cursize+2 > cls.tcpinlen)
+			{	//not enough buffered to read a packet out of it.
+				return false;
+			}
+
+			memcpy(net_message_buffer, cls.tcpinbuffer+2, net_message.cursize);
+			memmove(cls.tcpinbuffer, cls.tcpinbuffer+net_message.cursize+2, cls.tcpinlen - (net_message.cursize+2));
+			cls.tcpinlen -= net_message.cursize+2;
+
+			net_message.packing = SZ_RAWBYTES;
+			net_message.currentbit = 0;
+			net_from = cls.sockettcpdest;
+
+			return true;
+		}
+	}
+#endif
+#ifndef CLIENTONLY
+	if (netsrc == NS_SERVER)
+	{
+		float timeval = Sys_DoubleTime();
+		svtcpstream_t *st;
+		st = svs.tcpstreams;
+
+		while (svs.tcpstreams && svs.tcpstreams->socketnum == INVALID_SOCKET)
+		{
+			st = svs.tcpstreams;
+			svs.tcpstreams = svs.tcpstreams->next;
+			BZ_Free(st);
+		}
+
+		for (st = svs.tcpstreams; st; st = st->next)
+		{//client receiving only via tcp
+
+			while (st->next && st->next->socketnum == INVALID_SOCKET)
+			{
+				svtcpstream_t *temp;
+				temp = st->next;
+				st->next = st->next->next;
+				BZ_Free(temp);
+			}
+
+//due to the above checks about invalid sockets, the socket is always open for st below.
+
+			if (st->timeouttime < timeval)
+				goto closesvstream;
+
+			ret = recv(st->socketnum, st->inbuffer+st->inlen, sizeof(st->inbuffer)-st->inlen, 0);
+			if (ret == 0)
+				goto closesvstream;
+			else if (ret == -1)
+			{
+				err = qerrno;
+
+				if (err == EWOULDBLOCK)
+					ret = 0;
+				else
+				{
+					if (err == ECONNABORTED || err == ECONNRESET)
+					{
+						Con_TPrintf (TL_CONNECTIONLOSTORABORTED);	//server died/connection lost.
+					}
+					else
+						Con_Printf ("NET_GetPacket: Error (%i): %s\n", err, strerror(err));
+
+	closesvstream:
+					closesocket(st->socketnum);
+					st->socketnum = INVALID_SOCKET;
+					continue;
+				}
+			}
+			st->inlen += ret;
+
+			if (st->waitingforprotocolconfirmation)
+			{
+				if (st->inlen < 6)
+					continue;
+
+				if (strncmp(st->inbuffer, "qizmo\n", 6))
+				{
+					Con_Printf ("Unknown TCP client\n");
+					goto closesvstream;
+				}
+
+				memmove(st->inbuffer, st->inbuffer+6, st->inlen - (6));
+				st->inlen -= 6;
+				st->waitingforprotocolconfirmation = false;
+			}
+
+			if (st->inlen < 2)
+				continue;
+
+			net_message.cursize = BigShort(*(short*)st->inbuffer);
+			if (net_message.cursize >= sizeof(net_message_buffer) )
+			{
+				Con_TPrintf (TL_OVERSIZEPACKETFROM, NET_AdrToString (net_from));
+				goto closesvstream;
+			}
+			if (net_message.cursize+2 > st->inlen)
+			{	//not enough buffered to read a packet out of it.
+				continue;
+			}
+
+			memcpy(net_message_buffer, st->inbuffer+2, net_message.cursize);
+			memmove(st->inbuffer, st->inbuffer+net_message.cursize+2, st->inlen - (net_message.cursize+2));
+			st->inlen -= net_message.cursize+2;
+
+			net_message.packing = SZ_RAWBYTES;
+			net_message.currentbit = 0;
+			net_from = st->remoteaddr;
+
+			return true;
+		}
+
+
+#ifdef TCPCONNECT
+		if (sv_tcpport.modified)
+		{
+			if (svs.sockettcp == INVALID_SOCKET && sv_tcpport.value)
+			{
+				svs.sockettcp = TCP_OpenListenSocket(sv_tcpport.value);
+				if (svs.sockettcp != INVALID_SOCKET)
+					NET_GetLocalAddress (svs.sockettcp, &net_local_sv_tcpipadr);
+				else
+					Con_Printf("Failed to open TCP port %i\n", (int)sv_tcpport.value);
+			}
+			else
+			{
+				UDP_CloseSocket(svs.sockettcp);
+				svs.sockettcp = INVALID_SOCKET;
+			}
+			sv_tcpport.modified = false;
+		}
+#endif
+		if (svs.sockettcp != INVALID_SOCKET)
+		{
+			int newsock;
+			newsock = accept(svs.sockettcp, (struct sockaddr*)&from, &fromlen);
+			if (newsock != INVALID_SOCKET)
+			{
+				int _true = true;
+				setsockopt(newsock, IPPROTO_TCP, TCP_NODELAY, (char *)&_true, sizeof(_true));
+
+
+
+				st = Z_Malloc(sizeof(svtcpstream_t));
+				st->waitingforprotocolconfirmation = true;
+				st->next = svs.tcpstreams;
+				svs.tcpstreams = st;
+				st->socketnum = newsock;
+				st->inlen = 0;
+				SockadrToNetadr(&from, &st->remoteaddr);
+				send(newsock, "qizmo\n", 6, 0);
+
+				st->timeouttime = timeval + 30;
+			}
+		}
+	}
+#endif
+#endif
+
+
 	return false;
 }
 
@@ -706,6 +925,28 @@ void NET_SendPacket (netsrc_t netsrc, int length, void *data, netadr_t to)
 		Sys_Error("NET_SendPacket: bad netsrc");
 		socket = 0;
 #else
+
+#ifdef TCPCONNECT
+		svtcpstream_t *st;
+		for (st = svs.tcpstreams; st; st = st->next)
+		{
+			if (st->socketnum == INVALID_SOCKET)
+				continue;
+
+			if (NET_CompareAdr(to, st->remoteaddr))
+			{
+				unsigned short slen = BigShort((unsigned short)length);
+				send(st->socketnum, (char*)&slen, sizeof(slen), 0);
+				send(st->socketnum, data, length, 0);
+
+				st->timeouttime = Sys_DoubleTime() + 20;
+
+				return;
+			}
+		}
+#endif
+
+
 #ifdef USEIPX
 		if (to.type == NA_BROADCAST_IPX || to.type == NA_IPX)
 			socket = svs.socketipx;
@@ -725,6 +966,24 @@ void NET_SendPacket (netsrc_t netsrc, int length, void *data, netadr_t to)
 		Sys_Error("NET_SendPacket: bad netsrc");
 		socket = 0;
 #else
+
+#ifdef TCPCONNECT
+		if (cls.sockettcp != -1)
+		{
+			if (NET_CompareAdr(to, cls.sockettcpdest))
+			{	//this goes to the server
+				//so send it via tcp
+				unsigned short slen = BigShort((unsigned short)length);
+				send(cls.sockettcp, (char*)&slen, sizeof(slen), 0);
+				send(cls.sockettcp, data, length, 0);
+
+				return;
+			}
+		}
+#endif
+
+
+
 #ifdef USEIPX
 		if (to.type == NA_BROADCAST_IPX || to.type == NA_IPX)
 			socket = cls.socketipx;
@@ -784,6 +1043,93 @@ void NET_SendPacket (netsrc_t netsrc, int length, void *data, netadr_t to)
 }
 
 //=============================================================================
+
+int TCP_OpenStream (netadr_t remoteaddr)
+{
+	unsigned long _true = true;
+	int newsocket;
+	int temp;
+	struct sockaddr_qstorage qs;
+
+	temp = NetadrToSockadr(&remoteaddr, &qs);
+	
+	if ((newsocket = socket (((struct sockaddr_in*)&qs)->sin_family, SOCK_STREAM, IPPROTO_TCP)) == INVALID_SOCKET)
+		return INVALID_SOCKET;
+
+	if (connect(newsocket, (struct sockaddr *)&qs, temp) == INVALID_SOCKET)
+	{
+		closesocket(newsocket);
+		return INVALID_SOCKET;
+	}
+
+	if (ioctlsocket (newsocket, FIONBIO, &_true) == -1)
+		Sys_Error ("UDP_OpenSocket: ioctl FIONBIO: %s", strerror(qerrno));
+
+
+	return newsocket;
+}
+
+int TCP_OpenListenSocket (int port)
+{
+	int newsocket;
+	struct sockaddr_in address;
+	unsigned long _true = true;
+	int i;
+int maxport = port + 100;
+
+	if ((newsocket = socket (PF_INET, SOCK_STREAM, IPPROTO_TCP)) == INVALID_SOCKET)
+		return INVALID_SOCKET;
+
+	if (ioctlsocket (newsocket, FIONBIO, &_true) == -1)
+		Sys_Error ("TCP_OpenListenSocket: ioctl FIONBIO: %s", strerror(qerrno));
+
+	address.sin_family = AF_INET;
+//ZOID -- check for interface binding option
+	if ((i = COM_CheckParm("-ip")) != 0 && i < com_argc) {
+		address.sin_addr.s_addr = inet_addr(com_argv[i+1]);
+		Con_TPrintf(TL_NETBINDINTERFACE,
+				inet_ntoa(address.sin_addr));
+	} else
+		address.sin_addr.s_addr = INADDR_ANY;
+
+	for(;;)
+	{
+		if (port == PORT_ANY)
+			address.sin_port = 0;
+		else
+			address.sin_port = htons((short)port);
+
+		if( bind (newsocket, (void *)&address, sizeof(address)) == -1)
+		{
+			if (!port)
+			{
+				Con_Printf("Cannot bind tcp socket\n");
+				closesocket(newsocket);
+				return INVALID_SOCKET;
+			}
+			port++;
+			if (port > maxport)
+			{
+				Con_Printf("Cannot bind tcp socket\n");
+				closesocket(newsocket);
+				return INVALID_SOCKET;
+			}
+		}
+		else
+			break;
+	}
+
+	if (listen(newsocket, 1) == INVALID_SOCKET)
+	{
+		Con_Printf("Cannot listen on tcp socket\n");
+		closesocket(newsocket);
+		return INVALID_SOCKET;
+	}
+
+	return newsocket;
+}
+
+
 
 int UDP_OpenSocket (int port, qboolean bcast)
 {
@@ -1090,12 +1436,18 @@ void NET_Init (void)
 	cls.socketip = INVALID_SOCKET;
 	cls.socketip6 = INVALID_SOCKET;
 	cls.socketipx = INVALID_SOCKET;
+#ifdef TCPCONNECT
+	cls.sockettcp = INVALID_SOCKET;
+#endif
 #endif
 
 #ifndef CLIENTONLY
 	svs.socketip = INVALID_SOCKET;
 	svs.socketip6 = INVALID_SOCKET;
 	svs.socketipx = INVALID_SOCKET;
+#ifdef TCPCONNECT
+	svs.sockettcp = INVALID_SOCKET;
+#endif
 #endif
 }
 #ifndef SERVERONLY
@@ -1104,11 +1456,18 @@ void NET_InitClient(void)
 	int port;
 	int p;
 	port = PORT_CLIENT;
+
 	p = COM_CheckParm ("-port");
 	if (p && p < com_argc)
 	{
 		port = atoi(com_argv[p+1]);
 	}
+	p = COM_CheckParm ("-clport");
+	if (p && p < com_argc)
+	{
+		port = atoi(com_argv[p+1]);
+	}
+
 	//
 	// open the single socket to be used for all communications
 	//
@@ -1157,6 +1516,14 @@ void NET_CloseServer(void)
 		svs.socketipx = INVALID_SOCKET;
 	}
 #endif
+#ifdef TCPCONNECT
+	if (svs.sockettcp != INVALID_SOCKET)
+	{
+		UDP_CloseSocket(svs.sockettcp );
+		svs.sockettcp = INVALID_SOCKET;
+		sv_tcpport.modified = true;
+	}
+#endif
 
 	net_local_sv_ipadr.type = NA_LOOPBACK;
 	net_local_sv_ip6adr.type = NA_LOOPBACK;
@@ -1171,13 +1538,12 @@ void NET_InitServer(void)
 
 	if (sv_listen.value)
 	{
-		p = COM_CheckParm ("-svport");
+		p = COM_CheckParm ("-port");
 		if (p && p < com_argc)
 		{
 			port = atoi(com_argv[p+1]);
 		}
-
-		p = COM_CheckParm ("-port");
+		p = COM_CheckParm ("-svport");
 		if (p && p < com_argc)
 		{
 			port = atoi(com_argv[p+1]);

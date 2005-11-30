@@ -115,6 +115,8 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 		#define SVCHAT			//serverside npc chatting. see sv_chat.c
 		#define Q2SERVER		//server can run a q2 game dll and switches to q2 network and everything else.
 		#define Q2CLIENT		//client can connect to q2 servers
+		#define Q3CLIENT
+		#define Q3SERVER
 		#define NQPROT			//server and client are capable of using quake1/netquake protocols. (qw is still prefered. uses the command 'nqconnect')
 		#define FISH			//sw rendering only
 		#define ZLIB			//zip/pk3 support
@@ -129,6 +131,8 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 		#define TEXTEDITOR
 		#define PPL				//per pixel lighting (stencil shadowing)
 		#define DDS				//a sort of image file format.
+
+		#define TCPCONNECT		//a tcpconnect command, that allows the player to connect to tcp-encapsulated qw protocols.
 
 		#define PLUGINS
 

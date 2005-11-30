@@ -27,9 +27,7 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 	#define PEXT_VIEW2			0x00000010
 #endif
 #define PEXT_BULLETENS			0x00000020
-#ifdef AVAIL_ZLIB
-//	#define PEXT_ZLIBDL			0x00000040
-#endif
+#define PEXT_ACCURATETIMINGS	0x00000040
 //#define PEXT_LIGHTUPDATES		0x00000080	//send progs/zap.mdl in the same mannor as a nail.
 #define PEXT_FATNESS			0x00000100	//GL only (or servers)
 #define PEXT_HLBSP				0x00000200

@@ -414,6 +414,7 @@ qboolean VID_SetWindowedMode (rendererstate_t *info)
 		vid.conwidth = info->width;
 	vid.width = vid.conwidth;
 	vid.height = vid.conheight;
+	vid_conwidth.modified = true;
 
 	vid.numpages = 2;
 
@@ -527,6 +528,7 @@ qboolean VID_SetFullDIBMode (rendererstate_t *info)
 		vid.conwidth = info->width;
 	vid.width = vid.conwidth;
 	vid.height = vid.conheight;
+	vid_conwidth.modified = true;
 
 	vid.numpages = 2;
 
@@ -1275,11 +1277,7 @@ LONG WINAPI GLMainWndProc (
 			{
 				WindowRect.right = ((short*)&lParam)[0] - WindowRect.left;
 				WindowRect.bottom = ((short*)&lParam)[1] - WindowRect.top;
-
-				if (modestate != MS_FULLDIB)	//fullscreen doesn't have the RIGHT to respond to this. Apply to the Court of M$ if you want this changed...
-				{
-					vid_conwidth.modified = true;	//make it reapplied
-				}
+				vid_conwidth.modified = true;	//make it reapplied
 			}
             break;
 

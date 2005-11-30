@@ -143,6 +143,8 @@ typedef struct player_info_s
 	int		ping;
 	qbyte	pl;
 
+	qboolean ignored;
+
 	// skin information
 	int		topcolor;
 	int		bottomcolor;
@@ -299,6 +301,7 @@ typedef struct
 	} protocol;
 
 	qboolean resendinfo;
+	qboolean findtrack;
 
 	int framecount;
 
@@ -315,6 +318,13 @@ typedef struct
 	int socketip;
 	int socketip6;
 	int socketipx;
+
+#ifdef TCPCONNECT
+	int sockettcp;
+	netadr_t sockettcpdest;
+	unsigned char tcpinbuffer[1500];
+	int tcpinlen;
+#endif
 
 	enum {DL_NONE, DL_QW, DL_QWCHUNKS, DL_Q3, DL_QWPENDING, DL_HTTP, DL_FTP} downloadmethod;
 	FILE		*downloadqw;		// file transfer from server

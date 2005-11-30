@@ -52,6 +52,9 @@ struct sockaddr_qstorage
 
 
 extern	netadr_t	net_local_sv_ipadr;
+extern	netadr_t	net_local_sv_ip6adr;
+extern	netadr_t	net_local_sv_ipxadr;
+extern	netadr_t	net_local_sv_tcpipadr;
 extern	netadr_t	net_local_cl_ipadr;
 extern	netadr_t	net_from;		// address of who sent the packet
 extern	sizebuf_t	net_message;

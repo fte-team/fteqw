@@ -57,6 +57,7 @@ static plugin_t *protocolclientplugin;
 typedef struct {
 	char *name;
 	Plug_Builtin_t func;
+	int flags;
 } Plug_Plugins_t;
 Plug_Plugins_t *plugbuiltins;
 int numplugbuiltins;
@@ -79,6 +80,7 @@ void Plug_RegisterBuiltin(char *name, Plug_Builtin_t bi, int flags)
 	//got an empty number.
 	plugbuiltins[newnum].name = name;
 	plugbuiltins[newnum].func = bi;
+	plugbuiltins[newnum].flags = flags;
 }
 
 /*
@@ -111,7 +113,13 @@ int VARGS Plug_FindBuiltin(void *offset, unsigned int mask, const long *args)
 	for (i = 0; i < numplugbuiltins; i++)
 		if (plugbuiltins[i].name)
 			if (!strcmp(plugbuiltins[i].name, (char *)VM_POINTER(args[0])))
+			{
+				if (offset && plugbuiltins[i].flags & PLUG_BIF_DLLONLY)
+					return 0;	//block it, if not native
+				if (!offset && plugbuiltins[i].flags & PLUG_BIF_QVMONLY)
+					return 0;	//block it, if not native
 				return -i;
+			}
 
 	return 0;
 }
@@ -253,6 +261,22 @@ int VARGS Plug_ExportToEngine(void *offset, unsigned int mask, const long *arg)
 		currentplug->sbarlevel[2] = arg[1];
 	else if (!strcmp(name, "ConnectionlessClientPacket"))
 		currentplug->connectionlessclientpacket = arg[1];
+	else
+		return 0;
+	return 1;
+}
+
+typedef void (*funcptr_t) ();
+int VARGS Plug_ExportNative(void *offset, unsigned int mask, const long *arg)
+{
+	funcptr_t func;
+	char *name = (char*)VM_POINTER(arg[0]);
+	arg++;
+
+	func = *(funcptr_t*)arg;
+
+	if (!strcmp(name, "S_LoadSound"))
+		S_RegisterSoundInputPlugin(func);
 	else
 		return 0;
 	return 1;
@@ -804,6 +828,7 @@ int VARGS Plug_Con_RenameSub(void *offset, unsigned int mask, const long *arg)
 typedef enum{
 	STREAM_NONE,
 	STREAM_SOCKET,
+	STREAM_OSFILE,
 	STREAM_FILE
 } plugstream_e;
 
@@ -811,7 +836,13 @@ typedef struct {
 	plugin_t *plugin;
 	plugstream_e type;
 	int socket;
-	FILE *handle;
+	struct {
+		char filename[MAX_QPATH];
+		qbyte *buffer;
+		int buflen;
+		int curlen;
+		int curpos;
+	} file;
 } pluginstream_t;
 pluginstream_t *pluginstreamarray;
 int pluginstreamarraylen;
@@ -834,6 +865,8 @@ int Plug_NewStreamHandle(plugstream_e type)
 	pluginstreamarray[i].plugin = currentplug;
 	pluginstreamarray[i].type = type;
 	pluginstreamarray[i].socket = -1;
+	pluginstreamarray[i].file.buffer = NULL;
+	*pluginstreamarray[i].file.filename = '\0';
 
 	return i;
 }
@@ -991,6 +1024,62 @@ int VARGS Plug_Net_TCPConnect(void *offset, unsigned int mask, const long *arg)
 
 	return handle;
 }
+int VARGS Plug_FS_Open(void *offset, unsigned int mask, const long *arg)
+{
+	//modes:
+	//1: read
+	//2: write
+
+	//char *name, int *handle, int mode
+
+	//return value is length of the file.
+
+	int handle;
+	int *ret;
+	char *data;
+
+	if (VM_OOB(arg[1], sizeof(int)))
+		return -2;
+	ret = VM_POINTER(arg[1]);
+	
+	if (arg[2] == 1)
+	{
+		data = COM_LoadMallocFile(VM_POINTER(arg[0]));
+		if (!data)
+			return -1;
+
+		handle = Plug_NewStreamHandle(STREAM_FILE);
+		pluginstreamarray[handle].file.buffer = data;
+		pluginstreamarray[handle].file.curpos = 0;
+		pluginstreamarray[handle].file.curlen = com_filesize;
+		pluginstreamarray[handle].file.buflen = com_filesize;
+
+		*ret = handle;
+
+		return com_filesize;  
+	}
+	else if (arg[2] == 2)
+	{
+		data = BZ_Malloc(8192);
+		if (!data)
+			return -1;
+
+		handle = Plug_NewStreamHandle(STREAM_FILE);
+		Q_strncpyz(pluginstreamarray[handle].file.filename, VM_POINTER(arg[0]), MAX_QPATH);
+		pluginstreamarray[handle].file.buffer = data;
+		pluginstreamarray[handle].file.curpos = 0;
+		pluginstreamarray[handle].file.curlen = 0;
+		pluginstreamarray[handle].file.buflen = 8192;
+
+		*ret = handle;
+
+		return com_filesize;  
+	}
+	else
+		return -2;
+}
+
+
 int VARGS Plug_Net_Recv(void *offset, unsigned int mask, const long *arg)
 {
 	int read;
@@ -1017,6 +1106,16 @@ int VARGS Plug_Net_Recv(void *offset, unsigned int mask, const long *arg)
 		else if (read == 0)
 			return -2;	//closed by remote connection.
 		return read;
+	case STREAM_FILE:
+		if (pluginstreamarray[handle].file.curlen - pluginstreamarray[handle].file.curpos < destlen)
+		{
+			destlen = pluginstreamarray[handle].file.curlen - pluginstreamarray[handle].file.curpos;
+			if (destlen < 0)
+				return -2;
+		}
+		memcpy(dest, pluginstreamarray[handle].file.buffer + pluginstreamarray[handle].file.curpos, destlen);
+		pluginstreamarray[handle].file.curpos += destlen;
+		return destlen;
 	default:
 		return -2;
 	}
@@ -1043,6 +1142,19 @@ int VARGS Plug_Net_Send(void *offset, unsigned int mask, const long *arg)
 		else if (written == 0)
 			return -2;	//closed by remote connection.
 		return written;
+	case STREAM_FILE:
+		if (pluginstreamarray[handle].file.buflen < pluginstreamarray[handle].file.curpos + srclen)
+		{
+			pluginstreamarray[handle].file.buflen = pluginstreamarray[handle].file.curpos + srclen+8192;
+			pluginstreamarray[handle].file.buffer = 
+				BZ_Realloc(pluginstreamarray[handle].file.buffer, pluginstreamarray[handle].file.buflen);
+		}
+		memcpy(pluginstreamarray[handle].file.buffer + pluginstreamarray[handle].file.curpos, src, srclen);
+		pluginstreamarray[handle].file.curpos += srclen;
+		if (pluginstreamarray[handle].file.curpos > pluginstreamarray[handle].file.curlen)
+			pluginstreamarray[handle].file.curlen = pluginstreamarray[handle].file.curpos;
+		return -2;
+
 	default:
 		return -2;
 	}
@@ -1089,10 +1201,20 @@ int VARGS Plug_Net_SendTo(void *offset, unsigned int mask, const long *arg)
 int VARGS Plug_Net_Close(void *offset, unsigned int mask, const long *arg)
 {
 	int handle = VM_LONG(arg[0]);
-	if (handle < 0 || handle >= pluginstreamarraylen || pluginstreamarray[handle].plugin != currentplug || pluginstreamarray[handle].type != STREAM_SOCKET)
+	if (handle < 0 || handle >= pluginstreamarraylen || pluginstreamarray[handle].plugin != currentplug)
 		return -2;
 
-	closesocket(pluginstreamarray[handle].socket);
+	switch(pluginstreamarray[handle].type)
+	{
+	case STREAM_SOCKET:
+		closesocket(pluginstreamarray[handle].socket);
+		break;
+	case STREAM_FILE:
+		if (*pluginstreamarray[handle].file.filename)
+			COM_WriteFile(pluginstreamarray[handle].file.filename, pluginstreamarray[handle].file.buffer, pluginstreamarray[handle].file.curlen);
+		BZ_Free(pluginstreamarray[handle].file.buffer);
+		break;
+	}
 
 	pluginstreamarray[handle].plugin = NULL;
 
@@ -1161,6 +1283,7 @@ void Plug_Init(void)
 
 	Plug_RegisterBuiltin("Plug_GetEngineFunction",	Plug_FindBuiltin, 0);//plugin wishes to find a builtin number.
 	Plug_RegisterBuiltin("Plug_ExportToEngine",		Plug_ExportToEngine, 0);	//plugin has a call back that we might be interested in.
+	Plug_RegisterBuiltin("Plug_ExportNative",		Plug_ExportNative, PLUG_BIF_DLLONLY);
 	Plug_RegisterBuiltin("Con_Print",				Plug_Con_Print, 0);	//printf is not possible - qvm floats are never doubles, vararg floats in a cdecl call are always converted to doubles.
 	Plug_RegisterBuiltin("Sys_Error",				Plug_Sys_Error, 0);
 	Plug_RegisterBuiltin("Sys_Milliseconds",		Plug_Sys_Milliseconds, 0);
@@ -1202,6 +1325,12 @@ void Plug_Init(void)
 	Plug_RegisterBuiltin("Net_Send",				Plug_Net_Send, 0);
 	Plug_RegisterBuiltin("Net_SendTo",				Plug_Net_SendTo, 0);
 	Plug_RegisterBuiltin("Net_Close",				Plug_Net_Close, 0);
+
+	Plug_RegisterBuiltin("FS_Open",					Plug_FS_Open, 0);
+	Plug_RegisterBuiltin("FS_Read",					Plug_Net_Recv, 0);
+	Plug_RegisterBuiltin("FS_Write",				Plug_Net_Send, 0);
+	Plug_RegisterBuiltin("FS_Close",				Plug_Net_Close, 0);
+
 
 	Plug_RegisterBuiltin("Media_ShowFrameRGBA_32",	Plug_Media_ShowFrameRGBA_32, 0);
 

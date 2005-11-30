@@ -394,7 +394,7 @@ reeval:
 #ifdef PARANOID
 		NUM_FOR_EDICT(ed);		// make sure it's in range
 #endif
-		if (ed->readonly)
+		if (!ed || ed->readonly)
 		{
 			pr_xstatement = st-pr_statements;
 			PR_RunError (progfuncs, "assignment to read-only entity in %s", progfuncs->stringtable + pr_xfunction->s_name);

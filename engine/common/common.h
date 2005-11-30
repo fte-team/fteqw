@@ -183,6 +183,7 @@ int wildcmp(char *wild, char *string);	//1 if match
 #define Q_strcmp(s1, s2) strcmp((s1), (s2))
 #define Q_strncmp(s1, s2, n) strncmp((s1), (s2), (n))
 
+void VARGS Q_snprintfz (char *dest, size_t size, char *fmt, ...);
 
 #define Q_strncpyS(d, s, n) do{const char *____in=(s);char *____out=(d);int ____i; for (____i=0;*(____in); ____i++){if (____i == (n))break;*____out++ = *____in++;}if (____i < (n))*____out='\0';}while(0)	//only use this when it should be used. If undiciided, use N
 #define Q_strncpyN(d, s, n) do{if (n < 0)Sys_Error("Bad length in strncpyz");Q_strncpyS((d), (s), (n));((char *)(d))[n] = '\0';}while(0)	//this'll stop me doing buffer overflows. (guarenteed to overflow if you tried the wrong size.)
@@ -320,11 +321,13 @@ extern qboolean standard_quake;	//fixme: remove
 #define	MAX_INFO_KEY	64
 char *Info_ValueForKey (char *s, const char *key);
 void Info_RemoveKey (char *s, const char *key);
+char *Info_KeyForNumber (char *s, int num);
 void Info_RemovePrefixedKeys (char *start, char prefix);
 void Info_RemoveNonStarKeys (char *start);
 void Info_SetValueForKey (char *s, const char *key, const char *value, int maxsize);
 void Info_SetValueForStarKey (char *s, const char *key, const char *value, int maxsize);
 void Info_Print (char *s);
+void Info_WriteToFile(FILE *f, char *info, char *commandname, int cvarflags);
 
 unsigned int Com_BlockChecksum (void *buffer, int length);
 void Com_BlockFullChecksum (void *buffer, int len, unsigned char *outbuf);

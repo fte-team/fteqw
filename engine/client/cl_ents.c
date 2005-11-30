@@ -2189,6 +2189,7 @@ void CL_LinkProjectiles (void)
 
 		if (pr->modelindex < 1)
 			continue;
+		ent->forcedshader = NULL;
 		ent->model = cl.model_precache[pr->modelindex];
 		ent->skinnum = 0;
 		ent->frame = 0;

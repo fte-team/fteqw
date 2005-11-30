@@ -95,6 +95,11 @@ EBUILTIN(void, Draw_Colour3f, (float r, float g, float b));
 EBUILTIN(void, Draw_Colour4f, (float r, float g, float b, float a));
 EBUILTIN(void, SCR_CenterPrint, (char *s));
 
+EBUILTIN(int, FS_Open, (char *name, int *handle, int mode));
+EBUILTIN(void, FS_Close, (int handle));
+EBUILTIN(void, FS_Write, (int handle, void *data, int len));
+EBUILTIN(void, FS_Read, (int handle, void *data, int len));
+
 EBUILTIN(int, Net_TCPConnect, (char *ip, int port));
 EBUILTIN(int, Net_TCPListen, (char *ip, int port, int maxcount));
 EBUILTIN(int, Net_Accept, (int socket, char *address, int addresssize));

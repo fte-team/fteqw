@@ -148,6 +148,20 @@ BUILTIN(void, Menu_Control, (int mnum));
 BUILTINR(int, Key_GetKeyCode, (char *keyname));
 #undef ARGNAMES
 
+#define ARGNAMES ,name,handle,mode
+BUILTINR(int, FS_Open, (char *name, int *handle, int mode));
+#undef ARGNAMES
+#define ARGNAMES ,handle
+BUILTIN(void, FS_Close, (int handle));
+#undef ARGNAMES
+#define ARGNAMES ,handle,data,len
+BUILTIN(void, FS_Write, (int handle, void *data, int len));
+#undef ARGNAMES
+#define ARGNAMES ,handle,data,len
+BUILTIN(void, FS_Read, (int handle, void *data, int len));
+#undef ARGNAMES
+
+
 #define ARGNAMES ,ip,port
 BUILTINR(int, Net_TCPConnect, (char *ip, int port));
 #undef ARGNAMES
@@ -241,6 +255,12 @@ void Plug_InitStandardBuiltins(void)
 	CHECKBUILTIN(Cvar_GetFloat);
 	CHECKBUILTIN(Cvar_Register);
 	CHECKBUILTIN(Cvar_Update);
+
+	//file system
+	CHECKBUILTIN(FS_Open);
+	CHECKBUILTIN(FS_Read);
+	CHECKBUILTIN(FS_Write);
+	CHECKBUILTIN(FS_Close);
 
 	//networking
 	CHECKBUILTIN(Net_TCPConnect);

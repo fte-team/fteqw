@@ -898,68 +898,27 @@ int UI_StatusBarEdit(int *arg) // seperated so further improvements to editor vi
 	return true;
 }
 
-
-#include <stdio.h>
-int FS_Open(char *name, int *handle, int mode)
-{
-	FILE *f;
-	int len;
-	switch(mode)
-	{
-	case 0:
-		f = fopen(name, "rb");
-		break;
-	case 1:
-		f = fopen(name, "wb");
-		break;
-	}
-
-	*handle = (int)f;
-
-	if (!f)
-		return -1;
-
-	fseek(f, 0, SEEK_END);
-	len = ftell(f);
-	fseek(f, 0, SEEK_SET);
-	return len;
-}
-void FS_Close(int handle)
-{
-	fclose((FILE*)handle);
-}
-
-void FS_Write(void *data, int len, int handle)
-{
-	fwrite(data, 1, len, (FILE*)handle);
-}
-void FS_Read(void *data, int len, int handle)
-{
-	fread(data, 1, len, (FILE*)handle);
-}
-
-
 #define HUD_VERSION 52345
 void PutFloat(float f, char sep, int handle)
 {
 	char *buffer;
 	buffer = va("%f%c", f, sep);
-	FS_Write(buffer, strlen(buffer), handle);
+	FS_Write(handle, buffer, strlen(buffer));
 }
 void PutInteger(int i, char sep, int handle)
 {
 	char *buffer;
 	buffer = va("%i%c", i, sep);
-	FS_Write(buffer, strlen(buffer), handle);
+	FS_Write(handle, buffer, strlen(buffer));
 }
 
 void Hud_Save(char *fname)
 {
 	int i;
 	int handle;
-	if (!fname)
+	if (!*fname)
 		fname = DEFAULTHUDNAME;
-	if (FS_Open(fname, &handle, 1)<0)
+	if (FS_Open(fname, &handle, 2)<0)
 	{
 		Con_Printf("Couldn't open %s\n", fname);
 		return;
@@ -983,13 +942,13 @@ void Hud_Save(char *fname)
 float GetFloat(char **f, int handle)
 {
 	char *ts;
-	while(**f < ' ' && **f != 0)
+	while(**f <= ' ' && **f != 0)
 		(*f)++;
 	while(*f[0] == '/' && *f[1] == '/')
 	{
 		while(**f != '\n' && **f != 0)
 			(*f)++;
-		while(**f < ' ' && **f != 0)
+		while(**f <= ' ' && **f != 0)
 			(*f)++;
 	}
 	ts = *f;
@@ -1001,13 +960,13 @@ float GetFloat(char **f, int handle)
 int GetInteger(char **f, int handle)
 {
 	char *ts;
-	while(**f < ' ' && **f != 0)
+	while(**f <= ' ' && **f != 0)
 		(*f)++;
 	while(*f[0] == '/' && *f[1] == '/')
 	{
 		while(**f != '\n' && **f != 0)
 			(*f)++;
-		while(**f < ' ' && **f != 0)
+		while(**f <= ' ' && **f != 0)
 			(*f)++;
 	}
 	ts = *f;
@@ -1027,9 +986,9 @@ void Hud_Load(char *fname)
 	float x, y, sx, sy, a;
 	int type, subtype;
 
-	if (!fname)
+	if (!*fname)
 		fname = DEFAULTHUDNAME;
-	len = FS_Open(fname, &handle, 0);
+	len = FS_Open(fname, &handle, 1);
 	if (len < 0)
 	{
 		Con_Printf("Couldn't load file\n");
@@ -1037,7 +996,7 @@ void Hud_Load(char *fname)
 	}
 	if (len > 16383)
 		len = 16383;
-	FS_Read(file, len, handle);
+	FS_Read(handle, file, len);
 	file[len] = 0;
 	FS_Close(handle);
 
@@ -1061,9 +1020,9 @@ void Hud_Load(char *fname)
 		y = GetFloat(&p, handle);
 		sx = GetFloat(&p, handle);
 		sy = GetFloat(&p, handle);
-		a = GetFloat(&p, handle);
 		type = GetInteger(&p, handle);
 		subtype = GetInteger(&p, handle);
+		a = GetFloat(&p, handle);
 
 		if (type<0 || type>=sizeof(drawelement)/sizeof(drawelement[0]))
 		{
@@ -1337,11 +1296,16 @@ int Plug_Init(int *args)
 		K_SHIFT			= Key_GetKeyCode("shift");
 
 		Cmd_AddCommand("sbar_edit");
-		Cmd_AddCommand("sbar_save");
-		Cmd_AddCommand("sbar_load");
+		if (BUILTINISVALID(FS_Write)) 
+			Cmd_AddCommand("sbar_save");
+		if (BUILTINISVALID(FS_Read))
+			Cmd_AddCommand("sbar_load");
 		Cmd_AddCommand("sbar_defaults");
 
 		UI_SbarInit();
+
+		if (BUILTINISVALID(FS_Read))
+			Hud_Load("");
 
 		return 1;
 	}

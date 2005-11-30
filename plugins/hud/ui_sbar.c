@@ -982,6 +982,7 @@ void Hud_Load(char *fname)
 	int len;
 	int i;
 	int handle;
+	int ver;
 
 	float x, y, sx, sy, a;
 	int type, subtype;
@@ -1002,9 +1003,10 @@ void Hud_Load(char *fname)
 
 	p = file;
 
-	if (GetInteger(&p, handle) != HUD_VERSION)
+	ver = GetInteger(&p, handle);
+	if (ver != HUD_VERSION)
 	{
-		Con_Printf("Hud version doesn't match\n");
+		Con_Printf("Hud version doesn't match (%i != %i)\n", ver, HUD_VERSION);
 		return;
 	}
 	numelements = GetInteger(&p, handle);

@@ -28,6 +28,8 @@ typedef struct plugin_s {
 	//protocol-in-a-plugin
 	int connectionlessclientpacket;
 
+	int messagefunction;
+
 	struct plugin_s *next;
 } plugin_t;
 
@@ -261,6 +263,8 @@ int VARGS Plug_ExportToEngine(void *offset, unsigned int mask, const long *arg)
 		currentplug->sbarlevel[2] = arg[1];
 	else if (!strcmp(name, "ConnectionlessClientPacket"))
 		currentplug->connectionlessclientpacket = arg[1];
+	else if (!strcmp(name, "MessageEvent"))
+		currentplug->messagefunction = arg[1];
 	else
 		return 0;
 	return 1;
@@ -1502,6 +1506,19 @@ void Plug_SBar(void)
 	currentplug = oc;
 }
 
+int Plug_Message(int clientnum, int messagelevel, char *buffer)
+{
+	for (currentplug = plugs; currentplug; currentplug = currentplug->next)
+	{
+		if (currentplug->messagefunction)
+		{
+			VM_Call(currentplug->vm, currentplug->messagefunction, clientnum, messagelevel, buffer);
+		}
+	}
+
+	return 1; // don't silence message
+}
+
 void Plug_Close(plugin_t *plug)
 {
 	if (plugs == plug)
@@ -1585,7 +1602,8 @@ void Plug_List_f(void)
 	plugin_t *plug;
 	for (plug = plugs; plug; plug = plug->next)
 	{
-		Con_Printf("%s\n", plug->name);
+		Con_Printf("%s - \n", plug->name);
+		VM_PrintInfo(plug->vm);
 	}
 }
 

@@ -947,7 +947,7 @@ void VM_PrintInfo(vm_t *vm)
 	qvm_t *qvm;
 
 	if(!vm->name[0]) return;
-	Con_Printf("%s: ", vm->name);
+	Con_Printf("%s (%i): ", vm->name, (int)vm->hInst);
 
 	switch(vm->type)
 	{

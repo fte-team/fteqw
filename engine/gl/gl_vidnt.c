@@ -1292,6 +1292,12 @@ LONG WINAPI GLMainWndProc (
 	        break;
 
 		case WM_ACTIVATE:
+			if (fActive == LOWORD(wParam))
+			if (fMinimized == (BOOL) HIWORD(wParam))
+					//so, urm, tell me microsoft, what changed?
+				break;
+
+
 			fActive = LOWORD(wParam);
 			fMinimized = (BOOL) HIWORD(wParam);
 			GLAppActivate(!(fActive == WA_INACTIVE), fMinimized);

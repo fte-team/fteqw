@@ -956,8 +956,10 @@ void SV_Status_f (void)
 		Con_Printf ("ipv6 address     : %s\n",NET_AdrToString (net_local_sv_ip6adr));
 	if (svs.socketipx != INVALID_SOCKET && net_local_sv_ipxadr.type != NA_LOOPBACK)
 		Con_Printf ("ipx address      : %s\n",NET_AdrToString (net_local_sv_ipxadr));
+#ifdef TCPCONNECT
 	if (svs.sockettcp != INVALID_SOCKET && net_local_sv_tcpipadr.type != NA_LOOPBACK)
 		Con_Printf ("tcp address      : %s\n",NET_AdrToString (net_local_sv_tcpipadr));
+#endif
 
 	Con_Printf ("cpu utilization  : %3i%%\n",(int)cpu);
 	Con_Printf ("avg response time: %i ms\n",(int)avg);

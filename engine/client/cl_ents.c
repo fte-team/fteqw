@@ -2189,7 +2189,9 @@ void CL_LinkProjectiles (void)
 
 		if (pr->modelindex < 1)
 			continue;
+#ifdef Q3SHADERS
 		ent->forcedshader = NULL;
+#endif
 		ent->model = cl.model_precache[pr->modelindex];
 		ent->skinnum = 0;
 		ent->frame = 0;

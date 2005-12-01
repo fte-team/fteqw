@@ -602,10 +602,10 @@ void GLDraw_Anisotropy_f (void)
 	if (Cmd_Argc() == 1)
 	{
 		Con_Printf("Maximum filtering factor: %d\n",gl_anisotropy_factor_max);
-		Con_Printf("0 = off, 1 = off, 2 and beyond = on\n");
+		Con_Printf("0 & 1 = off, 2+ = on\n");
 
 		//insert code that detects if user has forced AF through drivers
-		// because it has no effect if it is forced
+		//because it has no effect if it is forced
 
 		if ((gl_anisotropy_factor == 0) || (gl_anisotropy_factor == 1))
 		{
@@ -618,9 +618,15 @@ void GLDraw_Anisotropy_f (void)
 		return;
 	}
 
+	if (param > gl_anisotropy_factor_max)
+	{
+		Con_Printf("Maximum filtering factor: %d, set to %d, ignoring %d\n",gl_anisotropy_factor_max,gl_anisotropy_factor_max,param);
+		param = gl_anisotropy_factor_max;
+	}
+
 	gl_anisotropy_factor = param;
 
-	Con_Printf("Attempting to set Anisotopic Filtering Factor: %d\n",gl_anisotropy_factor);
+	Con_Printf("Attempting to set Anisotopic Filtering factor: %d\n",gl_anisotropy_factor);
 
 	/* change all the existing max anisotropy settings */
 	for (glt = gltextures; glt ; glt = glt->next) //redo anisotropic filtering when map is changed

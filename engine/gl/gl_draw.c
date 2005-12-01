@@ -8,7 +8,7 @@ of the License, or (at your option) any later version.
 
 This program is distributed in the hope that it will be useful,
 but WITHOUT ANY WARRANTY; without even the implied warranty of
-MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
 
 See the GNU General Public License for more details.
 
@@ -26,12 +26,15 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 #include "glquake.h"
 #include "shader.h"
 
+#include <stdlib.h> // is this needed for atoi?
+#include <stdio.h> // is this needed for atoi?
+
 //#define GL_USE8BITTEX
 
 int glx, gly, glwidth, glheight;
 
 mesh_t	draw_mesh;
-vec3_t	draw_mesh_xyz[4];	
+vec3_t	draw_mesh_xyz[4];
 vec2_t	draw_mesh_st[4];
 byte_vec4_t	draw_mesh_colors[4];
 
@@ -105,6 +108,8 @@ int		gl_alpha_format = 4;
 
 int		gl_filter_min = GL_LINEAR_MIPMAP_NEAREST;
 int		gl_filter_max = GL_LINEAR;
+int		gl_anisotropy_factor = 1;
+int		gl_anisotropy_factor_max = 0;
 
 
 int		texels;
@@ -236,7 +241,7 @@ qboolean Draw_RealPicFromWad (mpic_t	*out, char *name)
 		out->height = in->height;
 	}
 	else
-	{	//default the size. 
+	{	//default the size.
 		out->width = 24;	//hmm...?
 		out->height = 24;
 	}
@@ -250,7 +255,7 @@ qboolean Draw_RealPicFromWad (mpic_t	*out, char *name)
 		qglDisable(GL_ALPHA_TEST);
 		qglEnable(GL_BLEND);	//make sure.
 	}
-	
+
 	if (texnum)
 	{
 		if (!in)
@@ -574,6 +579,61 @@ glmode_t modes[] = {
 	{"GL_LINEAR_MIPMAP_LINEAR", "ll", GL_LINEAR_MIPMAP_LINEAR, GL_LINEAR}
 };
 
+// Control the anisotropy filtering. ~ Moodles
+
+void GLDraw_Anisotropy_f (void)
+{
+	gltexture_t *glt;
+	char *arg;
+	int param;
+
+	if (!gl_config.ext_texture_filter_anisotropic)
+	{
+		Con_Printf("Ignoring anisotropy (not supported)\n");
+		return;
+	}
+
+	qglGetIntegerv(GL_MAX_TEXTURE_MAX_ANISOTROPY_EXT, &gl_anisotropy_factor_max); // im lazy
+
+	arg = Cmd_Argv(1);
+
+	param = atoi(arg); // I know this isn't gcc compatible, but im no lunix programmer so someone can fix it
+
+	if (Cmd_Argc() == 1)
+	{
+		Con_Printf("Maximum filtering factor: %d\n",gl_anisotropy_factor_max);
+		Con_Printf("0 = off, 1 = off, 2 and beyond = on\n");
+
+		//insert code that detects if user has forced AF through drivers
+		// because it has no effect if it is forced
+
+		if ((gl_anisotropy_factor == 0) || (gl_anisotropy_factor == 1))
+		{
+			Con_Printf("Anisotropic Filtering Factor: off\n");
+		}
+		else
+		{
+			Con_Printf("Current Anisotopic Filtering Factor: %d\n",gl_anisotropy_factor);
+		}
+		return;
+	}
+
+	gl_anisotropy_factor = param;
+
+	Con_Printf("Attempting to set Anisotopic Filtering Factor: %d\n",gl_anisotropy_factor);
+
+	/* change all the existing max anisotropy settings */
+	for (glt = gltextures; glt ; glt = glt->next) //redo anisotropic filtering when map is changed
+	{
+		if (glt->mipmap)
+		{
+			//qglBindTexture (GL_TEXTURE_2D, glt->texnum);
+			GL_Bind (glt->texnum);
+			qglTexParameterf (GL_TEXTURE_2D, GL_TEXTURE_MAX_ANISOTROPY_EXT,gl_anisotropy_factor);
+		}
+	}
+}
+
 /*
 ===============
 Draw_TextureMode_f
@@ -644,7 +704,7 @@ void GL_InitFogTexture (void)
 	r_fogtexture = texture_extension_number++;
 	GL_Bind(r_fogtexture);
 	qglTexImage2D (GL_TEXTURE_2D, 0, GL_ALPHA, FOG_TEXTURE_WIDTH, FOG_TEXTURE_HEIGHT, 0, GL_ALPHA, GL_UNSIGNED_BYTE, data);
-	
+
 	qglTexParameterf (GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, gl_filter_max);
 	qglTexParameterf (GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, gl_filter_max);
 
@@ -738,7 +798,7 @@ TRACE(("dbg: GLDraw_ReInit: Allocating upload buffers\n"));
 		if (con_ocranaleds.value)
 		{
 			if (con_ocranaleds.value != 2 || QCRC_Block(draw_chars, 128*128) == 798)
-				AddOcranaLEDsIndexed (draw_chars, 128, 128); 
+				AddOcranaLEDsIndexed (draw_chars, 128, 128);
 		}
 
 		for (i=0 ; i<128*128 ; i++)
@@ -764,7 +824,7 @@ TRACE(("dbg: GLDraw_ReInit: Allocating upload buffers\n"));
 				if (tempchars)
 				{
 					draw_chars = BZ_Malloc(8*8*256*8);
-					
+
 					out = draw_chars;
 					for (i = 0; i < 8*8; i+=1)
 					{
@@ -800,7 +860,7 @@ TRACE(("dbg: GLDraw_ReInit: Allocating upload buffers\n"));
 
 					// add ocrana leds
 					if (con_ocranaleds.value && con_ocranaleds.value != 2)
-						AddOcranaLEDsIndexed (draw_chars, 128, 128); 
+						AddOcranaLEDsIndexed (draw_chars, 128, 128);
 
 					for (i=0 ; i<128*128 ; i++)
 						if (draw_chars[i] == 0)
@@ -855,12 +915,12 @@ TRACE(("dbg: GLDraw_ReInit: Allocating upload buffers\n"));
 	{
 		mpic_t *pic = Draw_SafeCachePic ("loading");
 		if (pic)
-			Draw_Pic ( (vid.width - pic->width)/2, 
+			Draw_Pic ( (vid.width - pic->width)/2,
 				(vid.height - 48 - pic->height)/2, pic);
 	}
 
 	TRACE(("dbg: GLDraw_ReInit: GL_EndRendering\n"));
-	GL_EndRendering ();	
+	GL_EndRendering ();
 	GL_DoSwap();
 
 
@@ -1079,6 +1139,8 @@ void GLDraw_Init (void)
 
 	memset(scrap_allocated, 0, sizeof(scrap_allocated));
 
+	Cmd_AddRemCommand ("gl_texture_anisotropic_filtering", &GLDraw_Anisotropy_f);
+
 	GLDraw_ReInit();
 
 	R_BackendInit();
@@ -1099,6 +1161,8 @@ void GLDraw_Init (void)
 void GLDraw_DeInit (void)
 {
 	Cmd_RemoveCommand("gl_texturemode");
+	Cmd_RemoveCommand ("gl_texture_anisotropic_filtering");
+
 	draw_disc = NULL;
 
 	if (uploadmemorybuffer)
@@ -1182,11 +1246,11 @@ void GLDraw_Character (int x, int y, unsigned int num)
 		GL_DrawMesh(&draw_mesh, char_texture);
 
 /*#else
-	
+
 	if (num&CON_2NDCHARSETTEXT)
 		GL_Bind (char_tex2);
 	else
-		GL_Bind (char_texture);	
+		GL_Bind (char_texture);
 
 	num &= 255;
 
@@ -1216,7 +1280,7 @@ void GLDraw_Character (int x, int y, unsigned int num)
 void GLDraw_ColouredCharacter (int x, int y, unsigned int num)
 {
 	int col;
-	
+
 	if (num & CON_BLINKTEXT)
 	{
 		if (!cl_noblink.value)
@@ -1299,15 +1363,15 @@ void GLDraw_Crosshair(void)
 	}
 	GL_TexEnv(GL_MODULATE);
 
-	chrebuild = chmodified != crosshaircolor.modified || 
-		crosshair.modified || 
+	chrebuild = chmodified != crosshaircolor.modified ||
+		crosshair.modified ||
 		(*crosshairimage.string && crosshairimage.modified) ||
 		crosshair.value >= FIRSTANIMATEDCROSHAIR;
 
 	if (chrebuild)
 	{
 		char *t;
-		
+
 		t = strstr(crosshaircolor.string, " ");
 		if (!t) // use standard coloring
 		{
@@ -1321,7 +1385,7 @@ void GLDraw_Crosshair(void)
 		{
 			t++;
 			// abusing the fact that atof considers whitespace to be a delimiter...
-			i = chcolor[0] = crosshaircolor.value; 
+			i = chcolor[0] = crosshaircolor.value;
 			i = bound(0, i, 255);
 			c = i; // red channel (first 8 bits)
 			i = chcolor[1] = atof(t);
@@ -1435,7 +1499,7 @@ void GLDraw_Crosshair(void)
 		qglVertex2f (x1, y2);
 		qglEnd ();
 	}
-	
+
 //	GL_TexEnv ( GL_TEXTURE_ENV, GL_TEXTURE_ENV_MODE, GL_REPLACE );
 //	GL_TexEnv ( GL_TEXTURE_ENV, GL_TEXTURE_ENV_MODE, GL_MODULATE );
 
@@ -1681,7 +1745,7 @@ void GLDraw_SubPic(int x, int y, mpic_t *pic, int srcx, int srcy, int width, int
 	if (scrap_dirty)
 		Scrap_Upload ();
 	gl = (glpic_t *)pic->data;
-	
+
 	oldglwidth = gl->sh - gl->sl;
 	oldglheight = gl->th - gl->tl;
 
@@ -1730,7 +1794,7 @@ void GLDraw_TransPic (int x, int y, mpic_t *pic)
 		return;
 //		Sys_Error ("Draw_TransPic: bad coordinates");
 	}
-		
+
 	GLDraw_Pic (x, y, pic);
 }
 
@@ -1944,7 +2008,7 @@ void GLDraw_FadeScreen (void)
 		fadecolor[2] = 0;
 
 		faderender = GL_DST_COLOR;
-		
+
 		t = strstr(r_menutint.string, " ");
 		if (t)
 		{
@@ -1957,7 +2021,7 @@ void GLDraw_FadeScreen (void)
 		}
 		else
 			faderender = 0;
-		
+
 		// bounds check and inverse check
 		if (faderender)
 		{
@@ -2044,7 +2108,7 @@ void GLDraw_Image(float x, float y, float w, float h, float s1, float t1, float 
 		Scrap_Upload ();
 	gl = (glpic_t *)pic->data;
 /*
-	s2 = s2 
+	s2 = s2
 
 	newsl = gl->sl + (srcx*oldglwidth)/pic->width;
 	newsh = newsl + (width*oldglwidth)/pic->width;
@@ -2433,7 +2497,7 @@ gltexture_t	*GL_MatchTexture (char *identifier, int bits, int width, int height)
 		if (glt->bpp == bits && width == glt->width && height == glt->height)
 		{
 			if (!strcmp (identifier, glt->identifier))
-			{	
+			{
 				return glt;
 			}
 		}
@@ -2786,7 +2850,7 @@ void GL_MipMap8Bit (qbyte *in, int width, int height)
 #endif
 
 qboolean GL_UploadCompressed (qbyte *file, int *out_width, int *out_height, unsigned int *out_mipmap)
-{	
+{
 	int miplevel;
 	int width;
 	int height;
@@ -2813,7 +2877,7 @@ qboolean GL_UploadCompressed (qbyte *file, int *out_width, int *out_height, unsi
 		compressed_size = LittleLong(compressed_size);
 		internalformat = LittleLong(internalformat);
 
-		qglCompressedTexImage2DARB(GL_TEXTURE_2D, miplevel, internalformat, width, height, 0, compressed_size, file);		
+		qglCompressedTexImage2DARB(GL_TEXTURE_2D, miplevel, internalformat, width, height, 0, compressed_size, file);
 		file += compressed_size;
 	}
 
@@ -2898,7 +2962,7 @@ void GL_Upload32 (char *name, unsigned *data, int width, int height,  qboolean m
 
 	samples = alpha ? gl_alpha_format : gl_solid_format;
 	if (gl_config.arb_texture_compression && gl_compress.value && name&&mipmap)
-		samples = alpha ? GL_COMPRESSED_RGBA_ARB : GL_COMPRESSED_RGB_ARB;	
+		samples = alpha ? GL_COMPRESSED_RGBA_ARB : GL_COMPRESSED_RGB_ARB;
 
 texels += scaled_width * scaled_height;
 
@@ -2924,7 +2988,7 @@ texels += scaled_width * scaled_height;
 	TRACE(("dbg: GL_Upload32: recaled\n"));
 	qglTexImage2D (GL_TEXTURE_2D, 0, samples, scaled_width, scaled_height, 0, GL_RGBA, GL_UNSIGNED_BYTE, scaled);
 	if (mipmap && !gl_config.sgis_generate_mipmap)
-	{		
+	{
 		miplevel = 0;
 		TRACE(("dbg: GL_Upload32: mips\n"));
 		while (scaled_width > 1 || scaled_height > 1)
@@ -2951,11 +3015,11 @@ texels += scaled_width * scaled_height;
 		char outname[MAX_OSPATH];
 		int i;
 		miplevels = miplevel+1;
-		qglGetTexLevelParameteriv(GL_TEXTURE_2D, 0, GL_TEXTURE_COMPRESSED_ARB, &compressed); 
+		qglGetTexLevelParameteriv(GL_TEXTURE_2D, 0, GL_TEXTURE_COMPRESSED_ARB, &compressed);
 		if (compressed == GL_TRUE && !strstr(name, ".."))	//is there any point in bothering with the whole endian thing?
 		{
 			sprintf(outname, "%s/tex/%s.tex", com_gamedir, name);
-			COM_CreatePath(outname);			
+			COM_CreatePath(outname);
 			out = fopen(outname, "wb");
 			if (out)
 			{
@@ -2996,6 +3060,10 @@ done:
 	if (gl_config.sgis_generate_mipmap&&mipmap)
 		qglTexParameterf(GL_TEXTURE_2D, GL_GENERATE_MIPMAP_SGIS, GL_FALSE);
 
+	if (gl_config.ext_texture_filter_anisotropic)
+	{
+		qglTexParameterf (GL_TEXTURE_2D, GL_TEXTURE_MAX_ANISOTROPY_EXT,gl_anisotropy_factor); // without this, you could loose anisotropy on mapchange
+	}
 
 	if (mipmap)
 	{
@@ -3274,7 +3342,7 @@ void GL_UploadBump(qbyte *data, int width, int height, qboolean mipmap, float bu
 
 #ifdef GL_USE8BITTEX
 #ifdef GL_EXT_paletted_texture
-void GL_Upload8_EXT (qbyte *data, int width, int height,  qboolean mipmap, qboolean alpha) 
+void GL_Upload8_EXT (qbyte *data, int width, int height,  qboolean mipmap, qboolean alpha)
 {
 	int			i, s;
 	qboolean	noalpha;
@@ -3783,10 +3851,10 @@ int GL_LoadCompressed(char *name)
 
 
 	_snprintf(inname, sizeof(inname)-1, "tex/%s.tex", name);
-	file = COM_LoadFile(inname, 5);	
+	file = COM_LoadFile(inname, 5);
 	if (!file)
 		return 0;
-	
+
 	glt = BZ_Malloc(sizeof(*glt)+sizeof(bucket_t));
 	glt->next = gltextures;
 	gltextures = glt;

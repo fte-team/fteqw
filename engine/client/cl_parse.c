@@ -20,9 +20,7 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 // cl_parse.c  -- parse a message received from the server
 
 #include "quakedef.h"
-#ifdef SPIKECOMMITTEDCLIGNORE
 #include "cl_ignore.h"
-#endif
 
 void CL_GetNumberedEntityInfo (int num, float *org, float *ang);
 void CLNQ_ParseDarkPlaces5Entities(void);
@@ -3101,13 +3099,11 @@ char *CL_ParseChat(char *text, player_info_t **player)
 		if ((int)msg_filter.value & flags)
 			return NULL;	//filter chat
 
-#ifdef SPIKECOMMITTEDCLIGNORE
 		check_flood = Ignore_Check_Flood(s, flags, offset);			
 		if (check_flood == IGNORE_NO_ADD)							
 			return NULL;
 		else if (check_flood == NO_IGNORE_ADD)					
 			Ignore_Flood_Add(s);
-#endif
 	}
 
 	suppress_talksound = false;

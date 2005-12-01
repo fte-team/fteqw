@@ -2693,9 +2693,7 @@ void CL_Init (void)
 	Cmd_AddCommand ("windows", CL_Windows_f);
 #endif
 
-#ifdef SPIKECOMMITTEDCLIGNORE
 	Ignore_Init();
-#endif
 }
 
 

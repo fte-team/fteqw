@@ -102,6 +102,8 @@ retry:
 				while(_int)
 				{
 					tempbuffer[i] = _int%16 + '0';
+					if (tempbuffer[i] > '9')
+						tempbuffer[i] = tempbuffer[i] - ':' + 'a';
 					_int/=16;
 					i--;
 				}
@@ -466,6 +468,7 @@ float atof(char *str)
 	}
 	if (*str == '.')
 	{	//each time we find a new digit, decrease the value of the following digits.
+		str++;
 		while(1)
 		{
 			if (*str >= '0' && *str <= '9')

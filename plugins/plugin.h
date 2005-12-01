@@ -1,13 +1,24 @@
 #ifndef __PLUGIN_H__
 #define __PLUGIN_H__
+
 #ifdef Q3_VM
 
+#define TESTBI 1
+#ifdef TESTBI
+#	define EBUILTIN(t, n, args) extern t (*n) args
+#	define BUILTINR(t, n, args) t (*n) args
+#	define BUILTIN(t, n, args) t (*n) args
+#	define BUILTINISVALID(n) (n!=NULL && (funcptr_t)n != (funcptr_t)&BadBuiltin)
+#	define CHECKBUILTIN(n) n = (funcptr_t)Plug_GetEngineFunction(#n);if (n==NULL) {n = (funcptr_t)&BadBuiltin;Con_Print("Warning: builtin "#n" is not supported by the engine\n");}
+#else
+
 //qvms just call the return value, and the engine works out which one it called.
-#define EBUILTIN(t, n, args) extern t (*n) args
-#define BUILTINR(t, n, args) t (*n) args
-#define BUILTIN(t, n, args) t (*n) args
-#define CHECKBUILTIN(n) n = (void*)Plug_GetEngineFunction(#n);
-#define BUILTINISVALID(n) n!=NULL
+#	define EBUILTIN(t, n, args) extern t (*n) args
+#	define BUILTINR(t, n, args) t (*n) args
+#	define BUILTIN(t, n, args) t (*n) args
+#	define CHECKBUILTIN(n) n = (funcptr_t)Plug_GetEngineFunction(#n);
+#	define BUILTINISVALID(n) n!=NULL
+#endif
 
 #define double float	//all floats are 32bit, qvm stuff
 
@@ -27,6 +38,8 @@ char *strchr(char *str, char sub);
 float atof(char *str);
 int atoi(char *str);
 
+void BadBuiltin(void);
+
 #else
 
 #include <string.h>
@@ -34,8 +47,14 @@ int atoi(char *str);
 #include <stdarg.h>
 //DLLs need a wrapper to add the extra parameter and call a boring function.
 #define EBUILTIN(t, n, args) extern int BUILTIN_##n; t n args
-#define BUILTINR(t, n, args) int BUILTIN_##n; t n args {return (t)plugin_syscall(BUILTIN_##n ARGNAMES);}
-#define BUILTIN(t, n, args) int BUILTIN_##n; t n args {plugin_syscall(BUILTIN_##n ARGNAMES);}
+#define TEST
+#ifdef TEST
+	#define BUILTINR(t, n, args) int BUILTIN_##n; t n args {if (!BUILTINISVALID(n))Sys_Error("Builtin %s is not valid\n", #n);return (t)plugin_syscall(BUILTIN_##n ARGNAMES);}
+	#define BUILTIN(t, n, args) int BUILTIN_##n; t n args {if (!BUILTINISVALID(n))Sys_Error("Builtin %s is not valid\n", #n);plugin_syscall(BUILTIN_##n ARGNAMES);}
+#else
+	#define BUILTINR(t, n, args) int BUILTIN_##n; t n args {return (t)plugin_syscall(BUILTIN_##n ARGNAMES);}
+	#define BUILTIN(t, n, args) int BUILTIN_##n; t n args {plugin_syscall(BUILTIN_##n ARGNAMES);}
+#endif
 #define CHECKBUILTIN(n) BUILTIN_##n = (int)Plug_GetEngineFunction(#n);
 #define BUILTINISVALID(n) BUILTIN_##n != 0
 #ifdef _WIN32
@@ -55,11 +74,12 @@ int snprintf(char *buffer, int maxlen, char *format, ...);
 typedef enum {false, true} qboolean;
 typedef void *qhandle_t;
 typedef float vec3_t[3];
+typedef void* funcptr_t;
 
 
 
 //Basic builtins:
-EBUILTIN(void*, Plug_GetEngineFunction, (char *funcname));	//set up in vmMain, use this to get all other builtins
+EBUILTIN(funcptr_t, Plug_GetEngineFunction, (char *funcname));	//set up in vmMain, use this to get all other builtins
 EBUILTIN(void, Con_Print, (char *text));	//on to main console.
 EBUILTIN(void, Con_SubPrint, (char *subname, char *text));	//on to sub console.
 EBUILTIN(void, Con_RenameSub, (char *old, char *new));	//rename a console.
@@ -117,6 +137,7 @@ EBUILTIN(void, Net_Close, (int socket));
 
 #ifdef Q3_VM
 EBUILTIN(void, memcpy, (void *, void *, int len));
+EBUILTIN(void, memmove, (void *, void *, int len));
 EBUILTIN(void, memset, (void *, int, int len));
 #endif
 

@@ -37,7 +37,7 @@ int (QDECL *plugin_syscall)( int arg, ... );
 #define PASSFLOAT(f) *(int*)&(f)
 
 #define ARGNAMES ,funcname
-BUILTINR(void*, Plug_GetEngineFunction, (char *funcname));
+BUILTINR(funcptr_t, Plug_GetEngineFunction, (char *funcname));
 #undef ARGNAMES
 
 #define ARGNAMES ,funcname,expnum
@@ -228,17 +228,25 @@ void Sys_Errorf(char *format, ...)
 	Sys_Error(string);	
 }
 
+void BadBuiltin(void)
+{
+	Sys_Error("Plugin tried calling a missing builtin\n");
+}
+
 void Plug_InitStandardBuiltins(void)
 {
+	//con_print is used if the others don't exist, and MUST come first (for the sake of sanity)
+	CHECKBUILTIN(Con_Print);
+
+	CHECKBUILTIN(Plug_ExportToEngine);
+	CHECKBUILTIN(Sys_Error);
+
 #ifdef Q3_VM
 	CHECKBUILTIN(memcpy);
 	CHECKBUILTIN(memmove);
 	CHECKBUILTIN(memset);
 #endif
 
-	CHECKBUILTIN(Plug_ExportToEngine);
-	CHECKBUILTIN(Con_Print);
-	CHECKBUILTIN(Sys_Error);
 	CHECKBUILTIN(Sys_Milliseconds);
 
 	//command execution

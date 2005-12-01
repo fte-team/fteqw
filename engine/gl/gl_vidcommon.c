@@ -128,6 +128,7 @@ lpMTexFUNC qglMTexCoord2fSGIS;
 lpSelTexFUNC qglSelectTextureSGIS;
 int mtexid0;
 int mtexid1;
+int gl_anisotropy_factor_max;
 
 //ati_truform
 PFNGLPNTRIANGLESIATIPROC qglPNTrianglesiATI;
@@ -224,6 +225,17 @@ void GL_CheckExtensions (void *(*getglfunction) (char *name))
 	gl_config.arb_texture_cube_map = false;
 
 	gl_config.arb_shader_objects = false;
+
+	gl_config.ext_texture_filter_anisotropic = false;
+
+	if (strstr(gl_extensions, "GL_EXT_texture_filter_anisotropic"))
+	{
+		gl_config.ext_texture_filter_anisotropic = true;
+
+		qglGetIntegerv(GL_MAX_TEXTURE_MAX_ANISOTROPY_EXT, &gl_anisotropy_factor_max);
+
+		Con_SafePrintf("Anistropic filter extension found (%dx max).\n",gl_anisotropy_factor_max);
+	}
 
 	if (strstr(gl_extensions, "GL_ARB_texture_non_power_of_two"))
 		gl_config.arb_texture_non_power_of_two = true;

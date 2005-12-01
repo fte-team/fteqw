@@ -392,7 +392,7 @@ qboolean	NET_StringToSockaddr (char *s, struct sockaddr_qstorage *sadr)
 				error = EAI_NONAME;
 			else
 			{
-				error = pgetaddrinfo(s+1. port+2, &udp6hint, &addrinfo);
+				error = pgetaddrinfo(s+1, port+2, &udp6hint, &addrinfo);
 			}
 		}
 		else

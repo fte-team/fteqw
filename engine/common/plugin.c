@@ -1083,6 +1083,34 @@ int VARGS Plug_FS_Open(void *offset, unsigned int mask, const long *arg)
 		return -2;
 }
 
+int VARGS Plug_memset(void *offset, unsigned int mask, const long *arg)
+{
+	if (VM_OOB(arg[0], arg[2]))
+		return false;
+
+	memset(VM_POINTER(arg[0]), VM_LONG(arg[1]), VM_LONG(arg[2]));
+	return arg[0];
+}
+int VARGS Plug_memcpy(void *offset, unsigned int mask, const long *arg)
+{
+	if (VM_OOB(arg[0], arg[2]))
+		return false;
+	if (VM_OOB(arg[1], arg[2]))
+		return false;
+
+	memcpy(VM_POINTER(arg[0]), VM_POINTER(arg[1]), VM_LONG(arg[2]));
+	return arg[0];
+}
+int VARGS Plug_memmove(void *offset, unsigned int mask, const long *arg)
+{
+	if (VM_OOB(arg[0], arg[2]))
+		return false;
+	if (VM_OOB(arg[1], arg[2]))
+		return false;
+
+	memmove(VM_POINTER(arg[0]), VM_POINTER(arg[1]), VM_LONG(arg[2]));
+	return arg[0];
+}
 
 int VARGS Plug_Net_Recv(void *offset, unsigned int mask, const long *arg)
 {
@@ -1334,6 +1362,11 @@ void Plug_Init(void)
 	Plug_RegisterBuiltin("FS_Read",					Plug_Net_Recv, 0);
 	Plug_RegisterBuiltin("FS_Write",				Plug_Net_Send, 0);
 	Plug_RegisterBuiltin("FS_Close",				Plug_Net_Close, 0);
+
+
+	Plug_RegisterBuiltin("memset",					Plug_memset, 0);
+	Plug_RegisterBuiltin("memcpy",					Plug_memcpy, 0);
+	Plug_RegisterBuiltin("memmove",					Plug_memmove, 0);
 
 
 	Plug_RegisterBuiltin("Media_ShowFrameRGBA_32",	Plug_Media_ShowFrameRGBA_32, 0);

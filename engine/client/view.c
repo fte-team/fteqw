@@ -1264,7 +1264,8 @@ void SCR_VRectForPlayer(vrect_t *vrect, int pnum)
 
 	case 2:	//horizontal bands
 	case 3:
-		if (glwidth > glheight * 2)
+#ifdef GLQUAKE
+		if (qrenderer == QR_OPENGL && glwidth > glheight * 2)
 		{	//over twice as wide as high, assume duel moniter, horizontal.
 			vrect->width = vid.width/cl.splitclients;
 			vrect->height = vid.height;
@@ -1272,6 +1273,7 @@ void SCR_VRectForPlayer(vrect_t *vrect, int pnum)
 			vrect->y = 0;
 		}
 		else
+#endif
 		{
 			vrect->width = vid.width;
 			vrect->height = vid.height/cl.splitclients;

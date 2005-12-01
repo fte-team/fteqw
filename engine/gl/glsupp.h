@@ -122,32 +122,32 @@ extern qlpMTex2FUNC		qglMultiTexCoord2fARB;
 //some of these were needed.
 //They were also not in the ones I could find on the web.
 //GL_ARB_texture_env_combine
-#define  GL_COMBINE_ARB					0x8570 
-#define  GL_COMBINE_RGB_ARB				0x8571 
-#define  GL_COMBINE_ALPHA_ARB			0x8572 
-#define  GL_SOURCE0_RGB_ARB				0x8580 
-#define  GL_SOURCE1_RGB_ARB				0x8581 
-#define  GL_SOURCE2_RGB_ARB				0x8582 
-#define  GL_SOURCE0_ALPHA_ARB			0x8588 
-#define  GL_SOURCE1_ALPHA_ARB			0x8589 
-#define  GL_SOURCE2_ALPHA_ARB			0x858A 
-#define  GL_OPERAND0_RGB_ARB			0x8590 
-#define  GL_OPERAND1_RGB_ARB			0x8591 
-#define  GL_OPERAND2_RGB_ARB			0x8592 
-#define  GL_OPERAND0_ALPHA_ARB			0x8598 
-#define  GL_OPERAND1_ALPHA_ARB			0x8599 
-#define  GL_OPERAND2_ALPHA_ARB			0x859A 
-#define  GL_RGB_SCALE_ARB				0x8573 
-#define  GL_ADD_SIGNED_ARB				0x8574 
-#define  GL_INTERPOLATE_ARB				0x8575 
-#define  GL_SUBTRACT_ARB				0x84E7 
-#define  GL_CONSTANT_ARB				0x8576 
-#define  GL_PRIMARY_COLOR_ARB			0x8577 
-#define  GL_PREVIOUS_ARB				0x8578 
+#define  GL_COMBINE_ARB					0x8570
+#define  GL_COMBINE_RGB_ARB				0x8571
+#define  GL_COMBINE_ALPHA_ARB			0x8572
+#define  GL_SOURCE0_RGB_ARB				0x8580
+#define  GL_SOURCE1_RGB_ARB				0x8581
+#define  GL_SOURCE2_RGB_ARB				0x8582
+#define  GL_SOURCE0_ALPHA_ARB			0x8588
+#define  GL_SOURCE1_ALPHA_ARB			0x8589
+#define  GL_SOURCE2_ALPHA_ARB			0x858A
+#define  GL_OPERAND0_RGB_ARB			0x8590
+#define  GL_OPERAND1_RGB_ARB			0x8591
+#define  GL_OPERAND2_RGB_ARB			0x8592
+#define  GL_OPERAND0_ALPHA_ARB			0x8598
+#define  GL_OPERAND1_ALPHA_ARB			0x8599
+#define  GL_OPERAND2_ALPHA_ARB			0x859A
+#define  GL_RGB_SCALE_ARB				0x8573
+#define  GL_ADD_SIGNED_ARB				0x8574
+#define  GL_INTERPOLATE_ARB				0x8575
+#define  GL_SUBTRACT_ARB				0x84E7
+#define  GL_CONSTANT_ARB				0x8576
+#define  GL_PRIMARY_COLOR_ARB			0x8577
+#define  GL_PREVIOUS_ARB				0x8578
 
 
-#define  GL_DOT3_RGB_ARB   0x86AE 
-#define  GL_DOT3_RGBA_ARB   0x86AF 
+#define  GL_DOT3_RGB_ARB   0x86AE
+#define  GL_DOT3_RGBA_ARB   0x86AF
 
 //GL_EXT_texture_env_combine
 #define  GL_COMBINE_EXT					0x8570
@@ -549,15 +549,6 @@ extern void APIENTRY glUnlockArraysEXT (void);
 #endif /* GL_GLEXT_PROTOTYPES */
 typedef void (APIENTRY * PFNGLLOCKARRAYSEXTPROC) (GLint first, GLsizei count);
 typedef void (APIENTRY * PFNGLUNLOCKARRAYSEXTPROC) (void);
-#endif
-
-
-
-#ifndef GL_EXT_texture_filter_anisotropic
-#define GL_EXT_texture_filter_anisotropic 1
-
-#define GL_TEXTURE_MAX_ANISOTROPY_EXT		0x84FE
-#define GL_MAX_TEXTURE_MAX_ANISOTROPY_EXT	0x84FF
 #endif
 
 #endif

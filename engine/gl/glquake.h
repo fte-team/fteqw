@@ -349,7 +349,7 @@ int Mod_LoadBumpmapTexture(char *name, char *subpath);
 typedef struct glRect_s {
 	unsigned char l,t,w,h;
 } glRect_t;
-typedef char stmap;
+typedef unsigned char stmap;
 typedef struct {
 	qboolean	modified;
 	qboolean	deluxmodified;

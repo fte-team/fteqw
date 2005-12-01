@@ -87,7 +87,8 @@ extern cvar_t r_stainfadeammount;
 #define	LMBLOCK_HEIGHT		128
 #define	MAX_LIGHTMAPS	64
 
-int		stainmaps[MAX_LIGHTMAPS*LMBLOCK_WIDTH*LMBLOCK_HEIGHT];	//added to lightmap for added (hopefully) speed.
+typedef unsigned char stmap;
+stmap stainmaps[MAX_LIGHTMAPS*LMBLOCK_WIDTH*LMBLOCK_HEIGHT];	//added to lightmap for added (hopefully) speed.
 int			allocated[MAX_LIGHTMAPS][LMBLOCK_WIDTH];
 
 //radius, x y z, a
@@ -102,7 +103,7 @@ void SWR_StainSurf (msurface_t *surf, float *parms)
 	float amm;
 	mtexinfo_t	*tex;
 
-	int *stainbase;
+	stmap *stainbase;
 
 	smax = (surf->extents[0]>>4)+1;
 	tmax = (surf->extents[1]>>4)+1;
@@ -148,12 +149,8 @@ void SWR_StainSurf (msurface_t *surf, float *parms)
 					dist = td + (sd>>1);
 				if (dist < minlight)
 				{
-					amm = (rad - dist);
-					if (stainbase[(s)]>0)
-						amm *= (255-stainbase[(s)])/255.0;
-					else
-						amm *= (255+stainbase[(s)])/255.0;
-					stainbase[(s)] += amm*parms[4];
+					amm = stainbase[(s)] + (dist - rad)*parms[4];
+					stainbase[(s)] = bound(0, amm, 255);
 
 					surf->stained = true;
 				}
@@ -246,7 +243,7 @@ void SWR_AddStain(vec3_t org, float red, float green, float blue, float radius)
 
 void SWR_WipeStains(void)
 {
-	memset(stainmaps, 0, sizeof(stainmaps));
+	memset(stainmaps, 255, sizeof(stainmaps));
 }
 
 void SWR_LessenStains(void)
@@ -256,7 +253,7 @@ void SWR_LessenStains(void)
 
 	int			smax, tmax;
 	int			s, t;
-	int *stain;
+	stmap *stain;
 	int stride;
 	int ammount;
 
@@ -273,7 +270,7 @@ void SWR_LessenStains(void)
 		return;
 	time-=r_stainfadetime.value;
 
-	ammount = r_stainfadeammount.value;
+	ammount = 255 - r_stainfadeammount.value;
 
 	surf = cl.worldmodel->surfaces;
 	for (i=0 ; i<cl.worldmodel->numsurfaces ; i++, surf++)
@@ -298,18 +295,13 @@ void SWR_LessenStains(void)
 			{
 				for (s=0 ; s<smax ; s++)
 				{
-					if (*stain < -ammount)	//negative values increase to 0
+					if (*stain < ammount)
 					{
 						*stain += ammount;
 						surf->stained=true;
 					}
-					else if (*stain > ammount)	//positive values reduce to 0
-					{
-						*stain -= ammount;
-						surf->stained=true;
-					}
-					else	//close to 0 or 0 already.
-						*stain = 0;
+					else	//reset to 255.
+						*stain = 255;
 
 					stain++;
 				}				
@@ -812,10 +804,9 @@ void SWR_BuildLightMap (void)
 #ifdef SWSTAINS
 	if (surf->stained)
 	{
-		int *stain;
+		stmap *stain;
 		int sstride;
 		int x, y;
-		int quant;
 
 		stain = stainmaps + surf->lightmaptexturenum*LMBLOCK_WIDTH*LMBLOCK_HEIGHT;
 		stain += (surf->light_t * LMBLOCK_WIDTH + surf->light_s);
@@ -828,10 +819,7 @@ void SWR_BuildLightMap (void)
 		{
 			for (y = 0; y < smax; y++, i++, stain++)
 			{
-				quant = (int)blocklights[i]+*stain*128;
-				if (quant < 0)
-					quant = 0;
-				t = (255*256 - (quant)) >> (8 - VID_CBITS);
+				t = (255*256*256-128*256-(int)blocklights[i]*(*stain)) >> (16 - VID_CBITS);
 
 				if (t < (1 << 6))
 					t = (1 << 6);
@@ -904,7 +892,7 @@ void SWR_BuildLightMapRGB (void)
 #ifdef SWSTAINS
 	if (surf->stained)
 	{
-		int *stain;
+		stmap *stain;
 		int sstride;
 		int x, y;
 
@@ -919,9 +907,10 @@ void SWR_BuildLightMapRGB (void)
 		{
 			for (y = 0; y < smax; y++, i+=3, stain++)
 			{
-				r = (255*256-(int)blocklights[i]-*stain*128) >> (8 - VID_CBITS);
-				g = (255*256-(int)blocklights[i+1]-*stain*128) >> (8 - VID_CBITS);
-				b = (255*256-(int)blocklights[i+2]-*stain*128) >> (8 - VID_CBITS);
+				r = (255*256*256-128*256-(int)blocklights[i]*(*stain)) >> 16 - VID_CBITS;
+				g = (255*256*256-128*256-(int)blocklights[i+1]*(*stain)) >> 16 - VID_CBITS;
+				b = (255*256*256-128*256-(int)blocklights[i+2]*(*stain)) >> 16 - VID_CBITS;
+
 #define MINL (1<<6)
 #define MAXL ((255*256) >> (8 - VID_CBITS))
 

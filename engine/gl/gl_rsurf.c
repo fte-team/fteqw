@@ -84,25 +84,9 @@ void GLR_StainSurf (msurface_t *surf, float *parms)
 
 #define stain(x)							\
 											\
-	change = amm*parms[4+x];				\
-	if (change < 0)							\
-	{	if(change<-128)change=-128;			\
-		if (stainbase[(s)*3+x] < change)	\
-		{}									\
-		else if (stainbase[(s)*3+x] < 0)	\
-			stainbase[(s)*3+x] = change;	\
-		else								\
-			stainbase[(s)*3+x] += change;	\
-	}										\
-	else									\
-	{	if(change>127)change=127;			\
-		if (stainbase[(s)*3+x] > change)	\
-		{}									\
-		else if (stainbase[(s)*3+x] > 0)	\
-			stainbase[(s)*3+x] = change;	\
-		else								\
-			stainbase[(s)*3+x] += change;	\
-	}
+	change = stainbase[(s)*3+x] + amm*parms[4+x];	\
+	stainbase[(s)*3+x] = bound(0, change, 255);
+
 
 
 
@@ -292,7 +276,7 @@ void GLR_WipeStains(void)
 	{
 		if (!lightmap[i])
 			break;
-		memset(lightmap[i]->stainmaps, 0, sizeof(lightmap[i]->stainmaps));
+		memset(lightmap[i]->stainmaps, 255, sizeof(lightmap[i]->stainmaps));
 	}
 }
 
@@ -317,7 +301,7 @@ void GLR_LessenStains(void)
 		return;
 	time-=r_stainfadetime.value;
 
-	ammount = r_stainfadeammount.value;
+	ammount = 255 - r_stainfadeammount.value;
 
 	surf = cl.worldmodel->surfaces;
 	for (i=0 ; i<cl.worldmodel->numsurfaces ; i++, surf++)
@@ -342,18 +326,13 @@ void GLR_LessenStains(void)
 			{
 				for (s=0 ; s<smax ; s++)
 				{
-					if (*stain < -ammount)	//negative values increase to 0
+					if (*stain < ammount)	//eventually decay to 255
 					{
 						*stain += ammount;
 						surf->stained=true;
 					}
-					else if (*stain > ammount)	//positive values reduce to 0
-					{
-						*stain -= ammount;
-						surf->stained=true;
-					}
-					else	//close to 0 or 0 already.
-						*stain = 0;
+					else	//reset to 255
+						*stain = 255;
 
 					stain++;
 				}				
@@ -1030,11 +1009,11 @@ store:
 					b = *blb++;
 					b >>= 7;	
 					
-					if (isstained)	//do we need to add the stain?
+					if (isstained)	// merge in stain
 					{
-						r += *stain++;
-						g += *stain++;
-						b += *stain++;
+						r = (128+r*(*stain++)) >> 8;
+						g = (128+g*(*stain++)) >> 8;
+						b = (128+b*(*stain++)) >> 8;
 					}
 
 					cr = 0;
@@ -1188,11 +1167,11 @@ store:
 					b = *blb++;
 					b >>= 7;	
 					
-					if (isstained)	//do we need to add the stain?
+					if (isstained)	// merge in stain
 					{
-						r += *stain++;
-						g += *stain++;
-						b += *stain++;
+						r = (128+r*(*stain++)) >> 8;
+						g = (128+g*(*stain++)) >> 8;
+						b = (128+b*(*stain++)) >> 8;
 					}
 
 					cr = 0;
@@ -1383,11 +1362,11 @@ store:
 					b = *blb++;
 					b >>= 7;	
 					
-					if (isstained)	//do we need to add the stain?
+					if (isstained)	// merge in stain
 					{
-						r += *stain++;
-						g += *stain++;
-						b += *stain++;
+						r = (128+r*(*stain++)) >> 8;
+						g = (128+g*(*stain++)) >> 8;
+						b = (128+b*(*stain++)) >> 8;
 					}
 
 					cr = 0;
@@ -1541,11 +1520,11 @@ store:
 					b = *blb++;
 					b >>= 7;	
 					
-					if (isstained)	//do we need to add the stain?
+					if (isstained)	// merge in stain
 					{
-						r += *stain++;
-						g += *stain++;
-						b += *stain++;
+						r = (128+r*(*stain++)) >> 8;
+						g = (128+g*(*stain++)) >> 8;
+						b = (128+b*(*stain++)) >> 8;
 					}
 
 					cr = 0;

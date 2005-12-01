@@ -63,7 +63,7 @@ int Player_NametoSlot(char *name) {
 	int i;
 
 	for (i = 0; i < MAX_CLIENTS; i++) {
-		if (cl.players[i].name[0] && !strncmp(Info_ValueForKey(cl.players[i].userinfo, "name"), name, 31))
+		if (cl.players[i].name[0] && !strncmp(cl.players[i].name, name, MAX_SCOREBOARDNAME - 1))
 			return i;
 	}
 	return PLAYER_NAME_NOMATCH;
@@ -74,7 +74,7 @@ int Player_SlottoId (int slot) {
 }
 
 char *Player_MyName (void) {
-	return Info_ValueForKey(cls.demoplayback ? cls.userinfo : cl.players[cl.playernum[0]].userinfo, "name");
+	return cl.players[cl.playernum[0]].name;
 }
 
 
@@ -395,7 +395,7 @@ void Ignore_Flood_Add(char *s) {
 
 qboolean Ignore_Message(char *s, int flags, int offset) {
 	int slot, i, p, q, len;	
-	char name[32];
+	char name[MAX_SCOREBOARDNAME];
 
 	if (!ignore_mode.value && (flags & 2))
 		return false;		

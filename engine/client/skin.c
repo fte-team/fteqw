@@ -220,6 +220,7 @@ qbyte	*Skin_Cache8 (skin_t *skin)
 	if (out)
 		return out;
 
+	// TODO: we build a fullbright remap.. can we get rid of this?
 #ifdef SWQUAKE
 	if (qrenderer == QR_SOFTWARE && r_pixbytes == 1 && cls.allow_fbskins<0.2)	//only time FB has to exist... (gl can be disabled)
 	{

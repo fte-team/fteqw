@@ -7,12 +7,14 @@
 
 void MakeVideoPalette(void);
 void MakeSwizzledPalette(void);
+void MakeFullbrightRemap(void);
 
 int *srctable;
 int *dsttable;
 qbyte *pal555to8;
 
 int swzpal[TRANS_LEVELS][256];
+qbyte nofbremap[256];
 
 #define palette host_basepal
 #define _abs(x) ((x)*(x))
@@ -22,6 +24,7 @@ void D_InitTrans(void)
 	// create pal555to8 and swizzled palette 
 	MakeVideoPalette();
 	MakeSwizzledPalette();
+	MakeFullbrightRemap();
 
 	srctable = swzpal[0];
 	dsttable = swzpal[TRANS_MAX];
@@ -105,6 +108,28 @@ qbyte FindIndexFromRGB(int red, int green, int blue)
 	return best;
 }
 
+qbyte FindIndexFromRGBNoFB(int red, int green, int blue)
+{
+	int i, best=15;
+	int bestdif=256*256*256, curdif;
+	extern qbyte *host_basepal;
+	qbyte *pa;
+
+	pa = host_basepal;
+	for (i = 0; i < 256 - vid.fullbright; i++, pa+=3)
+	{
+		curdif = _abs(red - pa[0]) + _abs(green - pa[1]) + _abs(blue - pa[2]);
+		if (curdif < bestdif)
+		{
+			if (curdif<1)
+				return i;
+			bestdif = curdif;
+			best = i;
+		}
+	}
+	return best;
+}
+
 #define FindPalette(r,g,b) pal555to8[((r&0xF8)>>3)|((g&0xF8)<<2)|((b&0xF8)<<7)]
 qbyte GetPalette(int red, int green, int blue)
 {
@@ -112,6 +137,14 @@ qbyte GetPalette(int red, int green, int blue)
 		return FindPalette(red,green,blue);
 	else	//slow, horrible method.
 		return FindIndexFromRGB(red, green, blue);
+}
+
+qbyte GetPaletteNoFB(int red, int green, int blue)
+{
+	if (pal555to8)	//fast precalculated (but ugly) method
+		return nofbremap[FindPalette(red,green,blue)];
+	else	//slow, horrible (but accurate) method.
+		return FindIndexFromRGBNoFB(red, green, blue);
 }
 
 void MakeVideoPalette(void)
@@ -166,6 +199,16 @@ void MakeSwizzledPalette(void)
 			pa += 3;
 		}	
 	}
+}
+
+void MakeFullbrightRemap(void)
+{
+	int i;
+
+	for (i = 0; i < 256 - vid.fullbright; i++)
+		nofbremap[i] = i;
+	for (i = 256 - vid.fullbright; i < 256; i++)
+		nofbremap[i] = FindIndexFromRGBNoFB(host_basepal[i*3], host_basepal[i*3+1], host_basepal[i*3+2]);
 }
 
 void MediaSW_ShowFrame8bit(qbyte *framedata, int inwidth, int inheight, qbyte *palette)

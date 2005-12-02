@@ -549,7 +549,7 @@ void SWMod_LoadTextures (lump_t *l)
 					if (in[3] == 0)
 						*out++ = 255;
 					else
-						*out++ = GetPalette(in[0], in[1], in[2]);
+						*out++ = GetPaletteNoFB(in[0], in[1], in[2]);
 				}
 
 				in = out-mt->width*mt->height;	//shrink mips.
@@ -705,15 +705,13 @@ void SWMod_NowLoadExternal(void)
 	qbyte *out;
 	qboolean alphaed;
 	unsigned int *out32;
-	int width;
-	int height;
 	int t;
 	for (t=0 ; t<loadmodel->numtextures ; t++)
 	{
 		tx = loadmodel->textures[t];
 		if (tx && !tx->offsets[0])
 		{
-			in = W_GetTexture(tx->name, &width, &height, &alphaed);
+			in = W_GetTexture(tx->name, &(tx->width), &(tx->height), &alphaed);
 			i=0;
 			tx->offsets[0] = sizeof(texture_t);
 			tx->offsets[1] = tx->offsets[0] + tx->width*tx->pixbytes*tx->height;
@@ -774,7 +772,7 @@ void SWMod_NowLoadExternal(void)
 					if (in[3] == 0)
 						*out++ = 255;
 					else
-						*out++ = GetPalette(in[0], in[1], in[2]);
+						*out++ = GetPaletteNoFB(in[0], in[1], in[2]);
 					in += 4;
 				}
 				in = (qbyte *)tx+tx->offsets[0];	//shrink mips.
@@ -2781,7 +2779,7 @@ void SWMod_LoadAlias2Model (model_t *mod, void *buffer)
 			{
 				for (j = 0; j < skinsize; j++)	//you know when you've been palettized.
 				{
-					skin[j+0] = GetPalette(texture[j*4+0], texture[j*4+1], texture[j*4+2]);
+					skin[j+0] = GetPaletteNoFB(texture[j*4+0], texture[j*4+1], texture[j*4+2]);
 				}
 			}
 
@@ -3106,7 +3104,7 @@ void SWMod_LoadAlias3Model (model_t *mod, void *buffer)
 			{
 				for (j = 0; j < skinsize; j++)	//you know when you've been palettized.
 				{
-					skin[j+0] = GetPalette(texture[j*4+0], texture[j*4+1], texture[j*4+2]);
+					skin[j+0] = GetPaletteNoFB(texture[j*4+0], texture[j*4+1], texture[j*4+2]);
 				}
 			}
 
@@ -3293,7 +3291,7 @@ void * SWMod_LoadSpriteFrame (void * pin, mspriteframe_t **ppframe, int version)
 				if (ppixin[i*4+3] < 128)
 					ppixout[i] = 255;	//transparent.
 				else
-					ppixout[i] = GetPalette(ppixin[i*4], ppixin[i*4+1], ppixin[i*4+2]);
+					ppixout[i] = GetPaletteNoFB(ppixin[i*4], ppixin[i*4+1], ppixin[i*4+2]);
 			}
 		}
 		else
@@ -3593,7 +3591,7 @@ void SWMod_LoadSprite2Model (model_t *mod, void *buffer)
 				if (!framedata[j*4+3])	//make sure
 					frame->pixels[j] = 255;
 				else
-					frame->pixels[j] = GetPalette(framedata[j*4+0], framedata[j*4+1], framedata[j*4+2]);
+					frame->pixels[j] = GetPaletteNoFB(framedata[j*4+0], framedata[j*4+1], framedata[j*4+2]);
 			}
 		}
 		BZ_Free(framedata);

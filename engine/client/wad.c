@@ -450,6 +450,12 @@ qbyte *W_GetTexture(char *name, int *width, int *height, qboolean *usesalpha)//r
 			tex->height = LittleLong(tex->height);
 			for (j = 0;j < MIPLEVELS;j++)
 				tex->offsets[j] = LittleLong(tex->offsets[j]);
+
+			if (!strcmp(texname, "bn_painting3"))
+			{
+				int k = 0;
+			}
+
 			data = W_ConvertWAD3Texture(tex, width, height, usesalpha);	//this will add to the temp
 			BZ_Free(tex);
 			return data;

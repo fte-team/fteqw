@@ -1063,7 +1063,7 @@ void *Mod_LoadWall(char *name)
 			{
 				for (i=0; i < tex->width*tex->height; i++)	//downgrade colour
 				{
-					*out++ = GetPalette(in[0], in[1], in[2]);
+					*out++ = GetPaletteNoFB(in[0], in[1], in[2]);
 					in+=4;
 				}
 
@@ -1151,7 +1151,7 @@ void *Mod_LoadWall(char *name)
 		{
 			for (i=0; i < tex->width*tex->height; i++)	//downgrade colour
 			{
-				*out++ = GetPalette(d_q28to24table[*in*3+0], d_q28to24table[*in*3+1], d_q28to24table[*in*3+2]);
+				*out++ = GetPaletteNoFB(d_q28to24table[*in*3+0], d_q28to24table[*in*3+1], d_q28to24table[*in*3+2]);
 				in++;
 			}
 			in = (qbyte *)tex+tex->offsets[0];	//shrink mips.

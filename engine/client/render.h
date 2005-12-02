@@ -344,6 +344,7 @@ void R_RestartRenderer_f (void);//this goes here so we can save some stack when 
 
 //used to live in glquake.h
 qbyte GetPalette(int red, int green, int blue);
+qbyte GetPaletteNoFB(int red, int green, int blue);
 extern	cvar_t	r_norefresh;
 extern	cvar_t	r_drawentities;
 extern	cvar_t	r_drawworld;

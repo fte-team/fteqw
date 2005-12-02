@@ -125,7 +125,7 @@ mpic_t	*SWDraw_SafeCachePic (char *extpath)
 						dat->data[i] = 255;
 					}
 					else
-						dat->data[i] = GetPalette(image[i*4], image[i*4+1], image[i*4+2]);
+						dat->data[i] = GetPaletteNoFB(image[i*4], image[i*4+1], image[i*4+2]);
 				}
 
 				BZ_Free(image);
@@ -160,7 +160,7 @@ mpic_t	*SWDraw_SafeCachePic (char *extpath)
 						dat->data[i] = 255;
 					}
 					else
-						dat->data[i] = GetPalette(image[i*4], image[i*4+1], image[i*4+2]);
+						dat->data[i] = GetPaletteNoFB(image[i*4], image[i*4+1], image[i*4+2]);
 				}
 
 				BZ_Free(image);
@@ -195,7 +195,7 @@ mpic_t	*SWDraw_SafeCachePic (char *extpath)
 						dat->data[i] = 255;
 					}
 					else
-						dat->data[i] = GetPalette(image[i*4], image[i*4+1], image[i*4+2]);
+						dat->data[i] = GetPaletteNoFB(image[i*4], image[i*4+1], image[i*4+2]);
 				}
 
 				BZ_Free(image);
@@ -325,7 +325,7 @@ mpic_t	*SWDraw_MallocPic (char *path)
 					((mpic_t*)dat)->height = height;
 					((mpic_t*)dat)->flags = 0;
 					for (i = 0; i < width*height; i++)
-						dat->data[i] = GetPalette(image[i*4], image[i*4+1], image[i*4+2]);
+						dat->data[i] = GetPaletteNoFB(image[i*4], image[i*4+1], image[i*4+2]);
 
 					BZ_Free(image);
 

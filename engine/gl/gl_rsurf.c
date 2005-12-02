@@ -290,6 +290,7 @@ void GLR_LessenStains(void)
 	stmap *stain;
 	int stride;
 	int ammount;
+	int limit;
 
 	static float time;
 
@@ -301,7 +302,8 @@ void GLR_LessenStains(void)
 		return;
 	time-=r_stainfadetime.value;
 
-	ammount = 255 - r_stainfadeammount.value;
+	ammount = r_stainfadeammount.value;
+	limit = 255 - ammount;
 
 	surf = cl.worldmodel->surfaces;
 	for (i=0 ; i<cl.worldmodel->numsurfaces ; i++, surf++)
@@ -326,7 +328,7 @@ void GLR_LessenStains(void)
 			{
 				for (s=0 ; s<smax ; s++)
 				{
-					if (*stain < ammount)	//eventually decay to 255
+					if (*stain < limit)	//eventually decay to 255
 					{
 						*stain += ammount;
 						surf->stained=true;
@@ -1011,9 +1013,9 @@ store:
 					
 					if (isstained)	// merge in stain
 					{
-						r = (128+r*(*stain++)) >> 8;
-						g = (128+g*(*stain++)) >> 8;
-						b = (128+b*(*stain++)) >> 8;
+						r = (127+r*(*stain++)) >> 8;
+						g = (127+g*(*stain++)) >> 8;
+						b = (127+b*(*stain++)) >> 8;
 					}
 
 					cr = 0;
@@ -1169,9 +1171,9 @@ store:
 					
 					if (isstained)	// merge in stain
 					{
-						r = (128+r*(*stain++)) >> 8;
-						g = (128+g*(*stain++)) >> 8;
-						b = (128+b*(*stain++)) >> 8;
+						r = (127+r*(*stain++)) >> 8;
+						g = (127+g*(*stain++)) >> 8;
+						b = (127+b*(*stain++)) >> 8;
 					}
 
 					cr = 0;
@@ -1364,9 +1366,9 @@ store:
 					
 					if (isstained)	// merge in stain
 					{
-						r = (128+r*(*stain++)) >> 8;
-						g = (128+g*(*stain++)) >> 8;
-						b = (128+b*(*stain++)) >> 8;
+						r = (127+r*(*stain++)) >> 8;
+						g = (127+g*(*stain++)) >> 8;
+						b = (127+b*(*stain++)) >> 8;
 					}
 
 					cr = 0;
@@ -1522,9 +1524,9 @@ store:
 					
 					if (isstained)	// merge in stain
 					{
-						r = (128+r*(*stain++)) >> 8;
-						g = (128+g*(*stain++)) >> 8;
-						b = (128+b*(*stain++)) >> 8;
+						r = (127+r*(*stain++)) >> 8;
+						g = (127+g*(*stain++)) >> 8;
+						b = (127+b*(*stain++)) >> 8;
 					}
 
 					cr = 0;
@@ -3357,6 +3359,8 @@ int GLAllocBlock (int w, int h, int *x, int *y)
 		if (!lightmap[texnum])
 		{
 			lightmap[texnum] = Z_Malloc(sizeof(*lightmap[texnum]));
+			// reset stainmap since it now starts at 255
+			memset(lightmap[texnum]->stainmaps, 255, sizeof(lightmap[texnum]->stainmaps));
 		}
 
 

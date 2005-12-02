@@ -149,7 +149,7 @@ void SWR_StainSurf (msurface_t *surf, float *parms)
 					dist = td + (sd>>1);
 				if (dist < minlight)
 				{
-					amm = stainbase[(s)] + (dist - rad)*parms[4];
+					amm = stainbase[(s)] - (dist - rad)*parms[4];
 					stainbase[(s)] = bound(0, amm, 255);
 
 					surf->stained = true;
@@ -255,7 +255,7 @@ void SWR_LessenStains(void)
 	int			s, t;
 	stmap *stain;
 	int stride;
-	int ammount;
+	int ammount, limit;
 
 	static float time;
 
@@ -270,7 +270,8 @@ void SWR_LessenStains(void)
 		return;
 	time-=r_stainfadetime.value;
 
-	ammount = 255 - r_stainfadeammount.value;
+	ammount = r_stainfadeammount.value;
+	limit = 255 - ammount;
 
 	surf = cl.worldmodel->surfaces;
 	for (i=0 ; i<cl.worldmodel->numsurfaces ; i++, surf++)
@@ -295,7 +296,7 @@ void SWR_LessenStains(void)
 			{
 				for (s=0 ; s<smax ; s++)
 				{
-					if (*stain < ammount)
+					if (*stain < limit)
 					{
 						*stain += ammount;
 						surf->stained=true;
@@ -819,7 +820,7 @@ void SWR_BuildLightMap (void)
 		{
 			for (y = 0; y < smax; y++, i++, stain++)
 			{
-				t = (255*256*256-128*256-(int)blocklights[i]*(*stain)) >> (16 - VID_CBITS);
+				t = (255*256*256-127*256-(int)blocklights[i]*(*stain)) >> (16 - VID_CBITS);
 
 				if (t < (1 << 6))
 					t = (1 << 6);
@@ -907,9 +908,9 @@ void SWR_BuildLightMapRGB (void)
 		{
 			for (y = 0; y < smax; y++, i+=3, stain++)
 			{
-				r = (255*256*256-128*256-(int)blocklights[i]*(*stain)) >> 16 - VID_CBITS;
-				g = (255*256*256-128*256-(int)blocklights[i+1]*(*stain)) >> 16 - VID_CBITS;
-				b = (255*256*256-128*256-(int)blocklights[i+2]*(*stain)) >> 16 - VID_CBITS;
+				r = (255*256*256-127*256-(int)blocklights[i]*(*stain)) >> 16 - VID_CBITS;
+				g = (255*256*256-127*256-(int)blocklights[i+1]*(*stain)) >> 16 - VID_CBITS;
+				b = (255*256*256-127*256-(int)blocklights[i+2]*(*stain)) >> 16 - VID_CBITS;
 
 #define MINL (1<<6)
 #define MAXL ((255*256) >> (8 - VID_CBITS))

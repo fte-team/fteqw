@@ -45,7 +45,7 @@ void Sys_MakeCodeWriteable (unsigned long startaddr, unsigned long length);
 //
 // system IO
 //
-void VARGS Sys_DebugLog(char *file, char *fmt, ...);
+int VARGS Sys_DebugLog(char *file, char *fmt, ...);
 
 void VARGS Sys_Error (const char *error, ...);
 // an error will cause the entire program to exit

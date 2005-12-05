@@ -163,7 +163,7 @@ cvar_t	sys_colorconsole = {"sys_colorconsole", "1"};
 HWND consolewindowhandle;
 HWND hiddenwindowhandler;
 
-void Sys_DebugLog(char *file, char *fmt, ...)
+int void Sys_DebugLog(char *file, char *fmt, ...)
 {
     va_list argptr; 
     static char data[1024];
@@ -173,8 +173,13 @@ void Sys_DebugLog(char *file, char *fmt, ...)
     _vsnprintf(data, sizeof(data)-1, fmt, argptr);
     va_end(argptr);
     fd = open(file, O_WRONLY | O_CREAT | O_APPEND, 0666);
-    write(fd, data, strlen(data));
-    close(fd);
+	if (fd)
+	{
+	    write(fd, data, strlen(data));
+		close(fd);
+		return 0;
+	}
+	return 1; // error
 };
 
 /*

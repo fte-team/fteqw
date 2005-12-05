@@ -564,7 +564,6 @@ void PR_LoadGlabalStruct(void)
 		SV_QCStat(ev_float, "cnt_invincibility", STAT_H2_CNT_INVINCIBILITY);
 		SV_QCStat(ev_float, "artifact_active", STAT_H2_ARTIFACT_ACTIVE);
 		SV_QCStat(ev_float, "artifact_low", STAT_H2_ARTIFACT_LOW);
-		SV_QCStat(ev_float, "artifact_low", STAT_H2_ARTIFACT_LOW);
 		SV_QCStat(ev_float, "movetype", STAT_H2_MOVETYPE);
 		SV_QCStat(ev_entity, "cameramode", STAT_H2_CAMERAMODE);
 		SV_QCStat(ev_float, "hasted", STAT_H2_HASTED);

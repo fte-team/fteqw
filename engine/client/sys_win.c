@@ -169,7 +169,7 @@ void VARGS MaskExceptions (void);
 void Sys_PopFPCW (void);
 void Sys_PushFPCW_SetHigh (void);
 
-void VARGS Sys_DebugLog(char *file, char *fmt, ...)
+int VARGS Sys_DebugLog(char *file, char *fmt, ...)
 {
 	FILE *fd;
 	va_list argptr; 
@@ -205,7 +205,10 @@ void VARGS Sys_DebugLog(char *file, char *fmt, ...)
 	{
 		fprintf(fd, "%s", data);
 		fclose(fd);
+		return 0;
 	}
+
+	return 1;
 };
 
 int *debug;

@@ -149,7 +149,7 @@ void Sys_Init(void)
 
 
 
-void VARGS Sys_DebugLog(char *file, char *fmt, ...)
+int VARGS Sys_DebugLog(char *file, char *fmt, ...)
 {
 	FILE *fd;
 	va_list argptr; 
@@ -181,8 +181,13 @@ void VARGS Sys_DebugLog(char *file, char *fmt, ...)
 	}
 #endif
 	fd = fopen(file, "wt");
-	fwrite(data, 1, strlen(data), fd);
-	fclose(fd);
+	if (fd)
+	{
+		fwrite(data, 1, strlen(data), fd);
+		fclose(fd);
+		return 0;
+	}
+	return 1;
 };
 
 

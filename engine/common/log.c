@@ -159,7 +159,7 @@ void Con_Log (char *s)
 		FILE *fi;
 
 		// check file size, use x as temp
-		if (fi = fopen(f, "rb"))
+		if ((fi = fopen(f, "rb")))
 		{
 			x = COM_filelength(fi);
 			fclose(fi);
@@ -185,7 +185,7 @@ void Con_Log (char *s)
 				_snprintf(oldf, sizeof(oldf)-1, "%s.%i", f, x);
 
 				// check if file exists, otherwise skip
-				if (fi = fopen(oldf, "rb"))
+				if ((fi = fopen(oldf, "rb")))
 					fclose(fi);
 				else
 					continue; // skip nonexistant files
@@ -212,7 +212,13 @@ void Con_Log (char *s)
 	}
 
 	// write to log file
-	Sys_DebugLog(f, "%s", logbuf);
+	if (Sys_DebugLog(f, "%s", logbuf))
+	{
+		// write failed, bug out
+		Cvar_ForceSet(&log_enable, "0");
+		Con_Printf("Unable to write to log file. Logging disabled.\n");
+		return;
+	}
 }
 
 void Log_Init(void)

@@ -2389,64 +2389,30 @@ void SWDraw_FadeScreen (void)
 	if (fsmodified != r_menutint.modified) 
 	{
 		char *t;
-		int s;
-		float r, g, b;
-		qbyte invmask = 0;
+		int r, g, b;
 		
 		qbyte *rgb = (qbyte *)host_basepal;
 
 		// parse r_menutint
 		fsnodraw = 0;
-		r = r_menutint.value;
+		r = 255*r_menutint.value;
 		g = 0;
 		b = 0;
 		t = strstr(r_menutint.string, " ");
 		if (t)
 		{
-			g = atof(t+1);
+			g = 255*atof(t+1);
 			t = strstr(t+1, " ");
 			if (t)
-				b = atof(t+1);
+				b = 255*atof(t+1);
 			else
 				fsnodraw = 1;
 		}
 		else
 			fsnodraw = 1;
 
-		// bounds check and inverse check
-		if (r < 0)
-		{
-			invmask = 0xff;
-			r = -r;
-		}
-		if (r > 1)
-			r = 1;
-
-		if (g < 0)
-		{
-			invmask = 0xff;
-			g = -g;
-		}
-		if (g > 1)
-			g = 1;
-
-		if (b < 0)
-		{
-			invmask = 0xff;
-			b = -b;
-		}
-		if (b > 1)
-			b = 1;
-
-		// generate colormap
-		for (x = 0; x < 256; x++)
-		{
-			// convert to grayscale value
-			s = rgb[0]*0.299 + rgb[1]*0.587 + rgb[2]*0.114;
-
-			fscolormap[x] = GetPalette((int)(s*r)^invmask, (int)(s*g)^invmask, (int)(s*b)^invmask);
-			rgb += 3;
-		}
+		// rebuild colormap here
+		BuildModulatedColormap(fscolormap, r, g, b, true, true);
 
 		fsmodified = r_menutint.modified;
 	}

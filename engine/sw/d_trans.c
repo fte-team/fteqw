@@ -211,6 +211,68 @@ void MakeFullbrightRemap(void)
 		nofbremap[i] = FindIndexFromRGBNoFB(host_basepal[i*3], host_basepal[i*3+1], host_basepal[i*3+2]);
 }
 
+// colormap functions
+void BuildModulatedColormap(qbyte *indexes, int red, int green, int blue, qboolean desaturate, qboolean fullbrights)
+{
+	qbyte *rgb = host_basepal;
+	unsigned int r, g, b, x, invmask = 0;
+
+	if (red < 0 || green < 0 || blue < 0)
+		invmask = 0xff;
+
+	// generate colormap
+	
+	if (desaturate)
+	{
+		int s;
+
+		for (x = 0; x < 256; x++)
+		{
+			s = rgb[0]*76 + rgb[1]*151 + rgb[2]*29 + 128;
+			r = abs((127*256 + s*red) >> 16);
+			g = abs((127*256 + s*green) >> 16);
+			b = abs((127*256 + s*blue) >> 16);
+
+			if (r > 255)
+				r = 255;
+			if (g > 255)
+				g = 255;
+			if (b > 255)
+				b = 255;
+
+			if (fullbrights) // relying on branch prediction here...
+				indexes[x] = GetPalette(r^invmask, g^invmask, b^invmask);
+			else
+				indexes[x] = GetPaletteNoFB(r^invmask, g^invmask, b^invmask);
+			rgb += 3;
+		}
+	}
+	else
+	{
+		for (x = 0; x < 256; x++)
+		{
+			// modulus math
+			r = abs((127 + rgb[0]*red) >> 8);
+			g = abs((127 + rgb[1]*green) >> 8);
+			b = abs((127 + rgb[2]*blue) >> 8);
+
+			if (r > 255)
+				r = 255;
+			if (g > 255)
+				g = 255;
+			if (b > 255)
+				b = 255;
+
+			if (fullbrights) // relying on branch prediction here...
+				indexes[x] = GetPalette(r^invmask, g^invmask, b^invmask);
+			else
+				indexes[x] = GetPaletteNoFB(r^invmask, g^invmask, b^invmask);
+			rgb += 3;
+		}
+	}
+
+}
+
 void MediaSW_ShowFrame8bit(qbyte *framedata, int inwidth, int inheight, qbyte *palette)
 {
 	int y, x;

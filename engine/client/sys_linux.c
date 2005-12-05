@@ -211,7 +211,7 @@ int Sys_FileRead (int handle, void *dest, int count)
 	return read (handle, dest, count);
 }
 
-void Sys_DebugLog(char *file, char *fmt, ...)
+int Sys_DebugLog(char *file, char *fmt, ...)
 {
 	va_list argptr;
 	static char data[1024];
@@ -226,8 +226,13 @@ void Sys_DebugLog(char *file, char *fmt, ...)
 
 //	fd = open(file, O_WRONLY | O_BINARY | O_CREAT | O_APPEND, 0666);
 	fd = open(file, O_WRONLY | O_CREAT | O_APPEND, 0666);
-	write(fd, data, strlen(data));
-	close(fd);
+	if (fd)
+	{
+		write(fd, data, strlen(data));
+		close(fd);
+		return 0;
+	}
+	return 1;
 }
 
 int Sys_EnumerateFiles (char *gpath, char *match, int (*func)(char *, int, void *), void *parm)

@@ -113,7 +113,7 @@ int Sys_EnumerateFiles (char *gpath, char *match, int (*func)(char *, int, void 
 }
 #endif
 
-void Sys_DebugLog(char *file, char *fmt, ...)
+int Sys_DebugLog(char *file, char *fmt, ...)
 {
 	va_list argptr;
 	char data[1024];
@@ -127,8 +127,13 @@ void Sys_DebugLog(char *file, char *fmt, ...)
 		Sys_Error("Sys_DebugLog was stomped\n");
 
 	fd = open(file, O_WRONLY | O_CREAT | O_APPEND, 0666);
-	write(fd, data, strlen(data));
-	close(fd);
+	if (fd)
+	{
+		write(fd, data, strlen(data));
+		close(fd);
+		return 0;
+	}
+	return 1;
 }
 /*
 ================

@@ -521,7 +521,7 @@ static void GetEvent(void)
 
 void GLVID_Shutdown(void)
 {
-printf("GLVID_Shutdown");
+	printf("GLVID_Shutdown\n");
 	if (!ctx)
 		return;
 
@@ -546,8 +546,8 @@ printf("GLVID_Shutdown");
 		vidmode_active = false;
 	}
 #endif
-//	XCloseDisplay(vid_dpy);
-//	vid_dpy = NULL;
+	XCloseDisplay(vid_dpy);
+	vid_dpy = NULL;
 	vid_window = (Window)NULL;
 }
 

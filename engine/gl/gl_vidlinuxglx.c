@@ -652,12 +652,21 @@ void	GLVID_SetPalette (unsigned char *palette)
 
 //		v = (255<<24) + (r<<16) + (g<<8) + (b<<0);
 //		v = (255<<0) + (r<<8) + (g<<16) + (b<<24);
-		v = (255<<24) + (r<<0) + (g<<8) + (b<<16);
-		*table++ = v;
-		*table2++ = (255<<24) + (r<<16) + (g<<8) + (b<<0);
+#ifdef BIG_ENDIAN
+		*table++ = (r<<24)|(g<<16)|(b<<8)|255;
+		*table2++ = (b<<24)|(g<<16)|(r<<8)|255;
+#else
+		*table++ = (a<<24)|(b<<16)|(g<<8)|255;
+		*table2++ = (a<<24)|(r<<16)|(g<<8)|255;
+#endif
 	}
+#ifdef BIG_ENDIAN
+  d_8to24bgrtable[255] &= 0xffffff00; // 255 is transparent
+  d_8to24rgbtable[255] &= 0xffffff00; // 255 is transparent
+#else
 	d_8to24bgrtable[255] &= 0xffffff;	// 255 is transparent
 	d_8to24rgbtable[255] &= 0xffffff;	// 255 is transparent
+#endif
 }
 
 /*

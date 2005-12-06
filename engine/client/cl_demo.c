@@ -1049,6 +1049,15 @@ void CL_ReRecord_f (void)
 	CL_BeginServerReconnect();
 }
 
+#ifdef WEBCLIENT
+void CL_PlayDownloadedDemo(char *name, qboolean success)
+{
+	if (success == false)
+		Con_Printf("Failed to download %s\n", name);
+	else
+		Cbuf_AddText(va("playdemo %s\n", name), RESTRICT_LOCAL);
+}
+#endif
 
 /*
 ====================
@@ -1071,6 +1080,15 @@ void CL_PlayDemo_f (void)
 		Con_Printf ("playdemo <demoname> : plays a demo\n");
 		return;
 	}
+
+#ifdef WEBCLIENT
+	if (!strncmp(Cmd_Argv(1), "ftp://", 6) || !strncmp(Cmd_Argv(1), "http://", 7))
+	{
+		if (Cmd_ExecLevel == RESTRICT_LOCAL)
+			HTTP_CL_Get(Cmd_Argv(1), COM_SkipPath(Cmd_Argv(1)), CL_PlayDownloadedDemo);
+		return;
+	}
+#endif
 
 //
 // disconnect from server

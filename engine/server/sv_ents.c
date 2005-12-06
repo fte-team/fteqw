@@ -422,6 +422,15 @@ void SV_CSQC_DroppedPacket(client_t *client, int sequence)
 		if (client->csqcentsequence[i] == sequence)
 			client->csqcentversions[i]--;	//do that update thang (but later).
 }
+void SV_CSQC_DropAll(client_t *client)
+{
+	int i;
+	if (!(client->csqcactive))	//we don't need this, but it might be a little faster.
+		return;
+
+	for (i = 0; i < sv.num_edicts; i++)
+		client->csqcentversions[i]--;	//do that update thang (but later).
+}
 #endif
 
 //=============================================================================

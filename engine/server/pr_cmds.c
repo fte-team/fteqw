@@ -3379,9 +3379,12 @@ char *PF_TempStr(progfuncs_t *prinst)
 
 string_t PR_TempString(progfuncs_t *prinst, char *str)
 {
-	char *tmp = PF_TempStr(prinst);
+	char *tmp;
+	if (!str || !*str)
+		return 0;
+	tmp = PF_TempStr(prinst);
 	Q_strncpyz(tmp, str, MAXTEMPBUFFERLEN);
-	return tmp - prinst->tempstringbase;
+	return tmp - prinst->stringtable;
 }
 
 void PF_InitTempStrings(progfuncs_t *prinst)

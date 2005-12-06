@@ -1425,8 +1425,26 @@ static void PPL_BaseTextureChain(msurface_t *first)
 		int dlb;
 
 		glRect_t    *theRect;
-	//	if (first->texinfo->texture->shader->flags & SHADER_FLARE )
-	//		return;
+		if (first->texinfo->texture->shader->flags & SHADER_FLARE )
+		{
+			dlight_t *dl;
+			while(first)
+			{	//a quick hack to convert to a dlight
+				dl = CL_AllocDlight(0);
+				VectorCopy(first->mesh->xyz_array[0], dl->origin);
+				dl->color[0] = 0.2;
+				dl->color[1] = 0.2;
+				dl->color[2] = 0.2;
+				dl->radius = 50;
+
+				//flashblend only
+				dl->noppl = true;
+				dl->nodynamic = true;
+
+				first = first->texturechain;
+			}
+			return;
+		}
 
 		if (!varrayactive)
 			R_IBrokeTheArrays();
@@ -1618,6 +1636,8 @@ void PPL_BaseTextures(model_t *model)
 	int		i;
 	msurface_t	*s;
 	texture_t	*t;
+
+	currententity = &r_worldentity;
 
 	GL_DoSwap();
 

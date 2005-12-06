@@ -486,6 +486,7 @@ void Renderer_Init(void)
 	Cvar_Register (&scr_printspeed, SCREENOPTIONS);
 	Cvar_Register (&scr_allowsnap, SCREENOPTIONS);
 	Cvar_Register (&scr_consize, SCREENOPTIONS);
+	Cvar_Register (&scr_centersbar, SCREENOPTIONS);
 
 	Cvar_Register(&r_bloodstains, GRAPHICALNICETIES);
 

@@ -38,19 +38,24 @@ char *strchr(char *str, char sub);
 float atof(char *str);
 int atoi(char *str);
 
+#define strcasecmp stricmp
+
 void BadBuiltin(void);
 
 #else
 
+#define strcasecmp stricmp
+
 #include <string.h>
 #include <stdlib.h>
 #include <stdarg.h>
+#include "math.h"
 //DLLs need a wrapper to add the extra parameter and call a boring function.
 #define EBUILTIN(t, n, args) extern int BUILTIN_##n; t n args
 #define TEST
 #ifdef TEST
-	#define BUILTINR(t, n, args) int BUILTIN_##n; t n args {if (!BUILTINISVALID(n))Sys_Error("Builtin %s is not valid\n", #n);return (t)plugin_syscall(BUILTIN_##n ARGNAMES);}
-	#define BUILTIN(t, n, args) int BUILTIN_##n; t n args {if (!BUILTINISVALID(n))Sys_Error("Builtin %s is not valid\n", #n);plugin_syscall(BUILTIN_##n ARGNAMES);}
+	#define BUILTINR(t, n, args) int BUILTIN_##n; t n args {if (!BUILTINISVALID(n))Sys_Error("Builtin "#n" is not valid\n");return (t)plugin_syscall(BUILTIN_##n ARGNAMES);}
+	#define BUILTIN(t, n, args) int BUILTIN_##n; t n args {if (!BUILTINISVALID(n))Sys_Error("Builtin "#n" is not valid\n");plugin_syscall(BUILTIN_##n ARGNAMES);}
 #else
 	#define BUILTINR(t, n, args) int BUILTIN_##n; t n args {return (t)plugin_syscall(BUILTIN_##n ARGNAMES);}
 	#define BUILTIN(t, n, args) int BUILTIN_##n; t n args {plugin_syscall(BUILTIN_##n ARGNAMES);}
@@ -118,17 +123,17 @@ EBUILTIN(void, Draw_Colour3f, (float r, float g, float b));
 EBUILTIN(void, Draw_Colour4f, (float r, float g, float b, float a));
 EBUILTIN(void, SCR_CenterPrint, (char *s));
 
-EBUILTIN(int, FS_Open, (char *name, int *handle, int mode));
-EBUILTIN(void, FS_Close, (int handle));
-EBUILTIN(void, FS_Write, (int handle, void *data, int len));
-EBUILTIN(void, FS_Read, (int handle, void *data, int len));
+EBUILTIN(int, FS_Open, (char *name, qhandle_t *handle, int mode));
+EBUILTIN(void, FS_Close, (qhandle_t handle));
+EBUILTIN(int, FS_Write, (qhandle_t handle, void *data, int len));
+EBUILTIN(int, FS_Read, (qhandle_t handle, void *data, int len));
 
-EBUILTIN(int, Net_TCPConnect, (char *ip, int port));
-EBUILTIN(int, Net_TCPListen, (char *ip, int port, int maxcount));
-EBUILTIN(int, Net_Accept, (int socket, char *address, int addresssize));
-EBUILTIN(int, Net_Recv, (int socket, void *buffer, int len));
-EBUILTIN(int, Net_Send, (int socket, void *buffer, int len));
-EBUILTIN(void, Net_Close, (int socket));
+EBUILTIN(qhandle_t, Net_TCPConnect, (char *ip, int port));
+EBUILTIN(qhandle_t, Net_TCPListen, (char *ip, int port, int maxcount));
+EBUILTIN(qhandle_t, Net_Accept, (qhandle_t socket, char *address, int addresssize));
+EBUILTIN(int, Net_Recv, (qhandle_t socket, void *buffer, int len));
+EBUILTIN(int, Net_Send, (qhandle_t socket, void *buffer, int len));
+EBUILTIN(void, Net_Close, (qhandle_t socket));
 #define N_WOULDBLOCK -1
 #define NET_CLIENTPORT -1
 #define NET_SERVERPORT -2
@@ -139,6 +144,7 @@ EBUILTIN(void, Net_Close, (int socket));
 EBUILTIN(void, memcpy, (void *, void *, int len));
 EBUILTIN(void, memmove, (void *, void *, int len));
 EBUILTIN(void, memset, (void *, int, int len));
+EBUILTIN(float, sqrt, (float f));
 #endif
 
 typedef int (*export_t) (int *args);

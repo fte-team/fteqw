@@ -31,7 +31,7 @@ void *malloc(int size)
 	if (size <= 0)
 		return NULL;
 
-	size = ((size+4) & 3) + sizeof(struct memhead_s);	//round up
+	size = ((size+4) & ~3) + sizeof(struct memhead_s);	//round up
 	if (!head)
 	{	//first call
 		struct memhead_s *last;
@@ -63,9 +63,9 @@ void *malloc(int size)
 		if (head->isfree)
 			if (head->size >= size)
 			{
+				struct memhead_s *split;
 				if (head->size > size + sizeof(struct memhead_s)+1)
 				{	//split
-					struct memhead_s *split;
 					split = (struct memhead_s*)((char*)head + size);
 					split->size = head->size - size;
 					head->size = size;
@@ -80,11 +80,14 @@ void *malloc(int size)
 				{	//no point in splitting
 					head->isfree = false;
 				}
-
-				return (char*)head + sizeof(struct memhead_s);
+				split = head;
+				head = head->next;
+				return (char*)split + sizeof(struct memhead_s);
 			}
 		head = head->next;
 	} while (lasthead != head);
+
+	Sys_Errorf("VM Out of memory on allocation of %i bytes\n", size);
 
 	return NULL;
 }
@@ -117,4 +120,6 @@ void free(void *mem)
 	{	//merge next with this
 		block = mergeblock(block, block->next);
 	}
+
+	head = (struct memhead_s*)memory;
 }

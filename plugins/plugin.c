@@ -60,43 +60,43 @@ BUILTIN(void, Con_RenameSub, (char *old, char *new));	//on to named sub console 
 BUILTIN(void, Sys_Error, (char *message));	//abort the entire engine.
 #undef ARGNAMES
 #define ARGNAMES 
-BUILTINR(unsigned int, Sys_Milliseconds, (void));	//abort the entire engine.
+BUILTINR(unsigned int, Sys_Milliseconds, (void));	//get the time the engine has been running.
 #undef ARGNAMES
 
 #define ARGNAMES ,buffer
-BUILTIN(void, Cmd_AddCommand, (char *buffer));	//abort the entire engine.
+BUILTIN(void, Cmd_AddCommand, (char *buffer));	//register a command.
 #undef ARGNAMES
 #define ARGNAMES ,buffer,bufsize
-BUILTIN(void, Cmd_Args, (char *buffer, int bufsize));	//abort the entire engine.
+BUILTIN(void, Cmd_Args, (char *buffer, int bufsize));	//retrieve some arguments.
 #undef ARGNAMES
 #define ARGNAMES ,argnum,buffer,bufsize
-BUILTIN(void, Cmd_Argv, (int argnum, char *buffer, int bufsize));	//abort the entire engine.
+BUILTIN(void, Cmd_Argv, (int argnum, char *buffer, int bufsize));	//retrieve a single argument at a time.
 #undef ARGNAMES
 #define ARGNAMES
-BUILTINR(int, Cmd_Argc, (void));	//abort the entire engine.
+BUILTINR(int, Cmd_Argc, (void));	//get the argument count.
 #undef ARGNAMES
 #define ARGNAMES ,msg
-BUILTIN(void, Cmd_TokenizeString, (char *msg));	//abort the entire engine.
+BUILTIN(void, Cmd_TokenizeString, (char *msg));	//tokenize a string.
 #undef ARGNAMES
 
 #define ARGNAMES ,text,insert
-BUILTIN(void, Cmd_AddText, (char *text, qboolean insert));	//abort the entire engine.
+BUILTIN(void, Cmd_AddText, (char *text, qboolean insert));	//add stuff to the console input.
 #undef ARGNAMES
 
 #define ARGNAMES ,name,value
-BUILTIN(void, Cvar_SetString, (char *name, char *value));
+BUILTIN(void, Cvar_SetString, (char *name, char *value));	//set a cvar string
 #undef ARGNAMES
-#define ARGNAMES ,name,value
-BUILTIN(void, Cvar_SetFloat, (char *name, float value));
+#define ARGNAMES ,name,PASSFLOAT(value)
+BUILTIN(void, Cvar_SetFloat, (char *name, float value));	//set a cvar float
 #undef ARGNAMES
 #define ARGNAMES ,name,retstring,sizeofretstring
-BUILTINR(qboolean, Cvar_GetString, (char *name, char *retstring, int sizeofretstring));
+BUILTINR(qboolean, Cvar_GetString, (char *name, char *retstring, int sizeofretstring));	//retrieve a cvar string
 #undef ARGNAMES
 #define ARGNAMES ,name
-BUILTINR(float, Cvar_GetFloat, (char *name));
+BUILTINR(float, Cvar_GetFloat, (char *name));			//get a cvar's value
 #undef ARGNAMES
 #define ARGNAMES ,name,defaultval,flags,grouphint
-BUILTINR(qhandle_t,	Cvar_Register, (char *name, char *defaultval, int flags, char *grouphint));
+BUILTINR(qhandle_t,	Cvar_Register, (char *name, char *defaultval, int flags, char *grouphint));	//register a new cvar
 #undef ARGNAMES
 #define ARGNAMES ,handle,modificationcount,stringv,floatv
 BUILTINR(int, Cvar_Update, (qhandle_t handle, int *modificationcount, char *stringv, float *floatv));	//stringv is 256 chars long, don't expect this function to do anything if modification count is unchanged.
@@ -149,36 +149,36 @@ BUILTINR(int, Key_GetKeyCode, (char *keyname));
 #undef ARGNAMES
 
 #define ARGNAMES ,name,handle,mode
-BUILTINR(int, FS_Open, (char *name, int *handle, int mode));
+BUILTINR(int, FS_Open, (char *name, qhandle_t *handle, int mode));
 #undef ARGNAMES
 #define ARGNAMES ,handle
-BUILTIN(void, FS_Close, (int handle));
+BUILTIN(void, FS_Close, (qhandle_t handle));
 #undef ARGNAMES
 #define ARGNAMES ,handle,data,len
-BUILTIN(void, FS_Write, (int handle, void *data, int len));
+BUILTINR(int, FS_Write, (qhandle_t handle, void *data, int len));
 #undef ARGNAMES
 #define ARGNAMES ,handle,data,len
-BUILTIN(void, FS_Read, (int handle, void *data, int len));
+BUILTINR(int, FS_Read, (qhandle_t handle, void *data, int len));
 #undef ARGNAMES
 
 
 #define ARGNAMES ,ip,port
-BUILTINR(int, Net_TCPConnect, (char *ip, int port));
+BUILTINR(qhandle_t, Net_TCPConnect, (char *ip, int port));
 #undef ARGNAMES
 #define ARGNAMES ,ip,port,maxcount
-BUILTINR(int, Net_TCPListen, (char *ip, int port, int maxcount));
+BUILTINR(qhandle_t, Net_TCPListen, (char *ip, int port, int maxcount));
 #undef ARGNAMES
 #define ARGNAMES ,socket,address,addresslen
-BUILTINR(int, Net_Accept, (int socket, char *address, int addresslen));
+BUILTINR(qhandle_t, Net_Accept, (qhandle_t socket, char *address, int addresslen));
 #undef ARGNAMES
 #define ARGNAMES ,socket,buffer,len
-BUILTINR(int, Net_Recv, (int socket, void *buffer, int len));
+BUILTINR(int, Net_Recv, (qhandle_t socket, void *buffer, int len));
 #undef ARGNAMES
 #define ARGNAMES ,socket,buffer,len
-BUILTINR(int, Net_Send, (int socket, void *buffer, int len));
+BUILTINR(int, Net_Send, (qhandle_t socket, void *buffer, int len));
 #undef ARGNAMES
 #define ARGNAMES ,socket
-BUILTIN(void, Net_Close, (int socket));
+BUILTIN(void, Net_Close, (qhandle_t socket));
 #undef ARGNAMES
 
 #ifdef Q3_VM
@@ -190,6 +190,9 @@ BUILTIN(void, memset, (void *out, int in, int len));
 #undef ARGNAMES
 #define ARGNAMES ,out,in,len
 BUILTIN(void, memmove, (void *out, void *in, int len));
+#undef ARGNAMES
+#define ARGNAMES ,PASSFLOAT(f)
+BUILTINR(float, sqrt, (float f));
 #undef ARGNAMES
 #endif
 
@@ -245,6 +248,7 @@ void Plug_InitStandardBuiltins(void)
 	CHECKBUILTIN(memcpy);
 	CHECKBUILTIN(memmove);
 	CHECKBUILTIN(memset);
+	CHECKBUILTIN(sqrt);
 #endif
 
 	CHECKBUILTIN(Sys_Milliseconds);

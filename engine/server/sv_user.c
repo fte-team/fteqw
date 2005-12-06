@@ -2686,7 +2686,7 @@ void SV_SetUpClientEdict (client_t *cl, edict_t *ent)
 	ent->v->netname = PR_SetString(svprogfuncs, cl->name);
 
 	if (pr_teamfield)
-		((string_t *)ent->v)[pr_teamfield] = (string_t)PR_SetString(svprogfuncs, cl->team);
+		((string_t *)ent->v)[pr_teamfield] = (string_t)(cl->team-svprogfuncs->stringtable);
 
 	{
 		int tc = atoi(Info_ValueForKey(cl->userinfo, "topcolor"));

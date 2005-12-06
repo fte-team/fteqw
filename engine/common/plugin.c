@@ -69,7 +69,7 @@ void Plug_RegisterBuiltin(char *name, Plug_Builtin_t bi, int flags)
 	//randomize the order a little.
 	int newnum;
 	
-	newnum = rand()%128;
+	newnum = (rand()%128)+1;
 	while(newnum < numplugbuiltins && plugbuiltins[newnum].func)
 		newnum+=128;
 
@@ -80,6 +80,7 @@ void Plug_RegisterBuiltin(char *name, Plug_Builtin_t bi, int flags)
 	}
 
 	//got an empty number.
+	Con_Printf("%s: %i\n", name, newnum);
 	plugbuiltins[newnum].name = name;
 	plugbuiltins[newnum].func = bi;
 	plugbuiltins[newnum].flags = flags;
@@ -615,6 +616,17 @@ int VARGS Plug_Media_ShowFrameRGBA_32(void *offset, unsigned int mask, const lon
 	return 0;
 }
 
+int VARGS Plug_LocalSound(void *offset, unsigned int mask, const long *arg)
+{
+	S_LocalSound(VM_POINTER(arg[0]));
+	return 0;
+}
+int VARGS Plug_SCR_CenterPrint(void *offset, unsigned int mask, const long *arg)
+{
+	SCR_CenterPrint(0, VM_POINTER(arg[0]));
+	return 0;
+}
+
 int VARGS Plug_Key_GetKeyCode(void *offset, unsigned int mask, const long *arg)
 {
 	int modifier;
@@ -1112,6 +1124,13 @@ int VARGS Plug_memmove(void *offset, unsigned int mask, const long *arg)
 	return arg[0];
 }
 
+int VARGS Plug_sqrt(void *offset, unsigned int mask, const long *arg)
+{
+	int ret;
+	VM_FLOAT(ret) = sqrt(VM_FLOAT(arg[0]));
+	return ret;
+}
+
 int VARGS Plug_Net_Recv(void *offset, unsigned int mask, const long *arg)
 {
 	int read;
@@ -1367,8 +1386,11 @@ void Plug_Init(void)
 	Plug_RegisterBuiltin("memset",					Plug_memset, 0);
 	Plug_RegisterBuiltin("memcpy",					Plug_memcpy, 0);
 	Plug_RegisterBuiltin("memmove",					Plug_memmove, 0);
+	Plug_RegisterBuiltin("sqrt",					Plug_sqrt, 0);
 
 
+	Plug_RegisterBuiltin("LocalSound",				Plug_LocalSound, 0);
+	Plug_RegisterBuiltin("SCR_CenterPrint",			Plug_SCR_CenterPrint, 0);
 	Plug_RegisterBuiltin("Media_ShowFrameRGBA_32",	Plug_Media_ShowFrameRGBA_32, 0);
 
 	if (plug_loaddefault.value)

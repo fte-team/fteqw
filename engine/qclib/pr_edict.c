@@ -2989,6 +2989,10 @@ retry:
 		break;
 	}
 
+	eval = PR_FindGlobal(progfuncs, "__ext__fasttrackarrays", PR_CURRENT);
+	if (eval)	//we support these opcodes
+		eval->_float = true;
+
 
 	return true;
 }

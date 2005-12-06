@@ -1101,6 +1101,8 @@ void CL_Disconnect (void)
 		cls.sockettcp = INVALID_SOCKET;
 	}
 #endif
+
+	cls.qport++;	//a hack I picked up from qizmo
 }
 
 #undef serverrunning

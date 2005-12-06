@@ -1023,6 +1023,7 @@ int FS_FLocateFile(char *filename, FSLF_ReturnType_e returntype, flocation_t *lo
 					loc->search = search;
 				goto out;
 			}
+			depth += (search->funcs != &osfilefuncs || returntype == FSLFRT_DEPTH_ANYPATH);
 		}
 	}
 
@@ -1038,6 +1039,7 @@ int FS_FLocateFile(char *filename, FSLF_ReturnType_e returntype, flocation_t *lo
 				loc->search = search;
 			goto out;
 		}
+		depth += (search->funcs != &osfilefuncs || returntype == FSLFRT_DEPTH_ANYPATH);
 	}
 fail:
 	if (loc)

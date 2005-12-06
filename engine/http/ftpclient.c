@@ -305,6 +305,8 @@ iwboolean FTP_ClientConnThink (FTPclientconn_t *con)	//true to kill con
 		{
 			if (*line == '\n')
 				break;
+			if (*line == '\r')
+				break;
 			line++;
 		}					
 		if (!*line)	//broken message
@@ -351,8 +353,13 @@ iwboolean FTP_ClientConnThink (FTPclientconn_t *con)	//true to kill con
 				return true;
 			}
 
-			sprintf(tempbuff, "CWD %s%s\r\nPORT %s\r\n", con->pathprefix, con->path, adr);
+			sprintf(tempbuff, "CWD %s%s\r\n", con->pathprefix, con->path);
 			send(con->controlsock, tempbuff, strlen(tempbuff), 0);
+
+			goto usepasv;
+			sprintf(tempbuff, "PORT %s\r\n", adr);
+			send(con->controlsock, tempbuff, strlen(tempbuff), 0);
+
 			con->stage = 3;
 		}
 		else if (ret == 200)
@@ -409,6 +416,7 @@ iwboolean FTP_ClientConnThink (FTPclientconn_t *con)	//true to kill con
 				}
 				else
 				{
+usepasv:
 					Con_Printf("FTP: Trying passive server mode\n");
 					msg = va("PASV\r\n");
 					send(con->controlsock, msg, strlen(msg), 0);
@@ -474,7 +482,7 @@ iwboolean FTP_ClientConnThink (FTPclientconn_t *con)	//true to kill con
 
 				if (con->NotifyFunction)
 				{
-					con->NotifyFunction(con->localfile, false);
+					con->NotifyFunction(con->localfile, true);
 					con->NotifyFunction = NULL;
 				}
 
@@ -668,6 +676,24 @@ FTPclientconn_t *FTP_FindControl(void)
 	}
 	return NULL;
 }
+
+void FTP_FixupPath(char *out)
+{	//convert \[ to [
+	char *in;
+	in = out;
+	while (*in)
+	{
+		if (*in == '\\')
+		{
+			in++;
+			if (*in == '\0')
+				break;
+		}
+		*out++ = *in++;
+	}
+	*out++ = '\0';
+}
+
 qboolean FTP_Client_Command (char *cmd, void (*NotifyFunction)(char *localfile, qboolean sucess))
 {
 	char command[64];
@@ -720,6 +746,9 @@ qboolean FTP_Client_Command (char *cmd, void (*NotifyFunction)(char *localfile, 
 
 		if ((cmd = COM_ParseOut(cmd, server, sizeof(server))))
 			Q_strncpyz(con->localfile, server, sizeof(con->localfile));
+
+		FTP_FixupPath(con->file);
+		FTP_FixupPath(con->localfile);
 
 		return true;
 	}

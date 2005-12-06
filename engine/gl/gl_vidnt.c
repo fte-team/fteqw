@@ -128,7 +128,7 @@ modestate_t	modestate = MS_UNINIT;
 
 
 LONG WINAPI GLMainWndProc (HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM lParam);
-void GLAppActivate(BOOL fActive, BOOL minimize);
+qboolean GLAppActivate(BOOL fActive, BOOL minimize);
 char *VID_GetModeDescription (int mode);
 void ClearAllStates (void);
 void VID_UpdateWindowStatus (void);
@@ -1067,7 +1067,7 @@ void ClearAllStates (void)
 	IN_ClearStates ();
 }
 
-void GLAppActivate(BOOL fActive, BOOL minimize)
+qboolean GLAppActivate(BOOL fActive, BOOL minimize)
 /****************************************************************************
 *
 * Function:     AppActivate
@@ -1080,6 +1080,9 @@ void GLAppActivate(BOOL fActive, BOOL minimize)
 ****************************************************************************/
 {
 	static BOOL	sound_active;
+
+	if (ActiveApp == fActive && Minimized == minimize)
+		return false;	//so windows doesn't crash us over and over again.
 
 	ActiveApp = fActive;
 	Minimized = minimize;
@@ -1151,6 +1154,8 @@ void GLAppActivate(BOOL fActive, BOOL minimize)
 	}
 
 	vid_hardwaregamma.modified = true;
+
+	return true;
 }
 
 
@@ -1292,15 +1297,10 @@ LONG WINAPI GLMainWndProc (
 	        break;
 
 		case WM_ACTIVATE:
-			if (fActive == LOWORD(wParam))
-			if (fMinimized == (BOOL) HIWORD(wParam))
-					//so, urm, tell me microsoft, what changed?
-				break;
-
-
 			fActive = LOWORD(wParam);
 			fMinimized = (BOOL) HIWORD(wParam);
-			GLAppActivate(!(fActive == WA_INACTIVE), fMinimized);
+			if (!GLAppActivate(!(fActive == WA_INACTIVE), fMinimized))
+				break;//so, urm, tell me microsoft, what changed?
 			if (modestate == MS_FULLDIB)
 				ShowWindow(mainwindow, SW_SHOWNORMAL);
 

@@ -2545,7 +2545,8 @@ continue;
 			mesh->numvertexes = 1;
 			mesh->indexes = r_quad_indexes;
 			mesh->numindexes = 6;
-		//	VectorCopy ( out->origin, mesh->xyz_array[0] );
+
+			VectorCopy ( in->lightmap_origin, mesh->xyz_array[0] );
 
 /*			r = LittleFloat ( in->lightmapVecs[0][0] ) * 255.0f;
 			r = bound ( 0, r, 255 );

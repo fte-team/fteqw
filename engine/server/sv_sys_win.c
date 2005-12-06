@@ -163,7 +163,7 @@ cvar_t	sys_colorconsole = {"sys_colorconsole", "1"};
 HWND consolewindowhandle;
 HWND hiddenwindowhandler;
 
-int void Sys_DebugLog(char *file, char *fmt, ...)
+int Sys_DebugLog(char *file, char *fmt, ...)
 {
     va_list argptr; 
     static char data[1024];

@@ -6262,8 +6262,6 @@ lh_extension_t QSG_Extensions[] = {
 	{"FTE_TE_STANDARDEFFECTBUILTINS",	14,	NULL, {"te_gunshot", "te_spike", "te_superspike", "te_explosion", "te_tarexplosion", "te_wizspike", "te_knightspike", "te_lavasplash",
 												   "te_teleport", "te_lightning1", "te_lightning2", "te_lightning3", "te_lightningblood", "te_bloodqw"}},
 
-	{"HYDR_WRITESTRING2",				1,	NULL, {"writestring2"}},
-
 	{"KRIMZON_SV_PARSECLIENTCOMMAND",	3,	NULL, {"clientcommand", "tokenize", "argv"}},	//very very similar to the mvdsv system.
 	//{"PRYDON_CLIENTCURSOR"},
 	{"QSG_CVARSTRING",					1,	NULL, {"cvar_string"}},
@@ -9453,7 +9451,6 @@ BuiltinList_t BuiltinList[] = {				//nq	qw		h2		ebfs
 
 //end other peoples extras
 
-	{"writestring2",	PF_WriteString2,	0,		0,		0,		700},	//writestring but without the null terminator. makes things a little nicer.
 	//don't exceed sizeof(pr_builtin)/sizeof(pr_builtin[0]) (currently 1024) without modifing the size of pr_builtin
 
 	{NULL}

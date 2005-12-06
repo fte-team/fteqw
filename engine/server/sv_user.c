@@ -2250,6 +2250,7 @@ void SV_SetInfo_f (void)
 {
 	int i;
 	char oldval[MAX_INFO_STRING];
+	char *key, *val;
 
 
 	if (Cmd_Argc() == 1)
@@ -2291,10 +2292,21 @@ void SV_SetInfo_f (void)
 	if (*Cmd_Argv(1) != '_')
 	{
 		i = host_client - svs.clients;
+		key = Cmd_Argv(1);
+		val = Info_ValueForKey(host_client->userinfo, key);
 		MSG_WriteByte (&sv.reliable_datagram, svc_setinfo);
 		MSG_WriteByte (&sv.reliable_datagram, i);
-		MSG_WriteString (&sv.reliable_datagram, Cmd_Argv(1));
-		MSG_WriteString (&sv.reliable_datagram, Info_ValueForKey(host_client->userinfo, Cmd_Argv(1)));
+		MSG_WriteString (&sv.reliable_datagram, key);
+		MSG_WriteString (&sv.reliable_datagram, val);
+
+		if (sv.mvdrecording)
+		{
+			MVDWrite_Begin (dem_all, 0, strlen(key)+strlen(val)+4);
+			MSG_WriteByte ((sizebuf_t*)demo.dbuf, svc_setinfo);
+			MSG_WriteByte ((sizebuf_t*)demo.dbuf, i);
+			MSG_WriteString ((sizebuf_t*)demo.dbuf, key);
+			MSG_WriteString ((sizebuf_t*)demo.dbuf, val);
+		}
 	}
 
 	PR_ClientUserInfoChanged(Cmd_Argv(1), oldval, Info_ValueForKey(host_client->userinfo, Cmd_Argv(1)));
@@ -4295,8 +4307,13 @@ void SV_ExecuteClientMessage (client_t *cl)
 		if (cl->lastsequence_acknoledged + UPDATE_BACKUP > cl->netchan.incoming_acknowledged)
 			frame->ping_time = realtime - frame->senttime;	//no more phenomanally low pings please
 #ifdef PEXT_CSQC
-		for (i = cl->lastsequence_acknoledged+1; i < cl->netchan.incoming_acknowledged; i++)
-			SV_CSQC_DroppedPacket(cl, i);
+		if (cl->lastsequence_acknoledged + UPDATE_BACKUP > cl->netchan.incoming_acknowledged)
+		{
+			for (i = cl->lastsequence_acknoledged+1; i < cl->netchan.incoming_acknowledged; i++)
+				SV_CSQC_DroppedPacket(cl, i);
+		}
+		else
+			SV_CSQC_DropAll(cl);
 #endif
 		cl->lastsequence_acknoledged = cl->netchan.incoming_acknowledged;
 	}

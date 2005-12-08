@@ -21,7 +21,7 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 
 #include "quakedef.h"
 
-
+extern cvar_t hud_tracking_show;
 
 //===========================================
 //rogue changed and added defines
@@ -1701,10 +1701,12 @@ void Sbar_Draw (void)
 					else
 						Sbar_DrawNormal (pnum);
 
-	//					Sbar_DrawString (160-14*8+4,4, "SPECTATOR MODE - TRACK CAMERA");
-					sprintf(st, "Tracking %-.64s",
+					if (hud_tracking_show.value)
+					{
+						sprintf(st, "Tracking %-.64s",
 							cl.players[spec_track[pnum]].name);
-					Sbar_DrawFunString(0, -8, st);
+						Sbar_DrawFunString(0, -8, st);
+					}
 				}
 			}
 			else if (sb_showscores || (cl.stats[pnum][STAT_HEALTH] <= 0 && cl.splitclients == 1))

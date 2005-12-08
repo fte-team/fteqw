@@ -48,6 +48,7 @@ cvar_t	cl_hudswap	= {"cl_hudswap", "0", NULL, CVAR_ARCHIVE};
 cvar_t	cl_maxfps	= {"cl_maxfps", "1000", NULL, CVAR_ARCHIVE};
 cvar_t	cl_nopext	= {"cl_nopext", "0", NULL, CVAR_ARCHIVE};
 cvar_t	cl_nolerp	= {"cl_nolerp", "1"};
+cvar_t	hud_tracking_show = {"hud_tracking_show", "1"};
 
 cvar_t	cfg_save_name = {"cfg_save_name", "fte", NULL, CVAR_ARCHIVE};
 
@@ -2606,6 +2607,7 @@ void CL_Init (void)
 
 	Cvar_Register (&cl_indepphysics, cl_controlgroup);
 	Cvar_Register (&cl_antibunch, "evil hacks");
+	Cvar_Register (&hud_tracking_show, "statusbar");
 
 #ifdef IRCCLIENT
 	Cmd_AddCommand ("irc", CL_IRC_f);

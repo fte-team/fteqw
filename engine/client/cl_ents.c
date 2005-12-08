@@ -2906,9 +2906,26 @@ void CL_LinkViewModel(void)
 		return;
 
 	if (cl.stats[r_refdef.currentplayernum][STAT_ITEMS] & IT_QUAD)
-		ent.flags |= Q2RF_SHELL_BLUE;
+	{
+		if (v_powerupshell.value == 2)
+		{
+			ent.forcedshader = R_RegisterCustom("powerups/quadWeapon", Shader_DefaultSkinShell);
+			V_AddEntity(&ent);
+		}
+		else
+			ent.flags |= Q2RF_SHELL_BLUE;
+	}
 	if (cl.stats[r_refdef.currentplayernum][STAT_ITEMS] & IT_INVULNERABILITY)
-		ent.flags |= Q2RF_SHELL_RED;
+	{
+		if (v_powerupshell.value == 2)
+		{
+			ent.forcedshader = R_RegisterCustom("powerups/regen", Shader_DefaultSkinShell);
+			ent.fatness = -2.5;
+			V_AddEntity(&ent);
+		}
+		else
+			ent.flags |= Q2RF_SHELL_RED;
+	}
 
 	if (!(ent.flags & (Q2RF_SHELL_RED|Q2RF_SHELL_GREEN|Q2RF_SHELL_BLUE)))
 		return;

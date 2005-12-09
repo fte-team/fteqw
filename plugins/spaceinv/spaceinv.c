@@ -139,7 +139,7 @@ int monsterpics;
 
 typedef struct SIEnemyType_s
 {
-	qhandle_t *picture;
+	texture *picture;
 	float width;
 	float height;
 	int health;
@@ -154,7 +154,7 @@ typedef struct SIEnemyType_s
 	int healthregen;
 
 	int shotdamage;
-	qhandle_t *shotpicture;
+	texture *shotpicture;
 } SIEnemyType_t;
 
 typedef struct SIRoute_s
@@ -182,7 +182,7 @@ typedef struct SIaddon_s
 	int power;
 	float refire;
 	float reloadtime;
-	qhandle_t *tex;
+	texture *tex;
 } SIaddon_t;
 
 typedef struct SIp_s
@@ -238,7 +238,7 @@ typedef struct SIbullet_s
 	float alpha;
 	float alphachange;
 
-	qhandle_t *tex;
+	texture *tex;
 } SIbullet_t;
 
 typedef struct ShopRegion_s
@@ -250,10 +250,10 @@ typedef struct ShopRegion_s
 
 	char *text;
 
-	qhandle_t *tex;
+	texture *tex;
 	qboolean (*AppearCondition) (int ident);
 	void (*CallFunc) (int ident);
-	qhandle_t *(*Texture) (qhandle_t *def, int ident);
+	texture *(*Texture) (texture *def, int ident);
 	int ident;
 } ShopRegion_t;
 
@@ -274,19 +274,19 @@ float leveltime;
 
 int livingmonsters;
 
-qhandle_t SIplayertexture;	//both
-qhandle_t *SIbaddietexture;	//game only
-qhandle_t *SIbullettexture;	//game only
-qhandle_t SIexplosiontexture;	//game only
-qhandle_t SIhealthtexture;		//shop only
-qhandle_t SIleaveshoptexture;	//shop only
-qhandle_t SIshrinktexture;		//shop only
-qhandle_t SIcannontexture;	//game+shop
-qhandle_t SIsideshottexture;	//shop only
-qhandle_t SIrapidtexture;
-qhandle_t SIsavegametexture;
-qhandle_t SIloadgametexture;
-qhandle_t SIquittexture;
+texture SIplayertexture;	//both
+texture *SIbaddietexture;	//game only
+texture *SIbullettexture;	//game only
+texture SIexplosiontexture;	//game only
+texture SIhealthtexture;		//shop only
+texture SIleaveshoptexture;	//shop only
+texture SIshrinktexture;		//shop only
+texture SIcannontexture;	//game+shop
+texture SIsideshottexture;	//shop only
+texture SIrapidtexture;
+texture SIsavegametexture;
+texture SIloadgametexture;
+texture SIquittexture;
 /*
 sound SoundWin;
 sound SoundLoose;
@@ -326,7 +326,7 @@ void SISPUpgrade1 (int ident)
 	SIp.cannon[M_FORWARD].power++;
 	SIp.cash -= 500;
 }
-qhandle_t *SISPUpgrade1Texture (qhandle_t *def, int ident)
+texture *SISPUpgrade1Texture (texture *def, int ident)
 {
 	return &SIbullettexture[SIp.cannon[M_FORWARD].power+1];
 }
@@ -535,7 +535,7 @@ bool gamesaved = 2;
 void SISaveGame(int ident)
 {
 	int a;
-	qhandle_t handle;
+	texture handle;
 
 	FS_Open("spaceinv/spaceinv.sav", &handle, 2);
 
@@ -559,7 +559,7 @@ void SILoadGame(int ident)
 {
 	int a;
 	int len;
-	qhandle_t handle;
+	texture handle;
 
 	len = FS_Open("spaceinv/spaceinv.sav", &handle, 1);
 	if (len < 0)
@@ -585,7 +585,7 @@ void SILoadGame(int ident)
 
 bool SILoadGameThere(int ident)
 {
-	qhandle_t handle;
+	texture handle;
 	if (gamesaved = 2)
 	{
 		if (FS_Open("spaceinv/spaceinv.sav", &handle, 1) >= 0)
@@ -717,7 +717,7 @@ void Draw_String2C(int x, int y, char *string, int extraparam)
 	}
 }
 
-void Draw_Picture(qhandle_t tex, float x, float y, float w, float h)
+void Draw_Picture(texture tex, float x, float y, float w, float h)
 {
 	Draw_Image(x, y, w, h, 0, 0, 1, 1, tex);
 }
@@ -799,6 +799,8 @@ void SI_2D (void)
 	{
 		Draw_Colour4f(1, 1, 1,				1);
 		/*		
+
+		was a flame trail. :(
 		grDisable(GL_TEXTURE_2D);
 		grShadeModel(GL_SMOOTH);
 		grBegin(GL_TRIANGLES);
@@ -895,71 +897,25 @@ void SI_2D (void)
 		{
 			switch (SIbullet[a].type)
 			{
-			case 1:						
-/*				grDisable(GL_TEXTURE_2D);				
-				grBegin(GL_LINES);
+			case 1:
 				for (b = 0; b < SIbullet[a].charge; b++)
 				{
-//					frame = (int)random() * 1000;
-					grColor4f(random(), random(), random(), SIbullet[a].alpha);
-#if 1
-					grVertex2f (SIbullet[a].xpos+SIbullet[a].width/2, SIbullet[a].ypos+SIbullet[a].height/2);
-#else
-					grVertex2f (SIbullet[a].xpos+SIbullet[a].width/2+(float)sin((frame+1)*(a+1)*(b+1))*SIbullet[a].width, SIbullet[a].ypos+SIbullet[a].height/2+(float)cos((frame+1)*(a+1)*(b+1))*SIbullet[a].height);
-#endif
-					grVertex2f (SIbullet[a].xpos+SIbullet[a].width/2+(float)sin((frame+2)*(a+1)*(b+1))*SIbullet[a].width, SIbullet[a].ypos+SIbullet[a].height/2+(float)cos((frame+2)*(a+1)*(b+1))*SIbullet[a].height);
+					Draw_Colour4f(random(), random(), random(), SIbullet[a].alpha);
+					Draw_Line (SIbullet[a].xpos+SIbullet[a].width/2,
+						SIbullet[a].ypos+SIbullet[a].height/2,
+						SIbullet[a].xpos+SIbullet[a].width/2+(float)sin((frame+2)*(a+1)*(b+1))*SIbullet[a].width,
+						SIbullet[a].ypos+SIbullet[a].height/2+(float)cos((frame+2)*(a+1)*(b+1))*SIbullet[a].height);
 				}
-				grEnd();
-				grEnable(GL_TEXTURE_2D);
 				break;
-*/
-/*			case 2:
+
+			case 2:
 				x=realtime*50;
-				grColor4f(1, 1, 1, SIbullet[a].alpha);
-				
-				grDisable(GL_TEXTURE_2D);
-				grShadeModel(GL_SMOOTH);
-				grBegin(GL_QUADS);
 
-				x = SIbullet[a].xpos+SIbullet[a].width/2;
-				y = SIbullet[a].ypos+SIbullet[a].height/2;
+				Draw_Colour4f(1, 1, 1, SIbullet[a].alpha);
+				Draw_Picture(*SIbullet[a].tex, SIbullet[a].xpos, 0, SIbullet[a].width, SIbullet[a].ypos+SIbullet[a].height);
 
-				grColor4f(1, 1, 1, 0);
-				grVertex2f(x+SIbullet[a].width, y);
-				grColor4f(1, 1, 1, SIbullet[a].alpha);
-				grVertex2f(x, y);
-				grVertex2f(x, 0);
-				grColor4f(1, 1, 1, 0);
-				grVertex2f(x+SIbullet[a].width, 0);
-
-				grColor4f(1, 1, 1, SIbullet[a].alpha);
-				grVertex2f(x, y);
-				grColor4f(1, 1, 1, 0);
-				grVertex2f(x-SIbullet[a].width, y);
-				grVertex2f(x-SIbullet[a].width, 0);
-				grColor4f(1, 1, 1, SIbullet[a].alpha);
-				grVertex2f(x, 0);
-				
-
-				grColor4f(1, 1, 1, 0);
-				grVertex2f(x+SIbullet[a].width, y);
-				grColor4f(1, 1, 1, SIbullet[a].alpha);
-				grVertex2f(x, y);
-				grColor4f(1, 1, 1, 0);
-				grVertex2f(x, y+SIbullet[a].height);
-				grVertex2f(x+SIbullet[a].width, y+SIbullet[a].height);
-
-				grVertex2f(x, y+SIbullet[a].height);
-				grColor4f(1, 1, 1, SIbullet[a].alpha);
-				grVertex2f(x, y);
-				grColor4f(1, 1, 1, 0);
-				grVertex2f(x-SIbullet[a].width, y);
-				grVertex2f(x-SIbullet[a].width, y+SIbullet[a].height);			
-
-				grEnd();
-				grEnable(GL_TEXTURE_2D);				
 				break;
-*/
+
 /*			case 3:
 				x=realtime*50;
 				grColor4f(1, 1, 1, SIbullet[a].alpha);
@@ -1665,9 +1621,9 @@ void SI_KeyDown(int k)
 		SIp.contols |= CONT_FIREKEY;
 	else if (k == K_MOUSE2)
 		SIp.contols |= CONT_MOUSE;
-	else if (k == K_F1)
+	else if (k == '1')
 		SIp.health = 9;
-	else if (k == K_F2)
+	else if (k == '2')
 		SIp.cash += 100;
 	else if (k == K_ESCAPE)
 		Menu_Control(0);
@@ -1726,6 +1682,7 @@ void SI_Initialize(void)
 
 		free(SIbaddietexture);
 		free(SIbullettexture);
+		SIbullettexture = NULL;
 
 		free(SISquad);
 		free(SIRoute);
@@ -1809,8 +1766,15 @@ void SI_Initialize(void)
 						SIweapons[a].alpha = (float)atof(val);
 					else if (!strcasecmp(s, "alphachange"))
 						SIweapons[a].alphachange = (float)atof(val);
-//					else if (!strcasecmp(s, "texturenum"))
-//						SIweapons[a].tex = (int)atoi(val)-1;	//allow different pictures
+					else if (!strcasecmp(s, "texturenum"))
+					{
+						if (!SIbullettexture)
+						{
+							SIbullettexture = malloc(sizeof(texture) * weaponlevels);
+							memset(SIbullettexture, 0, sizeof(texture) * weaponlevels);
+						}
+						SIweapons[a].tex = &SIbullettexture[atoi(val)-1];	//allow different pictures
+					}
 					else if (!strcasecmp(s, "charge"))
 						SIweapons[a].charge = atoi(val);	//allow different pictures
 					else if (!strcasecmp(s, "type"))
@@ -1863,6 +1827,12 @@ void SI_Initialize(void)
 		}
 	}
 
+	if (!SIbullettexture)
+	{
+		SIbullettexture = malloc(sizeof(texture) * weaponlevels);
+		memset(SIbullettexture, 0, sizeof(texture) * weaponlevels);
+	}
+
 	SIEnemyType = malloc(sizeof(SIEnemyType_t) * ENEMYTYPES);
 	memset(SIEnemyType, 0, sizeof(SIEnemyType_t) * ENEMYTYPES);
 	SImonster = malloc(sizeof(SImonster_t) * MAXMONSTERS);
@@ -1872,18 +1842,11 @@ void SI_Initialize(void)
 
 	SIbaddietexture = malloc(sizeof(texture) * ENEMYTYPES);
 	memset(SIbaddietexture, 0, sizeof(texture) * ENEMYTYPES);
-	SIbullettexture = malloc(sizeof(texture) * weaponlevels);
-	memset(SIbullettexture, 0, sizeof(texture) * weaponlevels);
 
 	SIRoute = malloc((sizeof(SIRoute_t)+(MAXROUTEPOINTS-1)*sizeof(vec3_t)) * MAXROUTES);
 	memset(SIRoute, 0, (sizeof(SIRoute_t)+(MAXROUTEPOINTS-1)*sizeof(vec3_t)) * MAXROUTES);
 	SISquad = malloc(sizeof(SISquad_t) * MAXSQUADS);
 	memset(SISquad, 0, sizeof(SISquad_t) * MAXSQUADS);
-
-	for (a = 0; a < weaponlevels; a++)
-	{
-		SIweapons[a].tex = &SIbullettexture[(int)SIweapons[a].tex];
-	}
 
 	//loaded elsewhere
 //	SIweapons = mmalloc(sizeof(SIbullet_t) * weaponlevels);
@@ -2342,6 +2305,7 @@ int Plug_Init(int *args)
 		Cmd_AddCommand("spaceinv");
 
 		SI_Initialize();
+		SI_LoadTextures();
 
 		return 1;
 	}

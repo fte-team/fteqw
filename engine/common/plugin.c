@@ -534,6 +534,24 @@ int VARGS Plug_Draw_Image(void *offset, unsigned int mask, const long *arg)
 	Draw_Image(VM_FLOAT(arg[0]), VM_FLOAT(arg[1]), VM_FLOAT(arg[2]), VM_FLOAT(arg[3]), VM_FLOAT(arg[4]), VM_FLOAT(arg[5]), VM_FLOAT(arg[6]), VM_FLOAT(arg[7]), pic);
 	return 1;
 }
+//x1,y1,x2,y2
+int VARGS Plug_Draw_Line(void *offset, unsigned int mask, const long *arg)
+{
+	switch(qrenderer)	//FIXME: I don't want qrenderer seen outside the refresh
+	{
+#ifdef RGLQUAKE
+	case QR_OPENGL:
+		qglDisable(GL_TEXTURE_2D);
+		qglBegin(GL_LINES);
+		qglVertex2f(VM_FLOAT(arg[0]), VM_FLOAT(arg[1]));
+		qglVertex2f(VM_FLOAT(arg[2]), VM_FLOAT(arg[3]));
+		qglEnd();
+		qglEnable(GL_TEXTURE_2D);
+		break;
+#endif
+	}
+	return 1;
+}
 
 int VARGS Plug_Draw_Character(void *offset, unsigned int mask, const long *arg)
 {
@@ -1359,9 +1377,9 @@ void Plug_Init(void)
 
 	Plug_RegisterBuiltin("Draw_LoadImage",			Plug_Draw_LoadImage, 0);
 	Plug_RegisterBuiltin("Draw_Image",				Plug_Draw_Image, 0);
-
 	Plug_RegisterBuiltin("Draw_Character",			Plug_Draw_Character, 0);
 	Plug_RegisterBuiltin("Draw_Fill",				Plug_Draw_Fill, 0);
+	Plug_RegisterBuiltin("Draw_Line",				Plug_Draw_Line, 0);
 	Plug_RegisterBuiltin("Draw_Colourp",			Plug_Draw_ColourP, 0);
 	Plug_RegisterBuiltin("Draw_Colour3f",			Plug_Draw_Colour3f, 0);
 	Plug_RegisterBuiltin("Draw_Colour4f",			Plug_Draw_Colour4f, 0);

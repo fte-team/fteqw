@@ -4582,6 +4582,7 @@ void QCC_PR_ParseStatement (void)
 	int i;
 	QCC_def_t				*e, *e2;
 	QCC_dstatement_t		*patch1, *patch2, *patch3;
+	int statementstart = pr_source_line;
 
 	if (QCC_PR_CheckToken ("{"))
 	{
@@ -5402,7 +5403,10 @@ void QCC_PR_ParseStatement (void)
 	}
 	if (QCC_PR_CheckToken(";"))
 	{
+		int osl = pr_source_line;
+		pr_source_line = statementstart;
 		QCC_PR_ParseWarning(WARN_POINTLESSSTATEMENT, "Hanging ';'");
+		pr_source_line = osl;
 		return;
 	}
 
@@ -5413,7 +5417,12 @@ void QCC_PR_ParseStatement (void)
 	QCC_PR_Expect (";");
 
 	if (e->type->type != ev_void && !qcc_usefulstatement)
+	{
+		int osl = pr_source_line;
+		pr_source_line = statementstart;
 		QCC_PR_ParseWarning(WARN_POINTLESSSTATEMENT, "Effectless statement");
+		pr_source_line = osl;
+	}
 
 	QCC_FreeTemp(e);
 

@@ -518,6 +518,9 @@ int DSOUND_InitCard (soundcardinfo_t *sc, int cardnum)
 	dshandle_t *dh;
 	char *buffer;
 
+	if (COM_CheckParm("-wavonly"))
+		return;
+
 
 	sc->sn.numchannels = 2;
 	sc->sn.samplebits = 16;

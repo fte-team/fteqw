@@ -116,6 +116,9 @@ BUILTINR(qhandle_t, Draw_LoadImage, (char *name, qboolean iswadimage));	//wad im
 #define ARGNAMES ,PASSFLOAT(x),PASSFLOAT(y),PASSFLOAT(w),PASSFLOAT(h),PASSFLOAT(s1),PASSFLOAT(t1),PASSFLOAT(s2),PASSFLOAT(t2),image
 BUILTIN(void, Draw_Image, (float x, float y, float w, float h, float s1, float t1, float s2, float t2, qhandle_t image));
 #undef ARGNAMES
+#define ARGNAMES ,PASSFLOAT(x1),PASSFLOAT(y1),PASSFLOAT(x2),PASSFLOAT(y2)
+BUILTIN(void, Draw_Line, (float x1, float y1, float x2, float y2));
+#undef ARGNAMES
 #define ARGNAMES ,PASSFLOAT(x),PASSFLOAT(y),PASSFLOAT(w),PASSFLOAT(h)
 BUILTIN(void, Draw_Fill,	(int x, int y, int w, int h));
 #undef ARGNAMES
@@ -193,6 +196,8 @@ BUILTIN(void, memmove, (void *out, void *in, int len));
 #undef ARGNAMES
 #define ARGNAMES ,PASSFLOAT(f)
 BUILTINR(float, sqrt, (float f));
+BUILTINR(float, sin, (float f));
+BUILTINR(float, cos, (float f));
 #undef ARGNAMES
 #endif
 
@@ -249,6 +254,8 @@ void Plug_InitStandardBuiltins(void)
 	CHECKBUILTIN(memmove);
 	CHECKBUILTIN(memset);
 	CHECKBUILTIN(sqrt);
+	CHECKBUILTIN(sin);
+	CHECKBUILTIN(cos);
 #endif
 
 	CHECKBUILTIN(Sys_Milliseconds);
@@ -291,6 +298,7 @@ void Plug_InitStandardBuiltins(void)
 	//drawing routines
 	CHECKBUILTIN(Draw_LoadImage);
 	CHECKBUILTIN(Draw_Image);
+	CHECKBUILTIN(Draw_Line);
 	CHECKBUILTIN(Draw_Fill);
 	CHECKBUILTIN(Draw_Character);
 	CHECKBUILTIN(Draw_Colourp);

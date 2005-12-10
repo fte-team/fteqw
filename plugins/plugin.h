@@ -117,6 +117,7 @@ EBUILTIN(void, Media_ShowFrameRGBA_32, (void *src, int srcwidth, int srcheight, 
 EBUILTIN(qhandle_t, Draw_LoadImage, (char *name, qboolean iswadimage));	//wad image is ONLY for loading out of q1 gfx.wad
 EBUILTIN(void, Draw_Image, (float x, float y, float w, float h, float s1, float t1, float s2, float t2, qhandle_t image));
 EBUILTIN(void, Draw_Fill,	(int x, int y, int w, int h));
+EBUILTIN(void, Draw_Line, (float x1, float y1, float x2, float y2));
 EBUILTIN(void, Draw_Character, (int x, int y, unsigned int characture));
 EBUILTIN(void, Draw_Colourp, (int palcol));
 EBUILTIN(void, Draw_Colour3f, (float r, float g, float b));
@@ -145,6 +146,8 @@ EBUILTIN(void, memcpy, (void *, void *, int len));
 EBUILTIN(void, memmove, (void *, void *, int len));
 EBUILTIN(void, memset, (void *, int, int len));
 EBUILTIN(float, sqrt, (float f));
+EBUILTIN(float, cos, (float f));
+EBUILTIN(float, sin, (float f));
 #endif
 
 typedef int (*export_t) (int *args);

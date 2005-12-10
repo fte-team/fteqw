@@ -1148,6 +1148,24 @@ int VARGS Plug_sqrt(void *offset, unsigned int mask, const long *arg)
 	VM_FLOAT(ret) = sqrt(VM_FLOAT(arg[0]));
 	return ret;
 }
+int VARGS Plug_sin(void *offset, unsigned int mask, const long *arg)
+{
+	int ret;
+	VM_FLOAT(ret) = sin(VM_FLOAT(arg[0]));
+	return ret;
+}
+int VARGS Plug_cos(void *offset, unsigned int mask, const long *arg)
+{
+	int ret;
+	VM_FLOAT(ret) = cos(VM_FLOAT(arg[0]));
+	return ret;
+}
+int VARGS Plug_atan2(void *offset, unsigned int mask, const long *arg)
+{
+	int ret;
+	VM_FLOAT(ret) = atan2(VM_FLOAT(arg[0]), VM_FLOAT(arg[1]));
+	return ret;
+}
 
 int VARGS Plug_Net_Recv(void *offset, unsigned int mask, const long *arg)
 {
@@ -1405,6 +1423,9 @@ void Plug_Init(void)
 	Plug_RegisterBuiltin("memcpy",					Plug_memcpy, 0);
 	Plug_RegisterBuiltin("memmove",					Plug_memmove, 0);
 	Plug_RegisterBuiltin("sqrt",					Plug_sqrt, 0);
+	Plug_RegisterBuiltin("sin",						Plug_sin, 0);
+	Plug_RegisterBuiltin("cos",						Plug_cos, 0);
+	Plug_RegisterBuiltin("atan2",					Plug_atan2, 0);
 
 
 	Plug_RegisterBuiltin("LocalSound",				Plug_LocalSound, 0);

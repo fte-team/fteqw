@@ -266,6 +266,11 @@ int ribuffersize;
 cvar_t in_rawinput = {"in_rawinput", "0"};
 cvar_t in_rawinput_combine = {"in_rawinput_combine", "0"};
 cvar_t in_rawinput_rdp = {"in_rawinput_rdp", "0"};
+
+void IN_RawInput_DeRegister(void);
+int IN_RawInput_Register(void);
+void IN_RawInput_DeInit(void);
+
 #endif
 
 // forward-referenced functions
@@ -468,6 +473,16 @@ void IN_ActivateMouse (void)
 		else
 #endif
 		{
+#ifdef USINGRAWINPUT
+			if (rawmicecount > 0)
+			{
+				if (IN_RawInput_Register()) {
+					Con_SafePrintf("Raw input: unable to register raw input, deinitializing\n");
+					IN_RawInput_DeInit();
+				}
+			}
+#endif
+
 			if (mouseparmsvalid)
 				restore_spi = SystemParametersInfo (SPI_SETMOUSE, 0, newmouseparms, 0);
 
@@ -542,6 +557,11 @@ void IN_DeactivateMouse (void)
 		else
 #endif
 		{
+#ifdef USINGRAWINPUT
+			if (rawmicecount > 0)
+				IN_RawInput_DeRegister();
+#endif
+
 			if (restore_spi)
 				SystemParametersInfo (SPI_SETMOUSE, 0, originalmouseparms, 0);
 
@@ -760,12 +780,9 @@ void IN_CloseDInput (void)
 #endif
 
 #ifdef USINGRAWINPUT
-void IN_RawInput_DeInit(void)
+void IN_RawInput_DeRegister(void)
 {
 	RAWINPUTDEVICE Rid;
-
-	if (rawmicecount < 1)
-		return;
 
 	// deregister raw input
 	Rid.usUsagePage = 0x01; 
@@ -774,6 +791,14 @@ void IN_RawInput_DeInit(void)
 	Rid.hwndTarget = NULL;
 
 	(*_RRID)(&Rid, 1, sizeof(Rid));
+}
+
+void IN_RawInput_DeInit(void)
+{
+	if (rawmicecount < 1)
+		return;
+
+	IN_RawInput_DeRegister();
 
 	Z_Free(rawmice);
 
@@ -908,9 +933,9 @@ int IN_RawInput_Register(void)
 
 	// Register to receive the WM_INPUT message for any change in mouse (buttons, wheel, and movement will all generate the same message)
 	if (!(*_RRID)(&Rid, 1, sizeof(Rid)))
-		return 0;
+		return 1;
 
-	return 1;
+	return 0;
 }
 
 int IN_RawInput_IsRDPMouse(char *cDeviceString)
@@ -1056,16 +1081,6 @@ void IN_RawInput_Init(void)
    
 	// free the RAWINPUTDEVICELIST
 	Z_Free(pRawInputDeviceList);
-
-	// finally, register to recieve raw input WM_INPUT messages
-	if (!IN_RawInput_Register()) {
-		Con_SafePrintf("Raw input: unable to register raw input\n");
-
-		// quick deinit
-		rawmicecount = 0;
-		Z_Free(rawmice);
-		return;
-	}
 
 	// alloc raw input buffer
 	raw = BZ_Malloc(INIT_RIBUFFER_SIZE);

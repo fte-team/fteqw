@@ -635,6 +635,8 @@ void Hud_HealthPic(void)
 		hl = 4;
 	if (hl < 0)
 		hl = 0;
+
+	//FIXME
 //	if (innpain)
 //		UI_DrawPic(pic_facep[4-hl], 0, 0, 24, 24);
 //	else
@@ -899,13 +901,13 @@ int UI_StatusBarEdit(int *arg) // seperated so further improvements to editor vi
 }
 
 #define HUD_VERSION 52345
-void PutFloat(float f, char sep, int handle)
+void PutFloat(float f, char sep, qhandle_t handle)
 {
 	char *buffer;
 	buffer = va("%f%c", f, sep);
 	FS_Write(handle, buffer, strlen(buffer));
 }
-void PutInteger(int i, char sep, int handle)
+void PutInteger(int i, char sep, qhandle_t handle)
 {
 	char *buffer;
 	buffer = va("%i%c", i, sep);
@@ -915,7 +917,7 @@ void PutInteger(int i, char sep, int handle)
 void Hud_Save(char *fname)
 {
 	int i;
-	int handle;
+	qhandle_t handle;
 	if (!*fname)
 		fname = DEFAULTHUDNAME;
 	if (FS_Open(fname, &handle, 2)<0)
@@ -939,7 +941,7 @@ void Hud_Save(char *fname)
 
 	FS_Close(handle);
 }
-float GetFloat(char **f, int handle)
+float GetFloat(char **f, qhandle_t handle)
 {
 	char *ts;
 	while(**f <= ' ' && **f != 0)
@@ -957,7 +959,7 @@ float GetFloat(char **f, int handle)
 
 	return (float)atof(ts);
 }
-int GetInteger(char **f, int handle)
+int GetInteger(char **f, qhandle_t handle)
 {
 	char *ts;
 	while(**f <= ' ' && **f != 0)
@@ -981,7 +983,7 @@ void Hud_Load(char *fname)
 	char *p;
 	int len;
 	int i;
-	int handle;
+	qhandle_t handle;
 	int ver;
 
 	float x, y, sx, sy, a;

@@ -4076,7 +4076,9 @@ void GL_LoadQ3Model(model_t *mod, void *buffer)
 		}
 
 #ifndef SERVERONLY
-		if (LittleLong(surf->numShaders)+externalskins)
+		if (externalskins<LittleLong(surf->numShaders))
+			externalskins = LittleLong(surf->numShaders);
+		if (externalskins)
 		{
 #ifndef Q3SHADERS
 			char name[1024];
@@ -4088,7 +4090,7 @@ void GL_LoadQ3Model(model_t *mod, void *buffer)
 			galias->ofsskins = (qbyte *)skin - (qbyte *)galias;
 			texnum = (galiastexnum_t *)(skin + LittleLong(surf->numShaders)+externalskins);
 			inshader = (md3Shader_t *)((qbyte *)surf + LittleLong(surf->ofsShaders));
-			for (i = 0; i < LittleLong(surf->numShaders)+externalskins; i++)
+			for (i = 0; i < externalskins; i++)
 			{
 				skin->texnums = 1;
 				skin->ofstexnums = (qbyte *)texnum - (qbyte *)skin;
@@ -4097,15 +4099,19 @@ void GL_LoadQ3Model(model_t *mod, void *buffer)
 				skin->skinheight = 0;
 				skin->skinspeed = 0;
 
-				if (i >= LittleLong(surf->numShaders))
-					shadname[0] = 0;
-				else
-					strcpy(shadname, inshader->name);
+				shadname[0] = '\0';
 
-				if (!*shadname)	//'fix' the shader by looking the surface name up in a skin file. This isn't perfect, but it does the job for basic models.
-					GL_ParseQ3SkinFile(shadname, surf->name, loadmodel->name, i, skin->name);
-				else
+				GL_ParseQ3SkinFile(shadname, surf->name, loadmodel->name, i, skin->name);
+
+				if (!*shadname)
+				{
+					if (i >= LittleLong(surf->numShaders))
+						strcpy(shadname, "missingskin");	//this shouldn't be possible
+					else
+						strcpy(shadname, inshader->name);
+
 					Q_strncpyz(skin->name, shadname, sizeof(skin->name));
+				}
 
 #ifdef Q3SHADERS
 				if (qrenderer)

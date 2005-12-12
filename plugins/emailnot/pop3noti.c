@@ -98,7 +98,7 @@ typedef struct pop3_con_s {
 
 	qboolean drop;
 
-	int socket;
+	qhandle_t socket;
 
 	//we have a certain number of stages.
 	enum {

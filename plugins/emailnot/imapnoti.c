@@ -143,7 +143,7 @@ typedef struct imap_con_s {
 
 	qboolean drop;
 
-	int socket;
+	qhandle_t socket;
 
 	enum {
 		IMAP_WAITINGFORINITIALRESPONCE,

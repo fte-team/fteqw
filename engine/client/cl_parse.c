@@ -3128,9 +3128,9 @@ char *CL_ParseChat(char *text, player_info_t **player)
 	if (!suppress_talksound)
 	{
 		if (flags == 2 && cl.teamplay)
-			S_LocalSound (cl_teamchatsound.value);
+			S_LocalSound (cl_teamchatsound.string);
 		else
-			S_LocalSound (cl_enemychatsound.value);
+			S_LocalSound (cl_enemychatsound.string);
 	}
 
 	if (cl_nofake.value == 1 || (cl_nofake.value == 2 && flags != 2)) {

@@ -8,7 +8,7 @@ of the License, or (at your option) any later version.
 
 This program is distributed in the hope that it will be useful,
 but WITHOUT ANY WARRANTY; without even the implied warranty of
-MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
 
 See the GNU General Public License for more details.
 
@@ -156,7 +156,7 @@ qboolean SV_AddLightUpdate (edict_t *ent)
 
 void SV_EmitNailUpdate (sizebuf_t *msg, qboolean recorder)
 {
-	qbyte	bits[6];	// [48 bits] xyzpy 12 12 12 4 8 
+	qbyte	bits[6];	// [48 bits] xyzpy 12 12 12 4 8
 	int		n, i;
 	edict_t	*ent;
 	int		x, y, z, p, yaw;
@@ -461,7 +461,7 @@ void SV_WriteDelta (entity_state_t *from, entity_state_t *to, sizebuf_t *msg, qb
 	bits = 0;
 
 	if (to->number >= 512)
-	{		
+	{
 		if (to->number >= 1024)
 		{
 			if (to->number >= 1024+512)
@@ -698,7 +698,7 @@ void SV_EmitPacketEntities (client_t *client, packet_entities_t *to, sizebuf_t *
 #ifdef PROTOCOLEXTENSIONS
 			SV_WriteDelta (&from->entities[oldindex], &to->entities[newindex], msg, false, client->fteprotocolextensions);
 #else
-			SV_WriteDelta (&from->entities[oldindex], &to->entities[newindex], msg, false);			
+			SV_WriteDelta (&from->entities[oldindex], &to->entities[newindex], msg, false);
 #endif
 			oldindex++;
 			newindex++;
@@ -712,7 +712,7 @@ void SV_EmitPacketEntities (client_t *client, packet_entities_t *to, sizebuf_t *
 #ifdef PROTOCOLEXTENSIONS
 			SV_WriteDelta (&ent->baseline, &to->entities[newindex], msg, true, client->fteprotocolextensions);
 #else
-			SV_WriteDelta (&ent->baseline, &to->entities[newindex], msg, true);			
+			SV_WriteDelta (&ent->baseline, &to->entities[newindex], msg, true);
 #endif
 			newindex++;
 			continue;
@@ -1041,7 +1041,7 @@ void SVDP_EmitEntitiesUpdate (client_t *client, packet_entities_t *to, sizebuf_t
 		if (newnum == oldnum)
 		{	// delta update from old position
 //Con_Printf ("delta %i\n", newnum);
-			SVDP_EmitEntity (&from->entities[oldindex], &to->entities[newindex], msg, false);			
+			SVDP_EmitEntity (&from->entities[oldindex], &to->entities[newindex], msg, false);
 			oldindex++;
 			newindex++;
 			continue;
@@ -1051,7 +1051,7 @@ void SVDP_EmitEntitiesUpdate (client_t *client, packet_entities_t *to, sizebuf_t
 		{	// this is a new entity, send it from the baseline... as far as dp understands it...
 			ent = EDICT_NUM(svprogfuncs, newnum);
 //Con_Printf ("baseline %i\n", newnum);
-			SVDP_EmitEntity (&defaultstate, &to->entities[newindex], msg, true);			
+			SVDP_EmitEntity (&defaultstate, &to->entities[newindex], msg, true);
 			newindex++;
 			continue;
 		}
@@ -1146,7 +1146,7 @@ void SV_WritePlayerToClient(sizebuf_t *msg, clstate_t *ent)
 	int zext = ent->zext;
 
 		pflags = PF_MSEC | PF_COMMAND;
-			
+
 		if (ent->modelindex != sv_playermodel)
 			pflags |= PF_MODEL;
 
@@ -1411,7 +1411,7 @@ void SV_WritePlayersToClient (client_t *client, edict_t *clent, qbyte *pvs, size
 						needcleanup = (j+1);
 						MSG_WriteByte(&sv.multicast, svc_muzzleflash);
 						MSG_WriteShort(&sv.multicast, (j+1));
-						SV_Multicast(ent->v->origin, MULTICAST_PVS);				
+						SV_Multicast(ent->v->origin, MULTICAST_PVS);
 					}
 				}
 			}
@@ -1479,7 +1479,7 @@ void SV_WritePlayersToClient (client_t *client, edict_t *clent, qbyte *pvs, size
 		extern vec3_t player_mins, player_maxs;
 		clstate_t clst;
 		extern float olddemotime, nextdemotime;
-		
+
 		for (i=0 ; i<MAX_CLIENTS ; i++)
 		{
 			//FIXME: Add PVS stuff.
@@ -1531,7 +1531,7 @@ void SV_WritePlayersToClient (client_t *client, edict_t *clent, qbyte *pvs, size
 					ang[j] = (a1 + (a2)*lerp);
 
 					org[j] = sv.recordedplayer[i].oldorg[j] + (sv.demostate[i+1].origin[j] - sv.recordedplayer[i].oldorg[j])*lerp;
-					
+
 					vel[j] = (-sv.recordedplayer[i].oldorg[j] + sv.demostate[i+1].origin[j])*(nextdemotime - olddemotime);
 				}
 
@@ -1614,11 +1614,11 @@ void SV_WritePlayersToClient (client_t *client, edict_t *clent, qbyte *pvs, size
 		}
 		else
 			vent = ent;
-		
-		
-		
-		
-		
+
+
+
+
+
 
 		if (progstype != PROG_QW)
 		{
@@ -1632,14 +1632,14 @@ void SV_WritePlayersToClient (client_t *client, edict_t *clent, qbyte *pvs, size
 					needcleanup = (j+1);
 					MSG_WriteByte(&sv.multicast, svc_muzzleflash);
 					MSG_WriteShort(&sv.multicast, (j+1));
-					SV_Multicast(ent->v->origin, MULTICAST_PVS);				
+					SV_Multicast(ent->v->origin, MULTICAST_PVS);
 				}
 			}
 		}
 
 		// ZOID visibility tracking
 		if (ent != clent &&
-			!(client->spec_track && client->spec_track - 1 == j)) 
+			!(client->spec_track && client->spec_track - 1 == j))
 		{
 			if (cl->spectator)
 				continue;
@@ -1806,14 +1806,14 @@ void SVNQ_EmitEntity(sizebuf_t *msg, edict_t *ent, int entnum)
 #define DPU_UNUSED30		(1<<30) // future expansion
 #define DPU_EXTEND3		(1<<31) // another byte to follow, future expansion
 
-int i, eff;	
+int i, eff;
 float miss;
 unsigned int bits=0;
 
 int glowsize, glowcolor;
 
 	for (i=0 ; i<3 ; i++)
-	{				
+	{
 		miss = ent->v->origin[i] - ent->baseline.origin[i];
 		if ( miss < -0.1 || miss > 0.1 )
 			bits |= NQU_ORIGIN1<<i;
@@ -1821,13 +1821,13 @@ int glowsize, glowcolor;
 
 	if (ent->v->angles[0] != ent->baseline.angles[0] )
 		bits |= NQU_ANGLE1;
-		
+
 	if (ent->v->angles[1] != ent->baseline.angles[1] )
 		bits |= NQU_ANGLE2;
-		
+
 	if (ent->v->angles[2] != ent->baseline.angles[2] )
 		bits |= NQU_ANGLE3;
-		
+
 	if ((ent->v->movetype == MOVETYPE_STEP || (ent->v->movetype == MOVETYPE_PUSH)) && (bits & (U_ANGLE1|U_ANGLE2|U_ANGLE3)))
 		bits |= NQU_NOLERP;	// don't mess up the step animation
 
@@ -1843,7 +1843,7 @@ int glowsize, glowcolor;
 	eff = ent->v->effects;
 
 	if ((ent->baseline.effects & 0x00ff) != ((int)eff & 0x00ff))
-		bits |= NQU_EFFECTS;	
+		bits |= NQU_EFFECTS;
 
 	if (ent->baseline.modelindex != ent->v->modelindex)
 		bits |= NQU_MODEL;
@@ -1852,7 +1852,7 @@ int glowsize, glowcolor;
 		bits |= NQU_LONGENTITY;
 
 
-	if (1)
+	if (0)
 	{
 		if (ent->baseline.trans != ent->v->alpha)
 			if (!(ent->baseline.trans == 1 && !ent->v->alpha))
@@ -1887,7 +1887,7 @@ int glowsize, glowcolor;
 	{
 		if (ent->v->modelindex >= 256)	//as much as protocols can handle
 			return;
-		if (entnum >= 768)		//too many for a conventional nq client.
+		if (entnum >= 600)		//too many for a conventional nq client.
 			return;
 	}
 
@@ -1922,8 +1922,8 @@ int glowsize, glowcolor;
 	if (bits & NQU_FRAME)		MSG_WriteByte (msg, ent->v->frame);
 	if (bits & NQU_COLORMAP)	MSG_WriteByte (msg, ent->v->colormap);
 	if (bits & NQU_SKIN)		MSG_WriteByte (msg, ent->v->skin);
-	if (bits & NQU_EFFECTS)		MSG_WriteByte (msg, eff & 0x00ff);		
-	if (bits & NQU_ORIGIN1)		MSG_WriteCoord (msg, ent->v->origin[0]);		
+	if (bits & NQU_EFFECTS)		MSG_WriteByte (msg, eff & 0x00ff);
+	if (bits & NQU_ORIGIN1)		MSG_WriteCoord (msg, ent->v->origin[0]);
 	if (bits & NQU_ANGLE1)		MSG_WriteAngle(msg, ent->v->angles[0]);
 	if (bits & NQU_ORIGIN2)		MSG_WriteCoord (msg, ent->v->origin[1]);
 	if (bits & NQU_ANGLE2)		MSG_WriteAngle(msg, ent->v->angles[1]);
@@ -1950,7 +1950,7 @@ gibfilter_t *gibfilter;
 void SV_GibFilterAdd(char *modelname, int min, int max)
 {
 	int i;
-	gibfilter_t *gf;	
+	gibfilter_t *gf;
 
 	for (i=1; sv.model_precache[i] ; i++)
 		if (!strcmp(sv.model_precache[i], modelname))
@@ -1996,7 +1996,7 @@ void SV_GibFilterInit(void)
 	{
 		file = COM_Parse(file);
 		if (!file)
-		{			
+		{
 			return;
 		}
 		min = atoi(com_token);
@@ -2113,7 +2113,7 @@ void SV_WriteEntitiesToClient (client_t *client, sizebuf_t *msg, qboolean ignore
 
 		sv.worldmodel->funcs.FatPVS(sv.worldmodel, org, false);
 
-#ifdef PEXT_VIEW2	
+#ifdef PEXT_VIEW2
 		if (clent->v->view2)
 			sv.worldmodel->funcs.FatPVS(sv.worldmodel, PROG_TO_EDICT(svprogfuncs, clent->v->view2)->v->origin, true);
 #endif
@@ -2138,7 +2138,7 @@ void SV_WriteEntitiesToClient (client_t *client, sizebuf_t *msg, qboolean ignore
 		{
 			SV_Q1BSP_FatPVS (org);
 
-#ifdef PEXT_VIEW2	
+#ifdef PEXT_VIEW2
 			if (clent->v->view2)
 				SV_Q1BSP_AddToFatPVS (PROG_TO_EDICT(svprogfuncs, clent->v->view2)->v->origin, sv.worldmodel->nodes);	//add a little more...
 #endif
@@ -2156,7 +2156,7 @@ void SV_WriteEntitiesToClient (client_t *client, sizebuf_t *msg, qboolean ignore
 
 	// send over the players in the PVS
 	SV_WritePlayersToClient (client, clent, pvs, msg);
-	
+
 	// put other visible entities into either a packet_entities or a nails message
 	pack = &frame->entities;
 	pack->num_entities = 0;
@@ -2309,7 +2309,7 @@ void SV_WriteEntitiesToClient (client_t *client, sizebuf_t *msg, qboolean ignore
 					needcleanup = e;
 					MSG_WriteByte(&sv.multicast, svc_muzzleflash);
 					MSG_WriteShort(&sv.multicast, e);
-					SV_Multicast(ent->v->origin, MULTICAST_PVS);				
+					SV_Multicast(ent->v->origin, MULTICAST_PVS);
 				}
 			}
 		}

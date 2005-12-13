@@ -99,6 +99,8 @@ cvar_t	noaim = {"noaim",				"",			NULL, CVAR_ARCHIVE | CVAR_USERINFO};
 cvar_t	msg = {"msg",					"1",		NULL, CVAR_ARCHIVE | CVAR_USERINFO};
 cvar_t	cl_nofake = {"cl_nofake",		"2"};
 cvar_t	cl_chatsound = {"cl_chatsound",	"1"};
+cvar_t cl_enemychatsound = {"cl_enemychatsound", "misc/talk.wav"};
+cvar_t cl_teamchatsound = {"cl_teamchatsound", "misc/talk.wav"};
 
 cvar_t	r_rocketlight	= {"r_rocketlight",	"1"};
 cvar_t	r_lightflicker	= {"r_lightflicker",	"1"};
@@ -2594,6 +2596,8 @@ void CL_Init (void)
 
 	Cvar_Register (&cl_nofake,	cl_controlgroup);
 	Cvar_Register (&cl_chatsound,	cl_controlgroup);
+	Cvar_Register (&cl_enemychatsound,	cl_controlgroup);
+	Cvar_Register (&cl_teamchatsound,	cl_controlgroup);
 
 	Cvar_Register (&requiredownloads,	cl_controlgroup);
 	Cvar_Register (&cl_standardchat,	cl_controlgroup);

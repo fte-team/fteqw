@@ -918,6 +918,9 @@ void CL_ParseChunkedDownload(void)
 		if (cls.downloadmethod == DL_QWCHUNKS)
 			Host_EndGame("Received second download - \"%s\"\n", svname);
 
+		if (!strcmp(cls.downloadname, svname))
+			Host_EndGame("Server sent the wrong download - \"%s\" instead of \"%s\"\n", svname, cls.downloadname);
+
 		//start the new download
 		cls.downloadmethod = DL_QWCHUNKS;
 		cls.downloadpercent = 0;
@@ -935,6 +938,12 @@ void CL_ParseChunkedDownload(void)
 			sprintf (osname, "%s/%s", com_gamedir, cls.downloadtempname);
 		COM_CreatePath (osname);
 		cls.downloadqw = fopen (osname, "wb");
+
+		if (!cls.downloadqw)
+		{
+			CL_DownloadFailed(svname);
+			return;
+		}
 
 		firstblock = 0;
 		receivedbytes = 0;
@@ -1103,6 +1112,7 @@ void CL_ParseDownload (void)
 		{
 			msg_readcount += size;
 			Con_TPrintf (TL_FAILEDTOOPEN, cls.downloadtempname);
+			CL_DownloadFailed(cls.downloadname);
 			CL_RequestNextDownload ();
 			return;
 		}
@@ -3042,7 +3052,7 @@ void CLQ2_ParseInventory (void)
 //return if we want to print the message.
 char *CL_ParseChat(char *text, player_info_t **player)
 {
-	extern cvar_t cl_chatsound, cl_nofake;
+	extern cvar_t cl_chatsound, cl_nofake, cl_teamchatsound, cl_enemychatsound;
 	int flags;
 	int offset=0;
 	qboolean	suppress_talksound;
@@ -3099,10 +3109,10 @@ char *CL_ParseChat(char *text, player_info_t **player)
 		if ((int)msg_filter.value & flags)
 			return NULL;	//filter chat
 
-		check_flood = Ignore_Check_Flood(s, flags, offset);			
-		if (check_flood == IGNORE_NO_ADD)							
+		check_flood = Ignore_Check_Flood(s, flags, offset);
+		if (check_flood == IGNORE_NO_ADD)
 			return NULL;
-		else if (check_flood == NO_IGNORE_ADD)					
+		else if (check_flood == NO_IGNORE_ADD)
 			Ignore_Flood_Add(s);
 	}
 
@@ -3116,7 +3126,12 @@ char *CL_ParseChat(char *text, player_info_t **player)
 		suppress_talksound = true;
 
 	if (!suppress_talksound)
-		S_LocalSound ("misc/talk.wav");
+	{
+		if (flags == 2 && cl.teamplay)
+			S_LocalSound (cl_teamchatsound.value);
+		else
+			S_LocalSound (cl_enemychatsound.value);
+	}
 
 	if (cl_nofake.value == 1 || (cl_nofake.value == 2 && flags != 2)) {
 		for (p = s; *p; p++)

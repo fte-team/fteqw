@@ -937,7 +937,7 @@ static QCC_def_t *QCC_GetTemp(QCC_type_t *type)
 		var_c->temp = t;
 		t->lastfunc = pr_scope;
 	}
-	else
+	else if (opt_locals_marshalling)
 	{
 		//allocate a new one
 		t = qccHunkAlloc(sizeof(temp_t));
@@ -953,6 +953,12 @@ static QCC_def_t *QCC_GetTemp(QCC_type_t *type)
 		var_c->ofs = t->ofs;
 		var_c->temp = t;
 		t->lastfunc = pr_scope;
+	}
+	else
+	{
+		// we're not going to reallocate any temps so allocate permanently
+		var_c->ofs = QCC_GetFreeOffsetSpace(type->size);
+		numtemps+=type->size;
 	}
 
 	var_c->s_file = s_file;

@@ -64,7 +64,7 @@
 		return pGetBotLibAPI(apiVersion, import);
 	}
 #else
-	botlib_export_t *FTE_GetBotLibAPI(int version, int apiVersion, botlib_import_t *import)
+	botlib_export_t *FTE_GetBotLibAPI(int apiVersion, botlib_import_t *import)
 	{	//a stub that will prevent botlib from loading.
 		return NULL;
 	}

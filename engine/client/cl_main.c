@@ -2521,6 +2521,7 @@ void CL_Init (void)
 
 	Cvar_Register (&cfg_save_name, cl_controlgroup);
 
+	cl_demospeed.name2 = "demo_setspeed";
 	Cvar_Register (&cl_demospeed, "Demo playback");
 	Cvar_Register (&cl_warncmd, "Warnings");
 	Cvar_Register (&cl_upspeed, cl_inputgroup);
@@ -2916,7 +2917,7 @@ void Host_Frame (double time)
 
 	*/
 	Mod_Think();	//think even on idle (which means small walls and a fast cpu can get more surfaces done.
-	if (cl_maxfps.value>0 && cl_netfps.value>0)
+	if (cl_maxfps.value>0 && cl_netfps.value>0 || cls.demoplayback)
 	{	//limit the fps freely, and expect the netfps to cope.
 		if ((realtime - oldrealtime) < 1/cl_maxfps.value)
 			return;

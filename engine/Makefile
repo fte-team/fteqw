@@ -4,10 +4,20 @@ CPUOPTIMIZATIONS=
 
 BASE_DIR=.
 
+#we only autodetect one cross target
+#linux->win32
+#if you are cross compiling, you'll need to use FTE_TARGET=mytaget
+
+
 ifeq ($(FTE_TARGET),) 	#user didn't specify prefered target
 	ifneq ($(shell gcc -v 2>&1 | grep mingw),)
 		FTE_TARGET=win32
-	else
+	endif
+	ifneq ($(shell gcc -v 2>&1 | grep cygwin),)
+		FTE_TARGET=cygwin
+	endif
+	ifeq ($(FTE_TARGET),) 	#still not set
+
 		ifeq ($(shell uname),Linux)
 			FTE_TARGET=linux
 		endif
@@ -58,7 +68,7 @@ ifeq ($(USEASM),true)
 endif
 BASELDFLAGS=-lm
 #BASELDFLAGS=-lm  -lz
-GLXLDFLAGS=-L/usr/X11R6/lib -lX11 -lXext -lpng -ljpeg -lXxf86vm
+GLXLDFLAGS=-L/usr/X11R6/lib -lX11 -lXext -lpng -ljpeg
 GLSLDFLAGS=-L/usr/X11R6/lib -lMesaGL -lglide -lvga
 XLDFLAGS=-L/usr/X11R6/lib -lX11 -lXext -lpng -ljpeg
 SLDFLAGS=-lvga
@@ -396,7 +406,7 @@ else
 endif
 	GL_EXE_NAME=../fteqw.gl
 	GLCL_EXE_NAME=../fteqwcl.gl
-	GL_LDFLAGS= -L/usr/local/lib $(GLLDFLAGS) $(GLXLDFLAGS)
+	GL_LDFLAGS= -L/usr/local/lib $(GLLDFLAGS) $(GLXLDFLAGS) -lXxf86vm
 	GL_CFLAGS=$(GLCFLAGS) -I/usr/local/include
 	GLB_DIR=gl_bsd
 	GLCL_DIR=glcl_bsd
@@ -420,7 +430,7 @@ else
 endif
 	M_EXE_NAME=../fteqw
 	MCL_EXE_NAME=../fteqwcl
-	M_LDFLAGS=$(GLLDFLAGS) $(GLXLDFLAGS)
+	M_LDFLAGS=$(GLLDFLAGS) $(GLXLDFLAGS) -lXxf86vm
 	M_CFLAGS=$(SWCFLAGS) $(GLCFLAGS)
 	MB_DIR=m_bsd
 	MCL_DIR=mcl_bsd
@@ -437,7 +447,7 @@ else
 endif
 	GL_EXE_NAME=../fteqw.gl
 	GLCL_EXE_NAME=../fteqwcl.gl
-	GL_LDFLAGS=$(GLLDFLAGS) $(GLXLDFLAGS)
+	GL_LDFLAGS=$(GLLDFLAGS) $(GLXLDFLAGS)  -lXxf86vm
 	GL_CFLAGS=$(GLCFLAGS)
 	GLB_DIR=gl_linux
 	GLCL_DIR=glcl_linux
@@ -461,7 +471,7 @@ else
 endif
 	M_EXE_NAME=../fteqw
 	MCL_EXE_NAME=../fteqwcl
-	M_LDFLAGS=$(GLLDFLAGS) $(GLXLDFLAGS)
+	M_LDFLAGS=$(GLLDFLAGS) $(GLXLDFLAGS) -lXxf86vm
 	M_CFLAGS=$(SWCFLAGS) $(GLCFLAGS)
 	MB_DIR=m_linux
 	MCL_DIR=mcl_linux
@@ -470,6 +480,53 @@ endif
 
 	MINGL_EXE_NAME=../fteqw.mingl
 	MINGL_DIR=mingl_linux
+endif
+
+ifeq ($(FTE_TARGET),cygwin)
+
+	SV_DIR=sv_cygwin
+	SV_LDFLAGS=-lz
+
+ifeq ($(USEASM),true)
+	GLCL_OBJS=$(GL_OBJS) $(GLQUAKE_OBJS) gl_vidlinuxglx.o snd_linux.o cd_null.o sys_linux.o sys_dosa.o
+else
+	GLCL_OBJS=$(GL_OBJS) $(GLQUAKE_OBJS) gl_vidlinuxglx.o snd_linux.o cd_null.o sys_linux.o
+endif
+	GL_EXE_NAME=../fteqwglcyg.exe
+	GLCL_EXE_NAME=../fteqwclglcyg.exe
+	GL_LDFLAGS=$(GLLDFLAGS) $(GLXLDFLAGS)
+	GL_CFLAGS=$(GLCFLAGS)
+	GLB_DIR=gl_cygwin
+	GLCL_DIR=glcl_cygwin
+
+ifeq ($(USEASM),true)
+	SWCL_OBJS=$(SOFTWARE_OBJS) vid_x.o snd_linux.o cd_null.o sys_linux.o sys_dosa.o
+else
+	SWCL_OBJS=$(SOFTWARE_OBJS) vid_x.o snd_linux.o cd_null.o sys_linux.o
+endif
+	SW_EXE_NAME=../fteqwswcyg.exe
+	SWCL_EXE_NAME=../fteqwclswcyg.exe
+	SW_LDFLAGS=$(SWLDFLAGS) $(XLDFLAGS)
+	SW_CFLAGS=$(SWCFLAGS)
+	SWB_DIR=sw_cygwin
+	SWCL_DIR=swcl_cygwin
+
+ifeq ($(USEASM),true)
+	MCL_OBJS=$(GLQUAKE_OBJS) $(SOFTWARE_OBJS) gl_vidlinuxglx.o vid_x.o snd_linux.o cd_null.o sys_linux.o sys_dosa.o
+else
+	MCL_OBJS=$(GLQUAKE_OBJS) $(SOFTWARE_OBJS) gl_vidlinuxglx.o vid_x.o snd_linux.o cd_null.o sys_linux.o
+endif
+	M_EXE_NAME=../fteqwcyg.exe
+	MCL_EXE_NAME=../fteqwclcyg.exe
+	M_LDFLAGS=$(GLLDFLAGS) $(GLXLDFLAGS)
+	M_CFLAGS=$(SWCFLAGS) $(GLCFLAGS)
+	MB_DIR=m_cygwin
+	MCL_DIR=mcl_cygwin
+
+
+
+	MINGL_EXE_NAME=../fteqwminglcyg.exe
+	MINGL_DIR=mingl_cygwin
 endif
 
 SV_DIR?=sv_sdl
@@ -542,7 +599,7 @@ _clsv-dbg: debugdir
 
 
 sv-tmp: reldir debugdir
-	$(MAKE) $(TYPE) OUT_DIR="$(OUT_DIR)" EXE_NAME="$(SV_EXE_NAME)" WCFLAGS="$(SV_CFLAGS)" LDFLAGS="$(SV_LDFLAGS)" OBJS="SV_OBJS"
+	$(MAKE) $(TYPE) OUT_DIR="$(OUT_DIR)" EXE_NAME="$(SV_EXE_NAME)" WCFLAGS="$(SV_CFLAGS)" LDFLAGS="$(SV_LDFLAGS) $(LDFLAGS)" OBJS="SV_OBJS"
 sv-rel:
 	$(MAKE) sv-tmp TYPE=_out-rel OUT_DIR="$(RELEASE_DIR)/$(SV_DIR)"
 sv-dbg:
@@ -553,9 +610,9 @@ sv-dbg:
 
 
 glcl-tmp:
-	$(MAKE) $(TYPE)   OUT_DIR="$(OUT_DIR)" EXE_NAME="$(GLCL_EXE_NAME)" WCFLAGS="$(GL_CFLAGS)" LDFLAGS="$(GL_LDFLAGS)" SOBJS="$(GLCL_OBJS)"
+	$(MAKE) $(TYPE)   OUT_DIR="$(OUT_DIR)" EXE_NAME="$(GLCL_EXE_NAME)" WCFLAGS="$(GL_CFLAGS)" LDFLAGS="$(GL_LDFLAGS) $(LDFLAGS)" SOBJS="$(GLCL_OBJS)"
 gl-tmp:
-	$(MAKE) $(TYPE)   OUT_DIR="$(OUT_DIR)" EXE_NAME="$(GL_EXE_NAME)" WCFLAGS="$(GL_CFLAGS)" LDFLAGS="$(GL_LDFLAGS)" SOBJS="$(GLCL_OBJS)"
+	$(MAKE) $(TYPE)   OUT_DIR="$(OUT_DIR)" EXE_NAME="$(GL_EXE_NAME)" WCFLAGS="$(GL_CFLAGS)" LDFLAGS="$(GL_LDFLAGS) $(LDFLAGS)" SOBJS="$(GLCL_OBJS)"
 
 glcl-rel:
 	$(MAKE) glcl-tmp TYPE=_cl-rel OUT_DIR="$(RELEASE_DIR)/$(GLCL_DIR)"
@@ -568,15 +625,15 @@ gl-dbg:
 
 
 mingl-tmp: reldir
-	$(MAKE) $(TYPE) OUT_DIR="$(OUT_DIR)" EXE_NAME="$(MINGL_EXE_NAME)" WCFLAGS="$(GL_CFLAGS) -DMINIMAL" LDFLAGS="$(GL_LDFLAGS)" SOBJS="$(GLCL_OBJS)"
+	$(MAKE) $(TYPE) OUT_DIR="$(OUT_DIR)" EXE_NAME="$(MINGL_EXE_NAME)" WCFLAGS="$(GL_CFLAGS) -DMINIMAL" LDFLAGS="$(GL_LDFLAGS) $(LDFLAGS)" SOBJS="$(GLCL_OBJS)"
 mingl-rel:
 	$(MAKE) mingl-tmp TYPE=_cl-rel OUT_DIR="$(RELEASE_DIR)/$(MINGL_DIR)"
 
 
 swcl-tmp:
-	$(MAKE) $(TYPE)   OUT_DIR="$(OUT_DIR)" EXE_NAME="$(SWCL_EXE_NAME)" WCFLAGS="$(SW_CFLAGS)" LDFLAGS="$(SW_LDFLAGS)" SOBJS="$(SWCL_OBJS)"
+	$(MAKE) $(TYPE)   OUT_DIR="$(OUT_DIR)" EXE_NAME="$(SWCL_EXE_NAME)" WCFLAGS="$(SW_CFLAGS)" LDFLAGS="$(SW_LDFLAGS) $(LDFLAGS)" SOBJS="$(SWCL_OBJS)"
 sw-tmp:
-	$(MAKE) $(TYPE)   OUT_DIR="$(OUT_DIR)" EXE_NAME="$(SW_EXE_NAME)" WCFLAGS="$(SW_CFLAGS)" LDFLAGS="$(SW_LDFLAGS)" SOBJS="$(SWCL_OBJS)"
+	$(MAKE) $(TYPE)   OUT_DIR="$(OUT_DIR)" EXE_NAME="$(SW_EXE_NAME)" WCFLAGS="$(SW_CFLAGS)" LDFLAGS="$(SW_LDFLAGS) $(LDFLAGS)" SOBJS="$(SWCL_OBJS)"
 
 swcl-rel:
 	$(MAKE) swcl-tmp TYPE=_cl-rel OUT_DIR="$(RELEASE_DIR)/$(SWCL_DIR)"
@@ -588,9 +645,9 @@ sw-dbg:
 	$(MAKE) sw-tmp TYPE=_clsv-dbg OUT_DIR="$(DEBUG_DIR)/$(SWB_DIR)"
 
 mcl-tmp:
-	$(MAKE) $(TYPE)   OUT_DIR="$(OUT_DIR)" EXE_NAME="$(MCL_EXE_NAME)" WCFLAGS="$(M_CFLAGS)" LDFLAGS="$(M_LDFLAGS)" SOBJS="$(MCL_OBJS)"
+	$(MAKE) $(TYPE)   OUT_DIR="$(OUT_DIR)" EXE_NAME="$(MCL_EXE_NAME)" WCFLAGS="$(M_CFLAGS)" LDFLAGS="$(M_LDFLAGS) $(LDFLAGS)" SOBJS="$(MCL_OBJS)"
 m-tmp:
-	$(MAKE) $(TYPE)   OUT_DIR="$(OUT_DIR)" EXE_NAME="$(M_EXE_NAME)" WCFLAGS="$(M_CFLAGS)" LDFLAGS="$(M_LDFLAGS)" SOBJS="$(MCL_OBJS)"
+	$(MAKE) $(TYPE)   OUT_DIR="$(OUT_DIR)" EXE_NAME="$(M_EXE_NAME)" WCFLAGS="$(M_CFLAGS)" LDFLAGS="$(M_LDFLAGS) $(LDFLAGS)" SOBJS="$(MCL_OBJS)"
 
 mcl-rel:
 	$(MAKE) mcl-tmp TYPE=_cl-rel OUT_DIR="$(RELEASE_DIR)/$(MCL_DIR)"
@@ -635,6 +692,10 @@ help:
 	@-echo "sv"
 	@-echo "gl"
 	@-echo "sw"
+
+install:
+	-cp debug/*.* /opt/quake/
+	-cp release/*.* /opt/quake/
 
 clean:
 	-rm -f -r $(RELEASE_DIR)

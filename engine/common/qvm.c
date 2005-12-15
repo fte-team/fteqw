@@ -142,7 +142,7 @@ void *Sys_LoadDLL(const char *name, void **vmMain, int (EXPORT_FN *syscall)(int 
 	void (*dllEntry)(int (EXPORT_FN *syscall)(int arg, ... ));
 	char dllname[MAX_OSPATH];
 	void *hVM;
-	
+
 #ifdef __MORPHOS__
 	if (DynLoadBase == 0)
 		return 0;
@@ -163,11 +163,16 @@ void *Sys_LoadDLL(const char *name, void **vmMain, int (EXPORT_FN *syscall)(int 
 				return NULL;		// couldn't find one anywhere
 			_snprintf (name, sizeof(name), "%s/%s", gpath, dllname);
 
+			Con_Printf("Loading native: %s\n", name);
 			hVM = dlopen (name, RTLD_NOW);
 			if (hVM)
 			{
-				Con_DPrintf ("dlopen (%s)\n",name);
+				Con_DPrintf ("Sys_LoadDLL: dlopen (%s)\n",name);
 				break;
+			}
+			else
+			{
+				Con_DPrintf("Sys_LoadDLL: dlerror()=\"%s\"", dlerror());
 			}
 		}
 	}
@@ -177,6 +182,7 @@ void *Sys_LoadDLL(const char *name, void **vmMain, int (EXPORT_FN *syscall)(int 
 	dllEntry=(void *)dlsym(hVM, "dllEntry");
 	if(!dllEntry)
 	{
+		Con_Printf("Sys_LoadDLL: %s does not have a dllEntry function\n");
 		dlclose(hVM);
 		return NULL;
 	}
@@ -186,6 +192,7 @@ void *Sys_LoadDLL(const char *name, void **vmMain, int (EXPORT_FN *syscall)(int 
 	*vmMain=(void *)dlsym(hVM, "vmMain");
 	if(!*vmMain)
 	{
+		Con_Printf("Sys_LoadDLL: %s does not have a vmMain function\n");
 		dlclose(hVM);
 		return NULL;
 	}
@@ -519,7 +526,7 @@ qvm_t *QVM_Load(const char *name, sys_callqvm_t syscall)
 void QVM_UnLoad(qvm_t *qvm)
 {
 	Z_Free(qvm->mem_ptr);
-	Z_Free(qvm);	
+	Z_Free(qvm);
 }
 
 
@@ -1054,7 +1061,7 @@ qboolean VM_Restart(vm_t *vm)
 	if(!vm) return false;
 
 // save params
-	Q_strncpyz(name, vm->name, sizeof(name)); 
+	Q_strncpyz(name, vm->name, sizeof(name));
 	syscalldll=vm->syscalldll;
 	syscallqvm=vm->syscallqvm;
 

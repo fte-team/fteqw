@@ -5,6 +5,95 @@
 #include "quakedef.h"
 
 #ifdef PLUGINS
+//#define GNUTLS
+#ifdef GNUTLS
+
+#if defined(_WIN32) && !defined(MINGW)
+
+
+//lets rip stuff out of the header and supply a seperate dll.
+//gnutls is huge.
+//also this helps get around the whole msvc/mingw thing.
+
+struct DSTRUCT;
+typedef struct DSTRUCT* gnutls_certificate_credentials;
+typedef gnutls_certificate_credentials gnutls_certificate_client_credentials;
+typedef struct DSTRUCT* gnutls_anon_client_credentials;
+struct gnutls_session_int;
+typedef struct gnutls_session_int* gnutls_session;
+typedef void * gnutls_transport_ptr;
+
+typedef enum gnutls_kx_algorithm { GNUTLS_KX_RSA=1, GNUTLS_KX_DHE_DSS, 
+	GNUTLS_KX_DHE_RSA, GNUTLS_KX_ANON_DH, GNUTLS_KX_SRP,
+	GNUTLS_KX_RSA_EXPORT, GNUTLS_KX_SRP_RSA, GNUTLS_KX_SRP_DSS
+} gnutls_kx_algorithm;
+typedef enum gnutls_certificate_type { GNUTLS_CRT_X509=1, GNUTLS_CRT_OPENPGP 
+} gnutls_certificate_type;
+typedef enum gnutls_connection_end { GNUTLS_SERVER=1, GNUTLS_CLIENT } gnutls_connection_end;
+typedef enum gnutls_credentials_type { GNUTLS_CRD_CERTIFICATE=1, GNUTLS_CRD_ANON, GNUTLS_CRD_SRP } gnutls_credentials_type;
+typedef enum gnutls_close_request { GNUTLS_SHUT_RDWR=0, GNUTLS_SHUT_WR=1 } gnutls_close_request;
+
+#define GNUTLS_E_AGAIN -28
+#define GNUTLS_E_INTERRUPTED -52
+
+int (VARGS *gnutls_bye)( gnutls_session session, gnutls_close_request how);
+void (VARGS *gnutls_perror)( int error);
+int (VARGS *gnutls_handshake)( gnutls_session session);
+void (VARGS *gnutls_transport_set_ptr)(gnutls_session session, gnutls_transport_ptr ptr);
+int (VARGS *gnutls_certificate_type_set_priority)( gnutls_session session, const int*);
+int (VARGS *gnutls_credentials_set)( gnutls_session, gnutls_credentials_type type, void* cred);
+int (VARGS *gnutls_kx_set_priority)( gnutls_session session, const int*);
+int (VARGS *gnutls_init)(gnutls_session * session, gnutls_connection_end con_end);
+int (VARGS *gnutls_set_default_priority)(gnutls_session session);
+int (VARGS *gnutls_certificate_allocate_credentials)( gnutls_certificate_credentials *sc);
+int (VARGS *gnutls_anon_allocate_client_credentials)( gnutls_anon_client_credentials *sc);
+int (VARGS *gnutls_global_init)(void);
+int (VARGS *gnutls_record_send)( gnutls_session session, const void *data, size_t sizeofdata);
+int (VARGS *gnutls_record_recv)( gnutls_session session, void *data, size_t sizeofdata);
+
+qboolean Init_GNUTLS(void)
+{
+	HMODULE hmod;
+	hmod = LoadLibrary("gnutls.dll");
+	if (!hmod)
+		return false;
+
+	gnutls_bye = (void*)GetProcAddress(hmod, "gnutls_bye");
+	gnutls_perror = (void*)GetProcAddress(hmod, "gnutls_perror");
+	gnutls_handshake = (void*)GetProcAddress(hmod, "gnutls_handshake");
+	gnutls_transport_set_ptr = (void*)GetProcAddress(hmod, "gnutls_transport_set_ptr");
+	gnutls_certificate_type_set_priority = (void*)GetProcAddress(hmod, "gnutls_certificate_type_set_priority");
+	gnutls_credentials_set = (void*)GetProcAddress(hmod, "gnutls_credentials_set");
+	gnutls_kx_set_priority = (void*)GetProcAddress(hmod, "gnutls_kx_set_priority");
+	gnutls_init = (void*)GetProcAddress(hmod, "gnutls_init");
+	gnutls_set_default_priority = (void*)GetProcAddress(hmod, "gnutls_set_default_priority");
+	gnutls_certificate_allocate_credentials = (void*)GetProcAddress(hmod, "gnutls_certificate_allocate_credentials");
+	gnutls_anon_allocate_client_credentials = (void*)GetProcAddress(hmod, "gnutls_anon_allocate_client_credentials");
+	gnutls_global_init = (void*)GetProcAddress(hmod, "gnutls_global_init");
+	gnutls_record_send = (void*)GetProcAddress(hmod, "gnutls_record_send");
+	gnutls_record_recv = (void*)GetProcAddress(hmod, "gnutls_record_recv");
+
+	if (!gnutls_bye || !gnutls_perror || !gnutls_handshake || !gnutls_transport_set_ptr
+			|| !gnutls_certificate_type_set_priority || !gnutls_credentials_set
+			|| !gnutls_kx_set_priority || !gnutls_init || !gnutls_set_default_priority
+			|| !gnutls_certificate_allocate_credentials || !gnutls_anon_allocate_client_credentials
+			|| !gnutls_global_init || !gnutls_record_send || !gnutls_record_recv)
+	{
+		Con_Printf("gnutls.dll doesn't contain all required exports\n");
+		FreeLibrary(hmod);
+		return false;
+	}
+
+	return true;
+}
+
+#else
+#include <gnutls/gnutls.h>
+qboolean Init_GNUTLS(void) {return true;}
+#endif
+
+#endif
+
 
 cvar_t plug_sbar = {"plug_sbar", "1"};
 cvar_t plug_loaddefault = {"plug_loaddefault", "1"};
@@ -18,8 +107,10 @@ cvar_t plug_loaddefault = {"plug_loaddefault", "1"};
 typedef struct plugin_s {
 	char *name;
 	vm_t *vm;
+
 	int tick;
 	int executestring;
+#ifndef SERVERONLY
 	int conexecutecommand;
 	int menufunction;
 	int sbarlevel[3];	//0 - main sbar, 1 - supplementry sbar sections (make sure these can be switched off), 2 - overlays (scoreboard). menus kill all.
@@ -27,7 +118,7 @@ typedef struct plugin_s {
 
 	//protocol-in-a-plugin
 	int connectionlessclientpacket;
-
+#endif
 	int messagefunction;
 
 	struct plugin_s *next;
@@ -36,6 +127,16 @@ typedef struct plugin_s {
 void Plug_SubConsoleCommand(console_t *con, char *line);
 
 plugin_t *currentplug;
+
+
+
+#ifndef SERVERONLY
+#include "cl_plugin.inc"
+#else
+void Plug_Client_Init(void){}
+void Plug_Client_Close(plugin_t *plug) {}
+#endif
+
 
 //custom plugin builtins.
 typedef int (VARGS *Plug_Builtin_t)(void *offset, unsigned int mask, const long *arg);
@@ -52,8 +153,6 @@ void Plug_Shutdown(void);
 
 
 static plugin_t *plugs;
-static plugin_t *menuplug;	//plugin that has the current menu
-static plugin_t *protocolclientplugin;
 
 
 typedef struct {
@@ -68,7 +167,7 @@ void Plug_RegisterBuiltin(char *name, Plug_Builtin_t bi, int flags)
 {
 	//randomize the order a little.
 	int newnum;
-	
+
 	newnum = (rand()%128)+1;
 	while(newnum < numplugbuiltins && plugbuiltins[newnum].func)
 		newnum+=128;
@@ -80,7 +179,7 @@ void Plug_RegisterBuiltin(char *name, Plug_Builtin_t bi, int flags)
 	}
 
 	//got an empty number.
-	Con_Printf("%s: %i\n", name, newnum);
+	Con_DPrintf("%s: %i\n", name, newnum);
 	plugbuiltins[newnum].name = name;
 	plugbuiltins[newnum].func = bi;
 	plugbuiltins[newnum].flags = flags;
@@ -91,7 +190,7 @@ static void Plug_RegisterBuiltinIndex(char *name, Plug_Builtin_t bi, int flags, 
 {
 	//randomize the order a little.
 	int newnum;
-	
+
 	newnum = rand()%128;
 	while(newnum+1 < numplugbuiltins && plugbuiltins[newnum+1].func)
 		newnum+=128;
@@ -189,7 +288,7 @@ plugin_t *Plug_Load(char *file)
 	newplug = Z_Malloc(sizeof(plugin_t)+strlen(file)+1);
 	newplug->name = (char*)(newplug+1);
 	strcpy(newplug->name, file);
-	
+
 	newplug->vm = VM_Create(NULL, file, Plug_SystemCalls, Plug_SystemCallsEx);
 	currentplug = newplug;
 	if (newplug->vm)
@@ -206,8 +305,10 @@ plugin_t *Plug_Load(char *file)
 			return NULL;
 		}
 
+#ifndef SERVERONLY
 		if (newplug->reschange)
 			VM_Call(newplug->vm, newplug->reschange, vid.width, vid.height);
+#endif
 	}
 	else
 	{
@@ -224,14 +325,19 @@ int Plug_Emumerated (char *name, int size, void *param)
 	char vmname[MAX_QPATH];
 	strcpy(vmname, name);
 	vmname[strlen(vmname) - strlen(param)] = '\0';
-	Plug_Load(vmname);
+	if (!Plug_Load(vmname))
+		Con_Printf("Couldn't load plugin %s\n", vmname);
 
 	return true;
 }
 
 int VARGS Plug_Con_Print(void *offset, unsigned int mask, const long *arg)
 {
+#ifndef SERVERONLY
 	Con_Print((char*)VM_POINTER(arg[0]));
+#else
+	Con_Printf("%s", (char*)VM_POINTER(arg[0]));
+#endif
 	return 0;
 }
 int VARGS Plug_Sys_Error(void *offset, unsigned int mask, const long *arg)
@@ -250,6 +356,7 @@ int VARGS Plug_ExportToEngine(void *offset, unsigned int mask, const long *arg)
 		currentplug->tick = arg[1];
 	else if (!strcmp(name, "ExecuteCommand"))
 		currentplug->executestring = arg[1];
+#ifndef SERVERONLY
 	else if (!strcmp(name, "ConExecuteCommand"))
 		currentplug->conexecutecommand = arg[1];
 	else if (!strcmp(name, "MenuEvent"))
@@ -266,9 +373,37 @@ int VARGS Plug_ExportToEngine(void *offset, unsigned int mask, const long *arg)
 		currentplug->connectionlessclientpacket = arg[1];
 	else if (!strcmp(name, "MessageEvent"))
 		currentplug->messagefunction = arg[1];
+#endif
 	else
 		return 0;
 	return 1;
+}
+
+//retrieve a plugin's name
+int VARGS Plug_GetPluginName(void *offset, unsigned int mask, const long *arg)
+{
+	int plugnum = VM_LONG(arg[0]);
+	plugin_t *plug;
+	//int plugnum (0 for current), char *buffer, int bufferlen
+
+	if (VM_OOB(arg[1], arg[2]))
+		return false;
+
+	if (plugnum <= 0)
+	{
+		Q_strncpyz(VM_POINTER(arg[1]), currentplug->name, VM_LONG(arg[2]));
+		return true;
+	}
+
+	for (plug = plugs; plug; plug = plug->next)
+	{
+		if (--plugnum == 0)
+		{
+			Q_strncpyz(VM_POINTER(arg[1]), plug->name, VM_LONG(arg[2]));
+			return true;
+		}
+	}
+	return false;
 }
 
 typedef void (*funcptr_t) ();
@@ -280,9 +415,11 @@ int VARGS Plug_ExportNative(void *offset, unsigned int mask, const long *arg)
 
 	func = *(funcptr_t*)arg;
 
+#ifndef SERVERONLY
 	if (!strcmp(name, "S_LoadSound"))
 		S_RegisterSoundInputPlugin(func);
 	else
+#endif
 		return 0;
 	return 1;
 }
@@ -378,277 +515,6 @@ int VARGS Plug_Cmd_Argv(void *offset, unsigned int mask, const long *arg)
 int VARGS Plug_Cmd_Argc(void *offset, unsigned int mask, const long *arg)
 {
 	return Cmd_Argc();
-}
-
-int VARGS Plug_Menu_Control(void *offset, unsigned int mask, const long *arg)
-{
-	switch(VM_LONG(arg[0]))
-	{
-	case 0:	//take away all menus
-	case 1:
-		if (menuplug)
-		{
-			plugin_t *oldplug = currentplug;
-			currentplug = menuplug;
-			Plug_Menu_Event(3, 0);
-			menuplug = NULL;
-			currentplug = oldplug;
-			key_dest = key_game;
-		}
-		if (VM_LONG(arg[0]) != 1)
-			return 1;
-		//give us menu control
-		menuplug = currentplug;
-		key_dest = key_menu;
-		m_state = m_plugin;
-		return 1;
-	case 2: //weather it's us or not.
-		return currentplug == menuplug && m_state == m_plugin;
-	case 3:	//weather a menu is active
-		return key_dest == key_menu;
-	default:
-		return 0;
-	}
-}
-
-typedef struct {
-	//Make SURE that the engine has resolved all cvar pointers into globals before this happens.
-	plugin_t *plugin;
-	char name[64];
-	qboolean picfromwad;
-	mpic_t *pic;
-} pluginimagearray_t;
-int pluginimagearraylen;
-pluginimagearray_t *pluginimagearray;
-
-int VARGS Plug_Draw_LoadImage(void *offset, unsigned int mask, const long *arg)
-{
-	char *name = VM_POINTER(arg[0]);
-	qboolean fromwad = arg[1];
-	int i;
-
-	mpic_t *pic;
-
-	for (i = 0; i < pluginimagearraylen; i++)
-	{
-		if (!pluginimagearray[i].plugin)
-			break;
-		if (pluginimagearray[i].plugin == currentplug)
-		{
-			if (!strcmp(name, pluginimagearray[i].name))
-				break;
-		}
-	}
-	if (i == pluginimagearraylen)
-	{
-		pluginimagearraylen++;
-		pluginimagearray = BZ_Realloc(pluginimagearray, pluginimagearraylen*sizeof(pluginimagearray_t));
-	}
-
-	if (pluginimagearray[i].pic)
-		return i;	//already loaded.
-
-	if (qrenderer)
-	{
-		if (fromwad)
-			pic = Draw_SafePicFromWad(name);
-		else
-		{
-#ifdef RGLQUAKE	//GL saves images persistantly (so don't bother with cachepic stuff)
-			if (qrenderer == QR_OPENGL)
-				pic = Draw_SafeCachePic(name);
-			else
-#endif
-				pic = NULL;
-		}
-	}
-	else
-		pic = NULL;
-
-	Q_strncpyz(pluginimagearray[i].name, name, sizeof(pluginimagearray[i].name));
-	pluginimagearray[i].picfromwad = fromwad;
-	pluginimagearray[i].pic = pic;
-	pluginimagearray[i].plugin = currentplug;
-	return i;
-}
-
-void Plug_DrawReloadImages(void)
-{
-	int i;
-	for (i = 0; i < pluginimagearraylen; i++)
-	{
-		if (!pluginimagearray[i].plugin)
-		{
-			pluginimagearray[i].pic = NULL;
-			continue;
-		}
-
-		if (pluginimagearray[i].picfromwad)
-			pluginimagearray[i].pic = Draw_SafePicFromWad(pluginimagearray[i].name);
-#ifdef RGLQUAKE
-		else if (qrenderer == QR_OPENGL)
-				pluginimagearray[i].pic = Draw_SafeCachePic(pluginimagearray[i].name);
-#endif
-		else
-			pluginimagearray[i].pic = NULL;
-	}
-}
-
-void Plug_FreePlugImages(plugin_t *plug)
-{
-	int i;
-	for (i = 0; i < pluginimagearraylen; i++)
-	{
-		if (pluginimagearray[i].plugin == plug)
-		{
-			pluginimagearray[i].plugin = 0;
-			pluginimagearray[i].pic = NULL;
-			pluginimagearray[i].name[0] = '\0';
-		}
-	}
-}
-
-//int Draw_Image (float x, float y, float w, float h, float s1, float t1, float s2, float t2, qhandle_t image)
-int VARGS Plug_Draw_Image(void *offset, unsigned int mask, const long *arg)
-{
-	mpic_t *pic;
-	int i;
-	if (!qrenderer)
-		return 0;
-	if (!Draw_Image)
-		return 0;
-
-	i = VM_LONG(arg[8]);
-	if (i < 0 || i >= pluginimagearraylen)
-		return -1;	// you fool
-	if (pluginimagearray[i].plugin != currentplug)
-		return -1;
-
-	if (pluginimagearray[i].pic)
-		pic = pluginimagearray[i].pic;
-	else if (pluginimagearray[i].picfromwad)
-		return 0;	//wasn't loaded.
-	else
-		pic = Draw_CachePic(pluginimagearray[i].name);
-
-	Draw_Image(VM_FLOAT(arg[0]), VM_FLOAT(arg[1]), VM_FLOAT(arg[2]), VM_FLOAT(arg[3]), VM_FLOAT(arg[4]), VM_FLOAT(arg[5]), VM_FLOAT(arg[6]), VM_FLOAT(arg[7]), pic);
-	return 1;
-}
-//x1,y1,x2,y2
-int VARGS Plug_Draw_Line(void *offset, unsigned int mask, const long *arg)
-{
-	switch(qrenderer)	//FIXME: I don't want qrenderer seen outside the refresh
-	{
-#ifdef RGLQUAKE
-	case QR_OPENGL:
-		qglDisable(GL_TEXTURE_2D);
-		qglBegin(GL_LINES);
-		qglVertex2f(VM_FLOAT(arg[0]), VM_FLOAT(arg[1]));
-		qglVertex2f(VM_FLOAT(arg[2]), VM_FLOAT(arg[3]));
-		qglEnd();
-		qglEnable(GL_TEXTURE_2D);
-		break;
-#endif
-	}
-	return 1;
-}
-
-int VARGS Plug_Draw_Character(void *offset, unsigned int mask, const long *arg)
-{
-	Draw_Character(arg[0], arg[1], (unsigned int)arg[2]);
-	return 0;
-}
-
-int VARGS Plug_Draw_Fill(void *offset, unsigned int mask, const long *arg)
-{
-	float x, y, width, height;
-	x = VM_FLOAT(arg[0]);
-	y = VM_FLOAT(arg[1]);
-	width = VM_FLOAT(arg[2]);
-	height = VM_FLOAT(arg[3]);
-	switch(qrenderer)	//FIXME: I don't want qrenderer seen outside the refresh
-	{
-#ifdef RGLQUAKE
-	case QR_OPENGL:
-		qglDisable(GL_TEXTURE_2D);
-		qglBegin(GL_QUADS);
-		qglVertex2f(x, y);
-		qglVertex2f(x+width, y);
-		qglVertex2f(x+width, y+height);
-		qglVertex2f(x, y+height);
-		qglEnd();
-		qglEnable(GL_TEXTURE_2D);
-		return 1;
-#endif
-	default:
-		break;
-	}
-	return 0;
-}
-
-int VARGS Plug_Draw_ColourP(void *offset, unsigned int mask, const long *arg)
-{
-	qbyte *pal = host_basepal + VM_LONG(arg[0])*3;
-
-	if (arg[0]<0 || arg[0]>255)
-		return false;
-
-	if (Draw_ImageColours)
-	{
-		Draw_ImageColours(pal[0]/255.0f, pal[1]/255.0f, pal[2]/255.0f, 1);
-		return 1;
-	}
-	return 0;
-}
-
-int VARGS Plug_Draw_Colour3f(void *offset, unsigned int mask, const long *arg)
-{
-	if (Draw_ImageColours)
-	{
-		Draw_ImageColours(VM_FLOAT(arg[0]), VM_FLOAT(arg[1]), VM_FLOAT(arg[2]), 1);
-		return 1;
-	}
-	return 0;
-}
-int VARGS Plug_Draw_Colour4f(void *offset, unsigned int mask, const long *arg)
-{
-	if (Draw_ImageColours)
-	{
-		Draw_ImageColours(VM_FLOAT(arg[0]), VM_FLOAT(arg[1]), VM_FLOAT(arg[2]), VM_FLOAT(arg[3]));
-		return 1;
-	}
-	return 0;
-}
-
-int VARGS Plug_Media_ShowFrameRGBA_32(void *offset, unsigned int mask, const long *arg)
-{
-	void *src = VM_POINTER(arg[0]);
-	int srcwidth = VM_LONG(arg[1]);
-	int srcheight = VM_LONG(arg[2]);
-	int x = VM_LONG(arg[3]);
-	int y = VM_LONG(arg[4]);
-	int width = VM_LONG(arg[5]);
-	int height = VM_LONG(arg[6]);
-
-	Media_ShowFrameRGBA_32(src, srcwidth, srcheight);
-	return 0;
-}
-
-int VARGS Plug_LocalSound(void *offset, unsigned int mask, const long *arg)
-{
-	S_LocalSound(VM_POINTER(arg[0]));
-	return 0;
-}
-int VARGS Plug_SCR_CenterPrint(void *offset, unsigned int mask, const long *arg)
-{
-	SCR_CenterPrint(0, VM_POINTER(arg[0]));
-	return 0;
-}
-
-int VARGS Plug_Key_GetKeyCode(void *offset, unsigned int mask, const long *arg)
-{
-	int modifier;
-	return Key_StringToKeynum(VM_POINTER(arg[0]), &modifier);
 }
 
 //void Cvar_SetString (char *name, char *value);
@@ -800,68 +666,10 @@ void VARGS Plug_FreeConCommands(plugin_t *plug)
 	}
 }
 
-int VARGS Plug_CL_GetStats(void *offset, unsigned int mask, const long *arg)
-{
-	int i;
-	int pnum = VM_LONG(arg[0]);
-	unsigned int *stats = VM_POINTER(arg[1]);
-	int pluginstats = VM_LONG(arg[2]);
-	int max;
-
-	if (VM_OOB(arg[1], arg[2]*4))
-		return 0;
-
-	max = pluginstats;
-	if (max > MAX_CL_STATS)
-		max = MAX_CL_STATS;
-	for (i = 0; i < max; i++)
-	{	//fill stats with the right player's stats
-		stats[i] = cl.stats[pnum][i];
-	}
-	for (; i < pluginstats; i++)	//plugin has too many stats (wow)
-		stats[i] = 0;					//fill the rest.
-	return max;
-}
-
-int VARGS Plug_Con_SubPrint(void *offset, unsigned int mask, const long *arg)
-{
-	char *name = VM_POINTER(arg[0]);
-	char *text = VM_POINTER(arg[1]);
-	console_t *con;
-	con = Con_FindConsole(name);
-	if (!con)
-	{
-		con = Con_Create(name);
-		Con_SetVisible(con);
-
-		if (currentplug->conexecutecommand)
-		{
-			con->userdata = currentplug;
-			con->linebuffered = Plug_SubConsoleCommand;
-		}
-	}
-
-	Con_PrintCon(con, text);
-
-	return 1;
-}
-int VARGS Plug_Con_RenameSub(void *offset, unsigned int mask, const long *arg)
-{
-	char *name = VM_POINTER(arg[0]);
-	console_t *con;
-	con = Con_FindConsole(name);
-	if (!con)
-		return 0;
-
-	Q_strncpyz(con->name, name, sizeof(con->name));
-
-	return 1;
-}
-
-
 typedef enum{
 	STREAM_NONE,
 	STREAM_SOCKET,
+	STREAM_TLS,
 	STREAM_OSFILE,
 	STREAM_FILE
 } plugstream_e;
@@ -877,6 +685,9 @@ typedef struct {
 		int curlen;
 		int curpos;
 	} file;
+#ifdef GNUTLS
+	gnutls_session session;
+#endif
 } pluginstream_t;
 pluginstream_t *pluginstreamarray;
 int pluginstreamarraylen;
@@ -913,7 +724,7 @@ int VARGS Plug_Net_TCPListen(void *offset, unsigned int mask, const long *arg)
 	int sock;
 	struct sockaddr_qstorage address;
 	int _true = 1;
-	
+
 	char *localip = VM_POINTER(arg[0]);
 	unsigned short localport = VM_LONG(arg[1]);
 	int maxcount = VM_LONG(arg[2]);
@@ -1047,7 +858,7 @@ int VARGS Plug_Net_TCPConnect(void *offset, unsigned int mask, const long *arg)
 		closesocket(sock);
 		return -2;
 	}
-	
+
 	if (ioctlsocket (sock, FIONBIO, &_true) == -1)	//now make it non blocking.
 	{
 		return -1;
@@ -1058,6 +869,104 @@ int VARGS Plug_Net_TCPConnect(void *offset, unsigned int mask, const long *arg)
 
 	return handle;
 }
+
+#ifdef GNUTLS
+
+int VARGS Plug_Net_SetTLSClient(void *offset, unsigned int mask, const long *arg)
+{
+	static gnutls_anon_client_credentials anoncred;
+	static gnutls_certificate_credentials xcred;
+
+	int ret;
+
+	long _false = false;
+	long _true = true;
+
+  /* Need to enable anonymous KX specifically. */
+	const int kx_prio[] = {GNUTLS_KX_ANON_DH, 0};
+	const int cert_type_priority[3] = {GNUTLS_CRT_X509, GNUTLS_CRT_OPENPGP, 0};
+
+
+	pluginstream_t *stream;
+	int handle = VM_LONG(arg[0]);
+	qboolean anon = false;
+	if (handle < 0 || handle >= pluginstreamarraylen || pluginstreamarray[handle].plugin != currentplug)
+	{
+		Con_Printf("Plug_Net_SetTLSClient: socket does not belong to you (or is invalid)\n");
+		return -2;
+	}
+	stream = &pluginstreamarray[handle];
+	if (stream->type != STREAM_SOCKET)
+	{	//not a socket - invalid
+		Con_Printf("Plug_Net_SetTLSClient: Not a socket handle\n");
+		return -2;
+	}
+
+
+{
+	static qboolean needinit = true;
+	if (needinit)
+	{
+		gnutls_global_init ();
+
+		gnutls_anon_allocate_client_credentials (&anoncred);
+		gnutls_certificate_allocate_credentials (&xcred);
+//		gnutls_certificate_set_x509_trust_file (xcred, "ca.pem", GNUTLS_X509_FMT_PEM);
+
+		needinit = false;
+	}
+}
+
+	stream->type = STREAM_TLS;
+
+	// Initialize TLS session
+	gnutls_init (&stream->session, GNUTLS_CLIENT);
+
+	// Use default priorities
+	gnutls_set_default_priority (stream->session);
+	if (anon)
+	{
+		gnutls_kx_set_priority (stream->session, kx_prio);
+		gnutls_credentials_set (stream->session, GNUTLS_CRD_ANON, anoncred);
+	}
+	else
+	{
+		gnutls_certificate_type_set_priority (stream->session, cert_type_priority);
+		gnutls_credentials_set (stream->session, GNUTLS_CRD_CERTIFICATE, xcred);
+	}
+
+	// connect to the peer
+	gnutls_transport_set_ptr (stream->session, (gnutls_transport_ptr) stream->socket);
+
+	// Perform the TLS handshake
+
+	ioctlsocket (stream->socket, FIONBIO, &_false);
+
+	ret = GNUTLS_E_AGAIN;
+	while ((ret == GNUTLS_E_AGAIN) || (ret == GNUTLS_E_INTERRUPTED))
+	{
+		ret = gnutls_handshake (stream->session);
+	}
+
+	if (ret < 0)
+	{
+		Con_Printf ("^1*** TLS handshake failed\n");
+		gnutls_perror (ret);
+
+		stream->type = STREAM_SOCKET;	//go back to regular socket
+		gnutls_bye (pluginstreamarray[handle].session, GNUTLS_SHUT_RDWR);
+
+		return -2;
+	}
+
+	ioctlsocket (stream->socket, FIONBIO, &_true);
+
+
+
+	return 0;
+}
+#endif
+
 int VARGS Plug_FS_Open(void *offset, unsigned int mask, const long *arg)
 {
 	//modes:
@@ -1075,7 +984,7 @@ int VARGS Plug_FS_Open(void *offset, unsigned int mask, const long *arg)
 	if (VM_OOB(arg[1], sizeof(int)))
 		return -2;
 	ret = VM_POINTER(arg[1]);
-	
+
 	if (arg[2] == 1)
 	{
 		data = COM_LoadMallocFile(VM_POINTER(arg[0]));
@@ -1090,7 +999,7 @@ int VARGS Plug_FS_Open(void *offset, unsigned int mask, const long *arg)
 
 		*ret = handle;
 
-		return com_filesize;  
+		return com_filesize;
 	}
 	else if (arg[2] == 2)
 	{
@@ -1107,7 +1016,7 @@ int VARGS Plug_FS_Open(void *offset, unsigned int mask, const long *arg)
 
 		*ret = handle;
 
-		return com_filesize;  
+		return com_filesize;
 	}
 	else
 		return -2;
@@ -1193,6 +1102,23 @@ int VARGS Plug_Net_Recv(void *offset, unsigned int mask, const long *arg)
 		else if (read == 0)
 			return -2;	//closed by remote connection.
 		return read;
+#ifdef GNUTLS
+	case STREAM_TLS:
+		read = gnutls_record_recv(pluginstreamarray[handle].session, dest, destlen);
+		if (read < 0)
+		{
+			if (read == GNUTLS_E_AGAIN || read == -9)
+				return -1;
+			else
+			{
+				Con_Printf("TLS Read Error %i (bufsize %i)\n", read, destlen);
+				return -2;
+			}
+		}
+		else if (read == 0)
+			return -2;	//closed by remote connection.
+		return read;
+#endif
 	case STREAM_FILE:
 		if (pluginstreamarray[handle].file.curlen - pluginstreamarray[handle].file.curpos < destlen)
 		{
@@ -1229,11 +1155,28 @@ int VARGS Plug_Net_Send(void *offset, unsigned int mask, const long *arg)
 		else if (written == 0)
 			return -2;	//closed by remote connection.
 		return written;
+#ifdef GNUTLS
+	case STREAM_TLS:
+		written = gnutls_record_send(pluginstreamarray[handle].session, src, srclen);
+		if (written < 0)
+		{
+			if (written == GNUTLS_E_AGAIN || written == GNUTLS_E_INTERRUPTED)
+				return -1;
+			else
+			{
+				Con_Printf("TLS Send Error %i (%i bytes)\n", written, srclen);
+				return -2;
+			}
+		}
+		else if (written == 0)
+			return -2;	//closed by remote connection.
+		return written;
+#endif
 	case STREAM_FILE:
 		if (pluginstreamarray[handle].file.buflen < pluginstreamarray[handle].file.curpos + srclen)
 		{
 			pluginstreamarray[handle].file.buflen = pluginstreamarray[handle].file.curpos + srclen+8192;
-			pluginstreamarray[handle].file.buffer = 
+			pluginstreamarray[handle].file.buffer =
 				BZ_Realloc(pluginstreamarray[handle].file.buffer, pluginstreamarray[handle].file.buflen);
 		}
 		memcpy(pluginstreamarray[handle].file.buffer + pluginstreamarray[handle].file.curpos, src, srclen);
@@ -1285,14 +1228,18 @@ int VARGS Plug_Net_SendTo(void *offset, unsigned int mask, const long *arg)
 		return -2;
 	}
 }
-int VARGS Plug_Net_Close(void *offset, unsigned int mask, const long *arg)
-{
-	int handle = VM_LONG(arg[0]);
-	if (handle < 0 || handle >= pluginstreamarraylen || pluginstreamarray[handle].plugin != currentplug)
-		return -2;
 
+void Plug_Net_Close_Internal(int handle)
+{
 	switch(pluginstreamarray[handle].type)
 	{
+#ifdef GNUTLS
+	case STREAM_TLS:
+		gnutls_bye (pluginstreamarray[handle].session, GNUTLS_SHUT_RDWR);
+		pluginstreamarray[handle].type = STREAM_SOCKET;
+		Plug_Net_Close_Internal(handle);
+		return;
+#endif
 	case STREAM_SOCKET:
 		closesocket(pluginstreamarray[handle].socket);
 		break;
@@ -1304,7 +1251,14 @@ int VARGS Plug_Net_Close(void *offset, unsigned int mask, const long *arg)
 	}
 
 	pluginstreamarray[handle].plugin = NULL;
+}
+int VARGS Plug_Net_Close(void *offset, unsigned int mask, const long *arg)
+{
+	int handle = VM_LONG(arg[0]);
+	if (handle < 0 || handle >= pluginstreamarraylen || pluginstreamarray[handle].plugin != currentplug)
+		return -2;
 
+	Plug_Net_Close_Internal(handle);
 	return 0;
 }
 
@@ -1382,10 +1336,6 @@ void Plug_Init(void)
 	Plug_RegisterBuiltin("Cmd_Argv",				Plug_Cmd_Argv, 0);
 	Plug_RegisterBuiltin("Cmd_AddText",				Plug_Cmd_AddText, 0);
 
-	Plug_RegisterBuiltin("CL_GetStats",				Plug_CL_GetStats, 0);
-	Plug_RegisterBuiltin("Menu_Control",			Plug_Menu_Control, 0);
-	Plug_RegisterBuiltin("Key_GetKeyCode",			Plug_Key_GetKeyCode, 0);
-
 	Plug_RegisterBuiltin("Cvar_Register",			Plug_Cvar_Register, 0);
 	Plug_RegisterBuiltin("Cvar_Update",				Plug_Cvar_Update, 0);
 	Plug_RegisterBuiltin("Cvar_SetString",			Plug_Cvar_SetString, 0);
@@ -1393,21 +1343,13 @@ void Plug_Init(void)
 	Plug_RegisterBuiltin("Cvar_GetString",			Plug_Cvar_GetString, 0);
 	Plug_RegisterBuiltin("Cvar_GetFloat",			Plug_Cvar_GetFloat, 0);
 
-	Plug_RegisterBuiltin("Draw_LoadImage",			Plug_Draw_LoadImage, 0);
-	Plug_RegisterBuiltin("Draw_Image",				Plug_Draw_Image, 0);
-	Plug_RegisterBuiltin("Draw_Character",			Plug_Draw_Character, 0);
-	Plug_RegisterBuiltin("Draw_Fill",				Plug_Draw_Fill, 0);
-	Plug_RegisterBuiltin("Draw_Line",				Plug_Draw_Line, 0);
-	Plug_RegisterBuiltin("Draw_Colourp",			Plug_Draw_ColourP, 0);
-	Plug_RegisterBuiltin("Draw_Colour3f",			Plug_Draw_Colour3f, 0);
-	Plug_RegisterBuiltin("Draw_Colour4f",			Plug_Draw_Colour4f, 0);
-
-	Plug_RegisterBuiltin("Con_SubPrint",			Plug_Con_SubPrint, 0);
-	Plug_RegisterBuiltin("Con_RenameSub",			Plug_Con_RenameSub, 0);
-
 	Plug_RegisterBuiltin("Net_TCPListen",			Plug_Net_TCPListen, 0);
 	Plug_RegisterBuiltin("Net_Accept",				Plug_Net_Accept, 0);
 	Plug_RegisterBuiltin("Net_TCPConnect",			Plug_Net_TCPConnect, 0);
+#ifdef GNUTLS
+	if (Init_GNUTLS())
+		Plug_RegisterBuiltin("Net_SetTLSClient",				Plug_Net_SetTLSClient, 0);
+#endif
 	Plug_RegisterBuiltin("Net_Recv",				Plug_Net_Recv, 0);
 	Plug_RegisterBuiltin("Net_Send",				Plug_Net_Send, 0);
 	Plug_RegisterBuiltin("Net_SendTo",				Plug_Net_SendTo, 0);
@@ -1427,10 +1369,9 @@ void Plug_Init(void)
 	Plug_RegisterBuiltin("cos",						Plug_cos, 0);
 	Plug_RegisterBuiltin("atan2",					Plug_atan2, 0);
 
+	Plug_RegisterBuiltin("GetPluginName",			Plug_GetPluginName, 0);
 
-	Plug_RegisterBuiltin("LocalSound",				Plug_LocalSound, 0);
-	Plug_RegisterBuiltin("SCR_CenterPrint",			Plug_SCR_CenterPrint, 0);
-	Plug_RegisterBuiltin("Media_ShowFrameRGBA_32",	Plug_Media_ShowFrameRGBA_32, 0);
+	Plug_Client_Init();
 
 	if (plug_loaddefault.value)
 	{
@@ -1456,6 +1397,7 @@ void Plug_Tick(void)
 	currentplug = oldplug;
 }
 
+#ifndef SERVERONLY
 void Plug_ResChanged(void)
 {
 	plugin_t *oldplug = currentplug;
@@ -1466,6 +1408,7 @@ void Plug_ResChanged(void)
 	}
 	currentplug = oldplug;
 }
+#endif
 
 qboolean Plugin_ExecuteString(void)
 {
@@ -1488,6 +1431,7 @@ qboolean Plugin_ExecuteString(void)
 	return false;
 }
 
+#ifndef SERVERONLY
 void Plug_SubConsoleCommand(console_t *con, char *line)
 {
 	char buffer[2048];
@@ -1499,7 +1443,9 @@ void Plug_SubConsoleCommand(console_t *con, char *line)
 	VM_Call(currentplug->vm, currentplug->conexecutecommand, 0);
 	currentplug = oldplug;
 }
+#endif
 
+#ifndef SERVERONLY
 qboolean Plug_Menu_Event(int eventtype, int param)	//eventtype = draw/keydown/keyup, param = time/key
 {
 	plugin_t *oc=currentplug;
@@ -1514,7 +1460,8 @@ qboolean Plug_Menu_Event(int eventtype, int param)	//eventtype = draw/keydown/ke
 	currentplug=oc;
 	return ret;
 }
-
+#endif
+#ifndef SERVERONLY
 int Plug_ConnectionlessClientPacket(char *buffer, int size)
 {
 	for (currentplug = plugs; currentplug; currentplug = currentplug->next)
@@ -1540,7 +1487,8 @@ int Plug_ConnectionlessClientPacket(char *buffer, int size)
 	}
 	return false;
 }
-
+#endif
+#ifndef SERVERONLY
 void Plug_SBar(void)
 {
 	plugin_t *oc=currentplug;
@@ -1599,6 +1547,7 @@ void Plug_SBar(void)
 
 	currentplug = oc;
 }
+#endif
 
 int Plug_Message(int clientnum, int messagelevel, char *buffer)
 {
@@ -1633,22 +1582,12 @@ void Plug_Close(plugin_t *plug)
 	Con_Printf("Closing plugin %s\n", plug->name);
 	VM_Destroy(plug->vm);
 
-	Plug_FreePlugImages(plug);
 	Plug_FreeConCommands(plug);
+
+	Plug_Client_Close(plug);
 
 	if (currentplug == plug)
 		currentplug = NULL;
-	if (menuplug == plug)
-	{
-		menuplug = NULL;
-		key_dest = key_game;
-	}
-	if (protocolclientplugin == plug)
-	{
-		protocolclientplugin = NULL;
-		if (cls.protocol == CP_PLUGIN)
-			cls.protocol = CP_UNKNOWN;
-	}
 }
 
 void Plug_Close_f(void)

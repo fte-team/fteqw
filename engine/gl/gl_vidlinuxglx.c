@@ -41,7 +41,9 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 #include <X11/extensions/xf86dga.h>
 #endif
 
-#define WITH_VMODE	//undefine this if the following include fails.
+#ifdef __linux__
+	#define WITH_VMODE	//undefine this if the following include fails.
+#endif
 #ifdef WITH_VMODE
 #include <X11/extensions/xf86vmode.h>
 #endif
@@ -138,13 +140,13 @@ void GLX_CloseLibrary(void)
 qboolean GLX_InitLibrary(char *driver)
 {
 	if (driver && *driver)
-		gllibrary = dlopen(driver, RTLD_LOCAL | RTLD_LAZY);
+		gllibrary = dlopen(driver, RTLD_LAZY);
 	else
 		gllibrary = NULL;
 	if (!gllibrary)
-		gllibrary = dlopen("libGL.so", RTLD_LOCAL | RTLD_LAZY);
+		gllibrary = dlopen("libGL.so", RTLD_LAZY);
 	if (!gllibrary)	//I hate this.
-		gllibrary = dlopen("libGL.so.1", RTLD_LOCAL | RTLD_LAZY);
+		gllibrary = dlopen("libGL.so.1", RTLD_LAZY);
 	if (!gllibrary)
 		return false;
 
@@ -427,13 +429,14 @@ static void GetEvent(void)
 			b = 4;
 		if (b>=0)
 			Key_Event(K_MOUSE1 + b, true);
-
+#ifdef WITH_VMODE
 		if (vidmode_ext && vidmode_usemode>=0)
 		if (!ActiveApp)
 		{	//KDE doesn't seem to like us, in that you can't alt-tab back or click to activate.
 			//This allows us to steal input focus back from the window manager
 			XSetInputFocus(vid_dpy, vid_window, RevertToParent, CurrentTime);
 		}
+#endif
 		break;
 
 	case ButtonRelease:
@@ -455,7 +458,7 @@ static void GetEvent(void)
 	case FocusIn:
 		v_gamma.modified = true;
 		ActiveApp = true;
-
+#ifdef WITH_VMODE
 		if (vidmode_ext && vidmode_usemode>=0)
 		{
 			if (!vidmode_active)
@@ -467,7 +470,7 @@ static void GetEvent(void)
 			}
 			XF86VidModeSetViewPort(vid_dpy, scrnum, 0, 0);
 		}
-
+#endif
 		break;
 	case FocusOut:
 #ifdef WITH_VMODE

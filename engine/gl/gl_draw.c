@@ -2147,6 +2147,18 @@ void GLDraw_Image(float x, float y, float w, float h, float s1, float t1, float 
 	draw_mesh_st[3][0] = s1;
 	draw_mesh_st[3][1] = t2;
 
+	if (gl_blend2d.value)
+	{
+		qglDisable(GL_ALPHA_TEST);
+		qglEnable(GL_BLEND);
+	}
+	else
+	{
+		qglEnable(GL_ALPHA_TEST);
+		qglDisable(GL_BLEND);
+	}
+
+
 	GL_DrawMesh(&draw_mesh, gl->texnum);
 }
 

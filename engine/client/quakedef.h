@@ -19,6 +19,9 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 */
 // quakedef.h -- primary header for client
 
+#ifndef __QUAKEDEF_H__
+#define __QUAKEDEF_H__
+
 #include "bothdefs.h"	//first thing included by ALL files.
 
 #if _MSC_VER
@@ -251,3 +254,4 @@ extern qboolean isDedicated;
 }
 #endif
 
+#endif //__QUAKEDEF_H__

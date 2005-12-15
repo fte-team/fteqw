@@ -1052,7 +1052,7 @@ int TCP_OpenStream (netadr_t remoteaddr)
 	struct sockaddr_qstorage qs;
 
 	temp = NetadrToSockadr(&remoteaddr, &qs);
-	
+
 	if ((newsocket = socket (((struct sockaddr_in*)&qs)->sin_family, SOCK_STREAM, IPPROTO_TCP)) == INVALID_SOCKET)
 		return INVALID_SOCKET;
 

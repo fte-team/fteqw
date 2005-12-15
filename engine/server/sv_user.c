@@ -2239,6 +2239,27 @@ void SV_Msg_f (void)
 	SV_ClientTPrintf (host_client, PRINT_HIGH, STL_MSGLEVELSET, host_client->messagelevel);
 }
 
+qboolean SV_UserInfoIsBasic(char *infoname)
+{
+	int i;
+	char *basicinfos[] = {
+
+		"name",
+		"team",
+		"skin",
+		"topcolor",
+		"bottomcolor",
+
+		NULL};
+
+	for (i = 0; basicinfos[i]; i++)
+	{
+		if (!strcmp(infoname, basicinfos[i]))
+			return true;
+	}
+	return false;
+}
+
 /*
 ==================
 SV_SetInfo_f
@@ -2248,9 +2269,11 @@ Allow clients to change userinfo
 */
 void SV_SetInfo_f (void)
 {
-	int i;
+	int i, j;
 	char oldval[MAX_INFO_STRING];
 	char *key, *val;
+	qboolean basic;	//infos that we send to any old qw client.
+	client_t *client;
 
 
 	if (Cmd_Argc() == 1)
@@ -2268,6 +2291,9 @@ void SV_SetInfo_f (void)
 
 	if (Cmd_Argv(1)[0] == '*')
 		return;		// don't set priveledged values
+
+	if (strstr(Cmd_Argv(1), "\\") || strstr(Cmd_Argv(2), "\\"))
+		return;		// illegal char
 
 	strcpy(oldval, Info_ValueForKey(host_client->userinfo, Cmd_Argv(1)));
 
@@ -2294,10 +2320,33 @@ void SV_SetInfo_f (void)
 		i = host_client - svs.clients;
 		key = Cmd_Argv(1);
 		val = Info_ValueForKey(host_client->userinfo, key);
-		MSG_WriteByte (&sv.reliable_datagram, svc_setinfo);
-		MSG_WriteByte (&sv.reliable_datagram, i);
-		MSG_WriteString (&sv.reliable_datagram, key);
-		MSG_WriteString (&sv.reliable_datagram, val);
+
+		basic = SV_UserInfoIsBasic(key);
+
+		if (basic)
+			Info_SetValueForKey (host_client->userinfobasic, key, val, sizeof(host_client->userinfobasic));
+		for (j = 0; j < MAX_CLIENTS; j++)
+		{
+			client = svs.clients+j;
+			if (client->state < cs_connected)
+				continue;	// reliables go to all connected or spawned
+			if (client->controller)
+				continue;	//splitscreen
+
+			if (client->protocol == SCP_BAD)
+				continue;	//botclient
+
+			if (ISQWCLIENT(client))
+			{
+				if (basic || (client->fteprotocolextensions & PEXT_CSQC))
+				{
+					MSG_WriteByte (&sv.reliable_datagram, svc_setinfo);
+					MSG_WriteByte (&sv.reliable_datagram, i);
+					MSG_WriteString (&sv.reliable_datagram, key);
+					MSG_WriteString (&sv.reliable_datagram, val);
+				}
+			}
+		}
 
 		if (sv.mvdrecording)
 		{

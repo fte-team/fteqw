@@ -847,7 +847,9 @@ void M_Init_Internal (void)
 	Cmd_AddRemCommand ("menu_options", M_Menu_Options_f);
 	Cmd_AddRemCommand ("menu_video", M_Menu_Video_f);
 	Cmd_AddRemCommand ("menu_audio", M_Menu_Audio_f);
+#ifndef __CYGWIN__
 	Cmd_AddRemCommand ("menu_speakers", M_Menu_Audio_Speakers_f);
+#endif
 	Cmd_AddRemCommand ("menu_fps", M_Menu_FPS_f);
 	Cmd_AddRemCommand ("menu_particles", M_Menu_Particles_f);
 	Cmd_AddRemCommand ("menu_particlesets", M_Menu_ParticleSets_f);

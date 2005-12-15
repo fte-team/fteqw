@@ -519,7 +519,7 @@ int DSOUND_InitCard (soundcardinfo_t *sc, int cardnum)
 	char *buffer;
 
 	if (COM_CheckParm("-wavonly"))
-		return;
+		return SND_NOMORE;
 
 
 	sc->sn.numchannels = 2;

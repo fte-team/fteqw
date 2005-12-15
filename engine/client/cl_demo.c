@@ -21,6 +21,8 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 #include "quakedef.h"
 
 void CL_FinishTimeDemo (void);
+#define realtime demtime
+float demtime;
 
 int cls_lastto;
 int cls_lasttype;
@@ -183,6 +185,8 @@ qboolean CL_GetDemoMessage (void)
 	qbyte	c, msecsadded=0;
 	usercmd_t *pcmd;
 	q1usercmd_t q1cmd;
+
+	realtime += host_frametime *0.1;
 
 #ifdef NQPROT
 	if (cls.demoplayback == DPB_NETQUAKE || cls.demoplayback == DPB_QUAKE2)

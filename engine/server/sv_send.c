@@ -1569,7 +1569,7 @@ void SV_UpdateToReliableMessages (void)
 			if (host_client->sendinfo)
 			{
 				host_client->sendinfo = false;
-				SV_FullClientUpdate (host_client, &sv.reliable_datagram);
+				SV_FullClientUpdate (host_client, &sv.reliable_datagram, host_client->fteprotocolextensions);
 			}
 			if (host_client->old_frags != (int)host_client->edict->v->frags)
 			{

@@ -1639,6 +1639,32 @@ void SV_SendGameCommand_f(void)
 		Con_Printf("This command requires a Q2 sever\n");
 }
 
+
+
+
+void PIN_LoadMessages(void);
+void PIN_SaveMessages(void);
+void PIN_DeleteOldestMessage(void);
+void PIN_MakeMessage(char *from, char *msg);
+
+void SV_Pin_Save_f(void)
+{
+	PIN_SaveMessages();
+}
+void SV_Pin_Reload_f(void)
+{
+	PIN_LoadMessages();
+}
+void SV_Pin_Delete_f(void)
+{
+	PIN_DeleteOldestMessage();
+}
+void SV_Pin_Add_f(void)
+{
+	PIN_MakeMessage(Cmd_Argv(0), Cmd_Argv(1));
+}
+
+
 /*
 ==================
 SV_InitOperatorCommands
@@ -1703,6 +1729,11 @@ void SV_InitOperatorCommands (void)
 	Cmd_AddCommand ("floodprotmsg", SV_Floodprotmsg_f);
 	Cmd_AddCommand ("sv_settimer", SV_SetTimer_f);
 	Cmd_AddCommand ("stuffcmd", SV_StuffToClient_f);
+
+	Cmd_AddCommand ("pin_save", SV_Pin_Save_f);
+	Cmd_AddCommand ("pin_reload", SV_Pin_Reload_f);
+	Cmd_AddCommand ("pin_delete", SV_Pin_Delete_f);
+	Cmd_AddCommand ("pin_add", SV_Pin_Add_f);
 
 	cl_warncmd.value = 1;
 }

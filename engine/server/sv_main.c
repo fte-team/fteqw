@@ -469,6 +469,7 @@ void SV_DropClient (client_t *drop)
 		drop->edict->v->frags = 0;
 	drop->name[0] = 0;
 	memset (drop->userinfo, 0, sizeof(drop->userinfo));
+	memset (drop->userinfobasic, 0, sizeof(drop->userinfobasic));
 
 	if (drop->frames)	//union of the same sort of structure
 	{
@@ -480,7 +481,7 @@ void SV_DropClient (client_t *drop)
 		return;
 
 // send notification to all remaining clients
-	SV_FullClientUpdate (drop, &sv.reliable_datagram);
+	SV_FullClientUpdate (drop, &sv.reliable_datagram, 0);
 #ifdef NQPROT
 	SVNQ_FullClientUpdate (drop, &sv.nqreliable_datagram);
 #endif
@@ -492,6 +493,134 @@ void SV_DropClient (client_t *drop)
 	}
 }
 
+
+//====================================================================
+
+typedef struct pinnedmessages_s {
+	struct pinnedmessages_s *next;
+	char setby[64];
+	char message[1024];
+} pinnedmessages_t;
+pinnedmessages_t *pinned;
+qboolean dopinnedload = true;
+void PIN_DeleteOldestMessage(void);
+void PIN_MakeMessage(char *from, char *msg);
+
+void PIN_LoadMessages(void)
+{
+	char setby[64];
+	char message[1024];
+
+	int i;
+	char *file;
+	char *lstart;
+
+	dopinnedload = false;
+
+	while(pinned)
+		PIN_DeleteOldestMessage();
+
+	file = COM_LoadMallocFile("pinned.txt");
+	if (!file)
+		return;
+	
+	lstart = file;
+	for(;;)
+	{
+		while (*lstart <= ' ' && *lstart)
+			lstart++;
+
+		for (i = 0; *lstart && i < sizeof(message)-1; i++)
+		{
+			if (*lstart == '\n' || *lstart == '\r')
+				break;
+			message[i] = *lstart++;
+		}
+		message[i] = '\0';
+
+		while (*lstart <= ' ' && *lstart)
+			lstart++;
+
+		for (i = 0; *lstart && i < sizeof(setby)-1; i++)
+		{
+			if (*lstart == '\n' || *lstart == '\r')
+				break;
+			setby[i] = *lstart++;
+		}
+		setby[i] = '\0';
+
+		if (!*setby)
+			break;
+
+		PIN_MakeMessage(setby, message);
+	}
+
+	BZ_Free(file);
+}
+void PIN_SaveMessages(void)
+{
+	pinnedmessages_t *p;
+	FILE *f;
+
+	f = COM_WriteFileOpen("pinned.txt");
+	if (!f)
+	{
+		Con_Printf("couldn't write anything\n");
+		return;
+	}
+
+	for (p = pinned; p; p = p->next)
+		fprintf(f, "%s\r\n\t%s\r\n\n", p->message, p->setby);
+
+	fclose(f);
+}
+void PIN_DeleteOldestMessage(void)
+{
+	pinnedmessages_t *old = pinned;
+	pinned = pinned->next;
+	Z_Free(old);
+}
+void PIN_MakeMessage(char *from, char *msg)
+{
+	pinnedmessages_t *p;
+	pinnedmessages_t *new;
+
+	new = BZ_Malloc(sizeof(pinnedmessages_t));
+	Q_strncpyz(new->setby, from, sizeof(new->setby));
+	Q_strncpyz(new->message, msg, sizeof(new->message));
+	new->next = NULL;
+
+	if (!pinned)
+		pinned = new;
+	else
+	{
+		for (p = pinned; ; p = p->next)
+		{
+			if (!p->next)
+			{
+				p->next = new;
+				break;
+			}
+		}
+	}
+}
+void PIN_ShowMessages(client_t *cl)
+{
+	pinnedmessages_t *p;
+	if (dopinnedload)
+		PIN_LoadMessages();
+
+	if (!pinned)
+		return;
+
+	SV_ClientPrintf(cl, PRINT_HIGH, "\n‘Ÿ\n\n");
+	for (p = pinned; p; p = p->next)
+	{
+		SV_ClientPrintf(cl, PRINT_HIGH, "%s\n\n        %s‘\n", p->message, p->setby);
+		SV_ClientPrintf(cl, PRINT_HIGH, "\n‘Ÿ\n\n");
+	}
+
+}
 
 //====================================================================
 
@@ -536,6 +665,22 @@ int SV_CalcPing (client_t *cl)
 	return 0;
 }
 
+void SV_GenerateBasicUserInfo(client_t *cl)
+{
+	char *key, *s;
+	int i;
+	for (i= 1; (key = Info_KeyForNumber(cl->userinfo, i)); i++)
+	{
+		if (!*key)
+			break;
+		if (!SV_UserInfoIsBasic(key))
+			continue;
+
+		s = Info_ValueForKey(cl->userinfo, key);
+		Info_SetValueForStarKey (cl->userinfobasic, key, s, sizeof(cl->userinfobasic));
+	}
+}
+
 /*
 ===================
 SV_FullClientUpdate
@@ -543,7 +688,7 @@ SV_FullClientUpdate
 Writes all update values to a sizebuf
 ===================
 */
-void SV_FullClientUpdate (client_t *client, sizebuf_t *buf)
+void SV_FullClientUpdate (client_t *client, sizebuf_t *buf, unsigned int ftepext)
 {
 	int		i;
 	char	info[MAX_INFO_STRING];
@@ -598,7 +743,10 @@ void SV_FullClientUpdate (client_t *client, sizebuf_t *buf)
 	MSG_WriteByte (buf, i);
 	MSG_WriteFloat (buf, realtime - client->connection_started);
 
-	strcpy (info, client->userinfo);
+	if (ftepext & PEXT_CSQC)
+		strcpy (info, client->userinfo);
+	else
+		strcpy (info, client->userinfobasic);
 	Info_RemoveKey(info, "password");		//main password key
 	Info_RemovePrefixedKeys (info, '_');	// server passwords, etc
 
@@ -672,10 +820,10 @@ void SV_FullClientUpdateToClient (client_t *client, client_t *cl)
 		else
 			ClientReliableCheckBlock(cl, 24 + strlen(client->userinfo));
 		if (cl->num_backbuf) {
-			SV_FullClientUpdate (client, &cl->backbuf);
+			SV_FullClientUpdate (client, &cl->backbuf, cl->fteprotocolextensions);
 			ClientReliable_FinishWrite(cl);
 		} else
-			SV_FullClientUpdate (client, &cl->netchan.message);
+			SV_FullClientUpdate (client, &cl->netchan.message, cl->fteprotocolextensions);
 	}
 }
 
@@ -1704,6 +1852,7 @@ client_t *SVC_DirectConnect(void)
 
 	// parse some info from the info strings
 	SV_ExtractFromUserinfo (newcl);
+	SV_GenerateBasicUserInfo (newcl);
 
 	// JACK: Init the floodprot stuff.
 	for (i=0; i<10; i++)
@@ -1900,12 +2049,16 @@ client_t *SVC_DirectConnect(void)
 
 	Sys_ServerActivity();
 
+	PIN_ShowMessages(newcl);
+
 	if (ISNQCLIENT(newcl))
 	{
 		newcl->netchan.message.maxsize = sizeof(newcl->netchan.message_buf);
 		host_client = newcl;
 		SVNQ_New_f();
 	}
+
+
 
 	return newcl;
 }
@@ -2857,6 +3010,10 @@ void SV_MVDStream_Poll(void);
 	if (isDedicated)
 #endif
 	{
+#ifdef PLUGINS
+		Plug_Tick();
+#endif
+
 		SV_GetConsoleCommands ();
 
 // process console commands
@@ -3577,7 +3734,6 @@ void SV_ExtractFromUserinfo (client_t *cl)
 #endif
 }
 
-
 //============================================================================
 
 /*
@@ -3664,10 +3820,16 @@ void SV_Init (quakeparms_t *parms)
 	{
 		Sys_Init ();
 		PM_Init ();
+
+#ifdef PLUGINS
+		Plug_Init();
+#endif
+
 		Hunk_AllocName (0, "-HOST_HUNKLEVEL-");
 		host_hunklevel = Hunk_LowMark ();
 
 		host_initialized = true;
+
 
 		Con_TPrintf (TL_EXEDATETIME, __DATE__, __TIME__);
 		Con_TPrintf (TL_HEAPSIZE,parms->memsize/ (1024*1024.0));

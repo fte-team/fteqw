@@ -112,8 +112,10 @@ void Master_SetupSockets(void)
 	int i;
 	for (i = 0; i < POLLUDPSOCKETS; i++)
 		pollsocketsUDP[i] = INVALID_SOCKET;
+#ifdef USEIPX
 	for (i = 0; i < POLLIPXSOCKETS; i++)
 		pollsocketsIPX[i] = INVALID_SOCKET;
+#endif
 }
 
 void Master_HideServer(serverinfo_t *server)

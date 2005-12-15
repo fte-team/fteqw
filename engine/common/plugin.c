@@ -102,6 +102,13 @@ cvar_t plug_loaddefault = {"plug_loaddefault", "1"};
 #include "glquake.h"
 #endif
 
+//custom plugin builtins.
+typedef int (VARGS *Plug_Builtin_t)(void *offset, unsigned int mask, const long *arg);
+#define PLUG_BIF_DLLONLY	1
+#define PLUG_BIF_QVMONLY	2
+
+void Plug_RegisterBuiltin(char *name, Plug_Builtin_t bi, int flags);
+
 #include "netinc.h"
 
 typedef struct plugin_s {
@@ -137,12 +144,6 @@ void Plug_Client_Init(void){}
 void Plug_Client_Close(plugin_t *plug) {}
 #endif
 
-
-//custom plugin builtins.
-typedef int (VARGS *Plug_Builtin_t)(void *offset, unsigned int mask, const long *arg);
-void Plug_RegisterBuiltin(char *name, Plug_Builtin_t bi, int flags);
-#define PLUG_BIF_DLLONLY	1
-#define PLUG_BIF_QVMONLY	2
 
 void Plug_Init(void);
 void Plug_Close(plugin_t *plug);

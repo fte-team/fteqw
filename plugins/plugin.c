@@ -64,7 +64,7 @@ BUILTINR(unsigned int, Sys_Milliseconds, (void));	//get the time the engine has 
 #undef ARGNAMES
 
 #define ARGNAMES ,buffer
-BUILTIN(void, Cmd_AddCommand, (char *buffer));	//register a command.
+BUILTINR(int, Cmd_AddCommand, (char *buffer));	//register a command.
 #undef ARGNAMES
 #define ARGNAMES ,buffer,bufsize
 BUILTIN(void, Cmd_Args, (char *buffer, int bufsize));	//retrieve some arguments.
@@ -108,6 +108,10 @@ BUILTIN(void, CL_GetStats, (int pnum, unsigned int *stats, int maxstats));
 
 #define ARGNAMES ,soundname
 BUILTIN(void, LocalSound, (char *soundname));
+#undef ARGNAMES
+
+#define ARGNAMES ,plugnum, buffer, bufsize
+BUILTIN(void, GetPluginName, (int plugnum, char *buffer, int bufsize));
 #undef ARGNAMES
 
 #define ARGNAMES ,name,iswadimage
@@ -307,6 +311,8 @@ void Plug_InitStandardBuiltins(void)
 	CHECKBUILTIN(SCR_CenterPrint);
 
 	CHECKBUILTIN(Media_ShowFrameRGBA_32);
+
+	CHECKBUILTIN(GetPluginName);
 
 	//sub consoles (optional)
 	CHECKBUILTIN(Con_SubPrint);

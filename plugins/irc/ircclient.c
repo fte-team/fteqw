@@ -823,8 +823,10 @@ int IRC_ClientFrame(ircclient_t *irc)
 	{
 		char *motdmessage = var[4]+1;
 
-		if (irc_motd.value == 1)
+		if (irc_motd.value == 2)
 			Con_SubPrintf("irc", "MOTD: %s\n", motdmessage);
+		else if (irc_motd.value)
+			Con_SubPrintf("irc", "%s\n", motdmessage);
 	}
 	else if (!strncmp(msg, "375 ", 4))
 	{

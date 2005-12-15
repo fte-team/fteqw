@@ -17,7 +17,7 @@
 #	define BUILTINR(t, n, args) t (*n) args
 #	define BUILTIN(t, n, args) t (*n) args
 #	define CHECKBUILTIN(n) n = (funcptr_t)Plug_GetEngineFunction(#n);
-#	define BUILTINISVALID(n) n!=NULL
+#	define BUILTINISVALID(n) (n!=NULL)
 #endif
 
 #define double float	//all floats are 32bit, qvm stuff
@@ -61,7 +61,7 @@ void BadBuiltin(void);
 	#define BUILTIN(t, n, args) int BUILTIN_##n; t n args {plugin_syscall(BUILTIN_##n ARGNAMES);}
 #endif
 #define CHECKBUILTIN(n) BUILTIN_##n = (int)Plug_GetEngineFunction(#n);
-#define BUILTINISVALID(n) BUILTIN_##n != 0
+#define BUILTINISVALID(n) (BUILTIN_##n != 0)
 #ifdef _WIN32
 #define QDECL __cdecl
 #else
@@ -91,7 +91,7 @@ EBUILTIN(void, Con_RenameSub, (char *old, char *new));	//rename a console.
 EBUILTIN(void, Sys_Error, (char *message));	//abort the entire engine.
 EBUILTIN(unsigned int, Sys_Milliseconds, ());
 
-EBUILTIN(void, Cmd_AddCommand, (char *buffer));	//abort the entire engine.
+EBUILTIN(int, Cmd_AddCommand, (char *buffer));	//abort the entire engine.
 EBUILTIN(void, Cmd_Args, (char *buffer, int bufsize));	//abort the entire engine.
 EBUILTIN(void, Cmd_Argv, (int argnum, char *buffer, int bufsize));	//abort the entire engine.
 EBUILTIN(int, Cmd_Argc, (void));	//abort the entire engine.
@@ -105,6 +105,7 @@ EBUILTIN(float, Cvar_GetFloat, (char *name));
 EBUILTIN(qhandle_t,	Cvar_Register, (char *name, char *defaultval, int flags, char *grouphint));
 EBUILTIN(int, Cvar_Update, (qhandle_t handle, int *modificationcount, char *stringv, float *floatv));	//stringv is 256 chars long, don't expect this function to do anything if modification count is unchanged.
 
+EBUILTIN(void, GetPluginName, (int plugnum, char *buffer, int bufsize));
 EBUILTIN(void, LocalSound, (char *soundname));
 EBUILTIN(void, CL_GetStats, (int pnum, unsigned int *stats, int maxstats));
 

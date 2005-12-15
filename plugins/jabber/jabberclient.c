@@ -39,7 +39,7 @@ void Con_SubPrintf(char *subname, char *format, ...)
 	#define COLOURRED "^1"
 	#define COLOURYELLOW "^3"
 	#define COLOURPURPLE "^5"
-	#define COMMANDPREFIX "jcl "
+	#define COMMANDPREFIX "jabbercl"
 	#define playsound(s)
 
 
@@ -127,7 +127,7 @@ int JCL_ExecuteCommand(int *args)
 {
 	char cmd[8];
 	Cmd_Argv(0, cmd, sizeof(cmd));
-	if (!strcmp(cmd, "jcl"))
+	if (!strcmp(cmd, COMMANDPREFIX))
 	{
 		JCL_Command();
 		return true;
@@ -139,18 +139,28 @@ int JCL_ConExecuteCommand(int *args);
 
 int JCL_Frame(int *args);
 
+int (*Con_TrySubPrint)(char *conname, char *message);
+
 int Plug_Init(int *args)
 {
 	if (	Plug_Export("Tick", JCL_Frame) &&
-		Plug_Export("ExecuteCommand", JCL_ExecuteCommand) &&
-		Plug_Export("ConExecuteCommand", JCL_ConExecuteCommand))
+		Plug_Export("ExecuteCommand", JCL_ExecuteCommand))
 	{
 		CHECKBUILTIN(Net_SetTLSClient);
 		if (!BUILTINISVALID(Net_SetTLSClient))
-			Con_Print("JCL Client Plugin Loaded ^1without^7 TLS\n");
+			Con_Print("Jabber Client Plugin Loaded ^1without^7 TLS\n");
 		else
-			Con_Print("JCL Client Plugin Loaded with TLS\n");
-		Cmd_AddCommand("jcl");
+			Con_Print("Jabber Client Plugin Loaded with TLS\n");
+
+		if (!Plug_Export("ConExecuteCommand", JCL_ConExecuteCommand))
+		{
+			Con_Printf("Jabber client plugin in single-console mode\n");
+			Con_TrySubPrint = Con_Print;
+		}
+		else
+			Con_TrySubPrint = Con_SubPrint;
+
+		Cmd_AddCommand(COMMANDPREFIX);
 		return 1;
 	}
 	else
@@ -957,13 +967,13 @@ int JCL_ClientFrame(jclient_t *jcl)
 		to = XML_ParameterOfTree(tree, "to");
 
 		f = XML_ParameterOfTree(tree, "type");
-		if (!strcmp(f, "get"))
+		if (f && !strcmp(f, "get"))
 		{
 			ot = XML_ChildOfTree(tree, "query", 0);
 			if (ot)
 			{
 				f = XML_ParameterOfTree(tree, "xmlns");
-				if (!strcmp(f, "jabber:iq:version"))
+				if (f && to && from && !strcmp(f, "jabber:iq:version"))
 				{	//client->client version request
 					JCL_AddClientMessageString(jcl, "<iq type='result' to='");
 					JCL_AddClientMessageString(jcl, from);
@@ -1138,6 +1148,6 @@ void JCL_Command(void)
 			Con_SubPrintf(jclient->defaultdest, "%s: "COLOURYELLOW"%s\n", ">>", msg);
 		}
 		else
-			Con_Printf("Not connected\ntype \"" COMMANDPREFIX "/connect JABBERSERVER USERNAME@DOMAIN PASSWORD\" to connect\n");
+			Con_Printf("Not connected\ntype \"" COMMANDPREFIX " /connect JABBERSERVER USERNAME@DOMAIN PASSWORD\" to connect\n");
 	}
 }

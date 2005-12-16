@@ -1816,6 +1816,42 @@ void SV_SayOne_f (void)
 	}
 }
 
+float SV_CheckFloodProt(client_t *client)
+{
+	int tmp;
+	if (fp_messages)
+	{
+		if (!sv.paused && realtime<client->lockedtill)
+		{
+			return client->lockedtill - realtime;
+		}
+		tmp = client->whensaidhead - fp_messages + 1;
+		if (tmp < 0)
+			tmp = 10+tmp;
+		if (!sv.paused &&
+			client->whensaid[tmp] && (realtime-client->whensaid[tmp] < fp_persecond))
+		{
+			client->lockedtill = realtime + fp_secondsdead;
+			if (fp_msg[0])
+				SV_ClientPrintf(client, PRINT_CHAT,
+					"FloodProt: %s\n", fp_msg);
+			return fp_secondsdead;
+		}
+	}
+	return 0;
+}
+
+void SV_PushFloodProt(client_t *client)
+{
+	if (fp_messages)
+	{
+		client->whensaidhead++;
+		if (client->whensaidhead > 9)
+			client->whensaidhead = 0;
+		client->whensaid[client->whensaidhead] = realtime;
+	}
+}
+
 /*
 ==================
 SV_Say
@@ -1829,6 +1865,7 @@ void SV_Say (qboolean team)
 	char	text[1024];
 	char	t1[32], *t2;
 	int cls = 0;
+	float floodtime;
 
 	qboolean sent[MAX_CLIENTS];	//so we don't send to the same splitscreen connection twice. (it's ugly)
 	int cln;
@@ -1863,35 +1900,14 @@ void SV_Say (qboolean team)
 		return;
 	}
 
-	if (fp_messages)
+	if ((floodtime=SV_CheckFloodProt(host_client)))
 	{
-		if (!sv.paused && realtime<host_client->lockedtill)
-		{
-			SV_ClientTPrintf(host_client, PRINT_CHAT,
+		SV_ClientTPrintf(host_client, PRINT_CHAT,
 				STL_FLOODPROTTIME,
-					(int) (host_client->lockedtill - realtime));
-			return;
-		}
-		tmp = host_client->whensaidhead - fp_messages + 1;
-		if (tmp < 0)
-			tmp = 10+tmp;
-		if (!sv.paused &&
-			host_client->whensaid[tmp] && (realtime-host_client->whensaid[tmp] < fp_persecond))
-		{
-			host_client->lockedtill = realtime + fp_secondsdead;
-			if (fp_msg[0])
-				SV_ClientPrintf(host_client, PRINT_CHAT,
-					"FloodProt: %s\n", fp_msg);
-			else
-				SV_ClientTPrintf(host_client, PRINT_CHAT,
-					STL_FLOODPROTACTIVE, fp_secondsdead);
-			return;
-		}
-		host_client->whensaidhead++;
-		if (host_client->whensaidhead > 9)
-			host_client->whensaidhead = 0;
-		host_client->whensaid[host_client->whensaidhead] = realtime;
+					(int) (floodtime));
+		return;
 	}
+	SV_PushFloodProt(host_client);
 
 	p = Cmd_Args();
 
@@ -2066,11 +2082,19 @@ SV_Kill_f
 */
 void SV_Kill_f (void)
 {
+	float floodtime;
 	if (sv_player->v->health <= 0)
 	{
 		SV_ClientTPrintf (host_client, PRINT_HIGH, STL_NOSUISIDEWHENDEAD);
 		return;
 	}
+
+	if ((floodtime = SV_CheckFloodProt(host_client)))
+	{
+		SV_ClientPrintf (host_client, PRINT_HIGH, "You can't suiside for %i seconds\n", (int)floodtime);
+		return;
+	}
+	SV_PushFloodProt(host_client);
 
 	pr_global_struct->time = sv.time;
 	pr_global_struct->self = EDICT_TO_PROG(svprogfuncs, sv_player);

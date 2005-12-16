@@ -1334,11 +1334,13 @@ void SV_Floodprot_f (void)
 
 	if (Cmd_Argc() == 1)
 	{
-		if (fp_messages) {
+		if (fp_messages)
+		{
 			Con_TPrintf (STL_FLOODPROTSETTINGS,
 				fp_messages, fp_persecond, fp_secondsdead);
 			return;
-		} else
+		}
+		else
 			Con_TPrintf (STL_FLOODPROTNOTON);
 	}
 
@@ -1352,12 +1354,14 @@ void SV_Floodprot_f (void)
 	arg2 = atoi(Cmd_Argv(2));
 	arg3 = atoi(Cmd_Argv(3));
 
-	if (arg1<=0 || arg2 <= 0 || arg3<=0) {
+	if (arg1<=0 || arg2 <= 0 || arg3<=0)
+	{
 		Con_TPrintf (STL_NONEGATIVEVALUES);
 		return;
 	}
 
-	if (arg1 > 10) {
+	if (arg1 > 10)
+	{
 		Con_TPrintf (STL_TRACK10PLUSSMESSAGES);
 		return;
 	}
@@ -1369,10 +1373,13 @@ void SV_Floodprot_f (void)
 
 void SV_Floodprotmsg_f (void)
 {
-	if (Cmd_Argc() == 1) {
+	if (Cmd_Argc() == 1)
+	{
 		Con_TPrintf(STL_FLOODPROTCURRENTMESSAGE, fp_msg);
 		return;
-	} else if (Cmd_Argc() != 2) {
+	}
+	else if (Cmd_Argc() != 2)
+	{
 		Con_TPrintf(STL_FLOODPROTMESSAGESYNTAX);
 		return;
 	}

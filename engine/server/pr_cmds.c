@@ -6452,7 +6452,7 @@ void PF_checkextension (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 			*ext->enabled = true;
 
 		G_FLOAT(OFS_RETURN) = true;
-		Con_Printf("Extension %s is supported\n", s);
+		Con_DPrintf("Extension %s is supported\n", s);
 	}
 	else
 		G_FLOAT(OFS_RETURN) = false;

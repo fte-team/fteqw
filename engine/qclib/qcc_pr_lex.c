@@ -34,6 +34,7 @@ QCC_eval_t		pr_immediate;
 char	pr_immediate_string[8192];
 
 int		pr_error_count;
+int		pr_warning_count;
 
 
 CompilerConstant_t *CompilerConstant;
@@ -2396,7 +2397,10 @@ void VARGS QCC_PR_ParseWarning (int type, char *error, ...)
 		pr_error_count++;
 	}
 	else
+	{
 		printf ("%s:%i: warning: %s\n", strings + s_file, pr_source_line, string);
+		pr_warning_count++;
+	}
 }
 
 void VARGS QCC_PR_Warning (int type, char *file, int line, char *error, ...)
@@ -2415,6 +2419,7 @@ void VARGS QCC_PR_Warning (int type, char *file, int line, char *error, ...)
 		printf ("%s:%i: warning: %s\n", file, line, string);
 	else
 		printf ("warning: %s\n", string);
+	pr_warning_count++;
 }
 
 

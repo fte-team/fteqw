@@ -1477,6 +1477,7 @@ void	QCC_PR_BeginCompilation (void *memory, int memsize)
 	pr.types = NULL;
 //	type_function->next = NULL;
 	pr_error_count = 0;
+	pr_warning_count = 0;
 	recursivefunctiontype = 0;
 
 	freeofs = NULL;
@@ -3111,6 +3112,8 @@ void QCC_FinishCompile(void)
 		printf("optres_test2 %i\n", optres_test2);
 	
 	printf("numtemps %i\n", numtemps);
+
+	printf("%i warnings\n", pr_warning_count);
 
 	qcc_compileactive = false;
 }

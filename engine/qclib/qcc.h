@@ -752,7 +752,7 @@ void *QCC_PR_Malloc (int size);
 
 
 extern	QCC_def_t	*pr_scope;
-extern	int		pr_error_count;
+extern	int		pr_error_count, pr_warning_count;
 
 void QCC_PR_NewLine (pbool incomment);
 QCC_def_t *QCC_PR_GetDef (QCC_type_t *type, char *name, QCC_def_t *scope, pbool allocate, int arraysize);

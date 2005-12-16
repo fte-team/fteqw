@@ -2471,6 +2471,26 @@ QCC_def_t *QCC_PR_ParseFunctionCall (QCC_def_t *func)	//warning, the func could 
 			def_ret.type = rettype;
 			return &def_ret;
 		}
+		else if (!strcmp(func->name, "entnum") && !QCC_PR_CheckToken(")"))
+		{
+			//t = (a/%1) / (nextent(world)/%1)
+			//a/%1 does a (int)entity to float conversion type thing
+
+			e = QCC_PR_Expression(TOP_PRIORITY);
+			QCC_PR_Expect(")");
+			e = QCC_PR_Statement(&pr_opcodes[OP_DIV_F], e, QCC_MakeIntDef(1), (QCC_dstatement_t **)0xffffffff);
+
+			d = QCC_PR_GetDef(NULL, "nextent", NULL, false, 0);
+			if (!d)
+				QCC_PR_ParseError(0, "the nextent builtin is not defined");
+			QCC_FreeTemp(QCC_PR_Statement(&pr_opcodes[OP_STORE_F], e, &def_parms[0], (QCC_dstatement_t **)0xffffffff));
+			d = QCC_PR_Statement(&pr_opcodes[OP_CALL0], d, NULL, NULL);
+			d = QCC_PR_Statement(&pr_opcodes[OP_DIV_F], d, QCC_MakeIntDef(1), (QCC_dstatement_t **)0xffffffff);
+
+			e = QCC_PR_Statement(&pr_opcodes[OP_DIV_F], e, d, (QCC_dstatement_t **)0xffffffff);
+
+			return e;
+		}
 	}	//so it's not an intrinsic.
 
 	if (opt_precache_file)	//should we strip out all precache_file calls?
@@ -3276,7 +3296,8 @@ QCC_def_t	*QCC_PR_ParseValue (QCC_type_t *assumeclass)
 	if (!d)
 	{
 		if (	(!strcmp(name, "random" ))	||
-				(!strcmp(name, "randomv"))	)	//intrinsics, any old function with no args will do.
+				(!strcmp(name, "randomv"))	||
+				(!strcmp(name, "entnum"))	)	//intrinsics, any old function with no args will do.
 			od = d = QCC_PR_GetDef (type_function, name, NULL, true, 1);
 		else if (keyword_class && !strcmp(name, "this"))
 		{

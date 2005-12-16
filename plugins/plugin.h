@@ -86,8 +86,14 @@ typedef void* funcptr_t;
 //Basic builtins:
 EBUILTIN(funcptr_t, Plug_GetEngineFunction, (char *funcname));	//set up in vmMain, use this to get all other builtins
 EBUILTIN(void, Con_Print, (char *text));	//on to main console.
+
 EBUILTIN(void, Con_SubPrint, (char *subname, char *text));	//on to sub console.
 EBUILTIN(void, Con_RenameSub, (char *old, char *new));	//rename a console.
+EBUILTIN(int, Con_IsActive, (char *conname));
+EBUILTIN(void, Con_SetActive, (char *conname));
+EBUILTIN(void, Con_Destroy, (char *conname));
+EBUILTIN(void, Con_NameForNum, (int connum, char *conname, int connamelen));
+
 EBUILTIN(void, Sys_Error, (char *message));	//abort the entire engine.
 EBUILTIN(unsigned int, Sys_Milliseconds, ());
 

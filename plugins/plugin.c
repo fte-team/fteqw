@@ -51,9 +51,20 @@ BUILTIN(void, Con_Print, (char *text));	//on to main console.
 #define ARGNAMES ,conname,text
 BUILTIN(void, Con_SubPrint, (char *conname, char *text));	//on to named sub console (creating it too).
 #undef ARGNAMES
-
 #define ARGNAMES ,old,new
-BUILTIN(void, Con_RenameSub, (char *old, char *new));	//on to named sub console (creating it too).
+BUILTIN(void, Con_RenameSub, (char *old, char *new));	//rename a subconsole
+#undef ARGNAMES
+#define ARGNAMES ,conname
+BUILTINR(int, Con_IsActive, (char *conname));
+#undef ARGNAMES
+#define ARGNAMES ,conname
+BUILTIN(void, Con_SetActive, (char *conname));
+#undef ARGNAMES
+#define ARGNAMES ,conname
+BUILTIN(void, Con_Destroy, (char *conname));
+#undef ARGNAMES
+#define ARGNAMES ,connum,conname,connamelen
+BUILTIN(void, Con_NameForNum, (int connum, char *conname, int connamelen));
 #undef ARGNAMES
 
 #define ARGNAMES ,message
@@ -317,7 +328,10 @@ void Plug_InitStandardBuiltins(void)
 	//sub consoles (optional)
 	CHECKBUILTIN(Con_SubPrint);
 	CHECKBUILTIN(Con_RenameSub);
-
+	CHECKBUILTIN(Con_IsActive);
+	CHECKBUILTIN(Con_SetActive);
+	CHECKBUILTIN(Con_Destroy);
+	CHECKBUILTIN(Con_NameForNum);
 }
 
 #ifndef Q3_VM

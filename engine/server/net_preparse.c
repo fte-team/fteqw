@@ -1007,6 +1007,10 @@ void NPP_QWWriteByte(int dest, qbyte data)	//replacement write func (nq to qw)
 			protocollen = 2;
 			nullterms=1;
 			break;
+		case svc_setinfo:
+			protocollen = 2;
+			nullterms = 2;
+			break;
 		case svc_centerprint:
 		case svc_stufftext:
 			protocollen = 1;
@@ -1170,9 +1174,16 @@ void NPP_QWWriteCoord(int dest, float in)	//replacement write func (nq to qw)
 }
 void NPP_QWWriteString(int dest, char *data)	//replacement write func (nq to qw)
 {
+#if 0
+	//the slow but guarenteed routine
+	while(*data)
+		NPP_QWWriteByte(dest, *data++);
+	NPP_QWWriteByte(dest, 0);	//and the null terminator
+#else
+	//the fast-track, less reliable routine
+
+
 	NPP_QWCheckDest(dest);
-	if (!bufferlen)
-		Con_Printf("QWWriteString: Messages should start with WriteByte (last was %i)\n", majortype);
 
 #ifdef NQPROT
 	if (dest == MSG_ONE) {
@@ -1187,10 +1198,14 @@ void NPP_QWWriteString(int dest, char *data)	//replacement write func (nq to qw)
 		MSG_WriteString (QWWriteDest(dest), data);
 #endif
 
+	if (!bufferlen)
+		Con_Printf("QWWriteString: Messages should start with WriteByte (last was %i)\n", majortype);
+
 	NPP_AddData(data, strlen(data)+1);
 	if (nullterms)
 		nullterms--;
 	NPP_QWCheckFlush();
+#endif
 }
 void NPP_QWWriteEntity(int dest, short data)	//replacement write func (nq to qw)
 {

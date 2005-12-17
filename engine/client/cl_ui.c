@@ -694,15 +694,20 @@ void VQ3_RenderView(const q3refdef_t *ref)
 
 void UI_RegisterFont(char *fontName, int pointSize, fontInfo_t *font)
 {
-	char *in;
+	union 
+	{
+		char *c;
+		int *i;
+		float *f;
+	} in;
 	int i;
 	char name[MAX_QPATH];
-	#define readInt() LittleLong(*((int*)in)++)
-	#define readFloat() LittleFloat(*((float*)in)++)
+	#define readInt() LittleLong(*in.i++)
+	#define readFloat() LittleFloat(*in.f++)
 
 	_snprintf(name, sizeof(name), "fonts/fontImage_%i.dat",pointSize);
 
-	in = COM_LoadTempFile(name);
+	in.i = COM_LoadTempFile(name);
 	if (com_filesize == sizeof(fontInfo_t))
 	{
 		for(i=0; i<GLYPHS_PER_FONT; i++)
@@ -719,11 +724,11 @@ void UI_RegisterFont(char *fontName, int pointSize, fontInfo_t *font)
 			font->glyphs[i].s2			= readFloat();
 			font->glyphs[i].t2			= readFloat();
 			font->glyphs[i].glyph		= readInt();
-			memcpy(font->glyphs[i].shaderName, in, 32);
-			in += 32;
+			memcpy(font->glyphs[i].shaderName, in.i, 32);
+			in.c += 32;
 		}
 		font->glyphScale = readFloat();
-		memcpy(font->name, in, MAX_QPATH);
+		memcpy(font->name, in.i, MAX_QPATH);
 
 //		Com_Memcpy(font, faceData, sizeof(fontInfo_t));
 		Q_strncpyz(font->name, name, sizeof(font->name));

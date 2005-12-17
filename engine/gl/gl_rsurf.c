@@ -915,6 +915,7 @@ void GLR_BuildLightMap (msurface_t *surf, qbyte *dest, qbyte *deluxdest, stmap *
 				{
 					scale = d_lightstylevalue[surf->styles[maps]]/3;
 					surf->cached_light[maps] = scale;	// 8.8 fraction
+					surf->cached_colour[maps] = cl_lightstyle[surf->styles[maps]].colour;
 					for (i=0 ; i<size ; i++)
 						blocklights[i] += (lightmap[i*3]+lightmap[i*3+1]+lightmap[i*3+2]) * scale;
 					lightmap += size*3;	// skip to next lightmap
@@ -926,6 +927,7 @@ void GLR_BuildLightMap (msurface_t *surf, qbyte *dest, qbyte *deluxdest, stmap *
 				{
 					scale = d_lightstylevalue[surf->styles[maps]];
 					surf->cached_light[maps] = scale;	// 8.8 fraction
+					surf->cached_colour[maps] = cl_lightstyle[surf->styles[maps]].colour;
 					for (i=0 ; i<size ; i++)
 						blocklights[i] += lightmap[i] * scale;
 					lightmap += size;	// skip to next lightmap

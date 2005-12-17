@@ -130,7 +130,6 @@ CLIENT_OBJS = $(CLIENT_ASM_OBJS) \
 	cl_cg.o \
 	clq3_parse.o	\
 	pr_csqc.o	\
-	qvm.o	\
 	ircclient.o	\
 	console.o	\
 	image.o	\
@@ -304,6 +303,7 @@ COMMON_OBJS = $(COMMON_ASM_OBJS) \
 	net_chan.o 		\
 	net_wins.o 		\
 	zone.o 		\
+	qvm.o	\
 	gl_q2bsp.o		\
 	glmod_doom.o 	\
 	q3common.o	\

@@ -80,18 +80,15 @@ void GLR_StainSurf (msurface_t *surf, float *parms)
 	int			i;
 	int			smax, tmax;
 	float amm;
+	int lim;
 	mtexinfo_t	*tex;
+	stmap *stainbase;
+
+	lim = 255 - (bound(0, r_stains.value, 1)*255);
 
 #define stain(x)							\
-											\
 	change = stainbase[(s)*3+x] + amm*parms[4+x];	\
-	stainbase[(s)*3+x] = bound(0, change, 255);
-
-
-
-
-
-	stmap *stainbase;
+	stainbase[(s)*3+x] = bound(lim, change, 255);
 
 	if (surf->lightmaptexturenum < 0)
 		return;
@@ -100,59 +97,57 @@ void GLR_StainSurf (msurface_t *surf, float *parms)
 	tmax = (surf->extents[1]>>4)+1;
 	tex = surf->texinfo;
 
-		stainbase = lightmap[surf->lightmaptexturenum]->stainmaps;
-		stainbase += (surf->light_t * LMBLOCK_WIDTH + surf->light_s) * 3;
+	stainbase = lightmap[surf->lightmaptexturenum]->stainmaps;
+	stainbase += (surf->light_t * LMBLOCK_WIDTH + surf->light_s) * 3;
 
+	rad = *parms;
+	dist = DotProduct ((parms+1), surf->plane->normal) - surf->plane->dist;
+	rad -= fabs(dist);
+	minlight = 0;
+	if (rad < minlight)	//not hit
+		return;
+	minlight = rad - minlight;
 
+	for (i=0 ; i<3 ; i++)
+	{
+		impact[i] = (parms+1)[i] - surf->plane->normal[i]*dist;
+	}
 
-		rad = *parms;
-		dist = DotProduct ((parms+1), surf->plane->normal) - surf->plane->dist;
-		rad -= fabs(dist);
-		minlight = 0;
-		if (rad < minlight)	//not hit
-			return;
-		minlight = rad - minlight;
+	local[0] = DotProduct (impact, tex->vecs[0]) + tex->vecs[0][3];
+	local[1] = DotProduct (impact, tex->vecs[1]) + tex->vecs[1][3];
 
-		for (i=0 ; i<3 ; i++)
+	local[0] -= surf->texturemins[0];
+	local[1] -= surf->texturemins[1];		
+	
+	for (t = 0 ; t<tmax ; t++)
+	{
+		td = local[1] - t*16;
+		if (td < 0)
+			td = -td;
+		for (s=0 ; s<smax ; s++)
 		{
-			impact[i] = (parms+1)[i] - surf->plane->normal[i]*dist;
-		}
-
-		local[0] = DotProduct (impact, tex->vecs[0]) + tex->vecs[0][3];
-		local[1] = DotProduct (impact, tex->vecs[1]) + tex->vecs[1][3];
-
-		local[0] -= surf->texturemins[0];
-		local[1] -= surf->texturemins[1];		
-		
-		for (t = 0 ; t<tmax ; t++)
-		{
-			td = local[1] - t*16;
-			if (td < 0)
-				td = -td;
-			for (s=0 ; s<smax ; s++)
+			sd = local[0] - s*16;
+			if (sd < 0)
+				sd = -sd;
+			if (sd > td)
+				dist = sd + (td>>1);
+			else
+				dist = td + (sd>>1);
+			if (dist < minlight)
 			{
-				sd = local[0] - s*16;
-				if (sd < 0)
-					sd = -sd;
-				if (sd > td)
-					dist = sd + (td>>1);
-				else
-					dist = td + (sd>>1);
-				if (dist < minlight)
-				{
-					amm = (rad - dist);
-					stain(0);
-					stain(1);
-					stain(2);
+				amm = (rad - dist);
+				stain(0);
+				stain(1);
+				stain(2);
 
-					surf->stained = true;
-				}
+				surf->stained = true;
 			}
-			stainbase += 3*LMBLOCK_WIDTH;
 		}
+		stainbase += 3*LMBLOCK_WIDTH;
+	}
 
-		if (surf->stained)
-			surf->cached_dlight=-1;
+	if (surf->stained)
+		surf->cached_dlight=-1;
 }
 
 //combination of R_AddDynamicLights and R_MarkLights
@@ -241,7 +236,7 @@ void GLR_AddStain(vec3_t org, float red, float green, float blue, float radius)
 	int i;
 
 	float parms[7];
-	if (!cl.worldmodel || !r_stains.value)
+	if (!cl.worldmodel || r_stains.value <= 0)
 		return;
 	parms[0] = radius;
 	parms[1] = org[0];
@@ -294,7 +289,7 @@ void GLR_LessenStains(void)
 
 	static float time;
 
-	if (!r_stains.value)
+	if (r_stains.value <= 0)
 		return;
 
 	time += host_frametime;
@@ -953,7 +948,7 @@ store:
 		blg = greenblklights;
 		blb = blueblklights;
 
-		if (!r_stains.value)
+		if (r_stains.value <= 0)
 			isstained = false;
 		else
 			isstained = surf->stained;
@@ -1112,7 +1107,7 @@ store:
 		blg = greenblklights;
 		blb = blueblklights;
 
-		if (!r_stains.value)
+		if (r_stains.value <= 0)
 			isstained = false;
 		else
 			isstained = surf->stained;
@@ -1306,7 +1301,7 @@ store:
 		blg = greenblklights;
 		blb = blueblklights;
 
-		if (!r_stains.value)
+		if (r_stains.value <= 0)
 			isstained = false;
 		else
 			isstained = surf->stained;
@@ -1465,7 +1460,7 @@ store:
 		blg = greenblklights;
 		blb = blueblklights;
 
-		if (!r_stains.value)
+		if (r_stains.value <= 0)
 			isstained = false;
 		else
 			isstained = surf->stained;

@@ -65,7 +65,7 @@ cvar_t	r_sirds = {"r_sirds", "0", NULL, CVAR_SEMICHEAT};//whack in a value of 2 
 
 cvar_t	r_loadlits = {"r_loadlit", "1"};
 
-cvar_t r_stains = {"r_stains", "1", NULL, CVAR_ARCHIVE};
+cvar_t r_stains = {"r_stains", "0.75", NULL, CVAR_ARCHIVE};
 cvar_t r_stainfadetime = {"r_stainfadetime", "1"};
 cvar_t r_stainfadeammount = {"r_stainfadeammount", "1"};
 

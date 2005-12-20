@@ -10,10 +10,10 @@ BASE_DIR=.
 
 
 ifeq ($(FTE_TARGET),) 	#user didn't specify prefered target
-	ifneq ($(shell gcc -v 2>&1 | grep mingw),)
+	ifneq ($(shell $(CC) -v 2>&1 | grep mingw),)
 		FTE_TARGET=win32
 	endif
-	ifneq ($(shell gcc -v 2>&1 | grep cygwin),)
+	ifneq ($(shell $(CC) -v 2>&1 | grep cygwin),)
 		FTE_TARGET=cygwin
 	endif
 	ifeq ($(FTE_TARGET),) 	#still not set

@@ -94,6 +94,10 @@ qboolean Con_IsActive (console_t *con)
 void Con_Destroy (console_t *con)
 {
 	console_t *prev;
+
+	if (con == &con_main)
+		return;
+
 	for (prev = &con_main; prev->next; prev = prev->next)
 	{
 		if (prev->next == con)
@@ -104,6 +108,9 @@ void Con_Destroy (console_t *con)
 	}
 
 	BZ_Free(con);
+
+	if (con == con_current)
+		con = &con_main;
 }
 console_t *Con_FindConsole(char *name)
 {
@@ -127,10 +134,26 @@ console_t *Con_Create(char *name)
 
 	return con;
 }
-void Con_SetVisible (console_t *con)
+void Con_SetActive (console_t *con)
 {
 	con_current = con;
 }
+qboolean Con_NameForNum(int num, char *buffer, int buffersize)
+{
+	console_t *con;
+	for (con = &con_main; con; con = con->next, num--)
+	{
+		if (num <= 0)
+		{
+			Q_strncpyz(buffer, con->name, buffersize);
+			return true;
+		}
+	}
+	if (buffersize>0)
+		*buffer = '\0';
+	return false;
+}
+
 void Con_PrintCon (console_t *con, char *txt);
 
 
@@ -570,6 +593,8 @@ void Con_PrintCon (console_t *con, char *txt)
 
 	int maskstack[4];
 	int maskstackdepth = 0;
+
+	con->unseentext = true;
 
 	if (txt[0] == 1 || txt[0] == 2)
 	{
@@ -1203,6 +1228,8 @@ void Con_DrawConsole (int lines, qboolean noback)
 // draw the background
 	if (!noback)
 		Draw_ConsoleBackground (lines);
+
+	con_current->unseentext = false;
 
 // draw the text
 	con_current->vislines = lines;

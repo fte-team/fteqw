@@ -112,12 +112,12 @@ int VARGS Plug_Draw_LoadImage(void *offset, unsigned int mask, const long *arg)
 
 	if (qrenderer)
 	{
-		if (fromwad)
+		if (fromwad && Draw_SafePicFromWad)
 			pic = Draw_SafePicFromWad(name);
 		else
 		{
 #ifdef RGLQUAKE	//GL saves images persistantly (so don't bother with cachepic stuff)
-			if (qrenderer == QR_OPENGL)
+			if (qrenderer == QR_OPENGL && Draw_SafeCachePic)
 				pic = Draw_SafeCachePic(name);
 			else
 #endif
@@ -328,7 +328,7 @@ int VARGS Plug_Con_SubPrint(void *offset, unsigned int mask, const long *arg)
 	if (!con)
 	{
 		con = Con_Create(name);
-		Con_SetVisible(con);
+		Con_SetActive(con);
 
 		if (currentplug->conexecutecommand)
 		{
@@ -353,7 +353,48 @@ int VARGS Plug_Con_RenameSub(void *offset, unsigned int mask, const long *arg)
 
 	return 1;
 }
+int VARGS Plug_Con_IsActive(void *offset, unsigned int mask, const long *arg)
+{
+	char *name = VM_POINTER(arg[0]);
+	console_t *con;
+	con = Con_FindConsole(name);
+	if (!con)
+		return false;
 
+	return Con_IsActive(con);
+}
+int VARGS Plug_Con_SetActive(void *offset, unsigned int mask, const long *arg)
+{
+	char *name = VM_POINTER(arg[0]);
+	console_t *con;
+	con = Con_FindConsole(name);
+	if (!con)
+		con = Con_Create(name);
+
+	Con_SetActive(con);
+	return true;
+}
+int VARGS Plug_Con_Destroy(void *offset, unsigned int mask, const long *arg)
+{
+	char *name = VM_POINTER(arg[0]);
+	console_t *con;
+	con = Con_FindConsole(name);
+	if (!con)
+		return false;
+
+	Con_Destroy(con);
+	return true;
+}
+int VARGS Plug_Con_NameForNum(void *offset, unsigned int mask, const long *arg)
+{
+	char num = VM_LONG(arg[0]);
+	char *buffer = VM_POINTER(arg[1]);
+	int buffersize = VM_LONG(arg[2]);
+	if (VM_OOB(arg[1], arg[2]) || buffersize < 1)
+		return false;
+
+	return Con_NameForNum(num, buffer, buffersize);
+}
 
 
 
@@ -374,6 +415,10 @@ void Plug_Client_Init(void)
 
 	Plug_RegisterBuiltin("Con_SubPrint",			Plug_Con_SubPrint, 0);
 	Plug_RegisterBuiltin("Con_RenameSub",			Plug_Con_RenameSub, 0);
+	Plug_RegisterBuiltin("Con_IsActive",			Plug_Con_IsActive, 0);
+	Plug_RegisterBuiltin("Con_SetActive",			Plug_Con_SetActive, 0);
+	Plug_RegisterBuiltin("Con_Destroy",				Plug_Con_Destroy, 0);
+	Plug_RegisterBuiltin("Con_NameForNum",			Plug_Con_NameForNum, 0);
 
 	Plug_RegisterBuiltin("LocalSound",				Plug_LocalSound, 0);
 	Plug_RegisterBuiltin("SCR_CenterPrint",			Plug_SCR_CenterPrint, 0);

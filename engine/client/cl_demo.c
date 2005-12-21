@@ -181,7 +181,8 @@ void CL_ProgressDemoTime(void)
 #define realtime demtime
 		return;
 	}
-	if (cl_demospeed.value>0)
+
+	if (cl_demospeed.value >= 0)
 		realtime += host_frametime*cl_demospeed.value;
 	else
 		realtime += host_frametime;

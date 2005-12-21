@@ -71,7 +71,7 @@ cvar_t	cl_predict_players2 = {"cl_predict_players2", "1"};
 cvar_t	cl_solid_players = {"cl_solid_players", "1"};
 cvar_t	cl_noblink = {"cl_noblink", "0"};
 
-cvar_t cl_demospeed = {"cl_demospeed", "0"};
+cvar_t cl_demospeed = {"cl_demospeed", "1"};
 
 
 cvar_t	cl_indepphysics = {"cl_indepphysics", "0"};

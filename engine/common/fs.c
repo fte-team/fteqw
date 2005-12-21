@@ -966,8 +966,8 @@ vfsfile_t *FSZIP_OpenVFS(void *handle, flocation_t *loc, char *mode)
 	{
 		vfsz->startpos = rawofs;
 		VFS_SEEK(zip->raw, vfsz->startpos);
+		vfsz->parent->currentfile = (vfsfile_t*)vfsz;
 	}
-	vfsz->parent->currentfile = (vfsfile_t*)vfsz;
 
 	zip->references++;
 	return (vfsfile_t*)vfsz;

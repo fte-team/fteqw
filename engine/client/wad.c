@@ -307,7 +307,7 @@ void W_LoadTextureWadFile (char *filename, int complain)
 	if (numlumps < 1 || numlumps > TEXWAD_MAXIMAGES)
 	{Con_Printf ("W_LoadTextureWadFile: invalid number of lumps (%i)\n", numlumps);return;}
 	infotableofs = LittleLong(header.infotableofs);
-	if (VFS_SEEK(file, infotableofs))
+	if (!VFS_SEEK(file, infotableofs))
 	{Con_Printf ("W_LoadTextureWadFile: unable to seek to lump table");return;}
 	if (!((lumps = Hunk_TempAlloc(sizeof(lumpinfo_t)*numlumps))))
 	{Con_Printf ("W_LoadTextureWadFile: unable to allocate temporary memory for lump table");return;}
@@ -437,7 +437,7 @@ qbyte *W_GetTexture(char *name, int *width, int *height, qboolean *usesalpha)//r
 		if (!strcmp(texname, texwadlump[i].name)) // found it
 		{
 			file = texwadlump[i].file;
-			if (VFS_SEEK(file, texwadlump[i].position))
+			if (!VFS_SEEK(file, texwadlump[i].position))
 			{Con_Printf("W_GetTexture: corrupt WAD3 file");return NULL;}
 
 			tex = BZ_Malloc(texwadlump[i].size);	//temp buffer for disk info (was hunk_tempalloc, but that wiped loading maps and the like

@@ -9615,7 +9615,7 @@ void PR_ResetBuiltins(progstype_t type)	//fix all nulls to PF_FIXME and add any 
 			PR_EnableEBFSBuiltin("forcedemoframe",	103)!= 103)
 			Con_Printf("Failed to register all MVDSV builtins\n");
 		else
-			Con_Printf("Be aware that MVDSV does not follow standards. Please encourage your mod developers to not require pr_imitatemvdsv to be set.\n");
+			Con_Printf("Be aware that MVDSV does not follow standards. Please encourage mod developers to not require pr_imitatemvdsv to be set.\n");
 	}
 }
 

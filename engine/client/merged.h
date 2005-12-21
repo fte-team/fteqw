@@ -14,7 +14,6 @@ extern r_qrenderer_t qrenderer;
 extern char *q_renderername;
 
 
-extern mpic_t	*(*Draw_PicFromWad)					(char *name);
 extern mpic_t	*(*Draw_SafePicFromWad)				(char *name);
 extern mpic_t	*(*Draw_CachePic)					(char *path);
 extern mpic_t	*(*Draw_SafeCachePic)				(char *path);
@@ -121,7 +120,6 @@ typedef struct {
 	char *name[4];
 	r_qrenderer_t rtype;
 
-	mpic_t	*(*Draw_PicFromWad)			(char *name);
 	mpic_t	*(*Draw_SafePicFromWad)			(char *name);
 	mpic_t	*(*Draw_CachePic)			(char *path);
 	mpic_t	*(*Draw_SafeCachePic)		(char *path);

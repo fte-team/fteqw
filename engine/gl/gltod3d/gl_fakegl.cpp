@@ -4078,7 +4078,6 @@ rendererinfo_t d3drendererinfo = {
 		QR_OPENGL,
 
 
-		GLDraw_PicFromWad,
 		GLDraw_SafePicFromWad,
 		GLDraw_CachePic,
 		GLDraw_SafeCachePic,

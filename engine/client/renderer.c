@@ -546,7 +546,6 @@ void Renderer_Init(void)
 }
 
 
-mpic_t	*(*Draw_PicFromWad)			(char *name);
 mpic_t	*(*Draw_SafePicFromWad)		(char *name);
 mpic_t	*(*Draw_CachePic)			(char *path);
 mpic_t	*(*Draw_SafeCachePic)		(char *path);
@@ -641,7 +640,6 @@ rendererinfo_t dedicatedrendererinfo = {
 	},
 	QR_NONE,
 
-	NULL,	//Draw_PicFromWad;
 	NULL,	//Draw_PicFromWad;	//Not supported
 	NULL,	//Draw_CachePic;
 	NULL,	//Draw_SafeCachePic;
@@ -750,7 +748,6 @@ rendererinfo_t softwarerendererinfo = {
 	QR_SOFTWARE,
 
 	SWDraw_PicFromWad,
-	SWDraw_PicFromWad,	//Not supported
 	SWDraw_CachePic,
 	SWDraw_SafeCachePic,
 	SWDraw_Init,
@@ -843,7 +840,6 @@ rendererinfo_t openglrendererinfo = {
 	QR_OPENGL,
 
 
-	GLDraw_PicFromWad,
 	GLDraw_SafePicFromWad,
 	GLDraw_CachePic,
 	GLDraw_SafeCachePic,
@@ -1222,7 +1218,6 @@ void R_SetRenderer(int wanted)
 	q_renderername = ri->name[0];
 
 
-	Draw_PicFromWad			= ri->Draw_PicFromWad;
 	Draw_SafePicFromWad		= ri->Draw_SafePicFromWad;	//Not supported
 	Draw_CachePic			= ri->Draw_CachePic;
 	Draw_SafeCachePic		= ri->Draw_SafeCachePic;

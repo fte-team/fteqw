@@ -1985,7 +1985,7 @@ void SV_GibFilterInit(void)
 	file = COM_LoadStackFile("gibfiltr.cfg", buffer, sizeof(buffer));
 	if (!file)
 	{
-		Con_Printf("gibfiltr.cfg file was not found. Using defaults\n");
+		Con_DPrintf("gibfiltr.cfg file was not found. Using defaults\n");
 		SV_GibFilterAdd("progs/gib1.mdl", -1, -1);
 		SV_GibFilterAdd("progs/gib2.mdl", -1, -1);
 		SV_GibFilterAdd("progs/gib3.mdl", -1, -1);

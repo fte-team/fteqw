@@ -320,7 +320,12 @@ mpic_t *GLDraw_SafePicFromWad (char *name)
 			return &pic->pic;
 
 	if (glmenu_numcachepics == MAX_CACHED_PICS)
-		Sys_Error ("menu_numcachepics == MAX_CACHED_PICS");
+	{
+		Con_Printf ("menu_numcachepics == MAX_CACHED_PICS\n");
+		failedpic = name;
+		return NULL;
+	}
+
 	glmenu_numcachepics++;
 
 	strcpy(pic->name, name);
@@ -332,15 +337,6 @@ mpic_t *GLDraw_SafePicFromWad (char *name)
 	}
 
 	return &pic->pic;
-}
-
-mpic_t *GLDraw_PicFromWad (char *name)
-{
-	mpic_t	*pic = GLDraw_SafePicFromWad (name);
-	if (!pic)
-		Sys_Error ("GLDraw_PicFromWad: failed to load %s", name);
-
-	return pic;
 }
 
 mpic_t	*GLDraw_SafeCachePic (char *path)

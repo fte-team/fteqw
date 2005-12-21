@@ -149,7 +149,7 @@ qbyte GetPaletteNoFB(int red, int green, int blue)
 
 void MakeVideoPalette(void)
 {
-	FILE *f;
+	vfsfile_t *f;
 	int r, g, b;
 
 	// allocate memory
@@ -158,11 +158,10 @@ void MakeVideoPalette(void)
 	// pal555to8 = Hunk_AllocName(PAL555_SIZE, "RGB data");
 
 	// load in previously created table
-	COM_FOpenFile ("pal555.pal", &f);
-	if (f)
+	if ((f = FS_OpenVFS("pal555.pal", "rb", FS_BASE)))
 	{
-		fread(pal555to8, 1, PAL555_SIZE, f);	//cached
-		fclose(f);
+		VFS_READ(f, pal555to8, PAL555_SIZE);
+		VFS_CLOSE(f);
 		return;
 	}
 

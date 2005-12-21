@@ -246,7 +246,10 @@ mpic_t *SWDraw_ConcharsMalloc (void)
 	if (i == swmenu_numcachepics)
 	{
 		if (swmenu_numcachepics == MAX_CACHED_PICS)
-			Sys_Error ("menu_numcachepics == MAX_CACHED_PICS");
+		{
+			Con_Printf ("menu_numcachepics == MAX_CACHED_PICS\n");
+			return NULL;
+		}
 		swmenu_numcachepics++;
 		pic->cache.fake = true;
 		pic->cache.data = BZ_Malloc(sizeof(qpic_t) + 128*128);
@@ -290,7 +293,10 @@ mpic_t	*SWDraw_MallocPic (char *path)
 	if (i == swmenu_numcachepics)
 	{
 		if (swmenu_numcachepics == MAX_CACHED_PICS)
-			Sys_Error ("menu_numcachepics == MAX_CACHED_PICS");
+		{
+			Con_Printf ("menu_numcachepics == MAX_CACHED_PICS\n");
+			return NULL;
+		}
 		swmenu_numcachepics++;
 		pic->cache.fake = false;
 		pic->cache.data = NULL;

@@ -3640,7 +3640,7 @@ void SV_FilterImpulseInit(void)
 
 	s = COM_LoadStackFile("impfiltr.cfg", buffer, sizeof(buffer));
 	if (!s)
-		Con_Printf("impfiltr.cfg not found. Impulse filters are disabled\n");
+		Con_DPrintf("impfiltr.cfg not found. Impulse filters are disabled\n");
 
 	while(s)
 	{

@@ -162,6 +162,7 @@ void Con_Log (char *s)
 		{
 			x = VFS_GETLEN(fi);
 			VFS_CLOSE(fi);
+			x += i; // add string size to file size to never go over
 		}
 		else
 			x = 0;

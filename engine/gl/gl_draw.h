@@ -43,7 +43,6 @@ void GLDraw_FadeScreen (void);
 void GLDraw_String (int x, int y, const qbyte *str);
 void GLDraw_Alt_String (int x, int y, const qbyte *str);
 mpic_t *GLDraw_SafePicFromWad (char *name);
-mpic_t *GLDraw_PicFromWad (char *name);
 mpic_t *GLDraw_SafeCachePic (char *path);
 mpic_t *GLDraw_CachePic (char *path);
 void GLDraw_Crosshair(void);

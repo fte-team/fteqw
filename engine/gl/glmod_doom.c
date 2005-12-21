@@ -1435,7 +1435,10 @@ qboolean Mod_LoadDoomLevel(model_t *mod)
 	COM_StripExtension(mod->name, name);
 
 	if (!COM_LoadTempFile(va("%s", mod->name)))
-		Sys_Error("Wad map %s does not exist\n", mod->name);
+	{
+		Con_Printf("Wad map %s does not exist\n", mod->name);
+		return false;
+	}
 
 	gl_nodes	= (void *)COM_LoadMallocFile	(va("%s.gl_nodes",	name));
 	if (gl_nodes && com_filesize>0)

@@ -47,11 +47,19 @@ char *ReadGreyTargaFile (qbyte *data, int flen, tgaheader_t *tgahead, int asgrey
 
 	if (tgahead->version!=1 
 		&& tgahead->version!=3) 
-		Sys_Error ("LoadGrayTGA: Only type 1 and 3 greyscale targa images are understood.\n");
+	{
+		Con_Printf("LoadGrayTGA: Only type 1 and 3 greyscale targa images are understood.\n");
+		BZ_Free(pixels);
+		return NULL;
+	}
 
     if (tgahead->version==1 && tgahead->bpp != 8 && 
 		tgahead->cm_size != 24 && tgahead->cm_len != 256)
-		Sys_Error ("LoadGrayTGA: Strange palette type\n");
+	{
+		Con_Printf("LoadGrayTGA: Strange palette type\n");
+		BZ_Free(pixels);
+		return NULL;
+	}
 
 	columns = tgahead->width;
 	rows = tgahead->height;

@@ -2154,7 +2154,10 @@ void COM_CheckRegistered (void)
 	
 	for (i=0 ; i<128 ; i++)
 		if (pop[i] != (unsigned short)BigShort (check[i]))
-			Sys_Error ("Corrupted data file.");
+		{
+			Con_TPrintf (TL_SHAREWAREVERSION);
+			return;
+		}
 	
 	static_registered = true;
 	Con_TPrintf (TL_REGISTEREDVERSION);

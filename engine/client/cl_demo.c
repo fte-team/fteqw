@@ -457,7 +457,11 @@ readit:
 		net_message.cursize = LittleLong (net_message.cursize);
 	//Con_Printf("read: %ld bytes\n", net_message.cursize);
 		if (net_message.cursize > MAX_OVERALLMSGLEN)
-			Sys_Error ("Demo message > MAX_OVERALLMSGLEN");
+		{
+			Con_Printf ("Demo message > MAX_OVERALLMSGLEN\n");
+			CL_StopPlayback ();
+			return 0;
+		}
 		r = readdemobytes (net_message.data, net_message.cursize);
 		if (r != net_message.cursize)
 		{

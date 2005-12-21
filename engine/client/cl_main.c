@@ -56,7 +56,7 @@ cvar_t	cl_splitscreen = {"cl_splitscreen", "0"};
 
 cvar_t	lookspring = {"lookspring","0", NULL, CVAR_ARCHIVE};
 cvar_t	lookstrafe = {"lookstrafe","0", NULL, CVAR_ARCHIVE};
-cvar_t	sensitivity = {"sensitivity","3", NULL, CVAR_ARCHIVE};
+cvar_t	sensitivity = {"sensitivity","10", NULL, CVAR_ARCHIVE};
 
 cvar_t cl_staticsounds = {"cl_staticsounds", "1"};
 
@@ -1545,10 +1545,10 @@ void CL_SetInfo_f (void)
 	}
 }
 
-void CL_SaveInfo(FILE *f)
+void CL_SaveInfo(vfsfile_t *f)
 {
-	fwrite("\n", 1, 1, f);
-	fwrite("setinfo * \"\"\n", 13, 1, f);
+	VFS_WRITE(f, "\n", 1);
+	VFS_WRITE(f, "setinfo * \"\"\n", 13);
 	Info_WriteToFile(f, cls.userinfo, "setinfo", CVAR_USERINFO);
 }
 
@@ -2309,7 +2309,10 @@ void CL_ReadPackets (void)
 #endif
 		case CP_QUAKEWORLD:
 			if (cls.demoplayback == DPB_MVD)
+			{
 				MSG_BeginReading();
+				cls.netchan.last_received = realtime;
+			}
 			else if (!Netchan_Process(&cls.netchan))
 				continue;		// wasn't accepted for some reason
 			CL_ParseServerMessage ();
@@ -2629,6 +2632,7 @@ void CL_Init (void)
 	Cmd_AddCommand ("rerecord", CL_ReRecord_f);
 	Cmd_AddCommand ("stop", CL_Stop_f);
 	Cmd_AddCommand ("playdemo", CL_PlayDemo_f);
+	Cmd_AddCommand ("demo_jump", CL_DemoJump_f);
 	Cmd_AddCommand ("timedemo", CL_TimeDemo_f);
 
 	Cmd_AddCommand ("showpic", SCR_ShowPic_Script_f);
@@ -2775,7 +2779,7 @@ Writes key bindings and archived cvars to config.cfg
 */
 void Host_WriteConfiguration (void)
 {
-	FILE	*f;
+	vfsfile_t	*f;
 
 	if (host_initialized && cfg_save_name.string && *cfg_save_name.string)
 	{
@@ -2785,7 +2789,7 @@ void Host_WriteConfiguration (void)
 			return;
 		}
 
-		f = fopen (va("%s/%s.cfg",com_gamedir, cfg_save_name.string), "w");
+		f = FS_OpenVFS(va("%s.cfg",cfg_save_name.string), "w", FS_GAMEONLY);
 		if (!f)
 		{
 			Con_TPrintf (TLC_CONFIGCFG_WRITEFAILED);
@@ -2795,7 +2799,7 @@ void Host_WriteConfiguration (void)
 		Key_WriteBindings (f);
 		Cvar_WriteVariables (f, false);
 
-		fclose (f);
+		VFS_CLOSE (f);
 	}
 }
 
@@ -2868,8 +2872,8 @@ void Host_Frame (double time)
 	}
 #endif
 
-	if (cls.demoplayback && cl_demospeed.value>0)
-		realframetime *= cl_demospeed.value; // this probably screws up other timings
+//	if (cls.demoplayback && cl_demospeed.value>0)
+//		realframetime *= cl_demospeed.value; // this probably screws up other timings
 
 #ifndef CLIENTONLY
 	RSpeedRemark();
@@ -2901,7 +2905,6 @@ void Host_Frame (double time)
 		cl.gametimemark += time;
 
 
-
 #ifdef VOICECHAT
 	CLVC_Poll();
 #endif
@@ -2925,7 +2928,7 @@ void Host_Frame (double time)
 	else
 	{
 		realtime += spare/1000;	//don't use it all!
-		spare = CL_FilterTime((realtime - oldrealtime)*1000, cl_maxfps.value>0?cl_maxfps.value:cl_netfps.value);
+		spare = CL_FilterTime((realtime - oldrealtime)*1000, (cl_maxfps.value>0||cls.protocol!=CP_QUAKEWORLD)?cl_maxfps.value:cl_netfps.value);
 		if (!spare)
 			return;
 		if (spare < 0 || cls.state < ca_onserver)
@@ -2938,6 +2941,8 @@ void Host_Frame (double time)
 
 	host_frametime = (realtime - oldrealtime)*cl.gamespeed;
 	oldrealtime = realtime;
+
+	CL_ProgressDemoTime();
 
 
 #if defined(Q2CLIENT)

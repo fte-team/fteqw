@@ -547,7 +547,7 @@ void Master_AddMasterHTTP (char *address, int servertype, char *description)
 qboolean Master_LoadMasterList (char *filename, int defaulttype, int depth)
 {
 	extern char	*com_basedir;
-	FILE *f;
+	vfsfile_t *f;
 	char line[1024];
 	char file[1024];
 	char *name, *next;
@@ -557,11 +557,11 @@ qboolean Master_LoadMasterList (char *filename, int defaulttype, int depth)
 		return false;
 	depth--;
 
-	f = fopen(va("%s/%s", com_basedir, filename), "rb");
+	f = NULL;//FS_OpenVFS(filename, "rb", FS_BASE);
 	if (!f)
 		return false;
 
-	while(fgets(line, sizeof(line)-1, f))
+	while(VFS_GETS(f, line, sizeof(line)-1))
 	{
 		if (*line == '#')	//comment
 			continue;
@@ -663,7 +663,7 @@ qboolean Master_LoadMasterList (char *filename, int defaulttype, int depth)
 		else
 			Master_AddMaster(line, servertype, name);
 	}
-	fclose(f);
+	VFS_CLOSE(f);
 
 	return true;
 }
@@ -1184,7 +1184,7 @@ void MasterInfo_Begin(void)
 
 			Master_AddMaster("master.edome.net",			MT_MASTERQW, "edome master server.");
 			Master_AddMaster("qwmaster.barrysworld.com",	MT_MASTERQW, "barrysworld master server.");
-			Master_AddMaster("qwmaster.ocrana.de",			MT_MASTERQW, "Ocrana2 master server.");
+			Master_AddMaster("qwmaster.ocrana.de:27000",	MT_MASTERQW, "Ocrana2 master server.");
 			Master_AddMaster("213.221.174.165:27000",		MT_MASTERQW, "unknown1 master server.");
 			Master_AddMaster("195.74.0.8",					MT_MASTERQW, "unknown2 master server.");
 			Master_AddMaster("192.246.40.37",				MT_MASTERQW, "unknown3 master server.");

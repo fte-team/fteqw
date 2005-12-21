@@ -24,6 +24,14 @@
 
 #ifndef NOMEDIA
 
+
+static int VFS_GETC(vfsfile_t *fp)
+{
+	unsigned char c;
+	VFS_READ(fp, &c, 1);
+	return c;
+}
+
 //#include <stdio.h>
 //#include <stdlib.h>
 //#include <string.h>
@@ -34,31 +42,31 @@
 #define FAST
 
 /* -------------------------------------------------------------------------- */
-static unsigned int get_word(FILE *fp)
+static unsigned int get_word(vfsfile_t *fp)
 {
 unsigned int ret;
 
-	ret  = ((fgetc(fp)) & 0xff);
-	ret |= ((fgetc(fp)) & 0xff) << 8;
+	ret  = ((VFS_GETC(fp)) & 0xff);
+	ret |= ((VFS_GETC(fp)) & 0xff) << 8;
 	return(ret);
 }
 
 
 /* -------------------------------------------------------------------------- */
-static unsigned long get_long(FILE *fp)
+static unsigned long get_long(vfsfile_t *fp)
 {
 unsigned long ret;
 
-	ret  = ((fgetc(fp)) & 0xff);
-	ret |= ((fgetc(fp)) & 0xff) << 8;
-	ret |= ((fgetc(fp)) & 0xff) << 16;
-	ret |= ((fgetc(fp)) & 0xff) << 24;
+	ret  = ((VFS_GETC(fp)) & 0xff);
+	ret |= ((VFS_GETC(fp)) & 0xff) << 8;
+	ret |= ((VFS_GETC(fp)) & 0xff) << 16;
+	ret |= ((VFS_GETC(fp)) & 0xff) << 24;
 	return(ret);
 }
 
 
 /* -------------------------------------------------------------------------- */
-static int roq_parse_file(FILE *fp, roq_info *ri)
+static int roq_parse_file(vfsfile_t *fp, roq_info *ri)
 {
 unsigned int head1, head3, chunk_id, chunk_arg;
 long head2, chunk_size;
@@ -67,7 +75,7 @@ long fpos;
 int max_frame;
 #endif
 
-#define rfeof(f) (ftell(f)>= ri->maxpos)
+#define rfeof(f) (VFS_TELL(f)>= ri->maxpos)
 
 #ifndef FAST
 	ri->num_audio_bytes = ri->num_frames = max_frame = 0;
@@ -79,32 +87,34 @@ int max_frame;
 	head2 = get_long(fp);
 	head3 = get_word(fp);
 	if(head1 != 0x1084 && head2 != 0xffffffff && head3 != 0x1e)
-		{
+	{
 		Con_Printf("Not an RoQ file.\n");
 		return 1;
-		}
+	}
 
-	ri->roq_start = ftell(fp);
+	ri->roq_start = VFS_TELL(fp);
 	while(!rfeof(fp))
-		{
+	{
 #if DBUG > 20
 		Con_Printf("---------------------------------------------------------------------------\n");
 #endif
-		fpos = ftell(fp);
+		fpos = VFS_TELL(fp);
 		chunk_id = get_word(fp);
 		chunk_size = get_long(fp);
 		chunk_arg = get_word(fp);
 		if (chunk_size == -1)	//FIXME: THIS SHOULD NOT HAPPEN
 			break;
-		if(chunk_size > ri->buf_size) ri->buf_size = chunk_size;
-		if(rfeof(fp)) break;
+		if(chunk_size > ri->buf_size)
+			ri->buf_size = chunk_size;
+		if(rfeof(fp))
+			break;
 #if DBUG > 20
 		Con_Printf("%03d  0x%06lx: chunk: 0x%02x size: %ld  cells: 2x2=%d,4x4=%d\n", i,
 			fpos, chunk_id, chunk_size, v1>>8,v1&0xff);
 #endif
 
 		if(chunk_id == RoQ_INFO)		/* video info */
-			{
+		{
 			ri->width = get_word(fp);
 			ri->height = get_word(fp);
 			get_word(fp);
@@ -112,32 +122,35 @@ int max_frame;
 #ifdef FAST
 			return 0;	//we have all the data we need now. We always find a sound chunk first, or none at all.
 #endif
-			}
+		}
 		else
-			{
+		{
 #ifndef FAST
 			if(chunk_id == RoQ_QUAD_VQ)
-				{
+			{
 				ri->num_frames++;
 				if(ri->num_frames > max_frame)
-					{
+				{
 					max_frame += 5000;
-					if((ri->frame_offset = BZ_Realloc(ri->frame_offset, sizeof(long) * max_frame)) == NULL) return 1;
-					}
-				ri->frame_offset[ri->num_frames] = fpos;
+					if((ri->frame_offset = BZ_Realloc(ri->frame_offset, sizeof(long) * max_frame)) == NULL)
+						return 1;
 				}
+				ri->frame_offset[ri->num_frames] = fpos;
+			}
 #endif
 			if(chunk_id == RoQ_SOUND_MONO || chunk_id == RoQ_SOUND_STEREO)
-				{
-				if(chunk_id == RoQ_SOUND_MONO) ri->audio_channels = 1;
-				else ri->audio_channels = 2;
+			{
+				if(chunk_id == RoQ_SOUND_MONO)
+					ri->audio_channels = 1;
+				else
+					ri->audio_channels = 2;
 #ifndef FAST
 				ri->num_audio_bytes += chunk_size;
 #endif
-				}
-			fseek(fp, chunk_size, SEEK_CUR);
 			}
+			VFS_SEEK(fp, VFS_TELL(fp) + chunk_size);
 		}
+	}
 
 	return 0;
 }
@@ -211,34 +224,34 @@ unsigned char *pa, *pb;
 	pa = ri->y[0] + (y * ri->width) + x;
 	pb = ri->y[1] + (my * ri->width) + mx;
 	for(i = 0; i < 4; i++)
-		{
+	{
 		pa[0] = pb[0];
 		pa[1] = pb[1];
 		pa[2] = pb[2];
 		pa[3] = pb[3];
 		pa += ri->width;
 		pb += ri->width;
-		}
+	}
 
 	pa = ri->u[0] + (y/2) * (ri->width/2) + x/2;
 	pb = ri->u[1] + (my/2) * (ri->width/2) + (mx + 1)/2;
 	for(i = 0; i < 2; i++)
-		{
+	{
 		pa[0] = pb[0];
 		pa[1] = pb[1];
 		pa += ri->width/2;
 		pb += ri->width/2;
-		}
+	}
 
 	pa = ri->v[0] + (y/2) * (ri->width/2) + x/2;
 	pb = ri->v[1] + (my/2) * (ri->width/2) + (mx + 1)/2;
 	for(i = 0; i < 2; i++)
-		{
+	{
 		pa[0] = pb[0];
 		pa[1] = pb[1];
 		pa += ri->width/2;
 		pb += ri->width/2;
-		}
+	}
 }
 
 
@@ -254,7 +267,7 @@ unsigned char *pa, *pb;
 	pa = ri->y[0] + (y * ri->width) + x;
 	pb = ri->y[1] + (my * ri->width) + mx;
 	for(i = 0; i < 8; i++)
-		{
+	{
 		pa[0] = pb[0];
 		pa[1] = pb[1];
 		pa[2] = pb[2];
@@ -265,86 +278,88 @@ unsigned char *pa, *pb;
 		pa[7] = pb[7];
 		pa += ri->width;
 		pb += ri->width;
-		}
+	}
 
 	pa = ri->u[0] + (y/2) * (ri->width/2) + x/2;
 	pb = ri->u[1] + (my/2) * (ri->width/2) + (mx + 1)/2;
 	for(i = 0; i < 4; i++)
-		{
+	{
 		pa[0] = pb[0];
 		pa[1] = pb[1];
 		pa[2] = pb[2];
 		pa[3] = pb[3];
 		pa += ri->width/2;
 		pb += ri->width/2;
-		}
+	}
 
 	pa = ri->v[0] + (y/2) * (ri->width/2) + x/2;
 	pb = ri->v[1] + (my/2) * (ri->width/2) + (mx + 1)/2;
 	for(i = 0; i < 4; i++)
-		{
+	{
 		pa[0] = pb[0];
 		pa[1] = pb[1];
 		pa[2] = pb[2];
 		pa[3] = pb[3];
 		pa += ri->width/2;
 		pb += ri->width/2;
-		}
+	}
 }
 
 
 /* -------------------------------------------------------------------------- */
 roq_info *roq_open(char *fname)
 {
-FILE *fp;
+vfsfile_t *fp;
 roq_info *ri;
 int i;
 
-	if (COM_FOpenFile(fname, &fp)==-1)
-//	if((fp = fopen(fname, "rb")) == NULL)
-		{
-		
+//	if (COM_FOpenFile(fname, &fp)==-1)
+	if((fp = FS_OpenVFS(fname, "rb", FS_GAME)) == NULL)
+	{
 		return NULL;
-		}
+	}
 
 	if((ri = BZF_Malloc(sizeof(roq_info))) == NULL)
-		{
+	{
 		Con_Printf("Error allocating memory.\n");
 		return NULL;
-		}
+	}
 
 	memset(ri, 0, sizeof(roq_info));
 
-	ri->maxpos = ftell(fp)+com_filesize;//no adds/subracts for fileoffset here
+	com_filesize = VFS_GETLEN(fp);
+
+	ri->maxpos = VFS_TELL(fp)+com_filesize;//no adds/subracts for fileoffset here
 
 	ri->fp = fp;
-	if(roq_parse_file(fp, ri)) return NULL;
+	if(roq_parse_file(fp, ri))
+		return NULL;
 #ifndef FAST
 	ri->stream_length = (ri->num_frames * 1000)/30;
 #endif
 	for(i = 0; i < 128; i++)
-		{
+	{
 		ri->snd_sqr_arr[i] = i * i;
 		ri->snd_sqr_arr[i + 128] = -(i * i);
-		}
+	}
 
 	for(i = 0; i < 2; i++)
-		{
+	{
 		if((ri->y[i] = BZF_Malloc(ri->width * ri->height)) == NULL ||
 			(ri->u[i] = BZF_Malloc((ri->width * ri->height)/4)) == NULL ||
 			(ri->v[i] = BZF_Malloc((ri->width * ri->height)/4)) == NULL)
-			{
+		{
 			Con_Printf("Memory allocation error.\n");
 			return NULL;
-			}
 		}
+	}
 
 	ri->buf_size *= 2;
 	if((ri->buf = BZF_Malloc(ri->buf_size)) == NULL)
-		{
+	{
 		Con_Printf("Memory allocation error.\n");
 		return NULL;
-		}
+	}
 	ri->audio_buf_size = 0;
 	ri->audio = NULL;
 
@@ -360,15 +375,20 @@ void roq_close(roq_info *ri)
 {
 int i;
 
-	if(ri == NULL) return;
-	fclose(ri->fp);
+	if(ri == NULL)
+		return;
+	VFS_CLOSE(ri->fp);
 	for(i = 0; i < 2; i++)
-		{
-		if(ri->y[i] != NULL) BZ_Free(ri->y[i]);
-		if(ri->u[i] != NULL) BZ_Free(ri->u[i]);
-		if(ri->v[i] != NULL) BZ_Free(ri->v[i]);
-		}
-	if(ri->buf != NULL) BZ_Free(ri->buf);
+	{
+		if(ri->y[i] != NULL)
+			BZ_Free(ri->y[i]);
+		if(ri->u[i] != NULL)
+			BZ_Free(ri->u[i]);
+		if(ri->v[i] != NULL)
+			BZ_Free(ri->v[i]);
+	}
+	if(ri->buf != NULL)
+		BZ_Free(ri->buf);
 	BZ_Free(ri);
 }
 
@@ -376,7 +396,7 @@ int i;
 /* -------------------------------------------------------------------------- */
 int roq_read_frame(roq_info *ri)
 {
-FILE *fp = ri->fp;
+vfsfile_t *fp = ri->fp;
 unsigned int chunk_id = 0, chunk_arg = 0;
 unsigned long chunk_size = 0;
 int i, j, k, nv1, nv2, vqflg = 0, vqflg_pos = -1, vqid, bpos, xpos, ypos, xp, yp, x, y;
@@ -384,75 +404,72 @@ unsigned char *tp, *buf;
 int frame_stats[2][4] = {{0},{0}};
 roq_qcell *qcell;
 
-	fseek(fp, ri->vid_pos, SEEK_SET);
+	VFS_SEEK(fp, ri->vid_pos);
 
 	while(!rfeof(fp))
-		{
+	{
 		chunk_id = get_word(fp);
 		chunk_size = get_long(fp);
 		chunk_arg = get_word(fp);
 		if (chunk_size == 0xffffffff)
 			return -1;
-		if(rfeof(fp)) break;
-		if(chunk_id == RoQ_QUAD_VQ) break;
+		if(rfeof(fp))
+			break;
+		if(chunk_id == RoQ_QUAD_VQ)
+			break;
 		if(chunk_id == RoQ_QUAD_CODEBOOK)
-			{
-			if((nv1 = chunk_arg >> 8) == 0) nv1 = 256;
-			if((nv2 = chunk_arg & 0xff) == 0 && nv1 * 6 < chunk_size) nv2 = 256;
-			for(i = 0; i < nv1; i++)
-				{
-				ri->cells[i].y0 = fgetc(fp);
-				ri->cells[i].y1 = fgetc(fp);
-				ri->cells[i].y2 = fgetc(fp);
-				ri->cells[i].y3 = fgetc(fp);
-				ri->cells[i].u = fgetc(fp);
-				ri->cells[i].v = fgetc(fp);
-				}
+		{
+			if((nv1 = chunk_arg >> 8) == 0)
+				nv1 = 256;
+			if((nv2 = chunk_arg & 0xff) == 0 && nv1 * 6 < chunk_size)
+				nv2 = 256;
+			VFS_READ(fp, ri->cells, nv1 * sizeof(roq_cell));
 			for(i = 0; i < nv2; i++)
-				for(j = 0; j < 4; j++) ri->qcells[i].idx[j] = fgetc(fp);
-			}
-		else fseek(fp, chunk_size, SEEK_CUR);
+				for(j = 0; j < 4; j++) ri->qcells[i].idx[j] = VFS_GETC(fp);
 		}
+		else
+			VFS_SEEK(fp, VFS_TELL(fp)+chunk_size);
+	}
 
 	if(chunk_id != RoQ_QUAD_VQ)
-		{
-		ri->vid_pos = ftell(fp);
+	{
+		ri->vid_pos = VFS_TELL(fp);
 		return 0;
-		}
+	}
 
 	ri->frame_num++;
 	if(ri->buf_size < chunk_size)
-		{
+	{
 		ri->buf_size *= 2;
 		if (ri->buf_size < chunk_size)	//double wasn't enough
 			ri->buf_size = chunk_size;
 		BZ_Free(ri->buf);
 		if((ri->buf = BZ_Malloc(ri->buf_size)) == NULL)
-			{
+		{
 			Con_Printf("Memory allocation error.\n");
 			return -1;
-			}
 		}
-	fread(ri->buf, chunk_size, 1, fp);
+	}
+	VFS_READ(fp, ri->buf, chunk_size);
 	buf = ri->buf;
 
 	bpos = xpos = ypos = 0;
 	while(bpos < chunk_size)
-		{
+	{
 		for(yp = ypos; yp < ypos + 16; yp += 8)
 			for(xp = xpos; xp < xpos + 16; xp += 8)
-				{
+			{
 				if(vqflg_pos < 0)
-					{
+				{
 					vqflg = buf[bpos++]; vqflg |= (buf[bpos++] << 8);
 					vqflg_pos = 7;
-					}
+				}
 				vqid = (vqflg >> (vqflg_pos * 2)) & 0x3;
 				frame_stats[0][vqid]++;
 				vqflg_pos--;
 
 				switch(vqid)
-					{
+				{
 					case RoQ_ID_MOT: break;
 					case RoQ_ID_FCC:
 						apply_motion_8x8(ri, xp, yp, buf[bpos++], (char)(chunk_arg >> 8), (char)(chunk_arg & 0xff));
@@ -466,21 +483,21 @@ roq_qcell *qcell;
 						break;
 					case RoQ_ID_CCC:
 						for(k = 0; k < 4; k++)
-							{
+						{
 							x = xp; y = yp;
 							if(k & 0x01) x += 4;
 							if(k & 0x02) y += 4;
 
 							if(vqflg_pos < 0)
-								{
+							{
 								vqflg = buf[bpos++]; vqflg |= (buf[bpos++] << 8);
 								vqflg_pos = 7;
-								}
+							}
 							vqid = (vqflg >> (vqflg_pos * 2)) & 0x3;
 							frame_stats[1][vqid]++;
 							vqflg_pos--;
 							switch(vqid)
-								{
+							{
 								case RoQ_ID_MOT: break;
 								case RoQ_ID_FCC:
 									apply_motion_4x4(ri, x, y, buf[bpos++], (char)(chunk_arg >> 8), (char)(chunk_arg & 0xff));
@@ -499,22 +516,22 @@ roq_qcell *qcell;
 									apply_vector_2x2(ri, x+2, y+2, ri->cells + buf[bpos+3]);
 									bpos += 4;
 									break;
-								}
 							}
+						}
 						break;
 					default:
 						Con_Printf("Unknown vq code: %d\n", vqid);
-					}
 				}
+			}
 
 		xpos += 16;
 		if(xpos >= ri->width)
-			{
+		{
 			xpos -= ri->width;
 			ypos += 16;
-			}
-		if(ypos >= ri->height) break;
 		}
+		if(ypos >= ri->height) break;
+	}
 
 #if 0
 	frame_stats[0][3] = 0;
@@ -523,20 +540,28 @@ roq_qcell *qcell;
 	Con_Printf("for 04x04 CCC = %d, FCC = %d, MOT = %d, SLD = %d, PAT = 0\n", frame_stats[1][3], frame_stats[1][1], frame_stats[1][0], frame_stats[1][2]);
 #endif
 
-	ri->vid_pos = ftell(fp);
+	ri->vid_pos = VFS_TELL(fp);
 
 	if(ri->frame_num == 1)
-		{
+	{
 		memcpy(ri->y[1], ri->y[0], ri->width * ri->height);
 		memcpy(ri->u[1], ri->u[0], (ri->width * ri->height)/4);
 		memcpy(ri->v[1], ri->v[0], (ri->width * ri->height)/4);
-		}
+	}
 	else
-		{
-		tp = ri->y[0]; ri->y[0] = ri->y[1]; ri->y[1] = tp;
-		tp = ri->u[0]; ri->u[0] = ri->u[1]; ri->u[1] = tp;
-		tp = ri->v[0]; ri->v[0] = ri->v[1]; ri->v[1] = tp;
-		}
+	{
+		tp = ri->y[0];
+		ri->y[0] = ri->y[1];
+		ri->y[1] = tp;
+
+		tp = ri->u[0];
+		ri->u[0] = ri->u[1];
+		ri->u[1] = tp;
+
+		tp = ri->v[0];
+		ri->v[0] = ri->v[1];
+		ri->v[1] = tp;
+	}
 
 	return 1;
 }
@@ -545,16 +570,16 @@ roq_qcell *qcell;
 /* -------------------------------------------------------------------------- */
 int roq_read_audio(roq_info *ri)
 {
-FILE *fp = ri->fp;
+vfsfile_t *fp = ri->fp;
 unsigned int chunk_id = 0, chunk_arg = 0;
 unsigned long chunk_size = 0;
 int i, snd_left, snd_right;
 
-	fseek(fp, ri->aud_pos, SEEK_SET);
+	VFS_SEEK(fp, ri->aud_pos);
 	ri->audio_size = 0;
 
 	for(;;)
-		{
+	{
 		if(rfeof(fp))
 			return -1;
 		chunk_id = get_word(fp);
@@ -566,51 +591,51 @@ int i, snd_left, snd_right;
 			return -1;
 		if (chunk_id == RoQ_SOUND_MONO || chunk_id == RoQ_SOUND_STEREO)
 			break;
-		fseek(fp, chunk_size, SEEK_CUR);
-		}
+		VFS_SEEK(fp, VFS_TELL(fp)+chunk_size);
+	}
 
 	if(ri->audio_buf_size < chunk_size*2)
-		{
+	{
 		if(ri->audio != NULL) BZ_Free(ri->audio);
 		ri->audio=NULL;
 		ri->audio_buf_size = chunk_size * 3;
 		if (ri->audio_buf_size <= 0)
 			return -1;
 		if((ri->audio = BZ_Malloc(ri->audio_buf_size)) == NULL) return -1;
-		}
+	}
 	if (ri->audio_buf_size < 0)
 		return -1;
 
 	if(chunk_id == RoQ_SOUND_MONO)
-		{
+	{
 		ri->audio_size = chunk_size;
 		snd_left = chunk_arg;
 		for(i = 0; i < chunk_size; i++)
-			{
-			snd_left += (int)ri->snd_sqr_arr[(unsigned)fgetc(fp)];
+		{
+			snd_left += (int)ri->snd_sqr_arr[(unsigned)VFS_GETC(fp)];
 			*(short *)&ri->audio[i * 2] = snd_left;
-			}
-		ri->aud_pos = ftell(fp);
-		return chunk_size;
 		}
+		ri->aud_pos = VFS_TELL(fp);
+		return chunk_size;
+	}
 
 	if(chunk_id == RoQ_SOUND_STEREO)
-		{
+	{
 		ri->audio_size = chunk_size;
 		snd_left = (chunk_arg & 0xFF00);
 		snd_right = (chunk_arg & 0xFF) << 8;
 		for(i = 0; i < chunk_size; i += 2)
-			{
-			snd_left += (int)ri->snd_sqr_arr[(unsigned)fgetc(fp)];
-			snd_right += (int)ri->snd_sqr_arr[(unsigned)fgetc(fp)];
+		{
+			snd_left += (int)ri->snd_sqr_arr[(unsigned)VFS_GETC(fp)];
+			snd_right += (int)ri->snd_sqr_arr[(unsigned)VFS_GETC(fp)];
 			*(short *)&ri->audio[i * 2] = snd_left;
 			*(short *)&ri->audio[i * 2 + 2] = snd_right;
-			}
-		ri->aud_pos = ftell(fp);
-		return chunk_size;
 		}
+		ri->aud_pos = VFS_TELL(fp);
+		return chunk_size;
+	}
 
-	ri->aud_pos = ftell(fp);
+	ri->aud_pos = VFS_TELL(fp);
 	return 0;
 }
 #undef rfeof

@@ -8,7 +8,7 @@ of the License, or (at your option) any later version.
 
 This program is distributed in the hope that it will be useful,
 but WITHOUT ANY WARRANTY; without even the implied warranty of
-MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
 
 See the GNU General Public License for more details.
 
@@ -109,16 +109,16 @@ typedef struct
 	double		starttime;
 	float	physicstime;	//nq clients do so much better with times sent with physics than real.
 	int framenum;
-	
-	int			lastcheck;			// used by PF_checkclient
-	double		lastchecktime;		// for monster ai 
 
-	qboolean	paused;				// are we paused?	
+	int			lastcheck;			// used by PF_checkclient
+	double		lastchecktime;		// for monster ai
+
+	qboolean	paused;				// are we paused?
 
 	//check player/eyes models for hacks
 	unsigned	model_player_checksum;
 	unsigned	eyes_player_checksum;
-	
+
 	char		name[64];			// file map name
 	char		mapname[256];
 	char		modelname[MAX_QPATH];		// maps/<name>.bsp, for model_precache[0]
@@ -157,7 +157,7 @@ typedef struct
 	sizebuf_t	reliable_datagram;
 	qbyte		reliable_datagram_buf[MAX_QWMSGLEN];
 
-	// the multicast buffer is used to send a message to a set of clients	
+	// the multicast buffer is used to send a message to a set of clients
 	sizebuf_t	multicast;
 	qbyte		multicast_buf[MAX_NQMSGLEN];
 
@@ -188,7 +188,7 @@ typedef struct
 
 	// the signon buffer will be sent to each client as they connect
 	// includes the entity baselines, the static entities, etc
-	// large levels will have >MAX_DATAGRAM sized signons, so 
+	// large levels will have >MAX_DATAGRAM sized signons, so
 	// multiple signon messages are kept
 	sizebuf_t	signon;
 	int			num_signon_buffers;
@@ -210,7 +210,7 @@ typedef struct
 
 	qboolean mvdplayback;
 	float realtime;
-	FILE *demofile;	//also signifies playing the thing.
+	vfsfile_t *demofile;	//also signifies playing the thing.
 
 	int lasttype;
 	int lastto;
@@ -277,7 +277,7 @@ typedef enum
 	cs_free,		// can be reused for a new connection
 	cs_zombie,		// client has been disconnected, but don't reuse
 					// connection for a couple seconds
-	cs_connected,	// has been assigned to a client_t, but not in game yet	
+	cs_connected,	// has been assigned to a client_t, but not in game yet
 	cs_spawned		// client is fully in game
 } client_conn_state_t;
 
@@ -359,7 +359,7 @@ typedef struct client_s
 	float			entgravity;			// localized ent gravity
 
 	int viewent;	//fake the entity positioning.
-	
+
 	edict_t			*edict;				// EDICT_NUM(clientnum+1)
 #ifdef Q2SERVER
 	q2edict_t		*q2edict;				// EDICT_NUM(clientnum+1)
@@ -394,9 +394,9 @@ typedef struct client_s
 	float			spawninfotime;
 	float			nextservertimeupdate;
 
-// client known data for deltas	
+// client known data for deltas
 	int				old_frags;
-	
+
 	int				stats[MAX_CL_STATS];
 
 	union{	//save space
@@ -408,7 +408,7 @@ typedef struct client_s
 		q3client_frame_t	*q3frames;
 #endif
 	};
-	FILE			*download;			// file being downloaded
+	vfsfile_t		*download;			// file being downloaded
 	int				downloadsize;		// total bytes
 	int				downloadcount;		// bytes sent
 
@@ -442,11 +442,11 @@ typedef struct client_s
 
 	qboolean		upgradewarn;		// did we warn him?
 
-	FILE			*upload;
+	vfsfile_t		*upload;
 	char			uploadfn[MAX_QPATH];
 	netadr_t		snap_from;
 	qboolean		remote_snap;
- 
+
 //===== NETWORK ============
 	int				chokecount;
 	int				delta_sequence;		// -1 = no compression
@@ -497,7 +497,7 @@ typedef struct client_s
 	int trustlevel;
 
 	qboolean wasrecorded;	//this client shouldn't get any net messages sent to them
-	
+
 	vec3_t	specorigin;	//mvds need to use a different origin from the one QC has.
 	vec3_t	specvelocity;
 
@@ -694,7 +694,7 @@ typedef struct
 
 	client_t	clients[MAX_CLIENTS];
 	int			serverflags;		// episode completion information
-	
+
 	double		last_heartbeat;
 	int			heartbeat_sequence;
 	svstats_t	stats;
@@ -860,7 +860,7 @@ extern	char		localmodels[MAX_MODELS][5];	// inline model names for precache
 extern	char		localinfo[MAX_LOCALINFO_STRING+1];
 
 extern	int			host_hunklevel;
-extern	FILE		*sv_fraglogfile;
+extern	vfsfile_t	*sv_fraglogfile;
 
 //===========================================================
 
@@ -902,7 +902,7 @@ void SV_InitOperatorCommands (void);
 void SV_SendServerinfo (client_t *client);
 void SV_ExtractFromUserinfo (client_t *cl);
 
-void SV_SaveInfos(FILE *f);
+void SV_SaveInfos(vfsfile_t *f);
 
 
 void Master_Heartbeat (void);
@@ -1053,7 +1053,7 @@ void ClientReliableWrite_SZ(client_t *cl, void *data, int len);
 #define RANK_CUFFED		4
 #define RANK_CRIPPLED	8	//ha ha... get speed cheaters with this!... :o)
 
-typedef struct {	//stats info	
+typedef struct {	//stats info
 	int kills;
 	int deaths;
 	float parm[NUM_SPAWN_PARMS];
@@ -1074,7 +1074,7 @@ typedef struct {	//name, identity and order.
 
 typedef struct {
 	rankheader_t h;
-	rankstats_t s;	
+	rankstats_t s;
 } rankinfo_t;
 
 int Rank_GetPlayerID(char *name, int pwd, qboolean allowcreate, qboolean requirepasswordtobeset);

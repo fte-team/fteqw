@@ -170,7 +170,7 @@ extern	qboolean	chat_team;
 
 void Key_Event (int key, qboolean down);
 void Key_Init (void);
-void Key_WriteBindings (FILE *f);
+void Key_WriteBindings (vfsfile_t *f);
 void Key_SetBinding (int keynum, int modifier, char *binding, int cmdlevel);
 void Key_ClearStates (void);
 

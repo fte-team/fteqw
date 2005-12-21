@@ -16,7 +16,6 @@ cvar_t		log_dosformat = {"log_dosformat", "0", NULL, CVAR_NOTFROMSERVER};
 // externals
 int COM_FileSize(char *path);
 extern char gamedirfile[];
-extern char *com_basedir;
 
 // table of readable characters, same as ezquake
 char readable[256] = 
@@ -150,19 +149,19 @@ void Con_Log (char *s)
 
 	*t = 0;
 
-	f = va("%s/%s/%s.log",com_basedir,d,f); // temp string in va()
+	f = va("%s/%s.log",d,f); // temp string in va()
 
 	// file rotation
 	if (log_rotate_size.value >= 4096 && log_rotate_files.value >= 1) 
 	{
 		int x;
-		FILE *fi;
+		vfsfile_t *fi;
 
 		// check file size, use x as temp
-		if ((fi = fopen(f, "rb")))
+		if ((fi = FS_OpenVFS(f, "rb", FS_BASE)))
 		{
-			x = COM_filelength(fi);
-			fclose(fi);
+			x = VFS_GETLEN(fi);
+			VFS_CLOSE(fi);
 		}
 		else
 			x = 0;
@@ -176,7 +175,7 @@ void Con_Log (char *s)
 		
 			// unlink file at the top of the chain
 			_snprintf(oldf, sizeof(oldf)-1, "%s.%i", f, i);
-			unlink(oldf);
+			FS_Remove(oldf, FS_BASE);
 
 			// rename files through chain
 			for (x = i-1; x > 0; x--)
@@ -185,12 +184,12 @@ void Con_Log (char *s)
 				_snprintf(oldf, sizeof(oldf)-1, "%s.%i", f, x);
 
 				// check if file exists, otherwise skip
-				if ((fi = fopen(oldf, "rb")))
-					fclose(fi);
+				if ((fi = FS_OpenVFS(f, "rb", FS_BASE)))
+					VFS_CLOSE(fi);
 				else
 					continue; // skip nonexistant files
 
-				if (rename(oldf, newf))
+				if (FS_Rename(oldf, newf, FS_BASE))
 				{
 					// rename failed, disable log and bug out
 					Cvar_ForceSet(&log_enable, "0");

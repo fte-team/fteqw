@@ -31,7 +31,7 @@ typedef struct
 	qboolean cinematicpalette_active;
 	qbyte cinematicpalette[768];
 
-	FILE *cinematic_file;
+	vfsfile_t *cinematic_file;
 	int cinematicframe;
 } cinematics_t;
 
@@ -61,7 +61,7 @@ void CIN_StopCinematic (void)
 	}
 	if (cin.cinematic_file)
 	{
-		fclose (cin.cinematic_file);
+		VFS_CLOSE (cin.cinematic_file);
 		cin.cinematic_file = NULL;
 	}
 	if (cin.hnodes1)
@@ -156,7 +156,7 @@ static void Huff1TableInit (void)
 		memset (cin.h_used,0,sizeof(cin.h_used));
 
 		// read a row of counts
-		fread (counts, 1, sizeof(counts), cin.cinematic_file);
+		VFS_READ (cin.cinematic_file, counts, sizeof(counts));
 		for (j=0 ; j<256 ; j++)
 			cin.h_count[j] = counts[j];
 
@@ -331,11 +331,11 @@ qbyte *CIN_ReadNextFrame (void)
 	int		start, end, count;
 
 	// read the next frame
-	r = fread (&command, 4, 1, cin.cinematic_file);
+	r = VFS_READ (cin.cinematic_file, &command, 4);
 	if (r == 0)		// we'll give it one more chance
-		r = fread (&command, 4, 1, cin.cinematic_file);
+		r = VFS_READ (cin.cinematic_file, &command, 4);
 
-	if (r != 1)
+	if (r != 4)
 		return NULL;
 	command = LittleLong(command);
 	if (command == 2)
@@ -343,23 +343,23 @@ qbyte *CIN_ReadNextFrame (void)
 
 	if (command == 1)
 	{	// read palette
-		fread (cin.cinematicpalette, 1, sizeof(cin.cinematicpalette), cin.cinematic_file);
+		VFS_READ (cin.cinematic_file, cin.cinematicpalette, sizeof(cin.cinematicpalette));
 		cin.cinematicpalette_active=0;	// dubious....  exposes an edge case
 	}
 
 	// decompress the next frame
-	fread (&size, 1, 4, cin.cinematic_file);
+	VFS_READ (cin.cinematic_file, &size, 4);
 	size = LittleLong(size);
 	if (size > sizeof(compressed) || size < 1)
 		Host_Error ("Bad compressed frame size");
-	fread (compressed, 1, size, cin.cinematic_file);
+	VFS_READ (cin.cinematic_file, compressed, size);
 
 	// read sound
 	start = cin.cinematicframe*cin.s_rate/14;
 	end = (cin.cinematicframe+1)*cin.s_rate/14;
 	count = end - start;
 
-	fread (samples, 1, count*cin.s_width*cin.s_channels, cin.cinematic_file);
+	VFS_READ (cin.cinematic_file, samples, count*cin.s_width*cin.s_channels);
 
 	S_RawAudio (0, samples, cin.s_rate, count, cin.s_channels, cin.s_width);
 
@@ -485,11 +485,11 @@ qboolean CIN_PlayCinematic (char *arg)
 
 	cin.cinematicframe = 0;
 
-	COM_FOpenFile (arg, &cin.cinematic_file);
+	cin.cinematic_file = FS_OpenVFS(arg, "rb", FS_GAME);
 	if (!cin.cinematic_file)
 	{
 		_snprintf (name, sizeof(name), "video/%s", arg);
-		COM_FOpenFile (name, &cin.cinematic_file);
+		cin.cinematic_file = FS_OpenVFS(name, "rb", FS_GAME);
 	}
 	if (!cin.cinematic_file)
 	{
@@ -501,16 +501,16 @@ qboolean CIN_PlayCinematic (char *arg)
 
 	SCR_EndLoadingPlaque ();
 
-	fread (&width, 1, 4, cin.cinematic_file);
-	fread (&height, 1, 4, cin.cinematic_file);
+	VFS_READ (cin.cinematic_file, &width, 4);
+	VFS_READ (cin.cinematic_file, &height, 4);
 	cin.width = LittleLong(width);
 	cin.height = LittleLong(height);
 
-	fread (&cin.s_rate, 1, 4, cin.cinematic_file);
+	VFS_READ (cin.cinematic_file, &cin.s_rate, 4);
 	cin.s_rate = LittleLong(cin.s_rate);
-	fread (&cin.s_width, 1, 4, cin.cinematic_file);
+	VFS_READ (cin.cinematic_file, &cin.s_width, 4);
 	cin.s_width = LittleLong(cin.s_width);
-	fread (&cin.s_channels, 1, 4, cin.cinematic_file);
+	VFS_READ (cin.cinematic_file, &cin.s_channels, 4);
 	cin.s_channels = LittleLong(cin.s_channels);
 
 	Huff1TableInit ();

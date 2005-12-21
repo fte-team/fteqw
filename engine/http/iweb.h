@@ -94,25 +94,6 @@ typedef struct {
 	int len;
 } IWeb_FileGen_t;
 
-typedef struct {
-//one or the other
-	FILE *f;
-	int pos;
-
-	IWeb_FileGen_t *bufferdata;
-
-	int start;
-	int length;
-	int end;
-} IWEBFILE;
-IWEBFILE *IWebFOpenRead(char *name);					//fread(name, "rb");
-IWEBFILE *IWebFOpenWrite(char *name, int append);		//fopen(name, append?"ab":"wb");
-int IWebFWrite(void *data, int s1, int s2, IWEBFILE *);	//fwrite
-int IWebFRead(void *data, int s1, int s2, IWEBFILE *);	//fwrite
-void IWebFClose(IWEBFILE *);
-void IWebFSeek(IWEBFILE *file, long pos, int type);
-int IWebFTell(IWEBFILE *file);
-
 #ifndef WEBSVONLY
 void *IWebMalloc(int size);
 void *IWebRealloc(void *old, int size);
@@ -123,7 +104,7 @@ void IWebFree(void *mem);
 int IWebAuthorize(char *name, char *password);
 iwboolean IWebAllowUpLoad(char *fname, char *uname);
 
-IWEBFILE *IWebGenerateFile(char *name, char *content, int contentlength);
+vfsfile_t *IWebGenerateFile(char *name, char *content, int contentlength);
 
 
 

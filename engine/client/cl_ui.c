@@ -462,9 +462,9 @@ int VMQ3_GetFileList(char *path, char *ext, char *output, int buffersize)
 	vms.found=0;
 	if (*(char *)path == '$')
 	{
-		extern char	*com_basedir;
 		vms.skip=0;
-		Sys_EnumerateFiles(com_basedir, "*", VMEnumMods, &vms);
+		Sys_EnumerateFiles(com_quakedir, "*", VMEnumMods, &vms);
+		Sys_EnumerateFiles(com_homedir, "*", VMEnumMods, &vms);
 	}
 	else if (*(char *)ext == '.' || *(char *)ext == '/')
 		COM_EnumerateFiles(va("%s/*%s", path, ext), VMEnum, &vms);
@@ -707,7 +707,7 @@ void UI_RegisterFont(char *fontName, int pointSize, fontInfo_t *font)
 
 	_snprintf(name, sizeof(name), "fonts/fontImage_%i.dat",pointSize);
 
-	in.i = COM_LoadTempFile(name);
+	in.c = COM_LoadTempFile(name);
 	if (com_filesize == sizeof(fontInfo_t))
 	{
 		for(i=0; i<GLYPHS_PER_FONT; i++)

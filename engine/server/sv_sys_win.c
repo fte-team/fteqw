@@ -428,6 +428,7 @@ void ApplyColour(unsigned int chr)
 		return;
 	oldchar = chr;
 
+#if 1
 	if (hconsoleout)
 	{
 		int val;
@@ -462,7 +463,7 @@ void ApplyColour(unsigned int chr)
 
 		SetConsoleTextAttribute(hconsoleout, val);
 	}
-#if 0
+#else
 	//does ansi work?
 	//no?
 	//windows sucks.

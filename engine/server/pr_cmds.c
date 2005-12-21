@@ -3202,6 +3202,8 @@ void PF_cvar_set (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 	val = PR_GetStringOfs(prinst, OFS_PARM1);
 
 	var = Cvar_Get(var_name, val, 0, "QC variables");
+	if (!var)
+		return;
 	Cvar_Set (var, val);
 }
 
@@ -5097,9 +5099,10 @@ void PF_logfrag (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 	s = va("\\%s\\%s\\\n",svs.clients[e1-1].name, svs.clients[e2-1].name);
 
 	SZ_Print (&svs.log[svs.logsequence&1], s);
-	if (sv_fraglogfile) {
-		fprintf (sv_fraglogfile, s);
-		fflush (sv_fraglogfile);
+	if (sv_fraglogfile)
+	{
+		VFS_WRITE(sv_fraglogfile, s, strlen(s));
+		VFS_FLUSH (sv_fraglogfile);
 	}
 }
 
@@ -5270,9 +5273,10 @@ void PF_logstring (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 
 	s = PF_VarString(prinst, 0, pr_globals);
 
-	if (sv_fraglogfile) {
-		fprintf (sv_fraglogfile, s);
-		fflush (sv_fraglogfile);
+	if (sv_fraglogfile)
+	{
+		VFS_WRITE(sv_fraglogfile, s, strlen(s));
+		VFS_FLUSH(sv_fraglogfile);
 	}
 }
 #define PRSTR	0xa6ffb3d7

@@ -156,7 +156,6 @@ inline void PPL_EnableVertexArrays(void)
 	qglDisableClientState(GL_COLOR_ARRAY);
 	qglEnableClientState(GL_VERTEX_ARRAY);
 	qglVertexPointer(3, GL_FLOAT, sizeof(surfvertexarray_t), varray_v->xyz);
-	qglDisableClientState( GL_COLOR_ARRAY );
 }
 inline void PPL_FlushArrays(void)
 {

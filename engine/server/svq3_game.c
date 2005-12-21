@@ -29,9 +29,10 @@
 		#pragma comment (lib, "botlib.lib")
 		#define FTE_GetBotLibAPI GetBotLibAPI
 	#else
+		#include <windows.h>
 		botlib_export_t *FTE_GetBotLibAPI( int apiVersion, botlib_import_t *import )
 		{
-			botlib_export_t *(*QDECL pGetBotLibAPI)( int apiVersion, botlib_import_t *import );
+			botlib_export_t *(QDECL *pGetBotLibAPI)( int apiVersion, botlib_import_t *import );
 
 			static HINSTANCE hmod;
 			if (!hmod)

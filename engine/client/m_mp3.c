@@ -964,6 +964,7 @@ qboolean Media_PlayFilm(char *name)
 			media_filmtype = MFT_CIN;
 		return true;
 	}
+
 	if ((roqfilm = roq_open(name)))
 	{
 		Con_ClearNotify();
@@ -1318,6 +1319,17 @@ enum {
 	CT_SCREENSHOT
 } capturetype;
 char capturefilenameprefix[MAX_QPATH];
+
+qboolean Media_PausedDemo (void)
+{
+	//capturedemo doesn't record any frames when the console is visible
+	//but that's okay, as we don't load any demo frames either.
+	if (recordingdemo)
+		if (scr_con_current > 0 || !cl.validsequence)
+			return true;
+
+	return false;
+}
 void Media_RecordFrame (void)
 {
 	HRESULT hr;
@@ -1328,13 +1340,11 @@ void Media_RecordFrame (void)
 	if (!capturetype)
 		return;
 
-	if (recordingdemo)
-		if (scr_con_current > 0 || !cl.validsequence)
-		{
-			scr_con_current=0;
-			key_dest = key_game;
-			return;
-		}
+	if (Media_PausedDemo())
+		return;
+
+	if (cls.findtrack)
+		return;	//skip until we're tracking the right player.
 
 //overlay this on the screen, so it appears in the film
 	if (*capturemessage.string)
@@ -1660,6 +1670,7 @@ void Media_RecordDemo_f(void)
 void Media_CaptureDemoEnd(void){}
 void Media_RecordAudioFrame (short *sample_buffer, int samples){}
 void Media_RecordFrame (void) {}
+void Media_PausedDemo (void) {return false;}
 #endif
 void Media_Init(void)
 {
@@ -1708,6 +1719,7 @@ void Media_StopRecordFilm_f (void) {}
 void Media_RecordFilm_f (void){}
 void M_Menu_Media_f (void) {}
 char *Media_NextTrack(void) {return NULL;}
+qboolean Media_PausedDemo(void) {return false;}
 
 int filmtexture;
 media_filmtype_t media_filmtype;

@@ -22,6 +22,8 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 #include "quakedef.h"
 #include "cl_ignore.h"
 
+#include <ctype.h>
+
 #define MAX_TEAMIGNORELIST	4
 #define	FLOODLIST_SIZE		10
 

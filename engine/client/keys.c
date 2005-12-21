@@ -967,8 +967,9 @@ Key_WriteBindings
 Writes lines containing "bind key value"
 ============
 */
-void Key_WriteBindings (FILE *f)
+void Key_WriteBindings (vfsfile_t *f)
 {
+	char *s;
 	int		i, m;
 	char *binding, *base;
 
@@ -997,21 +998,22 @@ void Key_WriteBindings (FILE *f)
 				if (bindcmdlevel[i][m] != bindcmdlevel[i][0])
 				{
 					if (i == ';')
-						fprintf (f, "bindlevel \"%s%s\" %i \"%s\"\n", prefix, Key_KeynumToString(i), bindcmdlevel[i][m], keybindings[i][m]);
+						s = va("bindlevel \"%s%s\" %i \"%s\"\n", prefix, Key_KeynumToString(i), bindcmdlevel[i][m], keybindings[i][m]);
 					else if (i == '\"')
-						fprintf (f, "bindlevel \"%s%s\" %i \"%s\"\n", prefix, "\"\"", bindcmdlevel[i][m], keybindings[i][m]);
+						s = va("bindlevel \"%s%s\" %i \"%s\"\n", prefix, "\"\"", bindcmdlevel[i][m], keybindings[i][m]);
 					else
-						fprintf (f, "bindlevel %s%s %i \"%s\"\n", prefix, Key_KeynumToString(i), bindcmdlevel[i][m], keybindings[i][m]);
+						s = va("bindlevel %s%s %i \"%s\"\n", prefix, Key_KeynumToString(i), bindcmdlevel[i][m], keybindings[i][m]);
 				}
 				else
 				{
 					if (i == ';')
-						fprintf (f, "bind \"%s%s\" \"%s\"\n", prefix, Key_KeynumToString(i), keybindings[i][m]);
+						s = va("bind \"%s%s\" \"%s\"\n", prefix, Key_KeynumToString(i), keybindings[i][m]);
 					else if (i == '\"')
-						fprintf (f, "bind \"%s%s\" \"%s\"\n", prefix, "\"\"", keybindings[i][m]);
+						s = va("bind \"%s%s\" \"%s\"\n", prefix, "\"\"", keybindings[i][m]);
 					else
-						fprintf (f, "bind %s%s \"%s\"\n", prefix, Key_KeynumToString(i), keybindings[i][m]);
+						s = va("bind %s%s \"%s\"\n", prefix, Key_KeynumToString(i), keybindings[i][m]);
 				}
+				VFS_WRITE(f, s, strlen(s));
 			}
 		}
 	}

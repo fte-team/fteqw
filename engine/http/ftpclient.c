@@ -24,7 +24,7 @@ typedef struct FTPclientconn_s{
 	enum {ftp_control, ftp_listing, ftp_getting, ftp_putting} type;
 	int stage;
 
-	IWEBFILE *f;
+	vfsfile_t *f;
 
 	struct FTPclientconn_s *next;
 
@@ -402,7 +402,7 @@ iwboolean FTP_ClientConnThink (FTPclientconn_t *con)	//true to kill con
 							sprintf(tempbuff, "STOR %s\r\n", con->file);
 							con->stage = 6;
 							con->transfered = 0;
-							con->transfersize = con->f->length;
+							con->transfersize = VFS_GETLEN(con->f);
 						}
 						else
 						{

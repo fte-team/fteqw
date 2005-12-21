@@ -1556,6 +1556,7 @@ void SCR_ScreenShot_f (void)
 	char            pcxname[80];
 	char            checkname[MAX_OSPATH];
 	int                     i;
+	vfsfile_t *vfs;
 
 	if (!VID_GetRGBInfo)
 	{
@@ -1587,8 +1588,9 @@ void SCR_ScreenShot_f (void)
 			pcxname[18] = (i%100)/10 + '0';
 			pcxname[19] = (i%10) + '0';
 			sprintf (checkname, "%s/%s", com_gamedir, pcxname);
-			if (Sys_FileTime(checkname) == -1)
+			if (!(vfs = FS_OpenVFS(pcxname, "r", FS_GAMEONLY)))
 				break;  // file doesn't exist
+			VFS_CLOSE(vfs);
 		}
 		if (i==100000)
 		{

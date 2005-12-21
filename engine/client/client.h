@@ -352,7 +352,7 @@ typedef struct
 #endif
 	}	demoplayback;
 	qboolean	timedemo;
-	FILE		*demofile;
+	vfsfile_t	*demofile;
 	float		td_lastframe;		// to meter out one message a frame
 	int			td_startframe;		// host_framecount at start
 	float		td_starttime;		// realtime at second frame of timedemo
@@ -725,6 +725,7 @@ void CL_Stop_f (void);
 void CL_Record_f (void);
 void CL_ReRecord_f (void);
 void CL_PlayDemo_f (void);
+void CL_DemoJump_f(void);
 void CL_TimeDemo_f (void);
 
 //

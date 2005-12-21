@@ -213,9 +213,6 @@ qboolean S_RegisterSoundInputPlugin(S_LoadSound_t loadfnc)
 S_LoadSound
 ==============
 */
-#ifdef AVAIL_MP3
-sfxcache_t *S_LoadMP3Sound (sfx_t *s);
-#endif
 
 sfxcache_t *S_LoadSound (sfx_t *s)
 {
@@ -234,13 +231,6 @@ sfxcache_t *S_LoadSound (sfx_t *s)
 
 	s->decoder = NULL;
 
-
-#ifdef AVAIL_MP3
-	//mp3 support. The only bit actual code outside snd_mp3.c (excluding def for the function call)
-	sc = S_LoadMP3Sound(s);  // try and load a replacement mp3 instead.
-	if (sc)
-		return sc;
-#endif
 
 
 

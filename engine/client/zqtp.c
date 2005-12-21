@@ -2962,7 +2962,6 @@ qbool TP_CheckSoundTrigger (char *str)
 	int		i, j;
 	int		start, length;
 	char	soundname[MAX_OSPATH];
-	FILE	*f;
 
 	if (!*str)
 		return false;
@@ -3008,10 +3007,8 @@ qbool TP_CheckSoundTrigger (char *str)
 				COM_DefaultExtension (soundname, ".wav");
 
 				// make sure we have it on disk (FIXME)
-				COM_FOpenFile (va("sound/%s", soundname), &f);
-				if (!f)
+				if (!FS_FLocateFile (va("sound/%s", soundname), FSLFRT_IFFOUND, NULL))
 					return false;
-				fclose (f);
 
 				// now play the sound
 				S_LocalSound (soundname);

@@ -143,10 +143,10 @@ qboolean GLX_InitLibrary(char *driver)
 		gllibrary = dlopen(driver, RTLD_LAZY);
 	else
 		gllibrary = NULL;
-	if (!gllibrary)
-		gllibrary = dlopen("libGL.so", RTLD_LAZY);
 	if (!gllibrary)	//I hate this.
 		gllibrary = dlopen("libGL.so.1", RTLD_LAZY);
+	if (!gllibrary)
+		gllibrary = dlopen("libGL.so", RTLD_LAZY);
 	if (!gllibrary)
 		return false;
 

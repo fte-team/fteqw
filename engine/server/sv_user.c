@@ -1402,8 +1402,8 @@ void SV_NextChunkedDownload(int chunknum)
 	char buffer[1024];
 	if (host_client->datagram.cursize + CHUNKSIZE+5+50 > host_client->datagram.maxsize)
 		return;	//choked!
-	fseek (host_client->download, chunknum*CHUNKSIZE, SEEK_SET);
-	fread (buffer, 1, CHUNKSIZE, host_client->download);
+	VFS_SEEK (host_client->download, chunknum*CHUNKSIZE);
+	VFS_READ (host_client->download, buffer, CHUNKSIZE);
 
 	MSG_WriteByte(&host_client->datagram, svc_download);
 	MSG_WriteLong(&host_client->datagram, chunknum);
@@ -1446,7 +1446,7 @@ void SV_NextDownload_f (void)
 		*/
 	if (r > 768)
 		r = 768;
-	r = fread (buffer, 1, r, host_client->download);
+	r = VFS_READ (host_client->download, buffer, r);
 	ClientReliableWrite_Begin (host_client, ISQ2CLIENT(host_client)?svcq2_download:svc_download, 6+r);
 	ClientReliableWrite_Short (host_client, r);
 
@@ -1472,7 +1472,7 @@ void SV_NextDownload_f (void)
 	if (host_client->downloadcount != host_client->downloadsize)
 		return;
 
-	fclose (host_client->download);
+	VFS_CLOSE (host_client->download);
 	host_client->download = NULL;
 
 }
@@ -1521,7 +1521,7 @@ void SV_NextUpload (void)
 
 	if (!host_client->upload)
 	{
-		host_client->upload = fopen(host_client->uploadfn, "wb");
+		host_client->upload = FS_OpenVFS(host_client->uploadfn, "wb", FS_GAME);
 		if (!host_client->upload)
 		{
 			Sys_Printf("Can't create %s\n", host_client->uploadfn);
@@ -1535,10 +1535,8 @@ void SV_NextUpload (void)
 			OutofBandPrintf(host_client->snap_from, "Server receiving %s from %d...\n", host_client->uploadfn, host_client->userid);
 	}
 
-	fwrite (net_message.data + msg_readcount, 1, size, host_client->upload);
+	VFS_WRITE (host_client->upload, net_message.data + msg_readcount, size);
 	msg_readcount += size;
-
-Con_DPrintf ("UPLOAD: %d received\n", size);
 
 	if (percent != 100)
 	{
@@ -1547,7 +1545,7 @@ Con_DPrintf ("UPLOAD: %d received\n", size);
 	}
 	else
 	{
-		fclose (host_client->upload);
+		VFS_CLOSE (host_client->upload);
 		host_client->upload = NULL;
 
 		Con_Printf("%s upload completed.\n", host_client->uploadfn);
@@ -1582,6 +1580,7 @@ qboolean SV_AllowDownload (char *name)
 	extern	cvar_t	allow_download_pk3s;
 	extern	cvar_t	allow_download_wads;
 	extern	cvar_t	allow_download_root;
+	extern	cvar_t	allow_download_configs;
 
 	//allowed at all?
 	if (!allow_download.value)
@@ -1625,9 +1624,12 @@ qboolean SV_AllowDownload (char *name)
 		return !!allow_download_wads.value;
 
 	//pk3s.
-	if (!strcmp(".pk3", COM_FileExtension(name)))
+	if (!strcmp(".pk3", COM_FileExtension(name)) || !strcmp(".pak", COM_FileExtension(name)))
 		if (strnicmp(name, "pak", 3))	//don't give out q3 pk3 files.
 			return !!allow_download_pk3s.value;
+
+	if (!strcmp(".cfg", COM_FileExtension(name)))
+		return !!allow_download_configs.value;
 
 	//root of gamedir
 	if (!strchr(name, '/') && !allow_download_root.value)
@@ -1678,7 +1680,7 @@ void SV_BeginDownload_f(void)
 
 	if (host_client->download)
 	{
-		fclose (host_client->download);
+		VFS_CLOSE (host_client->download);
 		host_client->download = NULL;
 	}
 
@@ -1690,7 +1692,7 @@ void SV_BeginDownload_f(void)
 			*p = (char)tolower(*p);
 	}
 
-	host_client->downloadsize = COM_FOpenFile (name, &host_client->download);
+	host_client->download = FS_OpenVFS(name, "rb", FS_GAME);
 	host_client->downloadcount = 0;
 
 	if (!host_client->download
@@ -1700,7 +1702,7 @@ void SV_BeginDownload_f(void)
 	{
 		if (host_client->download)
 		{
-			fclose(host_client->download);
+			VFS_CLOSE(host_client->download);
 			host_client->download = NULL;
 		}
 
@@ -1722,6 +1724,8 @@ void SV_BeginDownload_f(void)
 		}
 		return;
 	}
+
+	host_client->downloadsize = VFS_GETLEN(host_client->download);
 
 #ifdef PEXT_CHUNKEDDOWNLOADS
 	if (host_client->fteprotocolextensions & PEXT_CHUNKEDDOWNLOADS)

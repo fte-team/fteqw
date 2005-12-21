@@ -1,5 +1,7 @@
 #include "quakedef.h"
 
+//#define com_gamedir com__gamedir
+
 #include <ctype.h>
 
 
@@ -13,8 +15,25 @@ int active_fs_cachetype;
 
 
 
+typedef struct {
+	void	(*PrintPath)(void *handle);
+	void	(*ClosePath)(void *handle);
+	void	(*BuildHash)(void *handle);
+	qboolean (*FindFile)(void *handle, flocation_t *loc, char *name, void *hashedresult);	//true if found (hashedresult can be NULL)
+		//note that if rawfile and offset are set, many Com_FileOpens will read the raw file
+		//otherwise ReadFile will be called instead.
+	void	(*ReadFile)(void *handle, flocation_t *loc, char *buffer);	//reads the entire file
+	int		(*EnumerateFiles)(void *handle, char *match, int (*func)(char *, int, void *), void *parm);
+
+	void	*(*OpenNew)(vfsfile_t *file, char *desc);	//returns a handle to a new pak/path
+
+	int		(*GeneratePureCRC) (void *handle, int seed, int usepure);
+
+	vfsfile_t *(*OpenVFS)(void *handle, flocation_t *loc, char *mode);
+} searchpathfuncs_t;
 
 
+vfsfile_t *FS_OpenVFSLoc(flocation_t *loc, char *mode);
 
 
 
@@ -43,10 +62,12 @@ typedef struct
 
 typedef struct pack_s
 {
-	char	filename[MAX_OSPATH];
-	FILE	*handle;
+	char	descname[MAX_OSPATH];
+	vfsfile_t	*handle;
+	unsigned int filepos;	//the pos the subfiles left it at (to optimize calls to vfs_seek)
 	int		numfiles;
 	packfile_t	*files;
+	int references;	//seeing as all vfiles from a pak file use the parent's vfsfile, we need to keep the parent open until all subfiles are closed.
 } pack_t;
 
 //
@@ -80,33 +101,16 @@ typedef struct
 
 #define	MAX_FILES_IN_PACK	2048
 
-char	com_gamedir[MAX_OSPATH];
-char	*com_basedir;
+char	com_gamedir[MAX_OSPATH];	//the os path where we write files
+//char	*com_basedir;				//obsolete
 
 char	com_quakedir[MAX_OSPATH];
 char	com_homedir[MAX_OSPATH];
 
+char	com_configdir[MAX_OSPATH];	//homedir/fte/configs
+
 int fs_hash_dups;
 int fs_hash_files;
-
-
-
-typedef struct {
-	void	(*PrintPath)(void *handle);
-	void	(*ClosePath)(void *handle);
-	void	(*BuildHash)(void *handle);
-	qboolean (*FindFile)(void *handle, flocation_t *loc, char *name, void *hashedresult);	//true if found (hashedresult can be NULL)
-		//note that if rawfile and offset are set, many Com_FileOpens will read the raw file
-		//otherwise ReadFile will be called instead.
-	void	(*ReadFile)(void *handle, flocation_t *loc, char *buffer);	//reads the entire file
-	int		(*EnumerateFiles)(void *handle, char *match, int (*func)(char *, int, void *), void *parm);
-
-	void	*(*OpenNew)(char *name);
-
-	int		(*GeneratePureCRC) (void *handle, int seed, int usepure);
-} searchpathfuncs_t;
-
-
 
 
 
@@ -118,9 +122,7 @@ int COM_FileOpenRead (char *path, FILE **hndl);
 
 
 
-
-
-
+#define ENFORCEFOPENMODE(mode) {if (strcmp(mode, "r") && strcmp(mode, "w")/* && strcmp(mode, "rw")*/)Sys_Error("fs mode %s is not permitted here\n");}
 
 
 
@@ -130,6 +132,92 @@ int COM_FileOpenRead (char *path, FILE **hndl);
 
 //======================================================================================================
 //STDIO files (OS)
+
+typedef struct {
+	vfsfile_t funcs;
+	FILE *handle;
+} vfsosfile_t;
+int VFSOS_ReadBytes (struct vfsfile_s *file, void *buffer, int bytestoread)
+{
+	vfsosfile_t *intfile = (vfsosfile_t*)file;
+	return fread(buffer, 1, bytestoread, intfile->handle);
+}
+int VFSOS_WriteBytes (struct vfsfile_s *file, void *buffer, int bytestoread)
+{
+	vfsosfile_t *intfile = (vfsosfile_t*)file;
+	return fwrite(buffer, 1, bytestoread, intfile->handle);
+}
+qboolean VFSOS_Seek (struct vfsfile_s *file, unsigned long pos)
+{
+	vfsosfile_t *intfile = (vfsosfile_t*)file;
+	return fseek(intfile->handle, pos, SEEK_SET) == 0;
+}
+unsigned long VFSOS_Tell (struct vfsfile_s *file)
+{
+	vfsosfile_t *intfile = (vfsosfile_t*)file;
+	return ftell(intfile->handle);
+}
+unsigned long VFSOS_GetSize (struct vfsfile_s *file)
+{
+	vfsosfile_t *intfile = (vfsosfile_t*)file;
+
+	unsigned int curpos;
+	unsigned int maxlen;
+	curpos = ftell(intfile->handle);
+	fseek(intfile->handle, 0, SEEK_END);
+	maxlen = ftell(intfile->handle);
+	fseek(intfile->handle, curpos, SEEK_SET);
+
+	return maxlen;
+}
+void VFSOS_Close(vfsfile_t *file)
+{
+	vfsosfile_t *intfile = (vfsosfile_t*)file;
+	fclose(intfile->handle);
+}
+vfsfile_t *VFSOS_Open(char *osname, char *mode)
+{
+	FILE *f;
+	vfsosfile_t *file;
+	qboolean read = !!strchr(mode, 'r');
+	qboolean write = !!strchr(mode, 'w');
+	qboolean text = !!strchr(mode, 't');
+	char newmode[3];
+	int modec = 0;
+
+	if (read)
+		newmode[modec++] = 'r';
+	if (write)
+		newmode[modec++] = 'w';
+	if (text)
+		newmode[modec++] = 't';
+	else
+		newmode[modec++] = 'b';
+	newmode[modec++] = '\0';
+
+	f = fopen(osname, newmode);
+	if (!f)
+		return NULL;
+
+	file = Z_Malloc(sizeof(vfsosfile_t));
+	file->funcs.ReadBytes = strchr(mode, 'r')?VFSOS_ReadBytes:NULL;
+	file->funcs.WriteBytes = strchr(mode, 'w')?VFSOS_WriteBytes:NULL;
+	file->funcs.Seek = VFSOS_Seek;
+	file->funcs.Tell = VFSOS_Tell;
+	file->funcs.GetLen = VFSOS_GetSize;
+	file->funcs.Close = VFSOS_Close;
+	file->handle = f;
+
+	return (vfsfile_t*)file;
+}
+
+vfsfile_t *FSOS_OpenVFS(void *handle, flocation_t *loc, char *mode)
+{
+	char diskname[MAX_OSPATH];
+	_snprintf(diskname, sizeof(diskname), "%s/%s", handle, loc->rawname);
+
+	return VFSOS_Open(diskname, mode);
+}
 
 void FSOS_PrintPath(void *handle)
 {
@@ -176,7 +264,7 @@ qboolean FSOS_FLocate(void *handle, flocation_t *loc, char *filename, void *hash
 
 
 	if (hashedresult && (void *)hashedresult != handle)
-		return -1;
+		return false;
 
 /*
 	if (!static_registered)
@@ -191,7 +279,7 @@ qboolean FSOS_FLocate(void *handle, flocation_t *loc, char *filename, void *hash
 
 	f = fopen(netpath, "rb");
 	if (!f)
-		return -1;
+		return false;
 
 	fseek(f, 0, SEEK_END);
 	len = ftell(f);
@@ -201,10 +289,10 @@ qboolean FSOS_FLocate(void *handle, flocation_t *loc, char *filename, void *hash
 		loc->len = len;
 		loc->offset = 0;
 		loc->index = 0;
-		Q_strncpyz(loc->rawname, netpath, sizeof(loc->rawname));
+		Q_strncpyz(loc->rawname, filename, sizeof(loc->rawname));
 	}
 
-	return len;
+	return true;
 }
 void FSOS_ReadFile(void *handle, flocation_t *loc, char *buffer)
 {
@@ -222,7 +310,10 @@ searchpathfuncs_t osfilefuncs = {
 	FSOS_BuildHash,
 	FSOS_FLocate,
 	FSOS_ReadFile,
-	Sys_EnumerateFiles
+	Sys_EnumerateFiles,
+	NULL,
+	NULL,
+	FSOS_OpenVFS
 };
 
 
@@ -233,12 +324,21 @@ void FSPAK_PrintPath(void *handle)
 {
 	pack_t *pak = handle;
 
-	Con_Printf("%s\n", pak->filename);
+	if (pak->references != 1)
+		Con_Printf("%s (%i)\n", pak->descname, pak->references-1);
+	else
+		Con_Printf("%s\n", pak->descname);
 }
 void FSPAK_ClosePath(void *handle)
 {
 	pack_t *pak = handle;
-	fclose (pak->handle);
+
+	pak->references--;
+	if (pak->references > 0)
+		return;	//not free yet
+
+
+	VFS_CLOSE (pak->handle);
 	if (pak->files)
 		Z_Free(pak->files);
 	Z_Free(pak);
@@ -270,7 +370,7 @@ qboolean FSPAK_FLocate(void *handle, flocation_t *loc, char *filename, void *has
 	if (pf)
 	{	//is this a pointer to a file in this pak?
 		if (pf < pak->files || pf > pak->files + pak->numfiles)
-			return -1;	//was found in a different path
+			return false;	//was found in a different path
 	}
 	else
 	{
@@ -290,13 +390,13 @@ qboolean FSPAK_FLocate(void *handle, flocation_t *loc, char *filename, void *has
 		if (loc)
 		{
 			loc->index = pf - pak->files;
-			strcpy(loc->rawname, pak->filename);
+			_snprintf(loc->rawname, sizeof(loc->rawname), "%s/%s", pak->descname, filename);
 			loc->offset = pf->filepos;
 			loc->len = pf->filelen;
 		}
-		return len;
+		return true;
 	}
-	return -1;
+	return false;
 }
 int FSPAK_EnumerateFiles (void *handle, char *match, int (*func)(char *, int, void *), void *parm)
 {
@@ -324,7 +424,7 @@ Loads the header and directory, adding the files at the beginning
 of the list so they override previous pack files.
 =================
 */
-void *FSPAK_LoadPackFile (char *packfile)
+void *FSPAK_LoadPackFile (vfsfile_t *file, char *desc)
 {
 	dpackheader_t	header;
 	int				i;
@@ -332,14 +432,16 @@ void *FSPAK_LoadPackFile (char *packfile)
 	packfile_t		*newfiles;
 	int				numpackfiles;
 	pack_t			*pack;
-	FILE			*packhandle;
+	vfsfile_t		*packhandle;
 	dpackfile_t		info;
+	int read;
 //	unsigned short		crc;
 
-	if (COM_FileOpenRead (packfile, &packhandle) == -1)
+	packhandle = file;
+	if (packhandle == NULL)
 		return NULL;
 
-	fread (&header, 1, sizeof(header), packhandle);
+	VFS_READ(packhandle, &header, sizeof(header));
 	if (header.id[0] != 'P' || header.id[1] != 'A'
 	|| header.id[2] != 'C' || header.id[3] != 'K')
 	{
@@ -359,7 +461,7 @@ void *FSPAK_LoadPackFile (char *packfile)
 
 	newfiles = (packfile_t*)Z_Malloc (numpackfiles * sizeof(packfile_t));
 
-	fseek (packhandle, header.dirofs, SEEK_SET);
+	VFS_SEEK(packhandle, header.dirofs);
 //	fread (&info, 1, header.dirlen, packhandle);
 
 // crc the directory to check for modifications
@@ -372,7 +474,8 @@ void *FSPAK_LoadPackFile (char *packfile)
 // parse the directory
 	for (i=0 ; i<numpackfiles ; i++)
 	{
-		fread (&info, 1, sizeof(info), packhandle);
+		*info.name = '\0';
+		read = VFS_READ(packhandle, &info, sizeof(info));
 /*
 		for (j=0 ; j<sizeof(info) ; j++)
 			CRC_ProcessByte(&crc, ((qbyte *)&info)[j]);
@@ -386,14 +489,97 @@ void *FSPAK_LoadPackFile (char *packfile)
 	if (crc != PAK0_CRC)
 		com_modified = true;
 */
-	strcpy (pack->filename, packfile);
+	strcpy (pack->descname, desc);
 	pack->handle = packhandle;
 	pack->numfiles = numpackfiles;
 	pack->files = newfiles;
+	pack->filepos = 0;
+	VFS_SEEK(packhandle, pack->filepos);
 
-	Con_TPrintf (TL_ADDEDPACKFILE, packfile, numpackfiles);
+	pack->references++;
+
+	Con_TPrintf (TL_ADDEDPACKFILE, desc, numpackfiles);
 	return pack;
 }
+
+
+typedef struct {
+	vfsfile_t funcs;
+	pack_t *parentpak;
+	unsigned long startpos;
+	unsigned long length;
+	unsigned long currentpos;
+} vfspack_t;
+int VFSPAK_ReadBytes (struct vfsfile_s *vfs, void *buffer, int bytestoread)
+{
+	vfspack_t *vfsp = (vfspack_t*)vfs;
+	int read;
+
+	if (vfsp->currentpos - vfsp->startpos + bytestoread > vfsp->length)
+		bytestoread = vfsp->length - (vfsp->currentpos - vfsp->startpos + bytestoread);
+	if (bytestoread <= 0)
+		return -1;
+
+	if (vfsp->parentpak->filepos != vfsp->currentpos)
+		VFS_SEEK(vfsp->parentpak->handle, vfsp->currentpos);
+	read = VFS_READ(vfsp->parentpak->handle, buffer, bytestoread);
+	vfsp->currentpos += read;
+	vfsp->parentpak->filepos = vfsp->currentpos;
+
+	return read;
+}
+int VFSPAK_WriteBytes (struct vfsfile_s *vfs, void *buffer, int bytestoread)
+{	//not supported.
+	Sys_Error("Cannot write to pak files\n");
+	return 0;
+}
+qboolean VFSPAK_Seek (struct vfsfile_s *vfs, unsigned long pos)
+{
+	vfspack_t *vfsp = (vfspack_t*)vfs;
+	if (pos < 0 || pos > vfsp->length)
+		return false;
+	vfsp->currentpos = pos + vfsp->startpos;
+
+	return true;
+}
+unsigned long VFSPAK_Tell (struct vfsfile_s *vfs)
+{
+	vfspack_t *vfsp = (vfspack_t*)vfs;
+	return vfsp->currentpos - vfsp->startpos;
+}
+unsigned long VFSPAK_GetLen (struct vfsfile_s *vfs)
+{
+	vfspack_t *vfsp = (vfspack_t*)vfs;
+	return vfsp->length;
+}
+void VFSPAK_Close(vfsfile_t *vfs)
+{
+	vfspack_t *vfsp = (vfspack_t*)vfs;
+	FSPAK_ClosePath(vfsp->parentpak);	//tell the parent that we don't need it open any more (reference counts)
+	Z_Free(vfsp);	//free ourselves.
+}
+vfsfile_t *FSPAK_OpenVFS(void *handle, flocation_t *loc, char *mode)
+{
+	pack_t *pack = (pack_t*)handle;
+	vfspack_t *vfs = Z_Malloc(sizeof(vfspack_t));
+
+	vfs->parentpak = ((pack_t*)handle);
+	vfs->parentpak->references++;
+
+	vfs->startpos = loc->offset;
+	vfs->length = loc->len;
+	vfs->currentpos = vfs->startpos;
+
+	vfs->funcs.Close = VFSPAK_Close;
+	vfs->funcs.GetLen = VFSPAK_GetLen;
+	vfs->funcs.ReadBytes = VFSPAK_ReadBytes;
+	vfs->funcs.Seek = VFSPAK_Seek;
+	vfs->funcs.Tell = VFSPAK_Tell;
+	vfs->funcs.WriteBytes = VFSPAK_WriteBytes;	//not supported
+
+	return (vfsfile_t *)vfs;
+}
+
 searchpathfuncs_t packfilefuncs = {
 	FSPAK_PrintPath,
 	FSPAK_ClosePath,
@@ -401,7 +587,9 @@ searchpathfuncs_t packfilefuncs = {
 	FSPAK_FLocate,
 	FSOS_ReadFile,
 	FSPAK_EnumerateFiles,
-	FSPAK_LoadPackFile
+	FSPAK_LoadPackFile,
+	NULL,
+	FSPAK_OpenVFS
 };
 
 //======================================================================================================
@@ -432,6 +620,12 @@ typedef struct zipfile_s
 #ifdef HASH_FILESYSTEM
 	hashtable_t hash;
 #endif
+
+	vfsfile_t *raw;
+	vfsfile_t *currentfile;	//our unzip.c can only handle one active file at any one time
+							//so we have to keep closing and switching.
+							//slow, but it works. most of the time we'll only have a single file open anyway.
+	int references;	//and a reference count
 } zipfile_t;
 
 
@@ -439,11 +633,18 @@ static void FSZIP_PrintPath(void *handle)
 {
 	zipfile_t *zip = handle;
 
-	Con_Printf("%s\n", zip->filename);
+	if (zip->references != 1)
+		Con_Printf("%s (%i)\n", zip->filename, zip->references-1);
+	else
+		Con_Printf("%s\n", zip->filename);
 }
 static void FSZIP_ClosePath(void *handle)
 {
 	zipfile_t *zip = handle;
+
+	if (--zip->references > 0)
+		return;	//not yet time
+
 	unzClose(zip->handle);
 	if (zip->files)
 		Z_Free(zip->files);
@@ -476,7 +677,7 @@ static qboolean FSZIP_FLocate(void *handle, flocation_t *loc, char *filename, vo
 	if (pf)
 	{	//is this a pointer to a file in this pak?
 		if (pf < zip->files || pf >= zip->files + zip->numfiles)
-			return -1;	//was found in a different path
+			return false;	//was found in a different path
 	}
 	else
 	{
@@ -502,15 +703,15 @@ static qboolean FSZIP_FLocate(void *handle, flocation_t *loc, char *filename, vo
 
 			unzLocateFileMy (zip->handle, loc->index, zip->files[loc->index].filepos);
 			loc->offset = unzGetCurrentFileUncompressedPos(zip->handle);
-			if (loc->offset<0)
-			{	//file not found, or is compressed.
-				*loc->rawname = '\0';
-				loc->offset=0;
-			}
+//			if (loc->offset<0)
+//			{	//file not found, or is compressed.
+//				*loc->rawname = '\0';
+//				loc->offset=0;
+//			}
 		}
-		return len;
+		return true;
 	}
-	return -1;
+	return false;
 }
 
 static void FSZIP_ReadFile(void *handle, flocation_t *loc, char *buffer)
@@ -559,7 +760,7 @@ Loads the header and directory, adding the files at the beginning
 of the list so they override previous pack files.
 =================
 */
-static void *FSZIP_LoadZipFile (char *filename)
+static void *FSZIP_LoadZipFile (vfsfile_t *packhandle, char *desc)
 {
 	int i;
 
@@ -569,17 +770,14 @@ static void *FSZIP_LoadZipFile (char *filename)
 	unz_global_info	globalinf;
 	unz_file_info	file_info;
 
-	FILE			*packhandle;
-	if (COM_FileOpenRead (filename, &packhandle) == -1)
-		return NULL;
-	fclose(packhandle);
 
 	zip = Z_Malloc(sizeof(zipfile_t));
-	Q_strncpyz(zip->filename, filename, sizeof(zip->filename));
-	zip->handle = unzOpen (filename);
+	Q_strncpyz(zip->filename, desc, sizeof(zip->filename));
+	zip->handle = unzOpen ((zip->raw = packhandle));
 	if (!zip->handle)
 	{
-		Con_TPrintf (TL_COULDNTOPENZIP, filename);
+		Z_Free(zip);
+		Con_TPrintf (TL_COULDNTOPENZIP, desc);
 		return NULL;
 	}
 
@@ -597,8 +795,10 @@ static void *FSZIP_LoadZipFile (char *filename)
 		unzGoToNextFile (zip->handle);
 	}
 
+	zip->references = 1;
+	zip->currentfile = NULL;
 
-	Con_TPrintf (TL_ADDEDZIPFILE, filename, zip->numfiles);
+	Con_TPrintf (TL_ADDEDZIPFILE, desc, zip->numfiles);
 	return zip;
 }
 
@@ -631,6 +831,148 @@ int FSZIP_GeneratePureCRC(void *handle, int seed, int crctype)
 		return Com_BlockChecksum(filecrcs+1, (numcrcs-1)*sizeof(int));
 }
 
+typedef struct {
+	vfsfile_t funcs;
+
+	//in case we're forced away.
+	zipfile_t *parent;
+	qboolean iscompressed;
+	int pos;
+	int length;	//try and optimise some things
+	int index;
+	int startpos;
+} vfszip_t;
+void VFSZIP_MakeActive(vfszip_t *vfsz)
+{
+	int i;
+	char buffer[8192];	//must be power of two
+
+	if ((vfszip_t*)vfsz->parent->currentfile == vfsz)
+		return;	//already us
+	if (vfsz->parent->currentfile)
+		unzCloseCurrentFile(vfsz->parent->handle);
+
+	unzLocateFileMy(vfsz->parent->handle, vfsz->index, vfsz->startpos);
+	unzOpenCurrentFile(vfsz->parent->handle);
+
+
+	if (vfsz->pos > 0)
+	{
+		Con_DPrintf("VFSZIP_MakeActive: Shockingly inefficient\n");
+
+		//now we need to seek up to where we had previously gotten to.
+		for (i = 0; i < vfsz->pos-sizeof(buffer); i++)
+			unzReadCurrentFile(vfsz->parent->handle, buffer, sizeof(buffer));
+		unzReadCurrentFile(vfsz->parent->handle, buffer, vfsz->pos - i);
+	}
+
+	vfsz->parent->currentfile = (vfsfile_t*)vfsz;
+}
+
+int VFSZIP_ReadBytes (struct vfsfile_s *file, void *buffer, int bytestoread)
+{
+	int read;
+	vfszip_t *vfsz = (vfszip_t*)file;
+
+	if (vfsz->iscompressed)
+	{
+		VFSZIP_MakeActive(vfsz);
+		read = unzReadCurrentFile(vfsz->parent->handle, buffer, bytestoread);
+	}
+	else
+	{
+		if (vfsz->parent->currentfile != file)
+		{
+			unzCloseCurrentFile(vfsz->parent->handle);
+			VFS_SEEK(vfsz->parent->raw, vfsz->pos+vfsz->startpos);
+			vfsz->parent->currentfile = file;
+		}
+		read = VFS_READ(vfsz->parent->raw, buffer, bytestoread);
+	}
+
+	vfsz->pos += read;
+	return read;
+}
+int VFSZIP_WriteBytes (struct vfsfile_s *file, void *buffer, int bytestoread)
+{
+	Sys_Error("VFSZIP_WriteBytes: Not supported\n");
+	return 0;
+}
+qboolean VFSZIP_Seek (struct vfsfile_s *file, unsigned long pos)
+{
+	vfszip_t *vfsz = (vfszip_t*)file;
+
+	//This is *really* inefficient
+	if (vfsz->parent->currentfile == file)
+	{
+		unzCloseCurrentFile(vfsz->parent->handle);
+		vfsz->parent->currentfile = NULL;	//make it not us
+	}
+
+
+
+	if (pos < 0 || pos > vfsz->length)
+		return false;
+	vfsz->pos = pos;
+
+	return true;
+}
+unsigned long VFSZIP_Tell (struct vfsfile_s *file)
+{
+	vfszip_t *vfsz = (vfszip_t*)file;
+	return vfsz->pos;
+}
+unsigned long VFSZIP_GetLen (struct vfsfile_s *file)
+{
+	vfszip_t *vfsz = (vfszip_t*)file;
+	return vfsz->length;
+}
+void VFSZIP_Close (struct vfsfile_s *file)
+{
+	vfszip_t *vfsz = (vfszip_t*)file;
+
+	if (vfsz->parent->currentfile == file)
+		vfsz->parent->currentfile = NULL;	//make it not us
+
+	FSZIP_ClosePath(vfsz->parent);
+	Z_Free(vfsz);
+}
+
+vfsfile_t *FSZIP_OpenVFS(void *handle, flocation_t *loc, char *mode)
+{
+	int rawofs;
+	zipfile_t *zip = handle;
+	vfszip_t *vfsz;
+	if (strchr(mode, 'w'))
+		return NULL;
+	vfsz = Z_Malloc(sizeof(vfszip_t));
+
+	vfsz->parent = zip;
+	vfsz->index = loc->index;
+	vfsz->startpos = zip->files[loc->index].filepos;
+	vfsz->length = loc->len;
+
+	vfsz->funcs.Close = VFSZIP_Close;
+	vfsz->funcs.GetLen = VFSZIP_GetLen;
+	vfsz->funcs.ReadBytes = VFSZIP_ReadBytes;
+	vfsz->funcs.Seek = VFSZIP_Seek;
+	vfsz->funcs.Tell = VFSZIP_Tell;
+	vfsz->funcs.WriteBytes = NULL;
+
+	unzLocateFileMy(vfsz->parent->handle, vfsz->index, vfsz->startpos);
+	rawofs = unzGetCurrentFileUncompressedPos(zip->handle);
+	vfsz->iscompressed = rawofs<0;
+	if (!vfsz->iscompressed)
+	{
+		vfsz->startpos = rawofs;
+		VFS_SEEK(zip->raw, vfsz->startpos);
+	}
+	vfsz->parent->currentfile = (vfsfile_t*)vfsz;
+
+	zip->references++;
+	return (vfsfile_t*)vfsz;
+}
+
 searchpathfuncs_t zipfilefuncs = {
 	FSZIP_PrintPath,
 	FSZIP_ClosePath,
@@ -639,7 +981,8 @@ searchpathfuncs_t zipfilefuncs = {
 	FSZIP_ReadFile,
 	FSZIP_EnumerateFiles,
 	FSZIP_LoadZipFile,
-	FSZIP_GeneratePureCRC
+	FSZIP_GeneratePureCRC,
+	FSZIP_OpenVFS
 };
 
 #endif
@@ -669,8 +1012,9 @@ searchpath_t	*com_searchpaths;
 searchpath_t	*com_purepaths;
 searchpath_t	*com_base_searchpaths;	// without gamedirs
 
+static void COM_AddDataFiles(char *pathto, searchpath_t *search, char *extension, searchpathfuncs_t *funcs);
 
-void COM_AddPathHandle(searchpathfuncs_t *funcs, void *handle, qboolean copyprotect, qboolean istemporary)
+searchpath_t *COM_AddPathHandle(char *probablepath, searchpathfuncs_t *funcs, void *handle, qboolean copyprotect, qboolean istemporary)
 {
 	searchpath_t *search;
 
@@ -684,6 +1028,21 @@ void COM_AddPathHandle(searchpathfuncs_t *funcs, void *handle, qboolean copyprot
 	com_searchpaths = search;
 
 	com_fschanged = true;
+
+
+	//add any data files too
+//	if (loadstuff & 2)
+		COM_AddDataFiles(probablepath, search, "pak", &packfilefuncs);//q1/hl/h2/q2
+	//pk2s never existed.
+#ifdef AVAIL_ZLIB
+//	if (loadstuff & 4)
+		COM_AddDataFiles(probablepath, search, "pk3", &zipfilefuncs);	//q3 + offspring
+//	if (loadstuff & 8)
+		COM_AddDataFiles(probablepath, search, "pk4", &zipfilefuncs);	//q4
+	//we could easily add zip, but it's friendlier not to
+#endif
+
+	return search;
 }
 
 /*
@@ -721,11 +1080,8 @@ int COM_FileOpenRead (char *path, FILE **hndl)
 int COM_FileSize(char *path)
 {
 	int len;
-	FILE *h;
-	len = COM_FOpenFile(path, &h);
-	if (len>=0)
-		fclose(h);
-
+	flocation_t loc;
+	len = FS_FLocateFile(path, FSLFRT_LENGTH, &loc);
 	return len;
 }
 
@@ -1016,11 +1372,15 @@ int FS_FLocateFile(char *filename, FSLF_ReturnType_e returntype, flocation_t *lo
 	{
 		for (search = com_purepaths ; search ; search = search->nextpure)
 		{
-			len = search->funcs->FindFile(search->handle, loc, filename, pf);
-			if (len>=0)
+			if (search->funcs->FindFile(search->handle, loc, filename, pf))
 			{
 				if (loc)
+				{
 					loc->search = search;
+					len = loc->len;
+				}
+				else
+					len = 0;
 				goto out;
 			}
 			depth += (search->funcs != &osfilefuncs || returntype == FSLFRT_DEPTH_ANYPATH);
@@ -1032,11 +1392,15 @@ int FS_FLocateFile(char *filename, FSLF_ReturnType_e returntype, flocation_t *lo
 //
 	for (search = com_searchpaths ; search ; search = search->next)
 	{
-		len = search->funcs->FindFile(search->handle, loc, filename, pf);
-		if (len>=0)
+		if (search->funcs->FindFile(search->handle, loc, filename, pf))
 		{
 			if (loc)
+			{
 				loc->search = search;
+				len = loc->len;
+			}
+			else
+				len = 1;
 			goto out;
 		}
 		depth += (search->funcs != &osfilefuncs || returntype == FSLFRT_DEPTH_ANYPATH);
@@ -1062,6 +1426,7 @@ out:
 	else
 		return depth;
 }
+#if 0
 int COM_FOpenLocationFILE(flocation_t *loc, FILE **file)
 {
 	if (!*loc->rawname)
@@ -1100,6 +1465,7 @@ int COM_FOpenLocationFILE(flocation_t *loc, FILE **file)
 int COM_FOpenFile(char *filename, FILE **file)
 {
 	flocation_t loc;
+	Con_Printf("^1COM_FOpenFile is obsolete\n");
 	FS_FLocateFile(filename, FSLFRT_LENGTH, &loc);
 
 	com_filesize = -1;
@@ -1112,14 +1478,135 @@ int COM_FOpenFile(char *filename, FILE **file)
 		*file = NULL;
 	return com_filesize;
 }
+/*
 int COM_FOpenWriteFile(char *filename, FILE **file)
 {
 	COM_CreatePath(filename);
 	*file = fopen(filename, "wb");
 	return !!*file;
 }
+*/
+#endif
 //int COM_FOpenFile (char *filename, FILE **file) {file_from_pak=0;return COM_FOpenFile2 (filename, file, false);}	//FIXME: TEMPORARY
 
+//true if protection kicks in
+qboolean Sys_PathProtection(char *pattern)
+{
+	if (strchr(pattern, '\\'))
+	{
+		char *s;
+		while(s = strchr(pattern, '\\'))
+			*s = '/';
+		Con_Printf("Warning: \\ charactures in filename %s\n", pattern);
+	}
+
+	if (strstr(pattern, ".."))
+		Con_Printf("Error: '..' charactures in filename %s\n", pattern);
+	else if (pattern[0] == '/')
+		Con_Printf("Error: absolute path in filename %s\n", pattern);
+	else if (strstr(pattern, ":")) //win32 drive seperator (or mac path seperator, but / works there and they're used to it)
+		Con_Printf("Error: absolute path in filename %s\n", pattern);
+	else
+		return false;
+	return true;
+}
+
+vfsfile_t *FS_OpenVFS(char *filename, char *mode, int relativeto)
+{
+	char fullname[MAX_OSPATH];
+	flocation_t loc;
+	vfsfile_t *vfs;
+
+	//eventually, this function will be the *ONLY* way to get at files
+
+	//blanket-bans
+
+	if (Sys_PathProtection(filename))
+		return NULL;
+
+	switch (relativeto)
+	{
+	case FS_GAMEONLY:	//OS access only, no paks
+		if (*com_homedir)
+		{
+			_snprintf(fullname, sizeof(fullname), "%s/%s/%s", com_homedir, gamedirfile, filename);
+			vfs = VFSOS_Open(fullname, mode);
+			if (vfs)
+				return vfs;
+		}
+		_snprintf(fullname, sizeof(fullname), "%s/%s/%s", com_quakedir, gamedirfile, filename);
+		return VFSOS_Open(fullname, mode);
+	case FS_GAME:
+		if (*com_homedir)
+			_snprintf(fullname, sizeof(fullname), "%s/%s/%s", com_homedir, gamedirfile, filename);
+		else
+			_snprintf(fullname, sizeof(fullname), "%s/%s/%s", com_quakedir, gamedirfile, filename);
+		break;
+	case FS_BASE:
+		if (*com_homedir)
+		{
+			_snprintf(fullname, sizeof(fullname), "%s/%s", com_homedir, filename);
+			vfs = VFSOS_Open(fullname, mode);
+			if (vfs)
+				return vfs;
+		}
+		_snprintf(fullname, sizeof(fullname), "%s/%s", com_quakedir, filename);
+		return VFSOS_Open(fullname, mode);
+	case FS_CONFIGONLY:
+		if (*com_homedir)
+		{
+			_snprintf(fullname, sizeof(fullname), "%s/fte/%s", com_homedir, filename);
+			vfs = VFSOS_Open(fullname, mode);
+			if (vfs)
+				return vfs;
+		}
+		_snprintf(fullname, sizeof(fullname), "%s/fte/%s", com_quakedir, filename);
+		return VFSOS_Open(fullname, mode);
+	default:
+		Sys_Error("FS_CreatePath: Bad relative path");
+		break;
+	}
+
+	FS_FLocateFile(filename, FSLFRT_IFFOUND, &loc);
+
+	if (loc.search)
+	{
+		com_file_copyprotected = loc.search->copyprotected;
+		return loc.search->funcs->OpenVFS(loc.search->handle, &loc, mode);
+	}
+
+	return NULL;
+}
+
+void FS_Rename(char *oldf, char *newf, int relativeto)
+{
+	rename(oldf, newf);
+}
+void FS_Remove(char *fname, int relativeto)
+{
+	unlink (fname);
+}
+void FS_CreatePath(char *pname, int relativeto)
+{
+	char fullname[MAX_OSPATH];
+	switch (relativeto)
+	{
+	case FS_GAMEONLY:
+	case FS_GAME:
+		_snprintf(fullname, sizeof(fullname), "%s/%s", com_gamedir, pname);
+		break;
+	case FS_BASE:
+		_snprintf(fullname, sizeof(fullname), "%s/%s", com_homedir, pname);
+		break;
+	case FS_CONFIGONLY:
+		_snprintf(fullname, sizeof(fullname), "%s/fte/%s", com_homedir, pname);
+		break;
+	default:
+		Sys_Error("FS_CreatePath: Bad relative path");
+		break;
+	}
+	COM_CreatePath(fullname);
+}
 
 static cache_user_t *loadcache;
 static qbyte	*loadbuf;
@@ -1135,8 +1622,8 @@ Always appends a 0 qbyte to the loaded data.
 */
 qbyte *COM_LoadFile (char *path, int usehunk)
 {
+	vfsfile_t *f;
 	qbyte *buf;
-	FILE *f;
 	int len;
 	char	base[32];
 	flocation_t loc;
@@ -1145,18 +1632,12 @@ qbyte *COM_LoadFile (char *path, int usehunk)
 	if (!loc.search)
 		return NULL;	//wasn't found
 
-	if (*loc.rawname)
-	{
-//		Con_Printf("Opening %s\n", loc.rawname);
-		f = fopen(loc.rawname, "rb");
-		if (!f)
-			return NULL;
-		fseek(f, loc.offset, SEEK_SET);
-	}
-	else
-		f = NULL;
 
-	com_filesize = len = loc.len;
+	f = loc.search->funcs->OpenVFS(loc.search->handle, &loc, "r");
+	if (!f)
+		return NULL;
+
+	com_filesize = len = VFS_GETLEN(f);
 	// extract the filename base name for hunk tag
 	COM_FileBase (path, base);
 
@@ -1195,20 +1676,8 @@ qbyte *COM_LoadFile (char *path, int usehunk)
 			Draw_BeginDisc ();
 #endif
 
-	if (f)
-	{
-		fread (buf, 1, len, f);
-		fclose (f);
-	}
-	else
-	{
-		if (loc.search->funcs->ReadFile)
-		{
-			loc.search->funcs->ReadFile(loc.search->handle, &loc, buf);
-		}
-		else
-			return NULL;
-	}
+	VFS_READ(f, buf, len);
+	VFS_CLOSE(f);
 
 #ifndef SERVERONLY
 	if (qrenderer)
@@ -1285,6 +1754,8 @@ void COM_FlushTempoaryPacks(void)
 
 qboolean COM_LoadMapPackFile (char *filename, int ofs)
 {
+	return false;
+/*
 	dpackheader_t	header;
 	int				i;
 	packfile_t		*newfiles;
@@ -1360,6 +1831,7 @@ qboolean COM_LoadMapPackFile (char *filename, int ofs)
 
 	COM_AddPathHandle(&packfilefuncs, pack, true, true);
 	return true;
+*/
 }
 
 #ifdef DOOMWADS
@@ -1585,14 +2057,23 @@ static int COM_AddWad (char *descriptor)
 }
 #endif
 
-static int COM_AddWildDataFiles (char *descriptor, int size, void *param)
+typedef struct {
+	searchpathfuncs_t *funcs;
+	searchpath_t *parentpath;
+	char *parentdesc;
+} wildpaks_t;
+
+static int COM_AddWildDataFiles (char *descriptor, int size, void *vparam)
 {
-	searchpathfuncs_t *funcs = param;
+	wildpaks_t *param = vparam;
+	vfsfile_t *vfs;
+	searchpathfuncs_t *funcs = param->funcs;
 	searchpath_t	*search;
 	pack_t			*pak;
 	char			pakfile[MAX_OSPATH];
+	flocation_t loc;
 
-	sprintf (pakfile, "%s/%s", com_gamedir, descriptor);
+	sprintf (pakfile, "%s%s", param->parentdesc, descriptor);
 
 	for (search = com_searchpaths; search; search = search->next)
 	{
@@ -1602,31 +2083,54 @@ static int COM_AddWildDataFiles (char *descriptor, int size, void *param)
 			return true; //already loaded (base paths?)
 	}
 
-	pak = funcs->OpenNew (pakfile);
+	search = param->parentpath;
+
+	if (!search->funcs->FindFile(search->handle, &loc, descriptor, NULL))
+		return true;	//not found..
+	vfs = search->funcs->OpenVFS(search->handle, &loc, "r");
+	pak = funcs->OpenNew (vfs, pakfile);
 	if (!pak)
 		return true;
-	COM_AddPathHandle(funcs, pak, true, false);
+
+	sprintf (pakfile, "%s%s/", param->parentdesc, descriptor);
+	COM_AddPathHandle(pakfile, funcs, pak, true, false);
 
 	return true;
 }
 
-static void COM_AddDataFiles(char *extension, searchpathfuncs_t *funcs)
+
+static void COM_AddDataFiles(char *pathto, searchpath_t *search, char *extension, searchpathfuncs_t *funcs)
 {
+	//search is the parent
 	int				i;
-	void 			*handle;
+	void			*handle;
 	char			pakfile[MAX_OSPATH];
+	vfsfile_t *vfs;
+	flocation_t loc;
+	wildpaks_t wp;
 
 	for (i=0 ; ; i++)
 	{
-		sprintf (pakfile, "%s/pak%i.%s", com_gamedir, i, extension);
-		handle = funcs->OpenNew (pakfile);
+		_snprintf (pakfile, sizeof(pakfile), "pak%i.%s", i, extension);
+		if (!search->funcs->FindFile(search->handle, &loc, pakfile, NULL))
+			break;	//not found..
+		_snprintf (pakfile, sizeof(pakfile), "%spak%i.%s", pathto, i, extension);
+		vfs = search->funcs->OpenVFS(search->handle, &loc, "r");
+		if (!vfs)
+			break;
+		Con_Printf("Opened %s\n", pakfile);
+		handle = funcs->OpenNew (vfs, pakfile);
 		if (!handle)
 			break;
-		COM_AddPathHandle(funcs, handle, true, false);
+		_snprintf (pakfile, sizeof(pakfile), "%spak%i.%s/", pathto, i, extension);
+		COM_AddPathHandle(pakfile, funcs, handle, true, false);
 	}
 
 	sprintf (pakfile, "*.%s", extension);
-	Sys_EnumerateFiles(com_gamedir, pakfile, COM_AddWildDataFiles, funcs);
+	wp.funcs = funcs;
+	wp.parentdesc = pathto;
+	wp.parentpath = search;
+	search->funcs->EnumerateFiles(search->handle, pakfile, COM_AddWildDataFiles, &wp);
 }
 
 void COM_RefreshFSCache_f(void)
@@ -1671,24 +2175,9 @@ void COM_AddGameDirectory (char *dir, unsigned int loadstuff)
 // add the directory to the search path
 //
 
-	if (loadstuff & 1)
-	{
-		p = Z_Malloc(strlen(dir)+1);
-		strcpy(p, dir);
-		COM_AddPathHandle(&osfilefuncs, p, false, false);
-	}
-
-//add any data files too
-	if (loadstuff & 2)
-		COM_AddDataFiles("pak", &packfilefuncs);//q1/hl/h2/q2
-	//pk2s never existed.
-#ifdef AVAIL_ZLIB
-	if (loadstuff & 4)
-		COM_AddDataFiles("pk3", &zipfilefuncs);	//q3 + offspring
-	if (loadstuff & 8)
-		COM_AddDataFiles("pk4", &zipfilefuncs);	//q4
-	//we could easily add zip, but it's friendlier not to
-#endif
+	p = Z_Malloc(strlen(dir)+1);
+	strcpy(p, dir);
+	COM_AddPathHandle(va("%s/", dir), &osfilefuncs, p, false, false);
 }
 
 char *COM_NextPath (char *prevpath)
@@ -2168,11 +2657,6 @@ void COM_InitFilesystem (void)
 		Con_Printf("Using home directory \"%s\"\n", com_homedir);
 
 		strcat(com_homedir, "/.fte");
-		com_basedir = com_homedir;
-	}
-	else
-	{
-		com_basedir = com_quakedir;
 	}
 
 //

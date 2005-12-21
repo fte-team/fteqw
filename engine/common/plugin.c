@@ -104,10 +104,9 @@ cvar_t plug_loaddefault = {"plug_loaddefault", "1"};
 
 //custom plugin builtins.
 typedef int (VARGS *Plug_Builtin_t)(void *offset, unsigned int mask, const long *arg);
+void Plug_RegisterBuiltin(char *name, Plug_Builtin_t bi, int flags);
 #define PLUG_BIF_DLLONLY	1
 #define PLUG_BIF_QVMONLY	2
-
-void Plug_RegisterBuiltin(char *name, Plug_Builtin_t bi, int flags);
 
 #include "netinc.h"
 

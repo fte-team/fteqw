@@ -72,6 +72,13 @@ int viewportx;
 int viewporty;
 
 
+static int VFS_GETC(vfsfile_t *fp)
+{
+	unsigned char c;
+	VFS_READ(fp, &c, 1);
+	return c;
+}
+
 									//newsize = number of chars, EXCLUDING terminator.
 void MakeNewSize(fileblock_t *block, int newsize)	//this is used to resize a block. It allocates a new one, copys the data frees the old one and links it into the right place
 													//it is called when the user is typing
@@ -132,7 +139,7 @@ void SetCursorpos(void)
 	if (ts < 1)
 		ts = 4;
 	for (cursorx=0,s=cursorblock->data;cursorx < positionacross && *s;s++,a++)
-	{			
+	{
 		if (*s == '\t')
 		{
 			cursorx += ts;
@@ -227,7 +234,7 @@ qboolean EditorSaveFile(char *s)	//returns true if succesful
 
 void EditorNewFile()
 {
-	GETBLOCK(64, firstblock);	
+	GETBLOCK(64, firstblock);
 	GETBLOCK(64, firstblock->next);
 	firstblock->next->prev = firstblock;
 	cursorblock = firstblock;
@@ -239,7 +246,7 @@ void EditorNewFile()
 	madechanges = true;
 	executionlinenum = -1;
 
-	key_dest = key_editor;	
+	key_dest = key_editor;
 	editoractive = true;
 }
 
@@ -248,33 +255,29 @@ void EditorOpenFile(char *name)
 	int i;
 	char line[8192];
 	int len, flen, pos=0;
-	FILE *F;
-	fileblock_t *b;	
+	vfsfile_t *F;
+	fileblock_t *b;
 
-	CloseEditor();	
+	CloseEditor();
 
 	strcpy(OpenEditorFile, name);
 
-	if ((flen=COM_FOpenFile(OpenEditorFile, &F)) == -1)
+	if (!(F = FS_OpenVFS(OpenEditorFile, "rb", FS_GAME)))
 	{
 		sprintf(OpenEditorFile, "src/%s", name);
-		if ((flen=COM_FOpenFile(OpenEditorFile, &F)) == -1)
+		if (!(F = FS_OpenVFS(OpenEditorFile, "rb", FS_GAME)))
 		{
-			F = fopen(OpenEditorFile, "rb");
-			if (F)
-				flen = COM_filelength(F);
-			else
-			{
-				Con_Printf("Couldn't open file \"%s\"\nA new file will be created\n", name);
-				strcpy(OpenEditorFile, name);
-				key_dest = key_console;
-				EditorNewFile();
-				return;
-			}
+			Con_Printf("Couldn't open file \"%s\"\nA new file will be created\n", name);
+			strcpy(OpenEditorFile, name);
+			key_dest = key_console;
+			EditorNewFile();
+			return;
 		}
 	}
 	i=1;
-	
+
+	flen = VFS_GETLEN(F);
+
 	while(pos < flen)
 	{
 		len = 0;
@@ -282,7 +285,7 @@ void EditorOpenFile(char *name)
 		{
 			if (pos+len >= flen)
 				break;
-			line[len] = fgetc(F);			
+			line[len] = VFS_GETC(F);
 
 			if (line[len] == '\n')
 				break;
@@ -311,7 +314,7 @@ void EditorOpenFile(char *name)
 		{
 			if (editprogfuncs->ToggleBreak(editprogfuncs, OpenEditorFile+strlen(com_gamedir)+1, i, 3))
 			{
-				firstblock->flags |= FB_BREAK;			
+				firstblock->flags |= FB_BREAK;
 			}
 		}
 		else
@@ -320,7 +323,7 @@ void EditorOpenFile(char *name)
 			{
 				if (svprogfuncs->ToggleBreak(svprogfuncs, OpenEditorFile+strlen(com_gamedir)+1, i, 3))
 				{
-					firstblock->flags |= FB_BREAK;			
+					firstblock->flags |= FB_BREAK;
 				}
 			}
 		}
@@ -329,11 +332,11 @@ void EditorOpenFile(char *name)
 	}
 	if (firstblock == NULL)
 	{
-		GETBLOCK(10, firstblock);		
-	}	
+		GETBLOCK(10, firstblock);
+	}
 	else
 		for (; firstblock->prev; firstblock=firstblock->prev);
-	fclose(F);
+	VFS_CLOSE(F);
 
 	cursorblock = firstblock;
 	cursorx = 0;
@@ -343,7 +346,7 @@ void EditorOpenFile(char *name)
 	madechanges = false;
 	executionlinenum = -1;
 
-	key_dest = key_editor;	
+	key_dest = key_editor;
 	editoractive = true;
 }
 
@@ -378,7 +381,7 @@ void Editor_Key(int key)
 			break;
 
 		case 'N':
-		case 'n':			
+		case 'n':
 			(*CmdAfterSave)();
 			CmdAfterSave = NULL;
 			break;
@@ -447,7 +450,7 @@ void Editor_Key(int key)
 			cursorblock = cursorblock->prev;
 			cursorlinenum--;
 		}
-		}				
+		}
 		}
 		SetCursorpos();
 		break;
@@ -484,7 +487,7 @@ void Editor_Key(int key)
 				{
 					*s = '\0';
 					break;
-				}				
+				}
 				s++;
 			}
 			if (*file)
@@ -497,14 +500,14 @@ void Editor_Key(int key)
 	case K_F4:
 		EditorSaveFile(OpenEditorFile);
 		break;
-	case K_F5:		
+	case K_F5:
 		editormodal = false;
 		if (editprogfuncs)
 			*editprogfuncs->pr_trace = false;
 		break;
 	case K_F6:
 		if (editprogfuncs)
-			PR_StackTrace(editprogfuncs);		
+			PR_StackTrace(editprogfuncs);
 		break;
 	case K_F7:
 		EditorSaveFile(OpenEditorFile);
@@ -624,7 +627,7 @@ void Editor_Key(int key)
 //			cursorblock->next->prev = cursorblock->prev;
 
 			E_Free(b);
-//			cursorblock = b;			
+//			cursorblock = b;
 
 			break;
 		}
@@ -637,12 +640,12 @@ void Editor_Key(int key)
 			madechanges = true;
 //FIXME: does this work right?
 			if (!cursorblock->datalength && cursorblock->next && cursorblock->prev)	//blank line
-			{				
+			{
 				b = cursorblock;
-				if (b->next)					
+				if (b->next)
 					b->next->prev = b->prev;
 				if (b->prev)
-					b->prev->next = b->next;				
+					b->prev->next = b->next;
 
 				if (cursorblock->next)
 					cursorblock = cursorblock->next;
@@ -663,7 +666,7 @@ void Editor_Key(int key)
 		}
 		break;
 
-	case K_ENTER:		
+	case K_ENTER:
 		{
 			fileblock_t *b = cursorblock;
 
@@ -671,7 +674,7 @@ void Editor_Key(int key)
 
 			madechanges = true;
 
-			GETBLOCK(strlen(b->data+cursorx), cursorblock);			
+			GETBLOCK(strlen(b->data+cursorx), cursorblock);
 			cursorblock->next = b->next;
 			cursorblock->prev = b;
 			b->next = cursorblock;
@@ -710,12 +713,12 @@ void Editor_Key(int key)
 			}
 			cursorx++;
 			cursorblock->datalength++;
-			*(s+1) = key;			
+			*(s+1) = key;
 		}
 		else	//over write a char
-		{	
+		{
 			MakeNewSize(cursorblock, cursorblock->datalength+5);	//not really needed
-		
+
 			cursorblock->data[cursorx] = key;
 			cursorx++;
 		}
@@ -738,7 +741,7 @@ void Draw_CursorLine(int ox, int y, fileblock_t *b)
 	ts*=8;
 
 	if (b->flags & (FB_BREAK))
-		colour = COLOR_RED;	//red		
+		colour = COLOR_RED;	//red
 
 	if (executionblock == b)
 	{
@@ -757,7 +760,7 @@ void Draw_CursorLine(int ox, int y, fileblock_t *b)
 		if (*d == '\t')
 		{
 			if (a == cx)
-				Draw_ColouredCharacter (x+ox, y, 11|M_COLOR_WHITE);			
+				Draw_ColouredCharacter (x+ox, y, 11|M_COLOR_WHITE);
 			x+=ts;
 			x-=x%ts;
 			d++;
@@ -793,7 +796,7 @@ void Draw_NonCursorLine(int x, int y, fileblock_t *b)
 	ts*=8;
 
 	if (b->flags & (FB_BREAK))
-		colour = COLOR_RED;	//red		
+		colour = COLOR_RED;	//red
 
 	if (executionblock == b)
 	{
@@ -809,14 +812,14 @@ void Draw_NonCursorLine(int x, int y, fileblock_t *b)
 		{
 			nx+=ts;
 			nx-=nx%ts;
-			d++;			
-			continue;			
+			d++;
+			continue;
 		}
 		if (x+nx < vid.width)
 			Draw_ColouredCharacter (x+nx, y, (int)*d | (colour<<8));
 		d++;
-		nx += 8;		
-	}	
+		nx += 8;
+	}
 }
 
 fileblock_t *firstline(void)
@@ -859,7 +862,7 @@ void Editor_Draw(void)
 			cursorlinenum++;
 			if (b == cursorblock)
 				break;
-		}		
+		}
 	}
 
 	if (!viewportystartblock)	//look for the cursor line num
@@ -870,7 +873,7 @@ void Editor_Draw(void)
 			y++;
 			if (y == viewporty)
 				break;
-		}		
+		}
 	}
 
 	x=0;
@@ -889,7 +892,7 @@ void Editor_Draw(void)
 	x=-x + vid.width/2;
 	if (x > 0)
 		x = 0;
-	
+
 	if (madechanges)
 		Draw_Character (vid.width - 8, 0, '!'|128);
 	if (!insertkeyhit)
@@ -914,14 +917,14 @@ void Editor_Draw(void)
 	{
 		if (b == cursorblock)
 			Draw_CursorLine(x, y, b);
-		else		
+		else
 			Draw_NonCursorLine(x, y, b);
 		y+=8;
 
 		if (y > vid.height)
 			break;
 	}
-	
+
 /*	if (CmdAfterSave)
 	{
 		if (madechanges)
@@ -955,23 +958,23 @@ int QCLibEditor(progfuncs_t *prfncs, char *filename, int line, int nump, char **
 		int i;
 		char buffer[8192];
 		char *r;
-		FILE *f;
+		vfsfile_t *f;
 
 		if (line == -1)
 			return -1;
-		COM_FOpenFile(filename, &f);
+		f = FS_OpenVFS(filename, "rb", FS_GAME);
 		if (!f)
 			Con_Printf("%s - %i\n", filename, line);
 		else
 		{
 			for (i = 0; i < line; i++)
 			{
-				fgets(buffer, sizeof(buffer), f);
+				VFS_GETS(f, buffer, sizeof(buffer));
 			}
 			if ((r = strchr(buffer, '\r')))
 			{ r[0] = '\n';r[1]='\0';}
 			Con_Printf("%s", buffer);
-			fclose(f);
+			VFS_CLOSE(f);
 		}
 	//PF_break(NULL);
 		return line;
@@ -1043,7 +1046,7 @@ void Editor_f(void)
 void Editor_Init(void)
 {
 	Cmd_AddCommand("edit", Editor_f);
-	
+
 	Cvar_Register(&alloweditor, "Text editor");
 	Cvar_Register(&editstripcr, "Text editor");
 	Cvar_Register(&editaddcr, "Text editor");

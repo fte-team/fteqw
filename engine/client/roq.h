@@ -21,7 +21,7 @@ typedef struct {
 } roq_qcell;
 
 typedef struct {
-	FILE *fp;
+	vfsfile_t *fp;
 	unsigned int maxpos;	//addition for pack files. all seeks add this, all tells subtract this.
 	int buf_size;
 	unsigned char *buf;

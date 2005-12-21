@@ -1954,7 +1954,7 @@ int QCC_PR_CheakCompConst(void)
 //	printf("%s\n", pr_token);
 	c = pHash_Get(&compconstantstable, pr_token);
 
-	if (c)
+	if (c && !c->inside)
 	{
 		pr_file_p = oldpr_file_p+strlen(c->name);
 		while(*pr_file_p == ' ' || *pr_file_p == '\t')
@@ -2084,7 +2084,9 @@ int QCC_PR_CheakCompConst(void)
 		else
 			QCC_PR_IncludeChunk(c->value, false, NULL);
 
+		c->inside++;
 		QCC_PR_Lex();
+		c->inside--;
 		return true;
 	}
 

@@ -3341,6 +3341,7 @@ void MVD_Interpolate(void)
 	entity_state_t *oldents;
 	struct predicted_player *pplayer;
 	static float old;
+	extern float demtime;
 
 	self = &cl.frames[cl.parsecount & UPDATE_MASK].playerstate[cl.playernum[0]];
 	oldself = &cl.frames[(cls.netchan.outgoing_sequence - 1) & UPDATE_MASK].playerstate[cl.playernum[0]];
@@ -3371,7 +3372,7 @@ void MVD_Interpolate(void)
 	oldframe = &cl.frames[cl.oldparsecount & UPDATE_MASK];
 	oldents = oldframe->packet_entities.entities;
 
-	f = (realtime - olddemotime) / (nextdemotime - olddemotime);
+	f = (demtime - olddemotime) / (nextdemotime - olddemotime);
 	if (f < 0)
 		f = 0;
 	if (f > 1)

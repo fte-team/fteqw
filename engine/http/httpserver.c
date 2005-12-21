@@ -73,7 +73,7 @@ void HTTP_ServerShutdown(void)
 
 typedef struct HTTP_active_connections_s {
 	int datasock;
-	IWEBFILE *file;
+	vfsfile_t *file;
 	struct HTTP_active_connections_s *next;
 
 	http_mode_t mode;

@@ -840,7 +840,7 @@ Cvar_RegisterVariable
 Adds a freestanding variable to the variable list.
 ============
 */
-void Cvar_Register (cvar_t *variable, const char *groupname)
+qboolean Cvar_Register (cvar_t *variable, const char *groupname)
 {
 	cvar_t *old;
 	cvar_group_t *group;
@@ -878,18 +878,18 @@ void Cvar_Register (cvar_t *variable, const char *groupname)
 				Cvar_SetCore (variable, old->string, true);
 
 			Cvar_Free(old);
-			return;
+			return false;
 		}
 
 		Con_Printf ("Can't register variable %s, already defined\n", variable->name);
-		return;
+		return false;
 	}
 
 // check for overlap with a command
 	if (Cmd_Exists (variable->name))
 	{
 		Con_Printf ("Cvar_RegisterVariable: %s is a command\n", variable->name);
-		return;
+		return false;
 	}
 
 	group = Cvar_GetGroup(groupname);
@@ -905,6 +905,8 @@ void Cvar_Register (cvar_t *variable, const char *groupname)
 
 // set it through the function to be consistant
 	Cvar_SetCore (variable, value, true);
+
+	return true;
 }
 /*
 void Cvar_RegisterVariable (cvar_t *variable)
@@ -931,7 +933,8 @@ cvar_t *Cvar_Get(const char *name, const char *defaultvalue, int flags, const ch
 	var->string = (char*)defaultvalue;
 	var->flags = flags|CVAR_POINTER|CVAR_USERCREATED;
 
-	Cvar_Register(var, group);
+	if (!Cvar_Register(var, group))
+		return NULL;
 
 	return var;
 }
@@ -1054,12 +1057,13 @@ Writes lines containing "set variable value" for all variables
 with the archive flag set to true.
 ============
 */
-void Cvar_WriteVariables (FILE *f, qboolean all)
+void Cvar_WriteVariables (vfsfile_t *f, qboolean all)
 {
 	qboolean writtengroupheader;
 	cvar_group_t *grp;
 	cvar_t	*var;
 	char *val;
+	char *s;
 
 	for (grp=cvar_groups ; grp ; grp=grp->next)
 	{
@@ -1070,7 +1074,8 @@ void Cvar_WriteVariables (FILE *f, qboolean all)
 				if (!writtengroupheader)
 				{
 					writtengroupheader = true;
-					fprintf(f, "\n// %s\n", grp->name);
+					s = va("\n// %s\n", grp->name);
+					VFS_WRITE(f, s, strlen(s));
 				}
 
 				val = var->string;	//latched vars should act differently.
@@ -1080,12 +1085,13 @@ void Cvar_WriteVariables (FILE *f, qboolean all)
 				if (var->flags & CVAR_USERCREATED)
 				{
 					if (var->flags & CVAR_ARCHIVE)
-						fprintf (f, "seta %s \"%s\"\n", var->name, val);
+						s = va("seta %s \"%s\"\n", var->name, val);
 					else
-						fprintf (f, "set %s \"%s\"\n", var->name, val);
+						s = va("set %s \"%s\"\n", var->name, val);
 				}
 				else
-					fprintf (f, "%s \"%s\"\n", var->name, val);
+					s = va("%s \"%s\"\n", var->name, val);
+				VFS_WRITE(f, s, strlen(s));
 			}
 	}
 }

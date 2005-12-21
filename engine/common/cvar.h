@@ -104,7 +104,7 @@ cvar_t *Cvar_Get (const char *var_name, const char *value, int flags, const char
 
 void Cvar_LockFromServer(cvar_t *var, const char *str);
 
-void 	Cvar_Register (cvar_t *variable, const char *cvargroup);
+qboolean 	Cvar_Register (cvar_t *variable, const char *cvargroup);
 // registers a cvar that already has the name, string, and optionally the
 // archive elements set.
 
@@ -135,7 +135,7 @@ qboolean Cvar_Command (int level);
 // command.  Returns true if the command was a variable reference that
 // was handled. (print or change)
 
-void 	Cvar_WriteVariables (FILE *f, qboolean all);
+void Cvar_WriteVariables (vfsfile_t *f, qboolean all);
 // Writes lines containing "set variable value" for all variables
 // with the archive flag set to true.
 

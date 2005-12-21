@@ -27,16 +27,24 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 #endif
 
 #include <sys/stat.h>
+#include <termios.h>
 #include <unistd.h>
 #include <sys/time.h>
 #include <errno.h>
 #include <fcntl.h>
 
-cvar_t	sys_nostdout = {"sys_nostdout","0"};
-cvar_t	sys_extrasleep = {"sys_extrasleep","0"};
-cvar_t	sys_maxtic = {"sys_maxtic", "100"};
+cvar_t sys_nostdout = {"sys_nostdout","0"};
+cvar_t sys_extrasleep = {"sys_extrasleep","0"};
+cvar_t sys_maxtic = {"sys_maxtic", "100"};
+cvar_t sys_colorconsole = {"sys_colorconsole", "0"};
+cvar_t sys_linebuffer = {"sys_linebuffer", "1"};
 
 qboolean	stdin_ready;
+
+
+
+
+struct termios orig, changes;
 
 /*
 ===============================================================================
@@ -172,10 +180,216 @@ void Sys_Error (const char *error, ...)
 	va_end (argptr);
 	printf ("Fatal error: %s\n",string);
 
+	tcsetattr(STDIN_FILENO, TCSADRAIN, &orig);
+
 *(int*)-3 = 0;
 	exit (1);
 }
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+void ApplyColour(unsigned int chr)
+{
+	static int oldchar = 7*256;
+	chr = chr&~255;
+
+	if (oldchar == chr)
+		return;
+	oldchar = chr;
+	switch(chr&CON_COLOURMASK)
+	{
+//to get around wierd defaults (like a white background) we have these special hacks for colours 0 and 7
+	case 0*256:
+		printf("\e[0;7%sm",	(chr&CON_BLINKTEXT)?";5":"");
+		break;
+	case 7*256:
+		printf("\e[0%sm",		(chr&CON_BLINKTEXT)?";5":"");
+		break;
+	default:
+		printf("\e[0;%i%sm",	30+((chr&CON_COLOURMASK)>>8), (chr&CON_BLINKTEXT)?";5":"");
+		break;
+	}
+}
+
+#define putch(c) putc(c, stdout);
+void Sys_PrintColouredChar(unsigned int chr)
+{
+	ApplyColour(chr);
+
+	putch(chr&255);
+}
+
+/*
+================
+Sys_Printf
+================
+*/
+#define	MAXPRINTMSG	4096
+char	coninput_text[256];
+int		coninput_len;
+void Sys_Printf (char *fmt, ...)
+{
+	va_list		argptr;	
+
+	if (sys_nostdout.value)
+		return;
+
+	if (1)
+	{
+		char		msg[MAXPRINTMSG];
+		unsigned char *t;
+
+		va_start (argptr,fmt);
+		vsnprintf (msg,sizeof(msg)-1, fmt,argptr);
+		va_end (argptr);
+
+		if (!sys_linebuffer.value)
+		{
+			int i;
+			
+			for (i = 0; i < coninput_len; i++)
+				putch('\b');
+			putch('\b');
+			for (i = 0; i < coninput_len; i++)
+				putch(' ');
+			putch(' ');
+			for (i = 0; i < coninput_len; i++)
+				putch('\b');
+			putch('\b');
+		}
+
+
+		for (t = (unsigned char*)msg; *t; t++)
+		{
+			if (*t >= 146 && *t < 156)
+				*t = *t - 146 + '0';
+			if (*t >= 0x12 && *t <= 0x1b)
+				*t = *t - 0x12 + '0';
+			if (*t == 143)
+				*t = '.';
+			if (*t == 157 || *t == 158 || *t == 159)
+				*t = '-';
+			if (*t >= 128)
+				*t -= 128;
+			if (*t == 16)
+				*t = '[';
+			if (*t == 17)
+				*t = ']';
+			if (*t == 0x1c)
+				*t = 249;
+		}
+
+		if (sys_colorconsole.value)
+		{
+			int ext = COLOR_WHITE<<8;
+			int extstack[4];
+			int extstackdepth = 0;
+			unsigned char *str = (unsigned char*)msg;
+
+
+			while(*str)
+			{
+				if (*str == '^')
+				{
+					str++;
+					if (*str >= '0' && *str <= '7')
+					{
+						ext = (*str++-'0')*256 + (ext&~CON_COLOURMASK);	//change colour only.
+						continue;
+					}
+					else if (*str == 'a')
+					{
+						str++;
+						ext = (ext & ~CON_2NDCHARSETTEXT) + (CON_2NDCHARSETTEXT - (ext & CON_2NDCHARSETTEXT));
+						continue;
+					}
+					else if (*str == 'b')
+					{
+						str++;
+						ext = (ext & ~CON_BLINKTEXT) + (CON_BLINKTEXT - (ext & CON_BLINKTEXT));
+						continue;
+					}
+					else if (*str == 's')	//store on stack (it's great for names)
+					{
+						str++;
+						if (extstackdepth < sizeof(extstack)/sizeof(extstack[0]))
+						{
+							extstack[extstackdepth] = ext;
+							extstackdepth++;
+						}
+						continue;
+					}
+					else if (*str == 'r')	//restore from stack (it's great for names)
+					{
+						str++;
+						if (extstackdepth)
+						{
+							extstackdepth--;
+							ext = extstack[extstackdepth];
+						}
+						continue;
+					}
+					else if (*str == '^')
+					{
+						Sys_PrintColouredChar('^' + ext);
+						str++;
+					}
+					else
+					{
+						Sys_PrintColouredChar('^' + ext);
+						Sys_PrintColouredChar ((*str++) + ext);
+					}
+					continue;
+				}
+				Sys_PrintColouredChar ((*str++) + ext);
+			}
+
+			ApplyColour(7*256);
+		}
+		else
+		{
+			for (t = msg; *t; t++)
+			{
+				*t &= 0x7f;
+				if ((*t > 128 || *t < 32) && *t != 10 && *t != 13 && *t != 9)
+					printf("[%02x]", *t);
+				else
+					putc(*t, stdout);
+			}
+		}
+
+		if (!sys_linebuffer.value)
+		{
+			if (coninput_len)
+				printf("]%s", coninput_text);
+			else
+				putch(']');
+		}
+	}
+	else
+	{
+		va_start (argptr,fmt);
+		vprintf (fmt,argptr);
+		va_end (argptr);
+	}
+
+	fflush(stdout);
+}
+
+
+
+#if 0
 /*
 ================
 Sys_Printf
@@ -207,6 +421,7 @@ void Sys_Printf (char *fmt, ...)
 	fflush(stdout);
 }
 
+#endif
 
 /*
 ================
@@ -215,11 +430,70 @@ Sys_Quit
 */
 void Sys_Quit (void)
 {
+	tcsetattr(STDIN_FILENO, TCSADRAIN, &orig);
 	exit (0);		// appkit isn't running
 }
 
 static int do_stdin = 1;
 
+#if 1
+char *Sys_LineInputChar(char *line)
+{
+char c;
+	while(*line)
+{
+c = *line++;
+	if (c == '\r' || c == '\n')
+	{
+		coninput_text[coninput_len] = 0;
+		putch ('\n');
+		putch (']');
+		coninput_len = 0;
+		fflush(stdout);
+		return coninput_text;
+	}
+	if (c == 8)
+	{
+		if (coninput_len)
+		{
+			putch (c);
+			putch (' ');
+			putch (c);
+			coninput_len--;
+			coninput_text[coninput_len] = 0;
+		}
+		continue;
+	}
+	if (c == '\t')
+	{
+		int i;
+		char *s = Cmd_CompleteCommand(coninput_text, true, true, 0);
+		if(s)
+		{
+			for (i = 0; i < coninput_len; i++)
+				putch('\b');
+			for (i = 0; i < coninput_len; i++)
+				putch(' ');
+			for (i = 0; i < coninput_len; i++)
+				putch('\b');
+
+			strcpy(coninput_text, s);
+			coninput_len = strlen(coninput_text);
+			printf("%s", coninput_text);
+		}
+		continue;
+	}
+	putch (c);
+	coninput_text[coninput_len] = c;
+	coninput_len++;
+	coninput_text[coninput_len] = 0;
+	if (coninput_len == sizeof(coninput_text))
+		coninput_len = 0;
+}
+	fflush(stdout);
+return NULL;
+}
+#endif
 /*
 ================
 Sys_ConsoleInput
@@ -230,24 +504,51 @@ it to the host command processor
 */
 char *Sys_ConsoleInput (void)
 {
-	static char	text[256];
-	int		len;
+	char	text[256];
+	int	len;
+
+	if (sys_linebuffer.modified)
+	{
+		sys_linebuffer.modified = false;
+		changes = orig;
+		if (sys_linebuffer.value)
+		{
+			changes.c_lflag |= (ICANON|ECHO);
+		}
+		else
+		{
+			changes.c_lflag &= ~(ICANON|ECHO);
+			changes.c_cc[VTIME] = 0;
+			changes.c_cc[VMIN] = 1;
+		}
+		tcsetattr(STDIN_FILENO, TCSADRAIN, &changes);
+	}
 
 	if (!stdin_ready || !do_stdin)
 		return NULL;		// the select didn't say it was ready
 	stdin_ready = false;
 
-	len = read (0, text, sizeof(text));
-	if (len == 0) {
-		// end of file
-		do_stdin = 0;
-		return NULL;
+	if (sys_linebuffer.value == 0)
+	{
+		text[0] = getc(stdin);
+		text[1] = 0;
+		len = 1;
+		return Sys_LineInputChar(text);
 	}
-	if (len < 1)
-		return NULL;
-	text[len-1] = 0;	// rip off the /n and terminate
+	else
+	{
+		len = read (0, text, sizeof(text)-1);
+		if (len == 0) {
+			// end of file
+			do_stdin = 0;
+			return NULL;
+		}
+		if (len < 1)
+			return NULL;
+		text[len-1] = 0;	// rip off the /n and terminate
 
-	return text;
+		return text;
+	}
 }
 
 /*
@@ -263,6 +564,9 @@ void Sys_Init (void)
 	Cvar_Register (&sys_nostdout, "System configuration");
 	Cvar_Register (&sys_extrasleep,	"System configuration");
 	Cvar_Register (&sys_maxtic, "System configuration");
+
+	Cvar_Register (&sys_colorconsole, "System configuration");
+	Cvar_Register (&sys_linebuffer, "System configuration");
 }
 
 /*
@@ -276,6 +580,9 @@ int main(int argc, char *argv[])
 //	fd_set	fdset;
 //	extern	int		net_socket;
 	int j;
+
+	tcgetattr(STDIN_FILENO, &orig);
+	changes = orig;
 
 	memset (&parms, 0, sizeof(parms));
 
@@ -293,12 +600,6 @@ int main(int argc, char *argv[])
 		Sys_Error("Can't allocate %ld\n", parms.memsize);
 
 	parms.basedir = ".";
-
-/*
-	if (Sys_FileTime ("id1/pak0.pak") != -1)
-	else
-		parms.basedir = "/raid/quake/v2";
-*/
 
 	SV_Init (&parms);
 

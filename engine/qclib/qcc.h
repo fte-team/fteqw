@@ -413,6 +413,7 @@ typedef struct
 	char params[MAXCONSTANTPARAMS][MAXCONSTANTPARAMLENGTH];
 	int numparams;
 	pbool used;
+	pbool inside;
 
 	int namelen;
 } CompilerConstant_t;

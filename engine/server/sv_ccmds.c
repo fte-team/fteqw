@@ -21,6 +21,12 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 
 #ifndef CLIENTONLY
 
+#ifndef INVALID_SOCKET 
+#define INVALID_SOCKET -1
+#endif
+
+
+
 qboolean	sv_allow_cheats;
 
 int fp_messages=4, fp_persecond=4, fp_secondsdead=10;
@@ -187,7 +193,6 @@ void SV_Logfile_f (void)
 {
 	extern cvar_t log_enable, log_dir, log_name;
 	extern char gamedirfile[];
-	extern char *com_basedir;
 
 	if (log_enable.value)
 	{
@@ -206,7 +211,7 @@ void SV_Logfile_f (void)
 		if (log_name.string[0])
 			f = log_name.string;
 
-		Con_Printf(va("Logging to %s/%s/%s.log.\n", com_basedir, d, f));
+		Con_Printf(va("Logging to %s/%s.log.\n", d, f));
 		Cvar_SetValue(&log_enable, 1);
 	}
 
@@ -225,7 +230,7 @@ void SV_Fraglogfile_f (void)
 	if (sv_fraglogfile)
 	{
 		Con_TPrintf (STL_FLOGGINGOFF);
-		fclose (sv_fraglogfile);
+		VFS_CLOSE (sv_fraglogfile);
 		sv_fraglogfile = NULL;
 		return;
 	}
@@ -233,16 +238,16 @@ void SV_Fraglogfile_f (void)
 	// find an unused name
 	for (i=0 ; i<1000 ; i++)
 	{
-		sprintf (name, "%s/frag_%i.log", com_gamedir, i);
-		sv_fraglogfile = fopen (name, "r");
+		sprintf (name, "frag_%i.log", i);
+		sv_fraglogfile = FS_OpenVFS(name, "r", FS_GAME);
 		if (!sv_fraglogfile)
 		{	// can't read it, so create this one
-			sv_fraglogfile = fopen (name, "w");
+			sv_fraglogfile = FS_OpenVFS (name, "w", FS_GAME);
 			if (!sv_fraglogfile)
 				i=1000;	// give error
 			break;
 		}
-		fclose (sv_fraglogfile);
+		VFS_CLOSE (sv_fraglogfile);
 	}
 	if (i==1000)
 	{
@@ -1282,13 +1287,13 @@ void SV_Localinfo_f (void)
 	Con_DPrintf("Localinfo %s changed (%s -> %s)\n", Cmd_Argv(1), old, Cmd_Argv(2));
 }
 
-void SV_SaveInfos(FILE *f)
+void SV_SaveInfos(vfsfile_t *f)
 {
-	fwrite("\n", 1, 1, f);
-	fwrite("serverinfo * \"\"\n", 16, 1, f);
+	VFS_WRITE(f, "\n", 1);
+	VFS_WRITE(f, "serverinfo * \"\"\n", 16);
 	Info_WriteToFile(f, svs.info, "serverinfo", CVAR_SERVERINFO);
-	fwrite("\n", 1, 1, f);
-	fwrite("localinfo * \"\"\n", 15, 1, f);
+	VFS_WRITE(f, "\n", 1);
+	VFS_WRITE(f, "localinfo * \"\"\n", 15);
 	Info_WriteToFile(f, localinfo, "localinfo", 0);
 }
 

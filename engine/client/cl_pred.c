@@ -545,7 +545,7 @@ static void CL_LerpMove (int pnum, float msgtime)
 	int		i;
 	int		from, to;
 
-	if (cl_nolerp.value)
+	if (cl_nolerp.value || cls.demoplayback == DPB_MVD)
 		return;
 
 	if (cls.netchan.outgoing_sequence < lastsequence) {
@@ -757,7 +757,7 @@ void CL_PredictMovePNum (int pnum)
 			vel = vec3_origin;
 			goto fixedorg;
 		}
-		Con_Printf("Not lerped\n");
+
 /*		entity_state_t *CL_FindOldPacketEntity(int num);
 		entity_state_t *CL_FindPacketEntity(int num);
 		entity_state_t *state;
@@ -814,7 +814,7 @@ fixedorg:
 
 	to = &cl.frames[cl.validsequence & UPDATE_MASK];
 
-	if (Cam_TrackNum(pnum)>=0 && !cl_nolerp.value)
+	if (Cam_TrackNum(pnum)>=0 && !cl_nolerp.value && cls.demoplayback != DPB_MVD)
 	{
 		float f;
 

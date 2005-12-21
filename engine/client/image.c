@@ -964,38 +964,98 @@ qbyte *ReadJPEGFile(qbyte *infile, int length, int *width, int *height)
 }
 
 
-
+#define OUTPUT_BUF_SIZE 4096
 typedef struct  {	
   struct jpeg_error_mgr pub;
+
   jmp_buf setjmp_buffer;
 } jpeg_error_mgr_wrapper;
+
+typedef struct {
+	struct jpeg_destination_mgr pub;
+
+	vfsfile_t *vfs;
+
+
+	JOCTET  buffer[OUTPUT_BUF_SIZE];		/* start of buffer */
+} my_destination_mgr;
+
+METHODDEF(void) init_destination (j_compress_ptr cinfo)
+{
+	my_destination_mgr *dest = (my_destination_mgr*) cinfo->dest;
+
+	dest->pub.next_output_byte = dest->buffer;
+	dest->pub.free_in_buffer = OUTPUT_BUF_SIZE;
+}
+METHODDEF(boolean) empty_output_buffer (j_compress_ptr cinfo)
+{
+	my_destination_mgr *dest = (my_destination_mgr*) cinfo->dest;
+
+	VFS_WRITE(dest->vfs, dest->buffer, OUTPUT_BUF_SIZE);
+	dest->pub.next_output_byte = dest->buffer;
+	dest->pub.free_in_buffer = OUTPUT_BUF_SIZE;
+
+	return TRUE;
+}
+METHODDEF(void) term_destination (j_compress_ptr cinfo)
+{
+	my_destination_mgr *dest = (my_destination_mgr*) cinfo->dest;
+
+	VFS_WRITE(dest->vfs, dest->buffer, OUTPUT_BUF_SIZE - dest->pub.free_in_buffer);
+	dest->pub.next_output_byte = dest->buffer;
+	dest->pub.free_in_buffer = OUTPUT_BUF_SIZE;
+}
+
+void jpeg_mem_dest (j_compress_ptr cinfo, vfsfile_t *vfs)
+{
+  my_destination_mgr *dest;
+
+  if (cinfo->dest == NULL) {	/* first time for this JPEG object? */
+    cinfo->dest = (struct jpeg_destination_mgr *)
+      (*cinfo->mem->alloc_small) ((j_common_ptr) cinfo, JPOOL_PERMANENT,
+				  sizeof(my_destination_mgr));
+	dest = (my_destination_mgr*) cinfo->dest;
+//    dest->buffer = (JOCTET *)
+//      (*cinfo->mem->alloc_small) ((j_common_ptr) cinfo, JPOOL_PERMANENT,
+//				  OUTPUT_BUF_SIZE * sizeof(JOCTET));
+  }
+
+  dest = (my_destination_mgr*) cinfo->dest;
+  dest->pub.init_destination = init_destination;
+  dest->pub.empty_output_buffer = empty_output_buffer;
+  dest->pub.term_destination = term_destination;
+  dest->pub.free_in_buffer = 0; /* forces fill_input_buffer on first read */
+  dest->pub.next_output_byte = NULL; /* until buffer loaded */
+  dest->vfs = vfs;
+}
+
+
 
 METHODDEF(void) jpeg_error_exit (j_common_ptr cinfo) {	
   longjmp(((jpeg_error_mgr_wrapper *) cinfo->err)->setjmp_buffer, 1);
 }
-extern char	*com_basedir;
 void screenshotJPEG(char *filename, qbyte *screendata, int screenwidth, int screenheight)	//input is rgb NOT rgba
 {
-	char	name[MAX_OSPATH];
 	qbyte	*buffer;
-	FILE	*outfile;
+	vfsfile_t	*outfile;
 	jpeg_error_mgr_wrapper jerr;
 	struct jpeg_compress_struct cinfo;
 	JSAMPROW row_pointer[1];
 
-	sprintf (name, "%s/%s", com_gamedir, filename);	
-	if (!(outfile = fopen (name, "wb"))) {
-		COM_CreatePath (name);
-		if (!(outfile = fopen (name, "wb")))
+	if (!(outfile = FS_OpenVFS(filename, "wb", FS_GAMEONLY)))
+	{
+		FS_CreatePath (filename, FS_GAME);
+		if (!(outfile = FS_OpenVFS(filename, "w", FS_GAMEONLY)))
 			Sys_Error ("Error opening %s", filename);
 	}
 
 	cinfo.err = jpeg_std_error(&jerr.pub);
 	jerr.pub.error_exit = jpeg_error_exit;
-	if (setjmp(jerr.setjmp_buffer)) {
+	if (setjmp(jerr.setjmp_buffer))
+	{
 		jpeg_destroy_compress(&cinfo);
-		fclose(outfile);
-		unlink(name);
+		VFS_CLOSE(outfile);
+		FS_Remove(filename, FS_GAME);
 		Con_Printf("Failed to create jpeg\n");
 		return;
 	}
@@ -1003,7 +1063,7 @@ void screenshotJPEG(char *filename, qbyte *screendata, int screenwidth, int scre
 
 	buffer = screendata;
 	
-	jpeg_stdio_dest(&cinfo, outfile);
+	jpeg_mem_dest(&cinfo, outfile);
 	cinfo.image_width = screenwidth; 	
 	cinfo.image_height = screenheight;
 	cinfo.input_components = 3;
@@ -1012,13 +1072,14 @@ void screenshotJPEG(char *filename, qbyte *screendata, int screenwidth, int scre
 	jpeg_set_quality (&cinfo, 75/*bound(0, (int) gl_image_jpeg_quality_level.value, 100)*/, true);
 	jpeg_start_compress(&cinfo, true);
 
-	while (cinfo.next_scanline < cinfo.image_height) {
+	while (cinfo.next_scanline < cinfo.image_height)
+	{
 	    *row_pointer = &buffer[(cinfo.image_height - cinfo.next_scanline - 1) * cinfo.image_width * 3];
 	    jpeg_write_scanlines(&cinfo, row_pointer, 1);
 	}
 
 	jpeg_finish_compress(&cinfo);
-	fclose(outfile);
+	VFS_CLOSE(outfile);
 	jpeg_destroy_compress(&cinfo);
 }
 

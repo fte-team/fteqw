@@ -42,8 +42,6 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 		#define AVAIL_JPEGLIB
 		#define AVAIL_ZLIB
 
-//		#define	AVAIL_MP3
-
 		#define AVAIL_OGGVORBIS
 	#endif
 	#define AVAIL_MASM
@@ -57,9 +55,6 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 #endif
 #ifdef NO_ZLIB
 	#undef AVAIL_ZLIB
-#endif
-#ifdef NO_MAD
-	#undef 	AVAIL_MP3
 #endif
 #ifdef NO_OGG
 	#undef AVAIL_OGGVORBIS
@@ -84,7 +79,6 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 	#ifdef MINIMAL
 		#define CL_MASTER		//this is useful
 
-		#undef AVAIL_MP3		//no mp3 support
 		#undef AVAIL_JPEGLIB	//no jpeg support
 		#undef AVAIL_PNGLIB		//no png support
 		#undef USE_MADLIB		//no internal mp3 playing
@@ -120,8 +114,8 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 		#define NQPROT			//server and client are capable of using quake1/netquake protocols. (qw is still prefered. uses the command 'nqconnect')
 		#define FISH			//sw rendering only
 		#define ZLIB			//zip/pk3 support
-		#define WEBSERVER		//http/ftp servers
-		#define WEBCLIENT		//http/ftp clients.
+//		#define WEBSERVER		//http/ftp servers
+//		#define WEBCLIENT		//http/ftp clients.
 		#define RUNTIMELIGHTING	//calculate lit/lux files the first time the map is loaded and doesn't have a loadable lit.
 //		#define QTERM			//qterm... adds a console command that allows running programs from within quake - bit like xterm.
 		#define CL_MASTER		//query master servers and stuff for a dynamic server listing.
@@ -154,10 +148,6 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 
 #ifdef MINGW
 	#undef AVAIL_ZLIB
-#endif
-
-#ifdef USE_MADLIB	//global option. Specify on compiler command line.
-	#define AVAIL_MP3	//suposedly anti-gpl. don't use in a distributed binary
 #endif
 
 #ifndef _WIN32

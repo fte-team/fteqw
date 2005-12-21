@@ -16,10 +16,10 @@ void SV_WriteDemoMessage (sizebuf_t *msg)
 	if (!svs.demorecording)
 		return;
 	time = LittleFloat(sv.time);
-	fwrite(&time, 1, sizeof(time), svdemofile);	
+	fwrite(&time, 1, sizeof(time), svdemofile);
 	len = LittleShort((short)msg->cursize);
 	fwrite(&len, 1, sizeof(len), svdemofile);
-	fwrite(msg->data, 1, msg->cursize, svdemofile);	
+	fwrite(msg->data, 1, msg->cursize, svdemofile);
 }
 
 qboolean SV_GetDemoMessage (void)
@@ -68,7 +68,7 @@ qboolean SV_GetPacket (void)
 		return false;
 
 	SV_WriteDemoMessage (&net_message);
-	
+
 	return true;
 }
 
@@ -107,7 +107,7 @@ void SV_RecordDemo_f (void)
 	svs.demorecording = true;
 
 	i = predictablerandgetseed();
-	fwrite(&i, 1, sizeof(i), svdemofile);	
+	fwrite(&i, 1, sizeof(i), svdemofile);
 
 	SV_SpawnServer(mapname, NULL, false, false);
 }
@@ -162,7 +162,7 @@ void SV_PlayDemo_f(void)
 
 	fread(&i, 1, sizeof(i), svdemofile);
 	predictablesrand(i);
-	
+
 
 	fread(&time, 1, sizeof(time), svdemofile);
 	svdemotime = LittleFloat(time);
@@ -225,9 +225,9 @@ void SV_LoadClientDemo_f (void)
 	if (svd.demofile)
 	{
 		Con_Printf ("Ending old demo\n");
-		fclose(svd.demofile);
+		VFS_CLOSE(svd.demofile);
 		svd.demofile = NULL;
-		
+
 		SV_ReadMVD();
 	}
 
@@ -240,10 +240,10 @@ void SV_LoadClientDemo_f (void)
 	}
 
 	demoname = Cmd_Argv(1);
-	com_filesize = COM_FOpenFile(demoname, &svd.demofile);
-
+	svd.demofile = FS_OpenVFS(demoname, "rb", FS_GAME);
 	if (!svd.demofile)	//try with a different path
-		com_filesize = COM_FOpenFile(va("demos/%s", demoname), &svd.demofile);
+		svd.demofile = FS_OpenVFS(va("demos/%s", demoname), "rb", FS_GAME);
+	com_filesize = VFS_GETLEN(svd.demofile);
 
 	if (!svd.demofile)
 	{
@@ -253,7 +253,7 @@ void SV_LoadClientDemo_f (void)
 	if (com_filesize <= 0)
 	{
 		Con_Printf("Failed to open %s\n", demoname);
-		fclose(svd.demofile);
+		VFS_CLOSE(svd.demofile);
 		svd.demofile = NULL;
 		return;
 	}
@@ -306,7 +306,7 @@ void SV_LoadClientDemo_f (void)
 	{
 		svs.spawncount++;
 		SV_BroadcastCommand ("changing\n");	//but this arrives BEFORE the serverdata
-		
+
 		ohc = host_client;
 		for (i=0, host_client = svs.clients ; i<MAX_CLIENTS ; i++, host_client++)
 		{
@@ -337,13 +337,13 @@ readnext:
 	// read the time from the packet
 	if (svd.mvdplayback)
 	{
-		fread(&newtime, sizeof(newtime), 1, svd.demofile);
+		VFS_READ(svd.demofile, &newtime, sizeof(newtime));
 		nextdemotime = olddemotime + newtime * (1/1000.0f);
 		demotime = nextdemotime;
 
 		if (nextdemotime > svd.realtime)
 		{
-			fseek(svd.demofile, ftell(svd.demofile) - sizeof(newtime), SEEK_SET);
+			VFS_SEEK(svd.demofile, VFS_TELL(svd.demofile) - sizeof(newtime));
 			return false;
 		}
 		else if (nextdemotime + 0.1 < svd.realtime)
@@ -351,13 +351,13 @@ readnext:
 	}
 	else
 	{
-		fread(&demotime, sizeof(demotime), 1, svd.demofile);
+		VFS_READ(svd.demofile, &demotime, sizeof(demotime));
 		demotime = LittleFloat(demotime);
 		if (!nextdemotime)
 			svd.realtime = nextdemotime = demotime;
 	}
 
-// decide if it is time to grab the next message		
+// decide if it is time to grab the next message
 	if (!sv.paused) {	// always grab until fully connected
 		if (!svd.mvdplayback)
 		{
@@ -365,11 +365,11 @@ readnext:
 				// too far back
 				svd.realtime = demotime - 1.0;
 				// rewind back to time
-				fseek(svd.demofile, ftell(svd.demofile) - sizeof(demotime), SEEK_SET);
+				VFS_SEEK(svd.demofile, VFS_TELL(svd.demofile) - sizeof(demotime));
 				return false;
 			} else if (nextdemotime < demotime) {
 				// rewind back to time
-				fseek(svd.demofile, ftell(svd.demofile) - sizeof(demotime), SEEK_SET);
+				VFS_SEEK(svd.demofile, VFS_TELL(svd.demofile) - sizeof(demotime));
 				return false;		// don't need another message yet
 			}
 		}
@@ -380,20 +380,20 @@ readnext:
 	olddemotime = demotime;
 
 	// get the msg type
-	if ((r = fread (&c, sizeof(c), 1, svd.demofile)) != 1)
+	if ((r = VFS_READ(svd.demofile, &c, sizeof(c))) != sizeof(c))
 	{
 		Con_Printf ("Unexpected end of demo\n");
-		fclose(svd.demofile);
+		VFS_CLOSE(svd.demofile);
 		svd.demofile = NULL;
 		return false;
 //		SV_Error ("Unexpected end of demo");
 	}
-	
+
 	switch (c & 7) {
 	case dem_cmd :
 
 		Con_Printf ("dem_cmd not supported\n");
-		fclose(svd.demofile);
+		VFS_CLOSE(svd.demofile);
 		svd.demofile = NULL;
 		return false;
 
@@ -418,32 +418,32 @@ readnext:
 	//	fread (&emptycmd, 12, 1, svd.demofile);
 /*		for (j = 0; j < 3; j++)
 			 cl.viewangles[i] = LittleFloat (cl.viewangles[i]);
-		if (cl.spectator) 
-			Cam_TryLock (); 
+		if (cl.spectator)
+			Cam_TryLock ();
 */
 		goto readnext;
 
 	case dem_read:
 readit:
 		// get the next message
-		fread (&net_message.cursize, 4, 1, svd.demofile);
+		VFS_READ (svd.demofile, &net_message.cursize, 4);
 		net_message.cursize = LittleLong (net_message.cursize);
-		
+
 		if (!svd.mvdplayback && net_message.cursize > MAX_QWMSGLEN + 8)
 			SV_Error ("Demo message > MAX_MSGLEN + 8");
 		else if (svd.mvdplayback && net_message.cursize > net_message.maxsize)
 			SV_Error ("Demo message > MAX_UDP_PACKET");
 
-		if ((r = fread (net_message.data, net_message.cursize, 1, svd.demofile)) != 1)
+		if ((r = VFS_READ(svd.demofile, net_message.data, net_message.cursize)) != net_message.cursize)
 			SV_Error ("Corrupted demo");
 
 /*		if (svd.mvdplayback) {
 			tracknum = Cam_TrackNum();
-		
+
 			if (svd.lasttype == dem_multiple) {
 				if (tracknum == -1)
 					goto readnext;
-	
+
 				if (!(svd.lastto & (1 << (tracknum))))
 					goto readnext;
 			} else if (svd.lasttype == dem_single) {
@@ -455,12 +455,12 @@ readit:
 		return true;
 
 	case dem_set:
-		fread (&i, 4, 1, svd.demofile);
-		fread (&i, 4, 1, svd.demofile);
+		VFS_READ(svd.demofile, &i, 4);
+		VFS_READ(svd.demofile, &i, 4);
 		goto readnext;
 
 	case dem_multiple:
-		if ((r = fread (&i, 4, 1, svd.demofile)) != 1)
+		if ((r = VFS_READ(svd.demofile, &i, 4)) != 1)
 			SV_Error ("Corrupted demo");
 
 		svd.lastto = LittleLong(i);
@@ -579,7 +579,7 @@ qboolean SV_ReadMVD (void)
 
 	if (oldsc != svs.spawncount)
 	{
-		fclose(svd.demofile);
+		VFS_CLOSE(svd.demofile);
 		svd.demofile = NULL;
 
 		for (i=0, host_client = svs.clients ; i<MAX_CLIENTS ; i++, host_client++)

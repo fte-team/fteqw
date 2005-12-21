@@ -883,8 +883,9 @@ void Cmd_AliasList_f (void)
 		Con_Printf("\n");
 }
 
-void Alias_WriteAliases (FILE *f)
+void Alias_WriteAliases (vfsfile_t *f)
 {
+	char *s;
 	cmdalias_t	*cmd;
 	int num=0;
 	for (cmd=cmd_alias ; cmd ; cmd=cmd->next)
@@ -894,12 +895,22 @@ void Alias_WriteAliases (FILE *f)
 		if (cmd->flags & ALIAS_FROMSERVER)
 			continue;
 		if (!num)
-			fprintf(f, "\n//////////////////\n//Aliases\n");
-		fprintf(f, "alias %s \"%s\"\n", cmd->name, cmd->value);
+		{
+			s = va("\n//////////////////\n//Aliases\n");
+			VFS_WRITE(f, s, strlen(s));
+		}
+		s = va("alias %s \"%s\"\n", cmd->name, cmd->value);
+		VFS_WRITE(f, s, strlen(s));
 		if (cmd->restriction != 1)	//1 is default
-			fprintf(f, "restrict %s %i\n", cmd->name, cmd->restriction);
+		{
+			s = va("restrict %s %i\n", cmd->name, cmd->restriction);
+			VFS_WRITE(f, s, strlen(s));
+		}
 		if (cmd->execlevel != 0)	//0 is default (runs at user's level)
-			fprintf(f, "aliaslevel %s %i\n", cmd->name, cmd->execlevel);
+		{
+			s = va("aliaslevel %s %i\n", cmd->name, cmd->execlevel);
+			VFS_WRITE(f, s, strlen(s));
+		}
 		num++;
 	}
 }
@@ -2686,24 +2697,13 @@ qboolean Cmd_FilterMessage (char *message, qboolean sameteam)	//returns true if 
 */
 void Cmd_WriteConfig_f(void)
 {
-	FILE *f;
+	vfsfile_t *f;
 	char *filename;
 
 	filename = Cmd_Argv(1);
 	if (!*filename)
 		filename = "fte";
 
-	if (!strncmp(filename, "../", 3))
-	{
-		filename+=3;
-		if (strstr(filename, ".."))
-		{
-			Con_Printf ("Couldn't write config %s\n",filename);
-			return;
-		}
-		filename = va("%s/fte/%s.cfg",com_basedir, filename);
-	}
-	else
 	{
 		if (strstr(filename, ".."))
 		{
@@ -2711,31 +2711,31 @@ void Cmd_WriteConfig_f(void)
 			return;
 		}
 
-		filename = va("%s/fte/configs/%s.cfg",com_basedir, filename);
+		filename = va("configs/%s.cfg",filename);
 	}
 	COM_DefaultExtension(filename, ".cfg");
-	COM_CreatePath(filename);
-	f = fopen (filename, "wb");
+	FS_CreatePath(filename, FS_CONFIGONLY);
+	f = FS_OpenVFS(filename, "wb", FS_CONFIGONLY);
 	if (!f)
 	{
 		Con_Printf ("Couldn't write config %s\n",filename);
 		return;
 	}
-	fprintf(f, "// FTE config file\n\n");
+	VFS_WRITE(f, "// FTE config file\n\n", 20);
 #ifndef SERVERONLY
 	Key_WriteBindings (f);
 	CL_SaveInfo(f);
 #else
-	fprintf(f, "// Dedicated Server config\n\n");
+	VFS_WRITE(f, "// Dedicated Server config\n\n", 28);
 #endif
 #ifdef CLIENTONLY
-	fprintf(f, "// no local/server infos\n\n");
+	VFS_WRITE(f, "// no local/server infos\n\n", 26);
 #else
 	SV_SaveInfos(f);
 #endif
 	Alias_WriteAliases (f);
 	Cvar_WriteVariables (f, true);
-	fclose(f);
+	VFS_CLOSE(f);
 
 	FS_FlushFSHash();
 }
@@ -2819,6 +2819,7 @@ void Cmd_Init (void)
 	Cmd_AddCommand ("cfg_save",Cmd_WriteConfig_f);
 
 	Cmd_AddCommand ("cfg_load",Cmd_Exec_f);
+	//Cmd_AddCommand ("cfg_reset",Cmd_Reset_f);
 
 	Cmd_AddCommand ("exec",Cmd_Exec_f);
 	Cmd_AddCommand ("echo",Cmd_Echo_f);

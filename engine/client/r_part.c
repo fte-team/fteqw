@@ -1073,7 +1073,7 @@ void P_SelectableTrail(model_t *model, cvar_t *selection, int mdleffect, int mdl
 		model->particletrail = P_AllocateParticleType("t_zomgib");
 		model->traildefaultindex = 70;
 		break;
-	case 6: // Scrag tracer 
+	case 6: // Scrag tracer
 		model->particletrail = P_AllocateParticleType("t_tracer");
 		model->traildefaultindex = 60;
 		break;
@@ -1559,16 +1559,18 @@ void P_NewServer(void)
 
 void P_ReadPointFile_f (void)
 {
-	FILE	*f;
+	vfsfile_t	*f;
 	vec3_t	org;
 	int		r;
 	int		c;
 	char	name[MAX_OSPATH];
+	char line[1024];
+	char *s;
 
 	COM_StripExtension(cl.worldmodel->name, name);
 	strcat(name, ".pts");
 
-	COM_FOpenFile (name, &f);
+	f = FS_OpenVFS(name, "rb", FS_GAME);
 	if (!f)
 	{
 		Con_Printf ("couldn't open %s\n", name);
@@ -1581,9 +1583,23 @@ void P_ReadPointFile_f (void)
 	c = 0;
 	for ( ;; )
 	{
-		r = fscanf (f,"%f %f %f\n", &org[0], &org[1], &org[2]);
-		if (r != 3)
-			break;
+		VFS_GETS(f, line, sizeof(line));
+
+		s = COM_Parse(line);
+		org[0] = atof(com_token);
+
+		s = COM_Parse(s);
+		if (!s)
+			continue;
+		org[1] = atof(com_token);
+
+		s = COM_Parse(s);
+		if (!s)
+			continue;
+		org[2] = atof(com_token);
+		if (COM_Parse(s))
+			continue;
+
 		c++;
 
 		if (c%8)
@@ -1597,7 +1613,7 @@ void P_ReadPointFile_f (void)
 		P_RunParticleEffectType(org, NULL, 1, pt_pointfile);
 	}
 
-	fclose (f);
+	VFS_CLOSE (f);
 	Con_Printf ("%i points read\n", c);
 }
 
@@ -2880,7 +2896,7 @@ static void P_ParticleTrailDraw (vec3_t startpos, vec3_t end, part_type_t *ptype
 		else
 			VectorCopy(ptype->rgb, p->rgb);
 
-		
+
 
 		// use org temporarily for rgbsync
 		p->org[2] = frandom();

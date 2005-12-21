@@ -2131,11 +2131,11 @@ being registered.
 */
 void COM_CheckRegistered (void)
 {
-	FILE		*h;
+	vfsfile_t	*h;
 	unsigned short	check[128];
 	int			i;
 
-	COM_FOpenFile("gfx/pop.lmp", &h);
+	h = FS_OpenVFS("gfx/pop.lmp", "r", FS_GAME);
 	static_registered = false;
 
 	if (!h)
@@ -2149,8 +2149,8 @@ void COM_CheckRegistered (void)
 		return;
 	}
 
-	fread (check, 1, sizeof(check), h);
-	fclose (h);
+	VFS_READ(h, check, sizeof(check));
+	VFS_CLOSE(h);
 	
 	for (i=0 ; i<128 ; i++)
 		if (pop[i] != (unsigned short)BigShort (check[i]))
@@ -2743,7 +2743,7 @@ void Info_Print (char *s)
 	}
 }
 
-void Info_WriteToFile(FILE *f, char *info, char *commandname, int cvarflags)
+void Info_WriteToFile(vfsfile_t *f, char *info, char *commandname, int cvarflags)
 {
 	char *command;
 	char *value;
@@ -2764,12 +2764,12 @@ void Info_WriteToFile(FILE *f, char *info, char *commandname, int cvarflags)
 		if (var && var->flags & cvarflags)
 			continue;	//this is saved via a cvar.
 
-		fwrite(commandname, strlen(commandname), 1, f);
-		fwrite(" ", 1, 1, f);
-		fwrite(command, value-command, 1, f);
-		fwrite(" ", 1, 1, f);
-		fwrite(value+1, info-(value+1), 1, f);
-		fwrite("\n", 1, 1, f);
+		VFS_WRITE(f, commandname, strlen(commandname));
+		VFS_WRITE(f, " ", 1);
+		VFS_WRITE(f, command, value-command);
+		VFS_WRITE(f, " ", 1);
+		VFS_WRITE(f, value+1, info-(value+1));
+		VFS_WRITE(f, "\n", 1);
 	}
 }
 

@@ -457,9 +457,9 @@ qboolean SV_LoadLevelCache(char *level, char *startspot, qboolean ignoreplayers)
 	eval_t *eval, *e2;
 
 	char	name[MAX_OSPATH];
-	FILE	*f;
+	vfsfile_t	*f;
 	char	mapname[MAX_QPATH];
-	float	time, tfloat;
+	float	time;
 	char	str[32768];
 	int		i,j;
 	edict_t	*ent;
@@ -519,41 +519,43 @@ qboolean SV_LoadLevelCache(char *level, char *startspot, qboolean ignoreplayers)
 // been used.  The menu calls it before stuffing loadgame command
 //	SCR_BeginLoadingPlaque ();
 
-	COM_FOpenFile(name, &f);
+	f = FS_OpenVFS(name, "rt", FS_GAME);
 	if (!f)
 	{
 		Con_TPrintf (STL_ERRORCOULDNTOPEN);
 		return false;
 	}
 
-	fscanf (f, "%i\n", &version);
+	VFS_GETS(f, str, sizeof(str));
+	version = atoi(str);
 	if (version != CACHEGAME_VERSION)
 	{
-		fclose (f);
+		VFS_CLOSE (f);
 		Con_TPrintf (STL_BADSAVEVERSION, version, CACHEGAME_VERSION);
 		return false;
 	}
-	fscanf (f, "%s\n", str);
+	VFS_GETS(f, str, sizeof(str));	//comment
 
 	SV_SendMessagesToAll();
 
-	fscanf (f, "%f\n", &tfloat);
-	pt = tfloat;
+	VFS_GETS(f, str, sizeof(str));
+	pt = atof(str);
 
 // this silliness is so we can load 1.06 save files, which have float skill values
-	fscanf (f, "%f\n", &tfloat);
-	current_skill = (int)(tfloat + 0.1);
+	VFS_GETS(f, str, sizeof(str));
+	current_skill = (int)(atof(str) + 0.1);
 	Cvar_Set (&skill, va("%i", current_skill));
 
-	fscanf (f, "%f\n", &tfloat);
-	Cvar_SetValue (&deathmatch, tfloat);
-	fscanf (f, "%f\n", &tfloat);
-	Cvar_SetValue (&coop, tfloat);
-	fscanf (f, "%f\n", &tfloat);
-	Cvar_SetValue (&teamplay, tfloat);
+	VFS_GETS(f, str, sizeof(str));
+	Cvar_SetValue (&deathmatch, atof(str));
+	VFS_GETS(f, str, sizeof(str));
+	Cvar_SetValue (&coop, atof(str));
+	VFS_GETS(f, str, sizeof(str));
+	Cvar_SetValue (&teamplay, atof(str));
 
-	fscanf (f, "%s\n",mapname);
-	fscanf (f, "%f\n",&time);
+	VFS_GETS(f, mapname, sizeof(mapname));
+	VFS_GETS(f, str, sizeof(str));
+	time = atof(str);
 
 	SV_SpawnServer (mapname, startspot, false, false);
 	if (svs.gametype != gametype)
@@ -563,7 +565,7 @@ qboolean SV_LoadLevelCache(char *level, char *startspot, qboolean ignoreplayers)
 	}
 	if (sv.state != ss_active)
 	{
-		fclose (f);
+		VFS_CLOSE (f);
 		Con_TPrintf (STL_LOADFAILED);
 		return false;
 	}
@@ -575,7 +577,7 @@ qboolean SV_LoadLevelCache(char *level, char *startspot, qboolean ignoreplayers)
 
 	for (i=0 ; i<MAX_LIGHTSTYLES ; i++)
 	{
-		fscanf (f, "%s\n", str);
+		VFS_GETS(f, str, sizeof(str));
 		if (sv.lightstyles[i])
 			Z_Free(sv.lightstyles[i]);
 		sv.lightstyles[i] = Z_Malloc (strlen(str)+1);
@@ -594,7 +596,7 @@ qboolean SV_LoadLevelCache(char *level, char *startspot, qboolean ignoreplayers)
 	sv.model_precache[0] = PR_AddString(svprogfuncs, "", 0);
 	for (i=1; i < MAX_MODELS; i++)
 	{
-		fscanf (f, "%s\n", str);
+		VFS_GETS(f, str, sizeof(str));
 		if (!*str)
 			break;
 
@@ -602,7 +604,7 @@ qboolean SV_LoadLevelCache(char *level, char *startspot, qboolean ignoreplayers)
 	}
 	if (i == MAX_MODELS)
 	{
-		fscanf (f, "%s\n", str);
+		VFS_GETS(f, str, sizeof(str));
 		if (*str)
 			SV_Error("Too many model precaches in loadgame cache");
 	}
@@ -612,7 +614,7 @@ qboolean SV_LoadLevelCache(char *level, char *startspot, qboolean ignoreplayers)
 //	sv.sound_precache[0] = PR_AddString(svprogfuncs, "", 0);
 	for (i=1; i < MAX_SOUNDS; i++)
 	{
-		fscanf (f, "%s\n", str);
+		VFS_GETS(f, str, sizeof(str));
 		if (!*str)
 			break;
 
@@ -620,21 +622,19 @@ qboolean SV_LoadLevelCache(char *level, char *startspot, qboolean ignoreplayers)
 	}
 	if (i == MAX_SOUNDS)
 	{
-		fscanf (f, "%s\n", str);
+		VFS_GETS(f, str, sizeof(str));
 		if (*str)
 			SV_Error("Too many sound precaches in loadgame cache");
 	}
 	for (; i < MAX_SOUNDS; i++)
 		*sv.sound_precache[i] = 0;
 
-	filepos = ftell(f);
-	fseek(f, 0, SEEK_END);
-	filelen = ftell(f);
-	fseek(f, filepos, SEEK_SET);
+	filepos = VFS_TELL(f);
+	filelen = VFS_GETLEN(f);
 	filelen -= filepos;
 	file = BZ_Malloc(filelen+1);
 	memset(file, 0, filelen+1);
-	clnum=fread(file, 1, filelen, f);
+	clnum=VFS_READ(f, file, filelen);
 	file[filelen]='\0';
 	pr_edict_size=svprogfuncs->load_ents(svprogfuncs, file, 0);
 	BZ_Free(file);
@@ -645,7 +645,7 @@ qboolean SV_LoadLevelCache(char *level, char *startspot, qboolean ignoreplayers)
 
 	pr_global_struct->time = sv.time = time;
 
-	fclose (f);
+	VFS_CLOSE(f);
 
 	SV_ClearWorld ();
 

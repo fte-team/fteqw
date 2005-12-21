@@ -266,7 +266,10 @@ extern int com_filesize;
 struct cache_user_s;
 
 extern	char	com_gamedir[MAX_OSPATH];
-extern	char	*com_basedir;
+extern char	com_quakedir[MAX_OSPATH];
+extern char	com_homedir[MAX_OSPATH];
+extern char	com_configdir[MAX_OSPATH];	//dir to put cfg_save configs in
+//extern	char	*com_basedir;
 
 void COM_WriteFile (char *filename, void *data, int len);
 FILE *COM_WriteFileOpen (char *filename);
@@ -279,7 +282,7 @@ typedef struct {
 	int				len;
 } flocation_t;
 
-typedef enum {FSLFRT_LENGTH, FSLFRT_DEPTH_OSONLY, FSLFRT_DEPTH_ANYPATH} FSLF_ReturnType_e;
+typedef enum {FSLFRT_IFFOUND, FSLFRT_LENGTH, FSLFRT_DEPTH_OSONLY, FSLFRT_DEPTH_ANYPATH} FSLF_ReturnType_e;
 //if loc is valid, loc->search is always filled in, the others are filled on success.
 //returns -1 if couldn't find.
 int FS_FLocateFile(char *filename, FSLF_ReturnType_e returntype, flocation_t *loc);
@@ -295,6 +298,36 @@ void COM_CloseFile (FILE *h);
 
 #define COM_FDepthFile(filename,ignorepacks) FS_FLocateFile(filename,ignorepacks?FSLFRT_DEPTH_OSONLY:FSLFRT_DEPTH_ANYPATH, NULL)
 #define COM_FCheckExists(filename) (FS_FLocateFile(filename,FSLFRT_LENGTH, NULL)>0)
+
+
+typedef struct vfsfile_s {
+	int (*ReadBytes) (struct vfsfile_s *file, void *buffer, int bytestoread);
+	int (*WriteBytes) (struct vfsfile_s *file, void *buffer, int bytestoread);
+	qboolean (*Seek) (struct vfsfile_s *file, unsigned long pos);	//returns false for error
+	unsigned long (*Tell) (struct vfsfile_s *file);
+	unsigned long (*GetLen) (struct vfsfile_s *file);	//could give some lag
+	void (*Close) (struct vfsfile_s *file);
+} vfsfile_t;
+
+#define VFS_CLOSE(vf) (vf->Close(vf))
+#define VFS_TELL(vf) (vf->Tell(vf))
+#define VFS_GETLEN(vf) (vf->GetLen(vf))
+#define VFS_SEEK(vf,pos) (vf->Seek(vf,pos))
+#define VFS_READ(vf,buffer,buflen) (vf->ReadBytes(vf,buffer,buflen))
+#define VFS_WRITE(vf,buffer,buflen) (vf->WriteBytes(vf,buffer,buflen))
+#define VFS_FLUSH(vf)
+#define VFS_GETS(vf,buffer,buflen) Sys_Error("VFS_GETS not implemented"),false	//:(
+
+void FS_Remove(char *fname, int relativeto);
+vfsfile_t *FS_OpenVFS(char *filename, char *mode, int relativeto);
+enum {
+	FS_GAME,
+	FS_BASE,
+	FS_GAMEONLY,
+	FS_CONFIGONLY,
+	FS_SKINS
+};
+
 
 int COM_filelength (FILE *f);
 qbyte *COM_LoadStackFile (char *path, void *buffer, int bufsize);
@@ -328,7 +361,7 @@ void Info_RemoveNonStarKeys (char *start);
 void Info_SetValueForKey (char *s, const char *key, const char *value, int maxsize);
 void Info_SetValueForStarKey (char *s, const char *key, const char *value, int maxsize);
 void Info_Print (char *s);
-void Info_WriteToFile(FILE *f, char *info, char *commandname, int cvarflags);
+void Info_WriteToFile(vfsfile_t *f, char *info, char *commandname, int cvarflags);
 
 unsigned int Com_BlockChecksum (void *buffer, int length);
 void Com_BlockFullChecksum (void *buffer, int len, unsigned char *outbuf);

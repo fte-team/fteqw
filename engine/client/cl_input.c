@@ -813,7 +813,7 @@ float CL_FilterTime (double time, float wantfps)	//now returns the extra time no
 	if (cls.timedemo || cls.protocol == CP_QUAKE3)
 		return -1;
 
-	if (cls.demoplayback != DPB_NONE)
+	if (cls.demoplayback != DPB_NONE || cls.protocol != CP_QUAKEWORLD)
 	{
 		if (!wantfps)
 			return -1;

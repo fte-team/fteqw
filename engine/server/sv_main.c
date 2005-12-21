@@ -18,7 +18,7 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 
 */
 #include "qwsvdef.h"
-#include "sys/types.h"
+#include <sys/types.h>
 #ifndef CLIENTONLY
 #define Q2EDICT_NUM(i) (q2edict_t*)((char *)ge->edicts+i*ge->edict_size)
 
@@ -103,6 +103,7 @@ cvar_t	allow_download_root = {"allow_download_root", "0"};
 cvar_t	allow_download_textures = {"allow_download_textures", "1"};
 cvar_t	allow_download_pk3s = {"allow_download_pk3s", "1"};
 cvar_t	allow_download_wads = {"allow_download_wads", "1"};
+cvar_t	allow_download_configs = {"allow_download_configs", "0"};
 
 cvar_t sv_public = {"sv_public", "0"};
 cvar_t sv_listen = {"sv_listen", "1"};
@@ -172,7 +173,7 @@ char cvargroup_serverinfo[] = "serverinfo variables";
 char cvargroup_serverphysics[] = "server physics variables";
 char cvargroup_servercontrol[] = "server control variables";
 
-FILE	*sv_fraglogfile;
+vfsfile_t	*sv_fraglogfile;
 
 void SV_FixupName(char *in, char *out);
 void SV_AcceptClient (netadr_t adr, int userid, char *userinfo);
@@ -197,7 +198,7 @@ void SV_Shutdown (void)
 	Master_Shutdown ();
 	if (sv_fraglogfile)
 	{
-		fclose (sv_fraglogfile);
+		VFS_CLOSE (sv_fraglogfile);
 		sv_fraglogfile = NULL;
 	}
 
@@ -435,12 +436,12 @@ void SV_DropClient (client_t *drop)
 
 	if (drop->download)
 	{
-		fclose (drop->download);
+		VFS_CLOSE (drop->download);
 		drop->download = NULL;
 	}
 	if (drop->upload)
 	{
-		fclose (drop->upload);
+		VFS_CLOSE (drop->upload);
 		drop->upload = NULL;
 	}
 	*drop->uploadfn = 0;
@@ -2498,16 +2499,17 @@ SV_WriteIP_f
 */
 void SV_WriteIP_f (void)
 {
-	FILE	*f;
+	vfsfile_t	*f;
 	char	name[MAX_OSPATH];
 	qbyte	b[4];
 	int		i;
+	char *s;
 
-	sprintf (name, "%s/listip.cfg", com_gamedir);
+	sprintf (name, "listip.cfg");
 
 	Con_Printf ("Writing %s.\n", name);
 
-	COM_FOpenWriteFile(name, &f);
+	f = FS_OpenVFS(name, "wt", FS_GAME);
 	if (!f)
 	{
 		Con_Printf ("Couldn't open %s\n", name);
@@ -2517,10 +2519,11 @@ void SV_WriteIP_f (void)
 	for (i=0 ; i<numipfilters ; i++)
 	{
 		*(unsigned *)b = ipfilters[i].compare;
-		fprintf (f, "addip %i.%i.%i.%i\n", b[0], b[1], b[2], b[3]);
+		s = va("addip %i.%i.%i.%i\n", b[0], b[1], b[2], b[3]);
+		VFS_WRITE(f, s, strlen(s));
 	}
 
-	fclose (f);
+	VFS_CLOSE (f);
 }
 
 /*
@@ -3187,6 +3190,7 @@ void SV_InitLocal (void)
 	Cvar_Register (&allow_download_anymap,	cvargroup_serverpermissions);
 	Cvar_Register (&allow_download_pakcontents,	cvargroup_serverpermissions);
 	Cvar_Register (&allow_download_textures,cvargroup_serverpermissions);
+	Cvar_Register (&allow_download_configs,	cvargroup_serverpermissions);
 	Cvar_Register (&allow_download_pk3s,	cvargroup_serverpermissions);
 	Cvar_Register (&allow_download_wads,	cvargroup_serverpermissions);
 	Cvar_Register (&allow_download_root,	cvargroup_serverpermissions);

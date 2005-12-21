@@ -324,7 +324,18 @@ IWebFile_t IWebFiles[] = {
 	{"admin.html", IWeb_GenerateAdminFile}
 };
 
-IWEBFILE *IWebGenerateFile(char *name, char *content, int contentlength)
+typedef struct {
+	vfsfile_t funcs;
+	char *buffer;
+	int length;
+	int pos;
+} vfsmemory_t;
+
+vfsfile_t *VFSMEM_FromZMalloc(char *buffer, int length)
+{
+}
+
+vfsfile_t *IWebGenerateFile(char *name, char *content, int contentlength)
 {
 	int fnum;
 	char *parms;
@@ -381,7 +392,8 @@ IWEBFILE *IWebGenerateFile(char *name, char *content, int contentlength)
 					IWebFiles[fnum].lastgenerationtime = -10;
 			}			
 
-			ret = IWebMalloc(sizeof(IWEBFILE));
+			ret = VFSMEM_FromZMalloc
+			ret = IWebMalloc(sizeof(vfsfile_t));
 			if (!ret)
 			{
 				BZ_Free(IWeb_GenerationBuffer);

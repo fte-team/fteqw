@@ -66,7 +66,15 @@ ifeq ($(USEASM),true)
 		DO_AS=$(CC) $(BASE_CFLAGS) $(WCFLAGS) -x assembler-with-cpp -DELF -o $@ -c $< $(CFLAGS)
 	endif
 endif
-BASELDFLAGS=-lm
+
+ifeq ($(FTE_TARGET),win32)
+	BASELDFLAGS=-lm
+endif
+ifeq ($(FTE_TARGET),cygwin)
+	BASELDFLAGS=-lm
+endif
+BASELDFLAGS ?= -lm -ldl
+
 #BASELDFLAGS=-lm  -lz
 GLXLDFLAGS=-L/usr/X11R6/lib -lX11 -lXext -lpng -ljpeg
 GLSLDFLAGS=-L/usr/X11R6/lib -lMesaGL -lglide -lvga

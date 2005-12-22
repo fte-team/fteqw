@@ -44,6 +44,10 @@ void D_DrawSpans32 (espan_t *pspan);
 void D_DrawSpans32From8 (espan_t *pspan);
 void D_DrawSpans32_Smooth (espan_t *pspan);
 
+void D_Shutdown (void)
+{
+	D_ShutdownTrans();
+}
 
 /*
 ===============

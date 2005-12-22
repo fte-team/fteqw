@@ -1375,7 +1375,7 @@ void D_DrawSpans8 (espan_t *pspan)
 
 			do
 			{
-				*((unsigned int *)pdest)++ = *((pbase + (s >> 16) + (t >> 16) * cachewidth))* 0x01010101;
+				*((unsigned int *)pdest)++ = *((pbase + (s >> 16) + (t >> 16) * cachewidth)) * 0x01010101;
 				s += sstep<<2;
 				t += tstep<<2;
 			} while((spancount-=4) > 3);

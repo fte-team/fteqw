@@ -2098,9 +2098,12 @@ char *SaveEnt (progfuncs_t *progfuncs, char *buf, int *size, struct edict_s *ed)
 
 	for (i=0 ; i<numfields ; i++)
 	{
+		int len;
+
 		d = &field[i];
 		name = d->name;
-		if (name[strlen(name)-2] == '_')
+		len = strlen(name); // should we skip vars with no name?
+		if (len > 2 && name[len-2] == '_')
 			continue;	// skip _x, _y, _z vars
 
 		v = (int*)((edictrun_t*)ed)->fields + d->ofs;

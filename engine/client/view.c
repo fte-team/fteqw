@@ -1184,7 +1184,7 @@ void V_CalcRefdef (int pnum)
  	else
 		view->model = cl.model_precache[cl.stats[pnum][STAT_WEAPON]];
 	view->frame = view_message?view_message->weaponframe:0;
-	view->colormap = vid.colormap;
+	view->palremap = D_IdentityRemap();
 
 // set up the refresh position
 	r_refdef.viewangles[PITCH] += cl.punchangle[pnum];

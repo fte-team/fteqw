@@ -20,8 +20,12 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 
 // refresh.h -- public interface to refresh functions
 
-#define	TOP_RANGE		16			// soldier uniform colors
-#define	BOTTOM_RANGE	96
+// default soldier colors
+#define TOP_DEFAULT		1
+#define BOTTOM_DEFAULT	6
+
+#define	TOP_RANGE		(TOP_DEFAULT<<4)
+#define	BOTTOM_RANGE	(BOTTOM_DEFAULT<<4)
 
 struct msurface_s;
 
@@ -63,7 +67,7 @@ typedef struct entity_s
 	
 	struct model_s			*model;			// NULL = no model
 	int						frame;
-	qbyte					*colormap;
+	struct palremap_s		*palremap;
 	int						skinnum;		// for Alias models
 
 	struct player_info_s	*scoreboard;	// identify player
@@ -382,7 +386,8 @@ extern	cvar_t	gl_finish;
 extern	cvar_t	gl_max_size;
 extern	cvar_t	gl_playermip;
 
-extern cvar_t   r_palconvwrite;
+extern cvar_t   d_palconvwrite;
+extern cvar_t	d_palremapsize;
 
 extern  cvar_t	r_lightmap_saturation;
 

@@ -209,6 +209,7 @@ void SWR_DeInit (void)
 	Cmd_RemoveCommand ("pointfile");
 
 	SWDraw_Shutdown();
+	D_Shutdown();
 }
 
 /*

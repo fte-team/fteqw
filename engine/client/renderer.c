@@ -198,7 +198,8 @@ cvar_t r_drawflat = {"r_drawflat","0", NULL, CVAR_SEMICHEAT};
 cvar_t r_wallcolour = {"r_wallcolour","0 0 1"};
 cvar_t r_floorcolour = {"r_floorcolour","0.5 0.5 1"};
 
-cvar_t r_palconvwrite = {"r_palconvwrite", "1"};
+cvar_t d_palconvwrite = {"d_palconvwrite", "1"};
+cvar_t d_palremapsize = {"d_palremapsize", "64", NULL, CVAR_RENDERERLATCH};
 
 cvar_t r_lightmap_saturation = {"r_lightmap_saturation", "1"};
 
@@ -388,7 +389,8 @@ void SWRenderer_Init(void)
 	Cvar_Register (&r_ambient, SWRENDEREROPTIONS);
 	Cvar_Register (&r_reportsurfout, SWRENDEREROPTIONS);
 
-	Cvar_Register (&r_palconvwrite, SWRENDEREROPTIONS);
+	Cvar_Register (&d_palconvwrite, SWRENDEREROPTIONS);
+	Cvar_Register (&d_palremapsize, SWRENDEREROPTIONS);
 }
 #endif
 
@@ -1659,7 +1661,7 @@ TRACE(("dbg: R_ApplyRenderer: efrags\n"));
 		for (i = 0; i < cl.num_statics; i++)	//make the static entities reappear.
 		{
 			cl_static_entities[i].model = cl.model_precache[staticmodelindex[i]];
-			cl_static_entities[i].colormap = vid.colormap;
+			cl_static_entities[i].palremap = D_IdentityRemap();
 			if (staticmodelindex[i])	//make sure it's worthwhile.
 			{
 				R_AddEfrags(&cl_static_entities[i]);

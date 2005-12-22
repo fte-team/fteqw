@@ -1627,12 +1627,13 @@ void CL_LinkPacketEntities (void)
 		if (state->colormap && (state->colormap <= MAX_CLIENTS)
 			&& (gl_nocolors.value == -1 || (ent->model/* && state->modelindex == cl_playerindex*/)))
 		{
-			ent->colormap = cl.players[state->colormap-1].translations;
+			// TODO: DP colormap/colormod extension?
+			ent->palremap = cl.players[state->colormap-1].palremap;
 			ent->scoreboard = &cl.players[state->colormap-1];
 		}
 		else
 		{
-			ent->colormap = vid.colormap;
+			ent->palremap = D_IdentityRemap();
 			ent->scoreboard = NULL;
 		}
 
@@ -2196,7 +2197,7 @@ void CL_LinkProjectiles (void)
 		ent->skinnum = 0;
 		ent->frame = 0;
 		ent->flags = 0;
-		ent->colormap = vid.colormap;
+		ent->palremap = D_IdentityRemap();
 		ent->scoreboard = NULL;
 #ifdef PEXT_SCALE
 		ent->scale = 1;
@@ -2717,7 +2718,7 @@ void CL_LinkPlayers (void)
 		else
 			ent->lerpfrac = 0;
 
-		ent->colormap = info->translations;
+		ent->palremap = info->palremap;
 		if (state->modelindex == cl_playerindex)
 			ent->scoreboard = info;		// use custom skin
 		else

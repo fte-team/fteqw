@@ -125,11 +125,36 @@ extern void (*d_drawspans) (espan_t *pspan);
 #define TRANS_UPPER_CAP (TRANS_MAX / (TRANS_LEVELS + 0.0))
 #define TRANS_LOWER_CAP (1.0 / TRANS_LEVELS)
 
+#define REMAP_MAX 64
+
 #ifdef _fastcall
 #define FASTCALL _fastcall
 #else
 #define FASTCALL
 #endif
+
+// palette remap cache
+typedef struct palremap_s {
+	int r;
+	int g;
+	int b;
+	int key;
+	int references;
+	qbyte pal[256];
+} palremap_t;
+
+palremap_t *palremaps;
+int palremapsize;
+
+#define fbremapidx(x) palremaps[1].pal[x]
+
+#define identityremap palremaps[0]
+#define fullbrightremap palremaps[1]
+
+palremap_t *D_GetPaletteRemap(int red, int green, int blue, qboolean desaturate, qboolean fullbrights, int topcolor, int bottomcolor);
+qbyte *D_GetMenuTintPal(void);
+extern palremap_t *D_IdentityRemap(void);
+extern void D_DereferenceRemap(palremap_t *palremap);
 
 void D_InitTrans(void);
 // void Set_TransLevelI(int level);

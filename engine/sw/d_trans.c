@@ -7,32 +7,55 @@
 
 void MakeVideoPalette(void);
 void MakeSwizzledPalette(void);
-void MakeFullbrightRemap(void);
+void MakePaletteRemaps(void);
 
 int *srctable;
 int *dsttable;
 qbyte *pal555to8;
 
 int swzpal[TRANS_LEVELS][256];
-qbyte nofbremap[256];
+
+// menutint
+palremap_t *RebuildMenuTint(void);
+palremap_t *mtpalremap;
+
+extern cvar_t r_menutint;
+int mtmodified;
 
 #define palette host_basepal
 #define _abs(x) ((x)*(x))
+
+void D_ShutdownTrans(void)
+{
+	if (pal555to8)
+	{
+		BZ_Free(pal555to8);
+		pal555to8 = NULL;
+	}
+
+	if (palremaps)
+	{
+		BZ_Free(palremaps);
+		palremapsize = 0;
+		palremaps = NULL;
+	}
+
+	mtpalremap = NULL;
+	mtmodified = 0;
+}
 
 void D_InitTrans(void)
 {
 	// create pal555to8 and swizzled palette 
 	MakeVideoPalette();
 	MakeSwizzledPalette();
-	MakeFullbrightRemap();
+	MakePaletteRemaps();
 
 	srctable = swzpal[0];
 	dsttable = swzpal[TRANS_MAX];
+	mtpalremap = RebuildMenuTint();
 }
 
-#if 0
-#define Trans(p, p2)	(t_curlookupp[p][p2])
-#else
 // TODO: INLINE THESE FUNCTIONS
 qbyte FASTCALL Trans(qbyte p, qbyte p2)
 {	
@@ -42,7 +65,6 @@ qbyte FASTCALL Trans(qbyte p, qbyte p2)
 	return pal555to8[x & (x >> 15)];
 
 }
-#endif
 
 qbyte FASTCALL AddBlend(qbyte p, qbyte p2)
 {
@@ -142,7 +164,7 @@ qbyte GetPalette(int red, int green, int blue)
 qbyte GetPaletteNoFB(int red, int green, int blue)
 {
 	if (pal555to8)	//fast precalculated (but ugly) method
-		return nofbremap[FindPalette(red,green,blue)];
+		return fbremapidx(FindPalette(red,green,blue));
 	else	//slow, horrible (but accurate) method.
 		return FindIndexFromRGBNoFB(red, green, blue);
 }
@@ -173,7 +195,7 @@ void MakeVideoPalette(void)
 					FindIndexFromRGB(r<<3|r>>2, g<<3|g>>2, b<<3|b>>2);
 
 	// write palette conversion table
-	if (r_palconvwrite.value)
+	if (d_palconvwrite.value)
 		COM_WriteFile("pal555.pal", pal555to8, PAL555_SIZE);
 }
 
@@ -200,18 +222,45 @@ void MakeSwizzledPalette(void)
 	}
 }
 
-void MakeFullbrightRemap(void)
+// colormap functions
+void MakePaletteRemaps(void)
 {
 	int i;
 
+	palremapsize = d_palremapsize.value;
+
+	if (palremapsize < 4)
+	{
+		Con_Printf("Invalid size for d_palremapsize, defaulting to 4.\n");
+		palremapsize = 4;
+	}
+
+	palremaps = BZ_Malloc(sizeof(palremap_t)*palremapsize);
+
+	// build identity remap
+	palremaps[0].r = palremaps[0].g = palremaps[0].b = 255;
+	palremaps[0].key = 0x1 ^ 0x4 ^ 0;
+	palremaps[0].references = 999;
+	for (i = 0; i < 256; i++)
+		palremaps[0].pal[i] = i;
+
+	// build fullbright remap
+	palremaps[1].r = palremaps[1].g = palremaps[1].b = 255;
+	palremaps[1].key = 0x1 ^ 0;
+	palremaps[1].references = 999;
 	for (i = 0; i < 256 - vid.fullbright; i++)
-		nofbremap[i] = i;
+		palremaps[1].pal[i] = i;
 	for (i = 256 - vid.fullbright; i < 256; i++)
-		nofbremap[i] = FindIndexFromRGBNoFB(host_basepal[i*3], host_basepal[i*3+1], host_basepal[i*3+2]);
+		palremaps[1].pal[i] = FindIndexFromRGBNoFB(host_basepal[i*3], host_basepal[i*3+1], host_basepal[i*3+2]);
+
+	for (i = 2; i < palremapsize; i++)
+	{
+		palremaps[i].key = 0;
+		palremaps[i].references = 0;
+	}
 }
 
-// colormap functions
-void BuildModulatedColormap(qbyte *indexes, int red, int green, int blue, qboolean desaturate, qboolean fullbrights)
+void BuildModulatedPalette(qbyte *indexes, int red, int green, int blue, qboolean desaturate, qboolean fullbrights, int topcolor, int bottomcolor)
 {
 	qbyte *rgb = host_basepal;
 	unsigned int r, g, b, x, invmask = 0;
@@ -219,8 +268,7 @@ void BuildModulatedColormap(qbyte *indexes, int red, int green, int blue, qboole
 	if (red < 0 || green < 0 || blue < 0)
 		invmask = 0xff;
 
-	// generate colormap
-	
+	// generate palette remap
 	if (desaturate)
 	{
 		int s;
@@ -246,6 +294,14 @@ void BuildModulatedColormap(qbyte *indexes, int red, int green, int blue, qboole
 			rgb += 3;
 		}
 	}
+	else if (red == 255 && green == 255 && blue == 255)
+	{
+		// identity merge
+		if (fullbrights)
+			memcpy(indexes, identityremap.pal, sizeof(identityremap));
+		else
+			memcpy(indexes, fullbrightremap.pal, sizeof(fullbrightremap));
+	}
 	else
 	{
 		for (x = 0; x < 256; x++)
@@ -270,6 +326,125 @@ void BuildModulatedColormap(qbyte *indexes, int red, int green, int blue, qboole
 		}
 	}
 
+	// handle top/bottom remap
+	if (topcolor == TOP_DEFAULT && bottomcolor == BOTTOM_DEFAULT)
+		return;
+
+	{
+		qbyte topcolors[16];
+		qbyte bottomcolors[16];
+
+		topcolor = topcolor * 16;
+		bottomcolor = bottomcolor * 16;
+
+		for (x = 0; x < 16; x++)
+		{
+			if (topcolor < 128)
+				topcolors[x] = indexes[topcolor + x];
+			else
+				topcolors[x] = indexes[topcolor + 15 - x];
+
+			if (bottomcolor < 128)
+				bottomcolors[x] = indexes[bottomcolor + x];
+			else
+				bottomcolors[x] = indexes[bottomcolor + 15 - x];
+		}
+
+		for (x = 0; x < 16; x++)
+		{
+			indexes[TOP_RANGE + x] = topcolors[x];
+			indexes[BOTTOM_RANGE + x] = bottomcolors[x];
+		}
+	}
+}
+
+palremap_t *D_GetPaletteRemap(int red, int green, int blue, qboolean desaturate, qboolean fullbrights, int topcolor, int bottomcolor)
+{
+	int i, key, deref = -1;
+
+	topcolor = topcolor & 0xf;
+	bottomcolor = bottomcolor & 0xf;
+
+	key = 0x1 ^ ((!!desaturate) << 1) ^ ((!!fullbrights) << 2) ^ (topcolor << 3) ^ (bottomcolor << 7);
+
+	for (i = 0; i < palremapsize; i++)
+	{
+		if (palremaps[i].r == red &&
+			palremaps[i].g == green &&
+			palremaps[i].b == blue && 
+			palremaps[i].key == key)
+		{
+			palremaps[i].references++;
+			return palremaps + i;
+		}
+		else if (palremaps[i].references <= 0)
+			deref = i;
+	}
+
+	if (deref < 2) // no remaps found and all maps are referenced
+		return palremaps; // identity remap
+
+	// return non-referenced map
+	BuildModulatedPalette(palremaps[deref].pal, red, green, blue, desaturate, fullbrights, topcolor, bottomcolor);
+	palremaps[deref].references++;
+	palremaps[deref].r = red;
+	palremaps[deref].g = green;
+	palremaps[deref].b = blue;
+	palremaps[deref].key = key;
+	return palremaps + deref;
+}
+
+palremap_t *RebuildMenuTint(void)
+{
+	char *t;
+	int r, g, b;
+
+	r = 255*r_menutint.value;
+	g = 0;
+	b = 0;
+	t = strstr(r_menutint.string, " ");
+	if (t)
+	{
+		g = 255*atof(t+1);
+		t = strstr(t+1, " ");
+		if (t)
+			b = 255*atof(t+1);
+		else
+			return NULL;
+	}
+	else
+		return NULL;
+
+	return D_GetPaletteRemap(r, g, b, true, true, TOP_DEFAULT, BOTTOM_DEFAULT);
+}
+
+void D_DereferenceRemap(palremap_t *palremap)
+{
+	if (palremap && palremap >= palremaps+2)
+		palremap->references--;
+}
+
+qbyte *D_GetMenuTintPal(void)
+{
+	if (mtmodified != r_menutint.modified)
+	{
+		if (mtpalremap)
+			D_DereferenceRemap(mtpalremap);
+
+		mtpalremap = RebuildMenuTint();
+		mtmodified = r_menutint.modified;
+	}
+
+	if (mtpalremap && mtpalremap != palremaps)
+		return mtpalremap->pal;	
+	else
+		return NULL;
+}
+
+
+palremap_t *D_IdentityRemap(void) // TODO: explicitly inline this
+{
+	return palremaps;
 }
 
 void MediaSW_ShowFrame8bit(qbyte *framedata, int inwidth, int inheight, qbyte *palette)

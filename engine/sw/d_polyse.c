@@ -180,7 +180,7 @@ void D_PolysetDrawFinalVertsTrans (finalvert_t *fv, int numverts)
 				
 				*zbuf = z;
 				pix = skintable[fv->v[3]>>16][fv->v[2]>>16];
-				pix = ((qbyte *)acolormap)[pix + (fv->v[4] & 0xFF00) ];
+				pix = ((qbyte *)acolormap)[apalremap[pix] + (fv->v[4] & 0xFF00) ];
 				d_viewbuffer[d_scantable[fv->v[1]] + fv->v[0]] = Trans(d_viewbuffer[d_scantable[fv->v[1]] + fv->v[0]], (unsigned char)pix);
 			}
 		}
@@ -316,7 +316,7 @@ split:
 		int		pix;
 		
 		*zbuf = z;
-		pix = d_pcolormap[skintable[new[3]>>16][new[2]>>16]];
+		pix = d_pcolormap[apalremap[skintable[new[3]>>16][new[2]>>16]]];
 		d_viewbuffer[d_scantable[new[1]] + new[0]] = Trans(d_viewbuffer[d_scantable[new[1]] + new[0]], (unsigned char)pix);
 	}
 
@@ -477,7 +477,7 @@ split:
 		int		pix;
 		
 		*zbuf = z;
-		pix = d_pcolormap[skintable[new[3]>>16][new[2]>>16]];
+		pix = d_pcolormap[apalremap[skintable[new[3]>>16][new[2]>>16]]];
 		((unsigned short *)d_viewbuffer)[d_scantable[new[1]] + new[0]] = pix;//d_8to32table[pix];
 	}
 
@@ -529,7 +529,7 @@ void D_PolysetDrawSpans8Trans (spanpackage_t *pspanpackage)
 			{
 				if ((lzi >> 16) >= *lpz)
 				{
- 					*lpdest = Trans(*lpdest, ((qbyte *)acolormap)[*lptex + (llight & 0xFF00)]);
+ 					*lpdest = Trans(*lpdest, ((qbyte *)acolormap)[apalremap[*lptex] + (llight & 0xFF00)]);
 // gel mapping					*lpdest = gelmap[*lpdest];
 					*lpz = lzi >> 16;
 				}
@@ -745,7 +745,7 @@ void D_PolysetDrawSpans16 (spanpackage_t *pspanpackage)
 				{
 //					((qbyte *)acolormap)[*lptex + (llight & 0xFF00)];
 					lptex = (qbyte *)((unsigned char *)r_affinetridesc.pskin+tex);
-					lpdest[0] = ((unsigned short *)acolormap)[*lptex + (llight & 0xFF00)];
+					lpdest[0] = ((unsigned short *)acolormap)[apalremap[*lptex] + (llight & 0xFF00)];
 					*lpz = lzi >> 16;
 				}
 				lpdest++;
@@ -1123,7 +1123,7 @@ void D_PolysetDrawFinalVertsC (finalvert_t *fv, int numverts)
 				
 				*zbuf = z;
 				pix = skintable[fv->v[3]>>16][fv->v[2]>>16];
-				pix = ((qbyte *)acolormap)[pix + (fv->v[4] & 0xFF00) ];
+				pix = ((qbyte *)acolormap)[apalremap[pix] + (fv->v[4] & 0xFF00) ];
 				d_viewbuffer[d_scantable[fv->v[1]] + fv->v[0]] = pix;
 			}
 		}
@@ -1207,7 +1207,7 @@ void D_DrawSubdivC (void)
 				
 				*zbuf = z;
 				pix = skintable[index0->v[3]>>16][index0->v[2]>>16];
-				pix = ((qbyte *)acolormap)[pix + (index0->v[4] & 0xFF00) ];
+				pix = ((qbyte *)acolormap)[apalremap[pix] + (index0->v[4] & 0xFF00) ];
 				d_viewbuffer[d_scantable[index0->v[1]] + index0->v[0]] = pix;//Trans(d_viewbuffer[d_scantable[index0->v[1]] + index0->v[0]], pix);
 			}
 		}
@@ -1222,7 +1222,7 @@ void D_DrawSubdivC (void)
 				
 				*zbuf = z;
 				pix = skintable[index1->v[3]>>16][index1->v[2]>>16];
-				pix = ((qbyte *)acolormap)[pix + (index0->v[4] & 0xFF00) ];
+				pix = ((qbyte *)acolormap)[apalremap[pix] + (index0->v[4] & 0xFF00) ];
 				d_viewbuffer[d_scantable[index1->v[1]] + index1->v[0]] = pix;//Trans(d_viewbuffer[d_scantable[index0->v[1]] + index0->v[0]], pix);
 			}
 		}
@@ -1237,7 +1237,7 @@ void D_DrawSubdivC (void)
 				
 				*zbuf = z;
 				pix = skintable[index2->v[3]>>16][index2->v[2]>>16];
-				pix = ((qbyte *)acolormap)[pix + (index0->v[4] & 0xFF00) ];
+				pix = ((qbyte *)acolormap)[apalremap[pix] + (index0->v[4] & 0xFF00) ];
 				d_viewbuffer[d_scantable[index2->v[1]] + index2->v[0]] = pix;//Trans(d_viewbuffer[d_scantable[index0->v[1]] + index0->v[0]], pix);
 			}
 		}
@@ -1442,7 +1442,7 @@ split:
 		int		pix;
 		
 		*zbuf = z;
-		pix = d_pcolormap[skintable[new[3]>>16][new[2]>>16]];
+		pix = d_pcolormap[apalremap[skintable[new[3]>>16][new[2]>>16]]];
 		d_viewbuffer[d_scantable[new[1]] + new[0]] = pix;
 	}
 
@@ -1756,7 +1756,7 @@ void D_PolysetDrawSpans8C (spanpackage_t *pspanpackage)
 			{
 				if ((lzi >> 16) >= *lpz)
 				{
-					*lpdest = ((qbyte *)acolormap)[*lptex + (llight & 0xFF00)];
+					*lpdest = ((qbyte *)acolormap)[apalremap[*lptex] + (llight & 0xFF00)];
 // gel mapping					*lpdest = gelmap[*lpdest];
 					*lpz = lzi >> 16;
 				}
@@ -2557,7 +2557,7 @@ split:
 		int		pix;
 		
 		d_pzbuffer[ofs] = new[5];
-		pix = skintable[new[3]>>16][new[2]>>16];
+		pix = apalremap[skintable[new[3]>>16][new[2]>>16]];
 //		pix = ((qbyte *)acolormap)[pix + (new[4] & 0xFF00)];
 		d_viewbuffer[ofs] = pix;
 	}

@@ -21,7 +21,6 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 
 #include "particles.h"
 
-
 typedef struct
 {
 	char		name[16];
@@ -152,8 +151,9 @@ typedef struct player_info_s
 	int		_topcolor;
 	int		_bottomcolor;
 
+	struct palremap_s *palremap;
+
 	int		spectator;
-	qbyte	translations[VID_GRADES*256];
 	skin_t	*skin;
 
 	struct model_s	*model;

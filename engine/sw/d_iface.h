@@ -132,7 +132,7 @@ extern int		d_con_indirect;	// if 0, Quake will draw console directly
 extern vec3_t	r_pright, r_pup, r_ppn;
 
 
-void D_Aff8Patch (void *pcolormap);
+void D_Aff8Patch (void *pcolormap, qbyte *ppalremap);
 void GLD_BeginDirectRect (int x, int y, qbyte *pbitmap, int width, int height);
 void SWD_BeginDirectRect (int x, int y, qbyte *pbitmap, int width, int height);
 void D_DisableBackBufferAccess (void);
@@ -180,6 +180,7 @@ extern qbyte				*r_skysource;
 #define TRANSPARENT_COLOR	0xFF
 
 extern void *acolormap;	// FIXME: should go away
+extern qbyte *apalremap;
 
 //=======================================================================//
 

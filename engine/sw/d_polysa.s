@@ -17,6 +17,7 @@ along with this program; if not, write to the Free Software
 Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 
 */
+
 //
 // d_polysa.s
 // x86 assembly-language polygon model drawing code
@@ -683,7 +684,7 @@ LDraw:
 //		*zbuf = z;
 	movw	%dx,(%eax,%ebp,2)
 
-//		pix = d_pcolormap[skintable[new[3]>>16][new[2]>>16]];
+//		pix = d_pcolormap[apalremap[skintable[new[3]>>16][new[2]>>16]]];
 	movl	12(%esp),%eax
 
 	sarl	$16,%eax
@@ -696,6 +697,8 @@ LDraw:
 	movl	4(%esp),%ebp
 
 	movb	(%eax,%edx,),%cl
+
+	movb	C(apalremap)(%ecx),%cl
 	movl	C(d_pcolormap),%edx
 
 	movb	(%edx,%ecx,),%dl
@@ -871,8 +874,10 @@ LDraw8:
 	cmpw	(%ecx),%bp
 	jl		Lp1
 	xorl	%eax,%eax
-	movb	%dh,%ah
 	movb	(%esi),%al
+	movb	0x12345678(%eax),%al
+PPatch8:
+	movb	%dh,%ah
 	movw	%bp,(%ecx)
 	movb	0x12345678(%eax),%al
 LPatch8:
@@ -889,8 +894,10 @@ LDraw7:
 	cmpw	2(%ecx),%bp
 	jl		Lp2
 	xorl	%eax,%eax
-	movb	%dh,%ah
 	movb	(%esi),%al
+	movb	0x12345678(%eax),%al
+PPatch7:
+	movb	%dh,%ah
 	movw	%bp,2(%ecx)
 	movb	0x12345678(%eax),%al
 LPatch7:
@@ -907,8 +914,10 @@ LDraw6:
 	cmpw	4(%ecx),%bp
 	jl		Lp3
 	xorl	%eax,%eax
-	movb	%dh,%ah
 	movb	(%esi),%al
+	movb	0x12345678(%eax),%al
+PPatch6:
+	movb	%dh,%ah
 	movw	%bp,4(%ecx)
 	movb	0x12345678(%eax),%al
 LPatch6:
@@ -925,8 +934,10 @@ LDraw5:
 	cmpw	6(%ecx),%bp
 	jl		Lp4
 	xorl	%eax,%eax
-	movb	%dh,%ah
 	movb	(%esi),%al
+	movb	0x12345678(%eax),%al
+PPatch5:
+	movb	%dh,%ah
 	movw	%bp,6(%ecx)
 	movb	0x12345678(%eax),%al
 LPatch5:
@@ -943,8 +954,10 @@ LDraw4:
 	cmpw	8(%ecx),%bp
 	jl		Lp5
 	xorl	%eax,%eax
-	movb	%dh,%ah
 	movb	(%esi),%al
+	movb	0x12345678(%eax),%al
+PPatch4:
+	movb	%dh,%ah
 	movw	%bp,8(%ecx)
 	movb	0x12345678(%eax),%al
 LPatch4:
@@ -961,8 +974,10 @@ LDraw3:
 	cmpw	10(%ecx),%bp
 	jl		Lp6
 	xorl	%eax,%eax
-	movb	%dh,%ah
 	movb	(%esi),%al
+	movb	0x12345678(%eax),%al
+PPatch3:
+	movb	%dh,%ah
 	movw	%bp,10(%ecx)
 	movb	0x12345678(%eax),%al
 LPatch3:
@@ -979,8 +994,10 @@ LDraw2:
 	cmpw	12(%ecx),%bp
 	jl		Lp7
 	xorl	%eax,%eax
-	movb	%dh,%ah
 	movb	(%esi),%al
+	movb	0x12345678(%eax),%al
+PPatch2:
+	movb	%dh,%ah
 	movw	%bp,12(%ecx)
 	movb	0x12345678(%eax),%al
 LPatch2:
@@ -997,8 +1014,10 @@ LDraw1:
 	cmpw	14(%ecx),%bp
 	jl		Lp8
 	xorl	%eax,%eax
-	movb	%dh,%ah
 	movb	(%esi),%al
+	movb	0x12345678(%eax),%al
+PPatch1:
+	movb	%dh,%ah
 	movw	%bp,14(%ecx)
 	movb	0x12345678(%eax),%al
 LPatch1:
@@ -1045,10 +1064,12 @@ LExactlyOneLong:
 	cmpw	(%ecx),%bp
 	jl		LNextSpan
 	xorl	%eax,%eax
+	movb	(%ebx),%al
+	movb	0x12345678(%eax),%al
+PPatch9:
 	movl	spanpackage_t_pdest(%esi),%edi
 	movb	spanpackage_t_light+1(%esi),%ah
 	addl	$(spanpackage_t_size),%esi	// point to next span
-	movb	(%ebx),%al
 	movw	%bp,(%ecx)
 	movb	0x12345678(%eax),%al
 LPatch9:
@@ -1061,6 +1082,7 @@ C(D_PolysetAff8End):
 
 
 #define pcolormap		4
+#define ppalremap		8
 
 .globl C(D_Aff8Patch)
 C(D_Aff8Patch):
@@ -1074,6 +1096,16 @@ C(D_Aff8Patch):
 	movl	%eax,LPatch7-4
 	movl	%eax,LPatch8-4
 	movl	%eax,LPatch9-4
+	movl	ppalremap(%esp),%eax
+	movl	%eax,PPatch1-4
+	movl	%eax,PPatch2-4
+	movl	%eax,PPatch3-4
+	movl	%eax,PPatch4-4
+	movl	%eax,PPatch5-4
+	movl	%eax,PPatch6-4
+	movl	%eax,PPatch7-4
+	movl	%eax,PPatch8-4
+	movl	%eax,PPatch9-4
 
 	ret
 
@@ -1529,10 +1561,13 @@ LFVLoop:
 	shrl	$16,%edx
 	movb	(%edi,%edx),%dl
 
+//				pix = apalremap[pix];
+	andl	$0x00FF,%edx
+	movb	C(apalremap)(%edx), %dl
+
 //				pix = ((byte *)acolormap)[pix + (fv->v[4] & 0xFF00)];
 	movl	fv_v+16(%ebx),%edi
 	andl	$0xFF00,%edi
-	andl	$0x00FF,%edx
 	addl	%edx,%edi
 	movl	C(acolormap),%edx
 	movb	(%edx,%edi,1),%dl

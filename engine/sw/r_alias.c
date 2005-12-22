@@ -40,7 +40,8 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 mtriangle_t		*ptriangles;
 affinetridesc_t	r_affinetridesc;
 
-void *			acolormap;	// FIXME: should go away
+void *acolormap;	// FIXME: should go away
+qbyte *apalremap;
 
 dtrivertx_t		*r_apoldverts;
 dtrivertx_t		*r_apnewverts;
@@ -909,14 +910,19 @@ void R_AliasDrawModel (alight_t *plighting)
 	R_AliasSetupLighting (plighting);
 	R_AliasSetupFrame ();
 
-	if (!currententity->colormap)
-		currententity->colormap = vid.colormap;
+	if (!currententity->palremap)
+		currententity->palremap = D_IdentityRemap();
 //		Sys_Error ("R_AliasDrawModel: !currententity->colormap");
 
 	r_affinetridesc.drawtype = (currententity->trivial_accept == 3) &&
 			r_recursiveaffinetriangles;
 
 	r_affinetridesc.pstverts = (mstvert_t *)((qbyte *)paliashdr + paliashdr->stverts);
+
+	apalremap = currententity->palremap->pal;
+	acolormap = vid.colormap;
+	if (r_pixbytes == 2)
+		acolormap = vid.colormap16;
 
 	if (r_affinetridesc.drawtype)
 	{
@@ -925,13 +931,9 @@ void R_AliasDrawModel (alight_t *plighting)
 	else
 	{
 #if id386
-		D_Aff8Patch (currententity->colormap);
+		D_Aff8Patch (acolormap, apalremap);
 #endif
 	}
-
-	acolormap = currententity->colormap;
-	if (r_pixbytes == 2)
-		acolormap = vid.colormap16;
 
 	if (currententity == &cl.viewent[r_refdef.currentplayernum] || currententity->flags & Q2RF_DEPTHHACK)
 		ziscale = (float)0x8000 * (float)0x10000 * 3.0;

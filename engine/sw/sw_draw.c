@@ -2379,52 +2379,13 @@ Draw_FadeScreen
 
 ================
 */
-char fscolormap[256];
-int fsnodraw = 1;
-int fsmodified;
-
 void SWDraw_FadeScreen (void)
 {
 	int			x,y;
-	extern cvar_t r_menutint;
 
 	VID_UnlockBuffer ();
 	S_ExtraUpdate ();
 	VID_LockBuffer ();
-
-	if (fsmodified != r_menutint.modified) 
-	{
-		char *t;
-		int r, g, b;
-		
-		qbyte *rgb = (qbyte *)host_basepal;
-
-		// parse r_menutint
-		fsnodraw = 0;
-		r = 255*r_menutint.value;
-		g = 0;
-		b = 0;
-		t = strstr(r_menutint.string, " ");
-		if (t)
-		{
-			g = 255*atof(t+1);
-			t = strstr(t+1, " ");
-			if (t)
-				b = 255*atof(t+1);
-			else
-				fsnodraw = 1;
-		}
-		else
-			fsnodraw = 1;
-
-		// rebuild colormap here
-		BuildModulatedColormap(fscolormap, r, g, b, true, true);
-
-		fsmodified = r_menutint.modified;
-	}
-
-	if (fsnodraw)
-		return;
 
 	if (r_pixbytes == 4)
 	{
@@ -2458,7 +2419,12 @@ void SWDraw_FadeScreen (void)
 	}
 	else
 	{
-		qbyte		*pbuf;
+		qbyte *pbuf;
+		qbyte *mtpal = D_GetMenuTintPal();
+
+		if (!mtpal)
+			return; 
+
 		for (y=0 ; y<vid.height ; y++)
 		{
 
@@ -2466,7 +2432,7 @@ void SWDraw_FadeScreen (void)
 
 			for (x=0 ; x<vid.width ; x++)
 			{
-				pbuf[x] = fscolormap[pbuf[x]];
+				pbuf[x] = mtpal[pbuf[x]];
 			}
 		}
 	}

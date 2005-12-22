@@ -167,6 +167,7 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 	.extern C(r_affinetridesc)
 	.extern C(acolormap)
 	.extern C(d_pcolormap)
+	.extern C(apalremap)
 	.extern C(r_affinetridesc)
 	.extern C(d_sfrac)
 	.extern C(d_ptex)

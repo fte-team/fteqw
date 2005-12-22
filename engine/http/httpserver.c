@@ -152,7 +152,7 @@ void HTTP_RunExisting (void)
 			if (cl->outbuffer)
 				IWebFree(cl->outbuffer);
 			if (cl->file)
-				IWebFClose(cl->file);
+				VFS_CLOSE(cl->file);
 			IWebFree(cl);
 			httpconnectioncount--;
 			cl = prev;
@@ -328,7 +328,7 @@ cont:
 				if (!strnicmp(mode, "P", 1))	//when stuff is posted, data is provided. Give an error message if we couldn't do anything with that data.
 					cl->file = IWebGenerateFile(resource+1, content, contentlen);
 				else
-					cl->file = IWebFOpenRead(resource);
+					cl->file = FS_OpenVFS(resource, "rb", FS_GAME);
 				if (!cl->file)
 				{
 					if (HTTPmarkup >= 3)
@@ -349,9 +349,9 @@ cont:
 				else
 				{
 					if (HTTPmarkup>=3)
-						sprintf(resource, "HTTP/1.1 200 OK\r\n"		"Content-Type: %s\r\n"		"Content-Length: %i\r\n"	"Server: "FULLENGINENAME"/0\r\n"	"\r\n", strstr(resource, ".htm")?"text/html":"text/plain", cl->file->length);
+						sprintf(resource, "HTTP/1.1 200 OK\r\n"		"Content-Type: %s\r\n"		"Content-Length: %i\r\n"	"Server: "FULLENGINENAME"/0\r\n"	"\r\n", strstr(resource, ".htm")?"text/html":"text/plain", VFS_GETLEN(cl->file));
 					else if (HTTPmarkup==2)
-						sprintf(resource, "HTTP/1.0 200 OK\r\n"		"Content-Type: %s\r\n"		"Content-Length: %i\r\n"	"Server: "FULLENGINENAME"/0\r\n"	"\r\n", strstr(resource, ".htm")?"text/html":"text/plain", cl->file->length);
+						sprintf(resource, "HTTP/1.0 200 OK\r\n"		"Content-Type: %s\r\n"		"Content-Length: %i\r\n"	"Server: "FULLENGINENAME"/0\r\n"	"\r\n", strstr(resource, ".htm")?"text/html":"text/plain", VFS_GETLEN(cl->file));
 					else if (HTTPmarkup)
 						sprintf(resource, "HTTP/0.9 200 OK\r\n\r\n");
 					else
@@ -361,7 +361,7 @@ cont:
 					if (*mode == 'H' || *mode == 'h')
 					{
 						
-						IWebFClose(cl->file);
+						VFS_CLOSE(cl->file);
 						cl->file = NULL;
 					}
 
@@ -413,11 +413,11 @@ notimplemented:
 				{
 					ExpandOutBuffer(cl, 1500, true);
 					wanted = cl->outbuffersize - cl->outbufferused;
-					ammount = IWebFRead(cl->outbuffer+cl->outbufferused, 1, wanted, cl->file);
+					ammount = VFS_READ(cl->file, cl->outbuffer+cl->outbufferused, wanted);
 
 					if (!ammount)
 					{
-						IWebFClose(cl->file);
+						VFS_CLOSE(cl->file);
 						cl->file = NULL;
 					}
 					else
@@ -457,7 +457,7 @@ notimplemented:
 			{
 				if (qerrno != EWOULDBLOCK)	//they closed on us. Assume end.
 				{
-					IWebFClose(cl->file);
+					VFS_CLOSE(cl->file);
 					cl->file = NULL;
 					cl->close = true;
 					continue;

@@ -1,5 +1,10 @@
 #include "quakedef.h"
+
 #ifdef WEBCLIENT
+//#define DOWNLOADMENU
+#endif
+
+#ifdef DOWNLOADMENU
 
 #define ROOTDOWNLOADABLESSOURCE "http://fteqw.sourceforge.net/downloadables.txt"
 #define INSTALLEDFILES	"installed.lst"	//the file that resides in the quakedir (saying what's installed).
@@ -12,8 +17,6 @@
 
 
 int dlcount=1;
-
-extern char	*com_basedir;
 
 //note: these are allocated for the life of the exe
 char *downloadablelist[256] = {
@@ -51,7 +54,7 @@ typedef struct {
 package_t *availablepackages;
 int numpackages;
 
-static package_t *BuildPackageList(FILE *f, int flags, char *prefix)
+static package_t *BuildPackageList(vfsfile_t *f, int flags, char *prefix)
 {
 	char line[1024];
 	package_t *p;
@@ -62,13 +65,14 @@ static package_t *BuildPackageList(FILE *f, int flags, char *prefix)
 
 	do
 	{
-		fgets(line, sizeof(line)-1, f);
+		if (!VFS_GETS(f, line, sizeof(line)-1))
+			break;
 		while((sl=strchr(line, '\n')))
 			*sl = '\0';
 		while((sl=strchr(line, '\r')))
 			*sl = '\0';
 		Cmd_TokenizeString (line, false, false);
-	} while (!feof(f) && !Cmd_Argc());
+	} while (!Cmd_Argc());
 
 	if (strcmp(Cmd_Argv(0), "version"))
 		return NULL;	//it's not the right format.
@@ -80,9 +84,9 @@ static package_t *BuildPackageList(FILE *f, int flags, char *prefix)
 		return NULL;	//it's not the right version.
 	}
 
-	while(!feof(f))
+	while(1)
 	{
-		if (!fgets(line, sizeof(line)-1, f))
+		if (!VFS_GETS(f, line, sizeof(line)-1))
 			break;
 		while((sl=strchr(line, '\n')))
 			*sl = '\0';
@@ -155,23 +159,27 @@ static package_t *BuildPackageList(FILE *f, int flags, char *prefix)
 
 static void WriteInstalledPackages(void)
 {
+	char *s;
 	package_t *p;
-	char *fname = va("%s/%s", com_basedir, INSTALLEDFILES);
-	FILE *f = fopen(fname, "wb");
+	vfsfile_t *f = FS_OpenVFS(INSTALLEDFILES, "wb", FS_BASE);
 	if (!f)
 	{
 		Con_Printf("menu_download: Can't update installed list\n");
 		return;
 	}
 
-	fprintf(f, "version 1\n");
+	s = "version 1\n";
+	VFS_WRITE(f, s, strlen(s));
 	for (p = availablepackages; p ; p=p->next)
 	{
 		if (p->flags & DPF_HAVEAVERSION)
-			fprintf(f, "\"%s\" \"%s\" \"%s\" %i \"%s\"\n", p->fullname, p->src, p->dest, p->version, p->gamedir);
+		{
+			s = ("\"%s\" \"%s\" \"%s\" %i \"%s\"\n", p->fullname, p->src, p->dest, p->version, p->gamedir);
+			VFS_WRITE(f, s, strlen(s));
+		}
 	}
 
-	fclose(f);
+	VFS_CLOSE(f);
 }
 
 static qboolean ComparePackages(package_t **l, package_t *p)
@@ -236,14 +244,14 @@ static void ConcatPackageLists(package_t *l2)
 static void dlnotification(char *localfile, qboolean sucess)
 {
 	int i;
-	FILE *f;
+	vfsfile_t *f;
 	COM_RefreshFSCache_f();
-	COM_FOpenFile(localfile, &f);
+	f = FS_OpenVFS (localfile, "rb", FS_BASE);
 	if (f)
 	{
 		i = atoi(localfile+7);
 		ConcatPackageLists(BuildPackageList(f, 0, downloadablelistnameprefix[i]));
-		fclose(f);
+		VFS_CLOSE(f);
 	}
 }
 
@@ -489,14 +497,20 @@ void Menu_DownloadStuff_f (void)
 
 	{
 		static qboolean loadedinstalled;
-		char *fname = va("%s/%s", com_basedir, INSTALLEDFILES);
-		FILE *f = loadedinstalled?NULL:fopen(fname, "rb");
+		vfsfile_t *f = loadedinstalled?NULL:FS_OpenVFS(INSTALLEDFILES, "rb", FS_BASE);
 		loadedinstalled = true;
 		if (f)
 		{
 			ConcatPackageLists(BuildPackageList(f, DPF_DELETEONUNINSTALL|DPF_HAVEAVERSION|DPF_WANTTOINSTALL, ""));
-			fclose(f);
+			VFS_CLOSE(f);
 		}
 	}
 }
+#elif defined(WEBCLIENT)
+void Menu_DownloadStuff_f (void)
+{
+	Con_Printf("Not yet reimplemented\n");
+}
 #endif
+
+

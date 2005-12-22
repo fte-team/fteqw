@@ -234,7 +234,7 @@ iwboolean FTP_ClientConnThink (FTPclientconn_t *con)	//true to kill con
 			}
 			while((len = recv(con->datasock, readdata, sizeof(readdata), 0)) >0 )
 			{			
-				IWebFWrite(readdata, len, 1, con->f);
+				VFS_WRITE(con->f, readdata, len);
 				con->transfered += len;
 			}
 			if (len == 0)
@@ -248,14 +248,14 @@ iwboolean FTP_ClientConnThink (FTPclientconn_t *con)	//true to kill con
 			int pos, sent;
 			int ammount, wanted = sizeof(readdata);
 
-			pos = IWebFTell(con->f);
-			ammount = IWebFRead(readdata, 1, wanted, con->f);
+			pos = VFS_TELL(con->f);
+			ammount = VFS_READ(con->f, readdata, wanted);
 			sent = send(con->datasock, readdata, ammount, 0);
 			if (sent == -1)
-				IWebFSeek(con->f, pos, SEEK_SET);	//go back. Too much data
+				VFS_SEEK(con->f, pos);	//go back. Too much data
 			else
 			{
-				IWebFSeek(con->f, pos + sent, SEEK_SET);	//written this much
+				VFS_SEEK(con->f, pos + sent);	//written this much
 
 				if (!ammount)	//file is over
 				{
@@ -380,7 +380,7 @@ iwboolean FTP_ClientConnThink (FTPclientconn_t *con)	//true to kill con
 					con->stage = 6;
 					if (con->type == ftp_getting)
 					{
-						con->f = IWebFOpenWrite(con->localfile, false);
+						con->f = FS_OpenVFS(con->localfile, "wb", FS_GAME);
 						if (con->f)
 						{
 							sprintf(tempbuff, "RETR %s\r\n", con->file);
@@ -396,7 +396,7 @@ iwboolean FTP_ClientConnThink (FTPclientconn_t *con)	//true to kill con
 					}
 					else if (con->type == ftp_putting)
 					{
-						con->f = IWebFOpenRead(con->localfile);
+						con->f = FS_OpenVFS (con->localfile, "rb", FS_GAME);
 						if (con->f)
 						{
 							sprintf(tempbuff, "STOR %s\r\n", con->file);
@@ -438,7 +438,7 @@ usepasv:
 			{				
 				COM_StripExtension(con->localfile, msg);
 				strcat(msg, ".tmp");
-				con->f = IWebFOpenWrite(msg, false);
+				con->f = FS_OpenVFS (msg, "wb", FS_GAME);
 				if (!con->f)
 				{
 					msg = va("ABOR\r\nQUIT\r\n");	//bummer. we couldn't open this file to output to.
@@ -472,10 +472,10 @@ usepasv:
 						}
 						con->transfered+=len;
 						data[len] = 0;
-						IWebFWrite(data, len, 1, con->f);
+						VFS_WRITE(con->f, data, len);
 					}
 				}
-				IWebFClose(con->f);
+				VFS_CLOSE(con->f);
 				con->f = NULL;
 				closesocket(con->datasock);
 				con->datasock = INVALID_SOCKET;
@@ -535,7 +535,7 @@ usepasv:
 			{
 				if (con->type == ftp_getting)
 				{
-					con->f = IWebFOpenWrite(con->localfile, false);
+					con->f = FS_OpenVFS(con->localfile, "wb", FS_GAME);
 					if (con->f)
 					{
 						con->stage = 8;
@@ -557,13 +557,13 @@ usepasv:
 				}
 				else if (con->type == ftp_putting)
 				{
-					con->f = IWebFOpenRead(con->localfile);
+					con->f = FS_OpenVFS(con->localfile, "rb", FS_GAME);
 					if (con->f)
 					{
 						msg = va("STOR %s\r\n", con->file);
 						con->stage = 6;
 						con->transfered = 0;
-						con->transfersize = con->f->length;
+						con->transfersize = VFS_GETLEN(con->f);
 					}
 					else
 					{
@@ -642,7 +642,7 @@ void FTP_ClientThink (void)
 				cls.downloadmethod = DL_NONE;
 			}
 			if (con->f)
-				IWebFClose(con->f);
+				VFS_CLOSE(con->f);
 			if (con->controlsock != INVALID_SOCKET)
 				closesocket(con->controlsock);
 			if (con->datasock != INVALID_SOCKET)

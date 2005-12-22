@@ -326,13 +326,82 @@ IWebFile_t IWebFiles[] = {
 
 typedef struct {
 	vfsfile_t funcs;
-	char *buffer;
-	int length;
-	int pos;
-} vfsmemory_t;
 
-vfsfile_t *VFSMEM_FromZMalloc(char *buffer, int length)
+	IWeb_FileGen_t *buffer;
+	int pos;
+} vfsgen_t;
+
+int VFSGen_ReadBytes(vfsfile_t *f, char *buffer, int bytes)
 {
+	vfsgen_t *g = (vfsgen_t*)f;
+	if (bytes + g->pos >= g->buffer->len)
+	{
+		bytes = g->buffer->len - g->pos;
+		if (bytes <= 0)
+			return 0;
+	}
+
+	memcpy(buffer, g->buffer->data+g->pos, bytes);
+	g->pos += bytes;
+
+	return bytes;
+}
+
+int VFSGen_WriteBytes(vfsfile_t *f, char *buffer, int bytes)
+{
+	Sys_Error("VFSGen_WriteBytes: Readonly\n");
+	return 0;
+}
+
+qboolean VFSGen_Seek(vfsfile_t *f, unsigned long newpos)
+{
+	vfsgen_t *g = (vfsgen_t*)f;
+	if (newpos < 0 || newpos >= g->buffer->len)
+		return false;
+
+	g->pos = newpos;
+
+	return true;
+}
+
+int VFSGen_Tell(vfsfile_t *f)
+{
+	vfsgen_t *g = (vfsgen_t*)f;
+	return g->pos;
+}
+
+int VFSGen_GetLen(vfsfile_t *f)
+{
+	vfsgen_t *g = (vfsgen_t*)f;
+	return g->buffer->len;
+}
+
+void VFSGen_Close(vfsfile_t *f)
+{
+	vfsgen_t *g = (vfsgen_t*)f;
+	g->buffer->references--;
+	if (!g->buffer->references)
+	{
+		Z_Free(g->buffer->data);
+		Z_Free(g->buffer);
+	}
+	Z_Free(g);
+}
+
+
+vfsfile_t *VFSGen_Create(IWeb_FileGen_t *gen)
+{
+	vfsgen_t *ret;
+	ret = Z_Malloc(sizeof(vfsgen_t));
+
+	ret->funcs.ReadBytes = VFSGen_ReadBytes;
+	ret->funcs.WriteBytes = VFSGen_WriteBytes;
+	ret->funcs.Seek = VFSGen_Seek;
+	ret->funcs.Tell = VFSGen_Tell;
+	ret->funcs.GetLen = VFSGen_GetLen;
+	ret->funcs.Close = VFSGen_Close;
+
+	return (vfsfile_t*)ret;
 }
 
 vfsfile_t *IWebGenerateFile(char *name, char *content, int contentlength)
@@ -346,7 +415,7 @@ vfsfile_t *IWebGenerateFile(char *name, char *content, int contentlength)
 
 	if (*lastrecordedmvd && !strcmp(name, "lastdemo.mvd"))
 		if (strcmp(name, "lastdemo.mvd"))	//no infinate loops please...
-			return IWebFOpenRead(lastrecordedmvd);
+			return FS_OpenVFS(lastrecordedmvd, "rb", FS_GAME);
 
 	parms = strchr(name, '?');
 	if (!parms)
@@ -363,7 +432,6 @@ vfsfile_t *IWebGenerateFile(char *name, char *content, int contentlength)
 	{
 		if (!Q_strncasecmp(name, IWebFiles[fnum].name, len+1))
 		{
-			IWEBFILE *ret;
 			if (IWebFiles[fnum].buffer)
 			{
 				if (IWebFiles[fnum].lastgenerationtime+10 < Sys_DoubleTime() || contentlength||*parms)	//10 sec lifetime
@@ -383,33 +451,13 @@ vfsfile_t *IWebGenerateFile(char *name, char *content, int contentlength)
 				IWebFiles[fnum].GenerationFunction(parms, content, contentlength);
 				IWebFiles[fnum].buffer = IWeb_GenerationBuffer;
 
-				if (!contentlength)
-				{
-					IWeb_GenerationBuffer->references++;	//so it can't be sent once and freed instantly.
-					IWebFiles[fnum].lastgenerationtime = Sys_DoubleTime();
-				}
-				else
-					IWebFiles[fnum].lastgenerationtime = -10;
-			}			
-
-			ret = VFSMEM_FromZMalloc
-			ret = IWebMalloc(sizeof(vfsfile_t));
-			if (!ret)
-			{
-				BZ_Free(IWeb_GenerationBuffer);
-				return NULL;
+				//so it can't be sent once and freed instantly.
+				IWebFiles[fnum].lastgenerationtime = Sys_DoubleTime();
 			}
-			ret->f = NULL;
-			ret->bufferdata = IWebFiles[fnum].buffer;
-			ret->length = ret->bufferdata->len;
-			ret->bufferdata->references++;
-			ret->pos = 0;
-			ret->start = 0;
-			ret->end = ret->start+ret->length;
-
+			IWebFiles[fnum].buffer->references++;
 			IWeb_GenerationBuffer = NULL;
 
-			return ret;
+			return VFSGen_Create(IWebFiles[fnum].buffer);
 		}
 	}
 	return NULL;

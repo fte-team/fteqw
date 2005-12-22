@@ -114,8 +114,8 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 		#define NQPROT			//server and client are capable of using quake1/netquake protocols. (qw is still prefered. uses the command 'nqconnect')
 		#define FISH			//sw rendering only
 		#define ZLIB			//zip/pk3 support
-//		#define WEBSERVER		//http/ftp servers
-//		#define WEBCLIENT		//http/ftp clients.
+		#define WEBSERVER		//http/ftp servers
+		#define WEBCLIENT		//http/ftp clients.
 		#define RUNTIMELIGHTING	//calculate lit/lux files the first time the map is loaded and doesn't have a loadable lit.
 //		#define QTERM			//qterm... adds a console command that allows running programs from within quake - bit like xterm.
 		#define CL_MASTER		//query master servers and stuff for a dynamic server listing.

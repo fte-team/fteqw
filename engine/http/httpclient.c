@@ -47,7 +47,7 @@ typedef struct http_con_s {
 
 	int contentlength;
 
-	IWEBFILE *file;
+	vfsfile_t *file;
 
 	void (*NotifyFunction)(char *localfile, qboolean sucess);	//called when failed or succeeded, and only if it got a connection in the first place.
 	struct http_con_s *next;
@@ -201,7 +201,7 @@ static qboolean HTTP_CL_Run(http_con_t *con)
 
 			con->bufferused -= ammount;
 
-			con->file = IWebFOpenWrite(con->filename, false);
+			con->file = FS_OpenVFS(con->filename, "wb", FS_GAME);
 			if (!con->file)
 			{
 				Con_Printf("HTTP: Couldn't open file %s\n", con->filename);
@@ -210,7 +210,7 @@ static qboolean HTTP_CL_Run(http_con_t *con)
 
 			if (!con->file)
 			{
-				IWebFWrite(con->buffer+ammount, con->bufferused, 1, con->file);
+				VFS_WRITE(con->file, con->buffer+ammount, con->bufferused);
 				con->bufferused = 0;
 			}
 			else
@@ -281,7 +281,7 @@ static qboolean HTTP_CL_Run(http_con_t *con)
 			con->totalreceived+=con->chunked;
 			if (con->file && con->chunked)	//we've got a chunk in the buffer
 			{	//write it
-				IWebFWrite(con->buffer, con->chunked, 1, con->file);
+				VFS_WRITE(con->file, con->buffer, con->chunked);
 				//and move the unparsed chunk to the front.
 				con->bufferused -= con->chunked;
 				memmove(con->buffer, con->buffer+con->chunked, con->bufferused);
@@ -293,7 +293,7 @@ static qboolean HTTP_CL_Run(http_con_t *con)
 			con->totalreceived+=ammount;
 			if (con->file)	//we've got a chunk in the buffer
 			{	//write it
-				IWebFWrite(con->buffer, con->bufferused, 1, con->file);
+				VFS_WRITE(con->file, con->buffer, con->bufferused);
 				con->bufferused = 0;
 			}
 		}
@@ -306,7 +306,7 @@ static qboolean HTTP_CL_Run(http_con_t *con)
 				Con_Printf("Recieved file isn't the correct length - must be corrupt - %s\n", con->filename);
 			Con_Printf("Retrieved %s\n", con->filename);
 			if (con->file)
-				IWebFClose(con->file);
+				VFS_CLOSE(con->file);
 			else
 			{
 				snprintf(Location, sizeof(Location)-1, "%s/%s", com_gamedir, con->filename);

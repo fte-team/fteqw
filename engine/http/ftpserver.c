@@ -35,7 +35,7 @@ typedef struct FTPclient_s{
 	int datasock;	//FTP only allows one transfer per connection.
 	int dataislisten;
 	int datadir;	//0 no data, 1 reading, 2 writing
-	IWEBFILE *file;
+	vfsfile_t *file;
 
 	unsigned long blocking;
 
@@ -238,18 +238,18 @@ iwboolean FTP_ServerThinkForConnection(FTPclient_t *cl)
 		int pos, sent;
 		int ammount, wanted = sizeof(resource);
 
-		pos = IWebFTell(cl->file);
-		ammount = IWebFRead(resource, 1, wanted, cl->file);
+		pos = VFS_TELL(cl->file);
+		ammount = VFS_READ(cl->file, resource, wanted);
 		sent = send(cl->datasock, resource, ammount, 0);
 
 		if (sent == -1)
 		{
-			IWebFSeek(cl->file, pos, SEEK_SET);
+			VFS_SEEK(cl->file, pos);
 			if (qerrno != EWOULDBLOCK)
 			{
 				closesocket(cl->datasock);
 				cl->datasock = INVALID_SOCKET;
-				IWebFClose(cl->file);
+				VFS_CLOSE(cl->file);
 				cl->file = NULL;
 				
 				QueueMessage (cl, "226 Transfer complete .\r\n");
@@ -259,7 +259,7 @@ iwboolean FTP_ServerThinkForConnection(FTPclient_t *cl)
 		else
 		{
 			if (sent != ammount)
-				IWebFSeek(cl->file, pos + sent, SEEK_SET);
+				VFS_SEEK(cl->file, pos + sent);
 
 			if (ammount != wanted && sent == ammount)	//file is over
 			{
@@ -268,7 +268,7 @@ iwboolean FTP_ServerThinkForConnection(FTPclient_t *cl)
 				send(cl->datasock, resource, 0, 0);
 				closesocket(cl->datasock);
 				cl->datasock = INVALID_SOCKET;
-				IWebFClose(cl->file);
+				VFS_CLOSE(cl->file);
 				cl->file = NULL;
 
 				QueueMessage (cl, "226 Transfer complete .\r\n");
@@ -281,7 +281,7 @@ iwboolean FTP_ServerThinkForConnection(FTPclient_t *cl)
 		int len;
 		while((len = recv(cl->datasock, resource, sizeof(resource), 0)) >0 )
 		{			
-			IWebFWrite(resource, len, 1, cl->file);
+			VFS_WRITE(cl->file, resource, len);
 		}
 		if (len == -1)
 		{
@@ -290,7 +290,7 @@ iwboolean FTP_ServerThinkForConnection(FTPclient_t *cl)
 				closesocket(cl->datasock);
 				cl->datasock = INVALID_SOCKET;
 				if (cl->file)
-					IWebFClose(cl->file);
+					VFS_CLOSE(cl->file);
 				cl->file = NULL;
 
 				QueueMessage (cl, "226 Transfer complete .\r\n");
@@ -300,7 +300,7 @@ iwboolean FTP_ServerThinkForConnection(FTPclient_t *cl)
 		if (len == 0)
 		{
 			QueueMessage (cl, "226 Transfer complete .\r\n");
-			IWebFClose(cl->file);
+			VFS_CLOSE(cl->file);
 			cl->file = NULL;
 			cl->datadir = 0;
 		}
@@ -586,14 +586,14 @@ iwboolean FTP_ServerThinkForConnection(FTPclient_t *cl)
 			if (*resource == '/')
 			{
 				if (SV_AllowDownload(resource+1))
-					cl->file = IWebFOpenRead(resource+1);
+					cl->file = FS_OpenVFS(resource+1, "rb", FS_GAME);
 				else
 					cl->file = IWebGenerateFile(resource+1, NULL, 0);
 			}
 			else
 			{
 				if (SV_AllowDownload(resource))
-					cl->file = IWebFOpenRead(resource);
+					cl->file = FS_OpenVFS(resource, "rb", FS_GAME);
 				else
 					cl->file = IWebGenerateFile(resource, NULL, 0);
 			}
@@ -653,14 +653,14 @@ iwboolean FTP_ServerThinkForConnection(FTPclient_t *cl)
 				else
 					sprintf(resource, "%s%s", cl->path, mode);
 
-				cl->file = IWebFOpenRead(resource);
+				cl->file = FS_OpenVFS(resource, "rb", FS_GAMEONLY);
 				if (cl->file)
 				{
-					IWebFClose(cl->file);
+					VFS_CLOSE(cl->file);
 					QueueMessage (cl, "550 File already exists.\r\n");
 					continue;
 				}
-				cl->file = IWebFOpenWrite(resource, false);
+				cl->file = FS_OpenVFS(resource, "wb", FS_GAME);
 
 				if (!cl->file)
 				{
@@ -726,7 +726,7 @@ unsigned int WINAPI BlockingClient(FTPclient_t *cl)
 	}
 
 	if (cl->file)
-		IWebFClose(cl->file);
+		VFS_CLOSE(cl->file);
 	closesocket(cl->controlsock);
 	if (cl->datasock)
 		closesocket(cl->datasock);
@@ -762,7 +762,7 @@ unsigned long _true = true;
 		if (FTP_ServerThinkForConnection(cl))
 		{
 			if (cl->file)
-				IWebFClose(cl->file);
+				VFS_CLOSE(cl->file);
 			closesocket(cl->controlsock);
 			if (cl->datasock)
 				closesocket(cl->datasock);

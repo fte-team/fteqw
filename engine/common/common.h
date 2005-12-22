@@ -307,6 +307,7 @@ typedef struct vfsfile_s {
 	unsigned long (*Tell) (struct vfsfile_s *file);
 	unsigned long (*GetLen) (struct vfsfile_s *file);	//could give some lag
 	void (*Close) (struct vfsfile_s *file);
+	void (*Flush) (struct vfsfile_s *file);
 } vfsfile_t;
 
 #define VFS_CLOSE(vf) (vf->Close(vf))
@@ -315,8 +316,8 @@ typedef struct vfsfile_s {
 #define VFS_SEEK(vf,pos) (vf->Seek(vf,pos))
 #define VFS_READ(vf,buffer,buflen) (vf->ReadBytes(vf,buffer,buflen))
 #define VFS_WRITE(vf,buffer,buflen) (vf->WriteBytes(vf,buffer,buflen))
-#define VFS_FLUSH(vf)
-#define VFS_GETS(vf,buffer,buflen) Sys_Error("VFS_GETS not implemented"),false	//:(
+#define VFS_FLUSH(vf) do{if(vf->Flush)vf->Flush(vf);}while(0)
+#define VFS_GETS(vf,buffer,buflen) (Sys_Error("VFS_GETS not implemented"),false)	//:(
 
 void FS_Remove(char *fname, int relativeto);
 vfsfile_t *FS_OpenVFS(char *filename, char *mode, int relativeto);

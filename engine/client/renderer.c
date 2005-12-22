@@ -1661,7 +1661,9 @@ TRACE(("dbg: R_ApplyRenderer: efrags\n"));
 		for (i = 0; i < cl.num_statics; i++)	//make the static entities reappear.
 		{
 			cl_static_entities[i].model = cl.model_precache[staticmodelindex[i]];
+#ifdef SWQUAKE
 			cl_static_entities[i].palremap = D_IdentityRemap();
+#endif
 			if (staticmodelindex[i])	//make sure it's worthwhile.
 			{
 				R_AddEfrags(&cl_static_entities[i]);

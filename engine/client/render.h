@@ -67,7 +67,6 @@ typedef struct entity_s
 	
 	struct model_s			*model;			// NULL = no model
 	int						frame;
-	struct palremap_s		*palremap;
 	int						skinnum;		// for Alias models
 
 	struct player_info_s	*scoreboard;	// identify player
@@ -112,6 +111,9 @@ typedef struct entity_s
 #ifdef PEXT_HEXEN2
 	int drawflags;
 	int abslight;
+#endif
+#ifdef SWQUAKE
+	struct palremap_s		*palremap;
 #endif
 	float lerpfrac;
 	int oldframe;

@@ -2230,7 +2230,9 @@ void CL_ParseStatic (int version)
 // copy it to the current state
 	ent->model = cl.model_precache[es.modelindex];
 	ent->oldframe = ent->frame = es.frame;
+#ifdef SWQUAKE
 	ent->palremap = D_IdentityRemap();
+#endif
 	ent->skinnum = es.skinnum;
 	ent->drawflags = es.hexen2flags;
 

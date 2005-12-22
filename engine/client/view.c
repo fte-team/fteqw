@@ -1184,7 +1184,9 @@ void V_CalcRefdef (int pnum)
  	else
 		view->model = cl.model_precache[cl.stats[pnum][STAT_WEAPON]];
 	view->frame = view_message?view_message->weaponframe:0;
+#ifdef SWQUAKE
 	view->palremap = D_IdentityRemap();
+#endif
 
 // set up the refresh position
 	r_refdef.viewangles[PITCH] += cl.punchangle[pnum];

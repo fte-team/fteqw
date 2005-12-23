@@ -539,7 +539,14 @@ void P_ParticleEffect_f(void)
 		else if (!strcmp(var, "scaledelta"))
 			ptype->scaledelta = atof(value);
 
-		else if (!strcmp(var, "count") || !strcmp(var, "step"))
+
+		else if (!strcmp(var, "step"))
+		{
+			ptype->count = 1/atof(value);
+			if (Cmd_Argc()>2)
+				ptype->countrand = 1/atof(Cmd_Argv(2));
+		}
+		else if (!strcmp(var, "count"))
 		{
 			ptype->count = atof(value);
 			if (Cmd_Argc()>2)
@@ -2769,7 +2776,7 @@ static void P_ParticleTrailDraw (vec3_t startpos, vec3_t end, part_type_t *ptype
 		ts = NULL;
 
 	// use ptype step to calc step vector and step size
-	step = ptype->count;
+	step = 1/ptype->count;
 
 	if (step < 0.01)
 		step = 0.01;
@@ -2877,9 +2884,9 @@ static void P_ParticleTrailDraw (vec3_t startpos, vec3_t end, part_type_t *ptype
 
 //		if (ptype->spawnmode == SM_TRACER)
 		if (ptype->spawnparam1)
-			tcount = (int)(len / ptype->count / ptype->spawnparam1);
+			tcount = (int)(len * ptype->count / ptype->spawnparam1);
 		else
-			tcount = (int)(len / ptype->count);
+			tcount = (int)(len * ptype->count);
 
 		if (ptype->colorindex >= 0)
 		{
@@ -3042,7 +3049,7 @@ static void P_ParticleTrailDraw (vec3_t startpos, vec3_t end, part_type_t *ptype
 
 		if (ptype->countrand)
 		{
-			float rstep = ptype->countrand * frandom();
+			float rstep = frandom() / ptype->countrand;
 			VectorMA(start, rstep, vec, start);
 			step += rstep;
 		}

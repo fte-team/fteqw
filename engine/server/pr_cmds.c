@@ -328,7 +328,7 @@ int QCEditor (progfuncs_t *prinst, char *filename, int line, int nump, char **pa
 	int i;
 	char buffer[8192];
 	char *r;
-	FILE *f;
+	vfsfile_t *f;
 
 	SV_EndRedirect();
 
@@ -336,13 +336,15 @@ int QCEditor (progfuncs_t *prinst, char *filename, int line, int nump, char **pa
 		return -1;
 	SV_EndRedirect();
 	if (developer.value)
-		COM_FOpenFile(filename, &f);
+	{
+		f = FS_OpenVFS(filename, "rb", FS_GAME);
+	}
 	else
 		f = NULL;	//faster.
 	if (!f)
 	{
 		Q_snprintfz(buffer, sizeof(buffer), "src/%s", filename);
-		COM_FOpenFile(buffer, &f);
+		f = FS_OpenVFS(buffer, "rb", FS_GAME);
 	}
 	if (!f)
 		Con_Printf("-%s - %i\n", filename, line);
@@ -350,12 +352,12 @@ int QCEditor (progfuncs_t *prinst, char *filename, int line, int nump, char **pa
 	{
 		for (i = 0; i < line; i++)
 		{
-			fgets(buffer, sizeof(buffer), f);
+			VFS_GETS(buffer, sizeof(buffer), f);
 		}
 		if ((r = strchr(buffer, '\r')))
 		{ r[0] = '\n';r[1]='\0';}
 		Con_Printf("-%s", buffer);
-		fclose(f);
+		VFS_CLOSE(f);
 	}
 //PF_break(NULL);
 	return line;

@@ -243,9 +243,9 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 #ifndef PLATFORM
 	#if defined(_WIN32)
 		#if defined(__amd64__)
-			#define PLATFORM	"Win32"
-		#else
 			#define PLATFORM	"Win64"
+		#else
+			#define PLATFORM	"Win32"
 		#endif
 	#elif defined(__linux__)
 		#if defined(__amd64__)

@@ -151,7 +151,9 @@ typedef struct player_info_s
 	int		_topcolor;
 	int		_bottomcolor;
 
+#ifdef SWQUAKE
 	struct palremap_s *palremap;
+#endif
 
 	int		spectator;
 	skin_t	*skin;

@@ -207,6 +207,7 @@ typedef struct part_type_s {
 
 	float scaledelta;
 	float count;
+	float countrand;
 	int texturenum;
 	int assoc;
 	int cliptype;
@@ -538,10 +539,12 @@ void P_ParticleEffect_f(void)
 		else if (!strcmp(var, "scaledelta"))
 			ptype->scaledelta = atof(value);
 
-		else if (!strcmp(var, "step"))
-			ptype->count = 1/atof(value);
-		else if (!strcmp(var, "count"))
+		else if (!strcmp(var, "count") || !strcmp(var, "step"))
+		{
 			ptype->count = atof(value);
+			if (Cmd_Argc()>2)
+				ptype->countrand = atof(Cmd_Argv(2));
+		}
 
 		else if (!strcmp(var, "alpha"))
 			ptype->alpha = atof(value);
@@ -2075,7 +2078,7 @@ int P_RunParticleEffectState (vec3_t org, vec3_t dir, float count, int typenum, 
 		// init spawn specific variables
 		b = bfirst = NULL;
 		spawnspc = 8;
-		pcount = count*ptype->count;
+		pcount = count*(ptype->count+ptype->countrand*frandom());
 		if (ptype->flags & PT_INVFRAMETIME)
 			pcount /= host_frametime;
 		if (ts)
@@ -2766,7 +2769,7 @@ static void P_ParticleTrailDraw (vec3_t startpos, vec3_t end, part_type_t *ptype
 		ts = NULL;
 
 	// use ptype step to calc step vector and step size
-	step = 1/ptype->count;
+	step = ptype->count;
 
 	if (step < 0.01)
 		step = 0.01;
@@ -2874,9 +2877,9 @@ static void P_ParticleTrailDraw (vec3_t startpos, vec3_t end, part_type_t *ptype
 
 //		if (ptype->spawnmode == SM_TRACER)
 		if (ptype->spawnparam1)
-			tcount = (int)(len * ptype->count / ptype->spawnparam1);
+			tcount = (int)(len / ptype->count / ptype->spawnparam1);
 		else
-			tcount = (int)(len * ptype->count);
+			tcount = (int)(len / ptype->count);
 
 		if (ptype->colorindex >= 0)
 		{
@@ -2895,8 +2898,6 @@ static void P_ParticleTrailDraw (vec3_t startpos, vec3_t end, part_type_t *ptype
 		}
 		else
 			VectorCopy(ptype->rgb, p->rgb);
-
-
 
 		// use org temporarily for rgbsync
 		p->org[2] = frandom();
@@ -3038,6 +3039,13 @@ static void P_ParticleTrailDraw (vec3_t startpos, vec3_t end, part_type_t *ptype
 		}
 
 		VectorAdd (start, vstep, start);
+
+		if (ptype->countrand)
+		{
+			float rstep = ptype->countrand * frandom();
+			VectorMA(start, rstep, vec, start);
+			step += rstep;
+		}
 
 		p->die = particletime + ptype->die - p->die;
 	}

@@ -1406,7 +1406,7 @@ void Shader_Finish ( shader_t *s )
 		s->flags |= SHADER_FLARE;
 	}
 
-	if (!s->numpasses && !(s->flags & (SHADER_NODRAW|SHADER_SKY)))
+	if (!s->numpasses && !(s->flags & (SHADER_NODRAW|SHADER_SKY)) && !s->fog_dist)
 	{
 		pass = &s->passes[s->numpasses++];
 		pass = &s->passes[0];

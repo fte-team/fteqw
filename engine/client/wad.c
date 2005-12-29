@@ -90,7 +90,13 @@ void W_LoadWadFile (char *filename)
 	|| header->identification[1] != 'A'
 	|| header->identification[2] != 'D'
 	|| header->identification[3] != '2')
-		Sys_Error ("Wad file %s doesn't have WAD2 id\n",filename);
+	{
+		Con_Printf ("W_LoadWadFile: Wad file %s doesn't have WAD2 id\n",filename);
+		wad_numlumps = 0;
+		Z_Free(wad_base);
+		wad_base = NULL;
+		return;
+	}
 		
 	wad_numlumps = LittleLong(header->numlumps);
 	infotableofs = LittleLong(header->infotableofs);

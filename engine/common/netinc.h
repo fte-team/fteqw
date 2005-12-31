@@ -25,7 +25,6 @@
 	#include <netinet/in.h>
 	#include <netinet/tcp.h>
 	#include <netdb.h>
-	#include <sys/param.h>
 	#include <sys/ioctl.h>
 	#include <sys/uio.h>
 	#include <arpa/inet.h>
@@ -62,5 +61,9 @@
 
 #ifndef INVALID_SOCKET
 	#define INVALID_SOCKET -1
+#endif
+
+#ifndef INADDR_LOOPBACK
+	#define INADDR_LOOPBACK 0x7f000001
 #endif
 

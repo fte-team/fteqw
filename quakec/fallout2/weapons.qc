@@ -5,17 +5,26 @@ void () player_run;
 void(entity bomb, entity attacker, float rad, entity ignore, string dtype) T_RadiusDamage;
 void(vector org, float damage) SpawnBlood;
 void() SuperDamageSound;
+void (float rec, float number, float dam, float var, float ran, float auto) W_FireShotgun;
 void (float dam, float rec, string snd, float rng, float rate) FireAssaultRifle;
 void (float dam, float rec, string snd, float rng, float rate) FirePistol;
 void (float dam, float rec, string snd, float rng, float rate) FireSMG;
 void () W_PlayerMenu;
+void () UseChem;
+void () Special;
+void () BuyMenu;
 void() Sneak;
 void() Bandage;
 void() Shield;
+void() player_knife1;
+void() player_knifea;
+void() ExitScreen;
+void() CharacterSheet;
+void() UseEquipment;
+void (float weap, float snd, float drop) DropWeapon;
 
 float () weightx;
 void (entity guy, float slot) GetWeaponWeight;
-string (entity guy, float slot) GetWeaponName;
 
 
 // called by worldspawn
@@ -815,17 +824,36 @@ void(float temp_weapon) GetWeaponModel =
 			self.weaponmodel = "progs/v_axe.mdl";
 	else if (temp_weapon == 5)
 			self.weaponmodel = "progs/v_1911.mdl";
+	else if (temp_weapon == 6)
+			self.weaponmodel = "progs/v_deagle.mdl";
+	else if (temp_weapon == 7)
+			self.weaponmodel = "progs/v_1911.mdl";
+	else if (temp_weapon == 8)
+			self.weaponmodel = "progs/v_alien.mdl";
+	else if (temp_weapon == 9)
+			self.weaponmodel = "progs/v_pipe.mdl";
+	else if (temp_weapon == 10)
+			self.weaponmodel = "progs/v_double.mdl";
+	else if (temp_weapon == 11)
+			self.weaponmodel = "progs/v_shotgun.mdl";
 	else if (temp_weapon == 12)
 			self.weaponmodel = "progs/v_jackhammer.mdl";
 	else if (temp_weapon == 13)
 			self.weaponmodel = "progs/v_mp9.mdl";
 	else if (temp_weapon == 14)
 			self.weaponmodel = "progs/v_mp7.mdl";
+	else if (temp_weapon == 15)
+			self.weaponmodel = "progs/v_rangem.mdl";
+	else if (temp_weapon == 16)
+			self.weaponmodel = "progs/v_ak47.mdl";
 	else if (temp_weapon == 17)
 			self.weaponmodel = "progs/v_ak47.mdl";
+	else if (temp_weapon == 18)
+			self.weaponmodel = "progs/v_srifle.mdl";
 	else if (temp_weapon == 19)
 			self.weaponmodel = "progs/v_night.mdl";
-
+	else if (temp_weapon == 99)
+			self.weaponmodel = "progs/v_handgren.mdl";
 };
 
 void() W_SetCurrentAmmo =
@@ -875,6 +903,8 @@ void() W_SetCurrentAmmo =
 			GetWeaponModel(self.slot1);
 		if (self.current_slot == 2)
 			GetWeaponModel(self.slot2);
+		if (self.current_slot == 3)
+			GetWeaponModel(99);
 
 		if (self.current_slot == 1)
 			self.currentammo = self.mag1;
@@ -914,28 +944,74 @@ void () ReloadWeapon =
 {
 	local float x;
 
-	sound (self, CHAN_WEAPON, "weapons/reload.wav", TRUE, ATTN_NORM);
-	sprint(self, 2, "reloading...\n");
+	if (self.current_slot != 1 && self.current_slot != 2)
+		return;
+
+	if (self.rtime > 0)
+		return;
 
 	if (self.current_slot == 1)
 	{
+		if (self.ammo1 <= 0)
+			return;
+		if (self.maxmag1 == self.mag1)
+			return;
+		if (self.slot1 <= 4)
+			return;
+
+		if (self.slot1 >= 9 && self.slot1 <= 11)
+		{
+			sound (self, CHAN_WEAPON, "weapons/shell.wav", TRUE, ATTN_NORM);
+			self.mag1 = self.mag1 + 1;
+			self.ammo1 = self.ammo1 - 1;
+			self.currentammo = self.mag1;
+			self.rtime = 50;
+			return;
+		}
+		sound (self, CHAN_WEAPON, "weapons/reload.wav", TRUE, ATTN_NORM);
+		sprint(self, 2, "reloading...\n");
+
 		x = (self.maxmag1 - self.mag1);
 		self.mag1 = self.mag1 + x;
 		self.ammo1 = self.ammo1 - x;
+		self.currentammo = self.mag1;
+		self.rtime = 200;
 	}
 	if (self.current_slot == 2)
 	{
+		if (self.ammo2 <= 0)
+			return;
+		if (self.maxmag2 == self.mag2)
+			return;
+		if (self.slot2 <= 4)
+			return;
+
+		if (self.slot2 >= 9 && self.slot2 <= 11)
+		{
+			sound (self, CHAN_WEAPON, "weapons/shell.wav", TRUE, ATTN_NORM);
+			self.mag2 = self.mag2 + 1;
+			self.ammo2 = self.ammo2 - 1;
+			self.currentammo = self.mag2;
+			self.rtime = 50;
+			return;
+		}
+		sound (self, CHAN_WEAPON, "weapons/reload.wav", TRUE, ATTN_NORM);
+		sprint(self, 2, "reloading...\n");
+
 		x = (self.maxmag2 - self.mag2);
 		self.mag2 = self.mag2 + x;
 		self.ammo2 = self.ammo2 - x;
+		self.currentammo = self.mag2;
+		self.rtime = 200;
 	}
 };
+
 
 float() W_CheckNoAmmo =
 {
 	if (self.current_slot == 1)
 	{
-		if (self.slot1 == 0)
+		if (self.slot1 <= 4)
 			return FALSE;
 
 		if (self.mag1 < 1 && self.ammo1 < 1)
@@ -954,10 +1030,10 @@ float() W_CheckNoAmmo =
 	}
 	if (self.current_slot == 2)
 	{
-		if (self.slot2 == 0)
+		if (self.slot2 <= 4)
 			return FALSE;
 
-		if (self.mag1 < 2 && self.ammo1 < 2)
+		if (self.mag2 < 2 && self.ammo2 < 2)
 		{
 			self.attack_finished = (time + 0.2);
 			stuffcmd (self, "-attack\n");
@@ -990,35 +1066,52 @@ void() W_Attack =
 	makevectors     (self.v_angle);                 // calculate forward angle for velocity
 	self.show_hostile = time + 1;   // wake monsters up
 
-	if (W_CheckNoAmmo())
-		return;
-
 	if (self.current_slot == 1)
 		weap = self.slot1;
 	if (self.current_slot == 2)
 		weap = self.slot2;
 
+	if (W_CheckNoAmmo())
+		return;
 
-	if (weap == 0)
+	if (self.rtime > 0)
+		return;
+
+	if (weap >= 0 && weap <= 4)
 	{
-		self.attack_finished = time + 0.1;
-		FireMelee(10, 64, 0.5);
+		self.attack_finished = time + 0.25;
+		player_knife1 ();
 	}
-	if (weap == 5)
-	{
-		self.attack_finished = time + 0.1;
-		FirePistol(10, 2, "weapons/1911.wav", 2000, 0.1);
-	}
-	if (weap == 17)
-	{
-		self.attack_finished = time + 0.1;
+	else if (weap == 5)
+		FirePistol(10, 2, "weapons/1911.wav", 2000, 0.25);
+	else if (weap == 6)
+		FirePistol(10, 2, "weapons/deagle.wav", 2000, 0.25);
+	else if (weap == 7)
+		FirePistol(10, 2, "weapons/needler.wav", 2000, 0.25);
+	//if (weap == 8)
+	//	FireAlienBlaster();
+	else if (weap == 9)
+		FireAssaultRifle(18, 2, "weapons/rangem.wav", 3000, 0.1);
+	else if (weap == 10)
+		W_FireShotgun (1, 5, 6, 160, 3000, 0);
+	else if (weap == 11)
+		W_FireShotgun (1, 5, 6, 160, 3000, 0);
+	else if (weap == 12)
+		W_FireShotgun (1, 5, 6, 160, 3000, 1);
+	else if (weap == 13)
+		FireSMG(12, 2, "weapons/mp9.wav", 2000, 0.06);
+	else if (weap == 14)
+		FireSMG(12, 2, "weapons/mp7.wav", 2000, 0.06);
+	else if (weap == 15)
+		FireAssaultRifle(14, 2, "weapons/rangem.wav", 4000, 0.5);
+	else if (weap == 16)
+		FireAssaultRifle(14, 2, "weapons/rangem.wav", 4000, 0.1);
+	else if (weap == 17)
 		FireAssaultRifle(18, 2, "weapons/ak47.wav", 6000, 0.1);
-	}
-	if (weap == 19)
-	{
-		self.attack_finished = time + 0.1;
-		FireAssaultRifle(18, 2, "weapons/m4a1.wav", 6000, 0.1);
-	}
+	else if (weap == 18)
+		FireAssaultRifle(30, 2, "weapons/dks-1.wav", 8000, 0.5);
+	else if (weap == 19)
+		FireAssaultRifle(16, 2, "weapons/m4a1.wav", 4000, 0.1);
 };
 
 /*
@@ -1332,6 +1425,29 @@ void() ImpulseCommands =
 		DuckOn ();
 	if (self.impulse == 201)
 		ProneOn ();
+
+	if (self.impulse == 50)
+		ReloadWeapon ();
+	if (self.impulse == 51)
+		UseChem ();
+	if (self.impulse == 52)
+		BuyMenu ();
+	if (self.impulse == 53)
+		Special ();
+	if (self.impulse == 54)
+		ExitScreen ();
+	if (self.impulse == 55)
+	{
+		if (self.current_slot == 1)
+			DropWeapon (self.slot1, 1, 0);
+		else
+			DropWeapon (self.slot2, 1, 0);
+	}
+	if (self.impulse == 56)
+		CharacterSheet ();
+	if (self.impulse == 57)
+		UseEquipment ();
+
 	self.impulse = 0;
 };
 
@@ -1707,10 +1823,7 @@ void () FlashExplode =
 			makevectors (te.angles);
 			vec = normalize ((self.origin - te.origin));
 			dot = (vec * v_forward);
-                  if (((te.equipment == 7) && (te.equipment_state == 1)))
-			{
-				dot2 = 1;
-			}
+
 			if ((((dot > 0.3) && CanDamage (self, te)) && (dot2 == 0)))
 			{
 				stuffcmd (te, "v_cshift 255 255 255 255\n");
@@ -1927,7 +2040,7 @@ void (float dam, float rec, string snd, float rng, float rate) FirePistol =
 	if (trace_fraction == 1)
 		return;
 
-	org = trace_endpos - v_forward * 2;
+	org = trace_endpos - v_forward * 1;
 	org2 = trace_endpos + (v_forward * ((trace_ent.size_y / 2) + (trace_ent.size_x / 2)));
 	if (trace_ent.takedamage)
 	{
@@ -1936,6 +2049,7 @@ void (float dam, float rec, string snd, float rng, float rate) FirePistol =
 		ydif = org2_y - trace_ent.origin_y;
 		xdif = org2_x - trace_ent.origin_x;
 		true = 0;
+
 		if (((ydif >= CONTENT_SKY) && (ydif <= TE_LIGHTNING2)))
 			true = 1;
 		if (((xdif >= CONTENT_SKY) && (xdif <= TE_LIGHTNING2)))
@@ -2080,6 +2194,7 @@ void (float dam, float rec, string snd, float rng, float rate) FireAssaultRifle 
 	local string x;
 
 	sound (self, CHAN_WEAPON, snd, 1, ATTN_NORM);
+
 	self.attack_finished = (time + rate);
 
 
@@ -2303,7 +2418,7 @@ void () WeaponTouch =
 		other.ammo1 = self.slot1;
 		other.maxmag1 = self.slot2;
 		other.mag1 = self.class;
-		GetWeaponModel ();
+		GetWeaponModel (self.slot1);
 		remove (self);
 	}
 	if ((other.current_slot == 2))
@@ -2314,7 +2429,7 @@ void () WeaponTouch =
 		other.ammo2 = self.slot1;
 		other.maxmag2 = self.slot2;
 		other.mag2 = self.class;
-		GetWeaponModel ();
+		GetWeaponModel (self.slot2);
 		remove (self);
 	}
 };
@@ -2323,23 +2438,21 @@ void (float weap, float snd, float drop) DropWeapon =
 {
 	local string mdel;
 
-	if (((self.attack_finished > time) && (drop == 0)))
+	if (self.attack_finished > time && drop == 0)
 		return;
+
 	if (self.current_slot == 3 && self.handgrenade == 0)
 		return;
 
-	if (((self.current_slot == WEAPON_SPIKES) && (self.c4 == 0)))
-	{
+	if (self.current_slot == 4 && self.c4 == 0)
 		return;
-	}
-	if ((weap == 0))
-	{
+
+	if (weap == 0)
 		return;
-	}
-	if ((snd == 1))
-	{
+
+	if (snd == 1)
 		sound (self, CHAN_WEAPON, "weapons/lock4.wav", 1, ATTN_NORM);
-	}
+
 	makevectors (self.v_angle);
 	newmis = spawn ();
 	newmis.owner = self;
@@ -2349,10 +2462,8 @@ void (float weap, float snd, float drop) DropWeapon =
 	newmis.velocity = aim (self, 500);
 	newmis.velocity = (newmis.velocity * 500);
 	newmis.angles_y = (random () * 360);
-	mdel = "progs/w_m4a1.mdl";
 
-
-		mdel = "progs/w_1911.mdl";
+	mdel = "progs/w_1911.mdl";
 
 	if (weap == 1)
 		mdel = "progs/w_knife.mdl";
@@ -2419,7 +2530,7 @@ void (float weap, float snd, float drop) DropWeapon =
 	newmis.think = SUB_Remove;
 	newmis.touch = WeaponTouch;
 	newmis.cnt = weap;
-	if ((self.current_slot == 1))
+	if (self.current_slot == 1)
 	{
 		self.attack_finished = time;
 		self.slot1_weight = 0;
@@ -2430,8 +2541,9 @@ void (float weap, float snd, float drop) DropWeapon =
 		self.mag1 = 0;
 		self.maxmag1 = 0;
 		GetWeaponModel ();
+		stuffcmd(self, "impulse 1\n");
 	}
-	if ((self.current_slot == 2))
+	if (self.current_slot == 2)
 	{
 		self.attack_finished = time;
 		self.slot2_weight = 0;
@@ -2442,8 +2554,9 @@ void (float weap, float snd, float drop) DropWeapon =
 		self.mag2 = 0;
 		self.maxmag2 = 0;
 		GetWeaponModel ();
+		stuffcmd(self, "impulse 2\n");
 	}
-	if ((self.current_slot == 3))
+	if (self.current_slot == 3)
 	{
 		self.attack_finished = time;
 		newmis.handgrenade = self.handgrenade;
@@ -2451,6 +2564,32 @@ void (float weap, float snd, float drop) DropWeapon =
 
 		stuffcmd(self, "impulse 1\n");
 	}
+};
+
+void () GetArmorWeight =
+{
+	local float wt;
+
+	if (self.armor == 0)
+		wt = 0;
+	if (self.armor == 1)
+		wt = 3;
+	if (self.armor == 2)
+		wt = 5;
+	if (self.armor == 3)
+		wt = 9;
+	if (self.armor == 4)
+		wt = 15;
+	if (self.armor == 5)
+		wt = 12;
+	if (self.armor == 6)
+		wt = 17;
+	if (self.armor == 7)
+		wt = 6;
+	if (self.armor == 8)
+		wt = 20;
+
+	self.armor_weight = wt;
 };
 
 void (entity guy, float slot) GetWeaponWeight =
@@ -2510,83 +2649,6 @@ void (entity guy, float slot) GetWeaponWeight =
 		self.slot2_weight = wt;
 };
 
-string (entity guy, float slot) GetWeaponName =
-{
-	local string name;
-
-	if (slot == 1)
-		name = "knife";
-	else if (slot == 2)
-		name = "axe";
-	else if (slot == 3)
-		name = "ripper";
-	else if (slot == 4)
-		name = "power axe";
-	else if (slot == 5)
-		name = "1911";
-	else if (slot == 6)
-		name = "desert eagle";
-	else if (slot == 7)
-		name = "needler";
-	else if (slot == 8)
-		name = "alien blaster";
-	else if (slot == 9)
-		name = "pipe rifle";
-	else if (slot == 10)
-		name = "winchester";
-	else if (slot == 11)
-		name = "mossberg";
-	else if (slot == 12)
-		name = "citykiller";
-	else if (slot == 13)
-		name = "mp9";
-	else if (slot == 14)
-		name = "grease gun";
-	else if (slot == 15)
-		name = "rangemaster";
-	else if (slot == 16)
-		name = "ak-112";
-	else if (slot == 17)
-		name = "ak-74";
-	else if (slot == 18)
-		name = "dks-1";
-	else if (slot == 19)
-		name = "moonlight";
-	else if (slot == 20)
-		name = "sa-80";
-	else if (slot == 21)
-		name = "gauss rifle";
-	else if (slot == 22)
-		name = "laser carbine";
-
-	return name;
-};
-
-string (float slot) GetArmorName =
-{
-	local string name;
-
-	if (slot == 0)
-		name = "nothing";
-	if (slot == 1)
-		name = "bulletproof shirt";
-	else if (slot == 2)
-		name = "leather armor";
-	else if (slot == 3)
-		name = "kevlar armor";
-	else if (slot == 4)
-		name = "metal armor";
-	else if (slot == 5)
-		name = "combat armor";
-	else if (slot == 6)
-		name = "brotherhood armor";
-	else if (slot == 7)
-		name = "force armor";
-	else if (slot == 8)
-		name = "light power armor";
-
-	return name;
-};
 
 
 void (float slot) WeaponAmmo =
@@ -2780,11 +2842,25 @@ void(float type) UseHealingChem =
 	traceline (source, source + v_forward*64, FALSE, self);
 	if (trace_fraction == 1.0)
 	{
+		if (self.health >= self.max_health)
+		{
+			sprint(self, 2, "you aren't injured.\n");
+			return;
+		}
+		if (self.regen >= 1)
+		{
+			sprint (self, PRINT_HIGH, "you are already healing.\n");
+			return;
+		}
 		if (self.health < self.max_health && self.regen == 0)
 		{
 			sound (self, CHAN_BODY, "items/r_item2.wav", 1, ATTN_NORM);
 			self.health = self.health + heal;
 			self.regen = heal;
+			sprint (self, PRINT_HIGH, "used a ");
+			sprint (self, PRINT_HIGH, x);
+			sprint (self, PRINT_HIGH, " to heal yourself.\n");
+			self.chemcount = self.chemcount - 1;
 			return;
 		}
 	}
@@ -2801,7 +2877,13 @@ void(float type) UseHealingChem =
 		if (trace_ent.regen >= 1)
 		{
 			sprint (self, 2, trace_ent.netname);
-			sprint (self, PRINT_HIGH, " IS ALREADY HEALING.\n");
+			sprint (self, PRINT_HIGH, " is already healing.\n");
+			return;
+		}
+		if (trace_ent.health >= trace_ent.max_health)
+		{
+			sprint(self, 2, trace_ent.netname);
+			sprint(self, 2, " isn't injured.\n");
 			return;
 		}
 		sprint (trace_ent, 2, self.netname);
@@ -2813,7 +2895,7 @@ void(float type) UseHealingChem =
 		trace_ent.health = trace_ent.health + heal;
 		stuffcmd (trace_ent, "v_cshift 0 0 0 0\n");
 		sound (self, CHAN_BODY, "items/r_item2.wav", 1, ATTN_NORM);
-
+		self.chemcount = self.chemcount - 1;
 	}
 };
 
@@ -2843,9 +2925,10 @@ void() UseChem =
 	if (self.chem == 7)//mentats
 		UseBoostingChem(3);
 
-	self.chemcount = self.chemcount - 1;
 	if (self.chemcount == 0)
 		self.chem = 0;
+
+	self.rtime = 100;
 };
 
 void() Bandage =
@@ -2940,7 +3023,11 @@ void () DisplayMenu =
 		menu = EquipmentString ();
 		centerprint (self, menu);
 	}
-
+	if (self.currentmenu == "shop_weapons")
+	{
+		menu = WeaponString ();
+		centerprint (self, menu);
+	}
 	if (((self.currentmenu == "select_skill") && (self.team == 1)))
 	{
 		centerprint (self, "êCHOOSE SKILL SETë\n\nê1ë Medic    \nê2ë Assassin \nê3ë Soldier  \nê4ë Scientist\n");
@@ -2957,8 +3044,6 @@ void () DisplayMenu =
 			centerprint (self, "êCHOOSE YOUR TEAMë\n\nê1ë Rangers     (good)\nê2ë Raiders     (evil)\nê3ë Auto-Assign       \n");
 		if (self.class > 0 && self.oldteam > 0)
 			centerprint (self, "êCHOOSE YOUR TEAMë\n\nê1ë Rangers     (good)\nê2ë Raiders     (evil)\nê3ë Auto-Assign       \nê4ë Keep Previous     \n");
-
-
 	}
 	if (self.currentmenu == "confirm_team")
 	{
@@ -2973,27 +3058,32 @@ void () DisplayMenu =
 	{
 		sound (self, CHAN_BODY, "player/yourturn.wav", 1, ATTN_NORM);
 
-		if (self.class == 2)
+		if (self.class == 1)
 			centerprint (self, "êyour class will beë\n\nMedic - OK?\nê1ë Yes     \nê2ë No      \n");
-		if (self.class == 3)
+		if (self.class == 2)
 			centerprint (self, "êyour class will beë\n\nAssassin - OK?\nê1ë Yes     \nê2ë No      \n");
-		if (self.class == 4)
+		if (self.class == 3)
 			centerprint (self, "êyour class will beë\n\nSoldiier - OK?\nê1ë Yes     \nê2ë No      \n");
-		if (self.class == 6)
+		if (self.class == 4)
 			centerprint (self, "êyour class will beë\n\nScientist - OK?\nê1ë Yes     \nê2ë No      \n");
+	}
+
+	if (self.currentmenu == "menu_build")
+	{
+		menu = BuildString ();
+		centerprint (self, menu);
 	}
 };
 
 
 void () Special =
 {
-	if (self.class == 2)
+	if (self.class == 1)
 		Bandage ();
-	if (self.class == 3)
+	if (self.class == 2)
 		Sneak ();
-	if (self.class == 6)
-		Shield ();
-
+	if (self.class == 4)
+		self.currentmenu = "menu_build";
 };
 
 void () hos_run1;
@@ -3057,8 +3147,6 @@ void () ExitScreen =
 		centerprint (self, "\n");
 		self.currentmenu = "none";
 	}
-	else if (self.class == 4)
-		self.currentmenu = "menu_build";
 };
 
 void () Sneak =
@@ -3067,12 +3155,7 @@ void () Sneak =
 
 	w = weightx();
 
-	if (self.class != 3)
-	{
-		sprint (self, PRINT_HIGH, "no stealth-boy.\n");
-		return;
-	}
-	if (self.sneak == 1)
+	if (self.sneak >= 1)
 	{
 		sound (self, CHAN_BODY, "items/inv1.wav", 1, ATTN_NORM);
 		centerprint (self, "ç Uncloaked ç\n");
@@ -3085,24 +3168,24 @@ void () Sneak =
 		sprint (self, PRINT_HIGH, "wait for stealth-boy to recharge.\n");
 		return;
 	}
-	if (self.sneak == 0 && w <= 10)
+	if (self.sneak == 0 && self.class == 2)
 	{
 		sound (self, CHAN_BODY, "items/inv1.wav", 1, ATTN_NORM);
-		centerprint (self, "ç Cloaked ç\n(3% detection chance)");
+		centerprint (self, "ç cloaked and sneaking ç\n(1% detection chance)");
 		self.sneak = 1;
 		return;
 	}
-	else if (self.sneak == 0 && w <= 20)
+	else if (self.sneak == 0 && self.class != 2)
 	{
 		sound (self, CHAN_BODY, "items/inv1.wav", 1, ATTN_NORM);
-		centerprint (self, "ç Cloaked ç\n(10% detection chance)");
+		centerprint (self, "ç cloaked ç\n(15% detection chance)");
 		self.sneak = 3;
 		return;
 	}
 	else if (self.sneak == 0 && w > 20)
 	{
 		sound (self, CHAN_BODY, "items/inv1.wav", 1, ATTN_NORM);
-		centerprint (self, "ç Too Much Gear ç\n");
+		centerprint (self, "ç too much gear ç\n");
 		setmodel (self, "progs/guy.mdl");
 		self.sneak = 0;
 		return;
@@ -3324,10 +3407,7 @@ void () Bar_Think =
 		return;
 	}
 	self.flags = self.flags;
-	if ((((self.owner.equipment >= WEAPON_SHOTGUN) && (self.owner.equipment <= AS_MELEE)) && (self.owner.equipment_state == WEAPON_SHOTGUN)))
-	{
-		dot1 = WEAPON_SHOTGUN;
-	}
+
 	if ((self.owner.position == WEAPON_SHOTGUN))
 	{
 		dot1 = WEAPON_SHOTGUN;
@@ -3536,3 +3616,437 @@ void (vector org, entity guy, float input, float cost) spawn_station =
 	}
 	self.frame = 4;
 };
+
+void () BuyMenu =
+{
+	local float is_shop;
+	local entity te;
+	local entity shop;
+	local entity spot;
+	local entity oldself;
+	local vector spot1;
+	local vector spot2;
+	local float r;
+	local float cyc;
+	local string menu;
+
+	if (self.currentmenu == "777")
+		return;
+
+	is_shop = 0;
+
+	if (coop == 0)
+	{
+		te = findradius (self.origin, 250);
+		while (te)
+		{
+			if (te.classname == "buyzone1" && self.team == 1)
+				is_shop = 1;
+			if (te.classname == "buyzone2" && self.team == 2)
+				is_shop = 1;
+
+			te = te.chain;
+		}
+	}
+
+	if (coop == 1)
+	{
+
+		te = findradius (self.origin, 80);
+		while (te)
+		{
+			if (te.classname == "buyzone")
+				is_shop = 1;
+			if (te.classname == "merchant")
+				is_shop = 1;
+
+			te = te.chain;
+		}
+	}
+
+	if ((is_shop == 0))
+	{
+		centerprint (self, "nothing but the afterglow, here.\n(find a trader)");
+		return;
+	}
+	if ((is_shop == 1))
+	{
+		menu = ShopString ();
+		centerprint (self, menu);
+		self.currentmenu = "shop_list";
+
+		if (self.current_slot != 0 && self.current_slot != 2)
+			self.current_slot = 1;
+
+		return;
+	}
+};
+
+
+
+void () CharacterSheet =
+{
+	local string x;
+	local float qq;
+	local float ratio;
+	local float r1;
+	local float r2;
+	local float var;
+
+	var = weightx ();
+	stuffcmd (self, "toggleconsole\n");
+	sprint (self, PRINT_HIGH, "\n\n\n\n ** INFO ** \n");
+	sprint (self, PRINT_HIGH, "êClass     ë ");
+		if (self.class == 1)
+			sprint (self, 2, "Medic");
+		if (self.class == 2)
+			sprint (self, 2, "Assassin");
+		if (self.class == 3)
+			sprint (self, 2, "Soldier");
+		if (self.class == 4)
+			sprint (self, 2, "Scientist");
+
+	sprint (self, PRINT_HIGH, "\nêTeam      ë ");
+
+	if (self.team == 1)
+		sprint (self, 2, "Rangers\n");
+	if (self.team == 2)
+		sprint (self, 2, "Raiders\n");
+
+	sprint (self, PRINT_HIGH, "êScore     ë ");
+	r1 = (self.dead);
+	r2 = (self.kills);
+	if (r1 == 0)
+		r1 = 1;
+
+	ratio = (r2 / r1);
+	x = ftos (ratio);
+	sprint (self, 2, x);
+	sprint (self, 2, " (");
+	x = ftos (self.kills);
+	sprint (self, 2, x);
+	sprint (self, PRINT_HIGH, "/");
+	x = ftos (self.dead);
+	sprint (self, 2, x);
+	sprint (self, 2, ")   ");
+	sprint (self, PRINT_HIGH, "\nêSpeed     ë ");
+	x = ftos (self.maxspeed);
+	sprint (self, 2, x);
+	sprint (self, PRINT_HIGH, "/300\n");
+	sprint (self, PRINT_HIGH, "êMoney     ë ");
+
+	x = ftos (self.ammo_shells);
+	sprint (self, 2, x);
+	sprint (self, PRINT_HIGH, "$\n");
+	if (self.class == 2)
+	{
+		sprint (self, PRINT_HIGH, "êBandages  ë ");
+		x = ftos (self.bandages);
+		sprint (self, 2, x);
+		sprint (self, PRINT_HIGH, "\n");
+	}
+	if (self.class == 6)
+	{
+		sprint (self, PRINT_HIGH, "êScraps    ë ");
+		x = ftos (self.scraps);
+		sprint (self, 2, x);
+		sprint (self, PRINT_HIGH, "\n");
+	}
+
+	sprint (self, PRINT_HIGH, "\nêArmor     ë ");
+	x = GetArmorName();
+	sprint (self, 2, x);
+	sprint (self, 2, "  (");
+	x = ftos (self.armor_weight);
+	sprint (self, 2, x);
+	sprint (self, 2, ")\n");
+
+	sprint (self, PRINT_HIGH, "êProtectiveë ");
+	x = GetProtectName();
+	sprint (self, 2, x);
+	sprint (self, 2, "\n");
+	sprint (self, PRINT_HIGH, "êChem      ë ");
+	x = GetChemName();
+	sprint (self, 2, x);
+	x = ftos (self.chemcount);
+	sprint (self, 2, "[");
+	sprint (self, 2, x);
+	sprint (self, 2, "]");
+	sprint (self, 2, "\n");
+	sprint (self, PRINT_HIGH, "êGadget    ë ");
+
+	x = GetEquipmentName();
+	sprint (self, 2, x);
+	sprint (self, 2, "\n");
+	sprint (self, PRINT_HIGH, "êPerk      ë ");
+	x = GetPerkName();
+	sprint (self, 2, x);
+	sprint (self, 2, "\n");
+	sprint (self, PRINT_HIGH, "êTrait     ë ");
+	x = GetTraitName();
+	sprint (self, 2, x);
+	sprint (self, 2, "\n");
+	sprint (self, PRINT_HIGH, "êWeapon 1  ë ");
+	x = GetWeaponName (self, self.slot1);
+	sprint (self, 2, x);
+	sprint (self, 2, "  (");
+	x = ftos (self.slot1_weight);
+	sprint (self, 2, x);
+	sprint (self, 2, ") (");
+	sprint (self, 2, self.ammotype1);
+	sprint (self, 2, ")\n");
+
+	sprint (self, PRINT_HIGH, "êWeapon 2  ë ");
+	x = GetWeaponName (self, self.slot2);
+	sprint (self, 2, x);
+	sprint (self, 2, "  (");
+	x = ftos (self.slot2_weight);
+	sprint (self, 2, x);
+	sprint (self, 2, ") (");
+	sprint (self, 2, self.ammotype2);
+	sprint (self, 2, ")\n\n");
+	qq = weightx ();
+	sprint (self, PRINT_HIGH, "êWeight    ë ");
+	x = ftos (qq);
+	sprint (self, 2, x);
+	qq = self.max_weight;
+	sprint (self, PRINT_HIGH, "/");
+	x = ftos (qq);
+	sprint (self, 2, x);
+	sprint (self, PRINT_HIGH, "\n");
+	return;
+};
+
+void () UseEquipment =
+{
+
+	if (self.equipment == 0)
+	{
+		centerprint(self, "êë no extra equipment êë\n");
+		return;
+	}
+	if (self.equipment == 1)
+	{
+		centerprint(self, "êë medic's bag êë\nlets you carry more stimpacks\n");
+		return;
+	}
+	if (self.equipment == 4)
+	{
+		centerprint(self, "êë belt pouch êë\ngives you room for two extra grenades\n");
+		return;
+	}
+	if (self.equipment == 5)
+	{
+		centerprint(self, "êë backpack êë\nlets you carry more ammunition\n");
+		return;
+	}
+	if (self.equipment == 6)
+	{
+		centerprint(self, "êë toolkit mark ii êë\nbuild, defuse and open doors faster\n");
+		return;
+	}
+	if (self.equipment == 7 && self.equipment_state == 0)
+	{
+		sprint (self, PRINT_HIGH, "climbing gear in place.\n");
+		sound (self, CHAN_BODY, "misc/item2.wav", 1, ATTN_NORM);
+		self.maxspeed = 100;
+		self.velocity_z = 0;
+		self.equipment_state = 1;
+	}
+	if (self.equipment == 7 && self.equipment_state == 1)
+	{
+		sprint (self, PRINT_HIGH, "climbing gear retrieved.\n");
+		sound (self, CHAN_BODY, "misc/item2.wav", 1, ATTN_NORM);
+		self.grab = 0;
+		self.equipment_state = 0;
+		return;
+	}
+
+	if (self.equipment == 8)
+	{
+		centerprint(self, "êë enhanced battery êë\nallows longer cloaking\n");
+		return;
+	}
+	if (self.equipment == 9)
+	{
+		Sneak();
+		return;
+	}
+
+};
+
+void (vector s_aim, float dam, float var, float ran) W_FireBuckshotSpread1 =
+{
+	local vector source;
+	local vector targ;
+	local vector org;
+	local float r;
+	local float srange;
+	local float zdif;
+	local vector src;
+	local vector pos;
+	local float ydif;
+	local float xdif;
+	local float true;
+
+	makevectors (self.v_angle);
+	source = (self.origin + '0 0 20');
+	targ = ((((((s_aim + ((v_right * random ()) * var)) - ((v_right * random ()) * var)) + ((v_up * random ()) * var)) - ((v_up * random ()) * var)) + (((v_up * random ()) * var) * 0.5)) + (v_forward * ran));
+	traceline (source, targ, FALSE, self);
+	if ((trace_fraction == 1))
+	{
+		return;
+	}
+	org = (trace_endpos - (v_forward * 2));
+	if (trace_ent.takedamage)
+	{
+		dam = ((random () * dam) + dam);
+		dam = (dam * (1 - trace_fraction));
+
+		if (trace_ent.solid != SOLID_BSP)
+			SpawnBlood (org, 1);
+		if (trace_ent.solid == SOLID_BSP)
+			SpawnWood (trace_ent, org, 1);
+
+		zdif = (org_z - trace_ent.origin_z);
+		ydif = (org_y - trace_ent.origin_y);
+		xdif = (org_x - trace_ent.origin_x);
+		true = 0;
+		if (((ydif >= CONTENT_SLIME) && (ydif <= WEAPON_SPIKES)))
+		{
+			true = 1;
+		}
+		if (((xdif >= CONTENT_SLIME) && (xdif <= WEAPON_SPIKES)))
+		{
+			true = 1;
+		}
+		if (((true == 1) && (zdif >= ((trace_ent.size_z / 2) * 0.8))))
+		{
+			if (self.attack > 2)
+				dam = (dam * 0.4);
+
+			self.critical = 3;
+		}
+		T_Damage (trace_ent, self, self, dam);
+	}
+	else
+	{
+		bullet_hole (org);
+	}
+};
+
+void (float rec, float number, float dam, float var, float ran, float auto) W_FireShotgun =
+{
+	local vector dir;
+	local vector p_aim;
+	local float var1;
+	local float var2;
+	local float var3;
+	local float var4;
+	local float weap;
+	local vector adjust;
+
+	if (self.current_slot == 1)
+		weap = self.slot1;
+	else
+		weap = self.slot2;
+
+	if (self.velocity != '0 0 0')
+	{
+		var1 = ((random () * 48) * (6 + self.recoil * 1.5));
+		var2 = ((random () * 48) * (6 + self.recoil * 1.5));
+		var3 = ((random () * 48) * (6 + self.recoil * 1.5));
+		var4 = ((random () * 48) * (6 + self.recoil * 1.5));
+	}
+	if (self.position == 2)
+	{
+		var1 = ((random () * 12) * (6 + self.recoil * 1.5));
+		var2 = ((random () * 12) * (6 + self.recoil * 1.5));
+		var3 = ((random () * 12) * (6 + self.recoil * 1.5));
+		var4 = ((random () * 12) * (6 + self.recoil * 1.5));
+	}
+	if (self.position == 1)
+	{
+		var1 = ((random () * IDLE3A) * (6 + self.recoil * 1.5));
+		var2 = ((random () * IDLE3A) * (6 + self.recoil * 1.5));
+		var3 = ((random () * IDLE3A) * (6 + self.recoil * 1.5));
+		var4 = ((random () * IDLE3A) * (6 + self.recoil * 1.5));
+	}
+	if (self.position == 0)
+	{
+		var1 = ((random () * IDLE10A) * (6 + (self.recoil * 3)));
+		var2 = ((random () * IDLE10A) * (6 + (self.recoil * 3)));
+		var3 = ((random () * IDLE10A) * (6 + (self.recoil * 3)));
+		var4 = ((random () * IDLE10A) * (6 + (self.recoil * 3)));
+	}
+
+	if (self.position == 0)
+		player_single1 ();
+	if (self.position == 2)
+		player_single1 ();
+	if (self.position == 1)
+		player_single1_s ();
+
+	stuffcmd (self, "+lookup\n");
+	stuffcmd (self, "wait\n");
+	stuffcmd (self, "-lookup\n");
+
+	sound (self, CHAN_WEAPON, "weapons/shotgun1.wav", 1.5, ATTN_NORM);
+
+	
+	if (self.position == 0)
+		p_aim = (((((self.origin + '0 0 20' + adjust) + (v_right * var1)) - (v_right * var2)) + (v_up * var3)) - (v_up * var4));
+	else if (self.position == 1)
+		p_aim = (((((self.origin + '0 0 4' + adjust) + (v_right * var1)) - (v_right * var2)) + (v_up * var3)) - (v_up * var4));
+	else if (self.position == 2)
+		p_aim = (((((self.origin + '0 0 -12' + adjust) + (v_right * var1)) - (v_right * var2)) + (v_up * var3)) - (v_up * var4));
+
+	msg_entity = self;
+	WriteByte (MSG_ONE, SVC_BIGKICK);
+	DropAmmo ();
+	self.attack = (self.attack + 1);
+	self.recoil = (self.recoil + 8);
+	Crosshair();
+
+	if ((self.recoil >= 30))
+	{
+		self.recoil = 30;
+	}
+	if ((auto == 0))
+	{
+		self.attack_finished = (time + 0.5);
+	}
+	if ((auto == 1))
+	{
+		self.attack_finished = (time + 0.2);
+	}
+	if ((weap == DRAW4))
+	{
+		self.attack_finished = (time + 0.75);
+	}
+	if ((weap == IDLE2A))
+	{
+		self.attack_finished = (time + 0.4);
+	}
+	dir = aim (self, 10000);
+	var = SVC_INTERMISSION;
+	if ((number == MULTICAST_PVS_R))
+	{
+		W_FireBuckshotSpread1 (p_aim, dam, var, ran);
+		W_FireBuckshotSpread1 ((p_aim + (v_right * 80)), dam, var, ran);
+		W_FireBuckshotSpread1 ((p_aim - (v_right * 80)), dam, var, ran);
+		W_FireBuckshotSpread1 ((p_aim + (v_up * 80)), dam, var, ran);
+		W_FireBuckshotSpread1 ((p_aim - (v_up * 80)), dam, var, ran);
+	}
+	else
+	{
+		if ((number == AS_MELEE))
+		{
+			var = 80;
+			W_FireBuckshotSpread1 (p_aim, dam, var, ran);
+			W_FireBuckshotSpread1 (p_aim, dam, var, ran);
+			W_FireBuckshotSpread1 (p_aim, dam, var, ran);
+		}
+	}
+};
+

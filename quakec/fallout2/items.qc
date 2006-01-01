@@ -427,12 +427,14 @@ void() armor_touch =
 
 void() item_armor1 =
 {
-	self.touch = armor_touch;
-	precache_model ("progs/armor.mdl");
-	setmodel (self, "progs/armor.mdl");
+	self.touch = SUB_Null;
+	self.solid = SOLID_BBOX;
+	precache_model ("progs/enforcer.mdl");
+	setmodel (self, "progs/enforcer.mdl");
 	self.skin = 0;
-	setsize (self, '-16 -16 0', '16 16 56');
-	StartItem ();
+	setsize (self, '-16 -16 -24', '16 16 32');
+	setorigin(self, self.origin + '0 0 24');
+	self.classname = "merchant";
 };
 
 /*QUAKED item_armor2 (0 .5 .8) (-16 -16 0) (16 16 32)

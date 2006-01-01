@@ -1,4 +1,4 @@
-../qwprogs.dat
+../quake/turn/qwprogs.dat
 
 defs.qc
 subs.qc
@@ -7,6 +7,7 @@ fight.qc
 ai.qc
 combat.qc
 items.qc
+name.qc
 menus.qc
 weapons.qc
 world.qc
@@ -29,4 +30,4 @@ wizard.qc
 dog.qc
 ogre.qc
 misc.qc
-modbuy.qc
+mod_buy.qc

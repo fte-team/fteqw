@@ -175,5 +175,5 @@ string () de_dust =
 
 string () EquipmentString =
 {
-	return ("+ special equipment +\npress your c key to activate!\n\nê1ë stealth boy                   ê20cë\nê2ë displacer cloak               ê20cë\nê3ë security alarm                ê20cë\nê4ë motion sensor                 ê20cë\nê5ë extra magazines               ê20cë\nê6ë electronic tools mark ii      ê30cë\nê7ë climbing gear                 ê30cë\nê8ë remote camera                 ê40cë\nê9ë enhanced battery              ê50cë\nê0ë laser defense field           ê50cë\n");
+	return ("+ special equipment +\npress your c key to activate!\n\nê1ë medic's bag                  ê15cë\nê2ë security alarm                ê15cë\nê3ë remote camera                 ê15cë\nê4ë belt pouch                    ê15cë\nê5ë backpack                      ê15cë\nê6ë toolkit mark ii               ê15cë\nê7ë climbing gear                 ê15cë\nê8ë enhanced battery              ê15cë\nê9ë stealth boy                   ê45cë\n\n");
 };

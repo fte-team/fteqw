@@ -880,6 +880,7 @@ void () monster_ogre =
 	self.health = 280;
 	self.team = 3;
 	self.armorvalue = 0;
+	self.armornoise = "misc/thud.wav";
 	self.th_stand = ogre_stand1;
 	self.th_walk = ogre_walk1;
 	self.th_run = ogre_run1;

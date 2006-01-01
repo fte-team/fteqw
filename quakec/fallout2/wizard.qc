@@ -398,6 +398,7 @@ void() monster_wizard =
 	self.th_missile = Wiz_Missile;
 	self.th_pain = Wiz_Pain;
 	self.th_die = wiz_die;
-		
+	self.armornoise = "misc/thud.wav";
+
 	flymonster_start ();
 };

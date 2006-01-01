@@ -468,7 +468,7 @@ float           fraglimit;
 float           deathmatch;
 float           coop;
 float           rj                      =       1;
-
+float           no_connect;
 //================================================
 
 //
@@ -626,7 +626,12 @@ float          red_armor;
 .float          ctimer;
 .float          flash;
 .float          oldteam;
+.float          dead;
+.float          grenadetoggle;
+.float          kills;
+.float          materialize;
 
+.string        armornoise;
 .string        ammotype1;
 .string        ammotype2;
 .string        deathsound;
@@ -796,6 +801,7 @@ void(string s) changelevel = #70;
 void(string var, string val) cvar_set = #72;    // sets cvar.value
 
 void(entity client, string s) centerprint = #73;        // sprint, but in middle
+void (entity client, string x1, string x2, string x3, string x4, string x5, string x6, string x7) centerprint7 = #73;
 
 void(vector pos, string samp, float vol, float atten) ambientsound = #74;
 

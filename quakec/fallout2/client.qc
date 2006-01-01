@@ -7,6 +7,7 @@ void() player_stand1;
 void (vector org) spawn_tfog;
 void (vector org, entity death_owner) spawn_tdeath;
 void(float slot) WeaponAmmo;
+void() Identify;
 
 float modelindex_dead, modelindex_sneak, modelindex_prone, modelindex_eyes, modelindex_player, modelindex_gone;
 
@@ -331,19 +332,12 @@ entity() SelectSpawnPoint =
 	if (spot)
 		return spot;
 	
-	ent1 = "info_player_start";
-
-	spot = find (world, classname, "info_player_start");     
-
-	if (spot)
-		cooperate = 1;
-
-	spot = find (world, classname, "spawn3");     
-  
-	if (spot)
+	if (coop == 1)
+		ent1 = "info_player_coop";
+	else
 		ent1 = "spawn3";
-
-	if (spot)
+  
+	if (ent1 == "spawn3")
 	{
 		if (self.team == 1)
 			ent1 = "spawn1";       
@@ -488,7 +482,6 @@ void() PutClientInServer =
 	self.classname = "player";
 	self.health = 100;
 	self.takedamage = DAMAGE_AIM;
-	self.solid = SOLID_SLIDEBOX;
 	self.movetype = MOVETYPE_WALK;
 	self.show_hostile = 0;
 	self.max_health = 100;
@@ -503,6 +496,8 @@ void() PutClientInServer =
 	self.effects = 0;
 	self.invincible_time = 0;
 	self.active = 1;
+	self.solid = SOLID_NOT;
+	self.materialize = 200;
 
 	DecodeLevelParms ();
 	
@@ -512,7 +507,7 @@ void() PutClientInServer =
 	self.th_pain = player_pain;
 	self.th_die = PlayerDie;
 	self.slot1 = 17;
-	self.slot2 = 19;
+	self.armor = 2;
 	self.current_slot = 1;
 	WeaponAmmo(1);
 	WeaponAmmo(2);
@@ -833,7 +828,7 @@ void() PlayerJump =
 	self.button2 = 0;
 
 // player jumping sound
-	sound (self, CHAN_BODY, "player/plyrjmp8.wav", 1, ATTN_NORM);
+	sound (self, CHAN_BODY, "player/ax1.wav", 1, ATTN_NORM);
 };
 
 
@@ -952,6 +947,89 @@ void() CheckWaterJump =
 	}
 };
 
+void () SpeedControl =
+{
+
+	self.maxspeed = 200;
+
+	if (self.position == 1)
+		self.maxspeed = self.maxspeed * 0.50;
+	if (self.position == 2)
+		self.maxspeed = self.maxspeed * 0.25;
+	if (self.currentmenu != "none")
+		self.maxspeed = 0;
+};
+
+void() ArmorCheck =
+{
+	local float type;
+	local float bit;
+	local float value;
+
+	//Armor
+	if (self.armor == 1)
+		type = 0.20;
+	if (self.armor == 2)
+		type = 0.30;
+	if (self.armor == 3)
+		type = 0.35;
+	if (self.armor == 4)
+		type = 0.35;
+	if (self.armor == 5)
+		type = 0.40;
+	if (self.armor == 6)
+		type = 0.45;
+	if (self.armor == 7)
+		type = 0.10;
+	if (self.armor == 8)
+		type = 0.50;
+
+	if (self.armor <= 3)
+		self.items = (self.items - (self.items & ((IT_ARMOR1 | IT_ARMOR2) | IT_ARMOR3)) + IT_ARMOR1);
+	else if (self.armor <= 6)
+		self.items = (self.items - (self.items & ((IT_ARMOR1 | IT_ARMOR2) | IT_ARMOR3)) + IT_ARMOR1);
+	else
+		self.items = (self.items - (self.items & ((IT_ARMOR1 | IT_ARMOR2) | IT_ARMOR3)) + IT_ARMOR1);
+
+	if (self.armor == 1)
+		self.armornoise = "misc/thud.wav";
+	if (self.armor == 2)
+		self.armornoise = "misc/thud.wav";
+	if (self.armor == 3)
+		self.armornoise = "misc/thud.wav";
+	if (self.armor == 4)
+		self.armornoise = "weapons/ric1.wav";
+	if (self.armor == 5)
+		self.armornoise = "misc/thud.wav";
+	if (self.armor == 6)
+		self.armornoise = "misc/thud.wav";
+	if (self.armor == 7)
+		self.armornoise = "misc/laserdef.wav";
+	if (self.armor == 8)
+		self.armornoise = "weapons/ric1.wav";
+
+	self.armorvalue = type * 100;
+	self.armortype = type;
+};
+
+void () WeightControl =
+{
+
+	GetArmorWeight();
+	GetWeaponWeight(self, 1);
+	GetWeaponWeight(self, 2);
+
+	if (self.class == 1)
+		self.max_weight = 20;
+	if (self.class == 2)
+		self.max_weight = 20;
+	if (self.class == 3)
+		self.max_weight = 30;
+	if (self.class == 4)
+		self.max_weight = 15;
+};
+
+
 void () PositionControl =
 {
 	local string img;
@@ -1002,6 +1080,35 @@ void() PlayerPreThink =
 	makevectors (self.v_angle);             // is this still used
 
 
+	if (self.materialize > 0)
+	{
+		self.materialize = self.materialize - 1;
+
+		if (self.materialize <= 0)
+		{
+			if (walkmove(0, 0))
+			{
+				self.solid = SOLID_SLIDEBOX;
+				//bprint(2, "turning solid\n");
+			}
+			else
+			{
+				self.materialize = 50;
+				//bprint(2, "stuck in object, returning non-solid\n");
+			}
+		}
+	}
+
+	if (self.team == 0 && self.currentmenu == "none")
+	{
+		self.currentmenu = "select_team";
+		DisplayMenu ();
+	}
+	else if (self.class == 0 && self.currentmenu == "none")
+	{
+		self.currentmenu = "select_skill";
+		DisplayMenu ();
+	}
 
 	self.recoil = self.recoil - 0.2;
 
@@ -1013,7 +1120,11 @@ void() PlayerPreThink =
 
 	if (self.cycle1 < time)
 	{
+		Identify();
 		PositionControl();
+		SpeedControl();
+		WeightControl();
+		ArmorCheck();
 		Crosshair();
 		if (self.currentmenu != "none")
 			DisplayMenu();
@@ -1026,7 +1137,37 @@ void() PlayerPreThink =
 
 	if (self.cycle2 < time)
 	{
-		self.cycle2 = time + 2;
+		if (self.equipment == 8)
+			r = 30;
+		else
+			r = 20;
+
+		if (self.sneak == 0)
+		{
+			if (self.ammo_cells < r)
+				self.ammo_cells = self.ammo_cells + 1;
+
+			if (self.ammo_cells > r)
+				self.ammo_cells = r;
+		}
+		if (self.sneak >= 1)
+		{
+			self.ammo_cells = self.ammo_cells = 1;
+
+			if (self.ammo_cells <= 0)
+			{
+				sprint(self, 2, "uncloaked.\n");
+				self.sneak = 0;
+			}
+		}
+
+		if (self.regen > 0)
+		{
+			self.health = self.health + 3;
+			self.regen = self.regen - 1;
+		}
+
+		self.cycle2 = time + 1;
 	}
 
 
@@ -1244,6 +1385,8 @@ void() CheckPowerups =
 };
 
 
+void() Footstep;
+
 /*
 ================
 PlayerPostThink
@@ -1263,7 +1406,7 @@ void() PlayerPostThink =
 		return;
 
 // check to see if player landed and play landing sound 
-	if ((self.jump_flag < -300) && (self.flags & FL_ONGROUND) )
+	if ((self.jump_flag < -50) && (self.flags & FL_ONGROUND) )
 	{
 		if (self.watertype == CONTENT_WATER)
 			sound (self, CHAN_BODY, "player/h2ojump.wav", 1, ATTN_NORM);
@@ -1274,10 +1417,19 @@ void() PlayerPostThink =
 			sound (self, CHAN_VOICE, "player/land2.wav", 1, ATTN_NORM);
 		}
 		else
-			sound (self, CHAN_VOICE, "player/land.wav", 1, ATTN_NORM);
+			Footstep();
 	}
 
 	self.jump_flag = self.velocity_z;
+
+	if (self.rtime >= 1)
+	{
+		self.weaponframe = 3;
+		self.rtime = (self.rtime - 1);
+
+		if (self.perk == 3)
+			self.rtime = (self.rtime - 1);
+	}
 
 	CheckPowerups ();
 
@@ -1299,10 +1451,28 @@ void() ClientConnect =
 	bprint (PRINT_HIGH, " entered the game\n");
 	
 
-	stuffcmd(self, "bind shift impulse 200\n");
-	stuffcmd(self, "bind ctrl impulse 201\n");
+	stuffcmd(self, "v_damagecshift 1\n");
 	stuffcmd(self, "alias duck impulse 200\n");
 	stuffcmd(self, "alias prone impulse 201\n");
+	stuffcmd(self, "alias reload impulse 50\n");
+	stuffcmd(self, "alias chem impulse 51\n");
+	stuffcmd(self, "alias buy impulse 52\n");
+	stuffcmd(self, "alias special impulse 53\n");
+	stuffcmd(self, "alias exit impulse 54\n");
+	stuffcmd(self, "alias drop impulse 55\n");
+	stuffcmd(self, "alias info impulse 56\n");
+	stuffcmd(self, "alias equip impulse 57\n");
+
+	stuffcmd(self, "bind c equip\n");
+	stuffcmd(self, "bind g drop\n");
+	stuffcmd(self, "bind e exit\n");
+	stuffcmd(self, "bind z special\n");
+	stuffcmd(self, "bind r reload\n");
+	stuffcmd(self, "bind x chem\n");
+	stuffcmd(self, "bind b buy\n");
+	stuffcmd(self, "bind q info\n");
+	stuffcmd(self, "bind shift prone\n");
+	stuffcmd(self, "bind ctrl duck\n");
 
 	stuffcmd(self, "exec fallout.cfg\n");
 
@@ -1349,6 +1519,68 @@ void(entity targ, entity attacker) ClientObituary =
 	//ZOID 12-13-96: self.team doesn't work in QW.  Use keys
 	attackerteam = infokey(attacker, "team");
 	targteam = infokey(targ, "team");
+
+	if (targ.classname == "player")
+	{
+		if (coop == 1 && no_connect < 4)
+			no_connect = no_connect + 1;
+
+		if (no_connect > 4)
+			no_connect = 4;
+	}
+
+	if (attacker.classname == "player")
+	{
+		if (coop == 1 && no_connect < 4)
+			no_connect = no_connect + 1;
+
+		if (attacker == targ)
+			attacker.kills = attacker.kills - 1;
+		else if (attacker.team == targ.team)
+			attacker.kills = attacker.kills - 1;
+		else if (targ.classname == "player")
+			attacker.kills = attacker.kills + 1;
+		else if (targ.classname == "monster")
+			attacker.kills = attacker.kills + 1;
+	}
+
+	if (targ == attacker && targ.deathtype == "suicide")
+	{
+		bprint(2, attacker.netname);
+		bprint(2, " takes the easy way out\n");
+		return;
+	}
+
+	if (targ == attacker && targ.deathtype == "bleed")
+	{
+		bprint(2, attacker.netname);
+		bprint(2, " bled to death\n");
+		return;
+	}
+
+	if (targ != attacker && (targ.classname == "monster" || targ.classname == "player") && (attacker.classname == "monster" || attacker.classname == "player"))
+	{
+			bprint (PRINT_MEDIUM, "[ ");
+
+		if (attacker.critical == 3) //headshot
+			bprint (PRINT_MEDIUM, "X ");
+		if (attacker.critical == 777) //through the wall
+			bprint (PRINT_MEDIUM, "% ");
+		if (attacker.critical == 778) //wall headshot
+			bprint (PRINT_MEDIUM, "& ");
+		if (attacker.velocity_z != 0)
+			bprint (PRINT_MEDIUM, "@ ");
+		if (attacker.current_slot == 1 && attacker.mag1 == 0)
+			bprint (PRINT_MEDIUM, "! ");
+
+			bprint (PRINT_MEDIUM, "] ");
+
+		bprint(2, attacker.netname);
+		bprint(2, " >>> ");
+		bprint(2, targ.netname);
+		bprint(2, "\n");
+		return;
+	}
 
 	if (targ.classname == "player")
 	{
@@ -1629,5 +1861,114 @@ void(entity targ, entity attacker) ClientObituary =
 
 			bprint (PRINT_MEDIUM," died\n");
 		}
+	}
+};
+
+
+
+void() Identify =
+{
+	local string c1, c2, c3, c5, c6, c7;
+
+	makevectors (self.v_angle);
+	traceline (self.origin, (self.origin + (v_forward * 2000)), FALSE, self);
+	if (trace_ent.classname == "player" && self.currentmenu == "none" && self.team == trace_ent.team)
+	{
+		if (trace_ent.class == 2)
+			c1 = "medic\n";
+		if (trace_ent.class == 3)
+			c1 = "assassin\n";
+		if (trace_ent.class == 4)
+			c1 = "soldier\n";
+		if (trace_ent.class == 6)
+			c1 = "scientist\n";
+
+		c2 = ftos (trace_ent.health);
+		c3 = GetWeaponName (trace_ent, trace_ent.current_slot);
+
+		if (trace_ent.armor == 0)
+			c5 = "\nno armor";
+		if (trace_ent.armor == 1)
+			c5 = "\nlightly armored";
+		if (trace_ent.armor == 2)
+			c5 = "\nleather armor";
+		if (trace_ent.armor == 3)
+			c5 = "\nkevlar armor";
+		if (trace_ent.armor == 4)
+			c5 = "\nmetal armor";
+		if (trace_ent.armor == 5)
+			c5 = "\ncombat armor";
+		if (trace_ent.armor == 6)
+			c5 = "\nbrotherhood armor";
+		if (trace_ent.armor == 7)
+			c5 = "\nforce armor";
+		if (trace_ent.armor == 8)
+			c5 = "\nmetal armor mkii";
+
+		centerprint7 (self, trace_ent.netname, "\n", c1, c2, "\n", c3, c5);
+	}
+	if (trace_ent.classname == "robowolf" && self.currentmenu == "none")
+	{
+		c1 = "robo-fang\n";
+		c2 = "robot construct\nowned by ";
+		c3 = trace_ent.track.netname;
+		if (trace_ent.team == self.team)
+			c5 = "\nfriendly\n";
+		else
+			c5 = "\nhostile\n";
+
+		centerprint7 (self, trace_ent.netname, c1, c2, c3, c5, "", "");
+	}
+	if (trace_ent.classname == "station" && self.currentmenu == "none")
+	{
+		c1 = trace_ent.netname;
+		if (self.armor == 0)
+			c2 = "uncompleted";
+		else if (trace_ent.health >= trace_ent.max_health)
+			c2 = "online";
+		else if (trace_ent.health >= trace_ent.max_health*0.75)
+			c2 = "banged up";
+		else if (trace_ent.health >= trace_ent.max_health*0.50)
+			c2 = "damaged";
+		else
+			c2 = "almost destroyed";
+
+		c3 = trace_ent.track.netname;
+
+		centerprint7 (self, c1, "\nstationary bot", "\n", c2, "\n", "owned by ", c3);
+	}
+	if (trace_ent.classname == "monster" && self.currentmenu == "none")
+	{
+		c1 = "hostile";
+		c2 = "natural armor";
+		if (trace_ent.armor == 1)
+			c2 = "lightly armored";
+		if (trace_ent.armor == 2)
+			c2 = "leather armor";
+		if (trace_ent.armor == 3)
+			c2 = "kevlar armor";
+		if (trace_ent.armor == 4)
+			c2 = "metal armor";
+		if (trace_ent.armor == 5)
+			c2 = "combat armor";
+		if (trace_ent.armor == 6)
+			c2 = "brotherhood armor";
+		if (trace_ent.armor == 7)
+			c2 = "force armor";
+		if (trace_ent.armor == 8)
+			c2 = "metal armor mkii";
+
+		if (trace_ent.weapon == 1)
+			c3 = "rifle";
+		if (trace_ent.weapon == 2)
+			c3 = "pistol";
+		if (trace_ent.weapon == 3)
+			c3 = "shotgun";
+		if (trace_ent.weapon == 4)
+			c3 = "smg";
+		if (trace_ent.weapon >= 5)
+			c3 = "assault rifle";
+
+		centerprint7 (self, trace_ent.netname, "\n", c1, "\n", c2, "\n", c3);
 	}
 };

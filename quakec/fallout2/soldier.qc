@@ -1340,6 +1340,7 @@ void () monster_army =
 		self.th_pain = enf_pain;
 		self.th_die = enf_die;
 		self.th_missile = enf_atk1;
+		self.armornoise = "misc/thud.wav";
 
 		walkmonster_start();
 		if (random()*4 <= 2)
@@ -1375,6 +1376,7 @@ void () monster_army =
 	self.team = 3;
 	self.armor = 2;
 	self.armortype = 0.2;
+	self.armornoise = "misc/thud.wav";
 	self.th_stand = army_stand1;
 	self.th_walk = army_walk1;
 	self.th_run = army_run1;

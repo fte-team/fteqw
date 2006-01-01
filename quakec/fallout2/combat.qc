@@ -105,12 +105,13 @@ The damage is coming from inflictor, but get mad at attacker
 This should be the only function that ever reduces health.
 ============
 */
-void(entity targ, entity inflictor, entity attacker, float damage) T_Damage=
+
+void(entity targ, entity inflictor, entity attacker, float damage) T_Damage =
 {
 	local   vector  dir;
 	local   entity  oldself;
 	local   float   save;
-	local   float   take;
+	local   float   take, severity, helm;
 	local   string  s;
 	local   string  attackerteam, targteam;
 
@@ -129,6 +130,56 @@ void(entity targ, entity inflictor, entity attacker, float damage) T_Damage=
 	else
 		damage = damage * 4;
 
+	if (attacker.critical == 3)//attacker scored a headshot/critical
+	{
+		if (attacker.critical == 3)
+		{
+			severity = 0 + random()*20;
+			if (attacker.perk == 7)
+				severity = severity + 4;
+
+			if (attacker.class == 3)
+				severity = severity + 2;
+
+			if (severity >= 19)
+				damage = (damage * 5);
+			else if (severity >= 14)
+				damage = (damage * 4);
+			else
+				damage = (damage * 3);
+
+			helm = targ.armortype;
+			if (targ.helmet == 0)
+			{
+				sound (targ, CHAN_BODY, "player/headshot.wav", 1, ATTN_NORM);
+				helm = 0;
+			}
+			if (targ.helmet == AS_STRAIGHT)
+			{
+				sound (targ, CHAN_BODY, "weapons/helmet.wav", 1, ATTN_NORM);
+				helm = 0.30;
+			}
+			if (targ.helmet == AS_SLIDING)
+			{
+				sound (targ, CHAN_BODY, "weapons/helmet.wav", 1, ATTN_NORM);
+				helm = 0.45;
+			}
+
+			damage = (damage - (damage * helm));
+
+			makevectors (targ.v_angle);
+		}
+	}
+
+	if (damage <= 0)
+	{
+		damage = 0;
+		sound (targ, CHAN_BODY, targ.armornoise, 1, ATTN_NORM);
+	}
+
+	if (random()*4<=1)
+		sound (targ, CHAN_BODY, targ.armornoise, 1, ATTN_NORM);
+
 // save damage based on the target's armor level
 
 	save = ceil(targ.armortype*damage);
@@ -139,7 +190,6 @@ void(entity targ, entity inflictor, entity attacker, float damage) T_Damage=
 		targ.items = targ.items - (targ.items & (IT_ARMOR1 | IT_ARMOR2 | IT_ARMOR3));
 	}
 	
-	targ.armorvalue = targ.armorvalue - save;
 	take = ceil(damage-save);
 
 // add to the damage total for clients, which will be sent as a single
@@ -154,7 +204,7 @@ void(entity targ, entity inflictor, entity attacker, float damage) T_Damage=
 
 	damage_inflictor = inflictor;        
 
-
+/*
 // figure momentum add
 	if ( (inflictor != world) && (targ.movetype == MOVETYPE_WALK) )
 	{
@@ -174,7 +224,7 @@ void(entity targ, entity inflictor, entity attacker, float damage) T_Damage=
 		if ( (rj > 1) & ((attacker.classname == "player") & (targ.classname == "player")) & ( attacker.netname == targ.netname)) 
 			targ.velocity = targ.velocity + dir * damage * rj;
 
-	}
+	}*/
 
 
 
@@ -207,6 +257,7 @@ void(entity targ, entity inflictor, entity attacker, float damage) T_Damage=
 		return;
 		
 // do the damage
+	take = take - targ.armor;
 	targ.health = targ.health - take;
 
 	if (targ.health <= 0)

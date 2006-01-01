@@ -237,7 +237,7 @@ void () door_touch =
 	{
 		if (self.size_y <= 128 && self.size_x <= 128)
 		{
-		if (other.class == 6)
+		if (other.class == 4)
 		{
 			SpawnOpenDoor(self, other);
 			return;

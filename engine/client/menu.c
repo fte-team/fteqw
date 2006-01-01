@@ -27,8 +27,6 @@ m_state_t m_state;
 
 extern menu_t *menu_script;
 
-qboolean	m_entersound;		// play after drawing a frame, so caching
-								// won't disrupt the sound
 qboolean	m_recursiveDraw;
 
 int			m_return_state;
@@ -69,7 +67,7 @@ void M_Print (int cx, int cy, qbyte *str)
 {
 	while (*str)
 	{
-		M_DrawCharacter (cx, cy, (*str)+128);
+		M_DrawCharacter (cx, cy, (*str)|CON_HIGHCHARSMASK);
 		str++;
 		cx += 8;
 	}
@@ -79,7 +77,7 @@ void M_PrintColoured (int cx, int cy, int colour, qbyte *str)
 {
 	while (*str)
 	{
-		M_DrawColouredCharacter (cx, cy, (*str) + (colour<<8));
+		M_DrawColouredCharacter (cx, cy, (*str) + (colour<<CON_FGMASK));
 		str++;
 		cx += 8;
 	}
@@ -219,7 +217,6 @@ void M_ToggleMenu_f (void)
 	if (MP_Toggle())
 		return;
 #endif
-	m_entersound = true;
 
 	if (key_dest == key_menu)
 	{
@@ -346,7 +343,6 @@ void M_Menu_Keys_f (void)
 {
 	key_dest = key_menu;
 	m_state = m_keys;
-	m_entersound = true;
 
 #ifdef Q2CLIENT
 	if (cls.protocol == CP_QUAKE2)
@@ -538,7 +534,6 @@ void M_Menu_Help_f (void)
 {
 	key_dest = key_menu;
 	m_state = m_help;
-	m_entersound = true;
 	help_page = 0;
 
 	if (COM_FDepthFile("gfx/help1.lmp", true) < COM_FDepthFile("gfx/menu/help1.lmp", true))
@@ -578,14 +573,14 @@ void M_Help_Key (int key)
 
 	case K_UPARROW:
 	case K_RIGHTARROW:
-		m_entersound = true;
+		S_LocalSound ("misc/menu2.wav");
 		if (++help_page >= num_help_pages)
 			help_page = 0;
 		break;
 
 	case K_DOWNARROW:
 	case K_LEFTARROW:
-		m_entersound = true;
+		S_LocalSound ("misc/menu2.wav");
 		if (--help_page < 0)
 			help_page = num_help_pages-1;
 		break;
@@ -781,7 +776,6 @@ void M_Menu_Quit_f (void)
 
 	key_dest = key_menu;
 	m_state = m_complex;
-	m_entersound = true;
 
 	M_RemoveMenu(&quitmenu);
 	memset(&quitmenu, 0, sizeof(quitmenu));
@@ -1003,12 +997,6 @@ void M_Draw (int uimenu)
 		MP_Draw();
 		return;
 #endif
-	}
-
-	if (m_entersound)
-	{
-		S_LocalSound ("misc/menu2.wav");
-		m_entersound = false;
 	}
 
 	VID_UnlockBuffer ();

@@ -110,7 +110,7 @@ void Sbar_ChatModeOverlay(void);
 
 void Draw_FunString(int x, int y, unsigned char *str)
 {
-	int ext = COLOR_WHITE<<8;
+	int ext = CON_WHITEMASK;
 	int extstack[4];
 	int extstackdepth = 0;
 
@@ -120,21 +120,21 @@ void Draw_FunString(int x, int y, unsigned char *str)
 		if (*str == '^')
 		{
 			str++;
-			if (*str >= '0' && *str <= '7')
+			if (*str >= '0' && *str <= '9')
 			{
-				ext = (*str++-'0')*256 + (ext&~CON_COLOURMASK);	//change colour only.
+				ext = q3codemasks[*str++-'0'] | (ext&~CON_Q3MASK); //change colour only.
 				continue;
 			}
 			else if (*str == 'a')
 			{
 				str++;
-				ext = (ext & ~CON_2NDCHARSETTEXT) + (CON_2NDCHARSETTEXT - (ext & CON_2NDCHARSETTEXT));
+				ext ^= CON_2NDCHARSETTEXT;
 				continue;
 			}
 			else if (*str == 'b')
 			{
 				str++;
-				ext = (ext & ~CON_BLINKTEXT) + (CON_BLINKTEXT - (ext & CON_BLINKTEXT));
+				ext ^= CON_BLINKTEXT;
 				continue;
 			}
 			else if (*str == 's')	//store on stack (it's great for names)
@@ -159,26 +159,26 @@ void Draw_FunString(int x, int y, unsigned char *str)
 			}
 			else if (*str == '^')
 			{
-				Draw_ColouredCharacter(x, y, '^' + ext);
+				Draw_ColouredCharacter(x, y, '^' | ext);
 				str++;
 			}
 			else
 			{
-				Draw_ColouredCharacter(x, y, '^' + ext);
+				Draw_ColouredCharacter(x, y, '^' | ext);
 				x += 8;
-				Draw_ColouredCharacter (x, y, (*str++) + ext);
+				Draw_ColouredCharacter (x, y, (*str++) | ext);
 			}
 			x += 8;
 			continue;
 		}
-		Draw_ColouredCharacter (x, y, (*str++) + ext);
+		Draw_ColouredCharacter (x, y, (*str++) | ext);
 		x += 8;
 	}
 }
 
 void Draw_FunStringLen(int x, int y, unsigned char *str, int len)
 {
-	int ext = COLOR_WHITE<<8;
+	int ext = CON_WHITEMASK;
 	int extstack[4];
 	int extstackdepth = 0;
 
@@ -191,21 +191,21 @@ void Draw_FunStringLen(int x, int y, unsigned char *str, int len)
 		if (*str == '^')
 		{
 			str++;
-			if (*str >= '0' && *str <= '7')
+			if (*str >= '0' && *str <= '9')
 			{
-				ext = (*str++-'0')*256 + (ext&~CON_COLOURMASK);	//change colour only.
+				ext = q3codemasks[*str++-'0'] | (ext&~CON_Q3MASK); //change colour only.
 				continue;
 			}
 			else if (*str == 'a')
 			{
 				str++;
-				ext = (ext & ~CON_2NDCHARSETTEXT) + (CON_2NDCHARSETTEXT - (ext & CON_2NDCHARSETTEXT));
+				ext ^= CON_2NDCHARSETTEXT;
 				continue;
 			}
 			else if (*str == 'b')
 			{
 				str++;
-				ext = (ext & ~CON_BLINKTEXT) + (CON_BLINKTEXT - (ext & CON_BLINKTEXT));
+				ext ^= CON_BLINKTEXT;
 				continue;
 			}
 			else if (*str == 's')	//store on stack (it's great for names)
@@ -229,19 +229,19 @@ void Draw_FunStringLen(int x, int y, unsigned char *str, int len)
 			}
 			else if (*str == '^')
 			{
-				Draw_ColouredCharacter(x, y, '^' + ext);
+				Draw_ColouredCharacter(x, y, '^' | ext);
 				str++;
 			}
 			else
 			{
-				Draw_ColouredCharacter(x, y, '^' + ext);
+				Draw_ColouredCharacter(x, y, '^' | ext);
 				x += 8;
-				Draw_ColouredCharacter (x, y, (*str++) + ext);
+				Draw_ColouredCharacter (x, y, (*str++) | ext);
 			}
 			x += 8;
 			continue;
 		}
-		Draw_ColouredCharacter (x, y, (*str++) + ext);
+		Draw_ColouredCharacter (x, y, (*str++) | ext);
 		x += 8;
 	}
 }
@@ -2056,7 +2056,7 @@ void Sbar_DeathmatchOverlay (int start)
 		y += skip;
 	}
 
-	Draw_Character(0,0,COLOR_WHITE<<8);
+	Draw_Character(0,0,CON_WHITEMASK);
 
 	if (y >= vid.height-10) // we ran over the screen size, squish
 		largegame = true;
@@ -2157,7 +2157,7 @@ void Sbar_ChatModeOverlay(void)
 		y += skip;
 	}
 
-	Draw_Character(0,0,COLOR_WHITE<<8);
+	Draw_Character(0,0,CON_WHITEMASK);
 
 	if (y >= vid.height-10) // we ran over the screen size, squish
 		largegame = true;
@@ -2240,7 +2240,7 @@ void Sbar_MiniDeathmatchOverlay (void)
 		f = s->frags;
 		sprintf (num, "%3i",f);
 
-		Draw_ColouredCharacter ( x+8 , y, (COLOR_WHITE<<8)|num[0]);
+		Draw_ColouredCharacter ( x+8 , y, CON_WHITEMASK|num[0]);
 		Draw_Character ( x+16, y, num[1]);
 		Draw_Character ( x+24, y, num[2]);
 
@@ -2270,7 +2270,7 @@ void Sbar_MiniDeathmatchOverlay (void)
 	// draw seperator
 	x += 208;
 	for (y = sbar_rect.height - sb_lines; y < sbar_rect.height - 6; y += 2)
-		Draw_ColouredCharacter(x, y, (COLOR_WHITE<<8)|14);
+		Draw_ColouredCharacter(x, y, CON_WHITEMASK|14);
 
 	x += 16;
 

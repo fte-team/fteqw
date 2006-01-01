@@ -44,8 +44,6 @@ void M_MenuS_Script_f (void)	//create a menu.
 //	if (key_dest != key_console)
 		key_dest = key_menu;
 	m_state = m_complex;
-	if (menu_script != currentmenu)
-		m_entersound = true;
 
 	selectitem = 0;
 	items=0;

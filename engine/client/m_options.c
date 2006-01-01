@@ -46,7 +46,6 @@ void M_Menu_Options_f (void)
 
 	key_dest = key_menu;
 	m_state = m_complex;
-	m_entersound = true;
 
 	menu = M_CreateMenu(0);
 
@@ -204,7 +203,6 @@ void M_Menu_Audio_Speakers_f (void)
 
 	key_dest = key_menu;
 	m_state = m_complex;
-	m_entersound = true;
 
 	menu = M_CreateMenu(sizeof(audiomenuinfo_t));
 	info = menu->data;
@@ -262,7 +260,6 @@ void M_Menu_Audio_f (void)
 
 	key_dest = key_menu;
 	m_state = m_complex;
-	m_entersound = true;
 
 	menu = M_CreateMenu(0);
 
@@ -317,7 +314,6 @@ void M_Menu_Particles_f (void)
 
 	key_dest = key_menu;
 	m_state = m_complex;
-	m_entersound = true;
 
 	menu = M_CreateMenu(0);
 
@@ -434,7 +430,6 @@ void M_Menu_FPS_f (void)
 
 	key_dest = key_menu;
 	m_state = m_complex;
-	m_entersound = true;
 
 	menu = M_CreateMenu(0);
 

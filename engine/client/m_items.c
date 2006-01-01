@@ -1316,6 +1316,8 @@ void M_Menu_Main_f (void)
 	}
 */
 
+	S_LocalSound ("misc/menu2.wav");
+
 	mgt = M_GameType();
 	if (mgt == MGT_QUAKE2)	//quake2 main menu.
 	{
@@ -1323,7 +1325,6 @@ void M_Menu_Main_f (void)
 		{			
 			m_state = m_complex;
 			key_dest = key_menu;
-			m_entersound = true;
 
 			mainm = M_CreateMenu(0);	
 			mainm->key = MC_Main_Key;	
@@ -1354,7 +1355,6 @@ void M_Menu_Main_f (void)
 	{
 		m_state = m_complex;
 		key_dest = key_menu;
-		m_entersound = true;
 		mainm = M_CreateMenu(0);	
 		mainm->key = MC_Main_Key;	
 
@@ -1389,7 +1389,6 @@ void M_Menu_Main_f (void)
 	{
 		m_state = m_complex;
 		key_dest = key_menu;
-		m_entersound = true;
 		mainm = M_CreateMenu(0);		
 
 		p = Draw_SafeCachePic("gfx/ttl_main.lmp");

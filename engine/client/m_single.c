@@ -98,7 +98,6 @@ void M_Menu_Save_f (void)
 
 	key_dest = key_menu;
 	m_state = m_complex;
-	m_entersound = true;
 
 	menu = M_CreateMenu(sizeof(loadsavemenuinfo_t));
 	menu->data = menu+1;
@@ -123,7 +122,6 @@ void M_Menu_Load_f (void)
 
 	key_dest = key_menu;
 	m_state = m_complex;
-	m_entersound = true;
 	
 	menu = M_CreateMenu(sizeof(loadsavemenuinfo_t));
 	menu->data = menu+1;
@@ -158,7 +156,6 @@ void M_Menu_SinglePlayer_f (void)
 
 	key_dest = key_menu;
 	m_state = m_complex;
-	m_entersound = true;
 
 	mgt = M_GameType();
 	if (mgt == MGT_QUAKE2)
@@ -408,7 +405,6 @@ void M_Menu_Demos_f (void)
 
 	key_dest = key_menu;
 	m_state = m_complex;
-	m_entersound = true;
 
 	menu = M_CreateMenu(sizeof(demomenu_t));
 	menu->remove = M_Demo_Remove;
@@ -445,7 +441,6 @@ void M_Menu_ParticleSets_f (void)
 
 	key_dest = key_menu;
 	m_state = m_complex;
-	m_entersound = true;
 
 	menu = M_CreateMenu(sizeof(demomenu_t));
 	menu->remove = M_Demo_Remove;
@@ -474,7 +469,6 @@ void M_Menu_MediaFiles_f (void)
 
 	key_dest = key_menu;
 	m_state = m_complex;
-	m_entersound = true;
 
 	menu = M_CreateMenu(sizeof(demomenu_t));
 	menu->remove = M_Demo_Remove;

@@ -167,17 +167,17 @@ CENTER PRINTING
 ===============================================================================
 */
 
-unsigned short            scr_centerstring[MAX_SPLITS][1024];
+conchar_t       scr_centerstring[MAX_SPLITS][1024];
 float           scr_centertime_start[MAX_SPLITS];   // for slow victory printing
 float           scr_centertime_off[MAX_SPLITS];
 int                     scr_center_lines[MAX_SPLITS];
 int                     scr_erase_lines[MAX_SPLITS];
 int                     scr_erase_center[MAX_SPLITS];
 
-void CopyAndMarkup(unsigned short *dest, qbyte *src, int maxlength)
+void CopyAndMarkup(conchar_t *dest, qbyte *src, int maxlength)
 {
-	int ext = COLOR_WHITE<<8;
-	int extstack[20];
+	conchar_t ext = CON_WHITEMASK;
+	conchar_t extstack[20];
 	int extstackdepth = 0;
 
 	if (maxlength < 0)
@@ -189,33 +189,21 @@ void CopyAndMarkup(unsigned short *dest, qbyte *src, int maxlength)
 		if (*src == '^')
 		{
 			src++;
-			if (*src >= '0' && *src <= '7')
+			if (*src >= '0' && *src <= '9')
 			{
-				ext = (*src++-'0')*256 | (ext&~CON_COLOURMASK);
+				ext = q3codemasks[*src - '0'] | (ext&~CON_Q3MASK);
 				continue;
 			}
-			else if (*src == '8')	//'half transparent'
+			else if (*src == 'b') // toggle blink bit
 			{
 				src++;
-				ext = (COLOR_WHITE)*256 | (ext&~CON_COLOURMASK);
+				ext ^= CON_BLINKTEXT;
 				continue;
 			}
-			else if (*src == '9')	//'half brightness'
+			else if (*src == 'a') // toggle alternate charset
 			{
 				src++;
-				ext = (COLOR_WHITE)*256 | (ext&~CON_COLOURMASK);
-				continue;
-			}
-			else if (*src == 'b')
-			{
-				src++;
-				ext = (ext & ~CON_BLINKTEXT) + (CON_BLINKTEXT - (ext & CON_BLINKTEXT));
-				continue;
-			}
-			else if (*src == 'a')
-			{
-				src++;
-				ext = (ext & ~CON_2NDCHARSETTEXT) + (CON_2NDCHARSETTEXT - (ext & CON_2NDCHARSETTEXT));
+				ext ^= CON_2NDCHARSETTEXT;
 				continue;
 			}
 			else if (*src == 's')
@@ -314,7 +302,7 @@ void SCR_EraseCenterString (void)
 	}
 }
 
-void SCR_CenterPrintBreaks(unsigned short *start, int *lines, int *maxlength)
+void SCR_CenterPrintBreaks(conchar_t *start, int *lines, int *maxlength)
 {
 	int l;
 	*lines = 0;
@@ -350,7 +338,7 @@ void SCR_CenterPrintBreaks(unsigned short *start, int *lines, int *maxlength)
 
 void SCR_DrawCenterString (int pnum)
 {
-	unsigned short    *start;
+	conchar_t    *start;
 	int             l;
 	int             j;
 	int             x, y;

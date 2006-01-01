@@ -278,8 +278,6 @@ void M_Complex_Draw(void);
 void M_Script_Init(void);
 void M_Serverlist_Init(void);
 
-extern qboolean	m_entersound;
-
 void M_Menu_Main_f (void);
 	void M_Menu_SinglePlayer_f (void);
 		void M_Menu_Load_f (void);

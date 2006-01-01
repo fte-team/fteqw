@@ -31,7 +31,19 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 #endif
 #define SERVICENAME	DISTRIBUTION"SV"
 
-
+// This is for remapping the Q3 color codes to character masks, including ^9
+conchar_t q3codemasks[MAXQ3COLOURS] = {
+	0x00000000, // 0, black
+	0x0c000000, // 1, red
+	0x0a000000, // 2, green
+	0x0e000000, // 3, yellow
+	0x09000000, // 4, blue
+	0x0b000000, // 5, cyan
+	0x0d000000, // 6, magenta
+	0x0f000000, // 7, white
+	0x0f100000, // 8, half-alpha white (BX_COLOREDTEXT)
+	0x07000000  // 9, "half-intensity" (BX_COLOREDTEXT)
+};
 
 static HANDLE hconsoleout;
 static HINSTANCE	game_library;
@@ -421,75 +433,54 @@ char *Sys_ConsoleInput (void)
 
 void ApplyColour(unsigned int chr)
 {
-	static int oldchar = 7*256;
-	chr = chr&~255;
+	static int oldchar = CON_WHITEMASK;
+	chr &= CON_FLAGSMASK;
 
 	if (oldchar == chr)
 		return;
 	oldchar = chr;
 
-#if 1
 	if (hconsoleout)
 	{
-		int val;
-		val = FOREGROUND_INTENSITY;
-		switch(chr&CON_COLOURMASK)
+		unsigned short val = 0;
+
+		// bits 28-31 of the console chars match up to the attributes for 
+		// the CHAR_INFO struct exactly
+		if (chr & CON_NONCLEARBG)
+			val = (chr & (CON_FGMASK|CON_BGMASK) >> CON_FGSHIFT);
+		else
 		{
-		case 0*256:
-			val = FOREGROUND_INTENSITY|FOREGROUND_INTENSITY;	//don't allow secret messages (just hard to read)
-			break;
-		case 1*256:
-			val = FOREGROUND_RED|FOREGROUND_INTENSITY;
-			break;
-		case 2*256:
-			val = FOREGROUND_GREEN|FOREGROUND_INTENSITY;
-			break;
-		case 3*256:
-			val = FOREGROUND_RED|FOREGROUND_GREEN|FOREGROUND_INTENSITY;
-			break;
-		case 4*256:
-			val = FOREGROUND_BLUE|FOREGROUND_INTENSITY;
-			break;
-		case 5*256:
-			val = FOREGROUND_RED|FOREGROUND_BLUE|FOREGROUND_INTENSITY;
-			break;
-		case 6*256:
-			val = FOREGROUND_GREEN|FOREGROUND_BLUE|FOREGROUND_INTENSITY;
-			break;
-		case 7*256:
-			val = FOREGROUND_RED|FOREGROUND_GREEN|FOREGROUND_BLUE;
-			break;
+			int fg = (chr & CON_FGMASK) >> CON_FGSHIFT;
+
+			switch (fg)
+			{
+			case COLOR_BLACK: // reverse ^0 like the Linux version
+				val = BACKGROUND_RED|BACKGROUND_GREEN|BACKGROUND_BLUE;
+				break;
+			case COLOR_WHITE: // reset to defaults?
+				val = FOREGROUND_RED|FOREGROUND_GREEN|FOREGROUND_BLUE; // use grey
+				break;
+			case COLOR_GREY:
+				val = FOREGROUND_INTENSITY; // color light grey as dark grey
+				break;
+			default:
+				val = fg; // send RGBI value as is
+				break;
+			}
 		}
+
+		if ((chr & CON_HALFALPHA) && (val & ~FOREGROUND_INTENSITY))
+			val &= ~FOREGROUND_INTENSITY; // strip intensity to fake alpha
 
 		SetConsoleTextAttribute(hconsoleout, val);
 	}
-#else
-	//does ansi work?
-	//no?
-	//windows sucks.
-	switch(chr&CON_COLOURMASK)
-	{
-	case 0*256:
-		printf("%c[%s;3%u;4%um",	(char)27,
-											(chr & CON_BLINKTEXT)? "01" : "00",
-											(unsigned int)(0),
-											(unsigned int)(0));		
-		break;
-	default:
-		printf("%c[%s;3%u;4%um",	(char)27,
-											(chr & CON_BLINKTEXT)? "01" : "00",
-											(unsigned int)(7),
-											(unsigned int)(0));		
-		break;
-	}
-#endif
 }
 
 void Sys_PrintColouredChar(unsigned int chr)
 {
 	ApplyColour(chr);
 
-	printf("%c", chr&255);
+	printf("%c", chr & CON_CHARMASK);
 }
 
 /*
@@ -551,7 +542,7 @@ void Sys_Printf (char *fmt, ...)
 
 		if (sys_colorconsole.value && hconsoleout)
 		{
-			int ext = COLOR_WHITE<<8;
+			int ext = CON_WHITEMASK;
 			int extstack[4];
 			int extstackdepth = 0;
 			unsigned char *str = (unsigned char*)msg;
@@ -562,21 +553,21 @@ void Sys_Printf (char *fmt, ...)
 				if (*str == '^')
 				{
 					str++;
-					if (*str >= '0' && *str <= '7')
+					if (*str >= '0' && *str <= '9')
 					{
-						ext = (*str++-'0')*256 + (ext&~CON_COLOURMASK);	//change colour only.
+						ext = q3codemasks[*str++-'0'] | (ext&~CON_Q3MASK);	//change colour only.
 						continue;
 					}
 					else if (*str == 'a')
 					{
 						str++;
-						ext = (ext & ~CON_2NDCHARSETTEXT) + (CON_2NDCHARSETTEXT - (ext & CON_2NDCHARSETTEXT));
+						ext ^= CON_2NDCHARSETTEXT;
 						continue;
 					}
 					else if (*str == 'b')
 					{
 						str++;
-						ext = (ext & ~CON_BLINKTEXT) + (CON_BLINKTEXT - (ext & CON_BLINKTEXT));
+						ext ^= CON_BLINKTEXT;
 						continue;
 					}
 					else if (*str == 's')	//store on stack (it's great for names)
@@ -601,20 +592,20 @@ void Sys_Printf (char *fmt, ...)
 					}
 					else if (*str == '^')
 					{
-						Sys_PrintColouredChar('^' + ext);
+						Sys_PrintColouredChar('^' | ext);
 						str++;
 					}
 					else
 					{
-						Sys_PrintColouredChar('^' + ext);
-						Sys_PrintColouredChar ((*str++) + ext);
+						Sys_PrintColouredChar('^' | ext);
+						Sys_PrintColouredChar ((*str++) | ext);
 					}
 					continue;
 				}
-				Sys_PrintColouredChar ((*str++) + ext);
+				Sys_PrintColouredChar ((*str++) | ext);
 			}
 
-			ApplyColour(7*256);
+			ApplyColour(CON_WHITEMASK);
 		}
 		else
 			printf("%s", msg);

@@ -3084,6 +3084,9 @@ char *CL_ParseChat(char *text, player_info_t **player)
 
 		Validation_CheckIfResponse(text);
 
+		if (!Plug_ChatMessage(text + offset, *player ? (int)(*player - cl.players) : -1, flags))
+			return NULL;
+
 		if (flags == 2 && !TP_FilterMessage(text + offset))
 			return NULL;
 
@@ -3095,6 +3098,11 @@ char *CL_ParseChat(char *text, player_info_t **player)
 			return NULL;
 		else if (check_flood == NO_IGNORE_ADD)
 			Ignore_Flood_Add(s);
+	}
+	else
+	{
+		if (!Plug_ServerMessage(text + offset, PRINT_CHAT))
+			return NULL;
 	}
 
 	suppress_talksound = false;
@@ -3163,35 +3171,35 @@ int CL_PlayerColor(player_info_t *plr, int *name_ormask)
 		{	//translate q1 skin colours to console colours
 		case 10:
 		case 1:
-			*name_ormask = CON_STANDARDMASK;
+			*name_ormask = CON_HIGHCHARSMASK;
 		case 4:	//red
 			c = 1;
 			break;
 		case 11:
-			*name_ormask = CON_STANDARDMASK;
+			*name_ormask = CON_HIGHCHARSMASK;
 		case 3: // green
 			c = 2;
 			break;
 		case 5:
-			*name_ormask = CON_STANDARDMASK;
+			*name_ormask = CON_HIGHCHARSMASK;
 		case 12:
 			c = 3;
 			break;
 		case 6:
 		case 7:
-			*name_ormask = CON_STANDARDMASK;
+			*name_ormask = CON_HIGHCHARSMASK;
 		case 8:
 		case 9:
 			c = 5;
 			break;
 		case 2: // light blue
-			*name_ormask = CON_STANDARDMASK;
+			*name_ormask = CON_HIGHCHARSMASK;
 		case 13: //blue
 		case 14: //blue
 			c = 6;
 			break;
 		default:
-			*name_ormask = CON_STANDARDMASK;
+			*name_ormask = CON_HIGHCHARSMASK;
 		case 0: // white
 			c = 7;
 			break;
@@ -3218,7 +3226,7 @@ int CL_PlayerColor(player_info_t *plr, int *name_ormask)
 			}
 
 			if ((c / 7) & 1)
-				*name_ormask = CON_STANDARDMASK;
+				*name_ormask = CON_HIGHCHARSMASK;
 
 			c = 1 + (c % 7);
 		}
@@ -3236,7 +3244,7 @@ int CL_PlayerColor(player_info_t *plr, int *name_ormask)
 			c = plr->userid; // Quake2 can start from 0
 
 		if ((c / 7) & 1)
-			*name_ormask = CON_STANDARDMASK;
+			*name_ormask = CON_HIGHCHARSMASK;
 
 		c = 1 + (c % 7);
 	}
@@ -3244,7 +3252,7 @@ int CL_PlayerColor(player_info_t *plr, int *name_ormask)
 	return c;
 }
 
-// CL_ParseChat: takes chat strings and performs name coloring and cl_parsewhitetext parsing
+// CL_PrintChat: takes chat strings and performs name coloring and cl_parsewhitetext parsing
 // NOTE: text in rawmsg/msg is assumed destroyable and should not be used afterwards
 void CL_PrintChat(player_info_t *plr, char *rawmsg, char *msg, int plrflags)
 {
@@ -3272,7 +3280,7 @@ void CL_PrintChat(player_info_t *plr, char *rawmsg, char *msg, int plrflags)
 
 	if (cl_standardchat.value)
 	{
-		name_ormask = CON_STANDARDMASK;
+		name_ormask = CON_HIGHCHARSMASK;
 		c = 7;
 	}
 	else
@@ -3284,7 +3292,7 @@ void CL_PrintChat(player_info_t *plr, char *rawmsg, char *msg, int plrflags)
 				c = 0; // blacken () on observers
 			else
 			{
-				name_ormask = CON_STANDARDMASK;
+				name_ormask = CON_HIGHCHARSMASK;
 				c = 7;
 			}
 		}
@@ -3293,7 +3301,7 @@ void CL_PrintChat(player_info_t *plr, char *rawmsg, char *msg, int plrflags)
 		else
 		{
 			// defaults for fake clients
-			name_ormask = CON_STANDARDMASK;
+			name_ormask = CON_HIGHCHARSMASK;
 			c = 7;
 		}
 	}
@@ -3304,7 +3312,7 @@ void CL_PrintChat(player_info_t *plr, char *rawmsg, char *msg, int plrflags)
 	{
 		if (memessage)
 		{
-			con_ormask = CON_STANDARDMASK;
+			con_ormask = CON_HIGHCHARSMASK;
 			if (!cl_standardchat.value && (plrflags & TPM_SPECTATOR))
 				Con_Printf ("^0*^7 ");
 			else
@@ -3316,7 +3324,7 @@ void CL_PrintChat(player_info_t *plr, char *rawmsg, char *msg, int plrflags)
 			// color is reset every printf so we're safe here
 			con_ormask = name_ormask;
 			Con_Printf("^%c(", c);
-			con_ormask = CON_STANDARDMASK;
+			con_ormask = CON_HIGHCHARSMASK;
 			Con_Printf("%s", name);
 			con_ormask = name_ormask;
 			Con_Printf("^%c)", c);
@@ -3330,7 +3338,7 @@ void CL_PrintChat(player_info_t *plr, char *rawmsg, char *msg, int plrflags)
 		if (!memessage)
 		{
 			// only print seperator with an actual player name
-			con_ormask = CON_STANDARDMASK;
+			con_ormask = CON_HIGHCHARSMASK;
 			if (!cl_standardchat.value && (plrflags & TPM_SPECTATOR))
 				Con_Printf ("^0:^7 ");
 			else
@@ -3341,7 +3349,7 @@ void CL_PrintChat(player_info_t *plr, char *rawmsg, char *msg, int plrflags)
 	}
 
 	// print message
-	con_ormask = CON_STANDARDMASK;
+	con_ormask = CON_HIGHCHARSMASK;
 	if (cl_parsewhitetext.value && (cl_parsewhitetext.value == 1 || (plrflags & TPM_TEAM)))
 	{
 		char *t, *u;
@@ -3356,7 +3364,7 @@ void CL_PrintChat(player_info_t *plr, char *rawmsg, char *msg, int plrflags)
 				Con_Printf("%s", msg);
 				con_ormask = 0;
 				Con_Printf("%s", t+1);
-				con_ormask = CON_STANDARDMASK;
+				con_ormask = CON_HIGHCHARSMASK;
 				msg = u+1;
 			}
 			else
@@ -3522,7 +3530,6 @@ void CL_ParsePrecache(void)
 CL_ParseServerMessage
 =====================
 */
-char *Translate(char *message);
 int	received_framecount;
 void CL_ParseServerMessage (void)
 {
@@ -3612,8 +3619,6 @@ void CL_ParseServerMessage (void)
 			i = MSG_ReadByte ();
 			s = MSG_ReadString ();
 
-			// Plug_Message(0, i, s);
-
 			if (i == PRINT_CHAT)
 			{
 				char *msg;
@@ -3630,13 +3635,19 @@ void CL_ParseServerMessage (void)
 			}
 			else
 			{
-				CL_ParsePrint(s, i);
-				CL_PrintStandardMessage(s);
+				if (Plug_ServerMessage(s, i))
+				{
+					CL_ParsePrint(s, i);
+					CL_PrintStandardMessage(s);
+				}
 			}
 			break;
 
 		case svc_centerprint:
-			SCR_CenterPrint (destsplit, Translate(MSG_ReadString ()));
+			s = MSG_ReadString ();
+
+			if (Plug_CenterPrintMessage(s, destsplit))
+				SCR_CenterPrint (destsplit, s);
 			break;
 
 		case svc_stufftext:
@@ -4072,8 +4083,6 @@ void CLQ2_ParseServerMessage (void)
 			i = MSG_ReadByte ();
 			s = MSG_ReadString ();
 
-			// Plug_Message(0, i, s);
-
 			if (i == PRINT_CHAT)
 			{
 				char *msg;
@@ -4087,8 +4096,11 @@ void CLQ2_ParseServerMessage (void)
 			}
 			else
 			{
-				CL_ParsePrint(s, i);
-				CL_PrintStandardMessage(s);
+				if (Plug_ServerMessage(s, i))
+				{
+					CL_ParsePrint(s, i);
+					CL_PrintStandardMessage(s);
+				}
 			}
 			con_ormask = 0;
 			break;
@@ -4113,7 +4125,10 @@ void CLQ2_ParseServerMessage (void)
 			CLQ2_ParseBaseline();
 			break;
 		case svcq2_centerprint:	//15		// [string] to put in center of the screen
-			SCR_CenterPrint (0, Translate(MSG_ReadString ()));
+			s = MSG_ReadString();
+
+			if (Plug_CenterPrintMessage(s, 0))
+				SCR_CenterPrint (0, s);
 			break;
 		case svcq2_download:		//16		// [short] size [size bytes]
 			CL_ParseDownload();
@@ -4304,9 +4319,6 @@ void CLNQ_ParseServerMessage (void)
 				char *msg;
 				player_info_t *plr = NULL;
 
-				// Plug_Message(0, PRINT_CHAT, s);
-
-
 				if (msg = CL_ParseChat(s+1, &plr))
 				{
 					CL_ParsePrint(s+1, PRINT_CHAT);
@@ -4315,10 +4327,11 @@ void CLNQ_ParseServerMessage (void)
 			}
 			else
 			{
-				// Plug_Message(0, PRINT_HIGH, s);
-
-				CL_ParsePrint(s, PRINT_HIGH);
-				CL_PrintStandardMessage(s);
+				if (Plug_ServerMessage(s, PRINT_HIGH))
+				{
+					CL_ParsePrint(s, PRINT_HIGH);
+					CL_PrintStandardMessage(s);
+				}
 			}
 			con_ormask = 0;
 			break;
@@ -4328,7 +4341,10 @@ void CLNQ_ParseServerMessage (void)
 			break;
 
 		case svc_centerprint:
-			SCR_CenterPrint (0, Translate(MSG_ReadString ()));
+			s = MSG_ReadString ();
+
+			if (Plug_CenterPrintMessage(s, 0))
+				SCR_CenterPrint (0, s);
 			break;
 
 		case svc_stufftext:

@@ -1138,7 +1138,6 @@ void M_Menu_Video_f (void)
 
 	key_dest = key_menu;
 	m_state = m_complex;
-	m_entersound = true;
 
 	menu = M_CreateMenu(sizeof(videomenuinfo_t));
 	info = menu->data;

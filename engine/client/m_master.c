@@ -80,7 +80,7 @@ static void NM_Print (int cx, int cy, qbyte *str)
 {
 	while (*str)
 	{
-		Draw_ColouredCharacter (cx, cy, (*str)|128|M_COLOR_WHITE);
+		Draw_ColouredCharacter (cx, cy, (*str)|CON_HIGHCHARSMASK|CON_WHITEMASK);
 		str++;
 		cx += 8;
 	}
@@ -90,7 +90,7 @@ static void NM_PrintWhite (int cx, int cy, qbyte *str)
 {
 	while (*str)
 	{
-		Draw_ColouredCharacter (cx, cy, (*str)+M_COLOR_WHITE);
+		Draw_ColouredCharacter (cx, cy, (*str)|CON_WHITEMASK);
 		str++;
 		cx += 8;
 	}
@@ -100,15 +100,11 @@ static void NM_PrintColoured (int cx, int cy, int colour, qbyte *str)
 {
 	while (*str)
 	{
-		NM_DrawColouredCharacter (cx, cy, (*str) + (colour<<8));
+		NM_DrawColouredCharacter (cx, cy, (*str) | (colour<<CON_FGSHIFT));
 		str++;
 		cx += 8;
 	}
 }
-
-
-
-
 
 qboolean M_IsFiltered(serverinfo_t *server)	//figure out if we should filter a server.
 {
@@ -260,7 +256,7 @@ int M_AddColumn (int right, int y, char *text, int maxchars, int colour)
 	right = left;
 	while (*text && maxchars>0)
 	{
-		NM_DrawColouredCharacter (right, y, (*(unsigned char *)text) + (colour<<8));
+		NM_DrawColouredCharacter (right, y, (*(unsigned char *)text) | (colour<<CON_FGSHIFT));
 		text++;
 		right += 8;
 		maxchars--;
@@ -342,20 +338,20 @@ void M_DrawServerList(void)
 	y = 8*2;
 	x = vid.width;
 	if (sb_showtimelimit.value)
-		x = M_AddColumn(x, y, "tl",			3, 1);
+		x = M_AddColumn(x, y, "tl",			3, COLOR_RED);
 	if (sb_showfraglimit.value)
-		x = M_AddColumn(x, y, "fl",			3, 1);
+		x = M_AddColumn(x, y, "fl",			3, COLOR_RED);
 	if (sb_showplayers.value)
-		x = M_AddColumn(x, y, "plyrs",		6, 1);
+		x = M_AddColumn(x, y, "plyrs",		6, COLOR_RED);
 	if (sb_showmap.value)
-		x = M_AddColumn(x, y, "map",		9, 1);
+		x = M_AddColumn(x, y, "map",		9, COLOR_RED);
 	if (sb_showgamedir.value)
-		x = M_AddColumn(x, y, "gamedir",	9, 1);
+		x = M_AddColumn(x, y, "gamedir",	9, COLOR_RED);
 	if (sb_showping.value)
-		x = M_AddColumn(x, y, "png",		4, 1);
+		x = M_AddColumn(x, y, "png",		4, COLOR_RED);
 	if (sb_showaddress.value)
-		x = M_AddColumn(x, y, "address",	21, 1);
-	x = M_AddColumn(x, y, "name",		x/8-1, 1);
+		x = M_AddColumn(x, y, "address",	21, COLOR_RED);
+	x = M_AddColumn(x, y, "name",		x/8-1, COLOR_RED);
 
 	y = 8*3;
 	while(server)

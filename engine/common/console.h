@@ -21,31 +21,53 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 // console
 //
 
-#define MAXCONCOLOURS 8
+typedef unsigned int conchar_t;
+
+#define MAXCONCOLOURS 16
 typedef struct {
-	float r, g, b;
-	int rgbmask;
+	int ir, ig, ib;
+	float fr, fg, fb;
 } consolecolours_t;
+
 extern consolecolours_t consolecolours[MAXCONCOLOURS];
 
-#define CON_STANDARDMASK	0x0080
-#define CON_COLOURMASK		0x0700
-#define CON_SPAREMASK3		0x0800	//something cool?
-#define CON_SPAREMASK2		0x1000	//underline?
-#define CON_SPAREMASK1		0x2000	//italics?
-#define CON_BLINKTEXT		0x4000
-#define CON_2NDCHARSETTEXT	0x8000
+#define MAXQ3COLOURS 10
+extern conchar_t q3codemasks[MAXQ3COLOURS];
 
-#define COLOR_BLACK		0
-#define COLOR_RED		1
-#define COLOR_GREEN		2
-#define COLOR_YELLOW	3
-#define COLOR_BLUE		4
-#define COLOR_MAGENTA	5
-#define COLOR_CYAN		6
-#define COLOR_WHITE		7
+#define CON_NONCLEARBG		0x00800000
+#define CON_BLINKTEXT		0x00400000
+#define CON_2NDCHARSETTEXT	0x00200000
+#define CON_HALFALPHA		0x00100000
+#define CON_HIGHCHARSMASK	0x00000080 // Quake's alternative mask
 
-#define M_COLOR_WHITE	((COLOR_WHITE)<<8)
+#define CON_FLAGSMASK		0xFFFF0000
+#define CON_CHARMASK		0x000000FF
+
+#define CON_FGMASK			0x0F000000
+#define CON_BGMASK			0xF0000000
+#define CON_FGSHIFT 24
+#define CON_BGSHIFT 28
+
+#define CON_Q3MASK			0x0F100000
+#define CON_WHITEMASK		0x0F000000 // must be constant. things assume this
+
+// RGBI standard colors
+#define COLOR_BLACK			0
+#define COLOR_DARKBLUE		1
+#define COLOR_DARKGREEN		2
+#define COLOR_DARKCYAN		3
+#define COLOR_DARKRED		4
+#define COLOR_DARKMAGENTA	5
+#define COLOR_BROWN			6
+#define COLOR_GREY			7
+#define COLOR_DARKGREY		8
+#define COLOR_BLUE			9
+#define COLOR_GREEN			10
+#define COLOR_CYAN			11
+#define COLOR_RED			12
+#define COLOR_MAGENTA		13
+#define COLOR_YELLOW		14
+#define COLOR_WHITE			15
 
 #define S_COLOR_BLACK	"^0"
 #define S_COLOR_RED		"^1"
@@ -57,10 +79,11 @@ extern consolecolours_t consolecolours[MAXCONCOLOURS];
 #define S_COLOR_WHITE	"^7"
 
 #define		CON_TEXTSIZE	16384
+
 typedef struct console_s
 {
 	char name[64];
-	unsigned short	text[CON_TEXTSIZE];
+	conchar_t text[CON_TEXTSIZE];
 	int		current;		// line where next message will be printed
 	int		x;				// offset in current line for next print
 	int		display;		// bottom of console displays this line
@@ -78,7 +101,7 @@ typedef struct console_s
 extern	console_t	con_main;
 extern	console_t	*con_current;			// point to either con_main or con_chat
 
-extern	int			con_ormask;
+extern	conchar_t	con_ormask;
 
 extern int scr_chatmode;
 

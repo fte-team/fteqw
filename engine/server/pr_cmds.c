@@ -30,7 +30,6 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 //okay, so these are a quick but easy hack
 void ED_Print (struct progfuncs_s *progfuncs, struct edict_s *ed);
 int PR_EnableEBFSBuiltin(char *name, int binum);
-void PR_CleanLogText_Init (void);
 
 cvar_t	nomonsters = {"nomonsters", "0"};
 cvar_t	gamecfg = {"gamecfg", "0"};
@@ -534,8 +533,6 @@ void PR_LoadGlabalStruct(void)
 	QC_AddSharedVar(svprogfuncs, (int *)((nqglobalvars_t*)pr_nqglobal_struct)->time-v, 1);
 
 	pr_items2 = !!PR_FindGlobal(svprogfuncs, "items2", 0);
-
-	PR_CleanLogText_Init();
 
 	SV_ClearQCStats();
 
@@ -5362,7 +5359,7 @@ void PF_redstring(progfuncs_t *prinst, struct globalvars_s *pr_globals)
 	static char buf[1024];
 
 	for (s = buf; *string; s++, string++)
-		*s=*string|128;
+		*s=*string|CON_HIGHCHARSMASK;
 	*s = '\0';
 
 	RETURN_TSTRING(buf);
@@ -6836,66 +6833,46 @@ void PF_strstr (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 	RETURN_TSTRING(p);
 }
 
-/*
-====================
-SV_CleanName_Init
-
-sets chararcter table to translate quake texts to more friendly texts
-====================
-*/
-
-char chartbl2[256];
-
-void PR_CleanLogText_Init (void)
+char readable2[256] = 
 {
-	int i;
-
-	for (i = 0; i < 256; i++)
-		chartbl2[i] = (i&127) < 32 ? ' ' : i&127;
-
-	chartbl2[13] = 13;
-	chartbl2[10] = 10;
-	// special cases
-
-	// numbers
-	for (i = 18; i < 28; i++)
-		chartbl2[i] = chartbl2[i + 128] = i + 30;
-
-	// brackets
-	chartbl2[29] = chartbl2[29 + 128] = chartbl2[128] = '(';
-	chartbl2[31] = chartbl2[31 + 128] = chartbl2[130] = ')';
-	chartbl2[16] = chartbl2[16 + 128]= '[';
-	chartbl2[17] = chartbl2[17 + 128] = ']';
-
-	// hash
-	for (i = 1; i < 10; i++) // 5 redefined as '.'
-		chartbl2[i] = chartbl2[i + 128] = '#';
-
-	chartbl2[11] = chartbl2[11 + 128] = '#';
-
-	// dot
-	chartbl2[5] = chartbl2[14] = chartbl2[15] = chartbl2[28] = chartbl2[46] = '.';
-	chartbl2[5 + 128] = chartbl2[14 + 128] = chartbl2[15 + 128] = chartbl2[28 + 128] = chartbl2[46 + 128] = '.';
-
-	// left arrow
-	chartbl2[127] = '>';
-
-	// right arrow
-	chartbl2[141] = '<';
-
-	// '='
-	chartbl2[30] = chartbl2[129] = chartbl2[30 + 128] = '=';
-
-	// whitespaces
-	chartbl2[12] = chartbl2[12 + 128] = chartbl2[138] = ' ';
-
-	chartbl2[33] = chartbl2[33 + 128]= '!';
-}
+	'.', '_', '_', '_', '_', '.', '_', '_', 
+	'_', '_', '\n', '_', '\n', '>', '.', '.', 
+	'[', ']', '0', '1', '2', '3', '4', '5', 
+	'6', '7', '8', '9', '.', '_', '_', '_', 
+	' ', '!', '\"', '#', '$', '%', '&', '\'', 
+	'(', ')', '*', '+', ',', '-', '.', '/', 
+	'0', '1', '2', '3', '4', '5', '6', '7', 
+	'8', '9', ':', ';', '<', '=', '>', '?', 
+	'@', 'A', 'B', 'C', 'D', 'E', 'F', 'G', 
+	'H', 'I', 'J', 'K', 'L', 'M', 'N', 'O', 
+	'P', 'Q', 'R', 'S', 'T', 'U', 'V', 'W', 
+	'X', 'Y', 'Z', '[', '\\', ']', '^', '_', 
+	'`', 'a', 'b', 'c', 'd', 'e', 'f', 'g', 
+	'h', 'i', 'j', 'k', 'l', 'm', 'n', 'o', 
+	'p', 'q', 'r', 's', 't', 'u', 'v', 'w', 
+	'x', 'y', 'z', '{', '|', '}', '~', '_', 
+	'_', '_', '_', '_', '_', '.', '_', '_', 
+	'_', '_', '_', '_', '_', '>', '.', '.', 
+	'[', ']', '0', '1', '2', '3', '4', '5', 
+	'6', '7', '8', '9', '.', '_', '_', '_', 
+	' ', '!', '\"', '#', '$', '%', '&', '\'', 
+	'(', ')', '*', '+', ',', '-', '.', '/', 
+	'0', '1', '2', '3', '4', '5', '6', '7', 
+	'8', '9', ':', ';', '<', '=', '>', '?', 
+	'@', 'A', 'B', 'C', 'D', 'E', 'F', 'G', 
+	'H', 'I', 'J', 'K', 'L', 'M', 'N', 'O', 
+	'P', 'Q', 'R', 'S', 'T', 'U', 'V', 'W', 
+	'X', 'Y', 'Z', '[', '\\', ']', '^', '_', 
+	'`', 'a', 'b', 'c', 'd', 'e', 'f', 'g', 
+	'h', 'i', 'j', 'k', 'l', 'm', 'n', 'o', 
+	'p', 'q', 'r', 's', 't', 'u', 'v', 'w', 
+	'x', 'y', 'z', '{', '|', '}', '~', '_'
+};
 
 void PR_CleanText(unsigned char *text)
 {
 	for ( ; *text; text++)
-		*text = chartbl2[*text];
+		*text = readable2[*text];
 }
 
 /*

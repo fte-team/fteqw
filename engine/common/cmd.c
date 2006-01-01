@@ -2773,7 +2773,7 @@ void Cmd_Condump_f(void)
 	// print out current contents of console
 	// stripping out starting blank lines and blank spaces
 	{
-		unsigned short *text;
+		conchar_t *text;
 		int row, line, x, spc, content;
 		console_t *curcon = &con_main;
 

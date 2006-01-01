@@ -480,7 +480,6 @@ void Menu_DownloadStuff_f (void)
 
 	key_dest = key_menu;
 	m_state = m_complex;
-	m_entersound = true;
 
 	menu = M_CreateMenu(sizeof(dlmenu_t));
 	info = menu->data;

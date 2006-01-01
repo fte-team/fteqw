@@ -899,8 +899,8 @@ void SV_MVDWritePackets (int num)
 	demo.dbuf->maxsize = MAXSIZE + demo.dbuf->bufsize;
 }
 
-static char chartbl[256];
-void CleanName_Init ();
+extern char readable[256];
+#define chartbl readable
 
 void MVD_Init (void)
 {
@@ -918,14 +918,7 @@ void MVD_Init (void)
 	Cvar_Register (&sv_demoSuffix,		MVDVARGROUP);
 	Cvar_Register (&sv_demotxt,		MVDVARGROUP);
 	Cvar_Register (&sv_demoExtraNames,	MVDVARGROUP);
-
-
-	CleanName_Init();
 }
-
-
-
-
 
 static char *SV_PrintTeams(void)
 {
@@ -1521,85 +1514,6 @@ static qboolean SV_MVD_Record (mvddest_t *dest)
 
 	// done
 	return true;
-}
-
-/*
-====================
-SV_CleanName_Init
-
-sets chararcter table for quake text->filename translation
-====================
-*/
-
-void CleanName_Init ()
-{
-	int i;
-
-	for (i = 0; i < 256; i++)
-		chartbl[i] = (((i&127) < 'a' || (i&127) > 'z') && ((i&127) < '0' || (i&127) > '9')) ? '_' : (i&127);
-
-	// special cases
-
-	// numbers
-	for (i = 18; i < 29; i++)
-		chartbl[i] = chartbl[i + 128] = i + 30;
-
-	// allow lowercase only
-	for (i = 'A'; i <= 'Z'; i++)
-		chartbl[i] = chartbl[i+128] = i + 'a' - 'A';
-
-	// brackets
-	chartbl[29] = chartbl[29+128] = chartbl[128] = '(';
-	chartbl[31] = chartbl[31+128] = chartbl[130] = ')';
-	chartbl[16] = chartbl[16 + 128]= '[';
-	chartbl[17] = chartbl[17 + 128] = ']';
-
-	// dot
-	chartbl[5] = chartbl[14] = chartbl[15] = chartbl[28] = chartbl[46] = '.';
-	chartbl[5 + 128] = chartbl[14 + 128] = chartbl[15 + 128] = chartbl[28 + 128] = chartbl[46 + 128] = '.';
-
-	// !
-	chartbl[33] = chartbl[33 + 128] = '!';
-
-	// #
-	chartbl[35] = chartbl[35 + 128] = '#';
-
-	// %
-	chartbl[37] = chartbl[37 + 128] = '%';
-
-	// &
-	chartbl[38] = chartbl[38 + 128] = '&';
-
-	// '
-	chartbl[39] = chartbl[39 + 128] = '\'';
-
-	// (
-	chartbl[40] = chartbl[40 + 128] = '(';
-
-	// )
-	chartbl[41] = chartbl[41 + 128] = ')';
-
-	// +
-	chartbl[43] = chartbl[43 + 128] = '+';
-
-	// -
-	chartbl[45] = chartbl[45 + 128] = '-';
-
-	// @
-	chartbl[64] = chartbl[64 + 128] = '@';
-
-	// ^
-//	chartbl[94] = chartbl[94 + 128] = '^';
-
-
-	chartbl[91] = chartbl[91 + 128] = '[';
-	chartbl[93] = chartbl[93 + 128] = ']';
-
-	chartbl[16] = chartbl[16 + 128] = '[';
-	chartbl[17] = chartbl[17 + 128] = ']';
-
-	chartbl[123] = chartbl[123 + 128] = '{';
-	chartbl[125] = chartbl[125 + 128] = '}';
 }
 
 /*

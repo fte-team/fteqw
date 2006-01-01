@@ -1279,9 +1279,10 @@ void GLDraw_Character (int x, int y, unsigned int num)
 #endif*/
 }
 
+void GLDraw_FillRGB (int x, int y, int w, int h, float r, float g, float b);
 void GLDraw_ColouredCharacter (int x, int y, unsigned int num)
 {
-	int col;
+	unsigned int col;
 
 	if (num & CON_BLINKTEXT)
 	{
@@ -1290,11 +1291,16 @@ void GLDraw_ColouredCharacter (int x, int y, unsigned int num)
 				return;
 	}
 
+	// draw background
+	if (num & CON_NONCLEARBG)
 	{
-		col = (num&CON_COLOURMASK)/256;
-		qglColor3f(consolecolours[col].r, consolecolours[col].g, consolecolours[col].b);
+		col = (num & CON_BGMASK) >> CON_BGSHIFT;
+		GLDraw_FillRGB(x, y, 8, 8, consolecolours[col].fr, consolecolours[col].fg, consolecolours[col].fb);
 	}
 
+	// render character with foreground color
+	col = (num & CON_FGMASK) >> CON_FGSHIFT;
+	qglColor3f(consolecolours[col].fr, consolecolours[col].fg, consolecolours[col].fb);
 	Draw_Character(x, y, num);
 }
 /*
@@ -1948,30 +1954,10 @@ void GLDraw_TileClear (int x, int y, int w, int h)
 	}
 }
 
-
-/*
-=============
-Draw_Fill
-
-Fills a box of pixels with a single color
-=============
-*/
-void GLDraw_Fill (int x, int y, int w, int h, int c)
+void GLDraw_FillRGB (int x, int y, int w, int h, float r, float g, float b)
 {
-	extern qboolean gammaworks;
 	qglDisable (GL_TEXTURE_2D);
-	if (gammaworks)
-	{
-		qglColor3f (host_basepal[c*3]/255.0,
-			host_basepal[c*3+1]/255.0,
-			host_basepal[c*3+2]/255.0);
-	}
-	else
-	{
-		qglColor3f (gammatable[host_basepal[c*3]]/255.0,
-			gammatable[host_basepal[c*3+1]]/255.0,
-			gammatable[host_basepal[c*3+2]]/255.0);
-	}
+	qglColor3f (r, g, b);
 
 	qglBegin (GL_QUADS);
 
@@ -1983,6 +1969,32 @@ void GLDraw_Fill (int x, int y, int w, int h, int c)
 	qglEnd ();
 	qglColor3f (1,1,1);
 	qglEnable (GL_TEXTURE_2D);
+}
+
+/*
+=============
+Draw_Fill
+
+Fills a box of pixels with a single color
+=============
+*/
+void GLDraw_Fill (int x, int y, int w, int h, int c)
+{
+	extern qboolean gammaworks;
+	if (gammaworks)
+	{
+		GLDraw_FillRGB (x, y, w, h, 
+			host_basepal[c*3]/255.0, 
+			host_basepal[c*3+1]/255.0, 
+			host_basepal[c*3+2]/255.0);
+	}
+	else
+	{
+		GLDraw_FillRGB (x, y, w, h, 
+			gammatable[host_basepal[c*3]]/255.0, 
+			gammatable[host_basepal[c*3+1]]/255.0, 
+			gammatable[host_basepal[c*3+2]]/255.0);
+	}
 }
 //=============================================================================
 

@@ -1393,7 +1393,7 @@ static char *TP_ParseFunChars (char *s, qbool chat)
 			}
 		}
 		if (!chat && *s == '^' && s[1] && s[1] != ' ') {
-			*out++ = s[1] | 128;
+			*out++ = s[1] | CON_HIGHCHARSMASK;
 			s += 2;
 			continue;
 		}

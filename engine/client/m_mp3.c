@@ -289,7 +289,6 @@ void Media_Next_f (void)
 void M_Menu_Media_f (void) {
 	key_dest = key_menu;
 	m_state = m_media;
-	m_entersound = true;
 }
 
 void Media_LoadTrackNames (char *listname);

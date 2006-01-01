@@ -760,7 +760,7 @@ void Draw_CursorLine(int ox, int y, fileblock_t *b)
 		if (*d == '\t')
 		{
 			if (a == cx)
-				Draw_ColouredCharacter (x+ox, y, 11|M_COLOR_WHITE);
+				Draw_ColouredCharacter (x+ox, y, 11|CON_WHITEMASK);
 			x+=ts;
 			x-=x%ts;
 			d++;
@@ -770,9 +770,9 @@ void Draw_CursorLine(int ox, int y, fileblock_t *b)
 		if (x+ox< vid.width)
 		{
 			if (a == cx)
-				Draw_ColouredCharacter (x+ox, y, 11|M_COLOR_WHITE);
+				Draw_ColouredCharacter (x+ox, y, 11|CON_WHITEMASK);
 			else
-				Draw_ColouredCharacter (x+ox, y, (int)*d | (colour<<8));
+				Draw_ColouredCharacter (x+ox, y, (int)*d | (colour<<CON_FGSHIFT));
 		}
 		d++;
 		x += 8;
@@ -816,7 +816,7 @@ void Draw_NonCursorLine(int x, int y, fileblock_t *b)
 			continue;
 		}
 		if (x+nx < vid.width)
-			Draw_ColouredCharacter (x+nx, y, (int)*d | (colour<<8));
+			Draw_ColouredCharacter (x+nx, y, (int)*d | (colour<<CON_FGSHIFT));
 		d++;
 		nx += 8;
 	}
@@ -894,9 +894,9 @@ void Editor_Draw(void)
 		x = 0;
 
 	if (madechanges)
-		Draw_Character (vid.width - 8, 0, '!'|128);
+		Draw_Character (vid.width - 8, 0, '!'|CON_HIGHCHARSMASK);
 	if (!insertkeyhit)
-		Draw_Character (vid.width - 16, 0, 'O'|128);
+		Draw_Character (vid.width - 16, 0, 'O'|CON_HIGHCHARSMASK);
 	Draw_String(0, 0, va("%6i:%4i:%s", cursorlinenum, cursorx+1, OpenEditorFile));
 
 	if (useeval)

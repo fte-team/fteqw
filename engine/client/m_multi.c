@@ -18,7 +18,6 @@ void M_Menu_MultiPlayer_f (void)
 	p = NULL; 
 	key_dest = key_menu;
 	m_state = m_complex;
-	m_entersound = true;
 
 	mgt = M_GameType();
 
@@ -93,8 +92,8 @@ qboolean ApplySetupMenu (union menuoption_s *option,struct menu_s *menu, int key
 	Cvar_Set(&team, info->teamedit->text);
 	Cvar_Set(&skin, info->skinedit->text);
 	Cbuf_AddText(va("color %i %i\n", info->lowercolour, info->topcolour), RESTRICT_LOCAL);
-m_entersound=true;
-M_RemoveMenu(menu);
+	S_LocalSound ("misc/menu2.wav");
+	M_RemoveMenu(menu);
 	return true;
 }
 qboolean SetupMenuColour (union menuoption_s *option,struct menu_s *menu, int key)
@@ -107,7 +106,7 @@ qboolean SetupMenuColour (union menuoption_s *option,struct menu_s *menu, int ke
 			info->topcolour ++;
 			if (info->topcolour>=14)
 				info->topcolour=0;
-			m_entersound=true;
+			S_LocalSound ("misc/menu2.wav");
 			return true;
 		}
 		if (key == K_LEFTARROW)
@@ -115,7 +114,7 @@ qboolean SetupMenuColour (union menuoption_s *option,struct menu_s *menu, int ke
 			info->topcolour --;
 			if (info->topcolour<=0)
 				info->topcolour=13;
-			m_entersound=true;
+			S_LocalSound ("misc/menu2.wav");
 			return true;
 		}
 
@@ -127,7 +126,7 @@ qboolean SetupMenuColour (union menuoption_s *option,struct menu_s *menu, int ke
 			info->lowercolour ++;
 			if (info->lowercolour>=14)
 				info->lowercolour=0;
-			m_entersound=true;
+			S_LocalSound ("misc/menu2.wav");
 			return true;
 		}
 		if (key == K_LEFTARROW)
@@ -135,7 +134,7 @@ qboolean SetupMenuColour (union menuoption_s *option,struct menu_s *menu, int ke
 			info->lowercolour --;
 			if (info->lowercolour<=0)
 				info->lowercolour=13;
-			m_entersound=true;
+			S_LocalSound ("misc/menu2.wav");
 			return true;
 		}
 	}
@@ -179,7 +178,6 @@ void M_Menu_Setup_f (void)
 
 	key_dest = key_menu;
 	m_state = m_complex;
-	m_entersound = true;
 
 	menu = M_CreateMenu(sizeof(setupmenu_t));	
 	info = menu->data;
@@ -217,7 +215,6 @@ void M_Menu_ServerList_f (void)
 {
 	key_dest = key_menu;
 	m_state = m_slist;
-	m_entersound = true;
 
 	MasterInfo_Begin();
 }
@@ -304,7 +301,6 @@ qboolean MultiBeginGame (union menuoption_s *option,struct menu_s *menu, int key
 		Cbuf_AddText("echo You can use the setrenderer command to return to a graphical interface at any time\n", RESTRICT_LOCAL);
 	}
 
-m_entersound=true;
 	M_RemoveAllMenus();
 
 	return true;
@@ -372,7 +368,6 @@ void M_Menu_GameOptions_f (void)
 
 	key_dest = key_menu;
 	m_state = m_complex;
-	m_entersound = true;
 
 	menu = M_CreateMenu(sizeof(newmultimenu_t));	
 	info = menu->data;

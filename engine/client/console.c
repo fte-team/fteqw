@@ -21,23 +21,43 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 
 #include "quakedef.h"
 
-//this is the same order as q3, except that white and black are swapped...
-consolecolours_t consolecolours[] = {
-#define CON_WHITEMASK 7*256	//must be constant. things assume this
-	{0, 0, 0, 0x0000},
-	{1, 0, 0, 0x001F},
-	{0, 1, 0, 0x03E0},
-	{1, 1, 0, 0x03FF},
-	{0.1, 0.1, 1, 0x7C00},	//brighten dark blue a little
-	{1, 0, 1, 0x7C1F},
-	{0, 1, 1, 0x7FE0},
-	{1, 1, 1, 0x7FFF}
+// This is the standard RGBI palette used in CGA text mode
+consolecolours_t consolecolours[MAXCONCOLOURS] = {
+	{  0,   0,   0, 0,    0,    0   }, // black
+	{  0,   0, 170, 0,    0,    0.67}, // blue
+	{  0, 170,   0, 0,    0.67, 0   }, // green
+	{  0, 170, 170, 0,    0.67, 0.67}, // cyan
+	{170,   0,   0, 0.67, 0,    0   }, // red
+	{170,   0, 170, 0.67, 0,    0.67}, // magenta
+	{170,  85,   0, 0.67, 0.33, 0   }, // brown
+	{170, 170, 170, 0.67, 0.67, 0.67}, // light gray
+	{ 85,  85,  85, 0.33, 0.33, 0.33}, // dark gray
+	{ 85,  85, 255, 0.33, 0.33, 1   }, // light blue
+	{ 85, 255,  85, 0.33, 1,    0.33}, // light green
+	{ 85, 255, 255, 0.33, 1,    1   }, // light cyan
+	{255,  85,  85, 1,    0.33, 0.33}, // light red
+	{255,  85, 255, 1,    0.33, 1   }, // light magenta
+	{255, 255,  85, 1,    1,    0.33}, // yellow
+	{255, 255, 255, 1,    1,    1   }  // white
 };
 
-int			con_ormask;
+// This is for remapping the Q3 color codes to character masks, including ^9
+conchar_t q3codemasks[MAXQ3COLOURS] = {
+	0x00000000, // 0, black
+	0x0c000000, // 1, red
+	0x0a000000, // 2, green
+	0x0e000000, // 3, yellow
+	0x09000000, // 4, blue
+	0x0b000000, // 5, cyan
+	0x0d000000, // 6, magenta
+	0x0f000000, // 7, white
+	0x0f100000, // 8, half-alpha white (BX_COLOREDTEXT)
+	0x07000000  // 9, "half-intensity" (BX_COLOREDTEXT)
+};
+
+conchar_t con_ormask;
 console_t	con_main;
 console_t	*con_current;			// point to either con_main
-
 
 #ifdef QTERM
 #include <windows.h>
@@ -436,7 +456,7 @@ Con_Resize
 void Con_ResizeCon (console_t *con)
 {
 	int		i, j, width, oldwidth, oldtotallines, numlines, numchars;
-	unsigned short	tbuf[CON_TEXTSIZE];	
+	conchar_t tbuf[CON_TEXTSIZE];	
 
 	if (scr_chatmode == 2)
 		width = (vid.width >> 4) - 2;
@@ -472,7 +492,7 @@ void Con_ResizeCon (console_t *con)
 			numchars = con->linewidth;
 
 		Q_memcpy (tbuf, con->text, sizeof(con->text));
-		for (i = 0; i < sizeof(con->text)/sizeof(unsigned short); i++)
+		for (i = 0; i < sizeof(con->text)/sizeof(conchar_t); i++)
 			con->text[i] = ' ';
 //		Q_memset (con->text, ' ', sizeof(con->text));
 
@@ -598,7 +618,7 @@ void Con_PrintCon (console_t *con, char *txt)
 
 	if (txt[0] == 1 || txt[0] == 2)
 	{
-		mask = CON_STANDARDMASK|CON_WHITEMASK;		// go to colored text
+		mask = CON_HIGHCHARSMASK|CON_WHITEMASK;		// go to colored text
 		txt++;
 	}
 	else
@@ -609,21 +629,21 @@ void Con_PrintCon (console_t *con, char *txt)
 	{
 		if (c == '^')
 		{
-			if (txt[1]>='0' && txt[1]<'8')
+			if (txt[1]>='0' && txt[1]<='9')
 			{
-				mask = (txt[1]-'0')*256 + (mask&~CON_COLOURMASK);	//change colour only.
+				mask = q3codemasks[txt[1]-'0'] + (mask&~CON_Q3MASK);	//change colour only.
 				txt+=2;
 				continue;
 			}
 			if (txt[1] == 'b')
 			{
-				mask = (mask & ~CON_BLINKTEXT) + (CON_BLINKTEXT - (mask & CON_BLINKTEXT));
+				mask ^= CON_BLINKTEXT;
 				txt+=2;
 				continue;
 			}
 			if (txt[1] == 'a')
 			{
-				mask = (mask & ~CON_2NDCHARSETTEXT) + (CON_2NDCHARSETTEXT - (mask & CON_2NDCHARSETTEXT));
+				mask ^= CON_2NDCHARSETTEXT;
 				txt+=2;
 				continue;
 			}
@@ -873,9 +893,9 @@ void Con_DrawInput (void)
 	int p;
 	unsigned char	*text, *fname;
 	extern int con_commandmatch;
-	unsigned short maskedtext[MAXCMDLINE];
+	conchar_t maskedtext[MAXCMDLINE];
 
-	unsigned short mask=CON_WHITEMASK;
+	conchar_t mask=CON_WHITEMASK;
 	int maskstack[4];
 	int maskstackdepth = 0;
 
@@ -898,12 +918,12 @@ void Con_DrawInput (void)
 	{
 		if (text[i] == '^')	//is this an escape code?
 		{
-			if (text[i+1]>='0' && text[i+1]<'8')
-				mask = (text[i+1]-'0')*256 + (mask&~CON_COLOURMASK);	//change colour only.
+			if (text[i+1]>='0' && text[i+1]<='9')
+				mask = q3codemasks[text[i+1]-'0'] | (mask&~CON_Q3MASK); //change colour only.
 			else if (text[i+1] == 'b')
-				mask = (mask & ~CON_BLINKTEXT) + (CON_BLINKTEXT - (mask & CON_BLINKTEXT));
+				mask ^= CON_BLINKTEXT;
 			else if (text[i+1] == 'a')	//alternate
-				mask = (mask & ~CON_2NDCHARSETTEXT) + (CON_2NDCHARSETTEXT - (mask & CON_2NDCHARSETTEXT));
+				mask ^= CON_2NDCHARSETTEXT;
 			else if (text[i+1] == 's')	//store on stack (it's great for names)
 			{
 				if (maskstackdepth < sizeof(maskstack)/sizeof(maskstack[0]))
@@ -938,7 +958,7 @@ void Con_DrawInput (void)
 		if (text[1] == '/' || Cmd_IsCommand(text+1))
 		{	//color the first token yellow, it's a valid command
 			for (p = 1; (maskedtext[p]&255)>' '; p++)
-				maskedtext[p] = (maskedtext[p]&255) | (COLOR_YELLOW<<8);
+				maskedtext[p] = (maskedtext[p]&255) | (COLOR_YELLOW<<CON_FGSHIFT);
 		}
 		if (key_linepos == i)	//cursor is at end
 		{
@@ -947,7 +967,7 @@ void Con_DrawInput (void)
 			if (fname)	//we can compleate it to:
 			{
 				for (p = i-x; fname[p]>' '; p++)
-					maskedtext[p+x] = (unsigned char)fname[p] | (COLOR_GREEN<<8);
+					maskedtext[p+x] = (unsigned char)fname[p] | (COLOR_GREEN<<CON_FGSHIFT);
 				maskedtext[p+x] = '\0';
 			}
 		}
@@ -988,7 +1008,7 @@ Draws the last few lines of output transparently over the game top
 void Con_DrawNotify (void)
 {
 	int		x, v;
-	unsigned short	*text;
+	conchar_t *text;
 	int		i;
 	float	time;
 	char	*s;
@@ -1095,12 +1115,12 @@ void Con_DrawNotify (void)
 		{
 			if (s[x] == '^')
 			{
-				if (s[x+1]>='0' && s[x+1]<'8')
-					mask = (s[x+1]-'0')*256 + (mask&~CON_COLOURMASK);	//change colour only.
+				if (s[x+1]>='0' && s[x+1]<='9')
+					mask = q3codemasks[s[x+1]-'0'] | (mask&~CON_Q3MASK); //change colour only.
 				else if (s[x+1] == 'b')
-					mask = (mask & ~CON_BLINKTEXT) + (CON_BLINKTEXT - (mask & CON_BLINKTEXT));
+					mask ^= CON_BLINKTEXT;
 				else if (s[x+1] == 'a')	//alternate
-					mask = (mask & ~CON_2NDCHARSETTEXT) + (CON_2NDCHARSETTEXT - (mask & CON_2NDCHARSETTEXT));
+					mask ^= CON_2NDCHARSETTEXT;
 				else if (s[x+1] == 's')	//store on stack (it's great for names)
 				{
 					if (maskstackdepth < sizeof(maskstack)/sizeof(maskstack[0]))
@@ -1125,12 +1145,12 @@ void Con_DrawNotify (void)
 		{
 			if (s[x] == '^')
 			{
-				if (s[x+1]>='0' && s[x+1]<'8')
-					mask = (s[x+1]-'0')*256 + (mask&~CON_COLOURMASK);	//change colour only.
+				if (s[x+1]>='0' && s[x+1]<='9')
+					mask = q3codemasks[s[x+1]-'0'] | (mask&~CON_Q3MASK);	//change colour only.
 				else if (s[x+1] == 'b')
-					mask = (mask & ~CON_BLINKTEXT) + (CON_BLINKTEXT - (mask & CON_BLINKTEXT));
+					mask ^= CON_BLINKTEXT;
 				else if (s[x+1] == 'a')	//alternate
-					mask = (mask & ~CON_2NDCHARSETTEXT) + (CON_2NDCHARSETTEXT - (mask & CON_2NDCHARSETTEXT));
+					mask ^= CON_2NDCHARSETTEXT;
 				else if (s[x+1] == 's')	//store on stack (it's great for names)
 				{
 					if (maskstackdepth < sizeof(maskstack)/sizeof(maskstack[0]))
@@ -1152,7 +1172,7 @@ void Con_DrawNotify (void)
 			Draw_ColouredCharacter ( (x+skip)<<3, v, s[x]|mask);
 			x++;
 		}
-		Draw_ColouredCharacter ( (x+skip)<<3, v, (10+((int)(realtime*con_cursorspeed)&1))|M_COLOR_WHITE);
+		Draw_ColouredCharacter ( (x+skip)<<3, v, (10+((int)(realtime*con_cursorspeed)&1))|CON_WHITEMASK);
 		v += 8;
 	}
 
@@ -1165,7 +1185,7 @@ void Con_DrawNotify (void)
 void Con_PrintToSys(void)	
 {
 	int line, row, x, spc, content;
-	short *text;
+	conchar_t *text;
 	console_t *curcon = &con_main;
 
 	content = 0;
@@ -1203,7 +1223,7 @@ void Con_DrawConsole (int lines, qboolean noback)
 	int				i, j, x, y;
 	float n;
 	int				rows;
-	unsigned short			*text;
+	conchar_t *text;
 	char *txt;
 	int				row;
 	unsigned char			dlbar[1024];
@@ -1333,9 +1353,9 @@ void Con_DrawConsole (int lines, qboolean noback)
 		// draw it
 		y = curcon->vislines-22 + 8;
 		for (i = 0; i < strlen(dlbar); i++)
-			Draw_ColouredCharacter ( (i+1)<<3, y, (unsigned char)dlbar[i] | M_COLOR_WHITE);
+			Draw_ColouredCharacter ( (i+1)<<3, y, (unsigned char)dlbar[i] | CON_WHITEMASK);
 
-		Draw_ColouredCharacter ((n+1+x)*8, y, (unsigned char)'\x83' | M_COLOR_WHITE);
+		Draw_ColouredCharacter ((n+1+x)*8, y, (unsigned char)'\x83' | CON_WHITEMASK);
 	}
 	
 // draw the input prompt, user text, and cursor if desired

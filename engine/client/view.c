@@ -29,7 +29,7 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 
 #ifdef FISH
 void R_RenderView_fisheye(void);
-cvar_t ffov = {"ffov", "160"};
+cvar_t ffov = {"ffov", "0"};
 cvar_t fviews = {"fviews", "6"};
 #endif
 
@@ -43,7 +43,7 @@ when crossing a water boudnary.
 */
 
 #ifdef SIDEVIEWS
-cvar_t	vsec_enabled[SIDEVIEWS] = {{"v2_enabled", "1"},		{"v3_enabled", "0"},	{"v4_enabled", "0"},	{"v5_enabled", "0"}};
+cvar_t	vsec_enabled[SIDEVIEWS] = {{"v2_enabled", "0"},		{"v3_enabled", "0"},	{"v4_enabled", "0"},	{"v5_enabled", "0"}};
 cvar_t	vsec_x[SIDEVIEWS]		= {{"v2_x", "0"},			{"v3_x", "0.25"},		{"v4_x", "0.5"},		{"v5_x", "0.75"}};
 cvar_t	vsec_y[SIDEVIEWS]		= {{"v2_y", "0"},			{"v3_y", "0"},			{"v4_y", "0"},			{"v5_y", "0"}};
 cvar_t	vsec_scalex[SIDEVIEWS]	= {{"v2_scalex", "0.25"},	{"v3_scalex", "0.25"},	{"v4_scalex", "0.25"},	{"v5_scalex", "0.25"}};

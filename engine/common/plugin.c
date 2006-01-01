@@ -125,7 +125,9 @@ typedef struct plugin_s {
 	//protocol-in-a-plugin
 	int connectionlessclientpacket;
 #endif
-	int messagefunction;
+	int svmsgfunction;
+	int chatmsgfunction;
+	int centerprintfunction;
 
 	struct plugin_s *next;
 } plugin_t;
@@ -371,8 +373,12 @@ int VARGS Plug_ExportToEngine(void *offset, unsigned int mask, const long *arg)
 		currentplug->sbarlevel[2] = arg[1];
 	else if (!strcmp(name, "ConnectionlessClientPacket"))
 		currentplug->connectionlessclientpacket = arg[1];
-	else if (!strcmp(name, "MessageEvent"))
-		currentplug->messagefunction = arg[1];
+	else if (!strcmp(name, "ServerMessageEvent"))
+		currentplug->svmsgfunction = arg[1];
+	else if (!strcmp(name, "ChatMessageEvent"))
+		currentplug->chatmsgfunction = arg[1];
+	else if (!strcmp(name, "CenterPrintMessage"))
+		currentplug->centerprintfunction = arg[1];
 #endif
 	else
 		return 0;
@@ -1549,17 +1555,49 @@ void Plug_SBar(void)
 }
 #endif
 
-int Plug_Message(int clientnum, int messagelevel, char *buffer)
+qboolean Plug_ServerMessage(char *buffer, int messagelevel)
 {
+	qboolean ret = true;
+
 	for (currentplug = plugs; currentplug; currentplug = currentplug->next)
 	{
-		if (currentplug->messagefunction)
+		if (currentplug->svmsgfunction)
 		{
-			VM_Call(currentplug->vm, currentplug->messagefunction, clientnum, messagelevel, buffer);
+			ret &= VM_Call(currentplug->vm, currentplug->svmsgfunction, buffer, messagelevel);
 		}
 	}
 
-	return 1; // don't silence message
+	return ret; // true to display message, false to supress
+}
+
+qboolean Plug_ChatMessage(char *buffer, int talkernum, int tpflags)
+{
+	qboolean ret = true;
+
+	for (currentplug = plugs; currentplug; currentplug = currentplug->next)
+	{
+		if (currentplug->chatmsgfunction)
+		{
+			ret &= VM_Call(currentplug->vm, currentplug->chatmsgfunction, buffer, talkernum, tpflags);
+		}
+	}
+
+	return ret; // true to display message, false to supress
+}
+
+qboolean Plug_CenterPrintMessage(char *buffer, int clientnum)
+{
+	qboolean ret = true;
+
+	for (currentplug = plugs; currentplug; currentplug = currentplug->next)
+	{
+		if (currentplug->centerprintfunction)
+		{
+			ret &= VM_Call(currentplug->vm, currentplug->centerprintfunction, buffer, clientnum);
+		}
+	}
+
+	return ret; // true to display message, false to supress
 }
 
 void Plug_Close(plugin_t *plug)

@@ -666,22 +666,19 @@ void SWDraw_Character (int x, int y, unsigned int num)
 }
 
 /*
-#define FindPalette(r,g,b) pal555to8[((r&0xF8)>>3)|((g&0xF8)<<2)|((b&0xF8)<<7)]
-#define colourmask(p,r,g,b) FindPalette(host_basepal[p*3]*r, host_basepal[p*3+1]*g, host_basepal[p*3+2]*b)
-#define draw(p) colourmask(p, (int)consolecolours[colour].r, (int)consolecolours[colour].g, (int)consolecolours[colour].b)
-*/
-
 #define drawpal(r,g,b) pal555to8[(r|(g<<5)|(b<<10)) & consolecolours[colour].rgbmask]
 #define draw(p) drawpal(host_basepal[p*3]>>3,host_basepal[p*3+1]>>3,host_basepal[p*3+2]>>3)
+*/
 
+#define draw(x) pr->pal[x]
 void SWDraw_ColouredCharacter (int x, int y, unsigned int num)
 {
 	qbyte			*source;
 	int				drawline;	
 	int				row, col;
 	extern cvar_t cl_noblink;
-
-int colour;
+	unsigned int colour, bgcolour;
+	qboolean drawbg = false;
 	
 	if (y <= -8)
 		return;			// totally off screen
@@ -689,7 +686,11 @@ int colour;
 	if (y > vid.height - 8 || x < 0 || x > vid.width - 8)
 		return;
 
-	colour = (num&CON_COLOURMASK)/256;
+	colour = (num & CON_FGMASK) >> CON_FGSHIFT;
+	bgcolour = (num & CON_BGMASK) >> CON_BGSHIFT;
+
+	if (num & CON_NONCLEARBG)
+		drawbg = true;
 
 	if (num & CON_BLINKTEXT)
 	{
@@ -698,7 +699,7 @@ int colour;
 				return;
 	}
 
-	if (colour == COLOR_WHITE)
+	if (colour == COLOR_WHITE && !drawbg)
 	{
 		Draw_Character(x, y, num);
 		return;
@@ -720,30 +721,61 @@ int colour;
 
 	if (r_pixbytes == 1)
 	{
+		palremap_t *pr;
 		qbyte			*dest;
 		dest = vid.conbuffer + y*vid.conrowbytes + x;
 	
-		while (drawline--)
+		pr = D_GetPaletteRemap(consolecolours[colour].ir, 
+			consolecolours[colour].ig, 
+			consolecolours[colour].ib, 
+			false, true, TOP_DEFAULT, BOTTOM_DEFAULT);
+
+		if (drawbg)
 		{
-			if (source[0])
-				dest[0] = draw(source[0]);
-			if (source[1])
-				dest[1] = draw(source[1]);
-			if (source[2])
-				dest[2] = draw(source[2]);
-			if (source[3])
-				dest[3] = draw(source[3]);
-			if (source[4])
-				dest[4] = draw(source[4]);
-			if (source[5])
-				dest[5] = draw(source[5]);
-			if (source[6])
-				dest[6] = draw(source[6]);
-			if (source[7])
-				dest[7] = draw(source[7]);
-			source += 128;
-			dest += vid.conrowbytes;
+			int bgidx = GetPalette(consolecolours[bgcolour].ir, 
+				consolecolours[bgcolour].ig, 
+				consolecolours[bgcolour].ib);
+
+			while (drawline--)
+			{
+				dest[0] = source[0] ? draw(source[0]) : bgidx;
+				dest[1] = source[1] ? draw(source[1]) : bgidx;
+				dest[2] = source[2] ? draw(source[2]) : bgidx;
+				dest[3] = source[3] ? draw(source[3]) : bgidx;
+				dest[4] = source[4] ? draw(source[4]) : bgidx;
+				dest[5] = source[5] ? draw(source[5]) : bgidx;
+				dest[6] = source[6] ? draw(source[6]) : bgidx;
+				dest[7] = source[7] ? draw(source[7]) : bgidx;
+				source += 128;
+				dest += vid.conrowbytes;
+			}
 		}
+		else
+		{
+			while (drawline--)
+			{
+				if (source[0])
+					dest[0] = draw(source[0]);
+				if (source[1])
+					dest[1] = draw(source[1]);
+				if (source[2])
+					dest[2] = draw(source[2]);
+				if (source[3])
+					dest[3] = draw(source[3]);
+				if (source[4])
+					dest[4] = draw(source[4]);
+				if (source[5])
+					dest[5] = draw(source[5]);
+				if (source[6])
+					dest[6] = draw(source[6]);
+				if (source[7])
+					dest[7] = draw(source[7]);
+				source += 128;
+				dest += vid.conrowbytes;
+			}
+		}
+
+		D_DereferenceRemap(pr);
 	}
 	else if (r_pixbytes == 2)
 	{
@@ -754,39 +786,45 @@ int colour;
 
 		dest16 = (unsigned short *)vid.conbuffer + y*vid.conrowbytes + x;
 
-		rm = consolecolours[colour].r*32;
-		gm = consolecolours[colour].g*32;
-		bm = consolecolours[colour].b*32;
-	
-		while (drawline--)
+		rm = consolecolours[colour].ir>>3;
+		gm = consolecolours[colour].ig>>3;
+		bm = consolecolours[colour].ib>>3;
+
+		if (drawbg)
 		{
-			for (i = 0; i < 8; i++)
+			int bgidx16 = (consolecolours[bgcolour].ir>>3) |
+				(consolecolours[bgcolour].ig>>3)<<5 |
+				(consolecolours[bgcolour].ib>>3)<<10;
+
+			while (drawline--)
 			{
-				if (source[i])
-					dest16[i] = ((pal[source[i]*4+0]*bm/256)<<10)+
-								((pal[source[i]*4+1]*gm/256)<<5)+
-								pal[source[i]*4+2]*rm/256;
+				for (i = 0; i < 8; i++)
+				{
+					if (source[i])
+						dest16[i] = (((16+pal[source[i]*4+0]*bm)>>8)<<10)+
+									(((16+pal[source[i]*4+1]*gm)>>8)<<5)+
+									((16+pal[source[i]*4+2]*rm)>>8);
+					else
+						dest16[i] = bgidx16;
+				}
+				source += 128;
+				dest16 += vid.conrowbytes;
 			}
-				/*
-			if (source[0])
-				dest16[0] = pal[draw(source[0])];
-			if (source[1])
-				dest16[1] = pal[draw(source[1])];
-			if (source[2])
-				dest16[2] = pal[draw(source[2])];
-			if (source[3])
-				dest16[3] = pal[draw(source[3])];
-			if (source[4])
-				dest16[4] = pal[draw(source[4])];
-			if (source[5])
-				dest16[5] = pal[draw(source[5])];
-			if (source[6])
-				dest16[6] = pal[draw(source[6])];
-			if (source[7])
-				dest16[7] = pal[draw(source[7])];
-				*/
-			source += 128;
-			dest16 += vid.conrowbytes;
+		}
+		else
+		{
+			while (drawline--)
+			{
+				for (i = 0; i < 8; i++)
+				{
+					if (source[i])
+						dest16[i] = (((16+pal[source[i]*4+0]*bm)>>8)<<10)+
+									(((16+pal[source[i]*4+1]*gm)>>8)<<5)+
+									((16+pal[source[i]*4+2]*rm)>>8);
+				}
+				source += 128;
+				dest16 += vid.conrowbytes;
+			}
 		}
 	}
 	else if (r_pixbytes == 4)
@@ -796,19 +834,45 @@ int colour;
 		unsigned char *pal = (unsigned char *)d_8to32table;
 		dest = vid.conbuffer + (y*vid.conrowbytes + x)*r_pixbytes;
 	
-		while (drawline--)
+		if (drawbg)
 		{
-			for (i = 0; i < 8; i++)
+			while (drawline--)
 			{
-				if (source[i])
+				for (i = 0; i < 8; i++)
 				{
-					dest[0+i*4] = pal[source[i]*4+0]*consolecolours[colour].b;
-					dest[1+i*4] = pal[source[i]*4+1]*consolecolours[colour].g;
-					dest[2+i*4] = pal[source[i]*4+2]*consolecolours[colour].r;
-				}				
+					if (source[i])
+					{
+						dest[0+i*4] = (128+pal[source[i]*4+0]*consolecolours[colour].ib)>>8;
+						dest[1+i*4] = (128+pal[source[i]*4+1]*consolecolours[colour].ig)>>8;
+						dest[2+i*4] = (128+pal[source[i]*4+2]*consolecolours[colour].ir)>>8;
+					}				
+					else
+					{
+						dest[0+i*4] = consolecolours[bgcolour].ib;
+						dest[1+i*4] = consolecolours[bgcolour].ig;
+						dest[2+i*4] = consolecolours[bgcolour].ir;
+					}
+				}
+				source += 128;
+				dest += vid.conrowbytes*r_pixbytes;
 			}
-			source += 128;
-			dest += vid.conrowbytes*r_pixbytes;
+		}
+		else
+		{
+			while (drawline--)
+			{
+				for (i = 0; i < 8; i++)
+				{
+					if (source[i])
+					{
+						dest[0+i*4] = (128+pal[source[i]*4+0]*consolecolours[colour].ib)>>8;
+						dest[1+i*4] = (128+pal[source[i]*4+1]*consolecolours[colour].ig)>>8;
+						dest[2+i*4] = (128+pal[source[i]*4+2]*consolecolours[colour].ir)>>8;
+					}				
+				}
+				source += 128;
+				dest += vid.conrowbytes*r_pixbytes;
+			}
 		}
 	}
 }

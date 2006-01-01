@@ -256,7 +256,7 @@ void MakePaletteRemaps(void)
 	for (i = 2; i < palremapsize; i++)
 	{
 		palremaps[i].key = 0;
-		palremaps[i].references = 0;
+		palremaps[i].references = -2147483648;
 	}
 }
 
@@ -360,7 +360,7 @@ void BuildModulatedPalette(qbyte *indexes, int red, int green, int blue, qboolea
 
 palremap_t *D_GetPaletteRemap(int red, int green, int blue, qboolean desaturate, qboolean fullbrights, int topcolor, int bottomcolor)
 {
-	int i, key, deref = -1;
+	int i, key, deref = -1, dereflast = 1;
 
 	topcolor = topcolor & 0xf;
 	bottomcolor = bottomcolor & 0xf;
@@ -374,11 +374,17 @@ palremap_t *D_GetPaletteRemap(int red, int green, int blue, qboolean desaturate,
 			palremaps[i].b == blue && 
 			palremaps[i].key == key)
 		{
-			palremaps[i].references++;
+			if (palremaps[i].references < 1)
+				palremaps[i].references = 1;
+			else
+				palremaps[i].references++;
 			return palremaps + i;
 		}
-		else if (palremaps[i].references <= 0)
+		else if (palremaps[i].references < dereflast)
+		{
 			deref = i;
+			dereflast = palremaps[i].references;
+		}
 	}
 
 	if (deref < 2) // no remaps found and all maps are referenced
@@ -420,8 +426,20 @@ palremap_t *RebuildMenuTint(void)
 
 void D_DereferenceRemap(palremap_t *palremap)
 {
+	static int dereftime;
+
 	if (palremap && palremap >= palremaps+2)
-		palremap->references--;
+	{
+		if (palremap->references < 2)
+		{
+			if (dereftime >= 0)
+				dereftime = -2147483648; // lowest negative 32-bit number
+			palremap->references = dereftime;
+			dereftime++;
+		}
+		else
+			palremap->references--;
+	}
 }
 
 qbyte *D_GetMenuTintPal(void)
@@ -440,7 +458,6 @@ qbyte *D_GetMenuTintPal(void)
 	else
 		return NULL;
 }
-
 
 palremap_t *D_IdentityRemap(void) // TODO: explicitly inline this
 {

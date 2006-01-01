@@ -41,8 +41,19 @@ cvar_t sys_linebuffer = {"sys_linebuffer", "1"};
 
 qboolean	stdin_ready;
 
-
-
+// This is for remapping the Q3 color codes to character masks, including ^9
+conchar_t q3codemasks[MAXQ3COLOURS] = {
+	0x00000000, // 0, black
+	0x0c000000, // 1, red
+	0x0a000000, // 2, green
+	0x0e000000, // 3, yellow
+	0x09000000, // 4, blue
+	0x0b000000, // 5, cyan
+	0x0d000000, // 6, magenta
+	0x0f000000, // 7, white
+	0x0f100000, // 8, half-alpha white (BX_COLOREDTEXT)
+	0x07000000  // 9, "half-intensity" (BX_COLOREDTEXT)
+};
 
 struct termios orig, changes;
 
@@ -186,39 +197,64 @@ void Sys_Error (const char *error, ...)
 	exit (1);
 }
 
-
-
-
-
-
-
-
-
-
-
-
-
-
+int ansiremap[8] = {0, 4, 2, 6, 1, 5, 3, 7};
 void ApplyColour(unsigned int chr)
 {
-	static int oldchar = 7*256;
-	chr = chr&~255;
+	static int oldchar = CON_WHITEMASK;
+	int bg, fg;
+	chr &= CON_FLAGSMASK;
 
 	if (oldchar == chr)
 		return;
 	oldchar = chr;
-	switch(chr&CON_COLOURMASK)
+
+	printf("\e[0;"); // reset
+
+	if (chr & CON_BLINKTEXT)
+		printf("5;"); // set blink
+
+	bg = chr & CON_BGMASK >> CON_BGSHIFT;
+	fg = chr & CON_FGMASK >> CON_FGSHIFT;
+	
+	// don't handle intensive bit for background
+	// as terminals differ too much in displaying \e[1;7;3?m
+	bg &= 0x7;
+
+	if (chr & CON_NONCLEARBG)
 	{
-//to get around wierd defaults (like a white background) we have these special hacks for colours 0 and 7
-	case 0*256:
-		printf("\e[0;7%sm",	(chr&CON_BLINKTEXT)?";5":"");
-		break;
-	case 7*256:
-		printf("\e[0%sm",		(chr&CON_BLINKTEXT)?";5":"");
-		break;
-	default:
-		printf("\e[0;%i%sm",	30+((chr&CON_COLOURMASK)>>8), (chr&CON_BLINKTEXT)?";5":"");
-		break;
+		if (fg & 0x8) // intensive bit set for foreground
+		{
+			printf("1;"); // set bold/intensity ansi flag
+			fg &= 0x7; // strip intensive bit
+		}
+
+		// set foreground and background colors
+		printf("3%i;4%im", ansiremap[fg], ansiremap[bg]);
+	}
+	else
+	{
+		switch(fg)
+		{
+		//to get around wierd defaults (like a white background) we have these special hacks for colours 0 and 7
+		case COLOR_BLACK:
+			printf("7m"); // set inverse
+			break;
+		case COLOR_GREY:
+			printf("1;30m"); // treat as dark grey
+			break;
+		case COLOR_WHITE:
+			print("m"); // set nothing else
+			break;
+		default:
+			if (fg & 0x8) // intensive bit set for foreground
+			{
+				printf("1;"); // set bold/intensity ansi flag
+				fg &= 0x7; // strip intensive bit
+			}
+
+			printf("3%im", fg); // set foreground
+			break;
+		}
 	}
 }
 
@@ -227,7 +263,7 @@ void Sys_PrintColouredChar(unsigned int chr)
 {
 	ApplyColour(chr);
 
-	putch(chr&255);
+	putch(chr & CON_CHARMASK);
 }
 
 /*
@@ -292,7 +328,7 @@ void Sys_Printf (char *fmt, ...)
 
 		if (sys_colorconsole.value)
 		{
-			int ext = COLOR_WHITE<<8;
+			int ext = CON_WHITEMASK;
 			int extstack[4];
 			int extstackdepth = 0;
 			unsigned char *str = (unsigned char*)msg;
@@ -303,21 +339,21 @@ void Sys_Printf (char *fmt, ...)
 				if (*str == '^')
 				{
 					str++;
-					if (*str >= '0' && *str <= '7')
+					if (*str >= '0' && *str <= '9')
 					{
-						ext = (*str++-'0')*256 + (ext&~CON_COLOURMASK);	//change colour only.
+						ext = q3codemasks[*str++-'0'] | (ext&~CON_Q3MASK);	//change colour only.
 						continue;
 					}
 					else if (*str == 'a')
 					{
 						str++;
-						ext = (ext & ~CON_2NDCHARSETTEXT) + (CON_2NDCHARSETTEXT - (ext & CON_2NDCHARSETTEXT));
+						ext ^= CON_2NDCHARSETTEXT;
 						continue;
 					}
 					else if (*str == 'b')
 					{
 						str++;
-						ext = (ext & ~CON_BLINKTEXT) + (CON_BLINKTEXT - (ext & CON_BLINKTEXT));
+						ext ^= CON_BLINKTEXT;
 						continue;
 					}
 					else if (*str == 's')	//store on stack (it's great for names)
@@ -342,20 +378,20 @@ void Sys_Printf (char *fmt, ...)
 					}
 					else if (*str == '^')
 					{
-						Sys_PrintColouredChar('^' + ext);
+						Sys_PrintColouredChar('^' | ext);
 						str++;
 					}
 					else
 					{
-						Sys_PrintColouredChar('^' + ext);
-						Sys_PrintColouredChar ((*str++) + ext);
+						Sys_PrintColouredChar('^' | ext);
+						Sys_PrintColouredChar ((*str++) | ext);
 					}
 					continue;
 				}
-				Sys_PrintColouredChar ((*str++) + ext);
+				Sys_PrintColouredChar ((*str++) | ext);
 			}
 
-			ApplyColour(7*256);
+			ApplyColour(CON_WHITEMASK);
 		}
 		else
 		{

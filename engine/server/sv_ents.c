@@ -1982,6 +1982,9 @@ void SV_GibFilterInit(void)
 		Z_Free(gf);
 	}
 
+	if (svs.gametype != GT_PROGS)
+		return;
+
 	file = COM_LoadStackFile("gibfiltr.cfg", buffer, sizeof(buffer));
 	if (!file)
 	{

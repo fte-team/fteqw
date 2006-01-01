@@ -57,6 +57,7 @@ cvar_t	gl_skyboxdist = {"gl_skyboxdist", "2300"};
 cvar_t	r_vertexdlights = {"r_vertexdlights", "1"};
 
 extern	cvar_t	r_dodgytgafiles;
+extern	cvar_t	r_dodgypcxfiles;
 
 cvar_t	r_nolerp = {"r_nolerp", "0"};
 cvar_t	r_nolightdir = {"r_nolightdir", "0"};
@@ -464,6 +465,7 @@ void Renderer_Init(void)
 	Cvar_Register (&gl_skyboxname, GRAPHICALNICETIES);
 
 	Cvar_Register(&r_dodgytgafiles, "Bug fixes");
+	Cvar_Register(&r_dodgypcxfiles, "Bug fixes");
 	Cvar_Register(&r_loadlits, GRAPHICALNICETIES);
 	Cvar_Register(&r_lightstylesmooth, GRAPHICALNICETIES);
 	Cvar_Register(&r_lightstylespeed, GRAPHICALNICETIES);

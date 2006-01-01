@@ -9,6 +9,9 @@ cvar_t r_dodgytgafiles = {"r_dodgytgafiles", "0"};	//Certain tgas are upside dow
 													//but some people have gone and 'fixed' those broken ones by flipping.
 													//these images appear upside down in any editor but correct in tenebrae
 													//set this to 1 to emulate tenebrae's bug.
+cvar_t r_dodgypcxfiles = {"r_dodgypcxfiles", "0"};	//Quake 2's PCX loading isn't complete,
+													//and some Q2 mods include PCX files
+													//that only work with this assumption
 
 #ifndef _WIN32
 #include <unistd.h>
@@ -1211,7 +1214,10 @@ qbyte *ReadPCXFile(qbyte *buf, int length, int *width, int *height)
 	*width = xmax-xmin+1;
 	*height = ymax-ymin+1;
 
-	palette = buf + length-768;
+	if (r_dodgypcxfiles.value)
+		palette = host_basepal;
+	else
+		palette = buf + length-768;
 
 	data = (char *)(pcx+1);
 

@@ -461,7 +461,7 @@ float   MULTICAST_PVS_R = 5;            // within sight, reliable
 float   movedist;
 
 string  string_null;    // null string, nothing should be held here
-float   empty_float;
+//float   empty_float;
 
 entity  activator;              // the entity that activated a trigger or brush
 
@@ -485,7 +485,7 @@ float           no_connect;
 //
 // world fields (FIXME: make globals)
 //
-.string         wad;
+noref .string         wad;
 .string         map;
 .float          worldtype;      // 0=medieval 1=metal 2=base
 
@@ -496,7 +496,7 @@ float           no_connect;
 //
 // quakeed fields
 //
-.float          light_lev;              // not used by game, but parsed by light util
+noref .float          light_lev;              // not used by game, but parsed by light util
 .float          style;
 
 
@@ -533,7 +533,7 @@ float   AS_MISSILE              = 4;
 
 // Zoid Additions
 .float		maxspeed;		// Used to set Maxspeed on a player
-.float		gravity;		// Gravity Multiplier (0 to 1.0)
+//.float		gravity;		// Gravity Multiplier (0 to 1.0)
 
 
 
@@ -577,16 +577,16 @@ float          red_armor;
 .float          dtime;
 .float          active;
 .float          class;
-.float          vote1;
-.float          vote2;
-.float          vote3;
-.float          vote4;
-.float          vote5;
-.float          vote6;
-.float          vote7;
-.float          override;
+//.float          vote1;
+//.float          vote2;
+//.float          vote3;
+//.float          vote4;
+//.float          vote5;
+//.float          vote6;
+//.float          vote7;
+//.float          override;
 .entity         track;
-.float          recharge;
+//.float          recharge;
 .float          processed;
 .float          current_slot;
 .float          attack;
@@ -604,10 +604,10 @@ float          red_armor;
 .float          pcamera;
 .float          pcamera2;
 .float          equipment_state;
-.float          select;
-.float          grenade_hold;
+//.float          select;
+//.float          grenade_hold;
 .float          grab;
-.float          vehicle;
+//.float          vehicle;
 
 .float          weight;
 .float          max_weight;
@@ -619,13 +619,13 @@ float          red_armor;
 .float          scraps;
 .float          cycle1;
 .float          cycle2;
-.float          c4;
+//.float          c4;
 .float          trait;
 .float          protect;
 .float          perk;
 .float          equipment;
 .float          buildtype;
-.float          ctimer;
+//.float          ctimer;
 .float          flash;
 .float          oldteam;
 .float          dead;
@@ -636,7 +636,7 @@ float          red_armor;
 .string        armornoise;
 .string        ammotype1;
 .string        ammotype2;
-.string        deathsound;
+//.string        deathsound;
 .string        currentmenu;
 
 .entity         friend;
@@ -657,7 +657,8 @@ float          red_armor;
 //
 // doors, etc
 //
-.vector         dest, dest1, dest2;
+//.vector         dest;
+.vector         dest1, dest2;
 .float          wait;                   // time from firing to restarting
 .float          delay;                  // time from activation to firing
 .entity         trigger_field;  // door's trigger entity
@@ -704,9 +705,10 @@ float          red_armor;
 //
 // sounds
 //
-.float          waitmin, waitmax;
-.float          distance;
-.float          volume;
+.float          waitmin;
+//.float          waitmax;
+//.float          distance;
+//.float          volume;
 
 
 
@@ -819,6 +821,9 @@ string(entity e, string key) infokey    = #80;  // get a key value (world = serv
 float(string s) stof                            = #81;          // convert string to float
 void(vector where, float set) multicast = #82;  // sends the temp message to a set
 												// of clients, possibly in PVS or PHS
+
+
+string(...) strcat = #115;
 
 //============================================================================
 

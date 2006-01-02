@@ -146,8 +146,6 @@ void () player_climb = [ 23, player_run ]
 
 void () player_run = [ 137, player_run ]
 {
-	local float crap;
-
 	if (self.rtime < time)
 		self.weaponframe = 0;
 
@@ -687,7 +685,7 @@ void () player_knife1 = [ 155, player_knife2 ]
 void () player_knife2 = [ 156, player_knife3 ]
 {
 	self.weaponframe = WEAPON_ROCKET;
-	FireMelee ();
+	W_FireMelee ();
 };
 
 void () player_knife3 = [ 157, player_run ]
@@ -703,7 +701,7 @@ void () player_knifea = [ 155, player_knifeb ]
 void () player_knifeb = [ 156, player_knifec ]
 {
 	self.weaponframe = MULTICAST_PVS_R;
-	FireMelee ();
+	W_FireMelee ();
 };
 
 void () player_knifec = [ 157, player_run ]
@@ -796,8 +794,6 @@ void (float num_bubbles) DeathBubbles;
 
 void () PainSound =
 {
-	local float rs;
-
 	if ((self.equipment == 8))
 		return;
 
@@ -953,7 +949,6 @@ void (float num_bubbles) DeathBubbles =
 
 void () DeathSound =
 {
-	local float rs;
 	local float r;
 
 	if ((self.equipment == 8))
@@ -1068,8 +1063,6 @@ void () SmokeBob2 =
 	local float rnd1;
 	local float rnd2;
 	local float rnd3;
-	local vector vtmp1;
-	local vector modi;
 
 	self.cnt = (self.cnt + WEAPON_SHOTGUN);
 	if ((self.cnt >= (WEAPON_ROCKET + (random () * AS_MELEE))))

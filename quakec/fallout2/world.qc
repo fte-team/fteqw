@@ -428,6 +428,12 @@ void() worldspawn =
 	precache_model ("progs/w_carbine.mdl");
 	precache_model ("progs/w_laser.mdl");
 
+	precache_model ("progs/grenade2.mdl");
+	precache_model ("maps/b_bh10.bsp");
+	precache_model ("maps/b_bh25.bsp");
+	precache_model ("maps/b_bh100.bsp");
+	precache_model ("progs/s_light.spr");
+
 
 	precache_sound ("player/step1.wav");
 	precache_sound ("player/step2.wav");
@@ -591,8 +597,6 @@ void() bodyque =
 
 void() InitBodyQue =
 {
-	local entity    e;
-	
 	bodyque_head = spawn();
 	bodyque_head.classname = "bodyque";
 	bodyque_head.owner = spawn();

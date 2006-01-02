@@ -72,6 +72,7 @@ float IID_ARM_FORCE = 207;
 float IID_ARM_LPOWER = 208;
 
 //stims
+#define IsChem(iid) (iid >= IID_CHEM_STIMPACK && iid <= IID_CHEM_BESERK)
 float IID_CHEM_STIMPACK = 301;
 float IID_CHEM_MEDICALBAG = 302;
 float IID_CHEM_SUPERSTIM = 303;
@@ -349,6 +350,84 @@ string(float iid) GetItemVModel =
 
 	bprint(PRINT_MEDIUM, ftos(iid), " without a vmodel!\n");
 	return "";
+};
+
+string(float iid) GetItemWModel =
+{
+	if (iid == IID_WP_KNIFE)
+		return "progs/w_knife.mdl";
+	if (iid == IID_WP_AXE)
+		return "progs/w_knife.mdl";
+	if (iid == IID_WP_VIBROBLADE)
+		return "progs/w_axe.mdl";
+	if (iid == IID_WP_POWERAXE)
+		return "progs/w_axe.mdl";
+
+	if (iid == IID_WP_USP)
+		return "progs/w_1911.mdl";
+	if (iid == IID_WP_DEAGLE)
+		return "progs/w_deagle.mdl";
+	if (iid == IID_WP_NEEDLER)
+		return "progs/w_1911.mdl";
+	if (iid == IID_WP_ALIENBLASTER)
+		return "progs/w_alien.mdl";
+	if (iid == IID_WP_PIPERIFLE)
+		return "progs/w_pipe.mdl";
+	if (iid == IID_WP_WINCHESTER)
+		return "progs/w_shotgun.mdl";
+	if (iid == IID_WP_MOSSBERG)
+		return "progs/w_pipe.mdl";
+	if (iid == IID_WP_JACKHAMMER)
+		return "progs/w_jackhammer.mdl";
+
+	if (iid == IID_WP_MP9)
+		return "progs/w_mp9.mdl";
+	if (iid == IID_WP_MP7)
+		return "progs/w_mp7.mdl";
+	if (iid == IID_WP_RANGERMASTER)
+		return "progs/w_rangem.mdl";
+	if (iid == IID_WP_AK112)
+		return "progs/w_ak47.mdl";
+	if (iid == IID_WP_AK74)
+		return "progs/w_ak47.mdl";
+	if (iid == IID_WP_DKS1)
+		return "progs/w_srifle.mdl";
+	if (iid == IID_WP_MOONLIGHT)
+		return "progs/w_night.mdl";
+	if (iid == IID_WP_SA80)
+		return "progs/w_sa80.mdl";
+
+	if (iid == IID_WP_GAUSERIFLE)
+		return "progs/w_gauss.mdl";
+	if (iid == IID_WP_PULSERIFLE)
+		return "progs/w_carbine.mdl";
+
+	if (iid == IID_GREN_FRAG)
+		return "progs/grenade2.mdl";
+	if (iid == IID_GREN_EMP)
+		return "progs/grenade2.mdl";
+	if (iid == IID_GREN_SMOKE)
+		return "progs/grenade2.mdl";
+	if (iid == IID_GREN_FLASH)
+		return "progs/grenade2.mdl";
+
+	if (iid == IID_CHEM_STIMPACK)
+		return "maps/b_bh10.bsp";
+	if (iid == IID_CHEM_MEDICALBAG)
+		return "maps/b_bh25.bsp";
+	if (iid == IID_CHEM_SUPERSTIM)
+		return "maps/b_bh100.bsp";
+
+//fixme
+	if (iid == IID_CHEM_ADRENALINE)
+		return "maps/b_bh10.bsp";
+	if (iid == IID_CHEM_PSYCHO)
+		return "maps/b_bh25.bsp";
+	if (iid == IID_CHEM_BESERK)
+		return "maps/b_bh100.bsp";
+
+
+	return "progs/s_light.spr";	//no model. :/
 };
 
 float(float iid) WeaponAmmoType =

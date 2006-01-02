@@ -285,8 +285,6 @@ void() execute_changelevel =
 
 void() changelevel_touch =
 {
-	local entity    pos;
-
 	if (other.classname != "player")
 		return;
 
@@ -381,13 +379,11 @@ Returns the entity to spawn at
 */
 entity() SelectSpawnPoint =
 {
-	local   entity spot, newspot, thing;
+	local   entity spot, thing;
 	local   float   numspots, totalspots;
-	local   float   rnum, pcount, xcount;
-	local   float   rs, cooperate;
-	local entity spots, ent2, xspot;
+	local   float   pcount;
+	local entity spots;
 	local string ent1;
-	local vector warp, xdir, org;
 
 	numspots = 0;
 	totalspots = 0;
@@ -486,7 +482,6 @@ called each time a player enters a new level
 void() PutClientInServer =
 {
 	local   entity spot;
-	local 	string	s;
 
 	self.classname = "player";
 	self.health = 100;
@@ -703,7 +698,6 @@ go to the next level for deathmatch
 void() NextLevel =
 {
 	local entity o;
-	local string newmap;
 
 	if (nextmap != "")
 		return; // already done
@@ -838,7 +832,6 @@ void () LocateSpectatorTarget =
 
 void() PlayerDeathThink =
 {
-	local entity    old_self;
 	local float             forward;
 
 	self.modelindex = modelindex_dead;
@@ -882,8 +875,6 @@ void() PlayerDeathThink =
 
 void() PlayerJump =
 {
-	local vector start, end;
-
 	if (self.flags & FL_WATERJUMP)
 		return;
 	
@@ -1047,8 +1038,6 @@ void () SpeedControl =
 void() ArmorCheck =
 {
 	local float type;
-	local float bit;
-	local float value;
 
 	local float aid;
 
@@ -1135,8 +1124,6 @@ void () WeightControl =
 
 void () PositionControl =
 {
-	local string img;
-
 	if (self.position == 0)
 		self.view_ofs = '0 0 22';
 	if (self.position == 1)
@@ -1168,7 +1155,6 @@ Called every frame before physics are run
 */
 void() PlayerPreThink =
 {
-	local   float   mspeed, aspeed;
 	local   float   r;
 
 	if (intermission_running)
@@ -1514,9 +1500,6 @@ Called every frame after physics are run
 */
 void() PlayerPostThink =
 {
-	local   float   mspeed, aspeed;
-	local   float   r;
-
 //dprint ("post think\n");
 	if (self.view_ofs == '0 0 0')
 		return;         // intermission or finale
@@ -1624,7 +1607,6 @@ void(entity targ, entity attacker) ClientObituary =
 {
 	local   float rnum;
 	local   string deathstring, deathstring2;
-	local   string s;
 	local   string  attackerteam, targteam;
 
 	rnum = random();
@@ -1980,7 +1962,7 @@ void(entity targ, entity attacker) ClientObituary =
 
 void() Identify =
 {
-	local string c1, c2, c3, c5, c6, c7;
+	local string c1, c2, c3, c5;
 	local float tmp;
 
 	makevectors (self.v_angle);

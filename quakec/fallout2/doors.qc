@@ -157,7 +157,6 @@ void () door_killed =
 void () OpenDoorBeep =
 {
 	local float r;
-	local string stuff;
 
 	r = range (self.enemy);
 
@@ -191,7 +190,7 @@ void () OpenDoorBeep =
 
 void (entity portal, entity toucher) SpawnOpenDoor =
 {
-	local entity open, oself;
+	local entity open;
 
 	open = spawn();
 	setorigin (open, toucher.origin + '0 0 48');
@@ -206,9 +205,6 @@ void (entity portal, entity toucher) SpawnOpenDoor =
 
 void () door_touch =
 {
-	local float x;
-	local string stuff;
-
 	if (other.classname != "player")
 		return;
 

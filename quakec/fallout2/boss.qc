@@ -197,8 +197,6 @@ void() boss_death10 = [$death9, boss_death10]
 
 void () LavaExplode =
 {
-	local float r;
-
 	sound (self, CHAN_VOICE, "ambience/gunfire7.wav", 1, ATTN_NONE);
 	self.origin = (self.origin + '0 0 16');
 	WriteByte (MSG_BROADCAST, SVC_TEMPENTITY);

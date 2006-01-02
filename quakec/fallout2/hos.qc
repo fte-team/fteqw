@@ -122,7 +122,6 @@ void () hos_deatha5 = [ 10, hos_deatha5 ]
 
 void (float xx) hos_forward =
 {
-	local vector dir;
 	local float rng;
 	local entity te;
 	local string qqq;

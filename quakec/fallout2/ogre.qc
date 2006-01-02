@@ -634,8 +634,6 @@ void () ogre_paine15 = [ 111, ogre_run1 ]
 
 void (entity attacker, float damage) ogre_pain =
 {
-	local float r;
-
 	if (self.pain_finished > time)
 		return;
 
@@ -800,7 +798,6 @@ void () mutant_pain =
 void (vector stuff, vector ang) spawn_live_ogre =
 {
 	local entity ogre;
-	local entity te;
 
 	ogre = spawn ();
 	ogre.origin = stuff;
@@ -823,9 +820,6 @@ void (vector stuff, vector ang) spawn_live_ogre =
 
 void () ogre_die =
 {
-	local string attack_total;
-	local string damage_total;
-
 	if (self.enemy.classname == "player")
 		self.enemy.frags = self.enemy.frags + 1;
 

@@ -5,7 +5,6 @@ string(float n) argv = #442;
 float(string desc) itemtoslot =
 {
 	local float slot;
-	local float iid;
 	slot = stof(desc);
 	if (slot >= 1 && slot <= MAXSLOTS)
 		return slot;
@@ -59,15 +58,6 @@ void(string arg1) Cmd_InvUse =
 	    iid == IID_CHEM_SUPERSTIM)
 	{
 		if (UseHealingChem(iid))
-			DecreaseDestroySlot(slotno);
-		return;
-	}
-
-	if (iid == IID_CHEM_ADRENALINE ||
-	    iid == IID_CHEM_PSYCHO ||
-	    iid == IID_CHEM_BESERK)
-	{
-		if (UseBoostingChem(iid))
 			DecreaseDestroySlot(slotno);
 		return;
 	}
@@ -161,6 +151,9 @@ void(string arg1, float iid, float num) Cmd_InvGive =
 	if (num <= 0)
 		num = 1;
 	SetItemSlot(self, slotno, SlotVal(iid, num));
+
+	if (slotno == self.current_slot)
+		W_SetCurrentAmmo();
 };
 
 void(string line) SV_ParseClientCommand =

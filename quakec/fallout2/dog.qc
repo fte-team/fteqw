@@ -341,7 +341,6 @@ void () woof_pain =
 void (vector stuff) spawn_live_dog =
 {
 	local entity dog;
-	local entity te;
 
 	dog = spawn ();
 	dog.origin = stuff;
@@ -435,8 +434,6 @@ float()	CheckDogJump =
 
 float()	DogCheckAttack =
 {
-	local	vector	vec;
-	
 // if close enough for slashing, go for it
 	if (CheckDogMelee ())
 	{

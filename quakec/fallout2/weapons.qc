@@ -10,11 +10,11 @@ void (float dam, float rec, string snd, float rng, float rate) FireAssaultRifle;
 void (float dam, float rec, string snd, float rng, float rate) FirePistol;
 void (float dam, float rec, string snd, float rng, float rate) FireSMG;
 void () W_PlayerMenu;
-void () UseChem;
+//void () UseChem;
 void () Special;
 void () BuyMenu;
 void() Sneak;
-void() Bandage;
+//void() Bandage;
 void() Shield;
 void () player_throw1;
 void() player_knife1;
@@ -26,6 +26,9 @@ void (float slot, float snd, float drop) DropFromSlot;
 void() PositionControl;
 void() autofire;
 void() autofire_s;
+float(float iid) UseBoostingChem;
+float(float iid) UseHealingChem;
+float(float slotno) DecreaseDestroySlot;
 
 #define weightx() (self.weight)
 
@@ -89,6 +92,37 @@ void(float damage, float dist, float rate) FireMelee =
 		WriteCoord (MSG_MULTICAST, org_z);
 		multicast (self.origin, MULTICAST_PHS);
 	}
+};
+
+void() W_FireMelee =
+{
+	local float iid;
+	iid = ToIID(self.(SlotField(self.current_slot)));
+	if (iid == IID_WP_KNIFE)
+		FireMelee(5, 32, 0.2);
+	else if (iid == IID_WP_AXE)
+		FireMelee(10, 64, 0.2);
+	else if (iid == IID_WP_VIBROBLADE)	
+		FireMelee(25, 64, 0.2);
+	else if (iid == IID_WP_POWERAXE)
+		FireMelee(50, 96, 0.2);
+
+	else if (iid == IID_CHEM_STIMPACK ||
+		   iid == IID_CHEM_MEDICALBAG ||
+		   iid == IID_CHEM_SUPERSTIM)
+	{
+		if (UseHealingChem(iid))
+			DecreaseDestroySlot(self.current_slot);
+	}
+	else if (iid == IID_CHEM_ADRENALINE ||
+		   iid == IID_CHEM_PSYCHO ||
+		   iid == IID_CHEM_BESERK)
+	{
+		if (UseBoostingChem(iid))
+			DecreaseDestroySlot(self.current_slot);
+	}
+	else
+		dprint(strcat("W_FireMelee - ", ftos(iid), "not implemented\n"));
 };
 
 
@@ -666,7 +700,6 @@ void(vector org, vector dir) launch_spike =
 void() W_FireSuperSpikes =
 {
 	local vector    dir;
-	local entity    old;
 	
 	sound (self, CHAN_WEAPON, "weapons/spike2.wav", 1, ATTN_NORM);
 	self.attack_finished = time + 0.2;
@@ -684,7 +717,6 @@ void() W_FireSuperSpikes =
 void(float ox) W_FireSpikes =
 {
 	local vector    dir;
-	local entity    old;
 	
 	makevectors (self.v_angle);
 	
@@ -714,10 +746,9 @@ void(float ox) W_FireSpikes =
 
 
 
-.float hit_z;
+//.float hit_z;
 void() spike_touch =
 {
-local float rand;
 	if (other == self.owner)
 		return;
 
@@ -763,7 +794,6 @@ local float rand;
 
 void() superspike_touch =
 {
-local float rand;
 	if (other == self.owner)
 		return;
 
@@ -815,56 +845,10 @@ PLAYER WEAPON USE
 void() SetWeaponModel =
 {
 	self.weaponmodel = GetItemVModel(ToIID(ItemInSlot(self, self.current_slot)));
-
-/*
-	if (temp_weapon == 0)
-			self.weaponmodel = "progs/v_fist.mdl";
-	else if (temp_weapon == 1)
-			self.weaponmodel = "progs/v_knife.mdl";
-	else if (temp_weapon == 2)
-			self.weaponmodel = "progs/v_axe.mdl";
-	else if (temp_weapon == 3)
-			self.weaponmodel = "progs/v_knife.mdl";
-	else if (temp_weapon == 4)
-			self.weaponmodel = "progs/v_axe.mdl";
-	else if (temp_weapon == 5)
-			self.weaponmodel = "progs/v_1911.mdl";
-	else if (temp_weapon == 6)
-			self.weaponmodel = "progs/v_deagle.mdl";
-	else if (temp_weapon == 7)
-			self.weaponmodel = "progs/v_1911.mdl";
-	else if (temp_weapon == 8)
-			self.weaponmodel = "progs/v_alien.mdl";
-	else if (temp_weapon == 9)
-			self.weaponmodel = "progs/v_piperifle.mdl";
-	else if (temp_weapon == 10)
-			self.weaponmodel = "progs/v_double.mdl";
-	else if (temp_weapon == 11)
-			self.weaponmodel = "progs/v_shotgun.mdl";
-	else if (temp_weapon == 12)
-			self.weaponmodel = "progs/v_jackhammer.mdl";
-	else if (temp_weapon == 13)
-			self.weaponmodel = "progs/v_mp9.mdl";
-	else if (temp_weapon == 14)
-			self.weaponmodel = "progs/v_mp5.mdl";
-	else if (temp_weapon == 15)
-			self.weaponmodel = "progs/v_rangem.mdl";
-	else if (temp_weapon == 16)
-			self.weaponmodel = "progs/v_ak47.mdl";
-	else if (temp_weapon == 17)
-			self.weaponmodel = "progs/v_ak47.mdl";
-	else if (temp_weapon == 18)
-			self.weaponmodel = "progs/v_srifle.mdl";
-	else if (temp_weapon == 19)
-			self.weaponmodel = "progs/v_night.mdl";
-	else if (temp_weapon == 99)
-			self.weaponmodel = "progs/v_handgren.mdl";
-*/
 };
 
 void() W_SetCurrentAmmo =
 {
-      local float temp_weapon;
 	local string x;
 
 	player_run ();          // get out of any weapon firing states
@@ -1055,7 +1039,7 @@ An attack impulse can be triggered now
 
 void() W_Attack =
 {
-	local float weap, r;
+	local float weap;
 
 	makevectors     (self.v_angle);                 // calculate forward angle for velocity
 	self.show_hostile = time + 1;   // wake monsters up
@@ -1108,6 +1092,10 @@ void() W_Attack =
 	else if (weap == IID_WP_MOONLIGHT)
 		FireAssaultRifle(16, 2, "weapons/m4a1.wav", 4000, 0.1);
 
+//float IID_WP_SA80 = 420;
+//float IID_WP_GAUSERIFLE = 421;
+//float IID_WP_PULSERIFLE = 422;
+
 	else if (weap == IID_GREN_FRAG)
 		player_throw1();
 	else if (weap == IID_GREN_EMP)
@@ -1117,9 +1105,12 @@ void() W_Attack =
 	else if (weap == IID_GREN_FLASH)
 		player_throw1();
 
-//float IID_WP_SA80 = 420;
-//float IID_WP_GAUSERIFLE = 421;
-//float IID_WP_PULSERIFLE = 422;
+
+	else if (IsChem(weap))
+	{
+		self.attack_finished = time + 0.25;
+		player_knife1 ();
+	}
 	else
 		centerprint(self, "Not implemented (", ftos(weap), ")");
 };
@@ -1132,7 +1123,7 @@ W_ChangeWeapon
 */
 void() W_ChangeWeapon =
 {
-	local   float   it, am, fl, r;
+	local   float   it, am, fl;
 	
 	it = self.items;
 	am = 0;
@@ -1260,8 +1251,6 @@ void () ProneOff =
 
 void () ProneOn =
 {
-	local string x;
-
 	if (self.velocity_z != 0)
 		return;
 
@@ -1584,13 +1573,8 @@ void (vector org) bullet_hole =
 void (vector test, float length, float dam) penetrate =
 {
 	local vector org;
-	local vector org2;
 	local vector start;
 	local vector end;
-	local vector end2;
-	local float zdif;
-	local float ydif;
-	local float xdif;
 	local float go;
 	local float tl;
 
@@ -1710,9 +1694,6 @@ void (vector org) CreateSmoke =
 
 void () SmokeThink =
 {
-	local entity te;
-	local float ct;
-
 	self.cnt = (self.cnt + 1);
 
 	WriteByte (MSG_MULTICAST, SVC_TEMPENTITY);
@@ -1759,8 +1740,6 @@ void () FragExplode =
 
 void () PlasmaExplode =
 {
-	local float r;
-
 	sound (self, CHAN_VOICE, "ambience/gunfire7.wav", 1, ATTN_NONE);
 	self.origin = (self.origin + '0 0 16');
 	self.velocity = VEC_ORIGIN;
@@ -1883,16 +1862,16 @@ void () HandGrenBounce =
 void () FireHandGrenade =
 {
 	local float item, iid;
-	local float count;
+	local float amcount;
 
 	item = ItemInSlot(self, self.current_slot);
 	iid = ToIID(item);
-	count = ToStatus(item);
+	amcount = ToStatus(item);
 	if (iid == 0)
 		return;
 	
-	self.currentammo = count-1;
-	if (count <= 1)
+	self.currentammo = amcount-1;
+	if (amcount <= 1)
 		SetItemSlot(self, self.current_slot, 0);
 	else
 		SetItemSlot(self, self.current_slot, SlotVal(iid, self.currentammo));
@@ -1967,9 +1946,8 @@ void(float slot, float magazine) GiveAmmo =
 
 void (float dam, float rec, string snd, float rng, float rate) FirePistol =
 {
-      local float tmp, var1, var2, zdif, xdif, ydif, tru;
+      local float tmp, zdif, xdif, ydif, tru;
       local vector dir, source, targ, org, org2, adjust;
-	local string x;
 
 
 	stuffcmd(self, "-attack\n");
@@ -2078,9 +2056,8 @@ void (float dam, float rec, string snd, float rng, float rate) FirePistol =
 
 void (float dam, float rec, string snd, float rng, float rate) FireSMG =
 {
-      local float tmp, var1, var2, zdif, xdif, ydif, tru;
+      local float tmp, zdif, xdif, ydif, tru;
       local vector dir, source, targ, org, org2, adjust;
-	local string x;
 
 
 	sound (self, CHAN_WEAPON, snd, 1, ATTN_NORM);
@@ -2187,10 +2164,9 @@ void (float dam, float rec, string snd, float rng, float rate) FireSMG =
 
 void (float dam, float rec, string snd, float rng, float rate) FireAssaultRifle =
 {
-      local float tmp, var1, var2, zdif, xdif, ydif, tru, z;
+      local float tmp, zdif, xdif, ydif, tru, z;
 
       local vector dir, source, targ, org, org2, adjust;
-	local string x;
 
 	sound (self, CHAN_WEAPON, snd, 1, ATTN_NORM);
 
@@ -2452,58 +2428,7 @@ void (float slotnum, float snd, float force) DropFromSlot =
 	newmis.velocity = (newmis.velocity * 500);
 	newmis.angles_y = (random () * 360);
 
-	mdel = "progs/w_1911.mdl";
-
-	if (weap == 1)
-		mdel = "progs/w_knife.mdl";
-	if (weap == 2)
-		mdel = "progs/w_knife.mdl";
-	if (weap == 3)
-		mdel = "progs/w_axe.mdl";
-	if (weap == 4)
-		mdel = "progs/w_axe.mdl";
-
-	if (weap == 5)
-		mdel = "progs/w_1911.mdl";
-	if (weap == 6)
-		mdel = "progs/w_deagle.mdl";
-	if (weap == 7)
-		mdel = "progs/w_1911.mdl";
-	if (weap == 8)
-		mdel = "progs/w_alien.mdl";
-
-	if (weap == 9)
-		mdel = "progs/w_pipe.mdl";
-	if (weap == 10)
-		mdel = "progs/w_shotgun.mdl";
-	if (weap == 11)
-		mdel = "progs/w_pipe.mdl";
-	if (weap == 12)
-		mdel = "progs/w_jackhammer.mdl";
-
-	if (weap == 13)
-		mdel = "progs/w_mp9.mdl";
-	if (weap == 14)
-		mdel = "progs/w_mp7.mdl";
-
-	if (weap == 15)
-		mdel = "progs/w_rangem.mdl";
-	if (weap == 16)
-		mdel = "progs/w_ak47.mdl";
-	if (weap == 17)
-		mdel = "progs/w_ak47.mdl";
-	if (weap == 18)
-		mdel = "progs/w_srifle.mdl";
-	if (weap == 19)
-		mdel = "progs/w_night.mdl";
-	if (weap == 20)
-		mdel = "progs/w_sa80.mdl";
-	if (weap == 21)
-		mdel = "progs/w_gauss.mdl";
-	if (weap == 22)
-		mdel = "progs/w_carbine.mdl";
-	if (self.current_slot == 3)
-		mdel = "progs/grenade2.mdl";
+	mdel = GetItemWModel(ToIID(weap));
 
 	setmodel (newmis, mdel);
 	setsize (newmis, '-2 -2 0', '2 2 1');
@@ -2590,7 +2515,6 @@ void (entity healer, entity saved) RevivePlayer =
 float(float iid) UseBoostingChem =
 {
 	local vector source;
-	local vector org;
 	local string x;
 	local float duration;
 
@@ -2651,7 +2575,6 @@ float(float iid) UseBoostingChem =
 float(float iid) UseHealingChem =
 {
 	local vector source;
-	local vector org;
 	local float heal;
 	local string x;
 
@@ -2729,10 +2652,7 @@ float(float iid) UseHealingChem =
 
 void () DisplayMenu =
 {
-	local entity spot;
 	local string menu;
-	local entity te;
-	local string qq;
 
 	if (self.currentmenu == "none")
 		return;
@@ -2889,12 +2809,6 @@ float (float iid) spawn_station;
 
 void () ExitScreen =
 {
-	local float car;
-	local float q;
-	local entity te;
-	local string x;
-
-
 	if (self.class == 0)
 		return;
 
@@ -3068,10 +2982,7 @@ void () station_die =
 void () station_think =
 {
 #define chemcount attack_finished
-	local entity dog;
 	local entity te;
-	local string qq;
-	local float zz, x;
 
 	self.nextthink = time + 2;
 	self.frame = self.buildtype;
@@ -3399,13 +3310,6 @@ void () BuyMenu =
 {
 	local float is_shop;
 	local entity te;
-	local entity shop;
-	local entity spot;
-	local entity oldself;
-	local vector spot1;
-	local vector spot2;
-	local float r;
-	local float cyc;
 	local string menu;
 
 	if (self.currentmenu == "777")
@@ -3660,11 +3564,7 @@ void (vector s_aim, float dam, float tmp, float ran) W_FireBuckshotSpread1 =
 	local vector source;
 	local vector targ;
 	local vector org;
-	local float r;
-	local float srange;
 	local float zdif;
-	local vector src;
-	local vector pos;
 	local float ydif;
 	local float xdif;
 	local float tru;
@@ -3731,7 +3631,6 @@ void (float rec, float number, float dam, float spread, float ran, float auto) W
 	local float var2;
 	local float var3;
 	local float var4;
-	local vector adjust;
 
 	if (self.velocity != '0 0 0')
 	{

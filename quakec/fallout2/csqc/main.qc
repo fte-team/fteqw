@@ -36,6 +36,9 @@ void() CSQC_Init =
 	viewentity.predraw = DoThatViewModelThing;
 	viewentity.drawmask = MASK_NORMAL;
 	viewentity.renderflags = RF_VIEWMODEL | RF_DEPTHHACK;
+
+
+	FigureOutButtons();
 };
 
 
@@ -73,5 +76,6 @@ void(float do2d) CSQC_UpdateView =
 //	if (usehud)
 //		Hud_Draw();
 
-	Invent_Draw();
+	if (show_inventory)
+		Invent_Draw();
 };

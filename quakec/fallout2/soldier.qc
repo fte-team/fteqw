@@ -11,14 +11,7 @@ void (float tmp, float dam) army_fire =
 	local vector dir;
 	local vector direction;
 	local entity en;
-	local float r;
-	local vector targ;
 	local vector org;
-	local vector org2;
-	local float zdif;
-	local float ydif;
-	local float xdif;
-	local float true;
 
 	if (self.enemy.sneak == 1)
 		tmp = tmp * 2;
@@ -79,14 +72,7 @@ void (float tmp, float dam) army_fire1 =
 	local vector dir;
 	local vector direction;
 	local entity en;
-	local float r;
-	local vector targ;
 	local vector org;
-	local vector org2;
-	local float zdif;
-	local float ydif;
-	local float xdif;
-	local float true;
 
 	if (self.enemy.sneak == 1)
 		tmp = tmp * 2;
@@ -146,13 +132,9 @@ void (float tmp, float dam) army_fire2 =
 	local vector dir;
 	local vector direction;
 	local entity en;
-	local float r;
-	local vector targ;
 	local vector org;
-	local vector org2;
 	local float var_u, var_r, var_o;
 	local float shot;
-	local float dif;
 
 	if (self.enemy.sneak == 1)
 		tmp = tmp * 2;
@@ -245,14 +227,7 @@ void (float tmp, float dam) army_fire3 =
 	local vector dir;
 	local vector direction;
 	local entity en;
-	local float r;
-	local vector targ;
 	local vector org;
-	local vector org2;
-	local float zdif;
-	local float ydif;
-	local float xdif;
-	local float true;
 
 	if (self.mag1 == 0)
 	{
@@ -309,15 +284,7 @@ void (float tmp, float dam) army_fire4 =
 	local vector dir;
 	local vector direction;
 	local entity en;
-	local float r;
-	local vector targ;
 	local vector org;
-	local vector org2;
-	local float zdif;
-	local float ydif;
-	local float xdif;
-	local float true;
-	local float shot_num;
 
 	if (self.mag1 == 0)
 	{
@@ -773,8 +740,6 @@ void () army_atkcs4 = [ 84, army_atkcs5 ]
 
 void () army_atkcs5 = [ 85, army_atkcs6 ]
 {
-	local float r;
-
 	ai_face ();
 	sound (self, CHAN_WEAPON, "weapons/ak112.wav", PLAT_LOW_TRIGGER, ATTN_NORM);
 	army_fire4 (100, 16);
@@ -1260,7 +1225,6 @@ void () grunt_pain =
 void (vector stuff, vector ang) spawn_live_grunt =
 {
 	local entity grunt;
-	local entity te;
 
 	grunt = spawn ();
 	grunt.origin = stuff;

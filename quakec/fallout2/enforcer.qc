@@ -60,14 +60,7 @@ void (float tmp, float dam) enforcer_single =
 	local vector dir;
 	local vector direction;
 	local entity en;
-	local float r;
-	local vector targ;
 	local vector org;
-	local vector org2;
-	local float zdif;
-	local float ydif;
-	local float xdif;
-	local float true;
 
 	if (self.enemy.sneak == 1)
 		tmp = tmp * 2;

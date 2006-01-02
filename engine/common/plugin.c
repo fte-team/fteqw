@@ -107,6 +107,7 @@ typedef int (VARGS *Plug_Builtin_t)(void *offset, unsigned int mask, const long 
 void Plug_RegisterBuiltin(char *name, Plug_Builtin_t bi, int flags);
 #define PLUG_BIF_DLLONLY	1
 #define PLUG_BIF_QVMONLY	2
+#define PLUG_BIF_NEEDSRENDERER 4
 
 #include "netinc.h"
 
@@ -335,11 +336,9 @@ int Plug_Emumerated (char *name, int size, void *param)
 
 int VARGS Plug_Con_Print(void *offset, unsigned int mask, const long *arg)
 {
-#ifndef SERVERONLY
-	Con_Print((char*)VM_POINTER(arg[0]));
-#else
+	if (qrenderer <= 0)
+		return false;
 	Con_Printf("%s", (char*)VM_POINTER(arg[0]));
-#endif
 	return 0;
 }
 int VARGS Plug_Sys_Error(void *offset, unsigned int mask, const long *arg)

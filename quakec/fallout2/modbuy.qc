@@ -169,6 +169,12 @@ void() BuyScraps =
 
 void (float wt, float cost, float item) BuyWeapon =
 {
+	sprint (self, PRINT_HIGH, "The shop is not open today.\n");
+	self.currentmenu = "none";
+	SetWeaponModel ();
+	return;
+
+/*
 	local float lbs;
 	local string qq;
 	local float curr;
@@ -247,6 +253,7 @@ void (float wt, float cost, float item) BuyWeapon =
 	GetWeaponWeight (self, 2);
 	GetWeaponModel ();
 	return;
+*/
 };
 
 void (float cost, float item) BuyPerk =
@@ -349,10 +356,10 @@ void (float cost, float item) BuyProtect =
 
 float (float input) overweight =
 {
-	local float var;
+	local float tmp;
 	local float max;
 
-	var = ((((input) + self.armor_weight) + self.slot1_weight) + self.slot2_weight);
+	tmp = ((((input) + self.armor_weight) + self.slot1_weight) + self.slot2_weight);
 	max = self.max_weight;
 	if ((self.class == TE_LIGHTNING2))
 	{
@@ -362,7 +369,7 @@ float (float input) overweight =
 	{
 		return (FALSE);
 	}
-	if ((var > max))
+	if ((tmp > max))
 	{
 		return (TRUE);
 	}
@@ -374,10 +381,10 @@ float (float input) overweight =
 
 float () weightx =
 {
-	local float var;
+	local float tmp;
 
-	var = self.slot1_weight + self.slot2_weight + self.armor_weight;
-	return var;
+	tmp = self.slot1_weight + self.slot2_weight + self.armor_weight;
+	return tmp;
 };
 
 void () W_GetClass =

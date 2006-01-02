@@ -3190,13 +3190,13 @@ int CL_PlayerColor(player_info_t *plr, int *name_ormask)
 			*name_ormask = CON_HIGHCHARSMASK;
 		case 8:
 		case 9:
-			c = 5;
+			c = 6;
 			break;
 		case 2: // light blue
 			*name_ormask = CON_HIGHCHARSMASK;
 		case 13: //blue
 		case 14: //blue
-			c = 6;
+			c = 5;
 			break;
 		default:
 			*name_ormask = CON_HIGHCHARSMASK;
@@ -3211,7 +3211,7 @@ int CL_PlayerColor(player_info_t *plr, int *name_ormask)
 		if (!strcmp(plr->team, "red"))
 			c = 1;
 		else if (!strcmp(plr->team, "blue"))
-			c = 6;
+			c = 5;
 		else
 		{
 			char *t;

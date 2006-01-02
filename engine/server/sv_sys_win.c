@@ -307,6 +307,9 @@ void Sys_Error (const char *error, ...)
 		Sys_Quit();
 #endif
 
+	if (COM_CheckParm("-noreset"))
+		Sys_Quit();
+
 	Sys_Printf ("A new server will be started in 10 seconds unless you press a key\n");
 
 
@@ -326,7 +329,7 @@ void Sys_Error (const char *error, ...)
 //	free(host_parms.membase);	//get rid of the mem. We don't need it now.
 //	system("dqwsv.exe");	//spawn a new server to take over. This way, if debugging, then any key will quit, otherwise the server will just spawn a new one.
 	GetModuleFileName(NULL, text, sizeof(text));
-	spawnl(P_NOWAIT|P_OVERLAY, text, text, NULL);
+	spawnl(P_NOWAIT|P_OVERLAY, text, text, GetCommandLine(), NULL);
 	Sys_Quit ();
 }
 

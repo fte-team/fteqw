@@ -274,67 +274,71 @@ void() item_health =
 };
 
 
-void() health_touch =
+float (entity to, float iid, float quant) TryGiveStackable =
 {
-	local   float amount;
-	local   string  s;
-	
-	if (deathmatch == 4)
-		if (other.invincible_time > 0)
-			return;
+	local float slot;
+	local float item;
+	slot = SlotOfItem(to, iid);
+	if (slot != 0)
+	{
+		item = ItemInSlot(to, slot);
+		if (ToStatus(item) + quant > 100)	//100 is our maxstack value here
+		{
+			quant = quant + ToStatus(item) - 100;
+			SetItemSlot(to, slot, SlotVal(iid, 100));
+			slot = 0;
+		}
+		else
+			quant = quant + ToStatus(item);
+	}
+	if (quant == 0)
+		return true;
+	if (slot == 0)
+	{
+		slot = SlotOfItem(to, 0);
+		if (slot == 0)
+			return false;
+	}
 
-	if (other.classname != "player")
+	SetItemSlot(to, slot, SlotVal(iid, quant));
+
+	return true;
+};
+
+void () health_touch =
+{
+	local float amount;
+	local string s;
+
+	if (other.classname != "player" || other.ghost != 0)
 		return;
-	
-	if (self.healtype == 2) // Megahealth?  Ignore max_health...
-	{
-		if (other.health >= 250)
-			return;
-		if (!T_Heal(other, self.healamount, 1))
-			return;
-	}
-	else
-	{
-		if (!T_Heal(other, self.healamount, 0))
-			return;
-	}
-	
-	sprint(other, PRINT_LOW, "You receive ");
-	s = ftos(self.healamount);
-	sprint(other, PRINT_LOW, s);
-	sprint(other, PRINT_LOW, " health\n");
-	
-// health touch sound
-	sound(other, CHAN_ITEM, self.noise, 1, ATTN_NORM);
 
-	stuffcmd (other, "bf\n");
-	
-	self.model = string_null;
-	self.solid = SOLID_NOT;
+	if (other.classname == "player")
+	{
+		if (self.healtype == H_MEGA)
+			return;
 
-	// Megahealth = rot down the player's super health
-	if (self.healtype == 2)
-	{
-		other.items = other.items | IT_SUPERHEALTH;
-		if (deathmatch != 4)
-		{
-			self.nextthink = time + 5;
-			self.think = item_megahealth_rot;
-		}
-		self.owner = other;
+		if (other.ghost != 0)
+			return;
+
+		if (!TryGiveStackable(other, IID_CHEM_STIMPACK, 1))
+			return;
+
+		sprint (other, PRINT_HIGH, "picked up a stimpack.\n");
+
+		if (random()*4 <= 2)
+			sound (other, CHAN_ITEM, "misc/item1.wav", 1, ATTN_NORM);
+		else
+			sound (other, CHAN_ITEM, "misc/item2.wav", 1, ATTN_NORM);
+
+		self.model = string_null;
+		self.solid = SOLID_NOT;
+		return;
 	}
-	else
-	{
-		if (deathmatch != 2)            // deathmatch 2 is the silly old rules
-		{
-			self.nextthink = time + 20;
-			self.think = SUB_regen;
-		}
-	}
-	
+
 	activator = other;
-	SUB_UseTargets();                               // fire all targets / killtargets
-};      
+	SUB_UseTargets ();
+};
 
 void() item_megahealth_rot =
 {

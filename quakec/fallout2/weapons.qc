@@ -24,6 +24,8 @@ void() CharacterSheet;
 void() UseEquipment;
 void (float slot, float snd, float drop) DropFromSlot;
 void() PositionControl;
+void() autofire;
+void() autofire_s;
 
 #define weightx() (self.weight)
 
@@ -45,8 +47,6 @@ void() W_Precache =
 	precache_sound ("weapons/grenade.wav"); // grenade launcher
 	precache_sound ("weapons/bounce.wav");          // grenade bounce
 	precache_sound ("weapons/shotgn2.wav"); // super shotgun
-
-	precache_model ("progs/v_handgren.mdl");
 };
 
 float() crandom =
@@ -1949,6 +1949,10 @@ void(float slot, float magazine) GiveAmmo =
 	wt = ToIID(wi);
 	SetItemSlot(self, slot, SlotVal(wt, magazine));
 
+	magazine = magazine*4;
+	if (magazine < 30)
+		magazine = 30;	//be generous.
+
 	at = WeaponAmmoType(wt);
 	//make sure we have enough ammo
 	as = SlotOfItem(self, at);
@@ -1956,8 +1960,8 @@ void(float slot, float magazine) GiveAmmo =
 		as = SlotOfItem(self, IID_NONE);
 	if (as == 0)
 		return;	//no free slots, so we can't give them ammo
-	if (ToStatus(ItemInSlot(self, as)) < magazine*4)
-		SetItemSlot(self, as, SlotVal(at, magazine*4));
+	if (ToStatus(ItemInSlot(self, as)) < magazine)
+		SetItemSlot(self, as, SlotVal(at, magazine));
 };
 
 
@@ -2084,9 +2088,9 @@ void (float dam, float rec, string snd, float rng, float rate) FireSMG =
 
 
 	if (self.attack == 0 && self.position == POS_STAND)
-		player_single1 ();
+		autofire ();
 	if (self.attack == 0 && self.position >= POS_DUCK)
-		player_single1_s ();
+		autofire_s ();
 
 	if (self.position == 0)
 		adjust = '0 0 0';

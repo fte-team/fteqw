@@ -621,13 +621,13 @@ void() W_PlayerMenu =
                   BuyWeapon(5, 25, 17);         //weight, cost, item
 		if (self.impulse == 4)
                   BuyWeapon(6, 28, 18);         //weight, cost, item
-		if (self.impulse == 4)
+		if (self.impulse == 5)
                   BuyWeapon(5, 30, 19);         //weight, cost, item
-		if (self.impulse == 4)
+		if (self.impulse == 6)
                   BuyWeapon(4, 32, 20);         //weight, cost, item
-		if (self.impulse == 4)
+		if (self.impulse == 7)
                   BuyWeapon(7, 40, 21);         //weight, cost, item
-		if (self.impulse == 4)
+		if (self.impulse == 8)
                   BuyWeapon(10, 45, 22);         //weight, cost, item
 
 			return;

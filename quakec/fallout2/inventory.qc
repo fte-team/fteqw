@@ -309,36 +309,32 @@ string(float iid) GetItemVModel =
 		return "progs/v_1911.mdl";
 /*
 	if (iid == IID_WP_DEAGLE)
-		return "";
+		return "progs/v_deagle.mdl";
 	if (iid == IID_WP_NEEDLER)
-		return "";
+		return "progs/v_1911.mdl";
 	if (iid == IID_WP_ALIENBLASTER)
-		return "";
+		return "progs/v_alien.mdl";
 	if (iid == IID_WP_PIPERIFLE)
-		return "";
+		return "progs/v_piperifle.mdl";
 	if (iid == IID_WP_WINCHESTER)
-		return "";
+		return "progs/v_double.mdl";
 	if (iid == IID_WP_MOSSBERG)
-		return "";
+		return "progs/v_shotgun.mdl";
 */
 	if (iid == IID_WP_JACKHAMMER)
 		return "progs/v_jackhammer.mdl";
 	if (iid == IID_WP_MP9)
 		return "progs/v_mp9.mdl";
 	if (iid == IID_WP_MP7)
-		return "progs/v_mp7.mdl";
-/*
+		return "progs/v_smg.mdl";
 	if (iid == IID_WP_RANGERMASTER)
-		return "";
+ 		return "progs/v_rangem.mdl";
 	if (iid == IID_WP_AK112)
-		return "";
-*/
+		return "progs/v_ak47.mdl";
 	if (iid == IID_WP_AK74)
 		return "progs/v_ak47.mdl";
-/*
 	if (iid == IID_WP_DKS1)
-		return "";
-*/
+		return "progs/v_srifle.mdl";
 	if (iid == IID_WP_MOONLIGHT)
 		return "progs/v_night.mdl";
 

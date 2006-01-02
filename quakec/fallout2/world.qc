@@ -390,7 +390,7 @@ void() worldspawn =
 	precache_model ("progs/v_knife.mdl");
 	precache_model ("progs/v_1911.mdl");
 	precache_model ("progs/v_ak47.mdl");
-	precache_model ("progs/v_mp7.mdl");
+	precache_model ("progs/v_smg.mdl");
 	precache_model ("progs/v_rangem.mdl");
 	precache_model ("progs/v_pipe.mdl");
 	precache_model ("progs/v_shotgun.mdl");
@@ -403,6 +403,7 @@ void() worldspawn =
 	precache_model ("progs/v_night.mdl");
 	precache_model ("progs/v_nailer.mdl");
 	precache_model ("progs/v_piperifle.mdl");
+	precache_model ("progs/v_handgren.mdl");
 
 	precache_model ("progs/sneak.mdl");
 	precache_model ("progs/dead.mdl");

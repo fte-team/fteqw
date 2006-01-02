@@ -1096,7 +1096,7 @@ void CL_ReRecord_f (void)
 		return;
 	}
   
-	sprintf (name, "%s/%s", com_gamedir, s);
+	sprintf (name, "%s", s);
 
 //
 // open the demo file

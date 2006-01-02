@@ -239,10 +239,10 @@ void SV_Fraglogfile_f (void)
 	for (i=0 ; i<1000 ; i++)
 	{
 		sprintf (name, "frag_%i.log", i);
-		sv_fraglogfile = FS_OpenVFS(name, "r", FS_GAME);
+		sv_fraglogfile = FS_OpenVFS(name, "rb", FS_GAME);
 		if (!sv_fraglogfile)
 		{	// can't read it, so create this one
-			sv_fraglogfile = FS_OpenVFS (name, "w", FS_GAME);
+			sv_fraglogfile = FS_OpenVFS (name, "wb", FS_GAME);
 			if (!sv_fraglogfile)
 				i=1000;	// give error
 			break;

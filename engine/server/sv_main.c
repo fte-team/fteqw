@@ -468,7 +468,8 @@ void SV_DropClient (client_t *drop)
 #endif
 	if (svprogfuncs && drop->edict)
 		drop->edict->v->frags = 0;
-	drop->name[0] = 0;
+	drop->namebuf[0] = 0;
+	drop->name = drop->namebuf;
 	memset (drop->userinfo, 0, sizeof(drop->userinfo));
 	memset (drop->userinfobasic, 0, sizeof(drop->userinfobasic));
 
@@ -2509,7 +2510,7 @@ void SV_WriteIP_f (void)
 
 	Con_Printf ("Writing %s.\n", name);
 
-	f = FS_OpenVFS(name, "wt", FS_GAME);
+	f = FS_OpenVFS(name, "wb", FS_GAME);
 	if (!f)
 	{
 		Con_Printf ("Couldn't open %s\n", name);
@@ -2954,7 +2955,7 @@ void SV_MVDStream_Poll(void);
 	SV_MVDStream_Poll();
 	}
 
-	if (sv.state < ss_active)
+	if (sv.state < ss_active || !sv.worldmodel)
 	{
 #ifndef SERVERONLY
 	// check for commands typed to the host

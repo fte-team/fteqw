@@ -922,7 +922,7 @@ void CL_ParseChunkedDownload(void)
 		if (cls.downloadmethod == DL_QWCHUNKS)
 			Host_EndGame("Received second download - \"%s\"\n", svname);
 
-		if (!strcmp(cls.downloadname, svname))
+		if (strcmp(cls.downloadname, svname))
 			Host_EndGame("Server sent the wrong download - \"%s\" instead of \"%s\"\n", svname, cls.downloadname);
 
 		//start the new download
@@ -937,11 +937,15 @@ void CL_ParseChunkedDownload(void)
 		COM_DefaultExtension(cls.downloadtempname, ".tmp");
 
 		if (!strncmp(cls.downloadtempname,"skins/",6))
-			sprintf (osname, "qw/%s", cls.downloadtempname);	//skins go to quake/qw/skins. never quake/gamedir/skins (blame id)
+		{
+			FS_CreatePath (va("qw/%s", cls.downloadtempname), FS_BASE);
+			cls.downloadqw = FS_OpenVFS (va("qw/%s", cls.downloadtempname), "wb", FS_BASE);
+		}
 		else
-			sprintf (osname, "%s/%s", com_gamedir, cls.downloadtempname);
-		COM_CreatePath (osname);
-		cls.downloadqw = FS_OpenVFS (osname, "wb", FS_GAME);
+		{
+			FS_CreatePath (cls.downloadtempname, FS_GAME);
+			cls.downloadqw = FS_OpenVFS (cls.downloadtempname, "wb", FS_GAME);
+		}
 
 		if (!cls.downloadqw)
 		{

@@ -1626,6 +1626,9 @@ vfsfile_t *FS_OpenVFS(char *filename, char *mode, int relativeto)
 		return loc.search->funcs->OpenVFS(loc.search->handle, &loc, mode);
 	}
 
+	//if we're meant to be writing, best write to it.
+	if (strchr(mode , 'w'))
+		return VFSOS_Open(fullname, mode);
 	return NULL;
 }
 

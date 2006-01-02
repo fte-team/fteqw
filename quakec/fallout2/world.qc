@@ -399,6 +399,9 @@ void() worldspawn =
 	precache_model ("progs/v_alien.mdl");
 	precache_model ("progs/v_srifle.mdl");
 	precache_model ("progs/v_night.mdl");
+	precache_model ("progs/v_nailer.mdl");
+	precache_model ("progs/v_piperifle.mdl");
+
 	precache_model ("progs/sneak.mdl");
 	precache_model ("progs/dead.mdl");
 	precache_model ("progs/hbar.spr");

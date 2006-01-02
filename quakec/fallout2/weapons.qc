@@ -22,6 +22,7 @@ void() ExitScreen;
 void() CharacterSheet;
 void() UseEquipment;
 void (float weap, float snd, float drop) DropWeapon;
+void() PositionControl;
 
 float () weightx;
 void (entity guy, float slot) GetWeaponWeight;
@@ -831,7 +832,7 @@ void(float temp_weapon) GetWeaponModel =
 	else if (temp_weapon == 8)
 			self.weaponmodel = "progs/v_alien.mdl";
 	else if (temp_weapon == 9)
-			self.weaponmodel = "progs/v_pipe.mdl";
+			self.weaponmodel = "progs/v_piperifle.mdl";
 	else if (temp_weapon == 10)
 			self.weaponmodel = "progs/v_double.mdl";
 	else if (temp_weapon == 11)
@@ -841,7 +842,7 @@ void(float temp_weapon) GetWeaponModel =
 	else if (temp_weapon == 13)
 			self.weaponmodel = "progs/v_mp9.mdl";
 	else if (temp_weapon == 14)
-			self.weaponmodel = "progs/v_mp7.mdl";
+			self.weaponmodel = "progs/v_mp5.mdl";
 	else if (temp_weapon == 15)
 			self.weaponmodel = "progs/v_rangem.mdl";
 	else if (temp_weapon == 16)
@@ -947,7 +948,7 @@ void () ReloadWeapon =
 	if (self.current_slot != 1 && self.current_slot != 2)
 		return;
 
-	if (self.rtime > 0)
+	if (self.rtime > time)
 		return;
 
 	if (self.current_slot == 1)
@@ -965,7 +966,8 @@ void () ReloadWeapon =
 			self.mag1 = self.mag1 + 1;
 			self.ammo1 = self.ammo1 - 1;
 			self.currentammo = self.mag1;
-			self.rtime = 50;
+			self.rtime = time + 0.5;
+			player_run();
 			return;
 		}
 		sound (self, CHAN_WEAPON, "weapons/reload.wav", TRUE, ATTN_NORM);
@@ -975,7 +977,9 @@ void () ReloadWeapon =
 		self.mag1 = self.mag1 + x;
 		self.ammo1 = self.ammo1 - x;
 		self.currentammo = self.mag1;
-		self.rtime = 200;
+		self.rtime = time + 2;
+		player_run();
+		return;
 	}
 	if (self.current_slot == 2)
 	{
@@ -992,7 +996,8 @@ void () ReloadWeapon =
 			self.mag2 = self.mag2 + 1;
 			self.ammo2 = self.ammo2 - 1;
 			self.currentammo = self.mag2;
-			self.rtime = 50;
+			self.rtime = time + 0.5;
+			player_run();
 			return;
 		}
 		sound (self, CHAN_WEAPON, "weapons/reload.wav", TRUE, ATTN_NORM);
@@ -1002,7 +1007,9 @@ void () ReloadWeapon =
 		self.mag2 = self.mag2 + x;
 		self.ammo2 = self.ammo2 - x;
 		self.currentammo = self.mag2;
-		self.rtime = 200;
+		self.rtime = time + 2;
+		player_run();
+		return;
 	}
 };
 
@@ -1074,7 +1081,7 @@ void() W_Attack =
 	if (W_CheckNoAmmo())
 		return;
 
-	if (self.rtime > 0)
+	if (self.rtime > time)
 		return;
 
 	if (weap >= 0 && weap <= 4)
@@ -1099,9 +1106,9 @@ void() W_Attack =
 	else if (weap == 12)
 		W_FireShotgun (1, 5, 6, 160, 3000, 1);
 	else if (weap == 13)
-		FireSMG(12, 2, "weapons/mp9.wav", 2000, 0.06);
+		FireSMG(12, 2, "weapons/mp9.wav", 2000, 0.1);
 	else if (weap == 14)
-		FireSMG(12, 2, "weapons/mp7.wav", 2000, 0.06);
+		FireSMG(12, 2, "weapons/mp7.wav", 2000, 0.1);
 	else if (weap == 15)
 		FireAssaultRifle(14, 2, "weapons/rangem.wav", 4000, 0.5);
 	else if (weap == 16)
@@ -1265,6 +1272,7 @@ void () ProneOff =
 {
 	sprint (self, 2, "position: stand.\n");
 	self.position = 0;
+	PositionControl();
 	player_run ();
 };
 
@@ -1285,6 +1293,7 @@ void () ProneOn =
 	self.position = 2;
 	self.view_ofs = '0 0 -10';
 	sprint (self, 2, "position: prone.\n");
+	PositionControl();
 };
 
 
@@ -1292,6 +1301,7 @@ void () DuckOff =
 {
 	sprint (self, 2, "position: stand.\n");
 	self.position = 0;
+	PositionControl();
 	player_run ();
 };
 
@@ -1309,8 +1319,8 @@ void () DuckOn =
 
 	self.maxspeed = (self.maxspeed * 0.50);
 	self.position = 1;
-	self.view_ofs = '0 0 12';
 	sprint (self, 2, "position: duck.\n");
+	PositionControl();
 };
 
 
@@ -2189,14 +2199,13 @@ void (float dam, float rec, string snd, float rng, float rate) FireSMG =
 
 void (float dam, float rec, string snd, float rng, float rate) FireAssaultRifle =
 {
-      local float var, var1, var2, zdif, xdif, ydif, true;
+      local float var, var1, var2, zdif, xdif, ydif, true, z;
       local vector dir, source, targ, org, org2, adjust;
 	local string x;
 
 	sound (self, CHAN_WEAPON, snd, 1, ATTN_NORM);
 
 	self.attack_finished = (time + rate);
-
 
 	if (self.attack == 0 && self.position == POS_STAND)
 		player_single1 ();
@@ -2213,7 +2222,6 @@ void (float dam, float rec, string snd, float rng, float rate) FireAssaultRifle 
 		adjust = '0 0 -16';
 	if (self.position == 2)
 		adjust = '0 0 -32';
-
 
 	DropAmmo ();
 	makevectors (self.v_angle);
@@ -2241,9 +2249,17 @@ void (float dam, float rec, string snd, float rng, float rate) FireAssaultRifle 
 
 	var = 50;
 
-	if (self.velocity != '0 0 0')
-		var = 400;
+	if (self.velocity_y < 0)
+		z = z + (self.velocity_y*-1);
+	else if (self.velocity_y > 0)
+		z = z + (self.velocity_y);
 
+	if (self.velocity_x < 0)
+		z = z + (self.velocity_x*-1);
+	else if (self.velocity_x > 0)
+		z = z + (self.velocity_x);
+
+	var = var + z;
 	var = var + (40 * self.recoil);
 
 	if (self.attack <= 3 && self.position == 1 && self.velocity_z == 0)
@@ -2272,16 +2288,18 @@ void (float dam, float rec, string snd, float rng, float rate) FireAssaultRifle 
 		ydif = org2_y - trace_ent.origin_y;
 		xdif = org2_x - trace_ent.origin_x;
 		true = 0;
-		if (((ydif >= CONTENT_SKY) && (ydif <= TE_LIGHTNING2)))
+		if (ydif >= -6 && ydif <= 6)
 			true = 1;
-		if (((xdif >= CONTENT_SKY) && (xdif <= TE_LIGHTNING2)))
+		if (xdif >= -6 && xdif <= 6)
 			true = 1;
 		if (self.attack <= 5 && true == 1 && zdif >= (trace_ent.size_z / 2 * 0.8))
 			self.critical = 3;
 
 		dam = (dam * (1 - trace_fraction));
-		if (trace_ent.solid != SOLID_BSP)
+		if (trace_ent.solid != SOLID_BSP && self.critical == 3)
 			SpawnBlood (org, 1);
+		else
+			SpawnBlood (org, 0.5);
 
 		if (trace_ent.solid == SOLID_BSP)
 			SpawnWood (trace_ent, org, 1);
@@ -2928,7 +2946,7 @@ void() UseChem =
 	if (self.chemcount == 0)
 		self.chem = 0;
 
-	self.rtime = 100;
+	self.rtime = time + 1;
 };
 
 void() Bandage =
@@ -3890,7 +3908,13 @@ void (vector s_aim, float dam, float var, float ran) W_FireBuckshotSpread1 =
 	local float true;
 
 	makevectors (self.v_angle);
-	source = (self.origin + '0 0 20');
+	if (self.position == 0)
+		source = (self.origin + '0 0 20');
+	if (self.position == 1)
+		source = (self.origin + '0 0 4');
+	if (self.position == 2)
+		source = (self.origin + '0 0 -12');
+
 	targ = ((((((s_aim + ((v_right * random ()) * var)) - ((v_right * random ()) * var)) + ((v_up * random ()) * var)) - ((v_up * random ()) * var)) + (((v_up * random ()) * var) * 0.5)) + (v_forward * ran));
 	traceline (source, targ, FALSE, self);
 	if ((trace_fraction == 1))
@@ -3994,12 +4018,7 @@ void (float rec, float number, float dam, float var, float ran, float auto) W_Fi
 	sound (self, CHAN_WEAPON, "weapons/shotgun1.wav", 1.5, ATTN_NORM);
 
 	
-	if (self.position == 0)
-		p_aim = (((((self.origin + '0 0 20' + adjust) + (v_right * var1)) - (v_right * var2)) + (v_up * var3)) - (v_up * var4));
-	else if (self.position == 1)
-		p_aim = (((((self.origin + '0 0 4' + adjust) + (v_right * var1)) - (v_right * var2)) + (v_up * var3)) - (v_up * var4));
-	else if (self.position == 2)
-		p_aim = (((((self.origin + '0 0 -12' + adjust) + (v_right * var1)) - (v_right * var2)) + (v_up * var3)) - (v_up * var4));
+	p_aim = (((((self.origin + '0 0 20') + (v_right * var1)) - (v_right * var2)) + (v_up * var3)) - (v_up * var4));
 
 	msg_entity = self;
 	WriteByte (MSG_ONE, SVC_BIGKICK);
@@ -4008,26 +4027,15 @@ void (float rec, float number, float dam, float var, float ran, float auto) W_Fi
 	self.recoil = (self.recoil + 8);
 	Crosshair();
 
-	if ((self.recoil >= 30))
-	{
+	if (self.recoil >= 30)
 		self.recoil = 30;
-	}
-	if ((auto == 0))
-	{
+
+	if (auto == 0)
 		self.attack_finished = (time + 0.5);
-	}
-	if ((auto == 1))
-	{
+
+	if (auto == 1)
 		self.attack_finished = (time + 0.2);
-	}
-	if ((weap == DRAW4))
-	{
-		self.attack_finished = (time + 0.75);
-	}
-	if ((weap == IDLE2A))
-	{
-		self.attack_finished = (time + 0.4);
-	}
+
 	dir = aim (self, 10000);
 	var = SVC_INTERMISSION;
 	if ((number == MULTICAST_PVS_R))

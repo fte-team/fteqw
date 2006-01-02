@@ -184,11 +184,9 @@ void (float wt, float cost, float item) BuyWeapon =
 
 		if (self.slot2 == 0)
 			self.slot2 = self.slot1;
-		if (self.slot1 != 0)
-		{
-			DropWeapon (self.slot1, 1, 0);
-			self.slot1 = 0;
-		}
+		if (self.slot2 != 0)
+			DropWeapon (self.slot2, 1, 0);
+		
 		GetWeaponModel ();
 	}
 	if ((self.current_slot == 2))
@@ -197,9 +195,9 @@ void (float wt, float cost, float item) BuyWeapon =
 
 		if (self.slot1 == 0)
 			self.slot1 = self.slot2;
-		if (self.slot2 != 0)
+		if (self.slot1 != 0)
 		{
-			DropWeapon (self.slot2, 1, 0);
+			DropWeapon (self.slot1, 1, 0);
 			self.slot2 = 0;
 		}
 
@@ -592,11 +590,11 @@ void() W_PlayerMenu =
 		if (self.impulse == 3)
                   BuyWeapon(2, 9, 7);         //weight, cost, item
 		if (self.impulse == 4)
-                  BuyWeapon(2, 21, 8);         //weight, cost, item
-		if (self.impulse == 5)
                   BuyWeapon(3, 14, 13);         //weight, cost, item
-		if (self.impulse == 6)
+		if (self.impulse == 5)
                   BuyWeapon(3, 17, 14);         //weight, cost, item
+		if (self.impulse == 6)
+                  BuyWeapon(2, 21, 8);         //weight, cost, item
 
 			return;
 	}

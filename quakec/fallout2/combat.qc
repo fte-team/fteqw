@@ -75,6 +75,9 @@ void(entity targ, entity attacker) Killed =
 
 	self.enemy = attacker;
 
+	targ.grab = 0;
+	targ.equipment_state = 0;         //turn off stealth-boys, climbing gear, etc
+
 // bump the monster counter
 	if (self.flags & FL_MONSTER)
 	{
@@ -84,6 +87,9 @@ void(entity targ, entity attacker) Killed =
 
 	ClientObituary(self, attacker);
 	
+	if (self.classname == "player")  //so dead players can spectate
+		self.ghost = 1;
+
 	self.takedamage = DAMAGE_NO;
 	self.touch = SUB_Null;
 	self.effects = 0;
@@ -277,7 +283,7 @@ void(entity targ, entity inflictor, entity attacker, float damage) T_Damage =
 		if (self != attacker && attacker != self.enemy)
 		{
 			if ( (self.classname != attacker.classname) 
-			|| (self.classname == "monster_army" ) )
+			|| (self.classname == "monster" ) )
 			{
 				if (self.enemy.classname == "player")
 					self.oldenemy = self.enemy;

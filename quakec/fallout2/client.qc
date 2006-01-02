@@ -485,6 +485,7 @@ void() PutClientInServer =
 	self.movetype = MOVETYPE_WALK;
 	self.show_hostile = 0;
 	self.max_health = 100;
+	self.health = 100;
 	self.flags = FL_CLIENT;
 	self.air_finished = time + 12;
 	self.dmg = 2;                   // initial water damage
@@ -520,6 +521,17 @@ void() PutClientInServer =
 	self.origin = spot.origin + '0 0 1';
 	self.angles = spot.angles;
 	self.fixangle = TRUE;           // turn this way immediately
+
+	if (self.class == 1)
+		self.max_health = 80;
+	if (self.class == 2)
+		self.max_health = 80;
+	if (self.class == 3)
+		self.max_health = 100;
+	if (self.class == 4)
+		self.max_health = 60;
+
+	self.health = self.max_health;
 
 // oh, this is a hack!
 	setmodel (self, "progs/eyes.mdl");
@@ -759,12 +771,75 @@ void() CheckRules =
 		NextLevel ();
 };
 
+
+void () LocateSpectatorTarget =
+{
+	local float playercnt;
+	local float total;
+	local float player;
+	local entity ke;
+	local entity de;
+
+	if (self.ghost == 1)
+	{
+		ke = find (world, classname, "player");
+		de = find (world, classname, "player");
+		total = CONTENT_EMPTY;
+		player = MULTICAST_ALL;
+		playercnt = MULTICAST_ALL;
+		while (ke)
+		{
+			if (((ke.classname == "player") && (ke.ghost == MULTICAST_ALL)))
+			{
+				total = (total + 1);
+			}
+			ke = find (ke, classname, "player");
+		}
+		while (de)
+		{
+			if (((de.classname == "player") && (de.ghost == MULTICAST_ALL)))
+			{
+				if ((player == self.ghostcnt))
+				{
+					makevectors (de.angles);
+					self.view2 = de;
+					self.ghostcnt = (self.ghostcnt + 1);
+					self.cnt = 0;
+					sprint(self, 2, "now following ");
+					sprint(self, 2, de.netname);
+					sprint(self, 2, ".\n");
+
+					if ((self.ghostcnt > total))
+						self.ghostcnt = 0;
+
+					return;
+				}
+				player = (player + 1);
+				if ((self.ghostcnt > total))
+				{
+					self.ghostcnt = 0;
+				}
+			}
+			de = find (de, classname, "player");
+		}
+		if (player == 0)
+		{
+			self.view2 = world;
+			centerprint (self, "No players found...\n");
+			return;
+		}
+	}
+};
+
 //============================================================================
 
 void() PlayerDeathThink =
 {
 	local entity    old_self;
 	local float             forward;
+
+	self.modelindex = modelindex_dead;
+
 
 	if ((self.flags & FL_ONGROUND))
 	{
@@ -789,10 +864,16 @@ void() PlayerDeathThink =
 	if (!self.button2 && !self.button1 && !self.button0)
 		return;
 
+	if (self.dtime < time)
+	{
+		LocateSpectatorTarget();
+		self.dtime = time + 1;
+	}
+
 	self.button0 = 0;
 	self.button1 = 0;
 	self.button2 = 0;
-	respawn();
+	//respawn();
 };
 
 
@@ -1110,7 +1191,14 @@ void() PlayerPreThink =
 		DisplayMenu ();
 	}
 
-	self.recoil = self.recoil - 0.2;
+	if (self.class == 1)
+		self.recoil = self.recoil - 0.16;
+	if (self.class == 2)
+		self.recoil = self.recoil - 0.14;
+	if (self.class == 3)
+		self.recoil = self.recoil - 0.12;
+	if (self.class == 4)
+		self.recoil = self.recoil - 0.19;
 
 	if (self.recoil <= 0)
 		self.recoil = 0;
@@ -1132,6 +1220,14 @@ void() PlayerPreThink =
 		if (self.health > self.max_health)
 			self.health = self.max_health;
 
+
+		if (self.ragetime > time)
+			stuffcmd(self, "v_cshift 75 0 0 75\n");
+		else if (self.sneak > 0)
+			stuffcmd(self, "v_cshift 0 75 0 75\n");
+		else
+			stuffcmd(self, "v_cshift 0 0 0 0\n");
+
 		self.cycle1 = time + 0.5;
 	}
 
@@ -1152,7 +1248,7 @@ void() PlayerPreThink =
 		}
 		if (self.sneak >= 1)
 		{
-			self.ammo_cells = self.ammo_cells = 1;
+			self.ammo_cells = self.ammo_cells - 1;
 
 			if (self.ammo_cells <= 0)
 			{
@@ -1422,14 +1518,9 @@ void() PlayerPostThink =
 
 	self.jump_flag = self.velocity_z;
 
-	if (self.rtime >= 1)
-	{
+	if (self.rtime > time)
 		self.weaponframe = 3;
-		self.rtime = (self.rtime - 1);
-
-		if (self.perk == 3)
-			self.rtime = (self.rtime - 1);
-	}
+		
 
 	CheckPowerups ();
 

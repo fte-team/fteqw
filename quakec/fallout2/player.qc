@@ -160,7 +160,7 @@ void () player_run = [ 137, player_run ]
 {
 	local float crap;
 
-	if (self.rtime == 0)
+	if (self.rtime < time)
 		self.weaponframe = 0;
 
 	if (self.equipment == 7 && self.equipment_state == 1 && self.grab == 1 && !(self.flags & FL_ONGROUND))
@@ -204,13 +204,6 @@ void () player_run = [ 137, player_run ]
 
 void () player_reload1 = [ 123, player_reload2 ]
 {
-	if (self.current_slot == 1 && self.slot1 == 26)
-		sound (self, CHAN_WEAPON, "weapons/shell.wav", WEAPON_SHOTGUN, ATTN_NORM);
-	else if (self.current_slot == 2 && self.slot2 == 26)
-		sound (self, CHAN_WEAPON, "weapons/shell.wav", WEAPON_SHOTGUN, ATTN_NORM);
-	else
-		sound (self, CHAN_WEAPON, "misc/greload.wav", WEAPON_SHOTGUN, ATTN_NORM);
-
 };
 
 void () player_reload2 = [ 124, player_reload3 ]
@@ -268,7 +261,6 @@ void () player_reload14 = [ 136, player_run ]
 
 void () player_creload1 = [ 74, player_creload2 ]
 {
-	sound (self, CHAN_WEAPON, "misc/greload.wav", WEAPON_SHOTGUN, ATTN_NORM);
 };
 
 void () player_creload2 = [ 75, player_creload3 ]

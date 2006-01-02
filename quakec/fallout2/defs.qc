@@ -562,6 +562,8 @@ float          blue_armor;
 float          red_armor;
 
 .float          ghost;
+.float          ghostcnt;
+.float          dtime;
 .float          active;
 .float          class;
 .float          vote1;

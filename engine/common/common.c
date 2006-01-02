@@ -2135,7 +2135,7 @@ void COM_CheckRegistered (void)
 	unsigned short	check[128];
 	int			i;
 
-	h = FS_OpenVFS("gfx/pop.lmp", "r", FS_GAME);
+	h = FS_OpenVFS("gfx/pop.lmp", "rb", FS_GAME);
 	static_registered = false;
 
 	if (!h)
@@ -2627,7 +2627,7 @@ void Info_SetValueForStarKey (char *s, const char *key, const char *value, int m
 		return;
 	}
 
-	if (strlen(key) >= MAX_INFO_KEY || strlen(value) >= MAX_INFO_KEY)
+	if (strlen(key) >= MAX_INFO_KEY)// || strlen(value) >= MAX_INFO_KEY)
 	{
 		Con_TPrintf (TL_KEYTOOLONG);
 		return;

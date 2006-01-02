@@ -171,7 +171,7 @@ int PM_SlideMove (void)
 			if (movevars.walljump == 2)	//just bounce off!
 			{	//pinball
 				PM_ClipVelocity (original_velocity, planes[i], pmove.velocity, 2);
-				return 0;
+				return blocked;
 			}
 			//regular run at a wall and jump off
 			if (movevars.walljump && planes[i][2] != 1	//not on floors
@@ -183,7 +183,7 @@ int PM_SlideMove (void)
 				pmove.jump_msec = pmove.cmd.msec;
 				pmove.jump_held = true;
 				pmove.waterjumptime = 0;
-				return 0;
+				return blocked;
 			}
 			PM_ClipVelocity (original_velocity, planes[i], pmove.velocity, 1);
 			for (j=0 ; j<numplanes ; j++)

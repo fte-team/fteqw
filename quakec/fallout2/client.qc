@@ -37,7 +37,7 @@ void() info_intermission =
 
 void() SetChangeParms =
 {
-	if (self.armor <= 0)
+	if (self.health <= 0)
 	{
 		SetNewParms ();
 		return;
@@ -47,62 +47,114 @@ void() SetChangeParms =
 	self.items = self.items - (self.items & 
 	(IT_KEY1 | IT_KEY2 | IT_INVISIBILITY | IT_INVULNERABILITY | IT_SUIT | IT_QUAD) );
 	
-	parm1 = self.slot1;
-	parm2 = self.slot2;
-	parm3 = self.armor;
-	parm4 = self.protect;
-	parm5 = self.equipment;
-	parm6 = self.chem;
-	parm7 = self.chemcount;
-	parm8 = self.ammo_shells;
-	parm9 = self.trait;
-	parm10 = self.perk;
-	parm11 = self.bandages;
-	parm12 = self.scraps;
-	//parm13 = self.class;
-	parm14 = self.team;
-	parm15 = self.grenadetype;
+// cap super health
+	if (self.health > 100)
+		self.health = 100;
+	if (self.health < 50)
+		self.health = 50;
+	parm1 = self.items;
+	parm2 = self.health;
+	parm3 = self.armorvalue;
+	if (self.ammo_shells < 25)
+		parm4 = 25;
+	else
+		parm4 = self.ammo_shells;
+	parm5 = self.ammo_nails;
+	parm6 = self.ammo_rockets;
+	parm7 = self.ammo_cells;
+	parm8 = self.weapon;
+	parm9 = self.armortype * 100;
 
 
+
+
+	parm16 = self.current_slot;
+	parm17 = self.islot1;
+	parm18 = self.islot2;
+	parm19 = self.islot3;
+	parm20 = self.islot4;
+	parm21 = self.islot5;
+	parm22 = self.islot6;
+	parm23 = self.islot7;
+	parm24 = self.islot8;
+	parm25 = self.islot9;
+	parm26 = self.islot10;
+	parm27 = self.islot11;
+	parm28 = self.islot12;
+	parm29 = self.islot13;
+	parm30 = self.islot14;
+	parm31 = self.islot15;
+	parm32 = self.islot16;
 };
 
 void() SetNewParms =
-{
-	parm1 = 5;
-	parm2 = 1;
-	parm3 = 1;
-	parm4 = 0;
+{	//remember, don't use self!
+	parm1 = IT_SHOTGUN | IT_AXE;
+	parm2 = 100;
+	parm3 = 0;
+	parm4 = 25;
 	parm5 = 0;
 	parm6 = 0;
 	parm7 = 0;
-	parm8 = 8;
+	parm8 = 1;
 	parm9 = 0;
-	parm10 = 0;
-	parm11 = 0;
-	parm12 = 0;
-	//parm13 = 0;
-	parm14 = 0;
-	parm15 = 0;
+
+
+	parm16 = 1;
+	parm17 = SlotVal(IID_WP_AK74, 30);
+	parm18 = SlotVal(IID_GREN_SMOKE, 500);
+	parm19 = SlotVal(IID_ARM_LEATHER, 1);
+	parm20 = SlotVal(IID_AM_AK74, 120);
+	parm21 = SlotVal(IID_AM_MOONLIGHT, 120);
+	parm22 = 0;
+	parm23 = SlotVal(IID_WP_TOOLKIT, 1);
+	parm24 = SlotVal(IID_WP_MOONLIGHT, 30);
+	parm25 = 0;
+	parm26 = SlotVal(IID_CHEM_STIMPACK, 3);
+	parm27 = SlotVal(IID_BUILD_MRAMMO, 3);
+	parm28 = SlotVal(IID_BUILD_AUTODOC, 3);
+	parm29 = 0;
+	parm30 = 0;
+	parm31 = 0;
+	parm32 = 0;
 };
 
 void() DecodeLevelParms =
-{	
-	self.slot1 = parm1;
-	self.slot2 = parm2;
-	self.armor = parm3;
-	self.protect = parm4;
-	self.equipment = parm5;
-	self.chem = parm6;
-	self.chemcount = parm7;
-	self.ammo_shells = parm8;
-	self.trait = parm9;
-	self.perk = parm10;
-	self.bandages = parm11;
-	self.scraps = parm12;
-	//self.class = parm13;
-	self.oldteam = parm14;
-	self.grenadetype = parm15;
+{
+	if (serverflags)
+	{
+		if (world.model == "maps/start.bsp")
+			SetNewParms ();         // take away all stuff on starting new episode
+	}
+	
+	self.items = parm1;
+	self.health = parm2;
+	self.armorvalue = parm3;
+	self.ammo_shells = parm4;
+	self.ammo_nails = parm5;
+	self.ammo_rockets = parm6;
+	self.ammo_cells = parm7;
+	self.weapon = parm8;
+	self.armortype = parm9 * 0.01;
 
+
+	self.current_slot = parm16;
+	self.islot1 = parm17;
+	self.islot2 = parm18;
+	self.islot3 = parm19;
+	self.islot4 = parm20;
+	self.islot5 = parm21;
+	self.islot6 = parm22;
+	self.islot7 = parm23;
+	self.islot8 = parm24;
+	self.islot9 = parm25;
+	self.islot10= parm26;
+	self.islot11= parm27;
+	self.islot12 = parm28;
+	self.islot13 = parm29;
+	self.islot14 = parm30;
+	self.islot15 = parm31;
+	self.islot16 = parm32;
 };
 
 /*
@@ -138,6 +190,7 @@ entity() FindIntermission =
 		return spot;
 	
 	objerror ("FindIntermission: no spot");
+	return world;
 };
 
 
@@ -419,63 +472,6 @@ void() PlayerDie;
 
 /*
 ===========
-ValidateUser
-
-
-============
-*/
-float(entity e) ValidateUser =
-{
-/*
-	local string    s;
-	local string    userclan;
-	local float     rank, rankmin, rankmax;
-
-//
-// if the server has set "clan1" and "clan2", then it
-// is a clan match that will allow only those two clans in
-//
-	s = serverinfo("clan1");
-	if (s)
-	{
-		userclan = masterinfo(e,"clan");
-		if (s == userclan)
-			return true;
-		s = serverinfo("clan2");
-		if (s == userclan)
-			return true;
-		return false;
-	}
-
-//
-// if the server has set "rankmin" and/or "rankmax" then
-// the users rank must be between those two values
-//
-	s = masterinfo (e, "rank");
-	rank = stof (s);
-
-	s = serverinfo("rankmin");
-	if (s)
-	{
-		rankmin = stof (s);
-		if (rank < rankmin)
-			return false;
-	}
-	s = serverinfo("rankmax");
-	if (s)
-	{
-		rankmax = stof (s);
-		if (rankmax < rank)
-			return false;
-	}
-
-	return true;
-*/
-};
-
-
-/*
-===========
 PutClientInServer
 
 called each time a player enters a new level
@@ -508,15 +504,11 @@ void() PutClientInServer =
 	self.materialize = 200;
 
 	DecodeLevelParms ();
-	
-	W_SetCurrentAmmo ();
 
 	self.attack_finished = time;
 	self.th_pain = player_pain;
 	self.th_die = PlayerDie;
-	self.current_slot = 1;
-	WeaponAmmo(1);
-	WeaponAmmo(2);
+
 	self.deadflag = DEAD_NO;
 // paustime is set by teleporters to keep the player from moving a while
 	self.pausetime = 0;
@@ -625,7 +617,7 @@ void() PutClientInServer =
 		self.invincible_finished = time + 3;
 	}
 
-
+	W_SetCurrentAmmo();
 };
 
 
@@ -1052,46 +1044,49 @@ void() ArmorCheck =
 	local float bit;
 	local float value;
 
+	local float aid;
+
 	//Armor
-	if (self.armor == 1)
+	aid = ToIID(self.islot3);
+	if (aid == IID_ARM_SHIRT)
 		type = 0.20;
-	if (self.armor == 2)
+	if (aid == IID_ARM_LEATHER)
 		type = 0.30;
-	if (self.armor == 3)
+	if (aid == IID_ARM_KEVLAR)
 		type = 0.35;
-	if (self.armor == 4)
+	if (aid == IID_ARM_METAL)
 		type = 0.35;
-	if (self.armor == 5)
+	if (aid == IID_ARM_COMBAT)
 		type = 0.40;
-	if (self.armor == 6)
+	if (aid == IID_ARM_BROTHERHOOD)
 		type = 0.45;
-	if (self.armor == 7)
+	if (aid == IID_ARM_FORCE)
 		type = 0.10;
-	if (self.armor == 8)
+	if (aid == IID_ARM_LPOWER)
 		type = 0.50;
 
-	if (self.armor <= 3)
+	if (aid <= IID_ARM_KEVLAR)
 		self.items = (self.items - (self.items & ((IT_ARMOR1 | IT_ARMOR2) | IT_ARMOR3)) + IT_ARMOR1);
-	else if (self.armor <= 6)
+	else if (aid <= IID_ARM_BROTHERHOOD)
 		self.items = (self.items - (self.items & ((IT_ARMOR1 | IT_ARMOR2) | IT_ARMOR3)) + IT_ARMOR1);
 	else
 		self.items = (self.items - (self.items & ((IT_ARMOR1 | IT_ARMOR2) | IT_ARMOR3)) + IT_ARMOR1);
 
-	if (self.armor == 1)
+	if (aid == 1)
 		self.armornoise = "misc/thud.wav";
-	if (self.armor == 2)
+	if (aid == 2)
 		self.armornoise = "misc/thud.wav";
-	if (self.armor == 3)
+	if (aid == 3)
 		self.armornoise = "misc/thud.wav";
-	if (self.armor == 4)
+	if (aid == 4)
 		self.armornoise = "weapons/ric1.wav";
-	if (self.armor == 5)
+	if (aid == 5)
 		self.armornoise = "misc/thud.wav";
-	if (self.armor == 6)
+	if (aid == 6)
 		self.armornoise = "misc/thud.wav";
-	if (self.armor == 7)
+	if (aid == 7)
 		self.armornoise = "misc/laserdef.wav";
-	if (self.armor == 8)
+	if (aid == 8)
 		self.armornoise = "weapons/ric1.wav";
 
 	self.armorvalue = type * 100;
@@ -1100,10 +1095,26 @@ void() ArmorCheck =
 
 void () WeightControl =
 {
+	//for each inventory item, add up it's weight.
+	local float wt;
+	wt = wt + GetItemsWeight(self.islot1);
+	wt = wt + GetItemsWeight(self.islot2);
+	wt = wt + GetItemsWeight(self.islot3);
+	wt = wt + GetItemsWeight(self.islot4);
+	wt = wt + GetItemsWeight(self.islot5);
+	wt = wt + GetItemsWeight(self.islot6);
+	wt = wt + GetItemsWeight(self.islot7);
+	wt = wt + GetItemsWeight(self.islot8);
+	wt = wt + GetItemsWeight(self.islot9);
+	wt = wt + GetItemsWeight(self.islot10);
+	wt = wt + GetItemsWeight(self.islot11);
+	wt = wt + GetItemsWeight(self.islot12);
+	wt = wt + GetItemsWeight(self.islot13);
+	wt = wt + GetItemsWeight(self.islot14);
+	wt = wt + GetItemsWeight(self.islot15);
+	wt = wt + GetItemsWeight(self.islot16);
 
-	GetArmorWeight();
-	GetWeaponWeight(self, 1);
-	GetWeaponWeight(self, 2);
+	self.weight = wt;
 
 	if (self.class == 1)
 		self.max_weight = 20;
@@ -1525,7 +1536,6 @@ void() PlayerPostThink =
 
 	if (self.rtime > time)
 		self.weaponframe = 3;
-		
 
 	CheckPowerups ();
 
@@ -1666,8 +1676,8 @@ void(entity targ, entity attacker) ClientObituary =
 			bprint (PRINT_MEDIUM, "& ");
 		if (attacker.velocity_z != 0)
 			bprint (PRINT_MEDIUM, "@ ");
-		if (attacker.current_slot == 1 && attacker.mag1 == 0)
-			bprint (PRINT_MEDIUM, "! ");
+//		if (attacker.current_slot == 1 && attacker.mag1 == 0)
+//			bprint (PRINT_MEDIUM, "! ");
 
 			bprint (PRINT_MEDIUM, "] ");
 
@@ -1965,43 +1975,30 @@ void(entity targ, entity attacker) ClientObituary =
 void() Identify =
 {
 	local string c1, c2, c3, c5, c6, c7;
+	local float tmp;
 
 	makevectors (self.v_angle);
 	traceline (self.origin, (self.origin + (v_forward * 2000)), FALSE, self);
 	if (trace_ent.classname == "player" && self.currentmenu == "none" && self.team == trace_ent.team)
 	{
 		if (trace_ent.class == 2)
-			c1 = "medic\n";
+			c1 = "\nmedic\n";
 		if (trace_ent.class == 3)
-			c1 = "assassin\n";
+			c1 = "\nassassin\n";
 		if (trace_ent.class == 4)
-			c1 = "soldier\n";
+			c1 = "\nsoldier\n";
 		if (trace_ent.class == 6)
-			c1 = "scientist\n";
+			c1 = "\nscientist\n";
 
 		c2 = ftos (trace_ent.health);
-		c3 = GetWeaponName (trace_ent, trace_ent.current_slot);
+		c3 = GetItemName (ToIID(ItemInSlot(trace_ent, trace_ent.current_slot)));
 
-		if (trace_ent.armor == 0)
-			c5 = "\nno armor";
-		if (trace_ent.armor == 1)
-			c5 = "\nlightly armored";
-		if (trace_ent.armor == 2)
-			c5 = "\nleather armor";
-		if (trace_ent.armor == 3)
-			c5 = "\nkevlar armor";
-		if (trace_ent.armor == 4)
-			c5 = "\nmetal armor";
-		if (trace_ent.armor == 5)
-			c5 = "\ncombat armor";
-		if (trace_ent.armor == 6)
-			c5 = "\nbrotherhood armor";
-		if (trace_ent.armor == 7)
-			c5 = "\nforce armor";
-		if (trace_ent.armor == 8)
-			c5 = "\nmetal armor mkii";
+		if (trace_ent.islot3 == 0)
+			c5 = "no armor";
+		else
+			c5 = GetItemName(ToIID(trace_ent.islot3));
 
-		centerprint7 (self, trace_ent.netname, "\n", c1, c2, "\n", c3, c5);
+		centerprint (self, trace_ent.netname, c1, c2, "\n", c3, "\n", c5);
 	}
 	if (trace_ent.classname == "robowolf" && self.currentmenu == "none")
 	{
@@ -2013,12 +2010,12 @@ void() Identify =
 		else
 			c5 = "\nhostile\n";
 
-		centerprint7 (self, trace_ent.netname, c1, c2, c3, c5, "", "");
+		centerprint (self, trace_ent.netname, c1, c2, c3, c5, "", "");
 	}
 	if (trace_ent.classname == "station" && self.currentmenu == "none")
 	{
 		c1 = trace_ent.netname;
-		if (self.armor == 0)
+		if (self.armortype == 0)
 			c2 = "uncompleted";
 		else if (trace_ent.health >= trace_ent.max_health)
 			c2 = "online";
@@ -2031,28 +2028,19 @@ void() Identify =
 
 		c3 = trace_ent.track.netname;
 
-		centerprint7 (self, c1, "\nstationary bot", "\n", c2, "\n", "owned by ", c3);
+		centerprint (self, c1, "\nstationary bot", "\n", c2, "\n", "owned by ", c3);
 	}
 	if (trace_ent.classname == "monster" && self.currentmenu == "none")
 	{
 		c1 = "hostile";
-		c2 = "natural armor";
-		if (trace_ent.armor == 1)
+
+		tmp = ToIID(trace_ent.islot3);
+		if (tmp == 0)
+			c2 = "natural armor";
+		else if (tmp == IID_ARM_SHIRT)
 			c2 = "lightly armored";
-		if (trace_ent.armor == 2)
-			c2 = "leather armor";
-		if (trace_ent.armor == 3)
-			c2 = "kevlar armor";
-		if (trace_ent.armor == 4)
-			c2 = "metal armor";
-		if (trace_ent.armor == 5)
-			c2 = "combat armor";
-		if (trace_ent.armor == 6)
-			c2 = "brotherhood armor";
-		if (trace_ent.armor == 7)
-			c2 = "force armor";
-		if (trace_ent.armor == 8)
-			c2 = "metal armor mkii";
+		else
+			c2 = GetItemName(ToIID(trace_ent.islot3));
 
 		if (trace_ent.weapon == 1)
 			c3 = "rifle";
@@ -2065,6 +2053,6 @@ void() Identify =
 		if (trace_ent.weapon >= 5)
 			c3 = "assault rifle";
 
-		centerprint7 (self, trace_ent.netname, "\n", c1, "\n", c2, "\n", c3);
+		centerprint (self, trace_ent.netname, "\n", c1, "\n", c2, "\n", c3);
 	}
 };

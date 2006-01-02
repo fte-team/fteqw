@@ -274,50 +274,67 @@ void() item_health =
 };
 
 
-void () health_touch =
+void() health_touch =
 {
-	local float amount;
-	local string s;
+	local   float amount;
+	local   string  s;
+	
+	if (deathmatch == 4)
+		if (other.invincible_time > 0)
+			return;
 
-	if (other.classname != "player" || other.ghost != 0)
+	if (other.classname != "player")
 		return;
-
-	if (other.classname == "player")
+	
+	if (self.healtype == 2) // Megahealth?  Ignore max_health...
 	{
-		if (self.healtype == H_MEGA)
+		if (other.health >= 250)
 			return;
-
-		if (other.ghost != 0)
+		if (!T_Heal(other, self.healamount, 1))
 			return;
-
-		if (other.chem == 0)
-			other.chem = 1;
-
-		if (other.chem > 1)
-			return;
-
-		if (other.equipment == 4 && other.chemcount >= 4)
-			return;
-
-		if (other.equipment != 4 && other.chemcount >= 2)
-			return;
-
-		sprint (other, PRINT_HIGH, "picked up a stimpack.\n");
-		other.chemcount = other.chemcount + 1;
-
-		if (random()*4 <= 2)
-			sound (other, CHAN_ITEM, "misc/item1.wav", 1, ATTN_NORM);
-		else
-			sound (other, CHAN_ITEM, "misc/item2.wav", 1, ATTN_NORM);
-
-		self.model = string_null;
-		self.solid = SOLID_NOT;
-		return;
 	}
+	else
+	{
+		if (!T_Heal(other, self.healamount, 0))
+			return;
+	}
+	
+	sprint(other, PRINT_LOW, "You receive ");
+	s = ftos(self.healamount);
+	sprint(other, PRINT_LOW, s);
+	sprint(other, PRINT_LOW, " health\n");
+	
+// health touch sound
+	sound(other, CHAN_ITEM, self.noise, 1, ATTN_NORM);
 
+	stuffcmd (other, "bf\n");
+	
+	self.model = string_null;
+	self.solid = SOLID_NOT;
+
+	// Megahealth = rot down the player's super health
+	if (self.healtype == 2)
+	{
+		other.items = other.items | IT_SUPERHEALTH;
+		if (deathmatch != 4)
+		{
+			self.nextthink = time + 5;
+			self.think = item_megahealth_rot;
+		}
+		self.owner = other;
+	}
+	else
+	{
+		if (deathmatch != 2)            // deathmatch 2 is the silly old rules
+		{
+			self.nextthink = time + 20;
+			self.think = SUB_regen;
+		}
+	}
+	
 	activator = other;
-	SUB_UseTargets ();
-};
+	SUB_UseTargets();                               // fire all targets / killtargets
+};      
 
 void() item_megahealth_rot =
 {

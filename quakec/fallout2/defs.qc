@@ -212,6 +212,14 @@ void            end_sys_globals;                // flag for structure dumping
 void            end_sys_fields;                 // flag for structure dumping
 //================================================
 
+
+
+
+
+float           parm17, parm18, parm18, parm19, parm20, parm21, parm22, parm23, parm24, parm25, parm26, parm27, parm28, parm29, parm30, parm31, parm32;
+
+
+
 /*
 ==============================================================================
 
@@ -226,7 +234,9 @@ void            end_sys_fields;                 // flag for structure dumping
 //
 
 float   FALSE                                   = 0;
+float   false                                   = 0;
 float   TRUE                                    = 1;
+float   true                                    = 1;
 
 // edict.flags
 float   FL_FLY                                  = 1;
@@ -467,8 +477,9 @@ float           timelimit;
 float           fraglimit;
 float           deathmatch;
 float           coop;
-float           rj                      =       1;
+var float           rj                      =       1;
 float           no_connect;
+
 //================================================
 
 //
@@ -581,12 +592,6 @@ float          red_armor;
 .float          attack;
 .float          position;
 .float          recoil;
-.float          ammo1;
-.float          ammo2;
-.float          mag1;
-.float          mag2;
-.float          maxmag1;
-.float          maxmag2;
 .float          critical;
 .float          helmet;
 .float          rtime;
@@ -603,18 +608,15 @@ float          red_armor;
 .float          grenade_hold;
 .float          grab;
 .float          vehicle;
-.float          slot1_weight;
-.float          slot2_weight;
-.float          armor_weight;
+
+.float          weight;
 .float          max_weight;
+
 .float          sneak;
 .float          rescued;
 .float          scale;
 .float          bandages;
 .float          scraps;
-.float          armor;
-.float          slot1;
-.float          slot2;
 .float          cycle1;
 .float          cycle2;
 .float          c4;
@@ -622,8 +624,6 @@ float          red_armor;
 .float          protect;
 .float          perk;
 .float          equipment;
-.float          chem;
-.float          chemcount;
 .float          buildtype;
 .float          ctimer;
 .float          flash;
@@ -747,8 +747,8 @@ string(string s) precache_sound         = #19;
 string(string s) precache_model         = #20;
 void(entity client, string s)stuffcmd = #21;
 entity(vector org, float rad) findradius = #22;
-void(float level, string s) bprint                              = #23;
-void(entity client, float level, string s) sprint = #24;
+void(float level, string s, ...) bprint                              = #23;
+void(entity client, float level, string s, ...) sprint = #24;
 void(string s) dprint                           = #25;
 string(float f) ftos                            = #26;
 string(vector v) vtos                           = #27;
@@ -758,7 +758,7 @@ void() traceoff                                         = #30;
 void(entity e) eprint                           = #31;          // prints an entire edict
 float(float yaw, float dist) walkmove   = #32;  // returns TRUE or FALSE
 // #33 was removed
-float(float yaw, float dist) droptofloor= #34;  // TRUE if landed on floor
+float() droptofloor= #34;  // TRUE if landed on floor
 void(float style, string value) lightstyle = #35;
 float(float v) rint                                     = #36;          // round to nearest int
 float(float v) floor                            = #37;          // largest integer <= v
@@ -802,8 +802,7 @@ void(string s) changelevel = #70;
 
 void(string var, string val) cvar_set = #72;    // sets cvar.value
 
-void(entity client, string s) centerprint = #73;        // sprint, but in middle
-void (entity client, string x1, string x2, string x3, string x4, string x5, string x6, string x7) centerprint7 = #73;
+void(entity client, string s, ...) centerprint = #73;        // sprint, but in middle
 
 void(vector pos, string samp, float vol, float atten) ambientsound = #74;
 
@@ -844,5 +843,8 @@ void(entity targ, entity inflictor, entity attacker, float damage) T_Damage;
 float (entity e, float healamount, float ignore) T_Heal; // health function
 
 float(entity targ, entity inflictor) CanDamage;
+
+
+
 
 

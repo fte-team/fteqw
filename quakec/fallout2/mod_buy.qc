@@ -76,6 +76,7 @@ void() BuyBandages =
 
 void(float cost, float type) BuyChem =
 {
+/*
 	local string x;
 	local float y;
 
@@ -110,6 +111,7 @@ void(float cost, float type) BuyChem =
 	x = GetChemName();
 	sprint (self, PRINT_HIGH, x);
 	sprint(self, PRINT_HIGH, " purchased.\n");
+*/
 };
 
 void(string type) ChangeAmmo =
@@ -169,6 +171,7 @@ void() BuyScraps =
 
 void (float wt, float cost, float item) BuyWeapon =
 {
+/*
 	local float lbs;
 	local string qq;
 	local float curr;
@@ -178,29 +181,31 @@ void (float wt, float cost, float item) BuyWeapon =
 
 	lbs = weightx ();
 
-	if (self.current_slot == 1)
+	if ((self.current_slot == 1))
 	{
 		curr = self.slot1_weight;
 
 		if (self.slot2 == 0)
 			self.slot2 = self.slot1;
-		else if (self.slot2 != 0)
+		if (self.slot2 != 0)
 			DropWeapon (self.slot2, 1, 0);
 		
 		GetWeaponModel ();
 	}
-	if (self.current_slot == 2)
+	if ((self.current_slot == 2))
 	{
 		curr = self.slot2_weight;
 
 		if (self.slot1 == 0)
 			self.slot1 = self.slot2;
-		else if (self.slot1 != 0)
+		if (self.slot1 != 0)
+		{
 			DropWeapon (self.slot1, 1, 0);
+			self.slot2 = 0;
+		}
 
 		GetWeaponModel ();
 	}
-
 	if ((lbs + wt - curr) > self.max_weight)
 	{
 		sprint (self, PRINT_HIGH, "you can't carry that much.\n");
@@ -243,6 +248,7 @@ void (float wt, float cost, float item) BuyWeapon =
 	GetWeaponWeight (self, 2);
 	GetWeaponModel ();
 	return;
+*/
 };
 
 void (float cost, float item) BuyPerk =
@@ -261,6 +267,7 @@ void (float cost, float item) BuyPerk =
 
 void (float wt, float cost, float item) BuyArmor =
 {
+/*
 	local float curr;
 	local float lbs;
 	local string x;
@@ -278,7 +285,7 @@ void (float wt, float cost, float item) BuyArmor =
 		self.currentmenu = "none";
 		return;
 	}
-	if ((((lbs + wt) - self.armor_weight) > self.max_weight))
+	if ((((lbs + wt) - GetItemsWeight(self.islot3)) > self.max_weight))
 	{
 		sprint (self, PRINT_HIGH, "you can't carry that much.\n");
 		self.currentmenu = "none";
@@ -286,13 +293,14 @@ void (float wt, float cost, float item) BuyArmor =
 	}
 	sound (self, CHAN_BODY, "misc/item2.wav", 1, ATTN_NORM);
 	self.ammo_shells = (self.ammo_shells - cost);
-	self.armor_weight = wt;
+//	self.armor_weight = wt;
 	self.armor = item;
 	x = GetArmorName();
 	sprint (self, PRINT_HIGH, x);
 	sprint (self, PRINT_HIGH, " purchased.\n");
 
 	return;
+*/
 };
 
 void (float cost, float item) BuyEquipment =
@@ -320,12 +328,14 @@ void (float cost, float item) BuyProtect =
 {
 	local string x;
 
+/*
 	if ((self.armor >= TE_LIGHTNING2))
 	{
 		sprint (self, PRINT_HIGH, "too many electronics in\nyour currently worn armor!");
 		self.currentmenu = "none";
 		return;
 	}
+*/
 	if ((cost > self.ammo_shells))
 	{
 		sprint (self, PRINT_HIGH, "not enough money.\n");
@@ -345,20 +355,20 @@ void (float cost, float item) BuyProtect =
 
 float (float input) overweight =
 {
-	local float var;
+	local float tmp;
 	local float max;
 
-	var = ((((input) + self.armor_weight) + self.slot1_weight) + self.slot2_weight);
+	tmp = input + self.weight;
 	max = self.max_weight;
-	if ((self.class == TE_LIGHTNING2))
+	if (self.class == TE_LIGHTNING2)
 	{
-		max = (max + SPAWNFLAG_LASER);
+		max = max + SPAWNFLAG_LASER;
 	}
-	if ((self.perk == TE_LAVASPLASH))
+	if (self.perk == TE_LAVASPLASH)
 	{
 		return (FALSE);
 	}
-	if ((var > max))
+	if (tmp > max)
 	{
 		return (TRUE);
 	}
@@ -366,14 +376,6 @@ float (float input) overweight =
 	{
 		return (FALSE);
 	}
-};
-
-float () weightx =
-{
-	local float var;
-
-	var = self.slot1_weight + self.slot2_weight + self.armor_weight;
-	return var;
 };
 
 void () W_GetClass =
@@ -619,13 +621,13 @@ void() W_PlayerMenu =
                   BuyWeapon(5, 25, 17);         //weight, cost, item
 		if (self.impulse == 4)
                   BuyWeapon(6, 28, 18);         //weight, cost, item
-		if (self.impulse == 5)
+		if (self.impulse == 4)
                   BuyWeapon(5, 30, 19);         //weight, cost, item
-		if (self.impulse == 6)
+		if (self.impulse == 4)
                   BuyWeapon(4, 32, 20);         //weight, cost, item
-		if (self.impulse == 7)
+		if (self.impulse == 4)
                   BuyWeapon(7, 40, 21);         //weight, cost, item
-		if (self.impulse == 8)
+		if (self.impulse == 4)
                   BuyWeapon(10, 45, 22);         //weight, cost, item
 
 			return;

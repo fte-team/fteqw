@@ -1,6 +1,7 @@
-../quake/turn/qwprogs.dat
+../qwprogs.dat
 
 defs.qc
+inventory.qc
 subs.qc
 fight.qc
 
@@ -31,3 +32,4 @@ dog.qc
 ogre.qc
 misc.qc
 mod_buy.qc
+cmds.qc

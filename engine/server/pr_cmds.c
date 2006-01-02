@@ -1840,7 +1840,7 @@ void PF_setmodel (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 				sv.model_precache[i] = PR_AddString(prinst, m, 0);
 				if (!strcmp(m + strlen(m) - 4, ".bsp"))
 					sv.models[i] = Mod_FindName(sv.model_precache[i]);
-				Con_Printf("WARNING: SV_ModelIndex: model %s not precached", m);
+				Con_Printf("WARNING: SV_ModelIndex: model %s not precached\n", m);
 
 				if (sv.state != ss_loading)
 				{
@@ -6886,26 +6886,25 @@ void log(string name, float console, string text)
 void PF_log(progfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
 	char name[MAX_OSPATH], *text;
-	FILE *file;
+	vfsfile_t *file;
 
-	_snprintf(name, MAX_OSPATH, "%s/%s.log", com_gamedir, PR_GetStringOfs(prinst, OFS_PARM0));
+	_snprintf(name, MAX_OSPATH, "%s.log", PR_GetStringOfs(prinst, OFS_PARM0));
 	text = PF_VarString(prinst, 2, pr_globals);
 	PR_CleanText(text);
 
-	if ((file = fopen(name, "a")) == NULL)
+	file = FS_OpenVFS(name, "ab", FS_GAME);
+	if (file == NULL)
 	{
 		Sys_Printf("coldn't open log file %s\n", name);
 	}
 	else
 	{
-		fprintf (file, text);
-		fflush (file);
-		fclose(file);
+		VFS_WRITE(file, text, strlen(text));
+		VFS_CLOSE (file);
 	}
 
 	if (G_FLOAT(OFS_PARM1))
 		Con_Printf("%s", text);
-
 }
 
 

@@ -1824,6 +1824,8 @@ void SV_InitBotLib()
 qboolean SVQ3_InitGame(void)
 {
 	char buffer[8192];
+	char *str;
+	char sysinfo[8192];
 	extern cvar_t progs;
 
 	if (sv.worldmodel->fromgame == fg_quake)
@@ -1855,8 +1857,21 @@ qboolean SVQ3_InitGame(void)
 
 	Cvar_Set(Cvar_Get("sv_running", "0", 0, "Q3 compatability"), "1");
 
-	svq3_configstrings[1] = Z_Malloc(32);
-	Info_SetValueForKey(svq3_configstrings[1], "sv_serverid", va("%i", svs.spawncount), MAX_SERVERINFO_STRING); 
+	sysinfo[0] = '\0';
+	Info_SetValueForKey(sysinfo, "sv_serverid", va("%i", svs.spawncount), MAX_SERVERINFO_STRING); 
+	str = FS_GetPackHashes(buffer, sizeof(buffer), false);
+	Info_SetValueForKey(sysinfo, "sv_paks", str, MAX_SERVERINFO_STRING);
+	str = FS_GetPackNames(buffer, sizeof(buffer), false);
+	Info_SetValueForKey(sysinfo, "sv_pakNames", str, MAX_SERVERINFO_STRING);
+	str = FS_GetPackHashes(buffer, sizeof(buffer), true);
+	Info_SetValueForKey(sysinfo, "sv_referencedPaks", str, MAX_SERVERINFO_STRING);
+	str = FS_GetPackNames(buffer, sizeof(buffer), true);
+	Info_SetValueForKey(sysinfo, "sv_referencedPakNames", str, MAX_SERVERINFO_STRING);
+
+	Info_SetValueForKey(sysinfo, "sv_pure", "1", MAX_SERVERINFO_STRING);
+
+	SVQ3_SetConfigString(1, sysinfo);
+
 
 	mapentspointer = sv.worldmodel->entities;
 	VM_Call(q3gamevm, GAME_INIT, 0, rand(), false);
@@ -2791,7 +2806,8 @@ void SVQ3_ParseClientMessage(client_t *client)
 		if(msg_readcount > net_message.cursize)
 		{
 			Con_Printf("corrupted packet from %s\n", client->name);
-			SV_DropClient(client);
+			client->drop = true;
+//			SV_DropClient(client);
 			return;
 		}
 
@@ -2805,7 +2821,8 @@ void SVQ3_ParseClientMessage(client_t *client)
 		{
 		default:
 			Con_Printf("corrupted packet from %s\n", client->name);
-			SV_DropClient(client);
+			client->drop = true;
+//			SV_DropClient(client);
 			return;
 		case clcq3_nop:
 			break;

@@ -561,7 +561,12 @@ void VFSPAK_Close(vfsfile_t *vfs)
 vfsfile_t *FSPAK_OpenVFS(void *handle, flocation_t *loc, char *mode)
 {
 	pack_t *pack = (pack_t*)handle;
-	vfspack_t *vfs = Z_Malloc(sizeof(vfspack_t));
+	vfspack_t *vfs;
+
+	if (strcmp(mode, "rb"))
+		return NULL; //urm, unable to write/append
+	
+	vfs = Z_Malloc(sizeof(vfspack_t));
 
 	vfs->parentpak = ((pack_t*)handle);
 	vfs->parentpak->references++;
@@ -943,8 +948,10 @@ vfsfile_t *FSZIP_OpenVFS(void *handle, flocation_t *loc, char *mode)
 	int rawofs;
 	zipfile_t *zip = handle;
 	vfszip_t *vfsz;
-	if (strchr(mode, 'w'))
-		return NULL;
+
+	if (strcmp(mode, "rb"))
+		return NULL; //urm, unable to write/append
+
 	vfsz = Z_Malloc(sizeof(vfszip_t));
 
 	vfsz->parent = zip;
@@ -1164,7 +1171,10 @@ void COM_Locate_f (void)
 			loc.search->funcs->PrintPath(loc.search->handle);
 		}
 		else
+		{
 			Con_Printf("Inside %s\n", loc.rawname);
+			loc.search->funcs->PrintPath(loc.search->handle);
+		}
 	}
 	else
 		Con_Printf("Not found\n");
@@ -1426,6 +1436,42 @@ out:
 	else
 		return depth;
 }
+
+
+char *FS_GetPackHashes(char *buffer, int buffersize, qboolean referencedonly)
+{
+	searchpath_t	*search;
+	buffersize--;
+	*buffer = 0;
+
+	if (com_purepaths)
+	{
+		for (search = com_purepaths ; search ; search = search->nextpure)
+		{
+			Q_strncatz(buffer, va("%i ", search->crc_check), buffersize);
+		}
+		return buffer;
+	}
+	else
+	{
+		for (search = com_searchpaths ; search ; search = search->next)
+		{
+			if (!search->crc_check && search->funcs->GeneratePureCRC)
+				search->crc_check = search->funcs->GeneratePureCRC(search->handle, 0, 0);
+			if (search->crc_check)
+			{
+				Q_strncatz(buffer, va("%i ", search->crc_check), buffersize);
+			}
+		}
+		return buffer;
+	}
+}
+char *FS_GetPackNames(char *buffer, int buffersize, qboolean referencedonly)
+{
+	return "";
+}
+
+
 #if 0
 int COM_FOpenLocationFILE(flocation_t *loc, FILE **file)
 {
@@ -1524,6 +1570,11 @@ vfsfile_t *FS_OpenVFS(char *filename, char *mode, int relativeto)
 	if (Sys_PathProtection(filename))
 		return NULL;
 
+
+	if (strcmp(mode, "rb"))
+		if (strcmp(mode, "wb"))
+			return NULL; //urm, unable to write/append
+
 	switch (relativeto)
 	{
 	case FS_GAMEONLY:	//OS access only, no paks
@@ -1608,6 +1659,20 @@ void FS_CreatePath(char *pname, int relativeto)
 	COM_CreatePath(fullname);
 }
 
+qboolean FS_WriteFile (char *filename, void *data, int len, int relativeto)
+{
+	vfsfile_t *f;
+	FS_CreatePath(filename, relativeto);
+	f = FS_OpenVFS(filename, "wb", relativeto);
+	if (!f)
+		return false;
+	VFS_WRITE(f, data, len);
+	VFS_CLOSE(f);
+
+	return true;
+}
+
+
 static cache_user_t *loadcache;
 static qbyte	*loadbuf;
 static int		loadsize;
@@ -1633,7 +1698,7 @@ qbyte *COM_LoadFile (char *path, int usehunk)
 		return NULL;	//wasn't found
 
 
-	f = loc.search->funcs->OpenVFS(loc.search->handle, &loc, "r");
+	f = loc.search->funcs->OpenVFS(loc.search->handle, &loc, "rb");
 	if (!f)
 		return NULL;
 
@@ -2087,7 +2152,7 @@ static int COM_AddWildDataFiles (char *descriptor, int size, void *vparam)
 
 	if (!search->funcs->FindFile(search->handle, &loc, descriptor, NULL))
 		return true;	//not found..
-	vfs = search->funcs->OpenVFS(search->handle, &loc, "r");
+	vfs = search->funcs->OpenVFS(search->handle, &loc, "rb");
 	pak = funcs->OpenNew (vfs, pakfile);
 	if (!pak)
 		return true;

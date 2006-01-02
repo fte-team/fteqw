@@ -288,6 +288,7 @@ float() ShamCheckAttack =
 	local vector	spot1, spot2;	
 	local entity	targ;
 	local float		chance;
+	local float		enemy_yaw;
 
 	if (enemy_range == RANGE_MELEE)
 	{

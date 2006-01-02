@@ -57,16 +57,28 @@ void () Footstep =
 
 float (entity guy) holding_melee =
 {
-	local float iid;
-	iid = ToIID(ItemInSlot(guy, guy.current_slot));
-
-	if (iid == IID_NONE ||
-	    iid == IID_WP_KNIFE ||
-	    iid == IID_WP_AXE ||
-	    iid == IID_WP_VIBROBLADE ||
-	    iid == IID_WP_POWERAXE)
-		return true;
-	return false;
+	if ((guy.current_slot == WEAPON_SHOTGUN))
+	{
+		if ((guy.slot1 <= TE_WIZSPIKE))
+		{
+			return (TRUE);
+		}
+		if ((guy.slot1 >= WEAPON_BIG))
+		{
+			return (FALSE);
+		}
+	}
+	if ((guy.current_slot == WEAPON_ROCKET))
+	{
+		if ((guy.slot2 <= TE_WIZSPIKE))
+		{
+			return (TRUE);
+		}
+		if ((guy.slot2 >= WEAPON_BIG))
+		{
+			return (FALSE);
+		}
+	}
 };
 void () player_crouch;
 
@@ -196,6 +208,7 @@ void () player_reload1 = [ 123, player_reload2 ]
 
 void () player_reload2 = [ 124, player_reload3 ]
 {
+
 };
 
 void () player_reload3 = [ 125, player_reload4 ]
@@ -588,8 +601,6 @@ void () player_pull11 = [ 155, player_run ]
 
 void () player_throw1 = [ 155, player_throw2 ]
 {
-	self.attack_finished = time + 1;
-
 	self.weaponframe = 12;
 	if (((random () * WEAPON_BIG) <= WEAPON_SPIKES))
 		sound (self, CHAN_VOICE, "radio/grenade.wav", 0.7, ATTN_NORM);
@@ -600,63 +611,57 @@ void () player_throw1 = [ 155, player_throw2 ]
 void () player_throw2 = [ 156, player_throw3 ]
 {
 	self.weaponframe = TE_LIGHTNINGBLOOD;
-	FireHandGrenade ();
-	self.attack_finished = time + 1;
+	//FireHandGrenade ();
 };
 
 void () player_throw3 = [ 157, player_throw4 ]
 {
 	self.weaponframe = IDLE2A;
-	self.attack_finished = time + 1;
 };
 
 void () player_throw4 = [ 158, player_throw5 ]
 {
 	self.weaponframe = IDLE3A;
-	self.attack_finished = time + 1;
 };
 
 void () player_throw5 = [ 157, player_throw6 ]
 {
 	self.weaponframe = EF_FLAG1;
-	self.attack_finished = time + 1;
 };
 
 void () player_throw6 = [ 156, player_throw7 ]
 {
 	self.weaponframe = IDLE5A;
-	self.attack_finished = time + 1;
 };
 
 void () player_throw7 = [ 155, player_throw8 ]
 {
 	self.weaponframe = IDLE6A;
-	self.attack_finished = time + 1;	
+	if (self.handgrenade <= 0)
+		stuffcmd (self, "impulse 1\n");
+	else
+		stuffcmd (self, "impulse 3\n");
+	
 };
 
 void () player_throw8 = [ 159, player_throw9 ]
 {
 	self.weaponframe = IDLE7A;
-	self.attack_finished = time + 1;
 };
 
 void () player_throw9 = [ 160, player_throw10 ]
 {
 	self.weaponframe = IDLE8A;
-	self.attack_finished = time + 1;
 };
 
 void () player_throw10 = [ 161, player_throw11 ]
 {
 	self.weaponframe = IDLE9A;
-	self.attack_finished = time + 1;
 };
 
 void () player_throw11 = [ 162, player_run ]
 {
 	self.weaponframe = IDLE10A;
-	self.attack_finished = self.nextthink;
-	W_SetCurrentAmmo();
 };
 
 void () player_shotty1b = [ 183, player_shotty2b ]

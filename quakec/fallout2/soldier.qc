@@ -1,16 +1,13 @@
-#define mag1 currentammo
-#define maxmag1 cnt
-
-
 void () army_load1;
 
 //PISTOL
-void (float tmp, float dam) army_fire =
+void (float var, float dam) army_fire =
 {
 	local vector src;
 	local vector dir;
 	local vector direction;
 	local entity en;
+	local float var;
 	local float r;
 	local vector targ;
 	local vector org;
@@ -19,9 +16,10 @@ void (float tmp, float dam) army_fire =
 	local float ydif;
 	local float xdif;
 	local float true;
+	local float zdif;
 
 	if (self.enemy.sneak == 1)
-		tmp = tmp * 2;
+		var = var * 2;
 
 	if (self.mag1 == 0)
 	{
@@ -48,7 +46,7 @@ void (float tmp, float dam) army_fire =
 
 	direction = dir;
 
-	traceline (src, src + direction*2048 + v_right*crandom()*tmp + v_up*crandom()*tmp, FALSE, self);
+	traceline (src, src + direction*2048 + v_right*crandom()*var + v_up*crandom()*var, FALSE, self);
 
 	if (trace_fraction == PLAT_LOW_TRIGGER)
 		return;
@@ -73,12 +71,13 @@ void (float tmp, float dam) army_fire =
 
 
 //RIFLE
-void (float tmp, float dam) army_fire1 =
+void (float var, float dam) army_fire1 =
 {
 	local vector src;
 	local vector dir;
 	local vector direction;
 	local entity en;
+	local float var;
 	local float r;
 	local vector targ;
 	local vector org;
@@ -87,9 +86,10 @@ void (float tmp, float dam) army_fire1 =
 	local float ydif;
 	local float xdif;
 	local float true;
+	local float zdif;
 
 	if (self.enemy.sneak == 1)
-		tmp = tmp * 2;
+		var = var * 2;
 
 	if (self.mag1 == 0)
 	{
@@ -140,12 +140,13 @@ void (float tmp, float dam) army_fire1 =
 
 
 //SHOTGUN
-void (float tmp, float dam) army_fire2 =
+void (float var, float dam) army_fire2 =
 {
 	local vector src;
 	local vector dir;
 	local vector direction;
 	local entity en;
+	local float var;
 	local float r;
 	local vector targ;
 	local vector org;
@@ -155,7 +156,7 @@ void (float tmp, float dam) army_fire2 =
 	local float dif;
 
 	if (self.enemy.sneak == 1)
-		tmp = tmp * 2;
+		var = var * 2;
 
 	if (self.mag1 == 0)
 	{
@@ -239,12 +240,13 @@ void (float tmp, float dam) army_fire2 =
 };
 
 //SMG
-void (float tmp, float dam) army_fire3 =
+void (float var, float dam) army_fire3 =
 {
 	local vector src;
 	local vector dir;
 	local vector direction;
 	local entity en;
+	local float var;
 	local float r;
 	local vector targ;
 	local vector org;
@@ -253,6 +255,7 @@ void (float tmp, float dam) army_fire3 =
 	local float ydif;
 	local float xdif;
 	local float true;
+	local float zdif;
 
 	if (self.mag1 == 0)
 	{
@@ -263,7 +266,7 @@ void (float tmp, float dam) army_fire3 =
 	}
 
 	if (self.enemy.sneak == 1)
-		tmp = tmp * 2;
+		var = var * 2;
 
 	self.mag1 = self.mag1 - 1;
 
@@ -279,7 +282,7 @@ void (float tmp, float dam) army_fire3 =
 
 	direction = dir;
 
-	traceline (src, src + direction*1024 + v_right*crandom()*tmp + v_up*crandom()*tmp, FALSE, self);
+	traceline (src, src + direction*1024 + v_right*crandom()*var + v_up*crandom()*var, FALSE, self);
 
 	if (trace_fraction == PLAT_LOW_TRIGGER)
 		return;
@@ -303,12 +306,13 @@ void (float tmp, float dam) army_fire3 =
 };
 
 //Assault Rifle
-void (float tmp, float dam) army_fire4 =
+void (float var, float dam) army_fire4 =
 {
 	local vector src;
 	local vector dir;
 	local vector direction;
 	local entity en;
+	local float var;
 	local float r;
 	local vector targ;
 	local vector org;
@@ -328,7 +332,7 @@ void (float tmp, float dam) army_fire4 =
 	}
 
 	if (self.enemy.sneak == 1)
-		tmp = tmp * 2;
+		var = var * 2;
 
 	self.mag1 = self.mag1 - 1;
 
@@ -344,7 +348,7 @@ void (float tmp, float dam) army_fire4 =
 
 	direction = dir;
 
-	traceline (src, src + direction*2048 + v_right*crandom()*tmp + v_up*crandom()*tmp, FALSE, self);
+	traceline (src, src + direction*2048 + v_right*crandom()*var + v_up*crandom()*var, FALSE, self);
 
 	if (trace_fraction == PLAT_LOW_TRIGGER)
 		return;
@@ -1328,7 +1332,7 @@ void () monster_army =
 
 		setsize (self, '-12 -12 -24', '12 12 32');
 		self.health = 120;
-            self.islot3 = SlotVal(IID_ARM_COMBAT, 1);
+            self.armor = 5;
 		self.armortype = 35;
 		self.th_stand = enf_stand1;
 		self.th_walk = enf_walk1;
@@ -1370,7 +1374,7 @@ void () monster_army =
 	setsize (self, '-16 -16 -24', '16 16 32');
 	self.health = 90;
 	self.team = 3;
-            self.islot3 = SlotVal(IID_ARM_LEATHER, 1);
+	self.armor = 2;
 	self.armortype = 0.2;
 	self.armornoise = "misc/thud.wav";
 	self.th_stand = army_stand1;
@@ -1404,5 +1408,3 @@ void () monster_army =
 	self.maxmag1 = self.mag1;
 };
 
-#undef mag1
-#undef maxmag1

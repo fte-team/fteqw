@@ -192,11 +192,9 @@ void(entity targ, entity inflictor, entity attacker, float damage) T_Damage =
 	if (save >= targ.armorvalue)
 	{
 		save = targ.armorvalue;
-/*		targ.armortype = 0;     // lost all armor
+		targ.armortype = 0;     // lost all armor
 		targ.items = targ.items - (targ.items & (IT_ARMOR1 | IT_ARMOR2 | IT_ARMOR3));
-*/
 	}
-
 	
 	take = ceil(damage-save);
 
@@ -264,38 +262,8 @@ void(entity targ, entity inflictor, entity attacker, float damage) T_Damage =
 		(targ != attacker)&& inflictor.classname !="door")
 		return;
 		
-
 // do the damage
-	//different sorts of armour simply subtract different ammounts
-	switch(ToIID(targ.islot3))
-	{
-	case IID_ARM_SHIRT:
-		take -= 1;
-		break;
-	case IID_ARM_LEATHER:
-		take -= 2;
-		break;
-	case IID_ARM_KEVLAR:
-		take -= 3;
-		break;
-	case IID_ARM_METAL:
-		take -= 4;
-		break;
-	case IID_ARM_COMBAT:
-		take -= 5;
-		break;
-	case IID_ARM_BROTHERHOOD:
-		take -= 6;
-		break;
-	case IID_ARM_FORCE:
-		take -= 7;
-		break;
-	case IID_ARM_LPOWER:
-		take -= 8;
-		break;
-	default:
-		break;
-	}
+	take = take - targ.armor;
 	targ.health = targ.health - take;
 
 	if (targ.health <= 0)

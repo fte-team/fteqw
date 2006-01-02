@@ -6,9 +6,6 @@ SOLDIER / PLAYER
 ==============================================================================
 */
 
-#define mag1 currentammo
-#define maxmag1 cnt
-
 $cd id1/models/enforcer
 $origin 0 -6 24
 $base base		
@@ -54,12 +51,13 @@ void() enforcer_fire =
 
 };
 
-void (float tmp, float dam) enforcer_single =
+void (float var, float dam) enforcer_single =
 {
 	local vector src;
 	local vector dir;
 	local vector direction;
 	local entity en;
+	local float var;
 	local float r;
 	local vector targ;
 	local vector org;
@@ -68,9 +66,10 @@ void (float tmp, float dam) enforcer_single =
 	local float ydif;
 	local float xdif;
 	local float true;
+	local float zdif;
 
 	if (self.enemy.sneak == 1)
-		tmp = tmp * 2;
+		var = var * 2;
 
 	if (self.mag1 == 0)
 	{
@@ -94,7 +93,7 @@ void (float tmp, float dam) enforcer_single =
 
 	direction = dir;
 
-	traceline (src, src + direction*4000 + v_right*crandom()*tmp + v_up*crandom()*tmp, FALSE, self);
+	traceline (src, src + direction*4000 + v_right*crandom()*var + v_up*crandom()*var, FALSE, self);
 
 	if (trace_fraction == PLAT_LOW_TRIGGER)
 		return;
@@ -375,7 +374,7 @@ void() monster_enforcer =
 
 		setsize (self, '-12 -12 -24', '12 12 32');
 		self.health = 100;
-            self.islot3 = SlotVal(IID_ARM_COMBAT, 1);
+            self.armor = 5;
 		self.armortype = 0.5;
 		self.helmet = 1;
 		self.th_stand = enf_stand1;
@@ -393,6 +392,3 @@ void() monster_enforcer =
 		walkmonster_start();
 		return;
 };
-
-#undef mag1
-#undef maxmag1

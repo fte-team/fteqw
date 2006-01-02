@@ -157,16 +157,16 @@ void() main =
 void () GameTimer =
 {
 	local entity te, ze;
-	local float switched;
+	local float switch;
 	local float c, z;
 
 
-	switched = 0;
+	switch = 0;
 
 	te = findradius(self.origin, 25000);
-	while (c < 300 && switched == 0)
+	while (c < 300 && switch == 0)
 	{
-		if (te.classname == "raider" && te.enemy != world && te.processed == 0 && te.active == 0 && switched == 0)
+		if (te.classname == "raider" && te.enemy != world && te.processed == 0 && te.active == 0 && switch == 0)
 		{
 			te.active = 1;
 			te.processed = 1;
@@ -174,7 +174,7 @@ void () GameTimer =
 			bprint(2, te.netname);
 			bprint(2, "'s turn.\n");
 			te.maxspeed = 300;
-			switched = 1;
+			switch = 1;
 
 			ze = findradius(self.origin, 25000);
 			z = 0;
@@ -189,7 +189,7 @@ void () GameTimer =
 				ze = ze.chain;
 			}
 		}
-		if (te.classname == "player" && te.processed == 0 && te.active == 0 && switched == 0)
+		if (te.classname == "player" && te.processed == 0 && te.active == 0 && switch == 0)
 		{
 			te.active = 1;
 			te.processed = 1;
@@ -197,7 +197,7 @@ void () GameTimer =
 			bprint(2, te.netname);
 			bprint(2, "'s turn.\n");
 			te.maxspeed = 300;
-			switched = 1;
+			switch = 1;
 
 			ze = findradius(self.origin, 25000);
 			z = 0;
@@ -217,7 +217,7 @@ void () GameTimer =
 	}
 
 	c = 0;
-	if (switched == 0) // no entities left, turn is over
+	if (switch == 0) // no entities left, turn is over
 	{
 		bprint(2, "round is now over.\n");
 
@@ -274,8 +274,6 @@ void() worldspawn =
 	lastspawn = world;
 	InitBodyQue ();
 	coop = 1;
-
-	SetupStats();
 
 // custom map attributes
 
@@ -390,7 +388,7 @@ void() worldspawn =
 	precache_model ("progs/v_knife.mdl");
 	precache_model ("progs/v_1911.mdl");
 	precache_model ("progs/v_ak47.mdl");
-	precache_model ("progs/v_mp7.mdl");
+	precache_model ("progs/v_smg.mdl");
 	precache_model ("progs/v_rangem.mdl");
 	precache_model ("progs/v_pipe.mdl");
 	precache_model ("progs/v_shotgun.mdl");

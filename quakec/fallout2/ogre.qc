@@ -363,7 +363,7 @@ void () ogre_smash11 = [ 57, ogre_smash12 ]
 
 void () ogre_smash12 = [ 58, ogre_smash13 ]
 {
-	ai_charge (0);
+	ai_charge ();
 };
 
 void () ogre_smash13 = [ 59, ogre_smash14 ]

@@ -983,7 +983,7 @@ void MasterInfo_ProcessHTTP(char *name, qboolean success)
 		}
 	}
 
-	Sys_remove(va("%s/%s", com_gamedir, name));
+	FS_Remove(name, FS_GAME);
 }
 #endif
 

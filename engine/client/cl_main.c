@@ -829,7 +829,7 @@ void CL_Rcon_f (void)
 	int		i;
 	netadr_t	to;
 
-	if (!rcon_password.string)	//FIXME: this is strange...
+	if (!*rcon_password.string)	//FIXME: this is strange...
 	{
 		Con_TPrintf (TLC_NORCONPASSWORD);
 		return;
@@ -1038,7 +1038,8 @@ void CL_Disconnect (void)
 
 #ifndef CLIENTONLY
 	//running a server, and it's our own
-		if (serverrunning && !tolocalserver)SV_UnspawnServer();
+		if (serverrunning && !tolocalserver)
+			SV_UnspawnServer();
 #endif
 	}
 	Cam_Reset();
@@ -1058,7 +1059,7 @@ void CL_Disconnect (void)
 		cls.downloadmethod = DL_NONE;
 	if (cls.downloadqw)
 	{
-		fclose(cls.downloadqw);
+		VFS_CLOSE(cls.downloadqw);
 		cls.downloadqw = NULL;
 	}
 	if (!cls.downloadmethod)
@@ -2733,6 +2734,8 @@ void VARGS Host_EndGame (char *message, ...)
 
 	CL_Disconnect ();
 
+	SV_UnspawnServer();
+
 	Cvar_Set(&cl_shownet, "0");
 
 	longjmp (host_abort, 1);
@@ -2789,7 +2792,7 @@ void Host_WriteConfiguration (void)
 			return;
 		}
 
-		f = FS_OpenVFS(va("%s.cfg",cfg_save_name.string), "w", FS_GAMEONLY);
+		f = FS_OpenVFS(va("%s.cfg",cfg_save_name.string), "wb", FS_GAMEONLY);
 		if (!f)
 		{
 			Con_TPrintf (TLC_CONFIGCFG_WRITEFAILED);

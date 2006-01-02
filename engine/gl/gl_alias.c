@@ -1942,6 +1942,28 @@ void R_DrawGAliasModel (entity_t *e)
 				GL_DrawAliasMesh(&mesh, skin->fullbright);
 				qglBlendFunc (GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
 			}
+
+			if (fog)
+			{
+				meshbuffer_t mb;
+				shader_t dummyshader = {0};
+
+				R_IBrokeTheArrays();
+
+				mb.entity = currententity;
+				mb.shader = &dummyshader;
+				mb.fog = fog;
+				mb.mesh = &mesh;
+				mb.infokey = -1;//currententity->keynum;
+				mb.dlightbits = 0;
+
+				R_PushMesh(&mesh, mb.shader->features | MF_NONBATCHED | MF_COLORS);
+
+				R_RenderMeshBuffer ( &mb, false );
+
+		
+				R_ClearArrays();
+			}
 		}
 	}
 

@@ -329,7 +329,7 @@ typedef struct
 #endif
 
 	enum {DL_NONE, DL_QW, DL_QWCHUNKS, DL_Q3, DL_QWPENDING, DL_HTTP, DL_FTP} downloadmethod;
-	FILE		*downloadqw;		// file transfer from server
+	vfsfile_t		*downloadqw;		// file transfer from server
 	char		downloadtempname[MAX_OSPATH];
 	char		downloadname[MAX_OSPATH];
 	int			downloadpercent;

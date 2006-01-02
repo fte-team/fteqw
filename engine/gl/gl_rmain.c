@@ -104,7 +104,6 @@ cvar_t	r_norefresh = {"r_norefresh","0"};
 //cvar_t	r_drawviewmodel = {"r_drawviewmodel","1"};
 //cvar_t	r_speeds = {"r_speeds","0"};
 //cvar_t	r_fullbright = {"r_fullbright","0"};
-cvar_t	r_lightmap = {"r_lightmap","0", NULL, CVAR_CHEAT};
 cvar_t	r_mirroralpha = {"r_mirroralpha","1", NULL, CVAR_CHEAT};
 cvar_t	r_wateralpha = {"r_wateralpha","1", NULL};
 //cvar_t	r_waterwarp = {"r_waterwarp", "0"};

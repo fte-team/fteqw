@@ -333,20 +333,19 @@ void GLMod_Think (void)
 			strcpy(filename, lightmodel->name);
 			f = COM_SkipPath(filename);
 			*f = '\0';
-			Sys_mkdir(va("%s/%s", com_gamedir, filename));
 
 			if (lightmodel->deluxdata)
 			{
 				COM_StripExtension(lightmodel->name, filename);
 				COM_DefaultExtension(filename, ".lux");
-				COM_WriteFile(filename, lightmodel->deluxdata-8, numlightdata*3+8);
+				FS_WriteFile(filename, lightmodel->deluxdata-8, numlightdata*3+8, FS_GAME);
 			}
 
 			if (writelitfile)	//the user might already have a lit file (don't overwrite it).
 			{
 				COM_StripExtension(lightmodel->name, filename);
 				COM_DefaultExtension(filename, ".lit");
-				COM_WriteFile(filename, lightmodel->lightdata-8, numlightdata*3+8);
+				FS_WriteFile(filename, lightmodel->lightdata-8, numlightdata*3+8, FS_GAME);
 			}
 		}
 	}
@@ -455,9 +454,9 @@ model_t *GLMod_LoadModel (model_t *mod, qboolean crash)
 //
 // load the file
 //
-	//look for a replacement
-//	ext = COM_FileExtension(mod->name);
-//	if (!Q_strcasecmp(ext, "mdl") || !Q_strcasecmp(ext, "bsp"))
+	//look for a replacement, but not for q1 sprites
+	ext = COM_FileExtension(mod->name);
+	if (Q_strcasecmp(ext, "spr") && Q_strcasecmp(ext, "sp2"))	
 	{
 		char mdlbase[MAX_QPATH];
 		COM_StripExtension(mod->name, mdlbase);

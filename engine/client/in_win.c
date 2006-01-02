@@ -63,6 +63,8 @@ cvar_t  m_threshold_noforce = {"m_threshold_noforce", "0"};
 
 cvar_t	cl_keypad = {"cl_keypad", "0"};
 
+qboolean CSQC_MouseMove(float xdelta, float ydelta);
+
 typedef struct {
 	union {
 		struct { // serial mouse
@@ -1407,6 +1409,12 @@ static void ProcessMouse(mouse_t *mouse, usercmd_t *cmd, int pnum)
 #ifdef VM_UI
 		UI_MousePosition(mousecursor_x, mousecursor_y);
 #endif
+	}
+
+	if (CSQC_MouseMove(mx, my))
+	{
+		mx = 0;
+		my = 0;
 	}
 
 	if (m_filter.value)

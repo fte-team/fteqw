@@ -2137,7 +2137,7 @@ void R_RenderFogOnMesh ( shader_t *shader, struct mfog_s *fog )
 	qglBlendFunc( GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA );
 	GL_TexEnv(GL_MODULATE);
 
-	if ( !shader->numpasses || shader->fog_dist || (shader->flags & SHADER_SKY) )
+	if ( !shader || !shader->numpasses || shader->fog_dist || (shader->flags & SHADER_SKY) )
 	{
 		extern int gldepthfunc;
 		qglDepthFunc ( gldepthfunc );
@@ -2152,7 +2152,7 @@ void R_RenderFogOnMesh ( shader_t *shader, struct mfog_s *fog )
 	// distance to fog
 	dist = PlaneDiff ( r_origin, fogplane );
 
-	if ( shader->flags & SHADER_SKY )
+	if ( shader && shader->flags & SHADER_SKY )
 	{
 		if ( dist > 0 )
 			VectorMA( r_origin, -dist, fogplane->normal, viewtofog );
@@ -2192,7 +2192,7 @@ void R_RenderFogOnMesh ( shader_t *shader, struct mfog_s *fog )
 		currentCoords[1] = -vdist * fogshader->fog_dist + 1.5f/(float)FOG_TEXTURE_HEIGHT;
 	}
 
-	if ( !shader->numpasses )
+	if ( shader && !shader->numpasses )
 	{
 		R_LockArrays ( numVerts );
 	}

@@ -309,9 +309,7 @@ static qboolean HTTP_CL_Run(http_con_t *con)
 				VFS_CLOSE(con->file);
 			else
 			{
-				snprintf(Location, sizeof(Location)-1, "%s/%s", com_gamedir, con->filename);
-				COM_CreatePath(Location);
-				COM_WriteFile(con->filename, con->buffer, con->bufferused);
+				FS_WriteFile(con->filename, con->buffer, con->bufferused, FS_GAME);
 			}
 			if (con->NotifyFunction)
 			{

@@ -1228,7 +1228,10 @@ qboolean	Cmd_AddCommand (char *cmd_name, xcommand_t function)
 	{
 		if (!Q_strcmp (cmd_name, cmd->name))
 		{
-			Con_Printf ("Cmd_AddCommand: %s already defined\n", cmd_name);
+			if (cmd->function == function)	//happens a lot with q3
+				Con_DPrintf ("Cmd_AddCommand: %s already defined\n", cmd_name);
+			else
+				Con_Printf ("Cmd_AddCommand: %s already defined\n", cmd_name);
 			return false;
 		}
 	}
@@ -2740,12 +2743,17 @@ void Cmd_WriteConfig_f(void)
 	FS_FlushFSHash();
 }
 
+void Cmd_Reset_f(void)
+{
+}
+
 #ifndef SERVERONLY
 // dumps current console contents to a text file
 void Cmd_Condump_f(void)
 {
-	FILE *f;
+	vfsfile_t *f;
 	char *filename;
+	unsigned char c;
 
 	if (!con_current)
 	{
@@ -2760,10 +2768,10 @@ void Cmd_Condump_f(void)
 	if (!*filename)
 		filename = "condump";
 
-	filename = va("%s/%s", com_gamedir, filename);
+	filename = va("%s", filename);
 	COM_DefaultExtension(filename, ".txt");
 	
-	f = fopen (filename, "wb");
+	f = FS_OpenVFS (filename, "wb", FS_GAME);
 	if (!f)
 	{
 		Con_Printf ("Couldn't write console dump %s\n",filename);
@@ -2791,16 +2799,17 @@ void Cmd_Condump_f(void)
 				{
 					content = 1;
 					for (; spc > 0; spc--)
-						fprintf(f, " ");
-					fprintf(f, "%c", (qbyte)text[x]&255);
+						VFS_WRITE(f, " ", 1);
+					c = (qbyte)text[x]&255;
+					VFS_WRITE(f, &c, 1);
 				}
 			}
 			if (content)
-				fprintf(f, "\n");
+				VFS_WRITE(f, "\n", 1);
 		}
 	}
 
-	fclose(f);
+	VFS_CLOSE(f);
 
 	Con_Printf ("Dumped console to %s\n",filename);
 }
@@ -2819,7 +2828,7 @@ void Cmd_Init (void)
 	Cmd_AddCommand ("cfg_save",Cmd_WriteConfig_f);
 
 	Cmd_AddCommand ("cfg_load",Cmd_Exec_f);
-	//Cmd_AddCommand ("cfg_reset",Cmd_Reset_f);
+	Cmd_AddCommand ("cfg_reset",Cmd_Reset_f);
 
 	Cmd_AddCommand ("exec",Cmd_Exec_f);
 	Cmd_AddCommand ("echo",Cmd_Echo_f);

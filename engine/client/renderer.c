@@ -184,7 +184,6 @@ extern	cvar_t	r_drawviewmodel;
 extern	cvar_t	r_speeds;
 extern	cvar_t	r_waterwarp;
 extern	cvar_t	r_fullbright;
-extern	cvar_t	r_lightmap;
 extern	cvar_t	r_shadows;
 extern	cvar_t	r_mirroralpha;
 extern	cvar_t	r_wateralpha;
@@ -253,7 +252,6 @@ void GLRenderer_Init(void)
 	Cvar_Register (&r_novis, GLRENDEREROPTIONS);
 	Cvar_Register (&r_wateralpha, GLRENDEREROPTIONS);
 	Cvar_Register (&r_mirroralpha, GLRENDEREROPTIONS);
-	Cvar_Register (&r_lightmap, GLRENDEREROPTIONS);
 	Cvar_Register (&r_norefresh, GLRENDEREROPTIONS);
 
 

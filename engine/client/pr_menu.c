@@ -957,7 +957,7 @@ void PF_cl_stringtokeynum(progfuncs_t *prinst, struct globalvars_s *pr_globals)
 	int modifier;
 	char *s;
 
-	s = PR_GetStringOfs(prinst, OFS_PARM1);
+	s = PR_GetStringOfs(prinst, OFS_PARM0);
 	i = Key_StringToKeynum(s, &modifier);
 	if (i < 0 || modifier != ~0)
 	{

@@ -2779,7 +2779,7 @@ void GLDraw_Init15to8(void)
 	int r1, g1, b1;
 	qbyte *pal;
 	float dist, bestdist;
-	FILE *f;
+	vfsfile_t *f;
 
 	qboolean savetable;
 
@@ -2793,13 +2793,13 @@ void GLDraw_Init15to8(void)
 	savetable = COM_CheckParm("-save15to8");
 
 	if (savetable)
-		COM_FOpenFile("glquake/15to8.pal", &f);
+		f = FS_OpenVFS("glquake/15to8.pal");
 	else
 		f = NULL;
 	if (f)
 	{
-		fread(d_15to8table, 1<<15, 1, f);
-		fclose(f);
+		VFS_READ(f, d_15to8table, 1<<15);
+		VFS_CLOSE(f);
 	}
 	else
 	{
@@ -2829,14 +2829,7 @@ void GLDraw_Init15to8(void)
 		}
 		if (savetable)
 		{
-			char s[256];
-			sprintf(s, "%s/glquake", com_gamedir);
- 			Sys_mkdir (s);
-			sprintf(s, "%s/glquake/15to8.pal", com_gamedir);
-			if ((f = fopen(s, "wb")) != NULL) {
-				fwrite(d_15to8table, 1<<15, 1, f);
-				fclose(f);
-			}
+			FS_WriteFile("glquake/15to8.pal", d_15to8table, 1<<15, FS_GAME);
 		}
 	}
 }
@@ -3032,7 +3025,7 @@ texels += scaled_width * scaled_height;
 	}
 	if (gl_config.arb_texture_compression && gl_compress.value && gl_savecompressedtex.value && name&&mipmap)
 	{
-		FILE *out;
+		vfsfile_t *out;
 		int miplevels;
 		GLint compressed;
 		GLint compressed_size;
@@ -3044,19 +3037,19 @@ texels += scaled_width * scaled_height;
 		qglGetTexLevelParameteriv(GL_TEXTURE_2D, 0, GL_TEXTURE_COMPRESSED_ARB, &compressed);
 		if (compressed == GL_TRUE && !strstr(name, ".."))	//is there any point in bothering with the whole endian thing?
 		{
-			sprintf(outname, "%s/tex/%s.tex", com_gamedir, name);
-			COM_CreatePath(outname);
-			out = fopen(outname, "wb");
+			sprintf(outname, "tex/%s.tex", name);
+			FS_CreatePath(outname, FS_GAME);
+			out = FS_OpenVFS(outname, "wb", FS_GAME);
 			if (out)
 			{
 				i = LittleLong(miplevels);
-				fwrite(&i, 1, sizeof(i), out);
+				VFS_WRITE(out, &i, sizeof(i));
 				i = LittleLong(width);
-				fwrite(&i, 1, sizeof(i), out);
+				VFS_WRITE(out, &i, sizeof(i));
 				i = LittleLong(height);
-				fwrite(&i, 1, sizeof(i), out);
+				VFS_WRITE(out, &i, sizeof(i));
 				i = LittleLong(mipmap);
-				fwrite(&i, 1, sizeof(i), out);
+				VFS_WRITE(out, &i, sizeof(i));
 				for (miplevel = 0; miplevel < miplevels; miplevel++)
 				{
 					qglGetTexLevelParameteriv(GL_TEXTURE_2D, miplevel, GL_TEXTURE_COMPRESSED_ARB, &compressed);
@@ -3068,17 +3061,17 @@ texels += scaled_width * scaled_height;
 					qglGetCompressedTexImageARB(GL_TEXTURE_2D, miplevel, img);
 
 					i = LittleLong(width);
-					fwrite(&i, 1, sizeof(i), out);
+					VFS_WRITE(out, &i, sizeof(i));
 					i = LittleLong(height);
-					fwrite(&i, 1, sizeof(i), out);
+					VFS_WRITE(out, &i, sizeof(i));
 					i = LittleLong(compressed_size);
-					fwrite(&i, 1, sizeof(i), out);
+					VFS_WRITE(out, &i, sizeof(i));
 					i = LittleLong(internalformat);
-					fwrite(&i, 1, sizeof(i), out);
-					fwrite(img, 1, compressed_size, out);
+					VFS_WRITE(out, &i, sizeof(i));
+					VFS_WRITE(out, img, compressed_size);
 					BZ_Free(img);
 				}
-				fclose(out);
+				VFS_CLOSE(out);
 			}
 		}
 	}

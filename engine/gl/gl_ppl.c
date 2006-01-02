@@ -411,6 +411,8 @@ static void PPL_BaseChain_NoBump_2TMU_Overbright(msurface_t *s, texture_t *tex)
 	vi = -1;
 	for (; s ; s=s->texturechain)
 	{
+		if (!s->mesh)	//urm.
+			continue;
 		if (vi != s->lightmaptexturenum)
 		{
 			if (vi<0)
@@ -2116,6 +2118,9 @@ void PPL_BaseEntTextures(void)
 			break;
 
 		case mod_brush:
+			qglDepthFunc ( gldepthfunc );
+			qglEnable(GL_DEPTH_TEST);
+			qglDepthMask(1);
 			PPL_BaseBModelTextures (currententity);
 			break;
 

@@ -396,7 +396,7 @@ void CLQ3_ParseDownload(void)
 		}
 
 		COM_CreatePath(cls.downloadtempname);
-		cls.downloadqw = fopen(cls.downloadtempname, "wb");
+		cls.downloadqw = FS_OpenVFS(cls.downloadtempname, "wb", FS_BASE);
 		if (!cls.downloadqw)
 		{
 			Con_Printf("Couldn't write to temporary file %s - stopping download\n", cls.downloadtempname);
@@ -410,9 +410,9 @@ void CLQ3_ParseDownload(void)
 
 	if (!chunksize)
 	{
-		fclose(cls.downloadqw);
+		VFS_CLOSE(cls.downloadqw);
 		cls.downloadqw = NULL;
-		rename(cls.downloadtempname, cls.downloadname);	// ->
+		FS_Rename(cls.downloadtempname, cls.downloadname, FS_BASE);	// ->
 		*cls.downloadtempname = *cls.downloadname = 0;
 		cls.downloadmethod = DL_NONE;
 
@@ -423,9 +423,9 @@ void CLQ3_ParseDownload(void)
 	}
 	else
 	{
-		fwrite(chunkdata, chunksize, 1, cls.downloadqw);
-		chunksize=ftell(cls.downloadqw);
-		Con_Printf("Recieved %i\n", chunksize);
+		VFS_WRITE(cls.downloadqw, chunkdata, chunksize);
+		chunksize=VFS_TELL(cls.downloadqw);
+//		Con_Printf("Recieved %i\n", chunksize);
 
 		cls.downloadpercent = (100.0 * chunksize) / downloadsize;
 	}
@@ -474,14 +474,17 @@ qboolean CLQ3_SystemInfoChanged(char *str)
 
 		while(rn)
 		{
-			FILE *f;
+			vfsfile_t *f;
 			rn = COM_Parse(rn);
 			if (!*com_token)
 				break;
 
-			f = fopen(va("%s.pk3", com_token), "rb");
+			if (!strchr(com_token, '/'))	//don't let some muppet tell us to download quake3.exe
+				break;
+
+			f = FS_OpenVFS(va("%s.pk3", com_token), "rb", FS_BASE);
 			if (f)
-				fclose(f);
+				VFS_CLOSE(f);
 			else
 			{
 				//fixme: request to download it

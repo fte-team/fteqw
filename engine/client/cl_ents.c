@@ -1451,7 +1451,7 @@ packet_entities_t *CL_ProcessPacketEntities(float *servertime, qboolean nolerp)
 	{	//force our emulated time to as late as we can.
 		//this will disable all position interpolation
 		*servertime = cl.frames[cls.netchan.incoming_sequence&UPDATE_MASK].packet_entities.servertime;
-		Con_DPrintf("No lerp\n");
+//		Con_DPrintf("No lerp\n");
 	}
 
 	packnew = NULL;
@@ -1496,7 +1496,7 @@ packet_entities_t *CL_ProcessPacketEntities(float *servertime, qboolean nolerp)
 
 	CL_TransitionPacketEntities(packnew, packold, *servertime);
 
-	Con_DPrintf("%f %f %f %f %f %f\n", packnew->servertime, *servertime, packold->servertime, cl.gametime, cl.oldgametime, cl.servertime);
+//	Con_DPrintf("%f %f %f %f %f %f\n", packnew->servertime, *servertime, packold->servertime, cl.gametime, cl.oldgametime, cl.servertime);
 
 //	if (packold->servertime < oldoldtime)
 //		Con_Printf("Spike screwed up\n");

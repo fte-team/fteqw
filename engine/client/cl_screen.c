@@ -1576,7 +1576,7 @@ void SCR_ScreenShot_f (void)
 			pcxname[18] = (i%100)/10 + '0';
 			pcxname[19] = (i%10) + '0';
 			sprintf (checkname, "%s/%s", com_gamedir, pcxname);
-			if (!(vfs = FS_OpenVFS(pcxname, "r", FS_GAMEONLY)))
+			if (!(vfs = FS_OpenVFS(pcxname, "rb", FS_GAMEONLY)))
 				break;  // file doesn't exist
 			VFS_CLOSE(vfs);
 		}

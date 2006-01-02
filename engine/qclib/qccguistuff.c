@@ -160,6 +160,16 @@ void GUI_ParseCommandLine(char *args)
 		{
 			fl_log = true;
 		}
+		else if (!strnicmp(parameters+paramlen, "-srcfile", 8) || !strnicmp(parameters+paramlen, "/srcfile", 8))
+		{
+			while (*next == ' ')
+				next++;
+			
+			l = 0;
+			while (*next != ' ' && *next)
+				progssrcname[l++] = *next++;
+			progssrcname[l] = 0;
+		}
 		else if (!strnicmp(parameters+paramlen, "-T", 2) || !strnicmp(parameters+paramlen, "/T", 2))	//the target
 		{
 			if (!strnicmp(parameters+paramlen+2, "h2", 2))

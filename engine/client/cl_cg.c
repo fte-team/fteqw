@@ -447,7 +447,7 @@ static long CG_SystemCallsEx(void *offset, unsigned int mask, int fn, const long
 		Con_Printf("%s", VM_POINTER(arg[0]));
 		break;
 	case CG_ERROR:
-		Host_EndGame("%s", VM_POINTER(arg[0]));
+			Host_EndGame("%s", VM_POINTER(arg[0]));
 		break;
 
 	case CG_ARGC:

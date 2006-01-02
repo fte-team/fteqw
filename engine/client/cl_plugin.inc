@@ -13,6 +13,9 @@ static plugin_t *protocolclientplugin;
 
 int VARGS Plug_Menu_Control(void *offset, unsigned int mask, const long *arg)
 {
+	if (qrenderer <= 0)
+		return 0;
+
 	switch(VM_LONG(arg[0]))
 	{
 	case 0:	//take away all menus
@@ -53,6 +56,9 @@ int VARGS Plug_Key_GetKeyCode(void *offset, unsigned int mask, const long *arg)
 
 int VARGS Plug_SCR_CenterPrint(void *offset, unsigned int mask, const long *arg)
 {
+	if (qrenderer <= 0)
+		return 0;
+
 	SCR_CenterPrint(0, VM_POINTER(arg[0]));
 	return 0;
 }
@@ -65,6 +71,9 @@ int VARGS Plug_Media_ShowFrameRGBA_32(void *offset, unsigned int mask, const lon
 	int y = VM_LONG(arg[4]);
 	int width = VM_LONG(arg[5]);
 	int height = VM_LONG(arg[6]);
+
+	if (qrenderer <= 0)
+		return 0;
 
 	Media_ShowFrameRGBA_32(src, srcwidth, srcheight);
 	return 0;
@@ -110,7 +119,7 @@ int VARGS Plug_Draw_LoadImage(void *offset, unsigned int mask, const long *arg)
 	if (pluginimagearray[i].pic)
 		return i;	//already loaded.
 
-	if (qrenderer)
+	if (qrenderer > 0)
 	{
 		if (fromwad && Draw_SafePicFromWad)
 			pic = Draw_SafePicFromWad(name);
@@ -175,7 +184,7 @@ int VARGS Plug_Draw_Image(void *offset, unsigned int mask, const long *arg)
 {
 	mpic_t *pic;
 	int i;
-	if (!qrenderer)
+	if (qrenderer <= 0)
 		return 0;
 	if (!Draw_Image)
 		return 0;
@@ -211,11 +220,15 @@ int VARGS Plug_Draw_Line(void *offset, unsigned int mask, const long *arg)
 		qglEnable(GL_TEXTURE_2D);
 		break;
 #endif
+	default:
+		return 0;
 	}
 	return 1;
 }
 int VARGS Plug_Draw_Character(void *offset, unsigned int mask, const long *arg)
 {
+	if (qrenderer <= 0)
+		return 0;
 	Draw_Character(arg[0], arg[1], (unsigned int)arg[2]);
 	return 0;
 }
@@ -223,6 +236,8 @@ int VARGS Plug_Draw_Character(void *offset, unsigned int mask, const long *arg)
 int VARGS Plug_Draw_Fill(void *offset, unsigned int mask, const long *arg)
 {
 	float x, y, width, height;
+	if (qrenderer <= 0)
+		return 0;
 	x = VM_FLOAT(arg[0]);
 	y = VM_FLOAT(arg[1]);
 	width = VM_FLOAT(arg[2]);
@@ -289,6 +304,9 @@ int VARGS Plug_Draw_Colour4f(void *offset, unsigned int mask, const long *arg)
 
 int VARGS Plug_LocalSound(void *offset, unsigned int mask, const long *arg)
 {
+	if (qrenderer <= 0)
+		return false;
+
 	S_LocalSound(VM_POINTER(arg[0]));
 	return 0;
 }
@@ -305,6 +323,9 @@ int VARGS Plug_CL_GetStats(void *offset, unsigned int mask, const long *arg)
 
 	if (VM_OOB(arg[1], arg[2]*4))
 		return 0;
+
+	if (qrenderer <= 0)
+		return false;
 
 	max = pluginstats;
 	if (max > MAX_CL_STATS)
@@ -324,6 +345,10 @@ int VARGS Plug_Con_SubPrint(void *offset, unsigned int mask, const long *arg)
 	char *name = VM_POINTER(arg[0]);
 	char *text = VM_POINTER(arg[1]);
 	console_t *con;
+
+	if (qrenderer <= 0)
+		return false;
+
 	con = Con_FindConsole(name);
 	if (!con)
 	{
@@ -345,6 +370,8 @@ int VARGS Plug_Con_RenameSub(void *offset, unsigned int mask, const long *arg)
 {
 	char *name = VM_POINTER(arg[0]);
 	console_t *con;
+	if (qrenderer <= 0)
+		return false;
 	con = Con_FindConsole(name);
 	if (!con)
 		return 0;
@@ -357,6 +384,8 @@ int VARGS Plug_Con_IsActive(void *offset, unsigned int mask, const long *arg)
 {
 	char *name = VM_POINTER(arg[0]);
 	console_t *con;
+	if (qrenderer <= 0)
+		return false;
 	con = Con_FindConsole(name);
 	if (!con)
 		return false;
@@ -367,6 +396,8 @@ int VARGS Plug_Con_SetActive(void *offset, unsigned int mask, const long *arg)
 {
 	char *name = VM_POINTER(arg[0]);
 	console_t *con;
+	if (qrenderer <= 0)
+		return false;
 	con = Con_FindConsole(name);
 	if (!con)
 		con = Con_Create(name);
@@ -378,6 +409,8 @@ int VARGS Plug_Con_Destroy(void *offset, unsigned int mask, const long *arg)
 {
 	char *name = VM_POINTER(arg[0]);
 	console_t *con;
+	if (qrenderer <= 0)
+		return false;
 	con = Con_FindConsole(name);
 	if (!con)
 		return false;
@@ -392,6 +425,8 @@ int VARGS Plug_Con_NameForNum(void *offset, unsigned int mask, const long *arg)
 	int buffersize = VM_LONG(arg[2]);
 	if (VM_OOB(arg[1], arg[2]) || buffersize < 1)
 		return false;
+	if (qrenderer <= 0)
+		return false;
 
 	return Con_NameForNum(num, buffer, buffersize);
 }
@@ -400,29 +435,29 @@ int VARGS Plug_Con_NameForNum(void *offset, unsigned int mask, const long *arg)
 
 void Plug_Client_Init(void)
 {
-	Plug_RegisterBuiltin("CL_GetStats",				Plug_CL_GetStats, 0);
-	Plug_RegisterBuiltin("Menu_Control",			Plug_Menu_Control, 0);
-	Plug_RegisterBuiltin("Key_GetKeyCode",			Plug_Key_GetKeyCode, 0);
+	Plug_RegisterBuiltin("CL_GetStats",				Plug_CL_GetStats, PLUG_BIF_NEEDSRENDERER);
+	Plug_RegisterBuiltin("Menu_Control",			Plug_Menu_Control, PLUG_BIF_NEEDSRENDERER);
+	Plug_RegisterBuiltin("Key_GetKeyCode",			Plug_Key_GetKeyCode, PLUG_BIF_NEEDSRENDERER);
 
-	Plug_RegisterBuiltin("Draw_LoadImage",			Plug_Draw_LoadImage, 0);
-	Plug_RegisterBuiltin("Draw_Image",				Plug_Draw_Image, 0);
-	Plug_RegisterBuiltin("Draw_Character",			Plug_Draw_Character, 0);
-	Plug_RegisterBuiltin("Draw_Fill",				Plug_Draw_Fill, 0);
-	Plug_RegisterBuiltin("Draw_Line",				Plug_Draw_Line, 0);
-	Plug_RegisterBuiltin("Draw_Colourp",			Plug_Draw_ColourP, 0);
-	Plug_RegisterBuiltin("Draw_Colour3f",			Plug_Draw_Colour3f, 0);
-	Plug_RegisterBuiltin("Draw_Colour4f",			Plug_Draw_Colour4f, 0);
+	Plug_RegisterBuiltin("Draw_LoadImage",			Plug_Draw_LoadImage, PLUG_BIF_NEEDSRENDERER);
+	Plug_RegisterBuiltin("Draw_Image",				Plug_Draw_Image, PLUG_BIF_NEEDSRENDERER);
+	Plug_RegisterBuiltin("Draw_Character",			Plug_Draw_Character, PLUG_BIF_NEEDSRENDERER);
+	Plug_RegisterBuiltin("Draw_Fill",				Plug_Draw_Fill, PLUG_BIF_NEEDSRENDERER);
+	Plug_RegisterBuiltin("Draw_Line",				Plug_Draw_Line, PLUG_BIF_NEEDSRENDERER);
+	Plug_RegisterBuiltin("Draw_Colourp",			Plug_Draw_ColourP, PLUG_BIF_NEEDSRENDERER);
+	Plug_RegisterBuiltin("Draw_Colour3f",			Plug_Draw_Colour3f, PLUG_BIF_NEEDSRENDERER);
+	Plug_RegisterBuiltin("Draw_Colour4f",			Plug_Draw_Colour4f, PLUG_BIF_NEEDSRENDERER);
 
-	Plug_RegisterBuiltin("Con_SubPrint",			Plug_Con_SubPrint, 0);
-	Plug_RegisterBuiltin("Con_RenameSub",			Plug_Con_RenameSub, 0);
-	Plug_RegisterBuiltin("Con_IsActive",			Plug_Con_IsActive, 0);
-	Plug_RegisterBuiltin("Con_SetActive",			Plug_Con_SetActive, 0);
-	Plug_RegisterBuiltin("Con_Destroy",				Plug_Con_Destroy, 0);
-	Plug_RegisterBuiltin("Con_NameForNum",			Plug_Con_NameForNum, 0);
+	Plug_RegisterBuiltin("Con_SubPrint",			Plug_Con_SubPrint, PLUG_BIF_NEEDSRENDERER);
+	Plug_RegisterBuiltin("Con_RenameSub",			Plug_Con_RenameSub, PLUG_BIF_NEEDSRENDERER);
+	Plug_RegisterBuiltin("Con_IsActive",			Plug_Con_IsActive, PLUG_BIF_NEEDSRENDERER);
+	Plug_RegisterBuiltin("Con_SetActive",			Plug_Con_SetActive, PLUG_BIF_NEEDSRENDERER);
+	Plug_RegisterBuiltin("Con_Destroy",				Plug_Con_Destroy, PLUG_BIF_NEEDSRENDERER);
+	Plug_RegisterBuiltin("Con_NameForNum",			Plug_Con_NameForNum, PLUG_BIF_NEEDSRENDERER);
 
-	Plug_RegisterBuiltin("LocalSound",				Plug_LocalSound, 0);
-	Plug_RegisterBuiltin("SCR_CenterPrint",			Plug_SCR_CenterPrint, 0);
-	Plug_RegisterBuiltin("Media_ShowFrameRGBA_32",	Plug_Media_ShowFrameRGBA_32, 0);
+	Plug_RegisterBuiltin("LocalSound",				Plug_LocalSound, PLUG_BIF_NEEDSRENDERER);
+	Plug_RegisterBuiltin("SCR_CenterPrint",			Plug_SCR_CenterPrint, PLUG_BIF_NEEDSRENDERER);
+	Plug_RegisterBuiltin("Media_ShowFrameRGBA_32",	Plug_Media_ShowFrameRGBA_32, PLUG_BIF_NEEDSRENDERER);
 }
 
 void Plug_Client_Close(plugin_t *plug)

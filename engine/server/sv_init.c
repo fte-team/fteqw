@@ -62,7 +62,7 @@ int SV_ModelIndex (char *name)
 			Q_strncpyz(sv.model_precache[i], name, sizeof(sv.model_precache[i]));
 			if (!strcmp(name + strlen(name) - 4, ".bsp"))
 				sv.models[i] = Mod_FindName(sv.model_precache[i]);
-			Con_Printf("WARNING: SV_ModelIndex: model %s not precached", name);
+			Con_Printf("WARNING: SV_ModelIndex: model %s not precached\n", name);
 		}
 		else
 			SV_Error ("SV_ModelIndex: model %s not precached", name);

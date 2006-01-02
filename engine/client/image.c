@@ -1056,7 +1056,7 @@ void screenshotJPEG(char *filename, qbyte *screendata, int screenwidth, int scre
 	if (!(outfile = FS_OpenVFS(filename, "wb", FS_GAMEONLY)))
 	{
 		FS_CreatePath (filename, FS_GAME);
-		if (!(outfile = FS_OpenVFS(filename, "w", FS_GAMEONLY)))
+		if (!(outfile = FS_OpenVFS(filename, "wb", FS_GAMEONLY)))
 			Sys_Error ("Error opening %s", filename);
 	}
 

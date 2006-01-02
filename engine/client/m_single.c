@@ -23,8 +23,8 @@ menubutton_t *VARGS MC_AddConsoleCommandf(menu_t *menu, int x, int y, char *text
 void M_ScanSaves (void)
 {
 	int		i, j;
-	char	name[MAX_OSPATH];
-	FILE	*f;
+	char	line[MAX_OSPATH];
+	vfsfile_t	*f;
 	int		version;
 
 	for (i=0 ; i<MAX_SAVEGAMES ; i++)
@@ -32,20 +32,21 @@ void M_ScanSaves (void)
 		strcpy (m_filenames[i], "--- UNUSED SLOT ---");
 		loadable[i] = false;
 
-		sprintf (name, "%s/saves/s%i/info.fsv", com_gamedir, i);
-		f = fopen (name, "rb");
+		_snprintf (line, sizeof(line), "saves/s%i/info.fsv", i);
+		f = FS_OpenVFS (line, "rb", FS_GAME);
 		if (f)
 		{
-			fscanf (f, "%i\n", &version);
+			VFS_GETS(f, line, sizeof(line));
+			version = atoi(line);
 			if (version != FTESAVEGAME_VERSION)
 			{
 				Q_strncpyz (m_filenames[i], "Incompatable version", sizeof(m_filenames[i]));			
-				fclose (f);
+				VFS_CLOSE (f);
 				continue;
 			}
 
-			fscanf (f, "%79s\n", name);
-			Q_strncpyz (m_filenames[i], name, sizeof(m_filenames[i]));
+			VFS_GETS(f, line, sizeof(line));
+			Q_strncpyz (m_filenames[i], line, sizeof(m_filenames[i]));
 
 
 		// change _ back to space
@@ -53,34 +54,10 @@ void M_ScanSaves (void)
 				if (m_filenames[i][j] == '_')
 					m_filenames[i][j] = ' ';
 			loadable[i] = true;
-			fclose (f);
+			VFS_CLOSE (f);
 
 			continue;
 		}
-/*
-		sprintf (name, "%s/s%i.sav", com_gamedir, i);
-		f = fopen (name, "rb");
-		if (!f)
-			continue;
-		fscanf (f, "%i\n", &version);
-		if (version != SAVEGAME_VERSION && version != 5 && version != 6)
-		{
-			Q_strncpyz (m_filenames[i], "Incompatable version", sizeof(m_filenames[i]));			
-			fclose (f);
-			continue;
-		}
-		else
-		{
-			fscanf (f, "%79s\n", name);
-			Q_strncpyz (m_filenames[i], name, sizeof(m_filenames[i]));
-		}
-
-	// change _ back to space
-		for (j=0 ; j<SAVEGAME_COMMENT_LENGTH ; j++)
-			if (m_filenames[i][j] == '_')
-				m_filenames[i][j] = ' ';
-		loadable[i] = true;
-		fclose (f);*/
 	}
 }
 

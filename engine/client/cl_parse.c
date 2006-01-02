@@ -639,6 +639,8 @@ void Model_NextDownload (void)
 #endif
 	{
 	// done with modellist, request first of static signon messages
+		if (CL_RemoveClientCommands("prespawn"))
+			Con_Printf("Multiple prespawns\n");
 //		CL_SendClientCommand("prespawn %i 0 %i", cl.servercount, cl.worldmodel->checksum2);
 		CL_SendClientCommand(true, prespawn_name, cl.servercount, LittleLong(cl.worldmodel->checksum2));
 	}
@@ -773,6 +775,8 @@ void CL_RequestNextDownload (void)
 		}
 		return;
 	}
+	if (!requiredownloads.value)
+		return;
 	switch (cls.downloadtype)
 	{
 	case dl_single:
@@ -937,7 +941,7 @@ void CL_ParseChunkedDownload(void)
 		else
 			sprintf (osname, "%s/%s", com_gamedir, cls.downloadtempname);
 		COM_CreatePath (osname);
-		cls.downloadqw = fopen (osname, "wb");
+		cls.downloadqw = FS_OpenVFS (osname, "wb", FS_GAME);
 
 		if (!cls.downloadqw)
 		{
@@ -986,11 +990,11 @@ void CL_ParseChunkedDownload(void)
 		firstblock++;
 	}
 
-	fseek(cls.downloadqw, chunknum*DLBLOCKSIZE, SEEK_SET);
+	VFS_SEEK(cls.downloadqw, chunknum*DLBLOCKSIZE);
 	if (downloadsize - chunknum*DLBLOCKSIZE < DLBLOCKSIZE)	//final block is actually meant to be smaller than we recieve.
-		fwrite(data, 1, downloadsize - chunknum*DLBLOCKSIZE, cls.downloadqw);
+		VFS_WRITE(cls.downloadqw, data, downloadsize - chunknum*DLBLOCKSIZE);
 	else
-		fwrite(data, 1, DLBLOCKSIZE, cls.downloadqw);
+		VFS_WRITE(cls.downloadqw, data, DLBLOCKSIZE);
 
 	cls.downloadpercent = receivedbytes/(float)downloadsize*100;
 }
@@ -1022,7 +1026,7 @@ int CL_RequestADownloadChunk(void)
 
 //	Con_Printf("^1 EOF?\n");
 
-	fclose(cls.downloadqw);
+	VFS_CLOSE(cls.downloadqw);
 	CL_FinishDownload(cls.downloadname, cls.downloadtempname);
 
 	Con_Printf("Download took %i seconds\n", (int)(Sys_DoubleTime() - downloadstarttime));
@@ -1080,7 +1084,7 @@ void CL_ParseDownload (void)
 		if (cls.downloadqw)
 		{
 			Con_TPrintf (TL_CLS_DOWNLOAD_ISSET);
-			fclose (cls.downloadqw);
+			VFS_CLOSE (cls.downloadqw);
 			cls.downloadqw = NULL;
 		}
 		if (cl.downloadlist && !strcmp(cl.downloadlist->name, cls.downloadname))
@@ -1107,7 +1111,7 @@ void CL_ParseDownload (void)
 
 		COM_CreatePath (name);
 
-		cls.downloadqw = fopen (name, "wb");
+		cls.downloadqw = FS_OpenVFS (name, "wb", FS_GAME);
 		if (!cls.downloadqw)
 		{
 			msg_readcount += size;
@@ -1127,14 +1131,14 @@ void CL_ParseDownload (void)
 
 		percent = percent - 101;
 
-		fwrite (ZLibDownloadDecode(&compsize, net_message.data + msg_readcount, size), 1, size, cls.download);
+		VFS_WRITE (cls.download, ZLibDownloadDecode(&compsize, net_message.data + msg_readcount, size), size);
 
 		msg_readcount += compsize;
 	}
 	else
 #endif
 	{
-		fwrite (net_message.data + msg_readcount, 1, size, cls.downloadqw);
+		VFS_WRITE (cls.downloadqw, net_message.data + msg_readcount, size);
 		msg_readcount += size;
 	}
 
@@ -1151,7 +1155,7 @@ void CL_ParseDownload (void)
 	}
 	else
 	{
-		fclose (cls.downloadqw);
+		VFS_CLOSE (cls.downloadqw);
 
 		CL_FinishDownload(cls.downloadname, cls.downloadtempname);
 		*cls.downloadname = '\0';
@@ -1420,11 +1424,15 @@ void CL_ParseServerData (void)
 #ifdef PEXT_PK3DOWNLOADS
 	if (cls.fteprotocolextensions & PEXT_PK3DOWNLOADS)	//instead of going for a soundlist, go for the pk3 list instead. The server will make us go for the soundlist after.
 	{
+		if (CL_RemoveClientCommands("pk3list"))
+			Con_Printf("Multiple pk3lists\n");
 		CL_SendClientCommand ("pk3list %i 0", cl.servercount, 0);
 	}
 	else
 #endif
 	{
+		if (CL_RemoveClientCommands("soundlist"))
+			Con_Printf("Multiple soundlists\n");
 		// ask for the sound list next
 //		CL_SendClientCommand ("soundlist %i 0", cl.servercount);
 		CL_SendClientCommand (true, soundlist_name, cl.servercount, 0);
@@ -1987,6 +1995,8 @@ void CL_ParseModellist (qboolean lots)
 
 	if (n)
 	{
+		if (CL_RemoveClientCommands("modellist"))
+			Con_Printf("Multiple modellists\n");
 //		CL_SendClientCommand("modellist %i %i", cl.servercount, n);
 		CL_SendClientCommand(true, modellist_name, cl.servercount, (nummodels&0xff00) + n);
 		return;

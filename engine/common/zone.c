@@ -44,7 +44,7 @@ void Cache_FreeHigh (int new_high_hunk);
 #define TEMPDEBUG 4
 #define ZONEDEBUG 4
 #define HUNKDEBUG 4
-#define CACHEDEBUG 4
+#define CACHEDEBUG 640
 
 //these need to be defined because it makes some bits of code simpler
 #ifndef HUNKDEBUG
@@ -173,7 +173,7 @@ void VARGS Z_Free (void *c)
 		for (i = 0; i < ZONEDEBUG; i++)
 		{
 			if (buf[i] != sentinalkey)
-				*(int*)0 = -3;	//force a crash... this'll get our attention.
+				Sys_Error("corrupt memory block (%i? bytes)\n", nz->size);
 		}
 		buf+=ZONEDEBUG;
 		//app data
@@ -181,7 +181,7 @@ void VARGS Z_Free (void *c)
 		for (i = 0; i < ZONEDEBUG; i++)
 		{
 			if (buf[i] != sentinalkey)
-				*(int*)0 = -3;	//force a crash... this'll get our attention.
+				Sys_Error("corrupt memory block (%i? bytes)\n", nz->size);
 		}
 	}
 #endif
@@ -216,7 +216,7 @@ void BZ_CheckSentinals(void *c)
 		for (i = 0; i < ZONEDEBUG; i++)
 		{
 			if (buf[i] != sentinalkey)
-				*(int*)0 = -3;	//force a crash... this'll get our attention.
+				Sys_Error("corrupt memory block (%i? bytes)\n", nz->size);
 		}
 		buf+=ZONEDEBUG;
 		//app data
@@ -224,7 +224,7 @@ void BZ_CheckSentinals(void *c)
 		for (i = 0; i < ZONEDEBUG; i++)
 		{
 			if (buf[i] != sentinalkey)
-				*(int*)0 = -3;	//force a crash... this'll get our attention.
+				Sys_Error("corrupt memory block (%i? bytes)\n", nz->size);
 		}
 	}
 #endif
@@ -242,7 +242,7 @@ void BZ_CheckAllSentinals(void)
 		for (i = 0; i < ZONEDEBUG; i++)
 		{
 			if (buf[i] != sentinalkey)
-				*(int*)0 = -3;	//force a crash... this'll get our attention.
+				Sys_Error("corrupt memory block (%i? bytes)\n", zone->size);
 		}
 		buf+=ZONEDEBUG;
 		//app data
@@ -250,7 +250,7 @@ void BZ_CheckAllSentinals(void)
 		for (i = 0; i < ZONEDEBUG; i++)
 		{
 			if (buf[i] != sentinalkey)
-				*(int*)0 = -3;	//force a crash... this'll get our attention.
+				Sys_Error("corrupt memory block (%i? bytes)\n", zone->size);
 		}
 	}
 }
@@ -1360,7 +1360,7 @@ void Cache_Free (cache_user_t *c)
 		for (i = 0; i < CACHEDEBUG; i++)
 		{
 			if (buf[i] != sentinalkey)
-				*(int*)0 = -3;	//force a crash... this'll get our attention.
+				Sys_Error("Cache memory corrupted (%i? bytes)", cs->size);
 		}
 		buf+=CACHEDEBUG;
 		//app data
@@ -1368,7 +1368,7 @@ void Cache_Free (cache_user_t *c)
 		for (i = 0; i < CACHEDEBUG; i++)
 		{
 			if (buf[i] != sentinalkey)
-				*(int*)0 = -3;	//force a crash... this'll get our attention.
+				Sys_Error("Cache memory corrupted (%i? bytes)", cs->size);
 		}
 	}
 #endif
@@ -1382,7 +1382,7 @@ void Cache_Free (cache_user_t *c)
 	if (cs == cache_head)
 		cache_head = cs->next;
 
-	free(cs);
+	BZ_Free(cs);
 }
 
 void *Cache_Check(cache_user_t *c)
@@ -1414,7 +1414,7 @@ void *Cache_Alloc (cache_user_t *c, int size, char *name)
 
 //	size = (size + 15) & ~15;
 
-	nt = (cache_system_t*)malloc(size + sizeof(cache_system_t) + CACHEDEBUG*2);
+	nt = (cache_system_t*)BZ_Malloc(size + sizeof(cache_system_t) + CACHEDEBUG*2);
 	if (!nt)
 		Sys_Error("Cache_Alloc: failed on allocation of %i bytes", size);
 	nt->next = cache_head;

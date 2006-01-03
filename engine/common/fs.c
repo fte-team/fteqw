@@ -516,7 +516,7 @@ int VFSPAK_ReadBytes (struct vfsfile_s *vfs, void *buffer, int bytestoread)
 	int read;
 
 	if (vfsp->currentpos - vfsp->startpos + bytestoread > vfsp->length)
-		bytestoread = vfsp->length - (vfsp->currentpos - vfsp->startpos + bytestoread);
+		bytestoread = vfsp->length - (vfsp->currentpos - vfsp->startpos);
 	if (bytestoread <= 0)
 		return -1;
 

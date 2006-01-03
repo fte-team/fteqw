@@ -342,7 +342,7 @@ string(float iid) GetItemVModel =
 		return "progs/v_axe.mdl";
 	if (iid == IID_WP_USP)
 		return "progs/v_1911.mdl";
-/*
+
 	if (iid == IID_WP_DEAGLE)
 		return "progs/v_deagle.mdl";
 	if (iid == IID_WP_NEEDLER)
@@ -355,7 +355,7 @@ string(float iid) GetItemVModel =
 		return "progs/v_double.mdl";
 	if (iid == IID_WP_MOSSBERG)
 		return "progs/v_shotgun.mdl";
-*/
+
 	if (iid == IID_WP_JACKHAMMER)
 		return "progs/v_jackhammer.mdl";
 	if (iid == IID_WP_MP9)

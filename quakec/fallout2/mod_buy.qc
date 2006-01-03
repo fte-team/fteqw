@@ -171,87 +171,54 @@ void() BuyScraps =
 };
 
 
-void (float wt, float cost, float item) BuyWeapon =
+void (float wt, float cost, float wid) BuyWeapon =
 {
-/*
-	local float lbs;
-	local string qq;
-	local float curr;
-	local float c3;
-	local string c1;
-	local string c2;
+	local string z;
+	local float x, y;
 
-	lbs = weightx ();
-
-	if ((self.current_slot == 1))
+	if (self.ammo_shells < cost)
 	{
-		curr = self.slot1_weight;
-
-		if (self.slot2 == 0)
-			self.slot2 = self.slot1;
-		if (self.slot2 != 0)
-			DropWeapon (self.slot2, 1, 0);
-		
-		GetWeaponModel ();
-	}
-	if ((self.current_slot == 2))
-	{
-		curr = self.slot2_weight;
-
-		if (self.slot1 == 0)
-			self.slot1 = self.slot2;
-		if (self.slot1 != 0)
-		{
-			DropWeapon (self.slot1, 1, 0);
-			self.slot2 = 0;
-		}
-
-		GetWeaponModel ();
-	}
-	if ((lbs + wt - curr) > self.max_weight)
-	{
-		sprint (self, PRINT_HIGH, "you can't carry that much.\n");
 		self.currentmenu = "none";
-		GetWeaponModel ();
+		sound (self, CHAN_BODY, "misc/menu3.wav", 1, ATTN_IDLE);
+		sprint(self, PRINT_HIGH, "not enough money.\n");
 		return;
 	}
-	if (cost > self.ammo_shells)
-	{
-		sprint (self, PRINT_HIGH, "not enough money.\n");
-		self.currentmenu = "none";
-		GetWeaponModel ();
-		return;
-	}
+
+	sound (self, CHAN_BODY, "misc/item1.wav", 1, ATTN_NORM);
 	self.ammo_shells = self.ammo_shells - cost;
-	if ((self.current_slot == 1))
-	{
-		GetWeaponWeight (self, self.current_slot);
-		stuffcmd (self, "impulse 1\n");
-		self.slot1 = item;
-		self.items = (self.items | IT_SUPER_NAILGUN);
-		GetWeaponModel ();
-	}
+
+	sprint(self, PRINT_HIGH, "you bought ");
+
+	z = GetItemName(wid);
+	sprint(self, PRINT_HIGH, z);
+	sprint(self, PRINT_HIGH, ".\n");
+
+	//put new weapon in current slot
+	//put old weapon in empty slot
+      //otherwise, drop it.
+
+	x = SlotOfItem(self, IID_NONE);
+
+	if (x == 0)//no more room
+		DropFromSlot (self.current_slot, 1, 0);
+	else       //found a place to stick old weapon
+		SetItemSlot(self, x, SlotVal(self.current_slot, 1));
+
+		SetItemSlot(self, self.current_slot, SlotVal(wid, 1));
+
+	x = WeaponMagQuant(wid);//load weapon with full ammo (may be changed)
+	if (self.current_slot == 1)
+		self.islot1 = SlotVal(wid, x + ToStatus(1));
 	if (self.current_slot == 2)
-	{
-		GetWeaponWeight (self, self.current_slot);
-		stuffcmd (self, "impulse 2\n");
-		self.slot2 = item;
-		self.items = (self.items | IT_GRENADE_LAUNCHER);
-		GetWeaponModel ();
-	}
-	qq = GetWeaponName (self, item);
-	sprint (self, PRINT_HIGH, qq);
-	sprint (self, PRINT_HIGH, " purchased.\n");
-	sound (self, CHAN_BODY, "misc/item2.wav", 1, ATTN_NORM);
-	self.currentmenu = "none";
-	WeaponAmmo (SPAWNFLAG_SUPERSPIKE);
-	WeaponAmmo (SPAWNFLAG_LASER);
-	GetWeaponWeight (self, 1);
-	GetWeaponWeight (self, 2);
-	GetWeaponModel ();
-	return;
-*/
+		self.islot2 = SlotVal(wid, x + ToStatus(2));
+
+	x = SlotOfItem(self, IID_NONE); //give ammo
+
+	if (x != 0)
+		SetItemSlot(self, x, WeaponAmmoType(wid));
+
 };
+
 
 void (float cost, float item) BuyPerk =
 {
@@ -597,13 +564,13 @@ void() W_PlayerMenu =
 	if (self.currentmenu == "shop_melee")
 	{
 		if (self.impulse == 1)
-                  BuyWeapon(1, 1, 1);         //weight, cost, item
+                  BuyWeapon(1, 1, IID_WP_KNIFE);         //weight, cost, item
 		if (self.impulse == 2)
-                  BuyWeapon(6, 3, 2);         //weight, cost, item
+                  BuyWeapon(6, 3, IID_WP_AXE);         //weight, cost, item
 		if (self.impulse == 3)
-                  BuyWeapon(3, 10, 3);         //weight, cost, item
+                  BuyWeapon(3, 10, IID_WP_VIBROBLADE);         //weight, cost, item
 		if (self.impulse == 4)
-                  BuyWeapon(10, 15, 4);         //weight, cost, item
+                  BuyWeapon(10, 15, IID_WP_POWERAXE);         //weight, cost, item
 
 			return;
 	}
@@ -623,51 +590,51 @@ void() W_PlayerMenu =
 	if (self.currentmenu == "shop_pistols")
 	{
 		if (self.impulse == 1)
-                  BuyWeapon(1, 5, 5);         //weight, cost, item
+                  BuyWeapon(1, 5, IID_WP_USP);         //weight, cost, item
 		if (self.impulse == 2)
-                  BuyWeapon(2, 7, 6);         //weight, cost, item
+                  BuyWeapon(2, 7, IID_WP_DEAGLE);         //weight, cost, item
 		if (self.impulse == 3)
-                  BuyWeapon(2, 9, 7);         //weight, cost, item
+                  BuyWeapon(2, 9, IID_WP_NEEDLER);         //weight, cost, item
 		if (self.impulse == 4)
-                  BuyWeapon(3, 14, 13);         //weight, cost, item
+                  BuyWeapon(3, 14, IID_WP_MP9);         //weight, cost, item
 		if (self.impulse == 5)
-                  BuyWeapon(3, 17, 14);         //weight, cost, item
+                  BuyWeapon(3, 17, IID_WP_MP7);         //weight, cost, item
 		if (self.impulse == 6)
-                  BuyWeapon(2, 21, 8);         //weight, cost, item
+                  BuyWeapon(2, 21, IID_WP_ALIENBLASTER);         //weight, cost, item
 
 			return;
 	}
 	if (self.currentmenu == "shop_shotguns")
 	{
 		if (self.impulse == 1)
-                  BuyWeapon(3, 3, 9);         //weight, cost, item
+                  BuyWeapon(3, 3, IID_WP_PIPERIFLE);         //weight, cost, item
 		if (self.impulse == 2)
-                  BuyWeapon(4, 7, 10);         //weight, cost, item
+                  BuyWeapon(4, 7, IID_WP_WINCHESTER);         //weight, cost, item
 		if (self.impulse == 3)
-                  BuyWeapon(5, 12, 11);         //weight, cost, item
+                  BuyWeapon(5, 12, IID_WP_MOSSBERG);         //weight, cost, item
 		if (self.impulse == 4)
-                  BuyWeapon(7, 34, 12);         //weight, cost, item
+                  BuyWeapon(7, 34, IID_WP_JACKHAMMER);         //weight, cost, item
 
 			return;
 	}
 	if (self.currentmenu == "shop_rifles")
 	{
 		if (self.impulse == 1)
-                  BuyWeapon(3, 11, 15);         //weight, cost, item
+                  BuyWeapon(3, 11, IID_WP_RANGERMASTER);    //weight, cost, item
 		if (self.impulse == 2)
-                  BuyWeapon(4, 21, 16);         //weight, cost, item
+                  BuyWeapon(4, 21, IID_WP_AK112);          //weight, cost, item
 		if (self.impulse == 3)
-                  BuyWeapon(5, 25, 17);         //weight, cost, item
+                  BuyWeapon(5, 25, IID_WP_AK74);           //weight, cost, item
 		if (self.impulse == 4)
-                  BuyWeapon(6, 28, 18);         //weight, cost, item
+                  BuyWeapon(6, 28, IID_WP_DKS1);           //weight, cost, item
 		if (self.impulse == 5)
-                  BuyWeapon(5, 30, 19);         //weight, cost, item
+                  BuyWeapon(5, 30, IID_WP_MOONLIGHT);      //weight, cost, item
 		if (self.impulse == 6)
-                  BuyWeapon(4, 32, 20);         //weight, cost, item
+                  BuyWeapon(4, 32, IID_WP_SA80);           //weight, cost, item
 		if (self.impulse == 7)
-                  BuyWeapon(7, 40, 21);         //weight, cost, item
+                  BuyWeapon(7, 40, IID_WP_GAUSERIFLE);     //weight, cost, item
 		if (self.impulse == 8)
-                  BuyWeapon(10, 45, 22);         //weight, cost, item
+                  BuyWeapon(10, 45, IID_WP_PULSERIFLE);    //weight, cost, item
 
 			return;
 	}

@@ -252,6 +252,40 @@ float(entity e, float iid) SlotOfItem =
 	return 0;
 };
 
+float(entity e) FindEmptySlot =
+{
+	if (ToIID(e.islot3) == IID_NONE)
+		return 3;
+	if (ToIID(e.islot4) == IID_NONE)
+		return 4;
+	if (ToIID(e.islot5) == IID_NONE)
+		return 5;
+	if (ToIID(e.islot6) == IID_NONE)
+		return 6;
+	if (ToIID(e.islot7) == IID_NONE)
+		return 7;
+	if (ToIID(e.islot8) == IID_NONE)
+		return 8;
+	if (ToIID(e.islot9) == IID_NONE)
+		return 9;
+	if (ToIID(e.islot10) == IID_NONE)
+		return 10;
+	if (ToIID(e.islot11) == IID_NONE)
+		return 11;
+	if (ToIID(e.islot12) == IID_NONE)
+		return 12;
+	if (ToIID(e.islot13) == IID_NONE)
+		return 13;
+	if (ToIID(e.islot14) == IID_NONE)
+		return 14;
+	if (ToIID(e.islot15) == IID_NONE)
+		return 15;
+	if (ToIID(e.islot16) == IID_NONE)
+		return 16;
+
+	return 0;
+};
+
 typedef .float slot_t;
 slot_t(float slot) SlotField =
 {

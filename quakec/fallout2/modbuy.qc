@@ -3,8 +3,8 @@
 
 void(float cost, float type) BuyGrenade =
 {
-	local string y;
-	local float x;
+	local string z;
+	local float x, y;
 
 	if (self.ammo_shells < cost)
 	{
@@ -13,30 +13,35 @@ void(float cost, float type) BuyGrenade =
 		return;
 	}
 
-	if (self.equipment == 4)
-		x = 2;
-	else
-		x = 1;
-
-	if (self.handgrenade >= x)
-	{
-		self.currentmenu = "none";
-		sprint(self, PRINT_HIGH, "already have a grenade.\n");
-		return;
-	}
-
 	sound (self, CHAN_BODY, "misc/item1.wav", 1, ATTN_NORM);
-	self.handgrenade = self.handgrenade + 1;
-	self.grenadetype = type;
 	self.ammo_shells = self.ammo_shells - cost;
-	y = ftos(self.bandages);
+
 	sprint(self, PRINT_HIGH, "you bought a ");
+
 	if (type == 1)
-		sprint(self, PRINT_HIGH, "smoke grenade.\n");
+		y = IID_GREN_SMOKE;
 	if (type == 2)
-		sprint(self, PRINT_HIGH, "frag grenade.\n");
+		y = IID_GREN_FRAG;
 	if (type == 3)
-		sprint(self, PRINT_HIGH, "emp grenade.\n");
+		y = IID_GREN_EMP;
+
+	z = GetItemName(y);
+	sprint(self, PRINT_HIGH, z);
+	sprint(self, PRINT_HIGH, "\n");
+
+	//put grenade in inventory
+	//finds existing grenades, otherwise, empty slot
+
+	x = SlotOfItem(self, y);
+
+	SlotVal(IID_GREN_SMOKE, 500)
+
+	if (x != 0) //found existing grenades
+		SetItemSlot(self, x, SlotVal(y, 1));
+	if (x == 0)
+		x = FindEmptySlot(self, y);
+
+		SetItemSlot(self, x, SlotVal(y, 1));
 };
 
 

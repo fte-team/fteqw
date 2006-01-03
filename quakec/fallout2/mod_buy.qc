@@ -3,8 +3,8 @@
 
 void(float cost, float type) BuyGrenade =
 {
-	local string y;
-	local float x;
+	local string z;
+	local float x, y;
 
 	if (self.ammo_shells < cost)
 	{
@@ -13,32 +13,34 @@ void(float cost, float type) BuyGrenade =
 		return;
 	}
 
-	if (self.equipment == 4)
-		x = 2;
-	else
-		x = 1;
-
-	if (self.handgrenade >= x)
-	{
-		self.currentmenu = "none";
-		sprint(self, PRINT_HIGH, "already have a grenade.\n");
-		return;
-	}
-
 	sound (self, CHAN_BODY, "misc/item1.wav", 1, ATTN_NORM);
-	self.handgrenade = self.handgrenade + 1;
-	self.grenadetype = type;
 	self.ammo_shells = self.ammo_shells - cost;
-	y = ftos(self.bandages);
-	sprint(self, PRINT_HIGH, "you bought a ");
-	if (type == 1)
-		sprint(self, PRINT_HIGH, "smoke grenade.\n");
-	if (type == 2)
-		sprint(self, PRINT_HIGH, "frag grenade.\n");
-	if (type == 3)
-		sprint(self, PRINT_HIGH, "emp grenade.\n");
-};
 
+	sprint(self, PRINT_HIGH, "you bought a ");
+
+	if (type == 1)
+		y = IID_GREN_SMOKE;
+	if (type == 2)
+		y = IID_GREN_FRAG;
+	if (type == 3)
+		y = IID_GREN_EMP;
+
+	z = GetItemName(y);
+	sprint(self, PRINT_HIGH, z);
+	sprint(self, PRINT_HIGH, "\n");
+
+	//put grenade in inventory
+	//finds existing grenades, otherwise, empty slot
+
+	x = SlotOfItem(self, y);
+
+	if (x != 0) //found existing grenades
+		SetItemSlot(self, x, SlotVal(y, 1));
+	if (x == 0)
+		x = FindEmptySlot(self);
+
+		SetItemSlot(self, x, SlotVal(y, 1));
+};
 
 void() BuyBandages =
 {
@@ -265,9 +267,10 @@ void (float cost, float item) BuyPerk =
 	return;
 };
 
+/*
 void (float wt, float cost, float item) BuyArmor =
 {
-/*
+
 	local float curr;
 	local float lbs;
 	local string x;
@@ -300,7 +303,43 @@ void (float wt, float cost, float item) BuyArmor =
 	sprint (self, PRINT_HIGH, " purchased.\n");
 
 	return;
-*/
+
+};*/
+
+void (float wt, float cost, float item) BuyArmor =
+{
+	local string z;
+	local float x, y;
+
+	if (self.ammo_shells < cost)
+	{
+		self.currentmenu = "none";
+		sound (self, CHAN_BODY, "misc/menu3.wav", 1, ATTN_IDLE);
+		sprint(self, PRINT_HIGH, "not enough money.\n");
+		return;
+	}
+
+	sound (self, CHAN_BODY, "misc/item1.wav", 1, ATTN_NORM);
+	self.ammo_shells = self.ammo_shells - cost;
+
+	sprint(self, PRINT_HIGH, "you bought ");
+
+	z = GetItemName(item);
+	sprint(self, PRINT_HIGH, z);
+	sprint(self, PRINT_HIGH, ".\n");
+
+	//put new armor in armor slot
+	//put old armor in inventory
+
+	x = FindEmptySlot(self);
+
+	if (x == 0)
+		sprint(self, 2, "no more room. giving armor to merchant.\n");
+
+	if (x != 0) //found a place to stick old armor
+		SetItemSlot(self, x, SlotVal(self.islot3, 1));
+
+		SetItemSlot(self, 3, SlotVal(item, 1));
 };
 
 void (float cost, float item) BuyEquipment =
@@ -506,21 +545,21 @@ void() W_PlayerMenu =
 	if (self.currentmenu == "shop_armor")
 	{
 		if (self.impulse == 1)
-                  BuyArmor(3, 03, 1);         //weight, cost, item
+                  BuyArmor(3, 03, IID_ARM_SHIRT);         //weight, cost, item
 		if (self.impulse == 2)
-                  BuyArmor(7, 05, 2);         //weight, cost, item
+                  BuyArmor(7, 05, IID_ARM_LEATHER);         //weight, cost, item
 		if (self.impulse == 3)
-                  BuyArmor(9, 10, 3);         //weight, cost, item
+                  BuyArmor(9, 10, IID_ARM_KEVLAR);         //weight, cost, item
 		if (self.impulse == 4)
-                  BuyArmor(15, 12, 4);         //weight, cost, item
+                  BuyArmor(15, 12, IID_ARM_METAL);         //weight, cost, item
 		if (self.impulse == 5)
-                  BuyArmor(12, 25, 5);         //weight, cost, item
+                  BuyArmor(12, 25, IID_ARM_COMBAT);         //weight, cost, item
 		if (self.impulse == 6)
-                  BuyArmor(17, 35, 6);         //weight, cost, item
+                  BuyArmor(17, 35, IID_ARM_BROTHERHOOD);   //weight, cost, item
 		if (self.impulse == 7)
-                  BuyArmor(5, 45, 7);         //weight, cost, item
+                  BuyArmor(5, 45, IID_ARM_FORCE);         //weight, cost, item
 		if (self.impulse == 8)
-                  BuyArmor(20, 55, 8);         //weight, cost, item
+                  BuyArmor(20, 55, IID_ARM_LPOWER);         //weight, cost, item
 
 			return;
 	}

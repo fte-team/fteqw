@@ -108,7 +108,7 @@ void() SetNewParms =
 
 	parm16 = 1;
 	parm17 = SlotVal(IID_WP_AK74, 30);
-	parm18 = SlotVal(IID_GREN_SMOKE, 500);
+	parm18 = SlotVal(IID_GREN_SMOKE, 5);
 	parm19 = SlotVal(IID_ARM_LEATHER, 1);
 	parm20 = SlotVal(IID_AM_AK74, 120);
 	parm21 = SlotVal(IID_AM_MOONLIGHT, 120);

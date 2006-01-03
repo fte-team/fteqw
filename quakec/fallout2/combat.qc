@@ -265,6 +265,10 @@ void(entity targ, entity inflictor, entity attacker, float damage) T_Damage =
 
 // do the damage
 	//different sorts of armour simply subtract different ammounts
+      //this makes armor like the force armor good against many small rounds
+      //(SMG, shotguns, swords, etc) but useless against big damage (grenades)
+      //power armor, which has the best of both worlds, is also the heaviest :p
+
 	switch(ToIID(targ.islot3))
 	{
 	case IID_ARM_SHIRT:

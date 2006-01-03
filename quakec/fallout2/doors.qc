@@ -233,8 +233,8 @@ void () door_touch =
 	{
 		if (self.size_y <= 128 && self.size_x <= 128)
 		{
-		if (other.class == 4)
-		{
+		if (other.class == 2 || other.class == 4) //assassins as well as scientists
+		{                                         //can open doors for more freedom
 			SpawnOpenDoor(self, other);
 			return;
 		}

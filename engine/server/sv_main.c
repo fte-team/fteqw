@@ -3621,7 +3621,7 @@ void SV_ExtractFromUserinfo (client_t *cl)
 	// check to see if another user by the same name exists
 	while (1) {
 		for (i=0, client = svs.clients ; i<MAX_CLIENTS ; i++, client++) {
-			if (client->state != cs_spawned || client == cl)
+			if (client->state < cs_connected || client == cl)
 				continue;
 			if (!stricmp(client->name, newname))
 				break;

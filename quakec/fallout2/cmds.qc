@@ -15,7 +15,9 @@ float(string desc) itemtoslot =
 
 float(float slotno) DecreaseDestroySlot =
 {
-	float it;
+	local float it;
+	local float iid;
+	local float num;
 	it = ItemInSlot(self, slotno);
 	if (ToStatus(it) <= 1)
 	{
@@ -24,7 +26,11 @@ float(float slotno) DecreaseDestroySlot =
 	}
 	else
 	{
-		SetItemSlot(self, slotno, SlotVal(ToIID(it), ToStatus(it)-1));
+		iid = ToIID(it);
+		num = ToStatus(it);
+		num = num - 1;
+		it = SlotVal(iid, num);
+		SetItemSlot(self, slotno, it);
 		return false;
 	}
 };
@@ -122,12 +128,12 @@ void(string arg1, string arg2) Cmd_InvSwap =
 
 	old1 = ItemInSlot(self, slotno1);
 	old2 = ItemInSlot(self, slotno2);
-	if (!FitsInSlot(slotno1, old2))
+	if (!FitsInSlot(slotno1, ToIID(old2)))
 	{
 		sprint(self, PRINT_HIGH, "Not allowed to exchange items\n");
 		return;
 	}
-	if (!FitsInSlot(slotno2, old1))
+	if (!FitsInSlot(slotno2, ToIID(old1)))
 	{
 		sprint(self, PRINT_HIGH, "Not allowed to exchange items\n");
 		return;

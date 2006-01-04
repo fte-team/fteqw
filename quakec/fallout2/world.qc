@@ -381,6 +381,7 @@ void() worldspawn =
 
 	precache_model ("progs/v_axe.mdl");
 	precache_model ("progs/v_shot.mdl");
+	precache_model ("progs/v_span.mdl");
 	precache_model ("progs/v_nail.mdl");
 	precache_model ("progs/v_rock.mdl");
 	precache_model ("progs/v_shot2.mdl");

@@ -9,6 +9,7 @@ void (float rec, float number, float dam, float var, float ran, float auto) W_Fi
 void (float dam, float rec, string snd, float rng, float rate) FireAssaultRifle;
 void (float dam, float rec, string snd, float rng, float rate) FirePistol;
 void (float dam, float rec, string snd, float rng, float rate) FireSMG;
+float() FireToolkit;
 void () W_PlayerMenu;
 //void () UseChem;
 void () Special;
@@ -98,7 +99,11 @@ void() W_FireMelee =
 {
 	local float iid;
 	iid = ToIID(self.(SlotField(self.current_slot)));
-	if (iid == IID_WP_KNIFE)
+	if (iid == IID_NONE)
+		FireMelee(3, 32, 0.6);
+	else if (iid == IID_WP_TOOLKIT)
+		FireMelee(5, 32, 0.2);
+	else if (iid == IID_WP_KNIFE)
 		FireMelee(5, 32, 0.2);
 	else if (iid == IID_WP_AXE)
 		FireMelee(10, 64, 0.2);
@@ -1105,7 +1110,14 @@ void() W_Attack =
 	else if (weap == IID_GREN_FLASH)
 		player_throw1();
 
-
+	else if (weap == IID_WP_TOOLKIT)
+	{
+		if (!FireToolkit())
+		{
+			self.attack_finished = time + 0.25;
+			player_knife1 ();
+		}
+	}
 	else if (IsChem(weap))
 	{
 		self.attack_finished = time + 0.25;
@@ -3065,38 +3077,39 @@ void () station_think =
 					return;
 				}
 
-				sprint (te, 2, "mr.ammo incorporated would like to appologise for any inconvienience caused by this unit being offline.\nOur engineers have diagnosed the fault and will remove the stub whenever they can be arsed.\n");
-/*
+				local float x;
+
 				x = 300;
 
-				if (te.current_slot == 1 && te.ammo2 < x)
+				local float curweap;
+				local float ammotype;
+				local float ammocount;
+				local float ammoslot;
+				curweap = ToIID(ItemInSlot(te, te.current_slot));
+				ammotype = WeaponAmmoType(curweap);
+				if (ammotype)
 				{
-					sound (self, CHAN_BODY, "misc/item1.wav", TRUE, ATTN_NORM);
-					zz = (te.maxmag1 / 2);
-					zz = ceil (zz);
-					qq = ftos (zz);
-					sprint (te, 2, qq);
-					sprint (te, 2, " ammo was received from the mr.ammo.\n");
-					te.ammo1 = te.ammo1 + zz;
-					te.ammo1 = ceil (te.ammo1);
-					self.chemcount = self.chemcount - 1;
+					ammocount = TotalQuantity(te, ammotype);
+					x = x - ammocount;
 				}
 				else
+					x = 0;
+				if (x > 0)
 				{
-					if (te.current_slot == 2 && te.ammo2 < x)
-					{
-						sound (self, CHAN_BODY, "misc/item1.wav", TRUE, ATTN_NORM);
-						zz = (te.maxmag2 / 2);
-						zz = ceil (zz);
-						qq = ftos (zz);
-						sprint (te, 2, qq);
-						sprint (te, 2, " ammo was received from the mr.ammo.\n");
-						te.ammo2 = te.ammo2 + zz;
-						te.ammo2 = ceil (te.ammo2);
-						self.chemcount = self.chemcount - 1;
-					}
+					ammocount = WeaponMagQuant(curweap);
+					if (x > ammocount/2)
+						x = ammocount/2;
+
+					ammoslot = SlotOfItem(te, ammotype);
+					if (!ammoslot)
+						ammoslot = FindEmptySlot(te);
+					if (ammoslot)
+						SetItemSlot(te, ammoslot, SlotVal(ammotype, x + ToStatus(ItemInSlot(te, ammoslot))));
+
+					sprint (te, PRINT_MEDIUM, ftos(ceil(x)), " ammo was received from the mr.ammo.\n");
+
+					self.chemcount = self.chemcount - 1;
 				}
-*/
 			}
 			te = te.chain;
 		}
@@ -3301,9 +3314,67 @@ float (float iid) spawn_station =
 	}
 	self.frame = 4;
 
+	self.chemcount = 75;
+
 	self = oself;
 
 	return true;
+};
+
+float() FireToolkit =
+{
+	local float rr;
+
+	makevectors (self.v_angle);
+	traceline (self.origin, self.origin + v_forward*64, FALSE, self);
+
+	//track is used for the owning player (without using the .owner field)
+	if (trace_ent.track == self && trace_ent.classname == "station" && trace_ent.health > 0)
+	{
+		if (trace_ent.health >= trace_ent.max_health)	//already built - don't whack it!
+			return true;
+
+		//play a random build sound
+		rr = random ();
+		if (rr < 0.3)
+			sound (self, CHAN_WEAPON, "misc/build1.wav", TRUE, ATTN_NORM);
+		else if (rr < 0.6)
+			sound (self, CHAN_WEAPON, "misc/build2.wav", TRUE, ATTN_NORM);
+		else
+			sound (self, CHAN_WEAPON, "misc/build3.wav", TRUE, ATTN_NORM);
+
+
+		if (!trace_ent.nextthink)
+			if (trace_ent.health > 200)
+				trace_ent.frame = 5;
+		self.attack_finished = time + 0.1 + (random () * 0.1);
+		trace_ent.health = trace_ent.health + 6;
+		
+
+		if (trace_ent.health >= trace_ent.max_health)
+		{	//it's built!
+			trace_ent.health = trace_ent.max_health;
+			if (trace_ent.nextthink)
+				return true;	//already complete
+
+			trace_ent.think = station_think;
+			trace_ent.nextthink = time + 1;
+			sprint (self, PRINT_MEDIUM, "BUILDING COMPLETED.\n");
+
+
+			if (trace_ent.buildtype == IID_BUILD_ROBOFANG)
+			{
+				trace_ent.solid = SOLID_NOT;
+				trace_ent.think = SUB_Remove;
+				trace_ent.nextthink = time;
+				makevectors (self.v_angle);
+sprint(self, PRINT_HIGH, "Robofang appears to have malfunctioned\n");
+//				spawn_dog (self.origin + v_forward * 32);
+			}
+		}
+		return true;
+	}
+	return false;
 };
 
 void () BuyMenu =

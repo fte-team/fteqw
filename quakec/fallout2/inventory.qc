@@ -252,6 +252,45 @@ float(entity e, float iid) SlotOfItem =
 	return 0;
 };
 
+float(entity e, float iid) TotalQuantity =
+{	//iid must be stackable.
+	local float ret;
+	if (ToIID(e.islot1) == iid)
+		ret += ToStatus(e.islot1);
+	if (ToIID(e.islot2) == iid)
+		ret += ToStatus(e.islot2);
+	if (ToIID(e.islot3) == iid)
+		ret += ToStatus(e.islot3);
+	if (ToIID(e.islot4) == iid)
+		ret += ToStatus(e.islot4);
+	if (ToIID(e.islot5) == iid)
+		ret += ToStatus(e.islot5);
+	if (ToIID(e.islot6) == iid)
+		ret += ToStatus(e.islot6);
+	if (ToIID(e.islot7) == iid)
+		ret += ToStatus(e.islot7);
+	if (ToIID(e.islot8) == iid)
+		ret += ToStatus(e.islot8);
+	if (ToIID(e.islot9) == iid)
+		ret += ToStatus(e.islot9);
+	if (ToIID(e.islot10) == iid)
+		ret += ToStatus(e.islot10);
+	if (ToIID(e.islot11) == iid)
+		ret += ToStatus(e.islot11);
+	if (ToIID(e.islot12) == iid)
+		ret += ToStatus(e.islot12);
+	if (ToIID(e.islot13) == iid)
+		ret += ToStatus(e.islot13);
+	if (ToIID(e.islot14) == iid)
+		ret += ToStatus(e.islot14);
+	if (ToIID(e.islot15) == iid)
+		ret += ToStatus(e.islot15);
+	if (ToIID(e.islot16) == iid)
+		ret += ToStatus(e.islot16);
+
+	return ret;
+};
+
 float(entity e) FindEmptySlot =
 {
 	if (ToIID(e.islot3) == IID_NONE)
@@ -332,6 +371,8 @@ string(float iid) GetItemVModel =
 {
 	if (iid == IID_NONE)
 		return "progs/v_fist.mdl";
+	if (iid == IID_WP_TOOLKIT)
+		return "progs/v_span.mdl";
 	if (iid == IID_WP_KNIFE)
 		return "progs/v_knife.mdl";
 	if (iid == IID_WP_AXE)
@@ -773,6 +814,7 @@ string(float iid) GetItemName =
 	if (iid == IID_CHEM_BESERK)
 		return "beserk";
 
+
 	if (iid == IID_BUILD_MRAMMO)
 		return "mr. ammo";
 	if (iid == IID_BUILD_SHIELDGEN)
@@ -790,6 +832,8 @@ string(float iid) GetItemName =
 
 float(float slotno, float iid) FitsInSlot =
 {
+	if (!iid)	//nothing can be put in every slot.
+		return true;
 	if (slotno == 1 || slotno == 2)
 		return IsShootable(iid);
 	if (slotno == 3)

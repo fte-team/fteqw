@@ -10,6 +10,8 @@ float showcontextmenu;
 vector contextpos;
 float slotnum;
 
+float downslotnum;
+
 vector toppos = '0 32 0';
 
 float k_mouse1;
@@ -23,7 +25,13 @@ void() Invent_Draw =
 
 	for (i = 0; i < 16; i++)
 	{
-		it = getstati(32+i);
+		if (i+1 == downslotnum && slotnum)
+			op = slotnum-1;
+		else if (i+1 == slotnum && downslotnum)
+			op = downslotnum-1;
+		else
+			op = i;
+		it = getstati(32+op);
 		itname = GetItemName(ToIID(it));
 		drawstring(toppos + (i * '0 8 0'), strcat(itname, " (", ftos(ToStatus(it)), ")"), '8 8 0', '1 1 1', 1);
 	}
@@ -49,13 +57,25 @@ void() Invent_Draw =
 float(float eventtype, float param1, float param2) CSQC_InputEvent =
 {
 	local float op;
-	if (eventtype == 0)
+	if (eventtype == 0)	//key down
 	{
 		if (param1 == 'i')
+		{
 			show_inventory = !show_inventory;
+		}
 		else if (!show_inventory)
 			return false;
 		else if (param1 == k_mouse1)
+		{
+			downslotnum = slotnum;
+		}
+		else
+			return false;
+		return true;
+	}
+	if (eventtype == 1 && show_inventory)	//key up
+	{
+		if (param1 == k_mouse1)
 		{
 			if (showcontextmenu)
 			{
@@ -73,17 +93,27 @@ float(float eventtype, float param1, float param2) CSQC_InputEvent =
 			}
 			else
 			{
-				if (slotnum >= 1 && slotnum <= MAXSLOTS)
+				if (downslotnum == slotnum)	//mouse didn't move away
 				{
-					if (getstati(32+slotnum-1) != 0)
+					if (slotnum >= 1 && slotnum <= MAXSLOTS)
 					{
-						showcontextmenu = true;
-						contextpos = mousepos;
+						if (getstati(32+slotnum-1) != 0)	//if there's actually an item there
+						{
+							showcontextmenu = true;	//show the context menu
+							contextpos = mousepos;
+						}
 					}
+					else
+						show_inventory = false;	//they clicked outside, fools!
 				}
 				else
-					show_inventory = false;
+				{
+					//they dragged
+					showcontextmenu = false;
+					localcmd(strcat("cmd invswap ", ftos(downslotnum), " ", ftos(slotnum), "\nimpulse 1\n"));
+				}
 			}
+			downslotnum = 0;
 		}
 		else
 			return false;

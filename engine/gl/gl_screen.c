@@ -276,7 +276,7 @@ void GLSCR_UpdateScreen (void)
 	else
 #endif
 #ifdef CSQC_DAT
-		if (CSQC_DrawView())
+		if (cls.state == ca_active && CSQC_DrawView())
 		nohud = true;
 	else
 #endif

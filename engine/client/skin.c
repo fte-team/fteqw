@@ -207,9 +207,6 @@ qbyte	*Skin_Cache8 (skin_t *skin)
 	int		runLength;
 	int fbremap[256];
 
-	if (cls.downloadtype == dl_skin)
-		return NULL;		// use base until downloaded
-
 	if (noskins.value==1) // JACK: So NOSKINS > 1 will show skins, but
 		return NULL;	  // not download new ones.
 
@@ -390,9 +387,6 @@ qbyte	*Skin_Cache32 (skin_t *skin)
 	qbyte	*raw;
 	qbyte	*out, *pix;
 
-	if (cls.downloadtype == dl_skin)
-		return NULL;		// use base until downloaded
-
 	if (noskins.value==1) // JACK: So NOSKINS > 1 will show skins, but
 		return NULL;	  // not download new ones.
 
@@ -473,15 +467,11 @@ void Skin_NextDownload (void)
 	player_info_t	*sc;
 	int			i;
 
-	if (cls.downloadnumber == 0)
-		Con_Printf ("Checking skins...\n");
-	cls.downloadtype = dl_skin;
+	Con_Printf ("Checking skins...\n");
 
-	for ( 
-		; cls.downloadnumber != MAX_CLIENTS
-		; cls.downloadnumber++)
+	for (i = 0; i != MAX_CLIENTS; i++)
 	{
-		sc = &cl.players[cls.downloadnumber];
+		sc = &cl.players[i];
 		if (!sc->name[0])
 			continue;
 		Skin_Find (sc);
@@ -491,11 +481,8 @@ void Skin_NextDownload (void)
 		if (strchr(sc->skin->name, ' '))	//skip over skins using a space
 			continue;
 
-		if (!CL_CheckOrDownloadFile(va("skins/%s.pcx", sc->skin->name), NULL, false))
-			return;		// started a download
+		CL_CheckOrEnqueDownloadFile(va("skins/%s.pcx", sc->skin->name), NULL);
 	}
-
-	cls.downloadtype = dl_none;
 
 	// now load them in for real
 	for (i=0 ; i<MAX_CLIENTS ; i++)
@@ -507,12 +494,6 @@ void Skin_NextDownload (void)
 #ifdef RGLQUAKE
 		sc->skin = NULL;
 #endif
-	}
-
-	if (cls.state != ca_active)
-	{	// get next signon phase
-		CL_SendClientCommand(true, "begin %i", cl.servercount);
-		Cache_Report ();		// print remaining memory
 	}
 }
 
@@ -549,14 +530,11 @@ void	Skin_Skins_f (void)
 	}
 	numskins = 0;
 
-	cls.downloadnumber = 0;
-	cls.downloadtype = dl_skin;
 	Skin_NextDownload ();
 
-#ifdef VM_CG
-	CG_Stop();
-	CG_Start();
-#endif
+
+	CL_SendClientCommand(true, "begin %i", cl.servercount);
+	Cache_Report ();		// print remaining memory
 }
 
 

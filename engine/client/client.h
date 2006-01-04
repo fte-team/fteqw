@@ -335,9 +335,6 @@ typedef struct
 	int			downloadpercent;
 	int			downloadchunknum;
 
-	int			downloadnumber;	//file number
-	dltype_t	downloadtype;	//of type
-
 // demo loop control
 	int			demonum;		// -1 = don't play demos
 	char		demos[MAX_DEMOS][MAX_DEMONAME];		// when not playing
@@ -574,6 +571,9 @@ typedef struct
 	int deathmatch;
 
 	qboolean teamfortress;	//*sigh*. This is used for teamplay stuff. This sucks.
+
+	qboolean sendprespawn;
+	int contentstage;
 } client_state_t;
 
 extern int		cl_teamtopcolor;
@@ -743,7 +743,7 @@ void CLNQ_ParseServerMessage (void);
 void CLQ2_ParseServerMessage (void);
 #endif
 void CL_NewTranslation (int slot);
-qboolean	CL_CheckOrDownloadFile (char *filename, char *localname, int nodelay);
+qboolean	CL_CheckOrEnqueDownloadFile (char *filename, char *localname);
 qboolean CL_IsUploading(void);
 void CL_NextUpload(void);
 void CL_StartUpload (qbyte *data, int size);

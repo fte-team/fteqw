@@ -2394,17 +2394,11 @@ void CL_Download_f (void)
 			return;
 		}
 
-		cls.downloadtype = dl_singlestuffed;
-
-		CL_CheckOrDownloadFile(url, url, false);
+		CL_CheckOrEnqueDownloadFile(url, url);
 		return;
 	}
-	else
-	{
-		cls.downloadtype = dl_single;
-	}
 
-	CL_EnqueDownload(url, url, true, false);
+	CL_EnqueDownload(url, url, true, true);
 
 	/*
 	strcpy(cls.downloadname, url);
@@ -2979,9 +2973,6 @@ void Host_Frame (double time)
 
 	CL_AllowIndependantSendCmd(false);
 
-	if (cls.downloadtype == dl_none && !*cls.downloadname && cl.downloadlist)
-		CL_RequestNextDownload();
-
 	// fetch results from server
 	CL_ReadPackets ();
 
@@ -3064,10 +3055,7 @@ void Host_Frame (double time)
 	// process console commands
 	Cbuf_Execute ();
 
-	if (cls.downloadtype == dl_none && !*cls.downloadname && cl.downloadlist)
-	{
-CL_RequestNextDownload();
-	}
+	CL_RequestNextDownload();
 }
 
 static void simple_crypt(char *buf, int len)

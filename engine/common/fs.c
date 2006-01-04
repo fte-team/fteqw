@@ -1634,7 +1634,32 @@ vfsfile_t *FS_OpenVFS(char *filename, char *mode, int relativeto)
 
 void FS_Rename(char *oldf, char *newf, int relativeto)
 {
-	rename(oldf, newf);
+	char fullname[MAX_OSPATH];
+
+	switch (relativeto)
+	{
+	case FS_GAME:
+		if (*com_homedir)
+			_snprintf(fullname, sizeof(fullname), "%s/%s/", com_homedir, gamedirfile);
+		else
+			_snprintf(fullname, sizeof(fullname), "%s/%s/", com_quakedir, gamedirfile);
+		break;
+	case FS_SKINS:
+		if (*com_homedir)
+			_snprintf(fullname, sizeof(fullname), "%s/qw/skins/", com_homedir);
+		else
+			_snprintf(fullname, sizeof(fullname), "%s/qw/skins/", com_quakedir);
+		break;
+	case FS_BASE:
+		if (*com_homedir)
+			_snprintf(fullname, sizeof(fullname), "%s/", com_homedir);
+		else
+			_snprintf(fullname, sizeof(fullname), "%s/", com_quakedir);
+		break;
+	default:
+		Sys_Error("FS_Rename case not handled\n");
+	}
+	rename(va("%s%s", fullname, oldf), va("%s%s", fullname, newf));
 }
 void FS_Remove(char *fname, int relativeto)
 {

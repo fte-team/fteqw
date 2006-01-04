@@ -354,21 +354,16 @@ void CL_FinishDownload(char *filename, char *tempname)
 	// rename the temp file to it's final name
 	if (tempname)
 	{
-		char oldn[MAX_OSPATH], newn[MAX_OSPATH];
 		if (strcmp(tempname, filename))
 		{
 			if (strncmp(tempname,"skins/",6))
 			{
-				sprintf (oldn, "%s/%s", com_gamedir, tempname);
-				sprintf (newn, "%s/%s", com_gamedir, filename);
+				FS_Rename(tempname, filename, FS_GAME);
 			}
 			else
 			{
-				sprintf (oldn, "qw/%s", tempname);
-				sprintf (newn, "qw/%s", filename);
+				FS_Rename(tempname+6, filename+6, FS_SKINS);
 			}
-			if (rename (oldn, newn))
-				Con_TPrintf (TL_RENAMEFAILED);
 		}
 	}
 
@@ -386,6 +381,18 @@ void CL_FinishDownload(char *filename, char *tempname)
 				break;
 			}
 		}
+		for (i = 0; i < MAX_MODELS; i++)	//go and load this model now.
+		{
+			if (!strcmp(cl.model_name[i], filename))
+			{
+				cl.model_precache[i] = Mod_ForName(cl.model_name[i], false);	//throw away result.
+				if (i == 1)
+					cl.worldmodel = cl.model_precache[i];
+				break;
+			}
+		}
+
+		//this'll do the magic for us
 		Skin_FlushSkin(filename);
 	}
 }
@@ -401,14 +408,14 @@ void MapDownload(char *name, qboolean gotornot)
 */
 /*
 ===============
-CL_CheckOrDownloadFile
+CL_CheckOrEnqueDownloadFile
 
 Returns true if the file exists, otherwise it attempts
 to start a download from the server.
 ===============
 */
-qboolean	CL_CheckOrDownloadFile (char *filename, char *localname, int nodelay)
-{
+qboolean	CL_CheckOrEnqueDownloadFile (char *filename, char *localname)
+{	//returns false if we don't have the file yet.
 	if (!localname)
 		localname = filename;
 	if (strstr (localname, ".."))
@@ -443,10 +450,8 @@ qboolean	CL_CheckOrDownloadFile (char *filename, char *localname, int nodelay)
 		HTTP_CL_Get(va("http://maps.quakeworld.nu/%s/download/", base), filename, MapDownload);
 	}
 */
-	if (CL_EnqueDownload(filename, localname, false, false))
-		return !nodelay;
-	else
-		return true;
+	CL_EnqueDownload(filename, localname, false, false);
+	return false;
 }
 
 qboolean CL_CheckMD2Skins (char *name)
@@ -485,14 +490,7 @@ qboolean CL_CheckMD2Skins (char *name)
 			LittleLong(pheader->ofs_skins) +
 			(precache_model_skin - 1)*MD2MAX_SKINNAME;
 		COM_CleanUpPath(str);
-		if (!CL_CheckOrDownloadFile(str, str, false))
-		{
-			precache_model_skin++;
-
-			BZ_Free(precache_model);
-			precache_model=NULL;
-			return true; // started a download
-		}
+		CL_CheckOrEnqueDownloadFile(str, str);
 		precache_model_skin++;
 	}
 	if (precache_model) {
@@ -516,13 +514,16 @@ void Model_NextDownload (void)
 	int		i;
 	extern	char gamedirfile[];
 
-	if (cls.downloadnumber == 0)
+	Con_TPrintf (TLC_CHECKINGMODELS);
+
+/*	if (cls.downloadnumber == 0)
 	{
 		Con_TPrintf (TLC_CHECKINGMODELS);
 		cls.downloadnumber = 1;
 
 		cl.worldmodel = NULL;
 	}
+*/
 #ifdef Q2CLIENT
 	if (cls.protocol == CP_QUAKE2)
 	{
@@ -533,21 +534,17 @@ void Model_NextDownload (void)
 			if (!*cl.image_name[i])
 				continue;
 			sprintf(picname, "pics/%s.pcx", cl.image_name[i]);
-			if (!CL_CheckOrDownloadFile(picname, picname, false))
-				return;
+			CL_CheckOrEnqueDownloadFile(picname, picname);
 		}
 		if (!CLQ2_RegisterTEntModels())
 			return;
 	}
 #endif
 
-	cls.downloadtype = dl_model;
-
-	for (
-		; cl.model_name[cls.downloadnumber][0]
-		; cls.downloadnumber++)
+	for ( i = 1; cl.model_name[i][0]
+		; i++)
 	{
-		s = cl.model_name[cls.downloadnumber];
+		s = cl.model_name[i];
 		if (s[0] == '*')
 			continue;	// inline brush model
 
@@ -559,8 +556,7 @@ void Model_NextDownload (void)
 			continue;
 #endif
 
-		if (!CL_CheckOrDownloadFile(s, s, cls.downloadnumber==1))	//world is required to be loaded.
-			return;		// started a download
+		CL_CheckOrEnqueDownloadFile(s, s);	//world is required to be loaded.
 
 		if (strstr(s, ".md2"))
 			if (CL_CheckMD2Skins(s))
@@ -569,81 +565,122 @@ void Model_NextDownload (void)
 
 	CL_AllowIndependantSendCmd(false);	//stop it now, the indep stuff *could* require model tracing.
 
+
+//	if (cl.worldmodel->type != mod_brush && cl.worldmodel->type != mod_heightmap)
+//		Host_EndGame("Worldmodel must be a bsp of some sort\n");
+
+
+	Hunk_Check ();		// make sure nothing is hurt
+
+	cl.sendprespawn = true;
+}
+
+int CL_LoadModels(int stage)
+{
+	extern model_t *loadmodel;
+	int i;
+
+#define atstage() ((cl.contentstage == stage++)?++cl.contentstage:false)
+
+	if (atstage())
+	{
+		if (cls.fteprotocolextensions & PEXT_CSQC)
+		{
+			char *s;
+			s = Info_ValueForKey(cl.serverinfo, "*csprogs");
+			if (*s || cls.demoplayback)	//only allow csqc if the server says so, and the 'checksum' matches.
+			{
+				unsigned int chksum = strtoul(s, NULL, 0);
+				if (CSQC_Init(chksum))
+					CL_SendClientCommand(true, "enablecsqc");
+				else
+					Sbar_Start();	//try and start this before we're actually on the server,
+									//this'll stop the mod from sending so much stuffed data at us, whilst we're frozen while trying to load.
+									//hopefully this'll make it more robust.
+									//csqc is expected to use it's own huds, or to run on decent servers. :p
+			}
+		}
+		return -1;
+	}
+
+
 	if (cl.playernum[0] == -1)
 	{	//q2 cinematic - don't load the models.
 		cl.worldmodel = cl.model_precache[1] = Mod_ForName ("", false);
 	}
-	else if (!cl.worldmodel)
+	else
 	{
 		for (i=1 ; i<MAX_MODELS ; i++)
 		{
 			if (!cl.model_name[i][0])
-				break;
+				continue;
 
-			Hunk_Check();
-
-			cl.model_precache[i] = NULL;
-			cl.model_precache[i] = Mod_ForName (cl.model_name[i], false);
-
-			Hunk_Check();
-
-			if (!cl.model_precache[i] || (i == 1 && (cl.model_precache[i]->type == mod_dummy || cl.model_precache[i]->needload)))
+			if (atstage())
 			{
-				Con_TPrintf (TL_FILE_X_MISSING, cl.model_name[i]);
-				Con_TPrintf (TL_GETACLIENTPACK, gamedirfile);
-				CL_Disconnect ();
-				return;
+				Hunk_Check();
+
+				cl.model_precache[i] = Mod_ForName (cl.model_name[i], false);
+
+				Hunk_Check();
+
+				S_ExtraUpdate();
+
+				return -1;
 			}
-
-			S_ExtraUpdate();
 		}
-
-		cl.worldmodel = cl.model_precache[1];
-
-		if (!cl.worldmodel)
-			Host_EndGame("Worldmodel wasn't sent\n");
 	}
 
-	if (cl.worldmodel->type != mod_brush && cl.worldmodel->type != mod_heightmap)
-		Host_EndGame("Worldmodel must be a bsp of some sort\n");
-
-	if (!R_CheckSky())
-		return;
-	if (!Wad_NextDownload())	//world is required to be loaded.
-		return;		// started a download
-
+	if (atstage())
 	{
-		extern model_t *loadmodel;
-		loadmodel = cl.worldmodel;
+		cl.worldmodel = cl.model_precache[1];
 		if (!cl.worldmodel)
+			Host_EndGame("Worldmodel wasn't sent\n");
+
+		R_CheckSky();
+
+		return -1;
+	}
+	if (atstage())
+	{
+		Wad_NextDownload();
+
+		return -1;
+	}
+
+	if (atstage())
+	{
+		loadmodel = cl.worldmodel;
+		if (!loadmodel)
 			Host_EndGame("No worldmodel was loaded\n");
 
 		if (R_PreNewMap)
 			R_PreNewMap();
 
+		return -1;
+	}
+	if (atstage())
+	{
+		loadmodel = cl.worldmodel;
+		if (!loadmodel)
+			Host_EndGame("No worldmodel was loaded\n");
 		Mod_NowLoadExternal();
+
+		return -1;
 	}
 
 
 	// all done
-	R_NewMap ();
+	if (atstage())
+	{
+		loadmodel = cl.worldmodel;
+		if (!loadmodel)
+			Host_EndGame("No worldmodel was loaded\n");
+		R_NewMap ();
 
-	Hunk_Check ();		// make sure nothing is hurt
-#ifdef Q2CLIENT
-	if (cls.protocol == CP_QUAKE2)
-	{
-		cls.downloadnumber = 0;
-		Skin_NextDownload();
+		return -1;
 	}
-	else
-#endif
-	{
-	// done with modellist, request first of static signon messages
-		if (CL_RemoveClientCommands("prespawn"))
-			Con_Printf("Multiple prespawns\n");
-//		CL_SendClientCommand("prespawn %i 0 %i", cl.servercount, cl.worldmodel->checksum2);
-		CL_SendClientCommand(true, prespawn_name, cl.servercount, LittleLong(cl.worldmodel->checksum2));
-	}
+
+	return stage;
 }
 
 /*
@@ -656,65 +693,37 @@ void Sound_NextDownload (void)
 	char	*s;
 	int		i;
 
-	cls.downloadtype = dl_sound;
 
-	if (cls.downloadnumber == 0)
-	{
-		Con_TPrintf (TLC_CHECKINGSOUNDS);
-#ifdef CSQC_DAT
-		if (cls.fteprotocolextensions & PEXT_CSQC)
-		{
-			s = Info_ValueForKey(cl.serverinfo, "*csprogs");
-			if (*s || cls.demoplayback)	//only allow csqc if the server says so, and the 'checksum' matches.
-			{
-				extern cvar_t allow_download_csprogs;
-				unsigned int chksum = strtoul(s, NULL, 0);
-				if (allow_download_csprogs.value)
-				{
-					char *str = va("csprogsvers/%x.dat", chksum);
-					if (!CL_CheckOrDownloadFile("csprogs.dat", str, true))
-					{
-						cls.downloadnumber = 1;
-						return;
-					}
-				}
-				else
-				{
-					Con_Printf("Not downloading csprogs.dat\n");
-				}
-			}
-		}
-		cls.downloadnumber = 1;
-#endif
-	}
+	Con_TPrintf (TLC_CHECKINGSOUNDS);
 
 #ifdef CSQC_DAT
-	if (cls.downloadnumber == 1 && cls.fteprotocolextensions & PEXT_CSQC)
+	if (cls.fteprotocolextensions & PEXT_CSQC)
 	{
 		s = Info_ValueForKey(cl.serverinfo, "*csprogs");
 		if (*s || cls.demoplayback)	//only allow csqc if the server says so, and the 'checksum' matches.
 		{
+			extern cvar_t allow_download_csprogs;
 			unsigned int chksum = strtoul(s, NULL, 0);
-			if (CSQC_Init(chksum))
-				CL_SendClientCommand(true, "enablecsqc");
+			if (allow_download_csprogs.value)
+			{
+				char *str = va("csprogsvers/%x.dat", chksum);
+				CL_CheckOrEnqueDownloadFile("csprogs.dat", str);
+			}
 			else
-				Sbar_Start();	//try and start this before we're actually on the server,
-								//this'll stop the mod from sending so much stuffed data at us, whilst we're frozen while trying to load.
-								//hopefully this'll make it more robust.
-								//csqc is expected to use it's own huds, or to run on decent servers. :p
+			{
+				Con_Printf("Not downloading csprogs.dat\n");
+			}
 		}
 	}
 #endif
 
-	for (
-		; cl.sound_name[cls.downloadnumber][0]
-		; cls.downloadnumber++)
+	for (i = 1; cl.sound_name[i][0]
+		; i++)
 	{
-		s = cl.sound_name[cls.downloadnumber];
+		s = cl.sound_name[i];
 		if (*s == '*')
 			continue;
-		if (!CL_CheckOrDownloadFile(va("sound/%s",s), NULL, false))
-			return;		// started a download
+		CL_CheckOrEnqueDownloadFile(va("sound/%s",s), NULL);
 	}
 
 	for (i=1 ; i<MAX_SOUNDS ; i++)
@@ -743,7 +752,6 @@ void Sound_NextDownload (void)
 #ifdef Q2CLIENT
 	if (cls.protocol == CP_QUAKE2)
 	{
-		cls.downloadnumber = 0;
 		Model_NextDownload();
 	}
 	else
@@ -756,7 +764,6 @@ void Sound_NextDownload (void)
 	}
 }
 
-
 /*
 ======================
 CL_RequestNextDownload
@@ -764,36 +771,47 @@ CL_RequestNextDownload
 */
 void CL_RequestNextDownload (void)
 {
-	if (cl.downloadlist)
-	{
-		if (!COM_FCheckExists (cl.downloadlist->localname))
-			CL_SendDownloadRequest(cl.downloadlist->name, cl.downloadlist->localname);
-		else
+	if (cls.downloadmethod)
+		return;
+
+	if (cl.sendprespawn || cls.state == ca_active)
+		if (cl.downloadlist)
 		{
-			Con_Printf("Already have %s\n", cl.downloadlist->localname);
-			CL_DisenqueDownload(cl.downloadlist->name);
+			if (!COM_FCheckExists (cl.downloadlist->localname))
+				CL_SendDownloadRequest(cl.downloadlist->name, cl.downloadlist->localname);
+			else
+			{
+				Con_Printf("Already have %s\n", cl.downloadlist->localname);
+				CL_DisenqueDownload(cl.downloadlist->name);
+			}
+			if (requiredownloads.value || !cl.worldmodel)
+				return;
 		}
-		return;
-	}
-	if (!requiredownloads.value)
-		return;
-	switch (cls.downloadtype)
-	{
-	case dl_single:
-	case dl_singlestuffed:
-		break;
-	case dl_skin:
-		Skin_NextDownload ();
-		break;
-	case dl_model:
-		Model_NextDownload ();
-		break;
-	case dl_sound:
-		Sound_NextDownload ();
-		break;
-	case dl_none:
-	default:
-		Con_DPrintf("Unknown download type.\n");
+
+	if (cl.sendprespawn)
+	{	// get next signon phase
+
+		if (CL_LoadModels(0) < 0)
+			return;	//not yet
+
+		cl.sendprespawn = false;
+
+
+#ifdef Q2CLIENT
+		if (cls.protocol == CP_QUAKE2)
+		{
+			Skin_NextDownload();
+		}
+		else
+#endif
+		{
+		// done with modellist, request first of static signon messages
+			if (CL_RemoveClientCommands("prespawn"))
+				Con_Printf("Multiple prespawns\n");
+	//		CL_SendClientCommand("prespawn %i 0 %i", cl.servercount, cl.worldmodel->checksum2);
+			CL_SendClientCommand(true, prespawn_name, cl.servercount, LittleLong(cl.worldmodel->checksum2));
+		}
+
 	}
 }
 
@@ -923,7 +941,9 @@ void CL_ParseChunkedDownload(void)
 			Host_EndGame("Received second download - \"%s\"\n", svname);
 
 		if (strcmp(cls.downloadname, svname))
-			Host_EndGame("Server sent the wrong download - \"%s\" instead of \"%s\"\n", svname, cls.downloadname);
+			if (strcmp(cls.downloadname, "csprogs.dat") || strcmp(cls.downloadname, "csprogsvers/"))
+				Host_EndGame("Server sent the wrong download - \"%s\" instead of \"%s\"\n", svname, cls.downloadname);
+
 
 		//start the new download
 		cls.downloadmethod = DL_QWCHUNKS;
@@ -1003,6 +1023,16 @@ void CL_ParseChunkedDownload(void)
 	cls.downloadpercent = receivedbytes/(float)downloadsize*100;
 }
 
+int CL_CountQueuedDownloads(void)
+{
+	int count = 0;
+	downloadlist_t *dl;
+	for (dl = cl.downloadlist; dl; dl = dl->next)
+		count++;
+
+	return count;
+}
+
 int CL_RequestADownloadChunk(void)
 {
 	int i;
@@ -1033,7 +1063,7 @@ int CL_RequestADownloadChunk(void)
 	VFS_CLOSE(cls.downloadqw);
 	CL_FinishDownload(cls.downloadname, cls.downloadtempname);
 
-	Con_Printf("Download took %i seconds\n", (int)(Sys_DoubleTime() - downloadstarttime));
+	Con_Printf("Download took %i seconds (%i more)\n", (int)(Sys_DoubleTime() - downloadstarttime), CL_CountQueuedDownloads());
 
 	*cls.downloadname = '\0';
 	cls.downloadqw = NULL;
@@ -1109,13 +1139,17 @@ void CL_ParseDownload (void)
 	if (!cls.downloadqw)
 	{
 		if (strncmp(cls.downloadtempname,"skins/",6))
-			sprintf (name, "%s/%s", com_gamedir, cls.downloadtempname);
+		{
+			sprintf (name, "%s", cls.downloadtempname);
+			FS_CreatePath (name, FS_GAME);
+			cls.downloadqw = FS_OpenVFS (name, "wb", FS_GAME);
+		}
 		else
-			sprintf (name, "qw/%s", cls.downloadtempname);
-
-		COM_CreatePath (name);
-
-		cls.downloadqw = FS_OpenVFS (name, "wb", FS_GAME);
+		{
+			sprintf (name, "%s", cls.downloadtempname+6);
+			FS_CreatePath (name, FS_SKINS);
+			cls.downloadqw = FS_OpenVFS (name, "wb", FS_SKINS);
+		}
 		if (!cls.downloadqw)
 		{
 			msg_readcount += size;
@@ -1933,8 +1967,6 @@ void CL_ParseSoundlist (void)
 		return;
 	}
 
-	cls.downloadnumber = 0;
-	cls.downloadtype = dl_sound;
 	Sound_NextDownload ();
 }
 
@@ -2006,8 +2038,6 @@ void CL_ParseModellist (qboolean lots)
 		return;
 	}
 
-	cls.downloadnumber = 0;
-	cls.downloadtype = dl_model;
 	Model_NextDownload ();
 }
 
@@ -2182,9 +2212,6 @@ void CLQ2_Precache_f (void)
 #ifdef VM_CG
 	CG_Start();
 #endif
-
-	cls.downloadnumber = 0;
-	cls.downloadtype = dl_sound;
 
 	CL_RequestNextDownload();
 }
@@ -3508,7 +3535,7 @@ void CL_ParsePrecache(void)
 		if (i >= 1 && i < MAX_MODELS)
 		{
 			model_t *model;
-			CL_CheckOrDownloadFile(s, s, true);
+			CL_CheckOrEnqueDownloadFile(s, s);
 			model = Mod_ForName(s, i == 1);
 			if (!model)
 				Con_Printf("svc_precache: Mod_ForName(\"%s\") failed\n", s);
@@ -3524,7 +3551,7 @@ void CL_ParsePrecache(void)
 		if (i >= 1 && i < MAX_SOUNDS)
 		{
 			sfx_t *sfx;
-			CL_CheckOrDownloadFile(va("sounds/%s", s), NULL, true);
+			CL_CheckOrEnqueDownloadFile(va("sounds/%s", s), NULL);
 			sfx = S_PrecacheSound (s);
 			if (!sfx)
 				Con_Printf("svc_precache: S_PrecacheSound(\"%s\") failed\n", s);

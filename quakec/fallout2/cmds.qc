@@ -162,7 +162,11 @@ void(string line) SV_ParseClientCommand =
 	tokenize(line);
 
 	cmd = argv(0);
-	if (cmd == "invuse")
+	if (self.deadflag)
+	{	//no inventory stuff while dead.
+		clientcommand(self, line);
+	}
+	else if (cmd == "invuse")
 	{
 		Cmd_InvUse(argv(1));
 	}

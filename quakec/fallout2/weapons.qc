@@ -10,6 +10,7 @@ void (float dam, float rec, string snd, float rng, float rate) FireAssaultRifle;
 void (float dam, float rec, string snd, float rng, float rate) FirePistol;
 void (float dam, float rec, string snd, float rng, float rate) FireSMG;
 float() FireToolkit;
+void () FireAlienBlaster;
 void () W_PlayerMenu;
 //void () UseChem;
 void () Special;
@@ -1072,8 +1073,8 @@ void() W_Attack =
 		FirePistol(10, 2, "weapons/deagle.wav", 2000, 0.25);
 	else if (weap == IID_WP_NEEDLER)
 		FirePistol(10, 2, "weapons/needler.wav", 2000, 0.25);
-	//if (weap == IID_WP_ALIENBLASTER)
-	//	FireAlienBlaster();
+	else if (weap == IID_WP_ALIENBLASTER)
+		FireAlienBlaster();
 	else if (weap == IID_WP_PIPERIFLE)
 		FireAssaultRifle(18, 2, "weapons/rangem.wav", 3000, 0.1);
 	else if (weap == IID_WP_WINCHESTER)
@@ -1485,9 +1486,11 @@ void() SuperDamageSound =
 void () DropAmmo =
 {
 	local .float wslot;
+	local float ammo;
 	wslot = SlotField(self.current_slot);
 
-	self.wslot = SlotVal(ToIID(self.wslot), ToStatus(self.wslot)-1);
+	self.currentammo = (ToStatus(self.wslot) )- 1;
+	self.wslot = SlotVal(ToIID(self.wslot), self.currentammo);
 	self.currentammo = ToStatus(self.wslot);
 };
 
@@ -3785,3 +3788,107 @@ void (float rec, float number, float dam, float spread, float ran, float auto) W
 	}
 };
 
+void () PTouch2 =
+{
+	local float dam;
+	local float zdif;
+	local float ydif;
+	local float xdif;
+	local float tru;
+
+	if (other.solid == SOLID_TRIGGER)
+		return;	//they're not really solid
+
+	if (pointcontents (self.origin) == CONTENT_SKY)
+	{
+		remove (self);
+		return;
+	}
+
+	if (other.takedamage)
+	{
+		zdif = self.origin_z - other.origin_z;
+		ydif = self.origin_y - other.origin_y;
+		xdif = self.origin_x - other.origin_x;
+		tru = 0;
+		if (ydif >= -6 && ydif <= 6)
+		{
+			tru = 1;
+		}
+		if (xdif >= -6 && xdif <= 6)
+		{
+			tru = 1;
+		}
+		dam = 60 + (random () * 90);
+		if (other.classname == "ighoul")
+		{
+			dam = 120 + (random () * 120);
+		}
+
+		T_Damage (other, self, self.owner, dam);
+		WriteByte (MSG_MULTICAST, SVC_TEMPENTITY);
+		WriteByte (MSG_MULTICAST, TE_LIGHTNINGBLOOD);
+		WriteCoord (MSG_MULTICAST, self.origin_x);
+		WriteCoord (MSG_MULTICAST, self.origin_y);
+		WriteCoord (MSG_MULTICAST, self.origin_z);
+		multicast (self.origin, MULTICAST_PHS);
+		sound (self, CHAN_WEAPON, "enforcer/enfstop.wav", 1, ATTN_NORM);
+	}
+	else
+	{
+		WriteByte (MSG_MULTICAST, SVC_TEMPENTITY);
+		WriteByte (MSG_MULTICAST, TE_LIGHTNINGBLOOD);
+		WriteCoord (MSG_MULTICAST, self.origin_x);
+		WriteCoord (MSG_MULTICAST, self.origin_y);
+		WriteCoord (MSG_MULTICAST, self.origin_z);
+		multicast (self.origin, MULTICAST_PHS);
+		sound (self, CHAN_WEAPON, "enforcer/enfstop.wav", 1, ATTN_NORM);
+	}
+	remove (self);
+};
+
+//the alien blaster
+void () FireAlienBlaster =
+{
+	local float tmp;
+
+	DropAmmo ();
+	self.recoil = self.recoil + 8;
+
+	msg_entity = self;
+	WriteByte (MSG_ONE, SVC_SMALLKICK);
+
+	newmis = spawn ();
+	newmis.owner = self;
+	newmis.movetype = MOVETYPE_FLYMISSILE;
+	newmis.solid = SOLID_BBOX;
+	newmis.effects = EF_DIMLIGHT;
+	makevectors (self.v_angle);
+	newmis.velocity = aim (self, 3000);
+	newmis.velocity = (newmis.velocity * 3000);
+	newmis.angles = vectoangles (newmis.velocity);
+
+//	newmis.touch = PTouch;
+	newmis.nextthink = (time + IDLE3A);
+	newmis.think = SUB_Remove;
+	setmodel (newmis, "progs/plasma.mdl");
+	tmp = ((30 + self.velocity_y) + self.velocity_x);
+
+
+	{
+		newmis.velocity = aim (self, 1700);
+		newmis.velocity = newmis.velocity * 1700;
+		newmis.angles = vectoangles (newmis.velocity);
+		newmis.nextthink = time + 1.4;
+		sound (self, CHAN_WEAPON, "weapons/blaster.wav", WEAPON_SHOTGUN, ATTN_NORM);
+		newmis.touch = PTouch2;
+		setmodel (newmis, "progs/ray.mdl");
+		tmp = 90 + self.velocity_y + self.velocity_x;
+	}
+
+	setsize (newmis, '0 0 0', '0 0 0');
+	setorigin (newmis, self.origin + (v_right * WEAPON_BIG) + (v_forward * WEAPON_ROCKET) + '0 0 20');
+	newmis.velocity = newmis.velocity + (v_right * random () * tmp) - (v_right * random () * tmp) + (v_up * random () * tmp) - (v_up * random () * tmp);
+
+	self.attack_finished = time + 0.5;
+};

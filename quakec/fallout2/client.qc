@@ -553,6 +553,7 @@ void() PutClientInServer =
 	setsize (self, VEC_HULL_MIN, VEC_HULL_MAX);
 	
 	self.view_ofs = '0 0 22';
+	self.view2 = world;
 
 // Mod - Xian (May.20.97)
 // Bug where player would have velocity from their last kill
@@ -1971,12 +1972,14 @@ void() Identify =
 	{
 		if (trace_ent.class == 2)
 			c1 = "\nmedic\n";
-		if (trace_ent.class == 3)
+		else if (trace_ent.class == 3)
 			c1 = "\nassassin\n";
-		if (trace_ent.class == 4)
+		else if (trace_ent.class == 4)
 			c1 = "\nsoldier\n";
-		if (trace_ent.class == 6)
+		else if (trace_ent.class == 6)
 			c1 = "\nscientist\n";
+		else
+			c1 = "\n";
 
 		c2 = ftos (trace_ent.health);
 		c3 = GetItemName (ToIID(ItemInSlot(trace_ent, trace_ent.current_slot)));

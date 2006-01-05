@@ -87,7 +87,7 @@ float IID_BUILD_ROBOFANG = 353;
 
 #define IsShootable(iid) (IsMelee(iid) || IsRanged(iid) || IsGrenade(iid))
 
-
+float(float slotno, float iid) FitsInSlot;
 
 //slot1 and slot2 are the two hand slots
 //slot3 is the armour slot.
@@ -321,6 +321,60 @@ float(entity e) FindEmptySlot =
 		return 15;
 	if (ToIID(e.islot16) == IID_NONE)
 		return 16;
+
+	return 0;
+};
+
+float(entity e, float iid) FindSuitableEmptySlot =
+{
+	if (ToIID(e.islot1) == IID_NONE)
+		if (FitsInSlot(1, iid))
+			return 1;
+	if (ToIID(e.islot2) == IID_NONE)
+		if (FitsInSlot(2, iid))
+			return 2;
+	if (ToIID(e.islot3) == IID_NONE)
+		if (FitsInSlot(3, iid))
+			return 3;
+	if (ToIID(e.islot4) == IID_NONE)
+		if (FitsInSlot(4, iid))
+			return 4;
+	if (ToIID(e.islot5) == IID_NONE)
+		if (FitsInSlot(5, iid))
+			return 5;
+	if (ToIID(e.islot6) == IID_NONE)
+		if (FitsInSlot(6, iid))
+			return 6;
+	if (ToIID(e.islot7) == IID_NONE)
+		if (FitsInSlot(7, iid))
+			return 7;
+	if (ToIID(e.islot8) == IID_NONE)
+		if (FitsInSlot(8, iid))
+			return 8;
+	if (ToIID(e.islot9) == IID_NONE)
+		if (FitsInSlot(9, iid))
+			return 9;
+	if (ToIID(e.islot10) == IID_NONE)
+		if (FitsInSlot(10, iid))
+			return 10;
+	if (ToIID(e.islot11) == IID_NONE)
+		if (FitsInSlot(11, iid))
+			return 11;
+	if (ToIID(e.islot12) == IID_NONE)
+		if (FitsInSlot(12, iid))
+			return 12;
+	if (ToIID(e.islot13) == IID_NONE)
+		if (FitsInSlot(13, iid))
+			return 13;
+	if (ToIID(e.islot14) == IID_NONE)
+		if (FitsInSlot(14, iid))
+			return 14;
+	if (ToIID(e.islot15) == IID_NONE)
+		if (FitsInSlot(15, iid))
+			return 15;
+	if (ToIID(e.islot16) == IID_NONE)
+		if (FitsInSlot(16, iid))
+			return 16;
 
 	return 0;
 };
@@ -825,7 +879,7 @@ string(float iid) GetItemName =
 		return "robofang";
 
 	bprint(PRINT_MEDIUM, ftos(iid), " without a name!\n");
-	return "unknown";
+	return strcat("unknown", ftos(iid));
 };
 
 

@@ -1,5 +1,14 @@
 
+void(entity to, float iid, float count) AddStackable =
+{
+	local float slot;
 
+	slot = SlotOfItem(to, iid);
+	if (!slot)
+		slot = FindSuitableEmptySlot(to, iid);
+	if (slot)
+		SetItemSlot(to, slot, SlotVal(iid, count + ToStatus(ItemInSlot(to, slot))));
+}
 
 void(float cost, float type) BuyGrenade =
 {
@@ -32,14 +41,7 @@ void(float cost, float type) BuyGrenade =
 	//put grenade in inventory
 	//finds existing grenades, otherwise, empty slot
 
-	x = SlotOfItem(self, y);
-
-	if (x != 0) //found existing grenades
-		SetItemSlot(self, x, SlotVal(y, 1));
-	if (x == 0)
-		x = FindEmptySlot(self);
-
-		SetItemSlot(self, x, SlotVal(y, 1));
+	AddStackable(self, y, 1);
 };
 
 void() BuyBandages =
@@ -78,9 +80,9 @@ void() BuyBandages =
 
 void(float cost, float type) BuyChem =
 {
-/*
-	local string x;
-	local float y;
+	local string chemname;
+	local float max;
+	local float alreadygot;
 
 	if (self.ammo_shells < cost)
 	{
@@ -88,18 +90,19 @@ void(float cost, float type) BuyChem =
 		sprint(self, PRINT_HIGH, "not enough money.\n");
 		return;
 	}
-	if (type >= 2 && self.class != 1)
+	if (type != IID_CHEM_STIMPACK && self.class != 1)
 	{
 		self.currentmenu = "none";
 		sprint(self, PRINT_HIGH, "not a medic.\n");
 		return;
 	}
 	if (self.equipment == 1)
-		y = 4;
+		max = 4;
 	else
-		y = 2;
+		max = 2;
 
-	if (self.chemcount >= y)
+	alreadygot = TotalQuantity(self, type);
+	if (alreadygot >= max)
 	{
 		self.currentmenu = "none";
 		sprint(self, PRINT_HIGH, "you can't hold any more chems.\n");
@@ -107,13 +110,11 @@ void(float cost, float type) BuyChem =
 	}
 
 	sound (self, CHAN_BODY, "misc/item1.wav", 1, ATTN_NORM);
-	self.chemcount = y;
-	self.chem = type;
 	self.ammo_shells = self.ammo_shells - cost;
-	x = GetChemName();
-	sprint (self, PRINT_HIGH, x);
+	chemname = GetItemName(type);
+	sprint(self, PRINT_HIGH, chemname);
 	sprint(self, PRINT_HIGH, " purchased.\n");
-*/
+	AddStackable(self, type, 1);
 };
 
 void(string type) ChangeAmmo =
@@ -173,8 +174,10 @@ void() BuyScraps =
 
 void (float wt, float cost, float wid) BuyWeapon =
 {
-	local string z;
-	local float x, y;
+	local string itname;
+	local float ammotype, ammocount;
+	local float slotnum;
+	local float curweap;
 
 	if (self.ammo_shells < cost)
 	{
@@ -189,34 +192,28 @@ void (float wt, float cost, float wid) BuyWeapon =
 
 	sprint(self, PRINT_HIGH, "you bought ");
 
-	z = GetItemName(wid);
-	sprint(self, PRINT_HIGH, z);
+	itname = GetItemName(wid);
+	sprint(self, PRINT_HIGH, itname);
 	sprint(self, PRINT_HIGH, ".\n");
 
 	//put new weapon in current slot
-	//put old weapon in empty slot
+	//put old weapon in empty slot (but not armor slot!)
       //otherwise, drop it.
 
-	x = SlotOfItem(self, IID_NONE);
+	curweap = ItemInSlot(self, self.current_slot);
+	slotnum = FindSuitableEmptySlot(self, ToIID(curweap));
 
-	if (x == 0)//no more room
+	if (slotnum == 0)//no more room
 		DropFromSlot (self.current_slot, 1, 0);
 	else       //found a place to stick old weapon
-		SetItemSlot(self, x, SlotVal(self.current_slot, 1));
+		SetItemSlot(self, slotnum, curweap);
 
-		SetItemSlot(self, self.current_slot, SlotVal(wid, 1));
+	ammocount = WeaponMagQuant(wid);//load weapon with full ammo (may be changed)
+	SetItemSlot(self, self.current_slot, SlotVal(wid, ammocount));
 
-	x = WeaponMagQuant(wid);//load weapon with full ammo (may be changed)
-	if (self.current_slot == 1)
-		self.islot1 = SlotVal(wid, x + ToStatus(1));
-	if (self.current_slot == 2)
-		self.islot2 = SlotVal(wid, x + ToStatus(2));
 
-	x = SlotOfItem(self, IID_NONE); //give ammo
-
-	if (x != 0)
-		SetItemSlot(self, x, WeaponAmmoType(wid));
-
+	ammotype = WeaponAmmoType(wid);//load weapon with full ammo (may be changed)
+	AddStackable(self, ammotype, ammocount*3);
 };
 
 
@@ -668,17 +665,17 @@ void() W_PlayerMenu =
 	if (self.currentmenu == "shop_chems")
 	{
 		if (self.impulse == 1)
-                  BuyChem(3, 1);         //cost, item
+                  BuyChem(3, IID_CHEM_STIMPACK);         //cost, item
 		if (self.impulse == 2)
-                  BuyChem(5, 2);         //cost, item
+                  BuyChem(5, IID_CHEM_MEDICALBAG);         //cost, item
 		if (self.impulse == 3)
-                  BuyChem(10, 3);         //cost, item
+                  BuyChem(10, IID_CHEM_SUPERSTIM);         //cost, item
 		if (self.impulse == 4)
-                  BuyChem(12, 4);         //cost, item
+                  BuyChem(12, IID_CHEM_ADRENALINE);         //cost, item
 		if (self.impulse == 5)
-                  BuyChem(18, 5);         //cost, item
+                  BuyChem(18, IID_CHEM_PSYCHO);         //cost, item
 		if (self.impulse == 6)
-                  BuyChem(21, 6);         //cost, item
+                  BuyChem(21, IID_CHEM_BESERK);         //cost, item
 	}
 
 	if (self.currentmenu == "shop_other")

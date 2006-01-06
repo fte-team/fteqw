@@ -1203,6 +1203,35 @@ void() PlayerPreThink =
 	makevectors (self.v_angle);             // is this still used
 
 
+	if (self.cycle1 < time)
+	{
+		if (self.currentmenu != "none")
+			DisplayMenu();
+
+		//if (class == 0 || self.team == 0)
+		//	return;
+
+		Identify();
+		PositionControl();
+		SpeedControl();
+		WeightControl();
+		ArmorCheck();
+		Crosshair();
+
+		if (self.health > self.max_health)
+			self.health = self.max_health;
+
+
+		if (self.ragetime > time)
+			stuffcmd(self, "v_cshift 75 0 0 75\n");
+		else if (self.sneak > 0)
+			stuffcmd(self, "v_cshift 0 75 0 75\n");
+		else
+			stuffcmd(self, "v_cshift 0 0 0 0\n");
+
+		self.cycle1 = time + 0.5;
+	}
+
 	if (self.materialize > 0)
 	{
 		self.materialize = self.materialize - 1;
@@ -1248,30 +1277,6 @@ void() PlayerPreThink =
       self.deathtype = "";
 
 
-	if (self.cycle1 < time)
-	{
-		Identify();
-		PositionControl();
-		SpeedControl();
-		WeightControl();
-		ArmorCheck();
-		Crosshair();
-		if (self.currentmenu != "none")
-			DisplayMenu();
-
-		if (self.health > self.max_health)
-			self.health = self.max_health;
-
-
-		if (self.ragetime > time)
-			stuffcmd(self, "v_cshift 75 0 0 75\n");
-		else if (self.sneak > 0)
-			stuffcmd(self, "v_cshift 0 75 0 75\n");
-		else
-			stuffcmd(self, "v_cshift 0 0 0 0\n");
-
-		self.cycle1 = time + 0.5;
-	}
 
 	if (self.cycle2 < time)
 	{

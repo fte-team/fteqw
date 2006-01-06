@@ -188,7 +188,7 @@ void() ai_melee =
 	if (vlen(delta) > 60)
 		return;
 		
-	ldmg = (random() + random() + random()) * 3;
+	ldmg = 6+random()*6;
 	T_Damage (self.enemy, self, self, ldmg);
 };
 

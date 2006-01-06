@@ -1094,7 +1094,7 @@ void() W_Attack =
 	else if (weap == IID_WP_DKS1)
 		FireAssaultRifle(30, 2, "weapons/dks-1.wav", 8000, 0.5);
 	else if (weap == IID_WP_MOONLIGHT)
-		FireAssaultRifle(16, 2, "weapons/m4a1.wav", 4000, 0.1);
+		FireAssaultRifle(16, 2, "weapons/m4-nw.wav", 4000, 0.1);
 
 //float IID_WP_SA80 = 420;
 //float IID_WP_GAUSERIFLE = 421;

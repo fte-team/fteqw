@@ -861,6 +861,23 @@ string(float iid) GetItemName =
 	return strcat("unknown", ftos(iid));
 };
 
+string(float iid) GetItemDesc =
+{
+	if (iid == IID_NONE)
+		return "";
+
+
+	if (iid == IID_WP_TOOLKIT)
+		return "a wattz(tm) brand toolkit consisting of many handy instruments, including a wrench. this kit is a repairman's dream, and allows those with the proper knowledge to perform technical tasks.";
+	if (iid == IID_WP_AK74)
+		return "the ak74 is the predecessor of the legendary ak-47. it is still the same old killing machine, except that it uses the 5.45mm high-velocity round that was common in the latest assault rifles just before the war.";
+	if (iid == IID_BUILD_MRAMMO)
+		return "a military prototype, the mr. ammo was designed to allow soldiers an extra source of ammunition in remote areas, as the handy little machine is capable of churning out ammo from things such as rocks, debris, and metal scraps.";
+
+	bprint(PRINT_MEDIUM, ftos(iid), " without a desc!\n");
+	return strcat("<no description>", ftos(iid));
+};
+
 string(float iid) GetItemImage =
 {
 	if (iid == IID_NONE)

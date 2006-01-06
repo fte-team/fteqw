@@ -1961,7 +1961,7 @@ void(float slot, float magazine) GiveAmmo =
 
 void (float dam, float rec, string snd, float rng, float rate) FirePistol =
 {
-      local float tmp, zdif, xdif, ydif, tru;
+      local float tmp, zdif, xdif, ydif, is_headshot;
       local vector dir, source, targ, org, org2, adjust;
 
 
@@ -2039,13 +2039,13 @@ void (float dam, float rec, string snd, float rng, float rate) FirePistol =
 		zdif = org_z - trace_ent.origin_z;
 		ydif = org2_y - trace_ent.origin_y;
 		xdif = org2_x - trace_ent.origin_x;
-		tru = 0;
+		is_headshot = 0;
 
 		if (((ydif >= CONTENT_SKY) && (ydif <= TE_LIGHTNING2)))
-			tru = 1;
+			is_headshot = 1;
 		if (((xdif >= CONTENT_SKY) && (xdif <= TE_LIGHTNING2)))
-			tru = 1;
-		if (self.attack <= 5 && tru == 1 && zdif >= (trace_ent.size_z / 2 * 0.8))
+			is_headshot = 1;
+		if (self.attack <= 5 && is_headshot == 1 && zdif >= (trace_ent.size_z / 2 * 0.8))
 			self.critical = 3;
 
 		dam = (dam * (1 - trace_fraction));
@@ -2071,7 +2071,7 @@ void (float dam, float rec, string snd, float rng, float rate) FirePistol =
 
 void (float dam, float rec, string snd, float rng, float rate) FireSMG =
 {
-      local float tmp, zdif, xdif, ydif, tru;
+      local float tmp, zdif, xdif, ydif, is_headshot;
       local vector dir, source, targ, org, org2, adjust;
 
 
@@ -2148,12 +2148,12 @@ void (float dam, float rec, string snd, float rng, float rate) FireSMG =
 		zdif = org_z - trace_ent.origin_z;
 		ydif = org2_y - trace_ent.origin_y;
 		xdif = org2_x - trace_ent.origin_x;
-		tru = 0;
+		is_headshot = 0;
 		if (((ydif >= CONTENT_SKY) && (ydif <= TE_LIGHTNING2)))
-			tru = 1;
+			is_headshot = 1;
 		if (((xdif >= CONTENT_SKY) && (xdif <= TE_LIGHTNING2)))
-			tru = 1;
-		if (self.attack <= 5 && tru == 1 && zdif >= (trace_ent.size_z / 2 * 0.8))
+			is_headshot = 1;
+		if (self.attack <= 5 && is_headshot == 1 && zdif >= (trace_ent.size_z / 2 * 0.8))
 			self.critical = 3;
 
 		dam = (dam * (1 - trace_fraction));
@@ -2179,8 +2179,8 @@ void (float dam, float rec, string snd, float rng, float rate) FireSMG =
 
 void (float dam, float rec, string snd, float rng, float rate) FireAssaultRifle =
 {
-      local float tmp, zdif, xdif, ydif, tru, z;
-
+      local float tmp, zdif, xdif, ydif, is_headshot, z;
+	local string xd, yd, zd;
       local vector dir, source, targ, org, org2, adjust;
 
 	sound (self, CHAN_WEAPON, snd, 1, ATTN_NORM);
@@ -2260,20 +2260,30 @@ void (float dam, float rec, string snd, float rng, float rate) FireAssaultRifle 
 		return;
 
 	org = trace_endpos - v_forward * 2;
-	org2 = trace_endpos + (v_forward * ((trace_ent.size_y / 2) + (trace_ent.size_x / 2)));
 	if (trace_ent.takedamage)
 	{
-		org2 = (trace_endpos + (v_forward * ((trace_ent.size_y / 2) + (trace_ent.size_x / 2))));
-		zdif = org_z - trace_ent.origin_z;
-		ydif = org2_y - trace_ent.origin_y;
-		xdif = org2_x - trace_ent.origin_x;
+		zdif = trace_endpos_z - trace_ent.origin_z;
+		ydif = trace_endpos_y - trace_ent.origin_y;
+		xdif = trace_endpos_x - trace_ent.origin_x;
 
-		tru = 0;
+		xd = ftos(xdif);
+		yd = ftos(ydif);
+		zd = ftos(zdif);
+
+		sprint(self, 2, "x: ");
+		sprint(self, 2, xd);
+		sprint(self, 2, "y: ");
+		sprint(self, 2, yd);
+		sprint(self, 2, "z: ");
+		sprint(self, 2, zd);
+		sprint(self, 2, "\n");
+
+		is_headshot = 0;
 		if (ydif >= -6 && ydif <= 6)
-			tru = 1;
+			is_headshot = 1;
 		if (xdif >= -6 && xdif <= 6)
-			tru = 1;
-		if (self.attack <= 5 && tru == 1 && zdif >= (trace_ent.size_z / 2 * 0.8))
+			is_headshot = 1;
+		if (self.attack <= 5 && is_headshot == 1 && zdif >= (trace_ent.size_z / 2 * 0.8))
 			self.critical = 3;
 
 		dam = (dam * (1 - trace_fraction));
@@ -3641,7 +3651,7 @@ void (vector s_aim, float dam, float tmp, float ran) W_FireBuckshotSpread1 =
 	local float zdif;
 	local float ydif;
 	local float xdif;
-	local float tru;
+	local float is_headshot;
 
 	makevectors (self.v_angle);
 
@@ -3673,16 +3683,16 @@ void (vector s_aim, float dam, float tmp, float ran) W_FireBuckshotSpread1 =
 		zdif = (org_z - trace_ent.origin_z);
 		ydif = (org_y - trace_ent.origin_y);
 		xdif = (org_x - trace_ent.origin_x);
-		tru = 0;
+		is_headshot = 0;
 		if (((ydif >= CONTENT_SLIME) && (ydif <= WEAPON_SPIKES)))
 		{
-			tru = 1;
+			is_headshot = 1;
 		}
 		if (((xdif >= CONTENT_SLIME) && (xdif <= WEAPON_SPIKES)))
 		{
-			tru = 1;
+			is_headshot = 1;
 		}
-		if (((tru == 1) && (zdif >= ((trace_ent.size_z / 2) * 0.8))))
+		if (((is_headshot == 1) && (zdif >= ((trace_ent.size_z / 2) * 0.8))))
 		{
 			if (self.attack > 2)
 				dam = (dam * 0.4);

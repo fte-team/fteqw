@@ -373,7 +373,7 @@ void SV_EmitCSQCUpdate(client_t *client, sizebuf_t *msg)
 	}
 	for (en = 1; en < sv.num_edicts; en++)
 	{
-		if (client->csqcentversions[en] && (client->csqcentversions[en] != sv.csqcentversion[en]))
+		if (client->csqcentversions[en] > 0 && (client->csqcentversions[en] != sv.csqcentversion[en]))
 		{
 			ent = EDICT_NUM(svprogfuncs, en);
 		//	if (!ent->isfree)

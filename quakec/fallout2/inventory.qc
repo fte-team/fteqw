@@ -25,7 +25,7 @@ float IID_WP_MOSSBERG = 411;
 float IID_WP_JACKHAMMER = 412;
 float IID_WP_MP9 = 413;
 float IID_WP_MP7 = 414;
-float IID_WP_RANGERMASTER = 415;
+float IID_WP_RANGEMASTER = 415;
 float IID_WP_AK112 = 416;
 float IID_WP_AK74 = 417;
 float IID_WP_DKS1 = 418;
@@ -35,24 +35,16 @@ float IID_WP_GAUSERIFLE = 421;
 float IID_WP_PULSERIFLE = 422;
 
 //and ammo for those guns
-float IID_AM_USP = 505;
-float IID_AM_DEAGLE = 506;
 float IID_AM_NEEDLER = 507;
-float IID_AM_ALIENBLASTER = 508;
-float IID_AM_PIPERIFLE = 509;
-float IID_AM_WINCHESTER = 510;
-float IID_AM_MOSSBERG = 511;
-float IID_AM_JACKHAMMER = 512;
-float IID_AM_MP9 = 513;
-float IID_AM_MP7 = 514;
-float IID_AM_RANGERMASTER = 515;
-float IID_AM_AK112 = 516;
-float IID_AM_AK74 = 517;
-float IID_AM_DKS1 = 518;
-float IID_AM_MOONLIGHT = 519;
-float IID_AM_SA80 = 520;
-float IID_AM_GAUSERIFLE = 521;
-float IID_AM_PULSERIFLE = 522;
+float IID_AM_10MM = 508; //10mm ammo";
+float IID_AM_556MM = 509; //"5.56mm ammo";
+float IID_AM_5MMHIGHVEL = 510; //"5mm high-velocity ammo";
+float IID_AM_12GAUGESHELLS = 511; //"12-guage shotgun shells";
+float IID_AM_ENERGYCELL = 512; //"small energy cell";
+float IID_AM_2MMEC = 513; //12mmec ammo";
+float IID_AM_762MM = 514; //"7.62mm ammo";
+float IID_AM_44MAGNUM = 515; //".44 magnum ammo";
+float IID_AM_45ACP = 516; //".45 ACP ammo";
 
 //grenade items
 float IID_GREN_FRAG = 101;
@@ -457,7 +449,7 @@ string(float iid) GetItemVModel =
 		return "progs/v_mp9.mdl";
 	if (iid == IID_WP_MP7)
 		return "progs/v_smg.mdl";
-	if (iid == IID_WP_RANGERMASTER)
+	if (iid == IID_WP_RANGEMASTER)
  		return "progs/v_rangem.mdl";
 	if (iid == IID_WP_AK112)
 		return "progs/v_ak47.mdl";
@@ -513,7 +505,7 @@ string(float iid) GetItemWModel =
 		return "progs/w_mp9.mdl";
 	if (iid == IID_WP_MP7)
 		return "progs/w_mp7.mdl";
-	if (iid == IID_WP_RANGERMASTER)
+	if (iid == IID_WP_RANGEMASTER)
 		return "progs/w_rangem.mdl";
 	if (iid == IID_WP_AK112)
 		return "progs/w_ak47.mdl";
@@ -528,7 +520,7 @@ string(float iid) GetItemWModel =
 
 	if (iid == IID_WP_GAUSERIFLE)
 		return "progs/w_gauss.mdl";
-	if (iid == IID_WP_PULSERIFLE)
+	if (iid == IID_AM_ENERGYCELL)
 		return "progs/w_carbine.mdl";
 
 	if (iid == IID_GREN_FRAG)
@@ -562,41 +554,42 @@ string(float iid) GetItemWModel =
 float(float iid) WeaponAmmoType =
 {
 	if (iid == IID_WP_USP)
-		return IID_AM_USP;
+		return IID_AM_45ACP;
 	if (iid == IID_WP_DEAGLE)
-		return IID_AM_DEAGLE;
+		return IID_AM_44MAGNUM;
 	if (iid == IID_WP_NEEDLER)
 		return IID_AM_NEEDLER;
 	if (iid == IID_WP_ALIENBLASTER)
-		return IID_AM_ALIENBLASTER;
+		return IID_AM_ENERGYCELL;
 	if (iid == IID_WP_PIPERIFLE)
-		return IID_AM_PIPERIFLE;
+		return IID_AM_10MM;
 	if (iid == IID_WP_WINCHESTER)
-		return IID_AM_WINCHESTER;
+		return IID_AM_12GAUGESHELLS;
 	if (iid == IID_WP_MOSSBERG)
-		return IID_AM_MOSSBERG;
+		return IID_AM_12GAUGESHELLS;
 	if (iid == IID_WP_JACKHAMMER)
-		return IID_AM_JACKHAMMER;
+		return IID_AM_12GAUGESHELLS;
 	if (iid == IID_WP_MP9)
-		return IID_AM_MP9;
+		return IID_AM_10MM;
 	if (iid == IID_WP_MP7)
-		return IID_AM_MP7;
-	if (iid == IID_WP_RANGERMASTER)
-		return IID_AM_RANGERMASTER;
+		return IID_AM_10MM;
+	if (iid == IID_WP_RANGEMASTER)
+		return IID_AM_556MM;
 	if (iid == IID_WP_AK112)
-		return IID_AM_AK112;
+		return IID_AM_5MMHIGHVEL;
 	if (iid == IID_WP_AK74)
-		return IID_AM_AK74;
+		return IID_AM_5MMHIGHVEL;
 	if (iid == IID_WP_DKS1)
-		return IID_AM_DKS1;
+		return IID_AM_762MM;
 	if (iid == IID_WP_MOONLIGHT)
-		return IID_AM_MOONLIGHT;
+		return IID_AM_556MM;
 	if (iid == IID_WP_SA80)
-		return IID_AM_SA80;
+		return IID_AM_556MM;
+
 	if (iid == IID_WP_GAUSERIFLE)
-		return IID_AM_GAUSERIFLE;
+		return IID_AM_2MMEC;
 	if (iid == IID_WP_PULSERIFLE)
-		return IID_AM_PULSERIFLE;
+		return IID_AM_ENERGYCELL;
 
 	return IID_NONE;
 };
@@ -623,7 +616,7 @@ float(float iid) WeaponMagQuant =
 		return 30;
 	if (iid == IID_WP_MP7)
 		return 30;
-	if (iid == IID_WP_RANGERMASTER)
+	if (iid == IID_WP_RANGEMASTER)
 		return 10;
 	if (iid == IID_WP_AK112)
 		return 24;
@@ -675,7 +668,7 @@ float(float iid) GetItemWeight =
 		return 3;
 	if (iid == IID_WP_MP7)
 		return 3;
-	if (iid == IID_WP_RANGERMASTER)
+	if (iid == IID_WP_RANGEMASTER)
 		return 5;
 	if (iid == IID_WP_AK112)
 		return 5;
@@ -771,7 +764,7 @@ string(float iid) GetItemName =
 		return "mp9";
 	if (iid == IID_WP_MP7)
 		return "grease gun";
-	if (iid == IID_WP_RANGERMASTER)
+	if (iid == IID_WP_RANGEMASTER)
 		return "rangemaster";
 	if (iid == IID_WP_AK112)
 		return "ak-112";
@@ -789,42 +782,27 @@ string(float iid) GetItemName =
 		return "laser carbine";
 
 
-	if (iid == IID_AM_USP)
-		return "ammo for 1911";
-	if (iid == IID_AM_DEAGLE)
-		return "ammo for desert eagle";
+
 	if (iid == IID_AM_NEEDLER)
-		return "ammo for needler";
-	if (iid == IID_AM_ALIENBLASTER)
-		return "ammo for alien blaster";
-	if (iid == IID_AM_PIPERIFLE)
-		return "ammo for pipe rifle";
-	if (iid == IID_AM_WINCHESTER)
-		return "ammo for winchester";
-	if (iid == IID_AM_MOSSBERG)
-		return "ammo for mossberg";
-	if (iid == IID_AM_JACKHAMMER)
-		return "ammo for jackhammer";
-	if (iid == IID_AM_MP9)
-		return "ammo for mp9";
-	if (iid == IID_AM_MP7)
-		return "ammo for grease gun";
-	if (iid == IID_AM_RANGERMASTER)
-		return "ammo for rangemaster";
-	if (iid == IID_AM_AK112)
-		return "ammo for ak-112";
-	if (iid == IID_AM_AK74)
-		return "ammo for ak-74";
-	if (iid == IID_AM_DKS1)
-		return "ammo for dks-1";
-	if (iid == IID_AM_MOONLIGHT)
-		return "ammo for moonlight";
-	if (iid == IID_AM_SA80)
-		return "ammo for sa-80";
-	if (iid == IID_AM_GAUSERIFLE)
-		return "ammo for gauss rifle";
-	if (iid == IID_AM_PULSERIFLE)
-		return "ammo for laser carbine";
+		return "needler cartidge";
+	if (iid == IID_AM_2MMEC)
+		return "2mm EC ammo";
+	if (iid == IID_AM_10MM)
+		return "10mm ammo";
+	if (iid == IID_AM_556MM)
+		return "5.56mm ammo";
+	if (iid == IID_AM_5MMHIGHVEL)
+		return "5mm high-velocity ammo";
+	if (iid == IID_AM_5MMHIGHVEL)
+		return "12-guage shotgun shells";
+	if (iid == IID_AM_ENERGYCELL)
+		return "small energy cell";
+	if (iid == IID_AM_762MM)
+		return "7.62mm ammo";
+	if (iid == IID_AM_44MAGNUM)
+		return ".44 magnum ammo";
+	if (iid == IID_AM_44MAGNUM)
+		return ".45 ACP ammo";
 
 
 	if (iid == IID_GREN_FRAG)
@@ -918,7 +896,7 @@ float(string itname) ItemIDOfName =
 	if (itname == "grease gun")
 		return IID_WP_MP7;
 	if (itname == "rangemaster")
-		return IID_WP_RANGERMASTER;
+		return IID_WP_RANGEMASTER;
 	if (itname == "ak-112")
 		return IID_WP_AK112;
 	if (itname == "ak-74")
@@ -933,42 +911,6 @@ float(string itname) ItemIDOfName =
 		return IID_WP_GAUSERIFLE;
 	if (itname == "laser carbine")
 		return IID_WP_PULSERIFLE;
-	if (itname == "ammo for 1911")
-		return IID_AM_USP;
-	if (itname == "ammo for desert eagle")
-		return IID_AM_DEAGLE;
-	if (itname == "ammo for needler")
-		return IID_AM_NEEDLER;
-	if (itname == "ammo for alienblaster")
-		return IID_AM_ALIENBLASTER;
-	if (itname == "ammo for piperifle")
-		return IID_AM_PIPERIFLE;
-	if (itname == "ammo for winchester")
-		return IID_AM_WINCHESTER;
-	if (itname == "ammo for mossberg")
-		return IID_AM_MOSSBERG;
-	if (itname == "ammo for jackhammer")
-		return IID_AM_JACKHAMMER;
-	if (itname == "ammo for mp9")
-		return IID_AM_MP9;
-	if (itname == "ammo for grease gun")
-		return IID_AM_MP7;
-	if (itname == "ammo for rangemaster")
-		return IID_AM_RANGERMASTER;
-	if (itname == "ammo for ak-112")
-		return IID_AM_AK112;
-	if (itname == "ammo for ak-74")
-		return IID_AM_AK74;
-	if (itname == "ammo for dks-1")
-		return IID_AM_DKS1;
-	if (itname == "ammo for moonlight")
-		return IID_AM_MOONLIGHT;
-	if (itname == "ammo for sa-80")
-		return IID_AM_SA80;
-	if (itname == "ammo for gauss rifle")
-		return IID_AM_GAUSERIFLE;
-	if (itname == "ammo for laser carbine")
-		return IID_AM_PULSERIFLE;
 	if (itname == "frag grenade")
 		return IID_GREN_FRAG;
 	if (itname == "emp grenade")

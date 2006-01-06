@@ -610,7 +610,7 @@ void() W_PlayerMenu =
 	if (self.currentmenu == "shop_rifles")
 	{
 		if (self.impulse == 1)
-                  BuyWeapon(3, 11, IID_WP_RANGERMASTER);    //weight, cost, item
+                  BuyWeapon(3, 11, IID_WP_RANGEMASTER);    //weight, cost, item
 		if (self.impulse == 2)
                   BuyWeapon(4, 21, IID_WP_AK112);          //weight, cost, item
 		if (self.impulse == 3)

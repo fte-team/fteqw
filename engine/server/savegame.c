@@ -507,7 +507,7 @@ qboolean SV_LoadLevelCache(char *level, char *startspot, qboolean ignoreplayers)
 			return false;
 		}
 
-		ge->ReadLevel(name);
+		ge->ReadLevel(va("%s/%s", com_gamedir, name));
 
 		for (i=0 ; i<100 ; i++)	//run for 10 secs to iron out a few bugs.
 			ge->RunFrame ();

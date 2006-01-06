@@ -667,6 +667,7 @@ Only used on start map for the return point from an episode.
 */
 void() info_player_start2 =
 {
+/*
 	local entity start;
 	local float x;
 
@@ -690,6 +691,7 @@ void() info_player_start2 =
 
 		x = x - 1;
 	}
+*/
 
 };
 
@@ -1147,6 +1149,8 @@ void () WeightControl =
 
 void () PositionControl =
 {
+	local float exp;
+
 	if (self.position == 0)
 		self.view_ofs = '0 0 22';
 	if (self.position == 1)
@@ -1163,10 +1167,17 @@ void () PositionControl =
 
 	if (self.position == 0)
 		self.maxspeed = 300;
-	if (self.position == 1)
+	else if (self.position == 1)
 		self.maxspeed = 150;
-	if (self.position == 2)
+	else //if (self.position == 2)
 		self.maxspeed = 75;
+
+	if (self.weight > self.max_weight) //this is the penalty for being overweight.
+	{
+		exp = (self.weight/self.max_weight);
+		exp = (exp+2)*(exp+2)+(exp*exp*exp*8);	//is this enough?
+		self.maxspeed = self.maxspeed / exp;
+	}
 };
 
 /*
@@ -1582,12 +1593,14 @@ void() ClientConnect =
 	stuffcmd(self, "alias info impulse 56\n");
 	stuffcmd(self, "alias equip impulse 57\n");
 
+	stuffcmd(self, "alias stimpack \"cmd invuse stimpack\"\n");
+
 	stuffcmd(self, "bind c equip\n");
 	stuffcmd(self, "bind g drop\n");
 	stuffcmd(self, "bind e exit\n");
 	stuffcmd(self, "bind z special\n");
 	stuffcmd(self, "bind r reload\n");
-	stuffcmd(self, "bind x chem\n");
+	stuffcmd(self, "bind x stimpack\n");
 	stuffcmd(self, "bind b buy\n");
 	stuffcmd(self, "bind q info\n");
 	stuffcmd(self, "bind shift prone\n");

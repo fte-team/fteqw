@@ -599,8 +599,6 @@ float          red_armor;
 .float          rage;
 .float          ragetime;
 .float          action_points;
-.float          handgrenade;
-.float          grenadetype;
 .float          pcamera;
 .float          pcamera2;
 .float          equipment_state;

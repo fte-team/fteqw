@@ -867,8 +867,6 @@ void() W_SetCurrentAmmo =
 		self.currentammo = ToStatus(self.islot1);
 	else if (self.current_slot == 2)
 		self.currentammo = ToStatus(self.islot2);
-	else if (self.current_slot == 3 && self.handgrenade > 0)
-		self.currentammo = self.handgrenade;
 	else if (self.current_slot == 4)
 	{
 		if (self.team == 1)
@@ -1150,17 +1148,6 @@ void() W_ChangeWeapon =
 	{
 		fl = IT_SUPER_NAILGUN;
 		self.current_slot = 2;
-	}
-	if (self.impulse == 3)
-	{
-		if (self.handgrenade == 0)
-		{
-			sprint (self, PRINT_HIGH, "no grenade.\n");
-			sound (self, CHAN_AUTO, "misc/noweapon.wav", 1, ATTN_STATIC);
-			return;
-		}
-		else
-			self.current_slot = 3;		
 	}
 
 	self.weapon = fl;               
@@ -2382,6 +2369,7 @@ void (float input) Explosion =
 
 void () WeaponTouch =
 {
+	local float slotnum;
 	if (other.classname != "player")
 		return;
 
@@ -2395,37 +2383,21 @@ void () WeaponTouch =
 	if (other.current_slot == AS_MELEE)
 		return;
 
-	if (self.handgrenade == 1)
-	{
-		if (other.handgrenade > 0)
-		{
-			sprint(other, 2, "already have a grenade.\n");
-			return;
-		}
-
-		sound (other, CHAN_BODY, "misc/item1.wav", 1, ATTN_NORM);
-		other.handgrenade = self.handgrenade;
-		other.grenadetype = self.grenadetype;
-		sprint(other, 2, "picked up a grenade.\n");
-		remove(self);
-		return;
-	}
-
-	if (ItemInSlot(other, other.current_slot) != 0)
-		return;
+	if (ItemInSlot(other, other.current_slot) == 0 && FitsInSlot(other.current_slot, ToIID(self.islot1)))
+		slotnum = other.current_slot;
+	if (!slotnum)
+		slotnum = FindSuitableEmptySlot(other, ToIID(self.islot1));
+	if (!slotnum)
+		return;	//can't get it.
 
 	sound (other, CHAN_BODY, "misc/item1.wav", 1, ATTN_NORM);
 
-	SetItemSlot(other, other.current_slot, self.islot1);
+	SetItemSlot(other, slotnum, self.islot1);
 	remove (self);
 
 	self = other;
-	SetWeaponModel ();
-
-	if ((other.current_slot == 1))
-		stuffcmd (self, "impulse 1\n");
-	if ((other.current_slot == 2))
-		stuffcmd (self, "impulse 2\n");
+	if (self.current_slot == slotnum)
+		W_SetCurrentAmmo ();
 };
 
 void (float slotnum, float snd, float force) DropFromSlot =

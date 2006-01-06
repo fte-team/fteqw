@@ -10,7 +10,7 @@ void(entity to, float iid, float count) AddStackable =
 		SetItemSlot(to, slot, SlotVal(iid, count + ToStatus(ItemInSlot(to, slot))));
 }
 
-void(float cost, float type) BuyGrenade =
+void(float cost, float iid) BuyStackable =
 {
 	local string z;
 	local float x, y;
@@ -27,21 +27,14 @@ void(float cost, float type) BuyGrenade =
 
 	sprint(self, PRINT_HIGH, "you bought a ");
 
-	if (type == 1)
-		y = IID_GREN_SMOKE;
-	if (type == 2)
-		y = IID_GREN_FRAG;
-	if (type == 3)
-		y = IID_GREN_EMP;
-
-	z = GetItemName(y);
+	z = GetItemName(iid);
 	sprint(self, PRINT_HIGH, z);
 	sprint(self, PRINT_HIGH, "\n");
 
 	//put grenade in inventory
 	//finds existing grenades, otherwise, empty slot
 
-	AddStackable(self, y, 1);
+	AddStackable(self, iid, 1);
 };
 
 void() BuyBandages =
@@ -574,13 +567,13 @@ void() W_PlayerMenu =
 	if (self.currentmenu == "shop_thrown")
 	{
 		if (self.impulse == 1)
-                  BuyGrenade(3, 1);         //weight, cost, item
+                  BuyStackable(3, IID_GREN_SMOKE);         //weight, cost, item
 		if (self.impulse == 2)
-                  BuyGrenade(4, 2);         //weight, cost, item
+                  BuyStackable(4, IID_GREN_FRAG);         //weight, cost, item
 		if (self.impulse == 3)
-                  BuyGrenade(5, 3);         //weight, cost, item
+                  BuyStackable(5, IID_GREN_EMP);         //weight, cost, item
 		if (self.impulse == 4)
-                  BuyGrenade(6, 4);         //weight, cost, item
+                  BuyStackable(6, IID_GREN_FLASH);         //weight, cost, item
 
 			return;
 	}
@@ -676,10 +669,19 @@ void() W_PlayerMenu =
                   BuyChem(18, IID_CHEM_PSYCHO);         //cost, item
 		if (self.impulse == 6)
                   BuyChem(21, IID_CHEM_BESERK);         //cost, item
+		return;
 	}
 
 	if (self.currentmenu == "shop_other")
+	{
+		if (self.impulse == 3)
+			BuyStackable(20, IID_BUILD_MRAMMO);
+		if (self.impulse == 4)
+			BuyStackable(20, IID_BUILD_AUTODOC);
+		if (self.impulse == 5)
+			BuyStackable(20, IID_BUILD_SHIELDGEN);
 		return;
+	}
 
 
 	if (self.currentmenu == "select_team")

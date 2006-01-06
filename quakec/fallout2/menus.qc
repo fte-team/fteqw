@@ -91,7 +91,17 @@ string () ProtectString =
 
 string () OtherString =
 {
-	return ("++ miscellaneous items ++\n  ITEM   |   CLASS   |   PRICE     \n\n\nê1ë (25) bandages for medic      2$\nê2ë (5) metal scraps             5$\n");
+	return
+		"++ miscellaneous items ++\n"
+		"  ITEM   |   CLASS   |   PRICE     \n"
+		"\n"
+		"\n"
+		"ê1ë (25) bandages for medic      2$\n"
+		"ê2ë (5) metal scraps             5$\n"
+		"ê3ë (20) mr.ammo!               20$\n"
+		"ê4ë (20) auto-doc!              20$\n"
+		"ê5ë (20) shield-gen!            20$\n"
+		;
 };
 
 

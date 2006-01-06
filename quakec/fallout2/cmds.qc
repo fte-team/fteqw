@@ -9,8 +9,17 @@ float(string desc) itemtoslot =
 	if (slot >= 1 && slot <= MAXSLOTS)
 		return slot;
 
-	sprint(self, PRINT_HIGH, "Not an item\n");
-	return 0;
+	slot = ItemIDOfName(desc);
+	if (!slot)
+	{
+		sprint(self, PRINT_HIGH, "Not an item name\n");
+		return 0;
+	}
+	else
+	{
+		sprint(self, PRINT_HIGH, "You don't have one of those\n");
+		return 0;
+	}
 };
 
 float(float slotno) DecreaseDestroySlot =

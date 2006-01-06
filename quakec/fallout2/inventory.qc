@@ -883,6 +883,152 @@ string(float iid) GetItemName =
 };
 
 
+float(string itname) ItemIDOfName = 
+{
+	if (itname == "nothing")
+		return IID_NONE;
+	if (itname == "toolkit")
+		return IID_WP_TOOLKIT;
+	if (itname == "knife")
+		return IID_WP_KNIFE;
+	if (itname == "axe")
+		return IID_WP_AXE;
+	if (itname == "ripper")
+		return IID_WP_VIBROBLADE;
+	if (itname == "poweraxe")
+		return IID_WP_POWERAXE;
+	if (itname == "1911")
+		return IID_WP_USP;
+	if (itname == "desert eagle")
+		return IID_WP_DEAGLE;
+	if (itname == "needler")
+		return IID_WP_NEEDLER;
+	if (itname == "alien blaster")
+		return IID_WP_ALIENBLASTER;
+	if (itname == "pipe rifle")
+		return IID_WP_PIPERIFLE;
+	if (itname == "winchester")
+		return IID_WP_WINCHESTER;
+	if (itname == "mossberg")
+		return IID_WP_MOSSBERG;
+	if (itname == "jackhammer")
+		return IID_WP_JACKHAMMER;
+	if (itname == "mp9")
+		return IID_WP_MP9;
+	if (itname == "grease gun")
+		return IID_WP_MP7;
+	if (itname == "rangemaster")
+		return IID_WP_RANGERMASTER;
+	if (itname == "ak-112")
+		return IID_WP_AK112;
+	if (itname == "ak-74")
+		return IID_WP_AK74;
+	if (itname == "dks-1")
+		return IID_WP_DKS1;
+	if (itname == "moonlight")
+		return IID_WP_MOONLIGHT;
+	if (itname == "sa-80")
+		return IID_WP_SA80;
+	if (itname == "gauss rifle")
+		return IID_WP_GAUSERIFLE;
+	if (itname == "laser carbine")
+		return IID_WP_PULSERIFLE;
+	if (itname == "ammo for 1911")
+		return IID_AM_USP;
+	if (itname == "ammo for desert eagle")
+		return IID_AM_DEAGLE;
+	if (itname == "ammo for needler")
+		return IID_AM_NEEDLER;
+	if (itname == "ammo for alienblaster")
+		return IID_AM_ALIENBLASTER;
+	if (itname == "ammo for piperifle")
+		return IID_AM_PIPERIFLE;
+	if (itname == "ammo for winchester")
+		return IID_AM_WINCHESTER;
+	if (itname == "ammo for mossberg")
+		return IID_AM_MOSSBERG;
+	if (itname == "ammo for jackhammer")
+		return IID_AM_JACKHAMMER;
+	if (itname == "ammo for mp9")
+		return IID_AM_MP9;
+	if (itname == "ammo for grease gun")
+		return IID_AM_MP7;
+	if (itname == "ammo for rangemaster")
+		return IID_AM_RANGERMASTER;
+	if (itname == "ammo for ak-112")
+		return IID_AM_AK112;
+	if (itname == "ammo for ak-74")
+		return IID_AM_AK74;
+	if (itname == "ammo for dks-1")
+		return IID_AM_DKS1;
+	if (itname == "ammo for moonlight")
+		return IID_AM_MOONLIGHT;
+	if (itname == "ammo for sa-80")
+		return IID_AM_SA80;
+	if (itname == "ammo for gauss rifle")
+		return IID_AM_GAUSERIFLE;
+	if (itname == "ammo for laser carbine")
+		return IID_AM_PULSERIFLE;
+	if (itname == "frag grenade")
+		return IID_GREN_FRAG;
+	if (itname == "emp grenade")
+		return IID_GREN_EMP;
+	if (itname == "smoke grenade")
+		return IID_GREN_SMOKE;
+	if (itname == "flashbang")
+		return IID_GREN_FLASH;
+	if (itname == "bulletproof shirt")
+		return IID_ARM_SHIRT;
+	if (itname == "leather armor")
+		return IID_ARM_LEATHER;
+	if (itname == "kevlar armor")
+		return IID_ARM_KEVLAR;
+	if (itname == "metal armor")
+		return IID_ARM_METAL;
+	if (itname == "combat armor")
+		return IID_ARM_COMBAT;
+	if (itname == "brotherhood armor")
+		return IID_ARM_BROTHERHOOD;
+	if (itname == "force armor")
+		return IID_ARM_FORCE;
+	if (itname == "light power armor")
+		return IID_ARM_LPOWER;
+	if (itname == "stimpacks")
+		return IID_CHEM_STIMPACK;
+	if (itname == "stimpack")
+		return IID_CHEM_STIMPACK;
+	if (itname == "medical bag")
+		return IID_CHEM_MEDICALBAG;
+	if (itname == "bandages")
+		return IID_CHEM_MEDICALBAG;
+	if (itname == "superstims")
+		return IID_CHEM_SUPERSTIM;
+	if (itname == "adrenaline")
+		return IID_CHEM_ADRENALINE;
+	if (itname == "psycho")
+		return IID_CHEM_PSYCHO;
+	if (itname == "beserk")
+		return IID_CHEM_BESERK;
+	if (itname == "mr.ammo")
+		return IID_BUILD_MRAMMO;
+	if (itname == "mrammo")
+		return IID_BUILD_MRAMMO;
+	if (itname == "shield-gen")
+		return IID_BUILD_SHIELDGEN;
+	if (itname == "shieldgen")
+		return IID_BUILD_SHIELDGEN;
+	if (itname == "auto-doc")
+		return IID_BUILD_AUTODOC;
+	if (itname == "autodoc")
+		return IID_BUILD_AUTODOC;
+	if (itname == "robofang")
+		return IID_BUILD_ROBOFANG;
+	if (itname == "doggie")
+		return IID_BUILD_ROBOFANG;
+	return 0;
+};
+
+
 
 float(float slotno, float iid) FitsInSlot =
 {

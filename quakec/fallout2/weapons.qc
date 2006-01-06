@@ -80,8 +80,9 @@ void(float damage, float dist, float rate) FireMelee =
 	if (trace_ent.takedamage)
 	{
 		trace_ent.axhitme = 1;
-		SpawnBlood (org, 20);
+		SpawnBlood (org, 1);
 		T_Damage (trace_ent, self, self, damage+random()*damage);
+		sound (self, CHAN_WEAPON, trace_ent.armornoise, 1, ATTN_NORM);
 	}
 	else
 	{       // hit wall

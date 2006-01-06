@@ -179,6 +179,7 @@ void(entity targ, entity inflictor, entity attacker, float damage) T_Damage =
 	{
 		damage = 0;
 		sound (targ, CHAN_BODY, targ.armornoise, 1, ATTN_NORM);
+		return;
 	}
 
 	if (random()*4<=1)

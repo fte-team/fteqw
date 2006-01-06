@@ -483,6 +483,19 @@ void() PutClientInServer =
 {
 	local   entity spot;
 
+	if (self.class == 0 || self.team == 0)
+	{
+		setsize (self, VEC_HULL_MIN, VEC_HULL_MAX);
+		self.view_ofs = '0 0 22';
+		self.takedamage = DAMAGE_NO;
+		self.solid = SOLID_NOT;
+		spot = SelectSpawnPoint ();
+		self.origin = spot.origin + '0 0 1';
+		self.angles = spot.angles;
+		self.fixangle = TRUE;           // turn this way immediately
+
+		return;
+	}
 	self.classname = "player";
 	self.health = 100;
 	self.takedamage = DAMAGE_AIM;
@@ -1272,6 +1285,7 @@ void() PlayerPreThink =
 			self.regen = self.regen - 1;
 		}
 
+		stuffcmd(self, "v_idlescale 0\n");
 		self.cycle2 = time + 1;
 	}
 

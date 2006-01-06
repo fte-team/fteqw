@@ -1087,13 +1087,8 @@ void() W_Attack =
 	else if (weap == IID_WP_MP9)
 		FireSMG(12, 2, "weapons/mp7.wav", 2000, 0.06);
 	else if (weap == IID_WP_MP7)
-<<<<<<< weapons.qc
-		FireSMG(12, 2, "weapons/mp7.wav", 2000, 0.1);
+		FireSMG(12, 2, "weapons/mp7.wav", 2000, 0.06);
 	else if (weap == IID_WP_RANGEMASTER)
-=======
-		FireSMG(12, 2, "weapons/mp5.wav", 2000, 0.06);
-	else if (weap == IID_WP_RANGERMASTER)
->>>>>>> 1.16
 		FireAssaultRifle(14, 2, "weapons/rangem.wav", 4000, 0.5);
 	else if (weap == IID_WP_AK112)
 		FireAssaultRifle(14, 2, "weapons/rangem.wav", 4000, 0.1);

@@ -744,42 +744,43 @@ string(float iid) GetItemName =
 		return "ripper";
 	if (iid == IID_WP_POWERAXE)
 		return "poweraxe";
+
 	if (iid == IID_WP_USP)
-		return "1911";
+		return "1911 (10mm)";
 	if (iid == IID_WP_DEAGLE)
-		return "desert eagle";
+		return "desert eagle (.44mag)";
 	if (iid == IID_WP_NEEDLER)
 		return "needler";
 	if (iid == IID_WP_ALIENBLASTER)
-		return "alien blaster";
+		return "alien blaster (energy)";
 	if (iid == IID_WP_PIPERIFLE)
-		return "pipe rifle";
+		return "pipe rifle (10mm)";
 	if (iid == IID_WP_WINCHESTER)
-		return "winchester";
+		return "winchester (12g)";
 	if (iid == IID_WP_MOSSBERG)
-		return "mossberg";
+		return "mossberg (12g)";
 	if (iid == IID_WP_JACKHAMMER)
-		return "jackhammer";
+		return "jackhammer (12g)";
 	if (iid == IID_WP_MP9)
-		return "mp9";
+		return "mp9 (10mm)";
 	if (iid == IID_WP_MP7)
-		return "grease gun";
+		return "grease gun (10mm)";
 	if (iid == IID_WP_RANGEMASTER)
-		return "rangemaster";
+		return "rangemaster (5.56mm)";
 	if (iid == IID_WP_AK112)
-		return "ak-112";
+		return "ak-112 (5mm-hv)";
 	if (iid == IID_WP_AK74)
-		return "ak-74";
+		return "ak-74 (5mm-hv)";
 	if (iid == IID_WP_DKS1)
-		return "dks-1";
+		return "dks-1 (7.62mm)";
 	if (iid == IID_WP_MOONLIGHT)
-		return "moonlight";
+		return "moonlight (5.56mm)";
 	if (iid == IID_WP_SA80)
-		return "sa-80";
+		return "sa-80 (5.56mm)";
 	if (iid == IID_WP_GAUSERIFLE)
-		return "gauss rifle";
+		return "gauss rifle (2mm EC)";
 	if (iid == IID_WP_PULSERIFLE)
-		return "laser carbine";
+		return "laser carbine (energy)";
 
 
 

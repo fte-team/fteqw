@@ -861,6 +861,139 @@ string(float iid) GetItemName =
 	return strcat("unknown", ftos(iid));
 };
 
+string(float iid) GetItemImage =
+{
+	if (iid == IID_NONE)
+		return "blank.jpg";
+
+
+	if (iid == IID_WP_TOOLKIT)
+		return "toolkit.jpg";
+	if (iid == IID_WP_KNIFE)
+		return "knife.jpg";
+	if (iid == IID_WP_AXE)
+		return "axe.jpg";
+	if (iid == IID_WP_VIBROBLADE)
+		return "ripper.jpg";
+	if (iid == IID_WP_POWERAXE)
+		return "poweraxe.jpg";
+
+	if (iid == IID_WP_USP)
+		return "usp.jpg";
+	if (iid == IID_WP_DEAGLE)
+		return "deagle.jpg";
+	if (iid == IID_WP_NEEDLER)
+		return "needler.jpg";
+	if (iid == IID_WP_ALIENBLASTER)
+		return "blaster.jpg";
+	if (iid == IID_WP_PIPERIFLE)
+		return "prifle.jpg";
+	if (iid == IID_WP_WINCHESTER)
+		return "double.jpg";
+	if (iid == IID_WP_MOSSBERG)
+		return "mossberg.jpg";
+	if (iid == IID_WP_JACKHAMMER)
+		return "jackhammer.jpg";
+	if (iid == IID_WP_MP9)
+		return "mp9.jpg";
+	if (iid == IID_WP_MP7)
+		return "ggun.jpg";
+	if (iid == IID_WP_RANGEMASTER)
+		return "rangem.jpg";
+	if (iid == IID_WP_AK112)
+		return "ak112.jpg";
+	if (iid == IID_WP_AK74)
+		return "ak74.jpg";
+	if (iid == IID_WP_DKS1)
+		return "dks1.jpg";
+	if (iid == IID_WP_MOONLIGHT)
+		return "moonlight.jpg";
+	if (iid == IID_WP_SA80)
+		return "sa80.jpg";
+	if (iid == IID_WP_GAUSERIFLE)
+		return "grifle.jpg";
+	if (iid == IID_WP_PULSERIFLE)
+		return "lcarbine.jpg";
+
+
+
+	if (iid == IID_AM_NEEDLER)
+		return "needles.jpg";
+	if (iid == IID_AM_2MMEC)
+		return "2mm.jpg";
+	if (iid == IID_AM_10MM)
+		return "10mm.jpg";
+	if (iid == IID_AM_556MM)
+		return "556mm.jpg";
+	if (iid == IID_AM_5MMHIGHVEL)
+		return "5mmhv.jpg";
+	if (iid == IID_AM_5MMHIGHVEL)
+		return "12gauge.jpg";
+	if (iid == IID_AM_ENERGYCELL)
+		return "cell.jpg";
+	if (iid == IID_AM_762MM)
+		return "762mm.jpg";
+	if (iid == IID_AM_44MAGNUM)
+		return "44mag.jpg";
+	if (iid == IID_AM_44MAGNUM)
+		return "45acp.jpg";
+
+
+	if (iid == IID_GREN_FRAG)
+		return "frag.jpg";
+	if (iid == IID_GREN_EMP)
+		return "emp.jpg";
+	if (iid == IID_GREN_SMOKE)
+		return "smoke.jpg";
+	if (iid == IID_GREN_FLASH)
+		return "flash.jpg";
+
+
+	if (iid == IID_ARM_SHIRT)
+		return "shirt.jpg";
+	if (iid == IID_ARM_LEATHER)
+		return "leather.jpg";
+	if (iid == IID_ARM_KEVLAR)
+		return "kevlar.jpg";
+	if (iid == IID_ARM_METAL)
+		return "metal.jpg";
+	if (iid == IID_ARM_COMBAT)
+		return "combat.jpg";
+	if (iid == IID_ARM_BROTHERHOOD)
+		return "brotherhood.jpg";
+	if (iid == IID_ARM_FORCE)
+		return "force.jpg";
+	if (iid == IID_ARM_LPOWER)
+		return "power.jpg";
+
+
+	if (iid == IID_CHEM_STIMPACK)
+		return "stimpack.jpg";
+	if (iid == IID_CHEM_MEDICALBAG)
+		return "medbag.jpg";
+	if (iid == IID_CHEM_SUPERSTIM)
+		return "superstim.jpg";
+	if (iid == IID_CHEM_ADRENALINE)
+		return "adrenaline.jpg";
+	if (iid == IID_CHEM_PSYCHO)
+		return "psycho.jpg";
+	if (iid == IID_CHEM_BESERK)
+		return "beserk.jpg";
+
+
+	if (iid == IID_BUILD_MRAMMO)
+		return "mrammo.jpg";
+	if (iid == IID_BUILD_SHIELDGEN)
+		return "shieldgen.jpg";
+	if (iid == IID_BUILD_AUTODOC)
+		return "autodoc.jpg";
+	if (iid == IID_BUILD_ROBOFANG)
+		return "robofang.jpg";
+
+	bprint(PRINT_MEDIUM, ftos(iid), " without a name!\n");
+	return strcat("unknown.jpg", ftos(iid));
+};
+
 
 float(string itname) ItemIDOfName = 
 {

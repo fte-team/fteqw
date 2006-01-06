@@ -138,6 +138,8 @@ void(entity targ, entity inflictor, entity attacker, float damage) T_Damage =
 	{
 		if (attacker.critical == 3)
 		{
+			attacker.critical = 0;
+
 			severity = 0 + random()*20;
 			if (attacker.perk == 7)
 				severity = severity + 4;

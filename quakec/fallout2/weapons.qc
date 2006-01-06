@@ -2495,6 +2495,7 @@ void (entity healer, entity saved) RevivePlayer =
 	saved.deadflag = DEAD_NO;
 	saved.takedamage = DAMAGE_AIM;
 	saved.movetype = MOVETYPE_WALK;
+	saved.solid = SOLID_SLIDEBOX;
 	self.materialize = 200;
 	saved.ghost = 0;
 	saved.health = 2;
@@ -2505,12 +2506,17 @@ void (entity healer, entity saved) RevivePlayer =
 	player_run();
 	self = oself;
 	stuffcmd(saved, "impulse 1\n");
-	sprint (healer, PRINT_HIGH, "you revive ");
-	sprint (healer, PRINT_HIGH, trace_ent.netname);
-	sprint (healer, PRINT_HIGH, ".\n ");
+	if (healer.classname == "player")
+	{
+		sprint (healer, PRINT_HIGH, "you revive ");
+		sprint (healer, PRINT_HIGH, trace_ent.netname);
+		sprint (healer, PRINT_HIGH, ".\n ");
+	}
 	sprint (saved, PRINT_HIGH, healer.netname);
 	sprint (saved, PRINT_HIGH, " saves you from death.\n");
 	saved.view2 = world;
+
+	saved.flags (-) FL_FINDABLE_NONSOLID;
 };
 
 float(float iid) UseBoostingChem =
@@ -2560,15 +2566,12 @@ float(float iid) UseBoostingChem =
 		trace_ent.ragetime = duration;
 		return true;
 	}
-	if (trace_fraction == 1.0)
+	if (self.health < self.max_health && self.rage == 0)
 	{
-		if (self.health < self.max_health && self.rage == 0)
-		{
-			sound (self, CHAN_BODY, "player/berserk.wav", 1, ATTN_NORM);
-			self.rage = iid;
-			self.ragetime = duration;
-			return true;
-		}
+		sound (self, CHAN_BODY, "player/berserk.wav", 1, ATTN_NORM);
+		self.rage = iid;
+		self.ragetime = duration;
+		return true;
 	}
 	return false;
 };
@@ -2604,13 +2607,13 @@ float(float iid) UseHealingChem =
 
 	makevectors (self.v_angle);
 	source = self.origin + '0 0 0';
-	traceline (source, source + v_forward*64, FALSE, self);
+	traceline (source, source + v_forward*64, 32, self);
 	if (trace_ent.classname == "player" && trace_ent.team == self.team)
 	{
 		if (trace_ent.health <= 0 && coop == 1)
 		{
 			RevivePlayer(self, trace_ent);
-			return false;
+			return true;
 		}
 		if (trace_ent.health <= 0 && coop == 0)
 			return false;
@@ -2638,15 +2641,12 @@ float(float iid) UseHealingChem =
 		sound (self, CHAN_BODY, "items/r_item2.wav", 1, ATTN_NORM);
 		return true;
 	}
-	if (trace_fraction == 1.0)
+	if (self.health < self.max_health && self.regen == 0)
 	{
-		if (self.health < self.max_health && self.regen == 0)
-		{
-			sound (self, CHAN_BODY, "items/r_item2.wav", 1, ATTN_NORM);
-			self.health = self.health + heal;
-			self.regen = heal;
-			return true;
-		}
+		sound (self, CHAN_BODY, "items/r_item2.wav", 1, ATTN_NORM);
+		self.health = self.health + heal;
+		self.regen = heal;
+		return true;
 	}
 	return false;
 };
@@ -2984,6 +2984,7 @@ void () station_think =
 {
 #define chemcount attack_finished
 	local entity te;
+	local float r;
 
 	self.nextthink = time + 2;
 	self.frame = self.buildtype;
@@ -3007,7 +3008,7 @@ void () station_think =
 		te = findradius (self.origin, 256);
 		while (te)
 		{
-			if (te.classname == "player" && te.team == self.team)
+			if (te.classname == "player" && te.team == self.team && !te.deadflag)
 			{
 				if (self.chemcount <= 0)
 				{
@@ -3030,7 +3031,7 @@ void () station_think =
 		te = findradius (self.origin, 70);
 		while (te)
 		{
-			if (te.classname == "player" && te.team == self.team)
+			if (te.classname == "player" && te.team == self.team && !te.deadflag)
 			{
 				if (self.chemcount <= 0)
 				{
@@ -3038,14 +3039,32 @@ void () station_think =
 					sprint (te, 2, "the autodoc is out of medical supplies.\n");
 					return;
 				}
-				if (te.health < te.max_health)
+				if (te.deadflag)
+					RevivePlayer(self, te);
+				else if (te.health < te.max_health)
 				{
 					sound (self, CHAN_BODY, "items/r_item2.wav", 1, ATTN_NORM);
-					sprint (te, 2, "the auto-doc heals you for 3 health.\n");
+					sprint (te, PRINT_MEDIUM, "the auto-doc heals you for 3 health.\n");
 					te.health = te.health + 3;
 					self.chemcount = self.chemcount - 1;
 					if (te.health > te.max_health)
 						te.health = te.max_health;
+				}
+				if (random() < 0.001)
+				{
+					r = random()*6;
+					if (r < 1)
+						sprint(te, PRINT_HIGH, "the auto-doc heals you of AIDS\n");
+					else if (r < 2)
+						sprint(te, PRINT_HIGH, "the auto-doc heals you of Genital Herpes\n");
+					else if (r < 3)
+						sprint(te, PRINT_HIGH, "the auto-doc heals you of Gonorrhea\n");
+					else if (r < 4)
+						sprint(te, PRINT_HIGH, "the auto-doc heals you of Syphillis\n");
+					else if (r < 5)
+						sprint(te, PRINT_HIGH, "the auto-doc rids you of Crabs\n");
+					else if (r < 6)
+						sprint(te, PRINT_HIGH, "the auto-doc heals you of Chlamydia\n");
 				}
 			}
 			te = te.chain;
@@ -3057,7 +3076,7 @@ void () station_think =
 		te = findradius (self.origin, 60);
 		while (te)
 		{
-			if (te.classname == "player" && te.team == self.team)
+			if (te.classname == "player" && te.team == self.team && !te.deadflag)
 			{
 				if (self.chemcount <= 0)
 				{

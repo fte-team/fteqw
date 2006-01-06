@@ -451,6 +451,7 @@ float   MULTICAST_PHS_R = 4;            // within hearing, reliable
 float   MULTICAST_PVS_R = 5;            // within sight, reliable
 
 
+#define FL_FINDABLE_NONSOLID	16384	//a cpqwsv feature
 
 
 //================================================

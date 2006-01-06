@@ -4,9 +4,7 @@ void() info_player_start;
 void(entity targ, entity attacker) ClientObituary;
 void(entity inflictor, entity attacker, float damage, entity ignore, string dtype) T_RadiusDamage;
 
-/*SERVER
 void() monster_death_use;
-*/
 
 //============================================================================
 
@@ -88,15 +86,17 @@ void(entity targ, entity attacker) Killed =
 	ClientObituary(self, attacker);
 	
 	if (self.classname == "player")  //so dead players can spectate
+	{
 		self.ghost = 1;
+		self.flags = self.flags | FL_FINDABLE_NONSOLID;	//so tracelines can find them
+	}
 
 	self.takedamage = DAMAGE_NO;
 	self.touch = SUB_Null;
 	self.effects = 0;
 
-/*SERVER
 	monster_death_use();
-*/
+
 	self.th_die ();
 	
 	self = oself;

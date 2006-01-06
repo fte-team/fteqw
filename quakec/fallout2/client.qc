@@ -805,39 +805,39 @@ void () LocateSpectatorTarget =
 	if (self.ghost == 1)
 	{
 		ke = find (world, classname, "player");
-		de = find (world, classname, "player");
-		total = CONTENT_EMPTY;
-		player = MULTICAST_ALL;
-		playercnt = MULTICAST_ALL;
+		de = ke;
+		total = -1;
+		player = 0;
+		playercnt = 0;
 		while (ke)
 		{
-			if (((ke.classname == "player") && (ke.ghost == MULTICAST_ALL)))
+			if (ke.classname == "player" && ke.ghost == 0 && ke.health > 0)
 			{
-				total = (total + 1);
+				total = total + 1;
 			}
 			ke = find (ke, classname, "player");
 		}
 		while (de)
 		{
-			if (((de.classname == "player") && (de.ghost == MULTICAST_ALL)))
+			if (de.classname == "player" && de.ghost == 0 && ke.health > 0)
 			{
-				if ((player == self.ghostcnt))
+				if (player == self.ghostcnt)
 				{
 					makevectors (de.angles);
 					self.view2 = de;
-					self.ghostcnt = (self.ghostcnt + 1);
+					self.ghostcnt = self.ghostcnt + 1;
 					self.cnt = 0;
 					sprint(self, 2, "now following ");
 					sprint(self, 2, de.netname);
 					sprint(self, 2, ".\n");
 
-					if ((self.ghostcnt > total))
+					if (self.ghostcnt > total)
 						self.ghostcnt = 0;
 
 					return;
 				}
-				player = (player + 1);
-				if ((self.ghostcnt > total))
+				player = player + 1;
+				if (self.ghostcnt > total)
 				{
 					self.ghostcnt = 0;
 				}
@@ -848,6 +848,8 @@ void () LocateSpectatorTarget =
 		{
 			self.view2 = world;
 			centerprint (self, "No players found...\n");
+			if (!deathmatch)
+				localcmd("restart\n");
 			return;
 		}
 	}
@@ -1304,7 +1306,7 @@ void() PlayerPreThink =
 			}
 		}
 
-		if (self.regen > 0)
+		if (self.regen > 0 && !self.deadflag)	//don't come back to life.
 		{
 			self.health = self.health + 3;
 			self.regen = self.regen - 1;
@@ -1323,7 +1325,7 @@ void() PlayerPreThink =
 		PlayerDeathThink ();
 		return;
 	}
-	
+
 	if (self.deadflag == DEAD_DYING)
 		return; // dying, so do nothing
 

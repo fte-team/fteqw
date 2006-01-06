@@ -17,6 +17,10 @@ float(string desc) itemtoslot =
 	}
 	else
 	{
+		slot = SlotOfItem(self, slot);
+		if (slot)
+			return slot;
+
 		sprint(self, PRINT_HIGH, "You don't have one of those\n");
 		return 0;
 	}

@@ -485,6 +485,8 @@ void() PutClientInServer =
 
 	if (self.class == 0 || self.team == 0)
 	{
+		self.deadflag = DEAD_NO;
+		self.health = 200;
 		setsize (self, VEC_HULL_MIN, VEC_HULL_MAX);
 		self.view_ofs = '0 0 22';
 		self.takedamage = DAMAGE_NO;

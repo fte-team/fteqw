@@ -299,6 +299,14 @@ void(entity targ, entity inflictor, entity attacker, float damage) T_Damage =
 	default:
 		break;
 	}
+
+	if (damage <= 0)
+	{
+		damage = 0;
+		sound (targ, CHAN_BODY, targ.armornoise, 1, ATTN_NORM);
+		return;
+	}
+
 	targ.health = targ.health - take;
 
 	if (targ.health <= 0)

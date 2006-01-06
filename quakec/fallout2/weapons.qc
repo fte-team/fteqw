@@ -1085,9 +1085,9 @@ void() W_Attack =
 	else if (weap == IID_WP_JACKHAMMER)
 		W_FireShotgun (1, 5, 6, 160, 3000, 1);
 	else if (weap == IID_WP_MP9)
-		FireSMG(12, 2, "weapons/mp9.wav", 2000, 0.1);
+		FireSMG(12, 2, "weapons/mp7.wav", 2000, 0.06);
 	else if (weap == IID_WP_MP7)
-		FireSMG(12, 2, "weapons/mp7.wav", 2000, 0.1);
+		FireSMG(12, 2, "weapons/mp5.wav", 2000, 0.06);
 	else if (weap == IID_WP_RANGERMASTER)
 		FireAssaultRifle(14, 2, "weapons/rangem.wav", 4000, 0.5);
 	else if (weap == IID_WP_AK112)
@@ -2494,7 +2494,7 @@ void (entity healer, entity saved) RevivePlayer =
 	saved.deadflag = DEAD_NO;
 	saved.takedamage = DAMAGE_AIM;
 	saved.movetype = MOVETYPE_WALK;
-	saved.solid = SOLID_SLIDEBOX;
+	self.materialize = 200;
 	saved.ghost = 0;
 	saved.health = 2;
 	saved.air_finished = time + 10;

@@ -487,6 +487,7 @@ void() PutClientInServer =
 	{
 		self.deadflag = DEAD_NO;
 		self.health = 200;
+		self.max_health = 200;
 		setsize (self, VEC_HULL_MIN, VEC_HULL_MAX);
 		self.view_ofs = '0 0 22';
 		self.takedamage = DAMAGE_NO;
@@ -495,7 +496,13 @@ void() PutClientInServer =
 		self.origin = spot.origin + '0 0 1';
 		self.angles = spot.angles;
 		self.fixangle = TRUE;           // turn this way immediately
-
+		self.movetype = MOVETYPE_WALK;
+		self.flags = FL_CLIENT;
+		self.classname = "player";
+		self.currentmenu = "none";
+		self.air_finished = time + 999;
+		self.active = 1;
+		player_stand1 ();
 		return;
 	}
 	self.classname = "player";

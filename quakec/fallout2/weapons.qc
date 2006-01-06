@@ -783,7 +783,10 @@ void() spike_touch =
 	{
 		WriteByte (MSG_MULTICAST, SVC_TEMPENTITY);
 		if (self.classname == "wizspike")
+		{
+			T_Damage (other, self, self.owner, 9+random()18);
 			WriteByte (MSG_MULTICAST, TE_WIZSPIKE);
+		}
 		else if (self.classname == "knightspike")
 			WriteByte (MSG_MULTICAST, TE_KNIGHTSPIKE);
 		else

@@ -325,7 +325,7 @@ void()	wiz_death1	=[	$death1,		wiz_death2	] {
 self.velocity_x = -200 + 400*random();
 self.velocity_y = -200 + 400*random();
 self.velocity_z = 100 + 100*random();
-self.flags = self.flags - (self.flags & FL_ONGROUND);
+self.movetype = MOVETYPE_TOSS;
 sound (self, CHAN_VOICE, "wizard/wdeath.wav", 1, ATTN_NORM);
 };
 void()	wiz_death2	=[	$death2,		wiz_death3	] {};
@@ -346,6 +346,8 @@ void() wiz_die =
 		ThrowGib ("progs/gib2.mdl", -10);
 		ThrowGib ("progs/gib2.mdl", -10);
 		ThrowGib ("progs/gib2.mdl", -10);
+		ThrowGib ("progs/gib3.mdl", -10);
+		ThrowGib ("progs/gib1.mdl", -10);
 		return;
 	}
 

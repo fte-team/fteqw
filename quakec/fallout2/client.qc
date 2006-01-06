@@ -860,7 +860,7 @@ void() PlayerDeathThink =
 	local float             forward;
 
 	self.modelindex = modelindex_dead;
-
+	self.solid = SOLID_NOT;
 
 	if ((self.flags & FL_ONGROUND))
 	{

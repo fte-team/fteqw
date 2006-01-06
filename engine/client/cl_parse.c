@@ -801,6 +801,7 @@ void CL_RequestNextDownload (void)
 		if (cls.protocol == CP_QUAKE2)
 		{
 			Skin_NextDownload();
+			CL_SendClientCommand(true, "begin %i\n", cl.servercount);
 		}
 		else
 #endif
@@ -2209,6 +2210,7 @@ void CL_ParseBaseline2 (void)
 
 void CLQ2_Precache_f (void)
 {
+	cl.sendprespawn = true;
 #ifdef VM_CG
 	CG_Start();
 #endif

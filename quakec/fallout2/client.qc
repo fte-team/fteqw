@@ -127,6 +127,8 @@ void() SetNewParms =
 
 void() DecodeLevelParms =
 {
+	setspawnparms(self);
+
 //	self.slot1 = parm1;
 //	self.slot2 = parm2;
 //	self.armor = parm3;
@@ -819,7 +821,7 @@ void () LocateSpectatorTarget =
 		}
 		while (de)
 		{
-			if (de.classname == "player" && de.ghost == 0 && ke.health > 0)
+			if (de.classname == "player" && de.ghost == 0 && de.health > 0)
 			{
 				if (player == self.ghostcnt)
 				{

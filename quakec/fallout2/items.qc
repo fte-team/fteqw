@@ -826,7 +826,7 @@ float() GetRandomAmmo =
 void() ammo_touch =
 {
 	local entity stemp;
-	local string ammoname;
+	local string ammoname, ammocountftos;
 	local float best, ammotype, ammocount;
 
 	if (other.classname != "player")
@@ -866,62 +866,88 @@ void() ammo_touch =
 	if (ammotype == IID_AM_45ACP)
 		ammocount = 5 + random()*10;
 
+	ammocount = ceil(ammocount);
+
 	ammoname = GetItemName(ammotype);
+
+	ammocountftos = ftos(ammocount);
 
 // shotgun
 	if (self.weapon == 1)
 	{
 		sprint (other, 2, ammoname);
+		sprint (other, 2, "(");
+		sprint (other, 2, ammocountftos);
+		sprint (other, 2, ") ");
 
 		AddStackable(other, ammotype, ammocount);
 
 		if (random()*20 <= 10)
 		{
 			other.ammo_shells = other.ammo_shells + 2;
-			sprint (other, PRINT_LOW, " and bottle caps.\n");
+			sprint (other, 2, " and bottle caps.\n");
 		}
+		else
+			sprint (other, 2, "\n");
+
 	}
 
 // spikes
 	if (self.weapon == 2)
 	{
 		sprint (other, 2, ammoname);
+		sprint (other, 2, "(");
+		sprint (other, 2, ammocountftos);
+		sprint (other, 2, ") ");
 
 		AddStackable(other, ammotype, ammocount);
 
 		if (random()*20 <= 10)
 		{
 			other.ammo_shells = other.ammo_shells + 2;
-			sprint (other, PRINT_LOW, " and bottle caps.\n");
+			sprint (other, 2, " and bottle caps.\n");
 		}
+		else
+			sprint (other, 2, "\n");
 	}
 
 //      rockets
 	if (self.weapon == 3)
 	{
 		sprint (other, 2, ammoname);
+		sprint (other, 2, "(");
+		sprint (other, 2, ammocountftos);
+		sprint (other, 2, ") ");
 
 		AddStackable(other, ammotype, ammocount);
 
 		if (random()*20 <= 10)
 		{
 			other.ammo_shells = other.ammo_shells + 2;
-			sprint (other, PRINT_LOW, " and bottle caps.\n");
+			sprint (other, 2, " and bottle caps.\n");
 		}
+		else
+			sprint (other, 2, "\n");
+
 	}
 
 //      cells
 	if (self.weapon == 4)
 	{
 		sprint (other, 2, ammoname);
+		sprint (other, 2, "(");
+		sprint (other, 2, ammocountftos);
+		sprint (other, 2, ") ");
 
 		AddStackable(other, ammotype, ammocount);
 
 		if (random()*20 <= 10)
 		{
 			other.ammo_shells = other.ammo_shells + 2;
-			sprint (other, PRINT_LOW, " and bottle caps.\n");
+			sprint (other, 2, " and bottle caps.\n");
 		}
+		else
+			sprint (other, 2, "\n");
 	}
 
 	bound_other_ammo ();

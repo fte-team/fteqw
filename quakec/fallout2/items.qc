@@ -2,6 +2,7 @@ void() W_SetCurrentAmmo;
 /* ALL LIGHTS SHOULD BE 0 1 0 IN COLOR ALL OTHER ITEMS SHOULD
 BE .8 .3 .4 IN COLOR */
 
+void(entity to, float iid, float count) AddStackable;
 
 void() SUB_regen =
 {
@@ -793,10 +794,40 @@ AMMO
 ===============================================================================
 */
 
+float() GetRandomAmmo =
+{
+	local float r;
+
+	r = random()*20;
+
+	if (r <= 2)
+		return IID_AM_NEEDLER;
+	else if (r <= 4)
+		return IID_AM_10MM;
+	else if (r <= 6)
+		return IID_AM_556MM;
+	else if (r <= 8)
+		return IID_AM_5MMHIGHVEL;
+	else if (r <= 10)
+		return IID_AM_12GAUGESHELLS;
+	else if (r <= 12)
+		return IID_AM_ENERGYCELL;
+	else if (r <= 14)
+		return IID_AM_2MMEC;
+	else if (r <= 16)
+		return IID_AM_762MM;
+	else if (r <= 18)
+		return IID_AM_44MAGNUM;
+	else
+		return IID_AM_45ACP;
+
+};
+
 void() ammo_touch =
 {
-local entity    stemp;
-local float             best;
+	local entity stemp;
+	local string ammoname;
+	local float best, ammotype, ammocount;
 
 	if (other.classname != "player")
 		return;
@@ -809,50 +840,96 @@ local float             best;
 	best = W_BestWeapon();
 	self = stemp;
 
+	sprint (other, 2, "a pre-war military ammo cache.\n");
+	sprint (other, 2, "found ");
+
+	ammotype = GetRandomAmmo();
+
+	if (ammotype == IID_AM_NEEDLER)
+		ammocount = 2 + random()*7;
+	if (ammotype == IID_AM_10MM)
+		ammocount = 5 + random()*10;
+	if (ammotype == IID_AM_556MM)
+		ammocount = 3 + random()*8;
+	if (ammotype == IID_AM_5MMHIGHVEL)
+		ammocount = 5 + random()*10;
+	if (ammotype == IID_AM_12GAUGESHELLS)
+		ammocount = 2 + random()*6;
+	if (ammotype == IID_AM_ENERGYCELL)
+		ammocount = 2 + random()*6;
+	if (ammotype == IID_AM_2MMEC)
+		ammocount = 1 + random()*2;
+	if (ammotype == IID_AM_762MM)
+		ammocount = 2 + random()*4;
+	if (ammotype == IID_AM_44MAGNUM)
+		ammocount = 2 + random()*4;
+	if (ammotype == IID_AM_45ACP)
+		ammocount = 5 + random()*10;
+
+	ammoname = GetItemName(ammotype);
 
 // shotgun
 	if (self.weapon == 1)
 	{
-		if (other.ammo_shells >= 100)
-			return;
-		other.ammo_shells = other.ammo_shells + self.aflag;
+		sprint (other, 2, ammoname);
+
+		AddStackable(other, ammotype, ammocount);
+
+		if (random()*20 <= 10)
+		{
+			other.ammo_shells = other.ammo_shells + 2;
+			sprint (other, PRINT_LOW, " and bottle caps.\n");
+		}
 	}
 
 // spikes
 	if (self.weapon == 2)
 	{
-		if (other.ammo_nails >= 200)
-			return;
-		other.ammo_nails = other.ammo_nails + self.aflag;
+		sprint (other, 2, ammoname);
+
+		AddStackable(other, ammotype, ammocount);
+
+		if (random()*20 <= 10)
+		{
+			other.ammo_shells = other.ammo_shells + 2;
+			sprint (other, PRINT_LOW, " and bottle caps.\n");
+		}
 	}
 
 //      rockets
 	if (self.weapon == 3)
 	{
-		if (other.ammo_rockets >= 100)
-			return;
-		other.ammo_rockets = other.ammo_rockets + self.aflag;
+		sprint (other, 2, ammoname);
+
+		AddStackable(other, ammotype, ammocount);
+
+		if (random()*20 <= 10)
+		{
+			other.ammo_shells = other.ammo_shells + 2;
+			sprint (other, PRINT_LOW, " and bottle caps.\n");
+		}
 	}
 
 //      cells
 	if (self.weapon == 4)
 	{
-		if (other.ammo_cells >= 100)
-			return;
-		other.ammo_cells = other.ammo_cells + self.aflag;
+		sprint (other, 2, ammoname);
+
+		AddStackable(other, ammotype, ammocount);
+
+		if (random()*20 <= 10)
+		{
+			other.ammo_shells = other.ammo_shells + 2;
+			sprint (other, PRINT_LOW, " and bottle caps.\n");
+		}
 	}
 
 	bound_other_ammo ();
 	
-	sprint (other, PRINT_LOW, "You got the ");
-	sprint (other, PRINT_LOW, self.netname);
-	sprint (other, PRINT_LOW, "\n");
-// ammo touch sound
-	sound (other, CHAN_ITEM, "weapons/lock4.wav", 1, ATTN_NORM);
-	stuffcmd (other, "bf\n");
+
 
 // change to a better weapon if appropriate
-
+/*
 	if ( other.weapon == best )
 	{
 		stemp = self;
@@ -860,24 +937,20 @@ local float             best;
 		self.weapon = W_BestWeapon();
 		W_SetCurrentAmmo ();
 		self = stemp;
-	}
+	}*/
 
 // if changed current ammo, update it
 	stemp = self;
 	self = other;
-	W_SetCurrentAmmo();
 	self = stemp;
 
 // remove it in single player, or setup for respawning in deathmatch
 	self.model = string_null;
 	self.solid = SOLID_NOT;
-	if (deathmatch != 2)
+	if (coop != 1)
 		self.nextthink = time + 30;
 
 // Xian -- If playing in DM 3.0 mode, halve the time ammo respawns        
-
-	if (deathmatch == 3 || deathmatch == 5)        
-		self.nextthink = time + 15;
 
 	self.think = SUB_regen;
 

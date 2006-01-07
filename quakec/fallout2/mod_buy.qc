@@ -1,4 +1,13 @@
 
+void(entity to, float iid, float count) AddNonStackable =
+{
+	local float slot;
+
+	slot = FindSuitableEmptySlot(to, iid);
+	if (slot)
+		SetItemSlot(to, slot, SlotVal(iid, count));
+};
+
 void(entity to, float iid, float count) AddStackable =
 {
 	local float slot;

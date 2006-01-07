@@ -146,12 +146,31 @@ string () RifleString =
 
 string () ChemString =
 {
-	return ("drugs\n     DRUG  |   EFFECTS   |  PRICE\n\nê1ë stimpack   heals 05+20     3$\nê2ë medkit+    heals 10+50     5$\nê3ë adrenaline*+speed/jump    10$\nê4ë superstim* heals 20+60    12$\nê5ë jet*       aim better     18$\nêeë exit                         \n\n+ requires medic                 \n* requires advanced medic        \n");
+	return ("drugs\n     DRUG  |   EFFECTS   |  PRICE\n"
+		"\nê1ë stimpack   heals 05+20     3$\n"
+		"ê2ë medkit+    heals 10+50     5$\n"
+		"ê3ë superstim* heals 20+60    12$\n"
+		"ê4ë adrenaline*+speed/jump    10$\n"
+		"ê5ë jet*       aim better     18$\n"
+		"êeë exit                         \n"
+		"\n"
+		"+ requires medic                 \n"
+		"* requires advanced medic        \n");
 };
 
 string () ChemString2 =
 {
-	return ("chems\n     DRUG  |   EFFECTS   |  PRICE\n\nê1ë adrenaline +60 speed/jump  3$\nê2ë stimpack   heals 40        5$\nê3ë psycho+    +60 hp/no pain 11$\nê4ë medkit*    heals 20+50    12$\nê5ë berserk*   adren+psycho   12$\nê6ë jet*       aim better     15$\nêeë exit                         \n\n+ requires shaman                \n* requires advanced shaman       \n");
+	return ("chems\n     DRUG  |   EFFECTS   |  PRICE\n"
+		"\nê1ë adrenaline +60 speed/jump  3$\n"
+		"ê2ë stimpack   heals 40        5$\n"
+		"ê3ë psycho+    +60 hp/no pain 11$\n"
+		"ê4ë medkit*    heals 20+50    12$\n"
+		"ê5ë berserk*   adren+psycho   12$\n"
+		"ê6ë jet*       aim better     15$\n"
+		"êeë exit                         \n"
+		"\n"
+		"+ requires shaman                \n"
+		"* requires advanced shaman       \n");
 };
 
 string () EnergyWeaponsString =

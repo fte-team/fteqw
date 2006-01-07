@@ -1290,7 +1290,7 @@ void () monster_army =
 		self.classname = "monster";
 		self.netname = "enforcer";
 
-		setsize (self, '-12 -12 -24', '12 12 32');
+		setsize (self, '-16 -16 -24', '16 16 32');
 		self.health = 120;
             self.islot3 = SlotVal(IID_ARM_COMBAT, 1);
 		self.armortype = 35;
@@ -1331,7 +1331,7 @@ void () monster_army =
 	self.netname = "raider";
 	self.movetype = MOVETYPE_STEP;
 	setmodel (self, "progs/soldier.mdl");
-	setsize (self, '-16 -16 -24', '16 16 32');
+	setsize (self, '-16 -16 -24', '16 16 28');
 	self.health = 90;
 	self.team = 3;
             self.islot3 = SlotVal(IID_ARM_LEATHER, 1);

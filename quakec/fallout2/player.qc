@@ -72,7 +72,7 @@ void () player_crouch;
 
 void () player_stand1 = [ 149, player_stand1 ]
 {
-	if (self.rtime == 0)
+	if (self.rtime < time && self.attack == 0)
 		self.weaponframe = 0;
 
 	if (self.position == 1)
@@ -103,7 +103,7 @@ void () player_stand1 = [ 149, player_stand1 ]
 
 void () player_crouch = [ 45, player_run ]
 {
-	if (self.rtime == 0)
+	if (self.rtime < time && self.attack == 0)
 		self.weaponframe = 0;
 
 	if (!self.velocity_x && !self.velocity_y)
@@ -145,7 +145,7 @@ void () player_climb = [ 23, player_run ]
 
 void () player_run = [ 137, player_run ]
 {
-	if (self.rtime < time)
+	if (self.rtime < time && self.attack == 0)
 		self.weaponframe = 0;
 
 	if (self.equipment == 7 && self.equipment_state == 1 && self.grab == 1 && !(self.flags & FL_ONGROUND))

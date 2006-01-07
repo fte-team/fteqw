@@ -386,6 +386,10 @@ float() FindTarget =
 	if (!visible (client))
 		return FALSE;
 
+	if (client.sneak != 0)//sneaking players are invisible
+		return FALSE;
+
+
 	if (r == RANGE_NEAR)
 	{
 		if (client.show_hostile < time && !infront (client))

@@ -2059,6 +2059,8 @@ void (float dam, float rec, string snd, float rng, float rate) FirePistol =
 		zdif = org_z - trace_ent.origin_z;
 		ydif = org2_y - trace_ent.origin_y;
 		xdif = org2_x - trace_ent.origin_x;
+
+
 		is_headshot = 0;
 
 		if (((ydif >= CONTENT_SKY) && (ydif <= TE_LIGHTNING2)))
@@ -2076,6 +2078,8 @@ void (float dam, float rec, string snd, float rng, float rate) FirePistol =
 			SpawnWood (trace_ent, org, 1);
 
 		T_Damage (trace_ent, self, self, dam);
+
+		self.critical = 0;
 
 		if (trace_ent.solid == SOLID_BSP)
 			penetrate (org, (dam / 2), (dam / 2));
@@ -2184,6 +2188,7 @@ void (float dam, float rec, string snd, float rng, float rate) FireSMG =
 			SpawnWood (trace_ent, org, 1);
 
 		T_Damage (trace_ent, self, self, dam);
+		self.critical = 0;
 
 		if (trace_ent.solid == SOLID_BSP)
 			penetrate (org, (dam / 2), (dam / 2));
@@ -2199,9 +2204,9 @@ void (float dam, float rec, string snd, float rng, float rate) FireSMG =
 
 void (float dam, float rec, string snd, float rng, float rate) FireAssaultRifle =
 {
-      local float tmp, zdif, xdif, ydif, is_headshot, z;
+      local float hs, tmp, zdif, xdif, ydif, is_headshot, z;
 	local string xd, yd, zd;
-      local vector dir, source, targ, org, org2, adjust;
+      local vector dir, source, targ, org, org2, adjust, headshot_check;
 
 	sound (self, CHAN_WEAPON, snd, 1, ATTN_NORM);
 
@@ -2271,42 +2276,38 @@ void (float dam, float rec, string snd, float rng, float rate) FireAssaultRifle 
 		return;
 
 	org = trace_endpos - v_forward * 2;
+	headshot_check = trace_endpos + v_forward * (trace_ent.size_x / 2);
+
 	if (trace_ent.takedamage)
 	{
-		zdif = trace_endpos_z - trace_ent.origin_z;
-		ydif = trace_endpos_y - trace_ent.origin_y;
-		xdif = trace_endpos_x - trace_ent.origin_x;
 
-		xd = ftos(xdif);
-		yd = ftos(ydif);
-		zd = ftos(zdif);
-
-		sprint(self, 2, "x: ");
-		sprint(self, 2, xd);
-		sprint(self, 2, "y: ");
-		sprint(self, 2, yd);
-		sprint(self, 2, "z: ");
-		sprint(self, 2, zd);
-		sprint(self, 2, "\n");
 
 		is_headshot = 0;
-		if (ydif >= -6 && ydif <= 6)
+		hs = headshot_check_x - trace_ent.origin_x;
+		hs = hs + headshot_check_y - trace_ent.origin_y;
+
+		if (hs < 0)
+			hs = hs * -1;
+
+		if (hs <= 4)
 			is_headshot = 1;
-		if (xdif >= -6 && xdif <= 6)
-			is_headshot = 1;
-		if (self.attack <= 5 && is_headshot == 1 && zdif >= (trace_ent.size_z / 2 * 0.8))
+
+		zdif = trace_endpos_z - trace_ent.origin_z;
+
+		if (is_headshot == 1 && zdif >= (trace_ent.size_z / 2 * 0.8))
 			self.critical = 3;
+
+
 
 		dam = (dam * (1 - trace_fraction));
 		if (trace_ent.solid != SOLID_BSP && self.critical == 3)
 			SpawnBlood (org, 1);
-		else
-			SpawnBlood (org, 0.5);
 
 		if (trace_ent.solid == SOLID_BSP)
 			SpawnWood (trace_ent, org, 1);
 
 		T_Damage (trace_ent, self, self, dam);
+		self.critical = 0;
 
 		if (trace_ent.solid == SOLID_BSP)
 			penetrate (org, (dam / 2), (dam / 2));
@@ -3715,6 +3716,7 @@ void (vector s_aim, float dam, float tmp, float ran) W_FireBuckshotSpread1 =
 			self.critical = 3;
 		}
 		T_Damage (trace_ent, self, self, dam);
+		self.critical = 0;
 	}
 	else
 	{

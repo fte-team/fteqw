@@ -794,7 +794,7 @@ string(float iid) GetItemName =
 		return "5.56mm ammo";
 	if (iid == IID_AM_5MMHIGHVEL)
 		return "5mm high-velocity ammo";
-	if (iid == IID_AM_5MMHIGHVEL)
+	if (iid == IID_AM_12GAUGESHELLS)
 		return "12-guage shotgun shells";
 	if (iid == IID_AM_ENERGYCELL)
 		return "small energy cell";
@@ -802,7 +802,7 @@ string(float iid) GetItemName =
 		return "7.62mm ammo";
 	if (iid == IID_AM_44MAGNUM)
 		return ".44 magnum ammo";
-	if (iid == IID_AM_44MAGNUM)
+	if (iid == IID_AM_45ACP)
 		return ".45 ACP ammo";
 
 

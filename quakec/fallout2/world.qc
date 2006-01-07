@@ -435,7 +435,7 @@ void() worldspawn =
 	precache_model ("maps/b_bh100.bsp");
 	precache_model ("progs/s_light.spr");
 
-
+	precache_sound ("misc/thud.wav");
 	precache_sound ("player/step1.wav");
 	precache_sound ("player/step2.wav");
 	precache_sound ("player/step3.wav");

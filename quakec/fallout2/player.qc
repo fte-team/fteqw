@@ -88,18 +88,17 @@ void () player_stand1 = [ 149, player_stand1 ]
 			return;
 		}
 	}
-	if ((self.velocity_x || self.velocity_y))
+	if (self.velocity_x || self.velocity_y)
 	{
-		self.walkframe = MULTICAST_ALL;
+		self.walkframe = 0;
 		player_run ();
 		return;
 	}
-	if ((self.walkframe >= MULTICAST_PVS_R))
-	{
-		self.walkframe = MULTICAST_ALL;
-	}
-	self.frame = (149 + self.walkframe);
-	self.walkframe = (self.walkframe + WEAPON_SHOTGUN);
+	if (self.walkframe >= 5)
+		self.walkframe = 0;
+
+	self.frame = 149 + self.walkframe;
+	self.walkframe = self.walkframe + 1;
 };
 
 void () player_crouch = [ 45, player_run ]

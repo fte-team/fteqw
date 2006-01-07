@@ -1054,9 +1054,12 @@ void() W_Attack =
 
 	if (self.rtime > time)
 		return;
+	if (self.attack_finished > time)
+		return;
 
 	if (W_CheckNoAmmo())
 		return;
+
 	weap = ToIID(self.(SlotField(self.current_slot)));
 
 
@@ -1092,15 +1095,16 @@ void() W_Attack =
 	else if (weap == IID_WP_RANGEMASTER)
 		FireAssaultRifle(14, 2, "weapons/rangem.wav", 4000, 0.5);
 	else if (weap == IID_WP_AK112)
-		FireAssaultRifle(14, 2, "weapons/rangem.wav", 4000, 0.1);
+		FireAssaultRifle(14, 2, "weapons/ak112.wav", 4000, 0.09);
 	else if (weap == IID_WP_AK74)
 		FireAssaultRifle(18, 2, "weapons/ak47.wav", 6000, 0.1);
 	else if (weap == IID_WP_DKS1)
 		FireAssaultRifle(30, 2, "weapons/dks-1.wav", 8000, 0.5);
 	else if (weap == IID_WP_MOONLIGHT)
-		FireAssaultRifle(16, 2, "weapons/m4-nw.wav", 4000, 0.1);
+		FireAssaultRifle(16, 2, "weapons/m4-nw.wav", 4000, 0.09);
+	else if (weap == IID_WP_SA80)
+		FireAssaultRifle(17, 2, "weapons/sa80.wav", 4000, 0.08);
 
-//float IID_WP_SA80 = 420;
 //float IID_WP_GAUSERIFLE = 421;
 //float IID_WP_PULSERIFLE = 422;
 
@@ -1247,6 +1251,15 @@ void() CycleWeaponCommand =
 
 void () ProneOff =
 {
+	setsize(self, '-16 -16 -24', '16 16 32');
+
+	if (!walkmove(0, 0))
+	{
+		sprint (self, 2, "not enough room to stand up.\n");
+		setsize(self, '-16 -16 -24', '16 16 0');
+		return;
+	}
+
 	sprint (self, 2, "position: stand.\n");
 	self.position = 0;
 	PositionControl();
@@ -1274,7 +1287,16 @@ void () ProneOn =
 
 void () DuckOff =
 {
+	setsize(self, '-16 -16 -24', '16 16 32');
+
+	if (!walkmove(0, 0))
+	{
+		sprint (self, 2, "not enough room to stand up.\n");
+		setsize(self, '-16 -16 -24', '16 16 16');
+		return;
+	}
 	sprint (self, 2, "position: stand.\n");
+	self.view_ofs = '0 0 22';
 	self.position = 0;
 	PositionControl();
 	player_run ();
@@ -1451,6 +1473,13 @@ void() W_WeaponFrame =
 		SuperDamageSound ();
 		W_Attack ();
 	}
+	if (!self.button0)
+	{
+		if (self.attack > 0)
+			player_run ();
+
+		self.attack = 0;
+	}
 };
 
 /*
@@ -1502,7 +1531,7 @@ void () autofire =
 
 	if (self.weaponframe == 1)
 		self.weaponframe = 2;
-	else if (self.weaponframe == 2)
+	else
 		self.weaponframe = 1;
 
 	muzzleflash ();
@@ -1517,7 +1546,7 @@ void () autofire_s =
 
 	if (self.weaponframe == 1)
 		self.weaponframe = 2;
-	else if (self.weaponframe == 2)
+	else
 		self.weaponframe = 1;
 
 	muzzleflash ();
@@ -2178,15 +2207,6 @@ void (float dam, float rec, string snd, float rng, float rate) FireAssaultRifle 
 
 	self.attack_finished = (time + rate);
 
-	if (self.attack == 0 && self.position == POS_STAND)
-		player_single1 ();
-	if (self.attack == 0 && self.position >= POS_DUCK)
-		player_single1_s ();
-	if (self.attack >= 1 && self.position == POS_STAND)
-		autofire ();
-	if (self.attack >= 1 && self.position >= POS_DUCK)
-		autofire_s ();
-
 	if (self.position == 0)
 		adjust = '0 0 0';
 	if (self.position == 1)
@@ -2199,7 +2219,7 @@ void (float dam, float rec, string snd, float rng, float rate) FireAssaultRifle 
 	if (self.recoil >= 15)
 		self.recoil = 15;
 
-	if (self.attack >= 1)
+	if (self.attack == 0)
 	{
 		if (self.position == 0)
 			player_single1 ();

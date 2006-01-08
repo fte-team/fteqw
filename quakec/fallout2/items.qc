@@ -1518,6 +1518,8 @@ PLAYER BACKPACKS
 
 void() BackpackTouch =
 {
+	if (other.classname != "player")
+		return;
 
 	sprint(other, 2, "loot: found ");
 
@@ -1527,7 +1529,6 @@ void() BackpackTouch =
 		sprint(other, 2, " 10mm ammo");
 	}
 	if (self.weapon == 2)
-	if (self.weapon == 3)
 	{
 		AddStackable(other, IID_AM_556MM, 5+random()*5);
 		sprint(other, 2, " 5mm ammo");

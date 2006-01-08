@@ -872,6 +872,9 @@ void() ammo_touch =
 
 	ammocount = ceil(ammocount);
 
+	if (coop == 1 && total_players == 1)
+		ammocount = ammocount * 2;
+
 	ammoname = GetItemName(ammotype);
 
 	ammocountftos = ftos(ammocount);
@@ -889,6 +892,9 @@ void() ammo_touch =
 		if (random()*20 <= 10)
 		{
 			other.ammo_shells = other.ammo_shells + 2;
+				if (coop == 1 && total_players == 1)
+					other.ammo_shells = other.ammo_shells + 2;
+
 			sprint (other, 2, " and bottle caps.\n");
 		}
 		else
@@ -1001,6 +1007,9 @@ void() item_shells =
 	if (deathmatch == 4)
 		return;
 
+	if (coop == 1 && random()*4 <= 2)
+		return;
+
 	self.touch = ammo_touch;
 
 	if (self.spawnflags & WEAPON_BIG2)
@@ -1027,6 +1036,9 @@ void() item_shells =
 void() item_spikes =
 {
 	if (deathmatch == 4)
+		return;
+
+	if (coop == 1 && random()*4 <= 1)
 		return;
 
 	self.touch = ammo_touch;
@@ -1058,6 +1070,9 @@ void() item_rockets =
 	if (deathmatch == 4)
 		return;
 
+	if (coop == 1 && random()*4 <= 3)
+		return;
+
 	self.touch = ammo_touch;
 
 	if (self.spawnflags & WEAPON_BIG2)
@@ -1086,6 +1101,9 @@ void() item_rockets =
 void() item_cells =
 {
 	if (deathmatch == 4)
+		return;
+
+	if (coop == 1 && random()*4 <= 2)
 		return;
 
 	self.touch = ammo_touch;
@@ -1120,61 +1138,14 @@ float WEAPON_SPIKES = 4;
 float WEAPON_BIG = 8;
 void() item_weapon =
 {
+	if (coop == 1 && random()*4 <= 3)
+		return;
+
 	self.touch = ammo_touch;
 
-	if (self.spawnflags & WEAPON_SHOTGUN)
-	{
-		if (self.spawnflags & WEAPON_BIG)
-		{
-			precache_model ("maps/b_shell1.bsp");
-			setmodel (self, "maps/b_shell1.bsp");
-			self.aflag = 40;
-		}
-		else
-		{
-			precache_model ("maps/b_shell0.bsp");
-			setmodel (self, "maps/b_shell0.bsp");
-			self.aflag = 20;
-		}
-		self.weapon = 1;
-		self.netname = "shells";
-	}
+	precache_model ("maps/b_shell0.bsp");
+	setmodel (self, "maps/b_shell0.bsp");
 
-	if (self.spawnflags & WEAPON_SPIKES)
-	{
-		if (self.spawnflags & WEAPON_BIG)
-		{
-			precache_model ("maps/b_nail1.bsp");
-			setmodel (self, "maps/b_nail1.bsp");
-			self.aflag = 40;
-		}
-		else
-		{
-			precache_model ("maps/b_nail0.bsp");
-			setmodel (self, "maps/b_nail0.bsp");
-			self.aflag = 20;
-		}
-		self.weapon = 2;
-		self.netname = "spikes";
-	}
-
-	if (self.spawnflags & WEAPON_ROCKET)
-	{
-		if (self.spawnflags & WEAPON_BIG)
-		{
-			precache_model ("maps/b_rock1.bsp");
-			setmodel (self, "maps/b_rock1.bsp");
-			self.aflag = 10;
-		}
-		else
-		{
-			precache_model ("maps/b_rock0.bsp");
-			setmodel (self, "maps/b_rock0.bsp");
-			self.aflag = 5;
-		}
-		self.weapon = 3;
-		self.netname = "rockets";
-	}
 	
 	setsize (self, '0 0 0', '32 32 56');
 	StartItem ();
@@ -1547,160 +1518,43 @@ PLAYER BACKPACKS
 
 void() BackpackTouch =
 {
-	local string    s;
-	local   float   best, old, new;
-	local           entity  stemp;
-	local   float   acount;
-	local   float   b_switch;
 
-	if (deathmatch == 4)
-		if (other.invincible_time > 0)
-			return;
+	sprint(other, 2, "loot: found ");
 
-	if ((stof(infokey(other,"b_switch"))) == 0)
-		b_switch = 8;
+	if (self.weapon == 1)
+	{
+		AddStackable(other, IID_AM_10MM, 9+random()*9);
+		sprint(other, 2, " 10mm ammo");
+	}
+	if (self.weapon == 2)
+	if (self.weapon == 3)
+	{
+		AddStackable(other, IID_AM_556MM, 5+random()*5);
+		sprint(other, 2, " 5mm ammo");
+	}
+	if (self.weapon == 3)
+	{
+		AddStackable(other, IID_AM_12GAUGESHELLS, 3+random()*3);
+		sprint(other, 2, " 12 gauge ammo");
+	}
+	if (self.weapon == 4)
+	{
+		AddStackable(other, IID_AM_10MM, 9+random()*9);
+		sprint(other, 2, " 10mm ammo");
+	}
+
+	if (random()*4 <= 2)
+	{
+		self.ammo_shells = self.ammo_shells + 1;
+		sprint(other, 2, " and some loot.\n");
+		if (total_players == 1)
+			self.ammo_shells = self.ammo_shells + 1;
+	}
 	else
-		b_switch = stof(infokey(other,"b_switch"));
-	
+		sprint(other, 2, ".\n");
 
-	if (other.classname != "player")
-		return;
-	if (other.health <= 0)
-		return;
-		
-	acount = 0;
-	sprint (other, PRINT_LOW, "You get ");
- 
-	if (deathmatch == 4)
-	{       
-		other.health = other.health + 10;
-		sprint (other, PRINT_LOW, "10 additional health\n");
-		if ((other.health > 250) && (other.health < 300))
-			sound (other, CHAN_ITEM, "items/protect3.wav", 1, ATTN_NORM);
-		else
-			sound (other, CHAN_ITEM, "weapons/lock4.wav", 1, ATTN_NORM);
-		stuffcmd (other, "bf\n");
-		remove(self);
 
-		if (other.health >299)
-		{               
-			if (other.invincible_time != 1)
-			{                       
-				other.invincible_time = 1;
-				other.invincible_finished = time + 30;
-				other.items = other.items | IT_INVULNERABILITY;
-				
-				other.super_time = 1;
-				other.super_damage_finished = time + 30;
-				other.items = other.items | IT_QUAD;
-
-				other.ammo_cells = 0;		
-		
-	
-				sound (other, CHAN_VOICE, "boss1/sight1.wav", 1, ATTN_NORM);
-				stuffcmd (other, "bf\n");               
-				bprint (PRINT_HIGH, other.netname);
-				bprint (PRINT_HIGH, " attains bonus powers!!!\n");
-			}
-		}
-		self = other;
-		return;
-	}
-	if (self.items)
-		if ((other.items & self.items) == 0)
-		{
-			acount = 1;
-			sprint (other, PRINT_LOW, "the ");
-			sprint (other, PRINT_LOW, self.netname);
-		}
- 
-// if the player was using his best weapon, change up to the new one if better          
-	stemp = self;
-	self = other;
-	best = W_BestWeapon();
-	self = stemp;
-
-// change weapons
-	other.ammo_shells = other.ammo_shells + self.ammo_shells;
-	other.ammo_nails = other.ammo_nails + self.ammo_nails;
-	other.ammo_rockets = other.ammo_rockets + self.ammo_rockets;
-	other.ammo_cells = other.ammo_cells + self.ammo_cells;
-
-	new = self.items;
-	if (!new)
-		new = other.weapon;
-	old = other.items;
-	other.items = other.items | self.items;
-	
-	bound_other_ammo ();
-
-	if (self.ammo_shells)
-	{
-		if (acount)
-			sprint(other, PRINT_LOW, ", ");
-		acount = 1;
-		s = ftos(self.ammo_shells);
-		sprint (other, PRINT_LOW, s);
-		sprint (other, PRINT_LOW, " shells");
-	}
-	if (self.ammo_nails)
-	{
-		if (acount)
-			sprint(other, PRINT_LOW, ", ");
-		acount = 1;
-		s = ftos(self.ammo_nails);
-		sprint (other, PRINT_LOW, s);
-		sprint (other, PRINT_LOW, " nails");
-	}
-	if (self.ammo_rockets)
-	{
-		if (acount)
-			sprint(other, PRINT_LOW, ", ");
-		acount = 1;
-		s = ftos(self.ammo_rockets);
-		sprint (other, PRINT_LOW, s);
-		sprint (other, PRINT_LOW, " rockets");
-	}
-	if (self.ammo_cells)
-	{
-		if (acount)
-			sprint(other, PRINT_LOW, ", ");
-		acount = 1;
-		s = ftos(self.ammo_cells);
-		sprint (other, PRINT_LOW, s);
-		sprint (other,PRINT_LOW, " cells");
-	}
-	
-	if ( (deathmatch==3 || deathmatch == 5) & ( (WeaponCode(new)==6) || (WeaponCode(new)==7) ) & (other.ammo_rockets < 5) )
-		other.ammo_rockets = 5;
-
-	sprint (other, PRINT_LOW, "\n");
-// backpack touch sound
-	sound (other, CHAN_ITEM, "weapons/lock4.wav", 1, ATTN_NORM);
-	stuffcmd (other, "bf\n");
-
-	remove(self);
-	self = other;
-	
-// change to the weapon
-	
-	
-	if ( WeaponCode(new) <= b_switch )
-	{
-		if (self.flags & FL_INWATER)
-		{
-			if (new != IT_LIGHTNING)
-			{
-				Deathmatch_Weapon (old, new);
-			}
-		}
-		else
-		{                
-			Deathmatch_Weapon (old, new);
-		}
-	}
-
-	W_SetCurrentAmmo ();
+	return;
 };
 
 /*
@@ -1712,36 +1566,10 @@ void() DropBackpack =
 {
 	local entity    item;
 
-	if (!(self.ammo_shells + self.ammo_nails + self.ammo_rockets + self.ammo_cells))
-		return; // nothing in it
-
 	item = spawn();
 	item.origin = self.origin - '0 0 24';
 	
-	item.items = self.weapon;
-	if (item.items == IT_AXE)
-		item.netname = "Axe";
-	else if (item.items == IT_SHOTGUN)
-		item.netname = "Shotgun";
-	else if (item.items == IT_SUPER_SHOTGUN)
-		item.netname = "Double-barrelled Shotgun";
-	else if (item.items == IT_NAILGUN)
-		item.netname = "Nailgun";
-	else if (item.items == IT_SUPER_NAILGUN)
-		item.netname = "Super Nailgun";
-	else if (item.items == IT_GRENADE_LAUNCHER)
-		item.netname = "Grenade Launcher";
-	else if (item.items == IT_ROCKET_LAUNCHER)
-		item.netname = "Rocket Launcher";
-	else if (item.items == IT_LIGHTNING)
-		item.netname = "Thunderbolt";
-	else
-		item.netname = "";
-
-	item.ammo_shells = self.ammo_shells;
-	item.ammo_nails = self.ammo_nails;
-	item.ammo_rockets = self.ammo_rockets;
-	item.ammo_cells = self.ammo_cells;
+	item.weapon = self.weapon;
 
 	item.velocity_z = 300;
 	item.velocity_x = -100 + (random() * 200);

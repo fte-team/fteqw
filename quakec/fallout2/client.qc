@@ -1586,6 +1586,8 @@ called when a player connects to a server
 */
 void() ClientConnect =
 {
+	total_players = total_players + 1;
+
 	bprint (PRINT_HIGH, self.netname);
 	bprint (PRINT_HIGH, " entered the game\n");
 	
@@ -1632,6 +1634,8 @@ called when a player disconnects from a server
 */
 void() ClientDisconnect =
 {
+	total_players = total_players - 1;
+
 	// let everyone else know
 	bprint (PRINT_HIGH, self.netname);
 		bprint (PRINT_HIGH, " left the game with ");

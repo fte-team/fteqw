@@ -1265,7 +1265,11 @@ void () army_die =
 
 void () monster_army =
 {
-	if (random()*10 <= 2)
+	local float x;
+
+	x = total_players;
+
+	if (random()*10 <= x*0.5)
 	{	
 		precache_model2 ("progs/enforcer.mdl");
 		precache_model2 ("progs/h_mega.mdl");

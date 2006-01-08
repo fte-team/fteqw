@@ -500,6 +500,7 @@ float           z_skill;
 float           msgcount;
 float           max_zombies;
 float           gtimer;
+float           total_players;
 
 //================================================
 

@@ -463,6 +463,41 @@ void(entity attacker, float take) zombie_pain =
 
 //============================================================================
 
+void (entity stuff) spawn_zombie =
+{
+	local entity zombie;
+	local entity te;
+
+	te = findradius (stuff.origin, 80);
+	while (te)
+	{
+		if (te.classname == "player" || te.classname == "ighoul" && te.health > 0)
+			return;
+
+		te = te.chain;
+	}
+
+	zombie = spawn ();
+	self = zombie;
+	self.origin = stuff.origin;
+	self.solid = SOLID_SLIDEBOX;
+	self.movetype = MOVETYPE_STEP;
+	setmodel (self, "progs/tehghoul.mdl");
+	setsize (self, VEC_HULL_MIN, '16 16 40');
+	self.health = 180;
+	self.classname = "ighoul";
+	self.netname = "ghoul";
+	self.max_health = self.health;
+	self.th_stand = zombie_stand1;
+	self.th_walk = zombie_walk1;
+	self.th_run = zombie_run1;
+	self.th_pain = zombie_pain;
+	self.th_die = zombie_die;
+	self.th_missile = zombie_missile;
+	self.target = stuff.target;
+	walkmonster_start_go ();
+};
+
 void() monster_zombie =
 {
 	precache_model ("progs/zombie.mdl");

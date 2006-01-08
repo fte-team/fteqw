@@ -1,6 +1,11 @@
 
 void() InitBodyQue;
 
+void() sci_think;
+void() hostage_pain;
+void() hostage_think;
+void() hostage_die;
+void(entity stuff) spawn_zombie;
 
 void() main =
 {
@@ -152,6 +157,1049 @@ void() main =
 	precache_file2 ("maps/dm4.bsp");
 	precache_file2 ("maps/dm5.bsp");
 	precache_file2 ("maps/dm6.bsp");
+};
+
+void () ResetHostages =
+{
+	local entity te;
+	local entity ze;
+	local entity ge;
+
+
+	te = find (world, classname, "hostage");
+	while (te)
+	{
+		te.cnt = MULTICAST_ALL;
+		te.rescued = MULTICAST_ALL;
+		te.deathtype = "";
+		setorigin (te, te.home);
+		traceline (te.origin, (te.origin - (v_up * IT_NAILS)), FALSE, te);
+		setorigin (te, (trace_endpos + '0 0 24'));
+		te.movetype = MOVETYPE_STEP;
+		te.velocity = VEC_ORIGIN;
+		te.touch = SUB_Null;
+		te.classname = "hostage";
+		te.takedamage = DAMAGE_AIM;
+		setsize (te, VEC_HULL_MIN, VEC_HULL_MAX);
+		te.health = 70;
+		te.think = hostage_think;
+		te.nextthink = (time + WEAPON_SHOTGUN);
+		te.solid = SOLID_BBOX;
+		te.th_die = hostage_die;
+		te.th_pain = hostage_pain;
+		te.angles_y = floor ((random () * 360));
+		te.netname = "citizen";
+		te.angles_z = MULTICAST_ALL;
+		te.angles_x = MULTICAST_ALL;
+		te = find (te, classname, "hostage");
+	}
+	te = find (world, classname, "scientist");
+	while (te)
+	{
+		te.frame = 1;
+		te.movetype = MOVETYPE_STEP;
+		te.velocity = VEC_ORIGIN;
+		te.touch = SUB_Null;
+		te.classname = "scientist";
+		te.takedamage = DAMAGE_AIM;
+		setsize (te, VEC_HULL_MIN, VEC_HULL_MAX);
+		setmodel (te, "progs/hosguy.mdl");
+		te.health = 70;
+		te.think = hostage_think;
+		te.nextthink = (time + 3);
+		te.team = 3;
+		te.solid = SOLID_BBOX;
+		te.th_die = hostage_die;
+		te.th_pain = hostage_pain;
+		te.rescued = MULTICAST_ALL;
+		te.think = sci_think;
+		te.nextthink = (time + 1);
+	
+		te = find (te, classname, "scientist");
+	}
+};
+
+void () ResetGhouls =
+{
+	local entity te;
+	local entity ze;
+
+	ze = find (world, classname, "ighoul");
+	while (ze)
+	{
+		remove (ze);
+		ze = find (ze, classname, "ighoul");
+	}
+	ze = find (world, classname, "ghoul");
+	while (ze)
+	{
+		spawn_zombie (self);
+		ze = find (ze, classname, "ghoul");
+	}
+};
+
+void (float won) ReplacePlayers =
+{
+	local entity te;
+	local entity spot;
+	local float qq;
+
+	round_end = 1.9;
+	te = find (world, classname, "camera");
+	while (te)
+	{
+		setmodel (te, "progs/camera.mdl");
+		te = find (te, classname, "camera");
+	}
+	te = find (world, classname, "player");
+	while (te)
+	{
+		if ((te.team == WEAPON_SHOTGUN))
+		{
+			qq = team1win;
+		}
+		if ((te.team == WEAPON_ROCKET))
+		{
+			qq = team2win;
+		}
+		if ((te.team == won))
+		{
+			te.ammo_shells = ((te.ammo_shells + TE_LIGHTNING3) + (qq / 1.25));
+		}
+		else
+		{
+			te.ammo_shells = ((te.ammo_shells + TE_LIGHTNING2) + (qq / WEAPON_ROCKET));
+		}
+		te.nextthink = time;
+		te.think = PutClientInServer;
+		te.maxspeed = 0;
+		te = find (te, classname, "player");
+	}
+	gtimer = 180;
+};
+
+void () ObjectSweep =
+{
+	local entity te;
+
+	te = find (world, classname, "doggy");
+	while (te)
+	{
+		remove (te);
+		te = find (te, classname, "doggy");
+	}
+	te = find (world, classname, "bot");
+	while (te)
+	{
+		remove (te);
+		te = find (te, classname, "bot");
+	}
+	te = find (world, classname, "dropped_weapon");
+	while (te)
+	{
+		remove (te);
+		te = find (te, classname, "dropped_weapon");
+	}
+	te = find (world, classname, "c4");
+	while (te)
+	{
+		remove (te);
+		te = find (te, classname, "c4");
+	}
+	te = find (world, classname, "active_c4");
+	while (te)
+	{
+		remove (te);
+		te = find (te, classname, "active_c4");
+	}
+};
+
+void () ResetTriggers =
+{
+	local entity te;
+
+	te = find (world, classname, "trigger_once");
+	while (te)
+	{
+		te.wait = 0.5;
+		te = find (te, classname, "trigger_once");
+	}
+	te = find (world, classname, "func_button");
+	while (te)
+	{
+		te.wait = 0.5;
+		te = find (te, classname, "func_button");
+	}
+};
+
+void () RoundReset =
+{
+	round_end = WEAPON_ROCKET;
+	red_kill = MULTICAST_ALL;
+	blue_kill = MULTICAST_ALL;
+        teamthatwon = 0;
+	team_blue = MULTICAST_ALL;
+	team_red = MULTICAST_ALL;
+	bombed = MULTICAST_ALL;
+	ResetTriggers ();
+	ResetGhouls ();
+	ResetHostages ();
+	ObjectSweep ();
+	ReplacePlayers (0);
+};
+
+void () CountGhouls =
+{
+	local entity te;
+
+	zombies = 0;
+	te = find (world, classname, "ighoul");
+	while (te)
+	{
+		if ((te.health > 0))
+		{
+			zombies = (zombies + 1);
+		}
+		te = find (te, classname, "ighoul");
+	}
+};
+
+void () CountScientists =
+{
+	local entity te;
+
+	hostages = MULTICAST_ALL;
+	te = find (world, classname, "scientist");
+	while (te)
+	{
+		if ((te.health > MULTICAST_ALL))
+		{
+			hostages = (hostages + WEAPON_SHOTGUN);
+		}
+		te = find (te, classname, "scientist");
+	}
+};
+
+void () RemoveDeadGhouls =
+{
+	local entity te;
+
+	te = find (world, classname, "ighoul");
+	while (te)
+	{
+		if ((te.health < MULTICAST_ALL))
+		{
+			te.nextthink = (time + WEAPON_SHOTGUN);
+			te.think = SUB_Remove;
+		}
+		te = find (te, classname, "ighoul");
+	}
+};
+
+void () SpawnRandomGhouls =
+{
+	local entity te;
+	local float playercount;
+	local float zomcount;
+
+	te = find (world, classname, "info");
+
+	CountGhouls ();
+	if (te.attack == 1)
+	{
+		te = find (world, classname, "player");
+		while (te)
+		{
+			if (((te.ghost == 0) && (te.health > 0)))
+			{
+				playercount = (playercount + 1);
+			}
+			te = find (te, classname, "player");
+		}
+		zomcount = (15 * playercount);
+		if ((zomcount > 55))
+		{
+			zomcount = 55;
+		}
+	}
+	if (te.attack == 2)
+	{
+		te = find (world, classname, "player");
+		while (te)
+		{
+			if (((te.ghost == 0) && (te.health > 0)))
+			{
+				playercount = (playercount + 1);
+			}
+			te = find (te, classname, "player");
+		}
+		zomcount = (30 * playercount);
+		if ((zomcount > 200))
+		{
+			zomcount = 200;
+		}
+	}
+	te = find (world, classname, "ghoul");
+	while (te)
+	{
+		if ((zombies < zomcount))
+		{
+			spawn_zombie (te);
+			zombies = (zombies + 1);
+		}
+		te = find (te, classname, "ghoul");
+	}
+};
+
+void () DisplayGhoulsLeft =
+{
+	local string ghoulsleft;
+
+	bprint (WEAPON_ROCKET, "rangers: ");
+	ghoulsleft = ftos (blue_kill);
+	bprint (WEAPON_ROCKET, ghoulsleft);
+	bprint (WEAPON_ROCKET, "   raiders: ");
+	ghoulsleft = ftos (red_kill);
+	bprint (WEAPON_ROCKET, ghoulsleft);
+	bprint (WEAPON_ROCKET, "   ");
+	bprint (WEAPON_ROCKET, "left: ");
+	ghoulsleft = ftos (zombies);
+	bprint (WEAPON_ROCKET, ghoulsleft);
+	bprint (WEAPON_ROCKET, "\n");
+};
+
+void () CountHostages =
+{
+	local entity te;
+
+	hostages = MULTICAST_ALL;
+	dead_hostage = MULTICAST_ALL;
+	te = find (world, classname, "hostage");
+	while (te)
+	{
+		if (((te.health > MULTICAST_ALL) && (te.rescued == MULTICAST_ALL)))
+		{
+			hostages = (hostages + WEAPON_SHOTGUN);
+		}
+		if ((te.health < MULTICAST_ALL))
+		{
+			dead_hostage = (dead_hostage + WEAPON_SHOTGUN);
+		}
+		te = find (te, classname, "hostage");
+	}
+};
+
+void () CheckZombie1 =
+{
+	CountGhouls ();
+	if ((msgcount == MULTICAST_ALL))
+	{
+		DisplayGhoulsLeft ();
+		RemoveDeadGhouls ();
+		SpawnRandomGhouls ();
+		msgcount = TE_LAVASPLASH;
+	}
+	CountHostages ();
+	msgcount = (msgcount - WEAPON_SHOTGUN);
+	if ((dead_hostage >= WEAPON_ROCKET))
+	{
+		max_zombies = 400;
+		sound (self, CHAN_BODY, "misc/zombies.wav", WEAPON_SHOTGUN, ATTN_NONE);
+		bprint (PRINT_MEDIUM, "***       THE ZOMBIES WIN!        ***\n");
+		bprint (PRINT_MEDIUM, "***   HOSTAGES HAVE BEEN KILLED   ***\n");
+		RoundReset ();
+		return;
+	}
+	if ((hostages == MULTICAST_ALL))
+	{
+		max_zombies = 400;
+		sound (self, CHAN_BODY, "misc/zombies.wav", WEAPON_SHOTGUN, ATTN_NONE);
+		bprint (PRINT_MEDIUM, "***       THE PLAYERS WIN!        ***\n");
+		bprint (PRINT_MEDIUM, "***   HOSTAGES HAVE BEEN SAVED!   ***\n");
+		team1win = (team1win + WEAPON_SHOTGUN);
+		RoundReset ();
+		return;
+	}
+	if ((gtimer <= WEAPON_SHOTGUN))
+	{
+		max_zombies = 400;
+		sound (self, CHAN_BODY, "misc/zombies.wav", WEAPON_SHOTGUN, ATTN_NONE);
+		bprint (PRINT_MEDIUM, "***       THE ZOMBIES WIN!        ***\n");
+		bprint (PRINT_MEDIUM, "*** HOSTAGES HAVE NOT BEEN SAVED! ***\n");
+		RoundReset ();
+		return;
+	}
+};
+
+void () CheckZombie2 =
+{
+	local entity te;
+	local float team1, team2;
+
+	CountGhouls ();
+	if ((msgcount == 0))
+	{
+		DisplayGhoulsLeft ();
+		RemoveDeadGhouls ();
+		SpawnRandomGhouls ();
+		msgcount = TE_LAVASPLASH;
+	}
+	msgcount = (msgcount - WEAPON_SHOTGUN);
+	CountScientists ();
+	if ((hostages <= 2))
+	{
+		max_zombies = 400;
+		bprint (PRINT_MEDIUM, ">>>       THE ZOMBIES WIN!        <<<\n");
+		bprint (PRINT_MEDIUM, ">>>  A SCIENTIST HAS BEEN KILLED  <<<\n");
+		RoundReset ();
+		return;
+	}
+	if ((zombies <= 0))
+	{
+		max_zombies = 400;
+		bprint (PRINT_MEDIUM, ">>>       THE PLAYERS WIN!        <<<\n");
+		bprint (PRINT_MEDIUM, ">>> ZOMBIES HAVE BEEN SLAUGHTERED <<<\n");
+		team1win = (team1win + 1);
+		RoundReset ();
+		return;
+	}
+	if ((gtimer <= 1))
+	{
+		max_zombies = 400;
+		bprint (PRINT_MEDIUM, "***       THE PLAYERS WIN!        ***\n");
+		bprint (PRINT_MEDIUM, "***  SCIENTISTS WERE PROTECTED!!  ***\n");
+		team1win = (team1win + 1);
+		RoundReset ();
+		return;
+	}
+
+	te = find (world, classname, "player");
+	while (te)
+	{
+		if (te.classname == "player" && te.team == 1 && te.ghost == 0)
+			team1 = team1 + 1;
+
+		te = find (te, classname, "player");
+	}
+
+	if (team1 == 0 && team_blue != 0)
+	{
+		max_zombies = 400;
+		bprint (PRINT_MEDIUM, "***       THE PLAYERS WIN!        ***\n");
+		bprint (PRINT_MEDIUM, "***  YOUR TEAM WAS SLAUGHTERED!!  ***\n");
+		RoundReset ();
+		return;
+	}
+};
+
+void () CheckHostage =
+{
+	local entity te;
+
+	hostages = 0;
+	dead_hostage = 0;
+	te = find (world, classname, "hostage");
+	while (te)
+	{
+		if (((te.health > 0) && (te.rescued == 0)))
+		{
+			hostages = (hostages + WEAPON_SHOTGUN);
+		}
+		if ((te.health < 0))
+		{
+			dead_hostage = (dead_hostage + 1);
+		}
+		te = find (te, classname, "hostage");
+	}
+	if (((dead_hostage >= 2) && (blue_kill >= 2)))
+	{
+		bprint (PRINT_MEDIUM, ">>> RANGERS KILLED HOSTAGES <<<\n");
+		bprint (PRINT_MEDIUM, ">>>      RANGERS LOSE!!     <<<\n");
+		team2win = (team2win + WEAPON_SHOTGUN);
+		RoundReset ();
+		return;
+	}
+	if (((dead_hostage >= 2) && (red_kill >= 2)))
+	{
+		bprint (PRINT_MEDIUM, ">>> RAIDERS KILLED HOSTAGES <<<\n");
+		bprint (PRINT_MEDIUM, ">>>      RAIDERS LOSE!!     <<<\n");
+		team1win = (team1win + WEAPON_SHOTGUN);
+		RoundReset ();
+		return;
+	}
+	if ((hostages == 0))
+	{
+		bprint (PRINT_MEDIUM, ">>> THE HOSTAGES WERE SAVED <<<\n");
+		bprint (PRINT_MEDIUM, ">>> RANGERS WIN THE ROUND!! <<<\n");
+		team1win = (team1win + WEAPON_SHOTGUN);
+		RoundReset ();
+		return;
+	}
+};
+
+void () CheckDefuse =
+{
+	if ((bombed == 1))
+	{
+		bprint (PRINT_MEDIUM, ">>> RAIDERS WIN THE ROUND! <<<\n");
+		team2win = (team2win + WEAPON_SHOTGUN);
+		RoundReset ();
+		return;
+	}
+	if ((bombed == 2))
+	{
+		bprint (PRINT_MEDIUM, ">>> RANGERS WIN THE ROUND! <<<\n");
+		team1win = (team1win + WEAPON_SHOTGUN);
+		RoundReset ();
+		return;
+	}
+};
+
+void () GameControl =
+{
+	local float r;
+	local float qq;
+	local float qqq;
+	local entity de;
+	local entity te;
+	local float team1;
+	local float team2;
+	local float team_won;
+	local float gcnt;
+	local float red;
+	local float blue;
+	local float botx, x, y;
+	local entity iinfo;
+	local entity z;
+	local entity boss2;
+	local entity ke;
+	local entity spot;
+	local float boss;
+	local string vv;
+	local string hos1;
+	local string hos2;
+	local string zz;
+	local string ghoulsleft;
+	local float randy;
+	local float end;
+
+	if (world.model == "maps/sv_town.bsp")
+		respawnvar = 1;
+
+	gtimer = (gtimer - WEAPON_SHOTGUN);
+	self.nextthink = (time + WEAPON_SHOTGUN);
+	self.think = GameControl;
+	red = MULTICAST_ALL;
+	blue = MULTICAST_ALL;
+	team1 = MULTICAST_ALL;
+	team2 = MULTICAST_ALL;
+
+
+	if (((random () * IDLE8A) < WEAPON_SHOTGUN))
+	{
+
+		randy = (random () * TE_WIZSPIKE);
+		if ((randy < WEAPON_SHOTGUN))
+		{
+			sound (self, CHAN_AUTO, "ambience/gunfire1.wav", 0.75, ATTN_NONE);
+		}
+		else
+		{
+			if ((randy < WEAPON_ROCKET))
+			{
+				sound (self, CHAN_AUTO, "ambience/gunfire2.wav", 0.75, ATTN_NONE);
+			}
+			else
+			{
+				if ((randy < AS_MELEE))
+				{
+					sound (self, CHAN_AUTO, "ambience/gunfire3.wav", 0.75, ATTN_NONE);
+				}
+				else
+				{
+					if ((randy < WEAPON_SPIKES))
+					{
+						sound (self, CHAN_AUTO, "ambience/gunfire4.wav", 0.75, ATTN_NONE);
+					}
+					else
+					{
+						if ((randy < MULTICAST_PVS_R))
+						{
+							sound (self, CHAN_AUTO, "ambience/gunfire5.wav", 0.75, ATTN_NONE);
+						}
+						else
+						{
+							if ((randy < TE_LIGHTNING2))
+							{
+								sound (self, CHAN_AUTO, "ambience/gunfire6.wav", 0.75, ATTN_NONE);
+							}
+							else
+							{
+								sound (self, CHAN_AUTO, "ambience/gunfire7.wav", 0.75, ATTN_NONE);
+							}
+						}
+					}
+				}
+			}
+		}
+	}
+
+	if (coop == 1)
+	{
+		x = 0;
+		y = 0;
+		te = find (world, classname, "player");
+
+		while (te)
+		{
+			if (te.health > 0 && te.ghost == 0)
+				x = x + 1;
+
+			if (te.health < 0)
+				y = y + 1;
+
+			te = find (te, classname, "player");
+		}
+
+		if (x == 0 && y > 0)
+		{
+			bprint (PRINT_MEDIUM, "*** PLAYERS SLAIN ***\n*** ROUND   RESET ***");
+			localcmd("restart\n");
+			return;
+		}
+
+		return;
+	}
+
+	te = find (world, classname, "ighoul");
+/*
+	while (te)
+	{
+		if (te.enemy)
+			te.enemy = world;
+
+		te = find (te, classname, "ighoul");
+	}*/
+
+	te = find (world, classname, "info");
+	if ((te.attack == 1))
+	{
+		CheckZombie1 ();
+	}
+	else
+	{
+		if ((te.attack == 2))
+		{
+			CheckZombie2 ();
+		}
+		else
+		{
+			if ((te.hostage == 1))
+			{
+				CheckHostage ();
+			}
+			else
+			{
+				if ((bombed >= 1))
+				{
+					CheckDefuse ();
+				}
+			}
+		}
+	}
+	if (round_end == 2)
+	{
+		ReplacePlayers (0);
+		round_end = 1.9;
+		teamthatwon = MULTICAST_ALL;
+		team_blue = MULTICAST_ALL;
+		team_red = MULTICAST_ALL;
+		return;
+	}
+	if (((round_end <= 1.9) && (round_end >= 1.1)))
+	{
+		round_end = (round_end - 0.15);
+		te = find (world, classname, "player");
+		while (te)
+		{
+			if ((te.currentmenu == "none"))
+			{
+				centerprint (te, "** press your b key to buy items **\n");
+			}
+			te = find (te, classname, "player");
+		}
+		if ((round_end < 1.1))
+		{
+			round_end = WEAPON_SHOTGUN;
+		}
+		return;
+	}
+	if ((round_end == 1))
+	{
+		te = find (world, classname, "player");
+
+		bprint (PRINT_MEDIUM, "** The next round has now started **\n");
+		sound (self, CHAN_BODY, "radio/3_letsgo.wav", 0.6, ATTN_NONE);
+		gtimer = 180;
+		round_end = MULTICAST_ALL;
+		teamthatwon = MULTICAST_ALL;
+		team_blue = MULTICAST_ALL;
+		team_red = MULTICAST_ALL;
+		return;
+	}
+	if ((respawnvar == WEAPON_SHOTGUN))
+	{
+		round_end = MULTICAST_ALL;
+		teamthatwon = MULTICAST_ALL;
+		team_blue = MULTICAST_ALL;
+		team_red = MULTICAST_ALL;
+		return;
+	}
+
+	team1 = 0;
+
+		te = find (world, classname, "player");
+		while (te)
+		{
+			if (te.classname == "player" && te.team == 1 && te.ghost == 0)
+				team1 = (team1 + 1);
+			if (te.classname == "player" && te.team == 2 && te.ghost == 0)
+				team2 = (team2 + 1);
+
+			te = find (te, classname, "player");
+		}
+
+	if (((((team1 == 0) && (team2 == 0)) && (team_red == 0)) && (team_blue == 0)))
+	{
+		gtimer = 180;
+		self.nextthink = (time + WEAPON_SPIKES);
+		self.think = GameControl;
+		round_end = 0;
+		teamthatwon = 0;
+		team_blue = 0;
+		team_red = 0;
+		return;
+	}
+	te = find (world, classname, "info");
+
+	if ((((team1 >= 1) && (team2 == 0)) && (team_red == 0)))//Only Rangers
+	{
+			gtimer = 180;
+			self.nextthink = (time + WEAPON_BIG);
+			self.think = GameControl;
+			round_end = MULTICAST_ALL;
+			teamthatwon = MULTICAST_ALL;
+			team_blue = MULTICAST_ALL;
+			team_red = MULTICAST_ALL;
+			return;
+	}
+	if ((((team1 == 0) && (team2 >= 1)) && (team_blue == 0)))//Only Raiders
+	{
+			gtimer = 180;
+			self.nextthink = (time + WEAPON_BIG);
+			self.think = GameControl;
+			round_end = MULTICAST_ALL;
+			teamthatwon = MULTICAST_ALL;
+			team_blue = MULTICAST_ALL;
+			team_red = MULTICAST_ALL;
+			return;
+	}
+
+	if (((team1 >= 1) && (team2 >= 1)))
+	{
+		return;
+	}
+	if (((((team2 == 0) && (team1 >= 1)) && (team_red > 0)) && (bombed != 3)))
+	{
+		bprint (PRINT_MEDIUM, ">>> RANGERS WIN THE ROUND! <<<\n");
+		team1win = (team1win + WEAPON_SHOTGUN);
+		RoundReset ();
+		return;
+	}
+
+	if (team1 == 0 && team2 >= 1)
+	{
+		bprint (PRINT_MEDIUM, ">>> RAIDERS WIN THE ROUND! <<<\n");
+		team2win = (team2win + 1);
+		RoundReset ();
+		return;
+	}
+	end = 0;
+	if (((team_red == 0) && (team1 != 0)))
+	{
+		te = find (world, classname, "bot");
+		while (te)
+		{
+			if (((te.team == WEAPON_ROCKET) && (te.health > 0)))
+			{
+				end = WEAPON_SHOTGUN;
+			}
+			te = find (te, classname, "bot");
+		}
+		if (((end == 0) && (world.model != "maps/ag_wastes.bsp")))
+		{
+			bprint (PRINT_MEDIUM, ">>> RANGERS WIN THE ROUND! <<<\n");
+			team2win = (team2win + WEAPON_SHOTGUN);
+			RoundReset ();
+			return;
+		}
+		round_end = 0;
+		teamthatwon = 0;
+		return;
+	}
+	if (((team_blue == 0) && (team2 != 0)))
+	{
+		te = find (world, classname, "bot");
+		while (te)
+		{
+			if (((te.team == WEAPON_SHOTGUN) && (te.health > 0)))
+			{
+				end = WEAPON_SHOTGUN;
+			}
+			te = find (te, classname, "bot");
+		}
+		if (((end == 0) && (world.model != "maps/ag_wastes.bsp")))
+		{
+			if (coop == 1)
+			{
+				bprint (PRINT_MEDIUM, ">>> RAIDERS WIN THE ROUND! <<<\n");
+				team2win = (team2win + 1);
+				RoundReset ();
+				return;
+			}
+			if (coop == 1)
+			{
+				bprint (PRINT_MEDIUM, "*** PLAYERS SLAIN ***\n*** ROUND   RESET ***");
+				localcmd("restart\n");
+				return;
+			}
+		}
+		round_end = 0;
+		teamthatwon = 0;
+		return;
+	}
+	if (((team1 == 0) && (team2 == 0)))
+	{
+		bprint (PRINT_MEDIUM, ">>> TEAM DRAW <<<\n");
+		RoundReset ();
+		return;
+	}
+};
+
+void () VoteBoy =
+{
+	local entity te;
+	local float q;
+
+	self.nextthink = (time + DRAW2);
+	self.think = VoteBoy;
+	if ((mode == 0))
+	{
+		mode = AS_MELEE;
+	}
+	if ((ff == 0))
+	{
+		ff = 0;
+	}
+	if ((self.vote_time > time))
+	{
+		return;
+	}
+	if ((self.vote_on == 0))
+	{
+		return;
+	}
+	if ((self.vote_on == WEAPON_ROCKET))
+	{
+		self.vote_on = 0;
+		return;
+	}
+	te = find (world, classname, "player");
+	self.vote_num = 0;
+	while (te)
+	{
+		if (((te.classname == "player") && (te.ghost == 0)))
+		{
+			self.vote_num = (self.vote_num + WEAPON_SHOTGUN);
+		}
+		te = find (te, classname, "player");
+	}
+	bprint (PRINT_MEDIUM, "** VOTE COMPLETED **\n");
+	if ((self.vote_type == WEAPON_ROCKET))
+	{
+		if ((self.vote1 >= (self.vote_num * 0.5)))
+		{
+			bprint (PRINT_MEDIUM, "** HEADSHOTS ARE IN! **\n");
+			headshot = 0;
+		}
+		else
+		{
+			if ((self.vote2 >= (self.vote_num * 0.5)))
+			{
+				bprint (PRINT_MEDIUM, "** HEADSHOTS ARE OUT! **\n");
+				headshot = WEAPON_SHOTGUN;
+			}
+			else
+			{
+				bprint (PRINT_MEDIUM, "** Not enough votes to switch **\n");
+			}
+		}
+	}
+	if ((self.vote_type == WEAPON_SPIKES))
+	{
+		if ((self.vote1 >= (self.vote_num * 0.5)))
+		{
+			bprint (PRINT_MEDIUM, "** QUAKE MODE **\n");
+			ReplacePlayers (0);
+			respawnvar = 1;
+		}
+		else
+		{
+			if ((self.vote2 >= (self.vote_num * 0.5)))
+			{
+				bprint (PRINT_MEDIUM, "** CS MODE **\n");
+				ReplacePlayers (0);
+				respawnvar = 0;
+			}
+			else
+			{
+				bprint (PRINT_MEDIUM, "** Not enough votes to switch **\n");
+			}
+		}
+	}
+	if ((self.vote_type == WEAPON_SHOTGUN))
+	{
+		if ((self.vote1 >= (self.vote_num * 0.5)))
+		{
+			bprint (PRINT_MEDIUM, "** FF IS NOW OFF **\n");
+			ff = 0;
+		}
+		else
+		{
+			if ((self.vote2 >= (self.vote_num * 0.5)))
+			{
+				bprint (PRINT_MEDIUM, "** FF IS NOW ON **\n");
+				ff = WEAPON_SHOTGUN;
+			}
+			else
+			{
+				bprint (PRINT_MEDIUM, "** Not enough votes to switch **\n");
+			}
+		}
+	}
+	if ((self.vote_type == AS_MELEE))
+	{
+		if ((self.vote6 >= (self.vote_num * 0.5)))
+		{
+			bprint (PRINT_MEDIUM, "** CURRENT MAP WILL STAY **\n");
+		}
+		else
+		{
+			if ((self.vote1 >= (self.vote_num * 0.5)))
+			{
+				bprint (PRINT_MEDIUM, "** MAP WILL NOW SWITCH **\n");
+				changelevel ("speedrun");
+			}
+			else
+			{
+				if ((self.vote2 >= (self.vote_num * 0.5)))
+				{
+					bprint (PRINT_MEDIUM, "** MAP WILL NOW SWITCH **\n");
+					changelevel ("ag_town");
+				}
+				else
+				{
+					if ((self.vote3 >= (self.vote_num * 0.5)))
+					{
+						bprint (PRINT_MEDIUM, "** MAP WILL NOW SWITCH **\n");
+						changelevel ("ag_kahn");
+					}
+					else
+					{
+						if ((self.vote4 >= (self.vote_num * 0.5)))
+						{
+							bprint (PRINT_MEDIUM, "** MAP WILL NOW SWITCH **\n");
+							changelevel ("tanker");
+						}
+						else
+						{
+							if ((self.vote5 >= (self.vote_num * 0.5)))
+							{
+								bprint (PRINT_MEDIUM, "** MAP WILL NOW SWITCH **\n");
+								changelevel ("ag_wastes");
+							}
+							else
+							{
+								if ((self.vote6 >= (self.vote_num * 0.5)))
+								{
+									bprint (PRINT_MEDIUM, "** MAP WILL NOW SWITCH **\n");
+									changelevel ("ag_vault");
+								}
+								else
+								{
+									if ((self.vote7 >= (self.vote_num * 0.5)))
+									{
+										bprint (PRINT_MEDIUM, "** MAP WILL NOW SWITCH **\n");
+										changelevel ("de_dust2");
+									}
+									else
+									{
+										bprint (PRINT_MEDIUM, "** Not enough votes to switch **\n");
+									}
+								}
+							}
+						}
+					}
+				}
+			}
+		}
+	}
+	if ((self.vote_type == MULTICAST_PVS_R))
+	{
+		if ((self.vote1 >= (self.vote_num * 0.5)))
+		{
+			bprint (PRINT_MEDIUM, "** WIMPY MODE **\n");
+			z_skill = 0;
+		}
+		else
+		{
+			if ((self.vote2 >= (self.vote_num * 0.5)))
+			{
+				bprint (PRINT_MEDIUM, "** AVERAGE MODE **\n");
+				z_skill = WEAPON_SHOTGUN;
+			}
+			else
+			{
+				if ((self.vote3 >= (self.vote_num * 0.5)))
+				{
+					bprint (PRINT_MEDIUM, "** SUPER ZOMBIE MODE **\n");
+					z_skill = WEAPON_ROCKET;
+				}
+				else
+				{
+					if ((self.vote4 >= (self.vote_num * 0.5)))
+					{
+						bprint (PRINT_MEDIUM, "** NIGHT OF TEH FRIGG'N LIVING DEAD, RUN FER UR LIVES U FOOLS **\n");
+						z_skill = AS_MELEE;
+					}
+					else
+					{
+						bprint (PRINT_MEDIUM, "** Not enough votes to switch **\n");
+					}
+				}
+			}
+		}
+	}
+	self.vote_on = WEAPON_ROCKET;
+	self.vote_num = 0;
+	self.vote1 = 0;
+	self.vote2 = 0;
+	self.vote3 = 0;
+	self.vote4 = 0;
+	self.vote5 = 0;
+	self.vote6 = 0;
+	self.vote7 = 0;
+	self.vote8 = 0;
 };
 
 void () GameTimer =

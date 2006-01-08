@@ -480,6 +480,26 @@ float           deathmatch;
 float           coop;
 var float           rj                      =       1;
 float           no_connect;
+float           round_end;
+float           red_kill;
+float           blue_kill;
+float           teamthatwon;
+float           team_blue;
+float           team_red;
+float           bombed;
+float           zombies;
+float           hostages;
+float           dead_hostage;
+float           team1win;
+float           team2win;
+float           respawnvar;
+float           mode;
+float           ff;
+float           headshot;
+float           z_skill;
+float           msgcount;
+float           max_zombies;
+float           gtimer;
 
 //================================================
 
@@ -610,6 +630,7 @@ float          red_armor;
 
 .float          weight;
 .float          max_weight;
+.float          hostage;
 
 .float          sneak;
 .float          rescued;
@@ -631,6 +652,19 @@ float          red_armor;
 .float          grenadetoggle;
 .float          kills;
 .float          materialize;
+.float          vote_time;
+.float          vote_on;
+.float          vote_type;
+.float          vote_num;
+.float          vote1;
+.float          vote2;
+.float          vote3;
+.float          vote4;
+.float          vote5;
+.float          vote6;
+.float          vote7;
+.float          vote8;
+.float          vote9;
 
 .string        armornoise;
 .string        ammotype1;
@@ -641,6 +675,7 @@ float          red_armor;
 .entity         friend;
 .entity         view2;
 .vector         oldorg;
+.vector         home;
 
 //
 // object stuff

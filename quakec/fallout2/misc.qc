@@ -260,6 +260,170 @@ void() misc_explobox =
 };
 
 
+void () hostage_die =
+{
+	self.enemy.frags = (self.enemy.frags - START_OFF);
+	self.enemy.ammo_shells = (self.enemy.ammo_shells - MULTICAST_PVS_R);
+	if ((self.enemy.team == START_OFF))
+	{
+		blue_kill = (blue_kill + START_OFF);
+	}
+	if ((self.enemy.team == SILENT))
+	{
+		red_kill = (red_kill + START_OFF);
+	}
+	if ((self.enemy.frags <= MULTICAST_ALL))
+	{
+		self.enemy.frags = MULTICAST_ALL;
+	}
+	if ((self.enemy.ammo_shells <= MULTICAST_ALL))
+	{
+		self.enemy.ammo_shells = MULTICAST_ALL;
+	}
+	self.frame = START_OFF;
+	if ((self.model == "progs/hosfem.mdl"))
+	{
+		sound (self, CHAN_VOICE, "misc/hosdie2.wav", START_OFF, ATTN_NORM);
+	}
+	else
+	{
+		sound (self, CHAN_VOICE, "misc/hosdie1.wav", START_OFF, ATTN_NORM);
+	}
+	sound (self, CHAN_BODY, "misc/hosdown.wav", START_OFF, ATTN_NONE);
+	hos_deatha1 ();
+	setsize (self, VEC_ORIGIN, VEC_ORIGIN);
+};
+
+void () hostage_pain =
+{
+	if (((random () * SECRET_NO_SHOOT) < SECRET_1ST_DOWN))
+	{
+		sound (self, CHAN_VOICE, "player/paina.wav", START_OFF, ATTN_NORM);
+	}
+	else
+	{
+		sound (self, CHAN_VOICE, "player/painb.wav", START_OFF, ATTN_NORM);
+	}
+	if (((random () * SECRET_NO_SHOOT) < SECRET_1ST_DOWN))
+	{
+		sound (self, CHAN_BODY, "player/hit1.wav", START_OFF, ATTN_NORM);
+	}
+	hos_run1 ();
+};
+
+void () hostage_think =
+{
+	local entity te;
+
+	self.nextthink = (time + MULTICAST_PVS_R);
+	self.think = hostage_think;
+	if ((self.health <= MULTICAST_ALL))
+	{
+		return;
+	}
+	if ((self.cnt == MULTICAST_ALL))
+	{
+		hos_stand1 ();
+	}
+	if ((self.cnt == START_OFF))
+	{
+		hos_run1 ();
+	}
+};
+
+void () sci_think =
+{
+	local entity te;
+
+	self.think = sci_think;
+	self.nextthink = (time + 15);
+
+	if (self.health <= 0)
+		return;
+};
+
+void () hostage_spawn =
+{
+	local float qq;
+	local entity te;
+
+	precache_model ("progs/hosfem.mdl");
+	precache_model ("progs/hosguy.mdl");
+	precache_sound ("misc/hosdie1.wav");
+	precache_sound ("misc/hosdie2.wav");
+	precache_sound ("misc/hosdown.wav");
+	precache_sound ("misc/rescued.wav");
+	if (((random () * SECRET_NO_SHOOT) <= SILENT))
+	{
+		return;
+	}
+	if (((random () * SECRET_NO_SHOOT) <= SECRET_NO_SHOOT))
+	{
+		te = find (world, classname, "hostage");
+		while (te)
+		{
+			qq = (qq + START_OFF);
+			te = find (te, classname, "hostage");
+		}
+		if ((qq >= MULTICAST_PVS_R))
+		{
+			remove (self);
+			return;
+		}
+	}
+	hos_stand1 ();
+	self.movetype = MOVETYPE_STEP;
+	self.velocity = VEC_ORIGIN;
+	self.touch = SUB_Null;
+	self.classname = "hostage";
+	self.takedamage = DAMAGE_AIM;
+	setsize (self, VEC_HULL_MIN, VEC_HULL_MAX);
+	self.home = self.origin;
+	if (((random () * SECRET_NO_SHOOT) <= SECRET_1ST_DOWN))
+	{
+		setmodel (self, "progs/hosfem.mdl");
+	}
+	else
+	{
+		setmodel (self, "progs/hosguy.mdl");
+	}
+	self.health = 70;
+	self.think = hostage_think;
+	self.nextthink = (time + START_OFF);
+	self.solid = SOLID_BBOX;
+	self.th_die = hostage_die;
+	self.th_pain = hostage_pain;
+	self.rescued = MULTICAST_ALL;
+	self.angles_y = floor ((random () * 360));
+	self.netname = "citizen";
+};
+
+void () scientist =
+{
+	local float qq;
+	local entity te;
+
+	precache_model ("progs/hosguy.mdl");
+	precache_sound ("misc/hosdie1.wav");
+	precache_sound ("misc/hosdie2.wav");
+	hos_stand1 ();
+	self.movetype = MOVETYPE_STEP;
+	self.velocity = VEC_ORIGIN;
+	self.touch = SUB_Null;
+	self.classname = "scientist";
+	self.takedamage = DAMAGE_AIM;
+	setsize (self, VEC_HULL_MIN, VEC_HULL_MAX);
+	setmodel (self, "progs/hosguy.mdl");
+	self.health = 70;
+	self.think = hostage_think;
+	self.nextthink = (time + START_OFF);
+	self.team = START_OFF;
+	self.solid = SOLID_BBOX;
+	self.th_die = hostage_die;
+	self.th_pain = hostage_pain;
+	self.rescued = MULTICAST_ALL;
+	self.netname = "scientist";
+};
 
 
 /*QUAKED misc_explobox2 (0 .5 .8) (0 0 0) (32 32 64)

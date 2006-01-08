@@ -49,7 +49,7 @@ void() Invent_Draw =
 
 
 	local float slotofs;
-	slotofs = sliderpos*96*13 - 96*3;
+	slotofs = sliderpos*96*8 + 96*3;
 
 	for (i = 3; i < 16; i++)
 	{
@@ -151,13 +151,7 @@ float(float eventtype, float param1, float param2) CSQC_InputEvent =
 	if (eventtype == 1 && show_inventory)	//key up
 	{
 		if (param1 == k_mouse1)
-		{
-			if (mousepos_x >= 96 && mousepos_x <= 96+16)
-			{	//within the scrollbar
-				mouseisdown = false;
-				return true;
-			}
-			
+		{		
 			if (showcontextmenu)
 			{
 				op = floor((mousepos_y - contextpos_y)/8);
@@ -174,7 +168,12 @@ float(float eventtype, float param1, float param2) CSQC_InputEvent =
 			}
 			else
 			{
-				if (downslotnum == slotnum)	//mouse didn't move away
+				if (mousepos_x >= 96 && mousepos_x <= 96+16)
+				{	//within the scrollbar
+					mouseisdown = false;
+				}
+
+				else if (downslotnum == slotnum)	//mouse didn't move away
 				{
 					if (slotnum >= 1 && slotnum <= MAXSLOTS)
 					{

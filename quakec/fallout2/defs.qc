@@ -664,7 +664,6 @@ float          red_armor;
 .float          vote6;
 .float          vote7;
 .float          vote8;
-.float          vote9;
 .float          spamdelay;
 
 .string        armornoise;

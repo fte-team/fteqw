@@ -1,14 +1,14 @@
 
-void(entity to, float iid, float count) AddNonStackable =
+void(entity to, float iid, float amount) AddNonStackable =
 {
 	local float slot;
 
 	slot = FindSuitableEmptySlot(to, iid);
 	if (slot)
-		SetItemSlot(to, slot, SlotVal(iid, count));
+		SetItemSlot(to, slot, SlotVal(iid, amount));
 };
 
-void(entity to, float iid, float count) AddStackable =
+void(entity to, float iid, float amount) AddStackable =
 {
 	local float slot;
 
@@ -16,13 +16,12 @@ void(entity to, float iid, float count) AddStackable =
 	if (!slot)
 		slot = FindSuitableEmptySlot(to, iid);
 	if (slot)
-		SetItemSlot(to, slot, SlotVal(iid, count + ToStatus(ItemInSlot(to, slot))));
+		SetItemSlot(to, slot, SlotVal(iid, amount + ToStatus(ItemInSlot(to, slot))));
 }
 
 void(float cost, float iid) BuyStackable =
 {
 	local string z;
-	local float x, y;
 
 	if (self.ammo_shells < cost)
 	{
@@ -275,7 +274,7 @@ void (float wt, float cost, float item) BuyArmor =
 void (float wt, float cost, float item) BuyArmor =
 {
 	local string z;
-	local float x, y;
+	local float x;
 
 	if (self.ammo_shells < cost)
 	{

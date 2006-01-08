@@ -313,8 +313,6 @@ void () hostage_pain =
 
 void () hostage_think =
 {
-	local entity te;
-
 	self.nextthink = (time + MULTICAST_PVS_R);
 	self.think = hostage_think;
 	if ((self.health <= MULTICAST_ALL))
@@ -333,8 +331,6 @@ void () hostage_think =
 
 void () sci_think =
 {
-	local entity te;
-
 	self.think = sci_think;
 	self.nextthink = (time + 15);
 
@@ -344,8 +340,8 @@ void () sci_think =
 
 void () hostage_spawn =
 {
-	local float qq;
 	local entity te;
+	local float qq;
 
 	precache_model ("progs/hosfem.mdl");
 	precache_model ("progs/hosguy.mdl");
@@ -400,9 +396,6 @@ void () hostage_spawn =
 
 void () scientist =
 {
-	local float qq;
-	local entity te;
-
 	precache_model ("progs/hosguy.mdl");
 	precache_sound ("misc/hosdie1.wav");
 	precache_sound ("misc/hosdie2.wav");

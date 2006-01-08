@@ -1506,7 +1506,7 @@ void() SuperDamageSound =
 void () DropAmmo =
 {
 	local .float wslot;
-	local float ammo;
+
 	wslot = SlotField(self.current_slot);
 
 	self.currentammo = (ToStatus(self.wslot) )- 1;
@@ -1710,7 +1710,6 @@ void () EMPExplode =
 void (vector org) CreateSmoke =
 {
 	newmis = spawn ();
-	setmodel (newmis, "progs/smoke.mdl");
 	setorigin (newmis, org);
 	newmis.movetype = MOVETYPE_NONE;
 	newmis.solid = SOLID_NOT;
@@ -2204,9 +2203,8 @@ void (float dam, float rec, string snd, float rng, float rate) FireSMG =
 
 void (float dam, float rec, string snd, float rng, float rate) FireAssaultRifle =
 {
-      local float hs, tmp, zdif, xdif, ydif, is_headshot, z;
-	local string xd, yd, zd;
-      local vector dir, source, targ, org, org2, adjust, headshot_check;
+      local float hs, tmp, zdif, is_headshot, z;
+      local vector dir, source, targ, org, adjust, headshot_check;
 
 	sound (self, CHAN_WEAPON, snd, 1, ATTN_NORM);
 

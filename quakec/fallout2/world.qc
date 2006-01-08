@@ -191,8 +191,6 @@ void() main =
 void () ResetHostages =
 {
 	local entity te;
-	local entity ze;
-	local entity ge;
 
 
 	te = find (world, classname, "hostage");
@@ -250,7 +248,6 @@ void () ResetHostages =
 
 void () ResetGhouls =
 {
-	local entity te;
 	local entity ze;
 
 	ze = find (world, classname, "ighoul");
@@ -270,7 +267,6 @@ void () ResetGhouls =
 void (float won) ReplacePlayers =
 {
 	local entity te;
-	local entity spot;
 	local float qq;
 
 	round_end = 1.9;
@@ -563,7 +559,7 @@ void () CheckZombie1 =
 void () CheckZombie2 =
 {
 	local entity te;
-	local float team1, team2;
+	local float team1;
 
 	CountGhouls ();
 	if ((msgcount == 0))
@@ -686,29 +682,12 @@ void () CheckDefuse =
 
 void () GameControl =
 {
-	local float r;
-	local float qq;
-	local float qqq;
-	local entity de;
 	local entity te;
 	local float team1;
 	local float team2;
-	local float team_won;
-	local float gcnt;
 	local float red;
 	local float blue;
-	local float botx, x, y;
-	local entity iinfo;
-	local entity z;
-	local entity boss2;
-	local entity ke;
-	local entity spot;
-	local float boss;
-	local string vv;
-	local string hos1;
-	local string hos2;
-	local string zz;
-	local string ghoulsleft;
+	local float x, y;
 	local float randy;
 	local float end;
 
@@ -1018,7 +997,6 @@ void () GameControl =
 void () VoteBoy =
 {
 	local entity te;
-	local float q;
 
 	self.nextthink = (time + DRAW2);
 	self.think = VoteBoy;
@@ -1483,9 +1461,17 @@ void() worldspawn =
 	precache_model ("progs/v_piperifle.mdl");
 	precache_model ("progs/v_handgren.mdl");
 
+	precache_model ("progs/handgren.mdl");
+	precache_model ("progs/plasma.mdl");
+	precache_model ("progs/ray.mdl");
 	precache_model ("progs/sneak.mdl");
 	precache_model ("progs/dead.mdl");
 	precache_model ("progs/hbar.spr");
+	precache_model ("progs/blast.mdl");
+	precache_model ("progs/station.mdl");
+	precache_model ("progs/camera.mdl");
+	precache_model ("progs/tehghoul.mdl");
+	precache_model ("progs/ray.mdl");
 
 	precache_model ("progs/w_knife.mdl");
 	precache_model ("progs/w_pipe.mdl");

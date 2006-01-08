@@ -6,6 +6,35 @@ void() hostage_pain;
 void() hostage_think;
 void() hostage_die;
 void(entity stuff) spawn_zombie;
+void() GameControl;
+void() VoteBoy;
+
+void () create_referees =
+{
+	newmis = spawn ();
+	newmis.owner = self;
+	newmis.movetype = MOVETYPE_NONE;
+	setsize (newmis, VEC_ORIGIN, VEC_ORIGIN);
+	newmis.solid = SOLID_BBOX;
+	newmis.velocity = VEC_ORIGIN;
+	newmis.touch = SUB_Null;
+	setorigin (newmis, '0 0 -300');
+	newmis.nextthink = (time + WEAPON_SHOTGUN);
+	newmis.think = GameControl;
+	newmis.classname = "referee";
+	newmis = spawn ();
+	newmis.owner = self;
+	newmis.movetype = MOVETYPE_NONE;
+	setsize (newmis, VEC_ORIGIN, VEC_ORIGIN);
+	newmis.solid = SOLID_BBOX;
+	newmis.velocity = VEC_ORIGIN;
+	newmis.touch = SUB_Null;
+	setorigin (newmis, '0 0 -300');
+	newmis.nextthink = (time + MULTICAST_PVS_R);
+	newmis.think = VoteBoy;
+	newmis.classname = "voteboy";
+	newmis.vote_time = (time + MULTICAST_PVS_R);
+};
 
 void() main =
 {
@@ -1322,7 +1351,7 @@ void() worldspawn =
 	lastspawn = world;
 	InitBodyQue ();
 	coop = 1;
-
+	create_referees();
 	SetupStats();
 
 // custom map attributes

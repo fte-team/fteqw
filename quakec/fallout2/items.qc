@@ -316,8 +316,12 @@ void () health_touch =
 			return;
 
 		if (!TryGiveStackable(other, IID_CHEM_STIMPACK, 1))
+		{
+			if (self.spamdelay < time)
+				sprint(other, 2, "full inventory.\n");
+			self.spamdelay = time + 1;
 			return;
-
+		}
 		sprint (other, PRINT_HIGH, "picked up a stimpack.\n");
 
 		if (random()*4 <= 2)

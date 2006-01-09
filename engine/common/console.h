@@ -74,8 +74,8 @@ extern conchar_t q3codemasks[MAXQ3COLOURS];
 #define S_COLOR_GREEN	"^2"
 #define S_COLOR_YELLOW	"^3"
 #define S_COLOR_BLUE	"^4"
-#define S_COLOR_MAGENTA	"^5"
-#define S_COLOR_CYAN	"^6"
+#define S_COLOR_CYAN	"^5"
+#define S_COLOR_MAGENTA	"^6"
 #define S_COLOR_WHITE	"^7"
 
 #define		CON_TEXTSIZE	16384

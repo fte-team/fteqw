@@ -2853,7 +2853,7 @@ void CL_LinkViewModel(void)
 		return;
 #endif
 
-	if (!r_drawviewmodel.value || !Cam_DrawViewModel(r_refdef.currentplayernum))
+	if (r_drawviewmodel.value <= 0 || !Cam_DrawViewModel(r_refdef.currentplayernum))
 		return;
 
 #ifdef Q2CLIENT
@@ -2864,7 +2864,7 @@ void CL_LinkViewModel(void)
 	if (!r_drawentities.value)
 		return;
 
-	if (cl.stats[r_refdef.currentplayernum][STAT_ITEMS] & IT_INVISIBILITY)
+	if ((cl.stats[r_refdef.currentplayernum][STAT_ITEMS] & IT_INVISIBILITY) && r_drawviewmodelinvis.value <= 0)
 		return;
 
 	if (cl.stats[r_refdef.currentplayernum][STAT_HEALTH] <= 0)
@@ -2883,6 +2883,11 @@ void CL_LinkViewModel(void)
 		ent.alpha = r_drawviewmodel.value;
 	else
 		ent.alpha = 1;
+
+	if ((cl.stats[r_refdef.currentplayernum][STAT_ITEMS] & IT_INVISIBILITY)
+		&& r_drawviewmodelinvis.value > 0
+		&& r_drawviewmodelinvis.value < 1)
+		ent.alpha *= r_drawviewmodelinvis.value;
 
 	ent.frame = cl.viewent[r_refdef.currentplayernum].frame;
 	ent.oldframe = oldframe[r_refdef.currentplayernum];

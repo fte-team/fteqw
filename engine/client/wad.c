@@ -517,16 +517,27 @@ void Mod_ParseInfoFromEntityLump(char *data)	//actually, this should be in the m
 		{
 			Q_strncpyz(skyname, com_token, sizeof(skyname));
 		}
-		else if (!strcmp("skyrotate", key) || !strcmp("skyrotate", key))
+		else if (!strcmp("skyrotate", key))
+		{
+			skyrotate = atof(com_token);
+		}
+		else if (!strcmp("skyaxis", key))
 		{
 			char *s;
 			Q_strncpyz(key, com_token, sizeof(key));
 			s = COM_Parse(key);
-			skyaxis[0] = atof(s);
-			s = COM_Parse(s);
-			skyaxis[1] = atof(s);
-			COM_Parse(s);
-			skyaxis[2] = atof(s);
+			if (s)
+			{
+				skyaxis[0] = atof(s);
+				s = COM_Parse(s);
+				if (s)
+				{
+					skyaxis[1] = atof(s);
+					COM_Parse(s);
+					if (s)
+						skyaxis[2] = atof(s);
+				}
+			}
 		}
 	}
 

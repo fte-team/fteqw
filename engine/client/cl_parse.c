@@ -2112,11 +2112,18 @@ void CLQ2_ParseConfigString (void)
 	else if (i == Q2CS_SKYAXIS)
 	{
 		s = COM_Parse(s);
-		cl.skyaxis[0] = atof(com_token);
-		s = COM_Parse(s);
-		cl.skyaxis[1] = atof(com_token);
-		s = COM_Parse(s);
-		cl.skyaxis[2] = atof(com_token);
+		if (s)
+		{
+			cl.skyaxis[0] = atof(com_token);
+			s = COM_Parse(s);
+			if (s)
+			{
+				cl.skyaxis[1] = atof(com_token);
+				s = COM_Parse(s);
+				if (s)
+					cl.skyaxis[2] = atof(com_token);
+			}
+		}
 	}
 	else if (i == Q2CS_SKYROTATE)
 		cl.skyrotate = atof(s);

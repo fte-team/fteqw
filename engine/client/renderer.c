@@ -27,6 +27,7 @@ unsigned int	*d_8to32table = d_8to24bgrtable;	//palette lookups while rendering 
 //
 
 cvar_t	r_drawviewmodel = {"r_drawviewmodel","1"};
+cvar_t  r_drawviewmodelinvis = {"r_drawviewmodelinvis", "0"};
 cvar_t	r_netgraph = {"r_netgraph","0"};
 cvar_t	r_speeds = {"r_speeds","0", NULL, CVAR_CHEAT};
 cvar_t	r_waterwarp = {"r_waterwarp","1"};
@@ -501,6 +502,7 @@ void Renderer_Init(void)
 	Cvar_Register (&r_fullbright, SCREENOPTIONS);
 	Cvar_Register (&r_drawentities, GRAPHICALNICETIES);
 	Cvar_Register (&r_drawviewmodel, GRAPHICALNICETIES);
+	Cvar_Register (&r_drawviewmodelinvis, GRAPHICALNICETIES);
 	Cvar_Register (&r_waterwarp, GRAPHICALNICETIES);
 	Cvar_Register (&r_speeds, SCREENOPTIONS);
 	Cvar_Register (&r_netgraph, SCREENOPTIONS);

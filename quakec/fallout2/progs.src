@@ -27,6 +27,9 @@ soldier.qc
 demon.qc
 boss.qc
 knight.qc
+hknight.qc
+shalrath.qc
+shambler.qc
 wizard.qc
 dog.qc
 ogre.qc

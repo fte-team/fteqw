@@ -177,7 +177,7 @@ void() ShalMissileTouch =
 
 	if (other.classname == "monster_zombie")
 		T_Damage (other, self, self, 110);	
-	T_RadiusDamage (self, self.owner, 40, world);
+	T_RadiusDamage (self, self.owner, 40, world, "vore");
 	sound (self, CHAN_WEAPON, "weapons/r_exp3.wav", 1, ATTN_NORM);
 
 	WriteByte (MSG_BROADCAST, SVC_TEMPENTITY);
@@ -214,9 +214,9 @@ void() monster_shalrath =
 	setmodel (self, "progs/shalrath.mdl");
 	setsize (self, VEC_HULL2_MIN, VEC_HULL2_MAX);
 	self.health = 800;
-	self.corporation = 3;
-	self.armor = 9;
-	self.armortype = 0.2;
+	self.team = 3;
+	self.islot3 = 11; //vore armor
+	self.armortype = 0.1;
 	self.helmet = 1;
 	self.classname = "monster";
 	self.netname = "experiment";

@@ -420,11 +420,11 @@ void() monster_hell_knight =
 	setmodel (self, "progs/hknight.mdl");
 
 	setsize (self, '-16 -16 -24', '16 16 40');
-	self.health = 250;
-	self.armor = 12;
-	self.armortype = 0.1;
-	self.helmet = 2;
-	self.corporation = 3;
+	self.health = 125;
+	self.islot3 = 10; //hell-knight armor
+	self.armortype = 0.30;
+	self.helmet = 1;
+	self.team = 3;
 	self.classname = "monster";
 	self.netname = "reaver";
 	self.th_stand = hknight_stand1;

@@ -863,6 +863,7 @@ void() PlayerDeathThink =
 {
 	local float             forward;
 
+	self.view_ofs = '0 0 -12';
 	self.modelindex = modelindex_dead;
 	self.solid = SOLID_NOT;
 
@@ -1206,6 +1207,11 @@ void() PlayerPreThink =
 
 	makevectors (self.v_angle);             // is this still used
 
+	if (self.deadflag >= DEAD_DEAD)
+	{
+		PlayerDeathThink ();
+		return;
+	}
 
 	if (self.cycle1 < time)
 	{
@@ -1322,11 +1328,7 @@ void() PlayerPreThink =
 	CheckRules ();
 	WaterMove ();
 
-	if (self.deadflag >= DEAD_DEAD)
-	{
-		PlayerDeathThink ();
-		return;
-	}
+
 
 	if (self.deadflag == DEAD_DYING)
 		return; // dying, so do nothing
@@ -1604,7 +1606,7 @@ void() ClientConnect =
 	stuffcmd(self, "alias info impulse 56\n");
 	stuffcmd(self, "alias equip impulse 57\n");
 
-	stuffcmd(self, "alias stimpack \"cmd invuse stimpack\"\n");
+	stuffcmd(self, "alias stimpack cmd invuse superstims+stimpack+bandages\n");
 
 	stuffcmd(self, "bind c equip\n");
 	stuffcmd(self, "bind g drop\n");

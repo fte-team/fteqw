@@ -501,6 +501,7 @@ float           msgcount;
 float           max_zombies;
 float           gtimer;
 float           total_players;
+float           endgame_timer;
 
 //================================================
 

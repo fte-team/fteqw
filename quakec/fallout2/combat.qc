@@ -74,7 +74,7 @@ void(entity targ, entity attacker) Killed =
 	self.enemy = attacker;
 
 	targ.grab = 0;
-	targ.equipment_state = 0;         //turn off stealth-boys, climbing gear, etc
+	targ.equipment_slot = 0;         //turn off stealth-boys, climbing gear, etc
 
 // bump the monster counter
 	if (self.flags & FL_MONSTER)

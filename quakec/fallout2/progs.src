@@ -5,6 +5,8 @@ inventory.qc
 subs.qc
 fight.qc
 
+//tf.qc
+
 ai.qc
 combat.qc
 items.qc
@@ -35,4 +37,5 @@ dog.qc
 ogre.qc
 misc.qc
 mod_buy.qc
+turrets.qc
 cmds.qc

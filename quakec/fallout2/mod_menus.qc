@@ -36,57 +36,143 @@ weaponry\n\n
 
 string () ShopString =
 {
-	return ("--- S H O P -------\n\nê1ë traits         \nê2ë perks          \nê3ë body armour    \nê4ë protection     \nê5ë weapons        \nê6ë equipment      \nê7ë chems          \nêeë leave          \n");
+	return ("--- S H O P -------\n"
+		"\n"
+		"ê1ë traits         \n"
+		"ê2ë perks          \n"
+		"ê3ë body armour    \n"
+		"ê4ë protection     \n"
+		"ê5ë weapons        \n"
+		"ê6ë equipment      \n"
+		"ê7ë chems          \n"
+		"êeë leave          \n");
 };
 
 string () WeaponString =
 {
-	return ("weaponry\n\nê1ë melee          \nê2ë thrown         \nê3ë pistols&smgs   \nê4ë shotguns       \nê5ë rifles         \nêeë leave          \n");
+	return ("weaponry\n"
+		"\n"
+		"ê1ë melee          \n"
+		"ê2ë thrown         \n"
+		"ê3ë pistols&smgs   \n"
+		"ê4ë shotguns       \n"
+		"ê5ë rifles         \n"
+		"êeë leave          \n");
 };
 
 string () TraitString =
 {
-	return ("traits\n\nê1ë one handed     \nê2ë small frame    \nê3ë bruiser        \nê4ë heavy handed   \nê5ë bloody mess    \nê6ë bad luck       \nêeë leave          \n");
+	return ("traits\n"
+		"\n"
+		"ê1ë one handed     \n"
+		"ê2ë small frame    \n"
+		"ê3ë bruiser        \n"
+		"ê4ë heavy handed   \n"
+		"ê5ë bloody mess    \n"
+		"ê6ë bad luck       \n"
+		"êeë leave          \n");
 };
 
 string () MiscString =
 {
-	return ("grenades\n	GRENADE | COST		  \n\nê1ë plasma grenade            11\nê2ë frag grenade               5\nê3ë emp grenade                3\nê4ë smoke grenade              2\nê5ë flash bang mark ii         2\nêeë exit                        \n");
+	return ("grenades\n"
+		"	GRENADE | COST		  \n"
+		"\n"
+		"ê1ë plasma grenade            11\n"
+		"ê2ë frag grenade               5\n"
+		"ê3ë emp grenade                3\n"
+		"ê4ë smoke grenade              2\n"
+		"ê5ë flash bang mark ii         2\n"
+		"êeë exit                        \n");
 };
 
 string () BuildString =
 {
-	return ("BUILD A STRUCTURE\n      NAME | UPGRADE | COST	  \n\nê1ë supply depot   ammo/hp     4\nê2ë arms lab     weapons +10%  6\nê3ë armory        armour +10% 10\nê4ë proto-lab  gadgets/hrdwr  15\nêeë exit                        \n");
+	return ("BUILD A STRUCTURE\n"
+		"      NAME | UPGRADE | COST	  \n"
+		"\n"
+		"ê1ë supply depot   ammo/hp     4\n"
+		"ê2ë arms lab     weapons +10%  6\n"
+		"ê3ë armory        armour +10% 10\n"
+		"ê4ë proto-lab  gadgets/hrdwr  15\n"
+		"êeë exit                        \n");
 };
 
 string () HelmetString =
 {
-	return ("helmets\nprotect you from headshots so\nmake sure you use a decent one\n\n                  ABS% WT DEFLECT PRC\nê1ë combat helm   -10% 01    5%    05\nê2ë combat helm 2  +0% 02    5%    20\nê3ë heavy-duty    +20% 03    5%    20\nê4ë ceramic helm  -20% ...");
+	return ("helmets\nprotect you from headshots so\n"
+		"make sure you use a decent one\n"
+		"\n"
+		"                  ABS% WT DEFLECT PRC\n"
+		"ê1ë combat helm   -10% 01    5%    05\n"
+		"ê2ë combat helm 2  +0% 02    5%    20\n"
+		"ê3ë heavy-duty    +20% 03    5%    20\n"
+		"ê4ë ceramic helm  -20% ...");
 };
 
 string () ArmorString1 =
 {
-	return ("body armour\n                      wt  abs  prc\n\nê1ë vault suit        03 1/20% 03$\nê2ë leather armor     07 2/30% 05$\nê3ë kevlar armor      10 3/35% 08$\nê4ë combat armor      13 4/40% 11$\nê5ë brotherhood armor 17 5/45% 15$");
+	return ("body armour\n"
+		"                      wt  abs  prc\n"
+		"\n"
+		"ê1ë vault suit        03 1/20% 03$\n"
+		"ê2ë leather armor     07 2/30% 05$\n"
+		"ê3ë kevlar armor      10 3/35% 08$\n"
+		"ê4ë combat armor      13 4/40% 11$\n"
+		"ê5ë brotherhood armor 17 5/45% 15$");
 };
 
 string () ArmorString2 =
 {
-	return ("body armour\n                         WT ABS SPEC PRC\n\nê1ë battle gear          08 57% NONE  50\nê2ë battle gear ii       09 62% !EXP  60\nê3ë high-tech suit       09 42% +ALL  60\nê4ë carbon-fiber mesh    09 56% !ENR  70\nê5ë pseudo-chitin suit   07...");
+	return ("body armour\n"
+		"                         WT ABS SPEC PRC\n"
+		"\n"
+		"ê1ë battle gear          08 57% NONE  50\n"
+		"ê2ë battle gear ii       09 62% !EXP  60\n"
+		"ê3ë high-tech suit       09 42% +ALL  60\n"
+		"ê4ë carbon-fiber mesh    09 56% !ENR  70\n"
+		"ê5ë pseudo-chitin suit   07...");
 };
 
 string () ArmorString3 =
 {
-	return ("special body armour\n                      WT ABS SPEC PRC\nê1ë vsn force mail    07 %40 DFLC 95c\nê2ë super chitin      08 %35 DFLC 95c\nê3ë suit of mota      14 %70 HEAL 95c\nê0ë previous                         \nêeë exit                           ...");
+	return ("special body armour\n"
+		"                      WT ABS SPEC PRC\n"
+		"ê1ë vsn force mail    07 %40 DFLC 95c\n"
+		"ê2ë super chitin      08 %35 DFLC 95c\n"
+		"ê3ë suit of mota      14 %70 HEAL 95c\n"
+		"ê0ë previous                         \n"
+		"êeë exit                           ...");
 };
 
 string () PlusString =
 {
-	return ("perks\n  ABILITY | FRAGS NEEDED \n\nê1ë bonus movement       8\nê2ë weapons handling    12\nê3ë quick pockets       14\nê4ë awareness           15\nê5ë silent running      17\nê6ë better criticals    23\nê7ë bonus ranged damage 26\nê8ë strong back        ...");
+	return ("perks\n"
+		"  ABILITY | FRAGS NEEDED \n"
+		"\n"
+		"ê1ë bonus movement       8\n"
+		"ê2ë weapons handling    12\n"
+		"ê3ë quick pockets       14\n"
+		"ê4ë awareness           15\n"
+		"ê5ë silent running      17\n"
+		"ê6ë better criticals    23\n"
+		"ê7ë bonus ranged damage 26\n"
+		"ê8ë strong back        ...");
 };
 
 string () PlusString2 =
 {
-	return ("perks\n  ABILITY | FRAGS NEEDED \n\nê1ë bonus movement       8\nê2ë weapons handling    12\nê3ë quick pockets       14\nê4ë awareness           15\nê5ë silent running      17\nê6ë better criticals    23\nê7ë bonus ranged damage 26\nê8ë strong back        ...");
+	return ("perks\n"
+		"  ABILITY | FRAGS NEEDED \n"
+		"\n"
+		"ê1ë bonus movement       8\n"
+		"ê2ë weapons handling    12\n"
+		"ê3ë quick pockets       14\n"
+		"ê4ë awareness           15\n"
+		"ê5ë silent running      17\n"
+		"ê6ë better criticals    23\n"
+		"ê7ë bonus ranged damage 26\n"
+		"ê8ë strong back        ...");
 };
 /*
 ê5ë energy shield  |front :25% ê25ë
@@ -144,12 +230,28 @@ string () SmallArmString3 =
 
 string () DrugString1 =
 {
-	return ("drugs\n     DRUG  |   EFFECTS   |  PRICE\n\nê1ë stimpack   heals 40        3$\nê2ë medkit+    heals 20+50     5$\nê3ë superstim* heals 40+60    12$\nêeë exit                         \n\n\n+ requires medic                 \n* requires medic with 7+ kills");
+	return ("drugs\n     DRUG  |   EFFECTS   |  PRICE\n"
+		"\n""ê1ë stimpack   heals 40        3$\n"
+		"ê2ë medkit+    heals 20+50     5$\n"
+		"ê3ë superstim* heals 40+60    12$\n"
+		"êeë exit                         \n"
+		"\n"
+		"\n"
+		"+ requires medic                 \n"
+		"* requires medic with 7+ kills");
 };
 
 string () DrugString2 =
 {
-	return ("drugs\n     DRUG  |   EFFECTS   |  PRICE\n\nê1ë stimpack   heals 40        3$\nê2ë adrenaline +60 speed/jump  7$\nê3ë psycho+    +60 hp/no pain 15$\nê4ë medkit*    heals 20+50    12$\nê5ë berserk*   adren+psycho   21$\nêeë exit                         \n");
+	return (
+		"drugs\n     DRUG  |   EFFECTS   |  PRICE\n"
+		"\n"
+		"ê1ë stimpack   heals 40        3$\n"
+		"ê2ë adrenaline +60 speed/jump  7$\n"
+		"ê3ë psycho+    +60 hp/no pain 15$\n"
+		"ê4ë medkit*    heals 20+50    12$\n"
+		"ê5ë berserk*   adren+psycho   21$\n"
+		"êeë exit                         \n");
 };
 
 string () EnergyWeaponsString =

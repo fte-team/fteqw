@@ -624,7 +624,7 @@ float          red_armor;
 .float          action_points;
 .float          pcamera;
 .float          pcamera2;
-.float          equipment_state;
+.float          equipment_slot;
 //.float          select;
 //.float          grenade_hold;
 .float          grab;

@@ -2,13 +2,28 @@ void(entity e, string s) clientcommand = #440
 float(string s) tokenize = #441;
 string(float n) argv = #442;
 
+string(string s, float start, float length) substring = #116;
+float(string str, string sub) strstrofs = #221;
+
 float(string desc) itemtoslot =
 {
 	local float slot;
+	local float coma;
+
+	while((coma = strstrofs(desc, "+")) > 0)
+	{
+		slot = itemtoslot(substring(desc, 0, coma));
+		if (slot)
+			return slot;
+		desc = substring(desc, coma+1, -1);
+	}
+
 	slot = stof(desc);
 	if (slot >= 1 && slot <= MAXSLOTS)
 		return slot;
 
+	if (desc == "current")
+		return self.current_slot;
 	slot = ItemIDOfName(desc);
 	if (!slot)
 	{
@@ -20,8 +35,6 @@ float(string desc) itemtoslot =
 		slot = SlotOfItem(self, slot);
 		if (slot)
 			return slot;
-
-		sprint(self, PRINT_HIGH, "You don't have one of those\n");
 		return 0;
 	}
 };
@@ -55,6 +68,7 @@ void(string arg1) Cmd_InvUse =
 	slotno = itemtoslot(arg1);
 	if (!slotno)
 	{
+		sprint(self, PRINT_MEDIUM, "Can't use - you don't have one\n");
 		return;
 	}
 
@@ -93,10 +107,26 @@ void(string arg1) Cmd_InvUse =
 	if (iid == IID_BUILD_MRAMMO ||
 	    iid == IID_BUILD_SHIELDGEN ||
 	    iid == IID_BUILD_AUTODOC ||
-	    iid == IID_BUILD_ROBOFANG)
+	    iid == IID_BUILD_ROBOFANG ||
+	    iid == IID_BUILD_TESLA)
 	{
 		if (spawn_station(iid))
 			DecreaseDestroySlot(slotno);
+		return;
+	}
+
+	if (iid == IID_EQUIP_CLIMBINGGEAR)
+	{
+		if (self.equipment_slot == slotno)
+		{
+			self.equipment_slot = 0;
+			sprint(self, PRINT_HIGH, "Climbing gear deactivated\n");
+		}
+		else
+		{
+			self.equipment_slot = slotno;
+			sprint(self, PRINT_HIGH, "Climbing gear activated\n");
+		}
 		return;
 	}
 
@@ -110,6 +140,7 @@ void(string arg1) Cmd_InvDrop =
 	slotno = itemtoslot(arg1);
 	if (!slotno)
 	{
+		sprint(self, PRINT_MEDIUM, "Can't drop - you don't have one\n");
 		return;
 	}
 
@@ -131,16 +162,21 @@ void(string arg1, string arg2) Cmd_InvSwap =
 	slotno1 = itemtoslot(arg1);
 	if (!slotno1)
 	{
+		sprint(self, PRINT_HIGH, "No item\n");
 		return;
 	}
 	slotno2 = itemtoslot(arg2);
 	if (!slotno2)
 	{
+		sprint(self, PRINT_HIGH, "No item\n");
 		return;
 	}
 
 	old1 = ItemInSlot(self, slotno1);
 	old2 = ItemInSlot(self, slotno2);
+	if (old1 == old2)
+		return;
+
 	if (!FitsInSlot(slotno1, ToIID(old2)))
 	{
 		sprint(self, PRINT_HIGH, "Not allowed to exchange items\n");
@@ -156,6 +192,8 @@ void(string arg1, string arg2) Cmd_InvSwap =
 
 	if (slotno1 == self.current_slot || slotno2 == self.current_slot)
 		W_SetCurrentAmmo();
+
+	self.rtime = time + 2;	//we don't check this here though - cost to get into inventory.
 };
 
 void(string arg1, float iid, float num) Cmd_InvGive =
@@ -164,6 +202,7 @@ void(string arg1, float iid, float num) Cmd_InvGive =
 	slotno = itemtoslot(arg1);
 	if (!slotno)
 	{
+		sprint(self, PRINT_MEDIUM, "Can't give to that slot\n");
 		return;
 	}
 
@@ -181,24 +220,28 @@ void(string line) SV_ParseClientCommand =
 	tokenize(line);
 
 	cmd = argv(0);
-	if (self.deadflag)
-	{	//no inventory stuff while dead.
-		clientcommand(self, line);
-	}
-	else if (cmd == "invuse")
+	if (cmd == "invuse")
 	{
+		if (self.deadflag)
+			return;
 		Cmd_InvUse(argv(1));
 	}
 	else if (cmd == "invdrop")
 	{
+		if (self.deadflag)
+			return;
 		Cmd_InvDrop(argv(1));
 	}
 	else if (cmd == "invswap")
 	{
+		if (self.deadflag)
+			return;
 		Cmd_InvSwap(argv(1), argv(2));
 	}
 	else if (cmd == "invgive")
 	{
+		if (self.deadflag)
+			return;
 		Cmd_InvGive(argv(1), stof(argv(2)), stof(argv(3)));
 	}
 	else if (cmd == "god")

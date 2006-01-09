@@ -148,11 +148,13 @@ void () player_run = [ 137, player_run ]
 	if (self.rtime < time && self.attack == 0)
 		self.weaponframe = 0;
 
-	if (self.equipment == 7 && self.equipment_state == 1 && self.grab == 1 && !(self.flags & FL_ONGROUND))
-	{
-		player_climb ();
-		return;
-	}
+	if (self.equipment_slot)
+		if ((ToIID(ItemInSlot(self, self.equipment_slot))) == IID_EQUIP_CLIMBINGGEAR)
+		{
+			player_climb();
+			return;
+		}
+
 	if ((!self.velocity_x && !self.velocity_y))
 	{
 		player_stand1 ();

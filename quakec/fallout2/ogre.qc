@@ -14,6 +14,45 @@ void () OgreGrenadeExplode =
 	remove (self);
 };
 
+void () LobAGrenade =
+{
+	newmis = spawn ();
+	newmis.owner = self;
+	newmis.movetype = MOVETYPE_BOUNCE;
+	newmis.solid = SOLID_BBOX;
+	newmis.classname = "grenade";
+
+	newmis.skin = 0;
+	makevectors (self.angles);
+
+	newmis.velocity = v_forward * 800;
+	newmis.velocity_z = (newmis.velocity_z + 200);
+	newmis.angles = vectoangles (newmis.velocity);
+	newmis.avelocity_x = (random () * 300);
+	newmis.avelocity_y = (random () * 300);
+	newmis.avelocity_z = (random () * 300);
+	newmis.touch = HandGrenBounce;
+	newmis.nextthink = (time + 2.5);
+
+//	if (iid == IID_GREN_FRAG)
+//		newmis.think = FragExplode;
+//	else if (iid == IID_GREN_EMP)
+//		newmis.think = EMPExplode;
+//	else if (iid == IID_GREN_SMOKE)
+
+	newmis.think = SmokeThink;
+	if (random() < 0.5)
+		newmis.think = FlashExplode;
+
+	newmis.frame = 1;
+	setmodel (newmis, "progs/handgren.mdl");
+	setsize (newmis, VEC_ORIGIN, VEC_ORIGIN);
+	setorigin (newmis, ((self.origin + (v_right * TE_BLOOD)) + (v_up * TE_BLOOD)));
+};
+
+
+
+
 void (float side) chainsaw =
 {
 	local vector delta;
@@ -404,6 +443,7 @@ void () ogre_nail5 = [ 64, ogre_nail6 ]
 void () ogre_nail6 = [ 65, ogre_nail7 ]
 {
 	ai_face ();
+	LobAGrenade();
 };
 
 void () ogre_nail7 = [ 66, ogre_run1 ]
@@ -434,6 +474,7 @@ void () ogre_naild = [ 63, ogre_naile ]
 void () ogre_naile = [ 64, ogre_nailf ]
 {
 	ai_face ();
+	LobAGrenade();
 };
 
 void () ogre_nailf = [ 65, ogre_nailg ]
@@ -880,6 +921,7 @@ void () monster_ogre =
 	self.th_run = ogre_run1;
 	self.th_die = ogre_die;
 	self.th_melee = ogre_melee;
+	self.th_missile = ogre_nail1;
 	self.th_pain = ogre_pain;
 	self.armortype = 0;
 	walkmonster_start ();

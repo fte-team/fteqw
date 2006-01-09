@@ -3,7 +3,9 @@ void(entity to, float iid, float amount) AddNonStackable =
 {
 	local float slot;
 
-	slot = FindSuitableEmptySlot(to, iid);
+	slot = SlotOfItem(to, iid);
+	if (!slot)
+		slot = FindSuitableEmptySlot(to, iid);
 	if (slot)
 		SetItemSlot(to, slot, SlotVal(iid, amount));
 };
@@ -12,9 +14,7 @@ void(entity to, float iid, float amount) AddStackable =
 {
 	local float slot;
 
-	slot = SlotOfItem(to, iid);
-	if (!slot)
-		slot = FindSuitableEmptySlot(to, iid);
+	slot = FindSuitableEmptySlot(to, iid);
 	if (slot)
 		SetItemSlot(to, slot, SlotVal(iid, amount + ToStatus(ItemInSlot(to, slot))));
 }
@@ -102,6 +102,9 @@ void(float cost, float type) BuyChem =
 	else
 		max = 2;
 
+	if (type == IID_CHEM_MEDICALBAG)
+		max = 50;
+
 	alreadygot = TotalQuantity(self, type);
 	if (alreadygot >= max)
 	{
@@ -136,42 +139,6 @@ void(string type) ChangeAmmo =
 	if (self.current_slot == 2)
 		self.ammotype2 = type;
 };
-
-void() BuyScraps =
-{
-	local string y;
-
-	if (self.ammo_shells < 5)
-	{
-		self.currentmenu = "none";
-		sprint(self, PRINT_HIGH, "not enough money.\n");
-		return;
-	}
-	if (self.class != 6)
-	{
-		self.currentmenu = "none";
-		sprint(self, PRINT_HIGH, "not a scientist.\n");
-		return;
-	}
-	if (self.scraps >= 15)
-	{
-		self.currentmenu = "none";
-		sprint(self, PRINT_HIGH, "too many metal scraps.\n");
-		return;
-	}
-
-	sound (self, CHAN_BODY, "items/armor1.wav", 1, ATTN_NORM);
-	self.scraps = self.scraps + 5;
-	self.ammo_shells = self.ammo_shells - 5;
-	if (self.scraps > 15)
-		self.scraps = 15;
-	y = ftos(self.scraps);
-	sprint(self, PRINT_HIGH, "you now have ");
-	sprint(self, PRINT_HIGH, y);
-	sprint(self, PRINT_HIGH, "/15 scraps.\n");
-
-};
-
 
 void (float wt, float cost, float wid) BuyWeapon =
 {
@@ -682,6 +649,8 @@ void() W_PlayerMenu =
 
 	if (self.currentmenu == "shop_other")
 	{
+		if (self.impulse == 1)
+			BuyChem(5, IID_CHEM_MEDICALBAG);
 		if (self.impulse == 3)
 			BuyStackable(20, IID_BUILD_MRAMMO);
 		if (self.impulse == 4)
@@ -788,6 +757,7 @@ void() W_PlayerMenu =
 			{
 				sound (self, CHAN_WEAPON, "buttons/switch02.wav", TRUE, ATTN_NORM);
 				self.currentmenu = "none";
+				centerprint(self, "");
 				PutClientInServer();
 				self.impulse = 0;
 				return;

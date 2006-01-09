@@ -552,6 +552,7 @@ void() PutClientInServer =
 		self.max_health = 100;
 	if (self.class == 4)
 		self.max_health = 60;
+	self.equipment_slot = 0;
 
 	self.health = self.max_health;
 
@@ -803,6 +804,13 @@ void () LocateSpectatorTarget =
 	local float player;
 	local entity ke;
 	local entity de;
+
+	if (self.button1)
+	{
+		bprint(PRINT_MEDIUM, self.classname);
+		bprint(PRINT_MEDIUM, " is dying...\n");
+		return;
+	}
 
 	if (self.ghost == 1)
 	{
@@ -1185,6 +1193,8 @@ void () PositionControl =
 	}
 };
 
+.float gravity;
+.vector movement;
 /*
 ================
 PlayerPreThink
@@ -1232,13 +1242,15 @@ void() PlayerPreThink =
 			self.health = self.max_health;
 
 
-		if (self.ragetime > time)
-			stuffcmd(self, "v_cshift 75 0 0 75\n");
-		else if (self.sneak > 0)
-			stuffcmd(self, "v_cshift 0 75 0 75\n");
-		else
-			stuffcmd(self, "v_cshift 0 0 0 0\n");
-
+		if (self.flash < time)
+		{
+			if (self.ragetime > time)
+				stuffcmd(self, "v_cshift 75 0 0 75\n");
+			else if (self.sneak > 0)
+				stuffcmd(self, "v_cshift 0 75 0 75\n");
+			else
+				stuffcmd(self, "v_cshift 0 0 0 0\n");
+		}
 		self.cycle1 = time + 0.5;
 	}
 
@@ -1263,8 +1275,13 @@ void() PlayerPreThink =
 
 	if (self.team == 0 && self.currentmenu == "none")
 	{
-		self.currentmenu = "select_team";
-		DisplayMenu ();
+		if (coop)
+			self.team = 1;
+		else
+		{
+			self.currentmenu = "select_team";
+			DisplayMenu ();
+		}
 	}
 	else if (self.class == 0 && self.currentmenu == "none")
 	{
@@ -1320,7 +1337,10 @@ void() PlayerPreThink =
 			self.regen = self.regen - 1;
 		}
 
-		stuffcmd(self, "v_idlescale 0\n");
+		if (self.flash < time)
+		{
+			stuffcmd(self, "v_idlescale 0\n");
+		}
 		self.cycle2 = time + 1;
 	}
 
@@ -1343,6 +1363,31 @@ void() PlayerPreThink =
 // teleporters can force a non-moving pause time        
 	if (time < self.pausetime)
 		self.velocity = '0 0 0';
+
+	if (!self.gravity)
+	{	//climbing gear
+		if (self.velocity != '0 0 0' || self.button2)
+			self.gravity = 1;
+	}
+	if (self.equipment_slot)
+	{
+		if ((ToIID(ItemInSlot(self, self.equipment_slot))) == IID_EQUIP_CLIMBINGGEAR)
+		{
+			traceline ((self.origin - '0 0 24'), ((self.origin + (v_forward * EF_FLAG2)) - '0 0 24'), FALSE, self);
+			if (trace_fraction < 1 && trace_fraction > 0)
+			{
+				self.gravity = 0;
+				self.maxspeed = 50;
+				self.velocity = v_forward*40 * self.movement_x;
+			}
+			else
+			{
+				self.gravity = 1;
+			}
+		}
+		else
+			dprint("Bad equipment item\n");
+	}
 };
 	
 /*
@@ -1588,8 +1633,6 @@ called when a player connects to a server
 */
 void() ClientConnect =
 {
-	total_players = total_players + 1;
-
 	bprint (PRINT_HIGH, self.netname);
 	bprint (PRINT_HIGH, " entered the game\n");
 	
@@ -1606,7 +1649,10 @@ void() ClientConnect =
 	stuffcmd(self, "alias info impulse 56\n");
 	stuffcmd(self, "alias equip impulse 57\n");
 
-	stuffcmd(self, "alias stimpack cmd invuse superstims+stimpack+bandages\n");
+	stuffcmd(self, "alias stimpack \"cmd invuse superstims+stimpack+bandages\"\n");
+	stuffcmd(self, "alias bandages \"cmd invuse bandages+superstims+stimpack\"\n");
+
+	stuffcmd(self, "alias toolkit \"cmd invswap toolkit 2;impulse 2\"\n");
 
 	stuffcmd(self, "bind c equip\n");
 	stuffcmd(self, "bind g drop\n");
@@ -1636,8 +1682,6 @@ called when a player disconnects from a server
 */
 void() ClientDisconnect =
 {
-	total_players = total_players - 1;
-
 	// let everyone else know
 	bprint (PRINT_HIGH, self.netname);
 		bprint (PRINT_HIGH, " left the game with ");
@@ -2018,20 +2062,22 @@ void() Identify =
 	local float tmp;
 
 	makevectors (self.v_angle);
-	traceline (self.origin, (self.origin + (v_forward * 2000)), FALSE, self);
+	traceline (self.origin, (self.origin + (v_forward * 2000)), 32, self);
 	if (trace_ent.classname == "player" && self.currentmenu == "none" && self.team == trace_ent.team)
 	{
 		if (trace_ent.class == 2)
-			c1 = "\nmedic\n";
+			c1 = "^7\nmedic\n";
 		else if (trace_ent.class == 3)
-			c1 = "\nassassin\n";
+			c1 = "^7\nassassin\n";
 		else if (trace_ent.class == 4)
-			c1 = "\nsoldier\n";
+			c1 = "^7\nsoldier\n";
 		else if (trace_ent.class == 6)
-			c1 = "\nscientist\n";
+			c1 = "^7\nscientist\n";
 		else
-			c1 = "\n";
+			c1 = "^7\n";
 
+		if (trace_ent.health <= 0)
+			c2 = "^1dead^7";
 		c2 = ftos (trace_ent.health);
 		c3 = GetItemName (ToIID(ItemInSlot(trace_ent, trace_ent.current_slot)));
 

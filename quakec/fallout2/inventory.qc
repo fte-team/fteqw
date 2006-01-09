@@ -76,6 +76,10 @@ float IID_BUILD_MRAMMO = 350;
 float IID_BUILD_SHIELDGEN = 351;
 float IID_BUILD_AUTODOC = 352;
 float IID_BUILD_ROBOFANG = 353;
+float IID_BUILD_TESLA = 354;
+//float IID_BUILD_TELEPAD = 355;
+
+float IID_EQUIP_CLIMBINGGEAR = 375;
 
 #define IsShootable(iid) (IsMelee(iid) || IsRanged(iid) || IsGrenade(iid))
 
@@ -124,6 +128,10 @@ void() SetupStats =
 	clientstat(2, 45, "islot14");
 	clientstat(2, 46, "islot15");
 	clientstat(2, 47, "islot16");
+
+	clientstat(2, 61, "current_slot");
+	clientstat(2, 62, "team");
+	clientstat(2, 63, "class");
 };
 
 
@@ -460,6 +468,14 @@ string(float iid) GetItemVModel =
 	if (iid == IID_WP_MOONLIGHT)
 		return "progs/v_night.mdl";
 
+
+	if (iid == IID_WP_SA80)
+		return "progs/v_sa80.mdl";
+	if (iid == IID_WP_GAUSERIFLE)
+		return "progs/v_gauss.mdl";
+	if (iid == IID_WP_PULSERIFLE)
+		return "progs/v_carbine.mdl";
+
 	if (iid == IID_GREN_FRAG)
 		return "progs/v_handgren.mdl";
 	if (iid == IID_GREN_EMP)
@@ -520,7 +536,7 @@ string(float iid) GetItemWModel =
 
 	if (iid == IID_WP_GAUSERIFLE)
 		return "progs/w_gauss.mdl";
-	if (iid == IID_AM_ENERGYCELL)
+	if (iid == IID_WP_PULSERIFLE)
 		return "progs/w_carbine.mdl";
 
 	if (iid == IID_GREN_FRAG)
@@ -857,13 +873,30 @@ string(float iid) GetItemName =
 	if (iid == IID_BUILD_ROBOFANG)
 		return "robofang";
 
+	if (iid == IID_EQUIP_CLIMBINGGEAR)
+		return "climbing gear";
+
 	bprint(PRINT_MEDIUM, ftos(iid), " without a name!\n");
 	return strcat("unknown", ftos(iid));
 };
 
 string(float iid) GetItemDesc =
 {
+	if (iid == IID_NONE)
 		return "";
+
+
+	if (iid == IID_WP_TOOLKIT)
+		return "a wattz(tm) brand toolkit consisting of many handy instruments, including a wrench. this kit is a repairman's dream, and allows those with the proper knowledge to perform technical tasks.";
+	if (iid == IID_WP_AK74)
+		return "the ak74 is the predecessor of the legendary ak-47. it is still the same old killing machine, except that it uses the 5.45mm high-velocity round that was common in the latest assault rifles just before the war.";
+	if (iid == IID_BUILD_MRAMMO)
+		return "a military prototype, the mr. ammo was designed to allow soldiers an extra source of ammunition in remote areas, as the handy little machine is capable of churning out ammo from things such as rocks, debris, and metal scraps.";
+	if (iid == IID_EQUIP_CLIMBINGGEAR)
+		return "FIXME:\nActivate, and then run at and up a wall. Don't look too far away from the wall!";
+
+	bprint(PRINT_MEDIUM, ftos(iid), " without a desc!\n");
+	return strcat("<no description>", ftos(iid));
 };
 
 string(float iid) GetItemImage =
@@ -932,7 +965,7 @@ string(float iid) GetItemImage =
 		return "556mm.jpg";
 	if (iid == IID_AM_5MMHIGHVEL)
 		return "5mmhv.jpg";
-	if (iid == IID_AM_5MMHIGHVEL)
+	if (iid == IID_AM_12GAUGESHELLS)
 		return "12gauge.jpg";
 	if (iid == IID_AM_ENERGYCELL)
 		return "cell.jpg";
@@ -940,7 +973,7 @@ string(float iid) GetItemImage =
 		return "762mm.jpg";
 	if (iid == IID_AM_44MAGNUM)
 		return "44mag.jpg";
-	if (iid == IID_AM_44MAGNUM)
+	if (iid == IID_AM_45ACP)
 		return "45acp.jpg";
 
 
@@ -995,6 +1028,9 @@ string(float iid) GetItemImage =
 	if (iid == IID_BUILD_ROBOFANG)
 		return "robofang.jpg";
 
+	if (iid == IID_EQUIP_CLIMBINGGEAR)
+		return "robofang.jpg";
+
 	bprint(PRINT_MEDIUM, ftos(iid), " without a name!\n");
 	return strcat("unknown.jpg", ftos(iid));
 };
@@ -1018,9 +1054,13 @@ float(string itname) ItemIDOfName =
 		return IID_WP_USP;
 	if (itname == "desert eagle")
 		return IID_WP_DEAGLE;
+	if (itname == "deagle")
+		return IID_WP_DEAGLE;
 	if (itname == "needler")
 		return IID_WP_NEEDLER;
 	if (itname == "alien blaster")
+		return IID_WP_ALIENBLASTER;
+	if (itname == "blaster")
 		return IID_WP_ALIENBLASTER;
 	if (itname == "pipe rifle")
 		return IID_WP_PIPERIFLE;
@@ -1106,6 +1146,10 @@ float(string itname) ItemIDOfName =
 		return IID_BUILD_ROBOFANG;
 	if (itname == "doggie")
 		return IID_BUILD_ROBOFANG;
+	if (itname == "climbinggear")
+		return IID_EQUIP_CLIMBINGGEAR;
+	if (itname == "gear")
+		return IID_EQUIP_CLIMBINGGEAR;
 	return 0;
 };
 

@@ -478,12 +478,15 @@ void(vector p1, vector p2, entity from, float damage) LightningDamage =
 	if (trace_ent.takedamage)
 	{
 		LightningHit (from, damage);
+/*
 		if (self.classname == "player")
 		{
 			if (other.classname == "player")
 				trace_ent.velocity_z = trace_ent.velocity_z + 400;
 		}
+*/
 	}
+
 	e1 = trace_ent;
 
 	traceline (p1 + f, p2 + f, FALSE, self);
@@ -1694,7 +1697,7 @@ void () EMPExplode =
 		{
 			te.owner.pcamera = 0;
 			te.owner.pcamera2 = 0;
-			te.owner.equipment_state = 0;
+			te.owner.equipment_slot = 0;
 			sprint (self.owner, 2, te.owner.netname);
 			sprint (self.owner, 2, "'s ");
 			sprint (self.owner, 2, te.classname);
@@ -1791,7 +1794,6 @@ void () FlashExplode =
 {
 	local entity te;
 	local float dot;
-	local float dot2;
 	local vector vec;
 
 	self.velocity = VEC_ORIGIN;
@@ -1805,22 +1807,23 @@ void () FlashExplode =
 	te = findradius (self.origin, 1200);
 	while (te)
 	{
-		if (te.classname == "raider")
-			te.attack_finished = time + 6;
-		if (te.classname == "radwolf")
+		if (te.flags & FL_MONSTER && te.classname != te.owner.classname)
 			te.attack_finished = time + 6;
 
 		if ((te.classname == "player"))
 		{
-			makevectors (te.angles);
+/*			makevectors (te.angles);
 			vec = normalize ((self.origin - te.origin));
 			dot = (vec * v_forward);
-
-			if ((((dot > 0.3) && CanDamage (self, te)) && (dot2 == 0)))
+*/
+			if (/*dot > 0.3 &&*/ CanDamage (self, te))
 			{
 				stuffcmd (te, "v_cshift 255 255 255 255\n");
 				stuffcmd (te, "v_idlescale 10\n");
-				te.flash = 6;
+				if (self.owner.flags & FL_MONSTER)
+					te.flash = time + 2;
+				else
+					te.flash = time + 6;
 			}
 		}
 		te = te.chain;
@@ -2435,6 +2438,12 @@ void (float slotnum, float snd, float force) DropFromSlot =
 		return;
 
 	weap = ItemInSlot(self, slotnum);
+	if (weap == 0)
+	{
+		sprint(self, PRINT_HIGH, "Can't drop nothing\n");
+		return;
+	}
+
 	if (snd == 1)
 		sound (self, CHAN_WEAPON, "weapons/lock4.wav", 1, ATTN_NORM);
 
@@ -2507,20 +2516,30 @@ void() Crosshair =
 	stuffcmd(self, "\n");
 };
 
-void (entity healer, entity saved) RevivePlayer =
+float (entity healer, entity saved) RevivePlayer =
 {
 	local entity oself;
+	oself = self;
 
+	self = saved;
+/*	if (!walkmove(0, 0))
+	{
+		//too close?
+		return FALSE;
+	}
+*/
 	saved.deadflag = DEAD_NO;
 	saved.takedamage = DAMAGE_AIM;
 	saved.movetype = MOVETYPE_WALK;
-	saved.solid = SOLID_SLIDEBOX;
-	self.materialize = 200;
+	saved.solid = SOLID_NOT;
+
+	self = oself;
+
+	saved.materialize = 200;
 	saved.ghost = 0;
 	saved.health = 2;
 	saved.air_finished = time + 10;
 	saved.view_ofs = '0 0 22';
-	oself = self;
 	self = saved;
 	player_run();
 	self = oself;
@@ -2536,6 +2555,8 @@ void (entity healer, entity saved) RevivePlayer =
 	saved.view2 = world;
 
 	saved.flags (-) FL_FINDABLE_NONSOLID;
+
+	return TRUE;
 };
 
 float(float iid) UseBoostingChem =
@@ -2631,8 +2652,7 @@ float(float iid) UseHealingChem =
 	{
 		if (trace_ent.health <= 0 && coop == 1)
 		{
-			RevivePlayer(self, trace_ent);
-			return true;
+			return RevivePlayer(self, trace_ent);
 		}
 		if (trace_ent.health <= 0 && coop == 0)
 			return false;
@@ -3006,7 +3026,6 @@ void () station_think =
 	local float r;
 
 	self.nextthink = time + 2;
-	self.frame = self.buildtype;
 
 	if (self.track.team != self.team)
 	{
@@ -3133,7 +3152,19 @@ void () station_think =
 					if (ammoslot)
 						SetItemSlot(te, ammoslot, SlotVal(ammotype, x + ToStatus(ItemInSlot(te, ammoslot))));
 
-					sprint (te, PRINT_MEDIUM, ftos(ceil(x)), " ammo was received from the mr.ammo.\n");
+					r = random()*6;
+					if (r < 1)
+						sprint (te, PRINT_MEDIUM, ftos(ceil(x)), " ammo was received from the mr.ammo.\n");
+					else if (r < 2)
+						sprint (te, PRINT_MEDIUM, ftos(ceil(x)), " potatos were received from the mr.ammo.\n");
+					else if (r < 3)
+						sprint (te, PRINT_MEDIUM, ftos(ceil(x)), " ammo was given by the mr.ammo.\n");
+					else if (r < 4)
+						sprint (te, PRINT_MEDIUM, ftos(ceil(x)), " ammo was stolen from the mr.ammo.\n");
+					else if (r < 5)
+						sprint (te, PRINT_MEDIUM, ftos(ceil(x)), " ammo was extracted from the mr.ammo.\n");
+					else
+						sprint (te, PRINT_MEDIUM, ftos(ceil(x)), " ammo was given by the mr.ammo, along with an std\n");
 
 					self.chemcount = self.chemcount - 1;
 				}
@@ -3198,7 +3229,7 @@ void (entity guy) spawn_dot =
 	hologram.nextthink = (time + 0.01);
 };
 
-
+void() FinishTesla;
 float (float iid) spawn_station =
 {
 	local entity oself;
@@ -3327,6 +3358,12 @@ float (float iid) spawn_station =
 	self.think = station_think;
 	self.helmet = 2;
 	self.buildtype = iid;
+	self.aflag = true;
+
+	self.frame = 4;
+
+	self.chemcount = 75;
+
 	if (self.buildtype == IID_BUILD_MRAMMO)
 		self.netname = "mr. ammo";
 	if (self.buildtype == IID_BUILD_SHIELDGEN)
@@ -3339,9 +3376,10 @@ float (float iid) spawn_station =
 		self.netname = "robofang";
 		setmodel (self, "progs/dog.mdl");
 	}
-	self.frame = 4;
-
-	self.chemcount = 75;
+	if (self.buildtype == IID_BUILD_TESLA)
+	{
+		FinishTesla();
+	}
 
 	self = oself;
 
@@ -3381,10 +3419,10 @@ float() FireToolkit =
 		if (trace_ent.health >= trace_ent.max_health)
 		{	//it's built!
 			trace_ent.health = trace_ent.max_health;
-			if (trace_ent.nextthink)
+			if (!trace_ent.aflag)
 				return true;	//already complete
+			trace_ent.aflag = false;
 
-			trace_ent.think = station_think;
 			trace_ent.nextthink = time + 1;
 			sprint (self, PRINT_MEDIUM, "BUILDING COMPLETED.\n");
 
@@ -3398,6 +3436,12 @@ float() FireToolkit =
 sprint(self, PRINT_HIGH, "Robofang appears to have malfunctioned\n");
 //				spawn_dog (self.origin + v_forward * 32);
 			}
+			if (trace_ent.buildtype == IID_BUILD_AUTODOC)
+				trace_ent.frame = 1;
+			if (trace_ent.buildtype == IID_BUILD_MRAMMO)
+				trace_ent.frame = 0;
+			if (trace_ent.buildtype == IID_BUILD_SHIELDGEN)
+				trace_ent.frame = 2;
 		}
 		return true;
 	}
@@ -3627,7 +3671,8 @@ void () UseEquipment =
 		centerprint(self, "êë toolkit mark ii êë\nbuild, defuse and open doors faster\n");
 		return;
 	}
-	if (self.equipment == 7 && self.equipment_state == 0)
+/*
+	if (self.equipment == 7 && self.equipment_slot == 0)
 	{
 		sprint (self, PRINT_HIGH, "climbing gear in place.\n");
 		sound (self, CHAN_BODY, "misc/item2.wav", 1, ATTN_NORM);
@@ -3643,7 +3688,7 @@ void () UseEquipment =
 		self.equipment_state = 0;
 		return;
 	}
-
+*/
 	if (self.equipment == 8)
 	{
 		centerprint(self, "êë enhanced battery êë\nallows longer cloaking\n");

@@ -8,6 +8,8 @@ void (vector org) spawn_tfog;
 void (vector org, entity death_owner) spawn_tdeath;
 void(float slot) WeaponAmmo;
 void() Identify;
+void(entity to, float iid, float amount) AddStackable;
+void(entity to, float iid, float amount) AddNonStackable;
 
 float modelindex_dead, modelindex_sneak, modelindex_prone, modelindex_eyes, modelindex_player, modelindex_gone;
 
@@ -107,18 +109,18 @@ void() SetNewParms =
 
 
 	parm16 = 1;
-	parm17 = SlotVal(IID_WP_AK74, 30);
-	parm18 = SlotVal(IID_GREN_SMOKE, 5);
-	parm19 = SlotVal(IID_ARM_LEATHER, 1);
-	parm20 = SlotVal(IID_AM_5MMHIGHVEL, 120);
-	parm21 = SlotVal(IID_AM_556MM, 120);
+	parm17 = SlotVal(IID_WP_USP, 12);
+	parm18 = 0;
+	parm19 = SlotVal(IID_ARM_SHIRT, 1);
+	parm20 = SlotVal(IID_CHEM_STIMPACK, 3);
+	parm21 = SlotVal(IID_AM_10MM, 24);
 	parm22 = 0;
-	parm23 = SlotVal(IID_WP_TOOLKIT, 1);
-	parm24 = SlotVal(IID_WP_MOONLIGHT, 30);
+	parm23 = 0;
+	parm24 = 0;
 	parm25 = 0;
-	parm26 = SlotVal(IID_CHEM_STIMPACK, 3);
-	parm27 = SlotVal(IID_BUILD_MRAMMO, 3);
-	parm28 = SlotVal(IID_BUILD_AUTODOC, 3);
+	parm26 = 0;
+	parm27 = 0;
+	parm28 = 0;
 	parm29 = 0;
 	parm30 = 0;
 	parm31 = 0;
@@ -483,8 +485,8 @@ called each time a player enters a new level
 */
 void() PutClientInServer =
 {
-	local   entity spot;
-
+	local entity spot;
+	local float x;
 	if (self.class == 0 || self.team == 0)
 	{
 		self.deadflag = DEAD_NO;
@@ -529,6 +531,25 @@ void() PutClientInServer =
 	self.materialize = 200;
 
 	DecodeLevelParms ();
+
+	if (self.class == 1)
+	{
+		x = SlotOfItem(self, IID_CHEM_MEDICALBAG);
+		if (x == 0)
+			AddNonStackable(self, IID_CHEM_MEDICALBAG, 1);
+	}
+	if (self.class == 2)
+	{
+		x = SlotOfItem(self, IID_EQUIP_STEALTHBOY);
+		if (x == 0)
+			AddNonStackable(self, IID_EQUIP_STEALTHBOY, 1);
+	}
+	if (self.class == 4)
+	{
+		x = SlotOfItem(self, IID_WP_TOOLKIT);
+		if (x == 0)
+			AddNonStackable(self, IID_WP_TOOLKIT, 1);
+	}
 
 	self.attack_finished = time;
 	self.th_pain = player_pain;

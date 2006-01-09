@@ -579,6 +579,7 @@ void() worldspawn =
 	precache_sound ("weapons/tink1.wav");
 	precache_sound ("weapons/sa80-1.wav");
 	precache_sound ("weapons/shell.wav");
+	precache_sound ("weapons/reload.wav");
 	precache_sound ("misc/build1.wav");
 	precache_sound ("misc/build2.wav");
 	precache_sound ("misc/build3.wav");

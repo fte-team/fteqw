@@ -986,6 +986,7 @@ void (float slotno) ReloadWeapon =
 		sound (self, CHAN_WEAPON, "weapons/shell.wav", TRUE, ATTN_NORM);
 	else
 		sound (self, CHAN_WEAPON, "weapons/reload.wav", TRUE, ATTN_NORM);
+
 	sprint(self, 2, "reloading...\n");
 
 	if (self.perk == 3)
@@ -3858,7 +3859,7 @@ void (float rec, float number, float dam, float spread, float ran, float auto) W
 	}
 };
 
-void () PTouch2 =
+void () PlasmaBolt =
 {
 	local float dam;
 	local float zdif;
@@ -3877,23 +3878,7 @@ void () PTouch2 =
 
 	if (other.takedamage)
 	{
-		zdif = self.origin_z - other.origin_z;
-		ydif = self.origin_y - other.origin_y;
-		xdif = self.origin_x - other.origin_x;
-		tru = 0;
-		if (ydif >= -6 && ydif <= 6)
-		{
-			tru = 1;
-		}
-		if (xdif >= -6 && xdif <= 6)
-		{
-			tru = 1;
-		}
-		dam = 60 + (random () * 90);
-		if (other.classname == "ighoul")
-		{
-			dam = 120 + (random () * 120);
-		}
+		dam = 30 + (random () * 30);
 
 		T_Damage (other, self, self.owner, dam);
 		WriteByte (MSG_MULTICAST, SVC_TEMPENTITY);
@@ -3938,7 +3923,6 @@ void () FireAlienBlaster =
 	newmis.velocity = (newmis.velocity * 3000);
 	newmis.angles = vectoangles (newmis.velocity);
 
-//	newmis.touch = PTouch;
 	newmis.nextthink = (time + IDLE3A);
 	newmis.think = SUB_Remove;
 	setmodel (newmis, "progs/plasma.mdl");
@@ -3951,7 +3935,7 @@ void () FireAlienBlaster =
 		newmis.angles = vectoangles (newmis.velocity);
 		newmis.nextthink = time + 1.4;
 		sound (self, CHAN_WEAPON, "weapons/blaster.wav", WEAPON_SHOTGUN, ATTN_NORM);
-		newmis.touch = PTouch2;
+		newmis.touch = PlasmaBolt;
 		setmodel (newmis, "progs/ray.mdl");
 		tmp = 90 + self.velocity_y + self.velocity_x;
 	}

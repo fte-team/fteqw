@@ -806,25 +806,53 @@ float() GetRandomAmmo =
 
 	if (r <= 2)
 		return IID_AM_NEEDLER;
-	else if (r <= 4)
-		return IID_AM_10MM;
 	else if (r <= 6)
-		return IID_AM_556MM;
+		return IID_AM_10MM;
 	else if (r <= 8)
-		return IID_AM_5MMHIGHVEL;
+		return IID_AM_556MM;
 	else if (r <= 10)
+		return IID_AM_5MMHIGHVEL;
+	else if (r <= 13)
 		return IID_AM_12GAUGESHELLS;
-	else if (r <= 12)
-		return IID_AM_ENERGYCELL;
 	else if (r <= 14)
+		return IID_AM_ENERGYCELL;
+	else if (r <= 15)
 		return IID_AM_2MMEC;
 	else if (r <= 16)
 		return IID_AM_762MM;
 	else if (r <= 18)
 		return IID_AM_44MAGNUM;
 	else
-		return IID_AM_45ACP;
+		return IID_AM_10MM;
 
+};
+
+float(float ammotype) GetAmmoCount =
+{
+	local float ammocount;
+
+	if (ammotype == IID_AM_NEEDLER)
+		ammocount = 2 + random()*7;
+	if (ammotype == IID_AM_10MM)
+		ammocount = 5 + random()*10;
+	if (ammotype == IID_AM_556MM)
+		ammocount = 3 + random()*8;
+	if (ammotype == IID_AM_5MMHIGHVEL)
+		ammocount = 5 + random()*10;
+	if (ammotype == IID_AM_12GAUGESHELLS)
+		ammocount = 2 + random()*6;
+	if (ammotype == IID_AM_ENERGYCELL)
+		ammocount = 2 + random()*6;
+	if (ammotype == IID_AM_2MMEC)
+		ammocount = 1 + random()*2;
+	if (ammotype == IID_AM_762MM)
+		ammocount = 2 + random()*4;
+	if (ammotype == IID_AM_44MAGNUM)
+		ammocount = 2 + random()*4;
+	if (ammotype == IID_AM_45ACP)
+		ammocount = 5 + random()*10;
+
+	return ammocount;
 };
 
 void() ammo_touch =
@@ -849,35 +877,15 @@ void() ammo_touch =
 
 	ammotype = GetRandomAmmo();
 
-	if (ammotype == IID_AM_NEEDLER)
-		ammocount = 2 + random()*7;
-	if (ammotype == IID_AM_10MM)
-		ammocount = 5 + random()*10;
-	if (ammotype == IID_AM_556MM)
-		ammocount = 3 + random()*8;
-	if (ammotype == IID_AM_5MMHIGHVEL)
-		ammocount = 5 + random()*10;
-	if (ammotype == IID_AM_12GAUGESHELLS)
-		ammocount = 2 + random()*6;
-	if (ammotype == IID_AM_ENERGYCELL)
-		ammocount = 2 + random()*6;
-	if (ammotype == IID_AM_2MMEC)
-		ammocount = 1 + random()*2;
-	if (ammotype == IID_AM_762MM)
-		ammocount = 2 + random()*4;
-	if (ammotype == IID_AM_44MAGNUM)
-		ammocount = 2 + random()*4;
-	if (ammotype == IID_AM_45ACP)
-		ammocount = 5 + random()*10;
-
+	ammocount = GetAmmoCount(ammotype);
 	ammocount = ceil(ammocount);
 
 	if (coop == 1 && total_players == 1)
 		ammocount = ammocount * 2;
 
 	ammoname = GetItemName(ammotype);
-
 	ammocountftos = ftos(ammocount);
+
 
 // shotgun
 	if (self.weapon == 1)
@@ -1518,6 +1526,8 @@ PLAYER BACKPACKS
 
 void() BackpackTouch =
 {
+	local float ammotype, ammocount;
+
 	if (other.classname != "player")
 		return;
 
@@ -1528,21 +1538,27 @@ void() BackpackTouch =
 		AddStackable(other, IID_AM_10MM, floor(9+random()*9));
 		sprint(other, 2, " 10mm ammo");
 	}
-	if (self.weapon == 2)
+	else if (self.weapon == 2)
 	{
 		AddStackable(other, IID_AM_556MM, floor(5+random()*5));
 		sprint(other, 2, " 5mm ammo");
 	}
-	if (self.weapon == 3)
+	else if (self.weapon == 3)
 	{
 		AddStackable(other, IID_AM_12GAUGESHELLS, floor(3+random()*3));
 		sprint(other, 2, " 12 gauge ammo");
 	}
-	if (self.weapon == 4)
+	else if (self.weapon == 4)
 	{
 		AddStackable(other, IID_AM_10MM, floor(9+random()*9));
 		sprint(other, 2, " 10mm ammo");
 	}
+	else
+	{
+		ammotype = GetRandomAmmo();
+		ammocount = GetAmmoCount(ammotype);
+	}
+
 
 	if (random()*4 <= 2)
 	{

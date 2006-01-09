@@ -80,6 +80,7 @@ float IID_BUILD_TESLA = 354;
 //float IID_BUILD_TELEPAD = 355;
 
 float IID_EQUIP_CLIMBINGGEAR = 375;
+float IID_EQUIP_STEALTHBOY = 376;
 
 #define IsShootable(iid) (IsMelee(iid) || IsRanged(iid) || IsGrenade(iid))
 
@@ -875,6 +876,8 @@ string(float iid) GetItemName =
 
 	if (iid == IID_EQUIP_CLIMBINGGEAR)
 		return "climbing gear";
+	if (iid == IID_EQUIP_STEALTHBOY)
+		return "stealthboy";
 
 	bprint(PRINT_MEDIUM, ftos(iid), " without a name!\n");
 	return strcat("unknown", ftos(iid));
@@ -1030,6 +1033,8 @@ string(float iid) GetItemImage =
 
 	if (iid == IID_EQUIP_CLIMBINGGEAR)
 		return "robofang.jpg";
+	if (iid == IID_EQUIP_STEALTHBOY)
+		return "stealthboy.jpg";
 
 	bprint(PRINT_MEDIUM, ftos(iid), " without a name!\n");
 	return strcat("unknown.jpg", ftos(iid));
@@ -1150,6 +1155,9 @@ float(string itname) ItemIDOfName =
 		return IID_EQUIP_CLIMBINGGEAR;
 	if (itname == "gear")
 		return IID_EQUIP_CLIMBINGGEAR;
+	if (itname == "stealthboy")
+		return IID_EQUIP_STEALTHBOY;
+
 	return 0;
 };
 

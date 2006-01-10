@@ -312,7 +312,6 @@ SV_NewChaseDir
 */
 #define	DI_NODIR	-1
 
-#define NEWSV_StepDirection(x, y, z, s) SV_StepDirection(x, y, z, s)
 void SV_NewChaseDir (edict_t *actor, edict_t *enemy, float dist, struct globalvars_s *pr_globals)
 {
 	float		deltax,deltay;
@@ -345,7 +344,7 @@ void SV_NewChaseDir (edict_t *actor, edict_t *enemy, float dist, struct globalva
 		else
 			tdir = d[2] == 90 ? 135 : 215;
 			
-		if (tdir != turnaround && NEWSV_StepDirection(actor, tdir, dist, pr_globals))
+		if (tdir != turnaround && SV_StepDirection(actor, tdir, dist, pr_globals))
 			return;
 	}
 
@@ -358,32 +357,32 @@ void SV_NewChaseDir (edict_t *actor, edict_t *enemy, float dist, struct globalva
 	}
 
 	if (d[1]!=DI_NODIR && d[1]!=turnaround 
-	&& NEWSV_StepDirection(actor, d[1], dist, pr_globals))
+	&& SV_StepDirection(actor, d[1], dist, pr_globals))
 			return;
 
 	if (d[2]!=DI_NODIR && d[2]!=turnaround
-	&& NEWSV_StepDirection(actor, d[2], dist, pr_globals))
+	&& SV_StepDirection(actor, d[2], dist, pr_globals))
 			return;
 
 /* there is no direct path to the player, so pick another direction */
 
-	if (olddir!=DI_NODIR && NEWSV_StepDirection(actor, olddir, dist, pr_globals))
+	if (olddir!=DI_NODIR && SV_StepDirection(actor, olddir, dist, pr_globals))
 			return;
 
 	if (rand()&1) 	/*randomly determine direction of search*/
 	{
 		for (tdir=0 ; tdir<=315 ; tdir += 45)
-			if (tdir!=turnaround && NEWSV_StepDirection(actor, tdir, dist, pr_globals) )
+			if (tdir!=turnaround && SV_StepDirection(actor, tdir, dist, pr_globals) )
 					return;
 	}
 	else
 	{
 		for (tdir=315 ; tdir >=0 ; tdir -= 45)
-			if (tdir!=turnaround && NEWSV_StepDirection(actor, tdir, dist, pr_globals) )
+			if (tdir!=turnaround && SV_StepDirection(actor, tdir, dist, pr_globals) )
 					return;
 	}
 
-	if (turnaround != DI_NODIR && NEWSV_StepDirection(actor, turnaround, dist, pr_globals) )
+	if (turnaround != DI_NODIR && SV_StepDirection(actor, turnaround, dist, pr_globals) )
 			return;
 
 	actor->v->ideal_yaw = olddir;		// can't move
@@ -443,7 +442,7 @@ void SV_MoveToGoal (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 
 // bump around...
 	if ( (rand()&3)==1 ||
-	!NEWSV_StepDirection (ent, ent->v->ideal_yaw, dist, pr_globals))
+	!SV_StepDirection (ent, ent->v->ideal_yaw, dist, pr_globals))
 	{
 		SV_NewChaseDir (ent, goal, dist, pr_globals);
 	}

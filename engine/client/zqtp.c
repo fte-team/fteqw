@@ -3286,7 +3286,10 @@ void CL_Say (qboolean team, char *extra)
 
 void CL_Say_f (void)
 {
-	CL_Say (false, NULL);
+	if (isDedicated)
+		SV_ConSay_f();
+	else
+		CL_Say (false, NULL);
 }
 
 void CL_SayMe_f (void)

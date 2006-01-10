@@ -942,7 +942,7 @@ void CL_ParseChunkedDownload(void)
 			Host_EndGame("Received second download - \"%s\"\n", svname);
 
 		if (strcmp(cls.downloadname, svname))
-			if (strcmp(cls.downloadname, "csprogs.dat") || strcmp(cls.downloadname, "csprogsvers/"))
+			if (strcmp(svname, "csprogs.dat") || strncmp(cls.downloadname, "csprogsvers/", 12))
 				Host_EndGame("Server sent the wrong download - \"%s\" instead of \"%s\"\n", svname, cls.downloadname);
 
 
@@ -953,9 +953,11 @@ void CL_ParseChunkedDownload(void)
 
 		downloadstarttime = Sys_DoubleTime();
 
+		/*
 		strcpy(cls.downloadname, svname);
 		COM_StripExtension(svname, cls.downloadtempname);
 		COM_DefaultExtension(cls.downloadtempname, ".tmp");
+		*/
 
 		if (!strncmp(cls.downloadtempname,"skins/",6))
 		{

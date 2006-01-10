@@ -1083,6 +1083,7 @@ void CL_Disconnect (void)
 	COM_FlushTempoaryPacks();
 
 	cl.spectator = 0;
+	cl.sendprespawn = false;
 
 #ifdef NQPROT
 	cls.signon=0;

@@ -1482,6 +1482,8 @@ void CL_ParseServerData (void)
 	// now waiting for downloads, etc
 	cls.state = ca_onserver;
 
+	cl.sendprespawn = false;
+
 #ifdef VM_CG
 	CG_Stop();
 #endif

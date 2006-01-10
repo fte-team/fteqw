@@ -2011,24 +2011,6 @@ void (float dam, float rec, string snd, float rng, float rate) FirePistol =
 	if (self.recoil >= 15)
 		self.recoil = 15;
 
-	if (self.attack >= 1)
-	{
-		if (self.position == 0)
-			player_single1 ();
-		if (self.position == 1)
-			player_single1_s ();
-		if (self.position == 2)
-			player_single1 ();
-	}
-	if (self.attack >= 1)
-	{
-		if (self.position == 0)
-			autofire ();
-		if (self.position == 1)
-			autofire_s ();
-		if (self.position == 2)
-			player_single1 ();
-	}
 
 	tmp = 50;
 
@@ -2106,9 +2088,9 @@ void (float dam, float rec, string snd, float rng, float rate) FireSMG =
 	self.attack_finished = (time + rate);
 
 
-	if (self.attack == 0 && self.position == POS_STAND)
+	if (self.position == POS_STAND)
 		autofire ();
-	if (self.attack == 0 && self.position >= POS_DUCK)
+	if (self.position >= POS_DUCK)
 		autofire_s ();
 
 	if (self.position == 0)
@@ -2123,25 +2105,6 @@ void (float dam, float rec, string snd, float rng, float rate) FireSMG =
 	makevectors (self.v_angle);
 	if (self.recoil >= 15)
 		self.recoil = 15;
-
-	if (self.attack >= 1)
-	{
-		if (self.position == 0)
-			player_single1 ();
-		if (self.position == 1)
-			player_single1_s ();
-		if (self.position == 2)
-			player_single1 ();
-	}
-	if (self.attack >= 1)
-	{
-		if (self.position == 0)
-			autofire ();
-		if (self.position == 1)
-			autofire_s ();
-		if (self.position == 2)
-			player_single1 ();
-	}
 
 	tmp = 200;
 

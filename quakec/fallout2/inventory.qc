@@ -571,7 +571,7 @@ string(float iid) GetItemWModel =
 float(float iid) WeaponAmmoType =
 {
 	if (iid == IID_WP_USP)
-		return IID_AM_45ACP;
+		return IID_AM_10MM;
 	if (iid == IID_WP_DEAGLE)
 		return IID_AM_44MAGNUM;
 	if (iid == IID_WP_NEEDLER)

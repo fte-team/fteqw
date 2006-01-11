@@ -2956,6 +2956,13 @@ void SV_EnableClientsCSQC(void)
 		Con_DPrintf("CSQC enabled without protocol extensions\n");
 #endif
 }
+void SV_DisableClientsCSQC(void)
+{
+#ifdef PEXT_CSQC
+	if (host_client->fteprotocolextensions & PEXT_CSQC)
+		host_client->csqcactive = false;
+#endif
+}
 
 void SV_MVDList_f (void);
 void SV_MVDInfo_f (void);
@@ -3002,6 +3009,7 @@ ucmd_t ucmds[] =
 
 	{"ptrack", SV_PTrack_f}, //ZOID - used with autocam
 	{"enablecsqc", SV_EnableClientsCSQC},
+	{"disablecsqc", SV_DisableClientsCSQC},
 
 	{"snap", SV_NoSnap_f},
 	{"vote", SV_Vote_f},

@@ -452,6 +452,48 @@ void SV_FlushLevelCache(void)
 
 }
 
+void LoadModelsAndSounds(vfsfile_t *f)
+{
+	char	str[32768];
+	int i;
+
+	sv.model_precache[0] = PR_AddString(svprogfuncs, "", 0);
+	for (i=1; i < MAX_MODELS; i++)
+	{
+		VFS_GETS(f, str, sizeof(str));
+		if (!*str)
+			break;
+
+		sv.model_precache[i] = PR_AddString(svprogfuncs, str, 0);
+	}
+	if (i == MAX_MODELS)
+	{
+		VFS_GETS(f, str, sizeof(str));
+		if (*str)
+			SV_Error("Too many model precaches in loadgame cache");
+	}
+	for (; i < MAX_SOUNDS; i++)
+		sv.model_precache[i] = NULL;
+
+//	sv.sound_precache[0] = PR_AddString(svprogfuncs, "", 0);
+	for (i=1; i < MAX_SOUNDS; i++)
+	{
+		VFS_GETS(f, str, sizeof(str));
+		if (!*str)
+			break;
+
+//		sv.sound_precache[i] = PR_AddString(svprogfuncs, str, 0);
+	}
+	if (i == MAX_SOUNDS)
+	{
+		VFS_GETS(f, str, sizeof(str));
+		if (*str)
+			SV_Error("Too many sound precaches in loadgame cache");
+	}
+	for (; i < MAX_SOUNDS; i++)
+		*sv.sound_precache[i] = 0;
+}
+
 qboolean SV_LoadLevelCache(char *level, char *startspot, qboolean ignoreplayers)
 {
 	eval_t *eval, *e2;
@@ -470,6 +512,8 @@ qboolean SV_LoadLevelCache(char *level, char *startspot, qboolean ignoreplayers)
 	int clnum;
 
 	int pt;
+
+	int modelpos;
 
 	int filelen, filepos;
 	char *file;
@@ -519,7 +563,7 @@ qboolean SV_LoadLevelCache(char *level, char *startspot, qboolean ignoreplayers)
 // been used.  The menu calls it before stuffing loadgame command
 //	SCR_BeginLoadingPlaque ();
 
-	f = FS_OpenVFS(name, "rt", FS_GAME);
+	f = FS_OpenVFS(name, "rb", FS_GAME);
 	if (!f)
 	{
 		Con_TPrintf (STL_ERRORCOULDNTOPEN);
@@ -558,6 +602,7 @@ qboolean SV_LoadLevelCache(char *level, char *startspot, qboolean ignoreplayers)
 	time = atof(str);
 
 	SV_SpawnServer (mapname, startspot, false, false);
+	sv.time = time;
 	if (svs.gametype != gametype)
 	{
 		Con_Printf("Incorrect gamecode type. Cannot load game.\n");
@@ -574,6 +619,14 @@ qboolean SV_LoadLevelCache(char *level, char *startspot, qboolean ignoreplayers)
 //	sv.loadgame = true;
 
 // load the light styles
+
+	VFS_GETS(f, str, sizeof(str));
+	if (atoi(str) != MAX_LIGHTSTYLES)
+	{
+		VFS_CLOSE (f);
+		Con_Printf ("load failed - invalid number of lightstyles\n");
+		return false;
+	}
 
 	for (i=0 ; i<MAX_LIGHTSTYLES ; i++)
 	{
@@ -593,41 +646,8 @@ qboolean SV_LoadLevelCache(char *level, char *startspot, qboolean ignoreplayers)
 	PR_RegisterFields();
 	PR_InitEnts(svprogfuncs, sv.max_edicts);
 
-	sv.model_precache[0] = PR_AddString(svprogfuncs, "", 0);
-	for (i=1; i < MAX_MODELS; i++)
-	{
-		VFS_GETS(f, str, sizeof(str));
-		if (!*str)
-			break;
-
-		sv.model_precache[i] = PR_AddString(svprogfuncs, str, 0);
-	}
-	if (i == MAX_MODELS)
-	{
-		VFS_GETS(f, str, sizeof(str));
-		if (*str)
-			SV_Error("Too many model precaches in loadgame cache");
-	}
-	for (; i < MAX_SOUNDS; i++)
-		sv.model_precache[i] = NULL;
-
-//	sv.sound_precache[0] = PR_AddString(svprogfuncs, "", 0);
-	for (i=1; i < MAX_SOUNDS; i++)
-	{
-		VFS_GETS(f, str, sizeof(str));
-		if (!*str)
-			break;
-
-//		sv.sound_precache[i] = PR_AddString(svprogfuncs, str, 0);
-	}
-	if (i == MAX_SOUNDS)
-	{
-		VFS_GETS(f, str, sizeof(str));
-		if (*str)
-			SV_Error("Too many sound precaches in loadgame cache");
-	}
-	for (; i < MAX_SOUNDS; i++)
-		*sv.sound_precache[i] = 0;
+	modelpos = VFS_TELL(f);
+	LoadModelsAndSounds(f);
 
 	filepos = VFS_TELL(f);
 	filelen = VFS_GETLEN(f);
@@ -644,8 +664,14 @@ qboolean SV_LoadLevelCache(char *level, char *startspot, qboolean ignoreplayers)
 	PR_LoadGlabalStruct();
 
 	pr_global_struct->time = sv.time = time;
+	sv.starttime = Sys_DoubleTime() - sv.time;
+
+	VFS_SEEK(f, modelpos);
+	LoadModelsAndSounds(f);
 
 	VFS_CLOSE(f);
+
+	PF_InitTempStrings(svprogfuncs);
 
 	SV_ClearWorld ();
 
@@ -1052,12 +1078,13 @@ void SV_Loadgame_f (void)
 			SV_DropClient(cl);
 
 		fgets(str, sizeof(str)-1, f);
-		str[sizeof(cl->name)-1] = '\0';
+		str[sizeof(cl->namebuf)-1] = '\0';
 		for (trim = str+strlen(str)-1; trim>=str && *trim <= ' '; trim--)
 			*trim='\0';
 		for (trim = str; *trim <= ' ' && *trim; trim++)
 			;
-		strcpy(cl->name, str);
+		strcpy(cl->namebuf, str);
+		cl->name = cl->namebuf;
 		if (*str)
 		{
 			cl->state = cs_zombie;

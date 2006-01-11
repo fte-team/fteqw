@@ -580,7 +580,10 @@ int CL_LoadModels(int stage)
 	extern model_t *loadmodel;
 	int i;
 
+	float giveuptime = Sys_DoubleTime()+0.1;	//small things get padded into a single frame
+
 #define atstage() ((cl.contentstage == stage++)?++cl.contentstage:false)
+#define endstage() if (giveuptime<Sys_DoubleTime()) return -1;
 
 	if (atstage())
 	{
@@ -592,15 +595,20 @@ int CL_LoadModels(int stage)
 			{
 				unsigned int chksum = strtoul(s, NULL, 0);
 				if (CSQC_Init(chksum))
+				{
 					CL_SendClientCommand(true, "enablecsqc");
+				}
 				else
+				{
+					CL_SendClientCommand(true, "disablecsqc");
 					Sbar_Start();	//try and start this before we're actually on the server,
 									//this'll stop the mod from sending so much stuffed data at us, whilst we're frozen while trying to load.
 									//hopefully this'll make it more robust.
 									//csqc is expected to use it's own huds, or to run on decent servers. :p
+				}
 			}
 		}
-		return -1;
+		endstage();
 	}
 
 
@@ -617,16 +625,28 @@ int CL_LoadModels(int stage)
 
 			if (atstage())
 			{
-				Hunk_Check();
-
 				cl.model_precache[i] = Mod_ForName (cl.model_name[i], false);
-
 				Hunk_Check();
 
 				S_ExtraUpdate();
 
-				return -1;
+				endstage();
 			}
+		}
+	}
+
+	for (i=1 ; i<MAX_CSQCMODELS ; i++)
+	{
+		if (!cl.model_csqcname[i][0])
+			continue;
+		if (atstage())
+		{
+			cl.model_csqcprecache[i] = Mod_ForName (cl.model_csqcname[i], false);
+			Hunk_Check();
+
+			S_ExtraUpdate();
+
+			endstage();
 		}
 	}
 
@@ -638,13 +658,13 @@ int CL_LoadModels(int stage)
 
 		R_CheckSky();
 
-		return -1;
+		endstage();
 	}
 	if (atstage())
 	{
 		Wad_NextDownload();
 
-		return -1;
+		endstage();
 	}
 
 	if (atstage())
@@ -656,7 +676,7 @@ int CL_LoadModels(int stage)
 		if (R_PreNewMap)
 			R_PreNewMap();
 
-		return -1;
+		endstage();
 	}
 	if (atstage())
 	{
@@ -665,7 +685,7 @@ int CL_LoadModels(int stage)
 			Host_EndGame("No worldmodel was loaded\n");
 		Mod_NowLoadExternal();
 
-		return -1;
+		endstage();
 	}
 
 
@@ -677,7 +697,7 @@ int CL_LoadModels(int stage)
 			Host_EndGame("No worldmodel was loaded\n");
 		R_NewMap ();
 
-		return -1;
+		endstage();
 	}
 
 	return stage;
@@ -3576,6 +3596,38 @@ void CL_ParsePrecache(void)
 	}
 }
 
+void CL_DumpPacket(void)
+{
+	int i;
+	char *packet = net_message.data;
+	int pos;
+
+	pos = 0;
+	while(pos < net_message.cursize)
+	{
+		Con_Printf("%5i ", pos);
+		for (i = 0; i < 16; i++)
+		{
+			if (pos >= net_message.cursize)
+				Con_Printf(" X ");
+			else
+				Con_Printf("%2x ", (unsigned char)packet[pos]);
+			pos++;
+		}
+		pos-=16;
+		for (i = 0; i < 16; i++)
+		{
+			if (pos >= net_message.cursize)
+				Con_Printf("X");
+			else if (packet[pos] == 0)
+				Con_Printf(".");
+			else
+				Con_Printf("%c", (unsigned char)packet[pos]);
+			pos++;
+		}
+		Con_Printf("\n");
+	}
+}
 
 #define SHOWNET(x) if(cl_shownet.value==2)Con_Printf ("%3i:%s\n", msg_readcount-1, x);
 #define SHOWNET2(x, y) if(cl_shownet.value==2)Con_Printf ("%3i:%3i:%s\n", msg_readcount-1, y, x);
@@ -3646,6 +3698,7 @@ void CL_ParseServerMessage (void)
 		switch (cmd)
 		{
 		default:
+			CL_DumpPacket();
 			Host_EndGame ("CL_ParseServerMessage: Illegible server message");
 			return;
 

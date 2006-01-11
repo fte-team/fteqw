@@ -403,7 +403,7 @@ void Con_Clear_f (void)
 {
 	int i;
 	//wide chars, not standard ascii
-	for (i = 0; i < sizeof(con_main.text)/sizeof(unsigned short); i++)
+	for (i = 0; i < sizeof(con_main.text)/sizeof(conchar_t); i++)
 	{
 		con_main.text[i] = ' ';
 //	Q_memset (con_main.text, ' ', sizeof(con_main.text));
@@ -635,6 +635,26 @@ void Con_PrintCon (console_t *con, char *txt)
 				txt+=2;
 				continue;
 			}
+			if (txt[1] == '&') // extended code
+			{
+				if (isextendedcode(txt[2]) && isextendedcode(txt[3]))
+				{
+					if (txt[2] == '-') // default for FG
+						mask = (COLOR_WHITE << CON_FGSHIFT) | (mask&~CON_FGMASK);
+					else if (txt[2] >= 'A')
+						mask = ((txt[2] - ('A' - 10)) << CON_FGSHIFT) | (mask&~CON_FGMASK);
+					else
+						mask = ((txt[2] - '0') << CON_FGSHIFT) | (mask&~CON_FGMASK);
+					if (txt[3] == '-') // default (clear) for BG
+						mask &= ~CON_BGMASK & ~CON_NONCLEARBG;
+					else if (txt[3] >= 'A')
+						mask = ((txt[3]- ('A' - 10)) << CON_BGSHIFT) | (mask&~CON_BGMASK) | CON_NONCLEARBG;
+					else
+						mask = ((txt[3] - '0') << CON_BGSHIFT) | (mask&~CON_BGMASK) | CON_NONCLEARBG;
+					txt+=4;
+					continue;
+				}
+			}
 			if (txt[1] == 'b')
 			{
 				mask ^= CON_BLINKTEXT;
@@ -644,6 +664,12 @@ void Con_PrintCon (console_t *con, char *txt)
 			if (txt[1] == 'a')
 			{
 				mask ^= CON_2NDCHARSETTEXT;
+				txt+=2;
+				continue;
+			}
+			if (txt[1] == 'h')
+			{
+				mask ^= CON_HALFALPHA;
 				txt+=2;
 				continue;
 			}
@@ -920,10 +946,30 @@ void Con_DrawInput (void)
 		{
 			if (text[i+1]>='0' && text[i+1]<='9')
 				mask = q3codemasks[text[i+1]-'0'] | (mask&~CON_Q3MASK); //change colour only.
+			else if (text[i+1] == '&') // extended code
+			{
+				if (isextendedcode(text[i+2]) && isextendedcode(text[i+3]))
+				{
+					if (text[i+2] == '-') // default for FG
+						mask = (COLOR_WHITE << CON_FGSHIFT) | (mask&~CON_FGMASK);
+					else if (text[i+2] >= 'A')
+						mask = ((text[i+2] - ('A' - 10)) << CON_FGSHIFT) | (mask&~CON_FGMASK);
+					else
+						mask = ((text[i+2] - '0') << CON_FGSHIFT) | (mask&~CON_FGMASK);
+					if (text[i+3] == '-') // default (clear) for BG
+						mask &= ~CON_BGMASK & ~CON_NONCLEARBG;
+					else if (text[i+3] >= 'A')
+						mask = ((text[i+3] - ('A' - 10)) << CON_BGSHIFT) | (mask&~CON_BGMASK) | CON_NONCLEARBG;
+					else
+						mask = ((text[i+3] - '0') << CON_BGSHIFT) | (mask&~CON_BGMASK) | CON_NONCLEARBG;
+				}
+			}
 			else if (text[i+1] == 'b')
 				mask ^= CON_BLINKTEXT;
 			else if (text[i+1] == 'a')	//alternate
 				mask ^= CON_2NDCHARSETTEXT;
+			else if (text[i+1] == 'h') // half-alpha
+				mask ^= CON_HALFALPHA;
 			else if (text[i+1] == 's')	//store on stack (it's great for names)
 			{
 				if (maskstackdepth < sizeof(maskstack)/sizeof(maskstack[0]))
@@ -1117,10 +1163,30 @@ void Con_DrawNotify (void)
 			{
 				if (s[x+1]>='0' && s[x+1]<='9')
 					mask = q3codemasks[s[x+1]-'0'] | (mask&~CON_Q3MASK); //change colour only.
+				else if (s[x+1] == '&') // extended code
+				{
+					if (isextendedcode(s[x+2]) && isextendedcode(s[x+3]))
+					{
+						if (s[x+2] == '-') // default for FG
+							mask = (COLOR_WHITE << CON_FGSHIFT) | (mask&~CON_FGMASK);
+						else if (s[x+2] >= 'A')
+							mask = ((s[x+2] - ('A' - 10)) << CON_FGSHIFT) | (mask&~CON_FGMASK);
+						else
+							mask = ((s[x+2] - '0') << CON_FGSHIFT) | (mask&~CON_FGMASK);
+						if (s[x+3] == '-') // default (clear) for BG
+							mask &= ~CON_BGMASK & ~CON_NONCLEARBG;
+						else if (s[x+3] >= 'A')
+							mask = ((s[x+3] - ('A' - 10)) << CON_BGSHIFT) | (mask&~CON_BGMASK) | CON_NONCLEARBG;
+						else
+							mask = ((s[x+3] - '0') << CON_BGSHIFT) | (mask&~CON_BGMASK) | CON_NONCLEARBG;
+					}
+				}
 				else if (s[x+1] == 'b')
 					mask ^= CON_BLINKTEXT;
 				else if (s[x+1] == 'a')	//alternate
 					mask ^= CON_2NDCHARSETTEXT;
+				else if (s[x+1] == 'h') //half-alpha
+					mask ^= CON_HALFALPHA;
 				else if (s[x+1] == 's')	//store on stack (it's great for names)
 				{
 					if (maskstackdepth < sizeof(maskstack)/sizeof(maskstack[0]))
@@ -1147,10 +1213,30 @@ void Con_DrawNotify (void)
 			{
 				if (s[x+1]>='0' && s[x+1]<='9')
 					mask = q3codemasks[s[x+1]-'0'] | (mask&~CON_Q3MASK);	//change colour only.
+				else if (s[x+1] == '&') // extended code
+				{
+					if (isextendedcode(s[x+2]) && isextendedcode(s[x+3]))
+					{
+						if (s[x+2] == '-') // default for FG
+							mask = (COLOR_WHITE << CON_FGSHIFT) | (mask&~CON_FGMASK);
+						else if (s[x+2] >= 'A')
+							mask = ((s[x+2] - ('A' - 10)) << CON_FGSHIFT) | (mask&~CON_FGMASK);
+						else
+							mask = ((s[x+2] - '0') << CON_FGSHIFT) | (mask&~CON_FGMASK);
+						if (s[x+3] == '-') // default (clear) for BG
+							mask &= ~CON_BGMASK & ~CON_NONCLEARBG;
+						else if (s[x+3] >= 'A')
+							mask = ((s[x+3] - ('A' - 10)) << CON_BGSHIFT) | (mask&~CON_BGMASK) | CON_NONCLEARBG;
+						else
+							mask = ((s[x+3] - '0') << CON_BGSHIFT) | (mask&~CON_BGMASK) | CON_NONCLEARBG;
+					}
+				}
 				else if (s[x+1] == 'b')
 					mask ^= CON_BLINKTEXT;
 				else if (s[x+1] == 'a')	//alternate
 					mask ^= CON_2NDCHARSETTEXT;
+				else if (s[x+1] == 'h') //halfalpha
+					mask ^= CON_HALFALPHA;
 				else if (s[x+1] == 's')	//store on stack (it's great for names)
 				{
 					if (maskstackdepth < sizeof(maskstack)/sizeof(maskstack[0]))

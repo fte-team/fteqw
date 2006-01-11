@@ -256,7 +256,7 @@ void MakePaletteRemaps(void)
 	for (i = 2; i < palremapsize; i++)
 	{
 		palremaps[i].key = 0;
-		palremaps[i].references = -2147483648;
+		palremaps[i].references = -2147483647;
 	}
 }
 
@@ -433,7 +433,7 @@ void D_DereferenceRemap(palremap_t *palremap)
 		if (palremap->references < 2)
 		{
 			if (dereftime >= 0)
-				dereftime = -2147483648; // lowest negative 32-bit number
+				dereftime = -2147483647; // lowest negative 32-bit number (without MSVC being stupid)
 			palremap->references = dereftime;
 			dereftime++;
 		}

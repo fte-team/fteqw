@@ -125,6 +125,28 @@ void Draw_FunString(int x, int y, unsigned char *str)
 				ext = q3codemasks[*str++-'0'] | (ext&~CON_Q3MASK); //change colour only.
 				continue;
 			}
+			else if (*str == '&') // extended code
+			{
+				if (isextendedcode(*str+1) && isextendedcode(*str+2))
+				{
+					str++; // foreground char
+					if (*str == '-') // default for FG
+						ext = (COLOR_WHITE << CON_FGSHIFT) | (ext&~CON_FGMASK);
+					else if (*str >= 'A')
+						ext = ((*str - ('A' - 10)) << CON_FGSHIFT) | (ext&~CON_FGMASK);
+					else
+						ext = ((*str - '0') << CON_FGSHIFT) | (ext&~CON_FGMASK);
+					str++; // background char
+					if (*str == '-') // default (clear) for BG
+						ext &= ~CON_BGMASK & ~CON_NONCLEARBG;
+					else if (*str >= 'A')
+						ext = ((*str - ('A' - 10)) << CON_BGSHIFT) | (ext&~CON_BGMASK) | CON_NONCLEARBG;
+					else
+						ext = ((*str - '0') << CON_BGSHIFT) | (ext&~CON_BGMASK) | CON_NONCLEARBG;
+					continue;
+				}
+				str--; // else invalid code
+			}
 			else if (*str == 'a')
 			{
 				str++;
@@ -135,6 +157,12 @@ void Draw_FunString(int x, int y, unsigned char *str)
 			{
 				str++;
 				ext ^= CON_BLINKTEXT;
+				continue;
+			}
+			else if (*str == 'h')
+			{
+				str++;
+				ext ^= CON_HALFALPHA;
 				continue;
 			}
 			else if (*str == 's')	//store on stack (it's great for names)
@@ -196,6 +224,28 @@ void Draw_FunStringLen(int x, int y, unsigned char *str, int len)
 				ext = q3codemasks[*str++-'0'] | (ext&~CON_Q3MASK); //change colour only.
 				continue;
 			}
+			else if (*str == '&') // extended code
+			{
+				if (isextendedcode(*str+1) && isextendedcode(*str+2))
+				{
+					str++; // foreground char
+					if (*str == '-') // default for FG
+						ext = (COLOR_WHITE << CON_FGSHIFT) | (ext&~CON_FGMASK);
+					else if (*str >= 'A')
+						ext = ((*str - ('A' - 10)) << CON_FGSHIFT) | (ext&~CON_FGMASK);
+					else
+						ext = ((*str - '0') << CON_FGSHIFT) | (ext&~CON_FGMASK);
+					str++; // background char
+					if (*str == '-') // default (clear) for BG
+						ext &= ~CON_BGMASK & ~CON_NONCLEARBG;
+					else if (*str >= 'A')
+						ext = ((*str - ('A' - 10)) << CON_BGSHIFT) | (ext&~CON_BGMASK) | CON_NONCLEARBG;
+					else
+						ext = ((*str - '0') << CON_BGSHIFT) | (ext&~CON_BGMASK) | CON_NONCLEARBG;
+					continue;
+				}
+				str--; // else invalid code
+			}
 			else if (*str == 'a')
 			{
 				str++;
@@ -206,6 +256,12 @@ void Draw_FunStringLen(int x, int y, unsigned char *str, int len)
 			{
 				str++;
 				ext ^= CON_BLINKTEXT;
+				continue;
+			}
+			else if (*str == 'h')
+			{
+				str++;
+				ext ^= CON_HALFALPHA;
 				continue;
 			}
 			else if (*str == 's')	//store on stack (it's great for names)

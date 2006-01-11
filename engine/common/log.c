@@ -110,13 +110,20 @@ void Con_Log (char *s)
 		else if (((int)(log_readable.value) & 2) && *s == '^')
 		{
 			// log_readable 2 removes Q3 codes as well
-			char c;
-			c = *(s+1);
+			char c = s[1];
 
-			if ((c >= '0' && c <= '9') || c == 'a' || c == 'b' || c == 's' || c == 'r')
+			if ((c >= '0' && c <= '9') || c == 'a' || c == 'b' || c == 'h' || c == 's' || c == 'r')
 			{
 				i--;
 				s++;
+			}
+			else if (c == '&')
+			{
+				if (isextendedcode(s[2]) && isextendedcode(s[3]))
+				{
+					i--;
+					s += 3;
+				}
 			}
 			else
 			{

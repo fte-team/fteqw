@@ -194,6 +194,28 @@ void CopyAndMarkup(conchar_t *dest, qbyte *src, int maxlength)
 				ext = q3codemasks[*src - '0'] | (ext&~CON_Q3MASK);
 				continue;
 			}
+			else if (*src == '&') // extended code
+			{
+				if (isextendedcode(*src+1) && isextendedcode(*src+2))
+				{
+					src++; // foreground char
+					if (*src == '-') // default for FG
+						ext = (COLOR_WHITE << CON_FGSHIFT) | (ext&~CON_FGMASK);
+					else if (*src >= 'A')
+						ext = ((*src - ('A' - 10)) << CON_FGSHIFT) | (ext&~CON_FGMASK);
+					else
+						ext = ((*src - '0') << CON_FGSHIFT) | (ext&~CON_FGMASK);
+					src++; // background char
+					if (*src == '-') // default (clear) for BG
+						ext &= ~CON_BGMASK & ~CON_NONCLEARBG;
+					else if (*src >= 'A')
+						ext = ((*src - ('A' - 10)) << CON_BGSHIFT) | (ext&~CON_BGMASK) | CON_NONCLEARBG;
+					else
+						ext = ((*src - '0') << CON_BGSHIFT) | (ext&~CON_BGMASK) | CON_NONCLEARBG;
+					continue;
+				}
+				src--; // else invalid code
+			}
 			else if (*src == 'b') // toggle blink bit
 			{
 				src++;
@@ -204,6 +226,12 @@ void CopyAndMarkup(conchar_t *dest, qbyte *src, int maxlength)
 			{
 				src++;
 				ext ^= CON_2NDCHARSETTEXT;
+				continue;
+			}
+			else if (*src == 'h')
+			{
+				src++;
+				ext ^= CON_HALFALPHA;
 				continue;
 			}
 			else if (*src == 's')

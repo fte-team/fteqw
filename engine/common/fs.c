@@ -37,6 +37,36 @@ vfsfile_t *FS_OpenVFSLoc(flocation_t *loc, char *mode);
 
 
 
+int VFS_GETS(vfsfile_t *vf, char *buffer, int buflen)
+{
+	char in;
+	char *out = buffer;
+	int len;
+	len = buflen-1;
+	if (len == 0)
+		return NULL;
+	while (len > 0)
+	{
+		if (!VFS_READ(vf, &in, 1))
+		{
+			*out = '\0';
+			return buffer;
+		}
+		if (in == '\n')
+			break;
+		*out++ = in;
+		len--;
+	}
+	*out = '\0';
+
+	return buffer;
+}
+
+
+
+
+
+
 
 char	gamedirfile[MAX_OSPATH];
 

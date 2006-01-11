@@ -523,7 +523,10 @@ char *PR_ValueString (progfuncs_t *progfuncs, etype_t type, eval_t *val)
 		break;
 	case ev_field:
 		fielddef = ED_FieldAtOfs (progfuncs,  val->_int );
-		sprintf (line, ".%s (%i)", fielddef->name, val->_int);
+		if (!fielddef)
+			sprintf (line, ".??? (%i)", val->_int);
+		else
+			sprintf (line, ".%s (%i)", fielddef->name, val->_int);
 		break;
 	case ev_void:
 		sprintf (line, "void type");

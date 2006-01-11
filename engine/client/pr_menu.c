@@ -295,8 +295,11 @@ void PF_CL_precache_pic (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
 	char	*str;
 	mpic_t	*pic;
-	
+
 	str = PR_GetStringOfs(prinst, OFS_PARM0);
+
+	if (cls.state && !sv.active)
+		CL_CheckOrEnqueDownloadFile(str, str);
 
 	pic = Draw_SafeCachePic(str);
 

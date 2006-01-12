@@ -1186,7 +1186,10 @@ char *ED_ParseEdict (progfuncs_t *progfuncs, char *data, edictrun_t *ent)
 
 cont:
 		if (!ED_ParseEpair (progfuncs, ent->fields, (ddefXX_t*)key, qcc_token, 32))
-			Sys_Error ("ED_ParseEdict: parse error on entities");
+		{
+			continue;
+//			Sys_Error ("ED_ParseEdict: parse error on entities");
+		}
 	}
 
 	if (!init)

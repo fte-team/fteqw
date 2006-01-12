@@ -5485,7 +5485,7 @@ void PF_strstrofs (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 	char *instr = PR_GetStringOfs(prinst, OFS_PARM0);
 	char *match = PR_GetStringOfs(prinst, OFS_PARM1);
 
-	int firstofs = (*prinst->callargc>2)?G_FLOAT(OFS_PARM1):0;
+	int firstofs = (*prinst->callargc>2)?G_FLOAT(OFS_PARM2):0;
 
 	if (firstofs && (firstofs < 0 || firstofs > strlen(instr)))
 	{
@@ -6264,7 +6264,7 @@ lh_extension_t QSG_Extensions[] = {
 	//reuses the FRIK_FILE builtins (with substring extension)
 	{"FTE_STRINGS",						16, NULL, {"stof", "strlen","strcat","substring","stov","strzone","strunzone",
 												   "strstrofs", "str2chr", "chr2str", "strconv", "infoadd", "infoget", "strncmp", "strcasecmp", "strncasecmp"}},
-
+	{"FTE_SV_REENTER"},
 	{"FTE_TE_STANDARDEFFECTBUILTINS",	14,	NULL, {"te_gunshot", "te_spike", "te_superspike", "te_explosion", "te_tarexplosion", "te_wizspike", "te_knightspike", "te_lavasplash",
 												   "te_teleport", "te_lightning1", "te_lightning2", "te_lightning3", "te_lightningblood", "te_bloodqw"}},
 

@@ -80,6 +80,7 @@ mpic_t		*draw_backtile;
 
 int			translate_texture;
 int			char_texture, char_tex2, default_char_texture;
+int			missing_texture;	//texture used when one is missing.
 int			cs_texture; // crosshair texture
 extern int detailtexture;
 
@@ -995,6 +996,8 @@ TRACE(("dbg: GLDraw_ReInit: Allocating upload buffers\n"));
 	crosshair.modified=true;
 	crosshairimage.modified = true;
 
+	missing_texture = GL_LoadTexture("no_texture", 16, 16, (unsigned char*)r_notexture_mip + r_notexture_mip->offsets[0], true, false);
+
 	GL_SetupSceneProcessingTextures();
 
 	start = Hunk_LowMark ();
@@ -1678,7 +1681,16 @@ void GLDraw_ShaderImage (int x, int y, int w, int h, float s1, float t1, float s
 	((int*)draw_mesh_colors)[2] = ((int*)draw_mesh_colors)[0];
 	((int*)draw_mesh_colors)[3] = ((int*)draw_mesh_colors)[0];
 */
+
+	draw_mesh_colors[0][0] = 255;
+	draw_mesh_colors[0][1] = 255;
+	draw_mesh_colors[0][2] = 255;
+	draw_mesh_colors[0][3] = 255;
+
 	draw_mesh.colors_array = draw_mesh_colors;
+
+	draw_mesh.numvertexes = 4;
+	draw_mesh.numindexes = 6;
 
 	R_PushMesh(&draw_mesh, mb.shader->features | MF_COLORS | MF_NONBATCHED);
 	R_RenderMeshBuffer ( &mb, false );

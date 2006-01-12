@@ -895,7 +895,7 @@ void() ammo_touch =
 		sprint (other, 2, ammocountftos);
 		sprint (other, 2, ") ");
 
-		AddStackable(other, ammotype, ammocount);
+		TryGiveStackable(other, ammotype, ammocount);
 
 		if (random()*20 <= 10)
 		{
@@ -918,7 +918,7 @@ void() ammo_touch =
 		sprint (other, 2, ammocountftos);
 		sprint (other, 2, ") ");
 
-		AddStackable(other, ammotype, ammocount);
+		TryGiveStackable(other, ammotype, ammocount);
 
 		if (random()*20 <= 10)
 		{
@@ -937,7 +937,7 @@ void() ammo_touch =
 		sprint (other, 2, ammocountftos);
 		sprint (other, 2, ") ");
 
-		AddStackable(other, ammotype, ammocount);
+		TryGiveStackable(other, ammotype, ammocount);
 
 		if (random()*20 <= 10)
 		{
@@ -957,7 +957,7 @@ void() ammo_touch =
 		sprint (other, 2, ammocountftos);
 		sprint (other, 2, ") ");
 
-		AddStackable(other, ammotype, ammocount);
+		TryGiveStackable(other, ammotype, ammocount);
 
 		if (random()*20 <= 10)
 		{
@@ -1536,22 +1536,22 @@ void() BackpackTouch =
 
 	if (self.weapon == 1)
 	{
-		AddStackable(other, IID_AM_10MM, floor(9+random()*9));
+		TryGiveStackable(other, IID_AM_10MM, floor(9+random()*9));
 		sprint(other, 2, " 10mm ammo");
 	}
 	else if (self.weapon == 2)
 	{
-		AddStackable(other, IID_AM_556MM, floor(5+random()*5));
+		TryGiveStackable(other, IID_AM_556MM, floor(5+random()*5));
 		sprint(other, 2, " 5mm ammo");
 	}
 	else if (self.weapon == 3)
 	{
-		AddStackable(other, IID_AM_12GAUGESHELLS, floor(3+random()*3));
+		TryGiveStackable(other, IID_AM_12GAUGESHELLS, floor(3+random()*3));
 		sprint(other, 2, " 12 gauge ammo");
 	}
 	else if (self.weapon == 4)
 	{
-		AddStackable(other, IID_AM_10MM, floor(9+random()*9));
+		TryGiveStackable(other, IID_AM_10MM, floor(9+random()*9));
 		sprint(other, 2, " 10mm ammo");
 	}
 	else

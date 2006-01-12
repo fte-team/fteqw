@@ -29,6 +29,8 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 
 #include <ctype.h>
 
+extern int missing_texture;
+
 
 
 //Spike: Marked code removal areas with FIZME
@@ -282,6 +284,8 @@ static void Shader_ParseSkySides ( char **ptr, int *images )
 		} else {
 			Com_sprintf ( path, sizeof(path), "%s_%s", token, suf[i] );
 			images[i] = Mod_LoadHiResTexture ( path, NULL, true, false, true);//|IT_SKY );
+			if (!images[i])
+				images[i] = missing_texture;
 		}
 	}
 }
@@ -1412,6 +1416,8 @@ void Shader_Finish ( shader_t *s )
 		pass = &s->passes[0];
 		pass->tcgen = TC_GEN_BASE;
 		pass->anim_frames[0] = Mod_LoadHiResTexture(s->name, NULL, true, false, true);//GL_FindImage (shortname, 0);
+		if (!pass->anim_frames[0])
+			pass->anim_frames[0] = missing_texture;
 		pass->depthfunc = GL_LEQUAL;
 		pass->flags = SHADER_PASS_DEPTHWRITE;
 		pass->rgbgen = RGB_GEN_VERTEX;
@@ -1748,6 +1754,9 @@ void Shader_DefaultBSP(char *shortname, shader_t *s)
 	pass->flags = SHADER_PASS_BLEND | SHADER_PASS_NOCOLORARRAY;
 	pass->tcgen = TC_GEN_BASE;
 	pass->anim_frames[0] = Mod_LoadHiResTexture(shortname, NULL, true, false, true);//GL_FindImage (shortname, 0);
+	if (!pass->anim_frames[0])
+		pass->anim_frames[0] = missing_texture;
+	pass->anim_numframes = 1;
 	pass->blendsrc = GL_ZERO;
 	pass->blenddst = GL_SRC_COLOR;
 	pass->blendmode = GL_MODULATE;
@@ -1777,6 +1786,8 @@ void Shader_DefaultBSPVertex(char *shortname, shader_t *s)
 	pass = &s->passes[0];
 	pass->tcgen = TC_GEN_BASE;
 	pass->anim_frames[0] = Mod_LoadHiResTexture(shortname, NULL, true, false, true);//GL_FindImage (shortname, 0);
+	if (!pass->anim_frames[0])
+		pass->anim_frames[0] = missing_texture;
 	pass->depthfunc = GL_LEQUAL;
 	pass->flags = SHADER_PASS_DEPTHWRITE;
 	pass->rgbgen = RGB_GEN_VERTEX;
@@ -1806,6 +1817,8 @@ void Shader_DefaultBSPFlare(char *shortname, shader_t *s)
 	pass->blenddst = GL_ONE;
 	pass->blendmode = GL_MODULATE;
 	pass->anim_frames[0] = Mod_LoadHiResTexture(shortname, NULL, true, true, true);//GL_FindImage (shortname, 0);
+	if (!pass->anim_frames[0])
+		pass->anim_frames[0] = missing_texture;
 	pass->depthfunc = GL_LEQUAL;
 	pass->rgbgen = RGB_GEN_VERTEX;
 	pass->alphagen = ALPHA_GEN_IDENTITY;
@@ -1834,6 +1847,8 @@ void Shader_DefaultSkin(char *shortname, shader_t *s)
 	s->numpasses = 0;
 
 	tex = Mod_LoadHiResTexture(shortname, NULL, true, true, true);
+	if (!tex)
+		tex = missing_texture;
 //	if (tex)
 	{
 		pass = &s->passes[s->numpasses++];
@@ -1933,6 +1948,8 @@ void Shader_DefaultSkinShell(char *shortname, shader_t *s)
 	pass = &s->passes[0];
 	pass->flags = SHADER_PASS_DEPTHWRITE | SHADER_PASS_BLEND;
 	pass->anim_frames[0] = Mod_LoadHiResTexture(shortname, NULL, true, true, true);//GL_FindImage (shortname, 0);
+	if (!pass->anim_frames[0])
+		pass->anim_frames[0] = missing_texture;
 	pass->depthfunc = GL_LEQUAL;
 	pass->rgbgen = RGB_GEN_ENTITY;
 	pass->alphagen = ALPHA_GEN_ENTITY;
@@ -1958,6 +1975,8 @@ void Shader_DefaultSkinShell(char *shortname, shader_t *s)
 }
 void Shader_Default2D(char *shortname, shader_t *s)
 {
+	mpic_t *mp;
+
 	shaderpass_t *pass;
 	pass = &s->passes[0];
 	pass->flags = SHADER_PASS_BLEND | SHADER_PASS_NOCOLORARRAY;
@@ -1965,6 +1984,15 @@ void Shader_Default2D(char *shortname, shader_t *s)
 	pass->blenddst = GL_ONE_MINUS_SRC_ALPHA;
 	pass->blendmode = GL_MODULATE;
 	pass->anim_frames[0] = Mod_LoadHiResTexture(shortname, NULL, false, true, true);//GL_FindImage (shortname, IT_NOPICMIP|IT_NOMIPMAP);
+	if (!pass->anim_frames[0])
+	{
+		mp = Draw_SafeCachePic(va("%s.lmp", shortname));
+		if (mp)
+			pass->anim_frames[0] = *(int*)mp->data;
+
+		if (!pass->anim_frames[0])
+			pass->anim_frames[0] = missing_texture;
+	}
 	pass->depthfunc = GL_LEQUAL;
 	pass->rgbgen = RGB_GEN_VERTEX;
 	pass->alphagen = ALPHA_GEN_VERTEX;

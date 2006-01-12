@@ -1527,11 +1527,12 @@ PLAYER BACKPACKS
 void() BackpackTouch =
 {
 	local float ammotype, ammocount;
+	local string ammoname;
 
 	if (other.classname != "player")
 		return;
 
-	sprint(other, 2, "loot: found ");
+	sprint(other, 2, "loot: found");
 
 	if (self.weapon == 1)
 	{
@@ -1557,15 +1558,19 @@ void() BackpackTouch =
 	{
 		ammotype = GetRandomAmmo();
 		ammocount = GetAmmoCount(ammotype);
+		ammoname = GetItemName(ammotype);
+		sprint(other, 2, " ");
+		sprint(other, 2, ammoname);
+
 	}
 
 
 	if (random()*4 <= 2)
 	{
-		self.ammo_shells = self.ammo_shells + 1;
-		sprint(other, 2, " and some loot.\n");
+		self.ammo_shells = self.ammo_shells + 3;
+		sprint(other, 2, " and some caps.\n");
 		if (total_players == 1)
-			self.ammo_shells = self.ammo_shells + 1;
+			self.ammo_shells = self.ammo_shells + 3;
 	}
 	else
 		sprint(other, 2, ".\n");

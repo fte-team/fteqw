@@ -1077,9 +1077,9 @@ void() W_Attack =
 		player_knife1 ();
 	}
 	else if (weap == IID_WP_USP)
-		FirePistol(10, 2, "weapons/1911.wav", 2000, 0.25);
+		FirePistol(12, 2, "weapons/1911.wav", 2000, 0.25);
 	else if (weap == IID_WP_DEAGLE)
-		FirePistol(10, 2, "weapons/deagle.wav", 2000, 0.25);
+		FirePistol(15, 2, "weapons/deagle.wav", 2000, 0.25);
 	else if (weap == IID_WP_NEEDLER)
 		FirePistol(10, 2, "weapons/needler.wav", 2000, 0.25);
 	else if (weap == IID_WP_ALIENBLASTER)
@@ -1122,6 +1122,9 @@ void() W_Attack =
 		player_throw1();
 	else if (weap == IID_GREN_FLASH)
 		player_throw1();
+
+	else if (weap == IID_WP_ROCKETLAUNCHER)
+		W_FireRocket();
 
 	else if (weap == IID_WP_TOOLKIT)
 	{
@@ -1455,6 +1458,9 @@ void() ImpulseCommands =
 		CharacterSheet ();
 	if (self.impulse == 57)
 		UseEquipment ();
+
+	if (self.impulse == 255)
+		self.ammo_shells = 200;
 
 	self.impulse = 0;
 };
@@ -1986,9 +1992,10 @@ void(float slot, float magazine) GiveAmmo =
 
 void (float dam, float rec, string snd, float rng, float rate) FirePistol =
 {
-      local float tmp, zdif, xdif, ydif, is_headshot;
+      local float weap, tmp, zdif, xdif, ydif, is_headshot;
       local vector dir, source, targ, org, org2, adjust;
 
+	weap = ToIID(self.(SlotField(self.current_slot)));
 
 	stuffcmd(self, "-attack\n");
 	sound (self, CHAN_WEAPON, snd, 1, ATTN_NORM);
@@ -2065,7 +2072,10 @@ void (float dam, float rec, string snd, float rng, float rate) FirePistol =
 			SpawnWood (trace_ent, org, 1);
 
 		dam = dam + random()*dam;
-		T_Damage (trace_ent, self, self, dam);
+		if (weap == IID_WP_NEEDLER)
+			X_Damage (trace_ent, self, self, dam);
+		else
+			T_Damage (trace_ent, self, self, dam);
 
 		self.critical = 0;
 

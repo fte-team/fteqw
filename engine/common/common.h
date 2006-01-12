@@ -317,7 +317,7 @@ typedef struct vfsfile_s {
 #define VFS_READ(vf,buffer,buflen) (vf->ReadBytes(vf,buffer,buflen))
 #define VFS_WRITE(vf,buffer,buflen) (vf->WriteBytes(vf,buffer,buflen))
 #define VFS_FLUSH(vf) do{if(vf->Flush)vf->Flush(vf);}while(0)
-int VFS_GETS(vfsfile_t *vf, char *buffer, int buflen);
+char *VFS_GETS(vfsfile_t *vf, char *buffer, int buflen);
 
 void FS_Remove(char *fname, int relativeto);
 vfsfile_t *FS_OpenVFS(char *filename, char *mode, int relativeto);

@@ -37,7 +37,7 @@ vfsfile_t *FS_OpenVFSLoc(flocation_t *loc, char *mode);
 
 
 
-int VFS_GETS(vfsfile_t *vf, char *buffer, int buflen)
+char *VFS_GETS(vfsfile_t *vf, char *buffer, int buflen)
 {
 	char in;
 	char *out = buffer;

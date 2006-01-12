@@ -794,7 +794,7 @@ static qboolean R_GAliasBuildMesh(mesh_t *mesh, galiasinfo_t *inf, int frame1, i
 		float mlerp;	//minor lerp, poses within a group.
 		qboolean hirachy;
 
-		if (g1->isheirachical != g2->isheirachical)
+		if (g1->isheirachical != g2->isheirachical || lerp < 0)
 			lerp = 0;
 		hirachy = g1->isheirachical;
 

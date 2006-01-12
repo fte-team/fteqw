@@ -961,8 +961,8 @@ void CL_ParseChunkedDownload(void)
 		if (cls.downloadmethod == DL_QWCHUNKS)
 			Host_EndGame("Received second download - \"%s\"\n", svname);
 
-		if (strcmp(cls.downloadname, svname))
-			if (strcmp(svname, "csprogs.dat") || strncmp(cls.downloadname, "csprogsvers/", 12))
+		if (stricmp(cls.downloadname, svname))
+			if (stricmp(svname, "csprogs.dat") || strnicmp(cls.downloadname, "csprogsvers/", 12))
 				Host_EndGame("Server sent the wrong download - \"%s\" instead of \"%s\"\n", svname, cls.downloadname);
 
 

@@ -348,6 +348,214 @@ void(entity targ, entity inflictor, entity attacker, float damage) T_Damage =
 
 /*
 ============
+X_Damage
+
+The other damage function.
+
+============
+*/
+
+void(entity targ, entity inflictor, entity attacker, float damage) X_Damage =
+{
+	local   entity  oldself;
+	local   float   save;
+	local   float   take, severity, helm;
+	local   string  attackerteam, targteam;
+
+
+	if (!targ.takedamage)
+		return;
+
+// used by buttons and triggers to set activator for target firing
+	damage_attacker = attacker;
+
+
+// check for quad damage powerup on the attacker
+	if (attacker.super_damage_finished > time && inflictor.classname != "door")
+	if (deathmatch == 4)
+		damage = damage * 8;
+	else
+		damage = damage * 4;
+
+	if (attacker.critical == 3)//attacker scored a headshot/critical
+	{
+		if (attacker.critical == 3)
+		{
+			severity = 0 + random()*20;
+			if (attacker.perk == 7)
+				severity = severity + 4;
+
+			if (attacker.class == 3)
+				severity = severity + 2;
+
+			if (severity >= 19)
+				damage = (damage * 3.0);
+			else if (severity >= 14)
+				damage = (damage * 2.5);
+			else
+				damage = (damage * 2.0);
+
+			helm = targ.armortype;
+			if (targ.helmet == 0)
+			{
+				sound (targ, CHAN_BODY, "player/headshot.wav", 1, ATTN_NORM);
+				helm = 0;
+			}
+			if (targ.helmet == AS_STRAIGHT)
+			{
+				sound (targ, CHAN_BODY, "weapons/helmet.wav", 1, ATTN_NORM);
+				helm = 0.10;
+			}
+			if (targ.helmet == AS_SLIDING)
+			{
+				sound (targ, CHAN_BODY, "weapons/helmet.wav", 1, ATTN_NORM);
+				helm = 0.15;
+			}
+
+			damage = (damage - (damage * helm));
+
+			makevectors (targ.v_angle);
+		}
+	}
+
+	if (random()*4<=1)
+		sound (targ, CHAN_BODY, targ.armornoise, 1, ATTN_NORM);
+
+// add to the damage total for clients, which will be sent as a single
+// message at the end of the frame
+// FIXME: remove after combining shotgun blasts?
+	if (targ.flags & FL_CLIENT)
+	{
+		targ.dmg_take = targ.dmg_take + take;
+		targ.dmg_save = targ.dmg_save + save;
+		targ.dmg_inflictor = inflictor;
+	}
+
+	damage_inflictor = inflictor;        
+
+/*
+// figure momentum add
+	if ( (inflictor != world) && (targ.movetype == MOVETYPE_WALK) )
+	{
+		dir = targ.origin - (inflictor.absmin + inflictor.absmax) * 0.5;
+		dir = normalize(dir);
+		// Set kickback for smaller weapons
+//Zoid -- use normal NQ kickback
+//		// Read: only if it's not yourself doing the damage
+//		if ( (damage < 60) & ((attacker.classname == "player") & (targ.classname == "player")) & ( attacker.netname != targ.netname)) 
+//			targ.velocity = targ.velocity + dir * damage * 11;
+//		else                        
+		// Otherwise, these rules apply to rockets and grenades                        
+		// for blast velocity
+			targ.velocity = targ.velocity + dir * damage * 8;
+		
+		// Rocket Jump modifiers
+		if ( (rj > 1) & ((attacker.classname == "player") & (targ.classname == "player")) & ( attacker.netname == targ.netname)) 
+			targ.velocity = targ.velocity + dir * damage * rj;
+
+	}*/
+
+
+
+// check for godmode or invincibility
+	if (targ.flags & FL_GODMODE)
+		return;
+
+	if (targ.invincible_finished >= time)
+	{
+		if (self.invincible_sound < time)
+		{
+			sound (targ, CHAN_ITEM, "items/protect3.wav", 1, ATTN_NORM);
+			self.invincible_sound = time + 2;
+		}
+		return;
+	}
+
+// team play damage avoidance
+//ZOID 12-13-96: self.team doesn't work in QW.  Use keys
+	attackerteam = infokey(attacker, "team");
+	targteam = infokey(targ, "team");
+
+	if ((teamplay == 1) && (targteam == attackerteam) &&
+		(attacker.classname == "player") && (attackerteam != "") &&
+		inflictor.classname !="door")
+		return;
+
+	if ((teamplay == 3) && (targteam == attackerteam) &&
+		(attacker.classname == "player") && (attackerteam != "") &&
+		(targ != attacker)&& inflictor.classname !="door")
+		return;
+		
+
+// do the damage
+	//different sorts of armour simply subtract different ammounts
+      //this makes armor like the force armor good against many small rounds
+      //(SMG, shotguns, swords, etc) but useless against big damage (grenades)
+      //power armor, which has the best of both worlds, is also the heaviest :p
+
+	switch(ToIID(targ.islot3))
+	{
+		case IID_ARM_BROTHERHOOD:
+			take -= 1;
+			break;
+		case IID_ARM_FORCE:
+			take -= 2;
+			break;
+		case IID_ARM_LPOWER:
+			take -= 3;
+			break;
+		default:
+			break;
+	}
+
+
+	if (take <= 0)
+	{
+		take = 0;
+		sound (targ, CHAN_BODY, targ.armornoise, 1, ATTN_NORM);
+		return;
+	}
+
+
+	targ.health = targ.health - take;
+
+	if (targ.health <= 0)
+	{
+		Killed (targ, attacker);
+		return;
+	}
+
+// react to the damage
+	oldself = self;
+	self = targ;
+
+/*SERVER
+	if ( (self.flags & FL_MONSTER) && attacker != world)
+	{
+	// get mad unless of the same class (except for soldiers)
+		if (self != attacker && attacker != self.enemy)
+		{
+			if ( (self.classname != attacker.classname) 
+			|| (self.classname == "monster" ) )
+			{
+				if (self.enemy.classname == "player")
+					self.oldenemy = self.enemy;
+				self.enemy = attacker;
+				FoundTarget ();
+			}
+		}
+	}
+*/
+	if (self.th_pain)
+	{
+		self.th_pain (attacker, take);
+	}
+
+	self = oldself;
+};
+
+/*
+============
 T_RadiusDamage
 ============
 */

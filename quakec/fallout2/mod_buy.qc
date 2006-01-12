@@ -140,6 +140,8 @@ void(string type) ChangeAmmo =
 		self.ammotype2 = type;
 };
 
+void() SetWeaponModel;
+
 void (float wt, float cost, float wid) BuyWeapon =
 {
 	local string itname;
@@ -182,6 +184,8 @@ void (float wt, float cost, float wid) BuyWeapon =
 
 	ammotype = WeaponAmmoType(wid);//load weapon with full ammo (may be changed)
 	AddStackable(self, ammotype, ammocount*3);
+
+	SetWeaponModel();
 };
 
 
@@ -572,9 +576,9 @@ void() W_PlayerMenu =
 	if (self.currentmenu == "shop_shotguns")
 	{
 		if (self.impulse == 1)
-                  BuyWeapon(3, 3, IID_WP_PIPERIFLE);         //weight, cost, item
+                  BuyWeapon(3, 4, IID_WP_PIPERIFLE);         //weight, cost, item
 		if (self.impulse == 2)
-                  BuyWeapon(4, 7, IID_WP_WINCHESTER);         //weight, cost, item
+                  BuyWeapon(4, 8, IID_WP_WINCHESTER);         //weight, cost, item
 		if (self.impulse == 3)
                   BuyWeapon(5, 12, IID_WP_MOSSBERG);         //weight, cost, item
 		if (self.impulse == 4)
@@ -597,9 +601,11 @@ void() W_PlayerMenu =
 		if (self.impulse == 6)
                   BuyWeapon(4, 32, IID_WP_SA80);           //weight, cost, item
 		if (self.impulse == 7)
-                  BuyWeapon(7, 40, IID_WP_GAUSERIFLE);     //weight, cost, item
+                  BuyWeapon(12, 45, IID_WP_PULSERIFLE);    //weight, cost, item
 		if (self.impulse == 8)
-                  BuyWeapon(10, 45, IID_WP_PULSERIFLE);    //weight, cost, item
+                  BuyWeapon(7, 32, IID_WP_GAUSERIFLE);     //weight, cost, item
+		if (self.impulse == 9)
+                  BuyWeapon(9, 25, IID_WP_FNFAL);          //weight, cost, item
 
 			return;
 	}

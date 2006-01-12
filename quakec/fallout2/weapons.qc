@@ -1073,7 +1073,7 @@ void() W_Attack =
 	    weap == IID_WP_VIBROBLADE ||
 	    weap == IID_WP_POWERAXE)
 	{
-		self.attack_finished = time + 0.25;
+		self.attack_finished = time + 0.50;
 		player_knife1 ();
 	}
 	else if (weap == IID_WP_USP)
@@ -1101,13 +1101,15 @@ void() W_Attack =
 	else if (weap == IID_WP_AK112)
 		FireAssaultRifle(14, 2, "weapons/ak112.wav", 4000, 0.09);
 	else if (weap == IID_WP_AK74)
-		FireAssaultRifle(18, 2, "weapons/ak47.wav", 6000, 0.1);
+		FireAssaultRifle(18, 2, "weapons/ak47.wav", 4000, 0.1);
 	else if (weap == IID_WP_DKS1)
-		FireAssaultRifle(30, 2, "weapons/dks-1.wav", 8000, 0.5);
+		FireAssaultRifle(24, 2, "weapons/dks-1.wav", 8000, 0.5);
 	else if (weap == IID_WP_MOONLIGHT)
-		FireAssaultRifle(16, 2, "weapons/m4-nw.wav", 4000, 0.09);
+		FireAssaultRifle(14, 2, "weapons/m4-nw.wav", 4000, 0.09);
 	else if (weap == IID_WP_SA80)
 		FireAssaultRifle(17, 2, "weapons/sa80.wav", 4000, 0.08);
+	else if (weap == IID_WP_FNFAL)
+		FireAssaultRifle(12, 3, "weapons/fnfal.wav", 6000, 0.12);
 
 //float IID_WP_GAUSERIFLE = 421;
 //float IID_WP_PULSERIFLE = 422;
@@ -2062,6 +2064,7 @@ void (float dam, float rec, string snd, float rng, float rate) FirePistol =
 		if (trace_ent.solid == SOLID_BSP)
 			SpawnWood (trace_ent, org, 1);
 
+		dam = dam + random()*dam;
 		T_Damage (trace_ent, self, self, dam);
 
 		self.critical = 0;
@@ -2153,6 +2156,7 @@ void (float dam, float rec, string snd, float rng, float rate) FireSMG =
 		if (trace_ent.solid == SOLID_BSP)
 			SpawnWood (trace_ent, org, 1);
 
+		dam = dam + random()*dam;
 		T_Damage (trace_ent, self, self, dam);
 		self.critical = 0;
 
@@ -2170,8 +2174,10 @@ void (float dam, float rec, string snd, float rng, float rate) FireSMG =
 
 void (float dam, float rec, string snd, float rng, float rate) FireAssaultRifle =
 {
-      local float hs, tmp, zdif, is_headshot, z;
+      local float weap, hs, tmp, zdif, is_headshot, z;
       local vector dir, source, targ, org, adjust, headshot_check;
+
+	weap = ToIID(self.(SlotField(self.current_slot)));
 
 	sound (self, CHAN_WEAPON, snd, 1, ATTN_NORM);
 
@@ -2271,7 +2277,12 @@ void (float dam, float rec, string snd, float rng, float rate) FireAssaultRifle 
 		if (trace_ent.solid == SOLID_BSP)
 			SpawnWood (trace_ent, org, 1);
 
-		T_Damage (trace_ent, self, self, dam);
+		dam = dam + random()*dam;
+
+		if (weap != IID_WP_DKS1 && weap != IID_WP_FNFAL)
+			T_Damage (trace_ent, self, self, dam);
+		else if (weap == IID_WP_DKS1 || weap == IID_WP_FNFAL)
+			X_Damage (trace_ent, self, self, dam);
 		self.critical = 0;
 
 		if (trace_ent.solid == SOLID_BSP)
@@ -3722,6 +3733,7 @@ void (vector s_aim, float dam, float tmp, float ran) W_FireBuckshotSpread1 =
 
 			self.critical = 3;
 		}
+
 		T_Damage (trace_ent, self, self, dam);
 		self.critical = 0;
 	}

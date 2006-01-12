@@ -31,8 +31,10 @@ float IID_WP_AK74 = 417;
 float IID_WP_DKS1 = 418;
 float IID_WP_MOONLIGHT = 419;
 float IID_WP_SA80 = 420;
-float IID_WP_GAUSERIFLE = 421;
+float IID_WP_GAUSERIFLE = 421;      //2mm EC
 float IID_WP_PULSERIFLE = 422;
+float IID_WP_FNFAL = 423;		//.308 AP
+
 
 //and ammo for those guns
 float IID_AM_NEEDLER = 507;
@@ -468,6 +470,8 @@ string(float iid) GetItemVModel =
 		return "progs/v_srifle.mdl";
 	if (iid == IID_WP_MOONLIGHT)
 		return "progs/v_night.mdl";
+	if (iid == IID_WP_FNFAL)
+ 		return "progs/v_rangem.mdl";
 
 
 	if (iid == IID_WP_SA80)
@@ -534,6 +538,8 @@ string(float iid) GetItemWModel =
 		return "progs/w_night.mdl";
 	if (iid == IID_WP_SA80)
 		return "progs/w_sa80.mdl";
+	if (iid == IID_WP_FNFAL)
+		return "progs/w_rangem.mdl";
 
 	if (iid == IID_WP_GAUSERIFLE)
 		return "progs/w_gauss.mdl";
@@ -602,6 +608,8 @@ float(float iid) WeaponAmmoType =
 		return IID_AM_556MM;
 	if (iid == IID_WP_SA80)
 		return IID_AM_556MM;
+	if (iid == IID_WP_FNFAL)
+		return IID_AM_762MM;
 
 	if (iid == IID_WP_GAUSERIFLE)
 		return IID_AM_2MMEC;
@@ -649,6 +657,8 @@ float(float iid) WeaponMagQuant =
 		return 10;
 	if (iid == IID_WP_PULSERIFLE)
 		return 40;
+	if (iid == IID_WP_FNFAL)
+		return 20;
 
 	return 0;
 };
@@ -700,7 +710,9 @@ float(float iid) GetItemWeight =
 	if (iid == IID_WP_GAUSERIFLE)
 		return 9;
 	if (iid == IID_WP_PULSERIFLE)
-		return 10;
+		return 12;
+	if (iid == IID_WP_FNFAL)
+		return 9;
 
 
 	if (iid == IID_ARM_SHIRT)
@@ -798,6 +810,8 @@ string(float iid) GetItemName =
 		return "gauss rifle (2mm EC)";
 	if (iid == IID_WP_PULSERIFLE)
 		return "laser carbine (energy)";
+	if (iid == IID_WP_FNFAL)
+		return "fn-fal (7.62mm)";
 
 
 
@@ -806,17 +820,17 @@ string(float iid) GetItemName =
 	if (iid == IID_AM_2MMEC)
 		return "2mm EC ammo";
 	if (iid == IID_AM_10MM)
-		return "10mm ammo";
+		return "10mm FMJ";
 	if (iid == IID_AM_556MM)
-		return "5.56mm ammo";
+		return "5.56mm FMJ";
 	if (iid == IID_AM_5MMHIGHVEL)
-		return "5mm high-velocity ammo";
+		return "5mm JHP";
 	if (iid == IID_AM_12GAUGESHELLS)
 		return "12-guage shotgun shells";
 	if (iid == IID_AM_ENERGYCELL)
 		return "small energy cell";
 	if (iid == IID_AM_762MM)
-		return "7.62mm ammo";
+		return "7.62mm AP";
 	if (iid == IID_AM_44MAGNUM)
 		return ".44 magnum ammo";
 	if (iid == IID_AM_45ACP)
@@ -955,7 +969,8 @@ string(float iid) GetItemImage =
 		return "grifle.jpg";
 	if (iid == IID_WP_PULSERIFLE)
 		return "lcarbine.jpg";
-
+	if (iid == IID_WP_FNFAL)
+		return "fnfal.jpg";
 
 
 	if (iid == IID_AM_NEEDLER)
@@ -1081,6 +1096,8 @@ float(string itname) ItemIDOfName =
 		return IID_WP_MP7;
 	if (itname == "rangemaster")
 		return IID_WP_RANGEMASTER;
+	if (itname == "fnfal")
+		return IID_WP_FNFAL;
 	if (itname == "ak-112")
 		return IID_WP_AK112;
 	if (itname == "ak-74")

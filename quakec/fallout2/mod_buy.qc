@@ -526,6 +526,8 @@ void() W_PlayerMenu =
 			self.currentmenu = "shop_shotguns";
 		if (self.impulse == 5)
 			self.currentmenu = "shop_rifles";
+		if (self.impulse == 6)
+			self.currentmenu = "shop_heavy";
 
 		DisplayMenu();
 		return;
@@ -601,13 +603,18 @@ void() W_PlayerMenu =
 		if (self.impulse == 6)
                   BuyWeapon(4, 32, IID_WP_SA80);           //weight, cost, item
 		if (self.impulse == 7)
-                  BuyWeapon(12, 45, IID_WP_PULSERIFLE);    //weight, cost, item
-		if (self.impulse == 8)
-                  BuyWeapon(7, 32, IID_WP_GAUSERIFLE);     //weight, cost, item
-		if (self.impulse == 9)
                   BuyWeapon(9, 25, IID_WP_FNFAL);          //weight, cost, item
 
 			return;
+	}
+	if (self.currentmenu == "shop_heavy")
+	{
+		if (self.impulse == 1)
+                  BuyWeapon(10, 30, IID_WP_ROCKETLAUNCHER);//weight, cost, item
+		if (self.impulse == 2)
+                  BuyWeapon(7, 32, IID_WP_GAUSERIFLE);     //weight, cost, item
+		if (self.impulse == 3)
+                  BuyWeapon(12, 45, IID_WP_PULSERIFLE);    //weight, cost, item
 	}
 
 	if (self.currentmenu == "shop_equipment")

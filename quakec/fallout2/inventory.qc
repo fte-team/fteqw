@@ -2,7 +2,7 @@ float IID_NONE = 0;
 
 #define IsMelee(iid) (iid == IID_NONE || (iid >= IID_WP_TOOLKIT && iid <= IID_WP_POWERAXE))
 #define IsGrenade(iid) (iid >= IID_GREN_FRAG && iid <= IID_GREN_FLASH)
-#define IsRanged(iid) (iid >= IID_WP_USP && iid <= IID_WP_PULSERIFLE)
+#define IsRanged(iid) (iid >= IID_WP_USP && iid <= IID_WP_ROCKETLAUNCHER)
 
 //weapons with ammo, things with a toggle state
 #define NotStackable(iid) (IsRanged(iid))
@@ -34,6 +34,7 @@ float IID_WP_SA80 = 420;
 float IID_WP_GAUSERIFLE = 421;      //2mm EC
 float IID_WP_PULSERIFLE = 422;
 float IID_WP_FNFAL = 423;		//.308 AP
+float IID_WP_ROCKETLAUNCHER = 430;
 
 
 //and ammo for those guns
@@ -47,6 +48,7 @@ float IID_AM_2MMEC = 513; //12mmec ammo";
 float IID_AM_762MM = 514; //"7.62mm ammo";
 float IID_AM_44MAGNUM = 515; //".44 magnum ammo";
 float IID_AM_45ACP = 516; //".45 ACP ammo";
+float IID_AM_ROCKET = 517; //"explosive rocket"
 
 //grenade items
 float IID_GREN_FRAG = 101;
@@ -481,6 +483,9 @@ string(float iid) GetItemVModel =
 	if (iid == IID_WP_PULSERIFLE)
 		return "progs/v_carbine.mdl";
 
+	if (iid == IID_WP_ROCKETLAUNCHER)
+		return "progs/v_rocket.mdl";
+
 	if (iid == IID_GREN_FRAG)
 		return "progs/v_handgren.mdl";
 	if (iid == IID_GREN_EMP)
@@ -545,6 +550,8 @@ string(float iid) GetItemWModel =
 		return "progs/w_gauss.mdl";
 	if (iid == IID_WP_PULSERIFLE)
 		return "progs/w_carbine.mdl";
+	if (iid == IID_WP_ROCKETLAUNCHER)
+		return "progs/w_rocket.mdl";
 
 	if (iid == IID_GREN_FRAG)
 		return "progs/grenade2.mdl";
@@ -615,6 +622,8 @@ float(float iid) WeaponAmmoType =
 		return IID_AM_2MMEC;
 	if (iid == IID_WP_PULSERIFLE)
 		return IID_AM_ENERGYCELL;
+	if (iid == IID_WP_ROCKETLAUNCHER)
+		return IID_AM_ROCKET;
 
 	return IID_NONE;
 };
@@ -659,6 +668,8 @@ float(float iid) WeaponMagQuant =
 		return 40;
 	if (iid == IID_WP_FNFAL)
 		return 20;
+	if (iid == IID_WP_ROCKETLAUNCHER)
+		return 1;
 
 	return 0;
 };
@@ -713,6 +724,8 @@ float(float iid) GetItemWeight =
 		return 12;
 	if (iid == IID_WP_FNFAL)
 		return 9;
+	if (iid == IID_WP_ROCKETLAUNCHER)
+		return 10;
 
 
 	if (iid == IID_ARM_SHIRT)
@@ -812,6 +825,8 @@ string(float iid) GetItemName =
 		return "laser carbine (energy)";
 	if (iid == IID_WP_FNFAL)
 		return "fn-fal (7.62mm)";
+	if (iid == IID_WP_ROCKETLAUNCHER)
+		return "rocket launcher";
 
 
 
@@ -835,6 +850,8 @@ string(float iid) GetItemName =
 		return ".44 magnum ammo";
 	if (iid == IID_AM_45ACP)
 		return ".45 ACP ammo";
+	if (iid == IID_AM_ROCKET)
+		return "explosive rocket";
 
 
 	if (iid == IID_GREN_FRAG)
@@ -971,6 +988,8 @@ string(float iid) GetItemImage =
 		return "lcarbine.jpg";
 	if (iid == IID_WP_FNFAL)
 		return "fnfal.jpg";
+	if (iid == IID_WP_ROCKETLAUNCHER)
+		return "rpg.jpg";
 
 
 	if (iid == IID_AM_NEEDLER)
@@ -993,6 +1012,8 @@ string(float iid) GetItemImage =
 		return "44mag.jpg";
 	if (iid == IID_AM_45ACP)
 		return "45acp.jpg";
+	if (iid == IID_AM_ROCKET)
+		return "rocket.jpg";
 
 
 	if (iid == IID_GREN_FRAG)
@@ -1112,6 +1133,8 @@ float(string itname) ItemIDOfName =
 		return IID_WP_GAUSERIFLE;
 	if (itname == "laser carbine")
 		return IID_WP_PULSERIFLE;
+	if (itname == "rocket")
+		return IID_WP_ROCKETLAUNCHER;
 	if (itname == "frag grenade")
 		return IID_GREN_FRAG;
 	if (itname == "emp grenade")

@@ -2722,6 +2722,11 @@ void () DisplayMenu =
 		menu = RifleString ();
 		centerprint (self, menu);
 	}
+	if (self.currentmenu == "shop_heavy")
+	{
+		menu = HeavyString ();
+		centerprint (self, menu);
+	}
 	if (self.currentmenu == "shop_chems")
 	{
 		menu = ChemString ();

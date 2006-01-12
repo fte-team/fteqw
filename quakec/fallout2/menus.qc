@@ -41,7 +41,7 @@ string () ShopString =
 
 string () WeaponString =
 {
-	return ("weaponry\n\nê1ë melee          \nê2ë thrown         \nê3ë pistols&smgs   \nê4ë shotguns       \nê5ë rifles         \nêeë leave          \n");
+	return ("weaponry\n\nê1ë melee          \nê2ë thrown         \nê3ë pistols&smgs   \nê4ë shotguns       \nê5ë rifles         \nê6ë heavy guns     \nêeë leave          \n");
 };
 
 string () TraitString =
@@ -141,7 +141,12 @@ string () ShotgunString =
 */
 string () RifleString =
 {
-	return ("rifles\n   RIFLE | TYPE | WEIGHT | PRICE \n\nê1ë rangemaster 7mm  03      11$\nê2ë ak-112      5mm  04      21$\nê3ë remington  .308  05      24$\nê4ë ak-74       5mm  04      27$\nê5ë moonlight  .223  05      36$\nê6ë sa-80       5mm  05      32$\nê7ë plasma rifle     12      41$\nê8ë gauss rifle 2mm  07      32$\nê9ë fn-fal     .308  09      25$\n");
+	return ("rifles\n   RIFLE | TYPE | WEIGHT | PRICE \n\nê1ë rangemaster 7mm  03      11$\nê2ë ak-112      5mm  04      21$\nê3ë remington  .308  05      24$\nê4ë ak-74       5mm  04      27$\nê5ë moonlight  .223  05      36$\nê6ë sa-80       5mm  05      32$\nê7ë fn-fal     .308  09      25$\n");
+};
+
+string () HeavyString =
+{
+	return ("other weaponry\n  WEAPON | TYPE | WEIGHT | PRICE \n\nê1ë rocket launcher  10      30$\nê2ë gauss rifle      07      32$\nê3ë laser carbine    12      45$\n");
 };
 
 string () ChemString =

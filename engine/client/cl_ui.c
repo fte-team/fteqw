@@ -1263,13 +1263,19 @@ long UI_SystemCallsEx(void *offset, unsigned int mask, int fn, const long *arg)
 		if (!Draw_SafeCachePic)
 			VM_LONG(ret) = 0;
 		else
-			VM_LONG(ret) = (long)Draw_SafeCachePic(VM_POINTER(arg[0]));
+		{
+			/*VM_LONG(ret) = (long)*/Draw_SafeCachePic(VM_POINTER(arg[0]));
+			VM_LONG(ret) = (long)R_RegisterPic(VM_POINTER(arg[0]));
+		}
 		break;
 	case UI_PICFROMWAD:
 		if (!Draw_SafePicFromWad)
 			VM_LONG(ret) = 0;
 		else
-			VM_LONG(ret) = (long)Draw_SafePicFromWad(VM_POINTER(arg[0]));
+		{
+			/*VM_LONG(ret) = (long)*/Draw_SafePicFromWad(VM_POINTER(arg[0]));
+			VM_LONG(ret) = (long)R_RegisterPic(VM_POINTER(arg[0]));
+		}
 		break;
 	case UI_GETPLAYERINFO:
 		if (arg[1] + sizeof(vmuiclientinfo_t) >= mask || VM_POINTER(arg[1]) < offset)

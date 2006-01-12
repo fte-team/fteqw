@@ -1231,6 +1231,7 @@ void CL_ParseDownload (void)
 	}
 }
 
+static vfsfile_t *upload_file;
 static qbyte *upload_data;
 static int upload_pos;
 static int upload_size;
@@ -1242,13 +1243,25 @@ void CL_NextUpload(void)
 	int		percent;
 	int		size;
 
-	if (!upload_data)
-		return;
-
 	r = upload_size - upload_pos;
 	if (r > 768)
 		r = 768;
-	memcpy(buffer, upload_data + upload_pos, r);
+
+	if (upload_data)
+	{
+		memcpy(buffer, upload_data + upload_pos, r);
+	}
+	else if (upload_file)
+	{
+		r = VFS_READ(upload_file, buffer, r);
+		if (r == 0)
+		{
+			CL_StopUpload();
+			return;
+		}
+	}
+	else
+		return;
 	MSG_WriteByte (&cls.netchan.message, clc_upload);
 	MSG_WriteShort (&cls.netchan.message, r);
 
@@ -1267,9 +1280,7 @@ Con_DPrintf ("UPLOAD: %6d: %d written\n", upload_pos - r, r);
 
 	Con_TPrintf (TL_UPLOADCOMPLEATE);
 
-	BZ_Free(upload_data);
-	upload_data = 0;
-	upload_pos = upload_size = 0;
+	CL_StopUpload();
 }
 
 void CL_StartUpload (qbyte *data, int size)
@@ -1278,8 +1289,7 @@ void CL_StartUpload (qbyte *data, int size)
 		return; // gotta be connected
 
 	// override
-	if (upload_data)
-		BZ_Free(upload_data);
+	CL_StopUpload();
 
 Con_DPrintf("Upload starting of %d...\n", size);
 
@@ -1293,7 +1303,7 @@ Con_DPrintf("Upload starting of %d...\n", size);
 
 qboolean CL_IsUploading(void)
 {
-	if (upload_data)
+	if (upload_data || upload_file)
 		return true;
 	return false;
 }
@@ -1302,7 +1312,36 @@ void CL_StopUpload(void)
 {
 	if (upload_data)
 		BZ_Free(upload_data);
+	if (upload_file)
+		VFS_CLOSE(upload_file);
+	upload_file = NULL;
 	upload_data = NULL;
+	upload_pos = upload_size = 0;
+}
+
+qboolean CL_StartUploadFile(char *filename)
+{
+	if (!COM_CheckParm("-fileul"))
+	{
+		Con_Printf("You must currently use the -fileul commandline parameter in order to use this functionality\n");
+		return false;
+	}
+
+	if (cls.state < ca_onserver)
+		return false; // gotta be connected
+
+	CL_StopUpload();
+
+	upload_file = FS_OpenVFS(filename, "rb", FS_BASE);
+	upload_size = VFS_GETLEN(upload_file);
+	upload_pos = 0;
+
+	if (upload_file)
+	{
+		CL_NextUpload();
+		return true;
+	}
+	return false;
 }
 
 /*

@@ -929,6 +929,22 @@ void CL_ClearState (void)
 	if (cl.lerpents)
 		BZ_Free(cl.lerpents);
 
+	{
+		downloadlist_t *next;
+		while(cl.downloadlist)
+		{
+			next = cl.downloadlist->next;
+			Z_Free(cl.downloadlist);
+			cl.downloadlist = next;
+		}
+		while(cl.faileddownloads)
+		{
+			next = cl.faileddownloads->next;
+			Z_Free(cl.faileddownloads);
+			cl.faileddownloads = next;
+		}
+	}
+
 // wipe the entire cl structure
 	memset (&cl, 0, sizeof(cl));
 
@@ -1064,6 +1080,7 @@ void CL_Disconnect (void)
 	}
 	if (!cls.downloadmethod)
 		*cls.downloadname = '\0';
+
 	{
 		downloadlist_t *next;
 		while(cl.downloadlist)

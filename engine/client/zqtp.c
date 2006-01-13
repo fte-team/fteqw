@@ -3286,9 +3286,11 @@ void CL_Say (qboolean team, char *extra)
 
 void CL_Say_f (void)
 {
+#ifndef CLIENTONLY
 	if (isDedicated)
 		SV_ConSay_f();
 	else
+#endif
 		CL_Say (false, NULL);
 }
 

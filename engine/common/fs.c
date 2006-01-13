@@ -204,6 +204,7 @@ void VFSOS_Close(vfsfile_t *file)
 {
 	vfsosfile_t *intfile = (vfsosfile_t*)file;
 	fclose(intfile->handle);
+	Z_Free(file);
 }
 vfsfile_t *VFSOS_Open(char *osname, char *mode)
 {

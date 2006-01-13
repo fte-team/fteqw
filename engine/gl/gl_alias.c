@@ -1942,7 +1942,7 @@ void R_DrawGAliasModel (entity_t *e)
 				GL_DrawAliasMesh(&mesh, skin->fullbright);
 				qglBlendFunc (GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
 			}
-
+#ifdef Q3BSPS
 			if (fog)
 			{
 				meshbuffer_t mb;
@@ -1964,6 +1964,7 @@ void R_DrawGAliasModel (entity_t *e)
 		
 				R_ClearArrays();
 			}
+#endif
 		}
 	}
 
@@ -2824,7 +2825,9 @@ void GL_LoadSkinFile(galiastexnum_t *texnum, char *surfacename, int skinnumber, 
 
 	GL_ParseQ3SkinFile(shadername, surfacename, loadmodel->name, skinnumber, NULL);
 
+#ifdef Q3SHADERS
 	texnum->shader = R_RegisterSkin(shadername);
+#endif
 
 	texnum->base = Mod_LoadHiResTexture(shadername, "models", true, true, true);
 }

@@ -194,6 +194,9 @@ void CL_DemoJump_f(void)
 	char *s = Cmd_Argv(1);
 	char *colon = strchr(s, ':');
 
+	if (!cls.demoplayback)
+		return;
+
 	if (*s == '+')
 	{
 		if (colon)
@@ -753,16 +756,16 @@ void CL_Record_f (void)
 			|| c=='<' || c=='>' || c=='"' || c=='.')
 			*p = '_';
 	}
-	strncpy(name, va("%s/%s", com_gamedir, fname), sizeof(name)-1-8);
+	strncpy(name, fname, sizeof(name)-1-8);
 	name[sizeof(name)-1-8] = '\0';
 
 //make a unique name (unless the user specified it).
 	strcat (name, ".qwd");	//we have the space
 	if (c != 2)
 	{
-		FILE *f;
+		vfsfile_t *f;
 
-		f = fopen (name, "rb");
+		f = FS_OpenVFS (name, "rb", FS_GAME);
 		if (f)
 		{
 			COM_StripExtension(name, name);
@@ -772,10 +775,10 @@ void CL_Record_f (void)
 			i = 0;
 			do
 			{
-				fclose (f);
+				VFS_CLOSE (f);
 				p[0] = i%100 + '0';
 				p[1] = i%10 + '0';
-				f = fopen (name, "rb");
+				f = FS_OpenVFS (name, "rb", FS_GAME);
 				i++;
 			} while (f && i < 100);
 		}

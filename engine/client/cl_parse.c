@@ -585,6 +585,7 @@ int CL_LoadModels(int stage)
 #define atstage() ((cl.contentstage == stage++)?++cl.contentstage:false)
 #define endstage() if (giveuptime<Sys_DoubleTime()) return -1;
 
+#ifdef PEXT_CSQC
 	if (atstage())
 	{
 		if (cls.fteprotocolextensions & PEXT_CSQC)
@@ -610,7 +611,7 @@ int CL_LoadModels(int stage)
 		}
 		endstage();
 	}
-
+#endif
 
 	if (cl.playernum[0] == -1)
 	{	//q2 cinematic - don't load the models.
@@ -3197,8 +3198,10 @@ char *CL_ParseChat(char *text, player_info_t **player)
 
 		Validation_CheckIfResponse(text);
 
+#ifdef PLUGINS
 		if (!Plug_ChatMessage(text + offset, *player ? (int)(*player - cl.players) : -1, flags))
 			return NULL;
+#endif
 
 		if (flags == 2 && !TP_FilterMessage(text + offset))
 			return NULL;
@@ -3212,11 +3215,13 @@ char *CL_ParseChat(char *text, player_info_t **player)
 		else if (check_flood == NO_IGNORE_ADD)
 			Ignore_Flood_Add(s);
 	}
+#ifdef PLUGINS
 	else
 	{
 		if (!Plug_ServerMessage(text + offset, PRINT_CHAT))
 			return NULL;
 	}
+#endif
 
 	suppress_talksound = false;
 
@@ -3781,7 +3786,9 @@ void CL_ParseServerMessage (void)
 			}
 			else
 			{
+#ifdef PLUGINS
 				if (Plug_ServerMessage(s, i))
+#endif
 				{
 					CL_ParsePrint(s, i);
 					CL_PrintStandardMessage(s);
@@ -3792,7 +3799,9 @@ void CL_ParseServerMessage (void)
 		case svc_centerprint:
 			s = MSG_ReadString ();
 
+#ifdef PLUGINS
 			if (Plug_CenterPrintMessage(s, destsplit))
+#endif
 				SCR_CenterPrint (destsplit, s);
 			break;
 
@@ -4242,7 +4251,9 @@ void CLQ2_ParseServerMessage (void)
 			}
 			else
 			{
+#ifdef PLUGINS
 				if (Plug_ServerMessage(s, i))
+#endif
 				{
 					CL_ParsePrint(s, i);
 					CL_PrintStandardMessage(s);
@@ -4273,7 +4284,9 @@ void CLQ2_ParseServerMessage (void)
 		case svcq2_centerprint:	//15		// [string] to put in center of the screen
 			s = MSG_ReadString();
 
+#ifdef PLUGINS
 			if (Plug_CenterPrintMessage(s, 0))
+#endif
 				SCR_CenterPrint (0, s);
 			break;
 		case svcq2_download:		//16		// [short] size [size bytes]
@@ -4473,7 +4486,9 @@ void CLNQ_ParseServerMessage (void)
 			}
 			else
 			{
+#ifdef PLUGINS
 				if (Plug_ServerMessage(s, PRINT_HIGH))
+#endif
 				{
 					CL_ParsePrint(s, PRINT_HIGH);
 					CL_PrintStandardMessage(s);
@@ -4489,7 +4504,9 @@ void CLNQ_ParseServerMessage (void)
 		case svc_centerprint:
 			s = MSG_ReadString ();
 
+#ifdef PLUGINS
 			if (Plug_CenterPrintMessage(s, 0))
+#endif
 				SCR_CenterPrint (0, s);
 			break;
 

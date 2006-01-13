@@ -1411,11 +1411,13 @@ static void ProcessMouse(mouse_t *mouse, usercmd_t *cmd, int pnum)
 #endif
 	}
 
+#ifdef PEXT_CSQC
 	if (CSQC_MouseMove(mx, my))
 	{
 		mx = 0;
 		my = 0;
 	}
+#endif
 
 	if (m_filter.value)
 	{

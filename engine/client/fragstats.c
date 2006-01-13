@@ -267,6 +267,9 @@ static void Stats_StatMessage(fragfilemsgtypes_t type, int wid, char *token1, ch
 	}
 	ms->type = type;
 	ms->wid = wid;
+
+	ms->next = fragstats.message;
+	fragstats.message = ms;
 }
 
 static void Stats_Clear(void)

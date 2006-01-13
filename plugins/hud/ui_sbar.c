@@ -823,7 +823,29 @@ void Hud_ScoreCard(void)
 //fixme: draw dark blobs
 void Hud_Blackness(void)
 {
+	Draw_Colour4f(0, 0, 0, sbaralpha);
+	Draw_Fill(sbarminx, sbarminy, (float)16*sbarscalex, (float)16*sbarscaley);
+}
 
+
+void UI_DrawHandles(int *arg, int i)
+{
+	int mt;
+	float vsx, vsy;
+	vsx = arg[3]/640.0f;
+	vsy = arg[4]/480.0f;
+
+	sbarminx = arg[1] + element[i].x*vsx;
+	sbarminy = arg[2] + element[i].y*vsy;
+	sbarscalex  = element[i].scalex*vsx;
+	sbarscaley  = element[i].scaley*vsy;
+	mt = element[i].type;
+	sbartype = element[i].subtype;
+	sbaralpha = element[i].alpha;
+
+
+	Draw_Colour4f(0, 1, 0, 1);
+	Draw_Fill(sbarminx+drawelement[mt].width*sbarscalex-((sbarscalex<0)?0:(vsx*4)), sbarminy+drawelement[mt].height*sbarscaley-((sbarscaley<0)?0:(vsy*4)), (float)4*vsx, (float)4*vsy);
 }
 
 //draw cody of sbar
@@ -1053,13 +1075,36 @@ int FindItemUnderMouse(int mx, int my)
 
 	for (i = 0; i < numelements; i++)
 	{
-		if (element[i].x < mx &&
-			element[i].y < my &&
-			element[i].x + element[i].scalex*drawelement[element[i].type].width > mx &&
-			element[i].y + element[i].scaley*drawelement[element[i].type].height > my)
+		if (element[i].scalex < 0)
 		{
-			return i;
+			if (element[i].x < mx)
+				continue;
+			if (element[i].x + element[i].scalex*drawelement[element[i].type].width > mx)
+				continue;
 		}
+		else
+		{
+			if (element[i].x > mx)
+				continue;
+			if (element[i].x + element[i].scalex*drawelement[element[i].type].width < mx)
+				continue;
+		}
+		if (element[i].scaley < 0)
+		{
+			if (element[i].y < my)
+				continue;
+			if (element[i].y + element[i].scaley*drawelement[element[i].type].height > my)
+				continue;
+		}
+		else
+		{
+			if (element[i].y > my)
+				continue;
+			if (element[i].y + element[i].scaley*drawelement[element[i].type].height < my)
+				continue;
+		}
+
+		return i;
 	}
 
 	return -1; // no element found
@@ -1080,10 +1125,39 @@ void UI_KeyPress(int key, int mx, int my)
 		i = FindItemUnderMouse(mx, my);
 		if (i != -1)
 		{
+			float big;
+			currentitem = i;
+
 			mouseofsx = mx - element[i].x;
 			mouseofsy = my - element[i].y;
-			mousedown = true;
-			currentitem = i;
+			mousedown = 1;
+
+			if (element[i].scalex < 0)
+			{
+				if (mx > element[i].x+4)
+					return;
+			}
+			else
+			{
+				big = element[i].scalex*drawelement[element[i].type].width;
+				if (mx-element[i].x+4 < big)
+					return;
+			}
+			if (element[i].scaley < 0)
+			{
+				if (my > element[i].y+4)
+					return;
+			}
+			else
+			{
+				big = element[i].scaley*drawelement[element[i].type].height;
+				if (my-element[i].y+4 < big)
+					return;
+			}
+
+			mouseofsx = mx - element[i].scalex*drawelement[element[i].type].width;
+			mouseofsy = my - element[i].scaley*drawelement[element[i].type].height;
+			mousedown = 2;
 		}
 
 		return;
@@ -1200,12 +1274,31 @@ int Plug_MenuEvent(int *args)
 
 		if (mousedown)
 		{
-			element[currentitem].x = args[2] - mouseofsx;
-			element[currentitem].y = args[3] - mouseofsy;
-			if (shiftdown)
+			if (mousedown == 2)
 			{
-				element[currentitem].x -= (int)element[currentitem].x & 7;
-				element[currentitem].y -= (int)element[currentitem].y & 7;
+				float w = args[2] - mouseofsx;
+				float h = args[3] - mouseofsy;
+				if (shiftdown)
+				{
+					w -= (int)w & 7;
+					h -= (int)h & 7;
+				}
+				if (w < 8 && w > -8)
+					w = 8;
+				if (h < 8 && h > -8)
+					h = 8;
+				element[currentitem].scalex = w/drawelement[element[currentitem].type].width;
+				element[currentitem].scaley = h/drawelement[element[currentitem].type].height;
+			}
+			else
+			{
+				element[currentitem].x = args[2] - mouseofsx;
+				element[currentitem].y = args[3] - mouseofsy;
+				if (shiftdown)
+				{
+					element[currentitem].x -= (int)element[currentitem].x & 7;
+					element[currentitem].y -= (int)element[currentitem].y & 7;
+				}
 			}
 		}
 		else
@@ -1220,6 +1313,8 @@ int Plug_MenuEvent(int *args)
 			UI_StatusBarEdit(altargs);
 		else
 			UI_StatusBar(altargs);	//draw it using the same function (we're lazy)
+
+		UI_DrawHandles(altargs, currentitem);
 		break;
 	case 1:	//keydown
 		UI_KeyPress(args[1], args[2], args[3]);

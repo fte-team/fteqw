@@ -62,6 +62,11 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 
 #define PEXT_DPFLAGS			0x80000000	//extra flags for viewmodel/externalmodel and possible other persistant style flags.
 
+#ifdef CSQC_DAT
+#define PEXT_BIGUSERINFOS	PEXT_CSQC
+#else
+#define PEXT_BIGUSERINFOS	0xffffffff
+#endif		
 
 //ZQuake transparent protocol extensions.
 #define Z_EXT_PM_TYPE		(1<<0)	// basic PM_TYPE functionality (reliable jump_held)

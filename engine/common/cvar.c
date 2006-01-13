@@ -119,8 +119,9 @@ cvar_group_t *Cvar_GetGroup(const char *gname)
 	if (g)
 		return g;
 
-	g = (cvar_group_t*)Z_Malloc(sizeof(cvar_group_t));
-	g->name = (char*)gname;
+	g = (cvar_group_t*)Z_Malloc(sizeof(cvar_group_t) + strlen(gname)+1);
+	g->name = (char*)(g+1);
+	strcpy(g->name, gname);
 	g->next = NULL;
 	g->next = cvar_groups;
 	cvar_groups = g;

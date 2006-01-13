@@ -101,6 +101,21 @@ void D_DrawSolidSurface (surf_t *surf, int color)
 				p32dest[u] = pix;
 		}
 	}
+	else if (r_pixbytes == 2)
+	{
+		unsigned short	*p16dest;
+		pix = vid.colormap16[color];
+		for (span=surf->spans ; span ; span=span->pnext)
+		{
+			p16dest = (unsigned short *)d_viewbuffer + screenwidth*span->v;
+			u = span->u;
+			u2 = span->u + span->count - 1;
+			p16dest[u] = pix;
+
+			for ( ; u <= u2 ; u++)
+				p16dest[u] = pix;
+		}
+	}
 	else
 	{
 		pix = (color<<24) | (color<<16) | (color<<8) | color;

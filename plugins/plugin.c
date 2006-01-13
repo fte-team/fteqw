@@ -135,7 +135,7 @@ BUILTIN(void, Draw_Image, (float x, float y, float w, float h, float s1, float t
 BUILTIN(void, Draw_Line, (float x1, float y1, float x2, float y2));
 #undef ARGNAMES
 #define ARGNAMES ,PASSFLOAT(x),PASSFLOAT(y),PASSFLOAT(w),PASSFLOAT(h)
-BUILTIN(void, Draw_Fill,	(int x, int y, int w, int h));
+BUILTIN(void, Draw_Fill,	(float x, float y, float w, float h));
 #undef ARGNAMES
 #define ARGNAMES ,x,y,characture
 BUILTIN(void, Draw_Character, (int x, int y, unsigned int characture));

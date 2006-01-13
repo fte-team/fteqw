@@ -276,7 +276,7 @@ float (entity to, float iid, float quant) TryGiveStackable =
 	local float slot;
 	local float item;
 	slot = SlotOfItem(to, iid);
-	if (slot != 0)
+	if (slot > 2)
 	{
 		item = ItemInSlot(to, slot);
 		if (ToStatus(item) + quant > 100)	//100 is our maxstack value here

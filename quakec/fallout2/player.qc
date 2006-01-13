@@ -145,7 +145,7 @@ void () player_climb = [ 23, player_run ]
 
 void () player_run = [ 137, player_run ]
 {
-	if (self.rtime < time && self.attack == 0)
+	if (self.rtime < time)
 		self.weaponframe = 0;
 
 	if (self.equipment_slot)

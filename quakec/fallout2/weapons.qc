@@ -968,6 +968,10 @@ void (float slotno) ReloadWeapon =
 	ac = ToStatus(asv);
 
 	x = WeaponMagQuant(wid);	//get the max ammo capacity
+
+	if (ToStatus(self.wslot) == x) //weapon full already
+		return;
+
 	x = x - ToStatus(self.wslot);	//take away the ammo currently in the weapon
 	if (x > ac)	//make sure there's enough ammo
 		x = ac;
@@ -982,8 +986,16 @@ void (float slotno) ReloadWeapon =
 
 	self.wslot = SlotVal(wid, x + ToStatus(self.wslot));
 
-	if (wid == IID_WP_PIPERIFLE || wid == IID_WP_WINCHESTER || wid == IID_WP_MOSSBERG)
+	if (wid == IID_WP_ROCKETLAUNCHER || wid == IID_WP_PIPERIFLE || wid == IID_WP_WINCHESTER || wid == IID_WP_MOSSBERG)
+	{
 		sound (self, CHAN_WEAPON, "weapons/shell.wav", TRUE, ATTN_NORM);
+		self.attack_finished = time + 1;
+		self.rtime = time + 1;
+		if (self.current_slot == slotno)
+			self.currentammo = ToStatus(ItemInSlot(self, slotno));
+
+		return;
+	}
 	else
 		sound (self, CHAN_WEAPON, "weapons/reload.wav", TRUE, ATTN_NORM);
 
@@ -1093,9 +1105,9 @@ void() W_Attack =
 	else if (weap == IID_WP_JACKHAMMER)
 		W_FireShotgun (1, 5, 6, 160, 3000, 1);
 	else if (weap == IID_WP_MP9)
-		FireSMG(12, 2, "weapons/mp7.wav", 2000, 0.06);
+		FireSMG(12, 2, "weapons/burst.wav", 2000, 0.09);
 	else if (weap == IID_WP_MP7)
-		FireSMG(12, 2, "weapons/mp7.wav", 2000, 0.06);
+		FireSMG(12, 2, "weapons/mp7.wav", 2000, 0.09);
 	else if (weap == IID_WP_RANGEMASTER)
 		FireAssaultRifle(14, 2, "weapons/rangem.wav", 4000, 0.5);
 	else if (weap == IID_WP_AK112)
@@ -1993,7 +2005,7 @@ void(float slot, float magazine) GiveAmmo =
 void (float dam, float rec, string snd, float rng, float rate) FirePistol =
 {
       local float weap, tmp, zdif, xdif, ydif, is_headshot;
-      local vector dir, source, targ, org, org2, adjust;
+      local vector dir, source, targ, org, org2, org3, adjust;
 
 	weap = ToIID(self.(SlotField(self.current_slot)));
 
@@ -2002,9 +2014,9 @@ void (float dam, float rec, string snd, float rng, float rate) FirePistol =
 	self.attack_finished = (time + rate);
 
 
-	if (self.attack == 0 && self.position == POS_STAND)
+	if (self.position == POS_STAND)
 		player_single1 ();
-	if (self.attack == 0 && self.position >= POS_DUCK)
+	if (self.position >= POS_DUCK)
 		player_single1_s ();
 
 	if (self.position == 0)
@@ -2045,6 +2057,8 @@ void (float dam, float rec, string snd, float rng, float rate) FirePistol =
 	if (trace_fraction == 1)
 		return;
 
+	org3 = self.origin + v_forward*32 + '0 0 22';
+
 	org = trace_endpos - v_forward * 1;
 	org2 = trace_endpos + (v_forward * ((trace_ent.size_y / 2) + (trace_ent.size_x / 2)));
 	if (trace_ent.takedamage)
@@ -2078,26 +2092,32 @@ void (float dam, float rec, string snd, float rng, float rate) FirePistol =
 			T_Damage (trace_ent, self, self, dam);
 
 		self.critical = 0;
-
-		if (trace_ent.solid == SOLID_BSP)
-			penetrate (org, (dam / 2), (dam / 2));
 	}
 	else
 	{
 		bullet_hole (org);
 		dir = vectoangles (source - targ);
-		penetrate (org, (dam / 2), (dam / 2));
 		return;
 	}
 };
 
 void (float dam, float rec, string snd, float rng, float rate) FireSMG =
 {
-      local float tmp, zdif, xdif, ydif, is_headshot;
+      local float weap, tmp, zdif, xdif, ydif, is_headshot;
       local vector dir, source, targ, org, org2, adjust;
 
+	weap = ToIID(self.(SlotField(self.current_slot)));
 
-	sound (self, CHAN_WEAPON, snd, 1, ATTN_NORM);
+	if (weap != IID_WP_MP9)
+		sound (self, CHAN_WEAPON, snd, 1, ATTN_NORM);
+	if (weap == IID_WP_MP9 && self.attack == 0)
+		sound (self, CHAN_WEAPON, snd, 1, ATTN_NORM);
+	if (weap == IID_WP_MP9 && self.attack == 6)
+	{
+		sound (self, CHAN_WEAPON, snd, 1, ATTN_NORM);
+		self.attack = 1;
+	}
+
 	self.attack_finished = (time + rate);
 
 
@@ -3749,6 +3769,7 @@ void (vector s_aim, float dam, float tmp, float ran) W_FireBuckshotSpread1 =
 			self.critical = 3;
 		}
 
+		dam = dam + random()*dam;
 		T_Damage (trace_ent, self, self, dam);
 		self.critical = 0;
 	}

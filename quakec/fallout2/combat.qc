@@ -182,7 +182,6 @@ void(entity targ, entity inflictor, entity attacker, float damage) T_Damage =
 		return;
 	}
 
-	if (random()*4<=1)
 		sound (targ, CHAN_BODY, targ.armornoise, 1, ATTN_NORM);
 
 // save damage based on the target's armor level

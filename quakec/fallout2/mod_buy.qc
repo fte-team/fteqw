@@ -42,7 +42,7 @@ void(float cost, float iid) BuyStackable =
 	//put grenade in inventory
 	//finds existing grenades, otherwise, empty slot
 
-	AddStackable(self, iid, 1);
+	TryGiveStackable(self, iid, 1);
 };
 
 void() BuyBandages =
@@ -118,7 +118,7 @@ void(float cost, float type) BuyChem =
 	chemname = GetItemName(type);
 	sprint(self, PRINT_HIGH, chemname);
 	sprint(self, PRINT_HIGH, " purchased.\n");
-	AddStackable(self, type, 1);
+	TryGiveStackable(self, type, 1);
 };
 
 void(string type) ChangeAmmo =
@@ -183,7 +183,7 @@ void (float wt, float cost, float wid) BuyWeapon =
 
 
 	ammotype = WeaponAmmoType(wid);//load weapon with full ammo (may be changed)
-	AddStackable(self, ammotype, ammocount*3);
+	TryGiveStackable(self, ammotype, ammocount*3);
 
 	SetWeaponModel();
 };

@@ -2366,7 +2366,7 @@ void SV_SetInfo_f (void)
 
 			if (ISQWCLIENT(client))
 			{
-				if (basic || (client->fteprotocolextensions & PEXT_CSQC))
+				if (basic || (client->fteprotocolextensions & PEXT_BIGUSERINFOS))
 				{
 					MSG_WriteByte (&sv.reliable_datagram, svc_setinfo);
 					MSG_WriteByte (&sv.reliable_datagram, i);

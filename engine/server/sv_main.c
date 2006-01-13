@@ -745,7 +745,7 @@ void SV_FullClientUpdate (client_t *client, sizebuf_t *buf, unsigned int ftepext
 	MSG_WriteByte (buf, i);
 	MSG_WriteFloat (buf, realtime - client->connection_started);
 
-	if (ftepext & PEXT_CSQC)
+	if (ftepext & PEXT_BIGUSERINFOS)
 		strcpy (info, client->userinfo);
 	else
 		strcpy (info, client->userinfobasic);

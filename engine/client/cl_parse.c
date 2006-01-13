@@ -1008,6 +1008,9 @@ void CL_ParseChunkedDownload(void)
 
 	MSG_ReadData(data, DLBLOCKSIZE);
 
+	if (!cls.downloadqw)
+		return;
+
 	if (cls.demoplayback)
 	{	//err, yeah, when playing demos we don't actually pay any attention to this.
 		return;

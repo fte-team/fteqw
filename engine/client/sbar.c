@@ -2004,9 +2004,9 @@ void Sbar_DeathmatchOverlay (int start)
 	if (cl.teamplay)
 	{
 		if (scr_chatmode)
-			x = vid.width/2 + (vid.width/2 - 320)/2 + 4;
+			x = vid.width/2 + ((int)vid.width/2 - 320)/2 + 4;
 		else
-			x = (vid.width - 320)/2 + 4;
+			x = ((int)vid.width - 320)/2 + 4;
 //                            0    40 64   104   152  192
 		Draw_String ( x , y, "ping pl time frags team name");
 		y += 8;
@@ -2017,9 +2017,9 @@ void Sbar_DeathmatchOverlay (int start)
 	else
 	{
 		if (scr_chatmode)
-			x = vid.width/2 + (vid.width/2 - 320)/2 + 16;
+			x = vid.width/2 + ((int)vid.width/2 - 320)/2 + 16;
 		else
-			x = (vid.width - 320)/2 + 16;
+			x = ((int)vid.width - 320)/2 + 16;
 //                            0    40 64   104   152
 		Draw_String ( x , y, "ping pl time frags name");
 		y += 8;

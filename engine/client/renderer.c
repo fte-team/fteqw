@@ -57,6 +57,10 @@ cvar_t	gl_skyboxdist = {"gl_skyboxdist", "2300"};
 
 cvar_t	r_vertexdlights = {"r_vertexdlights", "1"};
 
+cvar_t cl_cursor = {"cl_cursor", ""};
+cvar_t cl_cursorsize = {"cl_cursorsize", "32"};
+cvar_t cl_cursorbias = {"cl_cursorbias", "4"};
+
 extern	cvar_t	r_dodgytgafiles;
 extern	cvar_t	r_dodgypcxfiles;
 
@@ -173,8 +177,8 @@ cvar_t			gl_shadeq1 = {"gl_shadeq1", "0", NULL, CVAR_CHEAT};	//FIXME: :(
 cvar_t			gl_shadeq1_name = {"gl_shadeq1_name", "*"};
 #endif
 
-cvar_t			gl_blend2d = {"gl_blend2d", "0"};
-cvar_t			gl_blendsprites = {"gl_blendsprites", "0"};
+cvar_t			gl_blend2d = {"gl_blend2d", "1"};
+cvar_t			gl_blendsprites = {"gl_blendsprites", "1"};
 
 cvar_t r_bloodstains = {"r_bloodstains", "1"};
 
@@ -479,6 +483,10 @@ void Renderer_Init(void)
 
 	Cvar_Register (&scr_sshot_type, SCREENOPTIONS);
 
+	Cvar_Register(&cl_cursor,	SCREENOPTIONS);
+	Cvar_Register(&cl_cursorsize,	SCREENOPTIONS);
+	Cvar_Register(&cl_cursorbias,	SCREENOPTIONS);
+
 
 //screen
 	Cvar_Register (&scr_conspeed, SCREENOPTIONS);
@@ -536,6 +544,7 @@ void Renderer_Init(void)
 	Cvar_Register(&bul_text3,	BULLETENVARS);
 	Cvar_Register(&bul_text2,	BULLETENVARS);
 	Cvar_Register(&bul_text1,	BULLETENVARS);
+
 
 // misc
 	Cvar_Register(&con_ocranaleds, "Console controls");

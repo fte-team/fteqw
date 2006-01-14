@@ -54,6 +54,8 @@ void PostCompile(void)
 }
 pbool PreCompile(void)
 {
+	QCC_PR_ResetErrorScope();
+
 	qccClearHunk();
 	strcpy(qcc_gamedir, "");
 	qcchunk = malloc(qcchunksize=128*1024*1024);

@@ -2336,7 +2336,26 @@ void QCC_PR_ParsePrintDef (int type, QCC_def_t *def)
 	if (def->s_file)
 		printf ("%s:%i:    %s  is defined here\n", strings + def->s_file, def->s_line, def->name);
 }
-
+void *errorscope;
+void QCC_PR_PrintScope (void)
+{
+	if (pr_scope)
+	{
+		if (errorscope != pr_scope)
+			printf ("in function %s (line %i)\n", pr_scope->name, pr_scope->s_line);
+		errorscope = pr_scope;
+	}
+	else
+	{
+		if (errorscope)
+			printf ("at global scope\n");
+		errorscope = NULL;
+	}
+}
+void QCC_PR_ResetErrorScope(void)
+{
+	errorscope = NULL;
+}
 /*
 ============
 PR_ParseError
@@ -2359,6 +2378,8 @@ void VARGS QCC_PR_ParseError (int errortype, char *error, ...)
 #ifndef QCC
 	editbadfile(strings+s_file, pr_source_line);
 #endif
+
+	QCC_PR_PrintScope();
 	printf ("%s:%i: error: %s\n", strings + s_file, pr_source_line, string);
 	
 	longjmp (pr_parse_abort, 1);
@@ -2375,6 +2396,7 @@ void VARGS QCC_PR_ParseErrorPrintDef (int errortype, QCC_def_t *def, char *error
 #ifndef QCC
 	editbadfile(strings+s_file, pr_source_line);
 #endif
+	QCC_PR_PrintScope();
 	printf ("%s:%i: error: %s\n", strings + s_file, pr_source_line, string);
 
 	QCC_PR_ParsePrintDef(WARN_ERROR, def);
@@ -2393,6 +2415,7 @@ void VARGS QCC_PR_ParseWarning (int type, char *error, ...)
 	QC_vsnprintf (string,sizeof(string)-1, error,argptr);
 	va_end (argptr);
 
+	QCC_PR_PrintScope();
 	if (type >= ERR_PARSEERRORS)
 	{
 		printf ("%s:%i: error: %s\n", strings + s_file, pr_source_line, string);
@@ -2417,6 +2440,7 @@ void VARGS QCC_PR_Warning (int type, char *file, int line, char *error, ...)
 	QC_vsnprintf (string,sizeof(string)-1, error,argptr);
 	va_end (argptr);
 
+	QCC_PR_PrintScope();
 	if (file)
 		printf ("%s:%i: warning: %s\n", file, line, string);
 	else

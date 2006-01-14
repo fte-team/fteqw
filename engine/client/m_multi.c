@@ -164,8 +164,9 @@ void MSetup_TransDraw (int x, int y, menucustom_t *option, menu_t *menu)
 		}
 	}
 
-	p = Draw_CachePic ("gfx/bigbox.lmp");
-	Draw_TransPic (x-12, y-8, p);
+	p = Draw_SafeCachePic ("gfx/bigbox.lmp");
+	if (p)
+		Draw_TransPic (x-12, y-8, p);
 
 	M_BuildTranslationTable(info->topcolour*16, info->lowercolour*16);
 	Draw_TransPicTranslate (x, y, info->tiwidth, info->tiheight, info->translationimage, translationTable);	

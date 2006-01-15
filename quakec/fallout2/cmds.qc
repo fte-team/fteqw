@@ -278,25 +278,25 @@ void(string line) SV_ParseClientCommand =
 	cmd = argv(0);
 	if (cmd == "invuse")
 	{
-		if (self.deadflag)
+		if (self.deadflag || self.current_slot==0)
 			return;
 		Cmd_InvUse(argv(1));
 	}
 	else if (cmd == "invdrop")
 	{
-		if (self.deadflag)
+		if (self.deadflag || self.current_slot==0)
 			return;
 		Cmd_InvDrop(argv(1));
 	}
 	else if (cmd == "invswap")
 	{
-		if (self.deadflag)
+		if (self.deadflag || self.current_slot==0)
 			return;
 		Cmd_InvSwap(argv(1), argv(2));
 	}
 	else if (cmd == "invgive")
 	{
-		if (self.deadflag)
+		if (self.deadflag || self.current_slot==0)
 			return;
 		Cmd_InvGive(argv(1), stof(argv(2)), stof(argv(3)));
 	}

@@ -537,13 +537,10 @@ void() PutClientInServer =
 	self.invincible_time = 0;
 	self.active = 1;
 	self.solid = SOLID_NOT;
-	self.materialize = 200;
+	self.materialize = 20;
 
 	DecodeLevelParms ();
 
-bprint(PRINT_HIGH, "current slot=");
-bprint(PRINT_HIGH, ftos(self.current_slot));
-bprint(PRINT_HIGH, "\n");
 	if (self.current_slot == 0)
 	{
 		self.current_slot = 1;
@@ -1251,6 +1248,7 @@ void () PositionControl =
 	}
 };
 
+.float clientcolors;
 .float gravity;
 .vector movement;
 /*
@@ -1280,6 +1278,34 @@ void() PlayerPreThink =
 		PlayerDeathThink ();
 		return;
 	}
+
+
+	if (self.team == 0)
+		self.clientcolors = 0;
+	else if (self.team == 1)
+		self.clientcolors = 13 + 13*16;
+	else
+		self.clientcolors = 4 + 4*16;
+	if (self.team == 0 && self.currentmenu == "none")
+	{
+		if (coop)
+			self.team = 1;
+		else
+		{
+			self.currentmenu = "select_team";
+			DisplayMenu ();
+		}
+	}
+	else if (self.class == 0 && self.currentmenu == "none")
+	{
+		self.currentmenu = "select_skill";
+		DisplayMenu ();
+	}
+
+
+
+
+
 
 	if (self.cycle1 < time)
 	{
@@ -1328,22 +1354,6 @@ void() PlayerPreThink =
 				//bprint(2, "stuck in object, returning non-solid\n");
 			}
 		}
-	}
-
-	if (self.team == 0 && self.currentmenu == "none")
-	{
-		if (coop)
-			self.team = 1;
-		else
-		{
-			self.currentmenu = "select_team";
-			DisplayMenu ();
-		}
-	}
-	else if (self.class == 0 && self.currentmenu == "none")
-	{
-		self.currentmenu = "select_skill";
-		DisplayMenu ();
 	}
 
 	if (self.class == 1)

@@ -2629,6 +2629,7 @@ float(float iid) UseHealingChem =
 	local vector source;
 	local float heal;
 	local string x;
+	local float friendly;
 
 
 	if (self.attack_finished > time)
@@ -2658,11 +2659,15 @@ float(float iid) UseHealingChem =
 	traceline (source, source + v_forward*64, 32, self);
 	if (trace_ent.classname == "player" && trace_ent.team == self.team)
 	{
-		if (trace_ent.health <= 0 && coop == 1)
+		if (coop)
+			friendly = true;	//all players are friendly in coop
+		if (teamplay)
+			friendly = trace_ent.team == self.team;
+		if (trace_ent.health <= 0 && friendly)
 		{
 			return RevivePlayer(self, trace_ent);
 		}
-		if (trace_ent.health <= 0 && coop == 0)
+		if (!friendly)
 			return false;
 
 		if (trace_ent.regen >= 1)

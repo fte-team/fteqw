@@ -37,8 +37,13 @@ void() info_intermission =
 
 
 
+void() DecodeLevelParms;
+
 void() SetChangeParms =
 {
+	if (!self.current_slot)	//changing without spawning?
+		DecodeLevelParms();	//make sure we have our inventory!
+
 /*
 	if (self.health <= 0)
 	{
@@ -91,29 +96,33 @@ void() SetChangeParms =
 
 void() SetNewParms =
 {	//remember, don't use self!
-	parm1 = IID_WP_USP;
-	parm2 = IID_WP_KNIFE;
-	parm3 = IID_ARM_SHIRT;
-	parm4 = 0;
- 	parm5 = 0;
- 	parm6 = 0;
- 	parm7 = 0;
-	parm8 = 8;
+//	parm1 = IID_WP_USP;
+//	parm2 = IID_WP_KNIFE;
+//	parm3 = IID_ARM_SHIRT;
+//	parm4 = 0;
+//	parm5 = 0;
+//	parm6 = 0;
+// 	parm7 = 0;
+	parm8 = 8;	//starting cash
  	parm9 = 0;
 	parm10 = 0;
-	parm11 = 0;
-	parm12 = 0;
+//	parm11 = 0;
+//	parm12 = 0;
 	//parm13 = 0;
 	parm14 = 0;
-	parm15 = 0;
+//	parm15 = 0;
 
 
-	parm16 = 1;
-	parm17 = SlotVal(IID_WP_USP, 12);
+//16 is the current_slot
+//17 to 32 are inventory slots.
+//the assignments were moved into PutClientInServer
+//on account of changing maps before spawning was resulting in no inventory.
+	parm16 = 0;
+	parm17 = 0;
 	parm18 = 0;
-	parm19 = SlotVal(IID_ARM_SHIRT, 1);
-	parm20 = SlotVal(IID_CHEM_STIMPACK, 3);
-	parm21 = SlotVal(IID_AM_10MM, 24);
+	parm19 = 0;
+	parm20 = 0;
+	parm21 = 0;
 	parm22 = 0;
 	parm23 = 0;
 	parm24 = 0;
@@ -401,8 +410,8 @@ entity() SelectSpawnPoint =
 	if (coop == 1)
 		ent1 = "info_player_coop";
 	else
-		ent1 = "spawn3";
-  
+			ent1 = "spawn3";
+
 	if (ent1 == "spawn3")
 	{
 		if (self.team == 1)
@@ -532,23 +541,49 @@ void() PutClientInServer =
 
 	DecodeLevelParms ();
 
-	if (self.class == 1)
+bprint(PRINT_HIGH, "current slot=");
+bprint(PRINT_HIGH, ftos(self.current_slot));
+bprint(PRINT_HIGH, "\n");
+	if (self.current_slot == 0)
 	{
-		x = SlotOfItem(self, IID_CHEM_MEDICALBAG);
-		if (x == 0)
-			AddNonStackable(self, IID_CHEM_MEDICALBAG, 1);
-	}
-	if (self.class == 2)
-	{
-		x = SlotOfItem(self, IID_EQUIP_STEALTHBOY);
-		if (x == 0)
-			AddNonStackable(self, IID_EQUIP_STEALTHBOY, 1);
-	}
-	if (self.class == 4)
-	{
-		x = SlotOfItem(self, IID_WP_TOOLKIT);
-		if (x == 0)
-			AddNonStackable(self, IID_WP_TOOLKIT, 1);
+		self.current_slot = 1;
+		self.islot1 = SlotVal(IID_WP_USP, 12);
+		self.islot2 = 0;
+		self.islot3 = SlotVal(IID_ARM_SHIRT, 1);
+		self.islot4 = SlotVal(IID_CHEM_STIMPACK, 3);
+		self.islot5 = SlotVal(IID_AM_10MM, 24);
+		self.islot6 = 0;
+		self.islot7 = 0;
+		self.islot8 = 0;
+		self.islot9 = 0;
+		self.islot10 = 0;
+		self.islot11 = 0;
+		self.islot12 = 0;
+		self.islot13 = 0;
+		self.islot14 = 0;
+		self.islot15 = 0;
+		self.islot16 = 0;
+
+//now give them special items for thier class.
+//you're fairly screwed if you change class.
+		if (self.class == 1)
+		{
+			x = SlotOfItem(self, IID_CHEM_MEDICALBAG);
+			if (x == 0)
+				AddNonStackable(self, IID_CHEM_MEDICALBAG, 1);
+		}
+		if (self.class == 2)
+		{
+			x = SlotOfItem(self, IID_EQUIP_STEALTHBOY);
+			if (x == 0)
+				AddNonStackable(self, IID_EQUIP_STEALTHBOY, 1);
+		}
+		if (self.class == 4)
+		{
+			x = SlotOfItem(self, IID_WP_TOOLKIT);
+			if (x == 0)
+				AddNonStackable(self, IID_WP_TOOLKIT, 1);
+		}
 	}
 
 	self.attack_finished = time;
@@ -826,7 +861,7 @@ void () LocateSpectatorTarget =
 	local entity ke;
 	local entity de;
 
-	if (self.button1)
+	if (self.button0)
 	{
 		bprint(PRINT_MEDIUM, self.classname);
 		bprint(PRINT_MEDIUM, " is dying...\n");
@@ -1081,19 +1116,6 @@ void() CheckWaterJump =
 	}
 };
 
-void () SpeedControl =
-{
-
-	self.maxspeed = 200;
-
-	if (self.position == 1)
-		self.maxspeed = self.maxspeed * 0.50;
-	if (self.position == 2)
-		self.maxspeed = self.maxspeed * 0.25;
-	if (self.currentmenu != "none")
-		self.maxspeed = 0;
-};
-
 void() ArmorCheck =
 {
 	local float type;
@@ -1171,13 +1193,13 @@ void () WeightControl =
 	self.weight = wt;
 
 	if (self.class == 1)
-		self.max_weight = 20;
+		self.max_weight = 50;
 	if (self.class == 2)
-		self.max_weight = 20;
+		self.max_weight = 50;
 	if (self.class == 3)
-		self.max_weight = 30;
+		self.max_weight = 60;
 	if (self.class == 4)
-		self.max_weight = 15;
+		self.max_weight = 40;
 };
 
 
@@ -1199,18 +1221,33 @@ void () PositionControl =
 	if (self.position == 2)
 		setsize (self, '-16 -16 -24', '16 16 0');
 
+
+	if (self.currentmenu != "none")
+	{
+		self.maxspeed = 0;
+		return;
+	}
+
 	if (self.position == 0)
-		self.maxspeed = 300;
+		self.maxspeed = 200;
 	else if (self.position == 1)
-		self.maxspeed = 150;
+		self.maxspeed = 100;
 	else //if (self.position == 2)
-		self.maxspeed = 75;
+		self.maxspeed = 50;
 
 	if (self.weight > self.max_weight) //this is the penalty for being overweight.
 	{
 		exp = (self.weight/self.max_weight);
 		exp = (exp+2)*(exp+2)+(exp*exp*exp*8);	//is this enough?
 		self.maxspeed = self.maxspeed / exp;
+	}
+
+	if (self.equipment_slot)
+	{
+		if ((ToIID(ItemInSlot(self, self.equipment_slot))) == IID_EQUIP_SPRINTKIT)
+			self.maxspeed = self.maxspeed*2;
+		if ((ToIID(ItemInSlot(self, self.equipment_slot))) == IID_EQUIP_STEALTHBOY)
+			self.maxspeed = self.maxspeed/2;
 	}
 };
 
@@ -1254,7 +1291,6 @@ void() PlayerPreThink =
 
 		Identify();
 		PositionControl();
-		SpeedControl();
 		WeightControl();
 		ArmorCheck();
 		Crosshair();
@@ -1405,9 +1441,16 @@ void() PlayerPreThink =
 			{
 				self.gravity = 1;
 			}
+			self.attack_finished = time + 0.1;
 		}
-		else
-			dprint("Bad equipment item\n");
+		if ((ToIID(ItemInSlot(self, self.equipment_slot))) == IID_EQUIP_HOVERBOOTS && self.button2)
+		{
+			if (self.attack_finished < time)
+			{
+				self.velocity = self.velocity + v_up*800*0.4;
+				self.attack_finished = time + 0.4;
+			}
+		}
 	}
 };
 	
@@ -1424,6 +1467,10 @@ void() CheckPowerups =
 		return;
 
 // invisibility
+	if (self.equipment_slot)
+		if ((ToIID(ItemInSlot(self, self.equipment_slot))) == IID_EQUIP_STEALTHBOY)
+			goto beinvis;
+
 	if (self.invisible_finished)
 	{
 // sound and screen flash when items starts to run out
@@ -1453,16 +1500,19 @@ void() CheckPowerups =
 
 		if (self.invisible_finished < time)
 		{       // just stopped
-			self.items = self.items - IT_INVISIBILITY;
 			self.invisible_finished = 0;
 			self.invisible_time = 0;
 		}
 		
+:beinvis
+		self.items = self.items | IT_INVISIBILITY;
 	// use the eyes
 		self.frame = 0;
 		self.modelindex = modelindex_eyes;
 	}
 	else
+	{
+		self.items = self.items - (self.items & IT_INVISIBILITY);
 		if (self.position <= 1)
 			self.modelindex = modelindex_player;
 		if (self.position == 2)
@@ -1475,6 +1525,7 @@ void() CheckPowerups =
 			self.modelindex = modelindex_dead;
 		if (self.ghost == 1 || self.class == 0 || self.team == 0)
 			self.modelindex = modelindex_gone;
+	}
 
 
 // invincibility

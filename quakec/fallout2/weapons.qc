@@ -31,6 +31,7 @@ void() autofire_s;
 float(float iid) UseBoostingChem;
 float(float iid) UseHealingChem;
 float(float slotno) DecreaseDestroySlot;
+void () DropAmmo;
 
 #define weightx() (self.weight)
 
@@ -403,8 +404,8 @@ W_FireRocket
 */
 void() W_FireRocket =
 {
-	if (deathmatch != 4)
-		self.currentammo = self.ammo_rockets = self.ammo_rockets - 1;
+	DropAmmo ();
+	self.attack_finished = time + 0.7;
 	
 	sound (self, CHAN_WEAPON, "weapons/sgun1.wav", 1, ATTN_NORM);
 
@@ -2407,13 +2408,6 @@ void () WeaponTouch =
 	if (other.ghost != 0)
 		return;
 
-	if (other.current_slot == WEAPON_SPIKES)
-	{
-		return;
-	}
-	if (other.current_slot == AS_MELEE)
-		return;
-
 	if (ItemInSlot(other, other.current_slot) == 0 && FitsInSlot(other.current_slot, ToIID(self.islot1)))
 		slotnum = other.current_slot;
 	if (!slotnum)
@@ -2424,6 +2418,10 @@ void () WeaponTouch =
 	sound (other, CHAN_BODY, "misc/item1.wav", 1, ATTN_NORM);
 
 	SetItemSlot(other, slotnum, self.islot1);
+
+	sprint(other, PRINT_MEDIUM, "You pick up the ");
+	sprint(other, PRINT_MEDIUM, GetItemName(ToIID(self.islot1)));
+	sprint(other, PRINT_MEDIUM, "\n");
 	remove (self);
 
 	self = other;
@@ -2458,6 +2456,7 @@ void (float slotnum, float snd, float force) DropFromSlot =
 	newmis.classname = "dropped_weapon";
 	newmis.movetype = MOVETYPE_TOSS;
 	newmis.solid = SOLID_TRIGGER;
+	newmis.flags = FL_ITEM;	//item makes it bigger to player touches.
 	newmis.velocity = aim (self, 500);
 	newmis.velocity = (newmis.velocity * 500);
 	newmis.angles_y = (random () * 360);
@@ -2484,6 +2483,10 @@ void (float slotnum, float snd, float force) DropFromSlot =
 
 	if (self.current_slot == slotnum)
 		SetWeaponModel ();
+
+	if (self.equipment_slot == slotnum)
+		self.equipment_slot = 0;
+		
 };
 
 void (float slot) WeaponAmmo =
@@ -3239,7 +3242,7 @@ void (entity guy) spawn_dot =
 	hologram.nextthink = (time + 0.01);
 };
 
-void() FinishTesla;
+void() FinishTurret;
 float (float iid) spawn_station =
 {
 	local entity oself;
@@ -3386,9 +3389,9 @@ float (float iid) spawn_station =
 		self.netname = "robofang";
 		setmodel (self, "progs/dog.mdl");
 	}
-	if (self.buildtype == IID_BUILD_TESLA)
+	if (self.buildtype == IID_BUILD_TTURRET || self.buildtype == IID_BUILD_RTURRET || self.buildtype == IID_BUILD_GTURRET)
 	{
-		FinishTesla();
+		FinishTurret();
 	}
 
 	self = oself;

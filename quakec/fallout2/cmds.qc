@@ -108,7 +108,9 @@ void(string arg1) Cmd_InvUse =
 	    iid == IID_BUILD_SHIELDGEN ||
 	    iid == IID_BUILD_AUTODOC ||
 	    iid == IID_BUILD_ROBOFANG ||
-	    iid == IID_BUILD_TESLA)
+	    iid == IID_BUILD_TTURRET || 
+	    iid == IID_BUILD_RTURRET ||
+	    iid == IID_BUILD_GTURRET)
 	{
 		if (spawn_station(iid))
 			DecreaseDestroySlot(slotno);
@@ -126,6 +128,48 @@ void(string arg1) Cmd_InvUse =
 		{
 			self.equipment_slot = slotno;
 			sprint(self, PRINT_HIGH, "Climbing gear activated\n");
+		}
+		return;
+	}
+	if (iid == IID_EQUIP_SPRINTKIT)
+	{
+		if (self.equipment_slot == slotno)
+		{
+			self.equipment_slot = 0;
+			sprint(self, PRINT_HIGH, "What a downer\n");
+		}
+		else
+		{
+			self.equipment_slot = slotno;
+			sprint(self, PRINT_HIGH, "SUGAR RUSH!!!\n");
+		}
+		return;
+	}
+	if (iid == IID_EQUIP_STEALTHBOY)
+	{
+		if (self.equipment_slot == slotno)
+		{
+			self.equipment_slot = 0;
+			sprint(self, PRINT_HIGH, "stealthboy deactivated\n");
+		}
+		else
+		{
+			self.equipment_slot = slotno;
+			sprint(self, PRINT_HIGH, "stealthboy activated, fading into the shadows\n");
+		}
+		return;
+	}
+	if (iid == IID_EQUIP_HOVERBOOTS)
+	{
+		if (self.equipment_slot == slotno)
+		{
+			self.equipment_slot = 0;
+			sprint(self, PRINT_HIGH, "Hoverboots deactivated\n");
+		}
+		else
+		{
+			self.equipment_slot = slotno;
+			sprint(self, PRINT_HIGH, "Hoverboots activated\n");
 		}
 		return;
 	}
@@ -193,6 +237,12 @@ void(string arg1, string arg2) Cmd_InvSwap =
 	if (slotno1 == self.current_slot || slotno2 == self.current_slot)
 		W_SetCurrentAmmo();
 
+//swap the equipment_slot over too.
+	if (self.equipment_slot == slotno1)
+		self.equipment_slot = slotno2;
+	else if (self.equipment_slot == slotno2)
+		self.equipment_slot = slotno1;
+
 	self.rtime = time + 2;	//we don't check this here though - cost to get into inventory.
 };
 
@@ -203,6 +253,12 @@ void(string arg1, float iid, float num) Cmd_InvGive =
 	if (!slotno)
 	{
 		sprint(self, PRINT_MEDIUM, "Can't give to that slot\n");
+		return;
+	}
+
+	if (!FitsInSlot(slotno, iid))
+	{
+		sprint(self, PRINT_MEDIUM, "Can't give that item in that slot\n");
 		return;
 	}
 

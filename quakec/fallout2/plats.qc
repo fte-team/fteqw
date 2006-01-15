@@ -1,7 +1,7 @@
 
 
 void() plat_center_touch;
-void() plat_outside_touch;
+//void() plat_outside_touch;
 void() plat_trigger_use;
 void() plat_go_up;
 void() plat_go_down;
@@ -18,6 +18,7 @@ void() plat_spawn_inside_trigger =
 //	
 	trigger = spawn();
 	trigger.touch = plat_center_touch;
+	trigger.team = self.team;
 	trigger.movetype = MOVETYPE_NONE;
 	trigger.solid = SOLID_TRIGGER;
 	trigger.enemy = self;
@@ -72,6 +73,9 @@ void() plat_go_up =
 
 void() plat_center_touch =
 {
+	if (!triggercantouch(self, other))
+		return;
+
 	if (other.classname != "player")
 		return;
 		
@@ -84,9 +88,12 @@ void() plat_center_touch =
 	else if (self.state == STATE_TOP)
 		self.nextthink = self.ltime + 1;	// delay going down
 };
-
+/*
 void() plat_outside_touch =
 {
+	if (!triggercantouch(self, other))
+		return;
+
 	if (other.classname != "player")
 		return;
 
@@ -98,7 +105,7 @@ void() plat_outside_touch =
 	if (self.state == STATE_TOP)
 		plat_go_down ();
 };
-
+*/
 void() plat_trigger_use =
 {
 	if (self.think)

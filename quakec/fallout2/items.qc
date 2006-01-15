@@ -279,11 +279,12 @@ float (entity to, float iid, float quant) TryGiveStackable =
 	if (slot > 2)
 	{
 		item = ItemInSlot(to, slot);
-		if (ToStatus(item) + quant > 100)	//100 is our maxstack value here
+		if (ToStatus(item) + quant > 500)	//500 is our maxstack value here
 		{
-			quant = quant + ToStatus(item) - 100;
-			SetItemSlot(to, slot, SlotVal(iid, 100));
+			quant = quant + ToStatus(item) - 500;
+			SetItemSlot(to, slot, SlotVal(iid, 500));
 			slot = 0;
+			return false;
 		}
 		else
 			quant = quant + ToStatus(item);
@@ -292,7 +293,7 @@ float (entity to, float iid, float quant) TryGiveStackable =
 		return true;
 	if (slot == 0)
 	{
-		slot = SlotOfItem(to, 0);
+		slot = FindSuitableEmptySlot(to, iid);
 		if (slot == 0)
 			return false;
 	}
@@ -304,6 +305,9 @@ float (entity to, float iid, float quant) TryGiveStackable =
 
 void () health_touch =
 {
+	if (!triggercantouch(self, other))
+		return;
+
 	if (other.classname != "player" || other.ghost != 0)
 		return;
 
@@ -373,6 +377,9 @@ void() armor_touch;
 void() armor_touch =
 {
 	local   float   type, value, bit;
+
+	if (!triggercantouch(self, other))
+		return;
 	
 	if (other.health <= 0)
 		return;
@@ -563,6 +570,9 @@ void() weapon_touch =
 
 	// For client weapon_switch
 	local   float   w_switch;
+
+	if (!triggercantouch(self, other))
+		return;
 
 	if (!(other.flags & FL_CLIENT))
 		return;
@@ -860,6 +870,9 @@ void() ammo_touch =
 	local entity stemp;
 	local string ammoname, ammocountftos;
 	local float best, ammotype, ammocount;
+
+	if (!triggercantouch(self, other))
+		return;
 
 	if (other.classname != "player")
 		return;
@@ -1170,6 +1183,9 @@ KEYS
 
 void() key_touch =
 {
+	if (!triggercantouch(self, other))
+		return;
+
 	if (other.classname != "player")
 		return;
 	if (other.health <= 0)
@@ -1300,6 +1316,9 @@ END OF LEVEL RUNES
 
 void() sigil_touch =
 {
+	if (!triggercantouch(self, other))
+		return;
+
 	if (other.classname != "player")
 		return;
 	if (other.health <= 0)
@@ -1370,6 +1389,9 @@ void() powerup_touch;
 
 void() powerup_touch =
 {
+	if (!triggercantouch(self, other))
+		return;
+
 	if (other.classname != "player")
 		return;
 	if (other.health <= 0)

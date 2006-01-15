@@ -350,7 +350,7 @@ void() worldspawn =
 {
 	lastspawn = world;
 	InitBodyQue ();
-	coop = 1;
+	coop = !cvar("deathmatch");
 	create_referees();
 	SetupStats();
 
@@ -664,7 +664,7 @@ void() StartFrame =
 	timelimit = cvar("timelimit") * 60;
 	fraglimit = cvar("fraglimit");
 	teamplay = cvar("teamplay");
-	deathmatch = cvar("deathmatch");
+	deathmatch = !coop;
 	
 	framecount = framecount + 1;
 };

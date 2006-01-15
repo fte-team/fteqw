@@ -80,11 +80,15 @@ float IID_BUILD_MRAMMO = 350;
 float IID_BUILD_SHIELDGEN = 351;
 float IID_BUILD_AUTODOC = 352;
 float IID_BUILD_ROBOFANG = 353;
-float IID_BUILD_TESLA = 354;
-//float IID_BUILD_TELEPAD = 355;
+float IID_BUILD_TTURRET = 354;
+float IID_BUILD_TELEPAD = 355;
+float IID_BUILD_RTURRET = 356;
+float IID_BUILD_GTURRET = 357;
 
 float IID_EQUIP_CLIMBINGGEAR = 375;
 float IID_EQUIP_STEALTHBOY = 376;
+float IID_EQUIP_SPRINTKIT = 377;
+float IID_EQUIP_HOVERBOOTS = 378;
 
 #define IsShootable(iid) (IsMelee(iid) || IsRanged(iid) || IsGrenade(iid))
 
@@ -753,6 +757,12 @@ float(float iid) GetItemWeight =
 		return 3;
 	if (iid == IID_BUILD_ROBOFANG)
 		return 2;
+	if (iid == IID_BUILD_TTURRET)
+		return 3;
+	if (iid == IID_BUILD_GTURRET)
+		return 3;
+	if (iid == IID_BUILD_RTURRET)
+		return 3;
 
 
 //	bprint(PRINT_MEDIUM, ftos(iid), " without a weight!\n");
@@ -904,11 +914,21 @@ string(float iid) GetItemName =
 		return "auto-doc";
 	if (iid == IID_BUILD_ROBOFANG)
 		return "robofang";
+	if (iid == IID_BUILD_TTURRET)
+		return "tesla turret";
+	if (iid == IID_BUILD_RTURRET)
+		return "rocket turret";
+	if (iid == IID_BUILD_GTURRET)
+		return "machine-gun turret";
 
 	if (iid == IID_EQUIP_CLIMBINGGEAR)
 		return "climbing gear";
 	if (iid == IID_EQUIP_STEALTHBOY)
 		return "stealthboy";
+	if (iid == IID_EQUIP_SPRINTKIT)
+		return "lucozade sport!";
+	if (iid == IID_EQUIP_HOVERBOOTS)
+		return "hover boots";
 
 	bprint(PRINT_MEDIUM, ftos(iid), " without a name!\n");
 	return strcat("unknown", ftos(iid));
@@ -1066,11 +1086,19 @@ string(float iid) GetItemImage =
 		return "autodoc.jpg";
 	if (iid == IID_BUILD_ROBOFANG)
 		return "robofang.jpg";
+	if (iid == IID_BUILD_TTURRET)
+		return "tesla.jpg";
+	if (iid == IID_BUILD_RTURRET)
+		return "rturret.jpg";
+	if (iid == IID_BUILD_GTURRET)
+		return "gturret.jpg";
 
 	if (iid == IID_EQUIP_CLIMBINGGEAR)
 		return "robofang.jpg";
 	if (iid == IID_EQUIP_STEALTHBOY)
 		return "stealthboy.jpg";
+	if (iid == IID_EQUIP_SPRINTKIT)
+		return "sprintkit.jpg";
 
 	bprint(PRINT_MEDIUM, ftos(iid), " without a name!\n");
 	return strcat("unknown.jpg", ftos(iid));
@@ -1197,6 +1225,12 @@ float(string itname) ItemIDOfName =
 		return IID_EQUIP_CLIMBINGGEAR;
 	if (itname == "stealthboy")
 		return IID_EQUIP_STEALTHBOY;
+
+	if (itname == "sprintkit")
+		return IID_EQUIP_SPRINTKIT;
+
+	if (itname == "tesla")
+		return IID_BUILD_TTURRET;
 
 	return 0;
 };

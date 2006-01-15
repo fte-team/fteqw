@@ -53,6 +53,9 @@ void() button_use =
 
 void() button_touch =
 {
+	if (!triggercantouch(self, other))
+		return;
+
 	if (other.classname != "player")
 		return;
 	self.enemy = other;

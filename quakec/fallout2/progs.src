@@ -5,7 +5,7 @@ inventory.qc
 subs.qc
 fight.qc
 
-//tf.qc
+tf.qc
 
 ai.qc
 combat.qc

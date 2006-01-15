@@ -213,7 +213,8 @@ void            end_sys_fields;                 // flag for structure dumping
 //================================================
 
 
-
+#define team team_no
+.float team_no;
 
 
 float           parm17, parm18, parm18, parm19, parm20, parm21, parm22, parm23, parm24, parm25, parm26, parm27, parm28, parm29, parm30, parm31, parm32;

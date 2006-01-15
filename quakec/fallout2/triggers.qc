@@ -68,6 +68,9 @@ void() multi_trigger =
 
 void() multi_killed =
 {
+	if (!triggercantouch(self, other))
+		return;
+
 	self.enemy = damage_attacker;
 	multi_trigger();
 };
@@ -80,6 +83,9 @@ void() multi_use =
 
 void() multi_touch =
 {
+	if (!triggercantouch(self, other))
+		return;
+
 	if (other.classname != "player")
 		return;
 	
@@ -376,6 +382,9 @@ void() teleport_touch =
 local entity	t;
 local vector	org;
 
+	if (!triggercantouch(self, other))
+		return;
+
 	if (self.targetname)
 	{
 		if (self.nextthink < time)
@@ -490,6 +499,9 @@ trigger_setskill
 
 void() trigger_skill_touch =
 {
+	if (!triggercantouch(self, other))
+		return;
+
 	if (other.classname != "player")
 		return;
 		
@@ -517,6 +529,8 @@ ONLY REGISTERED TRIGGERS
 
 void() trigger_onlyregistered_touch =
 {
+	if (!triggercantouch(self, other))
+		return;
 	if (other.classname != "player")
 		return;
 	if (self.attack_finished > time)
@@ -559,6 +573,9 @@ void() hurt_on =
 
 void() hurt_touch =
 {
+	if (self.team && self.team != other.team)
+		return;
+
 	if (other.takedamage)
 	{
 		self.solid = SOLID_NOT;
@@ -593,15 +610,17 @@ void() trigger_push_touch =
 		other.velocity = self.speed * self.movedir * 10;
 	else if (other.health > 0)
 	{
-		other.velocity = self.speed * self.movedir * 10;
 		if (other.classname == "player")
 		{
+			if (!triggercantouch(self, other))
+				return;
 			if (other.fly_sound < time)
 			{
 				other.fly_sound = time + 1.5;
 				sound (other, CHAN_AUTO, "ambience/windfly.wav", 1, ATTN_NORM);
 			}
 		}
+		other.velocity = self.speed * self.movedir * 10;
 	}
 	if (self.spawnflags & PUSH_ONCE)
 		remove(self);

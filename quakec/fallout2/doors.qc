@@ -127,6 +127,9 @@ void () door_use =
 
 void () door_trigger_touch =
 {
+	if (!triggercantouch(self, other))
+		return;
+
 	if ((other.health <= MULTICAST_ALL))
 	{
 		return;
@@ -205,6 +208,9 @@ void (entity portal, entity toucher) SpawnOpenDoor =
 
 void () door_touch =
 {
+	if (!triggercantouch(self, other))
+		return;
+
 	if (other.classname != "player")
 		return;
 
@@ -264,6 +270,7 @@ entity (vector fmins, vector fmaxs) spawn_field =
 	local vector t2;
 
 	trigger = spawn ();
+	trigger.team = self.team;
 	trigger.movetype = MOVETYPE_NONE;
 	trigger.solid = SOLID_TRIGGER;
 	trigger.owner = self;
@@ -655,6 +662,8 @@ void () secret_blocked =
 
 void () secret_touch =
 {
+	if (!triggercantouch(self, other))
+		return;
 	if ((other.classname != "player"))
 	{
 		return;

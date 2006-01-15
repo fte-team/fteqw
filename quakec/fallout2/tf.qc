@@ -11,7 +11,7 @@ float(entity trigger, entity blame) triggercantouch =
 {
 	if (blame.classname != "player")
 	{
-		dprint("Not a player\n");
+//		dprint("Not a player\n");
 		return false;
 	}
 	if (trigger.team_no)

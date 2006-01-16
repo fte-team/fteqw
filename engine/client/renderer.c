@@ -23,6 +23,8 @@ unsigned int	d_8to24bgrtable[256];
 unsigned int	d_8to24rgbtable[256];
 unsigned int	*d_8to32table = d_8to24bgrtable;	//palette lookups while rendering r_pixbytes=4
 
+extern int gl_anisotropy_factor;
+
 
 //
 
@@ -1001,6 +1003,7 @@ typedef struct {
 	menucombo_t *conscalecombo;
 	menucombo_t *bppcombo;
 	menucombo_t *texturefiltercombo;
+	menucombo_t *anisotropycombo;
 	menuedit_t *customwidth;
 	menuedit_t *customheight;
 } videomenuinfo_t;
@@ -1085,12 +1088,46 @@ qboolean M_VideoApply (union menuoption_s *op,struct menu_s *menu,int key)
 	{
 	case 0:
 		Cbuf_AddText("gl_texturemode gl_linear_mipmap_nearest\n", RESTRICT_LOCAL);
+		Cbuf_AddText("gl_texture_anisotropic_filtering 1\n", RESTRICT_LOCAL);
 		break;
 	case 1:
 		Cbuf_AddText("gl_texturemode gl_linear_mipmap_linear\n", RESTRICT_LOCAL);
+		Cbuf_AddText("gl_texture_anisotropic_filtering \n", RESTRICT_LOCAL);
 		break;
 	case 2:
 		Cbuf_AddText("gl_texturemode gl_linear_mipmap_linear\n",RESTRICT_LOCAL);
+		Cbuf_AddText("gl_texture_anisotropic_filtering 2\n", RESTRICT_LOCAL);
+		break;
+	}
+
+	switch(info->anisotropycombo->selectedoption)
+	{
+	case 0:
+		Cbuf_AddText("gl_texture_anisotropic_filtering 1\n", RESTRICT_LOCAL);
+		break;
+	case 1:
+		Cbuf_AddText("gl_texture_anisotropic_filtering 2\n", RESTRICT_LOCAL);
+		break;
+	case 2:
+		Cbuf_AddText("gl_texture_anisotropic_filtering 4\n", RESTRICT_LOCAL);
+		break;
+	case 3:
+		Cbuf_AddText("gl_texture_anisotropic_filtering 6\n", RESTRICT_LOCAL);
+		break;
+	case 4:
+		Cbuf_AddText("gl_texture_anisotropic_filtering 8\n", RESTRICT_LOCAL);
+		break;
+	case 5:
+		Cbuf_AddText("gl_texture_anisotropic_filtering 10\n", RESTRICT_LOCAL);
+		break;
+	case 6:
+		Cbuf_AddText("gl_texture_anisotropic_filtering 12\n", RESTRICT_LOCAL);
+		break;
+	case 7:
+		Cbuf_AddText("gl_texture_anisotropic_filtering 14\n", RESTRICT_LOCAL);
+		break;
+	case 8:
+		Cbuf_AddText("gl_texture_anisotropic_filtering 16\n", RESTRICT_LOCAL);
 		break;
 	}
 
@@ -1154,12 +1191,27 @@ void M_Menu_Video_f (void)
 		"Anisotropy",
 		NULL
 	};
+	static const char *possibleanisotropylevels[] =
+	{
+		"0",
+		"2",
+		"4",
+		"6",
+		"8",
+		"10",
+		"12",
+		"14",
+		"16",
+		NULL
+	};
+
 	videomenuinfo_t *info;
 	menu_t *menu;
 	int prefabmode;
 	int prefab2dmode;
 	int currentbpp;
 	int currenttexturefilter;
+	int currentanisotropy;
 
 	int i, y;
 	char bilinear[] = "gl_linear_mipmap_nearest";
@@ -1208,14 +1260,20 @@ void M_Menu_Video_f (void)
 	else
 		currentbpp = 0;
 
-	if (strcmp(gl_texturemode.string,trilinear))
+
+	if (gl_anisotropy_factor >= 2)
+		currenttexturefilter = 2;
+	else if (strcmp(gl_texturemode.string,trilinear))
 		currenttexturefilter = 0;
 	else if (strcmp(gl_texturemode.string,bilinear))
 		currenttexturefilter = 1;
-	//else if (gl_texture_anisotropic_filtering.value > 1)
-		//currenttexturefilter = 2;
 	else
-		currenttexturefilter = 0;
+		currenttexturefilter = 1;
+
+	if (gl_anisotropy_factor == 1)
+		currentanisotropy = 0;
+	else
+		currentanisotropy = gl_anisotropy_factor/2;
 
 
 	MC_AddCenterPicture(menu, 4, "vidmodes");
@@ -1244,7 +1302,10 @@ void M_Menu_Video_f (void)
 	MC_AddSlider(menu,	16, y,								"     Screen size", &scr_viewsize,	30,		120);y+=8;
 	MC_AddSlider(menu,	16, y,								"           Gamma", &v_gamma, 0.3, 1);	y+=8;
 	MC_AddSlider(menu,	16, y,								"        Contrast", &v_contrast, 1, 3);	y+=8;
+#ifdef RGLQUAKE
 	info->texturefiltercombo = MC_AddCombo(menu, 16, y,		" Texture Filter ", texturefilternames, currenttexturefilter); y+=8;
+	info->anisotropycombo = MC_AddCombo(menu, 16, y,		"Anisotropy Level", possibleanisotropylevels, currentanisotropy); y+=8;
+#endif
 
 	menu->cursoritem = (menuoption_t*)MC_AddWhiteText(menu, 152, 32, NULL, false);
 	menu->selecteditem = (union menuoption_s *)info->renderer;
@@ -1831,6 +1892,16 @@ TRACE(("dbg: R_RestartRenderer_f\n"));
 			if (R_ApplyRenderer(&newr))
 			{
 				TRACE(("dbg: R_RestartRenderer_f going to dedicated\n"));
+
+				if (vid_refreshrate.value != 0)
+				{
+					Con_Printf("================================\n");
+					Con_Printf("^1Attempting 60Hz\n");
+					vid_refreshrate.value = 60;
+					Cmd_ExecuteString("vid_restart", RESTRICT_LOCAL);
+					Con_Printf("================================\n");
+				}
+
 				Con_Printf("\n================================\n");
 				Con_Printf("^1Video mode switch failed. Old mode wasn't supported either. Console forced.\nChange vid_width, vid_height, vid_bpp, vid_displayfrequency to a compatable mode, and then use the setrenderer command.\n");
 				Con_Printf("================================\n\n");

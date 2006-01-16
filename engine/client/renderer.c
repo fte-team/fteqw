@@ -972,11 +972,16 @@ vidmode_t vid_modes[] =
 	{ "640x480",   640, 480},
 	{ "800x600",   800, 600},
 	{ "960x720",   960, 720},
-	{ "1024x768",  1024, 768},
+	{ "1024x768 (XGA: 14-15inch LCD Native)",  1024, 768},
 	{ "1152x864",  1152, 864},
 	{ "1280x960",  1280, 960},
-	{ "1600x1200", 1600, 1200},	//sw height is bound to 200 to 1024
-	{ "2048x1536", 2048, 1536}	//too much width will disable water warping (>1280) (but at that resolution, it's almost unnoticable)
+	{ "1280x1024 (SXGA: 17-19inch LCD Native)", 1280, 1024},
+	{ "1440x900 (WXGA: 19inch Widescreen LCD Native Resolution)", 1440, 900},
+	{ "1600x1200 (UXGA: 20+inch LCD Native Resolution)", 1600, 1200},	//sw height is bound to 200 to 1024
+	{ "1680x1050 (WSXGA: 20inch Widescreen LCD Native)", 1680, 1050},
+	{ "1920x1200 (WUXGA: 24inch Widescreen LCD Native)", 1920, 1200},
+	{ "2048x1536", 2048, 1536},	//too much width will disable water warping (>1280) (but at that resolution, it's almost unnoticable)
+	{ "2560x1600 (30inch Widescreen LCD Native)", 2560, 1600}
 };
 #define NUMVIDMODES sizeof(vid_modes)/sizeof(vid_modes[0])
 
@@ -995,6 +1000,7 @@ typedef struct {
 	menucombo_t *modecombo;
 	menucombo_t *conscalecombo;
 	menucombo_t *bppcombo;
+	menucombo_t *texturefiltercombo;
 	menuedit_t *customwidth;
 	menuedit_t *customheight;
 } videomenuinfo_t;
@@ -1075,6 +1081,19 @@ qboolean M_VideoApply (union menuoption_s *op,struct menu_s *menu,int key)
 		break;
 	}
 
+	switch(info->texturefiltercombo->selectedoption)
+	{
+	case 0:
+		Cbuf_AddText("gl_texturemode gl_linear_mipmap_nearest\n", RESTRICT_LOCAL);
+		break;
+	case 1:
+		Cbuf_AddText("gl_texturemode gl_linear_mipmap_linear\n", RESTRICT_LOCAL);
+		break;
+	case 2:
+		Cbuf_AddText("gl_texturemode gl_linear_mipmap_linear\n",RESTRICT_LOCAL);
+		break;
+	}
+
 	Cbuf_AddText(va("vid_bpp %i\n", selectedbpp), RESTRICT_LOCAL);
 
 	switch(info->renderer->selectedoption)
@@ -1128,13 +1147,23 @@ void M_Menu_Video_f (void)
 		"32",
 		NULL
 	};
+	static const char *texturefilternames[] =
+	{
+		"Bilinear",
+		"Trilinear",
+		"Anisotropy",
+		NULL
+	};
 	videomenuinfo_t *info;
 	menu_t *menu;
 	int prefabmode;
 	int prefab2dmode;
 	int currentbpp;
+	int currenttexturefilter;
 
 	int i, y;
+	char bilinear[] = "gl_linear_mipmap_nearest";
+	char trilinear[] = "gl_linear_mipmap_linear";
 	prefabmode = -1;
 	prefab2dmode = -1;
 	for (i = 0; i < sizeof(vid_modes)/sizeof(vidmode_t); i++)
@@ -1179,6 +1208,15 @@ void M_Menu_Video_f (void)
 	else
 		currentbpp = 0;
 
+	if (strcmp(gl_texturemode.string,trilinear))
+		currenttexturefilter = 0;
+	else if (strcmp(gl_texturemode.string,bilinear))
+		currenttexturefilter = 1;
+	//else if (gl_texture_anisotropic_filtering.value > 1)
+		//currenttexturefilter = 2;
+	else
+		currenttexturefilter = 0;
+
 
 	MC_AddCenterPicture(menu, 4, "vidmodes");
 
@@ -1206,6 +1244,7 @@ void M_Menu_Video_f (void)
 	MC_AddSlider(menu,	16, y,								"     Screen size", &scr_viewsize,	30,		120);y+=8;
 	MC_AddSlider(menu,	16, y,								"           Gamma", &v_gamma, 0.3, 1);	y+=8;
 	MC_AddSlider(menu,	16, y,								"        Contrast", &v_contrast, 1, 3);	y+=8;
+	info->texturefiltercombo = MC_AddCombo(menu, 16, y,		" Texture Filter ", texturefilternames, currenttexturefilter); y+=8;
 
 	menu->cursoritem = (menuoption_t*)MC_AddWhiteText(menu, 152, 32, NULL, false);
 	menu->selecteditem = (union menuoption_s *)info->renderer;

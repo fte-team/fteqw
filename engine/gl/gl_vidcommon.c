@@ -234,7 +234,7 @@ void GL_CheckExtensions (void *(*getglfunction) (char *name))
 
 		qglGetIntegerv(GL_MAX_TEXTURE_MAX_ANISOTROPY_EXT, &gl_anisotropy_factor_max);
 
-		Con_SafePrintf("Anistropic filter extension found (%dx max).\n",gl_anisotropy_factor_max);
+		Con_SafePrintf("Anisotropic filter extension found (%dx max).\n",gl_anisotropy_factor_max);
 	}
 
 	if (strstr(gl_extensions, "GL_ARB_texture_non_power_of_two"))

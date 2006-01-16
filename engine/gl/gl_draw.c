@@ -576,8 +576,6 @@ glmode_t modes[] = {
 	{"GL_LINEAR_MIPMAP_LINEAR", "ll", GL_LINEAR_MIPMAP_LINEAR, GL_LINEAR}
 };
 
-// Control the anisotropy filtering. ~ Moodles
-
 void GLDraw_Anisotropy_f (void)
 {
 	gltexture_t *glt;
@@ -586,44 +584,47 @@ void GLDraw_Anisotropy_f (void)
 
 	if (!gl_config.ext_texture_filter_anisotropic)
 	{
-		Con_Printf("Ignoring anisotropy (not supported)\n");
+		Con_Printf("Anisotropic Filtering: NOT SUPPORTED\n");
 		return;
 	}
 
-	qglGetIntegerv(GL_MAX_TEXTURE_MAX_ANISOTROPY_EXT, &gl_anisotropy_factor_max); // im lazy
+	qglGetIntegerv(GL_MAX_TEXTURE_MAX_ANISOTROPY_EXT, &gl_anisotropy_factor_max);
 
 	arg = Cmd_Argv(1);
 
-	param = atoi(arg); // I know this isn't gcc compatible, but im no lunix programmer so someone can fix it
+	param = atoi(arg);
 
 	if (Cmd_Argc() == 1)
 	{
-		Con_Printf("Maximum filtering factor: %d\n",gl_anisotropy_factor_max);
-		Con_Printf("0 & 1 = off, 2+ = on\n");
-
 		//insert code that detects if user has forced AF through drivers
 		//because it has no effect if it is forced
 
-		if ((gl_anisotropy_factor == 0) || (gl_anisotropy_factor == 1))
+		if (gl_anisotropy_factor == 1)
 		{
-			Con_Printf("Anisotropic Filtering Factor: off\n");
+			Con_Printf("Anisotropic Filtering: 1 (OFF) (Maximum: %dx)\n",gl_anisotropy_factor_max);
 		}
 		else
 		{
-			Con_Printf("Current Anisotopic Filtering Factor: %d\n",gl_anisotropy_factor);
+			Con_Printf("Anisotropic Filtering: %dx (Maximum: %dx)\n",gl_anisotropy_factor,gl_anisotropy_factor_max);
 		}
 		return;
 	}
 
+	if (param == 0) // Nvidia says GL Error when this is 0, ATI doesn't. 1 = off anyway.
+		param = 1;
+
+	if ((fmod(param,2.0f) != 0.0f) && (param != 1)) // anisotropic filtering works in factors of 2
+		param = param+1;
+
 	if (param > gl_anisotropy_factor_max)
-	{
-		Con_Printf("Maximum filtering factor: %d, set to %d, ignoring %d\n",gl_anisotropy_factor_max,gl_anisotropy_factor_max,param);
 		param = gl_anisotropy_factor_max;
-	}
 
 	gl_anisotropy_factor = param;
 
-	Con_Printf("Attempting to set Anisotopic Filtering factor: %d\n",gl_anisotropy_factor);
+	if (param == 1)
+		Con_Printf("Anisotropic Filtering: %d (OFF) (Maximum: %dx)\n",gl_anisotropy_factor,gl_anisotropy_factor_max);
+	else
+		Con_Printf("Anisotropic Filtering: %dx (Maximum: %dx)\n",gl_anisotropy_factor,gl_anisotropy_factor_max);
 
 	/* change all the existing max anisotropy settings */
 	for (glt = gltextures; glt ; glt = glt->next) //redo anisotropic filtering when map is changed
@@ -1995,16 +1996,16 @@ void GLDraw_Fill (int x, int y, int w, int h, int c)
 	extern qboolean gammaworks;
 	if (gammaworks)
 	{
-		GLDraw_FillRGB (x, y, w, h, 
-			host_basepal[c*3]/255.0, 
-			host_basepal[c*3+1]/255.0, 
+		GLDraw_FillRGB (x, y, w, h,
+			host_basepal[c*3]/255.0,
+			host_basepal[c*3+1]/255.0,
 			host_basepal[c*3+2]/255.0);
 	}
 	else
 	{
-		GLDraw_FillRGB (x, y, w, h, 
-			gammatable[host_basepal[c*3]]/255.0, 
-			gammatable[host_basepal[c*3+1]]/255.0, 
+		GLDraw_FillRGB (x, y, w, h,
+			gammatable[host_basepal[c*3]]/255.0,
+			gammatable[host_basepal[c*3+1]]/255.0,
 			gammatable[host_basepal[c*3+2]]/255.0);
 	}
 }

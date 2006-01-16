@@ -486,17 +486,23 @@ qboolean CIN_PlayCinematic (char *arg)
 	cin.cinematicframe = 0;
 
 	cin.cinematic_file = FS_OpenVFS(arg, "rb", FS_GAME);
+
 	if (!cin.cinematic_file)
 	{
+
 		_snprintf (name, sizeof(name), "video/%s", arg);
 		cin.cinematic_file = FS_OpenVFS(name, "rb", FS_GAME);
 	}
+
 	if (!cin.cinematic_file)
 	{
 //		Com_Error (ERR_DROP, "Cinematic %s not found.\n", name);
+
 		CIN_FinishCinematic ();
+
 		cin.cinematictime = 0;	// done
-		return false;
+		Con_Printf("^1Cinematic %s not found.\n", name);
+		return true;
 	}
 
 	SCR_EndLoadingPlaque ();

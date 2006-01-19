@@ -29,6 +29,8 @@ vmcvar_t	*cvarlist[] ={
 
 
 char commandname[64];
+char var[9][1000]; // belongs to magic tokenizer
+char subvar[9][1000]; // etghack
 #define DEFAULTCONSOLE ""
 
 void (*Con_TrySubPrint)(char *subname, char *text);
@@ -49,9 +51,9 @@ void Con_SubPrintf(char *subname, char *format, ...)
 
 	if (format[0] == '^' && format[1] == '2')
 	{
-		Cmd_AddText("say $\\", false);
-		Cmd_AddText(string+2, false);
-		Cmd_AddText("\n", false);
+		//Cmd_AddText("say $\\", false);
+		//Cmd_AddText(string+2, false);
+		//Cmd_AddText("\n", false);
 	}
 
 	strlcpy(lwr, commandname, sizeof(lwr));
@@ -333,6 +335,9 @@ ircclient_t *IRC_Connect(char *server, int defport)
 	}
 
 	strlcpy(irc->server, server, sizeof(irc->server));
+
+	IRC_CvarUpdate();
+
 	strcpy(irc->nick, irc_nick.string);
 	strcpy(irc->realname, "anonymous");
 
@@ -358,6 +363,8 @@ void IRC_SetNick(ircclient_t *irc, char *nick)
 }
 void IRC_SetUser(ircclient_t *irc, char *user)
 {
+	IRC_CvarUpdate();
+
 	IRC_AddClientMessage(irc, va("USER %s %s %s :%s", irc_ident.string, irc->hostname, irc->server, irc_realname.string));
 }
 
@@ -448,15 +455,269 @@ void IRC_FilterMircColours(char *msg)
 #define IRC_DONE 0
 #define IRC_CONTINUE 1
 #define IRC_KILL 2
+
+void magic_tokenizer(int word,char *thestring)
+{
+	char *temp;
+	int i = 1;
+
+	strcpy(var[1],thestring);
+
+	temp = strchr(var[1], ' ');
+
+	while (i < 8)
+	{
+		i++;
+
+		if (temp != NULL)
+		{
+			strcpy(var[i],temp+1);
+		}
+		else
+		{
+			strcpy(var[i], "");
+		}
+
+		temp=strchr(var[i], ' ');
+
+	}
+
+	//Con_SubPrintf(DEFAULTCONSOLE,COLOURRED "^11: %s ^22: %s ^33: %s ^44: %s ^55: %s ^66: %s ^77: %s ^88: %s\n",var[1],var[2],var[3],var[4],var[5],var[6],var[7],var[8]);
+
+	//return var[word]+offset;
+}
+
+char *magic_tokenizer2(int word,char *thestring)
+{
+	char *temp;
+	int i = 1;
+
+	strcpy(var[1],thestring);
+
+	temp = strchr(var[1], ' ');
+
+	while (i < 8)
+	{
+		i++;
+
+		if (temp != NULL)
+		{
+			strcpy(var[i],temp+1);
+		}
+		else
+		{
+			strcpy(var[i], "");
+		}
+
+		temp=strchr(var[i], ' ');
+
+	}
+
+	//Con_SubPrintf(DEFAULTCONSOLE,COLOURRED "^11: %s ^22: %s ^33: %s ^44: %s ^55: %s ^66: %s ^77: %s ^88: %s\n",var[1],var[2],var[3],var[4],var[5],var[6],var[7],var[8]);
+
+	return var[word];
+}
+
+void magic_etghack(char *thestring)
+{
+	char *temp;
+	int i = 1;
+
+	strcpy(subvar[1],thestring);
+
+	temp = strchr(subvar[1], ' ');
+
+	while (i < 8)
+	{
+		i++;
+
+		if (temp != NULL)
+		{
+			strcpy(subvar[i],temp+1);
+		}
+		else
+		{
+			strcpy(subvar[i], "");
+		}
+
+		temp=strchr(subvar[i], ' ');
+
+	}
+
+	//Con_SubPrintf(DEFAULTCONSOLE,COLOURRED "^11: %s ^22: %s ^33: %s ^44: %s ^55: %s ^66: %s ^77: %s ^88: %s\n",var[1],var[2],var[3],var[4],var[5],var[6],var[7],var[8]);
+
+//	return subvar[word];
+}
+
+
+//==================================================
+
+void numbered_command(int comm,char *msg,ircclient_t *irc)
+{
+	magic_tokenizer(0,msg);
+
+	switch (comm)
+	{
+	case 001:
+	case 002:
+	case 003:
+	case 004:
+	case 005:
+	{
+		Con_SubPrintf(DEFAULTCONSOLE, COLOURYELLOW "SERVER STATS: %s\n",var[3]);
+		break;
+	}
+	case 250:
+	case 251:
+	case 252:
+	case 253:
+	case 254:
+	case 255:
+	{
+		break;
+	}
+	case 301: /* #define RPL_AWAY             301 */
+	{
+		char *username = strtok(var[3], " ");
+		char *awaymessage = var[4]+1;
+
+		Con_SubPrintf(DEFAULTCONSOLE,"WHOIS: <%s> (Away Message: %s)\n",username,awaymessage);
+		break;
+	}
+	case 311: /* #define RPL_WHOISUSER        311 */
+	{
+		char *username = strtok(var[3], " ");
+		char *ident = strtok(var[4], " ");
+		char *address = strtok(var[5], " ");
+		char *realname = var[7]+1;
+
+		Con_SubPrintf(DEFAULTCONSOLE,"WHOIS: <%s> (Ident: %s) (Address: %s) (Realname: %s) \n", username, ident, address, realname);
+		break;
+	}
+	case 312: /* #define RPL_WHOISSERVER      312 */
+	{
+		char *username = strtok(var[3], " ");
+		char *serverhostname = strtok(var[4], " ");
+		char *servername = var[5]+1;
+
+		Con_SubPrintf(DEFAULTCONSOLE,"WHOIS: <%s> (Server: %s) (Server Name: %s) \n", username, serverhostname, servername);
+		break;
+	}
+	case 317: /* #define RPL_WHOISIDLE        317 */
+	{
+		char *username = strtok(var[3], " ");
+		char *secondsidle = strtok(var[4], " ");
+		char *signontime = strtok(var[5], " ");
+		time_t t;
+		const struct tm *tm;
+		char buffer[100];
+
+		t=strtoul(signontime, 0, 0);
+		tm=localtime(&t);
+
+		strftime (buffer, 100, "%a %b %d %H:%M:%S", tm);
+
+		Con_SubPrintf(DEFAULTCONSOLE,"WHOIS: <%s> (Idle Time: %s seconds) (Signon Time: %s) \n", username, secondsidle, buffer);
+		break;
+	}
+	case 318: /* #define RPL_ENDOFWHOIS       318 */
+	{
+		char *endofwhois = var[4]+1;
+
+		Con_SubPrintf(DEFAULTCONSOLE,"WHOIS: %s\n", endofwhois);
+
+		break;
+	}
+	case 319: /* #define RPL_WHOISCHANNELS    319 */
+	{
+		char *username = strtok(var[3], " ");
+		char *channels = var[4]+1;
+
+		Con_SubPrintf(DEFAULTCONSOLE,"WHOIS: <%s> (Channels: %s)\n",username,channels);
+		break;
+	}
+	case 322: /* #define RPL_LIST             322 */
+	{
+		Con_SubPrintf(DEFAULTCONSOLE, "%s\n", msg);
+		break;
+	}
+	case 372:
+	case 375:
+	case 376:
+	{
+		char *motdmessage = var[3]+1;
+
+		IRC_CvarUpdate();
+
+		if (irc_motd.value == 2)
+			Con_SubPrintf(DEFAULTCONSOLE, "MOTD: %s\n", motdmessage);
+		else if (irc_motd.value)
+			Con_SubPrintf(DEFAULTCONSOLE, "%s\n", motdmessage);
+
+		break;
+	}
+	case 378:
+	{
+		Con_SubPrintf(DEFAULTCONSOLE, "%s\n", msg);
+		break;
+	}
+	case 433:
+	case 438: /* #define ERR_NICKNAMEINUSE    433 */
+	case 453:
+	{
+		char *nickname = strtok(var[4], " ");
+		char *seedednick;
+
+		IRC_CvarUpdate();
+
+		Con_SubPrintf(DEFAULTCONSOLE, COLOURRED "ERROR: <%s> is already in use.\n",nickname);
+
+		if (!strcmp(nickname,irc_nick.string))
+		{
+			IRC_SetNick(irc, irc_altnick.string);
+		}
+		else if (!strcmp(nickname,irc_altnick.string))
+		{
+			Con_SubPrintf(DEFAULTCONSOLE, COLOURRED "ERROR: <%s> AND <%s> both in use. Attempting generic nickname.\n",irc_nick.string,irc_altnick.string);
+			seedednick = va("FTE%i",rand());
+
+			IRC_SetNick(irc, seedednick);
+
+		}
+		else
+		{
+			seedednick = va("FTE%i",rand());
+
+			IRC_SetNick(irc, seedednick);
+		}
+		/*if (irc->nickcycle >= 99)	//this is just silly.
+			return IRC_KILL;
+
+		if (!irc->nickcycle)	//sequentially try the next one up
+			IRC_SetNick(irc, irc_altnick.string);
+		else
+			IRC_SetNick(irc, va("%s%i", irc_nick.string, irc->nickcycle));
+
+		irc->nickcycle++;*/
+		break;
+	}
+	case 432: /* #define ERR_ERRONEUSNICKNAME 432 */
+	{
+		Con_SubPrintf(DEFAULTCONSOLE, "Erroneous/invalid nickname given\n");
+		break;
+	}
+
+	}
+}
+
+//==================================================
+
 int IRC_ClientFrame(ircclient_t *irc)
 {
 	char prefix[64];
 	int ret;
 	char *nextmsg, *msg;
 	char *raw;
-
-	char var[9][1000];
-	char *temp;
 	int i = 1;
 
 	ret = Net_Recv(irc->socket, irc->bufferedinmessage+irc->bufferedinammount, sizeof(irc->bufferedinmessage)-1 - irc->bufferedinammount);
@@ -485,32 +746,13 @@ int IRC_ClientFrame(ircclient_t *irc)
 
 	msg = irc->bufferedinmessage;
 
-	strcpy(var[1],msg);
+	IRC_CvarUpdate(); // is this the right place for it?
 
-	temp = strchr(var[1], ' ');
-
-	while (i < 8)
-	{
-		i++;
-
-		if (temp != NULL)
-		{
-			strcpy(var[i],temp+1);
-		}
-		else
-		{
-			strcpy(var[i], "");
-		}
-
-		temp=strchr(var[i], ' ');
-
-	}
+	magic_tokenizer(0,msg);
 
 	raw = strtok(var[2], " ");
 
-	IRC_CvarUpdate(); // is this the right place for it?
-
-	if (irc_debug.value == 1) { Con_SubPrintf(DEFAULTCONSOLE,COLOURRED "!!!!! 1: %s 2: %s 3: %s 4: %s 5: %s 6: %s 7: %s 8: %s\n",var[1],var[2],var[3],var[4],var[5],var[6],var[7],var[8]); }
+	if (irc_debug.value == 1) { Con_SubPrintf(DEFAULTCONSOLE,COLOURRED "!!!!! ^11: %s ^22: %s ^33: %s ^44: %s ^55: %s ^66: %s ^77: %s ^88: %s\n",var[1],var[2],var[3],var[4],var[5],var[6],var[7],var[8]); }
 
 	if (*msg == ':')	//we need to strip off the prefix
 	{
@@ -535,7 +777,11 @@ int IRC_ClientFrame(ircclient_t *irc)
 	else
 		strcpy(prefix, irc->server);
 
-	if (!strncmp(var[1], "PING ", 5))
+	if (!strncmp(var[1], "NOTICE AUTH ", 12))
+	{
+		Con_SubPrintf(DEFAULTCONSOLE, COLOURGREEN "SERVER NOTICE: %s\n", var[3]+1);
+	}
+	else if (!strncmp(var[1], "PING ", 5))
 	{
 		IRC_AddClientMessage(irc, va("PONG %s", var[2]));
 	}
@@ -546,6 +792,7 @@ int IRC_ClientFrame(ircclient_t *irc)
 		char *end;
 		char *to = msg + 7;
 		char *servernotice = var[4]+1;
+		char *etghack;
 
 		if (!strncmp(var[4]+1, "\1", 1))
 		{
@@ -593,7 +840,38 @@ int IRC_ClientFrame(ircclient_t *irc)
 				Con_SubPrintf(DEFAULTCONSOLE, COLOURGREEN "NOTICE: -%s- %s\n", prefix, col);	//from client
 			}
 		}
-		else Con_SubPrintf(DEFAULTCONSOLE, COLOURGREEN "SERVER NOTICE: <%s> %s\n", prefix, servernotice);	//direct server message
+		else
+		{
+		//Con_SubPrintf(DEFAULTCONSOLE, COLOURGREEN "SERVER NOTICE: <%s> %s\n", prefix, servernotice);	//direct server message
+
+		etghack = strtok(var[4],"\n");
+
+		//strcpy(etghack,servernotice);
+
+		Con_SubPrintf(DEFAULTCONSOLE, COLOURGREEN "SERVER NOTICE: <%s> %s\n", prefix, etghack);
+
+		while (1)
+		{
+			etghack = strtok(NULL, "\n");
+
+			//strcpy(etghack,strtok(NULL, "\n"));
+
+			if (etghack == NULL)
+			{
+				break;
+				break;
+			}
+
+			magic_etghack(etghack);
+
+			if (atoi(subvar[2]) != 0)
+				numbered_command(atoi(subvar[2]),etghack,ircclient);
+			else
+				Con_SubPrintf(DEFAULTCONSOLE, COLOURGREEN "SERVER NOTICE: <%s> %s\n", prefix, subvar[4]);
+
+		}
+	}
+
 	}
 	else if (!strncmp(var[2], "PRIVMSG ", 7))	//no autoresponses to notice please, and any autoresponses should be in the form of a notice
 	{
@@ -619,7 +897,7 @@ int IRC_ClientFrame(ircclient_t *irc)
 		else if ((!stricmp(var[4]+1, "\1TIME\1")) && (!strncmp(var[2], "PRIVMSG ", 7)))
 		{
 			char delimiters[] = "!";
-			char *username = strtok(var[1]+1, delimiters);
+			char *username = strtok(var[1], delimiters);
 			time_t t;
 			const struct tm *tm;
 			char buffer[100];
@@ -757,6 +1035,16 @@ int IRC_ClientFrame(ircclient_t *irc)
 		}
 		else Con_SubPrintf(DEFAULTCONSOLE, COLOURGREEN ":%sJOIN %s\n", prefix, msg+5);
 	}
+	else if (atoi(raw) != 0)
+	{
+		char *rawparameter = strtok(var[4], " ");
+		char *rawmessage = var[5];
+		char *wholerawmessage = var[4];
+
+		//Con_SubPrintf(DEFAULTCONSOLE,"$$$ %s $$$\n",raw);
+
+		numbered_command(atoi(raw),msg,ircclient);
+	}
 	else if (!strncmp(msg, "422 ", 4) || !strncmp(msg, "376 ", 4))
 	{	//no motd || end of motd
 
@@ -764,111 +1052,7 @@ int IRC_ClientFrame(ircclient_t *irc)
 		if (*irc->autochannels)
 			IRC_AddClientMessage(irc, va("JOIN %s", irc->autochannels));
 	}
-//	else if ((!strncmp(msg, "001 ", 4)) || (!strncmp(msg, "002 ", 4)) || (!strncmp(msg, "003 ", 4)) || (!strncmp(msg, "004 ", 4)) || (!strncmp(msg, "005 ", 4))) // useless info on connect
-//	{
-//	}
-//	else if ((!strncmp(msg, "251 ", 4)) || (!strncmp(msg, "252 ", 4)) || (!strncmp(msg, "254 ", 4)) || (!strncmp(msg, "255 ", 4)) || (!strncmp(msg, "265 ", 4)) || (!strncmp(msg, "266 ", 4)) || (!strncmp(msg, "422 ", 4))) //useless info about local users, server users, connected servers, motd missing
-//	{
-//	}
-	else if (!strncmp(msg, "301 ", 4)) // away
-	{
-		char *username = strtok(var[4], " ");
-		char *awaymessage = var[5]+1;
 
-		Con_SubPrintf(DEFAULTCONSOLE,"WHOIS: <%s> (Away Message: %s)\n",username,awaymessage);
-	}
-	else if (!strncmp(msg, "311 ", 4)) // Whois
-	{
-		char *username = strtok(var[4], " ");
-		char *ident = strtok(var[5], " ");
-		char *address = strtok(var[6], " ");
-		char *realname = var[8]+1;
-
-		Con_SubPrintf(DEFAULTCONSOLE,"WHOIS: <%s> (Ident: %s) (Address: %s) (Realname: %s) \n", username, ident, address, realname);
-	}
-	else if (!strncmp(msg, "312 ", 4))
-	{
-		char *username = strtok(var[4], " ");
-		char *serverhostname = strtok(var[5], " ");
-		char *servername = var[6]+1;
-
-		Con_SubPrintf(DEFAULTCONSOLE,"WHOIS: <%s> (Server: %s) (Server Name: %s) \n", username, serverhostname, servername);
-	}
-	else if (!strncmp(msg, "317 ", 4)) // seconds idle etc
-	{
-		char *username = strtok(var[4], " ");
-		char *secondsidle = strtok(var[5], " ");
-		char *signontime = strtok(var[6], " ");
-		time_t t;
-		const struct tm *tm;
-		char buffer[100];
-
-		t=strtoul(signontime, 0, 0);
-		tm=localtime(&t);
-
-		strftime (buffer, 100, "%a %b %d %H:%M:%S", tm);
-
-		Con_SubPrintf(DEFAULTCONSOLE,"WHOIS: <%s> (Idle Time: %s seconds) (Signon Time: %s) \n", username, secondsidle, buffer);
-	}
-	else if (!strncmp(msg, "318 ", 4)) //end of whois
-	{
-	}
-	else if (!strncmp(msg, "319 ", 4)) // channels whois in
-	{
-		char *username = strtok(var[4], " ");
-		char *channels = var[5]+1;
-
-		Con_SubPrintf(DEFAULTCONSOLE,"WHOIS: <%s> (Channels: %s)\n",username,channels);
-	}
-	else if (!strncmp(msg, "322 ", 4))	//channel listing
-	{
-		Con_SubPrintf(DEFAULTCONSOLE, "%s\n", msg);
-	}
-	else if ((!strncmp(msg, "372 ", 4)) || (!strncmp(msg, "375 ", 4)) || (!strncmp(msg, "376 ", 4)))
-	{
-		char *motdmessage = var[4]+1;
-
-		if (irc_motd.value == 2)
-			Con_SubPrintf(DEFAULTCONSOLE, "MOTD: %s\n", motdmessage);
-		else if (irc_motd.value)
-			Con_SubPrintf(DEFAULTCONSOLE, "%s\n", motdmessage);
-	}
-	else if (!strncmp(msg, "375 ", 4))
-	{
-		Con_SubPrintf(DEFAULTCONSOLE, "%s\n", msg);
-	}
-	else if (!strncmp(msg, "378 ", 4)) //kinda useless whois info
-	{
-	}
-	else if (!strncmp(msg, "431 ", 4) ||	//nick not set
-			 !strncmp(msg, "433 ", 4) ||	//nick already in use
-			 !strncmp(msg, "436 ", 4))		//nick collision
-	{
-		char *nickname = strtok(var[4], " ");
-
-		if (!strcmp(nickname,irc_nick.string))
-		{
-			IRC_SetNick(irc, irc_altnick.string);
-		}
-		else if (!strcmp(nickname,irc_altnick.string))
-		{
-			Con_SubPrintf(DEFAULTCONSOLE, "ERROR: <%s> AND <%s> both in use, please try another NICK",irc_nick.string,irc_altnick.string);
-		}
-		/*if (irc->nickcycle >= 99)	//this is just silly.
-			return IRC_KILL;
-
-		if (!irc->nickcycle)	//sequentially try the next one up
-			IRC_SetNick(irc, irc_altnick.string);
-		else
-			IRC_SetNick(irc, va("%s%i", irc_nick.string, irc->nickcycle));
-
-		irc->nickcycle++;*/
-	}
-	else if (!strncmp(msg, "432 ", 4))
-	{
-		Con_SubPrintf(DEFAULTCONSOLE, "Erroneous/invalid nickname given\n");
-		return IRC_KILL;
-	}
 	else if (!strncmp(msg, "372 ", 4))
 	{
 		char *text = strstr(msg, ":-");
@@ -933,21 +1117,6 @@ int IRC_ClientFrame(ircclient_t *irc)
 				Con_SubPrintf(eq, COLOURGREEN"+"COLORWHITE"%s\n", com_token+1);
 			else
 				Con_SubPrintf(eq, " %s\n", com_token);
-		}
-	}
-	else if (atoi(raw) != 0)
-	{
-		char *rawparameter = strtok(var[4], " ");
-		char *rawmessage = var[5];
-		char *wholerawmessage = var[4];
-
-		if (!strncmp(rawmessage, ":", 1))
-		{
-			Con_SubPrintf(DEFAULTCONSOLE,"RAW '%s': <%s> %s\n",raw,rawparameter,rawmessage+1);
-		}
-		else
-		{
-			Con_SubPrintf(DEFAULTCONSOLE,"RAW '%s': %s\n",raw,wholerawmessage);
 		}
 	}
 	/*
@@ -1566,7 +1735,6 @@ the current IRC server.
 	return IRC_CONTINUE;
 }
 
-
 //functions above this line allow connections to multiple servers.
 //it is just the control functions that only allow one server.
 
@@ -1615,7 +1783,7 @@ void IRC_Command(char *dest)
 
 				msg = COM_Parse(msg);
 				strlcpy(ircclient->autochannels, com_token, sizeof(ircclient->autochannels));
-				
+
 				msg = COM_Parse(msg);
 				if (*com_token)
 					IRC_SetNick(ircclient, com_token);
@@ -1623,7 +1791,7 @@ void IRC_Command(char *dest)
 					IRC_SetNick(ircclient, ircclient->nick);
 
 				IRC_SetUser(ircclient, defaultuser);
-			
+
 			}
 		}
 		else if (!strcmp(com_token+1, "nick"))
@@ -1691,7 +1859,7 @@ void IRC_Command(char *dest)
 		}
 		else if (!strcmp(com_token+1, "away"))
 		{
-			IRC_AddClientMessage(ircclient, va("AWAY :%s",msg));
+			IRC_AddClientMessage(ircclient, va("AWAY :%s",msg,0));
 			//IRC_AddClientMessage(ircclient, va("AWAY :%s",msg+1));
 		}
 		else if (!strcmp(com_token+1, "motd"))

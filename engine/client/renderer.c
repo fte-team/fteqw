@@ -1887,27 +1887,22 @@ TRACE(("dbg: R_RestartRenderer_f\n"));
 		}
 		else
 		{
-			//failed, try dedicated as a last ditch effort to avoid having to edit configs.
-			newr.renderer = QR_NONE;
-			if (R_ApplyRenderer(&newr))
+			Con_Printf("^1Attempting default refresh rate\n");
+			newr.rate = 0;
+			if (!R_ApplyRenderer(&oldr))
 			{
-				TRACE(("dbg: R_RestartRenderer_f going to dedicated\n"));
-
-				if (vid_refreshrate.value != 0)
+				if (R_ApplyRenderer(&newr))
 				{
-					Con_Printf("================================\n");
-					Con_Printf("^1Attempting 60Hz\n");
-					vid_refreshrate.value = 60;
-					Cmd_ExecuteString("vid_restart", RESTRICT_LOCAL);
-					Con_Printf("================================\n");
-				}
+					TRACE(("dbg: R_RestartRenderer_f going to dedicated\n"));
 
-				Con_Printf("\n================================\n");
-				Con_Printf("^1Video mode switch failed. Old mode wasn't supported either. Console forced.\nChange vid_width, vid_height, vid_bpp, vid_displayfrequency to a compatable mode, and then use the setrenderer command.\n");
-				Con_Printf("================================\n\n");
+
+					Con_Printf("\n================================\n");
+					Con_Printf("^1Video mode switch failed. Old mode wasn't supported either. Console forced.\nChange vid_width, vid_height, vid_bpp, vid_displayfrequency to a compatable mode, and then use the setrenderer command.\n");
+					Con_Printf("================================\n\n");
+				}
+				else
+					Sys_Error("Couldn't fall back to previous renderer\n");
 			}
-			else
-				Sys_Error("Couldn't fall back to previous renderer\n");
 		}
 	}
 	SCR_EndLoadingPlaque();

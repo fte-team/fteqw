@@ -23,22 +23,22 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 
 // This is the standard RGBI palette used in CGA text mode
 consolecolours_t consolecolours[MAXCONCOLOURS] = {
-	{  0,   0,   0, 0,    0,    0   }, // black
-	{  0,   0, 170, 0,    0,    0.67}, // blue
-	{  0, 170,   0, 0,    0.67, 0   }, // green
-	{  0, 170, 170, 0,    0.67, 0.67}, // cyan
-	{170,   0,   0, 0.67, 0,    0   }, // red
-	{170,   0, 170, 0.67, 0,    0.67}, // magenta
-	{170,  85,   0, 0.67, 0.33, 0   }, // brown
-	{170, 170, 170, 0.67, 0.67, 0.67}, // light gray
-	{ 85,  85,  85, 0.33, 0.33, 0.33}, // dark gray
-	{ 85,  85, 255, 0.33, 0.33, 1   }, // light blue
-	{ 85, 255,  85, 0.33, 1,    0.33}, // light green
-	{ 85, 255, 255, 0.33, 1,    1   }, // light cyan
-	{255,  85,  85, 1,    0.33, 0.33}, // light red
-	{255,  85, 255, 1,    0.33, 1   }, // light magenta
-	{255, 255,  85, 1,    1,    0.33}, // yellow
-	{255, 255, 255, 1,    1,    1   }  // white
+	{0,    0,    0   }, // black
+	{0,    0,    0.67}, // blue
+	{0,    0.67, 0   }, // green
+	{0,    0.67, 0.67}, // cyan
+	{0.67, 0,    0   }, // red
+	{0.67, 0,    0.67}, // magenta
+	{0.67, 0.33, 0   }, // brown
+	{0.67, 0.67, 0.67}, // light gray
+	{0.33, 0.33, 0.33}, // dark gray
+	{0.33, 0.33, 1   }, // light blue
+	{0.33, 1,    0.33}, // light green
+	{0.33, 1,    1   }, // light cyan
+	{1,    0.33, 0.33}, // light red
+	{1,    0.33, 1   }, // light magenta
+	{1,    1,    0.33}, // yellow
+	{1,    1,    1   }  // white
 };
 
 // This is for remapping the Q3 color codes to character masks, including ^9
@@ -405,7 +405,7 @@ void Con_Clear_f (void)
 	//wide chars, not standard ascii
 	for (i = 0; i < sizeof(con_main.text)/sizeof(conchar_t); i++)
 	{
-		con_main.text[i] = ' ';
+		con_main.text[i] = CON_DEFAULTCHAR;
 //	Q_memset (con_main.text, ' ', sizeof(con_main.text));
 	}
 }
@@ -472,7 +472,7 @@ void Con_ResizeCon (console_t *con)
 		con->linewidth = width;
 		con->totallines = CON_TEXTSIZE / con->linewidth;
 		for (i = 0; i < CON_TEXTSIZE; i++)
-			con->text[i] = ' ';
+			con->text[i] = CON_DEFAULTCHAR;
 //		Q_memset (con->text, ' ', sizeof(con->text));		
 	}
 	else
@@ -493,7 +493,7 @@ void Con_ResizeCon (console_t *con)
 
 		Q_memcpy (tbuf, con->text, sizeof(con->text));
 		for (i = 0; i < sizeof(con->text)/sizeof(conchar_t); i++)
-			con->text[i] = ' ';
+			con->text[i] = CON_DEFAULTCHAR;
 //		Q_memset (con->text, ' ', sizeof(con->text));
 
 		for (i=0 ; i<numlines ; i++)
@@ -584,7 +584,7 @@ void Con_Linefeed (console_t *con)
 	min = (con->current%con->totallines)*con->linewidth;
 	max = min + con->linewidth;
 	for (i = min; i < max; i++)
-		con->text[i] = ' ';
+		con->text[i] = CON_DEFAULTCHAR;
 
 //	Q_memset (&con->text[(con->current%con_totallines)*con_linewidth]
 //	, ' ', con_linewidth*sizeof(unsigned short));

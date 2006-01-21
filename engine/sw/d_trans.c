@@ -19,6 +19,9 @@ int swzpal[TRANS_LEVELS][256];
 palremap_t *RebuildMenuTint(void);
 palremap_t *mtpalremap;
 
+// IB remap
+palremap_t *ib_remap;
+
 extern cvar_t r_menutint;
 int mtmodified;
 
@@ -42,6 +45,7 @@ void D_ShutdownTrans(void)
 
 	mtpalremap = NULL;
 	mtmodified = 0;
+	ib_remap = NULL;
 }
 
 void D_InitTrans(void)
@@ -54,6 +58,7 @@ void D_InitTrans(void)
 	srctable = swzpal[0];
 	dsttable = swzpal[TRANS_MAX];
 	mtpalremap = RebuildMenuTint();
+	ib_remap = D_IdentityRemap();
 }
 
 // TODO: INLINE THESE FUNCTIONS
@@ -86,7 +91,7 @@ void Set_TransLevelI(int level)
 }
 */
 
-void D_SetTransLevel(float level, blendmode_t blend)	//MUST be between 0 and 1
+void D_SetTransLevel(float level, blendmode_t blend)
 {
 	int ilvl;
 

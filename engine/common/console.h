@@ -25,7 +25,6 @@ typedef unsigned int conchar_t;
 
 #define MAXCONCOLOURS 16
 typedef struct {
-	int ir, ig, ib;
 	float fr, fg, fb;
 } consolecolours_t;
 
@@ -50,6 +49,8 @@ extern conchar_t q3codemasks[MAXQ3COLOURS];
 
 #define CON_Q3MASK			0x0F100000
 #define CON_WHITEMASK		0x0F000000 // must be constant. things assume this
+
+#define CON_DEFAULTCHAR		(CON_WHITEMASK | 32)
 
 // RGBI standard colors
 #define COLOR_BLACK			0

@@ -6244,6 +6244,7 @@ typedef struct lh_extension_s {
 
 
 lh_extension_t QSG_Extensions[] = {
+	{"BX_COLOREDTEXT"},
 	{"DP_CON_SET"},
 #ifndef SERVERONLY
 	{"DP_CON_SETA"},		//because the server doesn't write configs.

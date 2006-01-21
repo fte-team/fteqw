@@ -1288,18 +1288,18 @@ void GLDraw_ColouredCharacter (int x, int y, unsigned int num)
 {
 	unsigned int col;
 
-	if (num & CON_BLINKTEXT)
-	{
-		if (!cl_noblink.value)
-			if ((int)(realtime*3) & 1)
-				return;
-	}
-
 	// draw background
 	if (num & CON_NONCLEARBG)
 	{
 		col = (num & CON_BGMASK) >> CON_BGSHIFT;
 		GLDraw_FillRGB(x, y, 8, 8, consolecolours[col].fr, consolecolours[col].fg, consolecolours[col].fb);
+	}
+
+	if (num & CON_BLINKTEXT)
+	{
+		if (!cl_noblink.value)
+			if ((int)(realtime*3) & 1)
+				return;
 	}
 
 	// render character with foreground color

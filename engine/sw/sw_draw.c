@@ -64,6 +64,12 @@ int			swmenu_numcachepics;
 
 qbyte sw_crosshaircolor;
 
+// current rendering blend for sw
+extern palremap_t *ib_remap;
+int ib_index;
+int ib_ri, ib_gi, ib_bi, ib_ai;
+qboolean ib_colorblend, ib_alphablend;
+
 /*
 ================
 Draw_CachePic
@@ -670,15 +676,16 @@ void SWDraw_Character (int x, int y, unsigned int num)
 #define draw(p) drawpal(host_basepal[p*3]>>3,host_basepal[p*3+1]>>3,host_basepal[p*3+2]>>3)
 */
 
-#define draw(x) pr->pal[x]
+#define draw(x) ib_remap->pal[x]
+#define tdraw(x, y) Trans(x, ib_remap->pal[y])
 void SWDraw_ColouredCharacter (int x, int y, unsigned int num)
 {
 	qbyte			*source;
 	int				drawline;	
 	int				row, col;
 	extern cvar_t cl_noblink;
-	unsigned int colour, bgcolour;
-	qboolean drawbg = false;
+	unsigned int colour;
+	qboolean alpha;
 	
 	if (y <= -8)
 		return;			// totally off screen
@@ -687,10 +694,18 @@ void SWDraw_ColouredCharacter (int x, int y, unsigned int num)
 		return;
 
 	colour = (num & CON_FGMASK) >> CON_FGSHIFT;
-	bgcolour = (num & CON_BGMASK) >> CON_BGSHIFT;
+	alpha = !!(num & CON_HALFALPHA);
 
 	if (num & CON_NONCLEARBG)
-		drawbg = true;
+	{
+		unsigned int bgcolour;
+
+		bgcolour = (num & CON_BGMASK) >> CON_BGSHIFT;
+		SWDraw_FillRGB(x, (y < 0) ? 0 : y, 8, (y < 0) ? 8 + y : 8,
+			consolecolours[bgcolour].fr, 
+			consolecolours[bgcolour].fg, 
+			consolecolours[bgcolour].fb);
+	}
 
 	if (num & CON_BLINKTEXT)
 	{
@@ -699,11 +714,16 @@ void SWDraw_ColouredCharacter (int x, int y, unsigned int num)
 				return;
 	}
 
-	if (colour == COLOR_WHITE && !drawbg)
+	if (colour == COLOR_WHITE && !alpha)
 	{
 		Draw_Character(x, y, num);
 		return;
 	}
+
+	SWDraw_ImageColours(consolecolours[colour].fr, 
+		consolecolours[colour].fg, 
+		consolecolours[colour].fb,
+		alpha ? 0.5 : 1); 
 
 	num &= 255;
 	row = num>>4;
@@ -721,31 +741,29 @@ void SWDraw_ColouredCharacter (int x, int y, unsigned int num)
 
 	if (r_pixbytes == 1)
 	{
-		palremap_t *pr;
 		qbyte			*dest;
 		dest = vid.conbuffer + y*vid.conrowbytes + x;
 	
-		pr = D_GetPaletteRemap(consolecolours[colour].ir, 
-			consolecolours[colour].ig, 
-			consolecolours[colour].ib, 
-			false, true, TOP_DEFAULT, BOTTOM_DEFAULT);
-
-		if (drawbg)
+		if (alpha)
 		{
-			int bgidx = GetPalette(consolecolours[bgcolour].ir, 
-				consolecolours[bgcolour].ig, 
-				consolecolours[bgcolour].ib);
-
 			while (drawline--)
 			{
-				dest[0] = source[0] ? draw(source[0]) : bgidx;
-				dest[1] = source[1] ? draw(source[1]) : bgidx;
-				dest[2] = source[2] ? draw(source[2]) : bgidx;
-				dest[3] = source[3] ? draw(source[3]) : bgidx;
-				dest[4] = source[4] ? draw(source[4]) : bgidx;
-				dest[5] = source[5] ? draw(source[5]) : bgidx;
-				dest[6] = source[6] ? draw(source[6]) : bgidx;
-				dest[7] = source[7] ? draw(source[7]) : bgidx;
+				if (source[0])
+					dest[0] = tdraw(dest[0], source[0]);
+				if (source[1])
+					dest[1] = tdraw(dest[1], source[1]);
+				if (source[2])
+					dest[2] = tdraw(dest[2], source[2]);
+				if (source[3])
+					dest[3] = tdraw(dest[3], source[3]);
+				if (source[4])
+					dest[4] = tdraw(dest[4], source[4]);
+				if (source[5])
+					dest[5] = tdraw(dest[5], source[5]);
+				if (source[6])
+					dest[6] = tdraw(dest[6], source[6]);
+				if (source[7])
+					dest[7] = tdraw(dest[7], source[7]);
 				source += 128;
 				dest += vid.conrowbytes;
 			}
@@ -774,38 +792,27 @@ void SWDraw_ColouredCharacter (int x, int y, unsigned int num)
 				dest += vid.conrowbytes;
 			}
 		}
-
-		D_DereferenceRemap(pr);
 	}
 	else if (r_pixbytes == 2)
 	{
 		unsigned short *dest16;
 		unsigned char *pal = (unsigned char *)d_8to32table;
 		int i;
-		int rm, gm, bm;
 
 		dest16 = (unsigned short *)vid.conbuffer + y*vid.conrowbytes + x;
 
-		rm = consolecolours[colour].ir>>3;
-		gm = consolecolours[colour].ig>>3;
-		bm = consolecolours[colour].ib>>3;
-
-		if (drawbg)
+		if (alpha)
 		{
-			int bgidx16 = (consolecolours[bgcolour].ir>>3) |
-				(consolecolours[bgcolour].ig>>3)<<5 |
-				(consolecolours[bgcolour].ib>>3)<<10;
-
 			while (drawline--)
 			{
 				for (i = 0; i < 8; i++)
 				{
 					if (source[i])
-						dest16[i] = (((16+pal[source[i]*4+0]*bm)>>8)<<10)+
-									(((16+pal[source[i]*4+1]*gm)>>8)<<5)+
-									((16+pal[source[i]*4+2]*rm)>>8);
-					else
-						dest16[i] = bgidx16;
+					{
+						dest16[i] = ((((128+pal[source[i]*4+0]*ib_ri)>>12)<<10) + ((dest16[i]&0x7B00)>>1)) |
+							((((128+pal[source[i]*4+1]*ib_gi)>>12)<<5) + ((dest16[i]&0x03D0)>>1)) |
+							((128+pal[source[i]*4+2]*ib_bi)>>12) + ((dest16[i]&0x001E)>>1);
+					}
 				}
 				source += 128;
 				dest16 += vid.conrowbytes;
@@ -818,9 +825,9 @@ void SWDraw_ColouredCharacter (int x, int y, unsigned int num)
 				for (i = 0; i < 8; i++)
 				{
 					if (source[i])
-						dest16[i] = (((16+pal[source[i]*4+0]*bm)>>8)<<10)+
-									(((16+pal[source[i]*4+1]*gm)>>8)<<5)+
-									((16+pal[source[i]*4+2]*rm)>>8);
+						dest16[i] = (((128+pal[source[i]*4+0]*ib_ri)>>11)<<10)|
+									(((128+pal[source[i]*4+1]*ib_gi)>>11)<<5)|
+									((128+pal[source[i]*4+2]*ib_bi)>>11);
 				}
 				source += 128;
 				dest16 += vid.conrowbytes;
@@ -833,8 +840,8 @@ void SWDraw_ColouredCharacter (int x, int y, unsigned int num)
 		int i;
 		unsigned char *pal = (unsigned char *)d_8to32table;
 		dest = vid.conbuffer + (y*vid.conrowbytes + x)*r_pixbytes;
-	
-		if (drawbg)
+
+		if (alpha)
 		{
 			while (drawline--)
 			{
@@ -842,16 +849,10 @@ void SWDraw_ColouredCharacter (int x, int y, unsigned int num)
 				{
 					if (source[i])
 					{
-						dest[0+i*4] = (128+pal[source[i]*4+0]*consolecolours[colour].ib)>>8;
-						dest[1+i*4] = (128+pal[source[i]*4+1]*consolecolours[colour].ig)>>8;
-						dest[2+i*4] = (128+pal[source[i]*4+2]*consolecolours[colour].ir)>>8;
+						dest[0+i*4] = ((128+pal[source[i]*4+0]*ib_bi)>>9) + (dest[0+i*4]>>1);
+						dest[1+i*4] = ((128+pal[source[i]*4+1]*ib_gi)>>9) + (dest[1+i*4]>>1);
+						dest[2+i*4] = ((128+pal[source[i]*4+2]*ib_ri)>>9) + (dest[2+i*4]>>1);
 					}				
-					else
-					{
-						dest[0+i*4] = consolecolours[bgcolour].ib;
-						dest[1+i*4] = consolecolours[bgcolour].ig;
-						dest[2+i*4] = consolecolours[bgcolour].ir;
-					}
 				}
 				source += 128;
 				dest += vid.conrowbytes*r_pixbytes;
@@ -865,9 +866,9 @@ void SWDraw_ColouredCharacter (int x, int y, unsigned int num)
 				{
 					if (source[i])
 					{
-						dest[0+i*4] = (128+pal[source[i]*4+0]*consolecolours[colour].ib)>>8;
-						dest[1+i*4] = (128+pal[source[i]*4+1]*consolecolours[colour].ig)>>8;
-						dest[2+i*4] = (128+pal[source[i]*4+2]*consolecolours[colour].ir)>>8;
+						dest[0+i*4] = (128+pal[source[i]*4+0]*ib_bi)>>8;
+						dest[1+i*4] = (128+pal[source[i]*4+1]*ib_gi)>>8;
+						dest[2+i*4] = (128+pal[source[i]*4+2]*ib_ri)>>8;
 					}				
 				}
 				source += 128;
@@ -877,6 +878,7 @@ void SWDraw_ColouredCharacter (int x, int y, unsigned int num)
 	}
 }
 #undef draw
+#undef tdraw
 
 /*
 ================
@@ -1822,16 +1824,46 @@ void SWDraw_SubImage8(
 	}
 }
 
-static qboolean SWDraw_Image_Blend;
-static int SWDraw_Image_Red=1, SWDraw_Image_Green=1, SWDraw_Image_Blue=1, SWDraw_Image_Alpha=1;
 void SWDraw_ImageColours (float r, float g, float b, float a)	//like glcolour4f
 {
-	SWDraw_Image_Red=r*255;
-	SWDraw_Image_Green=g*255;
-	SWDraw_Image_Blue=b*255;
-	SWDraw_Image_Alpha=a*255;
+	int ri, gi, bi, ai;
 
-	SWDraw_Image_Blend = r<1 || b<1 || g<1 || a<1;
+	if (r_pixbytes == 1)
+		D_SetTransLevel(a, BM_BLEND); // 8bpp doesn't maintain blending correctly
+
+	ri = 255*r;
+	gi = 255*g;
+	bi = 255*b;
+	ai = 255*a;
+
+	if (ri == ib_ri && gi == ib_gi && bi == ib_bi && ai == ib_ai)
+	{
+		// nothing changed
+		return;
+	}
+
+	ib_colorblend = (ri == 255 && gi == 255 && bi == 255) ? false : true;
+	ib_alphablend = (ai == 255) ? false : true;
+
+	ib_ri = ri;
+	ib_gi = gi;
+	ib_bi = bi;
+	ib_ai = ai;
+
+	switch (r_pixbytes)
+	{
+	case 1:
+		D_DereferenceRemap(ib_remap);
+		ib_remap = D_GetPaletteRemap(ri, gi, bi, false, true, TOP_DEFAULT, BOTTOM_DEFAULT);
+		ib_index = GetPalette(ri, gi, bi);
+		return;
+	case 2:
+		ib_index = ((ri << 3) >> 10) | ((gi << 3) >> 5) | (bi << 3);
+		return;
+	case 4:
+		ib_index = (ri << 16) | (gi << 8) | bi;
+		return;
+	}
 }
 
 void SWDraw_Image (float xp, float yp, float wp, float hp, float s1, float t1, float s2, float t2, mpic_t *pic)
@@ -1920,11 +1952,11 @@ void SWDraw_Image (float xp, float yp, float wp, float hp, float s1, float t1, f
 	}
 	else
 	{	
-		if (SWDraw_Image_Blend)	//blend it on
+		if (ib_colorblend || ib_alphablend)	//blend it on
 		{
 			SWDraw_SubImageBlend32(xp, yp, wp, hp, s1, t1, s2, t2,
 							pic->width, pic->height, pic->data,
-							SWDraw_Image_Red, SWDraw_Image_Green, SWDraw_Image_Blue, SWDraw_Image_Alpha);
+							ib_ri, ib_gi, ib_bi, ib_ai);
 
 		}
 		else	//block colour (fast)
@@ -2397,10 +2429,41 @@ Draw_Fill
 Fills a box of pixels with a single color
 =============
 */
+void SWDraw_Fill32 (int x, int y, int w, int h, unsigned int c)
+{
+	int u, v;
+	unsigned int	*p32dest;
+
+	p32dest = (unsigned int*)vid.buffer + y*vid.rowbytes + x;
+	for (v=0 ; v<h ; v++, p32dest += vid.rowbytes)
+		for (u=0 ; u<w ; u++)
+			p32dest[u] = c;
+}
+
+void SWDraw_Fill16 (int x, int y, int w, int h, unsigned short c)
+{
+	int u, v;
+	unsigned short	*p16dest;
+
+	p16dest = (unsigned short*)vid.buffer + y*vid.rowbytes + x;
+	for (v=0 ; v<h ; v++, p16dest += vid.rowbytes)
+		for (u=0 ; u<w ; u++)
+			p16dest[u] = c;
+}
+
+void SWDraw_Fill8 (int x, int y, int w, int h, unsigned char c)
+{
+	int u, v;
+
+	qbyte			*dest;
+	dest = vid.buffer + y*vid.rowbytes + x;
+	for (v=0 ; v<h ; v++, dest += vid.rowbytes)
+		for (u=0 ; u<w ; u++)
+			dest[u] = c;
+}
+
 void SWDraw_Fill (int x, int y, int w, int h, int c)
 {
-	int				u, v;
-
 	if (x < 0 || x + w > vid.width ||
 		y < 0 || y + h > vid.height) {
 		Con_Printf("Bad Draw_Fill(%d, %d, %d, %d, %c)\n",
@@ -2408,31 +2471,47 @@ void SWDraw_Fill (int x, int y, int w, int h, int c)
 		return;
 	}
 
-	if (r_pixbytes == 1)
+	switch (r_pixbytes)
 	{
-		qbyte			*dest;
-		dest = vid.buffer + y*vid.rowbytes + x;
-		for (v=0 ; v<h ; v++, dest += vid.rowbytes)
-			for (u=0 ; u<w ; u++)
-				dest[u] = c;
+	case 1:
+		SWDraw_Fill8(x, y, w, h, (unsigned char)c);
+		break;
+	case 2:
+		SWDraw_Fill16(x, y, w, h, d_8to16table[c]);
+		break;
+	case 4:
+		SWDraw_Fill32(x, y, w, h, d_8to32table[c]);
+		break;
 	}
-	else if (r_pixbytes == 4)
-	{
-		unsigned int	*p32dest;
+}
 
-		p32dest = (unsigned int*)vid.buffer + y*vid.rowbytes + x;
-		for (v=0 ; v<h ; v++, p32dest += vid.rowbytes)
-			for (u=0 ; u<w ; u++)
-				p32dest[u] = d_8to32table[c];
+void SWDraw_FillRGB (int x, int y, int w, int h, float r, float g, float b)
+{
+	unsigned int c;
+
+
+	if (x < 0 || x + w > vid.width ||
+		y < 0 || y + h > vid.height) {
+		Con_Printf("Bad Draw_FillRGB(%d, %d, %d, %d)\n",
+			x, y, w, h);
+		return;
 	}
-	else if (r_pixbytes == 2)
-	{
-		unsigned short	*p16dest;
 
-		p16dest = (unsigned short*)vid.buffer + y*vid.rowbytes + x;
-		for (v=0 ; v<h ; v++, p16dest += vid.rowbytes)
-			for (u=0 ; u<w ; u++)
-				p16dest[u] = d_8to16table[c];
+
+	switch (r_pixbytes)
+	{
+	case 1:
+		c = GetPalette(r*255, g*255, b*255);
+		SWDraw_Fill8(x, y, w, h, (unsigned char)c);
+		break;
+	case 2:
+		c = ((int)(r*31) << 10) | ((int)(g*31) << 5) | (int)(b*31);
+		SWDraw_Fill16(x, y, w, h, (unsigned short)c);
+		break;
+	case 4:
+		c = ((int)(r*255)<<16) | ((int)(g*255)<<8) | (int)(b*255);
+		SWDraw_Fill32(x, y, w, h, c);
+		break;
 	}
 }
 //=============================================================================
@@ -2506,71 +2585,6 @@ void SWDraw_FadeScreen (void)
 	VID_LockBuffer ();
 }
 
-#if 0
-void SWDraw_Box(int x1, int y1, int x2, int y2, int paletteindex, float alpha)
-{
-	int x;
-	int y;
-	int w;
-	int h;
-
-	qbyte			*dest;
-	unsigned int	*puidest;
-	unsigned		uc;
-	int				u, v;
-
-	D_SetTransLevel(alpha, BM_MERGE);
-	if (alpha < TRANS_LOWER_CAP)
-		return;
-
-	if (x1 < x2)
-	{
-		x = x1;
-		w = x2-x1;
-	}
-	else
-	{
-		x = x2;
-		w = x1-x2;
-	}
-
-	if (y1 < y2)
-	{
-		y = y1;
-		h = y2-y1;
-	}
-	else
-	{
-		y = y2;
-		h = y1-y2;
-	}
-
-
-	if (x < 0 || x + w > vid.width ||
-		y < 0 || y + h > vid.height) {
-		Con_Printf("Bad SWDraw_Box(%d, %d, %d, %d, %i)\n",
-			x, y, w, h, paletteindex);
-		return;
-	}
-
-	if (r_pixbytes == 1)
-	{
-		dest = vid.buffer + y*vid.rowbytes + x;
-		for (v=0 ; v<h ; v++, dest += vid.rowbytes)
-			for (u=0 ; u<w ; u++)
-				dest[u] = Trans(dest[u], paletteindex);
-	}
-	else if (r_pixbytes == 4)
-	{
-		uc = d_8to32table[paletteindex];
-
-		puidest = (unsigned int *)vid.buffer + y * (vid.rowbytes) + x;
-		for (v=0 ; v<h ; v++, puidest += vid.rowbytes)
-			for (u=0 ; u<w ; u++)
-				puidest[u] = uc;
-	}
-}
-#endif
 
 //=============================================================================
 

@@ -18,7 +18,7 @@ int vsnprintf(char *buffer, int maxlen, char *format, va_list vargs)
 	int _int;
 	float _float;
 	int i;
-	int use0s;
+	int use0s, useprepad;
 	int precision;
 
 	if (!maxlen)
@@ -31,10 +31,14 @@ maxlen--;
 		{
 		case '%':
 			precision= 0;
+			useprepad=0;
 			use0s=0;
 retry:
 			switch(*(++format))
 			{
+			case '-':
+				useprepad=true;
+				goto retry;
 			case '0':
 				if (!precision)
 				{
@@ -140,6 +144,38 @@ retry:
 			case 'u':
 			case 'i':
 				_int = va_arg(vargs, int);
+/*
+				if (useprepad)
+				{
+					if (_int >= 1000)
+						useprepad = 4;
+					else if (_int >= 100)
+						useprepad = 3;
+					else if (_int >= 10)
+						useprepad = 2;
+					else if (_int >= 0)
+						useprepad = 1;
+					else if (_int <= -1000)
+						useprepad = 5;
+					else if (_int <= -100)
+						useprepad = 4;
+					else if (_int <= -10)
+						useprepad = 3;
+					else
+						useprepad = 2;
+
+					useprepad = precision - useprepad;
+Con_Printf("add %i chars\n", useprepad);
+					while (useprepad>0)
+					{
+						if (--maxlen < 0) 
+							{*buffer++='\0';return tokens;}
+						*buffer++ = ' ';
+						useprepad--;
+					}
+Con_Printf("%i bytes left\n", maxlen);
+				}
+*/
 				if (_int < 0)
 				{
 					if (--maxlen < 0) 
@@ -166,13 +202,21 @@ retry:
 				}
 
 				precision -= 62-i;
-				while (precision>0)
+/*				while (precision>0)
 				{
 					string--;
+					*string = ' ';
+					precision--;
+				}
+*/
+				while(precision>0)
+				{
+					if (--maxlen < 0) 
+						{*buffer++='\0';return tokens;}
 					if (use0s)
-						*string = '0';
+						*buffer++ = '0';
 					else
-						*string = ' ';
+						*buffer++ = ' ';
 					precision--;
 				}
 

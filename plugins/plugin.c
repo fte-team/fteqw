@@ -116,6 +116,9 @@ BUILTINR(int, Cvar_Update, (qhandle_t handle, int *modificationcount, char *stri
 #define ARGNAMES ,pnum,stats,maxstats
 BUILTIN(void, CL_GetStats, (int pnum, unsigned int *stats, int maxstats));
 #undef ARGNAMES
+#define ARGNAMES ,pnum,info
+BUILTIN(int, GetPlayerInfo, (int pnum, plugclientinfo_t *info));
+#undef ARGNAMES
 
 #define ARGNAMES ,soundname
 BUILTIN(void, LocalSound, (char *soundname));
@@ -306,6 +309,7 @@ void Plug_InitStandardBuiltins(void)
 
 	//random things
 	CHECKBUILTIN(CL_GetStats);
+	CHECKBUILTIN(GetPlayerInfo);
 	CHECKBUILTIN(LocalSound);
 	CHECKBUILTIN(Menu_Control);
 	CHECKBUILTIN(Key_GetKeyCode);

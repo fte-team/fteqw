@@ -82,6 +82,24 @@ typedef float vec3_t[3];
 typedef void* funcptr_t;
 
 
+#define PLUGMAX_SCOREBOARDNAME 64
+typedef struct {
+	int topcolour;
+	int bottomcolour;
+	int frags;
+	char name[PLUGMAX_SCOREBOARDNAME];
+	int ping;
+	int pl;
+	int starttime;
+	int userid;
+	int spectator;
+	char userinfo[1024];
+	char team[8];
+} plugclientinfo_t;
+
+
+
+
 
 //Basic builtins:
 EBUILTIN(funcptr_t, Plug_GetEngineFunction, (char *funcname));	//set up in vmMain, use this to get all other builtins
@@ -114,6 +132,7 @@ EBUILTIN(int, Cvar_Update, (qhandle_t handle, int *modificationcount, char *stri
 EBUILTIN(void, GetPluginName, (int plugnum, char *buffer, int bufsize));
 EBUILTIN(void, LocalSound, (char *soundname));
 EBUILTIN(void, CL_GetStats, (int pnum, unsigned int *stats, int maxstats));
+EBUILTIN(int, GetPlayerInfo, (int pnum, plugclientinfo_t *info));
 
 EBUILTIN(void, Menu_Control, (int mnum));
 #define MENU_CLEAR 0

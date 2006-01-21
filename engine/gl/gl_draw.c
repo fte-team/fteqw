@@ -1304,7 +1304,7 @@ void GLDraw_ColouredCharacter (int x, int y, unsigned int num)
 
 	// render character with foreground color
 	col = (num & CON_FGMASK) >> CON_FGSHIFT;
-	qglColor3f(consolecolours[col].fr, consolecolours[col].fg, consolecolours[col].fb);
+	qglColor4f(consolecolours[col].fr, consolecolours[col].fg, consolecolours[col].fb, (num & CON_HALFALPHA)?0.5:1);
 	Draw_Character(x, y, num);
 }
 /*

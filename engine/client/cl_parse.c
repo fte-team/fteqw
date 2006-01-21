@@ -827,6 +827,11 @@ void CL_RequestNextDownload (void)
 		else
 #endif
 		{
+			if (cl.worldmodel->needload)
+			{
+				Con_Printf("\n\n-------------\nCouldn't download %s - cannot fully connect\n", cl.worldmodel->name);
+				return;
+			}
 		// done with modellist, request first of static signon messages
 			if (CL_RemoveClientCommands("prespawn"))
 				Con_Printf("Multiple prespawns\n");

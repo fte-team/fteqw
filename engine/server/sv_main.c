@@ -2189,7 +2189,6 @@ void SVC_RemoteCommand (void)
 	SV_EndRedirect ();
 }
 
-
 /*
 =================
 SV_ConnectionlessPacket
@@ -2266,7 +2265,7 @@ qboolean SV_ConnectionlessPacket (void)
 #endif
 	else if (!strcmp(c, "rcon"))
 		SVC_RemoteCommand ();
-	else
+	else if (!PR_GameCodePacket(net_message.data+4))
 		Con_Printf ("bad connectionless packet from %s:\n%s\n"
 		, NET_AdrToString (net_from), s);
 
@@ -2741,8 +2740,8 @@ void SV_CheckTimeouts (void)
 	}
 	if (sv.paused && !nclients) {
 		// nobody left, unpause the server
-		SV_TogglePause();
-		SV_BroadcastTPrintf(PRINT_HIGH, STL_CLIENTLESSUNPAUSE);
+		if (SV_TogglePause(NULL))
+			SV_BroadcastTPrintf(PRINT_HIGH, STL_CLIENTLESSUNPAUSE);
 	}
 }
 
@@ -2998,8 +2997,14 @@ void SV_MVDStream_Poll(void);
 
 	// move autonomous things around if enough time has passed
 	if (!sv.paused)
+	{
 		if (SV_Physics ())
 			return;
+	}
+	else
+	{
+		PR_GameCodePausedTic(Sys_DoubleTime() - sv.pausedstart);
+	}
 
 	while(SV_ReadMVD());
 

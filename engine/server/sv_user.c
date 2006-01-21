@@ -1257,8 +1257,17 @@ void SV_Begin_f (void)
 #endif
 		if (split->istobeloaded)
 		{
+			func_t f;
 			sendangles = true;
 			split->istobeloaded = false;
+
+			f = PR_FindFunc(svprogfuncs, "RestoreGame", PR_ANY);
+			if (f)
+			{
+				pr_global_struct->time = sv.time;
+				pr_global_struct->self = EDICT_TO_PROG(svprogfuncs, split->edict);
+				PR_ExecuteProgram (svprogfuncs, f);
+			}
 		}
 		else
 		{
@@ -2111,24 +2120,34 @@ void SV_Kill_f (void)
 SV_TogglePause
 ==================
 */
-void SV_TogglePause (void)
+qboolean SV_TogglePause (client_t *initiator)
 {
 	int i;
 	client_t *cl;
+	int newv;
 
-	sv.paused ^= 1;
+	newv = sv.paused^1;
+
+	if (!PR_ShouldTogglePause(initiator, newv))
+		return false;
+
+	sv.paused = newv;
+
+	sv.pausedstart = Sys_DoubleTime();
 
 	// send notification to all clients
 	for (i=0, cl = svs.clients ; i<MAX_CLIENTS ; i++, cl++)
 	{
 		if (!cl->state)
 			continue;
-		if (!ISQ2CLIENT(host_client) && !cl->controller)
+		if (!ISQ2CLIENT(cl) && !cl->controller)
 		{
 			ClientReliableWrite_Begin (cl, svc_setpause, 2);
 			ClientReliableWrite_Byte (cl, sv.paused);
 		}
 	}
+
+	return true;
 }
 
 
@@ -2151,11 +2170,13 @@ void SV_Pause_f (void)
 		return;
 	}
 
-	SV_TogglePause();
-	if (sv.paused)
-		SV_BroadcastTPrintf (PRINT_HIGH, STL_CLIENTPAUSED, host_client->name);
-	else
-		SV_BroadcastTPrintf (PRINT_HIGH, STL_CLIENTUNPAUSED, host_client->name);
+	if (SV_TogglePause(host_client))
+	{
+		if (sv.paused)
+			SV_BroadcastTPrintf (PRINT_HIGH, STL_CLIENTPAUSED, host_client->name);
+		else
+			SV_BroadcastTPrintf (PRINT_HIGH, STL_CLIENTUNPAUSED, host_client->name);
+	}
 
 }
 

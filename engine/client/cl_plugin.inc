@@ -200,7 +200,11 @@ int VARGS Plug_Draw_Image(void *offset, unsigned int mask, const long *arg)
 	else if (pluginimagearray[i].picfromwad)
 		return 0;	//wasn't loaded.
 	else
-		pic = Draw_CachePic(pluginimagearray[i].name);
+	{
+		pic = Draw_SafeCachePic(pluginimagearray[i].name);
+		if (!pic)
+			return -1;
+	}
 
 	Draw_Image(VM_FLOAT(arg[0]), VM_FLOAT(arg[1]), VM_FLOAT(arg[2]), VM_FLOAT(arg[3]), VM_FLOAT(arg[4]), VM_FLOAT(arg[5]), VM_FLOAT(arg[6]), VM_FLOAT(arg[7]), pic);
 	return 1;
@@ -339,6 +343,61 @@ int VARGS Plug_CL_GetStats(void *offset, unsigned int mask, const long *arg)
 	return max;
 }
 
+#define PLUGMAX_SCOREBOARDNAME 64
+typedef struct {
+	int topcolour;
+	int bottomcolour;
+	int frags;
+	char name[PLUGMAX_SCOREBOARDNAME];
+	int ping;
+	int pl;
+	int starttime;
+	int userid;
+	int spectator;
+	char userinfo[1024];
+	char team[8];
+} vmplugclientinfo_t;
+
+int VARGS Plug_GetPlayerInfo(void *offset, unsigned int mask, const long *arg)
+{
+	int i, pt;
+	vmplugclientinfo_t *out;
+
+	if (VM_OOB(arg[1], sizeof(vmplugclientinfo_t)))
+		return -1;
+	if (VM_LONG(arg[0]) < -1 || VM_LONG(arg[0] ) >= MAX_CLIENTS)
+		return -2;
+
+	i = VM_LONG(arg[0]);
+	out = VM_POINTER(arg[1]);
+	if (i == -1)
+	{
+		i = cl.playernum[0];
+		if (i < 0)
+		{
+			memset(out, 0, sizeof(*out));
+			return 0;
+		}	
+	}
+	out->bottomcolour = cl.players[i].bottomcolor;
+	out->frags = cl.players[i].frags;
+	Q_strncpyz(out->name, cl.players[i].name, PLUGMAX_SCOREBOARDNAME);
+	out->ping = cl.players[i].ping;
+	out->pl = cl.players[i].pl;
+	out->starttime = cl.players[i].entertime;
+	out->topcolour = cl.players[i].topcolor;
+	out->userid = cl.players[i].userid;
+	out->spectator = cl.players[i].spectator;
+	Q_strncpyz(out->userinfo, cl.players[i].userinfo, sizeof(out->userinfo));
+	Q_strncpyz(out->team, cl.players[i].team, sizeof(out->team));
+
+	pt = Cam_TrackNum(0);
+	if (pt < 0)
+		return (cl.playernum[0] == i);
+	else
+		return pt == i;
+}
+
 
 int VARGS Plug_Con_SubPrint(void *offset, unsigned int mask, const long *arg)
 {
@@ -458,6 +517,8 @@ void Plug_Client_Init(void)
 	Plug_RegisterBuiltin("LocalSound",				Plug_LocalSound, PLUG_BIF_NEEDSRENDERER);
 	Plug_RegisterBuiltin("SCR_CenterPrint",			Plug_SCR_CenterPrint, PLUG_BIF_NEEDSRENDERER);
 	Plug_RegisterBuiltin("Media_ShowFrameRGBA_32",	Plug_Media_ShowFrameRGBA_32, PLUG_BIF_NEEDSRENDERER);
+
+	Plug_RegisterBuiltin("GetPlayerInfo",			Plug_GetPlayerInfo, PLUG_BIF_NEEDSRENDERER);
 }
 
 void Plug_Client_Close(plugin_t *plug)

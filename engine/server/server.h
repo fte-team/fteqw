@@ -114,6 +114,7 @@ typedef struct
 	double		lastchecktime;		// for monster ai
 
 	qboolean	paused;				// are we paused?
+	float		pausedstart;
 
 	//check player/eyes models for hacks
 	unsigned	model_player_checksum;
@@ -994,7 +995,7 @@ void SV_ExecuteClientMessage (client_t *cl);
 void SVQ2_ExecuteClientMessage (client_t *cl);
 int SV_PMTypeForClient (client_t *cl);
 void SV_UserInit (void);
-void SV_TogglePause (void);
+qboolean SV_TogglePause (client_t *cl);
 
 void SV_ClientThink (void);
 
@@ -1016,6 +1017,15 @@ void SV_EndRedirect (void);
 // sv_ccmds.c
 //
 void SV_Status_f (void);
+
+
+
+
+
+
+qboolean PR_GameCodePacket(char *s);
+qboolean PR_GameCodePausedTic(float pausedtime);
+qboolean PR_ShouldTogglePause(client_t *initiator, qboolean pausedornot);
 
 //
 // sv_ents.c

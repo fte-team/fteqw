@@ -20,7 +20,7 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 #include "quakedef.h"
 
 float	pm_stepheight = 18;
-#ifdef Q2BSPS
+#if defined(Q2CLIENT) || defined(Q2SERVER)
 
 #define	Q2PMF_DUCKED			1
 #define	Q2PMF_JUMP_HELD		2

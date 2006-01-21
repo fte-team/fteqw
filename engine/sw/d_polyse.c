@@ -156,6 +156,8 @@ void D_RasterizeAliasPolySmooth8Asm (void);
 void D_RasterizeAliasPolySmooth8C (void);
 void D_PolysetScanLeftEdgeC (int height);
 
+void D_PolysetRecursiveTriangle16C (int *lp1, int *lp2, int *lp3);
+
 void D_PolysetSetUpForLineScan(fixed8_t startvertu, fixed8_t startvertv,
 		fixed8_t endvertu, fixed8_t endvertv);
 
@@ -477,7 +479,7 @@ split:
 		int		pix;
 		
 		*zbuf = z;
-		pix = d_pcolormap[apalremap[skintable[new[3]>>16][new[2]>>16]]];
+		pix = ((unsigned short *)d_pcolormap)[skintable[new[3]>>16][new[2]>>16]];
 		((unsigned short *)d_viewbuffer)[d_scantable[new[1]] + new[0]] = pix;//d_8to32table[pix];
 	}
 
@@ -1130,6 +1132,32 @@ void D_PolysetDrawFinalVertsC (finalvert_t *fv, int numverts)
 	}
 }
 
+void D_PolysetDrawFinalVerts16C (finalvert_t *fv, int numverts)
+{
+	int		i, z;
+	short	*zbuf;
+
+	for (i=0 ; i<numverts ; i++, fv++)
+	{
+	// valid triangle coordinates for filling can include the bottom and
+	// right clip edges, due to the fill rule; these shouldn't be drawn
+		if ((fv->v[0] < r_refdef.vrectright) &&
+			(fv->v[1] < r_refdef.vrectbottom))
+		{
+			z = fv->v[5]>>16;
+			zbuf = zspantable[fv->v[1]] + fv->v[0];
+			if (z >= *zbuf)
+			{
+				int		pix;
+				
+				*zbuf = z;
+				pix = skintable[fv->v[3]>>16][fv->v[2]>>16];
+				pix = ((unsigned short *)acolormap)[apalremap[pix] + (fv->v[4] & 0xFF00) ];
+				((unsigned short*)d_viewbuffer)[d_scantable[fv->v[1]] + fv->v[0]] = pix;
+			}
+		}
+	}
+}
 
 /*
 ================
@@ -1162,12 +1190,17 @@ void D_DrawSubdivC (void)
 	{
 		if (r_pixbytes == 4)
 			drawfnc = D_PolysetRecursiveTriangle32Trans;
+		else if (r_pixbytes == 2)
+			drawfnc = D_PolysetRecursiveTriangle16C;
 		else if (r_pixbytes == 1)
 			drawfnc = D_PolysetRecursiveTriangleTrans;
 	}
 	else
 #endif
-		drawfnc = D_PolysetRecursiveTriangleC;
+		if (r_pixbytes == 2)
+			drawfnc = D_PolysetRecursiveTriangle16C;
+		else
+			drawfnc = D_PolysetRecursiveTriangleC;
 
 	for (i=0 ; i<lnumtriangles ; i++)
 	{
@@ -1195,7 +1228,7 @@ void D_DrawSubdivC (void)
 		index2->v[2] = stv->s;
 		index2->v[3] = stv->t;
 
-
+/*
 		{
 			int z;
 			short *zbuf;
@@ -1241,7 +1274,7 @@ void D_DrawSubdivC (void)
 				d_viewbuffer[d_scantable[index2->v[1]] + index2->v[0]] = pix;//Trans(d_viewbuffer[d_scantable[index0->v[1]] + index0->v[0]], pix);
 			}
 		}
-
+*/
 		d_pcolormap = &((qbyte *)acolormap)[index0->v[4] & 0xFF00];
 
 		drawfnc(index0->v, index1->v, index2->v);
@@ -1452,6 +1485,86 @@ nodraw:
 	D_PolysetRecursiveTriangleC (lp3, new, lp2);
 }
 
+void D_PolysetRecursiveTriangle16C (int *lp1, int *lp2, int *lp3)
+{
+	int		*temp;
+	int		d;
+	int		new[6];
+	int		z;
+	short	*zbuf;
+
+	d = lp2[0] - lp1[0];
+	if (d < -1 || d > 1)
+		goto split;
+	d = lp2[1] - lp1[1];
+	if (d < -1 || d > 1)
+		goto split;
+
+	d = lp3[0] - lp2[0];
+	if (d < -1 || d > 1)
+		goto split2;
+	d = lp3[1] - lp2[1];
+	if (d < -1 || d > 1)
+		goto split2;
+
+	d = lp1[0] - lp3[0];
+	if (d < -1 || d > 1)
+		goto split3;
+	d = lp1[1] - lp3[1];
+	if (d < -1 || d > 1)
+	{
+split3:
+		temp = lp1;
+		lp1 = lp3;
+		lp3 = lp2;
+		lp2 = temp;
+
+		goto split;
+	}
+
+	return;			// entire tri is filled
+
+split2:
+	temp = lp1;
+	lp1 = lp2;
+	lp2 = lp3;
+	lp3 = temp;
+
+split:
+// split this edge
+	new[0] = (lp1[0] + lp2[0]) >> 1;
+	new[1] = (lp1[1] + lp2[1]) >> 1;
+	new[2] = (lp1[2] + lp2[2]) >> 1;
+	new[3] = (lp1[3] + lp2[3]) >> 1;
+	new[5] = (lp1[5] + lp2[5]) >> 1;
+
+// draw the point if splitting a leading edge
+	if (lp2[1] > lp1[1])
+		goto nodraw;
+	if ((lp2[1] == lp1[1]) && (lp2[0] < lp1[0]))
+		goto nodraw;
+
+
+	z = new[5]>>16;
+	zbuf = zspantable[new[1]] + new[0];
+	if (z >= *zbuf)
+	{
+		int		pix;
+
+//		lptex = (qbyte *)((unsigned char *)r_affinetridesc.pskin+tex);
+//		lpdest[0] = ((unsigned short *)acolormap)[apalremap[*lptex] + (llight & 0xFF00)];
+
+		
+		*zbuf = z;
+		pix = skintable[new[3]>>16][new[2]>>16];
+		((unsigned short *)d_viewbuffer)[d_scantable[new[1]] + new[0]] = pix;
+	}
+
+nodraw:
+// recursively continue
+	D_PolysetRecursiveTriangle16C (lp3, lp1, new);
+	D_PolysetRecursiveTriangle16C (lp3, new, lp2);
+}
 
 /*
 ================

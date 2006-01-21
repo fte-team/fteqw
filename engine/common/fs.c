@@ -1663,6 +1663,61 @@ vfsfile_t *FS_OpenVFS(char *filename, char *mode, int relativeto)
 	return NULL;
 }
 
+void FS_Rename2(char *oldf, char *newf, int oldrelativeto, int newrelativeto)
+{
+	char oldfullname[MAX_OSPATH];
+	char newfullname[MAX_OSPATH];
+
+	switch (oldrelativeto)
+	{
+	case FS_GAME:
+		if (*com_homedir)
+			_snprintf(oldfullname, sizeof(oldfullname), "%s/%s/", com_homedir, gamedirfile);
+		else
+			_snprintf(oldfullname, sizeof(oldfullname), "%s/%s/", com_quakedir, gamedirfile);
+		break;
+	case FS_SKINS:
+		if (*com_homedir)
+			_snprintf(oldfullname, sizeof(oldfullname), "%s/qw/skins/", com_homedir);
+		else
+			_snprintf(oldfullname, sizeof(oldfullname), "%s/qw/skins/", com_quakedir);
+		break;
+	case FS_BASE:
+		if (*com_homedir)
+			_snprintf(oldfullname, sizeof(oldfullname), "%s/", com_homedir);
+		else
+			_snprintf(oldfullname, sizeof(oldfullname), "%s/", com_quakedir);
+		break;
+	default:
+		Sys_Error("FS_Rename case not handled\n");
+	}
+
+	switch (newrelativeto)
+	{
+	case FS_GAME:
+		if (*com_homedir)
+			_snprintf(newfullname, sizeof(newfullname), "%s/%s/", com_homedir, gamedirfile);
+		else
+			_snprintf(newfullname, sizeof(newfullname), "%s/%s/", com_quakedir, gamedirfile);
+		break;
+	case FS_SKINS:
+		if (*com_homedir)
+			_snprintf(newfullname, sizeof(newfullname), "%s/qw/skins/", com_homedir);
+		else
+			_snprintf(newfullname, sizeof(newfullname), "%s/qw/skins/", com_quakedir);
+		break;
+	case FS_BASE:
+		if (*com_homedir)
+			_snprintf(newfullname, sizeof(newfullname), "%s/", com_homedir);
+		else
+			_snprintf(newfullname, sizeof(newfullname), "%s/", com_quakedir);
+		break;
+	default:
+		Sys_Error("FS_Rename case not handled\n");
+	}
+
+	rename(va("%s%s", oldfullname, oldf), va("%s%s", newfullname, newf));
+}
 void FS_Rename(char *oldf, char *newf, int relativeto)
 {
 	char fullname[MAX_OSPATH];

@@ -596,19 +596,21 @@ void R_AliasPrepareUnclippedPoints (void)
 	r_anumverts = pmdl->numverts;
 
 	R_AliasTransformAndProjectFinalVerts (pfinalverts);
-
+/*
 	if (r_affinetridesc.drawtype)
 	{
 		if (r_pixbytes == 4)
 			D_PolysetDrawFinalVerts32Trans (pfinalverts, r_anumverts);
+		else if (r_pixbytes == 2)
+			D_PolysetDrawFinalVerts16C (pfinalverts, r_anumverts);
 #if 0//id386
 		else if (t_state & TT_ONE)
 			D_PolysetDrawFinalVertsAsm (pfinalverts, r_anumverts);
 #endif
-//		else
-//			D_PolysetDrawFinalVertsC (pfinalverts, r_anumverts);
+		else
+			D_PolysetDrawFinalVertsC (pfinalverts, r_anumverts);
 	}
-
+*/
 	r_affinetridesc.pfinalverts = pfinalverts;
 	r_affinetridesc.ptriangles = (mtriangle_t *)
 			((qbyte *)paliashdr + paliashdr->triangles);

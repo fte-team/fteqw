@@ -102,11 +102,13 @@ func_t ChatMessage;
 func_t getplayerstat[MAX_CL_STATS];
 func_t getplayerstati[MAX_CL_STATS];
 
-//mvdsv stuff
-func_t mod_UserCmd, SV_ParseClientCommand;
+func_t mod_UserCmd, SV_ParseClientCommand, SV_ParseConnectionlessPacket;
 func_t mod_ConsoleCmd;
 func_t UserInfo_Changed;
 func_t localinfoChanged;
+
+func_t pr_SV_PausedTic;
+func_t pr_SV_ShouldPause;
 
 func_t SV_PlayerPhysicsQC;	//DP's DP_SV_PLAYERPHYSICS extension
 func_t EndFrameQC;
@@ -514,12 +516,16 @@ void PR_LoadGlabalStruct(void)
 	}
 
 	SV_ParseClientCommand = PR_FindFunction(svprogfuncs, "SV_ParseClientCommand", PR_ANY);
+	SV_ParseConnectionlessPacket = PR_FindFunction(svprogfuncs, "SV_ParseConnectionlessPacket", PR_ANY);
 
 	UserInfo_Changed = PR_FindFunction(svprogfuncs, "UserInfo_Changed", PR_ANY);
 	localinfoChanged = PR_FindFunction(svprogfuncs, "localinfoChanged", PR_ANY);
 	ChatMessage = PR_FindFunction(svprogfuncs, "ChatMessage", PR_ANY);
 	mod_UserCmd = PR_FindFunction(svprogfuncs, "UserCmd", PR_ANY);
 	mod_ConsoleCmd = PR_FindFunction(svprogfuncs, "ConsoleCmd", PR_ANY);
+
+	pr_SV_PausedTic = PR_FindFunction(svprogfuncs, "SV_PausedTic", PR_ANY);
+	pr_SV_ShouldPause = PR_FindFunction(svprogfuncs, "SV_ShouldPause", PR_ANY);
 
 	if (pr_no_playerphysics.value)
 		SV_PlayerPhysicsQC = 0;
@@ -1285,6 +1291,76 @@ qboolean PR_QCChat(char *text, int say_type)
 	return false;
 }
 
+qboolean PR_GameCodePausedTic(float pausedtime)
+{	//notications to the gamecode that the server is paused.
+	globalvars_t *pr_globals;
+
+	if (!svprogfuncs || !pr_SV_ShouldPause)
+		return false;
+
+	pr_globals = PR_globals(svprogfuncs, PR_CURRENT);
+
+	G_FLOAT(OFS_PARM0) = pausedtime;
+	PR_ExecuteProgram (svprogfuncs, pr_SV_PausedTic);
+
+	if (G_FLOAT(OFS_RETURN))
+		return true;
+	return false;
+}
+qboolean PR_ShouldTogglePause(client_t *initiator, qboolean newpaused)
+{
+	globalvars_t *pr_globals;
+
+	if (!svprogfuncs || !pr_SV_ShouldPause)
+		return false;
+
+	pr_globals = PR_globals(svprogfuncs, PR_CURRENT);
+
+	if (initiator)
+		pr_global_struct->self = EDICT_TO_PROG(svprogfuncs, initiator->edict);
+	else
+		pr_global_struct->self = 0;
+	G_FLOAT(OFS_PARM0) = newpaused;
+	PR_ExecuteProgram (svprogfuncs, pr_SV_ShouldPause);
+
+	return G_FLOAT(OFS_RETURN);
+}
+
+qboolean PR_GameCodePacket(char *s)
+{
+	globalvars_t *pr_globals;
+	int i;
+	client_t *cl;
+
+	if (!SV_ParseConnectionlessPacket)
+		return false;
+	if (!svprogfuncs)
+		return false;
+
+	pr_globals = PR_globals(svprogfuncs, PR_CURRENT);
+	pr_global_struct->time = sv.time;
+
+	// check for packets from connected clients
+	pr_global_struct->self = 0;
+	for (i=0, cl=svs.clients ; i<MAX_CLIENTS ; i++,cl++)
+	{
+		if (cl->state == cs_free)
+			continue;
+		if (!NET_CompareAdr (net_from, cl->netchan.remote_address))
+			continue;
+		pr_global_struct->self = EDICT_TO_PROG(svprogfuncs, cl->edict);
+		break;
+	}
+
+
+
+	G_INT(OFS_PARM0) = (int)NET_AdrToString (net_from);
+
+	G_INT(OFS_PARM1) = (int)PR_SetString(svprogfuncs, s);
+	PR_ExecuteProgram (svprogfuncs, SV_ParseConnectionlessPacket);
+	return G_FLOAT(OFS_RETURN);
+}
+
 qboolean PR_KrimzonParseCommand(char *s)
 {
 	globalvars_t *pr_globals;
@@ -1293,6 +1369,8 @@ qboolean PR_KrimzonParseCommand(char *s)
 	if (ge)
 		return false;
 #endif
+	if (!svprogfuncs)
+		return false;
 
 	if (SV_ParseClientCommand)
 	{	//the QC is expected to send it back to use via a builtin.
@@ -1320,6 +1398,8 @@ qboolean PR_UserCmd(char *s)
 		return true;	//the dll will convert it to chat.
 	}
 #endif
+	if (!svprogfuncs)
+		return false;
 
 	if (SV_ParseClientCommand)
 	{	//the QC is expected to send it back to use via a builtin.
@@ -6175,7 +6255,7 @@ lh_extension_t QSG_Extensions[] = {
 	{"DP_ENT_EXTERIORMODELTOCLIENT"},
 	//only in dp6 currently {"DP_ENT_GLOW"},
 	{"DP_ENT_VIEWMODEL"},
-	//Might be buggy {"DP_GFX_QUAKE3MODELTAGS"},
+	{"DP_GFX_QUAKE3MODELTAGS"},
 	{"DP_GFX_SKINFILES"},
 	{"DP_GFX_SKYBOX"},	//according to the spec. :)
 	{"DP_HALFLIFE_MAP_CVAR"},
@@ -6210,6 +6290,9 @@ lh_extension_t QSG_Extensions[] = {
 	{"DP_QUAKE2_SPRITE"},
 	{"DP_QUAKE3_MODEL"},
 	{"DP_REGISTERCVAR",					1,	NULL, {"registercvar"}},
+	{"DP_SND_STEREOWAV"},
+	{"DP_SND_OGGVORBIS"},
+	{"DP_SOLIDCORPSE"},
 	{"DP_SPRITE32"},				//hmm... is it legal to advertise this one?
 	{"DP_SV_CLIENTCOLORS"},
 	{"DP_SV_CLIENTNAME"},
@@ -6225,13 +6308,13 @@ lh_extension_t QSG_Extensions[] = {
 	{"DP_TE_BLOOD",						1,	NULL, {"te_blood"}},
 	{"DP_TE_BLOODSHOWER",				1,	NULL, {"te_bloodshower"}},
 	{"DP_TE_CUSTOMFLASH",				1,	NULL, {"te_customflash"}},
-	//explosionrgb
+	{"DP_TE_EXPLOSIONRGB"},
 	//flamejet
 	{"DP_TE_PARTICLECUBE",				1,	NULL, {"te_particlecube"}},
 	//particlerain
 	//particlesnow
 	{"DP_TE_PLASMABURN",				1,	NULL, {"te_plasmaburn"}},
-	//quadeffects1
+	{"DP_TE_QUADEFFECTS1"},
 	{"DP_TE_SMALLFLASH",				1,	NULL, {"te_smallflash"}},
 	{"DP_TE_SPARK",						1,	NULL, {"te_spark"}},
 	{"DP_TE_STANDARDEFFECTBUILTINS",	14,	NULL, {"te_gunshot", "te_spike", "te_superspike", "te_explosion", "te_tarexplosion", "te_wizspike", "te_knightspike", "te_lavasplash", "te_teleport", "te_explosion2", "te_lightning1", "te_lightning2", "te_lightning3", "te_beam"}},
@@ -6242,6 +6325,7 @@ lh_extension_t QSG_Extensions[] = {
 	{"EXT_DIMENSION_GHOST"},
 	{"FRIK_FILE",						11, NULL, {"stof", "fopen","fclose","fgets","fputs","strlen","strcat","substring","stov","strzone","strunzone"}},
 	{"FTE_CALLTIMEOFDAY",				1,	NULL, {"calltimeofday"}},
+	{"FTE_EXTENDEDTEXTCODES"},
 	{"FTE_FORCEINFOKEY",				1,	NULL, {"forceinfokey"}},
 	{"FTE_GFX_QUAKE3SHADERS"},
 	{"FTE_ISBACKBUFFERED",				1,	NULL, {"isbackbuffered"}},
@@ -6258,17 +6342,22 @@ lh_extension_t QSG_Extensions[] = {
 #endif
 	{"FTE_QC_CHECKPVS",					1,	NULL, {"checkpvs"}},
 	{"FTE_QC_MATCHCLIENTNAME",				1,	NULL, {"matchclient"}},
+	{"FTE_QC_PAUSED"},
+	{"FTE_QC_TRACETRIGGER"},
 	{"FTE_SOLID_LADDER"},	//part of a worthy hl implementation. Allows a simple trigger to remove effects of gravity (solid 20)
 
 	//eperimental advanced strings functions.
 	//reuses the FRIK_FILE builtins (with substring extension)
 	{"FTE_STRINGS",						16, NULL, {"stof", "strlen","strcat","substring","stov","strzone","strunzone",
 												   "strstrofs", "str2chr", "chr2str", "strconv", "infoadd", "infoget", "strncmp", "strcasecmp", "strncasecmp"}},
+	{"FTE_QC_SENDPACKET",				1,	NULL, {"sendpacket"}},
 	{"FTE_SV_REENTER"},
 	{"FTE_TE_STANDARDEFFECTBUILTINS",	14,	NULL, {"te_gunshot", "te_spike", "te_superspike", "te_explosion", "te_tarexplosion", "te_wizspike", "te_knightspike", "te_lavasplash",
 												   "te_teleport", "te_lightning1", "te_lightning2", "te_lightning3", "te_lightningblood", "te_bloodqw"}},
 
 	{"KRIMZON_SV_PARSECLIENTCOMMAND",	3,	NULL, {"clientcommand", "tokenize", "argv"}},	//very very similar to the mvdsv system.
+	{"NEH_CMD_PLAY2"},
+	{"NEH_RESTOREGAME"},
 	//{"PRYDON_CLIENTCURSOR"},
 	{"QSG_CVARSTRING",					1,	NULL, {"cvar_string"}},
 	{"QW_ENGINE",						1,	NULL, {"infokey", "stof", "logfrag"}},	//warning: interpretation of .skin on players can be dodgy, as can some other QW features that differ from NQ.
@@ -9031,6 +9120,16 @@ void PF_matchclient(progfuncs_t *prinst, struct globalvars_s *pr_globals)
 	G_INT(OFS_RETURN) = 0;	//world
 }
 
+void PF_SendPacket(progfuncs_t *prinst, struct globalvars_s *pr_globals)
+{
+	netadr_t to;
+	char *address = PR_GetStringOfs(prinst, OFS_PARM0);
+	char *contents = PF_VarString(prinst, 1, pr_globals);
+
+	NET_StringToAdr(address, &to);
+	NET_SendPacket(NS_SERVER, strlen(contents), contents, to);
+}
+
 BuiltinList_t BuiltinList[] = {				//nq	qw		h2		ebfs
 	{"fixme",			PF_Fixme,			0,		0,		0},
 	{"ignore",			PF_Ignore,			0,		0,		0},
@@ -9338,7 +9437,8 @@ BuiltinList_t BuiltinList[] = {				//nq	qw		h2		ebfs
 	{"te_bloodqw",		PF_te_bloodqw,		0,		0,		0,		239},
 
 	{"checkpvs",		PF_checkpvs,		0,		0,		0,		240},
-	{"matchclientname",		PF_matchclient,		0,		0,		0,		241},
+	{"matchclientname",	PF_matchclient,		0,		0,		0,		241},
+	{"sendpacket",		PF_SendPacket,		0,		0,		0,		242},	//void(string dest, string content) sendpacket = #242; (FTE_QC_SENDPACKET)
 
 //end fte extras
 

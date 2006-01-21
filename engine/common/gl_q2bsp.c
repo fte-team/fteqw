@@ -3207,7 +3207,7 @@ void CM_OpenAllPortals(char *ents)	//this is a compleate hack. About as compleat
 }
 
 
-
+#ifndef CLIENTONLY
 void CMQ3_CalcPHS (void)
 {
 	int		rowbytes, rowwords;
@@ -3276,6 +3276,7 @@ void CMQ3_CalcPHS (void)
 	Con_Printf ("Average clusters visible / hearable / total: %i / %i / %i\n"
 		, vcount/numclusters, count/numclusters, numclusters);
 }
+#endif
 
 qbyte *CM_LeafnumPVS (model_t *model, int leafnum, qbyte *buffer)
 {
@@ -3427,9 +3428,11 @@ void SWR_Q2BSP_StainNode (mnode_t *node, float *parms)
 
 #endif
 
+#ifndef CLIENTONLY
 void Q2BSP_FatPVS (model_t *mod, vec3_t org, qboolean add);
 qboolean Q2BSP_EdictInFatPVS(model_t *mod, edict_t *ent);
 void Q2BSP_FindTouchedLeafs(model_t *mod, edict_t *ent);
+#endif
 void GLQ2BSP_LightPointValues(vec3_t point, vec3_t res_diffuse, vec3_t res_ambient, vec3_t res_dir);
 void SWQ2BSP_LightPointValues(vec3_t point, vec3_t res_diffuse, vec3_t res_ambient, vec3_t res_dir);
 
@@ -3594,9 +3597,11 @@ q2cmodel_t *CM_LoadMap (char *name, char *filein, qboolean clientload, unsigned 
 			CModQ3_LoadVisibility	(&header.lumps[Q3LUMP_VISIBILITY]);
 			CMod_LoadEntityString	(&header.lumps[Q3LUMP_ENTITIES]);
 
+#ifndef CLIENTONLY
 			loadmodel->funcs.FatPVS					= Q2BSP_FatPVS;
 			loadmodel->funcs.EdictInFatPVS			= Q2BSP_EdictInFatPVS;
 			loadmodel->funcs.FindTouchedLeafs_Q1	= Q2BSP_FindTouchedLeafs;
+#endif
 			loadmodel->funcs.LeafPVS				= CM_LeafnumPVS;
 			loadmodel->funcs.LeafnumForPoint			= CM_PointLeafnum;
 
@@ -3634,7 +3639,9 @@ q2cmodel_t *CM_LoadMap (char *name, char *filein, qboolean clientload, unsigned 
 
 			CM_CreatePatchesForLeafs ();	//for clipping
 
+#ifndef CLIENTONLY
 			CMQ3_CalcPHS();
+#endif
 
 //			BZ_Free(map_verts);
 			BZ_Free(map_faces);
@@ -3679,9 +3686,11 @@ q2cmodel_t *CM_LoadMap (char *name, char *filein, qboolean clientload, unsigned 
 			CMod_LoadAreaPortals	(&header.lumps[Q2LUMP_AREAPORTALS]);
 			CMod_LoadEntityString	(&header.lumps[Q2LUMP_ENTITIES]);
 
+#ifndef CLIENTONLY
 			loadmodel->funcs.FatPVS					= Q2BSP_FatPVS;
 			loadmodel->funcs.EdictInFatPVS			= Q2BSP_EdictInFatPVS;
 			loadmodel->funcs.FindTouchedLeafs_Q1	= Q2BSP_FindTouchedLeafs;
+#endif
 			loadmodel->funcs.LightPointValues		= NULL;
 			loadmodel->funcs.StainNode				= NULL;
 			loadmodel->funcs.MarkLights				= NULL;
@@ -3717,10 +3726,11 @@ q2cmodel_t *CM_LoadMap (char *name, char *filein, qboolean clientload, unsigned 
 			CMod_LoadAreas			(&header.lumps[Q2LUMP_AREAS]);
 			CMod_LoadAreaPortals	(&header.lumps[Q2LUMP_AREAPORTALS]);
 			CMod_LoadEntityString	(&header.lumps[Q2LUMP_ENTITIES]);
-
+#ifndef CLIENTONLY
 			loadmodel->funcs.FatPVS					= Q2BSP_FatPVS;
 			loadmodel->funcs.EdictInFatPVS			= Q2BSP_EdictInFatPVS;
 			loadmodel->funcs.FindTouchedLeafs_Q1	= Q2BSP_FindTouchedLeafs;
+#endif
 			loadmodel->funcs.LightPointValues		= GLQ2BSP_LightPointValues;
 			loadmodel->funcs.StainNode				= GLR_Q2BSP_StainNode;
 			loadmodel->funcs.MarkLights				= Q2BSP_MarkLights;
@@ -3940,9 +3950,12 @@ void CM_InitBoxHull (void)
 	q2cbrushside_t	*s;
 
 
+#ifndef CLIENTONLY
 	box_model.funcs.FatPVS				= Q2BSP_FatPVS;
 	box_model.funcs.EdictInFatPVS		= Q2BSP_EdictInFatPVS;
 	box_model.funcs.FindTouchedLeafs_Q1	= Q2BSP_FindTouchedLeafs;
+#endif
+
 #ifndef SERVERONLY
 	box_model.funcs.MarkLights			= Q2BSP_MarkLights;
 #endif

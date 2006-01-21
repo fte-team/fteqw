@@ -1,7 +1,7 @@
 #include "quakedef.h"
 
 #ifdef WEBCLIENT
-//#define DOWNLOADMENU
+#define DOWNLOADMENU
 #endif
 
 #ifdef DOWNLOADMENU
@@ -246,7 +246,7 @@ static void dlnotification(char *localfile, qboolean sucess)
 	int i;
 	vfsfile_t *f;
 	COM_RefreshFSCache_f();
-	f = FS_OpenVFS (localfile, "rb", FS_BASE);
+	f = FS_OpenVFS (localfile, "rb", FS_GAME);
 	if (f)
 	{
 		i = atoi(localfile+7);
@@ -354,9 +354,9 @@ static void Menu_Download_Got(char *fname, qboolean successful)
 			}
 
 			if (*p->gamedir)
-				destname = va("%s/%s/%s", com_basedir, p->gamedir, p->dest);
+				destname = va("%s/%s", p->gamedir, p->dest);
 			else
-				destname = va("%s/%s", com_gamedir, p->dest);
+				destname = va("%s", p->dest);
 
 			if (!(p->flags & DPF_DOWNLOADING))
 			{
@@ -367,7 +367,7 @@ static void Menu_Download_Got(char *fname, qboolean successful)
 			p->flags &= ~DPF_DOWNLOADING;
 
 
-			if (!rename(diskname, destname))
+			if (!FS_Rename2(diskname, destname, FS_GAME, *p->gamedir?FS_BASE:FS_GAME))
 			{
 				Con_Printf("Couldn't rename %s to %s. Removed instead.\nPerhaps you already have it\n", diskname, destname);
 				unlink(diskname);
@@ -413,8 +413,13 @@ static qboolean M_Download_Key (struct menucustom_s *c, struct menu_s *m, int ke
 			{
 				if (!(p->flags&DPF_WANTTOINSTALL) && (p->flags&DPF_HAVEAVERSION))
 				{	//if we don't want it but we have it anyway:
-					char *fname = va("%s/%s", com_basedir, p->dest);
-					unlink(fname);
+					if (*p->gamedir)
+					{
+						char *fname = va("%s", p->gamedir, p->dest);
+						FS_Remove(fname, FS_BASE);
+					}
+					else
+						FS_Remove(p->dest, FS_GAME);
 					p->flags&=~DPF_HAVEAVERSION;	//FIXME: This is error prone.
 
 					WriteInstalledPackages();
@@ -441,7 +446,6 @@ static qboolean M_Download_Key (struct menucustom_s *c, struct menu_s *m, int ke
 					p->dlnum = dlcount++;
 					temp = va("dl_%i.tmp", p->dlnum);
 					Con_Printf("Downloading %s (to %s)\n", p->fullname, temp);
-					COM_CreatePath(va("%s/%s", com_gamedir, p->dest));
 					p->flags|=DPF_DOWNLOADING;
 					if (!HTTP_CL_Get(p->src, temp, Menu_Download_Got))
 						p->flags&=~DPF_DOWNLOADING;

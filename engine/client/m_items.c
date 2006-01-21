@@ -6,6 +6,9 @@ int omousex;
 int omousey;
 qboolean mousemoved;
 qboolean bindingactive;
+extern cvar_t cl_cursor;
+extern cvar_t cl_cursorsize;
+extern cvar_t cl_cursorbias;
 
 void Draw_TextBox (int x, int y, int width, int lines)
 {
@@ -158,7 +161,12 @@ void MenuDrawItems(int xpos, int ypos, menuoption_t *option, menu_t *menu)
 		case mt_picture:
 			p = NULL;
 			if (menu->selecteditem && menu->selecteditem->common.posx == option->common.posx && menu->selecteditem->common.posy == option->common.posy)
-				p = Draw_SafeCachePic(va("%s_sel", option->picture.picturename));
+			{
+				char selname[MAX_QPATH];
+				Q_strncpyz(selname, option->picture.picturename, sizeof(selname));
+				COM_StripExtension(selname, selname);
+				p = Draw_SafeCachePic(va("%s_sel", selname));
+			}
 
 			if (!p)
 				p = Draw_SafeCachePic(option->picture.picturename);
@@ -959,6 +967,7 @@ void M_Complex_Draw(void)
 	extern int mousecursor_x, mousecursor_y;
 	menu_t *menu, *cmenu;
 	qboolean foundexclusive = false;
+	mpic_t *p;
 
 	if (omousex != mousecursor_x || omousey != mousecursor_y)
 		mousemoved = true;
@@ -987,7 +996,19 @@ void M_Complex_Draw(void)
 		}
 		MenuDraw(cmenu);
 	}
-	Draw_Character(mousecursor_x-4, mousecursor_y-4, '+');
+
+	if (!*cl_cursor.string)
+		p = NULL;
+	else
+		p = Draw_SafeCachePic(cl_cursor.string);
+	if (p)
+	{
+		Draw_ImageColours(1, 1, 1, 1);
+		Draw_Image(mousecursor_x-cl_cursorbias.value, mousecursor_y-cl_cursorbias.value, cl_cursorsize.value, cl_cursorsize.value, 0, 0, 1, 1, p);
+//		Draw_TransPic(mousecursor_x-4, mousecursor_y-4, p);
+	}
+	else
+		Draw_Character(mousecursor_x-4, mousecursor_y-4, '+');
 }
 
 menuoption_t *M_NextItem(menu_t *m, menuoption_t *old)
@@ -1408,23 +1429,26 @@ void M_Menu_Main_f (void)
 		MC_AddPicture(mainm, (320-p->width)/2, 4, "gfx/ttl_main.lmp");
 		MC_AddPicture(mainm, 72, 32, "gfx/mainmenu.lmp");
 
-		b=MC_AddConsoleCommand	(mainm, 16, 32,	"", "menu_single\n");
+
+		p = Draw_SafeCachePic("gfx/mainmenu.lmp");
+
+		b=MC_AddConsoleCommand	(mainm, 72, 32,	"", "menu_single\n");
 		mainm->selecteditem = (menuoption_t *)b;
 		b->common.width = p->width;
 		b->common.height = 20;
-		b=MC_AddConsoleCommand	(mainm, 16, 52,	"", "menu_multi\n");
+		b=MC_AddConsoleCommand	(mainm, 72, 52,	"", "menu_multi\n");
 		b->common.width = p->width;
 		b->common.height = 20;
-		b=MC_AddConsoleCommand	(mainm, 16, 72,	"", "menu_options\n");
+		b=MC_AddConsoleCommand	(mainm, 72, 72,	"", "menu_options\n");
 		b->common.width = p->width;
 		b->common.height = 20;
 		if (m_helpismedia.value)
-			b=MC_AddConsoleCommand(mainm, 16, 92,	"", "menu_media\n");
+			b=MC_AddConsoleCommand(mainm, 72, 92,	"", "menu_media\n");
 		else
-			b=MC_AddConsoleCommand(mainm, 16, 92,	"", "help\n");
+			b=MC_AddConsoleCommand(mainm, 72, 92,	"", "help\n");
 		b->common.width = p->width;
 		b->common.height = 20;
-		b=MC_AddConsoleCommand	(mainm, 16, 112,	"", "menu_quit\n");
+		b=MC_AddConsoleCommand	(mainm, 72, 112,	"", "menu_quit\n");
 		b->common.width = p->width;
 		b->common.height = 20;
 

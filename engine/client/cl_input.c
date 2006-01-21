@@ -851,6 +851,9 @@ void VARGS CL_SendClientCommand(qboolean reliable, char *format, ...)
 	char		string[2048];
 	clcmdbuf_t *buf, *prev;
 
+	if (cls.demoplayback)
+		return;	//no point.
+
 	va_start (argptr, format);
 	_vsnprintf (string,sizeof(string)-1, format,argptr);
 	va_end (argptr);

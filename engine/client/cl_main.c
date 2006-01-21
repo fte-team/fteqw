@@ -579,7 +579,12 @@ void CL_CheckForResend (void)
 	}
 
 	if (adr.port == 0)
-		adr.port = BigShort (27500);
+	{
+		if (connect_type)
+			adr.port = BigShort (26000);	//assume a different port for nq
+		else
+			adr.port = BigShort (27500);
+	}
 	t2 = Sys_DoubleTime ();
 
 	connect_time = realtime+t2-t1;	// for retransmit requests

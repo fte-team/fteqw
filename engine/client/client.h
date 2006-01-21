@@ -132,7 +132,7 @@ typedef struct
 typedef struct player_info_s
 {
 	int		userid;
-	char	userinfo[MAX_INFO_STRING];
+	char	userinfo[EXTENDED_INFO_STRING];
 
 	// scoreboard information
 	char	name[MAX_SCOREBOARDNAME];

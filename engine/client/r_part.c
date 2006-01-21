@@ -4359,6 +4359,7 @@ void P_DrawParticles (void)
 #if defined(RGLQUAKE)
 	if (qrenderer == QR_OPENGL)
 	{
+		extern int gldepthfunc;
 		extern cvar_t r_drawflat;
 
 		P_FlushRenderer();
@@ -4367,6 +4368,9 @@ void P_DrawParticles (void)
 			qglPolygonOffset(-1, 0);
 		qglEnable(GL_POLYGON_OFFSET_FILL);
 		qglEnable(GL_BLEND);
+
+		qglDepthFunc(gldepthfunc);
+
 		qglDisable(GL_ALPHA_TEST);
 		qglBegin(GL_QUADS);
 		if (r_drawflat.value == 2)
@@ -4375,6 +4379,8 @@ void P_DrawParticles (void)
 			DrawParticleTypes(GL_DrawTexturedParticle, GL_DrawLineSparkParticle, GL_DrawTrifanParticle, GL_DrawTexturedSparkParticle, GL_DrawParticleBeam_Textured, GL_DrawParticleBeam_Untextured, GL_DrawClippedDecal);
 		qglEnd();
 		qglDisable(GL_POLYGON_OFFSET_FILL);
+
+		
 
 		RSpeedRemark();
 		qglBegin(GL_QUADS);

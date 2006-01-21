@@ -3112,10 +3112,11 @@ void R_DrawWorld (void)
 		{
 			int leafnum;
 			int clientarea;
-
+#ifdef QUAKE2
 			if (cls.protocol == CP_QUAKE2)	//we can get server sent info
 				memcpy(areabits, cl.q2frame.areabits, sizeof(areabits));
 			else
+#endif
 			{	//generate the info each frame.
 				leafnum = CM_PointLeafnum (cl.worldmodel, r_refdef.vieworg);
 				clientarea = CM_LeafArea (cl.worldmodel, leafnum);

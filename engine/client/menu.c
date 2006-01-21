@@ -282,6 +282,7 @@ bindnames_t qwbindnames[] =
 {
 {"+attack", 		"attack"},
 {"impulse 10", 		"change weapon"},
+{"impulse 12", 		"prev weapon"},
 {"+jump", 			"jump / swim up"},
 {"+forward", 		"walk forward"},
 {"+back", 			"backpedal"},

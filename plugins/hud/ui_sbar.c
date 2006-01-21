@@ -10,8 +10,13 @@ int K_LEFTARROW;
 int K_RIGHTARROW;
 int K_ESCAPE;
 int K_MOUSE1;
+int K_MOUSE2;
 int K_HOME;
 int K_SHIFT;
+int K_MWHEELDOWN;
+int K_MWHEELUP;
+int K_PAGEUP;
+int K_PAGEDOWN;
 
 
 #define	MAX_CL_STATS		32
@@ -136,6 +141,7 @@ float	sbarscalex;
 float	sbarscaley;
 float	sbaralpha;
 int		sbartype;
+int sbarindex;
 
 static int hudedit;
 
@@ -171,7 +177,10 @@ drawelementfnc_t Hud_Powerup;
 drawelementfnc_t Hud_Rune;
 drawelementfnc_t Hud_Ammo;
 drawelementfnc_t Hud_ScoreCard;
+drawelementfnc_t Hud_ScoreName;
 drawelementfnc_t Hud_Blackness;
+drawelementfnc_t Hud_TeamScore;
+drawelementfnc_t Hud_TeamName;
 // TODO: more elements
 // - generalized graphic elements
 // - cvar controlled small and big numbers
@@ -204,13 +213,17 @@ drawelement_t drawelement[] =
 	{Hud_HealthPic,			"Health pic",	24,		24,		0},
 	{Hud_CurrentAmmoPic,	"Ammo pic",		24,		24,		0},
 	{Hud_IBar,				"Info bar",		320,	24,		0},
-	{Hud_Weapon,			"Weapon pic",	24,		16,		0},
+	{Hud_Weapon,			"Weapon pic",	24,		16,		6},
 	{Hud_W_Lightning,		"Shaft pic",	24,		16,		0},
 	{Hud_Powerup,			"Powerup pic",	16,		16,		5},
 	{Hud_Rune,				"Rune pic",		8,		16,		3},
 	{Hud_Ammo,				"Ammo display",	42,		11,		3},
-	{Hud_Blackness,			"Blackness",	16,		16,		0},
-	{Hud_ScoreCard,			"Scorecard",	0,		0,		16}
+	{Hud_Blackness,			"Blackness",	16,		16,		10},
+	{Hud_ScoreCard,			"Scorecard",	32,		8,		16},
+	{Hud_ScoreName,			"Scorename",	128,	8,		8},
+
+	{Hud_TeamScore,			"TeamScore",	32,	8,		8},
+	{Hud_TeamName,			"TeamName",		128,	8,		8}
 };
 
 huddefaultelement_t hedefaulttype[] = {
@@ -411,6 +424,7 @@ int currentitem;
 int hoveritem;
 qboolean mousedown, shiftdown;
 float mouseofsx, mouseofsy;
+qboolean context;
 
 void UI_DrawPic(qhandle_t pic, int x, int y, int width, int height)
 {
@@ -422,6 +436,14 @@ static float size = 1.0f/16.0f;
 	float s1 = size * (c&15);
 	float t1 = size * (c>>4);
 	Draw_Image((float)x*sbarscalex+sbarminx, (float)y*sbarscaley+sbarminy, 8*sbarscalex, 8*sbarscaley, s1, t1, s1+size, t1+size, con_chars);
+}
+void UI_DrawString(char *s, int x, int y)
+{
+	while(*s)
+	{
+		UI_DrawChar((unsigned int)*s++, x, y);
+		x+=8;
+	}
 }
 
 void UI_DrawBigNumber(int num, int x, int y, qboolean red)
@@ -815,16 +837,316 @@ void Hud_Ammo(void)
 		UI_DrawChar(num%10+18, 3, 0);
 }
 
+float pc[16][3] =
+{
+/*
+	{235, 235, 235},
+	{143, 111, 035},
+	{139, 139, 203},
+	{107, 107, 015},
+	{127, 000, 000},
+	{175, 103, 035},
+	{255, 243, 027},
+	{227, 179, 151},
+	{171, 139, 163},
+	{187, 115, 159},
+	{219, 195, 187},
+	{111, 131, 123},
+	{255, 243, 027},
+	{000, 000, 255},
+	{247, 211, 139}
+*/
+	{0.922, 0.922, 0.922},
+	{0.560, 0.436, 0.137},
+	{0.545, 0.545, 0.796},
+	{0.420, 0.420, 0.059},
+	{0.498, 0.000, 0.000},
+	{0.686, 0.404, 0.137},
+	{1.000, 0.953, 0.106},
+	{0.890, 0.702, 0.592},
+	{0.671, 0.545, 0.639},
+	{0.733, 0.451, 0.624},
+	{0.859, 0.765, 0.733},
+	{0.436, 0.514, 0.482},
+	{1.000, 0.953, 0.106},
+	{0.000, 0.000, 1.000},
+	{0.969, 0.827, 0.545}
+};
+
+int numsortedplayers;
+int playerlocal;
+int sortedplayers[32];
+plugclientinfo_t players[32];
+
+void SortPlayers(void)
+{
+	int i, j;
+	int temp;
+
+	numsortedplayers = 0;
+	playerlocal = -1;
+	for (i = 0; i < 32; i++)
+	{
+		if (GetPlayerInfo(i, &players[i])>0)
+			playerlocal = i;
+		if (players[i].spectator)
+			continue;
+		if (*players[i].name != 0)
+			sortedplayers[numsortedplayers++] = i;
+	}
+
+	for (i = 0; i < numsortedplayers; i++)
+	{
+		for (j = i+1; j < numsortedplayers; j++)
+		{
+			if (players[sortedplayers[i]].frags < players[sortedplayers[j]].frags)
+			{
+				temp = sortedplayers[j];
+				sortedplayers[j] = sortedplayers[i];
+				sortedplayers[i] = temp;
+			}
+		}
+	}
+}
+
+typedef struct {
+	char name[8];
+	int frags;
+	int tc;
+	int bc;
+} teams_t;
+teams_t team[32];
+int numsortedteams;
+
+void SortTeams(void)
+{
+	teams_t temp;
+	int i, j;
+
+	numsortedplayers = 0;
+	playerlocal = -1;
+	for (i = 0; i < 32; i++)
+	{
+		if (GetPlayerInfo(i, &players[i])>0)
+			playerlocal = i;
+		if (players[i].spectator)
+			continue;
+		if (*players[i].name != 0)
+			sortedplayers[numsortedplayers++] = i;
+
+		for (j = 0; j < numsortedteams; j++)
+		{
+			if (!strcmp(team[j].name, players[i].name))
+			{
+				team[j].frags += players[i].frags;
+				while(j > 0)
+				{
+					if (team[j-1].frags < team[j].frags)
+					{
+						memcpy(&temp, &team[j], sizeof(teams_t));
+						memcpy(&team[j], &team[j-1], sizeof(teams_t));
+						memcpy(&team[j-1], &temp, sizeof(teams_t));
+						j--;
+					}
+					else
+						break;
+				}
+			}
+		}
+		if (j == numsortedteams)
+		{
+			strlcpy(team[j].name, player[i].name, sizeof(team[j].name));
+			team[j].frags = players[i].frags;
+			team[j].tc = players[i].tc;
+			team[j].bc = players[i].bc;
+			numsortedteams++;
+		}
+	}
+}
 
 void Hud_ScoreCard(void)
 {
+	int frags, tc, bc, p;
+	int brackets;
+	char number[6];
+	char *num;
+
+	if (hudedit)
+	{
+		frags = sbartype;
+		tc = 0;
+		bc = 0;
+		brackets = 1;
+	}
+	else
+	{
+		SortPlayers();
+		if (sbartype>=numsortedplayers)
+			return;
+		p = sortedplayers[sbartype];
+		bc = players[p].bottomcolour;
+		tc = players[p].topcolour;
+		frags = players[p].frags;
+		brackets = p==playerlocal;
+	}
+
+	Draw_Colour4f(pc[tc][0], pc[tc][1], pc[tc][2], sbaralpha);
+	Draw_Fill(sbarminx, sbarminy, (float)32*sbarscalex, (float)4*sbarscaley);
+	Draw_Colour4f(pc[bc][0], pc[bc][1], pc[bc][2], 	sbaralpha);
+	Draw_Fill(sbarminx, sbarminy+4*sbarscaley, (float)32*sbarscalex, (float)4*sbarscaley);
+
+	Draw_Colour4f(1, 1, 1, sbaralpha);
+	if (brackets)
+	{
+		UI_DrawChar(16, 0, 0);
+		UI_DrawChar(17, 24, 0);
+	}
+
+	snprintf(number, sizeof(number), "%-3i", frags);
+	UI_DrawChar(number[0], 4, 0);
+	UI_DrawChar(number[1], 12, 0);
+	UI_DrawChar(number[2], 20, 0);
+
+	Draw_Colour4f(1,1,1,1);
+}
+void Hud_ScoreName(void)
+{
+	int p;
+	char *name;
+	if (hudedit)
+	{
+		name = va("Player %i", sbartype);
+	}
+	else
+	{
+		SortPlayers();
+		if (sbartype>=numsortedplayers)
+			return;
+		p = sortedplayers[sbartype];
+		name = players[p].name;
+	}
+	UI_DrawString(name, 0, 0);
+}
+
+void Hud_TeamCard(void)
+{
+	int frags, tc, bc, p;
+	int brackets;
+	char number[6];
+	char *num;
+
+	if (hudedit)
+	{
+		frags = sbartype;
+		tc = 0;
+		bc = 0;
+		brackets = 1;
+	}
+	else
+	{
+		SortPlayers();
+		if (sbartype>=numsortedplayers)
+			return;
+		p = sortedplayers[sbartype];
+		bc = players[p].bottomcolour;
+		tc = players[p].topcolour;
+		frags = players[p].frags;
+		brackets = p==playerlocal;
+	}
+
+	Draw_Colour4f(pc[tc][0], pc[tc][1], pc[tc][2], sbaralpha);
+	Draw_Fill(sbarminx, sbarminy, (float)32*sbarscalex, (float)4*sbarscaley);
+	Draw_Colour4f(pc[bc][0], pc[bc][1], pc[bc][2], 	sbaralpha);
+	Draw_Fill(sbarminx, sbarminy+4*sbarscaley, (float)32*sbarscalex, (float)4*sbarscaley);
+
+	Draw_Colour4f(1, 1, 1, sbaralpha);
+	if (brackets)
+	{
+		UI_DrawChar(16, 0, 0);
+		UI_DrawChar(17, 24, 0);
+	}
+
+	snprintf(number, sizeof(number), "%-3i", frags);
+	UI_DrawChar(number[0], 4, 0);
+	UI_DrawChar(number[1], 12, 0);
+	UI_DrawChar(number[2], 20, 0);
+
+
+
+	Draw_Colour4f(1,1,1,1);
+}
+
+void Hud_TeamCard(void)
+{
+	int frags, tc, bc, p;
+	int brackets;
+	char number[6];
+	char *num;
+
+	if (hudedit)
+	{
+		frags = sbartype;
+		tc = 0;
+		bc = 0;
+		brackets = 1;
+	}
+	else
+	{
+		SortTeams();
+		if (sbartype>=numsortedteams)
+			return;
+		p = sortedteams[sbartype];
+		bc = teams[p].bottomcolour;
+		tc = teams[p].topcolour;
+		frags = teams[p].frags;
+		brackets = p==playerlocal;
+	}
+
+	Draw_Colour4f(pc[tc][0], pc[tc][1], pc[tc][2], sbaralpha);
+	Draw_Fill(sbarminx, sbarminy, (float)32*sbarscalex, (float)4*sbarscaley);
+	Draw_Colour4f(pc[bc][0], pc[bc][1], pc[bc][2], 	sbaralpha);
+	Draw_Fill(sbarminx, sbarminy+4*sbarscaley, (float)32*sbarscalex, (float)4*sbarscaley);
+
+	Draw_Colour4f(1, 1, 1, sbaralpha);
+	if (brackets)
+	{
+		UI_DrawChar(16, 0, 0);
+		UI_DrawChar(17, 24, 0);
+	}
+
+	snprintf(number, sizeof(number), "%-3i", frags);
+	UI_DrawChar(number[0], 4, 0);
+	UI_DrawChar(number[1], 12, 0);
+	UI_DrawChar(number[2], 20, 0);
+
+
+
+	Draw_Colour4f(1,1,1,1);
 }
 
 //fixme: draw dark blobs
 void Hud_Blackness(void)
 {
-	Draw_Colour4f(0, 0, 0, sbaralpha);
+	Draw_Colour4f(0, 0, 0, sbartype/10.0f);
+
+	if (hudedit)
+	{
+		if (sbarindex == currentitem)
+		{
+			float j = ((currenttime % 1000) - 500) / 500.0f;
+			if (j < 0)
+				j = -j;
+			j/=3;
+
+			Draw_Colour4f(j, 0, 0, sbartype/10.0f);
+		}
+		else if (sbarindex == hoveritem)
+		{
+			Draw_Colour4f(0.0, 0.2, 0.0, sbartype/10.0f);
+		}
+	}
 	Draw_Fill(sbarminx, sbarminy, (float)16*sbarscalex, (float)16*sbarscaley);
+	Draw_Colour4f(1,1,1,1);
 }
 
 
@@ -843,6 +1165,8 @@ void UI_DrawHandles(int *arg, int i)
 	sbartype = element[i].subtype;
 	sbaralpha = element[i].alpha;
 
+	Draw_Colour4f(1, 0, 0, 1);
+	Draw_Fill(sbarminx+drawelement[mt].width*sbarscalex-((sbarscalex<0)?0:(vsx*4)), sbarminy-((sbarscaley>=0)?0:(vsy*4)), (float)4*vsx, (float)4*vsy);
 
 	Draw_Colour4f(0, 1, 0, 1);
 	Draw_Fill(sbarminx+drawelement[mt].width*sbarscalex-((sbarscalex<0)?0:(vsx*4)), sbarminy+drawelement[mt].height*sbarscaley-((sbarscaley<0)?0:(vsy*4)), (float)4*vsx, (float)4*vsy);
@@ -857,6 +1181,9 @@ int UI_StatusBar(int *arg)
 	int i;
 
 	float vsx, vsy;
+
+	if (arg[5])
+		return;
 
 	CL_GetStats(arg[0], stats, sizeof(stats)/sizeof(int));
 
@@ -910,6 +1237,7 @@ int UI_StatusBarEdit(int *arg) // seperated so further improvements to editor vi
 		sbarscaley  = element[i].scaley*vsy;
 		sbartype = element[i].subtype;
 		sbaralpha = element[i].alpha;
+		sbarindex = i;
 		drawelement[element[i].type].draw();
 
 		if (clrset)
@@ -920,6 +1248,31 @@ int UI_StatusBarEdit(int *arg) // seperated so further improvements to editor vi
 	}
 
 	return true;
+}
+
+
+
+int UI_ScoreBoard(int *arg)
+{
+	int i;
+	if (!arg[5])
+		return;
+
+	sbarminx = 320;
+	sbarminy = 48;
+	sbarscalex = 1;
+	sbarscaley = 1;
+	sbaralpha = 1;
+
+	SortPlayers();
+	for (i = 0; i < numsortedplayers; i++)
+	{
+		sbartype = i;
+		Hud_ScoreCard();
+		UI_DrawString(players[sortedplayers[i]].name, 40, 0);
+
+		sbarminy += 16;
+	}
 }
 
 #define HUD_VERSION 52345
@@ -1072,6 +1425,9 @@ void Hud_Load(char *fname)
 int FindItemUnderMouse(int mx, int my)
 {
 	int i;
+	int rv;
+
+	rv = -1;
 
 	for (i = 0; i < numelements; i++)
 	{
@@ -1104,10 +1460,49 @@ int FindItemUnderMouse(int mx, int my)
 				continue;
 		}
 
-		return i;
+		rv = i;
 	}
 
-	return -1; // no element found
+	return rv; // no element found
+}
+
+void DrawContextMenu(int mx, int my)
+{
+	int i;
+	int y;
+	Draw_Colour4f(0, 0, 0, 0.4);
+	Draw_Fill((mouseofsx-8)*sbarscalex, (mouseofsy-8)*sbarscaley, (float)112*sbarscalex, (float)(9*8)*sbarscaley);
+	Draw_Colour4f(1,1,1,1);
+
+	sbarminx = mouseofsx*sbarscalex;
+	sbarminy = mouseofsy*sbarscaley;
+
+	my -= mouseofsy;
+	my/=8;
+	my--;
+
+	y = 0;
+	UI_DrawString("CONTEXT MENU", 0, y);
+	y+=8;
+	UI_DrawString("------------", 0, y);
+	y+=8;
+	Draw_Colour4f(1-(my--)!=0,1,1,1);
+	UI_DrawString("Clone", 0, y);
+	y+=8;
+	Draw_Colour4f(1-(my--)!=0,1,1,1);
+	UI_DrawString("Snap To Grid", 0, y);
+	y+=8;
+	Draw_Colour4f(1-(my--)!=0,1,1,1);
+	UI_DrawString("Save", 0, y);
+	y+=8;
+	Draw_Colour4f(1-(my--)!=0,1,1,1);
+	UI_DrawString("Reload", 0, y);
+	y+=8;
+	Draw_Colour4f(1-(my--)!=0,1,1,1);
+	UI_DrawString("Defaults", 0, y);
+	y+=8;
+
+	Draw_Colour4f(1,1,1,1);
 }
 
 void UI_KeyPress(int key, int mx, int my)
@@ -1119,18 +1514,52 @@ void UI_KeyPress(int key, int mx, int my)
 		return;
 	}
 
+	if (context)
+	{
+		i = my - mouseofsy;
+		i /= 8;
+		context = false;
+		switch(i)
+		{
+		case 2:	//clone
+			if (numelements==MAX_ELEMENTS)
+				return;	//too many
+			memcpy(element+numelements, element+currentitem, sizeof(hudelement_t));
+			currentitem = numelements;
+			numelements++;
+			break;
+		case 3: //snap
+			shiftdown ^= 1;
+			break;
+		case 4: //save
+			Hud_Save(NULL);
+			break;
+		case 5: //reload
+			Hud_Load(NULL);
+			break;
+		case 6: //defaults
+			SBar_FlushAll();
+			SBar_ReloadDefaults();
+			break;
+		}
+		return;
+	}
+
 	if (key == K_MOUSE1)
 	{	//figure out which one our cursor is over...
 		mousedown = false;
+
 		i = FindItemUnderMouse(mx, my);
 		if (i != -1)
 		{
+			int oldcurrent;
 			float big;
+			oldcurrent = currentitem;
 			currentitem = i;
 
 			mouseofsx = mx - element[i].x;
 			mouseofsy = my - element[i].y;
-			mousedown = 1;
+			mousedown |= 1;
 
 			if (element[i].scalex < 0)
 			{
@@ -1143,6 +1572,14 @@ void UI_KeyPress(int key, int mx, int my)
 				if (mx-element[i].x+4 < big)
 					return;
 			}
+
+			if (my < element[i].y+4)
+			{
+				if (currentitem == oldcurrent)
+					UI_KeyPress('d', 0, 0);
+				return;
+			}
+
 			if (element[i].scaley < 0)
 			{
 				if (my > element[i].y+4)
@@ -1157,18 +1594,23 @@ void UI_KeyPress(int key, int mx, int my)
 
 			mouseofsx = mx - element[i].scalex*drawelement[element[i].type].width;
 			mouseofsy = my - element[i].scaley*drawelement[element[i].type].height;
-			mousedown = 2;
+			mousedown |= 2;
 		}
-
-		return;
 	}
 
 	// TODO: extra buttons
 	// - toggle clip to edges and clip to other controls
-	// - raise to front
 	// - maybe toggle snap to grid instead of holding shift with mouse?
 
-	if (key == 'n')
+	else if (key == K_MOUSE2)
+	{
+		mousedown = false;	//perhaps not logically true, but it's safest this way.
+		context = true;
+
+		mouseofsx = mx;
+		mouseofsy = my;
+	}
+	else if (key == 'n')
 	{
 		currentitem++;
 		if (currentitem >= numelements)
@@ -1201,6 +1643,24 @@ void UI_KeyPress(int key, int mx, int my)
 			numelements--;
 			currentitem = 0;
 		}
+		else if (key == K_PAGEUP)
+		{	//send to back
+			hudelement_t temp;
+
+			memcpy(&temp, element+currentitem, sizeof(temp));
+			memmove(element+1, element, sizeof(hudelement_t) * (currentitem));
+			memcpy(element, &temp, sizeof(hudelement_t));
+			currentitem = 0;
+		}
+		else if (key == K_PAGEDOWN)
+		{	//bring to front
+			hudelement_t temp;
+
+			memcpy(&temp, element+currentitem, sizeof(temp));
+			memcpy(element+currentitem, element+currentitem+1, sizeof(element[0]) * (numelements - currentitem-1));
+			currentitem = numelements - 1;
+			memcpy(element+currentitem , &temp, sizeof(hudelement_t));
+		}
 		else if (key == 'q')
 		{
 			element[currentitem].type--;
@@ -1213,13 +1673,13 @@ void UI_KeyPress(int key, int mx, int my)
 			if (element[currentitem].type >= sizeof(drawelement)/sizeof(drawelement[0]))
 				element[currentitem].type = 0;
 		}
-		else if (key == ',')
+		else if (key == ',' || key == K_MWHEELUP)
 		{
 			element[currentitem].subtype--;
 			if (element[currentitem].subtype < 0)
 				element[currentitem].subtype = drawelement[element[currentitem].type].maxsubtype;
 		}
-		else if (key == '.')
+		else if (key == '.' || key == K_MWHEELDOWN)
 		{
 			element[currentitem].subtype++;
 			if (element[currentitem].subtype > drawelement[element[currentitem].type].maxsubtype)
@@ -1245,6 +1705,7 @@ void UI_KeyPress(int key, int mx, int my)
 		{
 			element[currentitem].scalex=1.0f;
 			element[currentitem].scaley=1.0f;
+			element[currentitem].alpha=1.0f;
 		}
 		else if (key == '+')
 		{
@@ -1271,14 +1732,16 @@ int Plug_MenuEvent(int *args)
 	case 0:	//draw
 
 		// TODO: some sort of element property display
-
-		if (mousedown)
+		if (context)
 		{
-			if (mousedown == 2)
+		}
+		else if (mousedown)
+		{
+			if (mousedown & 2)	//2 is 'on the scaler'
 			{
 				float w = args[2] - mouseofsx;
 				float h = args[3] - mouseofsy;
-				if (shiftdown)
+				if (shiftdown || (mousedown & 4))	//4 is mouse2
 				{
 					w -= (int)w & 7;
 					h -= (int)h & 7;
@@ -1294,7 +1757,7 @@ int Plug_MenuEvent(int *args)
 			{
 				element[currentitem].x = args[2] - mouseofsx;
 				element[currentitem].y = args[3] - mouseofsy;
-				if (shiftdown)
+				if (shiftdown || (mousedown & 4))	//4 is mouse2
 				{
 					element[currentitem].x -= (int)element[currentitem].x & 7;
 					element[currentitem].y -= (int)element[currentitem].y & 7;
@@ -1315,6 +1778,14 @@ int Plug_MenuEvent(int *args)
 			UI_StatusBar(altargs);	//draw it using the same function (we're lazy)
 
 		UI_DrawHandles(altargs, currentitem);
+
+		if (context)
+		{
+			sbarscalex = vid.width/640.0f;
+			sbarscaley = vid.height/480.0f;
+
+			DrawContextMenu(args[2], args[3]);
+		}
 		break;
 	case 1:	//keydown
 		UI_KeyPress(args[1], args[2], args[3]);
@@ -1381,6 +1852,7 @@ int Plug_Init(int *args)
 {
 	if (Plug_Export("Tick", Plug_Tick) &&
 		Plug_Export("SbarBase", UI_StatusBar) &&
+		Plug_Export("SbarOverlay", UI_ScoreBoard) &&
 		Plug_Export("ExecuteCommand", Plug_ExecuteCommand) &&
 		Plug_Export("MenuEvent", Plug_MenuEvent))
 	{
@@ -1392,7 +1864,12 @@ int Plug_Init(int *args)
 		K_ESCAPE		= Key_GetKeyCode("escape");
 		K_HOME			= Key_GetKeyCode("home");
 		K_MOUSE1		= Key_GetKeyCode("mouse1");
+		K_MOUSE2		= Key_GetKeyCode("mouse2");
+		K_MWHEELDOWN	= Key_GetKeyCode("mwheeldown");
+		K_MWHEELUP		= Key_GetKeyCode("mwheelup");
 		K_SHIFT			= Key_GetKeyCode("shift");
+		K_PAGEUP		= Key_GetKeyCode("pgup");
+		K_PAGEDOWN		= Key_GetKeyCode("pgdn");
 
 		Cmd_AddCommand("sbar_edit");
 		if (BUILTINISVALID(FS_Write)) 

@@ -1,50 +1,10 @@
 Microsoft Visual Studio Solution File, Format Version 8.00
-Project("{059D6162-CD51-11D0-AE1F-00A0C90FFFC3}") = "emailnot", "..\..\PLUGINS\emailnot\emailnot.dsp", "{E2B62F2B-0955-4341-9C38-CB49394EA90E}"
+Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "ftequake", "ftequake.vcproj", "{173058C1-295E-4FA4-8C93-7CCA995E8B76}"
 	ProjectSection(ProjectDependencies) = postProject
-	EndProjectSection
-	ProjectSection(ProjectDependencies) = postProject
-	EndProjectSection
-EndProject
-Project("{059D6162-CD51-11D0-AE1F-00A0C90FFFC3}") = "emailsv", "..\..\plugins\emailsv\emailsv.dsp", "{8AFE014D-DE40-4958-B7C0-04F2E07D4EE8}"
-	ProjectSection(ProjectDependencies) = postProject
-	EndProjectSection
-	ProjectSection(ProjectDependencies) = postProject
+		{DF9D5237-75DD-45EE-9DDD-4DBFA24AA210} = {DF9D5237-75DD-45EE-9DDD-4DBFA24AA210}
 	EndProjectSection
 EndProject
-Project("{EAF909A5-FA59-4C3D-9431-0FCC20D5BCF9}") = "ftequake", "ftequake.icproj", "{5DFB7C2F-7F89-4AEF-92DE-9D014F7436DA}"
-	ProjectSection(ProjectDependencies) = postProject
-		{910DF105-12C3-4148-B3F0-94E099553E1C} = {910DF105-12C3-4148-B3F0-94E099553E1C}
-	EndProjectSection
-EndProject
-Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "gas2masm", "..\gas2masm\gas2masm.vcproj", "{910DF105-12C3-4148-B3F0-94E099553E1C}"
-	ProjectSection(ProjectDependencies) = postProject
-	EndProjectSection
-EndProject
-Project("{059D6162-CD51-11D0-AE1F-00A0C90FFFC3}") = "hud", "..\..\plugins\hud\hud.dsp", "{2F310EE0-8A37-4379-882C-76FC9582325E}"
-	ProjectSection(ProjectDependencies) = postProject
-	EndProjectSection
-	ProjectSection(ProjectDependencies) = postProject
-	EndProjectSection
-EndProject
-Project("{059D6162-CD51-11D0-AE1F-00A0C90FFFC3}") = "irc", "..\..\PLUGINS\IRC\irc.dsp", "{39C33AED-03AF-4376-B149-5FC0D2B1DBFB}"
-	ProjectSection(ProjectDependencies) = postProject
-	EndProjectSection
-	ProjectSection(ProjectDependencies) = postProject
-	EndProjectSection
-EndProject
-Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "qcc", "..\qclib\qcc.vcproj", "{86F3DE5C-B378-4DD9-AC0C-F532DDC84280}"
-	ProjectSection(ProjectDependencies) = postProject
-	EndProjectSection
-EndProject
-Project("{059D6162-CD51-11D0-AE1F-00A0C90FFFC3}") = "serverb", "..\..\PLUGINS\serverb\serverb.dsp", "{63733B47-2D79-4816-ACA4-D16524EA7568}"
-	ProjectSection(ProjectDependencies) = postProject
-	EndProjectSection
-	ProjectSection(ProjectDependencies) = postProject
-	EndProjectSection
-EndProject
-Project("{059D6162-CD51-11D0-AE1F-00A0C90FFFC3}") = "xsv", "..\..\PLUGINS\xsv\xsv.dsp", "{92B179EF-D564-4F33-89C2-397CB29362B2}"
-	ProjectSection(ProjectDependencies) = postProject
-	EndProjectSection
+Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "gas2masm", "..\gas2masm\gas2masm.vcproj", "{DF9D5237-75DD-45EE-9DDD-4DBFA24AA210}"
 	ProjectSection(ProjectDependencies) = postProject
 	EndProjectSection
 EndProject
@@ -56,8 +16,6 @@ Global
 		GLDebug = GLDebug
 		GLDebugQ3 = GLDebugQ3
 		GLRelease = GLRelease
-		GUIDebug = GUIDebug
-		GUIRelease = GUIRelease
 		MDebug = MDebug
 		MinGLDebug = MinGLDebug
 		MinGLRelease = MinGLRelease
@@ -67,126 +25,58 @@ Global
 		Release Dedicated Server = Release Dedicated Server
 	EndGlobalSection
 	GlobalSection(ProjectConfiguration) = postSolution
-		{5DFB7C2F-7F89-4AEF-92DE-9D014F7436DA}.Debug.ActiveCfg = MRelease|Win32
-		{5DFB7C2F-7F89-4AEF-92DE-9D014F7436DA}.Debug.Build.0 = MRelease|Win32
-		{5DFB7C2F-7F89-4AEF-92DE-9D014F7436DA}.Debug Dedicated Server.ActiveCfg = Debug Dedicated Server|Win32
-		{5DFB7C2F-7F89-4AEF-92DE-9D014F7436DA}.Debug Dedicated Server.Build.0 = Debug Dedicated Server|Win32
-		{5DFB7C2F-7F89-4AEF-92DE-9D014F7436DA}.Debug Dedicated ServerQ3.ActiveCfg = Debug Dedicated ServerQ3|Win32
-		{5DFB7C2F-7F89-4AEF-92DE-9D014F7436DA}.Debug Dedicated ServerQ3.Build.0 = Debug Dedicated ServerQ3|Win32
-		{5DFB7C2F-7F89-4AEF-92DE-9D014F7436DA}.GLDebug.ActiveCfg = GLDebug|Win32
-		{5DFB7C2F-7F89-4AEF-92DE-9D014F7436DA}.GLDebug.Build.0 = GLDebug|Win32
-		{5DFB7C2F-7F89-4AEF-92DE-9D014F7436DA}.GLDebugQ3.ActiveCfg = GLDebugQ3|Win32
-		{5DFB7C2F-7F89-4AEF-92DE-9D014F7436DA}.GLDebugQ3.Build.0 = GLDebugQ3|Win32
-		{5DFB7C2F-7F89-4AEF-92DE-9D014F7436DA}.GLRelease.ActiveCfg = GLRelease|Win32
-		{5DFB7C2F-7F89-4AEF-92DE-9D014F7436DA}.GLRelease.Build.0 = GLRelease|Win32
-		{5DFB7C2F-7F89-4AEF-92DE-9D014F7436DA}.GUIDebug.ActiveCfg = Debug|Win32
-		{5DFB7C2F-7F89-4AEF-92DE-9D014F7436DA}.GUIDebug.Build.0 = Debug|Win32
-		{5DFB7C2F-7F89-4AEF-92DE-9D014F7436DA}.GUIRelease.ActiveCfg = Release|Win32
-		{5DFB7C2F-7F89-4AEF-92DE-9D014F7436DA}.GUIRelease.Build.0 = Release|Win32
-		{5DFB7C2F-7F89-4AEF-92DE-9D014F7436DA}.MDebug.ActiveCfg = MDebug|Win32
-		{5DFB7C2F-7F89-4AEF-92DE-9D014F7436DA}.MDebug.Build.0 = MDebug|Win32
-		{5DFB7C2F-7F89-4AEF-92DE-9D014F7436DA}.MinGLDebug.ActiveCfg = MinGLDebug|Win32
-		{5DFB7C2F-7F89-4AEF-92DE-9D014F7436DA}.MinGLDebug.Build.0 = MinGLDebug|Win32
-		{5DFB7C2F-7F89-4AEF-92DE-9D014F7436DA}.MinGLRelease.ActiveCfg = MinGLRelease|Win32
-		{5DFB7C2F-7F89-4AEF-92DE-9D014F7436DA}.MinGLRelease.Build.0 = MinGLRelease|Win32
-		{5DFB7C2F-7F89-4AEF-92DE-9D014F7436DA}.MinSW.ActiveCfg = MinSW|Win32
-		{5DFB7C2F-7F89-4AEF-92DE-9D014F7436DA}.MinSW.Build.0 = MinSW|Win32
-		{5DFB7C2F-7F89-4AEF-92DE-9D014F7436DA}.MRelease.ActiveCfg = MRelease|Win32
-		{5DFB7C2F-7F89-4AEF-92DE-9D014F7436DA}.MRelease.Build.0 = MRelease|Win32
-		{5DFB7C2F-7F89-4AEF-92DE-9D014F7436DA}.Release.ActiveCfg = Release|Win32
-		{5DFB7C2F-7F89-4AEF-92DE-9D014F7436DA}.Release.Build.0 = Release|Win32
-		{5DFB7C2F-7F89-4AEF-92DE-9D014F7436DA}.Release Dedicated Server.ActiveCfg = Release Dedicated Server|Win32
-		{5DFB7C2F-7F89-4AEF-92DE-9D014F7436DA}.Release Dedicated Server.Build.0 = Release Dedicated Server|Win32
-		{910DF105-12C3-4148-B3F0-94E099553E1C}.Debug.ActiveCfg = Debug|Win32
-		{910DF105-12C3-4148-B3F0-94E099553E1C}.Debug.Build.0 = Debug|Win32
-		{910DF105-12C3-4148-B3F0-94E099553E1C}.Debug Dedicated Server.ActiveCfg = Debug|Win32
-		{910DF105-12C3-4148-B3F0-94E099553E1C}.Debug Dedicated Server.Build.0 = Debug|Win32
-		{910DF105-12C3-4148-B3F0-94E099553E1C}.Debug Dedicated ServerQ3.ActiveCfg = Debug|Win32
-		{910DF105-12C3-4148-B3F0-94E099553E1C}.Debug Dedicated ServerQ3.Build.0 = Debug|Win32
-		{910DF105-12C3-4148-B3F0-94E099553E1C}.GLDebug.ActiveCfg = Debug|Win32
-		{910DF105-12C3-4148-B3F0-94E099553E1C}.GLDebug.Build.0 = Debug|Win32
-		{910DF105-12C3-4148-B3F0-94E099553E1C}.GLDebugQ3.ActiveCfg = Debug|Win32
-		{910DF105-12C3-4148-B3F0-94E099553E1C}.GLDebugQ3.Build.0 = Debug|Win32
-		{910DF105-12C3-4148-B3F0-94E099553E1C}.GLRelease.ActiveCfg = Debug|Win32
-		{910DF105-12C3-4148-B3F0-94E099553E1C}.GLRelease.Build.0 = Debug|Win32
-		{910DF105-12C3-4148-B3F0-94E099553E1C}.GUIDebug.ActiveCfg = Debug|Win32
-		{910DF105-12C3-4148-B3F0-94E099553E1C}.GUIDebug.Build.0 = Debug|Win32
-		{910DF105-12C3-4148-B3F0-94E099553E1C}.GUIRelease.ActiveCfg = Debug|Win32
-		{910DF105-12C3-4148-B3F0-94E099553E1C}.GUIRelease.Build.0 = Debug|Win32
-		{910DF105-12C3-4148-B3F0-94E099553E1C}.MDebug.ActiveCfg = Debug|Win32
-		{910DF105-12C3-4148-B3F0-94E099553E1C}.MDebug.Build.0 = Debug|Win32
-		{910DF105-12C3-4148-B3F0-94E099553E1C}.MinGLDebug.ActiveCfg = Debug|Win32
-		{910DF105-12C3-4148-B3F0-94E099553E1C}.MinGLDebug.Build.0 = Debug|Win32
-		{910DF105-12C3-4148-B3F0-94E099553E1C}.MinGLRelease.ActiveCfg = Debug|Win32
-		{910DF105-12C3-4148-B3F0-94E099553E1C}.MinGLRelease.Build.0 = Debug|Win32
-		{910DF105-12C3-4148-B3F0-94E099553E1C}.MinSW.ActiveCfg = Debug|Win32
-		{910DF105-12C3-4148-B3F0-94E099553E1C}.MinSW.Build.0 = Debug|Win32
-		{910DF105-12C3-4148-B3F0-94E099553E1C}.MRelease.ActiveCfg = Debug|Win32
-		{910DF105-12C3-4148-B3F0-94E099553E1C}.MRelease.Build.0 = Debug|Win32
-		{910DF105-12C3-4148-B3F0-94E099553E1C}.Release.ActiveCfg = Debug|Win32
-		{910DF105-12C3-4148-B3F0-94E099553E1C}.Release.Build.0 = Debug|Win32
-		{910DF105-12C3-4148-B3F0-94E099553E1C}.Release Dedicated Server.ActiveCfg = Debug|Win32
-		{910DF105-12C3-4148-B3F0-94E099553E1C}.Release Dedicated Server.Build.0 = Debug|Win32
-		{86F3DE5C-B378-4DD9-AC0C-F532DDC84280}.Debug.ActiveCfg = Debug|Win32
-		{86F3DE5C-B378-4DD9-AC0C-F532DDC84280}.Debug.Build.0 = Debug|Win32
-		{86F3DE5C-B378-4DD9-AC0C-F532DDC84280}.Debug Dedicated Server.ActiveCfg = Debug|Win32
-		{86F3DE5C-B378-4DD9-AC0C-F532DDC84280}.Debug Dedicated Server.Build.0 = Debug|Win32
-		{86F3DE5C-B378-4DD9-AC0C-F532DDC84280}.Debug Dedicated ServerQ3.ActiveCfg = Debug|Win32
-		{86F3DE5C-B378-4DD9-AC0C-F532DDC84280}.Debug Dedicated ServerQ3.Build.0 = Debug|Win32
-		{86F3DE5C-B378-4DD9-AC0C-F532DDC84280}.GLDebug.ActiveCfg = Debug|Win32
-		{86F3DE5C-B378-4DD9-AC0C-F532DDC84280}.GLDebug.Build.0 = Debug|Win32
-		{86F3DE5C-B378-4DD9-AC0C-F532DDC84280}.GLDebugQ3.ActiveCfg = Debug|Win32
-		{86F3DE5C-B378-4DD9-AC0C-F532DDC84280}.GLDebugQ3.Build.0 = Debug|Win32
-		{86F3DE5C-B378-4DD9-AC0C-F532DDC84280}.GLRelease.ActiveCfg = Release|Win32
-		{86F3DE5C-B378-4DD9-AC0C-F532DDC84280}.GLRelease.Build.0 = Release|Win32
-		{86F3DE5C-B378-4DD9-AC0C-F532DDC84280}.GUIDebug.ActiveCfg = GUIDebug|Win32
-		{86F3DE5C-B378-4DD9-AC0C-F532DDC84280}.GUIDebug.Build.0 = GUIDebug|Win32
-		{86F3DE5C-B378-4DD9-AC0C-F532DDC84280}.GUIRelease.ActiveCfg = GUIRelease|Win32
-		{86F3DE5C-B378-4DD9-AC0C-F532DDC84280}.GUIRelease.Build.0 = GUIRelease|Win32
-		{86F3DE5C-B378-4DD9-AC0C-F532DDC84280}.MDebug.ActiveCfg = Debug|Win32
-		{86F3DE5C-B378-4DD9-AC0C-F532DDC84280}.MDebug.Build.0 = Debug|Win32
-		{86F3DE5C-B378-4DD9-AC0C-F532DDC84280}.MinGLDebug.ActiveCfg = Debug|Win32
-		{86F3DE5C-B378-4DD9-AC0C-F532DDC84280}.MinGLDebug.Build.0 = Debug|Win32
-		{86F3DE5C-B378-4DD9-AC0C-F532DDC84280}.MinGLRelease.ActiveCfg = Release|Win32
-		{86F3DE5C-B378-4DD9-AC0C-F532DDC84280}.MinGLRelease.Build.0 = Release|Win32
-		{86F3DE5C-B378-4DD9-AC0C-F532DDC84280}.MinSW.ActiveCfg = Release|Win32
-		{86F3DE5C-B378-4DD9-AC0C-F532DDC84280}.MinSW.Build.0 = Release|Win32
-		{86F3DE5C-B378-4DD9-AC0C-F532DDC84280}.MRelease.ActiveCfg = Release|Win32
-		{86F3DE5C-B378-4DD9-AC0C-F532DDC84280}.MRelease.Build.0 = Release|Win32
-		{86F3DE5C-B378-4DD9-AC0C-F532DDC84280}.Release.ActiveCfg = Release|Win32
-		{86F3DE5C-B378-4DD9-AC0C-F532DDC84280}.Release.Build.0 = Release|Win32
-		{86F3DE5C-B378-4DD9-AC0C-F532DDC84280}.Release Dedicated Server.ActiveCfg = Release|Win32
-		{86F3DE5C-B378-4DD9-AC0C-F532DDC84280}.Release Dedicated Server.Build.0 = Release|Win32
-		{19822264-C465-4E52-AA2E-820CA64ED754}.Release Dedicated Server.Build.0 = Release Dedicated Server|Win32
-		{19822264-C465-4E52-AA2E-820CA64ED754}.Release Dedicated Server.ActiveCfg = Release Dedicated Server|Win32
-		{19822264-C465-4E52-AA2E-820CA64ED754}.Release.Build.0 = Release|Win32
-		{19822264-C465-4E52-AA2E-820CA64ED754}.Release.ActiveCfg = Release|Win32
-		{19822264-C465-4E52-AA2E-820CA64ED754}.MRelease.Build.0 = MRelease|Win32
-		{19822264-C465-4E52-AA2E-820CA64ED754}.MRelease.ActiveCfg = MRelease|Win32
-		{19822264-C465-4E52-AA2E-820CA64ED754}.MinSW.Build.0 = MinSW|Win32
-		{19822264-C465-4E52-AA2E-820CA64ED754}.MinSW.ActiveCfg = MinSW|Win32
-		{19822264-C465-4E52-AA2E-820CA64ED754}.MinGLRelease.Build.0 = MinGLRelease|Win32
-		{19822264-C465-4E52-AA2E-820CA64ED754}.MinGLRelease.ActiveCfg = MinGLRelease|Win32
-		{19822264-C465-4E52-AA2E-820CA64ED754}.MinGLDebug.Build.0 = MinGLDebug|Win32
-		{19822264-C465-4E52-AA2E-820CA64ED754}.MinGLDebug.ActiveCfg = MinGLDebug|Win32
-		{19822264-C465-4E52-AA2E-820CA64ED754}.MDebug.Build.0 = MDebug|Win32
-		{19822264-C465-4E52-AA2E-820CA64ED754}.MDebug.ActiveCfg = MDebug|Win32
-		{19822264-C465-4E52-AA2E-820CA64ED754}.GUIRelease.Build.0 = Release|Win32
-		{19822264-C465-4E52-AA2E-820CA64ED754}.GUIRelease.ActiveCfg = Release|Win32
-		{19822264-C465-4E52-AA2E-820CA64ED754}.GUIDebug.Build.0 = Debug|Win32
-		{19822264-C465-4E52-AA2E-820CA64ED754}.GUIDebug.ActiveCfg = Debug|Win32
-		{19822264-C465-4E52-AA2E-820CA64ED754}.GLRelease.Build.0 = GLRelease|Win32
-		{19822264-C465-4E52-AA2E-820CA64ED754}.GLRelease.ActiveCfg = GLRelease|Win32
-		{19822264-C465-4E52-AA2E-820CA64ED754}.GLDebugQ3.Build.0 = GLDebugQ3|Win32
-		{19822264-C465-4E52-AA2E-820CA64ED754}.GLDebugQ3.ActiveCfg = GLDebugQ3|Win32
-		{19822264-C465-4E52-AA2E-820CA64ED754}.GLDebug.Build.0 = GLDebug|Win32
-		{19822264-C465-4E52-AA2E-820CA64ED754}.GLDebug.ActiveCfg = GLDebug|Win32
-		{19822264-C465-4E52-AA2E-820CA64ED754}.Debug Dedicated ServerQ3.Build.0 = Debug Dedicated ServerQ3|Win32
-		{19822264-C465-4E52-AA2E-820CA64ED754}.Debug Dedicated ServerQ3.ActiveCfg = Debug Dedicated ServerQ3|Win32
-		{19822264-C465-4E52-AA2E-820CA64ED754}.Debug Dedicated Server.Build.0 = Debug Dedicated Server|Win32
-		{19822264-C465-4E52-AA2E-820CA64ED754}.Debug Dedicated Server.ActiveCfg = Debug Dedicated Server|Win32
-		{19822264-C465-4E52-AA2E-820CA64ED754}.Debug.Build.0 = MRelease|Win32
-		{19822264-C465-4E52-AA2E-820CA64ED754}.Debug.ActiveCfg = MRelease|Win32
+		{173058C1-295E-4FA4-8C93-7CCA995E8B76}.Debug.ActiveCfg = Debug|Win32
+		{173058C1-295E-4FA4-8C93-7CCA995E8B76}.Debug.Build.0 = Debug|Win32
+		{173058C1-295E-4FA4-8C93-7CCA995E8B76}.Debug Dedicated Server.ActiveCfg = Debug Dedicated Server|Win32
+		{173058C1-295E-4FA4-8C93-7CCA995E8B76}.Debug Dedicated Server.Build.0 = Debug Dedicated Server|Win32
+		{173058C1-295E-4FA4-8C93-7CCA995E8B76}.Debug Dedicated ServerQ3.ActiveCfg = Debug Dedicated ServerQ3|Win32
+		{173058C1-295E-4FA4-8C93-7CCA995E8B76}.Debug Dedicated ServerQ3.Build.0 = Debug Dedicated ServerQ3|Win32
+		{173058C1-295E-4FA4-8C93-7CCA995E8B76}.GLDebug.ActiveCfg = GLDebug|Win32
+		{173058C1-295E-4FA4-8C93-7CCA995E8B76}.GLDebug.Build.0 = GLDebug|Win32
+		{173058C1-295E-4FA4-8C93-7CCA995E8B76}.GLDebugQ3.ActiveCfg = GLDebugQ3|Win32
+		{173058C1-295E-4FA4-8C93-7CCA995E8B76}.GLDebugQ3.Build.0 = GLDebugQ3|Win32
+		{173058C1-295E-4FA4-8C93-7CCA995E8B76}.GLRelease.ActiveCfg = GLRelease|Win32
+		{173058C1-295E-4FA4-8C93-7CCA995E8B76}.GLRelease.Build.0 = GLRelease|Win32
+		{173058C1-295E-4FA4-8C93-7CCA995E8B76}.MDebug.ActiveCfg = MDebug|Win32
+		{173058C1-295E-4FA4-8C93-7CCA995E8B76}.MDebug.Build.0 = MDebug|Win32
+		{173058C1-295E-4FA4-8C93-7CCA995E8B76}.MinGLDebug.ActiveCfg = MinGLDebug|Win32
+		{173058C1-295E-4FA4-8C93-7CCA995E8B76}.MinGLDebug.Build.0 = MinGLDebug|Win32
+		{173058C1-295E-4FA4-8C93-7CCA995E8B76}.MinGLRelease.ActiveCfg = MinGLRelease|Win32
+		{173058C1-295E-4FA4-8C93-7CCA995E8B76}.MinGLRelease.Build.0 = MinGLRelease|Win32
+		{173058C1-295E-4FA4-8C93-7CCA995E8B76}.MinSW.ActiveCfg = MinSW|Win32
+		{173058C1-295E-4FA4-8C93-7CCA995E8B76}.MinSW.Build.0 = MinSW|Win32
+		{173058C1-295E-4FA4-8C93-7CCA995E8B76}.MRelease.ActiveCfg = MRelease|Win32
+		{173058C1-295E-4FA4-8C93-7CCA995E8B76}.MRelease.Build.0 = MRelease|Win32
+		{173058C1-295E-4FA4-8C93-7CCA995E8B76}.Release.ActiveCfg = Release|Win32
+		{173058C1-295E-4FA4-8C93-7CCA995E8B76}.Release.Build.0 = Release|Win32
+		{173058C1-295E-4FA4-8C93-7CCA995E8B76}.Release Dedicated Server.ActiveCfg = Release Dedicated Server|Win32
+		{173058C1-295E-4FA4-8C93-7CCA995E8B76}.Release Dedicated Server.Build.0 = Release Dedicated Server|Win32
+		{DF9D5237-75DD-45EE-9DDD-4DBFA24AA210}.Debug.ActiveCfg = Debug|Win32
+		{DF9D5237-75DD-45EE-9DDD-4DBFA24AA210}.Debug.Build.0 = Debug|Win32
+		{DF9D5237-75DD-45EE-9DDD-4DBFA24AA210}.Debug Dedicated Server.ActiveCfg = Debug|Win32
+		{DF9D5237-75DD-45EE-9DDD-4DBFA24AA210}.Debug Dedicated Server.Build.0 = Debug|Win32
+		{DF9D5237-75DD-45EE-9DDD-4DBFA24AA210}.Debug Dedicated ServerQ3.ActiveCfg = Debug|Win32
+		{DF9D5237-75DD-45EE-9DDD-4DBFA24AA210}.Debug Dedicated ServerQ3.Build.0 = Debug|Win32
+		{DF9D5237-75DD-45EE-9DDD-4DBFA24AA210}.GLDebug.ActiveCfg = Debug|Win32
+		{DF9D5237-75DD-45EE-9DDD-4DBFA24AA210}.GLDebug.Build.0 = Debug|Win32
+		{DF9D5237-75DD-45EE-9DDD-4DBFA24AA210}.GLDebugQ3.ActiveCfg = Debug|Win32
+		{DF9D5237-75DD-45EE-9DDD-4DBFA24AA210}.GLDebugQ3.Build.0 = Debug|Win32
+		{DF9D5237-75DD-45EE-9DDD-4DBFA24AA210}.GLRelease.ActiveCfg = Debug|Win32
+		{DF9D5237-75DD-45EE-9DDD-4DBFA24AA210}.GLRelease.Build.0 = Debug|Win32
+		{DF9D5237-75DD-45EE-9DDD-4DBFA24AA210}.MDebug.ActiveCfg = Debug|Win32
+		{DF9D5237-75DD-45EE-9DDD-4DBFA24AA210}.MDebug.Build.0 = Debug|Win32
+		{DF9D5237-75DD-45EE-9DDD-4DBFA24AA210}.MinGLDebug.ActiveCfg = Debug|Win32
+		{DF9D5237-75DD-45EE-9DDD-4DBFA24AA210}.MinGLDebug.Build.0 = Debug|Win32
+		{DF9D5237-75DD-45EE-9DDD-4DBFA24AA210}.MinGLRelease.ActiveCfg = Debug|Win32
+		{DF9D5237-75DD-45EE-9DDD-4DBFA24AA210}.MinGLRelease.Build.0 = Debug|Win32
+		{DF9D5237-75DD-45EE-9DDD-4DBFA24AA210}.MinSW.ActiveCfg = Debug|Win32
+		{DF9D5237-75DD-45EE-9DDD-4DBFA24AA210}.MinSW.Build.0 = Debug|Win32
+		{DF9D5237-75DD-45EE-9DDD-4DBFA24AA210}.MRelease.ActiveCfg = Debug|Win32
+		{DF9D5237-75DD-45EE-9DDD-4DBFA24AA210}.MRelease.Build.0 = Debug|Win32
+		{DF9D5237-75DD-45EE-9DDD-4DBFA24AA210}.Release.ActiveCfg = Debug|Win32
+		{DF9D5237-75DD-45EE-9DDD-4DBFA24AA210}.Release.Build.0 = Debug|Win32
+		{DF9D5237-75DD-45EE-9DDD-4DBFA24AA210}.Release Dedicated Server.ActiveCfg = Debug|Win32
+		{DF9D5237-75DD-45EE-9DDD-4DBFA24AA210}.Release Dedicated Server.Build.0 = Debug|Win32
 	EndGlobalSection
 	GlobalSection(ExtensibilityGlobals) = postSolution
 	EndGlobalSection

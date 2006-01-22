@@ -3,7 +3,6 @@
 	ProjectType="Visual C++"
 	Version="7.10"
 	Name="ftequake"
-	ProjectGUID="{19822264-C465-4E52-AA2E-820CA64ED754}"
 	SccProjectName=""
 	SccLocalPath="">
 	<Platforms>
@@ -359,7 +358,7 @@
 				Optimization="0"
 				OptimizeForProcessor="1"
 				AdditionalIncludeDirectories="..\client,../common,../server,../gl,../sw,../qclib,../libs,../libs/dxsdk7/include"
-				PreprocessorDefinitions="_DEBUG;GLQUAKE;WIN32;_WINDOWS;Q3CLIENT;Q3SERVER"
+				PreprocessorDefinitions="_DEBUG;GLQUAKE;WIN32;_WINDOWS"
 				RuntimeLibrary="5"
 				UsePrecompiledHeader="3"
 				PrecompiledHeaderThrough="quakedef.h"
@@ -495,7 +494,7 @@
 				Name="VCCLCompilerTool"
 				Optimization="2"
 				InlineFunctionExpansion="1"
-				OptimizeForProcessor="3"
+				OptimizeForProcessor="2"
 				AdditionalIncludeDirectories="..\client,../libs/dxsdk7/include,../common,../server,../gl,../sw,../qclib,../libs"
 				PreprocessorDefinitions="NDEBUG;WIN32;_WINDOWS;GLQUAKE;SWQUAKE;USE_D3D"
 				StringPooling="TRUE"
@@ -516,7 +515,6 @@
 			<Tool
 				Name="VCLinkerTool"
 				AdditionalDependencies="comctl32.lib wsock32.lib odbc32.lib odbccp32.lib winmm.lib"
-				ShowProgress="0"
 				OutputFile="../../fteqw.exe"
 				LinkIncremental="1"
 				SuppressStartupBanner="TRUE"
@@ -653,10 +651,11 @@
 				Name="VCLinkerTool"
 				AdditionalDependencies="comctl32.lib wsock32.lib odbc32.lib odbccp32.lib winmm.lib"
 				OutputFile="../../fteqwsv.exe"
-				LinkIncremental="2"
+				LinkIncremental="1"
 				SuppressStartupBanner="TRUE"
 				AdditionalLibraryDirectories="../libs/dxsdk7/lib"
 				GenerateDebugInformation="TRUE"
+				ProgramDatabaseFile=".\DebugServer/fteqwsv.pdb"
 				SubSystem="1"
 				TargetMachine="1"/>
 			<Tool
@@ -766,7 +765,7 @@
 				Optimization="0"
 				OptimizeForProcessor="1"
 				AdditionalIncludeDirectories="..\client,../libs/dxsdk7/include,../common,../server,../gl,../sw,../qclib,../libs"
-				PreprocessorDefinitions="_DEBUG;WIN32;_WINDOWS;GLQUAKE;SWQUAKE;USE_D3D;Q3SERVER;Q3CLIENT"
+				PreprocessorDefinitions="_DEBUG;WIN32;_WINDOWS;GLQUAKE;SWQUAKE;USE_D3D"
 				RuntimeLibrary="5"
 				UsePrecompiledHeader="3"
 				PrecompiledHeaderThrough="quakedef.h"
@@ -838,7 +837,7 @@
 				InlineFunctionExpansion="2"
 				OptimizeForProcessor="2"
 				AdditionalIncludeDirectories="..\client,../common,../server,../gl,../sw,../qclib,../libs,../libs/dxsdk7/include"
-				PreprocessorDefinitions="NDEBUG;GLQUAKE;WIN32;_WINDOWS;Q3CLIENT;Q3SERVER"
+				PreprocessorDefinitions="NDEBUG;GLQUAKE;WIN32;_WINDOWS"
 				StringPooling="TRUE"
 				RuntimeLibrary="4"
 				EnableFunctionLevelLinking="TRUE"
@@ -909,42 +908,42 @@
 					<Tool
 						Name="VCResourceCompilerTool"
 						PreprocessorDefinitions=""
-						AdditionalIncludeDirectories="\fte\engine\engine\client"/>
+						AdditionalIncludeDirectories="\source\fte\engine\client"/>
 				</FileConfiguration>
 				<FileConfiguration
 					Name="GLDebugQ3|Win32">
 					<Tool
 						Name="VCResourceCompilerTool"
 						PreprocessorDefinitions=""
-						AdditionalIncludeDirectories="\fte\engine\engine\client"/>
+						AdditionalIncludeDirectories="\source\fte\engine\client"/>
 				</FileConfiguration>
 				<FileConfiguration
 					Name="Debug|Win32">
 					<Tool
 						Name="VCResourceCompilerTool"
 						PreprocessorDefinitions=""
-						AdditionalIncludeDirectories="\fte\engine\engine\client"/>
+						AdditionalIncludeDirectories="\source\fte\engine\client"/>
 				</FileConfiguration>
 				<FileConfiguration
 					Name="MinSW|Win32">
 					<Tool
 						Name="VCResourceCompilerTool"
 						PreprocessorDefinitions=""
-						AdditionalIncludeDirectories="\fte\engine\engine\client"/>
+						AdditionalIncludeDirectories="\source\fte\engine\client"/>
 				</FileConfiguration>
 				<FileConfiguration
 					Name="MinGLRelease|Win32">
 					<Tool
 						Name="VCResourceCompilerTool"
 						PreprocessorDefinitions=""
-						AdditionalIncludeDirectories="\fte\engine\engine\client"/>
+						AdditionalIncludeDirectories="\source\fte\engine\client"/>
 				</FileConfiguration>
 				<FileConfiguration
 					Name="GLDebug|Win32">
 					<Tool
 						Name="VCResourceCompilerTool"
 						PreprocessorDefinitions=""
-						AdditionalIncludeDirectories="\fte\engine\engine\client"/>
+						AdditionalIncludeDirectories="\source\fte\engine\client"/>
 				</FileConfiguration>
 				<FileConfiguration
 					Name="Release Dedicated Server|Win32"
@@ -952,21 +951,21 @@
 					<Tool
 						Name="VCResourceCompilerTool"
 						PreprocessorDefinitions=""
-						AdditionalIncludeDirectories="\fte\engine\engine\client"/>
+						AdditionalIncludeDirectories="\source\fte\engine\client"/>
 				</FileConfiguration>
 				<FileConfiguration
 					Name="MRelease|Win32">
 					<Tool
 						Name="VCResourceCompilerTool"
 						PreprocessorDefinitions=""
-						AdditionalIncludeDirectories="\fte\engine\engine\client"/>
+						AdditionalIncludeDirectories="\source\fte\engine\client"/>
 				</FileConfiguration>
 				<FileConfiguration
 					Name="Release|Win32">
 					<Tool
 						Name="VCResourceCompilerTool"
 						PreprocessorDefinitions="MINIMAL"
-						AdditionalIncludeDirectories="\fte\engine\engine\client;\ftetgcvs\engine\client;\windows\J\ftetgcvs\engine\client;\ftetgcvs\source\client;\ftetgcvs\temp\client;\ftetgcvs\fte\QW\client"/>
+						AdditionalIncludeDirectories="\source\fte\engine\client;\ftetgcvs\engine\client;\windows\J\ftetgcvs\engine\client;\ftetgcvs\source\client;\ftetgcvs\temp\client;\ftetgcvs\fte\QW\client"/>
 				</FileConfiguration>
 				<FileConfiguration
 					Name="Debug Dedicated Server|Win32"
@@ -974,7 +973,7 @@
 					<Tool
 						Name="VCResourceCompilerTool"
 						PreprocessorDefinitions=""
-						AdditionalIncludeDirectories="\fte\engine\engine\client"/>
+						AdditionalIncludeDirectories="\source\fte\engine\client"/>
 				</FileConfiguration>
 				<FileConfiguration
 					Name="Debug Dedicated ServerQ3|Win32"
@@ -982,21 +981,21 @@
 					<Tool
 						Name="VCResourceCompilerTool"
 						PreprocessorDefinitions=""
-						AdditionalIncludeDirectories="\fte\engine\engine\client"/>
+						AdditionalIncludeDirectories="\source\fte\engine\client"/>
 				</FileConfiguration>
 				<FileConfiguration
 					Name="MDebug|Win32">
 					<Tool
 						Name="VCResourceCompilerTool"
 						PreprocessorDefinitions=""
-						AdditionalIncludeDirectories="\fte\engine\engine\client"/>
+						AdditionalIncludeDirectories="\source\fte\engine\client"/>
 				</FileConfiguration>
 				<FileConfiguration
 					Name="GLRelease|Win32">
 					<Tool
 						Name="VCResourceCompilerTool"
 						PreprocessorDefinitions=""
-						AdditionalIncludeDirectories="\fte\engine\engine\client"/>
+						AdditionalIncludeDirectories="\source\fte\engine\client"/>
 				</FileConfiguration>
 			</File>
 			<Filter
@@ -3600,8 +3599,7 @@
 							BrowseInformation="1"/>
 					</FileConfiguration>
 					<FileConfiguration
-						Name="MRelease|Win32"
-						ExcludedFromBuild="TRUE">
+						Name="MRelease|Win32">
 						<Tool
 							Name="VCCLCompilerTool"
 							Optimization="2"
@@ -4111,8 +4109,7 @@
 							BrowseInformation="1"/>
 					</FileConfiguration>
 					<FileConfiguration
-						Name="MRelease|Win32"
-						ExcludedFromBuild="TRUE">
+						Name="MRelease|Win32">
 						<Tool
 							Name="VCCLCompilerTool"
 							Optimization="2"
@@ -4389,6 +4386,128 @@
 					<FileConfiguration
 						Name="Debug Dedicated ServerQ3|Win32"
 						ExcludedFromBuild="TRUE">
+						<Tool
+							Name="VCCLCompilerTool"
+							Optimization="0"
+							AdditionalIncludeDirectories=""
+							PreprocessorDefinitions=""
+							BrowseInformation="1"/>
+					</FileConfiguration>
+					<FileConfiguration
+						Name="MDebug|Win32">
+						<Tool
+							Name="VCCLCompilerTool"
+							Optimization="0"
+							AdditionalIncludeDirectories=""
+							PreprocessorDefinitions=""
+							BrowseInformation="1"/>
+					</FileConfiguration>
+					<FileConfiguration
+						Name="GLRelease|Win32">
+						<Tool
+							Name="VCCLCompilerTool"
+							Optimization="2"
+							AdditionalIncludeDirectories=""
+							PreprocessorDefinitions=""
+							BrowseInformation="1"/>
+					</FileConfiguration>
+				</File>
+				<File
+					RelativePath="..\client\cl_ignore.c">
+					<FileConfiguration
+						Name="MinGLDebug|Win32">
+						<Tool
+							Name="VCCLCompilerTool"
+							Optimization="0"
+							AdditionalIncludeDirectories=""
+							PreprocessorDefinitions=""
+							BrowseInformation="1"/>
+					</FileConfiguration>
+					<FileConfiguration
+						Name="GLDebugQ3|Win32">
+						<Tool
+							Name="VCCLCompilerTool"
+							Optimization="0"
+							AdditionalIncludeDirectories=""
+							PreprocessorDefinitions=""
+							BrowseInformation="1"/>
+					</FileConfiguration>
+					<FileConfiguration
+						Name="Debug|Win32">
+						<Tool
+							Name="VCCLCompilerTool"
+							Optimization="0"
+							AdditionalIncludeDirectories=""
+							PreprocessorDefinitions=""
+							BrowseInformation="1"/>
+					</FileConfiguration>
+					<FileConfiguration
+						Name="MinSW|Win32">
+						<Tool
+							Name="VCCLCompilerTool"
+							Optimization="0"
+							AdditionalIncludeDirectories=""
+							PreprocessorDefinitions=""
+							BrowseInformation="1"/>
+					</FileConfiguration>
+					<FileConfiguration
+						Name="MinGLRelease|Win32">
+						<Tool
+							Name="VCCLCompilerTool"
+							Optimization="2"
+							AdditionalIncludeDirectories=""
+							PreprocessorDefinitions=""
+							BrowseInformation="1"/>
+					</FileConfiguration>
+					<FileConfiguration
+						Name="GLDebug|Win32">
+						<Tool
+							Name="VCCLCompilerTool"
+							Optimization="0"
+							AdditionalIncludeDirectories=""
+							PreprocessorDefinitions=""
+							BrowseInformation="1"/>
+					</FileConfiguration>
+					<FileConfiguration
+						Name="Release Dedicated Server|Win32"
+						ExcludedFromBuild="TRUE">
+						<Tool
+							Name="VCCLCompilerTool"
+							Optimization="1"
+							AdditionalIncludeDirectories=""
+							PreprocessorDefinitions=""
+							BrowseInformation="1"/>
+					</FileConfiguration>
+					<FileConfiguration
+						Name="MRelease|Win32">
+						<Tool
+							Name="VCCLCompilerTool"
+							Optimization="2"
+							AdditionalIncludeDirectories=""
+							PreprocessorDefinitions=""
+							BrowseInformation="1"/>
+					</FileConfiguration>
+					<FileConfiguration
+						Name="Release|Win32">
+						<Tool
+							Name="VCCLCompilerTool"
+							Optimization="2"
+							AdditionalIncludeDirectories=""
+							PreprocessorDefinitions=""
+							BrowseInformation="1"/>
+					</FileConfiguration>
+					<FileConfiguration
+						Name="Debug Dedicated Server|Win32"
+						ExcludedFromBuild="TRUE">
+						<Tool
+							Name="VCCLCompilerTool"
+							Optimization="0"
+							AdditionalIncludeDirectories=""
+							PreprocessorDefinitions=""
+							BrowseInformation="1"/>
+					</FileConfiguration>
+					<FileConfiguration
+						Name="Debug Dedicated ServerQ3|Win32">
 						<Tool
 							Name="VCCLCompilerTool"
 							Optimization="0"
@@ -5595,8 +5714,7 @@
 							BrowseInformation="1"/>
 					</FileConfiguration>
 					<FileConfiguration
-						Name="MRelease|Win32"
-						ExcludedFromBuild="TRUE">
+						Name="MRelease|Win32">
 						<Tool
 							Name="VCCLCompilerTool"
 							Optimization="2"
@@ -9240,129 +9358,6 @@
 				</File>
 				<File
 					RelativePath="..\client\snd_mix.c">
-					<FileConfiguration
-						Name="MinGLDebug|Win32">
-						<Tool
-							Name="VCCLCompilerTool"
-							Optimization="0"
-							AdditionalIncludeDirectories=""
-							PreprocessorDefinitions=""
-							BrowseInformation="1"/>
-					</FileConfiguration>
-					<FileConfiguration
-						Name="GLDebugQ3|Win32">
-						<Tool
-							Name="VCCLCompilerTool"
-							Optimization="0"
-							AdditionalIncludeDirectories=""
-							PreprocessorDefinitions=""
-							BrowseInformation="1"/>
-					</FileConfiguration>
-					<FileConfiguration
-						Name="Debug|Win32">
-						<Tool
-							Name="VCCLCompilerTool"
-							Optimization="0"
-							AdditionalIncludeDirectories=""
-							PreprocessorDefinitions=""
-							BrowseInformation="1"/>
-					</FileConfiguration>
-					<FileConfiguration
-						Name="MinSW|Win32">
-						<Tool
-							Name="VCCLCompilerTool"
-							Optimization="0"
-							AdditionalIncludeDirectories=""
-							PreprocessorDefinitions=""
-							BrowseInformation="1"/>
-					</FileConfiguration>
-					<FileConfiguration
-						Name="MinGLRelease|Win32">
-						<Tool
-							Name="VCCLCompilerTool"
-							Optimization="2"
-							AdditionalIncludeDirectories=""
-							PreprocessorDefinitions=""
-							BrowseInformation="1"/>
-					</FileConfiguration>
-					<FileConfiguration
-						Name="GLDebug|Win32">
-						<Tool
-							Name="VCCLCompilerTool"
-							Optimization="0"
-							AdditionalIncludeDirectories=""
-							PreprocessorDefinitions=""
-							BrowseInformation="1"/>
-					</FileConfiguration>
-					<FileConfiguration
-						Name="Release Dedicated Server|Win32"
-						ExcludedFromBuild="TRUE">
-						<Tool
-							Name="VCCLCompilerTool"
-							Optimization="1"
-							AdditionalIncludeDirectories=""
-							PreprocessorDefinitions=""
-							BrowseInformation="1"/>
-					</FileConfiguration>
-					<FileConfiguration
-						Name="MRelease|Win32">
-						<Tool
-							Name="VCCLCompilerTool"
-							Optimization="2"
-							AdditionalIncludeDirectories=""
-							PreprocessorDefinitions=""
-							BrowseInformation="1"/>
-					</FileConfiguration>
-					<FileConfiguration
-						Name="Release|Win32">
-						<Tool
-							Name="VCCLCompilerTool"
-							Optimization="2"
-							AdditionalIncludeDirectories=""
-							PreprocessorDefinitions=""
-							BrowseInformation="1"/>
-					</FileConfiguration>
-					<FileConfiguration
-						Name="Debug Dedicated Server|Win32"
-						ExcludedFromBuild="TRUE">
-						<Tool
-							Name="VCCLCompilerTool"
-							Optimization="0"
-							AdditionalIncludeDirectories=""
-							PreprocessorDefinitions=""
-							BrowseInformation="1"/>
-					</FileConfiguration>
-					<FileConfiguration
-						Name="Debug Dedicated ServerQ3|Win32"
-						ExcludedFromBuild="TRUE">
-						<Tool
-							Name="VCCLCompilerTool"
-							Optimization="0"
-							AdditionalIncludeDirectories=""
-							PreprocessorDefinitions=""
-							BrowseInformation="1"/>
-					</FileConfiguration>
-					<FileConfiguration
-						Name="MDebug|Win32">
-						<Tool
-							Name="VCCLCompilerTool"
-							Optimization="0"
-							AdditionalIncludeDirectories=""
-							PreprocessorDefinitions=""
-							BrowseInformation="1"/>
-					</FileConfiguration>
-					<FileConfiguration
-						Name="GLRelease|Win32">
-						<Tool
-							Name="VCCLCompilerTool"
-							Optimization="2"
-							AdditionalIncludeDirectories=""
-							PreprocessorDefinitions=""
-							BrowseInformation="1"/>
-					</FileConfiguration>
-				</File>
-				<File
-					RelativePath="..\client\snd_mp3.c">
 					<FileConfiguration
 						Name="MinGLDebug|Win32">
 						<Tool
@@ -17465,6 +17460,9 @@
 			<Filter
 				Name="common"
 				Filter="">
+				<File
+					RelativePath="..\client\cl_plugin.inc">
+				</File>
 				<File
 					RelativePath="..\common\cmd.c">
 					<FileConfiguration

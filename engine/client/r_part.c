@@ -2807,6 +2807,10 @@ static void P_ParticleTrailDraw (vec3_t startpos, vec3_t end, part_type_t *ptype
 		if (ptype->spawnparam1)
 			tdegree = 2*M_PI/ptype->spawnparam1; /* distance per rotation inversed */
 	}
+	else if (ptype->spawnmode == SM_CIRCLE)
+	{
+		VectorVectors(vec, right, up);
+	}
 
 	// store last stop here for lack of a better solution besides vectors
 	if (ts)
@@ -2988,13 +2992,11 @@ static void P_ParticleTrailDraw (vec3_t startpos, vec3_t end, part_type_t *ptype
 				break;
 			// TODO: directionalize SM_BALL/SM_CIRCLE/SM_DISTBALL
 			case SM_BALL:
-			case SM_CIRCLE:
 				p->org[0] = crandom();
 				p->org[1] = crandom();
 				p->org[2] = crandom();
 				VectorNormalize(p->org);
-				if (ptype->spawnmode != SM_CIRCLE)
-					VectorScale(p->org, frandom(), p->org);
+				VectorScale(p->org, frandom(), p->org);
 
 				p->vel[0] = vec[0]*veladd+crandom()*randvel + p->org[0]*ptype->offsetspread;
 				p->vel[1] = vec[1]*veladd+crandom()*randvel + p->org[1]*ptype->offsetspread;
@@ -3004,6 +3006,27 @@ static void P_ParticleTrailDraw (vec3_t startpos, vec3_t end, part_type_t *ptype
 				p->org[1] = p->org[1]*ptype->areaspread + start[1];
 				p->org[2] = p->org[2]*ptype->areaspreadvert + start[2];
 				break;
+			
+			case SM_CIRCLE:
+				{
+					float tsin, tcos;
+
+					tcos = cos(len*tdegree)*ptype->areaspread;
+					tsin = sin(len*tdegree)*ptype->areaspread;
+
+					p->org[0] = start[0] + right[0]*tcos + up[0]*tsin + vstep[0] * (len*tdegree);
+					p->org[1] = start[1] + right[1]*tcos + up[1]*tsin + vstep[1] * (len*tdegree);
+					p->org[2] = start[2] + right[2]*tcos + up[2]*tsin + vstep[2] * (len*tdegree)*50;
+
+					tcos = cos(len*tdegree)*ptype->offsetspread;
+					tsin = sin(len*tdegree)*ptype->offsetspread;
+
+					p->vel[0] = vec[0]*veladd+crandom()*randvel + right[0]*tcos + up[0]*tsin;
+					p->vel[1] = vec[1]*veladd+crandom()*randvel + right[1]*tcos + up[1]*tsin;
+					p->vel[2] = vec[2]*veladd+crandom()*randvelvert + right[2]*tcos + up[2]*tsin;
+				}
+				break;
+
 			case SM_DISTBALL:
 				{
 					float rdist;

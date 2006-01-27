@@ -38,6 +38,8 @@ int *qcc_tempofs;
 int tempsstart;
 int numtemps;
 
+void QCC_PR_ResetErrorScope(void);
+
 pbool	compressoutput;
 
 pbool newstylesource;

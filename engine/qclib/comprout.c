@@ -13,6 +13,7 @@ progfuncs_t *qccprogfuncs;
 extern int qcc_compileactive;
 jmp_buf qcccompileerror;
 char qcc_gamedir[128];
+void QCC_PR_ResetErrorScope(void);
 
 
 

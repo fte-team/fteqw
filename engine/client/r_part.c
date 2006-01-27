@@ -1571,7 +1571,7 @@ void P_ReadPointFile_f (void)
 {
 	vfsfile_t	*f;
 	vec3_t	org;
-	int		r;
+	//int		r; //unreferenced
 	int		c;
 	char	name[MAX_OSPATH];
 	char line[1024];
@@ -3006,7 +3006,7 @@ static void P_ParticleTrailDraw (vec3_t startpos, vec3_t end, part_type_t *ptype
 				p->org[1] = p->org[1]*ptype->areaspread + start[1];
 				p->org[2] = p->org[2]*ptype->areaspreadvert + start[2];
 				break;
-			
+
 			case SM_CIRCLE:
 				{
 					float tsin, tcos;
@@ -3840,7 +3840,7 @@ void DrawParticleTypes (void texturedparticles(particle_t *,part_type_t*), void 
 	vec3_t stop, normal;
 	part_type_t *type;
 	particle_t		*p, *kill;
-	clippeddecal_t *d, *dkill;
+	clippeddecal_t *d; //*dkill; // dkill is unreferenced
 	ramp_t *ramp;
 	float grav;
 	vec3_t friction;
@@ -4403,7 +4403,7 @@ void P_DrawParticles (void)
 		qglEnd();
 		qglDisable(GL_POLYGON_OFFSET_FILL);
 
-		
+
 
 		RSpeedRemark();
 		qglBegin(GL_QUADS);

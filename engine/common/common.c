@@ -8,7 +8,7 @@ of the License, or (at your option) any later version.
 
 This program is distributed in the hope that it will be useful,
 but WITHOUT ANY WARRANTY; without even the implied warranty of
-MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
 
 See the GNU General Public License for more details.
 
@@ -97,7 +97,7 @@ The "game directory" is the first tree on the search path and directory that all
 The "cache directory" is only used during development to save network bandwidth, especially over ISDN / T1 lines.  If there is a cache directory
 specified, when a file is found by the normal search path, it will be mirrored
 into the cache directory, then opened there.
-	
+
 */
 
 //============================================================================
@@ -177,7 +177,7 @@ void VARGS Q_snprintfz (char *dest, size_t size, char *fmt, ...)
 void Q_memset (void *dest, int fill, int count)
 {
 	int		i;
-	
+
 	if ( (((long)dest | count) & 3) == 0)
 	{
 		count >>= 2;
@@ -193,7 +193,7 @@ void Q_memset (void *dest, int fill, int count)
 void Q_memcpy (void *dest, void *src, int count)
 {
 	int		i;
-	
+
 	if (( ( (long)dest | (long)src | count) & 3) == 0 )
 	{
 		count>>=2;
@@ -238,7 +238,7 @@ void Q_strncpy (char *dest, char *src, int count)
 int Q_strlen (char *str)
 {
 	int		count;
-	
+
 	count = 0;
 	while (str[count])
 		count++;
@@ -266,13 +266,13 @@ int Q_strcmp (char *s1, char *s2)
 	while (1)
 	{
 		if (*s1 != *s2)
-			return -1;		// strings not equal	
+			return -1;		// strings not equal
 		if (!*s1)
 			return 0;		// strings are equal
 		s1++;
 		s2++;
 	}
-	
+
 	return -1;
 }
 
@@ -283,20 +283,20 @@ int Q_strncmp (char *s1, char *s2, int count)
 		if (!count--)
 			return 0;
 		if (*s1 != *s2)
-			return -1;		// strings not equal	
+			return -1;		// strings not equal
 		if (!*s1)
 			return 0;		// strings are equal
 		s1++;
 		s2++;
 	}
-	
+
 	return -1;
 }
 
 int Q_strncasecmp (char *s1, char *s2, int n)
 {
 	int		c1, c2;
-	
+
 	while (1)
 	{
 		c1 = *s1++;
@@ -304,7 +304,7 @@ int Q_strncasecmp (char *s1, char *s2, int n)
 
 		if (!n--)
 			return 0;		// strings are equal until end point
-		
+
 		if (c1 != c2)
 		{
 			if (c1 >= 'a' && c1 <= 'z')
@@ -319,7 +319,7 @@ int Q_strncasecmp (char *s1, char *s2, int n)
 //		s1++;
 //		s2++;
 	}
-	
+
 	return -1;
 }
 
@@ -346,7 +346,7 @@ char *Q_strlwr(char *s)
 int wildcmp(char *wild, char *string)
 {
 	char *cp=NULL, *mp=NULL;
-	
+
 	while ((*string) && (*wild != '*'))
 	{
 		if ((*wild != *string) && (*wild != '?'))
@@ -379,7 +379,7 @@ int wildcmp(char *wild, char *string)
 			string = cp++;
 		}
 	}
-		
+
 	while (*wild == '*')
 	{
 		wild++;
@@ -392,7 +392,7 @@ int Q_atoi (char *str)
 	int		val;
 	int		sign;
 	int		c;
-	
+
 	if (*str == '-')
 	{
 		sign = -1;
@@ -400,7 +400,7 @@ int Q_atoi (char *str)
 	}
 	else
 		sign = 1;
-		
+
 	val = 0;
 
 //
@@ -422,7 +422,7 @@ int Q_atoi (char *str)
 				return val*sign;
 		}
 	}
-	
+
 //
 // check for character
 //
@@ -430,7 +430,7 @@ int Q_atoi (char *str)
 	{
 		return sign * str[1];
 	}
-	
+
 //
 // assume decimal
 //
@@ -441,7 +441,7 @@ int Q_atoi (char *str)
 			return val*sign;
 		val = val*10 + c - '0';
 	}
-	
+
 	return 0;
 }
 
@@ -455,7 +455,7 @@ float Q_atof (char *str)
 
 	while(*str == ' ')
 		str++;
-	
+
 	if (*str == '-')
 	{
 		sign = -1;
@@ -463,7 +463,7 @@ float Q_atof (char *str)
 	}
 	else
 		sign = 1;
-		
+
 	val = 0;
 
 //
@@ -485,7 +485,7 @@ float Q_atof (char *str)
 				return val*sign;
 		}
 	}
-	
+
 //
 // check for character
 //
@@ -493,7 +493,7 @@ float Q_atof (char *str)
 	{
 		return sign * str[1];
 	}
-	
+
 //
 // assume decimal
 //
@@ -520,7 +520,7 @@ float Q_atof (char *str)
 		val /= 10;
 		total--;
 	}
-	
+
 	return val*sign;
 }
 
@@ -580,8 +580,8 @@ float FloatSwap (float f)
 		float	f;
 		qbyte	b[4];
 	} dat1, dat2;
-	
-	
+
+
 	dat1.f = f;
 	dat2.b[0] = dat1.b[3];
 	dat2.b[1] = dat1.b[2];
@@ -611,7 +611,7 @@ Handles qbyte ordering and avoids alignment errors
 void MSG_WriteChar (sizebuf_t *sb, int c)
 {
 	qbyte	*buf;
-	
+
 #ifdef PARANOID
 	if (c < -128 || c > 127)
 		Sys_Error ("MSG_WriteChar: range error");
@@ -624,7 +624,7 @@ void MSG_WriteChar (sizebuf_t *sb, int c)
 void MSG_WriteByte (sizebuf_t *sb, int c)
 {
 	qbyte	*buf;
-	
+
 #ifdef PARANOID
 	if (c < 0 || c > 255)
 		Sys_Error ("MSG_WriteByte: range error");
@@ -637,7 +637,7 @@ void MSG_WriteByte (sizebuf_t *sb, int c)
 void MSG_WriteShort (sizebuf_t *sb, int c)
 {
 	qbyte	*buf;
-	
+
 #ifdef PARANOID
 	if (c < ((short)0x8000) || c > (short)0x7fff)
 		Sys_Error ("MSG_WriteShort: range error");
@@ -651,7 +651,7 @@ void MSG_WriteShort (sizebuf_t *sb, int c)
 void MSG_WriteLong (sizebuf_t *sb, int c)
 {
 	qbyte	*buf;
-	
+
 	buf = (qbyte*)SZ_GetSpace (sb, 4);
 	buf[0] = c&0xff;
 	buf[1] = (c>>8)&0xff;
@@ -666,11 +666,11 @@ void MSG_WriteFloat (sizebuf_t *sb, float f)
 		float	f;
 		int	l;
 	} dat;
-	
-	
+
+
 	dat.f = f;
 	dat.l = LittleLong (dat.l);
-	
+
 	SZ_Write (sb, &dat.l, 4);
 }
 
@@ -686,6 +686,8 @@ int sizeofcoord=2;
 int sizeofangle=1;
 float MSG_FromCoord(coorddata c, int bytes)
 {
+	#pragma warning(disable:4701)
+
 	switch(bytes)
 	{
 	case 2:	//encode 1/8th precision, giving -4096 to 4096 map sizes
@@ -775,7 +777,7 @@ void MSG_WriteDeltaUsercmd (sizebuf_t *buf, usercmd_t *from, usercmd_t *cmd)
 			MSG_WriteShort (buf, cmd->angles[1]);
 		if (bits & Q2CM_ANGLE3)
 			MSG_WriteShort (buf, cmd->angles[2]);
-		
+
 		if (bits & Q2CM_FORWARD)
 			MSG_WriteShort (buf, cmd->forwardmove);
 		if (bits & Q2CM_SIDE)
@@ -820,7 +822,7 @@ void MSG_WriteDeltaUsercmd (sizebuf_t *buf, usercmd_t *from, usercmd_t *cmd)
 			MSG_WriteShort (buf, cmd->angles[1]);
 		if (bits & CM_ANGLE3)
 			MSG_WriteShort (buf, cmd->angles[2]);
-		
+
 		if (bits & CM_FORWARD)
 			MSG_WriteShort (buf, cmd->forwardmove);
 		if (bits & CM_SIDE)
@@ -907,7 +909,7 @@ static int MSG_ReadRawBits(sizebuf_t *msg, int bits)
 	{
 		val = msg->data[msg->currentbit >> 3] >> (msg->currentbit & 7);
 		msg->currentbit++;
-		bitmask |= (val & 1) << i;		
+		bitmask |= (val & 1) << i;
 	}
 
 	return bitmask;
@@ -927,7 +929,7 @@ static int MSG_ReadHuffBits(sizebuf_t *msg, int bits)
 	int remaining = bits & 7;
 
 	bitmask = MSG_ReadRawBits(msg, remaining);
-		
+
 	for (i=0 ; i<bits-remaining ; i+=8)
 	{
 		val = Huff_GetByte(msg->data, &msg->currentbit);
@@ -993,16 +995,16 @@ int MSG_ReadChar (void)
 
 	if (net_message.packing!=SZ_RAWBYTES)
 		return (signed char)MSG_ReadBits(8);
-	
+
 	if (msg_readcount+1 > net_message.cursize)
 	{
 		msg_badread = true;
 		return -1;
 	}
-		
+
 	c = (signed char)net_message.data[msg_readcount];
 	msg_readcount++;
-	
+
 	return c;
 }
 
@@ -1012,16 +1014,16 @@ int MSG_ReadByte (void)
 
 	if (net_message.packing!=SZ_RAWBYTES)
 		return (unsigned char)MSG_ReadBits(8);
-	
+
 	if (msg_readcount+1 > net_message.cursize)
 	{
 		msg_badread = true;
 		return -1;
 	}
-		
+
 	c = (unsigned char)net_message.data[msg_readcount];
 	msg_readcount++;
-	
+
 	return c;
 }
 
@@ -1031,18 +1033,18 @@ int MSG_ReadShort (void)
 
 	if (net_message.packing!=SZ_RAWBYTES)
 		return (short)MSG_ReadBits(16);
-	
+
 	if (msg_readcount+2 > net_message.cursize)
 	{
 		msg_badread = true;
 		return -1;
 	}
-		
+
 	c = (short)(net_message.data[msg_readcount]
 	+ (net_message.data[msg_readcount+1]<<8));
-	
+
 	msg_readcount += 2;
-	
+
 	return c;
 }
 
@@ -1052,20 +1054,20 @@ int MSG_ReadLong (void)
 
 	if (net_message.packing!=SZ_RAWBYTES)
 		return (int)MSG_ReadBits(32);
-	
+
 	if (msg_readcount+4 > net_message.cursize)
 	{
 		msg_badread = true;
 		return -1;
 	}
-		
+
 	c = net_message.data[msg_readcount]
 	+ (net_message.data[msg_readcount+1]<<8)
 	+ (net_message.data[msg_readcount+2]<<16)
 	+ (net_message.data[msg_readcount+3]<<24);
-	
+
 	msg_readcount += 4;
-	
+
 	return c;
 }
 
@@ -1089,23 +1091,23 @@ float MSG_ReadFloat (void)
 		msg_badread = true;
 		return -1;
 	}
-	
+
 	dat.b[0] =	net_message.data[msg_readcount];
 	dat.b[1] =	net_message.data[msg_readcount+1];
 	dat.b[2] =	net_message.data[msg_readcount+2];
 	dat.b[3] =	net_message.data[msg_readcount+3];
 	msg_readcount += 4;
-	
+
 	dat.l = LittleLong (dat.l);
 
-	return dat.f;	
+	return dat.f;
 }
 
 char *MSG_ReadString (void)
 {
 	static char	string[2048];
 	int		l,c;
-	
+
 	l = 0;
 	do
 	{
@@ -1115,9 +1117,9 @@ char *MSG_ReadString (void)
 		string[l] = c;
 		l++;
 	} while (l < sizeof(string)-1);
-	
+
 	string[l] = 0;
-	
+
 	return string;
 }
 
@@ -1125,7 +1127,7 @@ char *MSG_ReadStringLine (void)
 {
 	static char	string[2048];
 	int		l,c;
-	
+
 	l = 0;
 	do
 	{
@@ -1135,14 +1137,16 @@ char *MSG_ReadStringLine (void)
 		string[l] = c;
 		l++;
 	} while (l < sizeof(string)-1);
-	
+
 	string[l] = 0;
-	
+
 	return string;
 }
 
 float MSG_ReadCoord (void)
 {
+	#pragma warning(disable:4701)
+
 	coorddata c;
 	MSG_ReadData(&c, sizeofcoord);
 	return MSG_FromCoord(c, sizeofcoord);
@@ -1175,7 +1179,7 @@ void MSG_WriteDir (sizebuf_t *sb, vec3_t dir)
 {
 	int		i, best;
 	float	d, bestd;
-	
+
 	if (!dir)
 	{
 		MSG_WriteByte (sb, 0);
@@ -1214,7 +1218,7 @@ void MSG_ReadDeltaUsercmd (usercmd_t *from, usercmd_t *move)
 	memcpy (move, from, sizeof(*move));
 
 	bits = MSG_ReadByte ();
-		
+
 // read current angles
 	if (bits & CM_ANGLE1)
 		move->angles[0] = MSG_ReadShort ();
@@ -1222,7 +1226,7 @@ void MSG_ReadDeltaUsercmd (usercmd_t *from, usercmd_t *move)
 		move->angles[1] = MSG_ReadShort ();
 	if (bits & CM_ANGLE3)
 		move->angles[2] = MSG_ReadShort ();
-		
+
 // read movement
 	if (bits & CM_FORWARD)
 		move->forwardmove = MSG_ReadShort ();
@@ -1230,7 +1234,7 @@ void MSG_ReadDeltaUsercmd (usercmd_t *from, usercmd_t *move)
 		move->sidemove = MSG_ReadShort ();
 	if (bits & CM_UP)
 		move->upmove = MSG_ReadShort ();
-	
+
 // read buttons
 	if (bits & CM_BUTTONS)
 		move->buttons = MSG_ReadByte ();
@@ -1249,7 +1253,7 @@ void MSGQ2_ReadDeltaUsercmd (usercmd_t *from, usercmd_t *move)
 	memcpy (move, from, sizeof(*move));
 
 	bits = MSG_ReadByte ();
-		
+
 // read current angles
 	if (bits & Q2CM_ANGLE1)
 		move->angles[0] = MSG_ReadShort ();
@@ -1257,7 +1261,7 @@ void MSGQ2_ReadDeltaUsercmd (usercmd_t *from, usercmd_t *move)
 		move->angles[1] = MSG_ReadShort ();
 	if (bits & Q2CM_ANGLE3)
 		move->angles[2] = MSG_ReadShort ();
-		
+
 // read movement
 	if (bits & Q2CM_FORWARD)
 		move->forwardmove = MSG_ReadShort ();
@@ -1265,7 +1269,7 @@ void MSGQ2_ReadDeltaUsercmd (usercmd_t *from, usercmd_t *move)
 		move->sidemove = MSG_ReadShort ();
 	if (bits & Q2CM_UP)
 		move->upmove = MSG_ReadShort ();
-	
+
 // read buttons
 	if (bits & Q2CM_BUTTONS)
 		move->buttons = MSG_ReadByte ();
@@ -1299,35 +1303,35 @@ void SZ_Clear (sizebuf_t *buf)
 void *SZ_GetSpace (sizebuf_t *buf, int length)
 {
 	void	*data;
-	
+
 	if (buf->cursize + length > buf->maxsize)
 	{
 		if (!buf->allowoverflow)
 			Sys_Error ("SZ_GetSpace: overflow without allowoverflow set (%d)", buf->maxsize);
-		
+
 		if (length > buf->maxsize)
 			Sys_Error ("SZ_GetSpace: %i is > full buffer size", length);
-			
+
 		Sys_Printf ("SZ_GetSpace: overflow\n");	// because Con_Printf may be redirected
-		SZ_Clear (buf); 
+		SZ_Clear (buf);
 		buf->overflowed = true;
 	}
 
 	data = buf->data + buf->cursize;
 	buf->cursize += length;
-	
+
 	return data;
 }
 
 void SZ_Write (sizebuf_t *buf, const void *data, int length)
 {
-	Q_memcpy (SZ_GetSpace(buf,length),data,length);		
+	Q_memcpy (SZ_GetSpace(buf,length),data,length);
 }
 
 void SZ_Print (sizebuf_t *buf, const char *data)
 {
 	int		len;
-	
+
 	len = Q_strlen(data)+1;
 
 	if (!buf->cursize || buf->data[buf->cursize-1])
@@ -1354,7 +1358,7 @@ COM_SkipPath
 char *COM_SkipPath (char *pathname)
 {
 	char	*last;
-	
+
 	last = pathname;
 	while (*pathname)
 	{
@@ -1373,7 +1377,7 @@ COM_StripExtension
 void COM_StripExtension (char *in, char *out)
 {
 	char *s;
-	
+
 	strcpy(out, in);
 
 	s = out+strlen(out);
@@ -1469,18 +1473,18 @@ COM_FileBase
 void COM_FileBase (char *in, char *out)
 {
 	char *s, *s2;
-	
+
 	s = in + strlen(in) - 1;
-	
+
 	while (s != in && *s != '.')
 		s--;
-	
+
 	for (s2 = s ; *s2 && *s2 != '/' ; s2--)
 	;
 
 	if (in > s2)
 		s2 = in;
-	
+
 	if (s-s2 < 2)
 		strcpy (out,"?model?");
 	else
@@ -1537,13 +1541,13 @@ char *COM_Parse (char *data)
 {
 	int		c;
 	int		len;
-	
+
 	len = 0;
 	com_token[0] = 0;
-	
+
 	if (!data)
 		return NULL;
-		
+
 // skip whitespace
 skipwhite:
 	while ( (c = *data) <= ' ')
@@ -1552,7 +1556,7 @@ skipwhite:
 			return NULL;			// end of file;
 		data++;
 	}
-	
+
 // skip // comments
 	if (c=='/')
 	{
@@ -1563,7 +1567,7 @@ skipwhite:
 			goto skipwhite;
 		}
 	}
-	
+
 
 // handle quoted strings specially
 	if (c == '\"')
@@ -1596,7 +1600,7 @@ skipwhite:
 		len++;
 		c = *data;
 	} while (c>32);
-	
+
 	com_token[len] = 0;
 	return data;
 }
@@ -1605,13 +1609,13 @@ char *COM_ParseOut (char *data, char *out, int outlen)
 {
 	int		c;
 	int		len;
-	
+
 	len = 0;
 	out[0] = 0;
-	
+
 	if (!data)
 		return NULL;
-		
+
 // skip whitespace
 skipwhite:
 	while ( (c = *data) <= ' ')
@@ -1620,7 +1624,7 @@ skipwhite:
 			return NULL;			// end of file;
 		data++;
 	}
-	
+
 // skip // comments
 	if (c=='/')
 	{
@@ -1631,7 +1635,7 @@ skipwhite:
 			goto skipwhite;
 		}
 	}
-	
+
 
 // handle quoted strings specially
 	if (c == '\"')
@@ -1664,7 +1668,7 @@ skipwhite:
 		len++;
 		c = *data;
 	} while (c>32);
-	
+
 	out[len] = 0;
 	return data;
 }
@@ -1675,13 +1679,13 @@ char *COM_StringParse (char *data, qboolean expandmacros, qboolean qctokenize)
 	int		c;
 	int		len;
 	char *s;
-	
+
 	len = 0;
 	com_token[0] = 0;
-	
+
 	if (!data)
 		return NULL;
-		
+
 // skip whitespace
 skipwhite:
 	while ( (c = *data), (unsigned)c <= ' ' && c != '\n')
@@ -1690,7 +1694,7 @@ skipwhite:
 			return NULL;			// end of file;
 		data++;
 	}
-	
+
 // skip // comments
 	if (c=='/')
 	{
@@ -1717,7 +1721,7 @@ skipwhite:
 		}
 		goto skipwhite;
 	}
-	
+
 
 // handle quoted strings specially
 	if (c == '\"')
@@ -1844,7 +1848,7 @@ skipwhite:
 
 			Q_strncpyz(name, s+1, i);
 			i-=1;
-			
+
 			macro = Cvar_FindVar(name);
 			if (macro)	//got one...
 			{
@@ -1860,7 +1864,7 @@ skipwhite:
 			}
 		}
 	}
-	
+
 	return data;
 }
 
@@ -1872,13 +1876,13 @@ const char *COM_ParseToken (const char *data, const char *punctuation)
 
 	if (!punctuation)
 		punctuation = DEFAULT_PUNCTUATION;
-	
+
 	len = 0;
 	com_token[0] = 0;
-	
+
 	if (!data)
 		return NULL;
-		
+
 // skip whitespace
 skipwhite:
 	while ( (c = *data) <= ' ')
@@ -1887,7 +1891,7 @@ skipwhite:
 			return NULL;			// end of file;
 		data++;
 	}
-	
+
 // skip // comments
 	if (c=='/')
 	{
@@ -1906,7 +1910,7 @@ skipwhite:
 			goto skipwhite;
 		}
 	}
-	
+
 
 // handle quoted strings specially
 	if (c == '\"')
@@ -1954,7 +1958,7 @@ skipwhite:
 		if (strchr(punctuation, c))
 			break;
 	} while (c>32);
-	
+
 	com_token[len] = 0;
 	return data;
 }
@@ -1963,13 +1967,13 @@ char *COM_ParseCString (char *data)
 {
 	int		c;
 	int		len;
-	
+
 	len = 0;
 	com_token[0] = 0;
-	
+
 	if (!data)
 		return NULL;
-		
+
 // skip whitespace
 skipwhite:
 	while ( (c = *data) <= ' ')
@@ -1978,7 +1982,7 @@ skipwhite:
 			return NULL;			// end of file;
 		data++;
 	}
-	
+
 // skip // comments
 	if (c=='/')
 	{
@@ -1989,7 +1993,7 @@ skipwhite:
 			goto skipwhite;
 		}
 	}
-	
+
 
 // handle quoted strings specially
 	if (c == '\"')
@@ -2002,7 +2006,7 @@ skipwhite:
 				com_token[len] = '\0';
 				return data;
 			}
-			
+
 			c = *data++;
 			if (!c)
 			{
@@ -2050,7 +2054,7 @@ skipwhite:
 		len++;
 		c = *data;
 	} while (c>32);
-	
+
 	com_token[len] = 0;
 	return data;
 }
@@ -2068,7 +2072,7 @@ where the given parameter apears, or 0 if not present
 int COM_CheckNextParm (char *parm, int last)
 {
 	int i = last+1;
-	
+
 	for ( ; i<com_argc ; i++)
 	{
 		if (!com_argv[i])
@@ -2076,7 +2080,7 @@ int COM_CheckNextParm (char *parm, int last)
 		if (!Q_strcmp (parm,com_argv[i]))
 			return i;
 	}
-		
+
 	return 0;
 }
 
@@ -2151,14 +2155,14 @@ void COM_CheckRegistered (void)
 
 	VFS_READ(h, check, sizeof(check));
 	VFS_CLOSE(h);
-	
+
 	for (i=0 ; i<128 ; i++)
 		if (pop[i] != (unsigned short)BigShort (check[i]))
 		{
 			Con_TPrintf (TL_SHAREWAREVERSION);
 			return;
 		}
-	
+
 	static_registered = true;
 	Con_TPrintf (TL_REGISTEREDVERSION);
 }
@@ -2208,7 +2212,7 @@ void COM_InitArgv (int argc, char **argv)	//not allowed to tprint
 					*buffer = 0;
 					buffer++;
 				}
-				
+
 			}
 		}
 
@@ -2227,7 +2231,7 @@ void COM_InitArgv (int argc, char **argv)	//not allowed to tprint
 	}
 
 	if (safe)
-	{ 
+	{
 	// force all the safe-mode switches. Note that we reserved extra space in
 	// case we need to add these, so we don't need an overflow check
 		for (i=0 ; i<NUM_SAFE_ARGVS ; i++)
@@ -2263,7 +2267,7 @@ void COM_Init (void)
 {
 	qbyte	swaptest[2] = {1,0};
 
-// set the qbyte swapping variables in a portable manner	
+// set the qbyte swapping variables in a portable manner
 	if ( *(short *)swaptest == 1)
 	{
 		bigendien = false;
@@ -2319,12 +2323,12 @@ char	*VARGS va(char *format, ...)
 
 	bufnum++;
 	bufnum &= (VA_BUFFERS-1);
-	
+
 	va_start (argptr, format);
 	_vsnprintf (string[bufnum],sizeof(string[bufnum])-1, format,argptr);
 	va_end (argptr);
 
-	return string[bufnum];	
+	return string[bufnum];
 }
 
 
@@ -2332,7 +2336,7 @@ char	*VARGS va(char *format, ...)
 int	memsearch (qbyte *start, int count, int search)
 {
 	int		i;
-	
+
 	for (i=0 ; i<count ; i++)
 		if (start[i] == search)
 			return i;
@@ -2366,7 +2370,7 @@ char *Info_ValueForKey (char *s, const char *key)
 								// work without stomping on each other
 	static	int	valueindex;
 	char	*o;
-	
+
 	valueindex = (valueindex + 1) % 4;
 	if (*s == '\\')
 		s++;
@@ -2400,7 +2404,7 @@ char *Info_ValueForKey (char *s, const char *key)
 				return value[valueindex];
 			}
 			*o++ = *s++;
-			
+
 			if (o+2 >= value[valueindex]+sizeof(value[valueindex]))	//hrm. hackers at work..
 			{
 				*value[valueindex]='\0';
@@ -2425,7 +2429,7 @@ char *Info_KeyForNumber (char *s, int num)
 {
 	static char	pkey[1024];
 	char	*o;
-	
+
 	if (*s == '\\')
 		s++;
 	while (1)
@@ -3015,15 +3019,15 @@ qbyte	Q2COM_BlockSequenceCRCByte (qbyte *base, int length, int sequence)
 
 // char *date = "Oct 24 1996";
 static char *date = __DATE__ ;
-static char *mon[12] = 
+static char *mon[12] =
 { "Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec" };
-static char mond[12] = 
+static char mond[12] =
 { 31,    28,    31,    30,    31,    30,    31,    31,    30,    31,    30,    31 };
 
 // returns days since Oct 24 1996
 int build_number( void )
 {
-	int m = 0; 
+	int m = 0;
 	int d = 0;
 	int y = 0;
 	static int b = 0;

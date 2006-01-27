@@ -620,6 +620,10 @@ void SWR_MarkLeaves (void)
 	r_visframecount++;
 	r_oldviewleaf = r_viewleaf;
 
+	//if they're in different files it's probably just the compiler not knowing the return type when it reaches that line so it guesses int
+	//timeserv thinks we need a prototype (whatever that is) ~ Moodles
+	#pragma warning(disable:4047)
+	
 	vis = SWMod_LeafPVS (cl.worldmodel, r_viewleaf, NULL);
 		
 	for (i=0 ; i<cl.worldmodel->numleafs ; i++)

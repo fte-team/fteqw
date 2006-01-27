@@ -686,8 +686,6 @@ int sizeofcoord=2;
 int sizeofangle=1;
 float MSG_FromCoord(coorddata c, int bytes)
 {
-	#pragma warning(disable:4701)
-
 	switch(bytes)
 	{
 	case 2:	//encode 1/8th precision, giving -4096 to 4096 map sizes
@@ -1145,9 +1143,7 @@ char *MSG_ReadStringLine (void)
 
 float MSG_ReadCoord (void)
 {
-	#pragma warning(disable:4701)
-
-	coorddata c;
+	static coorddata c; //static to suppress warning about c
 	MSG_ReadData(&c, sizeofcoord);
 	return MSG_FromCoord(c, sizeofcoord);
 }

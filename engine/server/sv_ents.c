@@ -40,6 +40,7 @@ crosses a waterline.
 int needcleanup;
 
 int		fatbytes;
+int glowsize, glowcolor; // made it a global variable, to suppress msvc warning.
 qbyte	fatpvs[(MAX_MAP_LEAFS+1)/4];
 
 
@@ -1809,8 +1810,6 @@ void SVNQ_EmitEntity(sizebuf_t *msg, edict_t *ent, int entnum)
 int i, eff;
 float miss;
 unsigned int bits=0;
-
-int glowsize, glowcolor;
 
 	for (i=0 ; i<3 ; i++)
 	{

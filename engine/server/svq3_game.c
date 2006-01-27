@@ -1824,7 +1824,7 @@ void SV_InitBotLib()
 qboolean SVQ3_InitGame(void)
 {
 	char buffer[8192];
-	char *str;
+	int str;
 	char sysinfo[8192];
 	extern cvar_t progs;
 
@@ -1859,14 +1859,18 @@ qboolean SVQ3_InitGame(void)
 
 	sysinfo[0] = '\0';
 	Info_SetValueForKey(sysinfo, "sv_serverid", va("%i", svs.spawncount), MAX_SERVERINFO_STRING); 
+	
 	str = FS_GetPackHashes(buffer, sizeof(buffer), false);
-	Info_SetValueForKey(sysinfo, "sv_paks", str, MAX_SERVERINFO_STRING);
+	Info_SetValueForKeyMoodles(sysinfo, "sv_paks", str, MAX_SERVERINFO_STRING); // modified to accept an integer
+
 	str = FS_GetPackNames(buffer, sizeof(buffer), false);
-	Info_SetValueForKey(sysinfo, "sv_pakNames", str, MAX_SERVERINFO_STRING);
+	Info_SetValueForKeyMoodles(sysinfo, "sv_pakNames", str, MAX_SERVERINFO_STRING); // modified to accept an integer
+	
 	str = FS_GetPackHashes(buffer, sizeof(buffer), true);
-	Info_SetValueForKey(sysinfo, "sv_referencedPaks", str, MAX_SERVERINFO_STRING);
+	Info_SetValueForKeyMoodles(sysinfo, "sv_referencedPaks", str, MAX_SERVERINFO_STRING); // modified to accept an integer
+	
 	str = FS_GetPackNames(buffer, sizeof(buffer), true);
-	Info_SetValueForKey(sysinfo, "sv_referencedPakNames", str, MAX_SERVERINFO_STRING);
+	Info_SetValueForKeyMoodles(sysinfo, "sv_referencedPakNames", str, MAX_SERVERINFO_STRING); // modified to accept an integer
 
 	Info_SetValueForKey(sysinfo, "sv_pure", "1", MAX_SERVERINFO_STRING);
 
@@ -1968,7 +1972,7 @@ void SVQ3_CreateBaseline(void)
 //Writes the entities to the clients
 void SVQ3_EmitPacketEntities(client_t *client, q3client_frame_t *from, q3client_frame_t *to, sizebuf_t *msg)
 {
-	q3entityState_t	*oldent, *newent;
+	q3entityState_t	*oldent = {0}, *newent = {0};
 	int				oldindex, newindex;
 	int				oldnum, newnum;
 	int				from_num_entities;

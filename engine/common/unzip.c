@@ -213,15 +213,15 @@ local unsigned long unzlocal_SearchCentralDir(vfsfile_t *fin) {
 	   of this unzip package.
 */
 extern unzFile ZEXPORT unzOpen (vfsfile_t *fin) {
-	unz_s us;
+	unz_s us = {0};
 	unz_s *s;
 	unsigned long central_pos,uL;
 
-	unsigned long number_disk;          /* number of the current dist, used for 
+	unsigned long number_disk = 0;          /* number of the current dist, used for 
 								   spaning ZIP, unsupported, always 0*/
-	unsigned long number_disk_with_CD;  /* number the the disk with central dir, used
+	unsigned long number_disk_with_CD = 0;  /* number the the disk with central dir, used
 								   for spaning ZIP, unsupported, always 0*/
-	unsigned long number_entry_CD;      /* total number of entries in
+	unsigned long number_entry_CD = 0;      /* total number of entries in
 	                               the central dir 
 	                               (same than number_entry on nospan) */
 
@@ -335,9 +335,9 @@ local int unzlocal_GetCurrentFileInfoInternal (unzFile file,
 					      char *szComment,  unsigned long commentBufferSize) {
 	unz_s* s;
 	unz_file_info file_info;
-	unz_file_info_internal file_info_internal;
+	unz_file_info_internal file_info_internal = {0};
 	int err=UNZ_OK;
-	unsigned long uMagic;
+	unsigned long uMagic = 0;
 	long lSeek=0;
 
 	if (!file) return UNZ_PARAMERROR;
@@ -515,9 +515,9 @@ extern int ZEXPORT unzLocateFileMy (unzFile file, unsigned long num, unsigned lo
 local int unzlocal_CheckCurrentFileCoherencyHeader (unz_s *s, unsigned int *piSizeVar,
 		unsigned long *poffset_local_extrafield,
 		unsigned int *psize_local_extrafield) {
-										unsigned long uMagic,uData,uFlags;
-										unsigned long size_filename;
-										unsigned long size_extra_field;
+										unsigned long uMagic = 0,uData = 0,uFlags = 0;
+										unsigned long size_filename = 0;
+										unsigned long size_extra_field = 0;
 	int err=UNZ_OK;
 
 	*piSizeVar = 0;

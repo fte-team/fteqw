@@ -1873,7 +1873,8 @@ SV_Say
 void SV_Say (qboolean team)
 {
 	client_t *client;
-	int		j, tmp;
+	int		j;
+	//int		tmp; //unreferenced
 	char	*p;
 	char	text[1024];
 	char	t1[32], *t2;

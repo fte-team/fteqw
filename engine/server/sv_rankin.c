@@ -32,7 +32,7 @@ char rank_cvargroup[] = "server rankings";
 #define RANKFILE_IDENT	*(int*)"RANK"
 
 void inline READ_PLAYERSTATS(int x, rankstats_t *os)
-{	
+{
 	int i;
 
 	fseek(rankfile, sizeof(rankfileheader_t)+sizeof(rankheader_t)+((x-1)*sizeof(rankinfo_t)), SEEK_SET);
@@ -44,8 +44,8 @@ void inline READ_PLAYERSTATS(int x, rankstats_t *os)
 		os->parm[i] = swapfloat(os->parm[i]);
 	os->timeonserver = swapfloat(os->timeonserver);
 //	os->flags1 = (os->flags1);
-//	os->trustlevel = (os->trustlevel);	
-//	os->pad2 = (os->pad2);	
+//	os->trustlevel = (os->trustlevel);
+//	os->pad2 = (os->pad2);
 //	os->pad3 = (os->pad3);
 }
 
@@ -62,15 +62,15 @@ void inline WRITE_PLAYERSTATS(int x, rankstats_t *os)
 		ns.parm[i] = swapfloat(os->parm[i]);
 	ns.timeonserver = swapfloat(os->timeonserver);
 	ns.flags1 = (os->flags1);
-	ns.trustlevel = (os->trustlevel);	
-	ns.pad2 = (os->pad2);	
+	ns.trustlevel = (os->trustlevel);
+	ns.pad2 = (os->pad2);
 	ns.pad3 = (os->pad3);
 
 	fwrite(&ns, sizeof(rankstats_t), 1, rankfile);
 }
 
 void inline READ_PLAYERHEADER(int x, rankheader_t *oh)
-{	
+{
 	fseek(rankfile, sizeof(rankfileheader_t)+((x-1)*sizeof(rankinfo_t)), SEEK_SET);
 
 	fread(oh, sizeof(rankheader_t), 1, rankfile);
@@ -79,7 +79,7 @@ void inline READ_PLAYERHEADER(int x, rankheader_t *oh)
 	oh->next = swaplong(oh->next);
 //	strcpy(oh->name, oh->name);
 	oh->pwd = swaplong(oh->pwd);
-	oh->score = swapfloat(oh->score);	
+	oh->score = swapfloat(oh->score);
 }
 
 void inline WRITE_PLAYERHEADER(int x, rankheader_t *oh)
@@ -126,7 +126,7 @@ qboolean Rank_OpenRankings(void)
 	if (!rankfile)
 	{
 		if (!*rank_filename.string)
-		{	
+		{
 			return false;
 		}
 
@@ -171,7 +171,7 @@ qboolean Rank_OpenRankings(void)
 void LINKUN(int id)
 {
 	int idnext, idprev;
-	rankheader_t hnext, hprev, info;
+	rankheader_t hnext = {0}, hprev = {0}, info;
 
 	READ_PLAYERHEADER(id, &info);
 
@@ -189,7 +189,7 @@ void LINKUN(int id)
 	}
 	if (idprev)
 	{
-		hprev.next = idnext;	
+		hprev.next = idnext;
 		WRITE_PLAYERHEADER(idprev, &hprev);
 	}
 	else if (rankfileheader.leader == id)	//ensure header is accurate
@@ -198,7 +198,7 @@ void LINKUN(int id)
 		WRITEHEADER();
 	}
 	else if (rankfileheader.freeslot == id)
-	{		
+	{
 		rankfileheader.freeslot = info.next;
 		WRITEHEADER();
 	}
@@ -211,7 +211,7 @@ void LINKUN(int id)
 void LINKBEFORE(int bef, int id, rankheader_t *info)
 {
 	int idnext, idprev;
-	rankheader_t hnext, hprev;
+	rankheader_t hnext, hprev = {0};
 
 	if (!bef)
 		Sys_Error("Cannot link before no entry\n");
@@ -224,7 +224,7 @@ void LINKBEFORE(int bef, int id, rankheader_t *info)
 
 //now we know the before and after entries.
 
-	hnext.prev = id;	
+	hnext.prev = id;
 	WRITE_PLAYERHEADER(idnext, &hnext);
 
 	if (idprev)
@@ -250,13 +250,13 @@ void LINKBEFORE(int bef, int id, rankheader_t *info)
 void LINKAFTER(int aft, int id, rankheader_t *info)
 {
 	int idnext, idprev;
-	rankheader_t hnext, hprev;
+	rankheader_t hnext = {0}, hprev = {0};
 
 	idprev = aft;
 	if (idprev)
 	{
 		READ_PLAYERHEADER(idprev, &hprev);
-		idnext = hprev.next;		
+		idnext = hprev.next;
 	}
 	else
 		idnext = rankfileheader.leader;
@@ -330,7 +330,7 @@ void Rank_SetPlayerStats(int id, rankstats_t *stats)
 
 	if (!id)
 	{
-		Con_Printf("WARNING: Rank_SetPlayerStats with id 0\n");		
+		Con_Printf("WARNING: Rank_SetPlayerStats with id 0\n");
 		return;
 	}
 
@@ -341,9 +341,9 @@ void Rank_SetPlayerStats(int id, rankstats_t *stats)
 	READ_PLAYERHEADER(id, &nh);
 	nh.score = (stats->kills+1)/((float)stats->deaths+1);
 	//WRITE_PLAYERHEADER(id, &nh); //saved on link.
-	
+
 	LINKUN(id);
-	
+
 	nid = rankfileheader.leader;
 	if (!nid)	//Hmm. First player!
 	{
@@ -368,7 +368,7 @@ void Rank_SetPlayerStats(int id, rankstats_t *stats)
 			return;
 		}
 		nid = rh.next;
-	}	
+	}
 }
 
 int Rank_GetPlayerID(char *name, int pwd, qboolean allowadd, qboolean requirepasswordtobeset)
@@ -406,7 +406,7 @@ int Rank_GetPlayerID(char *name, int pwd, qboolean allowadd, qboolean requirepas
 
 	id = rankfileheader.freeslot;
 	if (id)
-	{	
+	{
 		READ_PLAYERHEADER(id, &rh);
 		rankfileheader.freeslot = rh.next;
 		WRITEHEADER();
@@ -415,7 +415,7 @@ int Rank_GetPlayerID(char *name, int pwd, qboolean allowadd, qboolean requirepas
 		Q_strncpyz(rh.name, name, sizeof(rh.name));
 		rh.pwd = pwd;
 		rh.prev = 0;
-		rh.next = rankfileheader.usedslots;		
+		rh.next = rankfileheader.usedslots;
 		rankfileheader.usedslots = id;
 		WRITEHEADER();
 
@@ -502,16 +502,16 @@ void Rank_AddUser_f (void)
 
 	id = rankfileheader.freeslot;
 	if (id)
-	{	
+	{
 		READ_PLAYERHEADER(id, &rh);
 		rankfileheader.freeslot = rh.next;
 		WRITEHEADER();
 
 		memset(&rh, 0, sizeof(rh));
 		Q_strncpyz(rh.name, name, sizeof(rh.name));
-		rh.pwd = pwd;		
+		rh.pwd = pwd;
 		rh.prev = 0;
-		rh.next = rankfileheader.usedslots;		
+		rh.next = rankfileheader.usedslots;
 		rankfileheader.usedslots = id;
 		WRITEHEADER();
 
@@ -638,7 +638,7 @@ int Rank_Enumerate (unsigned int first, unsigned int last, void (*callback) (con
 }
 
 void Rank_RankingList_f (void)
-{	
+{
 	rankinfo_t ri;
 	int id;
 	int num;
@@ -697,7 +697,7 @@ void Rank_Remove_f (void)
 		READ_PLAYERINFO(id, &ri);
 
 		if (num == remnum)
-		{			
+		{
 			LINKUN(id);
 			ri.h.next = rankfileheader.freeslot;
 			ri.h.prev = 0;
@@ -717,7 +717,7 @@ void Rank_Remove_f (void)
 }
 
 void Rank_ListTop10_f (void)
-{	
+{
 	rankinfo_t ri;
 	int id;
 	int num;
@@ -750,7 +750,7 @@ void Rank_ListTop10_f (void)
 }
 
 void Rank_Find_f (void)
-{	
+{
 	rankinfo_t ri;
 	int id;
 
@@ -793,7 +793,7 @@ void Rank_Refresh_f(void)
 
 		if (host_client->rankid)
 		{
-			rankstats_t rs;
+			rankstats_t rs = {0};
 			Rank_GetPlayerStats(host_client->rankid, &rs);
 			rs.timeonserver += realtime - host_client->stats_started;
 			host_client->stats_started = realtime;
@@ -815,7 +815,7 @@ void Rank_RCon_f(void)
 {
 	int gofor, num, id;
 	int newlevel;
-	rankstats_t rs;
+	rankstats_t rs = {0};
 	rankinfo_t ri;
 
 	if (!Rank_OpenRankings())
@@ -842,7 +842,7 @@ void Rank_RCon_f(void)
 		READ_PLAYERINFO(id, &ri);
 
 		if (num == gofor)
-		{	
+		{
 			//save new level
 			Rank_GetPlayerStats(id, &rs);
 
@@ -880,7 +880,7 @@ void Rank_RegisterCommands(void)
 
 	Cmd_AddCommand("rankadd", Rank_AddUser_f);
 	Cmd_AddCommand("adduser", Rank_AddUser_f);
-	Cmd_AddCommand("setpass", Rank_SetPass_f);	
+	Cmd_AddCommand("setpass", Rank_SetPass_f);
 
 	Cvar_Register(&rank_autoadd, rank_cvargroup);
 	Cvar_Register(&rank_needlogin, rank_cvargroup);

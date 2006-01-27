@@ -2017,7 +2017,7 @@ void Shader_Default2D(char *shortname, shader_t *s)
 int R_LoadShader ( char *name, void(*defaultgen)(char *name, shader_t*))
 {
 	int i, f = -1;
-	unsigned int offset, length = 0;
+	unsigned int offset = 0, length = 0;
 	char shortname[MAX_QPATH], path[MAX_QPATH];
 	char *buf = NULL, *ts = NULL;
 	shader_t *s;

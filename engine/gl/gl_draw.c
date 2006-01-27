@@ -31,6 +31,7 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 
 //#define GL_USE8BITTEX
 
+int gl_anisotropy_factor = 1;
 int glx, gly, glwidth, glheight;
 
 mesh_t	draw_mesh;
@@ -109,7 +110,6 @@ int		gl_alpha_format = 4;
 
 int		gl_filter_min = GL_LINEAR_MIPMAP_NEAREST;
 int		gl_filter_max = GL_LINEAR;
-int		gl_anisotropy_factor = 1;
 int		gl_anisotropy_factor_max = 0;
 
 
@@ -3091,6 +3091,8 @@ texels += scaled_width * scaled_height;
 done:
 	if (gl_config.sgis_generate_mipmap&&mipmap)
 		qglTexParameterf(GL_TEXTURE_2D, GL_GENERATE_MIPMAP_SGIS, GL_FALSE);
+
+	qglTexParameterf(GL_TEXTURE_2D, GL_MULTISAMPLE_ARB, GL_FALSE);
 
 	if (gl_config.ext_texture_filter_anisotropic)
 	{

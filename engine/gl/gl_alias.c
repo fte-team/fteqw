@@ -1845,6 +1845,10 @@ void R_DrawGAliasModel (entity_t *e)
 	}
 
 #ifdef Q3SHADERS
+	//if they're in different files it's probably just the compiler not knowing the return type when it reaches that line so it guesses int
+	//timeserv thinks we need a prototype (whatever that is) ~ Moodles
+	#pragma warning(disable:4047)
+	
 	fog = CM_FogForOrigin(currententity->origin);
 #endif
 
@@ -4697,7 +4701,8 @@ void GLMod_LoadDarkPlacesModel(model_t *mod, void *buffer)
 	galiasbone_t *outbone;
 	dpmbone_t *inbone;
 
-	float *inst, *outst;
+	float *inst; //unreferenced local variable in the dedicated server
+	float *outst = 0;
 
 
 	float *outposedata;

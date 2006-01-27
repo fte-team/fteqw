@@ -803,7 +803,7 @@ static void *FSZIP_LoadZipFile (vfsfile_t *packhandle, char *desc)
 	zipfile_t *zip;
 	packfile_t		*newfiles;
 
-	unz_global_info	globalinf;
+	unz_global_info	globalinf = {0};
 	unz_file_info	file_info;
 
 

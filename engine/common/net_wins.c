@@ -1365,7 +1365,7 @@ void NET_GetLocalAddress (int socket, netadr_t *out)
 	char	buff[512];
 	struct sockaddr_qstorage	address;
 	int		namelen;
-	netadr_t adr;
+	netadr_t adr = {0};
 	qboolean notvalid = false;
 
 	strcpy(buff, "localhost");

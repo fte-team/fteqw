@@ -126,11 +126,11 @@ void	ValidationPrintVersion(char *f_query_string)
 {
 	f_query_t *this_query;
 	unsigned short query_crc;
-	unsigned long crc;
-	char answer;
-	char name[128];
+	//unsigned long crc; //unreferenced
+	//char answer; //unreferenced
+	//char name[128]; //unrefernced
 	char sr[256];
-	char *s;
+	char *s; // unreferenced in software only client
 	int i;
 
 	extern cvar_t r_shadow_realtime_world, r_drawflat;
@@ -323,9 +323,9 @@ void Validation_CheckIfResponse(char *text)
 		unsigned short query_crc = 0;
 		unsigned long	user_crc = 0;
 		unsigned long	auth_crc = 0;
-		char auth_answer;
+		//char auth_answer; //unreferenced
 
-		int slot;
+		//int slot; //unreferenced
 		signed_buffer_t *resp;
 
 		//easy lame way to get the crc from hex.

@@ -50,13 +50,13 @@ qbyte *COM_LoadFile (char *path, int usehunk);
 
 sfxcache_t *S_LoadOVSound (sfx_t *s, qbyte *data, int datalen, int sndspeed)
 {
-	char	namebuffer[MAX_OSPATH];
+	//char	namebuffer[MAX_OSPATH]; //unreferenced
 	char	*name;
 	ovdecoderbuffer_t *buffer;
-	FILE *f;
+	//FILE *f; //unreferenced
 
-	qboolean telluser;
-	int len;
+	//qboolean telluser; //unreferenced
+	//int len; //unreferenced
 
 	name = s->name;
 

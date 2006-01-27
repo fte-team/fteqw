@@ -1772,6 +1772,10 @@ TRACE(("dbg: R_ApplyRenderer: efrags\n"));
 		{
 			cl_static_entities[i].model = cl.model_precache[staticmodelindex[i]];
 #ifdef SWQUAKE
+			//if they're in different files it's probably just the compiler not knowing the return type when it reaches that line so it guesses int
+			//timeserv thinks we need a prototype (whatever that is) ~ Moodles
+			#pragma warning(disable:4047)
+
 			cl_static_entities[i].palremap = D_IdentityRemap();
 #endif
 			if (staticmodelindex[i])	//make sure it's worthwhile.

@@ -499,7 +499,8 @@ typedef struct q3refEntity_s {
 
 	// texturing
 	int			skinNum;			// inline skin index
-	int		customSkin;			// NULL for default skin
+	//int		customSkin;			// NULL for default skin
+	char		*customSkin; //the function that references this wants a char* not an int
 	int		customShader;		// use one image for the entire thing
 
 	// misc

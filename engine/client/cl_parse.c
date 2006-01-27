@@ -938,7 +938,7 @@ int blockcycle;
 void CL_ParseChunkedDownload(void)
 {
 	qbyte	*svname;
-	qbyte	osname[MAX_OSPATH];
+	//qbyte	osname[MAX_OSPATH]; //unreferenced
 	int totalsize;
 	int chunknum;
 	char data[DLBLOCKSIZE];
@@ -2353,6 +2353,10 @@ void CL_ParseStatic (int version)
 	ent->model = cl.model_precache[es.modelindex];
 	ent->oldframe = ent->frame = es.frame;
 #ifdef SWQUAKE
+	//if they're in different files it's probably just the compiler not knowing the return type when it reaches that line so it guesses int
+	//timeserv thinks we need a prototype (whatever that is) ~ Moodles
+	#pragma warning(disable:4047)
+
 	ent->palremap = D_IdentityRemap();
 #endif
 	ent->skinnum = es.skinnum;
@@ -2627,9 +2631,9 @@ CL_NewTranslation
 void CL_NewTranslation (int slot)
 {
 #ifdef SWQUAKE
-	int		i, j;
+	//int		i, j; //unreferenced
 	int		top, bottom;
-	qbyte	*dest, *source;
+	//qbyte	*dest, *source; //unreferenced
 		int local;
 #endif
 

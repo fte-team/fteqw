@@ -1185,6 +1185,10 @@ void V_CalcRefdef (int pnum)
 		view->model = cl.model_precache[cl.stats[pnum][STAT_WEAPON]];
 	view->frame = view_message?view_message->weaponframe:0;
 #ifdef SWQUAKE
+	//if they're in different files it's probably just the compiler not knowing the return type when it reaches that line so it guesses int
+	//timeserv thinks we need a prototype (whatever that is) ~ Moodles
+	#pragma warning(disable:4047)
+
 	view->palremap = D_IdentityRemap();
 #endif
 

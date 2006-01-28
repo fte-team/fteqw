@@ -299,7 +299,7 @@ int COM_FOpenWriteFile (char *filename, FILE **file);
 void COM_CloseFile (FILE *h);
 
 #define COM_FDepthFile(filename,ignorepacks) FS_FLocateFile(filename,ignorepacks?FSLFRT_DEPTH_OSONLY:FSLFRT_DEPTH_ANYPATH, NULL)
-#define COM_FCheckExists(filename) (FS_FLocateFile(filename,FSLFRT_LENGTH, NULL)>0)
+#define COM_FCheckExists(filename) FS_FLocateFile(filename,FSLFRT_IFFOUND, NULL)
 
 
 typedef struct vfsfile_s {

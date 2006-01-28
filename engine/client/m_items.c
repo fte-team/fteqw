@@ -1367,11 +1367,21 @@ void M_Menu_Main_f (void)
 			MC_AddPicture(mainm, 68, 173, "pics/m_main_quit");
 
 			mainm->selecteditem = (menuoption_t *)
-			MC_AddConsoleCommand	(mainm, 68, 13,	"", "menu_single\n");
-			MC_AddConsoleCommand	(mainm, 68, 53,	"", "menu_multi\n");
-			MC_AddConsoleCommand	(mainm, 68, 93,	"", "menu_options\n");
-			MC_AddConsoleCommand	(mainm, 68, 133,	"", "menu_video\n");
-			MC_AddConsoleCommand	(mainm, 68, 173,	"", "menu_quit\n");
+			b = MC_AddConsoleCommand	(mainm, 68, 13,	"", "menu_single\n");
+			b->common.width = 12*20;
+			b->common.height = 20;
+			b = MC_AddConsoleCommand	(mainm, 68, 53,	"", "menu_multi\n");
+			b->common.width = 12*20;
+			b->common.height = 20;
+			b = MC_AddConsoleCommand	(mainm, 68, 93,	"", "menu_options\n");
+			b->common.width = 12*20;
+			b->common.height = 20;
+			b = MC_AddConsoleCommand	(mainm, 68, 133,	"", "menu_video\n");
+			b->common.width = 12*20;
+			b->common.height = 20;
+			b = MC_AddConsoleCommand	(mainm, 68, 173,	"", "menu_quit\n");
+			b->common.width = 12*20;
+			b->common.height = 20;
 
 			mainm->cursoritem = (menuoption_t *)MC_AddCursor(mainm, 42, 13);
 		}

@@ -1464,7 +1464,10 @@ out:
 	}
 	else
 		Con_Printf("Failed\n");
-*/	if (returntype == FSLFRT_LENGTH)
+*/	
+	if (returntype == FSLFRT_IFFOUND)
+		return len != -1;
+	else if (returntype == FSLFRT_LENGTH)
 		return len;
 	else
 		return depth;

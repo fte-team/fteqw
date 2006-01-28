@@ -234,7 +234,7 @@ int VMUI_fopen (char *name, int *handle, int fmode, int owner)
 	int i;
 
 	if (!handle)
-		return FS_FLocateFile(name, FSLFRT_LENGTH, NULL);
+		return FS_FLocateFile(name, FSLFRT_IFFOUND, NULL);
 
 	*handle = 0;
 

@@ -492,7 +492,7 @@ void S_PaintChannels(soundcardinfo_t *sc, int endtime)
 */
 						if (scache->width == 1)
 						{						
-							if (scache->stereo)
+							if (scache->numchannels==2)
 								SND_PaintChannelFrom8Stereo(ch, scache, count);
 							else if (sc->sn.numchannels == 6)
 								SND_PaintChannelFrom8_6Speaker(ch, scache, count);
@@ -503,7 +503,7 @@ void S_PaintChannels(soundcardinfo_t *sc, int endtime)
 						}
 						else
 						{
-							if (scache->stereo)
+							if (scache->numchannels==2)
 								SND_PaintChannelFrom16Stereo(ch, scache, count);
 							else if (sc->sn.numchannels == 6)
 								SND_PaintChannelFrom16_6Speaker(ch, scache, count);

@@ -49,6 +49,8 @@ char *VFS_GETS(vfsfile_t *vf, char *buffer, int buflen)
 	{
 		if (!VFS_READ(vf, &in, 1))
 		{
+			if (len == buflen-1)
+				return NULL;
 			*out = '\0';
 			return buffer;
 		}
@@ -1052,7 +1054,7 @@ searchpath_t	*com_base_searchpaths;	// without gamedirs
 
 static void COM_AddDataFiles(char *pathto, searchpath_t *search, char *extension, searchpathfuncs_t *funcs);
 
-searchpath_t *COM_AddPathHandle(char *probablepath, searchpathfuncs_t *funcs, void *handle, qboolean copyprotect, qboolean istemporary)
+searchpath_t *COM_AddPathHandle(char *probablepath, searchpathfuncs_t *funcs, void *handle, qboolean copyprotect, qboolean istemporary, unsigned int loadstuff)
 {
 	searchpath_t *search;
 
@@ -1069,13 +1071,13 @@ searchpath_t *COM_AddPathHandle(char *probablepath, searchpathfuncs_t *funcs, vo
 
 
 	//add any data files too
-//	if (loadstuff & 2)
+	if (loadstuff & 2)
 		COM_AddDataFiles(probablepath, search, "pak", &packfilefuncs);//q1/hl/h2/q2
 	//pk2s never existed.
 #ifdef AVAIL_ZLIB
-//	if (loadstuff & 4)
+	if (loadstuff & 4)
 		COM_AddDataFiles(probablepath, search, "pk3", &zipfilefuncs);	//q3 + offspring
-//	if (loadstuff & 8)
+	if (loadstuff & 8)
 		COM_AddDataFiles(probablepath, search, "pk4", &zipfilefuncs);	//q4
 	//we could easily add zip, but it's friendlier not to
 #endif
@@ -1663,7 +1665,7 @@ vfsfile_t *FS_OpenVFS(char *filename, char *mode, int relativeto)
 	return NULL;
 }
 
-void FS_Rename2(char *oldf, char *newf, int oldrelativeto, int newrelativeto)
+int FS_Rename2(char *oldf, char *newf, int oldrelativeto, int newrelativeto)
 {
 	char oldfullname[MAX_OSPATH];
 	char newfullname[MAX_OSPATH];
@@ -1716,7 +1718,11 @@ void FS_Rename2(char *oldf, char *newf, int oldrelativeto, int newrelativeto)
 		Sys_Error("FS_Rename case not handled\n");
 	}
 
-	rename(va("%s%s", oldfullname, oldf), va("%s%s", newfullname, newf));
+	Q_strncatz(oldfullname, oldf, sizeof(oldfullname));
+	Q_strncatz(newfullname, newf, sizeof(newfullname));
+
+	FS_CreatePath(newf, newrelativeto);
+	return rename(oldfullname, newfullname);
 }
 int FS_Rename(char *oldf, char *newf, int relativeto)
 {
@@ -1749,7 +1755,33 @@ int FS_Rename(char *oldf, char *newf, int relativeto)
 }
 int FS_Remove(char *fname, int relativeto)
 {
-	return unlink (fname);
+	char fullname[MAX_OSPATH];
+
+	switch (relativeto)
+	{
+	case FS_GAME:
+		if (*com_homedir)
+			_snprintf(fullname, sizeof(fullname), "%s/%s/%s", com_homedir, gamedirfile, fname);
+		else
+			_snprintf(fullname, sizeof(fullname), "%s/%s/%s", com_quakedir, gamedirfile, fname);
+		break;
+	case FS_SKINS:
+		if (*com_homedir)
+			_snprintf(fullname, sizeof(fullname), "%s/qw/skins/%s", com_homedir, fname);
+		else
+			_snprintf(fullname, sizeof(fullname), "%s/qw/skins/%s", com_quakedir, fname);
+		break;
+	case FS_BASE:
+		if (*com_homedir)
+			_snprintf(fullname, sizeof(fullname), "%s/%s", com_homedir, fname);
+		else
+			_snprintf(fullname, sizeof(fullname), "%s/%s", com_quakedir, fname);
+		break;
+	default:
+		Sys_Error("FS_Rename case not handled\n");
+	}
+
+	return unlink (fullname);
 }
 void FS_CreatePath(char *pname, int relativeto)
 {
@@ -1761,10 +1793,22 @@ void FS_CreatePath(char *pname, int relativeto)
 		_snprintf(fullname, sizeof(fullname), "%s/%s", com_gamedir, pname);
 		break;
 	case FS_BASE:
-		_snprintf(fullname, sizeof(fullname), "%s/%s", com_homedir, pname);
+		if (*com_homedir)
+			_snprintf(fullname, sizeof(fullname), "%s/%s", com_homedir, pname);
+		else
+			_snprintf(fullname, sizeof(fullname), "%s/%s", com_quakedir, pname);
+		break;
+	case FS_SKINS:
+		if (*com_homedir)
+			_snprintf(fullname, sizeof(fullname), "%s/qw/skins/%s", com_homedir, pname);
+		else
+			_snprintf(fullname, sizeof(fullname), "%s/qw/skins/%s", com_quakedir, pname);
 		break;
 	case FS_CONFIGONLY:
-		_snprintf(fullname, sizeof(fullname), "%s/fte/%s", com_homedir, pname);
+		if (*com_homedir)
+			_snprintf(fullname, sizeof(fullname), "%s/fte/%s", com_homedir, pname);
+		else
+			_snprintf(fullname, sizeof(fullname), "%s/fte/%s", com_quakedir, pname);
 		break;
 	default:
 		Sys_Error("FS_CreatePath: Bad relative path");
@@ -2272,7 +2316,7 @@ static int COM_AddWildDataFiles (char *descriptor, int size, void *vparam)
 		return true;
 
 	sprintf (pakfile, "%s%s/", param->parentdesc, descriptor);
-	COM_AddPathHandle(pakfile, funcs, pak, true, false);
+	COM_AddPathHandle(pakfile, funcs, pak, true, false, (unsigned int)-1);
 
 	return true;
 }
@@ -2302,7 +2346,7 @@ static void COM_AddDataFiles(char *pathto, searchpath_t *search, char *extension
 		if (!handle)
 			break;
 		_snprintf (pakfile, sizeof(pakfile), "%spak%i.%s/", pathto, i, extension);
-		COM_AddPathHandle(pakfile, funcs, handle, true, false);
+		COM_AddPathHandle(pakfile, funcs, handle, true, false, (unsigned int)-1);
 	}
 
 	sprintf (pakfile, "*.%s", extension);
@@ -2356,7 +2400,7 @@ void COM_AddGameDirectory (char *dir, unsigned int loadstuff)
 
 	p = Z_Malloc(strlen(dir)+1);
 	strcpy(p, dir);
-	COM_AddPathHandle(va("%s/", dir), &osfilefuncs, p, false, false);
+	COM_AddPathHandle(va("%s/", dir), &osfilefuncs, p, false, false, loadstuff);
 }
 
 char *COM_NextPath (char *prevpath)
@@ -2721,6 +2765,11 @@ void FS_ReloadPackFilesFlags(unsigned int reloadflags)
 
 	if (!com_base_searchpaths)
 		com_base_searchpaths = com_searchpaths;
+}
+
+void FS_UnloadPackFiles(void)
+{
+	FS_ReloadPackFilesFlags(1);
 }
 
 void FS_ReloadPackFiles(void)

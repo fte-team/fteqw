@@ -264,7 +264,7 @@ menucombo_t *MC_AddCombo(menu_t *menu, int x, int y, const char *caption, const 
 menubutton_t *MC_AddCommand(menu_t *menu, int x, int y, char *text, qboolean (*command) (union menuoption_s *,struct menu_s *,int));
 menuedit_t *MC_AddEdit(menu_t *menu, int x, int y, char *text, char *def);
 menuedit_t *MC_AddEditCvar(menu_t *menu, int x, int y, char *text, char *name);
-menucustom_t *MC_AddCustom(menu_t *menu, int x, int y, const char *data);
+menucustom_t *MC_AddCustom(menu_t *menu, int x, int y, void *data);
 
 menu_t *M_CreateMenu (int extrasize);
 void M_AddMenu (menu_t *menu);

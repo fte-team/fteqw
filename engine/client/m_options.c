@@ -87,6 +87,7 @@ void M_Menu_Options_f (void)
 	MC_AddConsoleCommand(menu, 16, y,	"         Video Options", "menu_video\n"); y+=8;
 	MC_AddConsoleCommand(menu, 16, y,	"           FPS Options", "menu_fps\n"); y+=8;
 	MC_AddConsoleCommand(menu, 16, y,	"         Audio Options", "menu_audio\n"); y+=8;
+	MC_AddConsoleCommand(menu, 16, y,	"             Downloads", "menu_download\n"); y+=8;
 
 #ifdef _WIN32
 	if (!vid_isfullscreen)	

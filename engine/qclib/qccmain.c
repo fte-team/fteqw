@@ -1427,6 +1427,7 @@ void	QCC_PR_BeginCompilation (void *memory, int memsize)
 	pr.def_tail = &pr.def_head;
 
 	QCC_PR_ResetErrorScope();
+	pr_scope = NULL;
 
 /*	numpr_globals = RESERVED_OFS;	
 	

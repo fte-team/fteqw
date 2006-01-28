@@ -741,7 +741,7 @@ if (pr_typecurrent != 0)
 	case OP_FETCH_GBL_E:
 	case OP_FETCH_GBL_FNC:
 		i = (int)OPB->_float;
-		if(i < 0 || i > G_INT((uofs)st->a - 1))
+		if(i < 0 || i > ((eval_t *)&glob[st->a-1])->_int)
 		{
 			PR_RunError(progfuncs, "array index out of bounds: %s[%d]", PR_GlobalStringNoContents(progfuncs, st->a), i);
 		}
@@ -750,7 +750,7 @@ if (pr_typecurrent != 0)
 		break;
 	case OP_FETCH_GBL_V:
 		i = (int)OPB->_float;
-		if(i < 0 || i > G_INT((uofs)st->a - 1))
+		if(i < 0 || i > ((eval_t *)&glob[st->a-1])->_int)
 		{
 			PR_RunError(progfuncs, "array index out of bounds: %s[%d]", PR_GlobalStringNoContents(progfuncs, st->a), i);
 		}

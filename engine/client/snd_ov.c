@@ -114,7 +114,7 @@ int OV_DecodeSome(sfx_t *s, int minlength)
 		s->cache.fake = true;
 
 		sc = s->cache.data;
-		sc->stereo = dec->mediasc.stereo;
+		sc->numchannels = dec->mediasc.numchannels;
 		sc->loopstart = -1;
 	}
 	else
@@ -138,7 +138,7 @@ int OV_DecodeSome(sfx_t *s, int minlength)
 
 		if (snd_speed != dec->srcspeed)
 		{	//resample
-			if (dec->mediasc.stereo)
+			if (dec->mediasc.numchannels==2)
 			{
 				int *data = (int*)(dec->mediaaswavdata+dec->mediaaswavpos);
 				float frac = (float)dec->srcspeed/snd_speed;
@@ -152,7 +152,7 @@ int OV_DecodeSome(sfx_t *s, int minlength)
 		}
 
 		dec->mediaaswavpos += bytesread;
-		sc->length = (dec->mediaaswavpos-sizeof(sfxcache_t))/(2*(dec->mediasc.stereo+1));
+		sc->length = (dec->mediaaswavpos-sizeof(sfxcache_t))/(2*(dec->mediasc.numchannels));
 		dec->mediasc.length = sc->length;
 
 		if (minlength<=sc->length)
@@ -293,7 +293,7 @@ qboolean OV_StartDecode(unsigned char *start, unsigned long length, ovdecoderbuf
 		return false;
 	}
 
-	buffer->mediasc.stereo = vi->channels-1;
+	buffer->mediasc.numchannels = vi->channels;
 	buffer->mediasc.loopstart = -1;
 	buffer->srcspeed = vi->rate;
 /*

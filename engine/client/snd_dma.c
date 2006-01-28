@@ -1480,7 +1480,7 @@ void S_SoundList(void)
 		sc = Cache_Check (&sfx->cache);
 		if (!sc)
 			continue;
-		size = sc->length*sc->width*(sc->stereo+1);
+		size = sc->length*sc->width*(sc->numchannels);
 		total += size;
 		if (sc->loopstart >= 0)
 			Con_Printf ("L");
@@ -1620,16 +1620,16 @@ void S_RawAudio(int sourceid, qbyte *data, int speed, int samples, int channels,
 		free->sfxcache = BZ_Malloc(sizeof(sfxcache_t));
 		free->sfx.cache.data = free->sfxcache;
 		free->sfxcache->speed = snd_speed;
-		free->sfxcache->stereo = channels-1;
+		free->sfxcache->numchannels = channels;
 		free->sfxcache->width = width;
 		free->sfxcache->loopstart = -1;
 		free->sfxcache->length = 0;
 //		Con_Printf("Added new raw stream\n");
 	}
-	if (s->sfxcache->width != width || s->sfxcache->stereo != channels-1 || s->sfxcache->speed != snd_speed)
+	if (s->sfxcache->width != width || s->sfxcache->numchannels != channels || s->sfxcache->speed != snd_speed)
 	{
 		s->sfxcache->width = width;
-		s->sfxcache->stereo = channels-1;
+		s->sfxcache->numchannels = channels;
 		s->sfxcache->speed = snd_speed;
 		s->sfxcache->length = 0;
 //		Con_Printf("Restarting raw stream\n");
@@ -1692,9 +1692,9 @@ void S_RawAudio(int sourceid, qbyte *data, int speed, int samples, int channels,
 		return;	//let the slower sound cards catch up. (This shouldn't really happen, but it's possible two cards have slightly different timings but report the same speed)
 	}*/
 
-	newcache = BZ_Malloc(sizeof(sfxcache_t) + (spare+outsamples) * (s->sfxcache->stereo+1) * s->sfxcache->width);
+	newcache = BZ_Malloc(sizeof(sfxcache_t) + (spare+outsamples) * (s->sfxcache->numchannels) * s->sfxcache->width);
 	memcpy(newcache, s->sfxcache, sizeof(sfxcache_t));
-	memcpy(newcache->data, s->sfxcache->data + prepadl * (s->sfxcache->stereo+1) * s->sfxcache->width, spare * (s->sfxcache->stereo+1) * s->sfxcache->width);
+	memcpy(newcache->data, s->sfxcache->data + prepadl * (s->sfxcache->numchannels) * s->sfxcache->width, spare * (s->sfxcache->numchannels) * s->sfxcache->width);
 
 	BZ_Free(s->sfxcache);
 	s->sfxcache = s->sfx.cache.data = newcache;
@@ -1708,7 +1708,7 @@ void S_RawAudio(int sourceid, qbyte *data, int speed, int samples, int channels,
 		{
 			short sample;
 			short *indata = (short *)data;
-			short *outpos = (short *)(newcache->data + spare * (s->sfxcache->stereo+1) * s->sfxcache->width);
+			short *outpos = (short *)(newcache->data + spare * (s->sfxcache->numchannels) * s->sfxcache->width);
 			if (speedfactor==1)	//fast
 			{
 				while (samples--)
@@ -1734,7 +1734,7 @@ void S_RawAudio(int sourceid, qbyte *data, int speed, int samples, int channels,
 		{
 			char sample;
 			char *indata = (char *)data;
-			char *outpos = (char *)(newcache->data + spare * (s->sfxcache->stereo+1) * s->sfxcache->width);
+			char *outpos = (char *)(newcache->data + spare * (s->sfxcache->numchannels) * s->sfxcache->width);
 			if (speedfactor==1)	//fast
 			{
 				while (samples--)
@@ -1765,7 +1765,7 @@ void S_RawAudio(int sourceid, qbyte *data, int speed, int samples, int channels,
 		{
 			short sample;
 			short *indata = (short *)data;
-			short *outpos = (short *)((qbyte *)newcache->data + spare * (s->sfxcache->stereo+1) * s->sfxcache->width);
+			short *outpos = (short *)((qbyte *)newcache->data + spare * (s->sfxcache->numchannels) * s->sfxcache->width);
 			if (speedfactor==1)	//fast
 			{
 				while (samples--)

@@ -59,7 +59,7 @@ typedef struct sfxcache_s
 	int 	loopstart;
 	int 	speed;
 	int 	width;
-	int 	stereo;
+	int 	numchannels;
 	qbyte	data[1];		// variable sized
 } sfxcache_t;
 

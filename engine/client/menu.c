@@ -280,56 +280,56 @@ typedef struct {
 
 bindnames_t qwbindnames[] =
 {
-{"+attack", 		"attack"},
-{"impulse 10", 		"change weapon"},
-{"impulse 12", 		"prev weapon"},
+{"+attack", 		"attack        "},
+{"impulse 10", 		"change weapon "},
+{"impulse 12", 		"prev weapon   "},
 {"+jump", 			"jump / swim up"},
-{"+forward", 		"walk forward"},
-{"+back", 			"backpedal"},
-{"+left", 			"turn left"},
-{"+right", 			"turn right"},
-{"+speed", 			"run"},
-{"+moveleft", 		"step left"},
-{"+moveright", 		"step right"},
-{"+strafe", 		"sidestep"},
-{"+lookup", 		"look up"},
-{"+lookdown", 		"look down"},
-{"centerview", 		"center view"},
-{"+mlook", 			"mouse look"},
-{"+klook", 			"keyboard look"},
-{"+moveup",			"swim up"},
-{"+movedown",		"swim down"},
+{"+forward", 		"walk forward  "},
+{"+back", 			"backpedal     "},
+{"+left", 			"turn left     "},
+{"+right", 			"turn right    "},
+{"+speed", 			"run           "},
+{"+moveleft", 		"step left     "},
+{"+moveright", 		"step right    "},
+{"+strafe", 		"sidestep      "},
+{"+lookup", 		"look up       "},
+{"+lookdown", 		"look down     "},
+{"centerview", 		"center view   "},
+{"+mlook", 			"mouse look    "},
+{"+klook", 			"keyboard look "},
+{"+moveup",			"swim up       "},
+{"+movedown",		"swim down     "},
 {NULL}
 };
 
 #ifdef Q2CLIENT
 bindnames_t q2bindnames[] =
 {
-{"+attack", 		"attack"},
-{"cmd weapnext", 	"next weapon"},
-{"+forward", 		"walk forward"},
-{"+back", 			"backpedal"},
-{"+left", 			"turn left"},
-{"+right", 			"turn right"},
-{"+speed", 			"run"},
-{"+moveleft", 		"step left"},
-{"+moveright", 		"step right"},
-{"+strafe", 		"sidestep"},
-{"+lookup", 		"look up"},
-{"+lookdown", 		"look down"},
-{"centerview", 		"center view"},
-{"+mlook", 			"mouse look"},
-{"+klook", 			"keyboard look"},
-{"+moveup",			"up / jump"},
-{"+movedown",		"down / crouch"},
+{"+attack", 		"attack        "},
+{"cmd weapnext", 	"next weapon   "},
+{"+forward", 		"walk forward  "},
+{"+back", 			"backpedal     "},
+{"+left", 			"turn left     "},
+{"+right", 			"turn right    "},
+{"+speed", 			"run           "},
+{"+moveleft", 		"step left     "},
+{"+moveright", 		"step right    "},
+{"+strafe", 		"sidestep      "},
+{"+lookup", 		"look up       "},
+{"+lookdown", 		"look down     "},
+{"centerview", 		"center view   "},
+{"+mlook", 			"mouse look    "},
+{"+klook", 			"keyboard look "},
+{"+moveup",			"up / jump     "},
+{"+movedown",		"down / crouch "},
 
-{"cmd inven",		"inventory"},
-{"cmd invuse",		"use item"},
-{"cmd invdrop",		"drop item"},
-{"cmd invprev",		"prev item"},
-{"cmd invnext",		"next item"},
+{"cmd inven",		"inventory     "},
+{"cmd invuse",		"use item      "},
+{"cmd invdrop",		"drop item     "},
+{"cmd invprev",		"prev item     "},
+{"cmd invnext",		"next item     "},
 
-{"cmd help", 		"help computer" },
+{"cmd help", 		"help computer "},
 {NULL}
 };
 #endif
@@ -341,6 +341,36 @@ int		keys_cursor;
 int		bind_grab;
 
 void M_Menu_Keys_f (void)
+{
+	extern cvar_t temp1;
+	int y;
+	menu_t *menu;
+if (temp1.value)
+{
+	key_dest = key_menu;
+	m_state = m_complex;
+
+	menu = M_CreateMenu(0);
+
+	MC_AddCenterPicture(menu, 4, "gfx/ttl_cstm.lmp");
+
+#ifdef Q2CLIENT
+	if (cls.protocol == CP_QUAKE2)
+		bindnames = q2bindnames;
+	else
+#endif
+		bindnames = qwbindnames;
+
+	y = 48;
+	while (bindnames->name)
+	{
+		MC_AddBind(menu, 16, y, bindnames->name, bindnames->command);
+		y += 8;
+
+		bindnames++;
+	}
+}
+else
 {
 	key_dest = key_menu;
 	m_state = m_keys;
@@ -360,6 +390,7 @@ void M_Menu_Keys_f (void)
 
 	if (keys_cursor >= numbindnames)
 		keys_cursor = 0;
+}
 }
 
 

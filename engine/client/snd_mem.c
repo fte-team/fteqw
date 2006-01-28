@@ -59,7 +59,7 @@ void ResampleSfx (sfx_t *sfx, int inrate, int inwidth, qbyte *data)
 	else
 		sc->width = inwidth;
 
-	if (sc->stereo)		
+	if (sc->numchannels==2)		
 	{
 		if (stepscale == 1 && inwidth == 1 && sc->width == 1)
 		{
@@ -176,7 +176,7 @@ sfxcache_t *S_LoadWavSound (sfx_t *s, qbyte *data, int datalen, int sndspeed)
 	sc->loopstart = info.loopstart;
 	sc->speed = info.rate;
 	sc->width = info.width;
-	sc->stereo = info.numchannels-1;
+	sc->numchannels = info.numchannels;
 
 	ResampleSfx (s, sc->speed, sc->width, data + info.dataofs);
 

@@ -400,6 +400,8 @@ menubind_t *MC_AddBind(menu_t *menu, int x, int y, const char *caption, char *co
 	strcpy(n->caption, caption);
 	n->command = n->caption+strlen(n->caption)+1;
 	strcpy(n->command, command);
+	n->common.width = strlen(caption)*8 + 64;
+	n->common.height = 8;
 
 	n->common.next = menu->options;
 	menu->options = (menuoption_t *)n;
@@ -534,14 +536,14 @@ menubox_t *MC_AddBox(menu_t *menu, int x, int y, int width, int height)
 	return n;
 }
 
-menucustom_t *MC_AddCustom(menu_t *menu, int x, int y, const char *data)
+menucustom_t *MC_AddCustom(menu_t *menu, int x, int y, void *data)
 {
 	menucustom_t *n = Z_Malloc(sizeof(menucustom_t));
 	n->common.type = mt_custom;
 	n->common.iszone = true;
 	n->common.posx = x;
 	n->common.posy = y;
-	n->data = NULL;
+	n->data = data;
 
 	n->common.next = menu->options;
 	menu->options = (menuoption_t *)n;
@@ -700,6 +702,8 @@ menubutton_t *MC_AddCommand(menu_t *menu, int x, int y, char *text, qboolean (*c
 	n->text = text;
 	n->command = NULL;
 	n->key = command;
+	n->common.height = 8;
+	n->common.width = strlen(text)*8;
 
 	n->common.next = menu->options;
 	menu->options = (menuoption_t *)n;
@@ -1043,12 +1047,12 @@ menuoption_t *M_NextSelectableItem(menu_t *m, menuoption_t *old)
 
 		if (op == old)
 		{
-			if (op->common.type == mt_slider || op->common.type == mt_checkbox || op->common.type == mt_button || op->common.type == mt_buttonbigfont || op->common.type == mt_edit || op->common.type == mt_combo || op->common.type == mt_bind)
+			if (op->common.type == mt_slider || op->common.type == mt_checkbox || op->common.type == mt_button || op->common.type == mt_buttonbigfont || op->common.type == mt_edit || op->common.type == mt_combo || op->common.type == mt_bind || op->common.type == mt_custom)
 				return op;
 			return NULL;	//whoops.
 		}
 
-		if (op->common.type == mt_slider || op->common.type == mt_checkbox || op->common.type == mt_button || op->common.type == mt_buttonbigfont || op->common.type == mt_edit || op->common.type == mt_combo || op->common.type == mt_bind)
+		if (op->common.type == mt_slider || op->common.type == mt_checkbox || op->common.type == mt_button || op->common.type == mt_buttonbigfont || op->common.type == mt_edit || op->common.type == mt_combo || op->common.type == mt_bind || op->common.type == mt_custom)
 			if (!op->common.ishidden)
 				return op;
 	}
@@ -1075,7 +1079,7 @@ menuoption_t *M_PrevSelectableItem(menu_t *m, menuoption_t *old)
 		if (op == old)
 			return old;	//whoops.
 
-		if (op->common.type == mt_slider || op->common.type == mt_checkbox || op->common.type == mt_button || op->common.type == mt_buttonbigfont || op->common.type == mt_edit || op->common.type == mt_combo || op->common.type == mt_bind)
+		if (op->common.type == mt_slider || op->common.type == mt_checkbox || op->common.type == mt_button || op->common.type == mt_buttonbigfont || op->common.type == mt_edit || op->common.type == mt_combo || op->common.type == mt_bind || op->common.type == mt_custom)
 			if (!op->common.ishidden)
 				return op;
 	}
@@ -1111,6 +1115,7 @@ void M_Complex_Key(int key)
 	
 	switch(key)
 	{
+	case K_MOUSE2:
 	case K_ESCAPE:
 		//remove
 		M_RemoveMenu(currentmenu);
@@ -1172,7 +1177,7 @@ void M_Complex_Key(int key)
 			MC_Combo_Key(&currentmenu->selecteditem->combo, key);
 			break;
 		case mt_bind:
-			if (key == K_ENTER)
+			if (key == K_ENTER || key == K_MOUSE1)
 				bindingactive = true;
 			else if (key == K_BACKSPACE || key == K_DEL)
 				M_UnbindCommand (currentmenu->selecteditem->bind.command);

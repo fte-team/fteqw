@@ -2361,6 +2361,10 @@ void Cmd_set_f(void)
 		{
 			text = If_Token(text, &end);
 			Cvar_Set(var, text);
+			var->flags |= CVAR_USERCREATED;
+
+			if (!stricmp(Cmd_Argv(0), "seta"))
+				var->flags |= CVAR_ARCHIVE;
 		}
 	}
 	else
@@ -2375,7 +2379,7 @@ void Cmd_set_f(void)
 			var = Cvar_Get(Cmd_Argv(1), text, 0, "User variables");
 	}
 
-	if (!Cmd_FromGamecode())
+	if (var && !Cmd_FromGamecode())
 		if (!stricmp(Cmd_Argv(0), "seta"))
 			var->flags |= CVAR_ARCHIVE|CVAR_USERCREATED;
 

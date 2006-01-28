@@ -1502,7 +1502,9 @@ qboolean R_CullEntityBox(entity_t *e, vec3_t modmins, vec3_t modmaxs)
 	return R_CullBox(wmin, wmax);
 }
 
-
+#ifdef Q3SHADERS
+mfog_t *CM_FogForOrigin(vec3_t org);
+#endif
 void R_DrawGAliasModel (entity_t *e)
 {
 	extern cvar_t r_drawflat;
@@ -1847,10 +1849,6 @@ void R_DrawGAliasModel (entity_t *e)
 	}
 
 #ifdef Q3SHADERS
-	//if they're in different files it's probably just the compiler not knowing the return type when it reaches that line so it guesses int
-	//timeserv thinks we need a prototype (whatever that is) ~ Moodles
-	#pragma warning(disable:4047)
-	
 	fog = CM_FogForOrigin(currententity->origin);
 #endif
 

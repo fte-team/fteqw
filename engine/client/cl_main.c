@@ -955,6 +955,8 @@ void CL_ClearState (void)
 
 	SZ_Clear (&cls.netchan.message);
 
+	r_worldentity.model = NULL;
+
 // clear other arrays
 	memset (cl_efrags, 0, sizeof(cl_efrags));
 	memset (cl_dlights, 0, sizeof(cl_dlights));
@@ -1104,6 +1106,7 @@ void CL_Disconnect (void)
 
 	COM_FlushTempoaryPacks();
 
+	r_worldentity.model = NULL;
 	cl.spectator = 0;
 	cl.sendprespawn = false;
 

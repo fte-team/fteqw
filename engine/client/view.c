@@ -1526,7 +1526,7 @@ void V_RenderView (void)
 	if (cls.state != ca_active)
 		return;
 
-	if (cl.worldmodel)
+	if (r_worldentity.model)
 	{
 		RSpeedMark();
 	

@@ -698,6 +698,8 @@ int CL_LoadModels(int stage)
 			Host_EndGame("No worldmodel was loaded\n");
 		R_NewMap ();
 
+		pmove.physents[0].model = cl.worldmodel;
+
 		endstage();
 	}
 
@@ -1713,7 +1715,7 @@ void CLNQ_ParseServerData(void)		//Doesn't change gamedir - use with caution.
 
 	if (MSG_ReadByte() > MAX_CLIENTS)
 	{
-		Con_Printf ("Warning, this server supports more than 32 clients, additional clients will do bad things\n");
+		Con_Printf ("\nWarning, this server supports more than %i clients, additional clients will do bad things\n", MAX_CLIENTS);
 	}
 
 	cl.splitclients = 1;
@@ -4551,7 +4553,14 @@ void CLNQ_ParseServerMessage (void)
 
 		case svc_setview:
 			if (!cl.viewentity[0])
+			{
 				cl.playernum[0] = (cl.viewentity[0] = MSG_ReadShort())-1;
+				if (cl.playernum[0] >= MAX_CLIENTS)
+				{
+					cl.playernum[0] = 32;	//pretend it's an mvd (we have that spare slot)
+					Con_Printf("^1WARNING: Server put us in slot %i. We are not on the scoreboard.\n");
+				}
+			}
 			else
 				cl.viewentity[0]=MSG_ReadShort();
 			break;
@@ -4611,25 +4620,27 @@ void CLNQ_ParseServerMessage (void)
 			Sbar_Changed ();
 			i = MSG_ReadByte ();
 			if (i >= MAX_CLIENTS)
-				Host_EndGame ("CL_ParseServerMessage: svc_updatename > MAX_CLIENTS");
-			strcpy(cl.players[i].name, MSG_ReadString());
+				MSG_ReadString();
+			else
+				strcpy(cl.players[i].name, MSG_ReadString());
 			break;
 
 		case svc_updatefrags:
 			Sbar_Changed ();
 			i = MSG_ReadByte ();
 			if (i >= MAX_CLIENTS)
-				Host_EndGame ("CL_ParseServerMessage: svc_updatefrags > MAX_CLIENTS");
-			cl.players[i].frags = MSG_ReadShort();
+				MSG_ReadShort();
+			else
+				cl.players[i].frags = MSG_ReadShort();
 			break;
 		case svc_updatecolors:
 			{
 			int a;
 			Sbar_Changed ();
 			i = MSG_ReadByte ();
-			if (i >= MAX_CLIENTS)
-				Host_EndGame ("CL_ParseServerMessage: svc_updatecolors > MAX_CLIENTS");
 			a = MSG_ReadByte ();
+			if (i >= MAX_CLIENTS)
+				break;
 			//FIXME:!!!!
 
 			cl.players[i].topcolor = a&0x0f;

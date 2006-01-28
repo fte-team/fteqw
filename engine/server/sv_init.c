@@ -571,6 +571,9 @@ void SV_SpawnServer (char *server, char *startspot, qboolean noents, qboolean us
 #ifndef SERVERONLY
 	D_FlushCaches();
 	cl.worldmodel = NULL;
+	r_worldentity.model = NULL;
+	if (0)
+	cls.state = ca_connected;
 #endif
 
 #ifdef Q3SERVER

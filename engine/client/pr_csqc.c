@@ -1013,11 +1013,13 @@ static void PF_R_SetViewFlag(progfuncs_t *prinst, struct globalvars_s *pr_global
 
 	case VF_ORIGIN:
 		VectorCopy(p, r_refdef.vieworg);
+		cl.crouch[0] = 0;
 		break;
 
+	case VF_ORIGIN_Z:
+		cl.crouch[0] = 0;
 	case VF_ORIGIN_X:
 	case VF_ORIGIN_Y:
-	case VF_ORIGIN_Z:
 		r_refdef.vieworg[parametertype-VF_ORIGIN_X] = *p;
 		break;
 

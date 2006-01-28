@@ -47,6 +47,7 @@ void ClientReliableCheckBlock(client_t *cl, int maxsize)
 				Con_Printf ("WARNING: MAX_BACK_BUFFERS for %s\n", cl->name);
 				cl->backbuf.cursize = 0; // don't overflow without allowoverflow set
 				cl->netchan.message.overflowed = true; // this will drop the client
+				cl->drop = true;
 				return;
 			}
 			memset(&cl->backbuf, 0, sizeof(cl->backbuf));

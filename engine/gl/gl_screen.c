@@ -280,7 +280,7 @@ void GLSCR_UpdateScreen (void)
 		nohud = true;
 	else
 #endif
-		if (cl.worldmodel && uimenu != 1)
+		if (r_worldentity.model && uimenu != 1)
 		{
 		V_RenderView ();
 		Q1BSP_TestClipDecal();

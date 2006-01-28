@@ -1526,7 +1526,7 @@ void CL_LinkPacketEntities (void)
 	CL_CalcClientTime();
 	servertime = cl.servertime;
 
-	pack = CL_ProcessPacketEntities(&servertime, !!cl_nolerp.value);
+	pack = CL_ProcessPacketEntities(&servertime, !!cl_nolerp.value && cls.demoplayback != DPB_MVD);
 	if (!pack)
 		return;
 

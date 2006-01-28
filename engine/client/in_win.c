@@ -600,7 +600,7 @@ void IN_RestoreOriginalMouseState (void)
 #ifndef NODIRECTX
 BOOL CALLBACK IN_EnumerateDevices(LPCDIDEVICEINSTANCE inst, LPVOID parm)
 {
-	Con_SafePrintf("Found: %s\n", inst->tszProductName);
+	Con_DPrintf("EnumerateDevices found: %s\n", inst->tszProductName);
 
 	return DIENUM_CONTINUE;
 }

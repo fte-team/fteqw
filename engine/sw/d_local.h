@@ -153,7 +153,7 @@ int palremapsize;
 
 palremap_t *D_GetPaletteRemap(int red, int green, int blue, qboolean desaturate, qboolean fullbrights, int topcolor, int bottomcolor);
 qbyte *D_GetMenuTintPal(void);
-palremap_t *D_IdentityRemap(void);
+struct palremap_s *D_IdentityRemap(void);
 void D_DereferenceRemap(palremap_t *palremap);
 
 void D_InitTrans(void);

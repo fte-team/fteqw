@@ -464,7 +464,7 @@ qbyte *D_GetMenuTintPal(void)
 		return NULL;
 }
 
-palremap_t *D_IdentityRemap(void) // TODO: explicitly inline this
+struct palremap_s *D_IdentityRemap(void) // TODO: explicitly inline this
 {
 	return palremaps;
 }

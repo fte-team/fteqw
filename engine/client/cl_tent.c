@@ -2312,8 +2312,6 @@ entity_t *CL_NewTempEntity (void)
 	memset (ent, 0, sizeof(*ent));
 
 #ifdef SWQUAKE
-	//if they're in different files it's probably just the compiler not knowing the return type when it reaches that line so it guesses int
-	//timeserv thinks we need a prototype (whatever that is) ~ Moodles
 	ent->palremap = D_IdentityRemap();
 #endif
 #ifdef PEXT_SCALE

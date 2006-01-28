@@ -61,7 +61,7 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 #pragma warning(3:4019)     // empty statement at global scope
 //#pragma warning(3:4057)     // pointers refer to different base types
 #pragma warning(3:4125)     // decimal digit terminates octal escape
-//#pragma warning(2:4131)     // old-style function declarator
+#pragma warning(2:4131)     // old-style function declarator
 #pragma warning(3:4211)     // extern redefined as static
 //#pragma warning(3:4213)     // cast on left side of = is non-standard
 #pragma warning(3:4222)     // member function at file scope shouldn't be static
@@ -76,7 +76,7 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 #pragma warning(3:4674)     // dtor of thrown object is inaccessible
 #pragma warning(3:4705)     // statement has no effect (example: a+1;)
 
-#pragma warning(4:4013)     // statement has no effect (example: a+1;)
+#pragma warning(3:4013)     // function undefined, assuming extern returning int
 
 
 #pragma warning( 4 : 4267)	//truncation from const double to float

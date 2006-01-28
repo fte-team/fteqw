@@ -342,7 +342,7 @@ mpic_t *GLDraw_SafePicFromWad (char *name)
 
 mpic_t	*GLDraw_SafeCachePic (char *path)
 {
-	int height;
+	int height = 0;
 	qbyte *data;
 	glcachepic_t	*pic;
 	int			i;

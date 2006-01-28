@@ -1,3 +1,4 @@
+#ifdef Q3SHADERS
 #define SHADER_PASS_MAX	8
 #define SHADER_MAX_TC_MODS	8
 #define SHADER_DEFORM_MAX	8
@@ -245,3 +246,6 @@ void Shader_DefaultSkinShell(char *shortname, shader_t *s);
 void R_BackendInit (void);
 void Shader_Shutdown (void);
 qboolean Shader_Init (void);
+
+mfog_t *CM_FogForOrigin(vec3_t org);
+#endif

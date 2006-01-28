@@ -2692,87 +2692,6 @@ void Info_SetValueForStarKey (char *s, const char *key, const char *value, int m
 	*s = 0;
 }
 
-void Info_SetValueForStarKeyMoodles (char *s, const char *key, int value, int maxsize) 
-{
-	char	newv[1024], *v;
-	int		c;
-#ifdef SERVERONLY
-	extern cvar_t sv_highchars;
-#endif
-
-	if (strstr (key, "\\"))
-	{
-		Con_TPrintf (TL_KEYHASSLASH);
-		return;
-	}
-
-	if (strstr (key, "\"") )
-	{
-		Con_TPrintf (TL_KEYHASQUOTE);
-		return;
-	}
-
-	if (strlen(key) >= MAX_INFO_KEY)
-	{
-		Con_TPrintf (TL_KEYTOOLONG);
-		return;
-	}
-
-	// this next line is kinda trippy
-	if (*(v = Info_ValueForKey(s, key)))
-	{
-
-			if (*Info_ValueForKey(s, "*ver"))	//quick hack to kill off unneeded info on overflow. We can't simply increase the quantity of this stuff.
-			{
-				Info_RemoveKey(s, "*ver");
-				Info_SetValueForStarKeyMoodles (s, key, value, maxsize);
-				return;
-			}
-			Con_TPrintf (TL_INFOSTRINGTOOLONG);
-			return;
-	}
-	Info_RemoveKey (s, key);
-	if (!value)
-		return;
-
-	_snprintf (newv, sizeof(newv), "\\%s\\%s", key, value);
-
-	if ((int)(strlen(newv) + strlen(s) + 1) > maxsize)
-	{
-		Con_TPrintf (TL_INFOSTRINGTOOLONG);
-		return;
-	}
-
-	// only copy ascii values
-	s += strlen(s);
-	v = newv;
-	while (*v)
-	{
-		c = (unsigned char)*v++;
-#ifndef SERVERONLY
-		// client only allows highbits on name
-		if (stricmp(key, "name") != 0) {
-			c &= 127;
-			if (c < 32 || c > 127)
-				continue;
-			// auto lowercase team
-			if (stricmp(key, "team") == 0)
-				c = tolower(c);
-		}
-#else
-		if (!sv_highchars.value) {
-			c &= 127;
-			if (c < 32 || c > 127)
-				continue;
-		}
-#endif
-//		c &= 127;		// strip high bits
-		if (c > 13) // && c < 127)
-			*s++ = c;
-	}
-	*s = 0;
-}
-
 void Info_SetValueForKey (char *s, const char *key, const char *value, int maxsize)
 {
 	if (key[0] == '*')
@@ -2782,17 +2701,6 @@ void Info_SetValueForKey (char *s, const char *key, const char *value, int maxsi
 	}
 
 	Info_SetValueForStarKey (s, key, value, maxsize);
-}
-
-void Info_SetValueForKeyMoodles (char *s, const char *key, int value, int maxsize) //modified to accept an integer in svq3_game.c
-{
-	if (key[0] == '*')
-	{
-		Con_TPrintf (TL_STARKEYPROTECTED);
-		return;
-	}
-
-	Info_SetValueForStarKeyMoodles (s, key, value, maxsize);
 }
 
 void Info_Print (char *s)

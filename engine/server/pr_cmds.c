@@ -353,7 +353,7 @@ int QCEditor (progfuncs_t *prinst, char *filename, int line, int nump, char **pa
 	{
 		for (i = 0; i < line; i++)
 		{
-			VFS_GETS(buffer, sizeof(buffer), f);
+			VFS_GETS(f, buffer, sizeof(buffer));
 		}
 		if ((r = strchr(buffer, '\r')))
 		{ r[0] = '\n';r[1]='\0';}

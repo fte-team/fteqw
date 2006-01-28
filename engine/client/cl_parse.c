@@ -2353,10 +2353,6 @@ void CL_ParseStatic (int version)
 	ent->model = cl.model_precache[es.modelindex];
 	ent->oldframe = ent->frame = es.frame;
 #ifdef SWQUAKE
-	//if they're in different files it's probably just the compiler not knowing the return type when it reaches that line so it guesses int
-	//timeserv thinks we need a prototype (whatever that is) ~ Moodles
-	#pragma warning(disable:4047)
-
 	ent->palremap = D_IdentityRemap();
 #endif
 	ent->skinnum = es.skinnum;

@@ -130,7 +130,9 @@ void	ValidationPrintVersion(char *f_query_string)
 	//char answer; //unreferenced
 	//char name[128]; //unrefernced
 	char sr[256];
+#ifdef RGLQUAKE
 	char *s; // unreferenced in software only client
+#endif
 	int i;
 
 	extern cvar_t r_shadow_realtime_world, r_drawflat;

@@ -1211,7 +1211,9 @@ void M_Menu_Video_f (void)
 	int prefab2dmode;
 	int currentbpp;
 	int currenttexturefilter;
+#ifdef RGLQUAKE
 	int currentanisotropy;
+#endif
 
 	int i, y;
 	char bilinear[] = "gl_linear_mipmap_nearest";
@@ -1260,20 +1262,23 @@ void M_Menu_Video_f (void)
 	else
 		currentbpp = 0;
 
-
+#ifdef RGLQUAKE
 	if (gl_anisotropy_factor >= 2)
 		currenttexturefilter = 2;
-	else if (strcmp(gl_texturemode.string,trilinear))
+	else
+#endif
+		if (strcmp(gl_texturemode.string,trilinear))
 		currenttexturefilter = 0;
 	else if (strcmp(gl_texturemode.string,bilinear))
 		currenttexturefilter = 1;
 	else
 		currenttexturefilter = 1;
-
+#ifdef RGLQUAKE
 	if (gl_anisotropy_factor == 1)
 		currentanisotropy = 0;
 	else
 		currentanisotropy = gl_anisotropy_factor/2;
+#endif
 
 
 	MC_AddCenterPicture(menu, 4, "vidmodes");
@@ -1772,10 +1777,6 @@ TRACE(("dbg: R_ApplyRenderer: efrags\n"));
 		{
 			cl_static_entities[i].model = cl.model_precache[staticmodelindex[i]];
 #ifdef SWQUAKE
-			//if they're in different files it's probably just the compiler not knowing the return type when it reaches that line so it guesses int
-			//timeserv thinks we need a prototype (whatever that is) ~ Moodles
-			#pragma warning(disable:4047)
-
 			cl_static_entities[i].palremap = D_IdentityRemap();
 #endif
 			if (staticmodelindex[i])	//make sure it's worthwhile.
@@ -1891,7 +1892,7 @@ TRACE(("dbg: R_RestartRenderer_f\n"));
 		}
 		else
 		{
-			Con_Printf("^1Attempting default refresh rate\n");
+			Con_Printf("^1Trying default refresh rate\n");
 			newr.rate = 0;
 			if (!R_ApplyRenderer(&oldr))
 			{

@@ -1718,7 +1718,7 @@ void FS_Rename2(char *oldf, char *newf, int oldrelativeto, int newrelativeto)
 
 	rename(va("%s%s", oldfullname, oldf), va("%s%s", newfullname, newf));
 }
-void FS_Rename(char *oldf, char *newf, int relativeto)
+int FS_Rename(char *oldf, char *newf, int relativeto)
 {
 	char fullname[MAX_OSPATH];
 
@@ -1745,11 +1745,11 @@ void FS_Rename(char *oldf, char *newf, int relativeto)
 	default:
 		Sys_Error("FS_Rename case not handled\n");
 	}
-	rename(va("%s%s", fullname, oldf), va("%s%s", fullname, newf));
+	return rename(va("%s%s", fullname, oldf), va("%s%s", fullname, newf));
 }
-void FS_Remove(char *fname, int relativeto)
+int FS_Remove(char *fname, int relativeto)
 {
-	unlink (fname);
+	return unlink (fname);
 }
 void FS_CreatePath(char *pname, int relativeto)
 {

@@ -286,6 +286,8 @@ typedef enum {FSLFRT_IFFOUND, FSLFRT_LENGTH, FSLFRT_DEPTH_OSONLY, FSLFRT_DEPTH_A
 //if loc is valid, loc->search is always filled in, the others are filled on success.
 //returns -1 if couldn't find.
 int FS_FLocateFile(char *filename, FSLF_ReturnType_e returntype, flocation_t *loc);
+char *FS_GetPackHashes(char *buffer, int buffersize, qboolean referencedonly);
+char *FS_GetPackNames(char *buffer, int buffersize, qboolean referencedonly);
 
 int COM_FOpenFile (char *filename, FILE **file);
 int COM_FOpenWriteFile (char *filename, FILE **file);
@@ -319,7 +321,10 @@ typedef struct vfsfile_s {
 #define VFS_FLUSH(vf) do{if(vf->Flush)vf->Flush(vf);}while(0)
 char *VFS_GETS(vfsfile_t *vf, char *buffer, int buflen);
 
-void FS_Remove(char *fname, int relativeto);
+void FS_FlushFSHash(void);
+void FS_CreatePath(char *pname, int relativeto);
+int FS_Rename(char *oldf, char *newf, int relativeto);	//0 on success, non-0 on error
+int FS_Remove(char *fname, int relativeto);	//0 on success, non-0 on error
 vfsfile_t *FS_OpenVFS(char *filename, char *mode, int relativeto);
 enum {
 	FS_GAME,

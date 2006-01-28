@@ -1636,10 +1636,6 @@ void CL_LinkPacketEntities (void)
 		else
 		{
 #ifdef SWQUAKE
-			//if they're in different files it's probably just the compiler not knowing the return type when it reaches that line so it guesses int
-			//timeserv thinks we need a prototype (whatever that is) ~ Moodles
-			#pragma warning(disable:4047)
-
 			ent->palremap = D_IdentityRemap();
 #endif
 			ent->scoreboard = NULL;
@@ -2206,9 +2202,6 @@ void CL_LinkProjectiles (void)
 		ent->frame = 0;
 		ent->flags = 0;
 #ifdef SWQUAKE
-		//if they're in different files it's probably just the compiler not knowing the return type when it reaches that line so it guesses int
-		//timeserv thinks we need a prototype (whatever that is) ~ Moodles
-		#pragma warning(disable:4047)
 		ent->palremap = D_IdentityRemap();
 #endif
 		ent->scoreboard = NULL;
@@ -2782,6 +2775,7 @@ void CL_LinkPlayers (void)
 
 		// only predict half the move to minimize overruns
 		msec = 500*(playertime - state->state_time);
+		/*
 		if (1)
 		{
 			float f;
@@ -2799,7 +2793,9 @@ void CL_LinkPlayers (void)
 			}
 
 		}
-		else if (pnum < cl.splitclients)
+		else 
+			*/
+		if (pnum < cl.splitclients)
 		{	//this is a local player
 		}
 		else if (msec <= 0 || (!cl_predict_players.value && !cl_predict_players2.value))

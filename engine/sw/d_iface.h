@@ -226,3 +226,7 @@ extern vrect_t	scr_vrect;
 
 extern qbyte		*r_warpbuffer;
 
+
+struct palremap_s *D_IdentityRemap(void);
+struct palremap_s *D_GetPaletteRemap(int red, int green, int blue, qboolean desaturate, qboolean fullbrights, int topcolor, int bottomcolor);
+

@@ -182,7 +182,9 @@ typedef struct {
 	int bump;
 	int fullbright;
 
+#ifdef Q3SHADERS
 	shader_t *shader;
+#endif
 } galiastexnum_t;
 
 typedef struct {
@@ -4685,6 +4687,8 @@ void GLMod_LoadDarkPlacesModel(model_t *mod, void *buffer)
 	galiasskin_t *skin;
 	galiastexnum_t *texnum;
 	int skinfiles;
+	float *inst;
+	float *outst;
 #endif
 
 	int i, j, k;
@@ -4700,10 +4704,6 @@ void GLMod_LoadDarkPlacesModel(model_t *mod, void *buffer)
 
 	galiasbone_t *outbone;
 	dpmbone_t *inbone;
-
-	float *inst; //unreferenced local variable in the dedicated server
-	float *outst = 0;
-
 
 	float *outposedata;
 	galiasgroup_t *outgroups;
@@ -4784,10 +4784,11 @@ void GLMod_LoadDarkPlacesModel(model_t *mod, void *buffer)
 			outst[0] = BigFloat(inst[0]);
 			outst[1] = BigFloat(inst[1]);
 		}
+
+		transforms = (galisskeletaltransforms_t*)outst;
 #endif
 
 		//build the transform list.
-		transforms = (galisskeletaltransforms_t*)outst;
 		m->ofstransforms = (char*)transforms - (char*)m;
 		m->numtransforms = numtransforms;
 		vert = (dpmvertex_t*)((char *)buffer+mesh->ofs_verts);

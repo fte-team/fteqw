@@ -1192,7 +1192,7 @@ void D_DrawSubdivC (void)
 			drawfnc = D_PolysetRecursiveTriangle32Trans;
 		else if (r_pixbytes == 2)
 			drawfnc = D_PolysetRecursiveTriangle16C;
-		else if (r_pixbytes == 1)
+		else //if (r_pixbytes == 1)
 			drawfnc = D_PolysetRecursiveTriangleTrans;
 	}
 	else

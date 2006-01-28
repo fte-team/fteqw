@@ -31,6 +31,12 @@ void Mod_LoadQ2BrushModel (model_t *mod, void *buffer);
 void Mod_LoadAliasModel (model_t *mod, void *buffer);
 model_t *Mod_LoadModel (model_t *mod, qboolean crash);
 
+void GL_LoadQ1Model (model_t *mod, void *buffer);
+void GL_LoadQ2Model (model_t *mod, void *buffer);
+void GL_LoadQ3Model (model_t *mod, void *buffer);
+void GLMod_LoadZymoticModel (model_t *mod, void *buffer);
+void GLMod_LoadDarkPlacesModel(model_t *mod, void *buffer);
+
 qbyte	mod_novis[MAX_MAP_LEAFS/8];
 
 #define	MAX_MOD_KNOWN	512
@@ -299,6 +305,11 @@ model_t *Mod_LoadModel (model_t *mod, qboolean crash)
 #ifdef ZYMOTICMODELS
 	case (('O'<<24)+('M'<<16)+('Y'<<8)+'Z'):
 		GLMod_LoadZymoticModel(mod, buf);
+		break;
+#endif
+#ifdef ZYMOTICMODELS
+	case (('K'<<24)+('R'<<16)+('A'<<8)+'D'):
+		GLMod_LoadDarkPlacesModel(mod, buf);
 		break;
 #endif
 

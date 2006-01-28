@@ -312,4 +312,6 @@ void R_InitSkyBox (void);
 void SWR_BuildLightmaps(void);
 void SWR_NetGraph (void);
 
+qbyte *SWMod_LeafPVS (model_t *model, mleaf_t *leaf, qbyte *buffer);
+
 #endif //def SWQUAKE

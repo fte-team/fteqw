@@ -991,6 +991,7 @@ void SV_FindModelNumbers (void);
 void SVNQ_New_f (void);
 void SVNQ_ExecuteClientMessage (client_t *cl);
 #endif
+qboolean SV_UserInfoIsBasic(char *infoname);	//standard message.
 void SV_ExecuteClientMessage (client_t *cl);
 void SVQ2_ExecuteClientMessage (client_t *cl);
 int SV_PMTypeForClient (client_t *cl);
@@ -1001,6 +1002,7 @@ void SV_ClientThink (void);
 
 void VoteFlushAll(void);
 void SV_SetUpClientEdict (client_t *cl, edict_t *ent);
+void SV_UpdateToReliableMessages (void);
 
 //sv_master.c
 void SVM_Think(int port);

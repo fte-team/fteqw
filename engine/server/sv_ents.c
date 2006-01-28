@@ -1811,6 +1811,8 @@ int i, eff;
 float miss;
 unsigned int bits=0;
 
+int glowsize=0, glowcolor=0;
+
 	for (i=0 ; i<3 ; i++)
 	{
 		miss = ent->v->origin[i] - ent->baseline.origin[i];

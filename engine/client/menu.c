@@ -342,11 +342,9 @@ int		bind_grab;
 
 void M_Menu_Keys_f (void)
 {
-	extern cvar_t temp1;
 	int y;
 	menu_t *menu;
-if (temp1.value)
-{
+
 	key_dest = key_menu;
 	m_state = m_complex;
 
@@ -369,28 +367,6 @@ if (temp1.value)
 
 		bindnames++;
 	}
-}
-else
-{
-	key_dest = key_menu;
-	m_state = m_keys;
-
-#ifdef Q2CLIENT
-	if (cls.protocol == CP_QUAKE2)
-		bindnames = q2bindnames;
-	else
-#endif
-		bindnames = qwbindnames;
-
-	for (numbindnames=0 ; ; numbindnames++)
-	{
-		if (!bindnames[numbindnames].command)
-			break;
-	}
-
-	if (keys_cursor >= numbindnames)
-		keys_cursor = 0;
-}
 }
 
 

@@ -97,8 +97,6 @@ qboolean Q1BSP_RecursiveHullCheck (hull_t *hull, int num, float p1f, float p2f, 
 	}
 	
 #if 1
-	if (node->children[0] == node->children[1])
-		Host_Error("node child[0] == node child[1]\n");
 	if (t1 >= 0 && t2 >= 0)
 		return Q1BSP_RecursiveHullCheck (hull, node->children[0], p1f, p2f, p1, p2, trace);
 	if (t1 < 0 && t2 < 0)

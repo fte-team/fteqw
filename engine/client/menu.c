@@ -77,7 +77,7 @@ void M_PrintColoured (int cx, int cy, int colour, qbyte *str)
 {
 	while (*str)
 	{
-		M_DrawColouredCharacter (cx, cy, (*str) + (colour<<CON_FGMASK));
+		M_DrawColouredCharacter (cx, cy, (*str) + (colour<<CON_FGSHIFT));
 		str++;
 		cx += 8;
 	}

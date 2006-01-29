@@ -3092,8 +3092,6 @@ done:
 	if (gl_config.sgis_generate_mipmap&&mipmap)
 		qglTexParameterf(GL_TEXTURE_2D, GL_GENERATE_MIPMAP_SGIS, GL_FALSE);
 
-	qglTexParameterf(GL_TEXTURE_2D, GL_MULTISAMPLE_ARB, GL_FALSE);
-
 	if (gl_config.ext_texture_filter_anisotropic)
 	{
 		qglTexParameterf (GL_TEXTURE_2D, GL_TEXTURE_MAX_ANISOTROPY_EXT,gl_anisotropy_factor); // without this, you could loose anisotropy on mapchange

@@ -1979,6 +1979,7 @@ int Mod_LoadHiResTexture(char *name, char *subpath, qboolean mipmap, qboolean al
 					}
 					else
 						len = GL_LoadTexture32 (name, image_width, image_height, (unsigned*)data, mipmap, alpha);
+
 					BZ_Free(data);
 
 					BZ_Free(buf);

@@ -115,6 +115,8 @@ typedef struct plugin_s {
 	char *name;
 	vm_t *vm;
 
+	int blockcloses;
+
 	int tick;
 	int executestring;
 #ifndef SERVERONLY
@@ -420,11 +422,42 @@ int VARGS Plug_ExportNative(void *offset, unsigned int mask, const long *arg)
 
 	func = *(funcptr_t*)arg;
 
+	if (!strcmp(name, "UnsafeClose"))
+	{
+		//not used by the engine, but stops the user from being able to unload the plugin.
+		//this is useful for certain things, like if the plugin uses some external networking or direct disk access or whatever.
+		currentplug->blockcloses++;
+	}
+	/*
+	else if (!strncmp(name, "FS_LoadModule"))	//module as in pak/pk3
+	{
+		FS_RegisterModuleDriver(name + 13, func);
+		currentplug->blockcloses++;
+	}
+	*/
+	/*
+	else if (!strncmp(name, "S_OutputDriver"))	//a sound driver (takes higher priority over the built-in ones)
+	{
+		S_RegisterOutputDriver(name + 13, func);
+		currentplug->blockcloses++;
+	}
+	*/
+	/*
+	else if (!strncmp(name, "VID_DisplayDriver"))	//a video driver, loaded by name as given by vid_renderer
+	{
+		FS_RegisterModuleDriver(, func);
+		currentplug->blockcloses++;
+	}
+	*/
+
 #ifndef SERVERONLY
-	if (!strcmp(name, "S_LoadSound"))
+	else if (!strcmp(name, "S_LoadSound"))	//a hook for loading extra types of sound (wav, mp3, ogg, midi, whatever you choose to support)
+	{
 		S_RegisterSoundInputPlugin(func);
-	else
+		currentplug->blockcloses++;
+	}
 #endif
+	else
 		return 0;
 	return 1;
 }
@@ -1603,6 +1636,11 @@ qboolean Plug_CenterPrintMessage(char *buffer, int clientnum)
 
 void Plug_Close(plugin_t *plug)
 {
+	if (plug->blockcloses)
+	{
+		Con_Printf("Plugin %s provides driver features, and cannot safely be unloaded\n", plug->name);
+		return;
+	}
 	if (plugs == plug)
 		plugs = plug->next;
 	else

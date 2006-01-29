@@ -3,7 +3,7 @@
 //this file contains q3 netcode related things.
 //field info, netchan, and the WriteBits stuff (which should probably be moved to common.c with the others) 
 
-
+#if defined(Q3SERVER) || defined(Q3CLIENT)
 
 #include "clq3defs.h"	//okay, urr, this is bad for dedicated servers. urhum. Maybe they're not looking? It's only typedefs and one extern.
 
@@ -1331,3 +1331,4 @@ void MSG_Q3_ReadDeltaUsercmd(int key, const usercmd_t *from, usercmd_t *to)
 	}
 }
 
+#endif

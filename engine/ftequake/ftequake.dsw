@@ -3,30 +3,6 @@ Microsoft Developer Studio Workspace File, Format Version 6.00
 
 ###############################################################################
 
-Project: "emailnot"=..\..\PLUGINS\emailnot\emailnot.dsp - Package Owner=<4>
-
-Package=<5>
-{{{
-}}}
-
-Package=<4>
-{{{
-}}}
-
-###############################################################################
-
-Project: "emailsv"=..\..\plugins\emailsv\emailsv.dsp - Package Owner=<4>
-
-Package=<5>
-{{{
-}}}
-
-Package=<4>
-{{{
-}}}
-
-###############################################################################
-
 Project: "ftequake"=.\ftequake.dsp - Package Owner=<4>
 
 Package=<5>
@@ -54,55 +30,7 @@ Package=<4>
 
 ###############################################################################
 
-Project: "hud"=..\..\plugins\hud\hud.dsp - Package Owner=<4>
-
-Package=<5>
-{{{
-}}}
-
-Package=<4>
-{{{
-}}}
-
-###############################################################################
-
-Project: "irc"=..\..\PLUGINS\IRC\irc.dsp - Package Owner=<4>
-
-Package=<5>
-{{{
-}}}
-
-Package=<4>
-{{{
-}}}
-
-###############################################################################
-
 Project: "qcc"=..\qclib\qcc.dsp - Package Owner=<4>
-
-Package=<5>
-{{{
-}}}
-
-Package=<4>
-{{{
-}}}
-
-###############################################################################
-
-Project: "serverb"=..\..\PLUGINS\serverb\serverb.dsp - Package Owner=<4>
-
-Package=<5>
-{{{
-}}}
-
-Package=<4>
-{{{
-}}}
-
-###############################################################################
-
-Project: "xsv"=..\..\PLUGINS\xsv\xsv.dsp - Package Owner=<4>
 
 Package=<5>
 {{{

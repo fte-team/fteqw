@@ -243,7 +243,7 @@ void ApplyColour(unsigned int chr)
 			printf("1;30m"); // treat as dark grey
 			break;
 		case COLOR_WHITE:
-			print("m"); // set nothing else
+			printf("m"); // set nothing else
 			break;
 		default:
 			if (fg & 0x8) // intensive bit set for foreground

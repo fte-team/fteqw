@@ -110,6 +110,7 @@ static char *pupabbr2[] = {	//the postfix for the powerup anims
 };
 
 //0 = owned, 1 selected, 2-7 flashing
+static qhandle_t pic_cursor;
 static qhandle_t con_chars;
 static qhandle_t pic_weapon[8][numweaps];
 static qhandle_t sbarback, ibarback;
@@ -187,7 +188,7 @@ drawelementfnc_t Hud_TeamName;
 // - alias controlled graphic elements (both +/-showscores like and alias calling?)
 // - Q2-style current weapon icon
 
-int statsremap[] = 
+int statsremap[] =
 {
 	STAT_HEALTH,
 	STAT_ARMOR,
@@ -572,6 +573,8 @@ void UI_SbarInit(void)
 			pic_pup[1+j][i] = Draw_LoadImage(va("sba%i_%s", j+1, pupabbr[i]), false);
 		}
 	}
+	pic_cursor = Draw_LoadImage("gfx/cursor", false);
+
 	pic_armour[0] = Draw_LoadImage("sb_armor1", false);
 	pic_armour[1] = Draw_LoadImage("sb_armor2", false);
 	pic_armour[2] = Draw_LoadImage("sb_armor3", false);
@@ -955,10 +958,10 @@ void SortTeams(void)
 		}
 		if (j == numsortedteams)
 		{
-			strlcpy(team[j].name, player[i].name, sizeof(team[j].name));
+			strlcpy(team[j].name, players[i].name, sizeof(team[j].name));
 			team[j].frags = players[i].frags;
-			team[j].tc = players[i].tc;
-			team[j].bc = players[i].bc;
+			team[j].tc = players[i].topcolour;
+			team[j].bc = players[i].bottomcolour;
 			numsortedteams++;
 		}
 	}
@@ -1028,7 +1031,7 @@ void Hud_ScoreName(void)
 	UI_DrawString(name, 0, 0);
 }
 
-void Hud_TeamCard(void)
+void Hud_TeamScore(void)
 {
 	int frags, tc, bc, p;
 	int brackets;
@@ -1045,12 +1048,12 @@ void Hud_TeamCard(void)
 	else
 	{
 		SortPlayers();
-		if (sbartype>=numsortedplayers)
+		if (sbartype>=numsortedteams)
 			return;
-		p = sortedplayers[sbartype];
-		bc = players[p].bottomcolour;
-		tc = players[p].topcolour;
-		frags = players[p].frags;
+		p = sbartype;
+		bc = team[p].bc;
+		tc = team[p].tc;
+		frags = team[p].frags;
 		brackets = p==playerlocal;
 	}
 
@@ -1076,51 +1079,42 @@ void Hud_TeamCard(void)
 	Draw_Colour4f(1,1,1,1);
 }
 
-void Hud_TeamCard(void)
+void Hud_TeamName(void)
 {
-	int frags, tc, bc, p;
-	int brackets;
-	char number[6];
-	char *num;
+	int p;
+	char *tname;
 
 	if (hudedit)
 	{
-		frags = sbartype;
-		tc = 0;
-		bc = 0;
-		brackets = 1;
+		tname = va("T%-3i", sbartype);
 	}
 	else
 	{
 		SortTeams();
 		if (sbartype>=numsortedteams)
 			return;
-		p = sortedteams[sbartype];
-		bc = teams[p].bottomcolour;
-		tc = teams[p].topcolour;
-		frags = teams[p].frags;
-		brackets = p==playerlocal;
+		p = sbartype;
+		tname = team[p].name;
 	}
-
-	Draw_Colour4f(pc[tc][0], pc[tc][1], pc[tc][2], sbaralpha);
-	Draw_Fill(sbarminx, sbarminy, (float)32*sbarscalex, (float)4*sbarscaley);
-	Draw_Colour4f(pc[bc][0], pc[bc][1], pc[bc][2], 	sbaralpha);
-	Draw_Fill(sbarminx, sbarminy+4*sbarscaley, (float)32*sbarscalex, (float)4*sbarscaley);
 
 	Draw_Colour4f(1, 1, 1, sbaralpha);
-	if (brackets)
+
+	if (tname[0])
 	{
-		UI_DrawChar(16, 0, 0);
-		UI_DrawChar(17, 24, 0);
+		UI_DrawChar(tname[0], 0, 0);
+		if (tname[1])
+		{
+			UI_DrawChar(tname[1], 8, 0);
+			if (tname[2])
+			{
+				UI_DrawChar(tname[2], 8, 0);
+				if (tname[3])
+				{
+					UI_DrawChar(tname[3], 8, 0);
+				}
+			}
+		}
 	}
-
-	snprintf(number, sizeof(number), "%-3i", frags);
-	UI_DrawChar(number[0], 4, 0);
-	UI_DrawChar(number[1], 12, 0);
-	UI_DrawChar(number[2], 20, 0);
-
-
-
 	Draw_Colour4f(1,1,1,1);
 }
 
@@ -1172,7 +1166,7 @@ void UI_DrawHandles(int *arg, int i)
 	Draw_Fill(sbarminx+drawelement[mt].width*sbarscalex-((sbarscalex<0)?0:(vsx*4)), sbarminy+drawelement[mt].height*sbarscaley-((sbarscaley<0)?0:(vsy*4)), (float)4*vsx, (float)4*vsy);
 }
 
-//draw cody of sbar
+//draw body of sbar
 //arg[0] is playernum
 //arg[1]/arg[2] is x/y start of subwindow
 //arg[3]/arg[4] is width/height of subwindow
@@ -1183,7 +1177,7 @@ int UI_StatusBar(int *arg)
 	float vsx, vsy;
 
 	if (arg[5])
-		return;
+		return false;
 
 	CL_GetStats(arg[0], stats, sizeof(stats)/sizeof(int));
 
@@ -1491,6 +1485,8 @@ void DrawContextMenu(int mx, int my)
 	y+=8;
 	Draw_Colour4f(1-(my--)!=0,1,1,1);
 	UI_DrawString("Snap To Grid", 0, y);
+	if (shiftdown)
+		UI_DrawString("X", -8, y);
 	y+=8;
 	Draw_Colour4f(1-(my--)!=0,1,1,1);
 	UI_DrawString("Save", 0, y);
@@ -1779,13 +1775,18 @@ int Plug_MenuEvent(int *args)
 
 		UI_DrawHandles(altargs, currentitem);
 
+		sbarscalex = vid.width/640.0f;
+		sbarscaley = vid.height/480.0f;
 		if (context)
 		{
-			sbarscalex = vid.width/640.0f;
-			sbarscaley = vid.height/480.0f;
 
 			DrawContextMenu(args[2], args[3]);
 		}
+		sbarminx = args[2];
+		sbarminy = args[3];
+
+		Draw_Colour4f(1,1,1,1);
+		Draw_Image((float)args[2]*sbarscalex, (float)args[3]*sbarscaley, (float)32*sbarscalex, (float)32*sbarscaley, 0, 0, 1, 1, pic_cursor);
 		break;
 	case 1:	//keydown
 		UI_KeyPress(args[1], args[2], args[3]);
@@ -1872,7 +1873,7 @@ int Plug_Init(int *args)
 		K_PAGEDOWN		= Key_GetKeyCode("pgdn");
 
 		Cmd_AddCommand("sbar_edit");
-		if (BUILTINISVALID(FS_Write)) 
+		if (BUILTINISVALID(FS_Write))
 			Cmd_AddCommand("sbar_save");
 		if (BUILTINISVALID(FS_Read))
 			Cmd_AddCommand("sbar_load");

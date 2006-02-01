@@ -478,7 +478,9 @@ static int DSOUND_GetDMAPos(soundcardinfo_t *sc)
 
 	s >>= (sc->sn.samplebits/8) - 1;
 
-//	s = (s/shm->numchannels % (shm->samples-1))*shm->numchannels;
+	s &= (sc->sn.samples) - 1;
+
+//	s = (s/sc->sn.numchannels % (sc->sn.samples-1));
 
 	return s;
 }
@@ -707,7 +709,7 @@ int DSOUND_InitCard (soundcardinfo_t *sc, int cardnum)
 	// create the secondary buffer we'll actually work with
 		memset (&dsbuf, 0, sizeof(dsbuf));
 		dsbuf.dwSize = sizeof(DSBUFFERDESC);
-		dsbuf.dwFlags = DSBCAPS_CTRLFREQUENCY;	//dmw 29 may, 2003 removed locsoftware
+		dsbuf.dwFlags = DSBCAPS_CTRLFREQUENCY|DSBCAPS_LOCSOFTWARE;	//dmw 29 may, 2003 removed locsoftware
 		if (snd_inactive.value)
 		{
 			dsbuf.dwFlags |= DSBCAPS_GLOBALFOCUS;

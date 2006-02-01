@@ -60,6 +60,10 @@ double Sys_DoubleTime (void);
 
 char *Sys_ConsoleInput (void);
 
+char *Sys_GetClipboard(void);	//A stub would return NULL
+void Sys_CloseClipboard(char *buf); //a stub would do nothing
+void Sys_SaveClipboard(char *text); //a stub would do nothing.
+
 //stuff for dynamic dedicated console -> gfx and back.
 void Sys_CloseTerminal (void);
 qboolean Sys_InitTerminal (void);

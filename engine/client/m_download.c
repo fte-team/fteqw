@@ -399,10 +399,10 @@ void M_AddItemsToDownloadMenu(menu_t *m)
 	int prefixlen;
 	p = availablepackages;
 
-	MC_AddWhiteText(m, 4, 40, "W H      (want, have)", false);
+	MC_AddRedText(m, 4, 40, "W H      (want, have)", false);
 
 	prefixlen = strlen(info->pathprefix);
-	y = 48;
+	y = 48+4;
 	for (p = availablepackages; p; p = p->next)
 	{
 		if (strncmp(p->fullname, info->pathprefix, prefixlen))
@@ -421,7 +421,7 @@ void M_AddItemsToDownloadMenu(menu_t *m)
 						break;
 			if (!mo)
 			{
-				MC_AddConsoleCommand(m, 5*8, y, path+prefixlen, va("menu_download \"%s/\"", path));
+				MC_AddConsoleCommand(m, 6*8, y, path+prefixlen, va("menu_download \"%s/\"", path));
 				y += 8;
 			}
 		}

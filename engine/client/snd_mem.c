@@ -190,7 +190,7 @@ S_LoadSound_t AudioInputPlugins[8] =
 	S_LoadWavSound
 
 #ifdef AVAIL_OGGVORBIS
-//	, S_LoadOVSound
+	, S_LoadOVSound
 #endif
 };
 

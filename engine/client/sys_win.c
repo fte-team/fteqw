@@ -737,11 +737,72 @@ double Sys_DoubleTime (void)
 
 
 
+/////////////////////////////////////////////////////////////
+//clipboard
+HANDLE	clipboardhandle;
+char *Sys_GetClipboard(void)
+{
+	char *clipText;
+	if (OpenClipboard(NULL))
+	{
+		clipboardhandle = GetClipboardData(CF_TEXT);
+		if (clipboardhandle)
+		{
+			clipText = GlobalLock(clipboardhandle);
+			if (clipText)
+				return clipText;
+
+			//failed at the last hurdle
+
+			GlobalUnlock(clipboardhandle);
+		}
+		CloseClipboard();
+	}
+
+	clipboardhandle = NULL;
+
+	return NULL;
+}
+void Sys_CloseClipboard(char *bf)
+{
+	if (clipboardhandle)
+	{
+		GlobalUnlock(clipboardhandle);
+		CloseClipboard();
+		clipboardhandle = NULL;
+	}
+}
+void Sys_SaveClipboard(char *text)
+{
+	HANDLE glob;
+	char *temp;
+	if (!OpenClipboard(NULL))
+		return;
+    EmptyClipboard();
+
+	glob = GlobalAlloc(GMEM_MOVEABLE, strlen(text) + 1);
+    if (glob == NULL)
+    {
+        CloseClipboard();
+        return;
+    }
+
+	temp = GlobalLock(glob);
+	if (temp != NULL)
+	{
+		strcpy(temp, text);
+		GlobalUnlock(glob);
+		SetClipboardData(CF_TEXT, glob);
+	}
+	else
+		GlobalFree(glob);
+
+	CloseClipboard();
+}
 
 
-
-
-
+//end of clipboard
+/////////////////////////////////////////////////////////////
 
 
 

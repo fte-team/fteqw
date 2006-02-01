@@ -1227,7 +1227,9 @@ void CL_RotateAroundTag(entity_t *ent, int num, int tagent, int tagnum)
 
 	if (ang)
 	{
+		ang[0]*=-1;
 		AngleVectors(ang, axis[0], axis[1], axis[2]);
+		ang[0]*=-1;
 		VectorInverse(axis[1]);
 
 		frame2ness = CL_EntLerpFactor(tagent);
@@ -1277,8 +1279,46 @@ void CL_RotateAroundTag(entity_t *ent, int num, int tagent, int tagnum)
 		}
 		else	//hrm.
 		{
-			memcpy(ent->axis, axis, sizeof(temp));
-			VectorCopy(org, ent->origin);
+			old[0] = ent->axis[0][0];
+			old[1] = ent->axis[1][0];
+			old[2] = ent->axis[2][0];
+			old[3] = ent->origin[0];
+			old[4] = ent->axis[0][1];
+			old[5] = ent->axis[1][1];
+			old[6] = ent->axis[2][1];
+			old[7] = ent->origin[1];
+			old[8] = ent->axis[0][2];
+			old[9] = ent->axis[1][2];
+			old[10] = ent->axis[2][2];
+			old[11] = ent->origin[2];
+
+			parent[0] = axis[0][0];
+			parent[1] = axis[1][0];
+			parent[2] = axis[2][0];
+			parent[3] = org[0];
+			parent[4] = axis[0][1];
+			parent[5] = axis[1][1];
+			parent[6] = axis[2][1];
+			parent[7] = org[1];
+			parent[8] = axis[0][2];
+			parent[9] = axis[1][2];
+			parent[10] = axis[2][2];
+			parent[11] = org[2];
+
+			R_ConcatTransforms((void*)old, (void*)parent, (void*)result);
+
+			ent->axis[0][0] = result[0];
+			ent->axis[1][0] = result[1];
+			ent->axis[2][0] = result[2];
+			ent->origin[0] = result[3];
+			ent->axis[0][1] = result[4];
+			ent->axis[1][1] = result[5];
+			ent->axis[2][1] = result[6];
+			ent->origin[1] = result[7];
+			ent->axis[0][2] = result[8];
+			ent->axis[1][2] = result[9];
+			ent->axis[2][2] = result[10];
+			ent->origin[2] = result[11];
 		}
 	}
 }

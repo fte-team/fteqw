@@ -594,25 +594,6 @@ void S_Init (void)
 
 // create a piece of DMA memory
 
-/*	if (fakedma)
-	{
-		cursndcard = Z_Malloc(sizeof(*sndcardinfo));
-		cursndcard->next = sndcardinfo;
-		sndcardinfo = cursndcard;
-
-		shm = (void *) Hunk_AllocName(sizeof(*shm), "shm");
-		shm->splitbuffer = 0;
-		shm->samplebits = 16;
-		shm->speed = 22050;
-		shm->numchannels = 2;
-		shm->samples = 44100;
-		shm->samplepos = 0;
-		shm->soundalive = true;
-		shm->gamealive = true;
-		shm->submission_chunk = 1;
-		shm->buffer = Hunk_AllocName(1<<16, "shmbuf");
-	}
-*/
 	if (sndcardinfo)
 		Con_SafePrintf ("Sound sampling rate: %i\n", sndcardinfo->sn.speed);
 
@@ -1000,11 +981,8 @@ void S_ClearBuffer (soundcardinfo_t *sc)
 	void *buffer;
 
 	int		clear;
-//#if defined(_WIN32) && !defined(NODIRECTX)
-//	if (!sound_started || (!sc->sn.buffer && !sc->pDSBuf))
-//#else
+
 	if (!sound_started || !sc->sn.buffer)
-//#endif
 		return;
 
 	if (sc->sn.samplebits == 8)
@@ -1018,45 +996,6 @@ void S_ClearBuffer (soundcardinfo_t *sc)
 		Q_memset(sc->sn.buffer, clear, sc->sn.samples * sc->sn.samplebits/8);
 		sc->Unlock(sc, buffer);
 	}
-/*
-#if defined(_WIN32) && !defined(NODIRECTX)
-	if (sc->pDSBuf)
-	{
-		DWORD	dwSize;
-		DWORD	*pData;
-		int		reps;
-		HRESULT	hresult;
-
-		reps = 0;
-
-		while ((hresult = sc->pDSBuf->lpVtbl->Lock(sc->pDSBuf, 0, sc->gSndBufSize, (void**)&pData, &dwSize, NULL, NULL, 0)) != DS_OK)
-		{
-			if (hresult != DSERR_BUFFERLOST)
-			{
-				Con_Printf ("S_ClearBuffer: DS::Lock Sound Buffer Failed\n");
-				S_ShutdownCard (sc);
-				return;
-			}
-
-			if (++reps > 10000)
-			{
-				Con_Printf ("S_ClearBuffer: DS: couldn't restore buffer\n");
-				S_ShutdownCard (sc);
-				return;
-			}
-		}
-
-		Q_memset(pData, clear, sc->sn.samples * sc->sn.samplebits/8);
-
-		sc->pDSBuf->lpVtbl->Unlock(sc->pDSBuf, pData, dwSize, NULL, 0);
-
-	}
-	else
-#endif
-	{
-		Q_memset(sc->sn.buffer, clear, sc->sn.samples * sc->sn.samplebits/8);
-	}
-*/
 }
 
 /*

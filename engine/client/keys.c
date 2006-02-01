@@ -391,10 +391,7 @@ Interactive line editing and console scrollback
 */
 void Key_Console (int key)
 {
-#ifdef _WIN32
-	HANDLE	th;
 	char	*clipText;
-#endif
 
 	if (con_current->redirect)
 	{
@@ -427,7 +424,7 @@ void Key_Console (int key)
 
 	if (key == K_SPACE && con_current->commandcompletion)
 	{
-		if (keydown[K_SHIFT] && Cmd_CompleteCommand(key_lines[edit_line]+1, true, true, con_current->commandcompletion))
+		if (keydown[K_CTRL] && Cmd_CompleteCommand(key_lines[edit_line]+1, true, true, con_current->commandcompletion))
 		{
 			CompleteCommand (true);
 			return;
@@ -547,47 +544,56 @@ void Key_Console (int key)
 
 	if (key == K_HOME)
 	{
-		con_current->display = con_current->current - con_current->totallines + 10;
+		if (keydown[K_CTRL])
+			con_current->display = con_current->current - con_current->totallines + 10;
+		else
+			key_linepos = 1;
 		return;
 	}
 
 	if (key == K_END)
 	{
-		con_current->display = con_current->current;
+		if (keydown[K_CTRL])
+			con_current->display = con_current->current;
+		else
+			key_linepos = strlen(key_lines[edit_line]);
 		return;
 	}
-	
-#ifdef _WIN32
-	if (((key=='V' || key=='v') && keydown[K_CTRL]) || keydown[K_SHIFT] && key == K_INS)
+
+	if (((key=='C' || key=='c') && keydown[K_CTRL]) || (keydown[K_CTRL] && key == K_INS))
 	{
-		if (OpenClipboard(NULL))
-		{
-			th = GetClipboardData(CF_TEXT);
-			if (th)
-			{
-				clipText = GlobalLock(th);
-				if (clipText)
-				{
-					int len;
-					len = strlen(clipText);
-					if (len + strlen(key_lines[edit_line]) > MAXCMDLINE - 1)
-						len = MAXCMDLINE - 1 - strlen(key_lines[edit_line]);
-					if (len > 0)
-					{	// insert the string
-						memmove (key_lines[edit_line] + key_linepos + len,
-							key_lines[edit_line] + key_linepos, strlen(key_lines[edit_line]) - key_linepos + 1);
-						memcpy (key_lines[edit_line] + key_linepos, clipText, len);
-						key_linepos += len;
-					}
-				}
-				GlobalUnlock(th);
-			}
-			CloseClipboard();
-			return;
-		}
+		Sys_SaveClipboard(key_lines[edit_line]+1);
+		return;
 	}
-#endif
-	
+
+	if (((key=='V' || key=='v') && keydown[K_CTRL]) || (keydown[K_SHIFT] && key == K_INS))
+	{
+		clipText = Sys_GetClipboard();
+		if (clipText)
+		{
+			int i;
+			int len;
+			len = strlen(clipText);
+			if (len + strlen(key_lines[edit_line]) > MAXCMDLINE - 1)
+				len = MAXCMDLINE - 1 - strlen(key_lines[edit_line]);
+			if (len > 0)
+			{	// insert the string
+				memmove (key_lines[edit_line] + key_linepos + len,
+					key_lines[edit_line] + key_linepos, strlen(key_lines[edit_line]) - key_linepos + 1);
+				memcpy (key_lines[edit_line] + key_linepos, clipText, len);
+				for (i = 0; i < len; i++)
+				{
+					if (key_lines[edit_line][key_linepos+i] == '\r')
+						key_lines[edit_line][key_linepos+i] = ' ';
+					else if (key_lines[edit_line][key_linepos+i] == '\n')
+						key_lines[edit_line][key_linepos+i] = ';';
+				}
+				key_linepos += len;
+			}
+			Sys_CloseClipboard(clipText);
+		}
+		return;
+	}
 
 	if (key < 32 || key > 127)
 		return;	// non printable

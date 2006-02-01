@@ -476,3 +476,15 @@ void Sys_ServerActivity(void)
 {
 }
 
+
+
+char *Sys_GetClipboard(void)
+{
+	return NULL;
+}
+void Sys_CloseClipboard(char *bf)
+{
+}
+void Sys_SaveClipboard(char *text)
+{
+}

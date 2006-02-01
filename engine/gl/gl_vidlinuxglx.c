@@ -984,7 +984,7 @@ void IN_MouseMove (usercmd_t *cmd, int pnum)
 	mx = mouse_x;
 	my = mouse_y;
 
-	if (mouseusedforgui || (key_dest == key_menu && m_state == m_complex)
+	if (mouseusedforgui || (key_dest == key_menu && (m_state == m_complex || m_state == m_plugin))
 #ifdef VM_UI
 		|| UI_MenuState()
 #endif

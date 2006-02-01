@@ -32,6 +32,7 @@ char commandname[64]; // belongs to magic tokenizer
 char subvar[9][1000]; // etghack
 char casevar[9][1000]; //numbered_command
 #define DEFAULTCONSOLE ""
+#define RELEASE "Febuary 1st 2006"
 
 void (*Con_TrySubPrint)(char *subname, char *text);
 void Con_FakeSubPrint(char *subname, char *text)
@@ -925,7 +926,7 @@ int IRC_ClientFrame(ircclient_t *irc)
 
 			username = strtok(var[1]+1, delimiters);
 
-			IRC_AddClientMessage(irc, va("NOTICE %s :\1VERSION FTEQW-IRC-Plugin Build ?\1", username));
+			IRC_AddClientMessage(irc, va("NOTICE %s :\1VERSION FTEQW-IRC-Plugin Release: %s", username, RELEASE));
 		}
 		else if ((!stricmp(var[4]+1, "\1TIME\1")) && (!strncmp(var[2], "PRIVMSG ", 7)))
 		{
@@ -1883,7 +1884,7 @@ void IRC_Command(char *dest)
 			if (*com_token)
 				IRC_AddClientMessage(ircclient, va("QUIT :%s", com_token));
 			else
-				IRC_AddClientMessage(ircclient, va("QUIT :FTE QuakeWorld IRC-Plugin http://www.fteqw.com/plugins/"));
+				IRC_AddClientMessage(ircclient, va("QUIT :FTE QuakeWorld IRC-Plugin Release: %s http://www.fteqw.com/plugins/", RELEASE));
 		}
 		else if (!strcmp(com_token+1, "whois"))
 		{

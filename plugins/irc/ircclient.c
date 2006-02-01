@@ -12,7 +12,7 @@ vmcvar_t	irc_debug = {"irc_debug", "0", irccvars, 0};
 vmcvar_t	irc_motd = {"irc_motd", "1", irccvars, 0};
 vmcvar_t	irc_nick = {"irc_nick", "anonymous", irccvars, 0};
 vmcvar_t	irc_altnick = {"irc_altnick", "unnamed", irccvars, 0};
-vmcvar_t	irc_realname = {"irc_realname", "FTE IRC-Plugin http://fteqw.sf.net", irccvars, 0};
+vmcvar_t	irc_realname = {"irc_realname", "FTE IRC-Plugin http://www.fteqw.com", irccvars, 0};
 vmcvar_t	irc_ident = {"irc_ident", "FTE", irccvars, 0};
 vmcvar_t	irc_timestamp = {"irc_timestamp", "0", irccvars, 0};
 #undef irccvars
@@ -28,9 +28,9 @@ vmcvar_t	*cvarlist[] ={
 };
 
 
-char commandname[64];
-char var[9][1000]; // belongs to magic tokenizer
+char commandname[64]; // belongs to magic tokenizer
 char subvar[9][1000]; // etghack
+char casevar[9][1000]; //numbered_command
 #define DEFAULTCONSOLE ""
 
 void (*Con_TrySubPrint)(char *subname, char *text);
@@ -461,9 +461,9 @@ void magic_tokenizer(int word,char *thestring)
 	char *temp;
 	int i = 1;
 
-	strcpy(var[1],thestring);
+	strcpy(casevar[1],thestring);
 
-	temp = strchr(var[1], ' ');
+	temp = strchr(casevar[1], ' ');
 
 	while (i < 8)
 	{
@@ -471,14 +471,14 @@ void magic_tokenizer(int word,char *thestring)
 
 		if (temp != NULL)
 		{
-			strcpy(var[i],temp+1);
+			strcpy(casevar[i],temp+1);
 		}
 		else
 		{
-			strcpy(var[i], "");
+			strcpy(casevar[i], "");
 		}
 
-		temp=strchr(var[i], ' ');
+		temp=strchr(casevar[i], ' ');
 
 	}
 
@@ -487,7 +487,7 @@ void magic_tokenizer(int word,char *thestring)
 	//return var[word]+offset;
 }
 
-char *magic_tokenizer2(int word,char *thestring)
+/*char *magic_tokenizer2(int word,char *thestring)
 {
 	char *temp;
 	int i = 1;
@@ -516,7 +516,7 @@ char *magic_tokenizer2(int word,char *thestring)
 	//Con_SubPrintf(DEFAULTCONSOLE,COLOURRED "^11: %s ^22: %s ^33: %s ^44: %s ^55: %s ^66: %s ^77: %s ^88: %s\n",var[1],var[2],var[3],var[4],var[5],var[6],var[7],var[8]);
 
 	return var[word];
-}
+}*/
 
 void magic_etghack(char *thestring)
 {
@@ -564,7 +564,7 @@ void numbered_command(int comm,char *msg,ircclient_t *irc)
 	case 004:
 	case 005:
 	{
-		Con_SubPrintf(DEFAULTCONSOLE, COLOURYELLOW "SERVER STATS: %s\n",var[3]);
+		Con_SubPrintf(DEFAULTCONSOLE, COLOURYELLOW "SERVER STATS: %s\n",casevar[3]);
 		break;
 	}
 	case 250:
@@ -578,36 +578,36 @@ void numbered_command(int comm,char *msg,ircclient_t *irc)
 	}
 	case 301: /* #define RPL_AWAY             301 */
 	{
-		char *username = strtok(var[3], " ");
-		char *awaymessage = var[4]+1;
+		char *username = strtok(casevar[3], " ");
+		char *awaymessage = casevar[4]+1;
 
 		Con_SubPrintf(DEFAULTCONSOLE,"WHOIS: <%s> (Away Message: %s)\n",username,awaymessage);
 		break;
 	}
 	case 311: /* #define RPL_WHOISUSER        311 */
 	{
-		char *username = strtok(var[3], " ");
-		char *ident = strtok(var[4], " ");
-		char *address = strtok(var[5], " ");
-		char *realname = var[7]+1;
+		char *username = strtok(casevar[3], " ");
+		char *ident = strtok(casevar[4], " ");
+		char *address = strtok(casevar[5], " ");
+		char *realname = casevar[7]+1;
 
 		Con_SubPrintf(DEFAULTCONSOLE,"WHOIS: <%s> (Ident: %s) (Address: %s) (Realname: %s) \n", username, ident, address, realname);
 		break;
 	}
 	case 312: /* #define RPL_WHOISSERVER      312 */
 	{
-		char *username = strtok(var[3], " ");
-		char *serverhostname = strtok(var[4], " ");
-		char *servername = var[5]+1;
+		char *username = strtok(casevar[3], " ");
+		char *serverhostname = strtok(casevar[4], " ");
+		char *servername = casevar[5]+1;
 
 		Con_SubPrintf(DEFAULTCONSOLE,"WHOIS: <%s> (Server: %s) (Server Name: %s) \n", username, serverhostname, servername);
 		break;
 	}
 	case 317: /* #define RPL_WHOISIDLE        317 */
 	{
-		char *username = strtok(var[3], " ");
-		char *secondsidle = strtok(var[4], " ");
-		char *signontime = strtok(var[5], " ");
+		char *username = strtok(casevar[3], " ");
+		char *secondsidle = strtok(casevar[4], " ");
+		char *signontime = strtok(casevar[5], " ");
 		time_t t;
 		const struct tm *tm;
 		char buffer[100];
@@ -622,7 +622,7 @@ void numbered_command(int comm,char *msg,ircclient_t *irc)
 	}
 	case 318: /* #define RPL_ENDOFWHOIS       318 */
 	{
-		char *endofwhois = var[4]+1;
+		char *endofwhois = casevar[4]+1;
 
 		Con_SubPrintf(DEFAULTCONSOLE,"WHOIS: %s\n", endofwhois);
 
@@ -630,8 +630,8 @@ void numbered_command(int comm,char *msg,ircclient_t *irc)
 	}
 	case 319: /* #define RPL_WHOISCHANNELS    319 */
 	{
-		char *username = strtok(var[3], " ");
-		char *channels = var[4]+1;
+		char *username = strtok(casevar[3], " ");
+		char *channels = casevar[4]+1;
 
 		Con_SubPrintf(DEFAULTCONSOLE,"WHOIS: <%s> (Channels: %s)\n",username,channels);
 		break;
@@ -645,7 +645,7 @@ void numbered_command(int comm,char *msg,ircclient_t *irc)
 	case 375:
 	case 376:
 	{
-		char *motdmessage = var[3]+1;
+		char *motdmessage = casevar[3]+1;
 
 		IRC_CvarUpdate();
 
@@ -665,8 +665,14 @@ void numbered_command(int comm,char *msg,ircclient_t *irc)
 	case 438: /* #define ERR_NICKNAMEINUSE    433 */
 	case 453:
 	{
-		char *nickname = strtok(var[4], " ");
+		char *nickname = strtok(casevar[4], " ");
+		char *badnickname = ":Nickname";
 		char *seedednick;
+
+		if ( !strcasecmp(nickname,badnickname) ) // bug with ircd, the nickname actually shifts position.
+		{
+			nickname = strtok(casevar[3], " ");
+		}
 
 		IRC_CvarUpdate();
 
@@ -718,6 +724,10 @@ int IRC_ClientFrame(ircclient_t *irc)
 	int ret;
 	char *nextmsg, *msg;
 	char *raw;
+	char var[9][1000];
+	char *temp;
+	char temp2[4096];
+
 	int i = 1;
 
 	ret = Net_Recv(irc->socket, irc->bufferedinmessage+irc->bufferedinammount, sizeof(irc->bufferedinmessage)-1 - irc->bufferedinammount);
@@ -746,9 +756,32 @@ int IRC_ClientFrame(ircclient_t *irc)
 
 	msg = irc->bufferedinmessage;
 
-	IRC_CvarUpdate(); // is this the right place for it?
+	strcpy(var[1],msg);
 
-	magic_tokenizer(0,msg);
+	temp = strchr(var[1], ' ');
+
+	while (i < 8)
+	{
+		i++;
+
+		if (temp != NULL)
+		{
+			strcpy(var[i],temp+1);
+		}
+		else
+		{
+			strcpy(var[i], "");
+		}
+
+		temp=strchr(var[i], ' ');
+
+	}
+
+	strcpy(temp2,var[2]);
+
+	raw = strtok(temp2, " ");
+
+	IRC_CvarUpdate(); // is this the right place for it?
 
 	raw = strtok(var[2], " ");
 
@@ -844,7 +877,7 @@ int IRC_ClientFrame(ircclient_t *irc)
 		{
 		//Con_SubPrintf(DEFAULTCONSOLE, COLOURGREEN "SERVER NOTICE: <%s> %s\n", prefix, servernotice);	//direct server message
 
-		etghack = strtok(var[4],"\n");
+		etghack = strtok(var[1],"\n");
 
 		//strcpy(etghack,servernotice);
 
@@ -1035,24 +1068,6 @@ int IRC_ClientFrame(ircclient_t *irc)
 		}
 		else Con_SubPrintf(DEFAULTCONSOLE, COLOURGREEN ":%sJOIN %s\n", prefix, msg+5);
 	}
-	else if (atoi(raw) != 0)
-	{
-		char *rawparameter = strtok(var[4], " ");
-		char *rawmessage = var[5];
-		char *wholerawmessage = var[4];
-
-		//Con_SubPrintf(DEFAULTCONSOLE,"$$$ %s $$$\n",raw);
-
-		numbered_command(atoi(raw),msg,ircclient);
-	}
-	else if (!strncmp(msg, "422 ", 4) || !strncmp(msg, "376 ", 4))
-	{	//no motd || end of motd
-
-		//send automagic channel join messages.
-		if (*irc->autochannels)
-			IRC_AddClientMessage(irc, va("JOIN %s", irc->autochannels));
-	}
-
 	else if (!strncmp(msg, "372 ", 4))
 	{
 		char *text = strstr(msg, ":-");
@@ -1118,6 +1133,24 @@ int IRC_ClientFrame(ircclient_t *irc)
 			else
 				Con_SubPrintf(eq, " %s\n", com_token);
 		}
+	}
+	// would be great to convert the above to work better
+	else if (atoi(raw) != 0)
+	{
+		char *rawparameter = strtok(var[4], " ");
+		char *rawmessage = var[5];
+		char *wholerawmessage = var[4];
+
+		//Con_SubPrintf(DEFAULTCONSOLE,"$$$ %s $$$\n",raw);
+
+		numbered_command(atoi(raw),msg,ircclient);
+	}
+	else if (!strncmp(msg, "422 ", 4) || !strncmp(msg, "376 ", 4))
+	{	//no motd || end of motd
+
+		//send automagic channel join messages.
+		if (*irc->autochannels)
+			IRC_AddClientMessage(irc, va("JOIN %s", irc->autochannels));
 	}
 	/*
 	else if (!strncmp(msg, "401 ", 4))
@@ -1850,7 +1883,7 @@ void IRC_Command(char *dest)
 			if (*com_token)
 				IRC_AddClientMessage(ircclient, va("QUIT :%s", com_token));
 			else
-				IRC_AddClientMessage(ircclient, va("QUIT :FTE QuakeWorld IRC-Plugin http://fteqw.sf.net"));
+				IRC_AddClientMessage(ircclient, va("QUIT :FTE QuakeWorld IRC-Plugin http://www.fteqw.com/plugins/"));
 		}
 		else if (!strcmp(com_token+1, "whois"))
 		{

@@ -798,7 +798,7 @@ qboolean VID_AttachGL (rendererstate_t *info)
 	TRACE(("dbg: VID_AttachGL: GL_Init\n"));
 	GL_Init(getglfunc);
 	qwglSwapIntervalEXT		= getglfunc("wglSwapIntervalEXT");
-	if (qwglSwapIntervalEXT && _vid_wait_override.value>=0)
+	if (qwglSwapIntervalEXT && *_vid_wait_override.string)
 	{
 		TRACE(("dbg: VID_AttachGL: qwglSwapIntervalEXT\n"));
 		qwglSwapIntervalEXT(_vid_wait_override.value);
@@ -841,7 +841,7 @@ void GL_DoSwap (void)
 	if (!scr_skipupdate || block_drawing)
 		qSwapBuffers(maindc);
 
-	if (_vid_wait_override.modified && qwglSwapIntervalEXT && _vid_wait_override.value>=0)
+	if (_vid_wait_override.modified && qwglSwapIntervalEXT && *_vid_wait_override.string)
 	{
 		qwglSwapIntervalEXT(_vid_wait_override.value);
 		_vid_wait_override.modified = false;

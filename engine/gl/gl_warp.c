@@ -744,12 +744,14 @@ void R_DrawSkySphere (msurface_t *fa)
 
 	if (!cls.allow_skyboxes)	//allow a little extra fps.
 	{//Draw the texture chain to only the depth buffer.
-		qglColorMask(0,0,0,0);
+		if (qglColorMask)
+			qglColorMask(0,0,0,0);
 		for (; fa; fa = fa->texturechain)
 		{
 			GL_DrawAliasMesh(fa->mesh, 0);
 		}
-		qglColorMask(1,1,1,1);
+		if (qglColorMask)
+			qglColorMask(1,1,1,1);
 	}
 }
 
@@ -908,11 +910,13 @@ void R_DrawSkyBox (msurface_t *s)
 	if (!cls.allow_skyboxes && s)	//allow a little extra fps.
 	{
 		//write the depth correctly
-		qglColorMask(0, 0, 0, 0);	//depth only.
+		if (qglColorMask)
+			qglColorMask(0, 0, 0, 0);	//depth only.
 		for (fa = s; fa; fa = fa->texturechain)
 			GL_DrawAliasMesh(fa->mesh, 1);
 
-		qglColorMask(1, 1, 1, 1);
+		if (qglColorMask)
+			qglColorMask(1, 1, 1, 1);
 	}
 }
 

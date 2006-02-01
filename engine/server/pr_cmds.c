@@ -948,7 +948,7 @@ void Q_InitProgs(void)
 	svs.numprogs=0;
 
 	d1 = COM_FDepthFile("progs.dat", true);
-	d2 = COM_FDepthFile("qwprogs.dat", true);
+	d2 = COM_FDepthFile("qwprogs.dat", true) + (!deathmatch.value * 3);
 	if (d1 < d2)	//progs.dat is closer to the gamedir
 		strcpy(addons, "progs.dat");
 	else if (d1 > d2)	//qwprogs.dat is closest

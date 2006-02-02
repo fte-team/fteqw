@@ -127,25 +127,27 @@ void Draw_FunString(int x, int y, unsigned char *str)
 			}
 			else if (*str == '&') // extended code
 			{
-				if (isextendedcode(*str+1) && isextendedcode(*str+2))
+				if (isextendedcode(str[1]) && isextendedcode(str[2]))
 				{
-					str++; // foreground char
+					str++;// '&'
 					if (*str == '-') // default for FG
 						ext = (COLOR_WHITE << CON_FGSHIFT) | (ext&~CON_FGMASK);
 					else if (*str >= 'A')
 						ext = ((*str - ('A' - 10)) << CON_FGSHIFT) | (ext&~CON_FGMASK);
 					else
 						ext = ((*str - '0') << CON_FGSHIFT) | (ext&~CON_FGMASK);
-					str++; // background char
+					str++; // foreground char
 					if (*str == '-') // default (clear) for BG
 						ext &= ~CON_BGMASK & ~CON_NONCLEARBG;
 					else if (*str >= 'A')
 						ext = ((*str - ('A' - 10)) << CON_BGSHIFT) | (ext&~CON_BGMASK) | CON_NONCLEARBG;
 					else
 						ext = ((*str - '0') << CON_BGSHIFT) | (ext&~CON_BGMASK) | CON_NONCLEARBG;
+					str++; // background char
 					continue;
 				}
-				str--; // else invalid code
+				// else invalid code
+				goto messedup;
 			}
 			else if (*str == 'a')
 			{
@@ -199,6 +201,7 @@ void Draw_FunString(int x, int y, unsigned char *str)
 			x += 8;
 			continue;
 		}
+messedup:
 		Draw_ColouredCharacter (x, y, (*str++) | ext);
 		x += 8;
 	}

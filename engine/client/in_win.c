@@ -1310,7 +1310,7 @@ void IN_MouseEvent (int mstate)
 {
 	int		i;
 
-	if ((mouseactive || (key_dest != key_console && key_dest != key_game)) && !dinput)
+	if ((mouseactive || (key_dest != key_game)) && !dinput)
 	{
 	// perform button actions
 		for (i=0 ; i<sysmouse.numbuttons ; i++)

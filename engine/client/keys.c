@@ -406,6 +406,37 @@ void Key_Console (int key)
 		con_current->redirect(con_current, key);
 		return;
 	}
+
+	if ((key == K_MOUSE1 || key == K_MOUSE2) && con_main.next)
+	{
+		extern cvar_t vid_conwidth, vid_conheight;
+		extern int mousecursor_x, mousecursor_y;
+		int xpos, ypos;
+		xpos = (int)((mousecursor_x*vid_conwidth.value)/(vid.width*8));
+		ypos = (int)((mousecursor_y*vid_conheight.value)/(vid.height*8));
+		if (ypos == 0)
+		{
+			console_t *con;
+			for (con = &con_main; con; con = con->next)
+			{
+				if (con == &con_main)
+					xpos -= 5;
+				else
+					xpos -= strlen(con->name)+1;
+				if (xpos == -1)
+					break;
+				if (xpos < 0)
+				{
+					if (key == K_MOUSE2)
+						Con_Destroy (con);
+					else
+						con_current = con;
+					break;
+				}
+			}
+		}
+		return;
+	}
 	
 	if (key == K_ENTER)
 	{	// backslash text are commands, else chat
@@ -1066,6 +1097,13 @@ void Key_Init (void)
 	consolekeys[K_ALT] = true;
 	consolekeys['`'] = false;
 	consolekeys['~'] = false;
+
+	for (i=K_MOUSE1 ; i<K_MOUSE10 ; i++)
+	{
+		consolekeys[i] = true;
+	}
+	consolekeys[K_MWHEELUP] = true;
+	consolekeys[K_MWHEELDOWN] = true;
 
 	for (i=0 ; i<K_MAX ; i++)
 		keyshift[i] = i;

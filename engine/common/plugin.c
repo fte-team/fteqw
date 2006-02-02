@@ -1699,11 +1699,19 @@ void Plug_Close_f(void)
 
 void Plug_CloseAll_f(void)
 {
+	plugin_t *p;
 	if (currentplug)
 		Sys_Error("Plug_CloseAll_f called inside a plugin!\n");
 	while(plugs)
 	{
-		Plug_Close(plugs);
+		p = plugs;
+		while (p->blockcloses)
+		{
+			p = p->next;
+			if (!p)
+				return;
+		}
+		Plug_Close(p);
 	}
 }
 

@@ -109,7 +109,7 @@ void Con_ResizeCon (console_t *con);
 
 qboolean Con_IsActive (console_t *con)
 {
-	return (con == con_current);
+	return (con == con_current) | (con->unseentext*2);
 }
 void Con_Destroy (console_t *con)
 {
@@ -129,8 +129,8 @@ void Con_Destroy (console_t *con)
 
 	BZ_Free(con);
 
-	if (con == con_current)
-		con = &con_main;
+	if (con_current == con)
+		con_current = &con_main;
 }
 console_t *Con_FindConsole(char *name)
 {
@@ -1345,6 +1345,28 @@ void Con_DrawConsole (int lines, qboolean noback)
 
 	y = lines - 30;
 
+	if (lines == scr_conlines && con_main.next)
+	{
+		console_t *con = con_current;
+		rows--;
+		for (x = 0, con = &con_main; con; con = con->next)
+		{
+			if (con == &con_main)
+				txt = "MAIN";
+			else
+				txt = con->name;
+
+			if (x != 0 && x+(strlen(txt)+1)*8 > curcon->linewidth*8)
+			{
+				x = 0;
+				rows--;
+			}
+			Draw_FunString(x, 0, va("^&F%i%s", (con==con_current)+con->unseentext*4, txt));
+			x+=(strlen(txt)+1)*8;
+		}
+		rows--;
+	}
+
 // draw from the bottom up
 	if (curcon->display != curcon->current)
 	{
@@ -1355,7 +1377,6 @@ void Con_DrawConsole (int lines, qboolean noback)
 		y -= 8;
 		rows--;
 	}
-	
 
 	row = curcon->display;
 	for (i=0 ; i<rows ; i++, y-=8, row--)

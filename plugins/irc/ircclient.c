@@ -5,6 +5,7 @@
 // need option for whois on receiving PM
 // bug: setting channel to private, crashes fte when trying to join it.
 // http://www.mirc.net/raws/
+// http://www.ircle.com/reference/commands.shtml
 
 
 #include "../plugin.h"
@@ -1253,12 +1254,17 @@ int IRC_ClientFrame(ircclient_t *irc)
 	}
 	else if (!strncmp(msg, "353 ", 4))	//the names of people on a channel
 	{
-		char *eq = strstr(msg, "=");
+		char *eq = strstr(msg, "="); // BAD SPIKE!! = is normal channel :(
 		char *eq2 = strstr(msg, "@"); // @ means the channel is +s (secret)
+		char *eq3 = strstr(msg, "*"); // * means the channel is +p (private) rather redundant...
+		char *channeltype = strtok(var[4], " ");
 		char *channel = strtok(var[5], " ");
 		char *str;
+
+
 		int secret = 0;
-		if (eq)
+		int privatechan = 0;
+		if ( !strcmp(channeltype,"=") )
 		{
 			char *end;
 			eq++;
@@ -1270,7 +1276,8 @@ int IRC_ClientFrame(ircclient_t *irc)
 			*end = '\0';
 			str++;
 		}
-		else if (eq2)
+		//else if (eq2)
+		else if ( !strcmp(channeltype,"@") )
 		{
 			char *end;
 
@@ -1281,6 +1288,21 @@ int IRC_ClientFrame(ircclient_t *irc)
 			while(*eq2 == ' ')
 				eq2++;
 			for (end = eq2; *end>' '&&*end !=':'; end++)
+				;
+			*end = '\0';
+			str++;
+		}
+		else if ( !strcmp(channeltype,"*") )
+		{
+			char *end;
+
+			privatechan = 1;
+
+			eq3++;
+			str = strstr(eq3, ":");
+			while(*eq3 == ' ')
+				eq3++;
+			for (end = eq3; *end>' '&&*end !=':'; end++)
 				;
 			*end = '\0';
 			str++;
@@ -1306,6 +1328,10 @@ int IRC_ClientFrame(ircclient_t *irc)
 		if (secret == 1)
 		{
 			Con_SubPrintf(channel, "%s is secret (+s)\n",channel);
+		}
+		else if (privatechan == 1)
+		{
+			Con_SubPrintf(channel, "%s is private (+p)\n",channel);
 		}
 
 	}

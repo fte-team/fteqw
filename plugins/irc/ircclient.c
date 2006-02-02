@@ -1908,7 +1908,12 @@ void IRC_Command(char *dest)
 		else if (!strcmp(com_token+1, "join"))
 		{
 			msg = COM_Parse(msg);
-			IRC_AddClientMessage(ircclient, va("JOIN %s", com_token));
+
+			if ( *com_token != '#' )
+				IRC_AddClientMessage(ircclient, va("JOIN #%s", com_token));
+			else
+				IRC_AddClientMessage(ircclient, va("JOIN %s", com_token));
+
 		}
 		else if (!strcmp(com_token+1, "part") || !strcmp(com_token+1, "leave"))
 		{

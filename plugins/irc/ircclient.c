@@ -716,9 +716,38 @@ void numbered_command(int comm,char *msg,ircclient_t *irc) // move vars up 1 mor
 		return;
 		break;
 	}
+	case 321:
+	{
+		Con_SubPrintf("list", "Start /LIST\n");
+
+		return;
+		break;
+	}
 	case 322: /* #define RPL_LIST             322 */
 	{
-		Con_SubPrintf(DEFAULTCONSOLE, "%s\n", msg);
+		char *channel = strtok(casevar[3], " ");
+		char *users = strtok(casevar[4], " ");
+		char *topic = casevar[5]+1;
+
+		Con_SubPrintf("list", "^1Channel:^7 %s ^1Users:^7 %s ^1Topic:^7 %s\n\n", channel,users,topic);
+		return;
+		break;
+	}
+	case 323:
+	{
+		char *endoflist = casevar[3]+1;
+
+		Con_SubPrintf("list", "%s\n",endoflist);
+
+		return;
+		break;
+	}
+	case 366:
+	{
+		char *channel = strtok(casevar[3], " ");
+		char *endofnameslist = casevar[4]+1;
+
+		Con_SubPrintf(channel,"%s\n",endofnameslist);
 		return;
 		break;
 	}

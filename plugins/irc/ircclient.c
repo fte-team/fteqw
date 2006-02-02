@@ -32,7 +32,7 @@ char commandname[64]; // belongs to magic tokenizer
 char subvar[9][1000]; // etghack
 char casevar[9][1000]; //numbered_command
 #define DEFAULTCONSOLE ""
-#define RELEASE "Febuary 1st 2006"
+#define RELEASE "Febuary 2 2006"
 
 void (*Con_TrySubPrint)(char *subname, char *text);
 void Con_FakeSubPrint(char *subname, char *text)
@@ -369,6 +369,35 @@ void IRC_SetUser(ircclient_t *irc, char *user)
 	IRC_AddClientMessage(irc, va("USER %s %s %s :%s", irc_ident.string, irc->hostname, irc->server, irc_realname.string));
 }
 
+/*
+
+ATTN: Spike
+
+# (just for reference) == Ctrl+K in mirc to put the color code symbol in
+
+now to have a background color, you must specify a forground color first (#0,15)
+
+, denotes end of forground color, and start of background color
+
+irc colors work in many strange ways:
+
+#0-#15 for forground color // the code currently converts to this one, which is not the "proper" irc way, read the next one to understand. Still need to support it, just not output as it.
+
+#00-#15 for forground color (note #010 to #015 is not valid) --- this is the "proper" irc way, because I could say "#11+1=2" (which means I want 1+1=2 to appear black (1), but instead it will come out as indigo (11) and look like this: +1=2)
+
+background examples: (note
+
+#0,15 (white forground, light gray background)
+
+#00,15 (white forground, light gray background) // proper way
+
+#15,0 (white forground, light gray background)
+
+#15,00 (white forground, light gray background) // proper way
+
+I hope this makes sense to you, to be able to edit the IRC_FilterMircColours function ~ Moodles
+
+*/
 void IRC_FilterMircColours(char *msg)
 {
 	int i;
@@ -1103,7 +1132,10 @@ int IRC_ClientFrame(ircclient_t *irc)
 	else if (!strncmp(msg, "353 ", 4))	//the names of people on a channel
 	{
 		char *eq = strstr(msg, "=");
+		char *eq2 = strstr(msg, "@"); // @ means the channel is +s (secret)
+		char *channel = strtok(var[5], " ");
 		char *str;
+		int secret = 0;
 		if (eq)
 		{
 			char *end;
@@ -1116,24 +1148,44 @@ int IRC_ClientFrame(ircclient_t *irc)
 			*end = '\0';
 			str++;
 		}
+		else if (eq2)
+		{
+			char *end;
+
+			secret = 1;
+
+			eq2++;
+			str = strstr(eq2, ":");
+			while(*eq2 == ' ')
+				eq2++;
+			for (end = eq2; *end>' '&&*end !=':'; end++)
+				;
+			*end = '\0';
+			str++;
+		}
 		else
 		{
 			eq = "Corrupted_Message";
 			str = NULL;
 		}
-		Con_SubPrintf(eq, va("Users on channel %s:\n", eq));
+		Con_SubPrintf(channel, va("Users on channel %s:\n", channel));
 		while (str)
 		{
 			str = COM_Parse(str);
 			if (*com_token == '@')	//they're an operator
-				Con_SubPrintf(eq, COLOURGREEN"@"COLORWHITE"%s\n", com_token+1);
+				Con_SubPrintf(channel, COLOURGREEN"@"COLORWHITE"%s\n", com_token+1);
 			else if (*com_token == '%')	//they've got half-op
-				Con_SubPrintf(eq, COLOURGREEN"%"COLORWHITE"%s\n", com_token+1);
+				Con_SubPrintf(channel, COLOURGREEN"%"COLORWHITE"%s\n", com_token+1);
 			else if (*com_token == '+')	//they've got voice
-				Con_SubPrintf(eq, COLOURGREEN"+"COLORWHITE"%s\n", com_token+1);
+				Con_SubPrintf(channel, COLOURGREEN"+"COLORWHITE"%s\n", com_token+1);
 			else
-				Con_SubPrintf(eq, " %s\n", com_token);
+				Con_SubPrintf(channel, " %s\n", com_token);
 		}
+		if (secret == 1)
+		{
+			Con_SubPrintf(channel, "%s is secret (+s)\n",channel);
+		}
+
 	}
 	// would be great to convert the above to work better
 	else if (atoi(raw) != 0)

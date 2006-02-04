@@ -138,8 +138,6 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 //		#define VOICECHAT	//not added yet.
 
 //these things were moved to plugins.
-//#define IRCCLIENT		//connects to irc servers.
-
 	#endif
 
 #endif
@@ -174,7 +172,6 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 	#undef VM_UI
 	#undef VM_CG
 	#undef WEBCLIENT
-	#undef IRCCLIENT
 	#undef TEXTEDITOR
 	#undef RUNTIMELIGHTING
 //	#undef PLUGINS	//we don't have any server side stuff.

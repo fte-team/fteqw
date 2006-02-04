@@ -2494,12 +2494,6 @@ void CL_FTP_f(void)
 	FTP_Client_Command(Cmd_Args(), NULL);
 }
 #endif
-#ifdef IRCCLIENT
-void CL_IRC_f(void)
-{
-	IRC_Command(Cmd_Args());
-}
-#endif
 
 void SCR_ShowPic_Script_f(void);
 /*
@@ -2638,9 +2632,6 @@ void CL_Init (void)
 	Cvar_Register (&cl_antibunch, "evil hacks");
 	Cvar_Register (&hud_tracking_show, "statusbar");
 
-#ifdef IRCCLIENT
-	Cmd_AddCommand ("irc", CL_IRC_f);
-#endif
 #ifdef WEBCLIENT
 	Cmd_AddCommand ("ftp", CL_FTP_f);
 #endif
@@ -2910,9 +2901,6 @@ void Host_Frame (double time)
 #ifdef WEBCLIENT
 	FTP_ClientThink();
 	HTTP_CL_Think();
-#endif
-#ifdef IRCCLIENT
-	IRC_Frame();
 #endif
 
 #ifdef PLUGINS

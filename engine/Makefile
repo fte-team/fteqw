@@ -138,7 +138,6 @@ CLIENT_OBJS = $(CLIENT_ASM_OBJS) \
 	cl_cg.o \
 	clq3_parse.o	\
 	pr_csqc.o	\
-	ircclient.o	\
 	console.o	\
 	image.o	\
 	keys.o	\

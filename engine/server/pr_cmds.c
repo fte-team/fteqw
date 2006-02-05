@@ -2660,6 +2660,8 @@ void PF_ambientsound (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 		return;
 	}
 
+	SV_FlushSignon();
+
 // add an svc_spawnambient command to the level signon packet
 
 	MSG_WriteByte (&sv.signon,svc_spawnstaticsound);
@@ -6342,7 +6344,7 @@ lh_extension_t QSG_Extensions[] = {
 	{"FTE_NPCCHAT",						1,	NULL, {"chat"}},	//server looks at chat files. It automagically branches through calling qc functions as requested.
 #endif
 	{"FTE_QC_CHECKPVS",					1,	NULL, {"checkpvs"}},
-	{"FTE_QC_MATCHCLIENTNAME",				1,	NULL, {"matchclient"}},
+	{"FTE_QC_MATCHCLIENTNAME",				1,	NULL, {"matchclientname"}},
 	{"FTE_QC_PAUSED"},
 	{"FTE_QC_TRACETRIGGER"},
 	{"FTE_SOLID_LADDER"},	//part of a worthy hl implementation. Allows a simple trigger to remove effects of gravity (solid 20)
@@ -9440,6 +9442,9 @@ BuiltinList_t BuiltinList[] = {				//nq	qw		h2		ebfs
 	{"checkpvs",		PF_checkpvs,		0,		0,		0,		240},
 	{"matchclientname",	PF_matchclient,		0,		0,		0,		241},
 	{"sendpacket",		PF_SendPacket,		0,		0,		0,		242},	//void(string dest, string content) sendpacket = #242; (FTE_QC_SENDPACKET)
+#ifdef PEXT_BULLETENS
+	{"bulleten",		PF_bulleten,		0,		0,		0,		243},
+#endif
 
 //end fte extras
 
@@ -9451,7 +9456,7 @@ BuiltinList_t BuiltinList[] = {				//nq	qw		h2		ebfs
 //DP_QC_FINDCHAIN
 	{"findchain",		PF_findchain,		0,		0,		0,		402},// #402 entity(string field, string match) findchain (DP_QC_FINDCHAIN)
 //DP_QC_FINDCHAINFLOAT
-	{"findfloatchain",	PF_findchainfloat,	0,		0,		0,		403},// #403 entity(float fld, float match) findchainfloat (DP_QC_FINDCHAINFLOAT)
+	{"findchainfloat",	PF_findchainfloat,	0,		0,		0,		403},// #403 entity(float fld, float match) findchainfloat (DP_QC_FINDCHAINFLOAT)
 //DP_SV_EFFECT
 	{"effect",			PF_effect,			0,		0,		0,		404},// #404 void(vector org, string modelname, float startframe, float endframe, float framerate) effect (DP_SV_EFFECT)
 //DP_TE_BLOOD

@@ -629,7 +629,7 @@ int VARGS Plug_Cvar_GetString(void *offset, unsigned int mask, const long *arg)
 int VARGS Plug_Cmd_AddText(void *offset, unsigned int mask, const long *arg)
 {
 	if (VM_LONG(arg[1]))
-		Cbuf_InsertText(VM_POINTER(arg[0]), RESTRICT_LOCAL);
+		Cbuf_InsertText(VM_POINTER(arg[0]), RESTRICT_LOCAL, false);
 	else
 		Cbuf_AddText(VM_POINTER(arg[0]), RESTRICT_LOCAL);
 

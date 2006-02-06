@@ -766,6 +766,10 @@ void M_SListKey(int key)
 				SListOptionChanged(M_FindCurrentServer());
 		}
 	}
+	else if (key == 'c')
+	{
+		Sys_SaveClipboard(NET_AdrToString(selectedserver.adr));
+	}
 	else if (key == 'f')
 	{
 		serverinfo_t *server;

@@ -448,9 +448,9 @@ ifeq ($(FTE_TARGET),linux)
 	SV_LDFLAGS=-lz
 
 ifeq ($(USEASM),true)
-	GLCL_OBJS=$(GL_OBJS) $(GLQUAKE_OBJS) gl_vidlinuxglx.o snd_linux.o cd_linux.o sys_linux.o sys_dosa.o
+	GLCL_OBJS=$(GL_OBJS) $(GLQUAKE_OBJS) gl_vidlinuxglx.o snd_linux.o snd_alsa.oo cd_linux.o sys_linux.o sys_dosa.o
 else
-	GLCL_OBJS=$(GL_OBJS) $(GLQUAKE_OBJS) gl_vidlinuxglx.o snd_linux.o cd_linux.o sys_linux.o
+	GLCL_OBJS=$(GL_OBJS) $(GLQUAKE_OBJS) gl_vidlinuxglx.o snd_linux.o snd_alsa.oo cd_linux.o sys_linux.o
 endif
 	GL_EXE_NAME=../fteqw.gl
 	GLCL_EXE_NAME=../fteqwcl.gl
@@ -460,9 +460,9 @@ endif
 	GLCL_DIR=glcl_linux
 
 ifeq ($(USEASM),true)
-	SWCL_OBJS=$(SOFTWARE_OBJS) vid_x.o snd_linux.o cd_linux.o sys_linux.o sys_dosa.o
+	SWCL_OBJS=$(SOFTWARE_OBJS) vid_x.o snd_linux.o snd_alsa.oo cd_linux.o sys_linux.o sys_dosa.o
 else
-	SWCL_OBJS=$(SOFTWARE_OBJS) vid_x.o snd_linux.o cd_linux.o sys_linux.o
+	SWCL_OBJS=$(SOFTWARE_OBJS) vid_x.o snd_linux.o snd_alsa.oo cd_linux.o sys_linux.o
 endif
 	SW_EXE_NAME=../fteqw.sw
 	SWCL_EXE_NAME=../fteqwcl.sw
@@ -472,9 +472,9 @@ endif
 	SWCL_DIR=swcl_linux
 
 ifeq ($(USEASM),true)
-	MCL_OBJS=$(GLQUAKE_OBJS) $(SOFTWARE_OBJS) gl_vidlinuxglx.o vid_x.o snd_linux.o cd_linux.o sys_linux.o sys_dosa.o
+	MCL_OBJS=$(GLQUAKE_OBJS) $(SOFTWARE_OBJS) gl_vidlinuxglx.o vid_x.o snd_linux.o snd_alsa.oo cd_linux.o sys_linux.o sys_dosa.o
 else
-	MCL_OBJS=$(GLQUAKE_OBJS) $(SOFTWARE_OBJS) gl_vidlinuxglx.o vid_x.o snd_linux.o cd_linux.o sys_linux.o
+	MCL_OBJS=$(GLQUAKE_OBJS) $(SOFTWARE_OBJS) gl_vidlinuxglx.o vid_x.o snd_linux.o snd_alsa.oo cd_linux.o sys_linux.o
 endif
 	M_EXE_NAME=../fteqw
 	MCL_EXE_NAME=../fteqwcl
@@ -564,6 +564,13 @@ $(OUT_DIR)/%.o $(OUT_DIR)/%.d : %.c
 	@set -e; rm -f $@.d; \
 	 $(CC) -MM $(ALL_CFLAGS) $< > $@.d.$$$$; \
 	 sed 's,\($*\)\.o[ :]*,\1.o $@.d : ,g' < $@.d.$$$$ > $@.d; \
+	 rm -f $@.d.$$$$
+	$(DO_CC) -I$(OUT_DIR)
+
+$(OUT_DIR)/%.oo $(OUT_DIR)/%.d : %.c
+	@set -e; rm -f $@.d; \
+	 $(CC) -MM $(ALL_CFLAGS) $< > $@.d.$$$$; \
+	 sed 's,\($*\)\.oo[ :]*,\1.oo $@.d : ,g' < $@.d.$$$$ > $@.d; \
 	 rm -f $@.d.$$$$
 	$(DO_CC) -I$(OUT_DIR)
 

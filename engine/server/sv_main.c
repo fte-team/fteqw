@@ -3848,7 +3848,7 @@ void SV_Init (quakeparms_t *parms)
 
 		Con_TPrintf (STL_INITED);
 
-		Cbuf_InsertText ("exec server.cfg\nexec ftesrv.cfg\n", RESTRICT_LOCAL);
+		Cbuf_InsertText ("exec server.cfg\nexec ftesrv.cfg\n", RESTRICT_LOCAL, false);
 
 	// process command line arguments
 		Cbuf_Execute ();

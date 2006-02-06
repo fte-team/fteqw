@@ -431,7 +431,7 @@ void P_ParticleEffect_f(void)
 		buf++;	//no whitespace please.
 	if (*buf != '{')
 	{
-		Cbuf_InsertText(buf, Cmd_ExecLevel);
+		Cbuf_InsertText(buf, Cmd_ExecLevel, true);
 		Con_Printf("This is a multiline command and should be used within config files\n");
 		return;
 	}

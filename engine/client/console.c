@@ -1367,6 +1367,8 @@ void Con_DrawConsole (int lines, qboolean noback)
 		rows--;
 	}
 
+	Key_ConsoleDrawSelectionBox();
+
 // draw from the bottom up
 	if (curcon->display != curcon->current)
 	{
@@ -1467,7 +1469,7 @@ void Con_DrawConsole (int lines, qboolean noback)
 	
 // draw the input prompt, user text, and cursor if desired
 	Con_DrawInput ();
-
+	DrawCursor();
 }
 
 

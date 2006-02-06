@@ -303,8 +303,8 @@ cshift_t	cshift_lava = { {255,80,0}, 150 };
 
 cshift_t	cshift_server = { {130,80,50}, 0 };
 
-cvar_t		v_gamma = {"gamma", "1", NULL, CVAR_ARCHIVE};
-cvar_t		v_contrast = {"contrast", "1", NULL, CVAR_ARCHIVE};
+cvar_t		v_gamma = {"gamma", "0.5", NULL, CVAR_ARCHIVE};
+cvar_t		v_contrast = {"contrast", "2", NULL, CVAR_ARCHIVE};
 
 qbyte		gammatable[256];	// palette is sent through this
 

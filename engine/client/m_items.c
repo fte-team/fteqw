@@ -966,6 +966,26 @@ void M_RemoveAllMenus (void)
 
 }
 
+
+void DrawCursor(void)
+{
+	extern int mousecursor_x, mousecursor_y;
+	mpic_t *p;
+	if (!*cl_cursor.string)
+		p = NULL;
+	else
+		p = Draw_SafeCachePic(cl_cursor.string);
+	if (p)
+	{
+		Draw_ImageColours(1, 1, 1, 1);
+		Draw_Image(mousecursor_x-cl_cursorbias.value, mousecursor_y-cl_cursorbias.value, cl_cursorsize.value, cl_cursorsize.value, 0, 0, 1, 1, p);
+//		Draw_TransPic(mousecursor_x-4, mousecursor_y-4, p);
+	}
+	else
+		Draw_Character(mousecursor_x-4, mousecursor_y-4, '+');
+
+}
+
 void M_Complex_Draw(void)
 {
 	extern int mousecursor_x, mousecursor_y;
@@ -1001,18 +1021,7 @@ void M_Complex_Draw(void)
 		MenuDraw(cmenu);
 	}
 
-	if (!*cl_cursor.string)
-		p = NULL;
-	else
-		p = Draw_SafeCachePic(cl_cursor.string);
-	if (p)
-	{
-		Draw_ImageColours(1, 1, 1, 1);
-		Draw_Image(mousecursor_x-cl_cursorbias.value, mousecursor_y-cl_cursorbias.value, cl_cursorsize.value, cl_cursorsize.value, 0, 0, 1, 1, p);
-//		Draw_TransPic(mousecursor_x-4, mousecursor_y-4, p);
-	}
-	else
-		Draw_Character(mousecursor_x-4, mousecursor_y-4, '+');
+	DrawCursor();
 }
 
 menuoption_t *M_NextItem(menu_t *m, menuoption_t *old)
@@ -1106,7 +1115,7 @@ void M_Complex_Key(int key)
 
 			if (key != K_ESCAPE && key != '`')
 			{
-				Cbuf_InsertText (va("bind %s \"%s\"\n", Key_KeynumToString (key), currentmenu->selecteditem->bind.command), RESTRICT_LOCAL);
+				Cbuf_InsertText (va("bind %s \"%s\"\n", Key_KeynumToString (key), currentmenu->selecteditem->bind.command), RESTRICT_LOCAL, false);
 			}
 			bindingactive = false;
 			return;

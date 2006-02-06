@@ -1685,7 +1685,7 @@ void CL_NextDemo (void)
 	}
 
 	sprintf (str,"playdemo %s\n", cls.demos[cls.demonum]);
-	Cbuf_InsertText (str, RESTRICT_LOCAL);
+	Cbuf_InsertText (str, RESTRICT_LOCAL, false);
 	cls.demonum++;
 }
 

@@ -3753,7 +3753,7 @@ void CL_ParseServerMessage (void)
 		{
 		default:
 			CL_DumpPacket();
-			Host_EndGame ("CL_ParseServerMessage: Illegible server message");
+			Host_EndGame ("CL_ParseServerMessage: Illegible server message (%i)", cmd);
 			return;
 
 		case svc_time:

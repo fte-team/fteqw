@@ -221,7 +221,7 @@ Adds a \n to the text
 FIXME: actually change the command buffer to do less copying
 ============
 */
-void Cbuf_InsertText (const char *text, int level)
+void Cbuf_InsertText (const char *text, int level, qboolean addnl)
 {
 	char	*temp;
 	int		templen;
@@ -245,7 +245,8 @@ void Cbuf_InsertText (const char *text, int level)
 
 // add the entire text of the file
 	Cbuf_AddText (text, level);
-	SZ_Write (&cmd_text[level].buf, "\n", 1);
+	if (addnl)
+		SZ_Write (&cmd_text[level].buf, "\n", 1);
 // add the copied off data
 	if (templen)
 	{
@@ -506,8 +507,7 @@ void Cmd_Exec_f (void)
 		Con_TPrintf (TL_EXECING,name);
 
 	// don't execute anything as if it was from server
-	Cbuf_InsertText ("\n", Cmd_FromGamecode() ? RESTRICT_INSECURE : Cmd_ExecLevel);	
-	Cbuf_InsertText (f, Cmd_FromGamecode() ? RESTRICT_INSECURE : Cmd_ExecLevel);
+	Cbuf_InsertText (f, Cmd_FromGamecode() ? RESTRICT_INSECURE : Cmd_ExecLevel, true);
 	BZ_Free(f);
 }
 
@@ -684,7 +684,7 @@ void Cmd_Alias_f (void)
 		if (!strcmp(line, "{"))
 			multiline = true;
 		else
-			Cbuf_InsertText(line, Cmd_ExecLevel);	//whoops. Stick the trimmed string back in to the cbuf.
+			Cbuf_InsertText(line, Cmd_ExecLevel, true);	//whoops. Stick the trimmed string back in to the cbuf.
 	}
 	else if (!strcmp(Cmd_Argv(2), "{"))
 		multiline = true;
@@ -735,7 +735,7 @@ void Cmd_Alias_f (void)
 	for (i=2 ; i< c ; i++)
 	{
 		strcat (cmd, Cmd_Argv(i));
-		if (i != c)
+		if (i != c-1)
 			strcat (cmd, " ");
 	}
 
@@ -1708,7 +1708,7 @@ void	Cmd_ExecuteString (char *text, int level)
 			else
 				execlevel = level;
 
-			Cbuf_InsertText ("\n", execlevel);
+			Cbuf_InsertText ("\n", execlevel, false);
 
 			// if the alias value is a command or cvar and
 			// the alias is called with parameters, add them
@@ -1716,19 +1716,19 @@ void	Cmd_ExecuteString (char *text, int level)
 				(Cvar_FindVar(a->value) || (Cmd_Exists(a->value) && a->value[0] != '+' && a->value[0] != '-'))
 			)
 			{
-				Cbuf_InsertText (Cmd_Args(), execlevel);
-				Cbuf_InsertText (" ", execlevel);
+				Cbuf_InsertText (Cmd_Args(), execlevel, false);
+				Cbuf_InsertText (" ", execlevel, false);
 			}
 
-			Cbuf_InsertText (a->value, execlevel);
+			Cbuf_InsertText (a->value, execlevel, false);
 
 			if (execlevel>=RESTRICT_SERVER)
 				return;	//don't do the cmd_argc/cmd_argv stuff. When it's from the server, we had a tendancy to lock aliases, so don't set them anymore.
 
-			Cbuf_InsertText (va("set cmd_argc \"%i\"\n", cmd_argc), execlevel);
+			Cbuf_InsertText (va("set cmd_argc \"%i\"\n", cmd_argc), execlevel, false);
 
 			for (i = 0; i < cmd_argc; i++)
-				Cbuf_InsertText (va("set cmd_argv%i \"%s\"\n", i, cmd_argv[i]), execlevel);
+				Cbuf_InsertText (va("set cmd_argv%i \"%s\"\n", i, cmd_argv[i]), execlevel, false);
 			return;
 		}
 	}
@@ -2260,7 +2260,7 @@ skipblock:
 			}
 		}
 		//whoops. Too far.
-		Cbuf_InsertText(end, level);
+		Cbuf_InsertText(end, level, true);
 		If_Token_Clear(ts);
 		return;
 	}
@@ -2270,12 +2270,12 @@ skipblock:
 	{
 		if (text)	//don't bother execing the else bit...
 			*text = '\0';
-		Cbuf_InsertText(end, level);
+		Cbuf_InsertText(end, level, true);
 	}
 	else
 	{
 		if (text)
-			Cbuf_InsertText(text+4, level);	//ironically, this will do elseif...
+			Cbuf_InsertText(text+4, level, true);	//ironically, this will do elseif...
 	}
 
 	If_Token_Clear(ts);
@@ -2292,7 +2292,7 @@ void Cmd_Vstr_f( void )
 	}
 
 	v = Cvar_VariableString(Cmd_Argv(1));
-	Cbuf_InsertText(va("%s\n", v), Cmd_ExecLevel);
+	Cbuf_InsertText(v, Cmd_ExecLevel, true);
 }
 
 void Cmd_set_f(void)

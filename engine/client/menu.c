@@ -483,8 +483,8 @@ void M_Keys_Key (int k)
 		}
 		else if (k != '`')
 		{
-			sprintf (cmd, "bind %s \"%s\"\n", Key_KeynumToString (k), bindnames[keys_cursor].command);
-			Cbuf_InsertText (cmd, RESTRICT_LOCAL);
+			sprintf (cmd, "bind %s \"%s\"\n", Key_KeynumToString (k), bindnames[keys_cursor].command, false);
+			Cbuf_InsertText (cmd, RESTRICT_LOCAL, false);
 		}
 
 		bind_grab = false;

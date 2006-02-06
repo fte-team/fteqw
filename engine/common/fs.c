@@ -2540,7 +2540,7 @@ void COM_Gamedir (char *dir)
 							"exec config.cfg\n"
 							"exec fte.cfg\n"
 							"exec frontend.cfg\n"
-							"cl_warncmd 1\n", RESTRICT_LOCAL);
+							"cl_warncmd 1\n", RESTRICT_LOCAL, false);
 		}
 	}
 

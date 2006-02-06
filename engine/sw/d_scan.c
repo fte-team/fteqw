@@ -1532,7 +1532,7 @@ void D_DrawSpans16 (espan_t *pspan)
 
 	} while ((pspan = pspan->pnext) != NULL);
 }
-
+/*
 void D_DrawSpans16From8 (espan_t *pspan)
 {
 	int				count, spancount;
@@ -1662,8 +1662,7 @@ void D_DrawSpans16From8 (espan_t *pspan)
 
 	} while ((pspan = pspan->pnext) != NULL);
 }
-
-
+*/
 
 #if	!id386
 

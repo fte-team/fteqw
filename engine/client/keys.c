@@ -42,6 +42,8 @@ keydest_t	key_dest;
 
 int		key_count;			// incremented every key event
 
+int con_mousedown[3];
+
 char	*keybindings[K_MAX][KEY_MODIFIERSTATES];
 qbyte	bindcmdlevel[K_MAX][KEY_MODIFIERSTATES];
 qboolean	consolekeys[K_MAX];	// if true, can't be rebound while in console
@@ -382,6 +384,122 @@ void Con_ExecuteLine(console_t *con, char *line)
 									// may take some time
 }
 
+void Key_ConsoleDrawSelectionBox(void)
+{
+		extern cvar_t vid_conwidth, vid_conheight;
+		extern int mousecursor_x, mousecursor_y;
+		int xpos, ypos, temp;
+		int xpos2, ypos2;
+		char *buf, *bufhead;
+		int x, y;
+		
+		if (!con_mousedown[2])
+			return;
+
+		xpos2 = con_mousedown[0];
+		ypos2 = con_mousedown[1];
+
+		xpos = (int)((mousecursor_x*vid_conwidth.value)/(vid.width*8));
+		ypos = (int)((mousecursor_y*vid_conheight.value)/(vid.height*8));
+
+		if (xpos2 < 1)
+			xpos2 = 1;
+		if (xpos < 1)
+			xpos = 1;
+		if (xpos2 > con_current->linewidth)
+			xpos2 = con_current->linewidth;
+		if (xpos > con_current->linewidth)
+			xpos = con_current->linewidth;
+		if (xpos2 > xpos)
+		{
+			temp = xpos;
+			xpos = xpos2;
+			xpos2 = temp;
+		}
+		xpos++;
+		if (ypos2 > ypos)
+		{
+			temp = ypos;
+			ypos = ypos2;
+			ypos2 = temp;
+		}
+		ypos++;
+
+	Draw_Fill(xpos2*8, ypos2*8, (xpos - xpos2)*8, (ypos - ypos2)*8, 0);
+}
+
+void Key_ConsoleRelease(int key)
+{
+	if (key == K_MOUSE1 && con_mousedown[2])
+	{
+		extern cvar_t vid_conwidth, vid_conheight;
+		extern int mousecursor_x, mousecursor_y;
+		int xpos, ypos, temp;
+		char *buf, *bufhead;
+		int x, y;
+		xpos = (int)((mousecursor_x*vid_conwidth.value)/(vid.width*8));
+		ypos = (int)((mousecursor_y*vid_conheight.value)/(vid.height*8));
+
+		con_mousedown[2] = false;
+		if (con_mousedown[0] < 1)
+			con_mousedown[0] = 1;
+		if (xpos < 1)
+			xpos = 1;
+		if (con_mousedown[0] > con_current->linewidth)
+			con_mousedown[0] = con_current->linewidth;
+		if (xpos > con_current->linewidth)
+			xpos = con_current->linewidth;
+		if (con_mousedown[0] > xpos)
+		{
+			temp = xpos;
+			xpos = con_mousedown[0];
+			con_mousedown[0] = temp;
+		}
+		xpos++;
+		if (con_mousedown[1] > ypos)
+		{
+			temp = ypos;
+			ypos = con_mousedown[1];
+			con_mousedown[1] = temp;
+		}
+		ypos++;
+
+		ypos += con_current->display-(con_current->vislines/8)+4;
+		con_mousedown[1] += con_current->display-(con_current->vislines/8)+4;
+		if (con_current->display != con_current->current)
+		{
+			ypos++;
+			con_mousedown[1]++;
+		}
+
+		con_mousedown[0]--;
+		xpos--;
+
+		temp = (ypos - con_mousedown[1]) * (xpos - con_mousedown[0] + 2) + 1;
+
+		bufhead = buf = Z_Malloc(temp);
+		for (y = con_mousedown[1]; y < ypos; y++)
+		{
+			if (y != con_mousedown[1])
+			{
+				while(buf > bufhead && buf[-1] == ' ')
+					buf--;
+				*buf++ = '\r';
+				*buf++ = '\n';
+			}
+
+			for (x = con_mousedown[0]; x < xpos; x++)
+				*buf++ = con_current->text[x + ((y%con_current->totallines)*con_current->linewidth)];
+		}
+		while(buf > bufhead && buf[-1] == ' ')
+			buf--;
+		*buf++ = '\0';
+
+		Sys_SaveClipboard(bufhead);
+		Z_Free(bufhead);
+	}
+}
+
 /*
 ====================
 Key_Console
@@ -407,14 +525,16 @@ void Key_Console (int key)
 		return;
 	}
 
-	if ((key == K_MOUSE1 || key == K_MOUSE2) && con_main.next)
+	if ((key == K_MOUSE1 || key == K_MOUSE2))
 	{
 		extern cvar_t vid_conwidth, vid_conheight;
 		extern int mousecursor_x, mousecursor_y;
 		int xpos, ypos;
 		xpos = (int)((mousecursor_x*vid_conwidth.value)/(vid.width*8));
 		ypos = (int)((mousecursor_y*vid_conheight.value)/(vid.height*8));
-		if (ypos == 0)
+		con_mousedown[0] = xpos;
+		con_mousedown[1] = ypos;
+		if (ypos == 0 && con_main.next)
 		{
 			console_t *con;
 			for (con = &con_main; con; con = con->next)
@@ -435,6 +555,8 @@ void Key_Console (int key)
 				}
 			}
 		}
+		else
+			con_mousedown[2] = true;
 		return;
 	}
 	
@@ -1343,6 +1465,9 @@ void Key_Event (int key, qboolean down)
 		{
 		case key_menu:
 			M_Keyup (key);
+			break;
+		case key_console:
+			Key_ConsoleRelease(key);
 			break;
 		default:
 			break;

@@ -187,11 +187,10 @@ sfxcache_t *S_LoadOVSound (sfx_t *s, qbyte *data, int datalen, int sndspeed);
 
 S_LoadSound_t AudioInputPlugins[8] =
 {
-	S_LoadWavSound
-
 #ifdef AVAIL_OGGVORBIS
-	, S_LoadOVSound
+	S_LoadOVSound,
 #endif
+	S_LoadWavSound
 };
 
 qboolean S_RegisterSoundInputPlugin(S_LoadSound_t loadfnc)

@@ -92,15 +92,15 @@ LINK32=link.exe
 # PROP Default_Filter "cpp;c;cxx;rc;def;r;odl;idl;hpj;bat"
 # Begin Source File
 
+SOURCE=.\namemaker.c
+# End Source File
+# Begin Source File
+
 SOURCE=..\plugin.c
 # End Source File
 # Begin Source File
 
 SOURCE=..\qvm_api.c
-# End Source File
-# Begin Source File
-
-SOURCE=.\ui_sbar.c
 # End Source File
 # End Group
 # Begin Group "Header Files"

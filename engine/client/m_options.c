@@ -474,14 +474,13 @@ void M_Menu_FPS_f (void)
 		MC_AddCheckBox(menu, 48, y,			"      Blood stains", &r_bloodstains,0);y+=8;
 		MC_AddCheckBox(menu, 48, y,			"   Load .lit files", &r_loadlits,0);y+=8;
 		MC_AddCheckBox(menu, 48, y,			"     Flashblending", &r_flashblend,0);y+=8;
-		MC_AddCheckBox(menu, 48, y,			"        Detailmaps", &gl_detail,0);y+=8;
+		MC_AddCheckBox(menu, 48, y,			"  Detail Texturing", &gl_detail,0);y+=8;
 		MC_AddCheckBox(menu, 48, y,			"          Bumpmaps", &gl_bump,0);y+=8;
 		MC_AddCheckBox(menu, 48, y,			"   Tex Compression", &gl_compress,0);y+=8;
 		MC_AddCheckBox(menu, 48, y,			"   32 bit textures", &gl_load24bit,0);y+=8;
 		MC_AddCheckBox(menu, 48, y,			"   Dynamic shadows", &r_shadows,0);y+=8;
 		MC_AddCheckBox(menu, 48, y,			"   Realtime Lights", &r_shadow_realtime_world,0);y+=8;
 		MC_AddCheckBox(menu, 48, y,			"         Waterwarp", &r_waterwarp,0);y+=8;
-		MC_AddCheckBox(menu, 48, y,			"   Detail textures", &gl_detail,0);y+=8;
 		MC_AddSlider(menu, 48, y,			"       Motion blur", &gl_motionblur,		0,		0.99);y+=8;
 		break;
 #endif

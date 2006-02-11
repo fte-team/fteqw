@@ -21,6 +21,7 @@ float drawscalex;
 float drawscaley;
 
 unsigned char namebuffer[256];
+int insertpos;
 
 void LoadPics(void)
 {
@@ -55,20 +56,34 @@ void KeyPress(int key, int mx, int my)
 		my -= 16;
 		mx /= (480-16)/16;
 		my /= (480-16)/16;
-		Con_Printf("%i, %i\n", mx, my);
+
+		newchar = (int)mx + (int)my * 16;
 
 		oldlen = strlen(namebuffer);
 		if (oldlen + 1 == sizeof(namebuffer))
 			return;
-
-		newchar = (int)mx + (int)my * 16;
-		namebuffer[oldlen] = newchar;
 		namebuffer[oldlen+1] = 0;
+		for (; oldlen > insertpos; oldlen--)
+			namebuffer[oldlen] = namebuffer[oldlen-1];
+
+		namebuffer[insertpos++] = newchar;
 	}
 	else if (key == K_MOUSE2)
 	{
 		if (namebuffer[0])
-			namebuffer[strlen(namebuffer)-1] = 0;
+			namebuffer[--insertpos] = 0;
+	}
+	else if (key == K_LEFTARROW)
+	{
+		insertpos--;
+		if (insertpos < 0)
+			insertpos = 0;
+	}
+	else if (key == K_RIGHTARROW)
+	{
+		insertpos++;
+		if (insertpos > strlen(namebuffer))
+			insertpos = strlen(namebuffer);
 	}
 }
 
@@ -92,10 +107,8 @@ int Plug_MenuEvent(int *args)
 		for (i = 0; namebuffer[i]; i++)
 			DrawChar(namebuffer[i], i*16, 0);
 
-		if (!pic_cursor)
+		if (Draw_Image((float)args[2]*drawscalex, (float)args[3]*drawscaley, (float)32*drawscalex, (float)32*drawscaley, 0, 0, 1, 1, pic_cursor) <= 0)
 			DrawChar('+', args[2], args[3]);
-		else
-			Draw_Image((float)args[2]*drawscalex, (float)args[3]*drawscaley, (float)32*drawscalex, (float)32*drawscaley, 0, 0, 1, 1, pic_cursor);
 		break;
 	case 1:	//keydown
 		KeyPress(args[1], args[2], args[3]);

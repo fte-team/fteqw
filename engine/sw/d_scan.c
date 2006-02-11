@@ -1532,7 +1532,8 @@ void D_DrawSpans16 (espan_t *pspan)
 
 	} while ((pspan = pspan->pnext) != NULL);
 }
-/*
+
+//used for skyboxes in 16bpp
 void D_DrawSpans16From8 (espan_t *pspan)
 {
 	int				count, spancount;
@@ -1542,7 +1543,7 @@ void D_DrawSpans16From8 (espan_t *pspan)
 	float			sdivz, tdivz, zi, z, du, dv, spancountminus1;
 	float			sdivz8stepu, tdivz8stepu, zi8stepu;
 
-	Con_Printf("spans16from8\n");
+
 	sstep = 0;	// keep compiler happy
 	tstep = 0;	// ditto
 
@@ -1662,7 +1663,6 @@ void D_DrawSpans16From8 (espan_t *pspan)
 
 	} while ((pspan = pspan->pnext) != NULL);
 }
-*/
 
 #if	!id386
 

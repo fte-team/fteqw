@@ -149,20 +149,11 @@ void CLQ2_ClipMoveToEntities ( vec3_t start, vec3_t mins, vec3_t maxs, vec3_t en
 			mins, maxs, MASK_PLAYERSOLID,
 			ent->origin, angles);
 
-		if (trace.allsolid || trace.startsolid ||
-		trace.fraction < tr->fraction)
+		if (trace.allsolid || trace.startsolid || trace.fraction < tr->fraction)
 		{
 			trace.ent = (struct edict_s *)ent;
-		 	if (tr->startsolid)
-			{
-				*tr = trace;
-				tr->startsolid = true;
-			}
-			else
-				*tr = trace;
+			*tr = trace;
 		}
-		else if (trace.startsolid)
-			tr->startsolid = true;
 	}
 }
 

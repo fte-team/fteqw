@@ -5,6 +5,8 @@
 
 #ifdef Q3SERVER
 
+float RadiusFromBounds (vec3_t mins, vec3_t maxs);
+
 
 #define USEBOTLIB
 
@@ -1662,11 +1664,11 @@ void *BL_HunkMalloc(int size)
 
 int BL_FOpenFile(const char *name, fileHandle_t *handle, fsMode_t mode)
 {
-	return VMUI_fopen(name, handle, mode, Z_TAG_BOTLIB);
+	return VMUI_fopen((char*)name, (int*)handle, mode, Z_TAG_BOTLIB);
 }
 int BL_FRead( void *buffer, int len, fileHandle_t f )
 {
-	return VMUI_FRead(buffer, len, f, Z_TAG_BOTLIB);
+	return VMUI_FRead(buffer, len, (int)f, Z_TAG_BOTLIB);
 }
 //int BL_FWrite( const void *buffer, int len, fileHandle_t f )
 //{
@@ -1674,7 +1676,7 @@ int BL_FRead( void *buffer, int len, fileHandle_t f )
 //}	
 int BL_FCloseFile( fileHandle_t f )
 {
-	VMUI_fclose(f, Z_TAG_BOTLIB);
+	VMUI_fclose((int)f, Z_TAG_BOTLIB);
 	return 0;
 }
 //int BL_Seek( fileHandle_t f )

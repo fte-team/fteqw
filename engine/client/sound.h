@@ -188,6 +188,9 @@ extern int		snd_blocked;
 void S_LocalSound (char *s);
 sfxcache_t *S_LoadSound (sfx_t *s);
 
+typedef sfxcache_t *(*S_LoadSound_t) (sfx_t *s, qbyte *data, int datalen, int sndspeed);
+qboolean S_RegisterSoundInputPlugin(S_LoadSound_t loadfnc);	//called to register additional sound input plugins
+
 wavinfo_t GetWavinfo (char *name, qbyte *wav, int wavlength);
 
 void SND_InitScaletable (void);

@@ -108,6 +108,7 @@ void CDAudio_Play(int track, qboolean looping)
 	if (!enabled)
 	{
 #ifndef NOMEDIA
+		void Media_FakeTrack(int i, qboolean loop);
 		Media_FakeTrack(track, looping);
 #endif
 		return;

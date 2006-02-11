@@ -656,8 +656,10 @@ void CL_EstablishConnection (char *host);
 
 void CL_Disconnect (void);
 void CL_Disconnect_f (void);
+void CL_Reconnect_f (void);
 void CL_NextDemo (void);
 qboolean CL_DemoBehind(void);
+void CL_SaveInfo(vfsfile_t *f);
 
 void CL_BeginServerConnect(void);
 void CLNQ_BeginServerConnect(void);
@@ -668,6 +670,8 @@ extern	entity_t		*cl_visedicts, *cl_oldvisedicts;
 extern	entity_t		cl_visedicts_list[2][MAX_VISEDICTS];
 
 extern char emodel_name[], pmodel_name[], prespawn_name[], modellist_name[], soundlist_name[];
+
+qboolean TraceLineN (vec3_t start, vec3_t end, vec3_t impact, vec3_t normal);
 
 //
 // cl_input
@@ -713,8 +717,14 @@ char *Key_KeynumToString (int keynum);
 int Key_StringToKeynum (char *str, int *modifier);
 char *Key_GetBinding(int keynum);
 
+void CL_UseIndepPhysics(qboolean allow);
+
+void CL_FlushClientCommands(void);
 void VARGS CL_SendClientCommand(qboolean reliable, char *format, ...);
+int CL_RemoveClientCommands(char *command);
 void CL_AllowIndependantSendCmd(qboolean allow);
+
+void CL_DrawPrydonCursor(void);
 
 //
 // cl_demo.c
@@ -728,6 +738,7 @@ void CL_Record_f (void);
 void CL_ReRecord_f (void);
 void CL_PlayDemo_f (void);
 void CL_DemoJump_f(void);
+void CL_ProgressDemoTime(void);
 void CL_TimeDemo_f (void);
 
 //
@@ -744,12 +755,14 @@ void CLQ2_ParseServerMessage (void);
 #endif
 void CL_NewTranslation (int slot);
 qboolean	CL_CheckOrEnqueDownloadFile (char *filename, char *localname);
+qboolean CL_EnqueDownload(char *filename, char *localname, qboolean verbose, qboolean ignorefailedlist);
 qboolean CL_IsUploading(void);
 void CL_NextUpload(void);
 void CL_StartUpload (qbyte *data, int size);
 void CL_StopUpload(void);
 
 void CL_RequestNextDownload (void);
+void CL_SendDownloadReq(sizebuf_t *msg);
 
 //
 // view.c
@@ -763,6 +776,11 @@ void V_Register (void);
 void V_ParseDamage (int pnum);
 void V_SetContentsColor (int contents);
 void GLV_CalcBlend (void);
+
+//used directly by csqc
+void V_CalcRefdef (int pnum);
+void CalcGunAngle (int pnum);
+void DropPunchAngle (int pnum);
 
 
 //
@@ -803,6 +821,7 @@ void CL_LinkProjectiles (void);
 //
 #ifdef Q3CLIENT
 void VARGS CLQ3_SendClientCommand(const char *fmt, ...);
+void CLQ3_SendAuthPacket(netadr_t gameserver);
 void CLQ3_SendConnectPacket(netadr_t to);
 void CLQ3_SendCmd(usercmd_t *cmd);
 qboolean CLQ3_Netchan_Process(void);
@@ -821,6 +840,7 @@ char *CG_GetConfigString(int num);
 //
 #ifdef CSQC_DAT
 qboolean CSQC_Init (unsigned int checksum);
+void CSQC_RegisterCvarsAndThings(void);
 qboolean CSQC_DrawView(void);
 void CSQC_Shutdown(void);
 qboolean CSQC_StuffCmd(char *cmd);
@@ -829,6 +849,7 @@ qboolean CSQC_ConsoleCommand(char *cmd);
 qboolean CSQC_KeyPress(int key, qboolean down);
 int CSQC_StartSound(int entnum, int channel, char *soundname, vec3_t pos, float vol, float attenuation);
 void CSQC_ParseEntities(void);
+qboolean CSQC_SettingListener(void);
 #endif
 
 //
@@ -840,6 +861,7 @@ void CL_PredictUsercmd (int pnum, player_state_t *from, player_state_t *to, user
 #ifdef Q2CLIENT
 void CLQ2_CheckPredictionError (void);
 #endif
+void CL_CalcClientTime(void);
 
 //
 // cl_cam.c
@@ -856,7 +878,10 @@ void Cam_Track(int pnum, usercmd_t *cmd);
 int Cam_TrackNum(int pnum);
 void Cam_FinishMove(int pnum, usercmd_t *cmd);
 void Cam_Reset(void);
+void Cam_Lock(int pnum, int playernum);
 void CL_InitCam(void);
+
+void vectoangles(vec3_t vec, vec3_t ang);
 
 //
 //zqtp.c
@@ -881,6 +906,15 @@ qboolean TP_FilterMessage (char *s);
 qboolean TP_CheckSoundTrigger (char *str);
 void TP_SearchForMsgTriggers (char *s, int level);
 
+void TP_ExecTrigger (char *s);
+qboolean TP_SuppressMessage(char *buf);
+
+void TP_Init(void);
+void TP_CheckVars(void);
+void TP_CheckPickupSound(char *s, vec3_t org);
+void TP_ParsePlayerInfo(player_state_t *oldstate, player_state_t *state, player_info_t *info);
+void CL_Say (qboolean team, char *extra);
+
 //
 // skin.c
 //
@@ -901,6 +935,7 @@ typedef struct
     char	filler[58];
 //    unsigned char	data;			// unbounded
 } pcx_t;
+qbyte *ReadPCXData(qbyte *buf, int length, int width, int height, qbyte *result);
 
 
 char *Skin_FindName (player_info_t *sc);
@@ -988,9 +1023,6 @@ qboolean CIN_RunCinematic (void);
 
 void MVD_Interpolate(void);
 
-void TP_Init(void);
-void TP_CheckVars(void);
-void TP_CheckPickupSound(char *s, vec3_t org);
-
 void Stats_NewMap(void);
 void Stats_ParsePrintLine(char *line);
+

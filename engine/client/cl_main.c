@@ -24,6 +24,8 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 #include "winquake.h"
 #include <sys/types.h>
 #include "netinc.h"
+#include "cl_master.h"
+#include "cl_ignore.h"
 
 #if defined(_WIN32) && !defined(MINGW) && defined(RGLQUAKE)
 #define WINAVI

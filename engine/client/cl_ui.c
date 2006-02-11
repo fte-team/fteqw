@@ -2,6 +2,7 @@
 #ifdef VM_UI
 #include "ui_public.h"
 #include "cl_master.h"
+#include "shader.h"
 
 int keycatcher;
 
@@ -320,24 +321,24 @@ void VMUI_fclose (int fnum, int owner)
 	vmui_fopen_files[fnum].data = NULL;
 }
 
-void VMUI_FRead (char *dest, int quantity, int fnum, int owner)
+int VMUI_FRead (char *dest, int quantity, int fnum, int owner)
 {
 	fnum--;
 	if (fnum < 0 || fnum >= MAX_VMUI_FILES)
-		return;	//out of range
+		return 0;	//out of range
 
 	if (vmui_fopen_files[fnum].owner != owner)
-		return;	//cgs?
+		return 0;	//cgs?
 
 	if (!vmui_fopen_files[fnum].data)
-		return;	//not open
+		return 0;	//not open
 
 	if (quantity > vmui_fopen_files[fnum].len - vmui_fopen_files[fnum].ofs)
 		quantity = vmui_fopen_files[fnum].len - vmui_fopen_files[fnum].ofs;
 	memcpy(dest, vmui_fopen_files[fnum].data + vmui_fopen_files[fnum].ofs, quantity);
 	vmui_fopen_files[fnum].ofs += quantity;
 
-	
+	return quantity;
 }
 /*
 void VMUI_fputs (progfuncs_t *prinst, struct globalvars_s *pr_globals)
@@ -880,7 +881,7 @@ long UI_SystemCallsEx(void *offset, unsigned int mask, int fn, const long *arg)
 		if ((int)arg[0] + VM_LONG(arg[1]) >= mask || VM_POINTER(arg[0]) < offset)
 			break;	//out of bounds.
 
-		VMUI_FRead(VM_POINTER(arg[0]), VM_LONG(arg[1]), VM_LONG(arg[2]), 0);
+		VM_LONG(ret) = VMUI_FRead(VM_POINTER(arg[0]), VM_LONG(arg[1]), VM_LONG(arg[2]), 0);
 		break;
 	case UI_FS_WRITE:	//fwrite
 		break;

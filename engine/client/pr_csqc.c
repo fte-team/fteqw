@@ -4,6 +4,7 @@
 
 #ifdef RGLQUAKE
 #include "glquake.h"	//evil to include this
+#include "shader.h"
 #endif
 
 #include "pr_common.h"
@@ -732,7 +733,10 @@ static qboolean CopyCSQCEdictToEntity(csqcedict_t *in, entity_t *out)
 	out->skinnum = in->v->skin;
 	out->fatness = in->v->fatness;
 #ifdef Q3SHADERS
-	out->forcedshader = *(struct shader_s**)&in->v->forceshader;
+	if (in->v->forceshader > 0)
+		out->forcedshader = r_shaders + ((int)in->v->forceshader-1);
+	else
+		out->forcedshader = NULL;
 #endif
 
 	out->keynum = -1;
@@ -2688,7 +2692,12 @@ static void PF_shaderforname (progfuncs_t *prinst, struct globalvars_s *pr_globa
 {
 	char *str = PF_VarString(prinst, 0, pr_globals);
 #ifdef Q3SHADERS
-	G_INT(OFS_RETURN) = R_RegisterSkin(str);
+	shader_t *shad;
+	shad = R_RegisterSkin(str);
+	if (shad)
+		G_INT(OFS_RETURN) = shad-r_shaders + 1;
+	else
+		G_INT(OFS_RETURN) = 0;
 #else
 	G_INT(OFS_RETURN) = 0;
 #endif

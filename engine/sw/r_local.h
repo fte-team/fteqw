@@ -310,8 +310,14 @@ void SWR_SetupFrame (void);
 void R_InitSkyBox (void);
 void R_InitSkyBox (void);
 void SWR_BuildLightmaps(void);
+void R_WipeDecals(void);
 void SWR_NetGraph (void);
 
 qbyte *SWMod_LeafPVS (model_t *model, mleaf_t *leaf, qbyte *buffer);
+
+void D_DrawSparkTrans (particle_t *pparticle, vec3_t src, vec3_t dest, int blendmode);
+
+
+void D_Shutdown (void);
 
 #endif //def SWQUAKE

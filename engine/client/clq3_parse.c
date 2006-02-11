@@ -1,4 +1,5 @@
 #include "quakedef.h"
+#include "shader.h"
 
 //urm, yeah, this is more than just parse.
 

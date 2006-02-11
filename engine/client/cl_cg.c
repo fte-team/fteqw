@@ -15,10 +15,6 @@ typedef float m3by3_t[3][3];
 #include "clq3defs.h"
 
 //cl_ui.c
-int VMUI_fopen (char *name, int *handle, int fmode, int owner);
-void VMUI_FRead (char *dest, int quantity, int fnum, int owner);	//consistancy is in the eye of the beholder.. :)
-void VMUI_fclose (int fnum, int owner);
-void VMUI_fcloseall (int owner);
 typedef struct q3refEntity_s q3refEntity_t;
 void VQ3_AddEntity(const q3refEntity_t *q3);
 typedef struct q3refdef_s q3refdef_t;
@@ -552,7 +548,7 @@ static long CG_SystemCallsEx(void *offset, unsigned int mask, int fn, const long
 
 	case CG_FS_READ:	//fread
 		VALIDATEPOINTER(arg[1], 4);
-		VMUI_FRead(VM_POINTER(arg[0]), VM_LONG(arg[1]), VM_LONG(arg[2]), 1);
+		VM_LONG(ret) = VMUI_FRead(VM_POINTER(arg[0]), VM_LONG(arg[1]), VM_LONG(arg[2]), 1);
 		break;
 	case CG_FS_WRITE:	//fwrite
 		break;

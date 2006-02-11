@@ -163,4 +163,7 @@ extern qbyte FASTCALL Trans(qbyte p, qbyte p2);
 extern qbyte FASTCALL AddBlend(qbyte p, qbyte p2);
 
 extern qbyte *pal555to8;
+
+
+void D_ShutdownTrans(void);
 #endif

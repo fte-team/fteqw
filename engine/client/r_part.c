@@ -84,7 +84,6 @@ static double cost[7] = {1.000000, 0.623490, -0.222521, -0.900969, -0.900969, -0
 #define crand() (rand()%32767/16383.5f-1)
 
 void D_DrawParticleTrans (particle_t *pparticle, int blendmode);
-void D_DrawSparkTrans (particle_t *pparticle, vec3_t src, vec3_t dest, int blendmode);
 
 void P_ReadPointFile_f (void);
 void P_ExportBuiltinSet_f(void);

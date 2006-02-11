@@ -273,6 +273,8 @@ void M_HideMenu (menu_t *menu);
 void M_RemoveMenu (menu_t *menu);
 void M_RemoveAllMenus (void);
 
+void DrawCursor(void);
+
 void M_Complex_Key(int key);
 void M_Complex_Draw(void);
 void M_Script_Init(void);
@@ -359,6 +361,7 @@ void MP_Shutdown (void);
 void MP_Init (void);
 qboolean MP_Toggle(void);
 void MP_Draw(void);
+void MP_RegisterCvarsAndCmds(void);
 void MP_Keydown(int key);
 void MP_Keyup(int key);
 

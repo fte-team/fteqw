@@ -42,6 +42,10 @@ void Plug_Init(void);
 void Plug_SBar(void);
 void Plug_DrawReloadImages(void);
 int Plug_ConnectionlessClientPacket(char *buffer, int size);
+
+qboolean Plug_ChatMessage(char *buffer, int talkernum, int tpflags);
+qboolean Plug_ServerMessage(char *buffer, int messagelevel);
+qboolean Plug_CenterPrintMessage(char *buffer, int clientnum);
 #endif
 
 
@@ -63,6 +67,19 @@ qboolean UI_DrawStatusBar(int scores);
 qboolean UI_DrawIntermission(void);
 qboolean UI_DrawFinale(void);
 int UI_MenuState(void);
+
+
+int VMUI_fopen (char *name, int *handle, int fmode, int owner);
+int VMUI_FRead (char *dest, int quantity, int fnum, int owner);
+void VMUI_fclose (int fnum, int owner);
+void VMUI_fcloseall (int owner);
+int VMQ3_GetFileList(char *path, char *ext, char *output, int buffersize);
+
+//sans botlib
+int Script_LoadFile(char *filename);
+void Script_Free(int handle);
+int Script_Read(int handle, struct pc_token_s *token);
+void Script_Get_File_And_Line(int handle, char *filename, int *line);
 #endif
 
 #ifdef VM_CG

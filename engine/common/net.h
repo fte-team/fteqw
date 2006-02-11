@@ -64,6 +64,8 @@ extern	qbyte		net_message_buffer[MAX_UDP_PACKET];
 
 extern	cvar_t	hostname;
 
+int TCP_OpenStream (netadr_t remoteaddr);	//makes things easier
+
 void		NET_Init (void);
 void		NET_InitClient (void);
 void		NET_InitServer (void);
@@ -165,6 +167,8 @@ qboolean NQNetChan_Process(netchan_t *chan);
 
 #ifdef HUFFNETWORK
 int Huff_PreferedCompressionCRC (void);
+void Huff_EncryptPacket(sizebuf_t *msg, int offset);
+void Huff_DecryptPacket(sizebuf_t *msg, int offset);
 qboolean Huff_CompressionCRC(int crc);
 void Huff_CompressPacket(sizebuf_t *msg, int offset);
 void Huff_DecompressPacket(sizebuf_t *msg, int offset);

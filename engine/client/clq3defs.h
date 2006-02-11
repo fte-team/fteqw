@@ -311,6 +311,7 @@ typedef struct {
   float glyphScale;
   char name[MAX_QPATH];
 } fontInfo_t;
+void UI_RegisterFont(char *fontName, int pointSize, fontInfo_t *font);
 
 
 void Netchan_TransmitNextFragment( netchan_t *chan );
@@ -318,7 +319,12 @@ void Netchan_TransmitQ3( netchan_t *chan, int length, const qbyte *data );
 qboolean Netchan_ProcessQ3 (netchan_t *chan);
 
 qboolean MSG_Q3_ReadDeltaEntity( const q3entityState_t *from, q3entityState_t *to, int number );
+void MSGQ3_WriteDeltaEntity(sizebuf_t *msg, const q3entityState_t *from, const q3entityState_t *to, qboolean force);
 void MSG_Q3_ReadDeltaPlayerstate( const q3playerState_t *from, q3playerState_t *to );
+void MSGQ3_WriteDeltaPlayerstate(sizebuf_t *msg, const q3playerState_t *from, const q3playerState_t *to);
+
+void MSG_Q3_ReadDeltaUsercmd(int key, const usercmd_t *from, usercmd_t *to);
 
 
+void MSG_WriteBits(sizebuf_t *msg, int value, int bits);
 #endif

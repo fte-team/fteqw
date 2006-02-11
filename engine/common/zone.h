@@ -86,6 +86,7 @@ Zone block
 void Memory_Init (void *buf, int size);
 
 void VARGS Z_Free (void *ptr);
+int Z_MemSize(void *c);
 void *Z_Malloc (int size);			// returns 0 filled memory
 void *Z_MallocNamed (int size, char *, int);			// returns 0 filled memory
 //#define Z_Malloc(x) Z_MallocNamed2(x, __FILE__, __LINE__ )

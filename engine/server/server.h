@@ -1038,6 +1038,7 @@ void SV_GibFilterInit(void);
 void SV_CleanupEnts(void);
 
 void SV_CSQC_DroppedPacket(client_t *client, int sequence);
+void SV_CSQC_DropAll(client_t *client);
 
 //
 // sv_nchan.c

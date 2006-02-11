@@ -169,8 +169,10 @@ typedef struct progexterns_s {
 	int (*useeditor) (progfuncs_t *prinst, char *filename, int line, int nump, char **parms);	//called on syntax errors or step-by-step debugging.
 } progparms_t, progexterns_t;
 
+//FIXMEs
 void QC_AddSharedVar(progfuncs_t *progfuncs, int start, int size);
 void QC_AddSharedFieldVar(progfuncs_t *progfuncs, int num, char *relstringtable);
+void ED_Print (progfuncs_t *progfuncs, struct edict_s *ed);
 
 #if defined(QCLIBDLL_EXPORTS)
 __declspec(dllexport)

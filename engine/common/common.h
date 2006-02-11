@@ -325,9 +325,14 @@ char *VFS_GETS(vfsfile_t *vf, char *buffer, int buflen);
 void FS_FlushFSHash(void);
 void FS_CreatePath(char *pname, int relativeto);
 int FS_Rename(char *oldf, char *newf, int relativeto);	//0 on success, non-0 on error
+int FS_Rename2(char *oldf, char *newf, int oldrelativeto, int newrelativeto);
 int FS_Remove(char *fname, int relativeto);	//0 on success, non-0 on error
+qboolean FS_WriteFile (char *filename, void *data, int len, int relativeto);
 vfsfile_t *FS_OpenVFS(char *filename, char *mode, int relativeto);
 vfsfile_t *FS_OpenTemp(void);
+void FS_UnloadPackFiles(void);
+void FS_ReloadPackFiles(void);
+char *FS_GenerateClientPacksList(char *buffer, int maxlen, int basechecksum);
 enum {
 	FS_GAME,
 	FS_BASE,

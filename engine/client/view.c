@@ -1317,7 +1317,10 @@ void R_DrawNameTags(void)
 
 #ifdef RGLQUAKE
 	if (qrenderer == QR_OPENGL)
+	{
+		void GL_Set2D (void);
 		GL_Set2D();
+	}
 #endif
 
 	frame = &cl.frames[cl.parsecount&UPDATE_MASK];

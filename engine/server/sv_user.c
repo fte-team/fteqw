@@ -1261,7 +1261,7 @@ void SV_Begin_f (void)
 			sendangles = true;
 			split->istobeloaded = false;
 
-			f = PR_FindFunc(svprogfuncs, "RestoreGame", PR_ANY);
+			f = PR_FindFunction(svprogfuncs, "RestoreGame", PR_ANY);
 			if (f)
 			{
 				pr_global_struct->time = sv.time;

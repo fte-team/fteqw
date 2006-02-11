@@ -222,6 +222,7 @@ extern	const char *gl_extensions;
 #ifdef Q3SHADERS
 void R_UnlockArrays (void);
 void R_IBrokeTheArrays(void);
+void R_ClearArrays (void);
 #endif
 
 #if defined(RGLQUAKE)
@@ -282,6 +283,8 @@ void EmitSkyPolys (msurface_t *fa);
 void R_DrawSkyChain (msurface_t *s);
 
 void R_ClearSkyBox (void);
+void R_DrawSkyBox (msurface_t *s);
+void R_ForceSkyBox (void);
 void R_AddSkySurface (msurface_t *fa);
 
 //
@@ -363,6 +366,7 @@ typedef struct {
 
 //gl_ppl.c
 void PPL_DrawWorld (void);
+qboolean PPL_ShouldDraw(void);
 void RotateLightVector(vec3_t *angles, vec3_t origin, vec3_t lightpoint, vec3_t result);
 
 #endif

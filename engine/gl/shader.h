@@ -226,6 +226,8 @@ typedef struct shader_s {
 	int registration_sequence;
 } shader_t;
 
+extern shader_t	r_shaders[];
+
 
 
 

@@ -453,7 +453,7 @@ int VARGS Plug_ExportNative(void *offset, unsigned int mask, const long *arg)
 #ifndef SERVERONLY
 	else if (!strcmp(name, "S_LoadSound"))	//a hook for loading extra types of sound (wav, mp3, ogg, midi, whatever you choose to support)
 	{
-		S_RegisterSoundInputPlugin(func);
+		S_RegisterSoundInputPlugin((void*)func);
 		currentplug->blockcloses++;
 	}
 #endif

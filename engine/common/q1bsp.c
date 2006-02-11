@@ -768,9 +768,9 @@ int Q1BSP_ClipDecal(vec3_t center, vec3_t normal, vec3_t tangent1, vec3_t tangen
 }
 
 //This is spike's testing function, and is only usable by gl. :)
+/*
 void Q1BSP_TestClipDecal(void)
 {
-	/*
 	int i;
 	int numtris;
 	vec3_t fwd;
@@ -838,8 +838,8 @@ void Q1BSP_TestClipDecal(void)
 	qglEnd();
 	qglEnable(GL_TEXTURE_2D);
 	qglEnable(GL_DEPTH_TEST);
-	*/
 }
+*/
 
 #endif
 /*

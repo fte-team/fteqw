@@ -76,7 +76,7 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 #pragma warning(3:4674)     // dtor of thrown object is inaccessible
 #pragma warning(3:4705)     // statement has no effect (example: a+1;)
 
-#pragma warning(4:4013)     // function undefined, assuming extern returning int
+#pragma warning(3:4013)     // function undefined, assuming extern returning int
 
 
 #pragma warning( 4 : 4267)	//truncation from const double to float

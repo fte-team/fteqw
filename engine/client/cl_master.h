@@ -132,6 +132,7 @@ extern serverinfo_t *firstserver;
 extern master_t *master;
 extern player_t *mplayers;
 
+void Master_SetupSockets(void);
 void CL_QueryServers(void);
 int NET_CheckPollSockets(void);
 void MasterInfo_Request(master_t *mast, qboolean evenifwedonthavethefiles);

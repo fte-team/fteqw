@@ -23,6 +23,7 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 
 #ifdef RGLQUAKE
 #include "glquake.h"
+#include "renderque.h"
 
 #ifdef Q3SHADERS
 #include "shader.h"

@@ -148,8 +148,6 @@ void ResampleSfx (sfx_t *sfx, int inrate, int inwidth, qbyte *data)
 
 //=============================================================================
 
-typedef sfxcache_t *(*S_LoadSound_t) (sfx_t *s, qbyte *data, int datalen, int sndspeed);
-
 sfxcache_t *S_LoadWavSound (sfx_t *s, qbyte *data, int datalen, int sndspeed)
 {
 	wavinfo_t	info;

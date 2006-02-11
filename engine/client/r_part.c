@@ -174,7 +174,7 @@ typedef struct {
 			break;												\
 		}
 
-
+// TODO: merge in alpha with rgb to gain benefit of vector opts
 typedef struct part_type_s {
 	char name[MAX_QPATH];
 	char texname[MAX_QPATH];
@@ -415,6 +415,7 @@ void P_ParticleEffect_f(void)
 	beamseg_t *beamsegs;
 	skytris_t *st;
 	qboolean settype = false;
+	qboolean setalphadelta = false;
 
 	part_type_t *ptype;
 	int pnum, assoc;
@@ -523,7 +524,14 @@ void P_ParticleEffect_f(void)
 			else
 				ptype->rotationrand = 0;
 		}
-
+		else if (!strcmp(var, "beamtexstep"))
+		{
+			ptype->rotationstartmin = 1/atof(value);
+		}
+		else if (!strcmp(var, "beamtexspeed"))
+		{
+			ptype->rotationmin = atof(value);
+		}
 		else if (!strcmp(var, "scale"))
 		{
 			ptype->scale = atof(value);
@@ -555,7 +563,15 @@ void P_ParticleEffect_f(void)
 		else if (!strcmp(var, "alpha"))
 			ptype->alpha = atof(value);
 		else if (!strcmp(var, "alphachange"))
+		{
+			Con_DPrintf("alphachange is deprechiated, use alphadelta\n");
 			ptype->alphachange = atof(value);
+		}
+		else if (!strcmp(var, "alphadelta"))
+		{
+			ptype->alphachange = atof(value);
+			setalphadelta = true;
+		}
 		else if (!strcmp(var, "die"))
 			ptype->die = atof(value);
 		else if (!strcmp(var, "diesubrand"))
@@ -957,6 +973,10 @@ void P_ParticleEffect_f(void)
 				ptype->type = PT_SPARKFAN;
 		}
 	}
+
+	// use old behavior if not using alphadelta
+	if (!setalphadelta)
+		ptype->alphachange = (-ptype->alphachange / ptype->die) * ptype->alpha;
 
 	if (ptype->rampmode && !ptype->ramp)
 	{
@@ -2039,7 +2059,7 @@ int P_RunParticleEffectState (vec3_t org, vec3_t dir, float count, int typenum, 
 			d->die = ptype->randdie*frandom();
 
 			if (ptype->die)
-				d->alpha = ptype->alpha-d->die*(ptype->alpha/ptype->die)*ptype->alphachange;
+				d->alpha = ptype->alpha+d->die*ptype->alphachange;
 			else
 				d->alpha = ptype->alpha;
 
@@ -2180,7 +2200,7 @@ int P_RunParticleEffectState (vec3_t org, vec3_t dir, float count, int typenum, 
 			p->die = ptype->randdie*frandom();
 			p->scale = ptype->scale+ptype->randscale*frandom();
 			if (ptype->die)
-				p->alpha = ptype->alpha-p->die*(ptype->alpha/ptype->die)*ptype->alphachange;
+				p->alpha = ptype->alpha+p->die*ptype->alphachange;
 			else
 				p->alpha = ptype->alpha;
 			// p->color = 0;
@@ -2880,7 +2900,7 @@ static void P_ParticleTrailDraw (vec3_t startpos, vec3_t end, part_type_t *ptype
 		p->die = ptype->randdie*frandom();
 		p->scale = ptype->scale+ptype->randscale*frandom();
 		if (ptype->die)
-			p->alpha = ptype->alpha-p->die*(ptype->alpha/ptype->die)*ptype->alphachange;
+			p->alpha = ptype->alpha+p->die*ptype->alphachange;
 		else
 			p->alpha = ptype->alpha;
 //		p->color = 0;
@@ -3562,7 +3582,7 @@ void GL_DrawParticleBeam_Textured(beamseg_t *b, part_type_t *type)
 	VectorSubtract(r_refdef.vieworg, q->org, v);
 	VectorNormalize(v);
 	CrossProduct(c->dir, v, cr);
-	ts = (c->texture_s*type->rotationstartmin + particletime*type->rotationmin)/754;
+	ts = c->texture_s*type->rotationstartmin + particletime*type->rotationmin;
 
 	VectorMA(q->org, -q->scale, cr, point);
 	qglTexCoord2f(ts, 0);
@@ -3579,7 +3599,7 @@ void GL_DrawParticleBeam_Textured(beamseg_t *b, part_type_t *type)
 	VectorSubtract(r_refdef.vieworg, p->org, v);
 	VectorNormalize(v);
 	CrossProduct(b->dir, v, cr); // replace with old p->dir?
-	ts = (b->texture_s*type->rotationstartmin + particletime*type->rotationmin)/754;
+	ts = b->texture_s*type->rotationstartmin + particletime*type->rotationmin;
 
 	VectorMA(p->org, p->scale, cr, point);
 	qglTexCoord2f(ts, 1);
@@ -3933,7 +3953,7 @@ void DrawParticleTypes (void texturedparticles(particle_t *,part_type_t*), void 
 						d->rgb[1] += pframetime*type->rgbchange[1];
 						d->rgb[2] += pframetime*type->rgbchange[2];
 					}
-					d->alpha -= pframetime*(type->alpha/type->die)*type->alphachange;
+					d->alpha += pframetime*type->alphachange;
 				}
 
 				drawdecalparticles(d, type);
@@ -4198,7 +4218,7 @@ void DrawParticleTypes (void texturedparticles(particle_t *,part_type_t*), void 
 					p->rgb[1] += pframetime*type->rgbchange[1];
 					p->rgb[2] += pframetime*type->rgbchange[2];
 				}
-				p->alpha -= pframetime*(type->alpha/type->die)*type->alphachange;
+				p->alpha += pframetime*type->alphachange;
 				p->scale += pframetime*type->scaledelta;
 			}
 

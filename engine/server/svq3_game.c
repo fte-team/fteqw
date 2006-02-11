@@ -1830,7 +1830,7 @@ qboolean SVQ3_InitGame(void)
 	char sysinfo[8192];
 	extern cvar_t progs;
 
-	if (sv.worldmodel->fromgame == fg_quake)
+	if (sv.worldmodel->fromgame == fg_quake || sv.worldmodel->fromgame == fg_quake2)
 		return false;	//always fail on q1bsp
 
 	if (*progs.string)	//don't load q3 gamecode if we're explicitally told to load a progs.

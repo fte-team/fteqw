@@ -61,7 +61,7 @@ sv_masterlist_t sv_masterlist[] = {
 	{true, SCVAR("sv_masterextra1", "ghdigital.com")}, //69.59.212.88
 	{true, SCVAR("sv_masterextra2", "dpmaster.deathmask.net")}, //209.164.24.243
 	{true, SCVAR("sv_masterextra3", "12.166.196.192")}, //blaze.mindphukd.org (doesn't resolve currently but works as an ip)
-	{false, {NULL}}
+	{false, SCVAR(NULL, NULL)}
 };
 
 client_t	*host_client;			// current client

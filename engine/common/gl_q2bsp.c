@@ -4516,7 +4516,6 @@ void CM_TestBoxInBrush (vec3_t mins, vec3_t maxs, vec3_t p1,
 	vec3_t		ofs;
 	float		d1;
 	q2cbrushside_t	*side;
-	qboolean issky = false;
 
 	if (!brush->numsides)
 		return;
@@ -4545,25 +4544,15 @@ void CM_TestBoxInBrush (vec3_t mins, vec3_t maxs, vec3_t p1,
 
 		d1 = DotProduct (p1, plane->normal) - dist;
 
-		if (side->surface->c.flags & 4)
-		{
-			issky = true;
-			d1 -= DIST_EPSILON*2;
-		}
-
 		// if completely in front of face, no intersection
 		if (d1 > 0)
 			return;
-
 	}
 
 	// inside this brush
 	trace->startsolid = trace->allsolid = true;
 	trace->fraction = 0;
-	if (issky)
-		trace->contents |= FTECONTENTS_SKY;
-	else
-		trace->contents |= brush->contents;
+	trace->contents |= brush->contents;
 }
 
 void CM_TestBoxInPatch (vec3_t mins, vec3_t maxs, vec3_t p1,
@@ -5358,7 +5347,8 @@ void	VARGS CMQ2_SetAreaPortalState (int portalnum, qboolean open)
 void	CMQ3_SetAreaPortalState (int area1, int area2, qboolean open)
 {
 	if (!mapisq3)
-		Host_Error ("CMQ3_SetAreaPortalState on non-q3 map");
+		return;
+//		Host_Error ("CMQ3_SetAreaPortalState on non-q3 map");
 
 	if (area1 > numareas || area2 > numareas)
 		Host_Error ("CMQ3_SetAreaPortalState: area > numareas");

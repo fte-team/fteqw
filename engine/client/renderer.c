@@ -239,7 +239,7 @@ cvar_t r_menutint = SCVAR("r_menutint", "0.68 0.4 0.13");
 
 #if defined(RGLQUAKE)
 cvar_t gl_schematics = SCVAR("gl_schematics","0");
-cvar_t	gl_ztrick = SCVAR("gl_ztrick","1");
+cvar_t	gl_ztrick = SCVAR("gl_ztrick","0");
 cvar_t	gl_lerpimages = SCVAR("gl_lerpimages", "1");
 extern cvar_t r_waterlayers;
 cvar_t			gl_triplebuffer = SCVARF("gl_triplebuffer", "1", CVAR_ARCHIVE);

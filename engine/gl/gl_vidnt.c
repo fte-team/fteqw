@@ -203,6 +203,8 @@ BOOL  (WINAPI *qSwapBuffers)(HDC);
 
 BOOL (WINAPI *qwglSwapIntervalEXT) (int);
 
+BOOL (APIENTRY *qGetDeviceGammaRamp)(HDC hDC, GLvoid *ramp);
+BOOL (APIENTRY *qSetDeviceGammaRamp)(HDC hDC, GLvoid *ramp);
 
 qboolean GLInitialise (char *renderer)
 {
@@ -257,6 +259,12 @@ qboolean GLInitialise (char *renderer)
 	qwglGetProcAddress		= (void *)getwglfunc("wglGetProcAddress");
 	qwglMakeCurrent			= (void *)getwglfunc("wglMakeCurrent");
 	qSwapBuffers			= SwapBuffers;
+
+	qGetDeviceGammaRamp			= (void *)getglfunc("wglGetDeviceGammaRamp3DFX");
+	qSetDeviceGammaRamp			= (void *)getglfunc("wglSetDeviceGammaRamp3DFX");
+
+	if (!qGetDeviceGammaRamp) qGetDeviceGammaRamp = (void*)GetDeviceGammaRamp;
+	if (!qSetDeviceGammaRamp) qSetDeviceGammaRamp = (void*)SetDeviceGammaRamp;
 
 	TRACE(("dbg: GLInitialise: got wgl funcs\n"));
 
@@ -631,16 +639,6 @@ int GLVID_SetMode (rendererstate_t *info, unsigned char *palette)
 
 	vid.recalc_refdef = 1;
 
-	maindc = GetDC(mainwindow);
-	if (vid_desktopgamma.value)
-	{
-		HDC hDC = GetDC(GetDesktopWindow());
-		gammaworks = GetDeviceGammaRamp(hDC, originalgammaramps);
-		ReleaseDC(GetDesktopWindow(), hDC);
-	}
-	else
-		gammaworks = GetDeviceGammaRamp(maindc, originalgammaramps);
-
 	TRACE(("dbg: GLVID_SetMode: attaching gl\n"));
 	if (!VID_AttachGL(info))
 	{
@@ -648,6 +646,17 @@ int GLVID_SetMode (rendererstate_t *info, unsigned char *palette)
 		return false;
 	}
 TRACE(("dbg: GLVID_SetMode: attaching gl okay\n"));
+
+	maindc = GetDC(mainwindow);
+	if (vid_desktopgamma.value)
+	{
+		HDC hDC = GetDC(GetDesktopWindow());
+		gammaworks = qGetDeviceGammaRamp(hDC, originalgammaramps);
+		ReleaseDC(GetDesktopWindow(), hDC);
+	}
+	else
+		gammaworks = qGetDeviceGammaRamp(maindc, originalgammaramps);
+
 	return true;
 }
 
@@ -948,11 +957,13 @@ void	GLVID_ShiftPalette (unsigned char *palette)
 			if (vid_desktopgamma.value)
 			{
 				HDC hDC = GetDC(GetDesktopWindow());
-				gammaworks = SetDeviceGammaRamp (hDC, ramps);
+				gammaworks = qSetDeviceGammaRamp (hDC, ramps);
 				ReleaseDC(GetDesktopWindow(), hDC);
 			}
 			else
-				gammaworks = SetDeviceGammaRamp (maindc, ramps);
+			{
+				gammaworks = qSetDeviceGammaRamp (maindc, ramps);
+			}
 			return;
 		}
 	}
@@ -967,14 +978,21 @@ void VID_SetDefaultMode (void)
 
 void	GLVID_Shutdown (void)
 {
-	if (vid_desktopgamma.value)
+	if (qSetDeviceGammaRamp)
 	{
-		HDC hDC = GetDC(GetDesktopWindow());
-		SetDeviceGammaRamp(hDC, originalgammaramps);
-		ReleaseDC(GetDesktopWindow(), hDC);
+		if (vid_desktopgamma.value)
+		{
+			HDC hDC = GetDC(GetDesktopWindow());
+			qSetDeviceGammaRamp(hDC, originalgammaramps);
+			ReleaseDC(GetDesktopWindow(), hDC);
+		}
+		else
+		{
+			qSetDeviceGammaRamp(maindc, originalgammaramps);
+		}
 	}
-	else
-		SetDeviceGammaRamp(maindc, originalgammaramps);
+	qSetDeviceGammaRamp = NULL;
+	qGetDeviceGammaRamp = NULL;
 
 	gammaworks = false;
 
@@ -1143,14 +1161,19 @@ qboolean GLAppActivate(BOOL fActive, BOOL minimize)
 
 		v_gamma.modified = true;	//wham bam thanks.
 
-		if (vid_desktopgamma.value)
+		if (qSetDeviceGammaRamp)
 		{
-			HDC hDC = GetDC(GetDesktopWindow());
-			gammaworks = SetDeviceGammaRamp (hDC, originalgammaramps);
-			ReleaseDC(GetDesktopWindow(), hDC);
+			if (vid_desktopgamma.value)
+			{
+				HDC hDC = GetDC(GetDesktopWindow());
+				gammaworks = qSetDeviceGammaRamp (hDC, originalgammaramps);
+				ReleaseDC(GetDesktopWindow(), hDC);
+			}
+			else
+			{
+				gammaworks = qSetDeviceGammaRamp(maindc, originalgammaramps);
+			}
 		}
-		else
-			gammaworks = SetDeviceGammaRamp(maindc, originalgammaramps);
 	}
 
 	vid_hardwaregamma.modified = true;

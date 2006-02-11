@@ -16,10 +16,10 @@ F11 will step through.
 
 #include "quakedef.h"
 #ifdef TEXTEDITOR
-cvar_t alloweditor = {"alloweditor", "1"};	//disallow loading editor for stepbystep debugging.
-cvar_t editstripcr = {"edit_stripcr", "1"};	//remove \r from eols (on load).
-cvar_t editaddcr = {"edit_addcr", "1"};		//make sure that each line ends with a \r (on save).
-cvar_t edittabspacing = {"edit_tabsize", "4"};
+cvar_t alloweditor = SCVAR("alloweditor", "1");	//disallow loading editor for stepbystep debugging.
+cvar_t editstripcr = SCVAR("edit_stripcr", "1");	//remove \r from eols (on load).
+cvar_t editaddcr = SCVAR("edit_addcr", "1");		//make sure that each line ends with a \r (on save).
+cvar_t edittabspacing = SCVAR("edit_tabsize", "4");
 
 #undef pr_trace
 

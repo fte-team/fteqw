@@ -310,6 +310,7 @@ typedef struct vfsfile_s {
 	unsigned long (*GetLen) (struct vfsfile_s *file);	//could give some lag
 	void (*Close) (struct vfsfile_s *file);
 	void (*Flush) (struct vfsfile_s *file);
+	qboolean seekingisabadplan;
 } vfsfile_t;
 
 #define VFS_CLOSE(vf) (vf->Close(vf))
@@ -326,6 +327,7 @@ void FS_CreatePath(char *pname, int relativeto);
 int FS_Rename(char *oldf, char *newf, int relativeto);	//0 on success, non-0 on error
 int FS_Remove(char *fname, int relativeto);	//0 on success, non-0 on error
 vfsfile_t *FS_OpenVFS(char *filename, char *mode, int relativeto);
+vfsfile_t *FS_OpenTemp(void);
 enum {
 	FS_GAME,
 	FS_BASE,

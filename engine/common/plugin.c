@@ -95,8 +95,8 @@ qboolean Init_GNUTLS(void) {return true;}
 #endif
 
 
-cvar_t plug_sbar = {"plug_sbar", "1"};
-cvar_t plug_loaddefault = {"plug_loaddefault", "1"};
+cvar_t plug_sbar = SCVAR("plug_sbar", "1");
+cvar_t plug_loaddefault = SCVAR("plug_loaddefault", "1");
 
 #ifdef RGLQUAKE
 #include "glquake.h"

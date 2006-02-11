@@ -185,7 +185,7 @@ static size_t strlcat (char *dst, const char *src, size_t size)
 	TP_CVAR(loc_name_suit,		"suit")
 
 //create the globals for all the TP cvars.
-#define TP_CVAR(name,def) cvar_t	name = {#name, def}
+#define TP_CVAR(name,def) cvar_t	name = SCVAR(#name, def)
 TP_CVARS;
 #undef TP_CVAR
 
@@ -3215,14 +3215,18 @@ void CL_Say (qboolean team, char *extra)
 			{	//
 				s++;
 				*d++ = '^';
-				*d++ = '1';
+				*d++ = 's';
+				*d++ = '^';
+				*d++ = '&';
+				*d++ = '4';
+				*d++ = '0';
 				if (*s == 'z')
 					*d++ = 'x';
 				else
 					*d++ = 139;
 
 				*d++ = '^';
-				*d++ = '1';
+				*d++ = 'r';
 				d--;
 
 				while(*s != '\xff')
@@ -3237,6 +3241,7 @@ void CL_Say (qboolean team, char *extra)
 			else
 				*d = *s;
 		}
+		*d++ = '\n';
 		*d = '\0';
 
 		{

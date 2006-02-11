@@ -308,11 +308,11 @@ IWEBFILE *IWebFOpenRead(char *name)					//fread(name, "rb");
 #else
 
 #ifndef CLIENTONLY
-cvar_t ftpserver = {"sv_ftp", "0"};
-cvar_t httpserver = {"sv_http", "0"};
-cvar_t sv_readlevel = {"sv_readlevel", "0"};	//default to allow anyone
-cvar_t sv_writelevel = {"sv_writelevel", "35"};	//allowed to write to uploads/uname
-cvar_t sv_fulllevel = {"sv_fulllevel", "51"};	//allowed to write anywhere, replace any file...
+cvar_t ftpserver = SCVAR("sv_ftp", "0");
+cvar_t httpserver = SCVAR("sv_http", "0");
+cvar_t sv_readlevel = SCVAR("sv_readlevel", "0");	//default to allow anyone
+cvar_t sv_writelevel = SCVAR("sv_writelevel", "35");	//allowed to write to uploads/uname
+cvar_t sv_fulllevel = SCVAR("sv_fulllevel", "51");	//allowed to write anywhere, replace any file...
 #endif
 
 //this file contains functions called from each side.

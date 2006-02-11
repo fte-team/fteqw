@@ -487,7 +487,7 @@ qboolean HTTP_CL_Get(char *url, char *localfile, void (*NotifyFunction)(char *lo
 	con->NotifyFunction = NotifyFunction;
 	if (!NotifyFunction)
 		Con_Printf("No NotifyFunction\n");
-	strcpy(con->filename, localfile);
+	Q_strncpyz(con->filename, localfile, sizeof(con->filename));
 
 	slash = strchr(con->filename, '?');
 	if (slash)

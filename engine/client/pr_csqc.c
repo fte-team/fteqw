@@ -27,10 +27,10 @@ qboolean csqc_addcrosshair;
 static int num_csqc_edicts;
 
 #define CSQCPROGSGROUP "CSQC progs control"
-cvar_t	pr_csmaxedicts = {"pr_csmaxedicts", "3072"};
-cvar_t	cl_csqcdebug = {"cl_csqcdebug", "0"};	//prints entity numbers which arrive (so I can tell people not to apply it to players...)
-cvar_t  cl_nocsqc = {"cl_nocsqc", "0"};
-cvar_t  pr_csqc_coreonerror = {"pr_csqc_coreonerror", "1"};
+cvar_t	pr_csmaxedicts = SCVAR("pr_csmaxedicts", "3072");
+cvar_t	cl_csqcdebug = SCVAR("cl_csqcdebug", "0");	//prints entity numbers which arrive (so I can tell people not to apply it to players...)
+cvar_t  cl_nocsqc = SCVAR("cl_nocsqc", "0");
+cvar_t  pr_csqc_coreonerror = SCVAR("pr_csqc_coreonerror", "1");
 
 // standard effect cvars/sounds
 extern cvar_t r_explosionlight;
@@ -77,6 +77,8 @@ extern sfx_t			*cl_sfx_r_exp3;
 	globalvector(trace_plane_normal,	"trace_plane_normal");	/*vector	written by traceline*/	\
 	globalfloat(trace_plane_dist,		"trace_plane_dist");	/*float		written by traceline*/	\
 	globalentity(trace_ent,				"trace_ent");			/*entity	written by traceline*/	\
+	globalfloat(trace_surfaceflags,		"trace_surfaceflags");	/*float		written by traceline*/	\
+	globalfloat(trace_endcontents,		"trace_endcontents");	/*float		written by traceline*/	\
 	\
 	globalfloat(clientcommandframe,		"clientcommandframe");	\
 	globalfloat(servercommandframe,		"servercommandframe");	\
@@ -1116,7 +1118,7 @@ static void PF_R_RenderScene(progfuncs_t *prinst, struct globalvars_s *pr_global
 	}
 #endif
 
-	#ifdef RGLQUAKE
+#ifdef RGLQUAKE
 	if (qrenderer == QR_OPENGL)
 	{
 		qglDisable(GL_ALPHA_TEST);
@@ -1208,6 +1210,8 @@ static void cs_settracevars(trace_t *tr)
 	VectorCopy (tr->endpos, csqcg.trace_endpos);
 	VectorCopy (tr->plane.normal, csqcg.trace_plane_normal);
 	*csqcg.trace_plane_dist =  tr->plane.dist;
+	*csqcg.trace_surfaceflags = tr->surface?tr->surface->flags:0;
+	*csqcg.trace_endcontents = tr->contents;
 	if (tr->ent)
 		*csqcg.trace_ent = EDICT_TO_PROG(csqcprogs, (void*)tr->ent);
 	else

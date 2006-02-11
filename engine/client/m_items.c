@@ -991,7 +991,6 @@ void M_Complex_Draw(void)
 	extern int mousecursor_x, mousecursor_y;
 	menu_t *menu, *cmenu;
 	qboolean foundexclusive = false;
-	mpic_t *p;
 
 	if (omousex != mousecursor_x || omousey != mousecursor_y)
 		mousemoved = true;

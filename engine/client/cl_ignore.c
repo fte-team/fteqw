@@ -86,12 +86,12 @@ char *Player_MyName (void) {
 
 
 
-cvar_t		ignore_spec				= {"ignore_spec", "0"};		
-cvar_t		ignore_qizmo_spec		= {"ignore_qizmo_spec", "0"};
-cvar_t		ignore_mode				= {"ignore_mode", "0"};
-cvar_t		ignore_flood_duration	= {"ignore_flood_duration", "4"};
-cvar_t		ignore_flood			= {"ignore_flood", "0"};		
-cvar_t		ignore_opponents		= {"ignore_opponents", "0"};
+cvar_t		ignore_spec				= SCVAR("ignore_spec", "0");
+cvar_t		ignore_qizmo_spec		= SCVAR("ignore_qizmo_spec", "0");
+cvar_t		ignore_mode				= SCVAR("ignore_mode", "0");
+cvar_t		ignore_flood_duration	= SCVAR("ignore_flood_duration", "4");
+cvar_t		ignore_flood			= SCVAR("ignore_flood", "0");
+cvar_t		ignore_opponents		= SCVAR("ignore_opponents", "0");
 
 char ignoreteamlist[MAX_TEAMIGNORELIST][16 + 1];
 

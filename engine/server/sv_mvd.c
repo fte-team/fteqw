@@ -385,22 +385,22 @@ dir_t Sys_listdir (char *path, char *ext, qboolean usesorting)
 				demobuffer->maxsize - demobuffer->end)
 
 
-cvar_t	sv_demoUseCache = {"sv_demoUseCache", ""};
-cvar_t	sv_demoCacheSize = {"sv_demoCacheSize", ""};
-cvar_t	sv_demoMaxDirSize = {"sv_demoMaxDirSize", "102400"};	//so ktpro autorecords.
-cvar_t	sv_demoDir = {"sv_demoDir", "demos"};
-cvar_t	sv_demofps = {"sv_demofps", ""};
-cvar_t	sv_demoPings = {"sv_demoPings", ""};
-cvar_t	sv_demoNoVis = {"sv_demoNoVis", ""};
-cvar_t	sv_demoMaxSize = {"sv_demoMaxSize", ""};
-cvar_t	sv_demoExtraNames = {"sv_demoExtraNames", ""};
+cvar_t	sv_demoUseCache = SCVAR("sv_demoUseCache", "");
+cvar_t	sv_demoCacheSize = SCVAR("sv_demoCacheSize", "");
+cvar_t	sv_demoMaxDirSize = SCVAR("sv_demoMaxDirSize", "102400");	//so ktpro autorecords.
+cvar_t	sv_demoDir = SCVAR("sv_demoDir", "demos");
+cvar_t	sv_demofps = SCVAR("sv_demofps", "");
+cvar_t	sv_demoPings = SCVAR("sv_demoPings", "");
+cvar_t	sv_demoNoVis = SCVAR("sv_demoNoVis", "");
+cvar_t	sv_demoMaxSize = SCVAR("sv_demoMaxSize", "");
+cvar_t	sv_demoExtraNames = SCVAR("sv_demoExtraNames", "");
 
-cvar_t mvd_streamport = {"mvd_streamport", "0"};
-cvar_t mvd_maxstreams = {"mvd_maxstreams", "1"};
+cvar_t mvd_streamport = SCVAR("mvd_streamport", "0");
+cvar_t mvd_maxstreams = SCVAR("mvd_maxstreams", "1");
 
-cvar_t			sv_demoPrefix = {"sv_demoPrefix", ""};
-cvar_t			sv_demoSuffix = {"sv_demoSuffix", ""};
-cvar_t			sv_demotxt = {"sv_demotxt", "1"};
+cvar_t			sv_demoPrefix = SCVAR("sv_demoPrefix", "");
+cvar_t			sv_demoSuffix = SCVAR("sv_demoSuffix", "");
+cvar_t			sv_demotxt = SCVAR("sv_demotxt", "1");
 
 void SV_WriteMVDMessage (sizebuf_t *msg, int type, int to, float time);
 

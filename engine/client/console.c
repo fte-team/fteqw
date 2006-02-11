@@ -84,11 +84,11 @@ qterm_t *activeqterm;
 float		con_cursorspeed = 4;
 
 
-cvar_t		con_numnotifylines = {"con_notifylines","4"};		//max lines to show
-cvar_t		con_notifytime = {"con_notifytime","3"};		//seconds
-cvar_t		con_centernotify = {"con_centernotify", "0"};
-cvar_t		con_displaypossabilities = {"con_displaypossabilities", "1"};
-cvar_t		cl_chatmode = {"cl_chatmode", "2"};
+cvar_t		con_numnotifylines = SCVAR("con_notifylines","4");		//max lines to show
+cvar_t		con_notifytime = SCVAR("con_notifytime","3");		//seconds
+cvar_t		con_centernotify = SCVAR("con_centernotify", "0");
+cvar_t		con_displaypossabilities = SCVAR("con_displaypossabilities", "1");
+cvar_t		cl_chatmode = SCVAR("cl_chatmode", "2");
 
 #define	NUM_CON_TIMES 24
 float		con_times[NUM_CON_TIMES];	// realtime time the line was generated

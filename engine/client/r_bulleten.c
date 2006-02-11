@@ -47,23 +47,23 @@ Effects:
 9:
 */
 
-cvar_t bul_text1 = {"bul_text1", "0Cheesy Forethoug\\nht entertainment"};
-cvar_t bul_text2 = {"bul_text2", "2"};
-cvar_t bul_text3 = {"bul_text3", "0Join Shubs Army\\nFight for Fear"};
-cvar_t bul_text4 = {"bul_text4", "0Need a gun?\\nGoto bobs place!"};
-cvar_t bul_text5 = {"bul_text5", "0Beware the fans\\nThey can hurt."};
-cvar_t bul_text6 = {"bul_text6", "2Quake B Arena"};
+cvar_t bul_text1 = SCVAR("bul_text1", "0Cheesy Forethoug\\nht entertainment");
+cvar_t bul_text2 = SCVAR("bul_text2", "2");
+cvar_t bul_text3 = SCVAR("bul_text3", "0Join Shubs Army\\nFight for Fear");
+cvar_t bul_text4 = SCVAR("bul_text4", "0Need a gun?\\nGoto bobs place!");
+cvar_t bul_text5 = SCVAR("bul_text5", "0Beware the fans\\nThey can hurt.");
+cvar_t bul_text6 = SCVAR("bul_text6", "2Quake B Arena");
 
-cvar_t bul_scrollspeedx = {"bul_scrollspeedx", "-20"};	//pixels per second
-cvar_t bul_scrollspeedy = {"bul_scrollspeedy", "-10"};	//pixels per second
-cvar_t bul_backcol = {"bul_backcolour", "1"};
-cvar_t bul_textpalette = {"bul_textpalette", "0"};
-cvar_t bul_norender = {"bul_norender", "0"};
-cvar_t bul_sparkle = {"bul_sparkle", "7"};
-cvar_t bul_forcemode = {"bul_forcemode", "-1"};
-cvar_t bul_ripplespeed = {"bul_ripplespeed", "32"};
-cvar_t bul_rippleamount = {"bul_rippleamount", "2"};
-cvar_t bul_nowater = {"bul_nowater", "1"};
+cvar_t bul_scrollspeedx = SCVAR("bul_scrollspeedx", "-20");	//pixels per second
+cvar_t bul_scrollspeedy = SCVAR("bul_scrollspeedy", "-10");	//pixels per second
+cvar_t bul_backcol = SCVAR("bul_backcolour", "1");
+cvar_t bul_textpalette = SCVAR("bul_textpalette", "0");
+cvar_t bul_norender = SCVAR("bul_norender", "0");
+cvar_t bul_sparkle = SCVAR("bul_sparkle", "7");
+cvar_t bul_forcemode = SCVAR("bul_forcemode", "-1");
+cvar_t bul_ripplespeed = SCVAR("bul_ripplespeed", "32");
+cvar_t bul_rippleamount = SCVAR("bul_rippleamount", "2");
+cvar_t bul_nowater = SCVAR("bul_nowater", "1");
 
 int bultextpallete = 0;
 

@@ -61,28 +61,28 @@ int 		desired_bits = 16;
 
 int sound_started=0;
 
-cvar_t bgmvolume = {"musicvolume", "0", NULL, CVAR_ARCHIVE};
-cvar_t volume = {"volume", "0.7", NULL, CVAR_ARCHIVE};
+cvar_t bgmvolume = SCVARF("musicvolume", "0", CVAR_ARCHIVE);
+cvar_t volume = SCVARF("volume", "0.7", CVAR_ARCHIVE);
 
-cvar_t nosound = {"nosound", "0"};
-cvar_t precache = {"precache", "1"};
-cvar_t loadas8bit = {"loadas8bit", "0"};
-cvar_t bgmbuffer = {"bgmbuffer", "4096"};
-cvar_t ambient_level = {"ambient_level", "0.3"};
-cvar_t ambient_fade = {"ambient_fade", "100"};
-cvar_t snd_noextraupdate = {"snd_noextraupdate", "0"};
-cvar_t snd_show = {"snd_show", "0"};
-cvar_t snd_khz = {"snd_khz", "11"};
-cvar_t	snd_inactive = {"snd_inactive", "0"};	//set if you want sound even when tabbed out.
-cvar_t _snd_mixahead = {"_snd_mixahead", "0.2", NULL, CVAR_ARCHIVE};
-cvar_t snd_leftisright = {"snd_leftisright", "0", NULL, CVAR_ARCHIVE};
-cvar_t snd_eax = {"snd_eax", "0"};
-cvar_t snd_speakers = {"snd_numspeakers", "2"};
-cvar_t	snd_playersoundvolume = {"snd_localvolume", "1"};	//sugested by crunch
+cvar_t nosound = SCVAR("nosound", "0");
+cvar_t precache = SCVAR("precache", "1");
+cvar_t loadas8bit = SCVAR("loadas8bit", "0");
+cvar_t bgmbuffer = SCVAR("bgmbuffer", "4096");
+cvar_t ambient_level = SCVAR("ambient_level", "0.3");
+cvar_t ambient_fade = SCVAR("ambient_fade", "100");
+cvar_t snd_noextraupdate = SCVAR("snd_noextraupdate", "0");
+cvar_t snd_show = SCVAR("snd_show", "0");
+cvar_t snd_khz = SCVAR("snd_khz", "11");
+cvar_t	snd_inactive = SCVAR("snd_inactive", "0");	//set if you want sound even when tabbed out.
+cvar_t _snd_mixahead = SCVARF("_snd_mixahead", "0.2", CVAR_ARCHIVE);
+cvar_t snd_leftisright = SCVARF("snd_leftisright", "0", CVAR_ARCHIVE);
+cvar_t snd_eax = SCVAR("snd_eax", "0");
+cvar_t snd_speakers = SCVAR("snd_numspeakers", "2");
+cvar_t	snd_playersoundvolume = SCVAR("snd_localvolume", "1");	//sugested by crunch
 
-cvar_t	snd_capture = {"snd_capture", "0"};
+cvar_t	snd_capture = SCVAR("snd_capture", "0");
 
-cvar_t snd_usemultipledevices = {"snd_multipledevices", "0"};
+cvar_t snd_usemultipledevices = SCVAR("snd_multipledevices", "0");
 
 
 // ====================================================================

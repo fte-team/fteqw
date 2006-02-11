@@ -27,17 +27,17 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 
 float in_sensitivityscale = 1;
 
-cvar_t	cl_nodelta = {"cl_nodelta","0"};
+cvar_t	cl_nodelta = SCVAR("cl_nodelta","0");
 
-cvar_t	cl_c2spps = {"cl_c2spps", "0"};
-cvar_t	cl_c2sImpulseBackup = {"cl_c2sImpulseBackup","3"};
+cvar_t	cl_c2spps = SCVAR("cl_c2spps", "0");
+cvar_t	cl_c2sImpulseBackup = SCVAR("cl_c2sImpulseBackup","3");
 
-cvar_t	cl_netfps = {"cl_netfps", "0"};
+cvar_t	cl_netfps = SCVAR("cl_netfps", "0");
 
-cvar_t	cl_smartjump = {"cl_smartjump", "1"};
+cvar_t	cl_smartjump = SCVAR("cl_smartjump", "1");
 
-cvar_t	cl_prydoncursor = {"cl_prydoncursor", "0"};	//for dp protocol
-cvar_t	cl_instantrotate = {"cl_instantrotate", "1", NULL, CVAR_SEMICHEAT};
+cvar_t	cl_prydoncursor = SCVAR("cl_prydoncursor", "0");	//for dp protocol
+cvar_t	cl_instantrotate = SCVARF("cl_instantrotate", "1", CVAR_SEMICHEAT);
 
 
 usercmd_t independantphysics[MAX_SPLITS];
@@ -387,17 +387,17 @@ float CL_KeyState (kbutton_t *key, int pnum)
 
 //==========================================================================
 
-cvar_t	cl_upspeed = {"cl_upspeed","400"};
-cvar_t	cl_forwardspeed = {"cl_forwardspeed","400", NULL, CVAR_ARCHIVE};
-cvar_t	cl_backspeed = {"cl_backspeed","400", NULL, CVAR_ARCHIVE};
-cvar_t	cl_sidespeed = {"cl_sidespeed","400"};
+cvar_t	cl_upspeed = SCVAR("cl_upspeed","400");
+cvar_t	cl_forwardspeed = SCVARF("cl_forwardspeed","400", CVAR_ARCHIVE);
+cvar_t	cl_backspeed = SCVARF("cl_backspeed","400", CVAR_ARCHIVE);
+cvar_t	cl_sidespeed = SCVAR("cl_sidespeed","400");
 
-cvar_t	cl_movespeedkey = {"cl_movespeedkey","2.0"};
+cvar_t	cl_movespeedkey = SCVAR("cl_movespeedkey","2.0");
 
-cvar_t	cl_yawspeed = {"cl_yawspeed","140"};
-cvar_t	cl_pitchspeed = {"cl_pitchspeed","150"};
+cvar_t	cl_yawspeed = SCVAR("cl_yawspeed","140");
+cvar_t	cl_pitchspeed = SCVAR("cl_pitchspeed","150");
 
-cvar_t	cl_anglespeedkey = {"cl_anglespeedkey","1.5"};
+cvar_t	cl_anglespeedkey = SCVAR("cl_anglespeedkey","1.5");
 
 /*
 ================

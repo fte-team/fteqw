@@ -33,11 +33,11 @@ qboolean f_modified_particles;
 qboolean f_modified_staticlights;
 
 
-cvar_t allow_f_version		= {"allow_f_version", "1"};
-cvar_t allow_f_server		= {"allow_f_server", "1"};
-cvar_t allow_f_modified		= {"allow_f_modified", "1"};
-cvar_t allow_f_skins		= {"allow_f_skins", "1"};
-cvar_t auth_validateclients	= {"auth_validateclients", "1"};
+cvar_t allow_f_version		= SCVAR("allow_f_version", "1");
+cvar_t allow_f_server		= SCVAR("allow_f_server", "1");
+cvar_t allow_f_modified		= SCVAR("allow_f_modified", "1");
+cvar_t allow_f_skins		= SCVAR("allow_f_skins", "1");
+cvar_t auth_validateclients	= SCVAR("auth_validateclients", "1");
 
 
 void QCRC_AddBlock (unsigned short *crcvalue, qbyte *start, int count)

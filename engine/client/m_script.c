@@ -4,7 +4,7 @@
 
 int selectitem;
 menu_t *menu_script;
-cvar_t menualias = {"menualias", ""};
+cvar_t menualias = SCVAR("menualias", "");
 
 void M_Script_Remove (menu_t *menu)
 {

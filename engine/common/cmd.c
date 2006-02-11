@@ -21,9 +21,9 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 
 #include "quakedef.h"
 
-cvar_t com_fs_cache = {"fs_cache", "0", NULL, CVAR_ARCHIVE};
-cvar_t rcon_level = {"rcon_level", "50"};
-cvar_t cmd_maxbuffersize = {"cmd_maxbuffersize", "65536"};
+cvar_t com_fs_cache			= SCVARF("fs_cache", "0", CVAR_ARCHIVE);
+cvar_t rcon_level			= SCVAR("rcon_level", "50");
+cvar_t cmd_maxbuffersize	= SCVAR("cmd_maxbuffersize", "65536");
 int	Cmd_ExecLevel;
 
 void Cmd_ForwardToServer (void);
@@ -44,10 +44,10 @@ typedef struct cmdalias_s
 
 cmdalias_t	*cmd_alias;
 
-cvar_t cl_warncmd = {"cl_warncmd", "0"};
-cvar_t cl_aliasoverlap = {"cl_aliasoverlap", "1", NULL,	CVAR_NOTFROMSERVER};
+cvar_t cl_warncmd			= SCVAR("cl_warncmd", "0");
+cvar_t cl_aliasoverlap		= SCVARF("cl_aliasoverlap", "1", CVAR_NOTFROMSERVER);
 
-cvar_t tp_disputablemacros = {"tp_disputablemacros", "1", NULL,  CVAR_SEMICHEAT};
+cvar_t tp_disputablemacros	= SCVARF("tp_disputablemacros", "1", CVAR_SEMICHEAT);
 
 
 //=============================================================================

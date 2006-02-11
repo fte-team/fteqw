@@ -23,9 +23,9 @@ typedef struct {
 rankfileheader_t rankfileheader;
 FILE *rankfile;
 
-cvar_t rank_autoadd = {"rank_autoadd", "1"};
-cvar_t rank_needlogin = {"rank_needlogin", "0"};
-cvar_t rank_filename = {"rank_filename", ""};
+cvar_t rank_autoadd = SCVAR("rank_autoadd", "1");
+cvar_t rank_needlogin = SCVAR("rank_needlogin", "0");
+cvar_t rank_filename = SCVAR("rank_filename", "");
 char rank_cvargroup[] = "server rankings";
 
 #define RANKFILE_VERSION 0x00000000

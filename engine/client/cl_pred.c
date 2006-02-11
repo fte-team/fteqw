@@ -20,8 +20,8 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 #include "quakedef.h"
 #include "winquake.h"
 
-cvar_t	cl_nopred = {"cl_nopred","0"};
-cvar_t	cl_pushlatency = {"pushlatency","-999"};
+cvar_t	cl_nopred = SCVAR("cl_nopred","0");
+cvar_t	cl_pushlatency = SCVAR("pushlatency","-999");
 
 extern	frame_t		*view_frame;
 

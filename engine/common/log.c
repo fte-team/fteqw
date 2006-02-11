@@ -4,14 +4,14 @@
 
 // cvars
 #define CONLOGGROUP "Console logging"
-cvar_t		log_name = {"log_name", "", NULL, CVAR_NOTFROMSERVER};
-cvar_t		log_dir = {"log_dir", "", NULL, CVAR_NOTFROMSERVER};
-cvar_t		log_readable = {"log_readable", "0", NULL, CVAR_NOTFROMSERVER};
-cvar_t		log_enable = {"log_enable", "0", NULL, CVAR_NOTFROMSERVER};
-cvar_t		log_developer = {"log_developer", "0", NULL, CVAR_NOTFROMSERVER};
-cvar_t		log_rotate_files = {"log_rotate_files", "0", NULL, CVAR_NOTFROMSERVER};
-cvar_t		log_rotate_size = {"log_rotate_size", "131072", NULL, CVAR_NOTFROMSERVER};
-cvar_t		log_dosformat = {"log_dosformat", "0", NULL, CVAR_NOTFROMSERVER};
+cvar_t		log_name = SCVARF("log_name", "", CVAR_NOTFROMSERVER);
+cvar_t		log_dir = SCVARF("log_dir", "", CVAR_NOTFROMSERVER);
+cvar_t		log_readable = SCVARF("log_readable", "0", CVAR_NOTFROMSERVER);
+cvar_t		log_enable = SCVARF("log_enable", "0", CVAR_NOTFROMSERVER);
+cvar_t		log_developer = SCVARF("log_developer", "0", CVAR_NOTFROMSERVER);
+cvar_t		log_rotate_files = SCVARF("log_rotate_files", "0", CVAR_NOTFROMSERVER);
+cvar_t		log_rotate_size = SCVARF("log_rotate_size", "131072", CVAR_NOTFROMSERVER);
+cvar_t		log_dosformat = SCVARF("log_dosformat", "0", CVAR_NOTFROMSERVER);
 
 // externals
 int COM_FileSize(char *path);

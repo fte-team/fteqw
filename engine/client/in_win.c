@@ -52,16 +52,16 @@ HRESULT (WINAPI *pDirectInputCreate)(HINSTANCE hinst, DWORD dwVersion,
 #define DINPUT_VERSION_DX7 0x0700
 
 // mouse variables
-cvar_t	m_filter = {"m_filter","0"};
-cvar_t  m_accel = {"m_accel", "0"};
-cvar_t	m_forcewheel = {"m_forcewheel", "1"};
-cvar_t	in_mwhook = {"in_mwhook","0", NULL, CVAR_ARCHIVE};
-cvar_t	in_dinput = {"in_dinput","0", NULL, CVAR_ARCHIVE};
+cvar_t	m_filter = SCVAR("m_filter","0");
+cvar_t  m_accel = SCVAR("m_accel", "0");
+cvar_t	m_forcewheel = SCVAR("m_forcewheel", "1");
+cvar_t	in_mwhook = SCVARF("in_mwhook","0", CVAR_ARCHIVE);
+cvar_t	in_dinput = SCVARF("in_dinput","0", CVAR_ARCHIVE);
 
-cvar_t	m_accel_noforce = {"m_accel_noforce", "0"};
-cvar_t  m_threshold_noforce = {"m_threshold_noforce", "0"};
+cvar_t	m_accel_noforce = SCVAR("m_accel_noforce", "0");
+cvar_t  m_threshold_noforce = SCVAR("m_threshold_noforce", "0");
 
-cvar_t	cl_keypad = {"cl_keypad", "0"};
+cvar_t	cl_keypad = SCVAR("cl_keypad", "0");
 
 qboolean CSQC_MouseMove(float xdelta, float ydelta);
 
@@ -134,7 +134,7 @@ DWORD	dwControlMap[JOY_MAX_AXES];
 PDWORD	pdwRawValue[JOY_MAX_AXES];
 
 #ifdef IN_XFLIP
-cvar_t	in_xflip = {"in_xflip", "0"};
+cvar_t	in_xflip = SCVAR("in_xflip", "0");
 #endif
 
 // none of these cvars are saved over a session
@@ -142,25 +142,25 @@ cvar_t	in_xflip = {"in_xflip", "0"};
 // each time.  this avoids any problems with getting back to a default usage
 // or when changing from one controller to another.  this way at least something
 // works.
-cvar_t	in_joystick = {"joystick","0", NULL, CVAR_ARCHIVE};
-cvar_t	joy_name = {"joyname", "joystick"};
-cvar_t	joy_advanced = {"joyadvanced", "0"};
-cvar_t	joy_advaxisx = {"joyadvaxisx", "0"};
-cvar_t	joy_advaxisy = {"joyadvaxisy", "0"};
-cvar_t	joy_advaxisz = {"joyadvaxisz", "0"};
-cvar_t	joy_advaxisr = {"joyadvaxisr", "0"};
-cvar_t	joy_advaxisu = {"joyadvaxisu", "0"};
-cvar_t	joy_advaxisv = {"joyadvaxisv", "0"};
-cvar_t	joy_forwardthreshold = {"joyforwardthreshold", "0.15"};
-cvar_t	joy_sidethreshold = {"joysidethreshold", "0.15"};
-cvar_t	joy_pitchthreshold = {"joypitchthreshold", "0.15"};
-cvar_t	joy_yawthreshold = {"joyyawthreshold", "0.15"};
-cvar_t	joy_forwardsensitivity = {"joyforwardsensitivity", "-1.0"};
-cvar_t	joy_sidesensitivity = {"joysidesensitivity", "-1.0"};
-cvar_t	joy_pitchsensitivity = {"joypitchsensitivity", "1.0"};
-cvar_t	joy_yawsensitivity = {"joyyawsensitivity", "-1.0"};
-cvar_t	joy_wwhack1 = {"joywwhack1", "0.0"};
-cvar_t	joy_wwhack2 = {"joywwhack2", "0.0"};
+cvar_t	in_joystick				= SCVARF("joystick","0", CVAR_ARCHIVE);
+cvar_t	joy_name				= SCVAR("joyname", "joystick");
+cvar_t	joy_advanced			= SCVAR("joyadvanced", "0");
+cvar_t	joy_advaxisx			= SCVAR("joyadvaxisx", "0");
+cvar_t	joy_advaxisy			= SCVAR("joyadvaxisy", "0");
+cvar_t	joy_advaxisz			= SCVAR("joyadvaxisz", "0");
+cvar_t	joy_advaxisr			= SCVAR("joyadvaxisr", "0");
+cvar_t	joy_advaxisu			= SCVAR("joyadvaxisu", "0");
+cvar_t	joy_advaxisv			= SCVAR("joyadvaxisv", "0");
+cvar_t	joy_forwardthreshold	= SCVAR("joyforwardthreshold", "0.15");
+cvar_t	joy_sidethreshold		= SCVAR("joysidethreshold", "0.15");
+cvar_t	joy_pitchthreshold		= SCVAR("joypitchthreshold", "0.15");
+cvar_t	joy_yawthreshold		= SCVAR("joyyawthreshold", "0.15");
+cvar_t	joy_forwardsensitivity	= SCVAR("joyforwardsensitivity", "-1.0");
+cvar_t	joy_sidesensitivity		= SCVAR("joysidesensitivity", "-1.0");
+cvar_t	joy_pitchsensitivity	= SCVAR("joypitchsensitivity", "1.0");
+cvar_t	joy_yawsensitivity		= SCVAR("joyyawsensitivity", "-1.0");
+cvar_t	joy_wwhack1				= SCVAR("joywwhack1", "0.0");
+cvar_t	joy_wwhack2				= SCVAR("joywwhack2", "0.0");
 
 qboolean	joy_avail, joy_advancedinit, joy_haspov;
 DWORD		joy_oldbuttonstate, joy_oldpovstate;
@@ -265,9 +265,9 @@ int rawmicecount;
 RAWINPUT *raw;
 int ribuffersize;
 
-cvar_t in_rawinput = {"in_rawinput", "0"};
-cvar_t in_rawinput_combine = {"in_rawinput_combine", "0"};
-cvar_t in_rawinput_rdp = {"in_rawinput_rdp", "0"};
+cvar_t in_rawinput = SCVAR("in_rawinput", "0");
+cvar_t in_rawinput_combine = SCVAR("in_rawinput_combine", "0");
+cvar_t in_rawinput_rdp = SCVAR("in_rawinput_rdp", "0");
 
 void IN_RawInput_DeRegister(void);
 int IN_RawInput_Register(void);

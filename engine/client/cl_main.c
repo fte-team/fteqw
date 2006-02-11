@@ -35,94 +35,94 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 qboolean	noclip_anglehack;		// remnant from old quake
 
 
-cvar_t	rcon_password = {"rcon_password", ""};
+cvar_t	rcon_password = SCVAR("rcon_password", "");
 
-cvar_t	rcon_address = {"rcon_address", ""};
+cvar_t	rcon_address = SCVAR("rcon_address", "");
 
-cvar_t	cl_timeout = {"cl_timeout", "60"};
+cvar_t	cl_timeout = SCVAR("cl_timeout", "60");
 
-cvar_t	cl_shownet = {"cl_shownet","0"};	// can be 0, 1, or 2
+cvar_t	cl_shownet = SCVAR("cl_shownet","0");	// can be 0, 1, or 2
 
-cvar_t	cl_sbar		= {"cl_sbar", "0", NULL, CVAR_ARCHIVE};
-cvar_t	cl_hudswap	= {"cl_hudswap", "0", NULL, CVAR_ARCHIVE};
-cvar_t	cl_maxfps	= {"cl_maxfps", "1000", NULL, CVAR_ARCHIVE};
-cvar_t	cl_nopext	= {"cl_nopext", "0", NULL, CVAR_ARCHIVE};
-cvar_t	cl_nolerp	= {"cl_nolerp", "1"};
-cvar_t	hud_tracking_show = {"hud_tracking_show", "1"};
+cvar_t	cl_sbar		= SCVARF("cl_sbar", "0", CVAR_ARCHIVE);
+cvar_t	cl_hudswap	= SCVARF("cl_hudswap", "0", CVAR_ARCHIVE);
+cvar_t	cl_maxfps	= SCVARF("cl_maxfps", "1000", CVAR_ARCHIVE);
+cvar_t	cl_nopext	= SCVARF("cl_nopext", "0", CVAR_ARCHIVE);
+cvar_t	cl_nolerp	= SCVAR("cl_nolerp", "1");
+cvar_t	hud_tracking_show = SCVAR("hud_tracking_show", "1");
 
-cvar_t	cfg_save_name = {"cfg_save_name", "fte", NULL, CVAR_ARCHIVE};
+cvar_t	cfg_save_name = SCVARF("cfg_save_name", "fte", CVAR_ARCHIVE);
 
-cvar_t	cl_splitscreen = {"cl_splitscreen", "0"};
+cvar_t	cl_splitscreen = SCVAR("cl_splitscreen", "0");
 
-cvar_t	lookspring = {"lookspring","0", NULL, CVAR_ARCHIVE};
-cvar_t	lookstrafe = {"lookstrafe","0", NULL, CVAR_ARCHIVE};
-cvar_t	sensitivity = {"sensitivity","10", NULL, CVAR_ARCHIVE};
+cvar_t	lookspring = SCVARF("lookspring","0", CVAR_ARCHIVE);
+cvar_t	lookstrafe = SCVARF("lookstrafe","0", CVAR_ARCHIVE);
+cvar_t	sensitivity = SCVARF("sensitivity","10", CVAR_ARCHIVE);
 
-cvar_t cl_staticsounds = {"cl_staticsounds", "1"};
+cvar_t cl_staticsounds = SCVAR("cl_staticsounds", "1");
 
-cvar_t	m_pitch = {"m_pitch","0.022", NULL, CVAR_ARCHIVE};
-cvar_t	m_yaw = {"m_yaw","0.022"};
-cvar_t	m_forward = {"m_forward","1"};
-cvar_t	m_side = {"m_side","0.8"};
+cvar_t	m_pitch = SCVARF("m_pitch","0.022", CVAR_ARCHIVE);
+cvar_t	m_yaw = SCVAR("m_yaw","0.022");
+cvar_t	m_forward = SCVAR("m_forward","1");
+cvar_t	m_side = SCVAR("m_side","0.8");
 
-cvar_t	entlatency = {"entlatency", "20"};
-cvar_t	cl_predict_players = {"cl_predict_players", "1"};
-cvar_t	cl_predict_players2 = {"cl_predict_players2", "1"};
-cvar_t	cl_solid_players = {"cl_solid_players", "1"};
-cvar_t	cl_noblink = {"cl_noblink", "0"};
+cvar_t	entlatency = SCVAR("entlatency", "20");
+cvar_t	cl_predict_players = SCVAR("cl_predict_players", "1");
+cvar_t	cl_predict_players2 = SCVAR("cl_predict_players2", "1");
+cvar_t	cl_solid_players = SCVAR("cl_solid_players", "1");
+cvar_t	cl_noblink = SCVAR("cl_noblink", "0");
 
-cvar_t cl_demospeed = {"cl_demospeed", "1"};
+cvar_t cl_demospeed = SCVAR("cl_demospeed", "1");
 
 
-cvar_t	cl_indepphysics = {"cl_indepphysics", "0"};
+cvar_t	cl_indepphysics = SCVAR("cl_indepphysics", "0");
 
-cvar_t  localid = {"localid", ""};
+cvar_t  localid = SCVAR("localid", "");
 
-cvar_t	cl_antibunch = {"cl_antibunch", "0"};
+cvar_t	cl_antibunch = SCVAR("cl_antibunch", "0");
 
 static qboolean allowremotecmd = true;
 
 //
 // info mirrors
 //
-cvar_t	password = {"password",			"",			NULL, CVAR_USERINFO};	//this is parhaps slightly dodgy...
-cvar_t	spectator = {"spectator",		"",			NULL, CVAR_USERINFO};
-cvar_t	name = {"name",					"unnamed",	NULL, CVAR_ARCHIVE | CVAR_USERINFO};
-cvar_t	team = {"team",					"",			NULL, CVAR_ARCHIVE | CVAR_USERINFO};
-cvar_t	skin = {"skin",					"",			NULL, CVAR_ARCHIVE | CVAR_USERINFO};
-cvar_t	model = {"model",				"",			NULL, CVAR_ARCHIVE | CVAR_USERINFO};
-cvar_t	topcolor = {"topcolor",			"",			NULL, CVAR_ARCHIVE | CVAR_USERINFO};
-cvar_t	bottomcolor = {"bottomcolor",	"",			NULL, CVAR_ARCHIVE | CVAR_USERINFO};
-cvar_t	rate = {"rate",					"2500",		NULL, CVAR_ARCHIVE | CVAR_USERINFO};
-cvar_t	drate = {"drate",				"100000",	NULL, CVAR_ARCHIVE | CVAR_USERINFO};		// :)
-cvar_t	noaim = {"noaim",				"",			NULL, CVAR_ARCHIVE | CVAR_USERINFO};
-cvar_t	msg = {"msg",					"1",		NULL, CVAR_ARCHIVE | CVAR_USERINFO};
-cvar_t	cl_nofake = {"cl_nofake",		"2"};
-cvar_t	cl_chatsound = {"cl_chatsound",	"1"};
-cvar_t cl_enemychatsound = {"cl_enemychatsound", "misc/talk.wav"};
-cvar_t cl_teamchatsound = {"cl_teamchatsound", "misc/talk.wav"};
+cvar_t	password = SCVARF("password",		"",			CVAR_USERINFO);	//this is parhaps slightly dodgy...
+cvar_t	spectator = SCVARF("spectator",		"",			CVAR_USERINFO);
+cvar_t	name = SCVARF("name",				"unnamed",	CVAR_ARCHIVE | CVAR_USERINFO);
+cvar_t	team = SCVARF("team",				"",			CVAR_ARCHIVE | CVAR_USERINFO);
+cvar_t	skin = SCVARF("skin",				"",			CVAR_ARCHIVE | CVAR_USERINFO);
+cvar_t	model = SCVARF("model",				"",			CVAR_ARCHIVE | CVAR_USERINFO);
+cvar_t	topcolor = SCVARF("topcolor",		"",			CVAR_ARCHIVE | CVAR_USERINFO);
+cvar_t	bottomcolor = SCVARF("bottomcolor",	"",			CVAR_ARCHIVE | CVAR_USERINFO);
+cvar_t	rate = SCVARF("rate",				"2500",		CVAR_ARCHIVE | CVAR_USERINFO);
+cvar_t	drate = SCVARF("drate",				"100000",	CVAR_ARCHIVE | CVAR_USERINFO);		// :)
+cvar_t	noaim = SCVARF("noaim",				"",			CVAR_ARCHIVE | CVAR_USERINFO);
+cvar_t	msg = SCVARF("msg",					"1",		CVAR_ARCHIVE | CVAR_USERINFO);
+cvar_t	cl_nofake = SCVAR("cl_nofake",		"2");
+cvar_t	cl_chatsound = SCVAR("cl_chatsound","1");
+cvar_t cl_enemychatsound = SCVAR("cl_enemychatsound", "misc/talk.wav");
+cvar_t cl_teamchatsound = SCVAR("cl_teamchatsound", "misc/talk.wav");
 
-cvar_t	r_rocketlight	= {"r_rocketlight",	"1"};
-cvar_t	r_lightflicker	= {"r_lightflicker",	"1"};
-cvar_t	cl_r2g			= {"cl_r2g",	"0"};
-cvar_t	r_powerupglow	= {"r_powerupglow", "1"};
-cvar_t	v_powerupshell	= {"v_powerupshell", "0"};
-cvar_t	cl_gibfilter	= {"cl_gibfilter", "0"};
-cvar_t	cl_deadbodyfilter	= {"cl_deadbodyfilter", "0"};
+cvar_t	r_rocketlight	= SCVAR("r_rocketlight",	"1");
+cvar_t	r_lightflicker	= SCVAR("r_lightflicker",	"1");
+cvar_t	cl_r2g			= SCVAR("cl_r2g",	"0");
+cvar_t	r_powerupglow	= SCVAR("r_powerupglow", "1");
+cvar_t	v_powerupshell	= SCVAR("v_powerupshell", "0");
+cvar_t	cl_gibfilter	= SCVAR("cl_gibfilter", "0");
+cvar_t	cl_deadbodyfilter	= SCVAR("cl_deadbodyfilter", "0");
 
-cvar_t	allow_download_csprogs = {"allow_download_csprogs", "0"};
+cvar_t	allow_download_csprogs = SCVAR("allow_download_csprogs", "0");
 
-cvar_t	cl_muzzleflash = {"cl_muzzleflash", "1"};
+cvar_t	cl_muzzleflash = SCVAR("cl_muzzleflash", "1");
 
-cvar_t	cl_item_bobbing = {"cl_model_bobbing", "0"};
+cvar_t	cl_item_bobbing = SCVAR("cl_model_bobbing", "0");
 
-cvar_t	requiredownloads = {"requiredownloads","1", NULL, CVAR_ARCHIVE};
-cvar_t	cl_standardchat = {"cl_standardchat", "0"};
-cvar_t	msg_filter = {"msg_filter", "0"};	//0 for neither, 1 for mm1, 2 for mm2, 3 for both
-cvar_t  cl_standardmsg = {"cl_standardmsg", "0"};
-cvar_t  cl_parsewhitetext = {"cl_parsewhitetext", "0"};
+cvar_t	requiredownloads = SCVARF("requiredownloads","1", CVAR_ARCHIVE);
+cvar_t	cl_standardchat = SCVAR("cl_standardchat", "0");
+cvar_t	msg_filter = SCVAR("msg_filter", "0");	//0 for neither, 1 for mm1, 2 for mm2, 3 for both
+cvar_t  cl_standardmsg = SCVAR("cl_standardmsg", "0");
+cvar_t  cl_parsewhitetext = SCVAR("cl_parsewhitetext", "0");
 
-cvar_t	host_mapname = {"host_mapname", ""};
+cvar_t	host_mapname = SCVAR("host_mapname", "");
 
 extern cvar_t cl_hightrack;
 
@@ -170,11 +170,11 @@ int			host_hunklevel;
 qbyte		*host_basepal;
 qbyte		*host_colormap;
 
-cvar_t	host_speeds = {"host_speeds","0"};		// set for running times
+cvar_t	host_speeds = SCVAR("host_speeds","0");		// set for running times
 #ifdef CRAZYDEBUGGING
-cvar_t	developer = {"developer","1"};
+cvar_t	developer = SCVAR("developer","1");
 #else
-cvar_t	developer = {"developer","0"};
+cvar_t	developer = SCVAR("developer","0");
 #endif
 
 int			fps_count;
@@ -2479,7 +2479,14 @@ void CL_Windows_f (void)
 void CL_ServerInfo_f(void)
 {
 	if (!sv.state && cls.state)
-		Cmd_ForwardToServer ();
+	{
+		if (cls.demoplayback)
+		{
+			Info_Print (cl.serverinfo);
+		}
+		else
+			Cmd_ForwardToServer ();
+	}
 	else
 	{
 		SV_Serverinfo_f();	//allow it to be set... (whoops)

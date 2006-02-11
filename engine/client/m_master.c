@@ -16,28 +16,28 @@ int slist_firstoption;
 int slist_type;
 
 //filtering
-cvar_t	sb_hideempty		= {"sb_hideempty",		"0",	NULL, CVAR_ARCHIVE};
-cvar_t	sb_hidenotempty		= {"sb_hidenotempty",	"0",	NULL, CVAR_ARCHIVE};
-cvar_t	sb_hidefull			= {"sb_hidefull",		"0",	NULL, CVAR_ARCHIVE};
-cvar_t	sb_hidedead			= {"sb_hidedead",		"1",	NULL, CVAR_ARCHIVE};
-cvar_t	sb_hidequake2		= {"sb_hidequake2",		"1",	NULL, CVAR_ARCHIVE};
-cvar_t	sb_hidequake3		= {"sb_hidequake3",		"1",	NULL, CVAR_ARCHIVE};
-cvar_t	sb_hidenetquake		= {"sb_hidenetquake",	"1",	NULL, CVAR_ARCHIVE};
-cvar_t	sb_hidequakeworld	= {"sb_hidequakeworld",	"0",	NULL, CVAR_ARCHIVE};
-cvar_t	sb_maxping			= {"sb_maxping",		"0",	NULL, CVAR_ARCHIVE};
-cvar_t	sb_gamedir			= {"sb_gamedir",		"",		NULL, CVAR_ARCHIVE};
-cvar_t	sb_mapname			= {"sb_mapname",		"",		NULL, CVAR_ARCHIVE};
+cvar_t	sb_hideempty		= SCVARF("sb_hideempty",	"0",	CVAR_ARCHIVE);
+cvar_t	sb_hidenotempty		= SCVARF("sb_hidenotempty",	"0",	CVAR_ARCHIVE);
+cvar_t	sb_hidefull			= SCVARF("sb_hidefull",		"0",	CVAR_ARCHIVE);
+cvar_t	sb_hidedead			= SCVARF("sb_hidedead",		"1",	CVAR_ARCHIVE);
+cvar_t	sb_hidequake2		= SCVARF("sb_hidequake2",	"1",	CVAR_ARCHIVE);
+cvar_t	sb_hidequake3		= SCVARF("sb_hidequake3",	"1",	CVAR_ARCHIVE);
+cvar_t	sb_hidenetquake		= SCVARF("sb_hidenetquake",	"1",	CVAR_ARCHIVE);
+cvar_t	sb_hidequakeworld	= SCVARF("sb_hidequakeworld","0",	CVAR_ARCHIVE);
+cvar_t	sb_maxping			= SCVARF("sb_maxping",		"0",	CVAR_ARCHIVE);
+cvar_t	sb_gamedir			= SCVARF("sb_gamedir",		"",		CVAR_ARCHIVE);
+cvar_t	sb_mapname			= SCVARF("sb_mapname",		"",		CVAR_ARCHIVE);
 
-cvar_t	sb_showping			= {"sb_showping",		"1",	NULL, CVAR_ARCHIVE};
-cvar_t	sb_showaddress		= {"sb_showaddress",	"0",	NULL, CVAR_ARCHIVE};
-cvar_t	sb_showmap			= {"sb_showmap",		"0",	NULL, CVAR_ARCHIVE};
-cvar_t	sb_showgamedir		= {"sb_showgamedir",	"0",	NULL, CVAR_ARCHIVE};
-cvar_t	sb_showplayers		= {"sb_showplayers",	"1",	NULL, CVAR_ARCHIVE};
-cvar_t	sb_showfraglimit	= {"sb_showfraglimit",	"0",	NULL, CVAR_ARCHIVE};
-cvar_t	sb_showtimelimit	= {"sb_showtimelimit",	"0",	NULL, CVAR_ARCHIVE};
+cvar_t	sb_showping			= SCVARF("sb_showping",		"1",	CVAR_ARCHIVE);
+cvar_t	sb_showaddress		= SCVARF("sb_showaddress",	"0",	CVAR_ARCHIVE);
+cvar_t	sb_showmap			= SCVARF("sb_showmap",		"0",	CVAR_ARCHIVE);
+cvar_t	sb_showgamedir		= SCVARF("sb_showgamedir",	"0",	CVAR_ARCHIVE);
+cvar_t	sb_showplayers		= SCVARF("sb_showplayers",	"1",	CVAR_ARCHIVE);
+cvar_t	sb_showfraglimit	= SCVARF("sb_showfraglimit","0",	CVAR_ARCHIVE);
+cvar_t	sb_showtimelimit	= SCVARF("sb_showtimelimit","0",	CVAR_ARCHIVE);
 
-cvar_t	sb_filterkey		= {"sb_filterkey",		"hostname", NULL, CVAR_ARCHIVE};
-cvar_t	sb_filtervalue		= {"sb_filtervalue",	"",		NULL, CVAR_ARCHIVE};
+cvar_t	sb_filterkey		= SCVARF("sb_filterkey",	"hostname", CVAR_ARCHIVE);
+cvar_t	sb_filtervalue		= SCVARF("sb_filtervalue",	"",		CVAR_ARCHIVE);
 
 extern cvar_t slist_writeserverstxt;
 extern cvar_t slist_cacheinfo;

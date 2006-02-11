@@ -99,34 +99,34 @@ int		d_lightstylevalue[256];	// 8.8 fraction of base light value
 
 void GLR_MarkLeaves (void);
 
-cvar_t	r_norefresh = {"r_norefresh","0"};
-//cvar_t	r_drawentities = {"r_drawentities","1"};
-//cvar_t	r_drawviewmodel = {"r_drawviewmodel","1"};
-//cvar_t	r_speeds = {"r_speeds","0"};
-//cvar_t	r_fullbright = {"r_fullbright","0"};
-cvar_t	r_mirroralpha = {"r_mirroralpha","1", NULL, CVAR_CHEAT};
-cvar_t	r_wateralpha = {"r_wateralpha","1", NULL};
-//cvar_t	r_waterwarp = {"r_waterwarp", "0"};
-cvar_t	r_novis = {"r_novis","0"};
-//cvar_t	r_netgraph = {"r_netgraph","0"};
+cvar_t	r_norefresh = SCVAR("r_norefresh","0");
+//cvar_t	r_drawentities = SCVAR("r_drawentities","1");
+//cvar_t	r_drawviewmodel = SCVAR("r_drawviewmodel","1");
+//cvar_t	r_speeds = SCVAR("r_speeds","0");
+//cvar_t	r_fullbright = SCVAR("r_fullbright","0");
+cvar_t	r_mirroralpha = SCVARF("r_mirroralpha","1", CVAR_CHEAT);
+cvar_t	r_wateralpha = SCVAR("r_wateralpha","1");
+//cvar_t	r_waterwarp = SCVAR("r_waterwarp", "0");
+cvar_t	r_novis = SCVAR("r_novis","0");
+//cvar_t	r_netgraph = SCVAR("r_netgraph","0");
 
 extern cvar_t	gl_part_flame;
 
-cvar_t	gl_clear = {"gl_clear","0"};
-cvar_t	gl_cull = {"gl_cull","1"};
-cvar_t	gl_smoothmodels = {"gl_smoothmodels","1"};
-cvar_t	gl_affinemodels = {"gl_affinemodels","0"};
-cvar_t	gl_polyblend = {"gl_polyblend","1"};
-cvar_t	gl_playermip = {"gl_playermip","0"};
-cvar_t	gl_keeptjunctions = {"gl_keeptjunctions","1"};
-cvar_t	gl_reporttjunctions = {"gl_reporttjunctions","0"};
-cvar_t	gl_finish = {"gl_finish","0"};
-cvar_t	gl_contrast = {"gl_contrast", "1"};
-cvar_t	gl_dither = {"gl_dither", "1"};
-cvar_t	gl_maxdist = {"gl_maxdist", "8192"};
-cvar_t	gl_mindist = {"gl_mindist", "4", NULL, CVAR_CHEAT};	//by setting to 64 or something, you can use this as a wallhack
+cvar_t	gl_clear = SCVAR("gl_clear","0");
+cvar_t	gl_cull = SCVAR("gl_cull","1");
+cvar_t	gl_smoothmodels = SCVAR("gl_smoothmodels","1");
+cvar_t	gl_affinemodels = SCVAR("gl_affinemodels","0");
+cvar_t	gl_polyblend = SCVAR("gl_polyblend","1");
+cvar_t	gl_playermip = SCVAR("gl_playermip","0");
+cvar_t	gl_keeptjunctions = SCVAR("gl_keeptjunctions","1");
+cvar_t	gl_reporttjunctions = SCVAR("gl_reporttjunctions","0");
+cvar_t	gl_finish = SCVAR("gl_finish","0");
+cvar_t	gl_contrast = SCVAR("gl_contrast", "1");
+cvar_t	gl_dither = SCVAR("gl_dither", "1");
+cvar_t	gl_maxdist = SCVAR("gl_maxdist", "8192");
+cvar_t	gl_mindist = SCVARF("gl_mindist", "4", CVAR_CHEAT);	//by setting to 64 or something, you can use this as a wallhack
 
-cvar_t	gl_bloom = {"gl_bloom", "0"};
+cvar_t	gl_bloom = SCVAR("gl_bloom", "0");
 extern cvar_t	gl_motionblur;
 extern cvar_t	gl_motionblurscale;
 
@@ -137,7 +137,7 @@ extern cvar_t gl_ati_truform_tesselation;
 extern cvar_t gl_blendsprites;
 
 #ifdef R_XFLIP
-cvar_t	r_xflip = {"leftisright", "0"};
+cvar_t	r_xflip = SCVAR("leftisright", "0");
 #endif
 
 extern	cvar_t	gl_ztrick;

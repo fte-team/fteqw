@@ -33,37 +33,37 @@ edict_t	*sv_player;
 usercmd_t	cmd;
 
 #ifdef SERVERONLY
-cvar_t	cl_rollspeed = {"cl_rollspeed", "200"};
-cvar_t	cl_rollangle = {"cl_rollangle", "2.0"};
+cvar_t	cl_rollspeed = SCVAR("cl_rollspeed", "200");
+cvar_t	cl_rollangle = SCVAR("cl_rollangle", "2.0");
 #else
 extern cvar_t	cl_rollspeed;
 extern cvar_t	cl_rollangle;
 #endif
-cvar_t	sv_spectalk = {"sv_spectalk", "1"};
+cvar_t	sv_spectalk = SCVAR("sv_spectalk", "1");
 
-cvar_t	sv_mapcheck	= {"sv_mapcheck", "1"};
+cvar_t	sv_mapcheck	= SCVAR("sv_mapcheck", "1");
 
-cvar_t	sv_cheatpc = {"sv_cheatpc", "125"};
-cvar_t	sv_cheatspeedchecktime = {"sv_cheatspeedchecktime", "30"};
-cvar_t	sv_playermodelchecks = {"sv_playermodelchecks", "1"};
+cvar_t	sv_cheatpc = SCVAR("sv_cheatpc", "125");
+cvar_t	sv_cheatspeedchecktime = SCVAR("sv_cheatspeedchecktime", "30");
+cvar_t	sv_playermodelchecks = SCVAR("sv_playermodelchecks", "1");
 
-cvar_t	sv_cmdlikercon = {"sv_cmdlikercon", "0"};	//set to 1 to allow a password of username:password instead of the correct rcon password.
-cvar_t cmd_allowaccess = {"cmd_allowaccess", "0"};	//set to 1 to allow cmd to execute console commands on the server.
-cvar_t cmd_gamecodelevel = {"cmd_gamecodelevel", "50"};	//execution level which gamecode is told about (for unrecognised commands)
+cvar_t	sv_cmdlikercon = SCVAR("sv_cmdlikercon", "0");	//set to 1 to allow a password of username:password instead of the correct rcon password.
+cvar_t cmd_allowaccess = SCVAR("cmd_allowaccess", "0");	//set to 1 to allow cmd to execute console commands on the server.
+cvar_t cmd_gamecodelevel = SCVAR("cmd_gamecodelevel", "50");	//execution level which gamecode is told about (for unrecognised commands)
 
-cvar_t	sv_nomsec = {"sv_nomsec", "0"};
-cvar_t	sv_edgefriction = {"sv_edgefriction", "2"};
+cvar_t	sv_nomsec = SCVAR("sv_nomsec", "0");
+cvar_t	sv_edgefriction = SCVAR("sv_edgefriction", "2");
 
-cvar_t	sv_brokenmovetypes = {"sv_brokenmovetypes", "0"};
+cvar_t	sv_brokenmovetypes = SCVAR("sv_brokenmovetypes", "0");
 
-cvar_t	sv_chatfilter = {"sv_chatfilter", "0"};
+cvar_t	sv_chatfilter = SCVAR("sv_chatfilter", "0");
 
-cvar_t	votelevel	= {"votelevel", "0"};
-cvar_t	voteminimum	= {"voteminimum", "4"};
-cvar_t	votepercent = {"votepercent", "-1"};
-cvar_t	votetime = {"votetime", "10"};
+cvar_t	votelevel	= SCVAR("votelevel", "0");
+cvar_t	voteminimum	= SCVAR("voteminimum", "4");
+cvar_t	votepercent = SCVAR("votepercent", "-1");
+cvar_t	votetime = SCVAR("votetime", "10");
 
-cvar_t	pr_allowbutton1 = {"pr_allowbutton1", "1", NULL, CVAR_LATCH};
+cvar_t	pr_allowbutton1 = SCVARF("pr_allowbutton1", "1", CVAR_LATCH);
 
 
 extern cvar_t	pm_bunnyspeedcap;
@@ -72,7 +72,7 @@ extern cvar_t	pm_slidefix;
 extern cvar_t	pm_slidyslopes;
 extern cvar_t	pm_airstep;
 extern cvar_t	pm_walljump;
-cvar_t sv_pushplayers = {"sv_pushplayers", "0"};
+cvar_t sv_pushplayers = SCVAR("sv_pushplayers", "0");
 
 char sv_votinggroup[] = "server voting";
 
@@ -1739,6 +1739,28 @@ void SV_BeginDownload_f(void)
 #ifdef PEXT_CHUNKEDDOWNLOADS
 	if (host_client->fteprotocolextensions & PEXT_CHUNKEDDOWNLOADS)
 	{
+		if (host_client->download->seekingisabadplan)
+		{	//if seeking is a bad plan (for whatever reason - usually because of zip files)
+			//create a temp file instead
+			int i, len;
+			char buffer[8192];
+			vfsfile_t *tmp;
+			tmp = FS_OpenTemp();
+
+			for (i = 0; ; i+=len)
+			{
+				len = sizeof(buffer);
+				if (len > host_client->downloadsize-i)
+					len = host_client->downloadsize-i;
+				if (len == 0)
+					break;
+				VFS_READ(host_client->download, buffer, len);
+				VFS_WRITE(tmp, buffer, len);
+			}
+			VFS_CLOSE(host_client->download);
+			host_client->download = tmp;
+		}
+
 		ClientReliableWrite_Begin (host_client, svc_download, 10+strlen(name));
 		ClientReliableWrite_Long (host_client, -1);
 		ClientReliableWrite_Long (host_client, host_client->downloadsize);

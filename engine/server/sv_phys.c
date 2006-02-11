@@ -41,24 +41,24 @@ solid_edge items only clip against bsp models.
 
 */
 
-cvar_t	sv_maxvelocity = {"sv_maxvelocity","2000"}; 
+cvar_t	sv_maxvelocity = SCVAR("sv_maxvelocity","2000");
 
-cvar_t	sv_gravity			 = { "sv_gravity", "800"};    
-cvar_t	sv_stopspeed		 = { "sv_stopspeed", "100"};    
-cvar_t	sv_maxspeed			 = { "sv_maxspeed", "320"};    
-cvar_t	sv_spectatormaxspeed = { "sv_spectatormaxspeed", "500"};
-cvar_t	sv_accelerate		 = { "sv_accelerate", "10"};     
-cvar_t	sv_airaccelerate	 = { "sv_airaccelerate", "0.7"};    
-cvar_t	sv_wateraccelerate	 = { "sv_wateraccelerate", "10"};     
-cvar_t	sv_friction			 = { "sv_friction", "4"};      
-cvar_t	sv_waterfriction	 = { "sv_waterfriction", "4"};     
+cvar_t	sv_gravity			 = SCVAR( "sv_gravity", "800");
+cvar_t	sv_stopspeed		 = SCVAR( "sv_stopspeed", "100");
+cvar_t	sv_maxspeed			 = SCVAR( "sv_maxspeed", "320");
+cvar_t	sv_spectatormaxspeed = SCVAR( "sv_spectatormaxspeed", "500");
+cvar_t	sv_accelerate		 = SCVAR( "sv_accelerate", "10");
+cvar_t	sv_airaccelerate	 = SCVAR( "sv_airaccelerate", "0.7");
+cvar_t	sv_wateraccelerate	 = SCVAR( "sv_wateraccelerate", "10");
+cvar_t	sv_friction			 = SCVAR( "sv_friction", "4");
+cvar_t	sv_waterfriction	 = SCVAR( "sv_waterfriction", "4");
 
-cvar_t	pm_ktjump			 = {"pm_ktjump", "", NULL, CVAR_SERVERINFO};
-cvar_t	pm_bunnyspeedcap	 = {"pm_bunnyspeedcap", "", NULL, CVAR_SERVERINFO};
-cvar_t	pm_slidefix			 = {"pm_slidefix", "", NULL, CVAR_SERVERINFO};
-cvar_t	pm_slidyslopes		 = {"pm_slidyslopes", "", NULL, CVAR_SERVERINFO};
-cvar_t	pm_airstep			 = {"pm_airstep", "", NULL, CVAR_SERVERINFO}; 
-cvar_t	pm_walljump			 = {"pm_walljump", "", NULL, CVAR_SERVERINFO}; 
+cvar_t	pm_ktjump			 = SCVARF("pm_ktjump", "", CVAR_SERVERINFO);
+cvar_t	pm_bunnyspeedcap	 = SCVARF("pm_bunnyspeedcap", "", CVAR_SERVERINFO);
+cvar_t	pm_slidefix			 = SCVARF("pm_slidefix", "", CVAR_SERVERINFO);
+cvar_t	pm_slidyslopes		 = SCVARF("pm_slidyslopes", "", CVAR_SERVERINFO);
+cvar_t	pm_airstep			 = SCVARF("pm_airstep", "", CVAR_SERVERINFO);
+cvar_t	pm_walljump			 = SCVARF("pm_walljump", "", CVAR_SERVERINFO);
 
 extern cvar_t sv_nomsec;
 

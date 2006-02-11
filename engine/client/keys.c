@@ -55,6 +55,7 @@ qboolean	keydown[K_MAX];
 qboolean deltaused[K_MAX][KEY_MODIFIERSTATES];
 
 extern cvar_t con_displaypossabilities;
+cvar_t con_selectioncolour = SCVAR("con_selectioncolour", "0");
 extern cvar_t cl_chatmode;
 
 static int KeyModifier (qboolean shift, qboolean alt, qboolean ctrl)
@@ -390,8 +391,6 @@ void Key_ConsoleDrawSelectionBox(void)
 		extern int mousecursor_x, mousecursor_y;
 		int xpos, ypos, temp;
 		int xpos2, ypos2;
-		char *buf, *bufhead;
-		int x, y;
 		
 		if (!con_mousedown[2])
 			return;
@@ -425,22 +424,26 @@ void Key_ConsoleDrawSelectionBox(void)
 		}
 		ypos++;
 
-	Draw_Fill(xpos2*8, ypos2*8, (xpos - xpos2)*8, (ypos - ypos2)*8, 0);
+	Draw_Fill(xpos2*8, ypos2*8, (xpos - xpos2)*8, (ypos - ypos2)*8, con_selectioncolour.value);
 }
 
 void Key_ConsoleRelease(int key)
 {
-	if (key == K_MOUSE1 && con_mousedown[2])
+	if (key == K_MOUSE1)
+		con_mousedown[2] = false;
+	if (key == K_MOUSE2 && con_mousedown[2])
 	{
 		extern cvar_t vid_conwidth, vid_conheight;
 		extern int mousecursor_x, mousecursor_y;
 		int xpos, ypos, temp;
 		char *buf, *bufhead;
 		int x, y;
+
+		con_mousedown[2] = false;
+
 		xpos = (int)((mousecursor_x*vid_conwidth.value)/(vid.width*8));
 		ypos = (int)((mousecursor_y*vid_conheight.value)/(vid.height*8));
 
-		con_mousedown[2] = false;
 		if (con_mousedown[0] < 1)
 			con_mousedown[0] = 1;
 		if (xpos < 1)
@@ -555,8 +558,11 @@ void Key_Console (int key)
 				}
 			}
 		}
-		else
+		else if (key == K_MOUSE2)
 			con_mousedown[2] = true;
+		else 
+			con_mousedown[2] = false;
+
 		return;
 	}
 	
@@ -1264,6 +1270,8 @@ void Key_Init (void)
 	Cmd_AddCommand ("bindlevel",Key_BindLevel_f);
 	Cmd_AddCommand ("unbind",Key_Unbind_f);
 	Cmd_AddCommand ("unbindall",Key_Unbindall_f);
+
+	Cvar_Register (&con_selectioncolour, "Console variables");
 }
 
 /*

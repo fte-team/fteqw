@@ -49,18 +49,18 @@ typedef struct {
 	netadr_t	adr;
 } sv_masterlist_t;
 sv_masterlist_t sv_masterlist[] = {
-	{false, {"sv_master1", ""}},
-	{false, {"sv_master2", ""}},
-	{false, {"sv_master3", ""}},
-	{false, {"sv_master4", ""}},
-	{false, {"sv_master5", ""}},
-	{false, {"sv_master6", ""}},
-	{false, {"sv_master7", ""}},
-	{false, {"sv_master8", ""}},
+	{false, SCVAR("sv_master1", "")},
+	{false, SCVAR("sv_master2", "")},
+	{false, SCVAR("sv_master3", "")},
+	{false, SCVAR("sv_master4", "")},
+	{false, SCVAR("sv_master5", "")},
+	{false, SCVAR("sv_master6", "")},
+	{false, SCVAR("sv_master7", "")},
+	{false, SCVAR("sv_master8", "")},
 
-	{true, {"sv_masterextra1", "ghdigital.com"}}, //69.59.212.88
-	{true, {"sv_masterextra2", "dpmaster.deathmask.net"}}, //209.164.24.243
-	{true, {"sv_masterextra3", "12.166.196.192"}}, //blaze.mindphukd.org (doesn't resolve currently but works as an ip)
+	{true, SCVAR("sv_masterextra1", "ghdigital.com")}, //69.59.212.88
+	{true, SCVAR("sv_masterextra2", "dpmaster.deathmask.net")}, //209.164.24.243
+	{true, SCVAR("sv_masterextra3", "12.166.196.192")}, //blaze.mindphukd.org (doesn't resolve currently but works as an ip)
 	{false, {NULL}}
 };
 
@@ -68,103 +68,103 @@ client_t	*host_client;			// current client
 
 // bound the size of the physics time tic
 #ifdef SERVERONLY
-cvar_t	sv_mintic = {"sv_mintic","0.03"};
+cvar_t	sv_mintic = SCVAR("sv_mintic","0.03");
 #else
-cvar_t	sv_mintic = {"sv_mintic","0"};	//client builds can think as often as they want.
+cvar_t	sv_mintic = SCVAR("sv_mintic","0");	//client builds can think as often as they want.
 #endif
-cvar_t	sv_maxtic = {"sv_maxtic","0.1"};
-cvar_t	sv_nailhack = {"sv_nailhack","0"};
+cvar_t	sv_maxtic = SCVAR("sv_maxtic","0.1");
+cvar_t	sv_nailhack = SCVAR("sv_nailhack","0");
 
 
-cvar_t	timeout = {"timeout","65"};		// seconds without any message
-cvar_t	zombietime = {"zombietime", "2"};	// seconds to sink messages
+cvar_t	timeout = SCVAR("timeout","65");		// seconds without any message
+cvar_t	zombietime = SCVAR("zombietime", "2");	// seconds to sink messages
 											// after disconnect
 #ifdef SERVERONLY
-cvar_t	developer = {"developer","0"};		// show extra messages
+cvar_t	developer = SCVAR("developer","0");		// show extra messages
 
-cvar_t	rcon_password = {"rcon_password", ""};	// password for remote server commands
-cvar_t	password = {"password", ""};	// password for entering the game
+cvar_t	rcon_password = SCVAR("rcon_password", "");	// password for remote server commands
+cvar_t	password = SCVAR("password", "");	// password for entering the game
 #else
 extern cvar_t	developer;
 extern cvar_t	rcon_password;
 extern cvar_t	password;
 #endif
-cvar_t	spectator_password = {"spectator_password", ""};	// password for entering as a sepctator
+cvar_t	spectator_password = SCVAR("spectator_password", "");	// password for entering as a sepctator
 
-cvar_t	allow_download = {"allow_download", "1"};
-cvar_t	allow_download_skins = {"allow_download_skins", "1"};
-cvar_t	allow_download_models = {"allow_download_models", "1"};
-cvar_t	allow_download_sounds = {"allow_download_sounds", "1"};
-cvar_t	allow_download_demos = {"allow_download_demos", "1"};
-cvar_t	allow_download_maps = {"allow_download_maps", "1"};
-cvar_t	allow_download_anymap = {"allow_download_pakmaps", "0"};
-cvar_t	allow_download_pakcontents = {"allow_download_pakcontents", "1"};
-cvar_t	allow_download_root = {"allow_download_root", "0"};
-cvar_t	allow_download_textures = {"allow_download_textures", "1"};
-cvar_t	allow_download_pk3s = {"allow_download_pk3s", "1"};
-cvar_t	allow_download_wads = {"allow_download_wads", "1"};
-cvar_t	allow_download_configs = {"allow_download_configs", "0"};
+cvar_t	allow_download = SCVAR("allow_download", "1");
+cvar_t	allow_download_skins = SCVAR("allow_download_skins", "1");
+cvar_t	allow_download_models = SCVAR("allow_download_models", "1");
+cvar_t	allow_download_sounds = SCVAR("allow_download_sounds", "1");
+cvar_t	allow_download_demos = SCVAR("allow_download_demos", "1");
+cvar_t	allow_download_maps = SCVAR("allow_download_maps", "1");
+cvar_t	allow_download_anymap = SCVAR("allow_download_pakmaps", "0");
+cvar_t	allow_download_pakcontents = SCVAR("allow_download_pakcontents", "1");
+cvar_t	allow_download_root = SCVAR("allow_download_root", "0");
+cvar_t	allow_download_textures = SCVAR("allow_download_textures", "1");
+cvar_t	allow_download_pk3s = SCVAR("allow_download_pk3s", "1");
+cvar_t	allow_download_wads = SCVAR("allow_download_wads", "1");
+cvar_t	allow_download_configs = SCVAR("allow_download_configs", "0");
 
-cvar_t sv_public = {"sv_public", "0"};
-cvar_t sv_listen = {"sv_listen", "1"};
-cvar_t sv_reportheartbeats = {"sv_reportheartbeats", "1"};
-cvar_t sv_highchars = {"sv_highchars", "1"};
-cvar_t sv_loadentfiles = {"sv_loadentfiles", "1"};
-cvar_t sv_maxrate = {"sv_maxrate", "10000"};
-cvar_t sv_maxdrate = {"sv_maxdrate", "10000"};
+cvar_t sv_public = SCVAR("sv_public", "0");
+cvar_t sv_listen = SCVAR("sv_listen", "1");
+cvar_t sv_reportheartbeats = SCVAR("sv_reportheartbeats", "1");
+cvar_t sv_highchars = SCVAR("sv_highchars", "1");
+cvar_t sv_loadentfiles = SCVAR("sv_loadentfiles", "1");
+cvar_t sv_maxrate = SCVAR("sv_maxrate", "10000");
+cvar_t sv_maxdrate = SCVAR("sv_maxdrate", "10000");
 
-cvar_t sv_bigcoords = {"sv_bigcoords", "", NULL, CVAR_SERVERINFO};
+cvar_t sv_bigcoords = SCVARF("sv_bigcoords", "", CVAR_SERVERINFO);
 
-cvar_t sv_phs = {"sv_phs", "1"};
-cvar_t sv_resetparms = {"sv_resetparms", "0"};
+cvar_t sv_phs = SCVAR("sv_phs", "1");
+cvar_t sv_resetparms = SCVAR("sv_resetparms", "0");
 
-cvar_t sv_master = {"sv_master", "0"};
-cvar_t sv_masterport = {"sv_masterport", "0"};
+cvar_t sv_master = SCVAR("sv_master", "0");
+cvar_t sv_masterport = SCVAR("sv_masterport", "0");
 
-cvar_t	sv_voicechat = {"sv_voicechat", "0"};	//still development.
-cvar_t	sv_gamespeed = {"sv_gamespeed", "1"};
-cvar_t	sv_csqcdebug = {"sv_csqcdebug", "0"};
-cvar_t	sv_tcpport = {"sv_tcpport", "0"};
+cvar_t	sv_voicechat = SCVAR("sv_voicechat", "0");	//still development.
+cvar_t	sv_gamespeed = SCVAR("sv_gamespeed", "1");
+cvar_t	sv_csqcdebug = SCVAR("sv_csqcdebug", "0");
+cvar_t	sv_tcpport = SCVAR("sv_tcpport", "0");
 
-cvar_t pausable	= {"pausable", "1"};
+cvar_t pausable	= SCVAR("pausable", "1");
 
 
 //
 // game rules mirrored in svs.info
 //
-cvar_t	fraglimit		= {"fraglimit",			"" ,	NULL, CVAR_SERVERINFO};
-cvar_t	timelimit		= {"timelimit",			"" ,	NULL, CVAR_SERVERINFO};
-cvar_t	teamplay		= {"teamplay",			"" ,	NULL, CVAR_SERVERINFO};
-cvar_t	samelevel		= {"samelevel",			"" ,	NULL, CVAR_SERVERINFO};
-cvar_t	maxclients		= {"maxclients",		"8",	NULL, CVAR_SERVERINFO};
-cvar_t	maxspectators	= {"maxspectators",		"8",	NULL, CVAR_SERVERINFO};
+cvar_t	fraglimit		= SCVARF("fraglimit",		"" ,	CVAR_SERVERINFO);
+cvar_t	timelimit		= SCVARF("timelimit",		"" ,	CVAR_SERVERINFO);
+cvar_t	teamplay		= SCVARF("teamplay",		"" ,	CVAR_SERVERINFO);
+cvar_t	samelevel		= SCVARF("samelevel",		"" ,	CVAR_SERVERINFO);
+cvar_t	maxclients		= SCVARF("maxclients",		"8",	CVAR_SERVERINFO);
+cvar_t	maxspectators	= SCVARF("maxspectators",	"8",	CVAR_SERVERINFO);
 #ifdef SERVERONLY
-cvar_t	deathmatch		= {"deathmatch",		"1",	NULL, CVAR_SERVERINFO};			// 0, 1, or 2
+cvar_t	deathmatch		= SCVARF("deathmatch",		"1",	CVAR_SERVERINFO);			// 0, 1, or 2
 #else
-cvar_t	deathmatch		= {"deathmatch",		"0",	NULL, CVAR_SERVERINFO};			// 0, 1, or 2
+cvar_t	deathmatch		= SCVARF("deathmatch",		"0",	CVAR_SERVERINFO);			// 0, 1, or 2
 #endif
-cvar_t	coop			= {"coop",				"" ,	NULL, CVAR_SERVERINFO};
-cvar_t	skill			= {"skill",				"" ,	NULL, CVAR_SERVERINFO};			// 0, 1, 2 or 3
-cvar_t	spawn			= {"spawn",				"" ,	NULL, CVAR_SERVERINFO};
-cvar_t	watervis		= {"watervis",			"" ,	NULL, CVAR_SERVERINFO};
-cvar_t	rearview		= {"rearview",			"" ,	NULL, CVAR_SERVERINFO};
-cvar_t	allow_luma		= {"allow_luma",		"1",	NULL, CVAR_SERVERINFO};
-cvar_t	allow_bump		= {"allow_bump",		"1",	NULL, CVAR_SERVERINFO};
-cvar_t	allow_skybox	= {"allow_skybox",		"",		NULL, CVAR_SERVERINFO};
-cvar_t	sv_allow_splitscreen = {"allow_splitscreen", "",NULL,CVAR_SERVERINFO};
-cvar_t	fbskins			= {"fbskins",			"1",	NULL, CVAR_SERVERINFO};	//to get rid of lame fuhquake fbskins
-cvar_t	mirrors			= {"mirrors",			"" ,	NULL, CVAR_SERVERINFO};
+cvar_t	coop			= SCVARF("coop",			"" ,	CVAR_SERVERINFO);
+cvar_t	skill			= SCVARF("skill",			"" ,	CVAR_SERVERINFO);			// 0, 1, 2 or 3
+cvar_t	spawn			= SCVARF("spawn",			"" ,	CVAR_SERVERINFO);
+cvar_t	watervis		= SCVARF("watervis",		"" ,	CVAR_SERVERINFO);
+cvar_t	rearview		= SCVARF("rearview",		"" ,	CVAR_SERVERINFO);
+cvar_t	allow_luma		= SCVARF("allow_luma",		"1",	CVAR_SERVERINFO);
+cvar_t	allow_bump		= SCVARF("allow_bump",		"1",	CVAR_SERVERINFO);
+cvar_t	allow_skybox	= SCVARF("allow_skybox",	"",		CVAR_SERVERINFO);
+cvar_t	sv_allow_splitscreen = SCVARF("allow_splitscreen","",CVAR_SERVERINFO);
+cvar_t	fbskins			= SCVARF("fbskins",			"1",	CVAR_SERVERINFO);	//to get rid of lame fuhquake fbskins
+cvar_t	mirrors			= SCVARF("mirrors",			"" ,	CVAR_SERVERINFO);
 
-cvar_t	sv_motd[]		={	{"sv_motd1",			""},
-							{"sv_motd2",			""},
-							{"sv_motd3",			""},
-							{"sv_motd4",			""}	};
+cvar_t	sv_motd[]		={	SCVAR("sv_motd1",		""),
+							SCVAR("sv_motd2",		""),
+							SCVAR("sv_motd3",		""),
+							SCVAR("sv_motd4",		"")	};
 
-cvar_t sv_compatablehulls = {"sv_compatablehulls", "1"};
+cvar_t sv_compatablehulls = SCVAR("sv_compatablehulls", "1");
 
-cvar_t	hostname = {"hostname","unnamed", NULL, CVAR_SERVERINFO};
+cvar_t	hostname = SCVARF("hostname","unnamed", CVAR_SERVERINFO);
 
-cvar_t	secure = {"secure", "", NULL, CVAR_SERVERINFO};
+cvar_t	secure = SCVARF("secure", "", CVAR_SERVERINFO);
 
 extern cvar_t sv_nomsec;
 
@@ -2374,7 +2374,7 @@ typedef struct
 ipfilter_t	ipfilters[MAX_IPFILTERS];
 int			numipfilters;
 
-cvar_t	filterban = {"filterban", "1"};
+cvar_t	filterban = SCVAR("filterban", "1");
 
 /*
 =================

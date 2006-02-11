@@ -39,7 +39,7 @@ extern int missing_texture;
 
 #ifdef Q3SHADERS
 
-cvar_t r_vertexlight = {"r_vertexlight", "0"};
+cvar_t r_vertexlight = SCVAR("r_vertexlight", "0");
 
 #define Q_stricmp stricmp
 #define Com_sprintf _snprintf

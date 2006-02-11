@@ -208,6 +208,28 @@ void VFSOS_Close(vfsfile_t *file)
 	fclose(intfile->handle);
 	Z_Free(file);
 }
+
+vfsfile_t *FS_OpenTemp(void)
+{
+	FILE *f;
+	vfsosfile_t *file;
+
+	f = tmpfile();
+	if (!f)
+		return NULL;
+
+	file = Z_Malloc(sizeof(vfsosfile_t));
+	file->funcs.ReadBytes = VFSOS_ReadBytes;
+	file->funcs.WriteBytes = VFSOS_WriteBytes;
+	file->funcs.Seek = VFSOS_Seek;
+	file->funcs.Tell = VFSOS_Tell;
+	file->funcs.GetLen = VFSOS_GetSize;
+	file->funcs.Close = VFSOS_Close;
+	file->handle = f;
+
+	return (vfsfile_t*)file;
+}
+
 vfsfile_t *VFSOS_Open(char *osname, char *mode)
 {
 	FILE *f;
@@ -998,6 +1020,7 @@ vfsfile_t *FSZIP_OpenVFS(void *handle, flocation_t *loc, char *mode)
 	vfsz->funcs.Seek = VFSZIP_Seek;
 	vfsz->funcs.Tell = VFSZIP_Tell;
 	vfsz->funcs.WriteBytes = NULL;
+	vfsz->funcs.seekingisabadplan = true;
 
 	unzLocateFileMy(vfsz->parent->handle, vfsz->index, vfsz->startpos);
 	rawofs = unzGetCurrentFileUncompressedPos(zip->handle);
@@ -1593,6 +1616,180 @@ qboolean Sys_PathProtection(char *pattern)
 	return true;
 }
 
+typedef struct {
+	unsigned char ident1;
+	unsigned char ident2;
+	unsigned char cm;
+	unsigned char flags;
+	unsigned int mtime;
+	unsigned char xflags;
+	unsigned char os;
+} gzheader_t;
+#define sizeofgzheader_t 10
+
+#define	GZ_FTEXT	1
+#define	GZ_FHCRC	2
+#define GZ_FEXTRA	4
+#define GZ_FNAME	8
+#define GZ_FCOMMENT	16
+#define GZ_RESERVED (32|64|128)
+
+#include <zlib.h>
+
+vfsfile_t *FS_DecompressGZip(vfsfile_t *infile, gzheader_t *header)
+{
+	char inchar;
+	unsigned short inshort;
+	vfsfile_t *temp;
+
+	if (header->flags & GZ_RESERVED)
+	{	//reserved bits should be 0
+		//this is probably static, so it's not a gz. doh.
+		VFS_SEEK(infile, 0);
+		return infile;
+	}
+
+	if (header->flags & GZ_FEXTRA)
+	{
+		VFS_READ(infile, &inshort, sizeof(inshort));
+		inshort = LittleShort(inshort);
+		VFS_SEEK(infile, VFS_TELL(infile) + inshort);
+	}
+
+	if (header->flags & GZ_FNAME)
+	{
+		Con_Printf("gzipped file name: ");
+		do {
+			if (VFS_READ(infile, &inchar, sizeof(inchar)) != 1)
+				break;
+			Con_Printf("%c", inchar);
+		} while(inchar);
+		Con_Printf("\n");
+	}
+
+	if (header->flags & GZ_FCOMMENT)
+	{
+		Con_Printf("gzipped file comment: ");
+		do {
+			if (VFS_READ(infile, &inchar, sizeof(inchar)) != 1)
+				break;
+			Con_Printf("%c", inchar);
+		} while(inchar);
+		Con_Printf("\n");
+	}
+
+	if (header->flags & GZ_FHCRC)
+	{
+		VFS_READ(infile, &inshort, sizeof(inshort));
+	}
+
+
+
+	temp = FS_OpenTemp();
+	if (!temp)
+	{
+		VFS_SEEK(infile, 0);	//doh
+		return infile;
+	}
+
+
+	{
+		char inbuffer[16384];
+		char outbuffer[16384];
+		int ret;
+
+		z_stream strm = {
+			inbuffer,
+			0,
+			0,
+
+			outbuffer,
+			sizeof(outbuffer),
+			0,
+
+			NULL,
+			NULL,
+
+			NULL,
+			NULL,
+			NULL,
+
+			Z_UNKNOWN,
+			0,
+			0
+		};
+
+		strm.avail_in = VFS_READ(infile, inbuffer, sizeof(inbuffer));
+		strm.next_in = inbuffer;
+
+		inflateInit2(&strm, -MAX_WBITS);
+
+		while ((ret=inflate(&strm, Z_SYNC_FLUSH)) != Z_STREAM_END)
+		{
+			if (strm.avail_in == 0 || strm.avail_out == 0)
+			{
+				if (strm.avail_in == 0)
+				{
+					strm.avail_in = VFS_READ(infile, inbuffer, sizeof(inbuffer));
+					strm.next_in = inbuffer;
+				}
+
+				if (strm.avail_out == 0)
+				{
+					strm.next_out = outbuffer;
+					VFS_WRITE(temp, outbuffer, strm.total_out);
+					strm.total_out = 0;
+					strm.avail_out = sizeof(outbuffer);
+				}
+				continue;
+			}
+
+			//doh, it terminated for no reason
+			inflateEnd(&strm);
+			if (ret != Z_STREAM_END)
+			{
+				Con_Printf("Couldn't decompress gz file\n");
+				VFS_CLOSE(temp);
+				VFS_CLOSE(infile);
+				return NULL;
+			}
+		}
+		//we got to the end
+		VFS_WRITE(temp, outbuffer, strm.total_out);
+
+		inflateEnd(&strm);
+
+		VFS_SEEK(temp, 0);
+	}
+	VFS_CLOSE(infile);
+
+	return temp;
+}
+
+vfsfile_t *VFS_Filter(char *filename, vfsfile_t *handle)
+{
+//	char *ext;
+
+	if (!handle || handle->WriteBytes || handle->seekingisabadplan)	//only on readonly files
+		return handle;
+
+//	ext = COM_FileExtension (filename);
+//	if (!stricmp(ext, ".gz"))
+	{
+		gzheader_t gzh;
+		if (VFS_READ(handle, &gzh, sizeofgzheader_t) == sizeofgzheader_t)
+		{
+			if (gzh.ident1 == 0x1f && gzh.ident2 == 0x8b && gzh.cm == 8)
+			{	//it'll do
+				return FS_DecompressGZip(handle, &gzh);
+			}
+		}
+		VFS_SEEK(handle, 0);
+	}
+
+	return handle;
+}
+
 vfsfile_t *FS_OpenVFS(char *filename, char *mode, int relativeto)
 {
 	char fullname[MAX_OSPATH];
@@ -1659,7 +1856,7 @@ vfsfile_t *FS_OpenVFS(char *filename, char *mode, int relativeto)
 	if (loc.search)
 	{
 		com_file_copyprotected = loc.search->copyprotected;
-		return loc.search->funcs->OpenVFS(loc.search->handle, &loc, mode);
+		return VFS_Filter(filename, loc.search->funcs->OpenVFS(loc.search->handle, &loc, mode));
 	}
 
 	//if we're meant to be writing, best write to it.

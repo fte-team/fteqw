@@ -29,8 +29,8 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 
 #ifdef FISH
 void R_RenderView_fisheye(void);
-cvar_t ffov = {"ffov", "0"};
-cvar_t fviews = {"fviews", "6"};
+cvar_t ffov = SCVAR("ffov", "0");
+cvar_t fviews = SCVAR("fviews", "6");
 #endif
 
 /*
@@ -43,60 +43,60 @@ when crossing a water boudnary.
 */
 
 #ifdef SIDEVIEWS
-cvar_t	vsec_enabled[SIDEVIEWS] = {{"v2_enabled", "0"},		{"v3_enabled", "0"},	{"v4_enabled", "0"},	{"v5_enabled", "0"}};
-cvar_t	vsec_x[SIDEVIEWS]		= {{"v2_x", "0"},			{"v3_x", "0.25"},		{"v4_x", "0.5"},		{"v5_x", "0.75"}};
-cvar_t	vsec_y[SIDEVIEWS]		= {{"v2_y", "0"},			{"v3_y", "0"},			{"v4_y", "0"},			{"v5_y", "0"}};
-cvar_t	vsec_scalex[SIDEVIEWS]	= {{"v2_scalex", "0.25"},	{"v3_scalex", "0.25"},	{"v4_scalex", "0.25"},	{"v5_scalex", "0.25"}};
-cvar_t	vsec_scaley[SIDEVIEWS]	= {{"v2_scaley", "0.25"},	{"v3_scaley", "0.25"},	{"v4_scaley", "0.25"},	{"v5_scaley", "0.25"}};
-cvar_t	vsec_yaw[SIDEVIEWS]		= {{"v2_yaw", "180"},		{"v3_yaw", "90"},		{"v4_yaw", "270"},		{"v5_yaw", "0"}};
+cvar_t	vsec_enabled[SIDEVIEWS] = {SCVAR("v2_enabled", "0"),	SCVAR("v3_enabled", "0"),	SCVAR("v4_enabled", "0"),	SCVAR("v5_enabled", "0")};
+cvar_t	vsec_x[SIDEVIEWS]		= {SCVAR("v2_x", "0"),			SCVAR("v3_x", "0.25"),		SCVAR("v4_x", "0.5"),		SCVAR("v5_x", "0.75")};
+cvar_t	vsec_y[SIDEVIEWS]		= {SCVAR("v2_y", "0"),			SCVAR("v3_y", "0"),			SCVAR("v4_y", "0"),			SCVAR("v5_y", "0")};
+cvar_t	vsec_scalex[SIDEVIEWS]	= {SCVAR("v2_scalex", "0.25"),	SCVAR("v3_scalex", "0.25"),	SCVAR("v4_scalex", "0.25"),	SCVAR("v5_scalex", "0.25")};
+cvar_t	vsec_scaley[SIDEVIEWS]	= {SCVAR("v2_scaley", "0.25"),	SCVAR("v3_scaley", "0.25"),	SCVAR("v4_scaley", "0.25"),	SCVAR("v5_scaley", "0.25")};
+cvar_t	vsec_yaw[SIDEVIEWS]		= {SCVAR("v2_yaw", "180"),		SCVAR("v3_yaw", "90"),		SCVAR("v4_yaw", "270"),		SCVAR("v5_yaw", "0")};
 #endif
 
-cvar_t	lcd_x = {"lcd_x", "0"};	// FIXME: make this work sometime...
+cvar_t	lcd_x = SCVAR("lcd_x", "0");	// FIXME: make this work sometime...
 
-cvar_t	cl_rollspeed = {"cl_rollspeed", "200"};
-cvar_t	cl_rollangle = {"cl_rollangle", "2.0"};
-cvar_t	v_deathtilt = {"v_deathtilt", "1"};
+cvar_t	cl_rollspeed = SCVAR("cl_rollspeed", "200");
+cvar_t	cl_rollangle = SCVAR("cl_rollangle", "2.0");
+cvar_t	v_deathtilt = SCVAR("v_deathtilt", "1");
 
-cvar_t	cl_bob = {"cl_bob","0.02"};
-cvar_t	cl_bobcycle = {"cl_bobcycle","0.6"};
-cvar_t	cl_bobup = {"cl_bobup","0.5"};
+cvar_t	cl_bob = SCVAR("cl_bob","0.02");
+cvar_t	cl_bobcycle = SCVAR("cl_bobcycle","0.6");
+cvar_t	cl_bobup = SCVAR("cl_bobup","0.5");
 
-cvar_t	v_kicktime = {"v_kicktime", "0.5"};
-cvar_t	v_kickroll = {"v_kickroll", "0.6"};
-cvar_t	v_kickpitch = {"v_kickpitch", "0.6"};
+cvar_t	v_kicktime = SCVAR("v_kicktime", "0.5");
+cvar_t	v_kickroll = SCVAR("v_kickroll", "0.6");
+cvar_t	v_kickpitch = SCVAR("v_kickpitch", "0.6");
 
-cvar_t	v_iyaw_cycle = {"v_iyaw_cycle", "2", NULL};
-cvar_t	v_iroll_cycle = {"v_iroll_cycle", "0.5", NULL};
-cvar_t	v_ipitch_cycle = {"v_ipitch_cycle", "1", NULL};
-cvar_t	v_iyaw_level = {"v_iyaw_level", "0.3", NULL};
-cvar_t	v_iroll_level = {"v_iroll_level", "0.1", NULL};
-cvar_t	v_ipitch_level = {"v_ipitch_level", "0.3", NULL};
-cvar_t	v_idlescale = {"v_idlescale", "0", NULL};
+cvar_t	v_iyaw_cycle = SCVAR("v_iyaw_cycle", "2");
+cvar_t	v_iroll_cycle = SCVAR("v_iroll_cycle", "0.5");
+cvar_t	v_ipitch_cycle = SCVAR("v_ipitch_cycle", "1");
+cvar_t	v_iyaw_level = SCVAR("v_iyaw_level", "0.3");
+cvar_t	v_iroll_level = SCVAR("v_iroll_level", "0.1");
+cvar_t	v_ipitch_level = SCVAR("v_ipitch_level", "0.3");
+cvar_t	v_idlescale = SCVAR("v_idlescale", "0");
 
-cvar_t	crosshair = {"crosshair", "0", NULL, CVAR_ARCHIVE};
-cvar_t	crosshaircolor = {"crosshaircolor", "79", NULL, CVAR_ARCHIVE};
-cvar_t	crosshairsize = {"crosshairsize", "8", NULL, CVAR_ARCHIVE};
+cvar_t	crosshair = SCVARF("crosshair", "0", CVAR_ARCHIVE);
+cvar_t	crosshaircolor = SCVARF("crosshaircolor", "79", CVAR_ARCHIVE);
+cvar_t	crosshairsize = SCVARF("crosshairsize", "8", CVAR_ARCHIVE);
 
-cvar_t  cl_crossx = {"cl_crossx", "0", NULL, CVAR_ARCHIVE};
-cvar_t  cl_crossy = {"cl_crossy", "0", NULL, CVAR_ARCHIVE};
-cvar_t	crosshaircorrect = {"crosshaircorrect", "0", NULL, CVAR_SEMICHEAT};
-cvar_t	crosshairimage = {"crosshairimage", ""};
-cvar_t	crosshairalpha = {"crosshairalpha", "1"};
+cvar_t  cl_crossx = SCVARF("cl_crossx", "0", CVAR_ARCHIVE);
+cvar_t  cl_crossy = SCVARF("cl_crossy", "0", CVAR_ARCHIVE);
+cvar_t	crosshaircorrect = SCVARF("crosshaircorrect", "0", CVAR_SEMICHEAT);
+cvar_t	crosshairimage = SCVAR("crosshairimage", "");
+cvar_t	crosshairalpha = SCVAR("crosshairalpha", "1");
 
-cvar_t	gl_cshiftpercent = {"gl_cshiftpercent", "100"};
+cvar_t	gl_cshiftpercent = SCVAR("gl_cshiftpercent", "100");
 
-cvar_t	v_bonusflash = {"v_bonusflash", "0"};
+cvar_t	v_bonusflash = SCVAR("v_bonusflash", "0");
 
-cvar_t  v_contentblend = {"v_contentblend", "0"};
-cvar_t	v_damagecshift = {"v_damagecshift", "0"};
-cvar_t	v_quadcshift = {"v_quadcshift", "0"};
-cvar_t	v_suitcshift = {"v_suitcshift", "0"};
-cvar_t	v_ringcshift = {"v_ringcshift", "0"};
-cvar_t	v_pentcshift = {"v_pentcshift", "0"};
+cvar_t  v_contentblend = SCVAR("v_contentblend", "0");
+cvar_t	v_damagecshift = SCVAR("v_damagecshift", "0");
+cvar_t	v_quadcshift = SCVAR("v_quadcshift", "0");
+cvar_t	v_suitcshift = SCVAR("v_suitcshift", "0");
+cvar_t	v_ringcshift = SCVAR("v_ringcshift", "0");
+cvar_t	v_pentcshift = SCVAR("v_pentcshift", "0");
 
-cvar_t	v_viewheight = {"v_viewheight", "0"};
+cvar_t	v_viewheight = SCVAR("v_viewheight", "0");
 
-cvar_t	scr_autoid = {"scr_autoid", "0"};
+cvar_t	scr_autoid = SCVAR("scr_autoid", "0");
 
 
 extern cvar_t cl_chasecam;
@@ -184,8 +184,8 @@ float V_CalcBob (int pnum)
 //=============================================================================
 
 
-cvar_t	v_centermove = {"v_centermove", "0.15"};
-cvar_t	v_centerspeed = {"v_centerspeed","500"};
+cvar_t	v_centermove = SCVAR("v_centermove", "0.15");
+cvar_t	v_centerspeed = SCVAR("v_centerspeed","500");
 
 
 void V_StartPitchDrift (int pnum)
@@ -303,8 +303,8 @@ cshift_t	cshift_lava = { {255,80,0}, 150 };
 
 cshift_t	cshift_server = { {130,80,50}, 0 };
 
-cvar_t		v_gamma = {"gamma", "0.5", NULL, CVAR_ARCHIVE};
-cvar_t		v_contrast = {"contrast", "2", NULL, CVAR_ARCHIVE};
+cvar_t		v_gamma = SCVARF("gamma", "0.8", CVAR_ARCHIVE);
+cvar_t		v_contrast = SCVARF("contrast", "1.4", CVAR_ARCHIVE);
 
 qbyte		gammatable[256];	// palette is sent through this
 

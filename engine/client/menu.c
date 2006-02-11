@@ -42,7 +42,7 @@ char		m_return_reason [32];
 
 void M_ConfigureNetSubsystem(void);
 
-cvar_t m_helpismedia = {"m_helpismedia", "0"};
+cvar_t m_helpismedia = SCVAR("m_helpismedia", "0");
 
 //=============================================================================
 /* Support Routines */

@@ -158,10 +158,10 @@ sfx_t			*cl_sfx_ric2;
 sfx_t			*cl_sfx_ric3;
 sfx_t			*cl_sfx_r_exp3;
 
-cvar_t	cl_expsprite = {"cl_expsprite", "0"};
-cvar_t  r_explosionlight = {"r_explosionlight", "1"};
-cvar_t	cl_truelightning = {"cl_truelightning", "0",	NULL, CVAR_SEMICHEAT};
-cvar_t  cl_beam_trace = {"cl_beam_trace", "0"};
+cvar_t	cl_expsprite = SCVAR("cl_expsprite", "0");
+cvar_t  r_explosionlight = SCVAR("r_explosionlight", "1");
+cvar_t	cl_truelightning = SCVARF("cl_truelightning", "0",	CVAR_SEMICHEAT);
+cvar_t  cl_beam_trace = SCVAR("cl_beam_trace", "0");
 
 typedef struct {
 	sfx_t **sfx;

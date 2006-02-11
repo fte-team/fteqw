@@ -122,20 +122,20 @@ extern cvar_t r_part_rain;
 extern cvar_t r_bloodstains;
 extern cvar_t gl_part_flame;
 
-cvar_t r_particlesdesc = {"r_particlesdesc", "spikeset", NULL, CVAR_LATCH|CVAR_SEMICHEAT};
+cvar_t r_particlesdesc = SCVARF("r_particlesdesc", "spikeset", CVAR_LATCH|CVAR_SEMICHEAT);
 
-cvar_t r_part_rain_quantity = {"r_part_rain_quantity", "1"};
+cvar_t r_part_rain_quantity = SCVAR("r_part_rain_quantity", "1");
 
-cvar_t r_rockettrail = {"r_rockettrail", "1", NULL, CVAR_SEMICHEAT};
-cvar_t r_grenadetrail = {"r_grenadetrail", "1", NULL, CVAR_SEMICHEAT};
+cvar_t r_rockettrail = SCVARF("r_rockettrail", "1", CVAR_SEMICHEAT);
+cvar_t r_grenadetrail = SCVARF("r_grenadetrail", "1", CVAR_SEMICHEAT);
 
-cvar_t r_particle_tracelimit = {"r_particle_tracelimit", "250"};
-cvar_t r_part_sparks = {"r_part_sparks", "1"};
-cvar_t r_part_sparks_trifan = {"r_part_sparks_trifan", "1"};
-cvar_t r_part_sparks_textured = {"r_part_sparks_textured", "1"};
-cvar_t r_part_beams = {"r_part_beams", "1"};
-cvar_t r_part_beams_textured = {"r_part_beams_textured", "1"};
-cvar_t r_part_contentswitch = {"r_part_contentswitch", "1"};
+cvar_t r_particle_tracelimit = SCVAR("r_particle_tracelimit", "250");
+cvar_t r_part_sparks = SCVAR("r_part_sparks", "1");
+cvar_t r_part_sparks_trifan = SCVAR("r_part_sparks_trifan", "1");
+cvar_t r_part_sparks_textured = SCVAR("r_part_sparks_textured", "1");
+cvar_t r_part_beams = SCVAR("r_part_beams", "1");
+cvar_t r_part_beams_textured = SCVAR("r_part_beams_textured", "1");
+cvar_t r_part_contentswitch = SCVAR("r_part_contentswitch", "1");
 
 static float particletime;
 

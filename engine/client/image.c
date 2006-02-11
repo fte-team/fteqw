@@ -3,13 +3,13 @@
 #include "glquake.h"
 #endif
 
-cvar_t r_dodgytgafiles = {"r_dodgytgafiles", "0"};	//Certain tgas are upside down.
+cvar_t r_dodgytgafiles = SCVAR("r_dodgytgafiles", "0");	//Certain tgas are upside down.
 													//This is due to a bug in tenebrae.
 													//(normally) the textures are actually the right way around.
 													//but some people have gone and 'fixed' those broken ones by flipping.
 													//these images appear upside down in any editor but correct in tenebrae
 													//set this to 1 to emulate tenebrae's bug.
-cvar_t r_dodgypcxfiles = {"r_dodgypcxfiles", "0"};	//Quake 2's PCX loading isn't complete,
+cvar_t r_dodgypcxfiles = SCVAR("r_dodgypcxfiles", "0");	//Quake 2's PCX loading isn't complete,
 													//and some Q2 mods include PCX files
 													//that only work with this assumption
 

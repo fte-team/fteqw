@@ -32,7 +32,7 @@ qboolean	sv_allow_cheats;
 int fp_messages=4, fp_persecond=4, fp_secondsdead=10;
 char fp_msg[255] = { 0 };
 extern cvar_t cl_warncmd;
-cvar_t sv_cheats = {"sv_cheats", "0", NULL, CVAR_LATCH};
+cvar_t sv_cheats = SCVARF("sv_cheats", "0", CVAR_LATCH);
 	extern		redirect_t	sv_redirected;
 
 extern cvar_t sv_public;

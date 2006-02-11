@@ -20,8 +20,8 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 
 #include "quakedef.h"
 
-cvar_t		baseskin = {"baseskin", "base"};
-cvar_t		noskins = {"noskins", "0"};
+cvar_t		baseskin = SCVAR("baseskin", "base");
+cvar_t		noskins = SCVAR("noskins", "0");
 
 extern cvar_t	cl_teamskin;
 extern cvar_t	cl_enemyskin;

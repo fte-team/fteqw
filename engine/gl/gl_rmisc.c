@@ -25,7 +25,7 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 #include "gl_draw.h"
 
 #ifdef WATERLAYERS
-cvar_t	r_waterlayers = {"r_waterlayers","3"};
+cvar_t	r_waterlayers = SCVAR("r_waterlayers","3");
 #endif
 
 extern void R_InitBubble();

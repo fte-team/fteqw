@@ -616,9 +616,11 @@ cvar_t *Cvar_SetCore (cvar_t *var, const char *value, qboolean force)
 	if (var->flags & CVAR_SERVEROVERRIDE && !force)
 		latch = "variable %s is under server control - latched\n";
 	else if (var->flags & CVAR_LATCH)
-		latch = "variable %s is latched\n";
+		latch = "variable %s is latched and will be applied for the start of the next map\n";
+//	else if (var->flags & CVAR_LATCHFLUSH)
+//		latch = "variable %s is latched (type flush)\n";
 	else if (var->flags & CVAR_RENDERERLATCH && qrenderer)
-		latch = "variable %s will be changed after a renderer restart\n";
+		latch = "variable %s will be changed after a vid_restart\n";
 #ifndef SERVERONLY
 	else if (var->flags & CVAR_CHEAT && !cls.allow_cheats && cls.state)
 		latch = "variable %s is a cheat variable - latched\n";

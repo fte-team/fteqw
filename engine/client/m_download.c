@@ -392,7 +392,6 @@ void M_AddItemsToDownloadMenu(menu_t *m)
 	int y;
 	package_t *p;
 	menucustom_t *c;
-	int slashpos;
 	char *slash;
 	menuoption_t *mo;
 	dlmenu_t *info = m->data;

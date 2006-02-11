@@ -46,8 +46,8 @@ typedef int SOCKET;
 
 //the number of servers should be limited only by memory.
 
-cvar_t slist_cacheinfo = {"slist_cacheinfo", "0"};	//this proves dangerous, memory wise.
-cvar_t slist_writeserverstxt = {"slist_writeservers", "0"};
+cvar_t slist_cacheinfo = SCVAR("slist_cacheinfo", "0");	//this proves dangerous, memory wise.
+cvar_t slist_writeserverstxt = SCVAR("slist_writeservers", "0");
 
 void CL_MasterListParse(int type, qboolean slashpad);
 void CL_QueryServers(void);

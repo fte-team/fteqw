@@ -42,8 +42,8 @@ static char	*argvdummy = " ";
 static char	*safeargvs[NUM_SAFE_ARGVS] =
 	{"-stdvid", "-nolan", "-nosound", "-nocdaudio", "-nojoy", "-nomouse"};
 
-cvar_t	registered = {"registered","0"};
-cvar_t	com_gamename = {"com_gamename", ""};
+cvar_t	registered = SCVAR("registered","0");
+cvar_t	com_gamename = SCVAR("com_gamename", "");
 
 qboolean	com_modified;	// set true if using non-id files
 

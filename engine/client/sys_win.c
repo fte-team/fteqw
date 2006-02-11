@@ -232,8 +232,8 @@ int *debug;
 
 HHOOK llkeyboardhook;
 
-cvar_t	sys_disableWinKeys = {"sys_disableWinKeys", "0"};
-cvar_t	sys_disableTaskSwitch = {"sys_disableTaskSwitch", "0", NULL, CVAR_NOTFROMSERVER};	// please don't encourage people to use this...
+cvar_t	sys_disableWinKeys = SCVAR("sys_disableWinKeys", "0");
+cvar_t	sys_disableTaskSwitch = SCVARF("sys_disableTaskSwitch", "0", CVAR_NOTFROMSERVER);	// please don't encourage people to use this...
 
 LRESULT CALLBACK LowLevelKeyboardProc (INT nCode, WPARAM wParam, LPARAM lParam)
 {

@@ -39,10 +39,10 @@ static mediatrack_t currenttrack;
 int lasttrackplayed;
 
 int media_playing=true;//try to continue from the standard playlist
-cvar_t media_shuffle = {"media_shuffle", "1"};
-cvar_t media_repeat = {"media_repeat", "1"};
+cvar_t media_shuffle = SCVAR("media_shuffle", "1");
+cvar_t media_repeat = SCVAR("media_repeat", "1");
 #ifdef WINAMP
-cvar_t media_hijackwinamp = {"media_hijackwinamp", "0"};
+cvar_t media_hijackwinamp = SCVAR("media_hijackwinamp", "0");
 #endif
 
 int selectedoption=-1;
@@ -1307,10 +1307,10 @@ char *capturevideomem;
 short *captureaudiomem;
 int captureaudiosamples;
 captureframe;
-cvar_t capturerate = {"capturerate", "15"};
-cvar_t capturecodec = {"capturecodec", "divx"};
-cvar_t capturesound = {"capturesound", "1"};
-cvar_t capturemessage = {"capturemessage", ""};
+cvar_t capturerate = SCVAR("capturerate", "15");
+cvar_t capturecodec = SCVAR("capturecodec", "divx");
+cvar_t capturesound = SCVAR("capturesound", "1");
+cvar_t capturemessage = SCVAR("capturemessage", "");
 qboolean recordingdemo;
 enum {
 	CT_NONE,

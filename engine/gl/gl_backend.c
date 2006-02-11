@@ -141,9 +141,9 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 #define MAX_ARRAY_TRIANGLES (8192/3)
 #define M_TWO_PI (M_PI*2)
 
-cvar_t r_detailtextures = {"r_detailtextures", "1"};
-cvar_t r_showtris = {"r_showtris", "1"};
-cvar_t r_shownormals = {"r_shownormals", "1"};
+cvar_t r_detailtextures = SCVAR("r_detailtextures", "1");
+cvar_t r_showtris = SCVAR("r_showtris", "1");
+cvar_t r_shownormals = SCVAR("r_shownormals", "1");
 
 float Q_rsqrt( float number )
 {

@@ -78,9 +78,9 @@ to the new value before sending out any replies.
 */
 
 int		net_drop;
-cvar_t	showpackets = {"showpackets", "0"};
-cvar_t	showdrop = {"showdrop", "0"};
-cvar_t	qport = {"qport", "0"};
+cvar_t	showpackets = SCVAR("showpackets", "0");
+cvar_t	showdrop = SCVAR("showdrop", "0");
+cvar_t	qport = SCVAR("qport", "0");
 
 /*
 ===============

@@ -31,39 +31,39 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 void ED_Print (struct progfuncs_s *progfuncs, struct edict_s *ed);
 int PR_EnableEBFSBuiltin(char *name, int binum);
 
-cvar_t	nomonsters = {"nomonsters", "0"};
-cvar_t	gamecfg = {"gamecfg", "0"};
-cvar_t	scratch1 = {"scratch1", "0"};
-cvar_t	scratch2 = {"scratch2", "0"};
-cvar_t	scratch3 = {"scratch3", "0"};
-cvar_t	scratch4 = {"scratch4", "0"};
-cvar_t	savedgamecfg = {"savedgamecfg", "0", NULL, CVAR_ARCHIVE};
-cvar_t	saved1 = {"saved1", "0", NULL, CVAR_ARCHIVE};
-cvar_t	saved2 = {"saved2", "0", NULL, CVAR_ARCHIVE};
-cvar_t	saved3 = {"saved3", "0", NULL, CVAR_ARCHIVE};
-cvar_t	saved4 = {"saved4", "0", NULL, CVAR_ARCHIVE};
-cvar_t	temp1 = {"temp1", "0", NULL, CVAR_ARCHIVE};
-cvar_t	noexit = {"noexit", "0", NULL};
+cvar_t	nomonsters = SCVAR("nomonsters", "0");
+cvar_t	gamecfg = SCVAR("gamecfg", "0");
+cvar_t	scratch1 = SCVAR("scratch1", "0");
+cvar_t	scratch2 = SCVAR("scratch2", "0");
+cvar_t	scratch3 = SCVAR("scratch3", "0");
+cvar_t	scratch4 = SCVAR("scratch4", "0");
+cvar_t	savedgamecfg = SCVARF("savedgamecfg", "0", CVAR_ARCHIVE);
+cvar_t	saved1 = SCVARF("saved1", "0", CVAR_ARCHIVE);
+cvar_t	saved2 = SCVARF("saved2", "0", CVAR_ARCHIVE);
+cvar_t	saved3 = SCVARF("saved3", "0", CVAR_ARCHIVE);
+cvar_t	saved4 = SCVARF("saved4", "0", CVAR_ARCHIVE);
+cvar_t	temp1 = SCVARF("temp1", "0", CVAR_ARCHIVE);
+cvar_t	noexit = SCVAR("noexit", "0");
 
-cvar_t	pr_maxedicts = {"pr_maxedicts", "2048", NULL, CVAR_LATCH};
-cvar_t	pr_imitatemvdsv = {"pr_imitatemvdsv", "0", NULL, CVAR_LATCH};
-cvar_t	pr_fixbrokenqccarrays = {"pr_fixbrokenqccarrays", "1", NULL, CVAR_LATCH};
+cvar_t	pr_maxedicts = SCVARF("pr_maxedicts", "2048", CVAR_LATCH);
+cvar_t	pr_imitatemvdsv = SCVARF("pr_imitatemvdsv", "0", CVAR_LATCH);
+cvar_t	pr_fixbrokenqccarrays = SCVARF("pr_fixbrokenqccarrays", "1", CVAR_LATCH);
 
-cvar_t	pr_no_playerphysics = {"pr_no_playerphysics", "0", NULL, CVAR_LATCH};
+cvar_t	pr_no_playerphysics = SCVARF("pr_no_playerphysics", "0", CVAR_LATCH);
 
-cvar_t	progs = {"progs", "", NULL, CVAR_ARCHIVE | CVAR_SERVERINFO | CVAR_NOTFROMSERVER};
-cvar_t	qc_nonetaccess = {"qc_nonetaccess", "0"};	//prevent write_... builtins from doing anything. This means we can run any mod, specific to any engine, on the condition that it also has a qw or nq crc.
+cvar_t	progs = SCVARF("progs", "", CVAR_ARCHIVE | CVAR_SERVERINFO | CVAR_NOTFROMSERVER);
+cvar_t	qc_nonetaccess = SCVAR("qc_nonetaccess", "0");	//prevent write_... builtins from doing anything. This means we can run any mod, specific to any engine, on the condition that it also has a qw or nq crc.
 
-cvar_t pr_overridebuiltins = {"pr_overridebuiltins", "1"};
+cvar_t pr_overridebuiltins = SCVAR("pr_overridebuiltins", "1");
 
-cvar_t pr_compatabilitytest = {"pr_compatabilitytest", "0", NULL, CVAR_LATCH};
+cvar_t pr_compatabilitytest = SCVARF("pr_compatabilitytest", "0", CVAR_LATCH);
 
-cvar_t pr_ssqc_coreonerror = {"pr_coreonerror", "1"};
+cvar_t pr_ssqc_coreonerror = SCVAR("pr_coreonerror", "1");
 
-cvar_t pr_tempstringcount = {"pr_tempstringcount", "16"};
-cvar_t pr_tempstringsize = {"pr_tempstringsize", "4096"};
+cvar_t pr_tempstringcount = SCVAR("pr_tempstringcount", "16");
+cvar_t pr_tempstringsize = SCVAR("pr_tempstringsize", "4096");
 
-cvar_t sv_gameplayfix_blowupfallenzombies = {"sv_gameplayfix_blowupfallenzombies", "0"};
+cvar_t sv_gameplayfix_blowupfallenzombies = SCVAR("sv_gameplayfix_blowupfallenzombies", "0");
 
 cvar_t sv_addon[MAXADDONS];
 char cvargroup_progs[] = "Progs variables";
@@ -438,6 +438,7 @@ void PR_Deinit(void)
 
 void PR_LoadGlabalStruct(void)
 {
+	static float writeonly;
 	static float dimension_send_default;
 	int i;
 	int *v;
@@ -476,6 +477,9 @@ void PR_LoadGlabalStruct(void)
 	globalint		(true, trace_ent);
 	globalfloat		(true, trace_inopen);
 	globalfloat		(true, trace_inwater);
+	globalfloat		(false, trace_endcontents);
+	globalfloat		(false, trace_surfaceflags);
+	globalfloat		(false, cycle_wrapped);
 	globalint		(false, msg_entity);
 	globalfunc		(false, main);
 	globalfunc		(true, StartFrame);
@@ -500,6 +504,14 @@ void PR_LoadGlabalStruct(void)
 	if (!((nqglobalvars_t*)pr_globals)->dimension_send)
 	{	//make sure dimension send is always a valid pointer.
 		((nqglobalvars_t*)pr_globals)->dimension_send = &dimension_send_default;
+	}
+	if (!((nqglobalvars_t*)pr_globals)->trace_endcontents)
+	{	//make sure dimension send is always a valid pointer.
+		((nqglobalvars_t*)pr_globals)->trace_endcontents = &writeonly;
+	}
+	if (!((nqglobalvars_t*)pr_globals)->trace_surfaceflags)
+	{	//make sure dimension send is always a valid pointer.
+		((nqglobalvars_t*)pr_globals)->trace_surfaceflags = &writeonly;
 	}
 
 	pr_global_struct->dimension_send = 255;
@@ -2817,6 +2829,8 @@ static void PF_traceline (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 	pr_global_struct->trace_fraction = trace.fraction;
 	pr_global_struct->trace_inwater = trace.inwater;
 	pr_global_struct->trace_inopen = trace.inopen;
+	pr_global_struct->trace_surfaceflags = trace.surface?trace.surface->flags:0;
+	pr_global_struct->trace_endcontents = trace.contents;
 //	if (trace.fraction != 1)
 //		VectorMA (trace.endpos, 4, trace.plane.normal, P_VEC(trace_endpos));
 //	else
@@ -2854,6 +2868,8 @@ static void PF_traceboxh2 (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 	pr_global_struct->trace_fraction = trace.fraction;
 	pr_global_struct->trace_inwater = trace.inwater;
 	pr_global_struct->trace_inopen = trace.inopen;
+	pr_global_struct->trace_surfaceflags = trace.surface?trace.surface->flags:0;
+	pr_global_struct->trace_endcontents = trace.contents;
 	VectorCopy (trace.endpos, P_VEC(trace_endpos));
 	VectorCopy (trace.plane.normal, P_VEC(trace_plane_normal));
 	pr_global_struct->trace_plane_dist =  trace.plane.dist;
@@ -2888,6 +2904,8 @@ static void PF_traceboxdp (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 	pr_global_struct->trace_fraction = trace.fraction;
 	pr_global_struct->trace_inwater = trace.inwater;
 	pr_global_struct->trace_inopen = trace.inopen;
+	pr_global_struct->trace_surfaceflags = trace.surface?trace.surface->flags:0;
+	pr_global_struct->trace_endcontents = trace.contents;
 //	if (trace.fraction != 1)
 //		VectorMA (trace.endpos, 4, trace.plane.normal, P_VEC(trace_endpos));
 //	else
@@ -2919,6 +2937,8 @@ static void PF_TraceToss (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 	pr_global_struct->trace_fraction = trace.fraction;
 	pr_global_struct->trace_inwater = trace.inwater;
 	pr_global_struct->trace_inopen = trace.inopen;
+	pr_global_struct->trace_surfaceflags = trace.surface?trace.surface->flags:0;
+	pr_global_struct->trace_endcontents = trace.contents;
 	VectorCopy (trace.endpos, pr_global_struct->V_trace_endpos);
 	VectorCopy (trace.plane.normal, pr_global_struct->V_trace_plane_normal);
 	pr_global_struct->trace_plane_dist =  trace.plane.dist;
@@ -4183,7 +4203,7 @@ vector aim(entity, missilespeed)
 =============
 */
 //cvar_t	sv_aim = {"sv_aim", "0.93"};
-cvar_t	sv_aim = {"sv_aim", "2"};
+cvar_t	sv_aim = SCVAR("sv_aim", "2");
 void PF_aim (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
 	edict_t	*ent, *check, *bestent;

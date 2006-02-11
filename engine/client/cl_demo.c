@@ -1204,7 +1204,8 @@ void CL_PlayDemo(char *demoname)
 	Q_strncpyz (lastdemoname, demoname, sizeof(lastdemoname));
 	Con_Printf ("Playing demo from %s.\n", name);
 
-	if (!Q_strcasecmp(name + strlen(name) - 3, "mvd"))
+	if (!Q_strcasecmp(name + strlen(name) - 3, "mvd") ||
+		!Q_strcasecmp(name + strlen(name) - 6, "mvd.gz"))
 	{
 		cls.demoplayback = DPB_MVD;
 		cls.findtrack = true;

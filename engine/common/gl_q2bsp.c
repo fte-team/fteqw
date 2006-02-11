@@ -317,10 +317,10 @@ qbyte	portalopen[MAX_Q2MAP_AREAPORTALS];	//memset will work if it's a qbyte, rea
 
 
 static int	mapisq3;
-cvar_t		map_noareas			= {"map_noareas", "1"};	//1 for lack of mod support.
-cvar_t		map_noCurves		= {"map_noCurves", "0", NULL, CVAR_CHEAT};
-cvar_t		map_autoopenportals	= {"map_autoopenportals", "1"};	//1 for lack of mod support.
-cvar_t		r_subdivisions		= {"r_subdivisions", "2"};
+cvar_t		map_noareas			= SCVAR("map_noareas", "1");	//1 for lack of mod support.
+cvar_t		map_noCurves		= SCVARF("map_noCurves", "0", CVAR_CHEAT);
+cvar_t		map_autoopenportals	= SCVAR("map_autoopenportals", "1");	//1 for lack of mod support.
+cvar_t		r_subdivisions		= SCVAR("r_subdivisions", "2");
 
 int		CM_NumInlineModels (model_t *model);
 q2cmodel_t	*CM_InlineModel (char *name);

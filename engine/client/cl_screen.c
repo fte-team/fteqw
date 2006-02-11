@@ -135,15 +135,15 @@ float oldsbar = 0;
 void SCR_ScreenShot_f (void);
 void SCR_RSShot_f (void);
 
-cvar_t	show_fps	= {"show_fps", "0"};
-cvar_t	show_fps_x	= {"show_fps_x", "-1"};
-cvar_t	show_fps_y	= {"show_fps_y", "-1"};
-cvar_t	show_clock	= {"cl_clock", "0"};
-cvar_t	show_clock_x	= {"cl_clock_x", "0"};
-cvar_t	show_clock_y	= {"cl_clock_y", "-1"};
-cvar_t	show_speed	= {"show_speed", "0"};
-cvar_t	show_speed_x	= {"show_speed_x", "-1"};
-cvar_t	show_speed_y	= {"show_speed_y", "-9"};
+cvar_t	show_fps	= SCVAR("show_fps", "0");
+cvar_t	show_fps_x	= SCVAR("show_fps_x", "-1");
+cvar_t	show_fps_y	= SCVAR("show_fps_y", "-1");
+cvar_t	show_clock	= SCVAR("cl_clock", "0");
+cvar_t	show_clock_x	= SCVAR("cl_clock_x", "0");
+cvar_t	show_clock_y	= SCVAR("cl_clock_y", "-1");
+cvar_t	show_speed	= SCVAR("show_speed", "0");
+cvar_t	show_speed_x	= SCVAR("show_speed_x", "-1");
+cvar_t	show_speed_y	= SCVAR("show_speed_y", "-9");
 
 extern char cl_screengroup[];
 void CLSCR_Init(void)

@@ -66,9 +66,14 @@ typedef struct cvar_s
 
 	//free style :)
 	char		*name2;
+
 	char		*defaultstr;	//default
 	qbyte		restriction;
 } cvar_t;
+
+#define FCVAR(ConsoleName,ConsoleName2,Value,Flags) {ConsoleName, Value, NULL, Flags, 0, 0, 0, ConsoleName2}
+#define SCVARF(ConsoleName,Value, Flags) FCVAR(ConsoleName, NULL, Value, Flags)
+#define SCVAR(ConsoleName,Value) FCVAR(ConsoleName, NULL, Value, 0)
 
 typedef struct cvar_group_s
 {

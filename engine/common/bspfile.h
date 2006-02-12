@@ -504,6 +504,10 @@ typedef struct
 #define	SURF_FLOWING	0x40	// scroll towards angle
 #define	SURF_NODRAW		0x80	// don't bother referencing the texture
 
+#define	SURF_NODRAW		0x80	// don't bother referencing the texture
+
+#define Q3SURF_LADDER	0x8		//wee
+
 // content masks
 #define	MASK_ALL				(-1)
 #define	MASK_SOLID				(Q2CONTENTS_SOLID|Q2CONTENTS_WINDOW)

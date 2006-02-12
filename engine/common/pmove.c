@@ -726,6 +726,25 @@ void PM_CategorizePosition (void)
 
 	//are we on a ladder?
 #ifdef Q2BSPS
+	if (pmove.physents[0].model->fromgame == fg_quake3)
+	{
+		trace_t t;
+		vec3_t flatforward, fwd1;
+
+		flatforward[0] = forward[0];
+		flatforward[1] = forward[1];
+		flatforward[2] = 0;
+		VectorNormalize (flatforward);
+
+		VectorMA (pmove.origin, 24, flatforward, fwd1);
+
+		t = CM_BoxTrace(pmove.physents[0].model, pmove.origin, fwd1, player_mins, player_maxs, MASK_PLAYERSOLID);
+		if (t.surface->flags & Q3SURF_LADDER)
+		{
+			pmove.onladder = true;
+			pmove.onground = false;	// too steep
+		}
+	}
 	if (cont & FTECONTENTS_LADDER && pmove.physents[0].model->fromgame == fg_quake2)
 	{
 		trace_t t;

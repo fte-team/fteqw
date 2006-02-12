@@ -1898,7 +1898,7 @@ void CLNQ_ParseClientdata (void)
 
 	unsigned int bits;
 
-	bits = MSG_ReadShort();
+	bits = (unsigned short)MSG_ReadShort();
 
 	if (bits & DPSU_EXTEND1)
 		bits |= (MSG_ReadByte() << 16);
@@ -1987,7 +1987,7 @@ void CLNQ_ParseClientdata (void)
 
 	if (bits & DPSU_VIEWZOOM)
 	{
-		if (nq_dp_protocol >= 6)
+		if (nq_dp_protocol >= 5)
 			i = (unsigned short) MSG_ReadShort();
 		else
 			i = MSG_ReadByte();
@@ -3723,6 +3723,7 @@ void CL_ParseServerMessage (void)
 	{
 		if (msg_badread)
 		{
+			CL_DumpPacket();
 			Host_EndGame ("CL_ParseServerMessage: Bad server message");
 			break;
 		}
@@ -4447,6 +4448,7 @@ void CLNQ_ParseServerMessage (void)
 	{
 		if (msg_badread)
 		{
+			CL_DumpPacket();
 			Host_EndGame ("CL_ParseServerMessage: Bad server message");
 			break;
 		}
@@ -4473,6 +4475,7 @@ void CLNQ_ParseServerMessage (void)
 		switch (cmd)
 		{
 		default:
+			CL_DumpPacket();
 			Host_EndGame ("CLNQ_ParseServerMessage: Illegible server message (%i)", cmd);
 			return;
 

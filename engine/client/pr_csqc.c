@@ -1214,8 +1214,10 @@ static void cs_settracevars(trace_t *tr)
 	VectorCopy (tr->endpos, csqcg.trace_endpos);
 	VectorCopy (tr->plane.normal, csqcg.trace_plane_normal);
 	*csqcg.trace_plane_dist =  tr->plane.dist;
-	*csqcg.trace_surfaceflags = tr->surface?tr->surface->flags:0;
-	*csqcg.trace_endcontents = tr->contents;
+	if (csqcg.trace_surfaceflags)
+		*csqcg.trace_surfaceflags = tr->surface?tr->surface->flags:0;
+	if (csqcg.trace_endcontents)
+		*csqcg.trace_endcontents = tr->contents;
 	if (tr->ent)
 		*csqcg.trace_ent = EDICT_TO_PROG(csqcprogs, (void*)tr->ent);
 	else

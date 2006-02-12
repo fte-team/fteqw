@@ -39,7 +39,7 @@ typedef struct {
 script_t *scripts;
 int maxscripts;
 #define Q3SCRIPTPUNCTUATION "(,{})(\':;=!><&|+-"
-int Script_Read(int handle, pc_token_t *token)
+int Script_Read(int handle, struct pc_token_s *token)
 {
 	int i;
 	script_t *sc = scripts+handle-1;

@@ -1669,7 +1669,7 @@ void Media_RecordDemo_f(void)
 void Media_CaptureDemoEnd(void){}
 void Media_RecordAudioFrame (short *sample_buffer, int samples){}
 void Media_RecordFrame (void) {}
-void Media_PausedDemo (void) {} //should not return a value
+qboolean Media_PausedDemo (void) {return false;} //should not return a value
 #endif
 void Media_Init(void)
 {

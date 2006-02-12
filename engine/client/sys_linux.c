@@ -327,7 +327,7 @@ unsigned int Sys_Milliseconds (void)
 		secbase = tp.tv_sec;
 		return tp.tv_usec/1000;
 	}
-	return (tp.tv_sec - secbase) + tp.tv_usec/1000;
+	return (tp.tv_sec - secbase)*1000 + tp.tv_usec/1000;
 }
 
 double Sys_DoubleTime (void)

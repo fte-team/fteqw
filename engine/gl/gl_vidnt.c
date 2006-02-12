@@ -263,9 +263,6 @@ qboolean GLInitialise (char *renderer)
 	qGetDeviceGammaRamp			= (void *)getglfunc("wglGetDeviceGammaRamp3DFX");
 	qSetDeviceGammaRamp			= (void *)getglfunc("wglSetDeviceGammaRamp3DFX");
 
-	if (!qGetDeviceGammaRamp) qGetDeviceGammaRamp = (void*)GetDeviceGammaRamp;
-	if (!qSetDeviceGammaRamp) qSetDeviceGammaRamp = (void*)SetDeviceGammaRamp;
-
 	TRACE(("dbg: GLInitialise: got wgl funcs\n"));
 
 	return true;
@@ -817,6 +814,9 @@ qboolean VID_AttachGL (rendererstate_t *info)
 	qglClearColor(0, 0, 0, 0);
 	qglClear(GL_COLOR_BUFFER_BIT);
 	qSwapBuffers(maindc);
+
+	if (!qGetDeviceGammaRamp) qGetDeviceGammaRamp = (void*)GetDeviceGammaRamp;
+	if (!qSetDeviceGammaRamp) qSetDeviceGammaRamp = (void*)SetDeviceGammaRamp;
 
 	return true;
 }

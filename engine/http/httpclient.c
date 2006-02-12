@@ -281,7 +281,12 @@ static qboolean HTTP_CL_Run(http_con_t *con)
 			con->totalreceived+=con->chunked;
 			if (con->file && con->chunked)	//we've got a chunk in the buffer
 			{	//write it
-				VFS_WRITE(con->file, con->buffer, con->chunked);
+				if (VFS_WRITE(con->file, con->buffer, con->chunked) != con->chunked)
+				{
+					Con_Printf("Write error whilst downloading %s\nDisk full?\n", con->filename);
+					return false;
+				}
+
 				//and move the unparsed chunk to the front.
 				con->bufferused -= con->chunked;
 				memmove(con->buffer, con->buffer+con->chunked, con->bufferused);
@@ -293,7 +298,11 @@ static qboolean HTTP_CL_Run(http_con_t *con)
 			con->totalreceived+=ammount;
 			if (con->file)	//we've got a chunk in the buffer
 			{	//write it
-				VFS_WRITE(con->file, con->buffer, con->bufferused);
+				if (VFS_WRITE(con->file, con->buffer, con->bufferused) != con->bufferused)
+				{
+					Con_Printf("Write error whilst downloading %s\nDisk full?\n", con->filename);
+					return false;
+				}
 				con->bufferused = 0;
 			}
 		}

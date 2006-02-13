@@ -1030,7 +1030,7 @@ void S_StaticSound (sfx_t *sfx, vec3_t origin, float vol, float attenuation)
 		if (scache->loopstart == -1)
 		{
 			Con_Printf ("Ambient sound %s not looped\n", sfx->name);
-			return;
+			scache->loopstart = 0;
 		}
 
 		ss->sfx = sfx;

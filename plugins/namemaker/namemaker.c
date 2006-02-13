@@ -13,6 +13,7 @@ int K_MWHEELDOWN;
 int K_MWHEELUP;
 int K_PAGEUP;
 int K_PAGEDOWN;
+int K_BACKSPACE;
 
 qhandle_t con_chars;
 qhandle_t pic_cursor;
@@ -22,6 +23,7 @@ float drawscaley;
 
 unsigned char namebuffer[256];
 int insertpos;
+unsigned int currenttime;
 
 void LoadPics(void)
 {
@@ -39,6 +41,20 @@ static float size = 1.0f/16.0f;
 	float s1 = size * (c&15);
 	float t1 = size * (c>>4);
 	Draw_Image((float)x*drawscalex, y*drawscaley, 16*drawscalex, 16*drawscaley, s1, t1, s1+size, t1+size, con_chars);
+}
+
+void InsertChar(int newchar)
+{
+	int oldlen;
+
+	oldlen = strlen(namebuffer);
+	if (oldlen + 1 == sizeof(namebuffer))
+		return;
+	namebuffer[oldlen+1] = 0;
+	for (; oldlen > insertpos; oldlen--)
+		namebuffer[oldlen] = namebuffer[oldlen-1];
+
+	namebuffer[insertpos++] = newchar;
 }
 
 void KeyPress(int key, int mx, int my)
@@ -59,19 +75,14 @@ void KeyPress(int key, int mx, int my)
 
 		newchar = (int)mx + (int)my * 16;
 
-		oldlen = strlen(namebuffer);
-		if (oldlen + 1 == sizeof(namebuffer))
-			return;
-		namebuffer[oldlen+1] = 0;
-		for (; oldlen > insertpos; oldlen--)
-			namebuffer[oldlen] = namebuffer[oldlen-1];
-
-		namebuffer[insertpos++] = newchar;
+		InsertChar(newchar);
 	}
-	else if (key == K_MOUSE2)
+	else if (key == K_MOUSE2 || key == K_BACKSPACE)
 	{
-		if (namebuffer[0])
-			namebuffer[--insertpos] = 0;
+		if (insertpos > 0)
+			insertpos--;
+		for (oldlen = insertpos; namebuffer[oldlen]; oldlen++)
+			namebuffer[oldlen] = namebuffer[oldlen+1];
 	}
 	else if (key == K_LEFTARROW)
 	{
@@ -85,11 +96,16 @@ void KeyPress(int key, int mx, int my)
 		if (insertpos > strlen(namebuffer))
 			insertpos = strlen(namebuffer);
 	}
+	else if (key == K_SHIFT)
+		return;
+	else if (key > 0 && key < 255)
+		InsertChar(key);
 }
 
 int Plug_MenuEvent(int *args)
 {
 	int i;
+	float cbias;
 	drawscalex = vid.width/640.0f;
 	drawscaley = vid.height/480.0f;
 
@@ -106,9 +122,11 @@ int Plug_MenuEvent(int *args)
 
 		for (i = 0; namebuffer[i]; i++)
 			DrawChar(namebuffer[i], i*16, 0);
+		DrawChar(10 + (((currenttime/250)&1)==1), insertpos*16, 0);
 
-		if (Draw_Image((float)args[2]*drawscalex, (float)args[3]*drawscaley, (float)32*drawscalex, (float)32*drawscaley, 0, 0, 1, 1, pic_cursor) <= 0)
-			DrawChar('+', args[2], args[3]);
+		cbias = Cvar_GetFloat("cl_cursorbias");
+		if (!pic_cursor || Draw_Image((float)(args[2]-cbias)*drawscalex, (float)(args[3]-cbias)*drawscaley, (float)32*drawscalex, (float)32*drawscaley, 0, 0, 1, 1, pic_cursor) <= 0)
+			DrawChar('+', args[2]-4, args[3]-4);
 		break;
 	case 1:	//keydown
 		KeyPress(args[1], args[2], args[3]);
@@ -126,7 +144,7 @@ int Plug_MenuEvent(int *args)
 
 int Plug_Tick(int *args)
 {
-//	currenttime = args[0];
+	currenttime = args[0];
 	return true;
 }
 
@@ -138,6 +156,7 @@ int Plug_ExecuteCommand(int *args)
 	{
 		Menu_Control(1);
 		Cvar_GetString("name", (char*)namebuffer, sizeof(namebuffer));
+		insertpos = strlen(namebuffer);
 		return 1;
 	}
 	return 0;
@@ -165,6 +184,7 @@ int Plug_Init(int *args)
 		K_SHIFT			= Key_GetKeyCode("shift");
 		K_PAGEUP		= Key_GetKeyCode("pgup");
 		K_PAGEDOWN		= Key_GetKeyCode("pgdn");
+		K_BACKSPACE		= Key_GetKeyCode("backspace");
 
 		Cmd_AddCommand("namemaker");
 

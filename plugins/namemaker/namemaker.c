@@ -32,7 +32,10 @@ void LoadPics(void)
 //main bar (add cvars later)
 	con_chars = Draw_LoadImage("conchars", false);
 	Cvar_GetString("cl_cursor", buffer, sizeof(buffer));
-	pic_cursor = Draw_LoadImage(buffer, false);
+	if (*buffer)
+		pic_cursor = Draw_LoadImage(buffer, false);
+	else
+		pic_cursor = NULL;
 }
 
 void DrawChar(unsigned int c, int x, int y)

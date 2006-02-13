@@ -100,6 +100,9 @@ int VARGS Plug_Draw_LoadImage(void *offset, unsigned int mask, const long *arg)
 
 	mpic_t *pic;
 
+	if (!*name)
+		return 0;
+
 	for (i = 0; i < pluginimagearraylen; i++)
 	{
 		if (!pluginimagearray[i].plugin)
@@ -140,7 +143,7 @@ int VARGS Plug_Draw_LoadImage(void *offset, unsigned int mask, const long *arg)
 	pluginimagearray[i].picfromwad = fromwad;
 	pluginimagearray[i].pic = pic;
 	pluginimagearray[i].plugin = currentplug;
-	return i;
+	return i + 1;
 }
 
 void Plug_DrawReloadImages(void)
@@ -190,8 +193,9 @@ int VARGS Plug_Draw_Image(void *offset, unsigned int mask, const long *arg)
 		return 0;
 
 	i = VM_LONG(arg[8]);
-	if (i < 0 || i >= pluginimagearraylen)
+	if (i <= 0 || i > pluginimagearraylen)
 		return -1;	// you fool
+	i = i - 1;
 	if (pluginimagearray[i].plugin != currentplug)
 		return -1;
 

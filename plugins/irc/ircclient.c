@@ -38,9 +38,10 @@ char subvar[9][1000]; // etghack
 char casevar[9][1000]; //numbered_command
 time_t seconds; // irc_connect
 int irc_connecting = 0;
+char servername[64]; // store server name
 #define CURRENTCONSOLE "" // need to make this the current console
 #define DEFAULTCONSOLE ""
-#define RELEASE "Febuary 2 2006"
+#define RELEASE "__DATE__"
 
 void (*Con_TrySubPrint)(char *subname, char *text);
 void Con_FakeSubPrint(char *subname, char *text)
@@ -530,41 +531,7 @@ void magic_tokenizer(int word,char *thestring)
 
 	}
 
-	//Con_SubPrintf(DEFAULTCONSOLE,COLOURRED "^11: %s ^22: %s ^33: %s ^44: %s ^55: %s ^66: %s ^77: %s ^88: %s\n",var[1],var[2],var[3],var[4],var[5],var[6],var[7],var[8]);
-
-	//return var[word]+offset;
 }
-
-/*char *magic_tokenizer2(int word,char *thestring)
-{
-	char *temp;
-	int i = 1;
-
-	strcpy(var[1],thestring);
-
-	temp = strchr(var[1], ' ');
-
-	while (i < 8)
-	{
-		i++;
-
-		if (temp != NULL)
-		{
-			strcpy(var[i],temp+1);
-		}
-		else
-		{
-			strcpy(var[i], "");
-		}
-
-		temp=strchr(var[i], ' ');
-
-	}
-
-	//Con_SubPrintf(DEFAULTCONSOLE,COLOURRED "^11: %s ^22: %s ^33: %s ^44: %s ^55: %s ^66: %s ^77: %s ^88: %s\n",var[1],var[2],var[3],var[4],var[5],var[6],var[7],var[8]);
-
-	return var[word];
-}*/
 
 void magic_etghack(char *thestring)
 {
@@ -592,9 +559,6 @@ void magic_etghack(char *thestring)
 
 	}
 
-	//Con_SubPrintf(DEFAULTCONSOLE,COLOURRED "^11: %s ^22: %s ^33: %s ^44: %s ^55: %s ^66: %s ^77: %s ^88: %s\n",var[1],var[2],var[3],var[4],var[5],var[6],var[7],var[8]);
-
-//	return subvar[word];
 }
 
 
@@ -616,7 +580,6 @@ void numbered_command(int comm,char *msg,ircclient_t *irc) // move vars up 1 mor
 
 		Con_SubPrintf(DEFAULTCONSOLE, COLOURYELLOW "SERVER STATS: %s\n",casevar[3]);
 		return;
-		break;
 	}
 	case 250:
 	case 251:
@@ -629,7 +592,6 @@ void numbered_command(int comm,char *msg,ircclient_t *irc) // move vars up 1 mor
 	{
 		Con_SubPrintf(DEFAULTCONSOLE, COLOURYELLOW "SERVER STATS: %s\n",casevar[3]);
 		return;
-		break;
 	}
 	case 301: /* #define RPL_AWAY             301 */
 	{
@@ -638,7 +600,6 @@ void numbered_command(int comm,char *msg,ircclient_t *irc) // move vars up 1 mor
 
 		Con_SubPrintf(DEFAULTCONSOLE,"WHOIS: <%s> (Away Message: %s)\n",username,awaymessage);
 		return;
-		break;
 	}
 	case 305: /* RPL_UNAWAY */
 	case 306: /* RPL_NOWAWAY */
@@ -647,7 +608,6 @@ void numbered_command(int comm,char *msg,ircclient_t *irc) // move vars up 1 mor
 
 		Con_SubPrintf(CURRENTCONSOLE,"%s\n",away);
 		return;
-		break;
 	}
 	case 311: /* #define RPL_WHOISUSER        311 */
 	{
@@ -658,7 +618,6 @@ void numbered_command(int comm,char *msg,ircclient_t *irc) // move vars up 1 mor
 
 		Con_SubPrintf(DEFAULTCONSOLE,"WHOIS: <%s> (Ident: %s) (Address: %s) (Realname: %s) \n", username, ident, address, realname);
 		return;
-		break;
 	}
 	case 312: /* #define RPL_WHOISSERVER      312 */ //seems to be /whowas also
 	{
@@ -668,7 +627,6 @@ void numbered_command(int comm,char *msg,ircclient_t *irc) // move vars up 1 mor
 
 		Con_SubPrintf(DEFAULTCONSOLE,"WHOIS: <%s> (Server: %s) (Server Name: %s) \n", username, serverhostname, servername);
 		return;
-		break;
 	}
 	case 313: /* RPL_WHOISOPERATOR */
 	{
@@ -678,7 +636,6 @@ void numbered_command(int comm,char *msg,ircclient_t *irc) // move vars up 1 mor
 		Con_SubPrintf(DEFAULTCONSOLE,"WHOIS: <%s> (%s)\n", username,isoperator);
 
 		return;
-		break;
 	}
 	case 317: /* #define RPL_WHOISIDLE        317 */
 	{
@@ -696,7 +653,6 @@ void numbered_command(int comm,char *msg,ircclient_t *irc) // move vars up 1 mor
 
 		Con_SubPrintf(DEFAULTCONSOLE,"WHOIS: <%s> (Idle Time: %s seconds) (Signon Time: %s) \n", username, secondsidle, buffer);
 		return;
-		break;
 	}
 	case 318: /* #define RPL_ENDOFWHOIS       318 */
 	{
@@ -705,7 +661,6 @@ void numbered_command(int comm,char *msg,ircclient_t *irc) // move vars up 1 mor
 		Con_SubPrintf(DEFAULTCONSOLE,"WHOIS: %s\n", endofwhois);
 
 		return;
-		break;
 	}
 	case 319: /* #define RPL_WHOISCHANNELS    319 */
 	{
@@ -714,14 +669,12 @@ void numbered_command(int comm,char *msg,ircclient_t *irc) // move vars up 1 mor
 
 		Con_SubPrintf(DEFAULTCONSOLE,"WHOIS: <%s> (Channels: %s)\n",username,channels); // need to remove the space from the end of channels
 		return;
-		break;
 	}
 	case 321:
 	{
 		Con_SubPrintf("list", "Start /LIST\n");
 
 		return;
-		break;
 	}
 	case 322: /* #define RPL_LIST             322 */
 	{
@@ -731,7 +684,6 @@ void numbered_command(int comm,char *msg,ircclient_t *irc) // move vars up 1 mor
 
 		Con_SubPrintf("list", "^1Channel:^7 %s ^1Users:^7 %s ^1Topic:^7 %s\n\n", channel,users,topic);
 		return;
-		break;
 	}
 	case 323:
 	{
@@ -740,7 +692,6 @@ void numbered_command(int comm,char *msg,ircclient_t *irc) // move vars up 1 mor
 		Con_SubPrintf("list", "%s\n",endoflist);
 
 		return;
-		break;
 	}
 	case 366:
 	{
@@ -749,7 +700,6 @@ void numbered_command(int comm,char *msg,ircclient_t *irc) // move vars up 1 mor
 
 		Con_SubPrintf(channel,"%s\n",endofnameslist);
 		return;
-		break;
 	}
 	case 372:
 	case 375:
@@ -768,13 +718,11 @@ void numbered_command(int comm,char *msg,ircclient_t *irc) // move vars up 1 mor
 			IRC_JoinChannel(ircclient,irc->autochannels,""); // note to self... "" needs to be the channel key.. so autochannels needs a recoded
 
 		return;
-		break;
 	}
 	case 378:
 	{
 		Con_SubPrintf(DEFAULTCONSOLE, "%s\n", msg);
 		return;
-		break;
 	}
 	case 401:
 	case 403:
@@ -786,13 +734,11 @@ void numbered_command(int comm,char *msg,ircclient_t *irc) // move vars up 1 mor
 
 		Con_SubPrintf(DEFAULTCONSOLE, COLOURRED "ERROR <%s>: %s\n",username,error);
 		return;
-		break;
 	}
 	case 432: /* #define ERR_ERRONEUSNICKNAME 432 */
 	{
 		Con_SubPrintf(DEFAULTCONSOLE, "Erroneous/invalid nickname given\n");
 		return;
-		break;
 	}
 	case 433: /* #define ERR_NICKNAMEINUSE    433 */
 	case 438:
@@ -833,7 +779,6 @@ void numbered_command(int comm,char *msg,ircclient_t *irc) // move vars up 1 mor
 		}
 
 		return;
-		break;
 	}
 	case 471: /* ERR_CHANNELISFULL */
 	{
@@ -842,7 +787,6 @@ void numbered_command(int comm,char *msg,ircclient_t *irc) // move vars up 1 mor
 
 		Con_SubPrintf(DEFAULTCONSOLE, COLOURRED "ERROR: <%s>: %s (Channel is full and has reached user limit)\n",channel,error);
 		return;
-		break;
 	}
 	case 472: /* ERR_UNKNOWNMODE */
 	{
@@ -851,7 +795,6 @@ void numbered_command(int comm,char *msg,ircclient_t *irc) // move vars up 1 mor
 
 		Con_SubPrintf(DEFAULTCONSOLE, COLOURRED "ERROR: <%s>: %s (Unknown mode)\n",mode,error);
 		return;
-		break;
 	}
 	case 473: /* ERR_INVITEONLYCHAN */
 	{
@@ -860,7 +803,6 @@ void numbered_command(int comm,char *msg,ircclient_t *irc) // move vars up 1 mor
 
 		Con_SubPrintf(DEFAULTCONSOLE, COLOURRED "ERROR: <%s>: %s (Invite only)\n",channel,error);
 		return;
-		break;
 	}
 	case 474: /* ERR_BANNEDFROMCHAN */
 	{
@@ -869,7 +811,6 @@ void numbered_command(int comm,char *msg,ircclient_t *irc) // move vars up 1 mor
 
 		Con_SubPrintf(DEFAULTCONSOLE, COLOURRED "ERROR: <%s>: %s (You are banned)\n",channel,error);
 		return;
-		break;
 	}
 	case 475: /* ERR_BADCHANNELKEY */
 	{
@@ -878,7 +819,6 @@ void numbered_command(int comm,char *msg,ircclient_t *irc) // move vars up 1 mor
 
 		Con_SubPrintf(DEFAULTCONSOLE, COLOURRED "ERROR: <%s>: %s (Need the correct channel key. Example: /join %s bananas)\n",channel,error,channel);
 		return;
-		break;
 	}
 	case 482: /* ERR_CHANOPRIVSNEEDED */
 	{
@@ -887,7 +827,6 @@ void numbered_command(int comm,char *msg,ircclient_t *irc) // move vars up 1 mor
 
 		Con_SubPrintf(DEFAULTCONSOLE, COLOURRED "ERROR: <%s>: %s (Need +o or @ status)\n",channel,error,channel);
 		return;
-		break;
 	}
 	}
 
@@ -1053,19 +992,16 @@ int IRC_ClientFrame(ircclient_t *irc)
 		}
 		else
 		{
-		//Con_SubPrintf(DEFAULTCONSOLE, COLOURGREEN "SERVER NOTICE: <%s> %s\n", prefix, servernotice);	//direct server message
 
 		etghack = strtok(var[1],"\n");
 
-		//strcpy(etghack,servernotice);
-
 		Con_SubPrintf(DEFAULTCONSOLE, COLOURGREEN "SERVER NOTICE: <%s> %s\n", prefix, etghack);
+
+		strcpy(servername,prefix);
 
 		while (1)
 		{
 			etghack = strtok(NULL, "\n");
-
-			//strcpy(etghack,strtok(NULL, "\n"));
 
 			if (etghack == NULL)
 			{
@@ -1478,11 +1414,6 @@ void IRC_Command(char *dest)
 			channelkey = strtok(imsg," ");
 			channelkey = strtok(NULL," ");
 			channelkey = strtok(NULL," ");
-
-			/*if ( *com_token != '#' )
-				IRC_AddClientMessage(ircclient, va("JOIN #%s %s", com_token,channelkey));
-			else
-				IRC_AddClientMessage(ircclient, va("JOIN %s %s", com_token,channelkey));*/
 
 			IRC_JoinChannel(ircclient,com_token,channelkey);
 

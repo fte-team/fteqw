@@ -260,6 +260,8 @@ R_NewMap
 */
 void SWR_NewMap (void)
 {
+	extern cvar_t host_mapname;
+	char namebuf[MAX_OSPATH];
 	int		i;
 
 	memset (&r_worldentity, 0, sizeof(r_worldentity));

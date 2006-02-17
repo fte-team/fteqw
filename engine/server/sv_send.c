@@ -558,6 +558,9 @@ void SV_MulticastProtExt(vec3_t origin, multicast_t to, int dimension_mask, int 
 			case SCP_BAD:
 				continue;	//a bot.
 
+			default:
+				SV_Error("Multicast: Client is using a bad protocl");
+
 #ifdef NQPROT
 			case SCP_NETQUAKE:
 			case SCP_DARKPLACES6:
@@ -672,6 +675,8 @@ void SV_MulticastProtExt(vec3_t origin, multicast_t to, int dimension_mask, int 
 			{
 			case SCP_BAD:
 				continue;	//a bot.
+			default:
+				SV_Error("multicast: Client is using a bad protocol");
 
 #ifdef NQPROT
 			case SCP_NETQUAKE:

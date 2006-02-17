@@ -427,7 +427,7 @@ void M_Menu_FPS_f (void)
 #ifdef SWQUAKE
 	extern cvar_t d_smooth, d_mipscale, d_mipcap;
 #endif
-	extern cvar_t r_stains, r_bloodstains, r_loadlits, r_dynamic, v_contentblend, show_fps, gl_skyboxname;
+	extern cvar_t r_stains, r_bloodstains, r_loadlits, r_dynamic, v_contentblend, show_fps;
 
 	key_dest = key_menu;
 	m_state = m_complex;

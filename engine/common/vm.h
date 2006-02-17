@@ -76,6 +76,7 @@ void VMUI_fcloseall (int owner);
 int VMQ3_GetFileList(char *path, char *ext, char *output, int buffersize);
 
 //sans botlib
+struct pc_token_s;
 int Script_LoadFile(char *filename);
 void Script_Free(int handle);
 int Script_Read(int handle, struct pc_token_s *token);

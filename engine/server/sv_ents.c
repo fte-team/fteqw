@@ -1601,7 +1601,7 @@ void SV_WritePlayersToClient (client_t *client, edict_t *clent, qbyte *pvs, size
 
 	for (j=0,cl=svs.clients ; j<sv.allocated_client_slots ; j++,cl++)
 	{
-		isbot = !cl->state && cl->name[0] || cl->protocol == SCP_BAD;
+		isbot = !cl->state && (cl->name[0] || cl->protocol == SCP_BAD);
 		if (cl->state != cs_spawned)	//this includes bots
 			if (!isbot || progstype == PROG_QW)	//unless they're NQ bots...
 				continue;

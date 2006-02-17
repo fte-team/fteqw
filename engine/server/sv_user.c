@@ -348,7 +348,6 @@ void SVNQ_New_f (void)
 #ifdef Q2SERVER
 void SVQ2_ConfigStrings_f (void)
 {
-	extern int map_checksum;
 	int			start;
 	char *str;
 
@@ -447,6 +446,7 @@ void SVQ2_ConfigStrings_f (void)
 		}
 		else if (start < Q2CS_MODELS)
 		{
+			extern int map_checksum;
 			MSG_WriteByte (&host_client->netchan.message, svcq2_configstring);
 			MSG_WriteShort (&host_client->netchan.message, start);
 			MSG_WriteString (&host_client->netchan.message, va("%i", map_checksum));
@@ -3993,7 +3993,6 @@ void SV_RunCmd (usercmd_t *ucmd, qboolean recurse)
 	int			oldmsec;
 	double  tmp_time;
 	qboolean jumpable;
-	extern cvar_t sv_gravity;
 
 
 	// DMW copied this KK hack copied from QuakeForge anti-cheat

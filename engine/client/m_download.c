@@ -175,7 +175,7 @@ static void WriteInstalledPackages(void)
 	{
 		if (p->flags & DPF_HAVEAVERSION)
 		{
-			s = ("\"%s\" \"%s\" \"%s\" %i \"%s\"\n", p->fullname, p->src, p->dest, p->version, p->gamedir);
+			s = va("\"%s\" \"%s\" \"%s\" %i \"%s\"\n", p->fullname, p->src, p->dest, p->version, p->gamedir);
 			VFS_WRITE(f, s, strlen(s));
 		}
 	}

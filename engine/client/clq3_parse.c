@@ -1027,3 +1027,4 @@ void CLQ3_SendConnectPacket(netadr_t to)
 	NET_SendPacket (NS_CLIENT, msg.cursize, msg.data, to);
 }
 #endif
+

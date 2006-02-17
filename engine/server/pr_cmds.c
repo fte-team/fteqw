@@ -64,6 +64,7 @@ cvar_t pr_tempstringcount = SCVAR("pr_tempstringcount", "16");
 cvar_t pr_tempstringsize = SCVAR("pr_tempstringsize", "4096");
 
 cvar_t sv_gameplayfix_blowupfallenzombies = SCVAR("sv_gameplayfix_blowupfallenzombies", "0");
+extern cvar_t sv_gameplayfix_noairborncorpse;
 
 cvar_t sv_addon[MAXADDONS];
 char cvargroup_progs[] = "Progs variables";
@@ -933,6 +934,7 @@ void PR_Init(void)
 	Cvar_Register (&pr_tempstringsize, cvargroup_progs);
 
 	Cvar_Register (&sv_gameplayfix_blowupfallenzombies, cvargroup_progs);
+	Cvar_Register (&sv_gameplayfix_noairborncorpse, cvargroup_progs);
 }
 
 void Q_InitProgs(void)

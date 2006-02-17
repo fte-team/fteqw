@@ -512,7 +512,7 @@ void Model_NextDownload (void)
 //	char *twf;
 	char	*s;
 	int		i;
-	extern	char gamedirfile[];
+//	extern	char gamedirfile[];
 
 	Con_TPrintf (TLC_CHECKINGMODELS);
 
@@ -3162,7 +3162,6 @@ char *CL_ParseChat(char *text, player_info_t **player)
 	int offset=0;
 	qboolean	suppress_talksound;
 	char *p;
-	extern cvar_t cl_parsewhitetext;
 	char *s;
 	int check_flood;
 
@@ -3482,7 +3481,7 @@ void CL_PrintChat(player_info_t *plr, char *rawmsg, char *msg, int plrflags)
 	{
 		char *t, *u;
 
-		while (t = strchr(msg, '{'))
+		while ((t = strchr(msg, '{')))
 		{
 			u = strchr(msg, '}');
 			if (u)
@@ -3789,7 +3788,7 @@ void CL_ParseServerMessage (void)
 				if (TP_SuppressMessage(s))
 					break;	//if this was unseen-sent from us, ignore it.
 
-				if (msg = CL_ParseChat(s, &plr))
+				if ((msg = CL_ParseChat(s, &plr)))
 				{
 					CL_ParsePrint(s, i);
 					CL_PrintChat(plr, s, msg, msgflags);
@@ -4254,7 +4253,7 @@ void CLQ2_ParseServerMessage (void)
 				char *msg;
 				player_info_t *plr = NULL;
 
-				if (msg = CL_ParseChat(s, &plr))
+				if ((msg = CL_ParseChat(s, &plr)))
 				{
 					CL_ParsePrint(s, i);
 					CL_PrintChat(plr, s, msg, msgflags);
@@ -4491,7 +4490,7 @@ void CLNQ_ParseServerMessage (void)
 				char *msg;
 				player_info_t *plr = NULL;
 
-				if (msg = CL_ParseChat(s+1, &plr))
+				if ((msg = CL_ParseChat(s+1, &plr)))
 				{
 					CL_ParsePrint(s+1, PRINT_CHAT);
 					CL_PrintChat(plr, s+1, msg, msgflags);

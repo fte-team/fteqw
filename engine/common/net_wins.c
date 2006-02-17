@@ -105,7 +105,7 @@ int NetadrToSockadr (netadr_t *a, struct sockaddr_qstorage *s)
 		memset (s, 0, sizeof(struct sockaddr_in));
 		((struct sockaddr_in*)s)->sin_family = AF_INET;
 
-		*(int *)&((struct sockaddr_in*)s)->sin_addr = *(int *)&a->ip;
+		*(int *)&((struct sockaddr_in*)s)->sin_addr = *(int *)&a->address.ip;
 		((struct sockaddr_in*)s)->sin_port = a->port;
 		return sizeof(struct sockaddr_in);
 #ifdef IPPROTO_IPV6
@@ -124,15 +124,15 @@ int NetadrToSockadr (netadr_t *a, struct sockaddr_qstorage *s)
 		memset (s, 0, sizeof(struct sockaddr_in));
 		((struct sockaddr_in6*)s)->sin6_family = AF_INET6;
 
-		memcpy(&((struct sockaddr_in6*)s)->sin6_addr, a->ip6, sizeof(struct in6_addr));
+		memcpy(&((struct sockaddr_in6*)s)->sin6_addr, a->address.ip6, sizeof(struct in6_addr));
 		((struct sockaddr_in6*)s)->sin6_port = a->port;
 		return sizeof(struct sockaddr_in6);
 #endif
 #ifdef USEIPX
 	case NA_IPX:
 		((struct sockaddr_ipx *)s)->sa_family = AF_IPX;
-		memcpy(((struct sockaddr_ipx *)s)->sa_netnum, &a->ipx[0], 4);
-		memcpy(((struct sockaddr_ipx *)s)->sa_nodenum, &a->ipx[4], 6);
+		memcpy(((struct sockaddr_ipx *)s)->sa_netnum, &a->address.ipx[0], 4);
+		memcpy(((struct sockaddr_ipx *)s)->sa_nodenum, &a->address.ipx[4], 6);
 		((struct sockaddr_ipx *)s)->sa_socket = a->port;
 		return sizeof(struct sockaddr_ipx);
 	case NA_BROADCAST_IPX:
@@ -155,22 +155,22 @@ void SockadrToNetadr (struct sockaddr_qstorage *s, netadr_t *a)
 	{
 	case AF_INET:
 		a->type = NA_IP;
-		*(int *)&a->ip = ((struct sockaddr_in *)s)->sin_addr.s_addr;
+		*(int *)&a->address.ip = ((struct sockaddr_in *)s)->sin_addr.s_addr;
 		a->port = ((struct sockaddr_in *)s)->sin_port;
 		break;
 #ifdef IPPROTO_IPV6
 	case AF_INET6:
 		a->type = NA_IPV6;
-		memcpy(&a->ip6, &((struct sockaddr_in6 *)s)->sin6_addr, sizeof(a->ip6));
+		memcpy(&a->address.ip6, &((struct sockaddr_in6 *)s)->sin6_addr, sizeof(a->address.ip6));
 		a->port = ((struct sockaddr_in6 *)s)->sin6_port;
 		break;
 #endif
 #ifdef USEIPX
 	case AF_IPX:
 		a->type = NA_IPX;
-		*(int *)a->ip = 0xffffffff;
-		memcpy(&a->ipx[0], ((struct sockaddr_ipx *)s)->sa_netnum, 4);
-		memcpy(&a->ipx[4], ((struct sockaddr_ipx *)s)->sa_nodenum, 6);
+		*(int *)a->address.ip = 0xffffffff;
+		memcpy(&a->address.ipx[0], ((struct sockaddr_ipx *)s)->sa_netnum, 4);
+		memcpy(&a->address.ipx[4], ((struct sockaddr_ipx *)s)->sa_nodenum, 6);
 		a->port = ((struct sockaddr_ipx *)s)->sa_socket;
 		break;
 #endif
@@ -193,7 +193,7 @@ qboolean	NET_CompareAdr (netadr_t a, netadr_t b)
 
 	if (a.type == NA_IP || a.type == NA_BROADCAST_IP)
 	{
-		if (a.ip[0] == b.ip[0] && a.ip[1] == b.ip[1] && a.ip[2] == b.ip[2] && a.ip[3] == b.ip[3] && a.port == b.port)
+		if ((memcmp(a.address.ip, b.address.ip, sizeof(a.address.ip)) == 0) && a.port == b.port)
 			return true;
 		return false;
 	}
@@ -201,7 +201,7 @@ qboolean	NET_CompareAdr (netadr_t a, netadr_t b)
 #ifdef IPPROTO_IPV6
 	if (a.type == NA_IPV6 || a.type == NA_BROADCAST_IP6)
 	{
-		if ((memcmp(a.ip6, b.ip6, 16) == 0) && a.port == b.port)
+		if ((memcmp(a.address.ip6, b.address.ip6, sizeof(a.address.ip6)) == 0) && a.port == b.port)
 			return true;
 		return false;
 	}
@@ -209,7 +209,7 @@ qboolean	NET_CompareAdr (netadr_t a, netadr_t b)
 
 	if (a.type == NA_IPX || a.type == NA_BROADCAST_IPX)
 	{
-		if ((memcmp(a.ipx, b.ipx, 10) == 0) && a.port == b.port)
+		if ((memcmp(a.address.ipx, b.address.ipx, sizeof(a.address.ipx)) == 0) && a.port == b.port)
 			return true;
 		return false;
 	}
@@ -235,21 +235,21 @@ qboolean	NET_CompareBaseAdr (netadr_t a, netadr_t b)
 
 	if (a.type == NA_IP)
 	{
-		if (a.ip[0] == b.ip[0] && a.ip[1] == b.ip[1] && a.ip[2] == b.ip[2] && a.ip[3] == b.ip[3])
+		if ((memcmp(a.address.ip, b.address.ip, sizeof(a.address.ip)) == 0))
 			return true;
 		return false;
 	}
 #ifdef IPPROTO_IPV6
 	if (a.type == NA_IPV6 || a.type == NA_BROADCAST_IP6)
 	{
-		if ((memcmp(a.ip6, b.ip6, 16) == 0))
+		if ((memcmp(a.address.ip6, b.address.ip6, 16) == 0))
 			return true;
 		return false;
 	}
 #endif
 	if (a.type == NA_IPX)
 	{
-		if ((memcmp(a.ipx, b.ipx, 10) == 0))
+		if ((memcmp(a.address.ipx, b.address.ipx, 10) == 0))
 			return true;
 		return false;
 	}
@@ -266,18 +266,51 @@ char	*NET_AdrToString (netadr_t a)
 	{
 	case NA_BROADCAST_IP:
 	case NA_IP:
-		sprintf (s, "%i.%i.%i.%i:%i", a.ip[0], a.ip[1], a.ip[2], a.ip[3], ntohs(a.port));
+		sprintf (s, "%i.%i.%i.%i:%i", 
+			a.address.ip[0], 
+			a.address.ip[1], 
+			a.address.ip[2], 
+			a.address.ip[3], 
+			ntohs(a.port));
 		break;
 #ifdef IPPROTO_IPV6
 	case NA_BROADCAST_IP6:
 	case NA_IPV6:
-		sprintf (s, "[%02x%02x:%02x%02x:%02x%02x:%02x%02x:%02x%02x:%02x%02x:%02x%02x:%02x%02x]:%i", a.ip6[0], a.ip6[1], a.ip6[2], a.ip6[3], a.ip6[4], a.ip6[5], a.ip6[6], a.ip6[7], a.ip6[8], a.ip6[9], a.ip6[10], a.ip6[11], a.ip6[12], a.ip6[13], a.ip6[14], a.ip6[15], ntohs(a.port));
+		sprintf (s, "[%02x%02x:%02x%02x:%02x%02x:%02x%02x:%02x%02x:%02x%02x:%02x%02x:%02x%02x]:%i", 
+			a.address.ip6[0], 
+			a.address.ip6[1], 
+			a.address.ip6[2], 
+			a.address.ip6[3], 
+			a.address.ip6[4], 
+			a.address.ip6[5],
+			a.address.ip6[6],
+			a.address.ip6[7],
+			a.address.ip6[8],
+			a.address.ip6[9],
+			a.address.ip6[10],
+			a.address.ip6[11],
+			a.address.ip6[12],
+			a.address.ip6[13],
+			a.address.ip6[14],
+			a.address.ip6[15],
+			ntohs(a.port));
 		break;
 #endif
 #ifdef USEIPX
 	case NA_BROADCAST_IPX:
 	case NA_IPX:
-		sprintf (s, "%02x%02x%02x%02x:%02x%02x%02x%02x%02x%02x:%i", a.ipx[0], a.ipx[1], a.ipx[2], a.ipx[3], a.ipx[4], a.ipx[5], a.ipx[6], a.ipx[7], a.ipx[8], a.ipx[9], ntohs(a.port));
+		sprintf (s, "%02x%02x%02x%02x:%02x%02x%02x%02x%02x%02x:%i",
+			a.address.ipx[0],
+			a.address.ipx[1],
+			a.address.ipx[2],
+			a.address.ipx[3],
+			a.address.ipx[4],
+			a.address.ipx[5],
+			a.address.ipx[6],
+			a.address.ipx[7],
+			a.address.ipx[8],
+			a.address.ipx[9],
+			ntohs(a.port));
 		break;
 #endif
 	case NA_LOOPBACK:
@@ -299,18 +332,48 @@ char	*NET_BaseAdrToString (netadr_t a)
 	{
 	case NA_BROADCAST_IP:
 	case NA_IP:
-		sprintf (s, "%i.%i.%i.%i", a.ip[0], a.ip[1], a.ip[2], a.ip[3]);
+		sprintf (s, "%i.%i.%i.%i", 
+			a.address.ip[0], 
+			a.address.ip[1],
+			a.address.ip[2],
+			a.address.ip[3]);
 		break;
 #ifdef IPPROTO_IPV6
 	case NA_BROADCAST_IP6:
 	case NA_IPV6:
-		sprintf (s, "%02x%02x:%02x%02x:%02x%02x:%02x%02x:%02x%02x:%02x%02x:%02x%02x:%02x%02x", a.ip6[0], a.ip6[1], a.ip6[2], a.ip6[3], a.ip6[4], a.ip6[5], a.ip6[6], a.ip6[7], a.ip6[8], a.ip6[9], a.ip6[10], a.ip6[11], a.ip6[12], a.ip6[13], a.ip6[14], a.ip6[15]);
+		sprintf (s, "%02x%02x:%02x%02x:%02x%02x:%02x%02x:%02x%02x:%02x%02x:%02x%02x:%02x%02x", 
+			a.address.ip6[0],
+			a.address.ip6[1],
+			a.address.ip6[2],
+			a.address.ip6[3],
+			a.address.ip6[4],
+			a.address.ip6[5],
+			a.address.ip6[6], 
+			a.address.ip6[7],
+			a.address.ip6[8],
+			a.address.ip6[9],
+			a.address.ip6[10],
+			a.address.ip6[11],
+			a.address.ip6[12],
+			a.address.ip6[13],
+			a.address.ip6[14],
+			a.address.ip6[15]);
 		break;
 #endif
 #ifdef USEIPX
 	case NA_BROADCAST_IPX:
 	case NA_IPX:
-		sprintf (s, "%02x%02x%02x%02x:%02x%02x%02x%02x%02x%02x", a.ipx[0], a.ipx[1], a.ipx[2], a.ipx[3], a.ipx[4], a.ipx[5], a.ipx[6], a.ipx[7], a.ipx[8], a.ipx[9]);
+		sprintf (s, "%02x%02x%02x%02x:%02x%02x%02x%02x%02x%02x", 
+			a.address.ipx[0],
+			a.address.ipx[1],
+			a.address.ipx[2],
+			a.address.ipx[3],
+			a.address.ipx[4],
+			a.address.ipx[5],
+			a.address.ipx[6],
+			a.address.ipx[7],
+			a.address.ipx[8],
+			a.address.ipx[9]);
 		break;
 #endif
 	case NA_LOOPBACK:
@@ -1385,8 +1448,8 @@ void NET_GetLocalAddress (int socket, netadr_t *out)
 	}
 
 	SockadrToNetadr(&address, out);
-	if (!*(int*)out->ip)	//socket was set to auto
-		*(int *)out->ip = *(int *)adr.ip;	//change it to what the machine says it is, rather than the socket.
+	if (!*(int*)out->address.ip)	//socket was set to auto
+		*(int *)out->address.ip = *(int *)adr.address.ip;	//change it to what the machine says it is, rather than the socket.
 
 	if (notvalid)
 		Con_Printf("Couldn't detect local ip\n");

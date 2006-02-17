@@ -457,14 +457,14 @@ void LoadModelsAndSounds(vfsfile_t *f)
 	char	str[32768];
 	int i;
 
-	sv.model_precache[0] = PR_AddString(svprogfuncs, "", 0);
+	sv.strings.model_precache[0] = PR_AddString(svprogfuncs, "", 0);
 	for (i=1; i < MAX_MODELS; i++)
 	{
 		VFS_GETS(f, str, sizeof(str));
 		if (!*str)
 			break;
 
-		sv.model_precache[i] = PR_AddString(svprogfuncs, str, 0);
+		sv.strings.model_precache[i] = PR_AddString(svprogfuncs, str, 0);
 	}
 	if (i == MAX_MODELS)
 	{
@@ -472,8 +472,8 @@ void LoadModelsAndSounds(vfsfile_t *f)
 		if (*str)
 			SV_Error("Too many model precaches in loadgame cache");
 	}
-	for (; i < MAX_SOUNDS; i++)
-		sv.model_precache[i] = NULL;
+	for (; i < MAX_MODELS; i++)
+		sv.strings.model_precache[i] = NULL;
 
 //	sv.sound_precache[0] = PR_AddString(svprogfuncs, "", 0);
 	for (i=1; i < MAX_SOUNDS; i++)
@@ -491,7 +491,7 @@ void LoadModelsAndSounds(vfsfile_t *f)
 			SV_Error("Too many sound precaches in loadgame cache");
 	}
 	for (; i < MAX_SOUNDS; i++)
-		*sv.sound_precache[i] = 0;
+		*sv.strings.sound_precache[i] = 0;
 }
 
 qboolean SV_LoadLevelCache(char *level, char *startspot, qboolean ignoreplayers)
@@ -631,10 +631,10 @@ qboolean SV_LoadLevelCache(char *level, char *startspot, qboolean ignoreplayers)
 	for (i=0 ; i<MAX_LIGHTSTYLES ; i++)
 	{
 		VFS_GETS(f, str, sizeof(str));
-		if (sv.lightstyles[i])
-			Z_Free(sv.lightstyles[i]);
-		sv.lightstyles[i] = Z_Malloc (strlen(str)+1);
-		strcpy (sv.lightstyles[i], str);
+		if (sv.strings.lightstyles[i])
+			Z_Free(sv.strings.lightstyles[i]);
+		sv.strings.lightstyles[i] = Z_Malloc (strlen(str)+1);
+		strcpy (sv.strings.lightstyles[i], str);
 	}
 
 // load the edicts out of the savegame file
@@ -826,24 +826,24 @@ void SV_SaveLevelCache(qboolean dontharmgame)
 	fprintf (f, "%i\n",MAX_LIGHTSTYLES);
 	for (i=0 ; i<MAX_LIGHTSTYLES ; i++)
 	{
-		if (sv.lightstyles[i])
-			fprintf (f, "%s\n", sv.lightstyles[i]);
+		if (sv.strings.lightstyles[i])
+			fprintf (f, "%s\n", sv.strings.lightstyles[i]);
 		else
 			fprintf (f,"m\n");
 	}
 
 	for (i=1 ; i<MAX_MODELS ; i++)
 	{
-		if (sv.model_precache[i])
-			fprintf (f, "%s\n", sv.model_precache[i]);
+		if (sv.strings.model_precache[i])
+			fprintf (f, "%s\n", sv.strings.model_precache[i]);
 		else
 			break;
 	}
 	fprintf (f,"\n");
 	for (i=1 ; i<MAX_SOUNDS ; i++)
 	{
-		if (*sv.sound_precache[i])
-			fprintf (f, "%s\n", sv.sound_precache[i]);
+		if (*sv.strings.sound_precache[i])
+			fprintf (f, "%s\n", sv.strings.sound_precache[i]);
 		else
 			break;
 	}

@@ -1917,21 +1917,21 @@ void PF_setmodel (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 		i = 0;
 	else
 	{
-		for (i=1; sv.model_precache[i] ; i++)
+		for (i=1; sv.strings.model_precache[i] ; i++)
 		{
-			if (!strcmp(sv.model_precache[i], m))
+			if (!strcmp(sv.strings.model_precache[i], m))
 			{
-				m = sv.model_precache[i];
+				m = sv.strings.model_precache[i];
 				break;
 			}
 		}
-		if (i==MAX_MODELS || !sv.model_precache[i])
+		if (i==MAX_MODELS || !sv.strings.model_precache[i])
 		{
 			if (i!=MAX_MODELS)
 			{
-				sv.model_precache[i] = PR_AddString(prinst, m, 0);
+				sv.strings.model_precache[i] = PR_AddString(prinst, m, 0);
 				if (!strcmp(m + strlen(m) - 4, ".bsp"))
-					sv.models[i] = Mod_FindName(sv.model_precache[i]);
+					sv.models[i] = Mod_FindName(sv.strings.model_precache[i]);
 				Con_Printf("WARNING: SV_ModelIndex: model %s not precached\n", m);
 
 				if (sv.state != ss_loading)
@@ -1954,7 +1954,7 @@ void PF_setmodel (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 		}
 	}
 
-	e->v->model = PR_SetString(prinst, sv.model_precache[i]);
+	e->v->model = PR_SetString(prinst, sv.strings.model_precache[i]);
 	e->v->modelindex = i;
 
 	// if it is an inline model, get the size information for it
@@ -2662,11 +2662,11 @@ void PF_ambientsound (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 	attenuation = G_FLOAT(OFS_PARM3);
 
 // check to see if samp was properly precached
-	for (soundnum=1 ; *sv.sound_precache[soundnum] ; soundnum++)
-		if (!strcmp(sv.sound_precache[soundnum],samp))
+	for (soundnum=1 ; *sv.strings.sound_precache[soundnum] ; soundnum++)
+		if (!strcmp(sv.strings.sound_precache[soundnum],samp))
 			break;
 
-	if (!*sv.sound_precache[soundnum])
+	if (!*sv.strings.sound_precache[soundnum])
 	{
 		Con_TPrintf (STL_NOPRECACHE, samp);
 		return;
@@ -3664,9 +3664,9 @@ void PF_precache_sound (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 
 	for (i=1 ; i<MAX_SOUNDS ; i++)
 	{
-		if (!*sv.sound_precache[i])
+		if (!*sv.strings.sound_precache[i])
 		{
-			strcpy(sv.sound_precache[i], s);
+			strcpy(sv.strings.sound_precache[i], s);
 
 
 			if (sv.state != ss_loading)
@@ -3682,7 +3682,7 @@ void PF_precache_sound (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 			}
 			return;
 		}
-		if (!strcmp(sv.sound_precache[i], s))
+		if (!strcmp(sv.strings.sound_precache[i], s))
 			return;
 	}
 	PR_BIError (prinst, "PF_precache_sound: overflow");
@@ -3712,16 +3712,16 @@ void PF_precache_model (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 
 	for (i=1 ; i<MAX_MODELS ; i++)
 	{
-		if (!sv.model_precache[i])
+		if (!sv.strings.model_precache[i])
 		{
 			if (strlen(s)>=MAX_QPATH-1)	//probably safest to keep this.
 			{
 				PR_BIError (prinst, "Precache name too long");
 				return;
 			}
-			sv.model_precache[i] = PR_AddString(prinst, s, 0);
+			sv.strings.model_precache[i] = PR_AddString(prinst, s, 0);
 			if (!strcmp(s + strlen(s) - 4, ".bsp"))
-				sv.models[i] = Mod_FindName(sv.model_precache[i]);
+				sv.models[i] = Mod_FindName(sv.strings.model_precache[i]);
 
 			if (sv.state != ss_loading)
 			{
@@ -3737,7 +3737,7 @@ void PF_precache_model (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 
 			return;
 		}
-		if (!strcmp(sv.model_precache[i], s))
+		if (!strcmp(sv.strings.model_precache[i], s))
 		{
 			return;
 		}
@@ -3773,7 +3773,7 @@ void PF_WeapIndex (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 
 	for (i=1 ; i<MAX_MODELS ; i++)
 	{
-		if (!*sv.model_precache[i])
+		if (!*sv.strings.model_precache[i])
 		{
 			if (sv.state != ss_loading)	//allow it to be used to find a model too.
 			{
@@ -3781,14 +3781,14 @@ void PF_WeapIndex (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 				return;
 			}
 
-			strcpy(sv.model_precache[i], s);
+			strcpy(sv.strings.model_precache[i], s);
 			if (!strcmp(s + strlen(s) - 4, ".bsp"))
-				sv.models[i] = Mod_FindName(sv.model_precache[i]);
+				sv.models[i] = Mod_FindName(sv.strings.model_precache[i]);
 
 			G_FLOAT(OFS_RETURN) = i;
 			return;
 		}
-		if (!strcmp(sv.model_precache[i], s))
+		if (!strcmp(sv.strings.model_precache[i], s))
 		{
 			G_FLOAT(OFS_RETURN) = i;
 			return;
@@ -3956,13 +3956,13 @@ void PF_lightstyle (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 
 
 // change the string in sv
-	if (sv.lightstyles[style])
-		Z_Free(sv.lightstyles[style]);
-	sv.lightstyles[style] = Z_Malloc(strlen(val)+1);
-	strcpy(sv.lightstyles[style], val);
+	if (sv.strings.lightstyles[style])
+		Z_Free(sv.strings.lightstyles[style]);
+	sv.strings.lightstyles[style] = Z_Malloc(strlen(val)+1);
+	strcpy(sv.strings.lightstyles[style], val);
 //	sv.lightstyles[style] = val;
 #ifdef PEXT_LIGHTSTYLECOL
-	sv.lightstylecolours[style] = col;
+	sv.strings.lightstylecolours[style] = col;
 #endif
 
 // send message to all clients on this server
@@ -4003,12 +4003,12 @@ void PF_lightstylevalue (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
 	int style;
 	style = G_FLOAT(OFS_PARM0);
-	if(style < 0 || style >= MAX_LIGHTSTYLES || !sv.lightstyles[style])
+	if(style < 0 || style >= MAX_LIGHTSTYLES || !sv.strings.lightstyles[style])
 	{
 		G_FLOAT(OFS_RETURN) = 0;
 		return;
 	}
-	G_FLOAT(OFS_RETURN) = *sv.lightstyles[style] - 'a';
+	G_FLOAT(OFS_RETURN) = *sv.strings.lightstyles[style] - 'a';
 }
 
 void PF_lightstylestatic (progfuncs_t *prinst, struct globalvars_s *pr_globals)
@@ -4057,13 +4057,13 @@ void PF_lightstylestatic (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 
 
 // change the string in sv
-	if (sv.lightstyles[style])
-		Z_Free(sv.lightstyles[style]);
-	sv.lightstyles[style] = Z_Malloc(strlen(val)+1);
-	strcpy(sv.lightstyles[style], val);
+	if (sv.strings.lightstyles[style])
+		Z_Free(sv.strings.lightstyles[style]);
+	sv.strings.lightstyles[style] = Z_Malloc(strlen(val)+1);
+	strcpy(sv.strings.lightstyles[style], val);
 //	sv.lightstyles[style] = val;
 #ifdef PEXT_LIGHTSTYLECOL
-	sv.lightstylecolours[style] = col;
+	sv.strings.lightstylecolours[style] = col;
 #endif
 
 // send message to all clients on this server
@@ -8824,7 +8824,7 @@ int SV_TagForName(int modelindex, char *tagname)
 #if 1
 	model_t *model = sv.models[modelindex];
 	if (!model)
-		model = Mod_ForName(sv.model_precache[modelindex], false);
+		model = Mod_ForName(sv.strings.model_precache[modelindex], false);
 	if (!model)
 		return 0;
 
@@ -8894,7 +8894,7 @@ void PF_setattachment(progfuncs_t *prinst, struct globalvars_s *pr_globals)
 		if (modelindex > 0 && modelindex < MAX_MODELS)
 		{
 			if (!sv.models[modelindex])
-				sv.models[modelindex] = Mod_ForName(sv.model_precache[modelindex], false);
+				sv.models[modelindex] = Mod_ForName(sv.strings.model_precache[modelindex], false);
 			if (sv.models[modelindex])
 			{
 				tagidx = SV_TagForName(modelindex, tagname);
@@ -8928,7 +8928,7 @@ void PF_gettagindex(progfuncs_t *prinst, struct globalvars_s *pr_globals)
 	if (tagname && tagname[0])
 	{
 		modelindex = (int)e->v->modelindex;
-		if (modelindex > 0 && modelindex < MAX_MODELS && sv.model_precache[modelindex])
+		if (modelindex > 0 && modelindex < MAX_MODELS && sv.strings.model_precache[modelindex])
 		{
 			tagidx = SV_TagForName(modelindex, tagname);
 			if (tagidx == 0)
@@ -8967,7 +8967,7 @@ void PF_gettaginfo(progfuncs_t *prinst, struct globalvars_s *pr_globals)
 	axis[2] = P_VEC(v_right);
 
 	if (!model)
-		model = Mod_FindName(sv.model_precache[(int)ent->v->modelindex]);
+		model = Mod_FindName(sv.strings.model_precache[(int)ent->v->modelindex]);
 
 	if (!Mod_GetTag(model, tagnum, ent->v->frame, ent->v->frame, 0, 0, 0, transtag))
 	{

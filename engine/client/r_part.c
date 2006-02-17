@@ -2108,7 +2108,7 @@ int P_RunParticleEffectState (vec3_t org, vec3_t dir, float count, int typenum, 
 		if (ptype->flags & PT_INVFRAMETIME)
 			pcount /= host_frametime;
 		if (ts)
-			pcount += ts->emittime;
+			pcount += ts->state2.emittime;
 
 		switch (ptype->spawnmode)
 		{
@@ -2155,10 +2155,10 @@ int P_RunParticleEffectState (vec3_t org, vec3_t dir, float count, int typenum, 
 		// time limit (for completeness)
 		if (ptype->spawntime && ts)
 		{
-			if (ts->statetime > particletime)
+			if (ts->state1.statetime > particletime)
 				return 0; // timelimit still in effect
 
-			ts->statetime = particletime + ptype->spawntime; // record old time
+			ts->state1.statetime = particletime + ptype->spawntime; // record old time
 		}
 
 		// random chance for point effects
@@ -2204,9 +2204,10 @@ int P_RunParticleEffectState (vec3_t org, vec3_t dir, float count, int typenum, 
 			else
 				p->alpha = ptype->alpha;
 			// p->color = 0;
-			p->nextemit = particletime + ptype->emitstart - p->die;
 			if (ptype->emittime < 0)
-				p->trailstate = NULL;
+				p->state.trailstate = NULL;
+			else
+				p->state.nextemit = particletime + ptype->emitstart - p->die;
 
 			p->rotationspeed = ptype->rotationmin + frandom()*ptype->rotationrand;
 			p->angle = ptype->rotationstartmin + frandom()*ptype->rotationstartrand;
@@ -2428,7 +2429,7 @@ int P_RunParticleEffectState (vec3_t org, vec3_t dir, float count, int typenum, 
 
 		// save off emit times in trailstate
 		if (ts)
-			ts->emittime = pcount - i;
+			ts->state2.emittime = pcount - i;
 
 		// go to next associated effect
 		if (ptype->assoc < 0)
@@ -2780,10 +2781,10 @@ static void P_ParticleTrailDraw (vec3_t startpos, vec3_t end, part_type_t *ptype
 	// time limit for trails
 	if (ptype->spawntime && ts)
 	{
-		if (ts->statetime > particletime)
+		if (ts->state1.statetime > particletime)
 			return; // timelimit still in effect
 
-		ts->statetime = particletime + ptype->spawntime; // record old time
+		ts->state1.statetime = particletime + ptype->spawntime; // record old time
 		ts = NULL; // clear trailstate so we don't save length/lastseg
 	}
 
@@ -2834,8 +2835,8 @@ static void P_ParticleTrailDraw (vec3_t startpos, vec3_t end, part_type_t *ptype
 	// store last stop here for lack of a better solution besides vectors
 	if (ts)
 	{
-		ts->laststop = stop = ts->laststop + len;	//when to stop
-		len = ts->lastdist;
+		ts->state2.laststop = stop = ts->state2.laststop + len;	//when to stop
+		len = ts->state1.lastdist;
 	}
 	else
 	{
@@ -2946,9 +2947,10 @@ static void P_ParticleTrailDraw (vec3_t startpos, vec3_t end, part_type_t *ptype
 		p->rgb[2] += p->org[2]*ptype->rgbrand[2] + ptype->rgbchange[2]*p->die;
 
 		VectorCopy (vec3_origin, p->vel);
-		p->nextemit = particletime + ptype->emitstart - p->die;
 		if (ptype->emittime < 0)
-			p->trailstate = NULL; // init trailstate
+			p->state.trailstate = NULL; // init trailstate
+		else
+			p->state.nextemit = particletime + ptype->emitstart - p->die;
 
 		p->rotationspeed = ptype->rotationmin + frandom()*ptype->rotationrand;
 		p->angle = ptype->rotationstartmin + frandom()*ptype->rotationstartrand;
@@ -3101,7 +3103,7 @@ static void P_ParticleTrailDraw (vec3_t startpos, vec3_t end, part_type_t *ptype
 
 	if (ts)
 	{
-		ts->lastdist = len;
+		ts->state1.lastdist = len;
 
 		// update beamseg list
 		if (ptype->type == PT_BEAM)
@@ -4110,7 +4112,7 @@ void DrawParticleTypes (void texturedparticles(particle_t *,part_type_t*), void 
 				kill = type->particles;
 				if (kill && kill->die < particletime)
 				{
-					P_DelinkTrailstate(&kill->trailstate);
+					P_DelinkTrailstate(&kill->state.trailstate);
 					type->particles = kill->next;
 					kill->next = kill_list;
 					kill_list = kill;
@@ -4151,7 +4153,7 @@ void DrawParticleTypes (void texturedparticles(particle_t *,part_type_t*), void 
 					kill = p->next;
 					if (kill && kill->die < particletime)
 					{
-						P_DelinkTrailstate(&kill->trailstate);
+						P_DelinkTrailstate(&kill->state.trailstate);
 						p->next = kill->next;
 						kill->next = kill_list;
 						kill_list = kill;
@@ -4225,10 +4227,10 @@ void DrawParticleTypes (void texturedparticles(particle_t *,part_type_t*), void 
 			if (type->emit >= 0)
 			{
 				if (type->emittime < 0)
-					P_ParticleTrail(oldorg, p->org, type->emit, &p->trailstate);
-				else if (p->nextemit < particletime)
+					P_ParticleTrail(oldorg, p->org, type->emit, &p->state.trailstate);
+				else if (p->state.nextemit < particletime)
 				{
-					p->nextemit = particletime + type->emittime + frandom()*type->emitrand;
+					p->state.nextemit = particletime + type->emittime + frandom()*type->emitrand;
 					P_RunParticleEffectType(p->org, p->vel, 1, type->emit);
 				}
 			}

@@ -1612,15 +1612,15 @@ void CL_Packet_f (void)
 	if (Cmd_FromGamecode())	//some mvd servers stuffcmd a packet command which lets them know which ip the client is from.
 	{						//unfortunatly, 50% of servers are badly configured.
 		if (adr.type == NA_IP)
-			if (adr.ip[0] == 127)
-			if (adr.ip[1] == 0)
-			if (adr.ip[2] == 0)
-			if (adr.ip[3] == 1)
+			if (adr.address.ip[0] == 127)
+			if (adr.address.ip[1] == 0)
+			if (adr.address.ip[2] == 0)
+			if (adr.address.ip[3] == 1)
 			{
-				adr.ip[0] = cls.netchan.remote_address.ip[0];
-				adr.ip[1] = cls.netchan.remote_address.ip[1];
-				adr.ip[2] = cls.netchan.remote_address.ip[2];
-				adr.ip[3] = cls.netchan.remote_address.ip[3];
+				adr.address.ip[0] = cls.netchan.remote_address.address.ip[0];
+				adr.address.ip[1] = cls.netchan.remote_address.address.ip[1];
+				adr.address.ip[2] = cls.netchan.remote_address.address.ip[2];
+				adr.address.ip[3] = cls.netchan.remote_address.address.ip[3];
 				adr.port = cls.netchan.remote_address.port;
 				Con_Printf ("^b^1Server is broken. Trying to send to server instead.\n");
 
@@ -2056,7 +2056,7 @@ client_connect:	//fixme: make function
 
 		Con_TPrintf (TLC_CONLESS_CONCMD);
 		if (net_from.type != net_local_cl_ipadr.type
-			|| ((*(unsigned *)net_from.ip != *(unsigned *)net_local_cl_ipadr.ip) && (*(unsigned *)net_from.ip != htonl(INADDR_LOOPBACK))))
+			|| ((*(unsigned *)net_from.address.ip != *(unsigned *)net_local_cl_ipadr.address.ip) && (*(unsigned *)net_from.address.ip != htonl(INADDR_LOOPBACK))))
 		{
 			Con_TPrintf (TLC_CMDFROMREMOTE);
 			return;

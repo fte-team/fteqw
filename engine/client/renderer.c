@@ -1640,8 +1640,8 @@ TRACE(("dbg: R_ApplyRenderer: clearing world\n"));
 		{
 			for (i = 0; i < MAX_MODELS; i++)
 			{
-				if (sv.model_precache[i] && *sv.model_precache[i] && (!strcmp(sv.model_precache[i] + strlen(sv.model_precache[i]) - 4, ".bsp") || i-1 < sv.worldmodel->numsubmodels))
-					sv.models[i] = Mod_FindName(sv.model_precache[i]);
+				if (sv.strings.model_precache[i] && *sv.strings.model_precache[i] && (!strcmp(sv.strings.model_precache[i] + strlen(sv.strings.model_precache[i]) - 4, ".bsp") || i-1 < sv.worldmodel->numsubmodels))
+					sv.models[i] = Mod_FindName(sv.strings.model_precache[i]);
 				else
 					sv.models[i] = NULL;
 			}

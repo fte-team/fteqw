@@ -313,12 +313,12 @@ void SVNQ_New_f (void)
 
 	MSG_WriteString (&host_client->netchan.message,message);
 
-	for (i = 1; sv.model_precache[i] ; i++)
-		MSG_WriteString (&host_client->netchan.message, sv.model_precache[i]);
+	for (i = 1; sv.strings.model_precache[i] ; i++)
+		MSG_WriteString (&host_client->netchan.message, sv.strings.model_precache[i]);
 	MSG_WriteByte (&host_client->netchan.message, 0);
 
-	for (i = 1; *sv.sound_precache[i] ; i++)
-		MSG_WriteString (&host_client->netchan.message, sv.sound_precache[i]);
+	for (i = 1; *sv.strings.sound_precache[i] ; i++)
+		MSG_WriteString (&host_client->netchan.message, sv.strings.sound_precache[i]);
 	MSG_WriteByte (&host_client->netchan.message, 0);
 
 
@@ -382,7 +382,7 @@ void SVQ2_ConfigStrings_f (void)
 	while ( host_client->netchan.message.cursize < MAX_QWMSGLEN/2
 		&& start < Q2MAX_CONFIGSTRINGS)
 	{
-		str = sv.configstring[start];
+		str = sv.strings.configstring[start];
 		if (*str)
 		{
 			MSG_WriteByte (&host_client->netchan.message, svcq2_configstring);
@@ -724,11 +724,11 @@ void SV_Soundlist_f (void)
 	else
 	{
 		for (i = 1+n;
-			*sv.sound_precache[i] && host_client->netchan.message.cursize < (MAX_QWMSGLEN/2);
+			*sv.strings.sound_precache[i] && host_client->netchan.message.cursize < (MAX_QWMSGLEN/2);
 			i++, n++)
-			MSG_WriteString (&host_client->netchan.message, sv.sound_precache[i]);
+			MSG_WriteString (&host_client->netchan.message, sv.strings.sound_precache[i]);
 
-		if (!*sv.sound_precache[i])
+		if (!*sv.strings.sound_precache[i])
 			n = 0;
 	}
 	MSG_WriteByte (&host_client->netchan.message, 0);
@@ -808,16 +808,16 @@ void SV_Modellist_f (void)
 	else
 	{
 		for (i = 1+n;
-			i < maxclientsupportedmodels && sv.model_precache[i] && host_client->netchan.message.cursize < (MAX_QWMSGLEN/2);	//make sure we don't send a 0 next...
+			i < maxclientsupportedmodels && sv.strings.model_precache[i] && host_client->netchan.message.cursize < (MAX_QWMSGLEN/2);	//make sure we don't send a 0 next...
 			i++)
 		{
-			MSG_WriteString (&host_client->netchan.message, sv.model_precache[i]);
+			MSG_WriteString (&host_client->netchan.message, sv.strings.model_precache[i]);
 			if (((n&255)==255) && n != i-1)
 				break;
 		}
 		n = i-1;
 
-		if (!sv.model_precache[i])
+		if (!sv.strings.model_precache[i])
 			n = 0;
 	}
 
@@ -1123,24 +1123,24 @@ void SV_Spawn_f (void)
 		else
 		{
 			if (i >= MAX_STANDARDLIGHTSTYLES)
-				if (!sv.lightstyles[i])
+				if (!sv.strings.lightstyles[i])
 					continue;
 #ifdef PEXT_LIGHTSTYLECOL
-			if (host_client->fteprotocolextensions & PEXT_LIGHTSTYLECOL && sv.lightstylecolours[i]!=7)
+			if (host_client->fteprotocolextensions & PEXT_LIGHTSTYLECOL && sv.strings.lightstylecolours[i]!=7)
 			{
 				ClientReliableWrite_Begin (host_client, svc_lightstylecol,
-					3 + (sv.lightstyles[i] ? strlen(sv.lightstyles[i]) : 1));
+					3 + (sv.strings.lightstyles[i] ? strlen(sv.strings.lightstyles[i]) : 1));
 				ClientReliableWrite_Byte (host_client, (char)i);
-				ClientReliableWrite_Char (host_client, sv.lightstylecolours[i]);
-				ClientReliableWrite_String (host_client, sv.lightstyles[i]);
+				ClientReliableWrite_Char (host_client, sv.strings.lightstylecolours[i]);
+				ClientReliableWrite_String (host_client, sv.strings.lightstyles[i]);
 			}
 			else
 #endif
 			{
 				ClientReliableWrite_Begin (host_client, svc_lightstyle,
-					3 + (sv.lightstyles[i] ? strlen(sv.lightstyles[i]) : 1));
+					3 + (sv.strings.lightstyles[i] ? strlen(sv.strings.lightstyles[i]) : 1));
 				ClientReliableWrite_Byte (host_client, (char)i);
-				ClientReliableWrite_String (host_client, sv.lightstyles[i]);
+				ClientReliableWrite_String (host_client, sv.strings.lightstyles[i]);
 			}
 		}
 	}
@@ -3254,9 +3254,9 @@ void SVNQ_Spawn_f (void)
 			break;	//dp7 clients support more lightstyles.
 
 		ClientReliableWrite_Begin (host_client, svc_lightstyle,
-			3 + (sv.lightstyles[i] ? strlen(sv.lightstyles[i]) : 1));
+			3 + (sv.strings.lightstyles[i] ? strlen(sv.strings.lightstyles[i]) : 1));
 		ClientReliableWrite_Byte (host_client, (char)i);
-		ClientReliableWrite_String (host_client, sv.lightstyles[i]);
+		ClientReliableWrite_String (host_client, sv.strings.lightstyles[i]);
 	}
 
 	// set up the edict
@@ -4428,9 +4428,9 @@ void SV_ExecuteClientMessage (client_t *cl)
 	int		seq_hash, i;
 
 	// calc ping time
-	if (cl->frames)
+	if (cl->frameunion.frames)
 	{	//split screen doesn't always have frames.
-		frame = &cl->frames[cl->netchan.incoming_acknowledged & UPDATE_MASK];
+		frame = &cl->frameunion.frames[cl->netchan.incoming_acknowledged & UPDATE_MASK];
 
 		if (cl->lastsequence_acknoledged + UPDATE_BACKUP > cl->netchan.incoming_acknowledged)
 			frame->ping_time = realtime - frame->senttime;	//no more phenomanally low pings please
@@ -4460,10 +4460,10 @@ void SV_ExecuteClientMessage (client_t *cl)
 		cl->send_message = false;	// don't reply, sequences have slipped
 
 	// save time for ping calculations
-	if (cl->frames)
+	if (cl->frameunion.frames)
 	{	//split screen doesn't always have frames.
-		cl->frames[cl->netchan.outgoing_sequence & UPDATE_MASK].senttime = realtime;
-		cl->frames[cl->netchan.outgoing_sequence & UPDATE_MASK].ping_time = -1;
+		cl->frameunion.frames[cl->netchan.outgoing_sequence & UPDATE_MASK].senttime = realtime;
+		cl->frameunion.frames[cl->netchan.outgoing_sequence & UPDATE_MASK].ping_time = -1;
 	}
 
 	host_client = cl;
@@ -4712,7 +4712,7 @@ void SVQ2_ExecuteClientMessage (client_t *cl)
 	}
 
 	// calc ping time
-	frame = &cl->q2frames[cl->netchan.incoming_acknowledged & Q2UPDATE_MASK];
+	frame = &cl->frameunion.q2frames[cl->netchan.incoming_acknowledged & Q2UPDATE_MASK];
 
 	// make sure the reply sequence number matches the incoming
 	// sequence number
@@ -4722,7 +4722,7 @@ void SVQ2_ExecuteClientMessage (client_t *cl)
 		cl->send_message = false;	// don't reply, sequences have slipped
 
 	// save time for ping calculations
-	cl->q2frames[cl->netchan.outgoing_sequence & Q2UPDATE_MASK].senttime = realtime;
+	cl->frameunion.q2frames[cl->netchan.outgoing_sequence & Q2UPDATE_MASK].senttime = realtime;
 //	cl->q2frames[cl->netchan.outgoing_sequence & UPDATE_MASK].ping_time = -1;
 
 	host_client = cl;
@@ -4854,7 +4854,7 @@ void SVNQ_ReadClientMove (usercmd_t *move)
 	int		bits;
 	client_frame_t	*frame;
 
-	frame = &host_client->frames[host_client->netchan.incoming_acknowledged & UPDATE_MASK];
+	frame = &host_client->frameunion.frames[host_client->netchan.incoming_acknowledged & UPDATE_MASK];
 
 	if (host_client->protocol == SCP_DARKPLACES7)
 		host_client->last_sequence = MSG_ReadLong ();
@@ -4965,7 +4965,7 @@ void SVNQ_ExecuteClientMessage (client_t *cl)
 	cl->netchan.incoming_acknowledged = cl->netchan.outgoing_sequence-1;
 
 	// calc ping time
-	frame = &cl->frames[cl->netchan.incoming_acknowledged & UPDATE_MASK];
+	frame = &cl->frameunion.frames[cl->netchan.incoming_acknowledged & UPDATE_MASK];
 	frame->ping_time = 999;
 
 	// make sure the reply sequence number matches the incoming
@@ -4976,8 +4976,8 @@ void SVNQ_ExecuteClientMessage (client_t *cl)
 //		cl->send_message = false;	// don't reply, sequences have slipped
 
 	// save time for ping calculations
-	cl->frames[cl->netchan.outgoing_sequence & UPDATE_MASK].senttime = realtime;
-	cl->frames[cl->netchan.outgoing_sequence & UPDATE_MASK].ping_time = -1;
+	cl->frameunion.frames[cl->netchan.outgoing_sequence & UPDATE_MASK].senttime = realtime;
+	cl->frameunion.frames[cl->netchan.outgoing_sequence & UPDATE_MASK].ping_time = -1;
 
 	host_client = cl;
 	sv_player = host_client->edict;

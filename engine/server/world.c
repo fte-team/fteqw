@@ -1062,7 +1062,7 @@ trace_t SV_ClipMoveToEntity (edict_t *ent, vec3_t start, vec3_t mins, vec3_t max
 			if (!model)
 			{	//if the model isn't loaded, load it.
 				//this saves on memory requirements with mods that don't ever use this.
-				model = sv.models[(int)ent->v->modelindex] = Mod_ForName(sv.model_precache[(int)ent->v->modelindex], false);
+				model = sv.models[(int)ent->v->modelindex] = Mod_ForName(sv.strings.model_precache[(int)ent->v->modelindex], false);
 			}
 
 			if (model && model->funcs.Trace)

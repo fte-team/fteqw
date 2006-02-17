@@ -909,9 +909,9 @@ void SWR_BuildLightMapRGB (void)
 		{
 			for (y = 0; y < smax; y++, i+=3, stain++)
 			{
-				r = (255*256*256-127*256-(int)blocklights[i]*(*stain)) >> 16 - VID_CBITS;
-				g = (255*256*256-127*256-(int)blocklights[i+1]*(*stain)) >> 16 - VID_CBITS;
-				b = (255*256*256-127*256-(int)blocklights[i+2]*(*stain)) >> 16 - VID_CBITS;
+				r = (255*256*256-127*256-(int)blocklights[i]*(*stain)) >> (16 - VID_CBITS);
+				g = (255*256*256-127*256-(int)blocklights[i+1]*(*stain)) >> (16 - VID_CBITS);
+				b = (255*256*256-127*256-(int)blocklights[i+2]*(*stain)) >> (16 - VID_CBITS);
 
 #define MINL (1<<6)
 #define MAXL ((255*256) >> (8 - VID_CBITS))

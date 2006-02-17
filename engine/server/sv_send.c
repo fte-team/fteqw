@@ -789,11 +789,11 @@ void SV_StartSound (edict_t *entity, int channel, char *sample, int volume,
 
 // find precache number for sound
     for (sound_num=1 ; sound_num<MAX_SOUNDS
-        && sv.sound_precache[sound_num] ; sound_num++)
-        if (!strcmp(sample, sv.sound_precache[sound_num]))
+        && sv.strings.sound_precache[sound_num] ; sound_num++)
+        if (!strcmp(sample, sv.strings.sound_precache[sound_num]))
             break;
 
-    if ( sound_num == MAX_SOUNDS || !sv.sound_precache[sound_num] )
+    if ( sound_num == MAX_SOUNDS || !sv.strings.sound_precache[sound_num] )
     {
         Con_DPrintf ("SV_StartSound: %s not precacheed\n", sample);
         return;
@@ -900,17 +900,17 @@ void SV_FindModelNumbers (void)
 
 	for (i=0 ; i<MAX_MODELS ; i++)
 	{
-		if (!sv.model_precache[i])
+		if (!sv.strings.model_precache[i])
 			break;
-		if (!strcmp(sv.model_precache[i],"progs/spike.mdl"))
+		if (!strcmp(sv.strings.model_precache[i],"progs/spike.mdl"))
 			sv_nailmodel = i;
-		if (!strcmp(sv.model_precache[i],"progs/s_spike.mdl"))
+		if (!strcmp(sv.strings.model_precache[i],"progs/s_spike.mdl"))
 			sv_supernailmodel = i;
 #ifdef PEXT_LIGHTUPDATES
-		if (!strcmp(sv.model_precache[i],"progs/zap.mdl"))
+		if (!strcmp(sv.strings.model_precache[i],"progs/zap.mdl"))
 			sv_lightningmodel = i;
 #endif
-		if (!strcmp(sv.model_precache[i],"progs/player.mdl"))
+		if (!strcmp(sv.strings.model_precache[i],"progs/player.mdl"))
 			sv_playermodel = i;
 	}
 }

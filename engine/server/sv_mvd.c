@@ -1224,12 +1224,12 @@ static qboolean SV_MVD_Record (mvddest_t *dest)
 	if (!sv.mvdrecording)
 	{
 		memset(&demo, 0, sizeof(demo));
-		demo.recorder.frames = demo_frames;
+		demo.recorder.frameunion.frames = demo_frames;
 		demo.recorder.protocol = SCP_QUAKEWORLD;
 		for (i = 0; i < UPDATE_BACKUP; i++)
 		{
-			demo.recorder.frames[i].entities.max_entities = MAX_MVDPACKET_ENTITIES;
-			demo.recorder.frames[i].entities.entities = demo_entities[i];
+			demo.recorder.frameunion.frames[i].entities.max_entities = MAX_MVDPACKET_ENTITIES;
+			demo.recorder.frameunion.frames[i].entities.entities = demo_entities[i];
 		}
 
 		MVDBuffer_Init(&demo.dbuffer, demo.buffer, sizeof(demo.buffer));
@@ -1308,7 +1308,7 @@ static qboolean SV_MVD_Record (mvddest_t *dest)
 	MSG_WriteByte (&buf, 0);
 
 	n = 0;
-	s = sv.sound_precache[n+1];
+	s = sv.strings.sound_precache[n+1];
 	while (*s)
 	{
 		MSG_WriteString (&buf, s);
@@ -1322,7 +1322,7 @@ static qboolean SV_MVD_Record (mvddest_t *dest)
 			MSG_WriteByte (&buf, n + 1);
 		}
 		n++;
-		s = sv.sound_precache[n+1];
+		s = sv.strings.sound_precache[n+1];
 	}
 
 	if (buf.cursize)
@@ -1338,7 +1338,7 @@ static qboolean SV_MVD_Record (mvddest_t *dest)
 	MSG_WriteByte (&buf, 0);
 
 	n = 0;
-	s = sv.model_precache[n+1];
+	s = sv.strings.model_precache[n+1];
 	while (s)
 	{
 		MSG_WriteString (&buf, s);
@@ -1352,7 +1352,7 @@ static qboolean SV_MVD_Record (mvddest_t *dest)
 			MSG_WriteByte (&buf, n + 1);
 		}
 		n++;
-		s = sv.model_precache[n+1];
+		s = sv.strings.model_precache[n+1];
 	}
 	if (buf.cursize)
 	{
@@ -1498,7 +1498,7 @@ static qboolean SV_MVD_Record (mvddest_t *dest)
 	{
 		MSG_WriteByte (&buf, svc_lightstyle);
 		MSG_WriteByte (&buf, (char)i);
-		MSG_WriteString (&buf, sv.lightstyles[i]);
+		MSG_WriteString (&buf, sv.strings.lightstyles[i]);
 	}
 
 	// get the client to check and download skins

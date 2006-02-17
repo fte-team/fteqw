@@ -158,7 +158,7 @@ int Q_stricmp(char *a, char *b)
 {
 	return stricmp(a, b);
 }
-#if MSC_VER < 700
+#if _MSC_VER < 700
 int _ftol2 (float f)
 {
 	return (int)f;
@@ -2053,7 +2053,7 @@ void SVQ3_WriteSnapshotToClient(client_t *client, sizebuf_t *msg)
 	int				i;
 
 	// this is a frame we are creating
-	snap = &client->q3frames[client->netchan.outgoing_sequence & Q3UPDATE_MASK];
+	snap = &client->frameunion.q3frames[client->netchan.outgoing_sequence & Q3UPDATE_MASK];
 
 	if(client->state < cs_spawned)
 	{
@@ -2079,7 +2079,7 @@ void SVQ3_WriteSnapshotToClient(client_t *client, sizebuf_t *msg)
 	{
 		// we have a valid message to delta from
 		delta = client->netchan.outgoing_sequence - client->delta_sequence;
-		oldsnap = &client->q3frames[client->delta_sequence & Q3UPDATE_MASK];
+		oldsnap = &client->frameunion.q3frames[client->delta_sequence & Q3UPDATE_MASK];
 
 		if(oldsnap->first_entity <= q3_next_snapshot_entities - q3_num_snapshot_entities)
 		{
@@ -2250,7 +2250,7 @@ void SVQ3_BuildClientSnapshot( client_t *client )
 	ps = PS_FOR_NUM( clientNum );
 
 	// this is the frame we are creating
-	snap = &client->q3frames[client->netchan.outgoing_sequence & Q3UPDATE_MASK];
+	snap = &client->frameunion.q3frames[client->netchan.outgoing_sequence & Q3UPDATE_MASK];
 
 	snap->serverTime = Sys_DoubleTime()*1000;//svs.levelTime; // save it for ping calc later
 	snap->flags = 0;
@@ -2916,8 +2916,8 @@ void SVQ3_DirectConnect(void)	//Actually connect the client, use up a slot, and 
 	}
 	else
 	{
-		if (cl->q3frames)
-			BZ_Free(cl->q3frames);
+		if (cl->frameunion.q3frames)
+			BZ_Free(cl->frameunion.q3frames);
 		memset(cl, 0, sizeof(*cl));
 		challenge = atoi(Info_ValueForKey(userinfo, "challenge"));
 
@@ -2966,7 +2966,7 @@ void SVQ3_DirectConnect(void)	//Actually connect the client, use up a slot, and 
 
 	Huff_PreferedCompressionCRC();
 
-	cl->q3frames = BZ_Malloc(Q3UPDATE_BACKUP*sizeof(*cl->q3frames));
+	cl->frameunion.q3frames = BZ_Malloc(Q3UPDATE_BACKUP*sizeof(*cl->frameunion.q3frames));
 }
 
 int SVQ3_AddBot(void)

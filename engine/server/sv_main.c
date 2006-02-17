@@ -473,10 +473,10 @@ void SV_DropClient (client_t *drop)
 	memset (drop->userinfo, 0, sizeof(drop->userinfo));
 	memset (drop->userinfobasic, 0, sizeof(drop->userinfobasic));
 
-	if (drop->frames)	//union of the same sort of structure
+	if (drop->frameunion.frames)	//union of the same sort of structure
 	{
-		Z_Free(drop->frames);
-		drop->frames = NULL;
+		Z_Free(drop->frameunion.frames);
+		drop->frameunion.frames = NULL;
 	}
 
 	if (svs.gametype != GT_PROGS)	//gamecode should do it all for us.
@@ -639,7 +639,7 @@ int SV_CalcPing (client_t *cl)
 	int			count;
 	register	client_frame_t *frame;
 
-	if (!cl->frames)
+	if (!cl->frameunion.frames)
 		return 0;
 
 	switch (cl->protocol)
@@ -650,7 +650,7 @@ int SV_CalcPing (client_t *cl)
 	case SCP_QUAKEWORLD:
 		ping = 0;
 		count = 0;
-		for (frame = cl->frames, i=0 ; i<UPDATE_BACKUP ; i++, frame++)
+		for (frame = cl->frameunion.frames, i=0 ; i<UPDATE_BACKUP ; i++, frame++)
 		{
 			if (frame->ping_time > 0)
 			{
@@ -1779,15 +1779,15 @@ client_t *SVC_DirectConnect(void)
 		// build a new connection
 		// accept the new client
 		// this is the only place a client_t is ever initialized
-		temp.frames = newcl->frames;	//don't touch these.
-		if (temp.frames)
-			Z_Free(temp.frames);
+		temp.frameunion.frames = newcl->frameunion.frames;	//don't touch these.
+		if (temp.frameunion.frames)
+			Z_Free(temp.frameunion.frames);
 
-		temp.frames = Z_Malloc((sizeof(client_frame_t)+sizeof(entity_state_t)*maxpacketentities)*UPDATE_BACKUP);
+		temp.frameunion.frames = Z_Malloc((sizeof(client_frame_t)+sizeof(entity_state_t)*maxpacketentities)*UPDATE_BACKUP);
 		for (i = 0; i < UPDATE_BACKUP; i++)
 		{
-			temp.frames[i].entities.max_entities = maxpacketentities;
-			temp.frames[i].entities.entities = (entity_state_t*)(temp.frames+UPDATE_BACKUP) + i*temp.frames[i].entities.max_entities;
+			temp.frameunion.frames[i].entities.max_entities = maxpacketentities;
+			temp.frameunion.frames[i].entities.entities = (entity_state_t*)(temp.frameunion.frames+UPDATE_BACKUP) + i*temp.frameunion.frames[i].entities.max_entities;
 		}
 		break;
 
@@ -1805,11 +1805,11 @@ client_t *SVC_DirectConnect(void)
 		// build a new connection
 		// accept the new client
 		// this is the only place a client_t is ever initialized
-		temp.q2frames = newcl->q2frames;	//don't touch these.
-		if (temp.q2frames)
-			Z_Free(temp.q2frames);
+		temp.frameunion.q2frames = newcl->frameunion.q2frames;	//don't touch these.
+		if (temp.frameunion.q2frames)
+			Z_Free(temp.frameunion.q2frames);
 
-		temp.q2frames = Z_Malloc(sizeof(q2client_frame_t)*Q2UPDATE_BACKUP);
+		temp.frameunion.q2frames = Z_Malloc(sizeof(q2client_frame_t)*Q2UPDATE_BACKUP);
 		break;
 #endif
 	default:
@@ -2010,10 +2010,10 @@ client_t *SVC_DirectConnect(void)
 
 		newcl->fteprotocolextensions |= PEXT_SPLITSCREEN;
 
-		temp.frames = cl->frames;	//don't touch these.
+		temp.frameunion.frames = cl->frameunion.frames;	//don't touch these.
 		temp.edict = cl->edict;
 		memcpy(cl, newcl, sizeof(client_t));
-		cl->frames = temp.frames;
+		cl->frameunion.frames = temp.frameunion.frames;
 		cl->edict = temp.edict;
 
 		cl->fteprotocolextensions |= PEXT_SPLITSCREEN;
@@ -2553,7 +2553,7 @@ qboolean SV_FilterPacket (void)
 	int		i;
 	unsigned	in;
 
-	in = *(unsigned *)net_from.ip;
+	in = *(unsigned *)net_from.address.ip;
 
 	for (i=0 ; i<numipfilters ; i++)
 		if ( (in & ipfilters[i].mask) == ipfilters[i].compare)

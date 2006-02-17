@@ -1596,10 +1596,10 @@ void CL_MasterListParse(int type, qboolean slashpad)
 
 		info = Z_Malloc(sizeof(serverinfo_t));
 		info->adr.type = NA_IP;
-		info->adr.ip[0] = MSG_ReadByte();
-		info->adr.ip[1] = MSG_ReadByte();
-		info->adr.ip[2] = MSG_ReadByte();
-		info->adr.ip[3] = MSG_ReadByte();
+		info->adr.address.ip[0] = MSG_ReadByte();
+		info->adr.address.ip[1] = MSG_ReadByte();
+		info->adr.address.ip[2] = MSG_ReadByte();
+		info->adr.address.ip[3] = MSG_ReadByte();
 
 		p1 = MSG_ReadByte();
 		p2 = MSG_ReadByte();

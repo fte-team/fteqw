@@ -77,10 +77,10 @@ int SVM_AddIPAddresses(sizebuf_t *sb, int first)
 		if (sb->cursize + 6 >= sb->maxsize)
 			break;
 
-		MSG_WriteByte(sb, server->adr.ip[0]);
-		MSG_WriteByte(sb, server->adr.ip[1]);
-		MSG_WriteByte(sb, server->adr.ip[2]);
-		MSG_WriteByte(sb, server->adr.ip[3]);
+		MSG_WriteByte(sb, server->adr.address.ip[0]);
+		MSG_WriteByte(sb, server->adr.address.ip[1]);
+		MSG_WriteByte(sb, server->adr.address.ip[2]);
+		MSG_WriteByte(sb, server->adr.address.ip[3]);
 		MSG_WriteShort(sb, server->adr.port);
 
 		number++;

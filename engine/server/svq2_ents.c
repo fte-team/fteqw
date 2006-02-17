@@ -543,7 +543,7 @@ void SV_WriteFrameToClient (client_t *client, sizebuf_t *msg)
 
 //Com_Printf ("%i -> %i\n", client->lastframe, sv.framenum);
 	// this is the frame we are creating
-	frame = &client->q2frames[sv.framenum & Q2UPDATE_MASK];
+	frame = &client->frameunion.q2frames[sv.framenum & Q2UPDATE_MASK];
 
 	if (client->delta_sequence <= 0)
 	{	// client is asking for a retransmit
@@ -558,7 +558,7 @@ void SV_WriteFrameToClient (client_t *client, sizebuf_t *msg)
 	}
 	else
 	{	// we have a valid message to delta from
-		oldframe = &client->q2frames[client->delta_sequence & Q2UPDATE_MASK];
+		oldframe = &client->frameunion.q2frames[client->delta_sequence & Q2UPDATE_MASK];
 		lastframe = client->delta_sequence;
 	}
 
@@ -629,7 +629,7 @@ void SV_BuildClientFrame (client_t *client)
 #endif
 
 	// this is the frame we are creating
-	frame = &client->q2frames[sv.framenum & Q2UPDATE_MASK];
+	frame = &client->frameunion.q2frames[sv.framenum & Q2UPDATE_MASK];
 
 	frame->senttime = realtime; // save it for ping calc later
 

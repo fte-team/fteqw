@@ -68,11 +68,11 @@ typedef struct trailstate_s {
 	union {
 		float lastdist;			// last distance used with particle effect
 		float statetime;		// time to emit effect again (used by spawntime field)
-	};
+	} state1;
 	union {
 		float laststop;			// last stopping point for particle effect
 		float emittime;			// used by r_effect emitters
-	};
+	} state2;
 } trailstate_t;
 
 // !!! if this is changed, it must be changed in d_ifacea.h too !!!
@@ -93,7 +93,7 @@ typedef struct particle_s
 	union {
 		float nextemit;
 		trailstate_t *trailstate;
-	};
+	} state;
 // drivers never touch the following fields
 	float		rotationspeed;
 } particle_t;

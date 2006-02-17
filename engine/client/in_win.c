@@ -73,7 +73,7 @@ typedef struct {
 			DWORD threadid;
 		};
 		HANDLE rawinputhandle; // raw input
-	};
+	} handles;
 
 	int numbuttons;
 
@@ -852,11 +852,11 @@ unsigned int _stdcall IN_SerialMSRun(void *param)
 	char code[3];
 	DWORD read;
 	int total=0;
-	IN_SetSerialBoad(mouse->comhandle, 1200);
+	IN_SetSerialBoad(mouse->handles.comhandle, 1200);
 	total=0;
 	while(1)
 	{
-		ReadFile(mouse->comhandle, code, sizeof(code)-total, &read, NULL);
+		ReadFile(mouse->handles.comhandle, code, sizeof(code)-total, &read, NULL);
 		total+=read;
 		if (total == 3)
 		{
@@ -886,15 +886,15 @@ unsigned long __stdcall IN_SerialMSIntelliRun(void *param)
 	mouse_t *mouse = param;
 	unsigned char code[80];
 	DWORD read, total=0;
-	IN_SetSerialBoad(mouse->comhandle, 1200);
+	IN_SetSerialBoad(mouse->handles.comhandle, 1200);
 
-	ReadFile(mouse->comhandle, code, 11*4+2, &read, NULL);	//header info which we choose to ignore
+	ReadFile(mouse->handles.comhandle, code, 11*4+2, &read, NULL);	//header info which we choose to ignore
 
 	mouse->numbuttons = 3;
 
 	while(1)
 	{
-		ReadFile(mouse->comhandle, code+total, 4-total, &read, NULL);
+		ReadFile(mouse->handles.comhandle, code+total, 4-total, &read, NULL);
 		total+=read;
 		if (total >= 4)
 		{
@@ -1073,7 +1073,7 @@ void IN_RawInput_Init(void)
 			Con_SafePrintf("Raw input: [%i] %s\n", i, dname);
 
 			// set handle
-			rawmice[rawmicecount].rawinputhandle = pRawInputDeviceList[i].hDevice;
+			rawmice[rawmicecount].handles.rawinputhandle = pRawInputDeviceList[i].hDevice;
 			rawmice[rawmicecount].numbuttons = 10;
 			rawmice[rawmicecount].pos[0] = RI_INVALID_POS;
 			rawmicecount++;
@@ -1160,17 +1160,17 @@ void IN_StartupMouse (void)
 		IN_ActivateMouse ();
 
 #ifdef SERIALMOUSE
-	if (serialmouse.comhandle)
+	if (serialmouse.handles.comhandle)
 	{
-		TerminateThread(serialmouse.threadhandle, 0);
-		CloseHandle(serialmouse.threadhandle);
-		CloseHandle(serialmouse.comhandle);
+		TerminateThread(serialmouse.handles.threadhandle, 0);
+		CloseHandle(serialmouse.handles.threadhandle);
+		CloseHandle(serialmouse.handles.comhandle);
 	}
 	serialmouse.numbuttons = 0;
 
 	if (COM_CheckParm("-mouse2"))
 	{
-		serialmouse.comhandle = CreateFile("\\\\.\\COM2",
+		serialmouse.handles.comhandle = CreateFile("\\\\.\\COM2",
 				GENERIC_READ,
 				0,           // share for reading 
                 NULL,                      // default security 
@@ -1178,17 +1178,17 @@ void IN_StartupMouse (void)
                 FILE_ATTRIBUTE_NORMAL,     // normal file 
                 NULL);                     // no attr. template 
 
-		if (serialmouse.comhandle == INVALID_HANDLE_VALUE)
+		if (serialmouse.handles.comhandle == INVALID_HANDLE_VALUE)
 		{
-			serialmouse.comhandle = NULL;
+			serialmouse.handles.comhandle = NULL;
 			return;
 		}
-		serialmouse.threadhandle = CreateThread(NULL, 1024, IN_SerialMSIntelliRun, (void *)&serialmouse, CREATE_SUSPENDED, &serialmouse.threadid);
-		SetThreadPriority(serialmouse.threadhandle, THREAD_PRIORITY_HIGHEST);
-		ResumeThread(serialmouse.threadhandle);
+		serialmouse.handles.threadhandle = CreateThread(NULL, 1024, IN_SerialMSIntelliRun, (void *)&serialmouse, CREATE_SUSPENDED, &serialmouse.handles.threadid);
+		SetThreadPriority(serialmouse.handles.threadhandle, THREAD_PRIORITY_HIGHEST);
+		ResumeThread(serialmouse.handles.threadhandle);
 	}
 	else
-		serialmouse.comhandle = NULL;
+		serialmouse.handles.comhandle = NULL;
 #endif
 }
 
@@ -1765,7 +1765,7 @@ void IN_RawInput_MouseRead(HANDLE in_device_handle)
 	// find mouse in our mouse list
 	for (; i < rawmicecount; i++)
 	{
-		if (rawmice[i].rawinputhandle == raw->header.hDevice)
+		if (rawmice[i].handles.rawinputhandle == raw->header.hDevice)
 			break;
 	}
 
@@ -1791,34 +1791,37 @@ void IN_RawInput_MouseRead(HANDLE in_device_handle)
 	}
 
 	// buttons
-	if (raw->data.mouse.usButtonFlags & RI_MOUSE_BUTTON_1_DOWN) 
+	if (raw->data.mouse.buttondata.usButtonFlags & RI_MOUSE_BUTTON_1_DOWN) 
 		Key_Event(K_MOUSE1, true);
-	if (raw->data.mouse.usButtonFlags & RI_MOUSE_BUTTON_1_UP)   
+	if (raw->data.mouse.buttondata.usButtonFlags & RI_MOUSE_BUTTON_1_UP)   
 		Key_Event(K_MOUSE1, false);
-	if (raw->data.mouse.usButtonFlags & RI_MOUSE_BUTTON_2_DOWN) 
+	if (raw->data.mouse.buttondata.usButtonFlags & RI_MOUSE_BUTTON_2_DOWN) 
 		Key_Event(K_MOUSE2, true);
-	if (raw->data.mouse.usButtonFlags & RI_MOUSE_BUTTON_2_UP)   
+	if (raw->data.mouse.buttondata.usButtonFlags & RI_MOUSE_BUTTON_2_UP)   
 		Key_Event(K_MOUSE2, false);
-	if (raw->data.mouse.usButtonFlags & RI_MOUSE_BUTTON_3_DOWN) 
+	if (raw->data.mouse.buttondata.usButtonFlags & RI_MOUSE_BUTTON_3_DOWN) 
 		Key_Event(K_MOUSE3, true);
-	if (raw->data.mouse.usButtonFlags & RI_MOUSE_BUTTON_3_UP)   
+	if (raw->data.mouse.buttondata.usButtonFlags & RI_MOUSE_BUTTON_3_UP)   
 		Key_Event(K_MOUSE3, false);
-	if (raw->data.mouse.usButtonFlags & RI_MOUSE_BUTTON_4_DOWN) 
+	if (raw->data.mouse.buttondata.usButtonFlags & RI_MOUSE_BUTTON_4_DOWN) 
 		Key_Event(K_MOUSE4, true);
-	if (raw->data.mouse.usButtonFlags & RI_MOUSE_BUTTON_4_UP)   
+	if (raw->data.mouse.buttondata.usButtonFlags & RI_MOUSE_BUTTON_4_UP)   
 		Key_Event(K_MOUSE4, false);
-	if (raw->data.mouse.usButtonFlags & RI_MOUSE_BUTTON_5_DOWN) 
+	if (raw->data.mouse.buttondata.usButtonFlags & RI_MOUSE_BUTTON_5_DOWN) 
 		Key_Event(K_MOUSE5, true);
-	if (raw->data.mouse.usButtonFlags & RI_MOUSE_BUTTON_5_UP)   
+	if (raw->data.mouse.buttondata.usButtonFlags & RI_MOUSE_BUTTON_5_UP)   
 		Key_Event(K_MOUSE5, false);
 
 	// mouse wheel
-	if (raw->data.mouse.usButtonFlags & RI_MOUSE_WHEEL) {      // If the current message has a mouse_wheel message
-		if ((SHORT)raw->data.mouse.usButtonData > 0) {
+	if (raw->data.mouse.buttondata.usButtonFlags & RI_MOUSE_WHEEL)
+	{      // If the current message has a mouse_wheel message
+		if ((SHORT)raw->data.mouse.buttondata.usButtonData > 0) 
+		{
 			Key_Event(K_MWHEELUP, true);
 			Key_Event(K_MWHEELUP, false);
 		}
-		if ((SHORT)raw->data.mouse.usButtonData < 0) {
+		if ((SHORT)raw->data.mouse.buttondata.usButtonData < 0)
+		{
 			Key_Event(K_MWHEELDOWN, true);
 			Key_Event(K_MWHEELDOWN, false);
 		}

@@ -175,7 +175,7 @@ static void VARGS PFQ2_Configstring (int i, char *val)
 	if (!val)
 		val = "";
 
-	strcpy(sv.configstring[i], val);
+	strcpy(sv.strings.configstring[i], val);
 
 	if (i == Q2CS_NAME)
 		Q_strncpyz(sv.mapname, val, sizeof(sv.name));
@@ -237,7 +237,7 @@ static int SVQ2_FindIndex (char *name, int start, int max, qboolean create)
 {
 	int		i;
 	int stringlength = MAX_QPATH;
-	char *strings = sv.configstring[start];
+	char *strings = sv.strings.configstring[start];
 	strings += stringlength;
 	
 	if (!name || !name[0])

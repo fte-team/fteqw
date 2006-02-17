@@ -669,7 +669,7 @@ void SV_EmitPacketEntities (client_t *client, packet_entities_t *to, sizebuf_t *
 	// this is the frame that we are going to delta update from
 	if (client->delta_sequence != -1)
 	{
-		fromframe = &client->frames[client->delta_sequence & UPDATE_MASK];
+		fromframe = &client->frameunion.frames[client->delta_sequence & UPDATE_MASK];
 		from = &fromframe->entities;
 		oldmax = from->num_entities;
 
@@ -1015,7 +1015,7 @@ void SVDP_EmitEntitiesUpdate (client_t *client, packet_entities_t *to, sizebuf_t
 	client->netchan.incoming_sequence++;
 
 	// this is the frame that we are going to delta update from
-	fromframe = &client->frames[(client->netchan.incoming_sequence-2) & UPDATE_MASK];
+	fromframe = &client->frameunion.frames[(client->netchan.incoming_sequence-2) & UPDATE_MASK];
 	from = &fromframe->entities;
 	oldmax = from->num_entities;
 
@@ -1953,10 +1953,10 @@ void SV_GibFilterAdd(char *modelname, int min, int max)
 	int i;
 	gibfilter_t *gf;
 
-	for (i=1; sv.model_precache[i] ; i++)
-		if (!strcmp(sv.model_precache[i], modelname))
+	for (i=1; sv.strings.model_precache[i] ; i++)
+		if (!strcmp(sv.strings.model_precache[i], modelname))
 			break;
-	if (!sv.model_precache[i])
+	if (!sv.strings.model_precache[i])
 	{
 		Con_Printf("Filtered model \"%s\" was not precached\n", modelname);
 		return;	//model not in use.
@@ -2106,7 +2106,7 @@ void SV_WriteEntitiesToClient (client_t *client, sizebuf_t *msg, qboolean ignore
 	client_t *split;
 
 	// this is the frame we are creating
-	frame = &client->frames[client->netchan.incoming_sequence & UPDATE_MASK];
+	frame = &client->frameunion.frames[client->netchan.incoming_sequence & UPDATE_MASK];
 
 	// find the client's PVS
 
@@ -2520,7 +2520,7 @@ void SV_WriteEntitiesToClient (client_t *client, sizebuf_t *msg, qboolean ignore
 		if ((int)ent->v->flags & FL_CLASS_DEPENDENT && client->playerclass)	//hexen2 wierdness.
 		{
 			char modname[MAX_QPATH];
-			Q_strncpyz(modname, sv.model_precache[state->modelindex], sizeof(modname));
+			Q_strncpyz(modname, sv.strings.model_precache[state->modelindex], sizeof(modname));
 			if (strlen(modname)>5)
 			{
 				modname[strlen(modname)-5] = client->playerclass+'0';

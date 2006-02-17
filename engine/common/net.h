@@ -33,7 +33,7 @@ typedef struct
 		qbyte	ip[4];
 		qbyte	ip6[16];
 		qbyte	ipx[10];
-	};
+	} address;
 
 	unsigned short	port;
 } netadr_t;

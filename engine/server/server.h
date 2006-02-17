@@ -138,7 +138,7 @@ typedef struct
 			char		*lightstyles[MAX_LIGHTSTYLES];
 			char		lightstylecolours[MAX_LIGHTSTYLES];
 		};
-	};
+	} strings;
 	struct model_s		*models[MAX_MODELS];
 
 	int			allocated_client_slots;	//number of slots available. (used mostly to stop single player saved games cacking up)
@@ -408,7 +408,7 @@ typedef struct client_s
 #ifdef Q3SERVER
 		q3client_frame_t	*q3frames;
 #endif
-	};
+	} frameunion;
 	vfsfile_t		*download;			// file being downloaded
 	int				downloadsize;		// total bytes
 	int				downloadcount;		// bytes sent

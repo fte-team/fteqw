@@ -52,16 +52,16 @@ int SV_ModelIndex (char *name)
 	if (!name || !name[0])
 		return 0;
 
-	for (i=1 ; i<MAX_MODELS && sv.model_precache[i] ; i++)
-		if (!strcmp(sv.model_precache[i], name))
+	for (i=1 ; i<MAX_MODELS && sv.strings.model_precache[i] ; i++)
+		if (!strcmp(sv.strings.model_precache[i], name))
 			return i;
-	if (i==MAX_MODELS || !sv.model_precache[i])
+	if (i==MAX_MODELS || !sv.strings.model_precache[i])
 	{
 		if (i!=MAX_MODELS && sv.state == ss_loading)
 		{
-			Q_strncpyz(sv.model_precache[i], name, sizeof(sv.model_precache[i]));
+			Q_strncpyz(sv.strings.model_precache[i], name, sizeof(sv.strings.model_precache[i]));
 			if (!strcmp(name + strlen(name) - 4, ".bsp"))
-				sv.models[i] = Mod_FindName(sv.model_precache[i]);
+				sv.models[i] = Mod_FindName(sv.strings.model_precache[i]);
 			Con_Printf("WARNING: SV_ModelIndex: model %s not precached\n", name);
 		}
 		else
@@ -77,10 +77,10 @@ int SV_SafeModelIndex (char *name)
 	if (!name || !name[0])
 		return 0;
 
-	for (i=1 ; i<MAX_MODELS && sv.model_precache[i] ; i++)
-		if (!strcmp(sv.model_precache[i], name))
+	for (i=1 ; i<MAX_MODELS && sv.strings.model_precache[i] ; i++)
+		if (!strcmp(sv.strings.model_precache[i], name))
 			return i;
-	if (i==MAX_MODELS || !sv.model_precache[i])
+	if (i==MAX_MODELS || !sv.strings.model_precache[i])
 	{
 		return 0;
 	}
@@ -588,9 +588,9 @@ void SV_SpawnServer (char *server, char *startspot, qboolean noents, qboolean us
 	{
 		for (i = 0; i < MAX_LIGHTSTYLES; i++)
 		{
-			if (sv.lightstyles[i])
-				Z_Free(sv.lightstyles[i]);
-			sv.lightstyles[i] = NULL;
+			if (sv.strings.lightstyles[i])
+				Z_Free(sv.strings.lightstyles[i]);
+			sv.strings.lightstyles[i] = NULL;
 		}
 	}
 
@@ -796,13 +796,13 @@ void SV_SpawnServer (char *server, char *startspot, qboolean noents, qboolean us
 	sv.models[1] = sv.worldmodel;
 	if (svs.gametype == GT_PROGS)
 	{
-		strcpy(sv.sound_precache[0], "");
-		sv.model_precache[0] = "";
+		strcpy(sv.strings.sound_precache[0], "");
+		sv.strings.model_precache[0] = "";
 
-		sv.model_precache[1] = PR_AddString(svprogfuncs, sv.modelname, 0);
+		sv.strings.model_precache[1] = PR_AddString(svprogfuncs, sv.modelname, 0);
 		for (i=1 ; i<sv.worldmodel->numsubmodels ; i++)
 		{
-			sv.model_precache[1+i] = PR_AddString(svprogfuncs, localmodels[i], 0);
+			sv.strings.model_precache[1+i] = PR_AddString(svprogfuncs, localmodels[i], 0);
 			sv.models[i+1] = Mod_ForName (localmodels[i], false);
 		}
 
@@ -813,11 +813,11 @@ void SV_SpawnServer (char *server, char *startspot, qboolean noents, qboolean us
 #ifdef Q2SERVER
 	else if (svs.gametype == GT_QUAKE2)
 	{
-		memset(sv.configstring, 0, sizeof(sv.configstring));
-		strcpy(sv.configstring[Q2CS_MODELS+1], sv.modelname);
+		memset(sv.strings.configstring, 0, sizeof(sv.strings.configstring));
+		strcpy(sv.strings.configstring[Q2CS_MODELS+1], sv.modelname);
 		for (i=1; i<sv.worldmodel->numsubmodels; i++)
 		{
-			strcpy(sv.configstring[Q2CS_MODELS+1+i], localmodels[i]);
+			strcpy(sv.strings.configstring[Q2CS_MODELS+1+i], localmodels[i]);
 			sv.models[i+1] = Mod_ForName (localmodels[i], false);
 		}
 	}

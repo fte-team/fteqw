@@ -1,0 +1,53 @@
+﻿
+Microsoft Visual Studio Solution File, Format Version 9.00
+# Visual Studio 2005
+Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "ftequake", "ftequake.vcproj", "{91EB8023-5BC5-422A-B55E-1A25F25F5AE1}"
+EndProject
+Global
+	GlobalSection(SolutionConfigurationPlatforms) = preSolution
+		Debug Dedicated Server|Win32 = Debug Dedicated Server|Win32
+		Debug Dedicated ServerQ3|Win32 = Debug Dedicated ServerQ3|Win32
+		Debug|Win32 = Debug|Win32
+		GLDebug|Win32 = GLDebug|Win32
+		GLDebugQ3|Win32 = GLDebugQ3|Win32
+		GLRelease|Win32 = GLRelease|Win32
+		MDebug|Win32 = MDebug|Win32
+		MinGLDebug|Win32 = MinGLDebug|Win32
+		MinGLRelease|Win32 = MinGLRelease|Win32
+		MinSW|Win32 = MinSW|Win32
+		MRelease|Win32 = MRelease|Win32
+		Release Dedicated Server|Win32 = Release Dedicated Server|Win32
+		Release|Win32 = Release|Win32
+	EndGlobalSection
+	GlobalSection(ProjectConfigurationPlatforms) = postSolution
+		{91EB8023-5BC5-422A-B55E-1A25F25F5AE1}.Debug Dedicated Server|Win32.ActiveCfg = Debug Dedicated Server|Win32
+		{91EB8023-5BC5-422A-B55E-1A25F25F5AE1}.Debug Dedicated Server|Win32.Build.0 = Debug Dedicated Server|Win32
+		{91EB8023-5BC5-422A-B55E-1A25F25F5AE1}.Debug Dedicated ServerQ3|Win32.ActiveCfg = Debug Dedicated ServerQ3|Win32
+		{91EB8023-5BC5-422A-B55E-1A25F25F5AE1}.Debug Dedicated ServerQ3|Win32.Build.0 = Debug Dedicated ServerQ3|Win32
+		{91EB8023-5BC5-422A-B55E-1A25F25F5AE1}.Debug|Win32.ActiveCfg = Debug|Win32
+		{91EB8023-5BC5-422A-B55E-1A25F25F5AE1}.Debug|Win32.Build.0 = Debug|Win32
+		{91EB8023-5BC5-422A-B55E-1A25F25F5AE1}.GLDebug|Win32.ActiveCfg = GLDebug|Win32
+		{91EB8023-5BC5-422A-B55E-1A25F25F5AE1}.GLDebug|Win32.Build.0 = GLDebug|Win32
+		{91EB8023-5BC5-422A-B55E-1A25F25F5AE1}.GLDebugQ3|Win32.ActiveCfg = GLDebugQ3|Win32
+		{91EB8023-5BC5-422A-B55E-1A25F25F5AE1}.GLDebugQ3|Win32.Build.0 = GLDebugQ3|Win32
+		{91EB8023-5BC5-422A-B55E-1A25F25F5AE1}.GLRelease|Win32.ActiveCfg = GLRelease|Win32
+		{91EB8023-5BC5-422A-B55E-1A25F25F5AE1}.GLRelease|Win32.Build.0 = GLRelease|Win32
+		{91EB8023-5BC5-422A-B55E-1A25F25F5AE1}.MDebug|Win32.ActiveCfg = MDebug|Win32
+		{91EB8023-5BC5-422A-B55E-1A25F25F5AE1}.MDebug|Win32.Build.0 = MDebug|Win32
+		{91EB8023-5BC5-422A-B55E-1A25F25F5AE1}.MinGLDebug|Win32.ActiveCfg = MinGLDebug|Win32
+		{91EB8023-5BC5-422A-B55E-1A25F25F5AE1}.MinGLDebug|Win32.Build.0 = MinGLDebug|Win32
+		{91EB8023-5BC5-422A-B55E-1A25F25F5AE1}.MinGLRelease|Win32.ActiveCfg = MinGLRelease|Win32
+		{91EB8023-5BC5-422A-B55E-1A25F25F5AE1}.MinGLRelease|Win32.Build.0 = MinGLRelease|Win32
+		{91EB8023-5BC5-422A-B55E-1A25F25F5AE1}.MinSW|Win32.ActiveCfg = MinSW|Win32
+		{91EB8023-5BC5-422A-B55E-1A25F25F5AE1}.MinSW|Win32.Build.0 = MinSW|Win32
+		{91EB8023-5BC5-422A-B55E-1A25F25F5AE1}.MRelease|Win32.ActiveCfg = MRelease|Win32
+		{91EB8023-5BC5-422A-B55E-1A25F25F5AE1}.MRelease|Win32.Build.0 = MRelease|Win32
+		{91EB8023-5BC5-422A-B55E-1A25F25F5AE1}.Release Dedicated Server|Win32.ActiveCfg = Release Dedicated Server|Win32
+		{91EB8023-5BC5-422A-B55E-1A25F25F5AE1}.Release Dedicated Server|Win32.Build.0 = Release Dedicated Server|Win32
+		{91EB8023-5BC5-422A-B55E-1A25F25F5AE1}.Release|Win32.ActiveCfg = Release|Win32
+		{91EB8023-5BC5-422A-B55E-1A25F25F5AE1}.Release|Win32.Build.0 = Release|Win32
+	EndGlobalSection
+	GlobalSection(SolutionProperties) = preSolution
+		HideSolutionNode = FALSE
+	EndGlobalSection
+EndGlobal

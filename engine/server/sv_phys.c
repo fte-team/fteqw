@@ -1035,9 +1035,9 @@ void SV_Physics_Toss (edict_t *ent)
 // if onground, return without moving
 	if ( ((int)ent->v->flags & FL_ONGROUND) )
 	{
-		if (ent->v->velocity[2] > 0)
+		if (ent->v->velocity[2] >= (1.0f/32.0f))
 			ent->v->flags = (int)ent->v->flags & ~FL_ONGROUND;
-		else if (ent->v->groundentity)
+		else
 		{
 			if (sv_gameplayfix_noairborncorpse.value)
 			{

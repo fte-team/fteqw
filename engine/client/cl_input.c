@@ -328,6 +328,12 @@ void IN_Impulse (void)
 	in_impulsespending[pnum]++;
 }
 
+void IN_Restart()
+{
+	IN_Shutdown();
+	IN_Init();
+}
+
 /*
 ===============
 CL_KeyState
@@ -1541,6 +1547,7 @@ void CL_InitInput (void)
 	CL_RegisterSplitCommands();
 
 	Cmd_AddCommand("rotate", IN_Rotate_f);
+	Cmd_AddCommand("in_restart", IN_Restart);
 
 	Cvar_Register (&cl_nodelta, inputnetworkcvargroup);
 

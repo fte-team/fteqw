@@ -259,6 +259,9 @@ typedef struct viewer_s {
 
 	float origin[3];
 
+	int isadmin;
+	char expectcommand[16];
+
 	sv_t *server;
 
 	int menunum;
@@ -500,8 +503,7 @@ void ReadString(netmsg_t *b, char *string, int maxlen);
 #define svc_setinfo			51		// setinfo on a client
 #define svc_serverinfo		52		// serverinfo
 #define svc_updatepl		53		// [qbyte] [qbyte]
-
-//#define svc_nails2			54		//qwe - [qbyte] num [52 bits] nxyzpy 8 12 12 12 4 8
+#define svc_nails2			54		//qwe - [qbyte] num [52 bits] nxyzpy 8 12 12 12 4 8
 
 
 
@@ -587,12 +589,16 @@ void QW_UpdateUDPStuff(cluster_t *qtv);
 unsigned int Sys_Milliseconds(void);
 void Prox_SendInitialEnts(sv_t *qtv, oproxy_t *prox, netmsg_t *msg);
 qboolean QTV_Connect(sv_t *qtv, char *serverurl);
+void QTV_Shutdown(sv_t *qtv);
 qboolean	NET_StringToAddr (char *s, netadr_t *sadr);
 
 void SendBufferToViewer(viewer_t *v, const char *buffer, int length, qboolean reliable);
+void QW_PrintfToViewer(viewer_t *v, char *format, ...);
+void QW_StuffcmdToViewer(viewer_t *v, char *format, ...);
 
 void Netchan_Setup (SOCKET sock, netchan_t *chan, netadr_t adr, int qport);
 void Netchan_OutOfBandPrint (cluster_t *cluster, SOCKET sock, netadr_t adr, char *format, ...);
+int Netchan_IsLocal (netadr_t adr);
 void NET_SendPacket(cluster_t *cluster, SOCKET sock, int length, char *data, netadr_t adr);
 qboolean Net_CompareAddress(netadr_t *s1, netadr_t *s2, int qp1, int qp2);
 qboolean Netchan_Process (netchan_t *chan, netmsg_t *msg);

@@ -939,6 +939,22 @@ void ParseLightstyle(sv_t *tv, netmsg_t *m)
 	Multicast(tv, m->data+m->startpos, m->readpos - m->startpos, dem_read, (unsigned)-1);
 }
 
+void ParseNails2(sv_t *tv, netmsg_t *m)
+{
+	int count;
+	int nailnum;
+	int i;
+	unsigned char bits[6];
+	count = (unsigned char)ReadByte(m);
+	while(count-- > 0)
+	{
+		nailnum = ReadByte(m);
+		for (i = 0; i < 6; i++)
+			bits[i] = ReadByte(m);
+	}
+//qwe - [qbyte] num [52 bits] nxyzpy 8 12 12 12 4 8
+}
+
 void ParseMessage(sv_t *tv, char *buffer, int length, int to, int mask)
 {
 	netmsg_t buf;
@@ -1139,9 +1155,9 @@ void ParseMessage(sv_t *tv, char *buffer, int length, int to, int mask)
 		case svc_updatepl:
 			ParsePacketloss(tv, &buf, to, mask);
 			break;
-
-//#define svc_nails2			54		//qwe - [qbyte] num [52 bits] nxyzpy 8 12 12 12 4 8
-
+		case svc_nails2:
+			ParseNails2(tv, &buf);
+			break;
 		default:
 			buf.readpos = buf.startpos;
 			Sys_Printf(tv->cluster, "Can't handle svc %i\n", (unsigned int)ReadByte(&buf));

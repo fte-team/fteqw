@@ -554,6 +554,13 @@ char *Server_Rcon_Dispatch(sv_t *qtv, char *arg[MAX_ARGS], char *buffer, int siz
 		else
 			return "Failed (will keep trying)\n";
 	}
+
+	else if (!strcmp(arg[0], "disconnect"))
+	{
+		QTV_Shutdown(qtv);
+		return NULL;
+	}
+
 	else if (!strcmp(arg[0], "file") || !strcmp(arg[0], "play") || !strcmp(arg[0], "playdemo"))
 	{
 		if (!*arg[1])

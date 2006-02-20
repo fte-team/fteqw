@@ -862,6 +862,63 @@ qboolean QTV_Connect(sv_t *qtv, char *serverurl)
 	}
 	return true;
 }
+
+void QTV_Shutdown(sv_t *qtv)
+{
+	return;
+/*
+	viewer_t *v;
+	sv_t *peer;
+	cluster_t *cluster;
+	Sys_Printf(qtv->cluster, "Shutting down %s\n", qtv->server);
+
+	if (qtv->sourcesock != INVALID_SOCKET)
+	{
+		int err;
+		err = qerrno;
+		if (qerrno)
+			Sys_Printf(qtv->cluster, "Error: source socket error %i\n", qerrno);
+		else
+			Sys_Printf(qtv->cluster, "Error: server disconnected\n");
+		closesocket(qtv->sourcesock);
+		qtv->sourcesock = INVALID_SOCKET;
+	}
+	if (qtv->file)
+	{
+		fclose(qtv->file);
+		qtv->file = NULL;
+	}
+	BSP_Free(qtv->bsp);
+	qtv->bsp = NULL;
+
+	cluster = qtv->cluster;
+	if (cluster->servers == qtv)
+		cluster->servers = qtv->next;
+	else
+	{
+		for (peer = cluster->servers; peer->next; peer = peer->next)
+		{
+			if (peer->next == qtv)
+			{
+				peer->next = qtv->next;
+				break;
+			}
+		}
+	}
+
+	for (v = cluster->viewers; v; v = v->next)
+	{
+		if (v->server == qtv)
+		{
+			v->server = NULL;
+			v->menunum = 1;
+		}
+	}
+
+	free(qtv);
+*/
+}
+
 /*
 void QTV_Run(sv_t *qtv)
 {

@@ -261,6 +261,10 @@ int SendCurrentUserinfos(sv_t *tv, int cursize, netmsg_t *msg, int i)
 	if (i >= MAX_CLIENTS)
 		return i;
 
+	WriteByte(msg, svc_updateuserinfo);
+	WriteByte(msg, MAX_CLIENTS-1);
+	WriteLong(msg, MAX_CLIENTS-1);
+	WriteString(msg, "\\*spectator\\1\\name\\YOU!");
 
 	for (; i < MAX_CLIENTS-1; i++)
 	{
@@ -272,12 +276,19 @@ int SendCurrentUserinfos(sv_t *tv, int cursize, netmsg_t *msg, int i)
 		WriteByte(msg, i);
 		WriteLong(msg, i);
 		WriteString(msg, tv->players[i].userinfo);
-	}
 
-	WriteByte(msg, svc_updateuserinfo);
-	WriteByte(msg, MAX_CLIENTS-1);
-	WriteLong(msg, MAX_CLIENTS-1);
-	WriteString(msg, "\\*spectator\\1\\name\\YOU!");
+		WriteByte(msg, svc_updatefrags);
+		WriteByte(msg, i);
+		WriteShort(msg, tv->players[i].frags);
+
+		WriteByte(msg, svc_updateping);
+		WriteByte(msg, i);
+		WriteShort(msg, tv->players[i].ping);
+
+		WriteByte(msg, svc_updatepl);
+		WriteByte(msg, i);
+		WriteByte(msg, tv->players[i].packetloss);
+	}
 
 	i++;
 
@@ -464,6 +475,10 @@ void NewQWClient(cluster_t *cluster, netadr_t *addr, char *connectmessage)
 	Info_ValueForKey(infostring, "name", viewer->name, sizeof(viewer->name));
 
 	Netchan_OutOfBandPrint(cluster, cluster->qwdsocket, *addr, "j");
+
+	QW_PrintfToViewer(viewer, "Welcome to FTEQTV\n");
+	QW_StuffcmdToViewer(viewer, "alias admin \"cmd admin\"\n");
+	QW_PrintfToViewer(viewer, "Type admin for the admin menu\n");
 }
 
 void QTV_Rcon(cluster_t *cluster, char *message, netadr_t *from)
@@ -1037,13 +1052,79 @@ void PMove(viewer_t *v, usercmd_t *cmd)
 		v->origin[i] += (cmd->forwardmove*fwd[i] + cmd->sidemove*rgt[i] + cmd->upmove*up[i])*(cmd->msec/1000.0f);
 }
 
-void QTV_Say(cluster_t *cluster, viewer_t *v, char *message)
+void QTV_Say(cluster_t *cluster, sv_t *qtv, viewer_t *v, char *message)
 {
 	char buf[1024];
 	netmsg_t msg;
 
 	if (message[strlen(message)-1] == '\"')
 		message[strlen(message)-1] = '\0';
+
+	if (*v->expectcommand && v->menunum)
+	{
+		buf[sizeof(buf)-1] = '\0';
+		if (!strcmp(v->expectcommand, "hostname"))
+		{
+			strncpy(cluster->hostname, message, sizeof(cluster->hostname));
+			cluster->hostname[sizeof(cluster->hostname)-1] = '\0';
+		}
+		else if (!strcmp(v->expectcommand, "master"))
+		{
+			strncpy(cluster->master, message, sizeof(cluster->master));
+			cluster->master[sizeof(cluster->master)-1] = '\0';
+			if (!strcmp(cluster->master, "."))
+				*cluster->master = '\0';
+			cluster->mastersendtime = cluster->curtime;
+		}
+		else if (!strcmp(v->expectcommand, "addserver"))
+		{
+			_snprintf(buf, sizeof(buf), "tcp:%s", message);
+			qtv = QTV_NewServerConnection(cluster, buf, false);
+			if (qtv)
+			{
+				v->server = qtv;
+				QW_StuffcmdToViewer(v, "cmd new\n");
+				QW_PrintfToViewer(v, "Connected\n", message);
+			}
+			else
+				QW_PrintfToViewer(v, "Failed to connect to server \"%s\", connection aborted\n", message);
+		}
+		else if (!strcmp(v->expectcommand, "admin"))
+		{
+			if (!strcmp(message, cluster->password))
+			{
+				v->menunum = 2;
+				v->isadmin = true;
+				Sys_Printf(cluster, "Player %s logs in as admin\n", v->name);
+			}
+			else
+			{
+				QW_PrintfToViewer(v, "Admin password incorrect\n");
+				Sys_Printf(cluster, "Player %s gets incorrect admin password\n", v->name);
+			}
+		}
+		else if (!strcmp(v->expectcommand, "adddemo"))
+		{
+			_snprintf(buf, sizeof(buf), "file:%s", message);
+			qtv = QTV_NewServerConnection(cluster, buf, false);
+			if (!qtv)
+				QW_PrintfToViewer(v, "Failed to play demo \"%s\"\n", message);
+			else
+			{
+				v->server = qtv;
+				QW_StuffcmdToViewer(v, "cmd new\n");
+				QW_PrintfToViewer(v, "Opened demo file.\n", message);
+			}
+		}
+		else
+		{
+			QW_PrintfToViewer(v, "Command %s was not recognised\n", v->expectcommand);
+		}
+
+		*v->expectcommand = '\0';
+		return;
+	}
+	*v->expectcommand = '\0';
 
 	InitNetMsg(&msg, buf, sizeof(buf));
 
@@ -1085,6 +1166,28 @@ void QW_PrintfToViewer(viewer_t *v, char *format, ...)
 
 	buf[0] = svc_print;
 	buf[1] = 2;	//PRINT_HIGH
+
+	SendBufferToViewer(v, buf, strlen(buf)+1, true);
+}
+
+
+void QW_StuffcmdToViewer(viewer_t *v, char *format, ...)
+{
+	va_list		argptr;
+	char buf[1024];
+	netmsg_t msg;
+	InitNetMsg(&msg, buf, sizeof(buf));
+
+	va_start (argptr, format);
+#ifdef _WIN32
+	_vsnprintf (buf+1, sizeof(buf) - 2, format, argptr);
+	buf[sizeof(buf) - 2] = '\0';
+#else
+	vsnprintf (buf+1, sizeof(buf)-1, format, argptr);
+#endif // _WIN32
+	va_end (argptr);
+
+	buf[0] = svc_stufftext;
 
 	SendBufferToViewer(v, buf, strlen(buf)+1, true);
 }
@@ -1245,18 +1348,40 @@ void ParseQWC(cluster_t *cluster, sv_t *qtv, viewer_t *v, netmsg_t *m)
 			{
 			}
 			else if (!strncmp(buf, "say \"", 5) && !cluster->notalking)
-				QTV_Say(cluster, v, buf+5);
+				QTV_Say(cluster, qtv, v, buf+5);
 			else if (!strncmp(buf, "say ", 4) && !cluster->notalking)
-				QTV_Say(cluster, v, buf+4);
+				QTV_Say(cluster, qtv, v, buf+4);
 
 			else if (!strncmp(buf, "servers", 7))
 			{
 				v->menunum = 1;
 			}
-			else if (!strncmp(buf, "reset", 7))
+			else if (!strncmp(buf, "reset", 5))
 			{
+				QW_StuffcmdToViewer(v, "cmd new\n");
 				v->server = NULL;
 				v->menunum = 1;
+			}
+			else if (!strncmp(buf, "admin", 5))
+			{
+				if (!*cluster->password)
+				{
+					if (Netchan_IsLocal(v->netchan.remote_address))
+					{
+						Sys_Printf(cluster, "Local player %s logs in as admin\n", v->name);
+						v->menunum = 2;
+						v->isadmin = true;
+					}
+					else
+						QW_PrintfToViewer(v, "There is no admin password set\nYou may not log in.\n");
+				}
+				else if (v->isadmin)
+					v->menunum = 2;
+				else
+				{
+					strcpy(v->expectcommand, "admin");
+					QW_StuffcmdToViewer(v, "echo Please enter the rcon password\nmessagemode\n");
+				}
 			}
 
 			else if (!qtv)
@@ -1375,6 +1500,27 @@ void Menu_Enter(cluster_t *cluster, viewer_t *viewer, int buttonnum)
 	default:
 		break;
 
+	case 3:
+		if (viewer->server)
+		{
+			i = 0;
+			if (i++ == viewer->menuop)
+			{	//mvd port
+				QW_StuffcmdToViewer(viewer, "echo You will need to reconnect\n");
+				cluster->qwlistenportnum += buttonnum?-1:1;
+			}
+			if (i++ == viewer->menuop)
+			{	//disconnect
+				QTV_Shutdown(viewer->server);
+			}
+			if (i++ == viewer->menuop)
+			{	//back
+				viewer->menunum = 2;
+				viewer->menuop = 0;
+			}
+			break;
+		}
+		//fallthrough
 	case 1:
 		if (!cluster->servers)
 		{
@@ -1416,6 +1562,67 @@ void Menu_Enter(cluster_t *cluster, viewer_t *viewer, int buttonnum)
 			}
 		}
 		break;
+	case 2:
+		i = 0;
+		if (i++ == viewer->menuop)
+		{	//connection stuff
+			viewer->menunum = 3;
+			viewer->menuop = 0;
+		}
+		if (i++ == viewer->menuop)
+		{	//qw port
+			QW_StuffcmdToViewer(viewer, "echo You will need to reconnect\n");
+			cluster->qwlistenportnum += buttonnum?-1:1;
+		}
+		if (i++ == viewer->menuop)
+		{	//hostname
+			strcpy(viewer->expectcommand, "hostname");
+			QW_StuffcmdToViewer(viewer, "echo Please enter the new hostname\nmessagemode\n");
+		}
+		if (i++ == viewer->menuop)
+		{	//master
+			strcpy(viewer->expectcommand, "master");
+			QW_StuffcmdToViewer(viewer, "echo Please enter the master dns or ip\necho Enter '.' for masterless mode\nmessagemode\n");
+		}
+		if (i++ == viewer->menuop)
+		{	//password
+			strcpy(viewer->expectcommand, "password");
+			QW_StuffcmdToViewer(viewer, "echo Please enter the new rcon password\nmessagemode\n");
+		}
+		if (i++ == viewer->menuop)
+		{	//add server
+			strcpy(viewer->expectcommand, "messagemode");
+			QW_StuffcmdToViewer(viewer, "echo Please enter the new qtv server dns or ip\naddserver\n");
+		}
+		if (i++ == viewer->menuop)
+		{	//add demo
+			strcpy(viewer->expectcommand, "adddemo");
+			QW_StuffcmdToViewer(viewer, "echo Please enter the name of the demo to play\nmessagemode\n");
+		}
+		if (i++ == viewer->menuop)
+		{	//choke
+			cluster->chokeonnotupdated ^= 1;
+		}
+		if (i++ == viewer->menuop)
+		{	//late forwarding
+			cluster->lateforward ^= 1;
+		}
+		if (i++ == viewer->menuop)
+		{	//no talking
+			cluster->notalking ^= 1;
+		}
+		if (i++ == viewer->menuop)
+		{	//nobsp
+			cluster->nobsp ^= 1;
+		}
+		if (i++ == viewer->menuop)
+		{	//back
+			viewer->menunum = 0;
+			viewer->menuop = 0;
+		}
+
+
+		break;
 	}
 }
 
@@ -1435,7 +1642,6 @@ void Menu_Draw(cluster_t *cluster, viewer_t *viewer)
 	WriteString2(&m, "FTEQTV\n");
 	if (strcmp(cluster->hostname, DEFAULT_HOSTNAME))
 		WriteString2(&m, cluster->hostname);
-	WriteString2(&m, "\n\n");
 
 	switch(viewer->menunum)
 	{
@@ -1443,7 +1649,47 @@ void Menu_Draw(cluster_t *cluster, viewer_t *viewer)
 		WriteString2(&m, "bad menu");
 		break;
 
+	case 3:	//per-connection options
+		if (viewer->server)
+		{
+			sv = viewer->server;
+			WriteString2(&m, "\n\nConnection Admin\n");
+			WriteString2(&m, sv->hostname);
+			if (sv->file)
+				WriteString2(&m, " (demo)");
+			WriteString2(&m, "\n\n");
+
+			if (viewer->menuop < 0)
+				viewer->menuop = 0;
+
+			i = 0;
+			WriteString2(&m, "            port");
+			WriteString2(&m, (viewer->menuop==(i++))?" \r ":" : ");
+			sprintf(str, "%-20i", sv->tcplistenportnum);
+			WriteString2(&m, str);
+			WriteString2(&m, "\n");
+
+			WriteString2(&m, "      disconnect");
+			WriteString2(&m, (viewer->menuop==(i++))?" \r ":" : ");
+			sprintf(str, "%-20s", "...");
+			WriteString2(&m, str);
+			WriteString2(&m, "\n");
+
+			WriteString2(&m, "            back");
+			WriteString2(&m, (viewer->menuop==(i++))?" \r ":" : ");
+			sprintf(str, "%-20s", "...");
+			WriteString2(&m, str);
+			WriteString2(&m, "\n");
+
+			if (viewer->menuop >= i)
+				viewer->menuop = i - 1;
+
+			break;
+		}
+		//fallthrough
 	case 1:	//connections list
+
+		WriteString2(&m, "\n\nServers\n\n");
 
 		if (!cluster->servers)
 		{
@@ -1480,17 +1726,87 @@ void Menu_Draw(cluster_t *cluster, viewer_t *viewer)
 		break;
 
 	case 2:	//admin menu
-		WriteString2(&m, "    port");
-		WriteString2(&m, (viewer->menuop==0)?" \r ":" : ");
+
+		WriteString2(&m, "\n\nCluster Admin\n\n");
+
+		if (viewer->menuop < 0)
+			viewer->menuop = 0;
+		i = 0;
+
+		WriteString2(&m, " this connection");
+		WriteString2(&m, (viewer->menuop==(i++))?" \r ":" : ");
+		sprintf(str, "%-20s", "...");
+		WriteString2(&m, str);
+		WriteString2(&m, "\n");
+
+		WriteString2(&m, "            port");
+		WriteString2(&m, (viewer->menuop==(i++))?" \r ":" : ");
 		sprintf(str, "%-20i", cluster->qwlistenportnum);
 		WriteString2(&m, str);
 		WriteString2(&m, "\n");
 
-		WriteString2(&m, "hostname");
-		WriteString2(&m, (viewer->menuop==1)?" \r ":" : ");
+		WriteString2(&m, "        hostname");
+		WriteString2(&m, (viewer->menuop==(i++))?" \r ":" : ");
 		sprintf(str, "%-20s", cluster->hostname);
 		WriteString2(&m, str);
 		WriteString2(&m, "\n");
+
+		WriteString2(&m, "          master");
+		WriteString2(&m, (viewer->menuop==(i++))?" \r ":" : ");
+		sprintf(str, "%-20s", cluster->master);
+		WriteString2(&m, str);
+		WriteString2(&m, "\n");
+
+		WriteString2(&m, "        password");
+		WriteString2(&m, (viewer->menuop==(i++))?" \r ":" : ");
+		sprintf(str, "%-20s", "...");
+		WriteString2(&m, str);
+		WriteString2(&m, "\n");
+
+		WriteString2(&m, "      add server");
+		WriteString2(&m, (viewer->menuop==(i++))?" \r ":" : ");
+		sprintf(str, "%-20s", "...");
+		WriteString2(&m, str);
+		WriteString2(&m, "\n");
+
+		WriteString2(&m, "        add demo");
+		WriteString2(&m, (viewer->menuop==(i++))?" \r ":" : ");
+		sprintf(str, "%-20s", "...");
+		WriteString2(&m, str);
+		WriteString2(&m, "\n");
+
+		WriteString2(&m, "           choke");
+		WriteString2(&m, (viewer->menuop==(i++))?" \r ":" : ");
+		sprintf(str, "%-20s", cluster->chokeonnotupdated?"yes":"no");
+		WriteString2(&m, str);
+		WriteString2(&m, "\n");
+
+		WriteString2(&m, "delay forwarding");
+		WriteString2(&m, (viewer->menuop==(i++))?" \r ":" : ");
+		sprintf(str, "%-20s", cluster->lateforward?"yes":"no");
+		WriteString2(&m, str);
+		WriteString2(&m, "\n");
+
+		WriteString2(&m, "         talking");
+		WriteString2(&m, (viewer->menuop==(i++))?" \r ":" : ");
+		sprintf(str, "%-20s", cluster->notalking?"no":"yes");
+		WriteString2(&m, str);
+		WriteString2(&m, "\n");
+
+		WriteString2(&m, "           nobsp");
+		WriteString2(&m, (viewer->menuop==(i++))?" \r ":" : ");
+		sprintf(str, "%-20s", cluster->nobsp?"yes":"no");
+		WriteString2(&m, str);
+		WriteString2(&m, "\n");
+
+		WriteString2(&m, "            back");
+		WriteString2(&m, (viewer->menuop==(i++))?" \r ":" : ");
+		sprintf(str, "%-20s", "...");
+		WriteString2(&m, str);
+		WriteString2(&m, "\n");
+
+		if (viewer->menuop >= i)
+			viewer->menuop = i - 1;
 		break;
 	}
 

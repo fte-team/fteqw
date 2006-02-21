@@ -134,7 +134,6 @@ typedef struct
 		struct {
 			char		*model_precache[MAX_MODELS];	// NULL terminated
 			char		sound_precache[MAX_SOUNDS][MAX_QPATH];	// NULL terminated
-			char		image_precache[Q2MAX_IMAGES][MAX_QPATH];
 			char		*lightstyles[MAX_LIGHTSTYLES];
 			char		lightstylecolours[MAX_LIGHTSTYLES];
 		};

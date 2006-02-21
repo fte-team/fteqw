@@ -164,6 +164,7 @@ typedef struct {
 
 	int reliable_length;
 	qboolean drop;
+	qboolean isclient;
 
 	netmsg_t message;
 	char message_buf[MAX_MSGLEN];	//reliable message being built
@@ -301,8 +302,17 @@ typedef struct {
 	unsigned short leafs[MAX_ENTITY_LEAFS];
 } entity_t;
 
+typedef struct {
+	unsigned char msec;
+	unsigned short angles[3];
+	short forwardmove, sidemove, upmove;
+	unsigned char buttons;
+	unsigned char impulse;
+} usercmd_t;
+
 struct sv_s {
 	netadr_t serveraddress;
+	netchan_t netchan;
 
 	unsigned char buffer[MAX_PROXY_BUFFER];	//this doesn't cycle.
 	int buffersize;	//it memmoves down
@@ -339,12 +349,24 @@ struct sv_s {
 	filename_t modellist[MAX_MODELS];
 	filename_t soundlist[MAX_SOUNDS];
 	int modelindex_spike;	// qw is wierd.
+	int modelindex_player;	// qw is wierd.
+
+	qboolean usequkeworldprotocols;
+	int challenge;
+	unsigned short qport;
+	int isconnected;
+	int clservercount;
+	unsigned int nextsendpings;
+	unsigned int trackplayer;
+	int thisplayer;
+	unsigned timeout;
 
 	FILE *file;
 	unsigned int filelength;
 	SOCKET sourcesock;
 
 	SOCKET listenmvd;	//tcp + mvd protocol
+	int tcplistenportnum;
 
 	oproxy_t *proxies;
 	int numproxies;
@@ -355,9 +377,13 @@ struct sv_s {
 	unsigned int curtime;
 	unsigned int oldpackettime;
 	unsigned int nextpackettime;
-	unsigned int nextconnectattemp;
+	unsigned int nextconnectattempt;
 
-	int tcplistenportnum;
+
+
+	qboolean disconnectwhennooneiswatching;
+	unsigned int numviewers;
+
 
 
 	cluster_t *cluster;
@@ -499,7 +525,7 @@ void ReadString(netmsg_t *b, char *string, int maxlen);
 #define	svc_packetentities	47		// [...]
 #define	svc_deltapacketentities	48		// [...]
 //#define svc_maxspeed		49		// maxspeed change, for prediction
-//#define svc_entgravity		50		// gravity change, for prediction
+#define svc_entgravity		50		// gravity change, for prediction
 #define svc_setinfo			51		// setinfo on a client
 #define svc_serverinfo		52		// serverinfo
 #define svc_updatepl		53		// [qbyte] [qbyte]
@@ -596,7 +622,7 @@ void SendBufferToViewer(viewer_t *v, const char *buffer, int length, qboolean re
 void QW_PrintfToViewer(viewer_t *v, char *format, ...);
 void QW_StuffcmdToViewer(viewer_t *v, char *format, ...);
 
-void Netchan_Setup (SOCKET sock, netchan_t *chan, netadr_t adr, int qport);
+void Netchan_Setup (SOCKET sock, netchan_t *chan, netadr_t adr, int qport, qboolean isclient);
 void Netchan_OutOfBandPrint (cluster_t *cluster, SOCKET sock, netadr_t adr, char *format, ...);
 int Netchan_IsLocal (netadr_t adr);
 void NET_SendPacket(cluster_t *cluster, SOCKET sock, int length, char *data, netadr_t adr);
@@ -621,6 +647,6 @@ void Info_SetValueForStarKey (char *s, const char *key, const char *value, int m
 void Sys_Printf(cluster_t *cluster, char *fmt, ...);
 
 qboolean Net_FileProxy(sv_t *qtv, char *filename);
-sv_t *QTV_NewServerConnection(cluster_t *cluster, char *server, qboolean force);
+sv_t *QTV_NewServerConnection(cluster_t *cluster, char *server, qboolean force, qboolean autoclose);
 SOCKET Net_MVDListen(int port);
 qboolean Net_StopFileProxy(sv_t *qtv);

@@ -28,6 +28,8 @@ typedef struct {
 	int child[2];
 } node_t;
 struct bsp_s {
+	unsigned int fullchecksum;
+	unsigned int visedchecksum;
 	node_t *nodes;
 	unsigned char *pvslump;
 	unsigned char **pvsofs;
@@ -69,6 +71,7 @@ typedef struct
 {
 	int		fileofs, filelen;
 } lump_t;
+#define LUMP_ENTITIES		0
 #define	LUMP_PLANES		1
 #define	LUMP_VISIBILITY	4
 #define	LUMP_NODES		5
@@ -186,7 +189,8 @@ unsigned char *ReadFile_WINDOWSSUCKS(char *gamedir, char *filename, int *size)
 		fseek(f, 0, SEEK_SET);
 	}
 	data = malloc(*size);
-	fread(data, 1, *size, f);
+	if (data)
+		fread(data, 1, *size, f);
 	fclose(f);
 
 	return data;
@@ -204,6 +208,7 @@ bsp_t *BSP_LoadModel(cluster_t *cluster, char *gamedir, char *bspname)
 
 	int numnodes, i;
 	int numleafs;
+	unsigned int chksum;
 
 	bsp_t *bsp;
 
@@ -237,29 +242,45 @@ bsp_t *BSP_LoadModel(cluster_t *cluster, char *gamedir, char *bspname)
 	numleafs = header->lumps[LUMP_LEAFS].filelen/sizeof(dleaf_t);
 
 	bsp = malloc(sizeof(bsp_t) + sizeof(node_t)*numnodes + header->lumps[LUMP_VISIBILITY].filelen + sizeof(unsigned char *)*numleafs);
-	bsp->nodes = (node_t*)(bsp+1);
-	bsp->pvsofs = (unsigned char**)(bsp->nodes+numnodes);
-	bsp->pvslump = (unsigned char*)(bsp->pvsofs+numleafs);
-
-	bsp->pvsbytecount = (numleafs+7)/8;
-
-	for (i = 0; i < numnodes; i++)
+	if (bsp)
 	{
-		bsp->nodes[i].child[0] = nodes[i].children[0];
-		bsp->nodes[i].child[1] = nodes[i].children[1];
-		bsp->nodes[i].planedist = planes[nodes[i].planenum].dist;
-		bsp->nodes[i].planen[0] = planes[nodes[i].planenum].normal[0];
-		bsp->nodes[i].planen[1] = planes[nodes[i].planenum].normal[1];
-		bsp->nodes[i].planen[2] = planes[nodes[i].planenum].normal[2];
-	}
-	memcpy(bsp->pvslump, data+header->lumps[LUMP_VISIBILITY].fileofs, header->lumps[LUMP_VISIBILITY].filelen);
+		bsp->fullchecksum = 0;
+		bsp->visedchecksum = 0;
+		for (i = 0; i < HEADER_LUMPS; i++)
+		{
+			if (i == LUMP_ENTITIES)
+				continue;	//entities never appear in any checksums
 
-	for (i = 0; i < numleafs; i++)
-	{
-		if (leaf[i].visofs < 0)
-			bsp->pvsofs[i] = NULL;
-		else
-			bsp->pvsofs[i] = bsp->pvslump+leaf[i].visofs;
+			chksum = Com_BlockChecksum(data + header->lumps[i].fileofs, header->lumps[i].filelen);
+			bsp->fullchecksum ^= chksum;
+			if (i == LUMP_VISIBILITY || i == LUMP_LEAFS || i == LUMP_NODES)
+				continue;
+			bsp->visedchecksum ^= chksum;
+		}
+		bsp->nodes = (node_t*)(bsp+1);
+		bsp->pvsofs = (unsigned char**)(bsp->nodes+numnodes);
+		bsp->pvslump = (unsigned char*)(bsp->pvsofs+numleafs);
+
+		bsp->pvsbytecount = (numleafs+7)/8;
+
+		for (i = 0; i < numnodes; i++)
+		{
+			bsp->nodes[i].child[0] = nodes[i].children[0];
+			bsp->nodes[i].child[1] = nodes[i].children[1];
+			bsp->nodes[i].planedist = planes[nodes[i].planenum].dist;
+			bsp->nodes[i].planen[0] = planes[nodes[i].planenum].normal[0];
+			bsp->nodes[i].planen[1] = planes[nodes[i].planenum].normal[1];
+			bsp->nodes[i].planen[2] = planes[nodes[i].planenum].normal[2];
+		}
+		memcpy(bsp->pvslump, data+header->lumps[LUMP_VISIBILITY].fileofs, header->lumps[LUMP_VISIBILITY].filelen);
+
+		for (i = 0; i < numleafs; i++)
+		{
+			if (leaf[i].visofs < 0)
+				bsp->pvsofs[i] = NULL;
+			else
+				bsp->pvsofs[i] = bsp->pvslump+leaf[i].visofs;
+		}
 	}
 
 	free(data);
@@ -312,6 +333,13 @@ int BSP_SphereLeafNums_r(bsp_t *bsp, int first, int maxleafs, unsigned short *li
 		return -1;	//there are just too many
 
 	return numleafs;
+}
+
+unsigned int BSP_Checksum(bsp_t *bsp)
+{
+	if (!bsp)
+		return 0;
+	return bsp->visedchecksum;
 }
 
 int BSP_SphereLeafNums(bsp_t *bsp, int maxleafs, unsigned short *list, float x, float y, float z, float radius)

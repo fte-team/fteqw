@@ -39,8 +39,7 @@ int Netchan_IsLocal (netadr_t adr)
 {
 	struct sockaddr_in *sadr = (struct sockaddr_in *)adr;
 	unsigned char *bytes;
-	bytes = (char *)&sadr->sin_addr;
-
+	bytes = (unsigned char *)&sadr->sin_addr;
 	if (bytes[0] == 127 &&
 		bytes[1] == 0 &&
 		bytes[2] == 0 &&
@@ -175,13 +174,14 @@ Netchan_Setup
 called to open a channel to a remote system
 ==============
 */
-void Netchan_Setup (SOCKET sock, netchan_t *chan, netadr_t adr, int qport)
+void Netchan_Setup (SOCKET sock, netchan_t *chan, netadr_t adr, int qport, qboolean isclient)
 {
 	memset (chan, 0, sizeof(*chan));
 	
 	chan->sock = sock;
 	memcpy(&chan->remote_address, adr, sizeof(netadr_t));
 	chan->qport = qport;
+	chan->isclient = isclient;
 
 	chan->last_received = curtime;
 
@@ -284,8 +284,8 @@ void Netchan_Transmit (cluster_t *cluster, netchan_t *chan, int length, const un
 	WriteLong (&send, w2);
 
 	// send the qport if we are a client
-//	if (chan->sock == NS_CLIENT)
-//		MSG_WriteShort (&send, chan->qport);
+	if (chan->isclient)
+		WriteShort (&send, chan->qport);
 
 // copy the reliable message to the packet first
 	if (send_reliable)
@@ -343,7 +343,7 @@ qboolean Netchan_Process (netchan_t *chan, netmsg_t *msg)
 	sequence_ack = ReadLong (msg);
 
 	// read the qport if we are a server
-//	if (chan->sock == NS_SERVER)
+	if (!chan->isclient)
 		ReadShort (msg);
 
 	reliable_message = sequence >> 31;

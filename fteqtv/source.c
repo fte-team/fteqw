@@ -21,6 +21,9 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 #include "qtv.h"
 
 #define RECONNECT_TIME (1000*30)
+#define UDPRECONNECT_TIME (1000)
+#define PINGSINTERVAL_TIME (1000*5)
+#define UDPTIMEOUT_LENGTH (1000*20)
 
 
 qboolean	NET_StringToAddr (char *s, netadr_t *sadr)
@@ -202,33 +205,10 @@ SOCKET Net_MVDListen(int port)
 	return sock;
 }
 
-qboolean Net_ConnectToServer(sv_t *qtv, char *ip)
+qboolean Net_ConnectToTCPServer(sv_t *qtv, char *ip)
 {
 	netadr_t from;
 	unsigned long nonblocking = true;
-
-	if (!strncmp(ip, "file:", 5))
-	{
-		qtv->sourcesock = INVALID_SOCKET;
-		qtv->file = fopen(ip+5, "rb");
-		if (qtv->file)
-		{
-			fseek(qtv->file, 0, SEEK_END);
-			qtv->filelength = ftell(qtv->file);
-			fseek(qtv->file, 0, SEEK_SET);
-			return true;
-		}
-		Sys_Printf(qtv->cluster, "Unable to open file %s\n", ip+5);
-		return false;
-	}
-
-	qtv->nextconnectattemp = qtv->curtime + RECONNECT_TIME;	//wait half a minuite before trying to reconnect
-
-	if (strncmp(ip, "tcp:", 4))
-	{
-		Sys_Printf(qtv->cluster, "Unknown source type %s\n", ip);
-		return false;
-	}
 
 	if (!NET_StringToAddr(ip+4, &qtv->serveraddress))
 	{
@@ -264,8 +244,76 @@ qboolean Net_ConnectToServer(sv_t *qtv, char *ip)
 			return false;
 		}
 	}
+	return true;
+}
+qboolean Net_ConnectToUDPServer(sv_t *qtv, char *ip)
+{
+	netadr_t from;
+	unsigned long nonblocking = true;
+
+	if (!NET_StringToAddr(ip+4, &qtv->serveraddress))
+	{
+		Sys_Printf(qtv->cluster, "Unable to resolve %s\n", ip);
+		return false;
+	}
+	qtv->sourcesock = socket(AF_INET, SOCK_DGRAM, IPPROTO_UDP);
+	if (qtv->sourcesock == INVALID_SOCKET)
+		return false;
+
+	memset(&from, 0, sizeof(from));
+	((struct sockaddr*)&from)->sa_family = ((struct sockaddr*)&qtv->serveraddress)->sa_family;
+	if (bind(qtv->sourcesock, (struct sockaddr *)&from, sizeof(from)) == -1)
+	{
+		closesocket(qtv->sourcesock);
+		qtv->sourcesock = INVALID_SOCKET;
+		return false;
+	}
+
+	if (ioctlsocket (qtv->sourcesock, FIONBIO, &nonblocking) == -1)
+	{
+		closesocket(qtv->sourcesock);
+		qtv->sourcesock = INVALID_SOCKET;
+		return false;
+	}
+
+	qtv->qport = Sys_Milliseconds()*1000+Sys_Milliseconds();
 
 	return true;
+}
+
+qboolean Net_ConnectToServer(sv_t *qtv, char *ip)
+{
+	qtv->usequkeworldprotocols = false;
+
+	if (!strncmp(ip, "file:", 5))
+	{
+		qtv->sourcesock = INVALID_SOCKET;
+		qtv->file = fopen(ip+5, "rb");
+		if (qtv->file)
+		{
+			fseek(qtv->file, 0, SEEK_END);
+			qtv->filelength = ftell(qtv->file);
+			fseek(qtv->file, 0, SEEK_SET);
+			return true;
+		}
+		Sys_Printf(qtv->cluster, "Unable to open file %s\n", ip+5);
+		return false;
+	}
+
+	qtv->nextconnectattempt = qtv->curtime + RECONNECT_TIME;	//wait half a minuite before trying to reconnect
+
+	if (!strncmp(ip, "udp:", 4))
+	{
+		qtv->usequkeworldprotocols = true;
+		return Net_ConnectToUDPServer(qtv, ip);
+	}
+	else if (!strncmp(ip, "tcp:", 4))
+		return Net_ConnectToTCPServer(qtv, ip);
+	else
+	{
+		Sys_Printf(qtv->cluster, "Unknown source type %s\n", ip);
+		return false;
+	}
 }
 
 void Net_FindProxies(sv_t *qtv)
@@ -286,6 +334,11 @@ void Net_FindProxies(sv_t *qtv)
 	}
 
 	prox = malloc(sizeof(*prox));
+	if (!prox)
+	{//out of mem?
+		closesocket(sock);
+		return;
+	}
 	memset(prox, 0, sizeof(*prox));
 	prox->flushing = true;	//allow the buffer overflow resumption code to send the connection info.
 	prox->sock = sock;
@@ -309,6 +362,8 @@ qboolean Net_FileProxy(sv_t *qtv, char *filename)
 	//no full proxy check, this is going to be used by proxy admins, who won't want to have to raise the limit to start recording.
 
 	prox = malloc(sizeof(*prox));
+	if (!prox)
+		return false;
 	memset(prox, 0, sizeof(*prox));
 	prox->flushing = true;	//allow the buffer overflow resumption code to send the connection info.
 	prox->sock = INVALID_SOCKET;
@@ -865,8 +920,8 @@ qboolean QTV_Connect(sv_t *qtv, char *serverurl)
 
 void QTV_Shutdown(sv_t *qtv)
 {
-	return;
-/*
+	oproxy_t *prox;
+	oproxy_t *old;
 	viewer_t *v;
 	sv_t *peer;
 	cluster_t *cluster;
@@ -888,6 +943,8 @@ void QTV_Shutdown(sv_t *qtv)
 		fclose(qtv->file);
 		qtv->file = NULL;
 	}
+	if (qtv->listenmvd != INVALID_SOCKET)
+		closesocket(qtv->listenmvd);
 	BSP_Free(qtv->bsp);
 	qtv->bsp = NULL;
 
@@ -910,13 +967,25 @@ void QTV_Shutdown(sv_t *qtv)
 	{
 		if (v->server == qtv)
 		{
-			v->server = NULL;
+			QW_SetViewersServer(v, NULL);
 			v->menunum = 1;
 		}
 	}
 
+	for (prox = qtv->proxies; prox; )
+	{
+		if (prox->file)
+			fclose(prox->file);
+		if (prox->sock != INVALID_SOCKET)
+			closesocket(prox->sock);
+		old = prox;
+		prox = prox->next;
+		free(old);
+	}
+
+
 	free(qtv);
-*/
+	cluster->numservers--;
 }
 
 /*
@@ -1199,9 +1268,81 @@ int main(int argc, char **argv)
 
 
 
+void SendClientCommand(sv_t *qtv, char *fmt, ...)
+{
+	va_list		argptr;
+	char buf[1024];
 
+	va_start (argptr, fmt);
+#ifdef _WIN32
+	_vsnprintf (buf, sizeof(buf) - 1, fmt, argptr);
+	buf[sizeof(buf) - 1] = '\0';
+#else
+	vsnprintf (buf, sizeof(buf), fmt, argptr);
+#endif // _WIN32
+	va_end (argptr);
 
+	WriteByte(&qtv->netchan.message, clc_stringcmd);
+	WriteString(&qtv->netchan.message, buf);
+}
 
+void QTV_ParseQWStream(sv_t *qtv)
+{
+	char buffer[1500];
+	netadr_t from;
+	int fromlen;
+	int readlen;
+	netmsg_t msg;
+	fromlen = sizeof(from);	//bug: this won't work on (free)bsd
+
+	for (;;)
+	{
+		readlen = recvfrom(qtv->sourcesock, buffer, sizeof(buffer)-1, 0, (struct sockaddr*)&from, &fromlen);
+		if (readlen < 0)
+		{
+			//FIXME: Check for error
+			break;
+		}
+		buffer[readlen] = 0;
+		if (*(int*)buffer == -1)
+		{
+			if (buffer[4] == 'c')
+			{	//got a challenge
+				qtv->challenge = atoi(buffer+5);
+				sprintf(buffer, "connect %i %i %i \"%s\"", 28, qtv->qport, qtv->challenge, "\\*ver\\fteqtv\\name\\fteqtv\\spectator\\1");
+				Netchan_OutOfBand(qtv->cluster, qtv->sourcesock, qtv->serveraddress, strlen(buffer), buffer);
+				continue;
+			}
+			if (buffer[4] == 'n')
+			{
+				Sys_Printf(qtv->cluster, "%s: %s", qtv->server, buffer+5);
+				continue;
+			}
+			if (buffer[4] == 'j')
+			{
+				Netchan_Setup(qtv->sourcesock, &qtv->netchan, qtv->serveraddress, qtv->qport, true);
+
+				qtv->trackplayer = -1;
+
+				qtv->isconnected = true;
+				qtv->timeout = qtv->curtime + UDPTIMEOUT_LENGTH;
+				SendClientCommand(qtv, "new\n");
+				Sys_Printf(qtv->cluster, "Connected!\n");
+				continue;
+			}
+			Sys_Printf(qtv->cluster, "%s: unrecognised connectionless packet:\n%s\n", qtv->server, buffer+4);
+			continue;
+		}
+		memset(&msg, 0, sizeof(msg));
+		msg.cursize = readlen;
+		msg.data = buffer;
+		msg.maxsize = readlen;
+		qtv->timeout = qtv->curtime + UDPTIMEOUT_LENGTH;
+		if (!Netchan_Process(&qtv->netchan, &msg))
+			continue;
+		ParseMessage(qtv, msg.data + msg.readpos, msg.cursize - msg.readpos, dem_all, -1);
+	}
+}
 
 
 void QTV_Run(sv_t *qtv)
@@ -1211,6 +1352,12 @@ void QTV_Run(sv_t *qtv)
 	unsigned char *buffer;
 	int oldcurtime;
 	int packettime;
+
+	if (qtv->disconnectwhennooneiswatching && qtv->numviewers == 0)
+	{
+		QTV_Shutdown(qtv);
+		return;
+	}
 
 	
 //we will read out as many packets as we can until we're up to date
@@ -1235,9 +1382,51 @@ void QTV_Run(sv_t *qtv)
 	}
 
 
+
+
+	if (qtv->usequkeworldprotocols)
+	{
+		if (!qtv->isconnected && (qtv->curtime >= qtv->nextconnectattempt || qtv->curtime < qtv->nextconnectattempt - UDPRECONNECT_TIME*2))
+		{
+			Netchan_OutOfBand(qtv->cluster, qtv->sourcesock, qtv->serveraddress, 12, "getchallenge");
+			qtv->nextconnectattempt = qtv->curtime + UDPRECONNECT_TIME;
+		}
+		QTV_ParseQWStream(qtv);
+
+		if (qtv->isconnected)
+		{
+			char buffer[64];
+			netmsg_t msg;
+			memset(&msg, 0, sizeof(msg));
+			msg.data = buffer;
+			msg.maxsize = sizeof(buffer);
+
+			if (qtv->curtime >= qtv->timeout || qtv->curtime < qtv->timeout - UDPTIMEOUT_LENGTH*2)
+			{
+				Sys_Printf(qtv->cluster, "Timeout\n");
+				qtv->isconnected = false;
+				return;
+			}
+
+			if (qtv->curtime >= qtv->nextsendpings || qtv->curtime < qtv->nextsendpings - PINGSINTERVAL_TIME*2)
+			{
+				qtv->nextsendpings = qtv->curtime + PINGSINTERVAL_TIME;
+				SendClientCommand(qtv, "pings\n");
+			}
+			WriteByte(&msg, clc_tmove);
+			WriteShort(&msg, qtv->players[qtv->trackplayer].current.origin[0]);
+			WriteShort(&msg, qtv->players[qtv->trackplayer].current.origin[1]);
+			WriteShort(&msg, qtv->players[qtv->trackplayer].current.origin[2]);
+
+			Netchan_Transmit(qtv->cluster, &qtv->netchan, msg.cursize, msg.data);
+		}
+		return;
+	}
+
+
 	if (qtv->sourcesock == INVALID_SOCKET && !qtv->file)
 	{
-		if (qtv->curtime >= qtv->nextconnectattemp || qtv->curtime < qtv->nextconnectattemp - RECONNECT_TIME*2)
+		if (qtv->curtime >= qtv->nextconnectattempt || qtv->curtime < qtv->nextconnectattempt - RECONNECT_TIME*2)
 		if (!QTV_Connect(qtv, qtv->server))
 		{
 			return;
@@ -1380,7 +1569,7 @@ void QTV_Run(sv_t *qtv)
 
 void Cluster_Run(cluster_t *cluster)
 {
-	sv_t *sv;
+	sv_t *sv, *old;
 
 		int m;
 		struct timeval timeout;
@@ -1394,17 +1583,17 @@ void Cluster_Run(cluster_t *cluster)
 			if (cluster->qwdsocket >= m)
 				m = cluster->qwdsocket+1;
 		}
-/*
+
 		for (sv = cluster->servers; sv; sv = sv->next)
 		{
-			if (sv->sourcesock != INVALID_SOCKET)
+			if (sv->usequkeworldprotocols && sv->sourcesock != INVALID_SOCKET)
 			{
 				FD_SET(sv->sourcesock, &socketset);
 				if (sv->sourcesock >= m)
 					m = sv->sourcesock+1;
 			}
 		}
-*/
+
 	#ifndef _WIN32
 		#ifndef STDIN
 			#define STDIN 0
@@ -1491,17 +1680,21 @@ void Cluster_Run(cluster_t *cluster)
 
 
 
-		for (sv = cluster->servers; sv; sv = sv->next)
+		for (sv = cluster->servers; sv; )
 		{
-			QTV_Run(sv);
+			old = sv;
+			sv = sv->next;
+			QTV_Run(old);
 		}
 
 		QW_UpdateUDPStuff(cluster);
 }
 
-sv_t *QTV_NewServerConnection(cluster_t *cluster, char *server, qboolean force)
+sv_t *QTV_NewServerConnection(cluster_t *cluster, char *server, qboolean force, qboolean autoclose)
 {
 	sv_t *qtv = malloc(sizeof(sv_t));
+	if (!qtv)
+		return NULL;
 
 	memset(qtv, 0, sizeof(*qtv));
 	//set up a default config
@@ -1510,6 +1703,8 @@ sv_t *QTV_NewServerConnection(cluster_t *cluster, char *server, qboolean force)
 
 	qtv->listenmvd = INVALID_SOCKET;
 	qtv->sourcesock = INVALID_SOCKET;
+	qtv->disconnectwhennooneiswatching = autoclose;
+	qtv->parsingconnectiondata = true;
 
 	qtv->cluster = cluster;
 	qtv->next = cluster->servers;

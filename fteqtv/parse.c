@@ -216,11 +216,17 @@ static void ParseServerData(sv_t *tv, netmsg_t *m, int to, unsigned int playerma
 
 	tv->parsingconnectiondata = true;
 
-	ReadLong(m);	//we don't care about server's servercount, it's all reliable data anyway.
+	tv->clservercount = ReadLong(m);	//we don't care about server's servercount, it's all reliable data anyway.
 
 	ReadString(m, tv->gamedir, sizeof(tv->gamedir));
 
-	/*tv->servertime =*/ ReadFloat(m);
+	if (tv->usequkeworldprotocols)
+		tv->thisplayer = ReadByte(m)&~128;
+	else
+	{
+		tv->thisplayer = MAX_CLIENTS-1;
+		/*tv->servertime =*/ ReadFloat(m);
+	}
 	ReadString(m, tv->mapname, sizeof(tv->mapname));
 
 	Sys_Printf(tv->cluster, "Gamedir: %s\n", tv->gamedir);
@@ -254,6 +260,13 @@ static void ParseServerData(sv_t *tv, netmsg_t *m, int to, unsigned int playerma
 	memset(tv->staticsound, 0, sizeof(tv->staticsound));
 
 	memset(tv->players, 0, sizeof(tv->players));
+
+
+
+	if (tv->usequkeworldprotocols)
+	{
+		SendClientCommand(tv, "soundlist %i 0\n", tv->clservercount);
+	}
 }
 
 static void ParseCDTrack(sv_t *tv, netmsg_t *m, int to, unsigned int mask)
@@ -271,6 +284,7 @@ static void ParseStufftext(sv_t *tv, netmsg_t *m, int to, unsigned int mask)
 	qboolean fromproxy;
 
 	ReadString(m, text, sizeof(text));
+	Sys_Printf(tv->cluster, "stuffcmd: %s", text);
 
 	if (!strcmp(text, "skins\n"))
 	{
@@ -285,6 +299,9 @@ static void ParseStufftext(sv_t *tv, netmsg_t *m, int to, unsigned int mask)
 				SendBufferToViewer(v, newcmd, sizeof(newcmd), true);
 			}
 		}
+
+		if (tv->usequkeworldprotocols)
+			SendClientCommand(tv, "begin %i\n", tv->clservercount);
 		return;
 	}
 	else if (!strncmp(text, "fullserverinfo ", 15))
@@ -325,7 +342,11 @@ static void ParseStufftext(sv_t *tv, netmsg_t *m, int to, unsigned int mask)
 		return;
 	}
 	else if (!strncmp(text, "cmd ", 4))
+	{
+		if (tv->usequkeworldprotocols)
+			SendClientCommand(tv, "%s", text+4);
 		return;	//commands the game server asked for are pointless.
+	}
 
 	Multicast(tv, m->data+m->startpos, m->readpos - m->startpos, to, mask);
 }
@@ -500,8 +521,10 @@ void ParseSpawnStatic(sv_t *tv, netmsg_t *m, int to, unsigned int mask)
 		Multicast(tv, m->data+m->startpos, m->readpos - m->startpos, to, mask);
 }
 
+extern const usercmd_t nullcmd;
 static void ParsePlayerInfo(sv_t *tv, netmsg_t *m, qboolean clearoldplayers)
 {
+	usercmd_t nonnullcmd;
 	int flags;
 	int num;
 	int i;
@@ -515,50 +538,100 @@ static void ParsePlayerInfo(sv_t *tv, netmsg_t *m, qboolean clearoldplayers)
 		}
 	}
 
-
-
 	num = ReadByte(m);
 	if (num >= MAX_CLIENTS)
 	{
 		num = 0;	// don't be fatal.
 		Sys_Printf(tv->cluster, "Too many svc_playerinfos, wrapping\n");
 	}
-
 	tv->players[num].old = tv->players[num].current;
 
-	flags = ReadShort(m);
-	tv->players[num].gibbed = !!(flags & DF_GIB);
-	tv->players[num].dead = !!(flags & DF_DEAD);
-	tv->players[num].current.frame = ReadByte(m);
-
-	for (i = 0; i < 3; i++)
+	if (tv->usequkeworldprotocols)
 	{
-		if (flags & (DF_ORIGIN << i))
-			tv->players[num].current.origin[i] = ReadShort (m);
-	}
+		tv->players[num].old = tv->players[num].current;
+		flags = (unsigned short)ReadShort (m);
 
-	for (i = 0; i < 3; i++)
-	{
-		if (flags & (DF_ANGLES << i))
+		tv->players[num].current.origin[0] = ReadShort (m);
+		tv->players[num].current.origin[1] = ReadShort (m);
+		tv->players[num].current.origin[2] = ReadShort (m);
+
+		tv->players[num].current.frame = ReadByte(m);
+
+		if (flags & PF_MSEC)
+			ReadByte (m);
+
+		if (flags & PF_COMMAND)
 		{
-			tv->players[num].current.angles[i] = ReadShort(m);
+			ReadDeltaUsercmd(m, &nullcmd, &nonnullcmd);
+			tv->players[num].current.angles[0] = nonnullcmd.angles[0];
+			tv->players[num].current.angles[1] = nonnullcmd.angles[1];
+			tv->players[num].current.angles[2] = nonnullcmd.angles[2];
 		}
+
+		for (i=0 ; i<3 ; i++)
+		{
+			if (flags & (PF_VELOCITY1<<i) )
+				ReadShort(m);
+		}
+
+		if (flags & PF_MODEL)
+			tv->players[num].current.modelindex = ReadByte (m);
+		else
+			tv->players[num].current.modelindex = tv->modelindex_player;
+
+		if (flags & PF_SKINNUM)
+			tv->players[num].current.skinnum = ReadByte (m);
+		else
+			tv->players[num].current.skinnum = 0;
+
+		if (flags & PF_EFFECTS)
+			tv->players[num].current.effects = ReadByte (m);
+		else
+			tv->players[num].current.effects = 0;
+
+		if (flags & PF_WEAPONFRAME)
+			tv->players[num].current.weaponframe = ReadByte (m);
+		else
+			tv->players[num].current.weaponframe = 0;
+
+		tv->players[num].active = (num != tv->thisplayer);
 	}
+	else
+	{
+		flags = ReadShort(m);
+		tv->players[num].gibbed = !!(flags & DF_GIB);
+		tv->players[num].dead = !!(flags & DF_DEAD);
+		tv->players[num].current.frame = ReadByte(m);
 
-	if (flags & DF_MODEL)
-		tv->players[num].current.modelindex = ReadByte (m);
+		for (i = 0; i < 3; i++)
+		{
+			if (flags & (DF_ORIGIN << i))
+				tv->players[num].current.origin[i] = ReadShort (m);
+		}
 
-	if (flags & DF_SKINNUM)
-		tv->players[num].current.skinnum = ReadByte (m);
+		for (i = 0; i < 3; i++)
+		{
+			if (flags & (DF_ANGLES << i))
+			{
+				tv->players[num].current.angles[i] = ReadShort(m);
+			}
+		}
 
-	if (flags & DF_EFFECTS)
-		tv->players[num].current.effects = ReadByte (m);
+		if (flags & DF_MODEL)
+			tv->players[num].current.modelindex = ReadByte (m);
 
-	if (flags & DF_WEAPONFRAME)
-		tv->players[num].current.weaponframe = ReadByte (m);
+		if (flags & DF_SKINNUM)
+			tv->players[num].current.skinnum = ReadByte (m);
 
-	tv->players[num].active = true;
+		if (flags & DF_EFFECTS)
+			tv->players[num].current.effects = ReadByte (m);
 
+		if (flags & DF_WEAPONFRAME)
+			tv->players[num].current.weaponframe = ReadByte (m);
+
+		tv->players[num].active = true;
+
+	}
 
 	tv->players[num].leafcount = BSP_SphereLeafNums(tv->bsp,	MAX_ENTITY_LEAFS, tv->players[num].leafs,
 														tv->players[num].current.origin[0]/8.0f,
@@ -671,8 +744,10 @@ static void ParseUpdatePing(sv_t *tv, netmsg_t *m, int to, unsigned int mask)
 
 static void ParseUpdateFrags(sv_t *tv, netmsg_t *m, int to, unsigned int mask)
 {
+	int best;
 	int pnum;
 	int frags;
+	char buffer[64];
 	pnum = ReadByte(m);
 	frags = ReadShort(m);
 
@@ -682,6 +757,26 @@ static void ParseUpdateFrags(sv_t *tv, netmsg_t *m, int to, unsigned int mask)
 		Sys_Printf(tv->cluster, "svc_updatefrags: invalid player number\n");
 
 	Multicast(tv, m->data+m->startpos, m->readpos - m->startpos, to, mask);
+
+	if (!tv->usequkeworldprotocols)
+		return;
+
+	frags = -10000;
+	best = -1;
+	for (pnum = 0; pnum < MAX_CLIENTS; pnum++)
+	{
+		if (*tv->players[pnum].userinfo && !atoi(Info_ValueForKey(tv->players[pnum].userinfo, "*spectator", buffer, sizeof(buffer))))
+		if (frags < tv->players[pnum].frags)
+		{
+			best = pnum;
+			frags = tv->players[pnum].frags;
+		}
+	}
+	if (best != tv->trackplayer)
+	{
+		SendClientCommand (tv, "ptrack %i\n", best);
+		tv->trackplayer = best;
+	}
 }
 
 static void ParseUpdateStat(sv_t *tv, netmsg_t *m, int to, unsigned int mask)
@@ -729,7 +824,7 @@ static void ParseUpdateStatLong(sv_t *tv, netmsg_t *m, int to, unsigned int mask
 	Multicast(tv, m->data+m->startpos, m->readpos - m->startpos, to, mask);
 }
 
-static void ParseUpdateUserinfo(sv_t *tv, netmsg_t *m)
+static void ParseUpdateUserinfo(sv_t *tv, netmsg_t *m, int to, unsigned int mask)
 {
 	int pnum;
 	pnum = ReadByte(m);
@@ -743,6 +838,8 @@ static void ParseUpdateUserinfo(sv_t *tv, netmsg_t *m)
 		{
 		}
 	}
+
+	Multicast(tv, m->data+m->startpos, m->readpos - m->startpos, to, mask);
 }
 
 static void ParsePacketloss(sv_t *tv, netmsg_t *m, int to, unsigned int mask)
@@ -957,6 +1054,7 @@ void ParseNails2(sv_t *tv, netmsg_t *m)
 
 void ParseMessage(sv_t *tv, char *buffer, int length, int to, int mask)
 {
+	int i;
 	netmsg_t buf;
 	qboolean clearoldplayers = true;
 	buf.cursize = length;
@@ -1100,7 +1198,7 @@ void ParseMessage(sv_t *tv, char *buffer, int length, int to, int mask)
 			break;
 
 		case svc_updateuserinfo:
-			ParseUpdateUserinfo(tv, &buf);
+			ParseUpdateUserinfo(tv, &buf, to, mask);
 			break;
 
 //#define	svc_download		41		// [short] size [size bytes]
@@ -1113,9 +1211,10 @@ void ParseMessage(sv_t *tv, char *buffer, int length, int to, int mask)
 			ReadByte(&buf);
 			break;
 		case svc_modellist:
-			if (!ParseList(tv, &buf, tv->modellist, to, mask))
+			i = ParseList(tv, &buf, tv->modellist, to, mask);
+			if (!i)
 			{
-				int i;
+				int j;
 				if (tv->bsp)
 					BSP_Free(tv->bsp);
 
@@ -1125,16 +1224,30 @@ void ParseMessage(sv_t *tv, char *buffer, int length, int to, int mask)
 					tv->bsp = BSP_LoadModel(tv->cluster, tv->gamedir, tv->modellist[1].name);
 
 				tv->numinlines = 0;
-				for (i = 2; i < 256; i++)
+				for (j = 2; j < 256; j++)
 				{
-					if (*tv->modellist[i].name != '*')
+					if (*tv->modellist[j].name != '*')
 						break;
-					tv->numinlines = i;
+					tv->numinlines = j;
 				}
+			}
+			if (tv->usequkeworldprotocols)
+			{
+				if (i)
+					SendClientCommand(tv, "modellist %i %i\n", tv->clservercount, i);
+				else
+					SendClientCommand(tv, "prespawn %i 0 %i\n", tv->clservercount, BSP_Checksum(tv->bsp));
 			}
 			break;
 		case svc_soundlist:
-			ParseList(tv, &buf, tv->soundlist, to, mask);
+			i = ParseList(tv, &buf, tv->soundlist, to, mask);
+			if (tv->usequkeworldprotocols)
+			{
+				if (i)
+					SendClientCommand(tv, "soundlist %i %i\n", tv->clservercount, i);
+				else
+					SendClientCommand(tv, "modellist %i 0\n", tv->clservercount);
+			}
 			break;
 		case svc_packetentities:
 			FlushPacketEntities(tv);
@@ -1145,7 +1258,9 @@ void ParseMessage(sv_t *tv, char *buffer, int length, int to, int mask)
 			ParsePacketEntities(tv, &buf);
 			break;
 //#define svc_maxspeed		49		// maxspeed change, for prediction
-//#define svc_entgravity		50		// gravity change, for prediction
+case svc_entgravity:		// gravity change, for prediction
+ReadFloat(&buf);
+break;
 		case svc_setinfo:
 			ParseSetInfo(tv, &buf);
 			break;

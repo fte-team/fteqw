@@ -347,7 +347,19 @@ char *Cluster_Rcon_Dispatch(cluster_t *cluster, char *arg[MAX_ARGS], char *buffe
 		memmove(arg[1]+4, arg[1], ARG_LEN-5);
 		strncpy(arg[1], "tcp:", 4);
 
-		if (!QTV_NewServerConnection(cluster, arg[1], false))
+		if (!QTV_NewServerConnection(cluster, arg[1], false, !strcmp(arg[0], "connect")))
+			return "Failed to connect to server, connection aborted\n";
+		return "Connection registered\n";
+	}
+	else if (!strcmp(arg[0], "qw"))
+	{
+		if (!*arg[1])
+			return "connect requires an ip:port parameter\n";
+
+		memmove(arg[1]+4, arg[1], ARG_LEN-5);
+		strncpy(arg[1], "udp:", 4);
+
+		if (!QTV_NewServerConnection(cluster, arg[1], false, false))
 			return "Failed to connect to server, connection aborted\n";
 		return "Connection registered\n";
 	}
@@ -363,7 +375,7 @@ char *Cluster_Rcon_Dispatch(cluster_t *cluster, char *arg[MAX_ARGS], char *buffe
 		memmove(arg[1]+5, arg[1], ARG_LEN-6);
 		strncpy(arg[1], "file:", 5);
 
-		if (!QTV_NewServerConnection(cluster, arg[1], false))
+		if (!QTV_NewServerConnection(cluster, arg[1], false, false))
 			return "Failed to connect to server, connection aborted\n";
 		return "Connection registered\n";
 	}
@@ -558,7 +570,7 @@ char *Server_Rcon_Dispatch(sv_t *qtv, char *arg[MAX_ARGS], char *buffer, int siz
 	else if (!strcmp(arg[0], "disconnect"))
 	{
 		QTV_Shutdown(qtv);
-		return NULL;
+		return "Disconnected\n";
 	}
 
 	else if (!strcmp(arg[0], "file") || !strcmp(arg[0], "play") || !strcmp(arg[0], "playdemo"))
@@ -630,8 +642,10 @@ char *Server_Rcon_Dispatch(sv_t *qtv, char *arg[MAX_ARGS], char *buffer, int siz
 
 			if (news != INVALID_SOCKET)
 			{
-				closesocket(qtv->listenmvd);
+				if (qtv->listenmvd != INVALID_SOCKET)
+					closesocket(qtv->listenmvd);
 				qtv->listenmvd = news;
+				qtv->disconnectwhennooneiswatching = false;
 				qtv->tcplistenportnum = newp;
 				return "Opened tcp port\n";
 			}

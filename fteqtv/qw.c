@@ -20,14 +20,20 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 
 #include "qtv.h"
 
+#ifdef _WIN32
+int snprintf(char *buffer, int buffersize, char *format, ...)
+{
+	va_list		argptr;
+	int ret;
+	va_start (argptr, format);
+	ret = _vsnprintf (buf, buffersize, format, argptr);
+	buf[buffersize - 1] = '\0';
+	va_end (argptr);
 
-typedef struct {
-	unsigned char msec;
-	unsigned short angles[3];
-	short forwardmove, sidemove, upmove;
-	unsigned char buttons;
-	unsigned char impulse;
-} usercmd_t;
+	return ret;
+}
+#endif
+
 const usercmd_t nullcmd;
 
 #define	CM_ANGLE1 	(1<<0)
@@ -417,6 +423,20 @@ int SendList(sv_t *qtv, int first, const filename_t *list, int svc, netmsg_t *ms
 	return i;
 }
 
+void QW_SetViewersServer(viewer_t *viewer, sv_t *sv)
+{
+	if (viewer->server)
+		viewer->server->numviewers--;
+	viewer->server = sv;
+	if (viewer->server)
+		viewer->server->numviewers++;
+	QW_StuffcmdToViewer(viewer, "cmd new\n");
+	viewer->servercount++;
+	viewer->origin[0] = 0;
+	viewer->origin[1] = 0;
+	viewer->origin[2] = 0;
+}
+
 //fixme: will these want to have state?..
 int NewChallenge(netadr_t *addr)
 {
@@ -431,6 +451,7 @@ qboolean ChallengePasses(netadr_t *addr, int challenge)
 
 void NewQWClient(cluster_t *cluster, netadr_t *addr, char *connectmessage)
 {
+	sv_t *initialserver;
 	viewer_t *viewer;
 
 	char qport[32];
@@ -451,23 +472,33 @@ void NewQWClient(cluster_t *cluster, netadr_t *addr, char *connectmessage)
 
 
 	viewer = malloc(sizeof(viewer_t));
+	if (!viewer)
+	{
+		Netchan_OutOfBandPrint(cluster, cluster->qwdsocket, *addr, "n" "Out of memory");
+		return;
+	}
 	memset(viewer, 0, sizeof(viewer_t));
 
 	viewer->trackplayer = -1;
-	Netchan_Setup (cluster->qwdsocket, &viewer->netchan, *addr, atoi(qport));
+	Netchan_Setup (cluster->qwdsocket, &viewer->netchan, *addr, atoi(qport), false);
 
 	viewer->next = cluster->viewers;
 	cluster->viewers = viewer;
 	viewer->delta_frame = -1;
 
+	initialserver = NULL;
 	if (cluster->numservers == 1)
 	{
-		viewer->server = cluster->servers;
-		if (!viewer->server->modellist[1].name[0])
-			viewer->server = NULL;	//damn, that server isn't ready
+		initialserver = cluster->servers;
+		if (!initialserver->modellist[1].name[0])
+			initialserver = NULL;	//damn, that server isn't ready
 	}
 
-	if (!viewer->server)
+	viewer->server = initialserver;
+	if (viewer->server)
+		viewer->server->numviewers++;
+
+	if (!initialserver)
 		viewer->menunum = 1;
 
 	cluster->numviewers++;
@@ -1078,17 +1109,11 @@ void QTV_Say(cluster_t *cluster, sv_t *qtv, viewer_t *v, char *message)
 		}
 		else if (!strcmp(v->expectcommand, "addserver"))
 		{
-#ifdef _WIN32
-			_snprintf(buf, sizeof(buf), "tcp:%s", message);
-			buf[suzeof(buf)-1] = '\0';
-#else
 			snprintf(buf, sizeof(buf), "tcp:%s", message);
-#endif
-			qtv = QTV_NewServerConnection(cluster, buf, false);
+			qtv = QTV_NewServerConnection(cluster, buf, false, false);
 			if (qtv)
 			{
-				v->server = qtv;
-				QW_StuffcmdToViewer(v, "cmd new\n");
+				QW_SetViewersServer(v, qtv);
 				QW_PrintfToViewer(v, "Connected\n", message);
 			}
 			else
@@ -1110,21 +1135,45 @@ void QTV_Say(cluster_t *cluster, sv_t *qtv, viewer_t *v, char *message)
 		}
 		else if (!strcmp(v->expectcommand, "adddemo"))
 		{
-#ifdef _WIN32
-			_snprintf(buf, sizeof(buf), "file:%s", message);
-			buf[sizeof(buf)-1] = '\0';
-#else
 			snprintf(buf, sizeof(buf), "file:%s", message);
-#endif
-			qtv = QTV_NewServerConnection(cluster, buf, false);
+			qtv = QTV_NewServerConnection(cluster, buf, false, false);
 			if (!qtv)
 				QW_PrintfToViewer(v, "Failed to play demo \"%s\"\n", message);
 			else
 			{
-				v->server = qtv;
-				QW_StuffcmdToViewer(v, "cmd new\n");
+				QW_SetViewersServer(v, qtv);
 				QW_PrintfToViewer(v, "Opened demo file.\n", message);
 			}
+		}
+		else if (!strcmp(v->expectcommand, "setmvdport"))
+		{
+			int newp;
+			int news;
+			if (qtv)
+			{
+				newp = atoi(message);
+
+				if (newp)
+				{
+					news = Net_MVDListen(newp);
+
+					if (news != INVALID_SOCKET)
+					{
+						if (qtv->listenmvd != INVALID_SOCKET)
+							closesocket(qtv->listenmvd);
+						qtv->listenmvd = news;
+						qtv->tcplistenportnum = newp;
+						qtv->disconnectwhennooneiswatching = false;
+					}
+				}
+				else if (qtv->listenmvd != INVALID_SOCKET)
+				{
+					closesocket(qtv->listenmvd);
+					qtv->listenmvd = INVALID_SOCKET;
+				}
+			}
+			else
+				QW_PrintfToViewer(v, "You were disconnected from that stream\n");
 		}
 		else
 		{
@@ -1134,18 +1183,68 @@ void QTV_Say(cluster_t *cluster, sv_t *qtv, viewer_t *v, char *message)
 		*v->expectcommand = '\0';
 		return;
 	}
-	*v->expectcommand = '\0';
+	if (!strncmp(message, ".qw ", 4))
+	{
+		message += 4;
+		snprintf(buf, sizeof(buf), "udp:%s", message);
+		qtv = QTV_NewServerConnection(cluster, buf, false, false);
+		if (qtv)
+		{
+//			QW_SetViewersServer(v, qtv);
+			QW_PrintfToViewer(v, "Connected\n", message);
+		}
+		else
+			QW_PrintfToViewer(v, "Failed to connect to server \"%s\", connection aborted\n", message);
+	}
+	else if (!strncmp(message, ".connect ", 9))
+	{
+		message += 9;
+		snprintf(buf, sizeof(buf), "tcp:%s", message);
+		qtv = QTV_NewServerConnection(cluster, buf, false, true);
+		if (qtv)
+		{
+			QW_SetViewersServer(v, qtv);
+			QW_PrintfToViewer(v, "Connected\n", message);
+		}
+		else
+			QW_PrintfToViewer(v, "Failed to connect to server \"%s\", connection aborted\n", message);
+	}
+	else if (!strncmp(message, ".demo ", 6))
+	{
+		message += 6;
+		snprintf(buf, sizeof(buf), "file:%s", message);
+		qtv = QTV_NewServerConnection(cluster, buf, false, true);
+		if (qtv)
+		{
+			QW_SetViewersServer(v, qtv);
+			QW_PrintfToViewer(v, "Connected\n", message);
+		}
+		else
+			QW_PrintfToViewer(v, "Failed to connect to server \"%s\", connection aborted\n", message);
+	}
+	else if (!strncmp(message, ".disconnect", 11))
+	{
+		QW_SetViewersServer(v, NULL);
+		QW_PrintfToViewer(v, "Connected\n", message);
+	}
+	else
+	{
+		if (cluster->notalking)
+			return;
 
-	InitNetMsg(&msg, buf, sizeof(buf));
+		*v->expectcommand = '\0';
 
-	WriteByte(&msg, svc_print);
-	WriteByte(&msg, 3);	//PRINT_CHAT
-	WriteString2(&msg, v->name);
-	WriteString2(&msg, "\x8d ");
-	WriteString2(&msg, message);
-	WriteString(&msg, "\n");
+		InitNetMsg(&msg, buf, sizeof(buf));
 
-	Broadcast(cluster, msg.data, msg.cursize);
+		WriteByte(&msg, svc_print);
+		WriteByte(&msg, 3);	//PRINT_CHAT
+		WriteString2(&msg, v->name);
+		WriteString2(&msg, "\x8d ");
+		WriteString2(&msg, message);
+		WriteString(&msg, "\n");
+
+		Broadcast(cluster, msg.data, msg.cursize);
+	}
 }
 
 viewer_t *QW_IsOn(cluster_t *cluster, char *name)
@@ -1230,7 +1329,12 @@ void ParseQWC(cluster_t *cluster, sv_t *qtv, viewer_t *v, netmsg_t *m)
 //			printf("stringcmd: %s\n", buf);
 
 			if (!strcmp(buf, "new"))
-				SendServerData(qtv, v);
+			{
+				if (qtv->parsingconnectiondata)
+					QW_StuffcmdToViewer(v, "cmd new\n");
+				else
+					SendServerData(qtv, v);
+			}
 			else if (!strncmp(buf, "modellist ", 10))
 			{
 				char *cmd = buf+10;
@@ -1357,9 +1461,9 @@ void ParseQWC(cluster_t *cluster, sv_t *qtv, viewer_t *v, netmsg_t *m)
 			else if (!strncmp(buf, "pings", 5))
 			{
 			}
-			else if (!strncmp(buf, "say \"", 5) && !cluster->notalking)
+			else if (!strncmp(buf, "say \"", 5))
 				QTV_Say(cluster, qtv, v, buf+5);
-			else if (!strncmp(buf, "say ", 4) && !cluster->notalking)
+			else if (!strncmp(buf, "say ", 4))
 				QTV_Say(cluster, qtv, v, buf+4);
 
 			else if (!strncmp(buf, "servers", 7))
@@ -1368,8 +1472,7 @@ void ParseQWC(cluster_t *cluster, sv_t *qtv, viewer_t *v, netmsg_t *m)
 			}
 			else if (!strncmp(buf, "reset", 5))
 			{
-				QW_StuffcmdToViewer(v, "cmd new\n");
-				v->server = NULL;
+				QW_SetViewersServer(v, NULL);
 				v->menunum = 1;
 			}
 			else if (!strncmp(buf, "admin", 5))
@@ -1514,10 +1617,12 @@ void Menu_Enter(cluster_t *cluster, viewer_t *viewer, int buttonnum)
 		if (viewer->server)
 		{
 			i = 0;
+			sv = viewer->server;
 			if (i++ == viewer->menuop)
 			{	//mvd port
-				QW_StuffcmdToViewer(viewer, "echo You will need to reconnect\n");
-				cluster->qwlistenportnum += buttonnum?-1:1;
+				WriteString(&m, "echo Please enter a new tcp port number\nmessagemode\n");
+				SendBufferToViewer(viewer, m.data, m.cursize, true);
+				strcpy(viewer->expectcommand, "setmvdport");
 			}
 			if (i++ == viewer->menuop)
 			{	//disconnect
@@ -1534,8 +1639,9 @@ void Menu_Enter(cluster_t *cluster, viewer_t *viewer, int buttonnum)
 	case 1:
 		if (!cluster->servers)
 		{
-			WriteString(&m, "messagemode\n");
+			WriteString(&m, "echo Please enter a server ip\nmessagemode\n");
 			SendBufferToViewer(viewer, m.data, m.cursize, true);
+			strcpy(viewer->expectcommand, "insecadddemo");
 		}
 		else
 		{
@@ -1560,9 +1666,7 @@ void Menu_Enter(cluster_t *cluster, viewer_t *viewer, int buttonnum)
 					}
 					else
 					{
-						WriteString(&m, "cmd new\n");
-						viewer->servercount++;
-						viewer->server = sv;
+						QW_SetViewersServer(viewer, sv);
 						SendBufferToViewer(viewer, m.data, m.cursize, true);
 						viewer->menunum = 0;
 						viewer->thinksitsconnected = false;
@@ -1675,7 +1779,10 @@ void Menu_Draw(cluster_t *cluster, viewer_t *viewer)
 			i = 0;
 			WriteString2(&m, "            port");
 			WriteString2(&m, (viewer->menuop==(i++))?" \r ":" : ");
-			sprintf(str, "%-20i", sv->tcplistenportnum);
+			if (sv->listenmvd == INVALID_SOCKET)
+				sprintf(str, "!%-19i", sv->tcplistenportnum);
+			else
+				sprintf(str, "%-20i", sv->tcplistenportnum);
 			WriteString2(&m, str);
 			WriteString2(&m, "\n");
 
@@ -1844,6 +1951,9 @@ void QW_FreeViewer(cluster_t *cluster, viewer_t *viewer)
 		if (viewer->backbuf[i].data)
 			free(viewer->backbuf[i].data);
 	}
+
+	if (viewer->server)
+		viewer->server->numviewers--;
 
 	free(viewer);
 

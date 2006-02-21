@@ -328,7 +328,7 @@ void IN_Impulse (void)
 	in_impulsespending[pnum]++;
 }
 
-void IN_Restart()
+void IN_Restart (void)
 {
 	IN_Shutdown();
 	IN_Init();

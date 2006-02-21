@@ -1078,7 +1078,12 @@ void QTV_Say(cluster_t *cluster, sv_t *qtv, viewer_t *v, char *message)
 		}
 		else if (!strcmp(v->expectcommand, "addserver"))
 		{
+#ifdef _WIN32
 			_snprintf(buf, sizeof(buf), "tcp:%s", message);
+			buf[suzeof(buf)-1] = '\0';
+#else
+			snprintf(buf, sizeof(buf), "tcp:%s", message);
+#endif
 			qtv = QTV_NewServerConnection(cluster, buf, false);
 			if (qtv)
 			{
@@ -1105,7 +1110,12 @@ void QTV_Say(cluster_t *cluster, sv_t *qtv, viewer_t *v, char *message)
 		}
 		else if (!strcmp(v->expectcommand, "adddemo"))
 		{
+#ifdef _WIN32
 			_snprintf(buf, sizeof(buf), "file:%s", message);
+			buf[sizeof(buf)-1] = '\0';
+#else
+			snprintf(buf, sizeof(buf), "file:%s", message);
+#endif
 			qtv = QTV_NewServerConnection(cluster, buf, false);
 			if (!qtv)
 				QW_PrintfToViewer(v, "Failed to play demo \"%s\"\n", message);

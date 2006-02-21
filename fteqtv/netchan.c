@@ -38,11 +38,13 @@ void NET_SendPacket(cluster_t *cluster, SOCKET sock, int length, char *data, net
 int Netchan_IsLocal (netadr_t adr)
 {
 	struct sockaddr_in *sadr = (struct sockaddr_in *)adr;
+	unsigned char *bytes;
+	bytes = (char *)&sadr->sin_addr;
 
-	if (sadr->sin_addr.S_un.S_un_b.s_b1 == 127 &&
-		sadr->sin_addr.S_un.S_un_b.s_b2 == 0 &&
-		sadr->sin_addr.S_un.S_un_b.s_b3 == 0 &&
-		sadr->sin_addr.S_un.S_un_b.s_b4 == 1)
+	if (bytes[0] == 127 &&
+		bytes[1] == 0 &&
+		bytes[2] == 0 &&
+		bytes[3] == 1)
 		return true;
 	return false;
 }

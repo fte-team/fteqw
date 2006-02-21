@@ -27,6 +27,8 @@
 	$Id$
 */
 
+#include "qtv.h"
+
 #include <string.h>		/* XoXus: needed for memset call */
 
 

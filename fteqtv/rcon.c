@@ -173,7 +173,6 @@ void Info_SetValueForStarKey (char *s, const char *key, const char *value, int m
 		return;
 
 	snprintf (newv, sizeof(newv)-1, "\\%s\\%s", key, value);
-	newv[sizeof(newv)-1] = '\0';
 
 	if ((int)(strlen(newv) + strlen(s) + 1) > maxsize)
 	{
@@ -339,7 +338,7 @@ char *Cluster_Rcon_Dispatch(cluster_t *cluster, char *arg[MAX_ARGS], char *buffe
 		strncpy(cluster->password, arg[1], sizeof(cluster->password)-1);
 		return "Password changed.\n";
 	}
-	else if (!strcmp(arg[0], "connect") || !strcmp(arg[0], "addserver"))
+	else if (!strcmp(arg[0], "qtv") || !strcmp(arg[0], "connect") || !strcmp(arg[0], "addserver"))
 	{
 		if (!*arg[1])
 			return "connect requires an ip:port parameter\n";

@@ -26,9 +26,17 @@ int snprintf(char *buffer, int buffersize, char *format, ...)
 	va_list		argptr;
 	int ret;
 	va_start (argptr, format);
-	ret = _vsnprintf (buf, buffersize, format, argptr);
-	buf[buffersize - 1] = '\0';
+	ret = _vsnprintf (buffer, buffersize, format, argptr);
+	buffer[buffersize - 1] = '\0';
 	va_end (argptr);
+
+	return ret;
+}
+int vsnprintf(char *buffer, int buffersize, char *format, va_list		argptr)
+{
+	int ret;
+	ret = _vsnprintf (buffer, buffersize, format, argptr);
+	buffer[buffersize - 1] = '\0';
 
 	return ret;
 }
@@ -430,7 +438,7 @@ void QW_SetViewersServer(viewer_t *viewer, sv_t *sv)
 	viewer->server = sv;
 	if (viewer->server)
 		viewer->server->numviewers++;
-	QW_StuffcmdToViewer(viewer, "cmd new\n");
+	QW_StuffcmdToViewer(viewer, "reconnect\n");
 	viewer->servercount++;
 	viewer->origin[0] = 0;
 	viewer->origin[1] = 0;
@@ -865,7 +873,7 @@ void SendPlayerStates(sv_t *tv, viewer_t *v, netmsg_t *msg)
 
 		BSP_SetupForPosition(tv->bsp, v->origin[0], v->origin[1], v->origin[2]);
 
-		lerp = ((tv->curtime - tv->oldpackettime)/1000.0f) / ((tv->nextpackettime - tv->oldpackettime)/1000.0f);
+		lerp = ((tv->simtime - tv->oldpackettime)/1000.0f) / ((tv->nextpackettime - tv->oldpackettime)/1000.0f);
 		if (lerp < 0)
 			lerp = 0;
 		if (lerp > 1)
@@ -1183,9 +1191,21 @@ void QTV_Say(cluster_t *cluster, sv_t *qtv, viewer_t *v, char *message)
 		*v->expectcommand = '\0';
 		return;
 	}
-	if (!strncmp(message, ".qw ", 4))
+	if (!strncmp(message, ".help", 5))
 	{
-		message += 4;
+		QW_PrintfToViewer(v,	"Website: http://www.fteqw.com/\n"
+								"Commands:\n"
+								".qw qwserver:port\n"
+								".qtv tcpserver:port\n"
+								".demo gamedir/demoname.mvd\n"
+								".disconnect\n");
+	}
+	else if (!strncmp(message, ".connect ", 9) || !strncmp(message, ".qw ", 4))
+	{
+		if (!strncmp(message, ".qw ", 4))
+			message += 4;
+		else
+			message += 9;
 		snprintf(buf, sizeof(buf), "udp:%s", message);
 		qtv = QTV_NewServerConnection(cluster, buf, false, false);
 		if (qtv)
@@ -1196,9 +1216,9 @@ void QTV_Say(cluster_t *cluster, sv_t *qtv, viewer_t *v, char *message)
 		else
 			QW_PrintfToViewer(v, "Failed to connect to server \"%s\", connection aborted\n", message);
 	}
-	else if (!strncmp(message, ".connect ", 9))
+	else if (!strncmp(message, ".qtv ", 5))
 	{
-		message += 9;
+		message += 5;
 		snprintf(buf, sizeof(buf), "tcp:%s", message);
 		qtv = QTV_NewServerConnection(cluster, buf, false, true);
 		if (qtv)
@@ -1226,6 +1246,10 @@ void QTV_Say(cluster_t *cluster, sv_t *qtv, viewer_t *v, char *message)
 	{
 		QW_SetViewersServer(v, NULL);
 		QW_PrintfToViewer(v, "Connected\n", message);
+	}
+	else if (!strncmp(message, ".admin", 11))
+	{
+		QW_StuffcmdToViewer(v, "cmd admin\n");
 	}
 	else
 	{
@@ -1261,16 +1285,9 @@ void QW_PrintfToViewer(viewer_t *v, char *format, ...)
 {
 	va_list		argptr;
 	char buf[1024];
-	netmsg_t msg;
-	InitNetMsg(&msg, buf, sizeof(buf));
 
 	va_start (argptr, format);
-#ifdef _WIN32
-	_vsnprintf (buf+2, sizeof(buf) - 3, format, argptr);
-	buf[sizeof(buf) - 3] = '\0';
-#else
 	vsnprintf (buf+2, sizeof(buf)-2, format, argptr);
-#endif // _WIN32
 	va_end (argptr);
 
 	buf[0] = svc_print;
@@ -1284,20 +1301,13 @@ void QW_StuffcmdToViewer(viewer_t *v, char *format, ...)
 {
 	va_list		argptr;
 	char buf[1024];
-	netmsg_t msg;
-	InitNetMsg(&msg, buf, sizeof(buf));
 
 	va_start (argptr, format);
-#ifdef _WIN32
-	_vsnprintf (buf+1, sizeof(buf) - 2, format, argptr);
-	buf[sizeof(buf) - 2] = '\0';
-#else
 	vsnprintf (buf+1, sizeof(buf)-1, format, argptr);
-#endif // _WIN32
 	va_end (argptr);
 
 	buf[0] = svc_stufftext;
-
+printf("\"%s\"", buf);
 	SendBufferToViewer(v, buf, strlen(buf)+1, true);
 }
 
@@ -1428,7 +1438,14 @@ void ParseQWC(cluster_t *cluster, sv_t *qtv, viewer_t *v, netmsg_t *m)
 				if (atoi(buf+6) != v->servercount)
 					SendServerData(qtv, v);	//this is unfortunate!
 				else
+				{
 					v->thinksitsconnected = true;
+					if (v->server && v->server->ispaused)
+					{
+						char msgb[] = {svc_setpause, 1};
+						SendBufferToViewer(v, msgb, sizeof(msgb), true);
+					}
+				}
 			}
 			else if (!strncmp(buf, "download", 8))
 			{

@@ -48,9 +48,6 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 		#pragma warning(disable: 4018)	//signed/unsigned mismatch
 	#endif
 
-	#define snprintf _snprintf
-	#define vsnprintf _vsnprintf
-
 #elif defined(__CYGWIN__)
 
 	#include <sys/time.h>
@@ -359,7 +356,9 @@ struct sv_s {
 	unsigned int nextsendpings;
 	unsigned int trackplayer;
 	int thisplayer;
-	unsigned timeout;
+	unsigned int timeout;
+	qboolean ispaused;
+	unsigned int packetratelimiter;
 
 	FILE *file;
 	unsigned int filelength;
@@ -374,6 +373,7 @@ struct sv_s {
 	qboolean parsingconnectiondata;	//so reject any new connects for now
 
 	unsigned int physicstime;	//the last time all the ents moved.
+	unsigned int simtime;
 	unsigned int curtime;
 	unsigned int oldpackettime;
 	unsigned int nextpackettime;
@@ -485,7 +485,7 @@ void ReadString(netmsg_t *b, char *string, int maxlen);
 #define	svc_spawnbaseline	22
 
 #define	svc_temp_entity		23	// variable
-//#define	svc_setpause		24	// [qbyte] on / off
+#define	svc_setpause		24	// [qbyte] on / off
 //#define	svc_signonnum		25	// [qbyte]  used for the signon sequence
 
 #define	svc_centerprint		26	// [string] to put in center of the screen
@@ -518,7 +518,7 @@ void ReadString(netmsg_t *b, char *string, int maxlen);
 
 #define	svc_download		41		// [short] size [size bytes]
 #define	svc_playerinfo		42		// variable
-//#define	svc_nails			43		// [qbyte] num [48 bits] xyzpy 12 12 12 4 8
+#define	svc_nails			43		// [qbyte] num [48 bits] xyzpy 12 12 12 4 8
 #define	svc_chokecount		44		// [qbyte] packets choked
 #define	svc_modellist		45		// [strings]
 #define	svc_soundlist		46		// [strings]
@@ -635,6 +635,7 @@ int Prespawn(sv_t *qtv, int curmsgsize, netmsg_t *msg, int bufnum);
 bsp_t *BSP_LoadModel(cluster_t *cluster, char *gamedir, char *bspname);
 void BSP_Free(bsp_t *bsp);
 int BSP_LeafNum(bsp_t *bsp, float x, float y, float z);
+unsigned int BSP_Checksum(bsp_t *bsp);
 int BSP_SphereLeafNums(bsp_t *bsp, int maxleafs, unsigned short *list, float x, float y, float z, float radius);
 qboolean BSP_Visible(bsp_t *bsp, int leafcount, unsigned short *list);
 void BSP_SetupForPosition(bsp_t *bsp, float x, float y, float z);
@@ -645,8 +646,13 @@ char *Info_ValueForKey (char *s, const char *key, char *buffer, int buffersize);
 void Info_SetValueForStarKey (char *s, const char *key, const char *value, int maxsize);
 
 void Sys_Printf(cluster_t *cluster, char *fmt, ...);
+#ifdef _WIN32
+int snprintf(char *buffer, int buffersize, char *format, ...);
+int vsnprintf(char *buffer, int buffersize, char *format, va_list argptr);
+#endif
 
 qboolean Net_FileProxy(sv_t *qtv, char *filename);
 sv_t *QTV_NewServerConnection(cluster_t *cluster, char *server, qboolean force, qboolean autoclose);
 SOCKET Net_MVDListen(int port);
 qboolean Net_StopFileProxy(sv_t *qtv);
+

@@ -347,6 +347,12 @@ static void ParseStufftext(sv_t *tv, netmsg_t *m, int to, unsigned int mask)
 			SendClientCommand(tv, "%s", text+4);
 		return;	//commands the game server asked for are pointless.
 	}
+	else if (!strncmp(text, "reconnect", 9))
+	{
+		if (tv->usequkeworldprotocols)
+			SendClientCommand(tv, "new\n");
+		return;
+	}
 
 	Multicast(tv, m->data+m->startpos, m->readpos - m->startpos, to, mask);
 }
@@ -1036,7 +1042,7 @@ void ParseLightstyle(sv_t *tv, netmsg_t *m)
 	Multicast(tv, m->data+m->startpos, m->readpos - m->startpos, dem_read, (unsigned)-1);
 }
 
-void ParseNails2(sv_t *tv, netmsg_t *m)
+void ParseNails(sv_t *tv, netmsg_t *m, qboolean nails2)
 {
 	int count;
 	int nailnum;
@@ -1045,7 +1051,10 @@ void ParseNails2(sv_t *tv, netmsg_t *m)
 	count = (unsigned char)ReadByte(m);
 	while(count-- > 0)
 	{
-		nailnum = ReadByte(m);
+		if (nails2)
+			nailnum = ReadByte(m);
+		else
+			nailnum = count;
 		for (i = 0; i < 6; i++)
 			bits[i] = ReadByte(m);
 	}
@@ -1148,7 +1157,11 @@ void ParseMessage(sv_t *tv, char *buffer, int length, int to, int mask)
 			ParseTempEntity(tv, &buf, to, mask);
 			break;
 
-//#define	svc_setpause		24	// [qbyte] on / off
+		case svc_setpause:	// [qbyte] on / off
+			tv->ispaused = ReadByte(&buf);
+			Multicast(tv, buf.data+buf.startpos, buf.readpos - buf.startpos, dem_read, (unsigned)-1);
+			break;
+
 //#define	svc_signonnum		25	// [qbyte]  used for the signon sequence
 
 		case svc_centerprint:
@@ -1206,7 +1219,9 @@ void ParseMessage(sv_t *tv, char *buffer, int length, int to, int mask)
 			ParsePlayerInfo(tv, &buf, clearoldplayers);
 			clearoldplayers = false;
 			break;
-//#define	svc_nails			43		// [qbyte] num [48 bits] xyzpy 12 12 12 4 8
+		case svc_nails:
+			ParseNails(tv, &buf, false);
+			break;
 		case svc_chokecount:
 			ReadByte(&buf);
 			break;
@@ -1271,7 +1286,7 @@ break;
 			ParsePacketloss(tv, &buf, to, mask);
 			break;
 		case svc_nails2:
-			ParseNails2(tv, &buf);
+			ParseNails(tv, &buf, true);
 			break;
 		default:
 			buf.readpos = buf.startpos;

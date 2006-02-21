@@ -24,6 +24,7 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 #define UDPRECONNECT_TIME (1000)
 #define PINGSINTERVAL_TIME (1000*5)
 #define UDPTIMEOUT_LENGTH (1000*20)
+#define UDPPACKETINTERVAL (1000/72)
 
 
 qboolean	NET_StringToAddr (char *s, netadr_t *sadr)
@@ -1309,7 +1310,7 @@ void QTV_ParseQWStream(sv_t *qtv)
 			if (buffer[4] == 'c')
 			{	//got a challenge
 				qtv->challenge = atoi(buffer+5);
-				sprintf(buffer, "connect %i %i %i \"%s\"", 28, qtv->qport, qtv->challenge, "\\*ver\\fteqtv\\name\\fteqtv\\spectator\\1");
+				sprintf(buffer, "connect %i %i %i \"%s\"", 28, qtv->qport, qtv->challenge, "\\*ver\\fteqtv\\name\\fteqtv\\spectator\\1\\rate\\10000");
 				Netchan_OutOfBand(qtv->cluster, qtv->sourcesock, qtv->serveraddress, strlen(buffer), buffer);
 				continue;
 			}
@@ -1341,6 +1342,13 @@ void QTV_ParseQWStream(sv_t *qtv)
 		if (!Netchan_Process(&qtv->netchan, &msg))
 			continue;
 		ParseMessage(qtv, msg.data + msg.readpos, msg.cursize - msg.readpos, dem_all, -1);
+
+		qtv->oldpackettime = qtv->nextpackettime;
+		qtv->nextpackettime = qtv->parsetime;
+		qtv->parsetime = qtv->curtime;
+
+		if (qtv->simtime < qtv->oldpackettime)
+			qtv->simtime = qtv->oldpackettime;	//too old
 	}
 }
 
@@ -1386,6 +1394,11 @@ void QTV_Run(sv_t *qtv)
 
 	if (qtv->usequkeworldprotocols)
 	{
+		qtv->simtime += qtv->curtime - oldcurtime;
+
+		if (qtv->simtime > qtv->nextpackettime)
+			qtv->simtime = qtv->nextpackettime;	//too old
+
 		if (!qtv->isconnected && (qtv->curtime >= qtv->nextconnectattempt || qtv->curtime < qtv->nextconnectattempt - UDPRECONNECT_TIME*2))
 		{
 			Netchan_OutOfBand(qtv->cluster, qtv->sourcesock, qtv->serveraddress, 12, "getchallenge");
@@ -1408,17 +1421,24 @@ void QTV_Run(sv_t *qtv)
 				return;
 			}
 
-			if (qtv->curtime >= qtv->nextsendpings || qtv->curtime < qtv->nextsendpings - PINGSINTERVAL_TIME*2)
+			if (qtv->curtime < qtv->packetratelimiter - UDPPACKETINTERVAL*2)
+				qtv->packetratelimiter = qtv->curtime;
+			if (qtv->curtime >= qtv->packetratelimiter)
 			{
-				qtv->nextsendpings = qtv->curtime + PINGSINTERVAL_TIME;
-				SendClientCommand(qtv, "pings\n");
-			}
-			WriteByte(&msg, clc_tmove);
-			WriteShort(&msg, qtv->players[qtv->trackplayer].current.origin[0]);
-			WriteShort(&msg, qtv->players[qtv->trackplayer].current.origin[1]);
-			WriteShort(&msg, qtv->players[qtv->trackplayer].current.origin[2]);
+				qtv->packetratelimiter += UDPPACKETINTERVAL;
 
-			Netchan_Transmit(qtv->cluster, &qtv->netchan, msg.cursize, msg.data);
+				if (qtv->curtime >= qtv->nextsendpings || qtv->curtime < qtv->nextsendpings - PINGSINTERVAL_TIME*2)
+				{
+					qtv->nextsendpings = qtv->curtime + PINGSINTERVAL_TIME;
+					SendClientCommand(qtv, "pings\n");
+				}
+				WriteByte(&msg, clc_tmove);
+				WriteShort(&msg, qtv->players[qtv->trackplayer].current.origin[0]);
+				WriteShort(&msg, qtv->players[qtv->trackplayer].current.origin[1]);
+				WriteShort(&msg, qtv->players[qtv->trackplayer].current.origin[2]);
+
+				Netchan_Transmit(qtv->cluster, &qtv->netchan, msg.cursize, msg.data);
+			}
 		}
 		return;
 	}
@@ -1782,7 +1802,16 @@ int main(int argc, char **argv)
 				Sys_Printf(&cluster, "opened port %i\n", cluster.qwlistenportnum);
 		}
 
-		Sys_Printf(&cluster, "\nWelcome to FTEQTV\nPlease type \nconnect server:ip\nto connect to a server.\n\n");
+		Sys_Printf(&cluster, "\n"
+			"Welcome to FTEQTV\n"
+			"Please type\n"
+			"qtv server:port\n"
+			" to connect to a tcp server.\n"
+			"qw server:port\n"
+			" to connect to a regular qw server.\n"
+			"demo qw/example.mvd\n"
+			" to play a demo from an mvd.\n"
+			"\n");
 	}
 
 	while (!cluster.wanttoexit)

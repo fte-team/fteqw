@@ -709,11 +709,13 @@ typedef struct entity_state_s
 	qbyte	abslight;
 	qbyte	dpflags;
 
-	qbyte	solid;
+	qbyte	pad;
 	qbyte	colormod[3];
 
 	qbyte lightstyle;
 	qbyte lightpflags;
+	unsigned short solid;
+
 	unsigned short light[4];
 
 	unsigned short tagentity;

@@ -1167,7 +1167,10 @@ void MSG_ReadDir (vec3_t dir)
 
 	b = MSG_ReadByte ();
 	if (b >= Q2NUMVERTEXNORMALS)
+	{
+		CL_DumpPacket();
 		Host_EndGame ("MSG_ReadDir: out of range");
+	}
 	VectorCopy (bytedirs[b], dir);
 }
 #endif

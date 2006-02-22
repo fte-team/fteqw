@@ -1673,7 +1673,7 @@ void SV_Pin_Delete_f(void)
 }
 void SV_Pin_Add_f(void)
 {
-	PIN_MakeMessage(Cmd_Argv(0), Cmd_Argv(1));
+	PIN_MakeMessage(Cmd_Argv(1), Cmd_Argv(2));
 }
 
 

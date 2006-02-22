@@ -1428,6 +1428,8 @@ void CL_ParseServerData (void)
 
 	// game directory
 	str = MSG_ReadString ();
+	if (!*str)
+		str = "qw";
 
 #ifndef CLIENTONLY
 	if (!sv.state)
@@ -2751,6 +2753,16 @@ void CL_UpdateUserinfo (void)
 	Q_strncpyz (player->userinfo, MSG_ReadString(), sizeof(player->userinfo));
 
 	CL_ProcessUserInfo (slot, player);
+
+
+
+	if (slot == cl.playernum[0] && player->name[0])
+	{
+		char *qz;
+		qz = Info_ValueForKey(player->userinfo, "Qizmo");
+		if (*qz)
+			TP_ExecTrigger("f_qizmoconnect");
+	}
 }
 
 /*

@@ -231,6 +231,7 @@ bsp_t *BSP_LoadModel(cluster_t *cluster, char *gamedir, char *bspname)
 	if (data[0] != 29)
 	{
 		Sys_Printf(cluster, "BSP not version 29\n", bspname, gamedir);
+		free(data);
 		return NULL;
 	}
 

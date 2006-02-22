@@ -2957,6 +2957,8 @@ void CL_LinkViewModel(void)
 
 	ent.flags = Q2RF_WEAPONMODEL|Q2RF_DEPTHHACK;
 
+	ent.shaderRGBA[3] = ent.alpha*255;
+
 	V_AddEntity(&ent);
 
 	if (!v_powerupshell.value)
@@ -3001,7 +3003,6 @@ void CL_LinkViewModel(void)
 		ent.shaderRGBA[0] = (!!(ent.flags & Q2RF_SHELL_RED)) * 255;
 		ent.shaderRGBA[1] = (!!(ent.flags & Q2RF_SHELL_GREEN)) * 255;
 		ent.shaderRGBA[2] = (!!(ent.flags & Q2RF_SHELL_BLUE)) * 255;
-		ent.shaderRGBA[3] = ent.alpha*255;
 		ent.forcedshader = R_RegisterCustom("q2/shell", Shader_DefaultSkinShell);
 	}
 #endif

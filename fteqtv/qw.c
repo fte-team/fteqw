@@ -20,6 +20,8 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 
 #include "qtv.h"
 
+void Menu_Enter(cluster_t *cluster, viewer_t *viewer, int buttonnum);
+
 #ifdef _WIN32
 int snprintf(char *buffer, int buffersize, char *format, ...)
 {
@@ -1253,6 +1255,41 @@ void QTV_Say(cluster_t *cluster, sv_t *qtv, viewer_t *v, char *message)
 	{
 		QW_StuffcmdToViewer(v, "cmd admin\n");
 	}
+	else if (!strncmp(message, "proxy:menu up", 13))
+	{
+		v->menuop -= 1;
+	}
+	else if (!strncmp(message, "proxy:menu down", 15))
+	{
+		v->menuop += 1;
+	}
+	else if (!strncmp(message, "proxy:menu right", 16))
+	{
+		Menu_Enter(cluster, v, 1);
+	}
+	else if (!strncmp(message, "proxy:menu left", 15))
+	{
+		Menu_Enter(cluster, v, -1);
+	}
+	else if (!strncmp(message, "proxy:menu select", 17))
+	{
+		Menu_Enter(cluster, v, 0);
+	}
+	else if (!strncmp(message, "proxy:menu home", 15))
+	{
+		v->menuop -= 100000;
+	}
+	else if (!strncmp(message, "proxy:menu end", 14))
+	{
+		v->menuop += 100000;
+	}
+	else if (!strncmp(message, "proxy:menu back", 15))
+	{
+	}
+	else if (!strncmp(message, "proxy:menu", 10))
+	{
+		Menu_Enter(cluster, v, 0);
+	}
 	else
 	{
 		*v->expectcommand = '\0';
@@ -1321,8 +1358,6 @@ printf("\"%s\"", buf);
 
 static const filename_t ConnectionlessModelList[] = {{""}, {"maps/start.bsp"}, {"progs/player.mdl"}, {""}};
 static const filename_t ConnectionlessSoundList[] = {{""}, {""}};
-
-void Menu_Enter(cluster_t *cluster, viewer_t *viewer, int buttonnum);
 
 
 void ParseQWC(cluster_t *cluster, sv_t *qtv, viewer_t *v, netmsg_t *m)

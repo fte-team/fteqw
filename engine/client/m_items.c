@@ -738,7 +738,7 @@ void MC_Slider_Key(menuslider_t *option, int key)
 {
 	float range = (option->current - option->min)/(option->max-option->min);
 
-	if (key == K_LEFTARROW)
+	if (key == K_LEFTARROW || key == K_MWHEELDOWN)
 	{
 		range -= 0.1;
 		if (range < 0)
@@ -747,7 +747,7 @@ void MC_Slider_Key(menuslider_t *option, int key)
 		if (option->var)
 			Cvar_SetValue(option->var, range);
 	}
-	else if (key == K_RIGHTARROW)
+	else if (key == K_RIGHTARROW || key == K_MWHEELUP)
 	{
 		range += 0.1;
 		if (range > 1)

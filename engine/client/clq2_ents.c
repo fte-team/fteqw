@@ -1893,7 +1893,10 @@ void CLQ2_AddViewWeapon (q2player_state_t *ps, q2player_state_t *ops)
 	gun.scale = 1;
 	gun.alpha = 1;
 	if (r_drawviewmodel.value < 1 || r_drawviewmodel.value > 0)
+	{
 		gun.alpha = r_drawviewmodel.value;
+		gun.shaderRGBA[3] = gun.alpha*255;
+	}
 
 	// set up gun position
 	for (i=0 ; i<3 ; i++)

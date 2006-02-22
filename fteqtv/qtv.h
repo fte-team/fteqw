@@ -64,10 +64,11 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 	#define ioctlsocket ioctl
 	#define closesocket close
 
-#elif defined(linux)
+#elif defined(linux) || defined(ixemul)
 	#include <sys/time.h>
 	#include <sys/types.h>
 	#include <sys/socket.h>
+	#include <netinet/in.h>
 	#include <arpa/inet.h>
 	#include <netdb.h>
 	#include <stdarg.h>

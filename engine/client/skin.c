@@ -169,7 +169,10 @@ void Skin_Find (player_info_t *sc)
 		if (!strcmp (name, skins[i].name))
 		{
 			sc->skin = &skins[i];
-			Skin_Cache8 (sc->skin);
+			if (cls.protocol == CP_QUAKE2)
+				Skin_Cache32 (sc->skin);
+			else
+				Skin_Cache8 (sc->skin);
 			return;
 		}
 	}
@@ -386,6 +389,7 @@ qbyte	*Skin_Cache32 (skin_t *skin)
 	char	name[1024];
 	qbyte	*raw;
 	qbyte	*out, *pix;
+	char *path;
 
 	if (noskins.value==1) // JACK: So NOSKINS > 1 will show skins, but
 		return NULL;	  // not download new ones.
@@ -397,10 +401,15 @@ qbyte	*Skin_Cache32 (skin_t *skin)
 	if (out)
 		return out;
 
+	if (cls.protocol == CP_QUAKE2)
+		path = "players/";
+	else
+		path = "skins/";
+
 //
 // load the pic from disk
 //
-	sprintf (name, "skins/%s.tga", skin->name);
+	sprintf (name, "%s%s.tga", path, skin->name);
 	raw = COM_LoadTempFile (name);
 	if (raw)
 	{
@@ -410,10 +419,11 @@ qbyte	*Skin_Cache32 (skin_t *skin)
 			out = Cache_Alloc(&skin->cache, skin->width*skin->height*4, name);
 			memcpy(out, pix, skin->width*skin->height*4);
 			BZ_Free(pix);
+			return out;
 		}
 	}
 #ifdef AVAIL_PNGLIB
-	sprintf (name, "skins/%s.png", skin->name);
+	sprintf (name, "%s%s.png", path, skin->name);
 	raw = COM_LoadTempFile (name);
 	if (raw)
 	{
@@ -423,11 +433,12 @@ qbyte	*Skin_Cache32 (skin_t *skin)
 			out = Cache_Alloc(&skin->cache, skin->width*skin->height*4, name);
 			memcpy(out, pix, skin->width*skin->height*4);
 			BZ_Free(pix);
+			return out;
 		}
 	}
 #endif
 #ifdef AVAIL_JPEGLIB
-	sprintf (name, "skins/%s.jpeg", skin->name);
+	sprintf (name, "%s%s.jpeg", path, skin->name);
 	raw = COM_LoadTempFile (name);
 	if (raw)
 	{
@@ -437,9 +448,10 @@ qbyte	*Skin_Cache32 (skin_t *skin)
 			out = Cache_Alloc(&skin->cache, skin->width*skin->height*4, name);
 			memcpy(out, pix, skin->width*skin->height*4);
 			BZ_Free(pix);
+			return out;
 		}
 	}
-	sprintf (name, "skins/%s.jpg", skin->name);	//jpegs are gready with 2 extensions...
+	sprintf (name, "%s%s.jpg", path, skin->name);	//jpegs are gready with 2 extensions...
 	raw = COM_LoadTempFile (name);
 	if (raw)
 	{
@@ -449,6 +461,7 @@ qbyte	*Skin_Cache32 (skin_t *skin)
 			out = Cache_Alloc(&skin->cache, skin->width*skin->height*4, name);
 			memcpy(out, pix, skin->width*skin->height*4);
 			BZ_Free(pix);
+			return out;
 		}
 	}
 #endif
@@ -490,7 +503,10 @@ void Skin_NextDownload (void)
 		sc = &cl.players[i];
 		if (!sc->name[0])
 			continue;
-		Skin_Cache8 (sc->skin);
+		if (cls.protocol == CP_QUAKE2)
+			Skin_Cache32(sc->skin);
+		else
+			Skin_Cache8 (sc->skin);
 #ifdef RGLQUAKE
 		sc->skin = NULL;
 #endif

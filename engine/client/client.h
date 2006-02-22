@@ -23,7 +23,7 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 
 typedef struct
 {
-	char		name[16];
+	char		name[64];
 	int			width;
 	int			height;
 	int cachedbpp;

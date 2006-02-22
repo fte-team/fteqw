@@ -2256,8 +2256,8 @@ void GL_Set2D (void)
 	{
 		gl_font.modified = 0;
 		if (!*gl_font.string
-			|| !(char_texture=Mod_LoadHiResTexture(gl_font.string, "fonts", false, true, true))
-			|| !(char_texture=Mod_LoadHiResTexture(gl_font.string, "charsets", false, true, true)))
+			|| (!(char_texture=Mod_LoadHiResTexture(gl_font.string, "fonts", false, true, true))
+			&& !(char_texture=Mod_LoadHiResTexture(gl_font.string, "charsets", false, true, true))))
 		{
 			char_texture = default_char_texture;
 			custom_char_instep = default_char_instep;

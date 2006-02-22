@@ -798,7 +798,7 @@ void CLNQ_SendCmd(void)
 		CL_SendClientCommand(true, "name \"%s\"\n", name.string);
 	}
 
-	if (nq_dp_protocol > 0)
+	if (nq_dp_protocol > 0 && cls.signon == 4)
 	{
 		MSG_WriteByte(&cls.netchan.message, 50);
 		MSG_WriteLong(&cls.netchan.message, cl_latestframenum);
@@ -1187,6 +1187,12 @@ void CL_SendCmd (float frametime)
 		if (!cl.allowsendpacket)
 			return;
 		msecs -= msecstouse;
+
+		i = cls.netchan.outgoing_sequence & UPDATE_MASK;
+		cmd = &cl.frames[i].cmd[plnum];
+		*cmd = independantphysics[plnum];
+		cl.frames[i].senttime = realtime;
+		memset(&independantphysics[plnum], 0, sizeof(independantphysics[plnum]));
 
 		CLNQ_SendCmd ();
 		return;

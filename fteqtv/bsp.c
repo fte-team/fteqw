@@ -167,6 +167,9 @@ unsigned char *ReadFile_WINDOWSSUCKS(char *gamedir, char *filename, int *size)
 	FILE *f;
 	char fname[1024];
 
+	if (!*filename)
+		return NULL;
+
 	//try and read it straight out of the file system
 	sprintf(fname, "%s/%s", gamedir, filename);
 	f = fopen(fname, "rb");
@@ -212,7 +215,7 @@ bsp_t *BSP_LoadModel(cluster_t *cluster, char *gamedir, char *bspname)
 
 	bsp_t *bsp;
 
-	if (!gamedir)
+	if (!gamedir || !*gamedir)
 		gamedir = "qw";
 
 	data = ReadFile_WINDOWSSUCKS(gamedir, bspname, &size);

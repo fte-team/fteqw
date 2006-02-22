@@ -518,6 +518,8 @@ void NewQWClient(cluster_t *cluster, netadr_t *addr, char *connectmessage)
 	QW_PrintfToViewer(viewer, "Welcome to FTEQTV\n");
 	QW_StuffcmdToViewer(viewer, "alias admin \"cmd admin\"\n");
 	QW_PrintfToViewer(viewer, "Type admin for the admin menu\n");
+
+
 }
 
 void QTV_Rcon(cluster_t *cluster, char *message, netadr_t *from)
@@ -1253,21 +1255,27 @@ void QTV_Say(cluster_t *cluster, sv_t *qtv, viewer_t *v, char *message)
 	}
 	else
 	{
+		*v->expectcommand = '\0';
+
 		if (cluster->notalking)
 			return;
 
-		*v->expectcommand = '\0';
+		if (qtv && qtv->usequkeworldprotocols)
+			SendClientCommand(qtv, "say %s: %s\n", v->name, message);
+		else
+		{
 
-		InitNetMsg(&msg, buf, sizeof(buf));
+			InitNetMsg(&msg, buf, sizeof(buf));
 
-		WriteByte(&msg, svc_print);
-		WriteByte(&msg, 3);	//PRINT_CHAT
-		WriteString2(&msg, v->name);
-		WriteString2(&msg, "\x8d ");
-		WriteString2(&msg, message);
-		WriteString(&msg, "\n");
+			WriteByte(&msg, svc_print);
+			WriteByte(&msg, 3);	//PRINT_CHAT
+			WriteString2(&msg, v->name);
+			WriteString2(&msg, "\x8d ");
+			WriteString2(&msg, message);
+			WriteString(&msg, "\n");
 
-		Broadcast(cluster, msg.data, msg.cursize);
+			Broadcast(cluster, msg.data, msg.cursize);
+		}
 	}
 }
 
@@ -1461,7 +1469,7 @@ void ParseQWC(cluster_t *cluster, sv_t *qtv, viewer_t *v, netmsg_t *m)
 			else if (!strncmp(buf, "ison", 4))
 			{
 				viewer_t *other;
-				if ((other = QW_IsOn(qtv->cluster, buf+5)))
+				if ((other = QW_IsOn(cluster, buf+5)))
 				{
 					if (!other->server)
 						QW_PrintfToViewer(v, "%s is on the proxy, but not yet watching a game\n");

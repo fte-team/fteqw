@@ -315,7 +315,7 @@ iwboolean FTP_ClientConnThink (FTPclientconn_t *con)	//true to kill con
 		line++;
 
 		if (*con->server)
-			IWebDPrintf("^2FTP: %s\n", COM_TrimString(msg));
+			IWebDPrintf("FTP: %s\n", COM_TrimString(msg));
 
 		if (*msg < '0' || *msg > '9')	//make sure it starts with number
 			continue;
@@ -618,7 +618,7 @@ usepasv:
 				continue;
 			}
 			if (ret != 221)
-				Con_Printf("^1FTP: %i %s\n", ret, msg);
+				Con_Printf(S_ERROR "FTP: %i %s\n", ret, msg);
 			return true;
 		}
 

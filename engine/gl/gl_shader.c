@@ -584,7 +584,7 @@ static void Shaderpass_Map ( shader_t *shader, shaderpass_t *pass, char **ptr )
 
 		if ( !pass->anim_frames[0] ) {
 			pass->anim_frames[0] = 0;//FIZME: r_notexture;
-			Con_DPrintf ( S_COLOR_YELLOW "Shader %s has a stage with no image: %s.\n", shader->name, token );
+			Con_DPrintf (S_WARNING "Shader %s has a stage with no image: %s.\n", shader->name, token );
 		}
     }
 }
@@ -613,7 +613,7 @@ static void Shaderpass_AnimMap ( shader_t *shader, shaderpass_t *pass, char **pt
 
 			if ( !image ) {
 				pass->anim_frames[pass->anim_numframes++] = 0;//fizme: r_notexture;
-				Con_DPrintf ( S_COLOR_YELLOW "Shader %s has an animmap with no image: %s.\n", shader->name, token );
+				Con_DPrintf (S_WARNING "Shader %s has an animmap with no image: %s.\n", shader->name, token );
 			} else {
 				pass->anim_frames[pass->anim_numframes++] = image;
 			}
@@ -637,7 +637,7 @@ static void Shaderpass_ClampMap ( shader_t *shader, shaderpass_t *pass, char **p
 
 	if ( !pass->anim_frames[0] ) {
 		pass->anim_frames[0] = 0;//fizme:r_notexture;
-		Con_DPrintf ( S_COLOR_YELLOW "Shader %s has a stage with no image: %s.\n", shader->name, token );
+		Con_DPrintf (S_WARNING "Shader %s has a stage with no image: %s.\n", shader->name, token );
     }
 }
 
@@ -1768,7 +1768,7 @@ void Shader_DefaultBSP(char *shortname, shader_t *s)
 	pass->flush = R_RenderMeshGeneric;
 
 	if ( !pass->anim_frames[0] ) {
-		Con_DPrintf ( S_COLOR_YELLOW "Shader %s has a stage with no image: %s.\n", s->name, shortname );
+		Con_DPrintf (S_WARNING "Shader %s has a stage with no image: %s.\n", s->name, shortname );
 		pass->anim_frames[0] = 0;//fizme:r_notexture;
 	}
 
@@ -1797,7 +1797,7 @@ void Shader_DefaultBSPVertex(char *shortname, shader_t *s)
 	pass->flush = R_RenderMeshGeneric;
 
 	if ( !pass->anim_frames[0] ) {
-		Con_DPrintf ( S_COLOR_YELLOW "Shader %s has a stage with no image: %s.\n", s->name, shortname );
+		Con_DPrintf (S_WARNING "Shader %s has a stage with no image: %s.\n", s->name, shortname );
 		pass->anim_frames[0] = 0;//fizme:r_notexture;
 	}
 
@@ -1828,7 +1828,7 @@ void Shader_DefaultBSPFlare(char *shortname, shader_t *s)
 	pass->flush = R_RenderMeshGeneric;
 
 	if ( !pass->anim_frames[0] ) {
-		Con_DPrintf ( S_COLOR_YELLOW "Shader %s has a stage with no image: %s.\n", s->name, shortname );
+		Con_DPrintf (S_WARNING "Shader %s has a stage with no image: %s.\n", s->name, shortname );
 		pass->anim_frames[0] = 0;//fizme:r_notexture;
 	}
 
@@ -1865,7 +1865,7 @@ void Shader_DefaultSkin(char *shortname, shader_t *s)
 		pass->flush = R_RenderMeshGeneric;
 		if (!pass->anim_frames[0])
 		{
-			Con_DPrintf ( S_COLOR_YELLOW "Shader %s has a stage with no image: %s.\n", s->name, shortname );
+			Con_DPrintf (S_WARNING "Shader %s has a stage with no image: %s.\n", s->name, shortname );
 			pass->anim_frames[0] = 0;//fizme:r_notexture;
 		}
 	}
@@ -1887,7 +1887,7 @@ void Shader_DefaultSkin(char *shortname, shader_t *s)
 		pass->flush = R_RenderMeshGeneric;
 		if (!pass->anim_frames[0])
 		{
-			Con_DPrintf ( S_COLOR_YELLOW "Shader %s has a stage with no image: %s.\n", s->name, shortname );
+			Con_DPrintf (S_WARNING "Shader %s has a stage with no image: %s.\n", s->name, shortname );
 			pass->anim_frames[0] = 0;//fizme:r_notexture;
 		}
 	}
@@ -1909,7 +1909,7 @@ void Shader_DefaultSkin(char *shortname, shader_t *s)
 		pass->flush = R_RenderMeshGeneric;
 		if (!pass->anim_frames[0])
 		{
-			Con_DPrintf ( S_COLOR_YELLOW "Shader %s has a stage with no image: %s.\n", s->name, shortname );
+			Con_DPrintf (S_WARNING "Shader %s has a stage with no image: %s.\n", s->name, shortname );
 			pass->anim_frames[0] = 0;//fizme:r_notexture;
 		}
 	}
@@ -1931,7 +1931,7 @@ void Shader_DefaultSkin(char *shortname, shader_t *s)
 		pass->flush = R_RenderMeshGeneric;
 		if (!pass->anim_frames[0])
 		{
-			Con_DPrintf (S_COLOR_YELLOW "Shader %s has a stage with no image: %s.\n", s->name, shortname);
+			Con_DPrintf (S_WARNING "Shader %s has a stage with no image: %s.\n", s->name, shortname);
 			pass->anim_frames[0] = 0;//fizme:r_notexture;
 		}
 	}
@@ -1962,7 +1962,7 @@ void Shader_DefaultSkinShell(char *shortname, shader_t *s)
 	pass->flush = R_RenderMeshGeneric;
 
 	if ( !pass->anim_frames[0] ) {
-		Con_DPrintf ( S_COLOR_YELLOW "Shader %s has a stage with no image: %s.\n", s->name, shortname );
+		Con_DPrintf (S_WARNING "Shader %s has a stage with no image: %s.\n", s->name, shortname );
 		pass->anim_frames[0] = 0;//fizme:r_notexture;
 	}
 
@@ -2002,7 +2002,7 @@ void Shader_Default2D(char *shortname, shader_t *s)
 	pass->flush = R_RenderMeshGeneric;
 
 	if ( !pass->anim_frames[0] ) {
-		Con_DPrintf ( S_COLOR_YELLOW "Shader %s has a stage with no image: %s.\n", s->name, shortname );
+		Con_DPrintf (S_WARNING "Shader %s has a stage with no image: %s.\n", s->name, shortname );
 		pass->anim_frames[0] = 0;//fizme:r_notexture;
 	}
 

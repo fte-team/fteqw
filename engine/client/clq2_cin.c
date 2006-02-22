@@ -501,7 +501,7 @@ qboolean CIN_PlayCinematic (char *arg)
 		CIN_FinishCinematic ();
 
 		cin.cinematictime = 0;	// done
-		Con_Printf("^1Cinematic %s not found.\n", name);
+		Con_Printf(S_WARNING "Cinematic %s not found.\n", name);
 		return true;
 	}
 

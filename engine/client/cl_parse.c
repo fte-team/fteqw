@@ -1141,7 +1141,7 @@ void CL_ParseDownload (void)
 
 	if (!*cls.downloadname)	//huh... that's not right...
 	{
-		Con_Printf("^1Warning^7: Server sending unknown file.\n");
+		Con_Printf(S_WARNING "Warning: Server sending unknown file.\n");
 		strcpy(cls.downloadname, "unknown.txt");
 		strcpy(cls.downloadtempname, "unknown.tmp");
 	}
@@ -4560,7 +4560,7 @@ void CLNQ_ParseServerMessage (void)
 				if (cl.playernum[0] >= MAX_CLIENTS)
 				{
 					cl.playernum[0] = 32;	//pretend it's an mvd (we have that spare slot)
-					Con_Printf("^1WARNING: Server put us in slot %i. We are not on the scoreboard.\n");
+					Con_Printf(S_WARNING "WARNING: Server put us in slot %i. We are not on the scoreboard.\n");
 				}
 			}
 			else

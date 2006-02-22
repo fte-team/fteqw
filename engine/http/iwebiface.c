@@ -351,7 +351,7 @@ void VARGS IWebWarnPrintf(char *fmt, ...)
 	_vsnprintf (msg,sizeof(msg)-10, fmt,argptr);	//catch any nasty bugs... (this is hopefully impossible)
 	va_end (argptr);
 
-	Con_Printf("^1%s", msg);
+	Con_Printf(S_WARNING "%s", msg);
 }
 
 void IWebInit(void)

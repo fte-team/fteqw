@@ -1057,7 +1057,8 @@ void screenshotJPEG(char *filename, qbyte *screendata, int screenwidth, int scre
 	{
 		FS_CreatePath (filename, FS_GAME);
 		if (!(outfile = FS_OpenVFS(filename, "wb", FS_GAMEONLY)))
-			Sys_Error ("Error opening %s", filename);
+			Con_Printf("Error opening %s\n", filename);
+		return;
 	}
 
 	cinfo.err = jpeg_std_error(&jerr.pub);

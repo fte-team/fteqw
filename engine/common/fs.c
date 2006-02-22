@@ -1570,7 +1570,7 @@ int COM_FOpenLocationFILE(flocation_t *loc, FILE **file)
 int COM_FOpenFile(char *filename, FILE **file)
 {
 	flocation_t loc;
-	Con_Printf("^1COM_FOpenFile is obsolete\n");
+	Con_Printf(S_ERROR "COM_FOpenFile is obsolete\n");
 	FS_FLocateFile(filename, FSLFRT_LENGTH, &loc);
 
 	com_filesize = -1;

@@ -1247,7 +1247,7 @@ void CMod_LoadTexInfo (lump_t *l)	//yes I know these load from the same place
 			{
 				out->texture = Hunk_Alloc(sizeof(texture_t) + 16*16+8*8+4*4+2*2);
 
-				Con_Printf ("^2Couldn't load %s\n", name);
+				Con_Printf (S_WARNING "Couldn't load %s\n", name);
 				memcpy(out->texture, r_notexture_mip, sizeof(texture_t) + 16*16+8*8+4*4+2*2);
 	//			out->texture = r_notexture_mip; // texture not found
 	//			out->flags = 0;

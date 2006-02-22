@@ -1622,7 +1622,7 @@ void CL_Packet_f (void)
 				adr.address.ip[2] = cls.netchan.remote_address.address.ip[2];
 				adr.address.ip[3] = cls.netchan.remote_address.address.ip[3];
 				adr.port = cls.netchan.remote_address.port;
-				Con_Printf ("^b^1Server is broken. Trying to send to server instead.\n");
+				Con_Printf (S_WARNING "Server is broken. Trying to send to server instead.\n");
 
 			}
 
@@ -2746,7 +2746,7 @@ void VARGS Host_EndGame (char *message, ...)
 	va_end (argptr);
 	Con_TPrintf (TL_NL);
 	Con_TPrintf (TL_LINEBREAK_EQUALS);
-	Con_TPrintf (TLC_CLIENTCON_ERROR_ENDGAME,string);
+	Con_TPrintf (TLC_CLIENTCON_ERROR_ENDGAME, S_ERROR, string);
 	Con_TPrintf (TL_LINEBREAK_EQUALS);
 	Con_TPrintf (TL_NL);
 
@@ -2781,7 +2781,7 @@ void VARGS Host_Error (char *error, ...)
 	va_start (argptr,error);
 	_vsnprintf (string,sizeof(string)-1, error,argptr);
 	va_end (argptr);
-	Con_TPrintf (TLC_HOSTFATALERROR,string);
+	Con_TPrintf (TLC_HOSTFATALERROR, string);
 
 	CL_Disconnect ();
 	cls.demonum = -1;

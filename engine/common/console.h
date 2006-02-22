@@ -79,6 +79,10 @@ extern conchar_t q3codemasks[MAXQ3COLOURS];
 #define S_COLOR_MAGENTA	"^6"
 #define S_COLOR_WHITE	"^7"
 
+#define S_WARNING "^&E0"
+#define S_ERROR   "^&C0"
+#define S_NOTICE  "^&-1"
+
 #define		CON_TEXTSIZE	16384
 
 #define isextendedcode(x) ((x >= '0' && x <= '9') || (x >= 'A' && x <= 'F') || x == '-')

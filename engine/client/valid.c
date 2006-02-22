@@ -364,9 +364,9 @@ void Validation_CheckIfResponse(char *text)
 		resp = Security_Verify_Response(f_query_client, crc);
 
 		if (resp && resp->size && *resp->buf)
-			Con_Printf("Authentication Successful.\n");
+			Con_Printf(S_NOTICE "Authentication Successful.\n");
 		else// if (!resp)
-			Con_Printf("^1^bAUTHENTICATION FAILED.\n");
+			Con_Printf(S_ERROR "AUTHENTICATION FAILED.\n");
 		/*
 		typedef signed_buffer_t *(*Security_Verify_Response_t) (int, unsigned char *);
 		// write request
@@ -382,10 +382,10 @@ void Validation_CheckIfResponse(char *text)
 
 		if (auth_answer == SECURE_ANSWER_YES && auth_crc == user_crc)
 		{
-			Con_Printf("Authentication Successful.\n");
+			Con_Printf(S_NOTICE "Authentication Successful.\n");
 		}
 		else
-			Con_Printf("^1^bAUTHENTICATION FAILED.\n");
+			Con_Printf(S_ERROR "AUTHENTICATION FAILED.\n");
 			*/
 	}
 }
@@ -1006,10 +1006,10 @@ void Validation_CheckIfResponse(char *text)
 
 		if (auth_answer == SECURE_ANSWER_YES && auth_crc == user_crc)
 		{
-			Con_Printf("Authentication Successful.\n");
+			Con_Printf(S_NOTICE "Authentication Successful.\n");
 		}
 		else
-			Con_Printf("^1^bAUTHENTICATION FAILED.\n");
+			Con_Printf(S_ERROR "AUTHENTICATION FAILED.\n");
 	}
 }
 

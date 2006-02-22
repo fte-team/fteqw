@@ -1032,9 +1032,11 @@ void CL_Disconnect (void)
 #ifdef NQPROT
 		case CP_NETQUAKE:
 			final[0] = clc_disconnect;
-			Netchan_Transmit (&cls.netchan, 1, final, 2500);
-			Netchan_Transmit (&cls.netchan, 1, final, 2500);
-			Netchan_Transmit (&cls.netchan, 1, final, 2500);
+			final[1] = clc_stringcmd;
+			strcpy (final+2, "drop");
+			Netchan_Transmit (&cls.netchan, strlen(final)+1, final, 250000);
+			Netchan_Transmit (&cls.netchan, strlen(final)+1, final, 250000);
+			Netchan_Transmit (&cls.netchan, strlen(final)+1, final, 250000);
 			break;
 #endif
 #ifdef Q2CLIENT
@@ -1996,6 +1998,7 @@ void CL_ConnectionlessPacket (void)
 		COM_Parse(s);
 		if (!strcmp(com_token, "ccept"))
 		{
+			Con_Printf ("accept\n");
 			Netchan_Setup(NS_CLIENT, &cls.netchan, net_from, cls.qport);
 			Con_DPrintf ("CL_EstablishConnection: connected to %s\n", cls.servername);
 
@@ -2635,6 +2638,7 @@ void CL_Init (void)
 	Cvar_Register (&cl_nopext, cl_controlgroup);
 	Cvar_Register (&cl_splitscreen, cl_controlgroup);
 
+	host_mapname.name2 = "mapname";
 	Cvar_Register (&host_mapname,		"Scripting");
 
 	Cvar_Register (&cl_indepphysics, cl_controlgroup);

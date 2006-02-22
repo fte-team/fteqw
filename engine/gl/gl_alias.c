@@ -1022,20 +1022,37 @@ static galiastexnum_t *GL_ChooseSkin(galiasinfo_t *inf, char *modelname, int sur
 			{	//load just the skin
 				if (e->scoreboard && e->scoreboard->skin)
 				{
-					original = Skin_Cache8(e->scoreboard->skin);
-					if (!original)
-						return NULL;
-					inwidth = e->scoreboard->skin->width;
-					inheight = e->scoreboard->skin->height;
-
-					cm->texnum.base = cm->texnum.fullbright = GL_LoadTexture(e->scoreboard->skin->name, inwidth, inheight, original, true, false);
+					if (cls.protocol == CP_QUAKE2)
+					{
+						original = Skin_Cache32(e->scoreboard->skin);
+						if (original)
+						{
+							inwidth = e->scoreboard->skin->width;
+							inheight = e->scoreboard->skin->height;
+							cm->texnum.base = cm->texnum.fullbright = GL_LoadTexture32(e->scoreboard->skin->name, inwidth, inheight, (unsigned int*)original, true, false);
+							return &cm->texnum;
+						}
+					}
+					else
+					{
+						original = Skin_Cache8(e->scoreboard->skin);
+						if (original)
+						{
+							inwidth = e->scoreboard->skin->width;
+							inheight = e->scoreboard->skin->height;
+							cm->texnum.base = cm->texnum.fullbright = GL_LoadTexture(e->scoreboard->skin->name, inwidth, inheight, original, true, false);
+							return &cm->texnum;
+						}
+					}
+				
+					cm->texnum.base = Mod_LoadHiResTexture(e->scoreboard->skin->name, "skins", true, false, true);
 					return &cm->texnum;
 				}
 				return NULL;
 			}
 
 			cm->texnum.bump = texnums[cm->skinnum].bump;	//can't colour bumpmapping
-			if ((!texnums || !strcmp(modelname, "progs/player.mdl")) && e->scoreboard && e->scoreboard->skin)
+			if (cls.protocol != CP_QUAKE2 && ((!texnums || !strcmp(modelname, "progs/player.mdl")) && e->scoreboard && e->scoreboard->skin))
 			{
 				original = Skin_Cache8(e->scoreboard->skin);
 				inwidth = e->scoreboard->skin->width;
@@ -1160,7 +1177,7 @@ static galiastexnum_t *GL_ChooseSkin(galiasinfo_t *inf, char *modelname, int sur
 				if (e->skinnum >= 0 && e->skinnum < inf->numskins)
 					skins += e->skinnum;
 
-				if (!skins->texnums)
+				if (!inf->numskins || !skins->texnums)
 					return NULL;
 
 				frame = cl.time*skins->skinspeed;
@@ -1892,7 +1909,11 @@ void R_DrawGAliasModel (entity_t *e)
 
 		skin = GL_ChooseSkin(inf, clmodel->name, surfnum, e);
 
-		if (!skin)
+		if (!skin || (skin->base == NULL
+#ifdef Q3SHADERS
+			&& skin->shader == NULL
+#endif
+			))
 		{
 			GL_DrawAliasMesh_Sketch(&mesh);
 		}
@@ -3381,6 +3402,9 @@ static void Q2_LoadSkins(char *skins)
 
 		COM_CleanUpPath(skins);	//blooming tanks.
 		texnums->base = Mod_LoadReplacementTexture(skins, "models", true, false, true);
+		texnums->shader = R_RegisterCustom(skins, NULL);
+		if (!texnums->base && !texnums->shader)
+			Con_Printf("Couldn't load %s\n", skins);
 		outskin->skinwidth = 0;
 		outskin->skinheight = 0;
 		outskin->skinspeed = 0;
@@ -3389,6 +3413,18 @@ static void Q2_LoadSkins(char *skins)
 	}
 #endif
 	galias->numskins = LittleLong(pq2inmodel->num_skins);
+
+#ifndef SERVERONLY
+	while (galias->numskins)
+	{
+		if (texnums->base)
+			break;
+		if (texnums->shader)
+			break;
+
+		galias->numskins--;
+	}
+#endif
 }
 
 #define MD2_MAX_TRIANGLES 4096

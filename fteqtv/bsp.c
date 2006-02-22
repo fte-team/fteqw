@@ -142,15 +142,15 @@ FILE *FindInPaks(char *gamedir, char *filename, int *size)
 			fclose(f);
 			continue;
 		}
-		numfiles = header[2]/sizeof(pakfile);
-		fseek(f, header[1], SEEK_SET);
+		numfiles = LittleLong(header[2])/sizeof(pakfile);
+		fseek(f, LittleLong(header[1]), SEEK_SET);
 		for (j = 0; j < numfiles; j++)
 		{
 			fread(&pf, 1, sizeof(pf), f);
 			if (!strcmp(pf.name, filename))
 			{
-				fseek(f, pf.offset, 0);
-				*size = pf.length;
+				fseek(f, LittleLong(pf.offset), 0);
+				*size = LittleLong(pf.length);
 				return f;
 			}
 		}

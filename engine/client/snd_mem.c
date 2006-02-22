@@ -265,6 +265,7 @@ sfxcache_t *S_LoadSound (sfx_t *s)
 	//Con_Printf ("S_LoadSound: %x\n", (int)stackbuf);
 	// load it in
 
+		data = NULL;
 		if (*name == '*')
 		{
 			Q_strcpy(namebuffer, "players/male/");	//q2
@@ -276,17 +277,19 @@ sfxcache_t *S_LoadSound (sfx_t *s)
 		{
 			Q_strcpy(namebuffer, "sound/");
 			Q_strcat(namebuffer, name);
+			data = COM_LoadStackFile(name, stackbuf, sizeof(stackbuf));
 		}
 
 	//	Con_Printf ("loading %s\n",namebuffer);
 
-		data = COM_LoadStackFile(namebuffer, stackbuf, sizeof(stackbuf));
+		if (!data)
+			data = COM_LoadStackFile(namebuffer, stackbuf, sizeof(stackbuf));
 	}
 
 	if (!data)
 	{
 		//FIXME: check to see if qued for download.
-		Con_Printf ("Couldn't load %s\n", namebuffer);
+		Con_DPrintf ("Couldn't load %s\n", namebuffer);
 		return NULL;
 	}
 

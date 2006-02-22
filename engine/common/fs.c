@@ -2671,7 +2671,7 @@ void COM_Gamedir (char *dir)
 {
 	searchpath_t	*next;
 
-	if (strstr(dir, "..") || strstr(dir, "/")
+	if (!*dir || strstr(dir, "..") || strstr(dir, "/")
 		|| strstr(dir, "\\") || strstr(dir, ":") )
 	{
 		Con_TPrintf (TL_GAMEDIRAINTPATH);

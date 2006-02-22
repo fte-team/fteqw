@@ -1903,10 +1903,11 @@ int Mod_LoadHiResTexture(char *name, char *subpath, qboolean mipmap, qboolean al
 	};
 
 	static char *path[] ={
-		"%s%s",
-		"textures/%s/%s%s",	//this is special... It uses the subpath parameter. Note references to (i == 1)
-		"textures/%s%s",
-		"override/%s%s"
+		"2%s%s",
+		"3textures/%s/%s%s",	//this is special... It uses the subpath parameter. Note references to (i == 1)
+		"3%s/%s%s",
+		"2textures/%s%s",
+		"2override/%s%s"
 	};
 
 	int i, e;
@@ -1939,14 +1940,14 @@ int Mod_LoadHiResTexture(char *name, char *subpath, qboolean mipmap, qboolean al
 	for (; i < sizeof(path)/sizeof(char *); i++)
 	{
 #ifdef DDS
-		if (i == 1)
+		if (path[i][0] >= '3')
 		{
 			if (!subpath)
 					continue;
-			_snprintf(fname, sizeof(fname)-1, path[i], subpath, /*COM_SkipPath*/(nicename), ".dds");
+			_snprintf(fname, sizeof(fname)-1, path[i]+1, subpath, /*COM_SkipPath*/(nicename), ".dds");
 		}
 		else
-			_snprintf(fname, sizeof(fname)-1, path[i], nicename, ".dds");
+			_snprintf(fname, sizeof(fname)-1, path[i]+1, nicename, ".dds");
 		if ((buf = COM_LoadFile (fname, 5)))
 		{
 			len = GL_LoadTextureDDS(buf, com_filesize);
@@ -1958,14 +1959,14 @@ int Mod_LoadHiResTexture(char *name, char *subpath, qboolean mipmap, qboolean al
 
 		for (e = sizeof(extensions)/sizeof(char *)-1; e >=0 ; e--)
 		{
-			if (i == 1)
+			if (path[i][0] >= '3')
 			{
 				if (!subpath)
 					continue;
-				_snprintf(fname, sizeof(fname)-1, path[i], subpath, /*COM_SkipPath*/(nicename), extensions[e]);
+				_snprintf(fname, sizeof(fname)-1, path[i]+1, subpath, /*COM_SkipPath*/(nicename), extensions[e]);
 			}
 			else
-				_snprintf(fname, sizeof(fname)-1, path[i], nicename, extensions[e]);
+				_snprintf(fname, sizeof(fname)-1, path[i]+1, nicename, extensions[e]);
 			TRACE(("dbg: Mod_LoadHiResTexture: trying %s\n", fname));
 			if ((buf = COM_LoadFile (fname, 5)))
 			{

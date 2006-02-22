@@ -2325,7 +2325,7 @@ qboolean SV_UserInfoIsBasic(char *infoname)
 
 	for (i = 0; basicinfos[i]; i++)
 	{
-		if (!strcmp(infoname, basicinfos[i]))
+		if (*infoname == '*' || !strcmp(infoname, basicinfos[i]))
 			return true;
 	}
 	return false;
@@ -2879,6 +2879,7 @@ void Cmd_Join_f (void)
 	// turn the spectator into a player
 	host_client->spectator = false;
 	Info_RemoveKey (host_client->userinfo, "*spectator");
+	Info_RemoveKey (host_client->userinfobasic, "*spectator");
 
 	// FIXME, bump the client's userid?
 
@@ -2961,6 +2962,7 @@ void Cmd_Observe_f (void)
 	// turn the player into a spectator
 	host_client->spectator = true;
 	Info_SetValueForStarKey (host_client->userinfo, "*spectator", "1", sizeof(host_client->userinfo));
+	Info_SetValueForStarKey (host_client->userinfobasic, "*spectator", "1", sizeof(host_client->userinfobasic));
 
 	// FIXME, bump the client's userid?
 

@@ -84,8 +84,23 @@ typedef enum
 	Q2TE_WIDOWSPLASH,
 	Q2TE_EXPLOSION1_BIG,
 	Q2TE_EXPLOSION1_NP,
-	Q2TE_FLECHETTE
+	Q2TE_FLECHETTE,
 //ROGUE
+
+
+//CODERED
+	CRTE_LEADERBLASTER,	//56
+	CRTE_BLASTER_MUZZLEFLASH,
+	CRTE_BLUE_MUZZLEFLASH,
+	CRTE_SMART_MUZZLEFLASH,
+	CRTE_LEADERFIELD,	//60
+	CRTE_DEATHFIELD,
+	CRTE_BLASTERBEAM,
+	CRTE_STAIN,
+	CRTE_FIRE,
+	CRTE_CABLEGUT,
+	CRTE_SMOKE
+//CODERED
 } temp_event_t;
 
 #define Q2SPLASH_UNKNOWN		0
@@ -2101,12 +2116,12 @@ void CLQ2_ParseTEnt (void)
 		}
 		break;
 
-/*
+
 	case Q2TE_LIGHTNING:
-		ent = CL_ParseLightning (cl_mod_lightning);
-		S_StartSound (NULL, ent, CHAN_WEAPON, cl_sfx_lightning, 1, ATTN_NORM, 0);
+		CL_ParseBeam(TE_LIGHTNING1);
+		Q2S_StartSound (pos, 0, 0, S_PrecacheSound("weapons/tesla.wav"), 1, ATTN_NORM, 0);
 		break;
-*/
+
 	case Q2TE_DEBUGTRAIL:
 		MSG_ReadPos (pos);
 		MSG_ReadPos (pos2);
@@ -2159,11 +2174,13 @@ void CLQ2_ParseTEnt (void)
 		color = MSG_ReadByte (&net_message);
 		CL_ForceWall(pos, pos2, color);
 		break;
-
+*/
 	case Q2TE_HEATBEAM:
-		ent = CL_ParsePlayerBeam (cl_mod_heatbeam);
+		MSG_ReadPos(pos);
+		MSG_ReadPos(pos2);
+//		ent = CL_ParsePlayerBeam (cl_mod_heatbeam);
 		break;
-
+/*
 	case Q2TE_MONSTER_HEATBEAM:
 		ent = CL_ParsePlayerBeam (cl_mod_monster_heatbeam);
 		break;
@@ -2286,6 +2303,61 @@ void CLQ2_ParseTEnt (void)
 		break;
 //PGM
 //==============
+
+
+	case CRTE_LEADERBLASTER:
+		Host_EndGame ("CLQ2_ParseTEnt: bad/non-implemented type %i", type);
+	case CRTE_BLASTER_MUZZLEFLASH:
+		MSG_ReadPos (pos);
+		ex = CL_AllocExplosion ();
+		VectorCopy (pos, ex->origin);
+		ex->flags = Q2RF_FULLBRIGHT;
+		ex->start = cl.q2frame.servertime - 100;
+		CL_NewDlightRGB(0, pos[0], pos[1], pos[2], 350, 0.5, 0.2, 0.1, 0);
+		P_RunParticleEffectTypeString(pos, NULL, 1, "te_muzzleflash");
+		break;
+	case CRTE_BLUE_MUZZLEFLASH:
+		MSG_ReadPos (pos);
+		ex = CL_AllocExplosion ();
+		VectorCopy (pos, ex->origin);
+		ex->flags = Q2RF_FULLBRIGHT;
+		ex->start = cl.q2frame.servertime - 100;
+		CL_NewDlightRGB(0, pos[0], pos[1], pos[2], 350, 0.5, 0.2, 0.1, 0);
+		P_RunParticleEffectTypeString(pos, NULL, 1, "te_blue_muzzleflash");
+		break;
+	case CRTE_SMART_MUZZLEFLASH:
+		MSG_ReadPos (pos);
+		ex = CL_AllocExplosion ();
+		VectorCopy (pos, ex->origin);
+		ex->flags = Q2RF_FULLBRIGHT;
+		ex->start = cl.q2frame.servertime - 100;
+		CL_NewDlightRGB(0, pos[0], pos[1], pos[2], 350, 0.5, 0.2, 0, 0.2);
+		P_RunParticleEffectTypeString(pos, NULL, 1, "te_smart_muzzleflash");
+		break;
+	case CRTE_LEADERFIELD:
+		Host_EndGame ("CLQ2_ParseTEnt: bad/non-implemented type %i", type);
+	case CRTE_DEATHFIELD:
+		MSG_ReadPos (pos);
+		ex = CL_AllocExplosion ();
+		VectorCopy (pos, ex->origin);
+		ex->flags = Q2RF_FULLBRIGHT;
+		ex->start = cl.q2frame.servertime - 100;
+		CL_NewDlightRGB(0, pos[0], pos[1], pos[2], 350, 0.5, 0.2, 0, 0.2);
+		P_RunParticleEffectTypeString(pos, NULL, 1, "te_deathfield");
+		break;
+	case CRTE_BLASTERBEAM:
+		MSG_ReadPos (pos);
+		MSG_ReadPos (pos2);
+		CLQ2_BlasterTrail2 (pos, pos2);
+		break;
+	case CRTE_STAIN:
+		Host_EndGame ("CLQ2_ParseTEnt: bad/non-implemented type %i", type);
+	case CRTE_FIRE:
+		Host_EndGame ("CLQ2_ParseTEnt: bad/non-implemented type %i", type);
+	case CRTE_CABLEGUT:
+		Host_EndGame ("CLQ2_ParseTEnt: bad/non-implemented type %i", type);
+	case CRTE_SMOKE:
+		Host_EndGame ("CLQ2_ParseTEnt: bad/non-implemented type %i", type);
 
 	default:
 		Host_EndGame ("CLQ2_ParseTEnt: bad/non-implemented type %i", type);

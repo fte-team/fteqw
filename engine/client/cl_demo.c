@@ -1267,6 +1267,8 @@ void CL_PlayDemo(char *demoname)
 		else
 			VFS_SEEK(cls.demofile, start);	//quakeworld demo, so go back to start.
 	}
+
+	TP_ExecTrigger ("f_demostart");
 }
 
 /*

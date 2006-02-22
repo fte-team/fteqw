@@ -1251,7 +1251,7 @@ void ParseMessage(sv_t *tv, char *buffer, int length, int to, int mask)
 				if (i)
 					SendClientCommand(tv, "modellist %i %i\n", tv->clservercount, i);
 				else
-					SendClientCommand(tv, "prespawn %i 0 %i\n", tv->clservercount, BSP_Checksum(tv->bsp));
+					SendClientCommand(tv, "prespawn %i 0 %i\n", tv->clservercount, LittleLong(BSP_Checksum(tv->bsp)));
 			}
 			break;
 		case svc_soundlist:

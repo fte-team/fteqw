@@ -230,19 +230,19 @@ bsp_t *BSP_LoadModel(cluster_t *cluster, char *gamedir, char *bspname)
 	header = (dheader_t*)data;
 	if (data[0] != 29)
 	{
-		Sys_Printf(cluster, "BSP not version 29\n", bspname, gamedir);
 		free(data);
+		Sys_Printf(cluster, "BSP not version 29\n", bspname, gamedir);
 		return NULL;
 	}
 
-	planes = (dplane_t*)(data+header->lumps[LUMP_PLANES].fileofs);
-	nodes = (dnode_t*)(data+header->lumps[LUMP_NODES].fileofs);
-	leaf = (dleaf_t*)(data+header->lumps[LUMP_LEAFS].fileofs);
+	planes = (dplane_t*)(data+LittleLong(header->lumps[LUMP_PLANES].fileofs));
+	nodes = (dnode_t*)(data+LittleLong(header->lumps[LUMP_NODES].fileofs));
+	leaf = (dleaf_t*)(data+LittleLong(header->lumps[LUMP_LEAFS].fileofs));
 
-	numnodes = header->lumps[LUMP_NODES].filelen/sizeof(dnode_t);
-	numleafs = header->lumps[LUMP_LEAFS].filelen/sizeof(dleaf_t);
+	numnodes = LittleLong(header->lumps[LUMP_NODES].filelen)/sizeof(dnode_t);
+	numleafs = LittleLong(header->lumps[LUMP_LEAFS].filelen)/sizeof(dleaf_t);
 
-	bsp = malloc(sizeof(bsp_t) + sizeof(node_t)*numnodes + header->lumps[LUMP_VISIBILITY].filelen + sizeof(unsigned char *)*numleafs);
+	bsp = malloc(sizeof(bsp_t) + sizeof(node_t)*numnodes + LittleLong(header->lumps[LUMP_VISIBILITY].filelen) + sizeof(unsigned char *)*numleafs);
 	if (bsp)
 	{
 		bsp->fullchecksum = 0;
@@ -252,7 +252,7 @@ bsp_t *BSP_LoadModel(cluster_t *cluster, char *gamedir, char *bspname)
 			if (i == LUMP_ENTITIES)
 				continue;	//entities never appear in any checksums
 
-			chksum = Com_BlockChecksum(data + header->lumps[i].fileofs, header->lumps[i].filelen);
+			chksum = Com_BlockChecksum(data + LittleLong(header->lumps[i].fileofs), LittleLong(header->lumps[i].filelen));
 			bsp->fullchecksum ^= chksum;
 			if (i == LUMP_VISIBILITY || i == LUMP_LEAFS || i == LUMP_NODES)
 				continue;
@@ -266,14 +266,14 @@ bsp_t *BSP_LoadModel(cluster_t *cluster, char *gamedir, char *bspname)
 
 		for (i = 0; i < numnodes; i++)
 		{
-			bsp->nodes[i].child[0] = nodes[i].children[0];
-			bsp->nodes[i].child[1] = nodes[i].children[1];
-			bsp->nodes[i].planedist = planes[nodes[i].planenum].dist;
-			bsp->nodes[i].planen[0] = planes[nodes[i].planenum].normal[0];
-			bsp->nodes[i].planen[1] = planes[nodes[i].planenum].normal[1];
-			bsp->nodes[i].planen[2] = planes[nodes[i].planenum].normal[2];
+			bsp->nodes[i].child[0] = LittleShort(nodes[i].children[0]);
+			bsp->nodes[i].child[1] = LittleShort(nodes[i].children[1]);
+			bsp->nodes[i].planedist = planes[LittleLong(nodes[i].planenum)].dist;
+			bsp->nodes[i].planen[0] = planes[LittleLong(nodes[i].planenum)].normal[0];
+			bsp->nodes[i].planen[1] = planes[LittleLong(nodes[i].planenum)].normal[1];
+			bsp->nodes[i].planen[2] = planes[LittleLong(nodes[i].planenum)].normal[2];
 		}
-		memcpy(bsp->pvslump, data+header->lumps[LUMP_VISIBILITY].fileofs, header->lumps[LUMP_VISIBILITY].filelen);
+		memcpy(bsp->pvslump, data+LittleLong(header->lumps[LUMP_VISIBILITY].fileofs), LittleLong(header->lumps[LUMP_VISIBILITY].filelen));
 
 		for (i = 0; i < numleafs; i++)
 		{

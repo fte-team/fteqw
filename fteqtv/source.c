@@ -1401,7 +1401,7 @@ void QTV_Run(sv_t *qtv)
 
 		if (!qtv->isconnected && (qtv->curtime >= qtv->nextconnectattempt || qtv->curtime < qtv->nextconnectattempt - UDPRECONNECT_TIME*2))
 		{
-			Netchan_OutOfBand(qtv->cluster, qtv->sourcesock, qtv->serveraddress, 12, "getchallenge");
+			Netchan_OutOfBand(qtv->cluster, qtv->sourcesock, qtv->serveraddress, 13, "getchallenge\n");
 			qtv->nextconnectattempt = qtv->curtime + UDPRECONNECT_TIME;
 		}
 		QTV_ParseQWStream(qtv);

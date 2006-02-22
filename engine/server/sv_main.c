@@ -579,8 +579,11 @@ void PIN_SaveMessages(void)
 void PIN_DeleteOldestMessage(void)
 {
 	pinnedmessages_t *old = pinned;
-	pinned = pinned->next;
-	Z_Free(old);
+	if (old)
+	{
+		pinned = pinned->next;
+		Z_Free(old);
+	}
 }
 void PIN_MakeMessage(char *from, char *msg)
 {

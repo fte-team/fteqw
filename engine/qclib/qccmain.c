@@ -2806,7 +2806,7 @@ memset(pr_immediate_string, 0, sizeof(pr_immediate_string));
 
 	if (flag_caseinsensative)
 	{
-		printf("Compiling without case insensativity\n");
+		printf("Compiling without case sensativity\n");
 		pHash_Get = &Hash_GetInsensative;
 		pHash_GetNext = &Hash_GetNextInsensative;
 		pHash_Add = &Hash_AddInsensative;

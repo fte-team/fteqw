@@ -8518,6 +8518,7 @@ compiles the 0 terminated text, adding defintions to the pr structure
 */
 pbool	QCC_PR_CompileFile (char *string, char *filename)
 {	
+	jmp_buf oldjb;
 	if (!pr.memory)
 		QCC_Error (ERR_INTERNAL, "PR_CompileFile: Didn't clear");
 
@@ -8545,21 +8546,29 @@ pbool	QCC_PR_CompileFile (char *string, char *filename)
 
 	QCC_PR_Lex ();	// read first token
 
+	memcpy(&oldjb, &pr_parse_abort, sizeof(oldjb));
 	while (pr_token_type != tt_eof)
 	{
 		if (setjmp(pr_parse_abort))
 		{
 			if (++pr_error_count > MAX_ERRORS)
+			{
+				memcpy(&pr_parse_abort, &oldjb, sizeof(oldjb));
 				return false;
+			}
 			QCC_PR_SkipToSemicolon ();
 			if (pr_token_type == tt_eof)
-				return false;		
+			{
+				memcpy(&pr_parse_abort, &oldjb, sizeof(oldjb));
+				return false;
+			}
 		}
 
 		pr_scope = NULL;	// outside all functions
 		
 		QCC_PR_ParseDefs (NULL);
 	}
+	memcpy(&pr_parse_abort, &oldjb, sizeof(oldjb));
 	
 	return (pr_error_count == 0);
 }

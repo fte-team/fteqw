@@ -572,7 +572,7 @@ pbool QCC_PR_Precompiler(void)
 				sm = '>';
 			else
 			{
-				QCC_PR_ParseError(0, "Not a string literal");
+				QCC_PR_ParseError(0, "Not a string literal (on a #include)");
 				sm = 0;
 			}
 			pr_file_p++;

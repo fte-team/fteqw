@@ -1350,7 +1350,7 @@ void Cache_Free (cache_user_t *c)
 	if (c->data == NULL)
 	{
 		cache_head = NULL;	//this is evil and should never happen
-		Host_EndGame("Cache was already free\n");
+		Sys_Error("Cache was already free\n");
 		return;
 	}
 	cs = ((cache_system_t *)c->data)-1;

@@ -54,6 +54,7 @@ cvar_t	r_numedges = SCVAR("r_numedges", "0");
 cvar_t	r_aliastransbase = SCVAR("r_aliastransbase", "200");
 cvar_t	r_aliastransadj = SCVAR("r_aliastransadj", "100");
 cvar_t	d_smooth = SCVAR("d_smooth", "0");
+cvar_t  sw_surfcachesize = SCVARF("sw_surfcachesize", "0", CVAR_RENDERERLATCH);
 #endif
 cvar_t	gl_skyboxdist = SCVAR("gl_skyboxdist", "2300");
 
@@ -397,6 +398,8 @@ void SWRenderer_Init(void)
 
 	Cvar_Register (&d_palconvwrite, SWRENDEREROPTIONS);
 	Cvar_Register (&d_palremapsize, SWRENDEREROPTIONS);
+
+	Cvar_Register (&sw_surfcachesize, SWRENDEREROPTIONS);
 }
 #endif
 

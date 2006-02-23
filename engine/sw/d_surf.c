@@ -36,12 +36,18 @@ surfcache_t                     *sc_rover, *sc_base;
 
 int     D_SurfaceCacheForRes (int width, int height, int bpp)
 {
+	extern cvar_t sw_surfcachesize;
 	int             size, pix;
 
 	if (COM_CheckParm ("-surfcachesize"))
 	{
 		size = Q_atoi(com_argv[COM_CheckParm("-surfcachesize")+1]) * 1024;
 		return size;
+	}
+
+	if (sw_surfcachesize.value >= 512*1024) // force minimum of 512k
+	{
+		return (int)sw_surfcachesize.value;
 	}
 	
 	size = 4096*1024;//SURFCACHE_SIZE_AT_320X200;
@@ -86,8 +92,7 @@ D_InitCaches
 */
 void D_InitCaches (void *buffer, int size)
 {
-//	if (!msg_suppress_1)
-//		Con_Printf ("%ik surface cache\n", size/1024);
+//	Con_Printf(S_NOTICE "Using %i KB for SW surface cache\n", size / 1024);
 
 	sc_size = size - GUARDSIZE;
 	sc_base = (surfcache_t *)buffer;

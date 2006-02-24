@@ -22,7 +22,6 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 // to touch the vid buffer
 
 void SWDraw_Init (void);
-void SWDraw_ReInit (void);
 void SWDraw_Shutdown(void);
 void SWDraw_Character (int x, int y, unsigned int num);
 void SWDraw_ImageColours (float r, float g, float b, float a);

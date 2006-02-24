@@ -238,46 +238,9 @@ mpic_t	*SWDraw_SafeCachePic (char *extpath)
 	return dat;
 }
 
-mpic_t *SWDraw_ConcharsMalloc (void)
-{
-	// stupid hack for conchars...
-	qpic_t *dat;
-	swcachepic_t *pic;
-	int i, j;
-
-	for (pic=swmenu_cachepics, i=0 ; i<swmenu_numcachepics ; pic++, i++)
-		if (!strcmp ("conchars", pic->name))
-			break;	
-
-	if (i == swmenu_numcachepics)
-	{
-		if (swmenu_numcachepics == MAX_CACHED_PICS)
-		{
-			Con_Printf ("menu_numcachepics == MAX_CACHED_PICS\n");
-			return NULL;
-		}
-		swmenu_numcachepics++;
-		pic->cache.fake = true;
-		pic->cache.data = BZ_Malloc(sizeof(qpic_t) + 128*128);
-		dat = pic->cache.data;
-		// change 0 to 255 through conchars
-		for (j = 0; j < 128*128; j++)
-			dat->data[j] = (draw_chars[j] == 255 || !draw_chars[j]) ? draw_chars[j] ^ 255 : draw_chars[j];
-//		memcpy (dat->data, draw_chars, 128*128);
-		((mpic_t*)dat)->width = ((mpic_t*)dat)->height = 128;
-		((mpic_t*)dat)->flags = 1;
-		strcpy (pic->name, "conchars");
-	}
-
-	return pic->cache.data;
-}
-
 mpic_t	*SWDraw_CachePic (char *path)
 {
 	mpic_t	*pic;
-
-	if (!strcmp(path, "conchars")) // conchars hack
-		return SWDraw_ConcharsMalloc();
 
 	pic = SWDraw_SafeCachePic(path);
 	if (!pic)
@@ -374,9 +337,6 @@ mpic_t	*SWDraw_PicFromWad (char *name)
 	char q2name[MAX_QPATH];
 	qpic_t *qpic;
 	mpic_t *mpic;
-
-	if (!strcmp(name, "conchars")) // conchars hack
-		return SWDraw_ConcharsMalloc();
 	
 	sprintf(q2name, "pics/%s.pcx", name);
 	mpic = SWDraw_MallocPic(q2name);
@@ -507,6 +467,25 @@ void SWDraw_Init (void)
 		if (con_ocranaleds.value != 2 || concrc == 798) 
 			AddOcranaLEDsIndexed (draw_chars, 128, 128);
 	}
+
+	// add conchars into sw menu cache
+	swmenu_numcachepics = 0;
+
+	strcpy(swmenu_cachepics[swmenu_numcachepics].name, "conchars");
+	swmenu_cachepics[swmenu_numcachepics].cache.fake = true;
+	swmenu_cachepics[swmenu_numcachepics].cache.data = BZ_Malloc(sizeof(qpic_t) + 128*128);
+	{
+		qpic_t *dat = (qpic_t *)swmenu_cachepics[swmenu_numcachepics].cache.data;
+		// reformat conchars for use in cache
+		int j;
+
+		for (j = 0; j < 128*128; j++)
+			dat->data[j] = (draw_chars[j] == 255 || !draw_chars[j]) ? draw_chars[j] ^ 255 : draw_chars[j];
+
+		((mpic_t*)dat)->width = ((mpic_t*)dat)->height = 128;
+		((mpic_t*)dat)->flags = 1;
+	}
+	swmenu_numcachepics++;
 
 	draw_disc = W_SafeGetLumpName ("disc");
 	draw_backtile = W_SafeGetLumpName ("backtile");
@@ -1604,6 +1583,42 @@ void SWDraw_CharToConback (int num, qbyte *dest)
 
 }
 
+void SWDraw_SubImageBlend32(
+		int scx, int scy, int scwidth, int scheight,	//screen
+		int six, int siy, int siwidth, int siheight,	//sub image
+		int iwidth, int iheight, qbyte *in, int red, int green, int blue, int alpha)
+{
+	unsigned char *pal = (unsigned char *)d_8to32table;
+	unsigned char *dest;
+	qbyte *src;
+	int v;
+	int f, fstep;
+	int x, y;
+	int outstride = vid.rowbytes;
+
+	dest = (unsigned char *)vid.buffer + 4*(scx + scy*outstride);
+
+	fstep = (siwidth<<16)/scwidth;
+
+	for (y=0 ; y<scheight ; y++, dest += outstride*4)
+	{
+		v = y*siheight/scheight;
+		src = in + (siy+v)*iwidth + six;
+		{
+			f = 0;
+			for (x=0; x<scwidth<<2; x+=4)	//sw 32 bit rendering is bgrx
+			{
+				if (src[(f>>16)] != 255)
+				{
+					dest[x + 0] = ((255-alpha)*dest[x + 0] + (blue*alpha*pal[(src[f>>16]<<2) + 0])/255)/255;
+					dest[x + 1] = ((255-alpha)*dest[x + 1] + (green*alpha*pal[(src[f>>16]<<2) + 1])/255)/255;
+					dest[x + 2] = ((255-alpha)*dest[x + 2] + (red*alpha*pal[(src[f>>16]<<2) + 2])/255)/255;
+				}
+				f += fstep;
+			}
+		}
+	}
+}
 
 void SWDraw_SubImage32(
 		int scx, int scy, int scwidth, int scheight,	//screen
@@ -1617,6 +1632,13 @@ void SWDraw_SubImage32(
 	int f, fstep;
 	int x, y;
 	int outstride = vid.rowbytes;
+
+	if (ib_colorblend || ib_alphablend)
+	{
+		SWDraw_SubImageBlend32(scx, scy, scwidth, scheight,
+			six, siy, siwidth, siheight,
+			iwidth, iheight, in, ib_ri, ib_gi, ib_bi, ib_ai);
+	}
 
 	dest = (unsigned int *)vid.buffer + scx + scy*outstride;
 
@@ -1659,44 +1681,6 @@ void SWDraw_SubImage32(
 				if (src[(f>>16)] != 255)
 				{
 					dest[x] = gamma[src[(f>>16)]];
-				}
-				f += fstep;
-			}
-		}
-	}
-}
-
-//blend in colour and alpha (still 8 bit source though)
-void SWDraw_SubImageBlend32(
-		int scx, int scy, int scwidth, int scheight,	//screen
-		int six, int siy, int siwidth, int siheight,	//sub image
-		int iwidth, int iheight, qbyte *in, int red, int green, int blue, int alpha)
-{
-	unsigned char *pal = (unsigned char *)d_8to32table;
-	unsigned char *dest;
-	qbyte *src;
-	int v;
-	int f, fstep;
-	int x, y;
-	int outstride = vid.rowbytes;
-
-	dest = (unsigned char *)vid.buffer + 4*(scx + scy*outstride);
-
-	fstep = (siwidth<<16)/scwidth;
-
-	for (y=0 ; y<scheight ; y++, dest += outstride*4)
-	{
-		v = y*siheight/scheight;
-		src = in + (siy+v)*iwidth + six;
-		{
-			f = 0;
-			for (x=0; x<scwidth<<2; x+=4)	//sw 32 bit rendering is bgrx
-			{
-				if (src[(f>>16)] != 255)
-				{
-					dest[x + 0] = ((255-alpha)*dest[x + 0] + (blue*alpha*pal[(src[f>>16]<<2) + 0])/255)/255;
-					dest[x + 1] = ((255-alpha)*dest[x + 1] + (green*alpha*pal[(src[f>>16]<<2) + 1])/255)/255;
-					dest[x + 2] = ((255-alpha)*dest[x + 2] + (red*alpha*pal[(src[f>>16]<<2) + 2])/255)/255;
 				}
 				f += fstep;
 			}
@@ -1780,45 +1764,104 @@ void SWDraw_SubImage8(
 
 	fstep = (siwidth<<16)/scwidth;
 
-	for (y=0 ; y<scheight ; y++, dest += outstride)
+	if (ib_colorblend) // use palette remap
 	{
-		v = y*siheight/scheight;
-		src = in + (siy+v)*iwidth + six;
+		qbyte *palremap = ib_remap->pal;
+
+		if (ib_alphablend) // remap with alpha
 		{
-			f = 0;
-			for (x=0; x < (scwidth&~3); x+=4)	//cut down on loop stuff
+			for (y=0 ; y<scheight ; y++, dest += outstride)
 			{
-				if (src[(f>>16)] != 255)
+				v = y*siheight/scheight;
+				src = in + (siy+v)*iwidth + six;
 				{
-					dest[x] = src[(f>>16)];
+					f = 0;
+					for (x=0; x < scwidth; x++) 
+					{
+						if (src[(f>>16)] != 255)
+							dest[x] = Trans(dest[x], palremap[src[(f>>16)]]);
+						f += fstep;
+					}
 				}
-				f += fstep;
-
-				if (src[(f>>16)] != 255)
-				{
-					dest[1+x] = src[(f>>16)];
-				}
-				f += fstep;
-
-				if (src[(f>>16)] != 255)
-				{
-					dest[2+x] = src[(f>>16)];
-				}
-				f += fstep;
-
-				if (src[(f>>16)] != 255)
-				{
-					dest[3+x] = src[(f>>16)];
-				}
-				f += fstep;
 			}
-			for (; x<scwidth; x+=1)	//sw 32 bit rendering is bgrx
+		}
+		else // remap without alpha
+		{
+			for (y=0 ; y<scheight ; y++, dest += outstride)
 			{
-				if (src[(f>>16)] != 255)
+				v = y*siheight/scheight;
+				src = in + (siy+v)*iwidth + six;
 				{
-					dest[x] = src[(f>>16)];
+					f = 0;
+					for (x=0; x < scwidth; x++) 
+					{
+						if (src[(f>>16)] != 255)
+							dest[x] = palremap[src[(f>>16)]];
+						f += fstep;
+					}
 				}
-				f += fstep;
+			}
+		}
+	}
+	else if (ib_alphablend)
+	{
+		for (y=0 ; y<scheight ; y++, dest += outstride)
+		{
+			v = y*siheight/scheight;
+			src = in + (siy+v)*iwidth + six;
+			{
+				f = 0;
+				for (x=0; x < scwidth; x++) 
+				{
+					if (src[(f>>16)] != 255)
+						dest[x] = Trans(dest[x], src[(f>>16)]);
+					f += fstep;
+				}
+			}
+		}
+	}
+	else
+	{
+		for (y=0 ; y<scheight ; y++, dest += outstride)
+		{
+			v = y*siheight/scheight;
+			src = in + (siy+v)*iwidth + six;
+			{
+				f = 0;
+				for (x=0; x < (scwidth&~3); x+=4) // loop for every 4 pixels (to hopefully optimize)
+				{
+					if (src[(f>>16)] != 255)
+					{
+						dest[x] = src[(f>>16)];
+					}
+					f += fstep;
+
+					if (src[(f>>16)] != 255)
+					{
+						dest[1+x] = src[(f>>16)];
+					}
+					f += fstep;
+
+					if (src[(f>>16)] != 255)
+					{
+						dest[2+x] = src[(f>>16)];
+					}
+					f += fstep;
+
+					if (src[(f>>16)] != 255)
+					{
+						dest[3+x] = src[(f>>16)];
+					}
+					f += fstep;
+				}
+				for (; x<scwidth; x+=1)	// draw rest of the pixels needed
+				{
+					if (src[(f>>16)] != 255)
+					{
+						dest[x] = src[(f>>16)];
+					}
+					f += fstep;
+				}
 			}
 		}
 	}
@@ -1952,17 +1995,7 @@ void SWDraw_Image (float xp, float yp, float wp, float hp, float s1, float t1, f
 	}
 	else
 	{	
-		if (ib_colorblend || ib_alphablend)	//blend it on
-		{
-			SWDraw_SubImageBlend32(xp, yp, wp, hp, s1, t1, s2, t2,
-							pic->width, pic->height, pic->data,
-							ib_ri, ib_gi, ib_bi, ib_ai);
-
-		}
-		else	//block colour (fast)
-		{
-			SWDraw_SubImage32(xp, yp, wp, hp, s1, t1, s2, t2, pic->width, pic->height, pic->data);
-		}
+		SWDraw_SubImage32(xp, yp, wp, hp, s1, t1, s2, t2, pic->width, pic->height, pic->data);
 	}
 }
 

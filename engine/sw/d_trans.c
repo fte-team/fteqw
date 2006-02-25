@@ -375,11 +375,6 @@ palremap_t *D_GetPaletteRemap(int red, int green, int blue, qboolean desaturate,
 	topcolor = topcolor & 0xf;
 	bottomcolor = bottomcolor & 0xf;
 
-	if (topcolor == 0 && bottomcolor == 0)
-	{
-		Con_Printf("palremap: %i %i, R %i G %i B %i\n", topcolor, bottomcolor, red, green, blue);
-	}
-
 	key = REMAPKEY(desaturate, fullbrights, topcolor, bottomcolor);
 
 	for (i = 0; i < palremapsize; i++)

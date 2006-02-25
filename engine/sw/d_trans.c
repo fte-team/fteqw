@@ -228,6 +228,11 @@ void MakeSwizzledPalette(void)
 }
 
 // colormap functions
+// REMAPKEY macro defines the palette remap key
+// d = desaturate (0/1), f = fullbrights (0/1), t = top color, b = bottom color
+#define REMAPKEY(d, f, t, b) (0x1 ^ (d<<1) ^ (f<<2) ^ (t<<3) ^ (b<<7))
+#define DEREFDEFAULT -2147483647 // lowest negative 32-bit number (without MSVC being stupid)
+
 void MakePaletteRemaps(void)
 {
 	int i;
@@ -244,14 +249,14 @@ void MakePaletteRemaps(void)
 
 	// build identity remap
 	palremaps[0].r = palremaps[0].g = palremaps[0].b = 255;
-	palremaps[0].key = 0x1 ^ 0x4 ^ 0;
+	palremaps[0].key = REMAPKEY(0, 1, TOP_DEFAULT, BOTTOM_DEFAULT);
 	palremaps[0].references = 999;
 	for (i = 0; i < 256; i++)
 		palremaps[0].pal[i] = i;
 
 	// build fullbright remap
 	palremaps[1].r = palremaps[1].g = palremaps[1].b = 255;
-	palremaps[1].key = 0x1 ^ 0;
+	palremaps[1].key = REMAPKEY(0, 0, TOP_DEFAULT, BOTTOM_DEFAULT);
 	palremaps[1].references = 999;
 	for (i = 0; i < 256 - vid.fullbright; i++)
 		palremaps[1].pal[i] = i;
@@ -261,7 +266,7 @@ void MakePaletteRemaps(void)
 	for (i = 2; i < palremapsize; i++)
 	{
 		palremaps[i].key = 0;
-		palremaps[i].references = -2147483647;
+		palremaps[i].references = DEREFDEFAULT;
 	}
 }
 
@@ -303,9 +308,9 @@ void BuildModulatedPalette(qbyte *indexes, int red, int green, int blue, qboolea
 	{
 		// identity merge
 		if (fullbrights)
-			memcpy(indexes, identityremap.pal, sizeof(identityremap));
+			memcpy(indexes, identityremap.pal, sizeof(identityremap.pal));
 		else
-			memcpy(indexes, fullbrightremap.pal, sizeof(fullbrightremap));
+			memcpy(indexes, fullbrightremap.pal, sizeof(fullbrightremap.pal));
 	}
 	else
 	{
@@ -370,7 +375,12 @@ palremap_t *D_GetPaletteRemap(int red, int green, int blue, qboolean desaturate,
 	topcolor = topcolor & 0xf;
 	bottomcolor = bottomcolor & 0xf;
 
-	key = 0x1 ^ ((!!desaturate) << 1) ^ ((!!fullbrights) << 2) ^ (topcolor << 3) ^ (bottomcolor << 7);
+	if (topcolor == 0 && bottomcolor == 0)
+	{
+		Con_Printf("palremap: %i %i, R %i G %i B %i\n", topcolor, bottomcolor, red, green, blue);
+	}
+
+	key = REMAPKEY(desaturate, fullbrights, topcolor, bottomcolor);
 
 	for (i = 0; i < palremapsize; i++)
 	{
@@ -397,7 +407,10 @@ palremap_t *D_GetPaletteRemap(int red, int green, int blue, qboolean desaturate,
 
 	// return non-referenced map
 	BuildModulatedPalette(palremaps[deref].pal, red, green, blue, desaturate, fullbrights, topcolor, bottomcolor);
-	palremaps[deref].references++;
+	if (palremaps[deref].references < 1)
+		palremaps[deref].references = 1;
+	else
+		palremaps[deref].references++;
 	palremaps[deref].r = red;
 	palremaps[deref].g = green;
 	palremaps[deref].b = blue;
@@ -438,7 +451,7 @@ void D_DereferenceRemap(palremap_t *palremap)
 		if (palremap->references < 2)
 		{
 			if (dereftime >= 0)
-				dereftime = -2147483647; // lowest negative 32-bit number (without MSVC being stupid)
+				dereftime = DEREFDEFAULT;
 			palremap->references = dereftime;
 			dereftime++;
 		}
@@ -468,6 +481,9 @@ struct palremap_s *D_IdentityRemap(void) // TODO: explicitly inline this
 {
 	return palremaps;
 }
+
+#undef REMAPKEY
+#undef DEREFDEFAULT
 
 void MediaSW_ShowFrame8bit(qbyte *framedata, int inwidth, int inheight, qbyte *palette)
 {

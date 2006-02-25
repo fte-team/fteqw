@@ -1546,6 +1546,8 @@ void Plug_SBar(void)
 				for (cp = 0; cp < cl.splitclients; cp++)
 				{	//if you don't use splitscreen, use a full videosize rect.
 					SCR_VRectForPlayer(&rect, cp);
+					if (Draw_ImageColours)
+						Draw_ImageColours(1, 1, 1, 1); // ensure menu colors are reset
 					VM_Call(currentplug->vm, currentplug->sbarlevel[0], cp, rect.x, rect.y, rect.width, rect.height, sb_showscores+sb_showteamscores*2);
 				}
 				break;
@@ -1567,6 +1569,8 @@ void Plug_SBar(void)
 			for (cp = 0; cp < cl.splitclients; cp++)
 			{	//if you don't use splitscreen, use a full videosize rect.
 				SCR_VRectForPlayer(&rect, cp);
+				if (Draw_ImageColours)
+					Draw_ImageColours(1, 1, 1, 1); // ensure menu colors are reset
 				VM_Call(currentplug->vm, currentplug->sbarlevel[1], cp, rect.x, rect.y, rect.width, rect.height, sb_showscores+sb_showteamscores*2);
 			}
 		}
@@ -1579,6 +1583,8 @@ void Plug_SBar(void)
 			for (cp = 0; cp < cl.splitclients; cp++)
 			{	//if you don't use splitscreen, use a full videosize rect.
 				SCR_VRectForPlayer(&rect, cp);
+				if (Draw_ImageColours)
+					Draw_ImageColours(1, 1, 1, 1); // ensure menu colors are reset
 				VM_Call(currentplug->vm, currentplug->sbarlevel[2], cp, rect.x, rect.y, rect.width, rect.height, sb_showscores+sb_showteamscores*2);
 			}
 		}

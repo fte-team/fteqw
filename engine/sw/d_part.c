@@ -23,7 +23,7 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 #include "d_local.h"
 
 //Spike: Particles are depth sorted. So why depth write? They are the last to be drawn anyway.
-
+#define PARTICLEFACTOR 0x8000 // Change DP_Partfac in ASM to match this
 
 /*
 ==============
@@ -87,7 +87,7 @@ void D_DrawParticle (particle_t *pparticle)
 
 	pz = d_pzbuffer + (d_zwidth * v) + u;
 	pdest = d_viewbuffer + d_scantable[v] + u;
-	izi = (int)(zi * 0x8000);
+	izi = (int)(zi * PARTICLEFACTOR);
 
 	pix = izi >> d_pix_shift;
 	pix *= pparticle->scale;
@@ -244,9 +244,9 @@ void D_DrawParticle16 (particle_t *pparticle)
 	}
 
 	pz = d_pzbuffer + (d_zwidth * v) + u;	
-	izi = (int)(zi * 0x8000);
+	izi = (int)(zi * PARTICLEFACTOR);
 
-	pix = ((int)(izi*pparticle->scale)) >> d_pix_shift;	
+	pix = ((int)(izi*pparticle->scale));	
 
 	if (pix < d_pix_min)
 		pix = d_pix_min;
@@ -319,7 +319,7 @@ void D_DrawParticle32 (particle_t *pparticle)
 	}
 
 	pz = d_pzbuffer + (d_zwidth * v) + u;	
-	izi = (int)(zi * 0x8000);
+	izi = (int)(zi * PARTICLEFACTOR);
 
 	pix = ((int)(izi*pparticle->scale)) >> d_pix_shift;	
 
@@ -419,7 +419,7 @@ void D_DrawParticleTrans (particle_t *pparticle, blendmode_t blendmode)
 	}
 
 	pz = d_pzbuffer + (d_zwidth * v) + u;	
-	izi = (int)(zi * 0x8000);
+	izi = (int)(zi * PARTICLEFACTOR);
 
 	pix = ((int)(izi*pparticle->scale)) >> d_pix_shift;	
 

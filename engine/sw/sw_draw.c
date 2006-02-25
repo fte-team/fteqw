@@ -32,6 +32,8 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 extern unsigned int *d_8to32table;
 
 extern cvar_t con_ocranaleds;
+extern cvar_t scr_conalpha;
+extern qboolean scr_con_forcedraw;
 
 typedef struct {
 	vrect_t	rect;
@@ -2016,6 +2018,9 @@ void SWDraw_ConsoleBackground (int lines)
 	char			ver[100];
 	static			char saveback[320*8];
 
+	if (!scr_con_forcedraw && scr_conalpha.value <= 0)
+		return;
+
 	conback = (mpic_t *)SWDraw_SafeCachePic ("gfx/conback.lmp");
 	if (!conback)
 		conback = (mpic_t *)SWDraw_SafeCachePic("pics/conback.pcx");
@@ -2054,27 +2059,53 @@ void SWDraw_ConsoleBackground (int lines)
 	{
 		dest = vid.conbuffer;
 
-		for (y=0 ; y<lines ; y++, dest += vid.conrowbytes)
+		if (scr_conalpha.value < 1 && !scr_con_forcedraw)
 		{
+			D_SetTransLevel(scr_conalpha.value, BM_BLEND);
 
-			v = (vid.conheight - lines + y)*200/vid.conheight;
-			src = conback->data + v*320;
-			if (vid.conwidth == 320)
-				memcpy (dest, src, vid.conwidth);
-			else
+			for (y=0 ; y<lines ; y++, dest += vid.conrowbytes)
 			{
+				v = (vid.conheight - lines + y)*200/vid.conheight;
+				src = conback->data + v*320;
 				f = 0;
 				fstep = 320*0x10000/vid.conwidth;
 				for (x=0 ; x<vid.conwidth ; x+=4)
 				{
-					dest[x] = src[f>>16];
+					dest[x] = Trans(dest[x], src[f>>16]);
 					f += fstep;
-					dest[x+1] = src[f>>16];
+					dest[x+1] = Trans(dest[x+1], src[f>>16]);
 					f += fstep;
-					dest[x+2] = src[f>>16];
+					dest[x+2] = Trans(dest[x+2], src[f>>16]);
 					f += fstep;
-					dest[x+3] = src[f>>16];
+					dest[x+3] = Trans(dest[x+3], src[f>>16]);
 					f += fstep;
+				}
+			}
+		}
+		else
+		{
+			for (y=0 ; y<lines ; y++, dest += vid.conrowbytes)
+			{
+
+				v = (vid.conheight - lines + y)*200/vid.conheight;
+				src = conback->data + v*320;
+				if (vid.conwidth == 320)
+					memcpy (dest, src, vid.conwidth);
+				else
+				{
+					f = 0;
+					fstep = 320*0x10000/vid.conwidth;
+					for (x=0 ; x<vid.conwidth ; x+=4)
+					{
+						dest[x] = src[f>>16];
+						f += fstep;
+						dest[x+1] = src[f>>16];
+						f += fstep;
+						dest[x+2] = src[f>>16];
+						f += fstep;
+						dest[x+3] = src[f>>16];
+						f += fstep;
+					}
 				}
 			}
 		}
@@ -2114,8 +2145,11 @@ void SWDraw_ConsoleBackground (int lines)
 		extern cvar_t d_smooth;
 		unsigned int *p24dest;
 		unsigned char *pal = (qbyte *)d_8to32table;
-		int alpha = ((float)(lines)/((vid.height * 3) >> 2))*255;
-		if (alpha > 255) alpha = 255;
+		int alpha;
+		if (scr_con_forcedraw)
+			alpha = 255;
+		else
+			alpha = bound(0, scr_conalpha.value*255, 255);
 		p24dest = (unsigned int *)vid.conbuffer;
 		dest = (unsigned char *)vid.conbuffer;	
 

@@ -74,6 +74,7 @@ shader_t	*shader_console;
 #endif
 extern cvar_t		con_ocranaleds;
 extern cvar_t		gl_blend2d;
+extern cvar_t		scr_conalpha;
 
 qbyte		*draw_chars;				// 8*8 graphic characters
 mpic_t		*draw_disc;
@@ -1881,14 +1882,26 @@ void GLDraw_ConsoleBackground (int lines)
 {
 //	char ver[80];
 //	int x, i;
-	int y;
+	float a;
+	extern qboolean scr_con_forcedraw;
 
-	y = (vid.height * 3) >> 2;
 	conback->width = vid.conwidth;
 	conback->height = vid.conheight;
+
+	if (scr_con_forcedraw)
+	{
+		a = 1; // console background is necessary
+	}
+	else
+	{
+		if (scr_conalpha.value <= 0)
+			return; 
+
+		a = scr_conalpha.value;
+	}
+
 	if (scr_chatmode == 2)
 	{
-		y=0;
 		conback->height>>=1;
 		conback->width>>=1;
 	}
@@ -1897,20 +1910,20 @@ void GLDraw_ConsoleBackground (int lines)
 		if (shader_console)
 		{
 			currententity = &r_worldentity;
-			GLDraw_ShaderPic(0, lines - conback->height, vid.width, vid.height, shader_console, 1, 1, 1, (1.2*lines)/y);
+			GLDraw_ShaderPic(0, lines - conback->height, vid.width, vid.height, shader_console, 1, 1, 1, a);
 			qglBlendFunc (GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
 			return;
 		}
 	}
 #endif
-	if (lines > y)
+	if (a >= 1)
 	{
 		qglColor3f (1,1,1);
 		GLDraw_Pic(0, lines-conback->height, conback);
 	}
 	else
 	{
-		GLDraw_AlphaPic (0, lines - conback->height, conback, (float)(1.2 * lines)/y);
+		GLDraw_AlphaPic (0, lines - conback->height, conback, a);
 	}
 }
 

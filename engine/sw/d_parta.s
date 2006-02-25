@@ -134,7 +134,7 @@ C(D_DrawParticle):
 	fxch	%st(1)			// u | v | 1/z
 	fadds	float_point5	// u | v | 1/z
 	fxch	%st(2)			// 1/z | v | u
-	fmuls	DP_32768		// 1/z * 0x8000 | v | u
+	fmuls	DP_Partfac		// 1/z * 0x8000 | v | u
 	fxch	%st(2)			// u | v | 1/z * 0x8000
 
 // FIXME: use Terje's fp->int trick here?

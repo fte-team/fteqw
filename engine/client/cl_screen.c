@@ -94,6 +94,8 @@ int                     scr_copyeverything;
 float           scr_con_current;
 float           scr_conlines;           // lines of console to display
 
+qboolean		scr_con_forcedraw;
+
 float           oldscreensize, oldfov;
 extern cvar_t          scr_viewsize;
 extern cvar_t          scr_fov;
@@ -1336,6 +1338,8 @@ void SCR_SetUpToDrawConsole (void)
 #endif
 	Con_CheckResize ();
 
+	scr_con_forcedraw = false;
+
 	if (scr_drawloading)
 		return;         // never a console with loading plaque
 
@@ -1351,6 +1355,7 @@ void SCR_SetUpToDrawConsole (void)
 	{
 		scr_conlines = vid.height;              // full screen
 		scr_con_current = scr_conlines;
+		scr_con_forcedraw = true;
 	}
 	else if (key_dest == key_console || scr_chatmode)
 	{

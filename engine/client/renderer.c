@@ -160,6 +160,8 @@ cvar_t			scr_sshot_type	= SCVAR("scr_sshot_type", "jpg");
 
 cvar_t			scr_centersbar	= SCVAR("scr_centersbar", "0");
 cvar_t			scr_consize	= SCVAR("scr_consize", "0.5");
+cvar_t			scr_conalpha = SCVAR("scr_conalpha", "0.7");
+
 cvar_t          scr_viewsize	= SCVARF("viewsize","100", CVAR_ARCHIVE);
 cvar_t          scr_fov	= SCVARF("fov","90", CVAR_ARCHIVE); // 10 - 170
 cvar_t          scr_conspeed	= SCVAR("scr_conspeed","300");
@@ -496,6 +498,7 @@ void Renderer_Init(void)
 
 //screen
 	Cvar_Register (&scr_conspeed, SCREENOPTIONS);
+	Cvar_Register (&scr_conalpha, SCREENOPTIONS);
 	Cvar_Register (&scr_showram, SCREENOPTIONS);
 	Cvar_Register (&scr_showturtle, SCREENOPTIONS);
 	Cvar_Register (&scr_showpause, SCREENOPTIONS);

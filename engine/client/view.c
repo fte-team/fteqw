@@ -93,6 +93,7 @@ cvar_t	v_quadcshift = SCVAR("v_quadcshift", "0");
 cvar_t	v_suitcshift = SCVAR("v_suitcshift", "0");
 cvar_t	v_ringcshift = SCVAR("v_ringcshift", "0");
 cvar_t	v_pentcshift = SCVAR("v_pentcshift", "0");
+cvar_t	v_gunkick = SCVAR("v_gunkick", "0");
 
 cvar_t	v_viewheight = SCVAR("v_viewheight", "0");
 
@@ -1189,7 +1190,8 @@ void V_CalcRefdef (int pnum)
 #endif
 
 // set up the refresh position
-	r_refdef.viewangles[PITCH] += cl.punchangle[pnum];
+	if (v_gunkick.value)
+		r_refdef.viewangles[PITCH] += cl.punchangle[pnum]*v_gunkick.value;
 
 	r_refdef.time = realtime;
 
@@ -1209,9 +1211,18 @@ DropPunchAngle
 */
 void DropPunchAngle (int pnum)
 {
-	cl.punchangle[pnum] -= 10*host_frametime;
 	if (cl.punchangle[pnum] < 0)
-		cl.punchangle[pnum] = 0;
+	{
+		cl.punchangle[pnum] += 10*host_frametime;
+		if (cl.punchangle[pnum] > 0)
+			cl.punchangle[pnum] = 0;
+	}
+	else
+	{
+		cl.punchangle[pnum] -= 10*host_frametime;
+		if (cl.punchangle[pnum] < 0)
+			cl.punchangle[pnum] = 0;
+	}
 }
 
 /*
@@ -1535,10 +1546,10 @@ void V_RenderView (void)
 	
 		CL_AllowIndependantSendCmd(false);
 
-		CL_EmitEntities();
-
 		//work out which packet entities are solid
 		CL_SetSolidEntities ();
+		
+		CL_EmitEntities();
 
 		// Set up prediction for other players
 		CL_SetUpPlayerPrediction(false);
@@ -1618,6 +1629,7 @@ void V_Init (void)
 	Cvar_Register (&v_suitcshift, VIEWVARS);
 	Cvar_Register (&v_ringcshift, VIEWVARS);
 	Cvar_Register (&v_pentcshift, VIEWVARS);
+	Cvar_Register (&v_gunkick, VIEWVARS);
 
 	Cvar_Register (&v_bonusflash, VIEWVARS);
 

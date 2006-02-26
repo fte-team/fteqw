@@ -1262,7 +1262,10 @@ qboolean Cmd_AddRemCommand (char *cmd_name, xcommand_t function)
 	{
 		if (!Q_strcmp (cmd_name, cmd->name))
 		{
-			Con_Printf ("Cmd_AddCommand: %s already defined\n", cmd_name);
+			if (cmd->function == function)	//happens a lot with q3
+				Con_DPrintf ("Cmd_AddCommand: %s already defined\n", cmd_name);
+			else
+				Con_Printf ("Cmd_AddCommand: %s already defined\n", cmd_name);
 			return false;
 		}
 	}

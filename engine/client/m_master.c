@@ -106,6 +106,16 @@ static void NM_PrintColoured (int cx, int cy, int colour, qbyte *str)
 	}
 }
 
+static void NM_PrintHighlighted (int cx, int cy, int colour, int bg, qbyte *str)
+{
+	while (*str)
+	{
+		NM_DrawColouredCharacter (cx, cy, (*str) | (colour<<CON_FGSHIFT) | (bg<<CON_BGSHIFT) | CON_NONCLEARBG);
+		str++;
+		cx += 8;
+	}
+}
+
 qboolean M_IsFiltered(serverinfo_t *server)	//figure out if we should filter a server.
 {
 	if (slist_type == SLISTTYPE_FAVORITES)
@@ -246,7 +256,7 @@ void M_DrawOneServer (int inity)
 		selectedserver.linenum--;
 }
 
-int M_AddColumn (int right, int y, char *text, int maxchars, int colour)
+int M_AddColumn (int right, int y, char *text, int maxchars, int colour, int highlight)
 {
 	int left;
 	left = right - maxchars*8;
@@ -254,12 +264,26 @@ int M_AddColumn (int right, int y, char *text, int maxchars, int colour)
 		return right;
 
 	right = left;
-	while (*text && maxchars>0)
+
+	if (highlight >= 0)
 	{
-		NM_DrawColouredCharacter (right, y, (*(unsigned char *)text) | (colour<<CON_FGSHIFT));
-		text++;
-		right += 8;
-		maxchars--;
+		while (*text && maxchars>0)
+		{
+			NM_DrawColouredCharacter (right, y, (*(unsigned char *)text) | (colour<<CON_FGSHIFT) | (highlight<<CON_BGSHIFT) | CON_NONCLEARBG);
+			text++;
+			right += 8;
+			maxchars--;
+		}
+	}
+	else
+	{
+		while (*text && maxchars>0)
+		{
+			NM_DrawColouredCharacter (right, y, (*(unsigned char *)text) | (colour<<CON_FGSHIFT));
+			text++;
+			right += 8;
+			maxchars--;
+		}
 	}
 	return left;
 }
@@ -268,8 +292,8 @@ void M_DrawServerList(void)
 	serverinfo_t *server;
 	int op=0, filtered=0;
 	int snum=0;
-	int blink = 0;
 	int colour;
+	int highlight;
 
 	int x;
 	int y = 8*3;
@@ -338,20 +362,20 @@ void M_DrawServerList(void)
 	y = 8*2;
 	x = vid.width;
 	if (sb_showtimelimit.value)
-		x = M_AddColumn(x, y, "tl",			3, COLOR_RED);
+		x = M_AddColumn(x, y, "tl",			3, COLOR_RED, -1);
 	if (sb_showfraglimit.value)
-		x = M_AddColumn(x, y, "fl",			3, COLOR_RED);
+		x = M_AddColumn(x, y, "fl",			3, COLOR_RED, -1);
 	if (sb_showplayers.value)
-		x = M_AddColumn(x, y, "plyrs",		6, COLOR_RED);
+		x = M_AddColumn(x, y, "plyrs",		6, COLOR_RED, -1);
 	if (sb_showmap.value)
-		x = M_AddColumn(x, y, "map",		9, COLOR_RED);
+		x = M_AddColumn(x, y, "map",		9, COLOR_RED, -1);
 	if (sb_showgamedir.value)
-		x = M_AddColumn(x, y, "gamedir",	9, COLOR_RED);
+		x = M_AddColumn(x, y, "gamedir",	9, COLOR_RED, -1);
 	if (sb_showping.value)
-		x = M_AddColumn(x, y, "png",		4, COLOR_RED);
+		x = M_AddColumn(x, y, "png",		4, COLOR_RED, -1);
 	if (sb_showaddress.value)
-		x = M_AddColumn(x, y, "address",	21, COLOR_RED);
-	x = M_AddColumn(x, y, "name",		x/8-1, COLOR_RED);
+		x = M_AddColumn(x, y, "address",	21, COLOR_RED, -1);
+	x = M_AddColumn(x, y, "name",		x/8-1, COLOR_RED, -1);
 
 	y = 8*3;
 	while(server)
@@ -366,7 +390,10 @@ void M_DrawServerList(void)
 			break;
 
 		if (slist_option == snum)
-			blink = (int)(realtime*3)&1;
+			highlight = COLOR_DARKBLUE;
+		else
+			highlight = -1;
+
 		if (*server->name)
 		{
 			if (server->special & SS_FAVORITE)
@@ -378,40 +405,39 @@ void M_DrawServerList(void)
 			else if (server->special & SS_QUAKE3)
 				colour = COLOR_BLUE;
 			else if (server->special & SS_NETQUAKE)
-				colour = COLOR_WHITE;
+				colour = COLOR_GREY;
 			else if (server->special & SS_QTV)
 				colour = COLOR_MAGENTA;
 			else
 				colour = COLOR_WHITE;
 
-			if (blink)
-			{
-				if (server->special & SS_NETQUAKE)
-					colour = COLOR_MAGENTA;	//nq blinks magenta
-				else
-					colour = COLOR_CYAN;
-			}
-
 			x = vid.width;
 
+			// make sure we have a highlighted background
+			if (highlight >= 0)
+			{
+				int i = 8;
+				for (; i < vid.width - 8; i += 8)
+					Draw_ColouredCharacter(i, y, ' ' | CON_NONCLEARBG | (COLOR_WHITE << CON_FGSHIFT) | (highlight << CON_BGSHIFT));
+			}
+
 			if (sb_showtimelimit.value)
-				x = M_AddColumn(x, y, va("%i", server->tl),			3, colour);	//time limit
+				x = M_AddColumn(x, y, va("%i", server->tl),			3, colour, highlight);	//time limit
 			if (sb_showfraglimit.value)
-				x = M_AddColumn(x, y, va("%i", server->fl),			3, colour);	//frag limit
+				x = M_AddColumn(x, y, va("%i", server->fl),			3, colour, highlight);	//frag limit
 			if (sb_showplayers.value)
-				x = M_AddColumn(x, y, va("%i/%i", server->players, server->maxplayers),			6, colour);
+				x = M_AddColumn(x, y, va("%i/%i", server->players, server->maxplayers),			6, colour, highlight);
 			if (sb_showmap.value)
-				x = M_AddColumn(x, y, server->map,		9, colour);
+				x = M_AddColumn(x, y, server->map,		9, colour, highlight);
 			if (sb_showgamedir.value)
-				x = M_AddColumn(x, y, server->gamedir,	9, colour);
+				x = M_AddColumn(x, y, server->gamedir,	9, colour, highlight);
 			if (sb_showping.value)
-				x = M_AddColumn(x, y, va("%i", server->ping),			4, colour);	//frag limit
+				x = M_AddColumn(x, y, va("%i", server->ping),			4, colour, highlight);	//frag limit
 			if (sb_showaddress.value)
-				x = M_AddColumn(x, y, NET_AdrToString(server->adr),	21, colour);
-			x = M_AddColumn(x, y, server->name,		x/8-1, colour);
+				x = M_AddColumn(x, y, NET_AdrToString(server->adr),	21, colour, highlight);
+			x = M_AddColumn(x, y, server->name,		x/8-1, colour, highlight);
 		}
 
-		blink = 0;
 		if (*server->name)
 			y+=8;
 
@@ -426,11 +452,11 @@ void M_DrawServerList(void)
 
 void M_DrawSources (void)
 {
-	int blink;
 	int snum=0;
 	int op;
 	int y = 3*8;
 	master_t *mast;
+	int clr;
 
 	slist_numoptions = 0;
 	//find total sources.
@@ -471,23 +497,30 @@ void M_DrawSources (void)
 		if (M_MasterIsFiltered(mast))
 			continue;
 
-		if (slist_option == snum)
-			blink = (int)(realtime*3)&1;
-		else
-			blink = 0;
+		switch (mast->type)
+		{
+		case MT_MASTERHTTP:
+		case MT_MASTERHTTPQW:
+			clr = COLOR_YELLOW;
+			break;
+		case MT_MASTERQW:
+		case MT_MASTERQ2:
+			clr = COLOR_WHITE;
+			break;
+		case MT_SINGLENQ:
+		case MT_SINGLEQW:
+		case MT_SINGLEQ2:
+			clr = COLOR_GREEN;
+			break;
+		default:
+			clr = COLOR_RED;
+		}
 
-		if (blink)
-			NM_PrintColoured(46, y, 6, va("%s", mast->name));	//blinking.
-		else if (mast->type == MT_MASTERQW || mast->type == MT_MASTERQ2)
-			NM_PrintColoured(46, y, COLOR_WHITE, va("%s", mast->name));	//white.
-#ifdef NQPROT
-		else if (mast->type == MT_SINGLENQ)
-			NM_PrintColoured(46, y, COLOR_GREEN, va("%s", mast->name));	//green.
-#endif
-		else if (mast->type == MT_SINGLEQW || mast->type == MT_SINGLEQ2)
-			NM_PrintColoured(46, y, COLOR_GREEN, va("%s", mast->name));	//green.
+		if (slist_option == snum) // highlight it if selected
+			NM_PrintHighlighted(46, y, clr, COLOR_DARKBLUE, va("%s", mast->name));
 		else
-			NM_PrintColoured(46, y, COLOR_RED, va("%s", mast->name));	//red.
+			NM_PrintColoured(46, y, clr, va("%s", mast->name));
+
 		y+=8;
 		snum++;
 	}
@@ -526,30 +559,37 @@ void M_DrawSListOptions (void)
 {
 	int c;
 	int op;
+	char *s;
 
 	slist_numoptions = NUMSLISTOPTIONS;
 
 	for (op = 0; op < NUMSLISTOPTIONS; op++)
 	{
-		if (slist_option == op && (int)(realtime*3)&1)
-			c = COLOR_CYAN;	//cyan
+		if (options[op].cvar->value>0 || (*options[op].cvar->string && *options[op].cvar->string != '0'))
+			c = COLOR_RED;
 		else
-			c = (options[op].cvar->value>0 || (*options[op].cvar->string && *options[op].cvar->string != '0'))?COLOR_RED:COLOR_WHITE;//red if on.
+			c = COLOR_WHITE;
+
 		switch(options[op].type)
 		{
 		default:
-			NM_PrintColoured(46, op*8+8*3, c, options[op].title);
+			s = options[op].title;
 			break;
 		case 1:
 			if (!options[op].cvar->value)
 			{
-				NM_PrintColoured(46, op*8+8*3, c, va("%s ", options[op].title));
+				s = va("%s ", options[op].title);
 				break;
 			}
 		case 2:
-			NM_PrintColoured(46, op*8+8*3, c, va("%s %s", options[op].title, options[op].cvar->string));
+			s = va("%s %s", options[op].title, options[op].cvar->string);
 			break;
 		}
+
+		if (slist_option == op) // selected
+			NM_PrintHighlighted(46, op*8+8*3, c, COLOR_DARKBLUE, s);
+		else
+			NM_PrintColoured(46, op*8+8*3, c, s);
 	}
 }
 
@@ -621,7 +661,10 @@ void M_DrawServers(void)
 	lofs = width/2 - 7*4;
 	for (snum = 0; snum < NUMSLISTHEADERS; snum++)
 	{
-		NM_PrintColoured(width*snum+width/2 - strlen(titles[snum])*4, 0, slist_type==snum?COLOR_RED:COLOR_WHITE, titles[snum]);
+		if (slist_type == snum)
+			NM_PrintHighlighted(width*snum+width/2 - strlen(titles[snum])*4, 0, COLOR_WHITE, COLOR_DARKBLUE, titles[snum]);
+		else
+			NM_PrintColoured(width*snum+width/2 - strlen(titles[snum])*4, 0, COLOR_WHITE, titles[snum]);
 	}
 	NM_PrintColoured(8, 8, COLOR_WHITE, "\35");
 	for (snum = 16; snum < vid.width-16; snum+=8)

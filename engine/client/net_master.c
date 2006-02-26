@@ -523,18 +523,24 @@ void Master_AddMaster (char *address, int type, char *description)
 	master = mast;
 }
 
-void Master_AddMasterHTTP (char *address, int servertype, char *description)
+void Master_AddMasterHTTP (char *address, int mastertype, char *description)
 {
 	master_t *mast;
+	int servertype;
+
+	if (mastertype == MT_MASTERHTTPQW)
+		servertype = 0;
+	else
+		servertype = SS_NETQUAKE;
 
 	for (mast = master; mast; mast = mast->next)
 	{
-		if (!strcmp(mast->address, address) && mast->type == MT_MASTERHTTP)	//already exists.
+		if (!strcmp(mast->address, address) && mast->type == mastertype)	//already exists.
 			return;
 	}
 	mast = Z_Malloc(sizeof(master_t)+strlen(description)+1+strlen(address)+1);
 	mast->address = mast->name + strlen(description)+1;
-	mast->type = MT_MASTERHTTP;
+	mast->type = mastertype;
 	mast->servertype = servertype;
 	strcpy(mast->name, description);
 	strcpy(mast->address, address);
@@ -606,6 +612,10 @@ qboolean Master_LoadMasterList (char *filename, int defaulttype, int depth)
 			servertype = MT_MASTERQ2;
 		else if (!strcmp(com_token, "master:q3"))
 			servertype = MT_MASTERQ3;
+		else if (!strcmp(com_token, "master:http"))
+			servertype = MT_MASTERHTTP;
+		else if (!strcmp(com_token, "master:httpqw"))
+			servertype = MT_MASTERHTTPQW;
 		else if (!strcmp(com_token, "master"))	//any other sort of master, assume it's a qw master.
 			servertype = MT_MASTERQW;
 
@@ -661,7 +671,18 @@ qboolean Master_LoadMasterList (char *filename, int defaulttype, int depth)
 				Con_Printf("Failed to resolve address - \"%s\"\n", line);
 		}
 		else
-			Master_AddMaster(line, servertype, name);
+		{
+			switch (servertype)
+			{
+			case MT_MASTERHTTP:
+			case MT_MASTERHTTPQW:
+				Master_AddMasterHTTP(line, servertype, name);
+				break;
+			default:
+				Master_AddMaster(line, servertype, name);
+			}
+			
+		}
 	}
 	VFS_CLOSE(f);
 
@@ -933,7 +954,7 @@ void SListOptionChanged(serverinfo_t *newserver)
 }
 
 #ifdef WEBCLIENT
-void MasterInfo_ProcessHTTP(char *name, qboolean success)
+void MasterInfo_ProcessHTTP(char *name, qboolean success, int type)
 {
 	netadr_t adr;
 	char *s;
@@ -973,7 +994,7 @@ void MasterInfo_ProcessHTTP(char *name, qboolean success)
 			info = Z_Malloc(sizeof(serverinfo_t));
 			info->adr = adr;
 			info->sends = 1;
-			info->special = SS_NETQUAKE;
+			info->special = type;
 			info->refreshtime = 0;
 
 			sprintf(info->name, "%s", NET_AdrToString(info->adr));
@@ -984,6 +1005,17 @@ void MasterInfo_ProcessHTTP(char *name, qboolean success)
 	}
 
 	FS_Remove(name, FS_GAME);
+}
+
+// wrapper functions for the different server types
+void MasterInfo_ProcessHTTPNQ(char *name, qboolean success)
+{
+	MasterInfo_ProcessHTTP(name, success, SS_NETQUAKE);
+}
+
+void MasterInfo_ProcessHTTPQW(char *name, qboolean success)
+{
+	MasterInfo_ProcessHTTP(name, success, 0);
 }
 #endif
 
@@ -1055,11 +1087,14 @@ void MasterInfo_Request(master_t *mast, qboolean evenifwedonthavethefiles)
 			NET_SendPollPacket (6, "query", mast->adr);
 		break;
 #endif
-	case MT_MASTERHTTP:
 #ifdef WEBCLIENT
-		HTTP_CL_Get(mast->address, va("master_%i_%i.tmp", mastersequence++, mast->servertype), MasterInfo_ProcessHTTP);
-#endif
+	case MT_MASTERHTTP:
+		HTTP_CL_Get(mast->address, va("master_%i_%i.tmp", mastersequence++, mast->servertype), MasterInfo_ProcessHTTPNQ);
 		break;
+	case MT_MASTERHTTPQW:
+		HTTP_CL_Get(mast->address, va("master_%i_%i.tmp", mastersequence++, mast->servertype), MasterInfo_ProcessHTTPQW);
+		break;
+#endif
 	}
 }
 
@@ -1096,6 +1131,9 @@ void MasterInfo_WriteServers(void)
 			break;
 		case MT_MASTERHTTP:
 			typename = "master:http";
+			break;
+		case MT_MASTERHTTPQW:
+			typename = "master:httpqw";
 			break;
 		case MT_BCASTQW:
 			typename = "bcast:qw";
@@ -1174,6 +1212,7 @@ void MasterInfo_Begin(void)
 
 //		if (q1servers)	//qw master servers
 		{
+			Master_AddMasterHTTP("http://www.gameaholic.com/servers/qspy-quakeworld", MT_MASTERHTTPQW, "gameaholic's QW master");
 			Master_AddMaster("192.246.40.37:27000",			MT_MASTERQW, "id Limbo");
 			Master_AddMaster("192.246.40.37:27002",			MT_MASTERQW, "id CTF");
 			Master_AddMaster("192.246.40.37:27003",			MT_MASTERQW, "id TeamFortress");
@@ -1196,7 +1235,7 @@ void MasterInfo_Begin(void)
 
 //		if (q1servers)	//nq master servers
 		{
-			Master_AddMasterHTTP("http://www.gameaholic.com/servers/qspy-quake",SS_NETQUAKE, "gameaholic's NQ master");
+			Master_AddMasterHTTP("http://www.gameaholic.com/servers/qspy-quake", MT_MASTERHTTP, "gameaholic's NQ master");
 			Master_AddMaster("255.255.255.255:26000",		MT_BCASTNQ, "Nearby Quake1 servers");
 
 			Master_AddMaster("ghdigital.com:27950",				MT_MASTERDP, "DarkPlaces Master 1");
@@ -1219,6 +1258,7 @@ void MasterInfo_Begin(void)
 		Master_AddMaster("master.quake3arena.com:27950",	MT_MASTERQ3, "Quake3 master server.");
 		}
 	}
+
 
 	for (mast = master; mast; mast=mast->next)
 	{

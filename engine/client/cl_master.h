@@ -12,7 +12,8 @@
 //despite not supporting nq or q2, we still load them. We just filter them. This is to make sure we properly write the listing files.
 enum {
 	MT_BAD,			//this would be an error
-	MT_MASTERHTTP,	//an http/ftp based master server
+	MT_MASTERHTTP,  //an http/ftp based master server with NQ servers
+	MT_MASTERHTTPQW,//an http/ftp based master server with QW servers
 	MT_BCASTQW,		//-1status
 	MT_BCASTQ2,		//-1status
 	MT_BCASTQ3,

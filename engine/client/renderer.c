@@ -143,7 +143,7 @@ cvar_t r_shadow_glsl_offsetmapping_bias	= SCVAR("r_shadow_glsl_offsetmapping_bia
 #ifdef SPECULAR
 cvar_t		gl_specular	= SCVAR("gl_specular", "0");
 #endif
-cvar_t		gl_lightmapmode	= SCVARF("gl_lightmapmode", "", CVAR_ARCHIVE);
+//cvar_t		gl_lightmapmode	= SCVARF("gl_lightmapmode", "", CVAR_ARCHIVE);
 
 cvar_t		gl_ati_truform	= SCVAR("gl_ati_truform", "0");
 cvar_t		gl_ati_truform_type	= SCVAR("gl_ati_truform_type", "1");
@@ -318,7 +318,7 @@ void GLRenderer_Init(void)
 	Cvar_Register (&gl_load24bit, GRAPHICALNICETIES);
 	Cvar_Register (&gl_specular, GRAPHICALNICETIES);
 
-	Cvar_Register (&gl_lightmapmode, GLRENDEREROPTIONS);
+//	Cvar_Register (&gl_lightmapmode, GLRENDEREROPTIONS);
 
 #ifdef WATERLAYERS
 	Cvar_Register (&r_waterlayers, GRAPHICALNICETIES);
@@ -1672,8 +1672,15 @@ TRACE(("dbg: R_ApplyRenderer: clearing world\n"));
 #ifdef Q2SERVER
 		else if (svs.gametype == GT_QUAKE2)
 		{
-			q2ent = ge->edicts;
+			for (i = 0; i < MAX_MODELS; i++)
+			{
+				if (sv.strings.configstring[Q2CS_MODELS+i] && *sv.strings.configstring[Q2CS_MODELS+i] && (!strcmp(sv.strings.configstring[Q2CS_MODELS+i] + strlen(sv.strings.configstring[Q2CS_MODELS+i]) - 4, ".bsp") || i-1 < sv.worldmodel->numsubmodels))
+					sv.models[i] = Mod_FindName(sv.strings.configstring[Q2CS_MODELS+i]);
+				else
+					sv.models[i] = NULL;
+			}
 
+			q2ent = ge->edicts;
 			for (i=0 ; i<ge->num_edicts ; i++, q2ent = (q2edict_t *)((char *)q2ent + ge->edict_size))
 			{
 				if (!q2ent)

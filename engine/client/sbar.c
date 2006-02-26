@@ -2115,7 +2115,7 @@ void Sbar_DeathmatchOverlay (int start)
 		y += skip;
 	}
 
-	Draw_Character(0,0,CON_WHITEMASK);
+	Draw_Character(0,0,' ' | CON_WHITEMASK);
 
 	if (y >= vid.height-10) // we ran over the screen size, squish
 		largegame = true;
@@ -2216,7 +2216,7 @@ void Sbar_ChatModeOverlay(void)
 		y += skip;
 	}
 
-	Draw_Character(0,0,CON_WHITEMASK);
+	Draw_Character(0,0,' ' | CON_WHITEMASK);
 
 	if (y >= vid.height-10) // we ran over the screen size, squish
 		largegame = true;

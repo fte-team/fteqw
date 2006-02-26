@@ -1597,7 +1597,9 @@ void CL_LinkPacketEntities (void)
 			ent->lerpfrac = 0;
 		else
 		{
-			ent->lerpfrac = 1-(servertime - le->oldframechange) / (le->framechange - le->oldframechange);
+			ent->lerpfrac = 1-(servertime - le->framechange) / (le->framechange - le->oldframechange);
+			if (ent->lerpfrac < 0)
+				ent->lerpfrac = 0;
 		}
 
 

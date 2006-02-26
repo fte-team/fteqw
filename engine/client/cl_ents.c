@@ -1598,8 +1598,13 @@ void CL_LinkPacketEntities (void)
 		else
 		{
 			ent->lerpfrac = 1-(servertime - le->framechange) / (le->framechange - le->oldframechange);
-			if (ent->lerpfrac < 0)
+			if (ent->lerpfrac > 1)
+				ent->lerpfrac = 1;
+			else if (ent->lerpfrac < 0)
+			{
 				ent->lerpfrac = 0;
+				//le->oldframechange = le->framechange;
+			}
 		}
 
 
@@ -2758,10 +2763,13 @@ void CL_LinkPlayers (void)
 		if (state->lerpstarttime)
 		{
 			ent->lerpfrac = 1-(realtime - state->lerpstarttime)*10;
-			if (ent->lerpfrac < 0)
-				ent->lerpfrac = 0;
 			if (ent->lerpfrac > 1)
 				ent->lerpfrac = 1;
+			else if (ent->lerpfrac < 0)
+			{
+				ent->lerpfrac = 0;
+				//state->lerpstarttime = 0;
+			}
 		}
 		else
 			ent->lerpfrac = 0;

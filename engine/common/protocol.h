@@ -44,7 +44,9 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 #ifdef Q3BSPS
 #define PEXT_Q3BSP				0x00040000
 #endif
-//PEXT_SEEF1				0x00080000
+
+#define PEXT_COLOURMOD			0x00080000	//this replaces an older value which would rarly have caried any actual data.
+
 #define PEXT_SPLITSCREEN		0x00100000
 #define PEXT_HEXEN2				0x00200000	//more stats and working particle builtin.
 #define PEXT_SPAWNSTATIC2		0x00400000	//Sends an entity delta instead of a baseline.
@@ -321,8 +323,8 @@ enum clcq2_ops_e
 // playerinfo flags from server
 // playerinfo always sends: playernum, flags, origin[] and framenumber
 
-#define	PF_MSEC			(1<<0)
-#define	PF_COMMAND		(1<<1)
+#define	PF_MSEC			(1<<0)	//msecs says how long the player command was sitting on the server before it was sent back to the client
+#define	PF_COMMAND		(1<<1)	//angles and movement values for other players (no msec or impulse)
 #define	PF_VELOCITY1	(1<<2)
 #define	PF_VELOCITY2	(1<<3)
 #define	PF_VELOCITY3	(1<<4)
@@ -357,7 +359,7 @@ enum clcq2_ops_e
 #define	PF_HULLSIZE_Z		(1<<14)
 #endif
 
-//#define	PF_ORIGINDBL		(1<<19)
+#define	PF_COLOURMOD		(1<<19)
 
 
 
@@ -451,7 +453,7 @@ enum clcq2_ops_e
 #define U_DRAWFLAGS	(1<<8)	//use an extra qbyte for origin parts, cos one of them is off
 #define U_ABSLIGHT	(1<<9)	//Force a lightlevel
 
-#define U_UNUSED2	(1<<10)	//use an extra qbyte for origin parts, cos one of them is off
+#define U_COLOURMOD	(1<<10)	//rgb
 
 #define U_DPFLAGS (1<<11)
 #define U_TAGINFO (1<<12)
@@ -702,15 +704,14 @@ typedef struct entity_state_s
 	qbyte glowsize;
 	qbyte glowcolour;
 	qbyte	scale;
-	qbyte	trans;
 
 	char	fatness;
 	qbyte	hexen2flags;
 	qbyte	abslight;
 	qbyte	dpflags;
 
-	qbyte	pad;
-	qbyte	colormod[3];
+	qbyte	colormod[3];//multiply this by 8 to read as 0 to 1...
+	qbyte	trans;
 
 	qbyte lightstyle;
 	qbyte lightpflags;
@@ -721,6 +722,7 @@ typedef struct entity_state_s
 	unsigned short tagentity;
 	unsigned short tagindex;
 } entity_state_t;
+extern entity_state_t nullentitystate;
 
 
 #define MAX_EXTENDED_PACKET_ENTITIES	256	//sanity limit.

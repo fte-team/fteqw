@@ -578,7 +578,7 @@ void VARGS readpngdata(png_structp png_ptr,png_bytep data,png_size_t len)
 }
 
 qbyte *png_rgba;
-qbyte *ReadPNGFile(qbyte *buf, int length, int *width, int *height)
+qbyte *ReadPNGFile(qbyte *buf, int length, int *width, int *height, char *fname)
 {
 	qbyte header[8], **rowpointers = NULL, *data = NULL;
 	png_structp png;
@@ -655,7 +655,7 @@ error:
 	bitdepth = png_get_bit_depth(png, pnginfo);
 
 	if (bitdepth != 8 || bytesperpixel != 4) {	
-		Con_Printf ("Bad PNG color depth and/or bpp\n");		
+		Con_Printf ("Bad PNG color depth and/or bpp (%s)\n", fname);		
 		png_destroy_read_struct(&png, &pnginfo, NULL);
 		return (png_rgba = NULL);
 	}
@@ -1837,7 +1837,7 @@ int GL_LoadTextureDDS(unsigned char *buffer, int filesize)
 #endif
 
 //returns r8g8b8a8
-qbyte *Read32BitImageFile(qbyte *buf, int len, int *width, int *height)
+qbyte *Read32BitImageFile(qbyte *buf, int len, int *width, int *height, char *fname)
 {
 	qbyte *data;
 	if ((data = ReadTargaFile(buf, len, width, height, false)))
@@ -1847,7 +1847,7 @@ qbyte *Read32BitImageFile(qbyte *buf, int len, int *width, int *height)
 	}
 	
 #ifdef AVAIL_PNGLIB
-	if ((buf[0] == 137 && buf[1] == 'P' && buf[2] == 'N' && buf[3] == 'G') && (data = ReadPNGFile(buf, com_filesize, width, height)))
+	if ((buf[0] == 137 && buf[1] == 'P' && buf[2] == 'N' && buf[3] == 'G') && (data = ReadPNGFile(buf, com_filesize, width, height, fname)))
 	{
 		TRACE(("dbg: Read32BitImageFile: png\n"));
 		return data;
@@ -1970,7 +1970,7 @@ int Mod_LoadHiResTexture(char *name, char *subpath, qboolean mipmap, qboolean al
 			TRACE(("dbg: Mod_LoadHiResTexture: trying %s\n", fname));
 			if ((buf = COM_LoadFile (fname, 5)))
 			{
-				if ((data = Read32BitImageFile(buf, com_filesize, &image_width, &image_height)))
+				if ((data = Read32BitImageFile(buf, com_filesize, &image_width, &image_height, fname)))
 				{
 					extern cvar_t vid_hardwaregamma;
 					if (colouradjust && !vid_hardwaregamma.value)

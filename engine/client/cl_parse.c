@@ -585,6 +585,8 @@ int CL_LoadModels(int stage)
 #define atstage() ((cl.contentstage == stage++)?++cl.contentstage:false)
 #define endstage() if (giveuptime<Sys_DoubleTime()) return -1;
 
+	pmove.numphysent = 0;
+
 #ifdef PEXT_CSQC
 	if (atstage())
 	{
@@ -2261,9 +2263,9 @@ void CL_ParseBaseline (entity_state_t *es)
 {
 	int			i;
 
-	memset(es, 0, sizeof(entity_state_t));
+	memcpy(es, &nullentitystate, sizeof(entity_state_t));
 
-	es->modelindex = MSG_ReadByte ();
+ 	es->modelindex = MSG_ReadByte ();
 	es->frame = MSG_ReadByte ();
 	es->colormap = MSG_ReadByte();
 	es->skinnum = MSG_ReadByte();
@@ -2273,21 +2275,12 @@ void CL_ParseBaseline (entity_state_t *es)
 		es->origin[i] = MSG_ReadCoord ();
 		es->angles[i] = MSG_ReadAngle ();
 	}
-#ifdef PEXT_SCALE
-	es->scale = 1*16;
-#endif
-#ifdef PEXT_TRANS
-	es->trans = 255;
-#endif
 }
 void CL_ParseBaseline2 (void)
 {
-	entity_state_t nullst, es;
+	entity_state_t es;
 
-	memset(&nullst, 0, sizeof(entity_state_t));
-	memset(&es, 0, sizeof(entity_state_t));
-
-	CL_ParseDelta(&nullst, &es, MSG_ReadShort(), true);
+	CL_ParseDelta(&nullentitystate, &es, MSG_ReadShort(), true);
 	memcpy(&cl_baselines[es.number], &es, sizeof(es));
 }
 
@@ -2315,7 +2308,7 @@ void CL_ParseStatic (int version)
 {
 	entity_t *ent;
 	int		i;
-	entity_state_t	es, nullstate;
+	entity_state_t	es;
 
 	if (version == 1)
 	{
@@ -2325,8 +2318,7 @@ void CL_ParseStatic (int version)
 	}
 	else
 	{
-		memset(&nullstate, 0, sizeof(nullstate));
-		CL_ParseDelta(&nullstate, &es, MSG_ReadShort(), true);
+		CL_ParseDelta(&nullentitystate, &es, MSG_ReadShort(), true);
 		es.number+=MAX_EDICTS;
 
 		for (i = 0; i < cl.num_statics; i++)
@@ -2348,7 +2340,7 @@ void CL_ParseStatic (int version)
 		return;
 	}
 	ent = &cl_static_entities[i];
-	memset(ent, 0, sizeof(*ent));
+	memcpy(ent, &nullentitystate, sizeof(*ent));
 	cl_static_emit[i] = NULL;
 
 	ent->keynum = es.number;
@@ -2365,9 +2357,11 @@ void CL_ParseStatic (int version)
 #ifdef PEXT_SCALE
 	ent->scale = es.scale/16.0;
 #endif
-#ifdef PEXT_TRANS
-	ent->alpha = es.trans/255.0;
-#endif
+	ent->shaderRGBAf[0] = (8.0f/255.0f)*es.colormod[0];
+	ent->shaderRGBAf[1] = (8.0f/255.0f)*es.colormod[1];
+	ent->shaderRGBAf[2] = (8.0f/255.0f)*es.colormod[2];
+	ent->shaderRGBAf[3] = es.trans/255;
+
 	ent->fatness = es.fatness/2.0;
 	ent->abslight = es.abslight;
 

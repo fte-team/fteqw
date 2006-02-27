@@ -4541,7 +4541,7 @@ haveannothergo:
 							Con_DPrintf ("Failed command checksum for %s(%d) (%d != %d)\n",
 								cl->name, cl->netchan.incoming_sequence, checksum, calculatedChecksum);
 
-							for (; cl; cl = cl->controlled)	//FIXME
+							for (cl = cl->controlled; cl; cl = cl->controlled)	//FIXME
 							{
 								MSG_ReadDeltaUsercmd (&nullcmd, &oldest);
 								MSG_ReadDeltaUsercmd (&oldest, &oldcmd);

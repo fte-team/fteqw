@@ -427,7 +427,7 @@ qbyte	*Skin_Cache32 (skin_t *skin)
 	raw = COM_LoadTempFile (name);
 	if (raw)
 	{
-		pix = ReadPNGFile(raw, com_filesize, &skin->width, &skin->height);
+		pix = ReadPNGFile(raw, com_filesize, &skin->width, &skin->height, name);
 		if (pix)
 		{
 			out = Cache_Alloc(&skin->cache, skin->width*skin->height*4, name);

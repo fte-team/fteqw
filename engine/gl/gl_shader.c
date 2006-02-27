@@ -723,6 +723,29 @@ static void Shaderpass_AlphaGen ( shader_t *shader, shaderpass_t *pass, char **p
 		pass->alphagen_func.args[0] = fabs( Shader_ParseFloat (ptr) );
 	}
 }
+static void Shaderpass_AlphaShift ( shader_t *shader, shaderpass_t *pass, char **ptr )	//for alienarena
+{
+	float speed;
+	float min, max;
+	pass->alphagen = ALPHA_GEN_WAVE;
+
+	pass->alphagen_func.type = SHADER_FUNC_SIN;
+
+
+	//arg0 = add
+	//arg1 = scale
+	//arg2 = timeshift
+	//arg3 = timescale
+
+	speed = Shader_ParseFloat ( ptr );
+	min = Shader_ParseFloat ( ptr );
+	max = Shader_ParseFloat ( ptr );
+
+	pass->alphagen_func.args[0] = min + (max - min)/2;
+	pass->alphagen_func.args[1] = (max - min)/2;
+	pass->alphagen_func.args[2] = 0;
+	pass->alphagen_func.args[3] = 1/speed;
+}
 
 static void Shaderpass_BlendFunc ( shader_t *shader, shaderpass_t *pass, char **ptr )
 {
@@ -866,6 +889,76 @@ static void Shaderpass_TcMod ( shader_t *shader, shaderpass_t *pass, char **ptr 
 	pass->numtcmods++;
 }
 
+static void Shaderpass_Scale ( shader_t *shader, shaderpass_t *pass, char **ptr )
+{
+	//seperate x and y
+	char *token;
+	tcmod_t *tcmod;
+
+	tcmod = &pass->tcmods[pass->numtcmods];
+
+	token = Shader_ParseString ( ptr );
+	if (!strcmp(token, "static"))
+	{
+		tcmod->type = SHADER_TCMOD_SCALE;
+		tcmod->args[0] = Shader_ParseFloat ( ptr );
+	}
+	else
+	{
+		Con_Printf("Bad shader scale\n");
+		return;
+	}
+
+	token = Shader_ParseString ( ptr );
+	if (!strcmp(token, "static"))
+	{
+		tcmod->type = SHADER_TCMOD_SCALE;
+		tcmod->args[1] = Shader_ParseFloat ( ptr );
+	}
+	else
+	{
+		Con_Printf("Bad shader scale\n");
+		return;
+	}
+
+	pass->numtcmods++;
+}
+
+static void Shaderpass_Scroll ( shader_t *shader, shaderpass_t *pass, char **ptr )
+{
+	//seperate x and y
+	char *token;
+	tcmod_t *tcmod;
+
+	tcmod = &pass->tcmods[pass->numtcmods];
+
+	token = Shader_ParseString ( ptr );
+	if (!strcmp(token, "static"))
+	{
+		tcmod->type = SHADER_TCMOD_SCROLL;
+		tcmod->args[0] = Shader_ParseFloat ( ptr );
+	}
+	else
+	{
+		Con_Printf("Bad shader scale\n");
+		return;
+	}
+
+	token = Shader_ParseString ( ptr );
+	if (!strcmp(token, "static"))
+	{
+		tcmod->type = SHADER_TCMOD_SCROLL;
+		tcmod->args[1] = Shader_ParseFloat ( ptr );
+	}
+	else
+	{
+		Con_Printf("Bad shader scale\n");
+		return;
+	}
+
+	pass->numtcmods++;
+}
+
 
 static void Shaderpass_TcGen ( shader_t *shader, shaderpass_t *pass, char **ptr )
 {
@@ -882,10 +975,25 @@ static void Shaderpass_TcGen ( shader_t *shader, shaderpass_t *pass, char **ptr 
 		pass->tcgen = TC_GEN_BASE;
 	}
 }
+static void Shaderpass_EnvMap ( shader_t *shader, shaderpass_t *pass, char **ptr )	//for alienarena
+{
+	pass->tcgen = TC_GEN_ENVIRONMENT;
+}
 
 static void Shaderpass_Detail ( shader_t *shader, shaderpass_t *pass, char **ptr )
 {
 	pass->flags |= SHADER_PASS_DETAIL;
+}
+
+static void Shaderpass_AlphaMask ( shader_t *shader, shaderpass_t *pass, char **ptr )
+{
+	pass->flags |= SHADER_PASS_ALPHAFUNC;
+	pass->alphafunc = SHADER_ALPHA_GE128;
+}
+
+static void Shaderpass_NoLightMap ( shader_t *shader, shaderpass_t *pass, char **ptr )
+{
+	pass->rgbgen = RGB_GEN_IDENTITY;
 }
 
 static shaderkey_t shaderpasskeys[] =
@@ -901,7 +1009,13 @@ static shaderkey_t shaderpasskeys[] =
     {"clampmap",	Shaderpass_ClampMap },
 	{"videomap",	Shaderpass_VideoMap },
     {"tcgen",		Shaderpass_TcGen },
+	{"envmap",		Shaderpass_EnvMap },//for alienarena
+	{"nolightmap",	Shaderpass_NoLightMap },//for alienarena
+	{"scale",		Shaderpass_Scale },//for alienarena
+	{"scroll",		Shaderpass_Scroll },//for alienarena
 	{"alphagen",	Shaderpass_AlphaGen },
+	{"alphashift",	Shaderpass_AlphaShift },//for alienarena
+	{"alphamask",	Shaderpass_AlphaMask },//for alienarena
 	{"detail",		Shaderpass_Detail },
     {NULL,			NULL }
 };
@@ -925,6 +1039,7 @@ qboolean Shader_Init (void)
 
 	COM_EnumerateFiles("shaders/*.shader", Shader_InitCallback, NULL);
 	COM_EnumerateFiles("scripts/*.shader", Shader_InitCallback, NULL);
+//	COM_EnumerateFiles("scripts/*.rscript", Shader_InitCallback, NULL);
 
 	/*
 	char *dirptr;
@@ -2069,6 +2184,11 @@ int R_LoadShader ( char *name, void(*defaultgen)(char *name, shader_t*))
 		// set defaults
 		s->flags = SHADER_CULL_FRONT;
 		s->registration_sequence = 1;//fizme: registration_sequence;
+
+//		if (!strcmp(COM_FileExtension(ts), "rscript"))
+//		{
+//			Shader_DefaultBSP(shortname, s);
+//		}
 
 		ptr = buf + offset;
 		token = COM_ParseExt (&ptr, true);

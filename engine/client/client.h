@@ -54,9 +54,8 @@ typedef struct
 #ifdef PEXT_SCALE
 	float scale;
 #endif
-#ifdef PEXT_TRANS
-	float trans;
-#endif
+	qbyte colourmod[3];
+	qbyte alpha;
 #ifdef PEXT_FATNESS
 	float fatness;
 #endif

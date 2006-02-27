@@ -1183,6 +1183,7 @@ void *Mod_LoadWall(char *name)
 
 void CMod_LoadTexInfo (lump_t *l)	//yes I know these load from the same place
 {
+	extern cvar_t gl_shadeq2;
 	q2texinfo_t *in;
 	mtexinfo_t *out;
 	int 	i, j, count;
@@ -1252,6 +1253,8 @@ void CMod_LoadTexInfo (lump_t *l)	//yes I know these load from the same place
 	//			out->texture = r_notexture_mip; // texture not found
 	//			out->flags = 0;
 			}
+			if (gl_shadeq2.value)
+				out->texture->shader = R_RegisterCustom (name, NULL);
 			Q_strncpyz(out->texture->name, in->texture, sizeof(out->texture->name));
 
 #if !defined(SERVERONLY) && defined(RGLQUAKE)

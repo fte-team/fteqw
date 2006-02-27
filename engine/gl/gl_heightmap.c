@@ -54,7 +54,7 @@ void GL_DrawHeightmapModel (entity_t *e)
 	}
 	qglEnable(GL_CULL_FACE);
 
-	qglColor4f(1, 1, 1, e->alpha);
+	qglColor4fv(e->shaderRGBAf);
 
 	for (x = 0; x < hm->numsegs; x++)
 	{

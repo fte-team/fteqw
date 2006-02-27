@@ -378,7 +378,7 @@ static void PPL_BaseChain_NoBump_2TMU_Overbright(msurface_t *s, texture_t *tex)
 
 	PPL_EnableVertexArrays();
 
-	if (tex->alphaed)
+	if (tex->alphaed || currententity->shaderRGBAf[3]<1)
 	{
 		qglEnable(GL_BLEND);
 		GL_TexEnv(GL_MODULATE);
@@ -1541,7 +1541,7 @@ static void PPL_BaseTextureChain(msurface_t *first)
 		qglBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
 		GL_Bind (t->gl_texturenum);
 		for (; first ; first=first->texturechain)
-			EmitWaterPolys (first, currententity->alpha);
+			EmitWaterPolys (first, currententity->shaderRGBAf[3]);
 
 		qglDisable(GL_BLEND);
 		qglColor4f(1,1,1, 1);
@@ -1642,9 +1642,14 @@ void PPL_BaseTextures(model_t *model)
 
 	GL_DoSwap();
 
+	currententity->shaderRGBAf[0] = 1;
+	currententity->shaderRGBAf[1] = 1;
+	currententity->shaderRGBAf[2] = 1;
+	currententity->shaderRGBAf[3] = 1;
+
 	qglDisable(GL_BLEND);
 	qglDisable(GL_ALPHA_TEST);
-	qglColor4f(1,1,1, 1);
+	qglColor4fv(currententity->shaderRGBAf);
 //	qglDepthFunc(GL_LESS);
 
 	qglBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
@@ -1659,7 +1664,6 @@ void PPL_BaseTextures(model_t *model)
 		overbright = 1;
 
 	currentmodel = model;
-	currententity->alpha = 1;
 
 	if (model == cl.worldmodel && skytexturenum>=0)
 	{
@@ -1722,16 +1726,12 @@ void PPL_BaseBModelTextures(entity_t *e)
 
 	GL_TexEnv(GL_MODULATE);
 
-	if (currententity->alpha<1)
-	{
+	if (currententity->shaderRGBAf[3]<1)
 		qglEnable(GL_BLEND);
-		qglColor4f(1, 1, 1, currententity->alpha);
-	}
 	else
-	{
 		qglDisable(GL_BLEND);
-		qglColor4f(1, 1, 1, 1);
-	}
+
+	qglColor4fv(currententity->shaderRGBAf);
 
 	qglBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
 
@@ -1870,6 +1870,7 @@ void R_DrawRailCore(entity_t *e)
 	vec2_t texcoords[4] = {{0, 0}, {0, 1}, {1, 1}, {1, 0}};
 	int indexarray[6] = {0, 1, 2, 0, 2, 3};
 	int colors[4];
+	qbyte colorsb[4];
 
 	if (!e->forcedshader)
 		return;
@@ -1899,7 +1900,11 @@ void R_DrawRailCore(entity_t *e)
 	VectorMA(e->oldorigin, scale/2, cr, points[2]);
 	VectorMA(e->oldorigin, -scale/2, cr, points[3]);
 
-	colors[0] = colors[1] = colors[2] = colors[3] = *(int*)e->shaderRGBA;
+	colorsb[0] = e->shaderRGBAf[0]*255;
+	colorsb[1] = e->shaderRGBAf[1]*255;
+	colorsb[2] = e->shaderRGBAf[2]*255;
+	colorsb[3] = e->shaderRGBAf[3]*255;
+	colors[0] = colors[1] = colors[2] = colors[3] = *(int*)colorsb;
 
 	mesh.xyz_array = points;
 	mesh.indexes = indexarray;
@@ -2032,11 +2037,11 @@ void R_DrawBeam( entity_t *e )
 		g = ( d_8to24rgbtable[e->skinnum & 0xFF] >> 8 ) & 0xFF;
 		b = ( d_8to24rgbtable[e->skinnum & 0xFF] >> 16 ) & 0xFF;
 
-		r *= 1/255.0F;
-		g *= 1/255.0F;
-		b *= 1/255.0F;
+		r *= e->shaderRGBAf[0]/255.0F;
+		g *= e->shaderRGBAf[1]/255.0F;
+		b *= e->shaderRGBAf[2]/255.0F;
 
-		qglColor4f( r, g, b, e->alpha );
+		qglColor4f( r, g, b, e->shaderRGBAf[3] );
 
 		qglBegin( GL_TRIANGLE_STRIP );
 		for ( i = 0; i < NUM_BEAM_SEGS; i++ )

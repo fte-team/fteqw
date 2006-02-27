@@ -926,7 +926,7 @@ qboolean Media_PlayFilm(char *name)
 		qbyte *ReadPCXFile(qbyte *buf, int length, int *width, int *height);
 		qbyte *ReadTargaFile(qbyte *buf, int length, int *width, int *height, int asgrey);
 		qbyte *ReadJPEGFile(qbyte *infile, int length, int *width, int *height);
-		qbyte *ReadPNGFile(qbyte *buf, int length, int *width, int *height);
+		qbyte *ReadPNGFile(qbyte *buf, int length, int *width, int *height, char *fname);
 
 		sprintf(fullname, "pics/%s", name);
 		file = COM_LoadMallocFile(fullname);	//read file
@@ -939,7 +939,7 @@ qboolean Media_PlayFilm(char *name)
 			(staticfilmimage = ReadJPEGFile(file, com_filesize, &imagewidth, &imageheight)) ||
 #endif
 #ifdef AVAIL_PNGLIB
-			(staticfilmimage = ReadPNGFile(file, com_filesize, &imagewidth, &imageheight)) ||
+			(staticfilmimage = ReadPNGFile(file, com_filesize, &imagewidth, &imageheight, fullname)) ||
 #endif
 			0)
 		{

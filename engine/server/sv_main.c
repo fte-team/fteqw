@@ -3293,6 +3293,7 @@ void SV_InitLocal (void)
 #endif
 	svs.fteprotocolextensions |= PEXT_SPLITSCREEN;
 	svs.fteprotocolextensions |= PEXT_HEXEN2;
+	svs.fteprotocolextensions |= PEXT_COLOURMOD;
 	svs.fteprotocolextensions |= PEXT_SPAWNSTATIC2;
 	svs.fteprotocolextensions |= PEXT_CUSTOMTEMPEFFECTS;
 	svs.fteprotocolextensions |= PEXT_256PACKETENTITIES;

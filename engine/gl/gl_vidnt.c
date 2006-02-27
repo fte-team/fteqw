@@ -957,12 +957,12 @@ void	GLVID_ShiftPalette (unsigned char *palette)
 			if (vid_desktopgamma.value)
 			{
 				HDC hDC = GetDC(GetDesktopWindow());
-				gammaworks = qSetDeviceGammaRamp (hDC, ramps);
+				qSetDeviceGammaRamp (hDC, ramps);
 				ReleaseDC(GetDesktopWindow(), hDC);
 			}
 			else
 			{
-				gammaworks = qSetDeviceGammaRamp (maindc, ramps);
+				qSetDeviceGammaRamp (maindc, ramps);
 			}
 			return;
 		}
@@ -1139,7 +1139,6 @@ qboolean GLAppActivate(BOOL fActive, BOOL minimize)
 		}
 
 		v_gamma.modified = true;	//so that we can start doing palette flashes and things
-		gammaworks = true;
 	}
 
 	if (!fActive)
@@ -1166,12 +1165,12 @@ qboolean GLAppActivate(BOOL fActive, BOOL minimize)
 			if (vid_desktopgamma.value)
 			{
 				HDC hDC = GetDC(GetDesktopWindow());
-				gammaworks = qSetDeviceGammaRamp (hDC, originalgammaramps);
+				qSetDeviceGammaRamp (hDC, originalgammaramps);
 				ReleaseDC(GetDesktopWindow(), hDC);
 			}
 			else
 			{
-				gammaworks = qSetDeviceGammaRamp(maindc, originalgammaramps);
+				qSetDeviceGammaRamp(maindc, originalgammaramps);
 			}
 		}
 	}

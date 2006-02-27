@@ -854,9 +854,9 @@ void DP5_ParseDelta(entity_state_t *s)
 	}
 	if (bits & E5_COLORMOD)
 	{
-		MSG_ReadByte();
-		MSG_ReadByte();
-		MSG_ReadByte();
+		s->colormod[0] = MSG_ReadByte();
+		s->colormod[1] = MSG_ReadByte();
+		s->colormod[2] = MSG_ReadByte();
 	}
 }
 
@@ -1707,10 +1707,10 @@ void CL_LinkPacketEntities (void)
 		//set scale
 		ent->scale = state->scale/16.0;
 #endif
-#ifdef PEXT_TRANS
-		//set trans
-		ent->alpha = state->trans/255.0;
-#endif
+		ent->shaderRGBAf[0] = (state->colormod[0]*8.0f)/255;
+		ent->shaderRGBAf[1] = (state->colormod[1]*8.0f)/255;
+		ent->shaderRGBAf[2] = (state->colormod[2]*8.0f)/255;
+		ent->shaderRGBAf[3] = state->trans/255.0f;
 #ifdef PEXT_FATNESS
 		//set trans
 		ent->fatness = state->fatness/2.0;
@@ -2255,9 +2255,12 @@ void CL_LinkProjectiles (void)
 #ifdef PEXT_SCALE
 		ent->scale = 1;
 #endif
-#ifdef PEXT_TRANS
-		ent->alpha = 1;
-#endif
+
+		ent->shaderRGBAf[0] = 1;
+		ent->shaderRGBAf[1] = 1;
+		ent->shaderRGBAf[2] = 1;
+		ent->shaderRGBAf[3] = 1;
+		
 		VectorCopy (pr->origin, ent->origin);
 		VectorCopy (pr->angles, ent->angles);
 
@@ -2396,7 +2399,7 @@ void CL_ParsePlayerinfo (void)
 
 		state->hullnum = 1;
 		state->scale = 1*16;
-		state->trans = 255;
+		state->alpha = 255;
 		state->fatness = 0;
 
 		state->pm_type = PM_NORMAL;
@@ -2502,7 +2505,7 @@ void CL_ParsePlayerinfo (void)
 	else
 		state->hullnum = 56;
 	state->scale = 1*16;
-	state->trans = 255;
+	state->alpha = 255;
 	state->fatness = 0;
 
 #ifdef PEXT_SCALE
@@ -2511,7 +2514,7 @@ void CL_ParsePlayerinfo (void)
 #endif
 #ifdef PEXT_TRANS
 	if (flags & PF_TRANS_Z && cls.fteprotocolextensions & PEXT_TRANS)
-		state->trans = (float)MSG_ReadByte() / 255;
+		state->alpha = MSG_ReadByte();
 #endif
 #ifdef PEXT_FATNESS
 	if (flags & PF_FATNESS_Z && cls.fteprotocolextensions & PEXT_FATNESS)
@@ -2525,6 +2528,19 @@ void CL_ParsePlayerinfo (void)
 	}
 	//should be passed to player move func.
 #endif
+
+	if (cls.fteprotocolextensions & PEXT_COLOURMOD && flags & PF_COLOURMOD)
+	{
+		state->colourmod[0] = MSG_ReadByte();
+		state->colourmod[1] = MSG_ReadByte();
+		state->colourmod[2] = MSG_ReadByte();
+	}
+	else
+	{
+		state->colourmod[0] = 32;
+		state->colourmod[1] = 32;
+		state->colourmod[2] = 32;
+	}
 
 	if (cls.z_ext & Z_EXT_PM_TYPE)
 	{
@@ -2785,9 +2801,11 @@ void CL_LinkPlayers (void)
 #ifdef PEXT_SCALE
 		ent->scale = state->scale/16.0f;
 #endif
-#ifdef PEXT_TRANS
-		ent->alpha = state->trans/255.0f;
-#endif
+		ent->shaderRGBAf[0] = state->colourmod[0]/32;
+		ent->shaderRGBAf[1] = state->colourmod[1]/32;
+		ent->shaderRGBAf[2] = state->colourmod[2]/32;
+		ent->shaderRGBAf[3] = state->alpha/255;
+
 		ent->fatness = state->fatness/2;
 		//
 		// angles
@@ -2899,6 +2917,7 @@ void CL_LinkViewModel(void)
 	static float lerptime[MAX_SPLITS];
 	static int prevframe[MAX_SPLITS];
 	static int oldframe[MAX_SPLITS];
+	float alpha;
 
 #ifdef SIDEVIEWS
 	extern qboolean r_secondaryview;
@@ -2930,17 +2949,22 @@ void CL_LinkViewModel(void)
 		return;
 
 #ifdef PEXT_SCALE
-	ent.scale = 1;
+	ent.scale = r_viewmodelsize.value;
 #endif
 	if (r_drawviewmodel.value > 0 && r_drawviewmodel.value < 1)
-		ent.alpha = r_drawviewmodel.value;
+		alpha = r_drawviewmodel.value;
 	else
-		ent.alpha = 1;
+		alpha = 1;
 
 	if ((cl.stats[r_refdef.currentplayernum][STAT_ITEMS] & IT_INVISIBILITY)
 		&& r_drawviewmodelinvis.value > 0
 		&& r_drawviewmodelinvis.value < 1)
-		ent.alpha *= r_drawviewmodelinvis.value;
+		alpha *= r_drawviewmodelinvis.value;
+
+	ent.shaderRGBAf[0] = 1;
+	ent.shaderRGBAf[1] = 1;
+	ent.shaderRGBAf[2] = 1;
+	ent.shaderRGBAf[3] = alpha;
 
 	ent.frame = cl.viewent[r_refdef.currentplayernum].frame;
 	ent.oldframe = oldframe[r_refdef.currentplayernum];
@@ -2966,8 +2990,6 @@ void CL_LinkViewModel(void)
 #define	Q2RF_DEPTHHACK			16		// for view weapon Z crunching
 
 	ent.flags = Q2RF_WEAPONMODEL|Q2RF_DEPTHHACK;
-
-	ent.shaderRGBA[3] = ent.alpha*255;
 
 	V_AddEntity(&ent);
 
@@ -3004,15 +3026,15 @@ void CL_LinkViewModel(void)
 		return;
 
 	ent.fatness = 0.5;
-	ent.alpha *= 0.1;
+	ent.shaderRGBAf[3] /= 10;
 #ifdef Q3SHADERS	//fixme: do better.
 	//fixme: this is woefully gl specific. :(
 	if (qrenderer == QR_OPENGL)
 	{
 		extern void Shader_DefaultSkinShell(char *shortname, shader_t *s);
-		ent.shaderRGBA[0] = (!!(ent.flags & Q2RF_SHELL_RED)) * 255;
-		ent.shaderRGBA[1] = (!!(ent.flags & Q2RF_SHELL_GREEN)) * 255;
-		ent.shaderRGBA[2] = (!!(ent.flags & Q2RF_SHELL_BLUE)) * 255;
+		ent.shaderRGBAf[0] = (!!(ent.flags & Q2RF_SHELL_RED));
+		ent.shaderRGBAf[1] = (!!(ent.flags & Q2RF_SHELL_GREEN));
+		ent.shaderRGBAf[2] = (!!(ent.flags & Q2RF_SHELL_BLUE));
 		ent.forcedshader = R_RegisterCustom("q2/shell", Shader_DefaultSkinShell);
 	}
 #endif

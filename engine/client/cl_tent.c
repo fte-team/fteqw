@@ -2389,9 +2389,10 @@ entity_t *CL_NewTempEntity (void)
 #ifdef PEXT_SCALE
 	ent->scale = 1;
 #endif
-#ifdef PEXT_TRANS
-	ent->alpha = 1;
-#endif
+	ent->shaderRGBAf[0] = 1;
+	ent->shaderRGBAf[1] = 1;
+	ent->shaderRGBAf[2] = 1;
+	ent->shaderRGBAf[3] = 1;
 	return ent;
 }
 
@@ -2574,7 +2575,7 @@ void CL_UpdateBeams (void)
 			ent->model = b->model;
 			ent->drawflags |= MLS_ABSLIGHT;
 			ent->abslight = 192;
-			ent->alpha = b->alpha;
+			ent->shaderRGBAf[3] = b->alpha;
 
 			ent->angles[0] = -pitch;
 			ent->angles[1] = yaw;
@@ -2644,7 +2645,7 @@ void CL_UpdateExplosions (void)
 		ent->frame = (int)f+firstframe;
 		ent->oldframe = of+firstframe;
 		ent->lerpfrac = 1-(f - (int)f);
-		ent->alpha = 1.0 - f/(numframes);
+		ent->shaderRGBAf[3] = 1.0 - f/(numframes);
 		ent->flags = ex->flags;
 	}
 }

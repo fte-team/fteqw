@@ -1354,7 +1354,10 @@ void CLQ2_AddPacketEntities (q2frame_t *frame)
 		ent.keynum = s1->number;
 
 		ent.scale = 1;
-		ent.alpha = 1;
+		ent.shaderRGBAf[0] = 1;
+		ent.shaderRGBAf[1] = 1;
+		ent.shaderRGBAf[2] = 1;
+		ent.shaderRGBAf[3] = 1;
 		ent.fatness = 0;
 		ent.scoreboard = NULL;
 
@@ -1424,7 +1427,7 @@ void CLQ2_AddPacketEntities (q2frame_t *frame)
 		// tweak the color of beams
 		if ( renderfx & Q2RF_BEAM )
 		{	// the four beam colors are encoded in 32 bits of skinnum (hack)
-			ent.alpha = 0.30;
+			ent.shaderRGBAf[3] = 0.30;
 			ent.skinnum = (s1->skinnum >> ((rand() % 4)*8)) & 0xff;
 			ent.model = NULL;
 			ent.lerpfrac = 1;
@@ -1489,7 +1492,7 @@ void CLQ2_AddPacketEntities (q2frame_t *frame)
 
 		// only used for black hole model right now, FIXME: do better
 		if (renderfx == Q2RF_TRANSLUCENT)
-			ent.alpha = 0.70;
+			ent.shaderRGBAf[3] = 0.70;
 
 		// render effects (fullbright, translucent, etc)
 		if ((effects & Q2EF_COLOR_SHELL))
@@ -1554,14 +1557,14 @@ void CLQ2_AddPacketEntities (q2frame_t *frame)
 		if (effects & Q2EF_BFG)
 		{
 			ent.flags |= Q2RF_TRANSLUCENT;
-			ent.alpha = 0.30;
+			ent.shaderRGBAf[3] = 0.30;
 		}
 
 		// RAFAEL
 		if (effects & Q2EF_PLASMA)
 		{
 			ent.flags |= Q2RF_TRANSLUCENT;
-			ent.alpha = 0.6;
+			ent.shaderRGBAf[3] = 0.6;
 		}
 
 		if (effects & Q2EF_SPHERETRANS)
@@ -1569,9 +1572,9 @@ void CLQ2_AddPacketEntities (q2frame_t *frame)
 			ent.flags |= Q2RF_TRANSLUCENT;
 			// PMM - *sigh*  yet more EF overloading
 			if (effects & Q2EF_TRACKERTRAIL)
-				ent.alpha = 0.6;
+				ent.shaderRGBAf[3] = 0.6;
 			else
-				ent.alpha = 0.3;
+				ent.shaderRGBAf[3] = 0.3;
 		}
 //pmm
 
@@ -1619,16 +1622,15 @@ void CLQ2_AddPacketEntities (q2frame_t *frame)
 			}
 			// pmm
 			ent.flags = renderfx | Q2RF_TRANSLUCENT;
-			ent.alpha = 0.30;
+			ent.shaderRGBAf[3] = 0.30;
 			ent.fatness = 1;
+			ent.shaderRGBAf[0] = (!!(renderfx & Q2RF_SHELL_RED));
+			ent.shaderRGBAf[1] = (!!(renderfx & Q2RF_SHELL_GREEN));
+			ent.shaderRGBAf[2] = (!!(renderfx & Q2RF_SHELL_BLUE));
 #ifdef Q3SHADERS	//fixme: do better.
 			//fixme: this is woefully gl specific. :(
 			if (qrenderer == QR_OPENGL)
 			{
-				ent.shaderRGBA[0] = (!!(renderfx & Q2RF_SHELL_RED)) * 255;
-				ent.shaderRGBA[1] = (!!(renderfx & Q2RF_SHELL_GREEN)) * 255;
-				ent.shaderRGBA[2] = (!!(renderfx & Q2RF_SHELL_BLUE)) * 255;
-				ent.shaderRGBA[3] = ent.alpha*255;
 				ent.forcedshader = R_RegisterCustom("q2/shell", Shader_DefaultSkinShell);
 			}
 #endif
@@ -1641,7 +1643,7 @@ void CLQ2_AddPacketEntities (q2frame_t *frame)
 //		ent.skin = NULL;		// never use a custom skin on others
 		ent.skinnum = 0;
 		ent.flags = 0;
-		ent.alpha = 0;
+		ent.shaderRGBAf[3] = 1;
 
 		// duplicate for linked models
 		if (s1->modelindex2)
@@ -1679,7 +1681,7 @@ void CLQ2_AddPacketEntities (q2frame_t *frame)
 
 			//PGM - make sure these get reset.
 			ent.flags = 0;
-			ent.alpha = 0;
+			ent.shaderRGBAf[3] = 1;
 			//PGM
 		}
 		if (s1->modelindex3)
@@ -1862,10 +1864,10 @@ CL_AddViewWeapon
 */
 void CLQ2_AddViewWeapon (q2player_state_t *ps, q2player_state_t *ops)
 {
-#if 1
 	entity_t	gun;		// view model
 	int			i;
 	entity_t	*view;
+	extern cvar_t r_viewmodelsize;
 
 	// allow the gun to be completely removed
 	if (!r_drawviewmodel.value)
@@ -1890,13 +1892,14 @@ void CLQ2_AddViewWeapon (q2player_state_t *ps, q2player_state_t *ops)
 	if (!gun.model)
 		return;
 
-	gun.scale = 1;
-	gun.alpha = 1;
+	gun.scale = r_viewmodelsize.value;
+	gun.shaderRGBAf[0] = 1;
+	gun.shaderRGBAf[1] = 1;
+	gun.shaderRGBAf[2] = 1;
 	if (r_drawviewmodel.value < 1 || r_drawviewmodel.value > 0)
-	{
-		gun.alpha = r_drawviewmodel.value;
-		gun.shaderRGBA[3] = gun.alpha*255;
-	}
+		gun.shaderRGBAf[3] = r_drawviewmodel.value;
+	else
+		gun.shaderRGBAf[3] = 1;
 
 	// set up gun position
 	for (i=0 ; i<3 ; i++)
@@ -1926,7 +1929,6 @@ void CLQ2_AddViewWeapon (q2player_state_t *ps, q2player_state_t *ops)
 	gun.lerpfrac = 1-cl.lerpfrac;
 	VectorCopy (gun.origin, gun.oldorigin);	// don't lerp at all
 	V_AddEntity (&gun);
-#endif
 }
 
 
@@ -1939,6 +1941,7 @@ Sets r_refdef view values
 */
 void CLQ2_CalcViewValues (void)
 {
+	extern cvar_t v_gunkick;
 	int			i;
 	float		lerp, backlerp;
 	q2centity_t	*ent;
@@ -2006,7 +2009,7 @@ void CLQ2_CalcViewValues (void)
 	}
 
 	for (i=0 ; i<3 ; i++)
-		r_refdef.viewangles[i] += LerpAngle (ops->kick_angles[i], ps->kick_angles[i], lerp);
+		r_refdef.viewangles[i] += v_gunkick.value * LerpAngle (ops->kick_angles[i], ps->kick_angles[i], lerp);
 
 	VectorCopy(r_refdef.vieworg, cl.simorg[0]);
 	VectorCopy(r_refdef.viewangles, cl.simangles[0]);

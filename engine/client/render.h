@@ -59,7 +59,7 @@ typedef struct entity_s
 	vec3_t					angles;
 	vec3_t					axis[3];
 
-	byte_vec4_t				shaderRGBA;
+	vec4_t					shaderRGBAf;
 	float					shaderTime;
 
 	vec3_t					oldorigin;
@@ -101,9 +101,6 @@ typedef struct entity_s
 
 #ifdef PEXT_SCALE
 	float scale;
-#endif
-#ifdef PEXT_TRANS
-	float alpha;
 #endif
 #ifdef PEXT_FATNESS
 	float fatness;
@@ -337,7 +334,7 @@ void WritePCXfile (char *filename, qbyte *data, int width, int height, int rowby
 qbyte *ReadPCXFile(qbyte *buf, int length, int *width, int *height);
 qbyte *ReadTargaFile(qbyte *buf, int length, int *width, int *height, int asgrey);
 qbyte *ReadJPEGFile(qbyte *infile, int length, int *width, int *height);
-qbyte *ReadPNGFile(qbyte *buf, int length, int *width, int *height);
+qbyte *ReadPNGFile(qbyte *buf, int length, int *width, int *height, char *name);
 qbyte *ReadPCXPalette(qbyte *buf, int len, qbyte *out);
 
 void BoostGamma(qbyte *rgba, int width, int height);
@@ -357,6 +354,7 @@ extern	cvar_t	r_norefresh;
 extern	cvar_t	r_drawentities;
 extern	cvar_t	r_drawworld;
 extern	cvar_t	r_drawviewmodel;
+extern	cvar_t	r_viewmodelsize;
 extern	cvar_t	r_drawviewmodelinvis;
 extern	cvar_t	r_speeds;
 extern	cvar_t	r_waterwarp;

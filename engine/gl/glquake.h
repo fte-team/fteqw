@@ -308,6 +308,7 @@ void GL_SetupSceneProcessingTextures (void);
 void R_DrawGAliasModel (entity_t *e);
 void R_DrawGAliasShadowVolume(entity_t *e, vec3_t lightpos, float radius);
 void R_DrawGAliasModelLighting (entity_t *e, vec3_t lightpos, vec3_t colours, float radius);
+void R_LightArrays(byte_vec4_t *colours, int vertcount, vec3_t *normals);
 
 //misc model formats
 void R_DrawAlias3Model (entity_t *ent);

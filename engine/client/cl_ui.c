@@ -385,6 +385,7 @@ void VMUI_fcloseall (int owner)
 typedef struct {
 	char *initialbuffer;
 	char *buffer;
+	char *dir;
 	int found;
 	int bufferleft;
 	int skip;
@@ -413,24 +414,47 @@ int VMEnum(char *match, int size, void *args)
 	return true;
 }
 
+static int IfFound(char *match, int size, void *args)
+{
+	*(qboolean*)args = true;
+	return true;
+}
+
 int VMEnumMods(char *match, int size, void *args)
 {
 	char *check;
 	char desc[1024];
 	int newlen;
 	int desclen;
+	qboolean foundone;
+	vfsfile_t *f;
 
 	newlen = strlen(match)+1;
 
 	if (*match && match[newlen-2] != '/')
 		return true;
 	match[newlen-2] = '\0';
+	newlen--;
+
+	if (!stricmp(match, "baseq3"))
+		return true;	//we don't want baseq3
+
+	foundone = false;
+	Sys_EnumerateFiles(va("%s/%s/", ((vmsearch_t *)args)->dir, match), "*.pk3", IfFound, &foundone);
+	if (foundone == false)
+		return true;	//we only count directories with a pk3 file
 
 	Q_strncpyz(desc, match, sizeof(desc));
+	f = FS_OpenVFS(va("%s/%s/description.txt", ((vmsearch_t *)args)->dir, match), "rb", FS_BASE);
+	if (f)
+	{
+		VFS_GETS(f, desc, sizeof(desc));
+		VFS_CLOSE(f);
+	}
 
 	desclen = strlen(desc)+1;
 
-	if (newlen+desclen > ((vmsearch_t *)args)->bufferleft)
+	if (newlen+desclen+5 > ((vmsearch_t *)args)->bufferleft)
 		return false;	//too many files for the buffer
 
 	check = ((vmsearch_t *)args)->initialbuffer;
@@ -461,11 +485,12 @@ int VMQ3_GetFileList(char *path, char *ext, char *output, int buffersize)
 	vms.skip = strlen(path)+1;
 	vms.bufferleft = buffersize;
 	vms.found=0;
-	if (*(char *)path == '$')
+	if (!strcmp(path, "$modlist"))
 	{
 		vms.skip=0;
-		Sys_EnumerateFiles(com_quakedir, "*", VMEnumMods, &vms);
-		Sys_EnumerateFiles(com_homedir, "*", VMEnumMods, &vms);
+		Sys_EnumerateFiles((vms.dir=com_quakedir), "*", VMEnumMods, &vms);
+		if (*com_homedir)
+			Sys_EnumerateFiles((vms.dir=com_homedir), "*", VMEnumMods, &vms);
 	}
 	else if (*(char *)ext == '.' || *(char *)ext == '/')
 		COM_EnumerateFiles(va("%s/*%s", path, ext), VMEnum, &vms);
@@ -533,16 +558,19 @@ void VQ3_AddEntity(const q3refEntity_t *q3)
 	ent.oldframe = q3->oldframe;
 	memcpy(ent.axis, q3->axis, sizeof(q3->axis));
 	ent.lerpfrac = q3->backlerp;
-	ent.alpha = 1;
 	ent.scale = q3->radius;
 	ent.rtype = q3->reType;
 	ent.rotation = q3->rotation;
 
 	if (q3->customSkin)
 		ent.skinnum = Mod_SkinForName(ent.model, q3->customSkin);
+
+	ent.shaderRGBAf[0] = q3->shaderRGBA[0]/255.0f;
+	ent.shaderRGBAf[1] = q3->shaderRGBA[1]/255.0f;
+	ent.shaderRGBAf[2] = q3->shaderRGBA[2]/255.0f;
+	ent.shaderRGBAf[3] = q3->shaderRGBA[3]/255.0f;
 #ifdef Q3SHADERS
 	ent.forcedshader = (void*)q3->customShader;
-	*(int*)ent.shaderRGBA = *(int*)q3->shaderRGBA;
 	ent.shaderTime = q3->shaderTime;
 #endif
 	if (q3->renderfx & Q3RF_FIRST_PERSON)
@@ -790,11 +818,18 @@ long UI_SystemCallsEx(void *offset, unsigned int mask, int fn, const long *arg)
 	case UI_CVAR_SET:
 		{
 			cvar_t *var;
-			var = Cvar_FindVar(VM_POINTER(arg[0]));
-			if (var)
-				Cvar_Set(var, VM_POINTER(arg[1]));	//set it
+			if (!strcmp(VM_POINTER(arg[0]), "fs_game"))
+			{
+				Cbuf_AddText(va("gamedir %s\nui_restart\n", VM_POINTER(arg[1])), RESTRICT_SERVER);
+			}
 			else
-				Cvar_Get(VM_POINTER(arg[0]), VM_POINTER(arg[1]), 0, "UI created");	//create one
+			{
+				var = Cvar_FindVar(VM_POINTER(arg[0]));
+				if (var)
+					Cvar_Set(var, VM_POINTER(arg[1]));	//set it
+				else
+					Cvar_Get(VM_POINTER(arg[0]), VM_POINTER(arg[1]), 0, "UI created");	//create one
+			}
 		}
 		break;
 	case UI_CVAR_VARIABLEVALUE:
@@ -915,7 +950,7 @@ long UI_SystemCallsEx(void *offset, unsigned int mask, int fn, const long *arg)
 		UI_RegisterFont(VM_POINTER(arg[0]), arg[1], VM_POINTER(arg[2]));
 		break;
 	case UI_R_REGISTERSHADERNOMIP:
-		if (!Draw_SafeCachePic)
+		if (!Draw_SafeCachePic || !*(char*)VM_POINTER(arg[0]))
 			VM_LONG(ret) = 0;
 		else
 //			VM_LONG(ret) = (long)Draw_SafeCachePic(VM_POINTER(arg[0]));

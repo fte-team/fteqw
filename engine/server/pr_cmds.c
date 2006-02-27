@@ -6423,7 +6423,7 @@ lh_extension_t FTE_Protocol_Extensions[] =
 	{"FTE_PEXT_VWEAP"},
 	{"FTE_PEXT_Q2BSP"},		//supports q2 maps. No bugs are apparent.
 	{"FTE_PEXT_Q3BSP"},		//quake3 bsp support. dp probably has an equivelent, but this is queryable per client.
-	{NULL},	//UDC_EXTEFFECT, no longer supported
+	{"DP_ENT_COLORMOD"},
 	{NULL},	//splitscreen - not queryable.
 	{"FTE_HEXEN2"},				//client can use hexen2 maps. server can use hexen2 progs
 	{"FTE_PEXT_SPAWNSTATIC"},	//means that static entities can have alpha/scale and anything else the engine supports on normal ents. (Added for >256 models, while still being compatable - previous system failed with -1 skins)
@@ -9888,6 +9888,8 @@ void PR_RegisterFields(void)	//it's just easier to do it this way.
 	fieldfloat(glow_size);
 	fieldfloat(glow_color);
 	fieldfloat(glow_trail);
+
+	fieldvector(colormod);
 
 	fieldvector(color);
 	fieldfloat(light_lev);

@@ -508,6 +508,7 @@ void R_DrawSpriteModel (entity_t *e)
 	mspriteframe_t	*frame;
 	vec3_t		forward, right, up;
 	msprite_t		*psprite;
+	qbyte coloursb[4];
 
 #ifdef Q3SHADERS
 	if (e->forcedshader)
@@ -527,8 +528,12 @@ void R_DrawSpriteModel (entity_t *e)
 		VectorSet (e->origin[0] - x*vright[0] - y*vup[0], e->origin[1] - x*vright[1] - y*vup[1], e->origin[2] - x*vright[2] - y*vup[2], vertcoords[2]);
 		VectorSet (e->origin[0] + y*vright[0] - x*vup[0], e->origin[1] + y*vright[1] - x*vup[1], e->origin[2] + y*vright[2] - x*vup[2], vertcoords[1]);
 		VectorSet (e->origin[0] + x*vright[0] + y*vup[0], e->origin[1] + x*vright[1] + y*vup[1], e->origin[2] + x*vright[2] + y*vup[2], vertcoords[0]);
-		*(int*)colours[0] = *(int*)colours[1] = *(int*)colours[2] = *(int*)colours[3] = 
-			*(int*)e->shaderRGBA;
+
+		coloursb[0] = e->shaderRGBAf[0]*255;
+		coloursb[1] = e->shaderRGBAf[1]*255;
+		coloursb[2] = e->shaderRGBAf[2]*255;
+		coloursb[3] = e->shaderRGBAf[3]*255;
+		*(int*)colours[0] = *(int*)colours[1] = *(int*)colours[2] = *(int*)colours[3] = *(int*)coloursb;
 
 		mesh.colors_array = colours;
 		mesh.indexes = indexes;
@@ -602,7 +607,7 @@ void R_DrawSpriteModel (entity_t *e)
 	right[1]*=e->scale;
 	right[2]*=e->scale;
 
-	qglColor4f (1,1,1, e->alpha);
+	qglColor4fv (e->shaderRGBAf);
 
 	GL_DisableMultitexture();
 
@@ -630,7 +635,7 @@ void R_DrawSpriteModel (entity_t *e)
 		qglTexEnvi(GL_TEXTURE_ENV, GL_TEXTURE_ENV_MODE, GL_MODULATE);
 		qglBlendFunc(GL_SRC_ALPHA, GL_ONE);
 	}
-	else if (e->alpha<1 || gl_blendsprites.value)
+	else if (e->shaderRGBAf[3]<1 || gl_blendsprites.value)
 	{
 		qglEnable(GL_BLEND);
 		qglTexEnvi(GL_TEXTURE_ENV, GL_TEXTURE_ENV_MODE, GL_MODULATE);

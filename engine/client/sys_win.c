@@ -1060,9 +1060,6 @@ int WINAPI WinMain (HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLin
 	lpBuffer.dwLength = sizeof(MEMORYSTATUS);
 	GlobalMemoryStatus (&lpBuffer);
 
-	GetModuleFileName(NULL, cwd, sizeof(cwd)-1);
-	strcpy(exename, COM_SkipPath(cwd));
-
 	parms.argc = 1;
 	argv[0] = exename;
 
@@ -1084,22 +1081,31 @@ int WINAPI WinMain (HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLin
 				*lpCmdLine = 0;
 				lpCmdLine++;
 			}
-			
 		}
 	}
 
+	GetModuleFileName(NULL, cwd, sizeof(cwd)-1);
+	strcpy(exename, COM_SkipPath(cwd));
 	parms.argv = argv;
 
 	COM_InitArgv (parms.argc, parms.argv);
 
-	TL_InitLanguages();
-	//tprints are now allowed
+	if (COM_CheckParm("--version") || COM_CheckParm("-v"))
+	{
+		printf("version " DISTRIBUTION " " __TIME__ __DATE__ "\n");
+		return true;
+	}
+
+
 
 	if (!GetCurrentDirectory (sizeof(cwd), cwd))
 		Sys_Error ("Couldn't determine current directory");
 
 	if (cwd[Q_strlen(cwd)-1] == '/' || cwd[Q_strlen(cwd)-1] == '\\')
 		cwd[Q_strlen(cwd)-1] = 0;
+
+	TL_InitLanguages();
+	//tprints are now allowed
 
 	parms.basedir = cwd;
 

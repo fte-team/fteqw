@@ -403,7 +403,7 @@ mpic_t	*GLDraw_SafeCachePic (char *path)
 				mem = ReadTargaFile((qbyte *)data, com_filesize, &pic->pic.width, &height, 0);
 #ifdef AVAIL_PNGLIB
 			if (!mem);
-				mem = ReadPNGFile((qbyte *)data, com_filesize, &pic->pic.width, &height);
+				mem = ReadPNGFile((qbyte *)data, com_filesize, &pic->pic.width, &height, alternatename);
 #endif
 #ifdef AVAIL_JPEGLIB
 			if (!mem)
@@ -1683,12 +1683,12 @@ void GLDraw_ShaderImage (int x, int y, int w, int h, float s1, float t1, float s
 	((int*)draw_mesh_colors)[2] = ((int*)draw_mesh_colors)[0];
 	((int*)draw_mesh_colors)[3] = ((int*)draw_mesh_colors)[0];
 */
-
+/*
 	draw_mesh_colors[0][0] = 255;
 	draw_mesh_colors[0][1] = 255;
 	draw_mesh_colors[0][2] = 255;
 	draw_mesh_colors[0][3] = 255;
-
+*/
 	draw_mesh.colors_array = draw_mesh_colors;
 
 	draw_mesh.numvertexes = 4;
@@ -3618,6 +3618,7 @@ void GL_Upload8Pal24 (qbyte *data, qbyte *pal, int width, int height,  qboolean 
 	qboolean	noalpha;
 	int			p;
 	extern qbyte gammatable[256];
+	extern qboolean		gammaworks;
 
 	s = width*height;
 	if (s > sizeofuploadmemorybufferintermediate/4)
@@ -3625,33 +3626,69 @@ void GL_Upload8Pal24 (qbyte *data, qbyte *pal, int width, int height,  qboolean 
 
 	// if there are no transparent pixels, make it a 3 component
 	// texture even if it was specified as otherwise
-	if (alpha)
+	if (gammaworks)
 	{
-		noalpha = true;
-		for (i=0 ; i<s ; i++)
+		if (alpha)
 		{
-			p = data[i];
-			if (p == 255)
-				noalpha = false;
-			trans[(i<<2)+0] = gammatable[pal[p*3+0]];
-			trans[(i<<2)+1] = gammatable[pal[p*3+1]];
-			trans[(i<<2)+2] = gammatable[pal[p*3+2]];
-			trans[(i<<2)+3] = (p==255)?0:255;
+			noalpha = true;
+			for (i=0 ; i<s ; i++)
+			{
+				p = data[i];
+				if (p == 255)
+					noalpha = false;
+				trans[(i<<2)+0] = pal[p*3+0];
+				trans[(i<<2)+1] = pal[p*3+1];
+				trans[(i<<2)+2] = pal[p*3+2];
+				trans[(i<<2)+3] = (p==255)?0:255;
+			}
+
+			if (alpha && noalpha)
+				alpha = false;
+		}
+		else
+		{
+			if (s&3)
+				Sys_Error ("GL_Upload8: s&3");
+			for (i=0 ; i<s ; i+=1)
+			{
+				trans[(i<<2)+0] = pal[data[i]*3+0];
+				trans[(i<<2)+1] = pal[data[i]*3+1];
+				trans[(i<<2)+2] = pal[data[i]*3+2];
+				trans[(i<<2)+3] = 255;
+			}
 		}
 
-		if (alpha && noalpha)
-			alpha = false;
 	}
-	else
+	else 
 	{
-		if (s&3)
-			Sys_Error ("GL_Upload8: s&3");
-		for (i=0 ; i<s ; i+=1)
+		if (alpha)
 		{
-			trans[(i<<2)+0] = gammatable[pal[data[i]*3+0]];
-			trans[(i<<2)+1] = gammatable[pal[data[i]*3+1]];
-			trans[(i<<2)+2] = gammatable[pal[data[i]*3+2]];
-			trans[(i<<2)+3] = 255;
+			noalpha = true;
+			for (i=0 ; i<s ; i++)
+			{
+				p = data[i];
+				if (p == 255)
+					noalpha = false;
+				trans[(i<<2)+0] = gammatable[pal[p*3+0]];
+				trans[(i<<2)+1] = gammatable[pal[p*3+1]];
+				trans[(i<<2)+2] = gammatable[pal[p*3+2]];
+				trans[(i<<2)+3] = (p==255)?0:255;
+			}
+
+			if (alpha && noalpha)
+				alpha = false;
+		}
+		else
+		{
+			if (s&3)
+				Sys_Error ("GL_Upload8: s&3");
+			for (i=0 ; i<s ; i+=1)
+			{
+				trans[(i<<2)+0] = gammatable[pal[data[i]*3+0]];
+				trans[(i<<2)+1] = gammatable[pal[data[i]*3+1]];
+				trans[(i<<2)+2] = gammatable[pal[data[i]*3+2]];
+				trans[(i<<2)+3] = 255;
+			}
 		}
 	}
 	GL_Upload32 (NULL, (unsigned*)trans, width, height, mipmap, alpha);

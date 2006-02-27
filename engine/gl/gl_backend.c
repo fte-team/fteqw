@@ -1387,18 +1387,24 @@ void R_ModifyColor ( meshbuffer_t *mb, shaderpass_t *pass )
 			break;
 
 		case RGB_GEN_ENTITY:
+			((qbyte*)&b)[0] = currententity->shaderRGBAf[0];
+			((qbyte*)&b)[1] = currententity->shaderRGBAf[1];
+			((qbyte*)&b)[2] = currententity->shaderRGBAf[2];
+			((qbyte*)&b)[3] = currententity->shaderRGBAf[3];
 			for ( i = 0; i < numColors; i++, bArray += 4 )
 			{
-				*(int *)bArray = *(int *)currententity->shaderRGBA;
+				*(int *)bArray = b;
 			}
 			break;
 
 		case RGB_GEN_ONE_MINUS_ENTITY:
+			((qbyte*)&b)[0] = 255-currententity->shaderRGBAf[0];
+			((qbyte*)&b)[1] = 255-currententity->shaderRGBAf[1];
+			((qbyte*)&b)[2] = 255-currententity->shaderRGBAf[2];
+			((qbyte*)&b)[3] = 255-currententity->shaderRGBAf[3];
 			for ( i = 0; i < numColors; i++, bArray += 4 )
 			{
-				bArray[0] = 255 - currententity->shaderRGBA[0];
-				bArray[1] = 255 - currententity->shaderRGBA[1];
-				bArray[2] = 255 - currententity->shaderRGBA[2];
+				*(int *)bArray = b;
 			}
 			break;
 
@@ -1523,15 +1529,7 @@ void R_ModifyColor ( meshbuffer_t *mb, shaderpass_t *pass )
 			}
 			else
 			{
-				memcpy ( bArray, vArray, sizeof(byte_vec4_t)*numColors );
-				/*
-				vec3_t dif, amb, dir;
-				cl.worldmodel->funcs.LightPointValues(currententity->origin, dif, amb, dir);
-				bArray[0] = dif[0]*255;
-				bArray[1] = dif[1]*255;
-				bArray[2] = dif[2]*255;
-				//R_LightForEntity ( currententity, bArray );
-				*/
+				R_LightArrays((byte_vec4_t*)bArray, numColors, normalsArray);
 			}
 			break;
 
@@ -1588,8 +1586,13 @@ void R_ModifyColor ( meshbuffer_t *mb, shaderpass_t *pass )
 			break;
 
 		case ALPHA_GEN_ENTITY:
-			for ( i = 0; i < numColors; i++, bArray += 4 ) {
-				bArray[3] = currententity->alpha*255;
+			if (pass->rgbgen != RGB_GEN_ENTITY)
+			{//rgbgenentity copies across ints rather than chars. it comes padded with the alpha too.
+				unsigned char value = bound(0, currententity->shaderRGBAf[3]*255, 255);
+				for ( i = 0; i < numColors; i++, bArray += 4 )
+				{
+					bArray[3] = value;
+				}
 			}
 			break;
 

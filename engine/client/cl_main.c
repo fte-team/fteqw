@@ -323,6 +323,7 @@ unsigned int CL_SupportedFTEExtensions(void)
 	fteprotextsupported |= PEXT_FLOATCOORDS;
 #endif
 	fteprotextsupported |= PEXT_SPAWNSTATIC2;
+	fteprotextsupported |= PEXT_COLOURMOD;
 	fteprotextsupported |= PEXT_SPLITSCREEN;
 	fteprotextsupported |= PEXT_HEXEN2;
 	fteprotextsupported |= PEXT_CUSTOMTEMPEFFECTS;

@@ -29,6 +29,7 @@ extern int gl_anisotropy_factor;
 //
 
 cvar_t	r_drawviewmodel = SCVAR("r_drawviewmodel","1");
+cvar_t	r_viewmodelsize = SCVAR("r_viewmodelsize","1");
 cvar_t  r_drawviewmodelinvis = SCVAR("r_drawviewmodelinvis", "0");
 cvar_t	r_netgraph = SCVAR("r_netgraph","0");
 cvar_t	r_speeds = SCVARF("r_speeds","0", CVAR_CHEAT);
@@ -176,7 +177,8 @@ cvar_t			con_ocranaleds	= SCVAR("con_ocranaleds", "2");
 cvar_t			scr_chatmodecvar	= SCVAR("scr_chatmode", "0");
 
 #ifdef Q3SHADERS
-cvar_t 			gl_shadeq3	= SCVAR("gl_shadeq3", "1");	//use if you want.
+cvar_t 			gl_shadeq3	= SCVARF("gl_shadeq3", "1", CVAR_SEMICHEAT);	//use if you want.
+cvar_t 			gl_shadeq2	= SCVARF("gl_shadeq2", "0", CVAR_SEMICHEAT);	//use if you want.
 extern cvar_t r_vertexlight;
 cvar_t			gl_shadeq1	= SCVARF("gl_shadeq1", "0", CVAR_CHEAT);	//FIXME: :(
 cvar_t			gl_shadeq1_name	= SCVAR("gl_shadeq1_name", "*");
@@ -355,6 +357,7 @@ void GLRenderer_Init(void)
 	Cvar_Register (&r_vertexlight, GLRENDEREROPTIONS);
 	Cvar_Register (&gl_shadeq1, GLRENDEREROPTIONS);
 	Cvar_Register (&gl_shadeq1_name, GLRENDEREROPTIONS);
+	Cvar_Register (&gl_shadeq2, GLRENDEREROPTIONS);
 	Cvar_Register (&gl_shadeq3, GLRENDEREROPTIONS);
 
 	Cvar_Register (&gl_blend2d, GLRENDEREROPTIONS);
@@ -518,6 +521,7 @@ void Renderer_Init(void)
 //renderer
 	Cvar_Register (&r_fullbright, SCREENOPTIONS);
 	Cvar_Register (&r_drawentities, GRAPHICALNICETIES);
+	Cvar_Register (&r_viewmodelsize, GRAPHICALNICETIES);
 	Cvar_Register (&r_drawviewmodel, GRAPHICALNICETIES);
 	Cvar_Register (&r_drawviewmodelinvis, GRAPHICALNICETIES);
 	Cvar_Register (&r_waterwarp, GRAPHICALNICETIES);

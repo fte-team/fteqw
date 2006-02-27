@@ -66,7 +66,7 @@ extern cvar_t r_loadlits;
 extern cvar_t r_stainfadetime;
 extern cvar_t r_stainfadeammount;
 
-extern cvar_t gl_lightmapmode;
+//extern cvar_t gl_lightmapmode;
 
 
 //radius, x y z, r g b

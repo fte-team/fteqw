@@ -1193,6 +1193,7 @@ static void TP_InitMacros(void)
 //	Cmd_AddMacro("mp3info", , false);
 //	Cmd_AddMacro("triggermatch", Macro_LastTrigger_Match, false);
 
+	//new, fte only (at least when first implemented)
 	Cmd_AddMacro("chealth", Macro_CombinedHealth, true);
 }
 

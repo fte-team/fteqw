@@ -138,6 +138,7 @@ typedef struct {
 	int numposes;
 	float rate;
 	int poseofs;
+	char name[64];
 } galiasgroup_t;
 
 typedef struct {
@@ -393,6 +394,7 @@ static void R_LerpFrames(mesh_t *mesh, galiaspose_t *p1, galiaspose_t *p2, float
 	{
 		if (r_nolightdir.value)
 		{
+			mesh->colors_array = NULL;
 			for (i = 0; i < mesh->numvertexes; i++)
 			{
 				mesh->normals_array[i][0] = p1n[i][0]*lerp + p2n[i][0]*blerp;
@@ -402,11 +404,6 @@ static void R_LerpFrames(mesh_t *mesh, galiaspose_t *p1, galiaspose_t *p2, float
 				mesh->xyz_array[i][0] = p1v[i][0]*lerp + p2v[i][0]*blerp;
 				mesh->xyz_array[i][1] = p1v[i][1]*lerp + p2v[i][1]*blerp;
 				mesh->xyz_array[i][2] = p1v[i][2]*lerp + p2v[i][2]*blerp;
-
-				mesh->colors_array[i][0] = ambientlight[0];
-				mesh->colors_array[i][1] = ambientlight[1];
-				mesh->colors_array[i][2] = ambientlight[2];
-				mesh->colors_array[i][3] = alpha;
 			}
 		}
 		else
@@ -569,11 +566,12 @@ static void R_BuildSkeletalMesh(mesh_t *mesh, float *plerp, float **pose, int po
 		mesh->normals_array[i][0] = 0;
 		mesh->normals_array[i][1] = 0;
 		mesh->normals_array[i][2] = 1;
-
+/*
 		mesh->colors_array[i][0] = ambientlight[0];
 		mesh->colors_array[i][1] = ambientlight[1];
 		mesh->colors_array[i][2] = ambientlight[2];
 		mesh->colors_array[i][3] = 255;//alpha;
+*/
 /*
 		mesh->xyz_array[i][0] = 0;
 		mesh->xyz_array[i][1] = 0;
@@ -581,6 +579,7 @@ static void R_BuildSkeletalMesh(mesh_t *mesh, float *plerp, float **pose, int po
 		mesh->xyz_array[i][3] = 1;
 		*/
 	}
+	mesh->colors_array = NULL;
 
 	memset(mesh->xyz_array, 0, mesh->numvertexes*sizeof(vec3_t));
 	R_TransformVerticies(bonepose, weights, numweights, (float*)mesh->xyz_array);
@@ -640,69 +639,149 @@ static void R_BuildSkeletalMesh(mesh_t *mesh, float *plerp, float **pose, int po
 #endif
 
 #ifndef SERVERONLY
+
+void R_LightArrays(byte_vec4_t *colours, int vertcount, vec3_t *normals)
+{
+	int i;
+	float l;
+	int temp;
+
+	for (i = vertcount-1; i >= 0; i--)
+	{
+		l = DotProduct(normals[i], shadevector);
+
+		temp = l*ambientlight[0]+shadelight[0];
+		if (temp < 0) temp = 0;
+		else if (temp > 255) temp = 255;
+		colours[i][0] = temp;
+
+		temp = l*ambientlight[1]+shadelight[1];
+		if (temp < 0) temp = 0;
+		else if (temp > 255) temp = 255;
+		colours[i][1] = temp;
+
+		temp = l*ambientlight[2]+shadelight[2];
+		if (temp < 0) temp = 0;
+		else if (temp > 255) temp = 255;
+		colours[i][2] = temp;
+	}
+}
+
 //changes vertex lighting values
-static void R_GAliasAddDlights(mesh_t *mesh, vec3_t org, vec3_t angles)
+static void R_GAliasApplyLighting(mesh_t *mesh, vec3_t org, vec3_t angles, float *colormod)
 {
 	int l, v;
 	vec3_t rel;
 	vec3_t dir;
 	float dot, d, a, f;
-	for (l=0 ; l<MAX_DLIGHTS ; l++)
+
+	if (mesh->colors_array)
 	{
-		if (cl_dlights[l].radius)
+		float l;
+		int temp;
+		int i;
+		byte_vec4_t *colours = mesh->colors_array;
+		vec3_t *normals = mesh->normals_array;
+		vec3_t ambient, shade;
+		qbyte alphab = bound(0, colormod[3]*255, 255);
+		if (!mesh->normals_array)
 		{
-			VectorSubtract (cl_dlights[l].origin,
-							org,
-							dir);
-			if (Length(dir)>cl_dlights[l].radius+mesh->radius)	//far out man!
-				continue;
+			mesh->colors_array = NULL;
+			return;
+		}
 
-			rel[0] = -DotProduct(dir, currententity->axis[0]);
-			rel[1] = -DotProduct(dir, currententity->axis[1]);	//quake's crazy.
-			rel[2] = -DotProduct(dir, currententity->axis[2]);
-/*
-			glBegin(GL_LINES);
-			glVertex3f(0,0,0);
-			glVertex3f(rel[0],rel[1],rel[2]);
-			glEnd();
-*/
-			for (v = 0; v < mesh->numvertexes; v++)
+		VectorCopy(ambientlight, ambient);
+		VectorCopy(shadelight, shade);
+
+		for (i = 0; i < 3; i++)
+		{
+			ambient[i] *= colormod[i];
+			shade[i] *= colormod[i];
+		}
+
+
+		for (i = mesh->numvertexes-1; i >= 0; i--)
+		{
+			l = DotProduct(normals[i], shadevector);
+
+			temp = l*ambient[0]+shade[0];
+			if (temp < 0) temp = 0;
+			else if (temp > 255) temp = 255;
+			colours[i][0] = temp;
+
+			temp = l*ambient[1]+shade[1];
+			if (temp < 0) temp = 0;
+			else if (temp > 255) temp = 255;
+			colours[i][1] = temp;
+
+			temp = l*ambient[2]+shade[2];
+			if (temp < 0) temp = 0;
+			else if (temp > 255) temp = 255;
+			colours[i][2] = temp;
+
+			colours[i][3] = alphab;
+		}
+	}
+
+	if (r_vertexdlights.value && mesh->colors_array)
+	{
+		for (l=0 ; l<MAX_DLIGHTS ; l++)
+		{
+			if (cl_dlights[l].radius)
 			{
-				VectorSubtract(mesh->xyz_array[v], rel, dir);
-				dot = DotProduct(dir, mesh->normals_array[v]);
-				if (dot>0)
+				VectorSubtract (cl_dlights[l].origin,
+								org,
+								dir);
+				if (Length(dir)>cl_dlights[l].radius+mesh->radius)	//far out man!
+					continue;
+
+				rel[0] = -DotProduct(dir, currententity->axis[0]);
+				rel[1] = -DotProduct(dir, currententity->axis[1]);	//quake's crazy.
+				rel[2] = -DotProduct(dir, currententity->axis[2]);
+	/*
+				glBegin(GL_LINES);
+				glVertex3f(0,0,0);
+				glVertex3f(rel[0],rel[1],rel[2]);
+				glEnd();
+	*/
+				for (v = 0; v < mesh->numvertexes; v++)
 				{
-					d = DotProduct(dir, dir);
-					a = 1/d;
-					if (a>0)
+					VectorSubtract(mesh->xyz_array[v], rel, dir);
+					dot = DotProduct(dir, mesh->normals_array[v]);
+					if (dot>0)
 					{
-						a *= 10000000*dot/sqrt(d);
-						f = mesh->colors_array[v][0] + a*cl_dlights[l].color[0];
-						if (f > 255)
-							f = 255;
-						else if (f < 0)
-							f = 0;
-						mesh->colors_array[v][0] = f;
+						d = DotProduct(dir, dir);
+						a = 1/d;
+						if (a>0)
+						{
+							a *= 10000000*dot/sqrt(d);
+							f = mesh->colors_array[v][0] + a*cl_dlights[l].color[0];
+							if (f > 255)
+								f = 255;
+							else if (f < 0)
+								f = 0;
+							mesh->colors_array[v][0] = f;
 
-						f = mesh->colors_array[v][1] + a*cl_dlights[l].color[1];
-						if (f > 255)
-							f = 255;
-						else if (f < 0)
-							f = 0;
-						mesh->colors_array[v][1] = f;
+							f = mesh->colors_array[v][1] + a*cl_dlights[l].color[1];
+							if (f > 255)
+								f = 255;
+							else if (f < 0)
+								f = 0;
+							mesh->colors_array[v][1] = f;
 
-						f = mesh->colors_array[v][2] + a*cl_dlights[l].color[2];
-						if (f > 255)
-							f = 255;
-						else if (f < 0)
-							f = 0;
-						mesh->colors_array[v][2] = f;
+							f = mesh->colors_array[v][2] + a*cl_dlights[l].color[2];
+							if (f > 255)
+								f = 255;
+							else if (f < 0)
+								f = 0;
+							mesh->colors_array[v][2] = f;
+						}
+	//					else
+	//						mesh->colors_array[v][1] =255;
 					}
-//					else
-//						mesh->colors_array[v][1] =255;
+	//				else
+	//					mesh->colors_array[v][2] =255;
 				}
-//				else
-//					mesh->colors_array[v][2] =255;
 			}
 		}
 	}
@@ -1543,6 +1622,8 @@ void R_DrawGAliasModel (entity_t *e)
 
 	float	tmatrix[3][4];
 
+	qboolean needrecolour;
+
 	currententity = e;
 
 //	if (e->flags & Q2RF_VIEWERMODEL && e->keynum == cl.playernum[r_refdef.currentplayernum]+1)
@@ -1677,6 +1758,17 @@ void R_DrawGAliasModel (entity_t *e)
 		shadevector[0] = DotProduct(lightdir, e->axis[0]);
 		shadevector[1] = DotProduct(lightdir, e->axis[1]);
 		shadevector[2] = DotProduct(lightdir, e->axis[2]);
+
+		if (e->flags & Q2RF_WEAPONMODEL)
+		{
+			vec3_t temp;
+			temp[0] = DotProduct(shadevector, vpn);
+			temp[1] = DotProduct(shadevector, vright);
+			temp[2] = DotProduct(shadevector, vup);
+
+			VectorCopy(temp, shadevector);
+		}
+
 		VectorNormalize(shadevector);
 
 		VectorCopy(shadevector, mesh.lightaxis[2]);
@@ -1733,7 +1825,7 @@ void R_DrawGAliasModel (entity_t *e)
 	{
 		qglEnable (GL_BLEND);
 		qglBlendFunc (GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
-		e->alpha = r_wateralpha.value;
+		e->shaderRGBAf[3] = r_wateralpha.value;
 	}
 	else if ((e->model->flags & EF_TRANSPARENT))
 	{
@@ -1746,7 +1838,7 @@ void R_DrawGAliasModel (entity_t *e)
 //		qglEnable (GL_BLEND);
 		qglBlendFunc (GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
 	}
-	else if (e->alpha < 1)
+	else if (e->shaderRGBAf[3] < 1)
 	{
 		qglEnable(GL_BLEND);
 		qglBlendFunc (GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
@@ -1869,19 +1961,19 @@ void R_DrawGAliasModel (entity_t *e)
 	fog = CM_FogForOrigin(currententity->origin);
 #endif
 
-	qglColor4f(shadelight[0]/255, shadelight[1]/255, shadelight[2]/255, e->alpha);
+	qglColor4f(shadelight[0]/255, shadelight[1]/255, shadelight[2]/255, e->shaderRGBAf[3]);
 
 	memset(&mesh, 0, sizeof(mesh));
 	for(surfnum=0; inf; ((inf->nextsurf)?(inf = (galiasinfo_t*)((char *)inf + inf->nextsurf)):(inf=NULL)), surfnum++)
 	{
-		if (R_GAliasBuildMesh(&mesh, inf, e->frame, e->oldframe, e->lerpfrac, e->alpha, e->frame1time, e->frame2time) && r_vertexdlights.value)
-			if (mesh.colors_array)
-				R_GAliasAddDlights(&mesh, e->origin, e->angles);
+		needrecolour = R_GAliasBuildMesh(&mesh, inf, e->frame, e->oldframe, e->lerpfrac, e->shaderRGBAf[3], e->frame1time, e->frame2time);
 
 		c_alias_polys += mesh.numindexes/3;
 
 		if (r_drawflat.value == 2)
 		{
+			if (needrecolour)
+				R_GAliasApplyLighting(&mesh, e->origin, e->angles, e->shaderRGBAf);
 			GL_DrawAliasMesh_Sketch(&mesh);
 			continue;
 		}
@@ -1915,6 +2007,8 @@ void R_DrawGAliasModel (entity_t *e)
 #endif
 			))
 		{
+			if (needrecolour)
+				R_GAliasApplyLighting(&mesh, e->origin, e->angles, e->shaderRGBAf);
 			GL_DrawAliasMesh_Sketch(&mesh);
 		}
 #ifdef Q3SHADERS
@@ -1950,6 +2044,9 @@ void R_DrawGAliasModel (entity_t *e)
 #endif
 		else
 		{
+			if (needrecolour)
+				R_GAliasApplyLighting(&mesh, e->origin, e->angles, e->shaderRGBAf);
+
 			qglEnable(GL_TEXTURE_2D);
 //			if (skin->bump)
 //				GL_DrawMeshBump(&mesh, skin->base, 0, skin->bump, 0);
@@ -1960,7 +2057,7 @@ void R_DrawGAliasModel (entity_t *e)
 			{
 				mesh.colors_array = NULL;
 				qglEnable(GL_BLEND);
-				qglColor4f(1, 1, 1, e->alpha*r_fb_models.value);
+				qglColor4f(e->shaderRGBAf[0], e->shaderRGBAf[1], e->shaderRGBAf[2], e->shaderRGBAf[3]*r_fb_models.value);
 				c_alias_polys += mesh.numindexes/3;
 
 				qglBlendFunc (GL_SRC_ALPHA, GL_ONE);
@@ -2525,6 +2622,9 @@ void R_DrawGAliasShadowVolume(entity_t *e, vec3_t lightpos, float radius)
 	if (r_noaliasshadows.value)
 		return;
 
+	if (e->shaderRGBAf[3] < 0.5)
+		return;
+
 	RotateLightVector(e->axis, e->origin, lightpos, lightorg);
 
 	if (Length(lightorg) > radius + clmodel->radius)
@@ -2539,7 +2639,7 @@ void R_DrawGAliasShadowVolume(entity_t *e, vec3_t lightpos, float radius)
 	{
 		if (inf->ofs_trineighbours)
 		{
-			R_GAliasBuildMesh(&mesh, inf, e->frame, e->oldframe, e->lerpfrac, e->alpha, e->frame1time, e->frame2time);
+			R_GAliasBuildMesh(&mesh, inf, e->frame, e->oldframe, e->lerpfrac, 1, e->frame1time, e->frame2time);
 			R_CalcFacing(&mesh, lightorg);
 			R_ProjectShadowVolume(&mesh, lightorg);
 			R_DrawShadowVolume(&mesh);
@@ -2871,6 +2971,7 @@ static void *Q1_LoadFrameGroup (daliasframetype_t *pframetype, int *seamremaps)
 	galiaspose_t *pose;
 	galiasgroup_t *frame;
 	dtrivertx_t		*pinframe;
+	daliasframe_t *frameinfo;
 	int				i, j, k;
 	daliasgroup_t *ingroup;
 	daliasinterval_t *intervals;
@@ -2886,11 +2987,14 @@ static void *Q1_LoadFrameGroup (daliasframetype_t *pframetype, int *seamremaps)
 		switch(LittleLong(pframetype->type))
 		{
 		case ALIAS_SINGLE:
-			pinframe = (dtrivertx_t*)((char *)(pframetype+1)+sizeof(daliasframe_t));
+			frameinfo = (daliasframe_t*)((char *)(pframetype+1));
+			pinframe = (dtrivertx_t*)((char*)frameinfo+sizeof(daliasframe_t));
 			pose = (galiaspose_t *)Hunk_Alloc(sizeof(galiaspose_t) + sizeof(vec3_t)*2*galias->numverts);
 			frame->poseofs = (char *)pose - (char *)frame;
 			frame->numposes = 1;
 			galias->groups++;
+
+			Q_strncpyz(frame->name, frameinfo->name, sizeof(frame->name));
 
 			verts = (vec3_t *)(pose+1);
 			normals = &verts[galias->numverts];
@@ -2942,7 +3046,12 @@ static void *Q1_LoadFrameGroup (daliasframetype_t *pframetype, int *seamremaps)
 				pose->ofsnormals = (char *)normals - (char *)pose;
 #endif
 
-				pinframe = (dtrivertx_t *)((char *)pinframe + sizeof(daliasframe_t));
+				frameinfo = (daliasframe_t*)pinframe;
+				pinframe = (dtrivertx_t *)((char *)frameinfo + sizeof(daliasframe_t));
+
+				if (k == 0)
+					Q_strncpyz(frame->name, frameinfo->name, sizeof(frame->name));
+
 				for (j = 0; j < pq1inmodel->numverts; j++)
 				{
 					verts[j][0] = pinframe[j].v[0]*pq1inmodel->scale[0]+pq1inmodel->scale_origin[0];
@@ -3600,6 +3709,7 @@ void GL_LoadQ2Model (model_t *mod, void *buffer)
 
 
 		pinframe = ( dmd2aliasframe_t * )( ( qbyte * )pq2inmodel + LittleLong (pq2inmodel->ofs_frames) + i * framesize );
+		Q_strncpyz(poutframe->name, pinframe->name, sizeof(poutframe->name));
 
 		for (j=0 ; j<3 ; j++)
 		{
@@ -4132,6 +4242,8 @@ void GL_LoadQ3Model(model_t *mod, void *buffer)
 			pose->scale_origin[1] = 0;
 			pose->scale_origin[2] = 0;
 
+			_snprintf(group->name, sizeof(group->name)-1, "frame%i", i);
+
 			group->numposes = 1;
 			group->rate = 1;
 			group->poseofs = (qbyte*)pose - (qbyte*)group;
@@ -4574,6 +4686,8 @@ void GLMod_LoadZymoticModel(model_t *mod, void *buffer)
 
 	for (i = 0; i < header->numscenes; i++, grp++, inscene++)
 	{
+		Q_strncpyz(grp->name, inscene->name, sizeof(grp->name));
+
 		grp->isheirachical = 1;
 		grp->rate = BigFloat(inscene->framerate);
 		grp->loop = !(BigLong(inscene->flags) & ZYMSCENEFLAG_NOLOOP);
@@ -4880,6 +4994,8 @@ void GLMod_LoadDarkPlacesModel(model_t *mod, void *buffer)
 		inframes[i].maxs[1] = BigLong(inframes[i].maxs[1]);
 		inframes[i].maxs[2] = BigLong(inframes[i].maxs[2]);
 
+		Q_strncpyz(outgroups[i].name, inframes[i].name, sizeof(outgroups[i].name));
+
 		outgroups[i].rate = 10;
 		outgroups[i].numposes = 1;
 		outgroups[i].isheirachical = true;
@@ -5113,6 +5229,8 @@ galiasinfo_t *GLMod_ParseMD5MeshModel(char *buffer)
 			pose->rate = 1;
 			pose->numposes = 1;
 			pose->poseofs = (char*)posedata - (char*)pose;
+
+			Q_strncpyz(pose->name, "base", sizeof(pose->name));
 
 			EXPECT("{");
 			//"name" parent (x y z) (s t u)
@@ -5609,6 +5727,7 @@ galiasgroup_t GLMod_ParseMD5Anim(char *buffer, galiasinfo_t *prototype, void**po
 	BZ_Free(boneflags);
 	BZ_Free(baseframe);
 
+	Q_strncpyz(grp.name, "", sizeof(grp.name));
 	grp.isheirachical = true;
 	grp.numposes = numframes;
 	grp.rate = framespersecond;
@@ -5659,7 +5778,7 @@ void GLMod_LoadCompositeAnim(model_t *mod, void *buffer)
 
 	buffer = COM_Parse(buffer);
 	if (strcmp(com_token, "EXTERNALANIM"))
-		Sys_Error("EXTERNALANIM: header is not compleate");
+		Sys_Error("EXTERNALANIM: header is not compleate (%s)", mod->name);
 
 	buffer = COM_Parse(buffer);
 	if (!strcmp(com_token, "model"))
@@ -5668,7 +5787,7 @@ void GLMod_LoadCompositeAnim(model_t *mod, void *buffer)
 		file = COM_LoadTempFile2(com_token);
 
 		if (!file)	//FIXME: make non fatal somehow..
-			Sys_Error("Couldn't open %s", com_token);
+			Sys_Error("Couldn't open %s (from %s)", com_token, mod->name);
 
 		root = GLMod_ParseMD5MeshModel(file);
 		newgroup = (galiasgroup_t*)((char*)root + root->groupofs);
@@ -5702,23 +5821,26 @@ void GLMod_LoadCompositeAnim(model_t *mod, void *buffer)
 			file = COM_LoadTempFile2(com_token);
 			if (file)	//FIXME: make non fatal somehow..
 			{
+				char namebkup[MAX_QPATH];
+				Q_strncpyz(namebkup, com_token, sizeof(namebkup));
 				grouplist[numgroups] = GLMod_ParseMD5Anim(file, root, &poseofs[numgroups]);
+				Q_strncpyz(grouplist[numgroups].name, namebkup, sizeof(grouplist[numgroups].name));
 				numgroups++;
 			}
 		}
 		else if (!strcmp(com_token, "clampgroup"))
 		{
-			Sys_Error("EXTERNALANIM: clampgroup not yet supported");
+			Sys_Error("EXTERNALANIM: clampgroup not yet supported (%s)", mod->name);
 			return;
 		}
 		else if (!strcmp(com_token, "frames"))
 		{
-			Sys_Error("EXTERNALANIM: frames not yet supported");
+			Sys_Error("EXTERNALANIM: frames not yet supported (%s)", mod->name);
 			return;
 		}
 		else
 		{
-			Sys_Error("EXTERNALANIM: unrecognised token");
+			Sys_Error("EXTERNALANIM: unrecognised token (%s)", mod->name);
 			return;
 		}
 	}

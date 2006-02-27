@@ -534,6 +534,13 @@ void SV_WriteDelta (entity_state_t *from, entity_state_t *to, sizebuf_t *msg, qb
 	if ( to->abslight != from->abslight && protext & PEXT_HEXEN2)
 		evenmorebits |= U_ABSLIGHT;
 
+	if (to->colormod[0]!=32||to->colormod[1]!=32||to->colormod[2]!=32 && protext & PEXT_COLOURMOD)
+		evenmorebits |= U_COLOURMOD;
+
+	if (to->dpflags != from->dpflags && protext & PEXT_DPFLAGS)
+		evenmorebits |= U_DPFLAGS;
+
+
 	if (to->glowsize != from->glowsize)
 		to->dpflags |= 4;
 
@@ -625,6 +632,13 @@ void SV_WriteDelta (entity_state_t *from, entity_state_t *to, sizebuf_t *msg, qb
 		MSG_WriteByte (msg, to->hexen2flags);
 	if (evenmorebits & U_ABSLIGHT)
 		MSG_WriteByte (msg, to->abslight);
+
+	if (evenmorebits & U_COLOURMOD)
+	{
+		MSG_WriteByte (msg, to->colormod[0]);
+		MSG_WriteByte (msg, to->colormod[1]);
+		MSG_WriteByte (msg, to->colormod[2]);
+	}
 
 	if (evenmorebits & U_DPFLAGS)
 		MSG_WriteByte (msg, to->dpflags);
@@ -1811,7 +1825,7 @@ int i, eff;
 float miss;
 unsigned int bits=0;
 
-int glowsize=0, glowcolor=0;
+int glowsize=0, glowcolor=0, colourmod=0;
 
 	for (i=0 ; i<3 ; i++)
 	{
@@ -1879,10 +1893,15 @@ int glowsize=0, glowcolor=0;
 		glowsize = ent->v->glow_size*0.25f;
 		glowcolor = ent->v->glow_color;
 
+		colourmod = ((int)bound(0, ent->v->colormod[0] * (7.0f / 32.0f), 7) << 5) | ((int)bound(0, ent->v->colormod[1] * (7.0f / 32.0f), 7) << 2) | ((int)bound(0, ent->v->colormod[2] * (3.0f / 32.0f), 3) << 0);
+
 		if (0 != glowsize)
 			bits |= DPU_GLOWSIZE;
 		if (0 != glowcolor)
 			bits |= DPU_GLOWCOLOR;
+
+		if (0 != colourmod)
+			bits |= DPU_COLORMOD;
 	}
 	else
 	{
@@ -1936,7 +1955,7 @@ int glowsize=0, glowcolor=0;
 	if (bits & DPU_EFFECTS2)	MSG_WriteByte(msg, eff >> 8);
 	if (bits & DPU_GLOWSIZE)	MSG_WriteByte(msg, glowsize);
 	if (bits & DPU_GLOWCOLOR)	MSG_WriteByte(msg, glowcolor);
-//	if (bits & DPU_COLORMOD)	MSG_WriteByte(msg, colormod);
+	if (bits & DPU_COLORMOD)	MSG_WriteByte(msg, colourmod);
 	if (bits & DPU_FRAME2)		MSG_WriteByte(msg, (int)ent->v->frame >> 8);
 	if (bits & DPU_MODEL2)		MSG_WriteByte(msg, (int)ent->v->modelindex >> 8);
 }
@@ -2552,6 +2571,18 @@ void SV_WriteEntitiesToClient (client_t *client, sizebuf_t *msg, qboolean ignore
 			state->effects &= ~ (QWEF_FLAG1|QWEF_FLAG2);
 		}
 
+		if (!ent->v->colormod[0] && !ent->v->colormod[1] && !ent->v->colormod[2])
+		{
+			state->colormod[0] = (256)/8;
+			state->colormod[1] = (256)/8;
+			state->colormod[2] = (256)/8;
+		}
+		else
+		{
+			i = ent->v->colormod[0]*(256/8); state->colormod[0] = bound(0, i, 255);
+			i = ent->v->colormod[1]*(256/8); state->colormod[1] = bound(0, i, 255);
+			i = ent->v->colormod[2]*(256/8); state->colormod[2] = bound(0, i, 255);
+		}
 		state->glowsize = ent->v->glow_size*0.25;
 		state->glowcolour = ent->v->glow_color;
 		if (ent->v->glow_trail)

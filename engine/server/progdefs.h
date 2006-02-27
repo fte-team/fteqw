@@ -197,6 +197,7 @@ typedef struct entvars_s
 	float	glow_trail;
 
 	vec3_t	color;
+	vec3_t	colormod;
 	float	light_lev;
 	float	style;
 	float	pflags;

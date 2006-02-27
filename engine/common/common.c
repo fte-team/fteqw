@@ -36,6 +36,8 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 
 usercmd_t nullcmd; // guarenteed to be zero
 
+entity_state_t nullentitystate;	//this is the default state
+
 static char	*largv[MAX_NUM_ARGVS + NUM_SAFE_ARGVS + 1];
 static char	*argvdummy = " ";
 
@@ -2301,6 +2303,16 @@ void COM_Init (void)
 		registered.string = "0";
 
 	Cvar_Register (&registered, "Copy protection");
+
+
+
+
+	nullentitystate.colormod[0] = 32;
+	nullentitystate.colormod[1] = 32;
+	nullentitystate.colormod[2] = 32;
+	nullentitystate.trans = 255;
+	nullentitystate.scale = 16;
+	nullentitystate.abslight = 255;
 }
 
 

@@ -1070,18 +1070,18 @@ void D_DrawSprite (void)
 		D_SpriteDrawSpans16 (sprite_spans);
 	else	//1
 	{
-		if (currententity->alpha > TRANS_LOWER_CAP)
+		if (currententity->shaderRGBAf[3] > TRANS_LOWER_CAP)
 		{
 			if (currententity->flags & Q2RF_ADDATIVE)
 			{
-				D_SetTransLevel(currententity->alpha, BM_ADD);
+				D_SetTransLevel(currententity->shaderRGBAf[3], BM_ADD);
 				D_SpriteDrawSpansAdditive (sprite_spans);
 			}
-			else if (currententity->alpha > TRANS_UPPER_CAP)
+			else if (currententity->shaderRGBAf[3] > TRANS_UPPER_CAP)
 				D_SpriteDrawSpans (sprite_spans);
 			else
 			{
-				D_SetTransLevel(currententity->alpha, BM_BLEND);
+				D_SetTransLevel(currententity->shaderRGBAf[3], BM_BLEND);
 				D_SpriteDrawSpansTrans (sprite_spans);
 			}
 		}

@@ -3066,7 +3066,7 @@ void SWMod_LoadAlias3Model (model_t *mod, void *buffer)
 #endif
 #ifdef AVAIL_PNGLIB
 			if (!texture)
-				texture = ReadPNGFile(buffer, com_filesize, &width, &height);
+				texture = ReadPNGFile(buffer, com_filesize, &width, &height, pinskin->name);
 #endif
 			if (!texture)
 				texture = ReadPCXFile(buffer, com_filesize, &width, &height);

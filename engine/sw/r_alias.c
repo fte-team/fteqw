@@ -878,22 +878,22 @@ void R_AliasDrawModel (alight_t *plighting)
 
 	if (r_pixbytes == 1)
 	{
-		if (currententity->alpha < TRANS_LOWER_CAP)
+		if (currententity->shaderRGBAf[3] < TRANS_LOWER_CAP)
 			return;
 
-		if (currententity->alpha > TRANS_UPPER_CAP)
+		if (currententity->shaderRGBAf[3] > TRANS_UPPER_CAP)
 		{
 			transbackfac = 0;
 		}
 		else
 		{
-			D_SetTransLevel(currententity->alpha, BM_BLEND);
+			D_SetTransLevel(currententity->shaderRGBAf[3], BM_BLEND);
 			transbackfac = 1;
 		}
 	}
 	else
 	{
-		transfactor = currententity->alpha*255;
+		transfactor = currententity->shaderRGBAf[3]*255;
 		transbackfac = 255 - transfactor;
 	}
 

@@ -4196,6 +4196,26 @@ QCC_def_t *QCC_PR_Expression (int priority)
 			qcc_usefulstatement=true;
 			return QCC_PR_ParseFunctionCall (e);
 		}
+		if (priority == 1 && QCC_PR_CheckToken ("?"))
+		{
+			QCC_dstatement32_t *fromj, *elsej;
+			QCC_PR_Statement(&pr_opcodes[OP_IFNOT], e, NULL, fromj);
+			e = QCC_PR_Expression(TOP_PRIORITY);
+			e2 = QCC_GetTemp(e->type);
+			QCC_PR_Statement(&pr_opcodes[(e2->size>=3)?OP_STORE_V:OP_STORE_F], e, e2);
+
+			QCC_PR_Expect(":");
+			QCC_PR_Statement(&pr_opcodes[OP_GOTO], NULL, NULL, elsej);
+			fromj->b = &statements[numstatements] - fromj;
+			e = QCC_PR_Expression(TOP_PRIORITY);
+
+			if (typecmp(e, e2) != 0)
+				QCC_PR_ParseError(0, "Ternary operator with mismatching types\n")
+			QCC_PR_Statement(&pr_opcodes[(e2->size>=3)?OP_STORE_V:OP_STORE_F], e, e2);
+
+			elsej->a = &statements[numstatements] - elsej;
+			return e2;
+		}
 
 		opnum=0;
 

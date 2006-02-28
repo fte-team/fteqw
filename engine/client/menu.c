@@ -804,6 +804,7 @@ void M_Menu_Quit_f (void)
 //=============================================================================
 /* Menu Subsystem */
 
+void M_Menu_ServerList2_f(void);
 
 void M_Menu_MediaFiles_f (void);
 void M_Menu_FPS_f (void);
@@ -838,6 +839,8 @@ void M_Init_Internal (void)
 	Cmd_AddRemCommand ("menu_mediafiles", M_Menu_MediaFiles_f);
 
 #ifdef CL_MASTER
+	Cmd_AddRemCommand ("menu_servers2", M_Menu_ServerList2_f);
+
 	Cmd_AddRemCommand ("menu_servers", M_Menu_ServerList_f);
 	Cmd_AddRemCommand ("menu_slist", M_Menu_ServerList_f);
 #endif

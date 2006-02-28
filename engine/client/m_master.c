@@ -3,18 +3,6 @@
 #ifdef CL_MASTER
 #include "cl_master.h"
 
-enum {
-SLISTTYPE_SERVERS,
-SLISTTYPE_FAVORITES,
-SLISTTYPE_SOURCES,
-SLISTTYPE_OPTIONS	//must be last
-} slist_option;
-
-int slist_numoptions;
-int slist_firstoption;
-
-int slist_type;
-
 //filtering
 cvar_t	sb_hideempty		= SCVARF("sb_hideempty",	"0",	CVAR_ARCHIVE);
 cvar_t	sb_hidenotempty		= SCVARF("sb_hidenotempty",	"0",	CVAR_ARCHIVE);
@@ -70,6 +58,19 @@ void M_Serverlist_Init(void)
 	Cvar_Register(&slist_writeserverstxt, grp);
 	Cvar_Register(&slist_cacheinfo, grp);
 }
+
+enum {
+	SLISTTYPE_SERVERS,
+	SLISTTYPE_FAVORITES,
+	SLISTTYPE_SOURCES,
+	SLISTTYPE_OPTIONS	//must be last
+} slist_option;
+
+int slist_numoptions;
+int slist_firstoption;
+
+int slist_type;
+
 
 
 static void NM_DrawColouredCharacter (int cx, int line, unsigned int num)
@@ -871,4 +872,398 @@ void M_SListKey(int key)
 		return;
 	}	
 }
+
+
+
+
+
+
+
+
+
+
+
+
+
+typedef struct {
+	int visibleslots;
+	int scrollpos;
+	int selectedpos;
+
+	int numslots;
+	qboolean stillpolling;
+	qbyte filter[8];
+
+	qboolean sliderpressed;
+
+	menupicture_t *mappic;
+} serverlist_t;
+
+void SL_TitlesDraw (int x, int y, menucustom_t *ths, menu_t *menu)
+{
+	x = ths->common.width/8;
+	if (sb_showtimelimit.value)	{x-=4; Draw_FunStringLen(x+8, y, "tl", 3); }
+	if (sb_showfraglimit.value)	{x-=4; Draw_FunStringLen(x+8, y, "fl", 3); }
+	if (sb_showplayers.value)	{Draw_FunStringLen((x-5)*8, y, "plyrs", 5); x-=6;}
+	if (sb_showmap.value)		{Draw_FunStringLen((x-8)*8, y, "map", 8); x-=9;}
+	if (sb_showgamedir.value)	{Draw_FunStringLen((x-8)*8, y, "gamedir", 8); x-=9;}
+	if (sb_showping.value)		{Draw_FunStringLen((x-3)*8, y, "png", 3); x-=4;}
+	if (sb_showaddress.value)	{Draw_FunStringLen((x-21)*8, y, "address", 21); x-=22;}
+		Draw_FunStringLen(0, y, "name", x);
+}
+
+qboolean SL_TitlesKey (menucustom_t *ths, menu_t *menu, int key)
+{
+	int x;
+	extern int mousecursor_x, mousecursor_y;
+	int mx = mousecursor_x/8;
+	int sortkey;
+
+	if (key != K_MOUSE1)
+		return false;
+
+	do {
+		x = ths->common.width/8;
+		if (mx > x) return false;	//out of bounds
+		if (sb_showtimelimit.value)	{x-=4;if (mx > x) {sortkey = SLKEY_NAME; break;}}
+		if (sb_showfraglimit.value)	{x-=4;if (mx > x) {sortkey = SLKEY_NAME; break;}}
+		if (sb_showplayers.value)	{x-=6;if (mx > x) {sortkey = SLKEY_NUMPLAYERS; break;}}
+		if (sb_showmap.value)		{x-=9;if (mx > x) {sortkey = SLKEY_MAP; break;}}
+		if (sb_showgamedir.value)	{x-=9;if (mx > x) {sortkey = SLKEY_GAMEDIR; break;}}
+		if (sb_showping.value)		{x-=4;if (mx > x) {sortkey = SLKEY_PING; break;}}
+		if (sb_showaddress.value)	{x-=22;if (mx > x) {sortkey = SLKEY_ADDRESS; break;}}
+			sortkey = SLKEY_NAME;break;
+	} while (0);
+
+	Master_SetSortField(sortkey, Master_GetSortField()!=sortkey||!Master_GetSortDescending());
+	return true;
+}
+
+
+void SL_ServerDraw (int x, int y, menucustom_t *ths, menu_t *menu)
+{
+	extern int mousecursor_x, mousecursor_y;
+	serverlist_t *info = (serverlist_t*)(menu + 1);
+	serverinfo_t *si;
+	int thisone = (int)ths->data + info->scrollpos;
+	si = Master_SortedServer(thisone);
+	if (si)
+	{
+		x = ths->common.width;
+		if (thisone == info->selectedpos)
+			Draw_Fill(0, y, ths->common.width, 8, 63-24);
+		else if (thisone == info->scrollpos + (mousecursor_y-16)/8 && mousecursor_x < x)
+			Draw_Fill(0, y, ths->common.width, 8, (int)(sin(realtime*4.4)*4)+12+16);
+		else if (thisone & 1)
+			Draw_Fill(0, y, ths->common.width, 8, 1);
+		else
+			Draw_Fill(0, y, ths->common.width, 8, 2);
+
+		x /= 8;
+
+		if (sb_showtimelimit.value)	{Draw_FunStringLen((x-3)*8, y, va("%i", si->tl), 3); x-=4;}
+		if (sb_showfraglimit.value)	{Draw_FunStringLen((x-3)*8, y, va("%i", si->fl), 3); x-=4;}
+		if (sb_showplayers.value)	{Draw_FunStringLen((x-5)*8, y, va("%2i/%2i", si->players, si->maxplayers), 5); x-=6;}
+		if (sb_showmap.value)		{Draw_FunStringLen((x-8)*8, y, si->map, 8); x-=9;}
+		if (sb_showgamedir.value)	{Draw_FunStringLen((x-8)*8, y, si->gamedir, 8); x-=9;}
+		if (sb_showping.value)		{Draw_FunStringLen((x-3)*8, y, va("%i", si->ping), 3); x-=4;}
+		if (sb_showaddress.value)	{Draw_FunStringLen((x-21)*8, y, NET_AdrToString(si->adr), 21); x-=22;}
+		Draw_FunStringLen(0, y, si->name, x);
+	}
+}
+qboolean SL_ServerKey (menucustom_t *ths, menu_t *menu, int key)
+{
+	extern int mousecursor_x, mousecursor_y;
+	serverlist_t *info = (serverlist_t*)(menu + 1);
+	serverinfo_t *server;
+	if (key == K_MOUSE1)
+	{
+		info->selectedpos = info->scrollpos + (mousecursor_y-16)/8;
+		{
+			serverinfo_t *server;
+			server = Master_SortedServer(info->selectedpos);
+			if (server)
+			{
+				_snprintf(info->mappic->picturename, 32, "levelshots/%s", server->map);
+			}
+			else
+			{
+				_snprintf(info->mappic->picturename, 32, "levelshots/nomap");
+			}
+		}
+	}
+	if (key == K_ENTER || key == 's' || key == 'j')
+	{
+		server = Master_SortedServer((int)ths->data + info->scrollpos);
+		if (server)
+		{
+			if (key == 's')
+				Cbuf_AddText("spectator 1\n", RESTRICT_LOCAL);
+			else if (key == 'j')
+				Cbuf_AddText("spectator 0\n", RESTRICT_LOCAL);
+
+			if (server->special & SS_NETQUAKE)
+				Cbuf_AddText(va("nqconnect %s\n", NET_AdrToString(server->adr)), RESTRICT_LOCAL);
+			else
+				Cbuf_AddText(va("connect %s\n", NET_AdrToString(server->adr)), RESTRICT_LOCAL);
+		}
+		return true;
+	}
+	return false;
+}
+void SL_PreDraw	(menu_t *menu)
+{
+	serverlist_t *info = (serverlist_t*)(menu + 1);
+	NET_CheckPollSockets();
+
+	CL_QueryServers();
+
+	info->numslots = Master_NumSorted();
+}
+qboolean SL_Key	(int key, menu_t *menu)
+{
+	serverlist_t *info = (serverlist_t*)(menu + 1);
+
+	if (key == K_HOME)
+	{
+		info->scrollpos = 0;
+		info->selectedpos = 0;
+		return true;
+	}
+	if (key == K_END)
+	{
+		info->selectedpos = info->numslots-1;
+		info->scrollpos = info->selectedpos - (vid.height-16-7)/8;
+		return true;
+	}
+	if (key == K_PGDN)
+		info->selectedpos += 10;
+	else if (key == K_PGUP)
+		info->selectedpos -= 10;
+	else if (key == K_DOWNARROW)
+		info->selectedpos += 1;
+	else if (key == K_UPARROW)
+		info->selectedpos -= 1;
+	else if (key == K_MWHEELUP)
+		info->selectedpos -= 3;
+	else if (key == K_MWHEELDOWN)
+		info->selectedpos += 3;
+	else
+		return false;
+
+	{
+		serverinfo_t *server;
+		server = Master_SortedServer(info->selectedpos);
+		if (server)
+		{
+			_snprintf(info->mappic->picturename, 32, "levelshots/%s", server->map);
+		}
+		else
+		{
+			_snprintf(info->mappic->picturename, 32, "levelshots/nomap");
+		}
+	}
+
+	if (info->selectedpos < 0)
+		info->selectedpos = 0;
+	if (info->selectedpos > info->numslots-1)
+		info->selectedpos = info->numslots-1;
+	if (info->scrollpos < info->selectedpos - info->visibleslots)
+		info->scrollpos = info->selectedpos - info->visibleslots;
+	if (info->selectedpos < info->scrollpos)
+		info->scrollpos = info->selectedpos;
+
+	return true;
+}
+
+void SL_SliderDraw (int x, int y, menucustom_t *ths, menu_t *menu)
+{
+	serverlist_t *info = (serverlist_t*)(menu + 1);
+	Draw_Fill(x, y, ths->common.width, ths->common.height, 54);
+
+	y += ((info->scrollpos) / ((float)info->numslots - info->visibleslots)) * (ths->common.height-8);
+
+	Draw_Fill(x, y, 8, 8, 45);
+
+	if (info->sliderpressed)
+	{
+		extern qboolean	keydown[K_MAX];
+		if (keydown[K_MOUSE1])
+		{
+			extern int mousecursor_x, mousecursor_y;
+			float my;
+			serverlist_t *info = (serverlist_t*)(menu + 1);
+
+			my = mousecursor_y;
+			my -= ths->common.posy;
+			my /= ths->common.height;
+			my *= (info->numslots-info->visibleslots);
+
+			if (my > info->numslots-info->visibleslots-1)
+				my = info->numslots-info->visibleslots-1;
+			if (my < 0)
+				my = 0;
+
+			info->scrollpos = my;
+		}
+		else
+			info->sliderpressed = false;
+	}
+}
+qboolean SL_SliderKey (menucustom_t *ths, menu_t *menu, int key)
+{
+	if (key == K_MOUSE1)
+	{
+		extern int mousecursor_x, mousecursor_y;
+		float my;
+		serverlist_t *info = (serverlist_t*)(menu + 1);
+
+		my = mousecursor_y;
+		my -= ths->common.posy;
+		my /= ths->common.height;
+		my *= (info->numslots-info->visibleslots);
+
+		if (my > info->numslots-info->visibleslots-1)
+			my = info->numslots-info->visibleslots-1;
+		if (my < 0)
+			my = 0;
+
+		info->scrollpos = my;
+		info->sliderpressed = true;
+		return true;
+	}
+	return false;
+}
+
+void CalcFilters(menu_t *menu)
+{
+	serverlist_t *info = (serverlist_t*)(menu + 1);
+
+	Master_ClearMasks();
+
+	Master_SetMaskInteger(false, SLKEY_PING, 0, SLIST_TEST_LESS);
+	if (info->filter[1]) Master_SetMaskInteger(true, SLKEY_BASEGAME, SS_NETQUAKE|SS_DARKPLACES, SLIST_TEST_CONTAINS);
+	if (info->filter[2]) Master_SetMaskInteger(true, SLKEY_BASEGAME, SS_NETQUAKE|SS_DARKPLACES|SS_QUAKE2|SS_QUAKE3, SLIST_TEST_NOTCONTAIN);
+	if (info->filter[3]) Master_SetMaskInteger(true, SLKEY_BASEGAME, SS_QUAKE2, SLIST_TEST_CONTAINS);
+	if (info->filter[4]) Master_SetMaskInteger(true, SLKEY_BASEGAME, SS_QUAKE3, SLIST_TEST_CONTAINS);
+
+	if (info->filter[6]) Master_SetMaskInteger(false, SLKEY_NUMPLAYERS, 0, SLIST_TEST_NOTEQUAL);
+	if (info->filter[7]) Master_SetMaskInteger(false, SLKEY_FREEPLAYERS, 0, SLIST_TEST_NOTEQUAL);
+}
+
+qboolean SL_ReFilter (menucheck_t *option, menu_t *menu, chk_set_t set)
+{
+	serverlist_t *info = (serverlist_t*)(menu + 1);
+	switch(set)
+	{
+	case CHK_CHECKED:
+		return info->filter[option->bits];
+	case CHK_TOGGLE:
+		if (option->bits>0)
+			info->filter[option->bits] ^= 1;
+
+		CalcFilters(menu);
+
+		return true;
+	}
+
+	return true;
+}
+
+void SL_Remove	(menu_t *menu)
+{
+	serverlist_t *info = (serverlist_t*)(menu + 1);
+
+	Cvar_Set(&sb_hidenetquake, info->filter[1]?"0":"1");
+	Cvar_Set(&sb_hidequakeworld, info->filter[2]?"0":"1");
+	Cvar_Set(&sb_hidequake2, info->filter[3]?"0":"1");
+	Cvar_Set(&sb_hidequake3, info->filter[4]?"0":"1");
+
+	Cvar_Set(&sb_hideempty, info->filter[6]?"1":"0");
+	Cvar_Set(&sb_hidefull, info->filter[7]?"1":"0");
+}
+
+void M_Menu_ServerList2_f(void)
+{
+	int i, y;
+	menu_t *menu;
+	menucustom_t *cust;
+	serverlist_t *info;
+
+	key_dest = key_menu;
+	m_state = m_complex;
+
+	MasterInfo_Begin();
+
+	menu = M_CreateMenu(sizeof(serverlist_t));
+	menu->event = SL_PreDraw;
+	menu->key = SL_Key;
+	menu->remove = SL_Remove;
+
+	info = (serverlist_t*)(menu + 1);
+
+	y = 8;
+	cust = MC_AddCustom(menu, 0, y, 0);
+	cust->draw = SL_TitlesDraw;
+	cust->key = SL_TitlesKey;
+	cust->common.height = 8;
+	cust->common.width = vid.width-8;
+
+	info->visibleslots = (vid.height-16 - 64);
+
+	cust = MC_AddCustom(menu, vid.width-8, 16, NULL);
+	cust->draw = SL_SliderDraw;
+	cust->key = SL_SliderKey;
+	cust->common.height = info->visibleslots;
+	cust->common.width = 8;
+
+	info->visibleslots = (info->visibleslots-7)/8;
+	for (i = 0, y = 16; i <= info->visibleslots; y +=8, i++)
+	{
+		cust = MC_AddCustom(menu, 0, y, (void*)i);
+		cust->draw = SL_ServerDraw;
+		cust->key = SL_ServerKey;
+		cust->common.height = 8;
+		cust->common.width = vid.width-8;
+	}
+	menu->dontexpand = true;
+
+	MC_AddCheckBox(menu, 0, vid.height - 64+8*1, "Ping     ", &sb_showping, 1);
+	MC_AddCheckBox(menu, 0, vid.height - 64+8*2, "Address  ", &sb_showaddress, 1);
+	MC_AddCheckBox(menu, 0, vid.height - 64+8*3, "Map      ", &sb_showmap, 1);
+	MC_AddCheckBox(menu, 0, vid.height - 64+8*4, "Gamedir  ", &sb_showgamedir, 1);
+	MC_AddCheckBox(menu, 0, vid.height - 64+8*5, "Players  ", &sb_showplayers, 1);
+	MC_AddCheckBox(menu, 0, vid.height - 64+8*6, "Fraglimit", &sb_showfraglimit, 1);
+	MC_AddCheckBox(menu, 0, vid.height - 64+8*7, "Timelimit", &sb_showtimelimit, 1);
+
+	MC_AddCheckBoxFunc(menu, 128, vid.height - 64+8*1, "List NQ   ", SL_ReFilter, 1);
+	MC_AddCheckBoxFunc(menu, 128, vid.height - 64+8*2, "List QW   ", SL_ReFilter, 2);
+	MC_AddCheckBoxFunc(menu, 128, vid.height - 64+8*3, "List Q2   ", SL_ReFilter, 3);
+	MC_AddCheckBoxFunc(menu, 128, vid.height - 64+8*4, "List Q3   ", SL_ReFilter, 4);
+	MC_AddCheckBoxFunc(menu, 128, vid.height - 64+8*6, "Hide Empty", SL_ReFilter, 6);
+	MC_AddCheckBoxFunc(menu, 128, vid.height - 64+8*7, "Hide Full ", SL_ReFilter, 7);
+
+	info->filter[1] = !sb_hidenetquake.value;
+	info->filter[2] = !sb_hidequakeworld.value;
+	info->filter[3] = !sb_hidequake2.value;
+	info->filter[4] = !sb_hidequake3.value;
+	info->filter[6] = !!sb_hideempty.value;
+	info->filter[7] = !!sb_hidefull.value;
+
+	info->mappic = (menupicture_t *)MC_AddStrechPicture(menu, vid.width - 64, vid.height - 64, 64, 64, "012345678901234567890123456789012");
+
+	CalcFilters(menu);
+
+	Master_SetSortField(SLKEY_PING, true);
+}
+
+
+
+
+
+
+
+
+
+
 #endif

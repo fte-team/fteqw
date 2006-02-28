@@ -1616,7 +1616,7 @@ void R_RenderScene (void)
 {
 	qboolean GLR_DoomWorld(void);
 
-	if (!cl.worldmodel)
+	if (!cl.worldmodel || !cl.worldmodel->nodes)
 		r_refdef.flags |= Q2RDF_NOWORLDMODEL;
 
 	GLR_SetupFrame ();

@@ -173,6 +173,11 @@ void MenuDrawItems(int xpos, int ypos, menuoption_t *option, menu_t *menu)
 
 			Draw_TransPic (xpos+option->common.posx, ypos+option->common.posy, p);
 			break;
+
+		case mt_strechpic:
+			p = Draw_SafeCachePic(option->picture.picturename);
+			if (p) Draw_ScalePic(xpos+option->common.posx, ypos+option->common.posy, option->common.width, option->common.height, p);
+			break;
 		case mt_childwindow:
 			MenuDrawItems(xpos+option->common.posx, ypos+option->common.posy, ((menu_t *)option->custom.data)->options, (menu_t *)option->custom.data);
 			break;
@@ -216,7 +221,7 @@ void MenuDrawItems(int xpos, int ypos, menuoption_t *option, menu_t *menu)
 				int y = ypos+option->common.posy;
 				qboolean on;
 				if (option->check.func)
-					on = option->check.func(option, CHK_CHECKED);
+					on = option->check.func(&option->check, menu, CHK_CHECKED);
 				else if (!option->check.var)
 						on = option->check.value;
 				else if (option->check.bits)	//bits is a bitmask for use with cvars (users can be clumsy, so bittage of 0 uses non-zero as true, but sets only bit 1)
@@ -340,7 +345,8 @@ void MenuDraw(menu_t *menu)
 {
 	if (menu->event)
 		menu->event(menu);
-	menu->xpos = ((vid.width - 320)>>1);
+	if (!menu->dontexpand)
+		menu->xpos = ((vid.width - 320)>>1);
 	MenuDrawItems(menu->xpos, menu->ypos, menu->options, menu);
 }
 
@@ -421,6 +427,29 @@ menupicture_t *MC_AddPicture(menu_t *menu, int x, int y, char *picname)
 	n->common.iszone = true;
 	n->common.posx = x;
 	n->common.posy = y;
+	n->picturename = (char *)(n+1);
+	strcpy(n->picturename, picname);
+
+	n->common.next = menu->options;
+	menu->options = (menuoption_t *)n;
+	return n;
+}
+
+menupicture_t *MC_AddStrechPicture(menu_t *menu, int x, int y, int width, int height, char *picname)
+{
+	menupicture_t *n;
+	if (!qrenderer)
+		return NULL;
+
+	Draw_SafeCachePic(picname);
+
+	n = Z_Malloc(sizeof(menupicture_t) + strlen(picname)+1);
+	n->common.type = mt_strechpic;
+	n->common.iszone = true;
+	n->common.posx = x;
+	n->common.posy = y;
+	n->common.width = width;
+	n->common.height = height;
 	n->picturename = (char *)(n+1);
 	strcpy(n->picturename, picname);
 
@@ -568,6 +597,25 @@ menucheck_t *MC_AddCheckBox(menu_t *menu, int x, int y, const char *text, cvar_t
 	menu->options = (menuoption_t *)n;
 	return n;
 }
+menucheck_t *MC_AddCheckBoxFunc(menu_t *menu, int x, int y, const char *text, qboolean (*func) (menucheck_t *option, menu_t *menu, chk_set_t set), int bits)
+{
+	menucheck_t *n = Z_Malloc(sizeof(menucheck_t)+strlen(text)+1);
+	n->common.type = mt_checkbox;
+	n->common.iszone = true;	
+	n->common.posx = x;
+	n->common.posy = y;
+	n->common.height = 8;
+	n->common.width = (strlen(text)+7)*8;
+	n->text = (char *)(n+1);
+	strcpy((char *)(n+1), text);
+	n->func = func;
+	n->bits = bits;
+
+	n->common.next = menu->options;
+	menu->options = (menuoption_t *)n;
+	return n;
+}
+
 menuslider_t *MC_AddSlider(menu_t *menu, int x, int y, const char *text, cvar_t *var, float min, float max)
 {	
 	menuslider_t *n = Z_Malloc(sizeof(menuslider_t)+strlen(text)+1);
@@ -774,12 +822,12 @@ void MC_Slider_Key(menuslider_t *option, int key)
 	S_LocalSound ("misc/menu2.wav");
 }
 
-void MC_CheckBox_Key(menucheck_t *option, int key)
+void MC_CheckBox_Key(menucheck_t *option, menu_t *menu, int key)
 {
 	if (key != K_ENTER && key != K_LEFTARROW && key != K_RIGHTARROW && key != K_MOUSE1)
 		return;
 	if (option->func)
-		option->func((union menuoption_s *)option, CHK_TOGGLE);
+		option->func(option, menu, CHK_TOGGLE);
 	else if (!option->var)
 		option->value = !option->value;
 	else
@@ -1164,7 +1212,7 @@ void M_Complex_Key(int key)
 			MC_Slider_Key(&currentmenu->selecteditem->slider, key);
 			break;
 		case mt_checkbox:
-			MC_CheckBox_Key(&currentmenu->selecteditem->check, key);
+			MC_CheckBox_Key(&currentmenu->selecteditem->check, currentmenu, key);
 			break;
 		case mt_button:
 		case mt_buttonbigfont:

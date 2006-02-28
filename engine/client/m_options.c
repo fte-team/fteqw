@@ -4,7 +4,7 @@
 #include "winquake.h"
 
 //these are awkward/strange
-qboolean M_Options_AlwaysRun (union menuoption_s *option, chk_set_t set)
+qboolean M_Options_AlwaysRun (menucheck_t *option, struct menu_s *menu, chk_set_t set)
 {
 	if (set == CHK_CHECKED)
 		return cl_forwardspeed.value > 200;
@@ -21,7 +21,7 @@ qboolean M_Options_AlwaysRun (union menuoption_s *option, chk_set_t set)
 		return true;
 	}	
 }
-qboolean M_Options_InvertMouse (union menuoption_s *option, chk_set_t set)
+qboolean M_Options_InvertMouse (menucheck_t *option, struct menu_s *menu, chk_set_t set)
 {
 	if (set == CHK_CHECKED)
 		return m_pitch.value < 0;

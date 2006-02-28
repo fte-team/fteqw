@@ -40,6 +40,9 @@ typedef enum{
 	SLKEY_MAXPLAYERS,
 	SLKEY_GAMEDIR,
 
+	SLKEY_FREEPLAYERS,
+	SLKEY_BASEGAME,
+
 	SLKEY_TOOMANY,
 	SLKEY_CUSTOM
 } hostcachekey_t;
@@ -90,7 +93,7 @@ typedef struct serverinfo_s {
 	short tl;
 	short fl;
 	char gamedir[8+1];
-	char map[8+1];
+	char map[16];
 
 	float refreshtime;
 

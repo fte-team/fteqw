@@ -748,6 +748,7 @@ void CL_TimeDemo_f (void);
 extern int	packet_latency[NET_TIMINGS];
 int CL_CalcNet (void);
 void CL_ParseServerMessage (void);
+void CL_DumpPacket(void);
 void CLNQ_ParseServerMessage (void);
 #ifdef Q2CLIENT
 void CLQ2_ParseServerMessage (void);

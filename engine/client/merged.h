@@ -106,6 +106,7 @@ extern int FNC(Mod_SkinForName)						(struct model_s *model, char *name);
 #undef FNC
 
 void Draw_FunString(int x, int y, unsigned char *str);
+void Draw_FunStringLen(int x, int y, unsigned char *str, int len);
 
 
 #ifdef SERVERONLY

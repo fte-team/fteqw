@@ -153,7 +153,7 @@ qboolean Master_CompareInteger(int a, int b, slist_test_t rule)
 	switch(rule)
 	{
 	case SLIST_TEST_CONTAINS:
-		return a&b;
+		return !!(a&b);
 	case SLIST_TEST_NOTCONTAIN:
 		return !(a&b);
 	case SLIST_TEST_LESSEQUAL:
@@ -205,6 +205,10 @@ qboolean Master_ServerIsGreater(serverinfo_t *a, serverinfo_t *b)
 		return Master_CompareInteger(a->players, b->players, SLIST_TEST_LESS);
 	case SLKEY_MAXPLAYERS:
 		return Master_CompareInteger(a->maxplayers, b->maxplayers, SLIST_TEST_LESS);
+	case SLKEY_FREEPLAYERS:
+		return Master_CompareInteger(a->maxplayers - a->players, b->maxplayers - b->players, SLIST_TEST_LESS);
+	case SLKEY_BASEGAME:
+		return Master_CompareInteger(a->special, b->special, SLIST_TEST_LESS);
 	case SLKEY_MAP:
 		return Master_CompareString(a->map, b->map, SLIST_TEST_LESS);
 	case SLKEY_GAMEDIR:
@@ -218,43 +222,53 @@ qboolean Master_ServerIsGreater(serverinfo_t *a, serverinfo_t *b)
 qboolean Master_PassesMasks(serverinfo_t *a)
 {
 	int i;
+	qboolean val, res;
 	//always filter out dead unresponsive servers.
 	if (!a->ping)
 		return false;
+
+	val = 1;
 
 	for (i = 0; i < numvisrules; i++)
 	{
 		switch(visrules[i].fieldindex)
 		{
 		case SLKEY_PING:
-			if (!Master_CompareInteger(a->ping, visrules[i].operandi, visrules[i].compareop))
-				return false;
+			res = Master_CompareInteger(a->ping, visrules[i].operandi, visrules[i].compareop);
 			break;
 		case SLKEY_NUMPLAYERS:
-			if (!Master_CompareInteger(a->players, visrules[i].operandi, visrules[i].compareop))
-				return false;
+			res = Master_CompareInteger(a->players, visrules[i].operandi, visrules[i].compareop);
 			break;
 		case SLKEY_MAXPLAYERS:
-			if (!Master_CompareInteger(a->maxplayers, visrules[i].operandi, visrules[i].compareop))
-				return false;
+			res = Master_CompareInteger(a->maxplayers, visrules[i].operandi, visrules[i].compareop);
+			break;
+		case SLKEY_FREEPLAYERS:
+			res = Master_CompareInteger(a->maxplayers-a->players, visrules[i].operandi, visrules[i].compareop);
 			break;
 
 		case SLKEY_MAP:
-			if (!Master_CompareString(a->map, visrules[i].operands, visrules[i].compareop))
-				return false;
+			res = Master_CompareString(a->map, visrules[i].operands, visrules[i].compareop);
 			break;
 		case SLKEY_NAME:
-			if (!Master_CompareString(a->name, visrules[i].operands, visrules[i].compareop))
-				return false;
+			res = Master_CompareString(a->name, visrules[i].operands, visrules[i].compareop);
 			break;
 		case SLKEY_GAMEDIR:
-			if (!Master_CompareString(a->gamedir, visrules[i].operands, visrules[i].compareop))
-				return false;
+			res = Master_CompareString(a->gamedir, visrules[i].operands, visrules[i].compareop);
 			break;
+
+		case SLKEY_BASEGAME:
+			res = Master_CompareInteger(a->special, visrules[i].operandi, visrules[i].compareop);
+			break;
+		default:
+			continue;
 		}
+		if (visrules[i].or)
+			val |= res;
+		else
+			val &= res;
 	}
 
-	return true;
+	return val;
 }
 
 void Master_ClearMasks(void)
@@ -408,6 +422,10 @@ float Master_ReadKeyFloat(serverinfo_t *server, int keynum)
 			return server->players;
 		case SLKEY_MAXPLAYERS:
 			return server->maxplayers;
+		case SLKEY_FREEPLAYERS:
+			return server->maxplayers - server->players;
+		case SLKEY_BASEGAME:
+			return server->special;
 
 		default:
 			return atof(Master_ReadKeyString(server, keynum));
@@ -463,8 +481,12 @@ int Master_KeyForName(char *keyname)
 		return SLKEY_MAXPLAYERS;
 	else if (!strcmp(keyname, "numplayers"))
 		return SLKEY_NUMPLAYERS;
+	else if (!strcmp(keyname, "freeplayers"))
+		return SLKEY_FREEPLAYERS;
 	else if (!strcmp(keyname, "gamedir") || !strcmp(keyname, "game") || !strcmp(keyname, "*gamedir") || !strcmp(keyname, "mod"))
 		return SLKEY_GAMEDIR;
+	else if (!strcmp(keyname, "special"))
+		return SLKEY_BASEGAME;
 
 	else if (slist_customkeys == SLIST_MAXKEYS)
 		return SLKEY_TOOMANY;

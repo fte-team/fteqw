@@ -2001,7 +2001,7 @@ void R_DrawGAliasModel (entity_t *e)
 
 		skin = GL_ChooseSkin(inf, clmodel->name, surfnum, e);
 
-		if (!skin || (skin->base == NULL
+		if (!skin || ((void*)skin->base == NULL
 #ifdef Q3SHADERS
 			&& skin->shader == NULL
 #endif
@@ -3524,12 +3524,15 @@ static void Q2_LoadSkins(char *skins)
 	galias->numskins = LittleLong(pq2inmodel->num_skins);
 
 #ifndef SERVERONLY
-	while (galias->numskins)
+	outskin = (galiasskin_t *)((char *)galias + galias->ofsskins);
+	outskin += galias->numskins - 1;
+	if (galias->numskins)
 	{
+		texnums = (galiastexnum_t*)((char *)outskin +outskin->ofstexnums);
 		if (texnums->base)
-			break;
+			return;
 		if (texnums->shader)
-			break;
+			return;
 
 		galias->numskins--;
 	}

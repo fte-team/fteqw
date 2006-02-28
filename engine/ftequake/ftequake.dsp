@@ -165,6 +165,7 @@ LINK32=link.exe
 # PROP Target_Dir ""
 # ADD BASE CPP /nologo /G5 /ML /W3 /GX /ZI /Od /I "..\client\gltod3d\sdk7\include" /I "..\client\gltod3d\D3DFrame" /I "..\dxsdk\sdk\inc" /I "..\scitech\include" /I "..\client" /D "NQPROT" /D "_DEBUG" /D "GLQUAKE" /D "SERVERDLL" /D "WIN32" /D "_WINDOWS" /FR".\GLDebug/" /Fp".\GLDebug/qwcl.pch" /YX /Fo".\GLDebug/" /Fd".\GLDebug/" /FD /c
 # ADD CPP /nologo /G5 /W3 /Gi /GX /ZI /Od /I "..\client" /I "../libs/dxsdk7/include" /I "../common" /I "../server" /I "../gl" /I "../sw" /I "../qclib" /I "../libs" /D "_DEBUG" /D "WIN32" /D "_WINDOWS" /D "GLQUAKE" /D "SWQUAKE" /D "USE_D3D" /Fr /Fp".\MDebug/qwcl.pch" /Yu"quakedef.h" /FD /c
+# SUBTRACT CPP /WX
 # ADD BASE MTL /nologo /D "_DEBUG" /mktyplib203 /win32
 # ADD MTL /nologo /D "_DEBUG" /mktyplib203 /win32
 # ADD BASE RSC /l 0x809 /d "_DEBUG"
@@ -9284,8 +9285,8 @@ SOURCE=..\client\winquake.rc
 
 !IF  "$(CFG)" == "ftequake - Win32 Release"
 
-# ADD BASE RSC /l 0x809 /i "\Projects\fteqw\engine\client" /i "\ftetgcvs\engine\client" /i "\windows\J\ftetgcvs\engine\client" /i "\ftetgcvs\source\client" /i "\ftetgcvs\temp\client" /i "\ftetgcvs\fte\QW\client"
-# ADD RSC /l 0x809 /i "\Projects\fteqw\engine\client" /i "\ftetgcvs\engine\client" /i "\windows\J\ftetgcvs\engine\client" /i "\ftetgcvs\source\client" /i "\ftetgcvs\temp\client" /i "\ftetgcvs\fte\QW\client" /d "MINIMAL"
+# ADD BASE RSC /l 0x809 /i "\ftetgcvs\engine\client" /i "\Projects\fteqw\engine\client" /i "\windows\J\ftetgcvs\engine\client" /i "\ftetgcvs\source\client" /i "\ftetgcvs\temp\client" /i "\ftetgcvs\fte\QW\client"
+# ADD RSC /l 0x809 /i "\ftetgcvs\engine\client" /i "\Projects\fteqw\engine\client" /i "\windows\J\ftetgcvs\engine\client" /i "\ftetgcvs\source\client" /i "\ftetgcvs\temp\client" /i "\ftetgcvs\fte\QW\client" /d "MINIMAL"
 
 !ELSEIF  "$(CFG)" == "ftequake - Win32 Debug"
 
@@ -9353,6 +9354,10 @@ SOURCE=..\nqnet\net_dgrm.h
 # Begin Source File
 
 SOURCE=..\common\protocol.h
+# End Source File
+# Begin Source File
+
+SOURCE=..\client\quakedef.h
 # End Source File
 # End Group
 # Begin Group "Resource Files"

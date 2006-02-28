@@ -380,8 +380,8 @@ void GLR_PushDlights (void)
 	if (!r_dynamic.value || !cl.worldmodel)
 		return;
 
-//	if (!cl.worldmodel->nodes)
-//		return;
+	if (!cl.worldmodel->nodes)
+		return;
 
 	currentmodel = cl.worldmodel;
 	

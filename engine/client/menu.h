@@ -116,7 +116,7 @@ struct menu_s;
 typedef enum {m_none, m_complex, m_help, m_keys, m_slist, m_media, m_plugin, m_menu_dat} m_state_t;
 extern m_state_t m_state;
 
-typedef enum {mt_childwindow, mt_button, mt_buttonbigfont, mt_box, mt_colouredbox, mt_line, mt_edit, mt_text, mt_slider, mt_combo, mt_bind, mt_checkbox, mt_picture, mt_menudot, mt_custom} menutype_t;
+typedef enum {mt_childwindow, mt_button, mt_buttonbigfont, mt_box, mt_colouredbox, mt_line, mt_edit, mt_text, mt_slider, mt_combo, mt_bind, mt_checkbox, mt_picture, mt_strechpic, mt_menudot, mt_custom} menutype_t;
 
 typedef struct {	//must be first of each structure type.
 	menutype_t type;
@@ -158,13 +158,13 @@ typedef struct {
 } menuslider_t;
 
 typedef enum {CHK_CHECKED, CHK_TOGGLE} chk_set_t;
-typedef struct {
+typedef struct menucheck_s {
 	menucommon_t common;
 	const char *text;
 	cvar_t *var;
 	int bits;
 	float value;
-	qboolean (*func) (union menuoption_s *option, chk_set_t set);
+	qboolean (*func) (struct menucheck_s *option, struct menu_s *menu, chk_set_t set);
 } menucheck_t;
 
 typedef struct {
@@ -227,6 +227,7 @@ typedef struct menu_s {
 	int ypos;
 	int width;
 	int height;
+	qboolean dontexpand;
 	int numoptions;
 
 	qboolean iszone;
@@ -254,10 +255,12 @@ menutext_t *MC_AddWhiteText(menu_t *menu, int x, int y, const char *text, qboole
 menubind_t *MC_AddBind(menu_t *menu, int x, int y, const char *caption, char *command);
 menubox_t *MC_AddBox(menu_t *menu, int x, int y, int width, int height);
 menupicture_t *MC_AddPicture(menu_t *menu, int x, int y, char *picname);
+menupicture_t *MC_AddStrechPicture(menu_t *menu, int x, int y, int width, int height, char *picname);
 menupicture_t *MC_AddCenterPicture(menu_t *menu, int y, char *picname);
 menupicture_t *MC_AddCursor(menu_t *menu, int x, int y);
 menuslider_t *MC_AddSlider(menu_t *menu, int x, int y, const char *text, cvar_t *var, float min, float max);
 menucheck_t *MC_AddCheckBox(menu_t *menu, int x, int y, const char *text, cvar_t *var, int cvarbitmask);
+menucheck_t *MC_AddCheckBoxFunc(menu_t *menu, int x, int y, const char *text, qboolean (*func) (menucheck_t *option, menu_t *menu, chk_set_t set), int bits);
 menubutton_t *MC_AddConsoleCommand(menu_t *menu, int x, int y, const char *text, const char *command);
 menubutton_t *MC_AddCommand(menu_t *menu, int x, int y, char *text, qboolean (*command) (union menuoption_s *,struct menu_s *,int));
 menucombo_t *MC_AddCombo(menu_t *menu, int x, int y, const char *caption, const char **text, int initialvalue);

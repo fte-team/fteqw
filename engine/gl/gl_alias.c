@@ -3078,7 +3078,7 @@ static void *Q1_LoadFrameGroup (daliasframetype_t *pframetype, int *seamremaps)
 			pframetype = (daliasframetype_t *)pinframe;
 			break;
 		default:
-			Sys_Error("Bad frame type\n");
+			Sys_Error("Bad frame type in %s\n", loadmodel->name);
 		}
 		frame++;
 	}
@@ -3124,8 +3124,8 @@ static void *Q1_LoadSkins (daliasskintype_t *pskintype, qboolean alpha)
 	char skinname[MAX_QPATH];
 	int i;
 	int s, t;
-	int *count;
-	float *intervals;
+	daliasskingroup_t *count;
+	daliasskininterval_t *intervals;
 	qbyte *data, *saved;
 	galiasskin_t *outskin = (galiasskin_t *)((char *)galias + galias->ofsskins);
 
@@ -3219,13 +3219,15 @@ static void *Q1_LoadSkins (daliasskintype_t *pskintype, qboolean alpha)
 		default:
 			outskin->skinwidth = pq1inmodel->skinwidth;
 			outskin->skinheight = pq1inmodel->skinheight;
-			count = (int *)(pskintype+1);
-			intervals = (float *)(count+1);
-			outskin->texnums = LittleLong(*count);
+			count = (daliasskingroup_t*)(pskintype+1);
+			intervals = (daliasskininterval_t *)(count+1);
+			outskin->texnums = LittleLong(count->numskins);
 			data = (qbyte *)(intervals + outskin->texnums);
 			texnums = Hunk_Alloc(sizeof(*texnums)*outskin->texnums);
 			outskin->ofstexnums = (char *)texnums - (char *)outskin;
 			outskin->ofstexels = 0;
+			outskin->skinspeed = 1/LittleFloat(intervals[0].interval);
+
 			for (t = 0; t < outskin->texnums; t++,data+=s, texnums++)
 			{
 				texture = 0;
@@ -3264,7 +3266,7 @@ static void *Q1_LoadSkins (daliasskintype_t *pskintype, qboolean alpha)
 					}
 					else
 						saved = BZ_Malloc(s);
-					memcpy(saved, pskintype+1, s);
+					memcpy(saved, data, s);
 					GLMod_FloodFillSkin(saved, outskin->skinwidth, outskin->skinheight);
 					if (!texture)
 					{
@@ -3385,8 +3387,8 @@ void GL_LoadQ1Model (model_t *mod, void *buffer)
 	galias->ofs_st_array = (char *)st_array - (char *)galias;
 	for (j=pq1inmodel->numverts,i = 0; i < pq1inmodel->numverts; i++)
 	{
-		st_array[i][0] = LittleLong(pinstverts[i].s)/(float)pq1inmodel->skinwidth;
-		st_array[i][1] = LittleLong(pinstverts[i].t)/(float)pq1inmodel->skinheight;
+		st_array[i][0] = (LittleLong(pinstverts[i].s)+0.5)/(float)pq1inmodel->skinwidth;
+		st_array[i][1] = (LittleLong(pinstverts[i].t)+0.5)/(float)pq1inmodel->skinheight;
 
 		if (pinstverts[i].onseam)
 		{

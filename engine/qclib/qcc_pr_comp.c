@@ -716,7 +716,7 @@ pbool QCC_OPCodeValid(QCC_opcode_t *op)
 	return false;
 }
 
-QCC_def_t *QCC_PR_Expression (int priority);
+QCC_def_t *QCC_PR_Expression (int priority, pbool allowcomma);
 int QCC_AStatementJumpsTo(int targ, int first, int last);
 pbool QCC_StatementIsAJump(int stnum, int notifdest);
 
@@ -2141,13 +2141,13 @@ QCC_def_t *QCC_PR_ParseFunctionCall (QCC_def_t *func)	//warning, the func could 
 			func->references++;
 			if (!QCC_PR_CheckToken(")"))
 			{
-				e = QCC_PR_Expression (TOP_PRIORITY);
+				e = QCC_PR_Expression (TOP_PRIORITY, false);
 				if (e->type->type != ev_float)
 					QCC_PR_ParseErrorPrintDef (ERR_TYPEMISMATCHPARM, func, "type mismatch on parm %i", 1);
 				if (!QCC_PR_CheckToken(")"))
 				{
 					QCC_PR_Expect(",");
-					d = QCC_PR_Expression (TOP_PRIORITY);
+					d = QCC_PR_Expression (TOP_PRIORITY, false);
 					if (d->type->type != ev_float)
 						QCC_PR_ParseErrorPrintDef (ERR_TYPEMISMATCHPARM, func, "type mismatch on parm %i", 2);
 					QCC_PR_Expect(")");
@@ -2262,13 +2262,13 @@ QCC_def_t *QCC_PR_ParseFunctionCall (QCC_def_t *func)	//warning, the func could 
 			func->references++;
 			if (!QCC_PR_CheckToken(")"))
 			{
-				e = QCC_PR_Expression (TOP_PRIORITY);
+				e = QCC_PR_Expression (TOP_PRIORITY, false);
 				if (e->type->type != ev_vector)
 						QCC_PR_ParseErrorPrintDef (ERR_TYPEMISMATCHPARM, func, "type mismatch on parm %i", 1);
 				if (!QCC_PR_CheckToken(")"))
 				{
 					QCC_PR_Expect(",");
-					d = QCC_PR_Expression (TOP_PRIORITY);
+					d = QCC_PR_Expression (TOP_PRIORITY, false);
 					if (d->type->type != ev_vector)
 						QCC_PR_ParseErrorPrintDef (ERR_TYPEMISMATCHPARM, func, "type mismatch on parm %i", 2);
 					QCC_PR_Expect(")");
@@ -2474,7 +2474,7 @@ QCC_def_t *QCC_PR_ParseFunctionCall (QCC_def_t *func)	//warning, the func could 
 			//t = (a/%1) / (nextent(world)/%1)
 			//a/%1 does a (int)entity to float conversion type thing
 
-			e = QCC_PR_Expression(TOP_PRIORITY);
+			e = QCC_PR_Expression(TOP_PRIORITY, false);
 			QCC_PR_Expect(")");
 			e = QCC_PR_Statement(&pr_opcodes[OP_DIV_F], e, QCC_MakeIntDef(1), (QCC_dstatement_t **)0xffffffff);
 
@@ -2554,7 +2554,7 @@ QCC_def_t *QCC_PR_ParseFunctionCall (QCC_def_t *func)	//warning, the func could 
 			}
 			else
 			{	//bum
-				e = QCC_PR_Expression (TOP_PRIORITY);
+				e = QCC_PR_Expression (TOP_PRIORITY, false);
 				if (e->type->type != ev_vector)
 				{
 					if (flag_laxcasts)
@@ -2571,7 +2571,7 @@ QCC_def_t *QCC_PR_ParseFunctionCall (QCC_def_t *func)	//warning, the func could 
 		}
 		else
 		{	//bother
-			e = QCC_PR_Expression (TOP_PRIORITY);
+			e = QCC_PR_Expression (TOP_PRIORITY, false);
 			if (e->type->type != ev_vector)
 			{
 				if (flag_laxcasts)
@@ -2603,7 +2603,7 @@ QCC_def_t *QCC_PR_ParseFunctionCall (QCC_def_t *func)	//warning, the func could 
 					QCC_PR_ParsePrintDef(WARN_TOOMANYPARAMETERSFORFUNC, func);
 				}
 
-				e = QCC_PR_Expression (TOP_PRIORITY);
+				e = QCC_PR_Expression (TOP_PRIORITY, false);
 
 				if (arg == 0 && func->name)
 				{
@@ -3335,7 +3335,7 @@ reloop:
 		{
 			numstatements--;	//remove the last statement			
 
-			nd = QCC_PR_Expression (TOP_PRIORITY);
+			nd = QCC_PR_Expression (TOP_PRIORITY, true);
 			QCC_PR_Expect("]");
 
 			if (d->type->size != 1)	//we need to multiply it to find the offset.						
@@ -3375,7 +3375,7 @@ reloop:
 		}
 		else
 		{
-			ao = QCC_PR_Expression (TOP_PRIORITY);
+			ao = QCC_PR_Expression (TOP_PRIORITY, true);
 			QCC_PR_Expect("]");
 
 			if (QCC_OPCodeValid(&pr_opcodes[OP_LOADA_F]) && d->type->size != 1)	//we need to multiply it to find the offset.
@@ -3453,7 +3453,7 @@ reloop:
 						QCC_PR_ParseWarning(0, "RETURN VALUE ALREADY IN USE");
 
 					funcretr = QCC_PR_GetDef(type_function, qcva("ArraySet*%s", d->name), NULL, true, 1);
-					nd = QCC_PR_Expression(TOP_PRIORITY);
+					nd = QCC_PR_Expression(TOP_PRIORITY, true);
 					if (nd->type->type != d->type->type)
 						QCC_PR_ParseErrorPrintDef(ERR_TYPEMISMATCH, d, "Type Mismatch on array assignment");
 
@@ -3518,7 +3518,7 @@ reloop:
 					if (QCC_PR_CheckToken("="))
 					{
 						funcretr = QCC_PR_GetDef(type_function, qcva("ArraySet*%s", d->name), NULL, true, 1);
-						nd = QCC_PR_Expression(TOP_PRIORITY);
+						nd = QCC_PR_Expression(TOP_PRIORITY, true);
 						if (nd->type->type != d->type->type)
 							QCC_PR_ParseErrorPrintDef(ERR_TYPEMISMATCH, d, "Type Mismatch on array assignment");
 
@@ -3799,7 +3799,7 @@ reloop:
 			QCC_def_t *field;
 			if (QCC_PR_CheckToken("("))
 			{
-				field = QCC_PR_Expression(TOP_PRIORITY);
+				field = QCC_PR_Expression(TOP_PRIORITY, true);
 				QCC_PR_Expect(")");
 			}
 			else
@@ -3921,7 +3921,7 @@ QCC_def_t *QCC_PR_Term (void)
 		
 		if (QCC_PR_CheckToken ("!"))
 		{
-			e = QCC_PR_Expression (NOT_PRIORITY);
+			e = QCC_PR_Expression (NOT_PRIORITY, false);
 			t = e->type->type;
 			if (t == ev_float)
 				e2 = QCC_PR_Statement (&pr_opcodes[OP_NOT_F], e, 0, NULL);
@@ -3948,7 +3948,7 @@ QCC_def_t *QCC_PR_Term (void)
 		else if (QCC_PR_CheckToken ("&"))
 		{
 			int st = numstatements;
-			e = QCC_PR_Expression (NOT_PRIORITY);
+			e = QCC_PR_Expression (NOT_PRIORITY, false);
 			t = e->type->type;
 
 			if (st != numstatements)
@@ -3978,7 +3978,7 @@ QCC_def_t *QCC_PR_Term (void)
 		}
 		else if (QCC_PR_CheckToken ("*"))
 		{
-			e = QCC_PR_Expression (NOT_PRIORITY);
+			e = QCC_PR_Expression (NOT_PRIORITY, false);
 			t = e->type->type;
 
 			if (t != ev_pointer)
@@ -4022,7 +4022,7 @@ QCC_def_t *QCC_PR_Term (void)
 		}
 		else if (QCC_PR_CheckToken ("-"))
 		{
-			e = QCC_PR_Expression (NOT_PRIORITY);
+			e = QCC_PR_Expression (NOT_PRIORITY, false);
 
 			switch(e->type->type)
 			{
@@ -4041,7 +4041,7 @@ QCC_def_t *QCC_PR_Term (void)
 		}
 		else if (QCC_PR_CheckToken ("+"))
 		{
-			e = QCC_PR_Expression (NOT_PRIORITY);
+			e = QCC_PR_Expression (NOT_PRIORITY, false);
 
 			switch(e->type->type)
 			{
@@ -4126,7 +4126,7 @@ QCC_def_t *QCC_PR_Term (void)
 			{
 				pbool oldcond = conditional;
 				conditional = conditional?2:0;
-				e =	QCC_PR_Expression (TOP_PRIORITY);
+				e =	QCC_PR_Expression (TOP_PRIORITY, false);
 				QCC_PR_Expect (")");
 				conditional = oldcond;
 			}
@@ -4171,7 +4171,7 @@ PR_Expression
 ==============
 */
 
-QCC_def_t *QCC_PR_Expression (int priority)
+QCC_def_t *QCC_PR_Expression (int priority, pbool allowcomma)
 {
 	QCC_dstatement32_t	*st;
 	QCC_opcode_t	*op, *oldop;
@@ -4187,34 +4187,42 @@ QCC_def_t *QCC_PR_Expression (int priority)
 	if (priority == 0)
 		return QCC_PR_Term ();
 
-	e = QCC_PR_Expression (priority-1);
+	e = QCC_PR_Expression (priority-1, allowcomma);
 
 	while (1)
 	{
-		if (priority == 1 && QCC_PR_CheckToken ("(") )
+		if (priority == 1)
 		{
-			qcc_usefulstatement=true;
-			return QCC_PR_ParseFunctionCall (e);
-		}
-		if (priority == 1 && QCC_PR_CheckToken ("?"))
-		{
-			QCC_dstatement32_t *fromj, *elsej;
-			QCC_PR_Statement(&pr_opcodes[OP_IFNOT], e, NULL, fromj);
-			e = QCC_PR_Expression(TOP_PRIORITY);
-			e2 = QCC_GetTemp(e->type);
-			QCC_PR_Statement(&pr_opcodes[(e2->size>=3)?OP_STORE_V:OP_STORE_F], e, e2);
+			if (QCC_PR_CheckToken ("(") )
+			{
+				qcc_usefulstatement=true;
+				return QCC_PR_ParseFunctionCall (e);
+			}
+			if (QCC_PR_CheckToken ("?"))
+			{
+				QCC_dstatement32_t *fromj, *elsej;
+				QCC_PR_Statement(&pr_opcodes[OP_IFNOT], e, NULL, &fromj);
+				e = QCC_PR_Expression(TOP_PRIORITY, true);
+				e2 = QCC_GetTemp(e->type);
+				QCC_PR_Statement(&pr_opcodes[(e2->type->size>=3)?OP_STORE_V:OP_STORE_F], e, e2, NULL);
 
-			QCC_PR_Expect(":");
-			QCC_PR_Statement(&pr_opcodes[OP_GOTO], NULL, NULL, elsej);
-			fromj->b = &statements[numstatements] - fromj;
-			e = QCC_PR_Expression(TOP_PRIORITY);
+				QCC_PR_Expect(":");
+				QCC_PR_Statement(&pr_opcodes[OP_GOTO], NULL, NULL, &elsej);
+				fromj->b = &statements[numstatements] - fromj;
+				e = QCC_PR_Expression(TOP_PRIORITY, true);
 
-			if (typecmp(e, e2) != 0)
-				QCC_PR_ParseError(0, "Ternary operator with mismatching types\n")
-			QCC_PR_Statement(&pr_opcodes[(e2->size>=3)?OP_STORE_V:OP_STORE_F], e, e2);
+				if (typecmp(e->type, e2->type) != 0)
+					QCC_PR_ParseError(0, "Ternary operator with mismatching types\n");
+				QCC_PR_Statement(&pr_opcodes[(e2->type->size>=3)?OP_STORE_V:OP_STORE_F], e, e2, NULL);
 
-			elsej->a = &statements[numstatements] - elsej;
-			return e2;
+				elsej->a = &statements[numstatements] - elsej;
+				return e2;
+			}
+			if (allowcomma && QCC_PR_CheckToken (","))
+			{
+				QCC_FreeTemp(e);
+				return QCC_PR_Expression(TOP_PRIORITY, true);
+			}
 		}
 
 		opnum=0;
@@ -4271,12 +4279,12 @@ QCC_def_t *QCC_PR_Expression (int priority)
 					e->type = type_string;
 
 					//now we want to make sure that string = float can't work without it being a dereferenced pointer. (we don't want to allow storep_c without dereferece)
-					e2 = QCC_PR_Expression (priority);
+					e2 = QCC_PR_Expression (priority, allowcomma);
 					if (e2->type->type == ev_float)
 						op = &pr_opcodes[OP_STOREP_C];
 				}
 				else
-					e2 = QCC_PR_Expression (priority);
+					e2 = QCC_PR_Expression (priority, allowcomma);
 			}
 			else
 			{
@@ -4290,7 +4298,7 @@ QCC_def_t *QCC_PR_Expression (int priority)
 						QCC_PR_Statement3(&pr_opcodes[OP_IF], e, NULL, NULL, false);
 				}
 
-				e2 = QCC_PR_Expression (priority-1);
+				e2 = QCC_PR_Expression (priority-1, allowcomma);
 			}
 
 		// type check
@@ -4664,7 +4672,7 @@ void QCC_PR_ParseStatement (void)
 				QCC_FreeTemp(QCC_PR_Statement (&pr_opcodes[OP_RETURN], 0, 0, NULL));
 			return;
 		}
-		e = QCC_PR_Expression (TOP_PRIORITY);
+		e = QCC_PR_Expression (TOP_PRIORITY, true);
 		QCC_PR_Expect (";");
 		if (pr_scope->type->aux_type->type != e->type->type)
 			QCC_PR_ParseWarning(WARN_WRONGRETURNTYPE, "\'%s\' returned %s, expected %s", pr_scope->name, e->type->name, pr_scope->type->aux_type->name);
@@ -4686,7 +4694,7 @@ void QCC_PR_ParseStatement (void)
 		QCC_PR_Expect ("(");
 		patch2 = &statements[numstatements];
 		conditional = 1;
-		e = QCC_PR_Expression (TOP_PRIORITY);
+		e = QCC_PR_Expression (TOP_PRIORITY, true);
 		conditional = 0;
 		if (((e->constant && !e->temp) || !STRCMP(e->name, "IMMEDIATE")) && opt_compound_jumps)
 		{
@@ -4764,10 +4772,7 @@ void QCC_PR_ParseStatement (void)
 		QCC_PR_Expect("(");
 		if (!QCC_PR_CheckToken(";"))
 		{
-			do
-			{
-				QCC_FreeTemp(QCC_PR_Expression(TOP_PRIORITY));
-			} while (QCC_PR_CheckToken(","));
+			QCC_FreeTemp(QCC_PR_Expression(TOP_PRIORITY, true));
 			QCC_PR_Expect(";");
 		}
 
@@ -4775,11 +4780,7 @@ void QCC_PR_ParseStatement (void)
 		if (!QCC_PR_CheckToken(";"))
 		{
 			conditional = 1;
-			e = QCC_PR_Expression(TOP_PRIORITY);
-			while (QCC_PR_CheckToken(","))	//logicops, string ops?
-			{
-				e = QCC_PR_Statement(pr_opcodes+OP_AND, e, QCC_PR_Expression(TOP_PRIORITY), NULL);
-			}
+			e = QCC_PR_Expression(TOP_PRIORITY, true);
 			conditional = 0;
 			QCC_PR_Expect(";");
 		}
@@ -4789,10 +4790,7 @@ void QCC_PR_ParseStatement (void)
 		if (!QCC_PR_CheckToken(")"))
 		{
 			old_numstatements = numstatements;
-			do
-			{
-				QCC_FreeTemp(QCC_PR_Expression(TOP_PRIORITY));
-			} while (QCC_PR_CheckToken(","));
+			QCC_FreeTemp(QCC_PR_Expression(TOP_PRIORITY, true));
 
 			numtemp = numstatements - old_numstatements;
 			if (numtemp > sizeof(linenum)/sizeof(linenum[0]))
@@ -4856,7 +4854,7 @@ void QCC_PR_ParseStatement (void)
 		QCC_PR_Expect ("while");
 		QCC_PR_Expect ("(");
 		conditional = 1;
-		e = QCC_PR_Expression (TOP_PRIORITY);
+		e = QCC_PR_Expression (TOP_PRIORITY, true);
 		conditional = 0;
 
 		if (e->constant && !e->temp)
@@ -4958,7 +4956,7 @@ void QCC_PR_ParseStatement (void)
 
 		QCC_PR_Expect ("(");
 		conditional = 1;
-		e = QCC_PR_Expression (TOP_PRIORITY);
+		e = QCC_PR_Expression (TOP_PRIORITY, true);
 		conditional = 0;
 
 //		negate = negate != 0;
@@ -5033,7 +5031,7 @@ void QCC_PR_ParseStatement (void)
 		QCC_PR_Expect ("(");
 
 		conditional = 1;
-		e = QCC_PR_Expression (TOP_PRIORITY);
+		e = QCC_PR_Expression (TOP_PRIORITY, true);
 		conditional = 0;
 
 		if (e == &def_ret)
@@ -5384,10 +5382,10 @@ void QCC_PR_ParseStatement (void)
 			pr_casesdef2 = realloc(pr_casesdef2, sizeof(*pr_casesdef2)*max_cases);
 		}
 		pr_cases[num_cases] = numstatements;
-		pr_casesdef[num_cases] = QCC_PR_Expression (TOP_PRIORITY);
+		pr_casesdef[num_cases] = QCC_PR_Expression (TOP_PRIORITY, false);
 		if (QCC_PR_CheckToken(".."))
 		{
-			pr_casesdef2[num_cases] = QCC_PR_Expression (TOP_PRIORITY);
+			pr_casesdef2[num_cases] = QCC_PR_Expression (TOP_PRIORITY, false);
 			if (pr_casesdef[num_cases]->constant && pr_casesdef2[num_cases]->constant &&
 				!pr_casesdef[num_cases]->temp && !pr_casesdef2[num_cases]->temp)
 				if (G_FLOAT(pr_casesdef[num_cases]->ofs) >= G_FLOAT(pr_casesdef2[num_cases]->ofs))
@@ -5423,9 +5421,9 @@ void QCC_PR_ParseStatement (void)
 	{
 		QCC_def_t *nextthink;
 		QCC_def_t *time;
-		e = QCC_PR_Expression (TOP_PRIORITY);
+		e = QCC_PR_Expression (TOP_PRIORITY, true);
 		QCC_PR_Expect(":");
-		e2 = QCC_PR_Expression (TOP_PRIORITY);
+		e2 = QCC_PR_Expression (TOP_PRIORITY, true);
 		if (e->type->type != ev_entity || e2->type->type != ev_float)
 			QCC_PR_ParseError(ERR_THINKTIMETYPEMISMATCH, "thinktime type mismatch");
 
@@ -5458,7 +5456,7 @@ void QCC_PR_ParseStatement (void)
 //	qcc_functioncalled=0;
 
 	qcc_usefulstatement = false;
-	e = QCC_PR_Expression (TOP_PRIORITY);
+	e = QCC_PR_Expression (TOP_PRIORITY, true);
 	QCC_PR_Expect (";");
 
 	if (e->type->type != ev_void && !qcc_usefulstatement)
@@ -7820,7 +7818,7 @@ void QCC_PR_ParseDefs (char *classname)
 			}
 			else
 			{
-				def = QCC_PR_Expression(TOP_PRIORITY);
+				def = QCC_PR_Expression(TOP_PRIORITY, true);
 				if (!def->constant)
 					QCC_PR_ParseError(ERR_BADARRAYSIZE, "Array size is not a constant value");
 				else if (def->type->type == ev_integer)

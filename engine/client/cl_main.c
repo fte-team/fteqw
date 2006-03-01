@@ -965,12 +965,9 @@ void CL_ClearState (void)
 	memset (cl_dlights, 0, sizeof(cl_dlights));
 	memset (cl_lightstyle, 0, sizeof(cl_lightstyle));
 
-	memset (cl_baselines, 0, sizeof(cl_baselines));
-
 	for (i = 0; i < MAX_EDICTS; i++)
 	{
-		cl_baselines[i].scale = 1*16;
-		cl_baselines[i].trans = 255;
+		memcpy(&cl_baselines[i], &nullentitystate, sizeof(cl_baselines[i]));
 	}
 
 

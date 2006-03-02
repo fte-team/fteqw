@@ -63,6 +63,7 @@ cvar_t pr_ssqc_coreonerror = SCVAR("pr_coreonerror", "1");
 cvar_t pr_tempstringcount = SCVAR("pr_tempstringcount", "16");
 cvar_t pr_tempstringsize = SCVAR("pr_tempstringsize", "4096");
 
+cvar_t sv_gameplayfix_honest_tracelines = SCVAR("sv_gameplayfix_honest_tracelines", "1");
 cvar_t sv_gameplayfix_blowupfallenzombies = SCVAR("sv_gameplayfix_blowupfallenzombies", "0");
 extern cvar_t sv_gameplayfix_noairborncorpse;
 
@@ -933,6 +934,7 @@ void PR_Init(void)
 	Cvar_Register (&pr_tempstringcount, cvargroup_progs);
 	Cvar_Register (&pr_tempstringsize, cvargroup_progs);
 
+	Cvar_Register (&sv_gameplayfix_honest_tracelines, cvargroup_progs);
 	Cvar_Register (&sv_gameplayfix_blowupfallenzombies, cvargroup_progs);
 	Cvar_Register (&sv_gameplayfix_noairborncorpse, cvargroup_progs);
 }
@@ -2825,6 +2827,10 @@ static void PF_traceline (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 	ent->v->hull = 0;
 	trace = SV_Move (v1, mins, maxs, v2, nomonsters, ent);
 	ent->v->hull = savedhull;
+
+	if (trace.startsolid)
+		if (!sv_gameplayfix_honest_tracelines.value)
+			trace.fraction = 1;
 
 	pr_global_struct->trace_allsolid = trace.allsolid;
 	pr_global_struct->trace_startsolid = trace.startsolid;

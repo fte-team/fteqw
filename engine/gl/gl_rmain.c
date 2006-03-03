@@ -127,7 +127,6 @@ cvar_t	gl_dither = SCVAR("gl_dither", "1");
 cvar_t	gl_maxdist = SCVAR("gl_maxdist", "8192");
 cvar_t	gl_mindist = SCVARF("gl_mindist", "4", CVAR_CHEAT);	//by setting to 64 or something, you can use this as a wallhack
 
-cvar_t	gl_bloom = SCVAR("gl_bloom", "0");
 extern cvar_t	gl_motionblur;
 extern cvar_t	gl_motionblurscale;
 
@@ -2224,6 +2223,8 @@ void GLR_RenderView (void)
 	// render mirror view
 	R_Mirror ();
 
+	R_BloomBlend();
+
 	R_PolyBlend ();
 
 //	glDisable(GL_FOG);
@@ -2437,87 +2438,6 @@ void GLR_RenderView (void)
 		qglTexParameterf(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
 		qglTexParameterf(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
 	}
-/*
-	if (scenepp_bloom_program && gl_bloom.value)
-	{
-		float cs, ct;
-		int vwidth = 1, vheight = 1;
-		if (gl_config.arb_texture_non_power_of_two)
-		{	//we can use any size, supposedly
-			vwidth = glwidth;
-			vheight = glheight;
-		}
-		else
-		{	//limit the texture size to square and use padding.
-			while (vwidth < glwidth)
-				vwidth *= 2;
-			while (vheight < glheight)
-				vheight *= 2;
-		}
-		GL_Bind(scenepp_texture);
-
-		qglTexParameterf(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
-		qglTexParameterf(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
-
-		cs = (float)glwidth / vwidth;
-		ct = (float)glheight / vheight;
-
-		// go 2d
-		qglDisable (GL_DEPTH_TEST);
-		qglDisable (GL_CULL_FACE);
-		qglDisable (GL_ALPHA_TEST);
-		qglDisable (GL_BLEND);
-
-		qglMatrixMode(GL_PROJECTION);
-		qglPushMatrix();
-		qglLoadIdentity ();
-		qglOrtho  (0, glwidth, 0, glheight, -99999, 99999);
-		qglMatrixMode(GL_MODELVIEW);
-		qglPushMatrix();
-		qglLoadIdentity ();
-//grab the scene
-		qglCopyTexImage2D(GL_TEXTURE_2D, 0, GL_RGB, glx, gly, vwidth, vheight, 0);
-		GLSlang_UseProgram(scenepp_bloom_program1);
-//regurgitate the scene, but darker
-		qglBegin(GL_QUADS);
-		qglTexCoord2f(0, 0);
-		qglVertex2f(0, 0);
-		qglTexCoord2f(cs, 0);
-		qglVertex2f(glwidth, 0);
-		qglTexCoord2f(cs, ct);
-		qglVertex2f(glwidth, glheight);
-		qglTexCoord2f(0, ct);
-		qglVertex2f(0, glheight);
-		qglEnd();
-
-		GL_Bind(scenepp_texture2);
-//grab the dark scene
-		qglCopyTexImage2D(GL_TEXTURE_2D, 0, GL_RGB, glx, gly, vwidth, vheight, 0);
-		GLSlang_UseProgram(scenepp_bloom_program2);
-//smear it all over the place, on a +/-8 pixel basis.
-//blend with the origional scene in the fragment program too.
-		GL_MBind(1, scenepp_texture);
-		qglBegin(GL_QUADS);
-		qglTexCoord2f(0, 0);
-		qglVertex2f(0, 0);
-		qglTexCoord2f(cs, 0);
-		qglVertex2f(glwidth, 0);
-		qglTexCoord2f(cs, ct);
-		qglVertex2f(glwidth, glheight);
-		qglTexCoord2f(0, ct);
-		qglVertex2f(0, glheight);
-		qglEnd();
-
-		GL_MBind(0, scenepp_texture);
-
-		GLSlang_UseProgram(0);
-
-		qglMatrixMode(GL_PROJECTION);
-		qglPopMatrix();
-		qglMatrixMode(GL_MODELVIEW);
-		qglPopMatrix();
-	}
-	*/
 }
 
 #endif

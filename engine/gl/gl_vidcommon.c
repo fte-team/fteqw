@@ -19,6 +19,7 @@ void (APIENTRY *qglColor4ub) (GLubyte red, GLubyte green, GLubyte blue, GLubyte 
 void (APIENTRY *qglColor4ubv) (const GLubyte *v);
 void (APIENTRY *qglColorMask) (GLboolean red, GLboolean green, GLboolean blue, GLboolean alpha);
 void (APIENTRY *qglCopyTexImage2D) (GLenum target, GLint level, GLenum internalFormat, GLint x, GLint y, GLsizei width, GLsizei height, GLint border);
+void (APIENTRY *qglCopyTexSubImage2D) (GLenum target, GLint level, GLint xoffset, GLint yoffset, GLint x, GLint y, GLsizei width, GLsizei height);
 void (APIENTRY *qglCullFace) (GLenum mode);
 void (APIENTRY *qglDepthFunc) (GLenum func);
 void (APIENTRY *qglDepthMask) (GLboolean flag);
@@ -487,6 +488,7 @@ void GL_Init(void *(*getglfunction) (char *name))
 	qglColor4ubv		= (void *)getglcore("glColor4ubv");
 	qglColorMask		= (void *)getglcore("glColorMask");
 	qglCopyTexImage2D	= (void *)getglcore("glCopyTexImage2D");
+	qglCopyTexSubImage2D= (void *)getglcore("glCopyTexSubImage2D");
 	qglCullFace			= (void *)getglcore("glCullFace");
 	qglDepthFunc		= (void *)getglcore("glDepthFunc");
 	qglDepthMask		= (void *)getglcore("glDepthMask");

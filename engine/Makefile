@@ -220,6 +220,7 @@ GLQUAKE_OBJS =		\
 	gl_rsurf.o		\
 	ltface.o		\
 	gl_screen.o		\
+	gl_bloom.o		\
 	gl_backend.o	\
 	gl_shader.o		\
 	gl_warp.o		\

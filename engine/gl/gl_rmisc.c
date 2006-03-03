@@ -468,6 +468,8 @@ void GLR_ReInit (void)
 	else
 		normalisationCubeMap = 0;
 
+	R_InitBloomTextures();
+
 }
 /*
 typedef struct

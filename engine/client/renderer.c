@@ -127,7 +127,7 @@ cvar_t		gl_savecompressedtex	 = SCVAR("gl_savecompressedtex", "0");
 extern cvar_t gl_dither;
 extern	cvar_t	gl_maxdist;
 extern	cvar_t	gl_mindist;
-extern cvar_t	gl_bloom;
+
 
 cvar_t		gl_detail	= SCVARF("gl_detail", "0", CVAR_ARCHIVE);
 cvar_t		gl_detailscale	= SCVAR("gl_detailscale", "5");
@@ -311,8 +311,6 @@ void GLRenderer_Init(void)
 	Cvar_Register (&r_shadow_glsl_offsetmapping_scale, GRAPHICALNICETIES);
 	Cvar_Register (&r_shadow_glsl_offsetmapping_bias, GRAPHICALNICETIES);
 
-	Cvar_Register (&gl_bloom, GRAPHICALNICETIES);
-
 	Cvar_Register (&gl_contrast, GLRENDEREROPTIONS);
 #ifdef R_XFLIP
 	Cvar_Register (&r_xflip, GLRENDEREROPTIONS);
@@ -365,6 +363,8 @@ void GLRenderer_Init(void)
 	Cvar_Register (&gl_blendsprites, GLRENDEREROPTIONS);
 
 	Cvar_Register (&gl_mylumassuck, GLRENDEREROPTIONS);
+
+	R_BloomRegister();
 }
 #endif
 #if defined(SWQUAKE)

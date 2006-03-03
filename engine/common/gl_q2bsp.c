@@ -1253,8 +1253,12 @@ void CMod_LoadTexInfo (lump_t *l)	//yes I know these load from the same place
 	//			out->texture = r_notexture_mip; // texture not found
 	//			out->flags = 0;
 			}
-			if (gl_shadeq2.value)
-				out->texture->shader = R_RegisterCustom (name, NULL);
+
+#ifdef RGLQUAKE
+			if (qrenderer == QR_OPENGL)
+				if (gl_shadeq2.value)
+					out->texture->shader = R_RegisterCustom (name, NULL);
+#endif
 			Q_strncpyz(out->texture->name, in->texture, sizeof(out->texture->name));
 
 #if !defined(SERVERONLY) && defined(RGLQUAKE)

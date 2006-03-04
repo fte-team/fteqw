@@ -25,7 +25,7 @@ void IWeb_MoreGeneratedResize(int newsize)
 
 	ob = IWeb_GenerationBuffer;
 	IWeb_GenerationBuffer = BZ_Malloc(sizeof(IWeb_GenerationBuffer) + newsize);
-	
+
 	IWeb_GenerationBuffer->data = (char *)(IWeb_GenerationBuffer+1);
 	if (ob)
 	{
@@ -256,7 +256,7 @@ void IWeb_GenerateIndexFile (char *parms, char *content, int contentlength)
 //		}
 //		else
 			*o = 0;
-		
+
 		IWeb_Generate("<TR><TD ALIGN = \"center\">");
 		IWeb_Generate(key);
 
@@ -274,7 +274,7 @@ void IWeb_GenerateIndexFile (char *parms, char *content, int contentlength)
 
 		if (*s)
 			s++;
-		
+
 		IWeb_Generate("</TD><TD ALIGN = \"center\">");
 		IWeb_Generate(value);
 		IWeb_Generate("</TD></TR>");
@@ -331,7 +331,7 @@ typedef struct {
 	int pos;
 } vfsgen_t;
 
-int VFSGen_ReadBytes(vfsfile_t *f, char *buffer, int bytes)
+int VFSGen_ReadBytes(vfsfile_t *f, void *buffer, int bytes)
 {
 	vfsgen_t *g = (vfsgen_t*)f;
 	if (bytes + g->pos >= g->buffer->len)
@@ -347,7 +347,7 @@ int VFSGen_ReadBytes(vfsfile_t *f, char *buffer, int bytes)
 	return bytes;
 }
 
-int VFSGen_WriteBytes(vfsfile_t *f, char *buffer, int bytes)
+int VFSGen_WriteBytes(vfsfile_t *f, void *buffer, int bytes)
 {
 	Sys_Error("VFSGen_WriteBytes: Readonly\n");
 	return 0;
@@ -364,13 +364,13 @@ qboolean VFSGen_Seek(vfsfile_t *f, unsigned long newpos)
 	return true;
 }
 
-int VFSGen_Tell(vfsfile_t *f)
+unsigned long VFSGen_Tell(vfsfile_t *f)
 {
 	vfsgen_t *g = (vfsgen_t*)f;
 	return g->pos;
 }
 
-int VFSGen_GetLen(vfsfile_t *f)
+unsigned long VFSGen_GetLen(vfsfile_t *f)
 {
 	vfsgen_t *g = (vfsgen_t*)f;
 	return g->buffer->len;

@@ -1076,7 +1076,7 @@ static void PF_R_SetViewFlag(progfuncs_t *prinst, struct globalvars_s *pr_global
 		break;
 
 	case VF_DRAWWORLD:
-		r_refdef.flags = r_refdef.flags&~Q2RDF_NOWORLDMODEL | (*p?0:Q2RDF_NOWORLDMODEL);
+		r_refdef.flags = (r_refdef.flags&~Q2RDF_NOWORLDMODEL) | (*p?0:Q2RDF_NOWORLDMODEL);
 		break;
 	case VF_ENGINESBAR:
 		csqc_drawsbar = *p;
@@ -1299,7 +1299,7 @@ static trace_t CS_Trace_Toss (csqcedict_t *tossent, csqcedict_t *ignore)
 	float gravity;
 	vec3_t move, end;
 	trace_t trace;
-	float maxvel = Cvar_Get("sv_maxvelocity", "2000", 0, "CSQC physics")->value;
+//	float maxvel = Cvar_Get("sv_maxvelocity", "2000", 0, "CSQC physics")->value;
 
 	vec3_t origin, velocity;
 
@@ -1898,7 +1898,7 @@ static void PF_cs_getplayerkey (progfuncs_t *prinst, struct globalvars_s *pr_glo
 	else if (!strcmp(keyname, "entertime"))	//packet loss
 	{
 		ret = PF_TempStr(prinst);
-		sprintf(ret, "%i", cl.players[pnum].entertime);
+		sprintf(ret, "%i", (int)cl.players[pnum].entertime);
 	}
 	else
 	{

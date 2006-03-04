@@ -1145,7 +1145,7 @@ char *MSG_ReadStringLine (void)
 
 float MSG_ReadCoord (void)
 {
-	coorddata c = {0};
+	coorddata c = {{0}};
 	MSG_ReadData(&c, sizeofcoord);
 	return MSG_FromCoord(c, sizeofcoord);
 }

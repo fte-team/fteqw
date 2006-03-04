@@ -2623,7 +2623,7 @@ retry:
 			pr_types[i].num_parms = PRLittleLong(current_progstate->types[i].num_parms);
 			pr_types[i].ofs = PRLittleLong(current_progstate->types[i].ofs);
 			pr_types[i].size = PRLittleLong(current_progstate->types[i].size);
-			pr_types[i].name = (string_t)PRLittleLong((long)current_progstate->types[i].name);
+			pr_types[i].name = (char *)PRLittleLong((long)current_progstate->types[i].name);
 #endif
 			pr_types[i].name += stringadjust;
 		}

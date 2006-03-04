@@ -3070,7 +3070,7 @@ void CL_SetSolidEntities (void)
 	{
 		state = &pak->entities[i];
 
-		if (state->modelindex<0)
+		if (state->modelindex <= 0)
 			continue;
 		if (!cl.model_precache[state->modelindex])
 			continue;

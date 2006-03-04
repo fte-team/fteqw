@@ -590,3 +590,4 @@ void R_BloomBlend (void)//refdef_t *fd, meshlist_t *meshlist )
 
 	qglBlendFunc (GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
 }
+

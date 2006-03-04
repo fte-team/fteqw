@@ -568,7 +568,7 @@ it to the host command processor
 */
 char *Sys_ConsoleInput (void)
 {
-	char	text[256];
+	static char	text[256];
 	int	len;
 
 	if (sys_linebuffer.modified)

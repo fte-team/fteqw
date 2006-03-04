@@ -126,7 +126,8 @@ void MenuDrawItems(int xpos, int ypos, menuoption_t *option, menu_t *menu)
 				{
 					if (menu->selecteditem != option)
 					{
-						S_LocalSound ("misc/menu1.wav");
+						if (!option->common.noselectionsound)
+							S_LocalSound ("misc/menu1.wav");
 						menu->selecteditem = option;
 					}
 					if (menu->cursoritem)

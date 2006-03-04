@@ -1674,10 +1674,9 @@ int BL_FRead( void *buffer, int len, fileHandle_t f )
 //{
 //	return VMUI_FWrite(buffer, len, f, Z_TAG_BOTLIB);
 //}	
-int BL_FCloseFile( fileHandle_t f )
+void BL_FCloseFile( fileHandle_t f )
 {
 	VMUI_fclose((int)f, Z_TAG_BOTLIB);
-	return 0;
 }
 //int BL_Seek( fileHandle_t f )
 //{

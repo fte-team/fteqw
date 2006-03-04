@@ -479,7 +479,7 @@ void Netchan_Transmit (netchan_t *chan, int length, qbyte *data, int rate)
 #ifdef HUFFNETWORK
 	if (chan->compress)
 	{
-		int oldsize = send.cursize;
+		//int oldsize = send.cursize;
 		Huff_CompressPacket(&send, (chan->sock == NS_CLIENT)?10:8);
 //		Con_Printf("%i becomes %i\n", oldsize, send.cursize);
 //		Huff_DecompressPacket(&send, (chan->sock == NS_CLIENT)?10:8);

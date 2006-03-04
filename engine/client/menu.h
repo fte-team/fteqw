@@ -124,7 +124,8 @@ typedef struct {	//must be first of each structure type.
 	int posy;
 	int width;
 	int height;
-	qboolean iszone;
+	qboolean noselectionsound:1;
+	qboolean iszone:1;
 	qboolean ishidden;
 	union menuoption_s *next;
 } menucommon_t;

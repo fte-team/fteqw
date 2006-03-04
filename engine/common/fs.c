@@ -269,7 +269,7 @@ vfsfile_t *VFSOS_Open(char *osname, char *mode)
 vfsfile_t *FSOS_OpenVFS(void *handle, flocation_t *loc, char *mode)
 {
 	char diskname[MAX_OSPATH];
-	_snprintf(diskname, sizeof(diskname), "%s/%s", handle, loc->rawname);
+	_snprintf(diskname, sizeof(diskname), "%s/%s", (char*)handle, loc->rawname);
 
 	return VFSOS_Open(diskname, mode);
 }
@@ -359,13 +359,18 @@ void FSOS_ReadFile(void *handle, flocation_t *loc, char *buffer)
 	fread(buffer, 1, loc->len, f);
 	fclose(f);
 }
+int FSOS_EnumerateFiles (void *handle, char *match, int (*func)(char *, int, void *), void *parm)
+{
+	return Sys_EnumerateFiles(handle, match, func, parm);
+}
+
 searchpathfuncs_t osfilefuncs = {
 	FSOS_PrintPath,
 	FSOS_ClosePath,
 	FSOS_BuildHash,
 	FSOS_FLocate,
 	FSOS_ReadFile,
-	Sys_EnumerateFiles,
+	FSOS_EnumerateFiles,
 	NULL,
 	NULL,
 	FSOS_OpenVFS
@@ -620,10 +625,10 @@ vfsfile_t *FSPAK_OpenVFS(void *handle, flocation_t *loc, char *mode)
 
 	if (strcmp(mode, "rb"))
 		return NULL; //urm, unable to write/append
-	
+
 	vfs = Z_Malloc(sizeof(vfspack_t));
 
-	vfs->parentpak = ((pack_t*)handle);
+	vfs->parentpak = pack;
 	vfs->parentpak->references++;
 
 	vfs->startpos = loc->offset;
@@ -657,7 +662,9 @@ searchpathfuncs_t packfilefuncs = {
 
 void *com_pathforfile;	//fread and stuff is preferable if null
 
+#ifndef ZEXPORT
 #define ZEXPORT VARGS
+#endif
 
 #ifdef AVAIL_ZLIB
 #ifdef _WIN32
@@ -1486,7 +1493,7 @@ out:
 	}
 	else
 		Con_Printf("Failed\n");
-*/	
+*/
 	if (returntype == FSLFRT_IFFOUND)
 		return len != -1;
 	else if (returntype == FSLFRT_LENGTH)
@@ -1599,7 +1606,7 @@ qboolean Sys_PathProtection(char *pattern)
 	if (strchr(pattern, '\\'))
 	{
 		char *s;
-		while(s = strchr(pattern, '\\'))
+		while((s = strchr(pattern, '\\')))
 			*s = '/';
 		Con_Printf("Warning: \\ charactures in filename %s\n", pattern);
 	}

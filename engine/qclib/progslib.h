@@ -64,7 +64,7 @@ struct progfuncs_s {
 	void	(*EntFree)					(progfuncs_t *prinst, struct edict_s *ed);
 
 	struct edict_s	*(*EDICT_NUM)		(progfuncs_t *prinst, unsigned int n);		//get the nth edict
-	int		(*NUM_FOR_EDICT)			(progfuncs_t *prinst, struct edict_s *e);	//so you can find out what that 'n' will be
+	unsigned int		(*NUM_FOR_EDICT)			(progfuncs_t *prinst, struct edict_s *e);	//so you can find out what that 'n' will be
 
 	void	(*SetGlobalEdict)			(progfuncs_t *prinst, struct edict_s *ed, int ofs);	//set a global to an edict (partially obsolete)
 

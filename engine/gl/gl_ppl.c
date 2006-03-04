@@ -140,8 +140,8 @@ typedef struct {
 #define MAXARRAYVERTS	2048
 static surfvertexarray_t varray_v[MAXARRAYVERTS];
 static unsigned int varray_i[MAXARRAYVERTS];
-static unsigned int varray_i_forward[MAXARRAYVERTS];
-static unsigned int varray_i_polytotri[MAXARRAYVERTS];	//012 023 034 045...
+//static unsigned int varray_i_forward[MAXARRAYVERTS];
+//static unsigned int varray_i_polytotri[MAXARRAYVERTS];	//012 023 034 045...
 int varray_ic;
 int varray_vc;
 
@@ -2076,7 +2076,6 @@ void PPL_DrawEnt(entity_t *e, void *parm)
 
 void PPL_BaseEntTextures(void)
 {
-	extern qboolean r_inmirror;
 	extern model_t *currentmodel;
 	int		i;
 

@@ -1988,7 +1988,7 @@ int TP_CategorizeMessage (char *s, int *offset, player_info_t **plr)
 
 	if (!flags) // search for fake player
 	{
-		if (name = strstr(s, ": ")) // use name as temp
+		if ((name = strstr(s, ": "))) // use name as temp
 		{
 			*offset = (name - s) + 2;
 			flags = TPM_FAKED;
@@ -2775,7 +2775,7 @@ static void TP_FindPoint (void) {
 			continue;
 
 		if (
-			state->modelindex == cl_playerindex && ISDEAD(state->frame) ||
+			(state->modelindex == cl_playerindex && ISDEAD(state->frame)) ||
 			state->modelindex == cl_h_playerindex
 		)
 			continue;

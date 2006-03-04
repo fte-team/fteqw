@@ -172,7 +172,7 @@ void GL_DrawHeightmapModel (entity_t *e)
 		}
 	}
 }
-int Heightmap_PointContentsHM(heightmap_t *hm, float clipmipsz, vec3_t org)
+unsigned int Heightmap_PointContentsHM(heightmap_t *hm, float clipmipsz, vec3_t org)
 {
 	float x, y;
 	float z, tz;
@@ -268,7 +268,7 @@ int Heightmap_PointContentsHM(heightmap_t *hm, float clipmipsz, vec3_t org)
 	return FTECONTENTS_EMPTY;
 }
 
-int Heightmap_PointContents(model_t *model, vec3_t org)
+unsigned int Heightmap_PointContents(model_t *model, vec3_t org)
 {
 	heightmap_t *hm = model->terrain;
 	return Heightmap_PointContentsHM(hm, 0, org);

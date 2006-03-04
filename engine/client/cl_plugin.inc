@@ -67,10 +67,10 @@ int VARGS Plug_Media_ShowFrameRGBA_32(void *offset, unsigned int mask, const lon
 	void *src = VM_POINTER(arg[0]);
 	int srcwidth = VM_LONG(arg[1]);
 	int srcheight = VM_LONG(arg[2]);
-	int x = VM_LONG(arg[3]);
-	int y = VM_LONG(arg[4]);
-	int width = VM_LONG(arg[5]);
-	int height = VM_LONG(arg[6]);
+//	int x = VM_LONG(arg[3]);
+//	int y = VM_LONG(arg[4]);
+//	int width = VM_LONG(arg[5]);
+//	int height = VM_LONG(arg[6]);
 
 	if (qrenderer <= 0)
 		return 0;

@@ -838,7 +838,7 @@ void GLR_AddDecals(vec3_t org)
 
 //==================================================================================
 
-void GLR_DrawSprite(entity_t *e, void *parm)
+void GLR_DrawSprite(void *e, void *parm)
 {
 	qglEnd();
 	currententity = e;
@@ -887,6 +887,13 @@ void GLR_DrawEntitiesOnList (void)
 			R_DrawRailCore(currententity);
 			continue;
 #endif
+		case RT_MODEL:	//regular model
+			break;
+		case RT_PORTALSURFACE:
+			continue;	//this doesn't do anything anyway, does it?
+		default:
+		case RT_POLY:	//these are a little painful, we need to do them some time... just not yet.
+			continue;
 		}
 		if (currententity->flags & Q2RF_BEAM)
 		{

@@ -3119,7 +3119,6 @@ static void *Q1_LoadSkins (daliasskintype_t *pskintype, qboolean alpha)
 static void *Q1_LoadSkins (daliasskintype_t *pskintype, qboolean alpha)
 {
 	extern cvar_t gl_bump;
-	extern int gl_bumpmappingpossible;
 	galiastexnum_t *texnums;
 	char skinname[MAX_QPATH];
 	int i;
@@ -4264,8 +4263,8 @@ void GL_LoadQ3Model(model_t *mod, void *buffer)
 		{
 #ifndef Q3SHADERS
 			char name[1024];
-#endif
 			extern int gl_bumpmappingpossible;
+#endif
 			char shadname[1024];
 
 			skin = Hunk_Alloc((LittleLong(surf->numShaders)+externalskins)*((sizeof(galiasskin_t)+sizeof(galiastexnum_t))));
@@ -5161,7 +5160,6 @@ galiasinfo_t *GLMod_ParseMD5MeshModel(char *buffer)
 	int numjoints = 0;
 	int nummeshes = 0;
 	qboolean foundjoints = false;
-	int meshnum = 0;
 	int i;
 
 	galiasbone_t *bones = NULL;
@@ -5499,11 +5497,6 @@ galiasinfo_t *GLMod_ParseMD5MeshModel(char *buffer)
 
 void GLMod_LoadMD5MeshModel(model_t *mod, void *buffer)
 {
-	int numjoints = 0;
-	int nummeshes = 0;
-	qboolean foundjoints = false;
-	int meshnum = 0;
-
 	galiasinfo_t *root;
 	int hunkstart, hunkend, hunktotal;
 
@@ -5757,10 +5750,6 @@ frames test/idle1.md5anim
 void GLMod_LoadCompositeAnim(model_t *mod, void *buffer)
 {
 	#define EXPECT(x) buffer = COM_Parse(buffer); if (strcmp(com_token, x)) Sys_Error("MD5MESH: expected %s", x);
-	int numjoints = 0;
-	int nummeshes = 0;
-	qboolean foundjoints = false;
-	int meshnum = 0;
 	int i;
 
 	char *file;

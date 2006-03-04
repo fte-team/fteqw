@@ -24,8 +24,6 @@
  */
 #include "model_hl.h"
 
-void VectorTransform (const vec3_t in1, const float in2[3][4], vec3_t out);
-
 void QuaternionGLMatrix(float x, float y, float z, float w, vec4_t *GLM)
 {
     GLM[0][0] = 1 - 2 * y * y - 2 * z * z;
@@ -68,7 +66,7 @@ void QuaternionGLAngle(const vec3_t angles, vec4_t quaternion)
 
 
 
-float			transform_matrix[128][3][4];	/* Vertex transformation matrix */
+matrix3x4 transform_matrix[128];	/* Vertex transformation matrix */
 
 void GL_Draw_HL_AliasFrame(short *order, vec3_t *transformed, float tex_w, float tex_h);
 

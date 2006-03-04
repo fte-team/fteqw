@@ -641,7 +641,7 @@ fixed16_t Invert24To16(fixed16_t val)
 
 
 
-void VectorTransform (const vec3_t in1, const float in2[3][4], vec3_t out)
+void VectorTransform (const vec3_t in1, matrix3x4 in2, vec3_t out)
 {
 	out[0] = DotProduct(in1, in2[0]) + in2[0][3];
 	out[1] = DotProduct(in1, in2[1]) +	in2[1][3];

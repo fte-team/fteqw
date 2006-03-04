@@ -12,11 +12,11 @@
 
 static int tryrates[] = { 11025, 22051, 44100, 8000 };
 
-static void OSS_SetUnderWater(qboolean underwater)	//simply a stub. Any ideas how to actually implement this properly?
+static void OSS_SetUnderWater(soundcardinfo_t *sc, qboolean underwater)	//simply a stub. Any ideas how to actually implement this properly?
 {
 }
 
-static int OSS_GetDMAPos(soundcardinfo_t *sc)
+static unsigned int OSS_GetDMAPos(soundcardinfo_t *sc)
 {
 	struct count_info count;
 
@@ -68,8 +68,6 @@ static int OSS_InitCard(soundcardinfo_t *sc, int cardnum)
 	int caps;
 	char *snddev = NULL;
 	cvar_t *devname;
-
-	soundcardinfo_t *ec;
 
 	devname = Cvar_Get(va("snd_devicename%i", cardnum+1), cardnum?"":"/dev/dsp", 0, "Sound controls");
 	snddev = devname->string;

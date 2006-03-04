@@ -26,10 +26,10 @@ static int Q1_HullPointContents (hull_t *hull, int num, vec3_t p)
 	{
 		if (num < hull->firstclipnode || num > hull->lastclipnode)
 			Sys_Error ("SV_HullPointContents: bad node number");
-	
+
 		node = hull->clipnodes + num;
 		plane = hull->planes + node->planenum;
-		
+
 		if (plane->type < 3)
 			d = p[plane->type] - plane->dist;
 		else
@@ -39,7 +39,7 @@ static int Q1_HullPointContents (hull_t *hull, int num, vec3_t p)
 		else
 			num = node->children[0];
 	}
-	
+
 	return num;
 }
 #else
@@ -95,7 +95,7 @@ qboolean Q1BSP_RecursiveHullCheck (hull_t *hull, int num, float p1f, float p2f, 
 		t1 = DotProduct (plane->normal, p1) - plane->dist;
 		t2 = DotProduct (plane->normal, p2) - plane->dist;
 	}
-	
+
 #if 1
 	if (t1 >= 0 && t2 >= 0)
 		return Q1BSP_RecursiveHullCheck (hull, node->children[0], p1f, p2f, p1, p2, trace);
@@ -136,15 +136,15 @@ qboolean Q1BSP_RecursiveHullCheck (hull_t *hull, int num, float p1f, float p2f, 
 		return false;
 	}
 #endif
-	
+
 	if (Q1_HullPointContents (hull, node->children[side^1], mid)
 	!= Q1CONTENTS_SOLID)
 // go past the node
 		return Q1BSP_RecursiveHullCheck (hull, node->children[side^1], midf, p2f, mid, p2, trace);
-	
+
 	if (trace->allsolid)
 		return false;		// never got out of the solid area
-		
+
 //==================
 // the other side of the node is solid, this is the impact point
 //==================
@@ -208,7 +208,7 @@ void Q1BSP_SetHullFuncs(hull_t *hull)
 //	hull->funcs.HullPointContents = Q1BSP_HullPointContents;
 }
 
-int Q1BSP_PointContents(model_t *model, vec3_t point)
+unsigned int Q1BSP_PointContents(model_t *model, vec3_t point)
 {
 	return Q1BSP_HullPointContents(&model->hulls[0], point);
 }
@@ -292,13 +292,13 @@ void Q1BSP_MarkLights (dlight_t *light, int bit, mnode_t *node)
 	float		dist;
 	msurface_t	*surf;
 	int			i;
-	
+
 	if (node->contents < 0)
-		return;	
+		return;
 
 	splitplane = node->plane;
 	dist = DotProduct (light->origin, splitplane->normal) - splitplane->dist;
-	
+
 	if (dist > light->radius)
 	{
 		Q1BSP_MarkLights (light, bit, node->children[0]);
@@ -309,7 +309,7 @@ void Q1BSP_MarkLights (dlight_t *light, int bit, mnode_t *node)
 		Q1BSP_MarkLights (light, bit, node->children[1]);
 		return;
 	}
-		
+
 // mark the polygons
 	surf = currentmodel->surfaces + node->firstsurface;
 	for (i=0 ; i<node->numsurfaces ; i++, surf++)
@@ -701,9 +701,9 @@ void Q1BSP_ClipDecalToNodes (fragmentdecal_t *dec, mnode_t *node)
 	float		dist;
 	msurface_t	*surf;
 	int			i;
-	
+
 	if (node->contents < 0)
-		return;	
+		return;
 
 	splitplane = node->plane;
 	dist = DotProduct (dec->center, splitplane->normal) - splitplane->dist;
@@ -875,7 +875,7 @@ void SV_Q1BSP_AddToFatPVS (model_t *mod, vec3_t org, mnode_t *node)
 			}
 			return;
 		}
-	
+
 		plane = node->plane;
 		d = DotProduct (org, plane->normal) - plane->dist;
 		if (d > 8)
@@ -916,7 +916,7 @@ qboolean Q1BSP_EdictInFatPVS(model_t *mod, edict_t *ent)
 	for (i=0 ; i < ent->num_leafs ; i++)
 		if (fatpvs[ent->leafnums[i] >> 3] & (1 << (ent->leafnums[i]&7) ))
 			return true;	//we might be able to see this one.
-		
+
 	return false;	//none of this ents leafs were visible, so neither is the ent.
 }
 
@@ -936,7 +936,7 @@ void Q1BSP_RFindTouchedLeafs (edict_t *ent, mnode_t *node)
 
 	if (node->contents == Q1CONTENTS_SOLID)
 		return;
-	
+
 // add an efrag if the node is a leaf
 
 	if ( node->contents < 0)
@@ -951,19 +951,19 @@ void Q1BSP_RFindTouchedLeafs (edict_t *ent, mnode_t *node)
 		leafnum = leaf - sv.worldmodel->leafs - 1;
 
 		ent->leafnums[ent->num_leafs] = leafnum;
-		ent->num_leafs++;			
+		ent->num_leafs++;
 		return;
 	}
-	
+
 // NODE_MIXED
 
 	splitplane = node->plane;
 	sides = BOX_ON_PLANE_SIDE(ent->v->absmin, ent->v->absmax, splitplane);
-	
+
 // recurse down the contacted sides
 	if (sides & 1)
 		Q1BSP_RFindTouchedLeafs (ent, node->children[0]);
-		
+
 	if (sides & 2)
 		Q1BSP_RFindTouchedLeafs (ent, node->children[1]);
 }
@@ -995,7 +995,7 @@ qbyte *Q1BSP_DecompressVis (qbyte *in, model_t *model, qbyte *decompressed)
 	qbyte	*out;
 	int		row;
 
-	row = (model->numleafs+7)>>3;	
+	row = (model->numleafs+7)>>3;
 	out = decompressed;
 
 #if 0
@@ -1008,7 +1008,7 @@ qbyte *Q1BSP_DecompressVis (qbyte *in, model_t *model, qbyte *decompressed)
 			*out++ = 0xff;
 			row--;
 		}
-		return decompressed;		
+		return decompressed;
 	}
 
 	do
@@ -1018,7 +1018,7 @@ qbyte *Q1BSP_DecompressVis (qbyte *in, model_t *model, qbyte *decompressed)
 			*out++ = *in++;
 			continue;
 		}
-	
+
 		c = in[1];
 		in += 2;
 		while (c)
@@ -1028,7 +1028,7 @@ qbyte *Q1BSP_DecompressVis (qbyte *in, model_t *model, qbyte *decompressed)
 		}
 	} while (out - decompressed < row);
 #endif
-	
+
 	return decompressed;
 }
 
@@ -1059,9 +1059,9 @@ int Q1BSP_LeafnumForPoint (model_t *model, vec3_t p)
 	mnode_t		*node;
 	float		d;
 	mplane_t	*plane;
-	
+
 	if (!model)
-	{		
+	{
 		Sys_Error ("Mod_PointInLeaf: bad model");
 	}
 	if (!model->nodes)
@@ -1079,7 +1079,7 @@ int Q1BSP_LeafnumForPoint (model_t *model, vec3_t p)
 		else
 			node = node->children[1];
 	}
-	
+
 	return 0;	// never reached
 }
 

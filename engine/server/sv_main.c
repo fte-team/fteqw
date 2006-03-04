@@ -525,7 +525,7 @@ void PIN_LoadMessages(void)
 	file = COM_LoadMallocFile("pinned.txt");
 	if (!file)
 		return;
-	
+
 	lstart = file;
 	for(;;)
 	{
@@ -618,11 +618,11 @@ void PIN_ShowMessages(client_t *cl)
 	if (!pinned)
 		return;
 
-	SV_ClientPrintf(cl, PRINT_HIGH, "\n‘Ÿ\n\n");
+	SV_ClientPrintf(cl, PRINT_HIGH, "\n\n\n");
 	for (p = pinned; p; p = p->next)
 	{
-		SV_ClientPrintf(cl, PRINT_HIGH, "%s\n\n        %s‘\n", p->message, p->setby);
-		SV_ClientPrintf(cl, PRINT_HIGH, "\n‘Ÿ\n\n");
+		SV_ClientPrintf(cl, PRINT_HIGH, "%s\n\n        %s\n", p->message, p->setby);
+		SV_ClientPrintf(cl, PRINT_HIGH, "\n\n\n");
 	}
 
 }
@@ -3569,7 +3569,8 @@ qboolean ReloadRanking(client_t *cl, char *newname)
 			if (pr_nqglobal_struct->SetChangeParms)
 				PR_ExecuteProgram (svprogfuncs, pr_global_struct->SetChangeParms);
 			for (j=0 ; j<NUM_SPAWN_PARMS ; j++)
-				rs.parm[j] = *spawnparamglobals[j];
+				if (spawnparamglobals[j])
+					rs.parm[j] = *spawnparamglobals[j];
 			Rank_SetPlayerStats(cl->rankid, &rs);
 		}
 		if (!Rank_GetPlayerStats(newid, &rs))

@@ -743,7 +743,7 @@ static qboolean FSZIP_FLocate(void *handle, flocation_t *loc, char *filename, vo
 	{
 		for (i=0 ; i<zip->numfiles ; i++)	//look for the file
 		{
-			if (!strcmp (zip->files[i].name, filename))
+			if (!stricmp (zip->files[i].name, filename))
 			{
 				pf = &zip->files[i];
 				break;
@@ -829,7 +829,6 @@ static void *FSZIP_LoadZipFile (vfsfile_t *packhandle, char *desc)
 
 	unz_global_info	globalinf = {0};
 	unz_file_info	file_info;
-
 
 	zip = Z_Malloc(sizeof(zipfile_t));
 	Q_strncpyz(zip->filename, desc, sizeof(zip->filename));

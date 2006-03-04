@@ -2748,7 +2748,7 @@ void VARGS Host_EndGame (char *message, ...)
 	va_end (argptr);
 	Con_TPrintf (TL_NL);
 	Con_TPrintf (TL_LINEBREAK_EQUALS);
-	Con_TPrintf (TLC_CLIENTCON_ERROR_ENDGAME, S_ERROR, string);
+	Con_TPrintf (TLC_CLIENTCON_ERROR_ENDGAME, string);
 	Con_TPrintf (TL_LINEBREAK_EQUALS);
 	Con_TPrintf (TL_NL);
 

@@ -2211,7 +2211,7 @@ void GLDraw_BeginDisc (void)
 	if (!draw_disc || !r_drawdisk.value)
 		return;
 	qglDrawBuffer  (GL_FRONT);
-	Draw_Pic (vid.width - 24, 0, draw_disc);
+	Draw_Pic (vid.width - draw_disc->width, 0, draw_disc);
 	qglDrawBuffer  (GL_BACK);
 }
 

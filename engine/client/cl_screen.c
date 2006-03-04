@@ -1880,6 +1880,10 @@ void SCR_BringDownConsole (void)
 
 void SCR_TileClear (void)
 {
+#ifdef PLUGINS
+	extern cvar_t plug_sbar;
+#endif
+
 	if (cl.splitclients>1)
 		return;	//splitclients always takes the entire screen.
 
@@ -1893,11 +1897,10 @@ void SCR_TileClear (void)
 		}
 		else
 		{
-			char str[11] = "xxxxxxxxxx";
 			if (scr_viewsize.value < 100)
 			{
 				int x, y;
-				x = vid.width - strlen(str) * 8 - 8;
+				x = vid.width - 10 * 8 - 8;
 				y = vid.height - sb_lines - 8;
 				// clear background for counters
 				if (show_fps.value)
@@ -1905,9 +1908,36 @@ void SCR_TileClear (void)
 			}
 		}
 	}
+#ifdef PLUGINS
+	else if (plug_sbar.value)
+	{
+		if (scr_vrect.x > 0)
+		{
+			// left
+			Draw_TileClear (0, 0, scr_vrect.x, vid.height);
+			// right
+			Draw_TileClear (scr_vrect.x + scr_vrect.width, 0,
+				vid.width - scr_vrect.x + scr_vrect.width,
+				vid.height);
+		}
+		if (scr_vrect.y > 0 || scr_vrect.height != vid.height)
+		{
+			// top
+			Draw_TileClear (scr_vrect.x, 0,
+				scr_vrect.x + scr_vrect.width,
+				scr_vrect.y);
+			// bottom
+			Draw_TileClear (scr_vrect.x,
+				scr_vrect.y + scr_vrect.height,
+				scr_vrect.width,
+				vid.height);
+		}
+	}
+#endif
 	else
 	{
-		if (scr_vrect.x > 0) {
+		if (scr_vrect.x > 0)
+		{
 			// left
 			Draw_TileClear (0, 0, scr_vrect.x, vid.height - sb_lines);
 			// right

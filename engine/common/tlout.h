@@ -17,7 +17,7 @@
 "STL_NOCLIPON \"noclip ON\\n\"\n"
 "STL_NOCLIPOFF \"noclip OFF\"\n"
 "STL_CLIENTISCUFFEDPERMANENTLY \"%s is still cuffed\\n\"\n"
-"STL_CLIENTISCUFFED \"%s is was cuffed\\n\"\n"
+"STL_CLIENTISCUFFED \"%s was cuffed\\n\"\n"
 "STL_CLIENTISSTILLCUFFED \"%s is still cuffed\\n\"\n"
 "STL_YOUWERECUFFED \"You were cuffed\\n\"\n"
 "STL_YOUARNTCUFFED \"You are no longer cuffed\\n\"\n"

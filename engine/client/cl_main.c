@@ -82,6 +82,8 @@ cvar_t  localid = SCVAR("localid", "");
 
 cvar_t	cl_antibunch = SCVAR("cl_antibunch", "0");
 
+cvar_t	r_drawflame = SCVAR("r_drawflame", "1");
+
 static qboolean allowremotecmd = true;
 
 //
@@ -2604,6 +2606,8 @@ void CL_Init (void)
 	Cvar_Register (&cl_deadbodyfilter, "Item effects");
 
 	Cvar_Register (&cl_nolerp, "Item effects");
+
+	Cvar_Register (&r_drawflame, "Item effects");
 
 	Cvar_Register (&allow_download_csprogs, cl_controlgroup);
 

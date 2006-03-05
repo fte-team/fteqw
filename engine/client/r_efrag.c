@@ -8,7 +8,7 @@ of the License, or (at your option) any later version.
 
 This program is distributed in the hope that it will be useful,
 but WITHOUT ANY WARRANTY; without even the implied warranty of
-MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
 
 See the GNU General Public License for more details.
 
@@ -56,9 +56,9 @@ Call when removing an object from the world or moving it to another position
 void R_RemoveEfrags (entity_t *ent)
 {
 	efrag_t		*ef, *old, *walk, **prev;
-	
+
 	ef = ent->efrag;
-	
+
 	while (ef)
 	{
 		prev = &ef->leaf->efrags;
@@ -75,16 +75,16 @@ void R_RemoveEfrags (entity_t *ent)
 			else
 				prev = &walk->leafnext;
 		}
-				
+
 		old = ef;
 		ef = ef->entnext;
-		
+
 	// put it on the free list
 		old->entnext = cl.free_efrags;
 		cl.free_efrags = old;
 	}
-	
-	ent->efrag = NULL; 
+
+	ent->efrag = NULL;
 }
 
 /*
@@ -98,7 +98,7 @@ void R_Q1Q2BSP_SplitEntityOnNode (mnode_t *node)
 	mplane_t	*splitplane;
 	mleaf_t		*leaf;
 	int			sides;
-	
+
 	if (cl.worldmodel->fromgame == fg_quake2 || cl.worldmodel->fromgame == fg_quake3)
 	{
 		if (node->contents & Q2CONTENTS_SOLID)
@@ -113,7 +113,7 @@ void R_Q1Q2BSP_SplitEntityOnNode (mnode_t *node)
 			return;
 		}
 	}
-	
+
 // add an efrag if the node is a leaf
 
 	if ( node->contents < 0)
@@ -133,25 +133,25 @@ void R_Q1Q2BSP_SplitEntityOnNode (mnode_t *node)
 		cl.free_efrags = cl.free_efrags->entnext;
 
 		ef->entity = r_addent;
-		
-// add the entity link	
+
+// add the entity link
 		*lastlink = ef;
 		lastlink = &ef->entnext;
 		ef->entnext = NULL;
-		
+
 // set the leaf links
 		ef->leaf = leaf;
 		ef->leafnext = leaf->efrags;
 		leaf->efrags = ef;
-			
+
 		return;
 	}
-	
+
 // NODE_MIXED
 
 	splitplane = node->plane;
 	sides = BOX_ON_PLANE_SIDE(r_emins, r_emaxs, splitplane);
-	
+
 	if (sides == 3)
 	{
 	// split on this plane
@@ -159,11 +159,11 @@ void R_Q1Q2BSP_SplitEntityOnNode (mnode_t *node)
 		if (!r_pefragtopnode)
 			r_pefragtopnode = node;
 	}
-	
+
 // recurse down the contacted sides
 	if (sides & 1)
 		R_Q1Q2BSP_SplitEntityOnNode (node->children[0]);
-		
+
 	if (sides & 2)
 		R_Q1Q2BSP_SplitEntityOnNode (node->children[1]);
 }
@@ -181,7 +181,7 @@ void R_Q1BSP_SplitEntityOnNode2 (mnode_t *node)
 
 	if (node->visframe != r_visframecount)
 		return;
-	
+
 	if (node->contents < 0)
 	{
 		if (node->contents != Q1CONTENTS_SOLID)
@@ -189,17 +189,17 @@ void R_Q1BSP_SplitEntityOnNode2 (mnode_t *node)
 									//  visible and not BSP clipped
 		return;
 	}
-	
+
 	splitplane = node->plane;
 	sides = BOX_ON_PLANE_SIDE(r_emins, r_emaxs, splitplane);
-	
+
 	if (sides == 3)
 	{
 	// remember first splitter
 		r_pefragtopnode = node;
 		return;
 	}
-	
+
 // not split yet; recurse down the contacted side
 	if (sides & 1)
 		R_Q1BSP_SplitEntityOnNode2 (node->children[0]);
@@ -217,7 +217,7 @@ void R_AddEfrags (entity_t *ent)
 {
 	model_t		*entmodel;
 	int			i;
-		
+
 	if (!ent->model)
 		return;
 
@@ -225,10 +225,10 @@ void R_AddEfrags (entity_t *ent)
 		return;		// never add the world
 
 	r_addent = ent;
-			
+
 	lastlink = &ent->efrag;
 	r_pefragtopnode = NULL;
-	
+
 	entmodel = ent->model;
 
 	for (i=0 ; i<3 ; i++)
@@ -258,11 +258,23 @@ void R_StoreEfrags (efrag_t **ppefrag)
 	efrag_t		*pefrag;
 
 	extern cvar_t gl_part_flame;
+	extern cvar_t r_drawflame;
 
 	while ((pefrag = *ppefrag) != NULL)
 	{
 		pent = pefrag->entity;
 		clmodel = pent->model;
+
+		//if ( (!strcmp(clmodel->name, "progs/flame.mdl")) || (!strcmp(clmodel->name, "progs/flame2.mdl")) && (r_drawflame.value == 0) && (gl_part_flame.value == 0) )
+		//if ( strcmp(clmodel->name, "progs/flame.mdl") || strcmp(clmodel->name, "progs/flame2.mdl") && (r_drawflame.value == 0) && (gl_part_flame.value == 0) )
+		//{
+		//	break;
+		//}
+
+		if ( (strcmp(clmodel->name, "progs/flame.mdl")) || (strcmp(clmodel->name, "progs/flame2.mdl")) && (!r_drawflame.value) )
+		{
+			return;
+		}
 
 //		switch (clmodel->type)
 //		{
@@ -294,8 +306,8 @@ void R_StoreEfrags (efrag_t **ppefrag)
 			ppefrag = &pefrag->leafnext;
 //			break;
 
-//		default:	
-//			Sys_Error ("R_StoreEfrags: Bad entity type %d\n", clmodel->type);
+//		default:
+//			Con_Printf ("R_StoreEfrags: Bad entity type %d\n", clmodel->type);
 //		}
 	}
 }

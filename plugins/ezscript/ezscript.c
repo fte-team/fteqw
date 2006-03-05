@@ -63,6 +63,15 @@ int Plug_ExecuteCommand(int *args)
 	else if (!strcmp("sshot_format",		cmd))	cvar = "scr_sshot_type";
 	else if (!strcmp("cl_solidPlayers",		cmd))	cvar = "cl_solid_players";
 	else if (!strcmp("fps_muzzleflash",		cmd))	cvar = "cl_muzzleflash";
+	else if (!strcmp("r_floorcolor",		cmd))	cvar = "r_floorcolour";
+	else if (!strcmp("r_wallcolor",		cmd))	cvar = "r_wallcolour";
+	else if (!strcmp("r_farclip",		cmd))	cvar = "gl_maxdist";
+	else if (!strcmp("b_switch",		cmd))	cvar = "setinfo b_switch";
+	else if (!strcmp("w_switch",		cmd))	cvar = "setinfo w_switch";
+	else if (!strcmp("vid_vsync",		cmd))	cvar = "_vid_wait_override";
+	else if (!strcmp("gl_lighting_vertex",	cmd))	cvar = "r_vertexlight";
+	else if (!strcmp("bgmvolume",		cmd))	cvar = "musicvolume";
+	else if (!strcmp("scr_menualpha",	cmd))	cvar = "scr_conalpha";
 	else cvar = NULL;
 
 	if (cvar)
@@ -100,8 +109,15 @@ void ezScript_InitCommands(void) // not really needed actually
 	Cmd_AddCommand("gl_bounceparticles");
 	Cmd_AddCommand("gl_loadlitfiles");
 	Cmd_AddCommand("gl_weather_rain");
+	Cmd_AddCommand("r_farclip");
+	Cmd_AddCommand("vid_vsync");
+	Cmd_AddCommand("gl_lighting_vertex");
 	//misc
 	Cmd_AddCommand("cl_bonusflash");
+	Cmd_AddCommand("r_floorcolor");
+	Cmd_AddCommand("r_wallcolor");
+	Cmd_AddCommand("b_switch");
+	Cmd_AddCommand("w_switch");
 	//gamma
 	Cmd_AddCommand("gl_gamma");
 	Cmd_AddCommand("sw_gamma");
@@ -124,11 +140,15 @@ void ezScript_InitCommands(void) // not really needed actually
 	Cmd_AddCommand("enemyskin");
 	//console
 	Cmd_AddCommand("scr_consize");
+	Cmd_AddCommand("scr_menualpha");
 	//misc
 	Cmd_AddCommand("cl_predictPlayers");
 	Cmd_AddCommand("sshot_format");
 	Cmd_AddCommand("cl_solidPlayers");
 	Cmd_AddCommand("fps_muzzleflash");
+	Cmd_AddCommand("scr_menualpha");
+	//sound
+	Cmd_AddCommand("bgmvolume");
 }
 
 int Plug_Init(int *args)

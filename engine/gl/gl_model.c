@@ -1470,8 +1470,9 @@ void GLMod_LoadEntities (lump_t *l)
 		loadmodel->entities = NULL;
 		return;
 	}
-	loadmodel->entities = Hunk_AllocName ( l->filelen, loadname);	
+	loadmodel->entities = Hunk_AllocName ( l->filelen + 1, loadname);	
 	memcpy (loadmodel->entities, mod_base + l->fileofs, l->filelen);
+	loadmodel->entities[l->filelen] = 0;
 }
 
 

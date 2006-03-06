@@ -687,7 +687,7 @@ int Image_WritePNG (char *filename, int compression, qbyte *pixels, int width, i
 	png_structp png_ptr;
 	png_infop info_ptr;
 	png_byte **row_pointers;
-	_snprintf (name, sizeof(name)-1, "%s/%s", com_gamedir, filename);
+	snprintf (name, sizeof(name)-1, "%s/%s", com_gamedir, filename);
 	
 	if (!(fp = fopen (name, "wb"))) {
 		COM_CreatePath (name);
@@ -1923,7 +1923,7 @@ int Mod_LoadHiResTexture(char *name, char *subpath, qboolean mipmap, qboolean al
 		return len;
 	if (subpath && *subpath)
 	{
-		_snprintf(fname, sizeof(fname)-1, "%s/%s", subpath, name);
+		snprintf(fname, sizeof(fname)-1, "%s/%s", subpath, name);
 		if ((len = GL_FindTexture(fname))!=-1)	//don't bother if it already exists.
 			return len;
 	}
@@ -1944,10 +1944,10 @@ int Mod_LoadHiResTexture(char *name, char *subpath, qboolean mipmap, qboolean al
 		{
 			if (!subpath)
 					continue;
-			_snprintf(fname, sizeof(fname)-1, path[i]+1, subpath, /*COM_SkipPath*/(nicename), ".dds");
+			snprintf(fname, sizeof(fname)-1, path[i]+1, subpath, /*COM_SkipPath*/(nicename), ".dds");
 		}
 		else
-			_snprintf(fname, sizeof(fname)-1, path[i]+1, nicename, ".dds");
+			snprintf(fname, sizeof(fname)-1, path[i]+1, nicename, ".dds");
 		if ((buf = COM_LoadFile (fname, 5)))
 		{
 			len = GL_LoadTextureDDS(buf, com_filesize);
@@ -1963,10 +1963,10 @@ int Mod_LoadHiResTexture(char *name, char *subpath, qboolean mipmap, qboolean al
 			{
 				if (!subpath)
 					continue;
-				_snprintf(fname, sizeof(fname)-1, path[i]+1, subpath, /*COM_SkipPath*/(nicename), extensions[e]);
+				snprintf(fname, sizeof(fname)-1, path[i]+1, subpath, /*COM_SkipPath*/(nicename), extensions[e]);
 			}
 			else
-				_snprintf(fname, sizeof(fname)-1, path[i]+1, nicename, extensions[e]);
+				snprintf(fname, sizeof(fname)-1, path[i]+1, nicename, extensions[e]);
 			TRACE(("dbg: Mod_LoadHiResTexture: trying %s\n", fname));
 			if ((buf = COM_LoadFile (fname, 5)))
 			{
@@ -1978,7 +1978,7 @@ int Mod_LoadHiResTexture(char *name, char *subpath, qboolean mipmap, qboolean al
 					TRACE(("dbg: Mod_LoadHiResTexture: %s loaded\n", name));
 					if (i == 1)
 					{	//if it came from a special subpath (eg: map specific), upload it using the subpath prefix
-						_snprintf(fname, sizeof(fname)-1, "%s/%s", subpath, name);
+						snprintf(fname, sizeof(fname)-1, "%s/%s", subpath, name);
 						len = GL_LoadTexture32 (fname, image_width, image_height, (unsigned*)data, mipmap, alpha);
 					}
 					else
@@ -2063,10 +2063,10 @@ int Mod_LoadBumpmapTexture(char *name, char *subpath)
 				else
 #endif
 					COM_FileBase(cl.model_name[1], map);
-				_snprintf(fname, sizeof(fname)-1, path[i], map, nicename, extensions[e]);
+				snprintf(fname, sizeof(fname)-1, path[i], map, nicename, extensions[e]);
 			}
 			else
-				_snprintf(fname, sizeof(fname)-1, path[i], nicename, extensions[e]);
+				snprintf(fname, sizeof(fname)-1, path[i], nicename, extensions[e]);
 
 			TRACE(("dbg: Mod_LoadBumpmapTexture: opening %s\n", fname));
 

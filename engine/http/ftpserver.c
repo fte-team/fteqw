@@ -213,7 +213,7 @@ void VARGS QueueMessageva(FTPclient_t *cl, char *fmt, ...)
 	char		msg[1024];
 
 	va_start (argptr, fmt);
-	_vsnprintf (msg,sizeof(msg)-1, fmt,argptr);
+	vsnprintf (msg,sizeof(msg)-1, fmt,argptr);
 	va_end (argptr);
 
 	if (send (cl->controlsock, msg, strlen(msg), 0) == -1)

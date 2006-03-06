@@ -62,7 +62,7 @@ static float Diamond4x[4][4] = {
 
 static int		BLOOM_SIZE;
 
-cvar_t		r_bloom = FCVAR("r_bloom", "gl_bloom", "0", 0);
+cvar_t		r_bloom = FCVAR("r_bloom", "gl_bloom", "0", CVAR_ARCHIVE);
 cvar_t		r_bloom_alpha = SCVAR("r_bloom_alpha", "0.5");
 cvar_t		r_bloom_diamond_size = SCVAR("r_bloom_diamond_size", "8");
 cvar_t		r_bloom_intensity = SCVAR("r_bloom_intensity", "1");

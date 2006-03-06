@@ -659,6 +659,8 @@ void SV_SpawnServer (char *server, char *startspot, qboolean noents, qboolean us
 			if (sv.strings.lightstyles[i])
 				Z_Free(sv.strings.lightstyles[i]);
 			sv.strings.lightstyles[i] = NULL;
+
+			sv.strings.lightstylecolours[i] = 7;
 		}
 	}
 

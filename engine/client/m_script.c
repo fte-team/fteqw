@@ -192,6 +192,29 @@ void M_MenuS_Text_f (void)
 	}
 }
 
+void M_MenuS_TextBig_f (void)
+{
+	menuoption_t *option;
+	int x = atoi(Cmd_Argv(1));
+	int y = atoi(Cmd_Argv(2));
+	char *text = Cmd_Argv(3);
+	char *command = Cmd_Argv(4);
+
+	if (!menu_script)
+	{
+		Con_Printf("%s with no active menu\n", Cmd_Argv(0));
+		return;
+	}
+	if (*command)
+		MC_AddConsoleCommandQBigFont(menu_script, x, y, text, command);
+	else
+	{
+		option = (menuoption_t *)MC_AddConsoleCommand(menu_script, x, y, text, va("set option %s\n%s\n", command, menualias.string));
+		if (selectitem-- == 0)
+			menu_script->selecteditem = option;
+	}
+}
+
 void M_MenuS_Bind_f (void)
 {
 	int x = atoi(Cmd_Argv(1));
@@ -231,6 +254,7 @@ void M_Script_Init(void)
 	Cmd_AddCommand("menubox",	M_MenuS_Box_f);
 	Cmd_AddCommand("menuedit",	M_MenuS_Edit_f);
 	Cmd_AddCommand("menutext",	M_MenuS_Text_f);
+	Cmd_AddCommand("menutextbig",	M_MenuS_TextBig_f);
 	Cmd_AddCommand("menupic",	M_MenuS_Picture_f);
 	Cmd_AddCommand("menucheck",	M_MenuS_CheckBox_f);
 	Cmd_AddCommand("menuslider",	M_MenuS_Slider_f);

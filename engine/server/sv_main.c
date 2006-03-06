@@ -235,7 +235,7 @@ void VARGS SV_Error (char *error, ...)
 	inerror = true;
 
 	va_start (argptr,error);
-	_vsnprintf (string,sizeof(string)-1, error,argptr);
+	vsnprintf (string,sizeof(string)-1, error,argptr);
 	va_end (argptr);
 
 	{
@@ -988,7 +988,7 @@ void SVC_InfoQ2 (void)
 	version = atoi (Cmd_Argv(1));
 
 	if (version != PROTOCOL_VERSION_Q2)
-		_snprintf (string, sizeof(string), "%s: wrong version\n", hostname.string);
+		snprintf (string, sizeof(string), "%s: wrong version\n", hostname.string);
 	else
 	{
 		count = 0;
@@ -996,7 +996,7 @@ void SVC_InfoQ2 (void)
 			if (svs.clients[i].state >= cs_connected)
 				count++;
 
-		_snprintf (string, sizeof(string), "%16s %8s %2i/%2i\n", hostname.string, sv.name, count, (int)maxclients.value);
+		snprintf (string, sizeof(string), "%16s %8s %2i/%2i\n", hostname.string, sv.name, count, (int)maxclients.value);
 	}
 
 	Netchan_OutOfBandPrint (NS_SERVER, net_from, "info\n%s", string);
@@ -1248,13 +1248,13 @@ void VARGS SV_OutOfBandPrintf (int q2, netadr_t adr, char *format, ...)
 	if (q2)
 	{
 		strcpy(string, "print\n");
-		_vsnprintf (string+6,sizeof(string)-1-6, format+1,argptr);
+		vsnprintf (string+6,sizeof(string)-1-6, format+1,argptr);
 	}
 	else
 	{
 		string[0] = A2C_PRINT;
 		string[1] = '\n';
-		_vsnprintf (string+2,sizeof(string)-1-2, format,argptr);
+		vsnprintf (string+2,sizeof(string)-1-2, format,argptr);
 	}
 	va_end (argptr);
 
@@ -1271,12 +1271,12 @@ void VARGS SV_OutOfBandTPrintf (int q2, netadr_t adr, int language, translation_
 	if (q2)
 	{
 		strcpy(string, "print\n");
-		_vsnprintf (string+6,sizeof(string)-1-6, format+1,argptr);
+		vsnprintf (string+6,sizeof(string)-1-6, format+1,argptr);
 	}
 	else
 	{
 		string[0] = A2C_PRINT;
-		_vsnprintf (string+1,sizeof(string)-1-1, format,argptr);
+		vsnprintf (string+1,sizeof(string)-1-1, format,argptr);
 	}
 	va_end (argptr);
 
@@ -1311,7 +1311,7 @@ void VARGS SV_RejectMessage(int protocol, char *format, ...)
 #ifdef NQPROT
 	case SCP_NETQUAKE:
 		string[4] = CCREP_REJECT;
-		_vsnprintf (string+5,sizeof(string)-1-5, format,argptr);
+		vsnprintf (string+5,sizeof(string)-1-5, format,argptr);
 		len = strlen(string+4)+1+4;
 		*(int*)string = BigLong(NETFLAG_CTL|len);
 		NET_SendPacket(NS_SERVER, len, string, net_from);
@@ -1319,7 +1319,7 @@ void VARGS SV_RejectMessage(int protocol, char *format, ...)
 	case SCP_DARKPLACES6:
 	case SCP_DARKPLACES7:
 		strcpy(string, "reject ");
-		_vsnprintf (string+7,sizeof(string)-1-7, format,argptr);
+		vsnprintf (string+7,sizeof(string)-1-7, format,argptr);
 		len = strlen(string);
 		break;
 #endif
@@ -1327,14 +1327,14 @@ void VARGS SV_RejectMessage(int protocol, char *format, ...)
 	case SCP_QUAKE2:
 	default:
 		strcpy(string, "print\n");
-		_vsnprintf (string+6,sizeof(string)-1-6, format,argptr);
+		vsnprintf (string+6,sizeof(string)-1-6, format,argptr);
 		len = strlen(string);
 		break;
 
 	case SCP_QUAKEWORLD:
 		string[0] = A2C_PRINT;
 		string[1] = '\n';
-		_vsnprintf (string+2,sizeof(string)-1-2, format,argptr);
+		vsnprintf (string+2,sizeof(string)-1-2, format,argptr);
 		len = strlen(string);
 		break;
 	}

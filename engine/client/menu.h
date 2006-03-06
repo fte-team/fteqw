@@ -116,7 +116,7 @@ struct menu_s;
 typedef enum {m_none, m_complex, m_help, m_keys, m_slist, m_media, m_plugin, m_menu_dat} m_state_t;
 extern m_state_t m_state;
 
-typedef enum {mt_childwindow, mt_button, mt_buttonbigfont, mt_box, mt_colouredbox, mt_line, mt_edit, mt_text, mt_slider, mt_combo, mt_bind, mt_checkbox, mt_picture, mt_strechpic, mt_menudot, mt_custom} menutype_t;
+typedef enum {mt_childwindow, mt_button, mt_qbuttonbigfont, mt_hexen2buttonbigfont, mt_box, mt_colouredbox, mt_line, mt_edit, mt_text, mt_slider, mt_combo, mt_bind, mt_checkbox, mt_picture, mt_strechpic, mt_menudot, mt_custom} menutype_t;
 
 typedef struct {	//must be first of each structure type.
 	menutype_t type;
@@ -126,7 +126,7 @@ typedef struct {	//must be first of each structure type.
 	int height;
 	qboolean noselectionsound:1;
 	qboolean iszone:1;
-	qboolean ishidden;
+	qboolean ishidden:1;
 	union menuoption_s *next;
 } menucommon_t;
 
@@ -263,6 +263,8 @@ menuslider_t *MC_AddSlider(menu_t *menu, int x, int y, const char *text, cvar_t 
 menucheck_t *MC_AddCheckBox(menu_t *menu, int x, int y, const char *text, cvar_t *var, int cvarbitmask);
 menucheck_t *MC_AddCheckBoxFunc(menu_t *menu, int x, int y, const char *text, qboolean (*func) (menucheck_t *option, menu_t *menu, chk_set_t set), int bits);
 menubutton_t *MC_AddConsoleCommand(menu_t *menu, int x, int y, const char *text, const char *command);
+menubutton_t *MC_AddConsoleCommandQBigFont(menu_t *menu, int x, int y, const char *text, const char *command);
+mpic_t *QBigFontWorks(void);
 menubutton_t *MC_AddCommand(menu_t *menu, int x, int y, char *text, qboolean (*command) (union menuoption_s *,struct menu_s *,int));
 menucombo_t *MC_AddCombo(menu_t *menu, int x, int y, const char *caption, const char **text, int initialvalue);
 menubutton_t *MC_AddCommand(menu_t *menu, int x, int y, char *text, qboolean (*command) (union menuoption_s *,struct menu_s *,int));

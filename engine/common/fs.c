@@ -269,7 +269,8 @@ vfsfile_t *VFSOS_Open(char *osname, char *mode)
 vfsfile_t *FSOS_OpenVFS(void *handle, flocation_t *loc, char *mode)
 {
 	char diskname[MAX_OSPATH];
-	_snprintf(diskname, sizeof(diskname), "%s/%s", (char*)handle, loc->rawname);
+
+	snprintf(diskname, sizeof(diskname), "%s/%s", (char*)handle, loc->rawname);
 
 	return VFSOS_Open(diskname, mode);
 }
@@ -330,7 +331,7 @@ qboolean FSOS_FLocate(void *handle, flocation_t *loc, char *filename, void *hash
 */
 
 // check a file in the directory tree
-	_snprintf (netpath, sizeof(netpath)-1, "%s/%s",(char*)handle, filename);
+	snprintf (netpath, sizeof(netpath)-1, "%s/%s",(char*)handle, filename);
 
 	f = fopen(netpath, "rb");
 	if (!f)
@@ -450,7 +451,7 @@ qboolean FSPAK_FLocate(void *handle, flocation_t *loc, char *filename, void *has
 		if (loc)
 		{
 			loc->index = pf - pak->files;
-			_snprintf(loc->rawname, sizeof(loc->rawname), "%s/%s", pak->descname, filename);
+			snprintf(loc->rawname, sizeof(loc->rawname), "%s/%s", pak->descname, filename);
 			loc->offset = pf->filepos;
 			loc->len = pf->filelen;
 		}
@@ -1606,9 +1607,9 @@ qboolean Sys_PathProtection(char *pattern)
 	if (strchr(pattern, '\\'))
 	{
 		char *s;
+		Con_Printf("Warning: \\ charactures in filename %s\n", pattern);
 		while((s = strchr(pattern, '\\')))
 			*s = '/';
-		Con_Printf("Warning: \\ charactures in filename %s\n", pattern);
 	}
 
 	if (strstr(pattern, ".."))
@@ -1806,7 +1807,7 @@ vfsfile_t *FS_OpenVFS(char *filename, char *mode, int relativeto)
 
 	//blanket-bans
 
-	if (Sys_PathProtection(filename))
+	if (Sys_PathProtection(filename) )
 		return NULL;
 
 
@@ -1819,38 +1820,38 @@ vfsfile_t *FS_OpenVFS(char *filename, char *mode, int relativeto)
 	case FS_GAMEONLY:	//OS access only, no paks
 		if (*com_homedir)
 		{
-			_snprintf(fullname, sizeof(fullname), "%s/%s/%s", com_homedir, gamedirfile, filename);
+			snprintf(fullname, sizeof(fullname), "%s%s/%s", com_homedir, gamedirfile, filename);
 			vfs = VFSOS_Open(fullname, mode);
 			if (vfs)
 				return vfs;
 		}
-		_snprintf(fullname, sizeof(fullname), "%s/%s/%s", com_quakedir, gamedirfile, filename);
+		snprintf(fullname, sizeof(fullname), "%s%s/%s", com_quakedir, gamedirfile, filename);
 		return VFSOS_Open(fullname, mode);
 	case FS_GAME:
 		if (*com_homedir)
-			_snprintf(fullname, sizeof(fullname), "%s/%s/%s", com_homedir, gamedirfile, filename);
+			snprintf(fullname, sizeof(fullname), "%s%s/%s", com_homedir, gamedirfile, filename);
 		else
-			_snprintf(fullname, sizeof(fullname), "%s/%s/%s", com_quakedir, gamedirfile, filename);
+			snprintf(fullname, sizeof(fullname), "%s%s/%s", com_quakedir, gamedirfile, filename);
 		break;
 	case FS_BASE:
 		if (*com_homedir)
 		{
-			_snprintf(fullname, sizeof(fullname), "%s/%s", com_homedir, filename);
+			snprintf(fullname, sizeof(fullname), "%s%s", com_homedir, filename);
 			vfs = VFSOS_Open(fullname, mode);
 			if (vfs)
 				return vfs;
 		}
-		_snprintf(fullname, sizeof(fullname), "%s/%s", com_quakedir, filename);
+		snprintf(fullname, sizeof(fullname), "%s%s", com_quakedir, filename);
 		return VFSOS_Open(fullname, mode);
 	case FS_CONFIGONLY:
 		if (*com_homedir)
 		{
-			_snprintf(fullname, sizeof(fullname), "%s/fte/%s", com_homedir, filename);
+			snprintf(fullname, sizeof(fullname), "%sfte/%s", com_homedir, filename);
 			vfs = VFSOS_Open(fullname, mode);
 			if (vfs)
 				return vfs;
 		}
-		_snprintf(fullname, sizeof(fullname), "%s/fte/%s", com_quakedir, filename);
+		snprintf(fullname, sizeof(fullname), "%sfte/%s", com_quakedir, filename);
 		return VFSOS_Open(fullname, mode);
 	default:
 		Sys_Error("FS_CreatePath: Bad relative path");
@@ -1880,21 +1881,21 @@ int FS_Rename2(char *oldf, char *newf, int oldrelativeto, int newrelativeto)
 	{
 	case FS_GAME:
 		if (*com_homedir)
-			_snprintf(oldfullname, sizeof(oldfullname), "%s/%s/", com_homedir, gamedirfile);
+			snprintf(oldfullname, sizeof(oldfullname), "%s%s/", com_homedir, gamedirfile);
 		else
-			_snprintf(oldfullname, sizeof(oldfullname), "%s/%s/", com_quakedir, gamedirfile);
+			snprintf(oldfullname, sizeof(oldfullname), "%s%s/", com_quakedir, gamedirfile);
 		break;
 	case FS_SKINS:
 		if (*com_homedir)
-			_snprintf(oldfullname, sizeof(oldfullname), "%s/qw/skins/", com_homedir);
+			snprintf(oldfullname, sizeof(oldfullname), "%sqw/skins/", com_homedir);
 		else
-			_snprintf(oldfullname, sizeof(oldfullname), "%s/qw/skins/", com_quakedir);
+			snprintf(oldfullname, sizeof(oldfullname), "%sqw/skins/", com_quakedir);
 		break;
 	case FS_BASE:
 		if (*com_homedir)
-			_snprintf(oldfullname, sizeof(oldfullname), "%s/", com_homedir);
+			snprintf(oldfullname, sizeof(oldfullname), "%s", com_homedir);
 		else
-			_snprintf(oldfullname, sizeof(oldfullname), "%s/", com_quakedir);
+			snprintf(oldfullname, sizeof(oldfullname), "%s", com_quakedir);
 		break;
 	default:
 		Sys_Error("FS_Rename case not handled\n");
@@ -1904,21 +1905,21 @@ int FS_Rename2(char *oldf, char *newf, int oldrelativeto, int newrelativeto)
 	{
 	case FS_GAME:
 		if (*com_homedir)
-			_snprintf(newfullname, sizeof(newfullname), "%s/%s/", com_homedir, gamedirfile);
+			snprintf(newfullname, sizeof(newfullname), "%s%s/", com_homedir, gamedirfile);
 		else
-			_snprintf(newfullname, sizeof(newfullname), "%s/%s/", com_quakedir, gamedirfile);
+			snprintf(newfullname, sizeof(newfullname), "%s%s/", com_quakedir, gamedirfile);
 		break;
 	case FS_SKINS:
 		if (*com_homedir)
-			_snprintf(newfullname, sizeof(newfullname), "%s/qw/skins/", com_homedir);
+			snprintf(newfullname, sizeof(newfullname), "%sqw/skins/", com_homedir);
 		else
-			_snprintf(newfullname, sizeof(newfullname), "%s/qw/skins/", com_quakedir);
+			snprintf(newfullname, sizeof(newfullname), "%sqw/skins/", com_quakedir);
 		break;
 	case FS_BASE:
 		if (*com_homedir)
-			_snprintf(newfullname, sizeof(newfullname), "%s/", com_homedir);
+			snprintf(newfullname, sizeof(newfullname), "%s", com_homedir);
 		else
-			_snprintf(newfullname, sizeof(newfullname), "%s/", com_quakedir);
+			snprintf(newfullname, sizeof(newfullname), "%s", com_quakedir);
 		break;
 	default:
 		Sys_Error("FS_Rename case not handled\n");
@@ -1938,21 +1939,21 @@ int FS_Rename(char *oldf, char *newf, int relativeto)
 	{
 	case FS_GAME:
 		if (*com_homedir)
-			_snprintf(fullname, sizeof(fullname), "%s/%s/", com_homedir, gamedirfile);
+			snprintf(fullname, sizeof(fullname), "%s%s/", com_homedir, gamedirfile);
 		else
-			_snprintf(fullname, sizeof(fullname), "%s/%s/", com_quakedir, gamedirfile);
+			snprintf(fullname, sizeof(fullname), "%s%s/", com_quakedir, gamedirfile);
 		break;
 	case FS_SKINS:
 		if (*com_homedir)
-			_snprintf(fullname, sizeof(fullname), "%s/qw/skins/", com_homedir);
+			snprintf(fullname, sizeof(fullname), "%sqw/skins/", com_homedir);
 		else
-			_snprintf(fullname, sizeof(fullname), "%s/qw/skins/", com_quakedir);
+			snprintf(fullname, sizeof(fullname), "%sqw/skins/", com_quakedir);
 		break;
 	case FS_BASE:
 		if (*com_homedir)
-			_snprintf(fullname, sizeof(fullname), "%s/", com_homedir);
+			snprintf(fullname, sizeof(fullname), "%s", com_homedir);
 		else
-			_snprintf(fullname, sizeof(fullname), "%s/", com_quakedir);
+			snprintf(fullname, sizeof(fullname), "%s", com_quakedir);
 		break;
 	default:
 		Sys_Error("FS_Rename case not handled\n");
@@ -1967,21 +1968,21 @@ int FS_Remove(char *fname, int relativeto)
 	{
 	case FS_GAME:
 		if (*com_homedir)
-			_snprintf(fullname, sizeof(fullname), "%s/%s/%s", com_homedir, gamedirfile, fname);
+			snprintf(fullname, sizeof(fullname), "%s%s/%s", com_homedir, gamedirfile, fname);
 		else
-			_snprintf(fullname, sizeof(fullname), "%s/%s/%s", com_quakedir, gamedirfile, fname);
+			snprintf(fullname, sizeof(fullname), "%s%s/%s", com_quakedir, gamedirfile, fname);
 		break;
 	case FS_SKINS:
 		if (*com_homedir)
-			_snprintf(fullname, sizeof(fullname), "%s/qw/skins/%s", com_homedir, fname);
+			snprintf(fullname, sizeof(fullname), "%sqw/skins/%s", com_homedir, fname);
 		else
-			_snprintf(fullname, sizeof(fullname), "%s/qw/skins/%s", com_quakedir, fname);
+			snprintf(fullname, sizeof(fullname), "%sqw/skins/%s", com_quakedir, fname);
 		break;
 	case FS_BASE:
 		if (*com_homedir)
-			_snprintf(fullname, sizeof(fullname), "%s/%s", com_homedir, fname);
+			snprintf(fullname, sizeof(fullname), "%s%s", com_homedir, fname);
 		else
-			_snprintf(fullname, sizeof(fullname), "%s/%s", com_quakedir, fname);
+			snprintf(fullname, sizeof(fullname), "%s%s", com_quakedir, fname);
 		break;
 	default:
 		Sys_Error("FS_Rename case not handled\n");
@@ -1996,25 +1997,25 @@ void FS_CreatePath(char *pname, int relativeto)
 	{
 	case FS_GAMEONLY:
 	case FS_GAME:
-		_snprintf(fullname, sizeof(fullname), "%s/%s", com_gamedir, pname);
+		snprintf(fullname, sizeof(fullname), "%s%s", com_gamedir, pname);
 		break;
 	case FS_BASE:
 		if (*com_homedir)
-			_snprintf(fullname, sizeof(fullname), "%s/%s", com_homedir, pname);
+			snprintf(fullname, sizeof(fullname), "%s%s", com_homedir, pname);
 		else
-			_snprintf(fullname, sizeof(fullname), "%s/%s", com_quakedir, pname);
+			snprintf(fullname, sizeof(fullname), "%s%s", com_quakedir, pname);
 		break;
 	case FS_SKINS:
 		if (*com_homedir)
-			_snprintf(fullname, sizeof(fullname), "%s/qw/skins/%s", com_homedir, pname);
+			snprintf(fullname, sizeof(fullname), "%sqw/skins/%s", com_homedir, pname);
 		else
-			_snprintf(fullname, sizeof(fullname), "%s/qw/skins/%s", com_quakedir, pname);
+			snprintf(fullname, sizeof(fullname), "%sqw/skins/%s", com_quakedir, pname);
 		break;
 	case FS_CONFIGONLY:
 		if (*com_homedir)
-			_snprintf(fullname, sizeof(fullname), "%s/fte/%s", com_homedir, pname);
+			snprintf(fullname, sizeof(fullname), "%sfte/%s", com_homedir, pname);
 		else
-			_snprintf(fullname, sizeof(fullname), "%s/fte/%s", com_quakedir, pname);
+			snprintf(fullname, sizeof(fullname), "%sfte/%s", com_quakedir, pname);
 		break;
 	default:
 		Sys_Error("FS_CreatePath: Bad relative path");
@@ -2540,10 +2541,10 @@ static void COM_AddDataFiles(char *pathto, searchpath_t *search, char *extension
 
 	for (i=0 ; ; i++)
 	{
-		_snprintf (pakfile, sizeof(pakfile), "pak%i.%s", i, extension);
+		snprintf (pakfile, sizeof(pakfile), "pak%i.%s", i, extension);
 		if (!search->funcs->FindFile(search->handle, &loc, pakfile, NULL))
 			break;	//not found..
-		_snprintf (pakfile, sizeof(pakfile), "%spak%i.%s", pathto, i, extension);
+		snprintf (pakfile, sizeof(pakfile), "%spak%i.%s", pathto, i, extension);
 		vfs = search->funcs->OpenVFS(search->handle, &loc, "r");
 		if (!vfs)
 			break;
@@ -2551,7 +2552,7 @@ static void COM_AddDataFiles(char *pathto, searchpath_t *search, char *extension
 		handle = funcs->OpenNew (vfs, pakfile);
 		if (!handle)
 			break;
-		_snprintf (pakfile, sizeof(pakfile), "%spak%i.%s/", pathto, i, extension);
+		snprintf (pakfile, sizeof(pakfile), "%spak%i.%s/", pathto, i, extension);
 		COM_AddPathHandle(pakfile, funcs, handle, true, false, (unsigned int)-1);
 	}
 
@@ -2589,7 +2590,7 @@ void COM_AddGameDirectory (char *dir, unsigned int loadstuff)
 	if ((p = strrchr(dir, '/')) != NULL)
 		strcpy(gamedirfile, ++p);
 	else
-		strcpy(gamedirfile, p);
+		strcpy(gamedirfile, dir);
 	strcpy (com_gamedir, dir);
 
 	for (search = com_searchpaths; search; search = search->next)
@@ -2722,9 +2723,9 @@ void COM_Gamedir (char *dir)
 	//
 	Cache_Flush ();
 
-	COM_AddGameDirectory(va("%s/%s", com_quakedir, dir), (unsigned int)-1);
+	COM_AddGameDirectory(va("%s%s", com_quakedir, dir), (unsigned int)-1);
 	if (*com_homedir)
-		COM_AddGameDirectory(va("%s/%s", com_homedir, dir), (unsigned int)-1);
+		COM_AddGameDirectory(va("%s%s", com_homedir, dir), (unsigned int)-1);
 
 
 #ifndef SERVERONLY
@@ -3018,6 +3019,17 @@ void COM_InitFilesystem (void)
 	else
 		strcpy (com_quakedir, host_parms.basedir);
 
+	if (*com_quakedir)
+	{
+		if (com_quakedir[strlen(com_quakedir)-1] == '\\')
+			com_quakedir[strlen(com_quakedir)-1] = '/';
+		else if (com_quakedir[strlen(com_quakedir)-1] != '/')
+		{
+			com_quakedir[strlen(com_quakedir)+1] = '\0';
+			com_quakedir[strlen(com_quakedir)] = '/';
+		}
+	}
+
 
 
 	Cvar_Register(&com_gamename, "evil hacks");
@@ -3026,7 +3038,7 @@ void COM_InitFilesystem (void)
 	{
 		if (!gamemode_info[i].auniquefile)
 			continue;	//no more
-		f = fopen(va("%s/%s", com_quakedir, gamemode_info[i].auniquefile), "rb");
+		f = fopen(va("%s%s", com_quakedir, gamemode_info[i].auniquefile), "rb");
 		if (f)
 		{
 			fclose(f);
@@ -3088,9 +3100,8 @@ void COM_InitFilesystem (void)
 
 	if (*com_homedir)
 	{
+		strcat(com_homedir, "/.fte/");
 		Con_Printf("Using home directory \"%s\"\n", com_homedir);
-
-		strcat(com_homedir, "/.fte");
 	}
 
 //
@@ -3101,7 +3112,7 @@ void COM_InitFilesystem (void)
 	{
 		do	//use multiple -basegames
 		{
-			COM_AddGameDirectory (va("%s/%s", com_quakedir, com_argv[i+1]), (unsigned int)-1);
+			COM_AddGameDirectory (va("%s%s", com_quakedir, com_argv[i+1]), (unsigned int)-1);
 
 			i = COM_CheckNextParm ("-basegame", i);
 		}
@@ -3110,17 +3121,17 @@ void COM_InitFilesystem (void)
 	else
 	{
 		if (gamemode_info[gamenum].dir1)
-			COM_AddGameDirectory (va("%s/%s", com_quakedir, gamemode_info[gamenum].dir1), (unsigned int)-1);
+			COM_AddGameDirectory (va("%s%s", com_quakedir, gamemode_info[gamenum].dir1), (unsigned int)-1);
 		if (gamemode_info[gamenum].dir2)
-			COM_AddGameDirectory (va("%s/%s", com_quakedir, gamemode_info[gamenum].dir2), (unsigned int)-1);
+			COM_AddGameDirectory (va("%s%s", com_quakedir, gamemode_info[gamenum].dir2), (unsigned int)-1);
 		if (gamemode_info[gamenum].dir3)
-			COM_AddGameDirectory (va("%s/%s", com_quakedir, gamemode_info[gamenum].dir3), (unsigned int)-1);
+			COM_AddGameDirectory (va("%s%s", com_quakedir, gamemode_info[gamenum].dir3), (unsigned int)-1);
 		if (gamemode_info[gamenum].dir4)
-			COM_AddGameDirectory (va("%s/%s", com_quakedir, gamemode_info[gamenum].dir4), (unsigned int)-1);
+			COM_AddGameDirectory (va("%s%s", com_quakedir, gamemode_info[gamenum].dir4), (unsigned int)-1);
 	}
 
 	if (*com_homedir)
-		COM_AddGameDirectory (va("%s/fte", com_homedir), (unsigned int)-1);
+		COM_AddGameDirectory (va("%sfte", com_homedir), (unsigned int)-1);
 
 	// any set gamedirs will be freed up to here
 	com_base_searchpaths = com_searchpaths;
@@ -3128,7 +3139,7 @@ void COM_InitFilesystem (void)
 	i = COM_CheckParm ("-game");	//effectivly replace with +gamedir x (But overridable)
 	if (i && i < com_argc-1)
 	{
-		COM_AddGameDirectory (va("%s/%s", com_quakedir, com_argv[i+1]), (unsigned int)-1);
+		COM_AddGameDirectory (va("%s%s", com_quakedir, com_argv[i+1]), (unsigned int)-1);
 
 #ifndef CLIENTONLY
 		Info_SetValueForStarKey (svs.info, "*gamedir", com_argv[i+1], MAX_SERVERINFO_STRING);

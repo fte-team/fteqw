@@ -1126,7 +1126,7 @@ void SV_Spawn_f (void)
 				if (!sv.strings.lightstyles[i])
 					continue;
 #ifdef PEXT_LIGHTSTYLECOL
-			if (host_client->fteprotocolextensions & PEXT_LIGHTSTYLECOL && sv.strings.lightstylecolours[i]!=7)
+			if ((host_client->fteprotocolextensions & PEXT_LIGHTSTYLECOL) && sv.strings.lightstylecolours[i]!=7)
 			{
 				ClientReliableWrite_Begin (host_client, svc_lightstylecol,
 					3 + (sv.strings.lightstyles[i] ? strlen(sv.strings.lightstyles[i]) : 1));

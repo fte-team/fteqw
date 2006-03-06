@@ -1622,7 +1622,7 @@ void R_RenderScene (void)
 {
 	qboolean GLR_DoomWorld(void);
 
-	if (!cl.worldmodel || !cl.worldmodel->nodes)
+	if (!cl.worldmodel || (!cl.worldmodel->nodes && cl.worldmodel->type != mod_heightmap))
 		r_refdef.flags |= Q2RDF_NOWORLDMODEL;
 
 	GLR_SetupFrame ();

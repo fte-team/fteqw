@@ -445,7 +445,7 @@ int VMEnumMods(char *match, int size, void *args)
 		return true;	//we only count directories with a pk3 file
 
 	Q_strncpyz(desc, match, sizeof(desc));
-	f = FS_OpenVFS(va("%s/%s/description.txt", ((vmsearch_t *)args)->dir, match), "rb", FS_BASE);
+	f = FS_OpenVFS(va("%s/description.txt", match), "rb", FS_BASE);
 	if (f)
 	{
 		VFS_GETS(f, desc, sizeof(desc));
@@ -677,6 +677,8 @@ void VQ3_RenderView(const q3refdef_t *ref)
 	r_refdef.viewangles[2] = 0;
 	if (ref->rdflags & 1)
 		r_refdef.flags |= Q2RDF_NOWORLDMODEL;
+	else
+		r_refdef.flags &= ~Q2RDF_NOWORLDMODEL;
 	r_refdef.fov_x = ref->fov_x;
 	r_refdef.fov_y = ref->fov_y;
 	r_refdef.vrect.x = ref->x;
@@ -735,7 +737,7 @@ void UI_RegisterFont(char *fontName, int pointSize, fontInfo_t *font)
 	#define readInt() LittleLong(*in.i++)
 	#define readFloat() LittleFloat(*in.f++)
 
-	_snprintf(name, sizeof(name), "fonts/fontImage_%i.dat",pointSize);
+	snprintf(name, sizeof(name), "fonts/fontImage_%i.dat",pointSize);
 
 	in.c = COM_LoadTempFile(name);
 	if (com_filesize == sizeof(fontInfo_t))
@@ -1425,6 +1427,18 @@ long UI_SystemCallsEx(void *offset, unsigned int mask, int fn, const long *arg)
 	case UI_PC_READ_TOKEN:
 		//fixme: memory protect.
 		return Script_Read(arg[0], VM_POINTER(arg[1]));
+
+	case UI_CIN_PLAYCINEMATIC:
+		//handle(name, x, y, w, h, looping)
+	case UI_CIN_STOPCINEMATIC:
+		//(handle)
+	case UI_CIN_RUNCINEMATIC:
+		//(handle)
+	case UI_CIN_DRAWCINEMATIC:
+		//(handle)
+	case UI_CIN_SETEXTENTS:
+		//(handle, x, y, w, h)
+		break;
 
 	default:
 		Con_Printf("Q3UI: Not implemented system trap: %d\n", fn);

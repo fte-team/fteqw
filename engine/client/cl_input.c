@@ -861,7 +861,7 @@ void VARGS CL_SendClientCommand(qboolean reliable, char *format, ...)
 		return;	//no point.
 
 	va_start (argptr, format);
-	_vsnprintf (string,sizeof(string)-1, format,argptr);
+	vsnprintf (string,sizeof(string)-1, format,argptr);
 	va_end (argptr);
 
 
@@ -1406,7 +1406,7 @@ static char	*VARGS vahunk(char *format, ...)
 	char *ret;
 	
 	va_start (argptr, format);
-	_vsnprintf (string,sizeof(string)-1, format,argptr);
+	vsnprintf (string,sizeof(string)-1, format,argptr);
 	va_end (argptr);
 
 	ret = Hunk_Alloc(strlen(string)+1);

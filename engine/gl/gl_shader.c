@@ -42,7 +42,7 @@ extern int missing_texture;
 cvar_t r_vertexlight = SCVAR("r_vertexlight", "0");
 
 #define Q_stricmp stricmp
-#define Com_sprintf _snprintf
+#define Com_sprintf snprintf
 #define clamp(v,min, max) (v) = (((v)<(min))?(min):(((v)>(max))?(max):(v)));
 
 int FS_LoadFile(char *name, void **file)
@@ -583,7 +583,7 @@ static void Shaderpass_Map ( shader_t *shader, shaderpass_t *pass, char **ptr )
 		pass->anim_frames[0] = Shader_FindImage ( token, flags );
 
 		if ( !pass->anim_frames[0] ) {
-			pass->anim_frames[0] = 0;//FIZME: r_notexture;
+			pass->anim_frames[0] = missing_texture;
 			Con_DPrintf (S_WARNING "Shader %s has a stage with no image: %s.\n", shader->name, token );
 		}
     }
@@ -612,7 +612,7 @@ static void Shaderpass_AnimMap ( shader_t *shader, shaderpass_t *pass, char **pt
 			image = Shader_FindImage ( token, flags );
 
 			if ( !image ) {
-				pass->anim_frames[pass->anim_numframes++] = 0;//fizme: r_notexture;
+				pass->anim_frames[pass->anim_numframes++] = missing_texture;
 				Con_DPrintf (S_WARNING "Shader %s has an animmap with no image: %s.\n", shader->name, token );
 			} else {
 				pass->anim_frames[pass->anim_numframes++] = image;
@@ -636,26 +636,27 @@ static void Shaderpass_ClampMap ( shader_t *shader, shaderpass_t *pass, char **p
 	qglTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP);
 
 	if ( !pass->anim_frames[0] ) {
-		pass->anim_frames[0] = 0;//fizme:r_notexture;
+		pass->anim_frames[0] = missing_texture;
 		Con_DPrintf (S_WARNING "Shader %s has a stage with no image: %s.\n", shader->name, token );
     }
 }
 
 static void Shaderpass_VideoMap ( shader_t *shader, shaderpass_t *pass, char **ptr )
 {
-/*	char		*token;
-	char		name[MAX_OSPATH];
+	char		*token;
 
 	token = Shader_ParseString ( ptr );
-	COM_StripExtension ( token, name );
 
 	if ( pass->cin )
 		Z_Free ( pass->cin );
 
-	pass->cin = (cinematics_t *)Z_Malloc ( sizeof(cinematics_t) );
-	pass->cin->frame = -1;
-	Com_sprintf ( pass->cin->name, sizeof(pass->cin->name), "video/%s.RoQ", name );
-*/
+	pass->cin = Media_StartCin(token);
+	if (!pass->cin)
+		pass->cin = Media_StartCin(va("video/%s.roq", token));
+	else
+		Con_DPrintf (S_WARNING "(shader %s) Couldn't load video %s\n", shader->name, token );
+
+	pass->anim_frames[0] = texture_extension_number++;
 	pass->flags |= SHADER_PASS_VIDEOMAP;
 	shader->flags |= SHADER_VIDEOMAP;
 }
@@ -1170,11 +1171,11 @@ static void Shader_GetPathAndOffset ( char *name, char **path, unsigned int *off
 
 void Shader_FreePass (shaderpass_t *pass)
 {
-	if ( pass->flags & SHADER_PASS_VIDEOMAP ) {
-/*		GL_StopCinematic ( pass->cin );
-		Z_Free ( pass->cin );
+	if ( pass->flags & SHADER_PASS_VIDEOMAP )
+	{
+		Media_ShutdownCin(pass->cin);
 		pass->cin = NULL;
-*/	}
+	}
 }
 
 void Shader_Free (shader_t *shader)
@@ -1844,50 +1845,121 @@ void Shader_RunCinematic (void)
 void Shader_DefaultBSP(char *shortname, shader_t *s)
 {
 	shaderpass_t *pass;
-	pass = &s->passes[0];
-	pass->flags = SHADER_PASS_LIGHTMAP | SHADER_PASS_DEPTHWRITE | SHADER_PASS_NOCOLORARRAY;
-	pass->tcgen = TC_GEN_LIGHTMAP;
-	pass->anim_frames[0] = 0;
-	pass->depthfunc = GL_LEQUAL;
-	pass->blendmode = GL_REPLACE;
-	pass->alphagen = ALPHA_GEN_IDENTITY;
-	pass->rgbgen = RGB_GEN_IDENTITY;
-	pass->numMergedPasses = 2;
 
-	if ( qglMTexCoord2fSGIS )
+	int bumptex;
+	extern cvar_t gl_bump;
+
+	if (0)//this isn't working right yet    gl_config.arb_texture_env_dot3)
 	{
-		pass->numMergedPasses = 2;
-		pass->flush = R_RenderMeshMultitextured;
+		if (gl_bump.value)
+			bumptex = Mod_LoadHiResTexture(va("normalmaps/%s", shortname), NULL, true, false, false);//GL_FindImage (shortname, 0);
+		else
+			bumptex = 0;
 	}
 	else
+		bumptex = 0;
+
+	if (bumptex)
 	{
+		pass = &s->passes[s->numpasses++];
+		pass->flags = SHADER_PASS_DELUXMAP | SHADER_PASS_DEPTHWRITE | SHADER_PASS_NOCOLORARRAY;
+		pass->tcgen = TC_GEN_LIGHTMAP;
+		pass->anim_frames[0] = 0;
+		pass->depthfunc = GL_LEQUAL;
+		pass->blendmode = GL_REPLACE;
+		pass->alphagen = ALPHA_GEN_IDENTITY;
+		pass->rgbgen = RGB_GEN_IDENTITY;
+		pass->numMergedPasses = 2;
+		if (pass->numMergedPasses > gl_mtexarbable)
+			pass->numMergedPasses = gl_mtexarbable;
+		pass->flush = R_RenderMeshCombined;
+
+
+		pass = &s->passes[s->numpasses++];
+		pass->flags = SHADER_PASS_BLEND | SHADER_PASS_NOCOLORARRAY;
+		pass->tcgen = TC_GEN_BASE;
+		pass->anim_frames[0] = bumptex;
+		pass->anim_numframes = 1;
+		pass->blendmode = GL_DOT3_RGB_ARB;
+		pass->rgbgen = RGB_GEN_IDENTITY;
+		pass->alphagen = ALPHA_GEN_IDENTITY;
+
+
+		pass = &s->passes[s->numpasses++];
+		pass->flags = SHADER_PASS_NOCOLORARRAY | SHADER_PASS_BLEND;
+		pass->tcgen = TC_GEN_BASE;
+		pass->anim_frames[0] = Mod_LoadHiResTexture(shortname, NULL, true, false, true);//GL_FindImage (shortname, 0);
+		if (!pass->anim_frames[0])
+			pass->anim_frames[0] = missing_texture;
+		pass->depthfunc = GL_LEQUAL;
+		pass->blendsrc = GL_ZERO;
+		pass->blenddst = GL_SRC_COLOR;
+		pass->blendmode = GL_MODULATE;
+		pass->alphagen = ALPHA_GEN_IDENTITY;
+		pass->rgbgen = RGB_GEN_IDENTITY;
+		pass->numMergedPasses = 2;
+		pass->flush = R_RenderMeshMultitextured;
+
+		pass = &s->passes[s->numpasses++];
+		pass->flags = SHADER_PASS_LIGHTMAP | SHADER_PASS_NOCOLORARRAY | SHADER_PASS_BLEND;
+		pass->tcgen = TC_GEN_LIGHTMAP;
+		pass->anim_frames[0] = 0;
+		pass->depthfunc = GL_LEQUAL;
+		pass->blendsrc = GL_ZERO;
+		pass->blenddst = GL_SRC_COLOR;
+		pass->blendmode = GL_MODULATE;
+		pass->alphagen = ALPHA_GEN_IDENTITY;
+		pass->rgbgen = RGB_GEN_IDENTITY;
 		pass->numMergedPasses = 1;
 		pass->flush = R_RenderMeshGeneric;
 	}
-		
-	pass = &s->passes[1];
-	pass->flags = SHADER_PASS_BLEND | SHADER_PASS_NOCOLORARRAY;
-	pass->tcgen = TC_GEN_BASE;
-	pass->anim_frames[0] = Mod_LoadHiResTexture(shortname, NULL, true, false, true);//GL_FindImage (shortname, 0);
-	if (!pass->anim_frames[0])
-		pass->anim_frames[0] = missing_texture;
-	pass->anim_numframes = 1;
-	pass->blendsrc = GL_ZERO;
-	pass->blenddst = GL_SRC_COLOR;
-	pass->blendmode = GL_MODULATE;
-	pass->depthfunc = GL_LEQUAL;
-	pass->rgbgen = RGB_GEN_IDENTITY;
-	pass->alphagen = ALPHA_GEN_IDENTITY;
+	else
+	{
+		pass = &s->passes[0];
+		pass->flags = SHADER_PASS_LIGHTMAP | SHADER_PASS_DEPTHWRITE | SHADER_PASS_NOCOLORARRAY;
+		pass->tcgen = TC_GEN_LIGHTMAP;
+		pass->anim_frames[0] = 0;
+		pass->depthfunc = GL_LEQUAL;
+		pass->blendmode = GL_REPLACE;
+		pass->alphagen = ALPHA_GEN_IDENTITY;
+		pass->rgbgen = RGB_GEN_IDENTITY;
+		pass->numMergedPasses = 2;
 
-	pass->numMergedPasses = 1;
-	pass->flush = R_RenderMeshGeneric;
+		if ( qglMTexCoord2fSGIS )
+		{
+			pass->numMergedPasses = 2;
+			pass->flush = R_RenderMeshMultitextured;
+		}
+		else
+		{
+			pass->numMergedPasses = 1;
+			pass->flush = R_RenderMeshGeneric;
+		}
+			
+		pass = &s->passes[1];
+		pass->flags = SHADER_PASS_BLEND | SHADER_PASS_NOCOLORARRAY;
+		pass->tcgen = TC_GEN_BASE;
+		pass->anim_frames[0] = Mod_LoadHiResTexture(shortname, NULL, true, false, true);//GL_FindImage (shortname, 0);
+		if (!pass->anim_frames[0])
+			pass->anim_frames[0] = missing_texture;
+		pass->anim_numframes = 1;
+		pass->blendsrc = GL_ZERO;
+		pass->blenddst = GL_SRC_COLOR;
+		pass->blendmode = GL_MODULATE;
+		pass->depthfunc = GL_LEQUAL;
+		pass->rgbgen = RGB_GEN_IDENTITY;
+		pass->alphagen = ALPHA_GEN_IDENTITY;
 
-	if ( !pass->anim_frames[0] ) {
-		Con_DPrintf (S_WARNING "Shader %s has a stage with no image: %s.\n", s->name, shortname );
-		pass->anim_frames[0] = 0;//fizme:r_notexture;
+		pass->numMergedPasses = 1;
+		pass->flush = R_RenderMeshGeneric;
+
+		if ( !pass->anim_frames[0] ) {
+			Con_DPrintf (S_WARNING "Shader %s has a stage with no image: %s.\n", s->name, shortname );
+			pass->anim_frames[0] = missing_texture;
+		}
+
+		s->numpasses = 2;
 	}
-
-	s->numpasses = 2;
 	s->numdeforms = 0;
 	s->flags = SHADER_DEPTHWRITE|SHADER_CULL_FRONT;
 	s->features = MF_STCOORDS|MF_LMCOORDS|MF_TRNORMALS;
@@ -1913,7 +1985,7 @@ void Shader_DefaultBSPVertex(char *shortname, shader_t *s)
 
 	if ( !pass->anim_frames[0] ) {
 		Con_DPrintf (S_WARNING "Shader %s has a stage with no image: %s.\n", s->name, shortname );
-		pass->anim_frames[0] = 0;//fizme:r_notexture;
+		pass->anim_frames[0] = missing_texture;
 	}
 
 	s->numpasses = 1;
@@ -1944,7 +2016,7 @@ void Shader_DefaultBSPFlare(char *shortname, shader_t *s)
 
 	if ( !pass->anim_frames[0] ) {
 		Con_DPrintf (S_WARNING "Shader %s has a stage with no image: %s.\n", s->name, shortname );
-		pass->anim_frames[0] = 0;//fizme:r_notexture;
+		pass->anim_frames[0] = missing_texture;
 	}
 
 	s->numpasses = 1;
@@ -1981,7 +2053,7 @@ void Shader_DefaultSkin(char *shortname, shader_t *s)
 		if (!pass->anim_frames[0])
 		{
 			Con_DPrintf (S_WARNING "Shader %s has a stage with no image: %s.\n", s->name, shortname );
-			pass->anim_frames[0] = 0;//fizme:r_notexture;
+			pass->anim_frames[0] = missing_texture;
 		}
 	}
 
@@ -2003,7 +2075,7 @@ void Shader_DefaultSkin(char *shortname, shader_t *s)
 		if (!pass->anim_frames[0])
 		{
 			Con_DPrintf (S_WARNING "Shader %s has a stage with no image: %s.\n", s->name, shortname );
-			pass->anim_frames[0] = 0;//fizme:r_notexture;
+			pass->anim_frames[0] = missing_texture;
 		}
 	}
 
@@ -2025,7 +2097,7 @@ void Shader_DefaultSkin(char *shortname, shader_t *s)
 		if (!pass->anim_frames[0])
 		{
 			Con_DPrintf (S_WARNING "Shader %s has a stage with no image: %s.\n", s->name, shortname );
-			pass->anim_frames[0] = 0;//fizme:r_notexture;
+			pass->anim_frames[0] = missing_texture;
 		}
 	}
 
@@ -2047,7 +2119,7 @@ void Shader_DefaultSkin(char *shortname, shader_t *s)
 		if (!pass->anim_frames[0])
 		{
 			Con_DPrintf (S_WARNING "Shader %s has a stage with no image: %s.\n", s->name, shortname);
-			pass->anim_frames[0] = 0;//fizme:r_notexture;
+			pass->anim_frames[0] = missing_texture;
 		}
 	}
 
@@ -2078,7 +2150,7 @@ void Shader_DefaultSkinShell(char *shortname, shader_t *s)
 
 	if ( !pass->anim_frames[0] ) {
 		Con_DPrintf (S_WARNING "Shader %s has a stage with no image: %s.\n", s->name, shortname );
-		pass->anim_frames[0] = 0;//fizme:r_notexture;
+		pass->anim_frames[0] = missing_texture;
 	}
 
 	s->numpasses = 1;
@@ -2118,7 +2190,7 @@ void Shader_Default2D(char *shortname, shader_t *s)
 
 	if ( !pass->anim_frames[0] ) {
 		Con_DPrintf (S_WARNING "Shader %s has a stage with no image: %s.\n", s->name, shortname );
-		pass->anim_frames[0] = 0;//fizme:r_notexture;
+		pass->anim_frames[0] = missing_texture;
 	}
 
 	s->numpasses = 1;

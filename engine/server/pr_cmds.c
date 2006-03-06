@@ -1523,7 +1523,7 @@ void VARGS PR_BIError(progfuncs_t *progfuncs, char *format, ...)
 	static char		string[2048];
 
 	va_start (argptr, format);
-	_vsnprintf (string,sizeof(string)-1, format,argptr);
+	vsnprintf (string,sizeof(string)-1, format,argptr);
 	va_end (argptr);
 
 	if (developer.value)
@@ -2047,7 +2047,7 @@ void PF_set_puzzle_model (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 	char *shortname;
 	char fullname[MAX_QPATH];
 	shortname = PR_GetStringOfs(prinst, OFS_PARM1);
-	_snprintf(fullname, sizeof(fullname)-1, "models/puzzle/%s.mdl", shortname);
+	snprintf(fullname, sizeof(fullname)-1, "models/puzzle/%s.mdl", shortname);
 	G_INT(OFS_PARM1) = (int)(fullname - prinst->stringtable);
 	PF_setmodel (prinst, pr_globals);
 	G_INT(OFS_PARM1) = (int)(shortname - prinst->stringtable);	//piece of mind.
@@ -3758,7 +3758,7 @@ void PF_precache_puzzle_model (progfuncs_t *prinst, struct globalvars_s *pr_glob
 	char *shortname;
 	char fullname[MAX_QPATH];
 	shortname = PR_GetStringOfs(prinst, OFS_PARM0);
-	_snprintf(fullname, sizeof(fullname)-1, "models/puzzle/%s.mdl", shortname);
+	snprintf(fullname, sizeof(fullname)-1, "models/puzzle/%s.mdl", shortname);
 	G_INT(OFS_PARM0) = (int)(fullname - prinst->stringtable);
 	PF_precache_model (prinst, pr_globals);
 	G_INT(OFS_PARM0) = (int)(shortname - prinst->stringtable);	//piece of mind.
@@ -3987,7 +3987,7 @@ void PF_lightstyle (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 				if (!*val)
 					continue;
 #ifdef PEXT_LIGHTSTYLECOL
-			if (client->fteprotocolextensions & PEXT_LIGHTSTYLECOL && col!=7)
+			if ((client->fteprotocolextensions & PEXT_LIGHTSTYLECOL) && col!=7)
 			{
 				ClientReliableWrite_Begin (client, svc_lightstylecol, strlen(val)+4);
 				ClientReliableWrite_Byte (client, style);
@@ -4086,7 +4086,7 @@ void PF_lightstylestatic (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 		if ( client->state == cs_spawned )
 		{
 #ifdef PEXT_LIGHTSTYLECOL
-			if (client->fteprotocolextensions & PEXT_LIGHTSTYLECOL && col!=7)
+			if ((client->fteprotocolextensions & PEXT_LIGHTSTYLECOL) && col!=7)
 			{
 				ClientReliableWrite_Begin (client, svc_lightstylecol, strlen(val)+4);
 				ClientReliableWrite_Char (client, style);
@@ -7008,7 +7008,7 @@ void PF_log(progfuncs_t *prinst, struct globalvars_s *pr_globals)
 	char name[MAX_OSPATH], *text;
 	vfsfile_t *file;
 
-	_snprintf(name, MAX_OSPATH, "%s.log", PR_GetStringOfs(prinst, OFS_PARM0));
+	snprintf(name, MAX_OSPATH, "%s.log", PR_GetStringOfs(prinst, OFS_PARM0));
 	text = PF_VarString(prinst, 2, pr_globals);
 	PR_CleanText(text);
 

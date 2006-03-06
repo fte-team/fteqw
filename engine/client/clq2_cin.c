@@ -88,7 +88,7 @@ Called when either the cinematic completes, or it is aborted
 */
 void CIN_FinishCinematic (void)
 {
-	// tell the server to advance to the next map / cinematic
+	// tell the server to advance to the next map / cinematic (a q2 hack)
 	if (cls.state == ca_active)
 	{
 		CL_SendClientCommand(true, "nextserver %i", cl.servercount);
@@ -489,8 +489,7 @@ qboolean CIN_PlayCinematic (char *arg)
 
 	if (!cin.cinematic_file)
 	{
-
-		_snprintf (name, sizeof(name), "video/%s", arg);
+		snprintf (name, sizeof(name), "video/%s", arg);
 		cin.cinematic_file = FS_OpenVFS(name, "rb", FS_GAME);
 	}
 

@@ -87,7 +87,7 @@ cvar_t	gl_cshiftpercent = SCVAR("gl_cshiftpercent", "100");
 
 cvar_t	v_bonusflash = SCVAR("v_bonusflash", "0");
 
-cvar_t  v_contentblend = SCVAR("v_contentblend", "0");
+cvar_t  v_contentblend = SCVARF("v_contentblend", "0", CVAR_ARCHIVE);
 cvar_t	v_damagecshift = SCVAR("v_damagecshift", "0");
 cvar_t	v_quadcshift = SCVAR("v_quadcshift", "0");
 cvar_t	v_suitcshift = SCVAR("v_suitcshift", "0");

@@ -3066,6 +3066,8 @@ SOURCE=..\gl\gl_bloom.c
 
 !ELSEIF  "$(CFG)" == "ftequake - Win32 Release Dedicated Server"
 
+# PROP Exclude_From_Build 1
+
 !ELSEIF  "$(CFG)" == "ftequake - Win32 MinSW"
 
 !ELSEIF  "$(CFG)" == "ftequake - Win32 GLDebugQ3"

@@ -87,7 +87,7 @@ void *Sys_LoadDLL(const char *name, void **vmMain, sys_calldll_t syscall)
 			gpath = COM_NextPath (gpath);
 			if (!gpath)
 				return NULL;		// couldn't find one anywhere
-			_snprintf (name, sizeof(name), "%s/%s", gpath, dllname);
+			snprintf (name, sizeof(name), "%s/%s", gpath, dllname);
 			hVM = LoadLibrary (name);
 			if (hVM)
 			{

@@ -563,7 +563,7 @@ static long CG_SystemCallsEx(void *offset, unsigned int mask, int fn, const long
 			if (!mod)
 				mod = cl.worldmodel;
 			if (mod)
-				pc = CM_PointContents(mod, VM_POINTER(arg[0]));
+				pc = cl.worldmodel->funcs.NativeContents(mod, 0, 0, VM_POINTER(arg[0]), vec3_origin, vec3_origin);
 			else
 				pc = 1;//FTECONTENTS_SOLID;
 			VM_LONG(ret) = pc;//Contents_To_Q3(pc);
@@ -601,7 +601,7 @@ static long CG_SystemCallsEx(void *offset, unsigned int mask, int fn, const long
 				}
 
 				if (mod)
-					pc = CM_PointContents(mod, p_l);
+					pc = cl.worldmodel->funcs.NativeContents(mod, 0, 0, VM_POINTER(arg[0]), vec3_origin, vec3_origin);
 				else
 					pc = 1;//FTECONTENTS_SOLID;
 			}
@@ -636,7 +636,7 @@ static long CG_SystemCallsEx(void *offset, unsigned int mask, int fn, const long
 			if (!angles)
 				angles = vec3_origin;
 			if (mod)
-				tr = CM_TransformedBoxTrace(mod, start, end, mins, maxs, brushmask, origin, angles);
+				TransformedNativeTrace(mod, 0, 0, start, end, mins, maxs, brushmask, &tr, origin, angles);
 			else
 			{
 				memset(&tr, 0, sizeof(tr));
@@ -674,7 +674,9 @@ static long CG_SystemCallsEx(void *offset, unsigned int mask, int fn, const long
 			if (!maxs)
 				maxs = vec3_origin;
 			if (mod)
-				tr = CM_BoxTrace(mod, start, end, mins, maxs, brushmask);
+			{
+				mod->funcs.NativeTrace(mod, 0, 0, start, end, mins, maxs, brushmask, &tr);
+			}
 			else
 			{
 				memset(&tr, 0, sizeof(tr));

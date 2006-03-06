@@ -164,11 +164,7 @@ void VARGS Q_snprintfz (char *dest, size_t size, char *fmt, ...)
 	va_list		argptr;
 
 	va_start (argptr, fmt);
-#ifdef _WIN32
-	_vsnprintf (dest, size, fmt, argptr);
-#else
 	vsnprintf (dest, size, fmt, argptr);
-#endif
 	va_end (argptr);
 
 	dest[size-1] = 0;
@@ -2336,7 +2332,7 @@ char	*VARGS va(char *format, ...)
 	bufnum &= (VA_BUFFERS-1);
 
 	va_start (argptr, format);
-	_vsnprintf (string[bufnum],sizeof(string[bufnum])-1, format,argptr);
+	vsnprintf (string[bufnum],sizeof(string[bufnum])-1, format,argptr);
 	va_end (argptr);
 
 	return string[bufnum];
@@ -2669,7 +2665,7 @@ void Info_SetValueForStarKey (char *s, const char *key, const char *value, int m
 	if (!value || !strlen(value))
 		return;
 
-	_snprintf (newv, sizeof(newv), "\\%s\\%s", key, value);
+	snprintf (newv, sizeof(newv), "\\%s\\%s", key, value);
 
 	if ((int)(strlen(newv) + strlen(s) + 1) > maxsize)
 	{
@@ -3067,4 +3063,41 @@ int build_number( void )
 	b -= 35778; // Dec 16 1998
 
 	return b;
+}
+
+
+
+int VARGS linuxlike_snprintf(char *buffer, int size, const char *format, ...)
+{
+#undef _vsnprintf
+	int ret;
+	va_list		argptr;
+
+	if (size <= 0)
+		return 0;
+	size--;
+
+	va_start (argptr, format);
+	ret = _vsnprintf (buffer,size, format,argptr);
+	va_end (argptr);
+
+	buffer[size] = '\0';
+
+	return ret;
+}
+
+int VARGS linuxlike_vsnprintf(char *buffer, int size, const char *format, va_list argptr)
+{
+#undef _vsnprintf
+	int ret;
+
+	if (size <= 0)
+		return 0;
+	size--;
+
+	ret = _vsnprintf (buffer,size, format,argptr);
+
+	buffer[size] = '\0';
+
+	return ret;
 }

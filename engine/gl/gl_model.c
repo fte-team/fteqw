@@ -953,7 +953,7 @@ TRACE(("dbg: GLMod_LoadTextures: inittexturedescs\n"));
 
 				if (r_fb_bmodels.value)
 				{
-					_snprintf(altname, sizeof(altname)-1, "%s_luma", mt->name);
+					snprintf(altname, sizeof(altname)-1, "%s_luma", mt->name);
 					if (gl_load24bit.value)
 					{
 						tx->gl_texturenumfb = Mod_LoadReplacementTexture(altname, loadname, true, false, true);
@@ -971,7 +971,7 @@ TRACE(("dbg: GLMod_LoadTextures: inittexturedescs\n"));
 				extern cvar_t gl_bump;
 				if (gl_bump.value<2)	//set to 2 to have faster loading.
 				{
-					_snprintf(altname, sizeof(altname)-1, "%s_norm", mt->name);
+					snprintf(altname, sizeof(altname)-1, "%s_norm", mt->name);
 					tx->gl_texturenumbumpmap = Mod_LoadHiResTexture(altname, loadname, true, false, false);
 					if (!tx->gl_texturenumbumpmap)
 						tx->gl_texturenumbumpmap = Mod_LoadHiResTexture(altname, "bmodels", true, false, false);
@@ -980,13 +980,13 @@ TRACE(("dbg: GLMod_LoadTextures: inittexturedescs\n"));
 				{
 					if (gl_load24bit.value)
 					{
-						_snprintf(altname, sizeof(altname)-1, "%s_bump", mt->name);
+						snprintf(altname, sizeof(altname)-1, "%s_bump", mt->name);
 						tx->gl_texturenumbumpmap = Mod_LoadBumpmapTexture(altname, loadname);
 						if (!tx->gl_texturenumbumpmap)
 							tx->gl_texturenumbumpmap = Mod_LoadBumpmapTexture(altname, "bmodels");
 					}
 					else
-						_snprintf(altname, sizeof(altname)-1, "%s_bump", mt->name);
+						snprintf(altname, sizeof(altname)-1, "%s_bump", mt->name);
 				}
 
 				if (!(tx->gl_texturenumbumpmap) && loadmodel->fromgame != fg_halflife)
@@ -1001,7 +1001,7 @@ TRACE(("dbg: GLMod_LoadTextures: inittexturedescs\n"));
 				//don't do any complex quake 8bit -> glossmap. It would likly look a little ugly...
 				if (gl_specular.value && gl_load24bit.value)
 				{
-					_snprintf(altname, sizeof(altname)-1, "%s_gloss", mt->name);
+					snprintf(altname, sizeof(altname)-1, "%s_gloss", mt->name);
 					tx->gl_texturenumspec = Mod_LoadHiResTexture(altname, loadname, true, false, false);
 					if (!tx->gl_texturenumspec)
 						tx->gl_texturenumspec = Mod_LoadHiResTexture(altname, "bmodels", true, false, false);

@@ -146,7 +146,7 @@ void VARGS Netchan_OutOfBandPrint (netsrc_t sock, netadr_t adr, char *format, ..
 	static char		string[8192];		// ??? why static?
 	
 	va_start (argptr, format);
-	_vsnprintf (string,sizeof(string)-1, format,argptr);
+	vsnprintf (string,sizeof(string)-1, format,argptr);
 	va_end (argptr);
 
 
@@ -163,7 +163,7 @@ void VARGS Netchan_OutOfBandTPrintf (netsrc_t sock, netadr_t adr, int language, 
 	string[0] = A2C_PRINT;
 	
 	va_start (argptr, text);
-	_vsnprintf (string+1,sizeof(string)-2, format,argptr);
+	vsnprintf (string+1,sizeof(string)-1, format,argptr);
 	va_end (argptr);
 
 

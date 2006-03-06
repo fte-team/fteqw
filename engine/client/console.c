@@ -361,7 +361,7 @@ void Con_ToggleConsole_f (void)
 
 	if (key_dest == key_console)
 	{
-		if (cls.state == ca_active || media_filmtype
+		if (cls.state == ca_active || Media_PlayingFullScreen()
 #ifdef VM_UI
 				 	|| UI_MenuState()
 #endif
@@ -781,7 +781,7 @@ void VARGS Con_Printf (const char *fmt, ...)
 	char		msg[MAXPRINTMSG];
 	
 	va_start (argptr,fmt);
-	_vsnprintf (msg,sizeof(msg)-1, fmt,argptr);
+	vsnprintf (msg,sizeof(msg), fmt,argptr);
 	va_end (argptr);
 
 #ifndef CLIENTONLY
@@ -835,7 +835,7 @@ void VARGS Con_SafePrintf (char *fmt, ...)
 	char		msg[MAXPRINTMSG];
 
 	va_start (argptr,fmt);
-	_vsnprintf (msg,sizeof(msg)-1, fmt,argptr);
+	vsnprintf (msg,sizeof(msg)-1, fmt,argptr);
 	va_end (argptr);
 
 // write it to the scrollable buffer
@@ -849,7 +849,7 @@ void VARGS Con_TPrintf (translation_t text, ...)
 	char *fmt = languagetext[text][cls.language];
 	
 	va_start (argptr,text);
-	_vsnprintf (msg,sizeof(msg)-1, fmt,argptr);
+	vsnprintf (msg,sizeof(msg), fmt,argptr);
 	va_end (argptr);
 
 // write it to the scrollable buffer
@@ -863,7 +863,7 @@ void VARGS Con_SafeTPrintf (translation_t text, ...)
 	char *fmt = languagetext[text][cls.language];
 	
 	va_start (argptr,text);
-	_vsnprintf (msg,sizeof(msg)-1, fmt,argptr);
+	vsnprintf (msg,sizeof(msg), fmt,argptr);
 	va_end (argptr);
 
 // write it to the scrollable buffer
@@ -887,7 +887,7 @@ void VARGS Con_DPrintf (char *fmt, ...)
 		return; // early exit
 
 	va_start (argptr,fmt);
-	_vsnprintf (msg,sizeof(msg)-1, fmt,argptr);
+	vsnprintf (msg,sizeof(msg)-1, fmt,argptr);
 	va_end (argptr);
 
 	if (!developer.value)

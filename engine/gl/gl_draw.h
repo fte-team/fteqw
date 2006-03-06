@@ -51,3 +51,5 @@ void GLDraw_LevelPic (mpic_t *pic);
 
 void GLDraw_ImageColours(float r, float g, float b, float a);
 void GLDraw_Image(float x, float y, float w, float h, float s1, float t1, float s2, float t2, mpic_t *pic);
+
+void R_BloomRegister(void);

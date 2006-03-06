@@ -182,14 +182,14 @@ void Con_Log (char *s)
 			i = log_rotate_files.value;
 
 			// unlink file at the top of the chain
-			_snprintf(oldf, sizeof(oldf)-1, "%s.%i", f, i);
+			snprintf(oldf, sizeof(oldf)-1, "%s.%i", f, i);
 			FS_Remove(oldf, FS_BASE);
 
 			// rename files through chain
 			for (x = i-1; x > 0; x--)
 			{
 				strcpy(newf, oldf);
-				_snprintf(oldf, sizeof(oldf)-1, "%s.%i", f, x);
+				snprintf(oldf, sizeof(oldf)-1, "%s.%i", f, x);
 
 				// check if file exists, otherwise skip
 				if ((fi = FS_OpenVFS(f, "rb", FS_BASE)))

@@ -64,7 +64,7 @@ void DestClose(mvddest_t *d, qboolean destroyfiles)
 
 	if (destroyfiles)
 	{
-		_snprintf(path, MAX_OSPATH, "%s/%s/%s", com_gamedir, d->path, d->name);
+		snprintf(path, MAX_OSPATH, "%s/%s/%s", com_gamedir, d->path, d->name);
 		Sys_remove(path);
 
 		Q_strncpyz(path + strlen(path) - 3, "txt", MAX_OSPATH - strlen(path) + 3);
@@ -952,22 +952,22 @@ static char *SV_PrintTeams(void)
 
 	if (numcl == 2) // duel
 	{
-		_snprintf(buf, sizeof(buf), "team1 %s\nteam2 %s\n", clients[0]->name, clients[1]->name);
+		snprintf(buf, sizeof(buf), "team1 %s\nteam2 %s\n", clients[0]->name, clients[1]->name);
 	}
 	else if (!teamplay.value) // ffa
 	{
-		_snprintf(buf, sizeof(buf), "players:\n");
+		snprintf(buf, sizeof(buf), "players:\n");
 		for (i = 0; i < numcl; i++)
-			_snprintf(buf + strlen(buf), sizeof(buf) - strlen(buf), "  %s\n", clients[i]->name);
+			snprintf(buf + strlen(buf), sizeof(buf) - strlen(buf), "  %s\n", clients[i]->name);
 	}
 	else
 	{ // teamplay
 		for (j = 0; j < numt; j++)
 		{
-			_snprintf(buf + strlen(buf), sizeof(buf) - strlen(buf), "team %s:\n", teams[j]);
+			snprintf(buf + strlen(buf), sizeof(buf) - strlen(buf), "team %s:\n", teams[j]);
 			for (i = 0; i < numcl; i++)
 				if (!strcmp(Info_ValueForKey(clients[i]->userinfo, "team"), teams[j]))
-					_snprintf(buf + strlen(buf), sizeof(buf) - strlen(buf), "  %s\n", clients[i]->name);
+					snprintf(buf + strlen(buf), sizeof(buf) - strlen(buf), "  %s\n", clients[i]->name);
 		}
 	}
 
@@ -1042,7 +1042,7 @@ mvddest_t *SV_InitRecordFile (char *name)
 
 			SV_TimeOfDay(&date);
 
-			_snprintf(buf, sizeof(buf), "date %s\nmap %s\nteamplay %d\ndeathmatch %d\ntimelimit %d\n%s",date.str, sv.name, (int)teamplay.value, (int)deathmatch.value, (int)timelimit.value, SV_PrintTeams());
+			snprintf(buf, sizeof(buf), "date %s\nmap %s\nteamplay %d\ndeathmatch %d\ntimelimit %d\n%s",date.str, sv.name, (int)teamplay.value, (int)deathmatch.value, (int)timelimit.value, SV_PrintTeams());
 			fwrite(buf, strlen(buf),1,f);
 			fflush(f);
 			fclose(f);
@@ -1579,7 +1579,7 @@ void SV_MVD_Record_f (void)
 			sizeof(newname) - strlen(sv_demoSuffix.string) - 5);
 	Q_strncatz(newname, sv_demoSuffix.string, MAX_MVD_NAME);
 
-	_snprintf (name, MAX_OSPATH+MAX_MVD_NAME, "%s/%s/%s", com_gamedir, sv_demoDir.string, newname);
+	snprintf (name, MAX_OSPATH+MAX_MVD_NAME, "%s/%s/%s", com_gamedir, sv_demoDir.string, newname);
 
 
 	COM_StripExtension(name, name);
@@ -1772,7 +1772,7 @@ void SV_MVDEasyRecord_f (void)
 		if (teamplay.value >= 1 && i > 2)
 		{
 			// Teamplay
-			_snprintf (name, sizeof(name), "%don%d_", Dem_CountTeamPlayers(Dem_Team(1)), Dem_CountTeamPlayers(Dem_Team(2)));
+			snprintf (name, sizeof(name), "%don%d_", Dem_CountTeamPlayers(Dem_Team(1)), Dem_CountTeamPlayers(Dem_Team(2)));
 			if (sv_demoExtraNames.value > 0)
 			{
 				Q_strncatz (name, va("[%s]_%s_vs_[%s]_%s_%s",
@@ -1784,13 +1784,13 @@ void SV_MVDEasyRecord_f (void)
 		} else {
 			if (i == 2) {
 				// Duel
-				_snprintf (name, sizeof(name), "duel_%s_vs_%s_%s",
+				snprintf (name, sizeof(name), "duel_%s_vs_%s_%s",
 					Dem_PlayerName(1),
 					Dem_PlayerName(2),
 					sv.name);
 			} else {
 				// FFA
-				_snprintf (name, sizeof(name), "ffa_%s(%d)", sv.name, i);
+				snprintf (name, sizeof(name), "ffa_%s(%d)", sv.name, i);
 			}
 		}
 	}
@@ -1815,7 +1815,7 @@ void SV_MVDEasyRecord_f (void)
 		i = 1;
 		do {
 			fclose (f);
-			_snprintf(name2, sizeof(name2), "%s_%02i", name, i);
+			snprintf(name2, sizeof(name2), "%s_%02i", name, i);
 //			COM_StripExtension(name2, name2);
 			strcat (name2, ".mvd");
 			if ((f = fopen (name2, "rb")) == 0)
@@ -2069,7 +2069,7 @@ void SV_MVDRemove_f (void)
 					SV_MVDStop_f();
 
 				// stop recording first;
-				_snprintf(path, MAX_OSPATH, "%s/%s/%s", com_gamedir, sv_demoDir.string, list->name);
+				snprintf(path, MAX_OSPATH, "%s/%s/%s", com_gamedir, sv_demoDir.string, list->name);
 				if (!Sys_remove(path))
 				{
 					Con_Printf("removing %s...\n", list->name);
@@ -2095,7 +2095,7 @@ void SV_MVDRemove_f (void)
 	Q_strncpyz(name, Cmd_Argv(1), MAX_MVD_NAME);
 	COM_DefaultExtension(name, ".mvd");
 
-	_snprintf(path, MAX_OSPATH, "%s/%s/%s", com_gamedir, sv_demoDir.string, name);
+	snprintf(path, MAX_OSPATH, "%s/%s/%s", com_gamedir, sv_demoDir.string, name);
 
 	if (sv.mvdrecording && !strcmp(name, demo.name))
 		SV_MVDStop_f();
@@ -2138,7 +2138,7 @@ void SV_MVDRemoveNum_f (void)
 		if (sv.mvdrecording && !strcmp(name, demo.name))
 			SV_MVDStop_f();
 
-		_snprintf(path, MAX_OSPATH, "%s/%s/%s", com_gamedir, sv_demoDir.string, name);
+		snprintf(path, MAX_OSPATH, "%s/%s/%s", com_gamedir, sv_demoDir.string, name);
 		if (!Sys_remove(path))
 		{
 			Con_Printf("demo %s succesfully removed\n", name);
@@ -2172,7 +2172,7 @@ void SV_MVDInfoAdd_f (void)
 			return;
 		}
 
-		_snprintf(path, MAX_OSPATH, "%s/%s/%s", com_gamedir, demo.path, SV_MVDName2Txt(demo.name));
+		snprintf(path, MAX_OSPATH, "%s/%s/%s", com_gamedir, demo.path, SV_MVDName2Txt(demo.name));
 	}
 	else
 	{
@@ -2184,7 +2184,7 @@ void SV_MVDInfoAdd_f (void)
 			return;
 		}
 
-		_snprintf(path, MAX_OSPATH, "%s/%s/%s", com_gamedir, sv_demoDir.string, name);
+		snprintf(path, MAX_OSPATH, "%s/%s/%s", com_gamedir, sv_demoDir.string, name);
 	}
 
 	if ((f = fopen(path, "a+t")) == NULL)
@@ -2224,7 +2224,7 @@ void SV_MVDInfoRemove_f (void)
 			return;
 		}
 
-		_snprintf(path, MAX_OSPATH, "%s/%s/%s", com_gamedir, demo.path, SV_MVDName2Txt(demo.name));
+		snprintf(path, MAX_OSPATH, "%s/%s/%s", com_gamedir, demo.path, SV_MVDName2Txt(demo.name));
 	}
 	else
 	{
@@ -2236,7 +2236,7 @@ void SV_MVDInfoRemove_f (void)
 			return;
 		}
 
-		_snprintf(path, MAX_OSPATH, "%s/%s/%s", com_gamedir, sv_demoDir.string, name);
+		snprintf(path, MAX_OSPATH, "%s/%s/%s", com_gamedir, sv_demoDir.string, name);
 	}
 
 	if (Sys_remove(path))
@@ -2266,7 +2266,7 @@ void SV_MVDInfo_f (void)
 			return;
 		}
 
-		_snprintf(path, MAX_OSPATH, "%s/%s/%s", com_gamedir, demo.path, SV_MVDName2Txt(demo.name));
+		snprintf(path, MAX_OSPATH, "%s/%s/%s", com_gamedir, demo.path, SV_MVDName2Txt(demo.name));
 	}
 	else
 	{
@@ -2278,7 +2278,7 @@ void SV_MVDInfo_f (void)
 			return;
 		}
 
-		_snprintf(path, MAX_OSPATH, "%s/%s/%s", com_gamedir, sv_demoDir.string, name);
+		snprintf(path, MAX_OSPATH, "%s/%s/%s", com_gamedir, sv_demoDir.string, name);
 	}
 
 	if ((f = fopen(path, "rt")) == NULL)

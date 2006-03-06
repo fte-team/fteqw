@@ -789,138 +789,176 @@ char *Media_NextTrack(void)
 
 ///temporary residence for media handling
 #include "roq.h"
-roq_info *roqfilm;
 
-sfxcache_t *moviesoundbuffer;
-sfx_t mediaaudio = {
-	"movieaudio",
-	{NULL, true},
-	NULL
-};
-
-qbyte *staticfilmimage;	//rgba
-int imagewidth;
-int imageheight;
 
 #ifdef WINAVI
 #undef CDECL	//windows is stupid at times.
 #define CDECL __cdecl
 #include <vfw.h>
-AVISTREAMINFO		psi;										// Pointer To A Structure Containing Stream Info
-PAVISTREAM			pavivideo=NULL;
-PAVISTREAM			pavisound=NULL;
-PAVIFILE			pavi=NULL;
-PGETFRAME			pgf=NULL;
-
-LPWAVEFORMAT pWaveFormat;
-
-HWND capturewindow;
 
 int aviinited;
 
-int filmwidth;
-int filmheight;
-float filmfps;
-int num_frames;
-int currentframe;
-float filmstarttime;
-int soundpos;
 #pragma comment( lib, "vfw32.lib" )
 #endif
-static qbyte *framedata;	//this buffer holds the image data temporarily..
 
 #define MFT_CAPTURE 5 //fixme
 
-media_filmtype_t media_filmtype;
+typedef enum {
+	MFT_NONE,
+	MFT_STATIC,	//non-moving, PCX, no sound
+	MFT_ROQ,
+	MFT_AVI,
+	MFT_CIN
+} media_filmtype_t;
 
-int filmnwidth;
-int filmnheight;
+typedef struct cin_s {
 
-qboolean Media_PlayFilm(char *name)
+	//these are the outputs (not always power of two!)
+	int outtype;
+	int outwidth;
+	int outheight;
+	qbyte *outdata;
+	qbyte *outpalette;
+	int outunchanged;
+
+	//
+
+	media_filmtype_t filmtype;
+
+#ifdef WINAVI
+	struct {
+		AVISTREAMINFO		psi;										// Pointer To A Structure Containing Stream Info
+		PAVISTREAM			pavivideo;
+		PAVISTREAM			pavisound;
+		PAVIFILE			pavi;
+		PGETFRAME			pgf;
+
+		LPWAVEFORMAT pWaveFormat;
+		HWND capturewindow;
+	} avi;
+#endif
+
+	struct {
+		qbyte *filmimage;	//rgba
+		int imagewidth;
+		int imageheight;
+	} image;
+
+	struct {
+		roq_info *roqfilm;
+	} roq;
+
+	sfxcache_t *moviesoundbuffer;
+	sfx_t mediaaudio;
+/*		= {
+		"movieaudio",
+		{NULL, true},
+		NULL
+	};
+*/
+
+	float filmstarttime;
+	float nextframetime;
+
+	int currentframe;	//last frame in buffer
+	qbyte *framedata;	//Z_Malloced buffer
+
+	//sound stuff
+	int soundpos;
+
+	//source sizes
+	int filmwidth;
+	int filmheight;
+
+	//source info
+	float filmfps;
+	int num_frames;
+} cin_t;
+
+cin_t *fullscreenvid;
+
+qboolean Media_PlayingFullScreen(void)
 {
-	char *dot;
-	sfx_t *s;
-	soundcardinfo_t *sc;
+	return fullscreenvid!=NULL;
+}
 
-	switch(media_filmtype)	//shut down the old media.
+void Media_ShutdownCin(cin_t *cin)
+{
+	soundcardinfo_t *sc;
+	sfx_t *s;
+
+	if (!cin)
+		return;
+
+	for (sc = sndcardinfo; sc; sc=sc->next)
+	{
+		s = sc->channel[NUM_AMBIENTS].sfx;
+		if (s && s == &cin->mediaaudio)
+		{
+			sc->channel[NUM_AMBIENTS].pos = 0;
+			sc->channel[NUM_AMBIENTS].end = 0;
+			sc->channel[NUM_AMBIENTS].sfx = NULL;
+		}
+	}
+
+	switch(cin->filmtype)	//shut down the old media.
 	{
 	case MFT_ROQ:
-		roq_close(roqfilm);
-		roqfilm=NULL;
-
-		for (sc = sndcardinfo; sc; sc=sc->next)
-		{
-			s = sc->channel[NUM_AMBIENTS].sfx;
-			if (s && s == &mediaaudio)
-			{
-				sc->channel[NUM_AMBIENTS].pos = 0;
-				sc->channel[NUM_AMBIENTS].end = 0;
-				sc->channel[NUM_AMBIENTS].sfx = NULL;
-			}
-		}
+		roq_close(cin->roq.roqfilm);
+		cin->roq.roqfilm=NULL;
 		break;
 
 	case MFT_STATIC:
-		BZ_Free(staticfilmimage);
-		staticfilmimage = NULL;
+		BZ_Free(cin->image.filmimage);
+		cin->image.filmimage = NULL;
 		break;
 
 #ifdef WINAVI
 	case MFT_AVI:
-		AVIStreamGetFrameClose(pgf);
-		AVIStreamEndStreaming(pavivideo);
-		AVIStreamRelease(pavivideo);
-//		AVIFileRelease(pavi);
-
-		for (sc = sndcardinfo; sc; sc=sc->next)
-		{
-			s = sc->channel[NUM_AMBIENTS].sfx;
-			if (s && s == &mediaaudio)
-			{
-				sc->channel[NUM_AMBIENTS].pos = 0;
-				sc->channel[NUM_AMBIENTS].end = 0;
-				sc->channel[NUM_AMBIENTS].sfx = NULL;
-			}
-		}
+		AVIStreamGetFrameClose(cin->avi.pgf);
+		AVIStreamEndStreaming(cin->avi.pavivideo);
+		AVIStreamRelease(cin->avi.pavivideo);
+		//we don't need to free the file (we freed it immediatly after getting the stream handles)
 		break;
 #else
 	case MFT_AVI:
 		break;
 #endif
 
+
 	case MFT_CIN:
 		CIN_FinishCinematic();
 		break;
-#if 0
-	case MFT_CAPTURE:
-		if (capturewindow)
-		{
-			capCaptureStop(capturewindow);
-			capDriverDisconnect(capturewindow);
-			DestroyWindow(capturewindow);
-		}
-		break;
-#endif
 
 	case MFT_NONE:
 		break;
 	}
 
-	media_filmtype = MFT_NONE;
-
-	if (framedata)
+	if (cin->framedata)
 	{
-		BZ_Free(framedata);
-		framedata = NULL;
+		BZ_Free(cin->framedata);
+		cin->framedata = NULL;
 	}
 
+	Z_Free(cin);
+}
+
+
+cin_t *Media_StartCin(char *name)
+{
+	cin_t *cin = NULL;
+	char *dot;
 
 	if (!name || !*name)	//clear only.
-		return false;
+		return NULL;
 
 	dot = strchr(name, '.');	//q2 cinematics work like this.
 	if (dot && (!strcmp(dot, ".pcx") || !strcmp(dot, ".tga") || !strcmp(dot, ".png") || !strcmp(dot, ".jpg")))
 	{
+		qbyte *staticfilmimage;
+		int imagewidth;
+		int imageheight;
+
 		char fullname[MAX_QPATH];
 		qbyte *file;
 		qbyte *ReadPCXFile(qbyte *buf, int length, int *width, int *height);
@@ -928,10 +966,15 @@ qboolean Media_PlayFilm(char *name)
 		qbyte *ReadJPEGFile(qbyte *infile, int length, int *width, int *height);
 		qbyte *ReadPNGFile(qbyte *buf, int length, int *width, int *height, char *fname);
 
-		sprintf(fullname, "pics/%s", name);
+		sprintf(fullname, "%s", name);
 		file = COM_LoadMallocFile(fullname);	//read file
 		if (!file)
-			return false;
+		{
+			sprintf(fullname, "pics/%s", name);
+			file = COM_LoadMallocFile(fullname);	//read file
+			if (!file)
+				return NULL;
+		}
 
 		if ((staticfilmimage = ReadPCXFile(file, com_filesize, &imagewidth, &imageheight)) ||	//convert to 32 rgba if not corrupt
 			(staticfilmimage = ReadTargaFile(file, com_filesize, &imagewidth, &imageheight, false)) ||
@@ -947,184 +990,179 @@ qboolean Media_PlayFilm(char *name)
 		}
 		else
 		{
+			BZ_Free(file);	//got image data
 			Con_Printf("Static cinematic format not supported.\n");	//not supported format
-			return false;
+			return NULL;
 		}
 
-		Con_ClearNotify();
-		if (key_dest != key_console)
-			scr_con_current=0;
-		media_filmtype = MFT_STATIC;
-		return true;
+		cin = Z_Malloc(sizeof(cin_t));
+		cin->filmtype = MFT_STATIC;
+		cin->image.filmimage = staticfilmimage;
+		cin->image.imagewidth = imagewidth;
+		cin->image.imageheight = imageheight;
+
+		return cin;
 	}
+
+
 	if (dot && (!strcmp(dot, ".cin")))
 	{
 		if (CIN_PlayCinematic(name))
-			media_filmtype = MFT_CIN;
-		return true;
+		{
+			cin = Z_Malloc(sizeof(cin_t));
+			cin->filmtype = MFT_CIN;
+		}
+		return cin;
 	}
 
-	if ((roqfilm = roq_open(name)))
 	{
-		Con_ClearNotify();
-		if (key_dest != key_console)
-			scr_con_current=0;
-		media_filmtype = MFT_ROQ;
+		roq_info *roqfilm;
+		if ((roqfilm = roq_open(name)))
+		{
+			cin = Z_Malloc(sizeof(cin_t));
+			cin->filmtype = MFT_ROQ;
+			cin->roq.roqfilm = roqfilm;
+			cin->nextframetime = Sys_DoubleTime();
 
-		framedata = BZ_Malloc(roqfilm->width*roqfilm->height*4);
-		return true;
+			cin->framedata = BZ_Malloc(roqfilm->width*roqfilm->height*4);
+			return cin;
+		}
 	}
+
+
+
+
+
+
+
+
+
 #ifdef WINAVI
-
-#if 0
-	if (dot && (!strcmp(dot, ".cap")))
 	{
-		char drivername[256];
-		capturewindow = capCreateCaptureWindow("Capture Window", WS_OVERLAPPEDWINDOW, 0, 0, 512, 512, mainwindow, 0);
-		ShowWindow(capturewindow, SW_NORMAL);
+		PAVIFILE			pavi;
 
-
-
-		capDriverConnect(capturewindow, atoi(name));
-		drivername[0] = '\0';
-		capDriverGetName(capturewindow, drivername, sizeof(drivername));
-//		capDlgVideoSource(capturewindow);
-		capCaptureSequenceNoFile(capturewindow);
-		Con_Printf("%s", drivername);
-		media_filmtype = MFT_CAPTURE;
-		return false;
-	}
-#endif
-
-	if (!aviinited)
-	{
-		aviinited=true;
-		AVIFileInit();
-	}
-	if (!AVIFileOpen(&pavi, name, OF_READ, NULL))//!AVIStreamOpenFromFile(&pavi, name, streamtypeVIDEO, 0, OF_READ, NULL))
-	{
-		if (AVIFileGetStream(pavi, &pavivideo, streamtypeVIDEO, 0))	//retrieve video stream
+		if (!aviinited)
 		{
-			AVIFileRelease(pavi);
-			Con_Printf("%s contains no video stream\n", name);
-			return false;
+			aviinited=true;
+			AVIFileInit();
 		}
-		if (AVIFileGetStream(pavi, &pavisound, streamtypeAUDIO, 0))	//retrieve audio stream
+		if (!AVIFileOpen(&pavi, name, OF_READ, NULL))//!AVIStreamOpenFromFile(&pavi, name, streamtypeVIDEO, 0, OF_READ, NULL))
 		{
-			Con_Printf("%s contains no audio stream\n", name);
-			pavisound=NULL;
-		}
-		AVIFileRelease(pavi);
+			cin = Z_Malloc(sizeof(cin_t));
+			cin->filmtype = MFT_AVI;
+			cin->avi.pavi = pavi;
 
-//play with video
-		AVIStreamInfo(pavivideo, &psi, sizeof(psi));
-		filmwidth=psi.rcFrame.right-psi.rcFrame.left;					// Width Is Right Side Of Frame Minus Left
-		filmheight=psi.rcFrame.bottom-psi.rcFrame.top;					// Height Is Bottom Of Frame Minus Top
-		framedata = BZ_Malloc(filmwidth*filmheight*4);
-
-		num_frames=AVIStreamLength(pavivideo);							// The Last Frame Of The Stream
-		filmfps=1000.0f*(float)num_frames/(float)AVIStreamSampleToTime(pavivideo,num_frames);		// Calculate Rough Milliseconds Per Frame
-
-		for (filmnwidth = 1; filmnwidth<filmwidth; filmnwidth*=2)
-			;
-		for (filmnheight = 1; filmnheight<filmheight; filmnheight*=2)
-			;
-
-
-		AVIStreamBeginStreaming(pavivideo, 0, num_frames, 100);
-
-		pgf=AVIStreamGetFrameOpen(pavivideo, NULL);
-
-		currentframe=0;
-		filmstarttime = Sys_DoubleTime();
-
-soundpos=0;
-
-
-//play with sound
-		if (pavisound)
-		{
-			LONG lSize;
-			LPBYTE pChunk;
-			AVIStreamRead(pavisound, 0, AVISTREAMREAD_CONVENIENT, NULL, 0, &lSize, NULL);
-
-			if (!lSize)
-				pWaveFormat = NULL;
-			else
+			if (AVIFileGetStream(cin->avi.pavi, &cin->avi.pavivideo, streamtypeVIDEO, 0))	//retrieve video stream
 			{
+				AVIFileRelease(pavi);
+				Con_Printf("%s contains no video stream\n", name);
+				return NULL;
+			}
+			if (AVIFileGetStream(cin->avi.pavi, &cin->avi.pavisound, streamtypeAUDIO, 0))	//retrieve audio stream
+			{
+				Con_DPrintf("%s contains no audio stream\n", name);
+				cin->avi.pavisound=NULL;
+			}
+			AVIFileRelease(cin->avi.pavi);
 
-				pChunk = BZ_Malloc(sizeof(qbyte)*lSize);
+	//play with video
+			AVIStreamInfo(cin->avi.pavivideo, &cin->avi.psi, sizeof(cin->avi.psi));
+			cin->filmwidth=cin->avi.psi.rcFrame.right-cin->avi.psi.rcFrame.left;					// Width Is Right Side Of Frame Minus Left
+			cin->filmheight=cin->avi.psi.rcFrame.bottom-cin->avi.psi.rcFrame.top;					// Height Is Bottom Of Frame Minus Top
+			cin->framedata = BZ_Malloc(cin->filmwidth*cin->filmheight*4);
+
+			cin->num_frames=AVIStreamLength(cin->avi.pavivideo);							// The Last Frame Of The Stream
+			cin->filmfps=1000.0f*(float)cin->num_frames/(float)AVIStreamSampleToTime(cin->avi.pavivideo,cin->num_frames);		// Calculate Rough Milliseconds Per Frame
 
 
-				if(AVIStreamReadFormat(pavisound, AVIStreamStart(pavisound), pChunk, &lSize))
+			AVIStreamBeginStreaming(cin->avi.pavivideo, 0, cin->num_frames, 100);
+
+			cin->avi.pgf=AVIStreamGetFrameOpen(cin->avi.pavivideo, NULL);
+
+			cin->currentframe=0;
+			cin->filmstarttime = Sys_DoubleTime();
+
+			cin->soundpos=0;
+
+
+	//play with sound
+			if (cin->avi.pavisound)
+			{
+				LONG lSize;
+				LPBYTE pChunk;
+				AVIStreamRead(cin->avi.pavisound, 0, AVISTREAMREAD_CONVENIENT, NULL, 0, &lSize, NULL);
+
+				if (!lSize)
+					cin->avi.pWaveFormat = NULL;
+				else
 				{
-				   // error
-					Con_Printf("Failiure reading sound info\n");
+
+					pChunk = BZ_Malloc(sizeof(qbyte)*lSize);
+
+
+					if(AVIStreamReadFormat(cin->avi.pavisound, AVIStreamStart(cin->avi.pavisound), pChunk, &lSize))
+					{
+					   // error
+						Con_Printf("Failiure reading sound info\n");
+					}
+					cin->avi.pWaveFormat = (LPWAVEFORMAT)pChunk;
 				}
-				pWaveFormat = (LPWAVEFORMAT)pChunk;
+
+				if (!cin->avi.pWaveFormat)
+				{
+					Con_Printf("VFW is broken\n");
+					AVIStreamRelease(cin->avi.pavisound);
+					cin->avi.pavisound=NULL;
+				}
+				else if (cin->avi.pWaveFormat->wFormatTag != 1)
+				{
+					Con_Printf("Audio stream is not PCM\n");	//FIXME: so that it no longer is...
+					AVIStreamRelease(cin->avi.pavisound);
+					cin->avi.pavisound=NULL;
+				}
+
 			}
 
-			if (!pWaveFormat)
-			{
-				Con_Printf("VFW is broken\n");
-				AVIStreamRelease(pavisound);
-				pavisound=NULL;
-			}
-			else if (pWaveFormat->wFormatTag != 1)
-			{
-				Con_Printf("Audio stream is not PCM\n");	//FIXME: so that it no longer is...
-				AVIStreamRelease(pavisound);
-				pavisound=NULL;
-			}
-
+			cin->filmtype = MFT_AVI;
+			return cin;
 		}
-
-
-
-
-		Con_ClearNotify();
-		if (key_dest != key_console)
-			scr_con_current=0;
-
-		media_filmtype = MFT_AVI;
-		return true;
 	}
 #endif
-	
-	Con_Printf("Failed to find file %s\n", name);
-	return false;
+
+	return NULL;
 }
 
-qboolean Media_ShowFilm(void)
+qboolean Media_DecodeFrame(cin_t *cin)
 {
-//	sfx_t *s;
-	static float lastframe=0;
-//	soundcardinfo_t *sc;
-
 	float curtime = Sys_DoubleTime();
-	
-	switch (media_filmtype)
+
+	switch (cin->filmtype)
 	{
 	case MFT_ROQ:
-		if (curtime<lastframe || roq_read_frame(roqfilm)==1)	 //0 if end, -1 if error, 1 if success
+		if (curtime<cin->nextframetime || roq_read_frame(cin->roq.roqfilm)==1)	 //0 if end, -1 if error, 1 if success
 		{			
 		//#define LIMIT(x) ((x)<0xFFFF)?(x)>>16:0xFF;
 #define LIMIT(x) ((((x) > 0xffffff) ? 0xff0000 : (((x) <= 0xffff) ? 0 : (x) & 0xff0000)) >> 16)
-			unsigned char *pa=roqfilm->y[0];
-			unsigned char *pb=roqfilm->u[0];
-			unsigned char *pc=roqfilm->v[0];
-			int _pixel=0;
-			int num_columns=(roqfilm->width)>>1;
+			unsigned char *pa=cin->roq.roqfilm->y[0];
+			unsigned char *pb=cin->roq.roqfilm->u[0];
+			unsigned char *pc=cin->roq.roqfilm->v[0];
+			int pixel=0;
+			int num_columns=(cin->roq.roqfilm->width)>>1;
+			int num_rows=cin->roq.roqfilm->height;
 			int y;
 			int x;
-			if (!(curtime<lastframe))	//roq file was read properly
+
+			qbyte *framedata;
+			if (!(curtime<cin->nextframetime))	//roq file was read properly
 			{
-				lastframe += 1/30.0;	//add a little bit of extra speed so we cover up a little bit of glitchy sound... :o)
+				cin->nextframetime += 1/30.0;	//add a little bit of extra speed so we cover up a little bit of glitchy sound... :o)
 
-				if (lastframe < curtime)
-					lastframe = curtime;
+				if (cin->nextframetime < curtime)
+					cin->nextframetime = curtime;
 
-				for(y = 0; y < roqfilm->height; ++y)	//roq playing doesn't give nice data. It's still fairly raw.
+				framedata = cin->framedata;
+
+				for(y = 0; y < num_rows; ++y)	//roq playing doesn't give nice data. It's still fairly raw.
 				{										//convert it properly.
 					for(x = 0; x < num_columns; ++x)
 					{
@@ -1141,19 +1179,19 @@ qboolean Media_ShowFilm(void)
 						b = 116130 * u;
 
 						t=r+y1;
-						framedata[_pixel] =(unsigned char) LIMIT(t);
+						framedata[pixel] =(unsigned char) LIMIT(t);
 						t=g+y1;
-						framedata[_pixel+1] =(unsigned char) LIMIT(t);
+						framedata[pixel+1] =(unsigned char) LIMIT(t);
 						t=b+y1;
-						framedata[_pixel+2] =(unsigned char) LIMIT(t);
+						framedata[pixel+2] =(unsigned char) LIMIT(t);
 
 						t=r+y2;
-						framedata[_pixel+4] =(unsigned char) LIMIT(t);
+						framedata[pixel+4] =(unsigned char) LIMIT(t);
 						t=g+y2;
-						framedata[_pixel+5] =(unsigned char) LIMIT(t);
+						framedata[pixel+5] =(unsigned char) LIMIT(t);
 						t=b+y2;
-						framedata[_pixel+6] =(unsigned char) LIMIT(t);
-						_pixel+=8;
+						framedata[pixel+6] =(unsigned char) LIMIT(t);
+						pixel+=8;
 
 					}
 					if(y & 0x01) { pb += num_columns; pc += num_columns; }
@@ -1161,14 +1199,18 @@ qboolean Media_ShowFilm(void)
 			}
 			else if (vid.numpages == 1)	//previous frame is still in page.
 			{
-				SCR_SetUpToDrawConsole();	//animate the console at the right speed, but don't bother drawing it.
+				cin->outunchanged = true;
 				return true;
 			}
 
-			Media_ShowFrameRGBA_32(framedata, roqfilm->width, roqfilm->height);
+			cin->outunchanged = false;
+			cin->outtype = 1;
+			cin->outwidth = cin->roq.roqfilm->width;
+			cin->outheight = cin->roq.roqfilm->height;
+			cin->outdata = cin->framedata;
 
-			if (roqfilm->audio_channels && sndcardinfo && roqfilm->aud_pos < roqfilm->vid_pos)
-			if (roq_read_audio(roqfilm)>0)
+			if (cin->roq.roqfilm->audio_channels && sndcardinfo && cin->roq.roqfilm->aud_pos < cin->roq.roqfilm->vid_pos)
+			if (roq_read_audio(cin->roq.roqfilm)>0)
 			{
 /*				FILE *f;
 				char wav[] = "\x52\x49\x46\x46\xea\x5f\x04\x00\x57\x41\x56\x45\x66\x6d\x74\x20\x12\x00\x00\x00\x01\x00\x02\x00\x22\x56\x00\x00\x88\x58\x01\x00\x04\x00\x10\x00\x00\x00\x66\x61\x63\x74\x04\x00\x00\x00\xee\x17\x01\x00\x64\x61\x74\x61\xb8\x5f\x04\x00";
@@ -1186,38 +1228,65 @@ qboolean Media_ShowFilm(void)
 				fwrite(&size, sizeof(size), 1, f);
 				fclose(f);
 */
-				S_RawAudio(-1, roqfilm->audio, 22050, roqfilm->audio_size/roqfilm->audio_channels, roqfilm->audio_channels, 2);
+				S_RawAudio(-1, cin->roq.roqfilm->audio, 22050, cin->roq.roqfilm->audio_size/cin->roq.roqfilm->audio_channels, cin->roq.roqfilm->audio_channels, 2);
 			}
 
 			return true;
 		}
-
-		Media_PlayFilm(NULL);
-
-		return false;
-
-
-
+		else
+		{
+			cin->roq.roqfilm->frame_num = 0;
+			cin->roq.roqfilm->aud_pos = cin->roq.roqfilm->roq_start;
+			cin->roq.roqfilm->vid_pos = cin->roq.roqfilm->roq_start;
+		}
+		break;
 
 	case MFT_STATIC:
-		Media_ShowFrameRGBA_32(staticfilmimage, imagewidth, imageheight);
+		cin->outunchanged = cin->outtype;//handy
+		cin->outtype = 1;
+		cin->outwidth = cin->image.imagewidth;
+		cin->outheight = cin->image.imageheight;
+		cin->outdata = cin->image.filmimage;
 		return true;
 
-#ifdef WINAVI
+	case MFT_CIN:
+		//FIXME!
+		if (CIN_RunCinematic())
+		{
+			CIN_DrawCinematic();
+			return true;
+		}
+		break;
+
+
 	case MFT_AVI:
 		{
 			LPBITMAPINFOHEADER lpbi;									// Holds The Bitmap Header Information
+			float newframe;
+			int newframei;
 
-			currentframe = (curtime - filmstarttime)*filmfps;
+			newframe = (curtime - cin->filmstarttime)*cin->filmfps;
+			newframei = newframe;
 
-			if (currentframe>=num_frames)
-			{			
-				Media_PlayFilm(NULL);
+			if (newframe == cin->currentframe)
+			{
+				cin->outunchanged = true;
+				return true;
+			}
+
+			if (cin->currentframe < newframei-1)
+				Con_DPrintf("Dropped %i frame(s)\n", (newframei - cin->currentframe)-1);
+
+			cin->currentframe = newframei;
+			Con_DPrintf("%i\n", newframei);
+
+			if (cin->currentframe>=cin->num_frames)
+			{
 				return false;
 			}
 
-			lpbi = (LPBITMAPINFOHEADER)AVIStreamGetFrame(pgf, currentframe);	// Grab Data From The AVI Stream
-			currentframe++;
+			lpbi = (LPBITMAPINFOHEADER)AVIStreamGetFrame(cin->avi.pgf, cin->currentframe);	// Grab Data From The AVI Stream
+			cin->currentframe++;
 			if (!lpbi || lpbi->biBitCount != 24)//oops
 			{		
 				SCR_SetUpToDrawConsole();
@@ -1229,50 +1298,109 @@ qboolean Media_ShowFilm(void)
 			}
 			else
 			{
-				Media_ShowFrameBGR_24_Flip((char*)lpbi+lpbi->biSize, lpbi->biWidth, lpbi->biHeight);
+				cin->outtype = 3;
+				cin->outwidth = lpbi->biWidth;
+				cin->outheight = lpbi->biHeight;
+				cin->outdata = (char*)lpbi+lpbi->biSize;
 			}
 
-			if (pavisound)
+			if (cin->avi.pavisound)
 			{
 				LONG lSize;
 				LPBYTE pBuffer;
 				LONG samples;
 
-				AVIStreamRead(pavisound, 0, AVISTREAMREAD_CONVENIENT,
+				AVIStreamRead(cin->avi.pavisound, 0, AVISTREAMREAD_CONVENIENT,
 				   NULL, 0, &lSize, &samples);
 
-				soundpos+=samples;
+				cin->soundpos+=samples;
 
-				pBuffer = framedata;
+				pBuffer = cin->framedata;
 
-				AVIStreamRead(pavisound, soundpos, AVISTREAMREAD_CONVENIENT, pBuffer, lSize, NULL, &samples);
+				AVIStreamRead(cin->avi.pavisound, cin->soundpos, AVISTREAMREAD_CONVENIENT, pBuffer, lSize, NULL, &samples);
 
-				S_RawAudio(-1, pBuffer, pWaveFormat->nSamplesPerSec, samples, pWaveFormat->nChannels, 2);			
+				S_RawAudio(-1, pBuffer, cin->avi.pWaveFormat->nSamplesPerSec, samples, cin->avi.pWaveFormat->nChannels, 2);			
 			}
 		}
 		return true;
-#else
-	case MFT_AVI:
-		break;
-#endif
-	case MFT_CIN:
-		if (CIN_RunCinematic())
-		{
-			CIN_DrawCinematic();
-			return true;
-		}
-		break;
-#ifdef WINAVI
-	case MFT_CAPTURE:
-
-		return false;
-#endif
-	case MFT_NONE:
-		break;
 	}
-	Media_PlayFilm(NULL);
 	return false;
 }
+
+
+
+qboolean Media_PlayFilm(char *name)
+{
+	Media_ShutdownCin(fullscreenvid);
+	fullscreenvid = Media_StartCin(name);
+
+	if (fullscreenvid)
+	{
+		Con_ClearNotify();
+		if (key_dest != key_console)
+			scr_con_current=0;
+		return true;
+	}
+	else
+		return false;
+}
+qboolean Media_ShowFilm(void)
+{
+	if (!fullscreenvid)
+		return false;
+	if (!Media_DecodeFrame(fullscreenvid))
+	{
+		Media_ShutdownCin(fullscreenvid);
+		fullscreenvid = NULL;
+		return false;
+	}
+
+	switch(fullscreenvid->outtype)
+	{
+	case 1:
+		Media_ShowFrameRGBA_32(fullscreenvid->outdata, fullscreenvid->outwidth, fullscreenvid->outheight);
+		break;
+	case 2:
+		Media_ShowFrame8bit(fullscreenvid->outdata, fullscreenvid->outwidth, fullscreenvid->outheight, fullscreenvid->outpalette);
+		break;
+	case 3:
+		Media_ShowFrameBGR_24_Flip(fullscreenvid->outdata, fullscreenvid->outwidth, fullscreenvid->outheight);
+		break;
+	}
+
+	return true;
+}
+
+#ifdef RGLQUAKE
+int Media_UpdateForShader(int texnum, cin_t *cin)
+{
+	if (!cin)
+		return 0;
+	if (!Media_DecodeFrame(cin))
+	{
+		return 0;
+	}
+
+	GL_Bind(100);
+	switch(cin->outtype)
+	{
+	case 1:
+		GL_Upload32("cin", (unsigned int*)cin->outdata, cin->outwidth, cin->outheight, false, false);
+		break;
+	case 2:
+		GL_Upload8("cin", cin->outdata, cin->outwidth, cin->outheight, false, false);
+		break;
+	case 3:
+		GL_Upload24BGR_Flip ("cin", cin->outdata, cin->outwidth, cin->outheight, false, false);
+		break;
+	}
+
+
+	return 100;
+}
+#endif
+
+
 
 void Media_PlayFilm_f (void)
 {
@@ -1285,6 +1413,23 @@ void Media_PlayFilm_f (void)
 	else
 		Media_PlayFilm(Cmd_Argv(1));
 }
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 #if defined(RGLQUAKE) && defined(WINAVI)
@@ -1544,7 +1689,7 @@ void Media_RecordFilm_f (void)
 
 	if (capturetype == CT_AVI)
 	{
-		_snprintf(filename, 192, "%s%s", com_gamedir, Cmd_Argv(1));
+		snprintf(filename, 192, "%s%s", com_gamedir, Cmd_Argv(1));
 		COM_StripExtension(filename, filename);
 		COM_DefaultExtension (filename, ".avi");
 

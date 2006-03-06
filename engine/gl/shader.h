@@ -108,6 +108,8 @@ typedef struct shaderpass_s {
 	shaderfunc_t rgbgen_func;
 	shaderfunc_t alphagen_func;
 
+	struct cin_s *cin;
+
 	
     unsigned int	blendsrc, blenddst; // glBlendFunc args
 	unsigned int	blendmode, envmode;
@@ -173,7 +175,8 @@ typedef struct shaderpass_s {
 		SHADER_PASS_LIGHTMAP	= 1 << 5,
 		SHADER_PASS_DELUXMAP	= 1 << 6,
 		SHADER_PASS_NOCOLORARRAY = 1<< 7,
-		SHADER_PASS_ANIMMAP		= 1 << 8
+		SHADER_PASS_ANIMMAP		= 1 << 8,
+		SHADER_PASS_GPUPROGRAM	= 1 << 9
 	} flags;
 } shaderpass_t;
 
@@ -212,7 +215,8 @@ typedef struct shader_s {
 		SHADER_DEPTHWRITE		= 1 << 11,
 		SHADER_AGEN_PORTAL		= 1 << 12,
 		SHADER_BLEND			= 1 << 13,	//blend or alphatest (not 100% opaque).
-		SHADER_NODRAW			= 1 << 14	//parsed only to pee off developers when they forget it on no-pass shaders.
+		SHADER_NODRAW			= 1 << 14,	//parsed only to pee off developers when they forget it on no-pass shaders.
+		SHADER_PROGRAM			= 1 << 15	//run a script
 	} flags;
 
 	shaderpass_t passes[SHADER_PASS_MAX];

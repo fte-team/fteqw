@@ -194,7 +194,7 @@ void Scrap_Upload (void)
 {
 	scrap_uploads++;
 	GL_Bind(scrap_texnum);
-	GL_Upload8 (scrap_texels[0], BLOCK_WIDTH, BLOCK_HEIGHT, false, true);
+	GL_Upload8 ("scrap", scrap_texels[0], BLOCK_WIDTH, BLOCK_HEIGHT, false, true);
 	scrap_dirty = false;
 }
 
@@ -357,15 +357,13 @@ mpic_t	*GLDraw_SafeCachePic (char *path)
 	if (glmenu_numcachepics == MAX_CACHED_PICS)
 		Sys_Error ("menu_numcachepics == MAX_CACHED_PICS");
 
-
-
 //
 // load the pic from disk
 //
 	{
 		char *mem;
 		char alternatename[MAX_QPATH];
-		_snprintf(alternatename, MAX_QPATH-1, "pics/%s.pcx", path);
+		snprintf(alternatename, sizeof(alternatename), "pics/%s.pcx", path);
 		data = COM_LoadMallocFile (alternatename);
 		if (data)
 		{
@@ -393,7 +391,7 @@ mpic_t	*GLDraw_SafeCachePic (char *path)
 	{
 		char *mem;
 		char alternatename[MAX_QPATH];
-		_snprintf(alternatename, MAX_QPATH-1, "%s", path);
+		snprintf(alternatename, MAX_QPATH-1, "%s", path);
 		data = COM_LoadMallocFile (alternatename);
 		if (data)
 		{
@@ -435,7 +433,7 @@ mpic_t	*GLDraw_SafeCachePic (char *path)
 	{
 		char *mem;
 		char alternatename[MAX_QPATH];
-		_snprintf(alternatename, MAX_QPATH-1,"%s.jpg", path);
+		snprintf(alternatename, MAX_QPATH-1,"%s.jpg", path);
 		data = COM_LoadMallocFile (alternatename);
 		if (data)
 		{
@@ -2422,6 +2420,16 @@ void MediaGL_ShowFrameBGR_24_Flip(qbyte *framedata, int inwidth, int inheight)
 	dest = uploadmemorybufferintermediate;
 	//change from bgr bottomup to rgba topdown
 
+	for (filmnwidth = 1; filmnwidth < inwidth; filmnwidth*=2)
+		;
+	for (filmnheight = 1; filmnheight < inheight; filmnheight*=2)
+		;
+
+	if (filmnwidth > 512)
+		filmnwidth = 512;
+	if (filmnheight > 512)
+		filmnheight = 512;
+
 	if (inwidth*inheight > sizeofuploadmemorybufferintermediate/4)
 		Sys_Error("MediaGL_ShowFrameBGR_24_Flip: image too big (%i*%i)", inwidth, inheight);
 
@@ -3122,6 +3130,154 @@ done:
 	}
 }
 
+void GL_Upload24BGR (char *name, qbyte *framedata, int inwidth, int inheight,  qboolean mipmap, qboolean alpha)
+{
+	int outwidth, outheight;
+	int y, x;
+
+	int v;
+	unsigned int f, fstep;
+	qbyte *src, *dest;
+	dest = uploadmemorybufferintermediate;
+	//change from bgr bottomup to rgba topdown
+
+	for (outwidth = 1; outwidth < inwidth; outwidth*=2)
+		;
+	for (outheight = 1; outheight < inheight; outheight*=2)
+		;
+
+	if (outwidth > 512)
+		outwidth = 512;
+	if (outheight > 512)
+		outheight = 512;
+
+	if (outwidth*outheight > sizeofuploadmemorybufferintermediate/4)
+		Sys_Error("MediaGL_ShowFrameBGR_24_Flip: image too big (%i*%i)", inwidth, inheight);
+
+	for (y=0 ; y<outheight ; y++)
+	{
+		v = (y*(float)inheight/outheight);
+		src = framedata + v*(inwidth*3);
+		{
+			f = 0;
+			fstep = ((inwidth)*0x10000)/outwidth;
+
+			for (x=outwidth ; x&3 ; x--)	//do the odd ones first. (bigger condition)
+			{
+				*dest++	= src[(f>>16)*3+2];
+				*dest++	= src[(f>>16)*3+1];
+				*dest++	= src[(f>>16)*3+0];
+				*dest++	= 255;
+				f += fstep;
+			}
+			for ( ; x ; x-=4)	//loop through the remaining chunks.
+			{
+				dest[0]		= src[(f>>16)*3+2];
+				dest[1]		= src[(f>>16)*3+1];
+				dest[2]		= src[(f>>16)*3+0];
+				dest[3]		= 255;
+				f += fstep;
+
+				dest[4]		= src[(f>>16)*3+2];
+				dest[5]		= src[(f>>16)*3+1];
+				dest[6]		= src[(f>>16)*3+0];
+				dest[7]		= 255;
+				f += fstep;
+
+				dest[8]		= src[(f>>16)*3+2];
+				dest[9]		= src[(f>>16)*3+1];
+				dest[10]	= src[(f>>16)*3+0];
+				dest[11]	= 255;
+				f += fstep;
+
+				dest[12]	= src[(f>>16)*3+2];
+				dest[13]	= src[(f>>16)*3+1];
+				dest[14]	= src[(f>>16)*3+0];
+				dest[15]	= 255;
+				f += fstep;
+
+				dest += 16;
+			}
+		}
+	}
+
+	GL_Upload32 (name, (unsigned int*)uploadmemorybufferintermediate, outwidth, outheight, mipmap, alpha);
+}
+void GL_Upload24BGR_Flip (char *name, qbyte *framedata, int inwidth, int inheight,  qboolean mipmap, qboolean alpha)
+{
+	int outwidth, outheight;
+	int y, x;
+
+	int v;
+	unsigned int f, fstep;
+	qbyte *src, *dest;
+	dest = uploadmemorybufferintermediate;
+	//change from bgr bottomup to rgba topdown
+
+	for (outwidth = 1; outwidth < inwidth; outwidth*=2)
+		;
+	for (outheight = 1; outheight < inheight; outheight*=2)
+		;
+
+	if (outwidth > 512)
+		outwidth = 512;
+	if (outheight > 512)
+		outheight = 512;
+
+	if (outwidth*outheight > sizeofuploadmemorybufferintermediate/4)
+		Sys_Error("MediaGL_ShowFrameBGR_24_Flip: image too big (%i*%i)", inwidth, inheight);
+
+	for (y=1 ; y<=outheight ; y++)
+	{
+		v = ((outheight - y)*(float)inheight/outheight);
+		src = framedata + v*(inwidth*3);
+		{
+			f = 0;
+			fstep = ((inwidth)*0x10000)/outwidth;
+
+			for (x=outwidth ; x&3 ; x--)	//do the odd ones first. (bigger condition)
+			{
+				*dest++	= src[(f>>16)*3+2];
+				*dest++	= src[(f>>16)*3+1];
+				*dest++	= src[(f>>16)*3+0];
+				*dest++	= 255;
+				f += fstep;
+			}
+			for ( ; x ; x-=4)	//loop through the remaining chunks.
+			{
+				dest[0]		= src[(f>>16)*3+2];
+				dest[1]		= src[(f>>16)*3+1];
+				dest[2]		= src[(f>>16)*3+0];
+				dest[3]		= 255;
+				f += fstep;
+
+				dest[4]		= src[(f>>16)*3+2];
+				dest[5]		= src[(f>>16)*3+1];
+				dest[6]		= src[(f>>16)*3+0];
+				dest[7]		= 255;
+				f += fstep;
+
+				dest[8]		= src[(f>>16)*3+2];
+				dest[9]		= src[(f>>16)*3+1];
+				dest[10]	= src[(f>>16)*3+0];
+				dest[11]	= 255;
+				f += fstep;
+
+				dest[12]	= src[(f>>16)*3+2];
+				dest[13]	= src[(f>>16)*3+1];
+				dest[14]	= src[(f>>16)*3+0];
+				dest[15]	= 255;
+				f += fstep;
+
+				dest += 16;
+			}
+		}
+	}
+
+	GL_Upload32 (name, (unsigned int*)uploadmemorybufferintermediate, outwidth, outheight, mipmap, alpha);
+}
+
+
 void GL_Upload8Grey (unsigned char*data, int width, int height,  qboolean mipmap)
 {
 	int			samples;
@@ -3486,7 +3642,7 @@ unsigned ColorPercent[16] =
 	25, 51, 76, 102, 114, 127, 140, 153, 165, 178, 191, 204, 216, 229, 237, 247
 };
 
-void GL_Upload8 (qbyte *data, int width, int height,  qboolean mipmap, qboolean alpha)
+void GL_Upload8 (char *name, qbyte *data, int width, int height,  qboolean mipmap, qboolean alpha)
 {
 	unsigned	*trans = (unsigned *)uploadmemorybufferintermediate;
 	int			i, s;
@@ -3583,7 +3739,7 @@ void GL_Upload8 (qbyte *data, int width, int height,  qboolean mipmap, qboolean 
 #endif
 #endif
 
-	GL_Upload32 (NULL, trans, width, height, mipmap, alpha);
+	GL_Upload32 (name, trans, width, height, mipmap, alpha);
 }
 
 void GL_Upload8FB (qbyte *data, int width, int height,  qboolean mipmap)
@@ -3753,7 +3909,7 @@ TRACE(("dbg: GL_LoadTexture: new %s\n", identifier));
 
 	GL_Bind(texture_extension_number );
 
-	GL_Upload8 (data, width, height, mipmap, alpha);
+	GL_Upload8 ("8bit", data, width, height, mipmap, alpha);
 
 	texture_extension_number++;
 
@@ -3932,7 +4088,7 @@ int GL_LoadCompressed(char *name)
 		return 0;
 
 
-	_snprintf(inname, sizeof(inname)-1, "tex/%s.tex", name);
+	snprintf(inname, sizeof(inname)-1, "tex/%s.tex", name);
 	file = COM_LoadFile(inname, 5);
 	if (!file)
 		return 0;

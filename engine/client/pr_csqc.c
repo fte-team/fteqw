@@ -3468,7 +3468,7 @@ void VARGS CSQC_Abort (char *format, ...)	//an error occured.
 	char		string[1024];
 
 	va_start (argptr, format);
-	_vsnprintf (string,sizeof(string)-1, format,argptr);
+	vsnprintf (string,sizeof(string)-1, format,argptr);
 	va_end (argptr);
 
 	Con_Printf("CSQC_Abort: %s\nShutting down csqc\n", string);
@@ -3522,7 +3522,7 @@ qbyte *CSQC_PRLoadFile (char *path, void *buffer, int bufsize)
 	if (!strcmp(path, "csprogs.dat"))
 	{
 		char newname[MAX_QPATH];
-		_snprintf(newname, MAX_QPATH, "csprogsvers/%x.dat", csqcchecksum);
+		snprintf(newname, MAX_QPATH, "csprogsvers/%x.dat", csqcchecksum);
 
 		file = COM_LoadStackFile(newname, buffer, bufsize);
 		if (file)
@@ -3553,7 +3553,7 @@ int CSQC_PRFileSize (char *path)
 	if (!strcmp(path, "csprogs.dat"))
 	{
 		char newname[MAX_QPATH];
-		_snprintf(newname, MAX_QPATH, "csprogsvers/%x.dat", csqcchecksum);
+		snprintf(newname, MAX_QPATH, "csprogsvers/%x.dat", csqcchecksum);
 
 		file = COM_LoadTempFile (newname);
 		if (file)

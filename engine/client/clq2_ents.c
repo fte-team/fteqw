@@ -297,7 +297,7 @@ void CLQ2_RunMuzzleFlash2 (int ent, int flash_number)
 		dl->color[0] = 1;dl->color[1] = 1;dl->color[2] = 0;
 		P_RunParticleEffect (origin, vec3_origin, 0, 40);
 		CL_SmokeAndFlash(origin);
-		_snprintf(soundname, sizeof(soundname), "tank/tnkatk2%c.wav", 'a' + rand() % 5);
+		snprintf(soundname, sizeof(soundname), "tank/tnkatk2%c.wav", 'a' + rand() % 5);
 		Q2S_StartSound (NULL, ent, CHAN_WEAPON, S_PrecacheSound(soundname), 1, ATTN_NORM, 0);
 		break;
 

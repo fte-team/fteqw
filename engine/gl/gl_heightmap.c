@@ -10,7 +10,7 @@
 //it's built into 16 seperate display lists, these display lists are individually culled, but the drivers are expected to optimise them too.
 //Tei claims 14x speedup with a single display list. hopefully we can achieve the same speed by culling per-texture.
 //we get 20->130
-//perhaps we should build it with multitexture?
+//perhaps we should build it with multitexture? (no - slower on ati)
 
 #define SECTIONS 8
 
@@ -29,7 +29,7 @@ typedef struct {
 
 
 #define DISPLISTS
-//#define MULTITEXTURE	//ATI suck. I don't know about anyone else.
+//#define MULTITEXTURE	//ATI suck. I don't know about anyone else (this goes at 1/5th the speed).
 
 void GL_DrawHeightmapModel (entity_t *e)
 {
@@ -45,16 +45,17 @@ void GL_DrawHeightmapModel (entity_t *e)
 	model_t *m = e->model;
 	heightmap_t *hm = m->terrain;
 
-	qglColor4f(1, 1, 1, 1);
 	if (e->model == cl.worldmodel)
 	{
+		qglColor4f(1, 1, 1, 1);
+
 		R_ClearSkyBox();
 		R_ForceSkyBox();
 		R_DrawSkyBox(NULL);
 	}
+	else
+		qglColor4fv(e->shaderRGBAf);
 	qglEnable(GL_CULL_FACE);
-
-	qglColor4fv(e->shaderRGBAf);
 
 	for (x = 0; x < hm->numsegs; x++)
 	{
@@ -272,6 +273,11 @@ unsigned int Heightmap_PointContents(model_t *model, vec3_t org)
 {
 	heightmap_t *hm = model->terrain;
 	return Heightmap_PointContentsHM(hm, 0, org);
+}
+unsigned int Heightmap_NativeBoxContents(model_t *model, int hulloverride, int frame, vec3_t org, vec3_t mins, vec3_t maxs)
+{
+	heightmap_t *hm = model->terrain;
+	return Heightmap_PointContentsHM(hm, mins[2], org);
 }
 
 void Heightmap_Normal(heightmap_t *hm, vec3_t org, vec3_t norm)
@@ -568,6 +574,11 @@ qboolean Heightmap_Trace(model_t *model, int forcehullnum, int frame, vec3_t sta
 
 	return trace->fraction != 1;
 }
+qboolean Heightmap_NativeTrace(struct model_s *model, int hulloverride, int frame, vec3_t p1, vec3_t p2, vec3_t mins, vec3_t maxs, unsigned int against, struct trace_s *trace)
+{
+	return Heightmap_Trace(model, hulloverride, frame, p1, p2, mins, maxs, trace);
+}
+
 #endif
 void Heightmap_FatPVS		(model_t *mod, vec3_t org, qboolean add)
 {
@@ -601,6 +612,8 @@ int	Heightmap_LeafForPoint	(model_t *model, vec3_t point)
 {
 	return 0;
 }
+
+//Heightmap_NativeBoxContents
 
 void GL_LoadHeightmapModel (model_t *mod, void *buffer)
 {
@@ -744,6 +757,10 @@ void GL_LoadHeightmapModel (model_t *mod, void *buffer)
 
 	mod->funcs.Trace				= Heightmap_Trace;
 	mod->funcs.PointContents		= Heightmap_PointContents;
+
+	mod->funcs.NativeContents		= Heightmap_NativeBoxContents;
+	mod->funcs.NativeTrace			= Heightmap_NativeTrace;
+
 	mod->funcs.LightPointValues		= Heightmap_LightPointValues;
 	mod->funcs.StainNode			= Heightmap_StainNode;
 	mod->funcs.MarkLights			= Heightmap_MarkLights;

@@ -279,7 +279,7 @@ void VARGS SV_ClientPrintf (client_t *cl, int level, char *fmt, ...)
 		return;
 
 	va_start (argptr,fmt);
-	_vsnprintf (string,sizeof(string)-1, fmt,argptr);
+	vsnprintf (string,sizeof(string)-1, fmt,argptr);
 	va_end (argptr);
 
 	if(strlen(string) >= sizeof(string))
@@ -309,7 +309,7 @@ void VARGS SV_ClientTPrintf (client_t *cl, int level, translation_t stringnum, .
 		return;
 
 	va_start (argptr,stringnum);
-	_vsnprintf (string,sizeof(string)-1, fmt,argptr);
+	vsnprintf (string,sizeof(string)-1, fmt,argptr);
 	va_end (argptr);
 
 	if(strlen(string) >= sizeof(string))
@@ -341,7 +341,7 @@ void VARGS SV_BroadcastPrintf (int level, char *fmt, ...)
 	int			i;
 
 	va_start (argptr,fmt);
-	_vsnprintf (string,sizeof(string)-1, fmt,argptr);
+	vsnprintf (string,sizeof(string)-1, fmt,argptr);
 	va_end (argptr);
 
 	if(strlen(string) >= sizeof(string))
@@ -384,7 +384,7 @@ void VARGS SV_BroadcastTPrintf (int level, translation_t stringnum, ...)
 	char *fmt = languagetext[stringnum][oldlang=svs.language];
 
 	va_start (argptr,stringnum);
-	_vsnprintf (string,sizeof(string)-1, fmt,argptr);
+	vsnprintf (string,sizeof(string)-1, fmt,argptr);
 	va_end (argptr);
 
 	if(strlen(string) >= sizeof(string))
@@ -406,7 +406,7 @@ void VARGS SV_BroadcastTPrintf (int level, translation_t stringnum, ...)
 			fmt = languagetext[stringnum][oldlang=cl->language];
 
 			va_start (argptr,stringnum);
-			_vsnprintf (string,sizeof(string)-1, fmt,argptr);
+			vsnprintf (string,sizeof(string)-1, fmt,argptr);
 			va_end (argptr);
 
 			if(strlen(string) >= sizeof(string))
@@ -435,7 +435,7 @@ void VARGS SV_BroadcastCommand (char *fmt, ...)
 	if (!sv.state)
 		return;
 	va_start (argptr,fmt);
-	_vsnprintf (string,sizeof(string)-1, fmt,argptr);
+	vsnprintf (string,sizeof(string), fmt,argptr);
 	va_end (argptr);
 
 	for (i=0, cl = svs.clients ; i<MAX_CLIENTS ; i++, cl++)

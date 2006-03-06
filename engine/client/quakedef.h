@@ -184,6 +184,18 @@ extern "C" {
 #define min(a,b) ((a) < (b) ? (a) : (b))
 #endif
 
+
+#ifdef _WIN32
+//msvc crap
+#define snprintf linuxlike_snprintf
+int VARGS linuxlike_snprintf(char *buffer, int size, const char *format, ...);
+#define vsnprintf linuxlike_vsnprintf
+int VARGS linuxlike_vsnprintf(char *buffer, int size, const char *format, va_list argptr);
+
+#define _vsnprintf unsafe_vsnprintf
+#define _snprintf unsafe_snprintf
+#endif
+
 //=============================================================================
 
 // the host system specifies the base of the directory tree, the

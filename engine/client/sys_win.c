@@ -93,7 +93,7 @@ void *Sys_GetGameAPI (void *parms)
 #else
 	_getcwd (cwd, sizeof(cwd));
 #endif
-	_snprintf (name, sizeof(name), "%s/%s/%s", cwd, debugdir, gamename);
+	snprintf (name, sizeof(name), "%s/%s/%s", cwd, debugdir, gamename);
 	game_library = LoadLibrary ( name );
 	if (game_library)
 	{
@@ -119,7 +119,7 @@ void *Sys_GetGameAPI (void *parms)
 				path = COM_NextPath (path);
 				if (!path)
 					return NULL;		// couldn't find one anywhere
-				_snprintf (name, sizeof(name), "%s/%s", path, gamename);
+				snprintf (name, sizeof(name), "%s/%s", path, gamename);
 				game_library = LoadLibrary (name);
 				if (game_library)
 				{
@@ -176,7 +176,7 @@ int VARGS Sys_DebugLog(char *file, char *fmt, ...)
 	static char data[1024];
     
 	va_start(argptr, fmt);
-	_vsnprintf(data, sizeof(data)-1, fmt, argptr);
+	vsnprintf(data, sizeof(data)-1, fmt, argptr);
 	va_end(argptr);
 
 #if defined(CRAZYDEBUGGING) && CRAZYDEBUGGING > 1
@@ -368,6 +368,7 @@ int Sys_EnumerateFiles (char *gpath, char *match, int (*func)(char *, int, void 
 	HANDLE r;
 	WIN32_FIND_DATA fd;	
 	char apath[MAX_OSPATH];
+	char apath2[MAX_OSPATH];
 	char file[MAX_OSPATH];
 	char *s;
 	int go;
@@ -381,21 +382,21 @@ int Sys_EnumerateFiles (char *gpath, char *match, int (*func)(char *, int, void 
 			break;
 	}
 	*s = '\0';
-	
+
 	//this is what we ask windows for.
 	sprintf(file, "%s/*.*", apath);
 
 	//we need to make apath contain the path in match but not gpath
-	strcpy(apath, match);
+	Q_strncpyz(apath2, match, sizeof(apath));
 	match = s+1;
-	for (s = apath+strlen(apath)-1; s> apath; s--)
+	for (s = apath2+strlen(apath2)-1; s> apath2; s--)
 	{
 		if (*s == '/')			
 			break;
 	}
 	*s = '\0';
-	if (s != apath)
-		strcat(apath, "/");
+	if (s != apath2)
+		strcat(apath2, "/");
 
 	r = FindFirstFile(file, &fd);
 	if (r==(HANDLE)-1)
@@ -408,7 +409,7 @@ int Sys_EnumerateFiles (char *gpath, char *match, int (*func)(char *, int, void 
 		{
 			if (wildcmp(match, fd.cFileName))
 			{
-				sprintf(file, "%s%s/", apath, fd.cFileName);
+				sprintf(file, "%s%s/", apath2, fd.cFileName);
 				go = func(file, fd.nFileSizeLow, parm);
 			}
 		}
@@ -416,7 +417,7 @@ int Sys_EnumerateFiles (char *gpath, char *match, int (*func)(char *, int, void 
 		{
 			if (wildcmp(match, fd.cFileName))
 			{
-				sprintf(file, "%s%s", apath, fd.cFileName);
+				sprintf(file, "%s%s", apath2, fd.cFileName);
 				go = func(file, fd.nFileSizeLow, parm);
 			}
 		}
@@ -545,7 +546,7 @@ void VARGS Sys_Error (const char *error, ...)
 //	DWORD		dummy;	
 
  	va_start (argptr, error);
-	_vsnprintf (text, sizeof(text)-1, error, argptr);
+	vsnprintf (text, sizeof(text), error, argptr);
 	va_end (argptr);
 
 	SetHookState(false);
@@ -571,7 +572,7 @@ void VARGS Sys_Printf (char *fmt, ...)
 		return;
 
 	va_start (argptr,fmt);
-	_vsnprintf (text, sizeof(text)-1, fmt, argptr);
+	vsnprintf (text, sizeof(text), fmt, argptr);
 	va_end (argptr);
 
 	WriteFile (houtput, text, strlen(text), &dummy, NULL);
@@ -1101,9 +1102,6 @@ int WINAPI WinMain (HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLin
 	if (!GetCurrentDirectory (sizeof(cwd), cwd))
 		Sys_Error ("Couldn't determine current directory");
 
-	if (cwd[Q_strlen(cwd)-1] == '/' || cwd[Q_strlen(cwd)-1] == '\\')
-		cwd[Q_strlen(cwd)-1] = 0;
-
 	TL_InitLanguages();
 	//tprints are now allowed
 
@@ -1233,12 +1231,12 @@ int WINAPI WinMain (HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLin
 #endif
 		{
 	// yield the CPU for a little while when paused, minimized, or not the focus
-			if (((cl.paused && (!ActiveApp && !DDActive)) || Minimized || block_drawing) && !media_filmtype)
+			if (((cl.paused && (!ActiveApp && !DDActive)) || Minimized || block_drawing) && !Media_PlayingFullScreen())
 			{
 				SleepUntilInput (PAUSE_SLEEP);
 				scr_skipupdate = 1;		// no point in bothering to draw
 			}
-			else if (!ActiveApp && !DDActive && !media_filmtype)
+			else if (!ActiveApp && !DDActive && !Media_PlayingFullScreen())
 			{
 				SleepUntilInput (NOT_FOCUS_SLEEP);
 			}

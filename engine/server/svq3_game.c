@@ -412,30 +412,42 @@ void Q3G_LinkEntity(q3sharedEntity_t *ent)
 	sent->areanum2 = -1;
 
 	//get all leafs, including solids
-	num_leafs = CM_BoxLeafnums(sv.worldmodel, ent->r.absmin, ent->r.absmax,
-		leafs, MAX_TOTAL_ENT_LEAFS, &topnode);
-
-	if(!num_leafs)
-		return;
-
-	// set areas
-	for(i=0; i<num_leafs; i++)
+	if (sv.worldmodel->type == mod_heightmap)
 	{
-		clusters[i] = CM_LeafCluster(sv.worldmodel, leafs[i]);
-		area = CM_LeafArea(sv.worldmodel, leafs[i]);
-		if(area >= 0)
-		{
-			// doors may legally straggle two areas,
-			// but nothing should ever need more than that
-			if(sent->areanum >= 0 && sent->areanum != area)
-			{
-				if(sent->areanum2 >= 0 && sent->areanum2 != area && sv.state == ss_loading)
-					Con_DPrintf("Object touching 3 areas at %f %f %f\n", ent->r.absmin[0], ent->r.absmin[1], ent->r.absmin[2]);
+		sent->areanum = 0;
+		num_leafs = 1;
+		sent->num_clusters = -1;
+		sent->headnode = 0;
+		clusters[0] = 0;
+		topnode = 0;
+	}
+	else
+	{
+		num_leafs = CM_BoxLeafnums(sv.worldmodel, ent->r.absmin, ent->r.absmax,
+			leafs, MAX_TOTAL_ENT_LEAFS, &topnode);
 
-				sent->areanum2 = area;
+		if(!num_leafs)
+			return;
+
+		// set areas
+		for(i=0; i<num_leafs; i++)
+		{
+			clusters[i] = CM_LeafCluster(sv.worldmodel, leafs[i]);
+			area = CM_LeafArea(sv.worldmodel, leafs[i]);
+			if(area >= 0)
+			{
+				// doors may legally straggle two areas,
+				// but nothing should ever need more than that
+				if(sent->areanum >= 0 && sent->areanum != area)
+				{
+					if(sent->areanum2 >= 0 && sent->areanum2 != area && sv.state == ss_loading)
+						Con_DPrintf("Object touching 3 areas at %f %f %f\n", ent->r.absmin[0], ent->r.absmin[1], ent->r.absmin[2]);
+
+					sent->areanum2 = area;
+				}
+				else
+					sent->areanum = area;
 			}
-			else
-				sent->areanum = area;
 		}
 	}
 
@@ -574,9 +586,9 @@ void SVQ3_Trace(q3trace_t *result, vec3_t start, vec3_t mins, vec3_t maxs, vec3_
 	result->fraction = tr.fraction;
 	result->plane = tr.plane;
 	result->startsolid = tr.startsolid;
-//	if (tr.surface)
-//		result->surfaceFlags = tr.surface->flags;
-//	else
+	if (tr.surface)
+		result->surfaceFlags = tr.surface->flags;
+	else
 		result->surfaceFlags = 0;
 
 	for (i = 0; i < 3; i++)
@@ -668,9 +680,9 @@ int SVQ3_PointContents(vec3_t pos, int entnum)
 
 //	sv.worldmodel->funcs.Trace(sv.worldmodel, 0, 0, pos, pos, vec3_origin, vec3_origin, &tr);
 //	tr = CM_BoxTrace(sv.worldmodel, pos, pos, vec3_origin, vec3_origin, 0);
-	cont = CM_PointContents(sv.worldmodel, pos);
+	cont = sv.worldmodel->funcs.NativeContents (sv.worldmodel, 0, 0, pos, vec3_origin, vec3_origin);
 
-	if (entnum == -1)
+	if ((unsigned)entnum >= MAX_GENTITIES)
 		ourowner = -1;
 	else if ( entnum != ENTITYNUM_WORLD )
 	{
@@ -1829,8 +1841,14 @@ qboolean SVQ3_InitGame(void)
 	char sysinfo[8192];
 	extern cvar_t progs;
 
-	if (sv.worldmodel->fromgame == fg_quake || sv.worldmodel->fromgame == fg_quake2)
-		return false;	//always fail on q1bsp
+	if (sv.worldmodel->type == mod_heightmap)
+	{
+	}
+	else
+	{
+		if (sv.worldmodel->fromgame == fg_quake || sv.worldmodel->fromgame == fg_quake2)
+			return false;	//always fail on q1bsp
+	}
 
 	if (*progs.string)	//don't load q3 gamecode if we're explicitally told to load a progs.
 		return false;
@@ -1880,6 +1898,8 @@ qboolean SVQ3_InitGame(void)
 
 	mapentspointer = sv.worldmodel->entities;
 	VM_Call(q3gamevm, GAME_INIT, 0, rand(), false);
+
+	CM_InitBoxHull();
 
 	SVQ3_CreateBaseline();
 

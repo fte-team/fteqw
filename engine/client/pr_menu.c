@@ -1353,7 +1353,7 @@ void VARGS Menu_Abort (char *format, ...)
 	char		string[1024];
 
 	va_start (argptr, format);
-	_vsnprintf (string,sizeof(string)-1, format,argptr);
+	vsnprintf (string,sizeof(string)-1, format,argptr);
 	va_end (argptr);
 
 	Con_Printf("Menu_Abort: %s\nShutting down menu.dat\n", string);

@@ -137,12 +137,15 @@ float oldsbar = 0;
 void SCR_ScreenShot_f (void);
 void SCR_RSShot_f (void);
 
-cvar_t	show_fps	= SCVAR("show_fps", "0");
+cvar_t	show_fps	= SCVARF("show_fps", "0", CVAR_ARCHIVE);
 cvar_t	show_fps_x	= SCVAR("show_fps_x", "-1");
 cvar_t	show_fps_y	= SCVAR("show_fps_y", "-1");
 cvar_t	show_clock	= SCVAR("cl_clock", "0");
 cvar_t	show_clock_x	= SCVAR("cl_clock_x", "0");
 cvar_t	show_clock_y	= SCVAR("cl_clock_y", "-1");
+cvar_t	show_gameclock	= SCVAR("cl_gameclock", "0");
+cvar_t	show_gameclock_x	= SCVAR("cl_gameclock_x", "0");
+cvar_t	show_gameclock_y	= SCVAR("cl_gameclock_y", "-1");
 cvar_t	show_speed	= SCVAR("show_speed", "0");
 cvar_t	show_speed_x	= SCVAR("show_speed_x", "-1");
 cvar_t	show_speed_y	= SCVAR("show_speed_y", "-9");
@@ -156,6 +159,9 @@ void CLSCR_Init(void)
 	Cvar_Register(&show_clock, cl_screengroup);
 	Cvar_Register(&show_clock_x, cl_screengroup);
 	Cvar_Register(&show_clock_y, cl_screengroup);
+	Cvar_Register(&show_gameclock, cl_screengroup);
+	Cvar_Register(&show_gameclock_x, cl_screengroup);
+	Cvar_Register(&show_gameclock_y, cl_screengroup);
 	Cvar_Register(&show_speed, cl_screengroup);
 	Cvar_Register(&show_speed_x, cl_screengroup);
 	Cvar_Register(&show_speed_y, cl_screengroup);
@@ -1156,6 +1162,43 @@ void SCR_DrawClock(void)
 	SCR_StringXY(str, show_clock_x.value, show_clock_y.value);
 }
 
+void SCR_DrawGameClock(void)
+{
+	float showtime;
+	int minuites;
+	int seconds;
+	char str[16];
+	int flags;
+	float timelimit;
+
+	if (!show_gameclock.value)
+		return;
+
+	flags = (show_gameclock.value-1);
+	if (flags & 1) 
+		timelimit = 60 * atof(Info_ValueForKey(cl.serverinfo, "timelimit"));
+	else
+		timelimit = 0;
+
+	showtime = timelimit - cl.ktprogametime;
+
+	if (showtime < 0)
+	{
+		showtime *= -1;
+		minuites = showtime/60;
+		seconds = (int)showtime - (minuites*60);
+		minuites *= -1;
+	}
+	else
+	{
+		minuites = showtime/60;
+		seconds = (int)showtime - (minuites*60);
+	}
+
+	sprintf(str, " %02i:%02i", minuites, seconds);
+
+	SCR_StringXY(str, show_gameclock_x.value, show_gameclock_y.value);
+}
 
 /*
 ==============
@@ -1344,7 +1387,7 @@ void SCR_SetUpToDrawConsole (void)
 		return;         // never a console with loading plaque
 
 // decide on the height of the console
-	if (cls.state != ca_active && !media_filmtype
+	if (cls.state != ca_active && !Media_PlayingFullScreen()
 #ifdef TEXTEDITOR
 		&& !editoractive
 #endif
@@ -1387,7 +1430,7 @@ void SCR_SetUpToDrawConsole (void)
 
 	if (clearconsole++ < vid.numpages)
 	{
-		if (qrenderer == QR_SOFTWARE &&	!media_filmtype)
+		if (qrenderer == QR_SOFTWARE &&	!Media_PlayingFullScreen())
 		{
 			scr_copytop = 1;
 			Draw_TileClear (0, (int) scr_con_current, vid.width, vid.height - (int) scr_con_current);
@@ -1397,7 +1440,7 @@ void SCR_SetUpToDrawConsole (void)
 	}
 	else if (clearnotify++ < vid.numpages)
 	{
-		if (qrenderer == QR_SOFTWARE &&	!media_filmtype)
+		if (qrenderer == QR_SOFTWARE &&	!Media_PlayingFullScreen())
 		{
 			scr_copytop = 1;
 			Draw_TileClear (0, 0, vid.width, con_notifylines);
@@ -2025,6 +2068,7 @@ void SCR_DrawTwoDimensional(int uimenu, qboolean nohud)
 			SCR_DrawFPS ();
 			SCR_DrawUPS ();
 			SCR_DrawClock();
+			SCR_DrawGameClock();
 			SCR_DrawTurtle ();
 			SCR_DrawPause ();
 #ifdef PLUGINS

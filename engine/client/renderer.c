@@ -33,7 +33,7 @@ cvar_t	r_viewmodelsize = SCVAR("r_viewmodelsize","1");
 cvar_t  r_drawviewmodelinvis = SCVAR("r_drawviewmodelinvis", "0");
 cvar_t	r_netgraph = SCVAR("r_netgraph","0");
 cvar_t	r_speeds = SCVARF("r_speeds","0", CVAR_CHEAT);
-cvar_t	r_waterwarp = SCVAR("r_waterwarp","1");
+cvar_t	r_waterwarp = SCVARF("r_waterwarp","1", CVAR_ARCHIVE);
 cvar_t	r_drawentities = SCVAR("r_drawentities","1");
 cvar_t	r_fullbright = SCVARF("r_fullbright","0", CVAR_CHEAT);
 cvar_t	r_ambient = SCVARF("r_ambient", "0", CVAR_CHEAT);
@@ -79,7 +79,7 @@ cvar_t r_stains = SCVARF("r_stains", "0.75", CVAR_ARCHIVE);
 cvar_t r_stainfadetime = SCVAR("r_stainfadetime", "1");
 cvar_t r_stainfadeammount = SCVAR("r_stainfadeammount", "1");
 
-cvar_t		_windowed_mouse = SCVAR("_windowed_mouse","1");
+cvar_t		_windowed_mouse = SCVARF("_windowed_mouse","1", CVAR_ARCHIVE);
 cvar_t		vid_wait = SCVAR("vid_wait","0");
 cvar_t		_vid_wait_override = SCVARF("_vid_wait_override", "", CVAR_ARCHIVE);
 
@@ -96,16 +96,16 @@ static cvar_t	vid_height = SCVARF("vid_height", "480", CVAR_ARCHIVE|CVAR_RENDERE
 static cvar_t	vid_refreshrate = SCVARF("vid_displayfrequency", "0", CVAR_ARCHIVE|CVAR_RENDERERLATCH);
 
 cvar_t	gl_texturemode = SCVAR("gl_texturemode", "GL_LINEAR_MIPMAP_NEAREST");
-cvar_t	gl_motionblur = SCVAR("gl_motionblur", "0");
+cvar_t	gl_motionblur = SCVARF("gl_motionblur", "0", CVAR_ARCHIVE);
 cvar_t	gl_motionblurscale = SCVAR("gl_motionblurscale", "1");
 cvar_t	gl_fontedgeclamp = SCVAR("gl_fontedgeclamp", "0");	//gl blends. Set this to 1 to stop the outside of your conchars from being visible
 cvar_t	gl_font = SCVAR("gl_font", "");
 cvar_t	gl_conback = SCVAR("gl_conback", "");
 cvar_t	gl_smoothfont	= SCVAR("gl_smoothfont", "1");
 cvar_t	gl_part_flame	= SCVAR("gl_part_flame", "1");
-cvar_t	r_part_rain	= SCVAR("r_part_rain", "0");
+cvar_t	r_part_rain	= SCVARF("r_part_rain", "0", CVAR_ARCHIVE);
 
-cvar_t	r_bouncysparks	= SCVAR("r_bouncysparks", "0");
+cvar_t	r_bouncysparks	= SCVARF("r_bouncysparks", "0", CVAR_ARCHIVE);
 
 cvar_t	r_fullbrightSkins	= SCVARF("r_fullbrightSkins", "1",	CVAR_SEMICHEAT);
 cvar_t	r_fb_models		= SCVARF("gl_fb_models", "1", CVAR_SEMICHEAT|CVAR_RENDERERLATCH);	//as it can highlight the gun a little... ooo nooo....
@@ -114,7 +114,7 @@ cvar_t	r_fb_bmodels	= SCVARF("gl_fb_bmodels", "1", CVAR_SEMICHEAT|CVAR_RENDERERL
 cvar_t	r_shadow_bumpscale_basetexture	= SCVAR("r_shadow_bumpscale_basetexture", "4");
 cvar_t	r_shadow_bumpscale_bumpmap	= SCVAR("r_shadow_bumpscale_bumpmap", "10");
 cvar_t	gl_nocolors	= SCVAR("gl_nocolors","0");
-cvar_t		gl_load24bit	= SCVAR("gl_load24bit", "1");
+cvar_t		gl_load24bit	= SCVARF("gl_load24bit", "1", CVAR_ARCHIVE);
 cvar_t		vid_conwidth	= SCVARF("vid_conwidth", "640", CVAR_ARCHIVE);
 cvar_t		vid_conheight	= SCVARF("vid_conheight", "480", CVAR_ARCHIVE);
 cvar_t		gl_nobind	= SCVAR("gl_nobind", "0");
@@ -122,7 +122,7 @@ cvar_t		gl_max_size	= SCVAR("gl_max_size", "1024");
 cvar_t		gl_picmip	= SCVAR("gl_picmip", "0");
 cvar_t		gl_picmip2d	= SCVAR("gl_picmip2d", "0");
 cvar_t		r_drawdisk	= SCVAR("r_drawdisk", "1");
-cvar_t		gl_compress	= SCVAR("gl_compress", "0");
+cvar_t		gl_compress	= SCVARF("gl_compress", "0", CVAR_ARCHIVE);
 cvar_t		gl_savecompressedtex	 = SCVAR("gl_savecompressedtex", "0");
 extern cvar_t gl_dither;
 extern	cvar_t	gl_maxdist;
@@ -133,7 +133,7 @@ cvar_t		gl_detail	= SCVARF("gl_detail", "0", CVAR_ARCHIVE);
 cvar_t		gl_detailscale	= SCVAR("gl_detailscale", "5");
 cvar_t		gl_overbright	= SCVARF("gl_overbright", "0", CVAR_ARCHIVE);
 cvar_t		r_shadows	= SCVARF("r_shadows", "0", CVAR_ARCHIVE|CVAR_RENDERERLATCH);
-cvar_t		r_shadow_realtime_world	= SCVARF("r_shadow_realtime_world", "0", CVAR_CHEAT);
+cvar_t		r_shadow_realtime_world	= SCVARF("r_shadow_realtime_world", "0", CVAR_CHEAT|CVAR_ARCHIVE);
 cvar_t		r_shadow_realtime_world_lightmaps	= SCVARF("r_shadow_realtime_world_lightmaps", "0.8", CVAR_CHEAT);
 cvar_t		r_noaliasshadows	= SCVARF("r_noaliasshadows", "0", CVAR_ARCHIVE);
 cvar_t		gl_maxshadowlights	= SCVARF("gl_maxshadowlights", "2", CVAR_ARCHIVE);
@@ -199,8 +199,8 @@ extern	cvar_t	r_fullbright;
 extern	cvar_t	r_shadows;
 extern	cvar_t	r_mirroralpha;
 extern	cvar_t	r_wateralpha;
-cvar_t	r_dynamic	= SCVAR("r_dynamic","1");
-cvar_t	r_flashblend	= SCVAR("gl_flashblend","0");
+cvar_t	r_dynamic	= SCVARF("r_dynamic","1", CVAR_ARCHIVE);
+cvar_t	r_flashblend	= SCVARF("gl_flashblend","0", CVAR_ARCHIVE);
 cvar_t	r_lightstylesmooth	= SCVAR("r_lightstylesmooth", "0");
 cvar_t	r_lightstylespeed	= SCVAR("r_lightstylespeed", "10");
 extern	cvar_t	r_novis;
@@ -1174,6 +1174,9 @@ void M_Menu_Video_f (void)
 #if defined(SWQUAKE)
 	extern cvar_t d_smooth;
 #endif
+#if defined(RGLQUAKE)
+	extern cvar_t r_bloom;
+#endif
 	extern cvar_t r_bouncysparks;
 	static const char *modenames[128] = {"Custom"};
 	static const char *rendererops[] = {
@@ -1313,6 +1316,7 @@ void M_Menu_Video_f (void)
 #endif
 #ifdef RGLQUAKE
 	MC_AddCheckBox(menu,	16, y,							"  GL Bumpmapping", &gl_bump,0);	y+=8;
+	MC_AddCheckBox(menu,	16, y,							"           Bloom", &r_bloom,0);	y+=8;
 #endif
 	MC_AddCheckBox(menu,	16, y,							"  Dynamic lights", &r_dynamic,0);	y+=8;
 	MC_AddSlider(menu,	16, y,								"     Screen size", &scr_viewsize,	30,		120);y+=8;

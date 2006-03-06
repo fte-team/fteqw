@@ -994,6 +994,84 @@ qboolean TransformedTrace (struct model_s *model, int hulloverride, int frame, v
 	return result;
 }
 
+qboolean TransformedNativeTrace (struct model_s *model, int hulloverride, int frame, vec3_t start, vec3_t end, vec3_t mins, vec3_t maxs, unsigned int against, struct trace_s *trace, vec3_t origin, vec3_t angles)
+{
+	qboolean rotated;
+	vec3_t		start_l, end_l;
+	vec3_t		a;
+	vec3_t		forward, right, up;
+	vec3_t		temp;
+	qboolean	result;
+
+	memset (trace, 0, sizeof(trace_t));
+	trace->fraction = 1;
+	trace->allsolid = false;
+	trace->startsolid = false;
+	trace->inopen = true;	//probably wrong...
+	VectorCopy (end, trace->endpos);
+
+	// don't rotate non bsp ents. Too small to bother.
+	if (model)
+	{
+		rotated = (angles[0] || angles[1] || angles[2]);
+		if (rotated)
+		{
+			AngleVectors (angles, forward, right, up);
+
+			VectorSubtract (start, origin, temp);
+			start_l[0] = DotProduct (temp, forward);
+			start_l[1] = -DotProduct (temp, right);
+			start_l[2] = DotProduct (temp, up);
+
+			VectorSubtract (end, origin, temp);
+			end_l[0] = DotProduct (temp, forward);
+			end_l[1] = -DotProduct (temp, right);
+			end_l[2] = DotProduct (temp, up);
+		}
+		else
+		{
+			VectorSubtract (start, origin, start_l);
+			VectorSubtract (end, origin, end_l);
+		}
+		result = model->funcs.NativeTrace (model, hulloverride, frame, start_l, end_l, mins, maxs, against, trace);
+		if (rotated)
+		{
+			// FIXME: figure out how to do this with existing angles
+	//		VectorNegate (angles, a);
+			a[0] = -angles[0];
+			a[1] = -angles[1];
+			a[2] = -angles[2];
+			AngleVectors (a, forward, right, up);
+
+			VectorCopy (trace->plane.normal, temp);
+			trace->plane.normal[0] = DotProduct (temp, forward);
+			trace->plane.normal[1] = -DotProduct (temp, right);
+			trace->plane.normal[2] = DotProduct (temp, up);
+
+			trace->endpos[0] = start[0] + trace->fraction * (end[0] - start[0]);
+			trace->endpos[1] = start[1] + trace->fraction * (end[1] - start[1]);
+			trace->endpos[2] = start[2] + trace->fraction * (end[2] - start[2]);
+		}
+		VectorAdd (trace->endpos, origin, trace->endpos);
+	}
+	else
+	{
+		hull_t *hull = &box_hull;
+
+		memset (trace, 0, sizeof(trace_t));
+		trace->fraction = 1;
+		trace->allsolid = true;
+
+		VectorSubtract (start, origin, start_l);
+		VectorSubtract (end, origin, end_l);
+		VectorCopy (end_l, trace->endpos);
+		result = Q1BSP_RecursiveHullCheck (hull, hull->firstclipnode, 0, 1, start_l, end_l, trace);
+		VectorAdd (trace->endpos, origin, trace->endpos);
+	}
+
+	return result;
+}
+
 /*
 ==================
 SV_ClipMoveToEntity

@@ -326,7 +326,7 @@ void VARGS IWebDPrintf(char *fmt, ...)
 		return;
 	
 	va_start (argptr,fmt);
-	_vsnprintf (msg,sizeof(msg)-10, fmt,argptr);	//catch any nasty bugs... (this is hopefully impossible)
+	vsnprintf (msg,sizeof(msg)-10, fmt,argptr);	//catch any nasty bugs... (this is hopefully impossible)
 	va_end (argptr);
 
 	Con_Printf("%s", msg);
@@ -337,7 +337,7 @@ void VARGS IWebPrintf(char *fmt, ...)
 	char		msg[4096];
 
 	va_start (argptr,fmt);
-	_vsnprintf (msg,sizeof(msg)-10, fmt,argptr);	//catch any nasty bugs... (this is hopefully impossible)
+	vsnprintf (msg,sizeof(msg)-10, fmt,argptr);	//catch any nasty bugs... (this is hopefully impossible)
 	va_end (argptr);
 
 	Con_Printf("%s", msg);
@@ -348,7 +348,7 @@ void VARGS IWebWarnPrintf(char *fmt, ...)
 	char		msg[4096];
 
 	va_start (argptr,fmt);
-	_vsnprintf (msg,sizeof(msg)-10, fmt,argptr);	//catch any nasty bugs... (this is hopefully impossible)
+	vsnprintf (msg,sizeof(msg)-10, fmt,argptr);	//catch any nasty bugs... (this is hopefully impossible)
 	va_end (argptr);
 
 	Con_Printf(S_WARNING "%s", msg);

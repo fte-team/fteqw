@@ -1446,7 +1446,7 @@ void Key_Event (int key, qboolean down)
 			break;
 #endif
 		case key_game:
-			if (media_filmtype)
+			if (Media_PlayingFullScreen())
 			{
 				Media_PlayFilm("");
 				break;

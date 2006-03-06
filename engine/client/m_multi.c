@@ -39,6 +39,22 @@ void M_Menu_MultiPlayer_f (void)
 	else if (mgt == MGT_HEXEN2)
 	{
 	}
+	else if (QBigFontWorks())
+	{
+		MC_AddPicture(menu, 16, 4, "gfx/qplaque.lmp");
+		MC_AddCenterPicture(menu, 4, "gfx/p_multi.lmp");
+
+		mgt=32;
+		menu->selecteditem = (menuoption_t*)
+		MC_AddConsoleCommandQBigFont	(menu, 72, mgt,	"Join A Game ",	"menu_slist\n");mgt+=20;
+		MC_AddConsoleCommandQBigFont	(menu, 72, 52,	"Browser2    ",	"menu_servers2\n");mgt+=20;
+		MC_AddConsoleCommandQBigFont	(menu, 72, 72,	"New Game    ",	"menu_newmulti\n");mgt+=20;
+		MC_AddConsoleCommandQBigFont	(menu, 72, 92,	"Setup       ",	"menu_setup\n");mgt+=20;
+		MC_AddConsoleCommandQBigFont	(menu, 72, 112,	"Demos       ",	"menu_demo\n");mgt+=20;
+
+		menu->cursoritem = (menuoption_t*)MC_AddCursor(menu, 54, 32);
+		return;
+	}
 	else
 	{
 		p = Draw_SafeCachePic("gfx/mp_menu.lmp");

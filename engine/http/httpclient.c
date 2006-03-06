@@ -4,11 +4,6 @@
 
 #include "iweb.h"
 
-#ifdef _WIN32
-//msvc crap
-#define snprintf _snprintf
-#endif
-
 #include "netinc.h"
 
 /*

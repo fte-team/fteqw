@@ -232,7 +232,7 @@ static char *defaultlanguagetext =
 "TLC_CONNECTFIRST \"Must be connected.\\n\"\n"
 "TLC_SYNTAX_DOWNLOAD \"Usage: download <datafile>\\n\"\n"
 "TLC_REQUIRESSERVERMOD \"%s is only available with server support\\n\"\n"
-"TLC_CLIENTCON_ERROR_ENDGAME \"Host_EndGame: %s\\n\"\n"
+"TLC_CLIENTCON_ERROR_ENDGAME \"Host_EndGame: "S_ERROR"%s\\n\"\n"
 "TLC_HOSTFATALERROR \"Host_Error: %s\\n\"\n"
 "TLC_CONFIGCFG_WRITEFAILED \"Couldn't write config.cfg.\\n\"\n"
 "TLC_HOSTSPEEDSOUTPUT \"%3i tot %3i server %3i gfx %3i snd\\n\"\n"

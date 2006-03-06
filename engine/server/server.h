@@ -1194,6 +1194,7 @@ void SV_FlushLevelCache(void);
 
 int SV_RateForClient(client_t *cl);
 
+qboolean TransformedNativeTrace (struct model_s *model, int hulloverride, int frame, vec3_t start, vec3_t end, vec3_t mins, vec3_t maxs, unsigned int against, struct trace_s *trace, vec3_t origin, vec3_t angles);
 
 void SVVC_Frame (qboolean enabled);
 void SV_CalcPHS (void);

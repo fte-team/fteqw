@@ -32,7 +32,7 @@ void M_ScanSaves (void)
 		strcpy (m_filenames[i], "--- UNUSED SLOT ---");
 		loadable[i] = false;
 
-		_snprintf (line, sizeof(line), "saves/s%i/info.fsv", i);
+		snprintf (line, sizeof(line), "saves/s%i/info.fsv", i);
 		f = FS_OpenVFS (line, "rb", FS_GAME);
 		if (f)
 		{
@@ -163,9 +163,23 @@ void M_Menu_SinglePlayer_f (void)
 		MC_AddConsoleCommand	(menu, 64, 72,	"Medium",	"togglemenu\nskill 1;deathmatch 0; coop 0;map demo1\n");
 		MC_AddConsoleCommand	(menu, 64, 80,	"Hard",		"togglemenu\nskill 2;deathmatch 0; coop 0;map demo1\n");
 
-//		MC_AddConsoleCommand	(menu, 64, 96,	"Load Game", "menu_load\n");
+		MC_AddConsoleCommand	(menu, 64, 96,	"Load Game", "menu_load\n");
 		MC_AddConsoleCommand	(menu, 64, 104,	"Save Game", "menu_save\n");
 
+		return;
+	}
+	else if (QBigFontWorks())
+	{
+		menu = M_CreateMenu(0);
+		MC_AddPicture(menu, 16, 0, "gfx/qplaque.lmp");
+		MC_AddCenterPicture(menu, 0, "gfx/p_option.lmp");
+
+		menu->selecteditem = (menuoption_t*)
+		MC_AddConsoleCommandQBigFont	(menu, 72, 32,	"New Game",		"togglemenu\nmaxclients 1;deathmatch 0;coop 0;map start\n");
+		MC_AddConsoleCommandQBigFont	(menu, 72, 52,	"Load Game", "menu_load\n");
+		MC_AddConsoleCommandQBigFont	(menu, 72, 72,	"Save Game", "menu_save\n");
+
+		menu->cursoritem = (menuoption_t*)MC_AddCursor(menu, 54, 32);
 		return;
 	}
 	else
@@ -204,7 +218,7 @@ void M_Menu_SinglePlayer_f (void)
 	b->common.width = p->width;
 	b->common.height = 20;
 
-	menu->cursoritem = (menuoption_t*)MC_AddCursor(menu, 54, 32);	
+	menu->cursoritem = (menuoption_t*)MC_AddCursor(menu, 54, 32);
 #endif
 	}
 }

@@ -1123,7 +1123,7 @@ void R_VertexTCBase ( int tcgen, int unit )
 	}
 	else if ( tcgen == TC_GEN_ENVIRONMENT ) 
 	{
-		RB_CalcEnvironmentTexCoords(outCoords);	//use genuine q3 code, to get it totally identical
+		RB_CalcEnvironmentTexCoords(outCoords);	//use genuine q3 code, to get it totally identical (for cell shading effects)
 												//plus, it looks like less overhead too
 												//I guess it depends on the size of the mesh
 /*
@@ -1196,7 +1196,7 @@ R_ShaderpassTex
 */
 int R_ShaderpassTex ( shaderpass_t *pass )
 {
-	if (pass->flags & (SHADER_PASS_ANIMMAP|SHADER_PASS_LIGHTMAP|SHADER_PASS_DELUXMAP))
+	if (pass->flags & (SHADER_PASS_ANIMMAP|SHADER_PASS_LIGHTMAP|SHADER_PASS_VIDEOMAP|SHADER_PASS_DELUXMAP))
 	{
 		if ( pass->flags & SHADER_PASS_ANIMMAP ) {
 			return pass->anim_frames[(int)(pass->anim_fps * r_localShaderTime) % pass->anim_numframes];
@@ -1207,7 +1207,11 @@ int R_ShaderpassTex ( shaderpass_t *pass )
 		}
 		else if ( (pass->flags & SHADER_PASS_DELUXMAP) && r_lmtex >= 0 )
 		{
-			return deluxmap_textures[r_lmtex];
+			return lightmap_textures[r_lmtex+1];
+		}
+		else if ( (pass->flags & SHADER_PASS_VIDEOMAP))
+		{
+			return Media_UpdateForShader(pass->anim_frames[0], pass->cin);
 		}
 	}
 
@@ -1887,6 +1891,13 @@ void R_RenderMeshCombined ( meshbuffer_t *mb, shaderpass_t *pass )
 		{
 			switch ( pass->blendmode )
 			{
+			case GL_DOT3_RGB_ARB:
+				GL_TexEnv (GL_COMBINE_EXT);
+				qglTexEnvi(GL_TEXTURE_ENV, GL_SOURCE0_RGB_ARB, GL_TEXTURE);
+				qglTexEnvi(GL_TEXTURE_ENV, GL_SOURCE1_RGB_ARB, GL_PREVIOUS_ARB);
+				qglTexEnvi (GL_TEXTURE_ENV, GL_COMBINE_RGB_EXT, pass->blendmode);
+				break;
+
 			case GL_REPLACE:
 			case GL_MODULATE:
 			case GL_ADD:

@@ -45,6 +45,8 @@ void SWMod_LoadLighting (lump_t *l);
 
 void Q2BSP_SetHullFuncs(hull_t *hull);
 qboolean CM_Trace(model_t *model, int forcehullnum, int frame, vec3_t start, vec3_t end, vec3_t mins, vec3_t maxs, trace_t *trace);
+qboolean CM_NativeTrace(model_t *model, int forcehullnum, int frame, vec3_t start, vec3_t end, vec3_t mins, vec3_t maxs, unsigned int contents, trace_t *trace);
+unsigned int CM_NativeContents(struct model_s *model, int hulloverride, int frame, vec3_t p, vec3_t mins, vec3_t maxs);
 unsigned int Q2BSP_PointContents(model_t *mod, vec3_t p);
 
 qbyte			areabits[MAX_Q2MAP_AREAS/8];
@@ -1243,7 +1245,7 @@ void CMod_LoadTexInfo (lump_t *l)	//yes I know these load from the same place
 				if (*lwr >= 'A' && *lwr <= 'Z')
 					*lwr = *lwr - 'A' + 'a';
 			}
-			_snprintf (name, sizeof(name), "textures/%s.wal", in->texture);
+			snprintf (name, sizeof(name), "textures/%s.wal", in->texture);
 
 			out->texture = Mod_LoadWall (name);
 			if (!out->texture || !out->texture->width || !out->texture->height)
@@ -3621,6 +3623,8 @@ q2cmodel_t *CM_LoadMap (char *name, char *filein, qboolean clientload, unsigned 
 #endif
 			loadmodel->funcs.Trace					= CM_Trace;
 			loadmodel->funcs.PointContents			= Q2BSP_PointContents;
+			loadmodel->funcs.NativeTrace			= CM_NativeTrace;
+			loadmodel->funcs.NativeContents			= CM_NativeContents;
 
 #ifndef SERVERONLY
 			//light grid info
@@ -3707,6 +3711,8 @@ q2cmodel_t *CM_LoadMap (char *name, char *filein, qboolean clientload, unsigned 
 			loadmodel->funcs.LeafnumForPoint		= CM_PointLeafnum;
 			loadmodel->funcs.Trace					= CM_Trace;
 			loadmodel->funcs.PointContents			= Q2BSP_PointContents;
+			loadmodel->funcs.NativeTrace			= CM_NativeTrace;
+			loadmodel->funcs.NativeContents			= CM_NativeContents;
 
 			break;
 #if defined(RGLQUAKE)
@@ -3747,6 +3753,8 @@ q2cmodel_t *CM_LoadMap (char *name, char *filein, qboolean clientload, unsigned 
 			loadmodel->funcs.LeafnumForPoint		= CM_PointLeafnum;
 			loadmodel->funcs.Trace					= CM_Trace;
 			loadmodel->funcs.PointContents			= Q2BSP_PointContents;
+			loadmodel->funcs.NativeTrace			= CM_NativeTrace;
+			loadmodel->funcs.NativeContents			= CM_NativeContents;
 			break;
 #endif
 #if defined(SWQUAKE)
@@ -3787,6 +3795,8 @@ q2cmodel_t *CM_LoadMap (char *name, char *filein, qboolean clientload, unsigned 
 			loadmodel->funcs.LeafnumForPoint		= CM_PointLeafnum;
 			loadmodel->funcs.Trace					= CM_Trace;
 			loadmodel->funcs.PointContents			= Q2BSP_PointContents;
+			loadmodel->funcs.NativeTrace			= CM_NativeTrace;
+			loadmodel->funcs.NativeContents			= CM_NativeContents;
 			break;
 #endif
 		default:
@@ -4055,6 +4065,8 @@ void CM_SetTempboxSize (vec3_t mins, vec3_t maxs)
 
 model_t *CM_TempBoxModel(vec3_t mins, vec3_t maxs)
 {
+	if (box_planes == NULL)
+		CM_InitBoxHull();
 	CM_SetTempboxSize(mins, maxs);
 	return &box_model;
 }
@@ -4222,6 +4234,61 @@ int CM_PointContents (model_t *mod, vec3_t p)
 
 		if (j == brush->numsides)
 			contents |= brush->contents;
+	}
+
+	return contents;
+}
+
+unsigned int CM_NativeContents(struct model_s *model, int hulloverride, int frame, vec3_t p, vec3_t mins, vec3_t maxs)
+{
+	int	contents;
+	if (!DotProduct(mins, mins) && !DotProduct(maxs, maxs))
+		return CM_PointContents(model, p);
+
+	if (!model)	// map not loaded
+		return 0;
+
+
+	{
+		int i, j, k;
+		mleaf_t			*leaf;
+		q2cbrush_t		*brush;
+		q2cbrushside_t	*brushside;
+		vec3_t absmin, absmax;
+
+		int leaflist[64];
+
+		k = CM_BoxLeafnums (model, absmin, absmax, leaflist, 64, NULL);
+
+		contents = 0;
+		for (k--; k >= 0; k--)
+		{
+			leaf = &map_leafs[leaflist[k]];
+			if (mapisq3)
+			{
+				for (i = 0; i < leaf->numleafbrushes; i++)
+				{
+					brush = &map_brushes[map_leafbrushes[leaf->firstleafbrush + i]];
+
+					// check if brush actually adds something to contents
+					if ( (contents & brush->contents) == brush->contents ) {
+						continue;
+					}
+					
+					brushside = &map_brushsides[brush->firstbrushside];
+					for ( j = 0; j < brush->numsides; j++, brushside++ )
+					{
+						if ( PlaneDiff (p, brushside->plane) > 0 )
+							break;
+					}
+
+					if (j == brush->numsides) 
+						contents |= brush->contents;
+				}
+			}
+			else
+				contents |= leaf->contents;
+		}
 	}
 
 	return contents;
@@ -5018,6 +5085,11 @@ trace_t		CM_BoxTrace (model_t *mod, vec3_t start, vec3_t end,
 qboolean CM_Trace(model_t *model, int forcehullnum, int frame, vec3_t start, vec3_t end, vec3_t mins, vec3_t maxs, trace_t *trace)
 {
 	*trace = CM_BoxTrace(model, start, end, mins, maxs, MASK_PLAYERSOLID);
+	return trace->fraction != 1;
+}
+qboolean CM_NativeTrace(model_t *model, int forcehullnum, int frame, vec3_t start, vec3_t end, vec3_t mins, vec3_t maxs, unsigned int contents, trace_t *trace)
+{
+	*trace = CM_BoxTrace(model, start, end, mins, maxs, contents);
 	return trace->fraction != 1;
 }
 

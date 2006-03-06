@@ -488,7 +488,7 @@ void Cmd_Exec_f (void)
 		f = Cmd_Argv(1);
 		if (!*f)
 			f = "fte";
-		_snprintf(name, sizeof(name)-5, "configs/%s", f);
+		snprintf(name, sizeof(name)-5, "configs/%s", f);
 		COM_DefaultExtension(name, ".cfg");
 	}
 	else
@@ -615,7 +615,7 @@ void Cmd_Alias_f (void)
 		{
 			if (Cmd_FromGamecode())
 			{
-				_snprintf(cmd, sizeof(cmd), "%s_a", s);
+				snprintf(cmd, sizeof(cmd), "%s_a", s);
 				Con_Printf ("Can't register alias, %s is a cvar\nAlias has been named %s instead\n", s, cmd);
 				s = cmd;
 			}
@@ -631,7 +631,7 @@ void Cmd_Alias_f (void)
 		{
 			if (Cmd_FromGamecode())
 			{
-				_snprintf(cmd, sizeof(cmd), "%s_a", s);
+				snprintf(cmd, sizeof(cmd), "%s_a", s);
 				Con_Printf ("Can't register alias, %s is a command\nAlias has been named %s instead\n", s, cmd);
 				s = cmd;
 			}

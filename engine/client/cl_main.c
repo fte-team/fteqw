@@ -121,9 +121,9 @@ cvar_t	cl_muzzleflash = SCVAR("cl_muzzleflash", "1");
 cvar_t	cl_item_bobbing = SCVAR("cl_model_bobbing", "0");
 
 cvar_t	requiredownloads = SCVARF("requiredownloads","1", CVAR_ARCHIVE);
-cvar_t	cl_standardchat = SCVAR("cl_standardchat", "0");
+cvar_t	cl_standardchat = SCVARF("cl_standardchat", "0", CVAR_ARCHIVE);
 cvar_t	msg_filter = SCVAR("msg_filter", "0");	//0 for neither, 1 for mm1, 2 for mm2, 3 for both
-cvar_t  cl_standardmsg = SCVAR("cl_standardmsg", "0");
+cvar_t  cl_standardmsg = SCVARF("cl_standardmsg", "0", CVAR_ARCHIVE);
 cvar_t  cl_parsewhitetext = SCVAR("cl_parsewhitetext", "0");
 
 cvar_t	host_mapname = SCVAR("host_mapname", "");
@@ -1292,6 +1292,7 @@ void CL_CheckServerInfo(void)
 {
 	char *s;
 	unsigned int allowed;
+	int oldstate;
 
 	cl.teamplay = atoi(Info_ValueForKey(cl.serverinfo, "teamplay"));
 	cl.deathmatch = atoi(Info_ValueForKey(cl.serverinfo, "deathmatch"));
@@ -1409,6 +1410,18 @@ void CL_CheckServerInfo(void)
 		cls.allow_anyparticles = true;
 	else
 		cls.allow_anyparticles = false;
+
+
+	s = Info_ValueForKey(cl.serverinfo, "status");
+	oldstate = cl.ktprostate;
+	if (!stricmp(s, "standby"))
+		cl.ktprostate = KTPRO_STANDBY;
+	else if (!stricmp(s, "countdown"))
+		cl.ktprostate = KTPRO_COUNTDOWN;
+	else
+		cl.ktprostate = KTPRO_DONTKNOW;
+	if (oldstate != cl.ktprostate)
+		cl.ktprogametime = 0;
 
 	Cvar_ForceCheatVars(cls.allow_semicheats, cls.allow_cheats);
 
@@ -1726,7 +1739,7 @@ void CL_Startdemos_f (void)
 #ifndef CLIENTONLY
 		!sv.state &&
 #endif
-		cls.demonum != -1 && cls.demoplayback==DPB_NONE && !media_filmtype && COM_CheckParm("-demos"))
+		cls.demonum != -1 && cls.demoplayback==DPB_NONE && !Media_PlayingFullScreen() && COM_CheckParm("-demos"))
 	{
 		cls.demonum = 0;
 		CL_NextDemo ();
@@ -2748,7 +2761,7 @@ void VARGS Host_EndGame (char *message, ...)
 	SCR_EndLoadingPlaque();
 
 	va_start (argptr,message);
-	_vsnprintf (string,sizeof(string)-1, message,argptr);
+	vsnprintf (string,sizeof(string)-1, message,argptr);
 	va_end (argptr);
 	Con_TPrintf (TL_NL);
 	Con_TPrintf (TL_LINEBREAK_EQUALS);
@@ -2785,7 +2798,7 @@ void VARGS Host_Error (char *error, ...)
 	inerror = true;
 
 	va_start (argptr,error);
-	_vsnprintf (string,sizeof(string)-1, error,argptr);
+	vsnprintf (string,sizeof(string)-1, error,argptr);
 	va_end (argptr);
 	Con_TPrintf (TLC_HOSTFATALERROR, string);
 
@@ -2966,6 +2979,10 @@ void Host_Frame (double time)
 	}
 
 	host_frametime = (realtime - oldrealtime)*cl.gamespeed;
+	if (!cl.paused)
+	{
+		cl.ktprogametime += host_frametime;
+	}
 	oldrealtime = realtime;
 
 	CL_ProgressDemoTime();
@@ -3311,7 +3328,7 @@ void Host_Init (quakeparms_t *parms)
 #endif
 
 #ifndef NOMEDIA
-	if (!cls.demofile && !cls.state && !media_filmtype)
+	if (!cls.demofile && !cls.state && !Media_PlayingFullScreen())
 	{
 		int ol_depth;
 		int idcin_depth;

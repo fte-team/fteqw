@@ -325,7 +325,7 @@ void R_LoadSkys (void)
 				{
 					for (s = 0; s < sizeof(skyname_suffix)/sizeof(skyname_suffix[0]); s++)
 					{
-						_snprintf (name, sizeof(name), skyname_pattern[p], boxname, skyname_suffix[s][i]);
+						snprintf (name, sizeof(name), skyname_pattern[p], boxname, skyname_suffix[s][i]);
 						skyboxtex[i] = Mod_LoadHiResTexture(name, NULL, false, false, true);
 						if (skyboxtex[i])
 							break;

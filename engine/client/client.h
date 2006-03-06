@@ -573,6 +573,13 @@ typedef struct
 
 	qboolean sendprespawn;
 	int contentstage;
+
+	float ktprogametime;
+	enum {
+		KTPRO_DONTKNOW,
+		KTPRO_COUNTDOWN,
+		KTPRO_STANDBY
+	} ktprostate;
 } client_state_t;
 
 extern int		cl_teamtopcolor;
@@ -1006,20 +1013,18 @@ void Editor_Init(void);
 void CL_AddVWeapModel(entity_t *player, int model);
 
 
-typedef enum {
-	MFT_NONE,
-	MFT_STATIC,	//non-moving, PCX, no sound
-	MFT_ROQ,
-	MFT_AVI,
-	MFT_CIN
-} media_filmtype_t;
-extern media_filmtype_t media_filmtype;
+qboolean Media_PlayingFullScreen(void);
 void Media_Init(void);
 qboolean Media_PlayFilm(char *name);
 void CIN_FinishCinematic (void);
 qboolean CIN_PlayCinematic (char *arg);
 qboolean CIN_DrawCinematic (void);
 qboolean CIN_RunCinematic (void);
+
+typedef struct cin_s cin_t;
+struct cin_s *Media_StartCin(char *name);
+int Media_UpdateForShader(int texnum, cin_t *cin);
+void Media_ShutdownCin(cin_t *cin);
 
 void MVD_Interpolate(void);
 

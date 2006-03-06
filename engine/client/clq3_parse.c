@@ -492,8 +492,8 @@ qboolean CLQ3_SystemInfoChanged(char *str)
 				Con_Printf("Sending request to download %s\n", com_token);
 				CLQ3_SendClientCommand("download %s.pk3", com_token);
 				ccs.downloadchunknum = 0;
-				_snprintf(cls.downloadname, sizeof(cls.downloadname), "%s.pk3", com_token);
-				_snprintf(cls.downloadtempname, sizeof(cls.downloadtempname), "%s.tmp", com_token);
+				snprintf(cls.downloadname, sizeof(cls.downloadname), "%s.pk3", com_token);
+				snprintf(cls.downloadtempname, sizeof(cls.downloadtempname), "%s.tmp", com_token);
 				cls.downloadmethod = DL_Q3;
 				cls.downloadpercent = 0;
 				return false;

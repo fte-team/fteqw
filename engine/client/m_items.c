@@ -78,7 +78,7 @@ void Draw_TextBox (int x, int y, int width, int lines)
 		Draw_TransPic (cx, cy+8, p);
 }
 
-void Draw_BigFontString(int x, int y, const char *text)
+void Draw_Hexen2BigFontString(int x, int y, const char *text)
 {
 	int sx, sy;
 	mpic_t *p;
@@ -104,6 +104,76 @@ void Draw_BigFontString(int x, int y, const char *text)
 		if(sx>=0)
 			Draw_SubPic(x, y, p, sx, sy, 20, 20);
 		x+=20;
+		text++;
+	}
+}
+
+mpic_t *QBigFontWorks(void)
+{
+	mpic_t *p;
+	p = Draw_SafeCachePic ("gfx/mcharset.lmp");
+	if (p)
+		return p;
+	p = Draw_SafeCachePic ("mcharset.lmp");
+	if (p)
+		return p;
+	p = Draw_SafeCachePic ("textures/gfx/mcharset.lmp");
+	if (p)
+		return p;
+	p = Draw_SafeCachePic ("textures/mcharset.lmp");
+	if (p)
+		return p;
+	return NULL;
+}
+void Draw_BigFontString(int x, int y, const char *text)
+{
+	int sx, sy;
+	mpic_t *p;
+	p = QBigFontWorks();
+	if (!p)
+		return;
+
+	if (qrenderer == QR_OPENGL)
+	{	//a hack for scaling
+		p->width = 20*8;
+		p->height = 20*8;
+	}
+
+	while(*text)
+	{
+		if (*text >= 'A' && *text <= 'Z')
+		{
+			sx = ((*text-'A')%8)*(p->width>>3);
+			sy = ((*text-'A')/8)*(p->height>>3);
+		}
+		else if (*text >= 'a' && *text <= 'z')
+		{
+			sx = ((*text-'a'+26)%8)*(p->width>>3);
+			sy = ((*text-'a'+26)/8)*(p->height>>3);
+		}
+		else if (*text >= '0' && *text <= '1')
+		{
+			sx = ((*text-'0'+26*2)%8)*(p->width>>3);
+			sy = ((*text-'0'+26*2)/8)*(p->height>>3);
+		}
+		else if (*text == ':')
+		{
+			sx = ((*text-'0'+26*2+10)%8)*(p->width>>3);
+			sy = ((*text-'0'+26*2+10)/8)*(p->height>>3);
+		}
+		else if (*text == '/')
+		{
+			sx = ((*text-'0'+26*2+11)%8)*(p->width>>3);
+			sy = ((*text-'0'+26*2+11)/8)*(p->height>>3);
+		}
+		else// if (*text <= ' ')
+		{
+			sx=-1;
+			sy=-1;
+		}
+		if(sx>=0)
+			Draw_SubPic(x, y, p, sx, sy, (p->width>>3), (p->height>>3));
+		x+=(p->width>>3);
 		text++;
 	}
 }
@@ -151,7 +221,10 @@ void MenuDrawItems(int xpos, int ypos, menuoption_t *option, menu_t *menu)
 			else
 				Draw_String(xpos+option->common.posx, ypos+option->common.posy, option->button.text);
 			break;
-		case mt_buttonbigfont:
+		case mt_hexen2buttonbigfont:
+			Draw_Hexen2BigFontString(xpos+option->common.posx, ypos+option->common.posy, option->button.text);
+			break;
+		case mt_qbuttonbigfont:
 			Draw_BigFontString(xpos+option->common.posx, ypos+option->common.posy, option->button.text);
 			break;
 		case mt_menudot:
@@ -544,6 +617,8 @@ menuedit_t *MC_AddEditCvar(menu_t *menu, int x, int y, char *text, char *name)
 	n->caption = (char *)(n+1);
 	strcpy((char *)(n+1), text);
 	n->cvar = cvar;
+	if (!(cvar->flags & CVAR_ARCHIVE))
+		Con_Printf("Warning: %s is not set for archiving\n", cvar->name);
 	Q_strncpyz(n->text, cvar->string, sizeof(n->text));
 
 	n->common.next = menu->options;
@@ -594,6 +669,10 @@ menucheck_t *MC_AddCheckBox(menu_t *menu, int x, int y, const char *text, cvar_t
 	n->var = var;
 	n->bits = bits;
 
+	if (var)
+		if (!(var->flags & CVAR_ARCHIVE))
+			Con_Printf("Warning: %s is not set for archiving\n", var->name);
+
 	n->common.next = menu->options;
 	menu->options = (menuoption_t *)n;
 	return n;
@@ -631,7 +710,12 @@ menuslider_t *MC_AddSlider(menu_t *menu, int x, int y, const char *text, cvar_t 
 	strcpy((char *)(n+1), text);
 
 	if (var)
+	{
 		n->current = var->value;
+
+		if (!(var->flags & CVAR_ARCHIVE))
+			Con_Printf("Warning: %s is not set for archiving\n", var->name);
+	}
 
 	n->min = min;
 	n->max = max;
@@ -687,6 +771,9 @@ menucombo_t *MC_AddCvarCombo(menu_t *menu, int x, int y, const char *caption, cv
 	n->values = values;
 	n->cvar = cvar;
 
+	if (!(cvar->flags & CVAR_ARCHIVE))
+		Con_Printf("Warning: %s is not set for archiving\n", cvar->name);
+
 	n->selectedoption = 0;
 
 	n->common.next = menu->options;
@@ -722,10 +809,29 @@ menubutton_t *MC_AddConsoleCommand(menu_t *menu, int x, int y, const char *text,
 	menu->options = (menuoption_t *)n;
 	return n;
 }
-menubutton_t *MC_AddConsoleCommandBigFont(menu_t *menu, int x, int y, const char *text, const char *command)
+
+menubutton_t *MC_AddConsoleCommandQBigFont(menu_t *menu, int x, int y, const char *text, const char *command)
 {
 	menubutton_t *n = Z_Malloc(sizeof(menubutton_t)+strlen(text)+1+strlen(command)+1);
-	n->common.type = mt_buttonbigfont;
+	n->common.type = mt_qbuttonbigfont;
+	n->common.iszone = true;	
+	n->common.posx = x;
+	n->common.posy = y;
+	n->common.height = 20;
+	n->common.width = strlen(text)*20;
+	n->text = (char *)(n+1);
+	strcpy((char *)(n+1), text);
+	n->command = n->text + strlen(n->text)+1;
+	strcpy((char *)n->command, command);
+
+	n->common.next = menu->options;
+	menu->options = (menuoption_t *)n;
+	return n;
+}
+menubutton_t *MC_AddConsoleCommandHexen2BigFont(menu_t *menu, int x, int y, const char *text, const char *command)
+{
+	menubutton_t *n = Z_Malloc(sizeof(menubutton_t)+strlen(text)+1+strlen(command)+1);
+	n->common.type = mt_hexen2buttonbigfont;
 	n->common.iszone = true;	
 	n->common.posx = x;
 	n->common.posy = y;
@@ -766,7 +872,7 @@ menubutton_t *VARGS MC_AddConsoleCommandf(menu_t *menu, int x, int y, const char
 	menubutton_t *n;
 	
 	va_start (argptr, command);
-	_vsnprintf (string,sizeof(string)-1, command,argptr);
+	vsnprintf (string,sizeof(string)-1, command,argptr);
 	va_end (argptr);	
 
 	n = Z_Malloc(sizeof(menubutton_t) + strlen(string)+1);
@@ -1104,12 +1210,12 @@ menuoption_t *M_NextSelectableItem(menu_t *m, menuoption_t *old)
 
 		if (op == old)
 		{
-			if (op->common.type == mt_slider || op->common.type == mt_checkbox || op->common.type == mt_button || op->common.type == mt_buttonbigfont || op->common.type == mt_edit || op->common.type == mt_combo || op->common.type == mt_bind || op->common.type == mt_custom)
+			if (op->common.type == mt_slider || op->common.type == mt_checkbox || op->common.type == mt_button || op->common.type == mt_hexen2buttonbigfont || op->common.type == mt_qbuttonbigfont || op->common.type == mt_edit || op->common.type == mt_combo || op->common.type == mt_bind || op->common.type == mt_custom)
 				return op;
 			return NULL;	//whoops.
 		}
 
-		if (op->common.type == mt_slider || op->common.type == mt_checkbox || op->common.type == mt_button || op->common.type == mt_buttonbigfont || op->common.type == mt_edit || op->common.type == mt_combo || op->common.type == mt_bind || op->common.type == mt_custom)
+		if (op->common.type == mt_slider || op->common.type == mt_checkbox || op->common.type == mt_button || op->common.type == mt_hexen2buttonbigfont || op->common.type == mt_qbuttonbigfont || op->common.type == mt_edit || op->common.type == mt_combo || op->common.type == mt_bind || op->common.type == mt_custom)
 			if (!op->common.ishidden)
 				return op;
 	}
@@ -1136,7 +1242,7 @@ menuoption_t *M_PrevSelectableItem(menu_t *m, menuoption_t *old)
 		if (op == old)
 			return old;	//whoops.
 
-		if (op->common.type == mt_slider || op->common.type == mt_checkbox || op->common.type == mt_button || op->common.type == mt_buttonbigfont || op->common.type == mt_edit || op->common.type == mt_combo || op->common.type == mt_bind || op->common.type == mt_custom)
+		if (op->common.type == mt_slider || op->common.type == mt_checkbox || op->common.type == mt_button || op->common.type == mt_hexen2buttonbigfont || op->common.type == mt_qbuttonbigfont || op->common.type == mt_edit || op->common.type == mt_combo || op->common.type == mt_bind || op->common.type == mt_custom)
 			if (!op->common.ishidden)
 				return op;
 	}
@@ -1216,7 +1322,8 @@ void M_Complex_Key(int key)
 			MC_CheckBox_Key(&currentmenu->selecteditem->check, currentmenu, key);
 			break;
 		case mt_button:
-		case mt_buttonbigfont:
+		case mt_hexen2buttonbigfont:
+		case mt_qbuttonbigfont:
 			if (!currentmenu->selecteditem->button.command)
 				currentmenu->selecteditem->button.key(currentmenu->selecteditem, currentmenu, key);
 			else if (key == K_ENTER || key == K_MOUSE1)
@@ -1459,26 +1566,60 @@ void M_Menu_Main_f (void)
 			return;
 		MC_AddPicture(mainm, (320-p->width)/2, 0, "gfx/menu/title0.lmp");
 
-		b=MC_AddConsoleCommandBigFont	(mainm, 80, 64,	"Single Player", "menu_single\n");
+		b=MC_AddConsoleCommandHexen2BigFont	(mainm, 80, 64,	"Single Player", "menu_single\n");
 		b->common.width = 12*20;
 		b->common.height = 20;
-		b=MC_AddConsoleCommandBigFont	(mainm, 80, 64+20,	"MultiPlayer", "menu_multi\n");
+		b=MC_AddConsoleCommandHexen2BigFont	(mainm, 80, 64+20,	"MultiPlayer", "menu_multi\n");
 		b->common.width = 12*20;
 		b->common.height = 20;
-		b=MC_AddConsoleCommandBigFont	(mainm, 80, 64+40,	"Options", "menu_options\n");
+		b=MC_AddConsoleCommandHexen2BigFont	(mainm, 80, 64+40,	"Options", "menu_options\n");
 		b->common.width = 12*20;
 		b->common.height = 20;
 		if (m_helpismedia.value)
-			b=MC_AddConsoleCommandBigFont	(mainm, 80, 64+60,	"Media", "menu_media\n");
+			b=MC_AddConsoleCommandHexen2BigFont	(mainm, 80, 64+60,	"Media", "menu_media\n");
 		else
-			b=MC_AddConsoleCommandBigFont	(mainm, 80, 64+60,	"Help", "help\n");
+			b=MC_AddConsoleCommandHexen2BigFont	(mainm, 80, 64+60,	"Help", "help\n");
 		b->common.width = 12*20;
 		b->common.height = 20;
-		b=MC_AddConsoleCommandBigFont	(mainm, 80, 64+80,	"Quit", "menu_quit\n");
+		b=MC_AddConsoleCommandHexen2BigFont	(mainm, 80, 64+80,	"Quit", "menu_quit\n");
 		b->common.width = 12*20;
 		b->common.height = 20;
 
 		mainm->cursoritem = (menuoption_t *)MC_AddCursor(mainm, 48, 64);
+	}
+	else if (QBigFontWorks())
+	{
+		m_state = m_complex;
+		key_dest = key_menu;
+		mainm = M_CreateMenu(0);		
+
+		p = Draw_SafeCachePic("gfx/ttl_main.lmp");
+		if (!p)
+		{
+			MC_AddRedText(mainm, 16, 0,				"MAIN MENU", false);
+
+			mainm->selecteditem = (menuoption_t *)
+			MC_AddConsoleCommand	(mainm, 64, 32,	"Join server", "menu_servers\n");
+			MC_AddConsoleCommand	(mainm, 64, 40,	"Options", "menu_options\n");
+			MC_AddConsoleCommand	(mainm, 64, 48,	"Quit", "menu_quit\n");
+			return;
+		}
+		mainm->key = MC_Main_Key;
+		MC_AddPicture(mainm, 16, 4, "gfx/qplaque.lmp");
+
+		MC_AddPicture(mainm, (320-p->width)/2, 4, "gfx/ttl_main.lmp");
+
+		mainm->selecteditem = (menuoption_t *)
+		MC_AddConsoleCommandQBigFont	(mainm, 72, 32,	"Single     ", "menu_single\n");
+		MC_AddConsoleCommandQBigFont	(mainm, 72, 52,	"Multiplayer", "menu_multi\n");
+		MC_AddConsoleCommandQBigFont	(mainm, 72, 72,	"Options    ", "menu_options\n");
+		if (m_helpismedia.value)
+			MC_AddConsoleCommandQBigFont(mainm, 72, 92,	"Media      ", "menu_media\n");
+		else
+			MC_AddConsoleCommandQBigFont(mainm, 72, 92,	"Help       ", "help\n");
+		MC_AddConsoleCommandQBigFont	(mainm, 72, 112,"Quit       ", "menu_quit\n");
+
+		mainm->cursoritem = (menuoption_t *)MC_AddCursor(mainm, 54, 32);
 	}
 	else
 	{

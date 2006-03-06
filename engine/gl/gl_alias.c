@@ -1050,12 +1050,12 @@ static galiastexnum_t *GL_ChooseSkin(galiasinfo_t *inf, char *modelname, int sur
 
 			if (e->scoreboard && e->scoreboard->skin && !gl_nocolors.value)
 			{
-				sprintf(hashname, "%s$%s$%i", modelname, e->scoreboard->skin->name, surfnum);
+				snprintf(hashname, sizeof(hashname), "%s$%s$%i", modelname, e->scoreboard->skin->name, surfnum);
 				skinname = hashname;
 			}
 			else if (surfnum)
 			{
-				sprintf(hashname, "%s$%i", modelname, surfnum);
+				snprintf(hashname, sizeof(hashname), "%s$%i", modelname, surfnum);
 				skinname = hashname;
 			}
 			else
@@ -2787,7 +2787,7 @@ static qboolean VARGS TryAddSkin(char *skinname, ...)
 
 
 	va_start (argptr, skinname);
-	_vsnprintf (string,sizeof(string)-1, skinname,argptr);
+	vsnprintf (string,sizeof(string)-1, skinname,argptr);
 	va_end (argptr);
 	string[MAX_QPATH-1] = '\0';
 
@@ -2979,7 +2979,6 @@ static void *Q1_LoadFrameGroup (daliasframetype_t *pframetype, int *seamremaps)
 	vec3_t *verts;
 
 	frame = (galiasgroup_t*)((char *)galias + galias->groupofs);
-	frame->loop = true;
 
 	for (i = 0; i < pq1inmodel->numframes; i++)
 	{
@@ -3029,6 +3028,7 @@ static void *Q1_LoadFrameGroup (daliasframetype_t *pframetype, int *seamremaps)
 			pose = (galiaspose_t *)Hunk_Alloc(LittleLong(ingroup->numframes)*(sizeof(galiaspose_t) + sizeof(vec3_t)*2*galias->numverts));
 			frame->poseofs = (char *)pose - (char *)frame;
 			frame->numposes = LittleLong(ingroup->numframes);
+			frame->loop = true;
 			galias->groups++;
 
 			verts = (vec3_t *)(pose+frame->numposes);
@@ -3143,30 +3143,30 @@ static void *Q1_LoadSkins (daliasskintype_t *pskintype, qboolean alpha)
 			//LH's naming scheme ("models" is likly to be ignored)
 			fbtexture = 0;
 			bumptexture = 0;
-			_snprintf(skinname, sizeof(skinname), "%s_%i.", loadmodel->name, i);
+			snprintf(skinname, sizeof(skinname), "%s_%i.", loadmodel->name, i);
 			texture = Mod_LoadReplacementTexture(skinname, "models", true, false, true);
 			if (texture)
 			{
-				_snprintf(skinname, sizeof(skinname), "%s_%i_luma.", loadmodel->name, i);
+				snprintf(skinname, sizeof(skinname), "%s_%i_luma.", loadmodel->name, i);
 				fbtexture = Mod_LoadReplacementTexture(skinname, "models", true, false, true);
 				if (gl_bump.value)
 				{
-					sprintf(skinname, "%s_%i_bump", loadmodel->name, i);
+					snprintf(skinname, sizeof(skinname), "%s_%i_bump", loadmodel->name, i);
 					bumptexture = Mod_LoadBumpmapTexture(skinname, "models");
 				}
 			}
 			else
 			{
-				sprintf(skinname, "%s_%i", loadname, i);
+				snprintf(skinname, sizeof(skinname), "%s_%i", loadname, i);
 				texture = Mod_LoadReplacementTexture(skinname, "models", true, false, true);
 				if (texture && r_fb_models.value)
 				{
-					sprintf(skinname, "%s_%i_luma", loadname, i);
+					snprintf(skinname, sizeof(skinname), "%s_%i_luma", loadname, i);
 					fbtexture = Mod_LoadReplacementTexture(skinname, "models", true, true, true);
 				}
 				if (texture && gl_bump.value)
 				{
-					sprintf(skinname, "%s_%i_bump", loadname, i);
+					snprintf(skinname, sizeof(skinname), "%s_%i_bump", loadname, i);
 					bumptexture = Mod_LoadBumpmapTexture(skinname, "models");
 				}
 			}
@@ -3182,16 +3182,16 @@ static void *Q1_LoadSkins (daliasskintype_t *pskintype, qboolean alpha)
 				GLMod_FloodFillSkin(saved, outskin->skinwidth, outskin->skinheight);
 
 //the extra underscore is to stop
-				sprintf(skinname, "%s__%i", loadname, i);
+				snprintf(skinname, sizeof(skinname), "%s__%i", loadname, i);
 				texture = GL_LoadTexture(skinname, outskin->skinwidth, outskin->skinheight, saved, true, alpha);
 				if (r_fb_models.value)
 				{
-					sprintf(skinname, "%s__%i_luma", loadname, i);
+					snprintf(skinname, sizeof(skinname), "%s__%i_luma", loadname, i);
 					fbtexture = GL_LoadTextureFB(skinname, outskin->skinwidth, outskin->skinheight, saved, true, true);
 				}
 				if (gl_bump.value)
 				{
-					sprintf(skinname, "%s__%i_bump", loadname, i);
+					snprintf(skinname, sizeof(skinname), "%s__%i_bump", loadname, i);
 					bumptexture = GL_LoadTexture8Bump(skinname, outskin->skinwidth, outskin->skinheight, saved, true, true);
 				}
 			}
@@ -4245,7 +4245,7 @@ void GL_LoadQ3Model(model_t *mod, void *buffer)
 			pose->scale_origin[1] = 0;
 			pose->scale_origin[2] = 0;
 
-			_snprintf(group->name, sizeof(group->name)-1, "frame%i", i);
+			snprintf(group->name, sizeof(group->name)-1, "frame%i", i);
 
 			group->numposes = 1;
 			group->rate = 1;

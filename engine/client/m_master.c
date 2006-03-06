@@ -984,11 +984,11 @@ qboolean SL_ServerKey (menucustom_t *ths, menu_t *menu, int key)
 			server = Master_SortedServer(info->selectedpos);
 			if (server)
 			{
-				_snprintf(info->mappic->picturename, 32, "levelshots/%s", server->map);
+				snprintf(info->mappic->picturename, 32, "levelshots/%s", server->map);
 			}
 			else
 			{
-				_snprintf(info->mappic->picturename, 32, "levelshots/nomap");
+				snprintf(info->mappic->picturename, 32, "levelshots/nomap");
 			}
 		}
 	}
@@ -1056,11 +1056,11 @@ qboolean SL_Key	(int key, menu_t *menu)
 		server = Master_SortedServer(info->selectedpos);
 		if (server)
 		{
-			_snprintf(info->mappic->picturename, 32, "levelshots/%s", server->map);
+			snprintf(info->mappic->picturename, 32, "levelshots/%s", server->map);
 		}
 		else
 		{
-			_snprintf(info->mappic->picturename, 32, "levelshots/nomap");
+			snprintf(info->mappic->picturename, 32, "levelshots/nomap");
 		}
 	}
 
@@ -1225,6 +1225,7 @@ void M_Menu_ServerList2_f(void)
 		cust->key = SL_ServerKey;
 		cust->common.height = 8;
 		cust->common.width = vid.width-8;
+		cust->common.noselectionsound = true;
 	}
 	menu->dontexpand = true;
 

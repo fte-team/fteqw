@@ -111,7 +111,9 @@ extern gl_config_t gl_config;
 extern	float	gldepthmin, gldepthmax;
 
 void GL_Upload32 (char *name, unsigned *data, int width, int height,  qboolean mipmap, qboolean alpha);	//name was added for texture compression output
-void GL_Upload8 (qbyte *data, int width, int height,  qboolean mipmap, qboolean alpha);
+void GL_Upload8 (char *name, qbyte *data, int width, int height,  qboolean mipmap, qboolean alpha);
+void GL_Upload24BGR_Flip (char *name, qbyte *data, int width, int height,  qboolean mipmap, qboolean alpha);
+void GL_Upload24BGR (char *name, qbyte *data, int width, int height,  qboolean mipmap, qboolean alpha);
 #ifdef GL_EXT_paletted_texture
 void GL_Upload8_EXT (qbyte *data, int width, int height,  qboolean mipmap, qboolean alpha);
 #endif
@@ -333,6 +335,11 @@ void GLQ3_LightGrid(vec3_t point, vec3_t res_diffuse, vec3_t res_ambient, vec3_t
 //gl_heightmap.c
 void GL_DrawHeightmapModel (entity_t *e);
 void GL_LoadHeightmapModel (model_t *mod, void *buffer);
+
+//gl_bloom.c
+void R_BloomRegister(void);
+void R_BloomBlend(void);
+void R_InitBloomTextures(void);
 
 
 //

@@ -35,9 +35,14 @@ typedef struct {
 } hullfuncs_t;
 
 typedef struct {
+	//deals with FTECONTENTS (assumes against solid)
 	qboolean (*Trace)			(struct model_s *model, int hulloverride, int frame, vec3_t p1, vec3_t p2, vec3_t mins, vec3_t maxs, struct trace_s *trace);
-	qboolean (*PointContents)	(struct model_s *model, vec3_t p);
-	qboolean (*BoxContents)		(struct model_s *model, int hulloverride, int frame, vec3_t p, vec3_t mins, vec3_t maxs);
+	unsigned int (*PointContents)	(struct model_s *model, vec3_t p);
+	unsigned int (*BoxContents)		(struct model_s *model, int hulloverride, int frame, vec3_t p, vec3_t mins, vec3_t maxs);
+
+	//deals with whatever is native for the bsp (gamecode is expected to distinguish this).
+	qboolean (*NativeTrace)		(struct model_s *model, int hulloverride, int frame, vec3_t p1, vec3_t p2, vec3_t mins, vec3_t maxs, unsigned int against, struct trace_s *trace);
+	unsigned int (*NativeContents)(struct model_s *model, int hulloverride, int frame, vec3_t p, vec3_t mins, vec3_t maxs);
 
 	void (*FatPVS)				(struct model_s *model, vec3_t org, qboolean add);
 	qboolean (*EdictInFatPVS)	(struct model_s *model, struct edict_s *edict);
@@ -832,6 +837,8 @@ qbyte	*Mod_LeafPVS (mleaf_t *leaf, model_t *model);
 
 
 #ifdef Q2BSPS
+
+void CM_InitBoxHull (void);
 
 #ifdef __cplusplus
 //#pragma message ("                  c++ stinks")

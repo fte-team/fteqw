@@ -399,7 +399,7 @@ player_info_t	*s;
 			{
 				GL_Bind(a->texture->gl_texturenum);
 
-				GL_Upload8 ((qbyte *)a->texture + a->texture->offsets[0], a->texture->width, a->texture->height, false, false);
+				GL_Upload8 ("bulleten", (qbyte *)a->texture + a->texture->offsets[0], a->texture->width, a->texture->height, false, false);
 			}
 #endif
 		}

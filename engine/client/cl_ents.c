@@ -2402,6 +2402,10 @@ void CL_ParsePlayerinfo (void)
 		state->alpha = 255;
 		state->fatness = 0;
 
+		state->colourmod[0] = 32;
+		state->colourmod[1] = 32;
+		state->colourmod[2] = 32;
+
 		state->pm_type = PM_NORMAL;
 
 		TP_ParsePlayerInfo(oldstate, state, info);

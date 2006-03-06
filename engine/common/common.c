@@ -3067,6 +3067,8 @@ int build_number( void )
 
 
 #ifdef _WIN32
+// don't use these functions in MSVC8
+#if (_MSC_VER < 1400)
 int VARGS linuxlike_snprintf(char *buffer, int size, const char *format, ...)
 {
 #undef _vsnprintf
@@ -3101,4 +3103,6 @@ int VARGS linuxlike_vsnprintf(char *buffer, int size, const char *format, va_lis
 
 	return ret;
 }
+#endif
+
 #endif

@@ -108,11 +108,11 @@ mpic_t	*SWDraw_SafeCachePic (char *extpath)
 		qbyte *file, *image;
 		int width;
 		int height;
-		_snprintf(alternatename, MAX_QPATH-1,"pics/%s.pcx", path);
+		snprintf(alternatename, MAX_QPATH-1,"pics/%s.pcx", path);
 		file = COM_LoadMallocFile(alternatename);
 		if (!file)
 		{
-			_snprintf(alternatename, MAX_QPATH-1,"%s.pcx", path);
+			snprintf(alternatename, MAX_QPATH-1,"%s.pcx", path);
 			file = COM_LoadMallocFile(alternatename);
 		}
 		if (file)
@@ -147,7 +147,7 @@ mpic_t	*SWDraw_SafeCachePic (char *extpath)
 		qbyte *file, *image;
 		int width;
 		int height;
-		_snprintf(alternatename, MAX_QPATH-1,"%s.jpg", path);
+		snprintf(alternatename, MAX_QPATH-1,"%s.jpg", path);
 
 		file = COM_LoadMallocFile(alternatename);
 		if (file)
@@ -182,7 +182,7 @@ mpic_t	*SWDraw_SafeCachePic (char *extpath)
 		qbyte *file, *image;
 		int width;
 		int height;
-		_snprintf(alternatename, MAX_QPATH-1,"%s.tga", path);
+		snprintf(alternatename, MAX_QPATH-1,"%s.tga", path);
 
 		file = COM_LoadMallocFile(alternatename);
 		if (file)
@@ -216,7 +216,7 @@ mpic_t	*SWDraw_SafeCachePic (char *extpath)
 //
 // load the pic from disk
 //
-	_snprintf(alternatename, MAX_QPATH-1,"%s.lmp", path);
+	snprintf(alternatename, MAX_QPATH-1,"%s.lmp", path);
 	COM_LoadCacheFile (alternatename, &pic->cache);
 	
 	dat = pic->cache.data;

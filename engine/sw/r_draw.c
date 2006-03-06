@@ -137,11 +137,11 @@ void R_LoadSkyBox (void)
 	char	pathname[MAX_QPATH];
 	for (i=0 ; i<6 ; i++)
 	{
-		_snprintf (pathname, MAX_QPATH-1, "env/%s%s.tga", skyname, suf[r_skysideimage[i]]);
+		snprintf (pathname, MAX_QPATH-1, "env/%s%s.tga", skyname, suf[r_skysideimage[i]]);
 		r_skytexinfo[i].texture = Mod_LoadWall (pathname);	//preferable
 		if (!r_skytexinfo[i].texture)
 		{
-			_snprintf (pathname, MAX_QPATH-1, "env/%s%s.pcx", skyname, suf[r_skysideimage[i]]);
+			snprintf (pathname, MAX_QPATH-1, "env/%s%s.pcx", skyname, suf[r_skysideimage[i]]);
 			r_skytexinfo[i].texture = Mod_LoadWall (pathname);	//q2 fall back
 		}
 		if (!r_skytexinfo[i].texture)

@@ -1146,7 +1146,7 @@ qboolean Media_DecodeFrame(cin_t *cin)
 			unsigned char *pa=cin->roq.roqfilm->y[0];
 			unsigned char *pb=cin->roq.roqfilm->u[0];
 			unsigned char *pc=cin->roq.roqfilm->v[0];
-			int pixel=0;
+			int pix=0;
 			int num_columns=(cin->roq.roqfilm->width)>>1;
 			int num_rows=cin->roq.roqfilm->height;
 			int y;
@@ -1179,19 +1179,19 @@ qboolean Media_DecodeFrame(cin_t *cin)
 						b = 116130 * u;
 
 						t=r+y1;
-						framedata[pixel] =(unsigned char) LIMIT(t);
+						framedata[pix] =(unsigned char) LIMIT(t);
 						t=g+y1;
-						framedata[pixel+1] =(unsigned char) LIMIT(t);
+						framedata[pix+1] =(unsigned char) LIMIT(t);
 						t=b+y1;
-						framedata[pixel+2] =(unsigned char) LIMIT(t);
+						framedata[pix+2] =(unsigned char) LIMIT(t);
 
 						t=r+y2;
-						framedata[pixel+4] =(unsigned char) LIMIT(t);
+						framedata[pix+4] =(unsigned char) LIMIT(t);
 						t=g+y2;
-						framedata[pixel+5] =(unsigned char) LIMIT(t);
+						framedata[pix+5] =(unsigned char) LIMIT(t);
 						t=b+y2;
-						framedata[pixel+6] =(unsigned char) LIMIT(t);
-						pixel+=8;
+						framedata[pix+6] =(unsigned char) LIMIT(t);
+						pix+=8;
 
 					}
 					if(y & 0x01) { pb += num_columns; pc += num_columns; }

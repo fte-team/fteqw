@@ -328,7 +328,7 @@ void Cbuf_ExecuteLevel (int level)
 	int		i;
 	char	*text;
 	char	line[1024];
-	int		quotes;
+	qboolean	quotes, comment;
 
 	while (cmd_text[level].buf.cursize)
 	{
@@ -341,15 +341,25 @@ void Cbuf_ExecuteLevel (int level)
 // find a \n or ; line break
 		text = (char *)cmd_text[level].buf.data;
 
-		quotes = 0;
+		quotes = false;
+		comment = false;
 		for (i=0 ; i< cmd_text[level].buf.cursize ; i++)
 		{
-			if (text[i] == '"')
-				quotes++;
-			if ( !(quotes&1) &&  text[i] == ';')
-				break;	// don't break if inside a quoted string
 			if (text[i] == '\n')
 				break;
+			if (text[i] == '"')
+			{
+				quotes++;
+				continue;
+			}
+
+			if (comment || (quotes&1))
+				continue;
+
+			if (text[i] == '/' && i+1 < cmd_text[level].buf.cursize && text[i+1] == '/')
+				comment = true;
+			else if (text[i] == ';')
+				break;	// don't break if inside a quoted string
 		}
 
 		if (i >= sizeof(line))

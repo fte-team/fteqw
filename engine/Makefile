@@ -30,6 +30,9 @@ ifeq ($(FTE_TARGET),) 	#user didn't specify prefered target
 		ifeq ($(shell uname),OpenBSD)
 			FTE_TARGET=bsd
 		endif
+		ifeq ($(shell uname),MorphOS)
+			FTE_TARGET=morphos
+		endif
 		#else I've no idea what it is you're running
 	endif
 
@@ -73,6 +76,9 @@ endif
 ifeq ($(FTE_TARGET),cygwin)
 	BASELDFLAGS=-lm
 endif
+ifeq ($(FTE_TARGET),morphos)
+	BASELDFLAGS=-lm
+endif
 BASELDFLAGS ?= -lm -ldl
 
 #BASELDFLAGS=-lm  -lz
@@ -109,7 +115,7 @@ else
 	BASE_ASM_CFLAGS = -DNOASM
 endif
 
-BASE_CFLAGS=$(BASE_ASM_CFLAGS) -Wall -Dstrnicmp=strncasecmp -Dstricmp=strcasecmp -I$(CLIENT_DIR) -I$(SERVER_DIR) -I$(COMMON_DIR) -I$(SW_DIR) -I$(GL_DIR) -I$(PROGS_DIR) -I$(LIBS_DIR) -I$(QUX_DIR) -I$(LIBS_DIR)/dxsdk7/include -I/usr/X11R6/include -I$(LIBS_DIR)/sdl/include -I$(LIBS_DIR)/sdl/include/SDL -D_vsnprintf=vsnprintf -D_snprintf=snprintf
+BASE_CFLAGS=$(BASE_ASM_CFLAGS) -Wall -Dstrnicmp=strncasecmp -Dstricmp=strcasecmp -I$(CLIENT_DIR) -I$(SERVER_DIR) -I$(COMMON_DIR) -I$(SW_DIR) -I$(GL_DIR) -I$(PROGS_DIR) -I$(LIBS_DIR) -I$(QUX_DIR) -I$(LIBS_DIR)/dxsdk7/include -I$(LIBS_DIR)/sdl/include -I$(LIBS_DIR)/sdl/include/SDL -D_vsnprintf=vsnprintf -D_snprintf=snprintf
 CLIENT_ONLY_CFLAGS=-DCLIENTONLY
 SERVER_ONLY_CFLAGS=-DSERVERONLY
 JOINT_CFLAGS=
@@ -415,7 +421,7 @@ endif
 	GL_EXE_NAME=../fteqw.gl
 	GLCL_EXE_NAME=../fteqwcl.gl
 	GL_LDFLAGS= -L/usr/local/lib $(GLLDFLAGS) $(GLXLDFLAGS) -lXxf86vm
-	GL_CFLAGS=$(GLCFLAGS) -I/usr/local/include
+	GL_CFLAGS=$(GLCFLAGS) -I/usr/local/include -I/usr/X11R6/include
 	GLB_DIR=gl_bsd
 	GLCL_DIR=glcl_bsd
 
@@ -427,7 +433,7 @@ endif
 	SW_EXE_NAME=../fteqw.sw
 	SWCL_EXE_NAME=../fteqwcl.sw
 	SW_LDFLAGS=-L/usr/local/lib $(SWLDFLAGS) $(XLDFLAGS)
-	SW_CFLAGS=$(SWCFLAGS) -I/usr/local/include
+	SW_CFLAGS=$(SWCFLAGS) -I/usr/local/include -I/usr/X11R6/include
 	SWB_DIR=sw_bsd
 	SWCL_DIR=swcl_bsd
 
@@ -439,7 +445,7 @@ endif
 	M_EXE_NAME=../fteqw
 	MCL_EXE_NAME=../fteqwcl
 	M_LDFLAGS=$(GLLDFLAGS) $(GLXLDFLAGS) -lXxf86vm
-	M_CFLAGS=$(SWCFLAGS) $(GLCFLAGS)
+	M_CFLAGS=$(SWCFLAGS) $(GLCFLAGS) -I/usr/X11R6/include
 	MB_DIR=m_bsd
 	MCL_DIR=mcl_bsd
 endif
@@ -456,7 +462,7 @@ endif
 	GL_EXE_NAME=../fteqw.gl
 	GLCL_EXE_NAME=../fteqwcl.gl
 	GL_LDFLAGS=$(GLLDFLAGS) $(GLXLDFLAGS)  -lXxf86vm
-	GL_CFLAGS=$(GLCFLAGS)
+	GL_CFLAGS=$(GLCFLAGS) -I/usr/X11R6/include
 	GLB_DIR=gl_linux
 	GLCL_DIR=glcl_linux
 
@@ -468,7 +474,7 @@ endif
 	SW_EXE_NAME=../fteqw.sw
 	SWCL_EXE_NAME=../fteqwcl.sw
 	SW_LDFLAGS=$(SWLDFLAGS) $(XLDFLAGS)
-	SW_CFLAGS=$(SWCFLAGS)
+	SW_CFLAGS=$(SWCFLAGS) -I/usr/X11R6/include
 	SWB_DIR=sw_linux
 	SWCL_DIR=swcl_linux
 
@@ -480,7 +486,7 @@ endif
 	M_EXE_NAME=../fteqw
 	MCL_EXE_NAME=../fteqwcl
 	M_LDFLAGS=$(GLLDFLAGS) $(GLXLDFLAGS) -lXxf86vm
-	M_CFLAGS=$(SWCFLAGS) $(GLCFLAGS)
+	M_CFLAGS=$(SWCFLAGS) $(GLCFLAGS) -I/usr/X11R6/include
 	MB_DIR=m_linux
 	MCL_DIR=mcl_linux
 
@@ -489,6 +495,40 @@ endif
 	MINGL_EXE_NAME=../fteqw.mingl
 	MINGL_DIR=mingl_linux
 endif
+
+ifeq ($(FTE_TARGET),morphos)
+
+	SV_DIR=sv_morphos
+	SV_LDFLAGS=-lz
+
+	GLCL_OBJS=$(GL_OBJS) $(GLQUAKE_OBJS) gl_vidmorphos.o in_morphos.o snd_morphos.o cd_morphos.o sys_morphos.o
+	GL_EXE_NAME=../fteqw.gl
+	GLCL_EXE_NAME=../fteqwcl.gl
+	GL_LDFLAGS=$(GLLDFLAGS) -ljpeg_shared -lpng_shared -lsyscall
+	GL_CFLAGS=$(GLCFLAGS) -noixemul -D__MORPHOS_SHAREDLIBS
+	GLB_DIR=gl_morphos
+	GLCL_DIR=glcl_morphos
+
+	SWCL_OBJS=$(SOFTWARE_OBJS) vid_morphos.o in_morphos.o snd_morphos.o cd_morphos.o sys_morphos.o
+	SW_EXE_NAME=../fteqw.sw
+	SWCL_EXE_NAME=../fteqwcl.sw
+	SW_LDFLAGS=$(SWLDFLAGS) $(XLDFLAGS)
+	SW_CFLAGS=$(SWCFLAGS) -noixemul -D__MORPHOS_SHAREDLIBS
+	SWB_DIR=sw_morphos
+	SWCL_DIR=swcl_morphos
+
+	MCL_OBJS=$(GLQUAKE_OBJS) $(SOFTWARE_OBJS) gl_vidmorphos.o vid_morphos.o in_morphos.o snd_morphos.o cd_morphos.o sys_morphos.o
+	M_EXE_NAME=../fteqw
+	MCL_EXE_NAME=../fteqwcl
+	M_LDFLAGS=$(GLLDFLAGS)
+	M_CFLAGS=$(SWCFLAGS) $(GLCFLAGS)
+	MB_DIR=m_morphos
+	MCL_DIR=mcl_morphos
+
+	MINGL_EXE_NAME=../fteqw.mingl
+	MINGL_DIR=mingl_morphos
+endif
+
 
 ifeq ($(FTE_TARGET),cygwin)
 
@@ -600,10 +640,10 @@ _out-rel:
 _out-dbg:
 	$(MAKE) $(OUT_DIR)/$(EXE_NAME) EXE_NAME="$(EXE_NAME)" OUT_DIR="$(OUT_DIR)" WCFLAGS="$(WCFLAGS) $(DEBUG_CFLAGS)" LDFLAGS="$(BASELDFLAGS) $(LDFLAGS)" OBJS="$(OBJS)"
 
-_cl-rel:
+_cl-rel: reldir
 	$(MAKE) _out-rel EXE_NAME="$(EXE_NAME)" OUT_DIR="$(OUT_DIR)" WCFLAGS="$(CLIENT_ONLY_CFLAGS) $(WCFLAGS)" LDFLAGS="$(LDFLAGS)" SOBJS="$(SOBJS)" OBJS="SOBJS COMMON_OBJS CLIENT_OBJS PROGS_OBJS"
 
-_cl-dbg:
+_cl-dbg: debugdir
 	$(MAKE) _out-dbg EXE_NAME="$(EXE_NAME)" OUT_DIR="$(OUT_DIR)" WCFLAGS="$(CLIENT_ONLY_CFLAGS) $(WCFLAGS)" LDFLAGS="$(LDFLAGS)" SOBJS="$(SOBJS)" OBJS="SOBJS COMMON_OBJS CLIENT_OBJS PROGS_OBJS"
 
 _clsv-rel: reldir

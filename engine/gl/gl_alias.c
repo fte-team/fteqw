@@ -2974,6 +2974,7 @@ static void *Q1_LoadFrameGroup (daliasframetype_t *pframetype, int *seamremaps)
 	int				i, j, k;
 	daliasgroup_t *ingroup;
 	daliasinterval_t *intervals;
+	float sinter;
 
 	vec3_t *normals;
 	vec3_t *verts;
@@ -3035,7 +3036,10 @@ static void *Q1_LoadFrameGroup (daliasframetype_t *pframetype, int *seamremaps)
 			normals = &verts[galias->numverts];
 
 			intervals = (daliasinterval_t *)(ingroup+1);
-			frame->rate = 1/LittleFloat(intervals->interval);
+			sinter = LittleFloat(intervals->interval);
+			if (sinter <= 0)
+				sinter = 0.1;
+			frame->rate = 1/sinter;
 
 			pinframe = (dtrivertx_t *)(intervals+frame->numposes);
 			for (k = 0; k < frame->numposes; k++)
@@ -3122,6 +3126,7 @@ static void *Q1_LoadSkins (daliasskintype_t *pskintype, qboolean alpha)
 	char skinname[MAX_QPATH];
 	int i;
 	int s, t;
+	float sinter;
 	daliasskingroup_t *count;
 	daliasskininterval_t *intervals;
 	qbyte *data, *saved;
@@ -3224,7 +3229,10 @@ static void *Q1_LoadSkins (daliasskintype_t *pskintype, qboolean alpha)
 			texnums = Hunk_Alloc(sizeof(*texnums)*outskin->texnums);
 			outskin->ofstexnums = (char *)texnums - (char *)outskin;
 			outskin->ofstexels = 0;
-			outskin->skinspeed = 1/LittleFloat(intervals[0].interval);
+			sinter = LittleFloat(intervals[0].interval);
+			if (sinter <= 0)
+				sinter = 0.1;
+			outskin->skinspeed = 1/sinter;
 
 			for (t = 0; t < outskin->texnums; t++,data+=s, texnums++)
 			{

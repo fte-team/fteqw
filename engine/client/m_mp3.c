@@ -1258,7 +1258,7 @@ qboolean Media_DecodeFrame(cin_t *cin)
 		}
 		break;
 
-
+#ifdef WINAVI
 	case MFT_AVI:
 		{
 			LPBITMAPINFOHEADER lpbi;									// Holds The Bitmap Header Information
@@ -1323,6 +1323,7 @@ qboolean Media_DecodeFrame(cin_t *cin)
 			}
 		}
 		return true;
+#endif
 	}
 	return false;
 }

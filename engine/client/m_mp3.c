@@ -811,7 +811,7 @@ typedef enum {
 	MFT_CIN
 } media_filmtype_t;
 
-typedef struct cin_s {
+struct cin_s {
 
 	//these are the outputs (not always power of two!)
 	int outtype;
@@ -873,7 +873,7 @@ typedef struct cin_s {
 	//source info
 	float filmfps;
 	int num_frames;
-} cin_t;
+};
 
 cin_t *fullscreenvid;
 

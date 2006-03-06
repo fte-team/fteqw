@@ -1197,7 +1197,7 @@ void CL_PlayDemo(char *demoname)
 	}
 	if (!cls.demofile)
 	{
-		Con_Printf ("ERROR: couldn't open.\n");
+		Con_Printf ("ERROR: couldn't open \"%s\".\n", demoname);
 		cls.demonum = -1;		// stop demo loop
 		return;
 	}

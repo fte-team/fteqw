@@ -2340,7 +2340,7 @@ void CL_ParseStatic (int version)
 		return;
 	}
 	ent = &cl_static_entities[i];
-	memcpy(ent, &nullentitystate, sizeof(*ent));
+	memset(ent, 0, sizeof(*ent));
 	cl_static_emit[i] = NULL;
 
 	ent->keynum = es.number;

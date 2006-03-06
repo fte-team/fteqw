@@ -501,7 +501,7 @@ ifeq ($(FTE_TARGET),morphos)
 	SV_DIR=sv_morphos
 	SV_LDFLAGS=-lz
 
-	GLCL_OBJS=$(GL_OBJS) $(GLQUAKE_OBJS) gl_vidmorphos.o in_morphos.o snd_morphos.o cd_morphos.o sys_morphos.o
+	GLCL_OBJS=$(GL_OBJS) $(GLQUAKE_OBJS) gl_vidmorphos.o in_morphos.o snd_morphos.o cd_null.o sys_morphos.o
 	GL_EXE_NAME=../fteqw.gl
 	GLCL_EXE_NAME=../fteqwcl.gl
 	GL_LDFLAGS=$(GLLDFLAGS) -ljpeg_shared -lpng_shared -lsyscall
@@ -509,7 +509,7 @@ ifeq ($(FTE_TARGET),morphos)
 	GLB_DIR=gl_morphos
 	GLCL_DIR=glcl_morphos
 
-	SWCL_OBJS=$(SOFTWARE_OBJS) vid_morphos.o in_morphos.o snd_morphos.o cd_morphos.o sys_morphos.o
+	SWCL_OBJS=$(SOFTWARE_OBJS) vid_morphos.o in_morphos.o snd_morphos.o cd_null.o sys_morphos.o
 	SW_EXE_NAME=../fteqw.sw
 	SWCL_EXE_NAME=../fteqwcl.sw
 	SW_LDFLAGS=$(SWLDFLAGS) $(XLDFLAGS)
@@ -517,7 +517,7 @@ ifeq ($(FTE_TARGET),morphos)
 	SWB_DIR=sw_morphos
 	SWCL_DIR=swcl_morphos
 
-	MCL_OBJS=$(GLQUAKE_OBJS) $(SOFTWARE_OBJS) gl_vidmorphos.o vid_morphos.o in_morphos.o snd_morphos.o cd_morphos.o sys_morphos.o
+	MCL_OBJS=$(GLQUAKE_OBJS) $(SOFTWARE_OBJS) gl_vidmorphos.o vid_morphos.o in_morphos.o snd_morphos.o cd_null.o sys_morphos.o
 	M_EXE_NAME=../fteqw
 	MCL_EXE_NAME=../fteqwcl
 	M_LDFLAGS=$(GLLDFLAGS)

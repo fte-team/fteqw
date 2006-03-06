@@ -357,6 +357,17 @@ model_t *SWMod_LoadModel (model_t *mod, qboolean crash)
 // fill it in
 //
 
+	// set necessary engine flags for loading purposes
+	if (!strcmp(mod->name, "progs/player.mdl"))
+	{
+		mod->engineflags |= MDLF_PLAYER | MDLF_DOCRC;
+	}
+	else if (!strcmp(mod->name, "progs/flame.mdl") || !strcmp(mod->name, "progs/flame2.mdl"))
+		mod->engineflags |= MDLF_FLAME;
+	else if (!strcmp(mod->name, "progs/eyes.mdl"))
+		mod->engineflags |= MDLF_DOCRC;
+
+
 // call the apropriate loader
 	mod->needload = false;
 	
@@ -2259,8 +2270,8 @@ void SWMod_LoadAliasModel (model_t *mod, void *buffer)
 	int					skinsize;
 	int					start, end, total;
 	
-	if (!strcmp(loadmodel->name, "progs/player.mdl") ||
-		!strcmp(loadmodel->name, "progs/eyes.mdl")) {
+	if (loadmodel->engineflags & MDLF_DOCRC)
+	{
 		unsigned short crc;
 		qbyte *p;
 		int len;
@@ -2272,13 +2283,13 @@ void SWMod_LoadAliasModel (model_t *mod, void *buffer)
 	
 		sprintf(st, "%d", (int) crc);
 		Info_SetValueForKey (cls.userinfo, 
-			!strcmp(loadmodel->name, "progs/player.mdl") ? pmodel_name : emodel_name,
+			(loadmodel->engineflags & MDLF_PLAYER) ? pmodel_name : emodel_name,
 			st, MAX_INFO_STRING);
 
 		if (cls.state >= ca_connected)
 		{
 			CL_SendClientCommand(true, "setinfo %s %d", 
-				!strcmp(loadmodel->name, "progs/player.mdl") ? pmodel_name : emodel_name,
+				(loadmodel->engineflags & MDLF_PLAYER) ? pmodel_name : emodel_name,
 				(int)crc);
 		}
 	}
@@ -2536,10 +2547,8 @@ void SWMod_LoadAlias2Model (model_t *mod, void *buffer)
 	vec3_t				mins, maxs;
 
 
-
-	
-	if (!strcmp(loadmodel->name, "progs/player.mdl") ||
-		!strcmp(loadmodel->name, "progs/eyes.mdl")) {
+	if (loadmodel->engineflags & MDLF_DOCRC)
+	{
 		unsigned short crc;
 		qbyte *p;
 		int len;
@@ -2551,13 +2560,13 @@ void SWMod_LoadAlias2Model (model_t *mod, void *buffer)
 	
 		sprintf(st, "%d", (int) crc);
 		Info_SetValueForKey (cls.userinfo, 
-			!strcmp(loadmodel->name, "progs/player.mdl") ? pmodel_name : emodel_name,
+			(loadmodel->engineflags & MDLF_PLAYER) ? pmodel_name : emodel_name,
 			st, MAX_INFO_STRING);
 
 		if (cls.state >= ca_connected)
 		{
 			CL_SendClientCommand(true, "setinfo %s %d", 
-				!strcmp(loadmodel->name, "progs/player.mdl") ? pmodel_name : emodel_name,
+				(loadmodel->engineflags & MDLF_PLAYER) ? pmodel_name : emodel_name,
 				(int)crc);
 		}
 	}
@@ -2931,8 +2940,8 @@ void SWMod_LoadAlias3Model (model_t *mod, void *buffer)
 
 	vec3_t				mins, maxs;
 
-	if (!strcmp(loadmodel->name, "progs/player.mdl") ||
-		!strcmp(loadmodel->name, "progs/eyes.mdl")) {
+	if (loadmodel->engineflags & MDLF_DOCRC)
+	{
 		unsigned short crc;
 		qbyte *p;
 		int len;
@@ -2944,13 +2953,13 @@ void SWMod_LoadAlias3Model (model_t *mod, void *buffer)
 	
 		sprintf(st, "%d", (int) crc);
 		Info_SetValueForKey (cls.userinfo, 
-			!strcmp(loadmodel->name, "progs/player.mdl") ? pmodel_name : emodel_name,
+			(loadmodel->engineflags & MDLF_PLAYER) ? pmodel_name : emodel_name,
 			st, MAX_INFO_STRING);
 
 		if (cls.state >= ca_connected)
 		{
 			CL_SendClientCommand(true, "setinfo %s %d", 
-				!strcmp(loadmodel->name, "progs/player.mdl") ? pmodel_name : emodel_name,
+				(loadmodel->engineflags & MDLF_PLAYER) ? pmodel_name : emodel_name,
 				(int)crc);
 		}
 	}

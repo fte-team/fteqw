@@ -265,16 +265,8 @@ void R_StoreEfrags (efrag_t **ppefrag)
 		pent = pefrag->entity;
 		clmodel = pent->model;
 
-		//if ( (!strcmp(clmodel->name, "progs/flame.mdl")) || (!strcmp(clmodel->name, "progs/flame2.mdl")) && (r_drawflame.value == 0) && (gl_part_flame.value == 0) )
-		//if ( strcmp(clmodel->name, "progs/flame.mdl") || strcmp(clmodel->name, "progs/flame2.mdl") && (r_drawflame.value == 0) && (gl_part_flame.value == 0) )
-		//{
-		//	break;
-		//}
-
-		if ( (strcmp(clmodel->name, "progs/flame.mdl")) || (strcmp(clmodel->name, "progs/flame2.mdl")) && (!r_drawflame.value) )
-		{
-			return;
-		}
+		if ((!r_drawflame.value) && (clmodel->engineflags & MDLF_FLAME))
+			break;
 
 //		switch (clmodel->type)
 //		{

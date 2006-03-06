@@ -206,8 +206,7 @@ void Mod_DoCRC(model_t *mod, char *buffer, int buffersize)
 {
 #ifndef SERVERONLY
 	//we've got to have this bit
-	if (!strcmp(loadmodel->name, "progs/player.mdl") ||
-		!strcmp(loadmodel->name, "progs/eyes.mdl"))
+	if (loadmodel->engineflags & MDLF_DOCRC)
 	{
 		unsigned short crc;
 		qbyte *p;
@@ -220,13 +219,13 @@ void Mod_DoCRC(model_t *mod, char *buffer, int buffersize)
 
 		sprintf(st, "%d", (int) crc);
 		Info_SetValueForKey (cls.userinfo,
-			!strcmp(loadmodel->name, "progs/player.mdl") ? pmodel_name : emodel_name,
+			(loadmodel->engineflags & MDLF_PLAYER) ? pmodel_name : emodel_name,
 			st, MAX_INFO_STRING);
 
 		if (cls.state >= ca_connected)
 		{
 			CL_SendClientCommand(true, "setinfo %s %d",
-				!strcmp(loadmodel->name, "progs/player.mdl") ? pmodel_name : emodel_name,
+				(loadmodel->engineflags & MDLF_PLAYER) ? pmodel_name : emodel_name,
 				(int)crc);
 		}
 	}
@@ -1711,7 +1710,7 @@ void R_DrawGAliasModel (entity_t *e)
 //MORE HUGE HACKS! WHEN WILL THEY CEASE!
 	// clamp lighting so it doesn't overbright as much
 	// ZOID: never allow players to go totally black
-	if (!strcmp(clmodel->name, "progs/player.mdl"))
+	if (clmodel->engineflags & MDLF_PLAYER)
 	{
 		float fb = r_fullbrightSkins.value;
 		if (fb > cls.allow_fbskins)
@@ -2615,7 +2614,7 @@ void R_DrawGAliasShadowVolume(entity_t *e, vec3_t lightpos, float radius)
 	mesh_t mesh;
 	vec3_t lightorg;
 
-	if (!strcmp (clmodel->name, "progs/flame2.mdl"))
+	if (clmodel->engineflags & MDLF_FLAME)
 		return;
 	if (!strncmp (clmodel->name, "progs/bolt", 10))
 		return;

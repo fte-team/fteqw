@@ -93,8 +93,8 @@ void Mod_LoadHLModel (model_t *mod, void *buffer)
 
 	//checksum the model
 
-	if (!strcmp(mod->name, "progs/player.mdl") ||
-		!strcmp(mod->name, "progs/eyes.mdl")) {
+	if (mod->engineflags & MDLF_DOCRC)
+	{
 		unsigned short crc;
 		qbyte *p;
 		int len;
@@ -106,13 +106,13 @@ void Mod_LoadHLModel (model_t *mod, void *buffer)
 	
 		sprintf(st, "%d", (int) crc);
 		Info_SetValueForKey (cls.userinfo, 
-			!strcmp(mod->name, "progs/player.mdl") ? pmodel_name : emodel_name,
+			(mod->engineflags & MDLF_PLAYER) ? pmodel_name : emodel_name,
 			st, MAX_INFO_STRING);
 
 		if (cls.state >= ca_connected)
 		{
 			CL_SendClientCommand(true, "setinfo %s %d", 
-				!strcmp(mod->name, "progs/player.mdl") ? pmodel_name : emodel_name,
+				(mod->engineflags & MDLF_PLAYER) ? pmodel_name : emodel_name,
 				(int)crc);
 		}
 	}

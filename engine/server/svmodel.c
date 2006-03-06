@@ -270,9 +270,13 @@ model_t *Mod_LoadModel (model_t *mod, qboolean crash)
 // call the apropriate loader
 	mod->needload = false;
 
-
-
-
+	// set necessary engine flags for loading purposes
+	if (!strcmp(mod->name, "progs/player.mdl"))
+	{
+		mod->engineflags |= MDLF_PLAYER | MDLF_DOCRC;
+	}
+	else if (!strcmp(mod->name, "progs/eyes.mdl"))
+		mod->engineflags |= MDLF_DOCRC;
 
 	switch (LittleLong(*(unsigned *)buf))
 	{

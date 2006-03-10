@@ -1383,11 +1383,7 @@ static void ProcessMouse(mouse_t *mouse, usercmd_t *cmd, int pnum)
 	if(in_xflip.value) mx *= -1;
 #endif
 
-	if (mouseusedforgui || (key_dest == key_menu && (m_state == m_complex || m_state == m_plugin) || key_dest == key_console)
-#ifdef VM_UI
-		|| UI_MenuState()
-#endif
-		)
+	if (Key_MouseShouldBeFree())
 	{
 		mousemove_x += mx;
 		mousemove_y += my;

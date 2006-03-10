@@ -492,7 +492,7 @@ void Key_ConsoleRelease(int key)
 			}
 
 			for (x = con_mousedown[0]; x < xpos; x++)
-				*buf++ = con_current->text[x + ((y%con_current->totallines)*con_current->linewidth)];
+				*buf++ = con_current->text[x + ((y%con_current->totallines)*con_current->linewidth)]&127;
 		}
 		while(buf > bufhead && buf[-1] == ' ')
 			buf--;
@@ -1272,6 +1272,35 @@ void Key_Init (void)
 	Cmd_AddCommand ("unbindall",Key_Unbindall_f);
 
 	Cvar_Register (&con_selectioncolour, "Console variables");
+}
+
+qboolean Key_MouseShouldBeFree(void)
+{
+	//returns if the mouse should be a cursor or if it should go to the menu
+
+	//if true, the input code is expected to return mouse cursor positions rather than deltas
+
+	extern int mouseusedforgui;
+	if (mouseusedforgui)	//I don't like this
+		return true;
+
+	if (key_dest == key_menu)
+	{
+		if (m_state == m_complex || m_state == m_plugin)
+			return true;
+	}
+	if (key_dest == key_console)
+		return true;
+	if (key_dest == key_game && cls.state < ca_connected)
+		return true;
+
+#ifdef VM_UI
+	if (UI_MenuState())
+		return true;
+#endif
+
+
+	return false;
 }
 
 /*

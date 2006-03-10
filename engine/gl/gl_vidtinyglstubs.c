@@ -1,3 +1,16 @@
+/*
+This file is currently used only by bigfoot's MorphOS port.
+
+I should explain this file to any Unix/Windows programmers...
+Over on amiga-like operating systems, each system function to dynamic libraries is defined as a macro to a jmp statement.
+
+along the lines of ((myfunc_t)((char*)library + offset))(parameters);
+Obviously, in an engine that likes function pointers to all the gl functions, this is somewhat problematic.
+
+You can see the state of his opengl library be seeing which functions are actually implemented. :)
+*/
+
+
 void stub_glAlphaFunc(GLenum func, GLclampf ref)
 {
 	glAlphaFunc(func, ref);

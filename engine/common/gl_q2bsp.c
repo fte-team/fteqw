@@ -839,7 +839,7 @@ void CM_CreatePatchesForLeafs (void)
 		leaf->numleafpatches = 0;
 		leaf->firstleafpatch = numleafpatches;
 
-		if (leaf->cluster == -1)
+		if (leaf->cluster == -1 || map_noCurves.value)
 			continue;
 
 		for (j=0 ; j<leaf->numleaffaces ; j++)
@@ -3981,6 +3981,8 @@ void CM_InitBoxHull (void)
 	box_model.funcs.LeafPVS				= CM_LeafnumPVS;
 	box_model.funcs.LeafnumForPoint		= CM_PointLeafnum;
 	box_model.funcs.Trace				= CM_Trace;
+	box_model.funcs.NativeContents		= CM_NativeContents;
+	box_model.funcs.NativeTrace			= CM_NativeTrace;
 
 	box_model.hulls[0].available = true;
 	Q2BSP_SetHullFuncs(&box_model.hulls[0]);

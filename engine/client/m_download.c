@@ -267,21 +267,21 @@ static void MD_Draw (int x, int y, struct menucustom_s *c, struct menu_s *m)
 	p = c->data;
 	if (p)
 	{
-		Draw_Character (x, y, 128);
-		Draw_Character (x+8, y, 130);
-		Draw_Character (x+16, y, 128);
-		Draw_Character (x+24, y, 130);
+		Draw_Character (x+4, y, 128);
+		Draw_Character (x+12, y, 130);
+		Draw_Character (x+24, y, 128);
+		Draw_Character (x+32, y, 130);
 
 		if (p->flags&DPF_WANTTOINSTALL)
-			Draw_Character (x+4, y, 131);
+			Draw_Character (x+8, y, 131);
 		else
-			Draw_Character (x+4, y, 129);
+			Draw_Character (x+8, y, 129);
 
 		//if you have it already
 		if (p->flags&(DPF_HAVEAVERSION | ((((int)(realtime*4))&1)?(DPF_DOWNLOADING|DPF_ENQUED):0) ))
-			Draw_Character (x+20, y, 131);
+			Draw_Character (x+28, y, 131);
 		else
-			Draw_Character (x+20, y, 129);
+			Draw_Character (x+28, y, 129);
 
 
 		if (&m->selecteditem->common == &c->common)
@@ -398,7 +398,7 @@ void M_AddItemsToDownloadMenu(menu_t *m)
 	int prefixlen;
 	p = availablepackages;
 
-	MC_AddRedText(m, 4, 40, "W H      (want, have)", false);
+	MC_AddRedText(m, 0, 40, "WntHav", false);
 
 	prefixlen = strlen(info->pathprefix);
 	y = 48+4;
@@ -771,7 +771,6 @@ void Menu_DownloadStuff_f (void)
 	}
 
 	MC_AddWhiteText(menu, 24, 8, "Downloads", false);
-	MC_AddWhiteText(menu, 0, 16, "Probably buggy, press escape now and avoid this place!", false);
 	MC_AddWhiteText(menu, 16, 24, "\35\36\36\36\36\36\36\36\36\36\36\36\36\36\36\36\36\36\36\36\36\36\36\36\36\36\36\36\36\36\36\36\36\36\36\36\37", false);
 
 	{

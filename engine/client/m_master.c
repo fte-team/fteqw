@@ -973,39 +973,66 @@ void SL_ServerDraw (int x, int y, menucustom_t *ths, menu_t *menu)
 }
 qboolean SL_ServerKey (menucustom_t *ths, menu_t *menu, int key)
 {
+	static int lastclick;
+	int curtime;
+	int oldselection;
 	extern int mousecursor_x, mousecursor_y;
 	serverlist_t *info = (serverlist_t*)(menu + 1);
 	serverinfo_t *server;
 	if (key == K_MOUSE1)
 	{
+		oldselection = info->selectedpos;
 		info->selectedpos = info->scrollpos + (mousecursor_y-16)/8;
-		{
-			serverinfo_t *server;
-			server = Master_SortedServer(info->selectedpos);
-			if (server)
-			{
-				snprintf(info->mappic->picturename, 32, "levelshots/%s", server->map);
-			}
-			else
-			{
-				snprintf(info->mappic->picturename, 32, "levelshots/nomap");
-			}
-		}
-	}
-	if (key == K_ENTER || key == 's' || key == 'j')
-	{
-		server = Master_SortedServer((int)ths->data + info->scrollpos);
+		server = Master_SortedServer(info->selectedpos);
 		if (server)
 		{
-			if (key == 's')
+			snprintf(info->mappic->picturename, 32, "levelshots/%s", server->map);
+		}
+		else
+		{
+			snprintf(info->mappic->picturename, 32, "levelshots/nomap");
+			return true;
+		}
+
+		curtime = Sys_Milliseconds();
+		if (lastclick > curtime || lastclick < curtime-250)
+		{	//shouldn't happen, or too old a click
+			lastclick = curtime;
+			return true;
+		}
+		if (oldselection == info->selectedpos)
+			goto joinserver;
+		return true;
+	}
+
+	if (key == 'f')
+	{
+		server = Master_SortedServer(info->selectedpos);
+		if (server)
+		{
+			server->special ^= SS_FAVORITE;
+		}
+	}
+
+	if (key == K_ENTER || key == 's' || key == 'j' || key == K_SPACE)
+	{
+		server = Master_SortedServer(info->selectedpos);
+		if (server)
+		{
+			if (key == 's' || key == K_SPACE)
 				Cbuf_AddText("spectator 1\n", RESTRICT_LOCAL);
 			else if (key == 'j')
+			{
+joinserver:
 				Cbuf_AddText("spectator 0\n", RESTRICT_LOCAL);
+			}
 
 			if (server->special & SS_NETQUAKE)
 				Cbuf_AddText(va("nqconnect %s\n", NET_AdrToString(server->adr)), RESTRICT_LOCAL);
 			else
 				Cbuf_AddText(va("connect %s\n", NET_AdrToString(server->adr)), RESTRICT_LOCAL);
+
+			M_RemoveAllMenus();
 		}
 		return true;
 	}
@@ -1146,7 +1173,7 @@ void CalcFilters(menu_t *menu)
 	if (info->filter[2]) Master_SetMaskInteger(true, SLKEY_BASEGAME, SS_NETQUAKE|SS_DARKPLACES|SS_QUAKE2|SS_QUAKE3, SLIST_TEST_NOTCONTAIN);
 	if (info->filter[3]) Master_SetMaskInteger(true, SLKEY_BASEGAME, SS_QUAKE2, SLIST_TEST_CONTAINS);
 	if (info->filter[4]) Master_SetMaskInteger(true, SLKEY_BASEGAME, SS_QUAKE3, SLIST_TEST_CONTAINS);
-
+	if (info->filter[5]) Master_SetMaskInteger(false, SLKEY_BASEGAME, SS_FAVORITE, SLIST_TEST_CONTAINS);
 	if (info->filter[6]) Master_SetMaskInteger(false, SLKEY_NUMPLAYERS, 0, SLIST_TEST_NOTEQUAL);
 	if (info->filter[7]) Master_SetMaskInteger(false, SLKEY_FREEPLAYERS, 0, SLIST_TEST_NOTEQUAL);
 }
@@ -1181,6 +1208,12 @@ void SL_Remove	(menu_t *menu)
 
 	Cvar_Set(&sb_hideempty, info->filter[6]?"1":"0");
 	Cvar_Set(&sb_hidefull, info->filter[7]?"1":"0");
+}
+
+qboolean SL_DoRefresh (menuoption_t *opt, menu_t *menu, int key)
+{
+	MasterInfo_Begin();
+	return true;
 }
 
 void M_Menu_ServerList2_f(void)
@@ -1241,8 +1274,11 @@ void M_Menu_ServerList2_f(void)
 	MC_AddCheckBoxFunc(menu, 128, vid.height - 64+8*2, "List QW   ", SL_ReFilter, 2);
 	MC_AddCheckBoxFunc(menu, 128, vid.height - 64+8*3, "List Q2   ", SL_ReFilter, 3);
 	MC_AddCheckBoxFunc(menu, 128, vid.height - 64+8*4, "List Q3   ", SL_ReFilter, 4);
+	MC_AddCheckBoxFunc(menu, 128, vid.height - 64+8*5, "Only Favs ", SL_ReFilter, 5);
 	MC_AddCheckBoxFunc(menu, 128, vid.height - 64+8*6, "Hide Empty", SL_ReFilter, 6);
 	MC_AddCheckBoxFunc(menu, 128, vid.height - 64+8*7, "Hide Full ", SL_ReFilter, 7);
+
+	MC_AddCommand(menu, 64, 0, "Refresh", SL_DoRefresh);
 
 	info->filter[1] = !sb_hidenetquake.value;
 	info->filter[2] = !sb_hidequakeworld.value;

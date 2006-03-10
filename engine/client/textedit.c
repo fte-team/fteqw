@@ -60,7 +60,7 @@ qboolean editoractive;	//(export)
 qboolean editormodal;	//doesn't return. (export)
 qboolean editorblocking;
 qboolean madechanges;
-qboolean insertkeyhit;
+qboolean insertkeyhit=true;
 qboolean useeval;
 
 char evalstring[256];
@@ -283,7 +283,7 @@ void EditorOpenFile(char *name)
 		len = 0;
 		for(;;)
 		{
-			if (pos+len >= flen)
+			if (pos+len >= flen || len > sizeof(line) - 16)
 				break;
 			line[len] = VFS_GETC(F);
 
@@ -495,7 +495,8 @@ void Editor_Key(int key)
 		}
 		break;
 	case K_F3:
-		useeval = true;
+		if (editprogfuncs)
+			useeval = true;
 		break;
 	case K_F4:
 		EditorSaveFile(OpenEditorFile);
@@ -511,7 +512,8 @@ void Editor_Key(int key)
 		break;
 	case K_F7:
 		EditorSaveFile(OpenEditorFile);
-		Cbuf_AddText("compile\n", RESTRICT_LOCAL);
+		if (editprogfuncs)
+			Cbuf_AddText("compile\n", RESTRICT_LOCAL);
 		break;
 	case K_F8:
 		executionlinenum = cursorlinenum;
@@ -520,27 +522,27 @@ void Editor_Key(int key)
 	case K_F9:
 		{
 			int f = 0;
-		if (editprogfuncs)
-		{
-			if (editprogfuncs->ToggleBreak(editprogfuncs, OpenEditorFile+4, cursorlinenum, 2))
-				f |= 1;
-			else
-				f |= 2;
-		}
+			if (editprogfuncs)
+			{
+				if (editprogfuncs->ToggleBreak(editprogfuncs, OpenEditorFile+4, cursorlinenum, 2))
+					f |= 1;
+				else
+					f |= 2;
+			}
 #ifndef CLIENTONLY
-		else if (svprogfuncs)
-		{
-			if (svprogfuncs->ToggleBreak(svprogfuncs, OpenEditorFile+4, cursorlinenum, 2))
-				f |= 1;
-			else
-				f |= 2;
-		}
+			else if (svprogfuncs)
+			{
+				if (svprogfuncs->ToggleBreak(svprogfuncs, OpenEditorFile+4, cursorlinenum, 2))
+					f |= 1;
+				else
+					f |= 2;
+			}
 #endif
 
-		if (f & 1)
-			cursorblock->flags |= FB_BREAK;
-		else
-			cursorblock->flags &= ~FB_BREAK;
+			if (f & 1)
+				cursorblock->flags |= FB_BREAK;
+			else
+				cursorblock->flags &= ~FB_BREAK;
 		}
 		break;
 	case K_F10:
@@ -619,6 +621,7 @@ void Editor_Key(int key)
 
 			cursorx = cursorblock->datalength;
 			memcpy(cursorblock->data + cursorblock->datalength, b->data, b->datalength);
+			cursorblock->datalength += b->datalength;
 
 			cursorblock->next = b->next;
 			if (b->next)
@@ -661,8 +664,8 @@ void Editor_Key(int key)
 				cursorblock->datalength--;
 			}
 
-			if (cursorx >= cursorblock->datalength)
-				cursorx = cursorblock->datalength-1;
+			if (cursorx > cursorblock->datalength)
+				cursorx = cursorblock->datalength;
 		}
 		break;
 
@@ -674,7 +677,7 @@ void Editor_Key(int key)
 
 			madechanges = true;
 
-			GETBLOCK(strlen(b->data+cursorx), cursorblock);
+			GETBLOCK(b->datalength - cursorx, cursorblock);
 			cursorblock->next = b->next;
 			cursorblock->prev = b;
 			b->next = cursorblock;
@@ -683,8 +686,9 @@ void Editor_Key(int key)
 			if (cursorblock->prev)
 				cursorblock->prev->next = cursorblock;
 
-			strcpy(cursorblock->data, b->data+cursorx);
-			b->data[cursorx] = '\0';
+			cursorblock->datalength = b->datalength - cursorx;
+			memcpy(cursorblock->data, b->data+cursorx, cursorblock->datalength);
+			b->datalength = cursorx;
 
 			cursorx = 0;
 		}
@@ -721,6 +725,8 @@ void Editor_Key(int key)
 
 			cursorblock->data[cursorx] = key;
 			cursorx++;
+			if (cursorx > cursorblock->datalength)
+				cursorblock->datalength = cursorx;
 		}
 		break;
 	}
@@ -779,7 +785,7 @@ void Draw_CursorLine(int ox, int y, fileblock_t *b)
 		a++;
 	}
 	if (a == cx)
-		Draw_ColouredCharacter (x+ox, y, 11);
+		Draw_ColouredCharacter (x+ox, y, 11|CON_WHITEMASK);
 }
 
 void Draw_NonCursorLine(int x, int y, fileblock_t *b)
@@ -1036,6 +1042,9 @@ void Editor_f(void)
 		Con_Printf("edit <filename>\n");
 		return;
 	}
+
+	editprogfuncs = NULL;
+	useeval = false;
 
 	if (editoractive)
 		EditorSaveFile(OpenEditorFile);

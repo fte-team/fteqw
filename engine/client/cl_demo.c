@@ -1220,7 +1220,7 @@ void CL_PlayDemo(char *demoname)
 	cl.gametime = 0;
 	cl.gametimemark = realtime;
 
-	cls.netchan.last_received=0;
+	cls.netchan.last_received=realtime;
 
 
 	start = VFS_TELL(cls.demofile);

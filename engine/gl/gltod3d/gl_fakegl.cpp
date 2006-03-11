@@ -4098,6 +4098,7 @@ rendererinfo_t d3drendererinfo = {
 		GLDraw_EditorBackground,
 		GLDraw_TileClear,
 		GLDraw_Fill,
+		GLDraw_FillRGB,
 		GLDraw_FadeScreen,
 		GLDraw_BeginDisc,
 		GLDraw_EndDisc,

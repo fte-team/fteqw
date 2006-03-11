@@ -592,6 +592,7 @@ void	(*Draw_ConsoleBackground)	(int lines);
 void	(*Draw_EditorBackground)	(int lines);
 void	(*Draw_TileClear)			(int x, int y, int w, int h);
 void	(*Draw_Fill)				(int x, int y, int w, int h, int c);
+void    (*Draw_FillRGB)				(int x, int y, int w, int h, float r, float g, float b);
 void	(*Draw_FadeScreen)			(void);
 void	(*Draw_BeginDisc)			(void);
 void	(*Draw_EndDisc)				(void);
@@ -685,6 +686,7 @@ rendererinfo_t dedicatedrendererinfo = {
 	NULL,	//Draw_EditorBackground;
 	NULL,	//Draw_TileClear;
 	NULL,	//Draw_Fill;
+	NULL,   //Draw_FillRGB;
 	NULL,	//Draw_FadeScreen;
 	NULL,	//Draw_BeginDisc;
 	NULL,	//Draw_EndDisc;
@@ -793,6 +795,7 @@ rendererinfo_t softwarerendererinfo = {
 	SWDraw_EditorBackground,
 	SWDraw_TileClear,
 	SWDraw_Fill,
+	SWDraw_FillRGB,
 	SWDraw_FadeScreen,
 	SWDraw_BeginDisc,
 	SWDraw_EndDisc,
@@ -886,6 +889,7 @@ rendererinfo_t openglrendererinfo = {
 	GLDraw_EditorBackground,
 	GLDraw_TileClear,
 	GLDraw_Fill,
+	GLDraw_FillRGB,
 	GLDraw_FadeScreen,
 	GLDraw_BeginDisc,
 	GLDraw_EndDisc,
@@ -1369,6 +1373,7 @@ void R_SetRenderer(int wanted)
 	Draw_EditorBackground	= ri->Draw_EditorBackground;
 	Draw_TileClear			= ri->Draw_TileClear;
 	Draw_Fill				= ri->Draw_Fill;
+	Draw_FillRGB			= ri->Draw_FillRGB;
 	Draw_FadeScreen			= ri->Draw_FadeScreen;
 	Draw_BeginDisc			= ri->Draw_BeginDisc;
 	Draw_EndDisc			= ri->Draw_EndDisc;

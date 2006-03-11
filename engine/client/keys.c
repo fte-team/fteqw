@@ -385,6 +385,9 @@ void Con_ExecuteLine(console_t *con, char *line)
 									// may take some time
 }
 
+int scmodified;
+vec3_t sccolor;
+
 void Key_ConsoleDrawSelectionBox(void)
 {
 		extern cvar_t vid_conwidth, vid_conheight;
@@ -424,7 +427,10 @@ void Key_ConsoleDrawSelectionBox(void)
 		}
 		ypos++;
 
-	Draw_Fill(xpos2*8, ypos2*8, (xpos - xpos2)*8, (ypos - ypos2)*8, con_selectioncolour.value);
+	if (scmodified != con_selectioncolour.modified)
+		SCR_StringToRGB(con_selectioncolour.string, sccolor, 1);
+
+	Draw_FillRGB(xpos2*8, ypos2*8, (xpos - xpos2)*8, (ypos - ypos2)*8, sccolor[0], sccolor[1], sccolor[2]);
 }
 
 void Key_ConsoleRelease(int key)

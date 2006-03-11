@@ -1824,9 +1824,9 @@ vfsfile_t *FS_OpenVFS(char *filename, char *mode, int relativeto)
 		break;
 	case FS_SKINS:
 		if (*com_homedir)
-			snprintf(fullname, sizeof(fullname), "%s%s/skins/%s", com_homedir, gamedirfile, filename);
+			snprintf(fullname, sizeof(fullname), "%sqw/skins/%s", com_homedir, filename);
 		else
-			snprintf(fullname, sizeof(fullname), "%s%s/skins/%s", com_quakedir, gamedirfile, filename);
+			snprintf(fullname, sizeof(fullname), "%sqw/skins/%s", com_quakedir, filename);
 		break;
 	case FS_BASE:
 		if (*com_homedir)

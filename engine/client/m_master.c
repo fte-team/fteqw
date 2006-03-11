@@ -951,13 +951,13 @@ void SL_ServerDraw (int x, int y, menucustom_t *ths, menu_t *menu)
 	{
 		x = ths->common.width;
 		if (thisone == info->selectedpos)
-			Draw_Fill(0, y, ths->common.width, 8, 63-24);
+			Draw_FillRGB(0, y, ths->common.width, 8, 0.3, 0.3, 0.5);
 		else if (thisone == info->scrollpos + (mousecursor_y-16)/8 && mousecursor_x < x)
-			Draw_Fill(0, y, ths->common.width, 8, (int)(sin(realtime*4.4)*4)+12+16);
+			Draw_FillRGB(0, y, ths->common.width, 8, (sin(realtime*4.4)*0.25)+0.5, (sin(realtime*4.4)*0.25)+0.5, 0.08);
 		else if (thisone & 1)
-			Draw_Fill(0, y, ths->common.width, 8, 1);
+			Draw_FillRGB(0, y, ths->common.width, 8, 0.08, 0.08, 0.08);
 		else
-			Draw_Fill(0, y, ths->common.width, 8, 2);
+			Draw_FillRGB(0, y, ths->common.width, 8, 0.16, 0.16, 0.16);
 
 		x /= 8;
 
@@ -1106,11 +1106,11 @@ qboolean SL_Key	(int key, menu_t *menu)
 void SL_SliderDraw (int x, int y, menucustom_t *ths, menu_t *menu)
 {
 	serverlist_t *info = (serverlist_t*)(menu + 1);
-	Draw_Fill(x, y, ths->common.width, ths->common.height, 54);
+	Draw_FillRGB(x, y, ths->common.width, ths->common.height, 0.1, 0.1, 0.2);
 
 	y += ((info->scrollpos) / ((float)info->numslots - info->visibleslots)) * (ths->common.height-8);
 
-	Draw_Fill(x, y, 8, 8, 45);
+	Draw_FillRGB(x, y, 8, 8, 0.35, 0.35, 0.55);
 
 	if (info->sliderpressed)
 	{

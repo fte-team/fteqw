@@ -770,7 +770,7 @@ void CL_Record_f (void)
 		f = FS_OpenVFS (name, "rb", FS_GAME);
 		if (f)
 		{
-			COM_StripExtension(name, name);
+			COM_StripExtension(name, name, sizeof(name));
 			p = name + strlen(name);
 			strcat(p, "_XX.qwd");
 			p++;
@@ -1106,7 +1106,7 @@ void CL_ReRecord_f (void)
 //
 // open the demo file
 //
-	COM_DefaultExtension (name, ".qwd");
+	COM_DefaultExtension (name, ".qwd", sizeof(name));
 
 	cls.demofile = FS_OpenVFS (name, "wb", FS_GAME);
 	if (!cls.demofile)
@@ -1181,18 +1181,18 @@ void CL_PlayDemo(char *demoname)
 // open the demo file
 //
 	Q_strncpyz (name, demoname, sizeof(name));
-	COM_DefaultExtension (name, ".qwd");
+	COM_DefaultExtension (name, ".qwd", sizeof(name));
 	cls.demofile = FS_OpenVFS(name, "rb", FS_GAME);
 	if (!cls.demofile)
 	{
 		Q_strncpyz (name, demoname, sizeof(name));
-		COM_DefaultExtension (name, ".dem");
+		COM_DefaultExtension (name, ".dem", sizeof(name));
 		cls.demofile = FS_OpenVFS(name, "rb", FS_GAME);
 	}
 	if (!cls.demofile)
 	{
 		Q_strncpyz (name, demoname, sizeof(name));
-		COM_DefaultExtension (name, ".mvd");
+		COM_DefaultExtension (name, ".mvd", sizeof(name));
 		cls.demofile = FS_OpenVFS(name, "rb", FS_GAME);
 	}
 	if (!cls.demofile)

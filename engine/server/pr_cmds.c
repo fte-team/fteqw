@@ -1012,7 +1012,7 @@ void Q_InitProgs(void)
 	if (*progs.string && strlen(progs.string)<64 && *progs.string != '*')	//a * is a special case to not load a q2 dll.
 	{
 		Q_strncpyz(addons, progs.string, MAX_QPATH);
-		COM_DefaultExtension(addons, ".dat");
+		COM_DefaultExtension(addons, ".dat", sizeof(addons));
 	}
 	oldprnum= AddProgs(addons);
 

@@ -1371,11 +1371,12 @@ char *COM_SkipPath (char *pathname)
 COM_StripExtension
 ============
 */
-void COM_StripExtension (char *in, char *out)
+void COM_StripExtension (char *in, char *out, int outlen)
 {
 	char *s;
 
-	strcpy(out, in);
+	if (out != in)
+		Q_strncpyz(out, in, outlen);
 
 	s = out+strlen(out);
 
@@ -1467,7 +1468,7 @@ void COM_CleanUpPath(char *str)
 COM_FileBase
 ============
 */
-void COM_FileBase (char *in, char *out)
+void COM_FileBase (char *in, char *out, int outlen)
 {
 	char *s, *s2;
 
@@ -1487,8 +1488,11 @@ void COM_FileBase (char *in, char *out)
 	else
 	{
 		s--;
-		Q_strncpyS (out,s2+1, s-s2);
-		out[s-s2] = 0;
+		outlen--;
+		if (outlen > s-s2)
+			outlen = s-s2;
+		Q_strncpyS (out,s2+1, outlen);
+		out[outlen] = 0;
 	}
 }
 
@@ -1498,7 +1502,7 @@ void COM_FileBase (char *in, char *out)
 COM_DefaultExtension
 ==================
 */
-void COM_DefaultExtension (char *path, char *extension)
+void COM_DefaultExtension (char *path, char *extension, int maxlen)
 {
 	char    *src;
 //
@@ -1514,7 +1518,7 @@ void COM_DefaultExtension (char *path, char *extension)
 		src--;
 	}
 
-	strcat (path, extension);
+	Q_strncatz (path, extension, maxlen);
 }
 
 //============================================================================

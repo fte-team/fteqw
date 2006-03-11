@@ -499,7 +499,7 @@ void Cmd_Exec_f (void)
 		if (!*f)
 			f = "fte";
 		snprintf(name, sizeof(name)-5, "configs/%s", f);
-		COM_DefaultExtension(name, ".cfg");
+		COM_DefaultExtension(name, ".cfg", sizeof(name));
 	}
 	else
 		Q_strncpyz(name, Cmd_Argv(1), sizeof(name));
@@ -2719,6 +2719,7 @@ void Cmd_WriteConfig_f(void)
 {
 	vfsfile_t *f;
 	char *filename;
+	char fname[MAX_OSPATH];
 
 	filename = Cmd_Argv(1);
 	if (!*filename)
@@ -2733,7 +2734,8 @@ void Cmd_WriteConfig_f(void)
 
 		filename = va("configs/%s.cfg",filename);
 	}
-	COM_DefaultExtension(filename, ".cfg");
+	Q_strncpyz(fname, filename, sizeof(fname));
+	COM_DefaultExtension(fname, ".cfg", sizeof(fname));
 	FS_CreatePath(filename, FS_CONFIGONLY);
 	f = FS_OpenVFS(filename, "wb", FS_CONFIGONLY);
 	if (!f)
@@ -2786,7 +2788,7 @@ void Cmd_Condump_f(void)
 		filename = "condump";
 
 	filename = va("%s", filename);
-	COM_DefaultExtension(filename, ".txt");
+	COM_DefaultExtension(filename, ".txt", MAX_QPATH);
 	
 	f = FS_OpenVFS (filename, "wb", FS_GAME);
 	if (!f)

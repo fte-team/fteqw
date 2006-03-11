@@ -336,15 +336,15 @@ void GLMod_Think (void)
 
 			if (lightmodel->deluxdata)
 			{
-				COM_StripExtension(lightmodel->name, filename);
-				COM_DefaultExtension(filename, ".lux");
+				COM_StripExtension(lightmodel->name, filename, sizeof(filename));
+				COM_DefaultExtension(filename, ".lux", sizeof(filename));
 				FS_WriteFile(filename, lightmodel->deluxdata-8, numlightdata*3+8, FS_GAME);
 			}
 
 			if (writelitfile)	//the user might already have a lit file (don't overwrite it).
 			{
-				COM_StripExtension(lightmodel->name, filename);
-				COM_DefaultExtension(filename, ".lit");
+				COM_StripExtension(lightmodel->name, filename, sizeof(filename));
+				COM_DefaultExtension(filename, ".lit", sizeof(filename));
 				FS_WriteFile(filename, lightmodel->lightdata-8, numlightdata*3+8, FS_GAME);
 			}
 		}
@@ -459,7 +459,7 @@ model_t *GLMod_LoadModel (model_t *mod, qboolean crash)
 	if (Q_strcasecmp(ext, "spr") && Q_strcasecmp(ext, "sp2"))	
 	{
 		char mdlbase[MAX_QPATH];
-		COM_StripExtension(mod->name, mdlbase);
+		COM_StripExtension(mod->name, mdlbase, sizeof(mdlbase));
 #ifdef MD3MODELS
 		if (!buf)
 			buf = (unsigned *)COM_LoadStackFile (va("%s.md3", mdlbase), stackbuf, sizeof(stackbuf));
@@ -507,7 +507,7 @@ couldntload:
 //
 // allocate a new model
 //
-	COM_FileBase (mod->name, loadname);
+	COM_FileBase (mod->name, loadname, sizeof(loadname));
 	Validation_IncludeFile(mod->name, (char *)buf, com_filesize);
 
 //
@@ -1009,21 +1009,21 @@ TRACE(("dbg: GLMod_LoadTextures: inittexturedescs\n"));
 			}
 		}
 #ifdef Q3SHADERS	//load q3 syntax shader last, after the textures inside the bsp have been loaded and stuff.
-		if (gl_shadeq1.value && *gl_shadeq1_name.string)
+		if (cls.allow_shaders && gl_shadeq1.value && *gl_shadeq1_name.string)
 		{
 			char *star;
 			//find the *
 			if (!strcmp(gl_shadeq1_name.string, "*"))
-				tx->shader = R_RegisterShader(mt->name);	//just load the regular name.
+				tx->shader = R_RegisterCustom(mt->name, NULL);	//just load the regular name.
 			else if (!(star = strchr(gl_shadeq1_name.string, '*')) || (strlen(gl_shadeq1_name.string)+strlen(mt->name)+1>=sizeof(altname)))	//it's got to fit.
-				tx->shader = R_RegisterShader(gl_shadeq1_name.string);
+				tx->shader = R_RegisterCustom(gl_shadeq1_name.string, NULL);
 			else
 			{
 				strncpy(altname, gl_shadeq1_name.string, star-gl_shadeq1_name.string);	//copy the left
 				altname[star-gl_shadeq1_name.string] = '\0';
 				strcat(altname, mt->name);	//insert the *
 				strcat(altname, star+1);	//add any final text.
-				tx->shader = R_RegisterShader(altname);
+				tx->shader = R_RegisterCustom(altname, NULL);
 			}
 		}
 #endif
@@ -1247,19 +1247,19 @@ void GLMod_LoadLighting (lump_t *l)
 		if (!luxdata)
 		{							
 			strcpy(luxname, loadmodel->name);
-			COM_StripExtension(loadmodel->name, luxname);
-			COM_DefaultExtension(luxname, ".lux");
+			COM_StripExtension(loadmodel->name, luxname, sizeof(luxname));
+			COM_DefaultExtension(luxname, ".lux", sizeof(luxname));
 			luxdata = COM_LoadHunkFile(luxname);
 		}
 		if (!luxdata)
 		{
 			strcpy(luxname, "luxs/");
-			COM_StripExtension(COM_SkipPath(loadmodel->name), luxname+5);
+			COM_StripExtension(COM_SkipPath(loadmodel->name), luxname+5, sizeof(luxname)-5);
 			strcat(luxname, ".lux");
 
 			luxdata = COM_LoadHunkFile(luxname);
 		}
-		COM_StripExtension(COM_SkipPath(loadmodel->name), luxname+5);
+		COM_StripExtension(COM_SkipPath(loadmodel->name), luxname+5, sizeof(luxname)-5);
 		strcat(luxname, ".lux");
 		if (luxdata)
 		{
@@ -1300,13 +1300,13 @@ void GLMod_LoadLighting (lump_t *l)
 		
 		{							
 			strcpy(litnamemaps, loadmodel->name);
-			COM_StripExtension(loadmodel->name, litnamemaps);
-			COM_DefaultExtension(litnamemaps, ".lit");
+			COM_StripExtension(loadmodel->name, litnamemaps, sizeof(litnamemaps));
+			COM_DefaultExtension(litnamemaps, ".lit", sizeof(litnamemaps));
 			depthmaps = COM_FDepthFile(litnamemaps, false); 
 		}
 		{
 			strcpy(litnamelits, "lits/");
-			COM_StripExtension(COM_SkipPath(loadmodel->name), litnamelits+5);
+			COM_StripExtension(COM_SkipPath(loadmodel->name), litnamelits+5, sizeof(litnamelits) - 5);
 			strcat(litnamelits, ".lit");
 			depthlits = COM_FDepthFile(litnamelits, false);
 		}
@@ -1319,7 +1319,7 @@ void GLMod_LoadLighting (lump_t *l)
 		}
 
 		litdata = COM_LoadHunkFile(litname);
-		COM_StripExtension(COM_SkipPath(loadmodel->name), litname+5);
+		COM_StripExtension(COM_SkipPath(loadmodel->name), litname+5, sizeof(litname)-5);
 		strcat(litname, ".lit");
 		if (litdata && (litdata[0] == 'Q' && litdata[1] == 'L' && litdata[2] == 'I' && litdata[3] == 'T'))
 		{
@@ -1994,8 +1994,8 @@ void GLMod_LoadCrouchHull(void)
 
 	//find a name for a ccn and try to load it.
 	strcpy(crouchhullname, loadmodel->name);
-	COM_StripExtension(loadmodel->name, crouchhullname);
-	COM_DefaultExtension(crouchhullname, ".crh");	//crouch hull
+	COM_StripExtension(loadmodel->name, crouchhullname, sizeof(crouchhullname));
+	COM_DefaultExtension(crouchhullname, ".crh",sizeof(crouchhullname));	//crouch hull
 
 	crouchhullfile = COM_LoadMallocFile(crouchhullname);	//or otherwise temporary storage. load on hunk if you want, but that would be a waste.
 	if (!crouchhullfile)
@@ -2781,13 +2781,13 @@ void * GLMod_LoadSpriteFrame (void * pin, mspriteframe_t **ppframe, int framenum
 	}
 	if (!pspriteframe->gl_texturenum)
 	{	//the older fte way.
-		COM_StripExtension(loadmodel->name, name);
+		COM_StripExtension(loadmodel->name, name, sizeof(name));
 		strcat(name, va("_%i", framenum));
 		pspriteframe->gl_texturenum = Mod_LoadReplacementTexture(name, "sprites", true, true, true);
 	}
 	if (!pspriteframe->gl_texturenum)
 	{	//the fuhquake way
-		COM_StripExtension(COM_SkipPath(loadmodel->name), name);
+		COM_StripExtension(COM_SkipPath(loadmodel->name), name, sizeof(name));
 		strcat(name, va("_%i", framenum));
 		pspriteframe->gl_texturenum = Mod_LoadReplacementTexture(name, "sprites", true, true, true);
 	}

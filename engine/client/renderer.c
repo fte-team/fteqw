@@ -180,7 +180,7 @@ cvar_t			scr_chatmodecvar	= SCVAR("scr_chatmode", "0");
 cvar_t 			gl_shadeq3	= SCVARF("gl_shadeq3", "1", CVAR_SEMICHEAT);	//use if you want.
 cvar_t 			gl_shadeq2	= SCVARF("gl_shadeq2", "0", CVAR_SEMICHEAT);	//use if you want.
 extern cvar_t r_vertexlight;
-cvar_t			gl_shadeq1	= SCVARF("gl_shadeq1", "0", CVAR_CHEAT);	//FIXME: :(
+cvar_t			gl_shadeq1	= SCVARF("gl_shadeq1", "0", CVAR_SEMICHEAT);
 cvar_t			gl_shadeq1_name	= SCVAR("gl_shadeq1_name", "*");
 #endif
 

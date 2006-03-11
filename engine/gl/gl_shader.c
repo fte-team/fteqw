@@ -539,6 +539,111 @@ static void Shader_EntityMergable ( shader_t *shader, shaderpass_t *pass, char *
 	shader->flags |= SHADER_ENTITY_MERGABLE;
 }
 
+static void Shader_ProgramName ( shader_t *shader, shaderpass_t *pass, char **ptr )
+{
+	char *vert, *frag;
+	char *token;
+	if (shader->programhandle)
+	{	//this allows fallbacks
+		token = Shader_ParseString ( ptr );
+		token = Shader_ParseString ( ptr );
+		return;
+	}
+	token = Shader_ParseString ( ptr );
+	FS_LoadFile(token, &vert);
+	token = Shader_ParseString ( ptr );
+	FS_LoadFile(token, &frag);
+	if (vert && frag)
+		shader->programhandle = GLSlang_CreateProgram("", vert, frag);
+	if (vert)
+		FS_FreeFile(vert);
+	if (frag)
+		FS_FreeFile(frag);
+}
+
+static void Shader_ProgramParam ( shader_t *shader, shaderpass_t *pass, char **ptr )
+{
+	cvar_t *cv;
+	int specialint = 0;
+	float specialfloat = 0;
+	enum shaderprogparmtype_e parmtype = SP_BAD;
+	char *token;
+	unsigned int uniformloc;
+
+	token = Shader_ParseString ( ptr );
+	if (!Q_stricmp(token, "texture"))
+	{
+		token = Shader_ParseString ( ptr );
+		specialint = atoi(token);
+		parmtype = SP_TEXTURE;
+	}
+	else if (!Q_stricmp(token, "cvari"))
+	{
+		token = Shader_ParseString ( ptr );
+		cv = Cvar_Get(token, "", 0, "GLSL Shader parameters");
+		if (cv)
+		{	//Cvar_Get returns null if the cvar is the name of a command
+			specialint = atoi(cv->string);
+			specialfloat = cv->value;
+		}
+		parmtype = SP_CVARI;
+	}
+	else if (!Q_stricmp(token, "cvarf"))
+	{
+		token = Shader_ParseString ( ptr );
+		cv = Cvar_Get(token, "", 0, "GLSL Shader parameters");
+		if (cv)
+		{	//Cvar_Get returns null if the cvar is the name of a command
+			specialint = atoi(cv->string);
+			specialfloat = cv->value;
+		}
+		parmtype = SP_CVARF;
+	}
+	else if (!Q_stricmp(token, "time"))
+	{
+		parmtype = SP_TIME;
+	}
+
+
+	if (!shader->programhandle)
+	{
+		Con_Printf("shader %s: param without program set\n", shader->name);
+		token = Shader_ParseString ( ptr );
+	}
+	else
+	{
+		GLSlang_UseProgram(shader->programhandle);
+
+		token = Shader_ParseString ( ptr );
+		uniformloc = GLSlang_GetUniformLocation(shader->programhandle, token);
+
+		if (uniformloc == -1)
+		{
+			Con_Printf("shader %s: param without uniform \"%s\"\n", shader->name, token);
+			return;
+		}
+		else
+		{
+			switch(parmtype)
+			{
+			case SP_TEXTURE:
+			case SP_CVARI:
+				GLSlang_SetUniform1i(uniformloc, specialint);
+				break;
+			case SP_CVARF:
+				GLSlang_SetUniform1f(uniformloc, specialfloat);
+				break;
+			default:
+				shader->progparm[shader->numprogparams].type = parmtype;
+				shader->progparm[shader->numprogparams].handle = uniformloc;
+				shader->numprogparams++;
+				break;
+			}
+		}
+		GLSlang_UseProgram(0);
+	}
+}
+
 static shaderkey_t shaderkeys[] =
 {
     {"cull",			Shader_Cull },
@@ -552,6 +657,10 @@ static shaderkey_t shaderkeys[] =
     {"deformvertexes",	Shader_DeformVertexes },
 	{"portal",			Shader_Portal },
 	{"entitymergable",	Shader_EntityMergable },
+
+	{"program",			Shader_ProgramName },	//glsl
+	{"param",			Shader_ProgramParam },
+
     {NULL,				NULL}
 };
 
@@ -1367,6 +1476,57 @@ static qboolean Shader_Parsetok (shader_t *shader, shaderpass_t *pass, shaderkey
 		}
 	}
 
+	if (!Q_stricmp(token, "if"))
+	{
+		int indent = 0;
+		cvar_t *cv;
+		qboolean conditiontrue = true;
+		token = COM_ParseExt ( ptr, false );
+		if (*token == '!')
+		{
+			conditiontrue = false;
+			token++;
+		}
+		cv = Cvar_Get(token, "", 0, "Shader Conditions");
+		if (cv)
+			conditiontrue = conditiontrue == !!cv->value;
+
+		if (conditiontrue)
+		{
+			while ( ptr )
+			{
+				token = COM_ParseExt (ptr, true);
+				if ( !token[0] )
+					continue;
+				else if (token[0] == ']' || token[0] == '}')
+					indent--;
+				else if (token[0] == '[')
+					indent++;
+				else
+					Shader_Parsetok (shader, pass, keys, token, ptr);
+				if (!indent)
+					break;
+			}
+		}
+		else
+		{
+			while ( ptr )
+			{
+				token = COM_ParseExt (ptr, true);
+				if (!token[0])
+					continue;
+				else if (token[0] == ']' || token[0] == '}')
+					indent--;
+				else if (token[0] == '[')
+					indent++;
+				if (!indent)
+					break;
+			}
+		}
+
+		return ( ptr && *ptr && **ptr == '}' );
+	}
+
 	// Next Line
 	while (ptr)
 	{
@@ -1553,7 +1713,7 @@ void Shader_Finish ( shader_t *s )
 		s->sort = SHADER_SORT_ADDITIVE - 1;
 	}
 
-	if ( r_vertexlight.value )
+	if ( r_vertexlight.value && !s->programhandle)
 	{
 		// do we have a lightmap pass?
 		pass = s->passes;
@@ -1718,6 +1878,14 @@ done:;
 		s->flags &= ~SHADER_DEPTHWRITE;
 	}
 
+	if (s->programhandle)
+	{
+		if (!s->numpasses)
+			s->numpasses = 1;
+		s->passes->numMergedPasses = s->numpasses;
+		s->passes->flush = R_RenderMeshProgram;
+	}
+
 	Shader_SetFeatures ( s );
 }
 /*
@@ -1849,7 +2017,7 @@ void Shader_DefaultBSP(char *shortname, shader_t *s)
 	int bumptex;
 	extern cvar_t gl_bump;
 
-	if (0)//this isn't working right yet    gl_config.arb_texture_env_dot3)
+	if (gl_config.arb_texture_env_dot3)
 	{
 		if (gl_bump.value)
 			bumptex = Mod_LoadHiResTexture(va("normalmaps/%s", shortname), NULL, true, false, false);//GL_FindImage (shortname, 0);
@@ -2201,15 +2369,83 @@ void Shader_Default2D(char *shortname, shader_t *s)
 	s->registration_sequence = 1;//fizme: registration_sequence;
 }
 
+qboolean Shader_ParseShader(char *shortname, char *usename, shader_t *s)
+{
+	unsigned int offset = 0, length;
+	char path[MAX_QPATH];
+	char *buf = NULL, *ts = NULL;
+
+	Shader_GetPathAndOffset( shortname, &ts, &offset );
+
+	if ( ts )
+	{
+		Com_sprintf ( path, sizeof(path), "%s", ts );
+		length = FS_LoadFile ( path, (void **)&buf );
+	}
+	else
+		length = 0;
+
+	// the shader is in the shader scripts
+	if ( ts && buf && (offset < length) )
+	{
+		char *file, *token;
+
+
+		file = buf + offset;
+		token = COM_ParseExt (&file, true);
+		if ( !file || token[0] != '{' )
+		{
+			FS_FreeFile(buf);
+			return false;
+		}
+
+
+		memset ( s, 0, sizeof( shader_t ) );
+
+		Com_sprintf ( s->name, MAX_QPATH, usename );
+
+	// set defaults
+		s->flags = SHADER_CULL_FRONT;
+		s->registration_sequence = 1;//fizme: registration_sequence;
+
+//		if (!strcmp(COM_FileExtension(ts), "rscript"))
+//		{
+//			Shader_DefaultBSP(shortname, s);
+//		}
+
+		while ( file )
+		{
+			token = COM_ParseExt (&file, true);
+
+			if ( !token[0] )
+				continue;
+			else if ( token[0] == '}' )
+				break;
+			else if ( token[0] == '{' )
+				Shader_Readpass ( s, &file );
+			else if ( Shader_Parsetok (s, NULL, shaderkeys, token, &file ) )
+				break;
+		}
+
+		Shader_Finish ( s );
+
+		FS_FreeFile(buf);
+		return true;
+	}
+
+	if (buf)
+		FS_FreeFile(buf);
+
+	return false;
+}
+
 int R_LoadShader ( char *name, void(*defaultgen)(char *name, shader_t*))
 {
 	int i, f = -1;
-	unsigned int offset = 0, length = 0;
-	char shortname[MAX_QPATH], path[MAX_QPATH];
-	char *buf = NULL, *ts = NULL;
+	char shortname[MAX_QPATH];
 	shader_t *s;
 
-	COM_StripExtension ( name, shortname );
+	COM_StripExtension ( name, shortname, sizeof(shortname));
 
 	COM_CleanUpPath(shortname);
 
@@ -2237,65 +2473,26 @@ int R_LoadShader ( char *name, void(*defaultgen)(char *name, shader_t*))
 	}
 
 	s = &r_shaders[f];
-	memset ( s, 0, sizeof( shader_t ) );
 
-	Com_sprintf ( s->name, MAX_QPATH, shortname );
-
-	Shader_GetPathAndOffset( shortname, &ts, &offset );
-
-	if ( ts ) {
-		Com_sprintf ( path, sizeof(path), "%s", ts );
-		length = FS_LoadFile ( path, (void **)&buf );
-	}
-
-	// the shader is in the shader scripts
-	if ( ts && buf && (offset < length) )
+	if (gl_config.arb_shader_objects)
 	{
-		char *ptr, *token;
-
-		// set defaults
-		s->flags = SHADER_CULL_FRONT;
-		s->registration_sequence = 1;//fizme: registration_sequence;
-
-//		if (!strcmp(COM_FileExtension(ts), "rscript"))
-//		{
-//			Shader_DefaultBSP(shortname, s);
-//		}
-
-		ptr = buf + offset;
-		token = COM_ParseExt (&ptr, true);
-
-		if ( !ptr || token[0] != '{' ) {
-			return -1;
-		}
-
-		while ( ptr )
-		{
-			token = COM_ParseExt (&ptr, true);
-
-			if ( !token[0] ) {
-				continue;
-			} else if ( token[0] == '}' ) {
-				break;
-			} else if ( token[0] == '{' ) {
-				Shader_Readpass ( s, &ptr );
-			} else if ( Shader_Parsetok (s, NULL, shaderkeys, token, &ptr ) ) {
-				break;
-			}
-		}
-
-		Shader_Finish ( s );
-		FS_FreeFile ( buf );
+		if (Shader_ParseShader(va("%s_glsl", shortname), shortname, s))
+			return f;
 	}
-	else		// make a default shader
+	if (Shader_ParseShader(shortname, shortname, s))
+		return f;
+
+	// make a default shader
+
+	if (defaultgen)
 	{
-		if (defaultgen)
-			defaultgen(shortname, s);
-		else
-			return -1;
-	}
+		memset ( s, 0, sizeof( shader_t ) );
+		Com_sprintf ( s->name, MAX_QPATH, shortname );
+		defaultgen(shortname, s);
 
-	return f;
+		return f;
+	}
+	return -1;
 }
 
 shader_t *R_RegisterPic (char *name) 

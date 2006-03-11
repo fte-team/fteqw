@@ -276,6 +276,97 @@ int r_backendStart;
 
 int r_dlighttexture;
 
+	extern qbyte *host_basepal;
+	extern qboolean gammaworks;
+	extern qbyte gammatable[256];
+
+void R_FetchTopColour(int *retred, int *retgreen, int *retblue)
+{
+	int i;
+	if (currententity->scoreboard)
+	{
+		i = currententity->scoreboard->topcolor;
+		//colour forcing
+		if (cl.splitclients<2 && !(cl.fpd & FPD_NO_FORCE_COLOR))	//no colour/skin forcing in splitscreen.
+		{
+			if (cl.teamplay && !strcmp(currententity->scoreboard->team, cl.players[cl.playernum[0]].team))
+			{
+				if (cl_teamtopcolor>=0)
+					i = cl_teamtopcolor;
+			}
+			else
+			{
+				if (cl_enemytopcolor>=0)
+					i = cl_enemytopcolor;
+			}
+		}
+	}
+	else
+		i = TOP_RANGE>>4;
+	if (i > 8)
+	{
+		i<<=4;
+	}
+	else
+	{
+		i<<=4;
+		i+=15;
+	}
+	i*=3;
+	*retred = host_basepal[i+0];
+	*retgreen = host_basepal[i+1];
+	*retblue = host_basepal[i+2];
+	if (!gammaworks)
+	{
+		*retred = gammatable[*retred];
+		*retgreen = gammatable[*retgreen];
+		*retblue = gammatable[*retblue];
+	}
+}
+void R_FetchBottomColour(int *retred, int *retgreen, int *retblue)
+{
+	int i;
+	if (currententity->scoreboard)
+	{
+		i = currententity->scoreboard->bottomcolor;
+		//colour forcing
+		if (cl.splitclients<2 && !(cl.fpd & FPD_NO_FORCE_COLOR))	//no colour/skin forcing in splitscreen.
+		{
+			if (cl.teamplay && !strcmp(currententity->scoreboard->team, cl.players[cl.playernum[0]].team))
+			{
+				if (cl_teambottomcolor>=0)
+					i = cl_teambottomcolor;
+			}
+			else
+			{
+				if (cl_enemybottomcolor>=0)
+					i = cl_enemybottomcolor;
+			}
+		}
+	}
+	else
+		i = BOTTOM_RANGE>>4;
+	if (i > 8)
+	{
+		i<<=4;
+	}
+	else
+	{
+		i<<=4;
+		i+=15;
+	}
+	i*=3;
+	*retred = host_basepal[i+0];
+	*retgreen = host_basepal[i+1];
+	*retblue = host_basepal[i+2];
+	if (!gammaworks)
+	{
+		*retred = gammatable[*retred];
+		*retgreen = gammatable[*retgreen];
+		*retblue = gammatable[*retblue];
+	}
+}
+
 void R_InitDynamicLightTexture (void)
 {
 	int x, y;
@@ -1335,10 +1426,7 @@ R_ModifyColor
 */
 void R_ModifyColor ( meshbuffer_t *mb, shaderpass_t *pass )
 {
-	extern qbyte *host_basepal;
-	extern qboolean gammaworks;
-	extern qbyte gammatable[256];
-	
+
 	int i, b;
 	float *table, c, a;
 	vec3_t t, v;
@@ -1420,45 +1508,7 @@ void R_ModifyColor ( meshbuffer_t *mb, shaderpass_t *pass )
 		case RGB_GEN_TOPCOLOR:	//multiply vertex by topcolor (for player models)
 		{
 			int rc, gc, bc;
-			if (currententity->scoreboard)
-			{
-				i = currententity->scoreboard->topcolor;
-				//colour forcing
-				if (cl.splitclients<2 && !(cl.fpd & FPD_NO_FORCE_COLOR))	//no colour/skin forcing in splitscreen.
-				{
-					if (cl.teamplay && !strcmp(currententity->scoreboard->team, cl.players[cl.playernum[0]].team))
-					{
-						if (cl_teamtopcolor>=0)
-							i = cl_teamtopcolor;
-					}
-					else
-					{
-						if (cl_enemytopcolor>=0)
-							i = cl_enemytopcolor;
-					}
-				}
-			}
-			else
-				i = TOP_RANGE>>4;
-			if (i > 8)
-			{
-				i<<=4;
-			}
-			else
-			{
-				i<<=4;
-				i+=15;
-			}
-			i*=3;
-			rc = host_basepal[i+0];
-			gc = host_basepal[i+1];
-			bc = host_basepal[i+2];
-			if (!gammaworks)
-			{
-				rc = gammatable[rc];
-				gc = gammatable[gc];
-				bc = gammatable[bc];
-			}
+			R_FetchTopColour(&rc, &gc, &bc);
 			for ( i = 0; i < numColors; i++, bArray += 4, vArray += 4 ) {
 				bArray[0] = (vArray[0]*rc)>>8;
 				bArray[1] = (vArray[1]*gc)>>8;
@@ -1470,45 +1520,7 @@ void R_ModifyColor ( meshbuffer_t *mb, shaderpass_t *pass )
 		case RGB_GEN_BOTTOMCOLOR:	//multiply vertex by bottomcolor (for player models)
 		{
 			int rc, gc, bc;
-			if (currententity->scoreboard)
-			{
-				i = currententity->scoreboard->bottomcolor;
-				//colour forcing
-				if (cl.splitclients<2 && !(cl.fpd & FPD_NO_FORCE_COLOR))	//no colour/skin forcing in splitscreen.
-				{
-					if (cl.teamplay && !strcmp(currententity->scoreboard->team, cl.players[cl.playernum[0]].team))
-					{
-						if (cl_teambottomcolor>=0)
-							i = cl_teambottomcolor;
-					}
-					else
-					{
-						if (cl_enemybottomcolor>=0)
-							i = cl_enemybottomcolor;
-					}
-				}
-			}
-			else
-				i = BOTTOM_RANGE>>4;
-			if (i > 8)
-			{
-				i<<=4;
-			}
-			else
-			{
-				i<<=4;
-				i+=15;
-			}
-			i*=3;
-			rc = host_basepal[i+0];
-			gc = host_basepal[i+1];
-			bc = host_basepal[i+2];
-			if (!gammaworks)
-			{
-				rc = gammatable[rc];
-				gc = gammatable[gc];
-				bc = gammatable[bc];
-			}
+			R_FetchBottomColour(&rc, &gc, &bc);
 			for ( i = 0; i < numColors; i++, bArray += 4, vArray += 4 ) {
 				bArray[0] = (vArray[0]*rc)>>8;
 				bArray[1] = (vArray[1]*gc)>>8;
@@ -2055,6 +2067,69 @@ void R_RenderMeshCombined ( meshbuffer_t *mb, shaderpass_t *pass )
 	R_FlushArraysMtex ();
 }
 
+void R_RenderMeshProgram ( meshbuffer_t *mb, shaderpass_t *pass )
+{
+	shader_t *s;
+	int	i;
+	vec3_t param3;
+	int r, g, b;
+
+	r_numUnits = pass->numMergedPasses;
+
+	R_SetShaderpassState ( pass, true );
+	R_ModifyColor ( mb, pass );
+
+	GL_SelectTexture( mtexid0 );
+	if ( pass->blendmode == GL_REPLACE )
+		GL_TexEnv( GL_REPLACE );
+	else
+		GL_TexEnv( GL_MODULATE );
+	R_ModifyTextureCoords ( pass, 0 );
+
+	for ( i = 1, pass++; i < r_numUnits; i++, pass++ )
+	{
+		GL_SelectTexture( mtexid0 + i );
+
+		R_ModifyTextureCoords ( pass, i );
+	}
+
+	s = mb->shader;
+	GLSlang_UseProgram(s->programhandle);
+	for (i = 0; i < s->numprogparams; i++)
+	{
+		switch(s->progparm[i].type)
+		{
+		case SP_TIME:
+			qglUniform1fARB(s->progparm[i].handle, r_localShaderTime);
+			break;
+
+		case SP_ENTCOLOURS:
+			qglUniform4fvARB(s->progparm[i].handle, 1, currententity->shaderRGBAf);
+			break;
+		case SP_TOPCOLOURS:
+			R_FetchTopColour(&r, &g, &b);
+			param3[0] = r/255;
+			param3[1] = g/255;
+			param3[2] = b/255;
+			qglUniform3fvARB(s->progparm[i].handle, 1, param3);
+			break;
+		case SP_BOTTOMCOLOURS:
+			R_FetchBottomColour(&r, &g, &b);
+			param3[0] = r/255;
+			param3[1] = g/255;
+			param3[2] = b/255;
+			qglUniform3fvARB(s->progparm[i].handle, 1, param3);
+			break;
+
+		default:
+			Host_EndGame("Bad shader program parameter type (%i)", s->progparm[i].type);
+			break;
+		}
+	}
+	R_FlushArraysMtex ();
+	GLSlang_UseProgram(0);
+}
+
 /*
 ================
 R_RenderMeshBuffer
@@ -2398,7 +2473,11 @@ void R_FinishMeshBuffer ( meshbuffer_t *mb )
 	qboolean	dlight;
 
 	shader = mb->shader;
-	dlight = (mb->dlightbits != 0) && !(shader->flags & SHADER_FLARE);
+	if ((mb->dlightbits != 0) && !(shader->flags & SHADER_FLARE))
+		dlight = (currententity->model->type == mod_brush && currententity->model->fromgame == fg_quake3);
+	else
+		dlight = false;
+
 	fogged = mb->fog && ((shader->sort < SHADER_SORT_UNDERWATER && 
 		(shader->flags & (SHADER_DEPTHWRITE|SHADER_SKY))) || shader->fog_dist);
 
@@ -2410,7 +2489,7 @@ void R_FinishMeshBuffer ( meshbuffer_t *mb )
 		qglDisable ( GL_ALPHA_TEST );
 		qglDepthMask ( GL_FALSE );
 
-		if (dlight && (currententity->model->type == mod_brush && currententity->model->fromgame == fg_quake3))	//HACK: the extra check is because we play with the lightmaps in q1/q2
+		if (dlight)	//HACK: the extra check is because we play with the lightmaps in q1/q2
 		{
 			R_AddDynamicLights ( mb );
 		}
@@ -2419,6 +2498,8 @@ void R_FinishMeshBuffer ( meshbuffer_t *mb )
 		{
 			R_RenderFogOnMesh ( shader, mb->fog );
 		}
+
+		qglDepthMask ( GL_TRUE );
 	}
 
 	if ( r_showtris.value || r_shownormals.value ) {

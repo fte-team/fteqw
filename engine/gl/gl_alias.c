@@ -2826,7 +2826,7 @@ int GL_BuildSkinFileList(char *modelname)
 	}
 	skinfilecount=0;
 
-	COM_StripExtension(modelname, skinfilename);
+	COM_StripExtension(modelname, skinfilename, sizeof(skinfilename));
 
 	//try and add numbered skins, and then try fixed names.
 	for (i = 0; ; i++)
@@ -3205,12 +3205,15 @@ static void *Q1_LoadSkins (daliasskintype_t *pskintype, qboolean alpha)
 			outskin->texnums=1;
 
 			outskin->ofstexnums = (char *)texnums - (char *)outskin;
-/*
+
 #ifdef Q3SHADERS
-			sprintf(skinname, "%s_%i", loadname, i);
-			texnums->shader = R_RegisterSkin(skinname);
+			if (cls.allow_shaders)
+			{
+				sprintf(skinname, "%s_%i", loadname, i);
+				texnums->shader = R_RegisterCustom (skinname, NULL);
+			}
 #endif
-*/
+
 
 			texnums->base = texture;
 			texnums->fullbright = fbtexture;
@@ -3290,12 +3293,15 @@ static void *Q1_LoadSkins (daliasskintype_t *pskintype, qboolean alpha)
 					if (t != 0)	//only keep the first.
 						BZ_Free(saved);
 				}
-/*
+
 #ifdef Q3SHADERS
-				sprintf(skinname, "%s_%i_%i", loadname, i, t);
-				texnums->shader = R_RegisterSkin(skinname);
+				if (cls.allow_shaders)
+				{
+					sprintf(skinname, "%s_%i_%i", loadname, i, t);
+					texnums->shader = R_RegisterCustom (skinname, NULL);
+				}
 #endif
-*/
+
 				texnums->base = texture;
 				texnums->fullbright = fbtexture;
 			}
@@ -3471,13 +3477,13 @@ int Mod_ReadFlagsFromMD1(char *name, int md3version)
 {
 	dmdl_t				*pinmodel;
 	char fname[MAX_QPATH];
-	COM_StripExtension(name, fname);
-	COM_DefaultExtension(fname, ".mdl");
+	COM_StripExtension(name, fname, sizeof(fname));
+	COM_DefaultExtension(fname, ".mdl", sizeof(fname));
 
 	if (strcmp(name, fname))	//md3 renamed as mdl
 	{
-		COM_StripExtension(name, fname);	//seeing as the md3 is named over the mdl,
-		COM_DefaultExtension(fname, ".md1");//read from a file with md1 (one, not an ell)
+		COM_StripExtension(name, fname, sizeof(fname));	//seeing as the md3 is named over the mdl,
+		COM_DefaultExtension(fname, ".md1", sizeof(fname));//read from a file with md1 (one, not an ell)
 		return 0;
 	}
 

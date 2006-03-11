@@ -1438,7 +1438,7 @@ static void TP_LoadLocFile (char *filename, qbool quiet)
 		return;
 
 	Q_snprintfz (fullpath, sizeof(fullpath) - 4, "locs/%s", filename);
-	COM_DefaultExtension (fullpath, ".loc");
+	COM_DefaultExtension (fullpath, ".loc", sizeof(fullpath));
 
 	buf = (char *) COM_LoadTempFile (fullpath);
 	if (!buf) {
@@ -3005,7 +3005,7 @@ qbool TP_CheckSoundTrigger (char *str)
 				if (!snd_initialized)
 					return false;
 
-				COM_DefaultExtension (soundname, ".wav");
+				COM_DefaultExtension (soundname, ".wav", sizeof(soundname));
 
 				// make sure we have it on disk (FIXME)
 				if (!FS_FLocateFile (va("sound/%s", soundname), FSLFRT_IFFOUND, NULL))

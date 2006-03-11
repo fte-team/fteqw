@@ -1528,10 +1528,17 @@ static void PPL_BaseTextureChain(msurface_t *first)
 
 		if (mb.mesh)
 			R_RenderMeshBuffer ( &mb, false );
+
 		return;
 	}
 #endif
 	qglEnable(GL_TEXTURE_2D);
+
+
+
+
+
+
 
 	t = GLR_TextureAnimation (first->texinfo->texture);
 
@@ -4753,6 +4760,8 @@ qboolean PPL_AddLight(dlight_t *dl)
 	qglStencilFunc( GL_ALWAYS, 0, ~0 );
 
 	qglDisable(GL_SCISSOR_TEST);
+	qglDisable(GL_BLEND);
+	GL_TexEnv(GL_REPLACE);
 
 	return true;
 }

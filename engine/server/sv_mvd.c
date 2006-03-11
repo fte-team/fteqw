@@ -1582,8 +1582,8 @@ void SV_MVD_Record_f (void)
 	snprintf (name, MAX_OSPATH+MAX_MVD_NAME, "%s/%s/%s", com_gamedir, sv_demoDir.string, newname);
 
 
-	COM_StripExtension(name, name);
-	COM_DefaultExtension(name, ".mvd");
+	COM_StripExtension(name, name, sizeof(name));
+	COM_DefaultExtension(name, ".mvd", sizeof(name));
 	COM_CreatePath(name);
 
 	//
@@ -2093,7 +2093,7 @@ void SV_MVDRemove_f (void)
 	}
 
 	Q_strncpyz(name, Cmd_Argv(1), MAX_MVD_NAME);
-	COM_DefaultExtension(name, ".mvd");
+	COM_DefaultExtension(name, ".mvd", sizeof(name));
 
 	snprintf(path, MAX_OSPATH, "%s/%s/%s", com_gamedir, sv_demoDir.string, name);
 

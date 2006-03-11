@@ -307,7 +307,7 @@ static void Stats_LoadFragFile(char *name)
 	Stats_Clear();
 
 	strcpy(filename, name);
-	COM_DefaultExtension(filename, ".dat");
+	COM_DefaultExtension(filename, ".dat", sizeof(filename));
 
 	file = COM_LoadTempFile(filename);
 	if (!file || !*file)

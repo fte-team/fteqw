@@ -6,7 +6,7 @@
 #the Makefile explicitally tests for config.h, and will pass the right precompiler to gcc so that this file is actually used.
 #And so we don't break in the absence of this file.
 
-if [ $1 = y ]; then
+if [ "$1" = "y" ]; then
 	defaulttoyes=true
 	echo "Checking installed libraries"
 else
@@ -26,13 +26,13 @@ echo "" >> config.h
 
 query()
 {
-	if [ $defaulttoyes = true ]; then
+	if [ "$defaulttoyes" = "true" ]; then
 		ans=y
 	else
 		read -n 1 -p "$1 " ans
 		echo ""
 	fi
-	if [ $ans = y -o $ans = Y ]; then
+	if [ "$ans" = "y" -o "$ans" = "Y" ]; then
 		echo "#define $2" >> config.h
 	else
 		echo "//#define $2" >> config.h
@@ -48,6 +48,7 @@ querylibrary()
 		query "$1" "$2"
 		return
 	fi
+#they don't have it, force no.
 	echo "$1 n"
 	echo "//#define $2" >> config.h
 }
@@ -84,7 +85,7 @@ query "Do you want to enable fish-eye views (only in software) ?" FISH
 query "Do you want to enable the built in http/ftp server ?" WEBSERVER
 query "Do you want to enable the built in http/ftp clients ?" WEBCLIENT
 query "Do you want to enable the deluxemap generation routine ?" RUNTIMELIGHTING
-query "Do you want to enable the 'qterm' (this is a major security risk) ?" QTERM
+#query "Do you want to enable the 'qterm' (this is a major security risk) ?" QTERM
 query "Do you want to enable the server browser ?" CL_MASTER
 query "Do you want to enable the serial-mouse support (used in splitscreen) ?" SERIALMOUSE
 query "Do you want to enable the per-pixel lighting routines ?" PPL

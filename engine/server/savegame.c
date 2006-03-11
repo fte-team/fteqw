@@ -535,7 +535,7 @@ qboolean SV_LoadLevelCache(char *level, char *startspot, qboolean ignoreplayers)
 	gametype = cache->gametype;
 
 	sprintf (name, "saves/%s", level);
-	COM_DefaultExtension (name, ".lvc");
+	COM_DefaultExtension (name, ".lvc", sizeof(name));
 
 //	Con_TPrintf (STL_LOADGAMEFROM, name);
 
@@ -763,7 +763,7 @@ void SV_SaveLevelCache(qboolean dontharmgame)
 
 
 	sprintf (name, "%s/saves/%s", com_gamedir, cache->mapname);
-	COM_DefaultExtension (name, ".lvc");
+	COM_DefaultExtension (name, ".lvc", sizeof(name));
 
 	COM_CreatePath(name);
 

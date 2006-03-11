@@ -1293,6 +1293,9 @@ void CL_CheckServerInfo(void)
 	char *s;
 	unsigned int allowed;
 	int oldstate;
+	qboolean oldallowshaders;
+
+	oldallowshaders = cls.allow_shaders;
 
 	cl.teamplay = atoi(Info_ValueForKey(cl.serverinfo, "teamplay"));
 	cl.deathmatch = atoi(Info_ValueForKey(cl.serverinfo, "deathmatch"));
@@ -1356,6 +1359,11 @@ void CL_CheckServerInfo(void)
 		cls.allow_semicheats = false;
 		cls.allow_cheats	= false;
 	}
+
+	cls.allow_shaders = cls.allow_cheats;
+
+	if (cls.demoplayback || atoi(Info_ValueForKey(cl.serverinfo, "allow_shaders")))
+		cls.allow_shaders=true;
 
 
 	cls.maxfps = atof(Info_ValueForKey(cl.serverinfo, "maxfps"));
@@ -1425,6 +1433,9 @@ void CL_CheckServerInfo(void)
 
 	Cvar_ForceCheatVars(cls.allow_semicheats, cls.allow_cheats);
 
+
+	if (oldallowshaders != cls.allow_shaders)
+		Cache_Flush();	//this will cause all models to be reloaded.
 }
 /*
 ==================

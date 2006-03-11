@@ -238,7 +238,7 @@ void MenuDrawItems(int xpos, int ypos, menuoption_t *option, menu_t *menu)
 			{
 				char selname[MAX_QPATH];
 				Q_strncpyz(selname, option->picture.picturename, sizeof(selname));
-				COM_StripExtension(selname, selname);
+				COM_StripExtension(selname, selname, sizeof(selname));
 				p = Draw_SafeCachePic(va("%s_sel", selname));
 			}
 

@@ -34,7 +34,7 @@ extern void	(*Draw_ConsoleBackground)				(int lines);
 extern void	(*Draw_EditorBackground)				(int lines);
 extern void	(*Draw_TileClear)						(int x, int y, int w, int h);
 extern void	(*Draw_Fill)							(int x, int y, int w, int h, int c);
-extern void (*Draw_FillRGB)							(int x, int y, int w, int h, float r, float g, float b);
+extern void	(*Draw_FillRGB)							(int x, int y, int w, int h, float r, float g, float b);
 extern void	(*Draw_FadeScreen)						(void);
 extern void	(*Draw_BeginDisc)						(void);
 extern void	(*Draw_EndDisc)							(void);

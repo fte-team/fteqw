@@ -1912,7 +1912,7 @@ int Mod_LoadHiResTexture(char *name, char *subpath, qboolean mipmap, qboolean al
 
 	int i, e;
 
-	COM_StripExtension(name, nicename);
+	COM_StripExtension(name, nicename, sizeof(nicename));
 
 	while((data = strchr(nicename, '*')))
 	{
@@ -2036,7 +2036,7 @@ int Mod_LoadBumpmapTexture(char *name, char *subpath)
 
 	TRACE(("dbg: Mod_LoadBumpmapTexture: texture %s\n", name));
 
-	COM_StripExtension(name, nicename);
+	COM_StripExtension(name, nicename, sizeof(nicename));
 
 	if ((len = GL_FindTexture(name))!=-1)	//don't bother if it already exists.
 		return len;
@@ -2062,7 +2062,7 @@ int Mod_LoadBumpmapTexture(char *name, char *subpath)
 					Q_strncpyz(map, sv.name, sizeof(map));
 				else
 #endif
-					COM_FileBase(cl.model_name[1], map);
+					COM_FileBase(cl.model_name[1], map, sizeof(map));
 				snprintf(fname, sizeof(fname)-1, path[i], map, nicename, extensions[e]);
 			}
 			else

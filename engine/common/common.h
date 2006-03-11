@@ -249,9 +249,9 @@ void COM_InitArgv (int argc, char **argv);
 void COM_ParsePlusSets (void);
 
 char *COM_SkipPath (char *pathname);
-void COM_StripExtension (char *in, char *out);
-void COM_FileBase (char *in, char *out);
-void COM_DefaultExtension (char *path, char *extension);
+void COM_StripExtension (char *in, char *out, int outlen);
+void COM_FileBase (char *in, char *out, int outlen);
+void COM_DefaultExtension (char *path, char *extension, int maxlen);
 char *COM_FileExtension (char *in);
 void COM_CleanUpPath(char *str);
 

@@ -5,6 +5,8 @@
 #define SHADER_MAX_ANIMFRAMES	8
 #define SHADER_ANIM_FRAMES_MAX 16
 
+#define SHADER_PROGPARMS_MAX 16
+
 typedef enum {
 	SHADER_BSP,
 	SHADER_BSP_VERTEX,
@@ -175,8 +177,7 @@ typedef struct shaderpass_s {
 		SHADER_PASS_LIGHTMAP	= 1 << 5,
 		SHADER_PASS_DELUXMAP	= 1 << 6,
 		SHADER_PASS_NOCOLORARRAY = 1<< 7,
-		SHADER_PASS_ANIMMAP		= 1 << 8,
-		SHADER_PASS_GPUPROGRAM	= 1 << 9
+		SHADER_PASS_ANIMMAP		= 1 << 8
 	} flags;
 } shaderpass_t;
 
@@ -187,6 +188,23 @@ typedef struct
 	int				farbox_textures[6];
 	int				nearbox_textures[6];
 } skydome_t;
+
+typedef struct {
+	enum shaderprogparmtype_e {
+		SP_BAD,
+		SP_ENTCOLOURS,
+		SP_TOPCOLOURS,
+		SP_BOTTOMCOLOURS,
+		SP_TIME,
+
+		//things that are set immediatly
+		SP_FIRSTIMMEDIATE,	//never set
+		SP_CVARI,
+		SP_CVARF,
+		SP_TEXTURE
+	} type;
+	unsigned int handle;
+} shaderprogparm_t;
 
 typedef struct shader_s {
 	int numpasses;	//careful... 0 means it's not loaded... and not actually a proper shader.
@@ -215,9 +233,12 @@ typedef struct shader_s {
 		SHADER_DEPTHWRITE		= 1 << 11,
 		SHADER_AGEN_PORTAL		= 1 << 12,
 		SHADER_BLEND			= 1 << 13,	//blend or alphatest (not 100% opaque).
-		SHADER_NODRAW			= 1 << 14,	//parsed only to pee off developers when they forget it on no-pass shaders.
-		SHADER_PROGRAM			= 1 << 15	//run a script
+		SHADER_NODRAW			= 1 << 14	//parsed only to pee off developers when they forget it on no-pass shaders.
 	} flags;
+
+	unsigned int programhandle;
+	int numprogparams;
+	shaderprogparm_t progparm[SHADER_PROGPARMS_MAX];
 
 	shaderpass_t passes[SHADER_PASS_MAX];
 
@@ -238,6 +259,7 @@ extern shader_t	r_shaders[];
 void R_RenderMeshGeneric ( meshbuffer_t *mb, shaderpass_t *pass );
 void R_RenderMeshCombined ( meshbuffer_t *mb, shaderpass_t *pass );
 void R_RenderMeshMultitextured ( meshbuffer_t *mb, shaderpass_t *pass );
+void R_RenderMeshProgram ( meshbuffer_t *mb, shaderpass_t *pass );
 
 shader_t *R_RegisterPic (char *name);
 shader_t *R_RegisterShader (char *name);

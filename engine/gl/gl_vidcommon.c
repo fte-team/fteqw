@@ -112,6 +112,7 @@ PFNGLGETINFOLOGARBPROC           qglGetInfoLogARB;
 PFNGLLINKPROGRAMARBPROC          qglLinkProgramARB;
 PFNGLGETUNIFORMLOCATIONARBPROC   qglGetUniformLocationARB;
 PFNGLUNIFORM4FARBPROC            qglUniform4fARB;
+PFNGLUNIFORM4FVARBPROC           qglUniform4fvARB;
 PFNGLUNIFORM3FARBPROC            qglUniform3fARB;
 PFNGLUNIFORM3FVARBPROC           qglUniform3fvARB;
 PFNGLUNIFORM1IARBPROC            qglUniform1iARB;
@@ -369,6 +370,7 @@ void GL_CheckExtensions (void *(*getglfunction) (char *name))
 		qglLinkProgramARB			= (void *)getglext("glLinkProgramARB");
 		qglGetUniformLocationARB	= (void *)getglext("glGetUniformLocationARB");
 		qglUniform4fARB				= (void *)getglext("glUniform4fARB");
+		qglUniform4fvARB			= (void *)getglext("glUniform4fvARB");
 		qglUniform3fARB				= (void *)getglext("glUniform3fARB");
 		qglUniform3fvARB			= (void *)getglext("glUniform3fvARB");
 		qglUniform1iARB				= (void *)getglext("glUniform1iARB");

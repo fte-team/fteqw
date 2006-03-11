@@ -732,6 +732,26 @@ void SV_SpawnServer (char *server, char *startspot, qboolean noents, qboolean us
 
 	COM_FlushTempoaryPacks();
 
+
+	//This fixes a bug where the server advertises cheats, the internal client connects, and doesn't think cheats are allowed.
+	//this applies to a few other things too, but cheats is the only special one (because of the *)
+	if (sv_cheats.value)
+	{
+		sv_allow_cheats = true;
+		Info_SetValueForStarKey(svs.info, "*cheats", "ON", MAX_SERVERINFO_STRING);
+	}
+	else
+	{
+		sv_allow_cheats = false;
+		Info_SetValueForStarKey(svs.info, "*cheats", "", MAX_SERVERINFO_STRING);
+	}
+#ifndef CLIENTONLY
+	Q_strncpyz(cl.serverinfo, svs.info, sizeof(cl.serverinfo));
+	CL_CheckServerInfo();
+#endif
+
+
+
 	if (usecinematic)
 	{
 		strcpy (sv.name, server);
@@ -780,17 +800,6 @@ void SV_SpawnServer (char *server, char *startspot, qboolean noents, qboolean us
 	// clear physics interaction links
 	//
 	SV_ClearWorld ();
-
-	if (sv_cheats.value)
-	{
-		sv_allow_cheats = true;
-		Info_SetValueForStarKey(svs.info, "*cheats", "ON", MAX_SERVERINFO_STRING);
-	}
-	else
-	{
-		sv_allow_cheats = false;
-		Info_SetValueForStarKey(svs.info, "*cheats", "", MAX_SERVERINFO_STRING);
-	}
 
 	//do we allow csprogs?
 #ifdef PEXT_CSQC

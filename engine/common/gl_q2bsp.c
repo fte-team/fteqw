@@ -992,7 +992,7 @@ void *Mod_LoadWall(char *name)
 	int width, height;
 	char ln[32];
 
-	COM_FileBase(name, ln);
+	COM_FileBase(name, ln, sizeof(ln));
 
 	wal = (void *)COM_LoadMallocFile (name);
 	if (!wal)

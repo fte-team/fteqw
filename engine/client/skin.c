@@ -138,12 +138,13 @@ void Skin_Find (player_info_t *sc)
 	if (*mn)
 	{
 		mn = va("%s/%s", mn, s);
-		COM_StripExtension (mn, name);
+		COM_StripExtension (mn, name, sizeof(name));
 	}
 	else
-
-	s = Skin_FindName(sc);
-	COM_StripExtension (s, name);
+	{
+		s = Skin_FindName(sc);
+		COM_StripExtension (s, name, sizeof(name));
+	}
 
 	s = strchr(name, '/');
 	if (s)

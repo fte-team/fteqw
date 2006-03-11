@@ -859,6 +859,7 @@ struct cin_s {
 
 	float filmstarttime;
 	float nextframetime;
+	float filmlasttime;
 
 	int currentframe;	//last frame in buffer
 	qbyte *framedata;	//Z_Malloced buffer
@@ -1132,14 +1133,19 @@ cin_t *Media_StartCin(char *name)
 	return NULL;
 }
 
-qboolean Media_DecodeFrame(cin_t *cin)
+qboolean Media_DecodeFrame(cin_t *cin, qboolean nosound)
 {
 	float curtime = Sys_DoubleTime();
 
 	switch (cin->filmtype)
 	{
 	case MFT_ROQ:
-		if (curtime<cin->nextframetime || roq_read_frame(cin->roq.roqfilm)==1)	 //0 if end, -1 if error, 1 if success
+		if ((int)(cin->filmlasttime*30) == (int)((float)realtime*30))
+		{
+			cin->outunchanged = !!cin->outtype;
+			return true;
+		}
+		else if (curtime<cin->nextframetime || roq_read_frame(cin->roq.roqfilm)==1)	 //0 if end, -1 if error, 1 if success
 		{			
 		//#define LIMIT(x) ((x)<0xFFFF)?(x)>>16:0xFF;
 #define LIMIT(x) ((((x) > 0xffffff) ? 0xff0000 : (((x) <= 0xffff) ? 0 : (x) & 0xff0000)) >> 16)
@@ -1153,6 +1159,9 @@ qboolean Media_DecodeFrame(cin_t *cin)
 			int x;
 
 			qbyte *framedata;
+
+			cin->filmlasttime = (float)realtime;
+
 			if (!(curtime<cin->nextframetime))	//roq file was read properly
 			{
 				cin->nextframetime += 1/30.0;	//add a little bit of extra speed so we cover up a little bit of glitchy sound... :o)
@@ -1197,11 +1206,6 @@ qboolean Media_DecodeFrame(cin_t *cin)
 					if(y & 0x01) { pb += num_columns; pc += num_columns; }
 				}	
 			}
-			else if (vid.numpages == 1)	//previous frame is still in page.
-			{
-				cin->outunchanged = true;
-				return true;
-			}
 
 			cin->outunchanged = false;
 			cin->outtype = 1;
@@ -1209,6 +1213,7 @@ qboolean Media_DecodeFrame(cin_t *cin)
 			cin->outheight = cin->roq.roqfilm->height;
 			cin->outdata = cin->framedata;
 
+			if (!nosound)
 			if (cin->roq.roqfilm->audio_channels && sndcardinfo && cin->roq.roqfilm->aud_pos < cin->roq.roqfilm->vid_pos)
 			if (roq_read_audio(cin->roq.roqfilm)>0)
 			{
@@ -1349,7 +1354,7 @@ qboolean Media_ShowFilm(void)
 {
 	if (!fullscreenvid)
 		return false;
-	if (!Media_DecodeFrame(fullscreenvid))
+	if (!Media_DecodeFrame(fullscreenvid, false))
 	{
 		Media_ShutdownCin(fullscreenvid);
 		fullscreenvid = NULL;
@@ -1377,27 +1382,30 @@ int Media_UpdateForShader(int texnum, cin_t *cin)
 {
 	if (!cin)
 		return 0;
-	if (!Media_DecodeFrame(cin))
+	if (!Media_DecodeFrame(cin, true))
 	{
 		return 0;
 	}
 
-	GL_Bind(100);
-	switch(cin->outtype)
+	if (!cin->outunchanged)
 	{
-	case 1:
-		GL_Upload32("cin", (unsigned int*)cin->outdata, cin->outwidth, cin->outheight, false, false);
-		break;
-	case 2:
-		GL_Upload8("cin", cin->outdata, cin->outwidth, cin->outheight, false, false);
-		break;
-	case 3:
-		GL_Upload24BGR_Flip ("cin", cin->outdata, cin->outwidth, cin->outheight, false, false);
-		break;
+		GL_Bind(texnum);
+		switch(cin->outtype)
+		{
+		case 1:
+			GL_Upload32("cin", (unsigned int*)cin->outdata, cin->outwidth, cin->outheight, false, false);
+			break;
+		case 2:
+			GL_Upload8("cin", cin->outdata, cin->outwidth, cin->outheight, false, false);
+			break;
+		case 3:
+			GL_Upload24BGR_Flip ("cin", cin->outdata, cin->outwidth, cin->outheight, false, false);
+			break;
+		}
 	}
 
 
-	return 100;
+	return texnum;
 }
 #endif
 
@@ -1691,8 +1699,8 @@ void Media_RecordFilm_f (void)
 	if (capturetype == CT_AVI)
 	{
 		snprintf(filename, 192, "%s%s", com_gamedir, Cmd_Argv(1));
-		COM_StripExtension(filename, filename);
-		COM_DefaultExtension (filename, ".avi");
+		COM_StripExtension(filename, filename, sizeof(filename));
+		COM_DefaultExtension (filename, ".avi", sizeof(filename));
 
 		//wipe it.
 		f = fopen(filename, "rb");

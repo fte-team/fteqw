@@ -905,7 +905,7 @@ void R_LoadRTLights(void)
 		cl_dlights[i].radius = 0;
 	}
 
-	COM_StripExtension(cl.worldmodel->name, fname);
+	COM_StripExtension(cl.worldmodel->name, fname, sizeof(fname));
 	strncat(fname, ".rtlights", MAX_QPATH-1);
 
 	file = COM_LoadTempFile(fname);
@@ -992,7 +992,7 @@ void GLR_NewMap (void)
 	r_worldentity.model = cl.worldmodel;
 
 
-	COM_StripExtension(COM_SkipPath(cl.worldmodel->name), namebuf);
+	COM_StripExtension(COM_SkipPath(cl.worldmodel->name), namebuf, sizeof(namebuf));
 	Cvar_Set(&host_mapname, namebuf);
 
 // clear out efrags in case the level hasn't been reloaded

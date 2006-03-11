@@ -1252,28 +1252,17 @@ The filename will be prefixed by the current game directory
 */
 void COM_WriteFile (char *filename, void *data, int len)
 {
-	FILE	*f;
-	char	name[MAX_OSPATH];
+	vfsfile_t *vfs;
 
-	sprintf (name, "%s/%s", com_gamedir, filename);
+	Sys_Printf ("COM_WriteFile: %s\n", filename);
 
-	COM_CreatePath(name);
-
-	f = fopen (name, "wb");
-	if (!f)
+	FS_CreatePath(filename, FS_GAMEONLY);
+	vfs = FS_OpenVFS(filename, "wb", FS_GAMEONLY);
+	if (vfs)
 	{
-		Sys_mkdir(com_gamedir);
-		f = fopen (name, "wb");
-		if (!f)
-		{
-			Con_Printf("Error opening %s for writing\n", filename);
-			return;
-		}
+		VFS_WRITE(vfs, data, len);
+		VFS_CLOSE(vfs);
 	}
-
-	Sys_Printf ("COM_WriteFile: %s\n", name);
-	fwrite (data, 1, len, f);
-	fclose (f);
 
 	com_fschanged=true;
 }
@@ -1997,7 +1986,7 @@ void FS_CreatePath(char *pname, int relativeto)
 	{
 	case FS_GAMEONLY:
 	case FS_GAME:
-		snprintf(fullname, sizeof(fullname), "%s%s", com_gamedir, pname);
+		snprintf(fullname, sizeof(fullname), "%s/%s", com_gamedir, pname);
 		break;
 	case FS_BASE:
 		if (*com_homedir)
@@ -2069,7 +2058,7 @@ qbyte *COM_LoadFile (char *path, int usehunk)
 
 	com_filesize = len = VFS_GETLEN(f);
 	// extract the filename base name for hunk tag
-	COM_FileBase (path, base);
+	COM_FileBase (path, base, sizeof(base));
 
 	if (usehunk == 0)
 		buf = (qbyte*)Z_Malloc (len+1);

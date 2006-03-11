@@ -435,10 +435,11 @@ usepasv:
 		else if (ret == 125)	//begining transfer
 		{
 			if (con->type == ftp_getting)
-			{				
-				COM_StripExtension(con->localfile, msg);
-				strcat(msg, ".tmp");
-				con->f = FS_OpenVFS (msg, "wb", FS_GAME);
+			{
+				char tempname[MAX_OSPATH];
+				COM_StripExtension(con->localfile, tempname, MAX_OSPATH);
+				strcat(tempname, ".tmp");
+				con->f = FS_OpenVFS (tempname, "wb", FS_GAME);
 				if (!con->f)
 				{
 					msg = va("ABOR\r\nQUIT\r\n");	//bummer. we couldn't open this file to output to.

@@ -1596,7 +1596,7 @@ void P_ReadPointFile_f (void)
 	char line[1024];
 	char *s;
 
-	COM_StripExtension(cl.worldmodel->name, name);
+	COM_StripExtension(cl.worldmodel->name, name, sizeof(name));
 	strcat(name, ".pts");
 
 	f = FS_OpenVFS(name, "rb", FS_GAME);

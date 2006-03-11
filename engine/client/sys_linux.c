@@ -478,13 +478,18 @@ void Sys_ServerActivity(void)
 
 
 
-char *Sys_GetClipboard(void)
-{
-	return NULL;
+
+#define SYS_CLIPBOARD_SIZE		256
+static char clipboard_buffer[SYS_CLIPBOARD_SIZE] = {0};
+
+char *Sys_GetClipboard(void) {
+	return clipboard_buffer;
 }
+
 void Sys_CloseClipboard(char *bf)
 {
 }
-void Sys_SaveClipboard(char *text)
-{
+
+void Sys_SaveClipboard(char *text) {
+	Q_strncpyz(clipboard_buffer, text, SYS_CLIPBOARD_SIZE);
 }

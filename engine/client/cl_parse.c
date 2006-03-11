@@ -328,7 +328,7 @@ void CL_SendDownloadRequest(char *filename, char *localname)
 	// download to a temp name, and only rename
 	// to the real name when done, so if interrupted
 	// a runt file wont be left
-	COM_StripExtension (localname, cls.downloadtempname);
+	COM_StripExtension (localname, cls.downloadtempname, sizeof(cls.downloadtempname)-5);
 	strcat (cls.downloadtempname, ".tmp");
 
 	CL_SendClientCommand(true, "download %s", filename);
@@ -2640,7 +2640,7 @@ void CL_NewTranslation (int slot)
 	player = &cl.players[slot];
 
 	s = Skin_FindName (player);
-	COM_StripExtension(s, s);
+	COM_StripExtension(s, s, MAX_QPATH);
 	if (player->skin && !stricmp(s, player->skin->name))
 		player->skin = NULL;
 

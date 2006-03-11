@@ -482,7 +482,7 @@ void SV_Map_f (void)
 
 	if (!strcmp(level, "."))	//restart current
 	{
-		COM_StripExtension(COM_SkipPath(sv.modelname), level);
+		COM_StripExtension(COM_SkipPath(sv.modelname), level, sizeof(level));
 		issamelevel = true;
 
 		Q_strncpyz(spot, Info_ValueForKey(svs.info, "*startspot"), sizeof(spot));

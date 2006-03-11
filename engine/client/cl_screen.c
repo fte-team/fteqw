@@ -1407,7 +1407,7 @@ void SCR_EndLoadingPlaque (void)
 void SCR_ImageName (char *mapname)
 {
 	strcpy(levelshotname, "levelshots/");
-	COM_FileBase(mapname, levelshotname + strlen(levelshotname));
+	COM_FileBase(mapname, levelshotname + strlen(levelshotname), sizeof(levelshotname)-strlen(levelshotname));
 
 #ifdef RGLQUAKE
 	if (qrenderer == QR_OPENGL)
@@ -1709,7 +1709,7 @@ void SCR_ScreenShot_f (void)
 			Con_Printf("Screenshot name refused\n");
 			return;
 		}
-		COM_DefaultExtension (pcxname, scr_sshot_type.string);
+		COM_DefaultExtension (pcxname, scr_sshot_type.string, sizeof(pcxname));
 	}
 	else
 	{

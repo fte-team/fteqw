@@ -1599,7 +1599,7 @@ void S_RawAudio(int sourceid, qbyte *data, int speed, int samples, int channels,
 		spare = s->sfxcache->length;
 		if (spare > snd_speed)
 		{
-			Con_Printf("Sacrificed raw sound stream\n");
+			Con_DPrintf("Sacrificed raw sound stream\n");
 			spare = 0;	//too far out. sacrifice it all
 		}
 	}
@@ -1611,7 +1611,7 @@ void S_RawAudio(int sourceid, qbyte *data, int speed, int samples, int channels,
 
 		if (s->sfxcache->length > snd_speed*2) // more than 2 seconds of sound
 		{
-			Con_Printf("Sacrificed raw sound stream\n");
+			Con_DPrintf("Sacrificed raw sound stream\n");
 			spare = 0;	//too far out. sacrifice it all
 		}
 	}

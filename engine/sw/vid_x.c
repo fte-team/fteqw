@@ -691,6 +691,7 @@ printf("%8x\n", (int)vid_dpy);
 		extern qbyte gammatable[256];
 		int j, i;
 		float f;
+		int r, g, b;
 		unsigned short *data;
 		unsigned char *pal = host_basepal;
 		

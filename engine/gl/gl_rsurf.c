@@ -724,6 +724,7 @@ void GLR_BuildLightMap (msurface_t *surf, qbyte *dest, qbyte *deluxdest, stmap *
 	unsigned	*bl;
 	qboolean isstained;
 	extern cvar_t r_ambient;
+	extern cvar_t gl_lightmap_shift;
 #ifdef PEXT_LIGHTSTYLECOL
 	unsigned	*blg;
 	unsigned	*blb;
@@ -732,6 +733,14 @@ void GLR_BuildLightMap (msurface_t *surf, qbyte *dest, qbyte *deluxdest, stmap *
 	int cr, cg, cb;
 #endif
 	int stride = LMBLOCK_WIDTH*lightmap_bytes;
+	int shift;
+
+	if (gl_lightmap_shift.value >= 2)
+		shift = 9;
+	else if (gl_lightmap_shift.value == 1)
+		shift = 8;
+	else
+		shift = 7;
 
 	surf->cached_dlight = (surf->dlightframe == r_framecount);
 
@@ -1000,14 +1009,13 @@ store:
 				for (j=0 ; j<smax ; j++)
 				{
 					r = *bl++;
-					r >>= 7;
-
 					g = *blg++;
-					g >>= 7;
-
 					b = *blb++;
-					b >>= 7;	
-					
+
+					r >>= shift;
+					g >>= shift;
+					b >>= shift;	
+
 					if (isstained)	// merge in stain
 					{
 						r = (127+r*(*stain++)) >> 8;
@@ -1158,13 +1166,12 @@ store:
 				for (j=0 ; j<smax ; j++)
 				{
 					r = *bl++;
-					r >>= 7;
-
 					g = *blg++;
-					g >>= 7;
-
 					b = *blb++;
-					b >>= 7;	
+
+					r >>= shift;
+					g >>= shift;
+					b >>= shift;	
 					
 					if (isstained)	// merge in stain
 					{
@@ -1263,7 +1270,7 @@ store:
 			for (j=0 ; j<smax ; j++)
 			{
 				t = *bl++;
-				t >>= 7;
+				t >>= shift;
 				if (t > 255)
 					t = 255;
 				dest[3] = 255-t;
@@ -1281,7 +1288,7 @@ store:
 			for (j=0 ; j<smax ; j++)
 			{
 				t = *bl++;
-				t >>= 7;
+				t >>= shift;
 				if (t > 255)
 					t = 255;
 				dest[j] = 255-t;
@@ -1353,14 +1360,13 @@ store:
 				for (j=0 ; j<smax ; j++)
 				{
 					r = *bl++;
-					r >>= 7;
-
 					g = *blg++;
-					g >>= 7;
-
 					b = *blb++;
-					b >>= 7;	
-					
+
+					r >>= shift;
+					g >>= shift;
+					b >>= shift;	
+
 					if (isstained)	// merge in stain
 					{
 						r = (127+r*(*stain++)) >> 8;
@@ -1511,14 +1517,13 @@ store:
 				for (j=0 ; j<smax ; j++)
 				{
 					r = *bl++;
-					r >>= 7;
-
 					g = *blg++;
-					g >>= 7;
-
 					b = *blb++;
-					b >>= 7;	
-					
+
+					r >>= shift;
+					g >>= shift;
+					b >>= shift;	
+
 					if (isstained)	// merge in stain
 					{
 						r = (127+r*(*stain++)) >> 8;
@@ -1616,7 +1621,7 @@ store:
 			for (j=0 ; j<smax ; j++)
 			{
 				t = *bl++;
-				t >>= 7;
+				t >>= shift;
 				if (t > 255)
 					t = 255;
 				dest[3] = t;
@@ -1634,7 +1639,7 @@ store:
 			for (j=0 ; j<smax ; j++)
 			{
 				t = *bl++;
-				t >>= 7;
+				t >>= shift;
 				if (t > 255)
 					t = 255;
 				dest[j] = t;

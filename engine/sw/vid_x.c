@@ -703,11 +703,22 @@ printf("%8x\n", (int)vid_dpy);
 		{
 			f = (1 - ((float)j/VID_GRADES));
 			f = (float)gammatable[(int)(f*255)]/255;
+			f *= 2;
 			for (i = 0; i < 256; i++)
 			{
-				data[i] =	((int)(pal[i*3+0]*f*(1<<redbits)/256)<<redshift) +
-							((int)(pal[i*3+1]*f*(1<<greenbits)/256)<<greenshift) +
-							((int)(pal[i*3+2]*f*(1<<bluebits)/256)<<blueshift);
+				r = pal[i*3+0]*f;
+				g = pal[i*3+1]*f;
+				b = pal[i*3+2]*f;
+				if (r > 255)
+					r = 255;
+				if (g > 255)
+					g = 255;
+				if (b > 255)
+					b = 255;
+				r >>= 8 - redbits;
+				g >>= 8 - greenbits;
+				b >>= 8 - bluebits;
+				data[i] = (r<<redshift) + (g<<greenshift) + (b<<blueshift);
 			}
 			data+=256;
 		}

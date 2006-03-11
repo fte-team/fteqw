@@ -1357,7 +1357,7 @@ void GLDraw_Crosshair(void)
 	float x1, x2, y1, y2;
 	float size, chc;
 
-	int c2, c, i, usecolor;
+	int c2, c, usecolor;
 	int chrebuild;
 
 	usecolor = 0;
@@ -1381,39 +1381,18 @@ void GLDraw_Crosshair(void)
 
 	if (chrebuild)
 	{
-		char *t;
+		SCR_StringToRGB(crosshaircolor.string, chcolor, 255);
 
-		t = strstr(crosshaircolor.string, " ");
-		if (!t) // use standard coloring
-		{
-			c = d_8to24rgbtable[(qbyte) crosshaircolor.value];
-			// convert r8g8b8 to rgb floats
-			chcolor[0] = c & 0xff;
-			chcolor[1] = (c & 0xff00) << 8;
-			chcolor[2] = (c & 0xff0000) << 16;
-		}
-		else // use RGB coloring
-		{
-			t++;
-			// abusing the fact that atof considers whitespace to be a delimiter...
-			i = chcolor[0] = crosshaircolor.value;
-			i = bound(0, i, 255);
-			c = i; // red channel (first 8 bits)
-			i = chcolor[1] = atof(t);
-			i = bound(0, i, 255);
-			c |= (i << 8); // green channel
-			t = strstr(t, " "); // find last value
-			if (t)
-			{
-				i = chcolor[2] = atof(t+1);
-				i = bound(0, i, 255);
-				c |= (i << 16); // blue channel
-			}
-			c |= 0xff000000; // alpha channel (always full)
-		} // i contains the crosshair color
+		chcolor[0] = bound(0, chcolor[0], 1);
+		chcolor[1] = bound(0, chcolor[1], 1);
+		chcolor[2] = bound(0, chcolor[2], 1);
+
+		c = (int)(chcolor[0] * 255) | // red
+			((int)(chcolor[1] * 255) << 8) | // green
+			((int)(chcolor[2] * 255) << 16) | // blue
+			0xff000000; // alpha
 		c2 = c;
 
-		VectorScale(chcolor, 1/255.0, chcolor); // scale 0-255 to 0-1 range
 		chmodified = crosshaircolor.modified;
 	}
 
@@ -2038,25 +2017,11 @@ void GLDraw_FadeScreen (void)
 
 	if (fademodified != r_menutint.modified)
 	{
-		char *t;
-
 		// parse r_menutint and clear defaults
-		fadecolor[0] = r_menutint.value;
-		fadecolor[1] = 0;
-		fadecolor[2] = 0;
-
 		faderender = GL_DST_COLOR;
 
-		t = strstr(r_menutint.string, " ");
-		if (t)
-		{
-			fadecolor[1] = atof(t+1);
-			t = strstr(t+1, " ");
-			if (t)
-				fadecolor[2] = atof(t+1);
-			else
-				faderender = 0;
-		}
+		if (r_menutint.string[0])
+			SCR_StringToRGB(r_menutint.string, fadecolor, 1);
 		else
 			faderender = 0;
 

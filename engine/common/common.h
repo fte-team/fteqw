@@ -258,7 +258,6 @@ void COM_CleanUpPath(char *str);
 char	*VARGS va(char *format, ...);
 // does a varargs printf into a temp buffer
 
-
 //============================================================================
 
 extern qboolean com_file_copyprotected;

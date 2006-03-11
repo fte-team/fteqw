@@ -1008,6 +1008,8 @@ void Editor_Draw(void);
 void Editor_Init(void);
 #endif
 
+void SCR_StringToRGB (char *rgbstring, float *rgb, float rgbinputscale);
+int SCR_StringToPalIndex (char *rgbstring, float rgbinputscale);
 
 
 void CL_AddVWeapModel(entity_t *player, int model);

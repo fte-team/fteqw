@@ -416,25 +416,14 @@ palremap_t *D_GetPaletteRemap(int red, int green, int blue, qboolean desaturate,
 palremap_t *RebuildMenuTint(void)
 {
 	char *t;
-	int r, g, b;
+	vec3_t rgb;
 
-	r = 255*r_menutint.value;
-	g = 0;
-	b = 0;
-	t = strstr(r_menutint.string, " ");
-	if (t)
-	{
-		g = 255*atof(t+1);
-		t = strstr(t+1, " ");
-		if (t)
-			b = 255*atof(t+1);
-		else
-			return NULL;
-	}
+	if (r_menutint.string[0])
+		SCR_StringToRGB(r_menutint.string, rgb, 1);
 	else
 		return NULL;
 
-	return D_GetPaletteRemap(r, g, b, true, true, TOP_DEFAULT, BOTTOM_DEFAULT);
+	return D_GetPaletteRemap(rgb[0]*255, rgb[1]*255, rgb[2]*255, true, true, TOP_DEFAULT, BOTTOM_DEFAULT);
 }
 
 void D_DereferenceRemap(palremap_t *palremap)

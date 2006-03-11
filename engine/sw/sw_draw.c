@@ -921,32 +921,7 @@ void SWDraw_Crosshair(void)
 
 	if (crosshaircolor.modified)
 	{ // redo color every modification to crosshaircolor
-		char *t;
-		
-		t = strstr(crosshaircolor.string, " ");
-		if (!t) // use standard coloring
-			sw_crosshaircolor = (qbyte) crosshaircolor.value;
-		else // use RGB coloring
-		{
-			int rc,gc,bc;
-
-			t++;
-			// abusing the fact that atof considers whitespace to be a delimiter...
-			rc = (int)crosshaircolor.value;
-			rc = bound(0, rc, 255);
-			gc = atoi(t);
-			gc = bound(0, gc, 255);
-			t = strstr(t, " "); // find last value
-			if (t)
-			{
-				bc = atoi(t+1);
-				bc = bound(0, bc, 255);
-			}
-			else
-				bc = 0;
-			sw_crosshaircolor = GetPalette(rc,gc,bc);
-		}
-
+		sw_crosshaircolor = SCR_StringToPalIndex(crosshaircolor.string, 255);
 		crosshaircolor.modified = false;
 	}
 

@@ -273,6 +273,79 @@ void CopyAndMarkup(conchar_t *dest, qbyte *src, int maxlength)
 	*dest = 0;
 }
 
+// SCR_StringToRGB: takes in "<index>" or "<r> <g> <b>" and converts to an RGB vector
+void SCR_StringToRGB (char *rgbstring, float *rgb, float rgbinputscale)
+{
+	char *t;
+
+	rgbinputscale = 1/rgbinputscale;
+	t = strstr(rgbstring, " ");
+
+	if (!t) // use standard coloring
+	{
+		qbyte *pal;
+		int i = atoi(rgbstring);
+		i = bound(0, i, 255);
+
+		pal = host_basepal + (i * 3);
+		// convert r8g8b8 to rgb floats
+		rgb[0] = (float)(pal[0]);
+		rgb[1] = (float)(pal[1]);
+		rgb[2] = (float)(pal[2]);
+
+		VectorScale(rgb, 1/255.0, rgb);
+	}
+	else // use RGB coloring
+	{
+		t++;
+		rgb[0] = atof(rgbstring);
+		rgb[1] = atof(t);
+		t = strstr(t, " "); // find last value
+		if (t)
+			rgb[2] = atof(t+1);
+		else
+			rgb[2] = 0.0;
+		VectorScale(rgb, rgbinputscale, rgb);
+	} // i contains the crosshair color
+}
+
+// SCR_StringToPalIndex: takes in "<index>" or "<r> <g> <b>" and converts to a 
+// Quake palette index
+int SCR_StringToPalIndex (char *rgbstring, float rgbinputscale)
+{
+	int i;
+	char *t;
+
+	rgbinputscale = 255/rgbinputscale;
+	t = strstr(rgbstring, " ");
+
+	if (t)
+	{
+		int r, g, b;
+
+		t++;
+		r = atof(rgbstring) * rgbinputscale;
+		g = atof(t) * rgbinputscale;
+		t = strstr(t, " ");
+		if (t)
+			b = atof(t) * rgbinputscale;
+		else
+			b = 0;
+
+		r = bound(0, r, 255);
+		g = bound(0, g, 255);
+		b = bound(0, b, 255);
+		i = GetPalette(r, g, b);
+	}
+	else
+	{
+		i = atoi(rgbstring);
+		i = bound(0, i, 255);
+	}
+
+	return i;
+}
+
 /*
 ==============
 SCR_CenterPrint

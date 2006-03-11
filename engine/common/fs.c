@@ -1822,6 +1822,12 @@ vfsfile_t *FS_OpenVFS(char *filename, char *mode, int relativeto)
 		else
 			snprintf(fullname, sizeof(fullname), "%s%s/%s", com_quakedir, gamedirfile, filename);
 		break;
+	case FS_SKINS:
+		if (*com_homedir)
+			snprintf(fullname, sizeof(fullname), "%s%s/skins/%s", com_homedir, gamedirfile, filename);
+		else
+			snprintf(fullname, sizeof(fullname), "%s%s/skins/%s", com_quakedir, gamedirfile, filename);
+		break;
 	case FS_BASE:
 		if (*com_homedir)
 		{
@@ -1843,7 +1849,7 @@ vfsfile_t *FS_OpenVFS(char *filename, char *mode, int relativeto)
 		snprintf(fullname, sizeof(fullname), "%sfte/%s", com_quakedir, filename);
 		return VFSOS_Open(fullname, mode);
 	default:
-		Sys_Error("FS_CreatePath: Bad relative path");
+		Sys_Error("FS_OpenVFS: Bad relative path (%i)", relativeto);
 		break;
 	}
 
@@ -2007,7 +2013,7 @@ void FS_CreatePath(char *pname, int relativeto)
 			snprintf(fullname, sizeof(fullname), "%sfte/%s", com_quakedir, pname);
 		break;
 	default:
-		Sys_Error("FS_CreatePath: Bad relative path");
+		Sys_Error("FS_CreatePath: Bad relative path (%i)", relativeto);
 		break;
 	}
 	COM_CreatePath(fullname);

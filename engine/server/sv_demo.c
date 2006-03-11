@@ -214,7 +214,7 @@ extern float olddemotime;
 void SV_LoadClientDemo_f (void)
 {
 	int i;
-	char *demoname;
+	char demoname[MAX_OSPATH];
 	client_t *ohc;
 	if (Cmd_Argc() < 2)
 	{
@@ -231,6 +231,8 @@ void SV_LoadClientDemo_f (void)
 		SV_ReadMVD();
 	}
 
+	Q_strncpyz(demoname, Cmd_Argv(1), sizeof(demoname));
+
 	if (!sv.state)
 		Cmd_ExecuteString("map start\n", Cmd_ExecLevel);	//go for the start map
 	if (!sv.state)
@@ -239,7 +241,6 @@ void SV_LoadClientDemo_f (void)
 		return;
 	}
 
-	demoname = Cmd_Argv(1);
 	svd.demofile = FS_OpenVFS(demoname, "rb", FS_GAME);
 	if (!svd.demofile)	//try with a different path
 		svd.demofile = FS_OpenVFS(va("demos/%s", demoname), "rb", FS_GAME);

@@ -102,7 +102,7 @@ void *Sys_GetGameAPI (void *parms)
 #else
 	_getcwd (cwd, sizeof(cwd));
 #endif
-	_snprintf (name, sizeof(name), "%s/%s/%s", cwd, debugdir, gamename);
+	snprintf (name, sizeof(name), "%s/%s/%s", cwd, debugdir, gamename);
 	game_library = LoadLibrary ( name );
 	if (game_library)
 	{
@@ -128,7 +128,7 @@ void *Sys_GetGameAPI (void *parms)
 				path = COM_NextPath (path);
 				if (!path)
 					return NULL;		// couldn't find one anywhere
-				_snprintf (name, sizeof(name), "%s/%s", path, gamename);
+				snprintf (name, sizeof(name), "%s/%s", path, gamename);
 				game_library = LoadLibrary (name);
 				if (game_library)
 				{
@@ -182,7 +182,7 @@ int Sys_DebugLog(char *file, char *fmt, ...)
     int fd;
     
     va_start(argptr, fmt);
-    _vsnprintf(data, sizeof(data)-1, fmt, argptr);
+    vsnprintf(data, sizeof(data)-1, fmt, argptr);
     va_end(argptr);
     fd = open(file, O_WRONLY | O_CREAT | O_APPEND, 0666);
 	if (fd)
@@ -291,7 +291,7 @@ void Sys_Error (const char *error, ...)
 	double end;
 
 	va_start (argptr,error);
-	_vsnprintf (text,sizeof(text)-1, error,argptr);
+	vsnprintf (text,sizeof(text)-1, error,argptr);
 	va_end (argptr);
 
 
@@ -505,7 +505,7 @@ void Sys_Printf (char *fmt, ...)
 		unsigned char *t;
 
 		va_start (argptr,fmt);
-		_vsnprintf (msg,sizeof(msg)-1, fmt,argptr);
+		vsnprintf (msg,sizeof(msg)-1, fmt,argptr);
 		va_end (argptr);
 
 		{

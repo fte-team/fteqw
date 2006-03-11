@@ -85,7 +85,7 @@ mpic_t	*SWDraw_SafeCachePic (char *extpath)
 	char alternatename[MAX_QPATH];
 	char path[MAX_QPATH];
 	Q_strncpyz(path, extpath, sizeof(path));
-	COM_StripExtension(path, path);
+	COM_StripExtension(path, path, sizeof(path));
 
 	for (pic=swmenu_cachepics, i=0 ; i<swmenu_numcachepics ; pic++, i++)
 		if (!strcmp (path, pic->name))

@@ -4329,25 +4329,25 @@ void GL_LoadQ3Model(model_t *mod, void *buffer)
 				texnum->bump = 0;
 				if (gl_bumpmappingpossible)
 				{
-					COM_StripExtension(shadname, name);	//go for the normalmap
+					COM_StripExtension(shadname, name, sizeof(name));	//go for the normalmap
 					strcat(name, "_norm");
 					texnum->bump = Mod_LoadHiResTexture(name, "models", true, true, false);
 					if (!texnum->bump)
 					{
 						strcpy(name, loadmodel->name);
-						COM_StripExtension(COM_SkipPath(shadname), COM_SkipPath(name));
+						COM_StripExtension(COM_SkipPath(shadname), COM_SkipPath(name), sizeof(name));
 						strcat(name, "_norm");
 						texnum->bump = Mod_LoadHiResTexture(name, "models", true, true, false);
 						if (!texnum->bump)
 						{
-							COM_StripExtension(shadname, name);	//bother, go for heightmap and convert
+							COM_StripExtension(shadname, name, sizeof(name));	//bother, go for heightmap and convert
 							strcat(name, "_bump");
 							texnum->bump = Mod_LoadBumpmapTexture(name, "models");
 							if (!texnum->bump)
 							{
 								strcpy(name, loadmodel->name);
 								strcpy(COM_SkipPath(name), COM_SkipPath(shadname));	//eviile eh?
-								COM_StripExtension(name, name);
+								COM_StripExtension(name, name, sizeof(name));
 								strcat(name, "_bump");
 								texnum->bump = Mod_LoadBumpmapTexture(name, "models");
 							}
@@ -4356,14 +4356,14 @@ void GL_LoadQ3Model(model_t *mod, void *buffer)
 				}
 				if (r_fb_models.value)
 				{
-					COM_StripExtension(shadname, name);	//go for the normalmap
+					COM_StripExtension(shadname, name, sizeof(name));	//go for the normalmap
 					strcat(name, "_luma");
 					texnum->fullbright = Mod_LoadHiResTexture(name, "models", true, true, true);
 					if (!texnum->base)
 					{
 						strcpy(name, loadmodel->name);
 						strcpy(COM_SkipPath(name), COM_SkipPath(shadname));	//eviile eh?
-						COM_StripExtension(name, name);
+						COM_StripExtension(name, name, sizeof(name));
 						strcat(name, "_luma");
 						texnum->fullbright = Mod_LoadBumpmapTexture(name, "models");
 					}

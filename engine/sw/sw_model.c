@@ -311,7 +311,7 @@ model_t *SWMod_LoadModel (model_t *mod, qboolean crash)
 	if (!isDedicated && (!Q_strcasecmp(ext, "mdl") || !Q_strcasecmp(ext, "bsp")))
 	{
 		char mdlbase[MAX_QPATH];
-		COM_StripExtension(mod->name, mdlbase);
+		COM_StripExtension(mod->name, mdlbase, sizeof(mdlbase));
 
 		if (!buf)
 			buf = (unsigned *)COM_LoadStackFile (va("%s.md3", mdlbase), stackbuf, sizeof(stackbuf));
@@ -346,7 +346,7 @@ model_t *SWMod_LoadModel (model_t *mod, qboolean crash)
 //
 // allocate a new model
 //
-	COM_FileBase (mod->name, loadname);
+	COM_FileBase (mod->name, loadname, sizeof(loadname));
 	
 	loadmodel = mod;
 #ifndef SERVERONLY
@@ -828,14 +828,14 @@ void SWMod_LoadLighting (lump_t *l)
 			if (!litdata)
 			{							
 				strcpy(litname, loadmodel->name);
-				COM_StripExtension(loadmodel->name, litname);
-				COM_DefaultExtension(litname, ".lit");
+				COM_StripExtension(loadmodel->name, litname, sizeof(litname));
+				COM_DefaultExtension(litname, ".lit", sizeof(litname));
 				litdata = COM_LoadHunkFile(litname);
 			}
 			if (!litdata)
 			{
 				strcpy(litname, "lits/");
-				COM_StripExtension(COM_SkipPath(loadmodel->name), litname+5);
+				COM_StripExtension(COM_SkipPath(loadmodel->name), litname+5, sizeof(litname)-5);
 				strcat(litname, ".lit");
 				
 				litdata = COM_LoadHunkFile(litname);
@@ -1470,8 +1470,8 @@ void SWMod_LoadCrouchHull(void)
 
 	//find a name for a ccn and try to load it.
 	strcpy(crouchhullname, loadmodel->name);
-	COM_StripExtension(loadmodel->name, crouchhullname);
-	COM_DefaultExtension(crouchhullname, ".crh");	//crouch hull
+	COM_StripExtension(loadmodel->name, crouchhullname, sizeof(crouchhullname));
+	COM_DefaultExtension(crouchhullname, ".crh", sizeof(crouchhullname));	//crouch hull
 
 	crouchhullfile = COM_LoadMallocFile(crouchhullname);	//or otherwise temporary storage. load on hunk if you want, but that would be a waste.
 	if (!crouchhullfile)

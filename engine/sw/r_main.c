@@ -316,7 +316,7 @@ void SWR_NewMap (void)
 								   "edges");
 	}
 
-	COM_StripExtension(COM_SkipPath(cl.worldmodel->name), namebuf);
+	COM_StripExtension(COM_SkipPath(cl.worldmodel->name), namebuf, sizeof(namebuf));
 	Cvar_Set(&host_mapname, namebuf);
 
 	r_dowarpold = false;

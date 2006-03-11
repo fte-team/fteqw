@@ -140,7 +140,7 @@ void VARGS Con_Printf (const char *fmt, ...)
 	char		msg[MAXPRINTMSG];
 
 	va_start (argptr,fmt);
-	_vsnprintf (msg,sizeof(msg)-1, fmt,argptr);
+	vsnprintf (msg,sizeof(msg)-1, fmt,argptr);
 	va_end (argptr);
 
 	// add to redirected message
@@ -167,7 +167,7 @@ void Con_TPrintf (translation_t stringnum, ...)
 	{
 		fmt = languagetext[stringnum][sv_redirectedlang];
 		va_start (argptr,stringnum);
-		_vsnprintf (msg,sizeof(msg)-1, fmt,argptr);
+		vsnprintf (msg,sizeof(msg)-1, fmt,argptr);
 		va_end (argptr);
 
 		if (strlen (msg) + strlen(outputbuf) > sizeof(outputbuf) - 1)
@@ -179,7 +179,7 @@ void Con_TPrintf (translation_t stringnum, ...)
 	fmt = languagetext[stringnum][svs.language];
 
 	va_start (argptr,stringnum);
-	_vsnprintf (msg,sizeof(msg)-1, fmt,argptr);
+	vsnprintf (msg,sizeof(msg)-1, fmt,argptr);
 	va_end (argptr);
 
 	Sys_Printf ("%s", msg);	// also echo to debugging console
@@ -202,7 +202,7 @@ void Con_DPrintf (char *fmt, ...)
 		return;
 
 	va_start (argptr,fmt);
-	_vsnprintf (msg,sizeof(msg)-1, fmt,argptr);
+	vsnprintf (msg,sizeof(msg)-1, fmt,argptr);
 	va_end (argptr);
 
 	// add to redirected message

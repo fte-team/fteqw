@@ -745,7 +745,7 @@ void SV_SpawnServer (char *server, char *startspot, qboolean noents, qboolean us
 		sv_allow_cheats = false;
 		Info_SetValueForStarKey(svs.info, "*cheats", "", MAX_SERVERINFO_STRING);
 	}
-#ifndef CLIENTONLY
+#ifndef SERVERONLY
 	Q_strncpyz(cl.serverinfo, svs.info, sizeof(cl.serverinfo));
 	CL_CheckServerInfo();
 #endif

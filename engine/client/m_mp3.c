@@ -1871,10 +1871,10 @@ void Media_RecordAudioFrame (short *sample_buffer, int samples) {}
 void Media_StopRecordFilm_f (void) {}
 void Media_RecordFilm_f (void){}
 void M_Menu_Media_f (void) {}
+
 char *Media_NextTrack(void) {return NULL;}
 qboolean Media_PausedDemo(void) {return false;}
+qboolean Media_PlayingFullScreen(void) {return false;}
 
 int filmtexture;
-media_filmtype_t media_filmtype;
-
 #endif

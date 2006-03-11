@@ -20590,6 +20590,7 @@
 					>
 					<FileConfiguration
 						Name="MinGLDebug|Win32"
+						ExcludedFromBuild="true"
 						>
 						<Tool
 							Name="VCCLCompilerTool"
@@ -20630,6 +20631,7 @@
 					</FileConfiguration>
 					<FileConfiguration
 						Name="MinGLRelease|Win32"
+						ExcludedFromBuild="true"
 						>
 						<Tool
 							Name="VCCLCompilerTool"
@@ -20722,6 +20724,22 @@
 				<File
 					RelativePath="..\qclib\execloop.h"
 					>
+					<FileConfiguration
+						Name="MinGLDebug|Win32"
+						ExcludedFromBuild="true"
+						>
+						<Tool
+							Name="VCCustomBuildTool"
+						/>
+					</FileConfiguration>
+					<FileConfiguration
+						Name="MinGLRelease|Win32"
+						ExcludedFromBuild="true"
+						>
+						<Tool
+							Name="VCCustomBuildTool"
+						/>
+					</FileConfiguration>
 				</File>
 				<File
 					RelativePath="..\QCLIB\hash.c"
@@ -20862,6 +20880,7 @@
 					>
 					<FileConfiguration
 						Name="MinGLDebug|Win32"
+						ExcludedFromBuild="true"
 						>
 						<Tool
 							Name="VCCLCompilerTool"
@@ -20902,6 +20921,7 @@
 					</FileConfiguration>
 					<FileConfiguration
 						Name="MinGLRelease|Win32"
+						ExcludedFromBuild="true"
 						>
 						<Tool
 							Name="VCCLCompilerTool"
@@ -20996,6 +21016,7 @@
 					>
 					<FileConfiguration
 						Name="MinGLDebug|Win32"
+						ExcludedFromBuild="true"
 						>
 						<Tool
 							Name="VCCLCompilerTool"
@@ -21036,6 +21057,7 @@
 					</FileConfiguration>
 					<FileConfiguration
 						Name="MinGLRelease|Win32"
+						ExcludedFromBuild="true"
 						>
 						<Tool
 							Name="VCCLCompilerTool"
@@ -21130,6 +21152,7 @@
 					>
 					<FileConfiguration
 						Name="MinGLDebug|Win32"
+						ExcludedFromBuild="true"
 						>
 						<Tool
 							Name="VCCLCompilerTool"
@@ -21170,6 +21193,7 @@
 					</FileConfiguration>
 					<FileConfiguration
 						Name="MinGLRelease|Win32"
+						ExcludedFromBuild="true"
 						>
 						<Tool
 							Name="VCCLCompilerTool"
@@ -21264,6 +21288,7 @@
 					>
 					<FileConfiguration
 						Name="MinGLDebug|Win32"
+						ExcludedFromBuild="true"
 						>
 						<Tool
 							Name="VCCLCompilerTool"
@@ -21304,6 +21329,7 @@
 					</FileConfiguration>
 					<FileConfiguration
 						Name="MinGLRelease|Win32"
+						ExcludedFromBuild="true"
 						>
 						<Tool
 							Name="VCCLCompilerTool"
@@ -21396,12 +21422,29 @@
 				<File
 					RelativePath="..\QCLIB\progtype.h"
 					>
+					<FileConfiguration
+						Name="MinGLDebug|Win32"
+						ExcludedFromBuild="true"
+						>
+						<Tool
+							Name="VCCustomBuildTool"
+						/>
+					</FileConfiguration>
+					<FileConfiguration
+						Name="MinGLRelease|Win32"
+						ExcludedFromBuild="true"
+						>
+						<Tool
+							Name="VCCustomBuildTool"
+						/>
+					</FileConfiguration>
 				</File>
 				<File
 					RelativePath="..\QCLIB\qcc_cmdlib.c"
 					>
 					<FileConfiguration
 						Name="MinGLDebug|Win32"
+						ExcludedFromBuild="true"
 						>
 						<Tool
 							Name="VCCLCompilerTool"
@@ -21442,6 +21485,7 @@
 					</FileConfiguration>
 					<FileConfiguration
 						Name="MinGLRelease|Win32"
+						ExcludedFromBuild="true"
 						>
 						<Tool
 							Name="VCCLCompilerTool"
@@ -21577,6 +21621,7 @@
 					</FileConfiguration>
 					<FileConfiguration
 						Name="MinGLRelease|Win32"
+						ExcludedFromBuild="true"
 						>
 						<Tool
 							Name="VCCLCompilerTool"
@@ -21712,6 +21757,7 @@
 					</FileConfiguration>
 					<FileConfiguration
 						Name="MinGLRelease|Win32"
+						ExcludedFromBuild="true"
 						>
 						<Tool
 							Name="VCCLCompilerTool"
@@ -21847,6 +21893,7 @@
 					</FileConfiguration>
 					<FileConfiguration
 						Name="MinGLRelease|Win32"
+						ExcludedFromBuild="true"
 						>
 						<Tool
 							Name="VCCLCompilerTool"
@@ -21941,6 +21988,7 @@
 					>
 					<FileConfiguration
 						Name="MinGLDebug|Win32"
+						ExcludedFromBuild="true"
 						>
 						<Tool
 							Name="VCCLCompilerTool"
@@ -21981,6 +22029,7 @@
 					</FileConfiguration>
 					<FileConfiguration
 						Name="MinGLRelease|Win32"
+						ExcludedFromBuild="true"
 						>
 						<Tool
 							Name="VCCLCompilerTool"
@@ -22116,6 +22165,7 @@
 					</FileConfiguration>
 					<FileConfiguration
 						Name="MinGLRelease|Win32"
+						ExcludedFromBuild="true"
 						>
 						<Tool
 							Name="VCCLCompilerTool"

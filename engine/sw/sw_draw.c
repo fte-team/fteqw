@@ -1893,20 +1893,6 @@ void SWDraw_Image (float xp, float yp, float wp, float hp, float s1, float t1, f
 	if (!pic)
 		return;
 
-	// scale call against console vs actual video ration
-	{
-		// this has to be done this way because CSQC drawing needs
-		// to respect these cvars
-		extern cvar_t vid_conheight, vid_conwidth;
-
-		xratio = vid.width / vid_conwidth.value;
-		yratio = vid.height / vid_conheight.value;
-		xp *= xratio;
-		yp *= yratio;
-		wp *= xratio;
-		hp *= yratio;
-	}
-
 	// image scale 
 	xratio = pic->width / wp;
 	yratio = pic->height / hp;

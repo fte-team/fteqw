@@ -410,7 +410,9 @@ model_t *SWMod_LoadModel (model_t *mod, qboolean crash)
 		break;
 
 	default:	//some telejano mods can do this
+		Con_Printf(S_ERROR "model %s, unrecognized format %i\n", mod->name, LittleLong(*(unsigned *)buf));
 couldntload:
+
 		if (crash)
 			Sys_Error ("Mod_NumForName: %s not found", mod->name);
 
@@ -2307,7 +2309,7 @@ qboolean SWMod_LoadAliasModel (model_t *mod, void *buffer)
 	version = LittleLong (pinmodel->version);
 	if (version != ALIAS_VERSION)
 	{
-		Con_Printf (S_ERROR "%s has wrong version number (%i should be %i)",
+		Con_Printf (S_ERROR "%s has wrong version number (%i should be %i)\n",
 				 mod->name, version, ALIAS_VERSION);
 		return false;
 	}
@@ -2341,7 +2343,7 @@ qboolean SWMod_LoadAliasModel (model_t *mod, void *buffer)
 	if (pmodel->skinheight > MAX_LBM_HEIGHT)
 	{
 		// TODO: at least downsize the skin
-		Con_Printf (S_ERROR "model %s has a skin taller than %d", mod->name,
+		Con_Printf (S_ERROR "model %s has a skin taller than %d\n", mod->name,
 				   MAX_LBM_HEIGHT);
 		Hunk_FreeToLowMark(start);
 		return false;
@@ -2351,14 +2353,14 @@ qboolean SWMod_LoadAliasModel (model_t *mod, void *buffer)
 
 	if (pmodel->numverts <= 0)
 	{
-		Con_Printf (S_ERROR "model %s has no vertices", mod->name);
+		Con_Printf (S_ERROR "model %s has no vertices\n", mod->name);
 		Hunk_FreeToLowMark(start);
 		return false;
 	}
 
 	if (pmodel->numverts > MAXALIASVERTS)
 	{
-		Con_Printf (S_ERROR "model %s has too many vertices", mod->name);
+		Con_Printf (S_ERROR "model %s has too many vertices\n", mod->name);
 		Hunk_FreeToLowMark(start);
 		return false;
 	}
@@ -2367,7 +2369,7 @@ qboolean SWMod_LoadAliasModel (model_t *mod, void *buffer)
 
 	if (pmodel->numtris <= 0)
 	{
-		Con_Printf (S_ERROR "model %s has no triangles", mod->name);
+		Con_Printf (S_ERROR "model %s has no triangles\n", mod->name);
 		Hunk_FreeToLowMark(start);
 		return false;
 	}
@@ -2389,7 +2391,7 @@ qboolean SWMod_LoadAliasModel (model_t *mod, void *buffer)
 
 	if (pmodel->skinwidth & 0x03)
 	{
-		Con_Printf (S_ERROR "Mod_LoadAliasModel: \"%s\" skinwidth not multiple of 4", loadmodel->name);
+		Con_Printf (S_ERROR "Mod_LoadAliasModel: \"%s\" skinwidth not multiple of 4\n", loadmodel->name);
 		Hunk_FreeToLowMark(start);
 		return false;
 	}
@@ -2624,7 +2626,7 @@ qboolean SWMod_LoadAlias2Model (model_t *mod, void *buffer)
 	version = LittleLong (pinmodel->version);
 	if (version != MD2ALIAS_VERSION)
 	{
-		Con_Printf (S_ERROR "%s has wrong version number (%i should be %i)",
+		Con_Printf (S_ERROR "%s has wrong version number (%i should be %i)\n",
 				 mod->name, version, MD2ALIAS_VERSION);
 		return false;
 	}
@@ -2656,7 +2658,7 @@ qboolean SWMod_LoadAlias2Model (model_t *mod, void *buffer)
 
 	if (pmodel->skinheight > MAX_LBM_HEIGHT)
 	{
-		Con_Printf (S_ERROR "model %s has a skin taller than %d", mod->name,
+		Con_Printf (S_ERROR "model %s has a skin taller than %d\n", mod->name,
 				   MAX_LBM_HEIGHT);
 		Hunk_FreeToLowMark(start);
 		return false;
@@ -2667,14 +2669,14 @@ qboolean SWMod_LoadAlias2Model (model_t *mod, void *buffer)
 
 	if (pmodel->numverts <= 0)
 	{
-		Con_Printf (S_ERROR "model %s has no vertices", mod->name);
+		Con_Printf (S_ERROR "model %s has no vertices\n", mod->name);
 		Hunk_FreeToLowMark(start);
 		return false;
 	}
 
 	if (pmodel->numverts > MAXALIASVERTS)
 	{
-		Con_Printf (S_ERROR "model %s has too many vertices", mod->name);
+		Con_Printf (S_ERROR "model %s has too many vertices\n", mod->name);
 		Hunk_FreeToLowMark(start);
 		return false;
 	}
@@ -2683,7 +2685,7 @@ qboolean SWMod_LoadAlias2Model (model_t *mod, void *buffer)
 
 	if (pmodel->numtris <= 0)
 	{
-		Con_Printf (S_ERROR "model %s has no triangles", mod->name);
+		Con_Printf (S_ERROR "model %s has no triangles\n", mod->name);
 		Hunk_FreeToLowMark(start);
 		return false;
 	}
@@ -2705,7 +2707,7 @@ qboolean SWMod_LoadAlias2Model (model_t *mod, void *buffer)
 
 	if (pmodel->skinwidth & 0x03)
 	{
-		Con_Printf (S_ERROR "Mod_LoadAliasModel: %s, skinwidth not multiple of 4", mod->name);
+		Con_Printf (S_ERROR "Mod_LoadAliasModel: %s, skinwidth not multiple of 4\n", mod->name);
 		Hunk_FreeToLowMark(start);
 		return false;
 	}
@@ -3076,7 +3078,7 @@ qboolean SWMod_LoadAlias3Model (model_t *mod, void *buffer)
 
 	if (pmodel->skinheight > MAX_LBM_HEIGHT)
 	{
-		Con_Printf (S_ERROR "model %s has a skin taller than %d", mod->name,
+		Con_Printf (S_ERROR "model %s has a skin taller than %d\n", mod->name,
 				   MAX_LBM_HEIGHT);
 		Hunk_FreeToLowMark(start);
 		return false;
@@ -3087,14 +3089,14 @@ qboolean SWMod_LoadAlias3Model (model_t *mod, void *buffer)
 
 	if (surface->numVerts <= 0)
 	{
-		Con_Printf (S_ERROR "model %s has no vertices", mod->name);
+		Con_Printf (S_ERROR "model %s has no vertices\n", mod->name);
 		Hunk_FreeToLowMark(start);
 		return false;
 	}
 
 	if (pmodel->numverts > MAXALIASVERTS)
 	{
-		Con_Printf (S_ERROR "model %s has too many vertices", mod->name);
+		Con_Printf (S_ERROR "model %s has too many vertices\n", mod->name);
 		Hunk_FreeToLowMark(start);
 		return false;
 	}
@@ -3103,7 +3105,7 @@ qboolean SWMod_LoadAlias3Model (model_t *mod, void *buffer)
 
 	if (pmodel->numtris <= 0)
 	{
-		Con_Printf (S_ERROR "model %s has no triangles", mod->name);
+		Con_Printf (S_ERROR "model %s has no triangles\n", mod->name);
 		Hunk_FreeToLowMark(start);
 		return false;
 	}
@@ -3221,7 +3223,7 @@ qboolean SWMod_LoadAlias3Model (model_t *mod, void *buffer)
 
 	if (pmodel->skinwidth & 0x03)
 	{
-		Con_Printf (S_ERROR "Mod_LoadAliasModel: %s, skinwidth not multiple of 4", mod->name);
+		Con_Printf (S_ERROR "Mod_LoadAliasModel: %s, skinwidth not multiple of 4\n", mod->name);
 		Hunk_FreeToLowMark(start);
 		return false;
 	}

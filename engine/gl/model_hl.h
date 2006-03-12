@@ -230,7 +230,7 @@ void	QuaternionGLMatrix(float x, float y, float z, float w, vec4_t *GLM);
 //void	UploadTexture(hlmdl_tex_t *ptexture, qbyte *data, qbyte *pal);
 
 /* HL drawing */
-void Mod_LoadHLModel (model_t *mod, void *buffer);
+qboolean Mod_LoadHLModel (model_t *mod, void *buffer);
 int	HL_CurSequence(hlmodel_t model);
 int	HL_NewSequence(hlmodel_t * model, int _inew);
 void	HL_SetController(hlmodel_t *model, int num, float value);

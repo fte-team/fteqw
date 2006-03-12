@@ -47,7 +47,7 @@ extern char	loadname[32];	// for hunk tags
 void CM_Init(void);
 
 void GLMod_LoadCompositeAnim(model_t *mod, void *buffer);
-void GL_LoadHeightmapModel (model_t *mod, void *buffer);
+qboolean GL_LoadHeightmapModel (model_t *mod, void *buffer);
 qboolean GLMod_LoadDarkPlacesModel(model_t *mod, void *buffer);
 void GLMod_LoadSpriteModel (model_t *mod, void *buffer);
 void GLMod_LoadSprite2Model (model_t *mod, void *buffer);
@@ -55,9 +55,7 @@ void GLMod_LoadBrushModel (model_t *mod, void *buffer);
 #ifdef Q2BSPS
 void Mod_LoadQ2BrushModel (model_t *mod, void *buffer);
 #endif
-void Mod_LoadHLModel (model_t *mod, void *buffer);
-void Mod_LoadAlias3Model (model_t *mod, void *buffer);
-void Mod_LoadGroupModel (model_t *mod, void *buffer);
+qboolean Mod_LoadHLModel (model_t *mod, void *buffer);
 #ifdef ZYMOTICMODELS
 qboolean GLMod_LoadZymoticModel(model_t *mod, void *buffer);
 #endif
@@ -563,7 +561,8 @@ couldntload:
 #endif
 #ifdef HALFLIFEMODELS
 	case (('T'<<24)+('S'<<16)+('D'<<8)+'I'):
-		Mod_LoadHLModel (mod, buf);
+		if (!Mod_LoadHLModel (mod, buf))
+			goto couldntload;
 		break;
 #endif
 #ifdef TERRAINMAPS
@@ -611,7 +610,8 @@ couldntload:
 #ifdef TERRAIN
 		if (!strcmp(com_token, "terrain"))
 		{
-			GL_LoadHeightmapModel(mod, buf);
+			if (!GL_LoadHeightmapModel(mod, buf))
+				goto couldntload;
 			break;
 		}
 #endif

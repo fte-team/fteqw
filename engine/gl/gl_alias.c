@@ -3347,7 +3347,7 @@ qboolean GL_LoadQ1Model (model_t *mod, void *buffer)
 	version = pq1inmodel->version;
 	if (version != ALIAS_VERSION)
 	{
-		Con_Printf (S_ERROR "%s has wrong version number (%i should be %i)",
+		Con_Printf (S_ERROR "%s has wrong version number (%i should be %i)\n",
 				 mod->name, version, ALIAS_VERSION);
 		return false;
 	}
@@ -3613,7 +3613,7 @@ qboolean GL_LoadQ2Model (model_t *mod, void *buffer)
 	version = LittleLong (pq2inmodel->version);
 	if (version != MD2ALIAS_VERSION)
 	{
-		Con_Printf (S_ERROR "%s has wrong version number (%i should be %i)",
+		Con_Printf (S_ERROR "%s has wrong version number (%i should be %i)\n",
 				 mod->name, version, MD2ALIAS_VERSION);
 		return false;
 	}
@@ -4658,13 +4658,13 @@ qboolean GLMod_LoadZymoticModel(model_t *mod, void *buffer)
 	}
 	if (intrans != (zymvertex_t *)((char*)header + header->lump_verts.start))
 	{
-		Con_Printf(S_ERROR "%s, Vertex transforms list appears corrupt.", mod->name);
+		Con_Printf(S_ERROR "%s, Vertex transforms list appears corrupt.\n", mod->name);
 		Hunk_FreeToLowMark(hunkstart);
 		return false;
 	}
 	if (vertbonecounts != (int *)((char*)header + header->lump_vertbonecounts.start))
 	{
-		Con_Printf(S_ERROR "%s, Vertex bone counts list appears corrupt.", mod->name);
+		Con_Printf(S_ERROR "%s, Vertex bone counts list appears corrupt.\n", mod->name);
 		Hunk_FreeToLowMark(hunkstart);
 		return false;
 	}
@@ -4700,7 +4700,7 @@ qboolean GLMod_LoadZymoticModel(model_t *mod, void *buffer)
 	}
 	if (renderlist != (int*)((char*)header + header->lump_render.start + header->lump_render.length))
 	{
-		Con_Printf(S_ERROR "%s, render list appears corrupt.", mod->name);
+		Con_Printf(S_ERROR "%s, render list appears corrupt.\n", mod->name);
 		Hunk_FreeToLowMark(hunkstart);
 		return false;
 	}
@@ -4767,7 +4767,7 @@ qboolean GLMod_LoadZymoticModel(model_t *mod, void *buffer)
 
 	if (inscene != (zymscene_t*)((char*)header + header->lump_scenes.start+header->lump_scenes.length))
 	{
-		Con_Printf(S_ERROR "%s, scene list appears corrupt.", mod->name);
+		Con_Printf(S_ERROR "%s, scene list appears corrupt.\n", mod->name);
 		Hunk_FreeToLowMark(hunkstart);
 		return false;
 	}

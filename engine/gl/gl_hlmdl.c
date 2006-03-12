@@ -76,7 +76,7 @@ void GL_Draw_HL_AliasFrame(short *order, vec3_t *transformed, float tex_w, float
  =======================================================================================================================
  */
 extern char loadname[];
-void Mod_LoadHLModel (model_t *mod, void *buffer)
+qboolean Mod_LoadHLModel (model_t *mod, void *buffer)
 {
     /*~~*/
     int i;
@@ -127,7 +127,11 @@ void Mod_LoadHLModel (model_t *mod, void *buffer)
 	memcpy(header, buffer, com_filesize);
 
 	if (header->version != 10)
-		Host_EndGame("Cannot load model %s - unknown version %i\n", mod->name, header->version);
+	{
+		Con_Printf(S_ERROR "Cannot load model %s - unknown version %i\n", mod->name, header->version);
+		Hunk_FreeToLowMark(start);
+		return false;
+	}
 
     tex = (hlmdl_tex_t *) ((qbyte *) header + header->textures);
     bones = (hlmdl_bone_t *) ((qbyte *) header + header->boneindex);
@@ -170,10 +174,11 @@ void Mod_LoadHLModel (model_t *mod, void *buffer)
 	
 	Cache_Alloc (&mod->cache, total, loadname);
 	if (!mod->cache.data)
-		return;
+		return false;
 	memcpy (mod->cache.data, model, total);
 
 	Hunk_FreeToLowMark (start);
+	return true;
 }
 
 /*

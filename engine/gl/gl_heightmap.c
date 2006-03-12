@@ -615,7 +615,7 @@ int	Heightmap_LeafForPoint	(model_t *model, vec3_t point)
 
 //Heightmap_NativeBoxContents
 
-void GL_LoadHeightmapModel (model_t *mod, void *buffer)
+qboolean GL_LoadHeightmapModel (model_t *mod, void *buffer)
 {
 	heightmap_t *hm;
 	unsigned short *heightmap;
@@ -648,7 +648,10 @@ void GL_LoadHeightmapModel (model_t *mod, void *buffer)
 
 	buffer = COM_Parse(buffer);
 	if (strcmp(com_token, "terrain"))
-		Sys_Error("Wasn't terrain map");	//shouldn't happen
+	{
+		Con_Printf(S_ERROR "%s wasn't terrain map\n", mod->name);	//shouldn't happen
+		return false;
+	}
 	for(;;)
 	{
 		buffer = COM_Parse(buffer);
@@ -711,11 +714,17 @@ void GL_LoadHeightmapModel (model_t *mod, void *buffer)
 			numsegs = atoi(com_token);
 		}
 		else
-			Sys_Error("Unrecognised token in terrain map\n");
+		{
+			Con_Printf(S_ERROR "%s, unrecognised token in terrain map\n", mod->name);
+			return false;
+		}
 	}
 
 	if (numsegs > SECTIONS)
-		Sys_Error("Heightmap uses too many sections max is %i\n", SECTIONS);
+	{
+		Con_Printf(S_ERROR "%s, heightmap uses too many sections max is %i\n", mod->name, SECTIONS);
+		return false;
+	}
 
 
 	mod->type = mod_heightmap;
@@ -724,7 +733,10 @@ void GL_LoadHeightmapModel (model_t *mod, void *buffer)
 
 	size = sqrt(com_filesize/2);
 	if (size % numsegs)
-		Sys_Error("Heightmap is not a multiple of %i\n", numsegs);
+	{
+		Con_Printf(S_ERROR "%s, heightmap is not a multiple of %i\n", mod->name, numsegs);
+		return false;
+	}
 
 	hm = Hunk_Alloc(sizeof(*hm) + com_filesize);
 	memset(hm, 0, sizeof(*hm));
@@ -780,5 +792,7 @@ void GL_LoadHeightmapModel (model_t *mod, void *buffer)
 */
 
 	mod->terrain = hm;
+
+	return true;
 }
 #endif

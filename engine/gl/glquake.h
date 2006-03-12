@@ -334,7 +334,7 @@ void GLQ3_LightGrid(vec3_t point, vec3_t res_diffuse, vec3_t res_ambient, vec3_t
 
 //gl_heightmap.c
 void GL_DrawHeightmapModel (entity_t *e);
-void GL_LoadHeightmapModel (model_t *mod, void *buffer);
+qboolean GL_LoadHeightmapModel (model_t *mod, void *buffer);
 
 //gl_bloom.c
 void R_BloomRegister(void);

@@ -272,6 +272,9 @@ qboolean OV_StartDecode(unsigned char *start, unsigned long length, ovdecoderbuf
 	}
 #endif
 
+	if (!oggvorbislibrary)
+		return false;
+
 	buffer->start = start;
 	buffer->length = length;
 	buffer->pos = 0;

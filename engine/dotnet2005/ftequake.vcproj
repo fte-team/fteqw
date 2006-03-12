@@ -764,7 +764,7 @@
 			<Tool
 				Name="VCCLCompilerTool"
 				Optimization="2"
-				InlineFunctionExpansion="1"
+				InlineFunctionExpansion="2"
 				AdditionalIncludeDirectories="..\client,../libs/dxsdk7/include,../common,../server,../gl,../sw,../qclib,../libs"
 				PreprocessorDefinitions="NDEBUG;WIN32;_WINDOWS;GLQUAKE;SWQUAKE;USE_D3D"
 				StringPooling="true"
@@ -1175,7 +1175,7 @@
 				Name="VCCLCompilerTool"
 				Optimization="0"
 				AdditionalIncludeDirectories="..\client,../libs/dxsdk7/include,../common,../server,../gl,../sw,../qclib,../libs"
-				PreprocessorDefinitions="_DEBUG;WIN32;_WINDOWS;GLQUAKE;SWQUAKE"
+				PreprocessorDefinitions="_DEBUG;WIN32;_WINDOWS;GLQUAKE;SWQUAKE;USE_D3D"
 				RuntimeLibrary="1"
 				FloatingPointModel="2"
 				UsePrecompiledHeader="2"

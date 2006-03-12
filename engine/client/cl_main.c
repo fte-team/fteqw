@@ -1002,7 +1002,7 @@ This is also called on Host_Error, so it shouldn't cause any errors
 */
 void CL_Disconnect (void)
 {
-	qbyte	final[10];
+	qbyte	final[12];
 
 	connect_time = -1;
 

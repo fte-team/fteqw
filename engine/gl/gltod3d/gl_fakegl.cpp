@@ -53,7 +53,10 @@ the fact that it uses wrapper functions to call methods in a class could be a re
 #pragma warning( disable : 4244 )
 #pragma warning( disable : 4820 )
 
+#if (_MSC_VER < 1400)
 #define     D3D_OVERLOADS
+#endif
+
 #define     RELEASENULL(object) if (object) {object->Release();}
 
 #include    "ddraw.h"
@@ -922,7 +925,7 @@ public:
 		}
 	}
 
-	inline IsMergableMode(GLenum /* mode */){
+	inline bool IsMergableMode(GLenum /* mode */){
 		CheckFlush();
 		return true;
 	}

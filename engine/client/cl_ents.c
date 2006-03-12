@@ -337,6 +337,13 @@ void CL_ParseDelta (entity_state_t *from, entity_state_t *to, int bits, qboolean
 	if (morebits & U_ABSLIGHT && cls.fteprotocolextensions & PEXT_HEXEN2)
 		to->abslight = MSG_ReadByte();
 
+	if (morebits & U_COLOURMOD && cls.fteprotocolextensions & PEXT_COLOURMOD)
+	{
+		to->colormod[0] = MSG_ReadByte();
+		to->colormod[1] = MSG_ReadByte();
+		to->colormod[2] = MSG_ReadByte();
+	}
+
 	if (morebits & U_ENTITYDBL)
 		to->number += 512;
 	if (morebits & U_ENTITYDBL2)

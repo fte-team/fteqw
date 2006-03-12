@@ -534,7 +534,7 @@ void SV_WriteDelta (entity_state_t *from, entity_state_t *to, sizebuf_t *msg, qb
 	if ( to->abslight != from->abslight && protext & PEXT_HEXEN2)
 		evenmorebits |= U_ABSLIGHT;
 
-	if (to->colormod[0]!=32||to->colormod[1]!=32||to->colormod[2]!=32 && protext & PEXT_COLOURMOD)
+	if ((to->colormod[0]!=from->colormod[0]||to->colormod[1]!=from->colormod[1]||to->colormod[2]!=from->colormod[2]) && protext & PEXT_COLOURMOD)
 		evenmorebits |= U_COLOURMOD;
 
 	if (to->dpflags != from->dpflags && protext & PEXT_DPFLAGS)

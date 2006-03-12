@@ -939,6 +939,63 @@ qboolean SL_TitlesKey (menucustom_t *ths, menu_t *menu, int key)
 	return true;
 }
 
+typedef enum {
+	ST_NORMALQW,
+	ST_FTESERVER,
+	ST_QUAKE2,
+	ST_QUAKE3,
+	ST_NETQUAKE,
+	ST_FTEQTV,
+	ST_FAVORITE,
+	MAX_SERVERTYPES
+} servertypes_t;
+
+float serverbackcolor[MAX_SERVERTYPES * 2][3] =
+{
+	{0.08, 0.08, 0.08}, // default
+	{0.16, 0.16, 0.16},
+	{0.14, 0.07, 0.07}, // FTE server
+	{0.28, 0.14, 0.14},
+	{0.04, 0.09, 0.04}, // Quake 2
+	{0.08, 0.18, 0.08},
+	{0.05, 0.05, 0.12}, // Quake 3
+	{0.10, 0.10, 0.24},
+	{0.12, 0.08, 0.02}, // NetQuake
+	{0.24, 0.16, 0.04},
+	{0.10, 0.05, 0.10}, // FTEQTV
+	{0.20, 0.10, 0.20},
+	{0.01, 0.16, 0.01}, // Favorite
+	{0.02, 0.32, 0.02}
+};
+
+float serverhighlight[MAX_SERVERTYPES][3] =
+{
+	{0.35, 0.35, 0.45}, // Default
+	{0.60, 0.30, 0.30}, // FTE Server
+	{0.25, 0.45, 0.25}, // Quake 2
+	{0.20, 0.20, 0.60}, // Quake 3
+	{0.40, 0.40, 0.25}, // NetQuake
+	{0.45, 0.20, 0.45}, // FTEQTV
+	{0.10, 0.70, 0.10}  // Favorite
+};
+
+servertypes_t flagstoservertype(int flags)
+{
+	if (flags & SS_FAVORITE)
+		return ST_FAVORITE;
+	if (flags & SS_QTV)
+		return ST_FTEQTV;
+	if (flags & SS_FTESERVER)
+		return ST_FTESERVER;
+	if ((flags & SS_NETQUAKE) || (flags & SS_DARKPLACES))
+		return ST_NETQUAKE;
+	if (flags & SS_QUAKE2)
+		return ST_QUAKE2;
+	if (flags & SS_QUAKE3)
+		return ST_QUAKE3;
+
+	return ST_NORMALQW;
+}
 
 void SL_ServerDraw (int x, int y, menucustom_t *ths, menu_t *menu)
 {
@@ -946,18 +1003,28 @@ void SL_ServerDraw (int x, int y, menucustom_t *ths, menu_t *menu)
 	serverlist_t *info = (serverlist_t*)(menu + 1);
 	serverinfo_t *si;
 	int thisone = (int)ths->data + info->scrollpos;
+	servertypes_t stype;
 	si = Master_SortedServer(thisone);
 	if (si)
 	{
 		x = ths->common.width;
+		stype = flagstoservertype(si->special);
 		if (thisone == info->selectedpos)
-			Draw_FillRGB(0, y, ths->common.width, 8, 0.3, 0.3, 0.5);
+		{
+			Draw_FillRGB(0, y, ths->common.width, 8, 
+				serverhighlight[(int)stype][0],
+				serverhighlight[(int)stype][1],
+				serverhighlight[(int)stype][2]);
+		}
 		else if (thisone == info->scrollpos + (mousecursor_y-16)/8 && mousecursor_x < x)
 			Draw_FillRGB(0, y, ths->common.width, 8, (sin(realtime*4.4)*0.25)+0.5, (sin(realtime*4.4)*0.25)+0.5, 0.08);
-		else if (thisone & 1)
-			Draw_FillRGB(0, y, ths->common.width, 8, 0.08, 0.08, 0.08);
 		else
-			Draw_FillRGB(0, y, ths->common.width, 8, 0.16, 0.16, 0.16);
+		{		
+			Draw_FillRGB(0, y, ths->common.width, 8, 
+				serverbackcolor[(int)stype * 2 + (thisone & 1)][0],
+				serverbackcolor[(int)stype * 2 + (thisone & 1)][1],
+				serverbackcolor[(int)stype * 2 + (thisone & 1)][2]);
+		}
 
 		x /= 8;
 

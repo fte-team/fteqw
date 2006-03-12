@@ -1165,7 +1165,6 @@ void GLDraw_Init (void)
 }
 void GLDraw_DeInit (void)
 {
-	Cmd_RemoveCommand("gl_texturemode");
 	Cmd_RemoveCommand ("gl_texture_anisotropic_filtering");
 
 	draw_disc = NULL;

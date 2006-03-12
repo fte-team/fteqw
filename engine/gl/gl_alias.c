@@ -3081,7 +3081,8 @@ static void *Q1_LoadFrameGroup (daliasframetype_t *pframetype, int *seamremaps)
 			pframetype = (daliasframetype_t *)pinframe;
 			break;
 		default:
-			Sys_Error("Bad frame type in %s\n", loadmodel->name);
+			Con_Printf(S_ERROR "Bad frame type in %s\n", loadmodel->name);
+			return NULL;
 		}
 		frame++;
 	}
@@ -3315,7 +3316,7 @@ static void *Q1_LoadSkins (daliasskintype_t *pskintype, qboolean alpha)
 }
 #endif
 
-void GL_LoadQ1Model (model_t *mod, void *buffer)
+qboolean GL_LoadQ1Model (model_t *mod, void *buffer)
 {
 #ifndef SERVERONLY
 	vec2_t *st_array;
@@ -3345,8 +3346,11 @@ void GL_LoadQ1Model (model_t *mod, void *buffer)
 
 	version = pq1inmodel->version;
 	if (version != ALIAS_VERSION)
-		Sys_Error ("%s has wrong version number (%i should be %i)",
+	{
+		Con_Printf (S_ERROR "%s has wrong version number (%i should be %i)",
 				 mod->name, version, ALIAS_VERSION);
+		return false;
+	}
 
 	if (pq1inmodel->numframes < 1 ||
 		pq1inmodel->numskins < 1 ||
@@ -3354,7 +3358,10 @@ void GL_LoadQ1Model (model_t *mod, void *buffer)
 		pq1inmodel->numverts < 3 ||
 		pq1inmodel->skinheight < 1 ||
 		pq1inmodel->skinwidth < 1)
-		Sys_Error("Model %s has an invalid quantity\n", mod->name);
+	{
+		Con_Printf(S_ERROR "Model %s has an invalid quantity\n", mod->name);
+		return false;
+	}
 
 	mod->flags = pq1inmodel->flags;
 
@@ -3437,8 +3444,15 @@ void GL_LoadQ1Model (model_t *mod, void *buffer)
 	}
 
 	//frames
-	Q1_LoadFrameGroup((daliasframetype_t *)&pintriangles[pq1inmodel->numtris], seamremap);
+	if (Q1_LoadFrameGroup((daliasframetype_t *)&pintriangles[pq1inmodel->numtris], seamremap) == NULL)
+	{
+		BZ_Free(seamremap);
+		Hunk_FreeToLowMark (hunkstart);
+		return false;
+	}
 	BZ_Free(seamremap);
+
+
 #ifndef SERVERONLY
 	if (r_shadows.value)
 	{
@@ -3462,13 +3476,15 @@ void GL_LoadQ1Model (model_t *mod, void *buffer)
 	if (!mod->cache.data)
 	{
 		Hunk_FreeToLowMark (hunkstart);
-		return;
+		return false;
 	}
 	memcpy (mod->cache.data, galias, hunktotal);
 
 	Hunk_FreeToLowMark (hunkstart);
 
 	mod->funcs.Trace = GLMod_Trace;
+
+	return true;
 }
 #endif
 
@@ -3554,7 +3570,7 @@ static void Q2_LoadSkins(char *skins)
 }
 
 #define MD2_MAX_TRIANGLES 4096
-void GL_LoadQ2Model (model_t *mod, void *buffer)
+qboolean GL_LoadQ2Model (model_t *mod, void *buffer)
 {
 #ifndef SERVERONLY
 	dmd2stvert_t *pinstverts;
@@ -3596,8 +3612,11 @@ void GL_LoadQ2Model (model_t *mod, void *buffer)
 
 	version = LittleLong (pq2inmodel->version);
 	if (version != MD2ALIAS_VERSION)
-		Sys_Error ("%s has wrong version number (%i should be %i)",
+	{
+		Con_Printf (S_ERROR "%s has wrong version number (%i should be %i)",
 				 mod->name, version, MD2ALIAS_VERSION);
+		return false;
+	}
 
 	if (LittleLong(pq2inmodel->num_frames) < 1 ||
 		LittleLong(pq2inmodel->num_skins) < 0 ||
@@ -3606,7 +3625,10 @@ void GL_LoadQ2Model (model_t *mod, void *buffer)
 		LittleLong(pq2inmodel->num_st) < 3 ||
 		LittleLong(pq2inmodel->skinheight) < 1 ||
 		LittleLong(pq2inmodel->skinwidth) < 1)
-		Sys_Error("Model %s has an invalid quantity\n", mod->name);
+	{
+		Con_Printf(S_ERROR "Model %s has an invalid quantity\n", mod->name);
+		return false;
+	}
 
 	mod->flags = 0;
 
@@ -3788,13 +3810,15 @@ void GL_LoadQ2Model (model_t *mod, void *buffer)
 	if (!mod->cache.data)
 	{
 		Hunk_FreeToLowMark (hunkstart);
-		return;
+		return false;
 	}
 	memcpy (mod->cache.data, galias, hunktotal);
 
 	Hunk_FreeToLowMark (hunkstart);
 
 	mod->funcs.Trace = GLMod_Trace;
+
+	return true;
 }
 
 #endif
@@ -4117,7 +4141,7 @@ typedef struct {
 } md3Shader_t;
 //End of Tenebrae 'assistance'
 
-void GL_LoadQ3Model(model_t *mod, void *buffer)
+qboolean GL_LoadQ3Model(model_t *mod, void *buffer)
 {
 #ifndef SERVERONLY
 	galiasskin_t	*skin;
@@ -4181,7 +4205,7 @@ void GL_LoadQ3Model(model_t *mod, void *buffer)
 	for (s = 0; s < LittleLong(header->numSurfaces); s++)
 	{
 		if (LittleLong(surf->ident) != MD3_IDENT)
-			Con_Printf("Warning: md3 sub-surface doesn't match ident\n");
+			Con_Printf(S_WARNING "Warning: md3 sub-surface doesn't match ident\n");
 		size = sizeof(galiasinfo_t) + sizeof(galiasgroup_t)*LittleLong(header->numFrames);
 		galias = Hunk_Alloc(size);
 		galias->groupofs = sizeof(*galias);	//frame groups
@@ -4450,13 +4474,15 @@ void GL_LoadQ3Model(model_t *mod, void *buffer)
 	if (!mod->cache.data)
 	{
 		Hunk_FreeToLowMark (hunkstart);
-		return;
+		return false;
 	}
 	memcpy (mod->cache.data, root, hunktotal);
 
 	Hunk_FreeToLowMark (hunkstart);
 
 	mod->funcs.Trace = GLMod_Trace;
+
+	return true;
 }
 #endif
 
@@ -4521,7 +4547,7 @@ typedef struct zymvertex_s
 
 //this can generate multiple meshes (one for each shader).
 //but only one set of transforms are ever generated.
-void GLMod_LoadZymoticModel(model_t *mod, void *buffer)
+qboolean GLMod_LoadZymoticModel(model_t *mod, void *buffer)
 {
 #ifndef SERVERONLY
 	galiasskin_t *skin;
@@ -4568,20 +4594,31 @@ void GLMod_LoadZymoticModel(model_t *mod, void *buffer)
 	header = buffer;
 
 	if (memcmp(header->id, "ZYMOTICMODEL", 12))
-		Sys_Error("GLMod_LoadZymoticModel: doesn't appear to BE a zymotic!\n");
+	{
+		Con_Printf("GLMod_LoadZymoticModel: %s, doesn't appear to BE a zymotic!\n", mod->name);
+		return false;
+	}
 
 	if (BigLong(header->type) != 1)
-		Sys_Error("GLMod_LoadZymoticModel: only type 1 is supported\n");
+	{
+		Con_Printf("GLMod_LoadZymoticModel: %s, only type 1 is supported\n", mod->name);
+		return false;
+	}
 
 	for (i = 0; i < sizeof(zymtype1header_t)/4; i++)
 		((int*)header)[i] = BigLong(((int*)header)[i]);
 
 	if (!header->numverts)
-		Sys_Error("GLMod_LoadZymoticModel: no vertexes\n");
+	{
+		Con_Printf("GLMod_LoadZymoticModel: %s, no vertexes\n", mod->name);
+		return false;
+	}
 
 	if (!header->numsurfaces)
-		Sys_Error("GLMod_LoadZymoticModel: no surfaces\n");
-
+	{
+		Con_Printf("GLMod_LoadZymoticModel: %s, no surfaces\n", mod->name);
+		return false;
+	}
 
 	VectorCopy(header->mins, mod->mins);
 	VectorCopy(header->maxs, mod->maxs);
@@ -4603,7 +4640,11 @@ void GLMod_LoadZymoticModel(model_t *mod, void *buffer)
 		{
 			v++;
 			if (v == header->numverts)
-				Sys_Error("GLMod_LoadZymoticModel: Too many transformations\n");
+			{
+				Con_Printf("GLMod_LoadZymoticModel: %s, too many transformations\n", mod->name);
+				Hunk_FreeToLowMark(hunkstart);
+				return false;
+			}
 			vertbonecounts[v] = BigLong(vertbonecounts[v]);
 			multiplier = 1.0f / vertbonecounts[v];
 		}
@@ -4616,10 +4657,17 @@ void GLMod_LoadZymoticModel(model_t *mod, void *buffer)
 		vertbonecounts[v]--;
 	}
 	if (intrans != (zymvertex_t *)((char*)header + header->lump_verts.start))
-		Sys_Error("Vertex transforms list appears corrupt.");
+	{
+		Con_Printf(S_ERROR "%s, Vertex transforms list appears corrupt.", mod->name);
+		Hunk_FreeToLowMark(hunkstart);
+		return false;
+	}
 	if (vertbonecounts != (int *)((char*)header + header->lump_vertbonecounts.start))
-		Sys_Error("Vertex bone counts list appears corrupt.");
-
+	{
+		Con_Printf(S_ERROR "%s, Vertex bone counts list appears corrupt.", mod->name);
+		Hunk_FreeToLowMark(hunkstart);
+		return false;
+	}
 
 	root->numverts = v+1;
 
@@ -4651,7 +4699,11 @@ void GLMod_LoadZymoticModel(model_t *mod, void *buffer)
 		renderlist += root[i].numindexes;
 	}
 	if (renderlist != (int*)((char*)header + header->lump_render.start + header->lump_render.length))
-		Sys_Error("Render list appears corrupt.");
+	{
+		Con_Printf(S_ERROR "%s, render list appears corrupt.", mod->name);
+		Hunk_FreeToLowMark(hunkstart);
+		return false;
+	}
 
 	grp = Hunk_Alloc(sizeof(*grp)*header->numscenes*header->numsurfaces);
 	matrix = Hunk_Alloc(header->lump_poses.length);
@@ -4714,7 +4766,11 @@ void GLMod_LoadZymoticModel(model_t *mod, void *buffer)
 	}
 
 	if (inscene != (zymscene_t*)((char*)header + header->lump_scenes.start+header->lump_scenes.length))
-		Sys_Error("scene list appears corrupt.");
+	{
+		Con_Printf(S_ERROR "%s, scene list appears corrupt.", mod->name);
+		Hunk_FreeToLowMark(hunkstart);
+		return false;
+	}
 
 	for (i = 0; i < header->numsurfaces-1; i++)
 		root[i].nextsurf = sizeof(galiasinfo_t);
@@ -4745,7 +4801,7 @@ void GLMod_LoadZymoticModel(model_t *mod, void *buffer)
 	if (!mod->cache.data)
 	{
 		Hunk_FreeToLowMark (hunkstart);
-		return;
+		return false;
 	}
 	memcpy (mod->cache.data, root, hunktotal);
 
@@ -4753,6 +4809,8 @@ void GLMod_LoadZymoticModel(model_t *mod, void *buffer)
 
 
 	mod->funcs.Trace = GLMod_Trace;
+
+	return true;
 }
 
 
@@ -4846,7 +4904,7 @@ typedef struct dpmvertex_s
 	// immediately followed by 1 or more dpmbonevert_t structures
 } dpmvertex_t;
 
-void GLMod_LoadDarkPlacesModel(model_t *mod, void *buffer)
+qboolean GLMod_LoadDarkPlacesModel(model_t *mod, void *buffer)
 {
 #ifndef SERVERONLY
 	galiasskin_t *skin;
@@ -4890,20 +4948,35 @@ void GLMod_LoadDarkPlacesModel(model_t *mod, void *buffer)
 	header = buffer;
 
 	if (memcmp(header->id, "DARKPLACESMODEL\0", 16))
-		Sys_Error("GLMod_LoadDarkPlacesModel: doesn't appear to be a darkplaces model!\n");
+	{
+		Con_Printf(S_ERROR "GLMod_LoadDarkPlacesModel: %s, doesn't appear to be a darkplaces model!\n", mod->name);
+		return false;
+	}
 
 	if (BigLong(header->type) != 2)
-		Sys_Error("GLMod_LoadDarkPlacesModel: only type 2 is supported\n");
+	{
+		Con_Printf(S_ERROR "GLMod_LoadDarkPlacesModel: %s, only type 2 is supported\n", mod->name);
+		return false;
+	}
 
 	for (i = 0; i < sizeof(dpmheader_t)/4; i++)
 		((int*)header)[i] = BigLong(((int*)header)[i]);
 
 	if (!header->num_bones)
-		Sys_Error("GLMod_LoadDarkPlacesModel: no bones\n");
+	{
+		Con_Printf(S_ERROR "GLMod_LoadDarkPlacesModel: %s, no bones\n", mod->name);
+		return false;
+	}
 	if (!header->num_frames)
-		Sys_Error("GLMod_LoadDarkPlacesModel: no frames\n");
+	{
+		Con_Printf(S_ERROR "GLMod_LoadDarkPlacesModel: %s, no frames\n", mod->name);
+		return false;
+	}
 	if (!header->num_meshs)
-		Sys_Error("GLMod_LoadDarkPlacesModel: no surfaces\n");
+	{
+		Con_Printf(S_ERROR "GLMod_LoadDarkPlacesModel: %s, no surfaces\n", mod->name);
+		return false;
+	}
 
 
 	VectorCopy(header->mins, mod->mins);
@@ -4989,7 +5062,11 @@ void GLMod_LoadDarkPlacesModel(model_t *mod, void *buffer)
 	{
 		outbone[i].parent = BigLong(inbone[i].parent);
 		if (outbone[i].parent >= i || outbone[i].parent < -1)
-			Sys_Error("GLMod_LoadDarkPlacesModel: bad bone index in %s\n", mod->name);
+		{
+			Con_Printf(S_ERROR "GLMod_LoadDarkPlacesModel: bad bone index in %s\n", mod->name);
+			Hunk_FreeToLowMark(hunkstart);
+			return false;
+		}
 
 		Q_strncpyz(outbone[i].name, inbone[i].name, sizeof(outbone[i].name));
 		//throw away the flags.
@@ -5083,7 +5160,7 @@ void GLMod_LoadDarkPlacesModel(model_t *mod, void *buffer)
 	if (!mod->cache.data)
 	{
 		Hunk_FreeToLowMark (hunkstart);
-		return;
+		return false;
 	}
 	memcpy (mod->cache.data, root, hunktotal);
 
@@ -5091,6 +5168,8 @@ void GLMod_LoadDarkPlacesModel(model_t *mod, void *buffer)
 
 
 	mod->funcs.Trace = GLMod_Trace;
+
+	return true;
 }
 
 

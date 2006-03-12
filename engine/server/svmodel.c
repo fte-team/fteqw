@@ -25,17 +25,14 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 model_t	*loadmodel;
 char	loadname[32];	// for hunk tags
 
-void Mod_LoadSpriteModel (model_t *mod, void *buffer);
 void Mod_LoadBrushModel (model_t *mod, void *buffer);
 void Mod_LoadQ2BrushModel (model_t *mod, void *buffer);
-void Mod_LoadAliasModel (model_t *mod, void *buffer);
-model_t *Mod_LoadModel (model_t *mod, qboolean crash);
 
-void GL_LoadQ1Model (model_t *mod, void *buffer);
-void GL_LoadQ2Model (model_t *mod, void *buffer);
-void GL_LoadQ3Model (model_t *mod, void *buffer);
-void GLMod_LoadZymoticModel (model_t *mod, void *buffer);
-void GLMod_LoadDarkPlacesModel(model_t *mod, void *buffer);
+qboolean GL_LoadQ1Model (model_t *mod, void *buffer);
+qboolean GL_LoadQ2Model (model_t *mod, void *buffer);
+qboolean GL_LoadQ3Model (model_t *mod, void *buffer);
+qboolean GLMod_LoadZymoticModel (model_t *mod, void *buffer);
+qboolean GLMod_LoadDarkPlacesModel(model_t *mod, void *buffer);
 
 qbyte	mod_novis[MAX_MAP_LEAFS/8];
 
@@ -294,26 +291,31 @@ model_t *Mod_LoadModel (model_t *mod, qboolean crash)
 
 
 	case IDPOLYHEADER:
-		GL_LoadQ1Model(mod, buf);
+		if (!GL_LoadQ1Model(mod, buf))
+			return NULL;
 		break;
 #ifdef MD2MODELS
 	case MD2IDALIASHEADER:
-		GL_LoadQ2Model(mod, buf);
+		if (!GL_LoadQ2Model(mod, buf))
+			return NULL;
 		break;
 #endif
 #ifdef MD3MODELS
 	case MD3_IDENT:
-		GL_LoadQ3Model (mod, buf);
+		if (!GL_LoadQ3Model (mod, buf))
+			return NULL;
 		break;
 #endif
 #ifdef ZYMOTICMODELS
 	case (('O'<<24)+('M'<<16)+('Y'<<8)+'Z'):
-		GLMod_LoadZymoticModel(mod, buf);
+		if (!GLMod_LoadZymoticModel(mod, buf))
+			return NULL;
 		break;
 #endif
 #ifdef ZYMOTICMODELS
 	case (('K'<<24)+('R'<<16)+('A'<<8)+'D'):
-		GLMod_LoadDarkPlacesModel(mod, buf);
+		if (!GLMod_LoadDarkPlacesModel(mod, buf))
+			return NULL;
 		break;
 #endif
 

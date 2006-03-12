@@ -48,7 +48,7 @@ void CM_Init(void);
 
 void GLMod_LoadCompositeAnim(model_t *mod, void *buffer);
 void GL_LoadHeightmapModel (model_t *mod, void *buffer);
-void GLMod_LoadDarkPlacesModel(model_t *mod, void *buffer);
+qboolean GLMod_LoadDarkPlacesModel(model_t *mod, void *buffer);
 void GLMod_LoadSpriteModel (model_t *mod, void *buffer);
 void GLMod_LoadSprite2Model (model_t *mod, void *buffer);
 void GLMod_LoadBrushModel (model_t *mod, void *buffer);
@@ -59,7 +59,7 @@ void Mod_LoadHLModel (model_t *mod, void *buffer);
 void Mod_LoadAlias3Model (model_t *mod, void *buffer);
 void Mod_LoadGroupModel (model_t *mod, void *buffer);
 #ifdef ZYMOTICMODELS
-void GLMod_LoadZymoticModel(model_t *mod, void *buffer);
+qboolean GLMod_LoadZymoticModel(model_t *mod, void *buffer);
 #endif
 #ifdef MD5MODELS
 void GLMod_LoadMD5MeshModel(model_t *mod, void *buffer);
@@ -70,12 +70,12 @@ model_t *GLMod_LoadModel (model_t *mod, qboolean crash);
 qboolean Mod_LoadDoomLevel(model_t *mod);
 #endif
 
-void GL_LoadQ1Model (model_t *mod, void *buffer);
+qboolean GL_LoadQ1Model (model_t *mod, void *buffer);
 #ifdef MD2MODELS
-void GL_LoadQ2Model (model_t *mod, void *buffer);
+qboolean GL_LoadQ2Model (model_t *mod, void *buffer);
 #endif
 #ifdef MD3MODELS
-void GL_LoadQ3Model (model_t *mod, void *buffer);
+qboolean GL_LoadQ3Model (model_t *mod, void *buffer);
 #endif
 
 #ifdef DOOMWADS
@@ -528,18 +528,21 @@ couldntload:
 	switch (LittleLong(*(unsigned *)buf))
 	{
 	case IDPOLYHEADER:
-		GL_LoadQ1Model(mod, buf);
+		if (!GL_LoadQ1Model(mod, buf))
+			goto couldntload;
 		break;
 	
 #ifdef MD2MODELS
 	case MD2IDALIASHEADER:
-		GL_LoadQ2Model(mod, buf);
+		if (!GL_LoadQ2Model(mod, buf))
+			goto couldntload;
 		break;
 #endif
 
 #ifdef MD3MODELS
 	case MD3_IDENT:
-		GL_LoadQ3Model (mod, buf);
+		if (!GL_LoadQ3Model (mod, buf))
+			goto couldntload;
 		break;
 #endif
 
@@ -582,10 +585,12 @@ couldntload:
 		break;
 #ifdef ZYMOTICMODELS
 	case (('O'<<24)+('M'<<16)+('Y'<<8)+'Z'):
-		GLMod_LoadZymoticModel(mod, buf);
+		if (!GLMod_LoadZymoticModel(mod, buf))
+			goto couldntload;
 		break;
 	case (('K'<<24)+('R'<<16)+('A'<<8)+'D'):
-		GLMod_LoadDarkPlacesModel(mod, buf);
+		if (!GLMod_LoadDarkPlacesModel(mod, buf))
+			goto couldntload;
 		break;
 #endif
 	default:
@@ -611,7 +616,7 @@ couldntload:
 		}
 #endif
 
-		Con_Printf("Unrecognised model format %i\n", LittleLong(*(unsigned *)buf));
+		Con_Printf(S_ERROR "Unrecognised model format %i loading %s\n", LittleLong(*(unsigned *)buf), mod->name);
 		goto couldntload;
 	}
 

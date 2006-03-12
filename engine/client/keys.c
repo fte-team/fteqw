@@ -519,6 +519,7 @@ Interactive line editing and console scrollback
 void Key_Console (int key)
 {
 	char	*clipText;
+	int upperconbound;
 
 	if (con_current->redirect)
 	{
@@ -693,15 +694,21 @@ void Key_Console (int key)
 		return;
 	}
 
+	upperconbound = con_current->current - con_current->totallines + 1;
+
 	if (key == K_PGUP || key==K_MWHEELUP)
 	{
 		con_current->display -= 2;
+		if (con_current->display < upperconbound)
+			con_current->display = upperconbound;
 		return;
 	}
 
 	if (key == K_PGDN || key==K_MWHEELDOWN)
 	{
 		con_current->display += 2;
+		if (con_current->display < upperconbound)
+			con_current->display = upperconbound;
 		if (con_current->display > con_current->current)
 			con_current->display = con_current->current;
 		return;
@@ -710,7 +717,7 @@ void Key_Console (int key)
 	if (key == K_HOME)
 	{
 		if (keydown[K_CTRL])
-			con_current->display = con_current->current - con_current->totallines + 10;
+			con_current->display = upperconbound;
 		else
 			key_linepos = 1;
 		return;

@@ -32,9 +32,9 @@ void SWMod_LoadSpriteModel (model_t *mod, void *buffer);
 void SWMod_LoadSprite2Model (model_t *mod, void *buffer);
 void SWMod_LoadBrushModel (model_t *mod, void *buffer);
 void Mod_LoadQ2BrushModel (model_t *mod, void *buffer);
-void SWMod_LoadAliasModel (model_t *mod, void *buffer);
-void SWMod_LoadAlias2Model (model_t *mod, void *buffer);
-void SWMod_LoadAlias3Model (model_t *mod, void *buffer);
+qboolean SWMod_LoadAliasModel (model_t *mod, void *buffer);
+qboolean SWMod_LoadAlias2Model (model_t *mod, void *buffer);
+qboolean SWMod_LoadAlias3Model (model_t *mod, void *buffer);
 model_t *SWMod_LoadModel (model_t *mod, qboolean crash);
 
 int Mod_ReadFlagsFromMD1(char *name, int md3version);
@@ -375,15 +375,18 @@ model_t *SWMod_LoadModel (model_t *mod, qboolean crash)
 	{
 #ifndef SERVERONLY
 	case IDPOLYHEADER:
-		SWMod_LoadAliasModel (mod, buf);
+		if (!SWMod_LoadAliasModel (mod, buf))
+			goto couldntload;
 		break;
 
 	case MD2IDALIASHEADER:
-		SWMod_LoadAlias2Model (mod, buf);
+		if (!SWMod_LoadAlias2Model (mod, buf))
+			goto couldntload;
 		break;
 
 	case MD3_IDENT:
-		SWMod_LoadAlias3Model (mod, buf);
+		if (!SWMod_LoadAlias3Model (mod, buf))
+			goto couldntload;
 		break;
 
 	case IDSPRITEHEADER:
@@ -407,6 +410,7 @@ model_t *SWMod_LoadModel (model_t *mod, qboolean crash)
 		break;
 
 	default:	//some telejano mods can do this
+couldntload:
 		if (crash)
 			Sys_Error ("Mod_NumForName: %s not found", mod->name);
 
@@ -2124,7 +2128,7 @@ void * SWMod_LoadAliasGroup (void * pin, int *pframeindex, int numv,
 	{
 		*poutintervals = LittleFloat (pin_intervals->interval);
 		if (*poutintervals <= 0.0)
-			Sys_Error ("Mod_LoadAliasGroup: interval<=0");
+			return NULL;
 
 		poutintervals++;
 		pin_intervals++;
@@ -2140,6 +2144,8 @@ void * SWMod_LoadAliasGroup (void * pin, int *pframeindex, int numv,
 									&paliasgroup->frames[i].bboxmin,
 									&paliasgroup->frames[i].bboxmax,
 									pheader, name);
+		if (ptemp == NULL)
+			return NULL;
 	}
 
 	return ptemp;
@@ -2252,7 +2258,7 @@ void * SWMod_LoadAliasSkinGroup (void * pin, int *pskinindex, int skinsize,
 Mod_LoadAliasModel
 =================
 */
-void SWMod_LoadAliasModel (model_t *mod, void *buffer)
+qboolean SWMod_LoadAliasModel (model_t *mod, void *buffer)
 {
 	int					i;
 	mmdl_t				*pmodel;
@@ -2300,8 +2306,11 @@ void SWMod_LoadAliasModel (model_t *mod, void *buffer)
 
 	version = LittleLong (pinmodel->version);
 	if (version != ALIAS_VERSION)
-		Sys_Error ("%s has wrong version number (%i should be %i)",
+	{
+		Con_Printf (S_ERROR "%s has wrong version number (%i should be %i)",
 				 mod->name, version, ALIAS_VERSION);
+		return false;
+	}
 
 //
 // allocate space for a working header, plus all the data except the frames,
@@ -2330,21 +2339,38 @@ void SWMod_LoadAliasModel (model_t *mod, void *buffer)
 	pmodel->skinheight = LittleLong (pinmodel->skinheight);
 
 	if (pmodel->skinheight > MAX_LBM_HEIGHT)
-		Sys_Error ("model %s has a skin taller than %d", mod->name,
+	{
+		// TODO: at least downsize the skin
+		Con_Printf (S_ERROR "model %s has a skin taller than %d", mod->name,
 				   MAX_LBM_HEIGHT);
+		Hunk_FreeToLowMark(start);
+		return false;
+	}
 
 	pmodel->numstverts = pmodel->numverts = LittleLong (pinmodel->numverts);
 
 	if (pmodel->numverts <= 0)
-		Sys_Error ("model %s has no vertices", mod->name);
+	{
+		Con_Printf (S_ERROR "model %s has no vertices", mod->name);
+		Hunk_FreeToLowMark(start);
+		return false;
+	}
 
 	if (pmodel->numverts > MAXALIASVERTS)
-		Sys_Error ("model %s has too many vertices", mod->name);
+	{
+		Con_Printf (S_ERROR "model %s has too many vertices", mod->name);
+		Hunk_FreeToLowMark(start);
+		return false;
+	}
 
 	pmodel->numtris = LittleLong (pinmodel->numtris);
 
 	if (pmodel->numtris <= 0)
-		Sys_Error ("model %s has no triangles", mod->name);
+	{
+		Con_Printf (S_ERROR "model %s has no triangles", mod->name);
+		Hunk_FreeToLowMark(start);
+		return false;
+	}
 
 	pmodel->numframes = LittleLong (pinmodel->numframes);
 	pmodel->size = LittleFloat (pinmodel->size) * ALIAS_BASE_SIZE_RATIO;
@@ -2362,7 +2388,11 @@ void SWMod_LoadAliasModel (model_t *mod, void *buffer)
 	numframes = pmodel->numframes;
 
 	if (pmodel->skinwidth & 0x03)
-		Sys_Error ("Mod_LoadAliasModel: \"%s\" skinwidth not multiple of 4", loadmodel->name);
+	{
+		Con_Printf (S_ERROR "Mod_LoadAliasModel: \"%s\" skinwidth not multiple of 4", loadmodel->name);
+		Hunk_FreeToLowMark(start);
+		return false;
+	}
 
 	pheader->model = (qbyte *)pmodel - (qbyte *)pheader;
 
@@ -2372,7 +2402,11 @@ void SWMod_LoadAliasModel (model_t *mod, void *buffer)
 	skinsize = pmodel->skinheight * pmodel->skinwidth;
 
 	if (numskins < 1)
-		Sys_Error ("Mod_LoadAliasModel: Invalid # of skins: %d\n", numskins);
+	{
+		Con_Printf (S_ERROR "Mod_LoadAliasModel: %s, invalid # of skins: %d\n", loadmodel->name, numskins);
+		Hunk_FreeToLowMark(start);
+		return false;
+	}
 
 	pskintype = (daliasskintype_t *)&pinmodel[1];
 
@@ -2454,7 +2488,11 @@ void SWMod_LoadAliasModel (model_t *mod, void *buffer)
 // load the frames
 //
 	if (numframes < 1)
-		Sys_Error ("Mod_LoadAliasModel: Invalid # of frames: %d\n", numframes);
+	{
+		Con_Printf (S_ERROR "Mod_LoadAliasModel: %s, invalid # of frames: %d\n", mod->name, numframes);
+		Hunk_FreeToLowMark(start);
+		return false;
+	}
 
 	pframetype = (daliasframetype_t *)&pintriangles[pmodel->numtris];
 
@@ -2488,6 +2526,13 @@ void SWMod_LoadAliasModel (model_t *mod, void *buffer)
 										&pheader->frames[i].bboxmax,
 										pheader, pheader->frames[i].name);
 		}
+
+		if (pframetype == NULL)
+		{
+			Con_Printf (S_ERROR "SWMod_LoadAliasModel: %s, couldn't load frame data\n", mod->name);
+			Hunk_FreeToLowMark(start);
+			return false;
+		}
 	}
 
 	mod->type = mod_alias;
@@ -2511,10 +2556,11 @@ void SWMod_LoadAliasModel (model_t *mod, void *buffer)
 	
 	Cache_Alloc (&mod->cache, total, loadname);
 	if (!mod->cache.data)
-		return;
+		return false;
 	memcpy (mod->cache.data, pheader, total);
 
 	Hunk_FreeToLowMark (start);
+	return true;
 }
 
 typedef struct
@@ -2525,7 +2571,7 @@ typedef struct
 	dtrivertx_t	verts[1];	// variable sized
 } dmd2aliasframe_t;
 
-void SWMod_LoadAlias2Model (model_t *mod, void *buffer)
+qboolean SWMod_LoadAlias2Model (model_t *mod, void *buffer)
 {
 	int					i, j;
 	mmdl_t				*pmodel;
@@ -2577,8 +2623,11 @@ void SWMod_LoadAlias2Model (model_t *mod, void *buffer)
 
 	version = LittleLong (pinmodel->version);
 	if (version != MD2ALIAS_VERSION)
-		Sys_Error ("%s has wrong version number (%i should be %i)",
+	{
+		Con_Printf (S_ERROR "%s has wrong version number (%i should be %i)",
 				 mod->name, version, MD2ALIAS_VERSION);
+		return false;
+	}
 
 //
 // allocate space for a working header, plus all the data except the frames,
@@ -2606,22 +2655,38 @@ void SWMod_LoadAlias2Model (model_t *mod, void *buffer)
 	pmodel->skinheight = LittleLong (pinmodel->skinheight);
 
 	if (pmodel->skinheight > MAX_LBM_HEIGHT)
-		Sys_Error ("model %s has a skin taller than %d", mod->name,
+	{
+		Con_Printf (S_ERROR "model %s has a skin taller than %d", mod->name,
 				   MAX_LBM_HEIGHT);
+		Hunk_FreeToLowMark(start);
+		return false;
+	}
 
 	pmodel->numverts = LittleLong (pinmodel->num_xyz);
 	pmodel->numstverts = LittleLong (pinmodel->num_st);
 
 	if (pmodel->numverts <= 0)
-		Sys_Error ("model %s has no vertices", mod->name);
+	{
+		Con_Printf (S_ERROR "model %s has no vertices", mod->name);
+		Hunk_FreeToLowMark(start);
+		return false;
+	}
 
 	if (pmodel->numverts > MAXALIASVERTS)
-		Sys_Error ("model %s has too many vertices", mod->name);
+	{
+		Con_Printf (S_ERROR "model %s has too many vertices", mod->name);
+		Hunk_FreeToLowMark(start);
+		return false;
+	}
 
 	pmodel->numtris = LittleLong (pinmodel->num_tris);
 
 	if (pmodel->numtris <= 0)
-		Sys_Error ("model %s has no triangles", mod->name);
+	{
+		Con_Printf (S_ERROR "model %s has no triangles", mod->name);
+		Hunk_FreeToLowMark(start);
+		return false;
+	}
 
 	pmodel->numframes = LittleLong (pinmodel->num_frames);
 	pmodel->size = 1000;//LittleFloat (pinmodel->size) * ALIAS_BASE_SIZE_RATIO;
@@ -2639,7 +2704,11 @@ void SWMod_LoadAlias2Model (model_t *mod, void *buffer)
 	numframes = pmodel->numframes;
 
 	if (pmodel->skinwidth & 0x03)
-		Sys_Error ("Mod_LoadAliasModel: skinwidth not multiple of 4");
+	{
+		Con_Printf (S_ERROR "Mod_LoadAliasModel: %s, skinwidth not multiple of 4", mod->name);
+		Hunk_FreeToLowMark(start);
+		return false;
+	}
 
 	pheader->model = (qbyte *)pmodel - (qbyte *)pheader;
 
@@ -2681,7 +2750,11 @@ void SWMod_LoadAlias2Model (model_t *mod, void *buffer)
 // load the frames
 //
 	if (numframes < 1)
-		Sys_Error ("Mod_LoadAliasModel: Invalid # of frames: %d\n", numframes);
+	{
+		Con_Printf (S_ERROR "Mod_LoadAliasModel: %s, Invalid # of frames: %d\n", mod->name, numframes);
+		Hunk_FreeToLowMark(start);
+		return false;
+	}
 
 	for (i=0 ; i<numframes ; i++)
 	{
@@ -2757,20 +2830,20 @@ void SWMod_LoadAlias2Model (model_t *mod, void *buffer)
 			buffer = COM_LoadTempFile(skinnames);
 			if (!buffer)
 			{
-				Con_Printf("Skin %s not found\n", skinnames);
+				Con_Printf(S_WARNING "Skin %s not found\n", skinnames);
 				continue;
 			}
 			texture = ReadPCXFile(buffer, com_filesize, &width, &height);
 //			BZ_Free(buffer);
 			if (!texture)
 			{
-				Con_Printf("Skin %s not a pcx\n", skinnames);
+				Con_Printf(S_WARNING "Skin %s not a pcx\n", skinnames);
 				continue;
 			}
 			if (width != pmodel->skinwidth || height != pmodel->skinheight)	//FIXME: scale
 			{
 				BZ_Free(texture);
-				Con_Printf("Skin %s not same size as model specifies it should be\n", skinnames);
+				Con_Printf(S_WARNING "Skin %s not same size as model specifies it should be\n", skinnames);
 				continue;
 			}
 
@@ -2811,10 +2884,11 @@ void SWMod_LoadAlias2Model (model_t *mod, void *buffer)
 	
 	Cache_Alloc (&mod->cache, total, loadname);
 	if (!mod->cache.data)
-		return;
+		return false;
 	memcpy (mod->cache.data, pheader, total);
 
 	Hunk_FreeToLowMark (start);
+	return true;
 }
 
 
@@ -2915,7 +2989,7 @@ qbyte *LoadTextureFile(char *texturename)
 	return NULL;
 }
 
-void SWMod_LoadAlias3Model (model_t *mod, void *buffer)
+qboolean SWMod_LoadAlias3Model (model_t *mod, void *buffer)
 {
 	int					i, j;
 	mmdl_t				*pmodel;
@@ -3001,22 +3075,38 @@ void SWMod_LoadAlias3Model (model_t *mod, void *buffer)
 //	pmodel->skinheight = LittleLong (pinmodel->skinheight);
 
 	if (pmodel->skinheight > MAX_LBM_HEIGHT)
-		Sys_Error ("model %s has a skin taller than %d", mod->name,
+	{
+		Con_Printf (S_ERROR "model %s has a skin taller than %d", mod->name,
 				   MAX_LBM_HEIGHT);
+		Hunk_FreeToLowMark(start);
+		return false;
+	}
 
 	pmodel->numverts = LittleLong (surface->numVerts);
 	pmodel->numstverts = LittleLong (surface->numVerts);
 
 	if (surface->numVerts <= 0)
-		Sys_Error ("model %s has no vertices", mod->name);
+	{
+		Con_Printf (S_ERROR "model %s has no vertices", mod->name);
+		Hunk_FreeToLowMark(start);
+		return false;
+	}
 
 	if (pmodel->numverts > MAXALIASVERTS)
-		Sys_Error ("model %s has too many vertices", mod->name);
+	{
+		Con_Printf (S_ERROR "model %s has too many vertices", mod->name);
+		Hunk_FreeToLowMark(start);
+		return false;
+	}
 
 	pmodel->numtris = LittleLong (surface->numTriangles);
 
 	if (pmodel->numtris <= 0)
-		Sys_Error ("model %s has no triangles", mod->name);
+	{
+		Con_Printf (S_ERROR "model %s has no triangles", mod->name);
+		Hunk_FreeToLowMark(start);
+		return false;
+	}
 
 	pmodel->numframes = LittleLong (surface->numFrames);
 	pmodel->size = 1000;//LittleFloat (pinmodel->size) * ALIAS_BASE_SIZE_RATIO;
@@ -3066,7 +3156,7 @@ void SWMod_LoadAlias3Model (model_t *mod, void *buffer)
 
 			if (!buffer)
 			{
-				Con_Printf("Skin %s not found\n", pinskin->name);
+				Con_Printf(S_WARNING "Skin %s not found\n", pinskin->name);
 				continue;
 			}
 			texture = ReadTargaFile(buffer, com_filesize, &width, &height, false);
@@ -3083,7 +3173,7 @@ void SWMod_LoadAlias3Model (model_t *mod, void *buffer)
 			BZ_Free(buffer);
 			if (!texture)
 			{
-				Con_Printf("Skin %s filetype not recognised\n", pinskin->name);
+				Con_Printf(S_WARNING "Skin %s filetype not recognised\n", pinskin->name);
 				continue;
 			}
 			if (!pmodel->numskins)	//this is the first skin.
@@ -3095,7 +3185,7 @@ void SWMod_LoadAlias3Model (model_t *mod, void *buffer)
 			if (width != pmodel->skinwidth || height != pmodel->skinheight)	//FIXME: scale
 			{
 				BZ_Free(texture);
-				Con_Printf("Skin %s not same size as model specifies it should be\n", pinskin->name);
+				Con_Printf(S_WARNING "Skin %s not same size as model specifies it should be\n", pinskin->name);
 				continue;
 			}
 
@@ -3127,11 +3217,14 @@ void SWMod_LoadAlias3Model (model_t *mod, void *buffer)
 	}
 
 	if (!pmodel->numskins)
-		Con_Printf("model %s has no skins\n", loadmodel->name);
-
+		Con_Printf(S_WARNING "model %s has no skins\n", loadmodel->name);
 
 	if (pmodel->skinwidth & 0x03)
-		Sys_Error ("Mod_LoadAliasModel: skinwidth not multiple of 4");
+	{
+		Con_Printf (S_ERROR "Mod_LoadAliasModel: %s, skinwidth not multiple of 4", mod->name);
+		Hunk_FreeToLowMark(start);
+		return false;
+	}
 
 //
 // set base s and t vertices
@@ -3170,7 +3263,11 @@ void SWMod_LoadAlias3Model (model_t *mod, void *buffer)
 // load the frames
 //
 	if (numframes < 1)
-		Sys_Error ("Mod_LoadAliasModel: Invalid # of frames: %d\n", numframes);
+	{
+		Con_Printf (S_ERROR "Mod_LoadAliasModel: %s, Invalid # of frames: %d\n", mod->name, numframes);
+		Hunk_FreeToLowMark(start);
+		return false;
+	}
 
 	pinverts = (md3XyzNormal_t *)((qbyte *)surface + surface->ofsXyzNormals);
 	for (i=0 ; i<numframes ; i++)
@@ -3241,13 +3338,15 @@ void SWMod_LoadAlias3Model (model_t *mod, void *buffer)
 	
 	Cache_Alloc (&mod->cache, total, loadname);
 	if (!mod->cache.data)
-		return;
+		return false;
 	memcpy (mod->cache.data, pheader, total);
 
 	Hunk_FreeToLowMark (start);
 #ifdef RGLQUAKE
 	mod->flags = Mod_ReadFlagsFromMD1(mod->name, 0);
 #endif
+
+	return true;
 }
 
 

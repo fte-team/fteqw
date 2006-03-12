@@ -100,7 +100,7 @@ void IN_Init()
 
 	InputHandler.is_Node.ln_Type = NT_INTERRUPT;
 	InputHandler.is_Node.ln_Pri = 100;
-	InputHandler.is_Node.ln_Name = "Fuhquake input handler";
+	InputHandler.is_Node.ln_Name = "FTEQW input handler";
 	InputHandler.is_Data = 0;
 	InputHandler.is_Code = (void(*)())&myinputhandler;
 	inputreq->io_Data = (void *)&InputHandler;

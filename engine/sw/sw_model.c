@@ -329,7 +329,7 @@ model_t *SWMod_LoadModel (model_t *mod, qboolean crash)
 		if (!buf)
 		{
 			if (crash)
-				Sys_Error ("Mod_NumForName: %s not found", mod->name);
+				Host_EndGame ("Mod_NumForName: %s not found or couldn't load", mod->name);
 
 			mod->type = mod_dummy;
 			mod->mins[0] = -16;
@@ -417,7 +417,7 @@ model_t *SWMod_LoadModel (model_t *mod, qboolean crash)
 couldntload:
 
 		if (crash)
-			Sys_Error ("Mod_NumForName: %s not found", mod->name);
+			Host_EndGame ("Mod_NumForName: %s not found or couldn't load", mod->name);
 
 		mod->type = mod_dummy;
 		mod->mins[0] = -16;

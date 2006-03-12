@@ -487,7 +487,7 @@ model_t *GLMod_LoadModel (model_t *mod, qboolean crash)
 couldntload:
 
 			if (crash)
-				Host_EndGame ("Mod_NumForName: %s not found", mod->name);
+				Host_EndGame ("Mod_NumForName: %s not found or couldn't load", mod->name);
 
 			mod->type = mod_dummy;
 			mod->mins[0] = -16;

@@ -755,17 +755,6 @@ void GLR_DrawEntitiesOnList (void)
 }
 
 /*
-=============
-R_DrawViewModel
-=============
-*/
-void GLR_DrawViewModel (void)
-{
-
-}
-
-
-/*
 ============
 R_PolyBlend
 ============
@@ -1797,7 +1786,6 @@ void GLR_RenderView (void)
 	// render normal view
 	R_RenderScene ();	
 
-	GLR_DrawViewModel ();
 	GLR_DrawWaterSurfaces ();
 	GLR_DrawAlphaSurfaces ();
 
